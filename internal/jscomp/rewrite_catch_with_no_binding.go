@@ -19,6 +19,7 @@
 package jscomp
 
 import (
+	"github.com/paullepoulpe/jsgo/internal/ast"
 	"github.com/paullepoulpe/jsgo/internal/parser"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
@@ -40,22 +41,35 @@ import (
 //	  onError();
 //	}
 type RewriteCatchWithNoBinding struct {
-	AbstractPeepholeTranspilationBase
 	compiler         AbstractCompiler
 	astFactory       *AstFactory
 	uniqueIdSupplier *UniqueIdSupplier
 }
+
+var rewriteCatchWithNoBindingTokens = func() ast.TokenSet {
+	var s ast.TokenSet
+	s.Add(rhino.Token_CATCH)
+	return s
+}()
 
 // Java: RewriteCatchWithNoBinding.BINDING_NAME
 const RewriteCatchWithNoBinding_BINDING_NAME = "$jscomp$unused$catch$"
 
 // Java: RewriteCatchWithNoBinding(AbstractCompiler)
 func NewRewriteCatchWithNoBinding(compiler AbstractCompiler) *RewriteCatchWithNoBinding {
-	r := &RewriteCatchWithNoBinding{}
-	r.compiler = compiler
-	r.astFactory = compiler.CreateAstFactory()
-	r.uniqueIdSupplier = compiler.GetUniqueIdSupplier()
-	return r
+	return &RewriteCatchWithNoBinding{
+		compiler:         compiler,
+		astFactory:       compiler.CreateAstFactory(),
+		uniqueIdSupplier: compiler.GetUniqueIdSupplier(),
+	}
+}
+
+func (*RewriteCatchWithNoBinding) HandledTokens() ast.TokenSet {
+	return rewriteCatchWithNoBindingTokens
+}
+
+func (*RewriteCatchWithNoBinding) GetAdditionalFeaturesToRunOn() *parser.FeatureSet {
+	return parser.FeatureSet_BARE_MINIMUM
 }
 
 // Java: RewriteCatchWithNoBinding.getTranspiledAwayFeatures()
@@ -65,14 +79,20 @@ func (r *RewriteCatchWithNoBinding) GetTranspiledAwayFeatures() *parser.FeatureS
 
 // Java: RewriteCatchWithNoBinding.transpileSubtree(Node)
 func (r *RewriteCatchWithNoBinding) TranspileSubtree(n rhino.Node) rhino.Node {
-	if !n.IsCatch() || !n.GetFirstChild().IsEmpty() {
+	catchNode, ok := ast.AsCatch(n)
+	if !ok {
+		return n
+	}
+	if _, hasParam := catchNode.Param(); hasParam {
 		return n
 	}
 
+	placeholder := n.GetFirstChild()
 	name := r.astFactory.CreateNameWithUnknownType(
 		RewriteCatchWithNoBinding_BINDING_NAME +
-			r.uniqueIdSupplier.GetUniqueId(r.compiler.GetInput(NodeUtil_GetInputId(n))))
-	n.GetFirstChild().ReplaceWith(name.SrcrefTree(n.GetFirstChild()))
+			r.uniqueIdSupplier.GetUniqueId(r.compiler.GetInput(NodeUtil_GetInputId(n)))).
+		SrcrefTree(placeholder)
+	catchNode.SetParam(ast.MustName(name).AsCatchParam())
 	r.compiler.ReportChangeToEnclosingScope(name)
 	return n
 }

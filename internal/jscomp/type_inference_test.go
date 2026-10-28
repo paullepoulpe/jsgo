@@ -167,8 +167,8 @@ func (c *TypeInferenceTest) InGenerator(js string) {
 func (c *TypeInferenceTest) WithModules(js []string) {
 	script := c.compiler.ParseTestCodeOfList(js)
 	chunk := NewJSChunk("entry")
-	for input := range c.compiler.GetInputsById().Values() {
-		chunk.AddSourceFile(input.GetSourceFile())
+	for s := script.GetFirstChild(); !s.IsNil(); s = s.GetNext() {
+		chunk.AddSourceFile(c.compiler.GetInput(s.GetInputId()).GetSourceFile())
 	}
 	c.compiler.InitChunks([]*SourceFile{}, []*JSChunk{chunk}, c.compiler.GetOptions())
 	c.compiler.InitializeModuleLoader()

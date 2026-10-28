@@ -158,22 +158,11 @@ func jsDocSerializer_stringFields(jsdoc *rhino.JSDocInfo) (
 	mode rhino.JSDocInfo_PerFileClosureUnawareMode,
 	hasMode bool,
 ) {
-	if v := rhino.JSDocInfo_LICENSE.Get(jsdoc); v != nil {
-		license = v.(string)
-	}
-	if v := rhino.JSDocInfo_DESCRIPTION.Get(jsdoc); v != nil {
-		description = v.(string)
-	}
-	if v := rhino.JSDocInfo_ALTERNATE_MESSAGE_ID.Get(jsdoc); v != nil {
-		alternateMessageId = v.(string)
-	}
-	if v := rhino.JSDocInfo_MEANING.Get(jsdoc); v != nil {
-		meaning = v.(string)
-	}
-	if v := rhino.JSDocInfo_CLOSURE_UNAWARE_CONFIG_VALUE.Get(jsdoc); v != nil {
-		mode = v.(rhino.JSDocInfo_PerFileClosureUnawareMode)
-		hasMode = true
-	}
+	license, _ = jsdoc.GetLicenseString()
+	description, _ = jsdoc.GetDescriptionString()
+	alternateMessageId, _ = jsdoc.GetAlternateMessageIdString()
+	meaning, _ = jsdoc.GetMeaningString()
+	mode, hasMode = jsdoc.GetPerFileClosureUnawareModeValue()
 	return
 }
 
@@ -235,7 +224,7 @@ func jsDocSerializer_fillJsdocTagsOnly(jsdoc *rhino.JSDocInfo, kindBuf []int32) 
 	if jsdoc.IsNoSideEffects() {
 		kindBuf = append(kindBuf, JsdocTag_JSDOC_NO_SIDE_EFFECTS_VALUE)
 	}
-	if rhino.JSDocInfo_MODIFIES.Get(jsdoc) != nil && jsdoc.HasModifies() {
+	if jsdoc.HasModifies() {
 		for modifies := range jsdoc.GetModifies().All() {
 			if modifies == "this" {
 				kindBuf = append(kindBuf, JsdocTag_JSDOC_MODIFIES_THIS_VALUE)
@@ -245,7 +234,7 @@ func jsDocSerializer_fillJsdocTagsOnly(jsdoc *rhino.JSDocInfo, kindBuf []int32) 
 			}
 		}
 	}
-	if rhino.JSDocInfo_THROWS_ANNOTATIONS.Get(jsdoc) != nil && len(jsdoc.GetThrowsAnnotations()) != 0 {
+	if jsdoc.HasThrowsAnnotations() {
 		kindBuf = append(kindBuf, JsdocTag_JSDOC_THROWS_VALUE)
 	}
 
@@ -256,7 +245,7 @@ func jsDocSerializer_fillJsdocTagsOnly(jsdoc *rhino.JSDocInfo, kindBuf []int32) 
 	if jsdoc.IsInterface() {
 		kindBuf = append(kindBuf, JsdocTag_JSDOC_INTERFACE_VALUE)
 	}
-	hasSuppressions := rhino.JSDocInfo_SUPPRESSIONS.Get(jsdoc) != nil
+	hasSuppressions := jsdoc.HasAnySuppressions()
 	if hasSuppressions && jsdoc.HasSuppression("partialAlias") {
 		kindBuf = append(kindBuf, JsdocTag_JSDOC_SUPPRESS_PARTIAL_ALIAS_VALUE)
 	}

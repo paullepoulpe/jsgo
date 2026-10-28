@@ -396,7 +396,7 @@ func (c *Compiler) deserializeCompilerState(inputStream io.Reader) {
 	c.externAndJsRoot = rhino.IR_Root(rhino.IR_Root(), rhino.IR_Root())
 	c.externsRoot = c.externAndJsRoot.GetFirstChild()
 	c.jsRoot = c.externAndJsRoot.GetLastChild()
-	c.inputsById.Clear()
+	clear(c.inputsById)
 	clear(c.externs)
 	c.externs = c.externs[:0]
 

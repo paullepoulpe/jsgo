@@ -20,32 +20,17 @@
 package jscomp
 
 import (
+	"strconv"
+	"sync/atomic"
+
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
-	"sync/atomic"
 )
 
 // Export is an exported name in a module.
 //
 // See the ExportEntry in the ECMAScript spec
 // (https://www.ecma-international.org/ecma-262/9.0/index.html#table-41).
-//
-// exportName is the name of this export or nil if this is an export * from;
-// moduleRequest the module identifier of an export from or nil if this is
-// not an export {} from or export * from; importName the name imported from
-// another module, * if import all or nil if not an export {} from;
-// localName the local name of this export or nil if none, *default* if
-// default; modulePath the path of the containing module; exportNode the
-// node that this export originates from, used for its source location (nil
-// only if from non-ES module or from a missing ES module); nameNode the node
-// that this export originates from, used for its source location (nil only
-// if from non-ES6 module or an export syntax that has no associated name,
-// e.g. export * from); moduleMetadata the module that contains this export;
-// mutated whether or not this export is potentially mutated after module
-// execution (i.e. in a function scope).
-//
-// TODO(johnplaisted): Add validation tests. Current ModulePath makes this
-// difficult as it is non
 //
 // Go-only: language-adapter — the AutoBuilder-generated
 // AutoBuilder_Export_Builder is folded into Export_Builder.
@@ -149,21 +134,30 @@ func (e *Export) ClosureNamespace() *string { return e.closureNamespace }
 // Java: Export.mutated()
 func (e *Export) Mutated() bool { return e.mutated }
 
+func (e *Export) equalsExport(other *Export) bool {
+	if e == other {
+		return true
+	}
+	if e == nil || other == nil {
+		return false
+	}
+	return modules_nullableStringEquals(e.exportName, other.exportName) &&
+		modules_nullableStringEquals(e.moduleRequest, other.moduleRequest) &&
+		modules_nullableStringEquals(e.importName, other.importName) &&
+		modules_nullableStringEquals(e.localName, other.localName) &&
+		e.modulePath == other.modulePath &&
+		e.exportNode == other.exportNode &&
+		e.nameNode == other.nameNode &&
+		e.moduleMetadata == other.moduleMetadata &&
+		modules_nullableStringEquals(e.closureNamespace, other.closureNamespace) &&
+		e.mutated == other.mutated
+}
+
 // Equals is the record's componentwise equals (ModulePath, Node and
 // ModuleMetadata compare by identity).
 func (e *Export) Equals(o any) bool {
 	other, ok := o.(*Export)
-	return ok && other != nil &&
-		(e == other || (modules_nullableStringEquals(e.exportName, other.exportName) &&
-			modules_nullableStringEquals(e.moduleRequest, other.moduleRequest) &&
-			modules_nullableStringEquals(e.importName, other.importName) &&
-			modules_nullableStringEquals(e.localName, other.localName) &&
-			e.modulePath == other.modulePath &&
-			e.exportNode == other.exportNode &&
-			e.nameNode == other.nameNode &&
-			e.moduleMetadata == other.moduleMetadata &&
-			modules_nullableStringEquals(e.closureNamespace, other.closureNamespace) &&
-			e.mutated == other.mutated))
+	return ok && other != nil && e.equalsExport(other)
 }
 
 // HashCode is the record's hashCode.
@@ -199,16 +193,28 @@ func (e *Export) computeHashCode() int32 {
 
 // String is the record's toString.
 func (e *Export) String() string {
+	modulePath := "null"
+	if e.modulePath != nil {
+		modulePath = e.modulePath.String()
+	}
+	exportNode := "null"
+	if !e.exportNode.IsNil() {
+		exportNode = e.exportNode.String()
+	}
+	nameNode := "null"
+	if !e.nameNode.IsNil() {
+		nameNode = e.nameNode.String()
+	}
 	return "Export[exportName=" + modules_nullableString(e.exportName) +
 		", moduleRequest=" + modules_nullableString(e.moduleRequest) +
 		", importName=" + modules_nullableString(e.importName) +
 		", localName=" + modules_nullableString(e.localName) +
-		", modulePath=" + jutil.ToJavaString(e.modulePath) +
-		", exportNode=" + jutil.ToJavaString(e.exportNode) +
-		", nameNode=" + jutil.ToJavaString(e.nameNode) +
+		", modulePath=" + modulePath +
+		", exportNode=" + exportNode +
+		", nameNode=" + nameNode +
 		", moduleMetadata=" + e.moduleMetadata.String() +
 		", closureNamespace=" + modules_nullableString(e.closureNamespace) +
-		", mutated=" + jutil.ToJavaString(e.mutated) + "]"
+		", mutated=" + strconv.FormatBool(e.mutated) + "]"
 }
 
 // modules_nullableStringEquals is Objects.equals for nullable Strings.
@@ -237,23 +243,15 @@ func modules_nullableString(s *string) string {
 
 // Export_Builder is Export.Builder with its AutoBuilder implementation.
 type Export_Builder struct {
-	exportName       *string
-	moduleRequest    *string
-	importName       *string
-	localName        *string
-	modulePath       *ModuleLoader_ModulePath
-	exportNode       rhino.Node
-	nameNode         rhino.Node
-	moduleMetadata   *ModuleMetadataMap_ModuleMetadata
-	closureNamespace *string
-	mutated          bool
+	e     Export
+	built bool
 }
 
 // ExportName takes a possibly-nil value.
 //
 // Java: AutoBuilder_Export_Builder.exportName(String)
 func (b *Export_Builder) ExportName(exportName *string) *Export_Builder {
-	b.exportName = exportName
+	b.e.exportName = exportName
 	return b
 }
 
@@ -261,7 +259,7 @@ func (b *Export_Builder) ExportName(exportName *string) *Export_Builder {
 //
 // Java: AutoBuilder_Export_Builder.moduleRequest(String)
 func (b *Export_Builder) ModuleRequest(moduleRequest *string) *Export_Builder {
-	b.moduleRequest = moduleRequest
+	b.e.moduleRequest = moduleRequest
 	return b
 }
 
@@ -269,7 +267,7 @@ func (b *Export_Builder) ModuleRequest(moduleRequest *string) *Export_Builder {
 //
 // Java: AutoBuilder_Export_Builder.importName(String)
 func (b *Export_Builder) ImportName(importName *string) *Export_Builder {
-	b.importName = importName
+	b.e.importName = importName
 	return b
 }
 
@@ -277,7 +275,7 @@ func (b *Export_Builder) ImportName(importName *string) *Export_Builder {
 //
 // Java: AutoBuilder_Export_Builder.localName(String)
 func (b *Export_Builder) LocalName(localName *string) *Export_Builder {
-	b.localName = localName
+	b.e.localName = localName
 	return b
 }
 
@@ -285,7 +283,7 @@ func (b *Export_Builder) LocalName(localName *string) *Export_Builder {
 //
 // Java: AutoBuilder_Export_Builder.modulePath(ModuleLoader.ModulePath)
 func (b *Export_Builder) ModulePath(modulePath *ModuleLoader_ModulePath) *Export_Builder {
-	b.modulePath = modulePath
+	b.e.modulePath = modulePath
 	return b
 }
 
@@ -293,7 +291,7 @@ func (b *Export_Builder) ModulePath(modulePath *ModuleLoader_ModulePath) *Export
 //
 // Java: AutoBuilder_Export_Builder.exportNode(Node)
 func (b *Export_Builder) ExportNode(exportNode rhino.Node) *Export_Builder {
-	b.exportNode = exportNode
+	b.e.exportNode = exportNode
 	return b
 }
 
@@ -301,7 +299,7 @@ func (b *Export_Builder) ExportNode(exportNode rhino.Node) *Export_Builder {
 //
 // Java: AutoBuilder_Export_Builder.nameNode(Node)
 func (b *Export_Builder) NameNode(nameNode rhino.Node) *Export_Builder {
-	b.nameNode = nameNode
+	b.e.nameNode = nameNode
 	return b
 }
 
@@ -310,7 +308,7 @@ func (b *Export_Builder) ModuleMetadata(moduleMetadata *ModuleMetadataMap_Module
 	if moduleMetadata == nil {
 		panic(jutil.NewNullPointerExceptionMsg("Null moduleMetadata"))
 	}
-	b.moduleMetadata = moduleMetadata
+	b.e.moduleMetadata = moduleMetadata
 	return b
 }
 
@@ -318,32 +316,28 @@ func (b *Export_Builder) ModuleMetadata(moduleMetadata *ModuleMetadataMap_Module
 //
 // Java: AutoBuilder_Export_Builder.closureNamespace(String)
 func (b *Export_Builder) ClosureNamespace(closureNamespace *string) *Export_Builder {
-	b.closureNamespace = closureNamespace
+	b.e.closureNamespace = closureNamespace
 	return b
 }
 
 // Java: AutoBuilder_Export_Builder.mutated(boolean)
 func (b *Export_Builder) Mutated(mutated bool) *Export_Builder {
-	b.mutated = mutated
+	b.e.mutated = mutated
 	return b
 }
 
 // Java: AutoBuilder_Export_Builder.autoBuild()
 func (b *Export_Builder) AutoBuild() *Export {
-	if b.moduleMetadata == nil {
+	if b.e.moduleMetadata == nil {
 		panic(jutil.NewIllegalStateExceptionMsg("Missing required properties: moduleMetadata"))
 	}
-	return NewExport(
-		b.exportName,
-		b.moduleRequest,
-		b.importName,
-		b.localName,
-		b.modulePath,
-		b.exportNode,
-		b.nameNode,
-		b.moduleMetadata,
-		b.closureNamespace,
-		b.mutated)
+	if !b.built {
+		b.built = true
+		return &b.e
+	}
+	cp := b.e
+	cp.hash = 0
+	return &cp
 }
 
 // Java: Export.Builder.build()
@@ -419,23 +413,20 @@ func Export_Builder_() *Export_Builder {
 
 // Java: Export.toBuilder()
 func (e *Export) ToBuilder() *Export_Builder {
-	return &Export_Builder{
-		exportName:       e.exportName,
-		moduleRequest:    e.moduleRequest,
-		importName:       e.importName,
-		localName:        e.localName,
-		modulePath:       e.modulePath,
-		exportNode:       e.exportNode,
-		nameNode:         e.nameNode,
-		moduleMetadata:   e.moduleMetadata,
-		closureNamespace: e.closureNamespace,
-		mutated:          e.mutated,
-	}
+	b := &Export_Builder{e: *e}
+	b.e.hash = 0
+	return b
 }
 
 // MutatedCopy returns a copy of this export that has the mutated() bit set.
 //
 // Java: Export.mutatedCopy()
 func (e *Export) MutatedCopy() *Export {
-	return e.ToBuilder().Mutated(true).AutoBuild()
+	if e.moduleMetadata == nil {
+		panic(jutil.NewIllegalStateExceptionMsg("Missing required properties: moduleMetadata"))
+	}
+	cp := *e
+	cp.mutated = true
+	cp.hash = 0
+	return &cp
 }

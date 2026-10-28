@@ -18,11 +18,7 @@
 
 package bundle
 
-import (
-	"testing"
-
-	"github.com/paullepoulpe/jsgo/internal/jutil"
-)
+import "testing"
 
 var (
 	jsaCtFOO = Source_Builder_().SetCode("foo").Build()
@@ -53,7 +49,7 @@ func (m *jsaMockDelegate) apply(s *Source) *Source {
 
 func TestCachedTransformer_Delegates(t *testing.T) {
 	delegate := &jsaMockDelegate{stubs: map[*Source][]*Source{}, calls: map[*Source]int{}}
-	cached := NewCachedTransformerWithBuilder(Source_Transformer_Of(delegate.apply), jutil.CacheBuilder_NewBuilder())
+	cached := NewCachedTransformerWithMaxSize(Source_Transformer_Of(delegate.apply), -1)
 	delegate.stubs[jsaCtFOO] = []*Source{jsaCtBAR}
 	delegate.stubs[jsaCtBAZ] = []*Source{jsaCtQUX}
 
@@ -63,7 +59,7 @@ func TestCachedTransformer_Delegates(t *testing.T) {
 
 func TestCachedTransformer_Caches(t *testing.T) {
 	delegate := &jsaMockDelegate{stubs: map[*Source][]*Source{}, calls: map[*Source]int{}}
-	cached := NewCachedTransformerWithBuilder(Source_Transformer_Of(delegate.apply), jutil.CacheBuilder_NewBuilder())
+	cached := NewCachedTransformerWithMaxSize(Source_Transformer_Of(delegate.apply), -1)
 	delegate.stubs[jsaCtFOO] = []*Source{jsaCtBAR, nil}
 
 	jsaTrue(t, cached.Transform(jsaCtFOO) == jsaCtBAR)

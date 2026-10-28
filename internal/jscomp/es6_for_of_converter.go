@@ -35,6 +35,20 @@ type Es6ForOfConverter struct {
 	namespace  rhino.StaticScope
 }
 
+var es6ForOfVisitTokens = func() ast.TokenSet {
+	var s ast.TokenSet
+	s.Add(rhino.Token_FOR_OF)
+	return s
+}()
+
+func (*Es6ForOfConverter) HandledTokens() ast.TokenSet {
+	return es6ForOfVisitTokens
+}
+
+func (*Es6ForOfConverter) visitTokens() *ast.TokenSet {
+	return &es6ForOfVisitTokens
+}
+
 // Java: Es6ForOfConverter.transpiledFeatures
 var Es6ForOfConverter_transpiledFeatures = parser.FeatureSet_BARE_MINIMUM.With(parser.FeatureSet_Feature_FOR_OF)
 
@@ -91,7 +105,7 @@ func (e *Es6ForOfConverter) visitForOf(t *NodeTraversal, forOf ast.ForOf) {
 
 	nameDecl, isNameDecl := ast.AsNameDeclaration(variable)
 	if isNameDecl {
-		iteratorResultName += variable.GetFirstChild().GetString()
+		iteratorResultName += nameDecl.MustFirstDeclarator().MustName().Ident()
 	} else if nm, ok := ast.AsName(variable); ok {
 		iteratorResultName += nm.Ident()
 	} else {
@@ -123,9 +137,9 @@ func (e *Es6ForOfConverter) visitForOf(t *NodeTraversal, forOf ast.ForOf) {
 		declarationOrAssign.SetJSDocInfo(varJSDocInfo)
 		declarationOrAssign = rhino.IR_ExprResult(declarationOrAssign)
 	} else {
-		declName := ast.MustName(nameDecl.Node().GetFirstChild())
+		declName := nameDecl.MustFirstDeclarator().MustName()
 		type_ := AstFactory_Type_(declName.Node())
-		declarationType := variable.GetToken()
+		declarationType := nameDecl.Token()
 		jutil.CheckStateMsg(
 			declarationType != rhino.Token_VAR,
 			"var initializers must've gotten moved out of the loop during normalize")
@@ -135,7 +149,7 @@ func (e *Es6ForOfConverter) visitForOf(t *NodeTraversal, forOf ast.ForOf) {
 				declName.Ident(),
 				e.astFactory.CreateGetProp(iterResult.CloneTree(), "value", type_))
 		if declName.IsConstantName() {
-			ast.MustName(declarationOrAssign.GetFirstChild()).SetConstantName(true)
+			ast.MustNameDeclaration(declarationOrAssign).MustFirstDeclarator().MustName().SetConstantName(true)
 		}
 		declarationOrAssign.SetJSDocInfo(varJSDocInfo)
 	}

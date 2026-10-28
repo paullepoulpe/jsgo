@@ -20,6 +20,7 @@ package bundle
 
 import (
 	"github.com/paullepoulpe/jsgo/internal/jscomp"
+	"github.com/paullepoulpe/jsgo/internal/jutil"
 )
 
 // CoverageInstrumenter is a source transformer for instrumenting code for
@@ -30,11 +31,16 @@ type CoverageInstrumenter struct {
 	CompilerBasedTransformerBase
 }
 
+var _ CompilerBasedTransformer = (*CoverageInstrumenter)(nil)
+
 // Java: CoverageInstrumenter(CompilerBasedTransformer.CompilerSupplier)
 func NewCoverageInstrumenter(compilerSupplier CompilerBasedTransformer_CompilerSupplier) *CoverageInstrumenter {
-	c := &CoverageInstrumenter{}
-	c.InitCompilerBasedTransformerBase(c, compilerSupplier)
-	return c
+	return &CoverageInstrumenter{
+		CompilerBasedTransformerBase: CompilerBasedTransformerBase{
+			compilerSupplier:   jutil.CheckNotNull(compilerSupplier),
+			transformationName: "Coverage Instrumentation",
+		},
+	}
 }
 
 // CoverageInstrumenter_CompilerSupplier supplies options for coverage.
@@ -44,11 +50,28 @@ type CoverageInstrumenter_CompilerSupplier struct {
 	CompilerBasedTransformer_CompilerSupplierBase
 }
 
+var _ CompilerBasedTransformer_CompilerSupplier = (*CoverageInstrumenter_CompilerSupplier)(nil)
+
 // Java: CoverageInstrumenter.CompilerSupplier()
 func NewCoverageInstrumenter_CompilerSupplier() *CoverageInstrumenter_CompilerSupplier {
-	s := &CoverageInstrumenter_CompilerSupplier{}
-	s.InitCompilerBasedTransformer_CompilerSupplierBase(s)
-	return s
+	return &CoverageInstrumenter_CompilerSupplier{}
+}
+
+// Java: CompilerSupplier.compile(Path, String)
+func (s *CoverageInstrumenter_CompilerSupplier) Compile(path *jutil.Path, code string) *CompilerBasedTransformer_CompileResult {
+	return compileWithSupplier(s, path, code)
+}
+
+// Java: CompilerSupplier.runtime(String)
+func (s *CoverageInstrumenter_CompilerSupplier) Runtime(library string) string {
+	return runtimeWithSupplier(s, library)
+}
+
+// Java: CompilerSupplier.options()
+func (s *CoverageInstrumenter_CompilerSupplier) Options() *jscomp.CompilerOptions {
+	options := jscomp.NewCompilerOptions()
+	s.SetOptions(options)
+	return options
 }
 
 // Java: CoverageInstrumenter.CompilerSupplier.setOptions(CompilerOptions)
@@ -70,16 +93,6 @@ func (s *CoverageInstrumenter_CompilerSupplier) SetOptions(options *jscomp.Compi
 // Java: CoverageInstrumenter.CompilerSupplier.transformed(Result)
 func (s *CoverageInstrumenter_CompilerSupplier) Transformed(result *jscomp.Result) bool {
 	return true
-}
-
-// Java: CoverageInstrumenter.getRuntime()
-func (c *CoverageInstrumenter) GetRuntime() *string {
-	return nil
-}
-
-// Java: CoverageInstrumenter.getTranformationName()
-func (c *CoverageInstrumenter) GetTranformationName() string {
-	return "Coverage Instrumentation"
 }
 
 // CoverageInstrumenter_CompilerSupplier_ is CoverageInstrumenter's static

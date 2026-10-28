@@ -49,9 +49,9 @@ type CheckAccessControls struct {
 	// LinkedHashMap::new): the row keys hash and compare with
 	// JSType.hashCode()/equals() (ObjectLinkedHashMap); the table is only
 	// looked up, never iterated.
-	constPropertyInits *jutil.ObjectLinkedHashMap[rhino.JSType, *jutil.LinkedHashMap[string, *CheckAccessControls_ConstantDeclaration]]
+	constPropertyInits *jutil.ObjectLinkedHashMap[rhino.JSType, map[string]CheckAccessControls_ConstantDeclaration]
 
-	defaultVisibilityForFiles *jutil.LinkedHashMap[rhino.StaticSourceFile, rhino.JSDocInfo_Visibility]
+	defaultVisibilityForFiles map[rhino.StaticSourceFile]rhino.JSDocInfo_Visibility
 
 	scratchPropRef           CheckAccessControls_PropertyReference
 	lastHoistScopeRoot       rhino.Node
@@ -171,30 +171,28 @@ type CheckAccessControls_ConstantDeclaration struct {
 	annotation CheckAccessControls_Constancy
 }
 
-// Java: CheckAccessControls.ConstantDeclaration(Node, Constancy)
-func NewCheckAccessControls_ConstantDeclaration(node rhino.Node, annotation CheckAccessControls_Constancy) *CheckAccessControls_ConstantDeclaration {
-	d := &CheckAccessControls_ConstantDeclaration{}
-	d.node = node
-	d.annotation = annotation
-	return d
-}
-
 // Java: CheckAccessControls(AbstractCompiler)
 func NewCheckAccessControls(compiler AbstractCompiler) *CheckAccessControls {
-	c := &CheckAccessControls{}
-	c.deprecationDepth = 0
-	c.currentClassStack = nil
-	c.constPropertyInits = jutil.NewObjectLinkedHashMap[rhino.JSType, *jutil.LinkedHashMap[string, *CheckAccessControls_ConstantDeclaration]]()
-	c.compiler = compiler
-	c.typeRegistry = compiler.GetTypeRegistry()
-	return c
+	return &CheckAccessControls{
+		constPropertyInits: jutil.NewObjectLinkedHashMap[rhino.JSType, map[string]CheckAccessControls_ConstantDeclaration](),
+		compiler:           compiler,
+		typeRegistry:       compiler.GetTypeRegistry(),
+	}
 }
 
 // Java: CheckAccessControls.process(Node, Node)
 func (c *CheckAccessControls) Process(externs rhino.Node, root rhino.Node) {
 	collectPass := NewCollectFileOverviewVisibility(c.compiler)
 	collectPass.Process(externs, root)
-	c.defaultVisibilityForFiles = collectPass.GetFileOverviewVisibilityMap()
+	visMap := collectPass.GetFileOverviewVisibilityMap()
+	if visMap.IsEmpty() {
+		c.defaultVisibilityForFiles = nil
+	} else {
+		c.defaultVisibilityForFiles = make(map[rhino.StaticSourceFile]rhino.JSDocInfo_Visibility, visMap.Size())
+		for k, v := range visMap.All() {
+			c.defaultVisibilityForFiles[k] = v
+		}
+	}
 
 	sc := NewSyntacticScopeCreator(c.compiler)
 	defer func() {
@@ -555,12 +553,12 @@ func (c *CheckAccessControls) CheckPropertyDeprecation(t *NodeTraversal, propRef
 	}
 
 	// Don't bother checking constructors.
-	if propRef.SourceNode().GetParent().IsNew() {
+	if propRef.sourceNode.GetParent().IsNew() {
 		return
 	}
 
-	objectType := CheckAccessControls_CastToObject(CheckAccessControls_Dereference(propRef.ReceiverType()))
-	propertyName := propRef.Name()
+	objectType := CheckAccessControls_CastToObject(CheckAccessControls_Dereference(propRef.receiverType))
+	propertyName := propRef.name
 
 	if objectType != nil {
 		deprecationInfo := CheckAccessControls_GetPropertyDeprecationInfo(objectType, propertyName)
@@ -568,7 +566,7 @@ func (c *CheckAccessControls) CheckPropertyDeprecation(t *NodeTraversal, propRef
 			if *deprecationInfo != "" {
 				c.compiler.Report(
 					JSError_MakeWithNode(
-						propRef.SourceNode(),
+						propRef.sourceNode,
 						CheckAccessControls_DEPRECATED_PROP_REASON,
 						propertyName,
 						propRef.GetReadableTypeNameOrDefault(),
@@ -576,7 +574,7 @@ func (c *CheckAccessControls) CheckPropertyDeprecation(t *NodeTraversal, propRef
 			} else {
 				c.compiler.Report(
 					JSError_MakeWithNode(
-						propRef.SourceNode(),
+						propRef.sourceNode,
 						CheckAccessControls_DEPRECATED_PROP,
 						propertyName,
 						propRef.GetReadableTypeNameOrDefault()))
@@ -610,14 +608,14 @@ func (c *CheckAccessControls) CheckNameVisibility(scope *Scope, name rhino.Node)
 
 func (c *CheckAccessControls) checkNameVisibilityWithVar(var_ *Var, name rhino.Node) {
 	var v rhino.JSDocInfo_Visibility
-	if c.defaultVisibilityForFiles.IsEmpty() {
-		if jsDocInfo := var_.GetJSDocInfo(); jsDocInfo != nil {
-			v = jsDocInfo.GetVisibility()
-		} else {
+	if len(c.defaultVisibilityForFiles) == 0 {
+		jsDocInfo := var_.GetJSDocInfo()
+		if jsDocInfo == nil {
 			return
 		}
+		v = jsDocInfo.GetVisibility()
 	} else {
-		v = AccessControlUtils_GetEffectiveNameVisibility(name, var_, c.defaultVisibilityForFiles)
+		v = c.effectiveNameVisibility(name, var_)
 	}
 
 	switch v {
@@ -643,6 +641,24 @@ func (c *CheckAccessControls) checkNameVisibilityWithVar(var_ *Var, name rhino.N
 		// Nothing to do for PUBLIC and PROTECTED
 		// (which is irrelevant for names).
 	}
+}
+
+func (c *CheckAccessControls) effectiveNameVisibility(name rhino.Node, var_ *Var) rhino.JSDocInfo_Visibility {
+	raw := rhino.JSDocInfo_Visibility_INHERITED
+	if jsDocInfo := var_.GetJSDocInfo(); jsDocInfo != nil {
+		raw = jsDocInfo.GetVisibility()
+	}
+	if raw != rhino.JSDocInfo_Visibility_INHERITED {
+		return raw
+	}
+	defaultVisibilityForFile, hasDefault := c.defaultVisibilityForFiles[var_.GetSourceFile()]
+	if !hasDefault {
+		return raw
+	}
+	if type_ := name.GetJSType(); type_ != nil && type_.IsLiteralObject() {
+		return raw
+	}
+	return defaultVisibilityForFile
 }
 
 // Java: CheckAccessControls.isPrivateAccessAllowed(Var, Node)
@@ -684,9 +700,9 @@ func (c *CheckAccessControls) CheckPropertyOverrideVisibilityIsSame(
 		*fileOverview != rhino.JSDocInfo_Visibility_INHERITED {
 		c.compiler.Report(
 			JSError_MakeWithNode(
-				propRef.SourceNode(),
+				propRef.sourceNode,
 				CheckAccessControls_BAD_PROPERTY_OVERRIDE_IN_FILE_WITH_FILEOVERVIEW_VISIBILITY,
-				propRef.Name(),
+				propRef.name,
 				fileOverview.String()))
 	}
 }
@@ -738,26 +754,26 @@ func (c *CheckAccessControls) CheckConstantProperty(
 		return
 	}
 
-	sourceNode := propRef.SourceNode()
-	if !propRef.Mutation() && !(propRef.Declaration() && sourceNode.IsFromExterns()) {
+	sourceNode := propRef.sourceNode
+	if !propRef.mutation && !(propRef.declaration && sourceNode.IsFromExterns()) {
 		return
 	}
 
-	objectType := CheckAccessControls_Dereference(propRef.ReceiverType())
-	propertyName := propRef.Name()
+	objectType := CheckAccessControls_Dereference(propRef.receiverType)
+	propertyName := propRef.name
 
 	constness := c.IsPropertyDeclaredConstant(objectType, propertyName)
 	if constness == CheckAccessControls_Constancy_MUTABLE {
 		return
 	}
 
-	if sourceNode.IsFromExterns() && propRef.Declaration() {
+	if sourceNode.IsFromExterns() && propRef.declaration {
 		// Treat stub declarations in externs as inits, but never warn on them.
 		c.RecordConstPropertyInit(propRef, objectType, constness)
 		return
 	}
 
-	if !propRef.Mutation() {
+	if !propRef.mutation {
 		return
 	}
 
@@ -773,7 +789,7 @@ func (c *CheckAccessControls) CheckConstantProperty(
 		return
 	}
 
-	if objectType.IsStructuralType() && !propRef.Declaration() {
+	if objectType.IsStructuralType() && !propRef.declaration {
 		// We don't know the claess this structural type matches, so assume all assignments are bad.
 		c.compiler.Report(
 			JSError_MakeWithNode(
@@ -784,8 +800,7 @@ func (c *CheckAccessControls) CheckConstantProperty(
 		return
 	}
 
-	init := c.GetConstPropertyInit(propRef, objectType)
-	if init != nil {
+	if init, ok := c.GetConstPropertyInit(propRef, objectType); ok {
 		diagnostic := CheckAccessControls_CONST_PROPERTY_REASSIGNED_VALUE
 		if init.annotation == CheckAccessControls_Constancy_FINAL {
 			diagnostic = CheckAccessControls_FINAL_PROPERTY_OVERRIDDEN
@@ -796,67 +811,58 @@ func (c *CheckAccessControls) CheckConstantProperty(
 	c.RecordConstPropertyInit(propRef, objectType, constness)
 }
 
-// checkAccessControls_tableGet is Table.get(rowKey, columnKey).
-//
-// Go-only: language-adapter — see the constPropertyInits field.
-func (c *CheckAccessControls) checkAccessControls_tableGet(rowKey rhino.JSType, columnKey string) *CheckAccessControls_ConstantDeclaration {
+func (c *CheckAccessControls) checkAccessControls_tableGet(rowKey rhino.JSType, columnKey string) (CheckAccessControls_ConstantDeclaration, bool) {
 	row, ok := c.constPropertyInits.Lookup(rowKey)
 	if !ok {
-		return nil
+		return CheckAccessControls_ConstantDeclaration{}, false
 	}
-	return row.Get(columnKey)
+	init, ok := row[columnKey]
+	return init, ok
 }
 
-// checkAccessControls_tableRowPutIfAbsent is
-// Table.row(rowKey).putIfAbsent(columnKey, value).
-//
-// Go-only: language-adapter — see the constPropertyInits field.
 func (c *CheckAccessControls) checkAccessControls_tableRowPutIfAbsent(
-	rowKey rhino.JSType, columnKey string, value *CheckAccessControls_ConstantDeclaration) {
+	rowKey rhino.JSType, columnKey string, value CheckAccessControls_ConstantDeclaration) {
 	row, ok := c.constPropertyInits.Lookup(rowKey)
 	if ok {
-		if row.Get(columnKey) != nil {
+		if _, exists := row[columnKey]; exists {
 			return
 		}
 	} else {
-		row = jutil.NewLinkedHashMap[string, *CheckAccessControls_ConstantDeclaration]()
+		row = make(map[string]CheckAccessControls_ConstantDeclaration)
 		c.constPropertyInits.Put(rowKey, row)
 	}
-	row.Put(columnKey, value)
+	row[columnKey] = value
 }
 
 // Java: CheckAccessControls.getConstPropertyInit(PropertyReference, ObjectType)
 func (c *CheckAccessControls) GetConstPropertyInit(
-	ref *CheckAccessControls_PropertyReference, type_ rhino.ObjectType) *CheckAccessControls_ConstantDeclaration {
-	name := ref.Name()
+	ref *CheckAccessControls_PropertyReference, type_ rhino.ObjectType) (CheckAccessControls_ConstantDeclaration, bool) {
+	name := ref.name
 	for type_ != nil {
-		init := c.checkAccessControls_tableGet(type_, name)
-		if init != nil {
-			return init
+		if init, ok := c.checkAccessControls_tableGet(type_, name); ok {
+			return init, true
 		}
-		canonicalInit := c.checkAccessControls_tableGet(CheckAccessControls_GetCanonicalInstance(type_), name)
-		if canonicalInit != nil {
-			return canonicalInit
+		if canonicalInit, ok := c.checkAccessControls_tableGet(CheckAccessControls_GetCanonicalInstance(type_), name); ok {
+			return canonicalInit, true
 		}
 
 		type_ = type_.GetImplicitPrototype()
 	}
 
-	return nil
+	return CheckAccessControls_ConstantDeclaration{}, false
 }
 
 // Java: CheckAccessControls.recordConstPropertyInit(PropertyReference, ObjectType, Constancy)
 func (c *CheckAccessControls) RecordConstPropertyInit(
 	ref *CheckAccessControls_PropertyReference, type_ rhino.ObjectType, annotation CheckAccessControls_Constancy) {
-	c.checkAccessControls_tableRowPutIfAbsent(
-		type_, ref.Name(), NewCheckAccessControls_ConstantDeclaration(ref.SourceNode(), annotation))
+	decl := CheckAccessControls_ConstantDeclaration{node: ref.sourceNode, annotation: annotation}
+	c.checkAccessControls_tableRowPutIfAbsent(type_, ref.name, decl)
 
 	// Add the prototype when we're looking at an instance object
 	if type_.IsInstanceType() {
 		prototype := type_.GetImplicitPrototype()
-		if prototype != nil && prototype.HasProperty(ref.Name()) {
-			c.checkAccessControls_tableRowPutIfAbsent(
-				prototype, ref.Name(), NewCheckAccessControls_ConstantDeclaration(ref.SourceNode(), annotation))
+		if prototype != nil && prototype.HasProperty(ref.name) {
+			c.checkAccessControls_tableRowPutIfAbsent(prototype, ref.name, decl)
 		}
 	}
 }
@@ -918,7 +924,7 @@ func (c *CheckAccessControls) BoxedOrUnknown(type_ rhino.JSType) rhino.ObjectTyp
 //
 // Java: CheckAccessControls.checkPropertyVisibility(PropertyReference)
 func (c *CheckAccessControls) CheckPropertyVisibility(propRef *CheckAccessControls_PropertyReference) {
-	if NodeUtil_IsEs6ConstructorMemberFunctionDef(propRef.SourceNode()) {
+	if NodeUtil_IsEs6ConstructorMemberFunctionDef(propRef.sourceNode) {
 		// Class ctor *declarations* can never violate visibility restrictions. They are not
 		// accesses and we don't consider them overrides.
 		//
@@ -929,21 +935,21 @@ func (c *CheckAccessControls) CheckPropertyVisibility(propRef *CheckAccessContro
 		return
 	}
 
-	rawReferenceType := c.TypeOrUnknownObjectType(propRef.ReceiverType()).Autobox()
+	rawReferenceType := c.TypeOrUnknownObjectType(propRef.receiverType).Autobox()
 	referenceType := CheckAccessControls_CastToObject(rawReferenceType)
 
-	propertyName := propRef.Name()
+	propertyName := propRef.name
 
 	// Is this a normal property access, or are we trying to override
 	// an existing property?
-	isOverride := propRef.IsDocumentedDeclaration() || propRef.Override()
+	isOverride := propRef.IsDocumentedDeclaration() || propRef.override
 
 	objectType := AccessControlUtils_GetObjectType(referenceType, isOverride, propertyName)
 
 	var definingSource rhino.StaticSourceFile
 	var fileOverviewVisibility *rhino.JSDocInfo_Visibility
-	if !c.defaultVisibilityForFiles.IsEmpty() {
-		definingSource = AccessControlUtils_GetDefiningSource(propRef.SourceNode(), referenceType, propertyName)
+	if len(c.defaultVisibilityForFiles) > 0 {
+		definingSource = AccessControlUtils_GetDefiningSource(propRef.sourceNode, referenceType, propertyName)
 		fileOverviewVisibility = checkAccessControls_visibilityFor(c.defaultVisibilityForFiles, definingSource)
 	}
 
@@ -958,7 +964,7 @@ func (c *CheckAccessControls) CheckPropertyVisibility(propRef *CheckAccessContro
 	}
 
 	var visibility rhino.JSDocInfo_Visibility
-	if propRef.Override() {
+	if propRef.override {
 		effObjType := objectType
 		if !isOverride {
 			effObjType = AccessControlUtils_GetObjectType(referenceType, true, propertyName)
@@ -998,7 +1004,7 @@ func (c *CheckAccessControls) CheckPropertyVisibility(propRef *CheckAccessContro
 		return
 	}
 
-	referenceSource := propRef.SourceNode().GetStaticSourceFile()
+	referenceSource := propRef.sourceNode.GetStaticSourceFile()
 
 	if isOverride {
 		sameInput := referenceSource != nil && referenceSource.GetName() == definingSource.GetName()
@@ -1010,17 +1016,13 @@ func (c *CheckAccessControls) CheckPropertyVisibility(propRef *CheckAccessContro
 	}
 }
 
-// checkAccessControls_visibilityFor is
-// ImmutableMap<StaticSourceFile, Visibility>.get(file): null when absent.
-//
-// Go-only: language-adapter — a nullable Visibility is a pointer.
 func checkAccessControls_visibilityFor(
-	m *jutil.LinkedHashMap[rhino.StaticSourceFile, rhino.JSDocInfo_Visibility],
+	m map[rhino.StaticSourceFile]rhino.JSDocInfo_Visibility,
 	file rhino.StaticSourceFile) *rhino.JSDocInfo_Visibility {
-	if file == nil || m.IsEmpty() {
+	if file == nil || len(m) == 0 {
 		return nil
 	}
-	if v, ok := m.Lookup(file); ok {
+	if v, ok := m[file]; ok {
 		return &v
 	}
 	return nil
@@ -1048,28 +1050,25 @@ func (c *CheckAccessControls) CheckEs6ConstructorInvocationVisibility(target rhi
 	// Synthesize a `PropertyReference` for this constructor call as if we're accessing
 	// `Foo.prototype.constructor`. This object allows us to reuse the
 	// `checkPropertyAccessVisibility` method which actually reports violations.
-	fauxCtorRef := CheckAccessControls_PropertyReference_Builder_().
-		SetSourceNode(target).
-		SetName("constructor").
-		SetReceiverType(prototypeType).
-		SetMutation(false).    // This shouldn't matter.
-		SetDeclaration(false). // This shouldn't matter.
-		SetOverride(false).    // This shouldn't matter.
-		SetReadableTypeName(func() string { return ctorType.GetInstanceType().String() }).
-		Build()
+	fauxCtorRef := CheckAccessControls_PropertyReference{
+		sourceNode:           target,
+		name:                 "constructor",
+		receiverType:         prototypeType,
+		readableInstanceType: ctorType.GetInstanceType(),
+	}
 
 	annotatedCtorVisibility :=
 		// This function defaults to `INHERITED` which isn't what we want here, but it does handle
 		// combining inline and `@fileoverview` visibilities.
 		CheckAccessControls_GetEffectiveVisibilityForNonOverriddenProperty(
-			fauxCtorRef, prototypeType, checkAccessControls_visibilityFor(c.defaultVisibilityForFiles, definingSource))
+			&fauxCtorRef, prototypeType, checkAccessControls_visibilityFor(c.defaultVisibilityForFiles, definingSource))
 	effectiveCtorVisibility := annotatedCtorVisibility
 	if annotatedCtorVisibility == rhino.JSDocInfo_Visibility_INHERITED {
 		effectiveCtorVisibility = rhino.JSDocInfo_Visibility_PUBLIC
 	}
 
 	c.CheckPropertyAccessVisibility(
-		fauxCtorRef,
+		&fauxCtorRef,
 		effectiveCtorVisibility,
 		ctorType,
 		target.GetStaticSourceFile(),
@@ -1084,7 +1083,7 @@ func (c *CheckAccessControls) CheckPropertyOverrideVisibility(
 	objectType rhino.JSType,
 	sameInput bool) {
 	overridingVisibility := rhino.JSDocInfo_Visibility_INHERITED
-	if propRef.Override() {
+	if propRef.override {
 		overridingVisibility = propRef.GetJSDocInfo().GetVisibility()
 	}
 
@@ -1095,12 +1094,12 @@ func (c *CheckAccessControls) CheckPropertyOverrideVisibility(
 	// (c) the visibility is explicitly redeclared if the override is in
 	//     a file with default visibility in the @fileoverview block.
 	if visibility == rhino.JSDocInfo_Visibility_PRIVATE && !sameInput {
-		c.compiler.Report(JSError_MakeWithNode(propRef.SourceNode(), CheckAccessControls_PRIVATE_OVERRIDE, objectType.String()))
+		c.compiler.Report(JSError_MakeWithNode(propRef.sourceNode, CheckAccessControls_PRIVATE_OVERRIDE, objectType.String()))
 	} else if !CheckAccessControls_CanOverrideVisibility(visibility, overridingVisibility) &&
 		fileOverviewVisibility == nil {
 		c.compiler.Report(
 			JSError_MakeWithNode(
-				propRef.SourceNode(),
+				propRef.sourceNode,
 				CheckAccessControls_VISIBILITY_MISMATCH,
 				visibility.String(),
 				objectType.String(),
@@ -1155,9 +1154,9 @@ func (c *CheckAccessControls) CheckPackagePropertyVisibility(
 	if refPackage == nil || defPackage == nil || *refPackage != *defPackage {
 		c.compiler.Report(
 			JSError_MakeWithNode(
-				propRef.SourceNode(),
+				propRef.sourceNode,
 				CheckAccessControls_BAD_PACKAGE_PROPERTY_ACCESS,
-				propRef.Name(),
+				propRef.name,
 				propRef.GetReadableTypeNameOrDefault()))
 	}
 }
@@ -1170,14 +1169,14 @@ func (c *CheckAccessControls) CheckPrivatePropertyVisibility(
 	// enclosing class.
 	// TODO(tbreisacher): Should we also include the filename where ownerType is defined?
 	var readableTypeName string
-	if ownerType == nil || ownerType.Equals(propRef.ReceiverType()) {
+	if ownerType == nil || ownerType.Equals(propRef.receiverType) {
 		readableTypeName = propRef.GetReadableTypeNameOrDefault()
 	} else {
 		readableTypeName = ownerType.String()
 	}
 	c.compiler.Report(
 		JSError_MakeWithNode(
-			propRef.SourceNode(), CheckAccessControls_BAD_PRIVATE_PROPERTY_ACCESS, propRef.Name(), readableTypeName))
+			propRef.sourceNode, CheckAccessControls_BAD_PRIVATE_PROPERTY_ACCESS, propRef.name, readableTypeName))
 }
 
 // Java: CheckAccessControls.checkProtectedPropertyVisibility(PropertyReference, ObjectType)
@@ -1201,9 +1200,9 @@ func (c *CheckAccessControls) CheckProtectedPropertyVisibility(
 
 	c.compiler.Report(
 		JSError_MakeWithNode(
-			propRef.SourceNode(),
+			propRef.sourceNode,
 			CheckAccessControls_BAD_PROTECTED_PROPERTY_ACCESS,
-			propRef.Name(),
+			propRef.name,
 			propRef.GetReadableTypeNameOrDefault()))
 }
 
@@ -1239,18 +1238,18 @@ func (c *CheckAccessControls) ShouldEmitDeprecationWarningForPropRef(t *NodeTrav
 	// 2) Instantiations of deprecated classes.
 	// For now, we just let everything else by.
 	if t.InGlobalScope() {
-		if !NodeUtil_IsInvocationTarget(propRef.SourceNode()) {
+		if !NodeUtil_IsInvocationTarget(propRef.sourceNode) {
 			return false
 		}
 	}
 
 	// We can always assign to a deprecated property, to keep it up to date.
-	if propRef.Mutation() {
+	if propRef.mutation {
 		return false
 	}
 
 	// Don't warn if the node is just declaring the property, not reading it.
-	if propRef.Declaration() {
+	if propRef.declaration {
 		jsdoc := propRef.GetJSDocInfo()
 		if jsdoc != nil && jsdoc.IsDeprecated() {
 			return false
@@ -1513,191 +1512,24 @@ func CheckAccessControls_IdentifierBehaviour_Select(target rhino.Node) CheckAcce
 //
 // Java: CheckAccessControls.PropertyReference (a record)
 type CheckAccessControls_PropertyReference struct {
-	sourceNode       rhino.Node
-	name             string
-	receiverType     rhino.ObjectType
-	mutation         bool
-	declaration      bool
-	override         bool
-	readableTypeName func() string
-	typeRegistry     *rhino.JSTypeRegistry
-	readableTypeNode rhino.Node
-	jsdoc            *rhino.JSDocInfo
-	hasJSDoc         bool
-}
-
-// checkAccessControls_requireNonNull is Objects.requireNonNull(obj, message).
-func checkAccessControls_requireNonNull(isNull bool, message string) {
-	if isNull {
-		panic(jutil.NewNullPointerExceptionMsg(message))
-	}
-}
-
-// NewCheckAccessControls_PropertyReference is the record's canonical
-// constructor.
-//
-// Java: CheckAccessControls.PropertyReference(Node, String, ObjectType, boolean, boolean, boolean, Supplier<String>)
-func NewCheckAccessControls_PropertyReference(
-	sourceNode rhino.Node,
-	name string,
-	receiverType rhino.ObjectType,
-	mutation bool,
-	declaration bool,
-	override bool,
-	readableTypeName func() string) *CheckAccessControls_PropertyReference {
-	checkAccessControls_requireNonNull(sourceNode.IsNil(), "sourceNode")
-	// Go-only: language-adapter — a Go string cannot be null:
-	// requireNonNull(name, "name") cannot fail.
-	checkAccessControls_requireNonNull(receiverType == nil, "receiverType")
-	checkAccessControls_requireNonNull(readableTypeName == nil, "readableTypeName")
-	r := &CheckAccessControls_PropertyReference{}
-	r.sourceNode = sourceNode
-	r.name = name
-	r.receiverType = receiverType
-	r.mutation = mutation
-	r.declaration = declaration
-	r.override = override
-	r.readableTypeName = readableTypeName
-	return r
-}
-
-// Java: CheckAccessControls.PropertyReference.sourceNode()
-func (r *CheckAccessControls_PropertyReference) SourceNode() rhino.Node { return r.sourceNode }
-
-// Java: CheckAccessControls.PropertyReference.name()
-func (r *CheckAccessControls_PropertyReference) Name() string { return r.name }
-
-// Java: CheckAccessControls.PropertyReference.receiverType()
-func (r *CheckAccessControls_PropertyReference) ReceiverType() rhino.ObjectType {
-	return r.receiverType
-}
-
-// Java: CheckAccessControls.PropertyReference.mutation()
-func (r *CheckAccessControls_PropertyReference) Mutation() bool { return r.mutation }
-
-// Java: CheckAccessControls.PropertyReference.declaration()
-func (r *CheckAccessControls_PropertyReference) Declaration() bool { return r.declaration }
-
-// Java: CheckAccessControls.PropertyReference.override()
-func (r *CheckAccessControls_PropertyReference) Override() bool { return r.override }
-
-// Java: CheckAccessControls.PropertyReference.readableTypeName()
-func (r *CheckAccessControls_PropertyReference) ReadableTypeName() func() string {
-	if r.readableTypeName != nil {
-		return r.readableTypeName
-	}
-	return func() string {
-		if !r.readableTypeNode.IsNil() && r.typeRegistry != nil {
-			return r.typeRegistry.GetReadableTypeName(r.readableTypeNode)
-		}
-		return ""
-	}
-}
-
-// Java: CheckAccessControls.PropertyReference.builder()
-func CheckAccessControls_PropertyReference_Builder_() *CheckAccessControls_PropertyReference_Builder {
-	return NewAutoBuilder_CheckAccessControls_PropertyReference_Builder()
-}
-
-// CheckAccessControls_PropertyReference_Builder is the @AutoBuilder interface
-// CheckAccessControls.PropertyReference.Builder.
-//
-// Go-only: language-adapter — the AutoBuilder-generated
-// AutoBuilder_CheckAccessControls_PropertyReference_Builder (its only
-// implementation) is folded into this struct.
-type CheckAccessControls_PropertyReference_Builder struct {
-	sourceNode       rhino.Node
-	name             string
-	receiverType     rhino.ObjectType
-	mutation         bool
-	declaration      bool
-	override         bool
-	readableTypeName func() string
-}
-
-// Java: AutoBuilder_CheckAccessControls_PropertyReference_Builder()
-func NewAutoBuilder_CheckAccessControls_PropertyReference_Builder() *CheckAccessControls_PropertyReference_Builder {
-	return &CheckAccessControls_PropertyReference_Builder{}
-}
-
-// Java: AutoBuilder_CheckAccessControls_PropertyReference_Builder(CheckAccessControls.PropertyReference)
-func NewAutoBuilder_CheckAccessControls_PropertyReference_BuilderFromSource(
-	source *CheckAccessControls_PropertyReference) *CheckAccessControls_PropertyReference_Builder {
-	return &CheckAccessControls_PropertyReference_Builder{
-		sourceNode:       source.SourceNode(),
-		name:             source.Name(),
-		receiverType:     source.ReceiverType(),
-		mutation:         source.Mutation(),
-		declaration:      source.Declaration(),
-		override:         source.Override(),
-		readableTypeName: source.ReadableTypeName(),
-	}
-}
-
-// Java: AutoBuilder_CheckAccessControls_PropertyReference_Builder.setSourceNode(Node)
-func (b *CheckAccessControls_PropertyReference_Builder) SetSourceNode(sourceNode rhino.Node) *CheckAccessControls_PropertyReference_Builder {
-	b.sourceNode = sourceNode
-	return b
-}
-
-// Java: AutoBuilder_CheckAccessControls_PropertyReference_Builder.setName(String)
-func (b *CheckAccessControls_PropertyReference_Builder) SetName(name string) *CheckAccessControls_PropertyReference_Builder {
-	b.name = name
-	return b
-}
-
-// Java: AutoBuilder_CheckAccessControls_PropertyReference_Builder.setReceiverType(ObjectType)
-func (b *CheckAccessControls_PropertyReference_Builder) SetReceiverType(receiverType rhino.ObjectType) *CheckAccessControls_PropertyReference_Builder {
-	b.receiverType = receiverType
-	return b
-}
-
-// Java: AutoBuilder_CheckAccessControls_PropertyReference_Builder.setMutation(boolean)
-func (b *CheckAccessControls_PropertyReference_Builder) SetMutation(mutation bool) *CheckAccessControls_PropertyReference_Builder {
-	b.mutation = mutation
-	return b
-}
-
-// Java: AutoBuilder_CheckAccessControls_PropertyReference_Builder.setDeclaration(boolean)
-func (b *CheckAccessControls_PropertyReference_Builder) SetDeclaration(declaration bool) *CheckAccessControls_PropertyReference_Builder {
-	b.declaration = declaration
-	return b
-}
-
-// Java: AutoBuilder_CheckAccessControls_PropertyReference_Builder.setOverride(boolean)
-func (b *CheckAccessControls_PropertyReference_Builder) SetOverride(override bool) *CheckAccessControls_PropertyReference_Builder {
-	b.override = override
-	return b
-}
-
-// Java: AutoBuilder_CheckAccessControls_PropertyReference_Builder.setReadableTypeName(Supplier<String>)
-func (b *CheckAccessControls_PropertyReference_Builder) SetReadableTypeName(readableTypeName func() string) *CheckAccessControls_PropertyReference_Builder {
-	b.readableTypeName = readableTypeName
-	return b
-}
-
-// Java: AutoBuilder_CheckAccessControls_PropertyReference_Builder.build()
-func (b *CheckAccessControls_PropertyReference_Builder) Build() *CheckAccessControls_PropertyReference {
-	return NewCheckAccessControls_PropertyReference(
-		b.sourceNode,
-		b.name,
-		b.receiverType,
-		b.mutation,
-		b.declaration,
-		b.override,
-		b.readableTypeName)
+	sourceNode           rhino.Node
+	name                 string
+	receiverType         rhino.ObjectType
+	mutation             bool
+	declaration          bool
+	override             bool
+	readableInstanceType rhino.ObjectType
+	typeRegistry         *rhino.JSTypeRegistry
+	readableTypeNode     rhino.Node
+	jsdoc                *rhino.JSDocInfo
+	hasJSDoc             bool
 }
 
 // Derived properties.
 
-// Java: CheckAccessControls.PropertyReference.getParentNode()
-func (r *CheckAccessControls_PropertyReference) GetParentNode() rhino.Node {
-	return r.SourceNode().GetParent()
-}
-
 // Java: CheckAccessControls.PropertyReference.getJSType()
 func (r *CheckAccessControls_PropertyReference) GetJSType() rhino.JSType {
-	return r.SourceNode().GetJSType()
+	return r.sourceNode.GetJSType()
 }
 
 // Java: CheckAccessControls.PropertyReference.getJSDocInfo()
@@ -1705,31 +1537,31 @@ func (r *CheckAccessControls_PropertyReference) GetJSDocInfo() *rhino.JSDocInfo 
 	if r.hasJSDoc {
 		return r.jsdoc
 	}
-	r.jsdoc = NodeUtil_GetBestJSDocInfo(r.SourceNode())
+	r.jsdoc = NodeUtil_GetBestJSDocInfo(r.sourceNode)
 	r.hasJSDoc = true
 	return r.jsdoc
 }
 
 // Java: CheckAccessControls.PropertyReference.isDocumentedDeclaration()
 func (r *CheckAccessControls_PropertyReference) IsDocumentedDeclaration() bool {
-	return r.Declaration() && (r.GetJSDocInfo() != nil)
+	return r.declaration && (r.GetJSDocInfo() != nil)
 }
 
 // Java: CheckAccessControls.PropertyReference.isDeletion()
 func (r *CheckAccessControls_PropertyReference) IsDeletion() bool {
-	return r.SourceNode().GetParent().IsDelProp()
+	return r.sourceNode.GetParent().IsDelProp()
 }
 
 // Java: CheckAccessControls.PropertyReference.getReadableTypeNameOrDefault()
 func (r *CheckAccessControls_PropertyReference) GetReadableTypeNameOrDefault() string {
 	var preferred string
-	if r.readableTypeName != nil {
-		preferred = r.readableTypeName()
+	if r.readableInstanceType != nil {
+		preferred = r.readableInstanceType.String()
 	} else if !r.readableTypeNode.IsNil() && r.typeRegistry != nil {
 		preferred = r.typeRegistry.GetReadableTypeName(r.readableTypeNode)
 	}
 	if preferred == "" {
-		return r.ReceiverType().String()
+		return r.receiverType.String()
 	}
 	return preferred
 }
@@ -1742,11 +1574,14 @@ func (c *CheckAccessControls) CreatePropertyReference(sourceNode rhino.Node) *Ch
 		isLValue := NodeUtil_IsLValue(sourceNode)
 		firstChild := sourceNode.GetFirstChild()
 		ref := &c.scratchPropRef
-		ref.sourceNode = sourceNode
-		ref.name = sourceNode.GetString()
-		ref.receiverType = c.BoxedOrUnknown(firstChild.GetJSType())
-		// Props are always mutated as L-values, even when assigned `undefined`.
-		ref.mutation = isLValue || parent.IsDelProp()
+		*ref = CheckAccessControls_PropertyReference{
+			sourceNode:       sourceNode,
+			name:             sourceNode.GetString(),
+			receiverType:     c.BoxedOrUnknown(firstChild.GetJSType()),
+			mutation:         isLValue || parent.IsDelProp(),
+			typeRegistry:     c.typeRegistry,
+			readableTypeNode: firstChild,
+		}
 		if isLValue {
 			jsdoc := NodeUtil_GetBestJSDocInfo(sourceNode)
 			ref.declaration = parent.IsExprResult() || (jsdoc != nil && jsdoc.IsConstant())
@@ -1757,13 +1592,7 @@ func (c *CheckAccessControls) CreatePropertyReference(sourceNode rhino.Node) *Ch
 			ref.hasJSDoc = true
 		} else {
 			ref.declaration = parent.IsExprResult()
-			ref.override = false
-			ref.jsdoc = nil
-			ref.hasJSDoc = false
 		}
-		ref.readableTypeName = nil
-		ref.typeRegistry = c.typeRegistry
-		ref.readableTypeNode = firstChild
 		return ref
 
 	case rhino.Token_STRING_KEY, rhino.Token_GETTER_DEF, rhino.Token_SETTER_DEF, rhino.Token_MEMBER_FUNCTION_DEF, rhino.Token_MEMBER_FIELD_DEF:
@@ -1781,32 +1610,26 @@ func (c *CheckAccessControls) CreatePropertyReference(sourceNode rhino.Node) *Ch
 				return nil
 			}
 			ref := &c.scratchPropRef
-			ref.sourceNode = sourceNode
-			ref.name = sourceNode.GetString()
-			ref.receiverType = c.TypeOrUnknownObjectType(rhino.ObjectType_Cast(parentType))
-			ref.mutation = true
-			ref.declaration = true
-			ref.override = false
-			ref.readableTypeName = nil
-			ref.typeRegistry = c.typeRegistry
-			ref.readableTypeNode = parent
-			ref.jsdoc = nil
-			ref.hasJSDoc = false
+			*ref = CheckAccessControls_PropertyReference{
+				sourceNode:       sourceNode,
+				name:             sourceNode.GetString(),
+				receiverType:     c.TypeOrUnknownObjectType(rhino.ObjectType_Cast(parentType)),
+				mutation:         true,
+				declaration:      true,
+				typeRegistry:     c.typeRegistry,
+				readableTypeNode: parent,
+			}
 			return ref
 
 		case rhino.Token_OBJECT_PATTERN:
 			ref := &c.scratchPropRef
-			ref.sourceNode = sourceNode
-			ref.name = sourceNode.GetString()
-			ref.receiverType = c.TypeOrUnknownObjectType(rhino.ObjectType_Cast(parent.GetJSType()))
-			ref.mutation = false
-			ref.declaration = false
-			ref.override = false
-			ref.readableTypeName = nil
-			ref.typeRegistry = c.typeRegistry
-			ref.readableTypeNode = parent
-			ref.jsdoc = nil
-			ref.hasJSDoc = false
+			*ref = CheckAccessControls_PropertyReference{
+				sourceNode:       sourceNode,
+				name:             sourceNode.GetString(),
+				receiverType:     c.TypeOrUnknownObjectType(rhino.ObjectType_Cast(parent.GetJSType())),
+				typeRegistry:     c.typeRegistry,
+				readableTypeNode: parent,
+			}
 			return ref
 
 		case rhino.Token_CLASS_MEMBERS:
@@ -1824,19 +1647,18 @@ func (c *CheckAccessControls) CreatePropertyReference(sourceNode rhino.Node) *Ch
 				}
 			}
 			ref := &c.scratchPropRef
-			ref.sourceNode = sourceNode
-			ref.name = sourceNode.GetString()
-			ref.receiverType = receiverType
-			ref.mutation = !(sourceNode.IsMemberFieldDef() && !sourceNode.HasChildren())
-			ref.declaration = true
-			// TODO(b/113704668): This definition is way too loose. It was used to prevent
+			// TODO(b/113704668): override = jsdoc != nil is way too loose. It was used to prevent
 			// breakages during refactoring and should be tightened.
-			ref.override = jsdoc != nil
-			ref.readableTypeName = nil
-			ref.typeRegistry = nil
-			ref.readableTypeNode = rhino.NilNode
-			ref.jsdoc = jsdoc
-			ref.hasJSDoc = true
+			*ref = CheckAccessControls_PropertyReference{
+				sourceNode:   sourceNode,
+				name:         sourceNode.GetString(),
+				receiverType: receiverType,
+				mutation:     !(sourceNode.IsMemberFieldDef() && !sourceNode.HasChildren()),
+				declaration:  true,
+				override:     jsdoc != nil,
+				jsdoc:        jsdoc,
+				hasJSDoc:     true,
+			}
 			return ref
 
 		default:
@@ -1844,40 +1666,6 @@ func (c *CheckAccessControls) CreatePropertyReference(sourceNode rhino.Node) *Ch
 		}
 	default:
 		return nil
-	}
-}
-
-// CheckAccessControls_GetEffectivePropertyVisibility returns the effective
-// visibility of the given property. This can differ from the property's
-// declared visibility if the property is inherited from a superclass, or if
-// the file's @fileoverview JsDoc specifies a default visibility.
-//
-// TODO(b/111789692): The following methods are forked from
-// `AccessControlUtils`. Consider consolidating them.
-//
-// referenceType is the JavaScript type of the property; fileVisibilityMap a
-// map of @fileoverview visibility annotations, used to compute the
-// property's default visibility.
-//
-// Java: CheckAccessControls.getEffectivePropertyVisibility(PropertyReference, ObjectType, ImmutableMap<StaticSourceFile, Visibility>)
-func CheckAccessControls_GetEffectivePropertyVisibility(
-	propRef *CheckAccessControls_PropertyReference,
-	referenceType rhino.ObjectType,
-	fileVisibilityMap *jutil.LinkedHashMap[rhino.StaticSourceFile, rhino.JSDocInfo_Visibility]) rhino.JSDocInfo_Visibility {
-	propertyName := propRef.Name()
-	isOverride := propRef.Override()
-
-	definingSource := AccessControlUtils_GetDefiningSource(propRef.SourceNode(), referenceType, propertyName)
-	fileOverviewVisibility := checkAccessControls_visibilityFor(fileVisibilityMap, definingSource)
-	objectType := AccessControlUtils_GetObjectType(referenceType, isOverride, propertyName)
-
-	if isOverride {
-		overridden := AccessControlUtils_GetOverriddenPropertyVisibility(objectType, propertyName)
-		return AccessControlUtils_GetEffectiveVisibilityForOverriddenProperty(
-			overridden, fileOverviewVisibility, propertyName)
-	} else {
-		return CheckAccessControls_GetEffectiveVisibilityForNonOverriddenProperty(
-			propRef, objectType, fileOverviewVisibility)
 	}
 }
 
@@ -1895,7 +1683,7 @@ func CheckAccessControls_GetEffectiveVisibilityForNonOverriddenProperty(
 	propRef *CheckAccessControls_PropertyReference,
 	objectType rhino.ObjectType,
 	fileOverviewVisibility *rhino.JSDocInfo_Visibility) rhino.JSDocInfo_Visibility {
-	propertyName := propRef.Name()
+	propertyName := propRef.name
 	raw := rhino.JSDocInfo_Visibility_INHERITED
 	if objectType != nil {
 		jsdoc := objectType.GetOwnPropertyJSDocInfo(propertyName)

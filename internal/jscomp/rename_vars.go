@@ -23,13 +23,36 @@ import (
 	"slices"
 	"strconv"
 
+	"github.com/paullepoulpe/jsgo/internal/ast"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
+	"github.com/paullepoulpe/jsgo/internal/strpool"
+)
+
+var (
+	renameVarsVisitTokens = func() ast.TokenSet {
+		var s ast.TokenSet
+		s.Add(rhino.Token_NAME)
+		s.Add(rhino.Token_IMPORT_STAR)
+		return s
+	}()
+	renameVarsLocalTempNames = func() [256]string {
+		var t [256]string
+		for i := range t {
+			t[i] = RenameVars_LOCAL_VAR_PREFIX + strconv.Itoa(i)
+		}
+		return t
+	}()
 )
 
 type renameVarsNodeRef struct {
 	node       rhino.Node
 	assignment *RenameVars_Assignment
+}
+
+type renameVarsMapEntry struct {
+	oldName string
+	newName string
 }
 
 // RenameVars renames all the variables names into short names, to reduce
@@ -41,18 +64,18 @@ type RenameVars struct {
 	globalRefChunks [][]renameVarsNodeRef
 	localRefChunks  [][]renameVarsNodeRef
 
-	// Maps a name node to its pseudo name, null if we are not generating so
+	// Maps a name node to its pseudo name, nil if we are not generating so
 	// there will be no overhead unless we are debugging.
 	pseudoNameMap map[rhino.Node]string
 
 	// Set of extern variable names
-	externNames *jutil.LinkedHashSet[string]
+	externNames map[string]struct{}
 
 	// Set of reserved variable names
-	reservedNames *jutil.LinkedHashSet[string]
+	reservedNames stringMapSet
 
-	// The renaming map
-	renameMap *jutil.LinkedHashMap[string, string]
+	// Recorded finalized renames in deterministic assignment order
+	finalized []renameVarsMapEntry
 
 	// The previously used rename map.
 	prevUsedRenameMap *VariableMap
@@ -68,10 +91,12 @@ type RenameVars struct {
 	localBleedingFunctions         map[*Var]struct{}
 	localBleedingFunctionsPerScope map[*Scope][]*Var
 
-	// Maps an old name to a new name assignment
-	assignments  *jutil.LinkedHashMap[string, *RenameVars_Assignment]
-	localByIndex []*RenameVars_Assignment
-	seenVars     map[*Var]renameVarDecision
+	// Maps an old name to a new name assignment, plus insertion-ordered list
+	assignmentByName map[string]*RenameVars_Assignment
+	assignmentList   []*RenameVars_Assignment
+	assignmentSlab   []RenameVars_Assignment
+	localByIndex     []*RenameVars_Assignment
+	seenVars         map[*Var]renameVarDecision
 
 	// Whether renaming should apply to local variables only.
 	localRenamingOnly bool
@@ -93,9 +118,11 @@ const RenameVars_MAX_LOCALS_IN_SCOPE_TO_TEMP_RENAME = 1000
 type RenameVars_Assignment struct {
 	isLocal           bool
 	hasNewName        bool
+	changedFromOld    bool
 	oldName           string
 	orderOfOccurrence int
 	newName           string
+	newNameID         strpool.ID
 	count             int // Number of times this is referenced
 }
 
@@ -106,17 +133,25 @@ func NewRenameVars_Assignment(outer *RenameVars, name string) *RenameVars_Assign
 
 type renameVarDecision struct {
 	assignment *RenameVars_Assignment
-	invertName bool
+	invertID   strpool.ID
 }
 
 func (r *RenameVars) allocAssignment(name string, isLocal bool) *RenameVars_Assignment {
-	a := &RenameVars_Assignment{
-		isLocal:           isLocal,
-		oldName:           name,
-		orderOfOccurrence: r.assignmentCount,
+	if len(r.assignmentSlab) == 0 {
+		r.assignmentSlab = make([]RenameVars_Assignment, 128)
 	}
+	a := &r.assignmentSlab[0]
+	r.assignmentSlab = r.assignmentSlab[1:]
+	a.isLocal = isLocal
+	a.oldName = name
+	a.orderOfOccurrence = r.assignmentCount
 	r.assignmentCount++
 	return a
+}
+
+func (r *RenameVars) putAssignment(name string, a *RenameVars_Assignment) {
+	r.assignmentByName[name] = a
+	r.assignmentList = append(r.assignmentList, a)
 }
 
 func (r *RenameVars) appendLocalRef(n rhino.Node, a *RenameVars_Assignment) {
@@ -151,6 +186,8 @@ func (r *RenameVars) appendGlobalRef(n rhino.Node, a *RenameVars_Assignment) {
 func (a *RenameVars_Assignment) SetNewName(newName string) {
 	jutil.CheckState(!a.hasNewName)
 	a.newName = newName
+	a.newNameID = strpool.Intern(newName)
+	a.changedFromOld = newName != a.oldName
 	a.hasNewName = true
 }
 
@@ -172,34 +209,57 @@ func NewRenameVars(
 	reservedCharacters jutil.Set[uint16],
 	reservedNames jutil.Set[string],
 	nameGenerator NameGenerator) *RenameVars {
-	r := &RenameVars{
-		compiler:    compiler,
-		convention:  compiler.GetCodingConvention(),
-		renameMap:   jutil.NewLinkedHashMap[string, string](),
-		assignments: jutil.NewLinkedHashMap[string, *RenameVars_Assignment](),
-	}
-	// Strings.nullToEmpty
+	var pfx string
 	if prefix != nil {
-		r.prefix = *prefix
-	} else {
-		r.prefix = ""
+		pfx = *prefix
 	}
-	r.localRenamingOnly = localRenamingOnly
+	return newRenameVars(
+		compiler,
+		pfx,
+		localRenamingOnly,
+		generatePseudoNames,
+		preferStableNames,
+		prevUsedRenameMap,
+		reservedCharacters,
+		reservedNames,
+		nameGenerator)
+}
+
+func newRenameVars(
+	compiler AbstractCompiler,
+	prefix string,
+	localRenamingOnly bool,
+	generatePseudoNames bool,
+	preferStableNames bool,
+	prevUsedRenameMap *VariableMap,
+	reservedCharacters jutil.Set[uint16],
+	reservedNames jutil.Set[string],
+	nameGenerator NameGenerator) *RenameVars {
+	reservedCap := 32
+	if reservedNames != nil {
+		reservedCap = max(reservedCap, reservedNames.Size()+32)
+	}
+	resMap := make(stringMapSet, reservedCap)
+	if reservedNames != nil {
+		for name := range reservedNames.All() {
+			resMap[name] = struct{}{}
+		}
+	}
+	r := &RenameVars{
+		compiler:           compiler,
+		convention:         compiler.GetCodingConvention(),
+		reservedNames:      resMap,
+		prevUsedRenameMap:  prevUsedRenameMap,
+		prefix:             prefix,
+		assignmentByName:   make(map[string]*RenameVars_Assignment, 128),
+		localRenamingOnly:  localRenamingOnly,
+		preferStableNames:  preferStableNames,
+		reservedCharacters: reservedCharacters,
+		nameGenerator:      nameGenerator,
+	}
 	if generatePseudoNames {
 		r.pseudoNameMap = make(map[rhino.Node]string)
 	}
-	r.prevUsedRenameMap = prevUsedRenameMap
-	r.reservedCharacters = reservedCharacters
-	r.preferStableNames = preferStableNames
-	if reservedNames == nil {
-		r.reservedNames = jutil.NewLinkedHashSet[string]()
-	} else {
-		r.reservedNames = jutil.NewLinkedHashSet[string]()
-		for name := range reservedNames.All() {
-			r.reservedNames.Add(name)
-		}
-	}
-	r.nameGenerator = nameGenerator
 	return r
 }
 
@@ -229,10 +289,15 @@ type RenameVars_ProcessVars struct {
 	outer *RenameVars
 }
 
+func (*RenameVars_ProcessVars) visitTokens() *ast.TokenSet {
+	return &renameVarsVisitTokens
+}
+
 // Java: RenameVars.ProcessVars.enterScope(NodeTraversal)
 func (p *RenameVars_ProcessVars) EnterScope(t *NodeTraversal) {
 	scopeRoot := t.GetScopeRoot()
-	if !scopeRoot.IsFunction() || scopeRoot.GetFirstChild().GetString() == "" || !NodeUtil_IsFunctionExpression(scopeRoot) {
+	fn, ok := ast.AsFunction(scopeRoot)
+	if !ok || fn.NameNode().Node().GetStringID() <= rhino.RhinoStringPool_EmptyID || !NodeUtil_IsFunctionExpression(scopeRoot) {
 		return
 	}
 	r := p.outer
@@ -293,12 +358,8 @@ func (p *RenameVars_ProcessVars) Visit(t *NodeTraversal, n rhino.Node, parent rh
 				} else {
 					r.appendGlobalRef(n, a)
 				}
-			} else if dec.invertName {
-				name := n.GetString()
-				newName := MakeDeclaredNamesUnique_ContextualRenameInverter_GetOriginalName(name)
-				if newName != name {
-					n.SetString(newName)
-				}
+			} else if dec.invertID != 0 {
+				setNodeStringID(n, dec.invertID)
 			}
 			return
 		}
@@ -306,20 +367,20 @@ func (p *RenameVars_ProcessVars) Visit(t *NodeTraversal, n rhino.Node, parent rh
 			r.seenVars = make(map[*Var]renameVarDecision, 256)
 		}
 
-		name := n.GetString()
-
 		// First time seeing this var_.
 		varScope := var_.scope
 		local := var_.IsLocal() && (varScope.GetParent().IsLocal() || !var_.IsBleedingFunction())
 
 		if var_.IsArguments() {
-			r.reservedNames.Add(name)
+			r.reservedNames["arguments"] = struct{}{}
 			r.seenVars[var_] = renameVarDecision{}
 			return
 		}
 
+		name := n.GetString()
+
 		if !local && r.localRenamingOnly {
-			r.reservedNames.Add(name)
+			r.reservedNames[name] = struct{}{}
 			r.seenVars[var_] = renameVarDecision{}
 			return
 		}
@@ -328,8 +389,9 @@ func (p *RenameVars_ProcessVars) Visit(t *NodeTraversal, n rhino.Node, parent rh
 			if local {
 				newName := MakeDeclaredNamesUnique_ContextualRenameInverter_GetOriginalName(name)
 				if newName != name {
-					n.SetString(newName)
-					r.seenVars[var_] = renameVarDecision{invertName: true}
+					invID := strpool.Intern(newName)
+					setNodeStringID(n, invID)
+					r.seenVars[var_] = renameVarDecision{invertID: invID}
 					return
 				}
 			}
@@ -348,13 +410,18 @@ func (p *RenameVars_ProcessVars) Visit(t *NodeTraversal, n rhino.Node, parent rh
 				a = r.localByIndex[localIdx]
 			}
 			if a == nil {
-				tempName := RenameVars_LOCAL_VAR_PREFIX + strconv.Itoa(localIdx)
+				var tempName string
+				if localIdx >= 0 && localIdx < len(renameVarsLocalTempNames) {
+					tempName = renameVarsLocalTempNames[localIdx]
+				} else {
+					tempName = RenameVars_LOCAL_VAR_PREFIX + strconv.Itoa(localIdx)
+				}
 				if localIdx < 0 {
-					a = r.assignments.Get(tempName)
+					a = r.assignmentByName[tempName]
 				}
 				if a == nil {
 					a = r.allocAssignment(tempName, true)
-					r.assignments.Put(tempName, a)
+					r.putAssignment(tempName, a)
 				}
 				if localIdx >= 0 {
 					if localIdx >= cap(r.localByIndex) {
@@ -371,10 +438,10 @@ func (p *RenameVars_ProcessVars) Visit(t *NodeTraversal, n rhino.Node, parent rh
 			a.count++
 			r.appendLocalRef(n, a)
 		} else {
-			a = r.assignments.Get(name)
+			a = r.assignmentByName[name]
 			if a == nil {
 				a = r.allocAssignment(name, false)
-				r.assignments.Put(name, a)
+				r.putAssignment(name, a)
 			}
 			a.count++
 			r.appendGlobalRef(n, a)
@@ -386,7 +453,7 @@ func (p *RenameVars_ProcessVars) Visit(t *NodeTraversal, n rhino.Node, parent rh
 	// var_ == nil (undeclared or extern)
 	name := n.GetString()
 	if r.localRenamingOnly {
-		r.reservedNames.Add(name)
+		r.reservedNames[name] = struct{}{}
 		return
 	}
 	if !r.OkToRenameVar(name, false) {
@@ -420,7 +487,11 @@ var RenameVars_ORDER_OF_OCCURRENCE_COMPARATOR = func(a1 *RenameVars_Assignment, 
 
 // Java: RenameVars.process(Node, Node)
 func (r *RenameVars) Process(externs rhino.Node, root rhino.Node) {
-	r.externNames = NodeUtil_CollectExternVariableNames(r.compiler, externs)
+	externSet := NodeUtil_CollectExternVariableNames(r.compiler, externs)
+	r.externNames = make(map[string]struct{}, externSet.Size())
+	for name := range externSet.All() {
+		r.externNames[name] = struct{}{}
+	}
 
 	r.globalRefChunks = nil
 	r.localRefChunks = nil
@@ -437,15 +508,14 @@ func (r *RenameVars) Process(externs rhino.Node, root rhino.Node) {
 	r.localBleedingFunctionsPerScope = nil
 
 	// Make sure that new names don't overlap with extern names.
-	for name := range r.externNames.All() {
-		r.reservedNames.Add(name)
+	// order-independent: populates unordered reservedNames membership set
+	for name := range r.externNames {
+		r.reservedNames[name] = struct{}{}
 	}
 
 	// Rename vars, sorted by frequency of occurrence to minimize code size.
-	varsByFrequency := make([]*RenameVars_Assignment, 0, r.assignments.Size())
-	for a := range r.assignments.Values() {
-		varsByFrequency = append(varsByFrequency, a)
-	}
+	varsByFrequency := make([]*RenameVars_Assignment, len(r.assignmentList))
+	copy(varsByFrequency, r.assignmentList)
 	slices.SortFunc(varsByFrequency, RenameVars_FrequencyComparator)
 
 	// First try to reuse names from an earlier compilation.
@@ -461,21 +531,21 @@ func (r *RenameVars) Process(externs rhino.Node, root rhino.Node) {
 		for _, ref := range chunk {
 			n := ref.node
 			a := ref.assignment
-			oldName := n.GetString()
-			if a.hasNewName && a.newName != oldName {
-				newName := a.newName
+			oldID := strpool.ID(n.GetStringID())
+			if a.hasNewName && a.newNameID != oldID {
+				newID := a.newNameID
 				if r.pseudoNameMap != nil {
 					pName, ok := r.pseudoNameMap[n]
 					if !ok {
 						continue
 					}
-					newName = pName
+					newID = strpool.Intern(pName)
 				}
-				if newName != oldName {
-					n.SetString(newName)
+				if newID != oldID {
+					setNodeStringID(n, newID)
 					r.compiler.ReportChangeToEnclosingScope(n)
 					parent := n.GetParent()
-					if parent.IsFunction() && NodeUtil_IsFunctionDeclaration(parent) {
+					if _, isFn := ast.AsFunction(parent); isFn && NodeUtil_IsFunctionDeclaration(parent) {
 						r.compiler.ReportChangeToEnclosingScope(parent)
 					}
 				}
@@ -488,21 +558,21 @@ func (r *RenameVars) Process(externs rhino.Node, root rhino.Node) {
 		for _, ref := range chunk {
 			n := ref.node
 			a := ref.assignment
-			if a.newName != a.oldName {
-				newName := a.newName
+			if a.changedFromOld {
+				oldID := strpool.ID(n.GetStringID())
+				newID := a.newNameID
 				if r.pseudoNameMap != nil {
 					pName, ok := r.pseudoNameMap[n]
 					if !ok {
 						continue
 					}
-					newName = pName
+					newID = strpool.Intern(pName)
 				}
-				originalName := n.GetString()
-				if newName != originalName {
-					n.SetString(newName)
+				if newID != oldID {
+					setNodeStringID(n, newID)
 					r.compiler.ReportChangeToEnclosingScope(n)
 					parent := n.GetParent()
-					if parent.IsFunction() && NodeUtil_IsFunctionDeclaration(parent) {
+					if _, isFn := ast.AsFunction(parent); isFn && NodeUtil_IsFunctionDeclaration(parent) {
 						r.compiler.ReportChangeToEnclosingScope(parent)
 					}
 				}
@@ -526,14 +596,17 @@ func (r *RenameVars) reusePreviouslyUsedVariableMapSlice(varsToRename []*RenameV
 	jutil.CheckNotNullPtr(r.prevUsedRenameMap)
 	for _, a := range varsToRename {
 		prevNewName := r.prevUsedRenameMap.LookupNewName(a.oldName)
-		if prevNewName == nil || r.reservedNames.Contains(*prevNewName) {
+		if prevNewName == nil {
+			continue
+		}
+		if _, reserved := r.reservedNames[*prevNewName]; reserved {
 			continue
 		}
 
+		_, isExtern := r.externNames[a.oldName]
 		if a.isLocal ||
-			(!r.externNames.Contains(a.oldName) &&
-				jutil.StringStartsWith(*prevNewName, r.prefix)) {
-			r.reservedNames.Add(*prevNewName)
+			(!isExtern && jutil.StringStartsWith(*prevNewName, r.prefix)) {
+			r.reservedNames[*prevNewName] = struct{}{}
 			r.FinalizeNameAssignment(a, *prevNewName)
 		}
 	}
@@ -558,7 +631,7 @@ func (r *RenameVars) assignNamesSlice(varsToRename []*RenameVars_Assignment) {
 			continue
 		}
 
-		if r.externNames.Contains(a.oldName) {
+		if _, isExtern := r.externNames[a.oldName]; isExtern {
 			continue
 		}
 
@@ -571,7 +644,7 @@ func (r *RenameVars) assignNamesSlice(varsToRename []*RenameVars_Assignment) {
 			pendingAssignments = append(pendingAssignments, a)
 			generatedNamesForAssignments = append(generatedNamesForAssignments, newName)
 		}
-		r.reservedNames.Add(newName)
+		r.reservedNames[newName] = struct{}{}
 	}
 
 	numPendingAssignments := len(generatedNamesForAssignments)
@@ -598,14 +671,18 @@ func (r *RenameVars) FinalizeNameAssignment(a *RenameVars_Assignment, newName st
 	a.SetNewName(newName)
 
 	// Keep track of the mapping
-	r.renameMap.Put(a.oldName, newName)
+	r.finalized = append(r.finalized, renameVarsMapEntry{oldName: a.oldName, newName: newName})
 }
 
 // GetVariableMap gets the variable map.
 //
 // Java: RenameVars.getVariableMap()
 func (r *RenameVars) GetVariableMap() *VariableMap {
-	return NewVariableMap(jutil.NewLinkedHashMapFrom(r.renameMap))
+	m := jutil.NewLinkedHashMapWithCapacity[string, string](len(r.finalized))
+	for _, entry := range r.finalized {
+		m.Put(entry.oldName, entry.newName)
+	}
+	return NewVariableMap(m)
 }
 
 // OkToRenameVar determines whether a variable name is okay to rename.

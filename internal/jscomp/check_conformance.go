@@ -39,27 +39,6 @@ import (
 type CheckConformance struct {
 	compiler   AbstractCompiler
 	categories []*CheckConformance_Category
-
-	// Map of root requirements to their behavior specified in their configs, or of their extending
-	// requirement's config. It is only populated if both of the following conditions are met:
-	//
-	//  1. the conformance reporting mode is RESPECT_LIBRARY_LEVEL_BEHAVIOR_SPECIFIED_IN_CONFIG,
-	//     i.e. the conformance checks are being run during the CheckJS action.
-	//  2. the requirement has a behavior that is different from the default UNSPECIFIED behavior
-	//     (i.e. RECORD_ONLY or REPORT_AS_BUILD_ERROR).
-	//
-	// The behavior of each library-level requirement gets stored in this map, and gets passed into
-	// the check() method of its corresponding rule to determine whether to record or report the
-	// conformance violations.
-	//
-	// Go-only: language-adapter — Requirement keys compare with the proto's
-	// equals()/hashCode() (ObjectLinkedHashMap).
-	mergedBehaviors *jutil.ObjectLinkedHashMap[*Requirement, ConformanceConfig_LibraryLevelNonAllowlistedConformanceViolationsBehavior]
-
-	// Map of rules to their behavior. Populated from the mergedBehaviors map. The behavior of each
-	// rule is passed into the check() method of the rule to determine whether to record or report the
-	// conformance violations.
-	ruleToBehavior *jutil.LinkedHashMap[CheckConformance_Rule, ConformanceConfig_LibraryLevelNonAllowlistedConformanceViolationsBehavior]
 }
 
 // Java: CheckConformance.CONFORMANCE_ERROR
@@ -112,55 +91,56 @@ type CheckConformance_Precondition interface {
 	ShouldCheck(n rhino.Node) bool
 }
 
-// CheckConformance_PreconditionFunc is the adapter for Precondition lambdas.
-// Lambdas are used as map keys (by identity), so the adapter is used through
-// a pointer: a Go func value is not hashable.
-//
-// Go-only: language-adapter
-type CheckConformance_PreconditionFunc func(n rhino.Node) bool
+// checkConformance_NodePrecondition enumerates built-in node preconditions by
+// distinct scalar value so rules group identically to Java without closure
+// pointer boxing.
+type checkConformance_NodePrecondition uint8
 
-// ShouldCheck calls f.
-func (f *CheckConformance_PreconditionFunc) ShouldCheck(n rhino.Node) bool { return (*f)(n) }
+const (
+	checkConformance_PreconditionCheckAll checkConformance_NodePrecondition = iota
+	checkConformance_PreconditionIsConstructorOrClass
+	checkConformance_PreconditionBannedNameCandidate
+	checkConformance_PreconditionBannedEnhanceScript
+	checkConformance_PreconditionBannedModsRegexScript
+)
 
-// NewCheckConformance_PreconditionFunc allocates a Precondition lambda
-// instance (one per Java lambda instance).
-//
-// Go-only: language-adapter
-func NewCheckConformance_PreconditionFunc(f func(n rhino.Node) bool) *CheckConformance_PreconditionFunc {
-	p := CheckConformance_PreconditionFunc(f)
-	return &p
-}
-
-// checkConformance_checkAll is the anonymous Precondition of CHECK_ALL.
-type checkConformance_checkAll struct {
-	// Go-only: language-adapter — distinct identity (a map key).
-	_ byte
-}
-
-// Java: CheckConformance.Precondition.CHECK_ALL.new Precondition() {...}.shouldCheck(Node)
-func (*checkConformance_checkAll) ShouldCheck(n rhino.Node) bool {
-	return true
+func (p checkConformance_NodePrecondition) ShouldCheck(n rhino.Node) bool {
+	switch p {
+	case checkConformance_PreconditionCheckAll:
+		return true
+	case checkConformance_PreconditionIsConstructorOrClass:
+		return n.IsClass() || NodeUtil_IsConstructor(n)
+	case checkConformance_PreconditionBannedNameCandidate:
+		switch n.GetToken() {
+		case rhino.Token_GETPROP:
+			return n.GetFirstChild().IsQualifiedName()
+		case rhino.Token_NAME:
+			return n.GetStringID() != rhino.RhinoStringPool_EmptyID
+		default:
+			return false
+		}
+	case checkConformance_PreconditionBannedEnhanceScript, checkConformance_PreconditionBannedModsRegexScript:
+		return n.IsScript()
+	default:
+		panic(jutil.NewIllegalStateException())
+	}
 }
 
 // Java: CheckConformance.Precondition.CHECK_ALL
-var CheckConformance_Precondition_CHECK_ALL CheckConformance_Precondition = &checkConformance_checkAll{}
+var CheckConformance_Precondition_CHECK_ALL CheckConformance_Precondition = checkConformance_PreconditionCheckAll
 
 // Java: CheckConformance.Precondition.IS_CONSTRUCTOR_OR_CLASS
-var CheckConformance_Precondition_IS_CONSTRUCTOR_OR_CLASS CheckConformance_Precondition = NewCheckConformance_PreconditionFunc(
-	func(n rhino.Node) bool { return n.IsClass() || NodeUtil_IsConstructor(n) })
+var CheckConformance_Precondition_IS_CONSTRUCTOR_OR_CLASS CheckConformance_Precondition = checkConformance_PreconditionIsConstructorOrClass
+
+type categorizedRule struct {
+	rule     CheckConformance_Rule
+	behavior ConformanceConfig_LibraryLevelNonAllowlistedConformanceViolationsBehavior
+}
 
 // Java: CheckConformance.Category
 type CheckConformance_Category struct {
 	precondition CheckConformance_Precondition
-	rules        []CheckConformance_Rule
-}
-
-// Java: CheckConformance.Category(Precondition, ImmutableList<Rule>)
-func NewCheckConformance_Category(precondition CheckConformance_Precondition, rules []CheckConformance_Rule) *CheckConformance_Category {
-	c := &CheckConformance_Category{}
-	c.precondition = precondition
-	c.rules = rules
-	return c
+	rules        []categorizedRule
 }
 
 // Java: CheckConformance(AbstractCompiler)
@@ -176,12 +156,9 @@ func NewCheckConformanceWithConfigs(
 	compiler AbstractCompiler,
 	configs []*ConformanceConfig,
 	reportingMode *CompilerOptions_ConformanceReportingMode) *CheckConformance {
-	c := &CheckConformance{}
-	c.mergedBehaviors = jutil.NewObjectLinkedHashMap[*Requirement, ConformanceConfig_LibraryLevelNonAllowlistedConformanceViolationsBehavior]()
-	c.ruleToBehavior = jutil.NewLinkedHashMap[CheckConformance_Rule, ConformanceConfig_LibraryLevelNonAllowlistedConformanceViolationsBehavior]()
-	c.compiler = compiler
+	c := &CheckConformance{compiler: compiler}
 	// Initialize the map of functions to inspect for renaming candidates.
-	c.categories = c.InitRules(compiler, configs, reportingMode)
+	c.categories = c.initRules(compiler, configs, reportingMode)
 	return c
 }
 
@@ -215,61 +192,58 @@ func (c *CheckConformance) Visit(t *NodeTraversal, n rhino.Node, parent rhino.No
 	 */
 	for cat := len(c.categories) - 1; cat >= 0; cat-- {
 		category := c.categories[cat]
-		if category.precondition.ShouldCheck(n) {
-			for r := len(category.rules) - 1; r >= 0; r-- {
-				rule := category.rules[r]
-				behavior := c.ruleToBehavior.GetOrDefault(rule, ConformanceConfig_LibraryLevelNonAllowlistedConformanceViolationsBehavior_UNSPECIFIED)
-				rule.Check(t, n, behavior)
+		if category.precondition == CheckConformance_Precondition_CHECK_ALL || category.precondition.ShouldCheck(n) {
+			rules := category.rules
+			for r := len(rules) - 1; r >= 0; r-- {
+				entry := rules[r]
+				entry.rule.Check(t, n, entry.behavior)
 			}
 		}
 	}
 }
 
-// InitRules builds the data structures need by this pass from the provided
+// initRules builds the data structures needed by this pass from the provided
 // configurations.
 //
 // Java: CheckConformance.initRules(AbstractCompiler, ImmutableList<ConformanceConfig>, ConformanceReportingMode)
-func (c *CheckConformance) InitRules(
+func (c *CheckConformance) initRules(
 	compiler AbstractCompiler,
 	configs []*ConformanceConfig,
 	reportingMode *CompilerOptions_ConformanceReportingMode) []*CheckConformance_Category {
-	// Go-only: language-adapter — HashMultimap<Precondition, Rule>: both keys
-	// and values hash by identity, so Java's iteration order is not
-	// deterministic; this keeps insertion order.
-	builder := jutil.NewLinkedHashMap[CheckConformance_Precondition, *jutil.LinkedHashSet[CheckConformance_Rule]]()
-
 	isLibraryLevelReportingMode :=
 		reportingMode != nil &&
 			*reportingMode == CompilerOptions_ConformanceReportingMode_RESPECT_LIBRARY_LEVEL_BEHAVIOR_SPECIFIED_IN_CONFIG
 	if isLibraryLevelReportingMode {
 		if !CheckConformance_ValidateBehaviorSettingOfConfigs(compiler, configs, *reportingMode) {
-			return []*CheckConformance_Category{}
+			return nil
 		}
 	}
 
-	mergedRequirements := c.MergeRequirements(compiler, configs, isLibraryLevelReportingMode)
-	for _, requirement := range mergedRequirements {
-		behavior := ConformanceConfig_LibraryLevelNonAllowlistedConformanceViolationsBehavior_UNSPECIFIED
-		rule := CheckConformance_InitRule(compiler, requirement)
-		if rule != nil {
-			precondition := rule.GetPrecondition()
-			rules, ok := builder.Lookup(precondition)
-			if !ok {
-				rules = jutil.NewLinkedHashSet[CheckConformance_Rule]()
-				builder.Put(precondition, rules)
-			}
-			rules.Add(rule)
-			if isLibraryLevelReportingMode && c.mergedBehaviors.ContainsKey(requirement) {
-				behavior = c.mergedBehaviors.Get(requirement)
-				// checkNotNull(behavior, "The mergeBehaviors method inserted a null behavior in the
-				// mergedBehaviors map"): a Go enum value is never null.
-			}
-			c.ruleToBehavior.Put(rule, behavior)
-		}
+	var mergedBehaviors *jutil.ObjectLinkedHashMap[*Requirement, ConformanceConfig_LibraryLevelNonAllowlistedConformanceViolationsBehavior]
+	if isLibraryLevelReportingMode {
+		mergedBehaviors = jutil.NewObjectLinkedHashMap[*Requirement, ConformanceConfig_LibraryLevelNonAllowlistedConformanceViolationsBehavior]()
 	}
-	categories := []*CheckConformance_Category{}
-	for precondition, rules := range builder.All() {
-		categories = append(categories, NewCheckConformance_Category(precondition, rules.ToSlice()))
+	mergedRequirements := c.mergeRequirements(compiler, configs, isLibraryLevelReportingMode, mergedBehaviors)
+
+	var categories []*CheckConformance_Category
+	categoryIndex := make(map[CheckConformance_Precondition]int)
+	for _, requirement := range mergedRequirements {
+		rule := CheckConformance_InitRule(compiler, requirement)
+		if rule == nil {
+			continue
+		}
+		behavior := ConformanceConfig_LibraryLevelNonAllowlistedConformanceViolationsBehavior_UNSPECIFIED
+		if mergedBehaviors != nil && mergedBehaviors.ContainsKey(requirement) {
+			behavior = mergedBehaviors.Get(requirement)
+		}
+		precondition := rule.GetPrecondition()
+		idx, ok := categoryIndex[precondition]
+		if !ok {
+			idx = len(categories)
+			categoryIndex[precondition] = idx
+			categories = append(categories, &CheckConformance_Category{precondition: precondition})
+		}
+		categories[idx].rules = append(categories[idx].rules, categorizedRule{rule: rule, behavior: behavior})
 	}
 	return categories
 }
@@ -283,7 +257,7 @@ func CheckConformance_ValidateBehaviorSettingOfConfigs(
 	// conformance mode)
 	jutil.CheckState(
 		reportingMode == CompilerOptions_ConformanceReportingMode_RESPECT_LIBRARY_LEVEL_BEHAVIOR_SPECIFIED_IN_CONFIG)
-	baseRequirementBehaviors := jutil.NewLinkedHashMap[string, ConformanceConfig_LibraryLevelNonAllowlistedConformanceViolationsBehavior]()
+	baseRequirementBehaviors := make(map[string]ConformanceConfig_LibraryLevelNonAllowlistedConformanceViolationsBehavior)
 	for _, config := range configs {
 		if !config.HasLibraryLevelNonAllowlistedConformanceViolationsBehavior() {
 			// nothing to validate
@@ -292,7 +266,7 @@ func CheckConformance_ValidateBehaviorSettingOfConfigs(
 		behavior := config.GetLibraryLevelNonAllowlistedConformanceViolationsBehavior()
 		for _, requirement := range config.GetRequirementList() {
 			if requirement.HasRuleId() {
-				baseRequirementBehaviors.Put(requirement.GetRuleId(), behavior)
+				baseRequirementBehaviors[requirement.GetRuleId()] = behavior
 			}
 		}
 	}
@@ -306,8 +280,7 @@ func CheckConformance_ValidateBehaviorSettingOfConfigs(
 			if requirement.HasExtends() {
 				extendingBehavior := config.GetLibraryLevelNonAllowlistedConformanceViolationsBehavior()
 				baseRuleId := requirement.GetExtends()
-				if baseRequirementBehaviors.ContainsKey(baseRuleId) {
-					baseBehavior := baseRequirementBehaviors.Get(baseRuleId)
+				if baseBehavior, ok := baseRequirementBehaviors[baseRuleId]; ok {
 					if baseBehavior != extendingBehavior {
 						CheckConformance_ReportInvalidRequirement(
 							compiler,
@@ -336,107 +309,44 @@ var checkConformance_EXTENDABLE_FIELDS = jutil.NewLinkedHashSet(
 	"allowlist_regexp",
 	"value")
 
-// MergeRequirements gets requirements from all configs, validates them, and
+type rootRequirementEntry struct {
+	builder  *Requirement_Builder
+	behavior ConformanceConfig_LibraryLevelNonAllowlistedConformanceViolationsBehavior
+}
+
+// mergeRequirements gets requirements from all configs, validates them, and
 // merges any extending requirements into their respective requirements from
 // which they're extending. This means merging the allowlists/whitelists of
 // requirements with 'extends' equal to 'rule_id' of other rule.
-//
-// The requirements inheritance can not have a chain of more than 1 level.
-// This means that a requirement that extends another requirement can not
-// itself be extended. This is enforced by this pass and reported as an error
-// if a requirement has both 'extends' and 'rule_id' fields set. Given that,
-// we can safely define the following types of requirements:
-//
-// Root requirements are simply the requirements that do not extend any other
-// requirement. They do not have an `extends` field. They may or may not have
-// a 'rule_id' field. For example, without a 'rule_id' field:
-//
-//	requirement: {
-//	  type: BANNED_NAME
-//	  value: 'eval'
-//	  error_message: 'eval is not allowed'
-//	}
-//
-// Root requirements may have a 'rule_id' field. For example:
-//
-//	requirement: {
-//	  rule_id: 'eval'
-//	  type: BANNED_NAME
-//	  value: 'eval'
-//	  error_message: 'eval is not allowed'
-//	}
-//
-// Extendable root requirements are those root requirements that have a
-// 'rule_id' field, and therefore _can_ be extended. They may or may not
-// getting extended by another requirement. For example:
-//
-//	requirement: {
-//	  rule_id: 'extendable'
-//	  type: BANNED_NAME
-//	  value: 'eval'
-//	  error_message: 'eval is not allowed'
-//	}
-//
-// Extended root requirements are extendable root requirements that are
-// extended by at least one other requirement. For example:
-//
-//	requirement: {
-//	  rule_id: 'extended'
-//	  type: BANNED_NAME
-//	  value: 'eval'
-//	  error_message: 'eval is not allowed'
-//	}
-//
-//	requirement: {
-//	  extends: 'extended'
-//	}
-//
-// Extending requirements are leaf-requirements that have an 'extends' field.
-// For example:
-//
-//	requirement: {
-//	  extends: 'eval'
-//
-// The following diagram illustrates the relationship between the different
-// types of requirements that can be defined.
-//
-//	        +---------------------------+    +------------------------------+
-//	        |    Root Requirements      |    |  Extending Requirements      |
-//	        |                           |    | (leaf, with 'extends' field) |
-//	        +---------------------------+    +------------------------------+
-//	           /                        \
-//	          /                          \
-//	+-------------------------------+      +-----------------------------------+
-//	|Extendable Root Requirements   |      | Non-Extendable Root Requirements  |
-//	|     (with rule_id)            |      |        (without rule_id)          |
-//	+-------------------------------+      +-----------------------------------+
-//	          |                      \
-//	          |                       \
-//	+----------------------------+    +--------------------------------+
-//	| Extended Root Requirements |    | Non-Extended Root Requirements |
-//	+----------------------------+    +--------------------------------+
-//
-// Here's the algorithm:
-//
-//  1. Process the root requirements and add them to the rootRequirements
-//     list, and process the extendable requirements and add them to the
-//     extendable map.
-//  2. Process extending-leaf requirements and merge them into their
-//     respective extended root requirements.
-//  3. Remove duplicates from the allowlists/whitelists of the merged extended
-//     root requirements.
-//
-// Returns a list of root requirements of all configs after merging.
 //
 // Java: CheckConformance.mergeRequirements(AbstractCompiler, List<ConformanceConfig>, boolean)
 func (c *CheckConformance) MergeRequirements(
 	compiler AbstractCompiler,
 	configs []*ConformanceConfig,
-	isLibraryLevelConformanceReportingMode bool) []*Requirement {
+	isLibraryLevelConformanceReportingMode bool,
+) []*Requirement {
+	return c.mergeRequirements(compiler, configs, isLibraryLevelConformanceReportingMode, nil)
+}
+
+func (c *CheckConformance) mergeRequirements(
+	compiler AbstractCompiler,
+	configs []*ConformanceConfig,
+	isLibraryLevelConformanceReportingMode bool,
+	mergedBehaviors *jutil.ObjectLinkedHashMap[*Requirement, ConformanceConfig_LibraryLevelNonAllowlistedConformanceViolationsBehavior],
+) []*Requirement {
 	// Root requirements (i.e. requirements that have no 'extends' field).
-	rootRequirements := jutil.NewLinkedHashMap[*Requirement_Builder, ConformanceConfig_LibraryLevelNonAllowlistedConformanceViolationsBehavior]()
+	var rootRequirements []rootRequirementEntry
+	rootIndex := make(map[*Requirement_Builder]int)
+	putRoot := func(builder *Requirement_Builder, behavior ConformanceConfig_LibraryLevelNonAllowlistedConformanceViolationsBehavior) {
+		if idx, ok := rootIndex[builder]; ok {
+			rootRequirements[idx].behavior = behavior
+			return
+		}
+		rootIndex[builder] = len(rootRequirements)
+		rootRequirements = append(rootRequirements, rootRequirementEntry{builder: builder, behavior: behavior})
+	}
 	// Requirements that are extendable (i.e. have a 'rule_id' field).
-	extendable := jutil.NewLinkedHashMap[string, *Requirement_Builder]()
+	extendable := make(map[string]*Requirement_Builder)
 
 	// 1. Process the root requirements and add them to the rootRequirements list, and process the
 	// extendable requirements and add them to the extendable map.
@@ -444,24 +354,20 @@ func (c *CheckConformance) MergeRequirements(
 		for _, requirement := range config.GetRequirementList() {
 			builder := requirement.ToBuilder()
 			if requirement.HasRuleId() {
-				if !CheckConformance_ValidateExtendableRequirement(compiler, requirement, extendable) {
+				if !checkConformance_validateExtendableRequirement(compiler, requirement, extendable) {
 					continue
 				}
 				// has a rule_id, so it's extendable
-				extendable.Put(requirement.GetRuleId(), builder)
+				extendable[requirement.GetRuleId()] = builder
 			}
 			hasBehavior := config.HasLibraryLevelNonAllowlistedConformanceViolationsBehavior()
 			behavior := config.GetLibraryLevelNonAllowlistedConformanceViolationsBehavior()
 			if !requirement.HasExtends() {
 				// does not extend anything, so it's a root requirement. May or may not have a rule_id.
-				if !isLibraryLevelConformanceReportingMode {
-					rootRequirements.Put(builder, ConformanceConfig_LibraryLevelNonAllowlistedConformanceViolationsBehavior_UNSPECIFIED)
+				if isLibraryLevelConformanceReportingMode && hasBehavior {
+					putRoot(builder, behavior)
 				} else {
-					if hasBehavior {
-						rootRequirements.Put(builder, behavior)
-					} else {
-						rootRequirements.Put(builder, ConformanceConfig_LibraryLevelNonAllowlistedConformanceViolationsBehavior_UNSPECIFIED)
-					}
+					putRoot(builder, ConformanceConfig_LibraryLevelNonAllowlistedConformanceViolationsBehavior_UNSPECIFIED)
 				}
 			}
 			// Enforce that requirements used in library-level conformance checks must have their
@@ -484,14 +390,14 @@ func (c *CheckConformance) MergeRequirements(
 	for _, config := range configs {
 		for _, requirement := range config.GetRequirementList() {
 			if requirement.HasExtends() {
-				extendableRequirement := extendable.Get(requirement.GetExtends())
+				extendableRequirement := extendable[requirement.GetExtends()]
 				if !CheckConformance_ValidateExtendingRequirement(compiler, requirement, extendableRequirement) {
 					continue
 				}
 				if config.HasLibraryLevelNonAllowlistedConformanceViolationsBehavior() {
 					// overwrite the behavior of the extendable requirement with the behavior of the
 					// extending requirement.
-					rootRequirements.Put(
+					putRoot(
 						extendableRequirement,
 						config.GetLibraryLevelNonAllowlistedConformanceViolationsBehavior())
 				}
@@ -501,13 +407,13 @@ func (c *CheckConformance) MergeRequirements(
 	}
 
 	// 3. Remove duplicates from the allowlists/whitelists of the merged root requirements.
-	cleanedUpRootRequirements := make([]*Requirement, 0, rootRequirements.Size())
-	for builder, behavior := range rootRequirements.All() {
-		CheckConformance_RemoveDuplicates(builder)
-		requirement := builder.Build()
-		if isLibraryLevelConformanceReportingMode &&
-			behavior != ConformanceConfig_LibraryLevelNonAllowlistedConformanceViolationsBehavior_UNSPECIFIED {
-			c.mergedBehaviors.Put(requirement, behavior)
+	cleanedUpRootRequirements := make([]*Requirement, 0, len(rootRequirements))
+	for _, entry := range rootRequirements {
+		CheckConformance_RemoveDuplicates(entry.builder)
+		requirement := entry.builder.Build()
+		if mergedBehaviors != nil && isLibraryLevelConformanceReportingMode &&
+			entry.behavior != ConformanceConfig_LibraryLevelNonAllowlistedConformanceViolationsBehavior_UNSPECIFIED {
+			mergedBehaviors.Put(requirement, entry.behavior)
 		}
 		cleanedUpRootRequirements = append(cleanedUpRootRequirements, requirement)
 	}
@@ -518,10 +424,6 @@ func (c *CheckConformance) MergeRequirements(
 // CheckConformance_MergeExtendingRequirementIntoExtended merges the
 // allowlists/whitelists of the extending requirement into the extended
 // requirement.
-//
-// extendedRequirement is the extended requirement to merge the extending
-// requirement into; extendingRequirement the extending requirement to merge
-// into the extended requirement.
 //
 // Java: CheckConformance.mergeExtendingRequirementIntoExtended(Requirement.Builder, Requirement)
 func CheckConformance_MergeExtendingRequirementIntoExtended(
@@ -542,26 +444,18 @@ func CheckConformance_MergeExtendingRequirementIntoExtended(
 		AddAllConfigFile(extendingRequirement.GetConfigFileList())
 }
 
-// CheckConformance_ValidateExtendableRequirement validates a extendable
-// requirement.
-//
-// A valid extendable requirement is a requirement that has a unique,
-// non-empty rule_id.
-//
-// Returns true if the requirement is valid, false otherwise.
-//
 // Java: CheckConformance.validateExtendableRequirement(AbstractCompiler, Requirement, Map<String, Requirement.Builder>)
-func CheckConformance_ValidateExtendableRequirement(
+func checkConformance_validateExtendableRequirement(
 	compiler AbstractCompiler,
 	requirement *Requirement,
-	extendable *jutil.LinkedHashMap[string, *Requirement_Builder]) bool {
+	extendable map[string]*Requirement_Builder) bool {
 	jutil.CheckStateMsg(requirement.HasRuleId(), "Extendable requirement must have a rule_id")
 
 	if requirement.GetRuleId() == "" {
 		CheckConformance_ReportInvalidRequirement(compiler, requirement, "empty rule_id")
 		return false
 	}
-	if extendable.ContainsKey(requirement.GetRuleId()) {
+	if _, exists := extendable[requirement.GetRuleId()]; exists {
 		CheckConformance_ReportInvalidRequirement(
 			compiler,
 			requirement,
@@ -573,16 +467,6 @@ func CheckConformance_ValidateExtendableRequirement(
 
 // CheckConformance_ValidateExtendingRequirement validates an extending
 // requirement is correctly extending an extendable requirement.
-//
-// A valid extending requirement is a requirement that:
-//
-//  1. has a non-empty extends field, and
-//  2. only extends an existing extendable requirement
-//  3. does not specify any fields that are not in EXTENDABLE_FIELDS.
-//  4. does not specify a value if the extendable requirement does not allow
-//     extending values.
-//
-// Returns true if the requirement is valid, false otherwise.
 //
 // Java: CheckConformance.validateExtendingRequirement(AbstractCompiler, Requirement, Requirement.Builder)
 func CheckConformance_ValidateExtendingRequirement(
@@ -613,107 +497,95 @@ func CheckConformance_ValidateExtendingRequirement(
 	return true
 }
 
+func checkConformance_dedupStrings(in []string) []string {
+	if len(in) <= 1 {
+		return in
+	}
+	seen := make(map[string]struct{}, len(in))
+	out := make([]string, 0, len(in))
+	for _, s := range in {
+		if _, ok := seen[s]; !ok {
+			seen[s] = struct{}{}
+			out = append(out, s)
+		}
+	}
+	return out
+}
+
 // Java: CheckConformance.removeDuplicates(Requirement.Builder)
 func CheckConformance_RemoveDuplicates(requirement *Requirement_Builder) {
-	list1 := jutil.NewLinkedHashSet(requirement.GetWhitelistList()...).ToSlice()
+	list1 := checkConformance_dedupStrings(requirement.GetWhitelistList())
 	requirement.ClearWhitelist().AddAllWhitelist(list1)
 
-	allowlist := jutil.NewLinkedHashSet(requirement.GetAllowlistList()...).ToSlice()
+	allowlist := checkConformance_dedupStrings(requirement.GetAllowlistList())
 	requirement.ClearAllowlist().AddAllAllowlist(allowlist)
 
-	list2 := jutil.NewLinkedHashSet(requirement.GetWhitelistRegexpList()...).ToSlice()
+	list2 := checkConformance_dedupStrings(requirement.GetWhitelistRegexpList())
 	requirement.ClearWhitelistRegexp().AddAllWhitelistRegexp(list2)
 
-	allowlistRegexp := jutil.NewLinkedHashSet(requirement.GetAllowlistRegexpList()...).ToSlice()
+	allowlistRegexp := checkConformance_dedupStrings(requirement.GetAllowlistRegexpList())
 	requirement.ClearAllowlistRegexp().AddAllAllowlistRegexp(allowlistRegexp)
 
-	list3 := jutil.NewLinkedHashSet(requirement.GetOnlyApplyToList()...).ToSlice()
+	list3 := checkConformance_dedupStrings(requirement.GetOnlyApplyToList())
 	requirement.ClearOnlyApplyTo().AddAllOnlyApplyTo(list3)
 
-	list4 := jutil.NewLinkedHashSet(requirement.GetOnlyApplyToRegexpList()...).ToSlice()
+	list4 := checkConformance_dedupStrings(requirement.GetOnlyApplyToRegexpList())
 	requirement.ClearOnlyApplyToRegexp().AddAllOnlyApplyToRegexp(list4)
 }
+
+type errInvalidRequirementSpec string
+
+func (e errInvalidRequirementSpec) Error() string { return string(e) }
 
 // CheckConformance_InitRule translates a requirement specified in the
 // conformance config file into a rule instance.
 //
-// compiler is the compiler to use for the rule; requirement the requirement
-// to initialize the rule for. Returns the initialized rule, or null if the
-// requirement is invalid.
-//
 // Java: CheckConformance.initRule(AbstractCompiler, Requirement)
 func CheckConformance_InitRule(compiler AbstractCompiler, requirement *Requirement) CheckConformance_Rule {
-	var result CheckConformance_Rule
-	jutil.Try(func() {
-		switch requirement.GetType() {
-		case Requirement_Type_CUSTOM:
-			result = NewConformanceRules_CustomRuleProxy(compiler, requirement)
-		case Requirement_Type_NO_OP:
-			result = NewConformanceRules_NoOp(compiler, requirement)
-		case Requirement_Type_BANNED_CODE_PATTERN:
-			result = NewConformanceRules_BannedCodePattern(compiler, requirement)
-		case Requirement_Type_BANNED_DEPENDENCY:
-			result = NewConformanceRules_BannedDependency(compiler, requirement)
-		case Requirement_Type_BANNED_DEPENDENCY_REGEX:
-			result = NewConformanceRules_BannedDependencyRegex(compiler, requirement)
-		case Requirement_Type_BANNED_ENHANCE:
-			result = NewConformanceRules_BannedEnhance(compiler, requirement)
-		case Requirement_Type_BANNED_MODS_REGEX:
-			result = NewConformanceRules_BannedModsRegex(compiler, requirement)
-		case Requirement_Type_BANNED_NAME,
-			Requirement_Type_BANNED_NAME_CALL:
-			result = NewConformanceRules_BannedName(compiler, requirement)
-		case Requirement_Type_BANNED_PROPERTY,
-			Requirement_Type_BANNED_PROPERTY_READ,
-			Requirement_Type_BANNED_PROPERTY_WRITE,
-			Requirement_Type_BANNED_PROPERTY_NON_CONSTANT_WRITE,
-			Requirement_Type_BANNED_PROPERTY_CALL:
-			result = NewConformanceRules_BannedProperty(compiler, requirement)
-		case Requirement_Type_RESTRICTED_NAME_CALL:
-			result = NewConformanceRules_RestrictedNameCall(compiler, requirement)
-		case Requirement_Type_RESTRICTED_METHOD_CALL:
-			result = NewConformanceRules_RestrictedMethodCall(compiler, requirement)
-		case Requirement_Type_RESTRICTED_PROPERTY_WRITE:
-			result = NewConformanceRules_RestrictedPropertyWrite(compiler, requirement)
-		case Requirement_Type_BANNED_STRING_REGEX:
-			result = NewConformanceRules_BannedStringRegex(compiler, requirement)
-		default:
-			// A Java switch expression over all enum constants: an unknown value
-			// throws IncompatibleClassChangeError.
-			panic(jutil.NewIllegalStateExceptionMsg(requirement.GetType().String()))
-		}
-	}, func(e ICheckConformance_InvalidRequirementSpec) {
-		CheckConformance_ReportInvalidRequirement(compiler, requirement, e.GetMessage())
-		result = nil
-	})
-	return result
+	rule, err := checkConformance_initRule(compiler, requirement)
+	if err != nil {
+		CheckConformance_ReportInvalidRequirement(compiler, requirement, err.Error())
+		return nil
+	}
+	return rule
 }
 
-// CheckConformance_InvalidRequirementSpec is a checked exception.
-type CheckConformance_InvalidRequirementSpec struct {
-	jutil.JavaException
-}
-
-func (*CheckConformance_InvalidRequirementSpec) invalidRequirementSpec() {}
-
-// ICheckConformance_InvalidRequirementSpec matches InvalidRequirementSpec.
-type ICheckConformance_InvalidRequirementSpec interface {
-	jutil.IException
-	invalidRequirementSpec()
-}
-
-// Java: CheckConformance.InvalidRequirementSpec(String)
-func NewCheckConformance_InvalidRequirementSpec(message string) *CheckConformance_InvalidRequirementSpec {
-	e := &CheckConformance_InvalidRequirementSpec{}
-	jutil.InitThrowable(e, "com.google.javascript.jscomp.CheckConformance$InvalidRequirementSpec", jutil.StringPtr(message), nil)
-	return e
-}
-
-// Java: CheckConformance.InvalidRequirementSpec(String, Throwable)
-func NewCheckConformance_InvalidRequirementSpecWithCause(message string, cause jutil.Throwable) *CheckConformance_InvalidRequirementSpec {
-	e := &CheckConformance_InvalidRequirementSpec{}
-	jutil.InitThrowable(e, "com.google.javascript.jscomp.CheckConformance$InvalidRequirementSpec", jutil.StringPtr(message), cause)
-	return e
+func checkConformance_initRule(compiler AbstractCompiler, requirement *Requirement) (CheckConformance_Rule, error) {
+	switch requirement.GetType() {
+	case Requirement_Type_CUSTOM:
+		return newConformanceRules_CustomRuleProxy(compiler, requirement)
+	case Requirement_Type_NO_OP:
+		return newConformanceRules_NoOp(compiler, requirement)
+	case Requirement_Type_BANNED_CODE_PATTERN:
+		return newConformanceRules_BannedCodePattern(compiler, requirement)
+	case Requirement_Type_BANNED_DEPENDENCY:
+		return newConformanceRules_BannedDependency(compiler, requirement)
+	case Requirement_Type_BANNED_DEPENDENCY_REGEX:
+		return newConformanceRules_BannedDependencyRegex(compiler, requirement)
+	case Requirement_Type_BANNED_ENHANCE:
+		return newConformanceRules_BannedEnhance(compiler, requirement)
+	case Requirement_Type_BANNED_MODS_REGEX:
+		return newConformanceRules_BannedModsRegex(compiler, requirement)
+	case Requirement_Type_BANNED_NAME,
+		Requirement_Type_BANNED_NAME_CALL:
+		return newConformanceRules_BannedName(compiler, requirement)
+	case Requirement_Type_BANNED_PROPERTY,
+		Requirement_Type_BANNED_PROPERTY_READ,
+		Requirement_Type_BANNED_PROPERTY_WRITE,
+		Requirement_Type_BANNED_PROPERTY_NON_CONSTANT_WRITE,
+		Requirement_Type_BANNED_PROPERTY_CALL:
+		return newConformanceRules_BannedProperty(compiler, requirement)
+	case Requirement_Type_RESTRICTED_NAME_CALL:
+		return newConformanceRules_RestrictedNameCall(compiler, requirement)
+	case Requirement_Type_RESTRICTED_METHOD_CALL:
+		return newConformanceRules_RestrictedMethodCall(compiler, requirement)
+	case Requirement_Type_RESTRICTED_PROPERTY_WRITE:
+		return newConformanceRules_RestrictedPropertyWrite(compiler, requirement)
+	case Requirement_Type_BANNED_STRING_REGEX:
+		return newConformanceRules_BannedStringRegex(compiler, requirement)
+	default:
+		panic(jutil.NewIllegalStateExceptionMsg(requirement.GetType().String()))
+	}
 }
 
 // Java: CheckConformance.reportInvalidRequirement(AbstractCompiler, Requirement, String)

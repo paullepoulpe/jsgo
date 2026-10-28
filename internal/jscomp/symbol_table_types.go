@@ -62,6 +62,16 @@ func NewSymbolTable_Symbol(name string, type_ rhino.JSType, inferred bool, scope
 	return s
 }
 
+func jsTypeEquals(a, b rhino.JSType) bool {
+	if a == b {
+		return true
+	}
+	if a == nil || b == nil {
+		return false
+	}
+	return a.Equals(b)
+}
+
 // Java: SymbolTable.Symbol.equals(Object)
 func (s *SymbolTable_Symbol) Equals(o any) bool {
 	other, ok := o.(*SymbolTable_Symbol)
@@ -71,7 +81,7 @@ func (s *SymbolTable_Symbol) Equals(o any) bool {
 
 	return s.IsTypeInferred() == other.IsTypeInferred() &&
 		s.GetName() == other.GetName() &&
-		jutil.ObjectsEquals(s.GetType(), other.GetType()) &&
+		jsTypeEquals(s.GetType(), other.GetType()) &&
 		s.scope == other.scope
 }
 

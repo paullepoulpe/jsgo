@@ -19,9 +19,10 @@
 package jscomp
 
 import (
+	"github.com/paullepoulpe/jsgo/internal/ast"
 	"github.com/paullepoulpe/jsgo/internal/colors"
-	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
+	"github.com/paullepoulpe/jsgo/internal/strpool"
 )
 
 // InlineProperties attempts to find references to properties that are known
@@ -38,78 +39,90 @@ type InlineProperties struct {
 	compiler    AbstractCompiler
 	registry    *colors.ColorRegistry
 	astAnalyzer *AstAnalyzer
-	externProps *jutil.LinkedHashSet[string]
-
-	props map[string]*InlineProperties_PropertyInfo
+	prototypeID uint32
+	props       map[uint32]inlinePropInfo
 }
 
-// InlineProperties_PropertyInfo is the nested class PropertyInfo.
-type InlineProperties_PropertyInfo struct {
-	color *colors.Color
-	value rhino.Node
+type inlinePropInfo struct {
+	color       *colors.Color
+	value       rhino.Node
+	invalidated bool
 }
 
-// Java: InlineProperties.PropertyInfo(Color, Node)
-func NewInlineProperties_PropertyInfo(color *colors.Color, value rhino.Node) *InlineProperties_PropertyInfo {
-	return &InlineProperties_PropertyInfo{color: color, value: value}
-}
-
-var InlineProperties_INVALIDATED = NewInlineProperties_PropertyInfo(nil, rhino.NilNode)
+var (
+	inlinePropsGatherTokens = func() ast.TokenSet {
+		var s ast.TokenSet
+		s.Add(rhino.Token_GETPROP)
+		s.Add(rhino.Token_STRING_KEY)
+		s.Add(rhino.Token_GETTER_DEF)
+		s.Add(rhino.Token_SETTER_DEF)
+		s.Add(rhino.Token_MEMBER_FUNCTION_DEF)
+		s.Add(rhino.Token_MEMBER_FIELD_DEF)
+		s.Add(rhino.Token_CALL)
+		return s
+	}()
+	inlinePropsReplaceTokens = func() ast.TokenSet {
+		var s ast.TokenSet
+		s.Add(rhino.Token_GETPROP)
+		return s
+	}()
+)
 
 // Java: InlineProperties(AbstractCompiler)
 func NewInlineProperties(compiler AbstractCompiler) *InlineProperties {
-	p := &InlineProperties{
+	return &InlineProperties{
 		compiler:    compiler,
 		registry:    compiler.GetColorRegistry(),
 		astAnalyzer: compiler.GetAstAnalyzer(),
-		props:       make(map[string]*InlineProperties_PropertyInfo, 256),
+		props:       make(map[uint32]inlinePropInfo, 256),
 	}
-	p.InvalidateExternProperties()
-	return p
 }
 
-// Java: InlineProperties.invalidateExternProperties()
-func (p *InlineProperties) InvalidateExternProperties() {
-	// Invalidate properties defined in externs.
-	p.externProps = p.compiler.GetExternProperties()
-}
-
-// GetColor gets the JSType from the Node argument and verifies that it is
-// present.
-//
-// Java: InlineProperties.getColor(Node)
-func (p *InlineProperties) GetColor(n rhino.Node) *colors.Color {
-	color := n.GetColor()
-
-	if color == nil {
-		return colors.StandardColors_UNKNOWN
-	} else {
-		return color
+func inlinePropColor(n rhino.Node) *colors.Color {
+	if c := n.GetColor(); c != nil {
+		return c
 	}
+	return colors.StandardColors_UNKNOWN
 }
 
 // Java: InlineProperties.process(Node, Node)
 func (p *InlineProperties) Process(externs rhino.Node, root rhino.Node) {
+	p.prototypeID = uint32(strpool.Intern("prototype"))
+	if externProps := p.compiler.GetExternProperties(); externProps != nil {
+		for name := range externProps.All() {
+			if id := strpool.Lookup(name); id != 0 {
+				p.props[uint32(id)] = inlinePropInfo{invalidated: true}
+			}
+		}
+	}
+
 	// Find and replace the properties in non-extern AST.
-	NodeTraversal_Traverse(p.compiler, root, &InlineProperties_GatherCandidates{outer: p})
-	NodeTraversal_Traverse(p.compiler, root, NewInlineProperties_ReplaceCandidates(p))
+	NodeTraversal_Traverse(p.compiler, root, &inlineGatherCandidates{outer: p})
+	replacer := &inlineReplaceCandidates{outer: p}
+	replacer.seen = replacer.seenBuf[:0]
+	NodeTraversal_Traverse(p.compiler, root, replacer)
 }
 
-// InlineProperties_GatherCandidates is the inner class GatherCandidates.
-type InlineProperties_GatherCandidates struct {
+type inlineGatherCandidates struct {
 	NodeTraversal_AbstractPostOrderCallbackBase
 	outer *InlineProperties
 }
 
+func (g *inlineGatherCandidates) visitTokens() *ast.TokenSet {
+	return &inlinePropsGatherTokens
+}
+
 // Java: InlineProperties.GatherCandidates.visit(NodeTraversal, Node, Node)
-func (g *InlineProperties_GatherCandidates) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
-	// These are assigned at most once in the branches below
+func (g *inlineGatherCandidates) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	var invalidatingPropRef bool
-	var propName string
-	if n.IsGetProp() {
-		propName = n.GetString()
-		if parent.IsAssign() {
-			invalidatingPropRef = !g.MaybeRecordCandidateGetpropDefinition(t, n, parent)
+	var propID uint32
+
+	switch n.GetToken() {
+	case rhino.Token_GETPROP:
+		gp := ast.MustGetProp(n)
+		propID = n.GetStringID()
+		if assign, ok := ast.AsAssign(parent); ok {
+			invalidatingPropRef = !g.maybeRecordCandidateGetpropDefinition(t, gp, assign)
 		} else if NodeUtil_IsLValue(n) {
 			// Other LValue references invalidate
 			// e.g. in an enhanced for loop or a destructuring statement
@@ -117,225 +130,196 @@ func (g *InlineProperties_GatherCandidates) Visit(t *NodeTraversal, n rhino.Node
 		} else if parent.IsDelProp() {
 			// Deletes invalidate
 			invalidatingPropRef = true
-		} else {
-			// A property read doesn't invalidate
-			invalidatingPropRef = false
 		}
-	} else if (n.IsStringKey() && !n.GetParent().IsObjectPattern()) ||
-		n.IsGetterDef() ||
-		n.IsSetterDef() ||
-		n.IsMemberFunctionDef() {
-		propName = n.GetString()
-		// For now, any object literal key invalidates
-		// TODO(johnlenz): support prototype properties like:
-		//   foo.prototype = { a: 1, b: 2 };
-		// TODO(johnlenz): Object.create(), Object.createProperty
-		// and getter/setter defs and member functions also invalidate
-		// since we do not inline functions in this pass
-		// Note that string keys in destructuring patterns are fine, since they just access the prop
+	case rhino.Token_STRING_KEY:
+		if parent.IsObjectPattern() {
+			// String keys in destructuring patterns are fine, since they just access the prop.
+			return
+		}
+		propID = n.GetStringID()
 		invalidatingPropRef = true
-	} else if n.IsMemberFieldDef() {
-		propName = n.GetString()
-		if n.HasChildren() {
-			// class field with initialization
-			invalidatingPropRef = !g.MaybeRecordCandidateClassFieldDefinition(n)
+	case rhino.Token_GETTER_DEF, rhino.Token_SETTER_DEF, rhino.Token_MEMBER_FUNCTION_DEF:
+		// For now, any object literal key, getter/setter def, or member function invalidates
+		// since we do not inline functions in this pass.
+		propID = n.GetStringID()
+		invalidatingPropRef = true
+	case rhino.Token_MEMBER_FIELD_DEF:
+		fieldDef := ast.MustMemberFieldDef(n)
+		propID = n.GetStringID()
+		if val, ok := fieldDef.Value(); ok {
+			invalidatingPropRef = !g.maybeRecordCandidateClassFieldDefinition(fieldDef, propID, val.Node())
 		} else {
-			// class field with no initialization
 			invalidatingPropRef = true
 		}
-	} else if n.IsCall() &&
-		g.outer.compiler.GetCodingConvention().IsPropertyRenameFunction(n.GetFirstChild()) &&
-		n.HasMoreThanOneChild() &&
-		n.GetSecondChild().IsStringLit() {
+	case rhino.Token_CALL:
+		call := ast.MustCall(n)
+		if !g.outer.compiler.GetCodingConvention().IsPropertyRenameFunction(call.Callee().Node()) {
+			return
+		}
+		firstArg, ok := call.FirstArg()
+		if !ok {
+			return
+		}
+		strLit, ok := firstArg.AsStringLit()
+		if !ok {
+			return
+		}
 		// JSCompiler_renameProperty('foo', obj) and goog.reflect.objectProperty name `foo` for
 		// reflective access, so `foo` may be written without a GETPROP, e.g. by
 		// `obj[JSCompiler_renameProperty('foo', obj)] = value`.
-		propName = n.GetSecondChild().GetString()
+		propID = strLit.Node().GetStringID()
 		invalidatingPropRef = true
-	} else {
+	default:
 		return
 	}
 
 	if invalidatingPropRef {
-		// checkNotNull(propName): propName is a non-null Java String here.
-		g.InvalidateProperty(propName)
+		g.outer.props[propID] = inlinePropInfo{invalidated: true}
 	}
 }
 
-// MaybeRecordCandidateClassFieldDefinition returns whether this is a valid
-// definition for a candidate class field.
-//
-// Java: InlineProperties.GatherCandidates.maybeRecordCandidateClassFieldDefinition(Node)
-func (g *InlineProperties_GatherCandidates) MaybeRecordCandidateClassFieldDefinition(n rhino.Node) bool {
-	jutil.CheckStateMsg1(n.IsMemberFieldDef(), "%s", n)
-	value := n.GetFirstChild()
-	propName := n.GetString()
-	classNode := n.GetGrandparent()
+func (g *inlineGatherCandidates) maybeRecordCandidateClassFieldDefinition(fieldDef ast.MemberFieldDef, propID uint32, value rhino.Node) bool {
+	classNode := fieldDef.Node().GetGrandparent()
 	var c *colors.Color
-
-	if n.IsStaticMember() {
-		c = g.outer.GetColor(classNode)
+	if fieldDef.IsStatic() {
+		c = inlinePropColor(classNode)
 	} else {
-		possibleInstances := g.outer.GetColor(classNode).GetInstanceColors()
+		possibleInstances := inlinePropColor(classNode).GetInstanceColors()
 		if len(possibleInstances) == 0 {
 			c = colors.StandardColors_UNKNOWN
 		} else {
 			c = colors.Color_CreateUnionSlice(possibleInstances)
 		}
 	}
-
-	return g.MaybeStoreCandidateValue(c, propName, value)
+	return g.maybeStoreCandidateValue(c, propID, value)
 }
 
-// MaybeRecordCandidateGetpropDefinition returns whether this is a valid
-// definition for a candidate property.
-//
-// Java: InlineProperties.GatherCandidates.maybeRecordCandidateGetpropDefinition(NodeTraversal, Node, Node)
-func (g *InlineProperties_GatherCandidates) MaybeRecordCandidateGetpropDefinition(t *NodeTraversal, n rhino.Node, parent rhino.Node) bool {
-	jutil.CheckStateMsg1(n.IsGetProp() && parent.IsAssign(), "%s", n)
-	src := n.GetFirstChild()
-	propName := n.GetString()
-	value := parent.GetLastChild()
+func (g *inlineGatherCandidates) maybeRecordCandidateGetpropDefinition(t *NodeTraversal, gp ast.GetProp, assign ast.Assign) bool {
+	src := gp.Object().Node()
+	propID := gp.Node().GetStringID()
+	value := assign.Value().Node()
 
 	if src.IsThis() {
 		// This is a simple assignment like:
 		//    this.foo = 1;
-		if g.InConstructor(t) {
-			// This may be a valid assignment.
-			return g.MaybeStoreCandidateValue(g.outer.GetColor(src), propName, value)
+		if inlineInConstructor(t) {
+			return g.maybeStoreCandidateValue(inlinePropColor(src), propID, value)
 		}
 		return false
-	} else if t.InGlobalHoistScope() && src.IsGetProp() && src.GetString() == "prototype" {
-		// This is a prototype assignment like:
-		//    x.prototype.foo = 1;
-		instanceType := g.outer.GetColor(src)
-		return g.MaybeStoreCandidateValue(instanceType, propName, value)
 	} else if t.InGlobalHoistScope() {
+		if srcGetProp, ok := ast.AsGetProp(src); ok && srcGetProp.Node().GetStringID() == g.outer.prototypeID {
+			// This is a prototype assignment like:
+			//    x.prototype.foo = 1;
+			return g.maybeStoreCandidateValue(inlinePropColor(src), propID, value)
+		}
 		// This is a static assignment like:
 		//    x.foo = 1;
-		targetType := g.outer.GetColor(src)
+		targetType := inlinePropColor(src)
 		if targetType != nil && targetType.IsConstructor() {
-			return g.MaybeStoreCandidateValue(targetType, propName, value)
+			return g.maybeStoreCandidateValue(targetType, propID, value)
 		}
 	}
 	return false
 }
 
-// Java: InlineProperties.GatherCandidates.invalidateProperty(String)
-func (g *InlineProperties_GatherCandidates) InvalidateProperty(propName string) {
-	if g.outer.externProps != nil && g.outer.externProps.Contains(propName) {
-		return
-	}
-	g.outer.props[propName] = InlineProperties_INVALIDATED
-}
-
-// MaybeStoreCandidateValue adds the candidate property to the map if it
-// meets all constness and immutability criteria, and is not already present
-// in the map. If the property was already present, it is invalidated.
-// Returns true if the property was successfully added.
-//
-// Java: InlineProperties.GatherCandidates.maybeStoreCandidateValue(Color, String, Node)
-func (g *InlineProperties_GatherCandidates) MaybeStoreCandidateValue(color *colors.Color, propName string, value rhino.Node) bool {
+func (g *inlineGatherCandidates) maybeStoreCandidateValue(color *colors.Color, propID uint32, value rhino.Node) bool {
 	rhino.CheckNotNull(value)
-	if g.outer.props[propName] == nil &&
-		(g.outer.externProps == nil || !g.outer.externProps.Contains(propName)) &&
+	if _, exists := g.outer.props[propID]; !exists &&
 		!color.IsInvalidating() &&
 		NodeUtil_IsImmutableValue(value) &&
 		NodeUtil_IsExecutedExactlyOnce(value) {
-		g.outer.props[propName] = NewInlineProperties_PropertyInfo(color, value)
+		g.outer.props[propID] = inlinePropInfo{color: color, value: value}
 		return true
 	}
 	return false
 }
 
-// InConstructor returns whether the traversal is directly in an ES6 class
-// constructor or an @constructor function
+// inlineInConstructor returns whether the traversal is directly in an ES6 class
+// constructor or an @constructor function.
 //
 // This returns false for nested functions inside ctors, including arrow
 // functions (even though the `this` is the same). This pass only cares
 // about property definitions executed once per ctor invocation, and in
-// general we don't know how many times an arrow fn will be executed. In the
-// future, we could special case arrow fn IIFEs in this pass if it becomes
-// useful.
-//
-// Java: InlineProperties.GatherCandidates.inConstructor(NodeTraversal)
-func (g *InlineProperties_GatherCandidates) InConstructor(t *NodeTraversal) bool {
+// general we don't know how many times an arrow fn will be executed.
+func inlineInConstructor(t *NodeTraversal) bool {
 	root := t.GetEnclosingFunction()
-	if root.IsNil() { // we might be in the global scope
+	if root.IsNil() {
 		return false
 	}
 	return NodeUtil_IsConstructor(root)
 }
 
-// InlineProperties_ReplaceCandidates is the inner class ReplaceCandidates.
-type InlineProperties_ReplaceCandidates struct {
+type inlineReplaceCandidates struct {
 	NodeTraversal_AbstractPostOrderCallbackBase
-	outer *InlineProperties
-
-	hasInSupertypesListSeenSet *jutil.ObjectLinkedHashSet[*colors.Color]
+	outer   *InlineProperties
+	seen    []*colors.Color
+	seenBuf [16]*colors.Color
 }
 
-// Java: InlineProperties.ReplaceCandidates()
-func NewInlineProperties_ReplaceCandidates(outer *InlineProperties) *InlineProperties_ReplaceCandidates {
-	return &InlineProperties_ReplaceCandidates{
-		outer:                      outer,
-		hasInSupertypesListSeenSet: jutil.NewObjectLinkedHashSet[*colors.Color](),
-	}
+func (r *inlineReplaceCandidates) visitTokens() *ast.TokenSet {
+	return &inlinePropsReplaceTokens
 }
 
 // Java: InlineProperties.ReplaceCandidates.visit(NodeTraversal, Node, Node)
-func (r *InlineProperties_ReplaceCandidates) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
-	if n.IsGetProp() && !NodeUtil_IsLValue(n) {
-		target := n.GetFirstChild()
-		propName := n.GetString()
-		info := r.outer.props[propName]
-		if info != nil && info != InlineProperties_INVALIDATED && r.IsMatchingType(target, info.color) {
-			replacement := info.value.CloneTree()
-			if r.outer.astAnalyzer.MayHaveSideEffects(n.GetFirstChild()) {
-				replacement = rhino.IR_Comma(n.RemoveFirstChild(), replacement).Srcref(n)
-			}
-			n.ReplaceWith(replacement)
-			r.outer.compiler.ReportChangeToEnclosingScope(replacement)
+func (r *inlineReplaceCandidates) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
+	if NodeUtil_IsLValue(n) {
+		return
+	}
+	gp, ok := ast.AsGetProp(n)
+	if !ok {
+		return
+	}
+	info, ok := r.outer.props[n.GetStringID()]
+	if !ok || info.invalidated {
+		return
+	}
+	target := gp.Object().Node()
+	if r.isMatchingType(target, info.color) {
+		replacement := info.value.CloneTree()
+		if r.outer.astAnalyzer.MayHaveSideEffects(target) {
+			replacement = rhino.IR_Comma(gp.Object().Detach().Node(), replacement).Srcref(n)
+		}
+		n.ReplaceWith(replacement)
+		r.outer.compiler.ReportChangeToEnclosingScope(replacement)
+	}
+}
+
+func (r *inlineReplaceCandidates) isMatchingType(n rhino.Node, src *colors.Color) bool {
+	src = inlineRemoveNullAndUndefinedIfUnion(src)
+	dest := inlineRemoveNullAndUndefinedIfUnion(inlinePropColor(n))
+	if dest.IsInvalidating() || dest.IsUnion() || src.IsUnion() {
+		return false
+	}
+	if src == nil {
+		return false
+	}
+	r.seen = r.seen[:0]
+	return r.hasInSupertypesList(dest, src)
+}
+
+func (r *inlineReplaceCandidates) hasInSupertypesList(subCtor *colors.Color, superCtor *colors.Color) bool {
+	if subCtor == nil {
+		return false
+	}
+	for _, s := range r.seen {
+		if s == subCtor || s.Equals(subCtor) {
+			return false
 		}
 	}
-}
-
-// Java: InlineProperties.ReplaceCandidates.isMatchingType(Node, Color)
-func (r *InlineProperties_ReplaceCandidates) IsMatchingType(n rhino.Node, src *colors.Color) bool {
-	src = InlineProperties_RemoveNullAndUndefinedIfUnion(src)
-	dest := InlineProperties_RemoveNullAndUndefinedIfUnion(r.outer.GetColor(n))
-	if dest.IsInvalidating() {
-		return false
-	}
-	if dest.IsUnion() || src.IsUnion() {
-		return false
-	}
-	return r.HasInSupertypesList(dest, src)
-}
-
-// Java: InlineProperties.ReplaceCandidates.hasInSupertypesList(Color, Color)
-func (r *InlineProperties_ReplaceCandidates) HasInSupertypesList(subCtor *colors.Color, superCtor *colors.Color) bool {
-	defer r.hasInSupertypesListSeenSet.Remove(subCtor)
-	if !r.hasInSupertypesListSeenSet.Add(subCtor) {
-		return false
-	}
-	if subCtor == nil || superCtor == nil {
-		return false
-	}
-	if subCtor.Equals(superCtor) {
+	r.seen = append(r.seen, subCtor)
+	if subCtor == superCtor || subCtor.Equals(superCtor) {
 		return true
 	}
 
 	for immediateSupertype := range r.outer.registry.GetDisambiguationSupertypes(subCtor).All() {
-		if !immediateSupertype.IsUnion() && r.HasInSupertypesList(immediateSupertype, superCtor) {
+		if !immediateSupertype.IsUnion() && r.hasInSupertypesList(immediateSupertype, superCtor) {
 			return true
 		}
 	}
 	return false
 }
 
-// Java: InlineProperties.removeNullAndUndefinedIfUnion(Color)
-func InlineProperties_RemoveNullAndUndefinedIfUnion(original *colors.Color) *colors.Color {
+func inlineRemoveNullAndUndefinedIfUnion(original *colors.Color) *colors.Color {
 	if original.IsUnion() {
 		return original.SubtractNullOrVoid()
 	}

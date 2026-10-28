@@ -53,8 +53,10 @@ var defaultNameGenerator_orderByASCII = func() [128]int8 {
 // This class is not thread safe.
 type DefaultNameGenerator struct {
 	reservedNames jutil.Set[string]
+	reservedMap   map[string]struct{}
 	prefix        string
 	nameCount     int
+	hasFavored    bool
 
 	firstChars    []*defaultNameGenerator_CharPriority
 	nonFirstChars []*defaultNameGenerator_CharPriority
@@ -182,17 +184,32 @@ func (g *DefaultNameGenerator) ResetWithFirstAndNonFirstChars(
 	reservedNonFirstCharacters jutil.Set[uint16]) {
 
 	g.reservedNames = reservedNames
+	if m, ok := reservedNames.(stringMapSet); ok {
+		g.reservedMap = m
+	} else {
+		g.reservedMap = nil
+	}
 	g.prefix = prefix
 	g.nameCount = 0
 
 	// build the character arrays to use
 	g.firstChars = g.reserveCharactersInto(g.firstBuf[:0], defaultNameGenerator_FIRST_CHAR_STR, reservedFirstCharacters)
 	g.nonFirstChars = g.reserveCharactersInto(g.nonFirstBuf[:0], defaultNameGenerator_NONFIRST_CHAR_STR, reservedNonFirstCharacters)
-	// Arrays.sort(Object[]) is a stable merge sort.
-	slices.SortStableFunc(g.firstChars, (*defaultNameGenerator_CharPriority).CompareTo)
-	slices.SortStableFunc(g.nonFirstChars, (*defaultNameGenerator_CharPriority).CompareTo)
+	if g.hasFavored {
+		// Arrays.sort(Object[]) is a stable merge sort.
+		slices.SortStableFunc(g.firstChars, (*defaultNameGenerator_CharPriority).CompareTo)
+		slices.SortStableFunc(g.nonFirstChars, (*defaultNameGenerator_CharPriority).CompareTo)
+	}
 
 	g.checkPrefix(prefix)
+}
+
+func (g *DefaultNameGenerator) isReserved(cand string) bool {
+	if g.reservedMap != nil {
+		_, ok := g.reservedMap[cand]
+		return ok
+	}
+	return g.reservedNames != nil && g.reservedNames.Contains(cand)
 }
 
 // Java: DefaultNameGenerator.clone(Set<String>, String, Set<Character>)
@@ -200,6 +217,7 @@ func (g *DefaultNameGenerator) Clone(
 	reservedNames jutil.Set[string], prefix string, reservedCharacters jutil.Set[uint16]) NameGenerator {
 	cloned := &DefaultNameGenerator{
 		priorities: g.priorities,
+		hasFavored: g.hasFavored,
 	}
 	cloned.ResetWithFirstAndNonFirstChars(reservedNames, prefix, reservedCharacters, reservedCharacters)
 	return cloned
@@ -219,6 +237,7 @@ func (g *DefaultNameGenerator) Favors(sequence string) {
 		if b < 0x80 {
 			if idx := defaultNameGenerator_orderByASCII[b]; idx >= 0 {
 				g.priorities[idx].occurrence++
+				g.hasFavored = true
 			}
 		}
 	}
@@ -346,13 +365,13 @@ func (g *DefaultNameGenerator) GenerateNextName() string {
 			if n == 1 {
 				b := buf[0]
 				cand := asciiByteTable[b : b+1]
-				if rhino.TokenStream_IsKeyword(cand) || (g.reservedNames != nil && g.reservedNames.Contains(cand)) || DefaultNameGenerator_IsBadName(cand) {
+				if rhino.TokenStream_IsKeyword(cand) || g.isReserved(cand) || DefaultNameGenerator_IsBadName(cand) {
 					continue
 				}
 				return cand
 			}
 			cand := string(buf[:n])
-			if rhino.TokenStream_IsKeyword(cand) || (g.reservedNames != nil && g.reservedNames.Contains(cand)) || DefaultNameGenerator_IsBadName(cand) {
+			if rhino.TokenStream_IsKeyword(cand) || g.isReserved(cand) || DefaultNameGenerator_IsBadName(cand) {
 				continue
 			}
 			return cand
@@ -388,7 +407,7 @@ func (g *DefaultNameGenerator) GenerateNextName() string {
 		name := sb.String()
 
 		// Make sure it's not a JS keyword or reserved name.
-		if !(rhino.TokenStream_IsKeyword(name) || (g.reservedNames != nil && g.reservedNames.Contains(name)) || DefaultNameGenerator_IsBadName(name)) {
+		if !(rhino.TokenStream_IsKeyword(name) || g.isReserved(name) || DefaultNameGenerator_IsBadName(name)) {
 			return name
 		}
 	}

@@ -308,7 +308,7 @@ func buildFormatOracle() string {
 	o.rec("typeNodes", strconv.Itoa(len(fnInfo.GetTypeNodes())))
 	o.rec("modifiesThis", jutil.ToJavaString(fnInfo.ModifiesThis()))
 	o.rec("suppressions", typeInfo.GetSuppressions().String())
-	o.rec("suppressionsMap", typeInfo.GetSuppressionsAndTheirDescription().String())
+	o.rec("suppressionsMap", FormatJSDocSuppressions(typeInfo.GetSuppressionsAndTheirDescription()))
 	o.rec("visibility", typeInfo.GetVisibility().String())
 	o.rec("license", *typeInfo.GetLicense())
 	o.rec("clone", fnInfo.CloneWithTypeNodes(true).ToStringVerbose())

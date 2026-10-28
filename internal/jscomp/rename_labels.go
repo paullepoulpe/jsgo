@@ -19,9 +19,19 @@
 package jscomp
 
 import (
+	"github.com/paullepoulpe/jsgo/internal/ast"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
+	"github.com/paullepoulpe/jsgo/internal/strpool"
 )
+
+var renameLabelsVisitTokens = func() ast.TokenSet {
+	var s ast.TokenSet
+	s.Add(rhino.Token_LABEL)
+	s.Add(rhino.Token_BREAK)
+	s.Add(rhino.Token_CONTINUE)
+	return s
+}()
 
 // RenameLabels renames all the labels so that they have short names, to
 // reduce code size and also to obfuscate the code.
@@ -58,13 +68,19 @@ import (
 type RenameLabels struct {
 	compiler     AbstractCompiler
 	nameSupplier func() string
+	defaultGen   *DefaultNameGenerator
 	removeUnused bool
 	markChanges  bool
 }
 
 // Java: RenameLabels(AbstractCompiler)
 func NewRenameLabels(compiler AbstractCompiler) *RenameLabels {
-	return NewRenameLabelsWithSupplier(compiler, NewRenameLabels_DefaultNameSupplier().Get, true, true)
+	return &RenameLabels{
+		compiler:     compiler,
+		defaultGen:   NewDefaultNameGenerator(),
+		removeUnused: true,
+		markChanges:  true,
+	}
 }
 
 // Java: RenameLabels(AbstractCompiler, Supplier<String>, boolean, boolean)
@@ -84,7 +100,7 @@ func NewRenameLabelsWithSupplier(
 // RenameLabels_DefaultNameSupplier is the nested class DefaultNameSupplier.
 type RenameLabels_DefaultNameSupplier struct {
 	// DefaultNameGenerator is used to create safe label names.
-	nameGenerator NameGenerator
+	nameGenerator *DefaultNameGenerator
 }
 
 // Java: RenameLabels.DefaultNameSupplier()
@@ -99,6 +115,12 @@ func (s *RenameLabels_DefaultNameSupplier) Get() string {
 	return s.nameGenerator.GenerateNextName()
 }
 
+type labelStackEntry struct {
+	origID     strpool.ID
+	depth      int32
+	referenced bool
+}
+
 // RenameLabels_ProcessLabels iterates through the nodes, renaming all the
 // labels.
 type RenameLabels_ProcessLabels struct {
@@ -106,50 +128,53 @@ type RenameLabels_ProcessLabels struct {
 
 	markChanges bool
 
-	// A stack of labels namespaces. Labels in an outer scope aren't part of
-	// an inner scope, so a new namespace is created each time a scope is
-	// entered.
-	//
-	// Go-only: language-adapter — the ArrayDeque used as a stack
-	// (push/peek/pop at the head) is a slice whose top is its last element.
-	namespaceStack    []RenameLabels_LabelNamespace
-	namespaceStackBuf [8]RenameLabels_LabelNamespace
+	// Flat lexical label stack across all nested scopes, partitioned by
+	// function-scope start offsets in scopeStarts.
+	entries        []labelStackEntry
+	entriesBuf     [16]labelStackEntry
+	scopeStarts    []int
+	scopeStartsBuf [8]int
 
-	// The list of generated names. Typically, the first name will be "a",
-	// the second "b", etc.
-	names    []string
-	namesBuf [4]string
+	// Pre-interned generated short label IDs indexed by (depth - 1).
+	names    []strpool.ID
+	namesBuf [8]strpool.ID
 }
 
 // Java: RenameLabels.ProcessLabels(boolean)
 func NewRenameLabels_ProcessLabels(outer *RenameLabels, markChanges bool) *RenameLabels_ProcessLabels {
 	p := &RenameLabels_ProcessLabels{outer: outer, markChanges: markChanges}
-	p.namespaceStack = p.namespaceStackBuf[:1]
+	p.entries = p.entriesBuf[:0]
+	p.scopeStarts = p.scopeStartsBuf[:1]
+	p.scopeStarts[0] = 0
 	p.names = p.namesBuf[:0]
 	return p
 }
 
-// peek is Deque.peek() on namespaceStack.
-//
-// Go-only: language-adapter — see namespaceStack.
-func (p *RenameLabels_ProcessLabels) peek() *RenameLabels_LabelNamespace {
-	return &p.namespaceStack[len(p.namespaceStack)-1]
+func (*RenameLabels_ProcessLabels) visitTokens() *ast.TokenSet {
+	return &renameLabelsVisitTokens
+}
+
+func (p *RenameLabels_ProcessLabels) nextLabelNameID() strpool.ID {
+	if p.outer.nameSupplier != nil {
+		return strpool.Intern(p.outer.nameSupplier())
+	}
+	return strpool.Intern(p.outer.defaultGen.GenerateNextName())
 }
 
 // Java: RenameLabels.ProcessLabels.enterScope(NodeTraversal)
 func (p *RenameLabels_ProcessLabels) EnterScope(nodeTraversal *NodeTraversal) {
 	// Start a new namespace for label names.
-	if nodeTraversal.GetScopeRoot().IsFunction() {
-		p.namespaceStack = append(p.namespaceStack, RenameLabels_LabelNamespace{})
+	if _, ok := ast.AsFunction(nodeTraversal.GetScopeRoot()); ok {
+		p.scopeStarts = append(p.scopeStarts, len(p.entries))
 	}
 }
 
 // Java: RenameLabels.ProcessLabels.exitScope(NodeTraversal)
 func (p *RenameLabels_ProcessLabels) ExitScope(nodeTraversal *NodeTraversal) {
-	if nodeTraversal.GetScopeRoot().IsFunction() {
-		top := len(p.namespaceStack) - 1
-		p.namespaceStack[top].renameMap = nil
-		p.namespaceStack = p.namespaceStack[:top]
+	if _, ok := ast.AsFunction(nodeTraversal.GetScopeRoot()); ok {
+		top := len(p.scopeStarts) - 1
+		p.entries = p.entries[:p.scopeStarts[top]]
+		p.scopeStarts = p.scopeStarts[:top]
 	}
 }
 
@@ -158,23 +183,21 @@ func (p *RenameLabels_ProcessLabels) ExitScope(nodeTraversal *NodeTraversal) {
 //
 // Java: RenameLabels.ProcessLabels.shouldTraverse(NodeTraversal, Node, Node)
 func (p *RenameLabels_ProcessLabels) ShouldTraverse(nodeTraversal *NodeTraversal, node rhino.Node, parent rhino.Node) bool {
-	if node.IsLabel() {
-		// Determine the new name for this label.
-		current := p.peek()
-		if current.renameMap == nil {
-			current.renameMap = make(map[string]*RenameLabels_LabelInfo)
+	if lbl, ok := ast.AsLabel(node); ok {
+		scopeStart := p.scopeStarts[len(p.scopeStarts)-1]
+		origID := strpool.ID(lbl.Name().Node().GetStringID())
+		for i := scopeStart; i < len(p.entries); i++ {
+			jutil.CheckState(p.entries[i].origID != origID)
 		}
-		currentDepth := len(current.renameMap) + 1
-		name := node.GetFirstChild().GetString()
-
-		// Store the context for this label name.
-		li := NewRenameLabels_LabelInfo(currentDepth)
-		jutil.CheckState(current.renameMap[name] == nil)
-		current.renameMap[name] = li
+		currentDepth := len(p.entries) - scopeStart + 1
+		p.entries = append(p.entries, labelStackEntry{
+			origID: origID,
+			depth:  int32(currentDepth),
+		})
 
 		// Create a new name, if needed, for this depth.
 		if len(p.names) < currentDepth {
-			p.names = append(p.names, p.outer.nameSupplier())
+			p.names = append(p.names, p.nextLabelNameID())
 		}
 	}
 
@@ -201,23 +224,32 @@ func (p *RenameLabels_ProcessLabels) Visit(t *NodeTraversal, node rhino.Node, pa
 //
 // Java: RenameLabels.ProcessLabels.visitBreakOrContinue(NodeTraversal, Node)
 func (p *RenameLabels_ProcessLabels) VisitBreakOrContinue(t *NodeTraversal, node rhino.Node) {
-	nameNode := node.GetFirstChild()
-	if !nameNode.IsNil() {
-		// This is a named break or continue;
-		name := nameNode.GetString()
-		jutil.CheckState(name != "")
-		li := p.GetLabelInfo(name)
-		if li != nil {
-			newName := p.GetNameForId(li.id)
-			// Mark the label as referenced so it isn't removed.
-			li.referenced = true
-			if name != newName {
-				// Give it the short name.
-				nameNode.SetString(newName)
+	var labelName ast.LabelName
+	var hasLabel bool
+	if brk, ok := ast.AsBreak(node); ok {
+		labelName, hasLabel = brk.Label()
+	} else {
+		labelName, hasLabel = ast.MustContinue(node).Label()
+	}
+	if !hasLabel {
+		return
+	}
+	// This is a named break or continue.
+	nameNode := labelName.Node()
+	origID := strpool.ID(nameNode.GetStringID())
+	jutil.CheckState(origID > strpool.ID(rhino.RhinoStringPool_EmptyID))
+	scopeStart := p.scopeStarts[len(p.scopeStarts)-1]
+	for i := len(p.entries) - 1; i >= scopeStart; i-- {
+		if p.entries[i].origID == origID {
+			p.entries[i].referenced = true
+			newID := p.names[p.entries[i].depth-1]
+			if origID != newID {
+				setNodeStringID(nameNode, newID)
 				if p.markChanges {
 					t.ReportCodeChange()
 				}
 			}
+			break
 		}
 	}
 }
@@ -228,23 +260,28 @@ func (p *RenameLabels_ProcessLabels) VisitBreakOrContinue(t *NodeTraversal, node
 //
 // Java: RenameLabels.ProcessLabels.visitLabel(NodeTraversal, Node)
 func (p *RenameLabels_ProcessLabels) VisitLabel(t *NodeTraversal, node rhino.Node) {
-	nameNode := node.GetFirstChild()
-	jutil.CheckState(!nameNode.IsNil())
-	name := nameNode.GetString()
-	li := p.GetLabelInfo(name)
+	lbl := ast.MustLabel(node)
+	nameNode := lbl.Name().Node()
+	origID := strpool.ID(nameNode.GetStringID())
+	topIdx := len(p.entries) - 1
+	scopeStart := p.scopeStarts[len(p.scopeStarts)-1]
+	jutil.CheckState(topIdx >= scopeStart && p.entries[topIdx].origID == origID)
+	entry := p.entries[topIdx]
+	p.entries = p.entries[:topIdx]
+
 	// This is a label...
-	if li.referenced || !p.outer.removeUnused {
-		newName := p.GetNameForId(li.id)
-		if name != newName {
+	if entry.referenced || !p.outer.removeUnused {
+		newID := p.names[entry.depth-1]
+		if origID != newID {
 			// ... and it is used, give it the short name.
-			nameNode.SetString(newName)
+			setNodeStringID(nameNode, newID)
 			if p.markChanges {
 				t.ReportCodeChange()
 			}
 		}
 	} else {
 		// ... and it is not referenced, just remove it.
-		newChild := node.GetLastChild()
+		newChild := lbl.Body().Node()
 		newChild.Detach()
 		node.ReplaceWith(newChild)
 		if newChild.IsBlock() {
@@ -254,49 +291,14 @@ func (p *RenameLabels_ProcessLabels) VisitLabel(t *NodeTraversal, node rhino.Nod
 			t.ReportCodeChange()
 		}
 	}
-
-	// Remove the label from the current stack of labels.
-	delete(p.peek().renameMap, name)
-}
-
-// GetNameForId returns the short name of the identified label.
-//
-// id is the id, which is the depth of the label in the current context, for
-// which to get a short name.
-//
-// Java: RenameLabels.ProcessLabels.getNameForId(int)
-func (p *RenameLabels_ProcessLabels) GetNameForId(id int) string {
-	return p.names[id-1]
-}
-
-// GetLabelInfo returns the structure representing the name in the current
-// context.
-//
-// name is the name to retrieve information about.
-//
-// Java: RenameLabels.ProcessLabels.getLabelInfo(String)
-func (p *RenameLabels_ProcessLabels) GetLabelInfo(name string) *RenameLabels_LabelInfo {
-	return p.peek().renameMap[name]
 }
 
 // Java: RenameLabels.process(Node, Node)
 func (r *RenameLabels) Process(externs rhino.Node, root rhino.Node) {
-	// Do variable reference counting.
-	NodeTraversal_Traverse(r.compiler, root, NewRenameLabels_ProcessLabels(r, r.markChanges))
-}
-
-// RenameLabels_LabelInfo is the nested class LabelInfo.
-type RenameLabels_LabelInfo struct {
-	referenced bool
-	id         int
-}
-
-// Java: RenameLabels.LabelInfo(int)
-func NewRenameLabels_LabelInfo(id int) *RenameLabels_LabelInfo {
-	return &RenameLabels_LabelInfo{id: id}
-}
-
-// RenameLabels_LabelNamespace is the nested class LabelNamespace.
-type RenameLabels_LabelNamespace struct {
-	renameMap map[string]*RenameLabels_LabelInfo
+	p := RenameLabels_ProcessLabels{outer: r, markChanges: r.markChanges}
+	p.entries = p.entriesBuf[:0]
+	p.scopeStarts = p.scopeStartsBuf[:1]
+	p.scopeStarts[0] = 0
+	p.names = p.namesBuf[:0]
+	NodeTraversal_Traverse(r.compiler, root, &p)
 }

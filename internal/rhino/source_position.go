@@ -44,55 +44,70 @@ import (
 // SourcePosition represents a position in some piece of source code, with an
 // associated item of type T found at that position.
 //
-// Go-only: language-adapter — an abstract class with subclasses (all in
-// JSDocInfo): the interface below plus SourcePositionBase, which the
-// subclasses embed.
-type SourcePosition[T any] interface {
-	SetItem(item T)
-	SetPositionInformation(startLineno int, startCharno int, endLineno int, endCharno int)
-	GetItem() T
-	GetStartLine() int
-	GetPositionOnStartLine() int
-	GetEndLine() int
-	GetPositionOnEndLine() int
-	IsSamePositionAs(that SourcePosition[T]) bool
-	GetSourcePositionBase() *SourcePositionBase[T]
+// Go-only: performance — collapsed from an 8-type interface/subclass hierarchy
+// into a single concrete generic struct so JSDocInfo_Marker embeds positions
+// inline by value with zero per-position heap allocations.
+type SourcePosition[T comparable] struct {
+	item        T
+	startLineno int32
+	startCharno int32
+	endLineno   int32
+	endCharno   int32
+	brackets    bool
+	valid       bool
 }
 
-// SourcePositionBase holds SourcePosition's fields and methods.
-type SourcePositionBase[T any] struct {
-	// The (well typed) item found at the source position.
-	item T
-
-	// The starting line number.
-	startLineno int
-
-	// The character position on the starting line.
-	startCharno int
-
-	// The ending line number.
-	endLineno int
-
-	// The character position on the ending line.
-	endCharno int
+// IsValid reports whether this SourcePosition has been populated.
+func (p *SourcePosition[T]) IsValid() bool {
+	return p != nil && p.valid
 }
-
-// GetSourcePositionBase gives access to the base fields through the
-// interface.
-func (p *SourcePositionBase[T]) GetSourcePositionBase() *SourcePositionBase[T] { return p }
 
 // SetItem sets the item that this source position references.
 //
 // Java: SourcePosition.setItem(T)
-func (p *SourcePositionBase[T]) SetItem(item T) {
+func (p *SourcePosition[T]) SetItem(item T) {
 	p.item = item
+	p.valid = true
+}
+
+func checkTrimmedStringItem(item string) {
+	if len(item) == 0 {
+		jutil.StringCharAt(item, 0)
+	}
+	jutil.CheckArgumentMsg(
+		item[0] != ' ' && item[len(item)-1] != ' ',
+		"String has leading or trailing whitespace")
+}
+
+// SetTrimmedItem sets a string item after validating that it has no leading or
+// trailing space.
+//
+// Java: JSDocInfo.TrimmedStringPosition.setItem(String)
+func SetTrimmedItem(p *SourcePosition[string], item string) {
+	checkTrimmedStringItem(item)
+	p.item = item
+	p.valid = true
+}
+
+// HasBrackets returns whether a type position has curly braces around it.
+//
+// Java: JSDocInfo.TypePosition.hasBrackets()
+func (p *SourcePosition[T]) HasBrackets() bool {
+	return p.brackets
+}
+
+// SetHasBrackets records whether a type position has curly braces around it.
+//
+// Java: JSDocInfo.TypePosition.setHasBrackets(boolean)
+func (p *SourcePosition[T]) SetHasBrackets(newVal bool) {
+	p.brackets = newVal
 }
 
 // SetPositionInformation sets the position information contained in this
 // source position.
 //
 // Java: SourcePosition.setPositionInformation(int, int, int, int)
-func (p *SourcePositionBase[T]) SetPositionInformation(startLineno int, startCharno int, endLineno int, endCharno int) {
+func (p *SourcePosition[T]) SetPositionInformation(startLineno int, startCharno int, endLineno int, endCharno int) {
 	if startLineno > endLineno {
 		panic(jutil.NewIllegalStateExceptionMsg(
 			"Recorded bad position information\n" +
@@ -106,59 +121,54 @@ func (p *SourcePositionBase[T]) SetPositionInformation(startLineno int, startCha
 				"end-char: " + strconv.Itoa(endCharno)))
 	}
 
-	p.startLineno = startLineno
-	p.startCharno = startCharno
-	p.endLineno = endLineno
-	p.endCharno = endCharno
+	p.startLineno = int32(startLineno)
+	p.startCharno = int32(startCharno)
+	p.endLineno = int32(endLineno)
+	p.endCharno = int32(endCharno)
+	p.valid = true
 }
 
 // GetItem returns the item found at this source position.
 //
 // Java: SourcePosition.getItem()
-func (p *SourcePositionBase[T]) GetItem() T {
+func (p *SourcePosition[T]) GetItem() T {
 	return p.item
 }
 
 // GetStartLine returns the starting line number of this position.
 //
 // Java: SourcePosition.getStartLine()
-func (p *SourcePositionBase[T]) GetStartLine() int {
-	return p.startLineno
+func (p *SourcePosition[T]) GetStartLine() int {
+	return int(p.startLineno)
 }
 
-// GetPositionOnStartLine returns the character position on the starting
-// line.
+// GetPositionOnStartLine returns the character position on the starting line.
 //
 // Java: SourcePosition.getPositionOnStartLine()
-func (p *SourcePositionBase[T]) GetPositionOnStartLine() int {
-	return p.startCharno
+func (p *SourcePosition[T]) GetPositionOnStartLine() int {
+	return int(p.startCharno)
 }
 
 // GetEndLine returns the ending line number of this position.
 //
 // Java: SourcePosition.getEndLine()
-func (p *SourcePositionBase[T]) GetEndLine() int {
-	return p.endLineno
+func (p *SourcePosition[T]) GetEndLine() int {
+	return int(p.endLineno)
 }
 
 // GetPositionOnEndLine returns the character position on the ending line.
 //
 // Java: SourcePosition.getPositionOnEndLine()
-func (p *SourcePositionBase[T]) GetPositionOnEndLine() int {
-	return p.endCharno
+func (p *SourcePosition[T]) GetPositionOnEndLine() int {
+	return int(p.endCharno)
 }
 
 // IsSamePositionAs compares the four position fields.
 //
-// Go-only: language-adapter — Java takes a SourcePosition<?>; Go generics
-// cannot express the wildcard, and every caller compares positions of the
-// same item type.
-//
 // Java: SourcePosition.isSamePositionAs(SourcePosition<?>)
-func (p *SourcePositionBase[T]) IsSamePositionAs(that SourcePosition[T]) bool {
-	b := that.GetSourcePositionBase()
-	return p.startLineno == b.startLineno &&
-		p.startCharno == b.startCharno &&
-		p.endLineno == b.endLineno &&
-		p.endCharno == b.endCharno
+func (p *SourcePosition[T]) IsSamePositionAs(that *SourcePosition[T]) bool {
+	return p.startLineno == that.startLineno &&
+		p.startCharno == that.startCharno &&
+		p.endLineno == that.endLineno &&
+		p.endCharno == that.endCharno
 }

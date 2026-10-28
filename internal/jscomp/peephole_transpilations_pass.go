@@ -19,6 +19,9 @@
 package jscomp
 
 import (
+	"math/bits"
+
+	"github.com/paullepoulpe/jsgo/internal/ast"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/parser"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
@@ -28,10 +31,12 @@ import (
 // transpilations (e.g. rewriteCatchBindings, rewriteNewDotTarget,
 // reportUntranspilableFeatures, es6NormalizeShorthandProperties, etc).
 type PeepholeTranspilationsPass struct {
-	compiler AbstractCompiler
-	// NOTE: Use a native array rather than a List to avoid creating iterators for every node in the
-	// AST.
+	compiler               AbstractCompiler
 	peepholeTranspilations []AbstractPeepholeTranspilation
+	handledTokens          []ast.TokenSet
+	visitTokens            ast.TokenSet
+	activeMaskByToken      [256]uint16
+	useActiveMask          bool
 
 	// The feature set to mark as transpiled away after all peephole transpilations are done.
 	featureSetToMarkAsTranspiledAway *parser.FeatureSet
@@ -47,11 +52,36 @@ func newPeepholeTranspilationsPass(
 	transpilations []AbstractPeepholeTranspilation,
 	featureSetToRunOn *parser.FeatureSet,
 	featureSetToMarkAsTranspiledAway *parser.FeatureSet) *PeepholeTranspilationsPass {
-	p := &PeepholeTranspilationsPass{}
-	p.compiler = compiler
-	p.peepholeTranspilations = append([]AbstractPeepholeTranspilation(nil), transpilations...)
-	p.featureSetToRunOn = featureSetToRunOn
-	p.featureSetToMarkAsTranspiledAway = featureSetToMarkAsTranspiledAway
+	p := &PeepholeTranspilationsPass{
+		compiler:                         compiler,
+		peepholeTranspilations:           append([]AbstractPeepholeTranspilation(nil), transpilations...),
+		featureSetToRunOn:                featureSetToRunOn,
+		featureSetToMarkAsTranspiledAway: featureSetToMarkAsTranspiledAway,
+	}
+	if len(transpilations) <= 16 {
+		p.useActiveMask = true
+		for idx, tr := range transpilations {
+			bit := uint16(1) << idx
+			ts := tr.HandledTokens()
+			for w := range ts {
+				p.visitTokens[w] |= ts[w]
+				for word := ts[w]; word != 0; {
+					b := bits.TrailingZeros64(word)
+					word &^= uint64(1) << b
+					p.activeMaskByToken[(w<<6)|b] |= bit
+				}
+			}
+		}
+	} else {
+		p.handledTokens = make([]ast.TokenSet, len(transpilations))
+		for idx, tr := range transpilations {
+			ts := tr.HandledTokens()
+			p.handledTokens[idx] = ts
+			for w := range ts {
+				p.visitTokens[w] |= ts[w]
+			}
+		}
+	}
 	return p
 }
 
@@ -112,16 +142,46 @@ type PeepholeTranspilationsPass_PeepCallback struct {
 	outer *PeepholeTranspilationsPass
 }
 
+func (c *PeepholeTranspilationsPass_PeepCallback) visitTokens() *ast.TokenSet {
+	return &c.outer.visitTokens
+}
+
 // Java: PeepholeTranspilationsPass.PeepCallback.visit(NodeTraversal, Node, Node)
 func (c *PeepholeTranspilationsPass_PeepCallback) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
-
+	p := c.outer
 	currentNode := n
-	for _, transpilation := range c.outer.peepholeTranspilations {
-		currentNode = transpilation.TranspileSubtree(currentNode)
+	tok := currentNode.GetToken()
+	if !p.useActiveMask {
+		if !p.visitTokens.Has(tok) {
+			return
+		}
+		for i, transpilation := range p.peepholeTranspilations {
+			if !p.handledTokens[i].Has(tok) {
+				continue
+			}
+			currentNode = transpilation.TranspileSubtree(currentNode)
+			if currentNode.IsNil() {
+				return
+			}
+			tok = currentNode.GetToken()
+		}
+		return
+	}
+
+	mask := p.activeMaskByToken[tok]
+	for mask != 0 {
+		idx := bits.TrailingZeros16(mask)
+		bit := uint16(1) << idx
+		mask &^= bit
+		currentNode = p.peepholeTranspilations[idx].TranspileSubtree(currentNode)
 		if currentNode.IsNil() {
 			// this subtree was removed by the current transpilation, so we don't need to run the rest
 			// of the peephole transpilations.
 			return
+		}
+		if newTok := currentNode.GetToken(); newTok != tok {
+			tok = newTok
+			mask = p.activeMaskByToken[tok] &^ ((bit - 1) | bit)
 		}
 	}
 }

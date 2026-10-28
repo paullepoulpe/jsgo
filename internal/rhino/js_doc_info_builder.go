@@ -37,6 +37,7 @@ package rhino
 
 import (
 	"math/bits"
+	"slices"
 
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 )
@@ -53,10 +54,10 @@ type JSDocInfo_Builder struct {
 
 	// whether the current JSDocInfo has valuable information
 	populated bool
-	// the current marker, if any.
-	currentMarker *JSDocInfo_Marker
-	// the set of unique license texts
-	licenseTexts *jutil.LinkedHashSet[string]
+	// whether a current marker is active at the tail of JSDocInfo_MARKERS
+	hasCurrentMarker bool
+	// the unique license texts added so far
+	licenseTexts []string
 }
 
 // NewJSDocInfo_Builder is the implicit Builder constructor.
@@ -75,8 +76,9 @@ func (b *JSDocInfo_Builder) Reset() {
 	b.propMask = 0
 	b.bits = 0
 	b.populated = false
-	b.currentMarker = nil
-	b.licenseTexts = nil
+	b.hasCurrentMarker = false
+	clear(b.licenseTexts)
+	b.licenseTexts = b.licenseTexts[:0]
 }
 
 // Java: JSDocInfo.Builder.copyFrom(JSDocInfo)
@@ -252,7 +254,21 @@ func (b *JSDocInfo_Builder) BuildAndReset() *JSDocInfo {
 	b.entries = b.entries[:0]
 	b.propMask = 0
 	b.populated = false
+	b.hasCurrentMarker = false
+	clear(b.licenseTexts)
+	b.licenseTexts = b.licenseTexts[:0]
 	return info
+}
+
+func (b *JSDocInfo_Builder) currentMarkerPtr() *JSDocInfo_Marker {
+	if !b.hasCurrentMarker {
+		return nil
+	}
+	markers := jsdocGet[[]JSDocInfo_Marker](b.GetProp(JSDocInfo_MARKERS))
+	if len(markers) == 0 {
+		return nil
+	}
+	return &markers[len(markers)-1]
 }
 
 // MarkAnnotation adds a marker to the current JSDocInfo and populates the
@@ -262,22 +278,22 @@ func (b *JSDocInfo_Builder) BuildAndReset() *JSDocInfo {
 func (b *JSDocInfo_Builder) MarkAnnotation(annotation string, lineno int, charno int) {
 	marker := b.AddMarker()
 	if marker != nil {
-		position := NewJSDocInfo_TrimmedStringPosition()
-		position.SetItem(annotation)
-		position.SetPositionInformation(lineno, charno, lineno, charno+jutil.StringLength(annotation))
-		marker.SetAnnotation(position)
+		SetTrimmedItem(&marker.annotation, annotation)
+		marker.annotation.SetPositionInformation(lineno, charno, lineno, charno+jutil.StringLength(annotation))
 		b.populated = true
+		b.hasCurrentMarker = true
+	} else {
+		b.hasCurrentMarker = false
 	}
-	b.currentMarker = marker
 }
 
 // Java: JSDocInfo.Builder.addMarker()
 func (b *JSDocInfo_Builder) AddMarker() *JSDocInfo_Marker {
 	if b.ShouldParseDocumentation() {
-		markers := jsdocGet[[]*JSDocInfo_Marker](b.GetProp(JSDocInfo_MARKERS))
-		marker := NewJSDocInfo_Marker()
-		b.SetProp(JSDocInfo_MARKERS, append(markers, marker))
-		return marker
+		markers := jsdocGet[[]JSDocInfo_Marker](b.GetProp(JSDocInfo_MARKERS))
+		markers = append(markers, JSDocInfo_Marker{})
+		b.SetProp(JSDocInfo_MARKERS, markers)
+		return &markers[len(markers)-1]
 	}
 	return nil
 }
@@ -286,11 +302,9 @@ func (b *JSDocInfo_Builder) AddMarker() *JSDocInfo_Marker {
 //
 // Java: JSDocInfo.Builder.markText(String, int, int, int, int)
 func (b *JSDocInfo_Builder) MarkText(text string, startLineno int, startCharno int, endLineno int, endCharno int) {
-	if b.currentMarker != nil {
-		position := NewJSDocInfo_StringPosition()
-		position.SetItem(text)
-		position.SetPositionInformation(startLineno, startCharno, endLineno, endCharno)
-		b.currentMarker.SetDescription(position)
+	if marker := b.currentMarkerPtr(); marker != nil {
+		marker.description.SetItem(text)
+		marker.description.SetPositionInformation(startLineno, startCharno, endLineno, endCharno)
 	}
 }
 
@@ -298,12 +312,10 @@ func (b *JSDocInfo_Builder) MarkText(text string, startLineno int, startCharno i
 //
 // Java: JSDocInfo.Builder.markTypeNode(Node, int, int, int, int, boolean)
 func (b *JSDocInfo_Builder) MarkTypeNode(typeNode Node, lineno int, startCharno int, endLineno int, endCharno int, hasLC bool) {
-	if b.currentMarker != nil {
-		position := NewJSDocInfo_TypePosition()
-		position.SetItem(typeNode)
-		position.SetHasBrackets(hasLC)
-		position.SetPositionInformation(lineno, startCharno, endLineno, endCharno)
-		b.currentMarker.SetType(position)
+	if marker := b.currentMarkerPtr(); marker != nil {
+		marker.type_.SetItem(typeNode)
+		marker.type_.SetHasBrackets(hasLC)
+		marker.type_.SetPositionInformation(lineno, startCharno, endLineno, endCharno)
 	}
 }
 
@@ -311,27 +323,16 @@ func (b *JSDocInfo_Builder) MarkTypeNode(typeNode Node, lineno int, startCharno 
 //
 // Java: JSDocInfo.Builder.markName(String, Node, int, int)
 func (b *JSDocInfo_Builder) MarkName(name string, templateNode Node, lineno int, charno int) {
-	if b.currentMarker != nil {
-		// Record the name as both a SourcePosition<String> and a
-		// SourcePosition<Node>. The <String> form is deprecated, because <Node>
-		// is more consistent with how other name references are handled (see
-		// #markTypeNode)
-		//
-		// TODO(nicksantos): Remove all uses of the Name position and replace
-		// them with the NameNode position.
-		position := NewJSDocInfo_TrimmedStringPosition()
-		position.SetItem(name)
-		position.SetPositionInformation(lineno, charno, lineno, charno+jutil.StringLength(name))
-
-		nodePos := NewJSDocInfo_NamePosition()
+	if marker := b.currentMarkerPtr(); marker != nil {
+		checkTrimmedStringItem(name)
+		nameLen := jutil.StringLength(name)
 		node := Node_NewStringWithToken(Token_NAME, name).SetLinenoCharno(lineno, charno)
-		node.SetLength(jutil.StringLength(name))
+		node.SetLength(nameLen)
 		if !templateNode.IsNil() {
 			node.SetStaticSourceFileFrom(templateNode)
 		}
-		nodePos.SetItem(node)
-		nodePos.SetPositionInformation(lineno, charno, lineno, charno+jutil.StringLength(name))
-		b.currentMarker.SetNameNode(nodePos)
+		marker.nameNode.SetItem(node)
+		marker.nameNode.SetPositionInformation(lineno, charno, lineno, charno+nameLen)
 	}
 }
 
@@ -373,7 +374,7 @@ func (b *JSDocInfo_Builder) OverwriteVisibility(visibility JSDocInfo_Visibility)
 // Java: JSDocInfo.Builder.recordParameter(String, JSTypeExpression)
 func (b *JSDocInfo_Builder) RecordParameter(parameterName string, type_ *JSTypeExpression) bool {
 	return !b.HasAnySingletonTypeTags() &&
-		JSDocInfo_Builder_PopulatePropEntry(b, JSDocInfo_PARAMETERS, RhinoStringPool_AddOrGet(parameterName), type_)
+		b.populateParamEntry(JSDocInfo_PARAMETERS, RhinoStringPool_AddOrGet(parameterName), type_)
 }
 
 // RecordParameterDescription records a parameter's description; returns
@@ -385,8 +386,8 @@ func (b *JSDocInfo_Builder) RecordParameterDescription(parameterName string, des
 	if !b.ShouldParseDocumentation() {
 		return true
 	}
-	return JSDocInfo_Builder_PopulatePropEntry(
-		b, JSDocInfo_PARAMETER_DESCRIPTIONS, RhinoStringPool_AddOrGet(parameterName), description)
+	return b.populateStringMapEntry(
+		JSDocInfo_PARAMETER_DESCRIPTIONS, RhinoStringPool_AddOrGet(parameterName), description)
 }
 
 // RecordTemplateTypeName records a template type name; returns true if the
@@ -408,7 +409,7 @@ func (b *JSDocInfo_Builder) RecordTemplateTypeNameWithBound(name string, bound *
 		b.hasPropKey(JSDocInfo_TYPEDEF_TYPE) {
 		return false
 	}
-	return JSDocInfo_Builder_PopulatePropEntry(b, JSDocInfo_TEMPLATE_TYPE_NAMES, RhinoStringPool_AddOrGet(name), bound)
+	return b.populateParamEntry(JSDocInfo_TEMPLATE_TYPE_NAMES, RhinoStringPool_AddOrGet(name), bound)
 }
 
 // RecordTypeTransformation records a type transformation expression
@@ -416,11 +417,12 @@ func (b *JSDocInfo_Builder) RecordTemplateTypeNameWithBound(name string, bound *
 //
 // Java: JSDocInfo.Builder.recordTypeTransformation(String, Node)
 func (b *JSDocInfo_Builder) RecordTypeTransformation(name string, expr Node) bool {
-	names := jsdocGet[*jutil.LinkedHashMap[string, *JSTypeExpression]](b.GetProp(JSDocInfo_TEMPLATE_TYPE_NAMES))
-	if names != nil && names.ContainsKey(name) {
-		return false
+	for _, p := range jsdocGet[[]JSDocParam](b.GetProp(JSDocInfo_TEMPLATE_TYPE_NAMES)) {
+		if p.Name == name {
+			return false
+		}
 	}
-	return JSDocInfo_Builder_PopulatePropEntry(b, JSDocInfo_TYPE_TRANSFORMATIONS, RhinoStringPool_AddOrGet(name), expr)
+	return b.populateNodeMapEntry(JSDocInfo_TYPE_TRANSFORMATIONS, RhinoStringPool_AddOrGet(name), expr)
 }
 
 func (b *JSDocInfo_Builder) appendStringProp(prop *JSDocInfo_Property, s string) {
@@ -540,37 +542,43 @@ func (b *JSDocInfo_Builder) IsDeprecationReasonRecorded() bool {
 	return b.GetProp(JSDocInfo_DEPRECATION_REASON) != nil
 }
 
+func (b *JSDocInfo_Builder) recordSuppressionWarnings(warnings []string, description string) {
+	b.populated = true
+	current := jsdocGet[[]JSDocSuppression](b.GetProp(JSDocInfo_SUPPRESSIONS))
+	for _, existing := range current {
+		if sameWarningSet(existing.Warnings, warnings) {
+			// Exact @suppress warning exists already. Return without recording.
+			return
+		}
+	}
+	b.SetProp(JSDocInfo_SUPPRESSIONS, append(current, JSDocSuppression{
+		Warnings:    warnings,
+		Description: description,
+	}))
+}
+
 // RecordSuppressionSliceWithDescription records a parsed @suppress slice.
 func (b *JSDocInfo_Builder) RecordSuppressionSliceWithDescription(rawNames []string, description string) {
-	set := jutil.NewLinkedHashSet[string]()
-	for _, s := range rawNames {
-		set.Add(RhinoStringPool_AddOrGet(s))
+	warnings := make([]string, 0, len(rawNames))
+	for _, raw := range rawNames {
+		s := RhinoStringPool_AddOrGet(raw)
+		if !slices.Contains(warnings, s) {
+			warnings = append(warnings, s)
+		}
 	}
-	b.RecordSuppressionsWithDescription(set, description)
+	b.recordSuppressionWarnings(warnings, description)
 }
 
 // Java: JSDocInfo.Builder.recordSuppressions(ImmutableSet<String>, String)
 func (b *JSDocInfo_Builder) RecordSuppressionsWithDescription(suppressions *jutil.LinkedHashSet[string], description string) {
-	b.populated = true
-	mapBuilder := jutil.NewObjectLinkedHashMap[*jutil.LinkedHashSet[string], string]()
-	current := jsdocGet[*jutil.ObjectLinkedHashMap[*jutil.LinkedHashSet[string], string]](b.GetProp(JSDocInfo_SUPPRESSIONS))
-	if current != nil {
-		if current.ContainsKey(suppressions) {
-			// Exact @suppress warning exists already. Return without recording.
-			return
-		}
-		for k, v := range current.All() {
-			mapBuilder.Put(k, v)
+	warnings := make([]string, 0, suppressions.Size())
+	for raw := range suppressions.All() {
+		s := RhinoStringPool_AddOrGet(raw)
+		if !slices.Contains(warnings, s) {
+			warnings = append(warnings, s)
 		}
 	}
-	key := JSDocInfo_InternSet(suppressions)
-	if mapBuilder.ContainsKey(key) {
-		// Java: ImmutableMap.Builder.buildOrThrow() rejects duplicate keys.
-		panic(jutil.NewIllegalArgumentExceptionMsg("Multiple entries with same key: " + key.String()))
-	}
-	mapBuilder.Put(key, description)
-	suppressionsMap := mapBuilder
-	b.SetProp(JSDocInfo_SUPPRESSIONS, suppressionsMap)
+	b.recordSuppressionWarnings(warnings, description)
 }
 
 // RecordSuppressions records the list of suppressed warnings, possibly
@@ -584,9 +592,7 @@ func (b *JSDocInfo_Builder) RecordSuppressions(suppressions *jutil.LinkedHashSet
 
 // Java: JSDocInfo.Builder.recordSuppression(String)
 func (b *JSDocInfo_Builder) RecordSuppression(suppression string) {
-	set := jutil.NewLinkedHashSet[string]()
-	set.Add(suppression)
-	b.RecordSuppressions(set)
+	b.recordSuppressionWarnings([]string{RhinoStringPool_AddOrGet(suppression)}, "")
 }
 
 // RecordModifies records the list of modifies warnings.
@@ -821,18 +827,10 @@ func (b *JSDocInfo_Builder) RecordLicense(license string) bool {
 
 // Java: JSDocInfo.Builder.addLicense(String)
 func (b *JSDocInfo_Builder) AddLicense(license string) bool {
-	// The vast majority of JSDoc doesn't have @license so it make sense to be
-	// lazy about building the LinkedHashSet.
-	if b.licenseTexts == nil {
-		// The LinkedHashSet is only used to remove duplicates, it is never read
-		// beyond the add, so LinkedHashSet is not required.
-		b.licenseTexts = jutil.NewLinkedHashSet[string]()
-	}
-
-	if !b.licenseTexts.Add(license) {
+	if slices.Contains(b.licenseTexts, license) {
 		return false
 	}
-
+	b.licenseTexts = append(b.licenseTexts, license)
 	txt := jsdocGet[string](b.GetProp(JSDocInfo_LICENSE)) // Strings.nullToEmpty(txt)
 	return b.RecordLicense(RhinoStringPool_AddOrGet(txt + license))
 }
@@ -1143,8 +1141,12 @@ func (b *JSDocInfo_Builder) IsInterfaceRecorded() bool {
 //
 // Java: JSDocInfo.Builder.hasParameter(String)
 func (b *JSDocInfo_Builder) HasParameter(name string) bool {
-	params := jsdocGet[*jutil.LinkedHashMap[string, *JSTypeExpression]](b.GetProp(JSDocInfo_PARAMETERS))
-	return params != nil && params.ContainsKey(name)
+	for _, p := range jsdocGet[[]JSDocParam](b.GetProp(JSDocInfo_PARAMETERS)) {
+		if p.Name == name {
+			return true
+		}
+	}
+	return false
 }
 
 // RecordImplementedInterface records an implemented interface.
@@ -1392,7 +1394,11 @@ func (b *JSDocInfo_Builder) SetType(type_ *JSTypeExpression) *JSDocInfo_Builder 
 	b.removeProp(JSDocInfo_RETURN_TYPE)
 	b.removeProp(JSDocInfo_ENUM_PARAMETER_TYPE)
 	b.removeProp(JSDocInfo_TYPEDEF_TYPE)
-	b.SetProp(JSDocInfo_TYPE, type_)
+	if type_ == nil {
+		b.removeProp(JSDocInfo_TYPE)
+	} else {
+		b.SetProp(JSDocInfo_TYPE, type_)
+	}
 	return b
 }
 
@@ -1413,8 +1419,7 @@ func (b *JSDocInfo_Builder) HasAnyTypeRelatedTags() bool {
 
 // Java: JSDocInfo.Builder.hasAnyParameters()
 func (b *JSDocInfo_Builder) HasAnyParameters() bool {
-	params := b.GetProp(JSDocInfo_PARAMETERS)
-	return params != nil && !jsdocGet[jutil.JavaMap](params).IsEmpty()
+	return len(jsdocGet[[]JSDocParam](b.GetProp(JSDocInfo_PARAMETERS))) != 0
 }
 
 // Java: JSDocInfo.Builder.isPropEmpty(Property<? extends Collection<?>>)
@@ -1489,41 +1494,46 @@ func (b *JSDocInfo_Builder) GetProp(prop *JSDocInfo_Property) any {
 	return b.entries[idx]
 }
 
-// Java: JSDocInfo.Builder.getPropWithDefault(Property<T>, Supplier<T>)
-func (b *JSDocInfo_Builder) GetPropWithDefault(prop *JSDocInfo_Property, supplier func() any) any {
-	value := b.GetProp(prop)
-	if value == nil {
-		value = supplier()
-		b.SetProp(prop, value)
+func (b *JSDocInfo_Builder) populateParamEntry(prop *JSDocInfo_Property, key string, typ *JSTypeExpression) bool {
+	params := jsdocGet[[]JSDocParam](b.GetProp(prop))
+	for i := range params {
+		if params[i].Name == key {
+			if params[i].Type == nil {
+				params[i].Type = typ
+				b.populated = true
+				return true
+			}
+			return false
+		}
 	}
-	return value
+	b.SetProp(prop, append(params, JSDocParam{Name: key, Type: typ}))
+	b.populated = true
+	return true
 }
 
-// JSDocInfo_Builder_PutPropEntry puts key → value into the map property
-// unless the key already has a (non-null) value.
-//
-// Go-only: language-adapter — a generic method, so a package function.
-//
-// Java: JSDocInfo.Builder.putPropEntry(Property<LinkedHashMap<K, V>>, K, V)
-func JSDocInfo_Builder_PutPropEntry[V any](b *JSDocInfo_Builder, prop *JSDocInfo_Property, key string, value V) bool {
-	m := jsdocGet[*jutil.LinkedHashMap[string, V]](b.GetPropWithDefault(prop, func() any {
-		return jutil.NewLinkedHashMap[string, V]()
-	}))
-	return jutil.IsNil(any(m.PutIfAbsent(key, value)))
+func (b *JSDocInfo_Builder) populateStringMapEntry(prop *JSDocInfo_Property, key string, val string) bool {
+	kvs := jsdocGet[[]jsDocKV](b.GetProp(prop))
+	for _, kv := range kvs {
+		if kv.key == key {
+			return false
+		}
+	}
+	b.SetProp(prop, append(kvs, jsDocKV{key: key, val: val}))
+	b.populated = true
+	return true
 }
 
-// JSDocInfo_Builder_PopulatePropEntry is putPropEntry, marking the builder
-// populated if the entry was put.
-//
-// Go-only: language-adapter — a generic method, so a package function.
-//
-// Java: JSDocInfo.Builder.populatePropEntry(Property<LinkedHashMap<K, V>>, K, V)
-func JSDocInfo_Builder_PopulatePropEntry[V any](b *JSDocInfo_Builder, prop *JSDocInfo_Property, key string, value V) bool {
-	if JSDocInfo_Builder_PutPropEntry(b, prop, key, value) {
-		b.populated = true
-		return true
+func (b *JSDocInfo_Builder) populateNodeMapEntry(prop *JSDocInfo_Property, key string, expr Node) bool {
+	m := jsdocGet[*jutil.LinkedHashMap[string, Node]](b.GetProp(prop))
+	if m == nil {
+		m = jutil.NewLinkedHashMap[string, Node]()
+		b.SetProp(prop, m)
+	} else if prev, exists := m.Lookup(key); exists && !prev.IsNil() {
+		return false
 	}
-	return false
+	m.Put(key, expr)
+	b.populated = true
+	return true
 }
 
 // Java: JSDocInfo.Builder.populateProp(Property<T>, T)
@@ -1531,7 +1541,7 @@ func (b *JSDocInfo_Builder) PopulateProp(prop *JSDocInfo_Property, value any) bo
 	b.populated = true
 	idx := bits.OnesCount64(uint64(b.propMask & (prop.mask - 1)))
 	if (b.propMask & prop.mask) != 0 {
-		if jutil.IsNil(b.entries[idx]) {
+		if isNilPropValue(prop.kind, b.entries[idx]) {
 			b.entries[idx] = value
 			return true
 		}

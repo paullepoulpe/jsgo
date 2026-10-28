@@ -19,23 +19,37 @@
 package jscomp
 
 import (
+	"github.com/paullepoulpe/jsgo/internal/ast"
 	"github.com/paullepoulpe/jsgo/internal/parser"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
 
 // RewriteNewDotTarget transpiles away `new.target`.
 type RewriteNewDotTarget struct {
-	AbstractPeepholeTranspilationBase
 	compiler   AbstractCompiler
 	astFactory *AstFactory
 }
 
+var rewriteNewDotTargetTokens = func() ast.TokenSet {
+	var s ast.TokenSet
+	s.Add(rhino.Token_NEW_TARGET)
+	return s
+}()
+
 // Java: RewriteNewDotTarget(AbstractCompiler)
 func NewRewriteNewDotTarget(compiler AbstractCompiler) *RewriteNewDotTarget {
-	r := &RewriteNewDotTarget{}
-	r.compiler = compiler
-	r.astFactory = compiler.CreateAstFactory()
-	return r
+	return &RewriteNewDotTarget{
+		compiler:   compiler,
+		astFactory: compiler.CreateAstFactory(),
+	}
+}
+
+func (*RewriteNewDotTarget) HandledTokens() ast.TokenSet {
+	return rewriteNewDotTargetTokens
+}
+
+func (*RewriteNewDotTarget) GetAdditionalFeaturesToRunOn() *parser.FeatureSet {
+	return parser.FeatureSet_BARE_MINIMUM
 }
 
 // Java: RewriteNewDotTarget.getTranspiledAwayFeatures()
@@ -62,12 +76,11 @@ func (r *RewriteNewDotTarget) TranspileSubtree(n rhino.Node) rhino.Node {
 		n.ReplaceWith(replacement)
 		r.compiler.ReportChangeToEnclosingScope(replacement)
 		return replacement
-	} else {
-		// Getting new.target correct in functions other than transpiled ES6 class constructors
-		// requires determining whether the function was called with `new` or not, which is more
-		// hassle than its worth. There's no good reason to use `new.target` in such places
-		// anyway.
-		TranspilationUtil_CannotConvertYet(r.compiler, n, "new.target")
 	}
+	// Getting new.target correct in functions other than transpiled ES6 class constructors
+	// requires determining whether the function was called with `new` or not, which is more
+	// hassle than its worth. There's no good reason to use `new.target` in such places
+	// anyway.
+	TranspilationUtil_CannotConvertYet(r.compiler, n, "new.target")
 	return n
 }

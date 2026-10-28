@@ -19,6 +19,7 @@
 package jscomp
 
 import (
+	"github.com/paullepoulpe/jsgo/internal/ast"
 	"github.com/paullepoulpe/jsgo/internal/parser"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
@@ -39,8 +40,16 @@ type AbstractPeepholeTranspilation interface {
 	// any, beyond those transpiled away which if present in a SCRIPT should
 	// trigger this pass.
 	//
+	// Most passes return FeatureSet_BARE_MINIMUM, except passes that need to
+	// run on files containing features they don't transpile away (e.g.
+	// ReportUntranspilableFeatures triggering on REGEXP_SYNTAX).
+	//
 	// Java: AbstractPeepholeTranspilation.getAdditionalFeaturesToRunOn()
 	GetAdditionalFeaturesToRunOn() *parser.FeatureSet
+
+	// HandledTokens returns the exact set of AST node tokens inspected by
+	// TranspileSubtree.
+	HandledTokens() ast.TokenSet
 
 	// TranspileSubtree transpiles the given node. Subclasses should
 	// override to do their own peephole rewriting.
@@ -51,34 +60,4 @@ type AbstractPeepholeTranspilation interface {
 	//
 	// Java: AbstractPeepholeTranspilation.transpileSubtree(Node)
 	TranspileSubtree(subtree rhino.Node) rhino.Node
-}
-
-// AbstractPeepholeTranspilationBase holds the base implementations; every
-// subclass embeds it.
-type AbstractPeepholeTranspilationBase struct{}
-
-// GetAdditionalFeaturesToRunOn is the set of additional features, if any,
-// beyond those transpiled away which if present in a SCRIPT should trigger
-// this pass.
-//
-// Most passes shouldn't override this, but it is available for the rare
-// pass that needs to run on files containing features that it doesn't
-// transpile away.
-//
-// For example, we trigger the peephole pass ReportUntranspilableFeatures
-// pass for a SCRIPT which uses the ES3 feature Feature.REGEXP_SYNTAX, but
-// we only transpile away certain unsupported RegExp flags (e.g.
-// REGEXP_LOOKBEHIND) in that pass.
-//
-// Another example, the Es6NormalizeClasses, although not a peephole
-// transpilation, must trigger on Feature.CLASS, but it does not transpile it
-// away.
-//
-// Similarly, the pass Es6ConvertSuper, although not a peephole
-// transpilation, runs on Feature.SUPER, but does not transpile it away as
-// calls to `super()` are not transpiled by it.
-//
-// Java: AbstractPeepholeTranspilation.getAdditionalFeaturesToRunOn()
-func (b *AbstractPeepholeTranspilationBase) GetAdditionalFeaturesToRunOn() *parser.FeatureSet {
-	return parser.FeatureSet_BARE_MINIMUM
 }

@@ -27,6 +27,7 @@ import (
 	"strings"
 	"sync"
 	"sync/atomic"
+	"unicode/utf8"
 
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
@@ -163,14 +164,7 @@ func (f *SourceFile) GetNumLines() int {
 		// A negative value means we need to read in the code and calculate
 		// this information. Otherwise, assume the file hasn't changed since we
 		// read it.
-		failed := false
-		jutil.Try(func() {
-			_ = f.GetCode()
-		}, func(e jutil.IIOException) {
-			// this is consistent with old behavior of this method.
-			failed = true
-		})
-		if failed {
+		if _, err := f.getCode(); err != nil {
 			return 0
 		}
 	}
@@ -193,14 +187,7 @@ func (f *SourceFile) GetNumBytes() int {
 		// A negative value means we need to read in the code and calculate
 		// this information. Otherwise, assume the file hasn't changed since we
 		// read it.
-		failed := false
-		jutil.Try(func() {
-			_ = f.GetCode()
-		}, func(e jutil.IIOException) {
-			// this is consistent with old behavior of this method.
-			failed = true
-		})
-		if failed {
+		if _, err := f.getCode(); err != nil {
 			return 0
 		}
 	}
@@ -273,21 +260,11 @@ func (f *SourceFile) FindLineOffsets() {
 		return
 	}
 
-	var localCode string
-	if p := f.code.Load(); p != nil {
-		localCode = *p
-	} else {
-		failed := false
-		jutil.Try(func() {
-			localCode = f.GetCode()
-		}, func(e jutil.IIOException) {
-			failed = true
-		})
-		if failed {
-			f.lineOffsets = make([]int, 1)
-			f.lineByteOffsets = make([]int, 1)
-			return
-		}
+	localCode, err := f.getCode()
+	if err != nil {
+		f.lineOffsets = make([]int, 1)
+		f.lineByteOffsets = make([]int, 1)
+		return
 	}
 
 	// getCode() updates numLines, so this is always in sync with the code.
@@ -320,16 +297,60 @@ func (f *SourceFile) FindLineOffsets() {
 //
 // Java: SourceFile.getCode()
 func (f *SourceFile) GetCode() string {
+	code, err := f.getCode()
+	if err != nil {
+		panic(err)
+	}
+	return code
+}
+
+func (f *SourceFile) getCode() (string, jutil.IIOException) {
 	if p := f.code.Load(); p != nil {
-		return *p
+		return *p, nil
 	}
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	if p := f.code.Load(); p != nil {
-		return *p
+		return *p, nil
 	}
-	f.SetCodeAndDoBookkeeping(jutil.StringPtr(f.loader.LoadUncachedCode()))
-	return *f.code.Load()
+	var raw string
+	switch l := f.loader.(type) {
+	case *SourceFile_CodeLoader_Preloaded:
+		raw = l.preloadedCode
+	case *SourceFile_CodeLoader_OnDisk:
+		var err jutil.IIOException
+		raw, err = l.loadCode()
+		if err != nil {
+			return "", err
+		}
+	case *SourceFile_CodeLoader_AtZip:
+		var err jutil.IIOException
+		raw, err = l.loadCode()
+		if err != nil {
+			return "", err
+		}
+	default:
+		var err jutil.IIOException
+		raw, err = sourceFile_loadFromCustomLoader(f.loader)
+		if err != nil {
+			return "", err
+		}
+	}
+	f.SetCodeAndDoBookkeeping(&raw)
+	return *f.code.Load(), nil
+}
+
+func sourceFile_loadFromCustomLoader(loader SourceFile_CodeLoader) (code string, ioErr jutil.IIOException) {
+	defer func() {
+		if r := recover(); r != nil {
+			if e, ok := r.(jutil.IIOException); ok {
+				ioErr = e
+				return
+			}
+			panic(r)
+		}
+	}()
+	return loader.LoadUncachedCode(), nil
 }
 
 // Java: SourceFile.setCodeDeprecated(String)
@@ -482,14 +503,8 @@ func (f *SourceFile) GetColumnOfOffset(offset int) int {
 //
 // Java: SourceFile.getLine(int)
 func (f *SourceFile) GetLine(lineNumber int) *string {
-	var js string
-	failed := false
-	jutil.Try(func() {
-		js = f.GetCode()
-	}, func(e jutil.IIOException) {
-		failed = true
-	})
-	if failed {
+	js, err := f.getCode()
+	if err != nil {
 		return nil
 	}
 	f.FindLineOffsets()
@@ -533,14 +548,8 @@ func (f *SourceFile) GetLine(lineNumber int) *string {
 //
 // Java: SourceFile.getLines(int, int)
 func (f *SourceFile) GetLines(lineNumber int, length int) Region {
-	var js string
-	failed := false
-	jutil.Try(func() {
-		js = f.GetCode()
-	}, func(e jutil.IIOException) {
-		failed = true
-	})
-	if failed {
+	js, err := f.getCode()
+	if err != nil {
 		return nil
 	}
 	f.FindLineOffsets()
@@ -597,14 +606,8 @@ func (f *SourceFile) GetLines(lineNumber int, length int) Region {
 //
 // Java: SourceFile.getRegion(int)
 func (f *SourceFile) GetRegion(lineNumber int) Region {
-	js := ""
-	failed := false
-	jutil.Try(func() {
-		js = f.GetCode()
-	}, func(e jutil.IIOException) {
-		failed = true
-	})
-	if failed {
+	js, err := f.getCode()
+	if err != nil {
 		return nil
 	}
 	pos := 0
@@ -1019,13 +1022,11 @@ func (b *SourceFile_Builder) WithContent(x string) *SourceFile_Builder {
 func (b *SourceFile_Builder) WithContentFromStream(x io.Reader) *SourceFile_Builder {
 	b.lazyContent = func() string {
 		jutil.CheckState(b.charset != nil)
-		var result string
-		jutil.Try(func() {
-			result = jutil.CharStreams_ToString(jutil.NewInputStreamReader(x, b.charset))
-		}, func(e jutil.IIOException) {
-			panic(jutil.NewRuntimeExceptionWithCause(e))
-		})
-		return result
+		data, err := io.ReadAll(x)
+		if err != nil {
+			panic(jutil.NewRuntimeExceptionWithCause(jutil.IOExceptionFromError(err, "")))
+		}
+		return jutil.CharStreams_ToString(jutil.NewInputStreamReader(bytes.NewReader(data), b.charset))
 	}
 	return b
 }
@@ -1204,22 +1205,8 @@ type SourceFile_CodeLoader interface {
 	ToProtoLocationBuilder(fileName string) *SourceFileProto_Builder
 }
 
-// SourceFile_CodeLoaderBase holds CodeLoader's base implementations.
-type SourceFile_CodeLoaderBase struct{}
-
-// Java: SourceFile.CodeLoader.loadUncachedCode()
-func (SourceFile_CodeLoaderBase) LoadUncachedCode() string {
-	panic(jutil.NewAssertionErrorNoMessage())
-}
-
-// Java: SourceFile.CodeLoader.openUncachedReader()
-func (SourceFile_CodeLoaderBase) OpenUncachedReader() jutil.JavaReader {
-	return nil
-}
-
 // SourceFile_CodeLoader_Preloaded is SourceFile.CodeLoader.Preloaded.
 type SourceFile_CodeLoader_Preloaded struct {
-	SourceFile_CodeLoaderBase
 	preloadedCode string
 }
 
@@ -1233,6 +1220,10 @@ func (l *SourceFile_CodeLoader_Preloaded) LoadUncachedCode() string {
 	return l.preloadedCode
 }
 
+func (*SourceFile_CodeLoader_Preloaded) OpenUncachedReader() jutil.JavaReader {
+	return nil
+}
+
 // Java: SourceFile.CodeLoader.Preloaded.toProtoLocationBuilder(String)
 func (l *SourceFile_CodeLoader_Preloaded) ToProtoLocationBuilder(fileName string) *SourceFileProto_Builder {
 	return SourceFileProto_NewBuilder().SetPreloadedContents(l.preloadedCode)
@@ -1243,12 +1234,15 @@ func (l *SourceFile_CodeLoader_Preloaded) ToProtoLocationBuilder(fileName string
 //
 // Go-only: performance.
 type sourceFile_CodeLoader_Reloadable struct {
-	SourceFile_CodeLoaderBase
 	load func() string
 }
 
 func (l *sourceFile_CodeLoader_Reloadable) LoadUncachedCode() string {
 	return l.load()
+}
+
+func (*sourceFile_CodeLoader_Reloadable) OpenUncachedReader() jutil.JavaReader {
+	return nil
 }
 
 // ToProtoLocationBuilder serializes the code itself, as Preloaded does.
@@ -1262,7 +1256,6 @@ func (l *sourceFile_CodeLoader_Reloadable) ToProtoLocationBuilder(fileName strin
 //
 // Go-only: performance.
 type sourceFile_CodeLoader_InlineBase64 struct {
-	SourceFile_CodeLoaderBase
 	rawBase64     string
 	canonicalUTF8 bool
 }
@@ -1281,15 +1274,17 @@ func (l *sourceFile_CodeLoader_InlineBase64) LoadUncachedCode() string {
 	return jutil.NewStringFromUTF8Bytes(jutil.BaseEncoding_Base64().Decode(l.rawBase64))
 }
 
+func (*sourceFile_CodeLoader_InlineBase64) OpenUncachedReader() jutil.JavaReader {
+	return nil
+}
+
 func (l *sourceFile_CodeLoader_InlineBase64) ToProtoLocationBuilder(fileName string) *SourceFileProto_Builder {
 	return SourceFileProto_NewBuilder().SetPreloadedContents(l.LoadUncachedCode())
 }
 
 // SourceFile_CodeLoader_StubSourceFileCodeLoader is a code loader which
 // throws an error when loading code for a stub SourceFile.
-type SourceFile_CodeLoader_StubSourceFileCodeLoader struct {
-	SourceFile_CodeLoaderBase
-}
+type SourceFile_CodeLoader_StubSourceFileCodeLoader struct{}
 
 // Java: SourceFile.CodeLoader.StubSourceFileCodeLoader()
 func NewSourceFile_CodeLoader_StubSourceFileCodeLoader() *SourceFile_CodeLoader_StubSourceFileCodeLoader {
@@ -1301,6 +1296,10 @@ func (l *SourceFile_CodeLoader_StubSourceFileCodeLoader) LoadUncachedCode() stri
 	panic(jutil.NewUnsupportedOperationExceptionMsg("Attempting to load code from a stub SourceFile."))
 }
 
+func (*SourceFile_CodeLoader_StubSourceFileCodeLoader) OpenUncachedReader() jutil.JavaReader {
+	return nil
+}
+
 // Java: SourceFile.CodeLoader.StubSourceFileCodeLoader.toProtoLocationBuilder(String)
 func (l *SourceFile_CodeLoader_StubSourceFileCodeLoader) ToProtoLocationBuilder(fileName string) *SourceFileProto_Builder {
 	return SourceFileProto_NewBuilder().SetFilename(fileName).SetStubFile(true)
@@ -1308,7 +1307,6 @@ func (l *SourceFile_CodeLoader_StubSourceFileCodeLoader) ToProtoLocationBuilder(
 
 // SourceFile_CodeLoader_OnDisk is SourceFile.CodeLoader.OnDisk.
 type SourceFile_CodeLoader_OnDisk struct {
-	SourceFile_CodeLoaderBase
 	serializableCharset string
 	relativePathStr     string
 }
@@ -1320,18 +1318,40 @@ func NewSourceFile_CodeLoader_OnDisk(relativePath *jutil.Path, c *jutil.Charset)
 	return &SourceFile_CodeLoader_OnDisk{serializableCharset: c.Name(), relativePathStr: relativePath.String()}
 }
 
+func (l *SourceFile_CodeLoader_OnDisk) loadCode() (string, jutil.IIOException) {
+	b, err := os.ReadFile(l.relativePathStr)
+	if err != nil {
+		return "", jutil.IOExceptionFromError(err, l.relativePathStr).(jutil.IIOException)
+	}
+	return sourceFile_decodeStrictBytes(l.GetCharset(), b, l.relativePathStr)
+}
+
+func sourceFile_decodeStrictBytes(cs *jutil.Charset, b []byte, path string) (s string, ioErr jutil.IIOException) {
+	if (cs == nil || cs == jutil.StandardCharsets_UTF_8) && utf8.Valid(b) {
+		return string(b), nil
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			if ce, ok := r.(jutil.ICharacterCodingException); ok {
+				msg := "Failed to read: " + path + ", is this input UTF-8 encoded?"
+				ex := &jutil.IOException{}
+				jutil.InitThrowable(ex, "java.io.IOException", &msg, ce)
+				ioErr = ex
+				return
+			}
+			panic(r)
+		}
+	}()
+	return cs.DecodeStrict(b), nil
+}
+
 // Java: SourceFile.CodeLoader.OnDisk.loadUncachedCode()
 func (l *SourceFile_CodeLoader_OnDisk) LoadUncachedCode() string {
-	var result string
-	jutil.Try(func() {
-		result = jutil.Files_ReadStringRaw(l.relativePathStr, l.GetCharset())
-	}, func(e jutil.ICharacterCodingException) {
-		msg := "Failed to read: " + l.relativePathStr + ", is this input UTF-8 encoded?"
-		ex := &jutil.IOException{}
-		jutil.InitThrowable(ex, "java.io.IOException", &msg, e)
-		panic(ex)
-	})
-	return result
+	s, err := l.loadCode()
+	if err != nil {
+		panic(err)
+	}
+	return s
 }
 
 // Java: SourceFile.CodeLoader.OnDisk.openUncachedReader()
@@ -1367,7 +1387,6 @@ func (l *SourceFile_CodeLoader_OnDisk) ToProtoLocationBuilder(fileName string) *
 
 // SourceFile_CodeLoader_AtZip is SourceFile.CodeLoader.AtZip.
 type SourceFile_CodeLoader_AtZip struct {
-	SourceFile_CodeLoaderBase
 	zipName             string
 	entryName           string
 	serializableCharset string
@@ -1378,9 +1397,26 @@ func NewSourceFile_CodeLoader_AtZip(zipName string, entryName string, c *jutil.C
 	return &SourceFile_CodeLoader_AtZip{zipName: zipName, entryName: entryName, serializableCharset: c.Name()}
 }
 
+func (l *SourceFile_CodeLoader_AtZip) loadCode() (string, jutil.IIOException) {
+	rc, ioErr := jSCompZipFileCache_getEntryStreamErr(l.zipName, l.entryName)
+	if ioErr != nil {
+		return "", ioErr
+	}
+	data, err := io.ReadAll(rc)
+	_ = rc.Close()
+	if err != nil {
+		return "", jutil.IOExceptionFromError(err, "").(jutil.IIOException)
+	}
+	return jutil.CharStreams_ToString(jutil.NewInputStreamReader(bytes.NewReader(data), l.GetCharset())), nil
+}
+
 // Java: SourceFile.CodeLoader.AtZip.loadUncachedCode()
 func (l *SourceFile_CodeLoader_AtZip) LoadUncachedCode() string {
-	return jutil.CharStreams_ToString(l.OpenUncachedReader())
+	s, err := l.loadCode()
+	if err != nil {
+		panic(err)
+	}
+	return s
 }
 
 // Java: SourceFile.CodeLoader.AtZip.openUncachedReader()

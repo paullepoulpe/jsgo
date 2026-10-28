@@ -156,7 +156,9 @@ func (c *Compiler) forwardASTHolders(fwd func(rhino.Node) rhino.Node, externs, r
 			in.ast.root = fwd(in.ast.root)
 		}
 	}
-	c.inputsById.ForEach(func(_ *rhino.InputId, in *CompilerInput) { forwardInput(in) })
+	for _, in := range c.inputsById { // order-independent: k.Mark sets bitset bits and k.Forward maps precomputed old->new node IDs
+		forwardInput(in)
+	}
 	if c.chunkGraph != nil {
 		for _, in := range c.chunkGraph.GetAllInputs() {
 			forwardInput(in)

@@ -28,14 +28,9 @@ import (
 )
 
 // ReplaceMessagesForChrome replaces user-visible messages with appropriate
-// calls to chrome.i18n.getMessage. The first argument to getMessage is the id
-// of the message, as a string. If the message contains placeholders, the
-// second argument is an array of the values being used for the placeholders,
-// sorted by placeholder name.
-//
-// Java: class ReplaceMessagesForChrome extends JsMessageVisitor
+// calls to chrome.i18n.getMessage.
 type ReplaceMessagesForChrome struct {
-	JsMessageVisitorBase
+	JsMessageVisitor
 
 	astFactory             *AstFactory
 	introducesRegexpSyntax bool
@@ -48,10 +43,16 @@ var ReplaceMessagesForChrome_DECLARE_ICU_TEMPLATE_NOT_SUPPORTED = DiagnosticType
 
 // Java: ReplaceMessagesForChrome(AbstractCompiler, JsMessage.IdGenerator)
 func NewReplaceMessagesForChrome(compiler AbstractCompiler, idGenerator JsMessage_IdGenerator) *ReplaceMessagesForChrome {
-	r := &ReplaceMessagesForChrome{}
-	r.InitJsMessageVisitorBase(r, compiler, idGenerator)
-	r.introducesRegexpSyntax = false
-	r.astFactory = compiler.CreateAstFactory()
+	r := &ReplaceMessagesForChrome{
+		astFactory: compiler.CreateAstFactory(),
+	}
+	r.InitJsMessageVisitor(
+		compiler,
+		idGenerator,
+		r.ProcessJsMessageDefinition,
+		r.ProcessIcuTemplateDefinition,
+		nil,
+	)
 	return r
 }
 
@@ -64,7 +65,6 @@ func (r *ReplaceMessagesForChrome) GetChromeI18nGetMessageNode(messageId string)
 
 // Java: ReplaceMessagesForChrome.processIcuTemplateDefinition(IcuTemplateDefinition)
 func (r *ReplaceMessagesForChrome) ProcessIcuTemplateDefinition(definition IcuTemplateDefinition) {
-	// TODO(bradfordcsmith): Add support for this.
 	r.compiler.Report(JSError_MakeWithNode(definition.GetMessageNode(), ReplaceMessagesForChrome_DECLARE_ICU_TEMPLATE_NOT_SUPPORTED))
 }
 
@@ -87,17 +87,12 @@ func (r *ReplaceMessagesForChrome) GetNewValueNode(message *JsMessage, definitio
 
 	isHtml := definition.ShouldEscapeLessThan()
 	if !message.JsPlaceholderNames().IsEmpty() || isHtml {
-		// Output the placeholders, sorted alphabetically by placeholder name,
-		// regardless of what order they appear in the original message.
 		placeholderNames := message.JsPlaceholderNames().ToSlice()
-		slices.SortStableFunc(placeholderNames, jutil.StringCompareTo) // Ordering.natural().sortedCopy
+		slices.SortStableFunc(placeholderNames, jutil.StringCompareTo)
 
 		placeholderValueArray := r.astFactory.CreateArraylit()
 		placeholderValueMap := definition.GetPlaceholderValueMap()
 		for _, name := range placeholderNames {
-			// JsMessageVisitor ensures that every placeholder name appearing in the message string
-			// has a corresponding value node. It will report an error and avoid passing any messages
-			// violating this invariant to processMessage().
 			value := rhino.CheckNotNull(placeholderValueMap.Get(name)).CloneTree()
 			placeholderValueArray.AddChildToBack(value)
 		}

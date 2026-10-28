@@ -575,7 +575,7 @@ func (f *IRFactory) HandlePossibleFileOverviewJsDoc(jsDocParser *JsDocInfoParser
 		f.currentFileIsExterns = newFileoverview.IsExterns()
 	} else {
 		merged := f.firstFileoverview.ToBuilder()
-		if !newFileoverview.GetSuppressions().IsEmpty() {
+		if newFileoverview.HasAnySuppressions() {
 			merged.RecordSuppressions(newFileoverview.GetSuppressions())
 		}
 		if newFileoverview.IsExterns() {

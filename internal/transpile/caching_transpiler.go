@@ -19,48 +19,92 @@
 package transpile
 
 import (
+	"sync"
+
 	"github.com/paullepoulpe/jsgo/internal/bundle"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 )
+
+type cachingTranspilerEntry struct {
+	path       *jutil.URI
+	code       string
+	hash       int32
+	value      *TranspileResult
+	prev, next *cachingTranspilerEntry
+}
+
 // CachingTranspiler is a transpiler implementation that delegates to a
-// lower-level implementation on a cache miss. Passed a CacheBuilder to
-// allow specifying maximum size and other requirements externally.
+// lower-level implementation on a cache miss.
 type CachingTranspiler struct {
-	cache   *jutil.LoadingCache[*cachingTranspiler_Key, *TranspileResult]
-	runtime func() string
+	delegate Transpiler
+	maxSize  int // -1: unbounded
+	mu       sync.Mutex
+	table    map[int32][]*cachingTranspilerEntry
+	count    int
+	head     *cachingTranspilerEntry // least recently accessed
+	tail     *cachingTranspilerEntry // most recently accessed
+	runtime  func() string
 }
 
 var _ Transpiler = (*CachingTranspiler)(nil)
 
-// Java: CachingTranspiler(Transpiler, CacheBuilder<Object, ? super TranspileResult>)
-func NewCachingTranspiler(
-	delegate Transpiler, builder *jutil.CacheBuilder) *CachingTranspiler {
+// NewCachingTranspiler constructs a CachingTranspiler with the given maximum
+// entry count (-1 for unbounded).
+func NewCachingTranspiler(delegate Transpiler, maxSize int) *CachingTranspiler {
 	jutil.CheckNotNull(delegate)
-	t := &CachingTranspiler{}
-	t.cache =
-		jutil.CacheBuilder_Build(builder,
-			func(key *cachingTranspiler_Key) *TranspileResult {
-				return delegate.Transpile(key.path, key.code)
-			})
-	t.runtime = bundle.Source_Suppliers_Memoize(delegate.Runtime)
+	t := &CachingTranspiler{
+		delegate: delegate,
+		maxSize:  maxSize,
+		runtime:  bundle.Source_Suppliers_Memoize(delegate.Runtime),
+	}
+	if maxSize != 0 {
+		t.table = make(map[int32][]*cachingTranspilerEntry)
+	}
 	return t
 }
 
 // Java: CachingTranspiler.transpile(URI, String)
-func (t *CachingTranspiler) Transpile(path *jutil.URI, code string) (result *TranspileResult) {
-	jutil.Try(func() {
-		result = t.cache.GetUnchecked(newCachingTranspiler_Key(path, code))
-	}, func(e jutil.IUncheckedExecutionException) {
-		if _, ok := e.GetCause().(bundle.ITranspilationException); ok {
-			// If transpilation fails due to a parse error we can get an UncheckedExecutionException.
-			// This is because BaseTranspiler wraps the parse error as an TranspilationException.
-			// TODO(joeltine): This might better as a checked exception?
-			panic(bundle.NewTranspilationExceptionWithCause(e))
-		} else {
-			panic(e)
+func (t *CachingTranspiler) Transpile(path *jutil.URI, code string) *TranspileResult {
+	jutil.CheckNotNull(path)
+	if t.maxSize == 0 {
+		value := t.delegate.Transpile(path, code)
+		if value == nil {
+			panic(jutil.NewCacheLoader_InvalidCacheLoadException("CacheLoader returned null."))
 		}
-	})
-	return result
+		return value
+	}
+
+	hash := 31*(31+path.HashCode()) + jutil.StringHashCode(code)
+	t.mu.Lock()
+	if e := t.findLocked(path, code, hash); e != nil {
+		t.moveToTailLocked(e)
+		val := e.value
+		t.mu.Unlock()
+		return val
+	}
+	t.mu.Unlock()
+
+	value := t.delegate.Transpile(path, code)
+	if value == nil {
+		panic(jutil.NewCacheLoader_InvalidCacheLoadException("CacheLoader returned null."))
+	}
+
+	t.mu.Lock()
+	if e := t.findLocked(path, code, hash); e != nil {
+		t.moveToTailLocked(e)
+		val := e.value
+		t.mu.Unlock()
+		return val
+	}
+	e := &cachingTranspilerEntry{path: path, code: code, hash: hash, value: value}
+	t.table[hash] = append(t.table[hash], e)
+	t.count++
+	t.linkLastLocked(e)
+	if t.maxSize > 0 && t.count > t.maxSize {
+		t.removeLocked(t.head)
+	}
+	t.mu.Unlock()
+	return value
 }
 
 // Java: CachingTranspiler.runtime()
@@ -68,28 +112,59 @@ func (t *CachingTranspiler) Runtime() string {
 	return t.runtime()
 }
 
-// cachingTranspiler_Key is CachingTranspiler.Key.
-type cachingTranspiler_Key struct {
-	path *jutil.URI
-	code string
+func (t *CachingTranspiler) findLocked(path *jutil.URI, code string, hash int32) *cachingTranspilerEntry {
+	for _, e := range t.table[hash] {
+		if e.code == code && (e.path == path || e.path.Equals(path)) {
+			return e
+		}
+	}
+	return nil
 }
 
-// Java: CachingTranspiler.Key(URI, String)
-func newCachingTranspiler_Key(path *jutil.URI, code string) *cachingTranspiler_Key {
-	return &cachingTranspiler_Key{path: jutil.CheckNotNull(path), code: code}
+func (t *CachingTranspiler) unlinkLocked(e *cachingTranspilerEntry) {
+	if e.prev != nil {
+		e.prev.next = e.next
+	} else {
+		t.head = e.next
+	}
+	if e.next != nil {
+		e.next.prev = e.prev
+	} else {
+		t.tail = e.prev
+	}
+	e.prev, e.next = nil, nil
 }
 
-// Java: CachingTranspiler.Key.equals(Object)
-func (k *cachingTranspiler_Key) Equals(other any) bool {
-	key, ok := other.(*cachingTranspiler_Key)
-	return ok && key != nil && key.path.Equals(k.path) && key.code == k.code
+func (t *CachingTranspiler) linkLastLocked(e *cachingTranspilerEntry) {
+	e.prev = t.tail
+	e.next = nil
+	if t.tail != nil {
+		t.tail.next = e
+	} else {
+		t.head = e
+	}
+	t.tail = e
 }
 
-// Java: CachingTranspiler.Key.hashCode()
-func (k *cachingTranspiler_Key) HashCode() int32 {
-	// Objects.hash(path, code)
-	h := int32(1)
-	h = 31*h + k.path.HashCode()
-	h = 31*h + jutil.StringHashCode(k.code)
-	return h
+func (t *CachingTranspiler) moveToTailLocked(e *cachingTranspilerEntry) {
+	if t.tail == e {
+		return
+	}
+	t.unlinkLocked(e)
+	t.linkLastLocked(e)
+}
+
+func (t *CachingTranspiler) removeLocked(e *cachingTranspilerEntry) {
+	t.unlinkLocked(e)
+	bucket := t.table[e.hash]
+	for i, x := range bucket {
+		if x == e {
+			t.table[e.hash] = append(bucket[:i:i], bucket[i+1:]...)
+			break
+		}
+	}
+	if len(t.table[e.hash]) == 0 {
+		delete(t.table, e.hash)
+	}
+	t.count--
 }

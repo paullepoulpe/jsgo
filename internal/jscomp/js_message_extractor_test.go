@@ -271,7 +271,7 @@ func jsMessageExtractorTest_assertEquals(t *testing.T, expected *JsMessage, actu
 	ap, ep := actual.GetParts(), expected.GetParts()
 	same := len(ap) == len(ep)
 	for i := 0; same && i < len(ap); i++ {
-		same = jutil.ObjectsEquals(ap[i], ep[i])
+		same = ap[i] == ep[i]
 	}
 	if !same {
 		t.Errorf("parts = %v, want %v", ap, ep)

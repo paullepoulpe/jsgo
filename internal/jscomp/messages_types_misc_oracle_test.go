@@ -127,41 +127,34 @@ func l11msgNode(n rhino.Node) string {
 	return n.GetToken().String() + "@" + strconv.Itoa(n.GetLineno()) + ":" + strconv.Itoa(n.GetCharno())
 }
 
-// l11msgCollectMessages is the anonymous JsMessageVisitor of dumpMessages.
-type l11msgCollectMessages struct {
-	JsMessageVisitorBase
-	found *strings.Builder
-}
-
-func (v *l11msgCollectMessages) ProcessJsMessageDefinition(definition JsMessageDefinition) {
-	v.found.WriteString("getMsg " + l11msgNode(definition.GetMessageNode()) + " text=" +
-		l11msgNode(definition.GetTemplateTextNode()) + " values=" +
-		l11msgNode(definition.GetPlaceholderValuesNode()) + " valueMap=" +
-		l11msgEscape(jutil.CollectionToString(definition.GetPlaceholderValueMap().KeySlice())) +
-		" html=" + l11msgBool(definition.ShouldEscapeLessThan()) +
-		" unescape=" + l11msgBool(definition.ShouldUnescapeHtmlEntities()) + "\n")
-	l11msgMessage(v.found, definition.GetMessage())
-}
-
-func (v *l11msgCollectMessages) ProcessIcuTemplateDefinition(definition IcuTemplateDefinition) {
-	v.found.WriteString("icu " + l11msgNode(definition.GetMessageNode()) + " text=" +
-		l11msgNode(definition.GetTemplateTextNode()) + "\n")
-	l11msgMessage(v.found, definition.GetMessage())
-}
-
-func (v *l11msgCollectMessages) ProcessMessageFallback(callNode rhino.Node, message1 *JsMessage, message2 *JsMessage) {
-	v.found.WriteString("fallback " + l11msgNode(callNode) + " " + l11msgEscape(message1.GetKey()) + " " +
-		l11msgEscape(message2.GetKey()) + "\n")
-}
-
 func l11msgDumpMessages(sb *strings.Builder, code string) {
 	compiler := NewCompiler()
 	root := compiler.ParseTestCode(code)
 	parseErrors := len(compiler.GetErrors())
 	parseWarnings := len(compiler.GetWarnings())
 	found := &strings.Builder{}
-	visitor := &l11msgCollectMessages{found: found}
-	visitor.InitJsMessageVisitorBase(visitor, compiler, NewGoogleJsMessageIdGenerator(nil))
+	visitor := NewJsMessageVisitor(
+		compiler,
+		NewGoogleJsMessageIdGenerator(nil),
+		func(definition JsMessageDefinition) {
+			found.WriteString("getMsg " + l11msgNode(definition.GetMessageNode()) + " text=" +
+				l11msgNode(definition.GetTemplateTextNode()) + " values=" +
+				l11msgNode(definition.GetPlaceholderValuesNode()) + " valueMap=" +
+				l11msgEscape(jutil.CollectionToString(definition.GetPlaceholderValueMap().KeySlice())) +
+				" html=" + l11msgBool(definition.ShouldEscapeLessThan()) +
+				" unescape=" + l11msgBool(definition.ShouldUnescapeHtmlEntities()) + "\n")
+			l11msgMessage(found, definition.GetMessage())
+		},
+		func(definition IcuTemplateDefinition) {
+			found.WriteString("icu " + l11msgNode(definition.GetMessageNode()) + " text=" +
+				l11msgNode(definition.GetTemplateTextNode()) + "\n")
+			l11msgMessage(found, definition.GetMessage())
+		},
+		func(callNode rhino.Node, message1 *JsMessage, message2 *JsMessage) {
+			found.WriteString("fallback " + l11msgNode(callNode) + " " + l11msgEscape(message1.GetKey()) + " " +
+				l11msgEscape(message2.GetKey()) + "\n")
+		},
+	)
 	visitor.Process(rhino.NilNode, root)
 	sb.WriteString(found.String())
 	l11msgDiagnosticsFrom(sb, compiler, parseErrors, parseWarnings)

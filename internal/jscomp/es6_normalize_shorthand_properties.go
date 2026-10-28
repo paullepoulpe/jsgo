@@ -19,6 +19,7 @@
 package jscomp
 
 import (
+	"github.com/paullepoulpe/jsgo/internal/ast"
 	"github.com/paullepoulpe/jsgo/internal/parser"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
@@ -27,13 +28,25 @@ import (
 // This should be one of the first things done when transpiling from ES6 down
 // to ES5, as it allows all the following checks and transpilations to not
 // care about shorthand and destructured assignments.
-type Es6NormalizeShorthandProperties struct {
-	AbstractPeepholeTranspilationBase
-}
+type Es6NormalizeShorthandProperties struct{}
+
+var es6NormalizeShorthandTokens = func() ast.TokenSet {
+	var s ast.TokenSet
+	s.Add(rhino.Token_STRING_KEY)
+	return s
+}()
 
 // Java: Es6NormalizeShorthandProperties(AbstractCompiler)
 func NewEs6NormalizeShorthandProperties(compiler AbstractCompiler) *Es6NormalizeShorthandProperties {
 	return &Es6NormalizeShorthandProperties{}
+}
+
+func (*Es6NormalizeShorthandProperties) HandledTokens() ast.TokenSet {
+	return es6NormalizeShorthandTokens
+}
+
+func (*Es6NormalizeShorthandProperties) GetAdditionalFeaturesToRunOn() *parser.FeatureSet {
+	return parser.FeatureSet_BARE_MINIMUM
 }
 
 // Java: Es6NormalizeShorthandProperties.transpileSubtree(Node)

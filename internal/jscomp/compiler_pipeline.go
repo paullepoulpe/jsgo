@@ -93,7 +93,7 @@ func (c *Compiler) GenerateReport() {
 //
 // Go-only: performance — Java keeps it cached until the Compiler is gone.
 func (c *Compiler) clearSourcesCachedForReport() {
-	for input := range c.inputsById.Values() {
+	for _, input := range c.inputsById { // order-independent: ClearCachedSource only drops each SourceFile's independent in-memory code cache
 		input.GetSourceFile().ClearCachedSource()
 	}
 	for f := range c.sourceMapOriginalSources.Values() {

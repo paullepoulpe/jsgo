@@ -24,6 +24,29 @@ import (
 	"sync/atomic"
 
 	"github.com/paullepoulpe/jsgo/internal/rhino"
+	"github.com/paullepoulpe/jsgo/internal/strpool"
+)
+
+var (
+	peepholeIDUndefined        = uint32(strpool.Intern("undefined"))
+	peepholeIDWindow           = uint32(strpool.Intern("window"))
+	peepholeIDObject           = uint32(strpool.Intern("Object"))
+	peepholeIDArray            = uint32(strpool.Intern("Array"))
+	peepholeIDBoolean          = uint32(strpool.Intern("Boolean"))
+	peepholeIDString           = uint32(strpool.Intern("String"))
+	peepholeIDParseInt         = uint32(strpool.Intern("parseInt"))
+	peepholeIDParseFloat       = uint32(strpool.Intern("parseFloat"))
+	peepholeIDMath             = uint32(strpool.Intern("Math"))
+	peepholeIDNumber           = uint32(strpool.Intern("Number"))
+	peepholeIDGoog             = uint32(strpool.Intern("goog"))
+	peepholeIDConcat           = uint32(strpool.Intern("concat"))
+	peepholeIDSubstr           = uint32(strpool.Intern("substr"))
+	peepholeIDSubstring        = uint32(strpool.Intern("substring"))
+	peepholeIDSlice            = uint32(strpool.Intern("slice"))
+	peepholeIDDefineProperties = uint32(strpool.Intern("defineProperties"))
+	peepholeIDBind             = uint32(strpool.Intern("bind"))
+	peepholeIDCall             = uint32(strpool.Intern("call"))
+	peepholeIDApply            = uint32(strpool.Intern("apply"))
 )
 
 // PeepholeOptimizationsPass is a compiler pass to run various peephole
@@ -578,13 +601,13 @@ func (c *peepholeOptimizationsPass_PeepCallback) Visit(t *NodeTraversal, n rhino
 	if p.standardOptimizationsOnly {
 		switch tok {
 		case rhino.Token_NAME:
-			if currentNode.GetString() != "undefined" {
+			if currentNode.GetStringID() != peepholeIDUndefined {
 				return
 			}
 		case rhino.Token_GETPROP:
 			switch first := currentNode.GetFirstChild(); first.GetToken() {
 			case rhino.Token_NAME:
-				if first.GetString() != "window" {
+				if first.GetStringID() != peepholeIDWindow {
 					return
 				}
 			case rhino.Token_OBJECTLIT, rhino.Token_ARRAYLIT, rhino.Token_STRINGLIT:
@@ -599,31 +622,32 @@ func (c *peepholeOptimizationsPass_PeepCallback) Visit(t *NodeTraversal, n rhino
 			}
 		case rhino.Token_CALL:
 			if !p.hasJ2clCallPass {
-				first := currentNode.GetFirstChild()
-				switch first.GetToken() {
+				callee := currentNode.GetFirstChild()
+				switch callee.GetToken() {
 				case rhino.Token_NAME:
-					switch first.GetString() {
-					case "Object", "Array", "Boolean", "String", "parseInt", "parseFloat":
+					switch callee.GetStringID() {
+					case peepholeIDObject, peepholeIDArray, peepholeIDBoolean, peepholeIDString, peepholeIDParseInt, peepholeIDParseFloat:
 					default:
 						return
 					}
 				case rhino.Token_GETPROP:
-					recv := first.GetFirstChild()
+					recv := callee.GetFirstChild()
 					switch recv.GetToken() {
 					case rhino.Token_STRINGLIT, rhino.Token_ARRAYLIT:
 					case rhino.Token_NAME:
-						switch recv.GetString() {
-						case "Object", "Array", "Math", "Number", "goog":
+						switch recv.GetStringID() {
+						case peepholeIDObject, peepholeIDArray, peepholeIDMath, peepholeIDNumber, peepholeIDGoog:
 						default:
-							switch first.GetString() {
-							case "concat", "substr", "substring", "slice":
+							switch callee.GetStringID() {
+							case peepholeIDConcat, peepholeIDSubstr, peepholeIDSubstring, peepholeIDSlice:
 							default:
 								return
 							}
 						}
 					default:
-						switch first.GetString() {
-						case "concat", "substr", "substring", "slice", "defineProperties", "bind", "call", "apply":
+						switch callee.GetStringID() {
+						case peepholeIDConcat, peepholeIDSubstr, peepholeIDSubstring, peepholeIDSlice,
+							peepholeIDDefineProperties, peepholeIDBind, peepholeIDCall, peepholeIDApply:
 						default:
 							return
 						}
@@ -634,7 +658,8 @@ func (c *peepholeOptimizationsPass_PeepCallback) Visit(t *NodeTraversal, n rhino
 				}
 			}
 		case rhino.Token_EXPR_RESULT:
-			switch expr := currentNode.GetFirstChild(); expr.GetToken() {
+			expr := currentNode.GetFirstChild()
+			switch expr.GetToken() {
 			case rhino.Token_ASSIGN,
 				rhino.Token_ASSIGN_BITOR,
 				rhino.Token_ASSIGN_BITXOR,

@@ -30,54 +30,107 @@ import (
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 )
 
-// JSCompZipFileCache is a class that abstract entries from zip files via
-// managed caching.
-//
-// Normally zip files created via URL connection cache indefinite by JDK.
-// That's not good since a zip file contents might change over time (e.g.
-// compiler running as a worker). This class provides a timestamp controlled
-// caching which ensures we always read up-to-date zip while avoiding wasting
-// time by re-reading the zip for each entry.
+// JSCompZipFileCache abstracts entries from zip files via timestamp-checked
+// bounded LRU caching so updated zip archives are refreshed automatically
+// without re-opening the central directory on every entry read.
 type JSCompZipFileCache struct{}
+
+const jSCompZipFileCacheMaxSize = 1000
+
+type zipFileCacheNode struct {
+	key        string
+	val        *JSCompZipFileCache_CachedZipFile
+	prev, next *zipFileCacheNode
+}
+
+type zipFileLRUCache struct {
+	mu      sync.Mutex
+	entries map[string]*zipFileCacheNode
+	head    *zipFileCacheNode
+	tail    *zipFileCacheNode
+}
+
+var jSCompZipFileCache_zipFileCache = zipFileLRUCache{
+	entries: make(map[string]*zipFileCacheNode),
+}
+
+func (c *zipFileLRUCache) get(zipName string) *JSCompZipFileCache_CachedZipFile {
+	c.mu.Lock()
+	if node, ok := c.entries[zipName]; ok {
+		c.moveToFrontLocked(node)
+		val := node.val
+		c.mu.Unlock()
+		return val
+	}
+	var evicted *JSCompZipFileCache_CachedZipFile
+	if len(c.entries) >= jSCompZipFileCacheMaxSize && c.tail != nil {
+		old := c.tail
+		c.unlinkLocked(old)
+		delete(c.entries, old.key)
+		evicted = old.val
+	}
+	val := newJSCompZipFileCache_CachedZipFile(zipName)
+	node := &zipFileCacheNode{key: zipName, val: val}
+	c.pushFrontLocked(node)
+	c.entries[zipName] = node
+	c.mu.Unlock()
+
+	if evicted != nil {
+		if err := evicted.maybeCloseErr(); err != nil {
+			panic(jutil.NewRuntimeExceptionWithCause(err))
+		}
+	}
+	return val
+}
+
+func (c *zipFileLRUCache) pushFrontLocked(n *zipFileCacheNode) {
+	n.prev = nil
+	n.next = c.head
+	if c.head != nil {
+		c.head.prev = n
+	} else {
+		c.tail = n
+	}
+	c.head = n
+}
+
+func (c *zipFileLRUCache) unlinkLocked(n *zipFileCacheNode) {
+	if n.prev != nil {
+		n.prev.next = n.next
+	} else {
+		c.head = n.next
+	}
+	if n.next != nil {
+		n.next.prev = n.prev
+	} else {
+		c.tail = n.prev
+	}
+	n.prev = nil
+	n.next = nil
+}
+
+func (c *zipFileLRUCache) moveToFrontLocked(n *zipFileCacheNode) {
+	if c.head == n {
+		return
+	}
+	c.unlinkLocked(n)
+	c.pushFrontLocked(n)
+}
 
 // JSCompZipFileCache_GetEntryStream returns a stream for an entry.
 //
-// We expose a stream rather than something like a ZipEntry to avoid
-// possible cache-freshness issues. Callers must read the stream "quickly"
-// and may only do so once. It panics with an IOException.
-//
 // Java: JSCompZipFileCache.getEntryStream(String, String)
 func JSCompZipFileCache_GetEntryStream(zipName string, entryName string) io.Reader {
-	// Go-only: language-adapter — LoadingCache's Go representation mutates
-	// its lookup table and LRU links on hits as well as misses. Synchronize
-	// cache access; opening the entry uses the CachedZipFile's own mutex.
-	jSCompZipFileCache_mu.Lock()
-	cached := jSCompZipFileCache_zipFileCache.GetUnchecked(zipName)
-	jSCompZipFileCache_mu.Unlock()
-	return cached.GetEntryStream(entryName)
+	rc, err := jSCompZipFileCache_getEntryStreamErr(zipName, entryName)
+	if err != nil {
+		panic(err)
+	}
+	return rc
 }
 
-// Go-only: language-adapter — protects the shared emulated cache, including
-// eviction callbacks that close a cached archive.
-var jSCompZipFileCache_mu sync.Mutex
-
-// Go-only: language-adapter — there are no Java system properties; the
-// "jscomp.zipfile.cachesize" property takes its default.
-var jSCompZipFileCache_ZIP_CACHE_SIZE = int64(jutil.IntegerParseInt("1000", 10))
-
-var jSCompZipFileCache_zipFileCache = jutil.CacheBuilder_Build(
-	jutil.CacheBuilder_NewBuilder().
-		MaximumSize(jSCompZipFileCache_ZIP_CACHE_SIZE).
-		RemovalListener(func(key, value any) {
-			jutil.Try(func() {
-				value.(*JSCompZipFileCache_CachedZipFile).MaybeClose()
-			}, func(e jutil.IIOException) {
-				panic(jutil.NewRuntimeExceptionWithCause(e))
-			})
-		}),
-	func(key string) *JSCompZipFileCache_CachedZipFile {
-		return newJSCompZipFileCache_CachedZipFile(key)
-	})
+func jSCompZipFileCache_getEntryStreamErr(zipName string, entryName string) (io.ReadCloser, jutil.IIOException) {
+	return jSCompZipFileCache_zipFileCache.get(zipName).getEntryStreamErr(entryName)
+}
 
 // JSCompZipFileCache_CachedZipFile is JSCompZipFileCache.CachedZipFile.
 type JSCompZipFileCache_CachedZipFile struct {
@@ -94,22 +147,30 @@ func newJSCompZipFileCache_CachedZipFile(zipName string) *JSCompZipFileCache_Cac
 
 // Java: JSCompZipFileCache.CachedZipFile.getEntryStream(String)
 func (z *JSCompZipFileCache_CachedZipFile) GetEntryStream(entryName string) io.Reader {
+	rc, err := z.getEntryStreamErr(entryName)
+	if err != nil {
+		panic(err)
+	}
+	return rc
+}
+
+func (z *JSCompZipFileCache_CachedZipFile) getEntryStreamErr(entryName string) (io.ReadCloser, jutil.IIOException) {
 	z.mu.Lock()
 	defer z.mu.Unlock()
-	z.refreshIfNeededLocked()
+	if err := z.refreshIfNeededLockedErr(); err != nil {
+		return nil, err
+	}
 	entry := z.getEntryLocked(entryName)
 	if entry == nil {
 		panic(jutil.NewNullPointerExceptionMsg(jutil.LenientFormat("%s!/%s", z.path, entryName)))
 	}
 	rc, err := entry.Open()
 	if err != nil {
-		panic(jSCompZipFileCache_ioException(err, z.path.String()))
+		return nil, jSCompZipFileCache_ioException(err, z.path.String())
 	}
-	return rc
+	return rc, nil
 }
 
-// getEntryLocked is ZipFile.getEntry(String): the entry with
-// the given name, or else the directory entry name + "/".
 func (z *JSCompZipFileCache_CachedZipFile) getEntryLocked(name string) *zip.File {
 	if f, ok := z.entries[name]; ok {
 		return f
@@ -120,11 +181,7 @@ func (z *JSCompZipFileCache_CachedZipFile) getEntryLocked(name string) *zip.File
 	return nil
 }
 
-// jSCompZipFileCache_ioException maps a Go I/O error to the IOException the
-// JDK would throw.
-//
-// Go-only: language-adapter — Go reports I/O failures as errors.
-func jSCompZipFileCache_ioException(err error, path string) jutil.Throwable {
+func jSCompZipFileCache_ioException(err error, path string) jutil.IIOException {
 	e := &jutil.IOException{}
 	if errors.Is(err, fs.ErrNotExist) {
 		jutil.InitThrowable(e, "java.nio.file.NoSuchFileException", &path, nil)
@@ -139,23 +196,27 @@ func jSCompZipFileCache_ioException(err error, path string) jutil.Throwable {
 func (z *JSCompZipFileCache_CachedZipFile) RefreshIfNeeded() {
 	z.mu.Lock()
 	defer z.mu.Unlock()
-	z.refreshIfNeededLocked()
+	if err := z.refreshIfNeededLockedErr(); err != nil {
+		panic(err)
+	}
 }
 
-func (z *JSCompZipFileCache_CachedZipFile) refreshIfNeededLocked() {
+func (z *JSCompZipFileCache_CachedZipFile) refreshIfNeededLockedErr() jutil.IIOException {
 	info, err := os.Stat(z.path.String())
 	if err != nil {
-		panic(jSCompZipFileCache_ioException(err, z.path.String()))
+		return jSCompZipFileCache_ioException(err, z.path.String())
 	}
 	newLastModified := info.ModTime()
 	if z.lastModified != nil && newLastModified.Equal(*z.lastModified) {
-		return
+		return nil
 	}
 
-	z.maybeCloseLocked()
+	if err := z.maybeCloseLockedErr(); err != nil {
+		return err
+	}
 	zf, err := zip.OpenReader(z.path.String())
 	if err != nil {
-		panic(jSCompZipFileCache_ioException(err, z.path.String()))
+		return jSCompZipFileCache_ioException(err, z.path.String())
 	}
 	entries := make(map[string]*zip.File, len(zf.File))
 	for _, f := range zf.File {
@@ -166,20 +227,29 @@ func (z *JSCompZipFileCache_CachedZipFile) refreshIfNeededLocked() {
 	z.zipFile = zf
 	z.entries = entries
 	z.lastModified = &newLastModified
+	return nil
 }
 
 // Java: JSCompZipFileCache.CachedZipFile.maybeClose()
 func (z *JSCompZipFileCache_CachedZipFile) MaybeClose() {
-	z.mu.Lock()
-	defer z.mu.Unlock()
-	z.maybeCloseLocked()
+	if err := z.maybeCloseErr(); err != nil {
+		panic(err)
+	}
 }
 
-func (z *JSCompZipFileCache_CachedZipFile) maybeCloseLocked() {
+func (z *JSCompZipFileCache_CachedZipFile) maybeCloseErr() jutil.IIOException {
+	z.mu.Lock()
+	defer z.mu.Unlock()
+	return z.maybeCloseLockedErr()
+}
+
+func (z *JSCompZipFileCache_CachedZipFile) maybeCloseLockedErr() jutil.IIOException {
 	if z.zipFile != nil {
 		if err := z.zipFile.Close(); err != nil {
-			panic(jSCompZipFileCache_ioException(err, z.path.String()))
+			return jSCompZipFileCache_ioException(err, z.path.String())
 		}
+		z.zipFile = nil
 		z.entries = nil
 	}
+	return nil
 }

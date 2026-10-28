@@ -42,132 +42,22 @@ import (
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 )
 
-// JSDocInfo_ComparableSourcePosition is a SourcePosition that can be
-// compared for equivalence.
-//
-// Java: JSDocInfo.ComparableSourcePosition<T>
-type JSDocInfo_ComparableSourcePosition[T any] interface {
-	SourcePosition[T]
-	IsEquivalentTo(that SourcePosition[T]) bool
-}
-
-// JSDocInfo_StringPosition is a piece of information (found in a marker)
-// which contains a position with a string.
-//
-// Go-only: language-adapter — StringPosition has a subclass
-// (TrimmedStringPosition), so it is an interface plus
-// JSDocInfo_StringPositionBase; the item type String is Go string (a
-// position's item is always set right after construction).
-type JSDocInfo_StringPosition interface {
-	JSDocInfo_ComparableSourcePosition[string]
-}
-
-// JSDocInfo_StringPositionBase is `new StringPosition()`.
-type JSDocInfo_StringPositionBase struct {
-	SourcePositionBase[string]
-}
-
-// NewJSDocInfo_StringPosition is the implicit StringPosition constructor.
-//
-// Java: JSDocInfo.StringPosition()
-func NewJSDocInfo_StringPosition() *JSDocInfo_StringPositionBase {
-	return &JSDocInfo_StringPositionBase{}
-}
-
-// Java: JSDocInfo.StringPosition.isEquivalentTo(SourcePosition<String>)
-func (p *JSDocInfo_StringPositionBase) IsEquivalentTo(that SourcePosition[string]) bool {
-	return !jutil.IsNil(that) && p.IsSamePositionAs(that) && jutil.ObjectsEquals(p.GetItem(), that.GetItem())
-}
-
-// JSDocInfo_TrimmedStringPosition is a piece of information (found in a
-// marker) which contains a position with a string that has no leading or
-// trailing whitespace.
-type JSDocInfo_TrimmedStringPosition struct {
-	JSDocInfo_StringPositionBase
-}
-
-// Java: JSDocInfo.TrimmedStringPosition()
-func NewJSDocInfo_TrimmedStringPosition() *JSDocInfo_TrimmedStringPosition {
-	return &JSDocInfo_TrimmedStringPosition{}
-}
-
-// Java: JSDocInfo.TrimmedStringPosition.setItem(String)
-func (p *JSDocInfo_TrimmedStringPosition) SetItem(item string) {
-	jutil.CheckArgumentMsg(
-		jutil.StringCharAt(item, 0) != ' ' && jutil.StringCharAt(item, jutil.StringLength(item)-1) != ' ',
-		"String has leading or trailing whitespace")
-	p.JSDocInfo_StringPositionBase.SetItem(item)
-}
-
-// JSDocInfo_NamePosition is a piece of information (found in a marker) which
-// contains a position with a name node.
-type JSDocInfo_NamePosition struct {
-	SourcePositionBase[Node]
-}
-
-// Java: JSDocInfo.NamePosition()
-func NewJSDocInfo_NamePosition() *JSDocInfo_NamePosition {
-	return &JSDocInfo_NamePosition{}
-}
-
-// Java: JSDocInfo.NamePosition.isEquivalentTo(SourcePosition<Node>)
-func (p *JSDocInfo_NamePosition) IsEquivalentTo(that SourcePosition[Node]) bool {
-	if jutil.IsNil(that) ||
-		!p.IsSamePositionAs(that) ||
-		(p.GetItem().IsNil()) != (that.GetItem().IsNil()) {
-		return false
-	}
-	return p.GetItem().IsNil() || p.GetItem().IsEquivalentTo(that.GetItem())
-}
-
-// JSDocInfo_TypePosition is a piece of information (found in a marker) which
-// contains a position with a type expression syntax tree.
-type JSDocInfo_TypePosition struct {
-	SourcePositionBase[Node]
-	brackets bool
-}
-
-// Java: JSDocInfo.TypePosition()
-func NewJSDocInfo_TypePosition() *JSDocInfo_TypePosition {
-	return &JSDocInfo_TypePosition{brackets: false}
-}
-
-// HasBrackets returns whether the type has curly braces around it.
-//
-// Java: JSDocInfo.TypePosition.hasBrackets()
-func (p *JSDocInfo_TypePosition) HasBrackets() bool {
-	return p.brackets
-}
-
-// Java: JSDocInfo.TypePosition.setHasBrackets(boolean)
-func (p *JSDocInfo_TypePosition) SetHasBrackets(newVal bool) {
-	p.brackets = newVal
-}
-
-// Java: JSDocInfo.TypePosition.isEquivalentTo(SourcePosition<Node>)
-func (p *JSDocInfo_TypePosition) IsEquivalentTo(that SourcePosition[Node]) bool {
-	typePosition, ok := that.(*JSDocInfo_TypePosition)
-	if !ok || typePosition == nil ||
-		!p.IsSamePositionAs(that) ||
-		p.brackets != typePosition.brackets ||
-		(p.GetItem().IsNil()) != (that.GetItem().IsNil()) {
-		return false
-	}
-	return p.GetItem().IsNil() || p.GetItem().IsEquivalentTo(that.GetItem())
-}
-
-// JSDocInfo_Marker defines a class for containing the parsing information
+// JSDocInfo_Marker defines a struct for containing the parsing information
 // for this JSDocInfo. For each annotation found in the JsDoc, a marker will
 // be created indicating the annotation itself, the name of the annotation
 // (if any; for example, a @param has a name, but a @return does not), the
 // textual description found on that annotation and, if applicable, the type
 // declaration. All this information is only collected if documentation
 // collection is turned on.
+//
+// Go-only: performance — embeds the four SourcePosition fields inline by value
+// so markers live in a flat []JSDocInfo_Marker slice without per-marker or
+// per-position heap allocations.
 type JSDocInfo_Marker struct {
-	annotation  *JSDocInfo_TrimmedStringPosition
-	nameNode    *JSDocInfo_NamePosition
-	description JSDocInfo_StringPosition
-	type_       *JSDocInfo_TypePosition
+	annotation  SourcePosition[string]
+	nameNode    SourcePosition[Node]
+	description SourcePosition[string]
+	type_       SourcePosition[Node]
 }
 
 // Java: JSDocInfo.Marker()
@@ -177,81 +67,75 @@ func NewJSDocInfo_Marker() *JSDocInfo_Marker { return &JSDocInfo_Marker{} }
 // (e.g., "param")
 //
 // Java: JSDocInfo.Marker.getAnnotation()
-func (m *JSDocInfo_Marker) GetAnnotation() JSDocInfo_StringPosition {
-	if m.annotation == nil {
+func (m *JSDocInfo_Marker) GetAnnotation() *SourcePosition[string] {
+	if !m.annotation.valid {
 		return nil
 	}
-	return m.annotation
-}
-
-// Java: JSDocInfo.Marker.setAnnotation(TrimmedStringPosition)
-func (m *JSDocInfo_Marker) SetAnnotation(p *JSDocInfo_TrimmedStringPosition) {
-	m.annotation = p
+	return &m.annotation
 }
 
 // GetNameNode gets the position information for the name found in a @param
 // tag.
 //
 // Java: JSDocInfo.Marker.getNameNode()
-func (m *JSDocInfo_Marker) GetNameNode() *JSDocInfo_NamePosition {
-	return m.nameNode
-}
-
-// Java: JSDocInfo.Marker.setNameNode(NamePosition)
-func (m *JSDocInfo_Marker) SetNameNode(p *JSDocInfo_NamePosition) {
-	m.nameNode = p
+func (m *JSDocInfo_Marker) GetNameNode() *SourcePosition[Node] {
+	if !m.nameNode.valid {
+		return nil
+	}
+	return &m.nameNode
 }
 
 // GetDescription gets the position information for the description found in
 // a block tag.
 //
 // Java: JSDocInfo.Marker.getDescription()
-func (m *JSDocInfo_Marker) GetDescription() JSDocInfo_StringPosition {
-	return m.description
-}
-
-// Java: JSDocInfo.Marker.setDescription(StringPosition)
-func (m *JSDocInfo_Marker) SetDescription(p JSDocInfo_StringPosition) {
-	if jutil.IsNil(p) {
-		m.description = nil
-	} else {
-		m.description = p
+func (m *JSDocInfo_Marker) GetDescription() *SourcePosition[string] {
+	if !m.description.valid {
+		return nil
 	}
+	return &m.description
 }
 
 // GetType gets the position information for the type expression found in
 // some block tags, like "@param" and "@return".
 //
 // Java: JSDocInfo.Marker.getType()
-func (m *JSDocInfo_Marker) GetType() *JSDocInfo_TypePosition {
-	return m.type_
+func (m *JSDocInfo_Marker) GetType() *SourcePosition[Node] {
+	if !m.type_.valid {
+		return nil
+	}
+	return &m.type_
 }
 
-// Java: JSDocInfo.Marker.setType(TypePosition)
-func (m *JSDocInfo_Marker) SetType(p *JSDocInfo_TypePosition) {
-	m.type_ = p
+func stringPosEquivalent(a, b *SourcePosition[string]) bool {
+	if a.valid != b.valid {
+		return false
+	}
+	return !a.valid || (a.IsSamePositionAs(b) && a.item == b.item)
+}
+
+func nodePosEquivalent(a, b *SourcePosition[Node]) bool {
+	if a.valid != b.valid {
+		return false
+	}
+	if !a.valid {
+		return true
+	}
+	if !a.IsSamePositionAs(b) || a.brackets != b.brackets || a.item.IsNil() != b.item.IsNil() {
+		return false
+	}
+	return a.item.IsNil() || a.item.IsEquivalentTo(b.item)
 }
 
 // Java: JSDocInfo.Marker.isEquivalentTo(Marker)
 func (m *JSDocInfo_Marker) IsEquivalentTo(that *JSDocInfo_Marker) bool {
-	return JSDocInfo_Marker_AreEquivalent[string](m.annotation, that.annotation) &&
-		JSDocInfo_Marker_AreEquivalent[Node](m.nameNode, that.nameNode) &&
-		JSDocInfo_Marker_AreEquivalent[string](m.description, that.description) &&
-		JSDocInfo_Marker_AreEquivalent[Node](m.type_, that.type_)
-}
-
-// JSDocInfo_Marker_AreEquivalent compares two nullable positions.
-//
-// Go-only: language-adapter — a nil pointer converted to the interface
-// parameter is Java null (jutil.IsNil).
-//
-// Java: JSDocInfo.Marker.areEquivalent(ComparableSourcePosition<T>, ComparableSourcePosition<T>)
-func JSDocInfo_Marker_AreEquivalent[T any](p1 JSDocInfo_ComparableSourcePosition[T], p2 JSDocInfo_ComparableSourcePosition[T]) bool {
-	p1Null, p2Null := jutil.IsNil(p1), jutil.IsNil(p2)
-	if p2Null {
-		p2 = nil
+	if m == nil || that == nil {
+		return m == that
 	}
-	return p1Null == p2Null && (p1Null || p1.IsEquivalentTo(p2))
+	return stringPosEquivalent(&m.annotation, &that.annotation) &&
+		nodePosEquivalent(&m.nameNode, &that.nameNode) &&
+		stringPosEquivalent(&m.description, &that.description) &&
+		nodePosEquivalent(&m.type_, &that.type_)
 }
 
 // String is java.lang.Object.toString() (Marker does not override it).
@@ -281,12 +165,12 @@ func (m *JSDocInfo_Marker) String() string {
 // JSDocTypeExprIterator is a stack-allocated, zero-closure cursor over all
 // non-nil JSTypeExpressions in a JSDocInfo.
 type JSDocTypeExprIterator struct {
-	info     *JSDocInfo
-	typeBits uint64
-	curList  []*JSTypeExpression
-	curMap   *jutil.LinkedHashMap[string, *JSTypeExpression]
-	subIdx   int
-	cur      *JSTypeExpression
+	info      *JSDocInfo
+	typeBits  uint64
+	curList   []*JSTypeExpression
+	curParams []JSDocParam
+	subIdx    int
+	cur       *JSTypeExpression
 }
 
 // TypeExprIter returns a stack-allocated JSDocTypeExprIterator for i.
@@ -320,19 +204,16 @@ func (it *JSDocTypeExprIterator) Next() bool {
 			}
 			it.curList = nil
 		}
-		if it.curMap != nil {
-			for {
-				v, nextSlot, ok := it.curMap.NextSlotValue(it.subIdx)
-				if !ok {
-					break
-				}
-				it.subIdx = nextSlot
-				if v != nil {
-					it.cur = v
+		if it.curParams != nil {
+			for it.subIdx < len(it.curParams) {
+				e := it.curParams[it.subIdx].Type
+				it.subIdx++
+				if e != nil {
+					it.cur = e
 					return true
 				}
 			}
-			it.curMap = nil
+			it.curParams = nil
 		}
 		if it.typeBits == 0 {
 			it.cur = nil
@@ -353,7 +234,7 @@ func (it *JSDocTypeExprIterator) Next() bool {
 			it.curList = jsdocGet[[]*JSTypeExpression](val)
 			it.subIdx = 0
 		case jsDocPropKindTypeMap:
-			it.curMap = jsdocGet[*jutil.LinkedHashMap[string, *JSTypeExpression]](val)
+			it.curParams = jsdocGet[[]JSDocParam](val)
 			it.subIdx = 0
 		}
 	}

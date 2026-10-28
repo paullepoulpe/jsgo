@@ -48,13 +48,14 @@ type JsDocInfoParser struct {
 	fileOverviewJSDocInfo *rhino.JSDocInfo
 	state                 JsDocInfoParser_State
 
-	annotations           *jutil.LinkedHashMap[string, Annotation]
+	config                *Config
 	suppressionNames      *jutil.LinkedHashSet[string]
 	closurePrimitiveNames *jutil.LinkedHashSet[string]
 	preserveWhitespace    bool
 	onlyParseLicenseJsDoc bool
 
-	licenseText *string
+	licenseText    string
+	hasLicenseText bool
 
 	recordTsType bool
 
@@ -67,14 +68,8 @@ type JsDocInfoParser struct {
 const JsDocInfoParser_TTL_START_DELIMITER = "="
 const JsDocInfoParser_TTL_END_DELIMITER = "=:"
 
-// JsDocInfoParser_TEMPLATE_NAME_MATCHER is
-// CharMatcher.javaLetterOrDigit().or(CharMatcher.anyOf("_$")).
-//
-// Go-only: language-adapter — a Guava CharMatcher, as a predicate on a UTF-16
-// char.
-//
-// Java: JsDocInfoParser.TEMPLATE_NAME_MATCHER
-var JsDocInfoParser_TEMPLATE_NAME_MATCHER = func(c uint16) bool {
+// isTemplateNameChar is CharMatcher.javaLetterOrDigit().or(CharMatcher.anyOf("_$")).
+func isTemplateNameChar(c uint16) bool {
 	return jutil.CharacterIsLetter(c) || jutil.CharacterIsDigit(c) || c == '_' || c == '$'
 }
 
@@ -137,25 +132,43 @@ func (p *JsDocInfoParser) AddMissingTypeWarning(lineno int, charno int) {
 	p.errorReporter.Warning("Missing type declaration.", p.GetSourceName(), lineno, charno)
 }
 
-// Java: JsDocInfoParser.modifiesAnnotationKeywords
-var JsDocInfoParser_modifiesAnnotationKeywords = jutil.NewLinkedHashSet("this", "arguments")
+func isModifiesAnnotationKeyword(name string) bool {
+	return name == "this" || name == "arguments"
+}
 
-// Java: JsDocInfoParser.idGeneratorAnnotationKeywords
-var JsDocInfoParser_idGeneratorAnnotationKeywords = jutil.NewLinkedHashSet("unique", "consistent", "stable", "mapped", "xid")
+func isIdGeneratorAnnotationKeyword(name string) bool {
+	switch name {
+	case "unique", "consistent", "stable", "mapped", "xid":
+		return true
+	default:
+		return false
+	}
+}
 
-// Java: JsDocInfoParser.primitiveTypes
-var JsDocInfoParser_primitiveTypes = jutil.NewLinkedHashSet("number", "string", "boolean", "symbol")
+func isJsDocPrimitiveType(name string) bool {
+	switch name {
+	case "number", "string", "boolean", "symbol":
+		return true
+	default:
+		return false
+	}
+}
 
 // Java: JsDocInfoParser.setLicenseTextMonotonic(String)
 func (p *JsDocInfoParser) SetLicenseTextMonotonic(x string) {
 	// (checkNotNull(x): a Go string is never null.)
-	jutil.CheckState(p.licenseText == nil)
-	p.licenseText = &x
+	jutil.CheckState(!p.hasLicenseText)
+	p.licenseText = x
+	p.hasLicenseText = true
 }
 
 // Java: JsDocInfoParser.getLicenseText()
 func (p *JsDocInfoParser) GetLicenseText() *string {
-	return p.licenseText
+	if !p.hasLicenseText {
+		return nil
+	}
+	s := p.licenseText
+	return &s
 }
 
 // SetFileOverviewJSDocInfo sets the file overview JSDocInfo, in order to warn
@@ -256,7 +269,7 @@ func (p *JsDocInfoParser) Init(
 	p.jsdocBuilder.RecordOriginalCommentString(comment)
 	p.jsdocBuilder.RecordOriginalCommentPosition(commentPosition)
 	p.recordTsType = parseDocumentation
-	p.annotations = config.Annotations()
+	p.config = config
 	p.suppressionNames = config.SuppressionNames()
 	p.closurePrimitiveNames = config.ClosurePrimitiveNames()
 	p.preserveWhitespace = config.JsDocParsingMode().ShouldPreserveWhitespace()
@@ -271,7 +284,8 @@ func (p *JsDocInfoParser) Init(
 	}
 	p.fileOverviewJSDocInfo = nil
 	p.state = JsDocInfoParser_State_SEARCHING_ANNOTATION
-	p.licenseText = nil
+	p.licenseText = ""
+	p.hasLicenseText = false
 	p.unreadToken = JsDocInfoParser_NO_UNREAD_TOKEN
 }
 
@@ -348,19 +362,20 @@ func JsDocInfoParser_ParseFileOverviewJsdoc(toParse string) *rhino.JSDocInfo {
 	return parser.GetFileOverviewJSDocInfo()
 }
 
+var jsDocInfoParser_defaultConfig = Config_Builder_().
+	SetLanguageMode(Config_LanguageMode_ECMASCRIPT3).
+	SetStrictMode(Config_StrictMode_SLOPPY).
+	SetClosurePrimitiveNames(jutil.NewLinkedHashSet("testPrimitive").All()).
+	Build()
+
 // Java: JsDocInfoParser.getParser(String)
 func JsDocInfoParser_GetParser(toParse string) *JsDocInfoParser {
-	config := Config_Builder_().
-		SetLanguageMode(Config_LanguageMode_ECMASCRIPT3).
-		SetStrictMode(Config_StrictMode_SLOPPY).
-		SetClosurePrimitiveNames(jutil.NewLinkedHashSet("testPrimitive").All()).
-		Build()
 	return NewJsDocInfoParser(
 		NewJsDocTokenStream(toParse),
 		toParse,
 		0,
 		rhino.NilNode,
-		config,
+		jsDocInfoParser_defaultConfig,
 		JsDocInfoParser_JsDocSourceKind_NORMAL,
 		rhino.ErrorReporter_NULL_INSTANCE)
 }
@@ -393,7 +408,8 @@ func (p *JsDocInfoParser) Parse() bool {
 		}
 	}
 
-	var extendedTypes []*JsDocInfoParser_ExtendedTypeInfo
+	var extendedTypesBuf [2]JsDocInfoParser_ExtendedTypeInfo
+	extendedTypes := extendedTypesBuf[:0]
 	return p.ParseHelperLoop(token, &extendedTypes)
 }
 
@@ -423,7 +439,7 @@ func (p *JsDocInfoParser) ParseImportantComment() {
 }
 
 // Java: JsDocInfoParser.parseHelperLoop(JsDocToken, List<ExtendedTypeInfo>)
-func (p *JsDocInfoParser) ParseHelperLoop(token JsDocToken, extendedTypes *[]*JsDocInfoParser_ExtendedTypeInfo) bool {
+func (p *JsDocInfoParser) ParseHelperLoop(token JsDocToken, extendedTypes *[]JsDocInfoParser_ExtendedTypeInfo) bool {
 	for {
 		switch token {
 		case JsDocToken_ANNOTATION:
@@ -478,14 +494,14 @@ func (p *JsDocInfoParser) ParseHelperLoop(token JsDocToken, extendedTypes *[]*Js
 }
 
 // Java: JsDocInfoParser.parseAnnotation(JsDocToken, List<ExtendedTypeInfo>)
-func (p *JsDocInfoParser) ParseAnnotation(token JsDocToken, extendedTypes *[]*JsDocInfoParser_ExtendedTypeInfo) JsDocToken {
+func (p *JsDocInfoParser) ParseAnnotation(token JsDocToken, extendedTypes *[]JsDocInfoParser_ExtendedTypeInfo) JsDocToken {
 	// JSTypes are represented as Rhino AST nodes, and then resolved later.
 	var type_ *rhino.JSTypeExpression
 	lineno := p.stream.GetLineno()
 	charno := p.stream.GetCharno()
 
 	annotationName := p.stream.GetString()
-	annotation, annotationFound := p.annotations.Lookup(annotationName)
+	annotation, annotationFound := p.config.LookupAnnotation(annotationName)
 
 	if p.onlyParseLicenseJsDoc &&
 		!(annotationFound && (annotation == Annotation_LICENSE || annotation == Annotation_PRESERVE)) {
@@ -667,7 +683,7 @@ func (p *JsDocInfoParser) ParseAnnotation(token JsDocToken, extendedTypes *[]*Js
 				typeNode := p.ParseAndRecordTypeNode(token)
 				if !typeNode.IsNil() && typeNode.IsStringLit() {
 					typeName := typeNode.GetString()
-					if !JsDocInfoParser_primitiveTypes.Contains(typeName) {
+					if !isJsDocPrimitiveType(typeName) {
 						typeNode = p.WrapNode(rhino.Token_BANG, typeNode)
 					}
 				}
@@ -720,7 +736,7 @@ func (p *JsDocInfoParser) ParseAnnotation(token JsDocToken, extendedTypes *[]*Js
 
 				if annotation == Annotation_EXTENDS {
 					// record the extended type, check later
-					*extendedTypes = append(*extendedTypes, NewJsDocInfoParser_ExtendedTypeInfo(type_, p.stream.GetLineno(), p.stream.GetCharno()))
+					*extendedTypes = append(*extendedTypes, JsDocInfoParser_ExtendedTypeInfo{type_: type_, lineno: p.stream.GetLineno(), charno: p.stream.GetCharno()})
 				} else {
 					jutil.CheckState(annotation == Annotation_IMPLEMENTS)
 					if !p.jsdocBuilder.RecordImplementedInterface(type_) {
@@ -938,7 +954,8 @@ func (p *JsDocInfoParser) ParseAnnotation(token JsDocToken, extendedTypes *[]*Js
 				hasParamType = true
 			}
 
-			var name *string
+			var name string
+			hasName := false
 			isBracketedParam := JsDocToken_LEFT_SQUARE == token
 			if isBracketedParam {
 				token = p.Next()
@@ -951,8 +968,8 @@ func (p *JsDocInfoParser) ParseAnnotation(token JsDocToken, extendedTypes *[]*Js
 					p.AddMissingTypeWarning(p.stream.GetLineno(), p.stream.GetCharno())
 				}
 
-				nameString := p.stream.GetString()
-				name = &nameString
+				name = p.stream.GetString()
+				hasName = true
 
 				if isBracketedParam {
 					token = p.Next()
@@ -980,24 +997,24 @@ func (p *JsDocInfoParser) ParseAnnotation(token JsDocToken, extendedTypes *[]*Js
 				// for handling properties of params, so if the param name has a DOT
 				// in it, report a warning and throw it out.
 				// See https://github.com/google/closure-compiler/issues/499
-				if !rhino.TokenStream_IsJSIdentifier(*name) {
-					p.AddParserWarningWithArgAt(rhino.Msg_INVALID_VARIABLE_NAME, *name, lineno, charno)
-					name = nil
-				} else if !p.jsdocBuilder.RecordParameter(*name, type_) {
-					if p.jsdocBuilder.HasParameter(*name) {
-						p.AddTypeWarningWithArgAt(rhino.Msg_DUP_VARIABLE_NAME, *name, lineno, charno)
+				if !rhino.TokenStream_IsJSIdentifier(name) {
+					p.AddParserWarningWithArgAt(rhino.Msg_INVALID_VARIABLE_NAME, name, lineno, charno)
+					hasName = false
+				} else if !p.jsdocBuilder.RecordParameter(name, type_) {
+					if p.jsdocBuilder.HasParameter(name) {
+						p.AddTypeWarningWithArgAt(rhino.Msg_DUP_VARIABLE_NAME, name, lineno, charno)
 					} else {
-						p.AddTypeWarningWithArgAt(rhino.Msg_JSDOC_INCOMPAT_TYPE, *name, lineno, charno)
+						p.AddTypeWarningWithArgAt(rhino.Msg_JSDOC_INCOMPAT_TYPE, name, lineno, charno)
 					}
 				}
 			}
 
-			if name == nil {
+			if !hasName {
 				token = p.EatUntilEOLIfNotAnnotationFrom(token)
 				return token
 			}
 
-			p.jsdocBuilder.MarkName(*name, p.templateNode, lineno, charno)
+			p.jsdocBuilder.MarkName(name, p.templateNode, lineno, charno)
 
 			// Find the parameter's description (if applicable).
 			if p.jsdocBuilder.ShouldParseDocumentation() && token != JsDocToken_ANNOTATION {
@@ -1006,7 +1023,7 @@ func (p *JsDocInfoParser) ParseAnnotation(token JsDocToken, extendedTypes *[]*Js
 				paramDescription := paramDescriptionInfo.string_
 
 				if len(paramDescription) > 0 {
-					p.jsdocBuilder.RecordParameterDescription(*name, paramDescription)
+					p.jsdocBuilder.RecordParameterDescription(name, paramDescription)
 				}
 
 				token = paramDescriptionInfo.token
@@ -1063,7 +1080,8 @@ func (p *JsDocInfoParser) ParseAnnotation(token JsDocToken, extendedTypes *[]*Js
 			}
 
 			// Collect any names of template types.
-			var templateNames []string
+			var templateNamesBuf [4]string
+			templateNames := templateNamesBuf[:0]
 			if !p.Match(JsDocToken_COLON) {
 				// Skip colons so as not to consume TTLs accidentally.
 				// Parse a list of comma separated names.
@@ -1373,8 +1391,17 @@ func JsDocInfoParser_ValidTemplateTypeName(name string) bool {
 		return false
 	}
 	// CharMatcher.matchesAllOf: every UTF-16 char matches.
-	for _, c := range jutil.StringToUTF16(name) {
-		if !JsDocInfoParser_TEMPLATE_NAME_MATCHER(c) {
+	for i := 0; i < len(name); i++ {
+		b := name[i]
+		if b >= 0x80 {
+			for _, r := range name[i:] {
+				if r > 0xFFFF || !isTemplateNameChar(uint16(r)) {
+					return false
+				}
+			}
+			return true
+		}
+		if !((b >= 'A' && b <= 'Z') || (b >= 'a' && b <= 'z') || (b >= '0' && b <= '9') || b == '_' || b == '$') {
 			return false
 		}
 	}
@@ -1399,7 +1426,7 @@ func (p *JsDocInfoParser) RecordDescription(token JsDocToken) JsDocToken {
 }
 
 // Java: JsDocInfoParser.checkExtendedTypes(List<ExtendedTypeInfo>)
-func (p *JsDocInfoParser) CheckExtendedTypes(extendedTypes []*JsDocInfoParser_ExtendedTypeInfo) {
+func (p *JsDocInfoParser) CheckExtendedTypes(extendedTypes []JsDocInfoParser_ExtendedTypeInfo) {
 	if len(extendedTypes) > 1 {
 		// Multiple extends is always ok for an interface.
 		isInterface := p.jsdocBuilder.IsInterfaceRecorded()
@@ -1553,11 +1580,11 @@ func (p *JsDocInfoParser) ParseModifiesTag(token JsDocToken) JsDocToken {
 		for {
 			if p.Match(JsDocToken_STRING) {
 				name := p.stream.GetString()
-				if !JsDocInfoParser_modifiesAnnotationKeywords.Contains(name) && !p.jsdocBuilder.HasParameter(name) {
+				if !isModifiesAnnotationKeyword(name) && !p.jsdocBuilder.HasParameter(name) {
 					p.AddParserWarningWithArg(rhino.Msg_JSDOC_MODIFIES_UNKNOWN, name)
 				}
 
-				modifies.Add(p.stream.GetString())
+				modifies.Add(name)
 				token = p.Next()
 			} else {
 				p.AddParserWarning(rhino.Msg_JSDOC_MODIFIES)
@@ -1596,7 +1623,7 @@ func (p *JsDocInfoParser) ParseIdGeneratorTag(token JsDocToken) JsDocToken {
 	if token == JsDocToken_LEFT_CURLY {
 		if p.Match(JsDocToken_STRING) {
 			name := p.stream.GetString()
-			if !JsDocInfoParser_idGeneratorAnnotationKeywords.Contains(name) && !p.jsdocBuilder.HasParameter(name) {
+			if !isIdGeneratorAnnotationKeyword(name) && !p.jsdocBuilder.HasParameter(name) {
 				p.AddParserWarningWithArg(rhino.Msg_JSDOC_IDGEN_UNKNOWN, name)
 			}
 

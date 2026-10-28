@@ -273,24 +273,6 @@ func TestTreeSetMatchesJava(t *testing.T) {
 	}
 }
 
-func TestLoadingCacheMatchesGuava(t *testing.T) {
-	for _, r := range readTSV(t, "jscompa_cache.tsv") {
-		var loads []string
-		cache := CacheBuilder_Build(CacheBuilder_From(r[0]), func(k string) string {
-			loads = append(loads, k)
-			return "v" + k
-		})
-		for _, k := range strings.Fields(r[1]) {
-			if v := cache.GetUnchecked(k); v != "v"+k {
-				t.Fatalf("value %q", v)
-			}
-		}
-		if got := strings.Join(loads, " "); got != r[2] || strconv.Itoa(int(cache.Size())) != r[3] {
-			t.Errorf("%s: loads\n got %s\nwant %s (size %d vs %s)", r[0], got, r[2], cache.Size(), r[3])
-		}
-	}
-}
-
 func TestPatternTranslation(t *testing.T) {
 	cases := []struct {
 		re, s string

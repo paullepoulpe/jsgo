@@ -117,6 +117,20 @@ func (s *JsDocTokenStream) Init(sourceString string, lineno int, initCharno int)
 	s.initCharno = initCharno
 }
 
+var asciiJSDocStringTable = func() [128]bool {
+	var tbl [128]bool
+	for c := 0; c < 128; c++ {
+		if c != '\r' && JsDocTokenStream_IsJSDocString(c) {
+			tbl[c] = true
+		}
+	}
+	return tbl
+}()
+
+func isASCIIAlpha(b byte) bool {
+	return (b|0x20)-'a' < 26
+}
+
 // GetJsDocToken tokenizes JSDoc comments.
 //
 // Java: JsDocTokenStream.getJsDocToken()
@@ -124,6 +138,21 @@ func (s *JsDocTokenStream) GetJsDocToken() JsDocToken {
 	var c int
 	s.stringBufferTop = 0
 	for {
+		// Fast-skip ASCII horizontal whitespace before per-char GetChar().
+		if s.sourceString == nil && s.ungetCursor == 0 && s.lineEndChar < 0 {
+			src := s.rawSource
+			end := s.sourceEnd
+			cur := s.sourceCursor
+			for cur < end {
+				b := src[cur]
+				if b != ' ' && b != '\t' && b != '\f' && b != '\v' {
+					break
+				}
+				cur++
+			}
+			s.cursor += cur - s.sourceCursor
+			s.sourceCursor = cur
+		}
 		// eat white spaces
 		for {
 			s.charno = -1
@@ -140,6 +169,19 @@ func (s *JsDocTokenStream) GetJsDocToken() JsDocToken {
 		switch c {
 		// annotation, e.g. @type or @constructor
 		case '@':
+			if s.sourceString == nil && s.ungetCursor == 0 {
+				src := s.rawSource
+				start := s.sourceCursor
+				cur := start
+				end := s.sourceEnd
+				for cur < end && isASCIIAlpha(src[cur]) {
+					cur++
+				}
+				s.sourceCursor = cur
+				s.cursor += cur - start
+				s.string_ = src[start:cur]
+				return JsDocToken_ANNOTATION
+			}
 			for {
 				c = s.GetChar()
 				if JsDocTokenStream_IsAlpha(c) {
@@ -225,6 +267,22 @@ func (s *JsDocTokenStream) GetJsDocToken() JsDocToken {
 			{
 				// recognize a JsDoc string but discard last . if it is followed by
 				// a non-JsDoc comment char, e.g. Array.<
+				if s.sourceString == nil && s.ungetCursor == 0 {
+					src := s.rawSource
+					start := s.sourceCursor - 1
+					cur := s.sourceCursor
+					end := s.sourceEnd
+					for cur < end && asciiJSDocStringTable[src[cur]] {
+						cur++
+					}
+					if cur > start+1 && src[cur-1] == '.' && cur < end && src[cur] == '<' {
+						cur--
+					}
+					s.cursor += cur - s.sourceCursor
+					s.sourceCursor = cur
+					s.string_ = src[start:cur]
+					return JsDocToken_STRING
+				}
 				c1 := c
 				s.AddToString(c)
 				c2 := s.GetChar()
@@ -266,6 +324,42 @@ func (s *JsDocTokenStream) GetJsDocToken() JsDocToken {
 //
 // Java: JsDocTokenStream.getRemainingJSDocLine()
 func (s *JsDocTokenStream) GetRemainingJSDocLine() string {
+	if s.sourceString == nil && s.ungetCursor == 0 && s.stringBufferTop == 0 {
+		src := s.rawSource
+		end := s.sourceEnd
+		if s.lineEndChar >= 0 {
+			if s.sourceCursor < end && s.lineEndChar == '\r' && src[s.sourceCursor] == '\n' {
+				s.lineEndChar = '\n'
+				s.cursor++
+				s.sourceCursor++
+			}
+			if s.sourceCursor < end {
+				s.lineEndChar = -1
+				s.lineStart = s.sourceCursor
+				s.lineno++
+			}
+		}
+		start := s.sourceCursor
+		cur := start
+		for cur < end {
+			b := src[cur]
+			if b == '\n' || b == '\r' || (b == '*' && cur+1 < end && src[cur+1] == '/') {
+				break
+			}
+			cur++
+		}
+		if cur > start {
+			if s.charno == -1 {
+				s.charno = start - s.lineStart
+			}
+			s.cursor += cur - start
+			s.sourceCursor = cur
+		}
+		stopChar := s.GetChar()
+		s.UngetChar(stopChar)
+		s.string_ = src[start:cur]
+		return s.string_
+	}
 	var c int
 	for {
 		c = s.GetChar()
@@ -415,6 +509,15 @@ func (s *JsDocTokenStream) PeekChar() int {
 
 // Java: JsDocTokenStream.getChar()
 func (s *JsDocTokenStream) GetChar() int {
+	return s.getChar(false)
+}
+
+// Java: JsDocTokenStream.GetCharIgnoreLineEnd()
+func (s *JsDocTokenStream) GetCharIgnoreLineEnd() int {
+	return s.getChar(true)
+}
+
+func (s *JsDocTokenStream) getChar(ignoreLineEnd bool) int {
 	if s.ungetCursor != 0 {
 		s.cursor++
 		s.ungetCursor--
@@ -440,7 +543,7 @@ func (s *JsDocTokenStream) GetChar() int {
 		}
 		s.sourceCursor++
 
-		if s.lineEndChar >= 0 {
+		if !ignoreLineEnd && s.lineEndChar >= 0 {
 			if s.lineEndChar == '\r' && c == '\n' {
 				s.lineEndChar = '\n'
 				continue
@@ -449,56 +552,6 @@ func (s *JsDocTokenStream) GetChar() int {
 			s.lineStart = s.sourceCursor - 1
 			s.lineno++
 		}
-
-		if c <= 127 {
-			if c == '\n' || c == '\r' {
-				s.lineEndChar = c
-				c = '\n'
-			}
-		} else {
-			if rhino.TokenUtil_IsJSFormatChar(c) {
-				continue
-			}
-			if JsDocTokenStream_IsJSLineTerminator(c) {
-				s.lineEndChar = c
-				c = '\n'
-			}
-		}
-
-		if s.charno == -1 {
-			s.charno = s.GetLineOffset()
-		}
-
-		return c
-	}
-}
-
-// Java: JsDocTokenStream.GetCharIgnoreLineEnd()
-func (s *JsDocTokenStream) GetCharIgnoreLineEnd() int {
-	if s.ungetCursor != 0 {
-		s.cursor++
-		s.ungetCursor--
-		if s.charno == -1 {
-			s.charno = s.GetLineOffset()
-		}
-		return s.ungetBuffer[s.ungetCursor]
-	}
-
-	for {
-		var c int
-		if s.sourceCursor == s.sourceEnd {
-			if s.charno == -1 {
-				s.charno = s.GetLineOffset()
-			}
-			return JsDocTokenStream_EOF_CHAR
-		}
-		s.cursor++
-		if s.sourceString == nil {
-			c = int(s.rawSource[s.sourceCursor])
-		} else {
-			c = int(s.sourceString[s.sourceCursor])
-		}
-		s.sourceCursor++
 
 		if c <= 127 {
 			if c == '\n' || c == '\r' {
@@ -535,9 +588,7 @@ func JsDocTokenStream_IsJSLineTerminator(c int) bool {
 
 // Java: JsDocTokenStream.UngetCharIgnoreLineEnd(int)
 func (s *JsDocTokenStream) UngetCharIgnoreLineEnd(c int) {
-	s.ungetBuffer[s.ungetCursor] = c
-	s.ungetCursor++
-	s.cursor--
+	s.UngetChar(c)
 }
 
 // GetLineOffset returns the offset into the current line.

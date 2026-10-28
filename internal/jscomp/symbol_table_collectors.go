@@ -21,6 +21,7 @@ package jscomp
 import (
 	"strings"
 
+	"github.com/paullepoulpe/jsgo/internal/ast"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
@@ -52,7 +53,7 @@ func (c *SymbolTable_PropertyRefCollector) maybeDefineReference(n rhino.Node, pr
 	// That function searches for property in all extended classes and interfaces, which supports
 	// multiple extended interfaces.
 	owner := ownerSymbol.GetType()
-	if !jutil.IsNil(owner) && owner.IsObjectType() {
+	if owner != nil && owner.IsObjectType() {
 		propNode := owner.ToObjectType().GetPropertyNode(propName)
 		propSymbol := c.outer.symbols.Get(symbolTableKey{declNode: propNode, name: propName})
 		if propSymbol != nil {
@@ -122,7 +123,7 @@ func (c *SymbolTable_PropertyRefCollector) maybeDefineTypedReference(n rhino.Nod
 			if ctor.GetPropertyScope() != nil {
 				ctorType := ctor.GetType()
 				isConstructor :=
-					!jutil.IsNil(ctorType) && (ctorType.IsConstructor() || ctorType.IsInterface())
+					ctorType != nil && (ctorType.IsConstructor() || ctorType.IsInterface())
 				if !isConstructor && c.maybeDefineReference(n, propName, ctor) {
 					defined = true
 				}
@@ -139,16 +140,15 @@ func (c *SymbolTable_PropertyRefCollector) maybeDefineTypedReference(n rhino.Nod
 	// const foo = goog.require('some.module.foo');
 	// foo.doSomething();
 	// here n is foo, propName is doSomething and owner is module type.
-	if owner.IsObjectType() && !jutil.IsNil(owner.ToMaybeObjectType()) {
-		propNodeDecl := owner.AssertObjectType().GetPropertyNode(propName)
+	if objType := owner.ToMaybeObjectType(); objType != nil {
+		propNodeDecl := objType.GetPropertyNode(propName)
 		if propNodeDecl.IsNil() {
 			return false
 		}
 		// There is no handy way to find symbol object the given property node. So we do
 		// property node => namespace node => namespace symbol => property symbol.
-		if !propNodeDecl.IsNil() &&
-			(propNodeDecl.IsGetProp() || propNodeDecl.IsOptChainGetProp()) {
-			namespace := propNodeDecl.GetFirstChild()
+		if gp, ok := ast.AsNormalOrOptChainGetProp(propNodeDecl); ok {
+			namespace := gp.Object().Node()
 			namespaceSym := t.GetSymbolForName(namespace, namespace.GetQualifiedName())
 			if namespaceSym != nil && namespaceSym.GetPropertyScope() != nil {
 				propSym := namespaceSym.GetPropertyScope().GetSlot(propName)
@@ -192,10 +192,10 @@ func (c *SymbolTable_PropertyRefCollector) Visit(t *NodeTraversal, n rhino.Node,
 	// definitions. e.g., for "a.b", it's more useful to record
 	// this as "property b of the type of a", than as "symbol a.b".
 
-	if n.IsGetProp() || n.IsOptChainGetProp() {
-		owner := n.GetFirstChild().GetJSType()
-		if !jutil.IsNil(owner) {
-			defined := c.maybeDefineTypedReference(n, n.GetString(), owner)
+	if gp, ok := ast.AsNormalOrOptChainGetProp(n); ok {
+		owner := gp.Object().Node().GetJSType()
+		if owner != nil {
+			defined := c.maybeDefineTypedReference(n, gp.Property(), owner)
 
 			if defined {
 				c.tryRemoveLexicalQualifiedNameRef(n.GetQualifiedName(), n)
@@ -204,10 +204,10 @@ func (c *SymbolTable_PropertyRefCollector) Visit(t *NodeTraversal, n rhino.Node,
 		}
 
 		c.tryDefineLexicalQualifiedNameRef(n.GetQualifiedName(), n)
-	} else if n.IsStringKey() {
+	} else if sk, ok := ast.AsStringKey(n); ok {
 		owner := parent.GetJSType()
-		if !jutil.IsNil(owner) {
-			defined := c.maybeDefineTypedReference(n, n.GetString(), owner)
+		if owner != nil {
+			defined := c.maybeDefineTypedReference(n, sk.Key(), owner)
 
 			if defined {
 				c.tryRemoveLexicalQualifiedNameRef(NodeUtil_GetBestLValueName(n), n)
@@ -270,11 +270,11 @@ func (c *SymbolTable_ThisRefCollector) EnterScope(t *NodeTraversal) {
 			symbol.SetDeclaration(NewSymbolTable_Reference(symbol, firstInputRoot))
 		}
 		c.thisStack = append(c.thisStack, symbol)
-	} else if t.GetScopeRoot().IsFunction() {
+	} else if fn, ok := ast.AsFunction(t.GetScopeRoot()); ok {
 		// Otherwise, declare a "this" property when possible.
-		scopeRoot := t.GetScopeRoot()
+		scopeRoot := fn.Node()
 		scope := st.scopes.Get(scopeRoot)
-		if NodeUtil_GetFunctionBody(scopeRoot).HasChildren() {
+		if fn.Body().Node().HasChildren() {
 			scopeSymbol := st.GetSymbolForScope(scope)
 			if scopeSymbol != nil {
 				propScope := scopeSymbol.GetPropertyScope()
@@ -283,13 +283,13 @@ func (c *SymbolTable_ThisRefCollector) EnterScope(t *NodeTraversal) {
 					// one addressable "this" symbol.
 					symbol = propScope.GetOwnSlot("this")
 					if symbol == nil {
-						rootType := t.GetScopeRoot().GetJSType()
+						rootType := scopeRoot.GetJSType()
 						var fnType rhino.FunctionType
-						if !jutil.IsNil(rootType) {
+						if rootType != nil {
 							fnType = rootType.ToMaybeFunctionType()
 						}
 						var type_ rhino.JSType
-						if !jutil.IsNil(fnType) {
+						if fnType != nil {
 							type_ = fnType.GetTypeOfThis()
 						}
 						symbol = st.addSymbol("this", type_ /* inferred= */, false, scope, scopeRoot)
@@ -352,12 +352,15 @@ func (c *SymbolTable_JSDocInfoCollector) Visit(t *NodeTraversal, n rhino.Node, p
 	}
 	c.outer.docInfos = append(c.outer.docInfos, n)
 
+	var scope *SymbolTable_SymbolScope
 	for it := info.TypeExprIter(); it.Next(); {
-		scope := c.outer.scopes.Get(t.GetScopeRoot())
 		if scope == nil {
-			scope = c.outer.globalScope
+			scope = c.outer.scopes.Get(t.GetScopeRoot())
+			if scope == nil {
+				scope = c.outer.globalScope
+			}
 		}
-		c.VisitTypeNode(info.GetTemplateTypes(), scope, it.Node())
+		c.visitTypeNode(info, scope, it.Node())
 	}
 }
 
@@ -372,36 +375,38 @@ func (c *SymbolTable_JSDocInfoCollector) isNativeSourcelessType(name string) boo
 }
 
 // Java: SymbolTable.JSDocInfoCollector.visitTypeNode(ImmutableMap<String, JSTypeExpression>, SymbolScope, Node)
-func (c *SymbolTable_JSDocInfoCollector) VisitTypeNode(
-	templateTypeNames *jutil.LinkedHashMap[string, *rhino.JSTypeExpression], scope *SymbolTable_SymbolScope, n rhino.Node) {
-	if n.IsStringLit() &&
-		!c.isNativeSourcelessType(n.GetString()) &&
-		!templateTypeNames.ContainsKey(n.GetString()) {
-		symbol := c.lookupPossiblyDottedName(scope, n.GetString())
-		if symbol != nil {
-			ref := n
-			typeString := n.GetString()
-			if n.GetOriginalName() != nil {
-				typeString = *n.GetOriginalName()
+func (c *SymbolTable_JSDocInfoCollector) visitTypeNode(
+	info *rhino.JSDocInfo, scope *SymbolTable_SymbolScope, n rhino.Node) {
+	if n.IsStringLit() {
+		name := n.GetString()
+		if !c.isNativeSourcelessType(name) && !info.HasTemplateTypeName(name) {
+			symbol := c.lookupPossiblyDottedName(scope, name)
+			if symbol != nil {
+				ref := n
+				typeString := name
+				if orig := n.GetOriginalName(); orig != nil {
+					typeString = *orig
+				}
+				// Qualified names in JSDoc types are kept as a single string: "foo.bar.MyType". In order
+				// to have good indexing we need to make the SymbolTable reference include only "MyType"
+				// instead of "foo.bar.MyType". To do that we clone the type node and change the source
+				// info of the clone to include only the last part of the type ("MyType").
+				if dot := strings.LastIndexByte(typeString, '.'); dot >= 0 {
+					lastPart := typeString[dot+1:]
+					lastPartLen := jutil.StringLength(lastPart)
+					copy_ := n.CloneNode()
+					copy_.SetLinenoCharno(
+						copy_.GetLineno(), copy_.GetCharno()+copy_.GetLength()-lastPartLen)
+					copy_.SetLength(lastPartLen)
+					ref = copy_
+				}
+				symbol.DefineReferenceAt(ref)
 			}
-			// Qualified names in JSDoc types are kept as a single string: "foo.bar.MyType". In order
-			// to have good indexing we need to make the SymbolTable reference include only "MyType"
-			// instead of "foo.bar.MyType". To do that we clone the type node and change the source
-			// info of the clone to include only the last part of the type ("MyType").
-			if strings.Contains(typeString, ".") {
-				lastPart := typeString[strings.LastIndexByte(typeString, '.')+1:]
-				copy_ := n.CloneNode()
-				copy_.SetLinenoCharno(
-					copy_.GetLineno(), copy_.GetCharno()+copy_.GetLength()-jutil.StringLength(lastPart))
-				copy_.SetLength(jutil.StringLength(lastPart))
-				ref = copy_
-			}
-			symbol.DefineReferenceAt(ref)
 		}
 	}
 
 	for child := n.GetFirstChild(); !child.IsNil(); child = child.GetNext() {
-		c.VisitTypeNode(templateTypeNames, scope, child)
+		c.visitTypeNode(info, scope, child)
 	}
 }
 
@@ -416,10 +421,10 @@ func (c *SymbolTable_JSDocInfoCollector) lookupPossiblyDottedName(scope *SymbolT
 	// primitive type (like {string}). Autobox it to check.
 	type_ := c.typeRegistry.GetGlobalType(dottedName)
 	var autobox rhino.JSType
-	if !jutil.IsNil(type_) {
+	if type_ != nil {
 		autobox = type_.AutoboxesTo()
 	}
-	if jutil.IsNil(autobox) {
+	if autobox == nil {
 		return c.outer.GetSymbolForTypeHelper(type_, true)
 	}
 	return c.outer.GetSymbolForTypeHelper(autobox, true)
@@ -443,16 +448,18 @@ func NewSymbolTable_VisibilityCollector(
 
 // Java: SymbolTable.VisibilityCollector.visit(NodeTraversal, Node, Node)
 func (c *SymbolTable_VisibilityCollector) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
-	if n.IsName() {
-		c.visitName(t, n)
-	} else if n.IsGetProp() || n.IsOptChainGetProp() {
-		c.visitProperty(n, parent)
+	if nameNode, ok := ast.AsName(n); ok {
+		c.visitName(t, nameNode)
+	} else if gp, ok := ast.AsNormalOrOptChainGetProp(n); ok {
+		c.visitProperty(gp, parent)
 	}
 }
 
 // Java: SymbolTable.VisibilityCollector.visitName(NodeTraversal, Node)
-func (c *SymbolTable_VisibilityCollector) visitName(t *NodeTraversal, n rhino.Node) {
-	symbol := c.outer.symbols.Get(symbolTableKey{declNode: n, name: n.GetString()})
+func (c *SymbolTable_VisibilityCollector) visitName(t *NodeTraversal, nameNode ast.Name) {
+	n := nameNode.Node()
+	ident := nameNode.Ident()
+	symbol := c.outer.symbols.Get(symbolTableKey{declNode: n, name: ident})
 	if symbol == nil {
 		return
 	}
@@ -460,7 +467,7 @@ func (c *SymbolTable_VisibilityCollector) visitName(t *NodeTraversal, n rhino.No
 	if symbol.GetVisibility() != nil {
 		return
 	}
-	var_ := t.GetScope().GetVar(n.GetString())
+	var_ := t.GetScope().GetVar(ident)
 	if var_ == nil {
 		return
 	}
@@ -471,8 +478,9 @@ func (c *SymbolTable_VisibilityCollector) visitName(t *NodeTraversal, n rhino.No
 }
 
 // Java: SymbolTable.VisibilityCollector.visitProperty(Node, Node)
-func (c *SymbolTable_VisibilityCollector) visitProperty(getprop rhino.Node, parent rhino.Node) {
-	propertyName := getprop.GetString()
+func (c *SymbolTable_VisibilityCollector) visitProperty(gp ast.NormalOrOptChainGetProp, parent rhino.Node) {
+	getprop := gp.Node()
+	propertyName := gp.Property()
 	symbol := c.outer.symbols.Get(symbolTableKey{declNode: getprop, name: propertyName})
 	if symbol == nil {
 		return
@@ -481,12 +489,12 @@ func (c *SymbolTable_VisibilityCollector) visitProperty(getprop rhino.Node, pare
 	if symbol.GetVisibility() != nil {
 		return
 	}
-	jsType := getprop.GetFirstChild().GetJSType()
-	if jutil.IsNil(jsType) {
+	jsType := gp.Object().Node().GetJSType()
+	if jsType == nil {
 		return
 	}
-	isOverride :=
-		parent.GetJSDocInfo() != nil && parent.IsAssign() && parent.GetFirstChild() == getprop
+	assign, isAssign := ast.AsAssign(parent)
+	isOverride := isAssign && parent.GetJSDocInfo() != nil && assign.Target().Node() == getprop
 	if isOverride {
 		// Don't bother with AccessControlUtils for overridden properties.
 		// AccessControlUtils currently has complicated logic for detecting

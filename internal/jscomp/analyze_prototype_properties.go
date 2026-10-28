@@ -19,6 +19,7 @@
 package jscomp
 
 import (
+	"github.com/paullepoulpe/jsgo/internal/ast"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
@@ -55,34 +56,17 @@ type AnalyzePrototypeProperties struct {
 	// A dummy node for representing all anonymous functions with no names.
 	anonymousNode *AnalyzePrototypeProperties_NameInfo
 
-	// All the real NameInfo for prototype properties, hashed by the name
-	// of the property that they represent.
-	propertyNameInfo *jutil.LinkedHashMap[string, *AnalyzePrototypeProperties_NameInfo]
+	// All the real NameInfo for prototype properties, keyed by property name
+	// and recorded in insertion order in propertyInfos.
+	propertyNameInfo map[string]*AnalyzePrototypeProperties_NameInfo
+	propertyInfos    []*AnalyzePrototypeProperties_NameInfo
 
-	// All the NameInfo for global functions, hashed by the name of the
-	// global variable that it's assigned to.
-	varNameInfo *jutil.LinkedHashMap[string, *AnalyzePrototypeProperties_NameInfo]
+	// All the NameInfo for global functions, keyed by global variable name
+	// and recorded in insertion order in varInfos.
+	varNameInfo map[string]*AnalyzePrototypeProperties_NameInfo
+	varInfos    []*AnalyzePrototypeProperties_NameInfo
 
 	seededNodes []*AnalyzePrototypeProperties_NameInfo
-}
-
-func (a *AnalyzePrototypeProperties) allocGlobalFunction(nameNode rhino.Node, var_ *Var, chunk *JSChunk) *AnalyzePrototypeProperties_GlobalFunction {
-	parent := nameNode.GetParent()
-	jutil.CheckState(
-		(NodeUtil_IsNameDeclaration(parent) && var_.IsGlobal()) ||
-			NodeUtil_IsFunctionDeclaration(parent))
-	return &AnalyzePrototypeProperties_GlobalFunction{
-		var_:  var_,
-		chunk: chunk,
-	}
-}
-
-func (a *AnalyzePrototypeProperties) allocAssignmentPrototypeProperty(node rhino.Node, rootVar *Var, chunk *JSChunk) *AnalyzePrototypeProperties_AssignmentPrototypeProperty {
-	return &AnalyzePrototypeProperties_AssignmentPrototypeProperty{
-		exprNode: node,
-		rootVar:  rootVar,
-		chunk:    chunk,
-	}
 }
 
 func (a *AnalyzePrototypeProperties) allocNameInfo(name string) *AnalyzePrototypeProperties_NameInfo {
@@ -140,6 +124,15 @@ const AnalyzePrototypeProperties_VAR = AnalyzePrototypeProperties_SymbolType_VAR
 // Properties that are implicitly used as part of the JS language.
 var AnalyzePrototypeProperties_IMPLICITLY_USED_PROPERTIES = []string{"length", "toString", "valueOf"}
 
+var analyzeExternPropTokens = func() ast.TokenSet {
+	var s ast.TokenSet
+	s.Add(rhino.Token_GETPROP)
+	s.Add(rhino.Token_MEMBER_FUNCTION_DEF)
+	s.Add(rhino.Token_GETTER_DEF)
+	s.Add(rhino.Token_SETTER_DEF)
+	return s
+}()
+
 // NewAnalyzePrototypeProperties creates a new pass for analyzing prototype
 // properties.
 //
@@ -158,22 +151,20 @@ func NewAnalyzePrototypeProperties(
 	anchorUnusedVars bool,
 	rootScopeUsesAreGlobal bool) *AnalyzePrototypeProperties {
 	a := &AnalyzePrototypeProperties{
-		propertyNameInfo: jutil.NewLinkedHashMap[string, *AnalyzePrototypeProperties_NameInfo](),
-		varNameInfo:      jutil.NewLinkedHashMap[string, *AnalyzePrototypeProperties_NameInfo](),
+		propertyNameInfo: make(map[string]*AnalyzePrototypeProperties_NameInfo, 16),
+		varNameInfo:      make(map[string]*AnalyzePrototypeProperties_NameInfo, 16),
+		compiler:         compiler,
+		chunkGraph:       chunkGraph,
+		canModifyExterns: canModifyExterns,
+		anchorUnusedVars: anchorUnusedVars,
+		rootScopeUsesAreGlobal: rootScopeUsesAreGlobal,
 	}
-	a.globalNode = NewAnalyzePrototypeProperties_NameInfo(a, "[global]")
-	a.externNode = NewAnalyzePrototypeProperties_NameInfo(a, "[extern]")
-	a.anonymousNode = NewAnalyzePrototypeProperties_NameInfo(a, "[anonymous]")
-	a.compiler = compiler
-	a.chunkGraph = chunkGraph
-	a.canModifyExterns = canModifyExterns
-	a.anchorUnusedVars = anchorUnusedVars
-	a.rootScopeUsesAreGlobal = rootScopeUsesAreGlobal
+	a.globalNode = a.allocNameInfo("[global]")
+	a.externNode = a.allocNameInfo("[extern]")
+	a.anonymousNode = a.allocNameInfo("[anonymous]")
 
-	if chunkGraph.GetChunkCount() > 1 {
+	if chunkGraph != nil && chunkGraph.GetChunkCount() > 1 {
 		a.firstChunk = chunkGraph.GetRootChunk()
-	} else {
-		a.firstChunk = nil
 	}
 
 	a.globalNode.MarkReference(nil)
@@ -194,7 +185,7 @@ func NewAnalyzePrototypeProperties(
 func (a *AnalyzePrototypeProperties) Process(externRoot rhino.Node, root rhino.Node) {
 	jutil.CheckState(a.compiler.GetLifeCycleStage().IsNormalized())
 	if !a.canModifyExterns {
-		NodeTraversal_Traverse(a.compiler, externRoot, &AnalyzePrototypeProperties_ProcessExternProperties{outer: a})
+		NodeTraversal_Traverse(a.compiler, externRoot, &analyzeProcessExternProperties{outer: a})
 	}
 
 	var propProc AnalyzePrototypeProperties_ProcessProperties
@@ -209,7 +200,7 @@ func (a *AnalyzePrototypeProperties) propagateReferences() {
 	if len(a.seededNodes) == 0 {
 		return
 	}
-	totalNodes := a.propertyNameInfo.Size() + a.varNameInfo.Size() + 2
+	totalNodes := len(a.propertyInfos) + len(a.varInfos) + 2
 	ringCap := 16
 	for ringCap < totalNodes+1 {
 		ringCap <<= 1
@@ -255,37 +246,37 @@ func (a *AnalyzePrototypeProperties) propagateReferences() {
 	}
 }
 
-// GetAllNameInfo returns information on all prototype properties.
+// GetAllNameInfo returns information on all prototype properties and global functions.
 //
 // Java: AnalyzePrototypeProperties.getAllNameInfo()
 func (a *AnalyzePrototypeProperties) GetAllNameInfo() []*AnalyzePrototypeProperties_NameInfo {
-	result := make([]*AnalyzePrototypeProperties_NameInfo, 0, a.propertyNameInfo.Size()+a.varNameInfo.Size())
-	for info := range a.propertyNameInfo.Values() {
-		result = append(result, info)
-	}
-	for info := range a.varNameInfo.Values() {
-		result = append(result, info)
-	}
+	result := make([]*AnalyzePrototypeProperties_NameInfo, 0, len(a.propertyInfos)+len(a.varInfos))
+	result = append(result, a.propertyInfos...)
+	result = append(result, a.varInfos...)
 	return result
 }
 
 // GetNameInfoForName gets the name info for the property or variable of a
 // given name, and creates a new one if necessary.
 //
-// name is the name of the symbol; type_ is the type of symbol.
-//
 // Java: AnalyzePrototypeProperties.getNameInfoForName(String, SymbolType)
 func (a *AnalyzePrototypeProperties) GetNameInfoForName(name string, type_ AnalyzePrototypeProperties_SymbolType) *AnalyzePrototypeProperties_NameInfo {
-	map_ := a.varNameInfo
 	if type_ == AnalyzePrototypeProperties_PROPERTY {
-		map_ = a.propertyNameInfo
-	}
-	if info := map_.Get(name); info != nil {
+		if info := a.propertyNameInfo[name]; info != nil {
+			return info
+		}
+		info := a.allocNameInfo(name)
+		a.propertyNameInfo[name] = info
+		a.propertyInfos = append(a.propertyInfos, info)
 		return info
 	}
-	nameInfo := a.allocNameInfo(name)
-	map_.PutNew(name, nameInfo)
-	return nameInfo
+	if info := a.varNameInfo[name]; info != nil {
+		return info
+	}
+	info := a.allocNameInfo(name)
+	a.varNameInfo[name] = info
+	a.varInfos = append(a.varInfos, info)
+	return info
 }
 
 // AnalyzePrototypeProperties_ProcessProperties is the inner class
@@ -302,27 +293,17 @@ type AnalyzePrototypeProperties_ProcessProperties struct {
 	//    name are given a special [anonymous] context.
 	// 2) Every assignment of a prototype property of a non-function is
 	//    given a name context. These contexts do not have scopes.
-	//
-	// Go-only: language-adapter — the ArrayDeque used as a stack (push/pop at
-	// the head, iterated from the head) is a slice whose top is its last
-	// element, iterated from the end.
 	symbolStack    []AnalyzePrototypeProperties_NameContext
 	symbolStackBuf [16]AnalyzePrototypeProperties_NameContext
 }
 
-// push is Deque.push on symbolStack.
-//
-// Go-only: language-adapter — see symbolStack.
 func (p *AnalyzePrototypeProperties_ProcessProperties) push(c AnalyzePrototypeProperties_NameContext) {
 	p.symbolStack = append(p.symbolStack, c)
 }
 
-// pop is Deque.pop on symbolStack.
-//
-// Go-only: language-adapter — see symbolStack.
 func (p *AnalyzePrototypeProperties_ProcessProperties) pop() {
 	if len(p.symbolStack) == 0 {
-		panic(jutil.NewNoSuchElementException()) // ArrayDeque.pop()
+		panic(jutil.NewNoSuchElementException())
 	}
 	p.symbolStack = p.symbolStack[:len(p.symbolStack)-1]
 }
@@ -341,10 +322,10 @@ func (p *AnalyzePrototypeProperties_ProcessProperties) EnterScope(t *NodeTravers
 		} else if p.IsGlobalFunctionDeclaration(t, n) {
 			parent := n.GetParent()
 			var name string
-			if parent.IsName() {
-				name = parent.GetString() /* VAR */
+			if parentName, ok := ast.AsName(parent); ok {
+				name = parentName.Ident() /* VAR */
 			} else {
-				name = n.GetFirstChild().GetString() /* named function */
+				name = ast.MustFunction(n).NameNode().Ident() /* named function */
 			}
 			p.push(AnalyzePrototypeProperties_NameContext{
 				name:      a.GetNameInfoForName(name, AnalyzePrototypeProperties_VAR),
@@ -429,21 +410,16 @@ func (p *AnalyzePrototypeProperties_ProcessProperties) Visit(t *NodeTraversal, n
 					return
 				}
 			} else if a.compiler.GetCodingConvention().IsExportedWithLocal(propName, false /* local= */) {
-				// TODO(bradfordcsmith): We don't seem to have any tests that cover this case.
-				// This class has no unit tests of its own and it is only used by
-				// CrossChunkMethodMotion.
 				p.AddGlobalUseOfSymbol(propName, t.GetChunk(), AnalyzePrototypeProperties_PROPERTY)
 				return
-			} else {
-				if parent.IsAssign() && n == parent.GetFirstChild() {
-					if _, ok := p.getPrototypePropertyNameFromRValueString(n); ok {
-						// e.g. `Foo.prototype.bar = something`
-						// We record the declaration of `bar` when we look at the `Foo.prototype`
-						// Node via the call to handlePossibleAssignmentToPrototype() above.
-						// Now that we're looking at the whole `Foo.prototype.bar` node,
-						// we just need to make sure we don't record it as a read reference.
-						return
-					}
+			} else if assign, ok := ast.AsAssign(parent); ok && assign.Target().Is(n) {
+				if _, ok := p.getPrototypePropertyNameFromRValueString(n); ok {
+					// e.g. `Foo.prototype.bar = something`
+					// We record the declaration of `bar` when we look at the `Foo.prototype`
+					// Node via the call to handlePossibleAssignmentToPrototype() above.
+					// Now that we're looking at the whole `Foo.prototype.bar` node,
+					// we just need to make sure we don't record it as a read reference.
+					return
 				}
 			}
 		}
@@ -457,29 +433,25 @@ func (p *AnalyzePrototypeProperties_ProcessProperties) Visit(t *NodeTraversal, n
 		if bestLValueEndsWithPrototype(NodeUtil_GetBestLValue(n)) {
 			return
 		}
-
-		// Fall through.
 		fallthrough
+
 	case rhino.Token_OBJECT_PATTERN:
 		// `var x = {a: 1, b: 2}` and `var {a: x, b: y} = obj;`
 		// should count as a use of property a and b.
 		for propNode := n.GetFirstChild(); !propNode.IsNil(); propNode = propNode.GetNext() {
+			if pkm, ok := ast.AsPlainKeyMember(propNode); ok {
+				if !pkm.IsQuoted() {
+					// May be STRING, GET, or SET, but NUMBER isn't interesting.
+					p.AddSymbolUse(pkm.Key(), t.GetChunk(), AnalyzePrototypeProperties_PROPERTY)
+				}
+				continue
+			}
 			switch propNode.GetToken() {
 			case rhino.Token_COMPUTED_PROP,
 				rhino.Token_ITER_REST,
 				rhino.Token_OBJECT_REST,
 				rhino.Token_ITER_SPREAD,
 				rhino.Token_OBJECT_SPREAD:
-
-			case rhino.Token_STRING_KEY,
-				rhino.Token_GETTER_DEF,
-				rhino.Token_SETTER_DEF,
-				rhino.Token_MEMBER_FUNCTION_DEF:
-				if !propNode.IsQuotedStringKey() {
-					// May be STRING, GET, or SET, but NUMBER isn't interesting.
-					p.AddSymbolUse(propNode.GetString(), t.GetChunk(), AnalyzePrototypeProperties_PROPERTY)
-				}
-
 			default:
 				panic(jutil.NewIllegalStateExceptionMsg(
 					"Unexpected child of " + n.GetToken().String() + ": " + propNode.ToStringTree()))
@@ -487,10 +459,9 @@ func (p *AnalyzePrototypeProperties_ProcessProperties) Visit(t *NodeTraversal, n
 		}
 
 	case rhino.Token_CLASS:
-		classMembers := n.GetLastChild()
-		for child := classMembers.GetFirstChild(); !child.IsNil(); child = child.GetNext() {
-			if child.IsMemberFunctionDef() || child.IsSetterDef() || child.IsGetterDef() {
-				p.ProcessMemberDef(t, child)
+		for member := range ast.MustClass(n).Body().Members() {
+			if methodDef, ok := member.AsMethodDef(); ok {
+				p.processMemberDef(t, methodDef)
 			}
 		}
 
@@ -532,8 +503,10 @@ func (p *AnalyzePrototypeProperties_ProcessProperties) Visit(t *NodeTraversal, n
 	default:
 	}
 	// Process prototype assignments to non-functions.
-	if !a.rootScopeUsesAreGlobal && p.ProcessNonFunctionPrototypeAssign(n, parent) != nil {
-		p.pop()
+	if !a.rootScopeUsesAreGlobal {
+		if _, ok := p.processNonFunctionPrototypeAssignString(n, parent); ok {
+			p.pop()
+		}
 	}
 }
 
@@ -551,26 +524,15 @@ func (p *AnalyzePrototypeProperties_ProcessProperties) AddSymbolUse(name string,
 		}
 	}
 	if def == nil {
-		panic(jutil.NewNullPointerException()) // def.equals(info) on a null def
+		panic(jutil.NewNullPointerException())
 	}
 	if def != info {
 		a.connectSymbolNodes(def, chunk, info)
 	}
 }
 
-// ProcessNonFunctionPrototypeAssign: if this is a non-function prototype
-// assign, return the prop name. Otherwise, return null.
-//
-// Java: AnalyzePrototypeProperties.ProcessProperties.processNonFunctionPrototypeAssign(Node, Node)
-func (p *AnalyzePrototypeProperties_ProcessProperties) ProcessNonFunctionPrototypeAssign(n rhino.Node, parent rhino.Node) *string {
-	if s, ok := p.processNonFunctionPrototypeAssignString(n, parent); ok {
-		return &s
-	}
-	return nil
-}
-
 func (p *AnalyzePrototypeProperties_ProcessProperties) processNonFunctionPrototypeAssignString(n rhino.Node, parent rhino.Node) (string, bool) {
-	if p.IsAssignRValue(n, parent) && !n.IsFunction() {
+	if isAssignRValue(n, parent) && !n.IsFunction() {
 		return p.getPrototypePropertyNameFromRValueString(n)
 	}
 	return "", false
@@ -592,11 +554,9 @@ func (p *AnalyzePrototypeProperties_ProcessProperties) IsGlobalFunctionDeclarati
 			t.GetScope().GetParent().GetClosestHoistScope().IsGlobal())
 }
 
-// IsAssignRValue returns true if this is the r-value of an assignment.
-//
-// Java: AnalyzePrototypeProperties.ProcessProperties.isAssignRValue(Node, Node)
-func (p *AnalyzePrototypeProperties_ProcessProperties) IsAssignRValue(n rhino.Node, parent rhino.Node) bool {
-	return !parent.IsNil() && parent.IsAssign() && parent.GetFirstChild() != n
+func isAssignRValue(n rhino.Node, parent rhino.Node) bool {
+	assign, ok := ast.AsAssign(parent)
+	return ok && !assign.Target().Is(n)
 }
 
 func bestLValueEndsWithPrototype(lv rhino.Node) bool {
@@ -625,21 +585,6 @@ func bestLValueEndsWithPrototype(lv rhino.Node) bool {
 		return lv.GetString() == "prototype" && lv.IsQualifiedName()
 	}
 	return false
-}
-
-// GetPrototypePropertyNameFromRValue returns the name of a prototype
-// property being assigned to this r-value.
-//
-// Returns null if this is not the R-value of a prototype property, or if
-// the R-value is used in multiple expressions (i.e., if there's a prototype
-// property assignment in a more complex expression).
-//
-// Java: AnalyzePrototypeProperties.ProcessProperties.getPrototypePropertyNameFromRValue(Node)
-func (p *AnalyzePrototypeProperties_ProcessProperties) GetPrototypePropertyNameFromRValue(rValue rhino.Node) *string {
-	if s, ok := p.getPrototypePropertyNameFromRValueString(rValue); ok {
-		return &s
-	}
-	return nil
 }
 
 func (p *AnalyzePrototypeProperties_ProcessProperties) getPrototypePropertyNameFromRValueString(rValue rhino.Node) (string, bool) {
@@ -678,11 +623,11 @@ func (p *AnalyzePrototypeProperties_ProcessProperties) getPrototypePropertyNameF
 		}
 		return key, true
 	}
-	if lValue.IsGetProp() {
-		if !bestLValueEndsWithPrototype(lValue.GetFirstChild()) {
+	if gp, ok := ast.AsGetProp(lValue); ok {
+		if !bestLValueEndsWithPrototype(gp.Object().Node()) {
 			return "", false
 		}
-		return lValue.GetString(), true
+		return gp.Property(), true
 	}
 	return "", false
 }
@@ -694,16 +639,24 @@ func (p *AnalyzePrototypeProperties_ProcessProperties) getPrototypePropertyNameF
 // Java: AnalyzePrototypeProperties.ProcessProperties.processGlobalFunctionDeclaration(NodeTraversal, Node, Var)
 func (p *AnalyzePrototypeProperties_ProcessProperties) ProcessGlobalFunctionDeclaration(t *NodeTraversal, nameNode rhino.Node, v *Var) bool {
 	a := p.outer
-	firstChild := nameNode.GetFirstChild()
+	nameView := ast.MustName(nameNode)
 	parent := nameNode.GetParent()
+	initExpr, hasInit := nameView.Init()
 
 	if // Check for a named FUNCTION.
 	p.IsGlobalFunctionDeclaration(t, parent) ||
 		// Check for a VAR declaration.
-		(!firstChild.IsNil() && p.IsGlobalFunctionDeclaration(t, firstChild)) {
-		name := nameNode.GetString()
-		a.GetNameInfoForName(name, AnalyzePrototypeProperties_VAR).
-			AddDeclaration(a.allocGlobalFunction(nameNode, v, t.GetChunk()))
+		(hasInit && p.IsGlobalFunctionDeclaration(t, initExpr.Node())) {
+		jutil.CheckState(
+			(NodeUtil_IsNameDeclaration(parent) && v.IsGlobal()) ||
+				NodeUtil_IsFunctionDeclaration(parent))
+		name := nameView.Ident()
+		a.GetNameInfoForName(name, AnalyzePrototypeProperties_VAR).AddDeclaration(
+			AnalyzePrototypeProperties_Symbol{
+				kind:    AnalyzePrototypeProperties_SymbolGlobalFunction,
+				rootVar: v,
+				chunk:   t.GetChunk(),
+			})
 
 		// If the function name is exported, we should create an edge here
 		// so that it's never removed.
@@ -724,9 +677,6 @@ func (p *AnalyzePrototypeProperties_ProcessProperties) ProcessGlobalFunctionDecl
 // `foo.prototype.bar = x`, record this reference as the definition of one or
 // more prototype properties and return `true`.
 //
-// ref is a reference to some qualified name that ends with `.prototype`.
-// Returns true if a declaration was added.
-//
 // Java: AnalyzePrototypeProperties.ProcessProperties.handlePossibleAssignmentToPrototype(NodeTraversal, Node)
 func (p *AnalyzePrototypeProperties_ProcessProperties) HandlePossibleAssignmentToPrototype(t *NodeTraversal, ref rhino.Node) bool {
 	a := p.outer
@@ -741,22 +691,33 @@ func (p *AnalyzePrototypeProperties_ProcessProperties) HandlePossibleAssignmentT
 
 		if NodeUtil_IsExprAssign(grandParent) &&
 			NodeUtil_IsNameDeclOrSimpleAssignLhs(n, parent) {
-			var prop AnalyzePrototypeProperties_PrototypeProperty = a.allocAssignmentPrototypeProperty(grandParent, p.MaybeGetVar(t, root), t.GetChunk())
-			a.GetNameInfoForName(n.GetString(), AnalyzePrototypeProperties_PROPERTY).AddDeclaration(prop)
+			a.GetNameInfoForName(n.GetString(), AnalyzePrototypeProperties_PROPERTY).AddDeclaration(
+				AnalyzePrototypeProperties_Symbol{
+					kind:    AnalyzePrototypeProperties_SymbolAssignmentProperty,
+					node:    grandParent,
+					rootVar: p.MaybeGetVar(t, root),
+					chunk:   t.GetChunk(),
+				})
 			return true
 		}
 	case rhino.Token_ASSIGN:
 		// Foo.prototype = { "getBar" : function() { ... } }
-		map_ := n.GetSecondChild()
-		if map_.IsObjectLit() {
-			for key := map_.GetFirstChild(); !key.IsNil(); key = key.GetNext() {
-				if !key.IsQuotedStringKey() && !key.IsComputedProp() {
+		assign := ast.MustAssign(n)
+		if objLit, ok := assign.Value().AsObjectLit(); ok {
+			rootVar := p.MaybeGetVar(t, root)
+			chunk := t.GetChunk()
+			for member := range objLit.Members() {
+				if pkm, ok := member.AsPlainKeyMember(); ok && !pkm.IsQuoted() {
 					// We won't consider quoted or computed properties for any kind of modification,
-					// so key may be STRING_KEY, GETTER_DEF, SETTER_DEF, or MEMBER_FUNCTION_DEF
-					name := key.GetString()
-					var prop AnalyzePrototypeProperties_PrototypeProperty = NewAnalyzePrototypeProperties_LiteralPrototypeProperty(
-						key.GetFirstChild(), n, p.MaybeGetVar(t, root), t.GetChunk())
-					a.GetNameInfoForName(name, AnalyzePrototypeProperties_PROPERTY).AddDeclaration(prop)
+					// so member may be STRING_KEY, GETTER_DEF, SETTER_DEF, or MEMBER_FUNCTION_DEF.
+					a.GetNameInfoForName(pkm.Key(), AnalyzePrototypeProperties_PROPERTY).AddDeclaration(
+						AnalyzePrototypeProperties_Symbol{
+							kind:       AnalyzePrototypeProperties_SymbolLiteralProperty,
+							node:       pkm.Value().Node(),
+							assignNode: n,
+							rootVar:    rootVar,
+							chunk:      chunk,
+						})
 				}
 			}
 			return true
@@ -766,29 +727,32 @@ func (p *AnalyzePrototypeProperties_ProcessProperties) HandlePossibleAssignmentT
 	return false
 }
 
-// Java: AnalyzePrototypeProperties.ProcessProperties.processMemberDef(NodeTraversal, Node)
-func (p *AnalyzePrototypeProperties_ProcessProperties) ProcessMemberDef(t *NodeTraversal, n rhino.Node) {
-	jutil.CheckState(n.IsMemberFunctionDef() || n.IsGetterDef() || n.IsSetterDef())
-	name := n.GetString()
+func (p *AnalyzePrototypeProperties_ProcessProperties) processMemberDef(t *NodeTraversal, methodDef ast.MethodDef) {
+	n := methodDef.Node()
 	// Don't want to add a declaration for constructors and static members
-	// so they aren't removed
-	if NodeUtil_IsEs6ConstructorMemberFunctionDef(n) || n.IsStaticMember() {
+	// so they aren't removed.
+	if NodeUtil_IsEs6ConstructorMemberFunctionDef(n) || methodDef.IsStatic() {
 		return
 	}
 
 	classNameNode := NodeUtil_GetNameNode(n.GetGrandparent())
 	var var_ *Var
-	if !classNameNode.IsNil() && classNameNode.IsName() {
-		var_ = t.LookupVar(classNameNode.GetString())
+	if nameView, ok := ast.AsName(classNameNode); ok {
+		var_ = t.LookupVar(nameView.Ident())
 	}
-	p.outer.GetNameInfoForName(name, AnalyzePrototypeProperties_PROPERTY).
-		AddDeclaration(NewAnalyzePrototypeProperties_ClassMemberFunction(n, var_, t.GetChunk()))
+	p.outer.GetNameInfoForName(methodDef.Key(), AnalyzePrototypeProperties_PROPERTY).AddDeclaration(
+		AnalyzePrototypeProperties_Symbol{
+			kind:    AnalyzePrototypeProperties_SymbolClassMember,
+			node:    n,
+			rootVar: var_,
+			chunk:   t.GetChunk(),
+		})
 }
 
 // Java: AnalyzePrototypeProperties.ProcessProperties.maybeGetVar(NodeTraversal, Node)
 func (p *AnalyzePrototypeProperties_ProcessProperties) MaybeGetVar(t *NodeTraversal, maybeName rhino.Node) *Var {
-	if maybeName.IsName() {
-		return t.LookupVar(maybeName.GetString())
+	if nameView, ok := ast.AsName(maybeName); ok {
+		return t.LookupVar(nameView.Ident())
 	}
 	return nil
 }
@@ -798,73 +762,27 @@ func (p *AnalyzePrototypeProperties_ProcessProperties) AddGlobalUseOfSymbol(name
 	p.outer.connectSymbolNodes(p.outer.globalNode, chunk, p.outer.GetNameInfoForName(name, type_))
 }
 
-// AnalyzePrototypeProperties_ProcessExternProperties is the inner class
-// ProcessExternProperties.
-type AnalyzePrototypeProperties_ProcessExternProperties struct {
+type analyzeProcessExternProperties struct {
 	NodeTraversal_AbstractPostOrderCallbackBase
 	outer *AnalyzePrototypeProperties
 }
 
+func (p *analyzeProcessExternProperties) visitTokens() *ast.TokenSet {
+	return &analyzeExternPropTokens
+}
+
 // Java: AnalyzePrototypeProperties.ProcessExternProperties.visit(NodeTraversal, Node, Node)
-func (p *AnalyzePrototypeProperties_ProcessExternProperties) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
-	a := p.outer
-	if n.IsGetProp() {
-		a.connectSymbolNodes(a.externNode, a.firstChunk, a.GetNameInfoForName(n.GetString(), AnalyzePrototypeProperties_PROPERTY))
-	} else if n.IsMemberFunctionDef() || n.IsGetterDef() || n.IsSetterDef() {
-		// As of 2019-08-29 the only user of this class is CrossChunkMethodMotion, which never
-		// moves static methods, but that could change. So, we're intentionally including static
-		// methods, static getters, and static setters here, because there are cases where they
-		// could act like prototype properties.
-		//
-		// e.g.
-		// // externs.js
-		// class Foo {
-		//   static foo() {}
-		// }
-		//
-		// // src.js
-		// /** @record */
-		// class ObjWithFooMethod {
-		//   foo() {}
-		// }
-		// /** @type {!ObjWithFooMethod} */
-		// let objWithFooMethod = Foo; // yes, this is valid
-		//
+func (p *analyzeProcessExternProperties) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
+	switch n.GetToken() {
+	case rhino.Token_GETPROP,
+		rhino.Token_MEMBER_FUNCTION_DEF,
+		rhino.Token_GETTER_DEF,
+		rhino.Token_SETTER_DEF:
+		a := p.outer
+		// Includes GETPROP as well as static/instance methods, getters, and setters
+		// in extern classes, which could act like prototype properties via @record.
 		a.connectSymbolNodes(a.externNode, a.firstChunk, a.GetNameInfoForName(n.GetString(), AnalyzePrototypeProperties_PROPERTY))
 	}
-}
-
-// AnalyzePrototypeProperties_PropagateReferences is the inner class
-// PropagateReferences.
-type AnalyzePrototypeProperties_PropagateReferences struct {
-	outer *AnalyzePrototypeProperties
-}
-
-// Java: AnalyzePrototypeProperties.PropagateReferences.traverseEdge(NameInfo, JSChunk, NameInfo)
-func (p *AnalyzePrototypeProperties_PropagateReferences) TraverseEdge(start *AnalyzePrototypeProperties_NameInfo, edge *JSChunk, dest *AnalyzePrototypeProperties_NameInfo) bool {
-	if start.IsReferenced() {
-		startChunk := start.GetDeepestCommonChunkRef()
-		if startChunk != nil && p.outer.chunkGraph.DependsOn(startChunk, edge) {
-			return dest.MarkReference(startChunk)
-		} else {
-			return dest.MarkReference(edge)
-		}
-	}
-	return false
-}
-
-// AnalyzePrototypeProperties_Symbol is the declaration of an abstract
-// symbol.
-type AnalyzePrototypeProperties_Symbol interface {
-	// GetRootVar is the variable for the root of this symbol.
-	//
-	// Java: AnalyzePrototypeProperties.Symbol.getRootVar()
-	GetRootVar() *Var
-
-	// GetChunk returns the chunk where this appears.
-	//
-	// Java: AnalyzePrototypeProperties.Symbol.getChunk()
-	GetChunk() *JSChunk
 }
 
 // AnalyzePrototypeProperties_SymbolType is the nested enum SymbolType.
@@ -882,220 +800,73 @@ func (t AnalyzePrototypeProperties_SymbolType) String() string {
 	return analyzePrototypeProperties_SymbolType_names[t]
 }
 
-// AnalyzePrototypeProperties_GlobalFunction is a function initialized as a
-// VAR statement or LET AND CONST and global or a function declaration.
-type AnalyzePrototypeProperties_GlobalFunction struct {
-	var_  *Var
-	chunk *JSChunk
+// AnalyzePrototypeProperties_SymbolKind identifies the kind of symbol declaration.
+type AnalyzePrototypeProperties_SymbolKind uint8
+
+const (
+	AnalyzePrototypeProperties_SymbolGlobalFunction AnalyzePrototypeProperties_SymbolKind = iota
+	AnalyzePrototypeProperties_SymbolClassMember
+	AnalyzePrototypeProperties_SymbolAssignmentProperty
+	AnalyzePrototypeProperties_SymbolLiteralProperty
+)
+
+// AnalyzePrototypeProperties_Symbol is a declaration of a global function,
+// class member method/accessor, or `.prototype` property.
+type AnalyzePrototypeProperties_Symbol struct {
+	rootVar    *Var
+	chunk      *JSChunk
+	node       rhino.Node
+	assignNode rhino.Node
+	kind       AnalyzePrototypeProperties_SymbolKind
 }
 
-// Java: AnalyzePrototypeProperties.GlobalFunction(Node, Var, JSChunk)
-func NewAnalyzePrototypeProperties_GlobalFunction(nameNode rhino.Node, var_ *Var, chunk *JSChunk) *AnalyzePrototypeProperties_GlobalFunction {
-	parent := nameNode.GetParent()
-	jutil.CheckState(
-		(NodeUtil_IsNameDeclaration(parent) && var_.IsGlobal()) ||
-			NodeUtil_IsFunctionDeclaration(parent))
-	return &AnalyzePrototypeProperties_GlobalFunction{var_: var_, chunk: chunk}
+func (s AnalyzePrototypeProperties_Symbol) Kind() AnalyzePrototypeProperties_SymbolKind {
+	return s.kind
 }
 
-// Java: AnalyzePrototypeProperties.GlobalFunction.getRootVar()
-func (g *AnalyzePrototypeProperties_GlobalFunction) GetRootVar() *Var {
-	return g.var_
+func (s AnalyzePrototypeProperties_Symbol) IsProperty() bool {
+	return s.kind != AnalyzePrototypeProperties_SymbolGlobalFunction
 }
 
-// Java: AnalyzePrototypeProperties.GlobalFunction.getChunk()
-func (g *AnalyzePrototypeProperties_GlobalFunction) GetChunk() *JSChunk {
-	return g.chunk
+// Java: AnalyzePrototypeProperties.Symbol.getRootVar()
+func (s AnalyzePrototypeProperties_Symbol) GetRootVar() *Var {
+	return s.rootVar
 }
 
-// AnalyzePrototypeProperties_Property represents property definitions done
-// either directly on a '.prototype' object or as a member method, getter, or
-// setter.
-type AnalyzePrototypeProperties_Property interface {
-	AnalyzePrototypeProperties_Symbol
-
-	// Go-only: language-adapter — Property adds no method to Symbol in
-	// Java; the marker keeps `symbol instanceof Property` false for a
-	// GlobalFunction, since Go interfaces are satisfied structurally.
-	isAnalyzePrototypePropertiesProperty()
-}
-
-// AnalyzePrototypeProperties_ClassMemberFunction is the nested class
-// ClassMemberFunction.
-type AnalyzePrototypeProperties_ClassMemberFunction struct {
-	node  rhino.Node
-	var_  *Var
-	chunk *JSChunk
-}
-
-// Java: AnalyzePrototypeProperties.ClassMemberFunction(Node, Var, JSChunk)
-func NewAnalyzePrototypeProperties_ClassMemberFunction(node rhino.Node, var_ *Var, chunk *JSChunk) *AnalyzePrototypeProperties_ClassMemberFunction {
-	jutil.CheckState(node.GetParent().IsClassMembers())
-	jutil.CheckState(node.IsMemberFunctionDef() || node.IsSetterDef() || node.IsGetterDef())
-	return &AnalyzePrototypeProperties_ClassMemberFunction{node: node, var_: var_, chunk: chunk}
-}
-
-func (c *AnalyzePrototypeProperties_ClassMemberFunction) isAnalyzePrototypePropertiesProperty() {}
-
-// Java: AnalyzePrototypeProperties.ClassMemberFunction.getRootVar()
-func (c *AnalyzePrototypeProperties_ClassMemberFunction) GetRootVar() *Var {
-	return c.var_
-}
-
-// Java: AnalyzePrototypeProperties.ClassMemberFunction.getChunk()
-func (c *AnalyzePrototypeProperties_ClassMemberFunction) GetChunk() *JSChunk {
-	return c.chunk
-}
-
-// GetFunctionNode returns the function node within the definition.
-//
-// Java: AnalyzePrototypeProperties.ClassMemberFunction.getFunctionNode()
-func (c *AnalyzePrototypeProperties_ClassMemberFunction) GetFunctionNode() rhino.Node {
-	return c.node.GetOnlyChild()
+// Java: AnalyzePrototypeProperties.Symbol.getChunk()
+func (s AnalyzePrototypeProperties_Symbol) GetChunk() *JSChunk {
+	return s.chunk
 }
 
 // GetDefinitionNode returns the MEMBER_FUNCTION_DEF, GETTER_DEF, or
-// SETTER_DEF node that defines the property.
-//
-// Java: AnalyzePrototypeProperties.ClassMemberFunction.getDefinitionNode()
-func (c *AnalyzePrototypeProperties_ClassMemberFunction) GetDefinitionNode() rhino.Node {
-	return c.node
+// SETTER_DEF node that defines a ClassMember symbol.
+func (s AnalyzePrototypeProperties_Symbol) GetDefinitionNode() rhino.Node {
+	return s.node
 }
 
-// AnalyzePrototypeProperties_PrototypeProperty represents a property that is
-// defined on a '.prototype' object.
-//
-// This includes both of these cases.
-//
-//	Foo.prototype = {
-//	      a: 1, // LiteralPrototypeProperty
-//	      b: 2  // LiteralPrototypeProperty
-//	    };
-//	Bar.prototype.method = function() {}; // AssignmentPrototypeProperty.
-//
-// Since there are two ways of assigning properties to prototypes, we hide
-// them behind this interface so they can both be removed regardless of
-// type.
-type AnalyzePrototypeProperties_PrototypeProperty interface {
-	AnalyzePrototypeProperties_Property
-
-	// GetPrototype returns the GETPROP node that refers to the prototype.
-	//
-	// Java: AnalyzePrototypeProperties.PrototypeProperty.getPrototype()
-	GetPrototype() rhino.Node
-
-	// GetValue returns the value of this property.
-	//
-	// Java: AnalyzePrototypeProperties.PrototypeProperty.getValue()
-	GetValue() rhino.Node
+// GetPrototype returns the GETPROP node that refers to `.prototype` for an
+// AssignmentProperty or LiteralProperty symbol.
+func (s AnalyzePrototypeProperties_Symbol) GetPrototype() rhino.Node {
+	if s.kind == AnalyzePrototypeProperties_SymbolAssignmentProperty {
+		return ast.MustExprStmt(s.node).Expr().MustAssign().Target().MustGetProp().Object().Node()
+	}
+	return ast.MustAssign(s.assignNode).Target().Node()
 }
 
-// AnalyzePrototypeProperties_AssignmentPrototypeProperty: properties created
-// via EXPR assignment:
-//
-//	function Foo() { ... };
-//	Foo.prototype.bar = function() { ... };
-type AnalyzePrototypeProperties_AssignmentPrototypeProperty struct {
-	exprNode rhino.Node
-	rootVar  *Var
-	chunk    *JSChunk
-}
-
-// NewAnalyzePrototypeProperties_AssignmentPrototypeProperty: node is an
-// EXPR node.
-//
-// Java: AnalyzePrototypeProperties.AssignmentPrototypeProperty(Node, Var, JSChunk)
-func NewAnalyzePrototypeProperties_AssignmentPrototypeProperty(node rhino.Node, rootVar *Var, chunk *JSChunk) *AnalyzePrototypeProperties_AssignmentPrototypeProperty {
-	return &AnalyzePrototypeProperties_AssignmentPrototypeProperty{exprNode: node, rootVar: rootVar, chunk: chunk}
-}
-
-func (p *AnalyzePrototypeProperties_AssignmentPrototypeProperty) isAnalyzePrototypePropertiesProperty() {
-}
-
-// Java: AnalyzePrototypeProperties.AssignmentPrototypeProperty.getRootVar()
-func (p *AnalyzePrototypeProperties_AssignmentPrototypeProperty) GetRootVar() *Var {
-	return p.rootVar
-}
-
-// Java: AnalyzePrototypeProperties.AssignmentPrototypeProperty.getPrototype()
-func (p *AnalyzePrototypeProperties_AssignmentPrototypeProperty) GetPrototype() rhino.Node {
-	return p.GetAssignNode().GetFirstFirstChild()
-}
-
-// Java: AnalyzePrototypeProperties.AssignmentPrototypeProperty.getValue()
-func (p *AnalyzePrototypeProperties_AssignmentPrototypeProperty) GetValue() rhino.Node {
-	return p.GetAssignNode().GetLastChild()
-}
-
-// Java: AnalyzePrototypeProperties.AssignmentPrototypeProperty.getAssignNode()
-func (p *AnalyzePrototypeProperties_AssignmentPrototypeProperty) GetAssignNode() rhino.Node {
-	return p.exprNode.GetFirstChild()
-}
-
-// Java: AnalyzePrototypeProperties.AssignmentPrototypeProperty.getChunk()
-func (p *AnalyzePrototypeProperties_AssignmentPrototypeProperty) GetChunk() *JSChunk {
-	return p.chunk
-}
-
-// AnalyzePrototypeProperties_LiteralPrototypeProperty: properties created
-// via object literals:
-//
-//	function Foo() { ... };
-//	Foo.prototype = {bar: function() { ... };
-type AnalyzePrototypeProperties_LiteralPrototypeProperty struct {
-	value   rhino.Node
-	assign  rhino.Node
-	rootVar *Var
-	chunk   *JSChunk
-}
-
-// Java: AnalyzePrototypeProperties.LiteralPrototypeProperty(Node, Node, Var, JSChunk)
-func NewAnalyzePrototypeProperties_LiteralPrototypeProperty(value rhino.Node, assign rhino.Node, rootVar *Var, chunk *JSChunk) *AnalyzePrototypeProperties_LiteralPrototypeProperty {
-	return &AnalyzePrototypeProperties_LiteralPrototypeProperty{value: value, assign: assign, rootVar: rootVar, chunk: chunk}
-}
-
-func (p *AnalyzePrototypeProperties_LiteralPrototypeProperty) isAnalyzePrototypePropertiesProperty() {
-}
-
-// Java: AnalyzePrototypeProperties.LiteralPrototypeProperty.getRootVar()
-func (p *AnalyzePrototypeProperties_LiteralPrototypeProperty) GetRootVar() *Var {
-	return p.rootVar
-}
-
-// Java: AnalyzePrototypeProperties.LiteralPrototypeProperty.getPrototype()
-func (p *AnalyzePrototypeProperties_LiteralPrototypeProperty) GetPrototype() rhino.Node {
-	return p.assign.GetFirstChild()
-}
-
-// Java: AnalyzePrototypeProperties.LiteralPrototypeProperty.getValue()
-func (p *AnalyzePrototypeProperties_LiteralPrototypeProperty) GetValue() rhino.Node {
-	return p.value
-}
-
-// Java: AnalyzePrototypeProperties.LiteralPrototypeProperty.getChunk()
-func (p *AnalyzePrototypeProperties_LiteralPrototypeProperty) GetChunk() *JSChunk {
-	return p.chunk
+// GetValue returns the value node of an AssignmentProperty or LiteralProperty symbol.
+func (s AnalyzePrototypeProperties_Symbol) GetValue() rhino.Node {
+	if s.kind == AnalyzePrototypeProperties_SymbolAssignmentProperty {
+		return ast.MustExprStmt(s.node).Expr().MustAssign().Value().Node()
+	}
+	return s.node
 }
 
 // AnalyzePrototypeProperties_NameContext is the context of the current
-// name. This includes the NameInfo and the scope if it is a scope defining
+// name. This includes the NameInfo and the scope root if it is a scope-defining
 // name (function).
 type AnalyzePrototypeProperties_NameContext struct {
-	name *AnalyzePrototypeProperties_NameInfo
-
-	// If this is a function context, then scope will be the scope of the
-	// corresponding function. Otherwise, it will be null.
-	scope     *Scope
+	name      *AnalyzePrototypeProperties_NameInfo
 	scopeRoot rhino.Node
-}
-
-// Java: AnalyzePrototypeProperties.NameContext(NameInfo, Scope)
-func NewAnalyzePrototypeProperties_NameContext(name *AnalyzePrototypeProperties_NameInfo, scope *Scope) *AnalyzePrototypeProperties_NameContext {
-	var root rhino.Node
-	if scope != nil {
-		root = scope.GetRootNode()
-	}
-	return &AnalyzePrototypeProperties_NameContext{name: name, scope: scope, scopeRoot: root}
 }
 
 // AnalyzePrototypeProperties_NameInfo is information on all properties or
@@ -1105,9 +876,7 @@ type AnalyzePrototypeProperties_NameInfo struct {
 
 	name string
 
-	referenced bool
-	// Go-only: language-adapter — the ArrayDeque is only appended to (add)
-	// and iterated in either direction, so it is a Go slice.
+	referenced            bool
 	declarations          []AnalyzePrototypeProperties_Symbol
 	declBuf               [2]AnalyzePrototypeProperties_Symbol
 	deepestCommonChunkRef *JSChunk
@@ -1130,24 +899,6 @@ type AnalyzePrototypeProperties_NameInfo struct {
 	// does the definition refer to `super`?
 	// We cannot move references to `super` outside of the class body.
 	referencesSuper bool
-}
-
-// NewAnalyzePrototypeProperties_NameInfo constructs a new NameInfo.
-//
-// name is the name of the property that this represents. May be null to
-// signify dummy nodes in the property graph.
-//
-// Java: AnalyzePrototypeProperties.NameInfo(String)
-func NewAnalyzePrototypeProperties_NameInfo(outer *AnalyzePrototypeProperties, name string) *AnalyzePrototypeProperties_NameInfo {
-	if outer != nil {
-		return outer.allocNameInfo(name)
-	}
-	info := &AnalyzePrototypeProperties_NameInfo{
-		outer: outer,
-		name:  name,
-	}
-	info.declarations = info.declBuf[:0]
-	return info
 }
 
 // Java: AnalyzePrototypeProperties.NameInfo.toString()
@@ -1178,10 +929,7 @@ func (i *AnalyzePrototypeProperties_NameInfo) ReferencesSuper() bool {
 }
 
 // MarkReference marks a reference in a given chunk to this property name,
-// and record the deepest common chunk reference.
-//
-// chunk is the chunk where it was referenced. Returns whether the name info
-// has changed.
+// and records the deepest common chunk reference.
 //
 // Java: AnalyzePrototypeProperties.NameInfo.markReference(JSChunk)
 func (i *AnalyzePrototypeProperties_NameInfo) MarkReference(chunk *JSChunk) bool {

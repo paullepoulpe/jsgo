@@ -203,3 +203,10 @@ func murmur3x64_128(data []byte, seed uint32) (uint64, uint64) {
 	h2 += h1
 	return h1, h2
 }
+
+// Hashing_Murmur3_128BytesAsInt returns Hashing.murmur3_128().hashBytes(data).asInt()
+// without allocating a Hasher or HashCode struct.
+func Hashing_Murmur3_128BytesAsInt(data []byte) int32 {
+	h1, _ := murmur3x64_128(data, 0)
+	return int32(uint32(h1))
+}

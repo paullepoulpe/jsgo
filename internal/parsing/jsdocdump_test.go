@@ -386,7 +386,9 @@ func jsdocMarkers(line func(string), info *rhino.JSDocInfo) {
 	if info == nil {
 		return
 	}
-	for _, m := range info.GetMarkers() {
+	markers := info.GetMarkers()
+	for i := range markers {
+		m := &markers[i]
 		type_ := "null"
 		if m.GetType() != nil {
 			type_ = jsdocPos(m.GetType(), m.GetType().GetItem().ToStringTree())

@@ -266,13 +266,13 @@ func (b *TypedScopeCreator_scopeBuilder) DeclareTemplatesInFunctionBody(function
 		//   /** @template U */
 		//   function foo() {}
 		// This declares 'U'.
-		infoTemplateNames := jsDocTemplateTypes(info)
-		if infoTemplateNames != nil && !infoTemplateNames.IsEmpty() {
+		infoTemplateNames := info.GetTemplateTypeEntries()
+		if len(infoTemplateNames) > 0 {
 			if templateNames == nil {
 				templateNames = jutil.NewLinkedHashSet[string]()
 			}
-			for name := range infoTemplateNames.Keys() {
-				templateNames.Add(name)
+			for _, entry := range infoTemplateNames {
+				templateNames.Add(entry.Name)
 			}
 		}
 		typeTransformations := jsDocTypeTransformations(info)

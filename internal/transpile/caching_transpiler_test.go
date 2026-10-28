@@ -64,7 +64,7 @@ func (m *jsaMockTranspiler) Runtime() string {
 
 func jsaCtSetUp() (*jsaMockTranspiler, Transpiler) {
 	delegate := newJsaMockTranspiler()
-	return delegate, NewCachingTranspiler(delegate, jutil.CacheBuilder_NewBuilder())
+	return delegate, NewCachingTranspiler(delegate, -1)
 }
 
 func TestCachingTranspiler_TranspileDelegates(t *testing.T) {
@@ -115,15 +115,13 @@ func (jsaFailingTranspiler) Transpile(path *jutil.URI, code string) *TranspileRe
 func (jsaFailingTranspiler) Runtime() string { return "" }
 
 // Go-only: extra coverage — a TranspilationException from the delegate is
-// rethrown (wrapping the UncheckedExecutionException) with the same report.
+// propagated with the same report.
 func TestCachingTranspiler_TranspilationException(t *testing.T) {
-	transpiler := NewCachingTranspiler(jsaFailingTranspiler{}, jutil.CacheBuilder_NewBuilder())
+	transpiler := NewCachingTranspiler(jsaFailingTranspiler{}, -1)
 	e := jsaThrows[bundle.ITranspilationException](t, func() { transpiler.Transpile(jsaCtFOO_JS, "x") })
 	if e != nil {
 		te := e.(*bundle.TranspilationException)
 		jsaEq(t, len(te.Errors()), 1)
 		jsaEq(t, te.GetMessage(), "Transpilation failed:\n\nERROR - [TEST_FOO] Foo\n")
-		_, ok := te.GetCause().(jutil.IUncheckedExecutionException)
-		jsaTrue(t, ok)
 	}
 }

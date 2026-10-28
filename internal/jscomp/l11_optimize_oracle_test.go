@@ -282,20 +282,18 @@ func l11optAnalyzePrototypeProperties(c *Compiler, externs rhino.Node, js rhino.
 		for _, s := range info.GetDeclarations() {
 			var kind string
 			var node rhino.Node
-			switch d := s.(type) {
-			case *AnalyzePrototypeProperties_GlobalFunction:
+			switch s.Kind() {
+			case AnalyzePrototypeProperties_SymbolGlobalFunction:
 				kind = "GlobalFunction"
-			case *AnalyzePrototypeProperties_ClassMemberFunction:
+			case AnalyzePrototypeProperties_SymbolClassMember:
 				kind = "ClassMemberFunction"
-				node = d.GetDefinitionNode()
-			case AnalyzePrototypeProperties_PrototypeProperty:
-				// s.getClass().getSimpleName()
-				simple := "AssignmentPrototypeProperty"
-				if _, ok := d.(*AnalyzePrototypeProperties_LiteralPrototypeProperty); ok {
-					simple = "LiteralPrototypeProperty"
-				}
-				kind = simple + " prototype=" + l11optPos(d.GetPrototype())
-				node = d.GetValue()
+				node = s.GetDefinitionNode()
+			case AnalyzePrototypeProperties_SymbolAssignmentProperty:
+				kind = "AssignmentPrototypeProperty prototype=" + l11optPos(s.GetPrototype())
+				node = s.GetValue()
+			case AnalyzePrototypeProperties_SymbolLiteralProperty:
+				kind = "LiteralPrototypeProperty prototype=" + l11optPos(s.GetPrototype())
+				node = s.GetValue()
 			}
 			line := "  decl " + kind
 			if !node.IsNil() {

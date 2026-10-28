@@ -20,6 +20,7 @@ package jscomp
 
 import (
 	"strconv"
+	"strings"
 
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 )
@@ -37,7 +38,7 @@ import (
 //
 // See http://cldr.unicode.org/development/development-process/design-proposals/xmb
 type GoogleJsMessageIdGenerator struct {
-	projectId *string
+	projectId string
 }
 
 // NewGoogleJsMessageIdGenerator creates an instance.
@@ -46,37 +47,40 @@ type GoogleJsMessageIdGenerator struct {
 //
 // Java: GoogleJsMessageIdGenerator(String)
 func NewGoogleJsMessageIdGenerator(projectId *string) *GoogleJsMessageIdGenerator {
-	return &GoogleJsMessageIdGenerator{projectId: projectId}
+	var pid string
+	if projectId != nil {
+		pid = *projectId
+	}
+	return &GoogleJsMessageIdGenerator{projectId: pid}
 }
 
 // Java: GoogleJsMessageIdGenerator.generateId(String, List<Part>)
 func (g *GoogleJsMessageIdGenerator) GenerateId(meaning *string, messageParts []JsMessage_Part) string {
 	jutil.CheckState(meaning != nil)
 
-	sb := jutil.NewStringBuilder()
-	for _, part := range messageParts {
-		if part.IsPlaceholder() {
-			sb.Append(part.GetCanonicalPlaceholderName())
-		} else {
-			sb.Append(part.GetString())
+	var tcValue string
+	if len(messageParts) == 1 && !messageParts[0].IsPlaceholder() {
+		tcValue = messageParts[0].GetString()
+	} else if len(messageParts) > 0 {
+		var sb strings.Builder
+		for _, part := range messageParts {
+			if part.IsPlaceholder() {
+				sb.WriteString(part.GetCanonicalPlaceholderName())
+			} else {
+				sb.WriteString(part.GetString())
+			}
 		}
+		tcValue = sb.String()
 	}
-	tcValue := sb.String()
 
-	projectScopedMeaning := ""
-	if !(g.projectId == nil || *g.projectId == "") {
-		projectScopedMeaning = *g.projectId + ": "
+	projectScopedMeaning := *meaning
+	if g.projectId != "" {
+		projectScopedMeaning = g.projectId + ": " + projectScopedMeaning
 	}
-	projectScopedMeaning += *meaning
 
 	return strconv.FormatInt(
-		googleJsMessageIdGenerator_MessageId_generateId(tcValue, &projectScopedMeaning), 10)
+		googleJsMessageIdGenerator_MessageId_generateId(tcValue, projectScopedMeaning), 10)
 }
-
-// googleJsMessageIdGenerator_FP is the 64-bit fingerprint support.
-//
-// Forked from the guava-internal library.
-type googleJsMessageIdGenerator_FP struct{}
 
 // googleJsMessageIdGenerator_FP_fingerprintRange generates fingerprint of
 // "byte[start,limit-1]".
@@ -222,20 +226,15 @@ func googleJsMessageIdGenerator_FP_hash32(str []byte, start int, limit int, c in
 }
 
 // googleJsMessageIdGenerator_MessageId_generateId generates fingerprint
-// for an English message using the FP package. This supersedes the message
-// id generation using C fingerprint functions and JNI. This is slower than
-// the C implementation (we're talking about microseconds here) but it
-// avoids using JNI and shared libraries.
-//
-// Forked from the i18n library.
+// for an English message using the FP package.
 //
 // Java: GoogleJsMessageIdGenerator.MessageId.generateId(String, String)
-func googleJsMessageIdGenerator_MessageId_generateId(message string, meaning *string) int64 {
+func googleJsMessageIdGenerator_MessageId_generateId(message string, meaning string) int64 {
 	fp := googleJsMessageIdGenerator_FP_fingerprint(message)
-	if nil != meaning && len(*meaning) > 0 {
+	if len(meaning) > 0 {
 		// combine the fingerprints of message and meaning
-		fp2 := googleJsMessageIdGenerator_FP_fingerprint(*meaning)
-		var carry int64 = 0
+		fp2 := googleJsMessageIdGenerator_FP_fingerprint(meaning)
+		var carry int64
 		if fp < 0 {
 			carry = 1
 		}

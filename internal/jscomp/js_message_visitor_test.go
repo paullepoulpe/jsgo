@@ -954,7 +954,7 @@ func (c *JsMessageVisitorTest) TestExternalMessage_customSuffix() {
 
 // Java: JsMessageVisitorTest.testIsValidMessageNameStrict()
 func (c *JsMessageVisitorTest) TestIsValidMessageNameStrict() {
-	var visitor JsMessageVisitor = newJsMessageVisitorTest_DummyJsVisitor()
+	var visitor JsMessageVisitor
 
 	AssertThat(visitor.IsMessageName("MSG_HELLO")).IsTrue()
 	AssertThat(visitor.IsMessageName("MSG_")).IsTrue()
@@ -1446,57 +1446,22 @@ func (c *JsMessageVisitorTest) extractMessages(input string) {
 		c.compiler.InitOptions(c.compilerOptions)
 	}
 	root := c.compiler.ParseTestCode(input)
-	var visitor JsMessageVisitor = newJsMessageVisitorTest_CollectMessages(c, c.compiler)
+	visitor := NewJsMessageVisitor(
+		c.compiler,
+		nil,
+		func(definition JsMessageDefinition) {
+			c.messages = append(c.messages, definition.GetMessage())
+			c.messageDefinitions = append(c.messageDefinitions, definition)
+		},
+		func(definition IcuTemplateDefinition) {
+			c.icuTemplateDefinitions = append(c.icuTemplateDefinitions, definition)
+			c.messages = append(c.messages, definition.GetMessage())
+		},
+		nil,
+	)
 	if c.renameMessages {
 		renameMessagesVisitor := newJsMessageVisitorTest_RenameMessagesVisitor()
 		NodeTraversal_Traverse(c.compiler, root, renameMessagesVisitor)
 	}
 	visitor.Process(rhino.NilNode, root)
-}
-
-// Java: private class JsMessageVisitorTest.CollectMessages extends JsMessageVisitor
-type jsMessageVisitorTest_CollectMessages struct {
-	JsMessageVisitorBase
-	outer *JsMessageVisitorTest
-}
-
-// Java: JsMessageVisitorTest.CollectMessages(Compiler)
-func newJsMessageVisitorTest_CollectMessages(outer *JsMessageVisitorTest, compiler *Compiler) *jsMessageVisitorTest_CollectMessages {
-	v := &jsMessageVisitorTest_CollectMessages{outer: outer}
-	v.InitJsMessageVisitorBase(v, compiler, nil)
-	return v
-}
-
-// Java: JsMessageVisitorTest.CollectMessages.processJsMessageDefinition(JsMessageDefinition)
-func (v *jsMessageVisitorTest_CollectMessages) ProcessJsMessageDefinition(definition JsMessageDefinition) {
-	v.outer.messages = append(v.outer.messages, definition.GetMessage())
-	v.outer.messageDefinitions = append(v.outer.messageDefinitions, definition)
-}
-
-// Java: JsMessageVisitorTest.CollectMessages.processIcuTemplateDefinition(IcuTemplateDefinition)
-func (v *jsMessageVisitorTest_CollectMessages) ProcessIcuTemplateDefinition(definition IcuTemplateDefinition) {
-	v.outer.icuTemplateDefinitions = append(v.outer.icuTemplateDefinitions, definition)
-	v.outer.messages = append(v.outer.messages, definition.GetMessage())
-}
-
-// Java: private static class JsMessageVisitorTest.DummyJsVisitor extends JsMessageVisitor
-type jsMessageVisitorTest_DummyJsVisitor struct {
-	JsMessageVisitorBase
-}
-
-// Java: JsMessageVisitorTest.DummyJsVisitor()
-func newJsMessageVisitorTest_DummyJsVisitor() *jsMessageVisitorTest_DummyJsVisitor {
-	v := &jsMessageVisitorTest_DummyJsVisitor{}
-	v.InitJsMessageVisitorBase(v, nil, nil)
-	return v
-}
-
-// Java: JsMessageVisitorTest.DummyJsVisitor.processJsMessageDefinition(JsMessageDefinition)
-func (v *jsMessageVisitorTest_DummyJsVisitor) ProcessJsMessageDefinition(definition JsMessageDefinition) {
-	// no-op
-}
-
-// Java: JsMessageVisitorTest.DummyJsVisitor.processIcuTemplateDefinition(IcuTemplateDefinition)
-func (v *jsMessageVisitorTest_DummyJsVisitor) ProcessIcuTemplateDefinition(definition IcuTemplateDefinition) {
-	// no-op
 }

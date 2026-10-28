@@ -22,6 +22,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/paullepoulpe/jsgo/internal/ast"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/parser"
 	"github.com/paullepoulpe/jsgo/internal/parsing"
@@ -45,10 +46,24 @@ import (
 // do not recommend, is to suppress these errors & let the compiler silently
 // output untranspiled ES2018 regex literals.
 type ReportUntranspilableFeatures struct {
-	AbstractPeepholeTranspilationBase
 	compiler                       AbstractCompiler
 	browserFeatureSetYear          *CompilerOptions_BrowserFeaturesetYear
 	untranspilableFeaturesToRemove *parser.FeatureSet
+}
+
+var reportUntranspilableTokens = func() ast.TokenSet {
+	var s ast.TokenSet
+	s.Add(rhino.Token_REGEXP)
+	s.Add(rhino.Token_BIGINT)
+	s.Add(rhino.Token_GETTER_DEF)
+	s.Add(rhino.Token_SETTER_DEF)
+	s.Add(rhino.Token_AWAIT)
+	s.Add(rhino.Token_FOR_AWAIT_OF)
+	return s
+}()
+
+func (*ReportUntranspilableFeatures) HandledTokens() ast.TokenSet {
+	return reportUntranspilableTokens
 }
 
 // Java: ReportUntranspilableFeatures.UNTRANSPILABLE_FEATURE_PRESENT
@@ -133,10 +148,11 @@ func (r *ReportUntranspilableFeatures) CheckForUntranspilable(root rhino.Node) {
 	// Non-flag RegExp features are not attached to nodes, so we must force traversal.
 	switch root.GetToken() {
 	case rhino.Token_REGEXP:
-		pattern := root.GetFirstChild().GetString()
+		re := ast.MustRegExp(root)
+		pattern := re.Pattern().Value()
 		flags := ""
-		if root.HasTwoChildren() {
-			flags = root.GetLastChild().GetString()
+		if f, ok := re.Flags(); ok {
+			flags = f.Value()
 		}
 		var reg regex.RegExpTree
 		malformed := false
@@ -230,12 +246,8 @@ func (r *ReportUntranspilableFeatures) ReportUntranspilable(feature parser.Featu
 
 // Java: ReportUntranspilableFeatures.checkForRegExpSFlag(Node)
 func (r *ReportUntranspilableFeatures) CheckForRegExpSFlag(regexpNode rhino.Node) {
-	jutil.CheckArgument(regexpNode.IsRegExp())
-	flags := ""
-	if regexpNode.HasTwoChildren() {
-		flags = regexpNode.GetLastChild().GetString()
-	}
-	if strings.Contains(flags, "s") {
+	re := ast.MustRegExp(regexpNode)
+	if f, ok := re.Flags(); ok && strings.Contains(f.Value(), "s") {
 		r.ReportUntranspilable(parser.FeatureSet_Feature_REGEXP_FLAG_S, regexpNode)
 	}
 }
@@ -275,12 +287,8 @@ func (r *ReportUntranspilableFeatures) CheckForUnicodePropertyEscape(regexpNode 
 
 // Java: ReportUntranspilableFeatures.checkForRegExpDFlag(Node)
 func (r *ReportUntranspilableFeatures) CheckForRegExpDFlag(regexpNode rhino.Node) {
-	jutil.CheckArgument(regexpNode.IsRegExp())
-	flags := ""
-	if regexpNode.HasTwoChildren() {
-		flags = regexpNode.GetLastChild().GetString()
-	}
-	if strings.Contains(flags, "d") {
+	re := ast.MustRegExp(regexpNode)
+	if f, ok := re.Flags(); ok && strings.Contains(f.Value(), "d") {
 		r.ReportUntranspilable(parser.FeatureSet_Feature_REGEXP_FLAG_D, regexpNode)
 	}
 }

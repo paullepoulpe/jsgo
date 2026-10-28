@@ -44,17 +44,26 @@ type CompilerBasedTransformer interface {
 // CompilerBasedTransformerBase holds the fields of CompilerBasedTransformer
 // and its implementation; subclasses embed it.
 type CompilerBasedTransformerBase struct {
-	self             CompilerBasedTransformer
-	compilerSupplier CompilerBasedTransformer_CompilerSupplier
+	compilerSupplier   CompilerBasedTransformer_CompilerSupplier
+	transformationName string
+	runtimeLibraryName string
+	hasRuntime         bool
 }
 
-// InitCompilerBasedTransformerBase is the constructor as subclasses call
-// it; self is the subclass instance.
+// GetRuntime returns nil for Optional.empty().
 //
-// Java: CompilerBasedTransformer(CompilerSupplier)
-func (t *CompilerBasedTransformerBase) InitCompilerBasedTransformerBase(self CompilerBasedTransformer, compilerSupplier CompilerBasedTransformer_CompilerSupplier) {
-	t.self = self
-	t.compilerSupplier = jutil.CheckNotNull(compilerSupplier)
+// Java: CompilerBasedTransformer.getRuntime()
+func (t *CompilerBasedTransformerBase) GetRuntime() *string {
+	if !t.hasRuntime {
+		return nil
+	}
+	s := t.runtimeLibraryName
+	return &s
+}
+
+// Java: CompilerBasedTransformer.getTranformationName()
+func (t *CompilerBasedTransformerBase) GetTranformationName() string {
+	return t.transformationName
 }
 
 // Java: CompilerBasedTransformer.transform(Source)
@@ -67,7 +76,7 @@ func (t *CompilerBasedTransformerBase) Transform(input *Source) *Source {
 		// comes out, particularly for warnings.
 		formatter := jscomp.ErrorFormat_SOURCELESS.ToFormatter(nil, false)
 		var message strings.Builder
-		message.WriteString(t.self.GetTranformationName())
+		message.WriteString(t.transformationName)
 		message.WriteString(" failed.\n")
 		for _, error := range result.errors {
 			message.WriteString(formatter.FormatError(error))
@@ -80,8 +89,8 @@ func (t *CompilerBasedTransformerBase) Transform(input *Source) *Source {
 	builder := input.ToBuilder().
 		SetCode(result.source).
 		SetSourceMap(result.sourceMap)
-	if runtime := t.self.GetRuntime(); runtime != nil {
-		builder.AddRuntime(t.compilerSupplier.Runtime(*runtime))
+	if t.hasRuntime {
+		builder.AddRuntime(t.compilerSupplier.Runtime(t.runtimeLibraryName))
 	}
 	return builder.Build()
 }
@@ -111,43 +120,43 @@ type CompilerBasedTransformer_CompilerSupplier interface {
 
 // CompilerBasedTransformer_CompilerSupplierBase holds the implementation of
 // CompilerSupplier; subclasses embed it.
-type CompilerBasedTransformer_CompilerSupplierBase struct {
-	self CompilerBasedTransformer_CompilerSupplier
-}
+type CompilerBasedTransformer_CompilerSupplierBase struct{}
 
 // Java: CompilerSupplier()
 func NewCompilerBasedTransformer_CompilerSupplier() *CompilerBasedTransformer_CompilerSupplierBase {
-	s := &CompilerBasedTransformer_CompilerSupplierBase{}
-	s.InitCompilerBasedTransformer_CompilerSupplierBase(s)
-	return s
+	return &CompilerBasedTransformer_CompilerSupplierBase{}
 }
 
-// InitCompilerBasedTransformer_CompilerSupplierBase is the constructor as
-// subclasses call it; self is the subclass instance.
-//
-// Java: CompilerSupplier()
-func (s *CompilerBasedTransformer_CompilerSupplierBase) InitCompilerBasedTransformer_CompilerSupplierBase(self CompilerBasedTransformer_CompilerSupplier) {
-	s.self = self
-}
-
-// Java: CompilerSupplier.compile(Path, String)
-func (s *CompilerBasedTransformer_CompilerSupplierBase) Compile(path *jutil.Path, code string) *CompilerBasedTransformer_CompileResult {
-	compiler := s.self.Compiler()
+func compileWithSupplier(s CompilerBasedTransformer_CompilerSupplier, path *jutil.Path, code string) *CompilerBasedTransformer_CompileResult {
+	compiler := s.Compiler()
 	result :=
-		compiler.CompileOfSourceFiles(CompilerBasedTransformer_CompilerSupplier_EXTERNS, jscomp.SourceFile_FromCode(path.String(), code), s.self.Options())
+		compiler.CompileOfSourceFiles(CompilerBasedTransformer_CompilerSupplier_EXTERNS, jscomp.SourceFile_FromCode(path.String(), code), s.Options())
 	source := compiler.ToSource()
 	var sourceMap strings.Builder
 	if result.SourceMap != nil {
 		name := path.String()
 		result.SourceMap.AppendTo(&sourceMap, &name)
 	}
-	transformed := s.self.Transformed(result)
+	transformed := s.Transformed(result)
 	sm := ""
 	if transformed {
 		sm = sourceMap.String()
 	}
 	return NewCompilerBasedTransformer_CompileResult(
 		source, result.Errors, transformed, sm)
+}
+
+func runtimeWithSupplier(s CompilerBasedTransformer_CompilerSupplier, library string) string {
+	compiler := s.Compiler()
+	options := s.Options()
+	options.SetForceLibraryInjection([]string{library})
+	compiler.CompileOfSourceFiles(CompilerBasedTransformer_CompilerSupplier_EXTERNS, CompilerBasedTransformer_CompilerSupplier_EMPTY, options)
+	return compiler.ToSource()
+}
+
+// Java: CompilerSupplier.compile(Path, String)
+func (s *CompilerBasedTransformer_CompilerSupplierBase) Compile(path *jutil.Path, code string) *CompilerBasedTransformer_CompileResult {
+	return compileWithSupplier(s, path, code)
 }
 
 // Java: CompilerSupplier.transformed(Result)
@@ -157,11 +166,7 @@ func (s *CompilerBasedTransformer_CompilerSupplierBase) Transformed(result *jsco
 
 // Java: CompilerSupplier.runtime(String)
 func (s *CompilerBasedTransformer_CompilerSupplierBase) Runtime(library string) string {
-	compiler := s.self.Compiler()
-	options := s.self.Options()
-	options.SetForceLibraryInjection([]string{library})
-	compiler.CompileOfSourceFiles(CompilerBasedTransformer_CompilerSupplier_EXTERNS, CompilerBasedTransformer_CompilerSupplier_EMPTY, options)
-	return compiler.ToSource()
+	return runtimeWithSupplier(s, library)
 }
 
 // Java: CompilerSupplier.compiler()
@@ -172,7 +177,7 @@ func (s *CompilerBasedTransformer_CompilerSupplierBase) Compiler() *jscomp.Compi
 // Java: CompilerSupplier.options()
 func (s *CompilerBasedTransformer_CompilerSupplierBase) Options() *jscomp.CompilerOptions {
 	options := jscomp.NewCompilerOptions()
-	s.self.SetOptions(options)
+	s.SetOptions(options)
 	return options
 }
 
@@ -223,10 +228,10 @@ type CompilerBasedTransformer_CompileResult struct {
 // Java: CompileResult(String, ImmutableList<JSError>, boolean, String)
 func NewCompilerBasedTransformer_CompileResult(
 	source string, errors []*jscomp.JSError, transformed bool, sourceMap string) *CompilerBasedTransformer_CompileResult {
-	r := &CompilerBasedTransformer_CompileResult{}
-	r.source = source
-	r.errors = errors // checkNotNull: a Go slice is never null (nil is an empty list)
-	r.transformed = transformed
-	r.sourceMap = sourceMap
-	return r
+	return &CompilerBasedTransformer_CompileResult{
+		source:      source,
+		errors:      errors, // checkNotNull: a Go slice is never null (nil is an empty list)
+		transformed: transformed,
+		sourceMap:   sourceMap,
+	}
 }

@@ -46,16 +46,17 @@ type ProcessDefines struct {
 	mode                       ProcessDefines_Mode
 	namespaceSupplier          func() *GlobalNamespace
 	recognizeClosureDefines    bool
-	enableZonesDefineName      *string
+	enableZonesDefineName      string
+	hasEnableZonesDefineName   bool
 	zoneInputPattern           *jutil.Pattern
-	unknownDefinesToIgnore     *jutil.LinkedHashSet[string]
+	unknownDefinesToIgnore     map[string]struct{}
 
-	knownDefineJsdocs    *jutil.LinkedHashSet[*rhino.JSDocInfo]
-	knownGoogDefineCalls *jutil.LinkedHashSet[rhino.Node]
+	knownDefineJsdocs    map[*rhino.JSDocInfo]struct{}
+	knownGoogDefineCalls map[rhino.Node]struct{}
 	defineByDefineName   *jutil.LinkedHashMap[string, *ProcessDefines_Define]
 	// from var CLOSURE_DEFINES = {
 	replacementValuesFromClosureDefines *jutil.LinkedHashMap[string, rhino.Node]
-	validDefineValueExpressions         *jutil.LinkedHashSet[rhino.Node]
+	validDefineValueExpressions         map[rhino.Node]struct{}
 	hasZoneInput                        bool
 
 	namespace *GlobalNamespace
@@ -66,14 +67,25 @@ var _ CompilerPass = (*ProcessDefines)(nil)
 // Defines in this set will not be flagged with "unknown define" warnings.
 // There are flags that always set these defines, even when they might not be
 // in the binary.
-var processDefines_KNOWN_DEFINES = jutil.NewLinkedHashSet(
+var processDefinesKnownDefineList = [...]string{
 	"COMPILED",
 	"goog.DEBUG",
 	"$jscomp.ASSUME_ES5",
 	"$jscomp.ASSUME_ES6",
 	"$jscomp.ASSUME_ES2020",
 	"$jscomp.ISOLATE_POLYFILLS",
-	"$jscomp.INSTRUMENT_ASYNC_CONTEXT")
+	"$jscomp.INSTRUMENT_ASYNC_CONTEXT",
+}
+
+var processDefines_KNOWN_DEFINES = map[string]struct{}{
+	"COMPILED":                         {},
+	"goog.DEBUG":                       {},
+	"$jscomp.ASSUME_ES5":               {},
+	"$jscomp.ASSUME_ES6":               {},
+	"$jscomp.ASSUME_ES2020":            {},
+	"$jscomp.ISOLATE_POLYFILLS":        {},
+	"$jscomp.INSTRUMENT_ASYNC_CONTEXT": {},
+}
 
 var processDefines_GOOG_DEFINE = rhino.IR_Getprop(rhino.IR_Name("goog"), "define")
 
@@ -141,11 +153,11 @@ var ProcessDefines_DEFINE_WITHOUT_GOOG_DEFINE = DiagnosticType_Disabled(
 // Java: ProcessDefines(ProcessDefines.Builder)
 func newProcessDefines(builder *ProcessDefines_Builder) *ProcessDefines {
 	p := &ProcessDefines{
-		knownDefineJsdocs:                   jutil.NewLinkedHashSet[*rhino.JSDocInfo](),
-		knownGoogDefineCalls:                jutil.NewLinkedHashSet[rhino.Node](),
+		knownDefineJsdocs:                   make(map[*rhino.JSDocInfo]struct{}),
+		knownGoogDefineCalls:                make(map[rhino.Node]struct{}),
 		defineByDefineName:                  jutil.NewLinkedHashMap[string, *ProcessDefines_Define](),
 		replacementValuesFromClosureDefines: jutil.NewLinkedHashMap[string, rhino.Node](),
-		validDefineValueExpressions:         jutil.NewLinkedHashSet[rhino.Node](),
+		validDefineValueExpressions:         make(map[rhino.Node]struct{}),
 	}
 	p.mode = builder.mode
 	p.compiler = builder.compiler
@@ -156,8 +168,14 @@ func newProcessDefines(builder *ProcessDefines_Builder) *ProcessDefines {
 	p.namespaceSupplier = builder.namespaceSupplier
 	p.recognizeClosureDefines = builder.recognizeClosureDefines
 	p.enableZonesDefineName = builder.enableZonesDefineName
+	p.hasEnableZonesDefineName = builder.hasEnableZonesDefineName
 	p.zoneInputPattern = builder.zoneInputPattern
-	p.unknownDefinesToIgnore = jutil.NewLinkedHashSet(builder.unknownDefinesToIgnore...)
+	if len(builder.unknownDefinesToIgnore) > 0 {
+		p.unknownDefinesToIgnore = make(map[string]struct{}, len(builder.unknownDefinesToIgnore))
+		for _, d := range builder.unknownDefinesToIgnore {
+			p.unknownDefinesToIgnore[d] = struct{}{}
+		}
+	}
 	return p
 }
 
@@ -192,14 +210,15 @@ func (m ProcessDefines_Mode) Optimize() bool { return processDefines_Mode_optimi
 
 // ProcessDefines_Builder is the builder for ProcessDefines.
 type ProcessDefines_Builder struct {
-	compiler                AbstractCompiler
-	replacementValues       *jutil.LinkedHashMap[string, rhino.Node]
-	mode                    ProcessDefines_Mode
-	namespaceSupplier       func() *GlobalNamespace
-	recognizeClosureDefines bool
-	enableZonesDefineName   *string
-	zoneInputPattern        *jutil.Pattern
-	unknownDefinesToIgnore  []string
+	compiler                 AbstractCompiler
+	replacementValues        *jutil.LinkedHashMap[string, rhino.Node]
+	mode                     ProcessDefines_Mode
+	namespaceSupplier        func() *GlobalNamespace
+	recognizeClosureDefines  bool
+	enableZonesDefineName    string
+	hasEnableZonesDefineName bool
+	zoneInputPattern         *jutil.Pattern
+	unknownDefinesToIgnore   []string
 }
 
 // Java: ProcessDefines.Builder(AbstractCompiler)
@@ -208,7 +227,6 @@ func NewProcessDefines_Builder(compiler AbstractCompiler) *ProcessDefines_Builde
 		compiler:                compiler,
 		replacementValues:       jutil.NewLinkedHashMap[string, rhino.Node](),
 		recognizeClosureDefines: true,
-		unknownDefinesToIgnore:  []string{},
 	}
 }
 
@@ -250,7 +268,13 @@ func (b *ProcessDefines_Builder) SetRecognizeClosureDefines(recognizeClosureDefi
 
 // Java: ProcessDefines.Builder.setEnableZonesDefineName(String)
 func (b *ProcessDefines_Builder) SetEnableZonesDefineName(enableZonesDefineName *string) *ProcessDefines_Builder {
-	b.enableZonesDefineName = enableZonesDefineName
+	if enableZonesDefineName != nil {
+		b.enableZonesDefineName = *enableZonesDefineName
+		b.hasEnableZonesDefineName = true
+	} else {
+		b.enableZonesDefineName = ""
+		b.hasEnableZonesDefineName = false
+	}
 	return b
 }
 
@@ -359,9 +383,14 @@ func (p *ProcessDefines) OverrideDefines() {
 		//     Sets.union(Sets.union(KNOWN_DEFINES, defineByDefineName), ignore))
 		var unusedReplacements []string
 		isUsed := func(k string) bool {
-			return processDefines_KNOWN_DEFINES.Contains(k) ||
-				p.defineByDefineName.ContainsKey(k) ||
-				p.unknownDefinesToIgnore.Contains(k)
+			if _, known := processDefines_KNOWN_DEFINES[k]; known {
+				return true
+			}
+			if p.defineByDefineName.ContainsKey(k) {
+				return true
+			}
+			_, ignored := p.unknownDefinesToIgnore[k]
+			return ignored
 		}
 		for k := range p.replacementValuesFromFlags.Keys() {
 			if !isUsed(k) {
@@ -386,7 +415,7 @@ func ProcessDefines_GetGlobalDefineAlias(defineName string) string {
 	// code. Therefore we'll reference them directly.
 	// goog.LOCALE is a special case as it's not processed as a define, it is
 	// instead late-substituted.
-	if processDefines_KNOWN_DEFINES.Contains(defineName) || defineName == "goog.LOCALE" {
+	if _, known := processDefines_KNOWN_DEFINES[defineName]; known || defineName == "goog.LOCALE" {
 		return defineName
 	}
 	return "jscomp$defines$" + strings.ReplaceAll(defineName, ".", "$")
@@ -403,7 +432,7 @@ func ProcessDefines_GetGlobalDefineAlias(defineName string) string {
 //
 // Java: ProcessDefines.getReplacementForDefine(ProcessDefines.Define)
 func (p *ProcessDefines) GetReplacementForDefine(define *ProcessDefines_Define) rhino.Node {
-	replacement := p.GetReplacementForDefineName(&define.defineName)
+	replacement := p.GetReplacementForDefineName(define.defineName)
 	if !replacement.IsNil() {
 		return replacement
 	}
@@ -438,17 +467,13 @@ func processDefines_googDefineDefault(call ast.Call) (ast.Arg, bool) {
 //  3. If still not found, returns `null`.
 //
 // Java: ProcessDefines.getReplacementForDefineName(String)
-func (p *ProcessDefines) GetReplacementForDefineName(defineName *string) rhino.Node {
-	// Go-only: language-adapter — a null key finds nothing in either map.
-	if defineName == nil {
-		return rhino.NilNode
-	}
-	replacementFromFlags := p.replacementValuesFromFlags.Get(*defineName)
+func (p *ProcessDefines) GetReplacementForDefineName(defineName string) rhino.Node {
+	replacementFromFlags := p.replacementValuesFromFlags.Get(defineName)
 	if !replacementFromFlags.IsNil() {
 		return replacementFromFlags
 	}
 
-	replacementFromClosureDefines := p.replacementValuesFromClosureDefines.Get(*defineName)
+	replacementFromClosureDefines := p.replacementValuesFromClosureDefines.Get(defineName)
 	if !replacementFromClosureDefines.IsNil() {
 		return replacementFromClosureDefines
 	}
@@ -522,11 +547,14 @@ func (p *ProcessDefines) CollectDefines(root rhino.Node) {
 			}
 		}
 	}
-	defineNames := jutil.NewLinkedHashSet(processDefines_KNOWN_DEFINES.ToSlice()...)
+	defineNames := make([]string, 0, len(processDefinesKnownDefineList)+p.defineByDefineName.Size())
+	defineNames = append(defineNames, processDefinesKnownDefineList[:]...)
 	for k := range p.defineByDefineName.Keys() {
-		defineNames.Add(k)
+		if _, known := processDefines_KNOWN_DEFINES[k]; !known {
+			defineNames = append(defineNames, k)
+		}
 	}
-	p.compiler.SetDefineNames(defineNames.ToSlice())
+	p.compiler.SetDefineNames(defineNames)
 }
 
 // Java: ProcessDefines.selectDefineDeclaration(GlobalNamespace.Name)
@@ -550,7 +578,7 @@ func (p *ProcessDefines) SelectDefineDeclaration(name *GlobalNamespace_Name) *Gl
 			continue
 		}
 
-		p.knownDefineJsdocs.Add(jsdoc)
+		p.knownDefineJsdocs[jsdoc] = struct{}{}
 		return ref
 	}
 
@@ -594,7 +622,7 @@ func (p *ProcessDefines) CollectValidDefineValueExpressions() {
 		defineNamesSet[define.name] = struct{}{}
 		for r := range define.name.Refs() {
 			if !r.IsSet() {
-				p.validDefineValueExpressions.Add(r.GetNode())
+				p.validDefineValueExpressions[r.GetNode()] = struct{}{}
 			}
 		}
 	}
@@ -625,7 +653,7 @@ func (p *ProcessDefines) CollectValidDefineValueExpressions() {
 		switch p.IsValidDefineValue(declValue) {
 		case base.Tri_TRUE:
 			for ref := range name.Refs() {
-				p.validDefineValueExpressions.Add(ref.GetNode())
+				p.validDefineValueExpressions[ref.GetNode()] = struct{}{}
 			}
 		case base.Tri_UNKNOWN:
 			namesToCheck = append(namesToCheck, name)
@@ -643,7 +671,7 @@ func (p *ProcessDefines) CollectValidDefineValueExpressions() {
 			switch p.IsValidDefineValue(declValue) {
 			case base.Tri_TRUE:
 				for ref := range name.Refs() {
-					p.validDefineValueExpressions.Add(ref.GetNode())
+					p.validDefineValueExpressions[ref.GetNode()] = struct{}{}
 				}
 			case base.Tri_UNKNOWN:
 				namesToCheckAgain = append(namesToCheckAgain, name)
@@ -667,8 +695,9 @@ func (p *ProcessDefines) ValidateDefineDeclarations() {
 	for define := range p.defineByDefineName.Values() {
 		declarationNode := define.declaration.GetNode()
 
+		_, known := processDefines_KNOWN_DEFINES[define.defineName]
 		if !p.IsGoogDefineCall(define.value) &&
-			!processDefines_KNOWN_DEFINES.Contains(define.defineName) &&
+			!known &&
 			!strings.HasPrefix(define.defineName, "$jscomp.") {
 			errorNode := define.value
 			if errorNode.IsNil() {
@@ -728,12 +757,18 @@ func (p *ProcessDefines) ReportInvalidDefineLocations(root rhino.Node) {
 	 */
 	cb := func(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 		jsdoc := n.GetJSDocInfo()
-		if jsdoc != nil && jsdoc.IsDefine() && p.knownDefineJsdocs.Add(jsdoc) {
-			p.compiler.Report(JSError_MakeWithNode(n, ProcessDefines_INVALID_DEFINE_LOCATION))
+		if jsdoc != nil && jsdoc.IsDefine() {
+			if _, known := p.knownDefineJsdocs[jsdoc]; !known {
+				p.knownDefineJsdocs[jsdoc] = struct{}{}
+				p.compiler.Report(JSError_MakeWithNode(n, ProcessDefines_INVALID_DEFINE_LOCATION))
+			}
 		}
 
-		if p.IsGoogDefineCall(n) && p.knownGoogDefineCalls.Add(n) {
-			p.VerifyGoogDefine(n)
+		if p.IsGoogDefineCall(n) {
+			if _, known := p.knownGoogDefineCalls[n]; !known {
+				p.knownGoogDefineCalls[n] = struct{}{}
+				p.VerifyGoogDefine(n)
+			}
 		}
 
 		if n.MatchesName("CLOSURE_DEFINES") &&
@@ -969,7 +1004,7 @@ func (p *ProcessDefines) IsValidDefineValue(val rhino.Node) base.Tri {
 		// Names are valid if and only if they are defines themselves.
 	case rhino.Token_NAME, rhino.Token_GETPROP:
 		if val.IsQualifiedName() {
-			if p.validDefineValueExpressions.Contains(val) {
+			if _, ok := p.validDefineValueExpressions[val]; ok {
 				return base.Tri_TRUE
 			}
 			return base.Tri_UNKNOWN
@@ -1037,6 +1072,9 @@ func (p *ProcessDefines) ValidateDefines() {
 // Java: ProcessDefines.isZoneEnabled()
 func (p *ProcessDefines) IsZoneEnabled() bool {
 	enableZonesDefault := true
+	if !p.hasEnableZonesDefineName {
+		return enableZonesDefault
+	}
 	zoneEnabled := p.GetReplacementForDefineName(p.enableZonesDefineName)
 	if zoneEnabled.IsNil() {
 		return enableZonesDefault
@@ -1097,7 +1135,7 @@ func (p *ProcessDefines) IsGoogDefineCall(node rhino.Node) bool {
 //
 // Java: ProcessDefines.verifyGoogDefine(Node)
 func (p *ProcessDefines) VerifyGoogDefine(callNode rhino.Node) bool {
-	p.knownGoogDefineCalls.Add(callNode)
+	p.knownGoogDefineCalls[callNode] = struct{}{}
 
 	parent := callNode.GetParent()
 	methodName := callNode.GetFirstChild()

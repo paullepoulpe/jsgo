@@ -47,11 +47,8 @@ func TestGatherModuleMetadataTest(t *testing.T) {
 
 // gatherModuleMetadataTest_list is a multiset as the Iterable that Truth's
 // assertThat(Iterable) gets.
-//
-// Go-only: test-helper — ImmutableMultiset has no ToSlice for Truth.
-func gatherModuleMetadataTest_list(m *jutil.ImmutableMultiset[string]) []string {
-	out := []string{} // an empty multiset is an empty collection, not null
-	return slices.AppendSeq(out, m.All())
+func gatherModuleMetadataTest_list(m *StringCounts) []string {
+	return m.ToSlice()
 }
 
 // gatherModuleMetadataTest_keys is a map's keySet() as the Iterable that

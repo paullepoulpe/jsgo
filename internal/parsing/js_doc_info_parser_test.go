@@ -214,7 +214,8 @@ func (jt *jsDocInfoParserTest) assertAnnotationMarker(
 
 	counter := 0
 
-	for _, marker := range markers {
+	for i := range markers {
+		marker := &markers[i]
 		if marker.GetAnnotation() != nil {
 			if annotationName == marker.GetAnnotation().GetItem() {
 
@@ -598,9 +599,16 @@ func truthElements(t *testing.T, v any) []any {
 }
 
 // truthEntries returns the entries of a Java map (anything with All()
-// returning an iter.Seq2).
+// returning an iter.Seq2, or []rhino.JSDocSuppression).
 func truthEntries(t *testing.T, v any) (keys, values []any) {
 	t.Helper()
+	if supps, ok := v.([]rhino.JSDocSuppression); ok {
+		for _, s := range supps {
+			keys = append(keys, setOf(s.Warnings...))
+			values = append(values, s.Description)
+		}
+		return
+	}
 	m := reflect.ValueOf(v).MethodByName("All")
 	if !m.IsValid() {
 		t.Fatalf("not a map: %T", v)
@@ -679,7 +687,8 @@ type orderedSubject struct {
 // MapSubject.containsExactly(k1, v1, ...) for a map.
 func (s *subject) ContainsExactly(expected ...any) *orderedSubject {
 	s.t.Helper()
-	if m := reflect.ValueOf(s.actual).MethodByName("All"); m.IsValid() && m.Type().NumOut() == 1 && m.Type().Out(0).NumIn() == 1 && m.Type().Out(0).In(0).NumIn() == 2 {
+	_, isSupps := s.actual.([]rhino.JSDocSuppression)
+	if m := reflect.ValueOf(s.actual).MethodByName("All"); isSupps || (m.IsValid() && m.Type().NumOut() == 1 && m.Type().Out(0).NumIn() == 1 && m.Type().Out(0).In(0).NumIn() == 2) {
 		keys, values := truthEntries(s.t, s.actual)
 		var actual []any
 		for i := range keys {
@@ -814,10 +823,10 @@ func (s *nodeSubject) HasStringThat() *subject {
 }
 
 // markerAnnotationItems is markers.stream().map(m -> m.getAnnotation().getItem()).
-func markerAnnotationItems(markers []*rhino.JSDocInfo_Marker) []string {
+func markerAnnotationItems(markers []rhino.JSDocInfo_Marker) []string {
 	out := []string{}
-	for _, m := range markers {
-		out = append(out, m.GetAnnotation().GetItem())
+	for i := range markers {
+		out = append(out, markers[i].GetAnnotation().GetItem())
 	}
 	return out
 }

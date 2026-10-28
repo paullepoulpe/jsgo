@@ -39,22 +39,20 @@ var replaceMessagesDump_VARIANTS = []string{"full", "full-strict", "protect", "c
 // replaceMessagesDump_collector is ReplaceMessagesDump.Collector: it records
 // every message the visitor finds, in visiting order.
 type replaceMessagesDump_collector struct {
-	JsMessageVisitorBase
+	JsMessageVisitor
 	found []*JsMessage
 }
 
 func newReplaceMessagesDump_collector(compiler AbstractCompiler) *replaceMessagesDump_collector {
 	c := &replaceMessagesDump_collector{}
-	c.InitJsMessageVisitorBase(c, compiler, nil)
+	c.InitJsMessageVisitor(
+		compiler,
+		nil,
+		func(definition JsMessageDefinition) { c.found = append(c.found, definition.GetMessage()) },
+		func(definition IcuTemplateDefinition) { c.found = append(c.found, definition.GetMessage()) },
+		nil,
+	)
 	return c
-}
-
-func (c *replaceMessagesDump_collector) ProcessJsMessageDefinition(definition JsMessageDefinition) {
-	c.found = append(c.found, definition.GetMessage())
-}
-
-func (c *replaceMessagesDump_collector) ProcessIcuTemplateDefinition(definition IcuTemplateDefinition) {
-	c.found = append(c.found, definition.GetMessage())
 }
 
 // replaceMessagesDump_bundle is ReplaceMessagesDump.Bundle.

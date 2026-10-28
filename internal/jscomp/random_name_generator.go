@@ -19,6 +19,7 @@
 package jscomp
 
 import (
+	"encoding/binary"
 	"strings"
 
 	"github.com/paullepoulpe/jsgo/internal/jutil"
@@ -54,19 +55,23 @@ import (
 // This class is not thread safe.
 type RandomNameGenerator struct {
 	// The possible first characters, after reserved characters are removed
-	firstChars *jutil.LinkedHashSet[uint16]
+	firstChars []uint16
 
 	// Possible non-first characters, after reserved characters are removed
-	nonFirstChars *jutil.LinkedHashSet[uint16]
+	nonFirstChars []uint16
+
+	firstAllowed    [128]bool
+	nonFirstAllowed [128]bool
 
 	// Source of randomness
 	random *jutil.Random
 
-	// List of reserved names; these are not returned by generateNextName
-	reservedNames *jutil.LinkedHashSet[string]
+	// Set of reserved names; these are not returned by generateNextName
+	reservedNames map[string]struct{}
 
 	// Prefix added to all generated names
-	prefix string
+	prefix         string
+	prefixUTF16Len int
 
 	// How many names have we issued so far (includes names that cannot be
 	// used because they are reserved through 'reservedNames' or JavaScript
@@ -78,7 +83,13 @@ type RandomNameGenerator struct {
 
 	// Randomly-shuffled versions of nonFirstChars (there are NUM_SHUFFLES of
 	// them)
-	shuffledNonFirst [][]uint16
+	shuffledNonFirst [randomNameGenerator_NUM_SHUFFLES][]uint16
+
+	firstBuf            [len(defaultNameGenerator_FIRST_CHAR_STR)]uint16
+	nonFirstBuf         [len(defaultNameGenerator_NONFIRST_CHAR_STR)]uint16
+	shuffledFirstBuf    [len(defaultNameGenerator_FIRST_CHAR_STR)]uint16
+	shuffledNonFirstBuf [randomNameGenerator_NUM_SHUFFLES][len(defaultNameGenerator_NONFIRST_CHAR_STR)]uint16
+	scratchBuf          [32]byte
 }
 
 // RandomNameGenerator_FIRST_CHAR: generate random names with this first
@@ -95,7 +106,7 @@ const randomNameGenerator_NUM_SHUFFLES = 16
 // Java: RandomNameGenerator(Random)
 func NewRandomNameGenerator(random *jutil.Random) *RandomNameGenerator {
 	g := &RandomNameGenerator{random: random}
-	g.Reset(jutil.NewLinkedHashSet[string](), "", jutil.NewLinkedHashSet[uint16]())
+	g.Reset(nil, "", nil)
 	return g
 }
 
@@ -145,36 +156,53 @@ func (g *RandomNameGenerator) ResetWithFirstAndNonFirstChars(
 	reservedNonFirstCharacters jutil.Set[uint16]) {
 	g.reservedNames = randomNameGenerator_copyOf(reservedNames)
 	g.prefix = prefix
+	g.prefixUTF16Len = jutil.StringLength(prefix)
 	g.nameCount = 0
 
 	// Build the character sets to use
-	g.firstChars = randomNameGenerator_difference(RandomNameGenerator_FIRST_CHAR, reservedFirstCharacters)
-	g.nonFirstChars = randomNameGenerator_difference(RandomNameGenerator_NONFIRST_CHAR, reservedNonFirstCharacters)
+	g.firstChars, g.firstAllowed = randomNameGenerator_filterASCII(
+		DefaultNameGenerator_FIRST_CHAR, reservedFirstCharacters, g.firstBuf[:0])
+	g.nonFirstChars, g.nonFirstAllowed = randomNameGenerator_filterASCII(
+		DefaultNameGenerator_NONFIRST_CHAR, reservedNonFirstCharacters, g.nonFirstBuf[:0])
 
 	g.checkPrefix(prefix)
 	g.shuffleAlphabets()
 }
 
 // randomNameGenerator_copyOf is ImmutableSet.copyOf(Collection).
-func randomNameGenerator_copyOf(s jutil.Set[string]) *jutil.LinkedHashSet[string] {
-	out := jutil.NewLinkedHashSet[string]()
+func randomNameGenerator_copyOf(s jutil.Set[string]) map[string]struct{} {
+	if s == nil || s.IsEmpty() {
+		return nil
+	}
+	out := make(map[string]struct{}, s.Size())
 	for e := range s.All() {
-		out.Add(e)
+		out[e] = struct{}{}
 	}
 	return out
 }
 
-// randomNameGenerator_difference is Sets.difference(set1,
-// set2).immutableCopy(): the elements of set1 not in set2, in set1's
-// order.
-func randomNameGenerator_difference(set1 *jutil.LinkedHashSet[uint16], set2 jutil.Set[uint16]) *jutil.LinkedHashSet[uint16] {
-	out := jutil.NewLinkedHashSet[uint16]()
-	for e := range set1.All() {
-		if !set2.Contains(e) {
-			out.Add(e)
+// randomNameGenerator_filterASCII filters an ASCII base alphabet (in order)
+// against reserved, returning the remaining slice and an O(1) ASCII table.
+func randomNameGenerator_filterASCII(
+	base []uint16,
+	reserved jutil.Set[uint16],
+	dst []uint16,
+) ([]uint16, [128]bool) {
+	var allowed [128]bool
+	if reserved == nil || reserved.IsEmpty() {
+		for _, c := range base {
+			dst = append(dst, c)
+			allowed[c] = true
+		}
+		return dst, allowed
+	}
+	for _, c := range base {
+		if !reserved.Contains(c) {
+			dst = append(dst, c)
+			allowed[c] = true
 		}
 	}
-	return out
+	return dst, allowed
 }
 
 // Java: RandomNameGenerator.clone(Set<String>, String, Set<Character>)
@@ -192,10 +220,10 @@ func randomNameGenerator_asSet(chars []uint16) *jutil.LinkedHashSet[uint16] {
 }
 
 // randomNameGenerator_joinChars is Joiner.on(", ").join(chars).
-func randomNameGenerator_joinChars(chars *jutil.LinkedHashSet[uint16]) string {
-	var parts []string
-	for c := range chars.All() {
-		parts = append(parts, jutil.StringFromChar(c))
+func randomNameGenerator_joinChars(chars []uint16) string {
+	parts := make([]string, len(chars))
+	for i, c := range chars {
+		parts[i] = jutil.StringFromChar(c)
 	}
 	return strings.Join(parts, ", ")
 }
@@ -204,15 +232,25 @@ func randomNameGenerator_joinChars(chars *jutil.LinkedHashSet[uint16]) string {
 //
 // Java: RandomNameGenerator.checkPrefix(String)
 func (g *RandomNameGenerator) checkPrefix(prefix string) {
+	if prefix == "" {
+		return
+	}
+	asciiValid := prefix[0] < 0x80 && g.firstAllowed[prefix[0]]
+	for i := 1; asciiValid && i < len(prefix); i++ {
+		asciiValid = prefix[i] < 0x80 && g.nonFirstAllowed[prefix[i]]
+	}
+	if asciiValid {
+		return
+	}
 	units := jutil.StringToUTF16(prefix)
 	if len(units) > 0 {
 		// Make sure that prefix starts with a legal character.
-		if !g.firstChars.Contains(units[0]) {
+		if units[0] >= 0x80 || !g.firstAllowed[units[0]] {
 			panic(jutil.NewIllegalArgumentExceptionMsg(
 				"prefix must start with one of: " + randomNameGenerator_joinChars(g.firstChars)))
 		}
 		for pos := 1; pos < len(units); pos++ {
-			if !g.nonFirstChars.Contains(units[pos]) {
+			if units[pos] >= 0x80 || !g.nonFirstAllowed[units[pos]] {
 				panic(jutil.NewIllegalArgumentExceptionMsg(
 					"prefix has invalid characters, must be one of: " +
 						randomNameGenerator_joinChars(g.nonFirstChars)))
@@ -221,23 +259,21 @@ func (g *RandomNameGenerator) checkPrefix(prefix string) {
 	}
 }
 
-// Java: RandomNameGenerator.shuffleAndCopyAlphabet(Set<Character>, Random)
-func randomNameGenerator_shuffleAndCopyAlphabet(input *jutil.LinkedHashSet[uint16], random *jutil.Random) []uint16 {
-	shuffled := input.ToSlice()
-	jutil.Collections_Shuffle(shuffled, random)
-	return shuffled
-}
-
 // shuffleAlphabets generates random shuffles of the alphabets.
 //
 // Java: RandomNameGenerator.shuffleAlphabets()
 func (g *RandomNameGenerator) shuffleAlphabets() {
-	g.shuffledFirst = randomNameGenerator_shuffleAndCopyAlphabet(g.firstChars, g.random)
-	builder := make([][]uint16, 0, randomNameGenerator_NUM_SHUFFLES)
+	first := g.shuffledFirstBuf[:len(g.firstChars)]
+	copy(first, g.firstChars)
+	jutil.Collections_Shuffle(first, g.random)
+	g.shuffledFirst = first
+
 	for i := 0; i < randomNameGenerator_NUM_SHUFFLES; i++ {
-		builder = append(builder, randomNameGenerator_shuffleAndCopyAlphabet(g.nonFirstChars, g.random))
+		nonFirst := g.shuffledNonFirstBuf[i][:len(g.nonFirstChars)]
+		copy(nonFirst, g.nonFirstChars)
+		jutil.Collections_Shuffle(nonFirst, g.random)
+		g.shuffledNonFirst[i] = nonFirst
 	}
-	g.shuffledNonFirst = builder
 }
 
 // getNameLength computes the length (in digits) for a name suffix.
@@ -250,9 +286,9 @@ func (g *RandomNameGenerator) getNameLength(position int, nameIdx int) int {
 		nameIdx--
 		var alphabetSize int
 		if position == 0 {
-			alphabetSize = g.firstChars.Size()
+			alphabetSize = len(g.firstChars)
 		} else {
-			alphabetSize = g.nonFirstChars.Size()
+			alphabetSize = len(g.nonFirstChars)
 		}
 		if alphabetSize == 0 {
 			panic(jutil.NewArithmeticException("/ by zero"))
@@ -267,15 +303,41 @@ func (g *RandomNameGenerator) getNameLength(position int, nameIdx int) int {
 	return length
 }
 
-// generateSuffix returns the nameIdx-th short name. This might be a
-// reserved name. A user-requested prefix is not included, but the first
-// returned character is supposed to go at position position in the final
-// name.
+// rngMurmur3HashLengthAndChars computes Hashing.murmur3_128().newHasher()
+// .putInt(length).putUnencodedChars(name).hash().asInt() without heap allocation.
+func rngMurmur3HashLengthAndChars(length int32, chars []uint16) int32 {
+	n := 4 + 2*len(chars)
+	var stackBuf [32]byte
+	var data []byte
+	if n <= len(stackBuf) {
+		data = stackBuf[:n]
+	} else {
+		data = make([]byte, n)
+	}
+	binary.LittleEndian.PutUint32(data[0:4], uint32(length))
+	for idx, c := range chars {
+		binary.LittleEndian.PutUint16(data[4+2*idx:], c)
+	}
+	return jutil.Hashing_Murmur3_128BytesAsInt(data)
+}
+
+func (g *RandomNameGenerator) isReserved(cand string) bool {
+	if len(g.reservedNames) == 0 {
+		return false
+	}
+	_, ok := g.reservedNames[cand]
+	return ok
+}
+
+// generateCandidate returns g.prefix + generateSuffix(prefixUTF16Len, nameIdx)
+// using stack/inline buffers without intermediate string or slice allocations.
 //
-// Java: RandomNameGenerator.generateSuffix(int, int)
-func (g *RandomNameGenerator) generateSuffix(position int, nameIdx int) string {
-	name := make([]uint16, 0, 8)
+// Java: prefix + RandomNameGenerator.generateSuffix(int, int)
+func (g *RandomNameGenerator) generateCandidate(nameIdx int) string {
+	position := g.prefixUTF16Len
 	length := g.getNameLength(position, nameIdx)
+	var nameBuf [16]uint16
+	name := nameBuf[:0]
 	nameIdx++
 	for {
 		nameIdx--
@@ -283,12 +345,8 @@ func (g *RandomNameGenerator) generateSuffix(position int, nameIdx int) string {
 		if position == 0 {
 			alphabet = g.shuffledFirst
 		} else {
-			hasher := jutil.Hashing_Murmur3_128NewHasher()
-			hasher.PutInt(int32(length))
-			for _, c := range name {
-				hasher.PutChar(c) // putUnencodedChars(name)
-			}
-			alphabetIdx := (hasher.Hash().AsInt() & 0x7fffffff) % randomNameGenerator_NUM_SHUFFLES
+			hashInt := rngMurmur3HashLengthAndChars(int32(length), name)
+			alphabetIdx := (hashInt & 0x7fffffff) % randomNameGenerator_NUM_SHUFFLES
 			alphabet = g.shuffledNonFirst[alphabetIdx]
 		}
 		alphabetSize := len(alphabet)
@@ -303,7 +361,19 @@ func (g *RandomNameGenerator) generateSuffix(position int, nameIdx int) string {
 			break
 		}
 	}
-	return jutil.StringFromUTF16(name)
+	if g.prefix == "" && len(name) == 1 {
+		b := byte(name[0])
+		return asciiByteTable[b : b+1]
+	}
+	if len(g.prefix)+len(name) <= len(g.scratchBuf) {
+		n := copy(g.scratchBuf[:], g.prefix)
+		for _, c := range name {
+			g.scratchBuf[n] = byte(c)
+			n++
+		}
+		return string(g.scratchBuf[:n])
+	}
+	return g.prefix + jutil.StringFromUTF16(name)
 }
 
 // GenerateNextName generates the next short name.
@@ -316,11 +386,11 @@ func (g *RandomNameGenerator) GenerateNextName() string {
 	for {
 		nameIdx := g.nameCount
 		g.nameCount++
-		name := g.prefix + g.generateSuffix(jutil.StringLength(g.prefix), nameIdx)
+		name := g.generateCandidate(nameIdx)
 
 		// Make sure it's not a JS keyword or reserved name.
 		if rhino.TokenStream_IsKeyword(name) ||
-			g.reservedNames.Contains(name) ||
+			g.isReserved(name) ||
 			DefaultNameGenerator_IsBadName(name) {
 			continue
 		}

@@ -257,8 +257,7 @@ func (c *Compiler) HasErrors() bool {
 func (c *Compiler) GetSourceFileByName(sourceName string) *SourceFile {
 	// Here we assume that the source name is the input name, this
 	// is true of JavaScript parsed from source.
-	input := c.inputsById.Get(rhino.NewInputId(sourceName))
-	if input != nil {
+	if input := c.inputsById[sourceName]; input != nil {
 		return input.GetSourceFile()
 	}
 	// Alternatively, the sourceName might have been reverse-mapped by
@@ -287,14 +286,11 @@ func (c *Compiler) GetSourceFileContentByName(sourceName string) *string {
 		return nil
 	}
 	jutil.CheckNotNull(file)
-	var result *string
-	jutil.Try(func() {
-		code := file.GetCode()
-		result = &code
-	}, func(e jutil.IIOException) {
-		result = nil
-	})
-	return result
+	code, err := file.getCode()
+	if err != nil {
+		return nil
+	}
+	return &code
 }
 
 // Java: Compiler.addInputSourceMap(String, SourceMapInput)
@@ -526,8 +522,8 @@ func (c *Compiler) GetSourceRegion(sourceName *string, lineNumber int) Region {
 
 // Java: Compiler.getNodeForCodeInsertion(JSChunk)
 func (c *Compiler) GetNodeForCodeInsertion(chunk *JSChunk) rhino.Node {
-	if c.inputsById.ContainsKey(compiler_SYNTHETIC_CODE_INPUT_ID) {
-		return c.inputsById.Get(compiler_SYNTHETIC_CODE_INPUT_ID).GetAstRoot(c)
+	if syn, ok := c.inputsById[compiler_SYNTHETIC_CODE_INPUT_ID.GetIdName()]; ok {
+		return syn.GetAstRoot(c)
 	}
 	if chunk == nil {
 		allInputs := c.chunkGraph.GetAllInputs()
@@ -696,11 +692,10 @@ func (c *Compiler) GetNumberOfInputs() int {
 	return 1
 }
 
-// GetInputsById returns an unmodifiable view of the compiler inputs
-// indexed by id.
+// GetInputsById returns the compiler inputs indexed by id name.
 //
 // Java: Compiler.getInputsById()
-func (c *Compiler) GetInputsById() *jutil.JavaHashMap[*rhino.InputId, *CompilerInput] {
+func (c *Compiler) GetInputsById() map[string]*CompilerInput {
 	return c.inputsById
 }
 
@@ -799,11 +794,13 @@ func (c *Compiler) GetSyntheticCodeInputId() *rhino.InputId {
 
 // Java: Compiler.initializeSyntheticCodeInput()
 func (c *Compiler) InitializeSyntheticCodeInput() {
+	synIdName := compiler_SYNTHETIC_CODE_INPUT_ID.GetIdName()
+	_, alreadyInit := c.inputsById[synIdName]
 	jutil.CheckStateMsg(
-		!c.inputsById.ContainsKey(compiler_SYNTHETIC_CODE_INPUT_ID),
+		!alreadyInit,
 		"Already initialized synthetic input")
-	ast := NewCompilerInput(SourceFile_FromCode(compiler_SYNTHETIC_CODE_INPUT_ID.GetIdName(), ""))
-	if c.inputsById.ContainsKey(ast.GetInputId()) {
+	ast := NewCompilerInput(SourceFile_FromCode(synIdName, ""))
+	if _, conflict := c.inputsById[ast.GetInputId().GetIdName()]; conflict {
 		panic(jutil.NewIllegalStateExceptionMsg("Conflicting synthetic id name"))
 	}
 	c.jsRoot.AddChildToFront(rhino.CheckNotNull(ast.GetAstRoot(c)))
@@ -818,7 +815,7 @@ func (c *Compiler) InitializeSyntheticCodeInput() {
 	ast.SetChunk(firstChunk)
 	c.putCompilerInput(ast)
 
-	c.commentsPerFile.Put(compiler_SYNTHETIC_CODE_INPUT_ID.GetIdName(), []parser.Comment{})
+	c.commentsPerFile.Put(synIdName, []parser.Comment{})
 	c.ReportChangeToChangeScope(ast.GetAstRoot(c))
 }
 
@@ -838,10 +835,10 @@ func (c *Compiler) MergeSyntheticCodeInput() {
 //
 // Java: Compiler.removeSyntheticCodeInput(boolean)
 func (c *Compiler) removeSyntheticCodeInputMerging(mergeContentIntoFirstInput bool) {
+	input, hasSyn := c.inputsById[compiler_SYNTHETIC_CODE_INPUT_ID.GetIdName()]
 	jutil.CheckStateMsg(
-		c.inputsById.ContainsKey(compiler_SYNTHETIC_CODE_INPUT_ID),
+		hasSyn,
 		"Never initialized the synthetic input")
-	input := c.inputsById.Get(compiler_SYNTHETIC_CODE_INPUT_ID)
 	astRoot := input.GetAstRoot(c)
 	jutil.CheckState(astRoot.IsFirstChildOf(c.jsRoot))
 	jutil.CheckState(compiler_SYNTHETIC_CODE_INPUT_ID.Equals(input.GetInputId()))
@@ -864,7 +861,7 @@ func (c *Compiler) removeSyntheticCodeInputMerging(mergeContentIntoFirstInput bo
 	NodeUtil_MarkFunctionsDeleted(astRoot, c)
 
 	input.GetChunk().Remove(input)
-	c.inputsById.Remove(input.GetInputId())
+	delete(c.inputsById, input.GetInputId().GetIdName())
 }
 
 // Java: Compiler.getLastPassName()

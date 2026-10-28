@@ -19,6 +19,7 @@
 package jscomp
 
 import (
+	"github.com/paullepoulpe/jsgo/internal/ast"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
@@ -66,16 +67,15 @@ func NewCrossChunkMethodMotion(
 	idGenerator *IdGenerator,
 	canModifyExterns bool,
 	noStubFunctions bool) *CrossChunkMethodMotion {
-	m := &CrossChunkMethodMotion{}
-	m.compiler = compiler
-	m.idGenerator = idGenerator
-	m.chunkGraph = compiler.GetChunkGraph()
-	m.analyzer =
-		NewAnalyzePrototypeProperties(
-			compiler, m.chunkGraph, canModifyExterns /* anchorUnusedVars= */, false, noStubFunctions)
-	m.noStubFunctions = noStubFunctions
-	m.astFactory = compiler.CreateAstFactory()
-	return m
+	chunkGraph := compiler.GetChunkGraph()
+	return &CrossChunkMethodMotion{
+		compiler:        compiler,
+		idGenerator:     idGenerator,
+		chunkGraph:      chunkGraph,
+		analyzer:        NewAnalyzePrototypeProperties(compiler, chunkGraph, canModifyExterns /* anchorUnusedVars= */, false, noStubFunctions),
+		noStubFunctions: noStubFunctions,
+		astFactory:      compiler.CreateAstFactory(),
+	}
 }
 
 // Java: CrossChunkMethodMotion.process(Node, Node)
@@ -96,7 +96,7 @@ func (m *CrossChunkMethodMotion) MoveMethods(allNameInfo []*AnalyzePrototypeProp
 	for _, nameInfo := range allNameInfo {
 		if !nameInfo.IsReferenced() {
 			// The code below can't do anything with unreferenced name
-			// infos.  They should be skipped to avoid NPE since their
+			// infos. They should be skipped to avoid NPE since their
 			// deepestCommonChunkRef is null.
 			continue
 		}
@@ -111,15 +111,15 @@ func (m *CrossChunkMethodMotion) MoveMethods(allNameInfo []*AnalyzePrototypeProp
 			continue
 		}
 
-		// nameInfo.getDeclarations().descendingIterator()
 		declarations := nameInfo.GetDeclarations()
 		for i := len(declarations) - 1; i >= 0; i-- {
-			symbol := declarations[i]
-			if prototypeProperty, ok := symbol.(AnalyzePrototypeProperties_PrototypeProperty); ok {
-				m.TryToMovePrototypeMethod(nameInfo, deepestCommonChunkRef, prototypeProperty)
-			} else if classMemberFunction, ok := symbol.(*AnalyzePrototypeProperties_ClassMemberFunction); ok {
-				m.TryToMoveMemberFunction(nameInfo, deepestCommonChunkRef, classMemberFunction)
-			} // else it's a variable definition, and we don't move those.
+			switch declarations[i].Kind() {
+			case AnalyzePrototypeProperties_SymbolAssignmentProperty,
+				AnalyzePrototypeProperties_SymbolLiteralProperty:
+				m.tryToMovePrototypeMethod(nameInfo, deepestCommonChunkRef, declarations, i)
+			case AnalyzePrototypeProperties_SymbolClassMember:
+				m.tryToMoveMemberFunction(nameInfo, deepestCommonChunkRef, declarations, i)
+			}
 		}
 	}
 
@@ -134,8 +134,13 @@ func (m *CrossChunkMethodMotion) MoveMethods(allNameInfo []*AnalyzePrototypeProp
 }
 
 // Java: CrossChunkMethodMotion.tryToMovePrototypeMethod(NameInfo, JSChunk, PrototypeProperty)
-func (m *CrossChunkMethodMotion) TryToMovePrototypeMethod(
-	nameInfo *AnalyzePrototypeProperties_NameInfo, deepestCommonChunkRef *JSChunk, prop AnalyzePrototypeProperties_PrototypeProperty) {
+func (m *CrossChunkMethodMotion) tryToMovePrototypeMethod(
+	nameInfo *AnalyzePrototypeProperties_NameInfo,
+	deepestCommonChunkRef *JSChunk,
+	declarations []AnalyzePrototypeProperties_Symbol,
+	declIdx int,
+) {
+	prop := declarations[declIdx]
 
 	// We should only move a property across chunks if:
 	// 1) We can move it deeper in the chunk graph, and
@@ -176,7 +181,7 @@ func (m *CrossChunkMethodMotion) TryToMovePrototypeMethod(
 	}
 
 	if m.chunkGraph.DependsOn(deepestCommonChunkRef, prop.GetChunk()) {
-		if CrossChunkMethodMotion_HasUnmovableRedeclaration(nameInfo, prop) {
+		if hasUnmovableRedeclaration(declarations, declIdx) {
 			// If it has been redeclared on the same object, skip it.
 			return
 		}
@@ -188,7 +193,7 @@ func (m *CrossChunkMethodMotion) TryToMovePrototypeMethod(
 		} else {
 			// Note that computed properties should have been filtered out by
 			// AnalyzePrototypeProperties, because they don't have a recognizable property name.
-			// Getters and setters are filtered out by the code above
+			// Getters and setters are filtered out by the code above.
 			jutil.CheckStateMsg1(valueParent.IsAssign(), "%s", valueParent)
 			m.MovePrototypeDotMethodAssignment(destParent, value)
 		}
@@ -208,10 +213,9 @@ func (m *CrossChunkMethodMotion) MovePrototypeObjectLiteralProperty(
 	jutil.CheckStateMsg1(stringKey.IsStringKey(), "%s", stringKey)
 	prototypeObjectLiteral := stringKey.GetParent()
 	jutil.CheckStateMsg1(prototypeObjectLiteral.IsObjectLit(), "%s", prototypeObjectLiteral)
-	assignNode := prototypeObjectLiteral.GetParent()
-	jutil.CheckStateMsg1(
-		assignNode.IsAssign() && prototypeObjectLiteral.IsSecondChildOf(assignNode), "%s", assignNode)
-	ownerDotPrototypeNode := assignNode.GetFirstChild()
+	assign, ok := ast.AsAssign(prototypeObjectLiteral.GetParent())
+	jutil.CheckStateMsg1(ok && assign.Value().Is(prototypeObjectLiteral), "%s", prototypeObjectLiteral.GetParent())
+	ownerDotPrototypeNode := assign.Target().Node()
 	jutil.CheckStateMsg1(
 		ownerDotPrototypeNode.IsQualifiedName() &&
 			ownerDotPrototypeNode.GetString() == "prototype",
@@ -262,10 +266,11 @@ func (m *CrossChunkMethodMotion) MovePrototypeObjectLiteralProperty(
 // Java: CrossChunkMethodMotion.movePrototypeDotMethodAssignment(Node, Node)
 func (m *CrossChunkMethodMotion) MovePrototypeDotMethodAssignment(destParent rhino.Node, functionNode rhino.Node) {
 	jutil.CheckStateMsg1(functionNode.IsFunction(), "%s", functionNode)
-	assignNode := functionNode.GetParent()
-	jutil.CheckStateMsg1(assignNode.IsAssign() && functionNode.IsSecondChildOf(assignNode), "%s", assignNode)
-	definitionStatement := assignNode.GetParent()
-	jutil.CheckStateMsg1(definitionStatement.IsExprResult(), "%s", assignNode)
+	assign, ok := ast.AsAssign(functionNode.GetParent())
+	jutil.CheckStateMsg1(ok && assign.Value().Is(functionNode), "%s", functionNode.GetParent())
+	exprStmt, ok := ast.AsExprStmt(assign.Node().GetParent())
+	jutil.CheckStateMsg1(ok, "%s", assign.Node())
+	definitionStatement := exprStmt.Node()
 
 	if m.noStubFunctions {
 		// Remove the definition statement from its current location
@@ -280,17 +285,14 @@ func (m *CrossChunkMethodMotion) MovePrototypeDotMethodAssignment(destParent rhi
 	} else {
 		stubId := m.idGenerator.NewId()
 
-		// replace function definition with temporary placeholder so we can clone the whole
+		// Replace function definition with temporary placeholder so we can clone the whole
 		// assignment statement without cloning the function definition itself.
 		originalDefinitionPlaceholder := m.astFactory.CreateEmpty()
 		functionNode.ReplaceWith(originalDefinitionPlaceholder)
 		newDefinitionStatement := definitionStatement.CloneTree()
-		newDefinitionPlaceholder :=
-			newDefinitionStatement. // EXPR_RESULT
-						GetOnlyChild(). // ASSIGN
-						GetLastChild()  // EMPTY RHS node
+		newDefinitionPlaceholder := ast.MustExprStmt(newDefinitionStatement).Expr().MustAssign().Value().Node()
 
-		// convert original assignment statement to
+		// Convert original assignment statement to
 		// owner.prototype.propName = JSCompiler_stubMethod(0);
 		stubCall := m.CreateStubCall(functionNode, stubId)
 		originalDefinitionPlaceholder.ReplaceWith(stubCall)
@@ -318,10 +320,9 @@ func (m *CrossChunkMethodMotion) MovePrototypeObjectLiteralMethodShorthand(
 	jutil.CheckStateMsg1(memberFunctionDef.IsMemberFunctionDef(), "%s", memberFunctionDef)
 	prototypeObjectLiteral := memberFunctionDef.GetParent()
 	jutil.CheckStateMsg1(prototypeObjectLiteral.IsObjectLit(), "%s", prototypeObjectLiteral)
-	assignNode := prototypeObjectLiteral.GetParent()
-	jutil.CheckStateMsg1(
-		assignNode.IsAssign() && prototypeObjectLiteral.IsSecondChildOf(assignNode), "%s", assignNode)
-	ownerDotPrototypeNode := assignNode.GetFirstChild()
+	assign, ok := ast.AsAssign(prototypeObjectLiteral.GetParent())
+	jutil.CheckStateMsg1(ok && assign.Value().Is(prototypeObjectLiteral), "%s", prototypeObjectLiteral.GetParent())
+	ownerDotPrototypeNode := assign.Target().Node()
 	jutil.CheckStateMsg1(
 		ownerDotPrototypeNode.IsQualifiedName() &&
 			ownerDotPrototypeNode.GetString() == "prototype",
@@ -372,10 +373,6 @@ func (m *CrossChunkMethodMotion) MovePrototypeObjectLiteralMethodShorthand(
 // CreateStubCall returns a new Node to be used as the stub definition for a
 // method.
 //
-// originalDefinition is the function Node whose definition is being
-// stubbed; stubId the ID to use for stubbing and unstubbing. Returns a Node
-// that looks like JSCompiler_stubMethod(0).
-//
 // Java: CrossChunkMethodMotion.createStubCall(Node, int)
 func (m *CrossChunkMethodMotion) CreateStubCall(originalDefinition rhino.Node, stubId int) rhino.Node {
 	return m.astFactory.
@@ -388,12 +385,8 @@ func (m *CrossChunkMethodMotion) CreateStubCall(originalDefinition rhino.Node, s
 		SrcrefTreeIfMissing(originalDefinition)
 }
 
-// CreateUnstubCall returns a new Node to be used as the stub definition for
+// CreateUnstubCall returns a new Node to be used as the unstub definition for
 // a method.
-//
-// functionNode is the actual function definition to be attached. Must be
-// detached now. stubId is the ID to use for stubbing and unstubbing. Returns
-// a Node that looks like JSCompiler_unstubMethod(0, function() {}).
 //
 // Java: CrossChunkMethodMotion.createUnstubCall(Node, int)
 func (m *CrossChunkMethodMotion) CreateUnstubCall(functionNode rhino.Node, stubId int) rhino.Node {
@@ -408,22 +401,22 @@ func (m *CrossChunkMethodMotion) CreateUnstubCall(functionNode rhino.Node, stubI
 		SrcrefTreeIfMissing(functionNode)
 }
 
-// TryToMoveMemberFunction, if possible, moves a class instance member
+// tryToMoveMemberFunction, if possible, moves a class instance member
 // function definition to the deepest chunk common to all uses of the
 // method.
 //
-// nameInfo is information about all definitions of the given property name;
-// deepestCommonChunkRef: all uses of the method are either in this chunk or
-// in chunks that depend on it; classMemberFunction the definition of the
-// method within its class body.
-//
 // Java: CrossChunkMethodMotion.tryToMoveMemberFunction(NameInfo, JSChunk, ClassMemberFunction)
-func (m *CrossChunkMethodMotion) TryToMoveMemberFunction(
-	nameInfo *AnalyzePrototypeProperties_NameInfo, deepestCommonChunkRef *JSChunk, classMemberFunction *AnalyzePrototypeProperties_ClassMemberFunction) {
+func (m *CrossChunkMethodMotion) tryToMoveMemberFunction(
+	nameInfo *AnalyzePrototypeProperties_NameInfo,
+	deepestCommonChunkRef *JSChunk,
+	declarations []AnalyzePrototypeProperties_Symbol,
+	declIdx int,
+) {
+	classMemberFunction := declarations[declIdx]
 
 	// We should only move a property across chunks if:
 	// 1) We can move it deeper in the chunk graph,
-	// 2) and it's a normal member function, and not a GETTER_DEF or a SETTER_DEF, or
+	// 2) and it's a normal member function, and not a GETTER_DEF or a SETTER_DEF,
 	//    or the class constructor.
 	// 3) and it does not refer to `super`, which would be invalid outside of the class.
 	// 4) and the class is available in the global scope.
@@ -452,7 +445,7 @@ func (m *CrossChunkMethodMotion) TryToMoveMemberFunction(
 	}
 
 	if m.chunkGraph.DependsOn(deepestCommonChunkRef, classMemberFunction.GetChunk()) {
-		if CrossChunkMethodMotion_HasUnmovableRedeclaration(nameInfo, classMemberFunction) {
+		if hasUnmovableRedeclaration(declarations, declIdx) {
 			// If it has been redeclared on the same object, skip it.
 			return
 		}
@@ -470,25 +463,27 @@ func (m *CrossChunkMethodMotion) TryToMoveMemberFunction(
 // Java: CrossChunkMethodMotion.moveClassInstanceMethodWithoutStub(Node, Node, Node)
 func (m *CrossChunkMethodMotion) MoveClassInstanceMethodWithoutStub(
 	classNameNode rhino.Node, methodDefinition rhino.Node, destinationParent rhino.Node) {
-	jutil.CheckArgumentMsg1(methodDefinition.IsMemberFunctionDef(), "%s", methodDefinition)
-	classMembers := rhino.CheckNotNull(methodDefinition.GetParent())
-	jutil.CheckStateMsg1(classMembers.IsClassMembers(), "%s", classMembers)
-	classNode := classMembers.GetParent()
-	jutil.CheckStateMsg1(classNode.IsClass(), "%s", classNode)
+	methodDef, ok := ast.AsMemberFunctionDef(methodDefinition)
+	jutil.CheckArgumentMsg1(ok, "%s", methodDefinition)
+	classBody, ok := ast.AsClassBody(methodDefinition.GetParent())
+	jutil.CheckStateMsg1(ok, "%s", methodDefinition.GetParent())
+	classMembers := classBody.Node()
+	classView, ok := ast.AsClass(classMembers.GetParent())
+	jutil.CheckStateMsg1(ok, "%s", classMembers.GetParent())
+	classNode := classView.Node()
 	originalScript := NodeUtil_GetEnclosingScript(methodDefinition)
 
 	methodDefinition.Detach()
 	m.compiler.ReportChangeToEnclosingScope(classMembers)
 
 	// ClassName.prototype.propertyName = function() {};
-	functionNode := rhino.CheckNotNull(methodDefinition.GetOnlyChild())
+	functionNode := methodDef.Function().Detach().Node()
 	clonedNameNode := classNameNode.CloneNode().CopyTypeFrom(classNode)
 	classNameDotPrototypeDotPropName :=
 		m.astFactory.CreateGetProp(
 			m.astFactory.CreatePrototypeAccess(clonedNameNode),
-			methodDefinition.GetString(),
+			methodDef.Key(),
 			AstFactory_Type_(functionNode))
-	functionNode.Detach()
 	definitionStatementNode :=
 		m.astFactory.
 			CreateAssignStatement(classNameDotPrototypeDotPropName, functionNode).
@@ -502,11 +497,14 @@ func (m *CrossChunkMethodMotion) MoveClassInstanceMethodWithoutStub(
 // Java: CrossChunkMethodMotion.moveClassInstanceMethodWithStub(Node, Node, Node)
 func (m *CrossChunkMethodMotion) MoveClassInstanceMethodWithStub(
 	classNameNode rhino.Node, methodDefinition rhino.Node, destinationParent rhino.Node) {
-	jutil.CheckArgumentMsg1(methodDefinition.IsMemberFunctionDef(), "%s", methodDefinition)
-	classMembers := rhino.CheckNotNull(methodDefinition.GetParent())
-	jutil.CheckStateMsg1(classMembers.IsClassMembers(), "%s", classMembers)
-	classNode := classMembers.GetParent()
-	jutil.CheckStateMsg1(classNode.IsClass(), "%s", classNode)
+	methodDef, ok := ast.AsMemberFunctionDef(methodDefinition)
+	jutil.CheckArgumentMsg1(ok, "%s", methodDefinition)
+	classBody, ok := ast.AsClassBody(methodDefinition.GetParent())
+	jutil.CheckStateMsg1(ok, "%s", methodDefinition.GetParent())
+	classMembers := classBody.Node()
+	classView, ok := ast.AsClass(classMembers.GetParent())
+	jutil.CheckStateMsg1(ok, "%s", classMembers.GetParent())
+	classNode := classView.Node()
 
 	stubId := m.idGenerator.NewId()
 
@@ -516,7 +514,7 @@ func (m *CrossChunkMethodMotion) MoveClassInstanceMethodWithStub(
 	classNameDotPrototypeDotPropName :=
 		m.astFactory.CreateGetProp(
 			m.astFactory.CreatePrototypeAccess(clonedNameNode),
-			methodDefinition.GetString(),
+			methodDef.Key(),
 			AstFactory_Type_(methodDefinition))
 	stubCall := m.CreateStubCall(methodDefinition, stubId)
 	stubDefinitionStatement :=
@@ -528,7 +526,7 @@ func (m *CrossChunkMethodMotion) MoveClassInstanceMethodWithStub(
 
 	originalScript := NodeUtil_GetEnclosingScript(methodDefinition)
 
-	// remove the definition from the class
+	// Remove the definition from the class
 	methodDefinition.Detach()
 
 	m.compiler.ReportChangeToEnclosingScope(classMembers)
@@ -536,8 +534,7 @@ func (m *CrossChunkMethodMotion) MoveClassInstanceMethodWithStub(
 	// Prepend unstub definition to the new location.
 	// ClassName.prototype.propertyName = JSCompiler_unstubMethod(id, function(...) {...});
 	classNameDotPrototypeDotPropName2 := classNameDotPrototypeDotPropName.CloneTree()
-	functionNode := rhino.CheckNotNull(methodDefinition.GetOnlyChild())
-	functionNode.Detach()
+	functionNode := methodDef.Function().Detach().Node()
 	unstubCall := m.CreateUnstubCall(functionNode, stubId)
 	statementNode :=
 		m.astFactory.
@@ -549,18 +546,17 @@ func (m *CrossChunkMethodMotion) MoveClassInstanceMethodWithStub(
 	m.compiler.ReportChangeToEnclosingScope(destinationParent)
 }
 
-// Java: CrossChunkMethodMotion.hasUnmovableRedeclaration(NameInfo, Property)
-func CrossChunkMethodMotion_HasUnmovableRedeclaration(nameInfo *AnalyzePrototypeProperties_NameInfo, prop AnalyzePrototypeProperties_Property) bool {
-	for _, symbol := range nameInfo.GetDeclarations() {
-		if otherProp, ok := symbol.(AnalyzePrototypeProperties_Property); ok {
-			// It is possible to do better here if the dependencies are well defined
-			// but redefinitions are usually in optional chunks so it isn't likely
-			// worth the effort to check.
-			if prop != otherProp &&
-				prop.GetRootVar() == otherProp.GetRootVar() &&
-				prop.GetChunk() != otherProp.GetChunk() {
-				return true
-			}
+func hasUnmovableRedeclaration(declarations []AnalyzePrototypeProperties_Symbol, declIdx int) bool {
+	prop := declarations[declIdx]
+	for j, other := range declarations {
+		// It is possible to do better here if the dependencies are well defined
+		// but redefinitions are usually in optional chunks so it isn't likely
+		// worth the effort to check.
+		if j != declIdx &&
+			other.IsProperty() &&
+			prop.GetRootVar() == other.GetRootVar() &&
+			prop.GetChunk() != other.GetChunk() {
+			return true
 		}
 	}
 	return false

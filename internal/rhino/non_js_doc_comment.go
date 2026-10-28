@@ -42,28 +42,27 @@ import "github.com/paullepoulpe/jsgo/internal/parser"
 type NonJSDocComment struct {
 	startPosition     parser.LinePosition
 	endPosition       parser.LinePosition
-	contents          *string
+	contents          string
 	endsAsLineComment bool
 	isInline          bool
 }
 
 // Java: NonJSDocComment(SourcePosition, SourcePosition, String)
 func NewNonJSDocComment(start parser.LinePosition, end parser.LinePosition, s *string) *NonJSDocComment {
-	c := &NonJSDocComment{}
-	c.startPosition = start
-	c.endPosition = end
-	c.contents = s
-	c.endsAsLineComment = false
-	c.isInline = false
-	return c
+	var contents string
+	if s != nil {
+		contents = *s
+	}
+	return &NonJSDocComment{
+		startPosition: start,
+		endPosition:   end,
+		contents:      contents,
+	}
 }
 
 // Java: NonJSDocComment.getCommentString()
 func (c *NonJSDocComment) GetCommentString() string {
-	if c.contents == nil {
-		return ""
-	}
-	return *c.contents
+	return c.contents
 }
 
 // Java: NonJSDocComment.getStartPosition()

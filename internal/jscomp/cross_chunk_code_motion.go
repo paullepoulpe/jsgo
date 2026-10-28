@@ -21,6 +21,7 @@ package jscomp
 import (
 	"slices"
 
+	"github.com/paullepoulpe/jsgo/internal/ast"
 	"github.com/paullepoulpe/jsgo/internal/diagnostic"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
@@ -146,9 +147,9 @@ func (c *CrossChunkCodeMotion) AddInstanceofGuards(globalSymbols []*CrossChunkCo
 	for _, globalSymbol := range globalSymbols {
 		refs := globalSymbol.instanceofReferencesToGuard
 		for i := len(refs) - 1; i >= 0; i-- {
-			instanceofReference := refs[i]
-			if !globalSymbol.DeclarationsCoverChunk(instanceofReference.GetChunk()) {
-				c.AddGuardToInstanceofReference(instanceofReference.GetReference().GetNode())
+			ref := refs[i]
+			if !globalSymbol.DeclarationsCoverChunk(ref.targetChunk()) {
+				c.AddGuardToInstanceofReference(ref.node)
 			}
 		}
 	}
@@ -159,7 +160,7 @@ func (c *CrossChunkCodeMotion) AddInstanceofGuards(globalSymbols []*CrossChunkCo
 type CrossChunkCodeMotion_GlobalSymbolCollector struct {
 	outer *CrossChunkCodeMotion
 
-	globalSymbolforVar *jutil.ObjectLinkedHashMap[*Var, *CrossChunkCodeMotion_GlobalSymbol]
+	globalSymbolForVar map[*Var]*CrossChunkCodeMotion_GlobalSymbol
 	symbolsByVarIndex  []*CrossChunkCodeMotion_GlobalSymbol
 
 	// Returning the symbols in the reverse order in which they are defined
@@ -224,11 +225,9 @@ func (g *CrossChunkCodeMotion_GlobalSymbolCollector) processImmovableReferenceWi
 		if g.outer.IsGuardedInstanceofReference(n) || g.outer.IsUndefinedTypeofGuardReference(n) {
 			return
 		} else if g.outer.IsUnguardedInstanceofReference(n) {
-			instanceofReference :=
-				NewCrossChunkCodeMotion_ImmovableInstanceofReference(chunk, ref)
-
 			globalSymbol.instanceofReferencesToGuard = append(
-				globalSymbol.instanceofReferencesToGuard, instanceofReference)
+				globalSymbol.instanceofReferencesToGuard,
+				instanceofRef{node: n, chunk: chunk})
 			return
 		}
 	}
@@ -271,11 +270,9 @@ func (g *CrossChunkCodeMotion_GlobalSymbolCollector) ProcessDeclarationStatement
 			if g.outer.IsGuardedInstanceofReference(n) || g.outer.IsUndefinedTypeofGuardReference(n) {
 				continue
 			} else if g.outer.IsUnguardedInstanceofReference(n) {
-				instanceofReference :=
-					NewCrossChunkCodeMotion_MovableInstanceofReference(dsg, ref)
-
 				refSymbol.instanceofReferencesToGuard = append(
-					refSymbol.instanceofReferencesToGuard, instanceofReference)
+					refSymbol.instanceofReferencesToGuard,
+					instanceofRef{node: n, dsg: dsg, movable: true})
 				continue
 			}
 		}
@@ -313,16 +310,14 @@ func (g *CrossChunkCodeMotion_GlobalSymbolCollector) GetGlobalSymbol(var_ *Var) 
 			return globalSymbol
 		}
 	}
-	if g.globalSymbolforVar != nil {
-		if sym := g.globalSymbolforVar.Get(var_); sym != nil {
-			return sym
-		}
+	if sym := g.globalSymbolForVar[var_]; sym != nil {
+		return sym
 	}
 	globalSymbol := g.outer.allocGlobalSymbol(var_)
-	if g.globalSymbolforVar == nil {
-		g.globalSymbolforVar = jutil.NewObjectLinkedHashMap[*Var, *CrossChunkCodeMotion_GlobalSymbol]()
+	if g.globalSymbolForVar == nil {
+		g.globalSymbolForVar = make(map[*Var]*CrossChunkCodeMotion_GlobalSymbol)
 	}
-	g.globalSymbolforVar.Put(var_, globalSymbol)
+	g.globalSymbolForVar[var_] = globalSymbol
 	g.symbolStack = append(g.symbolStack, globalSymbol)
 	return globalSymbol
 }
@@ -367,7 +362,7 @@ type CrossChunkCodeMotion_GlobalSymbol struct {
 
 	// Instanceof references we may need to update with a guard after moving
 	// declarations (in push order; iterated latest-first).
-	instanceofReferencesToGuard []CrossChunkCodeMotion_InstanceofReference
+	instanceofReferencesToGuard []instanceofRef
 	// Used by OrderAndCombineGlobalSymbols to find reference cycles.
 	preorderNumber int
 	// Used by OrderAndCombineGlobalSymbols to find reference cycles.
@@ -981,58 +976,18 @@ func (y *CrossChunkCodeMotion_DeclarationStatementGroupCycle) AllStatementsCanMo
 	return true
 }
 
-// CrossChunkCodeMotion_InstanceofReference is the nested interface
-// InstanceofReference.
-type CrossChunkCodeMotion_InstanceofReference interface {
-	// Java: CrossChunkCodeMotion.InstanceofReference.getChunk()
-	GetChunk() *JSChunk
-
-	// Java: CrossChunkCodeMotion.InstanceofReference.getReference()
-	GetReference() *Reference
+type instanceofRef struct {
+	node    rhino.Node
+	chunk   *JSChunk
+	dsg     *CrossChunkCodeMotion_DeclarationStatementGroup
+	movable bool
 }
 
-// CrossChunkCodeMotion_ImmovableInstanceofReference is the nested class
-// ImmovableInstanceofReference.
-type CrossChunkCodeMotion_ImmovableInstanceofReference struct {
-	chunk     *JSChunk
-	reference *Reference
-}
-
-// Java: CrossChunkCodeMotion.ImmovableInstanceofReference(JSChunk, Reference)
-func NewCrossChunkCodeMotion_ImmovableInstanceofReference(chunk *JSChunk, reference *Reference) *CrossChunkCodeMotion_ImmovableInstanceofReference {
-	return &CrossChunkCodeMotion_ImmovableInstanceofReference{chunk: chunk, reference: reference}
-}
-
-// Java: CrossChunkCodeMotion.ImmovableInstanceofReference.getChunk()
-func (r *CrossChunkCodeMotion_ImmovableInstanceofReference) GetChunk() *JSChunk {
+func (r instanceofRef) targetChunk() *JSChunk {
+	if r.movable {
+		return r.dsg.currentChunk
+	}
 	return r.chunk
-}
-
-// Java: CrossChunkCodeMotion.ImmovableInstanceofReference.getReference()
-func (r *CrossChunkCodeMotion_ImmovableInstanceofReference) GetReference() *Reference {
-	return r.reference
-}
-
-// CrossChunkCodeMotion_MovableInstanceofReference is the nested class
-// MovableInstanceofReference.
-type CrossChunkCodeMotion_MovableInstanceofReference struct {
-	containingDsg *CrossChunkCodeMotion_DeclarationStatementGroup
-	reference     *Reference
-}
-
-// Java: CrossChunkCodeMotion.MovableInstanceofReference(DeclarationStatementGroup, Reference)
-func NewCrossChunkCodeMotion_MovableInstanceofReference(containingDsg *CrossChunkCodeMotion_DeclarationStatementGroup, reference *Reference) *CrossChunkCodeMotion_MovableInstanceofReference {
-	return &CrossChunkCodeMotion_MovableInstanceofReference{containingDsg: containingDsg, reference: reference}
-}
-
-// Java: CrossChunkCodeMotion.MovableInstanceofReference.getChunk()
-func (r *CrossChunkCodeMotion_MovableInstanceofReference) GetChunk() *JSChunk {
-	return r.containingDsg.currentChunk
-}
-
-// Java: CrossChunkCodeMotion.MovableInstanceofReference.getReference()
-func (r *CrossChunkCodeMotion_MovableInstanceofReference) GetReference() *Reference {
-	return r.reference
 }
 
 // IsUndefinedTypeofGuardReference: is the reference node the first Ref in
@@ -1046,13 +1001,11 @@ func (c *CrossChunkCodeMotion) IsUndefinedTypeofGuardReference(reference rhino.N
 	// reference => typeof => `!=`
 	maybeTypeofGuard := reference.GetGrandparent()
 	if !maybeTypeofGuard.IsNil() && c.IsExistenceTypeofGuardFor(maybeTypeofGuard, reference) {
-		andNode := maybeTypeofGuard.GetParent()
-		return !andNode.IsNil() &&
-			andNode.IsAnd() &&
-			c.IsInstanceofFor(andNode.GetLastChild(), reference)
-	} else {
-		return false
+		if andBin, ok := ast.AsBinaryOf(maybeTypeofGuard.GetParent(), rhino.Token_AND); ok {
+			return c.IsInstanceofFor(andBin.Right().Node(), reference)
+		}
 	}
+	return false
 }
 
 // IsExistenceTypeofGuardFor: is the expression of the form 'undefined' !=
@@ -1063,23 +1016,25 @@ func (c *CrossChunkCodeMotion) IsUndefinedTypeofGuardReference(reference rhino.N
 //
 // Java: CrossChunkCodeMotion.isExistenceTypeofGuardFor(Node, Node)
 func (c *CrossChunkCodeMotion) IsExistenceTypeofGuardFor(expression rhino.Node, reference rhino.Node) bool {
-	if expression.IsNE() || expression.IsSHNE() {
-		undefinedString := expression.GetFirstChild()
-		typeofNode := expression.GetLastChild()
-		return undefinedString.IsStringLit() &&
-			undefinedString.GetString() == "undefined" &&
-			typeofNode.IsTypeOf() &&
-			typeofNode.GetFirstChild().IsEquivalentTo(reference)
-	} else if expression.IsEQ() || expression.IsSHEQ() {
-		functionString := expression.GetFirstChild()
-		typeofNode := expression.GetLastChild()
-		return functionString.IsStringLit() &&
-			functionString.GetString() == "function" &&
-			typeofNode.IsTypeOf() &&
-			typeofNode.GetFirstChild().IsEquivalentTo(reference)
-	} else {
+	bin, ok := ast.AsBinary(expression)
+	if !ok {
 		return false
 	}
+	var expected string
+	switch bin.Token() {
+	case rhino.Token_NE, rhino.Token_SHNE:
+		expected = "undefined"
+	case rhino.Token_EQ, rhino.Token_SHEQ:
+		expected = "function"
+	default:
+		return false
+	}
+	strLit, ok := bin.Left().AsStringLit()
+	if !ok || strLit.Value() != expected {
+		return false
+	}
+	typeofOp, ok := ast.AsUnaryOf(bin.Right().Node(), rhino.Token_TYPEOF)
+	return ok && typeofOp.Operand().Node().IsEquivalentTo(reference)
 }
 
 // IsGuardedInstanceofReference: is the reference node the second Ref in an
@@ -1092,13 +1047,11 @@ func (c *CrossChunkCodeMotion) IsExistenceTypeofGuardFor(expression rhino.Node, 
 func (c *CrossChunkCodeMotion) IsGuardedInstanceofReference(reference rhino.Node) bool {
 	instanceofNode := reference.GetParent()
 	if c.IsInstanceofFor(instanceofNode, reference) {
-		andNode := instanceofNode.GetParent()
-		return !andNode.IsNil() &&
-			andNode.IsAnd() &&
-			c.IsExistenceTypeofGuardFor(andNode.GetFirstChild(), reference)
-	} else {
-		return false
+		if andBin, ok := ast.AsBinaryOf(instanceofNode.GetParent(), rhino.Token_AND); ok {
+			return c.IsExistenceTypeofGuardFor(andBin.Left().Node(), reference)
+		}
 	}
+	return false
 }
 
 // IsUnguardedInstanceofReference: is the reference the right hand side of
@@ -1106,15 +1059,14 @@ func (c *CrossChunkCodeMotion) IsGuardedInstanceofReference(reference rhino.Node
 //
 // Java: CrossChunkCodeMotion.isUnguardedInstanceofReference(Node)
 func (c *CrossChunkCodeMotion) IsUnguardedInstanceofReference(reference rhino.Node) bool {
-	instanceofNode := reference.GetParent()
-	if c.IsInstanceofFor(instanceofNode, reference) {
-		if c.compiler.GetAstAnalyzer().MayHaveSideEffects(instanceofNode.GetFirstChild()) {
-			return false
-		}
-		return !c.IsGuardedInstanceofReference(reference)
-	} else {
+	instanceofBin, ok := ast.AsBinaryOf(reference.GetParent(), rhino.Token_INSTANCEOF)
+	if !ok || !instanceofBin.Right().Node().IsEquivalentTo(reference) {
 		return false
 	}
+	if c.compiler.GetAstAnalyzer().MayHaveSideEffects(instanceofBin.Left().Node()) {
+		return false
+	}
+	return !c.IsGuardedInstanceofReference(reference)
 }
 
 // IsInstanceofFor: is the expression of the form x instanceof Ref?
@@ -1123,5 +1075,6 @@ func (c *CrossChunkCodeMotion) IsUnguardedInstanceofReference(reference rhino.No
 //
 // Java: CrossChunkCodeMotion.isInstanceofFor(Node, Node)
 func (c *CrossChunkCodeMotion) IsInstanceofFor(expression rhino.Node, reference rhino.Node) bool {
-	return expression.IsInstanceOf() && expression.GetLastChild().IsEquivalentTo(reference)
+	bin, ok := ast.AsBinaryOf(expression, rhino.Token_INSTANCEOF)
+	return ok && bin.Right().Node().IsEquivalentTo(reference)
 }

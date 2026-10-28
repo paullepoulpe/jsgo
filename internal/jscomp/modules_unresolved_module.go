@@ -97,8 +97,6 @@ type UnresolvedModule interface {
 
 	// Java: UnresolvedModule.hashCode()
 	HashCode() int32
-
-	GetUnresolvedModuleBase() *UnresolvedModuleBase
 }
 
 // UnresolvedModuleBase holds the base implementations of UnresolvedModule;
@@ -112,9 +110,6 @@ type UnresolvedModuleBase struct {
 func (m *UnresolvedModuleBase) InitUnresolvedModuleBase(self UnresolvedModule) {
 	m.self = self
 }
-
-// GetUnresolvedModuleBase gives access to the base fields.
-func (m *UnresolvedModuleBase) GetUnresolvedModuleBase() *UnresolvedModuleBase { return m }
 
 // Java: UnresolvedModule.resolve(ModuleRequestResolver)
 func (m *UnresolvedModuleBase) Resolve(moduleRequestResolver ModuleRequestResolver) *Module {

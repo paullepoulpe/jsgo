@@ -18,6 +18,8 @@
 
 package bundle
 
+import "github.com/paullepoulpe/jsgo/internal/jutil"
+
 // Transpiler is a source transformer for lowering JS language versions. May
 // also include a runtime that needs to be shipped with the final bundle.
 //
@@ -26,35 +28,26 @@ package bundle
 // Java: class bundle.Transpiler extends CompilerBasedTransformer
 type Transpiler struct {
 	CompilerBasedTransformerBase
-
-	runtimeLibraryName string
 }
+
+var _ CompilerBasedTransformer = (*Transpiler)(nil)
 
 // Java: Transpiler(CompilerBasedTransformer.CompilerSupplier, String)
 func NewTranspiler(compilerSupplier CompilerBasedTransformer_CompilerSupplier,
 	runtimeLibraryName string) *Transpiler {
-	t := &Transpiler{}
-	t.InitCompilerBasedTransformerBase(t, compilerSupplier)
-	t.runtimeLibraryName = runtimeLibraryName
-	return t
+	return &Transpiler{
+		CompilerBasedTransformerBase: CompilerBasedTransformerBase{
+			compilerSupplier:   jutil.CheckNotNull(compilerSupplier),
+			transformationName: "Transpilation",
+			runtimeLibraryName: runtimeLibraryName,
+			hasRuntime:         true,
+		},
+	}
 }
 
 // Java: Transpiler.compilerSupplier()
 func Transpiler_CompilerSupplier() CompilerBasedTransformer_CompilerSupplier {
 	return NewCompilerBasedTransformer_CompilerSupplier()
-}
-
-// GetRuntime returns Optional.of(runtimeLibraryName).
-//
-// Java: Transpiler.getRuntime()
-func (t *Transpiler) GetRuntime() *string {
-	s := t.runtimeLibraryName
-	return &s
-}
-
-// Java: Transpiler.getTranformationName()
-func (t *Transpiler) GetTranformationName() string {
-	return "Transpilation"
 }
 
 // Java: Transpiler.ES5_TRANSPILER

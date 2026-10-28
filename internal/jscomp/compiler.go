@@ -96,9 +96,8 @@ type Compiler struct {
 	// in compilation.
 	allowableFeatures *parser.FeatureSet
 
-	// Go-only: language-adapter — a ConcurrentHashMap keyed by InputId
-	// (value equality); never iterated.
-	inputsById *jutil.JavaHashMap[*rhino.InputId, *CompilerInput]
+	// Keyed by InputId.GetIdName() (InputId equality is id-name string equality).
+	inputsById map[string]*CompilerInput
 
 	scriptNodeByFilename *jutil.LinkedHashMap[string, rhino.Node]
 
@@ -388,7 +387,7 @@ func (*compiler_allForwardDeclared) IsEmpty() bool {
 // initFields runs the Java field initializers, in declaration order.
 func (c *Compiler) initFields() {
 	c.externs = nil
-	c.inputsById = jutil.NewJavaHashMap[*rhino.InputId, *CompilerInput]()
+	c.inputsById = make(map[string]*CompilerInput)
 	c.scriptNodeByFilename = jutil.NewLinkedHashMap[string, rhino.Node]()
 	c.sourceMapOriginalSources = jutil.NewLinkedHashMap[string, *SourceFile]()
 	c.inputSourceMaps = jutil.NewJavaHashMap[string, *SourceMapInput]()
@@ -1139,7 +1138,7 @@ var Compiler_DUPLICATE_EXTERN_INPUT = DiagnosticType_Error("JSC_DUPLICATE_EXTERN
 //
 // Java: Compiler.initInputsByIdMap()
 func (c *Compiler) InitInputsByIdMap() {
-	c.inputsById.Clear()
+	clear(c.inputsById)
 	for _, input := range c.externs {
 		previous := c.putCompilerInput(input)
 		if previous != nil {
@@ -1671,7 +1670,7 @@ func (c *Compiler) GetInput(id *rhino.InputId) *CompilerInput {
 	if id == nil {
 		return nil
 	}
-	return c.inputsById.Get(id)
+	return c.inputsById[id.GetIdName()]
 }
 
 // PutCompilerInput registers input by its InputId on c.
@@ -1683,7 +1682,10 @@ func (c *Compiler) PutCompilerInput(input *CompilerInput) *CompilerInput {
 
 func (c *Compiler) putCompilerInput(input *CompilerInput) *CompilerInput {
 	input.SetCompiler(c)
-	return c.inputsById.Put(input.GetInputId(), input)
+	idName := input.GetInputId().GetIdName()
+	prev := c.inputsById[idName]
+	c.inputsById[idName] = input
+	return prev
 }
 
 // GetChunkGraph gets the graph of JS source chunks.

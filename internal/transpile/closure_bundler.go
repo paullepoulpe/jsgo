@@ -212,12 +212,11 @@ func (b *ClosureBundler) GetSourceMap(path string) string {
 
 // Java: ClosureBundler.transpile(String, Transpiler)
 func (b *ClosureBundler) transpileWithTranspiler(s string, t Transpiler) string {
-	var result *TranspileResult
-	jutil.Try(func() {
-		result = t.Transpile(jutil.NewURI(b.path), s)
-	}, func(e jutil.IURISyntaxException) {
-		panic(jutil.NewRuntimeExceptionWithCause(e))
-	})
+	uri, err := tryParseURI(b.path)
+	if err != nil {
+		panic(jutil.NewRuntimeExceptionWithCause(err))
+	}
+	result := t.Transpile(uri, s)
 	b.sourceMapCache.mu.Lock()
 	b.sourceMapCache.m[b.path] = result.SourceMap()
 	b.sourceMapCache.mu.Unlock()

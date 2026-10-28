@@ -18,7 +18,7 @@
 
 package transpile
 
-import "github.com/paullepoulpe/jsgo/internal/jutil"
+import "github.com/paullepoulpe/jsgo/internal/bundle"
 
 // TranspilerBuilder is the basic Transpiler implementation for outputting
 // ES5 code.
@@ -41,10 +41,10 @@ var transpilerBuilder_TO_ES5 = NewTranspilerBuilder(
 
 // Java: TranspilerBuilder(Transpiler)
 func NewTranspilerBuilder(transpiler Transpiler) *TranspilerBuilder {
-	b := &TranspilerBuilder{}
-	b.transpiler = transpiler
-	return b
+	return &TranspilerBuilder{transpiler: transpiler}
 }
+
+const transpilerBuilder_DEFAULT_MAX_SIZE = 10000
 
 // Caching returns a TranspilerBuilder with cached transpilations, using the
 // default cache settings (maximum size of 10,000). Note that the builder
@@ -52,7 +52,7 @@ func NewTranspilerBuilder(transpiler Transpiler) *TranspilerBuilder {
 //
 // Java: TranspilerBuilder.caching()
 func (b *TranspilerBuilder) Caching() *TranspilerBuilder {
-	return b.CachingWithSpec(transpilerBuilder_DEFAULT_CACHE_SPEC)
+	return NewTranspilerBuilder(NewCachingTranspiler(b.transpiler, transpilerBuilder_DEFAULT_MAX_SIZE))
 }
 
 // CachingWithSpec returns a TranspilerBuilder with cached transpilations,
@@ -60,19 +60,8 @@ func (b *TranspilerBuilder) Caching() *TranspilerBuilder {
 //
 // Java: TranspilerBuilder.caching(String)
 func (b *TranspilerBuilder) CachingWithSpec(spec string) *TranspilerBuilder {
-	return b.CachingWithBuilder(jutil.CacheBuilder_From(spec))
+	return NewTranspilerBuilder(NewCachingTranspiler(b.transpiler, bundle.ParseCacheMaxSize(spec)))
 }
-
-// CachingWithBuilder returns a TranspilerBuilder with cached transpilations,
-// using the given cache builder. Note that the builder itself is not
-// changed.
-//
-// Java: TranspilerBuilder.caching(CacheBuilder<Object, ? super TranspileResult>)
-func (b *TranspilerBuilder) CachingWithBuilder(builder *jutil.CacheBuilder) *TranspilerBuilder {
-	return NewTranspilerBuilder(NewCachingTranspiler(b.transpiler, builder))
-}
-
-const transpilerBuilder_DEFAULT_CACHE_SPEC = "maximumSize=10000"
 
 // Build returns the built Transpiler.
 //

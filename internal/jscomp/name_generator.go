@@ -19,8 +19,48 @@
 package jscomp
 
 import (
+	"iter"
+
 	"github.com/paullepoulpe/jsgo/internal/jutil"
+	"github.com/paullepoulpe/jsgo/internal/rhino"
+	"github.com/paullepoulpe/jsgo/internal/strpool"
 )
+
+// stringMapSet adapts a plain Go map[string]struct{} to jutil.Set[string]
+// without LinkedHashSet entry/order slice overhead.
+type stringMapSet map[string]struct{}
+
+func (s stringMapSet) Size() int             { return len(s) }
+func (s stringMapSet) IsEmpty() bool         { return len(s) == 0 }
+func (s stringMapSet) Contains(e string) bool { _, ok := s[e]; return ok }
+func (s stringMapSet) All() iter.Seq[string] {
+	return func(yield func(string) bool) {
+		// order-independent: unordered set view used only for membership snapshots
+		for k := range s {
+			if !yield(k) {
+				return
+			}
+		}
+	}
+}
+
+// setNodeStringID updates a StringNode's payload to pre-interned id without
+// re-interning, while preserving SourceInformationAnnotator's lazy OriginalName
+// spill when kindFlagOrigNameIsString is set.
+func setNodeStringID(n rhino.Node, id strpool.ID) {
+	if id == 0 {
+		panic(jutil.NewNullPointerException())
+	}
+	curID := n.GetStringID()
+	if curID == uint32(id) {
+		return
+	}
+	if n.GetOriginalNameID() == curID {
+		n.SetString(strpool.String(id))
+		return
+	}
+	n.SetStringID(id)
+}
 
 // NameGenerator is a class that generates unique JavaScript
 // variable/property names.

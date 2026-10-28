@@ -429,16 +429,6 @@ func (f *FunctionTypeBuilder) InferKind(info *rhino.JSDocInfo) *FunctionTypeBuil
 	return f
 }
 
-func jsDocTemplateTypes(info *rhino.JSDocInfo) *jutil.LinkedHashMap[string, *rhino.JSTypeExpression] {
-	if info == nil {
-		return nil
-	}
-	if m, ok := rhino.JSDocInfo_TEMPLATE_TYPE_NAMES.Get(info).(*jutil.LinkedHashMap[string, *rhino.JSTypeExpression]); ok {
-		return m
-	}
-	return nil
-}
-
 func jsDocTypeTransformations(info *rhino.JSDocInfo) *jutil.LinkedHashMap[string, rhino.Node] {
 	if info == nil {
 		return nil
@@ -457,11 +447,7 @@ func (f *FunctionTypeBuilder) MaybeUseNativeClassTemplateNames(info *rhino.JSDoc
 	if f.fnName == "" {
 		return false
 	}
-	infoTemplateTypes := jsDocTemplateTypes(info)
-	var infoTemplateCount int
-	if infoTemplateTypes != nil {
-		infoTemplateCount = infoTemplateTypes.Size()
-	}
+	infoTemplateCount := len(info.GetTemplateTypeEntries())
 	if infoTemplateCount == 0 && len(f.templateTypeNames) == 0 && jsDocTypeTransformations(info) == nil {
 		return false
 	}
@@ -870,9 +856,9 @@ func (f *FunctionTypeBuilder) IsVarArgsParameterByConvention(param rhino.Node) b
 
 // Java: FunctionTypeBuilder.buildTemplateTypesFromJSDocInfo(JSDocInfo, boolean)
 func (f *FunctionTypeBuilder) BuildTemplateTypesFromJSDocInfo(info *rhino.JSDocInfo, allowTypeTransformations bool) []*rhino.TemplateType {
-	infoTypeKeys := jsDocTemplateTypes(info)
+	infoTypeKeys := info.GetTemplateTypeEntries()
 	infoTypeTransformations := jsDocTypeTransformations(info)
-	hasKeys := infoTypeKeys != nil && !infoTypeKeys.IsEmpty()
+	hasKeys := len(infoTypeKeys) > 0
 	hasTransformations := infoTypeTransformations != nil && !infoTypeTransformations.IsEmpty()
 	if !hasKeys && !hasTransformations {
 		return emptyTemplateTypeSlice
@@ -881,9 +867,9 @@ func (f *FunctionTypeBuilder) BuildTemplateTypesFromJSDocInfo(info *rhino.JSDocI
 	// Temporarily bootstrap the template environment with unbound (unknown bound) template types
 	var unboundedTemplates []*rhino.TemplateType
 	if hasKeys {
-		unboundedTemplates = make([]*rhino.TemplateType, 0, infoTypeKeys.Size())
-		for templateKey := range infoTypeKeys.Keys() {
-			unboundedTemplates = append(unboundedTemplates, f.typeRegistry.CreateTemplateType(templateKey))
+		unboundedTemplates = make([]*rhino.TemplateType, 0, len(infoTypeKeys))
+		for _, entry := range infoTypeKeys {
+			unboundedTemplates = append(unboundedTemplates, f.typeRegistry.CreateTemplateType(entry.Name))
 		}
 	}
 	f.templateScope = f.typeRegistry.CreateScopeWithTemplates(f.templateScope, unboundedTemplates)
@@ -892,7 +878,8 @@ func (f *FunctionTypeBuilder) BuildTemplateTypesFromJSDocInfo(info *rhino.JSDocI
 	templates := []*rhino.TemplateType{}
 	if hasKeys {
 		templatesToBounds := jutil.NewLinkedHashMap[*rhino.TemplateType, rhino.JSType]()
-		for key, expr := range infoTypeKeys.All() {
+		for _, entry := range infoTypeKeys {
+			key, expr := entry.Name, entry.Type
 			typeBound := f.typeRegistry.EvaluateTypeExpression(expr, f.templateScope)
 			// It's an error to mark a template bound explicitly {?}. Unbounded templates have an implicit
 			// unknown bound. Allowing explicit unknowns would make it more difficult to stricten their

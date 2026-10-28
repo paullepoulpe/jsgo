@@ -322,7 +322,7 @@ func (l *ModuleLoader) CreateRootPaths(roots []string) []string {
 //
 // Java: ModuleLoader.resolvePaths(Iterable<? extends DependencyInfo>)
 func (l *ModuleLoader) ResolvePaths(inputs []DependencyInfo) *jutil.LinkedHashSet[string] {
-	var paths []string
+	paths := make([]string, 0, len(inputs))
 	for _, input := range inputs {
 		p := l.pathEscaper.Escape(l.pathResolver.Apply(input.GetName()))
 		n := ModuleLoader_Normalize(p, l.moduleRootPaths)
@@ -332,14 +332,17 @@ func (l *ModuleLoader) ResolvePaths(inputs []DependencyInfo) *jutil.LinkedHashSe
 		paths = append(paths, n)
 	}
 	slices.SortStableFunc(paths, moduleLoader_BEST_MATCH_PATH_ORDERING) // Sort so that this errors are easier to read.
-	dupeModulePaths := jutil.ImmutableMultiset_Of(paths...)
-
-	jutil.CheckStateMsg1(
-		dupeModulePaths.Size() == dupeModulePaths.ElementSet().Size(),
-		"Duplicate module paths after resolving: %s",
-		dupeModulePaths)
-
-	return dupeModulePaths.ElementSet()
+	out := jutil.NewLinkedHashSetWithCapacity[string](len(paths))
+	for _, p := range paths {
+		if !out.Add(p) {
+			var dupeModulePaths StringCounts
+			for _, p2 := range paths {
+				dupeModulePaths.Add(p2)
+			}
+			jutil.CheckStateMsg1(false, "Duplicate module paths after resolving: %s", &dupeModulePaths)
+		}
+	}
+	return out
 }
 
 // ModuleLoader_Normalize normalizes the name and resolves it against the

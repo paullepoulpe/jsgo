@@ -20,9 +20,253 @@
 package jscomp
 
 import (
+	"iter"
+	"slices"
+	"strconv"
+	"strings"
+
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
+
+// StringCountEntry pairs a distinct string with its occurrence count.
+type StringCountEntry struct {
+	Key   string
+	Count int
+}
+
+const stringCountsMapThreshold = 8
+
+// StringCounts is a compact, insertion-ordered string multiset whose zero
+// value is empty and allocates zero heap memory until an element is added.
+type StringCounts struct {
+	entries []StringCountEntry
+	index   map[string]int
+	size    int
+}
+
+// Add records one occurrence of s, preserving first-seen element order.
+func (sc *StringCounts) Add(s string) *StringCounts {
+	if sc.index != nil {
+		if idx, ok := sc.index[s]; ok {
+			sc.entries[idx].Count++
+			sc.size++
+			return sc
+		}
+		sc.index[s] = len(sc.entries)
+		sc.entries = append(sc.entries, StringCountEntry{Key: s, Count: 1})
+		sc.size++
+		return sc
+	}
+	for i := range sc.entries {
+		if sc.entries[i].Key == s {
+			sc.entries[i].Count++
+			sc.size++
+			return sc
+		}
+	}
+	if len(sc.entries) >= stringCountsMapThreshold {
+		sc.index = make(map[string]int, len(sc.entries)+4)
+		for i, e := range sc.entries {
+			sc.index[e.Key] = i
+		}
+		sc.index[s] = len(sc.entries)
+	}
+	sc.entries = append(sc.entries, StringCountEntry{Key: s, Count: 1})
+	sc.size++
+	return sc
+}
+
+// AddAll adds all elements yielded by es.
+func (sc *StringCounts) AddAll(es iter.Seq[string]) *StringCounts {
+	for s := range es {
+		sc.Add(s)
+	}
+	return sc
+}
+
+// Size returns the total number of occurrences across all distinct elements.
+func (sc *StringCounts) Size() int {
+	if sc == nil {
+		return 0
+	}
+	return sc.size
+}
+
+// DistinctCount returns the number of distinct elements.
+func (sc *StringCounts) DistinctCount() int {
+	if sc == nil {
+		return 0
+	}
+	return len(sc.entries)
+}
+
+// IsEmpty reports whether the multiset has no elements.
+func (sc *StringCounts) IsEmpty() bool {
+	return sc == nil || sc.size == 0
+}
+
+// Count returns the multiplicity of s (0 if absent).
+func (sc *StringCounts) Count(s string) int {
+	if sc == nil || len(sc.entries) == 0 {
+		return 0
+	}
+	if sc.index != nil {
+		if idx, ok := sc.index[s]; ok {
+			return sc.entries[idx].Count
+		}
+		return 0
+	}
+	for _, e := range sc.entries {
+		if e.Key == s {
+			return e.Count
+		}
+	}
+	return 0
+}
+
+// Contains reports whether s occurs at least once.
+func (sc *StringCounts) Contains(s string) bool {
+	return sc.Count(s) > 0
+}
+
+// All yields each element Count times in first-seen element order.
+func (sc *StringCounts) All() iter.Seq[string] {
+	return func(yield func(string) bool) {
+		if sc == nil {
+			return
+		}
+		for _, e := range sc.entries {
+			for range e.Count {
+				if !yield(e.Key) {
+					return
+				}
+			}
+		}
+	}
+}
+
+// Entries returns the underlying (Key, Count) slice in first-seen order.
+func (sc *StringCounts) Entries() []StringCountEntry {
+	if sc == nil {
+		return nil
+	}
+	return sc.entries
+}
+
+// ToSlice materializes all occurrences (with multiplicity) into a slice.
+func (sc *StringCounts) ToSlice() []string {
+	if sc == nil || sc.size == 0 {
+		return []string{}
+	}
+	out := make([]string, 0, sc.size)
+	for _, e := range sc.entries {
+		for range e.Count {
+			out = append(out, e.Key)
+		}
+	}
+	return out
+}
+
+// ElementSet returns a zero-allocation view over the distinct keys in first-seen order.
+func (sc *StringCounts) ElementSet() StringCountsElements {
+	return StringCountsElements{sc: sc}
+}
+
+// String renders in Guava AbstractMultiset.toString() format: "[a, b x 2]".
+func (sc *StringCounts) String() string {
+	if sc == nil || len(sc.entries) == 0 {
+		return "[]"
+	}
+	var sb strings.Builder
+	sb.WriteByte('[')
+	for i, e := range sc.entries {
+		if i > 0 {
+			sb.WriteString(", ")
+		}
+		sb.WriteString(e.Key)
+		if e.Count > 1 {
+			sb.WriteString(" x ")
+			sb.WriteString(strconv.Itoa(e.Count))
+		}
+	}
+	sb.WriteByte(']')
+	return sb.String()
+}
+
+func (sc *StringCounts) clone() StringCounts {
+	if len(sc.entries) == 0 {
+		return StringCounts{}
+	}
+	cp := StringCounts{
+		entries: slices.Clone(sc.entries),
+		size:    sc.size,
+	}
+	if sc.index != nil {
+		cp.index = make(map[string]int, len(sc.entries))
+		for i, e := range cp.entries {
+			cp.index[e.Key] = i
+		}
+	}
+	return cp
+}
+
+// StringCountsElements is a zero-allocation view over the distinct strings in a StringCounts.
+type StringCountsElements struct {
+	sc *StringCounts
+}
+
+// Size returns the number of distinct elements.
+func (e StringCountsElements) Size() int { return e.sc.DistinctCount() }
+
+// IsEmpty reports whether there are no distinct elements.
+func (e StringCountsElements) IsEmpty() bool { return e.sc.IsEmpty() }
+
+// Contains reports whether s is present.
+func (e StringCountsElements) Contains(s string) bool { return e.sc.Contains(s) }
+
+// All yields each distinct element once in first-seen order.
+func (e StringCountsElements) All() iter.Seq[string] {
+	return func(yield func(string) bool) {
+		if e.sc == nil {
+			return
+		}
+		for _, entry := range e.sc.entries {
+			if !yield(entry.Key) {
+				return
+			}
+		}
+	}
+}
+
+// ToSlice returns the distinct elements as a slice in first-seen order.
+func (e StringCountsElements) ToSlice() []string {
+	if e.sc == nil || len(e.sc.entries) == 0 {
+		return nil
+	}
+	out := make([]string, len(e.sc.entries))
+	for i, entry := range e.sc.entries {
+		out[i] = entry.Key
+	}
+	return out
+}
+
+// String renders like AbstractCollection.toString(): "[a, b]".
+func (e StringCountsElements) String() string {
+	if e.sc == nil || len(e.sc.entries) == 0 {
+		return "[]"
+	}
+	var sb strings.Builder
+	sb.WriteByte('[')
+	for i, entry := range e.sc.entries {
+		if i > 0 {
+			sb.WriteString(", ")
+		}
+		sb.WriteString(entry.Key)
+	}
+	sb.WriteByte(']')
+	return sb.String()
+}
 
 // ModuleMetadataMap contains metadata around modules (or scripts) that is
 // useful for checking imports / requires.
@@ -99,7 +343,8 @@ func NewModuleMetadataMap(
 		modulesByPath:          moduleMetadataMap_immutableMapCopyOf(modulesByPath),
 		modulesByGoogNamespace: moduleMetadataMap_immutableMapCopyOf(modulesByGoogNamespace),
 	}
-	m.moduleMetadata = jutil.NewLinkedHashSet[*ModuleMetadataMap_ModuleMetadata]()
+	m.moduleMetadata = jutil.NewLinkedHashSetWithCapacity[*ModuleMetadataMap_ModuleMetadata](
+		modulesByPath.Size() + modulesByGoogNamespace.Size())
 	for v := range modulesByPath.Values() {
 		m.moduleMetadata.Add(jutil.CheckNotNull(v))
 	}
@@ -113,7 +358,7 @@ func NewModuleMetadataMap(
 // rejects null values.
 func moduleMetadataMap_immutableMapCopyOf(
 	m *jutil.LinkedHashMap[string, *ModuleMetadataMap_ModuleMetadata]) *jutil.LinkedHashMap[string, *ModuleMetadataMap_ModuleMetadata] {
-	out := jutil.NewLinkedHashMap[string, *ModuleMetadataMap_ModuleMetadata]()
+	out := jutil.NewLinkedHashMapWithCapacity[string, *ModuleMetadataMap_ModuleMetadata](m.Size())
 	for k, v := range m.All() {
 		out.Put(k, jutil.CheckNotNull(v))
 	}
@@ -128,20 +373,21 @@ func moduleMetadataMap_immutableMapCopyOf(
 // Object's), so the Go pointer identity is its equality.
 //
 // Go-only: language-adapter — the AutoValue-generated
-// AutoValue_ModuleMetadataMap_ModuleMetadata is folded into this struct.
+// AutoValue_ModuleMetadataMap_ModuleMetadata is folded into this struct,
+// and the seven string multisets are inline zero-alloc StringCounts values.
 type ModuleMetadataMap_ModuleMetadata struct {
 	moduleType                        ModuleMetadataMap_ModuleType
 	rootNode                          rhino.Node
 	usesClosure                       bool
 	isTestOnly                        bool
-	googNamespaces                    *jutil.ImmutableMultiset[string]
-	stronglyRequiredGoogNamespaces    *jutil.ImmutableMultiset[string]
-	dynamicallyRequiredGoogNamespaces *jutil.ImmutableMultiset[string]
-	maybeRequiredGoogNamespaces       *jutil.ImmutableMultiset[string]
-	weaklyRequiredGoogNamespaces      *jutil.ImmutableMultiset[string]
-	es6ImportSpecifiers               *jutil.ImmutableMultiset[string]
+	googNamespaces                    StringCounts
+	stronglyRequiredGoogNamespaces    StringCounts
+	dynamicallyRequiredGoogNamespaces StringCounts
+	maybeRequiredGoogNamespaces       StringCounts
+	weaklyRequiredGoogNamespaces      StringCounts
+	es6ImportSpecifiers               StringCounts
 	nestedModules                     []*ModuleMetadataMap_ModuleMetadata
-	readToggles                       *jutil.ImmutableMultiset[string]
+	readToggles                       StringCounts
 	path                              *ModuleLoader_ModulePath
 }
 
@@ -242,8 +488,8 @@ func (m *ModuleMetadataMap_ModuleMetadata) IsTestOnly() bool {
 // still encapsulate that information with this multiset.
 //
 // Java: ModuleMetadataMap.ModuleMetadata.googNamespaces()
-func (m *ModuleMetadataMap_ModuleMetadata) GoogNamespaces() *jutil.ImmutableMultiset[string] {
-	return m.googNamespaces
+func (m *ModuleMetadataMap_ModuleMetadata) GoogNamespaces() *StringCounts {
+	return &m.googNamespaces
 }
 
 // StronglyRequiredGoogNamespaces are the Closure namespaces this file
@@ -253,8 +499,8 @@ func (m *ModuleMetadataMap_ModuleMetadata) GoogNamespaces() *jutil.ImmutableMult
 // still encapsulate that information with this multiset.
 //
 // Java: ModuleMetadataMap.ModuleMetadata.stronglyRequiredGoogNamespaces()
-func (m *ModuleMetadataMap_ModuleMetadata) StronglyRequiredGoogNamespaces() *jutil.ImmutableMultiset[string] {
-	return m.stronglyRequiredGoogNamespaces
+func (m *ModuleMetadataMap_ModuleMetadata) StronglyRequiredGoogNamespaces() *StringCounts {
+	return &m.stronglyRequiredGoogNamespaces
 }
 
 // DynamicallyRequiredGoogNamespaces are the Closure namespaces this file
@@ -264,8 +510,8 @@ func (m *ModuleMetadataMap_ModuleMetadata) StronglyRequiredGoogNamespaces() *jut
 // still encapsulate that information with this multiset.
 //
 // Java: ModuleMetadataMap.ModuleMetadata.dynamicallyRequiredGoogNamespaces()
-func (m *ModuleMetadataMap_ModuleMetadata) DynamicallyRequiredGoogNamespaces() *jutil.ImmutableMultiset[string] {
-	return m.dynamicallyRequiredGoogNamespaces
+func (m *ModuleMetadataMap_ModuleMetadata) DynamicallyRequiredGoogNamespaces() *StringCounts {
+	return &m.dynamicallyRequiredGoogNamespaces
 }
 
 // MaybeRequiredGoogNamespaces are the Closure namespaces this file "maybe"
@@ -276,8 +522,8 @@ func (m *ModuleMetadataMap_ModuleMetadata) DynamicallyRequiredGoogNamespaces() *
 // still encapsulate that information with this multiset.
 //
 // Java: ModuleMetadataMap.ModuleMetadata.maybeRequiredGoogNamespaces()
-func (m *ModuleMetadataMap_ModuleMetadata) MaybeRequiredGoogNamespaces() *jutil.ImmutableMultiset[string] {
-	return m.maybeRequiredGoogNamespaces
+func (m *ModuleMetadataMap_ModuleMetadata) MaybeRequiredGoogNamespaces() *StringCounts {
+	return &m.maybeRequiredGoogNamespaces
 }
 
 // WeaklyRequiredGoogNamespaces are the Closure namespaces this file weakly
@@ -287,16 +533,16 @@ func (m *ModuleMetadataMap_ModuleMetadata) MaybeRequiredGoogNamespaces() *jutil.
 // still encapsulate that information with this multiset.
 //
 // Java: ModuleMetadataMap.ModuleMetadata.weaklyRequiredGoogNamespaces()
-func (m *ModuleMetadataMap_ModuleMetadata) WeaklyRequiredGoogNamespaces() *jutil.ImmutableMultiset[string] {
-	return m.weaklyRequiredGoogNamespaces
+func (m *ModuleMetadataMap_ModuleMetadata) WeaklyRequiredGoogNamespaces() *StringCounts {
+	return &m.weaklyRequiredGoogNamespaces
 }
 
 // Es6ImportSpecifiers is the raw text of all ES6 import specifiers
 // (includes "export from" as well).
 //
 // Java: ModuleMetadataMap.ModuleMetadata.es6ImportSpecifiers()
-func (m *ModuleMetadataMap_ModuleMetadata) Es6ImportSpecifiers() *jutil.ImmutableMultiset[string] {
-	return m.es6ImportSpecifiers
+func (m *ModuleMetadataMap_ModuleMetadata) Es6ImportSpecifiers() *StringCounts {
+	return &m.es6ImportSpecifiers
 }
 
 // Java: ModuleMetadataMap.ModuleMetadata.nestedModules()
@@ -311,8 +557,8 @@ func (m *ModuleMetadataMap_ModuleMetadata) NestedModules() []*ModuleMetadataMap_
 // still encapsulate that information with this multiset.
 //
 // Java: ModuleMetadataMap.ModuleMetadata.readToggles()
-func (m *ModuleMetadataMap_ModuleMetadata) ReadToggles() *jutil.ImmutableMultiset[string] {
-	return m.readToggles
+func (m *ModuleMetadataMap_ModuleMetadata) ReadToggles() *StringCounts {
+	return &m.readToggles
 }
 
 // Path may return nil.
@@ -339,7 +585,7 @@ func (m *ModuleMetadataMap_ModuleMetadata) Equals(other any) bool {
 //
 // Java: ModuleMetadataMap.ModuleMetadata.hashCode()
 func (m *ModuleMetadataMap_ModuleMetadata) HashCode() int32 {
-	return jutil.IdentityHashCode(m)
+	return jutil.IdentityHashCodeOfPointer(m)
 }
 
 // Java: AutoValue_ModuleMetadataMap_ModuleMetadata.toString()
@@ -355,8 +601,8 @@ func (m *ModuleMetadataMap_ModuleMetadata) String() string {
 	return "ModuleMetadata{" +
 		"moduleType=" + m.moduleType.String() + ", " +
 		"rootNode=" + rootNode + ", " +
-		"usesClosure=" + jutil.ToJavaString(m.usesClosure) + ", " +
-		"isTestOnly=" + jutil.ToJavaString(m.isTestOnly) + ", " +
+		"usesClosure=" + strconv.FormatBool(m.usesClosure) + ", " +
+		"isTestOnly=" + strconv.FormatBool(m.isTestOnly) + ", " +
 		"googNamespaces=" + m.googNamespaces.String() + ", " +
 		"stronglyRequiredGoogNamespaces=" + m.stronglyRequiredGoogNamespaces.String() + ", " +
 		"dynamicallyRequiredGoogNamespaces=" + m.dynamicallyRequiredGoogNamespaces.String() + ", " +
@@ -372,38 +618,19 @@ func (m *ModuleMetadataMap_ModuleMetadata) String() string {
 // ModuleMetadataMap_ModuleMetadata_Builder is the builder for
 // ModuleMetadata (AutoValue_ModuleMetadataMap_ModuleMetadata.Builder).
 type ModuleMetadataMap_ModuleMetadata_Builder struct {
-	moduleType                                ModuleMetadataMap_ModuleType
-	rootNode                                  rhino.Node
-	usesClosure                               bool
-	isTestOnly                                bool
-	googNamespacesBuilder_                    *jutil.ImmutableMultiset_Builder[string]
-	googNamespaces                            *jutil.ImmutableMultiset[string]
-	stronglyRequiredGoogNamespacesBuilder_    *jutil.ImmutableMultiset_Builder[string]
-	stronglyRequiredGoogNamespaces            *jutil.ImmutableMultiset[string]
-	dynamicallyRequiredGoogNamespacesBuilder_ *jutil.ImmutableMultiset_Builder[string]
-	dynamicallyRequiredGoogNamespaces         *jutil.ImmutableMultiset[string]
-	maybeRequiredGoogNamespacesBuilder_       *jutil.ImmutableMultiset_Builder[string]
-	maybeRequiredGoogNamespaces               *jutil.ImmutableMultiset[string]
-	weaklyRequiredGoogNamespacesBuilder_      *jutil.ImmutableMultiset_Builder[string]
-	weaklyRequiredGoogNamespaces              *jutil.ImmutableMultiset[string]
-	es6ImportSpecifiersBuilder_               *jutil.ImmutableMultiset_Builder[string]
-	es6ImportSpecifiers                       *jutil.ImmutableMultiset[string]
-	nestedModulesBuf                          []*ModuleMetadataMap_ModuleMetadata
-	nestedModules                             []*ModuleMetadataMap_ModuleMetadata
-	readTogglesBuilder_                       *jutil.ImmutableMultiset_Builder[string]
-	readToggles                               *jutil.ImmutableMultiset[string]
-	path                                      *ModuleLoader_ModulePath
+	m     ModuleMetadataMap_ModuleMetadata
+	built bool
 }
 
 // Java: ModuleMetadataMap.ModuleMetadata.Builder.addGoogNamespace(String)
 func (b *ModuleMetadataMap_ModuleMetadata_Builder) AddGoogNamespace(namespace string) *ModuleMetadataMap_ModuleMetadata_Builder {
-	b.GoogNamespacesBuilder().Add(namespace)
+	b.m.googNamespaces.Add(namespace)
 	return b
 }
 
 // Java: AutoValue_ModuleMetadataMap_ModuleMetadata.Builder.moduleType(ModuleType)
 func (b *ModuleMetadataMap_ModuleMetadata_Builder) ModuleType(moduleType ModuleMetadataMap_ModuleType) *ModuleMetadataMap_ModuleMetadata_Builder {
-	b.moduleType = moduleType
+	b.m.moduleType = moduleType
 	return b
 }
 
@@ -411,160 +638,98 @@ func (b *ModuleMetadataMap_ModuleMetadata_Builder) ModuleType(moduleType ModuleM
 //
 // Java: AutoValue_ModuleMetadataMap_ModuleMetadata.Builder.moduleType()
 func (b *ModuleMetadataMap_ModuleMetadata_Builder) GetModuleType() ModuleMetadataMap_ModuleType {
-	return b.moduleType
+	return b.m.moduleType
 }
 
 // RootNode takes a possibly-nil root.
 //
 // Java: AutoValue_ModuleMetadataMap_ModuleMetadata.Builder.rootNode(Node)
 func (b *ModuleMetadataMap_ModuleMetadata_Builder) RootNode(rootNode rhino.Node) *ModuleMetadataMap_ModuleMetadata_Builder {
-	b.rootNode = rootNode
+	b.m.rootNode = rootNode
 	return b
 }
 
 // Java: AutoValue_ModuleMetadataMap_ModuleMetadata.Builder.usesClosure(boolean)
 func (b *ModuleMetadataMap_ModuleMetadata_Builder) UsesClosure(usesClosure bool) *ModuleMetadataMap_ModuleMetadata_Builder {
-	b.usesClosure = usesClosure
+	b.m.usesClosure = usesClosure
 	return b
 }
 
 // Java: AutoValue_ModuleMetadataMap_ModuleMetadata.Builder.isTestOnly(boolean)
 func (b *ModuleMetadataMap_ModuleMetadata_Builder) IsTestOnly(isTestOnly bool) *ModuleMetadataMap_ModuleMetadata_Builder {
-	b.isTestOnly = isTestOnly
+	b.m.isTestOnly = isTestOnly
 	return b
 }
 
 // Java: AutoValue_ModuleMetadataMap_ModuleMetadata.Builder.googNamespacesBuilder()
-func (b *ModuleMetadataMap_ModuleMetadata_Builder) GoogNamespacesBuilder() *jutil.ImmutableMultiset_Builder[string] {
-	if b.googNamespacesBuilder_ == nil {
-		b.googNamespacesBuilder_ = jutil.NewImmutableMultiset_Builder[string]()
-	}
-	return b.googNamespacesBuilder_
+func (b *ModuleMetadataMap_ModuleMetadata_Builder) GoogNamespacesBuilder() *StringCounts {
+	return &b.m.googNamespaces
 }
 
 // HasGoogNamespace reports whether namespace has been added to googNamespacesBuilder.
 func (b *ModuleMetadataMap_ModuleMetadata_Builder) HasGoogNamespace(namespace string) bool {
-	return b.googNamespacesBuilder_ != nil && b.googNamespacesBuilder_.Contains(namespace)
+	return b.m.googNamespaces.Contains(namespace)
 }
 
 // Java: AutoValue_ModuleMetadataMap_ModuleMetadata.Builder.stronglyRequiredGoogNamespacesBuilder()
-func (b *ModuleMetadataMap_ModuleMetadata_Builder) StronglyRequiredGoogNamespacesBuilder() *jutil.ImmutableMultiset_Builder[string] {
-	if b.stronglyRequiredGoogNamespacesBuilder_ == nil {
-		b.stronglyRequiredGoogNamespacesBuilder_ = jutil.NewImmutableMultiset_Builder[string]()
-	}
-	return b.stronglyRequiredGoogNamespacesBuilder_
+func (b *ModuleMetadataMap_ModuleMetadata_Builder) StronglyRequiredGoogNamespacesBuilder() *StringCounts {
+	return &b.m.stronglyRequiredGoogNamespaces
 }
 
 // Java: AutoValue_ModuleMetadataMap_ModuleMetadata.Builder.dynamicallyRequiredGoogNamespacesBuilder()
-func (b *ModuleMetadataMap_ModuleMetadata_Builder) DynamicallyRequiredGoogNamespacesBuilder() *jutil.ImmutableMultiset_Builder[string] {
-	if b.dynamicallyRequiredGoogNamespacesBuilder_ == nil {
-		b.dynamicallyRequiredGoogNamespacesBuilder_ = jutil.NewImmutableMultiset_Builder[string]()
-	}
-	return b.dynamicallyRequiredGoogNamespacesBuilder_
+func (b *ModuleMetadataMap_ModuleMetadata_Builder) DynamicallyRequiredGoogNamespacesBuilder() *StringCounts {
+	return &b.m.dynamicallyRequiredGoogNamespaces
 }
 
 // Java: AutoValue_ModuleMetadataMap_ModuleMetadata.Builder.maybeRequiredGoogNamespacesBuilder()
-func (b *ModuleMetadataMap_ModuleMetadata_Builder) MaybeRequiredGoogNamespacesBuilder() *jutil.ImmutableMultiset_Builder[string] {
-	if b.maybeRequiredGoogNamespacesBuilder_ == nil {
-		b.maybeRequiredGoogNamespacesBuilder_ = jutil.NewImmutableMultiset_Builder[string]()
-	}
-	return b.maybeRequiredGoogNamespacesBuilder_
+func (b *ModuleMetadataMap_ModuleMetadata_Builder) MaybeRequiredGoogNamespacesBuilder() *StringCounts {
+	return &b.m.maybeRequiredGoogNamespaces
 }
 
 // Java: AutoValue_ModuleMetadataMap_ModuleMetadata.Builder.weaklyRequiredGoogNamespacesBuilder()
-func (b *ModuleMetadataMap_ModuleMetadata_Builder) WeaklyRequiredGoogNamespacesBuilder() *jutil.ImmutableMultiset_Builder[string] {
-	if b.weaklyRequiredGoogNamespacesBuilder_ == nil {
-		b.weaklyRequiredGoogNamespacesBuilder_ = jutil.NewImmutableMultiset_Builder[string]()
-	}
-	return b.weaklyRequiredGoogNamespacesBuilder_
+func (b *ModuleMetadataMap_ModuleMetadata_Builder) WeaklyRequiredGoogNamespacesBuilder() *StringCounts {
+	return &b.m.weaklyRequiredGoogNamespaces
 }
 
 // Java: AutoValue_ModuleMetadataMap_ModuleMetadata.Builder.es6ImportSpecifiersBuilder()
-func (b *ModuleMetadataMap_ModuleMetadata_Builder) Es6ImportSpecifiersBuilder() *jutil.ImmutableMultiset_Builder[string] {
-	if b.es6ImportSpecifiersBuilder_ == nil {
-		b.es6ImportSpecifiersBuilder_ = jutil.NewImmutableMultiset_Builder[string]()
-	}
-	return b.es6ImportSpecifiersBuilder_
+func (b *ModuleMetadataMap_ModuleMetadata_Builder) Es6ImportSpecifiersBuilder() *StringCounts {
+	return &b.m.es6ImportSpecifiers
 }
 
 // AddNestedModule appends module to the nestedModules builder list.
 func (b *ModuleMetadataMap_ModuleMetadata_Builder) AddNestedModule(module *ModuleMetadataMap_ModuleMetadata) {
-	b.nestedModulesBuf = append(b.nestedModulesBuf, jutil.CheckNotNull(module))
+	b.m.nestedModules = append(b.m.nestedModules, jutil.CheckNotNull(module))
 }
 
 // Java: AutoValue_ModuleMetadataMap_ModuleMetadata.Builder.readTogglesBuilder()
-func (b *ModuleMetadataMap_ModuleMetadata_Builder) ReadTogglesBuilder() *jutil.ImmutableMultiset_Builder[string] {
-	if b.readTogglesBuilder_ == nil {
-		b.readTogglesBuilder_ = jutil.NewImmutableMultiset_Builder[string]()
-	}
-	return b.readTogglesBuilder_
+func (b *ModuleMetadataMap_ModuleMetadata_Builder) ReadTogglesBuilder() *StringCounts {
+	return &b.m.readToggles
 }
 
 // Path takes a possibly-nil path.
 //
 // Java: AutoValue_ModuleMetadataMap_ModuleMetadata.Builder.path(ModulePath)
 func (b *ModuleMetadataMap_ModuleMetadata_Builder) Path(path *ModuleLoader_ModulePath) *ModuleMetadataMap_ModuleMetadata_Builder {
-	b.path = path
+	b.m.path = path
 	return b
 }
 
 // Java: AutoValue_ModuleMetadataMap_ModuleMetadata.Builder.build()
 func (b *ModuleMetadataMap_ModuleMetadata_Builder) Build() *ModuleMetadataMap_ModuleMetadata {
-	if b.googNamespacesBuilder_ != nil {
-		b.googNamespaces = b.googNamespacesBuilder_.Build()
-	} else if b.googNamespaces == nil {
-		b.googNamespaces = jutil.ImmutableMultiset_Of[string]()
+	if !b.built {
+		b.built = true
+		return &b.m
 	}
-	if b.stronglyRequiredGoogNamespacesBuilder_ != nil {
-		b.stronglyRequiredGoogNamespaces = b.stronglyRequiredGoogNamespacesBuilder_.Build()
-	} else if b.stronglyRequiredGoogNamespaces == nil {
-		b.stronglyRequiredGoogNamespaces = jutil.ImmutableMultiset_Of[string]()
-	}
-	if b.dynamicallyRequiredGoogNamespacesBuilder_ != nil {
-		b.dynamicallyRequiredGoogNamespaces = b.dynamicallyRequiredGoogNamespacesBuilder_.Build()
-	} else if b.dynamicallyRequiredGoogNamespaces == nil {
-		b.dynamicallyRequiredGoogNamespaces = jutil.ImmutableMultiset_Of[string]()
-	}
-	if b.maybeRequiredGoogNamespacesBuilder_ != nil {
-		b.maybeRequiredGoogNamespaces = b.maybeRequiredGoogNamespacesBuilder_.Build()
-	} else if b.maybeRequiredGoogNamespaces == nil {
-		b.maybeRequiredGoogNamespaces = jutil.ImmutableMultiset_Of[string]()
-	}
-	if b.weaklyRequiredGoogNamespacesBuilder_ != nil {
-		b.weaklyRequiredGoogNamespaces = b.weaklyRequiredGoogNamespacesBuilder_.Build()
-	} else if b.weaklyRequiredGoogNamespaces == nil {
-		b.weaklyRequiredGoogNamespaces = jutil.ImmutableMultiset_Of[string]()
-	}
-	if b.es6ImportSpecifiersBuilder_ != nil {
-		b.es6ImportSpecifiers = b.es6ImportSpecifiersBuilder_.Build()
-	} else if b.es6ImportSpecifiers == nil {
-		b.es6ImportSpecifiers = jutil.ImmutableMultiset_Of[string]()
-	}
-	if b.nestedModulesBuf != nil {
-		b.nestedModules = append([]*ModuleMetadataMap_ModuleMetadata{}, b.nestedModulesBuf...)
-	} else if b.nestedModules == nil {
-		b.nestedModules = []*ModuleMetadataMap_ModuleMetadata{}
-	}
-	if b.readTogglesBuilder_ != nil {
-		b.readToggles = b.readTogglesBuilder_.Build()
-	} else if b.readToggles == nil {
-		b.readToggles = jutil.ImmutableMultiset_Of[string]()
-	}
-	return &ModuleMetadataMap_ModuleMetadata{
-		moduleType:                        b.moduleType,
-		rootNode:                          b.rootNode,
-		usesClosure:                       b.usesClosure,
-		isTestOnly:                        b.isTestOnly,
-		googNamespaces:                    b.googNamespaces,
-		stronglyRequiredGoogNamespaces:    b.stronglyRequiredGoogNamespaces,
-		dynamicallyRequiredGoogNamespaces: b.dynamicallyRequiredGoogNamespaces,
-		maybeRequiredGoogNamespaces:       b.maybeRequiredGoogNamespaces,
-		weaklyRequiredGoogNamespaces:      b.weaklyRequiredGoogNamespaces,
-		es6ImportSpecifiers:               b.es6ImportSpecifiers,
-		nestedModules:                     b.nestedModules,
-		readToggles:                       b.readToggles,
-		path:                              b.path,
-	}
+	cp := b.m
+	cp.googNamespaces = b.m.googNamespaces.clone()
+	cp.stronglyRequiredGoogNamespaces = b.m.stronglyRequiredGoogNamespaces.clone()
+	cp.dynamicallyRequiredGoogNamespaces = b.m.dynamicallyRequiredGoogNamespaces.clone()
+	cp.maybeRequiredGoogNamespaces = b.m.maybeRequiredGoogNamespaces.clone()
+	cp.weaklyRequiredGoogNamespaces = b.m.weaklyRequiredGoogNamespaces.clone()
+	cp.es6ImportSpecifiers = b.m.es6ImportSpecifiers.clone()
+	cp.nestedModules = slices.Clone(b.m.nestedModules)
+	cp.readToggles = b.m.readToggles.clone()
+	return &cp
 }
 
 // GetModulesByPath returns the map from module path to module. These

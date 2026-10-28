@@ -80,9 +80,9 @@ func (p *JSDocInfoPrinter) Print(info *rhino.JSDocInfo) string {
 		parts = append(parts, "@"+jutil.StringToLowerCaseASCII(info.GetVisibility().String()))
 	}
 
-	if info.GetAuthors() != nil {
+	if authors := info.GetAuthors(); authors != nil {
 		multiline = true
-		for _, name := range info.GetAuthors() {
+		for _, name := range authors {
 			parts = append(parts, "@author "+name)
 		}
 	}
@@ -103,15 +103,14 @@ func (p *JSDocInfoPrinter) Print(info *rhino.JSDocInfo) string {
 		parts = append(parts, "@final")
 	}
 
-	description := info.GetDescription()
-	if description != nil {
+	if description, ok := info.GetDescriptionString(); ok {
 		multiline = true
-		parts = append(parts, "@desc "+*description)
+		parts = append(parts, "@desc "+description)
 	}
 
-	if info.GetReferences() != nil {
+	if refs := info.GetReferences(); refs != nil {
 		multiline = true
-		for _, desc := range info.GetReferences() {
+		for _, desc := range refs {
 			parts = append(parts, "@see "+desc)
 		}
 	}
@@ -226,30 +225,29 @@ func (p *JSDocInfoPrinter) Print(info *rhino.JSDocInfo) string {
 
 	if info.HasReturnType() {
 		multiline = true
+		retDesc, hasRetDesc := info.GetReturnDescriptionString()
 		parts = append(parts,
-			p.BuildAnnotationWithTypeAndDescription("return", info.GetReturnType(), info.GetReturnDescription()))
+			p.buildAnnotationWithTypeNodeAndDescStr("return", info.GetReturnType().GetRoot(), retDesc, hasRetDesc))
 	}
 
-	if len(info.GetThrowsAnnotations()) != 0 && info.GetThrowsAnnotations()[0] != "" {
+	if throws := info.GetThrowsAnnotations(); len(throws) != 0 && throws[0] != "" {
 		multiline = true
-		parts = append(parts, "@throws "+info.GetThrowsAnnotations()[0])
+		parts = append(parts, "@throws "+throws[0])
 	}
 
-	templates := info.GetTemplateTypes()
-	if !templates.IsEmpty() {
+	for _, entry := range info.GetTemplateTypeEntries() {
+		name, boundExpr := entry.Name, entry.Type
 		multiline = true
-		for name, boundExpr := range templates.All() {
-			boundRoot := boundExpr.GetRoot()
-			if boundRoot.GetToken() == rhino.Token_QMARK && !boundRoot.HasChildren() {
-				// If the bound of the expression is `?` (as it is after
-				// parsing an unbounded template) don't specify a bound.
-				// TODO(b/140187077): This case becomes redundant when fixed.
-				// It also only covers explicit `?` bounds, typedefs will
-				// remain explicit.
-				parts = append(parts, "@template "+name)
-			} else {
-				parts = append(parts, p.BuildAnnotationWithTypeAndDescription("template", boundExpr, &name))
-			}
+		boundRoot := boundExpr.GetRoot()
+		if boundRoot.GetToken() == rhino.Token_QMARK && !boundRoot.HasChildren() {
+			// If the bound of the expression is `?` (as it is after
+			// parsing an unbounded template) don't specify a bound.
+			// TODO(b/140187077): This case becomes redundant when fixed.
+			// It also only covers explicit `?` bounds, typedefs will
+			// remain explicit.
+			parts = append(parts, "@template "+name)
+		} else {
+			parts = append(parts, p.buildAnnotationWithTypeNodeAndDescStr("template", boundRoot, name, true))
 		}
 	}
 
@@ -295,11 +293,9 @@ func (p *JSDocInfoPrinter) Print(info *rhino.JSDocInfo) string {
 	}
 
 	suppressions := info.GetSuppressionsAndTheirDescription()
-	if !suppressions.IsEmpty() {
-		// With ImmutableMap, the iteration order will be same as insertion
-		// order (i.e. parse order).
-		for key, text := range suppressions.All() {
-			warnings := key.ToSlice()
+	if len(suppressions) != 0 {
+		for _, sup := range suppressions {
+			warnings := slices.Clone(sup.Warnings)
 			// Even the warnings inside a suppress annotation are printed in
 			// natural order for consistency
 			slices.SortStableFunc(warnings, jutil.StringCompareTo)
@@ -307,9 +303,9 @@ func (p *JSDocInfoPrinter) Print(info *rhino.JSDocInfo) string {
 			sb.WriteString("@suppress {")
 			sb.WriteString(strings.Join(warnings, ","))
 			sb.WriteString("}")
-			if text != "" {
+			if sup.Description != "" {
 				sb.WriteString(" ")
-				sb.WriteString(text)
+				sb.WriteString(sup.Description)
 			}
 			parts = append(parts, sb.String())
 		}
@@ -317,9 +313,8 @@ func (p *JSDocInfoPrinter) Print(info *rhino.JSDocInfo) string {
 	}
 
 	if info.IsDeprecated() {
-		deprecationReason := info.GetDeprecationReason()
-		if deprecationReason != nil {
-			parts = append(parts, "@deprecated "+*deprecationReason)
+		if deprecationReason, ok := info.GetDeprecationReasonString(); ok {
+			parts = append(parts, "@deprecated "+deprecationReason)
 		} else {
 			parts = append(parts, "@deprecated")
 		}
@@ -347,8 +342,8 @@ func (p *JSDocInfoPrinter) Print(info *rhino.JSDocInfo) string {
 		parts = append(parts, "@customElement")
 	}
 
-	if info.GetClosurePrimitiveId() != nil {
-		parts = append(parts, "@closurePrimitive {"+*info.GetClosurePrimitiveId()+"}")
+	if id, ok := info.GetClosurePrimitiveIdString(); ok {
+		parts = append(parts, "@closurePrimitive {"+id+"}")
 	}
 
 	if info.IsNgInject() {
@@ -359,17 +354,19 @@ func (p *JSDocInfoPrinter) Print(info *rhino.JSDocInfo) string {
 		parts = append(parts, "@tsType "+tsType)
 	}
 
-	if p.printDesc && info.GetBlockDescription() != nil {
-		cleaned := jsDocInfoPrinter_BLOCK_DESCRIPTION_LINE_START.ReplaceAllLiteralString(*info.GetBlockDescription(), "\n")
-		if cleaned != "" {
-			multiline = true
-			cleaned = jutil.StringTrim(cleaned)
-			if len(parts) > 1 {
-				// If there is more than one part - the opening "/**" - then
-				// add blank line between the description and everything else.
-				cleaned += "\n"
+	if p.printDesc {
+		if blockDesc, ok := info.GetBlockDescriptionString(); ok {
+			cleaned := jsDocInfoPrinter_BLOCK_DESCRIPTION_LINE_START.ReplaceAllLiteralString(blockDesc, "\n")
+			if cleaned != "" {
+				multiline = true
+				cleaned = jutil.StringTrim(cleaned)
+				if len(parts) > 1 {
+					// If there is more than one part - the opening "/**" - then
+					// add blank line between the description and everything else.
+					cleaned += "\n"
+				}
+				parts = slices.Insert(parts, 1, cleaned)
 			}
-			parts = slices.Insert(parts, 1, cleaned)
 		}
 	}
 
@@ -419,15 +416,23 @@ func (p *JSDocInfoPrinter) BuildAnnotationWithTypeNode(annotation string, type_ 
 // Java: JSDocInfoPrinter.buildAnnotationWithType(String, Node, String)
 func (p *JSDocInfoPrinter) BuildAnnotationWithTypeNodeAndDescription(
 	annotation string, type_ rhino.Node, description *string) string {
+	if description == nil {
+		return p.buildAnnotationWithTypeNodeAndDescStr(annotation, type_, "", false)
+	}
+	return p.buildAnnotationWithTypeNodeAndDescStr(annotation, type_, *description, true)
+}
+
+func (p *JSDocInfoPrinter) buildAnnotationWithTypeNodeAndDescStr(
+	annotation string, type_ rhino.Node, description string, hasDesc bool) string {
 	var sb strings.Builder
 	sb.WriteString("@")
 	sb.WriteString(annotation)
 	sb.WriteString(" {")
 	p.AppendTypeNode(&sb, type_)
 	sb.WriteString("}")
-	if description != nil {
+	if hasDesc {
 		sb.WriteString(" ")
-		sb.WriteString(*description)
+		sb.WriteString(description)
 	}
 	return sb.String()
 }
@@ -437,9 +442,11 @@ func (p *JSDocInfoPrinter) BuildParamType(info *rhino.JSDocInfo, name string) st
 	type_ := info.GetParameterType(name)
 	if type_ != nil {
 		desc := ""
-		if p.printDesc && info.GetDescriptionForParameter(name) != nil {
-			// Don't add a leading space; the parser retained it.
-			desc = *info.GetDescriptionForParameter(name)
+		if p.printDesc {
+			if d, ok := info.GetDescriptionForParameterString(name); ok {
+				// Don't add a leading space; the parser retained it.
+				desc = d
+			}
 		}
 		// Go-only: language-adapter — Java's local `p` would shadow the
 		// receiver here.

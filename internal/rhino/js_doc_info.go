@@ -36,7 +36,6 @@
 package rhino
 
 import (
-	"iter"
 	"math/bits"
 	"slices"
 	"strings"
@@ -80,6 +79,102 @@ func jsdocGet[T any](value any) T {
 	return node_cast[T](value)
 }
 
+// JSDocParam is an ordered (Name, Type) entry for @param or @template.
+type JSDocParam struct {
+	Name string
+	Type *JSTypeExpression
+}
+
+// jsDocKV is an ordered (key, val) string pair for parameter descriptions.
+type jsDocKV struct {
+	key string
+	val string
+}
+
+// JSDocSuppression represents a single @suppress annotation's deduplicated
+// warning list and optional trailing description.
+type JSDocSuppression struct {
+	Warnings    []string
+	Description string
+}
+
+// FormatJSDocSuppressions formats suppressions identically to Java's
+// ImmutableMap<ImmutableSet<String>, String>.toString().
+func FormatJSDocSuppressions(s []JSDocSuppression) string {
+	var b strings.Builder
+	b.WriteByte('{')
+	for i, sup := range s {
+		if i > 0 {
+			b.WriteString(", ")
+		}
+		b.WriteByte('[')
+		for j, w := range sup.Warnings {
+			if j > 0 {
+				b.WriteString(", ")
+			}
+			b.WriteString(w)
+		}
+		b.WriteString("]=")
+		b.WriteString(sup.Description)
+	}
+	b.WriteByte('}')
+	return b.String()
+}
+
+func sameWarningSet(a, b []string) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for _, w := range a {
+		if !slices.Contains(b, w) {
+			return false
+		}
+	}
+	return true
+}
+
+func formatJsDocParams(s []JSDocParam) string {
+	var b strings.Builder
+	b.WriteByte('{')
+	for i, p := range s {
+		if i > 0 {
+			b.WriteString(", ")
+		}
+		b.WriteString(p.Name)
+		b.WriteByte('=')
+		if p.Type == nil {
+			b.WriteString("null")
+		} else {
+			b.WriteString(p.Type.String())
+		}
+	}
+	b.WriteByte('}')
+	return b.String()
+}
+
+func formatJsDocKVs(s []jsDocKV) string {
+	var b strings.Builder
+	b.WriteByte('{')
+	for i, kv := range s {
+		if i > 0 {
+			b.WriteString(", ")
+		}
+		b.WriteString(kv.key)
+		b.WriteByte('=')
+		b.WriteString(kv.val)
+	}
+	b.WriteByte('}')
+	return b.String()
+}
+
+func jsDocParamsToMap(s []JSDocParam) *jutil.LinkedHashMap[string, *JSTypeExpression] {
+	m := jutil.NewLinkedHashMapWithCapacity[string, *JSTypeExpression](len(s))
+	for _, p := range s {
+		m.Put(p.Name, p.Type)
+	}
+	return m
+}
+
 // JSDocInfo_Property is a JSDoc property kind.
 //
 // Go-only: language-adapter — Java's Property<T> and its subclasses
@@ -97,13 +192,16 @@ type JSDocInfo_Property struct {
 type jsDocPropKind uint8
 
 const (
-	jsDocPropKindPlain      jsDocPropKind = iota // Property
-	jsDocPropKindStringList                      // Property<List<String>>: []string
-	jsDocPropKindMarkerList                      // MarkerListProperty: []*JSDocInfo_Marker
-	jsDocPropKindType                            // TypeProperty: JSTypeExpression
-	jsDocPropKindTypeList                        // TypeListProperty: []*JSTypeExpression
-	jsDocPropKindTypeMap                         // TypeMapProperty: LinkedHashMap<String, JSTypeExpression>
-	jsDocPropKindNodeMap                         // NodeMapProperty: LinkedHashMap<String, Node>
+	jsDocPropKindPlain        jsDocPropKind = iota // scalar comparable (enum, int, string)
+	jsDocPropKindStringList                        // []string
+	jsDocPropKindMarkerList                        // []JSDocInfo_Marker
+	jsDocPropKindType                              // *JSTypeExpression
+	jsDocPropKindTypeList                          // []*JSTypeExpression
+	jsDocPropKindTypeMap                           // []JSDocParam
+	jsDocPropKindStringMap                         // []jsDocKV
+	jsDocPropKindSuppressions                      // []JSDocSuppression
+	jsDocPropKindStringSet                         // *jutil.LinkedHashSet[string]
+	jsDocPropKindNodeMap                           // *jutil.LinkedHashMap[string, Node]
 )
 
 // Java: JSDocInfo.Property.bitCounter
@@ -120,7 +218,7 @@ var jsDocInfo_typePropertiesMask int64
 func newJSDocInfo_Property(name string, kind jsDocPropKind) *JSDocInfo_Property {
 	p := &JSDocInfo_Property{name: name, bit: JSDocInfo_Property_bitCounter, kind: kind}
 	JSDocInfo_Property_bitCounter++
-	p.mask = jutil.Shl64(1, int64(p.bit))
+	p.mask = int64(1) << p.bit
 	if p.bit > 63 {
 		panic(jutil.NewAssertionError("Too many Properties"))
 	}
@@ -132,15 +230,41 @@ func newJSDocInfo_Property(name string, kind jsDocPropKind) *JSDocInfo_Property 
 	return p
 }
 
+func (p *JSDocInfo_Property) getRaw(info *JSDocInfo) any {
+	if (info.propertyKeysBitset & p.mask) == 0 {
+		return nil
+	}
+	return info.GetPropertyValueByIndex(bits.OnesCount64(uint64(info.propertyKeysBitset & (p.mask - 1))))
+}
+
 // Get returns the property value of info, or null; the cast to T is unsafe
 // but guaranteed by builder.
 //
 // Java: JSDocInfo.Property.get(JSDocInfo)
 func (p *JSDocInfo_Property) Get(info *JSDocInfo) any {
-	if (info.propertyKeysBitset & p.mask) == 0 {
+	v := p.getRaw(info)
+	if v == nil {
 		return nil
 	}
-	return info.GetPropertyValueByIndex(bits.OnesCount64(uint64(info.propertyKeysBitset & (p.mask - 1))))
+	if p.kind == jsDocPropKindTypeMap {
+		return jsDocParamsToMap(jsdocGet[[]JSDocParam](v))
+	}
+	return v
+}
+
+func isNilPropValue(kind jsDocPropKind, v any) bool {
+	if v == nil {
+		return true
+	}
+	switch kind {
+	case jsDocPropKindType:
+		return jsdocGet[*JSTypeExpression](v) == nil
+	case jsDocPropKindStringSet:
+		return jsdocGet[*jutil.LinkedHashSet[string]](v) == nil
+	case jsDocPropKindNodeMap:
+		return jsdocGet[*jutil.LinkedHashMap[string, Node]](v) == nil
+	}
+	return false
 }
 
 // Clone copies a value for JSDocInfo.toBuilder. NOTE: documentation props
@@ -168,17 +292,21 @@ func (p *JSDocInfo_Property) Clone(arg any, transform JSDocInfo_TypeTransform) a
 	case jsDocPropKindStringList:
 		return slices.Clip(jsdocGet[[]string](arg))
 	case jsDocPropKindMarkerList:
-		return slices.Clip(jsdocGet[[]*JSDocInfo_Marker](arg))
+		return slices.Clip(jsdocGet[[]JSDocInfo_Marker](arg))
 	case jsDocPropKindTypeMap:
-		out := jutil.NewLinkedHashMapFrom(jsdocGet[*jutil.LinkedHashMap[string, *JSTypeExpression]](arg))
+		out := slices.Clone(jsdocGet[[]JSDocParam](arg))
 		if transform != nil {
-			for k, elem := range out.All() {
-				if elem != nil {
-					out.Put(k, transform(elem))
+			for i := range out {
+				if out[i].Type != nil {
+					out[i].Type = transform(out[i].Type)
 				}
 			}
 		}
 		return out
+	case jsDocPropKindStringMap:
+		return slices.Clip(jsdocGet[[]jsDocKV](arg))
+	case jsDocPropKindSuppressions:
+		return slices.Clip(jsdocGet[[]JSDocSuppression](arg))
 	case jsDocPropKindNodeMap:
 		return jutil.NewLinkedHashMapFrom(jsdocGet[*jutil.LinkedHashMap[string, Node]](arg))
 	}
@@ -191,24 +319,31 @@ func (p *JSDocInfo_Property) IsDefault(value any) bool {
 		return true
 	}
 	switch p.kind {
+	case jsDocPropKindPlain:
+		if v, ok := value.(JSDocInfo_Visibility); ok {
+			return v == JSDocInfo_Visibility_INHERITED
+		}
+		return false
 	case jsDocPropKindStringList:
 		return len(jsdocGet[[]string](value)) == 0
 	case jsDocPropKindMarkerList:
-		return len(jsdocGet[[]*JSDocInfo_Marker](value)) == 0
+		return len(jsdocGet[[]JSDocInfo_Marker](value)) == 0
+	case jsDocPropKindType:
+		return jsdocGet[*JSTypeExpression](value) == nil
 	case jsDocPropKindTypeList:
 		return len(jsdocGet[[]*JSTypeExpression](value)) == 0
-	}
-	if jutil.IsNil(value) {
-		return true
-	}
-	if v, ok := value.(JSDocInfo_Visibility); ok && v == JSDocInfo_Visibility_INHERITED {
-		return true
-	}
-	if c, ok := value.(jutil.JavaCollection); ok && c.IsEmpty() {
-		return true
-	}
-	if m, ok := value.(jutil.JavaMap); ok && m.IsEmpty() {
-		return true
+	case jsDocPropKindTypeMap:
+		return len(jsdocGet[[]JSDocParam](value)) == 0
+	case jsDocPropKindStringMap:
+		return len(jsdocGet[[]jsDocKV](value)) == 0
+	case jsDocPropKindSuppressions:
+		return len(jsdocGet[[]JSDocSuppression](value)) == 0
+	case jsDocPropKindStringSet:
+		s := jsdocGet[*jutil.LinkedHashSet[string]](value)
+		return s == nil || s.IsEmpty()
+	case jsDocPropKindNodeMap:
+		m := jsdocGet[*jutil.LinkedHashMap[string, Node]](value)
+		return m == nil || m.IsEmpty()
 	}
 	return false
 }
@@ -216,17 +351,18 @@ func (p *JSDocInfo_Property) IsDefault(value any) bool {
 // Java: JSDocInfo.Property.equalValues(T, T), and its overrides
 func (p *JSDocInfo_Property) EqualValues(left any, right any) bool {
 	switch p.kind {
+	case jsDocPropKindPlain:
+		return left == right
 	case jsDocPropKindStringList:
 		return slices.Equal(jsdocGet[[]string](left), jsdocGet[[]string](right))
 	case jsDocPropKindMarkerList:
-		a := jsdocGet[[]*JSDocInfo_Marker](left)
-		b := jsdocGet[[]*JSDocInfo_Marker](right)
+		a := jsdocGet[[]JSDocInfo_Marker](left)
+		b := jsdocGet[[]JSDocInfo_Marker](right)
 		if len(a) != len(b) {
 			return false
 		}
-		for i, m1 := range a {
-			m2 := b[i]
-			if (m1 == nil) != (m2 == nil) || (m1 != nil && !m1.IsEquivalentTo(m2)) {
+		for i := range a {
+			if !(&a[i]).IsEquivalentTo(&b[i]) {
 				return false
 			}
 		}
@@ -246,17 +382,73 @@ func (p *JSDocInfo_Property) EqualValues(left any, right any) bool {
 		}
 		return true
 	case jsDocPropKindTypeMap:
-		l := jsdocGet[*jutil.LinkedHashMap[string, *JSTypeExpression]](left)
-		r := jsdocGet[*jutil.LinkedHashMap[string, *JSTypeExpression]](right)
-		if l.Size() != r.Size() {
+		l := jsdocGet[[]JSDocParam](left)
+		r := jsdocGet[[]JSDocParam](right)
+		if len(l) != len(r) {
 			return false
 		}
-		for key, lv := range l.All() {
-			if !r.ContainsKey(key) || !jsDocInfo_TypeMapProperty_AreEquivalent(lv, r.Get(key)) {
+		for _, lp := range l {
+			found := false
+			for _, rp := range r {
+				if rp.Name == lp.Name {
+					if !jsDocInfo_TypeMapProperty_AreEquivalent(lp.Type, rp.Type) {
+						return false
+					}
+					found = true
+					break
+				}
+			}
+			if !found {
 				return false
 			}
 		}
 		return true
+	case jsDocPropKindStringMap:
+		l := jsdocGet[[]jsDocKV](left)
+		r := jsdocGet[[]jsDocKV](right)
+		if len(l) != len(r) {
+			return false
+		}
+		for _, lkv := range l {
+			found := false
+			for _, rkv := range r {
+				if rkv.key == lkv.key {
+					if rkv.val != lkv.val {
+						return false
+					}
+					found = true
+					break
+				}
+			}
+			if !found {
+				return false
+			}
+		}
+		return true
+	case jsDocPropKindSuppressions:
+		l := jsdocGet[[]JSDocSuppression](left)
+		r := jsdocGet[[]JSDocSuppression](right)
+		if len(l) != len(r) {
+			return false
+		}
+		for _, le := range l {
+			found := false
+			for _, re := range r {
+				if sameWarningSet(le.Warnings, re.Warnings) {
+					if le.Description != re.Description {
+						return false
+					}
+					found = true
+					break
+				}
+			}
+			if !found {
+				return false
+			}
+		}
+		return true
+	case jsDocPropKindStringSet:
+		return jsdocGet[*jutil.LinkedHashSet[string]](left).Equals(jsdocGet[*jutil.LinkedHashSet[string]](right))
 	case jsDocPropKindNodeMap:
 		l := jsdocGet[*jutil.LinkedHashMap[string, Node]](left)
 		r := jsdocGet[*jutil.LinkedHashMap[string, Node]](right)
@@ -271,12 +463,12 @@ func (p *JSDocInfo_Property) EqualValues(left any, right any) bool {
 		}
 		return true
 	}
-	return jutil.ObjectsEquals(left, right)
+	return left == right
 }
 
 // Java: JSDocInfo.TypeMapProperty.areEquivalent(JSTypeExpression, JSTypeExpression)
 func jsDocInfo_TypeMapProperty_AreEquivalent(expr1 *JSTypeExpression, expr2 *JSTypeExpression) bool {
-	return jutil.ObjectsEquals(expr1, expr2) || (expr1 != nil && expr1.IsEquivalentTo(expr2))
+	return expr1 == expr2 || (expr1 != nil && expr1.IsEquivalentTo(expr2))
 }
 
 // CompareTo orders properties by bit. NOTE: These need to be comparable so
@@ -295,7 +487,7 @@ func (p *JSDocInfo_Property) CompareTo(that *JSDocInfo_Property) int {
 //
 // Java: JSDocInfo.TypeListProperty.getUnmodifiable(JSDocInfo)
 func (p *JSDocInfo_Property) GetUnmodifiable(info *JSDocInfo) []*JSTypeExpression {
-	if value := jsdocGet[[]*JSTypeExpression](p.Get(info)); value != nil {
+	if value := jsdocGet[[]*JSTypeExpression](p.getRaw(info)); value != nil {
 		return value
 	}
 	return []*JSTypeExpression{}
@@ -390,27 +582,23 @@ func (b JSDocInfo_Bit) Name() string { return jsdocInfo_Bit_names[b] }
 // String is Enum.toString().
 func (b JSDocInfo_Bit) String() string { return jsdocInfo_Bit_names[b] }
 
-// The `name` and `mask` fields of each Bit, computed by the Bit
-// constructor.
-var jsdocInfo_Bit_name, jsdocInfo_Bit_mask = func() ([]string, []int64) {
-	var names []string
-	var masks []int64
-	for _, b := range JSDocInfo_Bit_values() {
-		// Java: JSDocInfo.Bit()
-		if int(b) > 63 {
-			panic(jutil.NewAssertionError("Too many Bits"))
-		}
-		names = append(names, jutil.CaseFormat_UpperUnderscoreToLowerCamel(b.Name()))
-		masks = append(masks, jutil.Shl64(1, int64(b)))
+// The `name` field of each Bit, computed at init without slice allocation.
+var jsdocInfo_Bit_name = func() [len(jsdocInfo_Bit_names)]string {
+	var names [len(jsdocInfo_Bit_names)]string
+	if len(jsdocInfo_Bit_names) > 64 {
+		panic(jutil.NewAssertionError("Too many Bits"))
 	}
-	return names, masks
+	for i, raw := range jsdocInfo_Bit_names {
+		names[i] = jutil.CaseFormat_UpperUnderscoreToLowerCamel(raw)
+	}
+	return names
 }()
 
 // Java: JSDocInfo.Bit.name
 func (b JSDocInfo_Bit) BitName() string { return jsdocInfo_Bit_name[b] }
 
 // Java: JSDocInfo.Bit.mask
-func (b JSDocInfo_Bit) Mask() int64 { return jsdocInfo_Bit_mask[b] }
+func (b JSDocInfo_Bit) Mask() int64 { return int64(1) << b }
 
 // JSDocInfo_TypeTransform transforms a type expression.
 //
@@ -433,7 +621,7 @@ func newJSDocInfoFromBuilder(bits_ int64, propMask int64, entries []any) *JSDocI
 		if !prop.IsDefault(value) {
 			keys |= propBit
 			_, isArray := value.([]any)
-			jutil.CheckState(!isArray && !jutil.IsNil(value))
+			jutil.CheckState(!isArray && !isNilPropValue(prop.kind, value))
 			values = append(values, value)
 		}
 	}
@@ -562,8 +750,8 @@ var (
 	// the set (of both first and second).`
 	// For example, `@suppress {first} Some description applying to only to
 	// first.`
-	JSDocInfo_SUPPRESSIONS         = newJSDocInfo_Property("suppressions", jsDocPropKindPlain)
-	JSDocInfo_MODIFIES             = newJSDocInfo_Property("modifies", jsDocPropKindPlain)
+	JSDocInfo_SUPPRESSIONS         = newJSDocInfo_Property("suppressions", jsDocPropKindSuppressions)
+	JSDocInfo_MODIFIES             = newJSDocInfo_Property("modifies", jsDocPropKindStringSet)
 	JSDocInfo_LENDS_NAME           = newJSDocInfo_Property("lendsName", jsDocPropKindType)
 	JSDocInfo_CLOSURE_PRIMITIVE_ID = newJSDocInfo_Property("closurePrimitiveId", jsDocPropKindPlain)
 
@@ -572,7 +760,7 @@ var (
 	// Properties override Property#clone).
 	JSDocInfo_SOURCE_COMMENT               = newJSDocInfo_Property("sourceComment", jsDocPropKindPlain)
 	JSDocInfo_MARKERS                      = newJSDocInfo_Property("markers", jsDocPropKindMarkerList)
-	JSDocInfo_PARAMETER_DESCRIPTIONS       = newJSDocInfo_Property("parameterDescriptions", jsDocPropKindPlain)
+	JSDocInfo_PARAMETER_DESCRIPTIONS       = newJSDocInfo_Property("parameterDescriptions", jsDocPropKindStringMap)
 	JSDocInfo_BLOCK_DESCRIPTION            = newJSDocInfo_Property("blockDescription", jsDocPropKindPlain)
 	JSDocInfo_FILEOVERVIEW_DESCRIPTION     = newJSDocInfo_Property("fileoverviewDescription", jsDocPropKindPlain)
 	JSDocInfo_RETURN_DESCRIPTION           = newJSDocInfo_Property("returnDescription", jsDocPropKindPlain)
@@ -657,12 +845,12 @@ func JSDocInfo_AreEquivalent(jsDoc1 *JSDocInfo, jsDoc2 *JSDocInfo) bool {
 	index := 0
 	for bits_ > 0 {
 		low := bits.TrailingZeros64(uint64(bits_))
-		bits_ &^= jutil.Shl64(1, int64(low))
+		bits_ &^= int64(1) << low
 		prop := JSDocInfo_Property_values[low]
 		a := jsDoc1.GetPropertyValueByIndex(index)
 		b := jsDoc2.GetPropertyValueByIndex(index)
 		index++
-		if jutil.IsNil(a) != jutil.IsNil(b) || (!jutil.IsNil(a) && !prop.EqualValues(a, b)) {
+		if !prop.EqualValues(a, b) {
 			return false
 		}
 	}
@@ -688,7 +876,7 @@ func (i *JSDocInfo) IsAnyIdGenerator() bool {
 }
 
 func (i *JSDocInfo) idGeneratorIs(g JSDocInfo_IdGenerator) bool {
-	v := JSDocInfo_ID_GENERATOR.Get(i)
+	v := JSDocInfo_ID_GENERATOR.getRaw(i)
 	return v != nil && jsdocGet[JSDocInfo_IdGenerator](v) == g
 }
 
@@ -1041,7 +1229,7 @@ func (i *JSDocInfo) ContainsFunctionDeclaration() bool {
 		(i.propertyKeysBitset&(JSDocInfo_RETURN_TYPE.mask|JSDocInfo_THIS_TYPE.mask|JSDocInfo_PARAMETERS.mask)) != 0 {
 		return true
 	}
-	type_ := jsdocGet[*JSTypeExpression](JSDocInfo_TYPE.Get(i))
+	type_ := jsdocGet[*JSTypeExpression](JSDocInfo_TYPE.getRaw(i))
 	if type_ != nil {
 		return type_.GetRoot().IsFunction()
 	}
@@ -1062,11 +1250,8 @@ func (i *JSDocInfo) ContainsTypeDefinition() bool {
 //
 // Java: JSDocInfo.isAtSignCodePresent()
 func (i *JSDocInfo) IsAtSignCodePresent() bool {
-	entireComment := i.GetOriginalCommentString()
-	if entireComment == nil {
-		return false
-	}
-	return strings.Contains(*entireComment, "@code")
+	entireComment, ok := i.GetOriginalCommentStringValue()
+	return ok && strings.Contains(entireComment, "@code")
 }
 
 // GetVisibility gets the visibility specified by `@private`, `@protected` or
@@ -1075,15 +1260,16 @@ func (i *JSDocInfo) IsAtSignCodePresent() bool {
 //
 // Java: JSDocInfo.getVisibility()
 func (i *JSDocInfo) GetVisibility() JSDocInfo_Visibility {
-	visibility := JSDocInfo_VISIBILITY.Get(i)
+	visibility := JSDocInfo_VISIBILITY.getRaw(i)
 	if visibility != nil {
 		return jsdocGet[JSDocInfo_Visibility](visibility)
 	}
 	return JSDocInfo_Visibility_INHERITED
 }
 
-func (i *JSDocInfo) parameters() *jutil.LinkedHashMap[string, *JSTypeExpression] {
-	return jsdocGet[*jutil.LinkedHashMap[string, *JSTypeExpression]](JSDocInfo_PARAMETERS.Get(i))
+// GetParameterEntries returns the ordered @param (Name, Type) entries without allocating.
+func (i *JSDocInfo) GetParameterEntries() []JSDocParam {
+	return jsdocGet[[]JSDocParam](JSDocInfo_PARAMETERS.getRaw(i))
 }
 
 // GetParameterType gets the type of a given named parameter; null if this
@@ -1091,9 +1277,10 @@ func (i *JSDocInfo) parameters() *jutil.LinkedHashMap[string, *JSTypeExpression]
 //
 // Java: JSDocInfo.getParameterType(String)
 func (i *JSDocInfo) GetParameterType(parameter string) *JSTypeExpression {
-	params := i.parameters()
-	if params != nil {
-		return params.Get(parameter)
+	for _, p := range i.GetParameterEntries() {
+		if p.Name == parameter {
+			return p.Type
+		}
 	}
 	return nil
 }
@@ -1102,8 +1289,12 @@ func (i *JSDocInfo) GetParameterType(parameter string) *JSTypeExpression {
 //
 // Java: JSDocInfo.hasParameter(String)
 func (i *JSDocInfo) HasParameter(parameter string) bool {
-	params := i.parameters()
-	return params != nil && params.ContainsKey(parameter)
+	for _, p := range i.GetParameterEntries() {
+		if p.Name == parameter {
+			return true
+		}
+	}
+	return false
 }
 
 // HasParameterType returns whether the parameter has an attached type:
@@ -1122,33 +1313,15 @@ func (i *JSDocInfo) HasParameterType(parameter string) bool {
 //
 // Java: JSDocInfo.getParameterNames()
 func (i *JSDocInfo) GetParameterNames() *jutil.LinkedHashSet[string] {
-	params := i.parameters()
-	if params != nil && !params.IsEmpty() {
+	params := i.GetParameterEntries()
+	if len(params) > 0 {
 		set := jutil.NewLinkedHashSet[string]()
-		for name := range params.Keys() {
-			set.Add(name)
+		for _, p := range params {
+			set.Add(p.Name)
 		}
 		return set
 	}
 	return jsDocInfo_noSuppressions
-}
-
-// ParameterNames iterates the defined parameter names in JSDoc definition order without allocating a set.
-func (i *JSDocInfo) ParameterNames() iter.Seq[string] {
-	params := i.parameters()
-	if params == nil {
-		return func(func(string) bool) {}
-	}
-	return params.Keys()
-}
-
-// ParameterTypes iterates the defined parameter type expressions in JSDoc definition order without allocating a set.
-func (i *JSDocInfo) ParameterTypes() iter.Seq[*JSTypeExpression] {
-	params := i.parameters()
-	if params == nil {
-		return func(func(*JSTypeExpression) bool) {}
-	}
-	return params.Values()
 }
 
 // GetParameterNameAt returns the nth name in the defined parameters. The
@@ -1167,33 +1340,33 @@ func (i *JSDocInfo) GetParameterNameAt(index int) *string {
 // GetParameterNameValueAt returns the nth defined parameter name without
 // allocating a *string pointer.
 func (i *JSDocInfo) GetParameterNameValueAt(index int) (string, bool) {
-	params := i.parameters()
-	if params == nil {
+	params := i.GetParameterEntries()
+	if index < 0 || index >= len(params) {
 		return "", false
 	}
-	return params.KeyAt(index)
+	return params[index].Name, true
 }
 
 // GetParameterTypeAt returns the nth defined parameter type expression in JSDoc
 // definition order without allocating an iterator closure.
 func (i *JSDocInfo) GetParameterTypeAt(index int) *JSTypeExpression {
-	params := i.parameters()
-	if params == nil {
+	params := i.GetParameterEntries()
+	if index < 0 || index >= len(params) {
 		return nil
 	}
-	t, _ := params.ValueAt(index)
-	return t
+	return params[index].Type
 }
 
 // GetParameterCount gets the number of parameters defined.
 //
 // Java: JSDocInfo.getParameterCount()
 func (i *JSDocInfo) GetParameterCount() int {
-	params := i.parameters()
-	if params != nil {
-		return params.Size()
-	}
-	return 0
+	return len(i.GetParameterEntries())
+}
+
+// HasThrowsAnnotations reports whether any @throws annotations are present.
+func (i *JSDocInfo) HasThrowsAnnotations() bool {
+	return (i.propertyKeysBitset & JSDocInfo_THROWS_ANNOTATIONS.mask) != 0
 }
 
 // GetThrowsAnnotations returns the list of thrown types and descriptions as
@@ -1201,7 +1374,7 @@ func (i *JSDocInfo) GetParameterCount() int {
 //
 // Java: JSDocInfo.getThrowsAnnotations()
 func (i *JSDocInfo) GetThrowsAnnotations() []string {
-	if annotations := jsdocGet[[]string](JSDocInfo_THROWS_ANNOTATIONS.Get(i)); annotations != nil {
+	if annotations := jsdocGet[[]string](JSDocInfo_THROWS_ANNOTATIONS.getRaw(i)); annotations != nil {
 		return annotations
 	}
 	return []string{}
@@ -1212,7 +1385,7 @@ func (i *JSDocInfo) GetThrowsAnnotations() []string {
 //
 // Java: JSDocInfo.hasEnumParameterType()
 func (i *JSDocInfo) HasEnumParameterType() bool {
-	return JSDocInfo_ENUM_PARAMETER_TYPE.Get(i) != nil
+	return (i.propertyKeysBitset & JSDocInfo_ENUM_PARAMETER_TYPE.mask) != 0
 }
 
 // HasTypedefType returns whether a typedef parameter type, specified using
@@ -1220,7 +1393,7 @@ func (i *JSDocInfo) HasEnumParameterType() bool {
 //
 // Java: JSDocInfo.hasTypedefType()
 func (i *JSDocInfo) HasTypedefType() bool {
-	return JSDocInfo_TYPEDEF_TYPE.Get(i) != nil
+	return (i.propertyKeysBitset & JSDocInfo_TYPEDEF_TYPE.mask) != 0
 }
 
 // HasReturnType returns whether this JSDocInfo contains a type for `@return`
@@ -1228,7 +1401,7 @@ func (i *JSDocInfo) HasTypedefType() bool {
 //
 // Java: JSDocInfo.hasReturnType()
 func (i *JSDocInfo) HasReturnType() bool {
-	return JSDocInfo_RETURN_TYPE.Get(i) != nil
+	return (i.propertyKeysBitset & JSDocInfo_RETURN_TYPE.mask) != 0
 }
 
 // HasType returns whether a type, specified using the `@type` annotation, is
@@ -1236,7 +1409,7 @@ func (i *JSDocInfo) HasReturnType() bool {
 //
 // Java: JSDocInfo.hasType()
 func (i *JSDocInfo) HasType() bool {
-	return JSDocInfo_TYPE.Get(i) != nil
+	return (i.propertyKeysBitset & JSDocInfo_TYPE.mask) != 0
 }
 
 // Java: JSDocInfo.hasTypeInformation()
@@ -1256,7 +1429,7 @@ func (i *JSDocInfo) IsInlineType() bool {
 //
 // Java: JSDocInfo.getReturnType()
 func (i *JSDocInfo) GetReturnType() *JSTypeExpression {
-	return jsdocGet[*JSTypeExpression](JSDocInfo_RETURN_TYPE.Get(i))
+	return jsdocGet[*JSTypeExpression](JSDocInfo_RETURN_TYPE.getRaw(i))
 }
 
 // GetEnumParameterType gets the enum parameter type specified by the `@enum`
@@ -1264,28 +1437,28 @@ func (i *JSDocInfo) GetReturnType() *JSTypeExpression {
 //
 // Java: JSDocInfo.getEnumParameterType()
 func (i *JSDocInfo) GetEnumParameterType() *JSTypeExpression {
-	return jsdocGet[*JSTypeExpression](JSDocInfo_ENUM_PARAMETER_TYPE.Get(i))
+	return jsdocGet[*JSTypeExpression](JSDocInfo_ENUM_PARAMETER_TYPE.getRaw(i))
 }
 
 // GetTypedefType gets the typedef type specified by the `@type` annotation.
 //
 // Java: JSDocInfo.getTypedefType()
 func (i *JSDocInfo) GetTypedefType() *JSTypeExpression {
-	return jsdocGet[*JSTypeExpression](JSDocInfo_TYPEDEF_TYPE.Get(i))
+	return jsdocGet[*JSTypeExpression](JSDocInfo_TYPEDEF_TYPE.getRaw(i))
 }
 
 // GetType gets the type specified by the `@type` annotation.
 //
 // Java: JSDocInfo.getType()
 func (i *JSDocInfo) GetType() *JSTypeExpression {
-	return jsdocGet[*JSTypeExpression](JSDocInfo_TYPE.Get(i))
+	return jsdocGet[*JSTypeExpression](JSDocInfo_TYPE.getRaw(i))
 }
 
 // GetThisType gets the type specified by the `@this` annotation.
 //
 // Java: JSDocInfo.getThisType()
 func (i *JSDocInfo) GetThisType() *JSTypeExpression {
-	return jsdocGet[*JSTypeExpression](JSDocInfo_THIS_TYPE.Get(i))
+	return jsdocGet[*JSTypeExpression](JSDocInfo_THIS_TYPE.getRaw(i))
 }
 
 // HasThisType returns whether this JSDocInfo contains a type for `@this`
@@ -1293,21 +1466,29 @@ func (i *JSDocInfo) GetThisType() *JSTypeExpression {
 //
 // Java: JSDocInfo.hasThisType()
 func (i *JSDocInfo) HasThisType() bool {
-	return JSDocInfo_THIS_TYPE.Get(i) != nil
+	return (i.propertyKeysBitset & JSDocInfo_THIS_TYPE.mask) != 0
 }
 
 // GetBaseType gets the base type specified by the `@extends` annotation.
 //
 // Java: JSDocInfo.getBaseType()
 func (i *JSDocInfo) GetBaseType() *JSTypeExpression {
-	return jsdocGet[*JSTypeExpression](JSDocInfo_BASE_TYPE.Get(i))
+	return jsdocGet[*JSTypeExpression](JSDocInfo_BASE_TYPE.getRaw(i))
 }
 
-func jsdocString(v any) *string {
+func (i *JSDocInfo) getStringProp(p *JSDocInfo_Property) (string, bool) {
+	v := p.getRaw(i)
 	if v == nil {
+		return "", false
+	}
+	return jsdocGet[string](v), true
+}
+
+func (i *JSDocInfo) getStringPtrProp(p *JSDocInfo_Property) *string {
+	s, ok := i.getStringProp(p)
+	if !ok {
 		return nil
 	}
-	s := jsdocGet[string](v)
 	return &s
 }
 
@@ -1315,7 +1496,12 @@ func jsdocString(v any) *string {
 //
 // Java: JSDocInfo.getDescription()
 func (i *JSDocInfo) GetDescription() *string {
-	return jsdocString(JSDocInfo_DESCRIPTION.Get(i))
+	return i.getStringPtrProp(JSDocInfo_DESCRIPTION)
+}
+
+// GetDescriptionString returns the `@desc` description without allocating a *string.
+func (i *JSDocInfo) GetDescriptionString() (string, bool) {
+	return i.getStringProp(JSDocInfo_DESCRIPTION)
 }
 
 // GetTsTypes gets the ts type declarations specified by the `@tsType`
@@ -1323,7 +1509,7 @@ func (i *JSDocInfo) GetDescription() *string {
 //
 // Java: JSDocInfo.getTsTypes()
 func (i *JSDocInfo) GetTsTypes() []string {
-	if types := jsdocGet[[]string](JSDocInfo_TS_TYPES.Get(i)); types != nil {
+	if types := jsdocGet[[]string](JSDocInfo_TS_TYPES.getRaw(i)); types != nil {
 		return slices.Clone(types)
 	}
 	return []string{}
@@ -1341,7 +1527,12 @@ func (i *JSDocInfo) GetTsTypes() []string {
 //
 // Java: JSDocInfo.getMeaning()
 func (i *JSDocInfo) GetMeaning() *string {
-	return jsdocString(JSDocInfo_MEANING.Get(i))
+	return i.getStringPtrProp(JSDocInfo_MEANING)
+}
+
+// GetMeaningString returns the `@meaning` string without allocating a *string.
+func (i *JSDocInfo) GetMeaningString() (string, bool) {
+	return i.getStringProp(JSDocInfo_MEANING)
 }
 
 // GetAlternateMessageId gets the alternate message ID specified by the
@@ -1356,7 +1547,12 @@ func (i *JSDocInfo) GetMeaning() *string {
 //
 // Java: JSDocInfo.getAlternateMessageId()
 func (i *JSDocInfo) GetAlternateMessageId() *string {
-	return jsdocString(JSDocInfo_ALTERNATE_MESSAGE_ID.Get(i))
+	return i.getStringPtrProp(JSDocInfo_ALTERNATE_MESSAGE_ID)
+}
+
+// GetAlternateMessageIdString returns the `@alternateMessageId` string without allocating a *string.
+func (i *JSDocInfo) GetAlternateMessageIdString() (string, bool) {
+	return i.getStringProp(JSDocInfo_ALTERNATE_MESSAGE_ID)
 }
 
 // GetLendsName gets the name we're lending to in a `@lends` annotation.
@@ -1367,19 +1563,24 @@ func (i *JSDocInfo) GetAlternateMessageId() *string {
 //
 // Java: JSDocInfo.getLendsName()
 func (i *JSDocInfo) GetLendsName() *JSTypeExpression {
-	return jsdocGet[*JSTypeExpression](JSDocInfo_LENDS_NAME.Get(i))
+	return jsdocGet[*JSTypeExpression](JSDocInfo_LENDS_NAME.getRaw(i))
 }
 
 // Java: JSDocInfo.hasLendsName()
 func (i *JSDocInfo) HasLendsName() bool {
-	return i.GetLendsName() != nil
+	return (i.propertyKeysBitset & JSDocInfo_LENDS_NAME.mask) != 0
 }
 
 // GetClosurePrimitiveId returns the `@closurePrimitive {id}` identifier.
 //
 // Java: JSDocInfo.getClosurePrimitiveId()
 func (i *JSDocInfo) GetClosurePrimitiveId() *string {
-	return jsdocString(JSDocInfo_CLOSURE_PRIMITIVE_ID.Get(i))
+	return i.getStringPtrProp(JSDocInfo_CLOSURE_PRIMITIVE_ID)
+}
+
+// GetClosurePrimitiveIdString returns the `@closurePrimitive` id without allocating a *string.
+func (i *JSDocInfo) GetClosurePrimitiveIdString() (string, bool) {
+	return i.getStringProp(JSDocInfo_CLOSURE_PRIMITIVE_ID)
 }
 
 // HasClosurePrimitiveId reports whether this JSDoc is annotated with
@@ -1387,7 +1588,7 @@ func (i *JSDocInfo) GetClosurePrimitiveId() *string {
 //
 // Java: JSDocInfo.hasClosurePrimitiveId()
 func (i *JSDocInfo) HasClosurePrimitiveId() bool {
-	return JSDocInfo_CLOSURE_PRIMITIVE_ID.Get(i) != nil
+	return (i.propertyKeysBitset & JSDocInfo_CLOSURE_PRIMITIVE_ID.mask) != 0
 }
 
 // IsNgInject returns whether JSDoc is annotated with `@ngInject` annotation.
@@ -1464,7 +1665,7 @@ func (i *JSDocInfo) IsSassGeneratedCssTs() bool {
 //
 // Java: JSDocInfo.isClosureUnawareCode()
 func (i *JSDocInfo) IsClosureUnawareCode() bool {
-	return JSDocInfo_CLOSURE_UNAWARE_CONFIG_VALUE.Get(i) != nil
+	return (i.propertyKeysBitset & JSDocInfo_CLOSURE_UNAWARE_CONFIG_VALUE.mask) != 0
 }
 
 // GetPerFileClosureUnawareMode returns the value of the
@@ -1472,12 +1673,21 @@ func (i *JSDocInfo) IsClosureUnawareCode() bool {
 //
 // Java: JSDocInfo.getPerFileClosureUnawareMode()
 func (i *JSDocInfo) GetPerFileClosureUnawareMode() *JSDocInfo_PerFileClosureUnawareMode {
-	v := JSDocInfo_CLOSURE_UNAWARE_CONFIG_VALUE.Get(i)
-	if v == nil {
+	m, ok := i.GetPerFileClosureUnawareModeValue()
+	if !ok {
 		return nil
 	}
-	m := jsdocGet[JSDocInfo_PerFileClosureUnawareMode](v)
 	return &m
+}
+
+// GetPerFileClosureUnawareModeValue returns the `@perFileClosureUnawareMode`
+// value without allocating a pointer.
+func (i *JSDocInfo) GetPerFileClosureUnawareModeValue() (JSDocInfo_PerFileClosureUnawareMode, bool) {
+	v := JSDocInfo_CLOSURE_UNAWARE_CONFIG_VALUE.getRaw(i)
+	if v == nil {
+		return 0, false
+	}
+	return jsdocGet[JSDocInfo_PerFileClosureUnawareMode](v), true
 }
 
 // IsUsedViaDotConstructor returns whether JSDoc is annotated with the
@@ -1492,7 +1702,12 @@ func (i *JSDocInfo) IsUsedViaDotConstructor() bool {
 //
 // Java: JSDocInfo.getLicense()
 func (i *JSDocInfo) GetLicense() *string {
-	return jsdocString(JSDocInfo_LICENSE.Get(i))
+	return i.getStringPtrProp(JSDocInfo_LICENSE)
+}
+
+// GetLicenseString returns the `@license` text without allocating a *string.
+func (i *JSDocInfo) GetLicenseString() (string, bool) {
+	return i.getStringProp(JSDocInfo_LICENSE)
 }
 
 // Java: JSDocInfo.toString()
@@ -1508,9 +1723,11 @@ func (i *JSDocInfo) ToStringVerbose() string {
 	}
 	helper := jutil.MoreObjects_ToStringHelper("JSDocInfo").Add("bitset", bitset)
 
-	for _, b := range JSDocInfo_Bit_values() {
-		if i.CheckBit(b) {
-			helper.AddBool("bit:"+b.BitName(), true)
+	for pb := uint64(i.propertyBits); pb != 0; {
+		low := bits.TrailingZeros64(pb)
+		pb &^= uint64(1) << low
+		if low < len(jsdocInfo_Bit_name) {
+			helper.AddBool("bit:"+JSDocInfo_Bit(low).BitName(), true)
 		}
 	}
 
@@ -1518,7 +1735,7 @@ func (i *JSDocInfo) ToStringVerbose() string {
 	index := 0
 	for bits_ > 0 {
 		low := bits.TrailingZeros64(uint64(bits_))
-		bits_ &^= jutil.Shl64(1, int64(low))
+		bits_ &^= int64(1) << low
 		prop := JSDocInfo_Property_values[low]
 		val := i.GetPropertyValueByIndex(index)
 		switch prop.kind {
@@ -1527,12 +1744,33 @@ func (i *JSDocInfo) ToStringVerbose() string {
 				val = jutil.CollectionToString(s)
 			}
 		case jsDocPropKindMarkerList:
-			if s := jsdocGet[[]*JSDocInfo_Marker](val); s != nil {
-				val = jutil.CollectionToString(s)
+			if s := jsdocGet[[]JSDocInfo_Marker](val); s != nil {
+				var b strings.Builder
+				b.WriteByte('[')
+				for idx := range s {
+					if idx > 0 {
+						b.WriteString(", ")
+					}
+					b.WriteString((&s[idx]).String())
+				}
+				b.WriteByte(']')
+				val = b.String()
 			}
 		case jsDocPropKindTypeList:
 			if s := jsdocGet[[]*JSTypeExpression](val); s != nil {
 				val = jutil.CollectionToString(s)
+			}
+		case jsDocPropKindTypeMap:
+			if s := jsdocGet[[]JSDocParam](val); s != nil {
+				val = formatJsDocParams(s)
+			}
+		case jsDocPropKindStringMap:
+			if s := jsdocGet[[]jsDocKV](val); s != nil {
+				val = formatJsDocKVs(s)
+			}
+		case jsDocPropKindSuppressions:
+			if s := jsdocGet[[]JSDocSuppression](val); s != nil {
+				val = FormatJSDocSuppressions(s)
 			}
 		}
 		helper = helper.Add(prop.name, val)
@@ -1547,7 +1785,7 @@ func (i *JSDocInfo) ToStringVerbose() string {
 //
 // Java: JSDocInfo.hasBaseType()
 func (i *JSDocInfo) HasBaseType() bool {
-	return i.GetBaseType() != nil
+	return (i.propertyKeysBitset & JSDocInfo_BASE_TYPE.mask) != 0
 }
 
 // GetImplementedInterfaces returns the types specified by the `@implements`
@@ -1564,7 +1802,7 @@ func (i *JSDocInfo) GetImplementedInterfaces() []*JSTypeExpression {
 //
 // Java: JSDocInfo.getImplementedInterfaceCount()
 func (i *JSDocInfo) GetImplementedInterfaceCount() int {
-	return len(jsdocGet[[]*JSTypeExpression](JSDocInfo_IMPLEMENTED_INTERFACES.Get(i)))
+	return len(jsdocGet[[]*JSTypeExpression](JSDocInfo_IMPLEMENTED_INTERFACES.getRaw(i)))
 }
 
 // GetExtendedInterfaces returns the interfaces extended by an interface: an
@@ -1580,7 +1818,7 @@ func (i *JSDocInfo) GetExtendedInterfaces() []*JSTypeExpression {
 //
 // Java: JSDocInfo.getExtendedInterfacesCount()
 func (i *JSDocInfo) GetExtendedInterfacesCount() int {
-	return len(jsdocGet[[]*JSTypeExpression](JSDocInfo_EXTENDED_INTERFACES.Get(i)))
+	return len(jsdocGet[[]*JSTypeExpression](JSDocInfo_EXTENDED_INTERFACES.getRaw(i)))
 }
 
 // GetDeprecationReason returns the deprecation reason or null if none
@@ -1588,11 +1826,16 @@ func (i *JSDocInfo) GetExtendedInterfacesCount() int {
 //
 // Java: JSDocInfo.getDeprecationReason()
 func (i *JSDocInfo) GetDeprecationReason() *string {
-	return jsdocString(JSDocInfo_DEPRECATION_REASON.Get(i))
+	return i.getStringPtrProp(JSDocInfo_DEPRECATION_REASON)
 }
 
-func (i *JSDocInfo) suppressions() *jutil.ObjectLinkedHashMap[*jutil.LinkedHashSet[string], string] {
-	return jsdocGet[*jutil.ObjectLinkedHashMap[*jutil.LinkedHashSet[string], string]](JSDocInfo_SUPPRESSIONS.Get(i))
+// GetDeprecationReasonString returns the `@deprecated` reason without allocating a *string.
+func (i *JSDocInfo) GetDeprecationReasonString() (string, bool) {
+	return i.getStringProp(JSDocInfo_DEPRECATION_REASON)
+}
+
+func (i *JSDocInfo) suppressions() []JSDocSuppression {
+	return jsdocGet[[]JSDocSuppression](JSDocInfo_SUPPRESSIONS.getRaw(i))
 }
 
 // GetSuppressions returns the set of suppressed warnings.
@@ -1600,39 +1843,27 @@ func (i *JSDocInfo) suppressions() *jutil.ObjectLinkedHashMap[*jutil.LinkedHashS
 // Java: JSDocInfo.getSuppressions()
 func (i *JSDocInfo) GetSuppressions() *jutil.LinkedHashSet[string] {
 	suppressions := i.suppressions()
-	if suppressions == nil {
+	if len(suppressions) == 0 {
 		// Go-only: performance — ImmutableSet.of() is a shared singleton;
 		// callers only read the result, so share one empty set instead of
 		// allocating one per call (this runs for every JSDoc, externs
 		// included).
 		return jsDocInfo_noSuppressions
 	}
-	if suppressions.Size() == 1 {
-		if nameSet, ok := suppressions.FirstKey(); ok {
-			return nameSet
-		}
-	}
 	names := jutil.NewLinkedHashSet[string]()
-	for nameSet := range suppressions.Keys() {
-		for name := range nameSet.All() {
+	for _, sup := range suppressions {
+		for _, name := range sup.Warnings {
 			names.Add(name)
 		}
 	}
-	// Go-only: performance — ImmutableSet.copyOf(names) would be a copy
-	// with the same elements in the same order; names is not shared, so it
-	// is returned as is.
 	return names
 }
 
 // HasAnySuppressions reports whether i has at least one @suppress warning name
 // without allocating a merged set when multiple @suppress tags are present.
 func (i *JSDocInfo) HasAnySuppressions() bool {
-	suppressions := i.suppressions()
-	if suppressions == nil {
-		return false
-	}
-	for nameSet := range suppressions.Keys() {
-		if !nameSet.IsEmpty() {
+	for _, sup := range i.suppressions() {
+		if len(sup.Warnings) > 0 {
 			return true
 		}
 	}
@@ -1642,18 +1873,8 @@ func (i *JSDocInfo) HasAnySuppressions() bool {
 // HasSuppression reports whether warning name is in i's @suppress set without
 // allocating a merged set when multiple @suppress tags are present.
 func (i *JSDocInfo) HasSuppression(name string) bool {
-	suppressions := i.suppressions()
-	if suppressions == nil {
-		return false
-	}
-	if suppressions.Size() == 1 {
-		if nameSet, ok := suppressions.FirstKey(); ok {
-			return nameSet.Contains(name)
-		}
-		return false
-	}
-	for nameSet := range suppressions.Keys() {
-		if nameSet.Contains(name) {
+	for _, sup := range i.suppressions() {
+		if slices.Contains(sup.Warnings, name) {
 			return true
 		}
 	}
@@ -1663,12 +1884,8 @@ func (i *JSDocInfo) HasSuppression(name string) bool {
 // ForEachSuppression visits each suppressed warning name on i (may visit a
 // duplicate name across multiple @suppress tags if the caller is idempotent).
 func (i *JSDocInfo) ForEachSuppression(visit func(string) bool) {
-	suppressions := i.suppressions()
-	if suppressions == nil {
-		return
-	}
-	for nameSet := range suppressions.Keys() {
-		for name := range nameSet.All() {
+	for _, sup := range i.suppressions() {
+		for _, name := range sup.Warnings {
 			if !visit(name) {
 				return
 			}
@@ -1680,31 +1897,30 @@ func (i *JSDocInfo) ForEachSuppression(visit func(string) bool) {
 // without suppressions (ImmutableSet.of()). Never modified.
 var jsDocInfo_noSuppressions = jutil.NewLinkedHashSet[string]()
 
-// GetSuppressionsAndTheirDescription returns a map containing key=set of
-// suppressions, and value=the corresponding description for the set.
+// GetSuppressionsAndTheirDescription returns the slice of @suppress warning
+// groups and their corresponding descriptions.
 //
 // Java: JSDocInfo.getSuppressionsAndTheirDescription()
-func (i *JSDocInfo) GetSuppressionsAndTheirDescription() *jutil.ObjectLinkedHashMap[*jutil.LinkedHashSet[string], string] {
-	suppressions := i.suppressions()
-	if suppressions != nil {
+func (i *JSDocInfo) GetSuppressionsAndTheirDescription() []JSDocSuppression {
+	if suppressions := i.suppressions(); suppressions != nil {
 		return suppressions
 	}
-	return jutil.NewObjectLinkedHashMap[*jutil.LinkedHashSet[string], string]()
+	return []JSDocSuppression{}
 }
 
 // GetModifies returns the set of sideeffect notations.
 //
 // Java: JSDocInfo.getModifies()
 func (i *JSDocInfo) GetModifies() *jutil.LinkedHashSet[string] {
-	modifies := jsdocGet[*jutil.LinkedHashSet[string]](JSDocInfo_MODIFIES.Get(i))
+	modifies := jsdocGet[*jutil.LinkedHashSet[string]](JSDocInfo_MODIFIES.getRaw(i))
 	if modifies != nil {
 		return modifies
 	}
 	return jsDocInfo_noSuppressions
 }
 
-func (i *JSDocInfo) parameterDescriptions() *jutil.LinkedHashMap[string, string] {
-	return jsdocGet[*jutil.LinkedHashMap[string, string]](JSDocInfo_PARAMETER_DESCRIPTIONS.Get(i))
+func (i *JSDocInfo) parameterDescriptions() []jsDocKV {
+	return jsdocGet[[]jsDocKV](JSDocInfo_PARAMETER_DESCRIPTIONS.getRaw(i))
 }
 
 // HasDescriptionForParameter returns whether a description exists for the
@@ -1712,8 +1928,8 @@ func (i *JSDocInfo) parameterDescriptions() *jutil.LinkedHashMap[string, string]
 //
 // Java: JSDocInfo.hasDescriptionForParameter(String)
 func (i *JSDocInfo) HasDescriptionForParameter(name string) bool {
-	params := i.parameterDescriptions()
-	return params != nil && params.ContainsKey(name)
+	_, ok := i.GetDescriptionForParameterString(name)
+	return ok
 }
 
 // GetDescriptionForParameter returns the description for the parameter with
@@ -1721,27 +1937,36 @@ func (i *JSDocInfo) HasDescriptionForParameter(name string) bool {
 //
 // Java: JSDocInfo.getDescriptionForParameter(String)
 func (i *JSDocInfo) GetDescriptionForParameter(name string) *string {
-	params := i.parameterDescriptions()
-	if params != nil {
-		if d, ok := params.Lookup(name); ok {
-			return &d
+	d, ok := i.GetDescriptionForParameterString(name)
+	if !ok {
+		return nil
+	}
+	return &d
+}
+
+// GetDescriptionForParameterString returns the description for the parameter
+// with the given name without allocating a *string.
+func (i *JSDocInfo) GetDescriptionForParameterString(name string) (string, bool) {
+	for _, kv := range i.parameterDescriptions() {
+		if kv.key == name {
+			return kv.val, true
 		}
 	}
-	return nil
+	return "", false
 }
 
 // GetAuthors returns the list of authors or null if none.
 //
 // Java: JSDocInfo.getAuthors()
 func (i *JSDocInfo) GetAuthors() []string {
-	return jsdocGet[[]string](JSDocInfo_AUTHORS.Get(i))
+	return jsdocGet[[]string](JSDocInfo_AUTHORS.getRaw(i))
 }
 
 // GetReferences returns the list of references or null if none.
 //
 // Java: JSDocInfo.getReferences()
 func (i *JSDocInfo) GetReferences() []string {
-	return jsdocGet[[]string](JSDocInfo_SEES.Get(i))
+	return jsdocGet[[]string](JSDocInfo_SEES.getRaw(i))
 }
 
 // GetReturnDescription returns the description of the returned object or
@@ -1749,7 +1974,12 @@ func (i *JSDocInfo) GetReferences() []string {
 //
 // Java: JSDocInfo.getReturnDescription()
 func (i *JSDocInfo) GetReturnDescription() *string {
-	return jsdocString(JSDocInfo_RETURN_DESCRIPTION.Get(i))
+	return i.getStringPtrProp(JSDocInfo_RETURN_DESCRIPTION)
+}
+
+// GetReturnDescriptionString returns the `@return` description without allocating a *string.
+func (i *JSDocInfo) GetReturnDescriptionString() (string, bool) {
+	return i.getStringProp(JSDocInfo_RETURN_DESCRIPTION)
 }
 
 // GetBlockDescription returns the block-level description or null if none
@@ -1757,7 +1987,12 @@ func (i *JSDocInfo) GetReturnDescription() *string {
 //
 // Java: JSDocInfo.getBlockDescription()
 func (i *JSDocInfo) GetBlockDescription() *string {
-	return jsdocString(JSDocInfo_BLOCK_DESCRIPTION.Get(i))
+	return i.getStringPtrProp(JSDocInfo_BLOCK_DESCRIPTION)
+}
+
+// GetBlockDescriptionString returns the block-level description without allocating a *string.
+func (i *JSDocInfo) GetBlockDescriptionString() (string, bool) {
+	return i.getStringProp(JSDocInfo_BLOCK_DESCRIPTION)
 }
 
 // HasFileOverview returns whether this has a fileoverview flag.
@@ -1771,7 +2006,12 @@ func (i *JSDocInfo) HasFileOverview() bool {
 //
 // Java: JSDocInfo.getFileOverview()
 func (i *JSDocInfo) GetFileOverview() *string {
-	return jsdocString(JSDocInfo_FILEOVERVIEW_DESCRIPTION.Get(i))
+	return i.getStringPtrProp(JSDocInfo_FILEOVERVIEW_DESCRIPTION)
+}
+
+// GetFileOverviewString returns the `@fileoverview` description without allocating a *string.
+func (i *JSDocInfo) GetFileOverviewString() (string, bool) {
+	return i.getStringProp(JSDocInfo_FILEOVERVIEW_DESCRIPTION)
 }
 
 // HasEnhance returns whether this has an enhanced namespace.
@@ -1785,36 +2025,50 @@ func (i *JSDocInfo) HasEnhance() bool {
 //
 // Java: JSDocInfo.getEnhance()
 func (i *JSDocInfo) GetEnhance() *string {
-	return jsdocString(JSDocInfo_ENHANCED_NAMESPACE.Get(i))
+	return i.getStringPtrProp(JSDocInfo_ENHANCED_NAMESPACE)
+}
+
+// GetEnhanceString returns the `@enhance` namespace without allocating a *string.
+func (i *JSDocInfo) GetEnhanceString() (string, bool) {
+	return i.getStringProp(JSDocInfo_ENHANCED_NAMESPACE)
 }
 
 // HasMods returns whether this has a modded namespace.
 //
 // Java: JSDocInfo.hasMods()
 func (i *JSDocInfo) HasMods() bool {
-	return JSDocInfo_MODS.Get(i) != nil
+	return (i.propertyKeysBitset & JSDocInfo_MODS.mask) != 0
 }
 
 // GetMods returns the modded namespace or null if none is specified.
 //
 // Java: JSDocInfo.getMods()
 func (i *JSDocInfo) GetMods() *string {
-	return jsdocString(JSDocInfo_MODS.Get(i))
+	return i.getStringPtrProp(JSDocInfo_MODS)
+}
+
+// GetModsString returns the `@mods` namespace without allocating a *string.
+func (i *JSDocInfo) GetModsString() (string, bool) {
+	return i.getStringProp(JSDocInfo_MODS)
 }
 
 // GetMarkers gets the list of all markers for the documentation in this
 // JSDoc.
 //
 // Java: JSDocInfo.getMarkers()
-func (i *JSDocInfo) GetMarkers() []*JSDocInfo_Marker {
-	if markers := jsdocGet[[]*JSDocInfo_Marker](JSDocInfo_MARKERS.Get(i)); markers != nil {
+func (i *JSDocInfo) GetMarkers() []JSDocInfo_Marker {
+	if markers := jsdocGet[[]JSDocInfo_Marker](JSDocInfo_MARKERS.getRaw(i)); markers != nil {
 		return markers
 	}
-	return []*JSDocInfo_Marker{}
+	return []JSDocInfo_Marker{}
 }
 
-func (i *JSDocInfo) templateTypeNames() *jutil.LinkedHashMap[string, *JSTypeExpression] {
-	return jsdocGet[*jutil.LinkedHashMap[string, *JSTypeExpression]](JSDocInfo_TEMPLATE_TYPE_NAMES.Get(i))
+// GetTemplateTypeEntries returns the ordered @template (Name, Type) entries without allocating.
+func (i *JSDocInfo) GetTemplateTypeEntries() []JSDocParam {
+	if i == nil {
+		return nil
+	}
+	return jsdocGet[[]JSDocParam](JSDocInfo_TEMPLATE_TYPE_NAMES.getRaw(i))
 }
 
 // GetTemplateTypeNames gets the @template type names.
@@ -1824,11 +2078,25 @@ func (i *JSDocInfo) templateTypeNames() *jutil.LinkedHashMap[string, *JSTypeExpr
 //
 // Java: JSDocInfo.getTemplateTypeNames()
 func (i *JSDocInfo) GetTemplateTypeNames() []string {
-	m := i.templateTypeNames()
-	if m != nil {
-		return m.KeySlice()
+	params := i.GetTemplateTypeEntries()
+	if len(params) == 0 {
+		return []string{}
 	}
-	return []string{}
+	out := make([]string, len(params))
+	for idx, p := range params {
+		out[idx] = p.Name
+	}
+	return out
+}
+
+// HasTemplateTypeName reports whether name is declared as a @template type name.
+func (i *JSDocInfo) HasTemplateTypeName(name string) bool {
+	for _, p := range i.GetTemplateTypeEntries() {
+		if p.Name == name {
+			return true
+		}
+	}
+	return false
 }
 
 var (
@@ -1838,9 +2106,9 @@ var (
 
 // Java: JSDocInfo.getTemplateTypes()
 func (i *JSDocInfo) GetTemplateTypes() *jutil.LinkedHashMap[string, *JSTypeExpression] {
-	m := i.templateTypeNames()
-	if m != nil {
-		return m
+	params := i.GetTemplateTypeEntries()
+	if len(params) != 0 {
+		return jsDocParamsToMap(params)
 	}
 	return jsDocInfo_noTemplateTypes
 }
@@ -1849,18 +2117,16 @@ func (i *JSDocInfo) GetTemplateTypes() *jutil.LinkedHashMap[string, *JSTypeExpre
 //
 // Java: JSDocInfo.getTypeTransformations()
 func (i *JSDocInfo) GetTypeTransformations() *jutil.LinkedHashMap[string, Node] {
-	m := jsdocGet[*jutil.LinkedHashMap[string, Node]](JSDocInfo_TYPE_TRANSFORMATIONS.Get(i))
+	m := jsdocGet[*jutil.LinkedHashMap[string, Node]](JSDocInfo_TYPE_TRANSFORMATIONS.getRaw(i))
 	if m != nil {
 		return m
 	}
 	return jsDocInfo_noTypeTransformations
 }
 
-// GetTypeExpressions returns a collection of all JSTypeExpressions that are
-
 // Java: JSDocInfo.hasModifies()
 func (i *JSDocInfo) HasModifies() bool {
-	return JSDocInfo_MODIFIES.Get(i) != nil
+	return (i.propertyKeysBitset & JSDocInfo_MODIFIES.mask) != 0
 }
 
 // GetOriginalCommentString returns the original JSDoc comment string.
@@ -1869,12 +2135,17 @@ func (i *JSDocInfo) HasModifies() bool {
 //
 // Java: JSDocInfo.getOriginalCommentString()
 func (i *JSDocInfo) GetOriginalCommentString() *string {
-	return jsdocString(JSDocInfo_SOURCE_COMMENT.Get(i))
+	return i.getStringPtrProp(JSDocInfo_SOURCE_COMMENT)
+}
+
+// GetOriginalCommentStringValue returns the original JSDoc comment string without allocating a *string.
+func (i *JSDocInfo) GetOriginalCommentStringValue() (string, bool) {
+	return i.getStringProp(JSDocInfo_SOURCE_COMMENT)
 }
 
 // Java: JSDocInfo.getOriginalCommentPosition()
 func (i *JSDocInfo) GetOriginalCommentPosition() int {
-	pos := JSDocInfo_ORIGINAL_COMMENT_POSITION.Get(i)
+	pos := JSDocInfo_ORIGINAL_COMMENT_POSITION.getRaw(i)
 	if pos != nil {
 		return jsdocGet[int](pos)
 	}
@@ -1886,7 +2157,7 @@ func (i *JSDocInfo) GetOriginalCommentPosition() int {
 //
 // Java: JSDocInfo.modifiesThis()
 func (i *JSDocInfo) ModifiesThis() bool {
-	modifies := jsdocGet[*jutil.LinkedHashSet[string]](JSDocInfo_MODIFIES.Get(i))
+	modifies := jsdocGet[*jutil.LinkedHashSet[string]](JSDocInfo_MODIFIES.getRaw(i))
 	return modifies != nil && modifies.Contains("this")
 }
 
@@ -1895,7 +2166,7 @@ func (i *JSDocInfo) ModifiesThis() bool {
 //
 // Java: JSDocInfo.hasSideEffectsArgumentsAnnotation()
 func (i *JSDocInfo) HasSideEffectsArgumentsAnnotation() bool {
-	modifies := jsdocGet[*jutil.LinkedHashSet[string]](JSDocInfo_MODIFIES.Get(i))
+	modifies := jsdocGet[*jutil.LinkedHashSet[string]](JSDocInfo_MODIFIES.getRaw(i))
 	if modifies == nil {
 		return false
 	}
