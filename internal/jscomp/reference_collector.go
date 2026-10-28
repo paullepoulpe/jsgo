@@ -318,6 +318,17 @@ func (c *ReferenceCollector) getReferencesByScopedNameID(scopeRoot rhino.Node, n
 	return c.refs[scopedVarKey{scopeRoot: scopeRoot, nameID: nameID}]
 }
 
+func (c *ReferenceCollector) forgetVar(v *Var) {
+	if v == nil {
+		return
+	}
+	delete(c.refs, scopedVarKeyOf(v))
+	if c.lastVar == v {
+		c.lastVar = nil
+		c.lastCollection = nil
+	}
+}
+
 func (c *ReferenceCollector) builderVal() NodeTraversal_Builder {
 	return NodeTraversal_Builder{
 		compiler:     c.compiler,
@@ -471,11 +482,11 @@ func rcIsHoistedFunctionDeclaration(fnNode rhino.Node) bool {
 	switch parent.GetToken() {
 	case rhino.Token_SCRIPT, rhino.Token_MODULE_BODY, rhino.Token_EXPORT:
 		first := fnNode.GetFirstChild()
-		return !first.IsNil() && first.IsName() && first.GetString() != ""
+		return !first.IsNil() && first.IsName() && first.GetStringID() != rhino.RhinoStringPool_EmptyID
 	case rhino.Token_BLOCK, rhino.Token_LABEL, rhino.Token_DECLARE, rhino.Token_NAMESPACE_ELEMENTS:
 		if gp := parent.GetParent(); !gp.IsNil() && gp.IsFunction() {
 			first := fnNode.GetFirstChild()
-			return !first.IsNil() && first.IsName() && first.GetString() != ""
+			return !first.IsNil() && first.IsName() && first.GetStringID() != rhino.RhinoStringPool_EmptyID
 		}
 	}
 	return false
@@ -892,17 +903,6 @@ func (w *ReferenceCollector_ReferenceMapWrapper) GetReferences(var_ *Var) *Refer
 		return w.c.GetReferences(var_)
 	}
 	return w.referenceMap.Get(var_)
-}
-
-func (w *ReferenceCollector_ReferenceMapWrapper) getReferencesByScopedName(scopeRoot rhino.Node, name string) *ReferenceCollection {
-	if w.c != nil {
-		id := rhino.RhinoStringPool_LookupID(name)
-		if id == 0 {
-			return nil
-		}
-		return w.c.getReferencesByScopedNameID(scopeRoot, id)
-	}
-	return nil
 }
 
 // Java: ReferenceCollector.ReferenceMapWrapper.getRawReferenceMap()

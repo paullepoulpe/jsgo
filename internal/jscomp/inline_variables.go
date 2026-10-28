@@ -395,6 +395,8 @@ func (b *InlineVariables_InliningBehavior) handleAliasedVarCompletion(
 	b.completeVarExpert(v, expert)
 }
 
+var inlineVariablesApplyID = rhino.RhinoStringPool_InternID("apply")
+
 // VarsInThisScopeMayBeModifiedUsingArguments returns true for function
 // scopes (the whole function, not the body), if the function uses
 // `arguments` in some way other than a few that are known not to change the
@@ -411,8 +413,8 @@ func (b *InlineVariables_InliningBehavior) VarsInThisScopeMayBeModifiedUsingArgu
 	scope *Scope, referenceMap ReferenceMap) bool {
 	if scope.IsFunctionScope() && !scope.GetRootNode().IsArrowFunction() {
 		var refs *ReferenceCollection
-		if w, ok := referenceMap.(*ReferenceCollector_ReferenceMapWrapper); ok {
-			refs = w.getReferencesByScopedName(scope.GetRootNode(), "arguments")
+		if w, ok := referenceMap.(*ReferenceCollector_ReferenceMapWrapper); ok && w.c != nil {
+			refs = w.c.getReferencesByScopedNameID(scope.GetRootNode(), implicitArgumentsID)
 		} else {
 			refs = referenceMap.GetReferences(scope.GetArgumentsVar())
 		}
@@ -477,6 +479,18 @@ const (
 	analysisKindInlineSingleRef
 )
 
+type varExpertBit uint16
+
+const (
+	veNeverAssigned varExpertBit = 1 << iota
+	veWellDefined
+	veAssignedOnceInLifetime
+	veReferencedWeakly
+	veWellDefinedAssignedOnce
+	veInitRef
+	veAllRefsValid
+)
+
 // inlineVariables_standardVarExpert knows how to analyze a variable to
 // determine whether it should be inlined, how to do the inlining, and
 // whether it's OK to inline aliases of the variable.
@@ -486,16 +500,11 @@ type inlineVariables_standardVarExpert struct {
 	v                                   *Var
 	referenceInfo                       *ReferenceCollection
 	declaration                         *Reference
+	initRef                             *Reference
+	known                               varExpertBit
+	val                                 varExpertBit
 	isDeclaredOrInferredConstant        bool
 	mayBeAParameterModifiedViaArguments bool
-
-	isNeverAssigned           InlineVariables_InitiallyUnknown[bool]
-	isWellDefined             InlineVariables_InitiallyUnknown[bool]
-	isAssignedOnceInLifetime  InlineVariables_InitiallyUnknown[bool]
-	isReferencedWeakly        InlineVariables_InitiallyUnknown[bool]
-	isWellDefinedAssignedOnce InlineVariables_InitiallyUnknown[bool]
-	initializationReference   InlineVariables_InitiallyUnknown[*Reference]
-	allReferencesAreValid     InlineVariables_InitiallyUnknown[bool]
 
 	initValAnalysis       inlineVariables_initialValueAnalysis
 	analysisKind          standardVarAnalysisKind
@@ -503,6 +512,31 @@ type inlineVariables_standardVarExpert struct {
 	analysisInitValue     rhino.Node
 	analysisInitRef       *Reference
 	analysisSingleReadRef *Reference
+}
+
+func (e *inlineVariables_standardVarExpert) knows(bit varExpertBit) bool {
+	return e.known&bit != 0
+}
+
+func (e *inlineVariables_standardVarExpert) knownVal(bit varExpertBit) bool {
+	return e.val&bit != 0
+}
+
+func (e *inlineVariables_standardVarExpert) isKnownTrue(bit varExpertBit) bool {
+	return e.known&e.val&bit != 0
+}
+
+func (e *inlineVariables_standardVarExpert) isKnownFalse(bit varExpertBit) bool {
+	return e.known&^e.val&bit != 0
+}
+
+func (e *inlineVariables_standardVarExpert) setOnce(bit varExpertBit, v bool) bool {
+	jutil.CheckStateMsg(e.known&bit == 0, "already known")
+	e.known |= bit
+	if v {
+		e.val |= bit
+	}
+	return v
 }
 
 func (e *inlineVariables_standardVarExpert) ShouldInline() bool {
@@ -537,42 +571,37 @@ func (e *inlineVariables_standardVarExpert) PerformInline() {
 
 // Java: InlineVariables.InliningBehavior.StandardVarExpert.isNeverAssigned()
 func (e *inlineVariables_standardVarExpert) IsNeverAssigned() bool {
-	if e.isNeverAssigned.IsKnown() {
-		return e.isNeverAssigned.GetKnownValue()
-	} else if e.initializationReference.IsKnownNotNull() ||
-		e.isAssignedOnceInLifetime.IsKnownToBe(true) {
-		return e.isNeverAssigned.SetKnownValueOnce(false)
-	} else {
-		return e.isNeverAssigned.SetKnownValueOnce(e.referenceInfo.IsNeverAssigned())
+	if e.knows(veNeverAssigned) {
+		return e.knownVal(veNeverAssigned)
 	}
+	if (e.knows(veInitRef) && e.initRef != nil) || e.isKnownTrue(veAssignedOnceInLifetime) {
+		return e.setOnce(veNeverAssigned, false)
+	}
+	return e.setOnce(veNeverAssigned, e.referenceInfo.IsNeverAssigned())
 }
 
 // Java: InlineVariables.InliningBehavior.StandardVarExpert.isWellDefined()
 func (e *inlineVariables_standardVarExpert) IsWellDefined() bool {
-	if e.isWellDefined.IsKnown() {
-		return e.isWellDefined.GetKnownValue()
-	} else {
-		return e.isWellDefined.SetKnownValueOnce(e.referenceInfo.IsWellDefined())
+	if e.knows(veWellDefined) {
+		return e.knownVal(veWellDefined)
 	}
+	return e.setOnce(veWellDefined, e.referenceInfo.IsWellDefined())
 }
 
 // Java: InlineVariables.InliningBehavior.StandardVarExpert.isAssignedOnceInLifetime()
 func (e *inlineVariables_standardVarExpert) IsAssignedOnceInLifetime() bool {
-	if e.isAssignedOnceInLifetime.IsKnown() {
-		return e.isAssignedOnceInLifetime.GetKnownValue()
-	} else {
-		return e.isAssignedOnceInLifetime.SetKnownValueOnce(
-			e.referenceInfo.IsAssignedOnceInLifetime())
+	if e.knows(veAssignedOnceInLifetime) {
+		return e.knownVal(veAssignedOnceInLifetime)
 	}
+	return e.setOnce(veAssignedOnceInLifetime, e.referenceInfo.IsAssignedOnceInLifetime())
 }
 
 // Java: InlineVariables.InliningBehavior.StandardVarExpert.isReferencedWeakly()
 func (e *inlineVariables_standardVarExpert) IsReferencedWeakly() bool {
-	if e.isReferencedWeakly.IsKnown() {
-		return e.isReferencedWeakly.GetKnownValue()
-	} else {
-		return e.isReferencedWeakly.SetKnownValueOnce(e.referenceInfo.IsReferencedWeakly())
+	if e.knows(veReferencedWeakly) {
+		return e.knownVal(veReferencedWeakly)
 	}
+	return e.setOnce(veReferencedWeakly, e.referenceInfo.IsReferencedWeakly())
 }
 
 // IsWellDefinedAssignedOnce is a more efficient way to ask if the
@@ -580,32 +609,32 @@ func (e *inlineVariables_standardVarExpert) IsReferencedWeakly() bool {
 //
 // Java: InlineVariables.InliningBehavior.StandardVarExpert.isWellDefinedAssignedOnce()
 func (e *inlineVariables_standardVarExpert) IsWellDefinedAssignedOnce() bool {
-	if e.isWellDefinedAssignedOnce.IsKnown() {
-		return e.isWellDefinedAssignedOnce.GetKnownValue()
-	} else {
-		// Check first to see if either is already known to be false before calculating anything.
-		return e.isWellDefinedAssignedOnce.SetKnownValueOnce(
-			!e.isWellDefined.IsKnownToBe(false) &&
-				!e.isAssignedOnceInLifetime.IsKnownToBe(false) &&
-				// isWellDefined is generally less expensive to calculate
-				e.IsWellDefined() &&
-				e.IsAssignedOnceInLifetime())
+	if e.knows(veWellDefinedAssignedOnce) {
+		return e.knownVal(veWellDefinedAssignedOnce)
 	}
+	// Check first to see if either is already known to be false before calculating anything.
+	return e.setOnce(veWellDefinedAssignedOnce,
+		!e.isKnownFalse(veWellDefined) &&
+			!e.isKnownFalse(veAssignedOnceInLifetime) &&
+			// isWellDefined is generally less expensive to calculate
+			e.IsWellDefined() &&
+			e.IsAssignedOnceInLifetime())
 }
 
 // Java: InlineVariables.InliningBehavior.StandardVarExpert.getInitialization()
 func (e *inlineVariables_standardVarExpert) GetInitialization() *Reference {
-	if e.initializationReference.IsKnown() {
-		return e.initializationReference.GetKnownValue()
-	} else {
-		var initRef *Reference
-		if e.isDeclaredOrInferredConstant {
-			initRef = e.referenceInfo.GetInitializingReferenceForConstants()
-		} else {
-			initRef = e.referenceInfo.GetInitializingReference()
-		}
-		return e.initializationReference.SetKnownValueOnce(initRef)
+	if e.knows(veInitRef) {
+		return e.initRef
 	}
+	var initRef *Reference
+	if e.isDeclaredOrInferredConstant {
+		initRef = e.referenceInfo.GetInitializingReferenceForConstants()
+	} else {
+		initRef = e.referenceInfo.GetInitializingReference()
+	}
+	e.known |= veInitRef
+	e.initRef = initRef
+	return initRef
 }
 
 // Java: InlineVariables.InliningBehavior.StandardVarExpert.hasValidDeclaration()
@@ -620,20 +649,19 @@ func (e *inlineVariables_standardVarExpert) HasValidInitialization() bool {
 
 // Java: InlineVariables.InliningBehavior.StandardVarExpert.allReferencesAreValid()
 func (e *inlineVariables_standardVarExpert) AllReferencesAreValid() bool {
-	if e.allReferencesAreValid.IsKnown() {
-		return e.allReferencesAreValid.GetKnownValue()
-	} else {
-		if e.HasValidDeclaration() && (e.HasValidInitialization() || e.IsNeverAssigned()) {
-			initialization := e.GetInitialization()
-			for _, ref := range e.referenceInfo.references {
-				if ref != e.declaration && ref != initialization && !e.outer.IsValidReference(ref) {
-					return e.allReferencesAreValid.SetKnownValueOnce(false)
-				}
-			}
-			return e.allReferencesAreValid.SetKnownValueOnce(true)
-		}
-		return e.allReferencesAreValid.SetKnownValueOnce(false)
+	if e.knows(veAllRefsValid) {
+		return e.knownVal(veAllRefsValid)
 	}
+	if e.HasValidDeclaration() && (e.HasValidInitialization() || e.IsNeverAssigned()) {
+		initialization := e.GetInitialization()
+		for _, ref := range e.referenceInfo.references {
+			if ref != e.declaration && ref != initialization && !e.outer.IsValidReference(ref) {
+				return e.setOnce(veAllRefsValid, false)
+			}
+		}
+		return e.setOnce(veAllRefsValid, true)
+	}
+	return e.setOnce(veAllRefsValid, false)
 }
 
 // Java: InlineVariables.InliningBehavior.StandardVarExpert.analyze()
@@ -763,14 +791,14 @@ func (e *inlineVariables_standardVarExpert) markNegativeAnalysis() {
 	if e.mayBeAParameterModifiedViaArguments ||
 		e.outer.outer.mode == InlineVariables_Mode_CONSTANTS_ONLY ||
 		len(e.referenceInfo.references) <= 1 ||
-		e.isWellDefinedAssignedOnce.IsKnownToBe(false) ||
-		e.isWellDefined.IsKnownToBe(false) ||
-		e.isAssignedOnceInLifetime.IsKnownToBe(false) {
+		e.isKnownFalse(veWellDefinedAssignedOnce) ||
+		e.isKnownFalse(veWellDefined) ||
+		e.isKnownFalse(veAssignedOnceInLifetime) {
 		e.analysisKind = analysisKindNegativeUnsafe
 		return
 	}
-	if e.isWellDefinedAssignedOnce.IsKnownToBe(true) ||
-		(e.isWellDefined.IsKnownToBe(true) && e.isAssignedOnceInLifetime.IsKnownToBe(true)) {
+	if e.isKnownTrue(veWellDefinedAssignedOnce) ||
+		(e.isKnownTrue(veWellDefined) && e.isKnownTrue(veAssignedOnceInLifetime)) {
 		e.analysisKind = analysisKindNegativeSafe
 		return
 	}
@@ -784,7 +812,7 @@ func (e *inlineVariables_standardVarExpert) negativeHandledVar() inlineVariables
 	case analysisKindNegativeSafe:
 		return inlineVariables_handledVar{state: handledVarSafe}
 	case analysisKindDelayedNegative:
-		if e.isWellDefined.IsKnownToBe(true) {
+		if e.isKnownTrue(veWellDefined) {
 			return inlineVariables_handledVar{referenceInfo: e.referenceInfo, state: handledVarLazyWellDefined}
 		}
 		return inlineVariables_handledVar{referenceInfo: e.referenceInfo, state: handledVarLazy}
@@ -833,25 +861,33 @@ func (e *inlineVariables_standardVarExpert) ReanalyzeAfterAliasedVar(
 	e.AnalyzeWithInitialValue(initialization, initValue, initialValueAnalysis)
 }
 
+const (
+	ivaImmutableKnown uint8 = 1 << iota
+	ivaImmutableVal
+	ivaAliasedVarKnown
+)
+
 // inlineVariables_initialValueAnalysis is information about a value used to
 // initialize a variable.
 type inlineVariables_initialValueAnalysis struct {
 	outer *inlineVariables_standardVarExpert
 
-	value rhino.Node
-
-	isImmutableValue InlineVariables_InitiallyUnknown[bool]
-	aliasedVar       InlineVariables_InitiallyUnknown[*Var]
+	aliasedVar *Var
+	value      rhino.Node
+	flags      uint8
 }
 
 // Java: InlineVariables.InliningBehavior.StandardVarExpert.InitialValueAnalysis.isImmutableValue()
 func (a *inlineVariables_initialValueAnalysis) IsImmutableValue() bool {
-	if a.isImmutableValue.IsKnown() {
-		return a.isImmutableValue.GetKnownValue()
-	} else {
-		return a.isImmutableValue.SetKnownValueOnce(
-			!a.value.IsNil() && NodeUtil_IsImmutableValue(a.value))
+	if a.flags&ivaImmutableKnown != 0 {
+		return a.flags&ivaImmutableVal != 0
 	}
+	imm := !a.value.IsNil() && NodeUtil_IsImmutableValue(a.value)
+	a.flags |= ivaImmutableKnown
+	if imm {
+		a.flags |= ivaImmutableVal
+	}
+	return imm
 }
 
 // Java: InlineVariables.InliningBehavior.StandardVarExpert.InitialValueAnalysis.isAlias()
@@ -861,19 +897,18 @@ func (a *inlineVariables_initialValueAnalysis) IsAlias() bool {
 
 // Java: InlineVariables.InliningBehavior.StandardVarExpert.InitialValueAnalysis.getAliasedVar()
 func (a *inlineVariables_initialValueAnalysis) GetAliasedVar() *Var {
-	if a.aliasedVar.IsKnown() {
-		return a.aliasedVar.GetKnownValue()
-	} else {
-		if name, ok := ast.AsName(a.value); ok {
-			aliasedName := name.Ident()
-			// Never consider this variable to be an alias of itself.
-			if aliasedName == a.outer.v.GetName() {
-				return a.aliasedVar.SetKnownValueOnce(nil)
-			}
-			return a.aliasedVar.SetKnownValueOnce(a.outer.v.GetScope().(*Scope).GetVar(aliasedName))
-		}
-		return a.aliasedVar.SetKnownValueOnce(nil)
+	if a.flags&ivaAliasedVarKnown != 0 {
+		return a.aliasedVar
 	}
+	a.flags |= ivaAliasedVarKnown
+	if !a.value.IsNil() && a.value.IsName() {
+		aliasedID := a.value.GetStringID()
+		// Never consider this variable to be an alias of itself.
+		if aliasedID != a.outer.v.nameID {
+			a.aliasedVar = a.outer.v.scope.GetVarByID(aliasedID)
+		}
+	}
+	return a.aliasedVar
 }
 
 // checkScopeVarEligibility handles the fast bailouts of
@@ -936,7 +971,7 @@ func (b *InlineVariables_InliningBehavior) checkScopeVarEligibility(
 //
 // Java: InlineVariables.InliningBehavior.isSafeUseOfArguments(Node)
 func (b *InlineVariables_InliningBehavior) IsSafeUseOfArguments(argumentsNode rhino.Node) bool {
-	jutil.CheckArgument(argumentsNode.MatchesName("arguments"))
+	jutil.CheckArgument(argumentsNode.IsName() && argumentsNode.GetStringID() == implicitArgumentsID)
 	// `arguments[i]` that is only read, not assigned
 	// or `fn.apply(thisArg, arguments)`
 	return b.IsTargetOfPropertyRead(argumentsNode) ||
@@ -963,7 +998,7 @@ func (b *InlineVariables_InliningBehavior) IsSecondArgumentToDotApplyMethod(n rh
 		return false
 	}
 	callee, ok := call.Callee().AsNormalOrOptChainGetProp()
-	if !ok || callee.Property() != "apply" {
+	if !ok || callee.Node().GetStringID() != inlineVariablesApplyID {
 		return false
 	}
 	thisArg, ok := call.FirstArg()
@@ -1265,53 +1300,4 @@ func InlineVariables_HasNoInlineAnnotation(var_ *Var) bool {
 	}
 	jsDocInfo := NodeUtil_GetBestJSDocInfo(n)
 	return jsDocInfo != nil && jsDocInfo.IsNoInline()
-}
-
-// InlineVariables_InitiallyUnknown is InlineVariables.InitiallyUnknown<T>.
-//
-// Go-only: language-adapter — T is comparable because Java compares values
-// with ==; T's zero value is Java's null.
-type InlineVariables_InitiallyUnknown[T comparable] struct {
-	isKnown bool
-	value   T
-}
-
-// Java: InlineVariables.InitiallyUnknown()
-func NewInlineVariables_InitiallyUnknown[T comparable]() *InlineVariables_InitiallyUnknown[T] {
-	return &InlineVariables_InitiallyUnknown[T]{isKnown: false}
-}
-
-// Java: InlineVariables.InitiallyUnknown.isKnown()
-func (u *InlineVariables_InitiallyUnknown[T]) IsKnown() bool {
-	return u.isKnown
-}
-
-// Java: InlineVariables.InitiallyUnknown.isKnownNotNull()
-func (u *InlineVariables_InitiallyUnknown[T]) IsKnownNotNull() bool {
-	var null T
-	return u.IsKnownNotToBe(null)
-}
-
-// Java: InlineVariables.InitiallyUnknown.isKnownToBe(T)
-func (u *InlineVariables_InitiallyUnknown[T]) IsKnownToBe(other T) bool {
-	return u.isKnown && u.value == other
-}
-
-// Java: InlineVariables.InitiallyUnknown.isKnownNotToBe(T)
-func (u *InlineVariables_InitiallyUnknown[T]) IsKnownNotToBe(other T) bool {
-	return u.isKnown && u.value != other
-}
-
-// Java: InlineVariables.InitiallyUnknown.setKnownValueOnce(T)
-func (u *InlineVariables_InitiallyUnknown[T]) SetKnownValueOnce(value T) T {
-	jutil.CheckStateMsg(!u.isKnown, "already known")
-	u.value = value
-	u.isKnown = true
-	return value
-}
-
-// Java: InlineVariables.InitiallyUnknown.getKnownValue()
-func (u *InlineVariables_InitiallyUnknown[T]) GetKnownValue() T {
-	jutil.CheckStateMsg(u.isKnown, "not yet known")
-	return u.value
 }

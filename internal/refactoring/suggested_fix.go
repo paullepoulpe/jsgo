@@ -19,31 +19,23 @@
 package refactoring
 
 import (
+	"slices"
 	"strings"
 
+	"github.com/paullepoulpe/jsgo/internal/ast"
 	"github.com/paullepoulpe/jsgo/internal/jscomp"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/parsing"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
 
-// SuggestedFix is the object representing the fixes to apply to the source
-// code to create the refactoring CL. To create a class, use the
-// SuggestedFix_Builder class and helper functions.
-//
-// Java: public final class SuggestedFix
+// SuggestedFix represents the fixes to apply to source code to create a
+// refactoring CL.
 type SuggestedFix struct {
 	matchedNodeInfo *SuggestedFix_MatchedNodeInfo
 	// Multimap of filename to a modification to that file.
 	replacements *jutil.SetMultimap[string, *CodeReplacement]
-
-	// An optional description of the fix, to distinguish between the various
-	// possible fixes for errors that have multiple fixes.
-	description *string
-
-	// Alternative fixes for the same problem. The fix itself is always the
-	// first entry in this list. If you cannot ask the developer which fix is
-	// appropriate, apply the first fix instead of any alternatives.
+	description  *string
 	alternatives []*SuggestedFix
 }
 
@@ -74,10 +66,11 @@ func newSuggestedFix(
 	replacements *jutil.SetMultimap[string, *CodeReplacement],
 	description *string,
 	alternatives []*SuggestedFix) *SuggestedFix {
-	f := &SuggestedFix{}
-	f.matchedNodeInfo = matchedNodeInfo
-	f.replacements = replacements
-	f.description = description
+	f := &SuggestedFix{
+		matchedNodeInfo: matchedNodeInfo,
+		replacements:    replacements,
+		description:     description,
+	}
 	all := make([]*SuggestedFix, 0, 1+len(alternatives))
 	all = append(all, f)
 	all = append(all, alternatives...)
@@ -85,42 +78,29 @@ func newSuggestedFix(
 	return f
 }
 
-// GetMatchedNodeInfo returns information about the original JS Compiler
-// Node that caused this SuggestedFix to be constructed.
-//
 // Java: SuggestedFix.getMatchedNodeInfo()
 func (f *SuggestedFix) GetMatchedNodeInfo() *SuggestedFix_MatchedNodeInfo {
 	return f.matchedNodeInfo
 }
 
-// GetReplacements returns a multimap from filename to all the replacements
-// that should be applied for this given fix.
-//
 // Java: SuggestedFix.getReplacements()
 func (f *SuggestedFix) GetReplacements() *jutil.SetMultimap[string, *CodeReplacement] {
 	return f.replacements
 }
 
-// GetDescription may return nil.
-//
 // Java: SuggestedFix.getDescription()
 func (f *SuggestedFix) GetDescription() *string {
 	return f.description
 }
 
-// GetAlternatives gets all possible fixes for this problem, including this
-// fix.
-//
 // Java: SuggestedFix.getAlternatives()
 func (f *SuggestedFix) GetAlternatives() []*SuggestedFix {
 	return f.alternatives
 }
 
-// GetNonDefaultAlternatives gets all alternative fixes, excluding this fix.
-//
 // Java: SuggestedFix.getNonDefaultAlternatives()
 func (f *SuggestedFix) GetNonDefaultAlternatives() []*SuggestedFix {
-	return f.alternatives[1:len(f.alternatives)]
+	return f.alternatives[1:]
 }
 
 // Java: SuggestedFix.isNoOp()
@@ -138,7 +118,6 @@ func (f *SuggestedFix) String() string {
 		sb.WriteString("Replacements for file: ")
 		sb.WriteString(key)
 		sb.WriteString("\n")
-		// Joiner.on("\n\n").appendTo(sb, entry.getValue())
 		first := true
 		for replacement := range values.All() {
 			if !first {
@@ -151,33 +130,22 @@ func (f *SuggestedFix) String() string {
 	return sb.String()
 }
 
-// SuggestedFix_Builder is the builder class for SuggestedFix that contains
-// helper functions to manipulate JS nodes.
-//
-// Java: public static final class SuggestedFix.Builder
+// SuggestedFix_Builder builds SuggestedFix instances and provides AST edit
+// helpers.
 type SuggestedFix_Builder struct {
 	matchedNodeInfo *SuggestedFix_MatchedNodeInfo
-	// Go-only: language-adapter — ImmutableSetMultimap.Builder: keys and
-	// values in first-insertion order, values deduplicated by equals; Build
-	// copies it, as ImmutableSetMultimap.Builder.build() does.
-	replacements *jutil.SetMultimap[string, *CodeReplacement]
-	alternatives []*SuggestedFix
-	description  *string
+	replacements    *jutil.SetMultimap[string, *CodeReplacement]
+	alternatives    []*SuggestedFix
+	description     *string
 }
 
 // Java: SuggestedFix.Builder()
 func NewSuggestedFix_Builder() *SuggestedFix_Builder {
-	b := &SuggestedFix_Builder{}
-	b.matchedNodeInfo = nil
-	b.replacements = jutil.NewSetMultimap[string, *CodeReplacement]()
-	b.alternatives = []*SuggestedFix{}
-	b.description = nil
-	return b
+	return &SuggestedFix_Builder{
+		replacements: jutil.NewSetMultimap[string, *CodeReplacement](),
+	}
 }
 
-// AttachMatchedNodeInfo sets the node on this SuggestedFix that caused this
-// SuggestedFix to be built in the first place.
-//
 // Java: SuggestedFix.Builder.attachMatchedNodeInfo(Node, AbstractCompiler)
 func (b *SuggestedFix_Builder) AttachMatchedNodeInfo(node rhino.Node, compiler jscomp.AbstractCompiler) *SuggestedFix_Builder {
 	b.matchedNodeInfo =
@@ -195,19 +163,13 @@ func (b *SuggestedFix_Builder) AddAlternative(alternative *SuggestedFix) *Sugges
 	return b
 }
 
-// ReplaceText replaces text starting at the given node position.
-//
 // Java: SuggestedFix.Builder.replaceText(Node, int, String)
 func (b *SuggestedFix_Builder) ReplaceText(node rhino.Node, length int, newContent string) *SuggestedFix_Builder {
-	startPosition := node.GetSourceOffset()
 	b.replacements.Put(
-		*node.GetSourceFileName(), CodeReplacement_Create(startPosition, length, newContent))
+		*node.GetSourceFileName(), CodeReplacement_Create(node.GetSourceOffset(), length, newContent))
 	return b
 }
 
-// AddChildToFront inserts a new node as the first child of the provided
-// node.
-//
 // Java: SuggestedFix.Builder.addChildToFront(Node, String)
 func (b *SuggestedFix_Builder) AddChildToFront(parentNode rhino.Node, content string) *SuggestedFix_Builder {
 	jutil.CheckStateMsg(
@@ -218,8 +180,6 @@ func (b *SuggestedFix_Builder) AddChildToFront(parentNode rhino.Node, content st
 	return b
 }
 
-// InsertAfter inserts the text after the given node.
-//
 // Java: SuggestedFix.Builder.insertAfter(Node, String)
 func (b *SuggestedFix_Builder) InsertAfter(node rhino.Node, text string) *SuggestedFix_Builder {
 	position := node.GetSourceOffset() + node.GetLength()
@@ -227,8 +187,6 @@ func (b *SuggestedFix_Builder) InsertAfter(node rhino.Node, text string) *Sugges
 	return b
 }
 
-// InsertBeforeNode inserts a new node before the provided node.
-//
 // Java: SuggestedFix.Builder.insertBefore(Node, Node, AbstractCompiler)
 func (b *SuggestedFix_Builder) InsertBeforeNode(nodeToInsertBefore rhino.Node, n rhino.Node, compiler jscomp.AbstractCompiler) *SuggestedFix_Builder {
 	return b.InsertBeforeNodeWithSortKey(nodeToInsertBefore, n, compiler, "")
@@ -240,10 +198,6 @@ func (b *SuggestedFix_Builder) InsertBeforeNodeWithSortKey(
 	return b.InsertBeforeWithSortKey(nodeToInsertBefore, b.GenerateCode(compiler, n), sortKey)
 }
 
-// InsertBefore inserts a string before the provided node. This is useful
-// for inserting comments into a file since the JS Compiler doesn't
-// currently support printing comments.
-//
 // Java: SuggestedFix.Builder.insertBefore(Node, String)
 func (b *SuggestedFix_Builder) InsertBefore(nodeToInsertBefore rhino.Node, content string) *SuggestedFix_Builder {
 	return b.InsertBeforeWithSortKey(nodeToInsertBefore, content, "")
@@ -260,69 +214,49 @@ func (b *SuggestedFix_Builder) InsertBeforeWithSortKey(nodeToInsertBefore rhino.
 	return b
 }
 
-// Delete deletes a node and its contents from the source file. If the node
-// is a child of a block or top level statement, this will also delete the
-// whitespace before the node.
-//
 // Java: SuggestedFix.Builder.delete(Node)
 func (b *SuggestedFix_Builder) Delete(n rhino.Node) *SuggestedFix_Builder {
 	return b.DeleteWithWhitespaceBefore(n, true)
 }
 
-// DeleteWithWhitespaceBefore deletes a node and its contents from the
-// source file.
-//
 // Java: SuggestedFix.Builder.delete(Node, boolean)
 func (b *SuggestedFix_Builder) DeleteWithWhitespaceBefore(n rhino.Node, deleteWhitespaceBefore bool) *SuggestedFix_Builder {
 	startPosition := SuggestedFix_GetStartPositionForNodeConsideringComments(n)
 	startOffsetWithoutComments := n.GetSourceOffset()
 	length := (startOffsetWithoutComments - startPosition) + n.GetLength()
 
-	if !n.GetNext().IsNil() &&
-		jscomp.NodeUtil_GetBestJSDocInfo(n.GetNext()) == nil &&
-		n.GetNext().GetNonJSDocComment() == nil {
-		length = n.GetNext().GetSourceOffset() - startPosition
-	}
-
-	// Variable declarations and string keys require special handling since
-	// the node doesn't contain enough if it has a child. The NAME node in a
-	// var/let/const declaration doesn't include its child in its length, and
-	// the code needs to know how to delete the commas. The same is true for
-	// string keys in object literals and object destructuring patterns.
-	// TODO(mknichel): Move this logic and the start position logic to a
-	// helper function so that it can be reused in other methods.
-	if (n.IsName() && jscomp.NodeUtil_IsNameDeclaration(n.GetParent())) || n.IsStringKey() {
-		if !n.GetNext().IsNil() {
-			length = SuggestedFix_GetStartPositionForNodeConsideringComments(n.GetNext()) - startPosition
-		} else if n.HasChildren() {
-			child := n.GetFirstChild()
-			length = (child.GetSourceOffset() + child.GetLength()) - startPosition
-		}
-		if n.GetParent().GetLastChild() == n && n != n.GetParent().GetFirstChild() {
-			previousSibling := n.GetPrevious()
-			if previousSibling.HasChildren() {
-				child := previousSibling.GetFirstChild()
-				startPositionDiff := startPosition - (child.GetSourceOffset() + child.GetLength())
-				startPosition -= startPositionDiff
-				length += startPositionDiff
-			} else {
-				startPositionDiff :=
-					startPosition - (previousSibling.GetSourceOffset() + previousSibling.GetLength())
-				startPosition -= startPositionDiff
-				length += startPositionDiff
-			}
-		}
+	next := n.GetNext()
+	if !next.IsNil() &&
+		jscomp.NodeUtil_GetBestJSDocInfo(next) == nil &&
+		next.GetNonJSDocComment() == nil {
+		length = next.GetSourceOffset() - startPosition
 	}
 
 	parent := n.GetParent()
-	if deleteWhitespaceBefore &&
-		!parent.IsNil() &&
-		(parent.IsScript() || parent.IsBlock()) {
-		previousSibling := n.GetPrevious()
-		if !previousSibling.IsNil() {
-			previousSiblingEndPosition :=
-				previousSibling.GetSourceOffset() + previousSibling.GetLength()
-			length += (startPosition - previousSiblingEndPosition)
+	_, isNameInDecl := ast.AsNameDeclaration(parent)
+	isNameInDecl = isNameInDecl && n.IsName()
+	if isNameInDecl || n.IsStringKey() {
+		if !next.IsNil() {
+			length = SuggestedFix_GetStartPositionForNodeConsideringComments(next) - startPosition
+		} else if child := n.GetFirstChild(); !child.IsNil() {
+			length = (child.GetSourceOffset() + child.GetLength()) - startPosition
+		}
+		if parent.GetLastChild() == n && n != parent.GetFirstChild() {
+			previousSibling := n.GetPrevious()
+			prevEndNode := previousSibling
+			if child := previousSibling.GetFirstChild(); !child.IsNil() {
+				prevEndNode = child
+			}
+			startPositionDiff := startPosition - (prevEndNode.GetSourceOffset() + prevEndNode.GetLength())
+			startPosition -= startPositionDiff
+			length += startPositionDiff
+		}
+	}
+
+	if deleteWhitespaceBefore && !parent.IsNil() && (parent.IsScript() || parent.IsBlock()) {
+		if previousSibling := n.GetPrevious(); !previousSibling.IsNil() {
+			previousSiblingEndPosition := previousSibling.GetSourceOffset() + previousSibling.GetLength()
+			length += startPosition - previousSiblingEndPosition
 			startPosition = previousSiblingEndPosition
 		}
 	}
@@ -330,17 +264,11 @@ func (b *SuggestedFix_Builder) DeleteWithWhitespaceBefore(n rhino.Node, deleteWh
 	return b
 }
 
-// DeleteWithoutRemovingWhitespaceBefore deletes a node and its contents
-// from the source file.
-//
 // Java: SuggestedFix.Builder.deleteWithoutRemovingWhitespaceBefore(Node)
 func (b *SuggestedFix_Builder) DeleteWithoutRemovingWhitespaceBefore(n rhino.Node) *SuggestedFix_Builder {
 	return b.DeleteWithWhitespaceBefore(n, false)
 }
 
-// DeleteWithoutRemovingWhitespace deletes a node without touching any
-// surrounding whitespace.
-//
 // Java: SuggestedFix.Builder.deleteWithoutRemovingWhitespace(Node)
 func (b *SuggestedFix_Builder) DeleteWithoutRemovingWhitespace(n rhino.Node) *SuggestedFix_Builder {
 	b.replacements.Put(
@@ -348,30 +276,19 @@ func (b *SuggestedFix_Builder) DeleteWithoutRemovingWhitespace(n rhino.Node) *Su
 	return b
 }
 
-// Rename renames a given node to the provided name.
-//
-// n is the node to rename; name is the new name for the node.
-//
 // Java: SuggestedFix.Builder.rename(Node, String)
 func (b *SuggestedFix_Builder) Rename(n rhino.Node, name string) *SuggestedFix_Builder {
 	return b.RenameWithReplaceNameSubtree(n, name, false)
 }
 
-// RenameWithReplaceNameSubtree renames a given node to the provided name.
-//
-// n is the node to rename; name is the new name for the node;
-// replaceNameSubtree is true to replace the entire name subtree below the
-// node. The default is to replace just the last property in the node with
-// the new name. For instance, if replaceNameSubtree is false, then
-// `this.foo()` will be renamed to `this.bar()`. However, if it is true, it
-// will be renamed to `bar()`.
-//
 // Java: SuggestedFix.Builder.rename(Node, String, boolean)
 func (b *SuggestedFix_Builder) RenameWithReplaceNameSubtree(n rhino.Node, name string, replaceNameSubtree bool) *SuggestedFix_Builder {
 	var range_ rhino.Node
 	switch n.GetToken() {
-	case rhino.Token_CALL, rhino.Token_TAGGED_TEMPLATELIT:
-		return b.RenameWithReplaceNameSubtree(n.GetFirstChild(), name, replaceNameSubtree)
+	case rhino.Token_CALL:
+		return b.RenameWithReplaceNameSubtree(ast.MustCall(n).Callee().Node(), name, replaceNameSubtree)
+	case rhino.Token_TAGGED_TEMPLATELIT:
+		return b.RenameWithReplaceNameSubtree(ast.MustTaggedTemplateLit(n).Tag().Node(), name, replaceNameSubtree)
 	case rhino.Token_GETPROP:
 		if replaceNameSubtree {
 			range_ = SuggestedFix_Builder_SubtreeRangeOfIdentifier(n)
@@ -394,67 +311,46 @@ func (b *SuggestedFix_Builder) RenameWithReplaceNameSubtree(n rhino.Node, name s
 	return b
 }
 
-// ReplaceRange replaces a range of nodes with the given content.
-//
 // Java: SuggestedFix.Builder.replaceRange(Node, Node, String)
 func (b *SuggestedFix_Builder) ReplaceRange(first rhino.Node, last rhino.Node, newContent string) *SuggestedFix_Builder {
 	jutil.CheckState(first.GetParent() == last.GetParent())
 
 	start := SuggestedFix_GetStartPositionForNodeConsideringComments(first)
 	if start == 0 {
-		// if there are file-level comments at the top of the file, we do not
-		// wish to remove them
 		start = first.GetSourceOffset()
 	}
 	end := last.GetSourceOffset() + last.GetLength()
-	length := end - start
 	b.replacements.Put(
-		*first.GetSourceFileName(), CodeReplacement_Create(start, length, newContent))
+		*first.GetSourceFileName(), CodeReplacement_Create(start, end-start, newContent))
 	return b
 }
 
-// Replace replaces the provided node with new node in the source file.
-//
 // Java: SuggestedFix.Builder.replace(Node, Node, AbstractCompiler)
 func (b *SuggestedFix_Builder) Replace(original rhino.Node, newNode rhino.Node, compiler jscomp.AbstractCompiler) *SuggestedFix_Builder {
 	parent := original.GetParent()
-	// EXPR_RESULT nodes will contain the trailing semicolons, but the child
-	// node will not. Replace the EXPR_RESULT node to ensure that the
-	// semicolons are correct in the final output.
 	if !parent.IsNil() && parent.IsExprResult() {
 		original = parent
 	}
-	// TODO(mknichel): Move this logic to CodePrinter.
-	newCode := b.GenerateCode(compiler, newNode)
-	// The generated code may contain a trailing newline but that is never
-	// wanted.
-	if strings.HasSuffix(newCode, "\n") {
-		newCode = newCode[:len(newCode)-1]
-	}
+	newCode := strings.TrimSuffix(b.GenerateCode(compiler, newNode), "\n")
 
-	// Most replacements don't need the semicolon in the new generated code -
-	// however, some statements that are blocks or expressions will need the
-	// semicolon.
 	needsSemicolon :=
 		!parent.IsNil() &&
 			(parent.IsExprResult() ||
 				parent.IsBlock() ||
 				parent.IsScript() ||
 				parent.IsModuleBody())
-	if strings.HasSuffix(newCode, ";") && !needsSemicolon {
-		newCode = newCode[:len(newCode)-1]
+	if !needsSemicolon {
+		newCode = strings.TrimSuffix(newCode, ";")
 	}
 
-	// If the replacement has lower precedence then we may need to add
-	// parentheses.
 	if !parent.IsNil() && rhino.IR_MayBeExpression(parent) {
 		replacement := newNode
 		for (replacement.IsBlock() || replacement.IsScript() || replacement.IsModuleBody()) &&
 			replacement.HasOneChild() {
 			replacement = replacement.GetOnlyChild()
 		}
-		if replacement.IsExprResult() {
-			replacement = replacement.GetOnlyChild()
+		if exprStmt, ok := ast.AsExprStmt(replacement); ok {
+			replacement = exprStmt.Expr().Node()
 		}
 		if rhino.IR_MayBeExpression(replacement) {
 			outer := jscomp.NodeUtil_Precedence(parent.GetToken())
@@ -477,11 +373,8 @@ func (b *SuggestedFix_Builder) Replace(original rhino.Node, newNode rhino.Node, 
 	return b
 }
 
-// AddCast adds a cast of the given type to the provided node.
-//
 // Java: SuggestedFix.Builder.addCast(Node, AbstractCompiler, String)
 func (b *SuggestedFix_Builder) AddCast(n rhino.Node, compiler jscomp.AbstractCompiler, type_ string) *SuggestedFix_Builder {
-	// TODO(mknichel): Figure out the best way to output the typecast.
 	b.replacements.Put(
 		*n.GetSourceFileName(),
 		CodeReplacement_Create(
@@ -491,47 +384,38 @@ func (b *SuggestedFix_Builder) AddCast(n rhino.Node, compiler jscomp.AbstractCom
 	return b
 }
 
-// RemoveCast removes a cast from the given node.
-//
 // Java: SuggestedFix.Builder.removeCast(Node, AbstractCompiler)
 func (b *SuggestedFix_Builder) RemoveCast(n rhino.Node, compiler jscomp.AbstractCompiler) *SuggestedFix_Builder {
-	jutil.CheckArgument(n.IsCast())
+	cast, ok := ast.AsCast(n)
+	jutil.CheckArgument(ok)
 	jsDoc := n.GetJSDocInfo()
 	b.replacements.Put(
 		*n.GetSourceFileName(),
 		CodeReplacement_Create(
 			jsDoc.GetOriginalCommentPosition(),
-			n.GetFirstChild().GetSourceOffset()-jsDoc.GetOriginalCommentPosition(),
+			cast.Expr().Node().GetSourceOffset()-jsDoc.GetOriginalCommentPosition(),
 			""))
 	b.replacements.Put(
 		*n.GetSourceFileName(),
-		CodeReplacement_Create(n.GetSourceOffset()+n.GetLength()-1 /* length= */, 1, ""))
+		CodeReplacement_Create(n.GetSourceOffset()+n.GetLength()-1, 1, ""))
 	return b
 }
 
-// AddOrReplaceJsDoc adds or replaces the JS Doc for the given node.
-//
 // Java: SuggestedFix.Builder.addOrReplaceJsDoc(Node, String)
 func (b *SuggestedFix_Builder) AddOrReplaceJsDoc(n rhino.Node, newJsDoc string) *SuggestedFix_Builder {
 	offset := n.GetSourceOffset()
 	length := 0
-
 	if n.IsGetProp() {
 		offset = SuggestedFix_Builder_SubtreeRangeOfIdentifier(n).GetSourceOffset()
 	}
-
-	jsDoc := jscomp.NodeUtil_GetBestJSDocInfo(n)
-	if jsDoc != nil {
+	if jsDoc := jscomp.NodeUtil_GetBestJSDocInfo(n); jsDoc != nil {
 		offset = jsDoc.GetOriginalCommentPosition()
 		length = jutil.StringLength(*jsDoc.GetOriginalCommentString())
 	}
-
 	b.replacements.Put(*n.GetSourceFileName(), CodeReplacement_Create(offset, length, newJsDoc))
 	return b
 }
 
-// ChangeJsDocType changes the JS Doc Type of the given node.
-//
 // Java: SuggestedFix.Builder.changeJsDocType(Node, AbstractCompiler, String)
 func (b *SuggestedFix_Builder) ChangeJsDocType(n rhino.Node, compiler jscomp.AbstractCompiler, type_ string) *SuggestedFix_Builder {
 	typeNode := parsing.JsDocInfoParser_ParseTypeString(type_)
@@ -542,26 +426,11 @@ func (b *SuggestedFix_Builder) ChangeJsDocType(n rhino.Node, compiler jscomp.Abs
 		panic(jutil.NewRuntimeException("JS Compiler does not recognize type: " + type_))
 	}
 
-	// TODO(mknichel): Use the JSDocInfoParser to find the end of the type
-	// declaration. This would also handle multiple lines, and record types
-	// (which contain '{')
-
-	// Only "@type" allows type names without "{}"
-	b.ReplaceTypePattern(n, type_, jutil.Pattern_Compile(
-		"@(type) *\\{?[^@\\s}]+\\}?"))
-
-	// Text following other annotations may be a comment, not a type.
-	b.ReplaceTypePattern(n, type_, jutil.Pattern_Compile(
-		"@(export|package|private|protected|public|const|return) *\\{[^}]+\\}"))
-
+	b.ReplaceTypePattern(n, type_, jutil.Pattern_Compile("@(type) *\\{?[^@\\s}]+\\}?"))
+	b.ReplaceTypePattern(n, type_, jutil.Pattern_Compile("@(export|package|private|protected|public|const|return) *\\{[^}]+\\}"))
 	return b
 }
 
-// ReplaceTypePattern: the pattern supplied here should have one matching
-// group, the annotation with associated the type expression, the entire
-// pattern should match the annotation and the type expression to be
-// replaced.
-//
 // Java: SuggestedFix.Builder.replaceTypePattern(Node, String, Pattern)
 func (b *SuggestedFix_Builder) ReplaceTypePattern(n rhino.Node, type_ string, pattern *jutil.Pattern) {
 	info := jscomp.NodeUtil_GetBestJSDocInfo(n)
@@ -581,102 +450,71 @@ func (b *SuggestedFix_Builder) ReplaceTypePattern(n rhino.Node, type_ string, pa
 	}
 }
 
-// InsertArguments inserts arguments into an existing function call.
-//
 // Java: SuggestedFix.Builder.insertArguments(Node, int, String...)
 func (b *SuggestedFix_Builder) InsertArguments(n rhino.Node, position int, args ...string) *SuggestedFix_Builder {
-	jutil.CheckArgumentMsg(n.IsCall(), "insertArguments is only applicable to function call nodes.")
+	call, ok := ast.AsCall(n)
+	jutil.CheckArgumentMsg(ok, "insertArguments is only applicable to function call nodes.")
+	numArgs := call.NumArgs()
+	jutil.CheckArgumentMsg(
+		position >= 0 && position <= numArgs,
+		"The specified position must be less than the number of arguments.")
+
 	var startPosition int
-	argument := n.GetSecondChild()
-	i := 0
-	for !argument.IsNil() && i < position {
-		argument = argument.GetNext()
-		i++
-	}
-	if argument.IsNil() {
-		jutil.CheckArgumentMsg(
-			position == i, "The specified position must be less than the number of arguments.")
-		startPosition = n.GetSourceOffset() + n.GetLength() - 1
-	} else {
+	var argument rhino.Node
+	if position < numArgs {
+		arg, _ := call.AsCallOrNew().ArgAt(position)
+		argument = arg.Node()
 		startPosition = SuggestedFix_GetStartPositionForNodeConsideringComments(argument)
+	} else {
+		startPosition = n.GetSourceOffset() + n.GetLength() - 1
 	}
 
 	newContent := strings.Join(args, ", ")
 	if !argument.IsNil() {
 		newContent += ", "
-	} else if i > 0 {
+	} else if position > 0 {
 		newContent = ", " + newContent
 	}
 	b.replacements.Put(*n.GetSourceFileName(), CodeReplacement_Create(startPosition, 0, newContent))
-
 	return b
 }
 
-// DeleteArgument deletes an argument from an existing function call,
-// including any JS doc that precedes it. WARNING: If jsdoc erroneously
-// follows the argument, it will not be removed as the parser considers the
-// comment to belong to the next argument.
-//
 // Java: SuggestedFix.Builder.deleteArgument(Node, int)
 func (b *SuggestedFix_Builder) DeleteArgument(n rhino.Node, position int) *SuggestedFix_Builder {
 	jutil.CheckArgumentMsg(
 		n.IsCall() || n.IsNew(), "deleteArgument is only applicable to function call nodes.")
-
-	// A CALL node's first child is the name of the function being called,
-	// and subsequent children are the arguments being passed to that
-	// function.
+	callOrNew := ast.MustCallOrNew(n)
 	numArguments := n.GetChildCount() - 1
 	jutil.CheckStateMsg(
 		numArguments > 0, "deleteArgument() cannot be used on a function call with no arguments")
 	jutil.CheckArgumentMsg(
 		position >= 0 && position < numArguments,
 		"The specified position must be less than the number of arguments.")
-	argument := n.GetSecondChild()
 
-	// Points at the first position in the code we will remove.
-	startOfArgumentToRemove := -1
-	// Points one past the last position in the code we will remove.
-	endOfArgumentToRemove := -1
-	i := 0
-	for !argument.IsNil() {
-		// If we are removing the first argument, we remove from the start of
-		// it (including any jsdoc). Otherwise, we remove from the end of the
-		// previous argument (to remove the comma and any whitespace).
+	targetArg, _ := callOrNew.ArgAt(position)
+	targetNode := targetArg.Node()
 
-		// If we are removing the first argument and it's not the only
-		// argument, we remove to the beginning of the next argument (to
-		// remove the comma and any whitespace). Otherwise we remove to the
-		// end of the argument.
-		if i < position {
-			startOfArgumentToRemove = argument.GetSourceOffset() + argument.GetLength()
-		} else if i == position {
-			if position == 0 {
-				startOfArgumentToRemove = SuggestedFix_GetStartPositionForNodeConsideringComments(argument)
-			}
-			endOfArgumentToRemove = argument.GetSourceOffset() + argument.GetLength()
-		} else if i > position {
-			if position == 0 {
-				endOfArgumentToRemove = argument.GetSourceOffset()
-			}
-			// We have all the information we need to remove the argument,
-			// break early.
-			break
+	var startOfArgumentToRemove, endOfArgumentToRemove int
+	if position == 0 {
+		startOfArgumentToRemove = SuggestedFix_GetStartPositionForNodeConsideringComments(targetNode)
+		if nextArg, ok := callOrNew.ArgAt(1); ok {
+			endOfArgumentToRemove = nextArg.Node().GetSourceOffset()
+		} else {
+			endOfArgumentToRemove = targetNode.GetSourceOffset() + targetNode.GetLength()
 		}
-
-		argument = argument.GetNext()
-		i++
+	} else {
+		prevArg, _ := callOrNew.ArgAt(position - 1)
+		prevNode := prevArg.Node()
+		startOfArgumentToRemove = prevNode.GetSourceOffset() + prevNode.GetLength()
+		endOfArgumentToRemove = targetNode.GetSourceOffset() + targetNode.GetLength()
 	}
 
-	// Remove the argument by replacing it with an empty string.
-	lengthOfArgumentToRemove := endOfArgumentToRemove - startOfArgumentToRemove
 	b.replacements.Put(
 		*n.GetSourceFileName(),
-		CodeReplacement_Create(startOfArgumentToRemove, lengthOfArgumentToRemove, ""))
+		CodeReplacement_Create(startOfArgumentToRemove, endOfArgumentToRemove-startOfArgumentToRemove, ""))
 	return b
 }
 
-// SuggestedFix_Builder_CreateImportNode: alias may be nil.
-//
 // Java: SuggestedFix.Builder.createImportNode(ImportType, String, String)
 func SuggestedFix_Builder_CreateImportNode(
 	importType SuggestedFix_ImportType, alias *string, namespace string) rhino.Node {
@@ -689,12 +527,10 @@ func SuggestedFix_Builder_CreateImportNode(
 	}
 
 	callNode := rhino.IR_Call(rhino.IR_Getprop(rhino.IR_Name("goog"), requireFlavor), rhino.IR_String(namespace))
-
 	if alias != nil {
 		return rhino.IR_ConstNode(rhino.IR_Name(*alias), callNode)
-	} else {
-		return rhino.IR_ExprResult(callNode)
 	}
+	return rhino.IR_ExprResult(callNode)
 }
 
 // Java: SuggestedFix.Builder.addGoogRequire(Match, String, ScriptMetadata)
@@ -707,32 +543,16 @@ func (b *SuggestedFix_Builder) AddGoogRequireType(m *Match, namespace string, sc
 	return b.AddImport(m, namespace, SuggestedFix_ImportType_REQUIRE_TYPE, scriptMetadata)
 }
 
-// AddImport adds a goog.require/requireType for the given namespace if it
-// does not already exist.
-//
 // Java: SuggestedFix.Builder.addImport(Match, String, ImportType, ScriptMetadata)
 func (b *SuggestedFix_Builder) AddImport(
 	m *Match, namespace string, importType SuggestedFix_ImportType, scriptMetadata *ScriptMetadata) *SuggestedFix_Builder {
 	var alias *string
 	if scriptMetadata.SupportsRequireAliases() {
-		existingAlias := scriptMetadata.GetAlias(namespace)
-		if existingAlias != nil {
-			/*
-			 * Each fix muct be independently valid, so go through the steps of adding a require even
-			 * if one may already exist or have been added by another fix.
-			 */
+		if existingAlias := scriptMetadata.GetAlias(namespace); existingAlias != nil {
 			alias = existingAlias
 		} else if strings.IndexByte(namespace, '.') == -1 {
-			/*
-			 * For unqualified names, the exisiting references will still be valid so long as we keep
-			 * the same name for the alias.
-			 */
 			alias = &namespace
 		} else {
-			// stream(RequireAliasGenerator.over(namespace))
-			//     .filter((a) -> !scriptMetadata.usesName(a))
-			//     .findFirst()
-			//     .orElseThrow(AssertionError::new)
 			for a := range RequireAliasGenerator_Over(namespace).All() {
 				if !scriptMetadata.UsesName(a) {
 					alias = &a
@@ -744,33 +564,26 @@ func (b *SuggestedFix_Builder) AddImport(
 			}
 		}
 		scriptMetadata.AddAlias(namespace, *alias)
-	} else {
-		alias = nil
 	}
 
 	metadata := m.GetMetadata()
 	existingNode := SuggestedFix_Builder_FindGoogRequireNode(m.GetNode(), metadata, namespace)
 
 	if !existingNode.IsNil() {
-		// TODO(b/139953612): Destructured goog.requires are not supported.
-
-		// Add an alias to a naked require if allowed in this file.
-		if existingNode.IsExprResult() && alias != nil {
+		if exprStmt, ok := ast.AsExprStmt(existingNode); ok && alias != nil {
+			expr := exprStmt.Expr().Node()
 			var newNode rhino.Node
-			// Replace goog.forwardDeclare with the appropriate alternative
-			if jscomp.NodeUtil_IsCallTo(existingNode.GetFirstChild(), "goog.forwardDeclare") {
+			if jscomp.NodeUtil_IsCallTo(expr, "goog.forwardDeclare") {
 				newNode = SuggestedFix_Builder_CreateImportNode(importType, alias, namespace)
 			} else {
-				newNode = rhino.IR_ConstNode(rhino.IR_Name(*alias), existingNode.GetFirstChild().CloneTree())
+				newNode = rhino.IR_ConstNode(rhino.IR_Name(*alias), expr.CloneTree())
 			}
-			b.Replace(existingNode, newNode, m.GetMetadata().GetCompiler())
+			b.Replace(existingNode, newNode, metadata.GetCompiler())
 			scriptMetadata.AddAlias(namespace, *alias)
 		}
-
 		return b
 	}
 
-	// Find the right goog.require node to insert this after.
 	script := scriptMetadata.GetScript()
 	if script.GetFirstChild().IsModuleBody() {
 		script = script.GetFirstChild()
@@ -779,84 +592,82 @@ func (b *SuggestedFix_Builder) AddImport(
 	var lastModuleOrProvideNode rhino.Node
 	var lastGoogRequireNode rhino.Node
 	var nodeToInsertBefore rhino.Node
-	child := script.GetFirstChild()
-	for !child.IsNil() {
-		if Matchers_GoogModule().Matches(child, metadata) {
+	modMatcher := Matchers_GoogModule()
+	modOrProvideMatcher := Matchers_GoogModuleOrProvide()
+	reqLikeMatcher := Matchers_GoogRequirelike()
+
+	for child := script.GetFirstChild(); !child.IsNil(); child = child.GetNext() {
+		if modMatcher.Matches(child, metadata) {
 			lastModuleOrProvideNode = child
 		}
-		if jscomp.NodeUtil_IsExprCall(child) {
-			// TODO(mknichel): Replace this logic with a function argument
-			// Matcher when it exists.
-			grandchild := child.GetFirstChild()
-			if Matchers_GoogModuleOrProvide().Matches(grandchild, metadata) {
-				lastModuleOrProvideNode = grandchild
-			} else if Matchers_GoogRequirelike().Matches(grandchild, metadata) {
-				lastGoogRequireNode = grandchild
-				if grandchild.GetLastChild().IsStringLit() &&
-					jutil.StringCompareTo(namespace, grandchild.GetLastChild().GetString()) < 0 {
-					nodeToInsertBefore = child
-					break
+		if exprStmt, ok := ast.AsExprStmt(child); ok {
+			if call, isCall := ast.AsCall(exprStmt.Expr().Node()); isCall {
+				callNode := call.Node()
+				if modOrProvideMatcher.Matches(callNode, metadata) {
+					lastModuleOrProvideNode = callNode
+				} else if reqLikeMatcher.Matches(callNode, metadata) {
+					lastGoogRequireNode = callNode
+					if lastArg, hasArg := call.LastArg(); hasArg {
+						if strLit, isStr := lastArg.AsStringLit(); isStr &&
+							jutil.StringCompareTo(namespace, strLit.Value()) < 0 {
+							nodeToInsertBefore = child
+							break
+						}
+					}
 				}
 			}
-		} else if jscomp.NodeUtil_IsNameDeclaration(child) &&
-			!child.GetFirstFirstChild().IsNil() &&
-			Matchers_GoogRequirelike().Matches(child.GetFirstFirstChild(), metadata) {
-			lastGoogRequireNode = child.GetFirstFirstChild()
-			requireName := child.GetFirstChild().GetString()
-			originalName := child.GetFirstChild().GetOriginalName()
-			if originalName != nil {
-				requireName = *originalName
-			}
-			if jutil.StringCompareTo(*alias, requireName) < 0 {
-				nodeToInsertBefore = child
-				break
+		} else if decl, ok := ast.AsNameDeclaration(child); ok {
+			if firstDecl, hasDecl := decl.FirstDeclarator(); hasDecl {
+				if declName, isName := ast.AsName(firstDecl.Node()); isName {
+					if initExpr, hasInit := declName.Init(); hasInit &&
+						reqLikeMatcher.Matches(initExpr.Node(), metadata) {
+						lastGoogRequireNode = initExpr.Node()
+						requireName := declName.Ident()
+						if originalName := declName.Node().GetOriginalName(); originalName != nil {
+							requireName = *originalName
+						}
+						if jutil.StringCompareTo(*alias, requireName) < 0 {
+							nodeToInsertBefore = child
+							break
+						}
+					}
+				}
 			}
 		}
-		child = child.GetNext()
 	}
 
 	newImportNode := SuggestedFix_Builder_CreateImportNode(importType, alias, namespace)
 	if nodeToInsertBefore.IsNil() {
-		// The file has goog.provide or goog.require nodes but they come before
-		// the new goog.require node alphabetically.
 		if !lastModuleOrProvideNode.IsNil() || !lastGoogRequireNode.IsNil() {
-			var nodeToInsertAfter rhino.Node
+			nodeToInsertAfter := lastModuleOrProvideNode
 			if !lastGoogRequireNode.IsNil() {
 				nodeToInsertAfter = lastGoogRequireNode
-			} else {
-				nodeToInsertAfter = lastModuleOrProvideNode
 			}
-			startPosition :=
-				nodeToInsertAfter.GetSourceOffset() + nodeToInsertAfter.GetLength() + 2
+			startPosition := nodeToInsertAfter.GetSourceOffset() + nodeToInsertAfter.GetLength() + 2
 			b.replacements.Put(
 				*nodeToInsertAfter.GetSourceFileName(),
 				CodeReplacement_CreateWithSortKey(
 					startPosition,
 					0,
-					b.GenerateCode(m.GetMetadata().GetCompiler(), newImportNode),
+					b.GenerateCode(metadata.GetCompiler(), newImportNode),
 					namespace))
 			return b
+		}
+		if script.HasChildren() {
+			nodeToInsertBefore = script.GetFirstChild()
 		} else {
-			// The file has no goog.provide or goog.require nodes.
-			if script.HasChildren() {
-				nodeToInsertBefore = script.GetFirstChild()
-			} else {
-				b.replacements.Put(
-					*script.GetSourceFileName(),
-					CodeReplacement_CreateWithSortKey(
-						0, 0, b.GenerateCode(m.GetMetadata().GetCompiler(), newImportNode), namespace))
-				return b
-			}
+			b.replacements.Put(
+				*script.GetSourceFileName(),
+				CodeReplacement_CreateWithSortKey(
+					0, 0, b.GenerateCode(metadata.GetCompiler(), newImportNode), namespace))
+			return b
 		}
 	}
 
 	return b.InsertBeforeNodeWithSortKey(
-		nodeToInsertBefore, newImportNode, m.GetMetadata().GetCompiler(), namespace)
+		nodeToInsertBefore, newImportNode, metadata.GetCompiler(), namespace)
 }
 
-// RemoveGoogRequire removes a goog.require for the given namespace to the
-// file if it already exists.
-//
 // Java: SuggestedFix.Builder.removeGoogRequire(Match, String)
 func (b *SuggestedFix_Builder) RemoveGoogRequire(m *Match, namespace string) *SuggestedFix_Builder {
 	googRequireNode := SuggestedFix_Builder_FindGoogRequireNode(m.GetNode(), m.GetMetadata(), namespace)
@@ -866,14 +677,6 @@ func (b *SuggestedFix_Builder) RemoveGoogRequire(m *Match, namespace string) *Su
 	return b
 }
 
-// SuggestedFix_Builder_FindGoogRequireNode finds the goog.require node for
-// the given namespace (or nil if there isn't one). If there is more than
-// one:
-//
-//   - If there is at least one standalone goog.require, this will return the
-//     first standalone goog.require.
-//   - If not, this will return the first goog.require.
-//
 // Java: SuggestedFix.Builder.findGoogRequireNode(Node, NodeMetadata, String)
 func SuggestedFix_Builder_FindGoogRequireNode(
 	n rhino.Node, metadata *NodeMetadata, namespace string) rhino.Node {
@@ -882,21 +685,26 @@ func SuggestedFix_Builder_FindGoogRequireNode(
 		script = script.GetFirstChild()
 	}
 
+	nsMatcher := Matchers_GoogRequirelikeWithNamespace(namespace)
 	for child := script.GetFirstChild(); !child.IsNil(); child = child.GetNext() {
-		if jscomp.NodeUtil_IsExprCall(child) &&
-			Matchers_GoogRequirelikeWithNamespace(namespace).Matches(child.GetFirstChild(), metadata) {
-			return child
+		if exprStmt, ok := ast.AsExprStmt(child); ok {
+			expr := exprStmt.Expr().Node()
+			if expr.IsCall() && nsMatcher.Matches(expr, metadata) {
+				return child
+			}
 		}
 	}
 
 	for child := script.GetFirstChild(); !child.IsNil(); child = child.GetNext() {
-		if jscomp.NodeUtil_IsNameDeclaration(child) &&
-			// TODO(b/139953612): respect destructured goog.requires
-			!child.GetFirstChild().IsDestructuringLhs() &&
-			!child.GetFirstChild().GetLastChild().IsNil() &&
-			Matchers_GoogRequirelikeWithNamespace(namespace).
-				Matches(child.GetFirstChild().GetLastChild(), metadata) {
-			return child
+		if decl, ok := ast.AsNameDeclaration(child); ok {
+			if firstDecl, hasDecl := decl.FirstDeclarator(); hasDecl {
+				if declName, isName := ast.AsName(firstDecl.Node()); isName {
+					if initExpr, hasInit := declName.Init(); hasInit &&
+						nsMatcher.Matches(initExpr.Node(), metadata) {
+						return child
+					}
+				}
+			}
 		}
 	}
 	return rhino.NilNode
@@ -920,18 +728,13 @@ func SuggestedFix_Builder_SubtreeRangeOfIdentifier(n rhino.Node) rhino.Node {
 
 // Java: SuggestedFix.Builder.generateCode(AbstractCompiler, Node)
 func (b *SuggestedFix_Builder) GenerateCode(compiler jscomp.AbstractCompiler, node rhino.Node) string {
-	// TODO(mknichel): Fix all the formatting problems with this code.
-	// How does this play with goog.scope?
 	if node.IsBlock() {
-		// Avoid printing the {}'s
 		node.SetToken(rhino.Token_SCRIPT)
 	}
 	compilerOptions := jscomp.NewCompilerOptions()
 	compilerOptions.SetPreferSingleQuotes(true)
 	compilerOptions.SetUseOriginalNamesInOutput(true)
 	compilerOptions.SetPreserveNonJSDocComments(true)
-	// We're refactoring existing code, so no need to escape values inside
-	// strings.
 	compilerOptions.SetTrustedStrings(true)
 	return jscomp.NewCodePrinter_Builder(node).
 		SetCompilerOptions(compilerOptions).
@@ -951,19 +754,10 @@ func (b *SuggestedFix_Builder) SetDescription(description string) *SuggestedFix_
 // Java: SuggestedFix.Builder.build()
 func (b *SuggestedFix_Builder) Build() *SuggestedFix {
 	return newSuggestedFix(
-		b.matchedNodeInfo, jutil.SetMultimapCopyOf(b.replacements), b.description, append([]*SuggestedFix{}, b.alternatives...))
+		b.matchedNodeInfo, jutil.SetMultimapCopyOf(b.replacements), b.description, slices.Clone(b.alternatives))
 }
 
-// SuggestedFix_MatchedNodeInfo is information about the node that was
-// matched for the suggested fix. This information can be used later on when
-// processing the SuggestedFix.
-//
-// NOTE: Since this class can be retained for a long time when running
-// refactorings over large blobs of code, it's important that it does not
-// contain any memory intensive objects in order to keep memory to a
-// reasonable amount.
-//
-// Java: public record SuggestedFix.MatchedNodeInfo(String sourceFilename, int lineno, int charno, boolean inClosurizedFile)
+// SuggestedFix_MatchedNodeInfo holds source location metadata for the matched node.
 type SuggestedFix_MatchedNodeInfo struct {
 	sourceFilename   string
 	lineno           int
@@ -974,7 +768,6 @@ type SuggestedFix_MatchedNodeInfo struct {
 // Java: SuggestedFix.MatchedNodeInfo(String, int, int, boolean)
 func NewSuggestedFix_MatchedNodeInfo(
 	sourceFilename *string, lineno int, charno int, inClosurizedFile bool) *SuggestedFix_MatchedNodeInfo {
-	// requireNonNull(sourceFilename, "sourceFilename")
 	if sourceFilename == nil {
 		panic(jutil.NewNullPointerExceptionMsg("sourceFilename"))
 	}
@@ -986,53 +779,14 @@ func NewSuggestedFix_MatchedNodeInfo(
 	}
 }
 
-// SourceFilename is the record accessor.
-//
-// Java: SuggestedFix.MatchedNodeInfo.sourceFilename()
-func (i *SuggestedFix_MatchedNodeInfo) SourceFilename() string {
-	return i.sourceFilename
-}
-
-// Lineno is the record accessor.
-//
-// Java: SuggestedFix.MatchedNodeInfo.lineno()
-func (i *SuggestedFix_MatchedNodeInfo) Lineno() int {
-	return i.lineno
-}
-
-// Charno is the record accessor.
-//
-// Java: SuggestedFix.MatchedNodeInfo.charno()
-func (i *SuggestedFix_MatchedNodeInfo) Charno() int {
-	return i.charno
-}
-
-// InClosurizedFile is the record accessor.
-//
-// Java: SuggestedFix.MatchedNodeInfo.inClosurizedFile()
-func (i *SuggestedFix_MatchedNodeInfo) InClosurizedFile() bool {
-	return i.inClosurizedFile
-}
-
-// Java: SuggestedFix.MatchedNodeInfo.getSourceFilename()
-func (i *SuggestedFix_MatchedNodeInfo) GetSourceFilename() string {
-	return i.SourceFilename()
-}
-
-// Java: SuggestedFix.MatchedNodeInfo.getLineno()
-func (i *SuggestedFix_MatchedNodeInfo) GetLineno() int {
-	return i.Lineno()
-}
-
-// Java: SuggestedFix.MatchedNodeInfo.getCharno()
-func (i *SuggestedFix_MatchedNodeInfo) GetCharno() int {
-	return i.Charno()
-}
-
-// Java: SuggestedFix.MatchedNodeInfo.isInClosurizedFile()
-func (i *SuggestedFix_MatchedNodeInfo) IsInClosurizedFile() bool {
-	return i.InClosurizedFile()
-}
+func (i *SuggestedFix_MatchedNodeInfo) SourceFilename() string    { return i.sourceFilename }
+func (i *SuggestedFix_MatchedNodeInfo) Lineno() int               { return i.lineno }
+func (i *SuggestedFix_MatchedNodeInfo) Charno() int               { return i.charno }
+func (i *SuggestedFix_MatchedNodeInfo) InClosurizedFile() bool    { return i.inClosurizedFile }
+func (i *SuggestedFix_MatchedNodeInfo) GetSourceFilename() string { return i.sourceFilename }
+func (i *SuggestedFix_MatchedNodeInfo) GetLineno() int            { return i.lineno }
+func (i *SuggestedFix_MatchedNodeInfo) GetCharno() int            { return i.charno }
+func (i *SuggestedFix_MatchedNodeInfo) IsInClosurizedFile() bool  { return i.inClosurizedFile }
 
 // Java: SuggestedFix.MatchedNodeInfo.create(Node, boolean)
 func SuggestedFix_MatchedNodeInfo_Create(node rhino.Node, closurized bool) *SuggestedFix_MatchedNodeInfo {
@@ -1040,19 +794,13 @@ func SuggestedFix_MatchedNodeInfo_Create(node rhino.Node, closurized bool) *Sugg
 		jscomp.NodeUtil_GetSourceName(node), node.GetLineno(), node.GetCharno(), closurized)
 }
 
-// SuggestedFix_GetStartPositionForNodeConsideringComments is a helper
-// function to return the source offset of this node considering that JSDoc
-// comments, non-JDDoc comments, or both may or may not be attached.
-//
 // Java: SuggestedFix.getStartPositionForNodeConsideringComments(Node)
 func SuggestedFix_GetStartPositionForNodeConsideringComments(node rhino.Node) int {
-	jsdoc := jscomp.NodeUtil_GetBestJSDocInfo(node)
-	associatedNonJSDocComment := node.GetNonJSDocComment()
 	start := node.GetSourceOffset()
-	if jsdoc != nil {
+	if jsdoc := jscomp.NodeUtil_GetBestJSDocInfo(node); jsdoc != nil {
 		start = jsdoc.GetOriginalCommentPosition()
 	}
-	if associatedNonJSDocComment != nil {
+	if associatedNonJSDocComment := node.GetNonJSDocComment(); associatedNonJSDocComment != nil {
 		start = min(start, associatedNonJSDocComment.GetStartPosition().GetOffset())
 	}
 	return start

@@ -31,7 +31,7 @@ type FileInfo struct {
 	providedNamespaces *jutil.LinkedHashSet[string]
 	requiredLocalNames *jutil.LinkedHashSet[string]
 	// MultimapBuilder.linkedHashKeys().arrayListValues().build()
-	declarations     *jutil.LinkedHashMap[string, []PotentialDeclaration]
+	declarations     *jutil.LinkedHashMap[string, []*PotentialDeclaration]
 	isFromTypeScript bool
 }
 
@@ -40,7 +40,7 @@ func NewFileInfo(sourceFileName string) *FileInfo {
 	f := &FileInfo{
 		providedNamespaces: jutil.NewLinkedHashSet[string](),
 		requiredLocalNames: jutil.NewLinkedHashSet[string](),
-		declarations:       jutil.NewLinkedHashMap[string, []PotentialDeclaration](),
+		declarations:       jutil.NewLinkedHashMap[string, []*PotentialDeclaration](),
 	}
 	f.isFromTypeScript = strings.HasSuffix(sourceFileName, ".closure.js")
 	return f
@@ -82,12 +82,12 @@ func (f *FileInfo) RecordAliasDeclaration(nameNode rhino.Node) {
 }
 
 // Java: FileInfo.getDeclarations()
-func (f *FileInfo) GetDeclarations() *jutil.LinkedHashMap[string, []PotentialDeclaration] {
+func (f *FileInfo) GetDeclarations() *jutil.LinkedHashMap[string, []*PotentialDeclaration] {
 	return f.declarations
 }
 
 // Java: FileInfo.recordDeclaration(PotentialDeclaration)
-func (f *FileInfo) RecordDeclaration(decl PotentialDeclaration) {
+func (f *FileInfo) RecordDeclaration(decl *PotentialDeclaration) {
 	name := decl.GetFullyQualifiedName()
 	f.declarations.Put(name, append(f.declarations.Get(name), decl))
 }

@@ -93,7 +93,7 @@ func ConvertToTypedInterface_MaybeReport(
 
 // Java: ConvertToTypedInterface.maybeWarnForConstWithoutExplicitType(AbstractCompiler, PotentialDeclaration)
 func ConvertToTypedInterface_MaybeWarnForConstWithoutExplicitType(
-	compiler AbstractCompiler, decl PotentialDeclaration) {
+	compiler AbstractCompiler, decl *PotentialDeclaration) {
 	if decl.IsConstToBeInferred() &&
 		!decl.GetLhs().IsFromExterns() &&
 		!JsdocUtil_IsPrivate(decl.GetJsDoc()) {
@@ -400,7 +400,7 @@ func (p *ConvertToTypedInterface_PropagateConstJsdoc) Visit(t *NodeTraversal, n 
 	switch n.GetToken() {
 	case rhino.Token_CLASS:
 		if NodeUtil_IsStatementParent(parent) {
-			p.currentFile.RecordNameDeclaration(n.GetFirstChild())
+			p.currentFile.RecordNameDeclaration(ast.MustClass(n).NameNode())
 		}
 	case rhino.Token_MEMBER_FIELD_DEF:
 		if !NodeUtil_GetRValueOfLValue(n).IsNil() {
@@ -409,24 +409,28 @@ func (p *ConvertToTypedInterface_PropagateConstJsdoc) Visit(t *NodeTraversal, n 
 		p.currentFile.RecordMemberFieldDef(n)
 	case rhino.Token_FUNCTION:
 		if NodeUtil_IsStatementParent(parent) {
-			p.currentFile.RecordNameDeclaration(n.GetFirstChild())
+			p.currentFile.RecordNameDeclaration(ast.MustFunction(n).NameNode().Node())
 		} else if ClassUtil_IsClassMethod(n) && ClassUtil_HasNamedClass(n) {
 			p.currentFile.RecordMethod(n)
 		}
 	case rhino.Token_EXPR_RESULT:
-		expr := n.GetFirstChild()
+		expr := ast.MustExprStmt(n).Expr().Node()
 		switch expr.GetToken() {
 		case rhino.Token_CALL:
-			callee := expr.GetFirstChild()
+			call := ast.MustCall(expr)
+			callee := call.Callee().Node()
 			if processConstJsdocCallback_GOOG_PROVIDE.Matches(callee) {
-				p.currentFile.MarkProvided(expr.GetLastChild().GetString())
+				lastArg, _ := call.LastArg()
+				p.currentFile.MarkProvided(lastArg.Node().GetString())
 			} else if processConstJsdocCallback_GOOG_REQUIRE.Matches(callee) || processConstJsdocCallback_CJS_REQUIRE.Matches(callee) {
-				p.currentFile.RecordImport(expr.GetLastChild().GetString())
+				lastArg, _ := call.LastArg()
+				p.currentFile.RecordImport(lastArg.Node().GetString())
 			} else if processConstJsdocCallback_GOOG_DEFINE.Matches(callee) {
 				p.currentFile.RecordDefine(expr)
 			}
 		case rhino.Token_ASSIGN:
-			p.RecordDeclaration(t, expr.GetFirstChild(), expr.GetLastChild())
+			assign := ast.MustAssign(expr)
+			p.RecordDeclaration(t, assign.Target().Node(), assign.Value().Node())
 		case rhino.Token_GETPROP:
 			p.currentFile.RecordNameDeclaration(expr)
 		case rhino.Token_GETELEM:
@@ -553,7 +557,7 @@ var ConvertToTypedInterface_SimplifyDeclarations_SHORT_TO_LONG = func(a, b strin
 
 // convertToTypedInterface_SimplifyDeclarations_typingLevel is the key
 // extractor of DECLARATIONS_FIRST.
-func convertToTypedInterface_SimplifyDeclarations_typingLevel(decl PotentialDeclaration) ConvertToTypedInterface_SimplifyDeclarations_TypingLevel {
+func convertToTypedInterface_SimplifyDeclarations_typingLevel(decl *PotentialDeclaration) ConvertToTypedInterface_SimplifyDeclarations_TypingLevel {
 	jsdoc := decl.GetJsDoc()
 	if jsdoc == nil {
 		return ConvertToTypedInterface_SimplifyDeclarations_TypingLevel_NO_JSDOC
@@ -566,7 +570,7 @@ func convertToTypedInterface_SimplifyDeclarations_typingLevel(decl PotentialDecl
 
 // ConvertToTypedInterface_SimplifyDeclarations_DECLARATIONS_FIRST is
 // comparing(decl -> <its TypingLevel>), enums comparing by ordinal.
-var ConvertToTypedInterface_SimplifyDeclarations_DECLARATIONS_FIRST = func(a, b PotentialDeclaration) int {
+var ConvertToTypedInterface_SimplifyDeclarations_DECLARATIONS_FIRST = func(a, b *PotentialDeclaration) int {
 	return int(convertToTypedInterface_SimplifyDeclarations_typingLevel(a)) - int(convertToTypedInterface_SimplifyDeclarations_typingLevel(b))
 }
 
@@ -612,7 +616,7 @@ func (s *ConvertToTypedInterface_SimplifyDeclarations) SimplifyAll() {
 }
 
 // Java: ConvertToTypedInterface.SimplifyDeclarations.processDeclaration(String, PotentialDeclaration)
-func (s *ConvertToTypedInterface_SimplifyDeclarations) ProcessDeclaration(name string, decl PotentialDeclaration) {
+func (s *ConvertToTypedInterface_SimplifyDeclarations) ProcessDeclaration(name string, decl *PotentialDeclaration) {
 	if s.ShouldRemove(name, decl) {
 		decl.Remove(s.compiler)
 		return
@@ -693,7 +697,7 @@ func ConvertToTypedInterface_SimplifyDeclarations_RootName(qualifiedName string)
 }
 
 // Java: ConvertToTypedInterface.SimplifyDeclarations.shouldRemove(String, PotentialDeclaration)
-func (s *ConvertToTypedInterface_SimplifyDeclarations) ShouldRemove(name string, decl PotentialDeclaration) bool {
+func (s *ConvertToTypedInterface_SimplifyDeclarations) ShouldRemove(name string, decl *PotentialDeclaration) bool {
 	if decl.IsDetached() {
 		return true
 	}
@@ -715,7 +719,7 @@ func (s *ConvertToTypedInterface_SimplifyDeclarations) ShouldRemove(name string,
 }
 
 // Java: ConvertToTypedInterface.SimplifyDeclarations.setUndeclaredToUnusableType(PotentialDeclaration)
-func (s *ConvertToTypedInterface_SimplifyDeclarations) SetUndeclaredToUnusableType(decl PotentialDeclaration) {
+func (s *ConvertToTypedInterface_SimplifyDeclarations) SetUndeclaredToUnusableType(decl *PotentialDeclaration) {
 	nameNode := decl.GetLhs()
 	jsdoc := decl.GetJsDoc()
 	if decl.ShouldPreserve() ||
@@ -730,7 +734,7 @@ func (s *ConvertToTypedInterface_SimplifyDeclarations) SetUndeclaredToUnusableTy
 }
 
 // Java: ConvertToTypedInterface.SimplifyDeclarations.elidePrivateMemberType(PotentialDeclaration)
-func (s *ConvertToTypedInterface_SimplifyDeclarations) ElidePrivateMemberType(decl PotentialDeclaration) {
+func (s *ConvertToTypedInterface_SimplifyDeclarations) ElidePrivateMemberType(decl *PotentialDeclaration) {
 	if s.ShouldElidePrivateMemberType(decl) {
 		jsdoc := decl.GetJsDoc()
 		jsdocNode := NodeUtil_GetBestJSDocInfoNode(decl.GetLhs())
@@ -739,7 +743,7 @@ func (s *ConvertToTypedInterface_SimplifyDeclarations) ElidePrivateMemberType(de
 }
 
 // Java: ConvertToTypedInterface.SimplifyDeclarations.shouldElidePrivateMemberType(PotentialDeclaration)
-func (s *ConvertToTypedInterface_SimplifyDeclarations) ShouldElidePrivateMemberType(decl PotentialDeclaration) bool {
+func (s *ConvertToTypedInterface_SimplifyDeclarations) ShouldElidePrivateMemberType(decl *PotentialDeclaration) bool {
 	// TODO: b/465855752 - roll out elison for JS files as well after depot cleanup.
 	if !s.currentFile.IsFromTypeScript() {
 		return false

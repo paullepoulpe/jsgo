@@ -19,6 +19,8 @@
 package jscomp
 
 import (
+	"cmp"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -87,13 +89,13 @@ func (c *InlineAndCollapseProperties_CollapseProperties) Process(externs rhino.N
 
 	c.namespace = jutil.CheckNotNullMsg(c.outer.namespace, "namespace was not initialized")
 	c.namespace.EnsureGenerated()
-	escaped := c.CheckNamespaces()
+	c.CheckNamespaces()
 	for name := range c.namespace.NameForest() {
-		c.FlattenReferencesToCollapsibleDescendantNames(name, name.GetBaseName(), escaped)
+		c.FlattenReferencesToCollapsibleDescendantNames(name, name.GetBaseName())
 		// We collapse property definitions after collapsing property references
 		// because this step can alter the parse tree above property references,
 		// invalidating the node ancestry stored with each reference.
-		c.CollapseDeclarationOfNameAndDescendants(name, name.GetBaseName(), escaped)
+		c.CollapseDeclarationOfNameAndDescendants(name, name.GetBaseName())
 	}
 }
 
@@ -109,7 +111,7 @@ func (c *InlineAndCollapseProperties_CollapseProperties) CanCollapse(name *Globa
 		if !name.IsModuleExport() {
 			c.LogDecisionForNameWithInlinability(name, inlinability, "module export: canCollapse() returns false")
 			return false
-		} else if c.dynamicallyImportedModules.Contains(name.GetBaseName()) {
+		} else if !c.dynamicallyImportedModules.IsEmpty() && c.dynamicallyImportedModules.Contains(name.GetBaseName()) {
 			c.LogDecisionForNameWithInlinability(
 				name, inlinability, "dynamic module export: canCollapse() returns false")
 			return false
@@ -155,51 +157,53 @@ func (c *InlineAndCollapseProperties_CollapseProperties) CanEliminate(name *Glob
 // enums), and checks if any of them have been used in an unsafe way.
 //
 // Java: InlineAndCollapseProperties.CollapseProperties.checkNamespaces()
-func (c *InlineAndCollapseProperties_CollapseProperties) CheckNamespaces() *jutil.LinkedHashSet[*GlobalNamespace_Name] {
-	escaped := jutil.NewLinkedHashSet[*GlobalNamespace_Name]()
-	dynamicallyImportedModuleRefs := jutil.NewLinkedHashSet(c.dynamicallyImportedModules.ToSlice()...)
+func (c *InlineAndCollapseProperties_CollapseProperties) CheckNamespaces() {
 	if !c.dynamicallyImportedModules.IsEmpty() {
 		// When the output chunk type is ES_MODULES, properties of the module namespace
 		// must not be collapsed as they are referenced off the namespace object. The namespace
 		// objects escape via the dynamic import expression.
-		for name := range c.namespace.AllNames() {
-			// Test if the name is a rewritten module namespace variable and if so mark it as escaped
-			// to prevent any property collapsing.
-			//
-			// example:
-			// /** @const */ var module$foo = {};
-			if c.dynamicallyImportedModules.Contains(name.GetFullName()) {
-				c.LogDecisionForName(name, "escapes - dynamically imported module namespace")
-				escaped.Add(name)
-				if !name.HasProps() {
+		dynNames := make([]*GlobalNamespace_Name, 0, c.dynamicallyImportedModules.Size())
+		for modName := range c.dynamicallyImportedModules.All() {
+			if name := c.namespace.LookupName(modName); name != nil {
+				dynNames = append(dynNames, name)
+			}
+		}
+		slices.SortFunc(dynNames, func(a, b *GlobalNamespace_Name) int {
+			return cmp.Compare(a.selfID, b.selfID)
+		})
+		for _, name := range dynNames {
+			// Mark the rewritten module namespace variable as escaped to prevent any property
+			// collapsing (e.g. `/** @const */ var module$foo = {};`).
+			c.LogDecisionForName(name, "escapes - dynamically imported module namespace")
+			name.markEscaped()
+			if !name.HasProps() {
+				continue
+			}
+			for prop := range name.Props() {
+				propDeclaration := prop.getDeclarationRef()
+				if propDeclaration == nil || propDeclaration.GetNode().IsNil() {
 					continue
 				}
-				for prop := range name.Props() {
-					propDeclaration := prop.getDeclarationRef()
-					if propDeclaration == nil {
-						continue
-					}
-					if !propDeclaration.GetNode().IsNil() {
-						// ES Module rewriting creates aliases on the module namespace object. These aliased
-						// names also escape and their properties may not be collapsed.
-						//
-						// example:
-						// class Foo$$module$foo {
-						//   static bar() { return 'bar'; }
-						// }
-						// /** @const */ var module$foo = {};
-						// /** @const */ module$foo.Foo = Foo$$module$foo;
-						//
-						// While module$foo.Foo cannot be collapsed because we marked the module namespace
-						// as escaped, we also need to prevent any property collapsing on the
-						// Foo$$module$foo
-						// class itself.
-						rValue := NodeUtil_GetRValueOfLValue(propDeclaration.GetNode())
-						if rValue.IsName() {
-							c.LogDecisionForName(
-								name, "escapes - dynamically imported module namespace property alias")
-							dynamicallyImportedModuleRefs.Add(*rValue.GetQualifiedName())
-						}
+				// ES Module rewriting creates aliases on the module namespace object. These aliased
+				// names also escape and their properties may not be collapsed.
+				//
+				// example:
+				// class Foo$$module$foo {
+				//   static bar() { return 'bar'; }
+				// }
+				// /** @const */ var module$foo = {};
+				// /** @const */ module$foo.Foo = Foo$$module$foo;
+				//
+				// While module$foo.Foo cannot be collapsed because we marked the module namespace
+				// as escaped, we also need to prevent any property collapsing on the
+				// Foo$$module$foo
+				// class itself.
+				rValue := NodeUtil_GetRValueOfLValue(propDeclaration.GetNode())
+				if rValue.IsName() {
+					c.LogDecisionForName(
+						name, "escapes - dynamically imported module namespace property alias")
+					if target := c.namespace.LookupName(rValue.GetString()); target != nil {
+						target.markEscaped()
 					}
 				}
 			}
@@ -207,10 +211,6 @@ func (c *InlineAndCollapseProperties_CollapseProperties) CheckNamespaces() *juti
 	}
 
 	for name := range c.namespace.AllNames() {
-		if !dynamicallyImportedModuleRefs.IsEmpty() &&
-			dynamicallyImportedModuleRefs.Contains(name.GetFullName()) {
-			escaped.Add(name)
-		}
 		if !name.IsNamespaceObjectLit() {
 			continue
 		}
@@ -234,12 +234,11 @@ func (c *InlineAndCollapseProperties_CollapseProperties) CheckNamespaces() *juti
 			} else if ref.IsAliasingGet() {
 				c.WarnAboutNamespaceAliasing(name, ref)
 				c.LogDecisionForName(name, "escapes")
-				escaped.Add(name)
+				name.markEscaped()
 				break
 			}
 		}
 	}
-	return escaped
 }
 
 // WarnAboutNamespaceAliasing reports a warning because a namespace was
@@ -275,7 +274,7 @@ func (c *InlineAndCollapseProperties_CollapseProperties) WarnAboutNamespaceRedef
 //
 // Java: InlineAndCollapseProperties.CollapseProperties.flattenReferencesToCollapsibleDescendantNames(Name, String, Set<Name>)
 func (c *InlineAndCollapseProperties_CollapseProperties) FlattenReferencesToCollapsibleDescendantNames(
-	n *GlobalNamespace_Name, alias string, escaped *jutil.LinkedHashSet[*GlobalNamespace_Name]) {
+	n *GlobalNamespace_Name, alias string) {
 	if !n.HasProps() {
 		return
 	}
@@ -283,7 +282,7 @@ func (c *InlineAndCollapseProperties_CollapseProperties) FlattenReferencesToColl
 		c.LogDecisionForName(n, "@nocollapse: will not flatten descendant name references")
 		return
 	}
-	if escaped.Contains(n) {
+	if n.isEscaped() {
 		c.LogDecisionForName(n, "escapes: will not flatten descendant name references")
 		return
 	}
@@ -295,17 +294,17 @@ func (c *InlineAndCollapseProperties_CollapseProperties) FlattenReferencesToColl
 			c.outer.propertyCollapseLevel != CompilerOptions_PropertyCollapseLevel_MODULE_EXPORT || p.IsModuleExport()
 		willCollapse := isAllowedToCollapse && inlinability.CanCollapse()
 		willStub := isAllowedToCollapse && !inlinability.CanCollapse() && !p.IsCollapsingExplicitlyDenied() && p.IsSimpleStubDeclaration()
-		willRecurse := p.HasProps() && (!p.IsCollapsingExplicitlyDenied() && !escaped.Contains(p) || c.outer.decisionsLog.IsLogging())
+		willRecurse := p.HasProps() && (!p.IsCollapsingExplicitlyDenied() && !p.isEscaped() || c.outer.decisionsLog.IsLogging())
 
 		var propAlias string
-		if willCollapse || willStub || (p.HasProps() && !p.IsCollapsingExplicitlyDenied() && !escaped.Contains(p)) {
+		if willCollapse || willStub || (p.HasProps() && !p.IsCollapsingExplicitlyDenied() && !p.isEscaped()) {
 			propAlias = c.AppendPropForAlias(alias, p.GetBaseName())
 		}
 
 		if isAllowedToCollapse {
 			if willCollapse {
 				c.LogDecisionForNameWithInlinability(p, inlinability, "will flatten references")
-				c.flattenReferencesTo(p, propAlias, escaped)
+				c.flattenReferencesTo(p, propAlias, true)
 			} else if p.IsCollapsingExplicitlyDenied() {
 				c.LogDecisionForName(p, "@nocollapse: will not flatten references")
 			} else if willStub {
@@ -317,7 +316,7 @@ func (c *InlineAndCollapseProperties_CollapseProperties) FlattenReferencesToColl
 		}
 
 		if willRecurse {
-			c.FlattenReferencesToCollapsibleDescendantNames(p, propAlias, escaped)
+			c.FlattenReferencesToCollapsibleDescendantNames(p, propAlias)
 		}
 	}
 }
@@ -422,11 +421,11 @@ func (c *InlineAndCollapseProperties_CollapseProperties) willFlattenReferences(p
 //
 // Java: InlineAndCollapseProperties.CollapseProperties.flattenReferencesTo(Name, String)
 func (c *InlineAndCollapseProperties_CollapseProperties) FlattenReferencesTo(n *GlobalNamespace_Name, alias string) {
-	c.flattenReferencesTo(n, alias, nil)
+	c.flattenReferencesTo(n, alias, false)
 }
 
 func (c *InlineAndCollapseProperties_CollapseProperties) flattenReferencesTo(
-	n *GlobalNamespace_Name, alias string, escaped *jutil.LinkedHashSet[*GlobalNamespace_Name]) {
+	n *GlobalNamespace_Name, alias string, checkEscaped bool) {
 	var originalName string
 	var hasOriginalName bool
 	getOriginalName := func() string {
@@ -463,10 +462,10 @@ func (c *InlineAndCollapseProperties_CollapseProperties) flattenReferencesTo(
 	// example, if `n` corresponds to the name "a.b", then "a.b" will be
 	// replaced with "a$b" in all occurrences of "a.b.c", "a.b.c.d", etc.
 	if n.HasProps() {
-		descendantsVisited := escaped != nil && !n.IsCollapsingExplicitlyDenied() && !escaped.Contains(n)
+		descendantsVisited := checkEscaped && !n.IsCollapsingExplicitlyDenied() && !n.isEscaped()
 		for p := range n.Props() {
 			if flattenPrefixesHasWork(p) {
-				c.flattenPrefixesLazy(alias, getOriginalName(), p, 1, 1, isConstantName, escaped, descendantsVisited)
+				c.flattenPrefixesLazy(alias, getOriginalName(), p, 1, 1, isConstantName, descendantsVisited)
 			}
 		}
 	}
@@ -496,7 +495,7 @@ func flattenPrefixesHasWork(n *GlobalNamespace_Name) bool {
 // Java: InlineAndCollapseProperties.CollapseProperties.flattenPrefixes(String, String, Name, int, boolean)
 func (c *InlineAndCollapseProperties_CollapseProperties) FlattenPrefixes(
 	alias string, originalName string, n *GlobalNamespace_Name, depth int, isConstantName bool) {
-	c.flattenPrefixesLazy(alias, originalName, n, depth, 0, isConstantName, nil, false)
+	c.flattenPrefixesLazy(alias, originalName, n, depth, 0, isConstantName, false)
 }
 
 func (c *InlineAndCollapseProperties_CollapseProperties) buildLazyPrefixOriginalName(baseOriginalName string, n *GlobalNamespace_Name, extraDepth int) string {
@@ -536,7 +535,6 @@ func (c *InlineAndCollapseProperties_CollapseProperties) flattenPrefixesLazy(
 	depth int,
 	extraDepth int,
 	isConstantName bool,
-	escaped *jutil.LinkedHashSet[*GlobalNamespace_Name],
 	descendantsVisited bool) {
 	var cachedOrig string
 	hasOrig := false
@@ -558,10 +556,10 @@ func (c *InlineAndCollapseProperties_CollapseProperties) flattenPrefixesLazy(
 	}
 
 	if n.HasProps() {
-		nextDescendantsVisited := descendantsVisited && !n.IsCollapsingExplicitlyDenied() && !escaped.Contains(n)
+		nextDescendantsVisited := descendantsVisited && !n.IsCollapsingExplicitlyDenied() && !n.isEscaped()
 		for p := range n.Props() {
 			if flattenPrefixesHasWork(p) {
-				c.flattenPrefixesLazy(alias, baseOriginalName, p, depth+1, extraDepth+1, isConstantName, escaped, nextDescendantsVisited)
+				c.flattenPrefixesLazy(alias, baseOriginalName, p, depth+1, extraDepth+1, isConstantName, nextDescendantsVisited)
 			}
 		}
 	}
@@ -672,7 +670,7 @@ func (c *InlineAndCollapseProperties_CollapseProperties) FlattenNameRef(
 //
 // Java: InlineAndCollapseProperties.CollapseProperties.collapseDeclarationOfNameAndDescendants(Name, String, Set<Name>)
 func (c *InlineAndCollapseProperties_CollapseProperties) CollapseDeclarationOfNameAndDescendants(
-	n *GlobalNamespace_Name, alias string, escaped *jutil.LinkedHashSet[*GlobalNamespace_Name]) {
+	n *GlobalNamespace_Name, alias string) {
 	childNameInlinability := n.CanCollapseOrInlineChildNames()
 	var canCollapseChildNames bool
 	if !childNameInlinability.CanCollapse() {
@@ -684,7 +682,7 @@ func (c *InlineAndCollapseProperties_CollapseProperties) CollapseDeclarationOfNa
 				})
 		}
 		canCollapseChildNames = false
-	} else if escaped.Contains(n) {
+	} else if n.isEscaped() {
 		c.LogDecisionForName(n, "escapes: will not collapse child names")
 		canCollapseChildNames = false
 	} else {
@@ -697,7 +695,7 @@ func (c *InlineAndCollapseProperties_CollapseProperties) CollapseDeclarationOfNa
 		c.UpdateGlobalNameDeclaration(n, alias, canCollapseChildNames)
 	}
 
-	if !n.HasProps() || escaped.Contains(n) {
+	if !n.HasProps() || n.isEscaped() {
 		return
 	}
 	c.LogDecisionForName(n, "collapsing descendants")
@@ -707,10 +705,10 @@ func (c *InlineAndCollapseProperties_CollapseProperties) CollapseDeclarationOfNa
 			continue
 		}
 		var propAlias string
-		if c.CanCollapse(p) || (p.HasProps() && !escaped.Contains(p)) {
+		if c.CanCollapse(p) || (p.HasProps() && !p.isEscaped()) {
 			propAlias = c.AppendPropForAlias(alias, p.GetBaseName())
 		}
-		c.CollapseDeclarationOfNameAndDescendants(p, propAlias, escaped)
+		c.CollapseDeclarationOfNameAndDescendants(p, propAlias)
 	}
 }
 

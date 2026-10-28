@@ -20,15 +20,12 @@
 package refactoring
 
 import (
+	"cmp"
+
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 )
 
-// CodeReplacement is a class that represents a set of changes to make to
-// the code.
-//
-// Go-only: language-adapter — an @AutoValue: the abstract class and the
-// generated AutoValue_CodeReplacement (fields, equals, hashCode, toString)
-// are one struct (PORTING.md §4).
+// CodeReplacement represents a set of changes to make to the code.
 type CodeReplacement struct {
 	startPosition int
 	length        int
@@ -43,11 +40,6 @@ func CodeReplacement_Create(startPosition int, length int, newContent string) *C
 
 // Java: CodeReplacement.create(int, int, String, String)
 func CodeReplacement_CreateWithSortKey(startPosition int, length int, newContent string, sortKey string) *CodeReplacement {
-	return newAutoValue_CodeReplacement(startPosition, length, newContent, sortKey)
-}
-
-// Java: AutoValue_CodeReplacement(int, int, String, String)
-func newAutoValue_CodeReplacement(startPosition int, length int, newContent string, sortKey string) *CodeReplacement {
 	return &CodeReplacement{
 		startPosition: startPosition,
 		length:        length,
@@ -56,75 +48,33 @@ func newAutoValue_CodeReplacement(startPosition int, length int, newContent stri
 	}
 }
 
-// GetStartPosition returns the start position within the file that the
-// modification should be applied starting at.
-//
 // Java: CodeReplacement.getStartPosition()
-func (r *CodeReplacement) GetStartPosition() int {
-	return r.startPosition
-}
+func (r *CodeReplacement) GetStartPosition() int { return r.startPosition }
 
-// GetLength returns how many characters the new content should replace in
-// the original content.
-//
 // Java: CodeReplacement.getLength()
-func (r *CodeReplacement) GetLength() int {
-	return r.length
-}
+func (r *CodeReplacement) GetLength() int { return r.length }
 
-// GetEndPosition returns the end position within the file that the
-// modification should be applied starting at.
-//
 // Java: CodeReplacement.getEndPosition()
-func (r *CodeReplacement) GetEndPosition() int {
-	return r.GetStartPosition() + r.GetLength()
-}
+func (r *CodeReplacement) GetEndPosition() int { return r.startPosition + r.length }
 
-// GetNewContent returns the new content that should be inserted into the
-// file.
-//
 // Java: CodeReplacement.getNewContent()
-func (r *CodeReplacement) GetNewContent() string {
-	return r.newContent
-}
+func (r *CodeReplacement) GetNewContent() string { return r.newContent }
 
-// GetSortKey returns an additional String key that can be used to sort
-// replacements using lexical ordering.
-//
 // Java: CodeReplacement.getSortKey()
-func (r *CodeReplacement) GetSortKey() string {
-	return r.sortKey
-}
+func (r *CodeReplacement) GetSortKey() string { return r.sortKey }
 
 // Java: CodeReplacement.compareTo(CodeReplacement)
 func (r *CodeReplacement) CompareTo(x *CodeReplacement) int {
-	return codeReplacement_APPLICATION_ORDER(r, x)
-}
-
-// Remember to compare every field so that it's consistent with equals.
-//
-// Java: CodeReplacement.APPLICATION_ORDER
-func codeReplacement_APPLICATION_ORDER(a, b *CodeReplacement) int {
-	if c := codeReplacement_compareInt(a.GetStartPosition(), b.GetStartPosition()); c != 0 {
+	if c := cmp.Compare(r.startPosition, x.startPosition); c != 0 {
 		return c
 	}
-	if c := codeReplacement_compareInt(a.GetLength(), b.GetLength()); c != 0 {
+	if c := cmp.Compare(r.length, x.length); c != 0 {
 		return c
 	}
-	if c := jutil.StringCompareTo(a.GetSortKey(), b.GetSortKey()); c != 0 {
+	if c := jutil.StringCompareTo(r.sortKey, x.sortKey); c != 0 {
 		return c
 	}
-	return jutil.StringCompareTo(a.GetNewContent(), b.GetNewContent())
-}
-
-// codeReplacement_compareInt is Integer.compare(int, int).
-func codeReplacement_compareInt(x, y int) int {
-	if x < y {
-		return -1
-	} else if x == y {
-		return 0
-	}
-	return 1
+	return jutil.StringCompareTo(r.newContent, x.newContent)
 }
 
 // Java: AutoValue_CodeReplacement.toString()
@@ -146,22 +96,18 @@ func (r *CodeReplacement) Equals(o any) bool {
 	if that == r {
 		return true
 	}
-	return r.startPosition == that.GetStartPosition() &&
-		r.length == that.GetLength() &&
-		r.newContent == that.GetNewContent() &&
-		r.sortKey == that.GetSortKey()
+	return r.startPosition == that.startPosition &&
+		r.length == that.length &&
+		r.newContent == that.newContent &&
+		r.sortKey == that.sortKey
 }
 
 // Java: AutoValue_CodeReplacement.hashCode()
 func (r *CodeReplacement) HashCode() int32 {
 	var h int32 = 1
-	h *= 1000003
-	h ^= int32(r.startPosition)
-	h *= 1000003
-	h ^= int32(r.length)
-	h *= 1000003
-	h ^= jutil.StringHashCode(r.newContent)
-	h *= 1000003
-	h ^= jutil.StringHashCode(r.sortKey)
+	h = h*1000003 ^ int32(r.startPosition)
+	h = h*1000003 ^ int32(r.length)
+	h = h*1000003 ^ jutil.StringHashCode(r.newContent)
+	h = h*1000003 ^ jutil.StringHashCode(r.sortKey)
 	return h
 }

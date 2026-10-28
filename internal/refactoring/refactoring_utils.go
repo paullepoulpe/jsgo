@@ -19,15 +19,13 @@
 package refactoring
 
 import (
+	"github.com/paullepoulpe/jsgo/internal/ast"
 	"github.com/paullepoulpe/jsgo/internal/jscomp"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
-// RefactoringUtils holds utility methods for refactoring Java code.
-//
-// Java: public class RefactoringUtils
-type RefactoringUtils struct {
-	_ byte // Go-only: language-adapter — distinct identity
-}
+
+// RefactoringUtils holds utility methods for refactoring code.
+type RefactoringUtils struct{}
 
 // Java: RefactoringUtils()
 func NewRefactoringUtils() *RefactoringUtils {
@@ -40,24 +38,21 @@ func NewRefactoringUtils() *RefactoringUtils {
 // Java: RefactoringUtils.isInClosurizedFile(Node, NodeMetadata)
 func RefactoringUtils_IsInClosurizedFile(node rhino.Node, metadata *NodeMetadata) bool {
 	script := jscomp.NodeUtil_GetEnclosingScript(node)
-
 	if script.IsNil() {
 		return false
 	}
 
-	child := script.GetFirstChild()
-	for !child.IsNil() {
-		if jscomp.NodeUtil_IsExprCall(child) {
-			firstChild := child.GetFirstChild()
-			if Matchers_GoogRequire().Matches(firstChild, metadata) ||
-				Matchers_GoogModuleOrProvide().Matches(firstChild, metadata) {
+	reqMatcher := Matchers_GoogRequire()
+	modOrProvideMatcher := Matchers_GoogModuleOrProvide()
+	for child := script.GetFirstChild(); !child.IsNil(); child = child.GetNext() {
+		if exprStmt, ok := ast.AsExprStmt(child); ok {
+			expr := exprStmt.Expr().Node()
+			if expr.IsCall() && (reqMatcher.Matches(expr, metadata) || modOrProvideMatcher.Matches(expr, metadata)) {
 				return true
 			}
-			// goog.require or goog.module.
 		} else if child.IsVar() && child.GetBooleanProp(rhino.Node_IS_NAMESPACE) {
 			return true
 		}
-		child = child.GetNext()
 	}
 	return false
 }

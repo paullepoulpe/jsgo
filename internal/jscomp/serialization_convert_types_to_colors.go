@@ -19,6 +19,7 @@
 package jscomp
 
 import (
+	"github.com/paullepoulpe/jsgo/internal/colors"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
@@ -47,35 +48,36 @@ func NewConvertTypesToColors(
 	return c
 }
 
-func convertTypesToColors_removeTypesFromNode(n rhino.Node) {
-	_, _, jsdoc := n.TakeTypesAndJSDocForColorConversion()
-	if jsdoc != nil {
-		n.SetJSDocInfo(JSDocSerializer_ConvertJSDocInfoForOptimizations(jsdoc))
-	}
+type convertTypesToColors_removeTypes struct {
+	jsdocBuilder rhino.JSDocInfo_Builder
 }
 
-func convertTypesToColors_removeTypesWalk(n rhino.Node) {
+func (r *convertTypesToColors_removeTypes) walk(n rhino.Node) {
 	for c := n.GetFirstChild(); !c.IsNil(); c = c.GetNext() {
-		convertTypesToColors_removeTypesWalk(c)
+		r.walk(c)
 	}
-	convertTypesToColors_removeTypesFromNode(n)
+	_, _, jsdoc := n.TakeTypesAndJSDocForColorConversion()
+	if jsdoc != nil {
+		n.SetJSDocInfo(jsDocSerializer_convertJSDocInfoWithBuilder(jsdoc, &r.jsdocBuilder))
+	}
 }
 
 // Java: private static class ConvertTypesToColors.RemoveTypesAndApplyColors extends RemoveTypes
 type ConvertTypesToColors_RemoveTypesAndApplyColors struct {
-	colorPoolShard        *ColorPool_ShardView
+	offsetToColor         []*colors.Color
 	jstypeReconserializer *JSTypeReconserializer
+	jsdocBuilder          rhino.JSDocInfo_Builder
 }
 
 func (r *ConvertTypesToColors_RemoveTypesAndApplyColors) visitNode(n rhino.Node) {
 	oldType, hadBeforeCast, jsdoc := n.TakeTypesAndJSDocForColorConversion()
 	if jsdoc != nil {
-		n.SetJSDocInfo(JSDocSerializer_ConvertJSDocInfoForOptimizations(jsdoc))
+		n.SetJSDocInfo(jsDocSerializer_convertJSDocInfoWithBuilder(jsdoc, &r.jsdocBuilder))
 	}
 
 	if oldType != nil && r.jstypeReconserializer != nil {
 		if pointer, ok := r.jstypeReconserializer.typePointers[oldType]; ok {
-			if c := r.colorPoolShard.GetColor(int(pointer)); c != nil {
+			if c := r.offsetToColor[pointer]; c != nil {
 				n.SetColor(c)
 			}
 		}
@@ -109,28 +111,27 @@ func (c *ConvertTypesToColors) Process(externs rhino.Node, root rhino.Node) {
 	externsAndJsRoot := root.GetParent()
 
 	if !c.compiler.HasTypeCheckingRun() {
-		convertTypesToColors_removeTypesWalk(externsAndJsRoot)
-		convertTypesToColors_forDetachedRoots(c.compiler, externsAndJsRoot, convertTypesToColors_removeTypesWalk)
+		var remover convertTypesToColors_removeTypes
+		remover.walk(externsAndJsRoot)
+		convertTypesToColors_forDetachedRoots(c.compiler, externsAndJsRoot, remover.walk)
 		c.compiler.ClearJSTypeRegistry()
 		c.compiler.InitRuntimeLibraryTypedAsts(nil) // Optional.absent()
 		return
 	}
 
-	stringPoolBuilder := StringPool_Builder_()
-	serializeJstypes := SerializeTypesToPointers_Create(c.compiler, stringPoolBuilder, c.serializationOptions)
-	serializeJstypes.GatherTypesOnAst(externsAndJsRoot)
-
-	typePool := serializeJstypes.GetTypePool()
-	stringPool := stringPoolBuilder.Build()
+	serializeJstypes := SerializeTypesToPointers_Create(c.compiler, nil, c.serializationOptions)
+	serializeJstypes.gatherTypesForColors(externsAndJsRoot)
 
 	colorPoolBuilder := ColorPool_Builder_()
 	c.compiler.InitRuntimeLibraryTypedAsts(colorPoolBuilder)
-
-	var callback ConvertTypesToColors_RemoveTypesAndApplyColors
-	callback.colorPoolShard = colorPoolBuilder.AddShard(typePool, stringPool)
-	callback.jstypeReconserializer = serializeJstypes.jstypeReconserializer
+	colorPoolBuilder.addJSTypeShard(serializeJstypes.jstypeReconserializer)
 
 	colorPool := colorPoolBuilder.Build()
+
+	var callback ConvertTypesToColors_RemoveTypesAndApplyColors
+	callback.jstypeReconserializer = serializeJstypes.jstypeReconserializer
+	callback.offsetToColor = serializeJstypes.jstypeReconserializer.offsetToColor
+
 	callback.walk(externsAndJsRoot)
 	convertTypesToColors_forDetachedRoots(c.compiler, externsAndJsRoot, callback.walk)
 

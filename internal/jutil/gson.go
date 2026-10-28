@@ -92,7 +92,17 @@ func (t gsonRequestedType) isInstance(e JsonElement) bool {
 //
 // Java: Gson.fromJson(String, Class)
 func (g *Gson) FromJsonElement(json string) JsonElement {
-	return g.fromJsonString(json, gsonRequestedJsonElement)
+	e, err := g.TryFromJsonElement(json)
+	if err != nil {
+		panic(err)
+	}
+	return e
+}
+
+// TryFromJsonElement parses json as JsonElement, returning a JsonParseException
+// instead of panicking on malformed JSON.
+func (g *Gson) TryFromJsonElement(json string) (JsonElement, IJsonParseException) {
+	return g.fromJsonStringErr(json, gsonRequestedJsonElement)
 }
 
 // FromJsonObject is gson.fromJson(json, JsonObject.class); nil is Java null
@@ -100,11 +110,21 @@ func (g *Gson) FromJsonElement(json string) JsonElement {
 //
 // Java: Gson.fromJson(String, Class)
 func (g *Gson) FromJsonObject(json string) *JsonObject {
-	e := g.fromJsonString(json, gsonRequestedJsonObject)
-	if e == nil {
-		return nil
+	o, err := g.TryFromJsonObject(json)
+	if err != nil {
+		panic(err)
 	}
-	return e.(*JsonObject)
+	return o
+}
+
+// TryFromJsonObject parses json as JsonObject, returning a JsonParseException
+// instead of panicking on malformed JSON.
+func (g *Gson) TryFromJsonObject(json string) (*JsonObject, IJsonParseException) {
+	e, err := g.fromJsonStringErr(json, gsonRequestedJsonObject)
+	if err != nil || e == nil {
+		return nil, err
+	}
+	return e.(*JsonObject), nil
 }
 
 // FromJsonArray is gson.fromJson(json, JsonArray.class); nil is Java null
@@ -112,20 +132,35 @@ func (g *Gson) FromJsonObject(json string) *JsonObject {
 //
 // Java: Gson.fromJson(String, Class)
 func (g *Gson) FromJsonArray(json string) *JsonArray {
-	e := g.fromJsonString(json, gsonRequestedJsonArray)
-	if e == nil {
-		return nil
+	a, err := g.TryFromJsonArray(json)
+	if err != nil {
+		panic(err)
 	}
-	return e.(*JsonArray)
+	return a
+}
+
+// TryFromJsonArray parses json as JsonArray, returning a JsonParseException
+// instead of panicking on malformed JSON.
+func (g *Gson) TryFromJsonArray(json string) (*JsonArray, IJsonParseException) {
+	e, err := g.fromJsonStringErr(json, gsonRequestedJsonArray)
+	if err != nil || e == nil {
+		return nil, err
+	}
+	return e.(*JsonArray), nil
 }
 
 // Java: Gson.fromJson(String, Type) and Gson.fromJson(Reader, Type)
-func (g *Gson) fromJsonString(json string, typeOfT gsonRequestedType) JsonElement {
+func (g *Gson) fromJsonStringErr(json string, typeOfT gsonRequestedType) (JsonElement, IJsonParseException) {
 	reader := NewStringReader(json)
 	jsonReader := g.NewJsonReader(reader)
-	object := g.fromJsonReader(jsonReader, typeOfT)
-	gson_assertFullConsumption(object, jsonReader)
-	return object
+	object, err := g.fromJsonReaderErr(jsonReader, typeOfT)
+	if err != nil {
+		return nil, err
+	}
+	if err := gson_assertFullConsumptionErr(object, jsonReader); err != nil {
+		return nil, err
+	}
+	return object, nil
 }
 
 // NewJsonReader returns a new JSON reader configured for the settings on
@@ -138,75 +173,68 @@ func (g *Gson) NewJsonReader(reader JavaReader) *JsonReader {
 	return jsonReader
 }
 
-func gson_assertFullConsumption(obj JsonElement, reader *JsonReader) {
+func gson_assertFullConsumptionErr(obj JsonElement, reader *JsonReader) (parseErr IJsonParseException) {
+	if obj == nil {
+		return nil
+	}
 	Try(func() {
-		if obj != nil && reader.Peek() != JsonToken_END_DOCUMENT {
-			panic(NewJsonSyntaxException("JSON document was not fully consumed."))
+		if reader.Peek() != JsonToken_END_DOCUMENT {
+			parseErr = NewJsonSyntaxException("JSON document was not fully consumed.")
 		}
 	}, func(t Throwable) {
 		switch e := t.(type) {
 		case IMalformedJsonException:
-			panic(NewJsonSyntaxExceptionWithCause(e))
+			parseErr = NewJsonSyntaxExceptionWithCause(e)
 		case IIOException:
-			panic(NewJsonIOExceptionWithCause(e))
+			parseErr = NewJsonIOExceptionWithCause(e)
 		default:
 			panic(t)
 		}
 	})
+	return parseErr
 }
 
-// fromJsonReader reads the next JSON value from reader as typeOfT. Returns
-// nil (Java null) if the reader is at EOF.
-//
-// Java: Gson.fromJson(JsonReader, Type)
-func (g *Gson) fromJsonReader(reader *JsonReader, typeOfT gsonRequestedType) (result JsonElement) {
+// fromJsonReaderErr reads the next JSON value from reader as typeOfT. Returns
+// (nil, nil) if the reader is at EOF.
+func (g *Gson) fromJsonReaderErr(reader *JsonReader, typeOfT gsonRequestedType) (result JsonElement, parseErr IJsonParseException) {
 	isEmpty := true
 	oldLenient := reader.IsLenient()
 	reader.SetLenient(true)
-	func() {
-		defer reader.SetLenient(oldLenient)
-		Try(func() {
-			reader.Peek()
-			isEmpty = false
-			result = gson_typeHierarchyAdapterRead(reader, typeOfT)
-		}, func(t Throwable) {
-			switch e := t.(type) {
-			case IEOFException:
-				// For compatibility with JSON 1.5 and earlier, we return null
-				// for empty documents instead of throwing.
-				if isEmpty {
-					result = nil
-					return
-				}
-				panic(NewJsonSyntaxExceptionWithCause(e))
-			case IIllegalStateException:
-				panic(NewJsonSyntaxExceptionWithCause(e))
-			case IIOException:
-				// TODO(inder): Figure out whether it is indeed right to rethrow
-				// this as JsonSyntaxException
-				panic(NewJsonSyntaxExceptionWithCause(e))
-			case *AssertionError:
-				error_ := NewAssertionError("AssertionError (GSON " + GsonBuildConfig_VERSION + "): " + javaMessageOrNull(e))
-				error_.InitCause(e)
-				panic(error_)
-			default:
-				panic(t)
+	defer reader.SetLenient(oldLenient)
+	Try(func() {
+		reader.Peek()
+		isEmpty = false
+		result, parseErr = gson_typeHierarchyAdapterReadErr(reader, typeOfT)
+	}, func(t Throwable) {
+		switch e := t.(type) {
+		case IEOFException:
+			if isEmpty {
+				result = nil
+				return
 			}
-		})
-	}()
-	return result
+			parseErr = NewJsonSyntaxExceptionWithCause(e)
+		case IIllegalStateException:
+			parseErr = NewJsonSyntaxExceptionWithCause(e)
+		case IIOException:
+			parseErr = NewJsonSyntaxExceptionWithCause(e)
+		case *AssertionError:
+			error_ := NewAssertionError("AssertionError (GSON " + GsonBuildConfig_VERSION + "): " + javaMessageOrNull(e))
+			error_.InitCause(e)
+			panic(error_)
+		default:
+			panic(t)
+		}
+	})
+	return result, parseErr
 }
 
-// gson_typeHierarchyAdapterRead is the read method of the adapter that
-// TypeAdapters.newTypeHierarchyFactory(JsonElement.class, JSON_ELEMENT)
-// creates for the requested type.
-func gson_typeHierarchyAdapterRead(in *JsonReader, requestedType gsonRequestedType) JsonElement {
+func gson_typeHierarchyAdapterReadErr(in *JsonReader, requestedType gsonRequestedType) (JsonElement, IJsonParseException) {
 	result := TypeAdapters_JSON_ELEMENT_Read(in)
 	if result != nil && !requestedType.isInstance(result) {
-		panic(NewJsonSyntaxException("Expected a " + requestedType.getName() +
-			" but was " + jsonElementClassName(result) + "; at path " + in.GetPreviousPath()))
+		return nil, NewJsonSyntaxException("Expected a " + requestedType.getName() +
+			" but was " + jsonElementClassName(result) + "; at path " + in.GetPreviousPath())
 	}
-	return result
+	return result, nil
 }
 
 // typeAdapters_tryBeginNesting tries to begin reading a JSON array or JSON
@@ -249,11 +277,8 @@ func typeAdapters_readTerminal(in *JsonReader, peeked JsonToken) JsonElement {
 //
 // Java: TypeAdapters.JSON_ELEMENT.read(JsonReader)
 func TypeAdapters_JSON_ELEMENT_Read(in *JsonReader) JsonElement {
-	// Either JsonArray or JsonObject
-	var current JsonElement
 	peeked := in.Peek()
-
-	current = typeAdapters_tryBeginNesting(in, peeked)
+	current := typeAdapters_tryBeginNesting(in, peeked)
 	if current == nil {
 		return typeAdapters_readTerminal(in, peeked)
 	}
@@ -263,7 +288,6 @@ func TypeAdapters_JSON_ELEMENT_Read(in *JsonReader) JsonElement {
 	for {
 		for in.HasNext() {
 			var name string
-			// Name is only used for JSON object members
 			if _, ok := current.(*JsonObject); ok {
 				name = in.NextName()
 			}
@@ -271,7 +295,6 @@ func TypeAdapters_JSON_ELEMENT_Read(in *JsonReader) JsonElement {
 			peeked = in.Peek()
 			value := typeAdapters_tryBeginNesting(in, peeked)
 			isNesting := value != nil
-
 			if value == nil {
 				value = typeAdapters_readTerminal(in, peeked)
 			}
@@ -288,7 +311,6 @@ func TypeAdapters_JSON_ELEMENT_Read(in *JsonReader) JsonElement {
 			}
 		}
 
-		// End current element
 		if _, ok := current.(*JsonArray); ok {
 			in.EndArray()
 		} else {
@@ -297,11 +319,9 @@ func TypeAdapters_JSON_ELEMENT_Read(in *JsonReader) JsonElement {
 
 		if len(stack) == 0 {
 			return current
-		} else {
-			// Continue with enclosing element
-			current = stack[len(stack)-1]
-			stack = stack[:len(stack)-1]
 		}
+		current = stack[len(stack)-1]
+		stack = stack[:len(stack)-1]
 	}
 }
 
@@ -309,32 +329,36 @@ func TypeAdapters_JSON_ELEMENT_Read(in *JsonReader) JsonElement {
 //
 // Java: TypeAdapters.JSON_ELEMENT.write(JsonWriter, JsonElement)
 func TypeAdapters_JSON_ELEMENT_Write(out *JsonWriter, value JsonElement) {
-	if value == nil || value.IsJsonNull() {
+	if value == nil {
 		out.NullValue()
-	} else if value.IsJsonPrimitive() {
-		primitive := value.GetAsJsonPrimitive()
-		if primitive.IsNumber() {
-			out.ValueNumber(primitive.GetAsNumber())
-		} else if primitive.IsBoolean() {
-			out.ValueBoolean(primitive.GetAsBoolean())
+		return
+	}
+	switch v := value.(type) {
+	case *JsonNull:
+		out.NullValue()
+	case *JsonPrimitive:
+		if v.IsNumber() {
+			out.ValueNumber(v.GetAsNumber())
+		} else if v.IsBoolean() {
+			out.ValueBoolean(v.GetAsBoolean())
 		} else {
-			s := primitive.GetAsString()
+			s := v.GetAsString()
 			out.ValueString(&s)
 		}
-	} else if value.IsJsonArray() {
+	case *JsonArray:
 		out.BeginArray()
-		for e := range value.GetAsJsonArray().All() {
+		for e := range v.All() {
 			TypeAdapters_JSON_ELEMENT_Write(out, e)
 		}
 		out.EndArray()
-	} else if value.IsJsonObject() {
+	case *JsonObject:
 		out.BeginObject()
-		for k, v := range value.GetAsJsonObject().EntrySet().All() {
+		for k, elem := range v.EntrySet().All() {
 			out.Name(k)
-			TypeAdapters_JSON_ELEMENT_Write(out, v)
+			TypeAdapters_JSON_ELEMENT_Write(out, elem)
 		}
 		out.EndObject()
-	} else {
+	default:
 		panic(NewIllegalArgumentExceptionMsg("Couldn't write class " + jsonElementClassName(value)))
 	}
 }

@@ -60,6 +60,149 @@ type templateTypeMapCacheEntry struct {
 	res    *TemplateTypeMap
 }
 
+type propTypeSlot struct {
+	t    *JSTypeBase
+	hash int32
+}
+
+type propTypeOverflow struct {
+	slots []propTypeSlot
+	table []uint32
+}
+
+// propTypeSet is an insertion-ordered set of *JSTypeBase stored by value in
+// JSTypeRegistry's property-indexed maps: up to two types live inline without
+// heap allocation or interior slice pointers, spilling to overflow on >=3.
+type propTypeSet struct {
+	t0, t1   *JSTypeBase
+	overflow *propTypeOverflow
+	h0, h1   int32
+}
+
+func propTypeBasesEqual(a, b *JSTypeBase) bool {
+	return a == b || equalityChecker_AreIdentityEqualWithBases(a.self_, a, b.self_, b)
+}
+
+func propTypeHashMix(h int32) uint {
+	u := uint32(h)
+	return uint(u ^ (u >> 16))
+}
+
+func (s *propTypeSet) add(tb *JSTypeBase) bool {
+	return s.addWithHash(tb, tb.HashCode())
+}
+
+func (s *propTypeSet) addWithHash(tb *JSTypeBase, hash int32) bool {
+	if s.t0 == nil {
+		s.t0 = tb
+		s.h0 = hash
+		return true
+	}
+	if s.h0 == hash && propTypeBasesEqual(s.t0, tb) {
+		return false
+	}
+	if s.t1 == nil {
+		s.t1 = tb
+		s.h1 = hash
+		return true
+	}
+	if s.h1 == hash && propTypeBasesEqual(s.t1, tb) {
+		return false
+	}
+	if s.overflow == nil {
+		o := &propTypeOverflow{slots: make([]propTypeSlot, 1, 4)}
+		o.slots[0] = propTypeSlot{t: tb, hash: hash}
+		s.overflow = o
+		return true
+	}
+	s.overflow.add(tb, hash)
+	return false
+}
+
+func (o *propTypeOverflow) add(tb *JSTypeBase, hash int32) {
+	if o.table == nil {
+		for i := range o.slots {
+			if o.slots[i].hash == hash && propTypeBasesEqual(o.slots[i].t, tb) {
+				return
+			}
+		}
+		o.slots = append(o.slots, propTypeSlot{t: tb, hash: hash})
+		if len(o.slots) > 8 {
+			o.rebuildTable(32)
+		}
+		return
+	}
+	mask := uint(len(o.table) - 1)
+	b := propTypeHashMix(hash) & mask
+	for {
+		e := o.table[b]
+		if e == 0 {
+			o.slots = append(o.slots, propTypeSlot{t: tb, hash: hash})
+			if len(o.slots)*2 > len(o.table) {
+				o.rebuildTable(len(o.table) * 2)
+			} else {
+				o.table[b] = uint32(len(o.slots))
+			}
+			return
+		}
+		slot := o.slots[e-1]
+		if slot.hash == hash && propTypeBasesEqual(slot.t, tb) {
+			return
+		}
+		b = (b + 1) & mask
+	}
+}
+
+func (o *propTypeOverflow) rebuildTable(size int) {
+	table := make([]uint32, size)
+	mask := uint(size - 1)
+	for i := range o.slots {
+		b := propTypeHashMix(o.slots[i].hash) & mask
+		for table[b] != 0 {
+			b = (b + 1) & mask
+		}
+		table[b] = uint32(i + 1)
+	}
+	o.table = table
+}
+
+func (s propTypeSet) toObjectTypeSlice() []ObjectType {
+	if s.t0 == nil {
+		return []ObjectType{}
+	}
+	if s.t1 == nil {
+		return []ObjectType{s.t0.self_.(ObjectType)}
+	}
+	if s.overflow == nil {
+		return []ObjectType{s.t0.self_.(ObjectType), s.t1.self_.(ObjectType)}
+	}
+	slots := s.overflow.slots
+	out := make([]ObjectType, 2+len(slots))
+	out[0] = s.t0.self_.(ObjectType)
+	out[1] = s.t1.self_.(ObjectType)
+	for i, slot := range slots {
+		out[2+i] = slot.t.self_.(ObjectType)
+	}
+	return out
+}
+
+func (s propTypeSet) forEachObjectType(fn func(ObjectType)) {
+	if s.t0 == nil {
+		return
+	}
+	fn(s.t0.self_.(ObjectType))
+	if s.t1 == nil {
+		return
+	}
+	fn(s.t1.self_.(ObjectType))
+	if s.overflow != nil {
+		slots := s.overflow.slots
+		for _, slot := range slots {
+			fn(slot.t.self_.(ObjectType))
+		}
+	}
+}
+
 // JSTypeRegistry is the type registry used to resolve named types.
 //
 // This class is not thread-safe.
@@ -213,9 +356,10 @@ type JSTypeRegistry struct {
 	// A map of properties to the types on which those properties have been
 	// declared. "Reference" types are excluded because those already exist in
 	// eachRefTypeIndexedByProperty to avoid blowing up the size of this map.
-	nonRefTypesIndexedByProperty map[string]*jutil.ObjectLinkedHashSet[JSType]
+	nonRefTypesIndexedByProperty map[rhinoStringID]propTypeSet
 
-	sentinelObjectLiteral JSType
+	sentinelObjectLiteral     JSType
+	sentinelObjectLiteralHash int32
 
 	// To avoid blowing up the size of nonRefTypesIndexedByProperty, we use the
 	// sentinel object literal instead of registering arbitrarily many types.
@@ -230,12 +374,12 @@ type JSTypeRegistry struct {
 	// property in droppedPropertiesOfUnions. This is a loose check, but we
 	// restrict it to records that may be present in unions, and it allows us
 	// to keep nonRefTypesIndexedByProperty small.
-	propertiesOfSupertypesInUnions *jutil.LinkedHashSet[string]
-	droppedPropertiesOfUnions      *jutil.LinkedHashSet[string]
+	propertiesOfSupertypesInUnions map[rhinoStringID]struct{}
+	droppedPropertiesOfUnions      map[rhinoStringID]struct{}
 
 	// A map of properties to each reference type on which those properties
 	// have been declared.
-	eachRefTypeIndexedByProperty map[string]*jutil.ObjectLinkedHashSet[ObjectType]
+	eachRefTypeIndexedByProperty map[rhinoStringID]propTypeSet
 
 	// A single empty TemplateTypeMap, which can be safely reused in cases
 	// where there are no template types.
@@ -413,15 +557,13 @@ func NewJSTypeRegistry(reporter ErrorReporter) *JSTypeRegistry {
 // Java: JSTypeRegistry(ErrorReporter, Set<String>)
 func NewJSTypeRegistryWithForwardDeclaredTypes(reporter ErrorReporter, forwardDeclaredTypes jutil.Set[string]) *JSTypeRegistry {
 	r := &JSTypeRegistry{
-		scopedNameTable:                jutil.NewLinkedHashMap[Node, *jutil.LinkedHashMap[string, JSType]](),
-		closureNamespaces:              jutil.NewLinkedHashMap[string, *JSTypeRegistry_ClosureNamespace](),
-		nameTableGlobalRoot:            NewNode(Token_ROOT),
-		nonNullableTypeNames:           jutil.NewLinkedHashMap[Node, *jutil.LinkedHashSet[string]](),
-		nonRefTypesIndexedByProperty:   make(map[string]*jutil.ObjectLinkedHashSet[JSType]),
-		propertiesOfSupertypesInUnions: jutil.NewLinkedHashSet[string](),
-		droppedPropertiesOfUnions:      jutil.NewLinkedHashSet[string](),
-		eachRefTypeIndexedByProperty:   make(map[string]*jutil.ObjectLinkedHashSet[ObjectType]),
-		leastSupertypeGen:              1,
+		scopedNameTable:              jutil.NewLinkedHashMap[Node, *jutil.LinkedHashMap[string, JSType]](),
+		closureNamespaces:            jutil.NewLinkedHashMap[string, *JSTypeRegistry_ClosureNamespace](),
+		nameTableGlobalRoot:          NewNode(Token_ROOT),
+		nonNullableTypeNames:         jutil.NewLinkedHashMap[Node, *jutil.LinkedHashSet[string]](),
+		nonRefTypesIndexedByProperty: make(map[rhinoStringID]propTypeSet),
+		eachRefTypeIndexedByProperty: make(map[rhinoStringID]propTypeSet),
+		leastSupertypeGen:            1,
 	}
 	r.reporter = reporter
 	r.forwardDeclaredTypes = forwardDeclaredTypes
@@ -442,6 +584,7 @@ func NewJSTypeRegistryWithForwardDeclaredTypes(reporter ErrorReporter, forwardDe
 func (r *JSTypeRegistry) GetSentinelObjectLiteral() JSType {
 	if r.sentinelObjectLiteral == nil {
 		r.sentinelObjectLiteral = r.CreateAnonymousObjectType(nil)
+		r.sentinelObjectLiteralHash = r.sentinelObjectLiteral.HashCode()
 	}
 	return r.sentinelObjectLiteral
 }
@@ -952,17 +1095,23 @@ func (r *JSTypeRegistry) RegisterDroppedPropertiesInUnion(subtype *RecordType, s
 	subMap := subtype.GetPropertyMap()
 	subMap.ensureSorted()
 	for i := 0; i < len(subMap.entries()); i++ {
-		pname := rhinoStringFromID(subMap.entries()[i].nameID)
-		if !supertype.HasProperty(pname) {
+		propID := subMap.entries()[i].nameID
+		if !HasPropertyByID(supertype, uint32(propID)) {
 			foundDroppedProperty = true
-			r.droppedPropertiesOfUnions.Add(pname)
+			if r.droppedPropertiesOfUnions == nil {
+				r.droppedPropertiesOfUnions = make(map[rhinoStringID]struct{})
+			}
+			r.droppedPropertiesOfUnions[propID] = struct{}{}
 		}
 	}
 	if foundDroppedProperty {
 		superMap := supertype.GetPropertyMap()
 		superMap.ensureSorted()
+		if len(superMap.entries()) > 0 && r.propertiesOfSupertypesInUnions == nil {
+			r.propertiesOfSupertypesInUnions = make(map[rhinoStringID]struct{}, len(superMap.entries()))
+		}
 		for i := 0; i < len(superMap.entries()); i++ {
-			r.propertiesOfSupertypesInUnions.Add(rhinoStringFromID(superMap.entries()[i].nameID))
+			r.propertiesOfSupertypesInUnions[superMap.entries()[i].nameID] = struct{}{}
 		}
 	}
 }
@@ -987,31 +1136,37 @@ func (r *JSTypeRegistry) RegisterDroppedPropertiesInUnion(subtype *RecordType, s
 //
 // Java: JSTypeRegistry.registerPropertyOnType(String, JSType)
 func (r *JSTypeRegistry) RegisterPropertyOnType(propertyName string, type_ JSType) {
+	r.registerPropertyOnTypeByID(rhinoStringPoolIntern(propertyName), type_)
+}
+
+func (r *JSTypeRegistry) registerPropertyOnTypeByID(id rhinoStringID, type_ JSType) {
 	if type_.IsUnionType() {
 		for _, alternate := range type_.ToMaybeUnionType().GetAlternates() {
-			r.RegisterPropertyOnType(propertyName, alternate)
+			r.registerPropertyOnTypeByID(id, alternate)
 		}
 		return
 	}
 
 	if JSTypeRegistry_IsObjectLiteralThatCanBeSkipped(type_) {
-		type_ = r.GetSentinelObjectLiteral()
+		tb := r.GetSentinelObjectLiteral().GetJSTypeBase()
+		s := r.nonRefTypesIndexedByProperty[id]
+		if s.addWithHash(tb, r.sentinelObjectLiteralHash) {
+			r.nonRefTypesIndexedByProperty[id] = s
+		}
+		return
 	}
 
+	tb := type_.GetJSTypeBase()
 	if objType, ok := type_.(ObjectType); ok && objType.HasReferenceName() {
-		set := r.eachRefTypeIndexedByProperty[propertyName]
-		if set == nil {
-			set = jutil.NewObjectLinkedHashSet[ObjectType]()
-			r.eachRefTypeIndexedByProperty[propertyName] = set
+		s := r.eachRefTypeIndexedByProperty[id]
+		if s.add(tb) {
+			r.eachRefTypeIndexedByProperty[id] = s
 		}
-		set.Add(objType)
 	} else {
-		set := r.nonRefTypesIndexedByProperty[propertyName]
-		if set == nil {
-			set = jutil.NewObjectLinkedHashSet[JSType]()
-			r.nonRefTypesIndexedByProperty[propertyName] = set
+		s := r.nonRefTypesIndexedByProperty[id]
+		if s.add(tb) {
+			r.nonRefTypesIndexedByProperty[id] = s
 		}
-		set.Add(type_)
 	}
 }
 
@@ -1038,82 +1193,110 @@ func (k JSTypeRegistry_PropDefinitionKind) String() string {
 //
 // Java: JSTypeRegistry.canPropertyBeDefined(JSType, String)
 func (r *JSTypeRegistry) CanPropertyBeDefined(type_ JSType, propertyName string) JSTypeRegistry_PropDefinitionKind {
+	return r.canPropertyBeDefinedWithKey(
+		type_,
+		Property_Key{kind: Property_KeyKind_STRING, stringID: rhinoStringPoolLookup(propertyName), string_: propertyName})
+}
+
+// CanPropertyBeDefinedByID returns whether the property identified by propID
+// can possibly be set on the given type without re-looking up propID in the
+// string pool.
+func (r *JSTypeRegistry) CanPropertyBeDefinedByID(type_ JSType, propID uint32) JSTypeRegistry_PropDefinitionKind {
+	return r.canPropertyBeDefinedWithKey(type_, NewProperty_StringKeyByID(propID))
+}
+
+func isNonSyntheticSubtypeMatch(alternative JSType, type_ JSType) bool {
+	greatestSubtype := alternative.GetGreatestSubtype(type_)
+	if greatestSubtype.IsEmptyType() {
+		return false
+	}
+	// We've found a type with this property. Now we just have to make
+	// sure it's not a type used for internal bookkeeping.
+	if maybeRecordType := greatestSubtype.ToMaybeRecordType(); maybeRecordType != nil && maybeRecordType.IsSynthetic() {
+		return false
+	}
+	return true
+}
+
+func hasLooseSubtypeInPropSet(s propTypeSet, type_ JSType) bool {
+	if s.t0 == nil {
+		return false
+	}
+	if isNonSyntheticSubtypeMatch(s.t0.self_, type_) {
+		return true
+	}
+	if s.t1 == nil {
+		return false
+	}
+	if isNonSyntheticSubtypeMatch(s.t1.self_, type_) {
+		return true
+	}
+	if s.overflow != nil {
+		for _, slot := range s.overflow.slots {
+			if isNonSyntheticSubtypeMatch(slot.t.self_, type_) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func (r *JSTypeRegistry) canPropertyBeDefinedWithKey(type_ JSType, key Property_Key) JSTypeRegistry_PropDefinitionKind {
 	if type_.IsStruct() {
 		// We are stricter about "struct" types and only allow access to
 		// properties that to the best of our knowledge are available at
 		// creation time and specifically not properties only defined on
 		// subtypes.
-
-		switch type_.GetPropertyKind(propertyName) {
+		switch type_.GetPropertyKindByKey(key) {
 		case JSType_HasPropertyKind_KNOWN_PRESENT:
 			return JSTypeRegistry_PropDefinitionKind_KNOWN
 		case JSType_HasPropertyKind_MAYBE_PRESENT:
 			return JSTypeRegistry_PropDefinitionKind_LOOSE_UNION
 		}
 		return JSTypeRegistry_PropDefinitionKind_UNKNOWN // ABSENT
-	} else {
-		if !type_.IsEmptyType() && !type_.IsUnknownType() {
-			switch type_.GetPropertyKind(propertyName) {
-			case JSType_HasPropertyKind_KNOWN_PRESENT:
-				return JSTypeRegistry_PropDefinitionKind_KNOWN
-			case JSType_HasPropertyKind_MAYBE_PRESENT:
-				return JSTypeRegistry_PropDefinitionKind_LOOSE_UNION
-			case JSType_HasPropertyKind_ABSENT:
-				// check for loose properties below.
-			}
+	}
+	if !type_.IsEmptyType() && !type_.IsUnknownType() {
+		switch type_.GetPropertyKindByKey(key) {
+		case JSType_HasPropertyKind_KNOWN_PRESENT:
+			return JSTypeRegistry_PropDefinitionKind_KNOWN
+		case JSType_HasPropertyKind_MAYBE_PRESENT:
+			return JSTypeRegistry_PropDefinitionKind_LOOSE_UNION
+		case JSType_HasPropertyKind_ABSENT:
+			// check for loose properties below.
 		}
+	}
 
-		if set := r.nonRefTypesIndexedByProperty[propertyName]; set != nil {
-			for alternative := range set.All() {
-				greatestSubtype := alternative.GetGreatestSubtype(type_)
-				if !greatestSubtype.IsEmptyType() {
-					// We've found a type with this property. Now we just have to make
-					// sure it's not a type used for internal bookkeeping.
-					maybeRecordType := greatestSubtype.ToMaybeRecordType()
-					if maybeRecordType != nil && maybeRecordType.IsSynthetic() {
-						continue
-					}
+	id := key.stringID
+	if id == 0 {
+		return JSTypeRegistry_PropDefinitionKind_UNKNOWN
+	}
 
-					return JSTypeRegistry_PropDefinitionKind_LOOSE
+	if s, ok := r.nonRefTypesIndexedByProperty[id]; ok && hasLooseSubtypeInPropSet(s, type_) {
+		return JSTypeRegistry_PropDefinitionKind_LOOSE
+	}
+	if s, ok := r.eachRefTypeIndexedByProperty[id]; ok && hasLooseSubtypeInPropSet(s, type_) {
+		return JSTypeRegistry_PropDefinitionKind_LOOSE
+	}
+
+	if rec := type_.ToMaybeRecordType(); rec != nil {
+		if r.parallelReadOnly {
+			r.parallelMu.Lock()
+		}
+		loose := false
+		if _, ok := r.droppedPropertiesOfUnions[id]; ok {
+			propMap := rec.GetPropertyMap()
+			for i := 0; i < len(propMap.entries()); i++ {
+				if _, ok := r.propertiesOfSupertypesInUnions[propMap.entries()[i].nameID]; ok {
+					loose = true
+					break
 				}
 			}
 		}
-		if set := r.eachRefTypeIndexedByProperty[propertyName]; set != nil {
-			for alternative := range set.All() {
-				greatestSubtype := alternative.GetGreatestSubtype(type_)
-				if !greatestSubtype.IsEmptyType() {
-					// We've found a type with this property. Now we just have to make
-					// sure it's not a type used for internal bookkeeping.
-					maybeRecordType := greatestSubtype.ToMaybeRecordType()
-					if maybeRecordType != nil && maybeRecordType.IsSynthetic() {
-						continue
-					}
-
-					return JSTypeRegistry_PropDefinitionKind_LOOSE
-				}
-			}
+		if r.parallelReadOnly {
+			r.parallelMu.Unlock()
 		}
-
-		if rec := type_.ToMaybeRecordType(); rec != nil {
-			if r.parallelReadOnly {
-				r.parallelMu.Lock()
-			}
-			loose := false
-			if r.droppedPropertiesOfUnions.Contains(propertyName) {
-				propMap := rec.GetPropertyMap()
-				for i := 0; i < len(propMap.entries()); i++ {
-					if r.propertiesOfSupertypesInUnions.Contains(rhinoStringFromID(propMap.entries()[i].nameID)) {
-						loose = true
-						break
-					}
-				}
-			}
-			if r.parallelReadOnly {
-				r.parallelMu.Unlock()
-			}
-			if loose {
-				return JSTypeRegistry_PropDefinitionKind_LOOSE
-			}
+		if loose {
+			return JSTypeRegistry_PropDefinitionKind_LOOSE
 		}
 	}
 	return JSTypeRegistry_PropDefinitionKind_UNKNOWN
@@ -1129,10 +1312,20 @@ func (r *JSTypeRegistry) CanPropertyBeDefined(type_ JSType, propertyName string)
 //
 // Java: JSTypeRegistry.getEachReferenceTypeWithProperty(String)
 func (r *JSTypeRegistry) GetEachReferenceTypeWithProperty(propertyName string) []ObjectType {
-	if set := r.eachRefTypeIndexedByProperty[propertyName]; set != nil {
-		return set.ToSlice()
+	if id := rhinoStringPoolLookup(propertyName); id != 0 {
+		if s, ok := r.eachRefTypeIndexedByProperty[id]; ok {
+			return s.toObjectTypeSlice()
+		}
 	}
 	return []ObjectType{}
+}
+
+func (r *JSTypeRegistry) forEachRefTypeWithPropertyByID(id rhinoStringID, fn func(ObjectType)) {
+	if id != 0 {
+		if s, ok := r.eachRefTypeIndexedByProperty[id]; ok {
+			s.forEachObjectType(fn)
+		}
+	}
 }
 
 // FindCommonSuperObject finds the common supertype of the two given object

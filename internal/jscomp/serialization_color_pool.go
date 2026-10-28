@@ -19,6 +19,7 @@
 package jscomp
 
 import (
+	"slices"
 	"strings"
 
 	"github.com/paullepoulpe/jsgo/internal/base"
@@ -185,13 +186,19 @@ type colorPoolIdEntry struct {
 	firstShard *ColorPool_ShardView
 	firstProto *TypeProto
 	extra      []colorPoolShardProto
+	jsRecord   *JSTypeReconserializer_SeenTypeRecord
 }
 
 func (e colorPoolIdEntry) rowString() string {
 	m := jutil.NewLinkedHashMap[*ColorPool_ShardView, *TypeProto]()
-	m.Put(e.firstShard, e.firstProto)
+	if e.firstProto != nil {
+		m.Put(e.firstShard, e.firstProto)
+	}
 	for _, sp := range e.extra {
 		m.Put(sp.shard, sp.proto)
+	}
+	if e.jsRecord != nil && m.IsEmpty() {
+		return e.jsRecord.String()
 	}
 	return m.String()
 }
@@ -201,21 +208,25 @@ func (e colorPoolIdEntry) rowString() string {
 type ColorPool_Builder struct {
 	protoToShard map[*TypePool]*ColorPool_ShardView
 	shards       []*ColorPool_ShardView
+	jsTypeShard  *JSTypeReconserializer
 	idToColor    map[colors.ColorId]*colors.Color
 	registry     *colors.ColorRegistry_Builder
 	idToProto    *jutil.LinkedHashMap[colors.ColorId, colorPoolIdEntry]
 	forTesting_  bool
 	built        bool
 
-	colorBuilder       colors.Color_Builder
-	colorSlab          jutil.Slab[colors.Color]
-	colorSliceArena    []*colors.Color
-	stringSliceArena   []string
-	allocColorSliceFn  func(n int) []*colors.Color
-	allocStringSliceFn func(n int) []string
-	propScratch        []string
-	seenProps          map[string]uint32
-	seenPropsGen       uint32
+	colorBuilder          colors.Color_Builder
+	colorSlab             jutil.Slab[colors.Color]
+	colorSliceArena       []*colors.Color
+	stringSliceArena      []string
+	allocColorSliceFn     func(n int) []*colors.Color
+	allocStringSliceFn    func(n int) []string
+	propScratch           []string
+	seenProps             map[string]uint32
+	seenPropsGen          uint32
+	directPropMapActive   bool
+	directSingleOwnPropFn func(string)
+	directMultiOwnPropFn  func(string)
 
 	reconcilationDebugStack []colors.ColorId
 }
@@ -298,6 +309,66 @@ func (b *ColorPool_Builder) appendDedupProp(prop string, useMap bool) {
 	b.propScratch = append(b.propScratch, prop)
 }
 
+func (b *ColorPool_Builder) startDirectPropDedup() {
+	b.propScratch = b.propScratch[:0]
+	b.directPropMapActive = false
+}
+
+func (b *ColorPool_Builder) appendDirectDedupProp(prop string) {
+	if !b.directPropMapActive {
+		for _, existing := range b.propScratch {
+			if existing == prop {
+				return
+			}
+		}
+		b.propScratch = append(b.propScratch, prop)
+		if len(b.propScratch) == 8 {
+			b.directPropMapActive = true
+			b.seenPropsGen++
+			if b.seenProps == nil {
+				b.seenProps = make(map[string]uint32, 64)
+			} else if b.seenPropsGen == 0 {
+				clear(b.seenProps)
+				b.seenPropsGen = 1
+			}
+			for _, existing := range b.propScratch {
+				b.seenProps[existing] = b.seenPropsGen
+			}
+		}
+		return
+	}
+	if b.seenProps[prop] == b.seenPropsGen {
+		return
+	}
+	b.seenProps[prop] = b.seenPropsGen
+	b.propScratch = append(b.propScratch, prop)
+}
+
+func (b *ColorPool_Builder) onDirectSingleOwnProp(prop string) {
+	if b.jsTypeShard.shouldPropagate(prop) {
+		b.propScratch = append(b.propScratch, prop)
+	}
+}
+
+func (b *ColorPool_Builder) onDirectMultiOwnProp(prop string) {
+	if b.jsTypeShard.shouldPropagate(prop) {
+		b.appendDirectDedupProp(prop)
+	}
+}
+
+func (b *ColorPool_Builder) addJSTypeShard(s *JSTypeReconserializer) {
+	jutil.CheckStateMsg(!b.built, "build has already been called")
+	jutil.CheckState(b.jsTypeShard == nil)
+	b.jsTypeShard = s
+	b.directSingleOwnPropFn = b.onDirectSingleOwnProp
+	b.directMultiOwnPropFn = b.onDirectMultiOwnProp
+	for _, m := range s.debugMismatches {
+		for _, ptr := range m.involvedPointers {
+			b.registry.AddMismatchLocation(s.recordsByPointer[ptr].colorId, m.sourceRef)
+		}
+	}
+}
+
 // Java: ColorPool.Builder()
 func newColorPool_Builder() *ColorPool_Builder {
 	b := &ColorPool_Builder{
@@ -363,10 +434,27 @@ func (b *ColorPool_Builder) Build() *ColorPool {
 		shardCount++
 		singleShard = shard
 	})
+	if b.jsTypeShard != nil {
+		totalTypes += len(b.jsTypeShard.recordsByPointer)
+	}
 
 	b.idToColor = make(map[colors.ColorId]*colors.Color, totalTypes+16)
 
-	if shardCount <= 1 {
+	if b.jsTypeShard != nil && shardCount == 0 {
+		s := b.jsTypeShard
+		records := s.recordsByPointer
+		axiomaticCount := len(TypePointers_OFFSET_TO_AXIOMATIC_COLOR)
+		offsetToColor := make([]*colors.Color, len(records))
+		copy(offsetToColor, TypePointers_OFFSET_TO_AXIOMATIC_COLOR)
+		for _, c := range TypePointers_OFFSET_TO_AXIOMATIC_COLOR {
+			b.idToColor[c.GetId()] = c
+		}
+		for ptr := axiomaticCount; ptr < len(records); ptr++ {
+			b.reconcileDirectJSTypeAt(s, offsetToColor, ptr)
+		}
+		s.offsetToColor = offsetToColor
+		s.finishColorPool()
+	} else if b.jsTypeShard == nil && shardCount <= 1 {
 		if singleShard != nil && len(singleShard.trimmedOffsetToId) > 0 {
 			typeList := singleShard.typePool.GetTypeList()
 			for i, id := range singleShard.trimmedOffsetToId {
@@ -432,6 +520,21 @@ func (b *ColorPool_Builder) Build() *ColorPool {
 				}
 			})
 
+		if s := b.jsTypeShard; s != nil {
+			axiomaticCount := len(TypePointers_OFFSET_TO_AXIOMATIC_COLOR)
+			records := s.recordsByPointer
+			for ptr := axiomaticCount; ptr < len(records); ptr++ {
+				seen := records[ptr]
+				id := seen.colorId
+				if entry, ok := b.idToProto.Lookup(id); !ok {
+					b.idToProto.PutNew(id, colorPoolIdEntry{jsRecord: seen})
+				} else {
+					entry.jsRecord = seen
+					b.idToProto.Put(id, entry)
+				}
+			}
+		}
+
 		for id := range colors.StandardColors_AXIOMATIC_COLORS.Keys() {
 			if b.idToProto.ContainsKey(id) {
 				MalformedTypedAstException_CheckWellFormedWithParam(
@@ -441,6 +544,18 @@ func (b *ColorPool_Builder) Build() *ColorPool {
 
 		for id := range b.idToProto.Keys() {
 			b.LookupOrReconcileColor(id)
+		}
+
+		if s := b.jsTypeShard; s != nil {
+			axiomaticCount := len(TypePointers_OFFSET_TO_AXIOMATIC_COLOR)
+			records := s.recordsByPointer
+			offsetToColor := make([]*colors.Color, len(records))
+			copy(offsetToColor, TypePointers_OFFSET_TO_AXIOMATIC_COLOR)
+			for ptr := axiomaticCount; ptr < len(records); ptr++ {
+				offsetToColor[ptr] = b.idToColor[records[ptr].colorId]
+			}
+			s.offsetToColor = offsetToColor
+			s.finishColorPool()
 		}
 	}
 
@@ -466,7 +581,7 @@ func (b *ColorPool_Builder) Build() *ColorPool {
 		b.registry.SetNativeColor(c)
 	}
 
-	if shardCount == 1 && singleShard != nil {
+	if b.jsTypeShard == nil && shardCount == 1 && singleShard != nil {
 		for _, edge := range singleShard.typePool.GetDisambiguationEdgesList() {
 			subOffset := colorPool_validatePointer(int(edge.GetSubtype()), singleShard)
 			supOffset := colorPool_validatePointer(int(edge.GetSupertype()), singleShard)
@@ -493,6 +608,15 @@ func (b *ColorPool_Builder) Build() *ColorPool {
 				}
 			})
 	}
+	if s := b.jsTypeShard; s != nil && s.totalDisambiguateEdges > 0 {
+		offsetToColor := s.offsetToColor
+		for subtype, supertypes := range s.disambiguateEdges.All() {
+			subColor := offsetToColor[subtype]
+			for _, sup := range supertypes {
+				b.registry.AddDisambiguationEdge(subColor, offsetToColor[sup])
+			}
+		}
+	}
 
 	shardViewsForTesting := []*ColorPool_ShardView{}
 	if b.forTesting_ {
@@ -503,11 +627,184 @@ func (b *ColorPool_Builder) Build() *ColorPool {
 
 	b.ForEachShard(func(shard *ColorPool_ShardView) { shard.UpdateStateAfterColorPoolIsBuilt(colorPool) })
 	b.idToProto = nil
+	b.jsTypeShard = nil
 	b.propScratch = nil
 	b.seenProps = nil
 	b.colorSliceArena = nil
 	b.stringSliceArena = nil
 	return colorPool
+}
+
+func (b *ColorPool_Builder) reconcileDirectJSTypeAt(
+	s *JSTypeReconserializer,
+	offsetToColor []*colors.Color,
+	ptr int,
+) *colors.Color {
+	if existing := offsetToColor[ptr]; existing != nil {
+		if existing == colorPool_PENDING_COLOR {
+			rows := make([]string, 0, len(b.reconcilationDebugStack)+1)
+			for _, stackId := range b.reconcilationDebugStack {
+				rows = append(rows, stackId.String())
+			}
+			rows = append(rows, s.recordsByPointer[ptr].colorId.String())
+			panic(NewMalformedTypedAstException(
+				"Cyclic Color structure detected: [" + strings.Join(rows, ", ") + "]"))
+		}
+		return existing
+	}
+
+	seen := s.recordsByPointer[ptr]
+	id := seen.colorId
+	b.reconcilationDebugStack = append(b.reconcilationDebugStack, id)
+	defer func() {
+		b.reconcilationDebugStack = b.reconcilationDebugStack[:len(b.reconcilationDebugStack)-1]
+	}()
+	offsetToColor[ptr] = colorPool_PENDING_COLOR
+
+	var result *colors.Color
+	if len(seen.unionMembers) != 0 {
+		var ptrBuf [16]int32
+		var ptrs []int32
+		if len(seen.unionMembers) <= len(ptrBuf) {
+			ptrs = ptrBuf[:len(seen.unionMembers)]
+		} else {
+			ptrs = make([]int32, len(seen.unionMembers))
+		}
+		for i, r := range seen.unionMembers {
+			ptrs[i] = int32(r.pointer)
+		}
+		slices.Sort(ptrs)
+
+		var unionBuf [16]*colors.Color
+		union := unionBuf[:0]
+		for _, memberPtr := range ptrs {
+			member := b.reconcileDirectJSTypeAt(s, offsetToColor, int(memberPtr))
+			MalformedTypedAstException_CheckWellFormedWithParam(!member.IsUnion(), "Reconciling union with non-union", seen)
+			union = append(union, member)
+		}
+		result = colors.Color_CreateUnionSliceWithBuilder(union, &b.colorBuilder, b.allocColorSliceFn, b.allocStringSliceFn)
+		if id != result.GetId() {
+			jutil.CheckStateMsg2(false, "%s == %s", id, result)
+		}
+	} else if len(seen.jstypes) == 1 {
+		type_ := seen.jstypes[0]
+		objType := jutil.CheckNotNullMsg1(type_.ToMaybeObjectType(), "%s", type_)
+
+		instanceColors := colors.EmptyColorSlice()
+		prototypes := colors.EmptyColorSlice()
+		isClosureAssert := false
+		isConstructor := false
+
+		if objType.IsFunctionType() {
+			fnType := objType.ToMaybeFunctionType()
+			if fnType.HasInstanceType() && fnType.GetInstanceType() != nil {
+				instColor := b.reconcileDirectJSTypeAt(s, offsetToColor, s.SerializeType(fnType.GetInstanceType()))
+				instanceColors = b.allocColorSlice(1)
+				instanceColors[0] = instColor
+				protoColor := b.reconcileDirectJSTypeAt(s, offsetToColor, s.SerializeType(fnType.GetPrototype()))
+				prototypes = b.allocColorSlice(1)
+				prototypes[0] = protoColor
+				isConstructor = fnType.IsConstructor()
+			}
+			isClosureAssert = JSTypeReconserializer_IsClosureAssert(fnType.GetClosurePrimitive())
+		}
+
+		b.propScratch = b.propScratch[:0]
+		objType.ForEachOwnPropertyName(b.directSingleOwnPropFn)
+		ownProperties := colors.EmptyStringSlice()
+		if len(b.propScratch) > 0 {
+			ownProperties = b.allocStringSlice(len(b.propScratch))
+			copy(ownProperties, b.propScratch)
+		}
+
+		result = b.colorBuilder.
+			ClearBoxId().
+			SetId(id).
+			SetInstanceColors(instanceColors).
+			SetPrototypes(prototypes).
+			SetOwnProperties(ownProperties).
+			SetUnionElements(colors.EmptyColorSlice()).
+			SetClosureAssert(isClosureAssert).
+			SetConstructor(isConstructor).
+			SetInvalidating(s.invalidatingTypes.IsInvalidating(objType)).
+			SetPropertiesKeepOriginalName(objType.IsEnumType()).
+			Build()
+	} else {
+		var instBuf [8]*colors.Color
+		inst := instBuf[:0]
+		var instByHash map[int32][]*colors.Color
+
+		var protoBuf [8]*colors.Color
+		protos := protoBuf[:0]
+		var protoByHash map[int32][]*colors.Color
+
+		isClosureAssert := false
+		isConstructor := false
+		isInvalidating := false
+		propertiesKeepOriginalName := false
+
+		for _, type_ := range seen.jstypes {
+			objType := jutil.CheckNotNullMsg1(type_.ToMaybeObjectType(), "%s", type_)
+			if objType.IsFunctionType() {
+				fnType := objType.ToMaybeFunctionType()
+				if fnType.HasInstanceType() && fnType.GetInstanceType() != nil {
+					inst = appendUniquePoolColor(
+						inst,
+						b.reconcileDirectJSTypeAt(s, offsetToColor, s.SerializeType(fnType.GetInstanceType())),
+						&instByHash)
+					protos = appendUniquePoolColor(
+						protos,
+						b.reconcileDirectJSTypeAt(s, offsetToColor, s.SerializeType(fnType.GetPrototype())),
+						&protoByHash)
+					isConstructor = isConstructor || fnType.IsConstructor()
+				}
+				isClosureAssert = isClosureAssert || JSTypeReconserializer_IsClosureAssert(fnType.GetClosurePrimitive())
+			}
+			isInvalidating = isInvalidating || s.invalidatingTypes.IsInvalidating(objType)
+			propertiesKeepOriginalName = propertiesKeepOriginalName || objType.IsEnumType()
+		}
+
+		instanceColors := colors.EmptyColorSlice()
+		if len(inst) > 0 {
+			instanceColors = b.allocColorSlice(len(inst))
+			copy(instanceColors, inst)
+		}
+		prototypes := colors.EmptyColorSlice()
+		if len(protos) > 0 {
+			prototypes = b.allocColorSlice(len(protos))
+			copy(prototypes, protos)
+		}
+
+		b.startDirectPropDedup()
+		for _, type_ := range seen.jstypes {
+			type_.ToMaybeObjectType().ForEachOwnPropertyName(b.directMultiOwnPropFn)
+		}
+		ownProperties := colors.EmptyStringSlice()
+		if len(b.propScratch) > 0 {
+			ownProperties = b.allocStringSlice(len(b.propScratch))
+			copy(ownProperties, b.propScratch)
+		}
+
+		result = b.colorBuilder.
+			ClearBoxId().
+			SetId(id).
+			SetInstanceColors(instanceColors).
+			SetPrototypes(prototypes).
+			SetOwnProperties(ownProperties).
+			SetUnionElements(colors.EmptyColorSlice()).
+			SetClosureAssert(isClosureAssert).
+			SetConstructor(isConstructor).
+			SetInvalidating(isInvalidating).
+			SetPropertiesKeepOriginalName(propertiesKeepOriginalName).
+			Build()
+	}
+
+	if result == nil {
+		jutil.CheckStateMsg1(false, "%s", id)
+	}
+	offsetToColor[ptr] = result
+	b.idToColor[id] = result
+	return result
 }
 
 func (b *ColorPool_Builder) resolveSingleShardPointer(shard *ColorPool_ShardView, untrimmedOffset int) *colors.Color {
@@ -667,18 +964,23 @@ func (b *ColorPool_Builder) LookupOrReconcileColor(id colors.ColorId) *colors.Co
 	b.idToColor[id] = colorPool_PENDING_COLOR
 
 	entry := b.idToProto.Get(id)
-	sample := entry.firstProto
-	if sample == nil {
-		jutil.CheckNotNullMsg1(sample, "%s", id)
-	}
-
 	var result *colors.Color
-	if sample.HasObject() {
-		result = b.reconcileObjectProtos(id, entry)
-	} else if sample.HasUnion() {
-		result = b.reconcileUnionProtos(id, entry)
+	if sample := entry.firstProto; sample != nil {
+		if sample.HasObject() {
+			result = b.reconcileObjectProtos(id, entry)
+		} else if sample.HasUnion() {
+			result = b.reconcileUnionProtos(id, entry)
+		} else {
+			panic(jutil.NewAssertionError(sample.String()))
+		}
+	} else if seen := entry.jsRecord; seen != nil {
+		if len(seen.unionMembers) == 0 {
+			result = b.reconcileObjectProtos(id, entry)
+		} else {
+			result = b.reconcileUnionProtos(id, entry)
+		}
 	} else {
-		panic(jutil.NewAssertionError(sample.String()))
+		jutil.CheckNotNullMsg1(entry.firstProto, "%s", id)
 	}
 
 	if result == nil {
@@ -703,42 +1005,71 @@ func (b *ColorPool_Builder) reconcileObjectProtos(id colors.ColorId, entry color
 	propertiesKeepOriginalName := false
 	totalOwnProps := 0
 
-	for idx := -1; idx < len(entry.extra); idx++ {
-		var shard *ColorPool_ShardView
-		var proto *TypeProto
-		if idx < 0 {
-			shard = entry.firstShard
-			proto = entry.firstProto
-		} else {
-			shard = entry.extra[idx].shard
-			proto = entry.extra[idx].proto
-		}
-		jutil.CheckState(proto.HasObject())
-		objProto := proto.GetObject()
+	if entry.firstProto != nil {
+		for idx := -1; idx < len(entry.extra); idx++ {
+			var shard *ColorPool_ShardView
+			var proto *TypeProto
+			if idx < 0 {
+				shard = entry.firstShard
+				proto = entry.firstProto
+			} else {
+				shard = entry.extra[idx].shard
+				proto = entry.extra[idx].proto
+			}
+			jutil.CheckState(proto.HasObject())
+			objProto := proto.GetObject()
 
-		instanceTypeIds := objProto.GetInstanceTypeList()
-		for i := 0; i < len(instanceTypeIds); i++ {
-			instanceTypePointer := instanceTypeIds[i]
-			inst = appendUniquePoolColor(inst, b.LookupOrReconcileColor(shard.GetId(int(instanceTypePointer))), &instByHash)
-		}
+			instanceTypeIds := objProto.GetInstanceTypeList()
+			for i := 0; i < len(instanceTypeIds); i++ {
+				instanceTypePointer := instanceTypeIds[i]
+				inst = appendUniquePoolColor(inst, b.LookupOrReconcileColor(shard.GetId(int(instanceTypePointer))), &instByHash)
+			}
 
-		isClosureAssertBool := objProto.GetClosureAssert()
+			isClosureAssertBool := objProto.GetClosureAssert()
+			MalformedTypedAstException_CheckWellFormedWithParam(
+				isClosureAssert.ToBoolean(isClosureAssertBool) == isClosureAssertBool,
+				"Inconsistent values for closure_assert",
+				objProto)
+			isClosureAssert = base.Tri_ForBoolean(isClosureAssertBool)
+
+			isConstructor = isConstructor || objProto.GetMarkedConstructor()
+			isInvalidating = isInvalidating || objProto.GetIsInvalidating()
+			propertiesKeepOriginalName = propertiesKeepOriginalName || objProto.GetPropertiesKeepOriginalName()
+
+			prototypeIds := objProto.GetPrototypeList()
+			for i := 0; i < len(prototypeIds); i++ {
+				prototypePointer := prototypeIds[i]
+				protos = appendUniquePoolColor(protos, b.LookupOrReconcileColor(shard.GetId(int(prototypePointer))), &protoByHash)
+			}
+			totalOwnProps += objProto.GetOwnPropertyCount()
+		}
+	}
+
+	if seen := entry.jsRecord; seen != nil {
+		jutil.CheckState(len(seen.unionMembers) == 0)
+		s := b.jsTypeShard
+		jsClosureAssert := false
+		for _, type_ := range seen.jstypes {
+			objType := jutil.CheckNotNullMsg1(type_.ToMaybeObjectType(), "%s", type_)
+			if objType.IsFunctionType() {
+				fnType := objType.ToMaybeFunctionType()
+				if fnType.HasInstanceType() && fnType.GetInstanceType() != nil {
+					instPtr := s.SerializeType(fnType.GetInstanceType())
+					inst = appendUniquePoolColor(inst, b.LookupOrReconcileColor(s.recordsByPointer[instPtr].colorId), &instByHash)
+					protoPtr := s.SerializeType(fnType.GetPrototype())
+					protos = appendUniquePoolColor(protos, b.LookupOrReconcileColor(s.recordsByPointer[protoPtr].colorId), &protoByHash)
+					isConstructor = isConstructor || fnType.IsConstructor()
+				}
+				jsClosureAssert = jsClosureAssert || JSTypeReconserializer_IsClosureAssert(fnType.GetClosurePrimitive())
+			}
+			isInvalidating = isInvalidating || s.invalidatingTypes.IsInvalidating(objType)
+			propertiesKeepOriginalName = propertiesKeepOriginalName || objType.IsEnumType()
+		}
 		MalformedTypedAstException_CheckWellFormedWithParam(
-			isClosureAssert.ToBoolean(isClosureAssertBool) == isClosureAssertBool,
+			isClosureAssert.ToBoolean(jsClosureAssert) == jsClosureAssert,
 			"Inconsistent values for closure_assert",
-			objProto)
-		isClosureAssert = base.Tri_ForBoolean(isClosureAssertBool)
-
-		isConstructor = isConstructor || objProto.GetMarkedConstructor()
-		isInvalidating = isInvalidating || objProto.GetIsInvalidating()
-		propertiesKeepOriginalName = propertiesKeepOriginalName || objProto.GetPropertiesKeepOriginalName()
-
-		prototypeIds := objProto.GetPrototypeList()
-		for i := 0; i < len(prototypeIds); i++ {
-			prototypePointer := prototypeIds[i]
-			protos = appendUniquePoolColor(protos, b.LookupOrReconcileColor(shard.GetId(int(prototypePointer))), &protoByHash)
-		}
-		totalOwnProps += objProto.GetOwnPropertyCount()
+			seen)
+		isClosureAssert = base.Tri_ForBoolean(jsClosureAssert)
 	}
 
 	instanceColors := colors.EmptyColorSlice()
@@ -754,49 +1085,82 @@ func (b *ColorPool_Builder) reconcileObjectProtos(id colors.ColorId, entry color
 	}
 
 	ownProperties := colors.EmptyStringSlice()
-	if totalOwnProps == 1 {
-		for idx := -1; idx < len(entry.extra); idx++ {
-			shard := entry.firstShard
-			proto := entry.firstProto
-			if idx >= 0 {
-				shard = entry.extra[idx].shard
-				proto = entry.extra[idx].proto
+	if entry.jsRecord == nil {
+		if totalOwnProps == 1 {
+			for idx := -1; idx < len(entry.extra); idx++ {
+				shard := entry.firstShard
+				proto := entry.firstProto
+				if idx >= 0 {
+					shard = entry.extra[idx].shard
+					proto = entry.extra[idx].proto
+				}
+				objProto := proto.GetObject()
+				if objProto.GetOwnPropertyCount() == 1 {
+					prop := shard.stringPool.Get(int(objProto.GetOwnProperty(0)))
+					ownProperties = b.allocStringSlice(1)
+					ownProperties[0] = prop
+					break
+				}
 			}
-			objProto := proto.GetObject()
-			if objProto.GetOwnPropertyCount() == 1 {
-				prop := shard.stringPool.Get(int(objProto.GetOwnProperty(0)))
-				ownProperties = b.allocStringSlice(1)
-				ownProperties[0] = prop
-				break
+		} else if totalOwnProps > 1 {
+			b.propScratch = b.propScratch[:0]
+			useMap := totalOwnProps > 8
+			if useMap {
+				b.seenPropsGen++
+				if b.seenProps == nil {
+					b.seenProps = make(map[string]uint32, 64)
+				} else if b.seenPropsGen == 0 {
+					clear(b.seenProps)
+					b.seenPropsGen = 1
+				}
 			}
+			for idx := -1; idx < len(entry.extra); idx++ {
+				shard := entry.firstShard
+				proto := entry.firstProto
+				if idx >= 0 {
+					shard = entry.extra[idx].shard
+					proto = entry.extra[idx].proto
+				}
+				objProto := proto.GetObject()
+				ownPropCount := objProto.GetOwnPropertyCount()
+				for i := 0; i < ownPropCount; i++ {
+					b.appendDedupProp(shard.stringPool.Get(int(objProto.GetOwnProperty(i))), useMap)
+				}
+			}
+			ownProperties = b.allocStringSlice(len(b.propScratch))
+			copy(ownProperties, b.propScratch)
 		}
-	} else if totalOwnProps > 1 {
+	} else if entry.firstProto == nil && len(entry.jsRecord.jstypes) == 1 {
 		b.propScratch = b.propScratch[:0]
-		useMap := totalOwnProps > 8
-		if useMap {
-			b.seenPropsGen++
-			if b.seenProps == nil {
-				b.seenProps = make(map[string]uint32, 64)
-			} else if b.seenPropsGen == 0 {
-				clear(b.seenProps)
-				b.seenPropsGen = 1
+		entry.jsRecord.jstypes[0].ToMaybeObjectType().ForEachOwnPropertyName(b.directSingleOwnPropFn)
+		if len(b.propScratch) > 0 {
+			ownProperties = b.allocStringSlice(len(b.propScratch))
+			copy(ownProperties, b.propScratch)
+		}
+	} else {
+		b.startDirectPropDedup()
+		if entry.firstProto != nil {
+			for idx := -1; idx < len(entry.extra); idx++ {
+				shard := entry.firstShard
+				proto := entry.firstProto
+				if idx >= 0 {
+					shard = entry.extra[idx].shard
+					proto = entry.extra[idx].proto
+				}
+				objProto := proto.GetObject()
+				ownPropCount := objProto.GetOwnPropertyCount()
+				for i := 0; i < ownPropCount; i++ {
+					b.appendDirectDedupProp(shard.stringPool.Get(int(objProto.GetOwnProperty(i))))
+				}
 			}
 		}
-		for idx := -1; idx < len(entry.extra); idx++ {
-			shard := entry.firstShard
-			proto := entry.firstProto
-			if idx >= 0 {
-				shard = entry.extra[idx].shard
-				proto = entry.extra[idx].proto
-			}
-			objProto := proto.GetObject()
-			ownPropCount := objProto.GetOwnPropertyCount()
-			for i := 0; i < ownPropCount; i++ {
-				b.appendDedupProp(shard.stringPool.Get(int(objProto.GetOwnProperty(i))), useMap)
-			}
+		for _, type_ := range entry.jsRecord.jstypes {
+			type_.ToMaybeObjectType().ForEachOwnPropertyName(b.directMultiOwnPropFn)
 		}
-		ownProperties = b.allocStringSlice(len(b.propScratch))
-		copy(ownProperties, b.propScratch)
+		if len(b.propScratch) > 0 {
+			ownProperties = b.allocStringSlice(len(b.propScratch))
+			copy(ownProperties, b.propScratch)
+		}
 	}
 
 	return b.colorBuilder.
@@ -814,25 +1178,47 @@ func (b *ColorPool_Builder) reconcileObjectProtos(id colors.ColorId, entry color
 }
 
 func (b *ColorPool_Builder) reconcileUnionProtos(id colors.ColorId, entry colorPoolIdEntry) *colors.Color {
-	var unionBuf [8]*colors.Color
+	var unionBuf [16]*colors.Color
 	union := unionBuf[:0]
-	for idx := -1; idx < len(entry.extra); idx++ {
-		var shard *ColorPool_ShardView
-		var proto *TypeProto
-		if idx < 0 {
-			shard = entry.firstShard
-			proto = entry.firstProto
-		} else {
-			shard = entry.extra[idx].shard
-			proto = entry.extra[idx].proto
+	if entry.firstProto != nil {
+		for idx := -1; idx < len(entry.extra); idx++ {
+			var shard *ColorPool_ShardView
+			var proto *TypeProto
+			if idx < 0 {
+				shard = entry.firstShard
+				proto = entry.firstProto
+			} else {
+				shard = entry.extra[idx].shard
+				proto = entry.extra[idx].proto
+			}
+			jutil.CheckStateMsg1(proto.HasUnion(), "%s", proto)
+			unionMemberList := proto.GetUnion().GetUnionMemberList()
+			for i := 0; i < len(unionMemberList); i++ {
+				memberPointer := unionMemberList[i]
+				memberId := shard.GetId(int(memberPointer))
+				member := b.LookupOrReconcileColor(memberId)
+				MalformedTypedAstException_CheckWellFormedWithParam(!member.IsUnion(), "Reconciling union with non-union", proto)
+				union = append(union, member)
+			}
 		}
-		jutil.CheckStateMsg1(proto.HasUnion(), "%s", proto)
-		unionMemberList := proto.GetUnion().GetUnionMemberList()
-		for i := 0; i < len(unionMemberList); i++ {
-			memberPointer := unionMemberList[i]
-			memberId := shard.GetId(int(memberPointer))
-			member := b.LookupOrReconcileColor(memberId)
-			MalformedTypedAstException_CheckWellFormedWithParam(!member.IsUnion(), "Reconciling union with non-union", proto)
+	}
+	if seen := entry.jsRecord; seen != nil {
+		jutil.CheckStateMsg1(len(seen.unionMembers) > 1, "%s", seen)
+		records := b.jsTypeShard.recordsByPointer
+		var ptrBuf [16]int32
+		var ptrs []int32
+		if len(seen.unionMembers) <= len(ptrBuf) {
+			ptrs = ptrBuf[:len(seen.unionMembers)]
+		} else {
+			ptrs = make([]int32, len(seen.unionMembers))
+		}
+		for i, r := range seen.unionMembers {
+			ptrs[i] = int32(r.pointer)
+		}
+		slices.Sort(ptrs)
+		for _, memberPtr := range ptrs {
+			member := b.LookupOrReconcileColor(records[memberPtr].colorId)
+			MalformedTypedAstException_CheckWellFormedWithParam(!member.IsUnion(), "Reconciling union with non-union", seen)
 			union = append(union, member)
 		}
 	}

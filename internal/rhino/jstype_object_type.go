@@ -74,12 +74,14 @@ type ObjectType interface {
 	GetPropertyMap() *PropertyMap
 	// Java: ObjectType.getSlot(Property.Key)
 	GetSlotByKey(name Property_Key) *Property
+	GetSlotByID(id uint32) *Property
 	// Java: ObjectType.getSlot(String)
 	GetSlot(name string) *Property
 	// Java: ObjectType.getOwnSlot(String)
 	GetOwnSlot(name string) *Property
 	// Java: ObjectType.getOwnSlot(Property.Key)
 	GetOwnSlotByKey(name Property_Key) *Property
+	GetOwnSlotByID(id uint32) *Property
 	GetTypeOfThis() JSType
 	GetTemplateTypes() []JSType
 	SetJSDocInfo(info *JSDocInfo)
@@ -123,6 +125,7 @@ type ObjectType interface {
 	GetOwnPropertyKindByKey(propertyName Property_Key) JSType_HasPropertyKind
 	HasOwnProperty(propertyName string) bool
 	HasOwnPropertyByKey(propertyName Property_Key) bool
+	HasOwnPropertyByID(id uint32) bool
 	GetOwnPropertyKnownSymbols() []*KnownSymbolType
 	GetOwnPropertyNames() []string
 	ForEachOwnPropertyName(fn func(string))
@@ -221,6 +224,11 @@ func (o *ObjectTypeBase) GetSlotByKey(name Property_Key) *Property {
 	return prop
 }
 
+// GetSlotByID looks up a property slot by its interned string ID.
+func (o *ObjectTypeBase) GetSlotByID(id uint32) *Property {
+	return o.selfObj().GetSlotByKey(NewProperty_StringKeyByID(id))
+}
+
 // Java: ObjectType.getSlot(String)
 func (o *ObjectTypeBase) GetSlot(name string) *Property {
 	return o.selfObj().GetSlotByKey(NewProperty_StringKey(name))
@@ -234,6 +242,11 @@ func (o *ObjectTypeBase) GetOwnSlot(name string) *Property {
 // Java: ObjectType.getOwnSlot(Property.Key)
 func (o *ObjectTypeBase) GetOwnSlotByKey(name Property_Key) *Property {
 	return o.selfObj().GetPropertyMap().GetOwnPropertyByKey(name)
+}
+
+// GetOwnSlotByID looks up an own property slot by its interned string ID.
+func (o *ObjectTypeBase) GetOwnSlotByID(id uint32) *Property {
+	return o.selfObj().GetPropertyMap().GetOwnPropertyByID(rhinoStringID(id))
 }
 
 // Java: ObjectType.getTypeOfThis()
@@ -483,6 +496,18 @@ func (o *ObjectTypeBase) GetImplicitPrototypeChain() iter.Seq[ObjectType] {
 	}
 }
 
+func propertyKeyForNameAndNode(propertyName string, propertyNode Node) Property_Key {
+	if !propertyNode.IsNil() {
+		rec := propertyNode.rec()
+		if rec.kindFlags&kindMask == uint8(node_kindString) {
+			if id := rhinoStringID(rec.payload); id != 0 && rhinoStringFromID(id) == propertyName {
+				return Property_Key{kind: Property_KeyKind_STRING, stringID: id, string_: propertyName}
+			}
+		}
+	}
+	return Property_Key{kind: Property_KeyKind_STRING, stringID: rhinoStringPoolIntern(propertyName), string_: propertyName}
+}
+
 // DefineDeclaredProperty defines a property whose type is explicitly
 // declared by the programmer.
 //
@@ -492,7 +517,7 @@ func (o *ObjectTypeBase) GetImplicitPrototypeChain() iter.Seq[ObjectType] {
 //
 // Java: ObjectType.defineDeclaredProperty(String, JSType, Node)
 func (o *ObjectTypeBase) DefineDeclaredProperty(propertyName string, type_ JSType, propertyNode Node) bool {
-	return o.selfObj().DefineDeclaredPropertyByKey(NewProperty_StringKey(propertyName), type_, propertyNode)
+	return o.selfObj().DefineDeclaredPropertyByKey(propertyKeyForNameAndNode(propertyName, propertyNode), type_, propertyNode)
 }
 
 // Java: ObjectType.defineDeclaredProperty(Property.Key, JSType, Node)
@@ -504,7 +529,11 @@ func (o *ObjectTypeBase) DefineDeclaredPropertyByKey(propertyName Property_Key, 
 		// defineInferredProperty. Because the properties defined an an object
 		// can affect subtyping, it's slightly more efficient to register this
 		// after defining the property.
-		o.GetRegistry().RegisterPropertyOnType(propertyName.String_(), self)
+		if propertyName.stringID != 0 {
+			o.GetRegistry().registerPropertyOnTypeByID(propertyName.stringID, self)
+		} else {
+			o.GetRegistry().RegisterPropertyOnType(propertyName.String_(), self)
+		}
 	}
 	return result
 }
@@ -515,7 +544,7 @@ func (o *ObjectTypeBase) DefineDeclaredPropertyByKey(propertyName Property_Key, 
 //
 // Java: ObjectType.defineSynthesizedProperty(String, JSType, Node)
 func (o *ObjectTypeBase) DefineSynthesizedProperty(propertyName string, type_ JSType, propertyNode Node) bool {
-	return o.selfObj().DefineProperty(propertyName, type_, false, propertyNode)
+	return o.selfObj().DefinePropertyByKey(propertyKeyForNameAndNode(propertyName, propertyNode), type_, false, propertyNode)
 }
 
 // DefineInferredPropertyByKey defines a property whose type is inferred.
@@ -528,6 +557,9 @@ func (o *ObjectTypeBase) DefineInferredPropertyByKey(propertyName Property_Key, 
 	name := propertyName.String_()
 	jutil.CheckArgumentMsg(
 		true, "Symbol-based property keys are not supported for inferred properties.")
+	if propertyName.stringID != 0 {
+		return o.defineInferredPropertyWithKey(propertyName, type_, propertyNode)
+	}
 	return o.selfObj().DefineInferredProperty(name, type_, propertyNode)
 }
 
@@ -539,27 +571,31 @@ func (o *ObjectTypeBase) DefineInferredPropertyByKey(propertyName Property_Key, 
 //
 // Java: ObjectType.defineInferredProperty(String, JSType, Node)
 func (o *ObjectTypeBase) DefineInferredProperty(propertyName string, type_ JSType, propertyNode Node) bool {
+	return o.defineInferredPropertyWithKey(propertyKeyForNameAndNode(propertyName, propertyNode), type_, propertyNode)
+}
+
+func (o *ObjectTypeBase) defineInferredPropertyWithKey(key Property_Key, type_ JSType, propertyNode Node) bool {
 	self := o.selfObj()
-	if o.self().HasProperty(propertyName) {
-		if self.IsPropertyTypeDeclared(propertyName) {
+	if o.self().HasPropertyByKey(key) {
+		if self.IsPropertyTypeDeclaredByKey(key) {
 			// We never want to hide a declared property with an inferred
 			// property.
 			return true
 		}
-		originalType := jutil.CheckNotNull(self.GetPropertyType(propertyName))
+		originalType := jutil.CheckNotNull(self.GetPropertyTypeByKey(key))
 		type_ = originalType.GetLeastSupertype(type_)
 	}
 	// TODO(b/140764208): verify that if isResolved() then type.isResolved().
 	// Defining unresolved properties on resolved types is dangerous because
 	// the property type may never be resolved.
 
-	result := self.DefineProperty(propertyName, type_, true, propertyNode)
+	result := self.DefinePropertyByKey(key, type_, true, propertyNode)
 
 	// All property definitions go through this method or
 	// defineDeclaredProperty. Because the properties defined an an object can
 	// affect subtyping, it's slightly more efficient to register this after
 	// defining the property.
-	o.GetRegistry().RegisterPropertyOnType(propertyName, self)
+	o.GetRegistry().registerPropertyOnTypeByID(key.stringID, self)
 
 	return result
 }
@@ -691,10 +727,37 @@ func (o *ObjectTypeBase) SetPropertyNodeByKey(propertyName Property_Key, defSite
 
 // Java: ObjectType.findPropertyTypeWithoutConsideringTemplateTypes(Property.Key)
 func (o *ObjectTypeBase) FindPropertyTypeWithoutConsideringTemplateTypes(propertyName Property_Key) JSType {
-	if o.self().HasPropertyByKey(propertyName) {
-		return o.selfObj().GetPropertyTypeByKey(propertyName)
+	self := o.selfObj()
+	if _, isFn := self.(FunctionType); isFn || o.objFlags&objKindMask == objKindFallback || o.objFlags&objKindMask == objKindTemplatized {
+		if self.HasPropertyByKey(propertyName) {
+			return self.GetPropertyTypeByKey(propertyName)
+		}
+		return nil
+	}
+	if self.IsEmptyType() || self.IsUnknownType() {
+		return o.GetPropertyTypeFromSlot(self.GetSlotByKey(propertyName))
+	}
+	if slot := self.GetSlotByKey(propertyName); slot != nil {
+		return slot.GetType()
 	}
 	return nil
+}
+
+// HasPropertyByID reports whether t has a property with interned string ID id,
+// without re-looking up id in the string pool.
+func HasPropertyByID(t JSType, id uint32) bool {
+	return t.HasPropertyByKey(NewProperty_StringKeyByID(id))
+}
+
+// GetPropertyKindByID returns the HasPropertyKind of t for interned string ID id.
+func GetPropertyKindByID(t JSType, id uint32) JSType_HasPropertyKind {
+	return t.GetPropertyKindByKey(NewProperty_StringKeyByID(id))
+}
+
+// FindPropertyTypeByID coerces t to an ObjectType and looks up the property
+// type for interned string ID id, returning nil if absent.
+func FindPropertyTypeByID(t JSType, id uint32) JSType {
+	return t.FindPropertyTypeByKey(NewProperty_StringKeyByID(id))
 }
 
 // GetPropertyType gets the property type of the property whose name is
@@ -769,6 +832,12 @@ func (o *ObjectTypeBase) HasOwnPropertyByKey(propertyName Property_Key) bool {
 	return o.selfObj().GetOwnPropertyKindByKey(propertyName) != JSType_HasPropertyKind_ABSENT
 }
 
+// HasOwnPropertyByID reports whether this object directly defines the property
+// with interned string ID id.
+func (o *ObjectTypeBase) HasOwnPropertyByID(id uint32) bool {
+	return o.selfObj().GetOwnSlotByID(id) != nil
+}
+
 // Java: ObjectType.getOwnPropertyKnownSymbols()
 func (o *ObjectTypeBase) GetOwnPropertyKnownSymbols() []*KnownSymbolType {
 	return o.selfObj().GetPropertyMap().GetOwnKnownSymbols()
@@ -800,6 +869,26 @@ func (o *ObjectTypeBase) ForEachOwnPropertyName(fn func(string)) {
 func (o *ObjectTypeBase) GetOwnPropertyKeys() []Property_Key {
 	self := o.selfObj()
 	ownSymbols := self.GetOwnPropertyKnownSymbols()
+	if _, isFn := self.(FunctionType); !isFn && o.objFlags&objKindMask != objKindFallback {
+		pm := self.GetPropertyMap()
+		pm.ensureSorted()
+		entries := pm.entries()
+		if len(ownSymbols) == 0 {
+			out := make([]Property_Key, len(entries))
+			for i, prop := range entries {
+				out[i] = NewProperty_StringKeyByID(uint32(prop.nameID))
+			}
+			return out
+		}
+		ownPropertyKeys := jutil.NewObjectLinkedHashSet[Property_Key]()
+		for _, prop := range entries {
+			ownPropertyKeys.Add(NewProperty_StringKeyByID(uint32(prop.nameID)))
+		}
+		for _, symbol := range ownSymbols {
+			ownPropertyKeys.Add(NewProperty_SymbolKey(symbol))
+		}
+		return ownPropertyKeys.ToSlice()
+	}
 	ownPropertyKeys := jutil.NewObjectLinkedHashSet[Property_Key]()
 	self.ForEachOwnPropertyName(func(propertyName string) {
 		ownPropertyKeys.Add(NewProperty_StringKey(propertyName))

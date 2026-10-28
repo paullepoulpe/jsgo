@@ -80,6 +80,9 @@ type JsonElement interface {
 	GetAsLong() int64
 	// Java: JsonElement.getAsInt()
 	GetAsInt() int32
+	// Go-only: non-panicking accessors for callers that propagate errors.
+	TryGetAsInt() (int32, Throwable)
+	TryGetAsString() (string, Throwable)
 	// Java: JsonElement.toString()
 	String() string
 	// Java: Object.equals(Object), overridden by every JsonElement subclass
@@ -87,18 +90,8 @@ type JsonElement interface {
 	// Java: Object.hashCode(), overridden by every JsonElement subclass
 	HashCode() int32
 
-	// Go-only: language-adapter — field access through the interface.
-	GetJsonElementBase() *JsonElementBase
+	isJsonElement()
 }
-
-// JsonElementBase holds the base implementations of JsonElement.
-type JsonElementBase struct {
-	// Go-only: language-adapter — the dynamic receiver for virtual calls.
-	self JsonElement
-}
-
-// GetJsonElementBase returns the base.
-func (b *JsonElementBase) GetJsonElementBase() *JsonElementBase { return b }
 
 // jsonElementSimpleName is getClass().getSimpleName().
 func jsonElementSimpleName(e JsonElement) string {
@@ -120,112 +113,13 @@ func jsonElementClassName(e JsonElement) string {
 	return GsonPackage + "." + jsonElementSimpleName(e)
 }
 
-// IsJsonArray reports whether this element is an array.
-//
-// Java: JsonElement.isJsonArray()
-func (b *JsonElementBase) IsJsonArray() bool {
-	_, ok := b.self.(*JsonArray)
-	return ok
-}
-
-// IsJsonObject reports whether this element is an object.
-//
-// Java: JsonElement.isJsonObject()
-func (b *JsonElementBase) IsJsonObject() bool {
-	_, ok := b.self.(*JsonObject)
-	return ok
-}
-
-// IsJsonPrimitive reports whether this element is a primitive.
-//
-// Java: JsonElement.isJsonPrimitive()
-func (b *JsonElementBase) IsJsonPrimitive() bool {
-	_, ok := b.self.(*JsonPrimitive)
-	return ok
-}
-
-// IsJsonNull reports whether this element is the JSON null.
-//
-// Java: JsonElement.isJsonNull()
-func (b *JsonElementBase) IsJsonNull() bool {
-	_, ok := b.self.(*JsonNull)
-	return ok
-}
-
-// GetAsJsonObject returns this element as an object, or throws.
-//
-// Java: JsonElement.getAsJsonObject()
-func (b *JsonElementBase) GetAsJsonObject() *JsonObject {
-	if b.self.IsJsonObject() {
-		return b.self.(*JsonObject)
-	}
-	panic(NewIllegalStateExceptionMsg("Not a JSON Object: " + b.self.String()))
-}
-
-// GetAsJsonArray returns this element as an array, or throws.
-//
-// Java: JsonElement.getAsJsonArray()
-func (b *JsonElementBase) GetAsJsonArray() *JsonArray {
-	if b.self.IsJsonArray() {
-		return b.self.(*JsonArray)
-	}
-	panic(NewIllegalStateExceptionMsg("Not a JSON Array: " + b.self.String()))
-}
-
-// GetAsJsonPrimitive returns this element as a primitive, or throws.
-//
-// Java: JsonElement.getAsJsonPrimitive()
-func (b *JsonElementBase) GetAsJsonPrimitive() *JsonPrimitive {
-	if b.self.IsJsonPrimitive() {
-		return b.self.(*JsonPrimitive)
-	}
-	panic(NewIllegalStateExceptionMsg("Not a JSON Primitive: " + b.self.String()))
-}
-
-// GetAsJsonNull returns this element as the JSON null, or throws.
-//
-// Java: JsonElement.getAsJsonNull()
-func (b *JsonElementBase) GetAsJsonNull() *JsonNull {
-	if b.self.IsJsonNull() {
-		return b.self.(*JsonNull)
-	}
-	panic(NewIllegalStateExceptionMsg("Not a JSON Null: " + b.self.String()))
-}
-
-// Java: JsonElement.getAsBoolean()
-func (b *JsonElementBase) GetAsBoolean() bool {
-	panic(NewUnsupportedOperationExceptionMsg(jsonElementSimpleName(b.self)))
-}
-
-// Java: JsonElement.getAsNumber()
-func (b *JsonElementBase) GetAsNumber() JavaNumber {
-	panic(NewUnsupportedOperationExceptionMsg(jsonElementSimpleName(b.self)))
-}
-
-// Java: JsonElement.getAsString()
-func (b *JsonElementBase) GetAsString() string {
-	panic(NewUnsupportedOperationExceptionMsg(jsonElementSimpleName(b.self)))
-}
-
-// Java: JsonElement.getAsLong()
-func (b *JsonElementBase) GetAsLong() int64 {
-	panic(NewUnsupportedOperationExceptionMsg(jsonElementSimpleName(b.self)))
-}
-
-// Java: JsonElement.getAsInt()
-func (b *JsonElementBase) GetAsInt() int32 {
-	panic(NewUnsupportedOperationExceptionMsg(jsonElementSimpleName(b.self)))
-}
-
-// String is the compact JSON form of this element, written by a lenient
+// jsonElementToString is the compact JSON form of e, written by a lenient
 // JsonWriter.
-//
-// Java: JsonElement.toString()
-func (b *JsonElementBase) String() string {
+func jsonElementToString(e JsonElement) string {
 	var stringWriter strings.Builder
 	jsonWriter := NewJsonWriter(&stringWriter)
 	jsonWriter.SetLenient(true)
-	Streams_Write(b.self, jsonWriter)
+	Streams_Write(e, jsonWriter)
 	return stringWriter.String()
 }
 
@@ -235,18 +129,48 @@ func (b *JsonElementBase) String() string {
 // JsonObject is com.google.gson.JsonObject: members in insertion order (a
 // LinkedTreeMap in Gson; re-adding a member keeps its position).
 type JsonObject struct {
-	JsonElementBase
 	members *LinkedHashMap[string, JsonElement]
 }
+
+func (*JsonObject) isJsonElement() {}
 
 // NewJsonObject is new JsonObject().
 //
 // Java: JsonObject()
 func NewJsonObject() *JsonObject {
-	o := &JsonObject{members: NewLinkedHashMap[string, JsonElement]()}
-	o.self = o
-	return o
+	return &JsonObject{members: NewLinkedHashMap[string, JsonElement]()}
 }
+
+func (*JsonObject) IsJsonArray() bool     { return false }
+func (*JsonObject) IsJsonObject() bool    { return true }
+func (*JsonObject) IsJsonPrimitive() bool { return false }
+func (*JsonObject) IsJsonNull() bool      { return false }
+
+func (o *JsonObject) GetAsJsonObject() *JsonObject { return o }
+func (o *JsonObject) GetAsJsonArray() *JsonArray {
+	panic(NewIllegalStateExceptionMsg("Not a JSON Array: " + o.String()))
+}
+func (o *JsonObject) GetAsJsonPrimitive() *JsonPrimitive {
+	panic(NewIllegalStateExceptionMsg("Not a JSON Primitive: " + o.String()))
+}
+func (o *JsonObject) GetAsJsonNull() *JsonNull {
+	panic(NewIllegalStateExceptionMsg("Not a JSON Null: " + o.String()))
+}
+
+func (*JsonObject) GetAsBoolean() bool     { panic(NewUnsupportedOperationExceptionMsg("JsonObject")) }
+func (*JsonObject) GetAsNumber() JavaNumber { panic(NewUnsupportedOperationExceptionMsg("JsonObject")) }
+func (*JsonObject) GetAsString() string    { panic(NewUnsupportedOperationExceptionMsg("JsonObject")) }
+func (*JsonObject) GetAsLong() int64       { panic(NewUnsupportedOperationExceptionMsg("JsonObject")) }
+func (*JsonObject) GetAsInt() int32        { panic(NewUnsupportedOperationExceptionMsg("JsonObject")) }
+
+func (*JsonObject) TryGetAsInt() (int32, Throwable) {
+	return 0, NewUnsupportedOperationExceptionMsg("JsonObject")
+}
+func (*JsonObject) TryGetAsString() (string, Throwable) {
+	return "", NewUnsupportedOperationExceptionMsg("JsonObject")
+}
+
+func (o *JsonObject) String() string { return jsonElementToString(o) }
 
 // Java: JsonObject.deepCopy()
 func (o *JsonObject) DeepCopy() JsonElement {
@@ -366,18 +290,35 @@ func (o *JsonObject) HashCode() int32 {
 
 // JsonArray is com.google.gson.JsonArray.
 type JsonArray struct {
-	JsonElementBase
 	elements *ArrayList[JsonElement]
 }
+
+func (*JsonArray) isJsonElement() {}
 
 // NewJsonArray is new JsonArray().
 //
 // Java: JsonArray()
 func NewJsonArray() *JsonArray {
-	a := &JsonArray{elements: NewArrayList[JsonElement]()}
-	a.self = a
-	return a
+	return &JsonArray{elements: NewArrayList[JsonElement]()}
 }
+
+func (*JsonArray) IsJsonArray() bool     { return true }
+func (*JsonArray) IsJsonObject() bool    { return false }
+func (*JsonArray) IsJsonPrimitive() bool { return false }
+func (*JsonArray) IsJsonNull() bool      { return false }
+
+func (a *JsonArray) GetAsJsonObject() *JsonObject {
+	panic(NewIllegalStateExceptionMsg("Not a JSON Object: " + a.String()))
+}
+func (a *JsonArray) GetAsJsonArray() *JsonArray { return a }
+func (a *JsonArray) GetAsJsonPrimitive() *JsonPrimitive {
+	panic(NewIllegalStateExceptionMsg("Not a JSON Primitive: " + a.String()))
+}
+func (a *JsonArray) GetAsJsonNull() *JsonNull {
+	panic(NewIllegalStateExceptionMsg("Not a JSON Null: " + a.String()))
+}
+
+func (a *JsonArray) String() string { return jsonElementToString(a) }
 
 // Java: JsonArray.deepCopy()
 func (a *JsonArray) DeepCopy() JsonElement {
@@ -453,6 +394,13 @@ func (a *JsonArray) GetAsString() string {
 	panic(NewIllegalStateException())
 }
 
+func (a *JsonArray) TryGetAsString() (string, Throwable) {
+	if a.elements.Size() == 1 {
+		return a.elements.Get(0).TryGetAsString()
+	}
+	return "", NewIllegalStateException()
+}
+
 // Java: JsonArray.getAsLong()
 func (a *JsonArray) GetAsLong() int64 {
 	if a.elements.Size() == 1 {
@@ -467,6 +415,13 @@ func (a *JsonArray) GetAsInt() int32 {
 		return a.elements.Get(0).GetAsInt()
 	}
 	panic(NewIllegalStateException())
+}
+
+func (a *JsonArray) TryGetAsInt() (int32, Throwable) {
+	if a.elements.Size() == 1 {
+		return a.elements.Get(0).TryGetAsInt()
+	}
+	return 0, NewIllegalStateException()
 }
 
 // Java: JsonArray.getAsBoolean()
@@ -514,36 +469,49 @@ func (a *JsonArray) HashCode() int32 {
 // JsonPrimitive is com.google.gson.JsonPrimitive: a string, a boolean or a
 // number (value holds a Go string, a Go bool or a JavaNumber).
 type JsonPrimitive struct {
-	JsonElementBase
 	value any
 }
+
+func (*JsonPrimitive) isJsonElement() {}
 
 // NewJsonPrimitiveBoolean is new JsonPrimitive(Boolean).
 //
 // Java: JsonPrimitive(Boolean)
 func NewJsonPrimitiveBoolean(b bool) *JsonPrimitive {
-	p := &JsonPrimitive{value: b}
-	p.self = p
-	return p
+	return &JsonPrimitive{value: b}
 }
 
 // NewJsonPrimitiveNumber is new JsonPrimitive(Number).
 //
 // Java: JsonPrimitive(Number)
 func NewJsonPrimitiveNumber(number JavaNumber) *JsonPrimitive {
-	p := &JsonPrimitive{value: CheckNotNull(number)}
-	p.self = p
-	return p
+	return &JsonPrimitive{value: CheckNotNull(number)}
 }
 
 // NewJsonPrimitiveString is new JsonPrimitive(String).
 //
 // Java: JsonPrimitive(String)
 func NewJsonPrimitiveString(s string) *JsonPrimitive {
-	p := &JsonPrimitive{value: s}
-	p.self = p
-	return p
+	return &JsonPrimitive{value: s}
 }
+
+func (*JsonPrimitive) IsJsonArray() bool     { return false }
+func (*JsonPrimitive) IsJsonObject() bool    { return false }
+func (*JsonPrimitive) IsJsonPrimitive() bool { return true }
+func (*JsonPrimitive) IsJsonNull() bool      { return false }
+
+func (p *JsonPrimitive) GetAsJsonObject() *JsonObject {
+	panic(NewIllegalStateExceptionMsg("Not a JSON Object: " + p.String()))
+}
+func (p *JsonPrimitive) GetAsJsonArray() *JsonArray {
+	panic(NewIllegalStateExceptionMsg("Not a JSON Array: " + p.String()))
+}
+func (p *JsonPrimitive) GetAsJsonPrimitive() *JsonPrimitive { return p }
+func (p *JsonPrimitive) GetAsJsonNull() *JsonNull {
+	panic(NewIllegalStateExceptionMsg("Not a JSON Null: " + p.String()))
+}
+
+func (p *JsonPrimitive) String() string { return jsonElementToString(p) }
 
 // Java: JsonPrimitive.deepCopy()
 func (p *JsonPrimitive) DeepCopy() JsonElement {
@@ -563,12 +531,10 @@ func (p *JsonPrimitive) GetAsBoolean() bool {
 	if b, ok := p.value.(bool); ok {
 		return b
 	}
-	// Check to see if the value as a String is "true" in any case.
 	return booleanParseBoolean(p.GetAsString())
 }
 
-// booleanParseBoolean is Boolean.parseBoolean(String): "true", ignoring
-// case.
+// booleanParseBoolean is Boolean.parseBoolean(String): "true", ignoring case.
 func booleanParseBoolean(s string) bool {
 	return len(s) == 4 && StringToLowerCaseASCII(s) == "true"
 }
@@ -599,29 +565,47 @@ func (p *JsonPrimitive) IsString() bool {
 
 // Java: JsonPrimitive.getAsString()
 func (p *JsonPrimitive) GetAsString() string {
-	if p.IsNumber() {
-		return p.GetAsNumber().String()
-	} else if b, ok := p.value.(bool); ok {
-		return ToJavaString(b)
-	} else {
-		return p.value.(string)
+	if num, ok := p.value.(JavaNumber); ok {
+		return num.String()
 	}
+	if b, ok := p.value.(bool); ok {
+		return ToJavaString(b)
+	}
+	return p.value.(string)
+}
+
+func (p *JsonPrimitive) TryGetAsString() (string, Throwable) {
+	return p.GetAsString(), nil
 }
 
 // Java: JsonPrimitive.getAsLong()
 func (p *JsonPrimitive) GetAsLong() int64 {
-	if p.IsNumber() {
-		return p.GetAsNumber().LongValue()
+	if num, ok := p.value.(JavaNumber); ok {
+		return num.LongValue()
 	}
 	return LongParseLong(p.GetAsString(), 10)
 }
 
 // Java: JsonPrimitive.getAsInt()
 func (p *JsonPrimitive) GetAsInt() int32 {
-	if p.IsNumber() {
-		return p.GetAsNumber().IntValue()
+	if num, ok := p.value.(JavaNumber); ok {
+		return num.IntValue()
 	}
 	return IntegerParseInt(p.GetAsString(), 10)
+}
+
+func (p *JsonPrimitive) TryGetAsInt() (int32, Throwable) {
+	if lpn, ok := p.value.(*LazilyParsedNumber); ok {
+		return lpn.tryIntValue()
+	}
+	if num, ok := p.value.(JavaNumber); ok {
+		return num.IntValue(), nil
+	}
+	s := p.GetAsString()
+	if v, ok := TryIntegerParseInt(s, 10); ok {
+		return v, nil
+	}
+	return 0, badNumberInput(s, 10)
 }
 
 // Java: JsonPrimitive.hashCode()
@@ -689,18 +673,43 @@ func jsonPrimitive_isIntegral(primitive *JsonPrimitive) bool {
 // JsonNull
 
 // JsonNull is com.google.gson.JsonNull.
-type JsonNull struct {
-	JsonElementBase
-}
+type JsonNull struct{}
+
+func (*JsonNull) isJsonElement() {}
 
 // JsonNull_INSTANCE is JsonNull.INSTANCE.
-var JsonNull_INSTANCE = newJsonNull()
+var JsonNull_INSTANCE = &JsonNull{}
 
-func newJsonNull() *JsonNull {
-	n := &JsonNull{}
-	n.self = n
-	return n
+func (*JsonNull) IsJsonArray() bool     { return false }
+func (*JsonNull) IsJsonObject() bool    { return false }
+func (*JsonNull) IsJsonPrimitive() bool { return false }
+func (*JsonNull) IsJsonNull() bool      { return true }
+
+func (n *JsonNull) GetAsJsonObject() *JsonObject {
+	panic(NewIllegalStateExceptionMsg("Not a JSON Object: " + n.String()))
 }
+func (n *JsonNull) GetAsJsonArray() *JsonArray {
+	panic(NewIllegalStateExceptionMsg("Not a JSON Array: " + n.String()))
+}
+func (n *JsonNull) GetAsJsonPrimitive() *JsonPrimitive {
+	panic(NewIllegalStateExceptionMsg("Not a JSON Primitive: " + n.String()))
+}
+func (n *JsonNull) GetAsJsonNull() *JsonNull { return n }
+
+func (*JsonNull) GetAsBoolean() bool     { panic(NewUnsupportedOperationExceptionMsg("JsonNull")) }
+func (*JsonNull) GetAsNumber() JavaNumber { panic(NewUnsupportedOperationExceptionMsg("JsonNull")) }
+func (*JsonNull) GetAsString() string    { panic(NewUnsupportedOperationExceptionMsg("JsonNull")) }
+func (*JsonNull) GetAsLong() int64       { panic(NewUnsupportedOperationExceptionMsg("JsonNull")) }
+func (*JsonNull) GetAsInt() int32        { panic(NewUnsupportedOperationExceptionMsg("JsonNull")) }
+
+func (*JsonNull) TryGetAsInt() (int32, Throwable) {
+	return 0, NewUnsupportedOperationExceptionMsg("JsonNull")
+}
+func (*JsonNull) TryGetAsString() (string, Throwable) {
+	return "", NewUnsupportedOperationExceptionMsg("JsonNull")
+}
+
+func (n *JsonNull) String() string { return jsonElementToString(n) }
 
 // Java: JsonNull.deepCopy()
 func (n *JsonNull) DeepCopy() JsonElement {
@@ -747,27 +756,37 @@ func NewLazilyParsedNumber(value string) *LazilyParsedNumber {
 }
 
 // Java: LazilyParsedNumber.intValue()
-func (n *LazilyParsedNumber) IntValue() (result int32) {
+func (n *LazilyParsedNumber) IntValue() int32 {
+	if v, ok := TryIntegerParseInt(n.value, 10); ok {
+		return v
+	}
+	if v, ok := TryParseLong(n.value, 10); ok {
+		return int32(v)
+	}
+	return NewBigDecimalFromString(n.value).IntValue()
+}
+
+func (n *LazilyParsedNumber) tryIntValue() (result int32, err Throwable) {
+	if v, ok := TryIntegerParseInt(n.value, 10); ok {
+		return v, nil
+	}
+	if v, ok := TryParseLong(n.value, 10); ok {
+		return int32(v), nil
+	}
 	Try(func() {
-		result = IntegerParseInt(n.value, 10)
-	}, func(e INumberFormatException) {
-		Try(func() {
-			result = int32(LongParseLong(n.value, 10))
-		}, func(nfe INumberFormatException) {
-			result = NewBigDecimalFromString(n.value).IntValue()
-		})
+		result = NewBigDecimalFromString(n.value).IntValue()
+	}, func(nfe INumberFormatException) {
+		err = nfe
 	})
-	return result
+	return result, err
 }
 
 // Java: LazilyParsedNumber.longValue()
-func (n *LazilyParsedNumber) LongValue() (result int64) {
-	Try(func() {
-		result = LongParseLong(n.value, 10)
-	}, func(e INumberFormatException) {
-		result = NewBigDecimalFromString(n.value).LongValue()
-	})
-	return result
+func (n *LazilyParsedNumber) LongValue() int64 {
+	if v, ok := TryParseLong(n.value, 10); ok {
+		return v
+	}
+	return NewBigDecimalFromString(n.value).LongValue()
 }
 
 // Java: LazilyParsedNumber.doubleValue()

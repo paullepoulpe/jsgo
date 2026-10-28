@@ -60,7 +60,7 @@ type DestructuringGlobalNameExtractor struct{}
 func DestructuringGlobalNameExtractor_ReassignDestructringLvalue(
 	stringKey rhino.Node,
 	newName rhino.Node,
-	newNodes *jutil.LinkedHashSet[GlobalNamespace_AstChange],
+	newNodes *astChangeSet,
 	ref *GlobalNamespace_Ref,
 	compiler AbstractCompiler) {
 	pattern := stringKey.GetParent()
@@ -77,7 +77,7 @@ func DestructuringGlobalNameExtractor_ReassignDestructringLvalue(
 		lvalueToReassign = stringKey.GetOnlyChild()
 	}
 	if newNodes != nil {
-		newNodes.Add(NewGlobalNamespace_RefBasedAstChange(ref, newName))
+		newNodes.add(NewGlobalNamespace_RefBasedAstChange(ref, newName))
 	}
 	rvalue := DestructuringGlobalNameExtractor_MakeNewRvalueForDestructuringKey(stringKey, newName, newNodes, ref)
 
@@ -103,7 +103,7 @@ func DestructuringGlobalNameExtractor_ReassignDestructringLvalue(
 		} else {
 			newRvalue = originalRvalue.CloneTree()
 			if newNodes != nil {
-				newNodes.Add(NewGlobalNamespace_RefBasedAstChange(ref, newRvalue))
+				newNodes.add(NewGlobalNamespace_RefBasedAstChange(ref, newRvalue))
 			}
 		}
 		DestructuringGlobalNameExtractor_AddAfter(lvalueToReassign, newPattern, newRvalue)
@@ -186,14 +186,14 @@ func DestructuringGlobalNameExtractor_ReplaceDestructuringAssignment(pattern rhi
 //
 // Java: DestructuringGlobalNameExtractor.makeNewRvalueForDestructuringKey(Node, Node, Set<AstChange>, Ref)
 func DestructuringGlobalNameExtractor_MakeNewRvalueForDestructuringKey(
-	stringKey rhino.Node, rvalue rhino.Node, newNodes *jutil.LinkedHashSet[GlobalNamespace_AstChange], ref *GlobalNamespace_Ref) rhino.Node {
+	stringKey rhino.Node, rvalue rhino.Node, newNodes *astChangeSet, ref *GlobalNamespace_Ref) rhino.Node {
 	if stringKey.GetOnlyChild().IsDefaultValue() {
 		defaultValue := stringKey.GetFirstChild().GetSecondChild().Detach()
 		// Assume `rvalue` has no side effects since it's a qname, and we can create multiple
 		// references to it. This ignores getters/setters.
 		rvalueForSheq := rvalue.CloneTree()
 		if newNodes != nil {
-			newNodes.Add(NewGlobalNamespace_RefBasedAstChange(ref, rvalueForSheq))
+			newNodes.add(NewGlobalNamespace_RefBasedAstChange(ref, rvalueForSheq))
 		}
 		// `void 0 === rvalue ? defaultValue : rvalue`
 		rvalue = rhino.IR_Hook(rhino.IR_Sheq(NodeUtil_NewUndefinedNode(rvalue), rvalueForSheq), defaultValue, rvalue).

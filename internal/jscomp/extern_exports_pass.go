@@ -19,8 +19,10 @@
 package jscomp
 
 import (
+	"slices"
 	"strings"
 
+	"github.com/paullepoulpe/jsgo/internal/ast"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
@@ -31,7 +33,7 @@ type ExternExportsPass struct {
 	NodeTraversal_AbstractPostOrderCallbackBase
 
 	// The exports found.
-	exports []ExternExportsPass_Export
+	exports []externExport
 
 	// A map of all assigns to their parent nodes.
 	definitionMap *jutil.LinkedHashMap[string, rhino.Node]
@@ -45,7 +47,7 @@ type ExternExportsPass struct {
 	// A mapping of internal paths to exported paths.
 	mappedPaths *jutil.LinkedHashMap[string, string]
 
-	// A list of exported paths.
+	// A set of exported paths.
 	alreadyExportedPaths map[string]struct{}
 
 	// Function name used to export symbols (in addition to google_exportSymbol).
@@ -58,86 +60,101 @@ type ExternExportsPass struct {
 var _ CompilerPass = (*ExternExportsPass)(nil)
 var _ NodeTraversal_Callback = (*ExternExportsPass)(nil)
 
+type exportKind uint8
+
+const (
+	exportKindSymbol exportKind = iota
+	exportKindProperty
+)
+
+// externExport collapses ExternExportsPass.Export, SymbolExport, and PropertyExport.
+type externExport struct {
+	kind       exportKind
+	exportPath string
+	symbolName string
+	value      rhino.Node
+}
+
 // Q_NAME_JOINER is Joiner.on('.').
 func externExportsPass_qNameJoin(a string, b string) string {
 	return a + "." + b
 }
 
-// ExternExportsPass_Export is ExternExportsPass.Export (abstract, inner).
-type ExternExportsPass_Export interface {
-	// Java: ExternExportsPass.Export.generateExterns()
-	GenerateExterns()
-
-	// GetExportedPath returns the path exported by this export.
-	//
-	// Java: ExternExportsPass.Export.getExportedPath()
-	GetExportedPath() string
-
-	GetExternExportsPass_ExportBase() *ExternExportsPass_ExportBase
+func (p *ExternExportsPass) addSymbolExport(symbolName string, value rhino.Node) {
+	rhino.CheckNotNull(value)
+	if qualifiedName := value.GetQualifiedName(); qualifiedName != nil {
+		p.mappedPaths.Put(*qualifiedName, symbolName)
+	}
+	p.exports = append(p.exports, externExport{
+		kind:       exportKindSymbol,
+		symbolName: symbolName,
+		value:      value,
+	})
 }
 
-// ExternExportsPass_ExportBase holds the fields and base methods of Export.
-type ExternExportsPass_ExportBase struct {
-	self  ExternExportsPass_Export
-	outer *ExternExportsPass
-
-	symbolName string
-	value      rhino.Node
+func (p *ExternExportsPass) addPropertyExport(exportPath string, symbolName string, value rhino.Node) {
+	rhino.CheckNotNull(value)
+	p.exports = append(p.exports, externExport{
+		kind:       exportKindProperty,
+		exportPath: exportPath,
+		symbolName: symbolName,
+		value:      value,
+	})
 }
 
-// Java: ExternExportsPass.Export(String, Node)
-func (e *ExternExportsPass_ExportBase) InitExternExportsPass_ExportBase(
-	self ExternExportsPass_Export, outer *ExternExportsPass, symbolName string, value rhino.Node) {
-	e.self = self
-	e.outer = outer
-	e.symbolName = symbolName
-	e.value = rhino.CheckNotNull(value)
+func (p *ExternExportsPass) exportedPath(e externExport) string {
+	if e.kind == exportKindSymbol {
+		return e.symbolName
+	}
+	// Find the longest path that has been mapped (if any).
+	prefixes := externExportsPass_computePathPrefixes(e.exportPath)
+	for i := len(prefixes) - 1; i >= 0; i-- {
+		currentPath := prefixes[i]
+		jutil.CheckState(len(currentPath) > 0)
+
+		mappedPath, ok := p.mappedPaths.Lookup(currentPath)
+		if !ok {
+			continue
+		}
+
+		// Append the remaining path segments, including a leading separator.
+		mappedPath += e.exportPath[len(currentPath):]
+		return externExportsPass_qNameJoin(mappedPath, e.symbolName)
+	}
+	return externExportsPass_qNameJoin(e.exportPath, e.symbolName)
 }
 
-// GetExternExportsPass_ExportBase gives access to the base fields.
-func (e *ExternExportsPass_ExportBase) GetExternExportsPass_ExportBase() *ExternExportsPass_ExportBase {
-	return e
+func (p *ExternExportsPass) exportValue(e externExport) rhino.Node {
+	qualifiedName := e.value.GetQualifiedName()
+	if qualifiedName == nil {
+		return rhino.NilNode
+	}
+	definition := p.definitionMap.Get(*qualifiedName)
+	if definition.IsNil() {
+		return rhino.NilNode
+	}
+	if definition.IsFunction() || definition.IsClass() || definition.IsObjectLit() {
+		return definition
+	}
+	return rhino.NilNode
 }
 
-// GenerateExterns generates the externs representation of this export and
-// appends it to the externsRoot AST.
-//
-// Java: ExternExportsPass.Export.generateExterns()
-func (e *ExternExportsPass_ExportBase) GenerateExterns() {
-	e.AppendExtern(e.self.GetExportedPath(), e.GetValue())
-}
-
-// AppendExtern appends the exported function and all paths necessary for
-// the path to be declared. For example, for a property "a.b.c", the
-// initializers for paths "a", "a.b" will be appended (if they have not
-// already) and a.b.c will be initialized with the exported version of the
-// function:
-//
-//	var a = {};
-//	a.b = {};
-//	a.b.c = function(x,y) { }
-//
-// Java: ExternExportsPass.Export.appendExtern(String, Node)
-func (e *ExternExportsPass_ExportBase) AppendExtern(path string, valueToExport rhino.Node) {
+// appendExtern appends the exported function and all paths necessary for
+// the path to be declared.
+func (p *ExternExportsPass) appendExtern(path string, valueToExport rhino.Node) {
 	pathPrefixes := externExportsPass_computePathPrefixes(path)
 
-	for i := 0; i < len(pathPrefixes); i++ {
-		pathPrefix := pathPrefixes[i]
-
+	for i, pathPrefix := range pathPrefixes {
 		// The complete path (the last path prefix) must be emitted and
 		// it gets initialized to the externed version of the value.
 		isCompletePathPrefix := i == len(pathPrefixes)-1
 
-		_, alreadyExported := e.outer.alreadyExportedPaths[pathPrefix]
-		skipPathPrefix :=
-			strings.HasSuffix(pathPrefix, ".prototype") ||
-				(alreadyExported && !isCompletePathPrefix)
-		if skipPathPrefix {
+		_, alreadyExported := p.alreadyExportedPaths[pathPrefix]
+		if strings.HasSuffix(pathPrefix, ".prototype") || (alreadyExported && !isCompletePathPrefix) {
 			continue
 		}
 
 		exportedValueDefinesNewType := false
-
 		if !valueToExport.IsNil() {
 			jsdoc := NodeUtil_GetBestJSDocInfo(valueToExport)
 			if valueToExport.IsClass() || (jsdoc != nil && jsdoc.ContainsTypeDefinition()) {
@@ -145,45 +162,35 @@ func (e *ExternExportsPass_ExportBase) AppendExtern(path string, valueToExport r
 			}
 		}
 
-		// Namespaces get initialized to {}, functions to externed versions of
-		// their value, and if we can't figure out where the value came from we
-		// initialize it to {}.
-		//
-		// Since externs are always exported in sorted order, we know that if we
-		// export a.b = function() {} and later a.b.c = function then a.b will
-		// always be in alreadyExportedPaths when we emit a.b.c and thus we will
-		// never overwrite the function exported for a.b with a namespace.
 		var initializer rhino.Node
 		var jsdoc *rhino.JSDocInfo
 		if isCompletePathPrefix && !valueToExport.IsNil() {
 			if valueToExport.IsFunction() {
-				initializer = e.CreateExternFunction(valueToExport)
+				initializer = p.createExternFunction(valueToExport)
 			} else if valueToExport.IsClass() {
-				initializer = e.CreateExternFunctionForEs6Class(valueToExport)
+				initializer = p.createExternFunctionForEs6Class(valueToExport)
 			} else {
 				jutil.CheckState(valueToExport.IsObjectLit())
-				initializer = e.CreateExternObjectLit(valueToExport)
+				initializer = p.createExternObjectLit(valueToExport)
 			}
 		} else if !isCompletePathPrefix && exportedValueDefinesNewType {
-			jsdoc = e.BuildNamespaceJSDoc()
-			initializer = e.CreateExternObjectLit(rhino.IR_Objectlit())
+			jsdoc = buildNamespaceJSDoc()
+			initializer = p.createExternObjectLit(rhino.IR_Objectlit())
 			// Don't add the empty jsdoc here
 			initializer.SetJSDocInfo(nil)
 		} else {
 			initializer = rhino.IR_Empty()
 		}
 
-		e.AppendPathDefinition(pathPrefix, initializer, jsdoc)
+		p.appendPathDefinition(pathPrefix, initializer, jsdoc)
 	}
 }
 
-// Java: ExternExportsPass.Export.appendPathDefinition(String, Node, JSDocInfo)
-func (e *ExternExportsPass_ExportBase) AppendPathDefinition(
-	path string, initializer rhino.Node, jsdoc *rhino.JSDocInfo) {
+func (p *ExternExportsPass) appendPathDefinition(path string, initializer rhino.Node, jsdoc *rhino.JSDocInfo) {
 	var pathDefinition rhino.Node
 
 	if strings.Contains(path, ".") {
-		qualifiedPath := NodeUtil_NewQName(e.outer.compiler, path)
+		qualifiedPath := NodeUtil_NewQName(p.compiler, path)
 		if initializer.IsEmpty() {
 			pathDefinition = NodeUtil_NewExpr(qualifiedPath)
 		} else {
@@ -198,89 +205,40 @@ func (e *ExternExportsPass_ExportBase) AppendPathDefinition(
 	}
 
 	if jsdoc != nil {
-		if pathDefinition.IsExprResult() {
-			pathDefinition.GetFirstChild().SetJSDocInfo(jsdoc)
+		if exprStmt, ok := ast.AsExprStmt(pathDefinition); ok {
+			exprStmt.Expr().Node().SetJSDocInfo(jsdoc)
 		} else {
 			jutil.CheckState(pathDefinition.IsVar())
 			pathDefinition.SetJSDocInfo(jsdoc)
 		}
 	}
 
-	e.outer.externsRoot.AddChildToBack(pathDefinition)
-
-	e.outer.alreadyExportedPaths[path] = struct{}{}
+	p.externsRoot.AddChildToBack(pathDefinition)
+	p.alreadyExportedPaths[path] = struct{}{}
 }
 
-// CreateExternFunction: given a function to export, create the empty
-// function that will be put in the externs file. This extern function should
-// have the same type as the original function and the same parameter name
-// but no function body.
-//
-// We create a warning here if the the function to export is missing
-// parameter or return types.
-//
-// Java: ExternExportsPass.Export.createExternFunction(Node)
-func (e *ExternExportsPass_ExportBase) CreateExternFunction(exportedFunction rhino.Node) rhino.Node {
-	paramList := e.CreateExternsParamListFromOriginalFunction(exportedFunction)
+func (p *ExternExportsPass) createExternFunction(exportedFunction rhino.Node) rhino.Node {
+	paramList := createExternsParamListFromOriginalFunction(exportedFunction)
 	externFunction := rhino.IR_Function(rhino.IR_Name(""), paramList, rhino.IR_Block())
-
 	externFunction.SetJSType(exportedFunction.GetJSType())
-
 	return externFunction
 }
 
-// CreateExternsParamListFromOriginalFunction creates a PARAM_LIST to store
-// in the AST we'll use to generate externs for a function with the given
-// type.
-//
-// If the NODE defining the original function is available, it would be
-// better to use createExternsParamListFromOriginalFunction(), because that
-// one will keep the parameter names the same instead of generating arbitrary
-// parameter names.
-//
-// exportedFunction is the FUNCTION Node of the original function.
-//
-// Java: ExternExportsPass.Export.createExternsParamListFromOriginalFunction(Node)
-func (e *ExternExportsPass_ExportBase) CreateExternsParamListFromOriginalFunction(exportedFunction rhino.Node) rhino.Node {
-	originalParamList := NodeUtil_GetFunctionParameters(exportedFunction)
-	// First get all of the original positional parameter list names we can.
-	// Place empty stings in the positions where we'll need to generate names.
-	originalParamNames := []string{}
-	for originalParam := originalParamList.GetFirstChild(); !originalParam.IsNil(); originalParam = originalParam.GetNext() {
-		// We'll get an empty string for a destructuring pattern.
-		// Also if originalParamList came from a FunctionType instead of an
-		// actual FUNCTION node, then all of the NAME nodes in it will have
-		// empty strings, so we'll end up generating names for all of them.
-		originalParamNames = append(originalParamNames, e.GetOriginalNameForParam(originalParam))
+func createExternsParamListFromOriginalFunction(exportedFunction rhino.Node) rhino.Node {
+	params := ast.MustFunction(exportedFunction).Params()
+	originalParamNames := make([]string, 0, params.NumParams())
+	for originalParam := range params.Params() {
+		originalParamNames = append(originalParamNames, getOriginalNameForParam(originalParam.Node()))
 	}
-	return e.CreateExternsParamListFromOriginalParamList(originalParamNames)
+	return createExternsParamListFromOriginalParamList(originalParamNames)
 }
 
-// CreateExternsParamListFromFunctionType creates a PARAM_LIST to store in
-// the AST we'll use to generate externs for a function with the given type.
-//
-// If the NODE defining the original function is available, it would be
-// better to use createExternsParamListFromOriginalFunction(), because that
-// one will keep the parameter names the same instead of generating arbitrary
-// parameter names.
-//
-// functionType is the JSType read from the FUNCTION (or possibly CLASS)
-// node.
-//
-// Java: ExternExportsPass.Export.createExternsParamListFromFunctionType(JSType)
-func (e *ExternExportsPass_ExportBase) CreateExternsParamListFromFunctionType(functionType rhino.JSType) rhino.Node {
-	// Place empty stings in the positions where we'll need to generate names.
+func createExternsParamListFromFunctionType(functionType rhino.JSType) rhino.Node {
 	emptyParamNames := make([]string, len(functionType.AssertFunctionType().GetParameters()))
-
-	return e.CreateExternsParamListFromOriginalParamList(emptyParamNames)
+	return createExternsParamListFromOriginalParamList(emptyParamNames)
 }
 
-// CreateExternsParamListFromOriginalParamList creates a PARAM_LIST to store
-// in the AST we'll use to generate externs for a function.
-// originalParamNames are names for the parameters, possibly synthetic.
-//
-// Java: ExternExportsPass.Export.createExternsParamListFromOriginalParamList(List<String>)
-func (e *ExternExportsPass_ExportBase) CreateExternsParamListFromOriginalParamList(originalParamNames []string) rhino.Node {
+func createExternsParamListFromOriginalParamList(originalParamNames []string) rhino.Node {
 	paramList := rhino.IR_ParamList()
 	var nameGenerator NameGenerator = NewDefaultNameGeneratorWithReserved(
 		jutil.NewLinkedHashSet(originalParamNames...),
@@ -296,99 +254,56 @@ func (e *ExternExportsPass_ExportBase) CreateExternsParamListFromOriginalParamLi
 	return paramList
 }
 
-// GetOriginalNameForParam: paramNode is expected to be a node in a
-// PARAM_LIST. Returns the original name of the parameter, if possible,
-// otherwise an empty string.
-//
-// Java: ExternExportsPass.Export.getOriginalNameForParam(Node)
-func (e *ExternExportsPass_ExportBase) GetOriginalNameForParam(paramNode rhino.Node) string {
-	var nameOrPatternNode rhino.Node
-	if paramNode.IsRest() {
-		// get name or pattern from `...nameOrPattern`
-		nameOrPatternNode = paramNode.GetOnlyChild()
-	} else if paramNode.IsDefaultValue() {
-		// get name or pattern from `nameOrPattern = defaultValue`
-		nameOrPatternNode = paramNode.GetFirstChild()
-	} else {
-		nameOrPatternNode = paramNode
+func getOriginalNameForParam(paramNode rhino.Node) string {
+	nameOrPatternNode := paramNode
+	if rest, ok := ast.AsIterRest(paramNode); ok {
+		nameOrPatternNode = rest.Target().Node()
+	} else if defVal, ok := ast.AsDefaultValue(paramNode); ok {
+		nameOrPatternNode = defVal.Target().Node()
 	}
-	if nameOrPatternNode.IsName() {
-		originalName := nameOrPatternNode.GetOriginalName()
-		if originalName != nil {
+	if name, ok := ast.AsName(nameOrPatternNode); ok {
+		if originalName := nameOrPatternNode.GetOriginalName(); originalName != nil {
 			return *originalName
 		}
-		return nameOrPatternNode.GetString()
-	} else {
-		jutil.CheckStateMsg1(nameOrPatternNode.IsDestructuringPattern(), "%s", nameOrPatternNode)
-		return ""
+		return name.Ident()
 	}
+	jutil.CheckStateMsg1(nameOrPatternNode.IsDestructuringPattern(), "%s", nameOrPatternNode)
+	return ""
 }
 
-// CreateExternFunctionForEs6Class: given a class to export, create the empty
-// function that will be put in the externs file.
-//
-// This extern function should have the same type as the original function
-// and the same parameter name but no function body.
-//
-// TODO(b/123352214): It would be nice if we could put ES6 classes in the
-// generated externs, but we'd have to fix some things first.
-//
-// Java: ExternExportsPass.Export.createExternFunctionForEs6Class(Node)
-func (e *ExternExportsPass_ExportBase) CreateExternFunctionForEs6Class(exportedClass rhino.Node) rhino.Node {
-	constructorMethodDefinition :=
-		NodeUtil_GetEs6ClassConstructorMemberFunctionDef(exportedClass)
-	if constructorMethodDefinition.IsNil() {
-		// no constructor for the class, so just create an empty function with
-		// parameters to match the parameters indicated in the JSType, which
-		// should have inherited parameters from the superclass, if any.
-		classJSType := exportedClass.GetJSType()
-		paramList := e.CreateExternsParamListFromFunctionType(classJSType)
-		externFunction := rhino.IR_Function(rhino.IR_Name(""), paramList, rhino.IR_Block())
-		externFunction.SetJSType(classJSType)
-		return externFunction
-	} else {
-		// The JSType on the constructor function definition is the same as the
-		// JSType on the whole class, so we can just pretend that the function is
-		// an ES5 constructor function.
-		return e.CreateExternFunction(constructorMethodDefinition.GetOnlyChild())
+func (p *ExternExportsPass) createExternFunctionForEs6Class(exportedClass rhino.Node) rhino.Node {
+	if ctorDef, ok := ast.MustClass(exportedClass).Constructor(); ok {
+		return p.createExternFunction(ctorDef.Function().Node())
 	}
+	classJSType := exportedClass.GetJSType()
+	paramList := createExternsParamListFromFunctionType(classJSType)
+	externFunction := rhino.IR_Function(rhino.IR_Name(""), paramList, rhino.IR_Block())
+	externFunction.SetJSType(classJSType)
+	return externFunction
 }
 
-// Java: ExternExportsPass.Export.buildEmptyJSDoc()
-func (e *ExternExportsPass_ExportBase) BuildEmptyJSDoc() *rhino.JSDocInfo {
-	// TODO(johnlenz): share the JSDocInfo here rather than building
-	// a new one each time.
+func buildEmptyJSDoc() *rhino.JSDocInfo {
 	return rhino.JSDocInfo_Builder_().BuildWithAlways(true)
 }
 
-// Java: ExternExportsPass.Export.buildNamespaceJSDoc()
-func (e *ExternExportsPass_ExportBase) BuildNamespaceJSDoc() *rhino.JSDocInfo {
+func buildNamespaceJSDoc() *rhino.JSDocInfo {
 	builder := rhino.JSDocInfo_Builder_()
 	builder.RecordConstancy()
 	builder.RecordSuppressions(jutil.NewLinkedHashSet("const", "duplicate"))
 	return builder.Build()
 }
 
-// CreateExternObjectLit: given an object literal to export, create an
-// object lit with all its string properties. We don't care what the values
-// of those properties are because they are not checked.
-//
-// Java: ExternExportsPass.Export.createExternObjectLit(Node)
-func (e *ExternExportsPass_ExportBase) CreateExternObjectLit(exportedObjectLit rhino.Node) rhino.Node {
+func (p *ExternExportsPass) createExternObjectLit(exportedObjectLit rhino.Node) rhino.Node {
 	lit := rhino.IR_Objectlit()
 	lit.SetJSType(exportedObjectLit.GetJSType())
-
-	// This is an indirect way of telling the typed code generator
-	// "print the type of this"
-	lit.SetJSDocInfo(e.BuildEmptyJSDoc())
+	lit.SetJSDocInfo(buildEmptyJSDoc())
 
 	index := 1
-	for child := exportedObjectLit.GetFirstChild(); !child.IsNil(); child = child.GetNext() {
-		// TODO(dimvar): handle getters or setters?
-		if child.IsStringKey() {
+	for member := range ast.MustObjectLit(exportedObjectLit).Members() {
+		if sk, ok := member.AsStringKey(); ok {
 			lit.AddChildToBack(
 				rhino.IR_Propdef(
-					rhino.IR_StringKey(child.GetString()),
+					rhino.IR_StringKey(sk.Key()),
 					rhino.IR_Number(float64(index))))
 			index++
 		}
@@ -396,120 +311,13 @@ func (e *ExternExportsPass_ExportBase) CreateExternObjectLit(exportedObjectLit r
 	return lit
 }
 
-// GetValue: if the given value is a qualified name which refers a function
-// or object literal, the node is returned. Otherwise, null is returned.
-//
-// Java: ExternExportsPass.Export.getValue()
-func (e *ExternExportsPass_ExportBase) GetValue() rhino.Node {
-	qualifiedName := e.value.GetQualifiedName()
-
-	if qualifiedName == nil {
-		// We expect to see
-		// goog.exportSymbol('exportedName', some.path);
-		// goog.exportProperty(some.path, 'exportedName', some.path.prop);
-		//
-		// In either case `value` will be the last argument, which we expect to
-		// be a qualified name If it isn't we won't include any type information
-		// in the output externs. It would be very strange to use a literal value
-		// as the final argument, since it wouldn't then be accessible by any
-		// non-exported name.
-		return rhino.NilNode
-	}
-
-	definition := e.outer.definitionMap.Get(*qualifiedName)
-	if definition.IsNil() {
-		// Couldn't find any assignment to the qualified name
-		return rhino.NilNode
-	}
-
-	if definition.IsFunction() || definition.IsClass() || definition.IsObjectLit() {
-		// We can generate good type information for all of these cases.
-		return definition
-	}
-
-	// value was something unusual, so we won't return any node from which to
-	// get type information.
-	return rhino.NilNode
-}
-
-// ExternExportsPass_SymbolExport is a symbol export.
-type ExternExportsPass_SymbolExport struct {
-	ExternExportsPass_ExportBase
-}
-
-// Java: ExternExportsPass.SymbolExport(String, Node)
-func (p *ExternExportsPass) NewSymbolExport(symbolName string, value rhino.Node) *ExternExportsPass_SymbolExport {
-	e := &ExternExportsPass_SymbolExport{}
-	e.InitExternExportsPass_ExportBase(e, p, symbolName, value)
-
-	qualifiedName := value.GetQualifiedName()
-
-	if qualifiedName != nil {
-		p.mappedPaths.Put(*qualifiedName, symbolName)
-	}
-	return e
-}
-
-// Java: ExternExportsPass.SymbolExport.getExportedPath()
-func (e *ExternExportsPass_SymbolExport) GetExportedPath() string {
-	return e.symbolName
-}
-
-// ExternExportsPass_PropertyExport is a property export.
-type ExternExportsPass_PropertyExport struct {
-	ExternExportsPass_ExportBase
-	exportPath string
-}
-
-// Java: ExternExportsPass.PropertyExport(String, String, Node)
-func (p *ExternExportsPass) NewPropertyExport(exportPath string, symbolName string, value rhino.Node) *ExternExportsPass_PropertyExport {
-	e := &ExternExportsPass_PropertyExport{}
-	e.InitExternExportsPass_ExportBase(e, p, symbolName, value)
-
-	e.exportPath = exportPath
-	return e
-}
-
-// Java: ExternExportsPass.PropertyExport.getExportedPath()
-func (e *ExternExportsPass_PropertyExport) GetExportedPath() string {
-	// Find the longest path that has been mapped (if any).
-	prefixes := externExportsPass_computePathPrefixes(e.exportPath)
-	for i := len(prefixes) - 1; i >= 0; i-- {
-		currentPath := prefixes[i]
-		jutil.CheckState(len(currentPath) > 0)
-
-		// If this path is mapped, return the mapped path plus any remaining
-		// pieces.
-		mappedPath, ok := e.outer.mappedPaths.Lookup(currentPath)
-		if !ok {
-			continue
-		}
-
-		// Append the remaining path segments, including a leading separator.
-		mappedPath += e.exportPath[len(currentPath):]
-		return externExportsPass_qNameJoin(mappedPath, e.symbolName)
-	}
-
-	return externExportsPass_qNameJoin(e.exportPath, e.symbolName)
-}
-
 // externExportsPass_computePathPrefixes computes a list of the path prefixes
-// constructed from the components of the path.
-//
-// E.g., if the path is:
-//
-//	"a.b.c"
-//
-// then then path prefixes will be
-//
-//	["a","a.b","a.b.c"]:
-//
-// Java: ExternExportsPass.computePathPrefixes(String)
+// constructed from the components of the path (e.g. "a.b.c" -> ["a","a.b","a.b.c"]).
 func externExportsPass_computePathPrefixes(path string) []string {
 	pieces := strings.Split(path, ".")
-	var pathPrefixes []string
+	pathPrefixes := make([]string, 0, len(pieces))
 
-	partial := pieces[0] // There will always be at least 1.
+	partial := pieces[0]
 	pathPrefixes = append(pathPrefixes, partial)
 	for i := 1; i < len(pieces); i++ {
 		partial = externExportsPass_qNameJoin(partial, pieces[i])
@@ -546,19 +354,23 @@ func (p *ExternExportsPass) InitExportMethods() {
 func (p *ExternExportsPass) Process(externs rhino.Node, root rhino.Node) {
 	NodeTraversal_Traverse(p.compiler, root, p)
 
-	// Sort by path length to ensure that the longer
-	// paths (which may depend on the shorter ones)
-	// come later.
-	sorted := jutil.NewTreeSet[ExternExportsPass_Export](func(a, b ExternExportsPass_Export) int {
-		return jutil.StringCompareTo(a.GetExportedPath(), b.GetExportedPath())
+	type resolvedExport struct {
+		path   string
+		export externExport
+	}
+	resolved := make([]resolvedExport, len(p.exports))
+	for i, e := range p.exports {
+		resolved[i] = resolvedExport{path: p.exportedPath(e), export: e}
+	}
+	slices.SortStableFunc(resolved, func(a, b resolvedExport) int {
+		return jutil.StringCompareTo(a.path, b.path)
 	})
 
-	for _, e := range p.exports {
-		sorted.Add(e)
-	}
-
-	for export := range sorted.All() {
-		export.GenerateExterns()
+	for i, item := range resolved {
+		if i > 0 && item.path == resolved[i-1].path {
+			continue
+		}
+		p.appendExtern(item.path, p.exportValue(item.export))
 	}
 
 	p.SetGeneratedExternsOnCompiler()
@@ -589,125 +401,89 @@ func (p *ExternExportsPass) Visit(t *NodeTraversal, n rhino.Node, parent rhino.N
 
 // Java: ExternExportsPass.lookForQnameDefinition(Node)
 func (p *ExternExportsPass) LookForQnameDefinition(n rhino.Node) {
-	// TODO(b/123725559): There are lots of cases where this could fail to find
-	//     the right definition or be fooled by there being multiple
-	//     definitions.
-	if n.IsClass() {
+	if cls, ok := ast.AsClass(n); ok {
 		if NodeUtil_IsClassDeclaration(n) {
-			// class Foo {...}
-			p.definitionMap.Put(n.GetFirstChild().GetString(), n)
+			p.definitionMap.Put(cls.NameNode().GetString(), n)
 		}
-	} else if n.IsFunction() {
+	} else if fn, ok := ast.AsFunction(n); ok {
 		if NodeUtil_IsFunctionDeclaration(n) {
-			// function foo() {...}
-			p.definitionMap.Put(n.GetFirstChild().GetString(), n)
+			p.definitionMap.Put(fn.NameNode().Ident(), n)
 		}
-	} else if n.IsAssign() {
-		// TODO(b/123718645): Add support for destructuring assignments
-		lhs := n.GetFirstChild()
+	} else if assign, ok := ast.AsAssign(n); ok {
+		lhs := assign.Target().Node()
 		if lhs.IsQualifiedName() && (!lhs.HasChildren() || !lhs.GetFirstChild().IsThis()) {
-			// qualified.name = value;
-			//   but not
-			// this.prop = value;
-			p.definitionMap.Put(*lhs.GetQualifiedName(), n.GetLastChild())
+			p.definitionMap.Put(*lhs.GetQualifiedName(), assign.Value().Node())
 		}
-	} else if n.IsName() {
-		// TODO(b/123718645): Add support for destructuring declarations
+	} else if name, ok := ast.AsName(n); ok {
 		parent := rhino.CheckNotNullMsg1(n.GetParent(), "%s", n)
 		if NodeUtil_IsNameDeclaration(parent) {
-			value := n.GetFirstChild()
-			if !value.IsNil() {
-				// const foo = value;
-				p.definitionMap.Put(n.GetString(), value)
+			if value, ok := name.Init(); ok {
+				p.definitionMap.Put(name.Ident(), value.Node())
 			}
 		}
-	} else if n.IsMemberFunctionDef() {
-		// Try to find a fully qualified name for the method
-		lvalueName := NodeUtil_GetBestLValueName(n)
-		if lvalueName != nil {
-			// Store the function as the value
-			p.definitionMap.Put(*lvalueName, n.GetOnlyChild())
+	} else if methodDef, ok := ast.AsMemberFunctionDef(n); ok {
+		if lvalueName := NodeUtil_GetBestLValueName(n); lvalueName != nil {
+			p.definitionMap.Put(*lvalueName, methodDef.Function().Node())
 		}
 	}
-	// TODO(b/123725422): Getters and setters?
 }
 
 // Java: ExternExportsPass.lookForSymbolExportCall(Node)
 func (p *ExternExportsPass) LookForSymbolExportCall(n rhino.Node) {
-	if !p.isCallToOneOf(n, p.exportSymbolFunction, "google_exportSymbol") {
-		return // not a call to goog.exportSymbol()
-	}
-	// TODO(b/123725716): We should report errors for malformed calls instead
-	// of just ignoring them. Ensure that we only check valid calls with the 2
-	// arguments (plus the GETPROP node itself).
-	if !n.HasXChildren(3) {
+	call, ok := p.asCallToOneOf(n, p.exportSymbolFunction, "google_exportSymbol")
+	if !ok || call.NumArgs() != 2 {
 		return
 	}
-
-	thisNode := n.GetFirstChild()
-	nameArg := thisNode.GetNext()
-	valueArg := nameArg.GetNext()
-
-	// Confirm the arguments are the expected types. If they are not,
-	// then we have an export that we cannot statically identify.
-	if !nameArg.IsStringLit() {
+	callOrNew := call.AsCallOrNew()
+	nameArg, _ := callOrNew.ArgAt(0)
+	valueArg, _ := callOrNew.ArgAt(1)
+	nameLit, ok := nameArg.AsStringLit()
+	if !ok {
 		return
 	}
-
-	// Add the export to the list.
-	p.exports = append(p.exports, p.NewSymbolExport(nameArg.GetString(), valueArg))
+	p.addSymbolExport(nameLit.Value(), valueArg.Node())
 }
 
 // Java: ExternExportsPass.lookForPropertyExportCall(Node)
 func (p *ExternExportsPass) LookForPropertyExportCall(n rhino.Node) {
-	if !p.isCallToOneOf(n, p.exportPropertyFunction, "google_exportProperty") {
-		return // not a call to goog.exportProperty()
-	}
-	// TODO(b/123725716): We should report errors for malformed calls instead
-	// of just ignoring them. Ensure that we only check valid calls with the 3
-	// arguments (plus the GETPROP node itself).
-	if !n.HasXChildren(4) {
+	call, ok := p.asCallToOneOf(n, p.exportPropertyFunction, "google_exportProperty")
+	if !ok || call.NumArgs() != 3 {
 		return
 	}
-
-	thisNode := n.GetFirstChild()
-	objectArg := thisNode.GetNext()
-	nameArg := objectArg.GetNext()
-	valueArg := nameArg.GetNext()
-
-	// Confirm the arguments are the expected types. If they are not,
-	// then we have an export that we cannot statically identify.
-	if !objectArg.IsQualifiedName() {
+	callOrNew := call.AsCallOrNew()
+	objectArg, _ := callOrNew.ArgAt(0)
+	nameArg, _ := callOrNew.ArgAt(1)
+	valueArg, _ := callOrNew.ArgAt(2)
+	if !objectArg.Node().IsQualifiedName() {
 		return
 	}
-
-	if !nameArg.IsStringLit() {
+	nameLit, ok := nameArg.AsStringLit()
+	if !ok {
 		return
 	}
-
-	// Add the export to the list.
-	p.exports = append(p.exports,
-		p.NewPropertyExport(*objectArg.GetQualifiedName(),
-			nameArg.GetString(),
-			valueArg))
+	p.addPropertyExport(*objectArg.Node().GetQualifiedName(), nameLit.Value(), valueArg.Node())
 }
 
-// Java: ExternExportsPass.isCallToOneOf(Node, ImmutableSet<String>)
-func (p *ExternExportsPass) isCallToOneOf(n rhino.Node, fn1, fn2 string) bool {
-	if !n.IsCall() {
-		return false
+func (p *ExternExportsPass) asCallToOneOf(n rhino.Node, fn1, fn2 string) (ast.Call, bool) {
+	call, ok := ast.AsCall(n)
+	if !ok {
+		return ast.Call{}, false
 	}
-	callee := n.GetFirstChild()
+	callee := call.Callee().Node()
 	if !callee.IsQualifiedName() {
-		return false
+		return ast.Call{}, false
 	}
 	qname := *callee.GetQualifiedName()
-	return qname == fn1 || qname == fn2
+	if qname != fn1 && qname != fn2 {
+		return ast.Call{}, false
+	}
+	return call, true
 }
 
 // Java: ExternExportsPass.lookForAtExportOnThisDotProperty(NodeTraversal, Node)
 func (p *ExternExportsPass) LookForAtExportOnThisDotProperty(t *NodeTraversal, thisDotPropName rhino.Node) {
-	if !thisDotPropName.IsGetProp() || !thisDotPropName.GetFirstChild().IsThis() {
+	gp, ok := ast.AsGetProp(thisDotPropName)
+	if !ok || !gp.Object().Node().IsThis() {
 		return // not this.propName
 	}
 	jsdoc := NodeUtil_GetBestJSDocInfo(thisDotPropName)
@@ -727,10 +503,9 @@ func (p *ExternExportsPass) LookForAtExportOnThisDotProperty(t *NodeTraversal, t
 		classNode = constructorNode
 	}
 	className := NodeUtil_GetName(classNode)
-	propertyName := thisDotPropName.GetString()
+	propertyName := gp.Property()
 	prototypeName := jutil.ToJavaString(className) + ".prototype"
 	propertyNameNode := NodeUtil_NewQName(p.compiler, "this."+propertyName)
 
-	// Add the export to the list.
-	p.exports = append(p.exports, p.NewPropertyExport(prototypeName, propertyName, propertyNameNode))
+	p.addPropertyExport(prototypeName, propertyName, propertyNameNode)
 }

@@ -31,26 +31,14 @@ import (
 type SerializeTypesToPointers struct {
 	compiler                  AbstractCompiler
 	jstypeReconserializer     *JSTypeReconserializer
-	propertiesReferencedInAst map[string]struct{}
+	propertiesReferencedInAst jutil.BitSet
 	typePointersByJstype      map[rhino.JSType]int
 	typePool                  *TypePool
-	lastProp                  string
-	hasLastProp               bool
+	lastPropID                uint32
+	gathered                  bool
 }
 
 var serializeTypesToPointers_GSON = jutil.NewGson()
-
-// Java: SerializeTypesToPointers(AbstractCompiler, JSTypeReconserializer, LinkedHashSet<String>)
-func newSerializeTypesToPointers(
-	compiler AbstractCompiler,
-	jstypeReconserializer *JSTypeReconserializer,
-	propertiesReferencedInAst map[string]struct{}) *SerializeTypesToPointers {
-	return &SerializeTypesToPointers{
-		compiler:                  compiler,
-		jstypeReconserializer:     jstypeReconserializer,
-		propertiesReferencedInAst: propertiesReferencedInAst,
-	}
-}
 
 // Java: SerializeTypesToPointers.create(AbstractCompiler, StringPool.Builder, SerializationOptions)
 func SerializeTypesToPointers_Create(
@@ -62,8 +50,9 @@ func SerializeTypesToPointers_Create(
 			AddAllTypeMismatches(compiler.GetTypeMismatches()).
 			Build()
 
-	// this set requires access to the externs and src ASTs, so can't be populated yet.
-	propertiesReferencedInAst := make(map[string]struct{}, 256)
+	s := &SerializeTypesToPointers{
+		compiler: compiler,
+	}
 	jsTypeReconserializer :=
 		JSTypeReconserializer_Create(
 			compiler.GetTypeRegistry(),
@@ -71,13 +60,15 @@ func SerializeTypesToPointers_Create(
 			stringPoolBuilder,
 			nil,
 			serializationOptions)
-	jsTypeReconserializer.allowedProperties = propertiesReferencedInAst
-	return newSerializeTypesToPointers(compiler, jsTypeReconserializer, propertiesReferencedInAst)
+	jsTypeReconserializer.allowedProperties = &s.propertiesReferencedInAst
+	s.jstypeReconserializer = jsTypeReconserializer
+	return s
 }
 
 // Java: SerializeTypesToPointers.gatherTypesOnAst(Node)
 func (s *SerializeTypesToPointers) GatherTypesOnAst(root rhino.Node) {
-	jutil.CheckStateMsg(s.typePool == nil, "Cannot call process() twice")
+	jutil.CheckStateMsg(!s.gathered, "Cannot call process() twice")
+	s.gathered = true
 	s.gatherPropertiesAndTypesWalk(root)
 
 	// these types are only used when debug logging is enabled, but we always serialize them as not
@@ -89,7 +80,24 @@ func (s *SerializeTypesToPointers) GatherTypesOnAst(root rhino.Node) {
 
 	s.typePool = s.jstypeReconserializer.GenerateTypePool()
 
-	s.logSerializationDebugInfo(s.jstypeReconserializer, s.typePool)
+	s.logSerializationDebugInfo(s.jstypeReconserializer)
+}
+
+func (s *SerializeTypesToPointers) gatherTypesForColors(root rhino.Node) {
+	jutil.CheckStateMsg(!s.gathered, "Cannot call process() twice")
+	s.gathered = true
+	s.gatherPropertiesAndTypesWalk(root)
+
+	// Always record mismatch types so pointer assignments and debug logs are
+	// identical to GatherTypesOnAst without allocating a TypePool/StringPool.
+	for _, mismatch := range s.compiler.GetTypeMismatches() {
+		s.jstypeReconserializer.SerializeType(mismatch.Found())
+		s.jstypeReconserializer.SerializeType(mismatch.Required())
+	}
+
+	s.jstypeReconserializer.prepareForColorPool()
+
+	s.logSerializationDebugInfo(s.jstypeReconserializer)
 }
 
 func (s *SerializeTypesToPointers) gatherPropertiesAndTypesWalk(n rhino.Node) {
@@ -102,11 +110,10 @@ func (s *SerializeTypesToPointers) gatherPropertiesAndTypesWalk(n rhino.Node) {
 	switch n.GetToken() {
 	case rhino.Token_GETPROP, // "name" from (someObject.name)
 		rhino.Token_OPTCHAIN_GETPROP: // "name" from (someObject?.name)
-		prop := n.GetString()
-		if !s.hasLastProp || prop != s.lastProp {
-			s.lastProp = prop
-			s.hasLastProp = true
-			s.propertiesReferencedInAst[prop] = struct{}{}
+		propID := n.GetStringID()
+		if propID != s.lastPropID {
+			s.lastPropID = propID
+			s.propertiesReferencedInAst.Set(int(propID))
 		}
 	case rhino.Token_STRING_KEY, // "name" from obj = {name: 0}
 		rhino.Token_MEMBER_FUNCTION_DEF, // "name" from class C { name() {} }
@@ -114,11 +121,10 @@ func (s *SerializeTypesToPointers) gatherPropertiesAndTypesWalk(n rhino.Node) {
 		rhino.Token_GETTER_DEF,          // "name" from class C { get name() {} }
 		rhino.Token_SETTER_DEF:          // "name" from class C { set name(n) {} }
 		if !n.IsQuotedStringKey() {
-			prop := n.GetString()
-			if !s.hasLastProp || prop != s.lastProp {
-				s.lastProp = prop
-				s.hasLastProp = true
-				s.propertiesReferencedInAst[prop] = struct{}{}
+			propID := n.GetStringID()
+			if propID != s.lastPropID {
+				s.lastPropID = propID
+				s.propertiesReferencedInAst.Set(int(propID))
 			}
 		}
 	case rhino.Token_ROOT:
@@ -181,7 +187,7 @@ func (s *SerializeTypesToPointers) GetTypePool() *TypePool {
 }
 
 // Java: SerializeTypesToPointers.logSerializationDebugInfo(JSTypeReconserializer, TypePool)
-func (s *SerializeTypesToPointers) logSerializationDebugInfo(serializer *JSTypeReconserializer, typePool *TypePool) {
+func (s *SerializeTypesToPointers) logSerializationDebugInfo(serializer *JSTypeReconserializer) {
 	// Log information about how the JSTypes correspond to the colors. This may be useful later on
 	// in optimizations.
 	func() {
@@ -200,10 +206,12 @@ func (s *SerializeTypesToPointers) logSerializationDebugInfo(serializer *JSTypeR
 	func() {
 		log := s.compiler.CreateOrReopenLog("SerializeTypesToPointers", "mismatches.log")
 		defer log.Close()
-		log.LogSupplier(
-			func() string {
-				return serializeTypesToPointers_GSON.ToJson(s.logTypeMismatches(s.compiler.GetTypeMismatches(), serializer, typePool))
-			})
+		if log.IsLogging() {
+			log.LogSupplier(
+				func() string {
+					return serializeTypesToPointers_GSON.ToJson(s.logTypeMismatches(s.compiler.GetTypeMismatches(), serializer))
+				})
+		}
 	}()
 }
 
@@ -215,10 +223,10 @@ func (s *SerializeTypesToPointers) logSerializationDebugInfo(serializer *JSTypeR
 //
 // Java: SerializeTypesToPointers.logTypeMismatches(Iterable<TypeMismatch>, JSTypeReconserializer, TypePool)
 func (s *SerializeTypesToPointers) logTypeMismatches(
-	typeMismatches []*TypeMismatch, serializer *JSTypeReconserializer, typePool *TypePool) []*serializeTypesToPointers_TypeMismatchJson {
-	result := []*serializeTypesToPointers_TypeMismatchJson{}
+	typeMismatches []*TypeMismatch, serializer *JSTypeReconserializer) []*serializeTypesToPointers_TypeMismatchJson {
+	result := make([]*serializeTypesToPointers_TypeMismatchJson, 0, len(typeMismatches))
 	for _, mismatch := range typeMismatches {
-		result = append(result, serializeTypesToPointers_TypeMismatchJson_Create(mismatch, serializer, typePool))
+		result = append(result, serializeTypesToPointers_TypeMismatchJson_Create(mismatch, serializer))
 	}
 	// collect(toImmutableSortedSet(naturalOrder())): sorted by compareTo,
 	// keeping the first of the elements that compare equal.
@@ -280,41 +288,10 @@ func newSerializeTypesToPointers_TypeMismatchJson(x *TypeMismatch, found colors.
 
 // Java: SerializeTypesToPointers.TypeMismatchJson.create(TypeMismatch, JSTypeReconserializer, TypePool)
 func serializeTypesToPointers_TypeMismatchJson_Create(
-	x *TypeMismatch, serializer *JSTypeReconserializer, typePool *TypePool) *serializeTypesToPointers_TypeMismatchJson {
-	foundPointer := serializer.SerializeType(x.Found())
-	requiredPointer := serializer.SerializeType(x.Required())
-
-	return newSerializeTypesToPointers_TypeMismatchJson(
-		x, serializeTypesToPointers_TypeMismatchJson_typePointerToId(foundPointer, typePool),
-		serializeTypesToPointers_TypeMismatchJson_typePointerToId(requiredPointer, typePool))
-}
-
-// serializeTypesToPointers_TypeMismatchJson_typePointerToId returns the
-// unique ID of this pointer if in the type pool.
-//
-// The given type may not be in the type pool because the type pool was
-// generated based on all types reachable from the AST, while a TypeMismatch
-// may contain a type in dead code no longer reachable from the AST.
-//
-// Java: SerializeTypesToPointers.TypeMismatchJson.typePointerToId(int, TypePool)
-func serializeTypesToPointers_TypeMismatchJson_typePointerToId(poolOffset int, typePool *TypePool) colors.ColorId {
-	if TypePointers_IsAxiomatic(poolOffset) {
-		return TypePointers_OFFSET_TO_AXIOMATIC_COLOR[poolOffset].GetId()
-	}
-
-	typeProto := typePool.GetTypeList()[TypePointers_TrimOffset(poolOffset)]
-	switch typeProto.GetKindCase() {
-	case TypeProto_KindCase_UNION:
-		ids := jutil.NewLinkedHashSet[colors.ColorId]()
-		for _, pointer := range typeProto.GetUnion().GetUnionMemberList() {
-			ids.Add(serializeTypesToPointers_TypeMismatchJson_typePointerToId(int(pointer), typePool))
-		}
-		return colors.ColorId_Union(ids)
-	case TypeProto_KindCase_OBJECT:
-		return colors.ColorId_FromBytes(typeProto.GetObject().GetUuid())
-	case TypeProto_KindCase_KIND_NOT_SET:
-	}
-	panic(jutil.NewAssertionError("Unrecognized TypeProto " + typeProto.String()))
+	x *TypeMismatch, serializer *JSTypeReconserializer) *serializeTypesToPointers_TypeMismatchJson {
+	foundRecord := serializer.RecordType(x.Found())
+	requiredRecord := serializer.RecordType(x.Required())
+	return newSerializeTypesToPointers_TypeMismatchJson(x, foundRecord.colorId, requiredRecord.colorId)
 }
 
 // Java: SerializeTypesToPointers.TypeMismatchJson.compareTo(TypeMismatchJson)

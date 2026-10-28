@@ -847,7 +847,12 @@ func (ti *TypeInference) GetPropertyType(objType rhino.JSType, propName string, 
 	}
 
 	if propertyType == nil && objType != nil {
-		foundType := objType.FindPropertyType(propName)
+		var foundType rhino.JSType
+		if !n.IsNil() && (n.IsGetProp() || n.IsOptChainGetProp()) && n.GetString() == propName {
+			foundType = rhino.FindPropertyTypeByID(objType, n.GetStringID())
+		} else {
+			foundType = objType.FindPropertyType(propName)
+		}
 		if foundType != nil {
 			propertyType = foundType
 		}

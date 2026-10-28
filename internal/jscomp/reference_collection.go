@@ -220,10 +220,26 @@ func (c *ReferenceCollection) IsAssignedOnceInLifetime() bool {
 	if ref == nil {
 		return false
 	}
+	block := ref.basicBlock
+	if block == nil {
+		return true
+	}
 
 	varScope := c.varScope
+	if !block.hasLoopBeforeFn {
+		if !block.hasFnAncestor {
+			return true
+		}
+		if varScope == nil {
+			varScope = ref.getSymbolV().getScopeS()
+		}
+		if varScope == ref.scope || varScope.GetClosestHoistScope() == ref.scope.GetClosestHoistScope() {
+			return true
+		}
+	}
+
 	// Make sure this assignment is not in a loop or an enclosing function.
-	for block := ref.basicBlock; block != nil; block = block.parent {
+	for ; block != nil; block = block.parent {
 		if block.isFunction {
 			if varScope == nil {
 				varScope = ref.getSymbolV().getScopeS()

@@ -172,7 +172,6 @@ func (tc *TypeCheck) CheckAbstractPropertyAccess(method ast.NormalOrOptChainGetP
 func (tc *TypeCheck) CheckPropertyAccess(
 	childType rhino.JSType, propNode rhino.Node, propType rhino.JSType, objNode rhino.Node) {
 	isGetprop := NodeUtil_IsNormalOrOptChainGetProp(propNode)
-	propName := propNode.GetString()
 
 	if propType.Equals(tc.typeRegistry.GetNativeType(rhino.JSTypeNative_UNKNOWN_TYPE)) {
 		childType = childType.Autobox()
@@ -181,10 +180,10 @@ func (tc *TypeCheck) CheckPropertyAccess(
 			// We special-case object types so that checks on enums can be
 			// much stricter, and so that we can use hasProperty (which is much
 			// faster in most cases).
-			if !objectType.HasProperty(propName) ||
+			if !rhino.HasPropertyByID(objectType, propNode.GetStringID()) ||
 				objectType.Equals(tc.typeRegistry.GetNativeType(rhino.JSTypeNative_UNKNOWN_TYPE)) {
 				if _, isEnum := objectType.(*rhino.EnumType); isEnum {
-					tc.Report(propNode, TypeCheck_INEXISTENT_ENUM_ELEMENT, propName)
+					tc.Report(propNode, TypeCheck_INEXISTENT_ENUM_ELEMENT, propNode.GetString())
 				} else {
 					tc.CheckPropertyAccessHelper(objectType, propNode, objNode, false)
 				}
@@ -216,7 +215,6 @@ func (tc *TypeCheck) IsLValueGetProp(n rhino.Node) bool {
 func (tc *TypeCheck) CheckPropertyAccessHelper(
 	objectType rhino.JSType, propNode rhino.Node, objNode rhino.Node, strictCheck bool) {
 	isGetprop := NodeUtil_IsNormalOrOptChainGetProp(propNode)
-	propName := propNode.GetString()
 
 	if !tc.reportMissingProperties ||
 		objectType.IsEmptyType() ||
@@ -224,7 +222,7 @@ func (tc *TypeCheck) CheckPropertyAccessHelper(
 		return
 	}
 
-	kind := tc.typeRegistry.CanPropertyBeDefined(objectType, propName)
+	kind := tc.typeRegistry.CanPropertyBeDefinedByID(objectType, propNode.GetStringID())
 	if kind == rhino.JSTypeRegistry_PropDefinitionKind_KNOWN {
 		return
 	}

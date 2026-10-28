@@ -21,6 +21,7 @@ package refactoring
 import (
 	"strings"
 
+	"github.com/paullepoulpe/jsgo/internal/ast"
 	"github.com/paullepoulpe/jsgo/internal/jscomp"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
@@ -28,13 +29,13 @@ import (
 
 // ScriptMetadata is a summary of a script for use during fixes.
 //
-// Instances are mutable so that changes to a script caused by one fix cen be
-// reflected during subseuqent fixes.
+// Instances are mutable so that changes to a script caused by one fix can be
+// reflected during subsequent fixes.
 type ScriptMetadata struct {
 	script                 rhino.Node
 	supportsRequireAliases bool
 	requireAliases         map[string]string
-	namesInUse             map[string]bool
+	namesInUse             map[string]struct{}
 }
 
 // Java: ScriptMetadata.create(Node, NodeMetadata)
@@ -47,7 +48,7 @@ func ScriptMetadata_Create(script rhino.Node, compiler jscomp.AbstractCompiler) 
 	jutil.CheckArgument(script.IsScript())
 
 	toFill := newScriptMetadata(script)
-	jscomp.NodeTraversal_Traverse(compiler, script, newScriptMetadata_FillerCallback(toFill))
+	jscomp.NodeTraversal_Traverse(compiler, script, &scriptMetadata_FillerCallback{toFill: toFill})
 
 	// Even if the file was not found to be a module, the existence of other aliases means aliases
 	// are supported.
@@ -57,12 +58,11 @@ func ScriptMetadata_Create(script rhino.Node, compiler jscomp.AbstractCompiler) 
 	return toFill
 }
 
-// Java: ScriptMetadata(Node)
 func newScriptMetadata(script rhino.Node) *ScriptMetadata {
 	return &ScriptMetadata{
 		script:         script,
 		requireAliases: make(map[string]string),
-		namesInUse:     make(map[string]bool),
+		namesInUse:     make(map[string]struct{}),
 	}
 }
 
@@ -71,27 +71,25 @@ func (m *ScriptMetadata) GetScript() rhino.Node {
 	return m.script
 }
 
-// SupportsRequireAliases: When requires are added to this script, should
-// they be given local aliases?
+// SupportsRequireAliases reports whether requires added to this script should
+// be given local aliases.
 //
 // Java: ScriptMetadata.supportsRequireAliases()
 func (m *ScriptMetadata) SupportsRequireAliases() bool {
 	return m.supportsRequireAliases
 }
 
-// UsesName: Is `name` in use within this script?
-//
-// This includes both executable and JsDoc references.
+// UsesName reports whether `name` is in use within this script (including both
+// executable and JsDoc references).
 //
 // Java: ScriptMetadata.usesName(String)
 func (m *ScriptMetadata) UsesName(name string) bool {
-	return m.namesInUse[name]
+	_, ok := m.namesInUse[name]
+	return ok
 }
 
-// GetAlias returns the local alias for `namespace`.
-//
-// If `namespace` is not required or has no alias, returns `null`. In
-// particular, destructured aliases will not be available.
+// GetAlias returns the local alias for `namespace`, or nil if not required or
+// unaliased.
 //
 // Java: ScriptMetadata.getAlias(String)
 func (m *ScriptMetadata) GetAlias(namespace string) *string {
@@ -102,122 +100,112 @@ func (m *ScriptMetadata) GetAlias(namespace string) *string {
 	return &alias
 }
 
-// AddAlias records that `namespace` has ben required with local alias
-// `alias`.
-//
-// As a corallary, any alias is also a name in use within this script.
+// AddAlias records that `namespace` has been required with local alias `alias`.
 //
 // Java: ScriptMetadata.addAlias(String, String)
 func (m *ScriptMetadata) AddAlias(namespace string, alias string) {
 	jutil.CheckState(m.supportsRequireAliases)
-	m.namesInUse[alias] = true
+	m.namesInUse[alias] = struct{}{}
 	m.requireAliases[namespace] = alias
 }
 
-var scriptMetadata_FillerCallback_GOOG_MODULE = rhino.QualifiedName_Of("goog.module")
-var scriptMetadata_FillerCallback_GOOG_REQUIRE = rhino.QualifiedName_Of("goog.require")
-var scriptMetadata_FillerCallback_GOOG_REQUIRETYPE = rhino.QualifiedName_Of("goog.requireType")
-var scriptMetadata_FillerCallback_GOOG_FORWARDDECLARE = rhino.QualifiedName_Of("goog.forwardDeclare")
+var (
+	scriptMetadata_FillerCallback_GOOG_MODULE         = rhino.QualifiedName_Of("goog.module")
+	scriptMetadata_FillerCallback_GOOG_REQUIRE        = rhino.QualifiedName_Of("goog.require")
+	scriptMetadata_FillerCallback_GOOG_REQUIRETYPE    = rhino.QualifiedName_Of("goog.requireType")
+	scriptMetadata_FillerCallback_GOOG_FORWARDDECLARE = rhino.QualifiedName_Of("goog.forwardDeclare")
+)
 
-// Java: private static class ScriptMetadata.FillerCallback extends AbstractPostOrderCallback
 type scriptMetadata_FillerCallback struct {
 	jscomp.NodeTraversal_AbstractPostOrderCallbackBase
-
 	toFill *ScriptMetadata
 }
 
-// Java: ScriptMetadata.FillerCallback(ScriptMetadata)
-func newScriptMetadata_FillerCallback(toFill *ScriptMetadata) *scriptMetadata_FillerCallback {
-	return &scriptMetadata_FillerCallback{toFill: toFill}
-}
-
-// Java: ScriptMetadata.FillerCallback.visit(NodeTraversal, Node, Node)
 func (c *scriptMetadata_FillerCallback) Visit(nodeTraversal *jscomp.NodeTraversal, n rhino.Node, parent rhino.Node) {
 	c.updateSupportsRequireAlias(n)
 	c.maybeCollectRequirelikeAlias(n)
 	c.maybeCollectNames(n)
 }
 
-// Java: ScriptMetadata.FillerCallback.updateSupportsRequireAlias(Node)
 func (c *scriptMetadata_FillerCallback) updateSupportsRequireAlias(n rhino.Node) {
 	switch n.GetToken() {
 	case rhino.Token_MODULE_BODY:
 	case rhino.Token_CALL:
-		if n.GetChildCount() != 2 ||
-			!scriptMetadata_FillerCallback_GOOG_MODULE.Matches(n.GetFirstChild()) ||
-			!n.GetSecondChild().IsStringLit() {
+		call := ast.MustCall(n)
+		arg, ok := call.OnlyArg()
+		if !ok || !scriptMetadata_FillerCallback_GOOG_MODULE.Matches(call.Callee().Node()) {
+			return
+		}
+		if _, isStr := arg.AsStringLit(); !isStr {
 			return
 		}
 	default:
 		return
 	}
-
 	c.toFill.supportsRequireAliases = true
 }
 
-// Java: ScriptMetadata.FillerCallback.maybeCollectRequirelikeAlias(Node)
 func (c *scriptMetadata_FillerCallback) maybeCollectRequirelikeAlias(n rhino.Node) {
-	if !jscomp.NodeUtil_IsNameDeclaration(n) {
+	decl, ok := ast.AsNameDeclaration(n)
+	if !ok {
 		return
 	}
-
-	aliasNode := n.GetFirstChild()
-
+	firstDecl, ok := decl.FirstDeclarator()
+	if !ok {
+		return
+	}
 	// TODO(b/139953612): respect destructured goog.requires
-	if aliasNode.IsDestructuringLhs() {
+	aliasName, ok := ast.AsName(firstDecl.Node())
+	if !ok {
 		return
 	}
-
-	requirelikeCall := aliasNode.GetFirstChild()
-	if !c.isRequirelikeCall(requirelikeCall) {
+	initExpr, ok := aliasName.Init()
+	if !ok {
 		return
 	}
-
-	var alias string
-	if originalName := aliasNode.GetOriginalName(); originalName != nil {
+	namespace, ok := requirelikeNamespace(initExpr.Node())
+	if !ok {
+		return
+	}
+	alias := aliasName.Ident()
+	if originalName := aliasName.Node().GetOriginalName(); originalName != nil {
 		alias = *originalName
-	} else {
-		alias = aliasNode.GetString()
 	}
-
-	namespace := requirelikeCall.GetSecondChild().GetString()
 	c.toFill.requireAliases[namespace] = alias
 }
 
-// Java: ScriptMetadata.FillerCallback.isRequirelikeCall(Node)
-func (c *scriptMetadata_FillerCallback) isRequirelikeCall(call rhino.Node) bool {
-	if call.IsNil() ||
-		!call.IsCall() ||
-		call.GetChildCount() != 2 ||
-		!call.GetSecondChild().IsStringLit() {
-		return false
+func requirelikeNamespace(node rhino.Node) (string, bool) {
+	call, ok := ast.AsCall(node)
+	if !ok {
+		return "", false
 	}
-
-	callee := call.GetFirstChild()
-	return scriptMetadata_FillerCallback_GOOG_REQUIRE.Matches(callee) ||
-		scriptMetadata_FillerCallback_GOOG_REQUIRETYPE.Matches(callee) ||
-		scriptMetadata_FillerCallback_GOOG_FORWARDDECLARE.Matches(callee)
+	arg, ok := call.OnlyArg()
+	if !ok {
+		return "", false
+	}
+	strLit, ok := arg.AsStringLit()
+	if !ok {
+		return "", false
+	}
+	callee := call.Callee().Node()
+	if !scriptMetadata_FillerCallback_GOOG_REQUIRE.Matches(callee) &&
+		!scriptMetadata_FillerCallback_GOOG_REQUIRETYPE.Matches(callee) &&
+		!scriptMetadata_FillerCallback_GOOG_FORWARDDECLARE.Matches(callee) {
+		return "", false
+	}
+	return strLit.Value(), true
 }
 
-// Java: ScriptMetadata.FillerCallback.maybeCollectNames(Node)
 func (c *scriptMetadata_FillerCallback) maybeCollectNames(n rhino.Node) {
-	if n.IsName() {
-		c.toFill.namesInUse[n.GetString()] = true
+	if name, ok := ast.AsName(n); ok {
+		c.toFill.namesInUse[name.Ident()] = struct{}{}
 	}
-
-	jsdoc := n.GetJSDocInfo()
-	if jsdoc != nil {
+	if jsdoc := n.GetJSDocInfo(); jsdoc != nil {
 		for _, expr := range jsdoc.GetTypeExpressions() {
 			for type_ := range expr.GetAllTypeNames().All() {
-				c.toFill.namesInUse[scriptMetadata_firstDotSplit(type_)] = true
+				before, _, _ := strings.Cut(type_, ".")
+				c.toFill.namesInUse[before] = struct{}{}
 			}
 		}
 	}
-}
-
-// scriptMetadata_firstDotSplit is DOT_SPLITTER.split(type).iterator().next()
-// with DOT_SPLITTER = Splitter.on('.'): the text before the first '.'.
-func scriptMetadata_firstDotSplit(s string) string {
-	before, _, _ := strings.Cut(s, ".")
-	return before
 }

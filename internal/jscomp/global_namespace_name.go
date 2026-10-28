@@ -76,6 +76,14 @@ type GlobalNamespace_Name struct {
 	propertyBitSet int32
 }
 
+func (n *GlobalNamespace_Name) markEscaped() {
+	n.propertyBitSet |= gnNameEscaped
+}
+
+func (n *GlobalNamespace_Name) isEscaped() bool {
+	return n.propertyBitSet&gnNameEscaped != 0
+}
+
 // Java: GlobalNamespace.Name(String, Name, SourceKind)
 func NewGlobalNamespace_Name(outer *GlobalNamespace, name string, parent *GlobalNamespace_Name, sourceKind GlobalNamespace_SourceKind) *GlobalNamespace_Name {
 	if outer == nil {

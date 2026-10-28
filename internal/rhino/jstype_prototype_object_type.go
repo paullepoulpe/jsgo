@@ -632,6 +632,22 @@ func (p *PrototypeObjectTypeBase) MatchConstraint(constraint JSType) {
 // Java: PrototypeObjectType.matchRecordTypeConstraint(ObjectType)
 func (p *PrototypeObjectTypeBase) MatchRecordTypeConstraint(constraintObj ObjectType) {
 	self := p.selfObj()
+	if constraintObj.GetObjectTypeBase().objFlags&objKindMask == objKindRecord {
+		pm := constraintObj.GetPropertyMap()
+		pm.ensureSorted()
+		for _, prop := range pm.entries() {
+			key := NewProperty_StringKeyByID(uint32(prop.nameID))
+			propType := prop.GetType()
+			if !self.IsPropertyTypeDeclaredByKey(key) {
+				typeToInfer := propType
+				if !p.self().HasPropertyByKey(key) {
+					typeToInfer = p.GetNativeType(JSTypeNative_VOID_TYPE).GetLeastSupertype(propType)
+				}
+				self.DefineInferredPropertyByKey(key, typeToInfer, NilNode)
+			}
+		}
+		return
+	}
 	for _, prop := range constraintObj.GetOwnPropertyNames() {
 		propType := constraintObj.GetPropertyType(prop)
 		if !self.IsPropertyTypeDeclared(prop) {

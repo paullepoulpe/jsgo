@@ -137,11 +137,14 @@ func (t *RecordType) GetGreatestSubtypeHelper(that JSType) JSType {
 		// The greatest subtype consists of those *unique* properties of both
 		// record types. If any property conflicts, then the NO_TYPE type is
 		// returned.
-		for _, property := range t.GetOwnPropertyNames() {
-			thisPropertyType := t.GetPropertyType(property)
+		thisMap := t.GetPropertyMap()
+		thisMap.ensureSorted()
+		for _, prop := range thisMap.entries() {
+			propKey := NewProperty_StringKeyByID(uint32(prop.nameID))
+			thisPropertyType := prop.GetType()
 			var propType JSType
-			if thatRecord.HasProperty(property) {
-				thatPropertyType := thatRecord.GetPropertyType(property)
+			if thatRecord.HasPropertyByKey(propKey) {
+				thatPropertyType := thatRecord.GetPropertyTypeByKey(propKey)
 				propType = thisPropertyType.GetGreatestSubtype(thatPropertyType)
 				if propType.Equals(noType) {
 					return noType
@@ -149,13 +152,15 @@ func (t *RecordType) GetGreatestSubtypeHelper(that JSType) JSType {
 			} else {
 				propType = thisPropertyType
 			}
-			builder.AddProperty(property, propType, t.GetPropertyNode(property))
+			builder.AddProperty(propKey.String_(), propType, prop.GetNode())
 		}
 
-		for _, property := range thatRecord.GetOwnPropertyNames() {
-			if !t.HasProperty(property) {
-				builder.AddProperty(property, thatRecord.GetPropertyType(property),
-					thatRecord.GetPropertyNode(property))
+		thatMap := thatRecord.GetPropertyMap()
+		thatMap.ensureSorted()
+		for _, prop := range thatMap.entries() {
+			propKey := NewProperty_StringKeyByID(uint32(prop.nameID))
+			if !t.HasPropertyByKey(propKey) {
+				builder.AddProperty(propKey.String_(), prop.GetType(), prop.GetNode())
 			}
 		}
 		return builder.Build()
@@ -170,18 +175,22 @@ func (t *RecordType) GetGreatestSubtypeHelper(that JSType) JSType {
 		//    classes with a property "x" with a compatible property type. and
 		//    which are a subtype of that.
 		// 2) Take the intersection of all of these unions.
-		for _, propName := range t.GetOwnPropertyNames() {
-			propType := t.GetPropertyType(propName)
+		thisMap := t.GetPropertyMap()
+		thisMap.ensureSorted()
+		for _, prop := range thisMap.entries() {
+			propID := prop.nameID
+			propKey := NewProperty_StringKeyByID(uint32(propID))
+			propType := prop.GetType()
 			builder := UnionType_Builder_(t.GetRegistry())
-			for _, alt := range t.GetRegistry().GetEachReferenceTypeWithProperty(propName) {
-				altPropType := alt.GetPropertyType(propName)
+			t.GetRegistry().forEachRefTypeWithPropertyByID(propID, func(alt ObjectType) {
+				altPropType := alt.GetPropertyTypeByKey(propKey)
 				if altPropType != nil &&
 					!alt.Equals(t) &&
 					alt.IsSubtypeOf(that) &&
 					altPropType.IsSubtypeOf(propType) {
 					builder.AddAlternate(alt)
 				}
-			}
+			})
 			greatestSubtype = greatestSubtype.GetLeastSupertype(builder.Build())
 		}
 	}

@@ -25,6 +25,7 @@ import (
 	"github.com/paullepoulpe/jsgo/internal/colors"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
+	"github.com/paullepoulpe/jsgo/internal/strpool"
 )
 
 // TypedAstSerializer transforms a compiler AST into a serialized TypedAst
@@ -602,56 +603,45 @@ func (a *typedAstScriptArena) visitArenaParallel(n rhino.Node, parent *TypedAstS
 		doc.kind_ = jsDocSerializer_fillJsdocTagsOnly(jsdoc, a.jsdocKindScratch[:0])
 		a.jsdocKindScratch = doc.kind_[:0]
 
-		lic := jsdoc.GetLicense()
-		desc := jsdoc.GetDescription()
-		alt := jsdoc.GetAlternateMessageId()
-		mean := jsdoc.GetMeaning()
-		var modeStr string
-		if mode := jsdoc.GetPerFileClosureUnawareMode(); mode != nil {
-			modeStr = mode.String()
-		}
-		hasStr := (lic != nil && *lic != "") ||
-			(desc != nil && *desc != "") ||
-			(alt != nil && *alt != "") ||
-			(mean != nil && *mean != "") ||
-			modeStr != ""
+		lic, desc, alt, mean, mode, hasMode := jsDocSerializer_stringFields(jsdoc)
+		hasStr := lic != "" || desc != "" || alt != "" || mean != "" || hasMode
 		if len(doc.kind_) != 0 || hasStr {
 			allocatedDoc := a.allocJsdoc(doc)
 			m.jsdoc_ = allocatedDoc
 			if hasStr {
 				a.jsdocFixups = append(a.jsdocFixups, allocatedDoc)
-				if lic != nil && *lic != "" {
+				if lic != "" {
 					a.fixups = append(a.fixups, serializerFixup{
 						kind:  fixupKindStringID,
-						strID: rhino.RhinoStringPool_InternID(*lic),
+						strID: rhino.RhinoStringPool_InternID(lic),
 						dst:   &allocatedDoc.licenseTextPointer_,
 					})
 				}
-				if desc != nil && *desc != "" {
+				if desc != "" {
 					a.fixups = append(a.fixups, serializerFixup{
 						kind:  fixupKindStringID,
-						strID: rhino.RhinoStringPool_InternID(*desc),
+						strID: rhino.RhinoStringPool_InternID(desc),
 						dst:   &allocatedDoc.descriptionPointer_,
 					})
 				}
-				if alt != nil && *alt != "" {
+				if alt != "" {
 					a.fixups = append(a.fixups, serializerFixup{
 						kind:  fixupKindStringID,
-						strID: rhino.RhinoStringPool_InternID(*alt),
+						strID: rhino.RhinoStringPool_InternID(alt),
 						dst:   &allocatedDoc.alternateMessageIdPointer_,
 					})
 				}
-				if mean != nil && *mean != "" {
+				if mean != "" {
 					a.fixups = append(a.fixups, serializerFixup{
 						kind:  fixupKindStringID,
-						strID: rhino.RhinoStringPool_InternID(*mean),
+						strID: rhino.RhinoStringPool_InternID(mean),
 						dst:   &allocatedDoc.meaningPointer_,
 					})
 				}
-				if modeStr != "" {
+				if hasMode {
 					a.fixups = append(a.fixups, serializerFixup{
 						kind:  fixupKindStringID,
-						strID: rhino.RhinoStringPool_InternID(modeStr),
+						strID: rhino.RhinoStringPool_InternID(mode.String()),
 						dst:   &allocatedDoc.closureUnawareModePointer_,
 					})
 				}
@@ -1112,344 +1102,244 @@ func (s *TypedAstSerializer) SetOriginalName(builder *AstNode_Builder, n rhino.N
 	builder.SetOriginalNamePointer(int32(s.stringPool.PutID(origID)))
 }
 
+type nodeDeserMode uint8
+
+const (
+	deserModeInvalid nodeDeserMode = iota
+	deserModePlain
+	deserModeString
+	deserModeQuotedString
+	deserModePostIncrDecr
+	deserModeNumber
+	deserModeBigInt
+	deserModeTemplateLitString
+)
+
+type nodeKindDeserSpec struct {
+	token rhino.Token
+	mode  nodeDeserMode
+}
+
+type tokenNodeKindEntry struct {
+	token rhino.Token
+	kind  NodeKind
+	mode  nodeDeserMode
+}
+
+const nodeKindTokenConditional NodeKind = -1
+
+var (
+	tokenToNodeKind     [256]NodeKind
+	nodeKindToDeserSpec [int(NodeKind_UNRECOGNIZED) + 1]nodeKindDeserSpec
+)
+
+var bijectiveTokenNodeKinds = [...]tokenNodeKindEntry{
+	{rhino.Token_SCRIPT, NodeKind_SOURCE_FILE, deserModePlain},
+	{rhino.Token_NUMBER, NodeKind_NUMBER_LITERAL, deserModeNumber},
+	{rhino.Token_STRINGLIT, NodeKind_STRING_LITERAL, deserModeString},
+	{rhino.Token_BIGINT, NodeKind_BIGINT_LITERAL, deserModeBigInt},
+	{rhino.Token_REGEXP, NodeKind_REGEX_LITERAL, deserModePlain},
+	{rhino.Token_FALSE, NodeKind_FALSE, deserModePlain},
+	{rhino.Token_TRUE, NodeKind_TRUE, deserModePlain},
+	{rhino.Token_NULL, NodeKind_NULL, deserModePlain},
+	{rhino.Token_THIS, NodeKind_THIS, deserModePlain},
+	{rhino.Token_VOID, NodeKind_VOID, deserModePlain},
+	{rhino.Token_ARRAYLIT, NodeKind_ARRAY_LITERAL, deserModePlain},
+	{rhino.Token_OBJECTLIT, NodeKind_OBJECT_LITERAL, deserModePlain},
+	{rhino.Token_NAME, NodeKind_IDENTIFIER, deserModeString},
+	{rhino.Token_ASSIGN, NodeKind_ASSIGNMENT, deserModePlain},
+	{rhino.Token_CALL, NodeKind_CALL, deserModePlain},
+	{rhino.Token_NEW, NodeKind_NEW, deserModePlain},
+	{rhino.Token_GETPROP, NodeKind_PROPERTY_ACCESS, deserModeString},
+	{rhino.Token_GETELEM, NodeKind_ELEMENT_ACCESS, deserModePlain},
+	{rhino.Token_COMMA, NodeKind_COMMA, deserModePlain},
+	{rhino.Token_OR, NodeKind_BOOLEAN_OR, deserModePlain},
+	{rhino.Token_AND, NodeKind_BOOLEAN_AND, deserModePlain},
+	{rhino.Token_HOOK, NodeKind_HOOK, deserModePlain},
+	{rhino.Token_EQ, NodeKind_EQUAL, deserModePlain},
+	{rhino.Token_NE, NodeKind_NOT_EQUAL, deserModePlain},
+	{rhino.Token_LT, NodeKind_LESS_THAN, deserModePlain},
+	{rhino.Token_LE, NodeKind_LESS_THAN_EQUAL, deserModePlain},
+	{rhino.Token_GT, NodeKind_GREATER_THAN, deserModePlain},
+	{rhino.Token_GE, NodeKind_GREATER_THAN_EQUAL, deserModePlain},
+	{rhino.Token_SHEQ, NodeKind_TRIPLE_EQUAL, deserModePlain},
+	{rhino.Token_SHNE, NodeKind_NOT_TRIPLE_EQUAL, deserModePlain},
+	{rhino.Token_NOT, NodeKind_NOT, deserModePlain},
+	{rhino.Token_POS, NodeKind_POSITIVE, deserModePlain},
+	{rhino.Token_NEG, NodeKind_NEGATIVE, deserModePlain},
+	{rhino.Token_TYPEOF, NodeKind_TYPEOF, deserModePlain},
+	{rhino.Token_INSTANCEOF, NodeKind_INSTANCEOF, deserModePlain},
+	{rhino.Token_IN, NodeKind_IN, deserModePlain},
+	{rhino.Token_ADD, NodeKind_ADD, deserModePlain},
+	{rhino.Token_SUB, NodeKind_SUBTRACT, deserModePlain},
+	{rhino.Token_MUL, NodeKind_MULTIPLY, deserModePlain},
+	{rhino.Token_DIV, NodeKind_DIVIDE, deserModePlain},
+	{rhino.Token_MOD, NodeKind_MODULO, deserModePlain},
+	{rhino.Token_EXPONENT, NodeKind_EXPONENT, deserModePlain},
+	{rhino.Token_BITNOT, NodeKind_BITWISE_NOT, deserModePlain},
+	{rhino.Token_BITOR, NodeKind_BITWISE_OR, deserModePlain},
+	{rhino.Token_BITAND, NodeKind_BITWISE_AND, deserModePlain},
+	{rhino.Token_BITXOR, NodeKind_BITWISE_XOR, deserModePlain},
+	{rhino.Token_LSH, NodeKind_LEFT_SHIFT, deserModePlain},
+	{rhino.Token_RSH, NodeKind_RIGHT_SHIFT, deserModePlain},
+	{rhino.Token_URSH, NodeKind_UNSIGNED_RIGHT_SHIFT, deserModePlain},
+	{rhino.Token_ASSIGN_ADD, NodeKind_ASSIGN_ADD, deserModePlain},
+	{rhino.Token_ASSIGN_SUB, NodeKind_ASSIGN_SUBTRACT, deserModePlain},
+	{rhino.Token_ASSIGN_MUL, NodeKind_ASSIGN_MULTIPLY, deserModePlain},
+	{rhino.Token_ASSIGN_DIV, NodeKind_ASSIGN_DIVIDE, deserModePlain},
+	{rhino.Token_ASSIGN_MOD, NodeKind_ASSIGN_MODULO, deserModePlain},
+	{rhino.Token_ASSIGN_EXPONENT, NodeKind_ASSIGN_EXPONENT, deserModePlain},
+	{rhino.Token_ASSIGN_BITOR, NodeKind_ASSIGN_BITWISE_OR, deserModePlain},
+	{rhino.Token_ASSIGN_BITAND, NodeKind_ASSIGN_BITWISE_AND, deserModePlain},
+	{rhino.Token_ASSIGN_BITXOR, NodeKind_ASSIGN_BITWISE_XOR, deserModePlain},
+	{rhino.Token_ASSIGN_LSH, NodeKind_ASSIGN_LEFT_SHIFT, deserModePlain},
+	{rhino.Token_ASSIGN_RSH, NodeKind_ASSIGN_RIGHT_SHIFT, deserModePlain},
+	{rhino.Token_ASSIGN_URSH, NodeKind_ASSIGN_UNSIGNED_RIGHT_SHIFT, deserModePlain},
+	{rhino.Token_YIELD, NodeKind_YIELD, deserModePlain},
+	{rhino.Token_AWAIT, NodeKind_AWAIT, deserModePlain},
+	{rhino.Token_DELPROP, NodeKind_DELETE, deserModePlain},
+	{rhino.Token_TAGGED_TEMPLATELIT, NodeKind_TAGGED_TEMPLATELIT, deserModePlain},
+	{rhino.Token_TEMPLATELIT, NodeKind_TEMPLATELIT, deserModePlain},
+	{rhino.Token_TEMPLATELIT_SUB, NodeKind_TEMPLATELIT_SUB, deserModePlain},
+	{rhino.Token_TEMPLATELIT_STRING, NodeKind_TEMPLATELIT_STRING, deserModeTemplateLitString},
+	{rhino.Token_NEW_TARGET, NodeKind_NEW_TARGET, deserModePlain},
+	{rhino.Token_COMPUTED_PROP, NodeKind_COMPUTED_PROP, deserModePlain},
+	{rhino.Token_IMPORT_META, NodeKind_IMPORT_META, deserModePlain},
+	{rhino.Token_OPTCHAIN_GETPROP, NodeKind_OPTCHAIN_PROPERTY_ACCESS, deserModeString},
+	{rhino.Token_OPTCHAIN_CALL, NodeKind_OPTCHAIN_CALL, deserModePlain},
+	{rhino.Token_OPTCHAIN_GETELEM, NodeKind_OPTCHAIN_ELEMENT_ACCESS, deserModePlain},
+	{rhino.Token_COALESCE, NodeKind_COALESCE, deserModePlain},
+	{rhino.Token_DYNAMIC_IMPORT, NodeKind_DYNAMIC_IMPORT, deserModePlain},
+	{rhino.Token_ASSIGN_OR, NodeKind_ASSIGN_OR, deserModePlain},
+	{rhino.Token_ASSIGN_AND, NodeKind_ASSIGN_AND, deserModePlain},
+	{rhino.Token_ASSIGN_COALESCE, NodeKind_ASSIGN_COALESCE, deserModePlain},
+	{rhino.Token_EXPR_RESULT, NodeKind_EXPRESSION_STATEMENT, deserModePlain},
+	{rhino.Token_BREAK, NodeKind_BREAK_STATEMENT, deserModePlain},
+	{rhino.Token_CONTINUE, NodeKind_CONTINUE_STATEMENT, deserModePlain},
+	{rhino.Token_DEBUGGER, NodeKind_DEBUGGER_STATEMENT, deserModePlain},
+	{rhino.Token_DO, NodeKind_DO_STATEMENT, deserModePlain},
+	{rhino.Token_FOR, NodeKind_FOR_STATEMENT, deserModePlain},
+	{rhino.Token_FOR_IN, NodeKind_FOR_IN_STATEMENT, deserModePlain},
+	{rhino.Token_FOR_OF, NodeKind_FOR_OF_STATEMENT, deserModePlain},
+	{rhino.Token_FOR_AWAIT_OF, NodeKind_FOR_AWAIT_OF_STATEMENT, deserModePlain},
+	{rhino.Token_IF, NodeKind_IF_STATEMENT, deserModePlain},
+	{rhino.Token_RETURN, NodeKind_RETURN_STATEMENT, deserModePlain},
+	{rhino.Token_SWITCH, NodeKind_SWITCH_STATEMENT, deserModePlain},
+	{rhino.Token_THROW, NodeKind_THROW_STATEMENT, deserModePlain},
+	{rhino.Token_TRY, NodeKind_TRY_STATEMENT, deserModePlain},
+	{rhino.Token_WHILE, NodeKind_WHILE_STATEMENT, deserModePlain},
+	{rhino.Token_EMPTY, NodeKind_EMPTY, deserModePlain},
+	{rhino.Token_WITH, NodeKind_WITH, deserModePlain},
+	{rhino.Token_IMPORT, NodeKind_IMPORT, deserModePlain},
+	{rhino.Token_EXPORT, NodeKind_EXPORT, deserModePlain},
+	{rhino.Token_VAR, NodeKind_VAR_DECLARATION, deserModePlain},
+	{rhino.Token_CONST, NodeKind_CONST_DECLARATION, deserModePlain},
+	{rhino.Token_LET, NodeKind_LET_DECLARATION, deserModePlain},
+	{rhino.Token_FUNCTION, NodeKind_FUNCTION_LITERAL, deserModePlain},
+	{rhino.Token_CLASS, NodeKind_CLASS_LITERAL, deserModePlain},
+	{rhino.Token_BLOCK, NodeKind_BLOCK, deserModePlain},
+	{rhino.Token_LABEL, NodeKind_LABELED_STATEMENT, deserModePlain},
+	{rhino.Token_LABEL_NAME, NodeKind_LABELED_NAME, deserModeString},
+	{rhino.Token_CLASS_MEMBERS, NodeKind_CLASS_MEMBERS, deserModePlain},
+	{rhino.Token_MEMBER_FUNCTION_DEF, NodeKind_METHOD_DECLARATION, deserModeString},
+	{rhino.Token_MEMBER_FIELD_DEF, NodeKind_FIELD_DECLARATION, deserModeString},
+	{rhino.Token_COMPUTED_FIELD_DEF, NodeKind_COMPUTED_PROP_FIELD, deserModePlain},
+	{rhino.Token_PARAM_LIST, NodeKind_PARAMETER_LIST, deserModePlain},
+	{rhino.Token_CASE, NodeKind_CASE, deserModePlain},
+	{rhino.Token_DEFAULT_CASE, NodeKind_DEFAULT_CASE, deserModePlain},
+	{rhino.Token_CATCH, NodeKind_CATCH, deserModePlain},
+	{rhino.Token_SUPER, NodeKind_SUPER, deserModePlain},
+	{rhino.Token_ARRAY_PATTERN, NodeKind_ARRAY_PATTERN, deserModePlain},
+	{rhino.Token_OBJECT_PATTERN, NodeKind_OBJECT_PATTERN, deserModePlain},
+	{rhino.Token_DESTRUCTURING_LHS, NodeKind_DESTRUCTURING_LHS, deserModePlain},
+	{rhino.Token_DEFAULT_VALUE, NodeKind_DEFAULT_VALUE, deserModePlain},
+	{rhino.Token_IMPORT_SPECS, NodeKind_IMPORT_SPECS, deserModePlain},
+	{rhino.Token_IMPORT_SPEC, NodeKind_IMPORT_SPEC, deserModePlain},
+	{rhino.Token_IMPORT_STAR, NodeKind_IMPORT_STAR, deserModeString},
+	{rhino.Token_EXPORT_SPECS, NodeKind_EXPORT_SPECS, deserModePlain},
+	{rhino.Token_EXPORT_SPEC, NodeKind_EXPORT_SPEC, deserModePlain},
+	{rhino.Token_MODULE_BODY, NodeKind_MODULE_BODY, deserModePlain},
+	{rhino.Token_ITER_REST, NodeKind_ITER_REST, deserModePlain},
+	{rhino.Token_ITER_SPREAD, NodeKind_ITER_SPREAD, deserModePlain},
+	{rhino.Token_OBJECT_REST, NodeKind_OBJECT_REST, deserModePlain},
+	{rhino.Token_OBJECT_SPREAD, NodeKind_OBJECT_SPREAD, deserModePlain},
+	{rhino.Token_SWITCH_BODY, NodeKind_SWITCH_BODY, deserModePlain},
+}
+
+func init() {
+	for _, e := range bijectiveTokenNodeKinds {
+		if tokenToNodeKind[e.token] != 0 || nodeKindToDeserSpec[e.kind].mode != deserModeInvalid {
+			panic("duplicate token<->NodeKind entry")
+		}
+		tokenToNodeKind[e.token] = e.kind
+		nodeKindToDeserSpec[e.kind] = nodeKindDeserSpec{token: e.token, mode: e.mode}
+	}
+
+	tokenToNodeKind[rhino.Token_INC] = nodeKindTokenConditional
+	nodeKindToDeserSpec[NodeKind_PRE_INCREMENT] = nodeKindDeserSpec{token: rhino.Token_INC, mode: deserModePlain}
+	nodeKindToDeserSpec[NodeKind_POST_INCREMENT] = nodeKindDeserSpec{token: rhino.Token_INC, mode: deserModePostIncrDecr}
+
+	tokenToNodeKind[rhino.Token_DEC] = nodeKindTokenConditional
+	nodeKindToDeserSpec[NodeKind_PRE_DECREMENT] = nodeKindDeserSpec{token: rhino.Token_DEC, mode: deserModePlain}
+	nodeKindToDeserSpec[NodeKind_POST_DECREMENT] = nodeKindDeserSpec{token: rhino.Token_DEC, mode: deserModePostIncrDecr}
+
+	tokenToNodeKind[rhino.Token_STRING_KEY] = nodeKindTokenConditional
+	nodeKindToDeserSpec[NodeKind_RENAMABLE_STRING_KEY] = nodeKindDeserSpec{token: rhino.Token_STRING_KEY, mode: deserModeString}
+	nodeKindToDeserSpec[NodeKind_QUOTED_STRING_KEY] = nodeKindDeserSpec{token: rhino.Token_STRING_KEY, mode: deserModeQuotedString}
+
+	tokenToNodeKind[rhino.Token_GETTER_DEF] = nodeKindTokenConditional
+	nodeKindToDeserSpec[NodeKind_RENAMABLE_GETTER_DEF] = nodeKindDeserSpec{token: rhino.Token_GETTER_DEF, mode: deserModeString}
+	nodeKindToDeserSpec[NodeKind_QUOTED_GETTER_DEF] = nodeKindDeserSpec{token: rhino.Token_GETTER_DEF, mode: deserModeQuotedString}
+
+	tokenToNodeKind[rhino.Token_SETTER_DEF] = nodeKindTokenConditional
+	nodeKindToDeserSpec[NodeKind_RENAMABLE_SETTER_DEF] = nodeKindDeserSpec{token: rhino.Token_SETTER_DEF, mode: deserModeString}
+	nodeKindToDeserSpec[NodeKind_QUOTED_SETTER_DEF] = nodeKindDeserSpec{token: rhino.Token_SETTER_DEF, mode: deserModeQuotedString}
+
+	for k := NodeKind(1); k < NodeKind_UNRECOGNIZED; k++ {
+		if nodeKindToDeserSpec[k].mode == deserModeInvalid {
+			panic("missing NodeKind deserializer spec: " + k.String())
+		}
+	}
+}
+
 // Java: TypedAstSerializer.kindTranslator(Node)
 func (s *TypedAstSerializer) KindTranslator(n rhino.Node) NodeKind {
-	switch n.GetToken() {
-	case rhino.Token_SCRIPT:
-		return NodeKind_SOURCE_FILE
-	case rhino.Token_NUMBER:
-		return NodeKind_NUMBER_LITERAL
-	case rhino.Token_STRINGLIT:
-		return NodeKind_STRING_LITERAL
-	case rhino.Token_BIGINT:
-		return NodeKind_BIGINT_LITERAL
-	case rhino.Token_REGEXP:
-		return NodeKind_REGEX_LITERAL
-	case rhino.Token_FALSE:
-		return NodeKind_FALSE
-	case rhino.Token_TRUE:
-		return NodeKind_TRUE
-	case rhino.Token_NULL:
-		return NodeKind_NULL
-	case rhino.Token_THIS:
-		return NodeKind_THIS
-	case rhino.Token_VOID:
-		return NodeKind_VOID
-	case rhino.Token_ARRAYLIT:
-		return NodeKind_ARRAY_LITERAL
-	case rhino.Token_OBJECTLIT:
-		return NodeKind_OBJECT_LITERAL
-	case rhino.Token_NAME:
-		return NodeKind_IDENTIFIER
-	case rhino.Token_ASSIGN:
-		return NodeKind_ASSIGNMENT
-	case rhino.Token_CALL:
-		return NodeKind_CALL
-	case rhino.Token_NEW:
-		return NodeKind_NEW
-	case rhino.Token_GETPROP:
-		return NodeKind_PROPERTY_ACCESS
-	case rhino.Token_GETELEM:
-		return NodeKind_ELEMENT_ACCESS
-	case rhino.Token_COMMA:
-		return NodeKind_COMMA
-	case rhino.Token_OR:
-		return NodeKind_BOOLEAN_OR
-	case rhino.Token_AND:
-		return NodeKind_BOOLEAN_AND
-	case rhino.Token_HOOK:
-		return NodeKind_HOOK
-	case rhino.Token_EQ:
-		return NodeKind_EQUAL
-	case rhino.Token_NE:
-		return NodeKind_NOT_EQUAL
-	case rhino.Token_LT:
-		return NodeKind_LESS_THAN
-	case rhino.Token_LE:
-		return NodeKind_LESS_THAN_EQUAL
-	case rhino.Token_GT:
-		return NodeKind_GREATER_THAN
-	case rhino.Token_GE:
-		return NodeKind_GREATER_THAN_EQUAL
-	case rhino.Token_SHEQ:
-		return NodeKind_TRIPLE_EQUAL
-	case rhino.Token_SHNE:
-		return NodeKind_NOT_TRIPLE_EQUAL
-	case rhino.Token_NOT:
-		return NodeKind_NOT
-	case rhino.Token_POS:
-		return NodeKind_POSITIVE
-	case rhino.Token_NEG:
-		return NodeKind_NEGATIVE
-	case rhino.Token_TYPEOF:
-		return NodeKind_TYPEOF
-	case rhino.Token_INSTANCEOF:
-		return NodeKind_INSTANCEOF
-	case rhino.Token_IN:
-		return NodeKind_IN
-	case rhino.Token_ADD:
-		return NodeKind_ADD
-	case rhino.Token_SUB:
-		return NodeKind_SUBTRACT
-	case rhino.Token_MUL:
-		return NodeKind_MULTIPLY
-	case rhino.Token_DIV:
-		return NodeKind_DIVIDE
-	case rhino.Token_MOD:
-		return NodeKind_MODULO
-	case rhino.Token_EXPONENT:
-		return NodeKind_EXPONENT
-	case rhino.Token_BITNOT:
-		return NodeKind_BITWISE_NOT
-	case rhino.Token_BITOR:
-		return NodeKind_BITWISE_OR
-	case rhino.Token_BITAND:
-		return NodeKind_BITWISE_AND
-	case rhino.Token_BITXOR:
-		return NodeKind_BITWISE_XOR
-	case rhino.Token_LSH:
-		return NodeKind_LEFT_SHIFT
-	case rhino.Token_RSH:
-		return NodeKind_RIGHT_SHIFT
-	case rhino.Token_URSH:
-		return NodeKind_UNSIGNED_RIGHT_SHIFT
-	case rhino.Token_INC:
-		if n.GetBooleanProp(rhino.Node_INCRDECR_PROP) {
-			return NodeKind_POST_INCREMENT
+	kind := tokenToNodeKind[n.GetToken()]
+	if kind > 0 {
+		return kind
+	}
+	return translateConditionalOrInvalidToken(n, kind)
+}
+
+func translateConditionalOrInvalidToken(n rhino.Node, kind NodeKind) NodeKind {
+	if kind == nodeKindTokenConditional {
+		switch n.GetToken() {
+		case rhino.Token_INC:
+			if n.GetBooleanProp(rhino.Node_INCRDECR_PROP) {
+				return NodeKind_POST_INCREMENT
+			}
+			return NodeKind_PRE_INCREMENT
+		case rhino.Token_DEC:
+			if n.GetBooleanProp(rhino.Node_INCRDECR_PROP) {
+				return NodeKind_POST_DECREMENT
+			}
+			return NodeKind_PRE_DECREMENT
+		case rhino.Token_STRING_KEY:
+			if n.IsQuotedStringKey() {
+				return NodeKind_QUOTED_STRING_KEY
+			}
+			return NodeKind_RENAMABLE_STRING_KEY
+		case rhino.Token_GETTER_DEF:
+			if n.IsQuotedStringKey() {
+				return NodeKind_QUOTED_GETTER_DEF
+			}
+			return NodeKind_RENAMABLE_GETTER_DEF
+		case rhino.Token_SETTER_DEF:
+			if n.IsQuotedStringKey() {
+				return NodeKind_QUOTED_SETTER_DEF
+			}
+			return NodeKind_RENAMABLE_SETTER_DEF
 		}
-		return NodeKind_PRE_INCREMENT
-	case rhino.Token_DEC:
-		if n.GetBooleanProp(rhino.Node_INCRDECR_PROP) {
-			return NodeKind_POST_DECREMENT
-		}
-		return NodeKind_PRE_DECREMENT
-	case rhino.Token_ASSIGN_ADD:
-		return NodeKind_ASSIGN_ADD
-	case rhino.Token_ASSIGN_SUB:
-		return NodeKind_ASSIGN_SUBTRACT
-	case rhino.Token_ASSIGN_MUL:
-		return NodeKind_ASSIGN_MULTIPLY
-	case rhino.Token_ASSIGN_DIV:
-		return NodeKind_ASSIGN_DIVIDE
-	case rhino.Token_ASSIGN_MOD:
-		return NodeKind_ASSIGN_MODULO
-	case rhino.Token_ASSIGN_EXPONENT:
-		return NodeKind_ASSIGN_EXPONENT
-	case rhino.Token_ASSIGN_BITOR:
-		return NodeKind_ASSIGN_BITWISE_OR
-	case rhino.Token_ASSIGN_BITAND:
-		return NodeKind_ASSIGN_BITWISE_AND
-	case rhino.Token_ASSIGN_BITXOR:
-		return NodeKind_ASSIGN_BITWISE_XOR
-	case rhino.Token_ASSIGN_LSH:
-		return NodeKind_ASSIGN_LEFT_SHIFT
-	case rhino.Token_ASSIGN_RSH:
-		return NodeKind_ASSIGN_RIGHT_SHIFT
-	case rhino.Token_ASSIGN_URSH:
-		return NodeKind_ASSIGN_UNSIGNED_RIGHT_SHIFT
-	case rhino.Token_YIELD:
-		return NodeKind_YIELD
-	case rhino.Token_AWAIT:
-		return NodeKind_AWAIT
-	case rhino.Token_DELPROP:
-		return NodeKind_DELETE
-	case rhino.Token_TAGGED_TEMPLATELIT:
-		return NodeKind_TAGGED_TEMPLATELIT
-	case rhino.Token_TEMPLATELIT:
-		return NodeKind_TEMPLATELIT
-	case rhino.Token_TEMPLATELIT_SUB:
-		return NodeKind_TEMPLATELIT_SUB
-	case rhino.Token_TEMPLATELIT_STRING:
-		return NodeKind_TEMPLATELIT_STRING
-	case rhino.Token_NEW_TARGET:
-		return NodeKind_NEW_TARGET
-	case rhino.Token_COMPUTED_PROP:
-		return NodeKind_COMPUTED_PROP
-	case rhino.Token_IMPORT_META:
-		return NodeKind_IMPORT_META
-	case rhino.Token_OPTCHAIN_GETPROP:
-		return NodeKind_OPTCHAIN_PROPERTY_ACCESS
-	case rhino.Token_OPTCHAIN_CALL:
-		return NodeKind_OPTCHAIN_CALL
-	case rhino.Token_OPTCHAIN_GETELEM:
-		return NodeKind_OPTCHAIN_ELEMENT_ACCESS
-	case rhino.Token_COALESCE:
-		return NodeKind_COALESCE
-	case rhino.Token_DYNAMIC_IMPORT:
-		return NodeKind_DYNAMIC_IMPORT
-	case rhino.Token_ASSIGN_OR:
-		return NodeKind_ASSIGN_OR
-	case rhino.Token_ASSIGN_AND:
-		return NodeKind_ASSIGN_AND
-	case rhino.Token_ASSIGN_COALESCE:
-		return NodeKind_ASSIGN_COALESCE
-	case rhino.Token_EXPR_RESULT:
-		return NodeKind_EXPRESSION_STATEMENT
-	case rhino.Token_BREAK:
-		return NodeKind_BREAK_STATEMENT
-	case rhino.Token_CONTINUE:
-		return NodeKind_CONTINUE_STATEMENT
-	case rhino.Token_DEBUGGER:
-		return NodeKind_DEBUGGER_STATEMENT
-	case rhino.Token_DO:
-		return NodeKind_DO_STATEMENT
-	case rhino.Token_FOR:
-		return NodeKind_FOR_STATEMENT
-	case rhino.Token_FOR_IN:
-		return NodeKind_FOR_IN_STATEMENT
-	case rhino.Token_FOR_OF:
-		return NodeKind_FOR_OF_STATEMENT
-	case rhino.Token_FOR_AWAIT_OF:
-		return NodeKind_FOR_AWAIT_OF_STATEMENT
-	case rhino.Token_IF:
-		return NodeKind_IF_STATEMENT
-	case rhino.Token_RETURN:
-		return NodeKind_RETURN_STATEMENT
-	case rhino.Token_SWITCH:
-		return NodeKind_SWITCH_STATEMENT
-	case rhino.Token_THROW:
-		return NodeKind_THROW_STATEMENT
-	case rhino.Token_TRY:
-		return NodeKind_TRY_STATEMENT
-	case rhino.Token_WHILE:
-		return NodeKind_WHILE_STATEMENT
-	case rhino.Token_EMPTY:
-		return NodeKind_EMPTY
-	case rhino.Token_WITH:
-		return NodeKind_WITH
-	case rhino.Token_IMPORT:
-		return NodeKind_IMPORT
-	case rhino.Token_EXPORT:
-		return NodeKind_EXPORT
-	case rhino.Token_VAR:
-		return NodeKind_VAR_DECLARATION
-	case rhino.Token_CONST:
-		return NodeKind_CONST_DECLARATION
-	case rhino.Token_LET:
-		return NodeKind_LET_DECLARATION
-	case rhino.Token_FUNCTION:
-		return NodeKind_FUNCTION_LITERAL
-	case rhino.Token_CLASS:
-		return NodeKind_CLASS_LITERAL
-	case rhino.Token_BLOCK:
-		return NodeKind_BLOCK
-	case rhino.Token_LABEL:
-		return NodeKind_LABELED_STATEMENT
-	case rhino.Token_LABEL_NAME:
-		return NodeKind_LABELED_NAME
-	case rhino.Token_CLASS_MEMBERS:
-		return NodeKind_CLASS_MEMBERS
-	case rhino.Token_MEMBER_FUNCTION_DEF:
-		return NodeKind_METHOD_DECLARATION
-	case rhino.Token_MEMBER_FIELD_DEF:
-		return NodeKind_FIELD_DECLARATION
-	case rhino.Token_COMPUTED_FIELD_DEF:
-		return NodeKind_COMPUTED_PROP_FIELD
-	case rhino.Token_PARAM_LIST:
-		return NodeKind_PARAMETER_LIST
-	case rhino.Token_STRING_KEY:
-		if n.IsQuotedStringKey() {
-			return NodeKind_QUOTED_STRING_KEY
-		}
-		return NodeKind_RENAMABLE_STRING_KEY
-	case rhino.Token_CASE:
-		return NodeKind_CASE
-	case rhino.Token_DEFAULT_CASE:
-		return NodeKind_DEFAULT_CASE
-	case rhino.Token_CATCH:
-		return NodeKind_CATCH
-	case rhino.Token_SUPER:
-		return NodeKind_SUPER
-	case rhino.Token_ARRAY_PATTERN:
-		return NodeKind_ARRAY_PATTERN
-	case rhino.Token_OBJECT_PATTERN:
-		return NodeKind_OBJECT_PATTERN
-	case rhino.Token_DESTRUCTURING_LHS:
-		return NodeKind_DESTRUCTURING_LHS
-	case rhino.Token_DEFAULT_VALUE:
-		return NodeKind_DEFAULT_VALUE
-	case rhino.Token_GETTER_DEF:
-		if n.IsQuotedStringKey() {
-			return NodeKind_QUOTED_GETTER_DEF
-		}
-		return NodeKind_RENAMABLE_GETTER_DEF
-	case rhino.Token_SETTER_DEF:
-		if n.IsQuotedStringKey() {
-			return NodeKind_QUOTED_SETTER_DEF
-		}
-		return NodeKind_RENAMABLE_SETTER_DEF
-	case rhino.Token_IMPORT_SPECS:
-		return NodeKind_IMPORT_SPECS
-	case rhino.Token_IMPORT_SPEC:
-		return NodeKind_IMPORT_SPEC
-	case rhino.Token_IMPORT_STAR:
-		return NodeKind_IMPORT_STAR
-	case rhino.Token_EXPORT_SPECS:
-		return NodeKind_EXPORT_SPECS
-	case rhino.Token_EXPORT_SPEC:
-		return NodeKind_EXPORT_SPEC
-	case rhino.Token_MODULE_BODY:
-		return NodeKind_MODULE_BODY
-	case rhino.Token_ITER_REST:
-		return NodeKind_ITER_REST
-	case rhino.Token_ITER_SPREAD:
-		return NodeKind_ITER_SPREAD
-	case rhino.Token_OBJECT_REST:
-		return NodeKind_OBJECT_REST
-	case rhino.Token_OBJECT_SPREAD:
-		return NodeKind_OBJECT_SPREAD
-	case rhino.Token_SWITCH_BODY:
-		return NodeKind_SWITCH_BODY
-	// Explicitly unsupported token types. Not serialized.
-	case rhino.Token_ROOT,
-		// TS type tokens
-		rhino.Token_STRING_TYPE,
-		rhino.Token_BOOLEAN_TYPE,
-		rhino.Token_NUMBER_TYPE,
-		rhino.Token_FUNCTION_TYPE,
-		rhino.Token_PARAMETERIZED_TYPE,
-		rhino.Token_UNION_TYPE,
-		rhino.Token_ANY_TYPE,
-		rhino.Token_NULLABLE_TYPE,
-		rhino.Token_VOID_TYPE,
-		rhino.Token_REST_PARAMETER_TYPE,
-		rhino.Token_NAMED_TYPE,
-		rhino.Token_RECORD_TYPE,
-		rhino.Token_UNDEFINED_TYPE,
-		rhino.Token_OPTIONAL_PARAMETER,
-		rhino.Token_ARRAY_TYPE,
-		rhino.Token_GENERIC_TYPE,
-		rhino.Token_GENERIC_TYPE_LIST,
-		rhino.Token_INTERFACE,
-		rhino.Token_INTERFACE_EXTENDS,
-		rhino.Token_INTERFACE_MEMBERS,
-		rhino.Token_MEMBER_VARIABLE_DEF,
-		rhino.Token_ENUM,
-		rhino.Token_ENUM_MEMBERS,
-		rhino.Token_IMPLEMENTS,
-		rhino.Token_TYPE_ALIAS,
-		rhino.Token_DECLARE,
-		rhino.Token_INDEX_SIGNATURE,
-		rhino.Token_CALL_SIGNATURE,
-		rhino.Token_NAMESPACE,
-		rhino.Token_NAMESPACE_ELEMENTS,
-		// JSDoc tokens
-		rhino.Token_ANNOTATION,
-		rhino.Token_PIPE,
-		rhino.Token_STAR,
-		rhino.Token_EOC,
-		rhino.Token_QMARK,
-		rhino.Token_BANG,
-		rhino.Token_EQUALS,
-		rhino.Token_LB,
-		rhino.Token_LC,
-		rhino.Token_COLON,
-		// Closure-type-system-specific token
-		rhino.Token_CAST,
-		// Unused tokens
-		rhino.Token_PLACEHOLDER1,
-		rhino.Token_PLACEHOLDER2,
-		rhino.Token_PLACEHOLDER3:
 	}
 	panic(jutil.NewIllegalStateExceptionMsg("Unserializable token for node: " + n.String()))
 }
@@ -1554,9 +1444,8 @@ func (s *TypedAstSerializer) CreateColorTypeSerializer(
 	serializationMode *SerializationOptions,
 	stringPoolBuilder *StringPool_Builder) *TypedAstSerializer_ColorTypeSerializer {
 	// Gather all the property names that are actually used in the AST.
-	usedPropertyNames := make(map[string]struct{}, 256)
-	var lastProp string
-	hasLastProp := false
+	var usedPropertyNames jutil.BitSet
+	var lastPropID uint32
 	var walk func(n rhino.Node)
 	walk = func(n rhino.Node) {
 		if n.IsScript() && NodeUtil_IsFromTypeSummary(n) {
@@ -1568,11 +1457,10 @@ func (s *TypedAstSerializer) CreateColorTypeSerializer(
 		switch n.GetToken() {
 		case rhino.Token_GETPROP,
 			rhino.Token_OPTCHAIN_GETPROP:
-			prop := n.GetString()
-			if !hasLastProp || prop != lastProp {
-				lastProp = prop
-				hasLastProp = true
-				usedPropertyNames[prop] = struct{}{}
+			propID := n.GetStringID()
+			if propID != lastPropID {
+				lastPropID = propID
+				usedPropertyNames.Set(int(propID))
 			}
 		case rhino.Token_STRING_KEY,
 			rhino.Token_MEMBER_FUNCTION_DEF,
@@ -1580,11 +1468,10 @@ func (s *TypedAstSerializer) CreateColorTypeSerializer(
 			rhino.Token_GETTER_DEF,
 			rhino.Token_SETTER_DEF:
 			if !n.IsQuotedStringKey() {
-				prop := n.GetString()
-				if !hasLastProp || prop != lastProp {
-					lastProp = prop
-					hasLastProp = true
-					usedPropertyNames[prop] = struct{}{}
+				propID := n.GetStringID()
+				if propID != lastPropID {
+					lastPropID = propID
+					usedPropertyNames.Set(int(propID))
 				}
 			}
 		case rhino.Token_NAME:
@@ -1600,8 +1487,8 @@ func (s *TypedAstSerializer) CreateColorTypeSerializer(
 		stringPoolBuilder.Put,
 		// only include property names known to be used in the AST
 		func(prop string) bool {
-			_, ok := usedPropertyNames[prop]
-			return ok
+			id := strpool.Lookup(prop)
+			return id != 0 && usedPropertyNames.Get(int(id))
 		})
 	return NewTypedAstSerializer_ColorTypeSerializer(colorSerializer, compiler.GetColorRegistry())
 }

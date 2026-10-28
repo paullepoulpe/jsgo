@@ -22,18 +22,13 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/paullepoulpe/jsgo/internal/ast"
 	"github.com/paullepoulpe/jsgo/internal/jscomp"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
 
-// Matchers is the class that contains common Matchers that are useful to
-// everyone.
-//
-// TODO(mknichel): Make sure all this code works with goog.scope.
-//
-// Go-only: language-adapter — the Java class has only a private
-// constructor and static methods; it has no Go type.
+// Matchers contains common Matchers useful for JsFlume refactorings.
 
 // Matchers_Anything returns a Matcher that matches every node.
 //
@@ -98,25 +93,22 @@ func Matchers_Constructor() Matcher {
 // Matchers_ConstructorWithName returns a matcher that matches constructor
 // definitions of the specified name.
 //
-// name is the name of the class constructor to match.
-//
 // Java: Matchers.constructor(String)
 func Matchers_ConstructorWithName(name string) Matcher {
 	return func(node rhino.Node, metadata *NodeMetadata) bool {
 		info := node.GetJSDocInfo()
-		if info != nil && info.IsConstructor() {
-			firstChild := node.GetFirstChild()
-			// TODO(mknichel): Make sure this works with the following cases:
-			// ns = {
-			//   /** @constructor */
-			//   name: function() {}
-			// }
-			if (firstChild.IsGetProp() || firstChild.IsName()) &&
-				firstChild.MatchesQualifiedName(name) {
-				return true
-			}
+		if info == nil || !info.IsConstructor() {
+			return false
 		}
-		return false
+		var target rhino.Node
+		if fn, ok := ast.AsFunction(node); ok {
+			target = fn.NameNode().Node()
+		} else if assign, ok := ast.AsAssign(node); ok {
+			target = assign.Target().Node()
+		} else {
+			target = node.GetFirstChild()
+		}
+		return (target.IsGetProp() || target.IsName()) && target.MatchesQualifiedName(name)
 	}
 }
 
@@ -131,10 +123,7 @@ func Matchers_NewClass() Matcher {
 }
 
 // Matchers_NewClassWithName returns a Matcher that matches constructing
-// objects of the provided class name. This will match the NEW node of the
-// JS Compiler AST.
-//
-// className is the name of the class to return matching NEW nodes.
+// objects of the provided class name.
 //
 // Java: Matchers.newClass(String)
 func Matchers_NewClassWithName(className string) Matcher {
@@ -146,7 +135,6 @@ func Matchers_NewClassWithName(className string) Matcher {
 		if providedJsType == nil {
 			return false
 		}
-
 		jsType := node.GetJSType()
 		if jsType == nil {
 			return false
@@ -161,23 +149,20 @@ func Matchers_NewClassWithName(className string) Matcher {
 // Java: Matchers.functionCall()
 func Matchers_FunctionCall() Matcher {
 	return func(node rhino.Node, metadata *NodeMetadata) bool {
-		return node.IsCall() && Matchers_PropertyAccess().Matches(node.GetFirstChild(), metadata)
+		call, ok := ast.AsCall(node)
+		return ok && Matchers_PropertyAccess().Matches(call.Callee().Node(), metadata)
 	}
 }
 
 // Matchers_FunctionCallWithName returns a Matcher that matches all nodes
 // that are function calls that match the provided name.
 //
-// name is the name of the function to match. For non-static functions, this
-// must be the fully qualified name that includes the type of the object.
-// For instance: ns.AppContext.prototype.get will match appContext.get and
-// this.get when called from the AppContext class.
-//
 // Java: Matchers.functionCall(String)
 func Matchers_FunctionCallWithName(name string) Matcher {
+	propMatcher := Matchers_PropertyAccessWithName(&name)
 	return func(node rhino.Node, metadata *NodeMetadata) bool {
-		// TODO(mknichel): Handle the case when functions are applied through .call or .apply.
-		return node.IsCall() && Matchers_PropertyAccessWithName(&name).Matches(node.GetFirstChild(), metadata)
+		call, ok := ast.AsCall(node)
+		return ok && propMatcher.Matches(call.Callee().Node(), metadata)
 	}
 }
 
@@ -187,17 +172,13 @@ func Matchers_FunctionCallWithName(name string) Matcher {
 // Java: Matchers.functionCallWithNumArgs(int)
 func Matchers_FunctionCallWithNumArgs(numArgs int) Matcher {
 	return func(node rhino.Node, metadata *NodeMetadata) bool {
-		return node.IsCall() && node.HasXChildren(numArgs+1)
+		call, ok := ast.AsCall(node)
+		return ok && call.NumArgs() == numArgs
 	}
 }
 
 // Matchers_FunctionCallWithNumArgsAndName returns a Matcher that matches any
 // function call that has the given number of arguments and the given name.
-//
-// name is the name of the function to match. For non-static functions, this
-// must be the fully qualified name that includes the type of the object.
-// For instance: ns.AppContext.prototype.get will match appContext.get and
-// this.get when called from the AppContext class.
 //
 // Java: Matchers.functionCallWithNumArgs(String, int)
 func Matchers_FunctionCallWithNumArgsAndName(name string, numArgs int) Matcher {
@@ -206,10 +187,17 @@ func Matchers_FunctionCallWithNumArgsAndName(name string, numArgs int) Matcher {
 
 // Java: Matchers.googRequirelike(String)
 func Matchers_GoogRequirelikeWithNamespace(namespace string) Matcher {
+	reqMatcher := Matchers_GoogRequirelike()
 	return func(node rhino.Node, metadata *NodeMetadata) bool {
-		return Matchers_GoogRequirelike().Matches(node, metadata) &&
-			node.GetSecondChild().IsStringLit() &&
-			node.GetSecondChild().GetString() == namespace
+		if !reqMatcher.Matches(node, metadata) {
+			return false
+		}
+		arg, ok := ast.MustCall(node).FirstArg()
+		if !ok {
+			return false
+		}
+		strLit, ok := arg.AsStringLit()
+		return ok && strLit.Value() == namespace
 	}
 }
 
@@ -254,23 +242,17 @@ func Matchers_PropertyAccess() Matcher {
 // Matchers_PropertyAccessWithName returns a Matcher that matches nodes
 // representing a GETPROP access of an object property.
 //
-// name is the name of the property to match. For non-static properties,
-// this must be the fully qualified name that includes the type of the
-// object. For instance: ns.AppContext.prototype.root will match
-// appContext.root and this.root when accessed from the AppContext.
-//
 // Java: Matchers.propertyAccess(String)
 func Matchers_PropertyAccessWithName(name *string) Matcher {
 	return func(node rhino.Node, metadata *NodeMetadata) bool {
-		if node.IsGetProp() {
-			if name == nil {
-				return true
-			}
-			if node.MatchesQualifiedName(*name) {
-				return true
-			} else if strings.Contains(*name, ".prototype.") {
-				return matchers_matchesPrototypeInstanceVar(node, metadata, *name)
-			}
+		if _, ok := ast.AsGetProp(node); !ok {
+			return false
+		}
+		if name == nil || node.MatchesQualifiedName(*name) {
+			return true
+		}
+		if strings.Contains(*name, ".prototype.") {
+			return matchers_matchesPrototypeInstanceVar(node, metadata, *name)
 		}
 		return false
 	}
@@ -312,7 +294,8 @@ func Matchers_EnumDefinitionOfType(type_ string) Matcher {
 // Java: Matchers.assignmentWithRhs(Matcher)
 func Matchers_AssignmentWithRhs(rhsMatcher Matcher) Matcher {
 	return func(node rhino.Node, metadata *NodeMetadata) bool {
-		return node.IsAssign() && rhsMatcher.Matches(node.GetLastChild(), metadata)
+		assign, ok := ast.AsAssign(node)
+		return ok && rhsMatcher.Matches(assign.Value().Node(), metadata)
 	}
 }
 
@@ -345,10 +328,9 @@ func Matchers_JsDocType(type_ string) Matcher {
 		providedJsType = providedJsType.RestrictByNotNullOrUndefined()
 		// The JSDoc for a variable declaration is on the VAR/CONST/LET node, but the type only
 		// exists on the NAME node.
-		// TODO(mknichel): Make NodeUtil.getBestJSDoc public and use that.
 		var jsDoc *rhino.JSDocInfo
-		if jscomp.NodeUtil_IsNameDeclaration(node.GetParent()) {
-			jsDoc = node.GetParent().GetJSDocInfo()
+		if decl, ok := ast.AsNameDeclaration(node.GetParent()); ok {
+			jsDoc = decl.Node().GetJSDocInfo()
 		} else {
 			jsDoc = node.GetJSDocInfo()
 		}
@@ -366,22 +348,19 @@ func Matchers_JsDocType(type_ string) Matcher {
 // Java: Matchers.constructorPropertyDeclaration()
 func Matchers_ConstructorPropertyDeclaration() Matcher {
 	return func(node rhino.Node, metadata *NodeMetadata) bool {
-		// This will match against code that looks like:
-		// /** @constructor */
-		// function constructor() {
-		//   this.variable = 3;
-		// }
-		if !node.IsAssign() ||
-			!node.GetFirstChild().IsGetProp() ||
-			!node.GetFirstFirstChild().IsThis() {
+		assign, ok := ast.AsAssign(node)
+		if !ok {
+			return false
+		}
+		gp, ok := ast.AsGetProp(assign.Target().Node())
+		if !ok || !gp.Object().Node().IsThis() {
 			return false
 		}
 		for !node.IsNil() && !node.IsFunction() {
 			node = node.GetParent()
 		}
-		if !node.IsNil() && node.IsFunction() {
-			jsDoc := jscomp.NodeUtil_GetBestJSDocInfo(node)
-			if jsDoc != nil {
+		if _, ok := ast.AsFunction(node); ok {
+			if jsDoc := jscomp.NodeUtil_GetBestJSDocInfo(node); jsDoc != nil {
 				return jsDoc.IsConstructor()
 			}
 		}
@@ -396,10 +375,7 @@ func Matchers_ConstructorPropertyDeclaration() Matcher {
 func Matchers_IsPrivate() Matcher {
 	return func(node rhino.Node, metadata *NodeMetadata) bool {
 		jsDoc := jscomp.NodeUtil_GetBestJSDocInfo(node)
-		if jsDoc != nil {
-			return jsDoc.GetVisibility() == rhino.JSDocInfo_Visibility_PRIVATE
-		}
-		return false
+		return jsDoc != nil && jsDoc.GetVisibility() == rhino.JSDocInfo_Visibility_PRIVATE
 	}
 }
 
@@ -415,8 +391,7 @@ func matchers_getJsTypeOfNative(metadata *NodeMetadata, nativeType rhino.JSTypeN
 
 // Java: Matchers.areTypesEquivalentIgnoringGenerics(JSType, JSType)
 func matchers_areTypesEquivalentIgnoringGenerics(a rhino.JSType, b rhino.JSType) bool {
-	equivalent := a.Equals(b)
-	if equivalent {
+	if a.Equals(b) {
 		return true
 	}
 	if a.IsTemplatizedType() {
@@ -426,22 +401,11 @@ func matchers_areTypesEquivalentIgnoringGenerics(a rhino.JSType, b rhino.JSType)
 }
 
 // matchers_PROTOTYPE_SPLIT_RE is the regex of name.split(".prototype.") in
-// matchesPrototypeInstanceVar: each `.` is Java's any-char-but-a-line-
-// terminator.
-//
-// Go-only: language-adapter — java.util.regex `.prototype.` written for
-// RE2 (both `.` matching what Java's does), used with jutil.StringSplitRegexp.
+// matchesPrototypeInstanceVar: each `.` is Java's any-char-but-a-line-terminator.
 var matchers_PROTOTYPE_SPLIT_RE = regexp.MustCompile(`[^\n\r\x{85}\x{2028}\x{2029}]prototype[^\n\r\x{85}\x{2028}\x{2029}]`)
 
-// matchers_matchesPrototypeInstanceVar checks to see if the node represents
-// an access of an instance variable on an object given a prototype
-// declaration of an object. For instance, ns.AppContext.prototype.get will
-// match appContext.get or this.get when accessed from within the AppContext
-// object.
-//
 // Java: Matchers.matchesPrototypeInstanceVar(Node, NodeMetadata, String)
-func matchers_matchesPrototypeInstanceVar(node rhino.Node, metadata *NodeMetadata,
-	name string) bool {
+func matchers_matchesPrototypeInstanceVar(node rhino.Node, metadata *NodeMetadata, name string) bool {
 	parts := jutil.StringSplitRegexp(name, matchers_PROTOTYPE_SPLIT_RE)
 	className := parts[0]
 	propertyName := parts[1]
@@ -450,19 +414,20 @@ func matchers_matchesPrototypeInstanceVar(node rhino.Node, metadata *NodeMetadat
 		return false
 	}
 	var jsType rhino.JSType
-	if node.HasChildren() {
+	if gp, ok := ast.AsGetProp(node); ok {
+		jsType = gp.Object().Node().GetJSType()
+	} else if node.HasChildren() {
 		jsType = node.GetFirstChild().GetJSType()
 	}
 	if jsType == nil {
 		return false
 	}
 	jsType = jsType.RestrictByNotNullOrUndefined()
-	if !jsType.IsUnknownType() &&
-		!jsType.IsAllType() &&
-		jsType.IsSubtypeOf(providedJsType) {
-		if node.IsName() && propertyName == node.GetString() {
+	if !jsType.IsUnknownType() && !jsType.IsAllType() && jsType.IsSubtypeOf(providedJsType) {
+		if nameNode, ok := ast.AsName(node); ok && propertyName == nameNode.Ident() {
 			return true
-		} else if node.IsGetProp() && propertyName == node.GetString() {
+		}
+		if gp, ok := ast.AsGetProp(node); ok && propertyName == gp.Property() {
 			return true
 		}
 	}
@@ -472,35 +437,22 @@ func matchers_matchesPrototypeInstanceVar(node rhino.Node, metadata *NodeMetadat
 // Java: Matchers.matcherForPrototypeDeclaration(boolean)
 func matchers_matcherForPrototypeDeclaration(requireFunctionType bool) Matcher {
 	return func(node rhino.Node, metadata *NodeMetadata) bool {
-		// TODO(mknichel): Figure out which node is the best to return for this
-		// function: the GETPROP node, or the ASSIGN node when the property is
-		// being assigned to.
-		// TODO(mknichel): Support matching:
-		// foo.prototype = {
-		//   bar: 1
-		// };
-		firstChild := node.GetFirstChild()
-		if node.IsGetProp() &&
-			firstChild.IsGetProp() &&
-			"prototype" == firstChild.GetString() {
-			fnJsType := matchers_getJsTypeOfNative(metadata, rhino.JSTypeNative_FUNCTION_FUNCTION_TYPE)
-			jsType := node.GetJSType()
-			if jsType == nil {
-				return false
-			} else if requireFunctionType {
-				return jsType.CanCastTo(fnJsType)
-			} else {
-				return !jsType.CanCastTo(fnJsType)
-			}
+		gp, ok := ast.AsGetProp(node)
+		if !ok {
+			return false
 		}
-		return false
+		recvProp, ok := ast.AsGetProp(gp.Object().Node())
+		if !ok || recvProp.Property() != "prototype" {
+			return false
+		}
+		fnJsType := matchers_getJsTypeOfNative(metadata, rhino.JSTypeNative_FUNCTION_FUNCTION_TYPE)
+		jsType := node.GetJSType()
+		if jsType == nil {
+			return false
+		}
+		if requireFunctionType {
+			return jsType.CanCastTo(fnJsType)
+		}
+		return !jsType.CanCastTo(fnJsType)
 	}
 }
-
-// TODO(mknichel): Add matchers for:
-// - Constructor with argument types
-// - Function call with argument types
-// - Function definitions.
-// - Property definitions, references
-// - IsStatic
-// - JsDocMatcher

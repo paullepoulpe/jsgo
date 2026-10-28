@@ -19,6 +19,7 @@
 package jscomp
 
 import (
+	"github.com/paullepoulpe/jsgo/internal/ast"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
@@ -51,7 +52,8 @@ func ClassUtil_GetFullyQualifiedNameOfThisProp(getProp rhino.Node) string {
 
 // Java: ClassUtil.getClassNameOfThisProp(Node)
 func classUtil_getClassNameOfThisProp(getprop rhino.Node) *string {
-	if !getprop.IsGetProp() || !getprop.GetFirstChild().IsThis() {
+	gp, ok := ast.AsGetProp(getprop)
+	if !ok || !gp.Object().Node().IsThis() {
 		return nil
 	}
 	function := NodeUtil_GetEnclosingFunction(getprop)
@@ -78,9 +80,11 @@ func ClassUtil_IsMemberFieldDefInsideClassWithName(fieldNode rhino.Node) bool {
 //
 // Java: ClassUtil.isComputedMemberInsideClassWithName(Node)
 func ClassUtil_IsComputedMemberInsideClassWithName(fieldNode rhino.Node) bool {
-	return fieldNode.GetParent().IsClassMembers() &&
-		fieldNode.GetFirstChild().IsGetProp() &&
-		fieldNode.GetFirstFirstChild().MatchesName("Symbol")
+	if !fieldNode.GetParent().IsClassMembers() {
+		return false
+	}
+	gp, ok := ast.AsGetProp(fieldNode.GetFirstChild())
+	return ok && gp.Object().Node().MatchesName("Symbol")
 }
 
 // ClassUtil_GetFullyQualifiedNameOfMemberFieldDef returns the fully

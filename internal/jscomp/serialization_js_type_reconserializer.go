@@ -24,7 +24,13 @@ import (
 	"github.com/paullepoulpe/jsgo/internal/colors"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
+	"github.com/paullepoulpe/jsgo/internal/strpool"
 )
+
+type jsTypeDebugMismatch struct {
+	sourceRef        string
+	involvedPointers []int32
+}
 
 // JSTypeReconserializer takes JSTypes produced by JSCompiler's typechecker
 // and deduplicates and serializes them into the TypedAST colors format.
@@ -40,7 +46,9 @@ type JSTypeReconserializer struct {
 	stringPoolBuilder           *StringPool_Builder
 	hasher                      *JSTypeColorIdHasher
 	shouldPropagatePropertyName func(string) bool
-	allowedProperties           map[string]struct{}
+	allowedProperties           *jutil.BitSet
+	debugMismatches             []jsTypeDebugMismatch
+	offsetToColor               []*colors.Color
 
 	// Cache some commonly used types.
 	unknownRecord     *JSTypeReconserializer_SeenTypeRecord
@@ -154,13 +162,27 @@ func newJSTypeReconserializer(
 }
 
 func (s *JSTypeReconserializer) onSingleOwnProp(ownProperty string) {
-	if s.shouldPropagate(ownProperty) {
+	if s.allowedProperties != nil {
+		id := strpool.Lookup(ownProperty)
+		if id != 0 && s.allowedProperties.Get(int(id)) {
+			s.scratchInt32s = append(s.scratchInt32s, int32(s.stringPoolBuilder.PutID(uint32(id))))
+		}
+		return
+	}
+	if s.shouldPropagatePropertyName(ownProperty) {
 		s.scratchInt32s = append(s.scratchInt32s, int32(s.stringPoolBuilder.Put(ownProperty)))
 	}
 }
 
 func (s *JSTypeReconserializer) onMultiOwnProp(ownProperty string) {
-	if s.shouldPropagate(ownProperty) {
+	if s.allowedProperties != nil {
+		id := strpool.Lookup(ownProperty)
+		if id != 0 && s.allowedProperties.Get(int(id)) {
+			s.scratchOwnProps.Add(s.stringPoolBuilder.PutID(uint32(id)))
+		}
+		return
+	}
+	if s.shouldPropagatePropertyName(ownProperty) {
 		s.scratchOwnProps.Add(s.stringPoolBuilder.Put(ownProperty))
 	}
 }
@@ -209,8 +231,8 @@ func (s *JSTypeReconserializer) allocColorIdBytes(id colors.ColorId) []byte {
 
 func (s *JSTypeReconserializer) shouldPropagate(prop string) bool {
 	if s.allowedProperties != nil {
-		_, ok := s.allowedProperties[prop]
-		return ok
+		id := strpool.Lookup(prop)
+		return id != 0 && s.allowedProperties.Get(int(id))
 	}
 	return s.shouldPropagatePropertyName(prop)
 }
@@ -883,6 +905,48 @@ func (s *JSTypeReconserializer) GenerateTypePool() *TypePool {
 		frozen:               true,
 		memoizedSize:         -1,
 	}
+}
+
+func (s *JSTypeReconserializer) prepareForColorPool() {
+	jutil.CheckState(s.state == JSTypeReconserializer_State_COLLECTING_TYPES)
+	s.CheckValidLinearTime()
+
+	if s.serializationMode.IncludeDebugInfo() {
+		for location, types := range s.invalidatingTypes.
+			GetMismatchLocations().
+			Inverse().
+			AsMap().
+			All() {
+			involved := jutil.NewLinkedHashSet[int]()
+			for t := range types.All() {
+				jutil.CheckStateMsg1(!t.IsUnionType(), "%s", t)
+				involved.Add(s.SerializeType(t))
+			}
+			involvedColors := jsTypeReconserializer_int32s(involved)
+			slices.Sort(involvedColors)
+			s.debugMismatches = append(s.debugMismatches, jsTypeDebugMismatch{
+				sourceRef:        location.GetLocation(),
+				involvedPointers: involvedColors,
+			})
+		}
+	}
+
+	s.state = JSTypeReconserializer_State_GENERATING_POOL
+	if s.serializationMode.RunValidation() {
+		for _, seen := range s.recordsByPointer {
+			if TypePointers_IsAxiomatic(seen.pointer) {
+				jutil.CheckStateMsg1(
+					colors.StandardColors_AXIOMATIC_COLORS.ContainsKey(seen.colorId),
+					"Missing .type for SeenTypeRecord %s",
+					seen)
+			}
+		}
+	}
+}
+
+func (s *JSTypeReconserializer) finishColorPool() {
+	s.state = JSTypeReconserializer_State_FINISHED
+	s.CheckValidLinearTime()
 }
 
 // GetColorIdToJSTypeMapForDebugging returns a map from

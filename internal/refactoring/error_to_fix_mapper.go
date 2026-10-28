@@ -19,17 +19,13 @@
 package refactoring
 
 import (
+	"github.com/paullepoulpe/jsgo/internal/ast"
 	"github.com/paullepoulpe/jsgo/internal/jscomp"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
 
 // ErrorToFixMapper maps a JSError to a list of SuggestedFixes, if possible.
-// TODO(tbreisacher): Move this into the compiler itself (i.e. into the
-// jscomp package). This will make it easier for people adding new warnings
-// to also add fixes for them.
-//
-// Java: public final class ErrorToFixMapper
 type ErrorToFixMapper struct {
 	compiler              jscomp.AbstractCompiler
 	metadataForEachScript map[rhino.Node]*ScriptMetadata
@@ -40,10 +36,6 @@ var errorToFixMapper_EARLY_REF = jutil.Pattern_Compile("Variable referenced befo
 
 // errorToFixMapper_MISSING_REQUIRE is
 // Pattern.compile("'([^']+)' references a .*", Pattern.DOTALL).
-//
-// Go-only: language-adapter — jutil.Pattern has no flags: under DOTALL `.`
-// matches every char, which is `.` (every char but the line terminators
-// \n, \r, U+0085, U+2028 and U+2029) or one of those terminators.
 var errorToFixMapper_MISSING_REQUIRE = jutil.Pattern_Compile(
 	"'([^']+)' references a (?:.|[\n\r\u0085  ])*")
 var errorToFixMapper_FULLY_QUALIFIED_NAME = jutil.Pattern_Compile("Reference to fully qualified import name '([^']+)'.*")
@@ -51,17 +43,15 @@ var errorToFixMapper_USE_SHORT_NAME = jutil.Pattern_Compile(".*Please use the sh
 
 // Java: ErrorToFixMapper(AbstractCompiler)
 func NewErrorToFixMapper(compiler jscomp.AbstractCompiler) *ErrorToFixMapper {
-	m := &ErrorToFixMapper{
+	return &ErrorToFixMapper{
+		compiler:              compiler,
 		metadataForEachScript: make(map[rhino.Node]*ScriptMetadata),
 	}
-	m.compiler = compiler
-	return m
 }
 
 // Java: ErrorToFixMapper.getFixesForJsError(JSError)
 func (m *ErrorToFixMapper) GetFixesForJsError(error *jscomp.JSError) []*SuggestedFix {
-	fix := m.GetFixForJsError(error)
-	if fix != nil {
+	if fix := m.GetFixForJsError(error); fix != nil {
 		return []*SuggestedFix{fix}
 	}
 	switch error.Type().Key() {
@@ -129,21 +119,22 @@ func (m *ErrorToFixMapper) GetFixForJsError(error *jscomp.JSError) *SuggestedFix
 //
 // Java: ErrorToFixMapper.getFixForRedeclaration(JSError)
 func (m *ErrorToFixMapper) GetFixForRedeclaration(error *jscomp.JSError) *SuggestedFix {
-	name := error.Node()
-	jutil.CheckStateMsg1(name.IsName(), "%s", name)
-	parent := name.GetParent()
-	if !jscomp.NodeUtil_IsNameDeclaration(parent) {
+	nameNode := error.Node()
+	name, isName := ast.AsName(nameNode)
+	jutil.CheckStateMsg1(isName, "%s", nameNode)
+	decl, isDecl := ast.AsNameDeclaration(nameNode.GetParent())
+	if !isDecl {
 		return nil
 	}
+	parent := decl.Node()
 
-	fix := NewSuggestedFix_Builder().AttachMatchedNodeInfo(name, m.compiler)
+	fix := NewSuggestedFix_Builder().AttachMatchedNodeInfo(nameNode, m.compiler)
 
-	if !name.HasChildren() {
-		var nodeToDelete rhino.Node
-		if parent.HasOneChild() {
+	initExpr, hasInit := name.Init()
+	if !hasInit {
+		nodeToDelete := nameNode
+		if _, only := decl.OnlyDeclarator(); only {
 			nodeToDelete = parent
-		} else {
-			nodeToDelete = error.Node()
 		}
 		return fix.SetDescription("Remove redundant declaration").Delete(nodeToDelete).Build()
 	}
@@ -151,64 +142,40 @@ func (m *ErrorToFixMapper) GetFixForRedeclaration(error *jscomp.JSError) *Sugges
 	fix.SetDescription("Convert redundant declaration to assignment")
 
 	assign := rhino.IR_ExprResult(
-		rhino.IR_Assign(name.CloneNode(), name.GetFirstChild().CloneTree()))
-	if parent.HasOneChild() {
+		rhino.IR_Assign(nameNode.CloneNode(), initExpr.Node().CloneTree()))
+	if _, only := decl.OnlyDeclarator(); only {
 		return fix.Replace(parent, assign, m.compiler).Build()
 	}
 
-	// Split the var statement into an assignment and up to two var
-	// statements.
-	// var a = 0,
-	//     b = 1,  // This is the one we're removing.
-	//     c = 2;
-	//
-	// becomes
-	//
-	// var a = 0;  // This is the "added" var statement.
-	// b = 1;
-	// var c = 2;  // This is the original var statement.
 	var childrenOfAddedVarStatement []rhino.Node
-	for n := parent.GetFirstChild(); !n.IsNil(); n = n.GetNext() {
-		if n == name {
+	for d := range decl.Declarators() {
+		if d.Is(nameNode) {
 			break
 		}
-		childrenOfAddedVarStatement = append(childrenOfAddedVarStatement, n)
+		childrenOfAddedVarStatement = append(childrenOfAddedVarStatement, d.Node())
 	}
 
 	if len(childrenOfAddedVarStatement) > 0 {
-		var_ := rhino.NewNode(parent.GetToken())
+		var_ := rhino.NewNode(decl.Token())
 		for _, n := range childrenOfAddedVarStatement {
 			var_.AddChildToBack(n.CloneTree())
 		}
-		// Use a sortKey of "1" to make sure this is applied before the
-		// statement below.
 		fix.InsertBeforeNodeWithSortKey(parent, var_, m.compiler, "1")
 	}
 
-	if !name.GetNext().IsNil() {
-		// Keep the original var statement, just remove the names that will
-		// be put in the added one.
+	if !nameNode.GetNext().IsNil() {
 		for _, n := range childrenOfAddedVarStatement {
 			fix.Delete(n)
 		}
-		fix.Delete(name)
-		// Use a sortKey of "2" to make sure this is applied after the
-		// statement above.
+		fix.Delete(nameNode)
 		fix.InsertBeforeNodeWithSortKey(parent, assign, m.compiler, "2")
 	} else {
-		// Remove the original var statement.
 		fix.Replace(parent, assign, m.compiler)
 	}
 
 	return fix.Build()
 }
 
-// GetFixForEarlyReference: this fix is not ideal. It trades one warning
-// (JSC_REFERENCE_BEFORE_DECLARE) for another (JSC_REDECLARED_VARIABLE). But
-// after running the fixer once, you can then run it again and
-// GetFixForRedeclaration will take care of the JSC_REDECLARED_VARIABLE
-// warning. It may return nil.
-//
 // Java: ErrorToFixMapper.getFixForEarlyReference(JSError)
 func (m *ErrorToFixMapper) GetFixForEarlyReference(error *jscomp.JSError) *SuggestedFix {
 	matcher := errorToFixMapper_EARLY_REF.Matcher(error.Description())
@@ -262,9 +229,7 @@ func (m *ErrorToFixMapper) GetFixForReferenceToShortImportByLongName(error *jsco
 
 // Java: ErrorToFixMapper.getFixesForImplicitNullabilityErrors(JSError)
 func (m *ErrorToFixMapper) GetFixesForImplicitNullabilityErrors(error *jscomp.JSError) []*SuggestedFix {
-
 	if error.Node().GetSourceFileName() == nil {
-		// If we don't have a source location we can't generate a valid fix.
 		return []*SuggestedFix{}
 	}
 
@@ -282,18 +247,12 @@ func (m *ErrorToFixMapper) GetFixesForImplicitNullabilityErrors(error *jscomp.JS
 			Build()
 	switch error.Type().Key() {
 	case "JSC_NULL_MISSING_NULLABILITY_MODIFIER_JSDOC":
-		// When initializer was null, we can be confident about nullability
 		return []*SuggestedFix{qmark}
 	case "JSC_MISSING_NULLABILITY_MODIFIER_JSDOC":
-		// Otherwise, the linter should assume ! is preferred over ?.
 		return []*SuggestedFix{bang, qmark}
 	case "JSC_IMPLICITLY_NULLABLE_JSDOC":
-		// The type-based check prefers ? over ! since it only warns for names
-		// that are nullable.
 		return []*SuggestedFix{qmark, bang}
 	case "JSC_IMPLICITLY_NONNULL_JSDOC":
-		// Using type-information, we can also be confident about ! for enums
-		// and typedefs.
 		return []*SuggestedFix{bang}
 	default:
 		panic(jutil.NewIllegalArgumentExceptionMsg("Unexpected JSError Type: " + error.Type().Key()))
@@ -319,16 +278,18 @@ func (m *ErrorToFixMapper) GetFixForMissingSemicolon(error *jscomp.JSError) *Sug
 
 // Java: ErrorToFixMapper.getFixForMissingSuper(JSError)
 func (m *ErrorToFixMapper) GetFixForMissingSuper(error *jscomp.JSError) *SuggestedFix {
-	constructorFunction := error.Node().GetFirstChild()
-	body := jscomp.NodeUtil_GetFunctionBody(constructorFunction)
+	var body rhino.Node
+	if mfd, ok := ast.AsMemberFunctionDef(error.Node()); ok {
+		body = mfd.Function().Body().Node()
+	} else {
+		body = ast.MustFunction(error.Node().GetFirstChild()).Body().Node()
+	}
 	return NewSuggestedFix_Builder().
 		AttachMatchedNodeInfo(error.Node(), m.compiler).
 		AddChildToFront(body, "super();").
 		Build()
 }
 
-// GetFixForInvalidSuper may return nil.
-//
 // Java: ErrorToFixMapper.getFixForInvalidSuper(JSError)
 func (m *ErrorToFixMapper) GetFixForInvalidSuper(error *jscomp.JSError) *SuggestedFix {
 	matcher := errorToFixMapper_DID_YOU_MEAN.Matcher(error.Description())
@@ -343,8 +304,6 @@ func (m *ErrorToFixMapper) GetFixForInvalidSuper(error *jscomp.JSError) *Suggest
 	return nil
 }
 
-// GetFixForInexistentProperty may return nil.
-//
 // Java: ErrorToFixMapper.getFixForInexistentProperty(JSError)
 func (m *ErrorToFixMapper) GetFixForInexistentProperty(error *jscomp.JSError) *SuggestedFix {
 	matcher := errorToFixMapper_DID_YOU_MEAN.Matcher(error.Description())
@@ -388,8 +347,7 @@ func (m *ErrorToFixMapper) GetFixForMissingRequire(error *jscomp.JSError, import
 			AttachMatchedNodeInfo(error.Node(), m.compiler).
 			AddImport(match, namespaceToRequire, importType, scriptMetadata)
 
-	alias := scriptMetadata.GetAlias(namespaceToRequire)
-	if alias != nil {
+	if alias := scriptMetadata.GetAlias(namespaceToRequire); alias != nil {
 		fix.Replace(
 			error.Node(),
 			jscomp.NodeUtil_NewQName(m.compiler, jutil.StringReplace(qName, namespaceToRequire, *alias)),
@@ -404,13 +362,13 @@ func (m *ErrorToFixMapper) GetFixForExtraRequire(error *jscomp.JSError) *Suggest
 	node := error.Node()
 
 	fix := NewSuggestedFix_Builder().AttachMatchedNodeInfo(node, m.compiler)
-	destructuring := !jscomp.NodeUtil_GetEnclosingType(node, rhino.Token_OBJECT_PATTERN).IsNil()
-	if destructuring {
+	if !jscomp.NodeUtil_GetEnclosingType(node, rhino.Token_OBJECT_PATTERN).IsNil() {
 		fix.SetDescription("Delete unused symbol")
-		if node.IsStringKey() {
+		if _, ok := ast.AsStringKey(node); ok {
 			fix.Delete(node)
 		} else {
-			jutil.CheckStateMsg1(node.GetParent().IsStringKey(), "%s", node.GetParent())
+			_, parentIsStringKey := ast.AsStringKey(node.GetParent())
+			jutil.CheckStateMsg1(parentIsStringKey, "%s", node.GetParent())
 			fix.Delete(node.GetParent())
 		}
 	} else {
@@ -420,12 +378,8 @@ func (m *ErrorToFixMapper) GetFixForExtraRequire(error *jscomp.JSError) *Suggest
 	return fix.Build()
 }
 
-// GetFixForUnsortedRequires may return nil.
-//
 // Java: ErrorToFixMapper.getFixForUnsortedRequires(JSError)
 func (m *ErrorToFixMapper) GetFixForUnsortedRequires(error *jscomp.JSError) *SuggestedFix {
-	// TODO(tjgq): Encode enough information in the error to avoid the need
-	// to run a traversal in order to produce the fix.
 	script := jscomp.NodeUtil_GetEnclosingScript(error.Node())
 	callback := jscomp.NewCheckRequiresSorted(jscomp.CheckRequiresSorted_Mode_COLLECT_ONLY)
 	jscomp.NodeTraversal_Traverse(m.compiler, script, callback)
@@ -440,12 +394,8 @@ func (m *ErrorToFixMapper) GetFixForUnsortedRequires(error *jscomp.JSError) *Sug
 		Build()
 }
 
-// GetFixForUnsortedProvides may return nil.
-//
 // Java: ErrorToFixMapper.getFixForUnsortedProvides(JSError)
 func (m *ErrorToFixMapper) GetFixForUnsortedProvides(error *jscomp.JSError) *SuggestedFix {
-	// TODO(tjgq): Encode enough information in the error to avoid the need
-	// to run a traversal in order to produce the fix.
 	script := jscomp.NodeUtil_GetEnclosingScript(error.Node())
 	callback := jscomp.NewCheckProvidesSorted(jscomp.CheckProvidesSorted_Mode_COLLECT_ONLY)
 	jscomp.NodeTraversal_Traverse(m.compiler, script, callback)
@@ -468,22 +418,17 @@ func (m *ErrorToFixMapper) GetFixForRedundantNullabilityModifierJsDoc(error *jsc
 		Build()
 }
 
-// GetFixForConstantCaseErrors suggests a fix for a constant case error.
-//
-// If the variable is in a let clause, suggest adding a const. If the
-// variable is not, suggest adding a @const annotation. Don't try to adjust
-// the JSDoc, because that can produce invalid output. It may return nil.
-//
 // Java: ErrorToFixMapper.getFixForConstantCaseErrors(JSError)
 func (m *ErrorToFixMapper) GetFixForConstantCaseErrors(error *jscomp.JSError) *SuggestedFix {
 	n := error.Node()
-	parent := n.GetParent()
-	if !n.IsName() || !jscomp.NodeUtil_IsNameDeclaration(parent) {
+	_, isName := ast.AsName(n)
+	decl, isDecl := ast.AsNameDeclaration(n.GetParent())
+	if !isName || !isDecl {
 		return nil
 	}
+	parent := decl.Node()
 
-	if parent.IsLet() {
-		// Convert to a `const` declaration
+	if decl.Token() == rhino.Token_LET {
 		return NewSuggestedFix_Builder().
 			SetDescription("Make explicitly constant").
 			AttachMatchedNodeInfo(parent, m.compiler).
@@ -491,9 +436,8 @@ func (m *ErrorToFixMapper) GetFixForConstantCaseErrors(error *jscomp.JSError) *S
 			Build()
 	}
 	// Don't convert a `var` to a `const` to avoid breaking variable scoping.
-	jutil.CheckStateMsg1(parent.IsVar(), "%s", parent)
-	info := parent.GetJSDocInfo()
-	if info == nil {
+	jutil.CheckStateMsg1(decl.Token() == rhino.Token_VAR, "%s", parent)
+	if parent.GetJSDocInfo() == nil {
 		return NewSuggestedFix_Builder().
 			SetDescription("Make explicitly constant").
 			AttachMatchedNodeInfo(parent, m.compiler).

@@ -642,7 +642,7 @@ func nodeUtilSubtreeHasBlockScopeDecls(n rhino.Node) bool {
 		return !NodeUtil_IsFunctionExpression(n)
 	}
 	for c := n.GetFirstChild(); !c.IsNil(); c = c.GetNext() {
-		if nodeUtilSubtreeHasBlockScopeDecls(c) {
+		if !c.GetFirstChild().IsNil() && nodeUtilSubtreeHasBlockScopeDecls(c) {
 			return true
 		}
 	}
@@ -657,7 +657,7 @@ func nodeUtilStmtHasBlockScopeDecls(stmt rhino.Node) bool {
 		return true
 	default:
 		for c := stmt.GetFirstChild(); !c.IsNil(); c = c.GetNext() {
-			if nodeUtilSubtreeHasBlockScopeDecls(c) {
+			if !c.GetFirstChild().IsNil() && nodeUtilSubtreeHasBlockScopeDecls(c) {
 				return true
 			}
 		}
@@ -673,9 +673,9 @@ func nodeUtilBlockScopeMayHaveDecls(n, root rhino.Node) bool {
 		first := n.GetFirstChild()
 		return !first.IsNil() && nodeUtilBlockScopeMayHaveDecls(first, root)
 	case rhino.Token_FUNCTION:
-		return !NodeUtil_IsFunctionExpression(n) && n.GetFirstChild().GetString() != ""
+		return !NodeUtil_IsFunctionExpression(n) && n.GetFirstChild().GetStringID() > rhino.RhinoStringPool_EmptyID
 	case rhino.Token_CLASS:
-		return !NodeUtil_IsClassExpression(n) && n.GetFirstChild().GetString() != ""
+		return !NodeUtil_IsClassExpression(n) && !n.GetFirstChild().IsEmpty()
 	case rhino.Token_BLOCK:
 		if n != root && scanVarsBlockCreatesScope(n) {
 			return false
@@ -705,14 +705,16 @@ func nodeUtilScopeRootMayDeclareVars(root, fnRoot rhino.Node) bool {
 		return false
 	case rhino.Token_CLASS:
 		return !root.GetFirstChild().IsEmpty() && NodeUtil_IsClassExpression(root)
-	case rhino.Token_FOR, rhino.Token_FOR_IN, rhino.Token_FOR_OF, rhino.Token_FOR_AWAIT_OF, rhino.Token_SWITCH_BODY:
+	case rhino.Token_FOR, rhino.Token_FOR_IN, rhino.Token_FOR_OF, rhino.Token_FOR_AWAIT_OF:
+		return syntacticScopeHasBlockDecls(root)
+	case rhino.Token_SWITCH_BODY:
 		return nodeUtilBlockScopeMayHaveDecls(root, root)
 	case rhino.Token_BLOCK:
 		parent := root.GetParent()
 		if parent == fnRoot || (!parent.IsNil() && parent.IsClassMembers()) {
-			return root.HasChildren()
+			return !syntacticFunctionBlockHasNoDecls(root)
 		}
-		return nodeUtilBlockScopeMayHaveDecls(root, root)
+		return syntacticScopeHasBlockDecls(root)
 	default:
 		return true
 	}

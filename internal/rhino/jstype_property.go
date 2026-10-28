@@ -108,9 +108,10 @@ func (k Property_KeyKind) String() string { return property_KeyKind_names[k] }
 // NewProperty_SymbolKey are the record constructors; Equals, HashCode and
 // String are the records' generated methods.
 type Property_Key struct {
-	kind    Property_KeyKind
-	string_ string
-	symbol  *KnownSymbolType
+	kind     Property_KeyKind
+	stringID rhinoStringID
+	string_  string
+	symbol   *KnownSymbolType
 }
 
 // Kind returns the kind of the key.
@@ -191,6 +192,12 @@ func NewProperty_StringKey(string_ string) Property_Key {
 	return Property_Key{kind: Property_KeyKind_STRING, string_: string_}
 }
 
+// NewProperty_StringKeyByID constructs a Property_Key for an interned string ID.
+func NewProperty_StringKeyByID(id uint32) Property_Key {
+	sid := rhinoStringID(id)
+	return Property_Key{kind: Property_KeyKind_STRING, stringID: sid, string_: rhinoStringFromID(sid)}
+}
+
 // NewProperty_SymbolKey is a property well-known symbol key, such as
 // Symbol.iterator.
 //
@@ -257,7 +264,11 @@ func NewPropertyByKey(name Property_Key, type_ JSType, inferred bool, propertyNo
 	p := &Property{}
 	switch name.Kind() {
 	case Property_KeyKind_STRING:
-		p.nameID = rhinoStringPoolIntern(name.String_())
+		if name.stringID != 0 {
+			p.nameID = name.stringID
+		} else {
+			p.nameID = rhinoStringPoolIntern(name.String_())
+		}
 	case Property_KeyKind_SYMBOL:
 		p.nameID = type_.GetJSTypeBase().GetRegistry().propertySymbolID(name.Symbol())
 		p.isSymbol = true

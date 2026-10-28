@@ -463,13 +463,13 @@ func (c *GlobalNamespaceTest) TestRescanningExistingNodesDoesNotCreateDuplicateR
 	originalBazRefs := slices.Clone(baz.GetRefs())
 	// Rescan all of the nodes for which we got refs as if they were newly added
 	root := c.lastCompiler.GetJsRoot()
-	astChangeSetBuilder := jutil.NewLinkedHashSet[GlobalNamespace_AstChange]()
+	var astChanges astChangeSet
 	for _, name := range []*GlobalNamespace_Name{foo, bar, baz} {
 		for _, ref := range name.GetRefs() {
-			astChangeSetBuilder.Add(c.CreateGlobalAstChangeForNode(root, ref.GetNode()))
+			astChanges.add(c.CreateGlobalAstChangeForNode(root, ref.GetNode()))
 		}
 	}
-	namespace.ScanNewNodes(astChangeSetBuilder)
+	namespace.ScanNewNodes(&astChanges)
 	// We should get the same Name objects
 	AssertThat(globalNamespaceTest_name(namespace.GetOwnSlot("Foo"))).IsEqualTo(foo)
 	AssertThat(globalNamespaceTest_name(namespace.GetOwnSlot("Bar"))).IsEqualTo(bar)
@@ -1510,8 +1510,8 @@ func globalNamespaceTest_name(slot rhino.StaticSlot) *GlobalNamespace_Name {
 }
 
 // globalNamespaceTest_setOf is ImmutableSet.of(change).
-func globalNamespaceTest_setOf(change GlobalNamespace_AstChange) *jutil.LinkedHashSet[GlobalNamespace_AstChange] {
-	set := jutil.NewLinkedHashSet[GlobalNamespace_AstChange]()
-	set.Add(change)
-	return set
+func globalNamespaceTest_setOf(change GlobalNamespace_AstChange) *astChangeSet {
+	var set astChangeSet
+	set.add(change)
+	return &set
 }

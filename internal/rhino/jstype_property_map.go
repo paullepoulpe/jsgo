@@ -195,6 +195,9 @@ func (m *PropertyMap) FindClosest(name string) *Property_OwnedProperty {
 // heap-allocating a Property_OwnedProperty wrapper.
 func (m *PropertyMap) findClosestPairByKey(name Property_Key) (ObjectType, *Property) {
 	if name.Kind() == Property_KeyKind_STRING {
+		if name.stringID != 0 {
+			return m.findClosestPairByStringID(name.string_, name.stringID)
+		}
 		str := name.String_()
 		if len(m.entries()) == 1 && !m.hasNonASCII {
 			if p := m.entries()[0]; rhinoStringFromID(p.nameID) == str {
@@ -281,6 +284,35 @@ func (m *PropertyMap) getOwnPropertyByID(propertyName string, id rhinoStringID) 
 	return nil
 }
 
+// FindPropertyByID resolves the closest Property in m or its ancestors by its
+// interned rhinoStringID.
+func (m *PropertyMap) FindPropertyByID(id rhinoStringID) *Property {
+	if id == 0 {
+		return nil
+	}
+	_, prop := m.findClosestPairByStringID(rhinoStringFromID(id), id)
+	return prop
+}
+
+// GetOwnPropertyByID looks up an own string property by its interned rhinoStringID.
+func (m *PropertyMap) GetOwnPropertyByID(id rhinoStringID) *Property {
+	if id == 0 || len(m.entries()) == 0 {
+		return nil
+	}
+	if !m.hasNonASCII {
+		if m.ext != nil && m.ext.byID != nil {
+			return m.ext.byID[id]
+		}
+		for _, p := range m.entries() {
+			if p.nameID == id {
+				return p
+			}
+		}
+		return nil
+	}
+	return m.getOwnPropertyByID(rhinoStringFromID(id), id)
+}
+
 // Java: PropertyMap.getOwnProperty(String)
 func (m *PropertyMap) GetOwnProperty(propertyName string) *Property {
 	if len(m.entries()) == 0 {
@@ -299,6 +331,9 @@ func (m *PropertyMap) GetOwnProperty(propertyName string) *Property {
 func (m *PropertyMap) GetOwnPropertyByKey(propertyName Property_Key) *Property {
 	switch propertyName.Kind() {
 	case Property_KeyKind_STRING:
+		if propertyName.stringID != 0 {
+			return m.GetOwnPropertyByID(propertyName.stringID)
+		}
 		return m.GetOwnProperty(propertyName.String_())
 	}
 	if m.ext != nil && m.ext.knownSymbols != nil {

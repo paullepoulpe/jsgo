@@ -19,6 +19,8 @@
 package jscomp
 
 import (
+	"slices"
+
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
@@ -39,168 +41,61 @@ type JSDocSerializer struct{}
 //
 // Java: JSDocSerializer.convertJSDocInfoForOptimizations(JSDocInfo)
 func JSDocSerializer_ConvertJSDocInfoForOptimizations(jsdoc *rhino.JSDocInfo) *rhino.JSDocInfo {
+	return jsDocSerializer_convertJSDocInfoWithBuilder(jsdoc, nil)
+}
+
+func jsDocSerializer_convertJSDocInfoWithBuilder(
+	jsdoc *rhino.JSDocInfo,
+	builder *rhino.JSDocInfo_Builder,
+) *rhino.JSDocInfo {
 	if jsdoc == nil {
 		return nil
 	}
 
-	var builder rhino.JSDocInfo_Builder
-	var init bool
-	ensureBuilder := func() *rhino.JSDocInfo_Builder {
-		init = true
-		return &builder
-	}
-
-	if mode := jsdoc.GetPerFileClosureUnawareMode(); mode != nil {
-		ensureBuilder().RecordClosureUnawareCodeWithMode(*mode)
-	}
-	if license := jsdoc.GetLicense(); license != nil && *license != "" {
-		ensureBuilder().AddLicense(rhino.RhinoStringPool_AddOrGet(*license))
-	}
-	if meaning := jsdoc.GetMeaning(); meaning != nil && *meaning != "" {
-		ensureBuilder().RecordMeaning(rhino.RhinoStringPool_AddOrGet(*meaning))
-	}
-	if description := jsdoc.GetDescription(); description != nil && *description != "" {
-		ensureBuilder().RecordDescription(rhino.RhinoStringPool_AddOrGet(*description))
-	}
-	if alternateMessageId := jsdoc.GetAlternateMessageId(); alternateMessageId != nil && *alternateMessageId != "" {
-		ensureBuilder().RecordAlternateMessageId(rhino.RhinoStringPool_AddOrGet(*alternateMessageId))
-	}
-
-	if jsdoc.HasFileOverview() {
-		ensureBuilder().RecordFileOverview("")
-	}
-	if jsdoc.IsSassGeneratedCssTs() {
-		ensureBuilder().RecordSassGeneratedCssTs()
-	}
-	if jsdoc.IsNoCoverage() {
-		ensureBuilder().RecordNoCoverage()
-	}
-	if jsdoc.IsNoInline() {
-		ensureBuilder().RecordNoInline()
-	}
-	if jsdoc.IsEncourageInlining() {
-		ensureBuilder().RecordEncourageInlining()
-	}
-	if jsdoc.IsRequireInlining() {
-		ensureBuilder().RecordRequireInlining()
-	}
-	if jsdoc.IsNoCollapse() {
-		ensureBuilder().RecordNoCollapse()
-	}
-	if jsdoc.IsProvideGoog() {
-		ensureBuilder().RecordProvideGoog()
-	}
-	if jsdoc.IsProvideAlreadyProvided() {
-		ensureBuilder().RecordProvideAlreadyProvided()
-	}
-	if jsdoc.IsTypeSummary() {
-		ensureBuilder().RecordTypeSummary()
-	}
-	if jsdoc.IsPureOrBreakMyCode() {
-		ensureBuilder().RecordPureOrBreakMyCode()
-	}
-	if jsdoc.IsCollapsibleOrBreakMyCode() {
-		ensureBuilder().RecordCollapsibleOrBreakMyCode()
-	}
-	if jsdoc.HasThisType() {
-		ensureBuilder().RecordThisType(jsDocSerializer_placeholderType)
-	}
-	if jsdoc.HasEnumParameterType() {
-		ensureBuilder().RecordEnumParameterType(jsDocSerializer_placeholderType)
-	}
-	if jsdoc.IsDefine() {
-		ensureBuilder().RecordDefineType(jsDocSerializer_placeholderType)
-	}
-	if jsdoc.HasConstAnnotation() {
-		ensureBuilder().RecordConstancy()
-	}
-	if jsdoc.IsAnyIdGenerator() {
-		if jsdoc.IsConsistentIdGenerator() {
-			ensureBuilder().RecordConsistentIdGenerator()
-		} else if jsdoc.IsStableIdGenerator() {
-			ensureBuilder().RecordStableIdGenerator()
-		} else if jsdoc.IsXidGenerator() {
-			ensureBuilder().RecordXidGenerator()
-		} else if jsdoc.IsMappedIdGenerator() {
-			ensureBuilder().RecordMappedIdGenerator()
-		} else if jsdoc.IsIdGenerator() {
-			ensureBuilder().RecordIdGenerator()
-		} else {
-			panic(jutil.NewIllegalStateExceptionMsg("Failed to identify idGenerator inside JSDoc: " + jsdoc.String()))
-		}
-	}
-	if jsdoc.IsNoSideEffects() {
-		ensureBuilder().RecordNoSideEffects()
-	}
-
-	var hasModifiesArguments, hasModifiesThis bool
-	if jsdoc.HasModifies() {
-		for modifies := range jsdoc.GetModifies().All() {
-			if modifies == "this" {
-				hasModifiesThis = true
-			} else {
-				hasModifiesArguments = true
-			}
-		}
-	}
-
-	if len(jsdoc.GetThrowsAnnotations()) != 0 {
-		ensureBuilder().RecordThrowsAnnotation("{!" + jsDocSerializer_PLACEHOLDER_TYPE_NAME + "}")
-	}
-	if jsdoc.IsConstructor() {
-		ensureBuilder().RecordConstructor()
-	}
-	if jsdoc.IsInterface() {
-		ensureBuilder().RecordInterface()
-	}
-
-	var hasSuppressMessageConvention, hasSuppressPartialAlias, hasSuppressUntranspilableFeatures bool
-	jsdoc.ForEachSuppression(func(s string) bool {
-		switch s {
-		case "messageConventions":
-			hasSuppressMessageConvention = true
-		case "partialAlias":
-			hasSuppressPartialAlias = true
-		case "untranspilableFeatures":
-			hasSuppressUntranspilableFeatures = true
-		}
-		return true
-	})
-
-	if jsdoc.IsAbstract() {
-		ensureBuilder().RecordAbstract()
-	}
-	if jsdoc.IsUsedViaDotConstructor() {
-		_ = ensureBuilder().RecordUsedViaDotConstructor()
-	}
-
-	if hasModifiesArguments || hasModifiesThis {
-		modSet := jutil.NewLinkedHashSet[string]()
-		if hasModifiesArguments {
-			modSet.Add("arguments")
-		}
-		if hasModifiesThis {
-			modSet.Add("this")
-		}
-		ensureBuilder().RecordModifies(modSet)
-	}
-	if hasSuppressMessageConvention || hasSuppressPartialAlias || hasSuppressUntranspilableFeatures {
-		suppSet := jutil.NewLinkedHashSet[string]()
-		if hasSuppressMessageConvention {
-			suppSet.Add("messageConventions")
-		}
-		if hasSuppressPartialAlias {
-			suppSet.Add("partialAlias")
-		}
-		if hasSuppressUntranspilableFeatures {
-			suppSet.Add("untranspilableFeatures")
-		}
-		ensureBuilder().RecordSuppressionsWithDescription(suppSet, "")
-	}
-
-	if !init {
+	var kindBuf [8]int32
+	kinds := jsDocSerializer_fillJsdocTagsOnly(jsdoc, kindBuf[:0])
+	license, description, alternateMessageId, meaning, mode, hasMode := jsDocSerializer_stringFields(jsdoc)
+	if len(kinds) == 0 &&
+		license == "" &&
+		description == "" &&
+		alternateMessageId == "" &&
+		meaning == "" &&
+		!hasMode {
 		return nil
 	}
+	return jsDocSerializer_buildConvertedJSDoc(
+		kinds, license, description, alternateMessageId, meaning, mode, hasMode, builder)
+}
+
+func jsDocSerializer_buildConvertedJSDoc(
+	kinds []int32,
+	license, description, alternateMessageId, meaning string,
+	mode rhino.JSDocInfo_PerFileClosureUnawareMode,
+	hasMode bool,
+	builder *rhino.JSDocInfo_Builder,
+) *rhino.JSDocInfo {
+	var localBuilder rhino.JSDocInfo_Builder
+	if builder == nil {
+		builder = &localBuilder
+	}
+	builder.Reset()
+
+	if hasMode {
+		builder.RecordClosureUnawareCodeWithMode(mode)
+	}
+	if license != "" {
+		builder.RecordLicense(license)
+	}
+	if meaning != "" {
+		builder.RecordMeaning(rhino.RhinoStringPool_AddOrGet(meaning))
+	}
+	if description != "" {
+		builder.RecordDescription(rhino.RhinoStringPool_AddOrGet(description))
+	}
+	if alternateMessageId != "" {
+		builder.RecordAlternateMessageId(rhino.RhinoStringPool_AddOrGet(alternateMessageId))
+	}
+	jsDocSerializer_applyTagsToBuilder(kinds, builder)
 	return builder.Build()
 }
 
@@ -208,121 +103,180 @@ func JSDocSerializer_ConvertJSDocInfoForOptimizations(jsdoc *rhino.JSDocInfo) *r
 //
 // Java: JSDocSerializer.serializeJsdoc(JSDocInfo, StringPool.Builder)
 func JSDocSerializer_SerializeJsdoc(jsdoc *rhino.JSDocInfo, stringPool *StringPool_Builder) *OptimizationJsdoc {
-	var m OptimizationJsdoc
-	var kindBuf [8]int32
-	if !jsDocSerializer_fillJsdocProto(jsdoc, stringPool, &m, kindBuf[:0]) {
+	if jsdoc == nil {
 		return nil
 	}
-	m.kind_ = append([]int32(nil), m.kind_...)
-	m.frozen = true
+	var kindBuf [8]int32
+	kinds := jsDocSerializer_fillJsdocTagsOnly(jsdoc, kindBuf[:0])
+	license, description, alternateMessageId, meaning, mode, hasMode := jsDocSerializer_stringFields(jsdoc)
+	if len(kinds) == 0 &&
+		license == "" &&
+		description == "" &&
+		alternateMessageId == "" &&
+		meaning == "" &&
+		!hasMode {
+		return nil
+	}
+	return jsDocSerializer_allocProto(
+		kinds, license, description, alternateMessageId, meaning, mode, hasMode, stringPool)
+}
+
+func jsDocSerializer_allocProto(
+	kinds []int32,
+	license, description, alternateMessageId, meaning string,
+	mode rhino.JSDocInfo_PerFileClosureUnawareMode,
+	hasMode bool,
+	stringPool *StringPool_Builder,
+) *OptimizationJsdoc {
+	m := &OptimizationJsdoc{
+		frozen: true,
+	}
+	if len(kinds) > 0 {
+		m.kind_ = slices.Clone(kinds)
+	}
+	if license != "" {
+		m.licenseTextPointer_ = int32(stringPool.Put(license))
+	}
+	if description != "" {
+		m.descriptionPointer_ = int32(stringPool.Put(description))
+	}
+	if alternateMessageId != "" {
+		m.alternateMessageIdPointer_ = int32(stringPool.Put(alternateMessageId))
+	}
+	if meaning != "" {
+		m.meaningPointer_ = int32(stringPool.Put(meaning))
+	}
+	if hasMode {
+		m.closureUnawareModePointer_ = int32(stringPool.Put(mode.String()))
+	}
 	m.memoizedSize = m.scalarsSerializedSize()
-	return &m
+	return m
+}
+
+func jsDocSerializer_stringFields(jsdoc *rhino.JSDocInfo) (
+	license, description, alternateMessageId, meaning string,
+	mode rhino.JSDocInfo_PerFileClosureUnawareMode,
+	hasMode bool,
+) {
+	if v := rhino.JSDocInfo_LICENSE.Get(jsdoc); v != nil {
+		license = v.(string)
+	}
+	if v := rhino.JSDocInfo_DESCRIPTION.Get(jsdoc); v != nil {
+		description = v.(string)
+	}
+	if v := rhino.JSDocInfo_ALTERNATE_MESSAGE_ID.Get(jsdoc); v != nil {
+		alternateMessageId = v.(string)
+	}
+	if v := rhino.JSDocInfo_MEANING.Get(jsdoc); v != nil {
+		meaning = v.(string)
+	}
+	if v := rhino.JSDocInfo_CLOSURE_UNAWARE_CONFIG_VALUE.Get(jsdoc); v != nil {
+		mode = v.(rhino.JSDocInfo_PerFileClosureUnawareMode)
+		hasMode = true
+	}
+	return
 }
 
 func jsDocSerializer_fillJsdocTagsOnly(jsdoc *rhino.JSDocInfo, kindBuf []int32) []int32 {
-	addKind := func(v JsdocTag) {
-		kindBuf = append(kindBuf, v.GetNumber())
-	}
-
 	if jsdoc.HasFileOverview() {
-		addKind(JsdocTag_JSDOC_FILEOVERVIEW)
+		kindBuf = append(kindBuf, JsdocTag_JSDOC_FILEOVERVIEW_VALUE)
 	}
 	if jsdoc.IsSassGeneratedCssTs() {
-		addKind(JsdocTag_JSDOC_SASS_GENERATED_CSS_TS)
+		kindBuf = append(kindBuf, JsdocTag_JSDOC_SASS_GENERATED_CSS_TS_VALUE)
 	}
 	// Used by CoverageInstrumentationCallback
 	if jsdoc.IsNoCoverage() {
-		addKind(JsdocTag_JSDOC_NO_COVERAGE)
+		kindBuf = append(kindBuf, JsdocTag_JSDOC_NO_COVERAGE_VALUE)
 	}
 	if jsdoc.IsNoInline() {
-		addKind(JsdocTag_JSDOC_NO_INLINE)
+		kindBuf = append(kindBuf, JsdocTag_JSDOC_NO_INLINE_VALUE)
 	}
 	if jsdoc.IsEncourageInlining() {
-		addKind(JsdocTag_JSDOC_ENCOURAGE_INLINING)
+		kindBuf = append(kindBuf, JsdocTag_JSDOC_ENCOURAGE_INLINING_VALUE)
 	}
 	if jsdoc.IsRequireInlining() {
-		addKind(JsdocTag_JSDOC_REQUIRE_INLINING)
+		kindBuf = append(kindBuf, JsdocTag_JSDOC_REQUIRE_INLINING_VALUE)
 	}
 	if jsdoc.IsNoCollapse() {
-		addKind(JsdocTag_JSDOC_NO_COLLAPSE)
+		kindBuf = append(kindBuf, JsdocTag_JSDOC_NO_COLLAPSE_VALUE)
 	}
 	if jsdoc.IsProvideGoog() {
-		addKind(JsdocTag_JSDOC_PROVIDE_GOOG)
+		kindBuf = append(kindBuf, JsdocTag_JSDOC_PROVIDE_GOOG_VALUE)
 	}
 	if jsdoc.IsProvideAlreadyProvided() {
-		addKind(JsdocTag_JSDOC_PROVIDE_ALREADY_PROVIDED)
+		kindBuf = append(kindBuf, JsdocTag_JSDOC_PROVIDE_ALREADY_PROVIDED_VALUE)
 	}
 	if jsdoc.IsTypeSummary() {
-		addKind(JsdocTag_JSDOC_TYPE_SUMMARY_FILE)
+		kindBuf = append(kindBuf, JsdocTag_JSDOC_TYPE_SUMMARY_FILE_VALUE)
 	}
 	if jsdoc.IsPureOrBreakMyCode() {
-		addKind(JsdocTag_JSDOC_PURE_OR_BREAK_MY_CODE)
+		kindBuf = append(kindBuf, JsdocTag_JSDOC_PURE_OR_BREAK_MY_CODE_VALUE)
 	}
 	if jsdoc.IsCollapsibleOrBreakMyCode() {
-		addKind(JsdocTag_JSDOC_COLLAPSIBLE_OR_BREAK_MY_CODE)
+		kindBuf = append(kindBuf, JsdocTag_JSDOC_COLLAPSIBLE_OR_BREAK_MY_CODE_VALUE)
 	}
 	if jsdoc.HasThisType() {
-		addKind(JsdocTag_JSDOC_THIS)
+		kindBuf = append(kindBuf, JsdocTag_JSDOC_THIS_VALUE)
 	}
 	if jsdoc.HasEnumParameterType() {
-		addKind(JsdocTag_JSDOC_ENUM)
+		kindBuf = append(kindBuf, JsdocTag_JSDOC_ENUM_VALUE)
 	}
 	if jsdoc.IsDefine() {
-		addKind(JsdocTag_JSDOC_DEFINE)
+		kindBuf = append(kindBuf, JsdocTag_JSDOC_DEFINE_VALUE)
 	}
 	if jsdoc.HasConstAnnotation() {
-		addKind(JsdocTag_JSDOC_CONST)
+		kindBuf = append(kindBuf, JsdocTag_JSDOC_CONST_VALUE)
 	}
 	if jsdoc.IsAnyIdGenerator() {
-		addKind(jsDocSerializer_serializeIdGenerator(jsdoc))
+		kindBuf = append(kindBuf, jsDocSerializer_serializeIdGenerator(jsdoc).GetNumber())
 	}
 
 	// Used by PureFunctionIdentifier
 	if jsdoc.IsNoSideEffects() {
-		addKind(JsdocTag_JSDOC_NO_SIDE_EFFECTS)
+		kindBuf = append(kindBuf, JsdocTag_JSDOC_NO_SIDE_EFFECTS_VALUE)
 	}
-	if jsdoc.HasModifies() {
+	if rhino.JSDocInfo_MODIFIES.Get(jsdoc) != nil && jsdoc.HasModifies() {
 		for modifies := range jsdoc.GetModifies().All() {
-			switch modifies {
-			case "this":
-				addKind(JsdocTag_JSDOC_MODIFIES_THIS)
-			case "arguments":
-				addKind(JsdocTag_JSDOC_MODIFIES_ARGUMENTS)
-			default:
+			if modifies == "this" {
+				kindBuf = append(kindBuf, JsdocTag_JSDOC_MODIFIES_THIS_VALUE)
+			} else {
 				// Currently, anything other than "this" is considered a modification to arguments
-				addKind(JsdocTag_JSDOC_MODIFIES_ARGUMENTS)
+				kindBuf = append(kindBuf, JsdocTag_JSDOC_MODIFIES_ARGUMENTS_VALUE)
 			}
 		}
 	}
-	if len(jsdoc.GetThrowsAnnotations()) != 0 {
-		addKind(JsdocTag_JSDOC_THROWS)
+	if rhino.JSDocInfo_THROWS_ANNOTATIONS.Get(jsdoc) != nil && len(jsdoc.GetThrowsAnnotations()) != 0 {
+		kindBuf = append(kindBuf, JsdocTag_JSDOC_THROWS_VALUE)
 	}
 
 	// Used by DevirtualizeMethods and CollapseProperties
 	if jsdoc.IsConstructor() {
-		addKind(JsdocTag_JSDOC_CONSTRUCTOR)
+		kindBuf = append(kindBuf, JsdocTag_JSDOC_CONSTRUCTOR_VALUE)
 	}
 	if jsdoc.IsInterface() {
-		addKind(JsdocTag_JSDOC_INTERFACE)
+		kindBuf = append(kindBuf, JsdocTag_JSDOC_INTERFACE_VALUE)
 	}
-	if jsdoc.HasSuppression("partialAlias") {
-		addKind(JsdocTag_JSDOC_SUPPRESS_PARTIAL_ALIAS)
+	hasSuppressions := rhino.JSDocInfo_SUPPRESSIONS.Get(jsdoc) != nil
+	if hasSuppressions && jsdoc.HasSuppression("partialAlias") {
+		kindBuf = append(kindBuf, JsdocTag_JSDOC_SUPPRESS_PARTIAL_ALIAS_VALUE)
 	}
 
 	// Used by ClosureCodeRemoval
 	if jsdoc.IsAbstract() {
-		addKind(JsdocTag_JSDOC_ABSTRACT)
+		kindBuf = append(kindBuf, JsdocTag_JSDOC_ABSTRACT_VALUE)
 	}
 
 	// Used by ReplaceMessages
-	if jsdoc.HasSuppression("messageConventions") {
-		addKind(JsdocTag_JSDOC_SUPPRESS_MESSAGE_CONVENTION)
-	}
-	if jsdoc.HasSuppression("untranspilableFeatures") {
-		addKind(JsdocTag_JSDOC_SUPPRESS_UNTRANSPILABLE_FEATURES)
+	if hasSuppressions {
+		if jsdoc.HasSuppression("messageConventions") {
+			kindBuf = append(kindBuf, JsdocTag_JSDOC_SUPPRESS_MESSAGE_CONVENTION_VALUE)
+		}
+		if jsdoc.HasSuppression("untranspilableFeatures") {
+			kindBuf = append(kindBuf, JsdocTag_JSDOC_SUPPRESS_UNTRANSPILABLE_FEATURES_VALUE)
+		}
 	}
 	if jsdoc.IsUsedViaDotConstructor() {
-		addKind(JsdocTag_JSDOC_USED_VIA_DOT_CONSTRUCTOR)
+		kindBuf = append(kindBuf, JsdocTag_JSDOC_USED_VIA_DOT_CONSTRUCTOR_VALUE)
 	}
 	return kindBuf
 }
@@ -333,21 +287,21 @@ func jsDocSerializer_fillJsdocProto(jsdoc *rhino.JSDocInfo, stringPool *StringPo
 	}
 
 	m.kind_ = jsDocSerializer_fillJsdocTagsOnly(jsdoc, kindBuf)
-	if jsdoc.GetLicense() != nil {
-		m.licenseTextPointer_ = int32(stringPool.Put(*jsdoc.GetLicense()))
+	license, description, alternateMessageId, meaning, mode, hasMode := jsDocSerializer_stringFields(jsdoc)
+	if license != "" {
+		m.licenseTextPointer_ = int32(stringPool.Put(license))
 	}
-	if jsdoc.GetDescription() != nil {
-		m.descriptionPointer_ = int32(stringPool.Put(*jsdoc.GetDescription()))
+	if description != "" {
+		m.descriptionPointer_ = int32(stringPool.Put(description))
 	}
-	if jsdoc.GetAlternateMessageId() != nil {
-		m.alternateMessageIdPointer_ = int32(stringPool.Put(*jsdoc.GetAlternateMessageId()))
+	if alternateMessageId != "" {
+		m.alternateMessageIdPointer_ = int32(stringPool.Put(alternateMessageId))
 	}
-	if jsdoc.GetMeaning() != nil {
-		m.meaningPointer_ = int32(stringPool.Put(*jsdoc.GetMeaning()))
+	if meaning != "" {
+		m.meaningPointer_ = int32(stringPool.Put(meaning))
 	}
-	if jsdoc.GetPerFileClosureUnawareMode() != nil {
-		m.closureUnawareModePointer_ =
-			int32(stringPool.Put(jsdoc.GetPerFileClosureUnawareMode().String()))
+	if hasMode {
+		m.closureUnawareModePointer_ = int32(stringPool.Put(mode.String()))
 	}
 
 	return len(m.kind_) != 0 ||
@@ -398,19 +352,17 @@ var jsDocSerializer_placeholderType = jsDocSerializer_createPlaceholderType()
 //
 // Go-only: language-adapter — Enum.valueOf.
 func jsDocSerializer_perFileClosureUnawareModeValueOf(name string) rhino.JSDocInfo_PerFileClosureUnawareMode {
-	for _, m := range rhino.JSDocInfo_PerFileClosureUnawareMode_values() {
-		if m.String() == name {
-			return m
-		}
+	switch name {
+	case "UNSPECIFIED":
+		return rhino.JSDocInfo_PerFileClosureUnawareMode_UNSPECIFIED
+	case "SIMPLE":
+		return rhino.JSDocInfo_PerFileClosureUnawareMode_SIMPLE
+	case "WHITESPACE":
+		return rhino.JSDocInfo_PerFileClosureUnawareMode_WHITESPACE
+	default:
+		panic(jutil.NewIllegalArgumentExceptionMsg(
+			"No enum constant com.google.javascript.rhino.JSDocInfo.PerFileClosureUnawareMode." + name))
 	}
-	panic(jutil.NewIllegalArgumentExceptionMsg(
-		"No enum constant com.google.javascript.rhino.JSDocInfo.PerFileClosureUnawareMode." + name))
-}
-
-// jsDocSerializer_newStringTreeSet is new TreeSet<String>() (natural
-// String order).
-func jsDocSerializer_newStringTreeSet() *jutil.TreeSet[string] {
-	return jutil.NewTreeSet(jutil.StringCompareTo)
 }
 
 var (
@@ -428,7 +380,6 @@ func JSDocSerializer_DeserializeJsdoc(serializedJsdoc *OptimizationJsdoc, string
 		return nil
 	}
 	var builder rhino.JSDocInfo_Builder
-	builder.Reset()
 	return jsDocSerializer_deserializeJsdocWithBuilder(serializedJsdoc, stringPool, &builder)
 }
 
@@ -448,7 +399,7 @@ func jsDocSerializer_deserializeJsdocWithBuilder(
 				stringPool.Get(int(serializedJsdoc.GetClosureUnawareModePointer()))))
 	}
 	if serializedJsdoc.GetLicenseTextPointer() != 0 {
-		builder.AddLicense(stringPool.Get(int(serializedJsdoc.GetLicenseTextPointer())))
+		builder.RecordLicense(stringPool.Get(int(serializedJsdoc.GetLicenseTextPointer())))
 	}
 	if serializedJsdoc.GetMeaningPointer() != 0 {
 		builder.RecordMeaning(stringPool.Get(int(serializedJsdoc.GetMeaningPointer())))
@@ -461,6 +412,11 @@ func jsDocSerializer_deserializeJsdocWithBuilder(
 			stringPool.Get(int(serializedJsdoc.GetAlternateMessageIdPointer())))
 	}
 
+	jsDocSerializer_applyTagsToBuilder(serializedJsdoc.kind_, builder)
+	return builder.Build()
+}
+
+func jsDocSerializer_applyTagsToBuilder(kinds []int32, builder *rhino.JSDocInfo_Builder) {
 	// Bitmasks avoid allocating TreeSets/LinkedHashSets on the deserialization hot path
 	// while preserving exact alphabetical TreeSet<String> order:
 	// modifies: bit 0 = "arguments", bit 1 = "this"
@@ -468,116 +424,85 @@ func jsDocSerializer_deserializeJsdocWithBuilder(
 	var modMask uint8
 	var suppMask uint8
 
-	for i := 0; i < serializedJsdoc.GetKindCount(); i++ {
-		tag := serializedJsdoc.GetKind(i)
+	for i := 0; i < len(kinds); i++ {
+		tag := jsdocTag_fromNumber(kinds[i])
 		switch tag {
 		case JsdocTag_JSDOC_CONST:
 			builder.RecordConstancy()
-			continue
 		case JsdocTag_JSDOC_ENUM:
 			builder.RecordEnumParameterType(jsDocSerializer_placeholderType)
-			continue
 		case JsdocTag_JSDOC_THIS:
 			builder.RecordThisType(jsDocSerializer_placeholderType)
-			continue
 		case JsdocTag_JSDOC_NO_COLLAPSE:
 			builder.RecordNoCollapse()
-			continue
 		case JsdocTag_JSDOC_NO_INLINE:
 			builder.RecordNoInline()
-			continue
 		case JsdocTag_JSDOC_REQUIRE_INLINING:
 			builder.RecordRequireInlining()
-			continue
 		case JsdocTag_JSDOC_ENCOURAGE_INLINING:
 			builder.RecordEncourageInlining()
-			continue
 		case JsdocTag_JSDOC_PROVIDE_GOOG:
 			builder.RecordProvideGoog()
-			continue
 		case JsdocTag_JSDOC_PROVIDE_ALREADY_PROVIDED:
 			builder.RecordProvideAlreadyProvided()
-			continue
 		case JsdocTag_JSDOC_TYPE_SUMMARY_FILE:
 			builder.RecordTypeSummary()
-			continue
 		case JsdocTag_JSDOC_PURE_OR_BREAK_MY_CODE:
 			builder.RecordPureOrBreakMyCode()
-			continue
 		case JsdocTag_JSDOC_COLLAPSIBLE_OR_BREAK_MY_CODE:
 			builder.RecordCollapsibleOrBreakMyCode()
-			continue
 		case JsdocTag_JSDOC_DEFINE:
 			builder.RecordDefineType(jsDocSerializer_placeholderType)
-			continue
 		case JsdocTag_JSDOC_NO_SIDE_EFFECTS:
 			builder.RecordNoSideEffects()
-			continue
 		case JsdocTag_JSDOC_MODIFIES_THIS:
 			modMask |= 2
-			continue
 		case JsdocTag_JSDOC_MODIFIES_ARGUMENTS:
 			modMask |= 1
-			continue
 		case JsdocTag_JSDOC_THROWS:
 			builder.RecordThrowsAnnotation(jsDocSerializer_throwsPlaceholder)
-			continue
 		case JsdocTag_JSDOC_CONSTRUCTOR:
 			builder.RecordConstructor()
-			continue
 		case JsdocTag_JSDOC_INTERFACE:
 			builder.RecordInterface()
-			continue
 		case JsdocTag_JSDOC_SUPPRESS_PARTIAL_ALIAS:
 			suppMask |= 2
-			continue
 		case JsdocTag_JSDOC_ID_GENERATOR_CONSISTENT:
 			builder.RecordConsistentIdGenerator()
-			continue
 		case JsdocTag_JSDOC_ID_GENERATOR_STABLE:
 			builder.RecordStableIdGenerator()
-			continue
 		case JsdocTag_JSDOC_ID_GENERATOR_MAPPED:
 			builder.RecordMappedIdGenerator()
-			continue
 		case JsdocTag_JSDOC_ID_GENERATOR_XID:
 			builder.RecordXidGenerator()
-			continue
 		case JsdocTag_JSDOC_ID_GENERATOR_INCONSISTENT:
 			builder.RecordIdGenerator()
-			continue
 		case JsdocTag_JSDOC_ABSTRACT:
 			builder.RecordAbstract()
-			continue
-			// TODO(lharker): stage 2 passes ideally shouldn't report diagnostics, so this could be
-			// moved to stage 1.
+		// TODO(lharker): stage 2 passes ideally shouldn't report diagnostics, so this could be
+		// moved to stage 1.
 		case JsdocTag_JSDOC_SUPPRESS_MESSAGE_CONVENTION:
 			suppMask |= 1
-			continue
-			// ReportUntranspilableFeatures pass will run in stage2 since it uses languageOut
-			// information. It reports diagnostic {@code UNTRANSPILABLE_FEATURE_PRESENT} that can be
-			// supppressed using `untranspilableFeatures` suppression tag.
-			// Hence we must propagate it.
+		// ReportUntranspilableFeatures pass will run in stage2 since it uses languageOut
+		// information. It reports diagnostic {@code UNTRANSPILABLE_FEATURE_PRESENT} that can be
+		// supppressed using `untranspilableFeatures` suppression tag.
+		// Hence we must propagate it.
 		case JsdocTag_JSDOC_SUPPRESS_UNTRANSPILABLE_FEATURES:
 			suppMask |= 4
-			continue
 		case JsdocTag_JSDOC_FILEOVERVIEW:
 			builder.RecordFileOverview("")
-			continue
 		case JsdocTag_JSDOC_NO_COVERAGE:
 			builder.RecordNoCoverage()
-			continue
 		case JsdocTag_JSDOC_SASS_GENERATED_CSS_TS:
 			builder.RecordSassGeneratedCssTs()
-			continue
 		case JsdocTag_JSDOC_USED_VIA_DOT_CONSTRUCTOR:
 			_ = builder.RecordUsedViaDotConstructor()
-			continue
 		case JsdocTag_JSDOC_UNSPECIFIED, JsdocTag_UNRECOGNIZED:
 			panic(NewMalformedTypedAstException(
 				"Unsupported JSDoc tag can't be deserialized: " + tag.String()))
 		}
 	}
+
 	switch modMask {
 	case 1:
 		builder.RecordModifies(jsDocSerializer_modifiesArguments)
@@ -600,6 +525,4 @@ func jsDocSerializer_deserializeJsdocWithBuilder(
 		}
 		builder.RecordSuppressionSliceWithDescription(suppSlice, "")
 	}
-
-	return builder.Build()
 }

@@ -42,6 +42,7 @@ const (
 	gnMultiRefsBit uint32 = 1 << 31
 
 	// Internal bits in Name.propertyBitSet (NameProp uses bits 0..13).
+	gnNameEscaped           int32 = 1 << 28
 	gnNamePropRefsMapState  int32 = 1 << 29
 	gnNamePropIndexedGlobal int32 = 1 << 30
 )
@@ -617,73 +618,70 @@ func (g *GlobalNamespace) GetNameIndex() *jutil.LinkedHashMap[string, *GlobalNam
 	return m
 }
 
-// GlobalNamespace_AstChange is the interface GlobalNamespace.AstChange.
-type GlobalNamespace_AstChange interface {
-	// Java: GlobalNamespace.AstChange.node()
-	Node() rhino.Node
-
-	// Java: GlobalNamespace.AstChange.chunk()
-	Chunk() *JSChunk
-
-	// Java: GlobalNamespace.AstChange.scope()
-	Scope() *Scope
-}
-
-// GlobalNamespace_SimpleAstChange is the record SimpleAstChange(Node node,
-// JSChunk chunk, Scope scope).
-//
-// Go-only: language-adapter — a comparable value type, so that two equal
-// records are equal keys of a set of AstChange, as in Java.
-type GlobalNamespace_SimpleAstChange struct {
-	node  rhino.Node
+// GlobalNamespace_AstChange records a node added or modified in the AST so
+// GlobalNamespace can rescan it.
+type GlobalNamespace_AstChange struct {
 	chunk *JSChunk
 	scope *Scope
+	node  rhino.Node
 }
 
 // Java: GlobalNamespace.SimpleAstChange(Node, JSChunk, Scope)
-func NewGlobalNamespace_SimpleAstChange(node rhino.Node, chunk *JSChunk, scope *Scope) GlobalNamespace_SimpleAstChange {
-	return GlobalNamespace_SimpleAstChange{node: node, chunk: chunk, scope: scope}
-}
-
-// Java: GlobalNamespace.SimpleAstChange.node()
-func (c GlobalNamespace_SimpleAstChange) Node() rhino.Node { return c.node }
-
-// Java: GlobalNamespace.SimpleAstChange.chunk()
-func (c GlobalNamespace_SimpleAstChange) Chunk() *JSChunk { return c.chunk }
-
-// Java: GlobalNamespace.SimpleAstChange.scope()
-func (c GlobalNamespace_SimpleAstChange) Scope() *Scope { return c.scope }
-
-// GlobalNamespace_RefBasedAstChange is a simple data class that contains the
-// information necessary to inspect a node for changes to the global
-// namespace: the record RefBasedAstChange(Ref ref, Node node).
-//
-// Go-only: language-adapter — a comparable value type, so that two equal
-// records are equal keys of a set of AstChange, as in Java.
-type GlobalNamespace_RefBasedAstChange struct {
-	ref  *GlobalNamespace_Ref
-	node rhino.Node
+func NewGlobalNamespace_SimpleAstChange(node rhino.Node, chunk *JSChunk, scope *Scope) GlobalNamespace_AstChange {
+	return GlobalNamespace_AstChange{chunk: chunk, scope: scope, node: node}
 }
 
 // Java: GlobalNamespace.RefBasedAstChange(Ref, Node)
-func NewGlobalNamespace_RefBasedAstChange(ref *GlobalNamespace_Ref, node rhino.Node) GlobalNamespace_RefBasedAstChange {
-	return GlobalNamespace_RefBasedAstChange{ref: ref, node: node}
+func NewGlobalNamespace_RefBasedAstChange(ref *GlobalNamespace_Ref, node rhino.Node) GlobalNamespace_AstChange {
+	return GlobalNamespace_AstChange{chunk: ref.chunk, scope: ref.scope, node: node}
 }
 
-// Java: GlobalNamespace.RefBasedAstChange.ref()
-func (c GlobalNamespace_RefBasedAstChange) Ref() *GlobalNamespace_Ref { return c.ref }
+// Java: GlobalNamespace.AstChange.node()
+func (c GlobalNamespace_AstChange) Node() rhino.Node { return c.node }
 
-// Java: GlobalNamespace.RefBasedAstChange.node()
-func (c GlobalNamespace_RefBasedAstChange) Node() rhino.Node { return c.node }
+// Java: GlobalNamespace.AstChange.chunk()
+func (c GlobalNamespace_AstChange) Chunk() *JSChunk { return c.chunk }
 
-// Java: GlobalNamespace.RefBasedAstChange.chunk()
-func (c GlobalNamespace_RefBasedAstChange) Chunk() *JSChunk {
-	return c.ref.GetChunk()
+// Java: GlobalNamespace.AstChange.scope()
+func (c GlobalNamespace_AstChange) Scope() *Scope { return c.scope }
+
+type astChangeSet struct {
+	items []GlobalNamespace_AstChange
+	seen  map[GlobalNamespace_AstChange]struct{}
 }
 
-// Java: GlobalNamespace.RefBasedAstChange.scope()
-func (c GlobalNamespace_RefBasedAstChange) Scope() *Scope {
-	return c.ref.scope
+func (s *astChangeSet) reset() {
+	clear(s.items)
+	s.items = s.items[:0]
+	if len(s.seen) > 0 {
+		clear(s.seen)
+	}
+}
+
+func (s *astChangeSet) add(c GlobalNamespace_AstChange) {
+	if s.seen != nil && len(s.items) > 8 {
+		if _, ok := s.seen[c]; ok {
+			return
+		}
+		s.seen[c] = struct{}{}
+		s.items = append(s.items, c)
+		return
+	}
+	for i := range s.items {
+		if s.items[i] == c {
+			return
+		}
+	}
+	if len(s.items) == 8 {
+		if s.seen == nil {
+			s.seen = make(map[GlobalNamespace_AstChange]struct{}, 16)
+		}
+		for _, prev := range s.items {
+			s.seen[prev] = struct{}{}
+		}
+		s.seen[c] = struct{}{}
+	}
+	s.items = append(s.items, c)
 }
 
 // ScanNewNodes: if the client adds new nodes to the AST, scan these new
@@ -692,14 +690,18 @@ func (c GlobalNamespace_RefBasedAstChange) Scope() *Scope {
 // newNodes are the new nodes to check.
 //
 // Java: GlobalNamespace.scanNewNodes(Set<AstChange>)
-func (g *GlobalNamespace) ScanNewNodes(newNodes *jutil.LinkedHashSet[GlobalNamespace_AstChange]) {
+func (g *GlobalNamespace) ScanNewNodes(newNodes *astChangeSet) {
+	if newNodes == nil || len(newNodes.items) == 0 {
+		return
+	}
 	builder := NewGlobalNamespace_BuildGlobalNamespace(g)
 
-	for info := range newNodes.All() {
-		if !info.Node().IsQualifiedName() && !NodeUtil_MayBeObjectLitKey(info.Node()) {
+	for i := range newNodes.items {
+		info := newNodes.items[i]
+		if !info.node.IsQualifiedName() && !NodeUtil_MayBeObjectLitKey(info.node) {
 			continue
 		}
-		g.ScanFromNode(builder, info.Scope(), info.Node(), info.Chunk())
+		g.ScanFromNode(builder, info.scope, info.node, info.chunk)
 	}
 }
 

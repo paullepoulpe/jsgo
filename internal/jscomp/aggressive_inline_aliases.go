@@ -40,6 +40,11 @@ import (
 type InlineAndCollapseProperties_AggressiveInlineAliases struct {
 	outer *InlineAndCollapseProperties
 
+	scopeCreator    *SyntacticScopeCreator
+	scopeCollectors map[rhino.Node]*ReferenceCollector
+	cachedVarNames  map[uint32]struct{}
+	newNodes        astChangeSet
+
 	codeChanged bool
 }
 
@@ -55,6 +60,84 @@ func (a *InlineAndCollapseProperties_AggressiveInlineAliases) GetLastUsedGlobalN
 	return a.outer.namespace
 }
 
+func (a *InlineAndCollapseProperties_AggressiveInlineAliases) getScopeCreator() *SyntacticScopeCreator {
+	if a.scopeCreator == nil {
+		a.scopeCreator = NewSyntacticScopeCreator(a.outer.compiler)
+	}
+	return a.scopeCreator
+}
+
+func (a *InlineAndCollapseProperties_AggressiveInlineAliases) invalidateScopeCollectors() {
+	if len(a.scopeCollectors) > 0 {
+		clear(a.scopeCollectors)
+		clear(a.cachedVarNames)
+	}
+}
+
+func leftmostQNameID(n rhino.Node) (uint32, bool) {
+	if n.IsNil() {
+		return 0, false
+	}
+	for n.IsGetProp() {
+		n = n.GetFirstChild()
+	}
+	if n.IsName() {
+		return n.GetStringID(), true
+	}
+	if n.IsThis() || n.IsSuper() || n.IsImportMeta() {
+		return 0, true
+	}
+	return 0, false
+}
+
+func (a *InlineAndCollapseProperties_AggressiveInlineAliases) noteMutatedQName(n rhino.Node) {
+	if len(a.scopeCollectors) == 0 || n.IsNil() || n.IsNull() {
+		return
+	}
+	id, ok := leftmostQNameID(n)
+	if !ok {
+		a.invalidateScopeCollectors()
+		return
+	}
+	if id != 0 {
+		if _, cached := a.cachedVarNames[id]; cached {
+			a.invalidateScopeCollectors()
+		}
+	}
+}
+
+func (a *InlineAndCollapseProperties_AggressiveInlineAliases) getReferencesInScope(
+	aliasScope *Scope, aliasVar *Var,
+) (*ReferenceCollector, *ReferenceCollection) {
+	scopeRoot := aliasScope.GetRootNode()
+	if c := a.scopeCollectors[scopeRoot]; c != nil {
+		if refs := c.GetReferences(aliasVar); refs != nil {
+			return c, refs
+		}
+	}
+	collector := NewReferenceCollectorWithVarFilter(
+		a.outer.compiler,
+		ReferenceCollector_DO_NOTHING_BEHAVIOR,
+		a.getScopeCreator(),
+		func(v *Var) bool { return v.scope.GetRootNode() == scopeRoot },
+	)
+	collector.ProcessScope(aliasScope)
+	if a.scopeCollectors == nil {
+		a.scopeCollectors = make(map[rhino.Node]*ReferenceCollector, 8)
+		a.cachedVarNames = make(map[uint32]struct{}, len(aliasScope.varList)+2)
+	}
+	a.scopeCollectors[scopeRoot] = collector
+	for _, v := range aliasScope.varList {
+		if v != nil {
+			a.cachedVarNames[v.nameID] = struct{}{}
+		}
+	}
+	if aliasScope.hasImplicitVars {
+		a.cachedVarNames[implicitArgumentsID] = struct{}{}
+	}
+	return collector, collector.GetReferences(aliasVar)
+}
+
 // Java: InlineAndCollapseProperties.AggressiveInlineAliases.process(Node, Node)
 func (a *InlineAndCollapseProperties_AggressiveInlineAliases) Process(externs rhino.Node, root rhino.Node) {
 	NodeTraversal_Traverse(a.outer.compiler, root, NewInlineAndCollapseProperties_RewriteSimpleDestructuringAliases())
@@ -66,6 +149,10 @@ func (a *InlineAndCollapseProperties_AggressiveInlineAliases) Process(externs rh
 		a.codeChanged = false
 		a.InlineAliases(a.outer.namespace)
 	}
+	a.scopeCreator = nil
+	a.scopeCollectors = nil
+	a.cachedVarNames = nil
+	a.newNodes = astChangeSet{}
 }
 
 // InlineAliases: for each qualified name N in the global scope, we check if:
@@ -192,19 +279,18 @@ func (a *InlineAndCollapseProperties_AggressiveInlineAliases) MaybeInlineInnerNa
 		// no inner name to require inlining
 		return
 	}
-	innerName := innerNameNode.GetString()
-	syntacticScopeCreator := NewSyntacticScopeCreator(a.outer.compiler)
-	innerScope := syntacticScopeCreator.CreateScope(valueNode, globalNameDeclaration.scope).(*Scope)
-	innerNameVar := jutil.CheckNotNull(innerScope.GetVar(innerName))
+	innerScope := a.getScopeCreator().CreateScope(valueNode, globalNameDeclaration.scope).(*Scope)
+	innerNameVar := jutil.CheckNotNull(innerScope.GetVarByNode(innerNameNode))
 	collector := NewReferenceCollectorWithVarFilter(
 		a.outer.compiler,
 		ReferenceCollector_DO_NOTHING_BEHAVIOR,
-		syntacticScopeCreator,
+		a.getScopeCreator(),
 		func(v *Var) bool { return jutil.ObjectsEquals(innerNameVar, v) })
 	collector.ProcessScope(innerScope)
 	innerNameRefs := collector.GetReferences(innerNameVar)
 
-	newNodes := jutil.NewLinkedHashSet[GlobalNamespace_AstChange]()
+	newNodes := &a.newNodes
+	newNodes.reset()
 
 	for innerNameRef := range innerNameRefs.All() {
 		// replace all references to the inner name other than its declaration
@@ -221,7 +307,8 @@ func (a *InlineAndCollapseProperties_AggressiveInlineAliases) MaybeInlineInnerNa
 			// necessary,
 			// and the introduction of a reference to a global in a local scope can cause other
 			// optimizations to back off.
-			newNodes.Add(a.ReplaceAliasReference(globalNameDeclaration, innerNameRef))
+			a.noteMutatedQName(innerNameRefNode)
+			newNodes.add(a.ReplaceAliasReference(globalNameDeclaration, innerNameRef))
 		}
 	}
 	a.outer.namespace.ScanNewNodes(newNodes)
@@ -274,8 +361,6 @@ func (a *InlineAndCollapseProperties_AggressiveInlineAliases) RewriteAllSubclass
 	}
 
 	if subclassPropNameObj != nil {
-		newNodes := jutil.NewLinkedHashSet[GlobalNamespace_AstChange]()
-
 		// Use this node as a template for rewriteNestedAliasReference.
 		superclassNameNode := superclassNameObj.getDeclarationRef().GetNode()
 		if superclassNameNode.IsName() {
@@ -286,6 +371,8 @@ func (a *InlineAndCollapseProperties_AggressiveInlineAliases) RewriteAllSubclass
 			return false
 		}
 
+		newNodes := &a.newNodes
+		newNodes.reset()
 		a.RewriteNestedAliasReference(superclassNameNode, 0, newNodes, subclassPropNameObj)
 		namespace.ScanNewNodes(newNodes)
 	}
@@ -380,34 +467,29 @@ func (a *InlineAndCollapseProperties_AggressiveInlineAliases) InlineAliasIfPossi
 		} else {
 			aliasLhsNode = aliasParent.GetFirstChild()
 		}
-		aliasVarName := aliasLhsNode.GetString()
-
-		aliasVar := alias.scope.GetVar(aliasVarName)
-		jutil.CheckStateMsg1(aliasVar != nil, "Expected variable to be defined in scope (%s)", aliasVarName)
-		collector := NewReferenceCollectorWithVarFilter(
-			a.outer.compiler,
-			ReferenceCollector_DO_NOTHING_BEHAVIOR,
-			NewSyntacticScopeCreator(a.outer.compiler),
-			func(v *Var) bool { return jutil.ObjectsEquals(aliasVar, v) })
-		aliasScope := aliasVar.GetScope().(*Scope)
-		collector.ProcessScope(aliasScope)
-
-		aliasRefs := collector.GetReferences(aliasVar)
-		newNodes := jutil.NewLinkedHashSet[GlobalNamespace_AstChange]()
+		aliasVar := alias.scope.GetVarByNode(aliasLhsNode)
+		if aliasVar == nil {
+			jutil.CheckStateMsg1(false, "Expected variable to be defined in scope (%s)", aliasLhsNode.GetString())
+		}
+		aliasScope := aliasVar.scope
+		collector, aliasRefs := a.getReferencesInScope(aliasScope, aliasVar)
 
 		if aliasRefs.IsWellDefined() &&
 			(aliasRefs.IsAssignedOnceInLifetime() ||
 				a.IsInlineableModuleExportsAlias(name, aliasRefs)) {
 			// The alias is well-formed, so do the inlining now.
+			newNodes := &a.newNodes
+			newNodes.reset()
 			size := len(aliasRefs.references)
 			// It's initialized on either the first or second reference.
 			firstRead := 2
 			if aliasRefs.references[0].IsInitializingDeclaration() {
 				firstRead = 1
 			}
+			collector.forgetVar(aliasVar)
 			for i := firstRead; i < size; i++ {
 				aliasRef := aliasRefs.references[i]
-				newNodes.Add(a.ReplaceAliasReference(alias, aliasRef))
+				newNodes.add(a.ReplaceAliasReference(alias, aliasRef))
 			}
 
 			// just set the original alias to null.
@@ -424,11 +506,11 @@ func (a *InlineAndCollapseProperties_AggressiveInlineAliases) InlineAliasIfPossi
 			// generators introduces some constructor aliases that weren't getting inlined.
 			// If we find another (safer) way to avoid aliasing in method decomposition, consider
 			// removing this.
-			if !a.PartiallyInlineAlias(alias, name, namespace, aliasRefs, aliasLhsNode) {
+			if !a.PartiallyInlineAlias(alias, name, namespace, collector, aliasVar, aliasRefs, aliasLhsNode) {
 				// If we can't inline all alias references, make sure there are no unsafe property
 				// accesses.
 				if InlineAndCollapseProperties_ReferencesCollapsibleProperty(aliasRefs, name) {
-					a.outer.compiler.Report(JSError_MakeWithNode(aliasParent, InlineAndCollapseProperties_UNSAFE_CTOR_ALIASING, aliasVarName))
+					a.outer.compiler.Report(JSError_MakeWithNode(aliasParent, InlineAndCollapseProperties_UNSAFE_CTOR_ALIASING, aliasLhsNode.GetString()))
 				}
 			}
 		}
@@ -451,6 +533,8 @@ func (a *InlineAndCollapseProperties_AggressiveInlineAliases) PartiallyInlineAli
 	alias *GlobalNamespace_Ref,
 	aliasingName *GlobalNamespace_Name,
 	namespace *GlobalNamespace,
+	collector *ReferenceCollector,
+	aliasVar *Var,
 	aliasRefs *ReferenceCollection,
 	aliasLhsNode rhino.Node) bool {
 	var aliasBlock *BasicBlock
@@ -471,9 +555,11 @@ func (a *InlineAndCollapseProperties_AggressiveInlineAliases) PartiallyInlineAli
 		}
 	}
 
-	newNodes := jutil.NewLinkedHashSet[GlobalNamespace_AstChange]()
+	newNodes := &a.newNodes
+	newNodes.reset()
 	alreadySeenInitialAlias := false
 	foundNonReplaceableAlias := false
+	replacedAny := false
 	// Do a second iteration through all the alias references, and replace any inlinable
 	// references.
 	for aliasRef := range aliasRefs.All() {
@@ -493,10 +579,15 @@ func (a *InlineAndCollapseProperties_AggressiveInlineAliases) PartiallyInlineAli
 			// the aliasing assignment takes place before the reference, and the alias is
 			// never reassigned.
 			a.codeChanged = true
-			newNodes.Add(a.ReplaceAliasReference(alias, aliasRef))
+			replacedAny = true
+			newNodes.add(a.ReplaceAliasReference(alias, aliasRef))
 		} else {
 			foundNonReplaceableAlias = true
 		}
+	}
+
+	if replacedAny || !foundNonReplaceableAlias {
+		collector.forgetVar(aliasVar)
 	}
 
 	// We removed all references to the alias, so remove the original aliasing assignment.
@@ -527,6 +618,7 @@ func (a *InlineAndCollapseProperties_AggressiveInlineAliases) TryReplacingAliasi
 		return false
 	}
 	aliasParent := alias.GetNode().GetParent()
+	a.noteMutatedQName(alias.GetNode())
 	alias.GetNode().ReplaceWith(rhino.IR_NullNode())
 	aliasName.RemoveRef(alias)
 	a.codeChanged = true
@@ -544,6 +636,9 @@ func (a *InlineAndCollapseProperties_AggressiveInlineAliases) ReplaceAliasRefere
 	originalRefNode := alias.GetNode()
 	nodeToReplace := aliasRef.GetNode()
 	jutil.CheckStateMsg1(nodeToReplace.IsQualifiedName(), "%s", nodeToReplace)
+	if nodeToReplace.HasChildren() {
+		a.invalidateScopeCollectors()
+	}
 	// If the reference node is a NAME it could be
 	// const origName = value;
 	// If we use cloneTree() for that we'll clone the value, which we don't want.
@@ -556,6 +651,7 @@ func (a *InlineAndCollapseProperties_AggressiveInlineAliases) ReplaceAliasRefere
 	}
 	newNode.SrcrefTree(nodeToReplace)
 	nodeToReplace.ReplaceWith(newNode)
+	a.noteMutatedQName(newNode)
 	a.outer.compiler.ReportChangeToEnclosingScope(newNode)
 	return NewGlobalNamespace_SimpleAstChange(newNode, alias.GetChunk(), alias.scope)
 }
@@ -629,18 +725,21 @@ func (a *InlineAndCollapseProperties_AggressiveInlineAliases) InlineGlobalAliasI
 				//   a.b = aliased.name
 				jutil.CheckStateMsg1(aliasParent.IsAssign(), "%s", aliasParent)
 				aliasGrandparent := aliasParent.GetParent()
+				a.noteMutatedQName(aliasParent.GetFirstChild())
+				a.noteMutatedQName(alias.GetNode())
 				aliasParent.ReplaceWith(alias.GetNode().Detach())
 				// Remove the ref to 'aliasing.name' entirely
 				aliasingName.RemoveRef(aliasInitialization)
 				// Force GlobalNamespace to revisit the new reference to 'aliased.name' and update its
 				// internal state.
-				newNodes.Add(NewGlobalNamespace_RefBasedAstChange(alias, alias.GetNode()))
+				newNodes.add(NewGlobalNamespace_RefBasedAstChange(alias, alias.GetNode()))
 				a.outer.compiler.ReportChangeToEnclosingScope(aliasGrandparent)
 			} else {
 				// Replace
 				//  aliasing.name = aliased.name
 				// with
 				//  aliasing.name = null;
+				a.noteMutatedQName(alias.GetNode())
 				alias.GetNode().ReplaceWith(rhino.IR_NullNode())
 				a.outer.compiler.ReportChangeToEnclosingScope(aliasParent)
 			}
@@ -663,8 +762,9 @@ func (a *InlineAndCollapseProperties_AggressiveInlineAliases) InlineGlobalAliasI
 //
 // Java: InlineAndCollapseProperties.AggressiveInlineAliases.rewriteAliasReferences(Name, Ref, Inlinability)
 func (a *InlineAndCollapseProperties_AggressiveInlineAliases) RewriteAliasReferences(
-	aliasingName *GlobalNamespace_Name, aliasingRef *GlobalNamespace_Ref, aliasInlinability GlobalNamespace_Inlinability) *jutil.LinkedHashSet[GlobalNamespace_AstChange] {
-	newNodes := jutil.NewLinkedHashSet[GlobalNamespace_AstChange]()
+	aliasingName *GlobalNamespace_Name, aliasingRef *GlobalNamespace_Ref, aliasInlinability GlobalNamespace_Inlinability) *astChangeSet {
+	newNodes := &a.newNodes
+	newNodes.reset()
 	var refsBuf [8]*GlobalNamespace_Ref
 	refs := aliasingName.snapshotRefs(&refsBuf)
 	var initializationChunk *JSChunk
@@ -694,6 +794,9 @@ func (a *InlineAndCollapseProperties_AggressiveInlineAliases) RewriteAliasRefere
 
 		if ref.GetNode().IsStringKey() {
 			// e.g. `y` in `const {y} = x;`
+			if ref.scope != nil && ref.scope.IsLocal() {
+				a.invalidateScopeCollectors()
+			}
 			DestructuringGlobalNameExtractor_ReassignDestructringLvalue(
 				ref.GetNode(), aliasingRef.GetNode().CloneTree(), newNodes, ref, a.outer.compiler)
 		} else {
@@ -701,10 +804,12 @@ func (a *InlineAndCollapseProperties_AggressiveInlineAliases) RewriteAliasRefere
 			jutil.CheckState(ref.GetNode().IsGetProp() || ref.GetNode().IsName())
 			newNode := aliasingRef.GetNode().CloneTree()
 			node := ref.GetNode()
+			a.noteMutatedQName(node)
+			a.noteMutatedQName(newNode)
 			newNode.Srcref(node)
 			node.ReplaceWith(newNode)
 			a.outer.compiler.ReportChangeToEnclosingScope(newNode)
-			newNodes.Add(NewGlobalNamespace_RefBasedAstChange(ref, newNode))
+			newNodes.add(NewGlobalNamespace_RefBasedAstChange(ref, newNode))
 		}
 		aliasingName.RemoveRef(ref)
 	}
@@ -717,7 +822,7 @@ func (a *InlineAndCollapseProperties_AggressiveInlineAliases) RewriteAliasRefere
 //
 // Java: InlineAndCollapseProperties.AggressiveInlineAliases.rewriteAliasProps(Name, Node, int, Set<AstChange>)
 func (a *InlineAndCollapseProperties_AggressiveInlineAliases) RewriteAliasProps(
-	name *GlobalNamespace_Name, value rhino.Node, depth int, newNodes *jutil.LinkedHashSet[GlobalNamespace_AstChange]) {
+	name *GlobalNamespace_Name, value rhino.Node, depth int, newNodes *astChangeSet) {
 	if !name.HasProps() {
 		return
 	}
@@ -751,7 +856,7 @@ func (a *InlineAndCollapseProperties_AggressiveInlineAliases) RewriteAliasProps(
 //
 // Java: InlineAndCollapseProperties.AggressiveInlineAliases.rewriteNestedAliasReference(Node, int, Set<AstChange>, Name)
 func (a *InlineAndCollapseProperties_AggressiveInlineAliases) RewriteNestedAliasReference(
-	value rhino.Node, depth int, newNodes *jutil.LinkedHashSet[GlobalNamespace_AstChange], prop *GlobalNamespace_Name) {
+	value rhino.Node, depth int, newNodes *astChangeSet, prop *GlobalNamespace_Name) {
 	a.RewriteAliasProps(prop, value, depth+1, newNodes)
 	var refsBuf [8]*GlobalNamespace_Ref
 	refs := prop.snapshotRefs(&refsBuf)
@@ -813,11 +918,13 @@ func (a *InlineAndCollapseProperties_AggressiveInlineAliases) RewriteNestedAlias
 		}
 		jutil.CheckState(target.IsGetProp() || target.IsName())
 		newValue := value.CloneTree()
+		a.noteMutatedQName(target)
+		a.noteMutatedQName(newValue)
 		target.ReplaceWith(newValue)
 		a.outer.compiler.ReportChangeToEnclosingScope(newValue)
 		prop.RemoveRef(ref)
 		// Rescan the expression root.
-		newNodes.Add(NewGlobalNamespace_RefBasedAstChange(ref, ref.GetNode()))
+		newNodes.add(NewGlobalNamespace_RefBasedAstChange(ref, ref.GetNode()))
 		a.codeChanged = true
 	}
 }

@@ -34,20 +34,41 @@ const (
 	rucVarFlagCanonical
 )
 
+type rucPinReason uint8
+
+const (
+	rucPinNone rucPinReason = iota
+	rucPinNonLocalValueWithPropRef
+	rucPinReferenceFound
+	rucPinExportedClass
+	rucPinCatchVariable
+	rucPinEnhancedForVar
+	rucPinForLoopInitSideEffects
+	rucPinBaseClassSideEffects
+	rucPinClassBodySideEffects
+	rucPinParamInFnUsingArguments
+	rucPinNotRemovingGlobals
+	rucPinNotRemovingLocals
+)
+
 // RemoveUnusedCode_RealVarInfo tracks the removable code and other state
 // related to variables we may be able to remove.
 type RemoveUnusedCode_RealVarInfo struct {
-	outer   *RemoveUnusedCode
-	var_    *Var
-	remHead *RemoveUnusedCode_RemovableBase
-	remTail *RemoveUnusedCode_RemovableBase
-	flags   uint8
+	outer              *RemoveUnusedCode
+	var_               *Var
+	remHead            *RemoveUnusedCode_RemovableBase
+	remTail            *RemoveUnusedCode_RemovableBase
+	reasonNode         rhino.Node
+	flags              uint8
+	nonRemovableReason rucPinReason
 }
 
 // Java: RemoveUnusedCode.RealVarInfo(String)
 func NewRemoveUnusedCode_RealVarInfo(outer *RemoveUnusedCode, var_ *Var) *RemoveUnusedCode_RealVarInfo {
 	v := outer.varInfoSlab.New()
-	*v = RemoveUnusedCode_RealVarInfo{outer: outer, var_: var_, flags: rucVarFlagEntirelyRemovable}
+	v.outer = outer
+	v.var_ = var_
+	v.flags = rucVarFlagEntirelyRemovable
 	return v
 }
 
@@ -72,8 +93,7 @@ func (v *RemoveUnusedCode_RealVarInfo) AddRemovable(removable *RemoveUnusedCode_
 		v.flags |= rucVarFlagRequiresLocalLit
 	}
 	if v.flags&(rucVarFlagHasNonLocalOrNonLit|rucVarFlagRequiresLocalLit) == (rucVarFlagHasNonLocalOrNonLit | rucVarFlagRequiresLocalLit) {
-		v.SetIsExplicitlyNotRemovable(
-			func() string { return "hasNonLocalOrNonLiteralValue && requiresLocalLiteralValueForRemoval" })
+		v.pin(rucPinNonLocalValueWithPropRef)
 	}
 
 	if v.flags&rucVarFlagEntirelyRemovable != 0 {
@@ -95,23 +115,58 @@ func (v *RemoveUnusedCode_RealVarInfo) IsRemovable() bool {
 	return v.flags&rucVarFlagEntirelyRemovable != 0
 }
 
-// Java: RemoveUnusedCode.RealVarInfo.setIsExplicitlyNotRemovable(Supplier<String>)
-func (v *RemoveUnusedCode_RealVarInfo) SetIsExplicitlyNotRemovable(reasonSupplier func() string) {
-	if v.flags&rucVarFlagEntirelyRemovable != 0 {
-		v.flags &^= rucVarFlagEntirelyRemovable
-		if v.outer.unremovableLog.IsLogging() {
-			v.outer.unremovableLog.LogString(v.var_.GetName() + ": " + reasonSupplier())
-		}
-		cur := v.remHead
-		v.remHead = nil
-		v.remTail = nil
-		for cur != nil {
-			next := cur.propNext
-			cur.propNext = nil
-			v.outer.ConsiderForIndependentRemoval(cur)
-			cur = next
-		}
+func (v *RemoveUnusedCode_RealVarInfo) pin(reason rucPinReason) {
+	v.pinAt(reason, rhino.NilNode)
+}
+
+func (v *RemoveUnusedCode_RealVarInfo) pinAt(reason rucPinReason, reasonNode rhino.Node) {
+	if v.flags&rucVarFlagEntirelyRemovable == 0 {
+		return
 	}
+	v.flags &^= rucVarFlagEntirelyRemovable
+	v.nonRemovableReason = reason
+	v.reasonNode = reasonNode
+	if v.outer.unremovableLog.IsLogging() {
+		v.outer.unremovableLog.LogString(v.formatUnremovableLog())
+	}
+	cur := v.remHead
+	v.remHead = nil
+	v.remTail = nil
+	for cur != nil {
+		next := cur.propNext
+		cur.propNext = nil
+		v.outer.ConsiderForIndependentRemoval(cur)
+		cur = next
+	}
+}
+
+func (v *RemoveUnusedCode_RealVarInfo) formatUnremovableLog() string {
+	var reason string
+	switch v.nonRemovableReason {
+	case rucPinNonLocalValueWithPropRef:
+		reason = "hasNonLocalOrNonLiteralValue && requiresLocalLiteralValueForRemoval"
+	case rucPinReferenceFound:
+		reason = "reference found: " + v.reasonNode.GetLocation()
+	case rucPinExportedClass:
+		reason = "exported class"
+	case rucPinCatchVariable:
+		reason = "catch variable"
+	case rucPinEnhancedForVar:
+		reason = "for-of or for-in loop variable"
+	case rucPinForLoopInitSideEffects:
+		reason = "for-loop variable initialization has side-effects"
+	case rucPinBaseClassSideEffects:
+		reason = "base class expression has side-effects"
+	case rucPinClassBodySideEffects:
+		reason = "class body has side-effects"
+	case rucPinParamInFnUsingArguments:
+		reason = "parameter in function using arguments"
+	case rucPinNotRemovingGlobals:
+		reason = "not removing globals"
+	case rucPinNotRemovingLocals:
+		reason = "not removing locals"
+	}
+	return v.var_.GetName() + ": " + reason
 }
 
 // Java: RemoveUnusedCode.RealVarInfo.setHasNonLocalOrNonLiteralValue()
@@ -138,8 +193,6 @@ func (v *RemoveUnusedCode_RealVarInfo) RemoveAllRemovables() {
 	}
 }
 
-const RemoveUnusedCode_DOT_PROTOTYPE = ".prototype"
-
 type rucPolyfillKind uint8
 
 const (
@@ -154,8 +207,10 @@ const (
 type rucPolyfillInfo struct {
 	outer       *RemoveUnusedCode
 	removable   *RemoveUnusedCode_RemovableBase
+	nextByKey   *rucPolyfillInfo
 	owner       string
 	key         string
+	keyID       uint32
 	kind        rucPolyfillKind
 	isRemovable bool
 }
@@ -164,30 +219,43 @@ type rucPolyfillInfo struct {
 // Removable, parsing the name to classify global, static, or prototype polyfills.
 //
 // Java: RemoveUnusedCode.createPolyfillInfo(Node, Scope, String)
-func (r *RemoveUnusedCode) createPolyfillInfo(call rhino.Node, scope *Scope, name string) *rucPolyfillInfo {
-	jutil.CheckState(call.GetParent().IsExprResult())
+func (r *RemoveUnusedCode) createPolyfillInfo(call ast.NormalOrOptChainCall, scope *Scope, name string) *rucPolyfillInfo {
+	jutil.CheckState(call.Node().GetParent().IsExprResult())
 	if !r.guardedUsagesComputed {
 		r.guardedUsagesComputed = true
 		NewPolyfillUsageFinder(r.compiler, r.polyfillsFromTable).
 			TraverseOnlyGuarded(r.root, r.StorePolyfill)
 	}
-	// Make the removable and polyfill info. Add continuations for all arguments.
-	builder := NewRemoveUnusedCode_RemovableBuilder(r)
-	for arg := range ast.MustNormalOrOptChainCall(call).Args() {
-		builder.AddContinuation(NewRemoveUnusedCode_Continuation(r, arg.Node(), scope))
-	}
-	removable := builder.BuildPolyfill(call.GetParent())
-	lastDot := jutil.StringLastIndexOf(name, ".")
+	removable := r.newPolyfillRemovable(call, scope)
+	info := r.polyfillSlab.New()
+	lastDot := strings.LastIndexByte(name, '.')
 	if lastDot < 0 {
-		return &rucPolyfillInfo{outer: r, removable: removable, key: name, kind: rucPolyfillGlobal, isRemovable: true}
+		*info = rucPolyfillInfo{
+			outer:       r,
+			removable:   removable,
+			key:         name,
+			keyID:       rhino.RhinoStringPool_InternID(name),
+			kind:        rucPolyfillGlobal,
+			isRemovable: true,
+		}
+		return info
 	}
-	owner := jutil.StringSubstring(name, 0, lastDot)
-	prop := jutil.StringSubstringFrom(name, lastDot+1)
-	if strings.HasSuffix(owner, RemoveUnusedCode_DOT_PROTOTYPE) {
-		owner = jutil.StringSubstring(owner, 0, jutil.StringLength(owner)-jutil.StringLength(RemoveUnusedCode_DOT_PROTOTYPE))
-		return &rucPolyfillInfo{outer: r, removable: removable, owner: owner, key: prop, kind: rucPolyfillPrototype, isRemovable: true}
+	owner, prop := name[:lastDot], name[lastDot+1:]
+	kind := rucPolyfillStatic
+	if trimmed, ok := strings.CutSuffix(owner, ".prototype"); ok {
+		owner = trimmed
+		kind = rucPolyfillPrototype
 	}
-	return &rucPolyfillInfo{outer: r, removable: removable, owner: owner, key: prop, kind: rucPolyfillStatic, isRemovable: true}
+	*info = rucPolyfillInfo{
+		outer:       r,
+		removable:   removable,
+		owner:       owner,
+		key:         prop,
+		keyID:       rhino.RhinoStringPool_InternID(prop),
+		kind:        kind,
+		isRemovable: true,
+	}
+	return info
 }
 
 func (p *rucPolyfillInfo) getName() string {
@@ -213,16 +281,6 @@ func (p *rucPolyfillInfo) considerPossibleReference(n rhino.Node) {
 		p.isRemovable = false
 		p.removable.ApplyContinuations(p.outer)
 	}
-}
-
-// Java: RemoveUnusedCode.VanillaForNameDeclaration(RemovableBuilder, Node)
-func NewRemoveUnusedCode_VanillaForNameDeclaration(outer *RemoveUnusedCode, builder *RemoveUnusedCode_RemovableBuilder, nameNode rhino.Node) *RemoveUnusedCode_RemovableBase {
-	d := outer.removables.New()
-	d.initFromBuilder(remKindVanillaForNameDecl, nameNode, builder)
-	if _, ok := ast.MustName(nameNode).Init(); !ok {
-		d.flags |= remFlagUninitVarDecl
-	}
-	return d
 }
 
 // Java: RemoveUnusedCode.removeExpressionCompletely(Node)

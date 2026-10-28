@@ -19,8 +19,6 @@
 package jscomp
 
 import (
-	"strings"
-
 	"github.com/paullepoulpe/jsgo/internal/ast"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
@@ -34,11 +32,6 @@ type RemoveUnusedCode_Continuation struct {
 	scope *Scope
 }
 
-// Java: RemoveUnusedCode.Continuation(Node, Scope)
-func NewRemoveUnusedCode_Continuation(_ *RemoveUnusedCode, node rhino.Node, scope *Scope) RemoveUnusedCode_Continuation {
-	return RemoveUnusedCode_Continuation{node: node, scope: scope}
-}
-
 // Java: RemoveUnusedCode.Continuation.apply()
 func (c RemoveUnusedCode_Continuation) Apply(outer *RemoveUnusedCode) {
 	if c.node.IsFunction() {
@@ -48,10 +41,6 @@ func (c RemoveUnusedCode_Continuation) Apply(outer *RemoveUnusedCode) {
 		outer.TraverseNode(c.node, c.scope)
 	}
 }
-
-// RemoveUnusedCode_Removable represents a portion of the AST that can be
-// removed.
-type RemoveUnusedCode_Removable = *RemoveUnusedCode_RemovableBase
 
 const (
 	remKindUnusedReadRef uint8 = iota + 1
@@ -75,8 +64,7 @@ const (
 )
 
 const (
-	remFlagHasPropertyName uint8 = 1 << iota
-	remFlagProtoDotPropRef
+	remFlagProtoDotPropRef uint8 = 1 << iota
 	remFlagThisDotPropRef
 	remFlagContsApplied
 	remFlagRemoved
@@ -108,31 +96,18 @@ type RemoveUnusedCode_RemovableBase struct {
 	flags          uint8
 }
 
-func (b *RemoveUnusedCode_RemovableBase) initFromBuilder(remKind uint8, targetNode rhino.Node, builder *RemoveUnusedCode_RemovableBuilder) {
-	b.cont0 = builder.cont0
-	b.targetNode = targetNode
-	b.propertyNameID = builder.propertyNameID
-	b.extraContIdx = builder.extraContIdx
-	b.numConts = builder.numConts
-	b.remKind = remKind
-	b.flags = builder.flags
-}
-
-// GetRemoveUnusedCode_RemovableBase gives access to the base.
-func (b *RemoveUnusedCode_RemovableBase) GetRemoveUnusedCode_RemovableBase() *RemoveUnusedCode_RemovableBase {
-	return b
-}
-
-// Java: RemoveUnusedCode.Removable.getPropertyName()
-func (b *RemoveUnusedCode_RemovableBase) GetPropertyName() string {
-	if b.remKind == remKindIndirectAssign {
-		jutil.CheckStateMsg1(b.targetNode.IsGetProp(), "%s", b.targetNode)
-		return b.targetNode.GetString()
+func (b *RemoveUnusedCode_RemovableBase) addContinuation(r *RemoveUnusedCode, node rhino.Node, scope *Scope) {
+	c := RemoveUnusedCode_Continuation{node: node, scope: scope}
+	switch b.numConts {
+	case 0:
+		b.cont0 = c
+	case 1:
+		b.extraContIdx = uint32(len(r.extraContSlab))
+		r.extraContSlab = append(r.extraContSlab, c)
+	default:
+		r.extraContSlab = append(r.extraContSlab, c)
 	}
-	if b.flags&remFlagHasPropertyName == 0 {
-		panic(jutil.NewNullPointerException())
-	}
-	return rhino.RhinoStringPool_StringFromID(b.propertyNameID)
+	b.numConts++
 }
 
 // Remove removes the associated nodes from the AST, unless they've already
@@ -189,10 +164,7 @@ func (b *RemoveUnusedCode_RemovableBase) IsVariableAssignment() bool {
 //
 // Java: RemoveUnusedCode.Removable.isNamedProperty()
 func (b *RemoveUnusedCode_RemovableBase) IsNamedProperty() bool {
-	if b.remKind == remKindIndirectAssign {
-		return b.targetNode.IsGetProp()
-	}
-	return b.flags&remFlagHasPropertyName != 0
+	return b.propertyNameID != 0
 }
 
 // IsNamedPropertyAssignment: true if this object represents assignment to a
@@ -283,10 +255,7 @@ func (b *RemoveUnusedCode_RemovableBase) declaredName() ast.Name {
 //
 // Java: RemoveUnusedCode.Removable.isPrototypeAssignment()
 func (b *RemoveUnusedCode_RemovableBase) IsPrototypeAssignment() bool {
-	if !b.IsNamedPropertyAssignment() {
-		return false
-	}
-	return b.GetPropertyName() == "prototype"
+	return b.IsNamedPropertyAssignment() && b.propertyNameID == rucPropPrototypeID
 }
 
 // IsPrototypeDotPropertyReference: is this an assignment to a property on a
@@ -304,17 +273,13 @@ func (b *RemoveUnusedCode_RemovableBase) IsClassOrPrototypeNamedProperty() bool 
 
 // Java: RemoveUnusedCode.Removable.isPrototypeProperty()
 func (b *RemoveUnusedCode_RemovableBase) IsPrototypeProperty() bool {
-	if b.remKind == remKindAnonProtoPropAssign {
-		return true
-	}
-	return b.IsPrototypeDotPropertyReference() || b.IsClassOrPrototypeNamedProperty()
+	return b.remKind == remKindAnonProtoPropAssign ||
+		b.IsPrototypeDotPropertyReference() ||
+		b.IsClassOrPrototypeNamedProperty()
 }
 
 // Java: RemoveUnusedCode.Removable.isThisDotPropertyReference()
 func (b *RemoveUnusedCode_RemovableBase) IsThisDotPropertyReference() bool {
-	if b.remKind == remKindIndirectAssign {
-		return RemoveUnusedCode_IsThisDotProperty(b.targetNode)
-	}
 	return b.flags&remFlagThisDotPropRef != 0
 }
 
@@ -399,8 +364,7 @@ func (b *RemoveUnusedCode_RemovableBase) RemoveInternal(r *RemoveUnusedCode) {
 		}
 	case remKindWeakUsageCall:
 		if !RemoveUnusedCode_AlreadyRemoved(b.targetNode) {
-			undefinedNode := NodeUtil_NewUndefinedNode(b.targetNode)
-			r.ReplaceNodeWith(b.targetNode, undefinedNode)
+			r.ReplaceNodeWith(b.targetNode, NodeUtil_NewUndefinedNode(b.targetNode))
 		}
 	case remKindIncOrDecOp:
 		if RemoveUnusedCode_AlreadyRemoved(b.targetNode) {
@@ -421,8 +385,9 @@ func (b *RemoveUnusedCode_RemovableBase) RemoveInternal(r *RemoveUnusedCode) {
 		NodeUtil_DeleteNode(b.targetNode, compiler)
 	case remKindNamedClassExpr:
 		if !RemoveUnusedCode_AlreadyRemoved(b.targetNode) {
-			if name, ok := ast.MustClass(b.targetNode).Name(); ok {
-				name.Node().ReplaceWith(rhino.IR_Empty().Srcref(name.Node()))
+			cls := ast.MustClass(b.targetNode)
+			if _, ok := cls.Name(); ok {
+				cls.RemoveName()
 				compiler.ReportChangeToEnclosingScope(b.targetNode)
 			}
 		}
@@ -475,7 +440,7 @@ func (b *RemoveUnusedCode_RemovableBase) RemoveInternal(r *RemoveUnusedCode) {
 		objDotPrototype, ok := lhs.Object().AsGetProp()
 		jutil.CheckStateMsg1(ok, "%s", lhs.Object().Node())
 		objExpression := objDotPrototype.Object().Node()
-		jutil.CheckStateMsg1(objDotPrototype.Property() == "prototype", "%s", objDotPrototype.Node())
+		jutil.CheckStateMsg1(objDotPrototype.Node().GetStringID() == rucPropPrototypeID, "%s", objDotPrototype.Node())
 
 		mustPreserveRhs :=
 			r.MayHaveSideEffects(rhs) || NodeUtil_IsExpressionResultUsed(b.targetNode)
@@ -514,21 +479,19 @@ func (b *RemoveUnusedCode_RemovableBase) RemoveInternal(r *RemoveUnusedCode) {
 			r.ReplaceNodeWith(b.targetNode, replacement)
 		} else if parent.IsExprResult() {
 			NodeUtil_DeleteNode(parent, compiler)
-		} else {
-			if parent.IsComma() || parent.IsAnd() || parent.IsOr() {
-				if parent.GetFirstChild() == b.targetNode {
-					rhs := rhino.CheckNotNull(b.targetNode.GetNext())
-					compiler.ReportChangeToEnclosingScope(parent)
-					parent.ReplaceWith(rhs.Detach())
-				} else {
-					lhs := parent.GetFirstChild()
-					compiler.ReportChangeToEnclosingScope(parent)
-					parent.ReplaceWith(lhs.Detach())
-				}
+		} else if parent.IsComma() || parent.IsAnd() || parent.IsOr() {
+			bin := ast.MustBinary(parent)
+			var keep rhino.Node
+			if bin.Left().Is(b.targetNode) {
+				keep = bin.Right().Detach().Node()
 			} else {
-				compiler.ReportChangeToEnclosingScope(parent)
-				b.targetNode.ReplaceWith(rhino.IR_Number(0))
+				keep = bin.Left().Detach().Node()
 			}
+			compiler.ReportChangeToEnclosingScope(parent)
+			parent.ReplaceWith(keep)
+		} else {
+			compiler.ReportChangeToEnclosingScope(parent)
+			b.targetNode.ReplaceWith(rhino.IR_Number(0))
 		}
 	case remKindVanillaForNameDecl:
 		declaration := rhino.CheckNotNull(b.targetNode.GetParent())
@@ -614,224 +577,208 @@ func (b *RemoveUnusedCode_RemovableBase) String() string {
 	}
 }
 
-// RemoveUnusedCode_RemovableBuilder is the inner class RemovableBuilder.
-type RemoveUnusedCode_RemovableBuilder struct {
-	outer          *RemoveUnusedCode
-	cont0          RemoveUnusedCode_Continuation
-	propertyNameID uint32
-	extraContIdx   uint32
-	numConts       uint16
-	flags          uint8
-}
-
-// Java: RemoveUnusedCode.RemovableBuilder()
-func NewRemoveUnusedCode_RemovableBuilder(outer *RemoveUnusedCode) *RemoveUnusedCode_RemovableBuilder {
-	return &RemoveUnusedCode_RemovableBuilder{outer: outer}
-}
-
-// Java: RemoveUnusedCode.RemovableBuilder.addContinuation(Continuation)
-func (b *RemoveUnusedCode_RemovableBuilder) AddContinuation(continuation RemoveUnusedCode_Continuation) *RemoveUnusedCode_RemovableBuilder {
-	switch b.numConts {
-	case 0:
-		b.cont0 = continuation
-	case 1:
-		b.extraContIdx = uint32(len(b.outer.extraContSlab))
-		b.outer.extraContSlab = append(b.outer.extraContSlab, continuation)
-	default:
-		b.outer.extraContSlab = append(b.outer.extraContSlab, continuation)
+func (r *RemoveUnusedCode) newUnusedReadRefRemovable(referenceNode rhino.Node, flags uint8) *RemoveUnusedCode_RemovableBase {
+	if !(RemoveUnusedCode_IsThisDotProperty(referenceNode) || RemoveUnusedCode_IsDotPrototypeDotProperty(referenceNode)) {
+		jutil.CheckStateMsg1(false, "%s", referenceNode)
 	}
-	b.numConts++
-	return b
+	u := r.removables.New()
+	u.remKind = remKindUnusedReadRef
+	u.targetNode = referenceNode
+	u.propertyNameID = referenceNode.GetStringID()
+	u.flags = flags
+	return u
 }
 
-// Java: RemoveUnusedCode.RemovableBuilder.setIsPrototypeDotPropertyReference(boolean)
-func (b *RemoveUnusedCode_RemovableBuilder) SetIsPrototypeDotPropertyReference(value bool) *RemoveUnusedCode_RemovableBuilder {
-	if value {
-		b.flags |= remFlagProtoDotPropRef
-	} else {
-		b.flags &^= remFlagProtoDotPropRef
+func (r *RemoveUnusedCode) newInstanceofNameRemovable(instanceofNode rhino.Node) *RemoveUnusedCode_RemovableBase {
+	jutil.CheckArgumentMsg1(instanceofNode.IsInstanceOf(), "%s", instanceofNode)
+	i := r.removables.New()
+	i.remKind = remKindInstanceofName
+	i.targetNode = instanceofNode
+	return i
+}
+
+func (r *RemoveUnusedCode) newWeakUsageCallRemovable(weakCallNode rhino.Node) *RemoveUnusedCode_RemovableBase {
+	jutil.CheckArgumentMsg1(weakCallNode.IsCall(), "%s", weakCallNode)
+	w := r.removables.New()
+	w.remKind = remKindWeakUsageCall
+	w.targetNode = weakCallNode
+	return w
+}
+
+func (r *RemoveUnusedCode) newIncOrDecOpRemovable(incOrDecNode, propNode, toPreserve rhino.Node, flags uint8) *RemoveUnusedCode_RemovableBase {
+	incDec, ok := ast.AsIncDec(incOrDecNode)
+	jutil.CheckArgumentMsg1(ok, "%s", incOrDecNode)
+	arg := incDec.Target().Node()
+	jutil.CheckStateMsg1(RemoveUnusedCode_IsThisDotProperty(arg) || RemoveUnusedCode_IsDotPrototypeDotProperty(arg), "%s", arg)
+	o := r.removables.New()
+	o.remKind = remKindIncOrDecOp
+	o.targetNode = incOrDecNode
+	o.auxNode = toPreserve
+	o.propertyNameID = propNode.GetStringID()
+	o.flags = flags
+	return o
+}
+
+func (r *RemoveUnusedCode) newIndirectAssignRemovable(root, targetNode rhino.Node, scope *Scope) *RemoveUnusedCode_RemovableBase {
+	rootParent := root.GetParent()
+	if !(rootParent.IsDestructuringPattern() || rootParent.IsParamList()) {
+		jutil.CheckStateMsg1(false, "%s", rootParent)
 	}
-	return b
-}
-
-// Java: RemoveUnusedCode.RemovableBuilder.setIsThisDotPropertyReference(boolean)
-func (b *RemoveUnusedCode_RemovableBuilder) SetIsThisDotPropertyReference(value bool) *RemoveUnusedCode_RemovableBuilder {
-	if value {
-		b.flags |= remFlagThisDotPropRef
-	} else {
-		b.flags &^= remFlagThisDotPropRef
+	if !(targetNode.IsName() || targetNode.IsGetProp()) {
+		jutil.CheckStateMsg1(false, "%s", targetNode)
 	}
-	return b
-}
-
-func (b *RemoveUnusedCode_RemovableBuilder) setPropertyName(name string) {
-	b.propertyNameID = uint32(rhino.RhinoStringPool_InternID(name))
-	b.flags |= remFlagHasPropertyName
-}
-
-func (b *RemoveUnusedCode_RemovableBuilder) setPropertyNameNode(n rhino.Node) {
-	id := n.GetStringID()
-	if id == 0 {
-		s := n.GetString()
-		if s != "" {
-			id = uint32(rhino.RhinoStringPool_InternID(s))
+	a := r.removables.New()
+	a.remKind = remKindIndirectAssign
+	a.targetNode = targetNode
+	a.auxNode = root
+	if targetNode.IsGetProp() {
+		a.propertyNameID = targetNode.GetStringID()
+		if RemoveUnusedCode_IsThisDotProperty(targetNode) {
+			a.flags = remFlagThisDotPropRef
 		}
 	}
-	b.propertyNameID = id
-	b.flags |= remFlagHasPropertyName
+	a.addContinuation(r, root, scope)
+	return a
 }
 
-// Java: RemoveUnusedCode.RemovableBuilder.buildIndirectAssign(Node, Node)
-func (b *RemoveUnusedCode_RemovableBuilder) BuildIndirectAssign(root rhino.Node, targetNode rhino.Node) *RemoveUnusedCode_RemovableBase {
-	return NewRemoveUnusedCode_IndirectAssign(b.outer, b, root, targetNode)
+func (r *RemoveUnusedCode) newPolyfillRemovable(call ast.NormalOrOptChainCall, scope *Scope) *RemoveUnusedCode_RemovableBase {
+	p := r.removables.New()
+	p.remKind = remKindPolyfill
+	p.targetNode = call.Node().GetParent()
+	// The callee: $jscomp.patch or (collapsed) $jscomp$patch.
+	if calleeID := call.Callee().Node().GetStringID(); calleeID == rucCalleePatchID || calleeID == rucCalleeJscompPatchID {
+		p.flags = remFlagSubBit
+	}
+	for arg := range call.Args() {
+		p.addContinuation(r, arg.Node(), scope)
+	}
+	return p
 }
 
-// Java: RemoveUnusedCode.RemovableBuilder.buildPolyfill(Node)
-func (b *RemoveUnusedCode_RemovableBuilder) BuildPolyfill(polyfillNode rhino.Node) *RemoveUnusedCode_RemovableBase {
-	return NewRemoveUnusedCode_Polyfill(b.outer, b, polyfillNode)
+func (r *RemoveUnusedCode) newClassDeclRemovable(classNode rhino.Node) *RemoveUnusedCode_RemovableBase {
+	c := r.removables.New()
+	c.remKind = remKindClassDecl
+	c.targetNode = classNode
+	return c
 }
 
-// Java: RemoveUnusedCode.RemovableBuilder.buildClassDeclaration(Node)
-func (b *RemoveUnusedCode_RemovableBuilder) BuildClassDeclaration(classNode rhino.Node) *RemoveUnusedCode_RemovableBase {
-	return NewRemoveUnusedCode_ClassDeclaration(b.outer, b, classNode)
+func (r *RemoveUnusedCode) newNamedClassExprRemovable(classNode rhino.Node) *RemoveUnusedCode_RemovableBase {
+	c := r.removables.New()
+	c.remKind = remKindNamedClassExpr
+	c.targetNode = classNode
+	return c
 }
 
-// Java: RemoveUnusedCode.RemovableBuilder.buildNamedClassExpression(Node)
-func (b *RemoveUnusedCode_RemovableBuilder) BuildNamedClassExpression(classNode rhino.Node) *RemoveUnusedCode_RemovableBase {
-	return NewRemoveUnusedCode_NamedClassExpression(b.outer, b, classNode)
-}
-
-// Java: RemoveUnusedCode.RemovableBuilder.buildClassOrPrototypeNamedProperty(Node)
-func (b *RemoveUnusedCode_RemovableBuilder) BuildClassOrPrototypeNamedProperty(propertyNode rhino.Node) *RemoveUnusedCode_RemovableBase {
+func (r *RemoveUnusedCode) newClassOrProtoPropRemovable(propertyNode rhino.Node) *RemoveUnusedCode_RemovableBase {
 	if !(propertyNode.IsMemberFunctionDef() ||
 		propertyNode.IsMemberFieldDef() ||
 		NodeUtil_IsGetOrSetKey(propertyNode) ||
 		(propertyNode.IsStringKey() && !propertyNode.IsQuotedStringKey())) {
 		jutil.CheckArgumentMsg1(false, "%s", propertyNode)
 	}
-	b.setPropertyNameNode(propertyNode)
-	return NewRemoveUnusedCode_ClassOrPrototypeNamedProperty(b.outer, b, propertyNode)
+	p := r.removables.New()
+	p.remKind = remKindClassOrProtoProp
+	p.targetNode = propertyNode
+	p.propertyNameID = propertyNode.GetStringID()
+	return p
 }
 
-// Java: RemoveUnusedCode.RemovableBuilder.buildObjectDefinePropertiesDefinition(Node)
-func (b *RemoveUnusedCode_RemovableBuilder) BuildObjectDefinePropertiesDefinition(propertyNode rhino.Node) *RemoveUnusedCode_RemovableBase {
-	b.setPropertyNameNode(propertyNode)
-	return NewRemoveUnusedCode_ObjectDefinePropertiesDefinition(b.outer, b, propertyNode)
+func (r *RemoveUnusedCode) newObjectDefinePropsDefRemovable(propertyNode rhino.Node) *RemoveUnusedCode_RemovableBase {
+	d := r.removables.New()
+	d.remKind = remKindObjectDefinePropsDef
+	d.targetNode = propertyNode
+	d.propertyNameID = propertyNode.GetStringID()
+	return d
 }
 
-// Java: RemoveUnusedCode.RemovableBuilder.buildFunctionDeclaration(Node)
-func (b *RemoveUnusedCode_RemovableBuilder) BuildFunctionDeclaration(functionNode rhino.Node) *RemoveUnusedCode_RemovableBase {
-	return NewRemoveUnusedCode_FunctionDeclaration(b.outer, b, functionNode)
+func (r *RemoveUnusedCode) newFunctionDeclRemovable(functionNode rhino.Node, scope *Scope) *RemoveUnusedCode_RemovableBase {
+	f := r.removables.New()
+	f.remKind = remKindFunctionDecl
+	f.targetNode = functionNode
+	f.addContinuation(r, functionNode, scope)
+	return f
 }
 
-// Java: RemoveUnusedCode.RemovableBuilder.buildNameDeclarationStatement(Node)
-func (b *RemoveUnusedCode_RemovableBuilder) BuildNameDeclarationStatement(declarationStatement rhino.Node) *RemoveUnusedCode_RemovableBase {
-	return NewRemoveUnusedCode_NameDeclarationStatement(b.outer, b, declarationStatement)
-}
-
-// Java: RemoveUnusedCode.RemovableBuilder.buildNamedPropertyAssign(Node, Node)
-func (b *RemoveUnusedCode_RemovableBuilder) BuildNamedPropertyAssign(assignNode rhino.Node, propertyNode rhino.Node) *RemoveUnusedCode_RemovableBase {
-	return b.BuildNamedPropertyAssignWithVarInfo(assignNode, propertyNode, nil)
-}
-
-// Java: RemoveUnusedCode.RemovableBuilder.buildNamedPropertyAssign(Node, Node, VarInfo)
-func (b *RemoveUnusedCode_RemovableBuilder) BuildNamedPropertyAssignWithVarInfo(assignNode rhino.Node, propertyNode rhino.Node, varInfo *RemoveUnusedCode_RealVarInfo) *RemoveUnusedCode_RemovableBase {
-	b.setPropertyNameNode(propertyNode)
-	return NewRemoveUnusedCode_Assign(b.outer, b, assignNode, RemoveUnusedCode_Kind_NAMED_PROPERTY, propertyNode, varInfo)
-}
-
-// Java: RemoveUnusedCode.RemovableBuilder.buildComputedPropertyAssign(Node, Node, VarInfo)
-func (b *RemoveUnusedCode_RemovableBuilder) BuildComputedPropertyAssign(assignNode rhino.Node, propertyNode rhino.Node, varInfo *RemoveUnusedCode_RealVarInfo) *RemoveUnusedCode_RemovableBase {
-	return NewRemoveUnusedCode_Assign(b.outer, b, assignNode, RemoveUnusedCode_Kind_COMPUTED_PROPERTY, propertyNode, varInfo)
-}
-
-// Java: RemoveUnusedCode.RemovableBuilder.buildVariableAssign(Node, VarInfo)
-func (b *RemoveUnusedCode_RemovableBuilder) BuildVariableAssign(assignNode rhino.Node, varInfo *RemoveUnusedCode_RealVarInfo) *RemoveUnusedCode_RemovableBase {
-	return NewRemoveUnusedCode_Assign(b.outer, b, assignNode, RemoveUnusedCode_Kind_VARIABLE /* propertyNode= */, rhino.NilNode, varInfo)
-}
-
-// Java: RemoveUnusedCode.RemovableBuilder.buildClassSetupCall(Node)
-func (b *RemoveUnusedCode_RemovableBuilder) BuildClassSetupCall(callNode rhino.Node) *RemoveUnusedCode_RemovableBase {
-	return b.BuildClassSetupCallWithClassDefiningCall(callNode /* classDefiningCall= */, false)
-}
-
-// Java: RemoveUnusedCode.RemovableBuilder.buildClassSetupCall(Node, boolean)
-func (b *RemoveUnusedCode_RemovableBuilder) BuildClassSetupCallWithClassDefiningCall(callNode rhino.Node, classDefiningCall bool) *RemoveUnusedCode_RemovableBase {
-	return NewRemoveUnusedCode_ClassSetupCall(b.outer, b, callNode, classDefiningCall)
-}
-
-// Java: RemoveUnusedCode.RemovableBuilder.buildVanillaForNameDeclaration(Node)
-func (b *RemoveUnusedCode_RemovableBuilder) BuildVanillaForNameDeclaration(nameNode rhino.Node) *RemoveUnusedCode_RemovableBase {
-	return NewRemoveUnusedCode_VanillaForNameDeclaration(b.outer, b, nameNode)
-}
-
-// Java: RemoveUnusedCode.RemovableBuilder.buildAnonymousPrototypeNamedPropertyAssign(Node, String)
-func (b *RemoveUnusedCode_RemovableBuilder) BuildAnonymousPrototypeNamedPropertyAssign(
-	assignNode rhino.Node, propertyName string) *RemoveUnusedCode_RemovableBase {
-	b.setPropertyName(propertyName)
-	return NewRemoveUnusedCode_AnonymousPrototypeNamedPropertyAssign(b.outer, b, assignNode)
-}
-
-// Java: RemoveUnusedCode.RemovableBuilder.buildIncOrDepOp(Node, Node, Node)
-func (b *RemoveUnusedCode_RemovableBuilder) BuildIncOrDepOp(incOrDecOp rhino.Node, propertyNode rhino.Node, toPreseve rhino.Node) *RemoveUnusedCode_RemovableBase {
-	b.setPropertyNameNode(propertyNode)
-	return NewRemoveUnusedCode_IncOrDecOp(b.outer, b, incOrDecOp, toPreseve)
-}
-
-// Java: RemoveUnusedCode.RemovableBuilder.buildUnusedReadReference(Node, Node)
-func (b *RemoveUnusedCode_RemovableBuilder) BuildUnusedReadReference(referenceNode rhino.Node, propertyNode rhino.Node) *RemoveUnusedCode_RemovableBase {
-	b.setPropertyNameNode(propertyNode)
-	return NewRemoveUnusedCode_UnusedReadReference(b.outer, b, referenceNode)
-}
-
-// Java: RemoveUnusedCode.RemovableBuilder.buildInstanceofName(Node)
-func (b *RemoveUnusedCode_RemovableBuilder) BuildInstanceofName(instanceofNode rhino.Node) *RemoveUnusedCode_RemovableBase {
-	return NewRemoveUnusedCode_InstanceofName(b.outer, b, instanceofNode)
-}
-
-// Java: RemoveUnusedCode.RemovableBuilder.buildWeakUsageCall(Node)
-func (b *RemoveUnusedCode_RemovableBuilder) BuildWeakUsageCall(weakUsageCall rhino.Node) *RemoveUnusedCode_RemovableBase {
-	return NewRemoveUnusedCode_WeakUsageCall(b.outer, b, weakUsageCall)
-}
-
-// Java: RemoveUnusedCode.UnusedReadReference(RemovableBuilder, Node)
-func NewRemoveUnusedCode_UnusedReadReference(outer *RemoveUnusedCode, builder *RemoveUnusedCode_RemovableBuilder, referenceNode rhino.Node) *RemoveUnusedCode_RemovableBase {
-	if !(RemoveUnusedCode_IsThisDotProperty(referenceNode) || RemoveUnusedCode_IsDotPrototypeDotProperty(referenceNode)) {
-		jutil.CheckStateMsg1(false, "%s", referenceNode)
+func (r *RemoveUnusedCode) newNameDeclStmtRemovable(declarationStatement rhino.Node, hasInit bool) *RemoveUnusedCode_RemovableBase {
+	jutil.CheckArgumentMsg1(NodeUtil_IsNameDeclaration(declarationStatement), "%s", declarationStatement)
+	s := r.removables.New()
+	s.remKind = remKindNameDeclStmt
+	s.targetNode = declarationStatement
+	if !hasInit {
+		s.flags = remFlagUninitVarDecl
 	}
-	u := outer.removables.New()
-	u.initFromBuilder(remKindUnusedReadRef, referenceNode, builder)
-	return u
+	return s
 }
 
-// Java: RemoveUnusedCode.InstanceofName(RemovableBuilder, Node)
-func NewRemoveUnusedCode_InstanceofName(outer *RemoveUnusedCode, builder *RemoveUnusedCode_RemovableBuilder, instanceofNode rhino.Node) *RemoveUnusedCode_RemovableBase {
-	if !instanceofNode.IsInstanceOf() {
-		jutil.CheckArgumentMsg1(false, "%s", instanceofNode)
+func (r *RemoveUnusedCode) newVanillaForNameDeclRemovable(nameNode rhino.Node, hasInit bool) *RemoveUnusedCode_RemovableBase {
+	d := r.removables.New()
+	d.remKind = remKindVanillaForNameDecl
+	d.targetNode = nameNode
+	if !hasInit {
+		d.flags = remFlagUninitVarDecl
 	}
-	i := outer.removables.New()
-	i.initFromBuilder(remKindInstanceofName, instanceofNode, builder)
-	return i
+	return d
 }
 
-// Java: RemoveUnusedCode.WeakUsageCall(RemovableBuilder, Node)
-func NewRemoveUnusedCode_WeakUsageCall(outer *RemoveUnusedCode, builder *RemoveUnusedCode_RemovableBuilder, weakCallNode rhino.Node) *RemoveUnusedCode_RemovableBase {
-	jutil.CheckArgumentMsg1(weakCallNode.IsCall(), "%s", weakCallNode)
-	w := outer.removables.New()
-	w.initFromBuilder(remKindWeakUsageCall, weakCallNode, builder)
-	return w
+func (r *RemoveUnusedCode) newVarAssignRemovable(assignNode rhino.Node, varInfo *RemoveUnusedCode_RealVarInfo) *RemoveUnusedCode_RemovableBase {
+	jutil.CheckArgumentMsg1(NodeUtil_IsAssignmentOp(assignNode), "%s", assignNode)
+	jutil.CheckArgumentMsg(varInfo != nil, "missing VarInfo for variable assignment")
+	a := r.removables.New()
+	a.remKind = remKindAssignVar
+	a.targetNode = assignNode
+	a.varInfo = varInfo
+	return a
 }
 
-// Java: RemoveUnusedCode.IncOrDecOp(RemovableBuilder, Node, Node)
-func NewRemoveUnusedCode_IncOrDecOp(outer *RemoveUnusedCode, builder *RemoveUnusedCode_RemovableBuilder, incOrDecNode rhino.Node, toPreserve rhino.Node) *RemoveUnusedCode_RemovableBase {
-	incDec, ok := ast.AsIncDec(incOrDecNode)
-	jutil.CheckArgumentMsg1(ok, "%s", incOrDecNode)
-	arg := incDec.Target().Node()
-	jutil.CheckStateMsg1(RemoveUnusedCode_IsThisDotProperty(arg) || RemoveUnusedCode_IsDotPrototypeDotProperty(arg), "%s", arg)
-	o := outer.removables.New()
-	o.initFromBuilder(remKindIncOrDecOp, incOrDecNode, builder)
-	o.auxNode = toPreserve
-	return o
+func (r *RemoveUnusedCode) newNamedPropAssignRemovable(assignNode, propNode rhino.Node, varInfo *RemoveUnusedCode_RealVarInfo, flags uint8) *RemoveUnusedCode_RemovableBase {
+	jutil.CheckArgumentMsg1(NodeUtil_IsAssignmentOp(assignNode), "%s", assignNode)
+	jutil.CheckArgumentMsg1(propNode.IsGetProp(), "property name is not a GETPROP: %s", propNode)
+	a := r.removables.New()
+	a.remKind = remKindAssignNamedProp
+	a.targetNode = assignNode
+	a.varInfo = varInfo
+	a.propertyNameID = propNode.GetStringID()
+	a.flags = flags
+	return a
+}
+
+func (r *RemoveUnusedCode) newComputedPropAssignRemovable(assignNode, propNode rhino.Node, varInfo *RemoveUnusedCode_RealVarInfo) *RemoveUnusedCode_RemovableBase {
+	jutil.CheckArgumentMsg1(NodeUtil_IsAssignmentOp(assignNode), "%s", assignNode)
+	jutil.CheckArgumentMsg(!propNode.IsNil(), "missing property node")
+	a := r.removables.New()
+	a.remKind = remKindAssignComputedProp
+	a.targetNode = assignNode
+	a.varInfo = varInfo
+	return a
+}
+
+func (r *RemoveUnusedCode) newAnonProtoPropAssignRemovable(assignNode, propNode rhino.Node) *RemoveUnusedCode_RemovableBase {
+	jutil.CheckArgumentMsg1(assignNode.IsAssign(), "%s", assignNode)
+	a := r.removables.New()
+	a.remKind = remKindAnonProtoPropAssign
+	a.targetNode = assignNode
+	a.propertyNameID = propNode.GetStringID()
+	a.flags = remFlagProtoDotPropRef
+	return a
+}
+
+func (r *RemoveUnusedCode) newClassSetupCallRemovable(callNode rhino.Node, classDefiningCall bool) *RemoveUnusedCode_RemovableBase {
+	c := r.removables.New()
+	c.remKind = remKindClassSetupCall
+	c.targetNode = callNode
+	if classDefiningCall {
+		c.flags = remFlagSubBit
+	}
+	return c
+}
+
+// Java: RemoveUnusedCode.traverseRemovableAssignValue(Node, RemovableBuilder, Scope)
+func (r *RemoveUnusedCode) traverseRemovableAssignValue(rem *RemoveUnusedCode_RemovableBase, valueNode rhino.Node, scope *Scope) {
+	if r.MayHaveSideEffects(valueNode) || NodeUtil_IsExpressionResultUsed(valueNode.GetParent()) {
+		r.TraverseNode(valueNode, scope)
+	} else {
+		rem.addContinuation(r, valueNode, scope)
+	}
 }
 
 // RemoveUnusedCode_IsThisDotProperty: true for `this.propertyName`.
@@ -851,81 +798,6 @@ func RemoveUnusedCode_IsDotPrototypeDotProperty(n rhino.Node) bool {
 	return ok && RemoveUnusedCode_IsDotPrototype(access.Object().Node())
 }
 
-// Java: RemoveUnusedCode.IndirectAssign(RemovableBuilder, Node, Node)
-func NewRemoveUnusedCode_IndirectAssign(outer *RemoveUnusedCode, builder *RemoveUnusedCode_RemovableBuilder, root rhino.Node, targetNode rhino.Node) *RemoveUnusedCode_RemovableBase {
-	rootParent := root.GetParent()
-	if !(rootParent.IsDestructuringPattern() || rootParent.IsParamList()) {
-		jutil.CheckStateMsg1(false, "%s", rootParent)
-	}
-	if !(targetNode.IsName() || targetNode.IsGetProp()) {
-		jutil.CheckStateMsg1(false, "%s", targetNode)
-	}
-	a := outer.removables.New()
-	a.initFromBuilder(remKindIndirectAssign, targetNode, builder)
-	a.auxNode = root
-	return a
-}
-
-// Java: RemoveUnusedCode.Polyfill(RemovableBuilder, Node)
-func NewRemoveUnusedCode_Polyfill(outer *RemoveUnusedCode, builder *RemoveUnusedCode_RemovableBuilder, polyfillNode rhino.Node) *RemoveUnusedCode_RemovableBase {
-	p := outer.removables.New()
-	p.initFromBuilder(remKindPolyfill, polyfillNode, builder)
-	// The callee: $jscomp.patch or (collapsed) $jscomp$patch.
-	callee := ast.MustExprStmt(polyfillNode).Expr().MustCall().Callee()
-	if strings.Contains(callee.Node().GetString(), "patch") {
-		p.flags |= remFlagSubBit
-	}
-	return p
-}
-
-// Java: RemoveUnusedCode.ClassDeclaration(RemovableBuilder, Node)
-func NewRemoveUnusedCode_ClassDeclaration(outer *RemoveUnusedCode, builder *RemoveUnusedCode_RemovableBuilder, classDeclarationNode rhino.Node) *RemoveUnusedCode_RemovableBase {
-	c := outer.removables.New()
-	c.initFromBuilder(remKindClassDecl, classDeclarationNode, builder)
-	return c
-}
-
-// Java: RemoveUnusedCode.NamedClassExpression(RemovableBuilder, Node)
-func NewRemoveUnusedCode_NamedClassExpression(outer *RemoveUnusedCode, builder *RemoveUnusedCode_RemovableBuilder, classNode rhino.Node) *RemoveUnusedCode_RemovableBase {
-	c := outer.removables.New()
-	c.initFromBuilder(remKindNamedClassExpr, classNode, builder)
-	return c
-}
-
-// Java: RemoveUnusedCode.ClassOrPrototypeNamedProperty(RemovableBuilder, Node)
-func NewRemoveUnusedCode_ClassOrPrototypeNamedProperty(outer *RemoveUnusedCode, builder *RemoveUnusedCode_RemovableBuilder, propertyNode rhino.Node) *RemoveUnusedCode_RemovableBase {
-	p := outer.removables.New()
-	p.initFromBuilder(remKindClassOrProtoProp, propertyNode, builder)
-	return p
-}
-
-// Java: RemoveUnusedCode.ObjectDefinePropertiesDefinition(RemovableBuilder, Node)
-func NewRemoveUnusedCode_ObjectDefinePropertiesDefinition(outer *RemoveUnusedCode, builder *RemoveUnusedCode_RemovableBuilder, propertyNode rhino.Node) *RemoveUnusedCode_RemovableBase {
-	d := outer.removables.New()
-	d.initFromBuilder(remKindObjectDefinePropsDef, propertyNode, builder)
-	return d
-}
-
-// Java: RemoveUnusedCode.FunctionDeclaration(RemovableBuilder, Node)
-func NewRemoveUnusedCode_FunctionDeclaration(outer *RemoveUnusedCode, builder *RemoveUnusedCode_RemovableBuilder, functionDeclarationNode rhino.Node) *RemoveUnusedCode_RemovableBase {
-	f := outer.removables.New()
-	f.initFromBuilder(remKindFunctionDecl, functionDeclarationNode, builder)
-	return f
-}
-
-// Java: RemoveUnusedCode.NameDeclarationStatement(RemovableBuilder, Node)
-func NewRemoveUnusedCode_NameDeclarationStatement(outer *RemoveUnusedCode, builder *RemoveUnusedCode_RemovableBuilder, declarationStatement rhino.Node) *RemoveUnusedCode_RemovableBase {
-	if !NodeUtil_IsNameDeclaration(declarationStatement) {
-		jutil.CheckArgumentMsg1(false, "%s", declarationStatement)
-	}
-	s := outer.removables.New()
-	s.initFromBuilder(remKindNameDeclStmt, declarationStatement, builder)
-	if _, ok := s.declaredName().Init(); !ok {
-		s.flags |= remFlagUninitVarDecl
-	}
-	return s
-}
-
 // RemoveUnusedCode_MaybeUnwrapQnameOrDefaultValueNode: targetNode is the
 // node to which a value is being assigned; valueNode the value being
 // assigned. If `valueNode` has the form `qualifiedName || defaultValue` and
@@ -940,68 +812,6 @@ func RemoveUnusedCode_MaybeUnwrapQnameOrDefaultValueNode(targetNode rhino.Node, 
 		}
 	}
 	return valueNode
-}
-
-// RemoveUnusedCode_Kind is the nested enum Kind.
-type RemoveUnusedCode_Kind int32
-
-const (
-	// X = something;
-	RemoveUnusedCode_Kind_VARIABLE RemoveUnusedCode_Kind = iota
-	// X.propertyName = something;
-	// X.prototype.propertyName = something;
-	RemoveUnusedCode_Kind_NAMED_PROPERTY
-	// X[expression] = something;
-	// X.prototype[expression] = something;
-	RemoveUnusedCode_Kind_COMPUTED_PROPERTY
-)
-
-var removeUnusedCode_Kind_names = [...]string{"VARIABLE", "NAMED_PROPERTY", "COMPUTED_PROPERTY"}
-
-// Java: RemoveUnusedCode.Kind.name()
-func (k RemoveUnusedCode_Kind) String() string { return removeUnusedCode_Kind_names[k] }
-
-// Java: RemoveUnusedCode.Assign(RemovableBuilder, Node, Kind, Node, VarInfo)
-func NewRemoveUnusedCode_Assign(
-	outer *RemoveUnusedCode,
-	builder *RemoveUnusedCode_RemovableBuilder,
-	assignNode rhino.Node,
-	kind RemoveUnusedCode_Kind,
-	propertyNode rhino.Node,
-	varInfo *RemoveUnusedCode_RealVarInfo) *RemoveUnusedCode_RemovableBase {
-	if !NodeUtil_IsAssignmentOp(assignNode) {
-		jutil.CheckArgumentMsg1(false, "%s", assignNode)
-	}
-	var rk uint8
-	if kind == RemoveUnusedCode_Kind_VARIABLE {
-		if !propertyNode.IsNil() {
-			jutil.CheckArgumentMsg1(
-				false,
-				"got property node for simple variable assignment: %s",
-				propertyNode)
-		}
-		if varInfo == nil {
-			jutil.CheckArgumentMsg1(false, "missing VarInfo for variable assignment: %s", propertyNode)
-		}
-		rk = remKindAssignVar
-	} else {
-		if propertyNode.IsNil() {
-			jutil.CheckArgumentMsg(false, "missing property node")
-		}
-		if kind == RemoveUnusedCode_Kind_NAMED_PROPERTY {
-			if !propertyNode.IsGetProp() {
-				jutil.CheckArgumentMsg1(
-					false, "property name is not a GETPROP: %s", propertyNode)
-			}
-			rk = remKindAssignNamedProp
-		} else {
-			rk = remKindAssignComputedProp
-		}
-	}
-	a := outer.removables.New()
-	a.initFromBuilder(rk, assignNode, builder)
-	a.varInfo = varInfo
-	return a
 }
 
 // Java: RemoveUnusedCode.mayHaveSideEffects(Node)
@@ -1019,27 +829,6 @@ func (r *RemoveUnusedCode) MayHaveSideEffects(node rhino.Node) bool {
 		}
 	}
 	return r.astAnalyzer.MayHaveSideEffects(node)
-}
-
-// Java: RemoveUnusedCode.AnonymousPrototypeNamedPropertyAssign(RemovableBuilder, Node)
-func NewRemoveUnusedCode_AnonymousPrototypeNamedPropertyAssign(outer *RemoveUnusedCode, builder *RemoveUnusedCode_RemovableBuilder, assignNode rhino.Node) *RemoveUnusedCode_RemovableBase {
-	if builder.flags&remFlagHasPropertyName == 0 {
-		panic(jutil.NewNullPointerException())
-	}
-	jutil.CheckArgumentMsg1(assignNode.IsAssign(), "%s", assignNode)
-	a := outer.removables.New()
-	a.initFromBuilder(remKindAnonProtoPropAssign, assignNode, builder)
-	return a
-}
-
-// Java: RemoveUnusedCode.ClassSetupCall(RemovableBuilder, Node, boolean)
-func NewRemoveUnusedCode_ClassSetupCall(outer *RemoveUnusedCode, builder *RemoveUnusedCode_RemovableBuilder, callNode rhino.Node, classDefiningCall bool) *RemoveUnusedCode_RemovableBase {
-	c := outer.removables.New()
-	c.initFromBuilder(remKindClassSetupCall, callNode, builder)
-	if classDefiningCall {
-		c.flags |= remFlagSubBit
-	}
-	return c
 }
 
 // Java: RemoveUnusedCode.alreadyRemoved(Node)
