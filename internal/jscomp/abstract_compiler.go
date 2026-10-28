@@ -580,7 +580,7 @@ type AbstractCompiler interface {
 	GetBase64SourceMapContents(sourceFileName string) *string
 
 	// Java: AbstractCompiler.addComments(String, List<Comment>)
-	AddComments(filename string, comments []*parser.Comment)
+	AddComments(filename string, comments []parser.Comment)
 
 	// GetAccessorSummary returns a summary an entry for every property name
 	// found in the AST with a getter and / or setter defined.
@@ -600,7 +600,7 @@ type AbstractCompiler interface {
 	// GetComments returns all the comments from the given file.
 	//
 	// Java: AbstractCompiler.getComments(String)
-	GetComments(filename string) []*parser.Comment
+	GetComments(filename string) []parser.Comment
 
 	// GetModuleLoader gets the module loader.
 	//

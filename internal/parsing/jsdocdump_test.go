@@ -212,7 +212,8 @@ func dumpJsDoc(name, src string, config *Config) string {
 	templateNode.SetStaticSourceFile(sourceFile)
 	state := &jsdocFileState{licenseBuilder: jutil.NewLinkedHashSet[string]()}
 
-	for _, c := range comments {
+	for i := range comments {
+		c := &comments[i]
 		if c.Type != parser.Comment_Type_JSDOC && c.Type != parser.Comment_Type_IMPORTANT {
 			continue
 		}

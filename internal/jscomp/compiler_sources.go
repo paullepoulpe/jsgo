@@ -818,7 +818,7 @@ func (c *Compiler) InitializeSyntheticCodeInput() {
 	ast.SetChunk(firstChunk)
 	c.putCompilerInput(ast)
 
-	c.commentsPerFile.Put(compiler_SYNTHETIC_CODE_INPUT_ID.GetIdName(), []*parser.Comment{})
+	c.commentsPerFile.Put(compiler_SYNTHETIC_CODE_INPUT_ID.GetIdName(), []parser.Comment{})
 	c.ReportChangeToChangeScope(ast.GetAstRoot(c))
 }
 
@@ -934,7 +934,7 @@ func (c *Compiler) getNodeForRuntimeCodeInsertion() rhino.Node {
 }
 
 // Java: Compiler.addComments(String, List<Comment>)
-func (c *Compiler) AddComments(filename string, comments []*parser.Comment) {
+func (c *Compiler) AddComments(filename string, comments []parser.Comment) {
 	if !c.GetOptions().PreservesDetailedSourceInfo() {
 		panic(jutil.NewUnsupportedOperationExceptionMsg("addComments may only be called in IDE mode."))
 	}
@@ -942,7 +942,7 @@ func (c *Compiler) AddComments(filename string, comments []*parser.Comment) {
 }
 
 // Java: Compiler.getComments(String)
-func (c *Compiler) GetComments(filename string) []*parser.Comment {
+func (c *Compiler) GetComments(filename string) []parser.Comment {
 	if !c.GetOptions().PreservesDetailedSourceInfo() {
 		panic(jutil.NewUnsupportedOperationExceptionMsg("getComments may only be called in IDE mode."))
 	}

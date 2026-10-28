@@ -74,14 +74,14 @@ func assertValuesExactly[T any](t *testing.T, seq iter.Seq[T], want ...any) {
 	}
 }
 
-func assertGet[K any](t *testing.T, m PMap[K, any], key K, want any) {
+func assertGet[K any](t *testing.T, m *HamtPMap[K, any], key K, want any) {
 	t.Helper()
 	if got := m.Get(key); !jutil.ObjectsEquals(got, want) {
 		t.Errorf("get(%v) = %v, want %v", key, got, want)
 	}
 }
 
-func assertIsEmpty[K any](t *testing.T, m PMap[K, any], want bool) {
+func assertIsEmpty[K any](t *testing.T, m *HamtPMap[K, any], want bool) {
 	t.Helper()
 	if got := m.IsEmpty(); got != want {
 		t.Errorf("isEmpty() = %v, want %v", got, want)
@@ -96,7 +96,7 @@ func assertBool(t *testing.T, what string, got, want bool) {
 }
 
 func TestHamtPMap_Empty(t *testing.T) {
-	var m PMap[string, any] = HamtPMap_Empty[string, any]()
+	m := HamtPMap_Empty[string, any]()
 	assertGet(t, m, "foo", nil)
 	assertValuesExactly(t, m.Values())
 	assertIsEmpty(t, m, true)
@@ -114,7 +114,7 @@ func TestHamtPMap_Empty(t *testing.T) {
 }
 
 func TestHamtPMap_Plus(t *testing.T) {
-	var empty PMap[string, any] = HamtPMap_Empty[string, any]()
+	empty := HamtPMap_Empty[string, any]()
 	m := empty.Plus("foo", 42)
 	assertGet(t, m, "foo", 42)
 	assertValuesExactly(t, m.Values(), 42)
@@ -122,7 +122,7 @@ func TestHamtPMap_Plus(t *testing.T) {
 }
 
 func TestHamtPMap_Plus_AlreadyExistsReturnsSame(t *testing.T) {
-	var empty PMap[string, any] = HamtPMap_Empty[string, any]()
+	empty := HamtPMap_Empty[string, any]()
 	m := empty.Plus("foo", 42)
 	if m.Plus("foo", 42) != m {
 		t.Error("plus of an existing entry is not the same instance")
@@ -130,7 +130,7 @@ func TestHamtPMap_Plus_AlreadyExistsReturnsSame(t *testing.T) {
 }
 
 func TestHamtPMap_Plus_UpdatesExistingKey(t *testing.T) {
-	var empty PMap[string, any] = HamtPMap_Empty[string, any]()
+	empty := HamtPMap_Empty[string, any]()
 	m := empty.Plus("foo", 42).Plus("foo", 23)
 	assertGet(t, m, "foo", 23)
 	assertValuesExactly(t, m.Values(), 23)
@@ -146,7 +146,7 @@ func TestHamtPMap_Minus(t *testing.T) {
 }
 
 func TestHamtPMap_Minus_NonexistentKeyReturnsSame(t *testing.T) {
-	var empty PMap[string, any] = HamtPMap_Empty[string, any]()
+	empty := HamtPMap_Empty[string, any]()
 	m := empty.Plus("foo", 42)
 	if m.Minus("bar") != m {
 		t.Error("minus of a missing key is not the same instance")
@@ -154,7 +154,7 @@ func TestHamtPMap_Minus_NonexistentKeyReturnsSame(t *testing.T) {
 }
 
 func TestHamtPMap_PlusAndMinus(t *testing.T) {
-	var empty PMap[string, any] = HamtPMap_Empty[string, any]()
+	empty := HamtPMap_Empty[string, any]()
 	m := empty.Plus("foo", 42).Plus("bar", 19).Plus("baz", 12)
 	assertGet(t, m, "foo", 42)
 	assertGet(t, m, "bar", 19)
@@ -182,7 +182,7 @@ func TestHamtPMap_PlusAndMinus(t *testing.T) {
 }
 
 func TestHamtPMap_Reconcile_CustomJoiner(t *testing.T) {
-	var empty PMap[int, any] = HamtPMap_Empty[int, any]()
+	empty := HamtPMap_Empty[int, any]()
 	left := empty.Plus(1, "1").Plus(3, "3").Plus(5, "5").Plus(7, "7").Plus(9, "9")
 	right := empty.Plus(3, "C").Plus(4, "D").Plus(5, "5").Plus(6, "F").Plus(7, "G")
 
@@ -201,7 +201,7 @@ func TestHamtPMap_Reconcile_CustomJoiner(t *testing.T) {
 }
 
 func TestHamtPMap_Reconcile_EmptyMaps(t *testing.T) {
-	var empty PMap[int, any] = HamtPMap_Empty[int, any]()
+	empty := HamtPMap_Empty[int, any]()
 	m := empty.Plus(1, "1").Plus(3, "3").Plus(5, "5").Plus(7, "7").Plus(9, "9")
 
 	joined := m.Reconcile(
@@ -343,7 +343,7 @@ func TestHamtPMap_Equivalent_OneMissingKey(t *testing.T) {
 }
 
 func TestHamtPMap_Equivalent_EqualsWithCustomEquivalence(t *testing.T) {
-	var empty PMap[string, any] = HamtPMap_Empty[string, any]()
+	empty := HamtPMap_Empty[string, any]()
 	left := empty.Plus("abc", "AAa").Plus("def", "Ddd").Plus("ghi", "ggG")
 	right := empty.Plus("abc", "aAA").Plus("def", "ddD").Plus("ghi", "GGG")
 
@@ -353,7 +353,7 @@ func TestHamtPMap_Equivalent_EqualsWithCustomEquivalence(t *testing.T) {
 }
 
 func TestHamtPMap_Equivalent_NotEquivalentShortCircuits(t *testing.T) {
-	var empty PMap[int, any] = HamtPMap_Empty[int, any]()
+	empty := HamtPMap_Empty[int, any]()
 	left := empty.Plus(1, "1").Plus(2, "2")
 	right := empty.Plus(1, "3").Plus(2, "4")
 
@@ -368,21 +368,21 @@ func TestHamtPMap_Equivalent_NotEquivalentShortCircuits(t *testing.T) {
 }
 
 func TestHamtPMap_Keys_ContainsExactlyKeys(t *testing.T) {
-	var empty PMap[int, any] = HamtPMap_Empty[int, any]()
+	empty := HamtPMap_Empty[int, any]()
 	actual := empty.Plus(1, "a").Plus(2, "b").Plus(100, "x").Plus(-847, "h").Minus(2)
 
 	assertValuesExactly(t, actual.Keys(), 1, 100, -847)
 }
 
 func TestHamtPMap_Values_ContainsExactlyValues(t *testing.T) {
-	var empty PMap[int, any] = HamtPMap_Empty[int, any]()
+	empty := HamtPMap_Empty[int, any]()
 	actual := empty.Plus(1, "a").Plus(2, "b").Plus(3, "kkdmw").Plus(4, ":::").Minus(1)
 
 	assertValuesExactly(t, actual.Values(), "b", "kkdmw", ":::")
 }
 
 // joinExpectations is HamtPMapTest.JoinExpectations, a Reconciler (its
-// merge method value is the PMap_Reconciler).
+// merge method value is the HamtPMap_Reconciler).
 type joinExpectations struct {
 	t            *testing.T
 	expectations *jutil.LinkedHashMap[int, []any]
@@ -433,11 +433,11 @@ func TestHamtPMap_Integration(t *testing.T) {
 		}
 		return vs
 	}
-	var m PMap[int, any] = HamtPMap_Empty[int, any]()
+	m := HamtPMap_Empty[int, any]()
 
 	check := func() {
 		t.Helper()
-		m.(*HamtPMap[int, any]).AssertCorrectStructure()
+		m.AssertCorrectStructure()
 		assertIsEmpty(t, m, len(ref) == 0)
 		for j := 1; j < 127; j++ {
 			var want any
@@ -478,27 +478,27 @@ func TestHamtPMap_Integration(t *testing.T) {
 	if len(ref) != 0 {
 		t.Fatalf("ref has %d elements, want 0", len(ref))
 	}
-	if m != PMap[int, any](HamtPMap_Empty[int, any]()) {
+	if m != HamtPMap_Empty[int, any]() {
 		t.Error("map is not the same instance as HamtPMap.empty()")
 	}
 }
 
-func buildHamt(t *testing.T, values ...int) PMap[int, any] {
+func buildHamt(t *testing.T, values ...int) *HamtPMap[int, any] {
 	t.Helper()
-	var m PMap[int, any] = HamtPMap_Empty[int, any]()
+	m := HamtPMap_Empty[int, any]()
 	for _, value := range values {
 		m = m.Plus(value, value)
-		m.(*HamtPMap[int, any]).AssertCorrectStructure()
+		m.AssertCorrectStructure()
 	}
 	return m
 }
 
-func buildHamtWithCustomHashCode(t *testing.T, fixedHashCode int32, values ...int) PMap[*integerWithCustomHashCode, any] {
+func buildHamtWithCustomHashCode(t *testing.T, fixedHashCode int32, values ...int) *HamtPMap[*integerWithCustomHashCode, any] {
 	t.Helper()
-	var m PMap[*integerWithCustomHashCode, any] = HamtPMap_Empty[*integerWithCustomHashCode, any]()
+	m := HamtPMap_Empty[*integerWithCustomHashCode, any]()
 	for _, value := range values {
 		m = m.Plus(newIntegerWithCustomHashCode(value, fixedHashCode), value)
-		m.(*HamtPMap[*integerWithCustomHashCode, any]).AssertCorrectStructure()
+		m.AssertCorrectStructure()
 	}
 	return m
 }

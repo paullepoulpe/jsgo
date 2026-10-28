@@ -39,7 +39,7 @@ type ClassOrObjectElementInfo struct {
 	// isClassMember is true.
 	isStatic bool
 
-	name     *IdentifierToken
+	name     Token
 	nameExpr ParseTree
 }
 
@@ -73,7 +73,7 @@ func ClassOrObjectElementInfo_CreateObjectLiteralElementInfo(start SourcePositio
 // SetName sets the name token.
 //
 // Java: ClassOrObjectElementInfo.setName(IdentifierToken)
-func (c *ClassOrObjectElementInfo) SetName(name *IdentifierToken) {
+func (c *ClassOrObjectElementInfo) SetName(name Token) {
 	jutil.CheckState(c.nameExpr == nil)
 	c.name = name
 }
@@ -82,21 +82,24 @@ func (c *ClassOrObjectElementInfo) SetName(name *IdentifierToken) {
 //
 // Java: ClassOrObjectElementInfo.hasName()
 func (c *ClassOrObjectElementInfo) HasName() bool {
-	return c.name != nil
+	return c.name.IsPresent()
 }
 
 // GetName returns the name token.
 //
 // Java: ClassOrObjectElementInfo.getName()
-func (c *ClassOrObjectElementInfo) GetName() *IdentifierToken {
-	return jutil.CheckNotNull(c.name)
+func (c *ClassOrObjectElementInfo) GetName() Token {
+	if c.name.IsNull() {
+		panic(jutil.NewNullPointerException())
+	}
+	return c.name
 }
 
 // SetNameExpr sets the name expression.
 //
 // Java: ClassOrObjectElementInfo.setNameExpr(ParseTree)
 func (c *ClassOrObjectElementInfo) SetNameExpr(nameExpr ParseTree) {
-	jutil.CheckState(c.name == nil)
+	jutil.CheckState(c.name.IsNull())
 	c.nameExpr = nameExpr
 }
 

@@ -18,11 +18,7 @@
 
 package parser
 
-import (
-	"strings"
-
-	"github.com/paullepoulpe/jsgo/internal/jutil"
-)
+import "github.com/paullepoulpe/jsgo/internal/jutil"
 
 // 11.1 Primary Expressions
 
@@ -102,16 +98,16 @@ func (p *Parser) ParseLiteralExpression() *LiteralExpressionTree {
 	start := p.GetTreeStartLocation()
 	literal := p.NextLiteralToken()
 
-	if literal.GetTokenBase().Type == TokenType_STRING &&
-		literal.(*StringLiteralToken).HasUnescapedUnicodeLineOrParagraphSeparator() {
-		p.RecordFeatureUsed(FeatureSet_Feature_UNESCAPED_UNICODE_LINE_OR_PARAGRAPH_SEP)
-	}
-
-	if literal.GetTokenBase().Type == TokenType_NUMBER && strings.Contains(literal.String(), "_") {
-		p.RecordFeatureUsed(FeatureSet_Feature_NUMERIC_SEPARATOR)
-	}
-
-	if literal.GetTokenBase().Type == TokenType_BIGINT {
+	switch literal.Type() {
+	case TokenType_STRING:
+		if literal.HasUnescapedUnicodeLineOrParagraphSeparator() {
+			p.RecordFeatureUsed(FeatureSet_Feature_UNESCAPED_UNICODE_LINE_OR_PARAGRAPH_SEP)
+		}
+	case TokenType_NUMBER:
+		if literal.HasNumericSeparator() {
+			p.RecordFeatureUsed(FeatureSet_Feature_NUMERIC_SEPARATOR)
+		}
+	case TokenType_BIGINT:
 		p.RecordFeatureUsed(FeatureSet_Feature_BIGINT)
 	}
 
@@ -139,17 +135,17 @@ func (p *Parser) ParseTemplateLiteral(operand ParseTree) *TemplateLiteralExpress
 		start = operand.GetParseTreeBase().Location.Start
 	}
 	token := p.NextToken()
-	if _, ok := token.(*TemplateLiteralToken); !ok {
-		p.ReportErrorAtToken(token, "Unexpected template literal token %s.", token.GetTokenBase().Type.String())
+	if !token.IsTemplateLiteral() {
+		p.ReportErrorAtToken(token, "Unexpected template literal token %s.", token.Type().String())
 	}
 	isTaggedTemplate := operand != nil
-	templateToken := token.(*TemplateLiteralToken)
+	templateToken := token
 	if !isTaggedTemplate {
 		p.ReportTemplateErrorIfPresent(templateToken)
 	}
 	elements := []ParseTree{}
 	elements = append(elements, NewTemplateLiteralPortionTree(templateToken.Location, templateToken))
-	if templateToken.Type == TokenType_NO_SUBSTITUTION_TEMPLATE {
+	if templateToken.Type() == TokenType_NO_SUBSTITUTION_TEMPLATE {
 		return NewTemplateLiteralExpressionTree(p.GetTreeLocation(start), operand, elements)
 	}
 
@@ -158,14 +154,14 @@ func (p *Parser) ParseTemplateLiteral(operand ParseTree) *TemplateLiteralExpress
 	elements = append(elements, NewTemplateSubstitutionTree(expression.GetParseTreeBase().Location, expression))
 	for !p.errorReporter.HadError() {
 		templateToken = p.NextTemplateLiteralToken()
-		if templateToken.Type == TokenType_ERROR || templateToken.Type == TokenType_END_OF_FILE {
+		if templateToken.Type() == TokenType_ERROR || templateToken.Type() == TokenType_END_OF_FILE {
 			break
 		}
 		if !isTaggedTemplate {
 			p.ReportTemplateErrorIfPresent(templateToken)
 		}
 		elements = append(elements, NewTemplateLiteralPortionTree(templateToken.Location, templateToken))
-		if templateToken.Type == TokenType_TEMPLATE_TAIL {
+		if templateToken.Type() == TokenType_TEMPLATE_TAIL {
 			break
 		}
 
@@ -212,7 +208,7 @@ func (p *Parser) ParseArrayLiteral() ParseTree {
 	p.Eat(TokenType_OPEN_SQUARE)
 	var trailingCommaToken Token
 	for p.Peek(TokenType_COMMA) || p.Peek(TokenType_ELLIPSIS) || p.PeekAssignmentExpression() {
-		trailingCommaToken = nil
+		trailingCommaToken = Token{}
 		if p.Peek(TokenType_COMMA) {
 			commaStart := p.GetTreeStartLocation()
 			trailingCommaToken = p.Eat(TokenType_COMMA)
@@ -236,7 +232,7 @@ func (p *Parser) ParseArrayLiteral() ParseTree {
 	p.MaybeReportTrailingComma(trailingCommaToken)
 
 	return NewArrayLiteralExpressionTree(
-		p.GetTreeLocation(start), elements, trailingCommaToken != nil)
+		p.GetTreeLocation(start), elements, trailingCommaToken.IsPresent())
 }
 
 // 11.1.4 Object Literal Expression
@@ -252,7 +248,7 @@ func (p *Parser) ParseObjectLiteral() ParseTree {
 		prop := p.ParseObjectLiteralPropertyAssignment()
 		p.treeStack = append(p.treeStack, prop)
 		commaToken = p.EatOpt(TokenType_COMMA)
-		if commaToken == nil {
+		if commaToken.IsNull() {
 			break
 		}
 	}
@@ -262,18 +258,18 @@ func (p *Parser) ParseObjectLiteral() ParseTree {
 
 	result := p.popTrees(base)
 	return NewObjectLiteralExpressionTree(
-		p.GetTreeLocation(start), result, commaToken != nil)
+		p.GetTreeLocation(start), result, commaToken.IsPresent())
 }
 
 // Java: Parser.maybeReportTrailingComma(Token)
 func (p *Parser) MaybeReportTrailingComma(commaToken Token) {
-	if commaToken != nil {
+	if commaToken.IsPresent() {
 		p.RecordFeatureUsed(FeatureSet_Feature_TRAILING_COMMA)
 		if p.config.warnTrailingCommas {
 			// In ES3 mode warn about trailing commas which aren't accepted by
 			// older browsers (such as IE8).
 			p.errorReporter.ReportWarningFormat(
-				p.linePos(commaToken.GetTokenBase().Location.Start),
+				p.linePos(commaToken.Location.Start),
 				"Trailing comma is not legal in an ECMA-262 object initializer")
 		}
 	}
@@ -383,14 +379,14 @@ func (p *Parser) PeekPredefinedString(string_ string) bool {
 }
 
 // EatPredefinedString consumes an identifier with the given value, or
-// reports an error and returns nil.
+// reports an error and returns Token{}.
 //
 // Java: Parser.eatPredefinedString(String)
 func (p *Parser) EatPredefinedString(string_ string) Token {
-	token := identifierTokenAsToken(p.EatId())
-	if token == nil || !token.(*IdentifierToken).ValueEquals(string_) {
+	token := p.EatId()
+	if token.IsNull() || !token.ValueEquals(string_) {
 		p.ReportExpectedError(token, string_)
-		return nil
+		return Token{}
 	}
 	return token
 }
@@ -398,7 +394,7 @@ func (p *Parser) EatPredefinedString(string_ string) Token {
 // Java: Parser.peekPredefinedString(int, String)
 func (p *Parser) PeekPredefinedStringAt(index int, string_ string) bool {
 	return p.PeekAt(index, TokenType_IDENTIFIER) &&
-		p.PeekTokenAt(index).(*IdentifierToken).ValueEquals(string_)
+		p.PeekTokenAt(index).ValueEquals(string_)
 }
 
 // Java: Parser.parseObjectLiteralGetAccessor()
@@ -476,20 +472,20 @@ func (p *Parser) ParseObjectLiteralPropertyNameAssignment() ParseTree {
 	start := p.GetTreeStartLocation()
 	name := p.EatObjectLiteralPropertyName()
 	colon := p.EatOpt(TokenType_COLON)
-	if colon == nil {
-		if name.GetTokenBase().Type != TokenType_IDENTIFIER {
+	if colon.IsNull() {
+		if name.Type() != TokenType_IDENTIFIER {
 			p.ReportExpectedError(p.PeekToken(), TokenType_COLON)
-		} else if name.(*IdentifierToken).IsKeyword() {
+		} else if name.IsKeyword() {
 			p.ReportErrorAtToken(name, "Cannot use keyword in short object literal")
 		} else if p.Peek(TokenType_EQUAL) {
-			idTree := p.newIdentifierExpressionTree(p.GetTreeLocation(start), name.(*IdentifierToken))
+			idTree := p.newIdentifierExpressionTree(p.GetTreeLocation(start), name)
 			p.Eat(TokenType_EQUAL)
 			defaultValue := p.ParseAssignmentExpression()
 			return NewDefaultParameterTree(p.GetTreeLocation(start), idTree, defaultValue)
 		}
 	}
 	var value ParseTree
-	if colon != nil {
+	if colon.IsPresent() {
 		value = p.ParseAssignmentExpression()
 	}
 	return p.newPropertyNameAssignmentTree(p.GetTreeLocation(start), name, value)
@@ -965,7 +961,7 @@ func (p *Parser) ParseYield(expressionIn Parser_Expression) ParseTree {
 	isYieldAll := false
 	var expression ParseTree
 	if !p.PeekImplicitSemiColon() {
-		isYieldAll = p.EatOpt(TokenType_STAR) != nil
+		isYieldAll = p.EatOpt(TokenType_STAR).IsPresent()
 		if p.PeekAssignmentExpression() {
 			expression = p.ParseAssignment(expressionIn)
 		} else if isYieldAll {
@@ -998,7 +994,7 @@ func (p *Parser) ParseShortCircuit(expressionIn Parser_Expression) ParseTree {
 	if p.Peek(TokenType_QUESTION_QUESTION) {
 		if left.GetParseTreeBase().Type == ParseTreeType_BINARY_OPERATOR {
 			binaryTree := left.(*BinaryOperatorTree)
-			if binaryTree.Operator.GetTokenBase().Type == TokenType_AND || binaryTree.Operator.GetTokenBase().Type == TokenType_OR {
+			if binaryTree.Operator.Type() == TokenType_AND || binaryTree.Operator.Type() == TokenType_OR {
 				p.ReportError("Logical OR and logical AND require parentheses when used with '??'")
 			}
 		}
@@ -1611,7 +1607,7 @@ func (p *Parser) ParseArguments() *ArgumentListTree {
 
 		if !p.Peek(TokenType_CLOSE_PAREN) {
 			comma := p.Eat(TokenType_COMMA)
-			if comma != nil {
+			if comma.IsPresent() {
 				p.posStack = append(p.posStack, comma.GetStart())
 			}
 			if p.Peek(TokenType_CLOSE_PAREN) {

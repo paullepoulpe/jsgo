@@ -814,18 +814,16 @@ func (r *JSTypeRegistry) CreateScopeWithTemplates(scope StaticTypedScope, templa
 // attach the types to.
 type JSTypeRegistry_SyntheticTemplateScope struct {
 	delegate StaticTypedScope
-	types    PMap[string, *TemplateType]
+	types    *HamtPMap[string, *TemplateType]
 }
 
 // Java: JSTypeRegistry.SyntheticTemplateScope(StaticTypedScope, Iterable<TemplateType>)
 func NewJSTypeRegistry_SyntheticTemplateScope(delegate StaticTypedScope, templates []*TemplateType) *JSTypeRegistry_SyntheticTemplateScope {
 	s := &JSTypeRegistry_SyntheticTemplateScope{}
 	s.delegate = delegate
-	var types PMap[string, *TemplateType]
+	var types *HamtPMap[string, *TemplateType]
 	if syntheticTemplateScope, ok := delegate.(*JSTypeRegistry_SyntheticTemplateScope); ok {
 		types = syntheticTemplateScope.types
-	} else {
-		types = HamtPMap_Empty[string, *TemplateType]()
 	}
 	for _, key := range templates {
 		types = types.Plus(*key.GetReferenceName(), key)

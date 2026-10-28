@@ -127,7 +127,7 @@ func dumpParseTree(name, src string, config *Parser_Config) string {
 		sb.WriteString("# sourceMapURL " + dumpQuote(*url) + "\n")
 	}
 	sb.WriteString("# comments\n")
-	d := &dumper{sb: &sb, file: file}
+	d := &dumper{sb: &sb, file: file, scanner: p.scanner}
 	d.render(reflect.ValueOf(p.GetComments()), 0, "")
 	sb.WriteString("# tree\n")
 	if tree == nil {
@@ -155,8 +155,9 @@ func describePanic(r any) string {
 }
 
 type dumper struct {
-	sb   *strings.Builder
-	file *SourceFile // positions are offsets: lines and columns come from here
+	sb      *strings.Builder
+	file    *SourceFile // positions are offsets: lines and columns come from here
+	scanner *Scanner    // side table for rare TemplateLiteralToken diagnostics
 }
 
 func (d *dumper) line(depth int, label, text string) {
@@ -170,13 +171,12 @@ func (d *dumper) line(depth int, label, text string) {
 
 var (
 	parseTreeType     = reflect.TypeOf((*ParseTree)(nil)).Elem()
-	tokenType         = reflect.TypeOf((*Token)(nil)).Elem()
-	commentPtrType    = reflect.TypeOf((*Comment)(nil))
+	tokenType         = reflect.TypeOf(Token{})
+	commentType       = reflect.TypeOf(Comment{})
 	positionType      = reflect.TypeOf(SourcePosition{})
 	rangeType         = reflect.TypeOf(SourceRange{})
 	lineRangeType     = reflect.TypeOf(LineRange{})
 	parseTreeBaseType = reflect.TypeOf(ParseTreeBase{})
-	tokenBaseType     = reflect.TypeOf(TokenBase{})
 )
 
 type namer interface{ Name() string }
@@ -223,15 +223,47 @@ func (d *dumper) render(v reflect.Value, depth int, label string) {
 		pt := v.Interface().(ParseTree).GetParseTreeBase()
 		d.line(depth, label, javaSimpleName(t)+" "+pt.Type.Name()+" "+d.dumpRange(pt.Location))
 		d.fields(v.Elem(), depth+1)
-	case t.Implements(tokenType):
-		tb := v.Interface().(Token).GetTokenBase()
-		d.line(depth, label, javaSimpleName(t)+" "+tb.Type.Name()+" "+d.dumpRange(tb.Location))
-		d.fields(v.Elem(), depth+1)
-	case t == commentPtrType:
+	case t == tokenType:
+		tok := v.Interface().(Token)
+		if tok.IsNull() {
+			d.line(depth, label, "null")
+			return
+		}
+		cls := tok.JavaSimpleClassName()
+		d.line(depth, label, cls+" "+tok.Type().Name()+" "+d.dumpRange(tok.Location))
+		d.renderTokenFields(tok, cls, depth+1)
+	case t == commentType:
 		d.line(depth, label, "Comment")
-		d.fields(v.Elem(), depth+1)
+		d.fields(v, depth+1)
 	default:
 		d.line(depth, label, d.scalar(v))
+	}
+}
+
+func (d *dumper) renderTokenFields(tok Token, cls string, depth int) {
+	switch cls {
+	case "IdentifierToken":
+		d.line(depth, "privateIdentifier=", fmt.Sprint(tok.IsPrivateIdentifier()))
+		d.line(depth, "value=", dumpQuote(tok.GetMaybePrivateValue()))
+	case "StringLiteralToken":
+		d.line(depth, "hasUnescapedUnicodeLineOrParagraphSeparator=", fmt.Sprint(tok.HasUnescapedUnicodeLineOrParagraphSeparator()))
+		d.line(depth, "value=", dumpQuote(tok.RawValue(d.file)))
+	case "TemplateLiteralToken":
+		errInfo := d.scanner.TemplateError(tok)
+		if lvl := errInfo.ErrorLevelPtr(); lvl == nil {
+			d.line(depth, "errorLevel=", "null")
+		} else {
+			d.line(depth, "errorLevel=", lvl.Name())
+		}
+		if msg := errInfo.ErrorMessagePtr(); msg == nil {
+			d.line(depth, "errorMessage=", "null")
+		} else {
+			d.line(depth, "errorMessage=", dumpQuote(*msg))
+		}
+		d.line(depth, "errorPosition=", d.dumpPosition(errInfo.Position))
+		d.line(depth, "value=", dumpQuote(tok.RawValue(d.file)))
+	case "LiteralToken":
+		d.line(depth, "value=", dumpQuote(tok.RawValue(d.file)))
 	}
 }
 
@@ -299,16 +331,14 @@ type structField struct {
 var fieldCache sync.Map // reflect.Type -> []structField
 
 // sortedStructFields lists the fields of struct type t below the
-// ParseTreeBase/TokenBase level (their type and location are in the
-// header), flattening other embedded bases (e.g. LiteralTokenBase), sorted
-// by Java name. The Go-only `self` back-pointer lives in the excluded bases.
+// ParseTreeBase level (its type and location are in the header), sorted
+// by Java name. The Go-only `self` back-pointer lives in ParseTreeBase.
 func sortedStructFields(t reflect.Type) []structField {
 	if c, ok := fieldCache.Load(t); ok {
 		return c.([]structField)
 	}
 	var out []structField
-	if t == parseTreeBaseType || t == tokenBaseType {
-		// A plain Token: everything is in the header.
+	if t == parseTreeBaseType {
 		fieldCache.Store(t, out)
 		return out
 	}
@@ -318,7 +348,7 @@ func sortedStructFields(t reflect.Type) []structField {
 			f := t.Field(i)
 			index := append(append([]int{}, prefix...), i)
 			if f.Anonymous {
-				if f.Type == parseTreeBaseType || f.Type == tokenBaseType {
+				if f.Type == parseTreeBaseType {
 					continue
 				}
 				walk(f.Type, index)

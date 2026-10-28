@@ -297,13 +297,13 @@ func NewDynamicImportTree(location SourceRange, argument ParseTree) *DynamicImpo
 type IdentifierExpressionTree struct {
 	ParseTreeBase
 
-	IdentifierToken *IdentifierToken
+	IdentifierToken Token
 }
 
 // NewIdentifierExpressionTree constructs a IdentifierExpressionTree.
 //
 // Java: IdentifierExpressionTree(SourceRange, IdentifierToken)
-func NewIdentifierExpressionTree(location SourceRange, identifierToken *IdentifierToken) *IdentifierExpressionTree {
+func NewIdentifierExpressionTree(location SourceRange, identifierToken Token) *IdentifierExpressionTree {
 	t := &IdentifierExpressionTree{}
 	t.InitParseTreeBase(ParseTreeType_IDENTIFIER_EXPRESSION, location)
 	t.IdentifierToken = identifierToken
@@ -366,13 +366,13 @@ type MemberExpressionTree struct {
 	ParseTreeBase
 
 	Operand    ParseTree
-	MemberName *IdentifierToken
+	MemberName Token
 }
 
 // NewMemberExpressionTree constructs a MemberExpressionTree.
 //
 // Java: MemberExpressionTree(SourceRange, ParseTree, IdentifierToken)
-func NewMemberExpressionTree(location SourceRange, operand ParseTree, memberName *IdentifierToken) *MemberExpressionTree {
+func NewMemberExpressionTree(location SourceRange, operand ParseTree, memberName Token) *MemberExpressionTree {
 	t := &MemberExpressionTree{}
 	t.InitParseTreeBase(ParseTreeType_MEMBER_EXPRESSION, location)
 	t.Operand = operand
@@ -535,14 +535,14 @@ type OptionalMemberExpressionTree struct {
 	ParseTreeBase
 
 	Operand                ParseTree
-	MemberName             *IdentifierToken
+	MemberName             Token
 	IsStartOfOptionalChain bool
 }
 
 // NewOptionalMemberExpressionTree constructs a OptionalMemberExpressionTree.
 //
 // Java: OptionalMemberExpressionTree(SourceRange, ParseTree, IdentifierToken, boolean)
-func NewOptionalMemberExpressionTree(location SourceRange, operand ParseTree, memberName *IdentifierToken, isStartOfOptionalChain bool) *OptionalMemberExpressionTree {
+func NewOptionalMemberExpressionTree(location SourceRange, operand ParseTree, memberName Token, isStartOfOptionalChain bool) *OptionalMemberExpressionTree {
 	t := &OptionalMemberExpressionTree{}
 	t.InitParseTreeBase(ParseTreeType_OPT_CHAIN_MEMBER_EXPRESSION, location)
 	t.Operand = operand

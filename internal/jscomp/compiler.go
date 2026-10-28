@@ -132,7 +132,7 @@ type Compiler struct {
 	inputSourceMaps *jutil.JavaHashMap[string, *SourceMapInput]
 
 	// Map from filenames to lists of all the comments in each file.
-	commentsPerFile *jutil.LinkedHashMap[string, []*parser.Comment]
+	commentsPerFile *jutil.LinkedHashMap[string, []parser.Comment]
 
 	// The source code map
 	sourceMap *SourceMap
@@ -392,7 +392,7 @@ func (c *Compiler) initFields() {
 	c.scriptNodeByFilename = jutil.NewLinkedHashMap[string, rhino.Node]()
 	c.sourceMapOriginalSources = jutil.NewLinkedHashMap[string, *SourceFile]()
 	c.inputSourceMaps = jutil.NewJavaHashMap[string, *SourceMapInput]()
-	c.commentsPerFile = jutil.NewLinkedHashMap[string, []*parser.Comment]()
+	c.commentsPerFile = jutil.NewLinkedHashMap[string, []parser.Comment]()
 	c.uniqueIdSupplier = NewUniqueIdSupplier()
 	c.uniqueNameId = 0
 	c.hasRegExpGlobalReferences = true
@@ -1005,7 +1005,7 @@ func (c *Compiler) InitChunks(externs []*SourceFile, chunks []*JSChunk, options 
 	// Creating the chunk graph can move weak source around, and end up with empty chunks.
 	c.fillEmptyChunks(c.GetChunks())
 
-	c.commentsPerFile = jutil.NewLinkedHashMap[string, []*parser.Comment]()
+	c.commentsPerFile = jutil.NewLinkedHashMap[string, []parser.Comment]()
 	c.InitBasedOnOptions()
 
 	c.InitInputsByIdMap()

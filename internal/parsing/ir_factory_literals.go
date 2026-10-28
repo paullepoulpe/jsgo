@@ -25,6 +25,7 @@ import (
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/parser"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
+	"github.com/paullepoulpe/jsgo/internal/strpool"
 )
 
 // irFactory_substring is String.substring(begin, end) on a string given as
@@ -65,9 +66,21 @@ func irFactory_indexOf(units []uint16, ch uint16, fromIndex int) int {
 	return -1
 }
 
+func (f *IRFactory) rawTokenValue(token parser.Token) string {
+	checkTokenNotNull(token)
+	if id := token.MaybePrivateValueID(); id != 0 {
+		return strpool.String(id)
+	}
+	start, end := token.ValueRange()
+	if s, ok := f.fileWithContent.ASCIISlice(start, end); ok {
+		return s
+	}
+	return f.fileWithContent.Substring(start, end)
+}
+
 // Java: IRFactory.normalizeRegex(LiteralToken)
-func (f *IRFactory) NormalizeRegex(token parser.LiteralToken) string {
-	value := token.GetLiteralTokenBase().Value
+func (f *IRFactory) NormalizeRegex(token parser.Token) string {
+	value := f.rawTokenValue(token)
 	if strings.IndexByte(value, '\\') == -1 {
 		// Go-only: language-adapter — the delimiting '/' are ASCII, so their
 		// byte indices delimit the same substring as Java's UTF-16 indices.
@@ -123,9 +136,72 @@ func (f *IRFactory) NormalizeRegex(token parser.LiteralToken) string {
 	return jutil.StringFromUTF16(result)
 }
 
+func (f *IRFactory) normalizeStringToID(token parser.Token) strpool.ID {
+	checkTokenNotNull(token)
+	if token.MaybePrivateValueID() == 0 {
+		start, end := token.ValueRange()
+		if s, ok := f.fileWithContent.ASCIISlice(start, end); ok {
+			if strings.IndexByte(s, '\\') == -1 && strings.IndexByte(s, '\r') == -1 {
+				return f.internString(s[1 : len(s)-1])
+			}
+		} else if units, ok := f.fileWithContent.UTF16Slice(start, end); ok && len(units) >= 2 {
+			inner := units[1 : len(units)-1]
+			if len(inner) <= 64 {
+				var buf [64]byte
+				simpleASCII := true
+				for i, u := range inner {
+					if u >= 0x80 || u == '\\' || u == '\r' {
+						simpleASCII = false
+						break
+					}
+					buf[i] = byte(u)
+				}
+				if simpleASCII {
+					return f.internStringBytes(buf[:len(inner)])
+				}
+			}
+		}
+	}
+	return f.internString(f.NormalizeString(token, false))
+}
+
 // Java: IRFactory.normalizeString(LiteralToken, boolean)
-func (f *IRFactory) NormalizeString(token parser.LiteralToken, templateLiteral bool) string {
-	value := token.GetLiteralTokenBase().Value
+func (f *IRFactory) NormalizeString(token parser.Token, templateLiteral bool) string {
+	checkTokenNotNull(token)
+	if token.MaybePrivateValueID() == 0 {
+		startOff, endOff := token.ValueRange()
+		if s, ok := f.fileWithContent.ASCIISlice(startOff, endOff); ok {
+			if strings.IndexByte(s, '\r') == -1 && strings.IndexByte(s, '\\') == -1 {
+				if templateLiteral {
+					return s
+				}
+				return s[1 : len(s)-1]
+			}
+		} else if units, ok := f.fileWithContent.UTF16Slice(startOff, endOff); ok {
+			hasCR := false
+			firstBackslash := -1
+			for i, u := range units {
+				if u == '\r' {
+					hasCR = true
+					break
+				}
+				if u == '\\' && firstBackslash < 0 {
+					firstBackslash = i
+				}
+			}
+			if !hasCR {
+				if firstBackslash < 0 {
+					if templateLiteral {
+						return jutil.StringFromUTF16(units)
+					}
+					return jutil.StringFromUTF16(units[1 : len(units)-1])
+				}
+				return f.normalizeStringEscapes(units, firstBackslash, token, templateLiteral)
+			}
+		}
+	}
+
+	value := f.rawTokenValue(token)
 	// <CR><LF> and <CR> are normalized as <LF>. For raw template literal
 	// string values: this is the spec behaviour. For regular string literals:
 	// they can only be part of a line continuation, which we want to scrub.
@@ -135,10 +211,6 @@ func (f *IRFactory) NormalizeString(token parser.LiteralToken, templateLiteral b
 		value = strings.ReplaceAll(strings.ReplaceAll(value, "\r\n", "\n"), "\r", "\n")
 	}
 
-	start := 1 // skip the leading quote
-	if templateLiteral {
-		start = 0
-	}
 	if strings.IndexByte(value, '\\') == -1 {
 		// short circuit no escapes.
 		if templateLiteral {
@@ -149,9 +221,16 @@ func (f *IRFactory) NormalizeString(token parser.LiteralToken, templateLiteral b
 	// Go-only: language-adapter — the String and StringBuilder operations of
 	// the escape path work on the UTF-16 code units of the value.
 	units := jutil.StringToUTF16(value)
-	cur := irFactory_indexOf(units, '\\', 0)
+	return f.normalizeStringEscapes(units, irFactory_indexOf(units, '\\', 0), token, templateLiteral)
+}
+
+func (f *IRFactory) normalizeStringEscapes(units []uint16, cur int, token parser.Token, templateLiteral bool) string {
+	start := 1 // skip the leading quote
+	if templateLiteral {
+		start = 0
+	}
 	result := make([]uint16, 0, len(units))
-	tokenStart := token.GetTokenBase().Location.Start
+	tokenStart := token.Location.Start
 	for cur != -1 {
 		result = append(result, units[start:cur]...)
 
@@ -316,12 +395,44 @@ func (f *IRFactory) InStrictContext() bool {
 // Scanner), so byte indices are Java char indices.
 //
 // Java: IRFactory.normalizeNumber(LiteralToken)
-func (f *IRFactory) NormalizeNumber(token parser.LiteralToken) float64 {
-	value := token.GetLiteralTokenBase().Value
-	if strings.Contains(value, "_") {
+func (f *IRFactory) NormalizeNumber(token parser.Token) float64 {
+	if !token.HasNumericSeparator() && token.MaybePrivateValueID() == 0 {
+		startOff := int(token.Location.Start.Offset)
+		endOff := int(token.Location.End.Offset)
+		if units, ok := f.fileWithContent.UTF16Slice(startOff, endOff); ok {
+			length := len(units)
+			if length == 1 && units[0] == '0' {
+				return 0
+			}
+			if length <= 15 && units[0] >= '1' && units[0] <= '9' {
+				v := uint64(units[0] - '0')
+				allDigits := true
+				for i := 1; i < length; i++ {
+					d := units[i] - '0'
+					if d > 9 {
+						allDigits = false
+						break
+					}
+					v = v*10 + uint64(d)
+				}
+				if allDigits {
+					return float64(v)
+				}
+			} else if length > 2 && units[0] == '0' && (units[1] == 'x' || units[1] == 'X') {
+				v := 0.0
+				for c := 2; c < length; c++ {
+					v = (v * 0x10) + float64(IRFactory_Hexdigit(units[c]))
+				}
+				return v
+			}
+		}
+	}
+
+	value := f.rawTokenValue(token)
+	if token.HasNumericSeparator() {
 		value = f.RemoveNumericSeparators(value, token)
 	}
-	location := token.GetTokenBase().Location
+	location := token.Location
 	length := len(value)
 	jutil.CheckState(length > 0)
 	jutil.CheckState(value[0] != '-' && value[0] != '+')
@@ -417,14 +528,14 @@ func (f *IRFactory) NormalizeNumber(token parser.LiteralToken) float64 {
 // characters (see NormalizeNumber).
 //
 // Java: IRFactory.normalizeBigInt(LiteralToken)
-func (f *IRFactory) NormalizeBigInt(token parser.LiteralToken) *big.Int {
-	value := token.GetLiteralTokenBase().Value
+func (f *IRFactory) NormalizeBigInt(token parser.Token) *big.Int {
+	value := f.rawTokenValue(token)
 	n := strings.IndexByte(value, 'n')
 	if n < 0 {
 		panic(jutil.NewStringIndexOutOfBoundsException(0, n))
 	}
 	value = value[0:n]
-	if strings.Contains(value, "_") {
+	if token.HasNumericSeparator() {
 		value = f.RemoveNumericSeparators(value, token)
 	}
 	length := len(value)
@@ -452,7 +563,7 @@ func (f *IRFactory) NormalizeBigInt(token parser.LiteralToken) *big.Int {
 }
 
 // Java: IRFactory.removeNumericSeparators(String, LiteralToken)
-func (f *IRFactory) RemoveNumericSeparators(value string, token parser.LiteralToken) string {
+func (f *IRFactory) RemoveNumericSeparators(value string, token parser.Token) string {
 	f.MaybeWarnForFeatureToken(token, parser.FeatureSet_Feature_NUMERIC_SEPARATOR)
 	return jutil.StringReplace(value, "_", "")
 }

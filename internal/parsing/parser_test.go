@@ -10237,7 +10237,7 @@ func (pt *parserTest) parse(string_ string) rhino.Node {
 // configured.
 //
 // Java: ParserTest.parseComments(String)
-func (pt *parserTest) parseComments(string_ string) []*parser.Comment {
+func (pt *parserTest) parseComments(string_ string) []parser.Comment {
 	pt.t.Helper()
 	return pt.doParse(string_).Comments
 }

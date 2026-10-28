@@ -210,14 +210,14 @@ func (p *Parser) popTrees(base int) []ParseTree {
 	return popStackChunked(&p.treeStack, base, &p.treeLists, parser_treeListChunk)
 }
 
-func (p *Parser) newIdentifierExpressionTree(location SourceRange, identifierToken *IdentifierToken) *IdentifierExpressionTree {
+func (p *Parser) newIdentifierExpressionTree(location SourceRange, identifierToken Token) *IdentifierExpressionTree {
 	t := p.identExprs.New()
 	t.InitParseTreeBase(ParseTreeType_IDENTIFIER_EXPRESSION, location)
 	t.IdentifierToken = identifierToken
 	return t
 }
 
-func (p *Parser) newMemberExpressionTree(location SourceRange, operand ParseTree, memberName *IdentifierToken) *MemberExpressionTree {
+func (p *Parser) newMemberExpressionTree(location SourceRange, operand ParseTree, memberName Token) *MemberExpressionTree {
 	t := p.memberExprs.New()
 	t.InitParseTreeBase(ParseTreeType_MEMBER_EXPRESSION, location)
 	t.Operand = operand
@@ -392,7 +392,7 @@ type Parser_CommentRecorder struct {
 	// inner class.
 	this *Parser
 
-	comments []*Comment
+	comments []Comment
 	// Go-only: language-adapter — the offset of Java's
 	// lastCommentEndPosition, -1 for null.
 	lastCommentEndOffset int32
@@ -402,7 +402,7 @@ type Parser_CommentRecorder struct {
 //
 // Java: Parser.CommentRecorder()
 func NewParser_CommentRecorder(this *Parser) *Parser_CommentRecorder {
-	return &Parser_CommentRecorder{this: this, comments: []*Comment{}, lastCommentEndOffset: -1}
+	return &Parser_CommentRecorder{this: this, comments: []Comment{}, lastCommentEndOffset: -1}
 }
 
 // RecordComment records a comment the scanner passed.
@@ -426,14 +426,14 @@ func (c *Parser_CommentRecorder) RecordComment(type_ Comment_Type, range_ LineRa
 // GetComments builds the list of recorded comments.
 //
 // Java: Parser.CommentRecorder.getComments()
-func (c *Parser_CommentRecorder) GetComments() []*Comment {
-	return append([]*Comment{}, c.comments...)
+func (c *Parser_CommentRecorder) GetComments() []Comment {
+	return append([]Comment{}, c.comments...)
 }
 
 // GetComments returns the comments of the source file.
 //
 // Java: Parser.getComments()
-func (p *Parser) GetComments() []*Comment {
+func (p *Parser) GetComments() []Comment {
 	return p.commentRecorder.GetComments()
 }
 
@@ -517,10 +517,10 @@ func (p *Parser) ParseImportDeclaration() ParseTree {
 
 	// import ModuleSpecifier ;
 	if p.Peek(TokenType_STRING) {
-		moduleSpecifier := p.Eat(TokenType_STRING).(LiteralToken)
+		moduleSpecifier := p.Eat(TokenType_STRING)
 		p.EatPossiblyImplicitSemiColon()
 
-		return NewImportDeclarationTree(p.GetTreeLocation(start), nil, nil, nil, moduleSpecifier)
+		return NewImportDeclarationTree(p.GetTreeLocation(start), Token{}, nil, Token{}, moduleSpecifier)
 	}
 
 	// import ImportedDefaultBinding from ModuleSpecifier
@@ -528,8 +528,8 @@ func (p *Parser) ParseImportDeclaration() ParseTree {
 	// import NamedImports from ModuleSpecifier ;
 	// import ImportedDefaultBinding , NameSpaceImport from ModuleSpecifier ;
 	// import ImportedDefaultBinding , NamedImports from ModuleSpecifier ;
-	var defaultBindingIdentifier *IdentifierToken
-	var nameSpaceImportIdentifier *IdentifierToken
+	var defaultBindingIdentifier Token
+	var nameSpaceImportIdentifier Token
 	var identifierSet []ParseTree
 
 	parseExplicitNames := true
@@ -556,11 +556,7 @@ func (p *Parser) ParseImportDeclaration() ParseTree {
 	}
 
 	p.EatPredefinedString(PredefinedName_FROM)
-	moduleStr := p.Eat(TokenType_STRING)
-	var moduleSpecifier LiteralToken
-	if moduleStr != nil {
-		moduleSpecifier = moduleStr.(LiteralToken)
-	}
+	moduleSpecifier := p.Eat(TokenType_STRING)
 	p.EatPossiblyImplicitSemiColon()
 
 	return NewImportDeclarationTree(
@@ -594,12 +590,12 @@ func (p *Parser) ParseImportSpecifierSet() []ParseTree {
 func (p *Parser) ParseImportSpecifier() ParseTree {
 	start := p.GetTreeStartLocation()
 	importedName := p.EatIdOrKeywordAsId()
-	var destinationName *IdentifierToken
+	var destinationName Token
 	if p.PeekPredefinedString(PredefinedName_AS) {
 		p.EatPredefinedString(PredefinedName_AS)
 		destinationName = p.EatId()
 	} else if importedName.IsKeyword() {
-		p.ReportExpectedError(nil, PredefinedName_AS)
+		p.ReportExpectedError(Token{}, PredefinedName_AS)
 	}
 	return NewImportSpecifierTree(p.GetTreeLocation(start), importedName, destinationName)
 }
@@ -681,17 +677,15 @@ func (p *Parser) ParseExportDeclaration() ParseTree {
 		export = variableDeclarationListAsParseTree(p.ParseVariableDeclarationList())
 	}
 
-	var moduleSpecifier LiteralToken
+	var moduleSpecifier Token
 	if isExportAll || (isExportSpecifier && p.PeekPredefinedString(PredefinedName_FROM)) {
 		p.EatPredefinedString(PredefinedName_FROM)
-		if token := p.Eat(TokenType_STRING); token != nil {
-			moduleSpecifier = token.(LiteralToken)
-		}
+		moduleSpecifier = p.Eat(TokenType_STRING)
 	} else if isExportSpecifier {
 		for _, tree := range exportSpecifierList {
 			importedName := tree.(*ExportSpecifierTree).ImportedName
 			if importedName.IsKeyword() {
-				p.ReportErrorAtToken(identifierTokenAsToken(importedName), "cannot use keyword '%s' here.", importedName)
+				p.ReportErrorAtToken(importedName, "cannot use keyword '%s' here.", importedName)
 			}
 		}
 	}
@@ -732,7 +726,7 @@ func (p *Parser) ParseExportSpecifierSet() []ParseTree {
 func (p *Parser) ParseExportSpecifier() ParseTree {
 	start := p.GetTreeStartLocation()
 	importedName := p.EatIdOrKeywordAsId()
-	var destinationName *IdentifierToken
+	var destinationName Token
 	if p.PeekPredefinedString(PredefinedName_AS) {
 		p.EatPredefinedString(PredefinedName_AS)
 		destinationName = p.EatIdOrKeywordAsId()
@@ -759,7 +753,7 @@ func (p *Parser) ParseClassExpression() ParseTree {
 func (p *Parser) ParseClass(isExpression bool) ParseTree {
 	start := p.GetTreeStartLocation()
 	p.Eat(TokenType_CLASS)
-	var name *IdentifierToken
+	var name Token
 	if !isExpression || p.PeekId() {
 		name = p.EatId()
 	}
@@ -781,7 +775,7 @@ func (p *Parser) ParseClassElements() []ParseTree {
 	result := []ParseTree{}
 	for {
 		token := p.PeekToken()
-		if token.GetTokenBase().Type == TokenType_SEMI_COLON {
+		if token.Type() == TokenType_SEMI_COLON {
 			p.Eat(TokenType_SEMI_COLON)
 			continue
 		} else {
@@ -796,11 +790,11 @@ func (p *Parser) ParseClassElements() []ParseTree {
 
 // Java: Parser.isClassElementStart(Token)
 func (p *Parser) IsClassElementStart(token Token) bool {
-	switch token.GetTokenBase().Type {
+	switch token.Type() {
 	case TokenType_IDENTIFIER, TokenType_NUMBER, TokenType_BIGINT, TokenType_STAR, TokenType_STATIC, TokenType_STRING, TokenType_OPEN_SQUARE:
 		return true
 	default:
-		if Keywords_IsKeywordTokenType(token.GetTokenBase().Type) {
+		if Keywords_IsKeywordTokenType(token.Type()) {
 			return true
 		}
 	}
@@ -948,14 +942,14 @@ func (p *Parser) ParseObjectLiteralMethodDeclaration() ParseTree {
 
 // Java: Parser.parseMethodDeclaration(ClassOrObjectElementInfo)
 func (p *Parser) ParseMethodDeclaration(elementInfo *ClassOrObjectElementInfo) ParseTree {
-	isGenerator := p.EatOpt(TokenType_STAR) != nil
+	isGenerator := p.EatOpt(TokenType_STAR).IsPresent()
 	p.ParseClassElementName(elementInfo)
 	return p.ParseMethodDefinition(elementInfo, isGenerator)
 }
 
 // Java: Parser.parseClassMemberDeclaration(ClassOrObjectElementInfo)
 func (p *Parser) ParseClassMemberDeclaration(elementInfo *ClassOrObjectElementInfo) ParseTree {
-	isGenerator := p.EatOpt(TokenType_STAR) != nil
+	isGenerator := p.EatOpt(TokenType_STAR).IsPresent()
 	p.ParseClassElementName(elementInfo)
 	if p.PeekTypeAt(0) == TokenType_OPEN_PAREN {
 		return p.ParseMethodDefinition(elementInfo, isGenerator)
@@ -1102,7 +1096,7 @@ func (p *Parser) PeekFunctionAt(index int) bool {
 func (p *Parser) ParseFunctionDeclaration() ParseTree {
 	start := p.GetTreeStartLocation()
 	p.Eat(Keywords_FUNCTION.Type())
-	isGenerator := p.EatOpt(TokenType_STAR) != nil
+	isGenerator := p.EatOpt(TokenType_STAR).IsPresent()
 
 	builder := FunctionDeclarationTree_NewBuilder(FunctionDeclarationTree_Kind_DECLARATION).SetName(p.EatId())
 	p.ParseFunctionTail(builder, functionFlavorOf(isGenerator, Parser_FunctionFlavor_GENERATOR, Parser_FunctionFlavor_NORMAL))
@@ -1113,7 +1107,7 @@ func (p *Parser) ParseFunctionDeclaration() ParseTree {
 func (p *Parser) ParseFunctionExpression() ParseTree {
 	start := p.GetTreeStartLocation()
 	p.Eat(Keywords_FUNCTION.Type())
-	isGenerator := p.EatOpt(TokenType_STAR) != nil
+	isGenerator := p.EatOpt(TokenType_STAR).IsPresent()
 
 	builder := FunctionDeclarationTree_NewBuilder(FunctionDeclarationTree_Kind_EXPRESSION).
 		SetName(p.EatIdOpt())
@@ -1208,7 +1202,7 @@ func (p *Parser) ParseFormalParameterList() *FormalParameterListTree {
 
 		if !p.Peek(TokenType_CLOSE_PAREN) {
 			comma := p.Eat(TokenType_COMMA)
-			if comma != nil {
+			if comma.IsPresent() {
 				p.posStack = append(p.posStack, comma.GetStart())
 			} else {
 				// semi-arbitrary comma position in case the code is syntactially invalid & missing one

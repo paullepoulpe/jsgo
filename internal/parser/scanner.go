@@ -20,9 +20,13 @@ package parser
 
 import (
 	"slices"
+	"strings"
 
 	"github.com/paullepoulpe/jsgo/internal/jutil"
+	"github.com/paullepoulpe/jsgo/internal/strpool"
 )
+
+const scannerIdentCacheMask = 127
 
 // Scanner scans javascript source code into tokens. All entrypoints assume
 // the caller is not expecting a regular expression literal except for
@@ -34,79 +38,95 @@ type Scanner struct {
 	source        *SourceFile
 	// Go-only: language-adapter — the Java String contents, unwrapped from
 	// the SourceFile (see SourceFile.CharAt).
-	rawContents        string
-	asciiPrefix        int
-	utf16Tail          []uint16
-	contentsLength     int
-	lookahead          []Token
-	lookaheadBuf       [8]Token
-	index              int
-	commentRecorder    Scanner_CommentRecorder
-	typeParameterLevel int
+	rawContents         string
+	asciiPrefix         int
+	utf16Tail           []uint16
+	contentsLength      int
+	lookahead           []Token
+	lookaheadBuf        [8]Token
+	index               int
+	commentRecorder     Scanner_CommentRecorder
+	typeParameterLevel  int
+	sawNumericSeparator bool
 
-	// Go-only: performance — tokens are allocated in slabs (see jutil.Slab)
-	// rather than one by one (a third of the parser's allocations were
-	// 28-byte punctuator tokens). The tokens that parse trees keep (operators,
-	// literals, identifiers) live until the statement holding them is
-	// converted and share slabs; those the parser only looks at (brackets,
-	// separators, keywords: see tokenIsTransient) have their own, whose
-	// chunks are freed as soon as the parser has passed them, so that a
-	// large statement does not keep its whole token stream alive.
-	tokens          jutil.Slab[TokenBase]
-	transientTokens jutil.Slab[TokenBase]
-	identTokens     jutil.Slab[IdentifierToken]
-	literalTokens   jutil.Slab[LiteralTokenBase]
-	stringTokens    jutil.Slab[StringLiteralToken]
+	// L1 per-Scanner identifier intern cache avoiding strpool RWMutex/maphash
+	// on repeated identifier names within a file.
+	identCache [scannerIdentCacheMask + 1]strpool.ID
+
+	// Side table for rare TemplateLiteralToken diagnostics / non-start
+	// positions (indexed 1-based by Token.aux).
+	templateErrors []TemplateTokenError
 }
 
-// tokenIsTransient reports whether no parse tree stores a token of this
-// type (a keyword used as an object-literal key is the rare exception,
-// which only keeps a chunk of transient tokens alive a little longer).
-func tokenIsTransient(t TokenType) bool {
-	switch t {
-	case TokenType_DELETE, TokenType_IN, TokenType_INSTANCEOF, TokenType_TYPEOF, TokenType_VOID:
-		return false // unary and binary operators
-	case TokenType_END_OF_FILE, TokenType_ERROR, TokenType_ARROW, TokenType_QUESTION, TokenType_QUESTION_DOT,
-		TokenType_COLON, TokenType_ELLIPSIS:
-		return true
+func fnvHashString(s string) uint32 {
+	h := uint32(2166136261)
+	for i := 0; i < len(s); i++ {
+		h ^= uint32(s[i])
+		h *= 16777619
 	}
-	return (t >= TokenType_BREAK && t <= TokenType_YIELD) ||
-		(t >= TokenType_OPEN_CURLY && t <= TokenType_COMMA) ||
-		t >= TokenType_TYPE
+	return h
 }
 
-// newStringLiteralToken is NewStringLiteralToken from the scanner's slab.
-func (s *Scanner) newStringLiteralToken(value string, location SourceRange, hasUnescapedUnicodeLineOrParagraphSeparator bool) *StringLiteralToken {
-	t := s.stringTokens.New()
-	t.InitLiteralTokenBase(TokenType_STRING, value, location)
-	t.hasUnescapedUnicodeLineOrParagraphSeparator = hasUnescapedUnicodeLineOrParagraphSeparator
-	return t
-}
-
-// newToken is NewToken from the scanner's slabs.
-func (s *Scanner) newToken(type_ TokenType, location SourceRange) *TokenBase {
-	var t *TokenBase
-	if tokenIsTransient(type_) {
-		t = s.transientTokens.New()
-	} else {
-		t = s.tokens.New()
+func fnvHashBytes(b []byte) uint32 {
+	h := uint32(2166136261)
+	for i := 0; i < len(b); i++ {
+		h ^= uint32(b[i])
+		h *= 16777619
 	}
-	t.InitTokenBase(type_, location)
-	return t
+	return h
 }
 
-// newIdentifierToken is NewIdentifierToken from the scanner's slab.
-func (s *Scanner) newIdentifierToken(location SourceRange, value string) *IdentifierToken {
-	t := s.identTokens.New()
-	t.initIdentifierToken(location, value)
-	return t
+func (s *Scanner) internIdent(str string) strpool.ID {
+	slot := fnvHashString(str) & scannerIdentCacheMask
+	if id := s.identCache[slot]; id != 0 && strpool.String(id) == str {
+		return id
+	}
+	id := strpool.Intern(str)
+	s.identCache[slot] = id
+	return id
 }
 
-// newLiteralToken is NewLiteralToken from the scanner's slab.
-func (s *Scanner) newLiteralToken(type_ TokenType, value string, location SourceRange) *LiteralTokenBase {
-	t := s.literalTokens.New()
-	t.InitLiteralTokenBase(type_, value, location)
-	return t
+func (s *Scanner) internIdentBytes(b []byte) strpool.ID {
+	slot := fnvHashBytes(b) & scannerIdentCacheMask
+	if id := s.identCache[slot]; id != 0 && strpool.String(id) == string(b) {
+		return id
+	}
+	id := strpool.InternBytes(b)
+	s.identCache[slot] = id
+	return id
+}
+
+// TemplateError returns the diagnostic / error-position record for a
+// TemplateLiteralToken.
+func (s *Scanner) TemplateError(tok Token) TemplateTokenError {
+	if tok.aux == 0 {
+		return TemplateTokenError{Position: tok.Location.Start}
+	}
+	idx := int(tok.aux - 1)
+	if s != nil && idx < len(s.templateErrors) {
+		return s.templateErrors[idx]
+	}
+	return standaloneTemplateErrors[idx]
+}
+
+func (s *Scanner) newStringLiteralToken(location SourceRange, hasUnescapedUnicodeLineOrParagraphSeparator bool) Token {
+	var flags uint8
+	if hasUnescapedUnicodeLineOrParagraphSeparator {
+		flags = tokenFlagUnescapedLineOrParagraphSep
+	}
+	return newScannerLiteralToken(TokenType_STRING, location, flags)
+}
+
+func (s *Scanner) newNumberOrBigIntToken(type_ TokenType, location SourceRange) Token {
+	var flags uint8
+	if s.sawNumericSeparator {
+		flags = tokenFlagNumericSeparator
+	}
+	return newScannerLiteralToken(type_, location, flags)
+}
+
+func (s *Scanner) newRegexToken(location SourceRange) Token {
+	return newScannerLiteralToken(TokenType_REGULAR_EXPRESSION, location, 0)
 }
 
 // charAt is contents.charAt(index), for a valid index (SourceFile.CharAt).
@@ -162,14 +182,13 @@ func (s *Scanner) GetOffset() int {
 	if len(s.lookahead) == 0 {
 		return s.index
 	}
-	return int(s.lookahead[0].GetTokenBase().Location.Start.Offset)
+	return int(s.lookahead[0].Location.Start.Offset)
 }
 
 // SetPosition moves the scanner to position, dropping any lookahead.
 //
 // Java: Scanner.setPosition(SourcePosition)
 func (s *Scanner) SetPosition(position SourcePosition) {
-	clear(s.lookahead)
 	s.lookahead = s.lookahead[:0]
 	s.index = int(position.Offset)
 }
@@ -181,7 +200,7 @@ func (s *Scanner) GetPosition() SourcePosition {
 	if len(s.lookahead) == 0 {
 		return s.GetPositionAt(s.index)
 	}
-	return s.lookahead[0].GetTokenBase().Location.Start
+	return s.lookahead[0].Location.Start
 }
 
 // GetPositionAt returns the source position of offset.
@@ -216,12 +235,10 @@ func (s *Scanner) NextToken() Token {
 	}
 	tok := s.lookahead[0]
 	if n == 1 {
-		s.lookahead[0] = nil
 		s.lookahead = s.lookahead[:0]
 		return tok
 	}
 	copy(s.lookahead, s.lookahead[1:])
-	s.lookahead[n-1] = nil
 	s.lookahead = s.lookahead[:n-1]
 	return tok
 }
@@ -231,14 +248,14 @@ func (s *Scanner) NextToken() Token {
 // Java: Scanner.clearTokenLookahead()
 func (s *Scanner) ClearTokenLookahead() {
 	if len(s.lookahead) > 0 {
-		s.SetPosition(s.lookahead[0].GetTokenBase().Location.Start)
+		s.SetPosition(s.lookahead[0].Location.Start)
 	}
 }
 
 // NextRegularExpressionLiteralToken scans a regular expression literal.
 //
 // Java: Scanner.nextRegularExpressionLiteralToken()
-func (s *Scanner) NextRegularExpressionLiteralToken() LiteralToken {
+func (s *Scanner) NextRegularExpressionLiteralToken() Token {
 	s.ClearTokenLookahead()
 
 	beginToken := s.index
@@ -248,15 +265,13 @@ func (s *Scanner) NextRegularExpressionLiteralToken() LiteralToken {
 
 	// body
 	if !s.SkipRegularExpressionBody() {
-		return s.newLiteralToken(
-			TokenType_REGULAR_EXPRESSION, s.GetTokenString(beginToken), s.GetTokenRange(beginToken))
+		return s.newRegexToken(s.GetTokenRange(beginToken))
 	}
 
 	// separating '/'
 	if s.PeekChar() != '/' {
 		s.ReportError("Expected '/' in regular expression literal")
-		return s.newLiteralToken(
-			TokenType_REGULAR_EXPRESSION, s.GetTokenString(beginToken), s.GetTokenRange(beginToken))
+		return s.newRegexToken(s.GetTokenRange(beginToken))
 	}
 	s.NextChar()
 
@@ -265,17 +280,16 @@ func (s *Scanner) NextRegularExpressionLiteralToken() LiteralToken {
 		s.NextChar()
 	}
 
-	return s.newLiteralToken(
-		TokenType_REGULAR_EXPRESSION, s.GetTokenString(beginToken), s.GetTokenRange(beginToken))
+	return s.newRegexToken(s.GetTokenRange(beginToken))
 }
 
 // NextTemplateLiteralToken scans the template literal portion that follows
 // a substitution's closing '}'.
 //
 // Java: Scanner.nextTemplateLiteralToken()
-func (s *Scanner) NextTemplateLiteralToken() *TemplateLiteralToken {
+func (s *Scanner) NextTemplateLiteralToken() Token {
 	token := s.NextToken()
-	if s.IsAtEnd() || token.GetTokenBase().Type != TokenType_CLOSE_CURLY {
+	if s.IsAtEnd() || token.Type() != TokenType_CLOSE_CURLY {
 		s.ReportErrorAtPosition(s.GetPositionAt(s.index), "Expected '}' after expression in template literal")
 	}
 
@@ -552,6 +566,15 @@ func (s *Scanner) SkipSingleLineComment() {
 // Java: Scanner.skipSingleLineComment(Comment.Type)
 func (s *Scanner) SkipSingleLineCommentOfType(type_ Comment_Type) {
 	startOffset := s.index
+	if s.index < s.asciiPrefix {
+		raw := s.rawContents
+		limit := s.asciiPrefix
+		i := s.index
+		for i < limit && raw[i] != '\n' && raw[i] != '\r' {
+			i++
+		}
+		s.index = i
+	}
 	for !s.IsAtEnd() && !Scanner_IsLineTerminator(s.PeekChar()) {
 		s.NextChar()
 	}
@@ -570,6 +593,18 @@ func (s *Scanner) SkipMultiLineComment() {
 	startOffset := s.index
 	s.NextChar() // '/'
 	s.NextChar() // '*'
+	for s.index+1 < s.asciiPrefix {
+		rel := strings.IndexByte(s.rawContents[s.index:s.asciiPrefix-1], '*')
+		if rel < 0 {
+			s.index = s.asciiPrefix - 1
+			break
+		}
+		s.index += rel
+		if s.rawContents[s.index+1] == '/' {
+			break
+		}
+		s.index++
+	}
 	for !s.IsAtEnd() && (s.PeekChar() != '*' || s.PeekCharAt(1) != '/') {
 		s.NextChar()
 	}
@@ -829,23 +864,25 @@ func (s *Scanner) ScanToken() Token {
 
 // Java: Scanner.scanNumberPostPeriod(int)
 func (s *Scanner) ScanNumberPostPeriod(beginToken int) Token {
+	s.sawNumericSeparator = false
 	s.SkipDecimalDigits()
 	return s.ScanExponentOfNumericLiteral(beginToken)
 }
 
 // Java: Scanner.scanPostDigit(int)
 func (s *Scanner) ScanPostDigit(beginToken int) Token {
+	s.sawNumericSeparator = false
 	s.SkipDecimalDigits()
 	if s.Peek('n') {
 		s.NextChar()
-		return s.newLiteralToken(
-			TokenType_BIGINT, s.GetTokenString(beginToken), s.GetTokenRange(beginToken))
+		return s.newNumberOrBigIntToken(TokenType_BIGINT, s.GetTokenRange(beginToken))
 	}
 	return s.ScanFractionalNumericLiteral(beginToken)
 }
 
 // Java: Scanner.scanPostZero(int)
 func (s *Scanner) ScanPostZero(beginToken int) Token {
+	s.sawNumericSeparator = false
 	var isBigInt bool
 	switch s.PeekChar() {
 	case 'b', 'B':
@@ -859,10 +896,7 @@ func (s *Scanner) ScanPostZero(beginToken int) Token {
 		if isBigInt {
 			s.NextChar()
 		}
-		return s.newLiteralToken(
-			bigIntOrNumber(isBigInt),
-			s.GetTokenString(beginToken),
-			s.GetTokenRange(beginToken))
+		return s.newNumberOrBigIntToken(bigIntOrNumber(isBigInt), s.GetTokenRange(beginToken))
 	case 'o', 'O':
 		// octal
 		s.NextChar()
@@ -877,10 +911,7 @@ func (s *Scanner) ScanPostZero(beginToken int) Token {
 		if isBigInt {
 			s.NextChar()
 		}
-		return s.newLiteralToken(
-			bigIntOrNumber(isBigInt),
-			s.GetTokenString(beginToken),
-			s.GetTokenRange(beginToken))
+		return s.newNumberOrBigIntToken(bigIntOrNumber(isBigInt), s.GetTokenRange(beginToken))
 	case 'x', 'X':
 		s.NextChar()
 		if !s.PeekHexDigit() {
@@ -891,10 +922,7 @@ func (s *Scanner) ScanPostZero(beginToken int) Token {
 		if isBigInt {
 			s.NextChar()
 		}
-		return s.newLiteralToken(
-			bigIntOrNumber(isBigInt),
-			s.GetTokenString(beginToken),
-			s.GetTokenRange(beginToken))
+		return s.newNumberOrBigIntToken(bigIntOrNumber(isBigInt), s.GetTokenRange(beginToken))
 	case 'e', 'E':
 		return s.ScanExponentOfNumericLiteral(beginToken)
 	case '.':
@@ -908,15 +936,12 @@ func (s *Scanner) ScanPostZero(beginToken int) Token {
 		if s.Peek('n') {
 			s.ReportError("SyntaxError: nonzero BigInt can't have leading zero")
 		}
-		return s.newLiteralToken(
-			TokenType_NUMBER, s.GetTokenString(beginToken), s.GetTokenRange(beginToken))
+		return s.newNumberOrBigIntToken(TokenType_NUMBER, s.GetTokenRange(beginToken))
 	case 'n':
 		s.NextChar()
-		return s.newLiteralToken(
-			TokenType_BIGINT, s.GetTokenString(beginToken), s.GetTokenRange(beginToken))
+		return s.newNumberOrBigIntToken(TokenType_BIGINT, s.GetTokenRange(beginToken))
 	default:
-		return s.newLiteralToken(
-			TokenType_NUMBER, s.GetTokenString(beginToken), s.GetTokenRange(beginToken))
+		return s.newNumberOrBigIntToken(TokenType_NUMBER, s.GetTokenRange(beginToken))
 	}
 }
 
@@ -932,15 +957,11 @@ func bigIntOrNumber(isBigInt bool) TokenType {
 
 // Java: Scanner.createToken(TokenType, int)
 func (s *Scanner) CreateToken(type_ TokenType, beginToken int) Token {
-	return s.newToken(type_, s.GetTokenRange(beginToken))
+	return NewToken(type_, s.GetTokenRange(beginToken))
 }
 
 // Java: Scanner.scanIdentifierOrKeyword(int, char)
 func (s *Scanner) ScanIdentifierOrKeyword(beginToken int, ch uint16) Token {
-	// NOTE: This code previously used a StringBuilder to collect the characters of the identifier
-	// or keyword. Recording the staring position and using contents.substring() below instead was
-	// found to eliminate 1.84% of all JVM "frequently collected garbage" in the compilation of a
-	// large project.
 	valueStartIndex := s.index - 1
 
 	containsUnicodeEscape := ch == '\\'
@@ -951,6 +972,15 @@ func (s *Scanner) ScanIdentifierOrKeyword(beginToken int, ch uint16) Token {
 		unicodeEscapeLen = 1
 	} else {
 		// Fast path for consecutive non-escaped identifier characters.
+		if s.index < s.asciiPrefix {
+			raw := s.rawContents
+			limit := s.asciiPrefix
+			i := s.index
+			for i < limit && asciiIdentFlags[raw[i]]&asciiFlagIdentPart != 0 {
+				i++
+			}
+			s.index = i
+		}
 		contentsLength := s.contentsLength
 		for s.index < contentsLength {
 			c := s.charAt(s.index)
@@ -994,32 +1024,85 @@ func (s *Scanner) ScanIdentifierOrKeyword(beginToken int, ch uint16) Token {
 		ch = s.PeekChar()
 	}
 
-	value := s.sliceString(valueStartIndex, s.index)
+	if !containsUnicodeEscape {
+		if isPrivateIdentifier && s.index == valueStartIndex+1 {
+			s.ReportErrorAtPosition(s.GetPositionAt(beginToken), "Invalid usage of #")
+			return s.CreateToken(TokenType_ERROR, beginToken)
+		}
+		start := s.charAt(valueStartIndex)
+		if isPrivateIdentifier {
+			// Skip the leading # for name validation.
+			start = s.charAt(valueStartIndex + 1)
+		}
+		if !Identifiers_IsIdentifierStart(start) {
+			s.ReportErrorAtPosition(
+				s.GetPositionAt(beginToken),
+				"Character '%c' (U+%04X) is not a valid identifier start char",
+				start,
+				int(start))
+			return s.CreateToken(TokenType_ERROR, beginToken)
+		}
+		loc := s.GetTokenRange(beginToken)
+		if s.index <= s.asciiPrefix {
+			value := s.rawContents[valueStartIndex:s.index]
+			if !isPrivateIdentifier {
+				if k := Keywords_Get(value); k != nil {
+					return NewToken(k.Type(), loc)
+				}
+				return newIdentifierTokenFromID(loc, s.internIdent(value), 0)
+			}
+			return newIdentifierTokenFromID(loc, s.internIdent(value), tokenFlagPrivateIdent)
+		}
+		if valueStartIndex >= s.asciiPrefix {
+			n := s.index - valueStartIndex
+			if n <= 64 {
+				tail := s.utf16Tail[valueStartIndex-s.asciiPrefix : s.index-s.asciiPrefix]
+				var buf [64]byte
+				allASCII := true
+				for i, u := range tail {
+					if u >= 0x80 {
+						allASCII = false
+						break
+					}
+					buf[i] = byte(u)
+				}
+				if allASCII {
+					b := buf[:n]
+					if !isPrivateIdentifier {
+						if k := keywords_getBytes(b); k != nil {
+							return NewToken(k.Type(), loc)
+						}
+						return newIdentifierTokenFromID(loc, s.internIdentBytes(b), 0)
+					}
+					return newIdentifierTokenFromID(loc, s.internIdentBytes(b), tokenFlagPrivateIdent)
+				}
+			}
+		}
+		value := s.sliceString(valueStartIndex, s.index)
+		if !isPrivateIdentifier {
+			if k := Keywords_Get(value); k != nil {
+				return NewToken(k.Type(), loc)
+			}
+			return newIdentifierTokenFromID(loc, s.internIdent(value), 0)
+		}
+		return newIdentifierTokenFromID(loc, s.internIdent(value), tokenFlagPrivateIdent)
+	}
 
+	value := s.sliceString(valueStartIndex, s.index)
 	if isPrivateIdentifier && value == "#" {
 		s.ReportErrorAtPosition(s.GetPositionAt(beginToken), "Invalid usage of #")
 		return s.CreateToken(TokenType_ERROR, beginToken)
 	}
 
-	// Process unicode escapes.
-	var start uint16
-	if containsUnicodeEscape {
-		processed, ok := scanner_processUnicodeEscapes(value)
-		if !ok {
-			s.ReportErrorAtPosition(s.GetPositionAt(s.index), "Invalid escape sequence")
-			return s.CreateToken(TokenType_ERROR, beginToken)
-		}
-		value = processed
-		start = jutil.StringCharAt(value, 0)
-		if isPrivateIdentifier {
-			start = jutil.StringCharAt(value, 1)
-		}
-	} else {
-		start = s.charAt(valueStartIndex)
-		if isPrivateIdentifier {
-			// Skip the leading # for name validation.
-			start = s.charAt(valueStartIndex + 1)
-		}
+	processed, ok := scanner_processUnicodeEscapes(value)
+	if !ok {
+		s.ReportErrorAtPosition(s.GetPositionAt(s.index), "Invalid escape sequence")
+		return s.CreateToken(TokenType_ERROR, beginToken)
+	}
+	value = processed
+	start := jutil.StringCharAt(value, 0)
+	if isPrivateIdentifier {
+		start = jutil.StringCharAt(value, 1)
 	}
 
 	// Check to make sure the first character (or the unicode escape at the
@@ -1033,14 +1116,15 @@ func (s *Scanner) ScanIdentifierOrKeyword(beginToken int, ch uint16) Token {
 		return s.CreateToken(TokenType_ERROR, beginToken)
 	}
 
-	k := Keywords_Get(value)
 	// Keywords containing unicode escape sequences are treated as
 	// IdentifierTokens rather than keyword Tokens (ECMA-262 11.6.2).
-	if k != nil && !containsUnicodeEscape {
-		return s.newToken(k.Type(), s.GetTokenRange(beginToken))
+	var flags uint8
+	if isPrivateIdentifier {
+		flags |= tokenFlagPrivateIdent
+	} else if Keywords_Get(value) != nil {
+		flags |= tokenFlagIdentIsKeyword
 	}
-
-	return s.newIdentifierToken(s.GetTokenRange(beginToken), value)
+	return newIdentifierTokenFromID(s.GetTokenRange(beginToken), s.internIdent(value), flags)
 }
 
 // Scanner_ProcessUnicodeEscapes converts unicode escapes in the given
@@ -1091,13 +1175,6 @@ func scanner_processUnicodeEscapes(valueString string) (string, bool) {
 			hexDigits = value[escapeStart+3 : escapeEnd]
 			escapeEnd++
 		}
-		// Identifiers are carried around the compiler as sequences of char (UTF-16 code
-		// units), so a code point that does not fit in a single char cannot be represented
-		// here. The value used to be cast straight to char, which silently kept only the low
-		// 16 bits: a braced escape for U+10041 was accepted as the identifier "A", and even
-		// code points above the U+10FFFF maximum (e.g. U+110041) slipped through the same
-		// way. Reject anything outside the BMP rather than aliasing it to a different character.
-		// TODO(mattloring): Allow code points >= 0xFFFF (greater than the size of a char).
 		codePoint, ok := jutil.TryIntegerParseInt(jutil.StringFromUTF16(hexDigits), 0x10)
 		if !ok || codePoint > 0xFFFF {
 			return "", false
@@ -1118,13 +1195,35 @@ func (s *Scanner) ScanStringLiteral(beginIndex int, terminator uint16) Token {
 	startingPosition := s.GetPositionAt(beginIndex)
 
 	hasUnescapedUnicodeLineOrParagraphSeparator := false
-	for s.PeekStringLiteralChar(terminator) {
+	for {
+		if s.index < s.asciiPrefix {
+			raw := s.rawContents
+			limit := s.asciiPrefix
+			term := byte(terminator)
+			i := s.index
+			for i < limit {
+				b := raw[i]
+				if b == term || b == '\\' || b == '\n' || b == '\r' {
+					break
+				}
+				i++
+			}
+			s.index = i
+			if i < limit && raw[i] == term {
+				s.index = i + 1
+				return s.newStringLiteralToken(
+					s.GetTokenRangeFromPosition(startingPosition),
+					hasUnescapedUnicodeLineOrParagraphSeparator)
+			}
+		}
+		if !s.PeekStringLiteralChar(terminator) {
+			break
+		}
 		c := s.PeekChar()
 		hasUnescapedUnicodeLineOrParagraphSeparator =
 			hasUnescapedUnicodeLineOrParagraphSeparator || c == 0x2028 || c == 0x2029
 		if !s.SkipStringLiteralChar() {
 			return s.newStringLiteralToken(
-				s.GetTokenString(beginIndex),
 				s.GetTokenRangeFromPosition(startingPosition),
 				hasUnescapedUnicodeLineOrParagraphSeparator)
 		}
@@ -1135,7 +1234,6 @@ func (s *Scanner) ScanStringLiteral(beginIndex int, terminator uint16) Token {
 		s.NextChar()
 	}
 	return s.newStringLiteralToken(
-		s.GetTokenString(beginIndex),
 		s.GetTokenRangeFromPosition(startingPosition),
 		hasUnescapedUnicodeLineOrParagraphSeparator)
 }
@@ -1151,45 +1249,59 @@ func (s *Scanner) ScanTemplateLiteral(beginIndex int) Token {
 }
 
 // Java: Scanner.nextTemplateLiteralTokenShared(TokenType, TokenType)
-func (s *Scanner) NextTemplateLiteralTokenShared(endType, middleType TokenType) *TemplateLiteralToken {
+func (s *Scanner) NextTemplateLiteralTokenShared(endType, middleType TokenType) Token {
 	beginIndex := s.index
 	// Save the starting position to use with the multi-line safe version of getTokenRange().
 	startingPosition := s.GetPositionAt(beginIndex)
-	skipTemplateCharactersResult := s.SkipTemplateCharacters()
+	skipResult := s.SkipTemplateCharacters()
 	if s.IsAtEnd() {
 		s.ReportErrorAtPosition(startingPosition, "Unterminated template literal")
 	}
 
-	value := s.GetTokenString(beginIndex)
+	var flags uint8
+	var aux uint16
+	if skipResult.hasMsg || skipResult.hasLevel || skipResult.position != startingPosition {
+		if skipResult.hasLevel && skipResult.errorLevel == TemplateLiteralToken_ErrorLevel_ERROR {
+			flags |= tokenFlagTemplateHasError
+		}
+		var lvl uint8
+		if skipResult.hasLevel {
+			lvl = uint8(skipResult.errorLevel) + 1
+		}
+		s.templateErrors = append(s.templateErrors, TemplateTokenError{
+			Message:  skipResult.errorMessage,
+			Position: skipResult.position,
+			HasMsg:   skipResult.hasMsg,
+			Level:    lvl,
+		})
+		aux = uint16(len(s.templateErrors))
+	}
+
 	switch s.PeekChar() {
 	case '`':
 		s.NextChar()
-		return NewTemplateLiteralToken(
+		flags |= tokenFlagTemplateTrim1
+		return newScannerTemplateToken(
 			endType,
-			value,
-			skipTemplateCharactersResult.GetErrorMessage(),
-			skipTemplateCharactersResult.GetErrorLevel(),
-			skipTemplateCharactersResult.GetPosition(),
-			s.GetTokenRangeFromPosition(startingPosition))
+			s.GetTokenRangeFromPosition(startingPosition),
+			flags,
+			aux)
 	case '$':
 		s.NextChar() // $
 		s.NextChar() // {
-		return NewTemplateLiteralToken(
+		flags |= tokenFlagTemplateTrim2
+		return newScannerTemplateToken(
 			middleType,
-			value,
-			skipTemplateCharactersResult.GetErrorMessage(),
-			skipTemplateCharactersResult.GetErrorLevel(),
-			skipTemplateCharactersResult.GetPosition(),
-			s.GetTokenRangeFromPosition(startingPosition))
+			s.GetTokenRangeFromPosition(startingPosition),
+			flags,
+			aux)
 	default:
 		// Should have reported error already
-		return NewTemplateLiteralToken(
+		return newScannerTemplateToken(
 			endType,
-			value,
-			skipTemplateCharactersResult.GetErrorMessage(),
-			skipTemplateCharactersResult.GetErrorLevel(),
-			skipTemplateCharactersResult.GetPosition(),
-			s.GetTokenRangeFromPosition(startingPosition))
+			s.GetTokenRangeFromPosition(startingPosition),
+			flags,
+			aux)
 	}
 }
 
@@ -1213,16 +1325,16 @@ func (s *Scanner) SkipStringLiteralChar() bool {
 }
 
 // Java: Scanner.skipTemplateCharacters()
-func (s *Scanner) SkipTemplateCharacters() *Scanner_SkipTemplateCharactersResult {
-	result := s.CreateSkipTemplateCharactersResult(nil, nil)
+func (s *Scanner) SkipTemplateCharacters() Scanner_SkipTemplateCharactersResult {
+	result := Scanner_SkipTemplateCharactersResult{position: s.GetPosition()}
 	for !s.IsAtEnd() {
 		switch s.PeekChar() {
 		case '`':
 			return result
 		case '\\':
 			// There might be multiple errors. Take the first one but continue scanning
-			newError := s.SkipTemplateLiteralEscapeSequence()
-			if newError != nil && !result.HasError() {
+			newError, hasErr := s.SkipTemplateLiteralEscapeSequence()
+			if hasErr && !result.HasError() {
 				result = newError
 			}
 		case '$':
@@ -1239,67 +1351,67 @@ func (s *Scanner) SkipTemplateCharacters() *Scanner_SkipTemplateCharactersResult
 }
 
 // Java: Scanner.skipTemplateLiteralEscapeSequence()
-func (s *Scanner) SkipTemplateLiteralEscapeSequence() *Scanner_SkipTemplateCharactersResult {
+func (s *Scanner) SkipTemplateLiteralEscapeSequence() (Scanner_SkipTemplateCharactersResult, bool) {
 	s.NextChar()
 	if s.IsAtEnd() {
 		s.ReportError("Unterminated template literal escape sequence")
-		return nil
+		return Scanner_SkipTemplateCharactersResult{}, false
 	}
 	if Scanner_IsLineTerminator(s.PeekChar()) {
 		s.SkipLineTerminator()
-		return nil
+		return Scanner_SkipTemplateCharactersResult{}, false
 	}
 	next := s.NextChar()
 	switch next {
 	case '0':
 		if Scanner_IsDecimalDigit(s.PeekChar()) {
-			return s.CreateSkipTemplateCharactersResult(stringPtr("Invalid escape sequence"), errorLevelPtr(TemplateLiteralToken_ErrorLevel_ERROR))
+			return s.createTemplateDiag("Invalid escape sequence", TemplateLiteralToken_ErrorLevel_ERROR), true
 		}
-		return nil
+		return Scanner_SkipTemplateCharactersResult{}, false
 	case '1', '2', '3', '4', '5', '6', '7', '8', '9':
-		return s.CreateSkipTemplateCharactersResult(stringPtr("Invalid escape sequence"), errorLevelPtr(TemplateLiteralToken_ErrorLevel_ERROR))
+		return s.createTemplateDiag("Invalid escape sequence", TemplateLiteralToken_ErrorLevel_ERROR), true
 	case 'x':
 		doubleHexDigit := s.SkipHexDigit() && s.SkipHexDigit()
 		if !doubleHexDigit {
-			return s.CreateSkipTemplateCharactersResult(stringPtr("Hex digit expected"), errorLevelPtr(TemplateLiteralToken_ErrorLevel_ERROR))
+			return s.createTemplateDiag("Hex digit expected", TemplateLiteralToken_ErrorLevel_ERROR), true
 		}
-		return nil
+		return Scanner_SkipTemplateCharactersResult{}, false
 	case 'u':
 		if s.Peek('{') {
 			s.NextChar()
 			if s.Peek('}') {
-				return s.CreateSkipTemplateCharactersResult(stringPtr("Empty unicode escape"), errorLevelPtr(TemplateLiteralToken_ErrorLevel_ERROR))
+				return s.createTemplateDiag("Empty unicode escape", TemplateLiteralToken_ErrorLevel_ERROR), true
 			}
 			allHexDigits := true
 			for !s.Peek('}') && allHexDigits {
 				allHexDigits = allHexDigits && s.SkipHexDigit()
 			}
 			if !allHexDigits {
-				return s.CreateSkipTemplateCharactersResult(stringPtr("Hex digit expected"), errorLevelPtr(TemplateLiteralToken_ErrorLevel_ERROR))
+				return s.createTemplateDiag("Hex digit expected", TemplateLiteralToken_ErrorLevel_ERROR), true
 			}
 			s.NextChar()
-			return nil
+			return Scanner_SkipTemplateCharactersResult{}, false
 		} else {
 			quadHexDigit :=
 				s.SkipHexDigit() && s.SkipHexDigit() && s.SkipHexDigit() && s.SkipHexDigit()
 			if !quadHexDigit {
-				return s.CreateSkipTemplateCharactersResult(stringPtr("Hex digit expected"), errorLevelPtr(TemplateLiteralToken_ErrorLevel_ERROR))
+				return s.createTemplateDiag("Hex digit expected", TemplateLiteralToken_ErrorLevel_ERROR), true
 			}
-			return nil
+			return Scanner_SkipTemplateCharactersResult{}, false
 		}
 		// https://tc39.es/ecma262/#prod-TemplateEscapeSequence
 	case '\\', 'b', 'f', 'n', 'r', 't', 'v', '$', '`':
 		// special meaning in template literal
-		return nil
+		return Scanner_SkipTemplateCharactersResult{}, false
 	case '\'':
 		// special the error message for a single quote
-		return s.CreateSkipTemplateCharactersResult(
-			stringPtr(jutil.LenientFormat("Unnecessary escape: \"\\%s\" is equivalent to just \"%s\"", next, next)),
-			errorLevelPtr(TemplateLiteralToken_ErrorLevel_WARNING))
+		return s.createTemplateDiag(
+			jutil.LenientFormat("Unnecessary escape: \"\\%s\" is equivalent to just \"%s\"", next, next),
+			TemplateLiteralToken_ErrorLevel_WARNING), true
 	default:
-		return s.CreateSkipTemplateCharactersResult(
-			stringPtr(jutil.LenientFormat("Unnecessary escape: '\\%s' is equivalent to just '%s'", next, next)),
-			errorLevelPtr(TemplateLiteralToken_ErrorLevel_WARNING))
+		return s.createTemplateDiag(
+			jutil.LenientFormat("Unnecessary escape: '\\%s' is equivalent to just '%s'", next, next),
+			TemplateLiteralToken_ErrorLevel_WARNING), true
 	}
 }
 
@@ -1378,7 +1490,7 @@ func (s *Scanner) SkipLineTerminator() {
 }
 
 // Java: Scanner.scanFractionalNumericLiteral(int)
-func (s *Scanner) ScanFractionalNumericLiteral(beginToken int) LiteralToken {
+func (s *Scanner) ScanFractionalNumericLiteral(beginToken int) Token {
 	if s.Peek('.') {
 		s.NextChar()
 		s.SkipDecimalDigitsWithHasLeadingDigit( /* hasLeadingDigit= */ false)
@@ -1387,7 +1499,7 @@ func (s *Scanner) ScanFractionalNumericLiteral(beginToken int) LiteralToken {
 }
 
 // Java: Scanner.scanExponentOfNumericLiteral(int)
-func (s *Scanner) ScanExponentOfNumericLiteral(beginToken int) LiteralToken {
+func (s *Scanner) ScanExponentOfNumericLiteral(beginToken int) Token {
 	switch s.PeekChar() {
 	case 'e', 'E':
 		s.NextChar()
@@ -1402,8 +1514,7 @@ func (s *Scanner) ScanExponentOfNumericLiteral(beginToken int) LiteralToken {
 		s.SkipDecimalDigits()
 	default:
 	}
-	return s.newLiteralToken(
-		TokenType_NUMBER, s.GetTokenString(beginToken), s.GetTokenRange(beginToken))
+	return s.newNumberOrBigIntToken(TokenType_NUMBER, s.GetTokenRange(beginToken))
 }
 
 // Java: Scanner.skipDecimalDigits()
@@ -1418,6 +1529,7 @@ func (s *Scanner) SkipDecimalDigitsWithHasLeadingDigit(hasLeadingDigit bool) {
 	for Scanner_IsDecimalDigit(ch) || ch == '_' {
 		s.NextChar()
 		if ch == '_' {
+			s.sawNumericSeparator = true
 			if hasDigit && Scanner_IsDecimalDigit(s.PeekChar()) {
 				s.NextChar()
 			} else {
@@ -1456,6 +1568,7 @@ func (s *Scanner) SkipHexDigits() {
 	for Scanner_IsHexDigit(ch) || ch == '_' {
 		s.NextChar()
 		if ch == '_' {
+			s.sawNumericSeparator = true
 			if s.PeekHexDigit() {
 				s.NextChar()
 			} else {
@@ -1472,6 +1585,7 @@ func (s *Scanner) SkipOctalDigits() {
 	for Scanner_IsOctalDigit(ch) || ch == '_' {
 		s.NextChar()
 		if ch == '_' {
+			s.sawNumericSeparator = true
 			if Scanner_IsOctalDigit(s.PeekChar()) {
 				s.NextChar()
 			} else {
@@ -1503,6 +1617,7 @@ func (s *Scanner) SkipBinaryDigits() {
 	for Scanner_IsBinaryDigit(ch) || ch == '_' {
 		s.NextChar()
 		if ch == '_' {
+			s.sawNumericSeparator = true
 			if Scanner_IsBinaryDigit(s.PeekChar()) {
 				s.NextChar()
 			} else {
@@ -1583,52 +1698,27 @@ func (s *Scanner) DecTypeParameterLevel() {
 	s.typeParameterLevel--
 }
 
-// Java: Scanner.createSkipTemplateCharactersResult(String, ErrorLevel)
-func (s *Scanner) CreateSkipTemplateCharactersResult(message *string, errorLevel *TemplateLiteralToken_ErrorLevel) *Scanner_SkipTemplateCharactersResult {
-	return NewScanner_SkipTemplateCharactersResult(message, errorLevel, s.GetPosition())
+func (s *Scanner) createTemplateDiag(message string, errorLevel TemplateLiteralToken_ErrorLevel) Scanner_SkipTemplateCharactersResult {
+	return Scanner_SkipTemplateCharactersResult{
+		errorMessage: message,
+		position:     s.GetPosition(),
+		errorLevel:   errorLevel,
+		hasMsg:       true,
+		hasLevel:     true,
+	}
 }
 
-// Scanner_SkipTemplateCharactersResult is Scanner.SkipTemplateCharactersResult.
+// Scanner_SkipTemplateCharactersResult is Scanner.SkipTemplateCharactersResult
+// represented as a value to avoid per-template heap allocation.
 type Scanner_SkipTemplateCharactersResult struct {
-	// Go-only: language-adapter — nil is Java null.
-	errorMessage *string
+	errorMessage string
 	position     SourcePosition
-	// Go-only: language-adapter — nil is Java null.
-	errorLevel *TemplateLiteralToken_ErrorLevel
-}
-
-// Java: Scanner.SkipTemplateCharactersResult(String, ErrorLevel, SourcePosition)
-func NewScanner_SkipTemplateCharactersResult(message *string, errorLevel *TemplateLiteralToken_ErrorLevel, position SourcePosition) *Scanner_SkipTemplateCharactersResult {
-	r := &Scanner_SkipTemplateCharactersResult{}
-	r.errorMessage = message
-	r.errorLevel = errorLevel
-	r.position = position
-	return r
-}
-
-// Java: Scanner.SkipTemplateCharactersResult.getErrorMessage()
-func (r *Scanner_SkipTemplateCharactersResult) GetErrorMessage() *string {
-	return r.errorMessage
-}
-
-// Java: Scanner.SkipTemplateCharactersResult.getErrorLevel()
-func (r *Scanner_SkipTemplateCharactersResult) GetErrorLevel() *TemplateLiteralToken_ErrorLevel {
-	return r.errorLevel
-}
-
-// Java: Scanner.SkipTemplateCharactersResult.getPosition()
-func (r *Scanner_SkipTemplateCharactersResult) GetPosition() SourcePosition {
-	return r.position
+	errorLevel   TemplateLiteralToken_ErrorLevel
+	hasMsg       bool
+	hasLevel     bool
 }
 
 // Java: Scanner.SkipTemplateCharactersResult.hasError()
-func (r *Scanner_SkipTemplateCharactersResult) HasError() bool {
-	return r.errorMessage != nil
+func (r Scanner_SkipTemplateCharactersResult) HasError() bool {
+	return r.hasMsg
 }
-
-// Go-only: language-adapter — helpers for Java nullable String / enum
-// values, which are pointers here.
-func stringPtr(s string) *string { return &s }
-
-// errorLevelPtr returns a non-nil (non-Java-null) ErrorLevel.
-func errorLevelPtr(l TemplateLiteralToken_ErrorLevel) *TemplateLiteralToken_ErrorLevel { return &l }

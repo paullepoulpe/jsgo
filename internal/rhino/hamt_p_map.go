@@ -365,23 +365,18 @@ func (m *HamtPMap[K, V]) GetWithHash(key K, hash int32) V {
 	return null
 }
 
+// HamtPMap_Reconciler merges two values; see HamtPMap.Reconcile.
+type HamtPMap_Reconciler[K any, V any] func(key K, thisVal V, thatVal V) V
+
 // Plus returns a new map with the given key-value pair added. If the value
 // is already present, then this same map will be returned.
 //
 // Java: HamtPMap.plus(K, V)
-func (m *HamtPMap[K, V]) Plus(key K, value V) PMap[K, V] {
-	return m.PlusMap(key, value)
-}
-
-// PlusMap is plus(K, V) with its covariant HamtPMap return type.
-//
-// Go-only: language-adapter — Java's override narrows the return type to
-// HamtPMap; a Go method satisfying PMap must return PMap.
-func (m *HamtPMap[K, V]) PlusMap(key K, value V) *HamtPMap[K, V] {
+func (m *HamtPMap[K, V]) Plus(key K, value V) *HamtPMap[K, V] {
 	return m.PlusMapWithArena(nil, key, value)
 }
 
-// PlusMapWithArena is PlusMap using arena for node and child-slice allocations.
+// PlusMapWithArena is Plus using arena for node and child-slice allocations.
 func (m *HamtPMap[K, V]) PlusMapWithArena(arena *HamtPMapArena[K, V], key K, value V) *HamtPMap[K, V] {
 	hamtCheckNotNull(value)
 
@@ -443,18 +438,11 @@ func (m *HamtPMap[K, V]) replaceRoot(arena *HamtPMapArena[K, V], key K, hash int
 // present in the first place, then this same map will be returned.
 //
 // Java: HamtPMap.minus(K)
-func (m *HamtPMap[K, V]) Minus(key K) PMap[K, V] {
-	return m.MinusMap(key)
-}
-
-// MinusMap is minus(K) with its covariant HamtPMap return type.
-//
-// Go-only: language-adapter — see PlusMap.
-func (m *HamtPMap[K, V]) MinusMap(key K) *HamtPMap[K, V] {
+func (m *HamtPMap[K, V]) Minus(key K) *HamtPMap[K, V] {
 	return m.MinusMapWithArena(nil, key)
 }
 
-// MinusMapWithArena is MinusMap using arena for node and child-slice allocations.
+// MinusMapWithArena is Minus using arena for node and child-slice allocations.
 func (m *HamtPMap[K, V]) MinusMapWithArena(arena *HamtPMapArena[K, V], key K) *HamtPMap[K, V] {
 	if m != nil {
 		return m.minusWithHash(arena, key, HamtPMap_Hash(key), nil)
@@ -494,23 +482,15 @@ func (m *HamtPMap[K, V]) minusWithHash(arena *HamtPMapArena[K, V], key K, hash i
 	}
 }
 
+// Reconcile performs a reconcile operation to merge `m` and `that`.
+//
 // Java: HamtPMap.reconcile(PMap<K, V>, Reconciler<K, V>)
-func (m *HamtPMap[K, V]) Reconcile(that PMap[K, V], joiner PMap_Reconciler[K, V]) PMap[K, V] {
-	var thatMap *HamtPMap[K, V]
-	if that != nil {
-		thatMap = that.(*HamtPMap[K, V])
-	}
-	return m.ReconcileMap(thatMap, joiner)
-}
-
-// ReconcileMap is reconcile(PMap<K, V>, Reconciler<K, V>) with its concrete
-// *HamtPMap parameter and return type.
-func (m *HamtPMap[K, V]) ReconcileMap(that *HamtPMap[K, V], joiner PMap_Reconciler[K, V]) *HamtPMap[K, V] {
+func (m *HamtPMap[K, V]) Reconcile(that *HamtPMap[K, V], joiner HamtPMap_Reconciler[K, V]) *HamtPMap[K, V] {
 	return m.ReconcileMapWithArena(nil, that, joiner)
 }
 
-// ReconcileMapWithArena is ReconcileMap using arena for node and child-slice allocations.
-func (m *HamtPMap[K, V]) ReconcileMapWithArena(arena *HamtPMapArena[K, V], that *HamtPMap[K, V], joiner PMap_Reconciler[K, V]) *HamtPMap[K, V] {
+// ReconcileMapWithArena is Reconcile using arena for node and child-slice allocations.
+func (m *HamtPMap[K, V]) ReconcileMapWithArena(arena *HamtPMapArena[K, V], that *HamtPMap[K, V], joiner HamtPMap_Reconciler[K, V]) *HamtPMap[K, V] {
 	if m == that {
 		return m
 	}
@@ -521,7 +501,7 @@ func (m *HamtPMap[K, V]) ReconcileMapWithArena(arena *HamtPMapArena[K, V], that 
 // reconcile(HamtPMap, BiFunction), factoring out empies.
 //
 // Java: HamtPMap.reconcile(HamtPMap<K, V>, HamtPMap<K, V>, Reconciler<K, V>)
-func hamtPMap_ReconcileTrees[K any, V any](arena *HamtPMapArena[K, V], t1 *HamtPMap[K, V], t2 *HamtPMap[K, V], joiner PMap_Reconciler[K, V], checkNotNull bool) *HamtPMap[K, V] {
+func hamtPMap_ReconcileTrees[K any, V any](arena *HamtPMapArena[K, V], t1 *HamtPMap[K, V], t2 *HamtPMap[K, V], joiner HamtPMap_Reconciler[K, V], checkNotNull bool) *HamtPMap[K, V] {
 	var null V
 	if t1 == t2 {
 		return t1
@@ -709,17 +689,7 @@ func hamtPMap_ReconcileTrees[K any, V any](arena *HamtPMapArena[K, V], t1 *HamtP
 // Short-circuits as soon as a 'false' result is found.
 //
 // Java: HamtPMap.equivalent(PMap<K, V>, BiPredicate<V, V>)
-func (m *HamtPMap[K, V]) Equivalent(that PMap[K, V], equivalence func(V, V) bool) bool {
-	var thatMap *HamtPMap[K, V]
-	if that != nil {
-		thatMap = that.(*HamtPMap[K, V])
-	}
-	return m.EquivalentMap(thatMap, equivalence)
-}
-
-// EquivalentMap is equivalent(PMap<K, V>, BiPredicate<V, V>) with its concrete
-// *HamtPMap parameter type.
-func (m *HamtPMap[K, V]) EquivalentMap(that *HamtPMap[K, V], equivalence func(V, V) bool) bool {
+func (m *HamtPMap[K, V]) Equivalent(that *HamtPMap[K, V], equivalence func(V, V) bool) bool {
 	return HamtPMap_EquivalentTrees(m, that, equivalence)
 }
 

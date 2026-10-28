@@ -460,13 +460,13 @@ type ProgramTree struct {
 	ParseTreeBase
 
 	SourceElements []ParseTree
-	SourceComments []*Comment
+	SourceComments []Comment
 }
 
 // NewProgramTree constructs a ProgramTree.
 //
 // Java: ProgramTree(SourceRange, ImmutableList, ImmutableList)
-func NewProgramTree(location SourceRange, sourceElements []ParseTree, sourceComments []*Comment) *ProgramTree {
+func NewProgramTree(location SourceRange, sourceElements []ParseTree, sourceComments []Comment) *ProgramTree {
 	t := &ProgramTree{}
 	t.InitParseTreeBase(ParseTreeType_PROGRAM, location)
 	t.SourceElements = sourceElements
@@ -479,21 +479,21 @@ type ImportDeclarationTree struct {
 	ParseTreeBase
 
 	// The identifier for the "default" import from the module.
-	DefaultBindingIdentifier *IdentifierToken
+	DefaultBindingIdentifier Token
 	// The list of names imported from the module when using the
 	// `import {...} from 'specifier'` form.
 	ImportSpecifierList []ParseTree
 	// The namespace into which imported names are put when using the
 	// `import * as nameSpaceImportIdentifier from 'specifier'` form.
-	NameSpaceImportIdentifier *IdentifierToken
+	NameSpaceImportIdentifier Token
 	// The string identifying the module.
-	ModuleSpecifier LiteralToken
+	ModuleSpecifier Token
 }
 
 // NewImportDeclarationTree constructs a ImportDeclarationTree.
 //
 // Java: ImportDeclarationTree(SourceRange, IdentifierToken, ImmutableList, IdentifierToken, LiteralToken)
-func NewImportDeclarationTree(location SourceRange, defaultBindingIdentifier *IdentifierToken, importSpecifierList []ParseTree, nameSpaceImportIdentifier *IdentifierToken, moduleSpecifier LiteralToken) *ImportDeclarationTree {
+func NewImportDeclarationTree(location SourceRange, defaultBindingIdentifier Token, importSpecifierList []ParseTree, nameSpaceImportIdentifier Token, moduleSpecifier Token) *ImportDeclarationTree {
 	t := &ImportDeclarationTree{}
 	t.InitParseTreeBase(ParseTreeType_IMPORT_DECLARATION, location)
 	t.DefaultBindingIdentifier = defaultBindingIdentifier
@@ -507,14 +507,14 @@ func NewImportDeclarationTree(location SourceRange, defaultBindingIdentifier *Id
 type ImportSpecifierTree struct {
 	ParseTreeBase
 
-	ImportedName    *IdentifierToken
-	DestinationName *IdentifierToken
+	ImportedName    Token
+	DestinationName Token
 }
 
 // NewImportSpecifierTree constructs a ImportSpecifierTree.
 //
 // Java: ImportSpecifierTree(SourceRange, IdentifierToken, IdentifierToken)
-func NewImportSpecifierTree(location SourceRange, importedName *IdentifierToken, destinationName *IdentifierToken) *ImportSpecifierTree {
+func NewImportSpecifierTree(location SourceRange, importedName Token, destinationName Token) *ImportSpecifierTree {
 	t := &ImportSpecifierTree{}
 	t.InitParseTreeBase(ParseTreeType_IMPORT_SPECIFIER, location)
 	t.ImportedName = importedName
@@ -546,13 +546,13 @@ type ExportDeclarationTree struct {
 	IsExportAll         bool
 	Declaration         ParseTree
 	ExportSpecifierList []ParseTree
-	From                LiteralToken
+	From                Token
 }
 
 // NewExportDeclarationTree constructs a ExportDeclarationTree.
 //
 // Java: ExportDeclarationTree(SourceRange, boolean, boolean, ParseTree, ImmutableList, LiteralToken)
-func NewExportDeclarationTree(location SourceRange, isDefault bool, isExportAll bool, declaration ParseTree, exportSpecifierList []ParseTree, from LiteralToken) *ExportDeclarationTree {
+func NewExportDeclarationTree(location SourceRange, isDefault bool, isExportAll bool, declaration ParseTree, exportSpecifierList []ParseTree, from Token) *ExportDeclarationTree {
 	t := &ExportDeclarationTree{}
 	t.InitParseTreeBase(ParseTreeType_EXPORT_DECLARATION, location)
 	t.IsDefault = isDefault
@@ -567,14 +567,14 @@ func NewExportDeclarationTree(location SourceRange, isDefault bool, isExportAll 
 type ExportSpecifierTree struct {
 	ParseTreeBase
 
-	ImportedName    *IdentifierToken
-	DestinationName *IdentifierToken
+	ImportedName    Token
+	DestinationName Token
 }
 
 // NewExportSpecifierTree constructs a ExportSpecifierTree.
 //
 // Java: ExportSpecifierTree(SourceRange, IdentifierToken, IdentifierToken)
-func NewExportSpecifierTree(location SourceRange, importedName *IdentifierToken, destinationName *IdentifierToken) *ExportSpecifierTree {
+func NewExportSpecifierTree(location SourceRange, importedName Token, destinationName Token) *ExportSpecifierTree {
 	t := &ExportSpecifierTree{}
 	t.InitParseTreeBase(ParseTreeType_EXPORT_SPECIFIER, location)
 	t.ImportedName = importedName
@@ -586,7 +586,7 @@ func NewExportSpecifierTree(location SourceRange, importedName *IdentifierToken,
 type ClassDeclarationTree struct {
 	ParseTreeBase
 
-	Name       *IdentifierToken
+	Name       Token
 	SuperClass ParseTree
 	Elements   []ParseTree
 }
@@ -594,7 +594,7 @@ type ClassDeclarationTree struct {
 // NewClassDeclarationTree constructs a ClassDeclarationTree.
 //
 // Java: ClassDeclarationTree(SourceRange, IdentifierToken, ParseTree, ImmutableList)
-func NewClassDeclarationTree(location SourceRange, name *IdentifierToken, superClass ParseTree, elements []ParseTree) *ClassDeclarationTree {
+func NewClassDeclarationTree(location SourceRange, name Token, superClass ParseTree, elements []ParseTree) *ClassDeclarationTree {
 	t := &ClassDeclarationTree{}
 	t.InitParseTreeBase(ParseTreeType_CLASS_DECLARATION, location)
 	t.Name = name
@@ -608,7 +608,7 @@ func NewClassDeclarationTree(location SourceRange, name *IdentifierToken, superC
 type FunctionDeclarationTree struct {
 	ParseTreeBase
 
-	Name                *IdentifierToken
+	Name                Token
 	FormalParameterList *FormalParameterListTree
 	FunctionBody        ParseTree
 	IsClassMember       bool
@@ -688,7 +688,7 @@ func NewFunctionDeclarationTree(builder *FunctionDeclarationTree_Builder) *Funct
 type FunctionDeclarationTree_Builder struct {
 	kind FunctionDeclarationTree_Kind
 
-	name                *IdentifierToken
+	name                Token
 	formalParameterList *FormalParameterListTree
 	functionBody        ParseTree
 	isClassMember       bool
@@ -713,7 +713,7 @@ func NewFunctionDeclarationTree_Builder(kind FunctionDeclarationTree_Kind) *Func
 // Default is nil.
 //
 // Java: FunctionDeclarationTree.Builder.setName(IdentifierToken)
-func (b *FunctionDeclarationTree_Builder) SetName(name *IdentifierToken) *FunctionDeclarationTree_Builder {
+func (b *FunctionDeclarationTree_Builder) SetName(name Token) *FunctionDeclarationTree_Builder {
 	b.name = name
 	return b
 }
@@ -801,7 +801,7 @@ func (b *FunctionDeclarationTree_Builder) Build(location SourceRange) *FunctionD
 type FieldDeclarationTree struct {
 	ParseTreeBase
 
-	Name        *IdentifierToken
+	Name        Token
 	IsStatic    bool
 	Initializer ParseTree
 }
@@ -809,7 +809,7 @@ type FieldDeclarationTree struct {
 // NewFieldDeclarationTree constructs a FieldDeclarationTree.
 //
 // Java: FieldDeclarationTree(SourceRange, IdentifierToken, boolean, ParseTree)
-func NewFieldDeclarationTree(location SourceRange, name *IdentifierToken, isStatic bool, initializer ParseTree) *FieldDeclarationTree {
+func NewFieldDeclarationTree(location SourceRange, name Token, isStatic bool, initializer ParseTree) *FieldDeclarationTree {
 	t := &FieldDeclarationTree{}
 	t.InitParseTreeBase(ParseTreeType_FIELD_DECLARATION, location)
 	t.Name = name
@@ -1267,13 +1267,13 @@ func NewReturnStatementTree(location SourceRange, expression ParseTree) *ReturnS
 type BreakStatementTree struct {
 	ParseTreeBase
 
-	Name *IdentifierToken
+	Name Token
 }
 
 // NewBreakStatementTree constructs a BreakStatementTree.
 //
 // Java: BreakStatementTree(SourceRange, IdentifierToken)
-func NewBreakStatementTree(location SourceRange, name *IdentifierToken) *BreakStatementTree {
+func NewBreakStatementTree(location SourceRange, name Token) *BreakStatementTree {
 	t := &BreakStatementTree{}
 	t.InitParseTreeBase(ParseTreeType_BREAK_STATEMENT, location)
 	t.Name = name
@@ -1284,20 +1284,20 @@ func NewBreakStatementTree(location SourceRange, name *IdentifierToken) *BreakSt
 //
 // Java: BreakStatementTree.hasLabel()
 func (t *BreakStatementTree) HasLabel() bool {
-	return t.Name != nil
+	return t.Name.IsPresent()
 }
 
 // ContinueStatementTree is the parse tree for ParseTreeType CONTINUE_STATEMENT.
 type ContinueStatementTree struct {
 	ParseTreeBase
 
-	Name *IdentifierToken
+	Name Token
 }
 
 // NewContinueStatementTree constructs a ContinueStatementTree.
 //
 // Java: ContinueStatementTree(SourceRange, IdentifierToken)
-func NewContinueStatementTree(location SourceRange, name *IdentifierToken) *ContinueStatementTree {
+func NewContinueStatementTree(location SourceRange, name Token) *ContinueStatementTree {
 	t := &ContinueStatementTree{}
 	t.InitParseTreeBase(ParseTreeType_CONTINUE_STATEMENT, location)
 	t.Name = name
@@ -1308,7 +1308,7 @@ func NewContinueStatementTree(location SourceRange, name *IdentifierToken) *Cont
 //
 // Java: ContinueStatementTree.hasLabel()
 func (t *ContinueStatementTree) HasLabel() bool {
-	return t.Name != nil
+	return t.Name.IsPresent()
 }
 
 // ThrowStatementTree is the parse tree for ParseTreeType THROW_STATEMENT.
@@ -1332,14 +1332,14 @@ func NewThrowStatementTree(location SourceRange, value ParseTree) *ThrowStatemen
 type LabelledStatementTree struct {
 	ParseTreeBase
 
-	Name      *IdentifierToken
+	Name      Token
 	Statement ParseTree
 }
 
 // NewLabelledStatementTree constructs a LabelledStatementTree.
 //
 // Java: LabelledStatementTree(SourceRange, IdentifierToken, ParseTree)
-func NewLabelledStatementTree(location SourceRange, name *IdentifierToken, statement ParseTree) *LabelledStatementTree {
+func NewLabelledStatementTree(location SourceRange, name Token, statement ParseTree) *LabelledStatementTree {
 	t := &LabelledStatementTree{}
 	t.InitParseTreeBase(ParseTreeType_LABELLED_STATEMENT, location)
 	t.Name = name
@@ -1549,31 +1549,31 @@ func (t Comment_Type) String() string { return t.Name() }
 // NewComment constructs a Comment.
 //
 // Java: Comment(String, SourceRange, Type)
-func NewComment(value string, location LineRange, type_ Comment_Type) *Comment {
-	c := &Comment{}
-	c.Value = value
-	c.Location = location
-	c.Type = type_
-	return c
+func NewComment(value string, location LineRange, type_ Comment_Type) Comment {
+	return Comment{
+		Value:    value,
+		Location: location,
+		Type:     type_,
+	}
 }
 
 // IsJsDoc reports whether this is a JSDoc comment.
 //
 // Java: Comment.isJsDoc()
-func (c *Comment) IsJsDoc() bool {
+func (c Comment) IsJsDoc() bool {
 	return c.Type == Comment_Type_JSDOC
 }
 
 // GetAbsolutePosition returns the start offset.
 //
 // Java: Comment.getAbsolutePosition()
-func (c *Comment) GetAbsolutePosition() int {
+func (c Comment) GetAbsolutePosition() int {
 	return int(c.Location.Start.Offset)
 }
 
 // GetLength returns the length in UTF-16 code units.
 //
 // Java: Comment.getLength()
-func (c *Comment) GetLength() int {
+func (c Comment) GetLength() int {
 	return int(c.Location.End.Offset - c.Location.Start.Offset)
 }

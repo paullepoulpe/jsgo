@@ -20,6 +20,8 @@
 package jscomp
 
 import (
+	"fmt"
+	"strings"
 	"testing"
 )
 
@@ -254,3 +256,40 @@ func (c *MustBeReachingVariableDefTest) AssertNotMatch(src string) {
 	tester.ExtractDefAndUsesFromInputLabels()
 	AssertThat(tester.GetComputedDef()).IsNotSameInstanceAs(tester.GetExtractedDef())
 }
+
+// Go-only: test — verifies dense variable table and multi-word dependency
+// bitsets across <=16, <=64, <=128, >128, and >512 local variables, plus
+// escaped-variable dependency invalidation.
+func TestMustBeReachingVariableDefWideAndEscaped(t *testing.T) {
+	c := &MustBeReachingVariableDefTest{t: t}
+	for _, count := range []int{8, 32, 65, 130, 520} {
+		t.Run(fmt.Sprintf("vars_%d", count), func(t *testing.T) {
+			var decls strings.Builder
+			decls.WriteString("var ")
+			for i := 0; i < count; i++ {
+				if i > 0 {
+					decls.WriteByte(',')
+				}
+				fmt.Fprintf(&decls, "v%d=%d", i, i)
+			}
+			decls.WriteString(",x;")
+			last := count - 1
+			mid := count / 2
+
+			// Unmodified high-index dependencies still reach U:x.
+			c.AssertMatch(fmt.Sprintf("%s D: x = v0 + v%d + v%d; v1 = 99; U: x", decls.String(), mid, last))
+			// Reassigning a high-index dependency invalidates D:x.
+			c.AssertNotMatch(fmt.Sprintf("%s D: x = v0 + v%d + v%d; v%d = 99; U: x", decls.String(), mid, last, last))
+			// Branch join on x with wide variable table.
+			c.AssertNotMatch(fmt.Sprintf("%s if (v0) { D: x = v%d; } else { x = v0; } U: x", decls.String(), last))
+			// Parameter escape via arguments invalidates x depending on param1.
+			c.AssertNotMatch(fmt.Sprintf("%s D: x = param1 + v%d; arguments[0] = 1; U: x", decls.String(), last))
+		})
+	}
+
+	// Reassigning an escaped variable invalidates local definitions that read it,
+	// both across statements and within the same var declaration.
+	c.AssertNotMatch("var esc = 1; function inner() { return esc; } D: var x = esc; esc = 2; U: x")
+	c.AssertNotMatch("var esc = 1, x; function inner() { return esc; } D: (x = esc, esc = 2); U: x")
+}
+

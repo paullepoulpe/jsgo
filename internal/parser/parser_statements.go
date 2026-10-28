@@ -510,7 +510,7 @@ func (p *Parser) ParseForInStatement(start SourcePosition, initializer ParseTree
 func (p *Parser) ParseContinueStatement() ParseTree {
 	start := p.GetTreeStartLocation()
 	p.Eat(TokenType_CONTINUE)
-	var name *IdentifierToken
+	var name Token
 	if !p.PeekImplicitSemiColon() {
 		name = p.EatIdOpt()
 	}
@@ -524,7 +524,7 @@ func (p *Parser) ParseContinueStatement() ParseTree {
 func (p *Parser) ParseBreakStatement() ParseTree {
 	start := p.GetTreeStartLocation()
 	p.Eat(TokenType_BREAK)
-	var name *IdentifierToken
+	var name Token
 	if !p.PeekImplicitSemiColon() {
 		name = p.EatIdOpt()
 	}
@@ -669,7 +669,7 @@ func (p *Parser) ParseCatch() *CatchTree {
 
 	var exception ParseTree = NewEmptyStatementTree(NewSourceRange(p.GetTreeEndLocation(), p.GetTreeStartLocation()))
 
-	if p.PeekToken().GetTokenBase().Type == TokenType_OPEN_PAREN {
+	if p.PeekToken().Type() == TokenType_OPEN_PAREN {
 		p.Eat(TokenType_OPEN_PAREN)
 		if p.PeekPatternStart() {
 			exception = p.ParsePattern(Parser_PatternKind_INITIALIZER)

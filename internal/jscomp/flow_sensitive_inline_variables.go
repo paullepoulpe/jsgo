@@ -689,12 +689,13 @@ func (f *FlowSensitiveInlineVariables) processFunction(fn ast.Function, body ast
 			// Ideally we should iterate to a fixed point, but that can be costly. Therefore, we use
 			// a conservative heuristic here: For each candidate "other", we back off if its set of
 			// dependencies cannot contain all of "c"'s dependencies.
-			if !c.defMetadata.depends.IsEmpty() {
-				scopeVar := scope.GetVar(c.varName)
-				for other := range f.candidates.All() {
-					if other.defMetadata.depends.Contains(scopeVar) &&
-						!flowSensitiveInlineVariables_containsAll(other.defMetadata.depends, c.defMetadata.depends) {
-						f.candidates.Remove(other)
+			if c.defMetadata.HasDependencies() {
+				if scopeVarID, ok := f.reachingDef.ResolveVarID(scope.GetVar(c.varName)); ok {
+					for other := range f.candidates.All() {
+						if other.defMetadata.DependsOnVarID(scopeVarID) &&
+							!other.defMetadata.ContainsAllDependencies(c.defMetadata) {
+							f.candidates.Remove(other)
+						}
 					}
 				}
 			}
@@ -702,18 +703,6 @@ func (f *FlowSensitiveInlineVariables) processFunction(fn ast.Function, body ast
 			f.candidates.Remove(c)
 		}
 	}
-}
-
-// flowSensitiveInlineVariables_containsAll is Set.containsAll.
-//
-// Go-only: language-adapter — jutil.ObjectLinkedHashSet has no containsAll.
-func flowSensitiveInlineVariables_containsAll(set *jutil.ObjectLinkedHashSet[*Var], elems *jutil.ObjectLinkedHashSet[*Var]) bool {
-	for e := range elems.All() {
-		if !set.Contains(e) {
-			return false
-		}
-	}
-	return true
 }
 
 // Java: FlowSensitiveInlineVariables.isCandidateFunction(Node)
@@ -1257,11 +1246,7 @@ func (c *FlowSensitiveInlineVariables_Candidate) CanInline(scope *Scope) bool {
 
 	namesToCheck := &c.outer.namesToCheckSet
 	namesToCheck.Clear()
-	if c.defMetadata.depends != nil {
-		for var_ := range c.defMetadata.depends.All() {
-			namesToCheck.Add(var_.GetName())
-		}
-	}
+	c.outer.reachingDef.AddDependencyNames(c.defMetadata, namesToCheck)
 
 	sideEffectPredicateWithNames := FlowSensitiveInlineVariables_SideEffectPredicate{
 		outer:        c.outer,

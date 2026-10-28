@@ -109,24 +109,12 @@ type LinkedFlowScope struct {
 	syntacticScope *TypedScope
 }
 
-// NewLinkedFlowScope creates a flow scope without a direct parent. This can
+// newLinkedFlowScope creates a flow scope without a direct parent. This can
 // happen in three cases: (1) the "bottom" scope for a CFG root, (2) a direct
 // child of a parent at the maximum depth, or (3) a joined scope with more
 // than one direct parent. The parent is non-null only in the second case.
 //
 // Java: LinkedFlowScope(CompilerInputProvider, PMap<TypedScope, OverlayScope>, TypedScope, TypedScope)
-func NewLinkedFlowScope(
-	inputProvider CompilerInputProvider,
-	scopes rhino.PMap[*TypedScope, *LinkedFlowScope_OverlayScope],
-	syntacticScope *TypedScope,
-	functionScope *TypedScope) *LinkedFlowScope {
-	return newLinkedFlowScope(
-		inputProvider,
-		scopes.(*rhino.HamtPMap[*TypedScope, *LinkedFlowScope_OverlayScope]),
-		syntacticScope,
-		functionScope)
-}
-
 func newLinkedFlowScope(
 	inputProvider CompilerInputProvider,
 	scopes *rhino.HamtPMap[*TypedScope, *LinkedFlowScope_OverlayScope],
@@ -155,17 +143,13 @@ func newLinkedFlowScopeWithArena(
 	return s
 }
 
-// TrimScopes returns the scope map, trimmed to the common ancestor between
+// trimScopesMap returns the scope map, trimmed to the common ancestor between
 // this FlowScope's syntacticScope and the given scope. Any inferred types on
 // variables in deeper scopes cannot be propagated past this point (since
 // they're no longer in scope), and trimming them eagerly allows us to ignore
 // these irrelevant types when checking equality and joining.
 //
 // Java: LinkedFlowScope.trimScopes(TypedScope)
-func (l *LinkedFlowScope) TrimScopes(scope *TypedScope) rhino.PMap[*TypedScope, *LinkedFlowScope_OverlayScope] {
-	return l.trimScopesMap(scope)
-}
-
 func (l *LinkedFlowScope) trimScopesMap(scope *TypedScope) *rhino.HamtPMap[*TypedScope, *LinkedFlowScope_OverlayScope] {
 	thisScope := l.syntacticScope
 	thatScope := scope
@@ -550,7 +534,7 @@ func (l *LinkedFlowScope) Equals(other any) bool {
 	// to propagate the entry lattice a little bit further than it
 	// really needs to. Everything will still come out ok.
 	return l.functionScope == that.functionScope &&
-		l.scopes.EquivalentMap(that.scopes, LinkedFlowScope_EqualScopes)
+		l.scopes.Equivalent(that.scopes, LinkedFlowScope_EqualScopes)
 }
 
 // Java: LinkedFlowScope.equalScopes(OverlayScope, OverlayScope)
@@ -558,7 +542,7 @@ func LinkedFlowScope_EqualScopes(left *LinkedFlowScope_OverlayScope, right *Link
 	if left == right {
 		return true
 	}
-	return left.slots.EquivalentMap(right.slots, linkedFlowScope_EqualTypes)
+	return left.slots.Equivalent(right.slots, linkedFlowScope_EqualTypes)
 }
 
 // linkedFlowScope_EqualTypes determines whether two inferred slot types are
@@ -583,11 +567,6 @@ func (l *LinkedFlowScope) HashCode() int32 {
 }
 
 // Java: LinkedFlowScope.join(LinkedFlowScope, LinkedFlowScope, TypedScope)
-func LinkedFlowScope_Join(
-	linkedA *LinkedFlowScope, linkedB *LinkedFlowScope, commonParent *TypedScope) rhino.PMap[*TypedScope, *LinkedFlowScope_OverlayScope] {
-	return linkedFlowScope_JoinMap(linkedA, linkedB, commonParent)
-}
-
 func linkedFlowScope_JoinMap(
 	linkedA *LinkedFlowScope, linkedB *LinkedFlowScope, commonParent *TypedScope) *rhino.HamtPMap[*TypedScope, *LinkedFlowScope_OverlayScope] {
 	scopesA := linkedA.trimScopesMap(commonParent)
@@ -728,15 +707,6 @@ func NewLinkedFlowScope_OverlayScope(scope *TypedScope) *LinkedFlowScope_Overlay
 }
 
 // Java: LinkedFlowScope.OverlayScope(TypedScope, PMap<String, OverlaySlot>)
-func NewLinkedFlowScope_OverlayScopeWithSlots(
-	scope *TypedScope, slots rhino.PMap[string, rhino.JSType]) *LinkedFlowScope_OverlayScope {
-	var m *rhino.HamtPMap[string, rhino.JSType]
-	if slots != nil {
-		m = slots.(*rhino.HamtPMap[string, rhino.JSType])
-	}
-	return newLinkedFlowScope_OverlayScopeWithSlots(scope, m)
-}
-
 func newLinkedFlowScope_OverlayScopeWithSlots(
 	scope *TypedScope, slots *rhino.HamtPMap[string, rhino.JSType]) *LinkedFlowScope_OverlayScope {
 	return newLinkedFlowScope_OverlayScopeWithArena(nil, scope, slots)

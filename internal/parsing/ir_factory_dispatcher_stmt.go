@@ -235,8 +235,10 @@ func (d *IRFactory_TransformDispatcher) ProcessBlock(blockNode *parser.BlockTree
 		blockNode.Statements[i] = nil
 	}
 
-	lastComment := d.ParseNonJSDocCommentAt(d.linePos(blockNode.GetEnd()), false)
-	d.AddExtraTrailingComment(node, lastComment)
+	if endOff := blockNode.GetEnd(); d.hasAnyPendingCommentBeforeOffset(endOff.Offset) {
+		lastComment := d.ParseNonJSDocCommentAt(d.linePos(endOff), false)
+		d.AddExtraTrailingComment(node, lastComment)
+	}
 	return node
 }
 
@@ -251,7 +253,8 @@ func (d *IRFactory_TransformDispatcher) ProcessBreakStatement(statementNode *par
 }
 
 // Java: IRFactory.TransformDispatcher.transformLabelName(IdentifierToken)
-func (d *IRFactory_TransformDispatcher) TransformLabelName(token *parser.IdentifierToken) rhino.Node {
+func (d *IRFactory_TransformDispatcher) TransformLabelName(token parser.Token) rhino.Node {
+	checkTokenNotNull(token)
 	label := d.MaybeAddNonJsDocComment(
 		d.NewStringNodeFromIdentifier(rhino.Token_LABEL_NAME, IRFactory_TransformDispatcher_IdentifierType_STANDARD, token),
 		token.GetStart())
@@ -336,8 +339,8 @@ func (d *IRFactory_TransformDispatcher) TransformOrEmpty(tree parser.ParseTree, 
 }
 
 // Java: IRFactory.TransformDispatcher.transformOrEmpty(IdentifierToken, ParseTree)
-func (d *IRFactory_TransformDispatcher) TransformOrEmptyIdentifier(token *parser.IdentifierToken, parent parser.ParseTree) rhino.Node {
-	if token == nil {
+func (d *IRFactory_TransformDispatcher) TransformOrEmptyIdentifier(token parser.Token, parent parser.ParseTree) rhino.Node {
+	if token.IsNull() {
 		n := d.NewNode(rhino.Token_EMPTY)
 		d.SetSourceInfo(n, parent)
 		return n
@@ -381,7 +384,7 @@ func (d *IRFactory_TransformDispatcher) ProcessFunction(functionTree *parser.Fun
 
 	name := functionTree.Name
 	var newName rhino.Node
-	if name != nil {
+	if name.IsPresent() {
 		newName = d.ProcessNameWithInlineCommentsOfToken(name, identifierType)
 	} else {
 		if isDeclaration || isMember {
@@ -988,10 +991,7 @@ func (d *IRFactory_TransformDispatcher) ValidateClassConstructorMember(member pa
 		hasIllegalModifier = true
 	case parser.ParseTreeType_FUNCTION_DECLARATION:
 		method := member.(*parser.FunctionDeclarationTree)
-		if method.Name != nil {
-			// Go-only: language-adapter — no typed nil in the interface.
-			memberName = method.Name
-		}
+		memberName = method.Name
 		isStatic = method.IsStatic
 		hasIllegalModifier = method.IsGenerator || method.IsAsync
 	default:
@@ -1005,8 +1005,9 @@ func (d *IRFactory_TransformDispatcher) ValidateClassConstructorMember(member pa
 		return false
 	}
 
-	if memberName.GetTokenBase().Type != parser.TokenType_IDENTIFIER ||
-		!memberName.(*parser.IdentifierToken).ValueEquals("constructor") {
+	checkTokenNotNull(memberName)
+	if memberName.Type() != parser.TokenType_IDENTIFIER ||
+		!memberName.ValueEquals("constructor") {
 		// There's only a potential issue if the member is named
 		// "constructor".
 		// TODO(b/123769080): Also check for quoted string literals with the
@@ -1043,7 +1044,7 @@ func (d *IRFactory_TransformDispatcher) ProcessExportDecl(tree *parser.ExportDec
 	}
 	d.SetSourceInfo(decls, tree)
 	export := d.NewNodeWithChild(rhino.Token_EXPORT, decls)
-	if tree.From != nil {
+	if tree.From.IsPresent() {
 		from := d.ProcessString(tree.From)
 		export.AddChildToBack(from)
 	}
@@ -1057,7 +1058,7 @@ func (d *IRFactory_TransformDispatcher) ProcessExportDecl(tree *parser.ExportDec
 func (d *IRFactory_TransformDispatcher) ProcessExportSpec(tree *parser.ExportSpecifierTree) rhino.Node {
 	importedName := d.ProcessNameOfToken(tree.ImportedName, rhino.Token_NAME, IRFactory_TransformDispatcher_IdentifierType_STANDARD)
 	exportSpec := d.NewNodeWithChild(rhino.Token_EXPORT_SPEC, importedName)
-	if tree.DestinationName == nil {
+	if tree.DestinationName.IsNull() {
 		exportSpec.SetShorthandProperty(true)
 		exportSpec.AddChildToBack(importedName.CloneTree())
 	} else {
@@ -1073,7 +1074,7 @@ func (d *IRFactory_TransformDispatcher) ProcessImportDecl(tree *parser.ImportDec
 
 	firstChild := d.TransformOrEmptyIdentifier(tree.DefaultBindingIdentifier, tree)
 	var secondChild rhino.Node
-	if tree.NameSpaceImportIdentifier == nil {
+	if tree.NameSpaceImportIdentifier.IsNull() {
 		secondChild = d.TransformListOrEmpty(rhino.Token_IMPORT_SPECS, tree.ImportSpecifierList)
 		// Currently source info is "import {foo} from '...';" expression. If
 		// needed this should be changed to use only "{foo}" part.
@@ -1092,7 +1093,7 @@ func (d *IRFactory_TransformDispatcher) ProcessImportDecl(tree *parser.ImportDec
 func (d *IRFactory_TransformDispatcher) ProcessImportSpec(tree *parser.ImportSpecifierTree) rhino.Node {
 	importedName := d.ProcessNameOfToken(tree.ImportedName, rhino.Token_NAME, IRFactory_TransformDispatcher_IdentifierType_STANDARD)
 	importSpec := d.NewNodeWithChild(rhino.Token_IMPORT_SPEC, importedName)
-	if tree.DestinationName == nil {
+	if tree.DestinationName.IsNull() {
 		importSpec.SetShorthandProperty(true)
 		importSpec.AddChildToBack(importedName.CloneTree())
 	} else {
@@ -1159,19 +1160,7 @@ func (d *IRFactory_TransformDispatcher) TransformListOrEmpty(type_ rhino.Token, 
 // irFactory_javaClassOf is Object.getClass().toString() for a parser token:
 // "class com.google.javascript.jscomp.parsing.parser.<simple name>".
 func irFactory_javaClassOf(token parser.Token) string {
-	const prefix = "class com.google.javascript.jscomp.parsing.parser."
-	switch token.(type) {
-	case *parser.StringLiteralToken:
-		return prefix + "StringLiteralToken"
-	case *parser.TemplateLiteralToken:
-		return prefix + "TemplateLiteralToken"
-	case *parser.LiteralTokenBase:
-		return prefix + "LiteralToken"
-	case *parser.IdentifierToken:
-		return prefix + "IdentifierToken"
-	default:
-		return prefix + "Token"
-	}
+	return "class com.google.javascript.jscomp.parsing.parser." + token.JavaSimpleClassName()
 }
 
 // Java: IRFactory.TransformDispatcher.process(ParseTree)

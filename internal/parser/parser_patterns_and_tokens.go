@@ -120,7 +120,7 @@ func (p *Parser) ParseArrayPattern(kind Parser_PatternKind) ParseTree {
 		p.RecordFeatureUsed(FeatureSet_Feature_ARRAY_PATTERN_REST)
 		elements = append(elements, p.ParseIterRest(kind))
 	}
-	if p.Eat(TokenType_CLOSE_SQUARE) == nil {
+	if p.Eat(TokenType_CLOSE_SQUARE).IsNull() {
 		// If we get no closing bracket then return invalid tree to avoid compiler tripping
 		// downstream. It's needed only for IDE mode where compiler continues processing even if
 		// source has syntactic errors.
@@ -187,9 +187,9 @@ func (p *Parser) ParseObjectPatternField(kind Parser_PatternKind) ParseTree {
 				defaultValue := p.ParseAssignmentExpression()
 				return NewDefaultParameterTree(p.GetTreeLocation(start), idTree, defaultValue)
 			}
-			return p.newPropertyNameAssignmentTree(p.GetTreeLocation(start), identifierTokenAsToken(idToken), nil)
+			return p.newPropertyNameAssignmentTree(p.GetTreeLocation(start), idToken, nil)
 		}
-		name = identifierTokenAsToken(idToken)
+		name = idToken
 	} else {
 		name = p.ParseLiteralExpression().LiteralToken
 	}
@@ -285,7 +285,7 @@ func (p *Parser) PeekImplicitSemiColonAt(index int) bool {
 	if index == 0 {
 		lineAdvanced = p.GetNextLine() > p.GetLastLine()
 	} else {
-		lineAdvanced = p.line(p.PeekTokenAt(index).GetTokenBase().Location.Start) > p.line(p.PeekTokenAt(index-1).GetTokenBase().Location.End)
+		lineAdvanced = p.line(p.PeekTokenAt(index).Location.Start) > p.line(p.PeekTokenAt(index-1).Location.End)
 	}
 	return lineAdvanced ||
 		p.PeekAt(index, TokenType_SEMI_COLON) ||
@@ -316,13 +316,13 @@ func (p *Parser) linePos(pos SourcePosition) LinePosition {
 //
 // Java: Parser.getNextLine()
 func (p *Parser) GetNextLine() int {
-	return p.line(p.PeekToken().GetTokenBase().Location.Start)
+	return p.line(p.PeekToken().Location.Start)
 }
 
 // EatOpt consumes the next token if it is of the expected type. Otherwise
-// returns nil. Never reports errors.
+// returns Token{}. Never reports errors.
 //
-// Returns the consumed token, or nil if the next token is not of the
+// Returns the consumed token, or Token{} if the next token is not of the
 // expected type.
 //
 // Java: Parser.eatOpt(TokenType)
@@ -330,7 +330,7 @@ func (p *Parser) EatOpt(expectedTokenType TokenType) Token {
 	if p.Peek(expectedTokenType) {
 		return p.Eat(expectedTokenType)
 	}
-	return nil
+	return Token{}
 }
 
 // Java: Parser.inStrictContext()
@@ -349,15 +349,14 @@ func (p *Parser) PeekId() bool {
 // Java: Parser.peekId(int)
 func (p *Parser) PeekIdAt(index int) bool {
 	token := p.PeekTokenAt(index)
-	typeToCheck := token.GetTokenBase().Type
+	typeToCheck := token.Type()
 
 	if typeToCheck == TokenType_IDENTIFIER {
-		value := token.(*IdentifierToken).GetMaybePrivateValue()
-		k := Keywords_Get(value)
-		if k == nil {
+		if !token.IsKeyword() {
 			return true
 		}
 		// Swap the type to the matched keyword's type
+		k := Keywords_Get(token.GetMaybePrivateValue())
 		typeToCheck = k.Type()
 	}
 
@@ -380,11 +379,11 @@ func (p *Parser) PeekIdOrKeywordAt(index int) bool {
 // EatIdOpt is shorthand for eatOpt(TokenType.IDENTIFIER).
 //
 // Java: Parser.eatIdOpt()
-func (p *Parser) EatIdOpt() *IdentifierToken {
+func (p *Parser) EatIdOpt() Token {
 	if p.PeekId() {
 		return p.EatIdOrKeywordAsId()
 	}
-	return nil
+	return Token{}
 }
 
 // EatId consumes an identifier token that is not a reserved word.
@@ -392,7 +391,7 @@ func (p *Parser) EatIdOpt() *IdentifierToken {
 // See http://www.ecma-international.org/ecma-262/5.1/#sec-7.6
 //
 // Java: Parser.eatId()
-func (p *Parser) EatId() *IdentifierToken {
+func (p *Parser) EatId() Token {
 	if p.PeekId() {
 		return p.EatIdOrKeywordAsId()
 	} else {
@@ -400,7 +399,7 @@ func (p *Parser) EatId() *IdentifierToken {
 		if p.PeekIdOrKeyword() {
 			return p.EatIdOrKeywordAsId()
 		} else {
-			return nil
+			return Token{}
 		}
 	}
 }
@@ -408,13 +407,13 @@ func (p *Parser) EatId() *IdentifierToken {
 // Java: Parser.eatObjectLiteralPropertyName()
 func (p *Parser) EatObjectLiteralPropertyName() Token {
 	token := p.PeekToken()
-	switch token.GetTokenBase().Type {
+	switch token.Type() {
 	case TokenType_STRING, TokenType_NUMBER, TokenType_BIGINT:
 		return p.NextToken()
 	case TokenType_IDENTIFIER:
 		fallthrough
 	default:
-		return identifierTokenAsToken(p.EatIdOrKeywordAsId())
+		return p.EatIdOrKeywordAsId()
 	}
 }
 
@@ -424,31 +423,32 @@ func (p *Parser) EatObjectLiteralPropertyName() Token {
 // See http://www.ecma-international.org/ecma-262/5.1/#sec-7.6
 //
 // Java: Parser.eatIdOrKeywordAsId()
-func (p *Parser) EatIdOrKeywordAsId() *IdentifierToken {
+func (p *Parser) EatIdOrKeywordAsId() Token {
 	token := p.NextToken()
-	if token.GetTokenBase().Type == TokenType_IDENTIFIER {
-		return token.(*IdentifierToken)
-	} else if Keywords_IsKeywordTokenType(token.GetTokenBase().Type) {
-		return NewIdentifierToken(token.GetTokenBase().Location, Keywords_GetByTokenType(token.GetTokenBase().Type).String())
+	if token.Type() == TokenType_IDENTIFIER {
+		return token
+	} else if Keywords_IsKeywordTokenType(token.Type()) {
+		kw := Keywords_GetByTokenType(token.Type())
+		return newIdentifierTokenFromID(token.Location, p.scanner.internIdent(kw.Value()), tokenFlagIdentIsKeyword)
 	} else {
 		p.ReportExpectedError(token, TokenType_IDENTIFIER)
 	}
-	return nil
+	return Token{}
 }
 
 // Eat consumes the next token. If the consumed token is not of the expected
-// type then report an error and return nil. Otherwise return the consumed
+// type then report an error and return Token{}. Otherwise return the consumed
 // token.
 //
-// Returns the consumed token, or nil if the next token is not of the
+// Returns the consumed token, or Token{} if the next token is not of the
 // expected type.
 //
 // Java: Parser.eat(TokenType)
 func (p *Parser) Eat(expectedTokenType TokenType) Token {
 	token := p.NextToken()
-	if token.GetTokenBase().Type != expectedTokenType {
+	if token.Type() != expectedTokenType {
 		p.ReportExpectedError(token, expectedTokenType)
-		return nil
+		return Token{}
 	}
 	return token
 }
@@ -468,7 +468,7 @@ func (p *Parser) ReportExpectedError(token Token, expected any) {
 //
 // Java: Parser.getTreeStartLocation()
 func (p *Parser) GetTreeStartLocation() SourcePosition {
-	return p.PeekToken().GetTokenBase().Location.Start
+	return p.PeekToken().Location.Start
 }
 
 // GetTreeEndLocation returns a SourcePosition for the end of a parse tree
@@ -497,7 +497,7 @@ func (p *Parser) GetTreeLocation(start SourcePosition) SourceRange {
 // Java: Parser.nextToken()
 func (p *Parser) NextToken() Token {
 	token := p.scanner.NextToken()
-	p.lastSourcePosition = token.GetTokenBase().Location.End
+	p.lastSourcePosition = token.Location.End
 	return token
 }
 
@@ -505,9 +505,9 @@ func (p *Parser) NextToken() Token {
 // token and returns it.
 //
 // Java: Parser.nextRegularExpressionLiteralToken()
-func (p *Parser) NextRegularExpressionLiteralToken() LiteralToken {
+func (p *Parser) NextRegularExpressionLiteralToken() Token {
 	token := p.scanner.NextRegularExpressionLiteralToken()
-	p.lastSourcePosition = token.GetTokenBase().Location.End
+	p.lastSourcePosition = token.Location.End
 	return token
 }
 
@@ -515,7 +515,7 @@ func (p *Parser) NextRegularExpressionLiteralToken() LiteralToken {
 // it.
 //
 // Java: Parser.nextTemplateLiteralToken()
-func (p *Parser) NextTemplateLiteralToken() *TemplateLiteralToken {
+func (p *Parser) NextTemplateLiteralToken() Token {
 	token := p.scanner.NextTemplateLiteralToken()
 	p.lastSourcePosition = token.Location.End
 	return token
@@ -550,7 +550,7 @@ func (p *Parser) PeekType() TokenType {
 //
 // Java: Parser.peekType(int)
 func (p *Parser) PeekTypeAt(index int) TokenType {
-	return p.PeekTokenAt(index).GetTokenBase().Type
+	return p.PeekTokenAt(index).Type()
 }
 
 // PeekToken returns the next token. Does not consume any tokens.
@@ -575,7 +575,7 @@ func (p *Parser) PeekTokenAt(index int) Token {
 //
 // Java: Parser.reportError(Token, String, Object...)
 func (p *Parser) ReportErrorAtToken(token Token, message string, arguments ...any) {
-	if token == nil {
+	if token.IsNull() {
 		p.ReportError(message, arguments...)
 	} else {
 		p.errorReporter.ReportErrorFormat(p.linePos(token.GetStart()), message, arguments...)
@@ -620,18 +620,22 @@ func (p *Parser) ReportErrorAtPosition(position SourcePosition, message string, 
 }
 
 // Java: Parser.reportTemplateErrorIfPresent(TemplateLiteralToken)
-func (p *Parser) ReportTemplateErrorIfPresent(templateToken *TemplateLiteralToken) {
-	if templateToken.ErrorMessage == nil {
+func (p *Parser) ReportTemplateErrorIfPresent(templateToken Token) {
+	if templateToken.aux == 0 {
+		return
+	}
+	errInfo := p.scanner.TemplateError(templateToken)
+	if !errInfo.HasMsg {
 		return
 	}
 	// Java: switch (templateToken.errorLevel) — a null errorLevel would throw
 	// a NullPointerException here.
-	switch *templateToken.ErrorLevel {
+	switch *errInfo.ErrorLevelPtr() {
 	case TemplateLiteralToken_ErrorLevel_WARNING:
-		p.errorReporter.ReportWarningFormat(p.linePos(templateToken.ErrorPosition), "%s", *templateToken.ErrorMessage)
+		p.errorReporter.ReportWarningFormat(p.linePos(errInfo.Position), "%s", errInfo.Message)
 		return
 	case TemplateLiteralToken_ErrorLevel_ERROR:
-		p.ReportErrorAtPosition(templateToken.ErrorPosition, "%s", *templateToken.ErrorMessage)
+		p.ReportErrorAtPosition(errInfo.Position, "%s", errInfo.Message)
 		return
 	}
 	panic(jutil.NewAssertionErrorNoMessage())
@@ -641,18 +645,6 @@ func (p *Parser) ReportTemplateErrorIfPresent(templateToken *TemplateLiteralToke
 func (p *Parser) RecordFeatureUsed(feature FeatureSet_Feature) *Parser {
 	p.features = p.features.With(feature)
 	return p
-}
-
-// Go-only: language-adapter — conversions from possibly-nil concrete
-// pointers to interfaces, so that Java null stays a nil interface (a typed
-// nil pointer in an interface would compare non-nil).
-
-// identifierTokenAsToken widens a possibly-nil *IdentifierToken to Token.
-func identifierTokenAsToken(t *IdentifierToken) Token {
-	if t == nil {
-		return nil
-	}
-	return t
 }
 
 // variableDeclarationListAsParseTree widens a possibly-nil

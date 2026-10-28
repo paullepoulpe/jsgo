@@ -19,6 +19,7 @@
 package jscomp
 
 import (
+	"slices"
 	"strconv"
 
 	"github.com/paullepoulpe/jsgo/internal/colors"
@@ -26,6 +27,11 @@ import (
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
+
+type ambiguateNodeToRename struct {
+	node    rhino.Node
+	propIdx uint32
+}
 
 // AmbiguateProperties renames unrelated properties to the same name, using
 // Colors provided by the typechecker. This allows better compression as more
@@ -51,14 +57,15 @@ import (
 type AmbiguateProperties struct {
 	compiler AbstractCompiler
 
-	stringNodesToRename []rhino.Node
+	nodesToRename []ambiguateNodeToRename
 	// Can't use these to start property names.
 	reservedFirstCharacters jutil.Set[uint16]
 	// Can't use these at all in property names.
 	reservedNonFirstCharacters jutil.Set[uint16]
 
-	// Map from property name to Property object
-	propertyMap *jutil.LinkedHashMap[string, *AmbiguateProperties_Property]
+	// Properties discovered in deterministic encounter order, indexed by name.
+	properties      []AmbiguateProperties_Property
+	propIndexByName map[string]uint32
 
 	// Property names that don't get renamed
 	externedNames *jutil.LinkedHashSet[string]
@@ -81,7 +88,7 @@ var ambiguateProperties_logger = jutil.Logger_GetLogger("com.google.javascript.j
 // ordering.
 //
 // Java: AmbiguateProperties.FREQUENCY_COMPARATOR
-var ambiguateProperties_FREQUENCY_COMPARATOR = func(p1 *AmbiguateProperties_Property, p2 *AmbiguateProperties_Property) int {
+func ambiguateProperties_FREQUENCY_COMPARATOR(p1 *AmbiguateProperties_Property, p2 *AmbiguateProperties_Property) int {
 	if p1.numOccurrences != p2.numOccurrences {
 		return p2.numOccurrences - p1.numOccurrences
 	}
@@ -101,18 +108,16 @@ func NewAmbiguateProperties(
 	for name := range externProperties.All() {
 		externedNames.Add(name)
 	}
-	a := &AmbiguateProperties{
+	return &AmbiguateProperties{
 		compiler:                   compiler,
 		reservedFirstCharacters:    reservedFirstCharacters,
 		reservedNonFirstCharacters: reservedNonFirstCharacters,
-		propertyMap:                jutil.NewLinkedHashMapWithCapacity[string, *AmbiguateProperties_Property](2048),
+		properties:                 make([]AmbiguateProperties_Property, 0, 2048),
+		propIndexByName:            make(map[string]uint32, 2048),
 		externedNames:              externedNames,
 		quotedNames:                jutil.NewLinkedHashSetWithCapacity[string](256),
 		colorRegistry:              compiler.GetColorRegistry(),
-		renamingMap:                nil,
-		graphNodeFactory:           nil,
 	}
-	return a
 }
 
 // Java: AmbiguateProperties.makePassForTesting(AbstractCompiler, Set<Character>, Set<Character>, Set<String>)
@@ -138,7 +143,7 @@ func (a *AmbiguateProperties) Process(externs rhino.Node, root rhino.Node) {
 	a.graphNodeFactory = ColorGraphNodeFactory_CreateFactory(a.colorRegistry)
 
 	// Find all property references and record the types on which they occur.
-	// Populate stringNodesToRename, propertyMap, quotedNames.
+	// Populate nodesToRename, propertyMap, quotedNames.
 	NodeTraversal_Traverse(a.compiler, root, &AmbiguateProperties_ProcessPropertiesAndConstructors{outer: a})
 
 	graphBuilder := NewColorGraphBuilder(
@@ -167,10 +172,10 @@ func (a *AmbiguateProperties) Process(externs rhino.Node, root rhino.Node) {
 			 * Cheap path for when we're sure there's going to be a change.
 			 *
 			 * <p>Since bits only ever turn on, using more bits means there are definitely more
-			 * elements. This prevents of from needing to check cardinality or equality, which
+			 * elements. This prevents us from needing to check cardinality or equality, which
 			 * would otherwise dominate the cost of computing the fixed point.
 			 *
-			 * <p>We're guaranteed to converge because the sizes will be euqal after the OR
+			 * <p>We're guaranteed to converge because the sizes will be equal after the OR
 			 * operation.
 			 */
 			superSet := supertype.GetSubtypeIndices()
@@ -194,38 +199,45 @@ func (a *AmbiguateProperties) Process(externs rhino.Node, root rhino.Node) {
 		})).
 		ComputeFixedPoint(colorGraph)
 
-	// Fill in all transitive edges in subtyping graph per property
-	for prop := range a.propertyMap.Values() {
+	// Fill in all transitive edges in subtyping graph per property.
+	for i := range a.properties {
+		prop := &a.properties[i]
 		if prop.skipAmbiguating || prop.firstColorSeed == nil {
 			prop.firstColorSeed = nil
-			prop.relatedColorsSeeds = nil
+			prop.extraSeeds = nil
 			continue
 		}
-		if prop.relatedColorsSeeds == nil {
-			c := prop.firstColorSeed
-			prop.firstColorSeed = nil
-			if c.subtypeIndices == nil {
-				prop.singleColorIndex = int32(c.index)
+		first := prop.firstColorSeed
+		prop.firstColorSeed = nil
+		if len(prop.extraSeeds) == 0 {
+			if first.subtypeIndices == nil {
+				prop.singleColorIndex = int32(first.index)
 			} else {
-				prop.relatedColors.Or(c.subtypeIndices)
+				prop.relatedColors.Or(first.subtypeIndices)
 			}
 			continue
 		}
-		for color := range prop.relatedColorsSeeds.Keys() {
+		if first.subtypeIndices != nil {
+			prop.relatedColors.Or(first.subtypeIndices)
+		} else {
+			prop.relatedColors.Set(first.index)
+		}
+		for _, color := range prop.extraSeeds {
 			if color.subtypeIndices != nil {
 				prop.relatedColors.Or(color.subtypeIndices)
 			} else {
 				prop.relatedColors.Set(color.index)
 			}
 		}
-		prop.firstColorSeed = nil
-		prop.relatedColorsSeeds = nil
+		clear(prop.extraSeeds)
+		prop.extraSeeds = nil
 	}
 	colorGraph = nil
 	a.graphNodeFactory = nil
+	a.propIndexByName = nil
 
 	// ImmutableSet.<String>builder().addAll(externedNames).addAll(quotedNames)
-	numProperties := a.propertyMap.Size()
+	numProperties := len(a.properties)
 	reservedNames := jutil.NewLinkedHashSetWithCapacity[string](a.externedNames.Size() + a.quotedNames.Size() + numProperties + 256)
 	for name := range a.externedNames.All() {
 		reservedNames.Add(name)
@@ -235,70 +247,86 @@ func (a *AmbiguateProperties) Process(externs rhino.Node, root rhino.Node) {
 	}
 	a.externedNames = nil
 	a.quotedNames = nil
-	numRenamedPropertyNames := 0
 	numSkippedPropertyNames := 0
-	nodeSlab := make([]AmbiguateProperties_PropertyGraphNode, numProperties)
-	nodes := make([]*AmbiguateProperties_PropertyGraphNode, 0, numProperties)
-	for prop := range a.propertyMap.Values() {
+	props := make([]*AmbiguateProperties_Property, 0, numProperties)
+	for i := range a.properties {
+		prop := &a.properties[i]
 		if prop.skipAmbiguating {
 			numSkippedPropertyNames++
 			reservedNames.Add(prop.oldName)
 		} else {
-			node := &nodeSlab[numRenamedPropertyNames]
-			node.property = prop
-			numRenamedPropertyNames++
-			nodes = append(nodes, node)
+			props = append(props, prop)
 		}
 	}
-	finalNumRenamedPropertyNames := numRenamedPropertyNames
+	finalNumRenamedPropertyNames := len(props)
 	finalNumSkippedPropertyNames := numSkippedPropertyNames
 
-	propertyGraph := NewAmbiguateProperties_PropertyGraph(nodes)
-	var coloring graph.GraphColoring[*AmbiguateProperties_Property, struct{}] = graph.NewGraphColoring_GreedyGraphColoringWithTieBreaker[*AmbiguateProperties_Property, struct{}](
-		propertyGraph, ambiguateProperties_FREQUENCY_COMPARATOR)
-	numNewPropertyNames := coloring.Color()
-	coloring = nil
-
-	// Generate new names for the properties that will be renamed.
-	var nameGen NameGenerator = NewDefaultNameGeneratorWithFirstAndNonFirstChars(
+	// Greedily color unrelated properties and assign generated names directly.
+	nameGen := NewDefaultNameGeneratorWithFirstAndNonFirstChars(
 		reservedNames,
 		"",
 		a.reservedFirstCharacters,
 		a.reservedNonFirstCharacters)
-	colorMap := make([]string, numNewPropertyNames)
-	for i := 0; i < numNewPropertyNames; i++ {
-		colorMap[i] = nameGen.GenerateNextName()
-	}
-	nameGen = nil
 	reservedNames = nil
 
-	// Translate the color of each Property instance to a name.
-	for _, node := range propertyGraph.nodes {
-		prop := node.GetValue()
-		prop.newName = colorMap[graph.GraphColoring_ColorOf(node.GetAnnotation()).Value]
+	var numNewPropertyNames int
+	if len(props) == 0 {
+		// Preserves GreedyGraphColoring's do-while count on an empty graph.
+		numNewPropertyNames = 1
+	} else {
+		var origProps []*AmbiguateProperties_Property
 		if a.renamingMap != nil {
-			a.renamingMap.Put(prop.oldName, prop.newName)
+			origProps = slices.Clone(props)
 		}
-	}
-	propertyGraph = nil
-	nodes = nil
-	nodeSlab = nil
-	colorMap = nil
+		slices.SortStableFunc(props, ambiguateProperties_FREQUENCY_COMPARATOR)
 
-	// Actually assign the new names to the relevant STRING nodes in the AST.
-	for _, n := range a.stringNodesToRename {
-		oldName := n.GetString()
-		p := a.propertyMap.Get(oldName)
-		if p != nil && p.newName != "" {
-			jutil.CheckState(oldName == p.oldName)
-			if p.newName != oldName {
-				n.SetString(p.newName)
-				a.compiler.ReportChangeToEnclosingScope(n)
+		var relatedTypes jutil.BitSet
+		worklist := props
+		for len(worklist) > 0 {
+			relatedTypes.ClearAll()
+			colorName := nameGen.GenerateNextName()
+			numNewPropertyNames++
+			kept := worklist[:0]
+			for _, prop := range worklist {
+				var independent bool
+				if prop.singleColorIndex >= 0 {
+					independent = !relatedTypes.Get(int(prop.singleColorIndex))
+				} else {
+					independent = !relatedTypes.Intersects(&prop.relatedColors)
+				}
+				if independent {
+					if prop.singleColorIndex >= 0 {
+						relatedTypes.Set(int(prop.singleColorIndex))
+					} else {
+						relatedTypes.Or(&prop.relatedColors)
+					}
+					prop.newName = colorName
+				} else {
+					kept = append(kept, prop)
+				}
+			}
+			clear(worklist[len(kept):])
+			worklist = kept
+		}
+		if a.renamingMap != nil {
+			for _, prop := range origProps {
+				a.renamingMap.Put(prop.oldName, prop.newName)
 			}
 		}
 	}
-	a.stringNodesToRename = nil
-	a.propertyMap = nil
+	nameGen = nil
+	props = nil
+
+	// Assign the new names to the relevant STRING nodes in the AST.
+	for _, item := range a.nodesToRename {
+		p := &a.properties[item.propIdx]
+		if p.newName != "" && p.newName != p.oldName && item.node.GetString() != p.newName {
+			item.node.SetString(p.newName)
+			a.compiler.ReportChangeToEnclosingScope(item.node)
+		}
+	}
+	a.nodesToRename = nil
+	a.properties = nil
 
 	// We may have renamed getter / setter properties.
 	// TODO(b/161947315): this shouldn't be the responsibility of AmbiguateProperties
@@ -323,119 +351,6 @@ func (a *AmbiguateProperties) Process(externs rhino.Node, root rhino.Node) {
 		ambiguateProperties_logger.Fine(summarySupplier())
 	}
 	a.compiler.ReportAmbiguatePropertiesSummary(summarySupplier)
-}
-
-// Java: static class AmbiguateProperties.PropertyGraph implements AdjacencyGraph<Property, Void>
-type AmbiguateProperties_PropertyGraph struct {
-	nodes []*AmbiguateProperties_PropertyGraphNode
-}
-
-// Java: AmbiguateProperties.PropertyGraph(ArrayList<AmbiguateProperties.PropertyGraphNode>)
-func NewAmbiguateProperties_PropertyGraph(nodes []*AmbiguateProperties_PropertyGraphNode) *AmbiguateProperties_PropertyGraph {
-	return &AmbiguateProperties_PropertyGraph{nodes: nodes}
-}
-
-// Java: AmbiguateProperties.PropertyGraph.getNodes()
-func (g *AmbiguateProperties_PropertyGraph) GetNodes() []graph.GraphNode[*AmbiguateProperties_Property, struct{}] {
-	// Go-only: language-adapter — List<PropertyGraphNode> as the
-	// interface's List<GraphNode<Property, Void>>.
-	out := make([]graph.GraphNode[*AmbiguateProperties_Property, struct{}], len(g.nodes))
-	for i, n := range g.nodes {
-		out[i] = n
-	}
-	return out
-}
-
-// Java: AmbiguateProperties.PropertyGraph.getNodeCount()
-func (g *AmbiguateProperties_PropertyGraph) GetNodeCount() int {
-	return len(g.nodes)
-}
-
-// Java: AmbiguateProperties.PropertyGraph.getNode(AmbiguateProperties.Property)
-func (g *AmbiguateProperties_PropertyGraph) GetNode(property *AmbiguateProperties_Property) graph.GraphNode[*AmbiguateProperties_Property, struct{}] {
-	panic(jutil.NewRuntimeException("PropertyGraph#getNode is never called."))
-}
-
-// Java: AmbiguateProperties.PropertyGraph.newSubGraph()
-func (g *AmbiguateProperties_PropertyGraph) NewSubGraph() graph.SubGraph[*AmbiguateProperties_Property, struct{}] {
-	return NewAmbiguateProperties_PropertySubGraph()
-}
-
-// Java: AmbiguateProperties.PropertyGraph.clearNodeAnnotations()
-func (g *AmbiguateProperties_PropertyGraph) ClearNodeAnnotations() {
-	for _, node := range g.nodes {
-		node.SetAnnotation(nil)
-	}
-}
-
-// Java: AmbiguateProperties.PropertyGraph.getWeight(AmbiguateProperties.Property)
-func (g *AmbiguateProperties_PropertyGraph) GetWeight(value *AmbiguateProperties_Property) int {
-	return value.numOccurrences
-}
-
-// AmbiguateProperties_PropertySubGraph is a SubGraph that represents
-// properties. The related types of the properties are used to efficiently
-// calculate adjacency information.
-//
-// Java: static class AmbiguateProperties.PropertySubGraph implements SubGraph<Property, Void>
-type AmbiguateProperties_PropertySubGraph struct {
-	// Types related to properties referenced in this subgraph.
-	relatedTypes jutil.BitSet
-}
-
-// Java: AmbiguateProperties.PropertySubGraph()
-func NewAmbiguateProperties_PropertySubGraph() *AmbiguateProperties_PropertySubGraph {
-	return &AmbiguateProperties_PropertySubGraph{}
-}
-
-// IsIndependentOf returns true if prop is in an independent set from all
-// properties in this sub graph. That is, if none of its related types
-// intersects with the related types for this sub graph.
-//
-// Java: AmbiguateProperties.PropertySubGraph.isIndependentOf(AmbiguateProperties.Property)
-func (g *AmbiguateProperties_PropertySubGraph) IsIndependentOf(prop *AmbiguateProperties_Property) bool {
-	if prop.singleColorIndex >= 0 {
-		return !g.relatedTypes.Get(int(prop.singleColorIndex))
-	}
-	return !g.relatedTypes.Intersects(&prop.relatedColors)
-}
-
-// AddNode adds the node to the sub graph, adding all its related types to the
-// related types for the sub graph.
-//
-// Java: AmbiguateProperties.PropertySubGraph.addNode(AmbiguateProperties.Property)
-func (g *AmbiguateProperties_PropertySubGraph) AddNode(prop *AmbiguateProperties_Property) {
-	if prop.singleColorIndex >= 0 {
-		g.relatedTypes.Set(int(prop.singleColorIndex))
-		return
-	}
-	g.relatedTypes.Or(&prop.relatedColors)
-}
-
-// Java: static class AmbiguateProperties.PropertyGraphNode implements GraphNode<Property, Void>
-type AmbiguateProperties_PropertyGraphNode struct {
-	property   *AmbiguateProperties_Property
-	annotation graph.Annotation
-}
-
-// Java: AmbiguateProperties.PropertyGraphNode(AmbiguateProperties.Property)
-func NewAmbiguateProperties_PropertyGraphNode(property *AmbiguateProperties_Property) *AmbiguateProperties_PropertyGraphNode {
-	return &AmbiguateProperties_PropertyGraphNode{property: property}
-}
-
-// Java: AmbiguateProperties.PropertyGraphNode.getValue()
-func (n *AmbiguateProperties_PropertyGraphNode) GetValue() *AmbiguateProperties_Property {
-	return n.property
-}
-
-// Java: AmbiguateProperties.PropertyGraphNode.getAnnotation()
-func (n *AmbiguateProperties_PropertyGraphNode) GetAnnotation() graph.Annotation {
-	return n.annotation
-}
-
-// Java: AmbiguateProperties.PropertyGraphNode.setAnnotation(Annotation)
-func (n *AmbiguateProperties_PropertyGraphNode) SetAnnotation(data graph.Annotation) {
-	n.annotation = data
 }
 
 // AmbiguateProperties_ProcessPropertiesAndConstructors finds all property
@@ -507,8 +422,8 @@ func (p *AmbiguateProperties_ProcessPropertiesAndConstructors) ProcessCall(call 
 		// Skip ambiguation for properties in renaming calls
 		// NOTE (lharker@) - I'm not sure if this behavior is necessary, or if we could safely
 		// ambiguate the property as long as we also updated the property renaming call
-		prop := a.GetProperty(propName.GetString())
-		prop.skipAmbiguating = true
+		propIdx := a.getOrAddPropertyIndex(propName.GetString())
+		a.properties[propIdx].skipAmbiguating = true
 	} else if NodeUtil_IsObjectDefinePropertiesDefinition(call) {
 		typeObj := call.GetSecondChild()
 		type_ := a.GetColor(typeObj)
@@ -652,30 +567,29 @@ func (p *AmbiguateProperties_ProcessPropertiesAndConstructors) MaybeMarkCandidat
 	a := p.outer
 	name := n.GetString()
 	if !a.externedNames.Contains(name) {
-		a.stringNodesToRename = append(a.stringNodesToRename, n)
-		p.RecordProperty(name, type_)
+		propIdx := p.recordProperty(name, type_)
+		a.nodesToRename = append(a.nodesToRename, ambiguateNodeToRename{node: n, propIdx: propIdx})
 	}
 }
 
-// Java: AmbiguateProperties.ProcessPropertiesAndConstructors.recordProperty(String, Color)
-func (p *AmbiguateProperties_ProcessPropertiesAndConstructors) RecordProperty(name string, color *colors.Color) *AmbiguateProperties_Property {
-	prop := p.outer.GetProperty(name)
-	prop.AddRelatedColor(color)
-	return prop
+func (p *AmbiguateProperties_ProcessPropertiesAndConstructors) recordProperty(name string, color *colors.Color) uint32 {
+	a := p.outer
+	propIdx := a.getOrAddPropertyIndex(name)
+	a.properties[propIdx].addRelatedColor(a.graphNodeFactory, color)
+	return propIdx
 }
 
-// Java: AmbiguateProperties.getProperty(String)
-func (a *AmbiguateProperties) GetProperty(name string) *AmbiguateProperties_Property {
-	if prop := a.propertyMap.Get(name); prop != nil {
-		return prop
+func (a *AmbiguateProperties) getOrAddPropertyIndex(name string) uint32 {
+	if idx, ok := a.propIndexByName[name]; ok {
+		return idx
 	}
-	prop := a.allocProperty(name)
-	a.propertyMap.PutNew(name, prop)
-	return prop
-}
-
-func (a *AmbiguateProperties) allocProperty(name string) *AmbiguateProperties_Property {
-	return &AmbiguateProperties_Property{outer: a, oldName: name, singleColorIndex: -1}
+	idx := uint32(len(a.properties))
+	a.properties = append(a.properties, AmbiguateProperties_Property{
+		oldName:          name,
+		singleColorIndex: -1,
+	})
+	a.propIndexByName[name] = idx
+	return idx
 }
 
 // GetColor gets the Color from the Node argument or UNKNOWN if not present.
@@ -686,9 +600,8 @@ func (a *AmbiguateProperties) GetColor(n rhino.Node) *colors.Color {
 	if type_ == nil {
 		// TODO(bradfordcsmith): This branch indicates a compiler bug. It should throw an exception.
 		return colors.StandardColors_UNKNOWN
-	} else {
-		return type_
 	}
+	return type_
 }
 
 // AmbiguateProperties_Property encapsulates the information needed for
@@ -696,34 +609,24 @@ func (a *AmbiguateProperties) GetColor(n rhino.Node) *colors.Color {
 //
 // Java: private class AmbiguateProperties.Property
 type AmbiguateProperties_Property struct {
-	outer *AmbiguateProperties
-
 	oldName          string
 	newName          string
 	numOccurrences   int
-	skipAmbiguating  bool
 	singleColorIndex int32
-	// All colors upon which this property was directly accessed. For "a.b" this includes "a"'s type
-	firstColorSeed     *ColorGraphNode
-	relatedColorsSeeds *jutil.LinkedHashMap[*ColorGraphNode, int] // may be nil
-	// includes relatedTypesSeeds + all subtypes of those seed colors. For example if this property
+	skipAmbiguating  bool
+	seedDedupBitSet  bool
+	// All colors upon which this property was directly accessed. For "a.b" this includes "a"'s type.
+	firstColorSeed *ColorGraphNode
+	extraSeeds     []*ColorGraphNode
+	// Includes seed colors + all subtypes of those seed colors. For example if this property
 	// was accessed off of Iterable, then this bitset will include Array as well.
 	relatedColors jutil.BitSet
 }
 
-// Java: AmbiguateProperties.Property(String)
-func NewAmbiguateProperties_Property(outer *AmbiguateProperties, name string) *AmbiguateProperties_Property {
-	return &AmbiguateProperties_Property{
-		outer:            outer,
-		oldName:          name,
-		singleColorIndex: -1,
-	}
-}
-
-// AddRelatedColor marks this color as related to this property.
+// addRelatedColor marks this color as related to this property.
 //
 // Java: AmbiguateProperties.Property.addRelatedColor(Color)
-func (p *AmbiguateProperties_Property) AddRelatedColor(color *colors.Color) {
+func (p *AmbiguateProperties_Property) addRelatedColor(factory *ColorGraphNodeFactory, color *colors.Color) {
 	if p.skipAmbiguating {
 		return
 	}
@@ -733,21 +636,39 @@ func (p *AmbiguateProperties_Property) AddRelatedColor(color *colors.Color) {
 	if color.IsInvalidating() || color.GetPropertiesKeepOriginalName() {
 		p.skipAmbiguating = true
 		p.firstColorSeed = nil
-		p.relatedColorsSeeds = nil
+		p.extraSeeds = nil
+		p.seedDedupBitSet = false
+		p.relatedColors.ClearAll()
 		return
 	}
 
-	newColorGraphNode := p.outer.graphNodeFactory.CreateNode(color)
+	node := factory.CreateNode(color)
 	if p.firstColorSeed == nil {
-		p.firstColorSeed = newColorGraphNode
+		p.firstColorSeed = node
 		return
 	}
-	if p.firstColorSeed == newColorGraphNode {
+	if p.firstColorSeed == node {
 		return
 	}
-	if p.relatedColorsSeeds == nil {
-		p.relatedColorsSeeds = jutil.NewLinkedHashMap[*ColorGraphNode, int]()
-		p.relatedColorsSeeds.Put(p.firstColorSeed, 0)
+	if p.seedDedupBitSet {
+		if !p.relatedColors.Get(node.index) {
+			p.relatedColors.Set(node.index)
+			p.extraSeeds = append(p.extraSeeds, node)
+		}
+		return
 	}
-	p.relatedColorsSeeds.Put(newColorGraphNode, 0)
+	for _, s := range p.extraSeeds {
+		if s == node {
+			return
+		}
+	}
+	if len(p.extraSeeds) == 8 {
+		p.seedDedupBitSet = true
+		p.relatedColors.Set(p.firstColorSeed.index)
+		for _, s := range p.extraSeeds {
+			p.relatedColors.Set(s.index)
+		}
+		p.relatedColors.Set(node.index)
+	}
+	p.extraSeeds = append(p.extraSeeds, node)
 }

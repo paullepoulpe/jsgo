@@ -1,6 +1,7 @@
 package parser
 
 import (
+	"reflect"
 	"strings"
 	"testing"
 
@@ -45,14 +46,14 @@ func TestToStringMatchesJava(t *testing.T) {
 	if want := "Unexpected # of comma and formal params.|params: []|comma positions: [@0, @5]"; strings.ReplaceAll(msg, "\n", "|") != want {
 		t.Errorf("checkArgument message %q, Java %q", msg, want)
 	}
-	// Token casts are type assertions, like Java's (T) this.
+	// Token is a 16-byte pointer-free value type.
 	var tok Token = NewIdentifierToken(r, "x")
-	if tok.(*IdentifierToken).GetValue() != "x" {
-		t.Errorf("AsIdentifier")
+	if tok.GetValue() != "x" {
+		t.Errorf("GetValue")
 	}
 	var lit Token = NewStringLiteralToken("'s'", r, false)
-	if lit.(LiteralToken).GetLiteralTokenBase().Value != "'s'" {
-		t.Errorf("AsLiteral")
+	if lit.String() != "'s'" {
+		t.Errorf("StringLiteralToken.String")
 	}
 	var tree ParseTree = NewParenExpressionTree(r, NewArrayPatternTree(r, []ParseTree{}))
 	if !tree.IsPattern() || !tree.IsValidAssignmentTarget() || tree.IsValidNonVanillaAssignmentTarget() {
@@ -62,5 +63,37 @@ func TestToStringMatchesJava(t *testing.T) {
 	jutil.Try(func() { NewIdentifierToken(r, "#p").GetValue() }, func(e jutil.IIllegalStateException) { threw = true })
 	if !threw {
 		t.Errorf("GetValue on a private identifier must throw IllegalStateException")
+	}
+}
+
+func typeContainsPointers(t reflect.Type) bool {
+	switch t.Kind() {
+	case reflect.Pointer, reflect.String, reflect.Slice, reflect.Map, reflect.Chan, reflect.Func, reflect.Interface, reflect.UnsafePointer:
+		return true
+	case reflect.Array:
+		return typeContainsPointers(t.Elem())
+	case reflect.Struct:
+		for i := 0; i < t.NumField(); i++ {
+			if typeContainsPointers(t.Field(i).Type) {
+				return true
+			}
+		}
+		return false
+	default:
+		return false
+	}
+}
+
+func TestTokenValueLayout(t *testing.T) {
+	tt := reflect.TypeOf(Token{})
+	if tt.Size() != 16 {
+		t.Fatalf("Token size = %d, want 16", tt.Size())
+	}
+	if typeContainsPointers(tt) {
+		t.Fatalf("Token contains pointers; expected pointer-free (noscan) value struct")
+	}
+	var zero Token
+	if !zero.IsNull() || zero.IsPresent() {
+		t.Fatalf("zero Token must report IsNull=true, IsPresent=false")
 	}
 }

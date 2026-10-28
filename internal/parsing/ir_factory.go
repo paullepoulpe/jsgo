@@ -26,6 +26,7 @@ import (
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/parser"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
+	"github.com/paullepoulpe/jsgo/internal/strpool"
 )
 
 // IRFactory transforms the external AST to the internal AST.
@@ -90,6 +91,14 @@ type IRFactory struct {
 	transformDispatcherVal   IRFactory_TransformDispatcher
 	classScopeVal            IRFactory_TransformDispatcher_ScopeTracker
 	privateIdLhsOfInScopeVal IRFactory_TransformDispatcher_ScopeTracker
+
+	// Go-only: performance — single-threaded line table + cursor, fast-path
+	// flags, and L1 string intern cache.
+	lineStarts         []int32
+	lastLine           int
+	includeAllComments bool
+	reservedMode       uint8 // 0 = ES3 (nil), 1 = ES5, 2 = ES5_STRICT
+	strCache           [128]strpool.ID
 }
 
 const IRFactory_GETTER_ERROR_MESSAGE = "getters are not supported in older versions of JavaScript. " +
@@ -198,7 +207,7 @@ func NewIRFactory(
 	sourceFile rhino.StaticSourceFile,
 	config *Config,
 	errorReporter rhino.ErrorReporter,
-	comments []*parser.Comment,
+	comments []parser.Comment,
 	fileWithContent *parser.SourceFile,
 	jsDocSourceKind JsDocInfoParser_JsDocSourceKind) *IRFactory {
 	f := &IRFactory{}
@@ -221,6 +230,9 @@ func NewIRFactory(
 
 	f.sourceFile = sourceFile
 	f.fileWithContent = fileWithContent
+	if fileWithContent != nil {
+		f.lineStarts = fileWithContent.LineStarts()
+	}
 	// The template node properties are applied to all nodes in this transform.
 	f.defaultTemplateNode = f.CreateTemplateNode()
 	f.templateNode = f.defaultTemplateNode
@@ -233,6 +245,7 @@ func NewIRFactory(
 	}
 
 	f.config = config
+	f.includeAllComments = config.JsDocParsingMode() == Config_JsDocParsing_INCLUDE_ALL_COMMENTS
 	f.errorReporter = errorReporter
 	f.transformDispatcherVal = IRFactory_TransformDispatcher{
 		IRFactory:             f,
@@ -243,13 +256,78 @@ func NewIRFactory(
 
 	if config.StrictMode().IsStrict() {
 		f.reservedKeywords = IRFactory_ES5_STRICT_RESERVED_KEYWORDS
+		f.reservedMode = 2
 	} else if config.LanguageMode() == Config_LanguageMode_ECMASCRIPT3 {
 		f.reservedKeywords = nil // use TokenStream.isKeyword instead
+		f.reservedMode = 0
 	} else {
 		f.reservedKeywords = IRFactory_ES5_RESERVED_KEYWORDS
+		f.reservedMode = 1
 	}
 	f.jsDocSourceKind = jsDocSourceKind
 	return f
+}
+
+func (f *IRFactory) isReservedKeyword(identifier string) bool {
+	switch f.reservedMode {
+	case 0:
+		return false
+	case 1:
+		switch identifier {
+		case "class", "const", "enum", "export", "extends", "import", "super":
+			return true
+		}
+		return false
+	default:
+		switch identifier {
+		case "class", "const", "enum", "export", "extends", "import", "super",
+			"implements", "interface", "let", "package", "private", "protected", "public", "static", "yield":
+			return true
+		}
+		return false
+	}
+}
+
+func (f *IRFactory) internString(s string) strpool.ID {
+	if len(s) == 0 {
+		return 1
+	}
+	if len(s) <= 32 {
+		h := uint32(2166136261)
+		for i := 0; i < len(s); i++ {
+			h ^= uint32(s[i])
+			h *= 16777619
+		}
+		slot := h & uint32(len(f.strCache)-1)
+		if id := f.strCache[slot]; id != 0 && strpool.String(id) == s {
+			return id
+		}
+		id := strpool.Intern(s)
+		f.strCache[slot] = id
+		return id
+	}
+	return strpool.Intern(s)
+}
+
+func (f *IRFactory) internStringBytes(b []byte) strpool.ID {
+	if len(b) == 0 {
+		return 1
+	}
+	if len(b) <= 32 {
+		h := uint32(2166136261)
+		for _, c := range b {
+			h ^= uint32(c)
+			h *= 16777619
+		}
+		slot := h & uint32(len(f.strCache)-1)
+		if id := f.strCache[slot]; id != 0 && strpool.String(id) == string(b) {
+			return id
+		}
+		id := strpool.InternBytes(b)
+		f.strCache[slot] = id
+		return id
+	}
+	return strpool.InternBytes(b)
 }
 
 func (f *IRFactory) markCommentParsed(idx int) {
@@ -259,12 +337,13 @@ func (f *IRFactory) markCommentParsed(idx int) {
 }
 
 func (f *IRFactory) markCommentPtrParsed(comment *parser.Comment) {
-	if idx := f.jsdocTracker.previousIndex; idx >= 0 && idx < len(f.jsdocTracker.source) && f.jsdocTracker.source[idx] == comment {
+	src := f.jsdocTracker.source
+	if idx := f.jsdocTracker.previousIndex; idx >= 0 && idx < len(src) && &src[idx] == comment {
 		f.markCommentParsed(idx)
 		return
 	}
-	for i, c := range f.jsdocTracker.source {
-		if c == comment {
+	for i := range src {
+		if &src[i] == comment || src[i] == *comment {
 			f.markCommentParsed(i)
 			return
 		}
@@ -282,14 +361,14 @@ func irFactory_isNonJsdocComment(c *parser.Comment) bool { return c.Type != pars
 
 // Java: final class IRFactory.CommentTracker
 type IRFactory_CommentTracker struct {
-	source        []*parser.Comment
+	source        []parser.Comment
 	filter        func(*parser.Comment) bool
 	index         int
 	previousIndex int
 }
 
 // Java: IRFactory.CommentTracker(ImmutableList<Comment>, Predicate<Comment>)
-func NewIRFactory_CommentTracker(source []*parser.Comment, filter func(*parser.Comment) bool) *IRFactory_CommentTracker {
+func NewIRFactory_CommentTracker(source []parser.Comment, filter func(*parser.Comment) bool) *IRFactory_CommentTracker {
 	t := &IRFactory_CommentTracker{}
 	t.index = -1
 	t.previousIndex = -1
@@ -305,17 +384,20 @@ func (t *IRFactory_CommentTracker) Current() *parser.Comment {
 	if t.index >= len(t.source) {
 		return nil
 	}
-	return t.source[t.index]
+	return &t.source[t.index]
+}
+
+func (t *IRFactory_CommentTracker) hasPendingBeforeOffset(offset int32) bool {
+	return t.index < len(t.source) && t.source[t.index].Location.End.Offset <= offset
 }
 
 // Java: IRFactory.CommentTracker.advance()
 func (t *IRFactory_CommentTracker) Advance() {
 	t.previousIndex = t.index
+	src := t.source
 	for {
 		t.index++ // Always advance at least one element.
-
-		c := t.Current()
-		if c == nil || t.filter(c) {
+		if t.index >= len(src) || t.filter(&src[t.index]) {
 			break
 		}
 	}
@@ -391,7 +473,8 @@ func irFactoryTransformTree(
 	irFactory.SetSourceInfo(n, tree)
 
 	if tree.SourceComments != nil {
-		for i, comment := range tree.SourceComments {
+		for i := range tree.SourceComments {
+			comment := &tree.SourceComments[i]
 			if (comment.Type == parser.Comment_Type_JSDOC || comment.Type == parser.Comment_Type_IMPORTANT) &&
 				!irFactory.isCommentParsed(i) {
 				useLicensesOnlyConfig := irFactory.WithinClosureUnawareCodeRange(
@@ -401,7 +484,7 @@ func irFactoryTransformTree(
 			}
 		}
 
-		if n.IsScript() {
+		if n.IsScript() && irFactory.hasAnyPendingCommentBeforeOffset(tree.Location.End.Offset) {
 			endOfFilePos := irFactory.linePos(tree.Location.End)
 			// Handle end of file comments that are still pending
 			nonJSDocComment := irFactory.ParseNonJSDocCommentAt(endOfFilePos /* isInline= */, false)
@@ -559,6 +642,16 @@ func (f *IRFactory) ParseJSDocInfoFrom(comment *parser.Comment) *rhino.JSDocInfo
 
 // Java: IRFactory.parseJSDocInfoOnTree(ParseTree)
 func (f *IRFactory) ParseJSDocInfoOnTree(tree parser.ParseTree) *rhino.JSDocInfo {
+	if !f.jsdocTracker.hasPendingBeforeOffset(tree.GetStart().Offset) {
+		return nil
+	}
+	return f.parseJSDocInfoOnTreeAt(tree, f.linePos(tree.GetStart()))
+}
+
+func (f *IRFactory) parseJSDocInfoOnTreeAt(tree parser.ParseTree, startPos parser.LinePosition) *rhino.JSDocInfo {
+	if !f.jsdocTracker.hasPendingBeforeOffset(startPos.Offset) {
+		return nil
+	}
 	switch tree.GetParseTreeBase().Type {
 	case parser.ParseTreeType_EXPRESSION_STATEMENT, parser.ParseTreeType_LABELLED_STATEMENT,
 		parser.ParseTreeType_EXPORT_DECLARATION, parser.ParseTreeType_TEMPLATE_SUBSTITUTION:
@@ -579,16 +672,22 @@ func (f *IRFactory) ParseJSDocInfoOnTree(tree parser.ParseTree) *rhino.JSDocInfo
 	default:
 	}
 
-	return f.ParseJSDocInfoFrom(f.GetJSDocCommentAt(f.linePos(tree.GetStart())))
+	return f.ParseJSDocInfoFrom(f.GetJSDocCommentAt(startPos))
 }
 
 // Java: IRFactory.parseJSDocInfoOnToken(parser.Token)
 func (f *IRFactory) ParseJSDocInfoOnToken(token parser.Token) *rhino.JSDocInfo {
+	if !f.jsdocTracker.hasPendingBeforeOffset(token.Location.Start.Offset) {
+		return nil
+	}
 	return f.ParseJSDocInfoFrom(f.GetJSDocCommentAt(f.linePos(token.GetStart())))
 }
 
 // Java: IRFactory.parseInlineJSDocAt(SourcePosition)
 func (f *IRFactory) ParseInlineJSDocAt(pos parser.LinePosition) *rhino.JSDocInfo {
+	if !f.jsdocTracker.hasPendingBeforeOffset(pos.Offset) {
+		return nil
+	}
 	if f.WithinClosureUnawareCodeRange(int(pos.Line), int(pos.Column)) {
 		// Within closure-unaware code, we don't parse jsdoc as if it is
 		// load-bearing. This early-return prevents the comments here from
@@ -619,6 +718,13 @@ var IRFactory_COMMENT_START_POSITION_COMPARATOR = func(a, b *parser.Comment) int
 	return cmp.Compare(a.Location.Start.Column, b.Location.Start.Column)
 }
 
+func (f *IRFactory) hasAnyPendingCommentBeforeOffset(offset int32) bool {
+	if f.nonJsdocTracker.hasPendingBeforeOffset(offset) {
+		return true
+	}
+	return f.closureUnawareCodeRanges != nil && f.jsdocTracker.hasPendingBeforeOffset(offset)
+}
+
 // Java: IRFactory.hasAnyPendingCommentBefore(SourcePosition, boolean)
 func (f *IRFactory) HasAnyPendingCommentBefore(pos parser.LinePosition, withinClosureUnawareCodeRange bool) bool {
 	return f.nonJsdocTracker.HasPendingCommentBefore(pos) ||
@@ -633,11 +739,14 @@ func (f *IRFactory) HasAnyPendingCommentBefore(pos parser.LinePosition, withinCl
 //
 // Java: IRFactory.parseNonJSDocCommentAt(SourcePosition, boolean)
 func (f *IRFactory) ParseNonJSDocCommentAt(pos parser.LinePosition, isInline bool) *rhino.NonJSDocComment {
+	if !f.hasAnyPendingCommentBeforeOffset(pos.Offset) {
+		return nil
+	}
 	withinClosureUnawareCodeRange := f.WithinClosureUnawareCodeRange(int(pos.Line), int(pos.Column))
 	if !f.HasAnyPendingCommentBefore(pos, withinClosureUnawareCodeRange) {
 		return nil
 	}
-	includeAll := f.config.JsDocParsingMode() == Config_JsDocParsing_INCLUDE_ALL_COMMENTS
+	includeAll := f.includeAllComments
 
 	var result strings.Builder
 	var firstComment *parser.Comment
@@ -711,7 +820,7 @@ func (f *IRFactory) ParseNonJSDocCommentAt(pos parser.LinePosition, isInline boo
 // Java: IRFactory.parseTrailingNonJSDocCommentAt(SourcePosition, SourcePosition)
 func (f *IRFactory) ParseTrailingNonJSDocCommentAt(
 	tokenEnd parser.LinePosition, possibleNextTokenStart parser.LinePosition) *rhino.NonJSDocComment {
-	if f.config.JsDocParsingMode() != Config_JsDocParsing_INCLUDE_ALL_COMMENTS {
+	if !f.includeAllComments {
 		return nil
 	}
 
@@ -785,8 +894,13 @@ func IRFactory_FindNearestNode(tree parser.ParseTree) parser.ParseTree {
 
 // Java: IRFactory.transform(ParseTree)
 func (f *IRFactory) Transform(tree parser.ParseTree) rhino.Node {
-	info := f.ParseJSDocInfoOnTree(tree)
-	comment := f.ParseNonJSDocCommentAt(f.linePos(tree.GetStart()), false)
+	loc := tree.GetParseTreeBase().Location
+	startPos := f.linePos(loc.Start)
+	info := f.parseJSDocInfoOnTreeAt(tree, startPos)
+	var comment *rhino.NonJSDocComment
+	if f.hasAnyPendingCommentBeforeOffset(startPos.Offset) {
+		comment = f.ParseNonJSDocCommentAt(startPos, false)
+	}
 	isRootOfClosureUnawareSubTree := info != nil && info.IsClosureUnawareCode()
 
 	if isRootOfClosureUnawareSubTree {
@@ -797,9 +911,8 @@ func (f *IRFactory) Transform(tree parser.ParseTree) rhino.Node {
 			f.closureUnawareCodeRanges = jutil.NewTreeRangeSet(irFactory_LineAndColumn_compare)
 		}
 		f.templateNode = f.closureUnawareTemplateNode
-		nextClosureUnawareRange := tree.GetParseTreeBase().Location
-		nextClosureUnawareRangeStart := IRFactory_LineAndColumn_FromSourcePosition(f.linePos(nextClosureUnawareRange.Start))
-		nextClosureUnawareRangeEnd := IRFactory_LineAndColumn_FromSourcePosition(f.linePos(nextClosureUnawareRange.End))
+		nextClosureUnawareRangeStart := IRFactory_LineAndColumn_FromSourcePosition(startPos)
+		nextClosureUnawareRangeEnd := IRFactory_LineAndColumn_FromSourcePosition(f.linePos(loc.End))
 		f.closureUnawareCodeRanges.Add(
 			jutil.Range_Closed(nextClosureUnawareRangeStart, nextClosureUnawareRangeEnd, irFactory_LineAndColumn_compare))
 	}
@@ -814,11 +927,11 @@ func (f *IRFactory) Transform(tree parser.ParseTree) rhino.Node {
 		node.SetNonJSDocComment(comment)
 	}
 	if isRootOfClosureUnawareSubTree {
-		f.SetSourceInfo(node, tree)
+		f.setSourceInfoAt(node, startPos, loc.End)
 		f.templateNode = f.defaultTemplateNode
 		node = f.HideClosureUnawareCodeRoot(node)
 	}
-	f.SetSourceInfo(node, tree)
+	f.setSourceInfoAt(node, startPos, loc.End)
 	return node
 }
 
@@ -882,8 +995,13 @@ func (f *IRFactory) MaybeInjectCastNode(node parser.ParseTree, info *rhino.JSDoc
 //
 // Java: IRFactory.transformNodeWithInlineComments(ParseTree)
 func (f *IRFactory) TransformNodeWithInlineComments(tree parser.ParseTree) rhino.Node {
-	info := f.ParseInlineJSDocAt(f.linePos(tree.GetStart()))
-	comment := f.ParseNonJSDocCommentAt(f.linePos(tree.GetStart()), true)
+	loc := tree.GetParseTreeBase().Location
+	startPos := f.linePos(loc.Start)
+	info := f.ParseInlineJSDocAt(startPos)
+	var comment *rhino.NonJSDocComment
+	if f.hasAnyPendingCommentBeforeOffset(startPos.Offset) {
+		comment = f.ParseNonJSDocCommentAt(startPos, true)
+	}
 
 	node := f.transformDispatcher.Process(tree)
 
@@ -893,8 +1011,28 @@ func (f *IRFactory) TransformNodeWithInlineComments(tree parser.ParseTree) rhino
 	if comment != nil {
 		node.SetNonJSDocComment(comment)
 	}
-	f.SetSourceInfo(node, tree)
+	f.setSourceInfoAt(node, startPos, loc.End)
 	return node
+}
+
+func (f *IRFactory) lineColumn(offset int) (int, int) {
+	starts := f.lineStarts
+	if starts == nil {
+		return f.fileWithContent.LineColumn(offset)
+	}
+	o := int32(offset)
+	i := f.lastLine
+	if i >= len(starts) || o < starts[i] || (i+1 < len(starts) && starts[i+1] <= o) {
+		if i+1 < len(starts) && starts[i+1] <= o && (i+2 >= len(starts) || o < starts[i+2]) {
+			i++
+		} else if i > 0 && i < len(starts) && o < starts[i] && starts[i-1] <= o {
+			i--
+		} else {
+			i = parser.FindLine(starts, o)
+		}
+		f.lastLine = i
+	}
+	return i, offset - int(starts[i])
 }
 
 // linePos returns pos with its line and column.
@@ -902,7 +1040,8 @@ func (f *IRFactory) TransformNodeWithInlineComments(tree parser.ParseTree) rhino
 // Go-only: parse-tree positions are offsets; the lines and columns come from
 // the file's line table (see parser.SourcePosition).
 func (f *IRFactory) linePos(pos parser.SourcePosition) parser.LinePosition {
-	return f.fileWithContent.LinePosition(pos)
+	line, col := f.lineColumn(int(pos.Offset))
+	return parser.LinePosition{Offset: pos.Offset, Line: int32(line), Column: int32(col)}
 }
 
 // Java: IRFactory.lineno(ParseTree)
@@ -913,15 +1052,23 @@ func (f *IRFactory) Lineno(node parser.ParseTree) int {
 	return f.LinenoOfPosition(node.GetParseTreeBase().Location.Start)
 }
 
+func checkTokenNotNull(token parser.Token) {
+	if token.IsNull() {
+		panic(jutil.NewNullPointerException())
+	}
+}
+
 // Java: IRFactory.lineno(parser.Token)
 func (f *IRFactory) LinenoOfToken(token parser.Token) int {
-	return f.LinenoOfPosition(token.GetTokenBase().Location.Start)
+	checkTokenNotNull(token)
+	return f.LinenoOfPosition(token.Location.Start)
 }
 
 // Java: IRFactory.lineno(SourcePosition)
 func (f *IRFactory) LinenoOfPosition(location parser.SourcePosition) int {
 	// location lines start at zero, our AST starts at 1.
-	return f.fileWithContent.Line(location) + 1
+	line, _ := f.lineColumn(int(location.Offset))
+	return line + 1
 }
 
 // Java: IRFactory.charno(ParseTree)
@@ -931,12 +1078,14 @@ func (f *IRFactory) Charno(node parser.ParseTree) int {
 
 // Java: IRFactory.charno(parser.Token)
 func (f *IRFactory) CharnoOfToken(token parser.Token) int {
-	return f.CharnoOfPosition(token.GetTokenBase().Location.Start)
+	checkTokenNotNull(token)
+	return f.CharnoOfPosition(token.Location.Start)
 }
 
 // Java: IRFactory.charno(SourcePosition)
 func (f *IRFactory) CharnoOfPosition(location parser.SourcePosition) int {
-	return int(f.linePos(location).Column)
+	_, col := f.lineColumn(int(location.Offset))
+	return col
 }
 
 // Java: IRFactory.languageFeatureWarningMessage(Feature)
@@ -956,50 +1105,49 @@ func IRFactory_LanguageFeatureWarningMessage(feature parser.FeatureSet_Feature) 
 // Java: IRFactory.maybeWarnForFeature(ParseTree, Feature)
 func (f *IRFactory) MaybeWarnForFeature(node parser.ParseTree, feature parser.FeatureSet_Feature) {
 	f.features = f.features.With(feature)
+	if f.currentFileIsExterns || f.IsSupportedForInputLanguageMode(feature) {
+		return
+	}
 	start := f.linePos(node.GetParseTreeBase().Location.Start)
 	if f.WithinClosureUnawareCodeRange(int(start.Line), int(start.Column)) {
 		return
 	}
-	// Externs should not produce warnings about the input language mode.
-	if f.currentFileIsExterns {
-		return
-	}
-	if !f.IsSupportedForInputLanguageMode(feature) {
-		f.errorReporter.Warning(
-			IRFactory_LanguageFeatureWarningMessage(feature), f.sourceName, f.Lineno(node), f.Charno(node))
-	}
+	f.errorReporter.Warning(
+		IRFactory_LanguageFeatureWarningMessage(feature), f.sourceName, int(start.Line)+1, int(start.Column))
 }
 
 // Java: IRFactory.maybeWarnForFeature(parser.Token, Feature)
 func (f *IRFactory) MaybeWarnForFeatureToken(token parser.Token, feature parser.FeatureSet_Feature) {
 	f.features = f.features.With(feature)
-	start := f.linePos(token.GetTokenBase().Location.Start)
+	if f.currentFileIsExterns || f.IsSupportedForInputLanguageMode(feature) {
+		return
+	}
+	checkTokenNotNull(token)
+	start := f.linePos(token.Location.Start)
 	if f.WithinClosureUnawareCodeRange(int(start.Line), int(start.Column)) {
 		return
 	}
-	// Externs should not produce warnings about the input language mode.
-	if f.currentFileIsExterns {
-		return
-	}
-	if !f.IsSupportedForInputLanguageMode(feature) {
-		f.errorReporter.Warning(
-			IRFactory_LanguageFeatureWarningMessage(feature), f.sourceName, f.LinenoOfToken(token), f.CharnoOfToken(token))
-	}
+	f.errorReporter.Warning(
+		IRFactory_LanguageFeatureWarningMessage(feature), f.sourceName, int(start.Line)+1, int(start.Column))
 }
 
 // Java: IRFactory.maybeWarnForFeature(Node, Feature)
 func (f *IRFactory) MaybeWarnForFeatureNode(node rhino.Node, feature parser.FeatureSet_Feature) {
 	f.features = f.features.With(feature)
+	if f.currentFileIsExterns || f.IsSupportedForInputLanguageMode(feature) {
+		return
+	}
 	if f.WithinClosureUnawareCodeRange(node.GetLineno(), node.GetCharno()) {
 		return
 	}
-	// Externs should not produce warnings about the input language mode.
-	if f.currentFileIsExterns {
-		return
-	}
-	if !f.IsSupportedForInputLanguageMode(feature) {
-		f.errorReporter.Warning(
-			IRFactory_LanguageFeatureWarningMessage(feature), f.sourceName, node.GetLineno(), node.GetCharno())
+	f.errorReporter.Warning(
+		IRFactory_LanguageFeatureWarningMessage(feature), f.sourceName, node.GetLineno(), node.GetCharno())
+}
+
+func (f *IRFactory) setSourceInfoAt(node rhino.Node, startPos parser.LinePosition, end parser.SourcePosition) {
+	if node.GetLineno() == -1 {
+		node.SetLinenoCharno(int(startPos.Line)+1, int(startPos.Column))
+		node.SetLength(int(end.Offset - startPos.Offset))
 	}
 }
 
@@ -1019,7 +1167,8 @@ func (f *IRFactory) SetSourceInfo(irNode rhino.Node, node parser.ParseTree) {
 
 // Java: IRFactory.setSourceInfo(Node, parser.Token)
 func (f *IRFactory) SetSourceInfoFromToken(irNode rhino.Node, token parser.Token) {
-	location := token.GetTokenBase().Location
+	checkTokenNotNull(token)
+	location := token.Location
 	f.SetSourceInfoFromPositions(irNode, location.Start, location.End)
 }
 
@@ -1029,7 +1178,7 @@ func (f *IRFactory) SetSourceInfoFromPositions(node rhino.Node, start parser.Sou
 		// If we didn't already set the line, then set it now. This avoids
 		// cases like ParenthesizedExpression where we just return a previous
 		// node, but don't want the new node to get its parent's line number.
-		line, column := f.fileWithContent.LineColumn(int(start.Offset))
+		line, column := f.lineColumn(int(start.Offset))
 		// location lines start at zero, our AST starts at 1.
 		node.SetLinenoCharno(line+1, column)
 		f.SetLength(node, start, end)
@@ -1157,12 +1306,12 @@ func (f *IRFactory) NewNodeWith3Children(type_ rhino.Token, child1 rhino.Node, c
 
 // Java: IRFactory.newStringNode(String)
 func (f *IRFactory) NewStringNode(value string) rhino.Node {
-	return f.alloc.Alloc().InitStringFromTemplate(rhino.Token_STRINGLIT, value, f.templateNode)
+	return f.alloc.Alloc().InitStringIDFromTemplate(rhino.Token_STRINGLIT, f.internString(value), f.templateNode)
 }
 
 // Java: IRFactory.newStringNode(Token, String)
 func (f *IRFactory) NewStringNodeWithToken(type_ rhino.Token, value string) rhino.Node {
-	return f.alloc.Alloc().InitStringFromTemplate(type_, value, f.templateNode)
+	return f.alloc.Alloc().InitStringIDFromTemplate(type_, f.internString(value), f.templateNode)
 }
 
 // MaybeAddNonJsDocComment attaches any pending JSDoc comments to the given
@@ -1170,6 +1319,9 @@ func (f *IRFactory) NewStringNodeWithToken(type_ rhino.Token, value string) rhin
 //
 // Java: IRFactory.maybeAddNonJsDocComment(Node, SourcePosition)
 func (f *IRFactory) MaybeAddNonJsDocComment(node rhino.Node, start parser.SourcePosition) rhino.Node {
+	if !f.hasAnyPendingCommentBeforeOffset(start.Offset) {
+		return node
+	}
 	comment := f.ParseNonJSDocCommentAt(f.linePos(start), false)
 	if comment != nil {
 		node.SetNonJSDocComment(comment)

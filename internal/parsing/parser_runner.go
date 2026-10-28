@@ -180,7 +180,7 @@ func ParserRunner_ParseWithAllocator(
 		p := parser.NewParser(es6config, es6ErrorReporter, file)
 		tree := p.ParseProgram()
 		var root rhino.Node
-		comments := []*parser.Comment{}
+		comments := []parser.Comment{}
 		topLevelStatementRanges := []parser.SourceRange{}
 		features := p.GetFeatures()
 		if tree != nil && (!es6ErrorReporter.HadError() || keepGoing) {
@@ -281,7 +281,7 @@ func (r *ParserRunner_Es6ErrorReporter) ReportWarning(location parser.LinePositi
 // Java: class ParserRunner.ParseResult
 type ParserRunner_ParseResult struct {
 	Ast      rhino.Node
-	Comments []*parser.Comment
+	Comments []parser.Comment
 
 	// TopLevelStatementRanges are the source ranges of the top-level
 	// statements, in source order, using the same character offsets as
@@ -297,12 +297,12 @@ type ParserRunner_ParseResult struct {
 }
 
 // Java: ParserRunner.ParseResult(Node, List<Comment>, FeatureSet, String)
-func NewParserRunner_ParseResult(ast rhino.Node, comments []*parser.Comment, features *parser.FeatureSet, sourceMapURL *string) *ParserRunner_ParseResult {
+func NewParserRunner_ParseResult(ast rhino.Node, comments []parser.Comment, features *parser.FeatureSet, sourceMapURL *string) *ParserRunner_ParseResult {
 	return NewParserRunner_ParseResultWithTopLevelStatementRanges(ast, comments, []parser.SourceRange{}, features, sourceMapURL)
 }
 
 // Java: ParserRunner.ParseResult(Node, List<Comment>, ImmutableList<SourceRange>, FeatureSet, String)
-func NewParserRunner_ParseResultWithTopLevelStatementRanges(ast rhino.Node, comments []*parser.Comment, topLevelStatementRanges []parser.SourceRange, features *parser.FeatureSet, sourceMapURL *string) *ParserRunner_ParseResult {
+func NewParserRunner_ParseResultWithTopLevelStatementRanges(ast rhino.Node, comments []parser.Comment, topLevelStatementRanges []parser.SourceRange, features *parser.FeatureSet, sourceMapURL *string) *ParserRunner_ParseResult {
 	r := &ParserRunner_ParseResult{}
 	r.Ast = ast
 	r.Comments = comments
