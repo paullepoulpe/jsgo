@@ -23,6 +23,7 @@ import (
 	"io"
 	"strings"
 
+	"github.com/paullepoulpe/jsgo/internal/base"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/parser"
 )
@@ -414,18 +415,18 @@ func (o *CompilerOptions) SetConformanceConfigs(configs []*ConformanceConfig) {
 func (o *CompilerOptions) ShouldEmitUseStrict() bool {
 	// Fall back to the language in's strictness if there is no output language explicitly set
 	// for backwards compatibility.
-	if o.emitUseStrict != nil {
-		return *o.emitUseStrict
+	if o.emitUseStrict != base.Tri_UNKNOWN {
+		return o.emitUseStrict == base.Tri_TRUE
 	}
-	if o.languageOutIsDefaultStrict != nil {
-		return *o.languageOutIsDefaultStrict
+	if o.languageOutIsDefaultStrict != base.Tri_UNKNOWN {
+		return o.languageOutIsDefaultStrict == base.Tri_TRUE
 	}
 	return o.languageIn.IsDefaultStrict()
 }
 
 // Java: CompilerOptions.setEmitUseStrict(boolean)
 func (o *CompilerOptions) SetEmitUseStrict(emitUseStrict bool) *CompilerOptions {
-	o.emitUseStrict = &emitUseStrict
+	o.emitUseStrict = base.Tri_ForBoolean(emitUseStrict)
 	return o
 }
 
@@ -547,7 +548,7 @@ func (o *CompilerOptions) String() string {
 	h.Add("devMode", compilerOptions_valueOf(o.devMode))
 	h.AddBool("devirtualizeMethods", o.devirtualizeMethods)
 	h.AddBool("disambiguateProperties", o.disambiguateProperties)
-	h.Add("emitUseStrict", compilerOptions_valueOf(compilerOptions_optionalOf(o.emitUseStrict)))
+	h.Add("emitUseStrict", compilerOptions_valueOf(compilerOptions_optionalOfTri(o.emitUseStrict)))
 	h.AddBool("enableModuleRewriting", o.enableModuleRewriting)
 	h.Add("environment", compilerOptions_valueOf(o.GetEnvironment()))
 	h.Add("errorFormat", compilerOptions_valueOf(o.errorFormat))
@@ -590,7 +591,7 @@ func (o *CompilerOptions) String() string {
 	h.Add("j2clPassMode", compilerOptions_valueOf(o.j2clPassMode))
 	h.AddBool("labelRenaming", o.labelRenaming)
 	h.Add("languageIn", compilerOptions_valueOf(o.GetLanguageIn()))
-	h.Add("languageOutIsDefaultStrict", compilerOptions_valueOf(compilerOptions_optionalOf(o.languageOutIsDefaultStrict)))
+	h.Add("languageOutIsDefaultStrict", compilerOptions_valueOf(compilerOptions_optionalOfTri(o.languageOutIsDefaultStrict)))
 	h.AddBool("lineBreak", o.lineBreak)
 	h.Add("lineLengthThreshold", o.lineLengthThreshold) // add(String, int): never omitted
 	h.Add("locale", compilerOptions_valueOf(o.locale))
@@ -678,15 +679,15 @@ func (o *CompilerOptions) String() string {
 
 // Java: CompilerOptions.expectStrictModeInput()
 func (o *CompilerOptions) ExpectStrictModeInput() bool {
-	if o.isStrictModeInput != nil {
-		return *o.isStrictModeInput
+	if o.isStrictModeInput != base.Tri_UNKNOWN {
+		return o.isStrictModeInput == base.Tri_TRUE
 	}
 	return o.GetLanguageIn().IsDefaultStrict()
 }
 
 // Java: CompilerOptions.setStrictModeInput(boolean)
 func (o *CompilerOptions) SetStrictModeInput(isStrictModeInput bool) *CompilerOptions {
-	o.isStrictModeInput = &isStrictModeInput
+	o.isStrictModeInput = base.Tri_ForBoolean(isStrictModeInput)
 	return o
 }
 
@@ -738,6 +739,17 @@ func compilerOptions_optionalOf[T any](p *T) compilerOptions_optional {
 	return compilerOptions_optional{value: p}
 }
 
+func compilerOptions_optionalOfTri(t base.Tri) compilerOptions_optional {
+	switch t {
+	case base.Tri_TRUE:
+		return compilerOptions_optional{value: true}
+	case base.Tri_FALSE:
+		return compilerOptions_optional{value: false}
+	default:
+		return compilerOptions_optional{}
+	}
+}
+
 func compilerOptions_formatSlice[T any](s []T) string {
 	parts := make([]string, len(s))
 	for i, elem := range s {
@@ -759,8 +771,6 @@ func compilerOptions_toJavaString(value any) string {
 			return "Optional.absent()"
 		}
 		return "Optional.of(" + compilerOptions_toJavaString(v.value) + ")"
-	case *bool:
-		return jutil.ToJavaString(*v)
 	case *string:
 		return *v
 	case string, bool, int, int32, int64, float64:

@@ -8,8 +8,6 @@ package jscomp
 
 import "github.com/paullepoulpe/jsgo/internal/jutil"
 
-var _ = jutil.CheckNotNull[any]
-
 // JsdocTag is the protobuf enum jscomp.JsdocTag.
 type JsdocTag int32
 
@@ -48,43 +46,6 @@ const (
 	JsdocTag_JSDOC_USED_VIA_DOT_CONSTRUCTOR
 	JsdocTag_JSDOC_ENCOURAGE_INLINING
 	JsdocTag_UNRECOGNIZED
-)
-
-// The proto numbers (JsdocTag.X_VALUE).
-const (
-	JsdocTag_JSDOC_UNSPECIFIED_VALUE                      int32 = 0
-	JsdocTag_JSDOC_NO_INLINE_VALUE                        int32 = 1
-	JsdocTag_JSDOC_DEFINE_VALUE                           int32 = 2
-	JsdocTag_JSDOC_MODIFIES_THIS_VALUE                    int32 = 3
-	JsdocTag_JSDOC_MODIFIES_ARGUMENTS_VALUE               int32 = 4
-	JsdocTag_JSDOC_THROWS_VALUE                           int32 = 6
-	JsdocTag_JSDOC_NO_SIDE_EFFECTS_VALUE                  int32 = 7
-	JsdocTag_JSDOC_CONSTRUCTOR_VALUE                      int32 = 8
-	JsdocTag_JSDOC_INTERFACE_VALUE                        int32 = 9
-	JsdocTag_JSDOC_ENUM_VALUE                             int32 = 10
-	JsdocTag_JSDOC_NO_COLLAPSE_VALUE                      int32 = 11
-	JsdocTag_JSDOC_THIS_VALUE                             int32 = 12
-	JsdocTag_JSDOC_CONST_VALUE                            int32 = 13
-	JsdocTag_JSDOC_ID_GENERATOR_CONSISTENT_VALUE          int32 = 14
-	JsdocTag_JSDOC_ID_GENERATOR_INCONSISTENT_VALUE        int32 = 15
-	JsdocTag_JSDOC_ID_GENERATOR_STABLE_VALUE              int32 = 16
-	JsdocTag_JSDOC_ID_GENERATOR_MAPPED_VALUE              int32 = 17
-	JsdocTag_JSDOC_ID_GENERATOR_XID_VALUE                 int32 = 18
-	JsdocTag_JSDOC_ABSTRACT_VALUE                         int32 = 19
-	JsdocTag_JSDOC_SUPPRESS_MESSAGE_CONVENTION_VALUE      int32 = 22
-	JsdocTag_JSDOC_SUPPRESS_PARTIAL_ALIAS_VALUE           int32 = 23
-	JsdocTag_JSDOC_PURE_OR_BREAK_MY_CODE_VALUE            int32 = 24
-	JsdocTag_JSDOC_COLLAPSIBLE_OR_BREAK_MY_CODE_VALUE     int32 = 25
-	JsdocTag_JSDOC_FILEOVERVIEW_VALUE                     int32 = 26
-	JsdocTag_JSDOC_PROVIDE_GOOG_VALUE                     int32 = 31
-	JsdocTag_JSDOC_TYPE_SUMMARY_FILE_VALUE                int32 = 32
-	JsdocTag_JSDOC_PROVIDE_ALREADY_PROVIDED_VALUE         int32 = 33
-	JsdocTag_JSDOC_SASS_GENERATED_CSS_TS_VALUE            int32 = 34
-	JsdocTag_JSDOC_SUPPRESS_UNTRANSPILABLE_FEATURES_VALUE int32 = 36
-	JsdocTag_JSDOC_NO_COVERAGE_VALUE                      int32 = 37
-	JsdocTag_JSDOC_REQUIRE_INLINING_VALUE                 int32 = 38
-	JsdocTag_JSDOC_USED_VIA_DOT_CONSTRUCTOR_VALUE         int32 = 39
-	JsdocTag_JSDOC_ENCOURAGE_INLINING_VALUE               int32 = 40
 )
 
 var jsdocTag_names = [...]string{
@@ -164,9 +125,6 @@ var jsdocTag_numbers = [...]int32{
 // String is Enum.name().
 func (e JsdocTag) String() string { return jsdocTag_names[e] }
 
-// Ordinal is Enum.ordinal().
-func (e JsdocTag) Ordinal() int { return int(e) }
-
 // Java: JsdocTag.getNumber()
 func (e JsdocTag) GetNumber() int32 {
 	if e == JsdocTag_UNRECOGNIZED {
@@ -188,27 +146,27 @@ var jsdocTag_byNumber = func() [41]JsdocTag {
 	return t
 }()
 
-// JsdocTag_ForNumber returns the constant with the given number, or nil.
+// JsdocTag_ForNumber returns the constant with the given number, if valid.
 //
 // Java: JsdocTag.forNumber(int)
-func JsdocTag_ForNumber(value int32) *JsdocTag {
-	if value >= 0 && int(value) < len(jsdocTag_byNumber) {
+func JsdocTag_ForNumber(value int32) (JsdocTag, bool) {
+	if uint32(value) < uint32(len(jsdocTag_byNumber)) {
 		if e := jsdocTag_byNumber[value]; e != JsdocTag_UNRECOGNIZED {
-			return &e
+			return e, true
 		}
 	}
-	return nil
+	return 0, false
 }
 
 func jsdocTag_fromNumber(value int32) JsdocTag {
-	if value >= 0 && int(value) < len(jsdocTag_byNumber) {
+	if uint32(value) < uint32(len(jsdocTag_byNumber)) {
 		return jsdocTag_byNumber[value]
 	}
 	return JsdocTag_UNRECOGNIZED
 }
 
 func jsdocTag_text(value int32) string {
-	if e := JsdocTag_ForNumber(value); e != nil {
+	if e, ok := JsdocTag_ForNumber(value); ok {
 		return e.String()
 	}
 	return protoTextInt32(value)
@@ -228,16 +186,6 @@ type OptimizationJsdoc struct {
 	cachedSize                 int
 }
 
-// Field numbers (OptimizationJsdoc.X_FIELD_NUMBER).
-const (
-	OptimizationJsdoc_KIND_FIELD_NUMBER                         = 1
-	OptimizationJsdoc_LICENSE_TEXT_POINTER_FIELD_NUMBER         = 2
-	OptimizationJsdoc_DESCRIPTION_POINTER_FIELD_NUMBER          = 3
-	OptimizationJsdoc_MEANING_POINTER_FIELD_NUMBER              = 4
-	OptimizationJsdoc_ALTERNATE_MESSAGE_ID_POINTER_FIELD_NUMBER = 5
-	OptimizationJsdoc_CLOSURE_UNAWARE_MODE_POINTER_FIELD_NUMBER = 6
-)
-
 var optimizationJsdoc_DEFAULT_INSTANCE = &OptimizationJsdoc{cachedSize: 1}
 
 // Java: OptimizationJsdoc.getDefaultInstance()
@@ -250,14 +198,9 @@ func OptimizationJsdoc_GetDefaultInstance() *OptimizationJsdoc {
 // Java: OptimizationJsdoc.parseFrom(byte[])
 func OptimizationJsdoc_ParseFrom(data []byte) *OptimizationJsdoc {
 	m := &OptimizationJsdoc{}
-	m.mergeFromReader(&protoReader{b: data})
+	r := protoReader{b: data}
+	m.mergeFromReader(&r)
 	return m
-}
-
-// Java: OptimizationJsdoc.getKind(int)
-func (m *OptimizationJsdoc) GetKind(index int) JsdocTag {
-	protoCheckIndex(index, len(m.kind_))
-	return jsdocTag_fromNumber(m.kind_[index])
 }
 
 // Java: OptimizationJsdoc.getLicenseTextPointer()

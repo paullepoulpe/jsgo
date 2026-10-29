@@ -131,7 +131,7 @@ func j2clSourceFileChecker_hasJ2cl(root rhino.Node) bool {
 // Java: J2clSourceFileChecker.process(Node, Node)
 func (c *J2clSourceFileChecker) Process(externs rhino.Node, root rhino.Node) {
 	if j2clSourceFileChecker_hasJ2cl(root) {
-		J2clSourceFileChecker_MarkToRunJ2clPasses(c.compiler)
+		c.compiler.SetRunJ2clPasses(true)
 	}
 }
 
@@ -225,7 +225,7 @@ var (
 
 // Java: J2clPass.process(Node, Node)
 func (p *J2clPass) Process(externs rhino.Node, root rhino.Node) {
-	if !J2clSourceFileChecker_ShouldRunJ2clPasses(p.compiler) {
+	if !p.compiler.RunJ2clPasses() {
 		return
 	}
 
@@ -270,8 +270,10 @@ type J2clPass_ClassStaticFunctionsInliner struct {
 //
 // Java: private record J2clPass.ClassStaticFunctionsInliner.InlinableFunction(Node, InliningMode)
 type J2clPass_ClassStaticFunctionsInliner_InlinableFunction struct {
-	impl         rhino.Node
-	inliningMode FunctionInjector_InliningMode
+	impl           rhino.Node
+	inliningMode   FunctionInjector_InliningMode
+	summary        calleeSummary
+	summaryScanned bool
 }
 
 // Java: J2clPass.ClassStaticFunctionsInliner.InlinableFunction(Node, InliningMode)
@@ -285,6 +287,14 @@ func (f *J2clPass_ClassStaticFunctionsInliner_InlinableFunction) Impl() rhino.No
 // Java: J2clPass.ClassStaticFunctionsInliner.InlinableFunction.inliningMode()
 func (f *J2clPass_ClassStaticFunctionsInliner_InlinableFunction) InliningMode() FunctionInjector_InliningMode {
 	return f.inliningMode
+}
+
+func (f *J2clPass_ClassStaticFunctionsInliner_InlinableFunction) calleeSummary(fnName string) *calleeSummary {
+	if !f.summaryScanned {
+		scanCalleeSummary(fnName, f.impl, &f.summary)
+		f.summaryScanned = true
+	}
+	return &f.summary
 }
 
 // String is the record's toString().
@@ -305,10 +315,11 @@ func (p *J2clPass) getOrCreateInliner(root rhino.Node, inlineSpecs []*J2clPass_I
 			outer:                      p,
 			fnsToInlineByQualifiedName: make(map[string]*J2clPass_ClassStaticFunctionsInliner_InlinableFunction),
 		}
-		c.injector = NewFunctionInjector_Builder(p.compiler).
-			SafeNameIdSupplier(p.safeNameIdSupplier).
-			AssumeStrictThis(true).
-			Build()
+		c.injector = NewFunctionInjector(p.compiler, FunctionInjectorOptions{
+			SafeNameIdSupplier: p.safeNameIdSupplier,
+			AssumeStrictThis:   true,
+			AllowDecomposition: true,
+		})
 		c.injector.SetKnownConstantFunctions(j2clPass_defaultFnNamesToInline)
 		c.collector.outer = c
 		c.callInliner.outer = c
@@ -517,8 +528,12 @@ func (s *J2clPass_ClassStaticFunctionsInliner_StaticCallInliner) Visit(t *NodeTr
 	// It is safe because these are strictly controlled trivial bootstrap methods that are
 	// written with inlining in mind (e.g. doesn't read/write local/global variables).
 	// TODO(goktug): Add a check that will ensure safety of this.
-	inlinedCall := s.outer.injector.UnsafeInline(
-		NewFunctionInjector_Reference(n, t.GetScope(), t.GetChunk(), inliningMode), fnName, fnImpl)
+	var summary *calleeSummary
+	if inliningMode == FunctionInjector_InliningMode_BLOCK {
+		summary = fn.calleeSummary(fnName)
+	}
+	inlinedCall := s.outer.injector.internalInlineWithSummary(
+		NewFunctionInjector_Reference(n, t.GetScope(), t.GetChunk(), inliningMode), fnName, fnImpl, summary)
 	// Avoid overridding original source information with the helper classes source information.
 	// For example; we want a cast to point related Java statement instead of the Casts utility.
 	inlinedCall.SrcrefTree(n)
@@ -552,7 +567,7 @@ func NewJ2clAssertRemovalPass(compiler AbstractCompiler) *J2clAssertRemovalPass 
 
 // Java: J2clAssertRemovalPass.process(Node, Node)
 func (p *J2clAssertRemovalPass) Process(externs rhino.Node, root rhino.Node) {
-	if !J2clSourceFileChecker_ShouldRunJ2clPasses(p.compiler) {
+	if !p.compiler.RunJ2clPasses() {
 		return
 	}
 
@@ -615,7 +630,7 @@ func (p *J2clStringValueOfRewriterPass) cloneForWorker() AbstractPeepholeOptimiz
 // Java: J2clStringValueOfRewriterPass.beginTraversal(AbstractCompiler)
 func (p *J2clStringValueOfRewriterPass) BeginTraversal(compiler AbstractCompiler) {
 	p.AbstractPeepholeOptimizationBase.BeginTraversal(compiler)
-	p.shouldRunJ2clPasses = J2clSourceFileChecker_ShouldRunJ2clPasses(compiler)
+	p.shouldRunJ2clPasses = compiler.RunJ2clPasses()
 }
 
 // Java: J2clStringValueOfRewriterPass.optimizeSubtree(Node)
@@ -696,7 +711,7 @@ func (p *J2clUndefinedChecksRewriterPass) cloneForWorker() AbstractPeepholeOptim
 // Java: J2clUndefinedChecksRewriterPass.beginTraversal(AbstractCompiler)
 func (p *J2clUndefinedChecksRewriterPass) BeginTraversal(compiler AbstractCompiler) {
 	p.AbstractPeepholeOptimizationBase.BeginTraversal(compiler)
-	p.shouldRunJ2clPasses = J2clSourceFileChecker_ShouldRunJ2clPasses(compiler)
+	p.shouldRunJ2clPasses = compiler.RunJ2clPasses()
 }
 
 // Java: J2clUndefinedChecksRewriterPass.optimizeSubtree(Node)

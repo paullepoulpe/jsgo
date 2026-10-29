@@ -48,54 +48,6 @@ import (
 // whose method collides in Go with AbstractCompiler's report(JSError):
 // the Compiler seen as ErrorHandler is AsErrorHandler().
 //
-// compilerMap is a native Go map with thin method helpers matching the
-// lookup/update operations used across Compiler files.
-type compilerMap[K comparable, V any] map[K]V
-
-func (m compilerMap[K, V]) Get(k K) V {
-	return m[k]
-}
-
-func (m compilerMap[K, V]) Lookup(k K) (V, bool) {
-	v, ok := m[k]
-	return v, ok
-}
-
-func (m compilerMap[K, V]) Put(k K, v V) {
-	m[k] = v
-}
-
-func (m compilerMap[K, V]) PutIfAbsent(k K, v V) {
-	if _, ok := m[k]; !ok {
-		m[k] = v
-	}
-}
-
-func (m compilerMap[K, V]) Clear() {
-	clear(m)
-}
-
-func (m compilerMap[K, V]) KeySlice() []K {
-	if len(m) == 0 {
-		return nil
-	}
-	keys := make([]K, 0, len(m))
-	for k := range m { // order-independent: callers only update each independent map key in place
-		keys = append(keys, k)
-	}
-	return keys
-}
-
-func (m compilerMap[K, V]) Values() iter.Seq[V] {
-	return func(yield func(V) bool) {
-		for _, v := range m { // order-independent: callers only clear independent cached state on each value
-			if !yield(v) {
-				return
-			}
-		}
-	}
-}
-
 // TODO(tbreisacher): Rename Compiler to JsCompiler and remove this suppression.
 type Compiler struct {
 	options *CompilerOptions
@@ -112,7 +64,7 @@ type Compiler struct {
 	moduleLoader *ModuleLoader
 
 	// Map of module names to module types - used for module rewriting
-	moduleTypesByName compilerMap[string, CompilerInput_ModuleType]
+	moduleTypesByName map[string]CompilerInput_ModuleType
 
 	// error manager to which error management is delegated
 	errorManager ErrorManager
@@ -126,7 +78,8 @@ type Compiler struct {
 	externAndJsRoot rhino.Node
 
 	// Used for debugging; to see the compiled code between passes
-	lastJsSource *string
+	lastJsSource    string
+	hasLastJsSource bool
 
 	// Used to track the invariant about what language features may be in the AST at the given point
 	// in compilation.
@@ -135,7 +88,7 @@ type Compiler struct {
 	// Keyed by InputId.GetIdName() (InputId equality is id-name string equality).
 	inputsById map[string]*CompilerInput
 
-	scriptNodeByFilename compilerMap[string, rhino.Node]
+	scriptNodeByFilename map[string]rhino.Node
 
 	// Go-only: AST compaction state (compiler_compact.go).
 	astCompact astCompaction
@@ -147,7 +100,7 @@ type Compiler struct {
 	runtimeJsLibManager *RuntimeJsLibManager
 
 	// Original sources referenced by the source maps.
-	sourceMapOriginalSources compilerMap[string, *SourceFile]
+	sourceMapOriginalSources map[string]*SourceFile
 
 	// Configured SourceMapInputs, plus any source maps discovered in source
 	// files, with deterministic insertion-order tracking.
@@ -161,10 +114,12 @@ type Compiler struct {
 	sourceMap *SourceMap
 
 	// Extra context appended to the "print source after each pass" output.
-	debugMessage *string
+	debugMessage    string
+	hasDebugMessage bool
 
 	// The externs created from the exports.
-	externExports *string
+	externExports    string
+	hasExternExports bool
 
 	uniqueIdSupplier *UniqueIdSupplier
 
@@ -333,26 +288,6 @@ var Compiler_MISSING_ENTRY_ERROR = DiagnosticType_Error(
 var Compiler_MISSING_CHUNK_ERROR = DiagnosticType_Error(
 	"JSC_MISSING_CHUNK_ERROR", "unknown chunk \"{0}\" specified in entry point spec")
 
-// Compiler_ExternalSourceLoader: subclasses are responsible for loading
-// sources that were not provided as explicit inputs to the compiler. For
-// example, looking up sources referenced within sourcemaps.
-//
-// Java: Compiler.ExternalSourceLoader
-type Compiler_ExternalSourceLoader struct {
-	// Go-only: language-adapter — distinct identity
-	_ byte
-}
-
-// Java: Compiler.ExternalSourceLoader()
-func NewCompiler_ExternalSourceLoader() *Compiler_ExternalSourceLoader {
-	return &Compiler_ExternalSourceLoader{}
-}
-
-// Java: Compiler.ExternalSourceLoader.loadSource(String)
-func (l *Compiler_ExternalSourceLoader) LoadSource(filename string) *SourceFile {
-	panic(jutil.NewRuntimeException("Cannot load without a valid loader."))
-}
-
 // Compiler_logger is the logger for the whole com.google.javascript.jscomp
 // domain - setting configuration for this logger affects all loggers in
 // other classes within the compiler.
@@ -466,8 +401,8 @@ var compiler_SYNTHETIC_CODE_INPUT_ID = rhino.NewInputId(compiler_SYNTHETIC_FILE_
 func (c *Compiler) initFields() {
 	c.externs = nil
 	c.inputsById = make(map[string]*CompilerInput)
-	c.scriptNodeByFilename = make(compilerMap[string, rhino.Node])
-	c.sourceMapOriginalSources = make(compilerMap[string, *SourceFile])
+	c.scriptNodeByFilename = make(map[string]rhino.Node)
+	c.sourceMapOriginalSources = nil
 	c.inputSourceMaps = make(map[string]*SourceMapInput)
 	c.inputSourceMapOrder = nil
 	c.commentsPerFile = make(map[string][]parser.Comment)
@@ -491,7 +426,7 @@ func (c *Compiler) initFields() {
 	c.syntheticTypeSummaryFile = SourceFile_FromCodeWithKind(compiler_SYNTHETIC_FILE_NAME_PREFIX+"typeSummary] ", "", rhino.StaticSourceFile_SourceKind_EXTERN)
 	c.crossChunkIdGenerator = NewIdGenerator()
 	c.exportedNames = jutil.NewLinkedHashSet[string]()
-	c.defineNames = jutil.NewLinkedHashSet[string]()
+	c.defineNames = nil
 	c.sync = &compilerSync{}
 }
 
@@ -514,7 +449,7 @@ func NewCompilerWithOutStream(outStream *jutil.PrintStream) *Compiler {
 	c.initFields()
 	c.changeTracker.AddChangeHandler(c.changeTracker.GetRecentChange())
 	c.outStream = outStream
-	c.moduleTypesByName = make(compilerMap[string, CompilerInput_ModuleType])
+	c.moduleTypesByName = make(map[string]CompilerInput_ModuleType)
 	return c
 }
 
@@ -584,13 +519,12 @@ func (c *Compiler) GetAstAnalyzer() *AstAnalyzer {
 		a.assumeKnownBuiltinsArePure == assumeBuiltins {
 		return a
 	}
-	analysisSettings := AstAnalyzer_Options_Builder_().
-		SetUseTypesForLocalOptimization(useTypes).
-		SetAssumeGettersArePure(assumeGetters).
-		SetHasRegexpGlobalReferences(hasRegexp).
-		SetAssumeKnownBuiltinsArePure(assumeBuiltins).
-		Build()
-	a := NewAstAnalyzer(analysisSettings, c.typeRegistry, accessorSummary)
+	a := NewAstAnalyzer(&AstAnalyzer_Options{
+		useTypesForLocalOptimization: useTypes,
+		assumeGettersArePure:         assumeGetters,
+		hasRegexpGlobalReferences:    hasRegexp,
+		assumeKnownBuiltinsArePure:   assumeBuiltins,
+	}, c.typeRegistry, accessorSummary)
 	c.cachedAstAnalyzer = a
 	return a
 }
@@ -615,6 +549,8 @@ func (c *Compiler) CreateExpressionDecomposer(
 		c, uniqueNameIdSupplier, knownConstantFunctions, scope, brokenIE11LocationAssign)
 }
 
+var compilerTracerType = "Compiler"
+
 // NewTracer returns a new tracer for the given pass name.
 //
 // Java: Compiler.newTracer(String)
@@ -629,8 +565,7 @@ func (c *Compiler) NewTracer(passName string) *Tracer {
 	if DebugPassLogHook != nil {
 		DebugPassLogHook(DebugPassEvent{Name: passName, Tracer: true, Start: true})
 	}
-	typ := "Compiler"
-	return NewTracerWithType(&typ, &comment)
+	return NewTracerWithType(&compilerTracerType, &comment)
 }
 
 // Java: Compiler.stopTracer(Tracer, String)
@@ -660,11 +595,7 @@ func (c *Compiler) MaybeSetTracker() {
 func (c *Compiler) ComputeCFG() *ControlFlowGraph[rhino.Node] {
 	Compiler_logger.Fine("Computing Control Flow Graph")
 	tracer := c.NewTracer("computeCFG")
-	cfg := ControlFlowAnalysis_Builder_().
-		SetCompiler(c).
-		SetCfgRoot(c.jsRoot).
-		SetTraverseFunctions(true).
-		ComputeCfg()
+	cfg := ComputeControlFlowGraph(c, c.jsRoot, true, false)
 	c.StopTracer(tracer, "computeCFG")
 	return cfg
 }

@@ -622,7 +622,9 @@ func (ti *TypeInference) TraverseSuper(superNode rhino.Node, currentScope *Linke
 		// super-ctor type, while property accesses use the super-instance type. `Scopes` are only
 		// aware of the latter case.
 		if enclosingFunctionType != nil && enclosingFunctionType.IsConstructor() {
-			superNodeType = enclosingFunctionType.GetSuperClassConstructor()
+			if superCtor := enclosingFunctionType.GetSuperClassConstructor(); superCtor != nil {
+				superNodeType = superCtor
+			}
 		}
 	case rhino.Token_GETELEM, rhino.Token_GETPROP:
 		currentSyntacticScope := currentScope.GetDeclarationScope()

@@ -211,6 +211,11 @@ func (g *LinkedDirectedGraph[N, E]) DisconnectInDirection(srcValue N, destValue 
 	}
 }
 
+// NodesSlice returns the read-only slice of nodes in insertion order without copying.
+func (g *LinkedDirectedGraph[N, E]) NodesSlice() []*LinkedDiGraphNode[N, E] {
+	return g.Nodes.Slice()
+}
+
 // Java: LinkedDirectedGraph.getNodes()
 func (g *LinkedDirectedGraph[N, E]) GetNodes() []*LinkedDiGraphNode[N, E] {
 	order := g.Nodes.Slice()

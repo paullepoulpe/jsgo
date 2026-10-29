@@ -45,7 +45,7 @@ func (c *Compiler) ParseInputs() (result rhino.Node) {
 	// individual file parse trees.
 	c.externsRoot.DetachChildren()
 	c.jsRoot.DetachChildren()
-	c.scriptNodeByFilename.Clear()
+	clear(c.scriptNodeByFilename)
 
 	tracer := c.NewTracer(PassNames_PARSE_INPUTS)
 	c.BeforePass(PassNames_PARSE_INPUTS)
@@ -64,7 +64,7 @@ func (c *Compiler) ParseInputs() (result rhino.Node) {
 			return rhino.NilNode
 		}
 		c.externsRoot.AddChildToBack(n)
-		c.scriptNodeByFilename.Put(input.GetSourceFile().GetName(), n)
+		c.scriptNodeByFilename[input.GetSourceFile().GetName()] = n
 	}
 
 	if c.options.GetLanguageIn().ToFeatureSet().Has(parser.FeatureSet_Feature_MODULES) ||
@@ -183,7 +183,7 @@ func (c *Compiler) ParseInputs() (result rhino.Node) {
 		} else {
 			c.jsRoot.AddChildToBack(n)
 		}
-		c.scriptNodeByFilename.Put(input.GetSourceFile().GetName(), n)
+		c.scriptNodeByFilename[input.GetSourceFile().GetName()] = n
 	}
 
 	if c.HasErrors() {
@@ -375,7 +375,7 @@ func (c *Compiler) findModulesFromInput(
 	if wasImportedByModule && input.GetJsModuleType() == CompilerInput_ModuleType_NONE {
 		input.SetJsModuleType(CompilerInput_ModuleType_IMPORTED_SCRIPT)
 	}
-	c.moduleTypesByName.Put(input.GetPath().ToModuleName(), input.GetJsModuleType())
+	c.moduleTypesByName[input.GetPath().ToModuleName()] = input.GetJsModuleType()
 
 	var allDeps []string
 	allDeps = append(allDeps, input.GetRequiredSymbols()...)
@@ -431,7 +431,7 @@ func (c *Compiler) hoistIfExtern(input *CompilerInput) bool {
 		// JS root and put it with the other externs.
 		root := input.GetAstRoot(c)
 		c.externsRoot.AddChildToBack(root)
-		c.scriptNodeByFilename.Put(input.GetSourceFile().GetName(), root)
+		c.scriptNodeByFilename[input.GetSourceFile().GetName()] = root
 
 		chunk := input.GetChunk()
 		if chunk != nil {
@@ -610,7 +610,7 @@ func (c *Compiler) parseCodeHelper(src *SourceFile) rhino.Node {
 	input := NewCompilerInput(src)
 	c.putCompilerInput(input)
 	root := input.GetAstRoot(c)
-	c.scriptNodeByFilename.Put(input.GetSourceFile().GetName(), root)
+	c.scriptNodeByFilename[input.GetSourceFile().GetName()] = root
 	return rhino.CheckNotNull(root)
 }
 

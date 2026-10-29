@@ -85,6 +85,28 @@ func (b *DataFlowAnalysisBase[N, L]) FlowStateAt(index uint32) *DataFlowAnalysis
 	return &b.flowStates[index]
 }
 
+func dataFlowAnalysis_linearFlowStateOf[L any](a graph.Annotatable) *DataFlowAnalysis_LinearFlowState[L] {
+	annotation := a.GetAnnotation()
+	if annotation == nil {
+		return nil
+	}
+	return annotation.(*DataFlowAnalysis_LinearFlowState[L])
+}
+
+func (s *DataFlowAnalysis_LinearFlowState[L]) GetStepCount() int {
+	return s.stepCount
+}
+
+func (s *DataFlowAnalysis_LinearFlowState[L]) SetIn(in L) {
+	jutil.CheckNotNull(in)
+	s.in = in
+}
+
+func (s *DataFlowAnalysis_LinearFlowState[L]) SetOut(out L) {
+	jutil.CheckNotNull(out)
+	s.out = out
+}
+
 func (b *DataFlowAnalysisBase[N, L]) dfaSiftUp(i int, x *graph.LinkedDirectedGraph_LinkedDiGraphNode[N, ControlFlowGraph_Branch]) {
 	xPrio := x.Priority
 	if xPrio < 0 {

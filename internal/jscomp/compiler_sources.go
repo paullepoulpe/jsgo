@@ -290,7 +290,7 @@ func (c *Compiler) GetSourceFileByName(sourceName string) *SourceFile {
 	// an input source-map, so let's look in our sourcemap original sources.
 	s := c.ensureSync()
 	s.sourceMapMu.RLock()
-	sf := c.sourceMapOriginalSources.Get(sourceName)
+	sf := c.sourceMapOriginalSources[sourceName]
 	s.sourceMapMu.RUnlock()
 	return sf
 }
@@ -480,7 +480,12 @@ func (c *Compiler) getSourceMappingValueCached(
 			if source != nil {
 				s := c.ensureSync()
 				s.sourceMapMu.Lock()
-				c.sourceMapOriginalSources.PutIfAbsent(relativePath, source)
+				if c.sourceMapOriginalSources == nil {
+					c.sourceMapOriginalSources = make(map[string]*SourceFile)
+				}
+				if _, exists := c.sourceMapOriginalSources[relativePath]; !exists {
+					c.sourceMapOriginalSources[relativePath] = source
+				}
 				s.sourceMapMu.Unlock()
 			}
 		}
@@ -645,6 +650,9 @@ func (c *Compiler) SetDefineNames(defineNames []string) {
 
 // Java: Compiler.getDefineNames()
 func (c *Compiler) GetDefineNames() *jutil.LinkedHashSet[string] {
+	if c.defineNames == nil {
+		c.defineNames = jutil.NewLinkedHashSet[string]()
+	}
 	return c.defineNames
 }
 
@@ -726,7 +734,7 @@ func (c *Compiler) GetSynthesizedExternsInput() *CompilerInput {
 	c.syntheticExternsInput = input
 	c.externsRoot.AddChildToFront(root)
 	c.externs = slices.Insert(c.externs, 0, input)
-	c.scriptNodeByFilename.Put(input.GetSourceFile().GetName(), root)
+	c.scriptNodeByFilename[input.GetSourceFile().GetName()] = root
 
 	return input
 }
@@ -749,7 +757,7 @@ func (c *Compiler) GetSynthesizedTypeSummaryInput() *CompilerInput {
 	c.syntheticTypeSummaryInput = input
 	c.externsRoot.AddChildToFront(root)
 	c.externs = slices.Insert(c.externs, 0, input)
-	c.scriptNodeByFilename.Put(input.GetSourceFile().GetName(), root)
+	c.scriptNodeByFilename[input.GetSourceFile().GetName()] = root
 	builder := rhino.JSDocInfo_Builder_()
 	builder.RecordTypeSummary()
 	root.SetJSDocInfo(builder.Build())
@@ -954,7 +962,13 @@ func (c *Compiler) InitWebpackMap(inputPathByWebpackId *jutil.LinkedHashMap[stri
 // Java: Compiler.setDebugMessage(String)
 func (c *Compiler) SetDebugMessage(debugMessage *string) {
 	c.compilerExecutor.SetDebugMessage(debugMessage)
-	c.debugMessage = debugMessage
+	if debugMessage == nil {
+		c.debugMessage = ""
+		c.hasDebugMessage = false
+	} else {
+		c.debugMessage = *debugMessage
+		c.hasDebugMessage = true
+	}
 }
 
 // Java: Compiler.createCompilerExecutor()

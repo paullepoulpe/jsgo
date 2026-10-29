@@ -34,7 +34,7 @@ type PeepholeTranspilationsPass struct {
 	compiler               AbstractCompiler
 	peepholeTranspilations []AbstractPeepholeTranspilation
 	handledTokens          []ast.TokenSet
-	visitTokens            ast.TokenSet
+	visitTokenSet          ast.TokenSet
 	activeMaskByToken      [256]uint16
 	useActiveMask          bool
 
@@ -64,7 +64,7 @@ func newPeepholeTranspilationsPass(
 			bit := uint16(1) << idx
 			ts := tr.HandledTokens()
 			for w := range ts {
-				p.visitTokens[w] |= ts[w]
+				p.visitTokenSet[w] |= ts[w]
 				for word := ts[w]; word != 0; {
 					b := bits.TrailingZeros64(word)
 					word &^= uint64(1) << b
@@ -78,7 +78,7 @@ func newPeepholeTranspilationsPass(
 			ts := tr.HandledTokens()
 			p.handledTokens[idx] = ts
 			for w := range ts {
-				p.visitTokens[w] |= ts[w]
+				p.visitTokenSet[w] |= ts[w]
 			}
 		}
 	}
@@ -130,29 +130,22 @@ func peepholeTranspilationSimpleName(t AbstractPeepholeTranspilation) string {
 
 // Java: PeepholeTranspilationsPass.process(Node, Node)
 func (p *PeepholeTranspilationsPass) Process(externs rhino.Node, root rhino.Node) {
-	NodeTraversal_Traverse(p.compiler, root, &PeepholeTranspilationsPass_PeepCallback{outer: p})
+	NodeTraversal_Traverse(p.compiler, root, p)
 	// Update the featureSets with all features that got transpiled.
 	TranspilationPasses_MaybeMarkFeaturesAsTranspiledAway(
 		p.compiler, root, p.featureSetToMarkAsTranspiledAway)
 }
 
-// PeepholeTranspilationsPass_PeepCallback is the traversal callback of the
-// pass.
-type PeepholeTranspilationsPass_PeepCallback struct {
-	outer *PeepholeTranspilationsPass
-}
-
-func (c *PeepholeTranspilationsPass_PeepCallback) visitTokens() *ast.TokenSet {
-	return &c.outer.visitTokens
+func (p *PeepholeTranspilationsPass) visitTokens() *ast.TokenSet {
+	return &p.visitTokenSet
 }
 
 // Java: PeepholeTranspilationsPass.PeepCallback.visit(NodeTraversal, Node, Node)
-func (c *PeepholeTranspilationsPass_PeepCallback) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
-	p := c.outer
+func (p *PeepholeTranspilationsPass) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	currentNode := n
 	tok := currentNode.GetToken()
 	if !p.useActiveMask {
-		if !p.visitTokens.Has(tok) {
+		if !p.visitTokenSet.Has(tok) {
 			return
 		}
 		for i, transpilation := range p.peepholeTranspilations {
@@ -187,12 +180,12 @@ func (c *PeepholeTranspilationsPass_PeepCallback) Visit(t *NodeTraversal, n rhin
 }
 
 // Java: PeepholeTranspilationsPass.PeepCallback.shouldTraverse(NodeTraversal, Node, Node)
-func (c *PeepholeTranspilationsPass_PeepCallback) ShouldTraverse(t *NodeTraversal, n rhino.Node, parent rhino.Node) bool {
+func (p *PeepholeTranspilationsPass) ShouldTraverse(t *NodeTraversal, n rhino.Node, parent rhino.Node) bool {
 	switch n.GetToken() {
 	case rhino.Token_SCRIPT:
 		// check if the script contains any of the features that we are transpiling.
 		scriptFeatures := NodeUtil_GetFeatureSetOfScript(n)
-		return scriptFeatures.ContainsAtLeastOneOf(c.outer.featureSetToRunOn)
+		return scriptFeatures.ContainsAtLeastOneOf(p.featureSetToRunOn)
 	default:
 		return true
 	}

@@ -194,9 +194,94 @@ func (w *forwardCfgWorklist) releaseLarge() {
 
 const fnVarTableInlineCap = 16
 
+type varIDTable struct {
+	inlineIDs [fnVarTableInlineCap]uint32
+	idToIndex map[uint32]int
+	count     int
+}
+
+func (t *varIDTable) reset() {
+	if len(t.idToIndex) > dfaReuseMaxNodes {
+		t.idToIndex = nil
+	} else if len(t.idToIndex) > 0 {
+		clear(t.idToIndex)
+	}
+	t.count = 0
+}
+
+func (t *varIDTable) initFromVars(vars []*Var) (int, bool) {
+	n := len(vars)
+	t.count = n
+	if n == 0 {
+		t.reset()
+		return 0, false
+	}
+	if n <= fnVarTableInlineCap {
+		unique := n
+		for i, v := range vars {
+			id := v.nameID
+			t.inlineIDs[i] = id
+			for j := 0; j < i; j++ {
+				if t.inlineIDs[j] == id {
+					unique--
+					break
+				}
+			}
+		}
+		return unique, unique < n
+	}
+	if t.idToIndex == nil || len(t.idToIndex) > dfaReuseMaxNodes {
+		t.idToIndex = make(map[uint32]int, max(n, 32))
+	} else {
+		clear(t.idToIndex)
+	}
+	for i, v := range vars {
+		t.idToIndex[v.nameID] = i
+	}
+	unique := len(t.idToIndex)
+	return unique, unique < n
+}
+
+func (t *varIDTable) initFromIDs(ids []uint32) {
+	n := len(ids)
+	t.count = n
+	if n == 0 {
+		t.reset()
+		return
+	}
+	if n <= fnVarTableInlineCap {
+		copy(t.inlineIDs[:n], ids)
+		return
+	}
+	if t.idToIndex == nil || len(t.idToIndex) > dfaReuseMaxNodes {
+		t.idToIndex = make(map[uint32]int, max(n, 32))
+	} else {
+		clear(t.idToIndex)
+	}
+	for i, id := range ids {
+		t.idToIndex[id] = i
+	}
+}
+
+func (t *varIDTable) lookup(id uint32) (int, bool) {
+	if id == 0 || t.count == 0 {
+		return 0, false
+	}
+	if t.count <= fnVarTableInlineCap {
+		for i := t.count - 1; i >= 0; i-- {
+			if t.inlineIDs[i] == id {
+				return i, true
+			}
+		}
+		return 0, false
+	}
+	idx, ok := t.idToIndex[id]
+	return idx, ok
+}
+
 type fnVarTable struct {
 	vars              []*Var
-	idToIndex         map[uint32]int
+	ids               varIDTable
 	escaped           inlineBitSet
 	uniqueCount       int
 	hasDuplicateNames bool
@@ -209,6 +294,7 @@ func (t *fnVarTable) reset() {
 	} else {
 		t.vars = t.vars[:0]
 	}
+	t.ids.reset()
 	t.escaped.clear(true)
 	t.uniqueCount = 0
 	t.hasDuplicateNames = false
@@ -237,77 +323,26 @@ func (t *fnVarTable) appendScopeVars(currentScope *Scope) {
 }
 
 func (t *fnVarTable) finalize() {
-	n := len(t.vars)
-	if n == 0 {
-		if len(t.idToIndex) > dfaReuseMaxNodes {
-			t.idToIndex = nil
-		} else if len(t.idToIndex) > 0 {
-			clear(t.idToIndex)
-		}
-		t.uniqueCount = 0
-		t.hasDuplicateNames = false
-		return
-	}
-	if n <= fnVarTableInlineCap {
-		unique := n
-		for i := 1; i < n; i++ {
-			id := t.vars[i].nameID
-			for j := 0; j < i; j++ {
-				if t.vars[j].nameID == id {
-					unique--
-					break
-				}
-			}
-		}
-		t.uniqueCount = unique
-		t.hasDuplicateNames = unique < n
-		return
-	}
-	if t.idToIndex == nil || len(t.idToIndex) > dfaReuseMaxNodes {
-		t.idToIndex = make(map[uint32]int, max(n, 32))
-	} else {
-		clear(t.idToIndex)
-	}
-	for i, v := range t.vars {
-		t.idToIndex[v.nameID] = i
-	}
-	t.uniqueCount = len(t.idToIndex)
-	t.hasDuplicateNames = t.uniqueCount < n
+	t.uniqueCount, t.hasDuplicateNames = t.ids.initFromVars(t.vars)
 }
 
 func (t *fnVarTable) lookupIndexByID(id uint32) (int, bool) {
-	if id == 0 || len(t.vars) == 0 {
-		return 0, false
-	}
-	if len(t.vars) <= fnVarTableInlineCap {
-		for i := len(t.vars) - 1; i >= 0; i-- {
-			if t.vars[i].nameID == id {
-				return i, true
-			}
-		}
-		return 0, false
-	}
-	idx, ok := t.idToIndex[id]
-	return idx, ok
+	return t.ids.lookup(id)
 }
 
 func (t *fnVarTable) lookupVarByID(id uint32) *Var {
-	idx, ok := t.lookupIndexByID(id)
+	idx, ok := t.ids.lookup(id)
 	if !ok {
 		return nil
 	}
 	return t.vars[idx]
 }
 
-func (t *fnVarTable) lookupVar(name string) *Var {
-	return t.lookupVarByID(rhino.RhinoStringPool_LookupID(name))
-}
-
 func (t *fnVarTable) resolveExactVarIndex(v *Var) (int, bool) {
 	if v == nil {
 		return -1, false
 	}
-	idx, ok := t.lookupIndexByID(v.nameID)
+	idx, ok := t.ids.lookup(v.nameID)
 	if !ok {
 		return -1, false
 	}
@@ -324,19 +359,6 @@ func (t *fnVarTable) resolveExactVarIndex(v *Var) (int, bool) {
 	return -1, false
 }
 
-// dataFlowAnalysis_linearFlowStateOf is the unchecked cast
-// `LinearFlowState<L> state = node.getAnnotation()`.
-//
-// Go-only: language-adapter — Java's generic getAnnotation() casts at the
-// call site; a null annotation stays null.
-func dataFlowAnalysis_linearFlowStateOf[L any](a graph.Annotatable) *DataFlowAnalysis_LinearFlowState[L] {
-	annotation := a.GetAnnotation()
-	if annotation == nil {
-		return nil
-	}
-	return annotation.(*DataFlowAnalysis_LinearFlowState[L])
-}
-
 // DataFlowAnalysis_LinearFlowState holds the in and out states of a node.
 type DataFlowAnalysis_LinearFlowState[L any] struct {
 	stepCount int
@@ -344,38 +366,14 @@ type DataFlowAnalysis_LinearFlowState[L any] struct {
 	out       L
 }
 
-// Java: DataFlowAnalysis.LinearFlowState(L, L)
-func newDataFlowAnalysis_LinearFlowState[L any](in L, out L) *DataFlowAnalysis_LinearFlowState[L] {
-	jutil.CheckNotNull(in)
-	jutil.CheckNotNull(out)
-	return &DataFlowAnalysis_LinearFlowState[L]{stepCount: 0, in: in, out: out}
-}
-
-// Java: DataFlowAnalysis.LinearFlowState.getStepCount()
-func (s *DataFlowAnalysis_LinearFlowState[L]) GetStepCount() int {
-	return s.stepCount
-}
-
 // Java: DataFlowAnalysis.LinearFlowState.getIn()
 func (s *DataFlowAnalysis_LinearFlowState[L]) GetIn() L {
 	return s.in
 }
 
-// Java: DataFlowAnalysis.LinearFlowState.setIn(L)
-func (s *DataFlowAnalysis_LinearFlowState[L]) SetIn(in L) {
-	jutil.CheckNotNull(in)
-	s.in = in
-}
-
 // Java: DataFlowAnalysis.LinearFlowState.getOut()
 func (s *DataFlowAnalysis_LinearFlowState[L]) GetOut() L {
 	return s.out
-}
-
-// Java: DataFlowAnalysis.LinearFlowState.setOut(L)
-func (s *DataFlowAnalysis_LinearFlowState[L]) SetOut(out L) {
-	jutil.CheckNotNull(out)
-	s.out = out
 }
 
 // Java: DataFlowAnalysis.LinearFlowState.toString()
@@ -396,78 +394,11 @@ func dfaHasNestedFunctionOrClass(n rhino.Node) bool {
 	return false
 }
 
-// DataFlowAnalysis_ComputeEscaped computes the set of escaped variables.
-// When a variable is escaped in a dataflow analysis, it can be referenced
-// outside of the code that we are analyzing. A variable is escaped if any
-// of the following is true:
-//
-// 1. Exported variables as they can be needed after the script terminates.
-// 2. Names of named functions because in JavaScript, function foo(){} does
-// not kill foo in the dataflow.
-//
-// jsScope must be a function scope.
-//
-// Java: DataFlowAnalysis.computeEscaped(Scope, Set<Var>, AbstractCompiler, ScopeCreator, Map<String, Var>)
-func DataFlowAnalysis_ComputeEscaped(
-	jsScope *Scope,
-	escaped *jutil.ObjectLinkedHashSet[*Var],
-	compiler AbstractCompiler,
-	scopeCreator ScopeCreator,
-	allVarsInFn *jutil.LinkedHashMap[string, *Var]) {
-
-	// Optimize for Class Static Blocks.
-	jutil.CheckArgument(jsScope.IsFunctionScope())
-	if allVarsInFn != nil && allVarsInFn.IsEmpty() {
-		return
-	}
-
-	escapedStartedEmpty := escaped.IsEmpty()
-	var localTable fnVarTable
-	table := &localTable
-	if allVarsInFn != nil {
-		table.vars = make([]*Var, 0, allVarsInFn.Size())
-		for var_ := range allVarsInFn.Values() {
-			idx := len(table.vars)
-			table.vars = append(table.vars, var_)
-			if !escapedStartedEmpty && escaped.Contains(var_) {
-				table.escaped.set(idx)
-			}
-		}
-		table.finalize()
-	} else {
-		var finder lvaAllVarsFinder
-		table = &finder.collect(compiler, scopeCreator, jsScope).table
-		if !escapedStartedEmpty {
-			for i, var_ := range table.vars {
-				if escaped.Contains(var_) {
-					table.escaped.set(i)
-				}
-			}
-		}
-	}
-
-	computeEscapedInTableState(jsScope, table, escaped, compiler, scopeCreator, escapedStartedEmpty)
-	table.escaped.ForEach(func(idx int) {
-		escaped.Add(table.vars[idx])
-	})
-}
-
 func computeEscapedInTable(
 	jsScope *Scope,
 	table *fnVarTable,
 	compiler AbstractCompiler,
 	scopeCreator ScopeCreator,
-) {
-	computeEscapedInTableState(jsScope, table, nil, compiler, scopeCreator, table.escaped.IsEmpty())
-}
-
-func computeEscapedInTableState(
-	jsScope *Scope,
-	table *fnVarTable,
-	extraEscaped *jutil.ObjectLinkedHashSet[*Var],
-	compiler AbstractCompiler,
-	scopeCreator ScopeCreator,
-	escapedStartedEmpty bool,
 ) {
 	jutil.CheckArgument(jsScope.IsFunctionScope())
 	if table.isEmpty() {
@@ -490,7 +421,7 @@ func computeEscapedInTableState(
 		}
 		if var_.GetParentNode().IsCatch() ||
 			codingConvention.IsExported(var_.GetName()) {
-			table.escaped.set(i)
+			table.escaped.Set(i)
 		}
 	}
 
@@ -504,7 +435,7 @@ func computeEscapedInTableState(
 		}
 	}
 
-	if !hasNestedScopeVars && !fnNameShadowed && escapedStartedEmpty && table.escaped.Cardinality() >= table.uniqueCount {
+	if !hasNestedScopeVars && !fnNameShadowed && table.escaped.Cardinality() >= table.uniqueCount {
 		return
 	}
 
@@ -543,12 +474,10 @@ func computeEscapedInTableState(
 		jsScope:              jsScope,
 		nonEscapingDepth:     nonEscapingDepth,
 		table:                table,
-		extraEscaped:         extraEscaped,
 		skipArgs:             skipArgs,
 		fnBody:               filterFnBody,
 		firstEscapingStmt:    firstEscapingStmt,
 		hasDuplicateVarNames: hasDuplicateVarNames,
-		escapedStartedEmpty:  escapedStartedEmpty,
 	}
 
 	b := NodeTraversal_Builder{
@@ -576,17 +505,15 @@ type fnVarEscapedFinder struct {
 	jsScope              *Scope
 	nonEscapingDepth     int
 	table                *fnVarTable
-	extraEscaped         *jutil.ObjectLinkedHashSet[*Var]
 	skipArgs             rhino.Node
 	fnBody               rhino.Node
 	firstEscapingStmt    rhino.Node
 	reachedFirstEscaping bool
 	hasDuplicateVarNames bool
-	escapedStartedEmpty  bool
 }
 
 func (f *fnVarEscapedFinder) ShouldTraverse(t *NodeTraversal, n rhino.Node, parent rhino.Node) bool {
-	if !f.hasDuplicateVarNames && f.escapedStartedEmpty && f.table.escaped.Cardinality() >= f.table.uniqueCount {
+	if !f.hasDuplicateVarNames && f.table.escaped.Cardinality() >= f.table.uniqueCount {
 		return false
 	}
 	if n == f.skipArgs {
@@ -629,7 +556,6 @@ func (*fnVarEscapedFinder) onlyNameLeaves()            {}
 
 // Java: DataFlowAnalysis.computeEscaped(...).new AbstractPostOrderCallback() {...}.visit(NodeTraversal, Node, Node)
 func (f *fnVarEscapedFinder) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
-
 	if !n.IsName() || parent.IsFunction() || len(t.scopes)-1 <= f.nonEscapingDepth || !f.isInsideEscapingScope(t) {
 		return
 	}
@@ -642,7 +568,7 @@ func (f *fnVarEscapedFinder) Visit(t *NodeTraversal, n rhino.Node, parent rhino.
 	if !ok {
 		return
 	}
-	if !f.hasDuplicateVarNames && f.table.escaped.has(candIdx) {
+	if !f.hasDuplicateVarNames && f.table.escaped.Get(candIdx) {
 		return
 	}
 
@@ -666,19 +592,6 @@ func (f *fnVarEscapedFinder) Visit(t *NodeTraversal, n rhino.Node, parent rhino.
 	// (like closures), so variables referenced in non-static class fields must also be
 	// marked as escaped.
 	if idx, ok := f.table.resolveExactVarIndex(var_); ok {
-		f.table.escaped.set(idx)
-	} else if f.extraEscaped != nil {
-		f.extraEscaped.Add(var_)
+		f.table.escaped.Set(idx)
 	}
-}
-
-// Java: DataFlowAnalysis.isReferencedInNonStaticClassField(Scope, Scope)
-func DataFlowAnalysis_IsReferencedInNonStaticClassField(refScope *Scope, targetScope *Scope) bool {
-	for s := refScope; s != nil && s != targetScope; s = s.GetParent() {
-		root := s.GetRootNode()
-		if (root.IsMemberFieldDef() || root.IsComputedFieldDef()) && !root.IsStaticMember() {
-			return true
-		}
-	}
-	return false
 }

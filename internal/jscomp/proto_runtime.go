@@ -134,10 +134,6 @@ func protoAppendSint32(b []byte, v int32) []byte {
 	return protoAppendVarint(b, uint64(uint32((v<<1)^(v>>31))))
 }
 
-func protoAppendSint64(b []byte, v int64) []byte {
-	return protoAppendVarint(b, uint64((v<<1)^(v>>63)))
-}
-
 func protoAppendBool(b []byte, v bool) []byte {
 	if v {
 		return append(b, 1)
@@ -148,10 +144,6 @@ func protoAppendBool(b []byte, v bool) []byte {
 func protoAppendFixed32(b []byte, v uint32) []byte { return binary.LittleEndian.AppendUint32(b, v) }
 
 func protoAppendFixed64(b []byte, v uint64) []byte { return binary.LittleEndian.AppendUint64(b, v) }
-
-func protoAppendDouble(b []byte, v float64) []byte {
-	return protoAppendFixed64(b, math.Float64bits(v))
-}
 
 func protoAppendBytes(b []byte, v []byte) []byte {
 	b = protoAppendVarint(b, uint64(len(v)))
@@ -209,9 +201,9 @@ func (r *protoReader) checkRecursionLimit() {
 
 // sub returns a reader for an embedded message (CodedInputStream.readMessage
 // with recursionDepth incremented).
-func (r *protoReader) sub(data []byte) *protoReader {
+func (r *protoReader) sub(data []byte) protoReader {
 	r.checkRecursionLimit()
-	return &protoReader{b: data, depth: r.depth + 1, limit: r.limit}
+	return protoReader{b: data, depth: r.depth + 1, limit: r.limit}
 }
 
 func (r *protoReader) atEnd() bool { return r.pos >= len(r.b) }
@@ -252,11 +244,6 @@ func (r *protoReader) readBool() bool    { return r.readRawVarint64() != 0 }
 func (r *protoReader) readSint32() int32 {
 	n := uint32(r.readRawVarint64())
 	return int32(n>>1) ^ -int32(n&1)
-}
-
-func (r *protoReader) readSint64() int64 {
-	n := r.readRawVarint64()
-	return int64(n>>1) ^ -int64(n&1)
 }
 
 func (r *protoReader) readFixed32() uint32 {
@@ -422,7 +409,6 @@ func (p *protoTextPrinter) messageWithSeparator(name, open string, print func(*p
 func protoTextInt32(v int32) string    { return strconv.FormatInt(int64(v), 10) }
 func protoTextInt64(v int64) string    { return strconv.FormatInt(v, 10) }
 func protoTextUint32(v int32) string   { return strconv.FormatUint(uint64(uint32(v)), 10) }
-func protoTextUint64(v int64) string   { return strconv.FormatUint(uint64(v), 10) }
 func protoTextBool(v bool) string      { return strconv.FormatBool(v) }
 func protoTextDouble(v float64) string { return jutil.DoubleToString(v) }
 
@@ -506,13 +492,12 @@ func (s *protoUnknownFieldSet) field(number int) *protoUnknownField {
 // protoParseUnknownFieldSet is UnknownFieldSet.parseFrom; it panics with
 // InvalidProtocolBufferException.
 func protoParseUnknownFieldSet(data []byte) *protoUnknownFieldSet {
-	r := &protoReader{b: data}
-	s := r.readUnknownFieldSet(-1)
-	return s
+	r := protoReader{b: data}
+	return r.readUnknownFieldSet(-1)
 }
 
 func tryParseUnknownFieldSet(data []byte) (*protoUnknownFieldSet, bool) {
-	r := &protoReader{b: data}
+	r := protoReader{b: data}
 	return r.tryReadUnknownFieldSet(-1)
 }
 
@@ -794,20 +779,4 @@ func protoHashBool(h int32, v bool) int32 {
 
 func protoVarintLen(v uint64) int {
 	return int(9*uint32(bits.Len64(v))+64) >> 6
-}
-
-// protoCheckIndex is the bounds check of the primitive protobuf lists
-// (IntArrayList.ensureIndexInRange).
-func protoCheckIndex(index, size int) {
-	if index < 0 || index >= size {
-		panic(jutil.NewIndexOutOfBoundsException("Index:" + strconv.Itoa(index) + ", Size:" + strconv.Itoa(size)))
-	}
-}
-
-// protoCheckIndexJDK is the bounds check of the object protobuf lists
-// (ArrayList.get: Objects.checkIndex).
-func protoCheckIndexJDK(index, size int) {
-	if index < 0 || index >= size {
-		panic(jutil.NewIndexOutOfBoundsException("Index " + strconv.Itoa(index) + " out of bounds for length " + strconv.Itoa(size)))
-	}
 }

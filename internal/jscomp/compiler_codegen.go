@@ -146,8 +146,8 @@ func (c *Compiler) appendSourceAndMappingsToCodeBuilder(
 	inputSeqNum int,
 	root rhino.Node,
 	sourceAndMappings *CodePrinter_SourceAndMappings) {
-	startLine, startCol, emitted := c.appendSourceToCodeBuilderForChunk(
-		cb, licenseTracker, inputSeqNum, root, sourceAndMappings.source)
+	startLine, startCol, emitted := c.appendSourceAndMetricsToCodeBuilderForChunk(
+		cb, licenseTracker, inputSeqNum, root, sourceAndMappings.source, sourceAndMappings)
 	if !emitted {
 		return
 	}
@@ -179,8 +179,8 @@ func (c *Compiler) appendSourceAndResolvedMappingsToCodeBuilder(
 	root rhino.Node,
 	sourceAndMappings *CodePrinter_SourceAndMappings,
 	resolved []sourceMap_resolvedMapping) {
-	startLine, startCol, emitted := c.appendSourceToCodeBuilderForChunk(
-		cb, licenseTracker, inputSeqNum, root, sourceAndMappings.source)
+	startLine, startCol, emitted := c.appendSourceAndMetricsToCodeBuilderForChunk(
+		cb, licenseTracker, inputSeqNum, root, sourceAndMappings.source, sourceAndMappings)
 	if emitted {
 		c.sourceMap.SetStartingPosition(startLine, startCol)
 		for i := range resolved {
@@ -200,6 +200,17 @@ func (c *Compiler) appendSourceToCodeBuilderForChunk(
 	inputSeqNum int,
 	root rhino.Node,
 	code string,
+) (startLine int, startCol int, emitted bool) {
+	return c.appendSourceAndMetricsToCodeBuilderForChunk(cb, licenseTracker, inputSeqNum, root, code, nil)
+}
+
+func (c *Compiler) appendSourceAndMetricsToCodeBuilderForChunk(
+	cb *Compiler_CodeBuilder,
+	licenseTracker CodePrinter_LicenseTracker,
+	inputSeqNum int,
+	root rhino.Node,
+	code string,
+	sm *CodePrinter_SourceAndMappings,
 ) (startLine int, startCol int, emitted bool) {
 	if c.options.ShouldPrintInputDelimiter() {
 		if (cb.GetLength() > 0) && !cb.EndsWith("\n") {
@@ -237,7 +248,11 @@ func (c *Compiler) appendSourceToCodeBuilderForChunk(
 	startLine = cb.GetLineIndex()
 	startCol = cb.GetColumnIndex()
 
-	cb.Append(code)
+	if sm != nil && sm.hasMetrics {
+		cb.appendWithMetrics(code, sm.utf16Len, sm.lineIndex, sm.lineLength)
+	} else {
+		cb.Append(code)
+	}
 
 	// In order to avoid parse ambiguity when files are concatenated
 	// together, all files should end in a semi-colon. Do a quick
@@ -384,11 +399,11 @@ func (t *licenseTracker) trackLicensesForFileName(file string) {
 		return
 	}
 	t.lastSeenFile = file
-	license := compiler_getLicenseForFileName(t.compiler, file)
-	if license == nil {
+	license, ok := compiler_getLicenseForFileName(t.compiler, file)
+	if !ok {
 		return
 	}
-	t.addLicense(*license)
+	t.addLicense(license)
 }
 
 // Java: Compiler.SeenSetLicenseTracker.emitLicenses()
@@ -615,41 +630,39 @@ func (t *Compiler_ChunkGraphAwareLicenseTracker) trackLicensesForFileName(source
 		}
 		t.haveInitializedCurrentChunkLicenses = true
 	}
-	license := compiler_getLicenseForFileName(t.compiler, sourceFile)
-	if license == nil {
+	license, ok := compiler_getLicenseForFileName(t.compiler, sourceFile)
+	if !ok {
 		return
 	}
-	if t.currentChunkTDepsRef.contains(*license) {
+	if t.currentChunkTDepsRef.contains(license) {
 		return
 	}
-	if t.licensesNewInCurrentChunk.contains(*license) {
+	if t.licensesNewInCurrentChunk.contains(license) {
 		return
 	}
-	newlyAddedLicense := t.licensesNewInCurrentFile.add(*license)
+	newlyAddedLicense := t.licensesNewInCurrentFile.add(license)
 	if t.log.IsLogging() {
 		if !newlyAddedLicense {
 			t.log.LogFormat(
 				"Chunk %s already depends on license\n==================\n%s\n==================\n\n",
-				t.currentChunk, *license)
+				t.currentChunk, license)
 		} else {
 			t.log.LogFormat(
 				"Chunk %s has new license:\n==================\n%s\n==================\n\n",
-				t.currentChunk, *license)
+				t.currentChunk, license)
 		}
 	}
 }
 
 type compiler_ParallelScriptLicenseRecorder struct {
-	onlyScript      bool
-	lastSeenFilePtr *string
-	lastSeenFile    string
-	hasLastSeen     bool
-	seenFiles       []string
+	onlyScript   bool
+	lastSeenFile string
+	hasLastSeen  bool
+	seenFiles    []string
 }
 
 func (r *compiler_ParallelScriptLicenseRecorder) Reset(onlyScript bool) {
 	r.onlyScript = onlyScript
-	r.lastSeenFilePtr = nil
 	r.lastSeenFile = ""
 	r.hasLastSeen = false
 	r.seenFiles = r.seenFiles[:0]
@@ -664,10 +677,9 @@ func (r *compiler_ParallelScriptLicenseRecorder) TrackLicensesForNode(node rhino
 	if file == nil {
 		return
 	}
-	if r.hasLastSeen && (file == r.lastSeenFilePtr || *file == r.lastSeenFile) {
+	if r.hasLastSeen && *file == r.lastSeenFile {
 		return
 	}
-	r.lastSeenFilePtr = file
 	r.lastSeenFile = *file
 	r.hasLastSeen = true
 	r.seenFiles = append(r.seenFiles, *file)
@@ -756,16 +768,20 @@ func (c *Compiler) toSourceWithoutMappings(
 	return c.printRootWithScratch(n, firstOutput, false, licenseTracker, nil, scratch)
 }
 
-func compiler_getLicenseForFileName(compiler AbstractCompiler, fileName string) *string {
+func compiler_getLicenseForFileName(compiler AbstractCompiler, fileName string) (string, bool) {
 	licenseRoot := compiler.GetScriptNode(fileName)
 	if licenseRoot.IsNil() {
-		return nil
+		return "", false
 	}
 	docInfo := licenseRoot.GetJSDocInfo()
 	if docInfo == nil {
-		return nil
+		return "", false
 	}
-	return docInfo.GetLicense()
+	lic := docInfo.GetLicense()
+	if lic == nil {
+		return "", false
+	}
+	return *lic, true
 }
 
 // Compiler_CodeBuilder stores a buffer of text to which more can be
@@ -801,6 +817,20 @@ func (b *Compiler_CodeBuilder) ResetAll() {
 	b.colCount = 0
 }
 
+func (b *Compiler_CodeBuilder) appendWithMetrics(str string, utf16Len, newlines, colLen int) {
+	if len(str) == 0 {
+		return
+	}
+	b.sb.WriteString(str)
+	b.utf16Len += utf16Len
+	if newlines == 0 {
+		b.colCount += colLen
+	} else {
+		b.lineCount += newlines
+		b.colCount = colLen
+	}
+}
+
 // Append appends the given string to the text buffer.
 //
 // Java: Compiler.CodeBuilder.append(String)
@@ -819,6 +849,16 @@ func (b *Compiler_CodeBuilder) Append(str string) *Compiler_CodeBuilder {
 	// count, and the UTF-16 length after the last '\n' is
 	// str.length() - (lastIndex + 1).
 	lastIndex := strings.LastIndexByte(str, '\n')
+	if jutil.IsASCII(str) {
+		b.utf16Len += len(str)
+		if lastIndex == -1 {
+			b.colCount += len(str)
+		} else {
+			b.lineCount += 1 + strings.Count(str[:lastIndex], "\n")
+			b.colCount = len(str) - (lastIndex + 1)
+		}
+		return b
+	}
 	if lastIndex == -1 {
 		// No new lines, append the new characters added.
 		n := jutil.StringLength(str)

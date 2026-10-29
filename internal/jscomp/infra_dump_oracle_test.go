@@ -578,11 +578,7 @@ func (d *infraDumper) dataflow(script rhino.Node, nodes []rhino.Node) {
 	for _, root := range roots {
 		var cfg *ControlFlowGraph[rhino.Node]
 		if e := infraTry(func() {
-			cfg = ControlFlowAnalysis_Builder_().
-				SetCompiler(d.compiler).
-				SetCfgRoot(root).
-				SetIncludeEdgeAnnotations(true).
-				ComputeCfg()
+			cfg = ComputeControlFlowGraph(d.compiler, root, false, true)
 		}); e != nil {
 			d.line("D " + d.id(root) + " cfg X " + infraExc(e))
 			continue

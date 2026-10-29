@@ -333,7 +333,7 @@ func (b *ColorRegistry_Builder) AddDisambiguationEdge(subtype *Color, supertype 
 	}
 	sups := b.disambiguationSupertypes[subtype]
 	for _, existing := range sups {
-		if existing == supertype || existing.Equals(supertype) {
+		if existing.equalsColor(supertype) {
 			return b
 		}
 	}

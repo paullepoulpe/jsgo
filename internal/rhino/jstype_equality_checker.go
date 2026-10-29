@@ -192,8 +192,8 @@ func equalityChecker_AreIdentityEqualWithBases(left JSType, lb *JSTypeBase, righ
 		}
 		switch lk {
 		case objKindFunction:
-			lf := left.(FunctionType).GetFunctionTypeBase()
-			rf := right.(FunctionType).GetFunctionTypeBase()
+			lf := left.(*FunctionTypeBase)
+			rf := right.(*FunctionTypeBase)
 			if lf.call.fnKind != rf.call.fnKind ||
 				lf.call.fnKind == FunctionType_Kind_CONSTRUCTOR ||
 				lf.call.fnKind == FunctionType_Kind_INTERFACE {
@@ -291,8 +291,8 @@ func (c *EqualityChecker) AreEqualInternal(left JSType, right JSType) bool {
 		}
 		switch lk {
 		case objKindFunction:
-			lf := left.(FunctionType).GetFunctionTypeBase()
-			rf := right.(FunctionType).GetFunctionTypeBase()
+			lf := left.(*FunctionTypeBase)
+			rf := right.(*FunctionTypeBase)
 			if lf.call.fnKind != rf.call.fnKind ||
 				lf.call.fnKind == FunctionType_Kind_CONSTRUCTOR ||
 				lf.call.fnKind == FunctionType_Kind_INTERFACE {

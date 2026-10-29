@@ -115,7 +115,7 @@ func (c *Compiler) clearSourcesCachedForReport() {
 	for _, input := range c.inputsById { // order-independent: ClearCachedSource only drops each SourceFile's independent in-memory code cache
 		input.GetSourceFile().ClearCachedSource()
 	}
-	for f := range c.sourceMapOriginalSources.Values() {
+	for _, f := range c.sourceMapOriginalSources { // order-independent: ClearCachedSource only drops each SourceFile's independent in-memory code cache
 		f.ClearCachedSource()
 	}
 }
@@ -534,7 +534,8 @@ func (c *Compiler) Check() {
 
 // Java: Compiler.setExternExports(String)
 func (c *Compiler) SetExternExports(externExports string) {
-	c.externExports = &externExports
+	c.externExports = externExports
+	c.hasExternExports = true
 }
 
 // Java: Compiler.process(CompilerPass)
@@ -680,7 +681,8 @@ type CompilerExecutor struct {
 	inCompilerThread bool
 	useThreads       bool
 	timeout          int
-	debugMessage     *string
+	debugMessage     string
+	hasDebugMessage  bool
 }
 
 // CompilerExecutor_COMPILER_STACK_SIZE: we use many recursive algorithms
@@ -705,7 +707,13 @@ func (e *CompilerExecutor) SetTimeout(timeout int) {
 
 // Java: CompilerExecutor.setDebugMessage(String)
 func (e *CompilerExecutor) SetDebugMessage(debugMessage *string) {
-	e.debugMessage = debugMessage
+	if debugMessage == nil {
+		e.debugMessage = ""
+		e.hasDebugMessage = false
+	} else {
+		e.debugMessage = *debugMessage
+		e.hasDebugMessage = true
+	}
 }
 
 func (e *CompilerExecutor) finishRun(bootThread bool, dumpTraceReport bool, r any) {
@@ -729,8 +737,8 @@ func (e *CompilerExecutor) finishRun(bootThread bool, dumpTraceReport bool, r an
 			panic(exception)
 		}
 	}
-	if e.debugMessage != nil {
-		panic(jutil.NewRuntimeExceptionWithMessageAndCause("Exception during compilation: "+*e.debugMessage, exception))
+	if e.hasDebugMessage {
+		panic(jutil.NewRuntimeExceptionWithMessageAndCause("Exception during compilation: "+e.debugMessage, exception))
 	}
 	// Throwables.throwIfUnchecked
 	switch exception.(type) {

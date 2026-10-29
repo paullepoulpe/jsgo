@@ -218,8 +218,9 @@ func serializationDump_addLazyAst(text []string, lazy *LazyAst) []string {
 	text = serializationDump_addLines(text, lazyMeta.String())
 	// As ScriptNodeDeserializer reads the script: without protobuf's default
 	// nesting limit (100), which deep ASTs exceed.
-	script := &AstNode{}
-	script.mergeFromReader(&protoReader{b: lazy.GetScript(), limit: math.MaxInt32})
+	script := &testAstNode{}
+	r := protoReader{b: lazy.GetScript(), limit: math.MaxInt32}
+	script.mergeFromReader(&r)
 	return serializationDump_addLines(text, script.String())
 }
 

@@ -337,14 +337,14 @@ func TestUnionType_ProxyUnionType(t *testing.T) {
 		IsEqualTo("(boolean|number|string)")
 	s.AssertThat(stringOrNumber.GetGreatestSubtype(stringOrBoolean).String()).IsEqualTo("string")
 	s.AssertThat(stringOrNumber.TestForEquality(stringOrBoolean)).IsEqualTo(base.Tri_UNKNOWN)
-	s.AssertThat(stringOrNumber.GetTypesUnderEquality(stringOrBoolean).TypeA.String()).
-		IsEqualTo("(number|string)")
-	s.AssertThat(stringOrNumber.GetTypesUnderShallowEquality(stringOrBoolean).TypeA.String()).
-		IsEqualTo("string")
-	s.AssertThat(stringOrNumber.GetTypesUnderInequality(stringOrBoolean).TypeA.String()).
-		IsEqualTo("(number|string)")
-	s.AssertThat(stringOrNumber.GetTypesUnderShallowInequality(stringOrBoolean).TypeA.String()).
-		IsEqualTo("(number|string)")
+	eqA, _ := stringOrNumber.GetTypesUnderEqualityPair(stringOrBoolean)
+	s.AssertThat(eqA.String()).IsEqualTo("(number|string)")
+	seqA, _ := stringOrNumber.GetTypesUnderShallowEqualityPair(stringOrBoolean)
+	s.AssertThat(seqA.String()).IsEqualTo("string")
+	ineqA, _ := stringOrNumber.GetTypesUnderInequalityPair(stringOrBoolean)
+	s.AssertThat(ineqA.String()).IsEqualTo("(number|string)")
+	sineqA, _ := stringOrNumber.GetTypesUnderShallowInequalityPair(stringOrBoolean)
+	s.AssertThat(sineqA.String()).IsEqualTo("(number|string)")
 
 	stringOrNumberProxy :=
 		NewProxyObjectType(s.Registry, stringOrNumber)
@@ -355,19 +355,14 @@ func TestUnionType_ProxyUnionType(t *testing.T) {
 	s.AssertThat(stringOrNumberProxy.GetGreatestSubtype(stringOrBooleanProxy).String()).
 		IsEqualTo("string")
 	s.AssertThat(stringOrNumberProxy.TestForEquality(stringOrBooleanProxy)).IsEqualTo(base.Tri_UNKNOWN)
-	s.AssertThat(stringOrNumberProxy.GetTypesUnderEquality(stringOrBooleanProxy).TypeA.String()).
-		IsEqualTo("(number|string)")
-	s.AssertThat(
-		stringOrNumberProxy.GetTypesUnderShallowEquality(stringOrBooleanProxy).TypeA.String()).
-		IsEqualTo("string")
-	s.AssertThat(stringOrNumberProxy.GetTypesUnderInequality(stringOrBooleanProxy).TypeA.String()).
-		IsEqualTo("(number|string)")
-	s.AssertThat(
-		stringOrNumberProxy.
-			GetTypesUnderShallowInequality(stringOrBooleanProxy).
-			TypeA.
-			String()).
-		IsEqualTo("(number|string)")
+	peqA, _ := stringOrNumberProxy.GetTypesUnderEqualityPair(stringOrBooleanProxy)
+	s.AssertThat(peqA.String()).IsEqualTo("(number|string)")
+	pseqA, _ := stringOrNumberProxy.GetTypesUnderShallowEqualityPair(stringOrBooleanProxy)
+	s.AssertThat(pseqA.String()).IsEqualTo("string")
+	pineqA, _ := stringOrNumberProxy.GetTypesUnderInequalityPair(stringOrBooleanProxy)
+	s.AssertThat(pineqA.String()).IsEqualTo("(number|string)")
+	psineqA, _ := stringOrNumberProxy.GetTypesUnderShallowInequalityPair(stringOrBooleanProxy)
+	s.AssertThat(psineqA.String()).IsEqualTo("(number|string)")
 }
 
 func TestUnionType_CollapseUnion1(t *testing.T) {

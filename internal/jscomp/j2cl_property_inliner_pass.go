@@ -57,7 +57,7 @@ func NewJ2clPropertyInlinerPass(compiler AbstractCompiler) *J2clPropertyInlinerP
 
 // Java: J2clPropertyInlinerPass.process(Node, Node)
 func (p *J2clPropertyInlinerPass) Process(externs rhino.Node, root rhino.Node) {
-	if !J2clSourceFileChecker_ShouldRunJ2clPasses(p.compiler) {
+	if !p.compiler.RunJ2clPasses() {
 		return
 	}
 
@@ -134,6 +134,8 @@ func (s *j2clStaticFieldInliner) run() {
 type j2clProperty struct {
 	getKey         ast.PlainKeyMember
 	setKey         ast.PlainKeyMember
+	setSummary     calleeSummary
+	setScanned     bool
 	isSafeToInline bool
 	isEs6          bool
 }
@@ -523,9 +525,10 @@ func (*j2clInliner) visitTokens() *ast.TokenSet {
 
 func (i *j2clInliner) getInjector() *FunctionInjector {
 	if i.injector == nil {
-		i.injector = NewFunctionInjector_Builder(i.outer.outer.compiler).
-			AssumeStrictThis(true).
-			Build()
+		i.injector = NewFunctionInjector(i.outer.outer.compiler, FunctionInjectorOptions{
+			AssumeStrictThis:   true,
+			AllowDecomposition: true,
+		})
 	}
 	return i.injector
 }
@@ -578,7 +581,12 @@ func (i *j2clInliner) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 					n.ReplaceWith(functionCall)
 					reference := NewFunctionInjector_Reference(functionCall, t.GetScope(), t.GetChunk(), FunctionInjector_InliningMode_BLOCK)
 					injector.MaybePrepareCall(reference)
-					inlinedCall := injector.Inline(reference, "", prop.setKey.Value().Node())
+					setFn := prop.setKey.Value().Node()
+					if !prop.setScanned {
+						scanCalleeSummary("", setFn, &prop.setSummary)
+						prop.setScanned = true
+					}
+					inlinedCall := injector.inlineWithSummary(reference, "", setFn, &prop.setSummary)
 					t.GetCompiler().ReportChangeToEnclosingScope(inlinedCall)
 				}
 			}

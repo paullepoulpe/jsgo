@@ -59,7 +59,7 @@ type PeepholeOptimizationsPass struct {
 	// NOTE: Use a native array rather than a List to avoid creating iterators
 	// for every node in the AST.
 	peepholeOptimizations     []AbstractPeepholeOptimization
-	pendingFeatures           *parser.FeatureSet
+	pendingFeatures           uint64
 	visitTokenSet             ast.TokenSet
 	activeMaskByToken         [256]uint16
 	useActiveMask             bool
@@ -317,7 +317,7 @@ func (p *PeepholeOptimizationsPass) processChangedScopesParallel(changedScopeNod
 				})
 				eventsByOrigIdx[origIdx] = rc.takeEvents()
 				if panicked {
-					workerPass.pendingFeatures = nil
+					workerPass.pendingFeatures = 0
 					return
 				}
 			}
@@ -342,9 +342,15 @@ func (p *PeepholeOptimizationsPass) processChangedScopesParallel(changedScopeNod
 // Java: PeepholeOptimizationsPass.PeepCallback.visit(NodeTraversal, Node, Node)
 func (p *PeepholeOptimizationsPass) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	p.visitOptimize(n)
-	if p.pendingFeatures != nil && (n.IsScript() || n == t.scopeTraversalRoot) {
-		NodeUtil_AddFeaturesToScript(t.GetCurrentScript(), p.pendingFeatures, p.compiler)
-		p.pendingFeatures = nil
+	if p.pendingFeatures != 0 && (n.IsScript() || n == t.scopeTraversalRoot) {
+		script := t.GetCurrentScript()
+		jutil.CheckStateMsg1(script.IsScript(), "%s", script)
+		for w := p.pendingFeatures; w != 0; {
+			b := bits.TrailingZeros64(w)
+			w &^= uint64(1) << uint(b)
+			NodeUtil_AddFeatureToScript(script, parser.FeatureSet_Feature(b), p.compiler)
+		}
+		p.pendingFeatures = 0
 	}
 }
 
@@ -530,7 +536,7 @@ func (p *PeepholeOptimizationsPass) visitOptimize(n rhino.Node) {
 //
 // Java: PeepholeOptimizationsPass.beginTraversal()
 func (p *PeepholeOptimizationsPass) BeginTraversal() {
-	p.pendingFeatures = nil
+	p.pendingFeatures = 0
 	for _, optimization := range p.peepholeOptimizations {
 		optimization.bindPendingFeatures(&p.pendingFeatures)
 		optimization.BeginTraversal(p.compiler)
@@ -542,10 +548,12 @@ func (p *PeepholeOptimizationsPass) BeginTraversal() {
 //
 // Java: PeepholeOptimizationsPass.endTraversal()
 func (p *PeepholeOptimizationsPass) EndTraversal() {
-	jutil.CheckStateMsg1(
-		p.pendingFeatures == nil || p.pendingFeatures.IsEmpty(),
-		"Expected getNewFeatures() to be empty in endTraversal() but found %s",
-		p.pendingFeatures)
+	if p.pendingFeatures != 0 {
+		jutil.CheckStateMsg1(
+			false,
+			"Expected getNewFeatures() to be empty in endTraversal() but found %s",
+			peepholeFeaturesToSet(p.pendingFeatures))
+	}
 	for _, optimization := range p.peepholeOptimizations {
 		optimization.bindPendingFeatures(nil)
 		optimization.EndTraversal()

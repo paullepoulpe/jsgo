@@ -1067,12 +1067,7 @@ func TestLinkedFlowScopeSizeAndMonomorphicInference(t *testing.T) {
 		scopeCreator.ResolveWeakImportsPreResolution()
 	}()
 	scopeCreator.FinishAndFreeze()
-	cfg := ControlFlowAnalysis_Builder_().
-		SetCompiler(compiler).
-		SetCfgRoot(root).
-		SetTraverseFunctions(true).
-		SetIncludeEdgeAnnotations(true).
-		ComputeCfg()
+	cfg := ComputeControlFlowGraph(compiler, root, true, true)
 	dfa := NewTypeInference(
 		compiler,
 		cfg,

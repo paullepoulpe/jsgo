@@ -161,7 +161,7 @@ func (c *ConvertToTypedInterface) ProcessFile(scriptNode rhino.Node) {
 	}
 
 	currentFile := NewFileInfo(*sourceFileName)
-	NodeTraversal_Traverse(c.compiler, scriptNode, NewConvertToTypedInterface_RemoveNonDeclarations())
+	NodeTraversal_Traverse(c.compiler, scriptNode, ConvertToTypedInterface_RemoveNonDeclarations{})
 	NodeTraversal_Traverse(c.compiler, scriptNode, NewConvertToTypedInterface_PropagateConstJsdoc(currentFile))
 	NewConvertToTypedInterface_SimplifyDeclarations(c.compiler, currentFile).SimplifyAll()
 }
@@ -176,9 +176,7 @@ func ConvertToTypedInterface_FindNameDeclaration(scope *Scope, rhs rhino.Node) *
 
 // ConvertToTypedInterface_RemoveNonDeclarations is the private static nested
 // callback ConvertToTypedInterface.RemoveNonDeclarations.
-type ConvertToTypedInterface_RemoveNonDeclarations struct {
-	_ byte // Go-only: language-adapter — distinct identity
-}
+type ConvertToTypedInterface_RemoveNonDeclarations struct{}
 
 var convertToTypedInterfaceRemoveVisitTokens = func() ast.TokenSet {
 	var s ast.TokenSet
@@ -201,19 +199,14 @@ var convertToTypedInterfaceRemoveVisitTokens = func() ast.TokenSet {
 	return s
 }()
 
-func (*ConvertToTypedInterface_RemoveNonDeclarations) visitTokens() *ast.TokenSet {
+func (ConvertToTypedInterface_RemoveNonDeclarations) visitTokens() *ast.TokenSet {
 	return &convertToTypedInterfaceRemoveVisitTokens
 }
 
 var convertToTypedInterface_RemoveNonDeclarations_GOOG_SCOPE = rhino.QualifiedName_Of("goog.scope")
 
-// Java: ConvertToTypedInterface.RemoveNonDeclarations()
-func NewConvertToTypedInterface_RemoveNonDeclarations() *ConvertToTypedInterface_RemoveNonDeclarations {
-	return &ConvertToTypedInterface_RemoveNonDeclarations{}
-}
-
 // Java: ConvertToTypedInterface.RemoveNonDeclarations.shouldTraverse(NodeTraversal, Node, Node)
-func (r *ConvertToTypedInterface_RemoveNonDeclarations) ShouldTraverse(t *NodeTraversal, n rhino.Node, parent rhino.Node) bool {
+func (ConvertToTypedInterface_RemoveNonDeclarations) ShouldTraverse(t *NodeTraversal, n rhino.Node, parent rhino.Node) bool {
 	switch n.GetToken() {
 	case rhino.Token_FUNCTION:
 		if !ClassUtil_IsConstructor(n) || !ClassUtil_HasNamedClass(n) {
@@ -327,7 +320,7 @@ func (r *ConvertToTypedInterface_RemoveNonDeclarations) ShouldTraverse(t *NodeTr
 }
 
 // Java: ConvertToTypedInterface.RemoveNonDeclarations.visit(NodeTraversal, Node, Node)
-func (r *ConvertToTypedInterface_RemoveNonDeclarations) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
+func (ConvertToTypedInterface_RemoveNonDeclarations) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	switch n.GetToken() {
 	case rhino.Token_TRY, rhino.Token_LABEL, rhino.Token_DEFAULT_CASE, rhino.Token_CASE, rhino.Token_DO, rhino.Token_WHILE,
 		rhino.Token_FOR, rhino.Token_FOR_IN, rhino.Token_FOR_OF, rhino.Token_FOR_AWAIT_OF, rhino.Token_IF:

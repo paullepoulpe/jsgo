@@ -98,18 +98,19 @@ func (a *linkedFlowScopeArena) trimLargeChunks() {
 type FlowScope = *LinkedFlowScope
 
 // linkedFlowBlindStore backs a blind copy-on-write LinkedFlowScope
-// (syntacticScope == nil) for the reverse abstract interpreter oracle without
-// increasing sizeof(LinkedFlowScope).
+// (syntacticScope == nil) for the reverse abstract interpreter oracle in a
+// single allocation without increasing sizeof(LinkedFlowScope).
 type linkedFlowBlindStore struct {
 	slots *jutil.LinkedHashMap[string, rhino.StaticTypedSlot]
+	scope LinkedFlowScope
 }
 
 func (*linkedFlowBlindStore) GetInput(*rhino.InputId) *CompilerInput { return nil }
 
 func newBlindLinkedFlowScope(slots *jutil.LinkedHashMap[string, rhino.StaticTypedSlot]) *LinkedFlowScope {
-	return &LinkedFlowScope{
-		inputProvider: &linkedFlowBlindStore{slots: slots},
-	}
+	store := &linkedFlowBlindStore{slots: slots}
+	store.scope.inputProvider = store
+	return &store.scope
 }
 
 func (l *LinkedFlowScope) blindSlots() *jutil.LinkedHashMap[string, rhino.StaticTypedSlot] {
@@ -117,7 +118,7 @@ func (l *LinkedFlowScope) blindSlots() *jutil.LinkedHashMap[string, rhino.Static
 }
 
 func copyBlindSlots(m *jutil.LinkedHashMap[string, rhino.StaticTypedSlot]) *jutil.LinkedHashMap[string, rhino.StaticTypedSlot] {
-	c := jutil.NewLinkedHashMap[string, rhino.StaticTypedSlot]()
+	c := jutil.NewLinkedHashMapWithCapacity[string, rhino.StaticTypedSlot](m.Size() + 1)
 	for k, v := range m.All() {
 		c.Put(k, v)
 	}

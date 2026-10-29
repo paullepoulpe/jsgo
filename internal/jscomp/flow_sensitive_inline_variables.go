@@ -89,7 +89,7 @@ type FlowSensitiveInlineVariables struct {
 	reachingDefStorage  MustBeReachingVariableDef
 	reachingUsesStorage MaybeReachingVariableUse
 	varTable            fnVarTable
-	candVarSeen         dfaBitSet
+	candVarSeen         inlineBitSet
 	candVarIDs          []uint32
 	gatherCfgNode       rhino.Node
 	gatherInState       *MustBeReachingVariableDef_MustDef
@@ -148,11 +148,11 @@ func (f *FlowSensitiveInlineVariables) getReachingUses() *MaybeReachingVariableU
 				continue
 			}
 			idx, ok := table.lookupIndexByID(cand.nameID)
-			if !ok || f.candVarSeen.has(idx) {
+			if !ok || f.candVarSeen.Get(idx) {
 				continue
 			}
-			f.candVarSeen.set(idx)
-			if !table.escaped.has(idx) {
+			f.candVarSeen.Set(idx)
+			if !table.escaped.Get(idx) {
 				f.candVarIDs = append(f.candVarIDs, table.vars[idx].nameID)
 			}
 		}
@@ -492,7 +492,7 @@ func (f *FlowSensitiveInlineVariables) processFunction(fn ast.Function, body ast
 	computeEscapedInTable(fnScope, table, f.compiler, scopeCreator)
 	nDefs = 0
 	for _, d := range f.inlinableDefs {
-		if idx, ok := table.lookupIndexByID(d.nameID); ok && !table.escaped.has(idx) {
+		if idx, ok := table.lookupIndexByID(d.nameID); ok && !table.escaped.Get(idx) {
 			f.inlinableDefs[nDefs] = d
 			nDefs++
 		}
@@ -954,18 +954,16 @@ func (f *FlowSensitiveInlineVariables) visitGatherNode(n rhino.Node, currentNode
 
 func (f *FlowSensitiveInlineVariables) traverseGatherCandidates(root rhino.Node) {
 	jutil.CheckNotNull(f.compiler)
+	if root.IsNil() {
+		throwNilCfgNodeTraversal(f.compiler)
+		return
+	}
 	var currentNode rhino.Node
 	defer func() {
 		if r := recover(); r != nil {
-			t := &NodeTraversal{compiler: f.compiler}
-			t.InitTraversal(root)
-			t.currentNode = currentNode
-			t.ThrowUnexpectedException(jutil.AsThrowable(r))
+			reportUnexpectedCfgException(f.compiler, root, rhino.NilNode, currentNode, jutil.AsThrowable(r))
 		}
 	}()
-	if root.IsNil() {
-		failNodeTraversalNull()
-	}
 	if Platform_IsThreadInterrupted() {
 		panic(jutil.NewRuntimeExceptionWithCause(jutil.NewInterruptedException()))
 	}

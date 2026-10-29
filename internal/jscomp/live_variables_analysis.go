@@ -30,10 +30,7 @@ import (
 
 var lvaArgumentsIdentID = uint32(strpool.Intern("arguments"))
 
-const (
-	LiveVariablesAnalysis_MAX_VARIABLES_TO_ANALYZE = 100
-	lvaInlineVarCap                                = 16
-)
+const LiveVariablesAnalysis_MAX_VARIABLES_TO_ANALYZE = 100
 
 // LiveVariablesAnalysis computes the "liveness" of all local variables. A
 // variable is "live" at a point of a program if the value it is currently
@@ -48,7 +45,7 @@ const (
 //
 // Due to the possibility of inner functions and closures, certain "local"
 // variables can escape the function. These variables will be considered as
-// global and they can be retrieved with GetEscapedLocals().
+// global.
 type LiveVariablesAnalysis struct {
 	cfg      *ControlFlowGraph[rhino.Node]
 	worklist cfgWorklist
@@ -60,26 +57,13 @@ type LiveVariablesAnalysis struct {
 	// The scope of the body of the function that we are analyzing.
 	jsScopeChild *Scope
 
-	// escaped marks indices in orderedVars that are escaped.
+	table *fnVarTable
+
+	// escaped marks indices in table.vars that are escaped.
 	escaped inlineBitSet
-	// untracked marks indices in orderedVars that are !local || escaped.
+	// untracked marks indices in table.vars that are !local || escaped.
 	untracked           inlineBitSet
-	escapedSet          jutil.ObjectLinkedHashSet[*Var]
-	escapedSetInit      bool
 	paramsMarkedEscaped bool
-
-	// varIDs holds interned variable strpool IDs inline when numVars <= 16;
-	// idToIndex is reused across Reset calls when numVars > 16.
-	varIDs            [lvaInlineVarCap]uint32
-	idToIndex         map[uint32]int
-	numVars           int
-	uniqueVarCount    int
-	hasDuplicateNames bool
-
-	// obtain variables in the order in which they appear in the code
-	orderedVars []*Var
-
-	allVarsSrc *NodeUtil_AllVarsDeclaredInFunction
 
 	emptyLattice LiveVariablesAnalysis_LiveVariableLattice
 	lattices     jutil.ReuseSlab[LiveVariablesAnalysis_LiveVariableLattice]
@@ -149,36 +133,8 @@ func (l *LiveVariablesAnalysis_LiveVariableLattice) HashCode() int32 {
 	return int32((h >> 32) ^ h)
 }
 
-// NewLiveVariablesAnalysis is Live Variables Analysis using the ES6 scope
-// creator. This analysis should only be done on function where jsScope is
-// the function scope. If we call LiveVariablesAnalysis from the function
-// scope of our pass, we can pass a null value for the JsScopeChild, but if
-// we call it from the function block scope, then JsScopeChild will be the
-// function block scope.
-//
-// We call from the function scope when the pass requires us to traverse
-// nodes beginning at the function parameters, and it from the function block
-// scope when we are ignoring function parameters.
-//
-// jsScope is the function scope; jsScopeChild null or function block scope;
-// scopeCreator Es6 Scope creator; allVarsDeclaredInFunction mapping of names
-// to vars of everything reachable in a function.
-//
-// Java: LiveVariablesAnalysis(ControlFlowGraph<Node>, Scope, Scope, AbstractCompiler, ScopeCreator, AllVarsDeclaredInFunction)
-func NewLiveVariablesAnalysis(
-	cfg *ControlFlowGraph[rhino.Node],
-	jsScope *Scope,
-	jsScopeChild *Scope,
-	compiler AbstractCompiler,
-	scopeCreator ScopeCreator,
-	allVarsDeclaredInFunction *NodeUtil_AllVarsDeclaredInFunction) *LiveVariablesAnalysis {
-	l := &LiveVariablesAnalysis{}
-	l.Reset(cfg, jsScope, jsScopeChild, compiler, scopeCreator, allVarsDeclaredInFunction)
-	return l
-}
-
 // Reset resets l for reuse on a new function scope while retaining slab,
-// queue, set, and map capacities.
+// queue, and bitset capacities.
 func (l *LiveVariablesAnalysis) Reset(
 	cfg *ControlFlowGraph[rhino.Node],
 	jsScope *Scope,
@@ -200,15 +156,10 @@ func (l *LiveVariablesAnalysis) Reset(
 
 	l.jsScope = jsScope
 	l.jsScopeChild = jsScopeChild
+	l.table = table
 	l.escaped.CopyFrom(&table.escaped)
 	l.untracked.clear(releaseLarge)
 	l.paramsMarkedEscaped = false
-	l.escapedSetInit = false
-	l.allVarsSrc = allVarsDeclaredInFunction
-	l.orderedVars = table.vars
-	l.numVars = len(table.vars)
-	l.uniqueVarCount = table.uniqueCount
-	l.hasDuplicateNames = table.hasDuplicateNames
 	l.emptyLattice = LiveVariablesAnalysis_LiveVariableLattice{}
 	l.lattices.Reset(nil)
 
@@ -295,25 +246,8 @@ func (l *LiveVariablesAnalysis) allocLattice() *LiveVariablesAnalysis_LiveVariab
 //
 // Java: LiveVariablesAnalysis.addScopeVariables()
 func (l *LiveVariablesAnalysis) AddScopeVariables() {
-	l.numVars = len(l.orderedVars)
-	useInline := l.numVars <= lvaInlineVarCap
-	reuseTableMap := !useInline && l.allVarsSrc != nil && l.allVarsSrc.table.idToIndex != nil
-	if reuseTableMap {
-		l.idToIndex = l.allVarsSrc.table.idToIndex
-	} else if !useInline {
-		if l.idToIndex == nil {
-			l.idToIndex = make(map[uint32]int, l.numVars)
-		} else {
-			clear(l.idToIndex)
-		}
-	}
-	for num, v := range l.orderedVars {
+	for num, v := range l.table.vars {
 		id := v.nameID
-		if useInline {
-			l.varIDs[num] = id
-		} else if !reuseTableMap {
-			l.idToIndex[id] = num
-		}
 		localScope, _ := v.GetScope().(*Scope)
 		var local bool
 		if localScope.IsFunctionBlockScope() {
@@ -323,38 +257,22 @@ func (l *LiveVariablesAnalysis) AddScopeVariables() {
 		} else {
 			local = localScope.hasOwnSlotByID(id)
 		}
-		if !local || l.escaped.has(num) {
-			l.untracked.set(num)
+		if !local || l.escaped.Get(num) {
+			l.untracked.Set(num)
 		}
 	}
 }
 
 func (l *LiveVariablesAnalysis) lookupVarIndexByID(id uint32) (int, bool) {
-	if id == 0 || l.numVars == 0 {
-		return 0, false
-	}
-	if l.numVars <= lvaInlineVarCap {
-		for i := l.numVars - 1; i >= 0; i-- {
-			if l.varIDs[i] == id {
-				return i, true
-			}
-		}
-		return 0, false
-	}
-	idx, ok := l.idToIndex[id]
-	return idx, ok
+	return l.table.lookupIndexByID(id)
 }
 
 func (l *LiveVariablesAnalysis) lookupVarIndex(name string) (int, bool) {
-	id := rhino.RhinoStringPool_LookupID(name)
-	if id == 0 {
-		return 0, false
-	}
-	return l.lookupVarIndexByID(id)
+	return l.table.lookupIndexByID(rhino.RhinoStringPool_LookupID(name))
 }
 
 func (l *LiveVariablesAnalysis) getVarIndexByID(id uint32) int {
-	index, ok := l.lookupVarIndexByID(id)
+	index, ok := l.table.lookupIndexByID(id)
 	if !ok {
 		panic(jutil.NewNullPointerException())
 	}
@@ -362,51 +280,27 @@ func (l *LiveVariablesAnalysis) getVarIndexByID(id uint32) int {
 }
 
 func (l *LiveVariablesAnalysis) isEscapedIndex(idx int) bool {
-	return l.escaped.has(idx)
+	return l.escaped.Get(idx)
 }
 
 func (l *LiveVariablesAnalysis) allInFnVarsEscaped() bool {
-	if l.escaped.Cardinality() < l.uniqueVarCount {
+	if l.escaped.Cardinality() < l.table.uniqueCount {
 		return false
 	}
-	if !l.hasDuplicateNames {
+	if !l.table.hasDuplicateNames {
 		return true
 	}
-	for i, v := range l.orderedVars {
-		if canonIdx, _ := l.lookupVarIndexByID(v.nameID); canonIdx == i && !l.escaped.has(i) {
+	for i, v := range l.table.vars {
+		if canonIdx, _ := l.table.lookupIndexByID(v.nameID); canonIdx == i && !l.escaped.Get(i) {
 			return false
 		}
 	}
 	return true
 }
 
-// Java: LiveVariablesAnalysis.getEscapedLocals()
-func (l *LiveVariablesAnalysis) GetEscapedLocals() *jutil.ObjectLinkedHashSet[*Var] {
-	if !l.escapedSetInit {
-		l.escapedSet.Clear()
-		l.escaped.ForEach(func(idx int) {
-			if idx < len(l.orderedVars) {
-				l.escapedSet.Add(l.orderedVars[idx])
-			}
-		})
-		if l.paramsMarkedEscaped {
-			params := ast.MustFunction(l.jsScope.GetRootNode()).Params()
-			for param, ok := params.FirstParam(); ok; param, ok = param.Next() {
-				if param.Token() == rhino.Token_NAME {
-					if pv := l.jsScope.GetVarByID(param.Node().GetStringID()); pv != nil {
-						l.escapedSet.Add(pv)
-					}
-				}
-			}
-		}
-		l.escapedSetInit = true
-	}
-	return &l.escapedSet
-}
-
 // Java: LiveVariablesAnalysis.getAllVariablesInOrder()
 func (l *LiveVariablesAnalysis) GetAllVariablesInOrder() []*Var {
-	return l.orderedVars
+	return l.table.vars
 }
 
 // Java: LiveVariablesAnalysis.getVarIndex(String)
@@ -832,18 +726,8 @@ func (l *LiveVariablesAnalysis) computeGenKillBits(n rhino.Node, gen *inlineBitS
 
 func (l *LiveVariablesAnalysis) addToSetIfLocalBits(node rhino.Node, set *inlineBitSet) {
 	jutil.CheckStateMsg1(node.IsName(), "%s", node)
-	idx, found := l.lookupVarIndexByID(node.GetStringID())
-	if !found || l.untracked.has(idx) {
-		return
-	}
-	set.set(idx)
-}
-
-// Java: LiveVariablesAnalysis.addToSetIfLocal(Node, BitSet)
-func (l *LiveVariablesAnalysis) AddToSetIfLocal(node rhino.Node, set *jutil.BitSet) {
-	jutil.CheckStateMsg1(node.IsName(), "%s", node)
-	idx, found := l.lookupVarIndexByID(node.GetStringID())
-	if !found || l.untracked.has(idx) {
+	idx, found := l.table.lookupIndexByID(node.GetStringID())
+	if !found || l.untracked.Get(idx) {
 		return
 	}
 	set.Set(idx)
@@ -852,16 +736,6 @@ func (l *LiveVariablesAnalysis) AddToSetIfLocal(node rhino.Node, set *jutil.BitS
 func isDeclaredInFunctionBlockOrParameterByID(scope *Scope, id uint32) bool {
 	jutil.CheckState(scope.IsFunctionBlockScope())
 	return scope.hasOwnSlotByID(id) || scope.GetParent().hasOwnSlotByID(id)
-}
-
-// Java: LiveVariablesAnalysis.isDeclaredInFunctionBlockOrParameter(Scope, String)
-func LiveVariablesAnalysis_IsDeclaredInFunctionBlockOrParameter(scope *Scope, name string) bool {
-	// In ES6, we create a separate container scope above the function block scope to handle
-	// default parameters. Since nothing in the function block scope is allowed to shadow
-	// the variables in the function scope, we treat the two scopes as one in this method.
-	jutil.CheckState(scope.IsFunctionBlockScope())
-	id := rhino.RhinoStringPool_LookupID(name)
-	return id != 0 && (scope.hasOwnSlotByID(id) || scope.GetParent().hasOwnSlotByID(id))
 }
 
 // MarkAllParametersEscaped gives up computing liveness of formal parameters
@@ -890,21 +764,16 @@ func (l *LiveVariablesAnalysis) MarkAllParametersEscaped() {
 		if param.Token() == rhino.Token_NAME {
 			id := param.Node().GetStringID()
 			paramVar := l.jsScope.GetVarByID(id)
-			if l.escapedSetInit && paramVar != nil {
-				l.escapedSet.Add(paramVar)
-			}
-			if idx, ok := l.lookupVarIndexByID(id); ok {
-				if paramVar == nil || l.orderedVars[idx] == paramVar || l.orderedVars[idx].Equals(paramVar) {
-					l.escaped.set(idx)
-					l.untracked.set(idx)
-				} else {
-					for i, cand := range l.orderedVars {
-						if cand == paramVar || cand.Equals(paramVar) {
-							l.escaped.set(i)
-							break
-						}
+			if paramVar != nil {
+				if idx, ok := l.table.resolveExactVarIndex(paramVar); ok {
+					l.escaped.Set(idx)
+					if canonIdx, _ := l.table.lookupIndexByID(id); canonIdx == idx {
+						l.untracked.Set(idx)
 					}
 				}
+			} else if idx, ok := l.table.lookupIndexByID(id); ok {
+				l.escaped.Set(idx)
+				l.untracked.Set(idx)
 			}
 		}
 	}

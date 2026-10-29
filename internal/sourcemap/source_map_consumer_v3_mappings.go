@@ -180,6 +180,10 @@ func (b *SourceMapConsumerV3_MappingBuilder) tryBuild() (*SourceMapConsumerV3_Ma
 // appendEntry encodes e onto the stream as deltas against the previous entry
 // of the line. See SourceMapConsumerV3_Mappings.
 func (b *SourceMapConsumerV3_MappingBuilder) appendEntry(entryValues int, e sourceMapConsumerV3_entry) {
+	b.data = encodeMappingEntry(b.data, &b.prevInLine, entryValues, e)
+}
+
+func encodeMappingEntry(data []byte, prevInLine *sourceMapConsumerV3_entry, entryValues int, e sourceMapConsumerV3_entry) []byte {
 	kind := uint32(0)
 	switch entryValues {
 	case 4:
@@ -187,21 +191,21 @@ func (b *SourceMapConsumerV3_MappingBuilder) appendEntry(entryValues int, e sour
 	case 5:
 		kind = 2
 	}
-	b.data = sourceMapConsumerV3_appendVarint(b.data, uint64(sourceMapConsumerV3_zigzag(e.genCol-b.prevInLine.genCol))<<2|uint64(kind))
-	b.prevInLine.genCol = e.genCol
+	data = sourceMapConsumerV3_appendVarint(data, uint64(sourceMapConsumerV3_zigzag(e.genCol-prevInLine.genCol))<<2|uint64(kind))
+	prevInLine.genCol = e.genCol
 	if kind == 0 {
-		return
+		return data
 	}
-	prev := &b.prevInLine
-	b.data = sourceMapConsumerV3_appendVarint(b.data, uint64(sourceMapConsumerV3_zigzag(e.srcId-prev.srcId)))
-	b.data = sourceMapConsumerV3_appendVarint(b.data, uint64(sourceMapConsumerV3_zigzag(e.srcLine-prev.srcLine)))
-	b.data = sourceMapConsumerV3_appendVarint(b.data, uint64(sourceMapConsumerV3_zigzag(e.srcCol-prev.srcCol)))
+	data = sourceMapConsumerV3_appendVarint(data, uint64(sourceMapConsumerV3_zigzag(e.srcId-prevInLine.srcId)))
+	data = sourceMapConsumerV3_appendVarint(data, uint64(sourceMapConsumerV3_zigzag(e.srcLine-prevInLine.srcLine)))
+	data = sourceMapConsumerV3_appendVarint(data, uint64(sourceMapConsumerV3_zigzag(e.srcCol-prevInLine.srcCol)))
 	if kind == 2 {
-		b.data = sourceMapConsumerV3_appendVarint(b.data, uint64(sourceMapConsumerV3_zigzag(e.nameId-prev.nameId)))
+		data = sourceMapConsumerV3_appendVarint(data, uint64(sourceMapConsumerV3_zigzag(e.nameId-prevInLine.nameId)))
 	} else {
-		e.nameId = prev.nameId
+		e.nameId = prevInLine.nameId
 	}
-	b.prevInLine = e
+	*prevInLine = e
+	return data
 }
 
 // Java: SourceMapConsumerV3.MappingBuilder.getLineStart(int)

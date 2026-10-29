@@ -121,11 +121,12 @@ func NewInlineFunctions(
 	// aware of these new calls in order to enable it.
 
 	f.functionArgumentInjector = NewFunctionArgumentInjector(compiler.GetAstAnalyzer())
-	f.injector = NewFunctionInjector_Builder(compiler).
-		SafeNameIdSupplier(safeNameIdSupplier).
-		AssumeStrictThis(assumeStrictThis).
-		FunctionArgumentInjector(f.functionArgumentInjector).
-		Build()
+	f.injector = NewFunctionInjector(compiler, FunctionInjectorOptions{
+		SafeNameIdSupplier:       safeNameIdSupplier,
+		AssumeStrictThis:         assumeStrictThis,
+		AllowDecomposition:       true,
+		FunctionArgumentInjector: f.functionArgumentInjector,
+	})
 	f.injector.mutator.onMovedArg = func(arg rhino.Node) {
 		if f.runState != nil {
 			if f.runState.movedArgs == nil {
@@ -168,7 +169,7 @@ func functionStateAliasCount(fs *InlineFunctions_FunctionState) int {
 	if fs.summary != nil {
 		return int(fs.summary.numModified)
 	}
-	return fs.namesToAliasIDs.size()
+	return int(fs.aliasCount)
 }
 
 func (f *InlineFunctions) allocReference(callNode rhino.Node, scope *Scope, chunk *JSChunk, mode FunctionInjector_InliningMode) *FunctionInjector_Reference {
@@ -472,16 +473,15 @@ func (c *InlineFunctions_FindCandidateFunctions) visitWalkNode(n, parent rhino.N
 type inlineCandidateAnalysis struct {
 	target              inlineFnTarget
 	chunk               *JSChunk
-	namesToAliasIDs     []uint32
 	summary             *calleeSummary
 	disallowReasons     [5]InlineFunctions_DisallowInliningReason
 	bodyAstSize         int32
+	aliasCount          int32
 	disallowCount       uint8
 	disallowBeforeSetFn bool
 	inlineDirectly      bool
 	referencesThis      bool
 	hasInnerClosures    bool
-	hasModifiedParams   bool
 }
 
 func (a *inlineCandidateAnalysis) addDisallow(reason InlineFunctions_DisallowInliningReason) {
@@ -496,7 +496,6 @@ func (a *inlineCandidateAnalysis) canInline() bool {
 func (a *inlineCandidateAnalysis) applyTo(
 	f *InlineFunctions,
 	fs *InlineFunctions_FunctionState,
-	scratchModified *inlineIDSet,
 ) {
 	if fs.HasExistingFunctionDefinition() {
 		fs.DisallowInlining(f.compiler, InlineFunctions_DisallowInliningReason_MULTIPLE_FUNCTION_DEFINITIONS)
@@ -520,13 +519,7 @@ func (a *inlineCandidateAnalysis) applyTo(
 		return
 	}
 	fs.SetChunk(a.chunk)
-	if a.hasModifiedParams {
-		if scratchModified != nil {
-			fs.setNamesToAliasIDs(scratchModified)
-		} else {
-			fs.setNamesToAliasIDSlice(a.namesToAliasIDs)
-		}
-	}
+	fs.aliasCount = a.aliasCount
 	if a.referencesThis {
 		fs.SetReferencesThis(true)
 	}
@@ -544,8 +537,6 @@ type inlineCandidateScratch struct {
 	lastCheckedBlock              rhino.Node
 	lastCheckedBlockHasLetOrConst bool
 	scratchSummary                calleeSummary
-	scratchParamIDs               inlineIDSet
-	scratchModifiedIDs            inlineIDSet
 }
 
 func (s *inlineCandidateScratch) blockHasLetOrConst(block rhino.Node) bool {
@@ -558,17 +549,15 @@ func (s *inlineCandidateScratch) blockHasLetOrConst(block rhino.Node) bool {
 	return res
 }
 
-func (s *inlineCandidateScratch) checkCandidateAndScanSummary(f *InlineFunctions, target inlineFnTarget) (bool, bool) {
+func (s *inlineCandidateScratch) checkCandidateAndScanSummary(f *InlineFunctions, target inlineFnTarget) bool {
 	if target.kind != fnKindExpr {
 		conv := f.compiler.GetCodingConvention()
 		if conv.IsExported(target.name) || (!target.nameNode.IsNil() && conv.IsPropertyRenameFunction(target.nameNode)) {
-			return false, false
+			return false
 		}
 	}
-	if scanCalleeSummary(target.name, target.fnNode, &s.scratchSummary) {
-		return !s.scratchSummary.blocksMinReqs, true
-	}
-	return f.injector.DoesFunctionMeetMinimumRequirements(target.name, target.fnNode), false
+	scanCalleeSummary(target.name, target.fnNode, &s.scratchSummary)
+	return !s.scratchSummary.blocksMinReqs
 }
 
 func (s *inlineCandidateScratch) analyzeCandidate(
@@ -616,11 +605,8 @@ func (s *inlineCandidateScratch) analyzeCandidate(
 		}
 	}
 
-	summaryValid := false
 	if res.canInline() || debugLogging {
-		candOk, sv := s.checkCandidateAndScanSummary(f, target)
-		summaryValid = sv
-		if !candOk {
+		if !s.checkCandidateAndScanSummary(f, target) {
 			res.addDisallow(InlineFunctions_DisallowInliningReason_NOT_CANDIDATE_FUNCTION)
 			if !debugLogging {
 				return res
@@ -629,47 +615,23 @@ func (s *inlineCandidateScratch) analyzeCandidate(
 	}
 
 	if res.canInline() {
-		if summaryValid {
-			sum := &s.scratchSummary
-			if sum.numModified > 0 {
-				res.inlineDirectly = false
-			}
-			res.referencesThis = sum.referencesThis
-			if sum.hasInnerClosures {
-				res.hasInnerClosures = true
-				if sum.numParams > 0 || sum.hasShallowDeclarations {
-					res.addDisallow(InlineFunctions_DisallowInliningReason_HAS_LOCAL_NAMES)
-					if !debugLogging {
-						return res
-					}
+		sum := &s.scratchSummary
+		res.aliasCount = int32(sum.numModified)
+		if sum.numModified > 0 {
+			res.inlineDirectly = false
+		}
+		res.referencesThis = sum.referencesThis
+		if sum.hasInnerClosures {
+			res.hasInnerClosures = true
+			if sum.numParams > 0 || sum.hasShallowDeclarations {
+				res.addDisallow(InlineFunctions_DisallowInliningReason_HAS_LOCAL_NAMES)
+				if !debugLogging {
+					return res
 				}
 			}
-			if res.canInline() && f.enforceMaxSizeAfterInlining && !InlineFunctions_IsAlwaysInlinable(fnNode) {
-				res.bodyAstSize = int32(min(int(sum.bodyAstSize), f.maxSizeAfterInlining))
-			}
-		} else {
-			f.functionArgumentInjector.findModifiedParametersByIDInto(fnNode, &s.scratchParamIDs, &s.scratchModifiedIDs)
-			if !s.scratchModifiedIDs.isEmpty() {
-				res.inlineDirectly = false
-				res.hasModifiedParams = true
-				if parallel {
-					res.namesToAliasIDs = slices.Clone(s.scratchModifiedIDs.items)
-				}
-			}
-			body := fn.Body().Node()
-			res.referencesThis = NodeUtil_ReferencesEnclosingReceiver(body)
-			if NodeUtil_Has(body, NodeUtil_IsFunctionOrNonStaticClassFieldInitializer, inlineFunctions_alwaysTrue) {
-				res.hasInnerClosures = true
-				if InlineFunctions_HasLocalNames(fnNode) {
-					res.addDisallow(InlineFunctions_DisallowInliningReason_HAS_LOCAL_NAMES)
-					if !debugLogging {
-						return res
-					}
-				}
-			}
-			if parallel && res.canInline() && f.enforceMaxSizeAfterInlining && !InlineFunctions_IsAlwaysInlinable(fnNode) {
-				res.bodyAstSize = int32(NodeUtil_CountAstSizeUpToLimit(body, f.maxSizeAfterInlining))
-			}
+		}
+		if res.canInline() && f.enforceMaxSizeAfterInlining && !InlineFunctions_IsAlwaysInlinable(fnNode) {
+			res.bodyAstSize = int32(min(int(sum.bodyAstSize), f.maxSizeAfterInlining))
 		}
 	}
 
@@ -693,7 +655,7 @@ func (s *inlineCandidateScratch) analyzeCandidate(
 		}
 	}
 
-	if summaryValid && res.canInline() {
+	if res.canInline() && s.scratchSummary.paramsPositional {
 		sumCopy := s.scratchSummary
 		res.summary = &sumCopy
 	}
@@ -741,10 +703,8 @@ func (f *InlineFunctions) UpdateFunctionStateForInlining(
 	}
 	analysis := f.candScratch.analyzeCandidate(
 		f, target, chunk, f.compiler.IsDebugLoggingEnabled(), false)
-	analysis.applyTo(f, functionState, &f.candScratch.scratchModifiedIDs)
+	analysis.applyTo(f, functionState)
 }
-
-func inlineFunctions_alwaysTrue(rhino.Node) bool { return true }
 
 // Java: InlineFunctions.hasNoInlineAnnotation(Node)
 func (f *InlineFunctions) HasNoInlineAnnotation(fnNode rhino.Node) bool {
@@ -774,14 +734,4 @@ func inlineFunctions_hasLetOrConst(n rhino.Node) bool {
 		}
 	}
 	return false
-}
-
-// InlineFunctions_HasLocalNames: fnNode is the function to inspect. Returns
-// whether the function has parameters, var/const/let, class, or function
-// declarations.
-//
-// Java: InlineFunctions.hasLocalNames(Node)
-func InlineFunctions_HasLocalNames(fnNode rhino.Node) bool {
-	fn := ast.MustFunction(fnNode)
-	return fn.Params().HasParams() || functionInjector_hasShallowDeclaration(fn.Body().Node())
 }

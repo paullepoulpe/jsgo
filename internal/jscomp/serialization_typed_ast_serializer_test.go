@@ -193,7 +193,7 @@ func (c *TypedAstSerializerTest) TestIgnoresIjsFilesInExternAst() {
 		externNames = append(externNames,
 			c.testResult.
 				GetSourceFilePool().
-				GetSourceFile(int(lazyAst.GetSourceFile()-1)).
+				GetSourceFileList()[lazyAst.GetSourceFile()-1].
 				GetFilename())
 	}
 	AssertThat(externNames).Contains("regular_externs.js")
@@ -214,7 +214,7 @@ func (c *TypedAstSerializerTest) TestIgnoresIjsFilesInCodeAst() {
 		codeNames = append(codeNames,
 			c.testResult.
 				GetSourceFilePool().
-				GetSourceFile(int(lazyAst.GetSourceFile()-1)).
+				GetSourceFileList()[lazyAst.GetSourceFile()-1].
 				GetFilename())
 	}
 	AssertThat(codeNames).Contains("src.js")
@@ -262,7 +262,7 @@ func (t *typedAstSerializerTest_Tester) test(code string) {
 
 	stringPoolOffsets := jutil.NewLinkedHashMap[string, int]()
 	stringPool := StringPool_FromProto(c.testResult.GetStringPool())
-	for i := 0; i < c.testResult.GetStringPool().GetStringsCount(); i++ {
+	for i := 0; i < len(c.testResult.GetStringPool().GetStringsList()); i++ {
 		stringPoolOffsets.Put(stringPool.Get(i), i)
 	}
 	var expectedTypes []*TypeProto

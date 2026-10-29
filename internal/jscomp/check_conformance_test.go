@@ -24,6 +24,7 @@ import (
 	"testing"
 
 	"github.com/paullepoulpe/jsgo/internal/jutil"
+	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
 
 // CheckConformanceTest tests for CheckConformance.
@@ -3119,9 +3120,9 @@ func (c *CheckConformanceTest) TestMergeRequirementsWhitelist() {
 		/* isLibraryLevelConformanceReportingMode= */ false)
 	AssertThat(requirements).HasSize(1)
 	requirement := requirements[0]
-	AssertThat(requirement.GetWhitelistCount()).IsEqualTo(2)
-	AssertThat(requirement.GetWhitelistRegexpCount()).IsEqualTo(2)
-	AssertThat(requirement.GetWhitelistEntryCount()).IsEqualTo(2)
+	AssertThat(len(requirement.GetWhitelistList())).IsEqualTo(2)
+	AssertThat(len(requirement.GetWhitelistRegexpList())).IsEqualTo(2)
+	AssertThat(len(requirement.GetWhitelistEntryList())).IsEqualTo(2)
 }
 
 // Java: CheckConformanceTest.testMergeRequirementsAllowlist()
@@ -3149,9 +3150,9 @@ func (c *CheckConformanceTest) TestMergeRequirementsAllowlist() {
 		/* isLibraryLevelConformanceReportingMode= */ false)
 	AssertThat(requirements).HasSize(1)
 	requirement := requirements[0]
-	AssertThat(requirement.GetAllowlistCount()).IsEqualTo(2)
-	AssertThat(requirement.GetAllowlistRegexpCount()).IsEqualTo(2)
-	AssertThat(requirement.GetAllowlistEntryCount()).IsEqualTo(2)
+	AssertThat(len(requirement.GetAllowlistList())).IsEqualTo(2)
+	AssertThat(len(requirement.GetAllowlistRegexpList())).IsEqualTo(2)
+	AssertThat(len(requirement.GetAllowlistEntryList())).IsEqualTo(2)
 }
 
 // Java: CheckConformanceTest.testMergeRequirementsWhitelist_findsDuplicates()
@@ -3167,7 +3168,7 @@ func (c *CheckConformanceTest) TestMergeRequirementsWhitelist_findsDuplicates() 
 		compiler,
 		[]*ConformanceConfig{config},
 		/* isLibraryLevelConformanceReportingMode= */ false)
-	AssertThat(requirements[0].GetWhitelistCount()).IsEqualTo(1)
+	AssertThat(len(requirements[0].GetWhitelistList())).IsEqualTo(1)
 	AssertThat(errorManager.GetErrorCount()).IsEqualTo(0)
 }
 
@@ -3184,7 +3185,7 @@ func (c *CheckConformanceTest) TestMergeRequirementsAllowlist_findsDuplicates() 
 		compiler,
 		[]*ConformanceConfig{config},
 		/* isLibraryLevelConformanceReportingMode= */ false)
-	AssertThat(requirements[0].GetAllowlistCount()).IsEqualTo(1)
+	AssertThat(len(requirements[0].GetAllowlistList())).IsEqualTo(1)
 	AssertThat(errorManager.GetErrorCount()).IsEqualTo(0)
 }
 
@@ -4047,4 +4048,40 @@ func (c *CheckConformanceTest) TestAllCustomRulesRegistered() {
 			panic(e)
 		}
 	}
+}
+
+func (c *CheckConformanceTest) TestReportSourcelessNodeWithOnlyApplyTo() {
+	compiler := c.CreateCompiler()
+	compiler.InitOptions(NewCompilerOptions())
+	reqWithOnlyApplyTo := Requirement_NewBuilder().
+		SetType(Requirement_Type_BANNED_NAME).
+		SetErrorMessage("eval is banned").
+		AddValue("eval").
+		AddOnlyApplyTo("foo/").
+		Build()
+	ruleWithOnlyApplyTo, err := newConformanceRules_BannedName(compiler, reqWithOnlyApplyTo)
+	if err != nil {
+		panic(err)
+	}
+	sourcelessNode := rhino.IR_Name("eval")
+	ruleWithOnlyApplyTo.Report(
+		sourcelessNode,
+		ConformanceRules_ConformanceResult_VIOLATION,
+		ConformanceConfig_LibraryLevelNonAllowlistedConformanceViolationsBehavior_UNSPECIFIED)
+	AssertThat(compiler.GetErrorManager().GetWarningCount()).IsEqualTo(0)
+
+	reqUnscoped := Requirement_NewBuilder().
+		SetType(Requirement_Type_BANNED_NAME).
+		SetErrorMessage("eval is banned").
+		AddValue("eval").
+		Build()
+	ruleUnscoped, err := newConformanceRules_BannedName(compiler, reqUnscoped)
+	if err != nil {
+		panic(err)
+	}
+	ruleUnscoped.Report(
+		sourcelessNode,
+		ConformanceRules_ConformanceResult_VIOLATION,
+		ConformanceConfig_LibraryLevelNonAllowlistedConformanceViolationsBehavior_UNSPECIFIED)
+	AssertThat(compiler.GetErrorManager().GetWarningCount()).IsEqualTo(1)
 }

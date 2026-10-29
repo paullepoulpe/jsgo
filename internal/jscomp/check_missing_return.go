@@ -19,7 +19,6 @@
 package jscomp
 
 import (
-	"github.com/paullepoulpe/jsgo/internal/ast"
 	"github.com/paullepoulpe/jsgo/internal/base"
 	"github.com/paullepoulpe/jsgo/internal/graph"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
@@ -81,11 +80,6 @@ func NewCheckMissingReturn(compiler AbstractCompiler) *CheckMissingReturn {
 	return c
 }
 
-var checkMissingReturnVisitTokens ast.TokenSet
-
-var _ nodeTraversal_visitTokens = (*CheckMissingReturn)(nil)
-
-func (*CheckMissingReturn) visitTokens() *ast.TokenSet { return &checkMissingReturnVisitTokens }
 func (*CheckMissingReturn) cloneForParallel(c *Compiler) NodeTraversal_Callback {
 	return NewCheckMissingReturn(c)
 }

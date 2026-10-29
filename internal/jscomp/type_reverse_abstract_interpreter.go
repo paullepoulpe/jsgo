@@ -38,7 +38,6 @@ package jscomp
 
 import (
 	"github.com/paullepoulpe/jsgo/internal/ast"
-	"github.com/paullepoulpe/jsgo/internal/base"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 	"github.com/paullepoulpe/jsgo/internal/strpool"
@@ -69,10 +68,6 @@ type ReverseAbstractInterpreter = *SemanticReverseAbstractInterpreter
 // caller compatibility without linked-list interface indirection.
 type ChainableReverseAbstractInterpreter = *SemanticReverseAbstractInterpreter
 
-// ClosureReverseAbstractInterpreter aliases SemanticReverseAbstractInterpreter
-// configured in Closure narrowing mode.
-type ClosureReverseAbstractInterpreter = SemanticReverseAbstractInterpreter
-
 // SemanticReverseAbstractInterpreter is the unified concrete reverse abstract
 // interpreter supporting semantic JS narrowing, Closure-specific narrowing
 // (goog.isObject), and chained combinations of both without dynamic dispatch.
@@ -97,7 +92,7 @@ func NewSemanticReverseAbstractInterpreter(typeRegistry *rhino.JSTypeRegistry) *
 // for Closure patterns such as goog.isObject.
 //
 // Java: ClosureReverseAbstractInterpreter(JSTypeRegistry)
-func NewClosureReverseAbstractInterpreter(typeRegistry *rhino.JSTypeRegistry) *ClosureReverseAbstractInterpreter {
+func NewClosureReverseAbstractInterpreter(typeRegistry *rhino.JSTypeRegistry) *SemanticReverseAbstractInterpreter {
 	return &SemanticReverseAbstractInterpreter{
 		typeRegistry: typeRegistry,
 		mode:         raiModeClosure,
@@ -211,11 +206,11 @@ func (s *SemanticReverseAbstractInterpreter) restrictIsObject(
 // Java: ClosureReverseAbstractInterpreter.restrictToObjectVisitor
 func (s *SemanticReverseAbstractInterpreter) restrictToObject(t rhino.JSType) rhino.JSType {
 	switch x := t.(type) {
-	case *rhino.NoObjectType:
-		if x.IsNoType() {
-			return x
+	case *rhino.FunctionTypeBase:
+		if x.IsNoObjectType() {
+			return nil
 		}
-		return nil
+		return t
 	case *rhino.AllType, *rhino.UnknownType:
 		return s.GetNativeType(rhino.JSTypeNative_NO_OBJECT_TYPE)
 	case *rhino.EnumElementType:
@@ -241,7 +236,7 @@ func (s *SemanticReverseAbstractInterpreter) restrictToObject(t rhino.JSType) rh
 		return s.restrictToObject(x.GetReferencedTypeInternal())
 	case *rhino.ProxyObjectTypeBase:
 		return s.restrictToObject(x.GetReferencedTypeInternal())
-	case *rhino.FunctionTypeBase, *rhino.InstanceObjectType, *rhino.PrototypeObjectTypeBase,
+	case *rhino.InstanceObjectType, *rhino.PrototypeObjectTypeBase,
 		*rhino.RecordType, *rhino.EnumType, *rhino.NoResolvedType, *rhino.TemplatizedType, *rhino.TemplateType:
 		return t
 	case *rhino.BooleanType, *rhino.NullType,
@@ -249,9 +244,6 @@ func (s *SemanticReverseAbstractInterpreter) restrictToObject(t rhino.JSType) rh
 		*rhino.SymbolTypeBase, *rhino.KnownSymbolType, *rhino.VoidType:
 		return nil
 	default:
-		if _, ok := t.(rhino.FunctionType); ok {
-			return t
-		}
 		if proxy, ok := t.(rhino.ProxyObjectType); ok {
 			return s.restrictToObject(proxy.GetReferencedTypeInternal())
 		}
@@ -267,11 +259,14 @@ func (s *SemanticReverseAbstractInterpreter) restrictToObject(t rhino.JSType) rh
 // Java: ClosureReverseAbstractInterpreter.restrictToNotObjectVisitor
 func (s *SemanticReverseAbstractInterpreter) restrictToNotObject(t rhino.JSType) rhino.JSType {
 	switch x := t.(type) {
-	case *rhino.NoObjectType:
+	case *rhino.FunctionTypeBase:
 		if x.IsNoType() {
 			return x
 		}
-		return s.GetNativeType(rhino.JSTypeNative_NO_OBJECT_TYPE)
+		if x.IsNoObjectType() {
+			return s.GetNativeType(rhino.JSTypeNative_NO_OBJECT_TYPE)
+		}
+		return nil
 	case *rhino.AllType:
 		return s.GetNativeType(rhino.JSTypeNative_ALL_TYPE)
 	case *rhino.UnknownType:
@@ -290,7 +285,7 @@ func (s *SemanticReverseAbstractInterpreter) restrictToNotObject(t rhino.JSType)
 		return s.GetNativeType(rhino.JSTypeNative_VOID_TYPE)
 	case *rhino.SymbolTypeBase, *rhino.KnownSymbolType:
 		return t
-	case *rhino.FunctionTypeBase, *rhino.InstanceObjectType, *rhino.PrototypeObjectTypeBase,
+	case *rhino.InstanceObjectType, *rhino.PrototypeObjectTypeBase,
 		*rhino.RecordType, *rhino.EnumType, *rhino.NoResolvedType, *rhino.TemplatizedType, *rhino.TemplateType:
 		return nil
 	case *rhino.EnumElementType:
@@ -317,9 +312,6 @@ func (s *SemanticReverseAbstractInterpreter) restrictToNotObject(t rhino.JSType)
 	case *rhino.ProxyObjectTypeBase:
 		return s.restrictToNotObject(x.GetReferencedTypeInternal())
 	default:
-		if _, ok := t.(rhino.FunctionType); ok {
-			return nil
-		}
 		if proxy, ok := t.(rhino.ProxyObjectType); ok {
 			return s.restrictToNotObject(proxy.GetReferencedTypeInternal())
 		}
@@ -421,12 +413,18 @@ func (s *SemanticReverseAbstractInterpreter) GetRestrictedByTypeOfResult(
 func (s *SemanticReverseAbstractInterpreter) restrictByOneTypeOf(
 	t rhino.JSType, value string, resultEqualsValue bool) rhino.JSType {
 	switch x := t.(type) {
-	case *rhino.NoObjectType:
+	case *rhino.FunctionTypeBase:
 		if x.IsNoType() {
 			return x
 		}
-		if (value == "object" || value == "function") == resultEqualsValue {
-			return s.GetNativeType(rhino.JSTypeNative_NO_OBJECT_TYPE)
+		if x.IsNoObjectType() {
+			if (value == "object" || value == "function") == resultEqualsValue {
+				return s.GetNativeType(rhino.JSTypeNative_NO_OBJECT_TYPE)
+			}
+			return nil
+		}
+		if (value == "function") == resultEqualsValue {
+			return x
 		}
 		return nil
 	case *rhino.EnumElementType:
@@ -443,11 +441,6 @@ func (s *SemanticReverseAbstractInterpreter) restrictByOneTypeOf(
 	case *rhino.BooleanType:
 		if (value == "boolean") == resultEqualsValue {
 			return s.GetNativeType(rhino.JSTypeNative_BOOLEAN_TYPE)
-		}
-		return nil
-	case *rhino.FunctionTypeBase:
-		if (value == "function") == resultEqualsValue {
-			return x
 		}
 		return nil
 	case *rhino.InstanceObjectType, *rhino.PrototypeObjectTypeBase, *rhino.RecordType,
@@ -500,12 +493,6 @@ func (s *SemanticReverseAbstractInterpreter) restrictByOneTypeOf(
 		}
 		return restricted
 	default:
-		if fn, ok := t.(rhino.FunctionType); ok {
-			if (value == "function") == resultEqualsValue {
-				return fn
-			}
-			return nil
-		}
 		if proxy, ok := t.(rhino.ProxyObjectType); ok {
 			return s.restrictByOneTypeOf(proxy.GetReferencedTypeInternal(), value, resultEqualsValue)
 		}
@@ -585,7 +572,7 @@ func (s *SemanticReverseAbstractInterpreter) GetNativeTypeForTypeOf(value string
 // Java: ChainableReverseAbstractInterpreter.restrictToArrayVisitor
 func (s *SemanticReverseAbstractInterpreter) restrictToArray(t rhino.JSType) rhino.JSType {
 	switch x := t.(type) {
-	case *rhino.NoObjectType:
+	case *rhino.FunctionTypeBase:
 		if x.IsNoType() {
 			return x
 		}
@@ -624,14 +611,11 @@ func (s *SemanticReverseAbstractInterpreter) restrictToArray(t rhino.JSType) rhi
 			return arrayType
 		}
 		return nil
-	case *rhino.BooleanType, *rhino.FunctionTypeBase,
+	case *rhino.BooleanType,
 		*rhino.NullType, *rhino.NumberType, *rhino.BigIntType, *rhino.StringType,
 		*rhino.SymbolTypeBase, *rhino.KnownSymbolType, *rhino.VoidType:
 		return nil
 	default:
-		if _, ok := t.(rhino.FunctionType); ok {
-			return nil
-		}
 		if proxy, ok := t.(rhino.ProxyObjectType); ok {
 			return s.restrictToArray(proxy.GetReferencedTypeInternal())
 		}
@@ -651,11 +635,11 @@ func (s *SemanticReverseAbstractInterpreter) restrictToArray(t rhino.JSType) rhi
 // Java: ChainableReverseAbstractInterpreter.restrictToNotArrayVisitor
 func (s *SemanticReverseAbstractInterpreter) restrictToNotArray(t rhino.JSType) rhino.JSType {
 	switch x := t.(type) {
-	case *rhino.NoObjectType:
-		if x.IsNoType() {
-			return x
+	case *rhino.FunctionTypeBase:
+		if x.IsNoObjectType() {
+			return s.GetNativeType(rhino.JSTypeNative_NO_OBJECT_TYPE)
 		}
-		return s.GetNativeType(rhino.JSTypeNative_NO_OBJECT_TYPE)
+		return t
 	case *rhino.AllType:
 		return s.GetNativeType(rhino.JSTypeNative_ALL_TYPE)
 	case *rhino.UnknownType:
@@ -672,7 +656,7 @@ func (s *SemanticReverseAbstractInterpreter) restrictToNotArray(t rhino.JSType) 
 		return s.GetNativeType(rhino.JSTypeNative_STRING_TYPE)
 	case *rhino.VoidType:
 		return s.GetNativeType(rhino.JSTypeNative_VOID_TYPE)
-	case *rhino.FunctionTypeBase, *rhino.SymbolTypeBase, *rhino.KnownSymbolType:
+	case *rhino.SymbolTypeBase, *rhino.KnownSymbolType:
 		return t
 	case *rhino.EnumElementType:
 		prim := x.GetPrimitiveType()
@@ -704,9 +688,6 @@ func (s *SemanticReverseAbstractInterpreter) restrictToNotArray(t rhino.JSType) 
 		}
 		return t
 	default:
-		if _, ok := t.(rhino.FunctionType); ok {
-			return t
-		}
 		if proxy, ok := t.(rhino.ProxyObjectType); ok {
 			return s.restrictToNotArray(proxy.GetReferencedTypeInternal())
 		}
@@ -718,80 +699,4 @@ func (s *SemanticReverseAbstractInterpreter) restrictToNotArray(t rhino.JSType) 
 		}
 		panic(jutil.NewUnsupportedOperationException())
 	}
-}
-
-// Outcome is an enum for representing boolean outcomes. Currently they just
-// represent typical booleans but this enum will be expanded to specifically
-// differentiate between falsy and explicitly nullish values. e.g. 0 is falsy
-// but not nullish.
-type Outcome int32
-
-const (
-	// Outcome_TRUE represents truthy values. For example: {}, true, 1, etc.
-	Outcome_TRUE Outcome = iota
-	// Outcome_FALSE represents falsy values. For examples: '', 0, false,
-	// null, etc.
-	Outcome_FALSE
-)
-
-var outcome_names = [...]string{"TRUE", "FALSE"}
-
-// Outcome_values is Outcome.values().
-func Outcome_values() []Outcome { return []Outcome{Outcome_TRUE, Outcome_FALSE} }
-
-// Name is Enum.name().
-func (o Outcome) Name() string { return outcome_names[o] }
-
-// String is Enum.toString().
-func (o Outcome) String() string { return o.Name() }
-
-// Ordinal is Enum.ordinal().
-func (o Outcome) Ordinal() int { return int(o) }
-
-// IsTruthy determines whether an Outcome enum value is truthy.
-//
-// Java: Outcome.isTruthy()
-func (o Outcome) IsTruthy() bool {
-	switch o {
-	case Outcome_TRUE:
-		return true
-	default: // FALSE
-		return false
-	}
-}
-
-// IsNullish determines whether an Outcome enum value is nullish. Using Tri
-// instead of a boolean because 0 is Outcome.FALSE but not nullish so
-// sometimes it is unclear.
-//
-// Java: Outcome.isNullish()
-func (o Outcome) IsNullish() base.Tri {
-	switch o {
-	case Outcome_TRUE:
-		return base.Tri_FALSE
-	default: // FALSE
-		return base.Tri_UNKNOWN
-	}
-}
-
-// Not gets the not of this.
-//
-// Java: Outcome.not()
-func (o Outcome) Not() Outcome {
-	switch o {
-	case Outcome_TRUE:
-		return Outcome_FALSE
-	default: // FALSE
-		return Outcome_TRUE
-	}
-}
-
-// Outcome_ForBoolean gets the Outcome for the given boolean.
-//
-// Java: Outcome.forBoolean(boolean)
-func Outcome_ForBoolean(val bool) Outcome {
-	if val {
-		return Outcome_TRUE
-	}
-	return Outcome_FALSE
 }

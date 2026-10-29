@@ -1,5 +1,4 @@
 // Port of com/google/javascript/jscomp/AstAnalyzer.java @ closure-compiler v20261021
-// Port of com/google/javascript/jscomp/AutoBuilder_AstAnalyzer_Options_Builder.java @ closure-compiler v20261021
 
 /*
  * Copyright 2019 The Closure Compiler Authors.
@@ -175,47 +174,6 @@ type AstAnalyzer_Options struct {
 	assumeGettersArePure         bool
 	hasRegexpGlobalReferences    bool
 	assumeKnownBuiltinsArePure   bool
-}
-
-// AstAnalyzer_Options_Builder builds AstAnalyzer_Options.
-type AstAnalyzer_Options_Builder = AstAnalyzer_Options
-
-// Java: AstAnalyzer.Options.builder()
-func AstAnalyzer_Options_Builder_() *AstAnalyzer_Options_Builder {
-	return &AstAnalyzer_Options{}
-}
-
-// Java: AutoBuilder_AstAnalyzer_Options_Builder.setUseTypesForLocalOptimization(boolean)
-func (b *AstAnalyzer_Options_Builder) SetUseTypesForLocalOptimization(
-	useTypesForLocalOptimization bool) *AstAnalyzer_Options_Builder {
-	b.useTypesForLocalOptimization = useTypesForLocalOptimization
-	return b
-}
-
-// Java: AutoBuilder_AstAnalyzer_Options_Builder.setAssumeGettersArePure(boolean)
-func (b *AstAnalyzer_Options_Builder) SetAssumeGettersArePure(
-	assumeGettersArePure bool) *AstAnalyzer_Options_Builder {
-	b.assumeGettersArePure = assumeGettersArePure
-	return b
-}
-
-// Java: AutoBuilder_AstAnalyzer_Options_Builder.setHasRegexpGlobalReferences(boolean)
-func (b *AstAnalyzer_Options_Builder) SetHasRegexpGlobalReferences(
-	hasRegexpGlobalReferences bool) *AstAnalyzer_Options_Builder {
-	b.hasRegexpGlobalReferences = hasRegexpGlobalReferences
-	return b
-}
-
-// Java: AutoBuilder_AstAnalyzer_Options_Builder.setAssumeKnownBuiltinsArePure(boolean)
-func (b *AstAnalyzer_Options_Builder) SetAssumeKnownBuiltinsArePure(
-	assumeKnownBuiltinsArePure bool) *AstAnalyzer_Options_Builder {
-	b.assumeKnownBuiltinsArePure = assumeKnownBuiltinsArePure
-	return b
-}
-
-// Java: AutoBuilder_AstAnalyzer_Options_Builder.build()
-func (b *AstAnalyzer_Options_Builder) Build() *AstAnalyzer_Options {
-	return b
 }
 
 // MayEffectMutableState returns true if the node may create new mutable

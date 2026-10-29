@@ -204,7 +204,7 @@ func TestDefaultNameGenerator_DeterministicNameGeneration(t *testing.T) {
 	reservedNames1 := jutil.NewLinkedHashSet("a", "b", "c")
 	reservedNames2 := jutil.NewLinkedHashSet("c", "b", "a")
 
-	ng1 = NewDefaultNameGeneratorWithReserved(reservedNames1, "", nil)
+	ng1 = NewDefaultNameGeneratorWithReservedChars(reservedNames1, "", ASCIICharSet{})
 	ng2 = NewDefaultNameGeneratorWithReservedChars(reservedNames2, "", ASCIICharSet{})
 
 	result1 = generateNames(t, ng1, "", 10)

@@ -595,11 +595,24 @@ func defaultPassConfig_combineChecks(c AbstractCompiler, callbacks []NodeTravers
 func createProcessDefines(mode ProcessDefines_Mode) *PassFactory {
 	return makePassFactory("processDefines_"+mode.String(), func(c AbstractCompiler) CompilerPass {
 		opts := c.GetOptions()
-		return NewProcessDefines_Builder(c).
-			PutReplacements(defaultPassConfig_getAdditionalReplacements(opts)).PutReplacements(opts.GetDefineReplacements()).
-			SetMode(mode).SetRecognizeClosureDefines(opts.GetClosurePass()).
-			SetEnableZonesDefineName(opts.GetEnableZonesDefineName()).SetZoneInputPattern(opts.GetZoneInputPattern()).
-			SetUnknownDefinesToIgnore(opts.GetUnknownDefinesToIgnore()).Build()
+		var replacements OrderedStringMap[rhino.Node]
+		if opts.ShouldMarkAsCompiled() || opts.GetClosurePass() {
+			replacements.Put(defaultPassConfig_COMPILED_CONSTANT_NAME, rhino.IR_TrueNode())
+		}
+		if opts.GetClosurePass() && opts.GetLocale() != nil && !opts.DoLateLocalization() {
+			replacements.Put(defaultPassConfig_CLOSURE_LOCALE_CONSTANT_NAME, rhino.IR_String(*opts.GetLocale()))
+		}
+		for _, e := range opts.defineReplacements.Entries() {
+			replacements.Put(e.Key, e.Value.toNode())
+		}
+		return NewProcessDefines(c, ProcessDefinesOptions{
+			Replacements:            replacements,
+			Mode:                    mode,
+			RecognizeClosureDefines: opts.GetClosurePass(),
+			EnableZonesDefineName:   opts.GetEnableZonesDefineName(),
+			ZoneInputPattern:        opts.GetZoneInputPattern(),
+			UnknownDefinesToIgnore:  opts.GetUnknownDefinesToIgnore(),
+		})
 	})
 }
 
@@ -633,15 +646,4 @@ func defaultPassConfig_runInSerial(passes []CompilerPass) CompilerPass {
 			pass.Process(externs, root)
 		}
 	})
-}
-
-func defaultPassConfig_getAdditionalReplacements(options *CompilerOptions) *jutil.LinkedHashMap[string, rhino.Node] {
-	additionalReplacements := jutil.NewLinkedHashMap[string, rhino.Node]()
-	if options.ShouldMarkAsCompiled() || options.GetClosurePass() {
-		additionalReplacements.Put(defaultPassConfig_COMPILED_CONSTANT_NAME, rhino.IR_TrueNode())
-	}
-	if options.GetClosurePass() && options.GetLocale() != nil && !options.DoLateLocalization() {
-		additionalReplacements.Put(defaultPassConfig_CLOSURE_LOCALE_CONSTANT_NAME, rhino.IR_String(*options.GetLocale()))
-	}
-	return additionalReplacements
 }

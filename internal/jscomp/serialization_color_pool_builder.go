@@ -433,7 +433,7 @@ func (b *ColorPool_Builder) reconcileObjectProtos(id colors.ColorId, entry color
 				prototypePointer := prototypeIds[i]
 				protos = appendUniquePoolColor(protos, b.LookupOrReconcileColor(shard.GetId(int(prototypePointer))), &protoByHash)
 			}
-			totalOwnProps += objProto.GetOwnPropertyCount()
+			totalOwnProps += len(objProto.GetOwnPropertyList())
 		}
 	}
 
@@ -486,9 +486,9 @@ func (b *ColorPool_Builder) reconcileObjectProtos(id colors.ColorId, entry color
 					shard = entry.extra[idx].shard
 					proto = entry.extra[idx].proto
 				}
-				objProto := proto.GetObject()
-				if objProto.GetOwnPropertyCount() == 1 {
-					prop := shard.stringPool.Get(int(objProto.GetOwnProperty(0)))
+				ownProps := proto.GetObject().GetOwnPropertyList()
+				if len(ownProps) == 1 {
+					prop := shard.stringPool.Get(int(ownProps[0]))
 					ownProperties = b.allocStringSlice(1)
 					ownProperties[0] = prop
 					break
@@ -513,10 +513,8 @@ func (b *ColorPool_Builder) reconcileObjectProtos(id colors.ColorId, entry color
 					shard = entry.extra[idx].shard
 					proto = entry.extra[idx].proto
 				}
-				objProto := proto.GetObject()
-				ownPropCount := objProto.GetOwnPropertyCount()
-				for i := 0; i < ownPropCount; i++ {
-					b.appendDedupProp(shard.stringPool.Get(int(objProto.GetOwnProperty(i))), useMap)
+				for _, p := range proto.GetObject().GetOwnPropertyList() {
+					b.appendDedupProp(shard.stringPool.Get(int(p)), useMap)
 				}
 			}
 			ownProperties = b.allocStringSlice(len(b.propScratch))
@@ -539,10 +537,8 @@ func (b *ColorPool_Builder) reconcileObjectProtos(id colors.ColorId, entry color
 					shard = entry.extra[idx].shard
 					proto = entry.extra[idx].proto
 				}
-				objProto := proto.GetObject()
-				ownPropCount := objProto.GetOwnPropertyCount()
-				for i := 0; i < ownPropCount; i++ {
-					b.appendDirectDedupProp(shard.stringPool.Get(int(objProto.GetOwnProperty(i))))
+				for _, p := range proto.GetObject().GetOwnPropertyList() {
+					b.appendDirectDedupProp(shard.stringPool.Get(int(p)))
 				}
 			}
 		}

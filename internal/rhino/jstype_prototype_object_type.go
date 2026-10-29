@@ -226,8 +226,6 @@ func prototypeObjectTypeBaseOf(t JSType) *PrototypeObjectTypeBase {
 		return &x.PrototypeObjectTypeBase
 	case *FunctionTypeBase:
 		return &x.PrototypeObjectTypeBase
-	case *NoObjectType:
-		return &x.PrototypeObjectTypeBase
 	case *RecordType:
 		return &x.PrototypeObjectTypeBase
 	case *EnumType:
@@ -542,19 +540,12 @@ func (p *PrototypeObjectTypeBase) IsNativeObjectType() bool {
 // Java: PrototypeObjectType.setOwnerFunction(FunctionType)
 func (p *PrototypeObjectTypeBase) SetOwnerFunction(type_ FunctionType) {
 	jutil.CheckState(p.ownerFunction == nil || type_ == nil)
-	if type_ == nil {
-		p.ownerFunction = nil
-	} else {
-		p.ownerFunction = type_.GetFunctionTypeBase()
-	}
+	p.ownerFunction = type_
 }
 
 // Java: PrototypeObjectType.getOwnerFunction()
 func (p *PrototypeObjectTypeBase) GetOwnerFunction() FunctionType {
-	if p.ownerFunction == nil {
-		return nil
-	}
-	return p.ownerFunction.selfFunc()
+	return p.ownerFunction
 }
 
 // Java: PrototypeObjectType.getCtorImplementedInterfaces()

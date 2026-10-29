@@ -56,7 +56,7 @@ func TestToStringMatchesJava(t *testing.T) {
 		t.Errorf("StringLiteralToken.String")
 	}
 	var tree ParseTree = NewParenExpressionTree(r, NewArrayPatternTree(r, []ParseTree{}))
-	if !tree.IsPattern() || !tree.IsValidAssignmentTarget() || tree.IsValidNonVanillaAssignmentTarget() {
+	if !IsPattern(tree) || !IsValidAssignmentTarget(tree) || IsValidNonVanillaAssignmentTarget(tree) {
 		t.Errorf("paren-wrapped pattern predicates")
 	}
 	threw := false

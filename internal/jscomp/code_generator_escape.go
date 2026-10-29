@@ -62,40 +62,41 @@ var codeGenerator_templateSafeASCII = func() [256]bool {
 }()
 
 // escBuf buffers escaped output on the stack before flushing chunks to
-// either a *CodeConsumer or a *strings.Builder, keeping zero pointers in the
-// struct so Go's escape analysis never spills it to the heap.
+// either a *CodeConsumer or a *strings.Builder.
 type escBuf struct {
+	cc      *CodeConsumer
+	sb      *strings.Builder
 	buf     [128]byte
 	n       int
 	isASCII bool
 }
 
-func (b *escBuf) flush(cc *CodeConsumer, sb *strings.Builder) {
+func (b *escBuf) flush() {
 	if b.n == 0 {
 		return
 	}
-	if cc != nil {
-		cc.appendContinuationChunk(b.buf[:b.n], b.isASCII)
+	if b.cc != nil {
+		b.cc.appendContinuationChunk(b.buf[:b.n], b.isASCII)
 	} else {
-		sb.Write(b.buf[:b.n])
+		b.sb.Write(b.buf[:b.n])
 	}
 	b.n = 0
 	b.isASCII = true
 }
 
-func (b *escBuf) writeByte(cc *CodeConsumer, sb *strings.Builder, ch byte) {
+func (b *escBuf) writeByte(ch byte) {
 	if b.n == len(b.buf) {
-		b.flush(cc, sb)
+		b.flush()
 	}
 	b.buf[b.n] = ch
 	b.n++
 }
 
-func (b *escBuf) writeASCII(cc *CodeConsumer, sb *strings.Builder, s string) {
+func (b *escBuf) writeASCII(s string) {
 	for len(s) > 0 {
 		avail := len(b.buf) - b.n
 		if avail == 0 {
-			b.flush(cc, sb)
+			b.flush()
 			avail = len(b.buf)
 		}
 		if len(s) <= avail {
@@ -106,22 +107,22 @@ func (b *escBuf) writeASCII(cc *CodeConsumer, sb *strings.Builder, s string) {
 		copy(b.buf[b.n:], s[:avail])
 		b.n += avail
 		s = s[avail:]
-		b.flush(cc, sb)
+		b.flush()
 	}
 }
 
-func (b *escBuf) writeEscapeParam(cc *CodeConsumer, sb *strings.Builder, s string) {
-	if cc != nil || jutil.IsASCII(s) {
-		b.writeASCII(cc, sb, s)
+func (b *escBuf) writeEscapeParam(s string) {
+	if b.cc != nil || jutil.IsASCII(s) {
+		b.writeASCII(s)
 		return
 	}
-	b.flush(cc, sb)
-	sb.WriteString(s)
+	b.flush()
+	b.sb.WriteString(s)
 }
 
-func (b *escBuf) writeHexJS(cc *CodeConsumer, sb *strings.Builder, c uint16) {
+func (b *escBuf) writeHexJS(c uint16) {
 	if b.n+6 > len(b.buf) {
-		b.flush(cc, sb)
+		b.flush()
 	}
 	dst := b.buf[b.n : b.n+6]
 	dst[0] = '\\'
@@ -133,13 +134,13 @@ func (b *escBuf) writeHexJS(cc *CodeConsumer, sb *strings.Builder, c uint16) {
 	b.n += 6
 }
 
-func (b *escBuf) writeChar(cc *CodeConsumer, sb *strings.Builder, c uint16) {
+func (b *escBuf) writeChar(c uint16) {
 	if c < utf8.RuneSelf {
-		b.writeByte(cc, sb, byte(c))
+		b.writeByte(byte(c))
 		return
 	}
 	if b.n+3 > len(b.buf) {
-		b.flush(cc, sb)
+		b.flush()
 	}
 	if c < 0x800 {
 		b.buf[b.n] = byte(0xC0 | (c >> 6))
@@ -149,7 +150,7 @@ func (b *escBuf) writeChar(cc *CodeConsumer, sb *strings.Builder, c uint16) {
 		return
 	}
 	// Encodes both valid BMP runes (0x800..0xD7FF, 0xE000..0xFFFF) and WTF-8
-	// lone surrogates (0xD800..0xDFFF, only reachable when sb != nil).
+	// lone surrogates (0xD800..0xDFFF, only reachable when b.sb != nil).
 	b.buf[b.n] = byte(0xE0 | (c >> 12))
 	b.buf[b.n+1] = byte(0x80 | ((c >> 6) & 0x3F))
 	b.buf[b.n+2] = byte(0x80 | (c & 0x3F))
@@ -312,8 +313,6 @@ func (g *CodeGenerator) analyzeJsString(s string) (quote byte, doublequote, sing
 
 func (g *CodeGenerator) escapeInto(
 	b *escBuf,
-	cc *CodeConsumer,
-	sb *strings.Builder,
 	s string,
 	isASCII bool,
 	doublequoteEscape string,
@@ -324,12 +323,12 @@ func (g *CodeGenerator) escapeInto(
 	isRegexp bool,
 ) {
 	if isASCII {
-		g.strEscapeASCII(b, cc, sb, s, doublequoteEscape, singlequoteEscape, backtickEscape, backslashEscape, dollarEscape, isRegexp)
+		g.strEscapeASCII(b, s, doublequoteEscape, singlequoteEscape, backtickEscape, backslashEscape, dollarEscape, isRegexp)
 		return
 	}
 	var stackUnits [128]uint16
 	units := g.decodeWTF8Units(s, stackUnits[:0])
-	g.strEscapeUnits(b, cc, sb, units, doublequoteEscape, singlequoteEscape, backtickEscape, backslashEscape, dollarEscape, isRegexp)
+	g.strEscapeUnits(b, units, doublequoteEscape, singlequoteEscape, backtickEscape, backslashEscape, dollarEscape, isRegexp)
 }
 
 // AddJsString outputs a JS string, using the optimal (single/double) quote
@@ -346,11 +345,11 @@ func (g *CodeGenerator) AddJsString(n rhino.Node) {
 	}
 	cc := &g.cc
 	cc.beginToken(quote)
-	b := escBuf{isASCII: true}
-	b.writeByte(cc, nil, quote)
-	g.escapeInto(&b, cc, nil, s, isASCII, doublequote, singlequote, "`", "\\\\", "$", false)
-	b.writeByte(cc, nil, quote)
-	b.flush(cc, nil)
+	b := escBuf{cc: cc, isASCII: true}
+	b.writeByte(quote)
+	g.escapeInto(&b, s, isASCII, doublequote, singlequote, "`", "\\\\", "$", false)
+	b.writeByte(quote)
+	b.flush()
 }
 
 // addRegexp streams /pattern/flags directly into g.cc without temporary string
@@ -362,14 +361,14 @@ func (g *CodeGenerator) addRegexp(pattern string, flags string) {
 	}
 	cc := &g.cc
 	cc.beginToken('/')
-	b := escBuf{isASCII: true}
-	b.writeByte(cc, nil, '/')
-	g.escapeInto(&b, cc, nil, pattern, jutil.IsASCII(pattern), "\"", "'", "`", "\\", "$", true)
-	b.writeByte(cc, nil, '/')
+	b := escBuf{cc: cc, isASCII: true}
+	b.writeByte('/')
+	g.escapeInto(&b, pattern, jutil.IsASCII(pattern), "\"", "'", "`", "\\", "$", true)
+	b.writeByte('/')
 	if flags != "" {
-		b.writeASCII(cc, nil, flags)
+		b.writeASCII(flags)
 	}
-	b.flush(cc, nil)
+	b.flush()
 }
 
 // addNonLatinIdentifier streams an escaped non-Latin identifier directly into
@@ -383,15 +382,15 @@ func (g *CodeGenerator) addNonLatinIdentifier(s string) {
 	}
 	cc := &g.cc
 	cc.beginToken(firstByte)
-	b := escBuf{isASCII: true}
+	b := escBuf{cc: cc, isASCII: true}
 	for _, c := range units {
 		if c > 0x1F && c < 0x7F {
-			b.writeByte(cc, nil, byte(c))
+			b.writeByte(byte(c))
 		} else {
-			b.writeHexJS(cc, nil, c)
+			b.writeHexJS(c)
 		}
 	}
-	b.flush(cc, nil)
+	b.flush()
 }
 
 // Java: CodeGenerator.jsString(String)
@@ -407,11 +406,11 @@ func (g *CodeGenerator) JsString(s string) string {
 	}
 	var sb strings.Builder
 	sb.Grow(len(s) + 4)
-	b := escBuf{isASCII: true}
-	b.writeByte(nil, &sb, quote)
-	g.escapeInto(&b, nil, &sb, s, isASCII, doublequote, singlequote, "`", "\\\\", "$", false)
-	b.writeByte(nil, &sb, quote)
-	b.flush(nil, &sb)
+	b := escBuf{sb: &sb, isASCII: true}
+	b.writeByte(quote)
+	g.escapeInto(&b, s, isASCII, doublequote, singlequote, "`", "\\\\", "$", false)
+	b.writeByte(quote)
+	b.flush()
 	return sb.String()
 }
 
@@ -421,11 +420,11 @@ func (g *CodeGenerator) JsString(s string) string {
 func (g *CodeGenerator) RegexpEscape(s string) string {
 	var sb strings.Builder
 	sb.Grow(len(s) + 2)
-	b := escBuf{isASCII: true}
-	b.writeByte(nil, &sb, '/')
-	g.escapeInto(&b, nil, &sb, s, jutil.IsASCII(s), "\"", "'", "`", "\\", "$", true)
-	b.writeByte(nil, &sb, '/')
-	b.flush(nil, &sb)
+	b := escBuf{sb: &sb, isASCII: true}
+	b.writeByte('/')
+	g.escapeInto(&b, s, jutil.IsASCII(s), "\"", "'", "`", "\\", "$", true)
+	b.writeByte('/')
+	b.flush()
 	return sb.String()
 }
 
@@ -459,16 +458,14 @@ func (g *CodeGenerator) StrEscape(
 	}
 	var sb strings.Builder
 	sb.Grow(len(s) + 2)
-	b := escBuf{isASCII: true}
-	g.escapeInto(&b, nil, &sb, s, isASCII, doublequoteEscape, singlequoteEscape, backtickEscape, backslashEscape, dollarEscape, isRegexp)
-	b.flush(nil, &sb)
+	b := escBuf{sb: &sb, isASCII: true}
+	g.escapeInto(&b, s, isASCII, doublequoteEscape, singlequoteEscape, backtickEscape, backslashEscape, dollarEscape, isRegexp)
+	b.flush()
 	return sb.String()
 }
 
 func (g *CodeGenerator) writeCommonEscape(
 	b *escBuf,
-	cc *CodeConsumer,
-	sb *strings.Builder,
 	c byte,
 	doublequoteEscape string,
 	singlequoteEscape string,
@@ -479,44 +476,44 @@ func (g *CodeGenerator) writeCommonEscape(
 ) bool {
 	switch c {
 	case 0:
-		b.writeASCII(cc, sb, "\\x00")
+		b.writeASCII("\\x00")
 	case '\u000B':
 		if !isRegexp {
-			b.writeASCII(cc, sb, "\\v")
+			b.writeASCII("\\v")
 		} else {
-			b.writeASCII(cc, sb, "\\x0B")
+			b.writeASCII("\\x0B")
 		}
 	case '\b':
-		b.writeASCII(cc, sb, "\\b")
+		b.writeASCII("\\b")
 	case '\f':
-		b.writeASCII(cc, sb, "\\f")
+		b.writeASCII("\\f")
 	case '\n':
-		b.writeASCII(cc, sb, "\\n")
+		b.writeASCII("\\n")
 	case '\r':
-		b.writeASCII(cc, sb, "\\r")
+		b.writeASCII("\\r")
 	case '\t':
-		b.writeASCII(cc, sb, "\\t")
+		b.writeASCII("\\t")
 	case '\\':
-		b.writeEscapeParam(cc, sb, backslashEscape)
+		b.writeEscapeParam(backslashEscape)
 	case '"':
-		b.writeEscapeParam(cc, sb, doublequoteEscape)
+		b.writeEscapeParam(doublequoteEscape)
 	case '\'':
-		b.writeEscapeParam(cc, sb, singlequoteEscape)
+		b.writeEscapeParam(singlequoteEscape)
 	case '$':
-		b.writeEscapeParam(cc, sb, dollarEscape)
+		b.writeEscapeParam(dollarEscape)
 	case '`':
-		b.writeEscapeParam(cc, sb, backtickEscape)
+		b.writeEscapeParam(backtickEscape)
 	case '=':
 		if g.trustedStrings || isRegexp {
-			b.writeByte(cc, sb, '=')
+			b.writeByte('=')
 		} else {
-			b.writeASCII(cc, sb, "\\x3d")
+			b.writeASCII("\\x3d")
 		}
 	case '&':
 		if g.trustedStrings || isRegexp {
-			b.writeByte(cc, sb, '&')
+			b.writeByte('&')
 		} else {
-			b.writeASCII(cc, sb, "\\x26")
+			b.writeASCII("\\x26")
 		}
 	default:
 		return false
@@ -526,8 +523,6 @@ func (g *CodeGenerator) writeCommonEscape(
 
 func (g *CodeGenerator) strEscapeASCII(
 	b *escBuf,
-	cc *CodeConsumer,
-	sb *strings.Builder,
 	s string,
 	doublequoteEscape string,
 	singlequoteEscape string,
@@ -539,35 +534,35 @@ func (g *CodeGenerator) strEscapeASCII(
 	for i := 0; i < len(s); i++ {
 		c := s[i]
 		if codeGenerator_plainASCII[c] {
-			b.writeByte(cc, sb, c)
+			b.writeByte(c)
 			continue
 		}
-		if g.writeCommonEscape(b, cc, sb, c, doublequoteEscape, singlequoteEscape, backtickEscape, backslashEscape, dollarEscape, isRegexp) {
+		if g.writeCommonEscape(b, c, doublequoteEscape, singlequoteEscape, backtickEscape, backslashEscape, dollarEscape, isRegexp) {
 			continue
 		}
 		switch c {
 		case '>':
 			if !g.trustedStrings && !isRegexp {
-				b.writeASCII(cc, sb, codeGenerator_GT_ESCAPED)
+				b.writeASCII(codeGenerator_GT_ESCAPED)
 			} else if i >= 2 && ((s[i-1] == '-' && s[i-2] == '-') || (s[i-1] == ']' && s[i-2] == ']')) {
-				b.writeASCII(cc, sb, codeGenerator_GT_ESCAPED)
+				b.writeASCII(codeGenerator_GT_ESCAPED)
 			} else {
-				b.writeByte(cc, sb, '>')
+				b.writeByte('>')
 			}
 		case '<':
 			if !g.trustedStrings && !isRegexp {
-				b.writeASCII(cc, sb, codeGenerator_LT_ESCAPED)
+				b.writeASCII(codeGenerator_LT_ESCAPED)
 			} else if codeGenerator_matchesLtHazardASCII(s, i+1) {
-				b.writeASCII(cc, sb, codeGenerator_LT_ESCAPED)
+				b.writeASCII(codeGenerator_LT_ESCAPED)
 			} else {
-				b.writeByte(cc, sb, '<')
+				b.writeByte('<')
 			}
 		default:
 			if (g.outputCharsetEncoder != nil && g.outputCharsetEncoder.CanEncode(uint16(c))) ||
 				(c > 0x1f && c < 0x7f) {
-				b.writeByte(cc, sb, c)
+				b.writeByte(c)
 			} else {
-				b.writeHexJS(cc, sb, uint16(c))
+				b.writeHexJS(uint16(c))
 			}
 		}
 	}
@@ -575,8 +570,6 @@ func (g *CodeGenerator) strEscapeASCII(
 
 func (g *CodeGenerator) strEscapeUnits(
 	b *escBuf,
-	cc *CodeConsumer,
-	sb *strings.Builder,
 	units []uint16,
 	doublequoteEscape string,
 	singlequoteEscape string,
@@ -593,29 +586,29 @@ func (g *CodeGenerator) strEscapeUnits(
 		if c < 0x80 {
 			bc := byte(c)
 			if codeGenerator_plainASCII[bc] {
-				b.writeByte(cc, sb, bc)
+				b.writeByte(bc)
 				continue
 			}
-			if g.writeCommonEscape(b, cc, sb, bc, doublequoteEscape, singlequoteEscape, backtickEscape, backslashEscape, dollarEscape, isRegexp) {
+			if g.writeCommonEscape(b, bc, doublequoteEscape, singlequoteEscape, backtickEscape, backslashEscape, dollarEscape, isRegexp) {
 				continue
 			}
 		}
 		switch c {
 		case '>':
 			if !g.trustedStrings && !isRegexp {
-				b.writeASCII(cc, sb, codeGenerator_GT_ESCAPED)
+				b.writeASCII(codeGenerator_GT_ESCAPED)
 			} else if i >= 2 && ((units[i-1] == '-' && units[i-2] == '-') || (units[i-1] == ']' && units[i-2] == ']')) {
-				b.writeASCII(cc, sb, codeGenerator_GT_ESCAPED)
+				b.writeASCII(codeGenerator_GT_ESCAPED)
 			} else {
-				b.writeByte(cc, sb, '>')
+				b.writeByte('>')
 			}
 		case '<':
 			if !g.trustedStrings && !isRegexp {
-				b.writeASCII(cc, sb, codeGenerator_LT_ESCAPED)
+				b.writeASCII(codeGenerator_LT_ESCAPED)
 			} else if codeGenerator_matchesLtHazardUnits(units, i+1) {
-				b.writeASCII(cc, sb, codeGenerator_LT_ESCAPED)
+				b.writeASCII(codeGenerator_LT_ESCAPED)
 			} else {
-				b.writeByte(cc, sb, '<')
+				b.writeByte('<')
 			}
 		default:
 			if escapeLineSep {
@@ -623,20 +616,20 @@ func (g *CodeGenerator) strEscapeUnits(
 				// are valid in strings but not regular expressions.
 				// https://github.com/tc39/proposal-json-superset
 				if c == '\u2028' {
-					b.writeASCII(cc, sb, "\\u2028")
+					b.writeASCII("\\u2028")
 					break
 				}
 				if c == '\u2029' {
-					b.writeASCII(cc, sb, "\\u2029")
+					b.writeASCII("\\u2029")
 					break
 				}
 			}
 
 			if (g.outputCharsetEncoder != nil && g.outputCharsetEncoder.CanEncode(c)) ||
 				(c > 0x1f && c < 0x7f) {
-				b.writeChar(cc, sb, c)
+				b.writeChar(c)
 			} else {
-				b.writeHexJS(cc, sb, c)
+				b.writeHexJS(c)
 			}
 		}
 	}
@@ -678,47 +671,47 @@ func (g *CodeGenerator) EscapeUnrecognizedCharacters(s string) string {
 	units := g.decodeWTF8Units(s, stackUnits[:0])
 	var sb strings.Builder
 	sb.Grow(len(s))
-	b := escBuf{isASCII: true}
+	b := escBuf{sb: &sb, isASCII: true}
 	for i := 0; i < len(units); i++ {
 		c := units[i]
 		switch c {
 		case '\b', '\f', '\n', '\r', '\t', '\\', '"', '\'', '$', '`', '\u2028', '\u2029':
-			b.writeChar(nil, &sb, c)
+			b.writeChar(c)
 		case '=':
 			if g.trustedStrings {
-				b.writeByte(nil, &sb, '=')
+				b.writeByte('=')
 			} else {
-				b.writeASCII(nil, &sb, "\\x3d")
+				b.writeASCII("\\x3d")
 			}
 		case '&':
 			if g.trustedStrings {
-				b.writeByte(nil, &sb, '&')
+				b.writeByte('&')
 			} else {
-				b.writeASCII(nil, &sb, "\\x26")
+				b.writeASCII("\\x26")
 			}
 		case '>':
 			if !g.trustedStrings ||
 				(i >= 2 && ((units[i-1] == '-' && units[i-2] == '-') || (units[i-1] == ']' && units[i-2] == ']'))) {
-				b.writeASCII(nil, &sb, codeGenerator_GT_ESCAPED)
+				b.writeASCII(codeGenerator_GT_ESCAPED)
 			} else {
-				b.writeByte(nil, &sb, '>')
+				b.writeByte('>')
 			}
 		case '<':
 			if !g.trustedStrings || codeGenerator_matchesLtHazardUnits(units, i+1) {
-				b.writeASCII(nil, &sb, codeGenerator_LT_ESCAPED)
+				b.writeASCII(codeGenerator_LT_ESCAPED)
 			} else {
-				b.writeByte(nil, &sb, '<')
+				b.writeByte('<')
 			}
 		default:
 			if (g.outputCharsetEncoder != nil && g.outputCharsetEncoder.CanEncode(c)) ||
 				(c > 0x1f && c < 0x7f) {
-				b.writeChar(nil, &sb, c)
+				b.writeChar(c)
 			} else {
-				b.writeHexJS(nil, &sb, c)
+				b.writeHexJS(c)
 			}
 		}
 	}
-	b.flush(nil, &sb)
+	b.flush()
 	return sb.String()
 }
 
@@ -738,14 +731,14 @@ func CodeGenerator_IdentifierEscape(s string) string {
 	}
 	var sb strings.Builder
 	sb.Grow(len(s) + 6)
-	b := escBuf{isASCII: true}
+	b := escBuf{sb: &sb, isASCII: true}
 	for _, c := range units {
 		if c > 0x1F && c < 0x7F {
-			b.writeByte(nil, &sb, byte(c))
+			b.writeByte(byte(c))
 		} else {
-			b.writeHexJS(nil, &sb, c)
+			b.writeHexJS(c)
 		}
 	}
-	b.flush(nil, &sb)
+	b.flush()
 	return sb.String()
 }

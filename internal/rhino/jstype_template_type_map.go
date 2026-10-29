@@ -253,7 +253,12 @@ func resolveSimpleTemplateValue(t JSType, registry *JSTypeRegistry) (JSType, boo
 			return registry.GetNativeType(JSTypeNative_UNKNOWN_TYPE), true
 		}
 		return t, true
-	case *NamedType, *NumberType, *StringType, *BooleanType, *NullType, *VoidType, *AllType, *BigIntType, *NoObjectType, *EnumType, *NoResolvedType, *EnumElementType, *InstanceObjectType, *PrototypeObjectTypeBase, *RecordType, *SymbolTypeBase, *KnownSymbolType:
+	case *FunctionTypeBase:
+		if x.isNoObjectOrNo() {
+			return t, true
+		}
+		return nil, false
+	case *NamedType, *NumberType, *StringType, *BooleanType, *NullType, *VoidType, *AllType, *BigIntType, *EnumType, *NoResolvedType, *EnumElementType, *InstanceObjectType, *PrototypeObjectTypeBase, *RecordType, *SymbolTypeBase, *KnownSymbolType:
 		return t, true
 	case *UnionType:
 		alts := x.GetAlternates()

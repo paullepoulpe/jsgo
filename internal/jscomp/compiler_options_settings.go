@@ -768,7 +768,7 @@ func (o *CompilerOptions) ShouldGatherCssNames() bool {
 //
 // Java: CompilerOptions.setStripTypes(Set<String>)
 func (o *CompilerOptions) SetStripTypes(stripTypes *jutil.LinkedHashSet[string]) {
-	o.stripTypes = jutil.NewLinkedHashSet(stripTypes.ToSlice()...)
+	o.stripTypes = cloneOrEmptyStringSet(stripTypes)
 }
 
 // @deprecated StripCode is deprecated. Code should be designed to be removed by other means.
@@ -782,7 +782,7 @@ func (o *CompilerOptions) GetStripTypes() *jutil.LinkedHashSet[string] {
 //
 // Java: CompilerOptions.setStripNameSuffixes(Set<String>)
 func (o *CompilerOptions) SetStripNameSuffixes(stripNameSuffixes *jutil.LinkedHashSet[string]) {
-	o.stripNameSuffixes = jutil.NewLinkedHashSet(stripNameSuffixes.ToSlice()...)
+	o.stripNameSuffixes = cloneOrEmptyStringSet(stripNameSuffixes)
 }
 
 // Java: CompilerOptions.getStripNameSuffixes()
@@ -794,7 +794,7 @@ func (o *CompilerOptions) GetStripNameSuffixes() *jutil.LinkedHashSet[string] {
 //
 // Java: CompilerOptions.setStripNamePrefixes(Set<String>)
 func (o *CompilerOptions) SetStripNamePrefixes(stripNamePrefixes *jutil.LinkedHashSet[string]) {
-	o.stripNamePrefixes = jutil.NewLinkedHashSet(stripNamePrefixes.ToSlice()...)
+	o.stripNamePrefixes = cloneOrEmptyStringSet(stripNamePrefixes)
 }
 
 // Java: CompilerOptions.getStripNamePrefixes()
@@ -844,7 +844,7 @@ func (o *CompilerOptions) GetCssRenamingMap() CssRenamingMap {
 
 // Java: CompilerOptions.setCssRenamingSkiplist(Set<String>)
 func (o *CompilerOptions) SetCssRenamingSkiplist(skiplist *jutil.LinkedHashSet[string]) {
-	o.cssRenamingSkiplist = jutil.NewLinkedHashSet(skiplist.ToSlice()...)
+	o.cssRenamingSkiplist = cloneOrEmptyStringSet(skiplist)
 }
 
 // Java: CompilerOptions.getCssRenamingSkiplist()

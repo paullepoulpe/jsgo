@@ -131,9 +131,7 @@ func (u *generatorUnmarkedNodeTranspiler) visitReturn(n rhino.Node) {
 }
 
 func (u *generatorUnmarkedNodeTranspiler) visitNamedBreakContinue(n rhino.Node, lbl ast.LabelName) {
-	labelIdent := lbl.Ident()
-	if u.ctx.namedLabels.ContainsKey(labelIdent) {
-		cases := u.ctx.namedLabels.Get(labelIdent)
+	if cases, ok := u.ctx.namedLabels[lbl.Ident()]; ok {
 		var caseSection *generatorStateCase
 		if n.IsBreak() {
 			caseSection = cases.breakCase

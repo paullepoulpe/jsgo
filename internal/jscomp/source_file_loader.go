@@ -411,9 +411,9 @@ type SourceFile_CodeLoader interface {
 	// from its original storage, or nil. It panics with an IOException.
 	OpenUncachedReader() jutil.JavaReader
 
-	// ToProtoLocationBuilder returns a representation of this loader that can
+	// toProtoLocation returns a representation of this loader that can
 	// be serialized/deserialized to reconstruct this SourceFile.
-	ToProtoLocationBuilder(fileName string) *SourceFileProto_Builder
+	toProtoLocation(fileName string) *SourceFileProto
 }
 
 // SourceFile_CodeLoader_Preloaded is SourceFile.CodeLoader.Preloaded.
@@ -436,8 +436,8 @@ func (*SourceFile_CodeLoader_Preloaded) OpenUncachedReader() jutil.JavaReader {
 }
 
 // Java: SourceFile.CodeLoader.Preloaded.toProtoLocationBuilder(String)
-func (l *SourceFile_CodeLoader_Preloaded) ToProtoLocationBuilder(fileName string) *SourceFileProto_Builder {
-	return SourceFileProto_NewBuilder().SetPreloadedContents(l.preloadedCode)
+func (l *SourceFile_CodeLoader_Preloaded) toProtoLocation(fileName string) *SourceFileProto {
+	return &SourceFileProto{preloadedContents_: l.preloadedCode, loaderCase_: 2}
 }
 
 // sourceFile_CodeLoader_Reloadable loads the code with a function that can
@@ -456,9 +456,9 @@ func (*sourceFile_CodeLoader_Reloadable) OpenUncachedReader() jutil.JavaReader {
 	return nil
 }
 
-// ToProtoLocationBuilder serializes the code itself, as Preloaded does.
-func (l *sourceFile_CodeLoader_Reloadable) ToProtoLocationBuilder(fileName string) *SourceFileProto_Builder {
-	return SourceFileProto_NewBuilder().SetPreloadedContents(l.load())
+// toProtoLocation serializes the code itself, as Preloaded does.
+func (l *sourceFile_CodeLoader_Reloadable) toProtoLocation(fileName string) *SourceFileProto {
+	return &SourceFileProto{preloadedContents_: l.load(), loaderCase_: 2}
 }
 
 // sourceFile_CodeLoader_InlineBase64 defers base64 decoding of an inline
@@ -489,8 +489,8 @@ func (*sourceFile_CodeLoader_InlineBase64) OpenUncachedReader() jutil.JavaReader
 	return nil
 }
 
-func (l *sourceFile_CodeLoader_InlineBase64) ToProtoLocationBuilder(fileName string) *SourceFileProto_Builder {
-	return SourceFileProto_NewBuilder().SetPreloadedContents(l.LoadUncachedCode())
+func (l *sourceFile_CodeLoader_InlineBase64) toProtoLocation(fileName string) *SourceFileProto {
+	return &SourceFileProto{preloadedContents_: l.LoadUncachedCode(), loaderCase_: 2}
 }
 
 // SourceFile_CodeLoader_StubSourceFileCodeLoader is a code loader which
@@ -512,8 +512,8 @@ func (*SourceFile_CodeLoader_StubSourceFileCodeLoader) OpenUncachedReader() juti
 }
 
 // Java: SourceFile.CodeLoader.StubSourceFileCodeLoader.toProtoLocationBuilder(String)
-func (l *SourceFile_CodeLoader_StubSourceFileCodeLoader) ToProtoLocationBuilder(fileName string) *SourceFileProto_Builder {
-	return SourceFileProto_NewBuilder().SetFilename(fileName).SetStubFile(true)
+func (l *SourceFile_CodeLoader_StubSourceFileCodeLoader) toProtoLocation(fileName string) *SourceFileProto {
+	return &SourceFileProto{filename_: fileName, stubFile_: true, loaderCase_: 9}
 }
 
 // SourceFile_CodeLoader_OnDisk is SourceFile.CodeLoader.OnDisk.
@@ -522,7 +522,7 @@ type SourceFile_CodeLoader_OnDisk struct {
 	relativePathStr     string
 }
 
-var sourceFileEmptyFileOnDisk = &SourceFileProto_FileOnDisk{frozen: true, memoizedSize: 0}
+var sourceFileEmptyFileOnDisk = &SourceFileProto_FileOnDisk{cachedSize: 1}
 
 // Java: SourceFile.CodeLoader.OnDisk(Path, Charset)
 func NewSourceFile_CodeLoader_OnDisk(relativePath *jutil.Path, c *jutil.Charset) *SourceFile_CodeLoader_OnDisk {
@@ -576,7 +576,7 @@ func (l *SourceFile_CodeLoader_OnDisk) GetCharset() *jutil.Charset {
 }
 
 // Java: SourceFile.CodeLoader.OnDisk.toProtoLocationBuilder(String)
-func (l *SourceFile_CodeLoader_OnDisk) ToProtoLocationBuilder(fileName string) *SourceFileProto_Builder {
+func (l *SourceFile_CodeLoader_OnDisk) toProtoLocation(fileName string) *SourceFileProto {
 	actualPath := l.relativePathStr
 	// to save space, don't serialize the path if equal to the fileName.
 	if fileName == actualPath {
@@ -587,11 +587,11 @@ func (l *SourceFile_CodeLoader_OnDisk) ToProtoLocationBuilder(fileName string) *
 	if charset == "UTF-8" || l.GetCharset() == jutil.StandardCharsets_UTF_8 {
 		charset = ""
 	}
-	return SourceFileProto_NewBuilder().
-		SetFileOnDiskFromBuilder(
-			SourceFileProto_FileOnDisk_NewBuilder().
-				SetActualPath(actualPath).
-				SetCharset(charset))
+	fileOnDisk := sourceFileEmptyFileOnDisk
+	if actualPath != "" || charset != "" {
+		fileOnDisk = &SourceFileProto_FileOnDisk{actualPath_: actualPath, charset_: charset}
+	}
+	return &SourceFileProto{fileOnDisk_: fileOnDisk, loaderCase_: 3}
 }
 
 // SourceFile_CodeLoader_AtZip is SourceFile.CodeLoader.AtZip.
@@ -643,62 +643,32 @@ func (l *SourceFile_CodeLoader_AtZip) GetCharset() *jutil.Charset {
 }
 
 // Java: SourceFile.CodeLoader.AtZip.toProtoLocationBuilder(String)
-func (l *SourceFile_CodeLoader_AtZip) ToProtoLocationBuilder(fileName string) *SourceFileProto_Builder {
+func (l *SourceFile_CodeLoader_AtZip) toProtoLocation(fileName string) *SourceFileProto {
 	// save space by not serializing UTF_8 (the default charset)
 	charset := l.serializableCharset
 	if l.GetCharset() == jutil.StandardCharsets_UTF_8 {
 		charset = ""
 	}
-	return SourceFileProto_NewBuilder().
-		SetFilename(fileName).
-		SetZipEntry(
-			SourceFileProto_ZipEntryOnDisk_NewBuilder().
-				SetEntryName(l.entryName).
-				SetZipPath(l.zipName).
-				SetCharset(charset).
-				Build())
+	return &SourceFileProto{
+		filename_: fileName,
+		zipEntry_: &SourceFileProto_ZipEntryOnDisk{
+			entryName_: l.entryName,
+			zipPath_:   l.zipName,
+			charset_:   charset,
+		},
+		loaderCase_: 4,
+	}
 }
 
 // Java: SourceFile.getProto()
 func (f *SourceFile) GetProto() *SourceFileProto {
-	if l, ok := f.loader.(*SourceFile_CodeLoader_OnDisk); ok {
-		actualPath := l.relativePathStr
-		if f.fileName == actualPath {
-			actualPath = ""
-		}
-		charset := l.serializableCharset
-		if charset == "UTF-8" || l.GetCharset() == jutil.StandardCharsets_UTF_8 {
-			charset = ""
-		}
-		fileOnDisk := sourceFileEmptyFileOnDisk
-		if actualPath != "" || charset != "" {
-			fileOnDisk = &SourceFileProto_FileOnDisk{
-				actualPath_:  actualPath,
-				charset_:     charset,
-				frozen:       true,
-				memoizedSize: -1,
-			}
-		}
-		return &SourceFileProto{
-			filename_:             f.fileName,
-			fileOnDisk_:           fileOnDisk,
-			sourceKind_:           sourceFile_sourceKindToProto(f.kind).GetNumber(),
-			isClosureUnawareCode_: f.isClosureUnawareCode,
-			numBytesPlusOne_:      int32(f.numBytes + 1),
-			numLinesPlusOne_:      int32(f.numLines + 1),
-			loaderCase_:           SourceFileProto_FILE_ON_DISK_FIELD_NUMBER,
-			frozen:                true,
-			memoizedSize:          -1,
-		}
-	}
-	return f.loader.
-		ToProtoLocationBuilder(f.GetName()).
-		SetFilename(f.GetName()).
-		SetSourceKind(sourceFile_sourceKindToProto(f.GetKind())).
-		SetIsClosureUnawareCode(f.isClosureUnawareCode).
-		SetNumLinesPlusOne(int32(f.numLines + 1)).
-		SetNumBytesPlusOne(int32(f.numBytes + 1)).
-		Build()
+	p := f.loader.toProtoLocation(f.GetName())
+	p.filename_ = f.GetName()
+	p.sourceKind_ = sourceFile_sourceKindToProto(f.GetKind()).GetNumber()
+	p.isClosureUnawareCode_ = f.isClosureUnawareCode
+	p.numLinesPlusOne_ = int32(f.numLines + 1)
+	p.numBytesPlusOne_ = int32(f.numBytes + 1)
+	return p
 }
 
 func sourceFile_sourceKindToProto(sourceKind rhino.StaticSourceFile_SourceKind) SourceFileProto_SourceKind {

@@ -127,34 +127,6 @@ func (s *inlineIDSet) copyFrom(other *inlineIDSet) {
 	}
 }
 
-func (s *inlineIDSet) fromLinkedHashSet(src *jutil.LinkedHashSet[string], intern bool) {
-	s.clear()
-	if src == nil || src.IsEmpty() {
-		return
-	}
-	for name := range src.All() {
-		var id uint32
-		if intern {
-			id = rhino.RhinoStringPool_InternID(name)
-		} else {
-			id = rhino.RhinoStringPool_LookupID(name)
-		}
-		if id != 0 {
-			s.add(id)
-		}
-	}
-}
-
-func (s *inlineIDSet) toLinkedHashSet() *jutil.LinkedHashSet[string] {
-	out := jutil.NewLinkedHashSetWithCapacity[string](s.size())
-	if s != nil {
-		for _, id := range s.items {
-			out.Add(rhino.RhinoStringPool_StringFromID(id))
-		}
-	}
-	return out
-}
-
 type inlineIDNodeEntry struct {
 	id   uint32
 	node rhino.Node
@@ -265,13 +237,10 @@ const FunctionArgumentInjector_THIS_MARKER = "this"
 
 var FunctionArgumentInjector_THIS_MARKER_NODE = rhino.IR_Name(FunctionArgumentInjector_THIS_MARKER)
 
-const FunctionArgumentInjector_REST_MARKER = "rest param"
-
 var (
 	calleeArgumentsIdentID = uint32(strpool.Intern("arguments"))
 	calleeEvalIdentID      = uint32(strpool.Intern("eval"))
 	calleeThisMarkerID     = uint32(strpool.Intern(FunctionArgumentInjector_THIS_MARKER))
-	calleeRestMarkerID     = uint32(strpool.Intern(FunctionArgumentInjector_REST_MARKER))
 )
 
 type calleeParamSummary struct {
@@ -306,6 +275,7 @@ type calleeSummary struct {
 	shallowReturnCount     uint32
 	numParams              uint16
 	numModified            uint16
+	paramsPositional       bool
 	isTrivialBody          bool
 	hasInnerClosures       bool
 	hasShallowDeclarations bool
@@ -386,11 +356,11 @@ func (s *calleeSummary) findParamByID(id uint32) int {
 }
 
 func (s *calleeSummary) canReuseAfterRename(renamedClone bool) bool {
-	return !renamedClone || (!s.hasParamShadowing && !s.hasInnerFunctionDecls)
+	return s.paramsPositional && (!renamedClone || (!s.hasParamShadowing && !s.hasInnerFunctionDecls))
 }
 
 func (s *calleeSummary) canReuseSideEffects(renamedClone bool) bool {
-	return int(s.numParams) <= 64 &&
+	return s.paramsPositional && int(s.numParams) <= 64 &&
 		(!renamedClone || (!s.hasSubScopeDecls && !s.hasParamShadowing && !s.hasInnerFunctionDecls))
 }
 
@@ -512,7 +482,8 @@ func (cs *calleeScanner) walk(n, parent rhino.Node, inInnerClosure, inInnerFn, i
 
 // scanCalleeSummary populates dst from a single pass over fnNode's parameters
 // and body. It returns false if fnNode has non-inlinable parameter patterns or
-// duplicate formal parameter names.
+// duplicate formal parameter names (though body properties are always populated
+// when fnNode is a FUNCTION node).
 func scanCalleeSummary(fnName string, fnNode rhino.Node, dst *calleeSummary) bool {
 	*dst = calleeSummary{fnNode: fnNode}
 	if !fnNode.IsFunction() {
@@ -520,6 +491,7 @@ func scanCalleeSummary(fnName string, fnNode rhino.Node, dst *calleeSummary) boo
 	}
 	fn := ast.MustFunction(fnNode)
 
+	paramsPositional := true
 	for p, more := fn.Params().FirstParam(); more; p, more = p.Next() {
 		var pNameID uint32
 		var isRest bool
@@ -529,21 +501,25 @@ func scanCalleeSummary(fnName string, fnNode rhino.Node, dst *calleeSummary) boo
 		case rhino.Token_ITER_REST:
 			restName, ok := p.MustIterRest().Target().AsName()
 			if !ok {
-				return false
+				paramsPositional = false
+				continue
 			}
 			pNameID = restName.Node().GetStringID()
 			isRest = true
 		default:
-			return false
+			paramsPositional = false
+			continue
 		}
 		if dst.findParamByID(pNameID) >= 0 {
-			return false
+			paramsPositional = false
+			continue
 		}
 		dst.addParam(calleeParamSummary{
 			nameID: pNameID,
 			isRest: isRest,
 		})
 	}
+	dst.paramsPositional = paramsPositional
 
 	body := fn.Body().Node()
 	cs := calleeScanner{
@@ -557,8 +533,7 @@ func scanCalleeSummary(fnName string, fnNode rhino.Node, dst *calleeSummary) boo
 		}
 	}
 	if name, ok := fn.Name(); ok {
-		recID := name.Node().GetStringID()
-		if !cs.hasFnName || recID != cs.fnNameID {
+		if recID := name.Node().GetStringID(); recID != 0 && (!cs.hasFnName || recID != cs.fnNameID) {
 			cs.fnRecursionNameID = recID
 			cs.hasFnRecursion = true
 		}
@@ -573,45 +548,36 @@ func scanCalleeSummary(fnName string, fnNode rhino.Node, dst *calleeSummary) boo
 		dst.isTrivialBody = (onlyChild.IsReturn() || onlyChild.IsExprResult()) && !cs.hasCondNode
 	}
 
-	return true
+	return paramsPositional
+}
+
+func resolveCalleeSummary(fnName string, fnNode rhino.Node, summary *calleeSummary) *calleeSummary {
+	if summary != nil && summary.fnNode == fnNode {
+		return summary
+	}
+	local := new(calleeSummary)
+	scanCalleeSummary(fnName, fnNode, local)
+	return local
 }
 
 func (f *FunctionArgumentInjector) findModifiedParametersByIDInto(
-	fnNode rhino.Node, dstNames *inlineIDSet, dstModified *inlineIDSet,
+	fnNode rhino.Node, _ *inlineIDSet, dstModified *inlineIDSet,
 ) {
 	dstModified.clear()
 	fn := ast.MustFunction(fnNode)
-	params := fn.Params()
-	if !params.HasParams() {
+	if !fn.Params().HasParams() {
 		return
 	}
-	collectFunctionParameterIDs(fnNode, dstNames)
-	if !dstNames.isEmpty() {
-		collectModifiedParameterIDs(fn.Body().Node(), dstNames, false, dstModified)
-	}
-}
-
-func collectModifiedParameterIDs(
-	n rhino.Node, names *inlineIDSet, inInnerClosure bool, dstModified *inlineIDSet,
-) {
-	if NodeUtil_IsFunctionOrNonStaticClassFieldInitializer(n) {
-		// A function parameter can not be replaced with a direct inlined value
-		// if it is referred to by an inner function or a non-static class field
-		// initializer. The inner function or field initializer can out live the
-		// call we are replacing, so it must capture a unique name.  This approach
-		// does not work within loop bodies so those are forbidden elsewhere.
-		inInnerClosure = true
-	}
-
-	if n.IsName() {
-		nameID := n.GetStringID()
-		if names.contains(nameID) && (inInnerClosure || FunctionArgumentInjector_CanNameValueChange(n)) {
-			dstModified.add(nameID)
+	for p, more := fn.Params().FirstParam(); more; p, more = p.Next() {
+		if p.Token() != rhino.Token_NAME && p.Token() != rhino.Token_ITER_REST {
+			panic(jutil.NewIllegalStateExceptionMsg("Not supported: " + p.Node().String()))
 		}
 	}
-
-	for c := n.GetFirstChild(); !c.IsNil(); c = c.GetNext() {
-		collectModifiedParameterIDs(c, names, inInnerClosure, dstModified)
+	var sum calleeSummary
+	scanCalleeSummary("", fnNode, &sum)
+	params := sum.params()
+	for _, idx := range sum.modifiedParamIndices() {
+		dstModified.add(params[idx].nameID)
 	}
 }
 
@@ -633,24 +599,4 @@ func gatherLocalNameIDs(n rhino.Node, names *inlineIDSet) {
 	for c := n.GetFirstChild(); !c.IsNil(); c = c.GetNext() {
 		gatherLocalNameIDs(c, names)
 	}
-}
-
-func collectFunctionParameterIDs(fnNode rhino.Node, dst *inlineIDSet) {
-	dst.clear()
-	for p, more := ast.MustFunction(fnNode).Params().FirstParam(); more; p, more = p.Next() {
-		dst.add(functionArgumentInjector_paramID(p))
-	}
-}
-
-// functionArgumentInjector_paramID returns the strpool ID of a parameter name,
-// or calleeRestMarkerID for a rest parameter; a default value or a pattern is
-// not supported (InlineFunctions does not inline such functions).
-func functionArgumentInjector_paramID(p ast.Param) uint32 {
-	switch p.Token() {
-	case rhino.Token_ITER_REST:
-		return calleeRestMarkerID
-	case rhino.Token_NAME:
-		return p.MustName().Node().GetStringID()
-	}
-	panic(jutil.NewIllegalStateExceptionMsg("Not supported: " + p.Node().String()))
 }

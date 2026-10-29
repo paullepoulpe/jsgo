@@ -657,7 +657,7 @@ func (r *ConformanceRules_BanNullDeref) CheckConformance(t *NodeTraversal, n rhi
 
 // Java: ConformanceRules.BanNullDeref.report(Node)
 func (r *ConformanceRules_BanNullDeref) ReportNode(n rhino.Node) bool {
-	return n.GetJSType() != nil && ConformanceRules_AbstractTypeRestrictionRule_IsKnown(n) && r.InvalidDeref(n) && !r.IsAllowlistedType(n)
+	return n.GetJSType() != nil && conformanceRules_AbstractTypeRestrictionRule_isKnown(n) && r.InvalidDeref(n) && !r.IsAllowlistedType(n)
 }
 
 // Java: ConformanceRules.BanNullDeref.invalidDeref(Node)
@@ -732,8 +732,8 @@ func (r *ConformanceRules_BanUnknownDirectThisPropsReferences) Check(
 func (r *ConformanceRules_BanUnknownDirectThisPropsReferences) CheckConformance(t *NodeTraversal, n rhino.Node) *ConformanceRules_ConformanceResult {
 	if gp, ok := ast.AsGetProp(n); ok &&
 		ConformanceRules_BanUnknownDirectThisPropsReferences_IsKnownThis(gp.Object().Node()) &&
-		ConformanceRules_AbstractTypeRestrictionRule_IsUnknown(n) &&
-		!ConformanceRules_AbstractTypeRestrictionRule_IsTemplateType(n) &&
+		conformanceRules_AbstractTypeRestrictionRule_isUnknown(n) &&
+		!conformanceRules_AbstractTypeRestrictionRule_isTemplateType(n) &&
 		r.IsUsed(n) &&
 		!r.IsTypeImmediatelyTightened(n) &&
 		!conformanceRules_isExplicitlyUnknownProp(gp) {
@@ -744,7 +744,7 @@ func (r *ConformanceRules_BanUnknownDirectThisPropsReferences) CheckConformance(
 
 // Java: ConformanceRules.BanUnknownDirectThisPropsReferences.isKnownThis(Node)
 func ConformanceRules_BanUnknownDirectThisPropsReferences_IsKnownThis(n rhino.Node) bool {
-	return n.IsThis() && !ConformanceRules_AbstractTypeRestrictionRule_IsUnknown(n)
+	return n.IsThis() && !conformanceRules_AbstractTypeRestrictionRule_isUnknown(n)
 }
 
 // Java: ConformanceRules.BanUnknownDirectThisPropsReferences.isExplicitlyUnknown(Node)
@@ -782,11 +782,11 @@ func (r *ConformanceRules_BanUnknownTypedClassPropsReferences) Check(
 // Java: ConformanceRules.BanUnknownTypedClassPropsReferences.checkConformance(NodeTraversal, Node)
 func (r *ConformanceRules_BanUnknownTypedClassPropsReferences) CheckConformance(t *NodeTraversal, getprop rhino.Node) *ConformanceRules_ConformanceResult {
 	if gp, ok := ast.AsGetProp(getprop); ok &&
-		ConformanceRules_AbstractTypeRestrictionRule_IsUnknown(getprop) &&
+		conformanceRules_AbstractTypeRestrictionRule_isUnknown(getprop) &&
 		r.IsUsed(getprop) &&
 		!r.IsTypeImmediatelyTightened(getprop) &&
 		r.IsCheckablePropertySource(gp.Object().Node()) &&
-		!ConformanceRules_AbstractTypeRestrictionRule_IsTemplateType(getprop) &&
+		!conformanceRules_AbstractTypeRestrictionRule_isTemplateType(getprop) &&
 		!r.isDeclaredUnknown(gp) {
 		propName := gp.Property()
 		typeName := gp.Object().Node().GetJSType().String()
@@ -799,8 +799,8 @@ func (r *ConformanceRules_BanUnknownTypedClassPropsReferences) CheckConformance(
 
 // Java: ConformanceRules.BanUnknownTypedClassPropsReferences.isCheckablePropertySource(Node)
 func (r *ConformanceRules_BanUnknownTypedClassPropsReferences) IsCheckablePropertySource(n rhino.Node) bool {
-	return ConformanceRules_AbstractTypeRestrictionRule_IsKnown(n) &&
-		!ConformanceRules_AbstractTypeRestrictionRule_IsTop(n) &&
+	return conformanceRules_AbstractTypeRestrictionRule_isKnown(n) &&
+		!conformanceRules_AbstractTypeRestrictionRule_isTop(n) &&
 		r.IsClassType(n) &&
 		!r.IsNativeObjectType(n) &&
 		!r.IsAllowlistedType(n)

@@ -50,65 +50,7 @@ import (
 //
 // Java: class FunctionType extends PrototypeObjectType implements
 // JSType.WithSourceRef (subclassed by NoObjectType).
-type FunctionType interface {
-	ObjectType
-	JSType_WithSourceRef
-
-	SetPrettyPrint(prettyPrint bool)
-	IsPrettyPrint() bool
-	SetImplicitPrototype(implicitPrototype ObjectType)
-	IsAnonymous() bool
-	MatchRecordTypeConstraint(constraintObj ObjectType)
-
-	GetKind() FunctionType_Kind
-	MakesStructs() bool
-	MakesDicts() bool
-	SetStruct()
-	SetDict()
-	SetExplicitUnrestricted()
-	HasImplementedInterfaces() bool
-	GetParameters() []*FunctionType_Parameter
-	GetMinArity() int
-	GetMaxArity() int
-	GetReturnType() JSType
-	IsReturnTypeInferred() bool
-	GetInternalArrowType() *ArrowType
-	GetPrototypeProperty() ObjectType
-	GetPrototype() ObjectType
-	SetPrototypeBasedOn(baseType ObjectType)
-	SetPrototype(prototype ObjectType, propertyNode Node) bool
-	GetAllImplementedInterfaces() []ObjectType
-	GetAncestorInterfaces() []ObjectType
-	GetImplementedInterfaces() []ObjectType
-	GetOwnImplementedInterfaces() []ObjectType
-	SetImplementedInterfaces(implementedInterfaces []ObjectType)
-	GetExtendedInterfaces() []ObjectType
-	GetExtendedInterfacesCount() int
-	SetExtendedInterfaces(extendedInterfaces []ObjectType)
-	GetBindReturnType(argsToBind int) FunctionType
-	SupAndInfHelper(that FunctionType, leastSuper bool) FunctionType
-	HasEqualCallType(that FunctionType) bool
-	GetInstanceType() ObjectType
-	HasInstanceType() bool
-	SetSource(source Node)
-	HasProperties() bool
-	SetImplicitMatch(flag bool)
-	IsAbstract() bool
-	CheckExtendsLoop() []FunctionType
-	AcceptsArguments(argumentTypes []JSType) bool
-	ForgetParameterAndReturnTypes() FunctionType
-	GetConstructorOnlyTemplateParameters() []*TemplateType
-	IsAmbiguousConstructor() bool
-	GetClosurePrimitive() *ClosurePrimitive
-	ToBuilder() *FunctionType_Builder
-	GetCanonicalRepresentation() FunctionType
-
-	// GetFunctionTypeBase gives access to the base through the interface.
-	//
-	// Go-only: language-adapter — field access through the interface
-	// (PORTING.md §4).
-	GetFunctionTypeBase() *FunctionTypeBase
-}
+type FunctionType = *FunctionTypeBase
 
 type functionTypeExt struct {
 	// The prototype property. This field is lazily initialized by
@@ -135,7 +77,8 @@ type functionTypeExt struct {
 }
 
 // FunctionTypeBase holds FunctionType's fields and methods; plain function
-// types are *FunctionTypeBase values.
+// types as well as NoObjectType and NoType are *FunctionTypeBase values
+// distinguished by objFlags & objKindMask.
 type FunctionTypeBase struct {
 	PrototypeObjectTypeBase
 
@@ -154,11 +97,13 @@ type FunctionTypeBase struct {
 	ext *functionTypeExt
 }
 
-func (f *FunctionTypeBase) selfFunc() FunctionType {
-	if f.objFlags&objKindMask == objKindFunction {
-		return f
-	}
-	return f.self().(FunctionType)
+func (f *FunctionTypeBase) isNo() bool {
+	return f.objFlags&objKindMask == objKindNo
+}
+
+func (f *FunctionTypeBase) isNoObjectOrNo() bool {
+	k := f.objFlags & objKindMask
+	return k == objKindNoObject || k == objKindNo
 }
 
 func (f *FunctionTypeBase) ensureExt() *functionTypeExt {
@@ -286,7 +231,7 @@ func (f *FunctionTypeBase) InitFunctionTypeBase(self FunctionType, builder *Func
 			ctorKeys := builder.constructorOnlyKeys
 			if len(ctorKeys) > 0 {
 				typeOfThisBuilder.templateTypeMap = f.templateTypeMap.copyWithoutKeySlice(ctorKeys)
-				typeOfThisBuilder.templateParamCount = f.selfFunc().GetTemplateParamCount() - len(ctorKeys)
+				typeOfThisBuilder.templateParamCount = f.GetTemplateParamCount() - len(ctorKeys)
 			}
 
 			f.typeOfThis = NewInstanceObjectType(&typeOfThisBuilder).GetJSTypeBase()
@@ -326,24 +271,29 @@ func (f *FunctionTypeBase) InitFunctionTypeBase(self FunctionType, builder *Func
 	}
 
 	if builder.setPrototypeBasedOn != nil {
-		f.selfFunc().SetPrototypeBasedOn(builder.setPrototypeBasedOn)
+		f.SetPrototypeBasedOn(builder.setPrototypeBasedOn)
 	}
 
 	f.GetRegistry().GetResolver().ResolveIfClosed(self, FunctionType_TYPE_CLASS)
 }
 
-// GetFunctionTypeBase gives access to the base through the interface.
-//
-// Go-only: language-adapter — field access through the interface (PORTING.md §4).
-func (f *FunctionTypeBase) GetFunctionTypeBase() *FunctionTypeBase { return f }
-
-// Java: FunctionType.getTypeClass()
+// Java: FunctionType.getTypeClass() / NoObjectType.getTypeClass() / NoType.getTypeClass()
 func (f *FunctionTypeBase) GetTypeClass() JSTypeClass {
-	return FunctionType_TYPE_CLASS
+	switch f.objFlags & objKindMask {
+	case objKindNo:
+		return JSTypeClass_NO
+	case objKindNoObject:
+		return JSTypeClass_NO_OBJECT
+	default:
+		return FunctionType_TYPE_CLASS
+	}
 }
 
-// Java: FunctionType.getConstructor()
+// Java: FunctionType.getConstructor() / NoObjectType.getConstructor()
 func (f *FunctionTypeBase) GetConstructor() FunctionType {
+	if f.isNoObjectOrNo() {
+		return nil
+	}
 	// Every function type, including `Function`, is constructed by
 	// `(typeof Function)`.
 	return jutil.CheckNotNull(f.GetRegistry().GetNativeFunctionType(JSTypeNative_FUNCTION_FUNCTION_TYPE))
@@ -353,7 +303,7 @@ func (f *FunctionTypeBase) GetConstructor() FunctionType {
 func (f *FunctionTypeBase) IsInstanceType() bool {
 	// Only `Function` is both a function type and the intance type of a
 	// nominal constructor.
-	return JSType(f.selfFunc()) == f.GetRegistry().GetNativeType(JSTypeNative_FUNCTION_TYPE)
+	return JSType(f) == f.GetRegistry().GetNativeType(JSTypeNative_FUNCTION_TYPE)
 }
 
 // Java: FunctionType.isConstructor()
@@ -382,7 +332,7 @@ func (f *FunctionTypeBase) GetKind() FunctionType_Kind {
 //
 // Java: FunctionType.makesStructs()
 func (f *FunctionTypeBase) MakesStructs() bool {
-	if !f.selfFunc().HasInstanceType() || f.call.fnPropAccess == 0 {
+	if !f.HasInstanceType() || f.call.fnPropAccess == 0 {
 		return false
 	}
 	switch FunctionType_PropAccess(f.call.fnPropAccess - 1) {
@@ -395,9 +345,9 @@ func (f *FunctionTypeBase) MakesStructs() bool {
 		// super type.
 		return false
 	case FunctionType_PropAccess_ANY:
-		superc := f.selfFunc().GetSuperClassConstructor()
+		superc := f.GetSuperClassConstructor()
 		if superc != nil && superc.MakesStructs() {
-			f.selfFunc().SetStruct()
+			f.SetStruct()
 			return true
 		}
 		return false
@@ -411,7 +361,7 @@ func (f *FunctionTypeBase) MakesStructs() bool {
 //
 // Java: FunctionType.makesDicts()
 func (f *FunctionTypeBase) MakesDicts() bool {
-	if !f.selfFunc().IsConstructor() || f.call.fnPropAccess == 0 {
+	if !f.IsConstructor() || f.call.fnPropAccess == 0 {
 		return false
 	}
 	switch FunctionType_PropAccess(f.call.fnPropAccess - 1) {
@@ -424,9 +374,9 @@ func (f *FunctionTypeBase) MakesDicts() bool {
 		// super type.
 		return false
 	case FunctionType_PropAccess_ANY:
-		superc := f.selfFunc().GetSuperClassConstructor()
+		superc := f.GetSuperClassConstructor()
 		if superc != nil && superc.MakesDicts() {
-			f.selfFunc().SetDict()
+			f.SetDict()
 			return true
 		}
 		return false
@@ -451,12 +401,100 @@ func (f *FunctionTypeBase) SetExplicitUnrestricted() {
 
 // Java: JSType.isFunctionType()
 func (f *FunctionTypeBase) IsFunctionType() bool {
-	return true
+	return !f.isNoObjectOrNo()
 }
 
-// Java: FunctionType.toMaybeFunctionType()
+// Java: FunctionType.toMaybeFunctionType() / NoObjectType.toMaybeFunctionType()
 func (f *FunctionTypeBase) ToMaybeFunctionType() FunctionType {
-	return f.selfFunc()
+	if f.isNoObjectOrNo() {
+		return nil
+	}
+	return f
+}
+
+// Java: NoObjectType.isNoObjectType() / NoType.isNoObjectType()
+func (f *FunctionTypeBase) IsNoObjectType() bool {
+	return f.objFlags&objKindMask == objKindNoObject
+}
+
+// Java: NoType.isNoType()
+func (f *FunctionTypeBase) IsNoType() bool {
+	return f.isNo()
+}
+
+// Java: NoType.isNullable()
+func (f *FunctionTypeBase) IsNullable() bool {
+	return f.isNo()
+}
+
+// Java: NoType.isVoidable()
+func (f *FunctionTypeBase) IsVoidable() bool {
+	return f.isNo()
+}
+
+// Java: ObjectType.getPossibleToBooleanOutcomes() / NoType.getPossibleToBooleanOutcomes()
+func (f *FunctionTypeBase) GetPossibleToBooleanOutcomes() BooleanLiteralSet {
+	if f.isNo() {
+		return BooleanLiteralSet_BOTH
+	}
+	return BooleanLiteralSet_TRUE
+}
+
+// Java: PrototypeObjectType.getImplicitPrototype() / NoObjectType.getImplicitPrototype()
+func (f *FunctionTypeBase) GetImplicitPrototype() ObjectType {
+	if f.isNoObjectOrNo() {
+		return nil
+	}
+	return f.PrototypeObjectTypeBase.GetImplicitPrototype()
+}
+
+// Java: ObjectType.hasReferenceName()
+func (f *FunctionTypeBase) HasReferenceName() bool {
+	if f.isNoObjectOrNo() {
+		return false
+	}
+	return f.PrototypeObjectTypeBase.HasReferenceName()
+}
+
+// Java: PrototypeObjectType.getReferenceName() / NoObjectType.getReferenceName()
+func (f *FunctionTypeBase) GetReferenceName() *string {
+	if f.isNoObjectOrNo() {
+		return nil
+	}
+	return f.PrototypeObjectTypeBase.GetReferenceName()
+}
+
+// Java: PrototypeObjectType.matchesNumberContext() / NoObjectType.matchesNumberContext()
+func (f *FunctionTypeBase) MatchesNumberContext() bool {
+	if f.isNoObjectOrNo() {
+		return true
+	}
+	return f.PrototypeObjectTypeBase.MatchesNumberContext()
+}
+
+// Java: PrototypeObjectType.matchesStringContext() / NoObjectType.matchesStringContext()
+func (f *FunctionTypeBase) MatchesStringContext() bool {
+	if f.isNoObjectOrNo() {
+		return true
+	}
+	return f.PrototypeObjectTypeBase.MatchesStringContext()
+}
+
+// Java: PrototypeObjectType.matchesSymbolContext() / NoObjectType.matchesSymbolContext()
+func (f *FunctionTypeBase) MatchesSymbolContext() bool {
+	if f.isNoObjectOrNo() {
+		return true
+	}
+	return f.PrototypeObjectTypeBase.MatchesSymbolContext()
+}
+
+// Java: PrototypeObjectType.setPropertyJSDocInfo(Property.Key, JSDocInfo) / NoObjectType.setPropertyJSDocInfo(Property.Key, JSDocInfo)
+func (f *FunctionTypeBase) SetPropertyJSDocInfoByKey(propertyName Property_Key, info *JSDocInfo) {
+	if f.isNoObjectOrNo() {
+		// Do nothing, specific properties do not have JSDocInfo.
+		return
+	}
+	f.PrototypeObjectTypeBase.SetPropertyJSDocInfoByKey(propertyName, info)
 }
 
 // Java: FunctionType.canBeCalled()
@@ -466,7 +504,7 @@ func (f *FunctionTypeBase) CanBeCalled() bool {
 
 // Java: FunctionType.getParameters()
 func (f *FunctionTypeBase) GetParameters() []*FunctionType_Parameter {
-	return f.selfFunc().GetInternalArrowType().GetParameterList()
+	return f.GetInternalArrowType().GetParameterList()
 }
 
 // GetMinArity gets the minimum number of arguments that this function
@@ -478,7 +516,7 @@ func (f *FunctionTypeBase) GetMinArity() int {
 	// parameters before required parameters. This algorithm finds the
 	// position of the last required parameter.
 	min := 0
-	for i, parameter := range f.selfFunc().GetParameters() {
+	for i, parameter := range f.GetParameters() {
 		if !parameter.IsOptional() && !parameter.IsVariadic() {
 			min = i + 1
 		}
@@ -491,7 +529,7 @@ func (f *FunctionTypeBase) GetMinArity() int {
 //
 // Java: FunctionType.getMaxArity()
 func (f *FunctionTypeBase) GetMaxArity() int {
-	params := f.selfFunc().GetParameters()
+	params := f.GetParameters()
 	if len(params) == 0 {
 		return 0
 	}
@@ -531,7 +569,7 @@ func (f *FunctionTypeBase) GetSlotByKey(name Property_Key) *Property {
 	}
 	if isProto {
 		// Lazy initialization of the prototype field.
-		f.selfFunc().GetPrototype()
+		f.GetPrototype()
 		return f.prototypeSlot()
 	}
 	return f.PrototypeObjectTypeBase.GetSlotByKey(name)
@@ -575,12 +613,12 @@ func (f *FunctionTypeBase) ForEachOwnPropertyName(fn func(string)) {
 
 // Java: FunctionType.getPropertyType(Property.Key)
 func (f *FunctionTypeBase) GetPropertyTypeByKey(name Property_Key) JSType {
-	if !f.selfFunc().HasOwnPropertyByKey(name) {
+	if !f.HasOwnPropertyByKey(name) {
 		// Define the "call", "apply", and "bind" functions lazily.
 		isCall := name.Matches("call")
 		isBind := name.Matches("bind")
 		if isCall || isBind {
-			f.selfFunc().DefineDeclaredPropertyByKey(name, f.GetCallOrBindSignature(isCall), f.source)
+			f.DefineDeclaredPropertyByKey(name, f.GetCallOrBindSignature(isCall), f.source)
 		} else if name.Matches("apply") {
 			// Define the "apply" function lazily.
 			var builder FunctionParamBuilder
@@ -590,16 +628,16 @@ func (f *FunctionTypeBase) GetPropertyTypeByKey(name Property_Key) JSType {
 			// arguments object. We don't model the arguments object, so let's
 			// just be forgiving for now.
 			// TODO(nicksantos): Model the Arguments object.
-			builder.AddOptionalParam(f.GetRegistry().CreateNullableType(f.selfFunc().GetTypeOfThis()))
+			builder.AddOptionalParam(f.GetRegistry().CreateNullableType(f.GetTypeOfThis()))
 			builder.AddOptionalParam(
 				f.GetRegistry().CreateNullableType(f.GetRegistry().GetNativeType(JSTypeNative_OBJECT_TYPE)))
 
-			f.selfFunc().DefineDeclaredPropertyByKey(
+			f.DefineDeclaredPropertyByKey(
 				name,
 				FunctionType_Builder_(f.GetRegistry()).
 					WithParametersOfList(builder.Build()).
-					WithReturnType(f.selfFunc().GetReturnType()).
-					WithTemplateKeysOfList(f.selfFunc().GetTemplateTypeMap().GetTemplateKeys()).
+					WithReturnType(f.GetReturnType()).
+					WithTemplateKeysOfList(f.GetTemplateTypeMap().GetTemplateKeys()).
 					Build(),
 				f.source)
 		}
@@ -617,8 +655,8 @@ func (f *FunctionTypeBase) GetPropertyTypeByKey(name Property_Key) JSType {
 // Java: FunctionType.getBindReturnType(int)
 func (f *FunctionTypeBase) GetBindReturnType(argsToBind int) FunctionType {
 	builder := FunctionType_Builder_(f.GetRegistry()).
-		WithReturnType(f.selfFunc().GetReturnType()).
-		WithTemplateKeysOfList(f.selfFunc().GetTemplateTypeMap().GetTemplateKeys())
+		WithReturnType(f.GetReturnType()).
+		WithTemplateKeysOfList(f.GetTemplateTypeMap().GetTemplateKeys())
 	if argsToBind < 0 {
 		return builder.Build()
 	}
@@ -644,20 +682,20 @@ func (f *FunctionTypeBase) GetCallOrBindSignature(isCall bool) FunctionType {
 	isBind := !isCall
 	var returnType JSType
 	if isCall {
-		returnType = f.selfFunc().GetReturnType()
+		returnType = f.GetReturnType()
 	} else {
-		returnType = f.selfFunc().GetBindReturnType(-1)
+		returnType = f.GetBindReturnType(-1)
 	}
 	builder := FunctionType_Builder_(f.GetRegistry()).
 		WithReturnType(returnType).
-		WithTemplateKeysOfList(f.selfFunc().GetTemplateTypeMap().GetTemplateKeys())
+		WithTemplateKeysOfList(f.GetTemplateTypeMap().GetTemplateKeys())
 
-	origParams := f.selfFunc().GetInternalArrowType().GetParameterList()
+	origParams := f.GetInternalArrowType().GetParameterList()
 
 	params := append([]*FunctionType_Parameter{}, origParams...)
 
 	thisType := FunctionType_Parameter_Create(
-		f.GetRegistry().CreateOptionalNullableType(f.selfFunc().GetTypeOfThis()),
+		f.GetRegistry().CreateOptionalNullableType(f.GetTypeOfThis()),
 		/* isOptional= */ false,
 		/* isVariadic= */ false)
 	params = append([]*FunctionType_Parameter{thisType}, params...)
@@ -688,19 +726,22 @@ func (f *FunctionTypeBase) GetCallOrBindSignature(isCall bool) FunctionType {
 	return builder.Build()
 }
 
-// Java: FunctionType.recursionUnsafeHashCode()
+// Java: FunctionType.recursionUnsafeHashCode() / NoObjectType.recursionUnsafeHashCode()
 func (f *FunctionTypeBase) RecursionUnsafeHashCode() int32 {
+	if f.isNoObjectOrNo() {
+		return jutil.IdentityHashCode(f)
+	}
 	// Go-only: language-adapter — Enum.hashCode() is an identity hash in
 	// Java; the ordinal is a stable stand-in.
 	hc := int32(f.call.fnKind)
 	switch f.call.fnKind {
 	// constructors use identity semantics
 	case FunctionType_Kind_CONSTRUCTOR, FunctionType_Kind_INTERFACE:
-		return 31*hc + jutil.IdentityHashCode(f.selfFunc())
+		return 31*hc + jutil.IdentityHashCode(f)
 	case FunctionType_Kind_ORDINARY:
 		hc = 31*hc + f.typeOfThis.self().HashCode()
 		hc = 31*hc + f.call.HashCode()
-		hc = 31*hc + functionTypeClosurePrimitiveHashCode(f.selfFunc().GetClosurePrimitive())
+		hc = 31*hc + functionTypeClosurePrimitiveHashCode(f.GetClosurePrimitive())
 		return hc
 	}
 	panic(jutil.NewAssertionErrorNoMessage())
@@ -718,16 +759,26 @@ func functionTypeClosurePrimitiveHashCode(p *ClosurePrimitive) int32 {
 // Java: FunctionType.hasEqualCallType(FunctionType)
 func (f *FunctionTypeBase) HasEqualCallType(that FunctionType) bool {
 	return NewEqualityChecker().SetEqMethod(EqualityChecker_EqMethod_IDENTITY).
-		CheckArrows(&f.call, &that.GetFunctionTypeBase().call)
+		CheckArrows(&f.call, &that.call)
 }
 
 // AppendTo: informally, a function is represented by function (params):
 // returnType where the params is a comma separated list of types, the first
 // one being a special this:T if the function expects a known type for this.
 //
-// Java: FunctionType.appendTo(TypeStringBuilder)
+// Java: FunctionType.appendTo(TypeStringBuilder) / NoObjectType.appendTo(TypeStringBuilder) / NoType.appendTo(TypeStringBuilder)
 func (f *FunctionTypeBase) AppendTo(sb *TypeStringBuilder) {
-	if !f.selfFunc().IsPrettyPrint() || JSType(f.selfFunc()) == f.GetRegistry().GetNativeType(JSTypeNative_FUNCTION_TYPE) {
+	if f.isNoObjectOrNo() {
+		if sb.IsForAnnotations() {
+			sb.Append("?")
+		} else if f.isNo() {
+			sb.Append("None")
+		} else {
+			sb.Append("NoObject")
+		}
+		return
+	}
+	if !f.IsPrettyPrint() || JSType(f) == f.GetRegistry().GetNativeType(JSTypeNative_FUNCTION_TYPE) {
 		if sb.IsForAnnotations() {
 			sb.Append("!Function")
 		} else {
@@ -736,25 +787,25 @@ func (f *FunctionTypeBase) AppendTo(sb *TypeStringBuilder) {
 		return
 	}
 
-	if f.selfFunc().HasInstanceType() && !f.selfFunc().GetSource().IsNil() {
+	if f.HasInstanceType() && !f.GetSource().IsNil() {
 		// Render function types known to be type definitions as "(typeof
 		// Foo)". This includes types defined like "/** @constructor */ function
 		// Foo() { }" but not to those defined like "@param
 		// {function(new:Foo)}". Only the former will have a source node.
 		sb.Append("(typeof ")
-		sb.AppendType(f.selfFunc().GetInstanceType())
+		sb.AppendType(f.GetInstanceType())
 		sb.Append(")")
 		return
 	}
 
-	f.selfFunc().SetPrettyPrint(false)
+	f.SetPrettyPrint(false)
 
 	sb.Append("function(")
 	paramNum := len(f.call.GetParameterList())
 	_, isUnknown := jsTypeOf(f.typeOfThis).(*UnknownType)
 	hasKnownTypeOfThis := !isUnknown
 	if hasKnownTypeOfThis {
-		if f.selfFunc().IsConstructor() {
+		if f.IsConstructor() {
 			sb.Append("new:")
 		} else {
 			sb.Append("this:")
@@ -777,7 +828,7 @@ func (f *FunctionTypeBase) AppendTo(sb *TypeStringBuilder) {
 	sb.Append("): ")
 	sb.AppendNonNull(f.call.GetReturnType())
 
-	f.selfFunc().SetPrettyPrint(true)
+	f.SetPrettyPrint(true)
 }
 
 // Java: FunctionType.AppendArgString(TypeStringBuilder, Parameter)
@@ -862,7 +913,7 @@ func (f *FunctionTypeBase) SetSource(source Node) {
 
 // Java: FunctionType.hasAnyTemplateTypesInternal()
 func (f *FunctionTypeBase) HasAnyTemplateTypesInternal() bool {
-	return f.selfFunc().GetTemplateParamCount() > 0 ||
+	return f.GetTemplateParamCount() > 0 ||
 		f.typeOfThis.self().HasAnyTemplateTypes() ||
 		f.call.HasAnyTemplateTypes()
 }
@@ -877,7 +928,7 @@ func (f *FunctionTypeBase) AcceptsArguments(argumentTypes []JSType) bool {
 	// NOTE(aravindpg): This code is essentially lifted from
 	// TypeCheck::visitParameterList, but what small differences there are
 	// make it very painful to refactor out the shared code.
-	parameters := f.selfFunc().GetParameters()
+	parameters := f.GetParameters()
 	ai, pi := 0, 0
 	var parameter *FunctionType_Parameter
 	var argument JSType
@@ -898,7 +949,7 @@ func (f *FunctionTypeBase) AcceptsArguments(argumentTypes []JSType) bool {
 	}
 
 	numArgs := len(argumentTypes)
-	return f.selfFunc().GetMinArity() <= numArgs && numArgs <= f.selfFunc().GetMaxArity()
+	return f.GetMinArity() <= numArgs && numArgs <= f.GetMaxArity()
 }
 
 // ForgetParameterAndReturnTypes creates a new constructor with the
@@ -907,13 +958,13 @@ func (f *FunctionTypeBase) AcceptsArguments(argumentTypes []JSType) bool {
 // Java: FunctionType.forgetParameterAndReturnTypes()
 func (f *FunctionTypeBase) ForgetParameterAndReturnTypes() FunctionType {
 	result := FunctionType_Builder_(f.GetRegistry()).
-		WithName(f.selfFunc().GetReferenceName()).
+		WithName(f.GetReferenceName()).
 		WithSourceNode(f.source).
-		WithTypeOfThis(f.selfFunc().GetInstanceType()).
+		WithTypeOfThis(f.GetInstanceType()).
 		WithKind(f.call.fnKind).
-		WithCanonicalRepresentation(f.selfFunc()).
+		WithCanonicalRepresentation(f).
 		Build()
-	result.SetPrototypeBasedOn(f.selfFunc().GetInstanceType())
+	result.SetPrototypeBasedOn(f.GetInstanceType())
 	return result
 }
 
@@ -922,7 +973,7 @@ func (f *FunctionTypeBase) ForgetParameterAndReturnTypes() FunctionType {
 //
 // Java: FunctionType.getConstructorOnlyTemplateParameters()
 func (f *FunctionTypeBase) GetConstructorOnlyTemplateParameters() []*TemplateType {
-	jutil.CheckStateMsg1(f.selfFunc().IsConstructor(), "%s", f.selfFunc())
+	jutil.CheckStateMsg1(f.IsConstructor(), "%s", f)
 
 	// Structural constructor types (e.g `function(new:Foo<T>)`) cannot have
 	// template params of their own.
@@ -932,8 +983,8 @@ func (f *FunctionTypeBase) GetConstructorOnlyTemplateParameters() []*TemplateTyp
 
 	// Within the `TemplateTypeMap` of a ctor type, the ctor only keys always
 	// appear after the instance type keys.
-	m := f.selfFunc().GetTemplateTypeMap()
-	ctorOnlyKeyCount := f.selfFunc().GetTemplateParamCount() - f.selfFunc().GetInstanceType().GetTemplateParamCount()
+	m := f.GetTemplateTypeMap()
+	ctorOnlyKeyCount := f.GetTemplateParamCount() - f.GetInstanceType().GetTemplateParamCount()
 	return jsTypeSubList(m.GetTemplateKeys(), m.Size()-ctorOnlyKeyCount, m.Size())
 }
 

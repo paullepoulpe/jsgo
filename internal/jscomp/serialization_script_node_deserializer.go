@@ -233,7 +233,7 @@ func (r *scriptNodeDeserializer_Runner) visitBytes(
 
 	if rhino.Node_HasBitSet(booleanProperties, int(rhino.NodeProperty_CLOSURE_UNAWARE_SHADOW.GetNumber())) {
 		if childrenStart >= len(r.childBytes) {
-			protoCheckIndexJDK(0, 0)
+			panic(jutil.NewIndexOutOfBoundsException("Index 0 out of bounds for length 0"))
 		}
 		serializedShadowChild := r.childBytes[childrenStart]
 		r.childBytes = r.childBytes[:childrenStart]

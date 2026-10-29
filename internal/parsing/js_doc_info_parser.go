@@ -49,8 +49,8 @@ type JsDocInfoParser struct {
 	state                 JsDocInfoParser_State
 
 	config                *Config
-	suppressionNames      map[string]struct{}
-	closurePrimitiveNames map[string]struct{}
+	suppressionNames      *jutil.LinkedHashSet[string]
+	closurePrimitiveNames *jutil.LinkedHashSet[string]
 	preserveWhitespace    bool
 	onlyParseLicenseJsDoc bool
 

@@ -435,8 +435,158 @@ func (v *TypeValidator) GetNativeType(typeId rhino.JSTypeNative) rhino.JSType {
 func TypeValidator_HasDuplicateDeclarationSuppression(compiler AbstractCompiler, decl rhino.Node) bool {
 	// NB: DUP_VAR_DECLARATION is somewhat arbitrary here, but it must be one of the errors
 	// suppressed by the "duplicate" group.
-	originalDeclLevel := compiler.GetErrorLevel(JSError_MakeWithNode(decl, TypeValidator_DUP_VAR_DECLARATION, "dummy", "dummy"))
-	return originalDeclLevel != nil && *originalDeclLevel == CheckLevel_OFF
+	jutil.CheckNotNull(compiler.options)
+	var lazyErr *JSError
+	level := dupVarDeclGuardLevel(compiler.warningsGuard, decl, &lazyErr)
+	return level != nil && *level == CheckLevel_OFF
+}
+
+func makeDupVarDeclProbeError(decl rhino.Node) *JSError {
+	return &JSError{
+		type_:        TypeValidator_DUP_VAR_DECLARATION,
+		description:  TypeValidator_DUP_VAR_DECLARATION.Format("dummy", "dummy"),
+		sourceName:   decl.GetSourceFileName(),
+		lineno:       decl.GetLineno(),
+		charno:       decl.GetCharno(),
+		length:       decl.GetLength(),
+		node:         decl,
+		defaultLevel: TypeValidator_DUP_VAR_DECLARATION.level,
+	}
+}
+
+func dupVarDeclGuardLevel(guard WarningsGuard, decl rhino.Node, lazyErr **JSError) *CheckLevel {
+	switch g := guard.(type) {
+	case *ComposeWarningsGuard:
+		for _, entry := range g.entries {
+			newLevel := dupVarDeclGuardLevel(entry.guard, decl, lazyErr)
+			if newLevel != nil {
+				if g.demoteErrors && *newLevel == CheckLevel_ERROR {
+					return CheckLevel_WARNING.Ptr()
+				}
+				return newLevel
+			}
+		}
+		return nil
+	case *ClosureUnawareCodeWarningsGuard:
+		return nil
+	case *J2clSuppressWarningsGuard:
+		if !J2clSourceUtils_IsJ2clSource(decl.GetSourceFileName()) {
+			return nil
+		}
+		if J2clSuppressWarningsGuard_DEFAULT_J2CL_SUPRRESIONS.MatchesType(TypeValidator_DUP_VAR_DECLARATION) {
+			return CheckLevel_OFF.Ptr()
+		}
+		return nil
+	case *DiagnosticGroupWarningsGuard:
+		if g.group.MatchesType(TypeValidator_DUP_VAR_DECLARATION) {
+			return g.level.Ptr()
+		}
+		return nil
+	case *DiagnosticGroupPathSuppressingWarningsGuard:
+		src := decl.GetSourceFileName()
+		if src == nil || !strings.Contains(*src, g.part) {
+			return nil
+		}
+		if g.group.MatchesType(TypeValidator_DUP_VAR_DECLARATION) {
+			return CheckLevel_OFF.Ptr()
+		}
+		return nil
+	case *ByPathWarningsGuard:
+		if TypeValidator_DUP_VAR_DECLARATION.level != CheckLevel_ERROR {
+			if errorPath := decl.GetSourceFileName(); errorPath != nil {
+				src := *errorPath
+				inPath := false
+				for _, path := range g.paths {
+					if strings.Contains(src, path) {
+						inPath = true
+						break
+					}
+				}
+				if inPath == g.include {
+					return g.level.Ptr()
+				}
+			}
+		}
+		return nil
+	case *ShowByPathWarningsGuard:
+		return dupVarDeclGuardLevel(g.warningsGuard, decl, lazyErr)
+	case *CheckTypeSummaryWarningsGuard:
+		if src := decl.GetSourceFileName(); src != nil && strings.HasSuffix(*src, ".i.js") {
+			return g.level.Ptr()
+		}
+		return nil
+	case *StrictWarningsGuard:
+		if TypeValidator_DUP_VAR_DECLARATION.level.IsOn() {
+			return CheckLevel_ERROR.Ptr()
+		}
+		return nil
+	case *SuppressDocWarningsGuard:
+		return dupVarDeclSuppressDocLevel(g, decl)
+	default:
+		if *lazyErr == nil {
+			*lazyErr = makeDupVarDeclProbeError(decl)
+		}
+		return guard.Level(*lazyErr)
+	}
+}
+
+func dupVarDeclSuppressDocLevel(g *SuppressDocWarningsGuard, decl rhino.Node) *CheckLevel {
+	node := decl
+	src := decl.GetSourceFileName()
+	if node.IsNil() && src != nil {
+		if sn := g.compiler.GetScriptNode(*src); !sn.IsNil() {
+			jutil.CheckState(sn.IsScript())
+			node = sn
+		}
+	}
+	if node.IsNil() {
+		return nil
+	}
+	for current := node; !current.IsNil(); current = current.GetParent() {
+		var info *rhino.JSDocInfo
+		if current.IsFunction() || current.IsClass() {
+			info = NodeUtil_GetBestJSDocInfo(current)
+		} else if current.IsScript() {
+			info = current.GetJSDocInfo()
+		} else if NodeUtil_IsNameDeclaration(current) ||
+			NodeUtil_MayBeObjectLitKey(current) ||
+			current.IsComputedProp() ||
+			current.IsMemberFieldDef() ||
+			current.IsComputedFieldDef() ||
+			(current.HasParent() && current.GetParent().IsExprResult()) {
+			info = NodeUtil_GetBestJSDocInfo(current)
+		}
+		if info != nil {
+			if level := dupVarDeclLevelFromInfo(g, info); level != nil {
+				return level
+			}
+		}
+	}
+	if src != nil {
+		if scriptNode := g.compiler.GetScriptNode(*src); !scriptNode.IsNil() {
+			jutil.CheckState(scriptNode.IsScript())
+			if info := scriptNode.GetJSDocInfo(); info != nil {
+				return dupVarDeclLevelFromInfo(g, info)
+			}
+		}
+	}
+	return nil
+}
+
+func dupVarDeclLevelFromInfo(g *SuppressDocWarningsGuard, info *rhino.JSDocInfo) *CheckLevel {
+	var matched *CheckLevel
+	info.ForEachSuppression(func(suppressor string) bool {
+		group := g.suppressors[suppressor]
+		if group == nil {
+			return true
+		}
+		if group.MatchesType(TypeValidator_DUP_VAR_DECLARATION) {
+			matched = CheckLevel_OFF.Ptr()
+			return false
+		}
+		return true
+	})
+	return matched
 }
 
 // Java: TypeValidator.expectWellFormedTemplatizedType(Node)
@@ -461,7 +611,11 @@ func (v *TypeValidator) checkWellFormedTemplatizedType(n rhino.Node, t rhino.JST
 		prim := x.GetPrimitiveType()
 		valid = prim == nil || v.checkWellFormedTemplatizedType(n, prim)
 	case *rhino.FunctionTypeBase:
-		valid = v.checkWellFormedFunctionType(n, x)
+		if x.IsNoObjectType() || x.IsNoType() {
+			valid = true
+		} else {
+			valid = v.checkWellFormedFunctionType(n, x)
+		}
 	case *rhino.NamedType:
 		valid = v.checkWellFormedTemplatizedType(n, x.GetReferencedType())
 	case *rhino.UnionType:
@@ -476,23 +630,18 @@ func (v *TypeValidator) checkWellFormedTemplatizedType(n rhino.Node, t rhino.JST
 		valid = v.checkWellFormedTemplatizedInstance(n, x)
 	case *rhino.TemplateType:
 		valid = !x.ContainsCycle() && v.checkWellFormedTemplatizedType(n, x.GetBound())
-	case *rhino.NoObjectType,
-		*rhino.AllType, *rhino.BooleanType, *rhino.UnknownType, *rhino.NullType,
+	case *rhino.AllType, *rhino.BooleanType, *rhino.UnknownType, *rhino.NullType,
 		*rhino.NumberType, *rhino.BigIntType, *rhino.StringType, *rhino.VoidType,
 		*rhino.InstanceObjectType, *rhino.PrototypeObjectTypeBase, *rhino.RecordType,
 		*rhino.EnumType, *rhino.NoResolvedType, *rhino.ProxyObjectTypeBase,
 		*rhino.SymbolTypeBase, *rhino.KnownSymbolType:
 		valid = true
 	default:
-		if fn, ok := t.(rhino.FunctionType); ok {
-			valid = v.checkWellFormedFunctionType(n, fn)
-		} else {
-			switch t.(type) {
-			case rhino.ProxyObjectType, rhino.ObjectType:
-				valid = true
-			default:
-				panic(jutil.NewUnsupportedOperationException())
-			}
+		switch t.(type) {
+		case rhino.ProxyObjectType, rhino.ObjectType:
+			valid = true
+		default:
+			panic(jutil.NewUnsupportedOperationException())
 		}
 	}
 	if valid {

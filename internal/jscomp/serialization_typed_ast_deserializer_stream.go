@@ -737,7 +737,8 @@ func typedAstDeserializer_streamLargeShard(
 					} else {
 						dbg = &TypePool_DebugInfo{}
 					}
-					dbg.mergeFromReader(&protoReader{b: data, depth: 2, limit: math.MaxInt32})
+					pr := protoReader{b: data, depth: 2, limit: math.MaxInt32}
+					dbg.mergeFromReader(&pr)
 					x.debugInfo_ = dbg
 				default:
 					x.unknownFields = sr.appendUnknownField(x.unknownFields, subTag, endLeft)
@@ -817,9 +818,8 @@ func typedAstDeserializer_streamLargeShard(
 				case 10:
 					data := sr.readSliceView(sr.readLength(endLeft), endLeft)
 					sf := sourceFileSlab.New()
-					sf.memoizedSize = -1
-					sf.mergeFromReader(&protoReader{b: data, depth: 2, limit: math.MaxInt32})
-					sf.frozen = true
+					pr := protoReader{b: data, depth: 2, limit: math.MaxInt32}
+					sf.mergeFromReader(&pr)
 					x.sourceFile_ = append(x.sourceFile_, sf)
 				default:
 					x.unknownFields = sr.appendUnknownField(x.unknownFields, subTag, endLeft)
@@ -835,7 +835,8 @@ func typedAstDeserializer_streamLargeShard(
 			} else {
 				x = &ExternsSummary{}
 			}
-			x.mergeFromReader(&protoReader{b: data, depth: 2, limit: math.MaxInt32})
+			pr := protoReader{b: data, depth: 2, limit: math.MaxInt32}
+			x.mergeFromReader(&pr)
 			m.externsSummary_ = x
 		case 58:
 			raw := sr.readSliceView(sr.readLength(0), 0)

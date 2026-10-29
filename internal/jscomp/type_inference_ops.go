@@ -571,7 +571,11 @@ func (ti *TypeInference) GetPropertyType(objType rhino.JSType, propName string, 
 		regType :=
 			rhino.ObjectType_Cast(ti.registry.GetType(scope.GetDeclarationScope(), qualifiedName))
 		if regType != nil {
-			propertyType = regType.GetConstructor()
+			if ctor := regType.GetConstructor(); ctor != nil {
+				propertyType = ctor
+			} else {
+				propertyType = nil
+			}
 		}
 	}
 

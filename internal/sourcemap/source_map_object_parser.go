@@ -19,17 +19,14 @@
 package sourcemap
 
 import (
+	"math"
+	"strconv"
 	"strings"
 
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 )
 
-// Gson objects are safe to share across threads and are somewhat expensive
-// to construct. Use a single instance. This is Safe per gson docs:
-// https://google.github.io/gson/apidocs/com/google/gson/Gson.html
-var sourceMapObjectParser_gson = jutil.NewGson()
-
-// SourceMapObjectParser_Parse parses a source map with Gson. It panics with
+// SourceMapObjectParser_Parse parses a source map JSON document. It panics with
 // a *SourceMapParseException on malformed JSON.
 //
 // Java: SourceMapObjectParser.parse(String)
@@ -42,404 +39,585 @@ func SourceMapObjectParser_Parse(contents string) *SourceMapObject {
 }
 
 func parseSourceMapObject(contents string) (*SourceMapObject, jutil.Throwable) {
-	if obj, ok := tryParseStrictFast(contents); ok {
-		return obj, nil
-	}
-	return parseSourceMapObjectGson(contents)
-}
+	var l SourceMapJsonLexer
+	l.initStream(contents)
 
-// tryParseStrictFast parses standard strict-JSON V3 and index ("sections")
-// source maps directly via SourceMapJsonLexer without allocating a Gson DOM.
-// It returns (_, false) on missing "version" or non-strict / malformed JSON so
-// parseSourceMapObjectGson preserves exact Gson diagnostics and coercions.
-func tryParseStrictFast(contents string) (*SourceMapObject, bool) {
-	obj := &SourceMapObject{lineCount: -1}
-	lexer := NewSourceMapJsonLexer(contents)
-	if err := lexer.beginObject(); err != nil {
-		return nil, false
+	rootTok, emptyEOF, err := l.doPeek(true)
+	if err != nil {
+		return nil, err
 	}
-	var extensions []SourceMapExtension
-	hasVersion := false
-	hasSections := false
+	if emptyEOF {
+		return nil, jutil.NewHelpfulNullPointerException(
+			"Cannot invoke \"" + jutil.GsonPackage + ".JsonObject.get(String)\" because \"sourceMapRoot\" is null")
+	}
 
-	for lexer.HasNext() {
-		name, ok := strictNextName(lexer)
-		if !ok {
-			return nil, false
+	if rootTok != smPeekBeginObject {
+		elem, err := l.readJsonElement()
+		if err != nil {
+			return nil, err
 		}
-		switch name {
-		case "version":
-			v, ok := strictNextInt(lexer)
-			if !ok {
-				return nil, false
-			}
-			obj.version = v
-			hasVersion = true
-		case "file":
-			s, ok := strictNextStringOrNull(lexer)
-			if !ok {
-				return nil, false
-			}
-			obj.file = s
-		case "lineCount":
-			lc, ok := strictNextInt(lexer)
-			if !ok {
-				return nil, false
-			}
-			obj.lineCount = lc
-		case "mappings":
-			m, ok := strictNextStringOrNull(lexer)
-			if !ok {
-				return nil, false
-			}
-			obj.mappings = m
-		case "sourceRoot":
-			sr, ok := strictNextStringOrNull(lexer)
-			if !ok {
-				return nil, false
-			}
-			obj.sourceRoot = sr
-		case "sections":
-			if hasSections {
-				return nil, false
-			}
-			secs, ok := strictReadSections(lexer)
-			if !ok {
-				return nil, false
-			}
-			obj.sections = secs
-			hasSections = true
-		case "sources":
-			arr, ok := strictReadOptionalStringArray(lexer)
-			if !ok {
-				return nil, false
-			}
-			obj.sources = arr
-		case "sourcesContent":
-			arr, ok := strictReadOptionalStringArray(lexer)
-			if !ok {
-				return nil, false
-			}
-			obj.sourcesContent = arr
-		case "names":
-			arr, ok := strictReadOptionalStringArray(lexer)
-			if !ok {
-				return nil, false
-			}
-			obj.names = arr
+		var actualSimple string
+		switch elem.(type) {
+		case *jutil.JsonArray:
+			actualSimple = "JsonArray"
+		case *jutil.JsonPrimitive:
+			actualSimple = "JsonPrimitive"
 		default:
-			if strings.HasPrefix(name, "x_") {
-				lexer.SkipWhitespace()
-				start := lexer.pos
-				if !strictSkipValue(lexer) {
-					return nil, false
-				}
-				elem, parseEx := sourceMapObjectParser_gson.TryFromJsonElement(lexer.json[start:lexer.pos])
-				if parseEx != nil {
-					return nil, false
-				}
-				extensions = putExtension(extensions, name, elem)
-			} else if !strictSkipValue(lexer) {
-				return nil, false
-			}
+			actualSimple = "JsonNull"
 		}
-		if err := lexer.checkComma(); err != nil {
-			return nil, false
-		}
+		return nil, wrapGsonSyntaxDirect(
+			"Expected a " + jutil.GsonPackage + ".JsonObject but was " + jutil.GsonPackage + "." + actualSimple + "; at path $")
 	}
-	if !hasVersion || lexer.endObject() != nil {
-		return nil, false
-	}
-	lexer.SkipWhitespace()
-	if lexer.pos != lexer.length {
-		return nil, false
-	}
-	obj.extensions = extensions
-	return obj, true
-}
 
-func strictNextString(l *SourceMapJsonLexer) (string, bool) {
-	l.SkipWhitespace()
-	if l.pos >= l.length || l.json[l.pos] != '"' {
-		return "", false
+	if err := l.beginObjectStream(); err != nil {
+		return nil, err
 	}
-	start := l.pos + 1
-	pos := start
-	hasEscape := false
-	for pos < l.length {
-		c := l.json[pos]
-		if c < 0x20 {
-			return "", false
+
+	obj := &SourceMapObject{lineCount: -1}
+	hasVersion := false
+	var verErr, fileErr, lcErr, mappingsErr, sourceRootErr jutil.Throwable
+	var sectionsErr, sourcesErr, sourcesContentErr, namesErr jutil.Throwable
+	var extensions []SourceMapExtension
+
+	for {
+		more, err := l.hasNextStream()
+		if err != nil {
+			return nil, err
 		}
-		if c == '"' {
+		if !more {
 			break
 		}
-		if c == '\\' {
-			hasEscape = true
-			if pos+1 >= l.length {
-				return "", false
+		name, err := l.nextNameStream()
+		if err != nil {
+			return nil, err
+		}
+		vtok, err := l.peekStream()
+		if err != nil {
+			return nil, err
+		}
+
+		switch name {
+		case "version":
+			v, cerr, serr := readStreamInt(&l, vtok)
+			if serr != nil {
+				return nil, serr
 			}
-			switch l.json[pos+1] {
-			case '"', '\\', '/', 'b', 'f', 'n', 'r', 't':
-				pos += 2
-			case 'u':
-				if pos+6 > l.length {
-					return "", false
+			obj.version = v
+			verErr = cerr
+			hasVersion = true
+
+		case "file":
+			s, cerr, serr := readStreamOptionalString(&l, vtok)
+			if serr != nil {
+				return nil, serr
+			}
+			obj.file = s
+			fileErr = cerr
+
+		case "lineCount":
+			v, cerr, serr := readStreamInt(&l, vtok)
+			if serr != nil {
+				return nil, serr
+			}
+			obj.lineCount = v
+			lcErr = cerr
+
+		case "mappings":
+			s, cerr, serr := readStreamOptionalString(&l, vtok)
+			if serr != nil {
+				return nil, serr
+			}
+			obj.mappings = s
+			mappingsErr = cerr
+
+		case "sourceRoot":
+			s, cerr, serr := readStreamOptionalString(&l, vtok)
+			if serr != nil {
+				return nil, serr
+			}
+			obj.sourceRoot = s
+			sourceRootErr = cerr
+
+		case "sections":
+			secs, cerr, serr := readStreamSections(&l, vtok)
+			if serr != nil {
+				return nil, serr
+			}
+			obj.sections = secs
+			sectionsErr = cerr
+
+		case "sources":
+			arr, cerr, serr := readStreamOptionalStringArray(&l, vtok)
+			if serr != nil {
+				return nil, serr
+			}
+			obj.sources = arr
+			sourcesErr = cerr
+
+		case "sourcesContent":
+			arr, cerr, serr := readStreamOptionalStringArray(&l, vtok)
+			if serr != nil {
+				return nil, serr
+			}
+			obj.sourcesContent = arr
+			sourcesContentErr = cerr
+
+		case "names":
+			arr, cerr, serr := readStreamOptionalStringArray(&l, vtok)
+			if serr != nil {
+				return nil, serr
+			}
+			obj.names = arr
+			namesErr = cerr
+
+		default:
+			if strings.HasPrefix(name, "x_") {
+				elem, err := l.readJsonElement()
+				if err != nil {
+					return nil, err
 				}
-				if _, ok := parseHex4ASCII(l.json[pos+2 : pos+6]); !ok {
-					return "", false
+				extensions = putExtension(extensions, name, elem)
+			} else if err := l.skipValueStream(); err != nil {
+				return nil, err
+			}
+		}
+	}
+
+	if err := l.endObjectStream(); err != nil {
+		return nil, err
+	}
+
+	// Assert full consumption in strict mode (Gson.assertFullConsumption).
+	l.lenient = false
+	endTok, err := l.peekStream()
+	if err != nil {
+		return nil, err
+	}
+	if endTok != smPeekEOF {
+		return nil, wrapGsonSyntaxDirect("JSON document was not fully consumed.")
+	}
+
+	if !hasVersion {
+		return nil, sourceMapParserMissingFieldNPE("getAsInt()")
+	}
+	if verErr != nil {
+		return nil, verErr
+	}
+	if fileErr != nil {
+		return nil, fileErr
+	}
+	if lcErr != nil {
+		return nil, lcErr
+	}
+	if mappingsErr != nil {
+		return nil, mappingsErr
+	}
+	if sourceRootErr != nil {
+		return nil, sourceRootErr
+	}
+	if sectionsErr != nil {
+		return nil, sectionsErr
+	}
+	if sourcesErr != nil {
+		return nil, sourcesErr
+	}
+	if sourcesContentErr != nil {
+		return nil, sourcesContentErr
+	}
+	if namesErr != nil {
+		return nil, namesErr
+	}
+
+	obj.extensions = extensions
+	return obj, nil
+}
+
+func sourceMapParserMissingFieldNPE(method string) jutil.Throwable {
+	return jutil.NewHelpfulNullPointerException(
+		"Cannot invoke \"" + jutil.GsonPackage + ".JsonElement." + method +
+			"\" because the return value of \"" + jutil.GsonPackage + ".JsonObject.get(String)\" is null")
+}
+
+func readStreamInt(l *SourceMapJsonLexer, vtok uint8) (val int, coerceErr jutil.Throwable, syntaxErr jutil.Throwable) {
+	if vtok == smPeekLong && l.peekedLong >= math.MinInt32 && l.peekedLong <= math.MaxInt32 {
+		v := int(l.peekedLong)
+		l.consumePeekedScalar()
+		return v, nil, nil
+	}
+	elem, err := l.readJsonElement()
+	if err != nil {
+		return 0, nil, err
+	}
+	v, cerr := elem.TryGetAsInt()
+	return int(v), cerr, nil
+}
+
+func readStreamOptionalString(l *SourceMapJsonLexer, vtok uint8) (val optionalString, coerceErr jutil.Throwable, syntaxErr jutil.Throwable) {
+	switch vtok {
+	case smPeekNull:
+		l.consumePeekedScalar()
+		return optionalString{}, nil, nil
+	case smPeekDoubleQuoted, smPeekSingleQuoted, smPeekUnquoted:
+		s, err := l.nextStringStream()
+		if err != nil {
+			return optionalString{}, nil, err
+		}
+		return optionalString{text: s, present: true}, nil, nil
+	default:
+		elem, err := l.readJsonElement()
+		if err != nil {
+			return optionalString{}, nil, err
+		}
+		s, cerr := elem.TryGetAsString()
+		if cerr != nil {
+			return optionalString{}, cerr, nil
+		}
+		return optionalString{text: s, present: true}, nil, nil
+	}
+}
+
+func readStreamOptionalStringArray(l *SourceMapJsonLexer, vtok uint8) (val []optionalString, coerceErr jutil.Throwable, syntaxErr jutil.Throwable) {
+	if vtok == smPeekNull {
+		l.consumePeekedScalar()
+		return nil, nil, nil
+	}
+	if vtok != smPeekBeginArray {
+		elem, err := l.readJsonElement()
+		if err != nil {
+			return nil, nil, err
+		}
+		return nil, jutil.NewIllegalStateExceptionMsg("Not a JSON Array: " + elem.String()), nil
+	}
+	if err := l.beginArrayStream(); err != nil {
+		return nil, nil, err
+	}
+	list := []optionalString{}
+	var firstErr jutil.Throwable
+	for {
+		more, err := l.hasNextStream()
+		if err != nil {
+			return nil, nil, err
+		}
+		if !more {
+			break
+		}
+		etok, err := l.peekStream()
+		if err != nil {
+			return nil, nil, err
+		}
+		switch etok {
+		case smPeekNull:
+			l.consumePeekedScalar()
+			list = append(list, optionalString{})
+		case smPeekDoubleQuoted, smPeekSingleQuoted, smPeekUnquoted:
+			s, err := l.nextStringStream()
+			if err != nil {
+				return nil, nil, err
+			}
+			list = append(list, optionalString{text: s, present: true})
+		default:
+			elem, err := l.readJsonElement()
+			if err != nil {
+				return nil, nil, err
+			}
+			if firstErr == nil {
+				s, cerr := elem.TryGetAsString()
+				if cerr != nil {
+					firstErr = cerr
+				} else {
+					list = append(list, optionalString{text: s, present: true})
 				}
-				pos += 6
-			default:
-				return "", false
+			}
+		}
+	}
+	if err := l.endArrayStream(); err != nil {
+		return nil, nil, err
+	}
+	if firstErr != nil {
+		return nil, firstErr, nil
+	}
+	return list, nil, nil
+}
+
+func readStreamSections(l *SourceMapJsonLexer, vtok uint8) (secs []*SourceMapSection, coerceErr jutil.Throwable, syntaxErr jutil.Throwable) {
+	if vtok != smPeekBeginArray {
+		elem, err := l.readJsonElement()
+		if err != nil {
+			return nil, nil, err
+		}
+		return nil, jutil.NewIllegalStateExceptionMsg("Not a JSON Array: " + elem.String()), nil
+	}
+	if err := l.beginArrayStream(); err != nil {
+		return nil, nil, err
+	}
+	sections := []*SourceMapSection{}
+	var firstErr jutil.Throwable
+	for {
+		more, err := l.hasNextStream()
+		if err != nil {
+			return nil, nil, err
+		}
+		if !more {
+			break
+		}
+		etok, err := l.peekStream()
+		if err != nil {
+			return nil, nil, err
+		}
+		if etok != smPeekBeginObject {
+			elem, err := l.readJsonElement()
+			if err != nil {
+				return nil, nil, err
+			}
+			if firstErr == nil {
+				firstErr = jutil.NewIllegalStateExceptionMsg("Not a JSON Object: " + elem.String())
 			}
 			continue
 		}
-		pos++
-	}
-	if pos >= l.length {
-		return "", false
-	}
-	var res string
-	if !hasEscape {
-		res = l.json[start:pos]
-	} else {
-		var err error
-		res, err = sourceMapJsonLexer_unescape(l.json, start, pos)
-		if err != nil {
-			return "", false
+		sec, cerr, serr := readStreamSectionObject(l)
+		if serr != nil {
+			return nil, nil, serr
+		}
+		if cerr != nil {
+			if firstErr == nil {
+				firstErr = cerr
+			}
+		} else {
+			sections = append(sections, sec)
 		}
 	}
-	l.pos = pos + 1
-	return res, true
+	if err := l.endArrayStream(); err != nil {
+		return nil, nil, err
+	}
+	if firstErr != nil {
+		return nil, firstErr, nil
+	}
+	return sections, nil, nil
 }
 
-func strictNextName(l *SourceMapJsonLexer) (string, bool) {
-	name, ok := strictNextString(l)
-	if !ok {
-		return "", false
+func readStreamSectionObject(l *SourceMapJsonLexer) (sec *SourceMapSection, coerceErr jutil.Throwable, syntaxErr jutil.Throwable) {
+	if err := l.beginObjectStream(); err != nil {
+		return nil, nil, err
 	}
-	l.SkipWhitespace()
-	if l.pos >= l.length || l.json[l.pos] != ':' {
-		return "", false
-	}
-	l.pos++
-	return name, true
-}
 
-func strictNextStringOrNull(l *SourceMapJsonLexer) (optionalString, bool) {
-	l.SkipWhitespace()
-	if l.startsWith("null", l.pos) {
-		l.pos += 4
-		return optionalString{}, true
-	}
-	s, ok := strictNextString(l)
-	if !ok {
-		return optionalString{}, false
-	}
-	return optionalString{text: s, present: true}, true
-}
-
-func strictNextInt(l *SourceMapJsonLexer) (int, bool) {
-	l.SkipWhitespace()
-	start := l.pos
-	if l.pos < l.length && l.json[l.pos] == '-' {
-		l.pos++
-	}
-	if l.pos >= l.length || l.json[l.pos] < '0' || l.json[l.pos] > '9' {
-		return 0, false
-	}
-	if l.json[l.pos] == '0' {
-		l.pos++
-	} else {
-		for l.pos < l.length && l.json[l.pos] >= '0' && l.json[l.pos] <= '9' {
-			l.pos++
-		}
-	}
-	if l.pos < l.length {
-		c := l.json[l.pos]
-		if c == '.' || c == 'e' || c == 'E' || (c >= '0' && c <= '9') {
-			return 0, false
-		}
-	}
-	v, ok := sourceMapJsonLexer_parseInt(l.json, start, l.pos, 10)
-	if !ok {
-		return 0, false
-	}
-	return int(v), true
-}
-
-func strictReadOptionalStringArray(l *SourceMapJsonLexer) ([]optionalString, bool) {
-	l.SkipWhitespace()
-	if l.startsWith("null", l.pos) {
-		l.pos += 4
-		return nil, true
-	}
-	if l.beginArray() != nil {
-		return nil, false
-	}
-	list := []optionalString{}
-	for l.HasNext() {
-		s, ok := strictNextStringOrNull(l)
-		if !ok {
-			return nil, false
-		}
-		list = append(list, s)
-		if l.checkComma() != nil {
-			return nil, false
-		}
-	}
-	if l.endArray() != nil {
-		return nil, false
-	}
-	return list, true
-}
-
-func strictReadSections(l *SourceMapJsonLexer) ([]*SourceMapSection, bool) {
-	if l.beginArray() != nil {
-		return nil, false
-	}
-	sections := []*SourceMapSection{}
-	for l.HasNext() {
-		sec, ok := strictReadSection(l)
-		if !ok || l.checkComma() != nil {
-			return nil, false
-		}
-		sections = append(sections, sec)
-	}
-	if l.endArray() != nil {
-		return nil, false
-	}
-	return sections, true
-}
-
-func strictReadSection(l *SourceMapJsonLexer) (*SourceMapSection, bool) {
-	if l.beginObject() != nil {
-		return nil, false
-	}
-	var line, column int
 	hasOffset := false
-	hasURL := false
-	hasMap := false
-	var urlStr, mapStr string
+	offsetIsObj := false
+	var offsetStr string
+	hasLine, hasCol := false, false
+	var lineVal, colVal int
+	var lineErr, colErr jutil.Throwable
 
-	for l.HasNext() {
-		key, ok := strictNextName(l)
-		if !ok {
-			return nil, false
+	hasURL, hasMap := false, false
+	var urlStr, mapStr string
+	var urlErr jutil.Throwable
+
+	for {
+		more, err := l.hasNextStream()
+		if err != nil {
+			return nil, nil, err
 		}
+		if !more {
+			break
+		}
+		key, err := l.nextNameStream()
+		if err != nil {
+			return nil, nil, err
+		}
+		ktok, err := l.peekStream()
+		if err != nil {
+			return nil, nil, err
+		}
+
 		switch key {
 		case "offset":
-			if hasOffset || l.beginObject() != nil {
-				return nil, false
+			hasOffset = true
+			if ktok != smPeekBeginObject {
+				elem, err := l.readJsonElement()
+				if err != nil {
+					return nil, nil, err
+				}
+				offsetIsObj = false
+				offsetStr = elem.String()
+				continue
 			}
-			hasLine, hasCol := false, false
-			for l.HasNext() {
-				okey, ok := strictNextName(l)
-				if !ok {
-					return nil, false
+			offsetIsObj = true
+			hasLine, hasCol = false, false
+			lineErr, colErr = nil, nil
+			if err := l.beginObjectStream(); err != nil {
+				return nil, nil, err
+			}
+			for {
+				omore, err := l.hasNextStream()
+				if err != nil {
+					return nil, nil, err
+				}
+				if !omore {
+					break
+				}
+				okey, err := l.nextNameStream()
+				if err != nil {
+					return nil, nil, err
+				}
+				ovtok, err := l.peekStream()
+				if err != nil {
+					return nil, nil, err
 				}
 				switch okey {
 				case "line":
-					if hasLine {
-						return nil, false
+					v, cerr, serr := readStreamInt(l, ovtok)
+					if serr != nil {
+						return nil, nil, serr
 					}
-					v, ok := strictNextInt(l)
-					if !ok {
-						return nil, false
-					}
-					line = v
+					lineVal = v
+					lineErr = cerr
 					hasLine = true
 				case "column":
-					if hasCol {
-						return nil, false
+					v, cerr, serr := readStreamInt(l, ovtok)
+					if serr != nil {
+						return nil, nil, serr
 					}
-					v, ok := strictNextInt(l)
-					if !ok {
-						return nil, false
-					}
-					column = v
+					colVal = v
+					colErr = cerr
 					hasCol = true
 				default:
-					if !strictSkipValue(l) {
-						return nil, false
+					if err := l.skipValueStream(); err != nil {
+						return nil, nil, err
 					}
 				}
-				if l.checkComma() != nil {
-					return nil, false
-				}
 			}
-			if !hasLine || !hasCol || l.endObject() != nil {
-				return nil, false
+			if err := l.endObjectStream(); err != nil {
+				return nil, nil, err
 			}
-			hasOffset = true
+
 		case "url":
-			if hasURL || hasMap {
-				return nil, false
-			}
-			s, ok := strictNextString(l)
-			if !ok {
-				return nil, false
-			}
-			urlStr = s
 			hasURL = true
-		case "map":
-			if hasMap || hasURL {
-				return nil, false
+			if ktok == smPeekDoubleQuoted || ktok == smPeekSingleQuoted || ktok == smPeekUnquoted {
+				s, err := l.nextStringStream()
+				if err != nil {
+					return nil, nil, err
+				}
+				urlStr = s
+				urlErr = nil
+			} else {
+				elem, err := l.readJsonElement()
+				if err != nil {
+					return nil, nil, err
+				}
+				s, cerr := elem.TryGetAsString()
+				urlStr = s
+				urlErr = cerr
 			}
-			l.SkipWhitespace()
-			if l.pos < l.length && l.json[l.pos] == '"' {
-				s, ok := strictNextString(l)
-				if !ok {
-					return nil, false
+
+		case "map":
+			hasMap = true
+			if ktok == smPeekDoubleQuoted || ktok == smPeekSingleQuoted || ktok == smPeekUnquoted {
+				s, err := l.nextStringStream()
+				if err != nil {
+					return nil, nil, err
 				}
 				mapStr = s
 			} else {
-				var sb strings.Builder
-				if !strictAppendCompactValue(l, &sb) {
-					return nil, false
+				s, err := readStreamCompactJson(l)
+				if err != nil {
+					return nil, nil, err
 				}
-				mapStr = sb.String()
+				mapStr = s
 			}
-			hasMap = true
+
 		default:
-			if !strictSkipValue(l) {
-				return nil, false
+			if err := l.skipValueStream(); err != nil {
+				return nil, nil, err
 			}
-		}
-		if l.checkComma() != nil {
-			return nil, false
 		}
 	}
-	if !hasOffset || (!hasURL && !hasMap) || l.endObject() != nil {
-		return nil, false
+
+	if err := l.endObjectStream(); err != nil {
+		return nil, nil, err
+	}
+
+	if !hasOffset {
+		return nil, sourceMapParserMissingFieldNPE("getAsJsonObject()"), nil
+	}
+	if !offsetIsObj {
+		return nil, jutil.NewIllegalStateExceptionMsg("Not a JSON Object: " + offsetStr), nil
+	}
+	if !hasLine {
+		return nil, sourceMapParserMissingFieldNPE("getAsInt()"), nil
+	}
+	if lineErr != nil {
+		return nil, lineErr, nil
+	}
+	if !hasCol {
+		return nil, sourceMapParserMissingFieldNPE("getAsInt()"), nil
+	}
+	if colErr != nil {
+		return nil, colErr, nil
+	}
+	if hasMap && hasURL {
+		return nil, NewSourceMapParseException("Invalid map format: section may not have both 'map' and 'url'"), nil
 	}
 	if hasURL {
-		return SourceMapSection_ForURL(urlStr, line, column), true
+		if urlErr != nil {
+			return nil, urlErr, nil
+		}
+		return SourceMapSection_ForURL(urlStr, lineVal, colVal), nil, nil
 	}
-	return SourceMapSection_ForMap(mapStr, line, column), true
+	if hasMap {
+		return SourceMapSection_ForMap(mapStr, lineVal, colVal), nil, nil
+	}
+	return nil, NewSourceMapParseException("Invalid map format: section must have either 'map' or 'url'"), nil
 }
 
-func strictAppendCompactValue(l *SourceMapJsonLexer, sb *strings.Builder) bool {
-	l.SkipWhitespace()
-	if l.pos >= l.length {
-		return false
+// readStreamCompactJson formats the next JSON value into Gson's compact
+// JsonElement.toString() form without allocating a DOM when object keys are
+// unique, falling back to readJsonElement on duplicate keys.
+func readStreamCompactJson(l *SourceMapJsonLexer) (string, jutil.Throwable) {
+	snap := l.cloneState()
+	var sb strings.Builder
+	dup, err := appendStreamCompactValue(l, &sb)
+	if err != nil {
+		return "", err
 	}
-	switch c := l.json[l.pos]; {
-	case c == '{':
-		l.pos++
+	if !dup {
+		return sb.String(), nil
+	}
+	*l = snap
+	elem, err := l.readJsonElement()
+	if err != nil {
+		return "", err
+	}
+	return elem.String(), nil
+}
+
+func appendStreamCompactValue(l *SourceMapJsonLexer, sb *strings.Builder) (dupKey bool, err jutil.Throwable) {
+	tok, err := l.peekStream()
+	if err != nil {
+		return false, err
+	}
+	switch tok {
+	case smPeekBeginObject:
+		if err := l.beginObjectStream(); err != nil {
+			return false, err
+		}
 		sb.WriteByte('{')
 		var seenBuf [12]string
 		seen := seenBuf[:0]
 		first := true
-		for l.HasNext() {
-			name, ok := strictNextName(l)
-			if !ok {
-				return false
+		for {
+			more, err := l.hasNextStream()
+			if err != nil {
+				return false, err
+			}
+			if !more {
+				break
+			}
+			name, err := l.nextNameStream()
+			if err != nil {
+				return false, err
 			}
 			for _, prev := range seen {
 				if prev == name {
-					return false
+					return true, nil
 				}
 			}
 			seen = append(seen, name)
@@ -449,61 +627,84 @@ func strictAppendCompactValue(l *SourceMapJsonLexer, sb *strings.Builder) bool {
 			first = false
 			writeCompactJsonString(sb, name)
 			sb.WriteByte(':')
-			if !strictAppendCompactValue(l, sb) || l.checkComma() != nil {
-				return false
+			dup, err := appendStreamCompactValue(l, sb)
+			if err != nil || dup {
+				return dup, err
 			}
 		}
-		if l.endObject() != nil {
-			return false
+		if err := l.endObjectStream(); err != nil {
+			return false, err
 		}
 		sb.WriteByte('}')
-		return true
-	case c == '[':
-		l.pos++
+		return false, nil
+
+	case smPeekBeginArray:
+		if err := l.beginArrayStream(); err != nil {
+			return false, err
+		}
 		sb.WriteByte('[')
 		first := true
-		for l.HasNext() {
+		for {
+			more, err := l.hasNextStream()
+			if err != nil {
+				return false, err
+			}
+			if !more {
+				break
+			}
 			if !first {
 				sb.WriteByte(',')
 			}
 			first = false
-			if !strictAppendCompactValue(l, sb) || l.checkComma() != nil {
-				return false
+			dup, err := appendStreamCompactValue(l, sb)
+			if err != nil || dup {
+				return dup, err
 			}
 		}
-		if l.endArray() != nil {
-			return false
+		if err := l.endArrayStream(); err != nil {
+			return false, err
 		}
 		sb.WriteByte(']')
-		return true
-	case c == '"':
-		s, ok := strictNextString(l)
-		if !ok {
-			return false
+		return false, nil
+
+	case smPeekDoubleQuoted, smPeekSingleQuoted, smPeekUnquoted:
+		s, err := l.nextStringStream()
+		if err != nil {
+			return false, err
 		}
 		writeCompactJsonString(sb, s)
-		return true
-	case c == 't' && l.startsWith("true", l.pos):
-		l.pos += 4
-		sb.WriteString("true")
-		return true
-	case c == 'f' && l.startsWith("false", l.pos):
-		l.pos += 5
-		sb.WriteString("false")
-		return true
-	case c == 'n' && l.startsWith("null", l.pos):
-		l.pos += 4
-		sb.WriteString("null")
-		return true
-	case c == '-' || (c >= '0' && c <= '9'):
-		start := l.pos
-		if !strictSkipNumber(l) {
-			return false
+		return false, nil
+
+	case smPeekLong:
+		sb.WriteString(strconv.FormatInt(l.peekedLong, 10))
+		l.consumePeekedScalar()
+		return false, nil
+
+	case smPeekNumber:
+		s, err := l.nextStringStream()
+		if err != nil {
+			return false, err
 		}
-		sb.WriteString(l.json[start:l.pos])
-		return true
+		sb.WriteString(s)
+		return false, nil
+
+	case smPeekTrue:
+		sb.WriteString("true")
+		l.consumePeekedScalar()
+		return false, nil
+
+	case smPeekFalse:
+		sb.WriteString("false")
+		l.consumePeekedScalar()
+		return false, nil
+
+	case smPeekNull:
+		sb.WriteString("null")
+		l.consumePeekedScalar()
+		return false, nil
+
 	default:
-		return false
+		return false, jutil.NewIllegalStateExceptionMsg("Unexpected token")
 	}
 }
 
@@ -579,286 +780,199 @@ func writeCompactJsonString(sb *strings.Builder, s string) {
 	sb.WriteByte('"')
 }
 
-func strictSkipNumber(l *SourceMapJsonLexer) bool {
-	start := l.pos
-	if l.json[l.pos] == '-' {
-		l.pos++
+// skipValueStream consumes and syntax-validates one JSON value while updating
+// path state identically to Gson's TypeAdapters.JSON_ELEMENT.read without
+// allocating DOM nodes.
+func (l *SourceMapJsonLexer) skipValueStream() jutil.Throwable {
+	p, err := l.peekStream()
+	if err != nil {
+		return err
 	}
-	if l.pos >= l.length || l.json[l.pos] < '0' || l.json[l.pos] > '9' {
-		return false
-	}
-	if l.json[l.pos] == '0' {
-		l.pos++
-		if l.pos < l.length && l.json[l.pos] >= '0' && l.json[l.pos] <= '9' {
-			return false
+	switch p {
+	case smPeekBeginObject:
+		_ = l.beginObjectStream()
+	case smPeekBeginArray:
+		_ = l.beginArrayStream()
+	case smPeekDoubleQuoted, smPeekSingleQuoted:
+		if _, err := l.nextStringStream(); err != nil {
+			return err
 		}
-	} else {
-		for l.pos < l.length && l.json[l.pos] >= '0' && l.json[l.pos] <= '9' {
-			l.pos++
-		}
-	}
-	if l.pos < l.length && l.json[l.pos] == '.' {
-		l.pos++
-		if l.pos >= l.length || l.json[l.pos] < '0' || l.json[l.pos] > '9' {
-			return false
-		}
-		for l.pos < l.length && l.json[l.pos] >= '0' && l.json[l.pos] <= '9' {
-			l.pos++
-		}
-	}
-	if l.pos < l.length && (l.json[l.pos] == 'e' || l.json[l.pos] == 'E') {
-		l.pos++
-		if l.pos < l.length && (l.json[l.pos] == '+' || l.json[l.pos] == '-') {
-			l.pos++
-		}
-		if l.pos >= l.length || l.json[l.pos] < '0' || l.json[l.pos] > '9' {
-			return false
-		}
-		expStart := l.pos
-		for l.pos < l.length && l.json[l.pos] >= '0' && l.json[l.pos] <= '9' {
-			l.pos++
-		}
-		if l.pos-expStart > 3 {
-			return false
-		}
-	}
-	return l.pos-start <= 32
-}
-
-func strictSkipValue(l *SourceMapJsonLexer) bool {
-	l.SkipWhitespace()
-	if l.pos >= l.length {
-		return false
-	}
-	switch c := l.json[l.pos]; {
-	case c == '{':
-		l.pos++
-		for l.HasNext() {
-			if _, ok := strictNextName(l); !ok {
-				return false
-			}
-			if !strictSkipValue(l) || l.checkComma() != nil {
-				return false
-			}
-		}
-		return l.endObject() == nil
-	case c == '[':
-		l.pos++
-		for l.HasNext() {
-			if !strictSkipValue(l) || l.checkComma() != nil {
-				return false
-			}
-		}
-		return l.endArray() == nil
-	case c == '"':
-		_, ok := strictNextString(l)
-		return ok
-	case c == 't' && l.startsWith("true", l.pos):
-		l.pos += 4
-		return true
-	case c == 'f' && l.startsWith("false", l.pos):
-		l.pos += 5
-		return true
-	case c == 'n' && l.startsWith("null", l.pos):
-		l.pos += 4
-		return true
-	case c == '-' || (c >= '0' && c <= '9'):
-		return strictSkipNumber(l)
+		return nil
+	case smPeekUnquoted:
+		_ = l.readUnquotedValue()
+		l.peeked = smPeekNone
+		l.incTopIndex()
+		return nil
+	case smPeekLong, smPeekNumber, smPeekTrue, smPeekFalse, smPeekNull:
+		l.consumePeekedScalar()
+		return nil
 	default:
-		return false
-	}
-}
-
-func parseSourceMapObjectGson(contents string) (*SourceMapObject, jutil.Throwable) {
-	var sourceMapRoot *jutil.JsonObject
-	var parseEx jutil.IJsonParseException
-	var gsonThrow jutil.Throwable
-	jutil.Try(func() {
-		sourceMapRoot, parseEx = sourceMapObjectParser_gson.TryFromJsonObject(contents)
-	}, func(t jutil.Throwable) {
-		gsonThrow = t
-	})
-	if gsonThrow != nil {
-		return nil, gsonThrow
-	}
-	if parseEx != nil {
-		return nil, NewSourceMapParseException("JSON parse exception: " + parseEx.Error())
+		return jutil.NewIllegalStateExceptionMsg("Unexpected token")
 	}
 
-	verElem, err := sourceMapObjectParser_nonNullErr(sourceMapRoot.Get("version"), "getAsInt()")
-	if err != nil {
-		return nil, err
-	}
-	ver, err := verElem.TryGetAsInt()
-	if err != nil {
-		return nil, err
-	}
-	file, err := tryGetOptionalString(sourceMapRoot, "file")
-	if err != nil {
-		return nil, err
-	}
-	obj := &SourceMapObject{
-		version:   int(ver),
-		file:      file,
-		lineCount: -1,
-	}
-	if sourceMapRoot.Has("lineCount") {
-		lc, err := sourceMapRoot.Get("lineCount").TryGetAsInt()
-		if err != nil {
-			return nil, err
-		}
-		obj.lineCount = int(lc)
-	}
-	mappings, err := tryGetOptionalString(sourceMapRoot, "mappings")
-	if err != nil {
-		return nil, err
-	}
-	obj.mappings = mappings
-	sourceRoot, err := tryGetOptionalString(sourceMapRoot, "sourceRoot")
-	if err != nil {
-		return nil, err
-	}
-	obj.sourceRoot = sourceRoot
-
-	if sourceMapRoot.Has("sections") {
-		secElem := sourceMapRoot.Get("sections")
-		if !secElem.IsJsonArray() {
-			return nil, jutil.NewIllegalStateExceptionMsg("Not a JSON Array: " + secElem.String())
-		}
-		sectionsArray := secElem.GetAsJsonArray()
-		listBuilder := make([]*SourceMapSection, 0, sectionsArray.Size())
-		for each := range sectionsArray.All() {
-			if !each.IsJsonObject() {
-				return nil, jutil.NewIllegalStateExceptionMsg("Not a JSON Object: " + each.String())
-			}
-			sec, err := buildSection(each.GetAsJsonObject())
+	depth := 1
+	for depth > 0 {
+		for {
+			more, err := l.hasNextStream()
 			if err != nil {
-				return nil, err
+				return err
 			}
-			listBuilder = append(listBuilder, sec)
+			if !more {
+				break
+			}
+			if l.topScope() != smScopeEmptyArray && l.topScope() != smScopeNonEmptyArray {
+				if _, err := l.nextNameStream(); err != nil {
+					return err
+				}
+			}
+			vp, err := l.peekStream()
+			if err != nil {
+				return err
+			}
+			switch vp {
+			case smPeekBeginObject:
+				_ = l.beginObjectStream()
+				depth++
+			case smPeekBeginArray:
+				_ = l.beginArrayStream()
+				depth++
+			case smPeekDoubleQuoted, smPeekSingleQuoted:
+				if _, err := l.nextStringStream(); err != nil {
+					return err
+				}
+			case smPeekUnquoted:
+				_ = l.readUnquotedValue()
+				l.peeked = smPeekNone
+				l.incTopIndex()
+			case smPeekLong, smPeekNumber, smPeekTrue, smPeekFalse, smPeekNull:
+				l.consumePeekedScalar()
+			default:
+				return jutil.NewIllegalStateExceptionMsg("Unexpected token")
+			}
 		}
-		obj.sections = listBuilder
-	}
-
-	sources, err := tryGetOptionalStringArray(sourceMapRoot.Get("sources"))
-	if err != nil {
-		return nil, err
-	}
-	obj.sources = sources
-	sourcesContent, err := tryGetOptionalStringArray(sourceMapRoot.Get("sourcesContent"))
-	if err != nil {
-		return nil, err
-	}
-	obj.sourcesContent = sourcesContent
-	names, err := tryGetOptionalStringArray(sourceMapRoot.Get("names"))
-	if err != nil {
-		return nil, err
-	}
-	obj.names = names
-
-	var extensions []SourceMapExtension
-	for key, value := range sourceMapRoot.EntrySet().All() {
-		if strings.HasPrefix(key, "x_") {
-			extensions = putExtension(extensions, key, value)
-		}
-	}
-	obj.extensions = extensions
-
-	return obj, nil
-}
-
-func buildSection(section *jutil.JsonObject) (*SourceMapSection, jutil.Throwable) {
-	offsetElem, err := sourceMapObjectParser_nonNullErr(section.Get("offset"), "getAsJsonObject()")
-	if err != nil {
-		return nil, err
-	}
-	if !offsetElem.IsJsonObject() {
-		return nil, jutil.NewIllegalStateExceptionMsg("Not a JSON Object: " + offsetElem.String())
-	}
-	offset := offsetElem.GetAsJsonObject()
-
-	lineElem, err := sourceMapObjectParser_nonNullErr(offset.Get("line"), "getAsInt()")
-	if err != nil {
-		return nil, err
-	}
-	line, err := lineElem.TryGetAsInt()
-	if err != nil {
-		return nil, err
-	}
-
-	colElem, err := sourceMapObjectParser_nonNullErr(offset.Get("column"), "getAsInt()")
-	if err != nil {
-		return nil, err
-	}
-	column, err := colElem.TryGetAsInt()
-	if err != nil {
-		return nil, err
-	}
-
-	if section.Has("map") && section.Has("url") {
-		return nil, NewSourceMapParseException(
-			"Invalid map format: section may not have both 'map' and 'url'")
-	} else if section.Has("url") {
-		urlStr, err := section.Get("url").TryGetAsString()
-		if err != nil {
-			return nil, err
-		}
-		return SourceMapSection_ForURL(urlStr, int(line), int(column)), nil
-	} else if section.Has("map") {
-		m := section.Get("map")
-		var mapStr string
-		if m.IsJsonPrimitive() && m.GetAsJsonPrimitive().IsString() {
-			mapStr = m.GetAsString()
+		if l.topScope() == smScopeEmptyArray || l.topScope() == smScopeNonEmptyArray {
+			if err := l.endArrayStream(); err != nil {
+				return err
+			}
 		} else {
-			mapStr = m.String()
+			if err := l.endObjectStream(); err != nil {
+				return err
+			}
 		}
-		return SourceMapSection_ForMap(mapStr, int(line), int(column)), nil
+		depth--
 	}
-
-	return nil, NewSourceMapParseException(
-		"Invalid map format: section must have either 'map' or 'url'")
+	return nil
 }
 
-// sourceMapObjectParser_nonNullErr returns e, or the JDK 21 helpful NPE naming
-// the method invocation when JsonObject.get(String) returned null.
-func sourceMapObjectParser_nonNullErr(e jutil.JsonElement, method string) (jutil.JsonElement, jutil.Throwable) {
-	if e == nil {
-		return nil, jutil.NewHelpfulNullPointerException("Cannot invoke \"" + jutil.GsonPackage + ".JsonElement." + method +
-			"\" because the return value of \"" + jutil.GsonPackage + ".JsonObject.get(String)\" is null")
+// readJsonElement reads one Gson JsonElement from the stream (used for "x_..."
+// extensions and coerced/invalid field values).
+func (l *SourceMapJsonLexer) readJsonElement() (jutil.JsonElement, jutil.Throwable) {
+	p, err := l.peekStream()
+	if err != nil {
+		return nil, err
 	}
-	return e, nil
-}
-
-func tryGetOptionalString(object *jutil.JsonObject, key string) (optionalString, jutil.Throwable) {
-	if elem := object.Get(key); elem != nil && !elem.IsJsonNull() {
-		s, err := elem.TryGetAsString()
-		if err != nil {
-			return optionalString{}, err
-		}
-		return optionalString{text: s, present: true}, nil
-	}
-	return optionalString{}, nil
-}
-
-func tryGetOptionalStringArray(element jutil.JsonElement) ([]optionalString, jutil.Throwable) {
-	if element == nil || element.IsJsonNull() {
-		return nil, nil
-	}
-	if !element.IsJsonArray() {
-		return nil, jutil.NewIllegalStateExceptionMsg("Not a JSON Array: " + element.String())
-	}
-	array := element.GetAsJsonArray()
-	length := array.Size()
-	result := make([]optionalString, length)
-	for i := 0; i < length; i++ {
-		item := array.Get(i)
-		if !item.IsJsonNull() {
-			s, err := item.TryGetAsString()
+	readScalar := func(tok uint8) (jutil.JsonElement, jutil.Throwable) {
+		switch tok {
+		case smPeekDoubleQuoted, smPeekSingleQuoted, smPeekUnquoted:
+			s, err := l.nextStringStream()
 			if err != nil {
 				return nil, err
 			}
-			result[i] = optionalString{text: s, present: true}
+			return jutil.NewJsonPrimitiveString(s), nil
+		case smPeekLong, smPeekNumber:
+			s, err := l.nextStringStream()
+			if err != nil {
+				return nil, err
+			}
+			return jutil.NewJsonPrimitiveNumber(jutil.NewLazilyParsedNumber(s)), nil
+		case smPeekTrue:
+			l.consumePeekedScalar()
+			return jutil.NewJsonPrimitiveBoolean(true), nil
+		case smPeekFalse:
+			l.consumePeekedScalar()
+			return jutil.NewJsonPrimitiveBoolean(false), nil
+		case smPeekNull:
+			l.consumePeekedScalar()
+			return jutil.JsonNull_INSTANCE, nil
+		default:
+			return nil, jutil.NewIllegalStateExceptionMsg("Unexpected token")
 		}
 	}
-	return result, nil
+
+	var current jutil.JsonElement
+	switch p {
+	case smPeekBeginArray:
+		_ = l.beginArrayStream()
+		current = jutil.NewJsonArray()
+	case smPeekBeginObject:
+		_ = l.beginObjectStream()
+		current = jutil.NewJsonObject()
+	default:
+		return readScalar(p)
+	}
+
+	var stack []jutil.JsonElement
+	for {
+		for {
+			more, err := l.hasNextStream()
+			if err != nil {
+				return nil, err
+			}
+			if !more {
+				break
+			}
+			var name string
+			_, isObj := current.(*jutil.JsonObject)
+			if isObj {
+				name, err = l.nextNameStream()
+				if err != nil {
+					return nil, err
+				}
+			}
+			vp, err := l.peekStream()
+			if err != nil {
+				return nil, err
+			}
+			var value jutil.JsonElement
+			isNesting := false
+			switch vp {
+			case smPeekBeginArray:
+				_ = l.beginArrayStream()
+				value = jutil.NewJsonArray()
+				isNesting = true
+			case smPeekBeginObject:
+				_ = l.beginObjectStream()
+				value = jutil.NewJsonObject()
+				isNesting = true
+			default:
+				value, err = readScalar(vp)
+				if err != nil {
+					return nil, err
+				}
+			}
+			if isObj {
+				current.(*jutil.JsonObject).Add(name, value)
+			} else {
+				current.(*jutil.JsonArray).Add(value)
+			}
+			if isNesting {
+				stack = append(stack, current)
+				current = value
+			}
+		}
+		if _, isArr := current.(*jutil.JsonArray); isArr {
+			if err := l.endArrayStream(); err != nil {
+				return nil, err
+			}
+		} else {
+			if err := l.endObjectStream(); err != nil {
+				return nil, err
+			}
+		}
+		if len(stack) == 0 {
+			return current, nil
+		}
+		current = stack[len(stack)-1]
+		stack = stack[:len(stack)-1]
+	}
 }

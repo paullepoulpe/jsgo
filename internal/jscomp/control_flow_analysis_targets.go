@@ -140,7 +140,7 @@ func (c *ControlFlowAnalysis) putFinally(jump rhino.Node, target rhino.Node) {
 }
 
 // Java: ControlFlowAnalysis.shouldTraverse(NodeTraversal, Node, Node)
-func (c *ControlFlowAnalysis) ShouldTraverse(nodeTraversal *NodeTraversal, n rhino.Node, parent rhino.Node) bool {
+func (c *ControlFlowAnalysis) shouldTraverse(n rhino.Node, parent rhino.Node) bool {
 	if c.shouldTraverseIntoChildren(n, parent) {
 		// Any AST node that will later have a corresponding CFG node must be in astPosition.
 		// To avoid having astPosition grow too large, we exclude AST nodes that are not traversed

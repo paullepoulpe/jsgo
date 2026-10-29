@@ -19,6 +19,7 @@
 package jscomp
 
 import (
+	"cmp"
 	"slices"
 	"strings"
 
@@ -26,9 +27,22 @@ import (
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 )
 
+type warningsGuardSequenced interface {
+	ensureGuardSeq() uint64
+}
+
+func sameWarningsGuard(a, b WarningsGuard) bool {
+	if sa, ok := a.(warningsGuardSequenced); ok {
+		if sb, ok := b.(warningsGuardSequenced); ok {
+			return sa.ensureGuardSeq() == sb.ensureGuardSeq()
+		}
+	}
+	return a == b
+}
+
 type composeGuardEntry struct {
 	guard WarningsGuard
-	order int
+	seq   uint64
 }
 
 func composeGuardEntryCompare(a, b composeGuardEntry) int {
@@ -38,7 +52,7 @@ func composeGuardEntryCompare(a, b composeGuardEntry) int {
 	}
 	// If the warnings guards have the same priority, the one that
 	// was added last wins.
-	return b.order - a.order
+	return cmp.Compare(b.seq, a.seq)
 }
 
 // ComposeWarningsGuard is a WarningsGuard that represents just a chain of
@@ -52,17 +66,13 @@ type ComposeWarningsGuard struct {
 
 	// Guards ordered in application priority (priority asc, addition order desc).
 	entries      []composeGuardEntry
-	numberOfAdds int
+	nextSeq      uint64
 	demoteErrors bool
 }
 
 var _ WarningsGuard = (*ComposeWarningsGuard)(nil)
 
 const composeWarningsGuard_serialVersionUID int64 = 1
-
-func newComposeWarningsGuardBase() *ComposeWarningsGuard {
-	return &ComposeWarningsGuard{}
-}
 
 // Java: ComposeWarningsGuard(List<WarningsGuard>)
 func NewComposeWarningsGuardFromList(guards []WarningsGuard) *ComposeWarningsGuard {
@@ -96,14 +106,17 @@ func (g *ComposeWarningsGuard) AddGuard(guard WarningsGuard) {
 		return
 	}
 
+	if s, ok := guard.(warningsGuardSequenced); ok {
+		s.ensureGuardSeq()
+	}
 	for i, existing := range g.entries {
-		if existing.guard == guard {
+		if sameWarningsGuard(existing.guard, guard) {
 			g.entries = slices.Delete(g.entries, i, i+1)
 			break
 		}
 	}
-	g.numberOfAdds++
-	entry := composeGuardEntry{guard: guard, order: g.numberOfAdds}
+	g.nextSeq++
+	entry := composeGuardEntry{guard: guard, seq: g.nextSeq}
 	pos := len(g.entries)
 	for i, existing := range g.entries {
 		if composeGuardEntryCompare(entry, existing) < 0 {

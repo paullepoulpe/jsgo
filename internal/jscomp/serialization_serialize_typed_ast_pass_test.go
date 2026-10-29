@@ -105,23 +105,23 @@ func (c *SerializeTypedAstPassTest) TestAst_constNumber() {
 
 	serializeTypedAstPassTest_assertAstNode(result.sourceNodes[0],
 		serializeTypedAstPassTest_BRITTLE_TYPE_FIELDS,
-		&AstNode{
-			kind_:         NodeKind_SOURCE_FILE_VALUE,
+		&testAstNode{
+			kind_:         NodeKind_SOURCE_FILE.GetNumber(),
 			relativeLine_: 1,
-			child_: []*AstNode{{
-				kind_: NodeKind_CONST_DECLARATION_VALUE,
-				child_: []*AstNode{{
-					kind_:                NodeKind_IDENTIFIER_VALUE,
+			child_: []*testAstNode{{
+				kind_: NodeKind_CONST_DECLARATION.GetNumber(),
+				child_: []*testAstNode{{
+					kind_:                NodeKind_IDENTIFIER.GetNumber(),
 					stringValuePointer_:  result.findInStringPool("x"),
-					valueCase_:           AstNode_STRING_VALUE_POINTER_FIELD_NUMBER,
+					valueCase_:           3,
 					originalNamePointer_: result.findInStringPool("x"),
 					relativeColumn_:      6,
 					type_:                numberType,
 					bitField0_:           1,
-					child_: []*AstNode{{
-						kind_:           NodeKind_NUMBER_LITERAL_VALUE,
+					child_: []*testAstNode{{
+						kind_:           NodeKind_NUMBER_LITERAL.GetNumber(),
 						doubleValue_:    5,
-						valueCase_:      AstNode_DOUBLE_VALUE_FIELD_NUMBER,
+						valueCase_:      4,
 						relativeColumn_: 4,
 						type_:           numberType,
 						bitField0_:      1,
@@ -177,21 +177,21 @@ func (c *SerializeTypedAstPassTest) TestAst_letString() {
 	ignored.astRelativeLine = true
 	ignored.astRelativeColumn = true
 	serializeTypedAstPassTest_assertAstNode(result.sourceNodes[0], ignored,
-		&AstNode{
-			kind_: NodeKind_SOURCE_FILE_VALUE,
-			child_: []*AstNode{{
-				kind_: NodeKind_LET_DECLARATION_VALUE,
-				child_: []*AstNode{{
-					kind_:                NodeKind_IDENTIFIER_VALUE,
+		&testAstNode{
+			kind_: NodeKind_SOURCE_FILE.GetNumber(),
+			child_: []*testAstNode{{
+				kind_: NodeKind_LET_DECLARATION.GetNumber(),
+				child_: []*testAstNode{{
+					kind_:                NodeKind_IDENTIFIER.GetNumber(),
 					stringValuePointer_:  result.findInStringPool("s"),
-					valueCase_:           AstNode_STRING_VALUE_POINTER_FIELD_NUMBER,
+					valueCase_:           3,
 					originalNamePointer_: result.findInStringPool("s"),
 					type_:                stringType,
 					bitField0_:           1,
-					child_: []*AstNode{{
-						kind_:               NodeKind_STRING_LITERAL_VALUE,
+					child_: []*testAstNode{{
+						kind_:               NodeKind_STRING_LITERAL.GetNumber(),
 						stringValuePointer_: result.findInStringPool("hello"),
-						valueCase_:          AstNode_STRING_VALUE_POINTER_FIELD_NUMBER,
+						valueCase_:          3,
 						type_:               stringType,
 						bitField0_:          1,
 					}},
@@ -210,26 +210,26 @@ func (c *SerializeTypedAstPassTest) TestAst_templateLit_illegalEscape() {
 	ignored.astRelativeColumn = true
 	ignored.astType = true
 	serializeTypedAstPassTest_assertAstNode(result.sourceNodes[0], ignored,
-		&AstNode{
-			kind_: NodeKind_SOURCE_FILE_VALUE,
-			child_: []*AstNode{{
-				kind_: NodeKind_EXPRESSION_STATEMENT_VALUE,
-				child_: []*AstNode{{
-					kind_:              NodeKind_TAGGED_TEMPLATELIT_VALUE,
+		&testAstNode{
+			kind_: NodeKind_SOURCE_FILE.GetNumber(),
+			child_: []*testAstNode{{
+				kind_: NodeKind_EXPRESSION_STATEMENT.GetNumber(),
+				child_: []*testAstNode{{
+					kind_:              NodeKind_TAGGED_TEMPLATELIT.GetNumber(),
 					booleanProperties_: int64(1) << rhino.NodeProperty_FREE_CALL.GetNumber(),
-					child_: []*AstNode{
+					child_: []*testAstNode{
 						{
-							kind_:                NodeKind_IDENTIFIER_VALUE,
+							kind_:                NodeKind_IDENTIFIER.GetNumber(),
 							stringValuePointer_:  result.findInStringPool("latex"),
-							valueCase_:           AstNode_STRING_VALUE_POINTER_FIELD_NUMBER,
+							valueCase_:           3,
 							originalNamePointer_: result.findInStringPool("latex"),
 						},
 						{
-							kind_: NodeKind_TEMPLATELIT_VALUE,
-							child_: []*AstNode{{
-								kind_:      NodeKind_TEMPLATELIT_STRING_VALUE,
-								valueCase_: AstNode_TEMPLATE_STRING_VALUE_FIELD_NUMBER,
-								templateStringValue_: &TemplateStringValue{
+							kind_: NodeKind_TEMPLATELIT.GetNumber(),
+							child_: []*testAstNode{{
+								kind_:      NodeKind_TEMPLATELIT_STRING.GetNumber(),
+								valueCase_: 8,
+								templateStringValue_: &testTemplateStringValue{
 									cookedStringPointer_: -1,
 									rawStringPointer_:    result.findInStringPool("\\unicode"),
 								},
@@ -250,16 +250,16 @@ func (c *SerializeTypedAstPassTest) TestAst_numberInCast() {
 	ignored.astRelativeLine = true
 	ignored.astRelativeColumn = true
 	serializeTypedAstPassTest_assertAstNode(c.compileToAstNode("/** @type {?} */ (1);"), ignored,
-		&AstNode{
-			kind_: NodeKind_SOURCE_FILE_VALUE,
-			child_: []*AstNode{{
-				kind_: NodeKind_EXPRESSION_STATEMENT_VALUE,
-				child_: []*AstNode{{
-					kind_: NodeKind_NUMBER_LITERAL_VALUE,
+		&testAstNode{
+			kind_: NodeKind_SOURCE_FILE.GetNumber(),
+			child_: []*testAstNode{{
+				kind_: NodeKind_EXPRESSION_STATEMENT.GetNumber(),
+				child_: []*testAstNode{{
+					kind_: NodeKind_NUMBER_LITERAL.GetNumber(),
 					booleanProperties_: (int64(1) << rhino.NodeProperty_IS_PARENTHESIZED.GetNumber()) |
 						(int64(1) << rhino.NodeProperty_COLOR_FROM_CAST.GetNumber()),
 					doubleValue_: 1,
-					valueCase_:   AstNode_DOUBLE_VALUE_FIELD_NUMBER,
+					valueCase_:   4,
 					type_:        unknownType,
 					bitField0_:   1,
 				}},
@@ -273,24 +273,24 @@ func (c *SerializeTypedAstPassTest) TestAst_arrowFunction() {
 
 	serializeTypedAstPassTest_assertAstNode(result.sourceNodes[0],
 		serializeTypedAstPassTest_protoFields{astRelativeLine: true, astType: true, astRelativeColumn: true},
-		&AstNode{
-			kind_: NodeKind_SOURCE_FILE_VALUE,
-			child_: []*AstNode{{
-				kind_: NodeKind_EXPRESSION_STATEMENT_VALUE,
-				child_: []*AstNode{{
-					kind_:              NodeKind_FUNCTION_LITERAL_VALUE,
+		&testAstNode{
+			kind_: NodeKind_SOURCE_FILE.GetNumber(),
+			child_: []*testAstNode{{
+				kind_: NodeKind_EXPRESSION_STATEMENT.GetNumber(),
+				child_: []*testAstNode{{
+					kind_:              NodeKind_FUNCTION_LITERAL.GetNumber(),
 					booleanProperties_: int64(1) << rhino.NodeProperty_ARROW_FN.GetNumber(),
-					child_: []*AstNode{
+					child_: []*testAstNode{
 						{
-							kind_:               NodeKind_IDENTIFIER_VALUE,
+							kind_:               NodeKind_IDENTIFIER.GetNumber(),
 							stringValuePointer_: 0,
-							valueCase_:          AstNode_STRING_VALUE_POINTER_FIELD_NUMBER,
+							valueCase_:          3,
 						},
-						{kind_: NodeKind_PARAMETER_LIST_VALUE},
+						{kind_: NodeKind_PARAMETER_LIST.GetNumber()},
 						{
-							kind_:               NodeKind_STRING_LITERAL_VALUE,
+							kind_:               NodeKind_STRING_LITERAL.GetNumber(),
 							stringValuePointer_: result.findInStringPool("hello"),
-							valueCase_:          AstNode_STRING_VALUE_POINTER_FIELD_NUMBER,
+							valueCase_:          3,
 						},
 					},
 				}},
@@ -306,43 +306,43 @@ func (c *SerializeTypedAstPassTest) TestRewrittenGoogModule_containsOriginalName
 
 	serializeTypedAstPassTest_assertAstNode(result.sourceNodes[0],
 		serializeTypedAstPassTest_protoFields{astRelativeLine: true, astRelativeColumn: true, astType: true},
-		&AstNode{
-			kind_:              NodeKind_SOURCE_FILE_VALUE,
+		&testAstNode{
+			kind_:              NodeKind_SOURCE_FILE.GetNumber(),
 			booleanProperties_: int64(1) << rhino.NodeProperty_GOOG_MODULE.GetNumber(),
-			child_: []*AstNode{
+			child_: []*testAstNode{
 				// `/** @const */ var module$exports$a$b$c = {};`
 				{
-					kind_:              NodeKind_VAR_DECLARATION_VALUE,
+					kind_:              NodeKind_VAR_DECLARATION.GetNumber(),
 					booleanProperties_: int64(1) << rhino.NodeProperty_IS_NAMESPACE.GetNumber(),
-					jsdoc_:             &OptimizationJsdoc{kind_: []int32{JsdocTag_JSDOC_CONST_VALUE}},
-					child_: []*AstNode{{
-						kind_:               NodeKind_IDENTIFIER_VALUE,
+					jsdoc_:             &OptimizationJsdoc{kind_: []int32{JsdocTag_JSDOC_CONST.GetNumber()}},
+					child_: []*testAstNode{{
+						kind_:               NodeKind_IDENTIFIER.GetNumber(),
 						stringValuePointer_: result.findInStringPool("module$exports$a$b$c"),
-						valueCase_:          AstNode_STRING_VALUE_POINTER_FIELD_NUMBER,
-						child_:              []*AstNode{{kind_: NodeKind_OBJECT_LITERAL_VALUE}},
+						valueCase_:          3,
+						child_:              []*testAstNode{{kind_: NodeKind_OBJECT_LITERAL.GetNumber()}},
 					}},
 				},
 				// `function module$contents$a$b$c_f(x) {}`
 				{
-					kind_:                NodeKind_FUNCTION_LITERAL_VALUE,
+					kind_:                NodeKind_FUNCTION_LITERAL.GetNumber(),
 					originalNamePointer_: result.findInStringPool("f"),
-					child_: []*AstNode{
+					child_: []*testAstNode{
 						{
-							kind_:                NodeKind_IDENTIFIER_VALUE,
+							kind_:                NodeKind_IDENTIFIER.GetNumber(),
 							stringValuePointer_:  result.findInStringPool("module$contents$a$b$c_f"),
-							valueCase_:           AstNode_STRING_VALUE_POINTER_FIELD_NUMBER,
+							valueCase_:           3,
 							originalNamePointer_: result.findInStringPool("f"),
 						},
 						{
-							kind_: NodeKind_PARAMETER_LIST_VALUE,
-							child_: []*AstNode{{
-								kind_:                NodeKind_IDENTIFIER_VALUE,
+							kind_: NodeKind_PARAMETER_LIST.GetNumber(),
+							child_: []*testAstNode{{
+								kind_:                NodeKind_IDENTIFIER.GetNumber(),
 								stringValuePointer_:  result.findInStringPool("x"),
-								valueCase_:           AstNode_STRING_VALUE_POINTER_FIELD_NUMBER,
+								valueCase_:           3,
 								originalNamePointer_: result.findInStringPool("x"),
 							}},
 						},
-						{kind_: NodeKind_BLOCK_VALUE},
+						{kind_: NodeKind_BLOCK.GetNumber()},
 					},
 				},
 			},
@@ -384,18 +384,18 @@ func (c *SerializeTypedAstPassTest) TestSerializesSourceOfSyntheticCode() {
 
 	// 'base' is loaded at the beginning of the first script
 	script := result.sourceNodes[0]
-	baseLibraryStart := script.GetChild(0)
+	baseLibraryStart := script.child_[0]
 	AssertThat(
 		result.
 			ast.
 			GetSourceFilePool().
-			GetSourceFileList()[baseLibraryStart.GetSourceFile()-1].
+			GetSourceFileList()[baseLibraryStart.sourceFile_-1].
 			GetFilename()).
 		EndsWith("js/base.js")
 	// children of the synthetic subtree default to the root's file [synthetic:base]
-	AssertThat(baseLibraryStart.GetChild(0).GetSourceFile()).IsEqualTo(int32(0))
+	AssertThat(baseLibraryStart.child_[0].sourceFile_).IsEqualTo(int32(0))
 	// "let s = 'hello'" defaults to the parent's file 'testcode'
-	AssertThat(script.GetChild(script.GetChildCount() - 1).GetSourceFile()).IsEqualTo(int32(0))
+	AssertThat(script.child_[len(script.child_)-1].sourceFile_).IsEqualTo(int32(0))
 }
 
 // Java: SerializeTypedAstPassTest.serializesExternProperties()
@@ -462,7 +462,7 @@ func (c *SerializeTypedAstPassTest) TestDoesNotSerializeInputSourceMappingURL() 
 }
 
 // Java: SerializeTypedAstPassTest.compileToAstNode(String)
-func (c *SerializeTypedAstPassTest) compileToAstNode(source string) *AstNode {
+func (c *SerializeTypedAstPassTest) compileToAstNode(source string) *testAstNode {
 	return c.compile(source).sourceNodes[0]
 }
 
@@ -480,8 +480,8 @@ func (c *SerializeTypedAstPassTest) compile(args ...any) *serializeTypedAstPassT
 
 // Java: private static class SerializeTypedAstPassTest.SerializationResult
 type serializeTypedAstPassTest_SerializationResult struct {
-	externNodes []*AstNode
-	sourceNodes []*AstNode
+	externNodes []*testAstNode
+	sourceNodes []*testAstNode
 	ast         *TypedAst
 }
 
@@ -526,8 +526,8 @@ func (r *serializeTypedAstPassTest_SerializationResult) findInStringPool(str str
 }
 
 // Java: SerializeTypedAstPassTest.parseAstNode(ByteString)
-func serializeTypedAstPassTest_parseAstNode(byteString []byte) *AstNode {
-	return AstNode_ParseFrom(byteString)
+func serializeTypedAstPassTest_parseAstNode(byteString []byte) *testAstNode {
+	return parseTestAstNode(byteString)
 }
 
 // Java: SerializeTypedAstPassTest.compileWithExterns(String, String)
@@ -601,7 +601,7 @@ func serializeTypedAstPassTest_assertValidJson(src string) {
 //
 // Go-only: language-adapter — ProtoTruth (see
 // serializeTypedAstPassTest_protoFields).
-func serializeTypedAstPassTest_assertAstNode(actual *AstNode, ignored serializeTypedAstPassTest_protoFields, expected *AstNode) {
+func serializeTypedAstPassTest_assertAstNode(actual *testAstNode, ignored serializeTypedAstPassTest_protoFields, expected *testAstNode) {
 	AssertThat(serializeTypedAstPassTest_clearAstNode(actual, ignored).String()).
 		IsEqualTo(serializeTypedAstPassTest_clearAstNode(expected, ignored).String())
 }
@@ -609,9 +609,8 @@ func serializeTypedAstPassTest_assertAstNode(actual *AstNode, ignored serializeT
 // serializeTypedAstPassTest_clearAstNode returns node with the ignored
 // fields cleared at every level. (AstNode holds no ObjectTypeProto, so the
 // BRITTLE_TYPE_FIELDS do not apply to it.)
-func serializeTypedAstPassTest_clearAstNode(node *AstNode, ignored serializeTypedAstPassTest_protoFields) *AstNode {
+func serializeTypedAstPassTest_clearAstNode(node *testAstNode, ignored serializeTypedAstPassTest_protoFields) *testAstNode {
 	cp := *node
-	cp.cachedSize = 0
 	if ignored.astRelativeLine {
 		cp.relativeLine_ = 0
 	}
@@ -623,7 +622,7 @@ func serializeTypedAstPassTest_clearAstNode(node *AstNode, ignored serializeType
 		cp.bitField0_ &^= 1
 	}
 	if len(node.child_) > 0 {
-		children := make([]*AstNode, len(node.child_))
+		children := make([]*testAstNode, len(node.child_))
 		for i, child := range node.child_ {
 			children[i] = serializeTypedAstPassTest_clearAstNode(child, ignored)
 		}

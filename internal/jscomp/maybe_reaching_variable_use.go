@@ -56,13 +56,8 @@ import (
 // by variable, and solves the backward fixed-point over flat uint64 bitvectors
 // (single uint64 per node when total uses <= 64, []uint64 when > 64).
 type MaybeReachingVariableUse struct {
-	cfg *ControlFlowGraph[rhino.Node]
-
-	numVars       int
-	varNameIDs    []uint32
-	varNameIDsBuf [16]uint32
-	varIdxByID    map[uint32]int // stores varIdx + 1
-	useVarMap     bool
+	cfg    *ControlFlowGraph[rhino.Node]
+	varIDs varIDTable
 
 	// Per-block scratch during the single AST pre-pass.
 	curGen64        uint64
@@ -107,44 +102,6 @@ type mrvuRawUse struct {
 
 const mrvuReuseMaxCap = 4096
 
-// Java: MaybeReachingVariableUse(ControlFlowGraph<Node>, Set<Var>, Map<String, Var>)
-func NewMaybeReachingVariableUse(
-	cfg *ControlFlowGraph[rhino.Node],
-	escaped *jutil.ObjectLinkedHashSet[*Var],
-	allVarsInFn *jutil.LinkedHashMap[string, *Var],
-) *MaybeReachingVariableUse {
-	u := &MaybeReachingVariableUse{}
-	u.Reset(cfg, escaped, allVarsInFn)
-	return u
-}
-
-// Reset resets u for reuse on a new function scope while retaining its
-// storage.
-func (u *MaybeReachingVariableUse) Reset(
-	cfg *ControlFlowGraph[rhino.Node],
-	escaped *jutil.ObjectLinkedHashSet[*Var],
-	allVarsInFn *jutil.LinkedHashMap[string, *Var],
-) {
-	u.releaseLargeStorage()
-	u.cfg = cfg
-	u.totalUses = 0
-	u.useWords = 0
-
-	u.varNameIDs = u.varNameIDsBuf[:0]
-	if allVarsInFn != nil {
-		for v := range allVarsInFn.Values() {
-			if escaped == nil || !escaped.Contains(v) {
-				id := v.nameID
-				if id == 0 {
-					id = rhino.RhinoStringPool_InternID(v.GetName())
-				}
-				u.varNameIDs = append(u.varNameIDs, id)
-			}
-		}
-	}
-	u.finishInitVarMap()
-}
-
 func (u *MaybeReachingVariableUse) resetWithVarIDs(
 	cfg *ControlFlowGraph[rhino.Node],
 	varIDs []uint32,
@@ -153,25 +110,7 @@ func (u *MaybeReachingVariableUse) resetWithVarIDs(
 	u.cfg = cfg
 	u.totalUses = 0
 	u.useWords = 0
-
-	u.varNameIDs = append(u.varNameIDsBuf[:0], varIDs...)
-	u.finishInitVarMap()
-}
-
-func (u *MaybeReachingVariableUse) finishInitVarMap() {
-	u.useVarMap = false
-	if len(u.varNameIDs) > len(u.varNameIDsBuf) {
-		u.useVarMap = true
-		if u.varIdxByID == nil {
-			u.varIdxByID = make(map[uint32]int, max(len(u.varNameIDs), 32))
-		} else {
-			clear(u.varIdxByID)
-		}
-		for i, id := range u.varNameIDs {
-			u.varIdxByID[id] = i + 1
-		}
-	}
-	u.numVars = len(u.varNameIDs)
+	u.varIDs.initFromIDs(varIDs)
 }
 
 func (u *MaybeReachingVariableUse) releaseLargeStorage() {
@@ -211,18 +150,11 @@ func (u *MaybeReachingVariableUse) GetCfg() *ControlFlowGraph[rhino.Node] {
 }
 
 func (u *MaybeReachingVariableUse) lookupVarIdxByID(id uint32) int {
-	if id == 0 {
+	idx, ok := u.varIDs.lookup(id)
+	if !ok {
 		return -1
 	}
-	if !u.useVarMap {
-		for i, vid := range u.varNameIDs {
-			if vid == id {
-				return i
-			}
-		}
-		return -1
-	}
-	return u.varIdxByID[id] - 1
+	return idx
 }
 
 func (u *MaybeReachingVariableUse) lookupVarIdxByName(name string) int {
@@ -258,7 +190,7 @@ func mrvuOrBitRange(dst []uint64, start, end int) {
 //
 // Java: DataFlowAnalysis.analyze()
 func (u *MaybeReachingVariableUse) Analyze() {
-	numVars := u.numVars
+	numVars := u.varIDs.count
 	u.totalUses = 0
 	if numVars == 0 {
 		return
@@ -555,7 +487,7 @@ func (u *MaybeReachingVariableUse) solveWords(
 }
 
 func (u *MaybeReachingVariableUse) genVarIdx(v int) {
-	if u.numVars <= 64 {
+	if u.varIDs.count <= 64 {
 		u.curGen64 |= uint64(1) << uint(v)
 	} else {
 		u.curGenVarWords[v>>6] |= uint64(1) << uint(v&63)
@@ -563,7 +495,7 @@ func (u *MaybeReachingVariableUse) genVarIdx(v int) {
 }
 
 func (u *MaybeReachingVariableUse) killVarIdx(v int) {
-	if u.numVars <= 64 {
+	if u.varIDs.count <= 64 {
 		bit := uint64(1) << uint(v)
 		u.curKill64 |= bit
 		u.curGen64 &^= bit

@@ -39,7 +39,8 @@ type DiagnosticType struct {
 	// The default reporting level for this diagnostic
 	level CheckLevel
 
-	msgFormat atomic.Pointer[diagPattern]
+	msgFormat      atomic.Pointer[diagPattern]
+	singletonGroup atomic.Pointer[DiagnosticGroup]
 }
 
 // Java: DiagnosticType.serialVersionUID

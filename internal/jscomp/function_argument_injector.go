@@ -41,6 +41,8 @@ type FunctionArgumentInjector struct {
 	sentinelThisNode      rhino.Node
 	paramBindings         []callParamBinding
 	scratchLocals         inlineIDSet
+	scratchSummary        calleeSummary
+	seScratchSummary      calleeSummary
 	referencedAfter       FunctionArgumentInjector_ReferencedAfterSideEffect
 
 	// readOnlySummaries is enabled on parallel Phase 2 workers so lazy side-effect
@@ -316,11 +318,11 @@ func throwDuplicateParamBinding(bindings []callParamBinding) {
 		for j := i + 1; j < n; j++ {
 			if bindings[j].nameID == id {
 				k := bindings[i].nameStr()
-				laterPair := NewFunctionArgumentInjector_ParamArgPair(bindings[j].paramNode, bindings[j].argNode)
-				earlierPair := NewFunctionArgumentInjector_ParamArgPair(bindings[i].paramNode, bindings[i].argNode)
+				laterStr := "{" + bindings[j].paramNode.String() + " " + bindings[j].argNode.String() + "}"
+				earlierStr := "{" + bindings[i].paramNode.String() + " " + bindings[i].argNode.String() + "}"
 				panic(jutil.NewIllegalArgumentExceptionMsg("Multiple entries with same key: " +
-					k + "=" + jutil.ToJavaString(laterPair) + " and " +
-					k + "=" + jutil.ToJavaString(earlierPair)))
+					k + "=" + laterStr + " and " +
+					k + "=" + earlierStr))
 			}
 		}
 	}
@@ -403,21 +405,6 @@ func FunctionArgumentInjector_CanNameValueChange(n rhino.Node) bool {
 	return true
 }
 
-func bindingsFromArgMap(dst []callParamBinding, argMap *jutil.LinkedHashMap[string, FunctionArgumentInjector_ParamArgPair]) []callParamBinding {
-	dst = dst[:0]
-	if argMap == nil || argMap.IsEmpty() {
-		return dst
-	}
-	for k, pair := range argMap.All() {
-		dst = append(dst, callParamBinding{
-			nameID:    rhino.RhinoStringPool_InternID(k),
-			paramNode: pair.ParamNode(),
-			argNode:   pair.Arg(),
-		})
-	}
-	return dst
-}
-
 func findThisArgInBindings(bindings []callParamBinding) rhino.Node {
 	if len(bindings) > 0 && bindings[0].nameID == calleeThisMarkerID {
 		return bindings[0].argNode
@@ -449,38 +436,38 @@ func (f *FunctionArgumentInjector) findRequiresTempsUpToParameterID(
 	summary *calleeSummary,
 	renamedClone bool,
 ) uint32 {
-	useSummary := summary != nil &&
-		(renamedClone || summary.fnNode == fnNode) &&
-		summary.canReuseAfterRename(renamedClone)
-	if !useSummary && len(bindings) > 1 {
-		var localSummary calleeSummary
-		if scanCalleeSummary("", fnNode, &localSummary) {
-			summary = &localSummary
-			renamedClone = false
-			useSummary = true
-		}
+	if summary == nil || (!renamedClone && summary.fnNode != fnNode) || !summary.canReuseAfterRename(renamedClone) {
+		scanCalleeSummary("", fnNode, &f.scratchSummary)
+		summary = &f.scratchSummary
+		renamedClone = false
 	}
 
-	block := ast.MustFunction(fnNode).Body().Node()
 	var requiresTempsUpToID uint32
 
 	argCount := len(bindings)
-	var isTrivialBody bool
-	if useSummary {
-		isTrivialBody = summary.isTrivialBody
-	} else if argCount > 1 {
-		isTrivialBody = !block.HasChildren() ||
-			(block.HasOneChild() && !f.BodyMayHaveConditionalCode(block.GetLastChild()))
-	}
+	isTrivialBody := summary.isTrivialBody
 	thisArg := findThisArgInBindings(bindings)
 	hasMinimalParameters := (NodeUtil_IsUndefined(thisArg) ||
 		(fnNode.IsArrowFunction() && thisArg.IsThis())) &&
 		argCount <= 2 // this + one parameter
 
-	useSideEffectSummary := useSummary && summary.canReuseSideEffects(renamedClone)
+	useSideEffectSummary := summary.canReuseSideEffects(renamedClone)
 	var seSummary calleeSideEffectSummary
 	var seSummaryReady bool
 	var sideEffectsCollected bool
+
+	collectFallbackSideEffects := func() {
+		if sideEffectsCollected {
+			return
+		}
+		seTarget := summary
+		if seTarget.fnNode != fnNode {
+			scanCalleeSummary("", fnNode, &f.seScratchSummary)
+			seTarget = &f.seScratchSummary
+		}
+		f.collectReferencedAfterSideEffect(seTarget)
+		sideEffectsCollected = true
+	}
 
 	isReferencedAfterSideEffect := func(paramID uint32, paramIdx int) bool {
 		if useSideEffectSummary {
@@ -503,10 +490,7 @@ func (f *FunctionArgumentInjector) findRequiresTempsUpToParameterID(
 				return (seSummary.afterSideEffectMask & (uint64(1) << uint(paramIdx))) != 0
 			}
 		}
-		if !sideEffectsCollected {
-			f.collectReferencedAfterSideEffectForBindings(bindings, block)
-			sideEffectsCollected = true
-		}
+		collectFallbackSideEffects()
 		return f.referencedAfter.parametersReferenced.contains(paramID)
 	}
 
@@ -528,31 +512,23 @@ func (f *FunctionArgumentInjector) findRequiresTempsUpToParameterID(
 				return (seSummary.namesBeforeParamMask & (uint64(1) << uint(paramIdx))) != 0
 			}
 		}
-		if !sideEffectsCollected {
-			f.collectReferencedAfterSideEffectForBindings(bindings, block)
-			sideEffectsCollected = true
-		}
+		collectFallbackSideEffects()
 		return f.referencedAfter.parametersWithNamesReferencedBeforeParameter.contains(paramID)
 	}
 
 	astAnalyzer := compiler.GetAstAnalyzer()
-	var summaryParams []calleeParamSummary
-	if useSummary {
-		summaryParams = summary.params()
-	}
+	summaryParams := summary.params()
 
 	// Check for arguments that are evaluated more than once.
 	for entryIdx, b := range bindings {
 		paramID := b.nameID
 		paramIdx := -1
-		if useSummary {
-			if renamedClone {
-				if entryIdx > 0 && entryIdx-1 < len(summaryParams) {
-					paramIdx = entryIdx - 1
-				}
-			} else if paramID != calleeThisMarkerID {
-				paramIdx = summary.findParamByID(paramID)
+		if renamedClone {
+			if entryIdx > 0 && entryIdx-1 < len(summaryParams) {
+				paramIdx = entryIdx - 1
 			}
+		} else if paramID != calleeThisMarkerID {
+			paramIdx = summary.findParamByID(paramID)
 		}
 
 		cArg := b.argNode
@@ -563,12 +539,8 @@ func (f *FunctionArgumentInjector) findRequiresTempsUpToParameterID(
 		// Stores whether this arg need to get hoisted using a temporary
 		requiresTemporary := false
 		var references int
-		if useSummary {
-			if paramIdx >= 0 {
-				references = int(summaryParams[paramIdx].refCount)
-			}
-		} else if paramID != calleeThisMarkerID {
-			references = nodeUtil_countNameID(block, paramID)
+		if paramIdx >= 0 {
+			references = int(summaryParams[paramIdx].refCount)
 		}
 
 		argSideEffects := astAnalyzer.MayHaveSideEffects(cArg)
@@ -712,59 +684,15 @@ func addCallArgumentsNeedingTempsByID(
 	}
 }
 
-// BodyMayHaveConditionalCode: we consider a return or expression trivial if
-// it doesn't contain a conditional expression, a function, or a non-static
-// class field initializer.
-//
-// Java: FunctionArgumentInjector.bodyMayHaveConditionalCode(Node)
-func (f *FunctionArgumentInjector) BodyMayHaveConditionalCode(n rhino.Node) bool {
-	if !n.IsReturn() && !n.IsExprResult() {
-		return true
-	}
-	return f.MayHaveConditionalCode(n)
-}
-
-// MayHaveConditionalCode: we consider an expression trivial if it doesn't
-// contain a conditional expression, a function, or a non-static class field
-// initializer.
-//
-// Java: FunctionArgumentInjector.mayHaveConditionalCode(Node)
-func (f *FunctionArgumentInjector) MayHaveConditionalCode(n rhino.Node) bool {
-	for c := n.GetFirstChild(); !c.IsNil(); c = c.GetNext() {
-		switch c.GetToken() {
-		case rhino.Token_FUNCTION,
-			rhino.Token_AND,
-			rhino.Token_OR,
-			rhino.Token_HOOK,
-			rhino.Token_COALESCE,
-			rhino.Token_OPTCHAIN_CALL,
-			rhino.Token_OPTCHAIN_GETELEM,
-			rhino.Token_OPTCHAIN_GETPROP:
-			return true
-		default:
-			if NodeUtil_IsNonStaticClassFieldInitializer(c) {
-				return true
-			}
-		}
-		if f.MayHaveConditionalCode(c) {
-			return true
-		}
-	}
-	return false
-}
-
-func (f *FunctionArgumentInjector) collectReferencedAfterSideEffectForBindings(
-	bindings []callParamBinding, root rhino.Node,
-) {
+func (f *FunctionArgumentInjector) collectReferencedAfterSideEffect(summary *calleeSummary) {
+	root := ast.MustFunction(summary.fnNode).Body().Node()
 	f.scratchLocals.clear()
 	gatherLocalNameIDs(root, &f.scratchLocals)
 
 	collector := &f.referencedAfter
-	collector.reset(f, nil, &f.scratchLocals)
-	for _, b := range bindings {
-		collector.parameterIDs.add(b.nameID)
-	}
+	collector.reset(f, summary, &f.scratchLocals)
 	collector.walk(root)
+	collector.summary = nil
 }
 
 func (f *FunctionArgumentInjector) ensureCalleeSideEffects(summary *calleeSummary) (calleeSideEffectSummary, bool) {
@@ -781,14 +709,8 @@ func (f *FunctionArgumentInjector) ensureCalleeSideEffects(summary *calleeSummar
 		return cached, true
 	}
 
-	root := ast.MustFunction(summary.fnNode).Body().Node()
-	f.scratchLocals.clear()
-	gatherLocalNameIDs(root, &f.scratchLocals)
-
+	f.collectReferencedAfterSideEffect(summary)
 	collector := &f.referencedAfter
-	collector.reset(f, summary, &f.scratchLocals)
-	collector.walk(root)
-	collector.summary = nil
 
 	se := calleeSideEffectSummary{
 		computed:            true,
@@ -836,7 +758,6 @@ func (f *FunctionArgumentInjector) ensureCalleeSideEffects(summary *calleeSummar
 // references is deferred until exiting the loop structure.
 type FunctionArgumentInjector_ReferencedAfterSideEffect struct {
 	outer                *FunctionArgumentInjector
-	parameterIDs         inlineIDSet
 	summary              *calleeSummary
 	locals               *inlineIDSet
 	sideEffectSeen       bool
@@ -854,7 +775,6 @@ func (r *FunctionArgumentInjector_ReferencedAfterSideEffect) reset(
 	locals *inlineIDSet,
 ) {
 	r.outer = outer
-	r.parameterIDs.clear()
 	r.summary = summary
 	r.locals = locals
 	r.sideEffectSeen = false
@@ -865,17 +785,11 @@ func (r *FunctionArgumentInjector_ReferencedAfterSideEffect) reset(
 }
 
 func (r *FunctionArgumentInjector_ReferencedAfterSideEffect) paramCount() int {
-	if r.summary != nil {
-		return int(r.summary.numParams) + 1
-	}
-	return r.parameterIDs.size()
+	return int(r.summary.numParams) + 1
 }
 
 func (r *FunctionArgumentInjector_ReferencedAfterSideEffect) hasParameterID(nameID uint32) bool {
-	if r.summary != nil {
-		return r.summary.findParamByID(nameID) >= 0
-	}
-	return r.parameterIDs.contains(nameID)
+	return r.summary.findParamByID(nameID) >= 0
 }
 
 func (r *FunctionArgumentInjector_ReferencedAfterSideEffect) walk(node rhino.Node) {
@@ -990,28 +904,3 @@ func (r *FunctionArgumentInjector_ReferencedAfterSideEffect) IsLocalName(node rh
 	}
 	return false
 }
-
-// FunctionArgumentInjector_ParamArgPair stores a pair of function formal
-// parameter + argument value at a specific call site.
-//
-// paramNode is the original formal parameter name, such as x in function
-// foo(x) { ... } or, when injecting a value for this,
-// FunctionArgumentInjector#THIS_MARKER_NODE; arg is the argument passed as
-// `paramNode` at some call site, such as 500 in f(500);.
-type FunctionArgumentInjector_ParamArgPair struct {
-	paramNode rhino.Node
-	arg       rhino.Node
-}
-
-// Java: FunctionArgumentInjector.ParamArgPair(Node, Node)
-func NewFunctionArgumentInjector_ParamArgPair(paramNode rhino.Node, arg rhino.Node) FunctionArgumentInjector_ParamArgPair {
-	rhino.CheckNotNull(paramNode)
-	rhino.CheckNotNull(arg)
-	return FunctionArgumentInjector_ParamArgPair{paramNode: paramNode, arg: arg}
-}
-
-// Java: FunctionArgumentInjector.ParamArgPair.paramNode()
-func (p FunctionArgumentInjector_ParamArgPair) ParamNode() rhino.Node { return p.paramNode }
-
-// Java: FunctionArgumentInjector.ParamArgPair.arg()
-func (p FunctionArgumentInjector_ParamArgPair) Arg() rhino.Node { return p.arg }

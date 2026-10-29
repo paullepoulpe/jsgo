@@ -792,3 +792,52 @@ var TypeValidatorTest_HAVE_SAME_TYPES = Correspondence_TransformingBoth(
 	func(x TypeMismatch) []rhino.JSType { return []rhino.JSType{x.Found(), x.Required()} },
 	func(x TypeMismatch) []rhino.JSType { return []rhino.JSType{x.Found(), x.Required()} },
 	"has same types as")
+
+type dupVarCustomGuard struct {
+	WarningsGuardBase
+	sawNode rhino.Node
+}
+
+func (g *dupVarCustomGuard) Level(err *JSError) *CheckLevel {
+	g.sawNode = err.Node()
+	if err.Type() == TypeValidator_DUP_VAR_DECLARATION {
+		return CheckLevel_OFF.Ptr()
+	}
+	return nil
+}
+
+func TestHasDuplicateDeclarationSuppressionZeroAllocAndCustomGuard(t *testing.T) {
+	options := NewCompilerOptions()
+	compiler := NewCompiler()
+	compiler.InitOptions(options)
+
+	decl := rhino.IR_Name("dupVar")
+	varStmt := rhino.NewNodeWithChild(rhino.Token_VAR, decl)
+	_ = varStmt
+
+	var got bool
+	allocs := testing.AllocsPerRun(100, func() {
+		got = TypeValidator_HasDuplicateDeclarationSuppression(compiler, decl)
+	})
+	if got {
+		t.Fatal("expected unsuppressed declaration to return false")
+	}
+	if allocs != 0 {
+		t.Fatalf("TypeValidator_HasDuplicateDeclarationSuppression allocs = %v, want 0", allocs)
+	}
+	if !decl.CanResetInPlace() {
+		t.Fatal("TypeValidator_HasDuplicateDeclarationSuppression unexpectedly pinned decl")
+	}
+
+	custom := &dupVarCustomGuard{}
+	options2 := NewCompilerOptions()
+	options2.AddWarningsGuard(custom)
+	compiler2 := NewCompiler()
+	compiler2.InitOptions(options2)
+	if !TypeValidator_HasDuplicateDeclarationSuppression(compiler2, decl) {
+		t.Fatal("expected custom WarningsGuard returning OFF to suppress duplicate declaration")
+	}
+	if custom.sawNode != decl {
+		t.Fatal("expected custom WarningsGuard fallback to receive decl on probe JSError")
+	}
+}

@@ -10,8 +10,6 @@ import (
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 )
 
-var _ = jutil.CheckNotNull[any]
-
 // NodeKind is the protobuf enum jscomp.NodeKind.
 type NodeKind int32
 
@@ -158,151 +156,6 @@ const (
 	NodeKind_COMPUTED_PROP_FIELD
 	NodeKind_SWITCH_BODY
 	NodeKind_UNRECOGNIZED
-)
-
-// The proto numbers (NodeKind.X_VALUE).
-const (
-	NodeKind_NODE_KIND_UNSPECIFIED_VALUE       int32 = 0
-	NodeKind_NUMBER_LITERAL_VALUE              int32 = 201
-	NodeKind_STRING_LITERAL_VALUE              int32 = 202
-	NodeKind_BIGINT_LITERAL_VALUE              int32 = 203
-	NodeKind_TRUE_VALUE                        int32 = 204
-	NodeKind_FALSE_VALUE                       int32 = 205
-	NodeKind_NULL_VALUE                        int32 = 206
-	NodeKind_REGEX_LITERAL_VALUE               int32 = 207
-	NodeKind_ARRAY_LITERAL_VALUE               int32 = 208
-	NodeKind_OBJECT_LITERAL_VALUE              int32 = 209
-	NodeKind_TEMPLATELIT_VALUE                 int32 = 210
-	NodeKind_TAGGED_TEMPLATELIT_VALUE          int32 = 211
-	NodeKind_IDENTIFIER_VALUE                  int32 = 214
-	NodeKind_THIS_VALUE                        int32 = 215
-	NodeKind_ASSIGNMENT_VALUE                  int32 = 216
-	NodeKind_COMMA_VALUE                       int32 = 217
-	NodeKind_CALL_VALUE                        int32 = 218
-	NodeKind_NEW_VALUE                         int32 = 219
-	NodeKind_YIELD_VALUE                       int32 = 220
-	NodeKind_AWAIT_VALUE                       int32 = 221
-	NodeKind_BOOLEAN_OR_VALUE                  int32 = 223
-	NodeKind_BOOLEAN_AND_VALUE                 int32 = 224
-	NodeKind_HOOK_VALUE                        int32 = 225
-	NodeKind_PROPERTY_ACCESS_VALUE             int32 = 226
-	NodeKind_ELEMENT_ACCESS_VALUE              int32 = 227
-	NodeKind_LESS_THAN_VALUE                   int32 = 228
-	NodeKind_LESS_THAN_EQUAL_VALUE             int32 = 229
-	NodeKind_GREATER_THAN_VALUE                int32 = 230
-	NodeKind_GREATER_THAN_EQUAL_VALUE          int32 = 231
-	NodeKind_EQUAL_VALUE                       int32 = 232
-	NodeKind_TRIPLE_EQUAL_VALUE                int32 = 233
-	NodeKind_NOT_EQUAL_VALUE                   int32 = 234
-	NodeKind_NOT_TRIPLE_EQUAL_VALUE            int32 = 235
-	NodeKind_NOT_VALUE                         int32 = 236
-	NodeKind_TYPEOF_VALUE                      int32 = 237
-	NodeKind_INSTANCEOF_VALUE                  int32 = 238
-	NodeKind_IN_VALUE                          int32 = 239
-	NodeKind_LEFT_SHIFT_VALUE                  int32 = 240
-	NodeKind_RIGHT_SHIFT_VALUE                 int32 = 241
-	NodeKind_UNSIGNED_RIGHT_SHIFT_VALUE        int32 = 242
-	NodeKind_ADD_VALUE                         int32 = 243
-	NodeKind_SUBTRACT_VALUE                    int32 = 244
-	NodeKind_MULTIPLY_VALUE                    int32 = 245
-	NodeKind_DIVIDE_VALUE                      int32 = 246
-	NodeKind_MODULO_VALUE                      int32 = 247
-	NodeKind_EXPONENT_VALUE                    int32 = 248
-	NodeKind_ASSIGN_ADD_VALUE                  int32 = 249
-	NodeKind_ASSIGN_SUBTRACT_VALUE             int32 = 250
-	NodeKind_ASSIGN_MULTIPLY_VALUE             int32 = 251
-	NodeKind_ASSIGN_DIVIDE_VALUE               int32 = 252
-	NodeKind_ASSIGN_MODULO_VALUE               int32 = 253
-	NodeKind_ASSIGN_EXPONENT_VALUE             int32 = 254
-	NodeKind_ASSIGN_BITWISE_OR_VALUE           int32 = 255
-	NodeKind_ASSIGN_BITWISE_AND_VALUE          int32 = 256
-	NodeKind_ASSIGN_BITWISE_XOR_VALUE          int32 = 257
-	NodeKind_ASSIGN_LEFT_SHIFT_VALUE           int32 = 258
-	NodeKind_ASSIGN_RIGHT_SHIFT_VALUE          int32 = 259
-	NodeKind_ASSIGN_UNSIGNED_RIGHT_SHIFT_VALUE int32 = 260
-	NodeKind_PRE_INCREMENT_VALUE               int32 = 261
-	NodeKind_POST_INCREMENT_VALUE              int32 = 262
-	NodeKind_PRE_DECREMENT_VALUE               int32 = 263
-	NodeKind_POST_DECREMENT_VALUE              int32 = 264
-	NodeKind_POSITIVE_VALUE                    int32 = 265
-	NodeKind_NEGATIVE_VALUE                    int32 = 266
-	NodeKind_BITWISE_OR_VALUE                  int32 = 267
-	NodeKind_BITWISE_AND_VALUE                 int32 = 268
-	NodeKind_BITWISE_XOR_VALUE                 int32 = 269
-	NodeKind_BITWISE_NOT_VALUE                 int32 = 270
-	NodeKind_VOID_VALUE                        int32 = 271
-	NodeKind_DELETE_VALUE                      int32 = 272
-	NodeKind_NEW_TARGET_VALUE                  int32 = 273
-	NodeKind_COMPUTED_PROP_VALUE               int32 = 274
-	NodeKind_IMPORT_META_VALUE                 int32 = 275
-	NodeKind_OPTCHAIN_PROPERTY_ACCESS_VALUE    int32 = 276
-	NodeKind_OPTCHAIN_CALL_VALUE               int32 = 277
-	NodeKind_OPTCHAIN_ELEMENT_ACCESS_VALUE     int32 = 278
-	NodeKind_COALESCE_VALUE                    int32 = 279
-	NodeKind_DYNAMIC_IMPORT_VALUE              int32 = 280
-	NodeKind_ASSIGN_OR_VALUE                   int32 = 281
-	NodeKind_ASSIGN_AND_VALUE                  int32 = 282
-	NodeKind_ASSIGN_COALESCE_VALUE             int32 = 283
-	NodeKind_BREAK_STATEMENT_VALUE             int32 = 400
-	NodeKind_CONTINUE_STATEMENT_VALUE          int32 = 401
-	NodeKind_DEBUGGER_STATEMENT_VALUE          int32 = 402
-	NodeKind_DO_STATEMENT_VALUE                int32 = 403
-	NodeKind_EXPRESSION_STATEMENT_VALUE        int32 = 404
-	NodeKind_FOR_AWAIT_OF_STATEMENT_VALUE      int32 = 405
-	NodeKind_FOR_IN_STATEMENT_VALUE            int32 = 406
-	NodeKind_FOR_OF_STATEMENT_VALUE            int32 = 407
-	NodeKind_FOR_STATEMENT_VALUE               int32 = 408
-	NodeKind_IF_STATEMENT_VALUE                int32 = 409
-	NodeKind_LABELED_STATEMENT_VALUE           int32 = 410
-	NodeKind_RETURN_STATEMENT_VALUE            int32 = 411
-	NodeKind_SWITCH_STATEMENT_VALUE            int32 = 412
-	NodeKind_THROW_STATEMENT_VALUE             int32 = 413
-	NodeKind_TRY_STATEMENT_VALUE               int32 = 414
-	NodeKind_WHILE_STATEMENT_VALUE             int32 = 415
-	NodeKind_BLOCK_VALUE                       int32 = 416
-	NodeKind_EMPTY_VALUE                       int32 = 417
-	NodeKind_IMPORT_VALUE                      int32 = 418
-	NodeKind_EXPORT_VALUE                      int32 = 419
-	NodeKind_WITH_VALUE                        int32 = 420
-	NodeKind_VAR_DECLARATION_VALUE             int32 = 500
-	NodeKind_LET_DECLARATION_VALUE             int32 = 501
-	NodeKind_CONST_DECLARATION_VALUE           int32 = 502
-	NodeKind_FUNCTION_LITERAL_VALUE            int32 = 503
-	NodeKind_CLASS_LITERAL_VALUE               int32 = 504
-	NodeKind_SOURCE_FILE_VALUE                 int32 = 600
-	NodeKind_CASE_VALUE                        int32 = 601
-	NodeKind_DEFAULT_CASE_VALUE                int32 = 602
-	NodeKind_CATCH_VALUE                       int32 = 603
-	NodeKind_CLASS_MEMBERS_VALUE               int32 = 604
-	NodeKind_METHOD_DECLARATION_VALUE          int32 = 605
-	NodeKind_PARAMETER_LIST_VALUE              int32 = 606
-	NodeKind_RENAMABLE_STRING_KEY_VALUE        int32 = 607
-	NodeKind_QUOTED_STRING_KEY_VALUE           int32 = 608
-	NodeKind_LABELED_NAME_VALUE                int32 = 609
-	NodeKind_ARRAY_PATTERN_VALUE               int32 = 610
-	NodeKind_OBJECT_PATTERN_VALUE              int32 = 611
-	NodeKind_DESTRUCTURING_LHS_VALUE           int32 = 612
-	NodeKind_TEMPLATELIT_SUB_VALUE             int32 = 613
-	NodeKind_TEMPLATELIT_STRING_VALUE          int32 = 614
-	NodeKind_SUPER_VALUE                       int32 = 615
-	NodeKind_DEFAULT_VALUE_VALUE               int32 = 616
-	NodeKind_IMPORT_SPECS_VALUE                int32 = 619
-	NodeKind_IMPORT_SPEC_VALUE                 int32 = 620
-	NodeKind_IMPORT_STAR_VALUE                 int32 = 621
-	NodeKind_EXPORT_SPECS_VALUE                int32 = 622
-	NodeKind_EXPORT_SPEC_VALUE                 int32 = 623
-	NodeKind_ITER_REST_VALUE                   int32 = 624
-	NodeKind_ITER_SPREAD_VALUE                 int32 = 625
-	NodeKind_OBJECT_REST_VALUE                 int32 = 626
-	NodeKind_OBJECT_SPREAD_VALUE               int32 = 627
-	NodeKind_RENAMABLE_GETTER_DEF_VALUE        int32 = 628
-	NodeKind_QUOTED_GETTER_DEF_VALUE           int32 = 629
-	NodeKind_RENAMABLE_SETTER_DEF_VALUE        int32 = 630
-	NodeKind_QUOTED_SETTER_DEF_VALUE           int32 = 631
-	NodeKind_MODULE_BODY_VALUE                 int32 = 632
-	NodeKind_FIELD_DECLARATION_VALUE           int32 = 633
-	NodeKind_COMPUTED_PROP_FIELD_VALUE         int32 = 634
-	NodeKind_SWITCH_BODY_VALUE                 int32 = 635
 )
 
 var nodeKind_names = [...]string{
@@ -598,9 +451,6 @@ var nodeKind_numbers = [...]int32{
 // String is Enum.name().
 func (e NodeKind) String() string { return nodeKind_names[e] }
 
-// Ordinal is Enum.ordinal().
-func (e NodeKind) Ordinal() int { return int(e) }
-
 // Java: NodeKind.getNumber()
 func (e NodeKind) GetNumber() int32 {
 	if e == NodeKind_UNRECOGNIZED {
@@ -622,30 +472,23 @@ var nodeKind_byNumber = func() [636]NodeKind {
 	return t
 }()
 
-// NodeKind_ForNumber returns the constant with the given number, or nil.
+// NodeKind_ForNumber returns the constant with the given number, if valid.
 //
 // Java: NodeKind.forNumber(int)
-func NodeKind_ForNumber(value int32) *NodeKind {
-	if value >= 0 && int(value) < len(nodeKind_byNumber) {
+func NodeKind_ForNumber(value int32) (NodeKind, bool) {
+	if uint32(value) < uint32(len(nodeKind_byNumber)) {
 		if e := nodeKind_byNumber[value]; e != NodeKind_UNRECOGNIZED {
-			return &e
+			return e, true
 		}
 	}
-	return nil
+	return 0, false
 }
 
 func nodeKind_fromNumber(value int32) NodeKind {
-	if value >= 0 && int(value) < len(nodeKind_byNumber) {
+	if uint32(value) < uint32(len(nodeKind_byNumber)) {
 		return nodeKind_byNumber[value]
 	}
 	return NodeKind_UNRECOGNIZED
-}
-
-func nodeKind_text(value int32) string {
-	if e := NodeKind_ForNumber(value); e != nil {
-		return e.String()
-	}
-	return protoTextInt32(value)
 }
 
 // TypedAst is the protobuf message jscomp.TypedAst.
@@ -662,17 +505,6 @@ type TypedAst struct {
 	unknownFields           []byte
 	cachedSize              int
 }
-
-// Field numbers (TypedAst.X_FIELD_NUMBER).
-const (
-	TypedAst_TYPE_POOL_FIELD_NUMBER                 = 1
-	TypedAst_STRING_POOL_FIELD_NUMBER               = 2
-	TypedAst_EXTERN_AST_FIELD_NUMBER                = 3
-	TypedAst_CODE_AST_FIELD_NUMBER                  = 4
-	TypedAst_SOURCE_FILE_POOL_FIELD_NUMBER          = 5
-	TypedAst_EXTERNS_SUMMARY_FIELD_NUMBER           = 6
-	TypedAst_RUNTIME_LIBRARY_TO_INJECT_FIELD_NUMBER = 7
-)
 
 // Java: TypedAst.getTypePool()
 func (m *TypedAst) GetTypePool() *TypePool {
@@ -817,7 +649,8 @@ func (m *TypedAst) mergeFromReader(r *protoReader) {
 			} else {
 				x = &TypePool{}
 			}
-			x.mergeFromReader(r.sub(data))
+			sub := r.sub(data)
+			x.mergeFromReader(&sub)
 			m.typePool_ = x
 		case 18:
 			data := r.readMessageBytes()
@@ -828,17 +661,20 @@ func (m *TypedAst) mergeFromReader(r *protoReader) {
 			} else {
 				x = &StringPoolProto{}
 			}
-			x.mergeFromReader(r.sub(data))
+			sub := r.sub(data)
+			x.mergeFromReader(&sub)
 			m.stringPool_ = x
 		case 26:
 			data := r.readMessageBytes()
 			x := &LazyAst{}
-			x.mergeFromReader(r.sub(data))
+			sub := r.sub(data)
+			x.mergeFromReader(&sub)
 			m.externAst_ = append(m.externAst_, x)
 		case 34:
 			data := r.readMessageBytes()
 			x := &LazyAst{}
-			x.mergeFromReader(r.sub(data))
+			sub := r.sub(data)
+			x.mergeFromReader(&sub)
 			m.codeAst_ = append(m.codeAst_, x)
 		case 42:
 			data := r.readMessageBytes()
@@ -849,7 +685,8 @@ func (m *TypedAst) mergeFromReader(r *protoReader) {
 			} else {
 				x = &SourceFilePool{}
 			}
-			x.mergeFromReader(r.sub(data))
+			sub := r.sub(data)
+			x.mergeFromReader(&sub)
 			m.sourceFilePool_ = x
 		case 50:
 			data := r.readMessageBytes()
@@ -860,7 +697,8 @@ func (m *TypedAst) mergeFromReader(r *protoReader) {
 			} else {
 				x = &ExternsSummary{}
 			}
-			x.mergeFromReader(r.sub(data))
+			sub := r.sub(data)
+			x.mergeFromReader(&sub)
 			m.externsSummary_ = x
 		case 58:
 			m.runtimeLibraryToInject_ = append(m.runtimeLibraryToInject_, r.readStringRequireUtf8())
@@ -922,15 +760,13 @@ const (
 // Java: TypedAst.List.parseFrom(byte[])
 func TypedAst_List_ParseFrom(data []byte) *TypedAst_List {
 	m := &TypedAst_List{}
-	m.mergeFromReader(&protoReader{b: data})
+	r := protoReader{b: data}
+	m.mergeFromReader(&r)
 	return m
 }
 
 // Java: TypedAst.List.getTypedAsts(int)
-func (m *TypedAst_List) GetTypedAsts(index int) *TypedAst {
-	protoCheckIndexJDK(index, len(m.typedAsts_))
-	return m.typedAsts_[index]
-}
+func (m *TypedAst_List) GetTypedAsts(index int) *TypedAst { return m.typedAsts_[index] }
 
 // appendTo is List.writeTo(CodedOutputStream): fields in number order, then unknown fields.
 func (m *TypedAst_List) appendTo(b []byte) []byte {
@@ -976,27 +812,14 @@ func (m *TypedAst_List) mergeFromReader(r *protoReader) {
 		case 10:
 			data := r.readMessageBytes()
 			x := &TypedAst{}
-			x.mergeFromReader(r.sub(data))
+			sub := r.sub(data)
+			x.mergeFromReader(&sub)
 			m.typedAsts_ = append(m.typedAsts_, x)
 		default:
 			r.skipField(tag)
 			m.unknownFields = append(m.unknownFields, r.b[start:r.pos]...)
 		}
 	}
-}
-
-func (m *TypedAst_List) printText(p *protoTextPrinter) {
-	for _, x := range m.typedAsts_ {
-		p.message("typed_asts", x.printText)
-	}
-	p.unknownFields(m.unknownFields)
-}
-
-// String is List.toString() (protobuf text format).
-func (m *TypedAst_List) String() string {
-	p := &protoTextPrinter{}
-	m.printText(p)
-	return p.sb.String()
 }
 
 // LazyAst is the protobuf message jscomp.LazyAst.
@@ -1010,27 +833,14 @@ type LazyAst struct {
 	cachedSize        int
 }
 
-// Field numbers (LazyAst.X_FIELD_NUMBER).
-const (
-	LazyAst_SCRIPT_FIELD_NUMBER             = 1
-	LazyAst_SOURCE_FILE_FIELD_NUMBER        = 2
-	LazyAst_SOURCE_MAPPING_URL_FIELD_NUMBER = 3
-)
-
 // Java: LazyAst.getScript()
-func (m *LazyAst) GetScript() []byte {
-	return m.script_
-}
+func (m *LazyAst) GetScript() []byte { return m.script_ }
 
 // Java: LazyAst.getSourceFile()
-func (m *LazyAst) GetSourceFile() int32 {
-	return m.sourceFile_
-}
+func (m *LazyAst) GetSourceFile() int32 { return m.sourceFile_ }
 
 // Java: LazyAst.getSourceMappingUrl()
-func (m *LazyAst) GetSourceMappingUrl() string {
-	return m.sourceMappingUrl_
-}
+func (m *LazyAst) GetSourceMappingUrl() string { return m.sourceMappingUrl_ }
 
 // appendTo is LazyAst.writeTo(CodedOutputStream): fields in number order, then unknown fields.
 func (m *LazyAst) appendTo(b []byte) []byte {
@@ -1074,9 +884,6 @@ func (m *LazyAst) serializedSize() int {
 	m.cachedSize = size + 1
 	return size
 }
-
-// Java: LazyAst.toByteArray()
-func (m *LazyAst) ToByteArray() []byte { return m.appendTo(make([]byte, 0, m.serializedSize())) }
 
 // mergeFromReader is LazyAst.Builder.mergeFrom(CodedInputStream) on a mutable m.
 func (m *LazyAst) mergeFromReader(r *protoReader) {
@@ -1129,12 +936,6 @@ type StringPoolProto struct {
 	cachedSize    int
 }
 
-// Field numbers (StringPoolProto.X_FIELD_NUMBER).
-const (
-	StringPoolProto_STRINGS_FIELD_NUMBER    = 1
-	StringPoolProto_MAX_LENGTH_FIELD_NUMBER = 2
-)
-
 var stringPoolProto_DEFAULT_INSTANCE = &StringPoolProto{cachedSize: 1}
 
 // Java: StringPoolProto.getDefaultInstance()
@@ -1145,20 +946,16 @@ func StringPoolProto_GetDefaultInstance() *StringPoolProto { return stringPoolPr
 // Java: StringPoolProto.parseFrom(byte[])
 func StringPoolProto_ParseFrom(data []byte) *StringPoolProto {
 	m := &StringPoolProto{}
-	m.mergeFromReader(&protoReader{b: data})
+	r := protoReader{b: data}
+	m.mergeFromReader(&r)
 	return m
 }
 
 // Java: StringPoolProto.getStringsList()
 func (m *StringPoolProto) GetStringsList() [][]byte { return m.strings_ }
 
-// Java: StringPoolProto.getStringsCount()
-func (m *StringPoolProto) GetStringsCount() int { return len(m.strings_) }
-
 // Java: StringPoolProto.getMaxLength()
-func (m *StringPoolProto) GetMaxLength() int32 {
-	return m.maxLength_
-}
+func (m *StringPoolProto) GetMaxLength() int32 { return m.maxLength_ }
 
 // appendTo is StringPoolProto.writeTo(CodedOutputStream): fields in number order, then unknown fields.
 func (m *StringPoolProto) appendTo(b []byte) []byte {
@@ -1248,11 +1045,6 @@ type ExternsSummary struct {
 	cachedSize    int
 }
 
-// Field numbers (ExternsSummary.X_FIELD_NUMBER).
-const (
-	ExternsSummary_PROP_NAME_PTR_FIELD_NUMBER = 1
-)
-
 var externsSummary_DEFAULT_INSTANCE = &ExternsSummary{cachedSize: 1}
 
 // Java: ExternsSummary.getDefaultInstance()
@@ -1300,9 +1092,6 @@ func (m *ExternsSummary) serializedSize() int {
 	return size
 }
 
-// Java: ExternsSummary.toByteArray()
-func (m *ExternsSummary) ToByteArray() []byte { return m.appendTo(make([]byte, 0, m.serializedSize())) }
-
 // mergeFromReader is ExternsSummary.Builder.mergeFrom(CodedInputStream) on a mutable m.
 func (m *ExternsSummary) mergeFromReader(r *protoReader) {
 	for {
@@ -1327,453 +1116,4 @@ func (m *ExternsSummary) printText(p *protoTextPrinter) {
 		p.scalar("prop_name_ptr", protoTextInt32(x))
 	}
 	p.unknownFields(m.unknownFields)
-}
-
-// String is ExternsSummary.toString() (protobuf text format).
-func (m *ExternsSummary) String() string {
-	p := &protoTextPrinter{}
-	m.printText(p)
-	return p.sb.String()
-}
-
-// AstNode_ValueCase is AstNode.ValueCase.
-type AstNode_ValueCase int32
-
-const (
-	AstNode_ValueCase_STRING_VALUE_POINTER AstNode_ValueCase = iota
-	AstNode_ValueCase_DOUBLE_VALUE
-	AstNode_ValueCase_TEMPLATE_STRING_VALUE
-	AstNode_ValueCase_VALUE_NOT_SET
-)
-
-var astNode_ValueCase_numbers = [...]int32{
-	3,
-	4,
-	8,
-	0,
-}
-
-var astNode_ValueCase_names = [...]string{
-	"STRING_VALUE_POINTER",
-	"DOUBLE_VALUE",
-	"TEMPLATE_STRING_VALUE",
-	"VALUE_NOT_SET",
-}
-
-// String is Enum.name().
-func (c AstNode_ValueCase) String() string { return astNode_ValueCase_names[c] }
-
-// Java: ValueCase.getNumber()
-func (c AstNode_ValueCase) GetNumber() int32 { return astNode_ValueCase_numbers[c] }
-
-// AstNode_ValueCase_ForNumber is ValueCase.forNumber(int); nil if unknown.
-func AstNode_ValueCase_ForNumber(value int32) *AstNode_ValueCase {
-	for i, n := range astNode_ValueCase_numbers {
-		if n == value {
-			c := AstNode_ValueCase(i)
-			return &c
-		}
-	}
-	return nil
-}
-
-// AstNode is the protobuf message jscomp.AstNode.
-//
-// Java: com.google.javascript.jscomp.serialization.AstNode
-type AstNode struct {
-	kind_                int32
-	child_               []*AstNode
-	stringValuePointer_  int32
-	doubleValue_         float64
-	templateStringValue_ *TemplateStringValue
-	relativeLine_        int32
-	relativeColumn_      int32
-	jsdoc_               *OptimizationJsdoc
-	originalNamePointer_ int32
-	booleanProperties_   int64
-	type_                int32
-	sourceFile_          int32
-	bitField0_           uint64
-	valueCase_           int32
-	unknownFields        []byte
-	cachedSize           int
-}
-
-// Field numbers (AstNode.X_FIELD_NUMBER).
-const (
-	AstNode_KIND_FIELD_NUMBER                  = 1
-	AstNode_CHILD_FIELD_NUMBER                 = 2
-	AstNode_STRING_VALUE_POINTER_FIELD_NUMBER  = 3
-	AstNode_DOUBLE_VALUE_FIELD_NUMBER          = 4
-	AstNode_TEMPLATE_STRING_VALUE_FIELD_NUMBER = 8
-	AstNode_RELATIVE_LINE_FIELD_NUMBER         = 5
-	AstNode_RELATIVE_COLUMN_FIELD_NUMBER       = 6
-	AstNode_JSDOC_FIELD_NUMBER                 = 7
-	AstNode_ORIGINAL_NAME_POINTER_FIELD_NUMBER = 9
-	AstNode_BOOLEAN_PROPERTIES_FIELD_NUMBER    = 14
-	AstNode_TYPE_FIELD_NUMBER                  = 15
-	AstNode_SOURCE_FILE_FIELD_NUMBER           = 16
-)
-
-// AstNode_ParseFrom panics with *InvalidProtocolBufferException on malformed input.
-//
-// Java: AstNode.parseFrom(byte[])
-func AstNode_ParseFrom(data []byte) *AstNode {
-	m := &AstNode{}
-	m.mergeFromReader(&protoReader{b: data})
-	return m
-}
-
-// Java: AstNode.getKind()
-func (m *AstNode) GetKind() NodeKind {
-	return nodeKind_fromNumber(m.kind_)
-}
-
-// Java: AstNode.getChild(int)
-func (m *AstNode) GetChild(index int) *AstNode {
-	protoCheckIndexJDK(index, len(m.child_))
-	return m.child_[index]
-}
-
-// Java: AstNode.getChildCount()
-func (m *AstNode) GetChildCount() int { return len(m.child_) }
-
-// Java: AstNode.hasType()
-func (m *AstNode) HasType() bool { return m.bitField0_&(1<<0) != 0 }
-
-// Java: AstNode.getType()
-func (m *AstNode) GetType() int32 {
-	return m.type_
-}
-
-// Java: AstNode.getSourceFile()
-func (m *AstNode) GetSourceFile() int32 {
-	return m.sourceFile_
-}
-
-// appendTo is AstNode.writeTo(CodedOutputStream): fields in number order, then unknown fields.
-func (m *AstNode) appendTo(b []byte) []byte {
-	if m.kind_ != 0 {
-		b = protoAppendTag(b, 1, 0)
-		b = protoAppendInt32(b, m.kind_)
-	}
-	for _, x := range m.child_ {
-		b = protoAppendTag(b, 2, 2)
-		b = protoAppendVarint(b, uint64(x.serializedSize()))
-		b = x.appendTo(b)
-	}
-	if m.valueCase_ == 3 {
-		b = protoAppendTag(b, 3, 0)
-		b = protoAppendUint32(b, m.stringValuePointer_)
-	}
-	if m.valueCase_ == 4 {
-		b = protoAppendTag(b, 4, 1)
-		b = protoAppendDouble(b, m.doubleValue_)
-	}
-	if m.relativeLine_ != 0 {
-		b = protoAppendTag(b, 5, 0)
-		b = protoAppendSint32(b, m.relativeLine_)
-	}
-	if m.relativeColumn_ != 0 {
-		b = protoAppendTag(b, 6, 0)
-		b = protoAppendSint32(b, m.relativeColumn_)
-	}
-	if m.jsdoc_ != nil {
-		b = protoAppendTag(b, 7, 2)
-		b = protoAppendVarint(b, uint64(m.jsdoc_.serializedSize()))
-		b = m.jsdoc_.appendTo(b)
-	}
-	if m.valueCase_ == 8 {
-		b = protoAppendTag(b, 8, 2)
-		b = protoAppendVarint(b, uint64(m.templateStringValue_.serializedSize()))
-		b = m.templateStringValue_.appendTo(b)
-	}
-	if m.originalNamePointer_ != 0 {
-		b = protoAppendTag(b, 9, 0)
-		b = protoAppendUint32(b, m.originalNamePointer_)
-	}
-	if m.booleanProperties_ != 0 {
-		b = protoAppendTag(b, 14, 0)
-		b = protoAppendVarint(b, uint64(m.booleanProperties_))
-	}
-	if m.bitField0_&(1<<0) != 0 {
-		b = protoAppendTag(b, 15, 0)
-		b = protoAppendInt32(b, m.type_)
-	}
-	if m.sourceFile_ != 0 {
-		b = protoAppendTag(b, 16, 0)
-		b = protoAppendUint32(b, m.sourceFile_)
-	}
-	if len(m.unknownFields) > 0 {
-		b = append(b, protoCanonicalUnknownFields(m.unknownFields)...)
-	}
-	return b
-}
-
-// serializedSize is getSerializedSize() (memoized once immutable).
-func (m *AstNode) serializedSize() int {
-	if m.cachedSize > 0 {
-		return m.cachedSize - 1
-	}
-	size := m.scalarsSerializedSize()
-	for _, x := range m.child_ {
-		s := x.serializedSize()
-		size += 1 + protoVarintLen(uint64(s)) + s
-	}
-	if m.jsdoc_ != nil {
-		s := m.jsdoc_.serializedSize()
-		size += 1 + protoVarintLen(uint64(s)) + s
-	}
-	if m.valueCase_ == 8 {
-		s := m.templateStringValue_.serializedSize()
-		size += 1 + protoVarintLen(uint64(s)) + s
-	}
-	m.cachedSize = size + 1
-	return size
-}
-
-func (m *AstNode) scalarsSerializedSize() int {
-	size := 0
-	if m.kind_ != 0 {
-		size += 1 + protoVarintLen(uint64(int64(m.kind_)))
-	}
-	if m.valueCase_ == 3 {
-		size += 1 + protoVarintLen(uint64(uint32(m.stringValuePointer_)))
-	}
-	if m.valueCase_ == 4 {
-		size += 9
-	}
-	if m.relativeLine_ != 0 {
-		size += 1 + protoVarintLen(uint64(uint32((m.relativeLine_<<1)^(m.relativeLine_>>31))))
-	}
-	if m.relativeColumn_ != 0 {
-		size += 1 + protoVarintLen(uint64(uint32((m.relativeColumn_<<1)^(m.relativeColumn_>>31))))
-	}
-	if m.originalNamePointer_ != 0 {
-		size += 1 + protoVarintLen(uint64(uint32(m.originalNamePointer_)))
-	}
-	if m.booleanProperties_ != 0 {
-		size += 1 + protoVarintLen(uint64(m.booleanProperties_))
-	}
-	if m.bitField0_&(1<<0) != 0 {
-		size += 1 + protoVarintLen(uint64(int64(m.type_)))
-	}
-	if m.sourceFile_ != 0 {
-		size += 2 + protoVarintLen(uint64(uint32(m.sourceFile_)))
-	}
-	if len(m.unknownFields) > 0 {
-		size += len(protoCanonicalUnknownFields(m.unknownFields))
-	}
-	return size
-}
-
-// Java: AstNode.toByteArray()
-func (m *AstNode) ToByteArray() []byte { return m.appendTo(make([]byte, 0, m.serializedSize())) }
-
-// mergeFromReader is AstNode.Builder.mergeFrom(CodedInputStream) on a mutable m.
-func (m *AstNode) mergeFromReader(r *protoReader) {
-	for {
-		start := r.pos
-		tag := r.readTag()
-		switch tag {
-		case 0:
-			return
-		case 8:
-			m.kind_ = r.readInt32()
-		case 18:
-			data := r.readMessageBytes()
-			x := &AstNode{}
-			x.mergeFromReader(r.sub(data))
-			m.child_ = append(m.child_, x)
-		case 24:
-			m.stringValuePointer_ = r.readUint32()
-			m.valueCase_ = 3
-		case 33:
-			m.doubleValue_ = r.readDouble()
-			m.valueCase_ = 4
-		case 40:
-			m.relativeLine_ = r.readSint32()
-		case 48:
-			m.relativeColumn_ = r.readSint32()
-		case 58:
-			data := r.readMessageBytes()
-			var x *OptimizationJsdoc
-			if m.jsdoc_ != nil {
-				x = m.jsdoc_
-				x.cachedSize = 0
-			} else {
-				x = &OptimizationJsdoc{}
-			}
-			x.mergeFromReader(r.sub(data))
-			m.jsdoc_ = x
-		case 66:
-			data := r.readMessageBytes()
-			var x *TemplateStringValue
-			if m.valueCase_ == 8 && m.templateStringValue_ != nil {
-				x = m.templateStringValue_
-				x.cachedSize = 0
-			} else {
-				x = &TemplateStringValue{}
-			}
-			x.mergeFromReader(r.sub(data))
-			m.templateStringValue_ = x
-			m.valueCase_ = 8
-		case 72:
-			m.originalNamePointer_ = r.readUint32()
-		case 112:
-			m.booleanProperties_ = r.readInt64()
-		case 120:
-			m.type_ = r.readInt32()
-			m.bitField0_ |= 1 << 0
-		case 128:
-			m.sourceFile_ = r.readUint32()
-		default:
-			r.skipField(tag)
-			m.unknownFields = append(m.unknownFields, r.b[start:r.pos]...)
-		}
-	}
-}
-
-func (m *AstNode) printText(p *protoTextPrinter) {
-	if m.kind_ != 0 {
-		p.scalar("kind", nodeKind_text(m.kind_))
-	}
-	for _, x := range m.child_ {
-		p.message("child", x.printText)
-	}
-	if m.valueCase_ == 3 {
-		p.scalar("string_value_pointer", protoTextUint32(m.stringValuePointer_))
-	}
-	if m.valueCase_ == 4 {
-		p.scalar("double_value", protoTextDouble(m.doubleValue_))
-	}
-	if m.relativeLine_ != 0 {
-		p.scalar("relative_line", protoTextInt32(m.relativeLine_))
-	}
-	if m.relativeColumn_ != 0 {
-		p.scalar("relative_column", protoTextInt32(m.relativeColumn_))
-	}
-	if m.jsdoc_ != nil {
-		p.message("jsdoc", m.jsdoc_.printText)
-	}
-	if m.valueCase_ == 8 {
-		p.message("template_string_value", m.templateStringValue_.printText)
-	}
-	if m.originalNamePointer_ != 0 {
-		p.scalar("original_name_pointer", protoTextUint32(m.originalNamePointer_))
-	}
-	if m.booleanProperties_ != 0 {
-		p.scalar("boolean_properties", protoTextInt64(m.booleanProperties_))
-	}
-	if m.bitField0_&(1<<0) != 0 {
-		p.scalar("type", protoTextInt32(m.type_))
-	}
-	if m.sourceFile_ != 0 {
-		p.scalar("source_file", protoTextUint32(m.sourceFile_))
-	}
-	p.unknownFields(m.unknownFields)
-}
-
-// String is AstNode.toString() (protobuf text format).
-func (m *AstNode) String() string {
-	p := &protoTextPrinter{}
-	m.printText(p)
-	return p.sb.String()
-}
-
-// TemplateStringValue is the protobuf message jscomp.TemplateStringValue.
-//
-// Java: com.google.javascript.jscomp.serialization.TemplateStringValue
-type TemplateStringValue struct {
-	rawStringPointer_    int32
-	cookedStringPointer_ int32
-	unknownFields        []byte
-	cachedSize           int
-}
-
-// Field numbers (TemplateStringValue.X_FIELD_NUMBER).
-const (
-	TemplateStringValue_RAW_STRING_POINTER_FIELD_NUMBER    = 1
-	TemplateStringValue_COOKED_STRING_POINTER_FIELD_NUMBER = 2
-)
-
-// appendTo is TemplateStringValue.writeTo(CodedOutputStream): fields in number order, then unknown fields.
-func (m *TemplateStringValue) appendTo(b []byte) []byte {
-	if m.rawStringPointer_ != 0 {
-		b = protoAppendTag(b, 1, 0)
-		b = protoAppendUint32(b, m.rawStringPointer_)
-	}
-	if m.cookedStringPointer_ != 0 {
-		b = protoAppendTag(b, 2, 0)
-		b = protoAppendInt32(b, m.cookedStringPointer_)
-	}
-	if len(m.unknownFields) > 0 {
-		b = append(b, protoCanonicalUnknownFields(m.unknownFields)...)
-	}
-	return b
-}
-
-// serializedSize is getSerializedSize() (memoized once immutable).
-func (m *TemplateStringValue) serializedSize() int {
-	if m.cachedSize > 0 {
-		return m.cachedSize - 1
-	}
-	size := m.scalarsSerializedSize()
-	m.cachedSize = size + 1
-	return size
-}
-
-func (m *TemplateStringValue) scalarsSerializedSize() int {
-	size := 0
-	if m.rawStringPointer_ != 0 {
-		size += 1 + protoVarintLen(uint64(uint32(m.rawStringPointer_)))
-	}
-	if m.cookedStringPointer_ != 0 {
-		size += 1 + protoVarintLen(uint64(int64(m.cookedStringPointer_)))
-	}
-	if len(m.unknownFields) > 0 {
-		size += len(protoCanonicalUnknownFields(m.unknownFields))
-	}
-	return size
-}
-
-// Java: TemplateStringValue.toByteArray()
-func (m *TemplateStringValue) ToByteArray() []byte {
-	return m.appendTo(make([]byte, 0, m.serializedSize()))
-}
-
-// mergeFromReader is TemplateStringValue.Builder.mergeFrom(CodedInputStream) on a mutable m.
-func (m *TemplateStringValue) mergeFromReader(r *protoReader) {
-	for {
-		start := r.pos
-		tag := r.readTag()
-		switch tag {
-		case 0:
-			return
-		case 8:
-			m.rawStringPointer_ = r.readUint32()
-		case 16:
-			m.cookedStringPointer_ = r.readInt32()
-		default:
-			r.skipField(tag)
-			m.unknownFields = append(m.unknownFields, r.b[start:r.pos]...)
-		}
-	}
-}
-
-func (m *TemplateStringValue) printText(p *protoTextPrinter) {
-	if m.rawStringPointer_ != 0 {
-		p.scalar("raw_string_pointer", protoTextUint32(m.rawStringPointer_))
-	}
-	if m.cookedStringPointer_ != 0 {
-		p.scalar("cooked_string_pointer", protoTextInt32(m.cookedStringPointer_))
-	}
-	p.unknownFields(m.unknownFields)
-}
-
-// String is TemplateStringValue.toString() (protobuf text format).
-func (m *TemplateStringValue) String() string {
-	p := &protoTextPrinter{}
-	m.printText(p)
-	return p.sb.String()
 }

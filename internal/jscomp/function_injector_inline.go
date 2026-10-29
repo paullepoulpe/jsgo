@@ -107,51 +107,6 @@ func NewFunctionInjector(compiler AbstractCompiler, opts FunctionInjectorOptions
 	return f
 }
 
-type functionInjectorBuilder struct {
-	compiler AbstractCompiler
-	opts     FunctionInjectorOptions
-}
-
-// Java: FunctionInjector.Builder(AbstractCompiler)
-func NewFunctionInjector_Builder(compiler AbstractCompiler) functionInjectorBuilder {
-	return functionInjectorBuilder{
-		compiler: jutil.CheckNotNull(compiler),
-		opts: FunctionInjectorOptions{
-			AssumeStrictThis:   true,
-			AllowDecomposition: true,
-		},
-	}
-}
-
-// Java: FunctionInjector.Builder.safeNameIdSupplier(Supplier<String>)
-func (b functionInjectorBuilder) SafeNameIdSupplier(safeNameIdSupplier func() string) functionInjectorBuilder {
-	b.opts.SafeNameIdSupplier = jutil.CheckNotNull(safeNameIdSupplier)
-	return b
-}
-
-// Java: FunctionInjector.Builder.allowDecomposition(boolean)
-func (b functionInjectorBuilder) AllowDecomposition(allowDecomposition bool) functionInjectorBuilder {
-	b.opts.AllowDecomposition = allowDecomposition
-	return b
-}
-
-// Java: FunctionInjector.Builder.assumeStrictThis(boolean)
-func (b functionInjectorBuilder) AssumeStrictThis(assumeStrictThis bool) functionInjectorBuilder {
-	b.opts.AssumeStrictThis = assumeStrictThis
-	return b
-}
-
-// Java: FunctionInjector.Builder.functionArgumentInjector(FunctionArgumentInjector)
-func (b functionInjectorBuilder) FunctionArgumentInjector(functionArgumentInjector *FunctionArgumentInjector) functionInjectorBuilder {
-	b.opts.FunctionArgumentInjector = jutil.CheckNotNull(functionArgumentInjector)
-	return b
-}
-
-// Java: FunctionInjector.Builder.build()
-func (b functionInjectorBuilder) Build() *FunctionInjector {
-	return NewFunctionInjector(b.compiler, b.opts)
-}
-
 // FunctionInjector_InliningMode is the type of inlining to perform.
 type FunctionInjector_InliningMode int32
 
@@ -169,9 +124,6 @@ var functionInjector_InliningMode_names = [...]string{"DIRECT", "BLOCK"}
 
 // Java: FunctionInjector.InliningMode.name()
 func (m FunctionInjector_InliningMode) String() string { return functionInjector_InliningMode_names[m] }
-
-// Java: FunctionInjector.InliningMode.ordinal()
-func (m FunctionInjector_InliningMode) Ordinal() int { return int(m) }
 
 // FunctionInjector_Reference holds a reference to the call node of a
 // function call.
@@ -395,9 +347,6 @@ var functionInjector_CallSiteType_names = [...]string{
 // Java: FunctionInjector.CallSiteType.name()
 func (c FunctionInjector_CallSiteType) String() string { return functionInjector_CallSiteType_names[c] }
 
-// Java: FunctionInjector.CallSiteType.ordinal()
-func (c FunctionInjector_CallSiteType) Ordinal() int { return int(c) }
-
 // Prepare is the abstract enum method, with each constant's body.
 //
 // Java: FunctionInjector.CallSiteType.prepare(FunctionInjector, Reference)
@@ -576,6 +525,7 @@ func (f *FunctionInjector) inlineFunctionWithSummary(
 	}
 
 	isCallInLoop := NodeUtil_IsWithinLoop(callNode)
+	summary = resolveCalleeSummary(fnName, fnNode, summary)
 	f.mutator.allowMoveCallArgs = true
 	newBlock := f.mutator.mutateWithSummary(
 		fnName, fnNode, callNode, resultName, needsDefaultReturnResult, isCallInLoop, summary)

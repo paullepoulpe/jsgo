@@ -66,7 +66,7 @@ func newJsDocInfoParserTest(t *testing.T) *jsDocInfoParserTest {
 		true,
 		Config_StrictMode_SLOPPY)
 	jt.extraAnnotations = jutil.NewLinkedHashSet(defaultCfg.AnnotationNames()...)
-	jt.extraSuppressions = jutil.NewLinkedHashSet(defaultCfg.SuppressionOrder()...)
+	jt.extraSuppressions = jutil.NewLinkedHashSet(defaultCfg.SuppressionNames().ToSlice()...)
 
 	jt.extraSuppressions.Add("x")
 	jt.extraSuppressions.Add("y")

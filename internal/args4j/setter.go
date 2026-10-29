@@ -1,5 +1,4 @@
 // Port of org/kohsuke/args4j/spi/Setter.java @ args4j 2.33
-// Port of org/kohsuke/args4j/spi/Getter.java @ args4j 2.33
 // Port of org/kohsuke/args4j/spi/Setters.java @ args4j 2.33
 // Port of org/kohsuke/args4j/spi/FieldSetter.java @ args4j 2.33
 // Port of org/kohsuke/args4j/spi/MultiValueFieldSetter.java @ args4j 2.33
@@ -30,7 +29,6 @@ package args4j
 
 import (
 	"fmt"
-	"slices"
 
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 )
@@ -44,19 +42,11 @@ type Setter interface {
 	AsFieldSetter() *FieldSetter
 }
 
-// Getter reads the current default value(s) of a Bean property for usage output.
-type Getter interface {
-	GetValueList() []any
-}
-
 func newSetterForField(f *Field) Setter {
-	if f.IsFinal() {
-		panic(jutil.NewIllegalStateExceptionMsg("Cannot set value to a final field '" + f.GetDeclaringClassName() + "." + f.GetName() + "'."))
+	if f.final {
+		panic(jutil.NewIllegalStateExceptionMsg("Cannot set value to a final field '" + f.declaringClass + "." + f.name + "'."))
 	}
-	if Class_List.IsAssignableFrom(f.GetType()) {
-		return NewMultiValueFieldSetter(f)
-	}
-	return NewFieldSetter(f)
+	return &FieldSetter{f: f, multiValued: f.type_ == classList}
 }
 
 // FieldSetter writes single or list values to a Field.
@@ -65,19 +55,8 @@ type FieldSetter struct {
 	multiValued bool
 }
 
-func NewFieldSetter(f *Field) *FieldSetter {
-	return &FieldSetter{f: f}
-}
-
-func NewMultiValueFieldSetter(f *Field) *FieldSetter {
-	if !Class_List.IsAssignableFrom(f.GetType()) {
-		panic(NewIllegalAnnotationError(spiMsgIllegalFieldSignature.format(f.GetType())))
-	}
-	return &FieldSetter{f: f, multiValued: true}
-}
-
 func (s *FieldSetter) IsMultiValued() bool { return s.multiValued }
-func (s *FieldSetter) GetValue() any       { return s.f.Get() }
+func (s *FieldSetter) getValue() any       { return s.f.get() }
 
 func (s *FieldSetter) AsFieldSetter() *FieldSetter {
 	if s.multiValued {
@@ -88,30 +67,20 @@ func (s *FieldSetter) AsFieldSetter() *FieldSetter {
 
 func (s *FieldSetter) GetType() *Class {
 	if !s.multiValued {
-		return s.f.GetType()
+		return s.f.type_
 	}
-	if t := s.f.GetGenericTypeArgument(); t != nil {
-		return t
+	if s.f.typeArgument != nil {
+		return s.f.typeArgument
 	}
-	return Class_Object
+	return classObject
 }
 
 func (s *FieldSetter) AddValue(value any) {
 	if !s.multiValued {
-		s.f.Set(value)
+		s.f.set(value)
 		return
 	}
-	o := s.f.Get()
-	if o == nil {
-		var backing []any
-		o = &sliceList[any]{p: &backing}
-		s.f.Set(o)
-	}
-	l, ok := o.(List)
-	if !ok {
-		panic(NewIllegalAnnotationError(spiMsgIllegalList.format(s.f)))
-	}
-	l.Add(value)
+	s.f.add(value)
 }
 
 func (s *FieldSetter) AddStringValue(value string) {
@@ -120,30 +89,25 @@ func (s *FieldSetter) AddStringValue(value string) {
 			s.f.setString(value)
 			return
 		}
-		s.f.Set(value)
+		s.f.set(value)
 		return
 	}
 	if s.f.addString != nil {
 		s.f.addString(value)
 		return
 	}
-	s.AddValue(value)
+	s.f.add(value)
 }
 
-func (s *FieldSetter) GetValueList() []any {
-	o := s.f.Get()
+func (s *FieldSetter) getValueList() []any {
+	if s.multiValued {
+		return s.f.getList()
+	}
+	o := s.f.get()
 	if o == nil {
 		return nil
 	}
-	if !s.multiValued {
-		return []any{o}
-	}
-	l := o.(List)
-	values := make([]any, l.Size())
-	for i := range values {
-		values[i] = l.Get(i)
-	}
-	return values
+	return []any{o}
 }
 
 // Class describes the Java type of a Bean Field for handler dispatch and
@@ -154,27 +118,19 @@ type Class struct {
 	isPrimitive bool
 	isEnum      bool
 	constants   []any
-	supertypes  []*Class
 }
 
 var (
-	Class_Object     = &Class{name: "java.lang.Object"}
-	Class_Enum       = &Class{name: "java.lang.Enum"}
-	Class_String     = &Class{name: "java.lang.String"}
-	Class_Boolean    = &Class{name: "java.lang.Boolean"}
-	Class_Integer    = &Class{name: "java.lang.Integer"}
-	Class_Collection = &Class{name: "java.util.Collection", isInterface: true}
-	Class_List       = &Class{name: "java.util.List", isInterface: true, supertypes: []*Class{Class_Collection}}
-	Class_Map        = &Class{name: "java.util.Map", isInterface: true}
-	Class_boolean    = &Class{name: "boolean", isPrimitive: true}
-	Class_int        = &Class{name: "int", isPrimitive: true}
-)
+	Class_String = &Class{name: "java.lang.String"}
 
-// NewEnumClass creates the Class descriptor for a Java enum with its constants
-// in ordinal order.
-func NewEnumClass(name string, constants []any) *Class {
-	return &Class{name: name, isEnum: true, constants: constants, supertypes: []*Class{Class_Enum}}
-}
+	classObject      = &Class{name: "java.lang.Object"}
+	classBoolean     = &Class{name: "java.lang.Boolean"}
+	classInteger     = &Class{name: "java.lang.Integer"}
+	classList        = &Class{name: "java.util.List", isInterface: true}
+	classMap         = &Class{name: "java.util.Map", isInterface: true}
+	classBooleanPrim = &Class{name: "boolean", isPrimitive: true}
+	classIntPrim     = &Class{name: "int", isPrimitive: true}
+)
 
 // EnumClassOf builds a Class descriptor for a typed slice of enum values.
 func EnumClassOf[E fmt.Stringer](name string, values []E) *Class {
@@ -182,10 +138,8 @@ func EnumClassOf[E fmt.Stringer](name string, values []E) *Class {
 	for i, v := range values {
 		constants[i] = v
 	}
-	return NewEnumClass(name, constants)
+	return &Class{name: name, isEnum: true, constants: constants}
 }
-
-func (c *Class) GetName() string { return c.name }
 
 func (c *Class) String() string {
 	if c.isInterface {
@@ -195,31 +149,6 @@ func (c *Class) String() string {
 		return c.name
 	}
 	return "class " + c.name
-}
-
-func (c *Class) GetEnumConstants() []any {
-	if !c.isEnum {
-		return nil
-	}
-	return slices.Clone(c.constants)
-}
-
-func (c *Class) IsAssignableFrom(cls *Class) bool {
-	if c == cls {
-		return true
-	}
-	if cls.isPrimitive {
-		return false
-	}
-	if c == Class_Object {
-		return true
-	}
-	for _, s := range cls.supertypes {
-		if c.IsAssignableFrom(s) {
-			return true
-		}
-	}
-	return false
 }
 
 func enumName(constant any) string {
@@ -239,7 +168,9 @@ type Field struct {
 	get            func() any
 	set            func(value any)
 	setString      func(value string)
+	add            func(value any)
 	addString      func(value string)
+	getList        func() []any
 }
 
 func NewField(declaringClass, name string, type_, typeArgument *Class, final bool, get func() any, set func(value any)) *Field {
@@ -252,27 +183,6 @@ func NewField(declaringClass, name string, type_, typeArgument *Class, final boo
 		get:            get,
 		set:            set,
 	}
-}
-
-func (f *Field) GetDeclaringClassName() string  { return f.declaringClass }
-func (f *Field) GetName() string                { return f.name }
-func (f *Field) GetType() *Class                { return f.type_ }
-func (f *Field) GetGenericTypeArgument() *Class { return f.typeArgument }
-func (f *Field) IsFinal() bool                  { return f.final }
-func (f *Field) Get() any                       { return f.get() }
-func (f *Field) Set(value any)                  { f.set(value) }
-func (f *Field) String() string                 { return f.type_.GetName() + " " + f.declaringClass + "." + f.name }
-
-// List is the collection interface used by multi-value FieldSetter.
-type List interface {
-	Add(e any) bool
-	Size() int
-	Get(index int) any
-}
-
-// Map is the key-value interface populated by MapOptionHandler.
-type Map interface {
-	Put(key string, value *string) *string
 }
 
 func valueField[T any](declaringClass, name string, type_ *Class, p *T) *Field {
@@ -300,25 +210,25 @@ func nullableField[T any](declaringClass, name string, type_ *Class, p **T) *Fie
 }
 
 func BooleanField(declaringClass, name string, p *bool) *Field {
-	return valueField(declaringClass, name, Class_boolean, p)
+	return valueField(declaringClass, name, classBooleanPrim, p)
 }
 
 func NullableBooleanField(declaringClass, name string, p **bool) *Field {
-	return nullableField(declaringClass, name, Class_Boolean, p)
+	return nullableField(declaringClass, name, classBoolean, p)
 }
 
 func IntField(declaringClass, name string, p *int) *Field {
-	return NewField(declaringClass, name, Class_int, nil, false,
+	return NewField(declaringClass, name, classIntPrim, nil, false,
 		func() any { return int32(*p) },
 		func(v any) { *p = int(v.(int32)) })
 }
 
 func IntegerField(declaringClass, name string, p *int32) *Field {
-	return valueField(declaringClass, name, Class_Integer, p)
+	return valueField(declaringClass, name, classInteger, p)
 }
 
 func NullableIntegerField(declaringClass, name string, p **int32) *Field {
-	return nullableField(declaringClass, name, Class_Integer, p)
+	return nullableField(declaringClass, name, classInteger, p)
 }
 
 func StringField(declaringClass, name string, p *string) *Field {
@@ -342,17 +252,23 @@ func NullableEnumField[E any](declaringClass, name string, enumClass *Class, p *
 }
 
 func ListField[E any](declaringClass, name string, elementType *Class, p *[]E) *Field {
-	sl := &sliceList[E]{p}
-	f := NewField(declaringClass, name, Class_List, elementType, false,
-		func() any { return sl },
-		func(v any) {
-			l := v.(List)
-			s := make([]E, l.Size())
-			for i := range s {
-				s[i] = l.Get(i).(E)
+	f := &Field{
+		declaringClass: declaringClass,
+		name:           name,
+		type_:          classList,
+		typeArgument:   elementType,
+		add:            func(v any) { *p = append(*p, v.(E)) },
+		getList: func() []any {
+			if len(*p) == 0 {
+				return nil
 			}
-			*p = s
-		})
+			out := make([]any, len(*p))
+			for i, e := range *p {
+				out[i] = e
+			}
+			return out
+		},
+	}
 	if sp, ok := any(p).(*[]string); ok {
 		f.addString = func(v string) {
 			*sp = append(*sp, v)
@@ -361,21 +277,8 @@ func ListField[E any](declaringClass, name string, elementType *Class, p *[]E) *
 	return f
 }
 
-type sliceList[E any] struct{ p *[]E }
-
-func (l *sliceList[E]) Add(e any) bool {
-	*l.p = append(*l.p, e.(E))
-	return true
-}
-func (l *sliceList[E]) Size() int         { return len(*l.p) }
-func (l *sliceList[E]) Get(index int) any { return (*l.p)[index] }
-
-func StringMapField(declaringClass, name string, p **jutil.LinkedHashMap[string, *string]) *Field {
-	return LinkedStringMapField(declaringClass, name, p)
-}
-
 func LinkedStringMapField(declaringClass, name string, p **jutil.LinkedHashMap[string, *string]) *Field {
-	return NewField(declaringClass, name, Class_Map, Class_String, false,
+	return NewField(declaringClass, name, classMap, Class_String, false,
 		func() any {
 			if *p == nil {
 				return nil

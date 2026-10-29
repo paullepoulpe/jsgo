@@ -41,8 +41,7 @@ import (
 type ProcessDefines struct {
 	compiler                   AbstractCompiler
 	registry                   *rhino.JSTypeRegistry
-	replacementValuesFromFlags map[string]rhino.Node
-	flagReplacementOrder       []string
+	replacementValuesFromFlags OrderedStringMap[rhino.Node]
 	mode                       ProcessDefines_Mode
 	namespaceSupplier          func() *GlobalNamespace
 	recognizeClosureDefines    bool
@@ -150,33 +149,40 @@ var ProcessDefines_DEFINE_WITHOUT_GOOG_DEFINE = DiagnosticType_Disabled(
 	"The const declaration for @define ''{0}'' must be initialized with a call to"+
 		" goog.define().")
 
-// newProcessDefines creates a pass that overrides define constants.
-//
-// Java: ProcessDefines(ProcessDefines.Builder)
-func newProcessDefines(builder *ProcessDefines_Builder) *ProcessDefines {
+// ProcessDefinesOptions configures a ProcessDefines pass.
+type ProcessDefinesOptions struct {
+	Replacements            OrderedStringMap[rhino.Node]
+	Mode                    ProcessDefines_Mode
+	NamespaceSupplier       func() *GlobalNamespace
+	RecognizeClosureDefines bool
+	EnableZonesDefineName   *string
+	ZoneInputPattern        *jutil.Pattern
+	UnknownDefinesToIgnore  []string
+}
+
+// NewProcessDefines creates a pass that overrides define constants.
+func NewProcessDefines(compiler AbstractCompiler, opts ProcessDefinesOptions) *ProcessDefines {
 	p := &ProcessDefines{
-		mode:                     builder.mode,
-		compiler:                 builder.compiler,
-		namespaceSupplier:        builder.namespaceSupplier,
-		recognizeClosureDefines:  builder.recognizeClosureDefines,
-		enableZonesDefineName:    builder.enableZonesDefineName,
-		hasEnableZonesDefineName: builder.hasEnableZonesDefineName,
-		zoneInputPattern:         builder.zoneInputPattern,
+		mode:                    opts.Mode,
+		compiler:                compiler,
+		namespaceSupplier:       opts.NamespaceSupplier,
+		recognizeClosureDefines: opts.RecognizeClosureDefines,
+		zoneInputPattern:        opts.ZoneInputPattern,
+	}
+	if opts.EnableZonesDefineName != nil {
+		p.enableZonesDefineName = *opts.EnableZonesDefineName
+		p.hasEnableZonesDefineName = true
 	}
 	if p.mode.Check() {
 		p.registry = p.compiler.GetTypeRegistry()
 	}
-	if len(builder.replacementOrder) > 0 {
-		p.replacementValuesFromFlags = make(map[string]rhino.Node, len(builder.replacementOrder))
-		p.flagReplacementOrder = make([]string, len(builder.replacementOrder))
-		copy(p.flagReplacementOrder, builder.replacementOrder)
-		for _, k := range builder.replacementOrder {
-			p.replacementValuesFromFlags[k] = rhino.CheckNotNull(builder.replacementValues[k])
-		}
+	for _, e := range opts.Replacements.Entries() {
+		rhino.CheckNotNull(e.Value)
 	}
-	if len(builder.unknownDefinesToIgnore) > 0 {
-		p.unknownDefinesToIgnore = make(map[string]struct{}, len(builder.unknownDefinesToIgnore))
-		for _, d := range builder.unknownDefinesToIgnore {
+	p.replacementValuesFromFlags = opts.Replacements
+	if len(opts.UnknownDefinesToIgnore) > 0 {
+		p.unknownDefinesToIgnore = make(map[string]struct{}, len(opts.UnknownDefinesToIgnore))
+		for _, d := range opts.UnknownDefinesToIgnore {
 			p.unknownDefinesToIgnore[d] = struct{}{}
 		}
 	}
@@ -211,100 +217,6 @@ func (m ProcessDefines_Mode) Check() bool { return processDefines_Mode_check[m] 
 
 // Optimize is the Mode.optimize field.
 func (m ProcessDefines_Mode) Optimize() bool { return processDefines_Mode_optimize[m] }
-
-// ProcessDefines_Builder is the builder for ProcessDefines.
-type ProcessDefines_Builder struct {
-	compiler                 AbstractCompiler
-	replacementValues        map[string]rhino.Node
-	replacementOrder         []string
-	mode                     ProcessDefines_Mode
-	namespaceSupplier        func() *GlobalNamespace
-	recognizeClosureDefines  bool
-	enableZonesDefineName    string
-	hasEnableZonesDefineName bool
-	zoneInputPattern         *jutil.Pattern
-	unknownDefinesToIgnore   []string
-}
-
-// Java: ProcessDefines.Builder(AbstractCompiler)
-func NewProcessDefines_Builder(compiler AbstractCompiler) *ProcessDefines_Builder {
-	return &ProcessDefines_Builder{
-		compiler:                compiler,
-		recognizeClosureDefines: true,
-	}
-}
-
-// PutReplacement sets a single define replacement value, preserving
-// first-insertion order across overrides.
-func (b *ProcessDefines_Builder) PutReplacement(name string, value rhino.Node) *ProcessDefines_Builder {
-	if b.replacementValues == nil {
-		b.replacementValues = make(map[string]rhino.Node)
-	}
-	if _, exists := b.replacementValues[name]; !exists {
-		b.replacementOrder = append(b.replacementOrder, name)
-	}
-	b.replacementValues[name] = value
-	return b
-}
-
-// Java: ProcessDefines.Builder.putReplacements(Map<String, Node>)
-func (b *ProcessDefines_Builder) PutReplacements(replacementValues jutil.MapSource[string, rhino.Node]) *ProcessDefines_Builder {
-	for k, v := range replacementValues.All() {
-		b.PutReplacement(k, v)
-	}
-	return b
-}
-
-// Java: ProcessDefines.Builder.setMode(ProcessDefines.Mode)
-func (b *ProcessDefines_Builder) SetMode(x ProcessDefines_Mode) *ProcessDefines_Builder {
-	b.mode = x
-	return b
-}
-
-// InjectNamespace injects a pre-computed global namespace, so that the same
-// namespace can be re-used for multiple check passes. Accepts a supplier
-// because the namespace may not exist at pass-creation time.
-//
-// Java: ProcessDefines.Builder.injectNamespace(Supplier<GlobalNamespace>)
-func (b *ProcessDefines_Builder) InjectNamespace(namespaceSupplier func() *GlobalNamespace) *ProcessDefines_Builder {
-	b.namespaceSupplier = namespaceSupplier
-	return b
-}
-
-// Java: ProcessDefines.Builder.setUnknownDefinesToIgnore(ImmutableList<String>)
-func (b *ProcessDefines_Builder) SetUnknownDefinesToIgnore(unknownDefinesToIgnore []string) *ProcessDefines_Builder {
-	b.unknownDefinesToIgnore = unknownDefinesToIgnore
-	return b
-}
-
-// Java: ProcessDefines.Builder.setRecognizeClosureDefines(boolean)
-func (b *ProcessDefines_Builder) SetRecognizeClosureDefines(recognizeClosureDefines bool) *ProcessDefines_Builder {
-	b.recognizeClosureDefines = recognizeClosureDefines
-	return b
-}
-
-// Java: ProcessDefines.Builder.setEnableZonesDefineName(String)
-func (b *ProcessDefines_Builder) SetEnableZonesDefineName(enableZonesDefineName *string) *ProcessDefines_Builder {
-	if enableZonesDefineName != nil {
-		b.enableZonesDefineName = *enableZonesDefineName
-		b.hasEnableZonesDefineName = true
-	} else {
-		b.enableZonesDefineName = ""
-		b.hasEnableZonesDefineName = false
-	}
-	return b
-}
-
-// Java: ProcessDefines.Builder.setZoneInputPattern(Pattern)
-func (b *ProcessDefines_Builder) SetZoneInputPattern(zoneInputPattern *jutil.Pattern) *ProcessDefines_Builder {
-	b.zoneInputPattern = zoneInputPattern
-	return b
-}
-
-// Java: ProcessDefines.Builder.build()
-func (b *ProcessDefines_Builder) Build() *ProcessDefines {
-	return newProcessDefines(b)
-}
 
 // Java: ProcessDefines.process(Node, Node)
 func (p *ProcessDefines) Process(externs rhino.Node, root rhino.Node) {
@@ -395,7 +307,7 @@ func (p *ProcessDefines) OverrideDefines() {
 		}
 	}
 
-	if len(p.flagReplacementOrder) > 0 || len(p.closureDefineOrder) > 0 {
+	if !p.replacementValuesFromFlags.IsEmpty() || len(p.closureDefineOrder) > 0 {
 		// Sets.difference(Sets.union(flags, closureDefines),
 		//     Sets.union(Sets.union(KNOWN_DEFINES, defineByDefineName), ignore))
 		isUsed := func(k string) bool {
@@ -408,13 +320,13 @@ func (p *ProcessDefines) OverrideDefines() {
 			_, ignored := p.unknownDefinesToIgnore[k]
 			return ignored
 		}
-		for _, unknownDefine := range p.flagReplacementOrder {
-			if !isUsed(unknownDefine) {
-				p.compiler.Report(JSError_Make(ProcessDefines_UNKNOWN_DEFINE_WARNING, unknownDefine))
+		for _, e := range p.replacementValuesFromFlags.Entries() {
+			if !isUsed(e.Key) {
+				p.compiler.Report(JSError_Make(ProcessDefines_UNKNOWN_DEFINE_WARNING, e.Key))
 			}
 		}
 		for _, unknownDefine := range p.closureDefineOrder {
-			if _, fromFlags := p.replacementValuesFromFlags[unknownDefine]; !fromFlags && !isUsed(unknownDefine) {
+			if !p.replacementValuesFromFlags.ContainsKey(unknownDefine) && !isUsed(unknownDefine) {
 				p.compiler.Report(JSError_Make(ProcessDefines_UNKNOWN_DEFINE_WARNING, unknownDefine))
 			}
 		}
@@ -480,7 +392,7 @@ func processDefines_googDefineDefault(call ast.Call) (ast.Arg, bool) {
 //
 // Java: ProcessDefines.getReplacementForDefineName(String)
 func (p *ProcessDefines) GetReplacementForDefineName(defineName string) rhino.Node {
-	if replacementFromFlags, ok := p.replacementValuesFromFlags[defineName]; ok && !replacementFromFlags.IsNil() {
+	if replacementFromFlags, ok := p.replacementValuesFromFlags.Lookup(defineName); ok && !replacementFromFlags.IsNil() {
 		return replacementFromFlags
 	}
 	if replacementFromClosureDefines, ok := p.replacementValuesFromClosureDefines[defineName]; ok && !replacementFromClosureDefines.IsNil() {

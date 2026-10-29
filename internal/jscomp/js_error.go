@@ -213,13 +213,12 @@ type JSError_Builder struct {
 	type_ *DiagnosticType
 	args  []string
 
-	level       CheckLevel
-	n           rhino.Node
-	sourceName  *string
-	lineno      int
-	charno      int
-	length      int
-	requirement *Requirement
+	level      CheckLevel
+	n          rhino.Node
+	sourceName *string
+	lineno     int
+	charno     int
+	length     int
 }
 
 func newJSError_Builder(type_ *DiagnosticType, args ...string) *JSError_Builder {
@@ -248,21 +247,6 @@ func (b *JSError_Builder) SetNode(n rhino.Node) *JSError_Builder {
 	return b
 }
 
-// Java: JSError.Builder.setNodeRange(Node, Node)
-func (b *JSError_Builder) SetNodeRange(start rhino.Node, end rhino.Node) *JSError_Builder {
-	jutil.CheckStateMsg(b.sourceName == nil, "Cannot provide a Node when there's already a source name")
-	b.n = start
-	b.sourceName = b.n.GetSourceFileName()
-	b.lineno = b.n.GetLineno()
-	b.charno = b.n.GetCharno()
-	endOffset := end.GetSourceOffset()
-	startOffset := start.GetSourceOffset()
-	if endOffset != -1 && startOffset != -1 {
-		b.length = (end.GetSourceOffset() + end.GetLength()) - start.GetSourceOffset()
-	}
-	return b
-}
-
 // SetLevel sets the default level, before any WarningGuards, of this
 // JSError. Overwrites the default level of the DiagnosticType.
 //
@@ -272,15 +256,6 @@ func (b *JSError_Builder) SetNodeRange(start rhino.Node, end rhino.Node) *JSErro
 // Java: JSError.Builder.setLevel(CheckLevel)
 func (b *JSError_Builder) SetLevel(level CheckLevel) *JSError_Builder {
 	b.level = level
-	return b
-}
-
-// SetRequirement sets the requirement that fails in the case of conformance
-// violations.
-//
-// Java: JSError.Builder.setRequirement(Requirement)
-func (b *JSError_Builder) SetRequirement(requirement *Requirement) *JSError_Builder {
-	b.requirement = jutil.CheckNotNull(requirement)
 	return b
 }
 
@@ -302,7 +277,7 @@ func (b *JSError_Builder) SetSourceLocation(sourceName *string, lineno int, char
 // Java: JSError.Builder.build()
 func (b *JSError_Builder) Build() *JSError {
 	return NewJSError(
-		b.type_, b.type_.Format(b.args...), b.sourceName, b.lineno, b.charno, b.length, b.n, b.level, b.requirement)
+		b.type_, b.type_.Format(b.args...), b.sourceName, b.lineno, b.charno, b.length, b.n, b.level, nil)
 }
 
 // JSError_Builder_ creates a new builder (JSError.builder): type is the

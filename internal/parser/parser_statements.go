@@ -386,7 +386,7 @@ func (p *Parser) ParseForStatement() ParseTree {
 	initializer := p.ParseExpressionNoIn()
 	if p.Peek(TokenType_IN) || p.Peek(TokenType_EQUAL) || p.PeekPredefinedString(PredefinedName_OF) {
 		initializer = p.TransformLeftHandSideExpression(initializer)
-		if !initializer.IsValidAssignmentTarget() {
+		if !IsValidAssignmentTarget(initializer) {
 			p.ReportError("invalid assignment target")
 		}
 	}
@@ -450,7 +450,7 @@ func (p *Parser) CheckVanillaForInitializers(variables *VariableDeclarationListT
 func (p *Parser) MaybeReportNoInitializer(token TokenType, lvalue ParseTree) {
 	if token == TokenType_CONST {
 		p.ReportError("const variables must have an initializer")
-	} else if lvalue.IsPattern() {
+	} else if IsPattern(lvalue) {
 		p.ReportError("destructuring must have an initializer")
 	}
 }

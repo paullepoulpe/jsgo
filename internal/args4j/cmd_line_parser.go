@@ -38,7 +38,6 @@
 package args4j
 
 import (
-	"io"
 	"slices"
 	"strconv"
 	"strings"
@@ -61,7 +60,6 @@ type AnnotatedField struct {
 
 // Parameters provides lookahead over remaining command-line tokens to an OptionHandler.
 type Parameters interface {
-	GetParameter(idx int) string
 	TryGetParameter(idx int) (string, *CmdLineException)
 	PeekParameter(idx int) (string, bool)
 	Size() int
@@ -73,7 +71,6 @@ type CmdLineParser struct {
 	options              []*OptionHandler
 	optionByName         map[string]*OptionHandler
 	arguments            []*OptionHandler
-	parsingOptions       bool
 	currentOptionHandler *OptionHandler
 	parserProperties     *ParserProperties
 }
@@ -85,66 +82,42 @@ func NewCmdLineParser(bean any) *CmdLineParser {
 
 // NewCmdLineParserWithProperties creates a CmdLineParser for bean with custom properties.
 func NewCmdLineParserWithProperties(bean any, parserProperties *ParserProperties) *CmdLineParser {
-	p := &CmdLineParser{
-		parsingOptions:   true,
-		parserProperties: parserProperties,
-	}
-	if bean == nil {
-		return p
-	}
+	p := &CmdLineParser{parserProperties: parserProperties}
 	if b, ok := bean.(Bean); ok {
 		for _, af := range b.Args4jFields() {
 			if af.Option != nil {
-				p.AddOption(newSetterForField(af.Field), af.Option)
+				p.addOption(newSetterForField(af.Field), af.Option)
 			}
 			if af.Argument != nil {
-				p.AddArgument(newSetterForField(af.Field), af.Argument)
+				p.addArgument(newSetterForField(af.Field), af.Argument)
 			}
 		}
 	}
-	if sorter := parserProperties.GetOptionSorter(); sorter != nil {
+	if sorter := parserProperties.optionSorter; sorter != nil {
 		slices.SortStableFunc(p.options, sorter)
 		p.optionByName = nil
 	}
 	return p
 }
 
-func (p *CmdLineParser) GetProperties() *ParserProperties { return p.parserProperties }
-func (p *CmdLineParser) GetArguments() []*OptionHandler   { return p.arguments }
-func (p *CmdLineParser) GetOptions() []*OptionHandler     { return p.options }
-
-func (p *CmdLineParser) AddArgument(setter Setter, a *Argument) {
-	if setter == nil {
-		panic(jutil.NewNullPointerExceptionMsg("Setter is null"))
-	}
-	if a == nil {
-		panic(jutil.NewNullPointerExceptionMsg("Argument is null"))
-	}
-
-	h := p.CreateOptionHandler(NewOptionDef(a, setter.IsMultiValued()), setter)
+func (p *CmdLineParser) addArgument(setter Setter, a *Argument) {
+	h := createOptionHandler(p, newOptionDef(a, setter.IsMultiValued()), setter)
 	index := a.Index
 	for index >= len(p.arguments) {
 		p.arguments = append(p.arguments, nil)
 	}
 	if p.arguments[index] != nil {
-		panic(NewIllegalAnnotationError(msgMultipleUseOfArgument.format(index)))
+		panic(newIllegalAnnotationError(msgMultipleUseOfArgument.format(index)))
 	}
 	p.arguments[index] = h
 }
 
-func (p *CmdLineParser) AddOption(setter Setter, o *Option) {
-	if setter == nil {
-		panic(jutil.NewNullPointerExceptionMsg("Setter is null"))
-	}
-	if o == nil {
-		panic(jutil.NewNullPointerExceptionMsg("Option is null"))
-	}
-
+func (p *CmdLineParser) addOption(setter Setter, o *Option) {
 	p.checkOptionNotInMap(o.Name)
 	for _, alias := range o.Aliases {
 		p.checkOptionNotInMap(alias)
 	}
-	h := p.CreateOptionHandler(NewNamedOptionDef(o), setter)
+	h := createOptionHandler(p, newNamedOptionDef(o), setter)
 	p.options = append(p.options, h)
 	if p.optionByName != nil {
 		if _, exists := p.optionByName[o.Name]; !exists {
@@ -160,64 +133,52 @@ func (p *CmdLineParser) AddOption(setter Setter, o *Option) {
 
 func (p *CmdLineParser) checkOptionNotInMap(name string) {
 	if p.findOptionByName(name) != nil {
-		panic(NewIllegalAnnotationError(msgMultipleUseOfOption.format(name)))
+		panic(newIllegalAnnotationError(msgMultipleUseOfOption.format(name)))
 	}
 }
 
-func (p *CmdLineParser) CreateOptionHandler(o *OptionDef, setter Setter) *OptionHandler {
-	return createOptionHandler(p, o, setter)
-}
-
-func (p *CmdLineParser) PrintExample(filter OptionHandlerFilterFunc) string {
-	return p.PrintExampleWithResourceBundle(filter, nil)
-}
-
-func (p *CmdLineParser) PrintExampleWithResourceBundle(mode OptionHandlerFilterFunc, rb ResourceBundle) string {
+func (p *CmdLineParser) PrintExample(mode OptionHandlerFilterFunc) string {
 	if mode == nil {
 		panic(jutil.NewNullPointerExceptionMsg("mode is null"))
 	}
 	var buf strings.Builder
 	for _, h := range p.options {
-		if len(h.Option.Usage()) == 0 || !mode(h) {
+		if len(h.Option.usage) == 0 || !mode(h) {
 			continue
 		}
 		buf.WriteByte(' ')
-		buf.WriteString(h.GetNameAndMetaWithProperties(rb, p.parserProperties))
+		buf.WriteString(h.getNameAndMeta(p.parserProperties))
 	}
 	return buf.String()
 }
 
-func (p *CmdLineParser) PrintUsage(out io.Writer) {
-	p.PrintUsageToWriter(jutil.NewOutputStreamWriter(outputStream(out)), nil)
-}
-
-func (p *CmdLineParser) PrintUsageToWriter(out jutil.Writer, rb ResourceBundle) {
+func (p *CmdLineParser) PrintUsageToWriter(out jutil.Writer, rb any) {
 	p.PrintUsageToWriterWithFilter(out, rb, OptionHandlerFilter_PUBLIC)
 }
 
-func (p *CmdLineParser) PrintUsageToWriterWithFilter(out jutil.Writer, rb ResourceBundle, filter OptionHandlerFilterFunc) {
+func (p *CmdLineParser) PrintUsageToWriterWithFilter(out jutil.Writer, _ any, filter OptionHandlerFilterFunc) {
 	if out == nil {
 		panic(jutil.NewNullPointerException())
 	}
 	prefixLen := 0
 	for _, h := range p.arguments {
-		prefixLen = max(prefixLen, p.getPrefixLen(h, rb))
+		prefixLen = max(prefixLen, p.getPrefixLen(h))
 	}
 	for _, h := range p.options {
-		prefixLen = max(prefixLen, p.getPrefixLen(h, rb))
+		prefixLen = max(prefixLen, p.getPrefixLen(h))
 	}
 	for _, h := range p.arguments {
-		p.PrintOption(out, h, prefixLen, rb, filter)
+		p.printOption(out, h, prefixLen, filter)
 	}
 	for _, h := range p.options {
-		p.PrintOption(out, h, prefixLen, rb, filter)
+		p.printOption(out, h, prefixLen, filter)
 	}
 	_ = out.TryFlush()
 }
 
-func (p *CmdLineParser) PrintOption(out jutil.Writer, handler *OptionHandler, maxMetaLen int, rb ResourceBundle, filter OptionHandlerFilterFunc) {
+func (p *CmdLineParser) printOption(out jutil.Writer, handler *OptionHandler, maxMetaLen int, filter OptionHandlerFilterFunc) {
 	option := handler.Option
-	if len(option.Usage()) == 0 {
+	if len(option.usage) == 0 {
 		return
 	}
 	if filter == nil {
@@ -227,13 +188,13 @@ func (p *CmdLineParser) PrintOption(out jutil.Writer, handler *OptionHandler, ma
 		return
 	}
 
-	totalUsageWidth := p.parserProperties.GetUsageWidth()
+	totalUsageWidth := p.parserProperties.usageWidth
 	widthMetadata := min(maxMetaLen, (totalUsageWidth-4)/2)
 	widthUsage := totalUsageWidth - 4 - widthMetadata
 
 	defaultValuePart := p.createDefaultValuePart(handler)
-	namesAndMetas := p.wrapLines(handler.GetNameAndMetaWithProperties(rb, p.parserProperties), widthMetadata)
-	usages := p.wrapLines(localize(option.Usage(), rb)+defaultValuePart, widthUsage)
+	namesAndMetas := wrapLines(handler.getNameAndMeta(p.parserProperties), widthMetadata)
+	usages := wrapLines(option.usage+defaultValuePart, widthUsage)
 
 	var lineBuf strings.Builder
 	for i := 0; i < max(len(namesAndMetas), len(usages)); i++ {
@@ -267,22 +228,15 @@ func (p *CmdLineParser) PrintOption(out jutil.Writer, handler *OptionHandler, ma
 }
 
 func (p *CmdLineParser) createDefaultValuePart(handler *OptionHandler) string {
-	if _, isGetter := handler.Setter.(Getter); p.parserProperties.GetShowDefaults() && !handler.Option.Required() && isGetter {
-		if v, ok := handler.PrintDefaultValue(); ok {
+	if p.parserProperties.showDefaults && !handler.Option.required {
+		if v, ok := handler.printDefaultValue(); ok {
 			return " " + msgDefaultValue.format(v)
 		}
 	}
 	return ""
 }
 
-func localize(s string, rb ResourceBundle) string {
-	if rb != nil {
-		return rb.GetString(s)
-	}
-	return s
-}
-
-func (p *CmdLineParser) wrapLines(line string, maxLength int) []string {
+func wrapLines(line string, maxLength int) []string {
 	var rv []string
 	for _, restOfLine := range jutil.StringSplitLiteral(line, "\n") {
 		for utf8.RuneCountInString(restOfLine) > maxLength {
@@ -313,11 +267,11 @@ func (p *CmdLineParser) wrapLines(line string, maxLength int) []string {
 	return rv
 }
 
-func (p *CmdLineParser) getPrefixLen(h *OptionHandler, rb ResourceBundle) int {
-	if len(h.Option.Usage()) == 0 {
+func (p *CmdLineParser) getPrefixLen(h *OptionHandler) int {
+	if len(h.Option.usage) == 0 {
 		return 0
 	}
-	return utf8.RuneCountInString(h.GetNameAndMetaWithProperties(rb, p.parserProperties))
+	return utf8.RuneCountInString(h.getNameAndMeta(p.parserProperties))
 }
 
 type cmdLineParams struct {
@@ -326,18 +280,7 @@ type cmdLineParams struct {
 	pos   int
 }
 
-func (c *cmdLineParams) hasMore() bool        { return c.pos < len(c.args) }
-func (c *cmdLineParams) currentToken() string { return c.args[c.pos] }
-func (c *cmdLineParams) proceed(n int)        { c.pos += n }
-func (c *cmdLineParams) Size() int            { return len(c.args) - c.pos }
-
-func (c *cmdLineParams) GetParameter(idx int) string {
-	val, err := c.TryGetParameter(idx)
-	if err != nil {
-		panic(err)
-	}
-	return val
-}
+func (c *cmdLineParams) Size() int { return len(c.args) - c.pos }
 
 func (c *cmdLineParams) PeekParameter(idx int) (string, bool) {
 	if c.pos+idx >= len(c.args) || c.pos+idx < 0 {
@@ -363,10 +306,6 @@ func (c *cmdLineParams) splitToken() {
 	}
 }
 
-func (p *CmdLineParser) ParseArgumentCollection(args []string) {
-	p.ParseArgument(slices.Clone(args)...)
-}
-
 func (p *CmdLineParser) ParseArgument(args ...string) {
 	if err := p.TryParseArgument(args...); err != nil {
 		panic(err)
@@ -377,7 +316,7 @@ func (p *CmdLineParser) ParseArgument(args ...string) {
 // a *CmdLineException instead of panicking on user argument errors.
 func (p *CmdLineParser) TryParseArgument(args ...string) *CmdLineException {
 	expandedArgs := args
-	if p.parserProperties.GetAtSyntax() {
+	if p.parserProperties.atSyntax {
 		var err *CmdLineException
 		expandedArgs, err = p.tryExpandAtFiles(args)
 		if err != nil {
@@ -390,10 +329,10 @@ func (p *CmdLineParser) TryParseArgument(args ...string) *CmdLineException {
 	var presentOrder []*OptionHandler
 	argIndex := 0
 
-	for cmdLine.hasMore() {
-		arg := cmdLine.currentToken()
-		if p.IsOption(arg) {
-			delim := p.parserProperties.GetOptionValueDelimiter()
+	for cmdLine.pos < len(cmdLine.args) {
+		arg := cmdLine.args[cmdLine.pos]
+		if strings.HasPrefix(arg, "-") {
+			delim := p.parserProperties.optionValueDelimiter
 			isKeyValuePair := strings.Contains(arg, delim) || strings.IndexByte(arg, '=') != -1
 			if isKeyValuePair {
 				p.currentOptionHandler = p.findOptionHandler(arg)
@@ -406,7 +345,7 @@ func (p *CmdLineParser) TryParseArgument(args ...string) *CmdLineException {
 			if isKeyValuePair {
 				cmdLine.splitToken()
 			} else {
-				cmdLine.proceed(1)
+				cmdLine.pos++
 			}
 		} else {
 			if argIndex >= len(p.arguments) {
@@ -420,15 +359,15 @@ func (p *CmdLineParser) TryParseArgument(args ...string) *CmdLineException {
 			if p.currentOptionHandler == nil {
 				panic(jutil.NewIllegalStateExceptionMsg("@Argument with index=" + strconv.Itoa(argIndex) + " is undefined"))
 			}
-			if !p.currentOptionHandler.Option.IsMultiValued() {
+			if !p.currentOptionHandler.Option.multiValued {
 				argIndex++
 			}
 		}
-		diff, err := p.currentOptionHandler.tryParseArguments(cmdLine)
+		diff, err := p.currentOptionHandler.parseErr(p.currentOptionHandler, cmdLine)
 		if err != nil {
 			return err
 		}
-		cmdLine.proceed(diff)
+		cmdLine.pos += diff
 		if !presentSet[p.currentOptionHandler] {
 			presentSet[p.currentOptionHandler] = true
 			presentOrder = append(presentOrder, p.currentOptionHandler)
@@ -436,7 +375,7 @@ func (p *CmdLineParser) TryParseArgument(args ...string) *CmdLineException {
 	}
 
 	for _, handler := range p.options {
-		if handler.Option.Help() && presentSet[handler] {
+		if handler.Option.help && presentSet[handler] {
 			return nil
 		}
 	}
@@ -453,7 +392,7 @@ func (p *CmdLineParser) tryExpandAtFiles(args []string) ([]string, *CmdLineExcep
 			}
 			lines, ex := jutil.Files_AsCharSource(file, jutil.StandardCharsets_UTF_8).TryReadLines()
 			if ex != nil {
-				return nil, NewCmdLineExceptionWithParserMessageAndCause(p, "Failed to parse "+file.String(), ex)
+				return nil, newCmdLineExceptionWithCause(p, "Failed to parse "+file.String(), ex)
 			}
 			result = append(result, lines...)
 		} else {
@@ -465,32 +404,32 @@ func (p *CmdLineParser) tryExpandAtFiles(args []string) ([]string, *CmdLineExcep
 
 func (p *CmdLineParser) tryCheckRequiredOptionsAndArguments(presentSet map[*OptionHandler]bool, presentOrder []*OptionHandler) *CmdLineException {
 	for _, handler := range p.options {
-		if handler.Option.Required() && !presentSet[handler] {
+		if handler.Option.required && !presentSet[handler] {
 			return newCmdLineException(p, msgRequiredOptionMissing, handler.Option.String())
 		}
 	}
 	for _, handler := range p.arguments {
-		if handler.Option.Required() && !presentSet[handler] {
+		if handler.Option.required && !presentSet[handler] {
 			return newCmdLineException(p, msgRequiredArgumentMissing, handler.Option.String())
 		}
 	}
 	for _, handler := range presentOrder {
-		if !handler.Option.IsNamed() {
+		if !handler.Option.isNamed {
 			continue
 		}
-		for _, depend := range handler.Option.Depends() {
+		for _, depend := range handler.Option.depends {
 			if !presentSet[p.findOptionHandler(depend)] {
-				return newCmdLineException(p, msgRequiresOptionMissing, handler.Option.String(), "["+strings.Join(handler.Option.Depends(), ", ")+"]")
+				return newCmdLineException(p, msgRequiresOptionMissing, handler.Option.String(), "["+strings.Join(handler.Option.depends, ", ")+"]")
 			}
 		}
 	}
 	for _, handler := range presentOrder {
-		if !handler.Option.IsNamed() {
+		if !handler.Option.isNamed {
 			continue
 		}
-		for _, forbid := range handler.Option.Forbids() {
+		for _, forbid := range handler.Option.forbids {
 			if presentSet[p.findOptionHandler(forbid)] {
-				return newCmdLineException(p, msgForbiddenOptionPresent, handler.Option.String(), "["+strings.Join(handler.Option.Forbids(), ", ")+"]")
+				return newCmdLineException(p, msgForbiddenOptionPresent, handler.Option.String(), "["+strings.Join(handler.Option.forbids, ", ")+"]")
 			}
 		}
 	}
@@ -498,7 +437,7 @@ func (p *CmdLineParser) tryCheckRequiredOptionsAndArguments(presentSet map[*Opti
 }
 
 func (p *CmdLineParser) findOptionHandler(name string) *OptionHandler {
-	delim := p.parserProperties.GetOptionValueDelimiter()
+	delim := p.parserProperties.optionValueDelimiter
 	pos := strings.Index(name, delim)
 	if pos < 0 {
 		pos = strings.IndexByte(name, '=')
@@ -516,11 +455,11 @@ func (p *CmdLineParser) findOptionByName(name string) *OptionHandler {
 	if p.optionByName == nil {
 		m := make(map[string]*OptionHandler, len(p.options)*2)
 		for _, h := range p.options {
-			optName := h.Option.Name()
+			optName := h.Option.name
 			if _, exists := m[optName]; !exists {
 				m[optName] = h
 			}
-			for _, alias := range h.Option.Aliases() {
+			for _, alias := range h.Option.aliases {
 				if _, exists := m[alias]; !exists {
 					m[alias] = h
 				}
@@ -531,35 +470,20 @@ func (p *CmdLineParser) findOptionByName(name string) *OptionHandler {
 	return p.optionByName[name]
 }
 
-func (p *CmdLineParser) IsOption(arg string) bool {
-	return p.parsingOptions && strings.HasPrefix(arg, "-")
-}
-
 func (p *CmdLineParser) SetUsageWidth(usageWidth int) {
 	p.parserProperties.WithUsageWidth(usageWidth)
 }
 
-func (p *CmdLineParser) StopOptionParsing() {
-	p.parsingOptions = false
-}
-
-func (p *CmdLineParser) PrintSingleLineUsage(out io.Writer) {
-	if out == nil {
-		panic(jutil.NewNullPointerExceptionMsg("OutputStream is null"))
-	}
-	p.PrintSingleLineUsageToWriter(jutil.NewOutputStreamWriter(outputStream(out)), nil)
-}
-
-func (p *CmdLineParser) PrintSingleLineUsageToWriter(w jutil.Writer, rb ResourceBundle) {
+func (p *CmdLineParser) PrintSingleLineUsageToWriter(w jutil.Writer, _ any) {
 	if w == nil {
 		panic(jutil.NewNullPointerExceptionMsg("Writer is null"))
 	}
 	var buf strings.Builder
 	for _, h := range p.arguments {
-		p.printSingleLineOption(&buf, h, rb)
+		p.printSingleLineOption(&buf, h)
 	}
 	for _, h := range p.options {
-		p.printSingleLineOption(&buf, h, rb)
+		p.printSingleLineOption(&buf, h)
 	}
 	if buf.Len() > 0 {
 		_ = w.TryWrite(buf.String())
@@ -567,36 +491,19 @@ func (p *CmdLineParser) PrintSingleLineUsageToWriter(w jutil.Writer, rb Resource
 	_ = w.TryFlush()
 }
 
-func (p *CmdLineParser) printSingleLineOption(buf *strings.Builder, h *OptionHandler, rb ResourceBundle) {
+func (p *CmdLineParser) printSingleLineOption(buf *strings.Builder, h *OptionHandler) {
 	option := h.Option
 	buf.WriteByte(' ')
-	if !option.Required() {
+	if !option.required {
 		buf.WriteByte('[')
 	}
-	buf.WriteString(h.GetNameAndMetaWithProperties(rb, p.parserProperties))
-	if option.IsMultiValued() {
+	buf.WriteString(h.getNameAndMeta(p.parserProperties))
+	if option.multiValued {
 		buf.WriteString(" ...")
 	}
-	if !option.Required() {
+	if !option.required {
 		buf.WriteByte(']')
 	}
-}
-
-func outputStream(out io.Writer) io.WriteCloser {
-	if wc, ok := out.(io.WriteCloser); ok {
-		return wc
-	}
-	return nopCloser{out}
-}
-
-type nopCloser struct{ io.Writer }
-
-func (nopCloser) Close() error { return nil }
-
-// ResourceBundle localizes option usage strings and meta variables when passed
-// to CmdLineParser usage printers.
-type ResourceBundle interface {
-	GetString(key string) string
 }
 
 // messageTemplate is an English args4j MessageFormat pattern from
@@ -654,12 +561,10 @@ const (
 	msgNoSuchFile              messageTemplate = `No such file: {0}`
 	msgDefaultValue            messageTemplate = `(default: {0})`
 
-	spiMsgIllegalOperand        messageTemplate = `"{1}" is not a valid value for "{0}"`
-	spiMsgIllegalBoolean        messageTemplate = `"{0}" is not a legal boolean value`
-	spiMsgIllegalFieldSignature messageTemplate = `Field of type {0} isn't supported by args4j`
-	spiMsgIllegalList           messageTemplate = `type of {0} is not a List`
-	spiMsgFormatErrorForMap     messageTemplate = `An argument for setting a Map must contain a "="`
-	spiMsgMapHasNoKey           messageTemplate = `A key must be set.`
+	spiMsgIllegalOperand    messageTemplate = `"{1}" is not a valid value for "{0}"`
+	spiMsgIllegalBoolean    messageTemplate = `"{0}" is not a legal boolean value`
+	spiMsgFormatErrorForMap messageTemplate = `An argument for setting a Map must contain a "="`
+	spiMsgMapHasNoKey       messageTemplate = `A key must be set.`
 
 	defaultMetaStringArray = "STRING[]"
 	defaultMetaString      = "VAL"

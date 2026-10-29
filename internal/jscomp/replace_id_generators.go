@@ -209,7 +209,7 @@ func newObfuscatedIdNameSupplier(strategy idRenameStrategy, previousMappings *Id
 		}
 	}
 	return &obfuscatedIdNameSupplier{
-		generator:        NewDefaultNameGeneratorWithReserved(reservedNames, "", nil),
+		generator:        NewDefaultNameGeneratorWithReservedChars(reservedNames, "", ASCIICharSet{}),
 		previousMappings: previousMappings,
 		strategy:         strategy,
 	}

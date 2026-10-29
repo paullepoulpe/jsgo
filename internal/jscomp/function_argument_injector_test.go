@@ -1027,3 +1027,91 @@ func (f *FunctionArgumentInjector) FindModifiedParameters(fnNode rhino.Node) *ju
 	f.findModifiedParametersByIDInto(fnNode, &paramIDs, &modifiedIDs)
 	return modifiedIDs.toLinkedHashSet()
 }
+
+type FunctionArgumentInjector_ParamArgPair struct {
+	paramNode rhino.Node
+	arg       rhino.Node
+}
+
+func NewFunctionArgumentInjector_ParamArgPair(paramNode rhino.Node, arg rhino.Node) FunctionArgumentInjector_ParamArgPair {
+	rhino.CheckNotNull(paramNode)
+	rhino.CheckNotNull(arg)
+	return FunctionArgumentInjector_ParamArgPair{paramNode: paramNode, arg: arg}
+}
+
+func (p FunctionArgumentInjector_ParamArgPair) ParamNode() rhino.Node { return p.paramNode }
+func (p FunctionArgumentInjector_ParamArgPair) Arg() rhino.Node       { return p.arg }
+
+func bindingsFromArgMap(dst []callParamBinding, argMap *jutil.LinkedHashMap[string, FunctionArgumentInjector_ParamArgPair]) []callParamBinding {
+	dst = dst[:0]
+	if argMap == nil || argMap.IsEmpty() {
+		return dst
+	}
+	for k, pair := range argMap.All() {
+		dst = append(dst, callParamBinding{
+			nameID:    rhino.RhinoStringPool_InternID(k),
+			paramNode: pair.ParamNode(),
+			argNode:   pair.Arg(),
+		})
+	}
+	return dst
+}
+
+func (s *inlineIDSet) fromLinkedHashSet(src *jutil.LinkedHashSet[string], intern bool) {
+	s.clear()
+	if src == nil || src.IsEmpty() {
+		return
+	}
+	for name := range src.All() {
+		var id uint32
+		if intern {
+			id = rhino.RhinoStringPool_InternID(name)
+		} else {
+			id = rhino.RhinoStringPool_LookupID(name)
+		}
+		if id != 0 {
+			s.add(id)
+		}
+	}
+}
+
+func (s *inlineIDSet) toLinkedHashSet() *jutil.LinkedHashSet[string] {
+	out := jutil.NewLinkedHashSetWithCapacity[string](s.size())
+	if s != nil {
+		for _, id := range s.items {
+			out.Add(rhino.RhinoStringPool_StringFromID(id))
+		}
+	}
+	return out
+}
+
+func (f *FunctionArgumentInjector) BodyMayHaveConditionalCode(n rhino.Node) bool {
+	if !n.IsReturn() && !n.IsExprResult() {
+		return true
+	}
+	return f.MayHaveConditionalCode(n)
+}
+
+func (f *FunctionArgumentInjector) MayHaveConditionalCode(n rhino.Node) bool {
+	for c := n.GetFirstChild(); !c.IsNil(); c = c.GetNext() {
+		switch c.GetToken() {
+		case rhino.Token_FUNCTION,
+			rhino.Token_AND,
+			rhino.Token_OR,
+			rhino.Token_HOOK,
+			rhino.Token_COALESCE,
+			rhino.Token_OPTCHAIN_CALL,
+			rhino.Token_OPTCHAIN_GETELEM,
+			rhino.Token_OPTCHAIN_GETPROP:
+			return true
+		default:
+			if NodeUtil_IsNonStaticClassFieldInitializer(c) {
+				return true
+			}
+		}
+		if f.MayHaveConditionalCode(c) {
+			return true
+		}
+	}
+	return false
+}

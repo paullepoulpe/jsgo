@@ -197,13 +197,9 @@ type JSType interface {
 	GetGreatestSubtype(that JSType) JSType
 	GetRestrictedTypeGivenOutcome(outcome Outcome) JSType
 	GetPossibleToBooleanOutcomes() BooleanLiteralSet
-	GetTypesUnderEquality(that JSType) *JSType_TypePair
 	GetTypesUnderEqualityPair(that JSType) (JSType, JSType)
-	GetTypesUnderInequality(that JSType) *JSType_TypePair
 	GetTypesUnderInequalityPair(that JSType) (JSType, JSType)
-	GetTypesUnderShallowEquality(that JSType) *JSType_TypePair
 	GetTypesUnderShallowEqualityPair(that JSType) (JSType, JSType)
-	GetTypesUnderShallowInequality(that JSType) *JSType_TypePair
 	GetTypesUnderShallowInequalityPair(that JSType) (JSType, JSType)
 	GetUnionMembers() []JSType
 	RestrictByNotNullOrUndefined() JSType

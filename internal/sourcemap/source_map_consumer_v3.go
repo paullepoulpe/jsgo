@@ -20,7 +20,6 @@ package sourcemap
 
 import (
 	"strconv"
-	"strings"
 
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 )
@@ -191,14 +190,24 @@ func (c *SourceMapConsumerV3) tryParseSourceMapObject(sourceMapObject *SourceMap
 	return nil
 }
 
-// ParseMetaMap parses an index map: its sections are merged into a new
-// generator, whose map is then parsed by this consumer.
+// ParseMetaMap parses an index map by merging its sections directly into this consumer.
 //
 // Java: SourceMapConsumerV3.parseMetaMap(SourceMapObject, SourceMapSupplier)
 func (c *SourceMapConsumerV3) ParseMetaMap(sourceMapObject *SourceMapObject, sectionSupplier SourceMapSupplier) {
 	if err := c.tryParseMetaMap(sourceMapObject, sectionSupplier); err != nil {
 		panic(err)
 	}
+}
+
+type metaSegment struct {
+	sourceIdx int32
+	nameIdx   int32
+	origLine  int32
+	origCol   int32
+	startLine int32
+	startCol  int32
+	endLine   int32
+	endCol    int32
 }
 
 func (c *SourceMapConsumerV3) tryParseMetaMap(sourceMapObject *SourceMapObject, sectionSupplier SourceMapSupplier) jutil.Throwable {
@@ -216,10 +225,71 @@ func (c *SourceMapConsumerV3) tryParseMetaMap(sourceMapObject *SourceMapObject, 
 		return NewSourceMapParseException("Invalid map format")
 	}
 
-	// Build up a new source map in a new generator using the mappings of
-	// this metamap. The new map will be rendered to JSON and then parsed
-	// using this consumer.
-	generator := NewSourceMapGeneratorV3()
+	var segments []metaSegment
+	var addedSourcesBuf [16]string
+	addedSources := addedSourcesBuf[:0]
+	var addedSourceIdx map[string]int32
+	var lastAddedSource string
+	lastAddedSourceIdx := int32(-1)
+
+	var addedNamesBuf [16]string
+	addedNames := addedNamesBuf[:0]
+	var addedNameIdx map[string]int32
+	var lastAddedName string
+	lastAddedNameIdx := int32(-1)
+
+	var lastStartLine, lastStartCol int32
+
+	addSegment := func(
+		offLine, offCol int32,
+		srcName optionalString, symName optionalString,
+		origLine, origCol, startLine, startCol, endLine, endCol int32,
+	) jutil.Throwable {
+		if !srcName.present || origLine < 0 {
+			return nil
+		}
+		if offLine != 0 || offCol != 0 {
+			startOffCol := offCol
+			endOffCol := offCol
+			if startLine > 0 {
+				startOffCol = 0
+			}
+			if endLine > 0 {
+				endOffCol = 0
+			}
+			startLine += offLine
+			startCol += startOffCol
+			endLine += offLine
+			endCol += endOffCol
+		}
+		if len(segments) > 0 {
+			if !(startLine > lastStartLine || (startLine == lastStartLine && startCol >= lastStartCol)) {
+				return jutil.NewIllegalStateExceptionMsg(jutil.LenientFormat(
+					"Incorrect source mappings order, previous : (%s,%s)\nnew : (%s,%s)",
+					int(lastStartLine), int(lastStartCol), int(startLine), int(startCol)))
+			}
+		}
+		lastStartLine = startLine
+		lastStartCol = startCol
+
+		sourceIdx := internSourceMapString(&addedSources, &addedSourceIdx, &lastAddedSource, &lastAddedSourceIdx, srcName.text)
+		nameIdx := int32(-1)
+		if symName.present {
+			nameIdx = internSourceMapString(&addedNames, &addedNameIdx, &lastAddedName, &lastAddedNameIdx, symName.text)
+		}
+		segments = append(segments, metaSegment{
+			sourceIdx: sourceIdx,
+			nameIdx:   nameIdx,
+			origLine:  origLine,
+			origCol:   origCol,
+			startLine: startLine,
+			startCol:  startCol,
+			endLine:   endLine,
+			endCol:    endCol,
+		})
+		return nil
+	}
+
 	for _, section := range sourceMapObject.sections {
 		if section == nil {
 			return jutil.NewNullPointerException()
@@ -249,33 +319,231 @@ func (c *SourceMapConsumerV3) tryParseMetaMap(sourceMapObject *SourceMapObject, 
 			}
 			return NewSourceMapParseException("Unable to retrieve: " + valStr)
 		}
-		generator.SetStartingPosition(section.line, section.column)
+		if section.line < 0 || section.column < 0 {
+			return jutil.NewIllegalStateException()
+		}
 		sectionConsumer := NewSourceMapConsumerV3()
 		if err := sectionConsumer.tryParseThrowable(mapText); err != nil {
 			return err
 		}
-		var visitErr jutil.Throwable
-		jutil.Try(func() {
-			sectionConsumer.VisitMappings(&SourceMapGeneratorV3_ConsumerEntryVisitor{outer: generator})
-		}, func(e jutil.Throwable) {
-			visitErr = e
-		})
-		if visitErr != nil {
-			return visitErr
+
+		offLine := int32(section.line)
+		offCol := int32(section.column)
+		pending := false
+		var pendingSrc, pendingSym optionalString
+		var pendingOrigLine, pendingOrigCol, pendingStartLine, pendingStartCol int32
+		lineCount := sectionConsumer.mappings.GetParsedLineCount()
+		for i := 0; i < lineCount; i++ {
+			if sectionConsumer.mappings.lineIsEmpty(i) {
+				continue
+			}
+			entries := sectionConsumer.mappings.line(i)
+			for j := range entries {
+				entry := &entries[j]
+				if pending {
+					if err := addSegment(
+						offLine, offCol, pendingSrc, pendingSym,
+						pendingOrigLine, pendingOrigCol,
+						pendingStartLine, pendingStartCol, int32(i), entry.genCol,
+					); err != nil {
+						return err
+					}
+					pending = false
+				}
+				if entry.srcId != SourceMapConsumerV3_UNMAPPED {
+					pending = true
+					pendingSrc = sectionConsumer.sources[entry.srcId]
+					if entry.nameId != SourceMapConsumerV3_UNMAPPED {
+						pendingSym = sectionConsumer.names[entry.nameId]
+					} else {
+						pendingSym = optionalString{}
+					}
+					pendingOrigLine = entry.srcLine
+					pendingOrigCol = entry.srcCol
+					pendingStartLine = int32(i)
+					pendingStartCol = entry.genCol
+				}
+			}
+		}
+		if pending {
+			if err := addSegment(
+				offLine, offCol, pendingSrc, pendingSym,
+				pendingOrigLine, pendingOrigCol,
+				pendingStartLine, pendingStartCol, pendingStartLine, pendingStartCol+1,
+			); err != nil {
+				return err
+			}
 		}
 	}
 
-	var sb strings.Builder
-	var appendErr jutil.Throwable
-	jutil.Try(func() {
-		generator.AppendTo(&sb, sourceMapObject.file.ptr())
-	}, func(e jutil.Throwable) {
-		appendErr = e
-	})
-	if appendErr != nil {
-		return appendErr
+	maxEndLine := 0
+	if err := traverseMetaSegments(segments, func(m *metaSegment, line, col, nextLine, nextCol int) jutil.Throwable {
+		if m != nil && int(m.endLine) > maxEndLine {
+			maxEndLine = int(m.endLine)
+		}
+		return nil
+	}); err != nil {
+		return err
 	}
-	return c.tryParseThrowable(sb.String())
+	maxLine := jutil.IntAdd(maxEndLine, 1)
+
+	sourceIdxToId := make([]int32, len(addedSources))
+	for i := range sourceIdxToId {
+		sourceIdxToId[i] = -1
+	}
+	orderedSources := make([]optionalString, 0, len(addedSources))
+
+	nameIdxToId := make([]int32, len(addedNames))
+	for i := range nameIdxToId {
+		nameIdxToId[i] = -1
+	}
+	orderedNames := make([]optionalString, 0, len(addedNames))
+
+	data := make([]byte, 0, len(segments)*4)
+	estLines := 1
+	if maxLine > 0 {
+		estLines = maxLine
+	}
+	lineStart := make([]uint32, 1, jutil.IntAdd(estLines, 1))
+	linesCount := 0
+	var prevInLine sourceMapConsumerV3_entry
+
+	closeLine := func() {
+		linesCount++
+		lineStart = append(lineStart, uint32(len(data)))
+		prevInLine = sourceMapConsumerV3_entry{}
+	}
+
+	if err := traverseMetaSegments(segments, func(m *metaSegment, line, col, nextLine, nextCol int) jutil.Throwable {
+		if line != nextLine || col != nextCol {
+			if line < maxLine {
+				e := sourceMapConsumerV3_entry{
+					genCol:  int32(col),
+					srcLine: SourceMapConsumerV3_UNMAPPED,
+					srcCol:  SourceMapConsumerV3_UNMAPPED,
+					srcId:   SourceMapConsumerV3_UNMAPPED,
+					nameId:  SourceMapConsumerV3_UNMAPPED,
+				}
+				entryValues := 1
+				if m != nil {
+					srcId := sourceIdxToId[m.sourceIdx]
+					if srcId < 0 {
+						srcId = int32(len(orderedSources))
+						orderedSources = append(orderedSources, optionalString{text: addedSources[m.sourceIdx], present: true})
+						sourceIdxToId[m.sourceIdx] = srcId
+					}
+					e.srcId = srcId
+					e.srcLine = m.origLine
+					e.srcCol = m.origCol
+					entryValues = 4
+					if m.nameIdx >= 0 {
+						nameId := nameIdxToId[m.nameIdx]
+						if nameId < 0 {
+							nameId = int32(len(orderedNames))
+							orderedNames = append(orderedNames, optionalString{text: addedNames[m.nameIdx], present: true})
+							nameIdxToId[m.nameIdx] = nameId
+						}
+						e.nameId = nameId
+						entryValues = 5
+					}
+				}
+				data = encodeMappingEntry(data, &prevInLine, entryValues, e)
+			} else if m != nil {
+				return jutil.NewIllegalStateException()
+			}
+		}
+		for i := line; i <= nextLine && i < maxLine; i++ {
+			if i == nextLine {
+				break
+			}
+			closeLine()
+		}
+		return nil
+	}); err != nil {
+		return err
+	}
+	closeLine()
+
+	c.file = sourceMapObject.file
+	if c.file.present && c.file.text == "" {
+		return NewSourceMapParseException("File entry is empty")
+	}
+	c.lineCount = maxLine
+	c.sourceRoot = optionalString{}
+	c.sources = orderedSources
+	c.sourcesContent = nil
+	c.names = orderedNames
+	entrySize := 5
+	if len(orderedSources) < 65535 && len(orderedNames) < 65535 {
+		entrySize = 4
+	}
+	c.mappings = newSourceMapConsumerV3_Mappings(data, lineStart, linesCount, entrySize)
+	return nil
+}
+
+func traverseMetaSegments(segments []metaSegment, visit func(m *metaSegment, line, col, nextLine, nextCol int) jutil.Throwable) jutil.Throwable {
+	var stackBuf [16]metaSegment
+	stack := stackBuf[:0]
+	tLine, tCol := 0, 0
+
+	emit := func(m *metaSegment, nextLine, nextCol int) jutil.Throwable {
+		if !(tLine <= nextLine && (tLine < nextLine || tCol < nextCol)) {
+			return jutil.NewIllegalStateException()
+		}
+		if err := visit(m, tLine, tCol, nextLine, nextCol); err != nil {
+			return err
+		}
+		tLine = nextLine
+		tCol = nextCol
+		return nil
+	}
+
+	maybeVisit := func(m *metaSegment) jutil.Throwable {
+		nextLine := int(m.endLine)
+		nextCol := int(m.endCol)
+		if tLine < nextLine || (tLine == nextLine && tCol < nextCol) {
+			return emit(m, nextLine, nextCol)
+		}
+		return nil
+	}
+
+	for i := range segments {
+		m := &segments[i]
+		for len(stack) > 0 {
+			top := &stack[len(stack)-1]
+			if (top.endLine == m.startLine && top.endCol >= m.startCol) || top.endLine > m.startLine {
+				break
+			}
+			closing := *top
+			stack = stack[:len(stack)-1]
+			if err := maybeVisit(&closing); err != nil {
+				return err
+			}
+		}
+		var parent *metaSegment
+		if len(stack) > 0 {
+			parent = &stack[len(stack)-1]
+		}
+		nextLine := int(m.startLine)
+		nextCol := int(m.startCol)
+		if !(tLine < nextLine || tCol <= nextCol) {
+			return jutil.NewIllegalStateException()
+		}
+		if tLine < nextLine || (tLine == nextLine && tCol < nextCol) {
+			if err := emit(parent, nextLine, nextCol); err != nil {
+				return err
+			}
+		}
+		stack = append(stack, *m)
+	}
+	for len(stack) > 0 {
+		closing := stack[len(stack)-1]
+		stack = stack[:len(stack)-1]
+		if err := maybeVisit(&closing); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func callSupplierGetSourceMap(supplier SourceMapSupplier, url string) (supplied *string, parseErr jutil.Throwable) {
@@ -478,7 +746,6 @@ func (c *SourceMapConsumerV3) getOriginalMappingForEntryValue(entry *sourceMapCo
 	origFile := origSrc.text
 	lineNum := int(entry.srcLine + 1)
 	colPos := int(entry.srcCol + 1)
-	prec := int32(precision.GetNumber())
 	bitField := int32(mapping_originalFileBit | mapping_lineNumberBit | mapping_columnPositionBit | mapping_precisionBit)
 	var identifier string
 	var identifierPtr *string
@@ -496,11 +763,11 @@ func (c *SourceMapConsumerV3) getOriginalMappingForEntryValue(entry *sourceMapCo
 	}
 	return Mapping_OriginalMapping{
 		bitField0_:      bitField,
+		precision_:      precision,
 		originalFile_:   origFile,
 		lineNumber_:     lineNum,
 		columnPosition_: colPos,
 		identifier_:     identifier,
-		precision_:      prec,
 	}, identifierPtr, true
 }
 

@@ -731,11 +731,6 @@ func (t *UnionType) GetPossibleToBooleanOutcomes() BooleanLiteralSet {
 }
 
 // Java: UnionType.getTypesUnderEquality(JSType)
-func (t *UnionType) GetTypesUnderEquality(that JSType) *JSType_TypePair {
-	resA, resB := t.GetTypesUnderEqualityPair(that)
-	return NewJSType_TypePair(resA, resB)
-}
-
 func (t *UnionType) GetTypesUnderEqualityPair(that JSType) (JSType, JSType) {
 	thisRestricted := t.GetRegistry().acquireUnionBuilder()
 	thatRestricted := t.GetRegistry().acquireUnionBuilder()
@@ -758,11 +753,6 @@ func (t *UnionType) GetTypesUnderEqualityPair(that JSType) (JSType, JSType) {
 }
 
 // Java: UnionType.getTypesUnderInequality(JSType)
-func (t *UnionType) GetTypesUnderInequality(that JSType) *JSType_TypePair {
-	resA, resB := t.GetTypesUnderInequalityPair(that)
-	return NewJSType_TypePair(resA, resB)
-}
-
 func (t *UnionType) GetTypesUnderInequalityPair(that JSType) (JSType, JSType) {
 	thisRestricted := t.GetRegistry().acquireUnionBuilder()
 	thatRestricted := t.GetRegistry().acquireUnionBuilder()
@@ -785,11 +775,6 @@ func (t *UnionType) GetTypesUnderInequalityPair(that JSType) (JSType, JSType) {
 }
 
 // Java: UnionType.getTypesUnderShallowInequality(JSType)
-func (t *UnionType) GetTypesUnderShallowInequality(that JSType) *JSType_TypePair {
-	resA, resB := t.GetTypesUnderShallowInequalityPair(that)
-	return NewJSType_TypePair(resA, resB)
-}
-
 func (t *UnionType) GetTypesUnderShallowInequalityPair(that JSType) (JSType, JSType) {
 	thisRestricted := t.GetRegistry().acquireUnionBuilder()
 	thatRestricted := t.GetRegistry().acquireUnionBuilder()

@@ -126,7 +126,21 @@ func IsNil(v any) bool {
 		return false
 	case *string:
 		return x == nil
+	case *int:
+		return x == nil
+	case *int32:
+		return x == nil
+	case *int64:
+		return x == nil
+	case *bool:
+		return x == nil
+	case *float64:
+		return x == nil
 	}
+	return isNilNonScalar(v)
+}
+
+func isNilNonScalar(v any) bool {
 	rv := reflect.ValueOf(v)
 	switch rv.Kind() {
 	case reflect.Pointer, reflect.Map, reflect.Slice, reflect.Func, reflect.Chan, reflect.Interface, reflect.UnsafePointer:
@@ -159,8 +173,10 @@ func isNilOf[T any](v T) bool {
 		}
 		_, ok := any(v).(interface{ IsNil() bool })
 		return ok
-	case reflect.Interface, reflect.Slice, reflect.Map, reflect.Func:
+	case reflect.Interface:
 		return IsNil(any(v))
+	case reflect.Slice, reflect.Map, reflect.Func:
+		return reflect.ValueOf(v).IsNil()
 	default:
 		return false
 	}

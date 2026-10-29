@@ -130,18 +130,82 @@ func (c *ProcessDefinesTest) NewProcessDefinesWithInjectedNamespace(compiler *Co
 func (p *ProcessDefinesTest_ProcessDefinesWithInjectedNamespace) Process(externs rhino.Node, js rhino.Node) {
 	c := p.outer
 	c.namespace = NewGlobalNamespaceWithRoots(p.compiler, externs, js)
-	builder := NewProcessDefines_Builder(p.compiler)
+	var replacements OrderedStringMap[rhino.Node]
 	for _, ov := range c.overrides {
-		builder.PutReplacement(ov.name, ov.value)
+		replacements.Put(ov.name, ov.value)
 	}
-	builder.
-		SetMode(c.mode).
-		InjectNamespace(func() *GlobalNamespace { return c.namespace }).
-		SetRecognizeClosureDefines(c.recognizeClosureDefines).
-		SetEnableZonesDefineName(p.compiler.GetOptions().GetEnableZonesDefineName()).
-		SetZoneInputPattern(p.compiler.GetOptions().GetZoneInputPattern()).
-		Build().
-		Process(externs, js)
+	NewProcessDefines(p.compiler, ProcessDefinesOptions{
+		Replacements:            replacements,
+		Mode:                    c.mode,
+		NamespaceSupplier:       func() *GlobalNamespace { return c.namespace },
+		RecognizeClosureDefines: c.recognizeClosureDefines,
+		EnableZonesDefineName:   p.compiler.GetOptions().GetEnableZonesDefineName(),
+		ZoneInputPattern:        p.compiler.GetOptions().GetZoneInputPattern(),
+	}).Process(externs, js)
+}
+
+type ProcessDefines_Builder struct {
+	compiler AbstractCompiler
+	opts     ProcessDefinesOptions
+}
+
+func NewProcessDefines_Builder(compiler AbstractCompiler) *ProcessDefines_Builder {
+	return &ProcessDefines_Builder{
+		compiler: compiler,
+		opts:     ProcessDefinesOptions{RecognizeClosureDefines: true},
+	}
+}
+
+func (b *ProcessDefines_Builder) PutReplacement(name string, value rhino.Node) *ProcessDefines_Builder {
+	b.opts.Replacements.Put(name, value)
+	return b
+}
+
+func (b *ProcessDefines_Builder) PutReplacements(replacementValues jutil.MapSource[string, rhino.Node]) *ProcessDefines_Builder {
+	for k, v := range replacementValues.All() {
+		b.opts.Replacements.Put(k, v)
+	}
+	return b
+}
+
+func (b *ProcessDefines_Builder) SetMode(x ProcessDefines_Mode) *ProcessDefines_Builder {
+	b.opts.Mode = x
+	return b
+}
+
+func (b *ProcessDefines_Builder) InjectNamespace(namespaceSupplier func() *GlobalNamespace) *ProcessDefines_Builder {
+	b.opts.NamespaceSupplier = namespaceSupplier
+	return b
+}
+
+func (b *ProcessDefines_Builder) SetUnknownDefinesToIgnore(unknownDefinesToIgnore []string) *ProcessDefines_Builder {
+	b.opts.UnknownDefinesToIgnore = unknownDefinesToIgnore
+	return b
+}
+
+func (b *ProcessDefines_Builder) SetRecognizeClosureDefines(recognizeClosureDefines bool) *ProcessDefines_Builder {
+	b.opts.RecognizeClosureDefines = recognizeClosureDefines
+	return b
+}
+
+func (b *ProcessDefines_Builder) SetEnableZonesDefineName(enableZonesDefineName *string) *ProcessDefines_Builder {
+	b.opts.EnableZonesDefineName = enableZonesDefineName
+	return b
+}
+
+func (b *ProcessDefines_Builder) SetZoneInputPattern(zoneInputPattern *jutil.Pattern) *ProcessDefines_Builder {
+	b.opts.ZoneInputPattern = zoneInputPattern
+	return b
+}
+
+func (b *ProcessDefines_Builder) Build() *ProcessDefines {
+	var copied OrderedStringMap[rhino.Node]
+	for _, e := range b.opts.Replacements.Entries() {
+		copied.Put(e.Key, e.Value)
+	}
+	opts := b.opts
+	opts.Replacements = copied
+	return NewProcessDefines(b.compiler, opts)
 }
 
 // Java: ProcessDefinesTest.testBasicDefine1()

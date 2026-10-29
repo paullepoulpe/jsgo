@@ -12,9 +12,8 @@
 // Go-only: language-adapter — protobuf is a leaf package (PORTING.md §2) and
 // its messages are reconstructed (proto_runtime.go). Closure Compiler only
 // parses text-format ConformanceConfig protos, so field dispatch is wired
-// directly onto ConformanceConfig_Builder, Requirement_Builder,
-// RequirementScopeEntry_Builder, and RequirementScope_Builder without runtime
-// descriptor tables or reflection.
+// directly onto ConformanceConfig, Requirement, and RequirementScopeEntry
+// without runtime descriptor tables or reflection.
 
 package jscomp
 
@@ -60,14 +59,11 @@ func TextFormat_MergeErr(input string, builder ConformanceTextFormatTarget) *Tex
 	return textFormat_checkUnknownFields(unknownFields)
 }
 
-func (*ConformanceConfig_Builder) conformanceFullName() string { return "jscomp.ConformanceConfig" }
-func (*Requirement_Builder) conformanceFullName() string       { return "jscomp.Requirement" }
-func (*RequirementScopeEntry_Builder) conformanceFullName() string {
-	return "jscomp.RequirementScopeEntry"
-}
-func (*RequirementScope_Builder) conformanceFullName() string { return "jscomp.RequirementScope" }
+func (*ConformanceConfig) conformanceFullName() string     { return "jscomp.ConformanceConfig" }
+func (*Requirement) conformanceFullName() string           { return "jscomp.Requirement" }
+func (*RequirementScopeEntry) conformanceFullName() string { return "jscomp.RequirementScopeEntry" }
 
-func (b *ConformanceConfig_Builder) conformanceMergeField(
+func (b *ConformanceConfig) conformanceMergeField(
 	name string, t *TextFormat_Tokenizer, unknownFields *[]string, recursionLimit int,
 ) (bool, *TextFormat_ParseException) {
 	switch name {
@@ -83,7 +79,7 @@ func (b *ConformanceConfig_Builder) conformanceMergeField(
 	return false, nil
 }
 
-func (b *Requirement_Builder) conformanceMergeField(
+func (b *Requirement) conformanceMergeField(
 	name string, t *TextFormat_Tokenizer, unknownFields *[]string, recursionLimit int,
 ) (bool, *TextFormat_ParseException) {
 	switch name {
@@ -129,7 +125,7 @@ func (b *Requirement_Builder) conformanceMergeField(
 	return false, nil
 }
 
-func (b *RequirementScopeEntry_Builder) conformanceMergeField(
+func (b *RequirementScopeEntry) conformanceMergeField(
 	name string, t *TextFormat_Tokenizer, _ *[]string, _ int,
 ) (bool, *TextFormat_ParseException) {
 	switch name {
@@ -147,20 +143,6 @@ func (b *RequirementScopeEntry_Builder) conformanceMergeField(
 		return consumeProtoBoolField(t, b.SetAutomaticallyPrune)
 	case "do_not_record_violations_in_summary_because_this_is_gencode_and_always_safe":
 		return consumeProtoBoolField(t, b.SetDoNotRecordViolationsInSummaryBecauseThisIsGencodeAndAlwaysSafe)
-	}
-	return false, nil
-}
-
-func (b *RequirementScope_Builder) conformanceMergeField(
-	name string, t *TextFormat_Tokenizer, unknownFields *[]string, recursionLimit int,
-) (bool, *TextFormat_ParseException) {
-	switch name {
-	case "rule_id":
-		return consumeProtoStringField(t, false, b.SetRuleId)
-	case "allowlist":
-		return consumeProtoMessageField(t, true, unknownFields, recursionLimit, RequirementScopeEntry_NewBuilder, b.AddAllowlist)
-	case "only_apply_to":
-		return consumeProtoMessageField(t, true, unknownFields, recursionLimit, RequirementScopeEntry_NewBuilder, b.AddOnlyApplyTo)
 	}
 	return false, nil
 }
@@ -217,7 +199,7 @@ func consumeProtoBoolField[R any](
 }
 
 func consumeProtoEnumField[E ~int32, R any](
-	t *TextFormat_Tokenizer, enumFullName string, names []string, forNumber func(int32) *E, set func(E) R,
+	t *TextFormat_Tokenizer, enumFullName string, names []string, forNumber func(int32) (E, bool), set func(E) R,
 ) (bool, *TextFormat_ParseException) {
 	return consumeProtoScalarValues(t, false, func() *TextFormat_ParseException {
 		if t.LookingAtInteger() {
@@ -225,15 +207,15 @@ func consumeProtoEnumField[E ~int32, R any](
 			if err != nil {
 				return err
 			}
-			enumValue := forNumber(number)
-			if enumValue == nil {
+			enumValue, ok := forNumber(number)
+			if !ok {
 				return t.ParseExceptionPreviousToken("Enum type \"" +
 					enumFullName +
 					"\" has no value with number " +
 					strconv.Itoa(int(number)) +
 					".")
 			}
-			set(*enumValue)
+			set(enumValue)
 			return nil
 		}
 		id, err := t.ConsumeIdentifier()
@@ -254,15 +236,12 @@ func consumeProtoEnumField[E ~int32, R any](
 	})
 }
 
-func consumeProtoMessageField[B interface {
-	ConformanceTextFormatTarget
-	BuildPartial() M
-}, M, R any](
+func consumeProtoMessageField[M ConformanceTextFormatTarget, R any](
 	t *TextFormat_Tokenizer,
 	repeated bool,
 	unknownFields *[]string,
 	recursionLimit int,
-	newBuilder func() B,
+	newMsg func() M,
 	add func(M) R,
 ) (bool, *TextFormat_ParseException) {
 	t.TryConsume(":") // optional before message value
@@ -279,7 +258,7 @@ func consumeProtoMessageField[B interface {
 			}
 			endToken = "}"
 		}
-		sub := newBuilder()
+		sub := newMsg()
 		for !t.TryConsume(endToken) {
 			if t.AtEnd() {
 				return t.ParseException("Expected \"" + endToken + "\".")
@@ -288,7 +267,7 @@ func consumeProtoMessageField[B interface {
 				return err
 			}
 		}
-		add(sub.BuildPartial())
+		add(sub)
 		return nil
 	}
 	if repeated && t.TryConsume("[") {

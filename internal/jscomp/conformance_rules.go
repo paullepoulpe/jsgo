@@ -30,13 +30,6 @@ import (
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
 
-// ConformanceRules holds the standard conformance rules. See
-// third_party/java_src/jscomp/java/com/google/javascript/jscomp/conformance.proto
-//
-// Java: ConformanceRules() is private (non-instantiable); the class has only
-// static members.
-type ConformanceRules struct{}
-
 // Java: ConformanceRules.ALL_TS_ALLOWLIST
 var conformanceRules_ALL_TS_ALLOWLIST = ConformanceRules_CreateTsAllowlist()
 
@@ -118,9 +111,6 @@ var conformanceRules_ConformanceLevel_names = [...]string{"CONFORMANCE", "POSSIB
 func (l ConformanceRules_ConformanceLevel) String() string {
 	return conformanceRules_ConformanceLevel_names[l]
 }
-
-// Ordinal is Enum.ordinal().
-func (l ConformanceRules_ConformanceLevel) Ordinal() int { return int(l) }
 
 func conformanceRules_isValidPattern(regex string) bool {
 	var sb strings.Builder
@@ -325,7 +315,7 @@ func (b *ConformanceRules_AbstractRule) initAbstractRule(
 	}
 	b.compiler = compiler
 	message := requirement.GetErrorMessage()
-	if requirement.GetConfigFileCount() > 0 {
+	if len(requirement.GetConfigFileList()) > 0 {
 		message +=
 			"\n  defined in " + strings.Join(requirement.GetConfigFileList(), "\n  extended by ")
 	}
@@ -357,14 +347,14 @@ func (b *ConformanceRules_AbstractRule) initAbstractRule(
 		allowlistsBuilder = append(allowlistsBuilder, conformanceRules_ALL_TS_ALLOWLIST)
 	}
 
-	if requirement.GetWhitelistCount() > 0 || requirement.GetWhitelistRegexpCount() > 0 {
+	if len(requirement.GetWhitelistList()) > 0 || len(requirement.GetWhitelistRegexpList()) > 0 {
 		allowlist, err := newConformanceRules_AllowList(requirement.GetWhitelistList(), requirement.GetWhitelistRegexpList())
 		if err != nil {
 			return err
 		}
 		allowlistsBuilder = append(allowlistsBuilder, allowlist)
 	}
-	if requirement.GetAllowlistCount() > 0 || requirement.GetAllowlistRegexpCount() > 0 {
+	if len(requirement.GetAllowlistList()) > 0 || len(requirement.GetAllowlistRegexpList()) > 0 {
 		allowlist, err := newConformanceRules_AllowList(requirement.GetAllowlistList(), requirement.GetAllowlistRegexpList())
 		if err != nil {
 			return err
@@ -373,7 +363,7 @@ func (b *ConformanceRules_AbstractRule) initAbstractRule(
 	}
 	b.allowlists = allowlistsBuilder
 
-	if requirement.GetOnlyApplyToCount() > 0 || requirement.GetOnlyApplyToRegexpCount() > 0 {
+	if len(requirement.GetOnlyApplyToList()) > 0 || len(requirement.GetOnlyApplyToRegexpList()) > 0 {
 		onlyApplyTo, err := newConformanceRules_AllowList(requirement.GetOnlyApplyToList(), requirement.GetOnlyApplyToRegexpList())
 		if err != nil {
 			return err
@@ -465,7 +455,7 @@ func (b *ConformanceRules_AbstractRule) Report(
 		allowlist = b.FindAllowListForPath(*path)
 	}
 	isAllowlisted :=
-		!(allowlist == nil && (b.onlyApplyTo == nil || b.onlyApplyTo.Matches(*path)))
+		!(allowlist == nil && (b.onlyApplyTo == nil || (path != nil && b.onlyApplyTo.Matches(*path))))
 	var allowlistEntry *RequirementScopeEntry
 	if allowlist != nil {
 		allowlistEntry = allowlist.allowlistEntry
@@ -498,10 +488,10 @@ func (b *ConformanceRules_AbstractRule) IsAllowlistedType(n rhino.Node) bool {
 }
 
 // Java: ConformanceRules.AbstractTypeRestrictionRule.isKnown(Node)
-func ConformanceRules_AbstractTypeRestrictionRule_IsKnown(n rhino.Node) bool {
-	return !ConformanceRules_AbstractTypeRestrictionRule_IsUnknown(n) &&
-		!ConformanceRules_AbstractTypeRestrictionRule_IsBottom(n) &&
-		!ConformanceRules_AbstractTypeRestrictionRule_IsTemplateType(n)
+func conformanceRules_AbstractTypeRestrictionRule_isKnown(n rhino.Node) bool {
+	return !conformanceRules_AbstractTypeRestrictionRule_isUnknown(n) &&
+		!conformanceRules_AbstractTypeRestrictionRule_isBottom(n) &&
+		!conformanceRules_AbstractTypeRestrictionRule_isTemplateType(n)
 }
 
 // Java: ConformanceRules.AbstractTypeRestrictionRule.isNativeObjectType(Node)
@@ -511,19 +501,19 @@ func (b *ConformanceRules_AbstractRule) IsNativeObjectType(n rhino.Node) bool {
 }
 
 // Java: ConformanceRules.AbstractTypeRestrictionRule.isTop(Node)
-func ConformanceRules_AbstractTypeRestrictionRule_IsTop(n rhino.Node) bool {
+func conformanceRules_AbstractTypeRestrictionRule_isTop(n rhino.Node) bool {
 	type_ := n.GetJSType()
 	return type_ != nil && type_.IsAllType()
 }
 
 // Java: ConformanceRules.AbstractTypeRestrictionRule.isUnknown(Node)
-func ConformanceRules_AbstractTypeRestrictionRule_IsUnknown(n rhino.Node) bool {
+func conformanceRules_AbstractTypeRestrictionRule_isUnknown(n rhino.Node) bool {
 	type_ := n.GetJSType()
 	return type_ == nil || type_.IsUnknownType()
 }
 
 // Java: ConformanceRules.AbstractTypeRestrictionRule.isTemplateType(Node)
-func ConformanceRules_AbstractTypeRestrictionRule_IsTemplateType(n rhino.Node) bool {
+func conformanceRules_AbstractTypeRestrictionRule_isTemplateType(n rhino.Node) bool {
 	type_ := n.GetJSType()
 	if type_.IsUnionType() {
 		for _, member := range type_.GetUnionMembers() {
@@ -536,7 +526,7 @@ func ConformanceRules_AbstractTypeRestrictionRule_IsTemplateType(n rhino.Node) b
 }
 
 // Java: ConformanceRules.AbstractTypeRestrictionRule.isBottom(Node)
-func ConformanceRules_AbstractTypeRestrictionRule_IsBottom(n rhino.Node) bool {
+func conformanceRules_AbstractTypeRestrictionRule_isBottom(n rhino.Node) bool {
 	type_ := n.GetJSType().RestrictByNotNullOrUndefined()
 	return type_.IsEmptyType()
 }
@@ -600,10 +590,6 @@ func (b *ConformanceRules_AbstractRule) IsUsed(n rhino.Node) bool {
 
 	return NodeUtil_IsExpressionResultUsed(n)
 }
-
-// ConformanceRules_ConformanceUtil holds the static helpers of the private
-// class ConformanceUtil.
-type ConformanceRules_ConformanceUtil struct{}
 
 // Java: ConformanceRules.ConformanceUtil.isCallTarget(Node)
 func ConformanceRules_ConformanceUtil_IsCallTarget(n rhino.Node) bool {

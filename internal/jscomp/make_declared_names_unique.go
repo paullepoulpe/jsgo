@@ -75,13 +75,13 @@ type MakeDeclaredNamesUnique_Builder struct {
 	assertOnChange bool
 }
 
-// Java: MakeDeclaredNamesUnique.Builder()
-func NewMakeDeclaredNamesUnique_Builder() *MakeDeclaredNamesUnique_Builder {
-	return &MakeDeclaredNamesUnique_Builder{markChanges: true, assertOnChange: false}
+// Java: MakeDeclaredNamesUnique.builder()
+func MakeDeclaredNamesUnique_Builder_() MakeDeclaredNamesUnique_Builder {
+	return MakeDeclaredNamesUnique_Builder{markChanges: true}
 }
 
 // Java: MakeDeclaredNamesUnique.Builder.withRenamer(MakeDeclaredNamesUnique.Renamer)
-func (b *MakeDeclaredNamesUnique_Builder) WithRenamer(renamer MakeDeclaredNamesUnique_Renamer) *MakeDeclaredNamesUnique_Builder {
+func (b MakeDeclaredNamesUnique_Builder) WithRenamer(renamer MakeDeclaredNamesUnique_Renamer) MakeDeclaredNamesUnique_Builder {
 	b.renamer = renamer
 	return b
 }
@@ -92,7 +92,7 @@ func (b *MakeDeclaredNamesUnique_Builder) WithRenamer(renamer MakeDeclaredNamesU
 // This option is true by default.
 //
 // Java: MakeDeclaredNamesUnique.Builder.withMarkChanges(boolean)
-func (b *MakeDeclaredNamesUnique_Builder) WithMarkChanges(markChanges bool) *MakeDeclaredNamesUnique_Builder {
+func (b MakeDeclaredNamesUnique_Builder) WithMarkChanges(markChanges bool) MakeDeclaredNamesUnique_Builder {
 	b.markChanges = markChanges
 	return b
 }
@@ -105,22 +105,17 @@ func (b *MakeDeclaredNamesUnique_Builder) WithMarkChanges(markChanges bool) *Mak
 // This option is false by default.
 //
 // Java: MakeDeclaredNamesUnique.Builder.withAssertOnChange(boolean)
-func (b *MakeDeclaredNamesUnique_Builder) WithAssertOnChange(assertOnChange bool) *MakeDeclaredNamesUnique_Builder {
+func (b MakeDeclaredNamesUnique_Builder) WithAssertOnChange(assertOnChange bool) MakeDeclaredNamesUnique_Builder {
 	b.assertOnChange = assertOnChange
 	return b
 }
 
 // Java: MakeDeclaredNamesUnique.Builder.build()
-func (b *MakeDeclaredNamesUnique_Builder) Build() *MakeDeclaredNamesUnique {
+func (b MakeDeclaredNamesUnique_Builder) Build() *MakeDeclaredNamesUnique {
 	if b.renamer == nil {
 		b.renamer = NewMakeDeclaredNamesUnique_ContextualRenamer()
 	}
 	return NewMakeDeclaredNamesUnique(b.renamer, b.markChanges, b.assertOnChange)
-}
-
-// Java: MakeDeclaredNamesUnique.builder()
-func MakeDeclaredNamesUnique_Builder_() *MakeDeclaredNamesUnique_Builder {
-	return NewMakeDeclaredNamesUnique_Builder()
 }
 
 // Java: MakeDeclaredNamesUnique.getContextualRenameInverter(AbstractCompiler)

@@ -241,13 +241,6 @@ var (
 	}
 )
 
-// Go-only: language-adapter — nullable *AbstractScope_ImplicitVar callers share
-// static pointers into this table so no call allocates.
-var abstractScope_ImplicitVar_ptrs = [...]AbstractScope_ImplicitVar{
-	AbstractScope_ImplicitVar_ARGUMENTS, AbstractScope_ImplicitVar_EXPORTS,
-	AbstractScope_ImplicitVar_SUPER, AbstractScope_ImplicitVar_THIS,
-}
-
 // String is Enum.name().
 func (v AbstractScope_ImplicitVar) String() string { return abstractScope_ImplicitVar_names[v] }
 
@@ -258,11 +251,6 @@ func (v AbstractScope_ImplicitVar) Ordinal() int { return int(v) }
 func (v AbstractScope_ImplicitVar) name() string { return abstractScope_ImplicitVar_name[v] }
 
 func (v AbstractScope_ImplicitVar) nameID() uint32 { return abstractScope_ImplicitVar_id[v] }
-
-// ptr returns the canonical non-null *AbstractScope_ImplicitVar for v.
-func (v AbstractScope_ImplicitVar) ptr() *AbstractScope_ImplicitVar {
-	return &abstractScope_ImplicitVar_ptrs[v]
-}
 
 func (v AbstractScope_ImplicitVar) isMadeByRootNode(root rhino.Node) bool {
 	switch v {
@@ -326,19 +314,4 @@ func AbstractScope_ImplicitVar_LookupID(id uint32) (AbstractScope_ImplicitVar, b
 		return AbstractScope_ImplicitVar_SUPER, true
 	}
 	return 0, false
-}
-
-// Java: AbstractScope.ImplicitVar.of(String)
-func AbstractScope_ImplicitVar_Of(name string) *AbstractScope_ImplicitVar {
-	if imp, ok := AbstractScope_ImplicitVar_Lookup(name); ok {
-		return imp.ptr()
-	}
-	return nil
-}
-
-func AbstractScope_ImplicitVar_OfID(id uint32) *AbstractScope_ImplicitVar {
-	if imp, ok := AbstractScope_ImplicitVar_LookupID(id); ok {
-		return imp.ptr()
-	}
-	return nil
 }

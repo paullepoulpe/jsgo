@@ -92,6 +92,7 @@ package jscomp
 
 import (
 	"strings"
+	"sync/atomic"
 
 	"github.com/paullepoulpe/jsgo/internal/base"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
@@ -142,14 +143,23 @@ type WarningsGuard interface {
 	GetPriority() int
 }
 
+var nextWarningsGuardSeq atomic.Uint64
+
 // WarningsGuardBase holds the base implementations of WarningsGuard;
 // subclasses embed it.
 type WarningsGuardBase struct {
-	// Go-only: language-adapter — Java compares guards by identity
-	// (ComposeWarningsGuard keys them in a map and orders them in a
-	// TreeSet), but pointers to distinct zero-size Go values may be equal,
-	// so the base keeps every guard (e.g. StrictWarningsGuard) non-zero-size.
-	_ byte
+	seq uint64
+}
+
+func (b *WarningsGuardBase) ensureGuardSeq() uint64 {
+	if s := atomic.LoadUint64(&b.seq); s != 0 {
+		return s
+	}
+	s := nextWarningsGuardSeq.Add(1)
+	if atomic.CompareAndSwapUint64(&b.seq, 0, s) {
+		return s
+	}
+	return atomic.LoadUint64(&b.seq)
 }
 
 // Java: WarningsGuard.mustRunChecks(DiagnosticGroup)

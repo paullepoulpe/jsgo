@@ -222,6 +222,9 @@ var diagnosticGroup_mu sync.Mutex
 // Java: DiagnosticGroup.forType(DiagnosticType)
 func DiagnosticGroup_ForType(type_ *DiagnosticType) *DiagnosticGroup {
 	jutil.CheckNotNull(type_)
+	if g := type_.singletonGroup.Load(); g != nil {
+		return g
+	}
 	diagnosticGroup_mu.Lock()
 	g := diagnosticGroup_singletons[type_.key]
 	if g == nil {
@@ -229,6 +232,7 @@ func DiagnosticGroup_ForType(type_ *DiagnosticType) *DiagnosticGroup {
 		diagnosticGroup_singletons[type_.key] = g
 	}
 	diagnosticGroup_mu.Unlock()
+	type_.singletonGroup.Store(g)
 	return g
 }
 

@@ -252,7 +252,7 @@ func (p *Parser) ParsePatternAssignmentTargetNoDefault(kind Parser_PatternKind) 
 		assignmentTarget = p.ParsePattern(kind)
 	} else {
 		assignmentTarget = p.ParseLeftHandSideExpression()
-		if !assignmentTarget.IsValidAssignmentTarget() {
+		if !IsValidAssignmentTarget(assignmentTarget) {
 			p.ReportError("invalid assignment target")
 		}
 		if kind == Parser_PatternKind_INITIALIZER &&

@@ -36,46 +36,6 @@ const FunctionInjector_COMMA_COST = 1
 // The cost of the parentheses needed to make a call.
 const FunctionInjector_PAREN_COST = 2
 
-func functionInjector_blocksMinimumRequirements(n rhino.Node, fnNameID, fnRecursionNameID uint32, checkArguments bool) bool {
-	switch n.GetToken() {
-	case rhino.Token_NAME:
-		nameID := n.GetStringID()
-		if (checkArguments && nameID == calleeArgumentsIdentID) ||
-			nameID == calleeEvalIdentID ||
-			(fnNameID != 0 && nameID == fnNameID) ||
-			(fnRecursionNameID != 0 && nameID == fnRecursionNameID) {
-			return true
-		}
-	case rhino.Token_SUPER, rhino.Token_NEW_TARGET:
-		return true
-	case rhino.Token_FUNCTION:
-		if !n.IsArrowFunction() {
-			checkArguments = false
-		}
-	}
-	for c := n.GetFirstChild(); !c.IsNil(); c = c.GetNext() {
-		if c.GetFirstChild().IsNil() {
-			switch c.GetToken() {
-			case rhino.Token_NAME:
-				nameID := c.GetStringID()
-				if (checkArguments && nameID == calleeArgumentsIdentID) ||
-					nameID == calleeEvalIdentID ||
-					(fnNameID != 0 && nameID == fnNameID) ||
-					(fnRecursionNameID != 0 && nameID == fnRecursionNameID) {
-					return true
-				}
-			case rhino.Token_SUPER, rhino.Token_NEW_TARGET:
-				return true
-			}
-			continue
-		}
-		if functionInjector_blocksMinimumRequirements(c, fnNameID, fnRecursionNameID, checkArguments) {
-			return true
-		}
-	}
-	return false
-}
-
 // DoesFunctionMeetMinimumRequirements: fnName is the name of this function.
 // This either the name of the variable to which the function is assigned or
 // the name from the FUNCTION node. fnNode is the FUNCTION node of the
@@ -84,29 +44,10 @@ func functionInjector_blocksMinimumRequirements(n rhino.Node, fnNameID, fnRecurs
 //
 // Java: FunctionInjector.doesFunctionMeetMinimumRequirements(String, Node)
 func (f *FunctionInjector) DoesFunctionMeetMinimumRequirements(fnName string, fnNode rhino.Node) bool {
-	fn := ast.MustFunction(fnNode)
-	block := fn.Body().Node()
-
-	// Basic restrictions on functions that can be inlined:
-	// 1) It contains a reference to itself.
-	// 2) It uses its parameters indirectly using "arguments" (it isn't
-	//    handled yet.
-	// 3) It references "eval". Inline a function containing eval can have
-	//    large performance implications.
-
-	var fnNameID uint32
-	if fnName != "" {
-		fnNameID = rhino.RhinoStringPool_LookupID(fnName)
-	}
-	// The name of an anonymous function is "": no recursion through it.
-	var fnRecursionNameID uint32
-	if name, ok := fn.Name(); ok {
-		if recID := name.Node().GetStringID(); recID != fnNameID {
-			fnRecursionNameID = recID
-		}
-	}
-
-	return !functionInjector_blocksMinimumRequirements(block, fnNameID, fnRecursionNameID, true)
+	ast.MustFunction(fnNode)
+	var sum calleeSummary
+	scanCalleeSummary(fnName, fnNode, &sum)
+	return !sum.blocksMinReqs
 }
 
 func (f *FunctionInjector) canInlineReferenceWithSummary(
@@ -151,11 +92,11 @@ func (f *FunctionInjector) canInlineReferenceWithSummary(
 		return FunctionInjector_CanInlineResult_NO
 	}
 
+	summary = resolveCalleeSummary("", fnNode, summary)
 	if ref.mode == FunctionInjector_InliningMode_DIRECT {
 		return f.canInlineReferenceDirectlyWithSummary(ref, fnNode, aliasCount, summary)
-	} else {
-		return f.canInlineReferenceAsStatementBlockWithSummary(ref, fnNode, aliasCount, summary)
 	}
+	return f.canInlineReferenceAsStatementBlockWithSummary(ref, fnNode, aliasCount, summary)
 }
 
 // IsSupportedCallType: only ".call" calls and direct calls to functions are
@@ -238,9 +179,6 @@ func (r FunctionInjector_CanInlineResult) String() string {
 	return functionInjector_CanInlineResult_names[r]
 }
 
-// Java: FunctionInjector.CanInlineResult.ordinal()
-func (r FunctionInjector_CanInlineResult) Ordinal() int { return int(r) }
-
 func (f *FunctionInjector) canInlineReferenceAsStatementBlockWithSummary(
 	ref *FunctionInjector_Reference,
 	fnNode rhino.Node,
@@ -269,30 +207,12 @@ func (f *FunctionInjector) canInlineReferenceAsStatementBlockWithSummary(
 	}
 }
 
-func functionInjector_isShallowStatement(n rhino.Node) bool {
-	return n.IsRoot() || n.IsBlock() || (!n.IsFunction() && NodeUtil_IsShallowStatementTree(n.GetParent()))
-}
-
-func functionInjector_hasShallowDeclaration(n rhino.Node) bool {
-	if NodeUtil_IsDeclaration(n) {
-		return true
-	}
-	if functionInjector_isShallowStatement(n) {
-		for c := n.GetFirstChild(); !c.IsNil(); c = c.GetNext() {
-			if functionInjector_hasShallowDeclaration(c) {
-				return true
-			}
-		}
-	}
-	return false
-}
-
 func functionInjector_countShallowReturns(n rhino.Node) int {
 	count := 0
 	if n.IsReturn() {
 		count++
 	}
-	if functionInjector_isShallowStatement(n) {
+	if n.IsRoot() || n.IsBlock() || (!n.IsFunction() && NodeUtil_IsShallowStatementTree(n.GetParent())) {
 		for c := n.GetFirstChild(); !c.IsNil(); c = c.GetNext() {
 			count += functionInjector_countShallowReturns(c)
 		}
@@ -459,13 +379,8 @@ func (f *FunctionInjector) callMeetsBlockInliningRequirementsWithSummary(
 		// Don't inline functions with var declarations into a scope with inner
 		// functions as the new vars would leak into the inner function and
 		// cause memory leaks.
-		var calleeContainsVars bool
-		if summary != nil && summary.fnNode == calleeFn {
-			calleeContainsVars = summary.hasShallowDeclarations
-		} else {
-			calleeContainsVars = functionInjector_hasShallowDeclaration(ast.MustFunction(calleeFn).Body().Node())
-		}
-		if calleeContainsVars {
+		summary = resolveCalleeSummary("", calleeFn, summary)
+		if summary.hasShallowDeclarations {
 			return false
 		}
 
@@ -576,6 +491,7 @@ func (f *FunctionInjector) inliningLowersCostWithSummary(
 	callCost := FunctionInjector_EstimateCallCost(fnNode, referencesThis)
 	overallCallCost := callCost * referenceCount
 
+	summary = resolveCalleeSummary("", fnNode, summary)
 	costDeltaDirect := functionInjector_inlineCostDeltaWithSummary(fnNode, aliasCount, FunctionInjector_InliningMode_DIRECT, summary)
 	costDeltaBlock := functionInjector_inlineCostDeltaWithSummary(fnNode, aliasCount, FunctionInjector_InliningMode_BLOCK, summary)
 
@@ -690,12 +606,8 @@ func functionInjector_inlineCostDeltaWithSummary(
 		const perReturnResultOverhead = 3 // "XX="
 		const perAliasOverhead = 3        // "XX="
 
-		var returnCount int
-		if summary != nil && summary.fnNode == fnNode {
-			returnCount = int(summary.shallowReturnCount)
-		} else {
-			returnCount = functionInjector_countShallowReturns(block)
-		}
+		summary = resolveCalleeSummary("", fnNode, summary)
+		returnCount := int(summary.shallowReturnCount)
 		resultCount := 0
 		if returnCount > 0 {
 			resultCount = returnCount - 1

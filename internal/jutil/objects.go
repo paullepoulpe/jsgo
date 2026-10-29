@@ -152,7 +152,9 @@ func ObjectsEquals(a, b any) bool {
 // IDs avoid boxing/reflection fast-paths while matching ObjectsEquals exactly.
 // Generic collections (HamtPMap, ObjectLinkedHashMap) use it.
 func ObjectsEqualsOf[T any](a, b T) bool {
-	if reflect.TypeFor[T]().Kind() == reflect.Pointer {
+	t := reflect.TypeFor[T]()
+	switch t.Kind() {
+	case reflect.Pointer:
 		if any(a) == any(b) {
 			return true
 		}
@@ -167,59 +169,55 @@ func ObjectsEqualsOf[T any](a, b T) bool {
 			return e.Equals(b)
 		}
 		return false
-	}
-	switch x := any(a).(type) {
-	case nil:
-		return isNilOf(b)
-	case string:
-		return any(b) == x
-	case int:
-		return any(b) == x
-	case int32:
-		return any(b) == x
-	case int64:
-		return any(b) == x
-	case int16:
-		return any(b) == x
-	case int8:
-		return any(b) == x
-	case uint:
-		return any(b) == x
-	case uint64:
-		return any(b) == x
-	case uint32:
-		return any(b) == x
-	case uint16:
-		return any(b) == x
-	case uint8:
-		return any(b) == x
-	case bool:
-		return any(b) == x
-	case float64:
-		y, ok := any(b).(float64)
-		return ok && doubleBits(x) == doubleBits(y)
-	case float32:
-		y, ok := any(b).(float32)
-		return ok && floatBits(x) == floatBits(y)
-	case *string:
-		if x == nil {
-			return isNilOf(b)
+	case reflect.Interface:
+		return ObjectsEquals(a, b)
+	case reflect.String:
+		if x, ok := any(a).(string); ok {
+			return any(b) == x
 		}
-		y, ok := any(b).(*string)
-		return ok && y != nil && *x == *y
-	}
-	switch reflect.TypeFor[T]().Kind() {
+		if e, ok := any(a).(Equaler); ok {
+			return e.Equals(b)
+		}
+		return any(a) == any(b)
+	case reflect.Int, reflect.Int32, reflect.Int64, reflect.Int16, reflect.Int8,
+		reflect.Uint, reflect.Uint64, reflect.Uint16, reflect.Uint8, reflect.Bool:
+		if t.PkgPath() == "" {
+			return any(a) == any(b)
+		}
+		if e, ok := any(a).(Equaler); ok {
+			return e.Equals(b)
+		}
+		return any(a) == any(b)
+	case reflect.Float64:
+		if x, ok := any(a).(float64); ok {
+			return doubleBits(x) == doubleBits(any(b).(float64))
+		}
+		if e, ok := any(a).(Equaler); ok {
+			return e.Equals(b)
+		}
+		return any(a) == any(b)
+	case reflect.Float32:
+		if x, ok := any(a).(float32); ok {
+			return floatBits(x) == floatBits(any(b).(float32))
+		}
+		if e, ok := any(a).(Equaler); ok {
+			return e.Equals(b)
+		}
+		return any(a) == any(b)
 	case reflect.Struct:
 		if e, ok := any(a).(Equaler); ok {
 			return e.Equals(b)
 		}
-		if reflect.TypeFor[T]().Comparable() {
+		if t.Comparable() {
 			return any(a) == any(b)
 		}
 		return false
 	case reflect.Uint32:
 		if any(a) == any(b) {
 			return true
+		}
+		if t.PkgPath() == "" {
+			return false
 		}
 		var zero T
 		if any(a) == any(zero) || any(b) == any(zero) {
@@ -239,7 +237,9 @@ func ObjectsEqualsOf[T any](a, b T) bool {
 //
 // Go-only: performance — see ObjectsEqualsOf.
 func objectHashCodeOf[T any](v T) int32 {
-	if reflect.TypeFor[T]().Kind() == reflect.Pointer {
+	t := reflect.TypeFor[T]()
+	switch t.Kind() {
+	case reflect.Pointer:
 		var zero T
 		if any(v) == any(zero) {
 			return 0
@@ -252,55 +252,108 @@ func objectHashCodeOf[T any](v T) int32 {
 		}
 		p := uint64(reflect.ValueOf(v).Pointer())
 		return int32(p ^ (p >> 32))
-	}
-	switch x := any(v).(type) {
-	case nil:
-		return 0
-	case string:
-		return StringHashCode(x)
-	case int:
-		return int32(x)
-	case int32:
-		return x
-	case int64:
+	case reflect.Interface:
+		return ObjectHashCode(v)
+	case reflect.String:
+		if s, ok := any(v).(string); ok {
+			return StringHashCode(s)
+		}
+		if h, ok := any(v).(hashable); ok {
+			return h.HashCode()
+		}
+		return StringHashCode(reflect.ValueOf(v).String())
+	case reflect.Int:
+		if x, ok := any(v).(int); ok {
+			return int32(x)
+		}
+		if h, ok := any(v).(hashable); ok {
+			return h.HashCode()
+		}
+		return int32(reflect.ValueOf(v).Int())
+	case reflect.Int32:
+		if x, ok := any(v).(int32); ok {
+			return x
+		}
+		if h, ok := any(v).(hashable); ok {
+			return h.HashCode()
+		}
+		return int32(reflect.ValueOf(v).Int())
+	case reflect.Int64:
+		if x, ok := any(v).(int64); ok {
+			return int32(x ^ int64(uint64(x)>>32))
+		}
+		if h, ok := any(v).(hashable); ok {
+			return h.HashCode()
+		}
+		x := reflect.ValueOf(v).Int()
 		return int32(x ^ int64(uint64(x)>>32))
-	case int16:
-		return int32(x)
-	case int8:
-		return int32(x)
-	case uint:
-		return int32(uint64(x) ^ (uint64(x) >> 32))
-	case uint64:
+	case reflect.Int16, reflect.Int8:
+		if t.PkgPath() == "" {
+			if x, ok := any(v).(int16); ok {
+				return int32(x)
+			}
+			return int32(any(v).(int8))
+		}
+		if h, ok := any(v).(hashable); ok {
+			return h.HashCode()
+		}
+		return int32(reflect.ValueOf(v).Int())
+	case reflect.Uint, reflect.Uint64:
+		if t.PkgPath() == "" {
+			if x, ok := any(v).(uint64); ok {
+				return int32(x ^ (x >> 32))
+			}
+			u := uint64(any(v).(uint))
+			return int32(u ^ (u >> 32))
+		}
+		if h, ok := any(v).(hashable); ok {
+			return h.HashCode()
+		}
+		x := reflect.ValueOf(v).Uint()
 		return int32(x ^ (x >> 32))
-	case uint32:
-		return int32(x)
-	case uint16:
-		return int32(x)
-	case uint8:
-		return int32(x)
-	case bool:
-		if x {
+	case reflect.Uint16, reflect.Uint8:
+		if t.PkgPath() == "" {
+			if x, ok := any(v).(uint8); ok {
+				return int32(x)
+			}
+			return int32(any(v).(uint16))
+		}
+		if h, ok := any(v).(hashable); ok {
+			return h.HashCode()
+		}
+		return int32(reflect.ValueOf(v).Uint())
+	case reflect.Bool:
+		if x, ok := any(v).(bool); ok {
+			if x {
+				return 1231
+			}
+			return 1237
+		}
+		if h, ok := any(v).(hashable); ok {
+			return h.HashCode()
+		}
+		if reflect.ValueOf(v).Bool() {
 			return 1231
 		}
 		return 1237
-	case float64:
-		bits := doubleBits(x)
-		return int32(bits ^ (bits >> 32))
-	case float32:
-		return int32(floatBits(x))
-	case *string:
-		if x == nil {
-			return 0
+	case reflect.Float64:
+		if x, ok := any(v).(float64); ok {
+			bits := doubleBits(x)
+			return int32(bits ^ (bits >> 32))
 		}
-		return StringHashCode(*x)
-	}
-	switch reflect.TypeFor[T]().Kind() {
+	case reflect.Float32:
+		if x, ok := any(v).(float32); ok {
+			return int32(floatBits(x))
+		}
 	case reflect.Struct:
 		if h, ok := any(v).(hashable); ok {
 			return h.HashCode()
 		}
 		return 0
 	case reflect.Uint32:
+		if x, ok := any(v).(uint32); ok {
+			return int32(x)
+		}
 		var zero T
 		if any(v) == any(zero) {
 			if _, ok := any(v).(interface{ IsNil() bool }); ok {

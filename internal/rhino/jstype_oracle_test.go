@@ -116,12 +116,14 @@ func taStr(o any) string {
 	case *FunctionType_Parameter:
 		return "P(" + taStr(v.GetJSType()) + "," + strconv.FormatBool(v.IsOptional()) + "," +
 			strconv.FormatBool(v.IsVariadic()) + ")"
-	case *JSType_TypePair:
-		return "<" + taStr(v.TypeA) + " ; " + taStr(v.TypeB) + ">"
 	case fmt.Stringer:
 		return v.String()
 	}
 	return jutil.ToJavaString(o)
+}
+
+func taPair(a, b JSType) string {
+	return "<" + taStr(a) + " ; " + taStr(b) + ">"
 }
 
 func (d *typeAlgebraDump) line(s string) {
@@ -1097,17 +1099,17 @@ func (d *typeAlgebraDump) unaryFacts(i int) {
 			return o.GetNormalizedReferenceName()
 		})
 		d.fact("o.hasReferenceName", func() any { return o.HasReferenceName() })
-		d.fact("o.constructor", func() any { return o.GetConstructor() })
+		d.fact("o.constructor", func() any { return taPtr(o.GetConstructor()) })
 		d.fact("o.implicitPrototype", func() any { return o.GetImplicitPrototype() })
 		d.fact("o.ownPropertyNames", func() any { return o.GetOwnPropertyNames() })
 		d.fact("o.propertyNames", func() any { return o.GetPropertyNames() })
 		d.fact("o.propertiesCount", func() any { return o.GetPropertiesCount() })
 		d.fact("o.templateTypes", func() any { return taNullableList(o.GetTemplateTypes()) })
-		d.fact("o.ownerFunction", func() any { return o.GetOwnerFunction() })
+		d.fact("o.ownerFunction", func() any { return taPtr(o.GetOwnerFunction()) })
 		d.fact("o.ctorImplementedInterfaces", func() any { return o.GetCtorImplementedInterfaces() })
 		d.fact("o.ctorExtendedInterfaces", func() any { return o.GetCtorExtendedInterfaces() })
 		d.fact("o.typeOfThis", func() any { return o.GetTypeOfThis() })
-		d.fact("o.superClassConstructor", func() any { return o.GetSuperClassConstructor() })
+		d.fact("o.superClassConstructor", func() any { return taPtr(o.GetSuperClassConstructor()) })
 		d.fact("o.rawType", func() any { return o.GetRawType() })
 		d.fact("o.propertyTypeMap", func() any { return taPropertyTypeMap(o).String() })
 		d.fact("o.ownPropertyKeys", func() any { return o.GetOwnPropertyKeys() })
@@ -1220,13 +1222,13 @@ func (d *typeAlgebraDump) pair(i, j int) {
 	sb.WriteByte('\t')
 	sb.WriteString(taPf(func() any { return taIdent(a.GetGreatestSubtype(b), a, b) }))
 	sb.WriteByte('\t')
-	sb.WriteString(taPf(func() any { return a.GetTypesUnderEquality(b) }))
+	sb.WriteString(taPf(func() any { return taPair(a.GetTypesUnderEqualityPair(b)) }))
 	sb.WriteByte('\t')
-	sb.WriteString(taPf(func() any { return a.GetTypesUnderInequality(b) }))
+	sb.WriteString(taPf(func() any { return taPair(a.GetTypesUnderInequalityPair(b)) }))
 	sb.WriteByte('\t')
-	sb.WriteString(taPf(func() any { return a.GetTypesUnderShallowInequality(b) }))
+	sb.WriteString(taPf(func() any { return taPair(a.GetTypesUnderShallowInequalityPair(b)) }))
 	sb.WriteByte('\t')
-	sb.WriteString(taPf(func() any { return a.GetTypesUnderShallowEquality(b) }))
+	sb.WriteString(taPf(func() any { return taPair(a.GetTypesUnderShallowEqualityPair(b)) }))
 	sb.WriteByte('\t')
 	sb.WriteString(taPf(func() any {
 		fa, aIsFn := a.(FunctionType)

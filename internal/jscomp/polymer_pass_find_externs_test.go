@@ -59,7 +59,7 @@ var polymerPassFindExternsTest_EXTERNS = CompilerTestCase_MINIMAL_EXTERNS +
 type PolymerPassFindExternsTest struct {
 	CompilerTestCaseBase
 
-	findExternsCallback *PolymerPassFindExterns
+	findExternsCallback *polymerPassFindExterns
 }
 
 // Java: PolymerPassFindExternsTest()
@@ -77,7 +77,7 @@ func TestPolymerPassFindExternsTest(t *testing.T) {
 // getProcessor.
 type polymerPassFindExternsTest_pass struct {
 	compiler            *Compiler
-	findExternsCallback *PolymerPassFindExterns
+	findExternsCallback *polymerPassFindExterns
 }
 
 func (p *polymerPassFindExternsTest_pass) Process(externs rhino.Node, root rhino.Node) {
@@ -86,7 +86,7 @@ func (p *polymerPassFindExternsTest_pass) Process(externs rhino.Node, root rhino
 
 // Java: PolymerPassFindExternsTest.getProcessor(Compiler)
 func (c *PolymerPassFindExternsTest) GetProcessor(compiler *Compiler) CompilerPass {
-	c.findExternsCallback = NewPolymerPassFindExterns()
+	c.findExternsCallback = &polymerPassFindExterns{}
 	return &polymerPassFindExternsTest_pass{compiler: compiler, findExternsCallback: c.findExternsCallback}
 }
 

@@ -361,7 +361,10 @@ func (c *TypedScopeCreatorTest) TestConstDestructuringDeclarationWithUnknownType
 
 	childVar := jutil.CheckNotNull(c.globalScope.GetVar("Child"))
 	childType := childVar.GetType().ToMaybeFunctionType()
-	superclassCtor := childType.GetSuperClassConstructor()
+	var superclassCtor rhino.JSType
+	if ctor := childType.GetSuperClassConstructor(); ctor != nil {
+		superclassCtor = ctor
+	}
 	TypeSubject_AssertType(superclassCtor).IsNull()
 }
 
@@ -378,7 +381,10 @@ func (c *TypedScopeCreatorTest) TestConstDestructuringDeclarationWithUnknownProp
 
 	childVar := jutil.CheckNotNull(c.globalScope.GetVar("Child"))
 	childType := childVar.GetType().ToMaybeFunctionType()
-	superclassCtor := childType.GetSuperClassConstructor()
+	var superclassCtor rhino.JSType
+	if ctor := childType.GetSuperClassConstructor(); ctor != nil {
+		superclassCtor = ctor
+	}
 	TypeSubject_AssertType(superclassCtor).IsNull()
 }
 

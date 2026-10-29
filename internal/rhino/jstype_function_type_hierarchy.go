@@ -51,7 +51,7 @@ import (
 //
 // Java: FunctionType.getInstanceType()
 func (f *FunctionTypeBase) GetInstanceType() ObjectType {
-	jutil.CheckState(f.selfFunc().HasInstanceType())
+	jutil.CheckState(f.HasInstanceType())
 
 	return f.typeOfThis.self().ToObjectType()
 }
@@ -60,12 +60,12 @@ func (f *FunctionTypeBase) GetInstanceType() ObjectType {
 //
 // Java: FunctionType.hasInstanceType()
 func (f *FunctionTypeBase) HasInstanceType() bool {
-	return f.selfFunc().IsConstructor() || f.selfFunc().IsInterface()
+	return f.IsConstructor() || f.IsInterface()
 }
 
 // Java: FunctionType.getPrototypeProperty()
 func (f *FunctionTypeBase) GetPrototypeProperty() ObjectType {
-	return f.selfFunc().GetPrototype()
+	return f.GetPrototype()
 }
 
 // GetPrototype gets the prototype property of this function type. This is
@@ -75,7 +75,7 @@ func (f *FunctionTypeBase) GetPrototypeProperty() ObjectType {
 func (f *FunctionTypeBase) GetPrototype() ObjectType {
 	// lazy initialization of the prototype field
 	if f.prototypeSlot() == nil {
-		refName := f.selfFunc().GetReferenceName()
+		refName := f.GetReferenceName()
 		if refName == nil {
 			// Someone is trying to access the prototype of a structural function.
 			// We don't want to give real properties to this prototype, because
@@ -86,10 +86,10 @@ func (f *FunctionTypeBase) GetPrototype() ObjectType {
 				registry:          f.GetRegistry(),
 				classNameID:       rhinoStringPoolIntern(*refName + ".prototype"),
 				implicitPrototype: f.GetRegistry().GetNativeObjectType(JSTypeNative_OBJECT_TYPE),
-				nativeType:        f.selfFunc().IsNativeObjectType(),
+				nativeType:        f.IsNativeObjectType(),
 				templateTypeMap:   f.GetRegistry().GetEmptyTemplateTypeMap(),
 			}
-			f.selfFunc().SetPrototype(
+			f.SetPrototype(
 				NewPrototypeObjectType(&fields),
 				NilNode)
 		}
@@ -107,7 +107,7 @@ func (f *FunctionTypeBase) SetPrototypeBasedOn(baseType ObjectType) {
 
 // Java: FunctionType.setPrototypeBasedOn(ObjectType, Node)
 func (f *FunctionTypeBase) SetPrototypeBasedOnWithPropertyNode(baseType ObjectType, propertyNode Node) {
-	if f.selfFunc().IsNativeObjectType() {
+	if f.IsNativeObjectType() {
 		return
 	}
 	// First handle class-side inheritance for ES6 classes, before reassigning
@@ -115,9 +115,9 @@ func (f *FunctionTypeBase) SetPrototypeBasedOnWithPropertyNode(baseType ObjectTy
 	if !f.source.IsNil() && f.source.IsClass() {
 		superCtor := baseType.GetConstructor()
 		if superCtor != nil {
-			f.selfFunc().SetImplicitPrototype(superCtor)
+			f.SetImplicitPrototype(superCtor)
 		}
-		f.selfFunc().MaybeLoosenTypecheckingDueToForwardReferencedSupertype(baseType)
+		f.MaybeLoosenTypecheckingDueToForwardReferencedSupertype(baseType)
 	}
 	// This is a bit weird. We need to successfully handle these two cases:
 	// Foo.prototype = new Bar();
@@ -135,20 +135,20 @@ func (f *FunctionTypeBase) SetPrototypeBasedOnWithPropertyNode(baseType ObjectTy
 	// assigned to Bar will get inherited properly.
 	//
 	// In the second case, we just use the anonymous object as the prototype.
-	if baseType.HasReferenceName() || f.selfFunc().IsNativeObjectType() || baseType.IsFunctionPrototypeType() {
-		if f.prototypeSlot() != nil && f.selfFunc().HasInstanceType() && baseType.Equals(f.selfFunc().GetInstanceType()) {
+	if baseType.HasReferenceName() || f.IsNativeObjectType() || baseType.IsFunctionPrototypeType() {
+		if f.prototypeSlot() != nil && f.HasInstanceType() && baseType.Equals(f.GetInstanceType()) {
 			// Bail out for cases like Foo.prototype = new Foo();
 			return
 		}
 		fields := PrototypeObjectType_Builder{
 			registry:          f.GetRegistry(),
-			classNameID:       rhinoStringPoolIntern(jutil.ToJavaString(f.selfFunc().GetReferenceName()) + ".prototype"),
+			classNameID:       rhinoStringPoolIntern(jutil.ToJavaString(f.GetReferenceName()) + ".prototype"),
 			implicitPrototype: baseType,
 			templateTypeMap:   f.GetRegistry().GetEmptyTemplateTypeMap(),
 		}
 		baseType = NewPrototypeObjectType(&fields)
 	}
-	f.selfFunc().SetPrototype(baseType, propertyNode)
+	f.SetPrototype(baseType, propertyNode)
 }
 
 // SetPrototype sets the prototype. prototype: the prototype. If this value
@@ -160,7 +160,7 @@ func (f *FunctionTypeBase) SetPrototype(prototype ObjectType, propertyNode Node)
 		return false
 	}
 	// getInstanceType fails if the function is not a constructor
-	if f.selfFunc().IsConstructor() && prototype == f.selfFunc().GetInstanceType() {
+	if f.IsConstructor() && prototype == f.GetInstanceType() {
 		return false
 	}
 	return f.SetPrototypeNoCheck(prototype, propertyNode)
@@ -181,7 +181,7 @@ func (f *FunctionTypeBase) SetPrototypeNoCheck(prototype ObjectType, propertyNod
 		slotNode = f.source
 	}
 	f.setPrototypeSlot(NewProperty("prototype", prototype, true, slotNode))
-	prototype.SetOwnerFunction(f.selfFunc())
+	prototype.SetOwnerFunction(f)
 
 	if oldPrototype != nil {
 		// Disassociating the old prototype makes this easier to debug-- we
@@ -190,7 +190,7 @@ func (f *FunctionTypeBase) SetPrototypeNoCheck(prototype ObjectType, propertyNod
 	}
 
 	if replacedPrototype {
-		f.selfFunc().ClearCachedValues()
+		f.ClearCachedValues()
 	}
 	if f.GetRegistry() != nil {
 		f.GetRegistry().leastSupertypeGen++
@@ -199,8 +199,12 @@ func (f *FunctionTypeBase) SetPrototypeNoCheck(prototype ObjectType, propertyNod
 	return true
 }
 
-// Java: FunctionType.defineProperty(Property.Key, JSType, boolean, Node)
+// Java: FunctionType.defineProperty(Property.Key, JSType, boolean, Node) / NoObjectType.defineProperty(Property.Key, JSType, boolean, Node)
 func (f *FunctionTypeBase) DefinePropertyByKey(name Property_Key, type_ JSType, inferred bool, propertyNode Node) bool {
+	if f.isNoObjectOrNo() {
+		// nothing, all properties are defined
+		return true
+	}
 	if name.Matches("prototype") {
 		objType := type_.ToObjectType()
 		if objType != nil {
@@ -220,8 +224,8 @@ func (f *FunctionTypeBase) DefinePropertyByKey(name Property_Key, type_ JSType, 
 //
 // Java: FunctionType.getSuperClassConstructor()
 func (f *FunctionTypeBase) GetSuperClassConstructor() FunctionType {
-	jutil.CheckArgument(f.selfFunc().IsConstructor() || f.selfFunc().IsInterface())
-	maybeSuperInstanceType := f.selfFunc().GetPrototype().GetImplicitPrototype()
+	jutil.CheckArgument(f.IsConstructor() || f.IsInterface())
+	maybeSuperInstanceType := f.GetPrototype().GetImplicitPrototype()
 	if maybeSuperInstanceType == nil {
 		return nil
 	}
@@ -234,8 +238,8 @@ func (f *FunctionTypeBase) HasImplementedInterfaces() bool {
 		return true
 	}
 	var superCtor FunctionType
-	if f.selfFunc().IsConstructor() {
-		superCtor = f.selfFunc().GetSuperClassConstructor()
+	if f.IsConstructor() {
+		superCtor = f.GetSuperClassConstructor()
 	}
 	if superCtor != nil {
 		return superCtor.HasImplementedInterfaces()
@@ -274,7 +278,7 @@ func addRelatedInterfacesSlice(instance ObjectType, out *[]ObjectType) {
 //
 // Java: FunctionType.getAllImplementedInterfaces()
 func (f *FunctionTypeBase) GetAllImplementedInterfaces() []ObjectType {
-	direct := f.selfFunc().GetImplementedInterfaces()
+	direct := f.GetImplementedInterfaces()
 	if len(direct) == 0 {
 		return emptyObjectTypeSlice
 	}
@@ -306,10 +310,10 @@ func (f *FunctionTypeBase) AddRelatedInterfaces(instance ObjectType, set *jutil.
 // Java: FunctionType.getAncestorInterfaces()
 func (f *FunctionTypeBase) GetAncestorInterfaces() []ObjectType {
 	var src []ObjectType
-	if f.selfFunc().IsConstructor() {
-		src = f.selfFunc().GetImplementedInterfaces()
+	if f.IsConstructor() {
+		src = f.GetImplementedInterfaces()
 	} else {
-		src = f.selfFunc().GetExtendedInterfaces()
+		src = f.GetExtendedInterfaces()
 	}
 	if len(src) == 0 {
 		return emptyObjectTypeSlice
@@ -327,8 +331,8 @@ func (f *FunctionTypeBase) GetAncestorInterfaces() []ObjectType {
 // Java: FunctionType.getImplementedInterfaces()
 func (f *FunctionTypeBase) GetImplementedInterfaces() []ObjectType {
 	var superCtor FunctionType
-	if f.selfFunc().IsConstructor() {
-		superCtor = f.selfFunc().GetSuperClassConstructor()
+	if f.IsConstructor() {
+		superCtor = f.GetSuperClassConstructor()
 	}
 	own := f.GetOwnImplementedInterfaces()
 	if superCtor == nil {
@@ -336,7 +340,7 @@ func (f *FunctionTypeBase) GetImplementedInterfaces() []ObjectType {
 	}
 	builder := append([]ObjectType{}, own...)
 	for superCtor != nil {
-		builder = append(builder, superCtor.GetFunctionTypeBase().GetOwnImplementedInterfaces()...)
+		builder = append(builder, superCtor.GetOwnImplementedInterfaces()...)
 		superCtor = superCtor.GetSuperClassConstructor()
 	}
 	return builder
@@ -355,7 +359,7 @@ func (f *FunctionTypeBase) GetOwnImplementedInterfaces() []ObjectType {
 
 // Java: FunctionType.setImplementedInterfaces(List<ObjectType>)
 func (f *FunctionTypeBase) SetImplementedInterfaces(implementedInterfaces []ObjectType) {
-	jutil.CheckState(f.selfFunc().IsConstructor())
+	jutil.CheckState(f.IsConstructor())
 
 	copied := functionTypeCopyOfObjectTypes(implementedInterfaces)
 	if len(copied) > 0 || f.ext != nil {
@@ -406,7 +410,7 @@ func (f *FunctionTypeBase) GetExtendedInterfacesCount() int {
 
 // Java: FunctionType.setExtendedInterfaces(List<ObjectType>)
 func (f *FunctionTypeBase) SetExtendedInterfaces(extendedInterfaces []ObjectType) {
-	jutil.CheckState(f.selfFunc().IsInterface())
+	jutil.CheckState(f.IsInterface())
 
 	copied := functionTypeCopyOfObjectTypes(extendedInterfaces)
 	if len(copied) > 0 || f.ext != nil {
@@ -423,13 +427,13 @@ func (f *FunctionTypeBase) SetExtendedInterfaces(extendedInterfaces []ObjectType
 //
 // Java: FunctionType.setImplicitMatch(boolean)
 func (f *FunctionTypeBase) SetImplicitMatch(flag bool) {
-	jutil.CheckState(f.selfFunc().IsInterface())
+	jutil.CheckState(f.IsInterface())
 	f.call.fnIsStructuralInterface = flag
 }
 
 // Java: FunctionType.isStructuralInterface()
 func (f *FunctionTypeBase) IsStructuralInterface() bool {
-	return f.selfFunc().IsInterface() && f.call.fnIsStructuralInterface
+	return f.IsInterface() && f.call.fnIsStructuralInterface
 }
 
 // Java: FunctionType.isAbstract()
@@ -452,7 +456,7 @@ func fnSliceContains(list []FunctionType, elem FunctionType) bool {
 //
 // Java: FunctionType.checkExtendsLoop()
 func (f *FunctionTypeBase) CheckExtendsLoop() []FunctionType {
-	if len(f.selfFunc().GetExtendedInterfaces()) == 0 {
+	if len(f.GetExtendedInterfaces()) == 0 {
 		return nil
 	}
 	var pathBuf [8]FunctionType
@@ -461,7 +465,7 @@ func (f *FunctionTypeBase) CheckExtendsLoop() []FunctionType {
 }
 
 func (f *FunctionTypeBase) checkExtendsLoopSlice(path *[]FunctionType) []FunctionType {
-	for _, interfaceType := range f.selfFunc().GetExtendedInterfaces() {
+	for _, interfaceType := range f.GetExtendedInterfaces() {
 		superConstructor := interfaceType.GetConstructor()
 		if superConstructor == nil {
 			continue
@@ -478,7 +482,7 @@ func (f *FunctionTypeBase) checkExtendsLoopSlice(path *[]FunctionType) []Functio
 			return out
 		}
 		*path = append(*path, superConstructor)
-		result := superConstructor.GetFunctionTypeBase().checkExtendsLoopSlice(path)
+		result := superConstructor.checkExtendsLoopSlice(path)
 		if result != nil {
 			return result
 		}
@@ -491,7 +495,7 @@ func (f *FunctionTypeBase) checkExtendsLoopSlice(path *[]FunctionType) []Functio
 // Java: FunctionType.checkExtendsLoop(Set<FunctionType>, List<FunctionType>)
 func (f *FunctionTypeBase) CheckExtendsLoopWithCacheAndPath(
 	cache *jutil.ObjectLinkedHashSet[FunctionType], path *[]FunctionType) []FunctionType {
-	for _, interfaceType := range f.selfFunc().GetExtendedInterfaces() {
+	for _, interfaceType := range f.GetExtendedInterfaces() {
 		superConstructor := interfaceType.GetConstructor()
 		if superConstructor == nil {
 			continue
@@ -508,7 +512,7 @@ func (f *FunctionTypeBase) CheckExtendsLoopWithCacheAndPath(
 		}
 		cache.Add(superConstructor)
 		*path = append(*path, superConstructor)
-		result := superConstructor.GetFunctionTypeBase().CheckExtendsLoopWithCacheAndPath(cache, path)
+		result := superConstructor.CheckExtendsLoopWithCacheAndPath(cache, path)
 		if result != nil {
 			return result
 		}
@@ -547,30 +551,30 @@ func (f *FunctionTypeBase) SupAndInfHelper(that FunctionType, leastSuper bool) F
 	// B) is always the bottom function type.
 	jutil.CheckNotNull(that)
 
-	if f.selfFunc().Equals(that) {
-		return f.selfFunc()
+	if f.Equals(that) {
+		return f
 	}
 
 	// If these are ordinary functions, then merge them. Don't do this if any
 	// of the params/return values are unknown, because then there will be
 	// cycles in their local lattice and they will merge in weird ways.
-	if f.selfFunc().IsOrdinaryFunction() &&
+	if f.IsOrdinaryFunction() &&
 		that.IsOrdinaryFunction() &&
 		!f.call.HasUnknownParamsOrReturn() &&
-		!that.GetFunctionTypeBase().call.HasUnknownParamsOrReturn() {
+		!that.call.HasUnknownParamsOrReturn() {
 
 		// Check for the degenerate case, but double check that there's not a
 		// cycle.
-		isSubtypeOfThat := f.selfFunc().IsSubtype(that)
-		isSubtypeOfThis := that.IsSubtype(f.selfFunc())
+		isSubtypeOfThat := f.IsSubtype(that)
+		isSubtypeOfThis := that.IsSubtype(f)
 		if isSubtypeOfThat && !isSubtypeOfThis {
 			if leastSuper {
 				return that
 			}
-			return f.selfFunc()
+			return f
 		} else if isSubtypeOfThis && !isSubtypeOfThat {
 			if leastSuper {
-				return f.selfFunc()
+				return f
 			}
 			return that
 		}
@@ -589,10 +593,10 @@ func (f *FunctionTypeBase) SupAndInfHelper(that FunctionType, leastSuper bool) F
 		if leastSuper {
 			return that
 		}
-		return f.selfFunc()
-	} else if functionInstance.Equals(f.selfFunc()) {
+		return f
+	} else if functionInstance.Equals(f) {
 		if leastSuper {
-			return f.selfFunc()
+			return f
 		}
 		return that
 	}
@@ -616,11 +620,10 @@ func (f *FunctionTypeBase) SupAndInfHelper(that FunctionType, leastSuper bool) F
 //
 // Java: FunctionType.TryMergeFunctionPiecewise(FunctionType, boolean)
 func (f *FunctionTypeBase) TryMergeFunctionPiecewise(other FunctionType, leastSuper bool) FunctionType {
-	otherBase := other.GetFunctionTypeBase()
 	var newParamsNode []*FunctionType_Parameter
 	if NewEqualityChecker().
 		SetEqMethod(EqualityChecker_EqMethod_IDENTITY).
-		CheckParameters(&f.call, &otherBase.call) {
+		CheckParameters(&f.call, &other.call) {
 		newParamsNode = f.call.GetParameterList()
 	} else {
 		// If the parameters are not equal, don't try to merge them. Someday, we
@@ -630,22 +633,22 @@ func (f *FunctionTypeBase) TryMergeFunctionPiecewise(other FunctionType, leastSu
 
 	var newReturnType JSType
 	if leastSuper {
-		newReturnType = f.call.GetReturnType().GetLeastSupertype(otherBase.call.GetReturnType())
+		newReturnType = f.call.GetReturnType().GetLeastSupertype(other.call.GetReturnType())
 	} else {
-		newReturnType = f.call.GetReturnType().GetGreatestSubtype(otherBase.call.GetReturnType())
+		newReturnType = f.call.GetReturnType().GetGreatestSubtype(other.call.GetReturnType())
 	}
 
 	var newTypeOfThis JSType
-	if f.typeOfThis == otherBase.typeOfThis ||
-		(f.typeOfThis != nil && otherBase.typeOfThis != nil && f.typeOfThis.self().Equals(otherBase.typeOfThis.self())) {
+	if f.typeOfThis == other.typeOfThis ||
+		(f.typeOfThis != nil && other.typeOfThis != nil && f.typeOfThis.self().Equals(other.typeOfThis.self())) {
 		newTypeOfThis = jsTypeOf(f.typeOfThis)
 	} else if leastSuper {
-		newTypeOfThis = f.typeOfThis.self().GetLeastSupertype(jsTypeOf(otherBase.typeOfThis))
+		newTypeOfThis = f.typeOfThis.self().GetLeastSupertype(jsTypeOf(other.typeOfThis))
 	} else {
-		newTypeOfThis = f.typeOfThis.self().GetGreatestSubtype(jsTypeOf(otherBase.typeOfThis))
+		newTypeOfThis = f.typeOfThis.self().GetGreatestSubtype(jsTypeOf(other.typeOfThis))
 	}
 
-	newReturnTypeInferred := f.call.returnTypeInferred || otherBase.call.returnTypeInferred
+	newReturnTypeInferred := f.call.returnTypeInferred || other.call.returnTypeInferred
 
 	return FunctionType_Builder_(f.GetRegistry()).
 		WithParametersOfList(newParamsNode).
@@ -663,9 +666,9 @@ func (f *FunctionTypeBase) TryMergeFunctionPiecewise(other FunctionType, leastSu
 func (f *FunctionTypeBase) ClearCachedValues() {
 	f.PrototypeObjectTypeBase.ClearCachedValues()
 
-	if !f.selfFunc().IsNativeObjectType() {
-		if f.selfFunc().HasInstanceType() {
-			f.selfFunc().GetInstanceType().ClearCachedValues()
+	if !f.IsNativeObjectType() {
+		if f.HasInstanceType() {
+			f.GetInstanceType().ClearCachedValues()
 		}
 
 		if slot := f.prototypeSlot(); slot != nil {
@@ -679,8 +682,11 @@ func (f *FunctionTypeBase) HasCachedValues() bool {
 	return f.prototypeSlot() != nil || f.PrototypeObjectTypeBase.HasCachedValues()
 }
 
-// Java: FunctionType.resolveInternal(ErrorReporter)
+// Java: FunctionType.resolveInternal(ErrorReporter) / NoObjectType.resolveInternal(ErrorReporter)
 func (f *FunctionTypeBase) ResolveInternal(reporter ErrorReporter) JSType {
+	if f.isNoObjectOrNo() {
+		panic(jutil.NewAssertionErrorNoMessage())
+	}
 	if f.call.parameterList != nil && !f.call.resolved {
 		f.call.resolveInternal(reporter)
 	}
@@ -741,7 +747,7 @@ func (f *FunctionTypeBase) ResolveTypeListHelper(list []ObjectType, reporter Err
 		rt := type_.Resolve(reporter)
 		if !rt.IsObjectType() {
 			reporter.Warning(
-				"not an object type: "+rt.String()+" (at "+f.selfFunc().String()+")",
+				"not an object type: "+rt.String()+" (at "+f.String()+")",
 				jsTypeDerefString(f.source.GetSourceFileName()),
 				f.source.GetLineno(),
 				f.source.GetCharno())
@@ -783,14 +789,14 @@ func (f *FunctionTypeBase) IsAmbiguousConstructor() bool {
 
 // Java: FunctionType.CalculateConstructorAmbiguity()
 func (f *FunctionTypeBase) CalculateConstructorAmbiguity() FunctionType_ConstructorAmbiguity {
-	if f.selfFunc().IsUnknownType() {
+	if f.IsUnknownType() {
 		return FunctionType_ConstructorAmbiguity_IS_AMBIGUOUS_CONSTRUCTOR
 	}
-	if f.selfFunc().IsNativeObjectType() {
+	if f.IsNativeObjectType() {
 		// native types other than unknown are never ambiguous
 		return FunctionType_ConstructorAmbiguity_IS_UNAMBIGUOUS_CONSTRUCTOR
 	}
-	superConstructor := f.selfFunc().GetSuperClassConstructor()
+	superConstructor := f.GetSuperClassConstructor()
 	if superConstructor == nil {
 		// TODO(bradfordcsmith): Why is superConstructor ever null here?
 		return FunctionType_ConstructorAmbiguity_IS_AMBIGUOUS_CONSTRUCTOR
@@ -835,5 +841,5 @@ var FunctionType_DELEGATE_SUFFIX = ObjectType_CreateDelegateSuffix("Proxy")
 func (f *FunctionTypeBase) IsDelegateProxy() bool {
 	// TODO(bradfordcsmith): There should be a better way to determine that we
 	// have a proxy type.
-	return f.selfFunc().HasReferenceName() && strings.HasSuffix(*f.selfFunc().GetReferenceName(), FunctionType_DELEGATE_SUFFIX)
+	return f.HasReferenceName() && strings.HasSuffix(*f.GetReferenceName(), FunctionType_DELEGATE_SUFFIX)
 }

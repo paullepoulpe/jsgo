@@ -25,10 +25,6 @@ import (
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
 
-// JSDocSerializer holds utilities for serializing and deserializing JSDoc
-// necessary for optimzations.
-type JSDocSerializer struct{}
-
 // JSDocSerializer_ConvertJSDocInfoForOptimizations returns a variant of
 // input JSDocInfo where fields not needed for optimizations are removed.
 //
@@ -166,53 +162,53 @@ func jsDocSerializer_stringFields(jsdoc *rhino.JSDocInfo) (
 
 func jsDocSerializer_fillJsdocTagsOnly(jsdoc *rhino.JSDocInfo, kindBuf []int32) []int32 {
 	if jsdoc.HasFileOverview() {
-		kindBuf = append(kindBuf, JsdocTag_JSDOC_FILEOVERVIEW_VALUE)
+		kindBuf = append(kindBuf, JsdocTag_JSDOC_FILEOVERVIEW.GetNumber())
 	}
 	if jsdoc.IsSassGeneratedCssTs() {
-		kindBuf = append(kindBuf, JsdocTag_JSDOC_SASS_GENERATED_CSS_TS_VALUE)
+		kindBuf = append(kindBuf, JsdocTag_JSDOC_SASS_GENERATED_CSS_TS.GetNumber())
 	}
 	// Used by CoverageInstrumentationCallback
 	if jsdoc.IsNoCoverage() {
-		kindBuf = append(kindBuf, JsdocTag_JSDOC_NO_COVERAGE_VALUE)
+		kindBuf = append(kindBuf, JsdocTag_JSDOC_NO_COVERAGE.GetNumber())
 	}
 	if jsdoc.IsNoInline() {
-		kindBuf = append(kindBuf, JsdocTag_JSDOC_NO_INLINE_VALUE)
+		kindBuf = append(kindBuf, JsdocTag_JSDOC_NO_INLINE.GetNumber())
 	}
 	if jsdoc.IsEncourageInlining() {
-		kindBuf = append(kindBuf, JsdocTag_JSDOC_ENCOURAGE_INLINING_VALUE)
+		kindBuf = append(kindBuf, JsdocTag_JSDOC_ENCOURAGE_INLINING.GetNumber())
 	}
 	if jsdoc.IsRequireInlining() {
-		kindBuf = append(kindBuf, JsdocTag_JSDOC_REQUIRE_INLINING_VALUE)
+		kindBuf = append(kindBuf, JsdocTag_JSDOC_REQUIRE_INLINING.GetNumber())
 	}
 	if jsdoc.IsNoCollapse() {
-		kindBuf = append(kindBuf, JsdocTag_JSDOC_NO_COLLAPSE_VALUE)
+		kindBuf = append(kindBuf, JsdocTag_JSDOC_NO_COLLAPSE.GetNumber())
 	}
 	if jsdoc.IsProvideGoog() {
-		kindBuf = append(kindBuf, JsdocTag_JSDOC_PROVIDE_GOOG_VALUE)
+		kindBuf = append(kindBuf, JsdocTag_JSDOC_PROVIDE_GOOG.GetNumber())
 	}
 	if jsdoc.IsProvideAlreadyProvided() {
-		kindBuf = append(kindBuf, JsdocTag_JSDOC_PROVIDE_ALREADY_PROVIDED_VALUE)
+		kindBuf = append(kindBuf, JsdocTag_JSDOC_PROVIDE_ALREADY_PROVIDED.GetNumber())
 	}
 	if jsdoc.IsTypeSummary() {
-		kindBuf = append(kindBuf, JsdocTag_JSDOC_TYPE_SUMMARY_FILE_VALUE)
+		kindBuf = append(kindBuf, JsdocTag_JSDOC_TYPE_SUMMARY_FILE.GetNumber())
 	}
 	if jsdoc.IsPureOrBreakMyCode() {
-		kindBuf = append(kindBuf, JsdocTag_JSDOC_PURE_OR_BREAK_MY_CODE_VALUE)
+		kindBuf = append(kindBuf, JsdocTag_JSDOC_PURE_OR_BREAK_MY_CODE.GetNumber())
 	}
 	if jsdoc.IsCollapsibleOrBreakMyCode() {
-		kindBuf = append(kindBuf, JsdocTag_JSDOC_COLLAPSIBLE_OR_BREAK_MY_CODE_VALUE)
+		kindBuf = append(kindBuf, JsdocTag_JSDOC_COLLAPSIBLE_OR_BREAK_MY_CODE.GetNumber())
 	}
 	if jsdoc.HasThisType() {
-		kindBuf = append(kindBuf, JsdocTag_JSDOC_THIS_VALUE)
+		kindBuf = append(kindBuf, JsdocTag_JSDOC_THIS.GetNumber())
 	}
 	if jsdoc.HasEnumParameterType() {
-		kindBuf = append(kindBuf, JsdocTag_JSDOC_ENUM_VALUE)
+		kindBuf = append(kindBuf, JsdocTag_JSDOC_ENUM.GetNumber())
 	}
 	if jsdoc.IsDefine() {
-		kindBuf = append(kindBuf, JsdocTag_JSDOC_DEFINE_VALUE)
+		kindBuf = append(kindBuf, JsdocTag_JSDOC_DEFINE.GetNumber())
 	}
 	if jsdoc.HasConstAnnotation() {
-		kindBuf = append(kindBuf, JsdocTag_JSDOC_CONST_VALUE)
+		kindBuf = append(kindBuf, JsdocTag_JSDOC_CONST.GetNumber())
 	}
 	if jsdoc.IsAnyIdGenerator() {
 		kindBuf = append(kindBuf, jsDocSerializer_serializeIdGenerator(jsdoc).GetNumber())
@@ -220,50 +216,50 @@ func jsDocSerializer_fillJsdocTagsOnly(jsdoc *rhino.JSDocInfo, kindBuf []int32) 
 
 	// Used by PureFunctionIdentifier
 	if jsdoc.IsNoSideEffects() {
-		kindBuf = append(kindBuf, JsdocTag_JSDOC_NO_SIDE_EFFECTS_VALUE)
+		kindBuf = append(kindBuf, JsdocTag_JSDOC_NO_SIDE_EFFECTS.GetNumber())
 	}
 	if jsdoc.HasModifies() {
 		for _, modifies := range jsdoc.GetModifiesSlice() {
 			if modifies == "this" {
-				kindBuf = append(kindBuf, JsdocTag_JSDOC_MODIFIES_THIS_VALUE)
+				kindBuf = append(kindBuf, JsdocTag_JSDOC_MODIFIES_THIS.GetNumber())
 			} else {
 				// Currently, anything other than "this" is considered a modification to arguments
-				kindBuf = append(kindBuf, JsdocTag_JSDOC_MODIFIES_ARGUMENTS_VALUE)
+				kindBuf = append(kindBuf, JsdocTag_JSDOC_MODIFIES_ARGUMENTS.GetNumber())
 			}
 		}
 	}
 	if jsdoc.HasThrowsAnnotations() {
-		kindBuf = append(kindBuf, JsdocTag_JSDOC_THROWS_VALUE)
+		kindBuf = append(kindBuf, JsdocTag_JSDOC_THROWS.GetNumber())
 	}
 
 	// Used by DevirtualizeMethods and CollapseProperties
 	if jsdoc.IsConstructor() {
-		kindBuf = append(kindBuf, JsdocTag_JSDOC_CONSTRUCTOR_VALUE)
+		kindBuf = append(kindBuf, JsdocTag_JSDOC_CONSTRUCTOR.GetNumber())
 	}
 	if jsdoc.IsInterface() {
-		kindBuf = append(kindBuf, JsdocTag_JSDOC_INTERFACE_VALUE)
+		kindBuf = append(kindBuf, JsdocTag_JSDOC_INTERFACE.GetNumber())
 	}
 	hasSuppressions := jsdoc.HasAnySuppressions()
 	if hasSuppressions && jsdoc.HasSuppression("partialAlias") {
-		kindBuf = append(kindBuf, JsdocTag_JSDOC_SUPPRESS_PARTIAL_ALIAS_VALUE)
+		kindBuf = append(kindBuf, JsdocTag_JSDOC_SUPPRESS_PARTIAL_ALIAS.GetNumber())
 	}
 
 	// Used by ClosureCodeRemoval
 	if jsdoc.IsAbstract() {
-		kindBuf = append(kindBuf, JsdocTag_JSDOC_ABSTRACT_VALUE)
+		kindBuf = append(kindBuf, JsdocTag_JSDOC_ABSTRACT.GetNumber())
 	}
 
 	// Used by ReplaceMessages
 	if hasSuppressions {
 		if jsdoc.HasSuppression("messageConventions") {
-			kindBuf = append(kindBuf, JsdocTag_JSDOC_SUPPRESS_MESSAGE_CONVENTION_VALUE)
+			kindBuf = append(kindBuf, JsdocTag_JSDOC_SUPPRESS_MESSAGE_CONVENTION.GetNumber())
 		}
 		if jsdoc.HasSuppression("untranspilableFeatures") {
-			kindBuf = append(kindBuf, JsdocTag_JSDOC_SUPPRESS_UNTRANSPILABLE_FEATURES_VALUE)
+			kindBuf = append(kindBuf, JsdocTag_JSDOC_SUPPRESS_UNTRANSPILABLE_FEATURES.GetNumber())
 		}
 	}
 	if jsdoc.IsUsedViaDotConstructor() {
-		kindBuf = append(kindBuf, JsdocTag_JSDOC_USED_VIA_DOT_CONSTRUCTOR_VALUE)
+		kindBuf = append(kindBuf, JsdocTag_JSDOC_USED_VIA_DOT_CONSTRUCTOR.GetNumber())
 	}
 	return kindBuf
 }

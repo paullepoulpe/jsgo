@@ -38,6 +38,7 @@ package jscomp
 
 import (
 	"math/big"
+	"math/bits"
 
 	"github.com/paullepoulpe/jsgo/internal/ast"
 	"github.com/paullepoulpe/jsgo/internal/base"
@@ -100,7 +101,7 @@ type AbstractPeepholeOptimization interface {
 	// Java: AbstractPeepholeOptimization.endTraversal()
 	EndTraversal()
 
-	bindPendingFeatures(dst **parser.FeatureSet)
+	bindPendingFeatures(dst *uint64)
 	peepholeConfig() peepholeOptConfig
 	cloneForWorker() AbstractPeepholeOptimization
 }
@@ -140,13 +141,23 @@ type AbstractPeepholeOptimizationBase struct {
 	// newFeatures are new parser features added in some OptimizeSubtree call
 	// when run standalone outside PeepholeOptimizationsPass; when bound by
 	// PeepholeOptimizationsPass, pendingFeaturesPtr points directly to the
-	// pass-level feature accumulator.
-	newFeatures        *parser.FeatureSet
-	pendingFeaturesPtr **parser.FeatureSet
+	// pass-level feature bitmask.
+	newFeatures        uint64
+	pendingFeaturesPtr *uint64
 }
 
-func (b *AbstractPeepholeOptimizationBase) bindPendingFeatures(dst **parser.FeatureSet) {
+func (b *AbstractPeepholeOptimizationBase) bindPendingFeatures(dst *uint64) {
 	b.pendingFeaturesPtr = dst
+}
+
+func peepholeFeaturesToSet(mask uint64) *parser.FeatureSet {
+	fs := parser.FeatureSet_BARE_MINIMUM
+	for w := mask; w != 0; {
+		b := bits.TrailingZeros64(w)
+		w &^= uint64(1) << uint(b)
+		fs = fs.With(parser.FeatureSet_Feature(b))
+	}
+	return fs
 }
 
 func (b *AbstractPeepholeOptimizationBase) peepholeConfig() peepholeOptConfig {
@@ -199,9 +210,6 @@ func (b *AbstractPeepholeOptimizationBase) IsASTNormalized() bool {
 func (b *AbstractPeepholeOptimizationBase) BeginTraversal(compiler AbstractCompiler) {
 	b.compiler = jutil.CheckNotNull(compiler)
 	b.astAnalyzer = compiler.GetAstAnalyzer()
-	if b.newFeatures == nil {
-		b.newFeatures = parser.FeatureSet_BARE_MINIMUM
-	}
 }
 
 // EndTraversal informs the optimization that a traversal has ended.
@@ -211,10 +219,12 @@ func (b *AbstractPeepholeOptimizationBase) BeginTraversal(compiler AbstractCompi
 //
 // Java: AbstractPeepholeOptimization.endTraversal()
 func (b *AbstractPeepholeOptimizationBase) EndTraversal() {
-	jutil.CheckStateMsg1(
-		b.newFeatures == nil || b.newFeatures.IsEmpty(),
-		"Expected getNewFeatures() to be empty in endTraversal() but found %s",
-		b.newFeatures)
+	if b.newFeatures != 0 {
+		jutil.CheckStateMsg1(
+			false,
+			"Expected getNewFeatures() to be empty in endTraversal() but found %s",
+			peepholeFeaturesToSet(b.newFeatures))
+	}
 	b.compiler = nil
 	b.astAnalyzer = nil
 }
@@ -390,23 +400,12 @@ func (b *AbstractPeepholeOptimizationBase) AddFeatureToEnclosingScript(feature p
 	// the  current implementation, we let PeepholeOptimizationsPass to find the script in what's
 	// usually O(1) time, or worst case it only calls getEnclosingScript() once per NodeTraversal
 	// and then caches the result.
+	bit := uint64(1) << uint(feature)
 	if b.pendingFeaturesPtr != nil {
-		cur := *b.pendingFeaturesPtr
-		if cur == nil {
-			cur = parser.FeatureSet_BARE_MINIMUM
-		}
-		*b.pendingFeaturesPtr = cur.With(feature)
+		*b.pendingFeaturesPtr |= bit
 		return
 	}
-	if b.newFeatures == nil {
-		b.newFeatures = parser.FeatureSet_BARE_MINIMUM
-	}
-	b.newFeatures = b.newFeatures.With(feature)
-}
-
-// Java: AbstractPeepholeOptimization.clearNewFeatures()
-func (b *AbstractPeepholeOptimizationBase) ClearNewFeatures() {
-	b.newFeatures = parser.FeatureSet_BARE_MINIMUM
+	b.newFeatures |= bit
 }
 
 // AbstractPeepholeTranspilation is an abstract class whose implementations

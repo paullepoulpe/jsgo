@@ -120,6 +120,10 @@ func (o *CompilerOptions) GetSummaryDetailLevel() int {
 
 // Java: CompilerOptions.setExtraAnnotationNames(Iterable<String>)
 func (o *CompilerOptions) SetExtraAnnotationNames(extraAnnotationNames []string) {
+	if len(extraAnnotationNames) == 0 {
+		o.extraAnnotationNames = compilerOptionsEmptyStringSet
+		return
+	}
 	o.extraAnnotationNames = jutil.NewLinkedHashSet(extraAnnotationNames...)
 }
 
@@ -265,7 +269,7 @@ func (o *CompilerOptions) GetAssumeStaticInheritanceIsNotUsed() bool {
 //
 // Java: CompilerOptions.setPropertiesThatMustDisambiguate(Set<String>)
 func (o *CompilerOptions) SetPropertiesThatMustDisambiguate(names *jutil.LinkedHashSet[string]) {
-	o.propertiesThatMustDisambiguate = jutil.NewLinkedHashSet(names.ToSlice()...)
+	o.propertiesThatMustDisambiguate = cloneOrEmptyStringSet(names)
 }
 
 // Java: CompilerOptions.getPropertiesThatMustDisambiguate()

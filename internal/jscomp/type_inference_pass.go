@@ -176,7 +176,7 @@ func (p *TypeInferencePass) InferScope(n rhino.Node, scope *TypedScope) {
 	typeInference.Analyze()
 
 	if p.stepCountHistogram != nil {
-		for _, node := range cfg.GetNodes() {
+		for _, node := range cfg.NodesSlice() {
 			if node == cfg.GetImplicitReturn() {
 				continue
 			}

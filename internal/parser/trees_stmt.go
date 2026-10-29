@@ -100,9 +100,6 @@ type ParseTree interface {
 	GetParseTreeBase() *ParseTreeBase
 	GetStart() SourcePosition
 	GetEnd() SourcePosition
-	IsPattern() bool
-	IsValidNonVanillaAssignmentTarget() bool
-	IsValidAssignmentTarget() bool
 	IsRestParameter() bool
 	String() string
 }
@@ -144,13 +141,22 @@ func (t *ParseTreeBase) GetEnd() SourcePosition {
 	return t.Location.End
 }
 
+func unwrapParens(tree ParseTree) ParseTreeType {
+	for {
+		paren, ok := tree.(*ParenExpressionTree)
+		if !ok {
+			return tree.GetParseTreeBase().Type
+		}
+		tree = paren.Expression
+	}
+}
+
 // IsPattern reports whether the tree (inside any parentheses) is an array or
 // object pattern.
 //
-// Java: ParseTree.isPattern() — Go-only: language-adapter — the loop over
-// parentheses is ParenExpressionTree.IsPattern.
-func (t *ParseTreeBase) IsPattern() bool {
-	switch t.Type {
+// Java: ParseTree.isPattern()
+func IsPattern(tree ParseTree) bool {
+	switch unwrapParens(tree) {
 	case ParseTreeType_ARRAY_PATTERN, ParseTreeType_OBJECT_PATTERN:
 		return true
 	default:
@@ -161,15 +167,11 @@ func (t *ParseTreeBase) IsPattern() bool {
 // IsValidNonVanillaAssignmentTarget: is valid assignment target for
 // non-vanilla assignment operators like `+=`, `-+`, `**=`, etc
 //
-// Java: ParseTree.isValidNonVanillaAssignmentTarget() — Go-only:
-// language-adapter — the loop over parentheses is
-// ParenExpressionTree.IsValidNonVanillaAssignmentTarget.
-func (t *ParseTreeBase) IsValidNonVanillaAssignmentTarget() bool {
-	switch t.Type {
+// Java: ParseTree.isValidNonVanillaAssignmentTarget()
+func IsValidNonVanillaAssignmentTarget(tree ParseTree) bool {
+	switch unwrapParens(tree) {
 	case ParseTreeType_IDENTIFIER_EXPRESSION, ParseTreeType_MEMBER_EXPRESSION, ParseTreeType_MEMBER_LOOKUP_EXPRESSION, ParseTreeType_DEFAULT_PARAMETER:
 		return true
-	case ParseTreeType_ARRAY_PATTERN, ParseTreeType_OBJECT_PATTERN:
-		return false
 	default:
 		return false
 	}
@@ -178,10 +180,9 @@ func (t *ParseTreeBase) IsValidNonVanillaAssignmentTarget() bool {
 // IsValidAssignmentTarget: is valid assignment target for any assignment
 // operator like `=`, `+=`, `-+`, `**=`, etc
 //
-// Java: ParseTree.isValidAssignmentTarget() — Go-only: language-adapter —
-// the loop over parentheses is ParenExpressionTree.IsValidAssignmentTarget.
-func (t *ParseTreeBase) IsValidAssignmentTarget() bool {
-	switch t.Type {
+// Java: ParseTree.isValidAssignmentTarget()
+func IsValidAssignmentTarget(tree ParseTree) bool {
+	switch unwrapParens(tree) {
 	case ParseTreeType_IDENTIFIER_EXPRESSION,
 		ParseTreeType_MEMBER_EXPRESSION,
 		ParseTreeType_MEMBER_LOOKUP_EXPRESSION,

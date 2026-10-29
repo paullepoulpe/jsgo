@@ -20,6 +20,7 @@
 package jscomp
 
 import (
+	"reflect"
 	"strconv"
 	"testing"
 
@@ -259,4 +260,26 @@ func (c *LinkedFlowScopeTest) Join(a FlowScope, b FlowScope) FlowScope {
 	joiner.JoinFlow(a)
 	joiner.JoinFlow(b)
 	return joiner.Finish()
+}
+
+func TestLinkedFlowScopeSizeAndBlindScope(t *testing.T) {
+	if got := reflect.TypeFor[LinkedFlowScope]().Size(); got != 48 {
+		t.Fatalf("sizeof(LinkedFlowScope) = %d, want 48", got)
+	}
+	var blind *LinkedFlowScope
+	allocs := testing.AllocsPerRun(100, func() {
+		blind = newBlindLinkedFlowScope(nil)
+	})
+	if blind == nil {
+		t.Fatal("newBlindLinkedFlowScope returned nil")
+	}
+	if allocs > 1 {
+		t.Fatalf("newBlindLinkedFlowScope allocs = %v, want <= 1", allocs)
+	}
+	compiler := NewCompiler()
+	numType := compiler.GetTypeRegistry().GetNativeType(rhino.JSTypeNative_NUMBER_TYPE)
+	next := blind.InferSlotType("x", numType)
+	if got := linkedFlowScopeTest_slotType(next, "x"); got != numType {
+		t.Fatalf("blind InferSlotType slot type = %v, want %v", got, numType)
+	}
 }

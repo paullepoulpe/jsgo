@@ -87,14 +87,6 @@ func (c *ClosureCodingConvention) IsExported(name string) bool {
 	return CodingConvention_IsExported(c, name)
 }
 
-func (c *ClosureCodingConvention) BlockRenamingForProperty(name string) bool {
-	return false
-}
-
-func (c *ClosureCodingConvention) IsPrototypeAlias(getProp rhino.Node) bool {
-	return false
-}
-
 // ApplySubclassRelationship adds Closure's goog.inherits superClass_ and
 // prototype.constructor properties.
 func (c *ClosureCodingConvention) ApplySubclassRelationship(
@@ -180,19 +172,6 @@ func (c *ClosureCodingConvention) IsSuperClassReference(propertyName string) boo
 
 func endsWithPrototype(qualifiedName rhino.Node) bool {
 	return qualifiedName.IsGetProp() && qualifiedName.GetStringID() == codingConvPrototypeID
-}
-
-func (c *ClosureCodingConvention) ExtractIsModuleFile(node rhino.Node, parent rhino.Node) bool {
-	prop, arg := extractGoogCallPropAndArg(node, parent)
-	return arg != nil && prop == "module"
-}
-
-func (c *ClosureCodingConvention) ExtractClassNameIfProvide(node rhino.Node, parent rhino.Node) *string {
-	prop, arg := extractGoogCallPropAndArg(node, parent)
-	if arg != nil && (prop == "provide" || prop == "module") {
-		return arg
-	}
-	return nil
 }
 
 func (c *ClosureCodingConvention) ExtractClassNameIfRequire(node rhino.Node, parent rhino.Node) *string {

@@ -73,14 +73,28 @@ func (r *ReachingUseDefTester) ComputeReachingUses(src string, async bool) {
 	r.root = script.GetFirstChild()
 	funcBlockScope := r.computeFunctionBlockScope(script, r.root)
 	cfg := r.computeCfg(r.root)
-	escaped := jutil.NewObjectLinkedHashSet[*Var]()
 
 	allVarsDeclaredInFunction :=
 		NodeUtil_GetAllVarsDeclaredInFunction(r.compiler, r.scopeCreator, funcBlockScope.GetParent())
-	allVarsInFn := allVarsDeclaredInFunction.GetAllVariables()
-	DataFlowAnalysis_ComputeEscaped(
-		funcBlockScope.GetParent(), escaped, r.compiler, r.scopeCreator, allVarsInFn)
-	r.reachingUse = NewMaybeReachingVariableUse(cfg, escaped, allVarsInFn)
+	table := &allVarsDeclaredInFunction.table
+	computeEscapedInTable(funcBlockScope.GetParent(), table, r.compiler, r.scopeCreator)
+	var varIDs []uint32
+	if !table.isEmpty() {
+		varIDs = make([]uint32, 0, table.uniqueCount)
+		var seen inlineBitSet
+		for _, v := range table.vars {
+			canonIdx, _ := table.lookupIndexByID(v.nameID)
+			if seen.Get(canonIdx) {
+				continue
+			}
+			seen.Set(canonIdx)
+			if !table.escaped.Get(canonIdx) {
+				varIDs = append(varIDs, table.vars[canonIdx].nameID)
+			}
+		}
+	}
+	r.reachingUse = &MaybeReachingVariableUse{}
+	r.reachingUse.resetWithVarIDs(cfg, varIDs)
 	r.reachingUse.Analyze()
 }
 
@@ -94,14 +108,13 @@ func (r *ReachingUseDefTester) ComputeReachingDef(src string) {
 	r.root = script.GetFirstChild()
 	funcBlockScope := r.computeFunctionBlockScope(script, r.root)
 	cfg := r.computeCfg(r.root)
-	escaped := jutil.NewObjectLinkedHashSet[*Var]()
 
 	allVarsDeclaredInFunction :=
 		NodeUtil_GetAllVarsDeclaredInFunction(r.compiler, r.scopeCreator, funcBlockScope.GetParent())
-	allVarsInFn := allVarsDeclaredInFunction.GetAllVariables()
-	DataFlowAnalysis_ComputeEscaped(
-		funcBlockScope.GetParent(), escaped, r.compiler, r.scopeCreator, allVarsInFn)
-	r.reachingDef = NewMustBeReachingVariableDef(cfg, r.compiler, escaped, allVarsInFn)
+	table := &allVarsDeclaredInFunction.table
+	computeEscapedInTable(funcBlockScope.GetParent(), table, r.compiler, r.scopeCreator)
+	r.reachingDef = &MustBeReachingVariableDef{}
+	r.reachingDef.resetWithTable(cfg, r.compiler, table)
 	r.reachingDef.Analyze()
 }
 
@@ -127,11 +140,7 @@ func (r *ReachingUseDefTester) computeFunctionBlockScope(script rhino.Node, fn r
 
 // Java: ReachingUseDefTester.computeCfg(Node)
 func (r *ReachingUseDefTester) computeCfg(fn rhino.Node) *ControlFlowGraph[rhino.Node] {
-	return ControlFlowAnalysis_Builder_().
-		SetCompiler(r.compiler).
-		SetCfgRoot(fn).
-		SetIncludeEdgeAnnotations(true).
-		ComputeCfg()
+	return ComputeControlFlowGraph(r.compiler, fn, false, true)
 }
 
 // GetComputedUses returns may-be-reaching uses of definition of variable `x`

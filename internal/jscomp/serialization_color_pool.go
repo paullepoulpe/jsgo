@@ -558,7 +558,7 @@ func (b *ColorPool_Builder) Build() *ColorPool {
 	shardCount := len(b.shards)
 	var singleShard *ColorPool_ShardView
 	for _, shard := range b.shards {
-		totalTypes += shard.typePool.GetTypeCount()
+		totalTypes += len(shard.typePool.GetTypeList())
 		singleShard = shard
 	}
 	if b.jsTypeShard != nil {

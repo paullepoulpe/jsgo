@@ -55,7 +55,7 @@ func NewInstanceObjectType(builder *InstanceObjectType_Builder) *InstanceObjectT
 	t := &InstanceObjectType{}
 	t.objFlags = objKindInstance
 	t.InitPrototypeObjectTypeBase(t, &builder.PrototypeObjectType_Builder)
-	t.constructor = jutil.CheckNotNull(builder.constructor).GetFunctionTypeBase()
+	t.constructor = jutil.CheckNotNull(builder.constructor)
 
 	t.GetRegistry().GetResolver().ResolveIfClosed(t, InstanceObjectType_TYPE_CLASS)
 	return t
@@ -148,7 +148,7 @@ func (t *InstanceObjectType) GetTypeClass() JSTypeClass {
 
 // Java: ObjectType.hasReferenceName()
 func (t *InstanceObjectType) HasReferenceName() bool {
-	return t.constructor.selfFunc().HasReferenceName()
+	return t.constructor.HasReferenceName()
 }
 
 // Java: InstanceObjectType.getReferenceName()
@@ -163,7 +163,7 @@ func (t *InstanceObjectType) GetImplicitPrototype() ObjectType {
 
 // Java: InstanceObjectType.getConstructor()
 func (t *InstanceObjectType) GetConstructor() FunctionType {
-	return t.constructor.selfFunc()
+	return t.constructor
 }
 
 // Java: InstanceObjectType.defineProperty(Property.Key, JSType, boolean, Node)
@@ -177,7 +177,7 @@ func (t *InstanceObjectType) DefinePropertyByKey(name Property_Key, type_ JSType
 
 // Java: InstanceObjectType.appendTo(TypeStringBuilder)
 func (t *InstanceObjectType) AppendTo(sb *TypeStringBuilder) {
-	ctor := t.constructor.selfFunc()
+	ctor := t.constructor
 	if !ctor.HasReferenceName() {
 		t.PrototypeObjectTypeBase.AppendTo(sb)
 		return
@@ -296,7 +296,7 @@ func (t *InstanceObjectType) ResolveInternal(reporter ErrorReporter) JSType {
 	// reference because to create this InstanceObjectType, we must have the
 	// constructor first. But we do need to call resolve on the constructor to
 	// resolve its fields and implemented/extended interfaces, if any.
-	_ = JSType_SafeResolve(t.constructor.selfFunc(), reporter)
+	_ = JSType_SafeResolve(t.constructor, reporter)
 	return resolved
 }
 

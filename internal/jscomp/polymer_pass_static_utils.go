@@ -426,25 +426,20 @@ func caseFormatLowerHyphenToUpperCamel(s string) string {
 
 var polymerBehaviorSuppressions = [...]string{"checkTypes", "globalThis", "visibility"}
 
-// PolymerPassSuppressBehaviorsAndProtectKeys: for every Polymer Behavior,
+// polymerPassSuppressBehaviorsAndProtectKeys: for every Polymer Behavior,
 // strip property type annotations and add suppress checktypes on functions.
 //
 // Also find listener and hostAttribute keys in the behavior, and mark them as
 // quoted. This protects the keys from being renamed.
 //
 // Java: final class PolymerPassSuppressBehaviorsAndProtectKeys extends ExternsSkippingCallback
-type PolymerPassSuppressBehaviorsAndProtectKeys struct {
+type polymerPassSuppressBehaviorsAndProtectKeys struct {
 	NodeTraversal_ExternsSkippingCallbackBase
 	compiler AbstractCompiler
 }
 
-// Java: PolymerPassSuppressBehaviorsAndProtectKeys(AbstractCompiler)
-func NewPolymerPassSuppressBehaviorsAndProtectKeys(compiler AbstractCompiler) *PolymerPassSuppressBehaviorsAndProtectKeys {
-	return &PolymerPassSuppressBehaviorsAndProtectKeys{compiler: compiler}
-}
-
 // Java: PolymerPassSuppressBehaviorsAndProtectKeys.visit(NodeTraversal, Node, Node)
-func (p *PolymerPassSuppressBehaviorsAndProtectKeys) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
+func (p polymerPassSuppressBehaviorsAndProtectKeys) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	if polymerPassSuppressBehaviorsAndProtectKeys_isBehavior(n) {
 		decl, isDecl := ast.AsNameDeclaration(n)
 		assign, isAssign := ast.AsAssign(n)
@@ -478,7 +473,7 @@ func (p *PolymerPassSuppressBehaviorsAndProtectKeys) Visit(t *NodeTraversal, n r
 // hostAttribute keys, and marks them as quoted.
 //
 // Java: PolymerPassSuppressBehaviorsAndProtectKeys.traverseBehaviorsAndProtectKeys(Node)
-func (p *PolymerPassSuppressBehaviorsAndProtectKeys) traverseBehaviorsAndProtectKeys(n rhino.Node) {
+func (p polymerPassSuppressBehaviorsAndProtectKeys) traverseBehaviorsAndProtectKeys(n rhino.Node) {
 	if n.IsObjectLit() {
 		PolymerPassStaticUtils_QuoteListenerAndHostAttributeKeys(n, p.compiler)
 		PolymerPassStaticUtils_ProtectObserverAndPropertyFunctionKeys(n)
@@ -493,7 +488,7 @@ func (p *PolymerPassSuppressBehaviorsAndProtectKeys) traverseBehaviorsAndProtect
 // functions.
 //
 // Java: PolymerPassSuppressBehaviorsAndProtectKeys.suppressBehavior(Node, Node)
-func (p *PolymerPassSuppressBehaviorsAndProtectKeys) suppressBehavior(behaviorValue rhino.Node, reportNode rhino.Node) {
+func (p polymerPassSuppressBehaviorsAndProtectKeys) suppressBehavior(behaviorValue rhino.Node, reportNode rhino.Node) {
 	if behaviorValue.IsNil() {
 		p.compiler.Report(JSError_MakeWithNode(reportNode, PolymerPassErrors_POLYMER_UNQUALIFIED_BEHAVIOR))
 		return
@@ -518,7 +513,7 @@ func polymerPassSuppressBehaviorsAndProtectKeys_isBehavior(value rhino.Node) boo
 }
 
 // Java: PolymerPassSuppressBehaviorsAndProtectKeys.stripPropertyTypes(Node)
-func (p *PolymerPassSuppressBehaviorsAndProtectKeys) stripPropertyTypes(behaviorValue rhino.Node) {
+func (p polymerPassSuppressBehaviorsAndProtectKeys) stripPropertyTypes(behaviorValue rhino.Node) {
 	properties := PolymerPassStaticUtils_ExtractProperties(
 		behaviorValue,
 		PolymerClassDefinition_DefinitionType_ObjectLiteral,
@@ -530,7 +525,7 @@ func (p *PolymerPassSuppressBehaviorsAndProtectKeys) stripPropertyTypes(behavior
 }
 
 // Java: PolymerPassSuppressBehaviorsAndProtectKeys.suppressDefaultValues(Node)
-func (p *PolymerPassSuppressBehaviorsAndProtectKeys) suppressDefaultValues(behaviorValue rhino.Node) {
+func (p polymerPassSuppressBehaviorsAndProtectKeys) suppressDefaultValues(behaviorValue rhino.Node) {
 	for _, property := range PolymerPassStaticUtils_ExtractProperties(
 		behaviorValue,
 		PolymerClassDefinition_DefinitionType_ObjectLiteral,
@@ -550,7 +545,7 @@ func (p *PolymerPassSuppressBehaviorsAndProtectKeys) suppressDefaultValues(behav
 }
 
 // Java: PolymerPassSuppressBehaviorsAndProtectKeys.addBehaviorSuppressions(Node)
-func (p *PolymerPassSuppressBehaviorsAndProtectKeys) addBehaviorSuppressions(behaviorValue rhino.Node) {
+func (p polymerPassSuppressBehaviorsAndProtectKeys) addBehaviorSuppressions(behaviorValue rhino.Node) {
 	for keyNode := behaviorValue.GetFirstChild(); !keyNode.IsNil(); keyNode = keyNode.GetNext() {
 		if keyNode.GetFirstChild().IsFunction() {
 			p.addSuppressionJsDocAnnotations(keyNode)
@@ -560,7 +555,7 @@ func (p *PolymerPassSuppressBehaviorsAndProtectKeys) addBehaviorSuppressions(beh
 }
 
 // Java: PolymerPassSuppressBehaviorsAndProtectKeys.addSuppressionJsDocAnnotations(Node)
-func (p *PolymerPassSuppressBehaviorsAndProtectKeys) addSuppressionJsDocAnnotations(node rhino.Node) {
+func (p polymerPassSuppressBehaviorsAndProtectKeys) addSuppressionJsDocAnnotations(node rhino.Node) {
 	suppressDoc := rhino.JSDocInfo_Builder_MaybeCopyFrom(node.GetJSDocInfo())
 	suppressDoc.RecordSuppressionsSlice(polymerBehaviorSuppressions[:])
 	node.SetJSDocInfo(suppressDoc.Build())

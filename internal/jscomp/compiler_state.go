@@ -205,7 +205,7 @@ func (c *Compiler) GetCompilerStateProtoBuilder() *JSCompilerStateProto_Builder 
 func (c *Compiler) RestoreFromState(compilerState *JSCompilerStateProto) {
 	c.allowableFeatures = compiler_fromProto(compilerState.GetAllowableFeaturesList())
 	c.typeCheckingHasRun = compilerState.GetTypeCheckingHasRun()
-	c.scriptNodeByFilename.Clear()
+	clear(c.scriptNodeByFilename)
 	c.hasRegExpGlobalReferences = compilerState.GetHasRegExpGlobalReferences()
 
 	for _, library := range compilerState.GetInjectedLibrariesList() {
@@ -300,10 +300,10 @@ func (c *Compiler) SaveState(outputStream io.Writer) {
 		SerializeTypedAstPass_CreateFromOutputStream(
 			c,
 			bufferedCompressionStream,
-			SerializationOptions_Builder_().
-				SetRuntimeLibraries([]string{}).
-				SetIncludeDebugInfo(c.GetOptions().ShouldSerializeExtraDebugInfo()).
-				Build()).
+			&SerializationOptions{
+				includeDebugInfo: c.GetOptions().ShouldSerializeExtraDebugInfo(),
+				runtimeLibraries: emptyRuntimeLibraries,
+			}).
 			Process(c.externsRoot, c.jsRoot)
 		c.StopTracer(tracer, "serializeTypedAst")
 		// Close the buffered stream to flush uncompressed bytes and close the compressor
@@ -392,7 +392,7 @@ func (c *Compiler) deserializeCompilerState(inputStream io.Reader) {
 	}
 	for i := 0; i < len(chunks); i++ {
 		chunk := chunks[i]
-		chunkProto := stateProto.GetChunks(i)
+		chunkProto := chunkProtos[i]
 		for _, depIdx := range chunkProto.GetDependenciesList() {
 			chunk.AddDependency(chunks[depIdx])
 		}
@@ -433,7 +433,7 @@ func (c *Compiler) deserializeCompilerState(inputStream io.Reader) {
 
 		c.externsRoot.AddChildToBack(script)
 		c.putCompilerInput(input)
-		c.scriptNodeByFilename.Put(externFile.GetName(), script)
+		c.scriptNodeByFilename[externFile.GetName()] = script
 		c.externs = append(c.externs, input)
 	}
 	c.typedAstFilesystem.Remove(c.SYNTHETIC_EXTERNS_FILE)
@@ -449,7 +449,7 @@ func (c *Compiler) deserializeCompilerState(inputStream io.Reader) {
 	var prebuildInputs []*CompilerInput
 	parallelRestore := c.options != nil && c.options.GetNumParallelThreads() > 1
 	for i := 0; i < len(chunks); i++ {
-		chunkProto := stateProto.GetChunks(i)
+		chunkProto := chunkProtos[i]
 		for _, inputId := range chunkProto.GetInputIdsList() {
 			src := codeFiles[inputId]
 			if src == nil {
@@ -467,7 +467,7 @@ func (c *Compiler) deserializeCompilerState(inputStream io.Reader) {
 				script := input.GetAstRoot(c) // accesses this.typedAstFilesystem
 
 				c.jsRoot.AddChildToBack(script)
-				c.scriptNodeByFilename.Put(src.GetName(), script)
+				c.scriptNodeByFilename[src.GetName()] = script
 
 				c.putCompilerInput(input) // overwrite the old input
 				chunks[i].Add(input)
@@ -482,7 +482,7 @@ func (c *Compiler) deserializeCompilerState(inputStream io.Reader) {
 			script := item.input.GetAstRoot(c)
 
 			c.jsRoot.AddChildToBack(script)
-			c.scriptNodeByFilename.Put(item.src.GetName(), script)
+			c.scriptNodeByFilename[item.src.GetName()] = script
 
 			c.putCompilerInput(item.input) // overwrite the old input
 			chunks[item.chunkIdx].Add(item.input)
@@ -642,7 +642,7 @@ func (s *compiler_bufferedInputStream) Close() {
 // Java: Compiler.getModuleTypeByName(String)
 func (c *Compiler) GetModuleTypeByName(moduleName string) *CompilerInput_ModuleType {
 	// Map.get: null when absent.
-	if moduleType, ok := c.moduleTypesByName.Lookup(moduleName); ok {
+	if moduleType, ok := c.moduleTypesByName[moduleName]; ok {
 		return &moduleType
 	}
 	return nil

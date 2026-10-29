@@ -8,8 +8,6 @@ package jscomp
 
 import "github.com/paullepoulpe/jsgo/internal/jutil"
 
-var _ = jutil.CheckNotNull[any]
-
 // SourceFilePool is the protobuf message jscomp.SourceFilePool.
 //
 // Java: com.google.javascript.jscomp.serialization.SourceFilePool
@@ -19,11 +17,6 @@ type SourceFilePool struct {
 	cachedSize    int
 }
 
-// Field numbers (SourceFilePool.X_FIELD_NUMBER).
-const (
-	SourceFilePool_SOURCE_FILE_FIELD_NUMBER = 1
-)
-
 var sourceFilePool_DEFAULT_INSTANCE = &SourceFilePool{cachedSize: 1}
 
 // Java: SourceFilePool.getDefaultInstance()
@@ -31,12 +24,6 @@ func SourceFilePool_GetDefaultInstance() *SourceFilePool { return sourceFilePool
 
 // Java: SourceFilePool.getSourceFileList()
 func (m *SourceFilePool) GetSourceFileList() []*SourceFileProto { return m.sourceFile_ }
-
-// Java: SourceFilePool.getSourceFile(int)
-func (m *SourceFilePool) GetSourceFile(index int) *SourceFileProto {
-	protoCheckIndexJDK(index, len(m.sourceFile_))
-	return m.sourceFile_[index]
-}
 
 // appendTo is SourceFilePool.writeTo(CodedOutputStream): fields in number order, then unknown fields.
 func (m *SourceFilePool) appendTo(b []byte) []byte {
@@ -68,9 +55,6 @@ func (m *SourceFilePool) serializedSize() int {
 	return size
 }
 
-// Java: SourceFilePool.toByteArray()
-func (m *SourceFilePool) ToByteArray() []byte { return m.appendTo(make([]byte, 0, m.serializedSize())) }
-
 // mergeFromReader is SourceFilePool.Builder.mergeFrom(CodedInputStream) on a mutable m.
 func (m *SourceFilePool) mergeFromReader(r *protoReader) {
 	for {
@@ -81,8 +65,9 @@ func (m *SourceFilePool) mergeFromReader(r *protoReader) {
 			return
 		case 10:
 			data := r.readMessageBytes()
-			x := &SourceFileProto{memoizedSize: -1}
-			x.mergeFromReader(r.sub(data))
+			x := &SourceFileProto{}
+			sub := r.sub(data)
+			x.mergeFromReader(&sub)
 			m.sourceFile_ = append(m.sourceFile_, x)
 		default:
 			r.skipField(tag)
@@ -98,13 +83,6 @@ func (m *SourceFilePool) printText(p *protoTextPrinter) {
 	p.unknownFields(m.unknownFields)
 }
 
-// String is SourceFilePool.toString() (protobuf text format).
-func (m *SourceFilePool) String() string {
-	p := &protoTextPrinter{}
-	m.printText(p)
-	return p.sb.String()
-}
-
 // SourceFileProto_SourceKind is the protobuf enum jscomp.SourceFileProto.SourceKind.
 type SourceFileProto_SourceKind int32
 
@@ -115,13 +93,6 @@ const (
 	SourceFileProto_SourceKind_UNRECOGNIZED
 )
 
-// The proto numbers (SourceKind.X_VALUE).
-const (
-	SourceFileProto_SourceKind_NOT_SPECIFIED_VALUE int32 = 0
-	SourceFileProto_SourceKind_EXTERN_VALUE        int32 = 1
-	SourceFileProto_SourceKind_CODE_VALUE          int32 = 2
-)
-
 var sourceFileProto_SourceKind_names = [...]string{
 	"NOT_SPECIFIED",
 	"EXTERN",
@@ -129,49 +100,36 @@ var sourceFileProto_SourceKind_names = [...]string{
 	"UNRECOGNIZED",
 }
 
-var sourceFileProto_SourceKind_numbers = [...]int32{
-	0,
-	1,
-	2,
-	-1,
-}
-
 // String is Enum.name().
 func (e SourceFileProto_SourceKind) String() string { return sourceFileProto_SourceKind_names[e] }
-
-// Ordinal is Enum.ordinal().
-func (e SourceFileProto_SourceKind) Ordinal() int { return int(e) }
 
 // Java: SourceKind.getNumber()
 func (e SourceFileProto_SourceKind) GetNumber() int32 {
 	if e == SourceFileProto_SourceKind_UNRECOGNIZED {
 		panic(jutil.NewIllegalArgumentExceptionMsg("Can't get the number of an unknown enum value."))
 	}
-	return sourceFileProto_SourceKind_numbers[e]
+	return int32(e)
 }
 
-// SourceFileProto_SourceKind_ForNumber returns the constant with the given number, or nil.
+// SourceFileProto_SourceKind_ForNumber returns the constant with the given number, if valid.
 //
 // Java: SourceKind.forNumber(int)
-func SourceFileProto_SourceKind_ForNumber(value int32) *SourceFileProto_SourceKind {
-	for i, n := range sourceFileProto_SourceKind_numbers {
-		if n == value && SourceFileProto_SourceKind(i) != SourceFileProto_SourceKind_UNRECOGNIZED {
-			e := SourceFileProto_SourceKind(i)
-			return &e
-		}
+func SourceFileProto_SourceKind_ForNumber(value int32) (SourceFileProto_SourceKind, bool) {
+	if uint32(value) < 3 {
+		return SourceFileProto_SourceKind(value), true
 	}
-	return nil
+	return 0, false
 }
 
 func sourceFileProto_SourceKind_fromNumber(value int32) SourceFileProto_SourceKind {
-	if e := SourceFileProto_SourceKind_ForNumber(value); e != nil {
-		return *e
+	if uint32(value) < 3 {
+		return SourceFileProto_SourceKind(value)
 	}
 	return SourceFileProto_SourceKind_UNRECOGNIZED
 }
 
 func sourceFileProto_SourceKind_text(value int32) string {
-	if e := SourceFileProto_SourceKind_ForNumber(value); e != nil {
+	if e, ok := SourceFileProto_SourceKind_ForNumber(value); ok {
 		return e.String()
 	}
 	return protoTextInt32(value)
@@ -188,39 +146,6 @@ const (
 	SourceFileProto_LoaderCase_LOADER_NOT_SET
 )
 
-var sourceFileProto_LoaderCase_numbers = [...]int32{
-	2,
-	3,
-	4,
-	9,
-	0,
-}
-
-var sourceFileProto_LoaderCase_names = [...]string{
-	"PRELOADED_CONTENTS",
-	"FILE_ON_DISK",
-	"ZIP_ENTRY",
-	"STUB_FILE",
-	"LOADER_NOT_SET",
-}
-
-// String is Enum.name().
-func (c SourceFileProto_LoaderCase) String() string { return sourceFileProto_LoaderCase_names[c] }
-
-// Java: LoaderCase.getNumber()
-func (c SourceFileProto_LoaderCase) GetNumber() int32 { return sourceFileProto_LoaderCase_numbers[c] }
-
-// SourceFileProto_LoaderCase_ForNumber is LoaderCase.forNumber(int); nil if unknown.
-func SourceFileProto_LoaderCase_ForNumber(value int32) *SourceFileProto_LoaderCase {
-	for i, n := range sourceFileProto_LoaderCase_numbers {
-		if n == value {
-			c := SourceFileProto_LoaderCase(i)
-			return &c
-		}
-	}
-	return nil
-}
-
 // SourceFileProto is the protobuf message jscomp.SourceFileProto.
 //
 // Java: com.google.javascript.jscomp.serialization.SourceFileProto
@@ -236,35 +161,21 @@ type SourceFileProto struct {
 	numLinesPlusOne_      int32
 	loaderCase_           int32
 	unknownFields         []byte
-	frozen                bool
-	memoizedSize          int
+	cachedSize            int
 }
 
-// Field numbers (SourceFileProto.X_FIELD_NUMBER).
-const (
-	SourceFileProto_FILENAME_FIELD_NUMBER                = 1
-	SourceFileProto_PRELOADED_CONTENTS_FIELD_NUMBER      = 2
-	SourceFileProto_FILE_ON_DISK_FIELD_NUMBER            = 3
-	SourceFileProto_ZIP_ENTRY_FIELD_NUMBER               = 4
-	SourceFileProto_STUB_FILE_FIELD_NUMBER               = 9
-	SourceFileProto_SOURCE_KIND_FIELD_NUMBER             = 5
-	SourceFileProto_IS_CLOSURE_UNAWARE_CODE_FIELD_NUMBER = 8
-	SourceFileProto_NUM_BYTES_PLUS_ONE_FIELD_NUMBER      = 6
-	SourceFileProto_NUM_LINES_PLUS_ONE_FIELD_NUMBER      = 7
-)
-
 // Java: SourceFileProto.newBuilder()
-func SourceFileProto_NewBuilder() *SourceFileProto_Builder {
-	return &SourceFileProto_Builder{m: &SourceFileProto{memoizedSize: -1}}
+func SourceFileProto_NewBuilder() *SourceFileProto {
+	return &SourceFileProto{}
 }
 
 // SourceFileProto_ParseFrom panics with *InvalidProtocolBufferException on malformed input.
 //
 // Java: SourceFileProto.parseFrom(byte[])
 func SourceFileProto_ParseFrom(data []byte) *SourceFileProto {
-	m := &SourceFileProto{memoizedSize: -1}
-	m.mergeFromReader(&protoReader{b: data})
-	m.frozen = true
+	m := &SourceFileProto{}
+	r := protoReader{b: data}
+	m.mergeFromReader(&r)
 	return m
 }
 
@@ -275,11 +186,10 @@ func (m *SourceFileProto) GetFilename() string {
 
 // Java: SourceFileProto.getPreloadedContents()
 func (m *SourceFileProto) GetPreloadedContents() string {
-	var v string = ""
 	if m.loaderCase_ == 2 {
-		v = m.preloadedContents_
+		return m.preloadedContents_
 	}
-	return v
+	return ""
 }
 
 // Java: SourceFileProto.getFileOnDisk()
@@ -320,153 +230,77 @@ func (m *SourceFileProto) GetNumLinesPlusOne() int32 {
 
 // Java: SourceFileProto.getLoaderCase()
 func (m *SourceFileProto) GetLoaderCase() SourceFileProto_LoaderCase {
-	if c := SourceFileProto_LoaderCase_ForNumber(m.loaderCase_); c != nil {
-		return *c
+	switch m.loaderCase_ {
+	case 2:
+		return SourceFileProto_LoaderCase_PRELOADED_CONTENTS
+	case 3:
+		return SourceFileProto_LoaderCase_FILE_ON_DISK
+	case 4:
+		return SourceFileProto_LoaderCase_ZIP_ENTRY
+	case 9:
+		return SourceFileProto_LoaderCase_STUB_FILE
+	default:
+		return SourceFileProto_LoaderCase_LOADER_NOT_SET
 	}
-	return SourceFileProto_LoaderCase_LOADER_NOT_SET
 }
-
-// SourceFileProto_Builder is SourceFileProto.Builder.
-type SourceFileProto_Builder struct{ m *SourceFileProto }
 
 // Java: SourceFileProto.Builder.build()
-func (b *SourceFileProto_Builder) Build() *SourceFileProto {
-	c := *b.m
-	c.frozen = true
-	c.memoizedSize = -1
-	return &c
+func (m *SourceFileProto) Build() *SourceFileProto {
+	m.cachedSize = 0
+	return m
 }
-
-// Java: SourceFileProto.Builder.buildPartial()
-func (b *SourceFileProto_Builder) BuildPartial() *SourceFileProto {
-	c := *b.m
-	c.frozen = true
-	c.memoizedSize = -1
-	return &c
-}
-
-// Java: SourceFileProto.Builder.clear()
-func (b *SourceFileProto_Builder) Clear() *SourceFileProto_Builder {
-	b.m = &SourceFileProto{memoizedSize: -1}
-	return b
-}
-
-// Java: SourceFileProto.Builder.getFilename()
-func (b *SourceFileProto_Builder) GetFilename() string { return b.m.GetFilename() }
 
 // Java: SourceFileProto.Builder.setFilename(String)
-func (b *SourceFileProto_Builder) SetFilename(v string) *SourceFileProto_Builder {
-	b.m.filename_ = v
-	return b
+func (m *SourceFileProto) SetFilename(v string) *SourceFileProto {
+	m.filename_ = v
+	return m
 }
-
-// Java: SourceFileProto.Builder.getPreloadedContents()
-func (b *SourceFileProto_Builder) GetPreloadedContents() string { return b.m.GetPreloadedContents() }
 
 // Java: SourceFileProto.Builder.setPreloadedContents(String)
-func (b *SourceFileProto_Builder) SetPreloadedContents(v string) *SourceFileProto_Builder {
-	b.m.preloadedContents_ = v
-	b.m.fileOnDisk_ = nil
-	b.m.zipEntry_ = nil
-	b.m.stubFile_ = false
-	b.m.loaderCase_ = 2
-	return b
-}
-
-// Java: SourceFileProto.Builder.getFileOnDisk()
-func (b *SourceFileProto_Builder) GetFileOnDisk() *SourceFileProto_FileOnDisk {
-	return b.m.GetFileOnDisk()
+func (m *SourceFileProto) SetPreloadedContents(v string) *SourceFileProto {
+	m.preloadedContents_ = v
+	m.fileOnDisk_ = nil
+	m.zipEntry_ = nil
+	m.stubFile_ = false
+	m.loaderCase_ = 2
+	return m
 }
 
 // Java: SourceFileProto.Builder.setFileOnDisk(SourceFileProto_FileOnDisk)
-func (b *SourceFileProto_Builder) SetFileOnDisk(v *SourceFileProto_FileOnDisk) *SourceFileProto_Builder {
+func (m *SourceFileProto) SetFileOnDisk(v *SourceFileProto_FileOnDisk) *SourceFileProto {
 	if v == nil {
 		panic(jutil.NewNullPointerException())
 	}
-	b.m.fileOnDisk_ = v
-	b.m.preloadedContents_ = ""
-	b.m.zipEntry_ = nil
-	b.m.stubFile_ = false
-	b.m.loaderCase_ = 3
-	return b
-}
-
-// Java: SourceFileProto.Builder.setFileOnDisk(SourceFileProto_FileOnDisk.Builder)
-func (b *SourceFileProto_Builder) SetFileOnDiskFromBuilder(builderForValue *SourceFileProto_FileOnDisk_Builder) *SourceFileProto_Builder {
-	return b.SetFileOnDisk(builderForValue.Build())
-}
-
-// Java: SourceFileProto.Builder.getZipEntry()
-func (b *SourceFileProto_Builder) GetZipEntry() *SourceFileProto_ZipEntryOnDisk {
-	return b.m.GetZipEntry()
-}
-
-// Java: SourceFileProto.Builder.setZipEntry(SourceFileProto_ZipEntryOnDisk)
-func (b *SourceFileProto_Builder) SetZipEntry(v *SourceFileProto_ZipEntryOnDisk) *SourceFileProto_Builder {
-	if v == nil {
-		panic(jutil.NewNullPointerException())
-	}
-	b.m.zipEntry_ = v
-	b.m.preloadedContents_ = ""
-	b.m.fileOnDisk_ = nil
-	b.m.stubFile_ = false
-	b.m.loaderCase_ = 4
-	return b
-}
-
-// Java: SourceFileProto.Builder.setStubFile(boolean)
-func (b *SourceFileProto_Builder) SetStubFile(v bool) *SourceFileProto_Builder {
-	b.m.stubFile_ = v
-	b.m.preloadedContents_ = ""
-	b.m.fileOnDisk_ = nil
-	b.m.zipEntry_ = nil
-	b.m.loaderCase_ = 9
-	return b
-}
-
-// Java: SourceFileProto.Builder.getSourceKind()
-func (b *SourceFileProto_Builder) GetSourceKind() SourceFileProto_SourceKind {
-	return b.m.GetSourceKind()
+	m.fileOnDisk_ = v
+	m.preloadedContents_ = ""
+	m.zipEntry_ = nil
+	m.stubFile_ = false
+	m.loaderCase_ = 3
+	return m
 }
 
 // Java: SourceFileProto.Builder.setSourceKind(SourceKind)
-func (b *SourceFileProto_Builder) SetSourceKind(v SourceFileProto_SourceKind) *SourceFileProto_Builder {
-	b.m.sourceKind_ = v.GetNumber()
-	return b
-}
-
-// Java: SourceFileProto.Builder.getIsClosureUnawareCode()
-func (b *SourceFileProto_Builder) GetIsClosureUnawareCode() bool {
-	return b.m.GetIsClosureUnawareCode()
+func (m *SourceFileProto) SetSourceKind(v SourceFileProto_SourceKind) *SourceFileProto {
+	m.sourceKind_ = v.GetNumber()
+	return m
 }
 
 // Java: SourceFileProto.Builder.setIsClosureUnawareCode(boolean)
-func (b *SourceFileProto_Builder) SetIsClosureUnawareCode(v bool) *SourceFileProto_Builder {
-	b.m.isClosureUnawareCode_ = v
-	return b
+func (m *SourceFileProto) SetIsClosureUnawareCode(v bool) *SourceFileProto {
+	m.isClosureUnawareCode_ = v
+	return m
 }
-
-// Java: SourceFileProto.Builder.getNumBytesPlusOne()
-func (b *SourceFileProto_Builder) GetNumBytesPlusOne() int32 { return b.m.GetNumBytesPlusOne() }
 
 // Java: SourceFileProto.Builder.setNumBytesPlusOne(int)
-func (b *SourceFileProto_Builder) SetNumBytesPlusOne(v int32) *SourceFileProto_Builder {
-	b.m.numBytesPlusOne_ = v
-	return b
+func (m *SourceFileProto) SetNumBytesPlusOne(v int32) *SourceFileProto {
+	m.numBytesPlusOne_ = v
+	return m
 }
-
-// Java: SourceFileProto.Builder.getNumLinesPlusOne()
-func (b *SourceFileProto_Builder) GetNumLinesPlusOne() int32 { return b.m.GetNumLinesPlusOne() }
 
 // Java: SourceFileProto.Builder.setNumLinesPlusOne(int)
-func (b *SourceFileProto_Builder) SetNumLinesPlusOne(v int32) *SourceFileProto_Builder {
-	b.m.numLinesPlusOne_ = v
-	return b
-}
-
-// Java: SourceFileProto.Builder.getLoaderCase()
-func (b *SourceFileProto_Builder) GetLoaderCase() SourceFileProto_LoaderCase {
-	return b.m.GetLoaderCase()
+func (m *SourceFileProto) SetNumLinesPlusOne(v int32) *SourceFileProto {
+	m.numLinesPlusOne_ = v
+	return m
 }
 
 // Java: SourceFileProto.equals(Object)
@@ -478,39 +312,29 @@ func (m *SourceFileProto) Equals(obj any) bool {
 	if m == other {
 		return true
 	}
-	if !(m.filename_ == other.filename_) {
-		return false
-	}
-	if !(m.sourceKind_ == other.sourceKind_) {
-		return false
-	}
-	if !(m.isClosureUnawareCode_ == other.isClosureUnawareCode_) {
-		return false
-	}
-	if !(m.numBytesPlusOne_ == other.numBytesPlusOne_) {
-		return false
-	}
-	if !(m.numLinesPlusOne_ == other.numLinesPlusOne_) {
-		return false
-	}
-	if m.loaderCase_ != other.loaderCase_ {
+	if m.filename_ != other.filename_ ||
+		m.sourceKind_ != other.sourceKind_ ||
+		m.isClosureUnawareCode_ != other.isClosureUnawareCode_ ||
+		m.numBytesPlusOne_ != other.numBytesPlusOne_ ||
+		m.numLinesPlusOne_ != other.numLinesPlusOne_ ||
+		m.loaderCase_ != other.loaderCase_ {
 		return false
 	}
 	switch m.loaderCase_ {
 	case 2:
-		if !(m.preloadedContents_ == other.preloadedContents_) {
+		if m.preloadedContents_ != other.preloadedContents_ {
 			return false
 		}
 	case 3:
-		if !(m.fileOnDisk_.Equals(other.fileOnDisk_)) {
+		if !m.fileOnDisk_.Equals(other.fileOnDisk_) {
 			return false
 		}
 	case 4:
-		if !(m.zipEntry_.Equals(other.zipEntry_)) {
+		if !m.zipEntry_.Equals(other.zipEntry_) {
 			return false
 		}
 	case 9:
-		if !(m.stubFile_ == other.stubFile_) {
+		if m.stubFile_ != other.stubFile_ {
 			return false
 		}
 	}
@@ -565,8 +389,8 @@ func (m *SourceFileProto) appendTo(b []byte) []byte {
 
 // serializedSize is getSerializedSize() (memoized once immutable).
 func (m *SourceFileProto) serializedSize() int {
-	if m.frozen && m.memoizedSize >= 0 {
-		return m.memoizedSize
+	if m.cachedSize > 0 {
+		return m.cachedSize - 1
 	}
 	size := 0
 	if m.loaderCase_ == 3 {
@@ -601,9 +425,7 @@ func (m *SourceFileProto) serializedSize() int {
 	if len(m.unknownFields) > 0 {
 		size += len(protoCanonicalUnknownFields(m.unknownFields))
 	}
-	if m.frozen {
-		m.memoizedSize = size
-	}
+	m.cachedSize = size + 1
 	return size
 }
 
@@ -629,14 +451,13 @@ func (m *SourceFileProto) mergeFromReader(r *protoReader) {
 			data := r.readMessageBytes()
 			var x *SourceFileProto_FileOnDisk
 			if m.loaderCase_ == 3 && m.fileOnDisk_ != nil {
-				cp := *m.fileOnDisk_
-				cp.memoizedSize = -1
-				x = &cp
+				x = m.fileOnDisk_
+				x.cachedSize = 0
 			} else {
-				x = &SourceFileProto_FileOnDisk{memoizedSize: -1}
+				x = &SourceFileProto_FileOnDisk{}
 			}
-			x.mergeFromReader(r.sub(data))
-			x.frozen = true
+			sub := r.sub(data)
+			x.mergeFromReader(&sub)
 			m.fileOnDisk_ = x
 			m.loaderCase_ = 3
 		case 34:
@@ -648,7 +469,8 @@ func (m *SourceFileProto) mergeFromReader(r *protoReader) {
 			} else {
 				x = &SourceFileProto_ZipEntryOnDisk{}
 			}
-			x.mergeFromReader(r.sub(data))
+			sub := r.sub(data)
+			x.mergeFromReader(&sub)
 			m.zipEntry_ = x
 			m.loaderCase_ = 4
 		case 40:
@@ -714,26 +536,14 @@ type SourceFileProto_FileOnDisk struct {
 	actualPath_   string
 	charset_      string
 	unknownFields []byte
-	frozen        bool
-	memoizedSize  int
+	cachedSize    int
 }
 
-// Field numbers (SourceFileProto.FileOnDisk.X_FIELD_NUMBER).
-const (
-	SourceFileProto_FileOnDisk_ACTUAL_PATH_FIELD_NUMBER = 1
-	SourceFileProto_FileOnDisk_CHARSET_FIELD_NUMBER     = 2
-)
-
-var sourceFileProto_FileOnDisk_DEFAULT_INSTANCE = &SourceFileProto_FileOnDisk{frozen: true, memoizedSize: 0}
+var sourceFileProto_FileOnDisk_DEFAULT_INSTANCE = &SourceFileProto_FileOnDisk{cachedSize: 1}
 
 // Java: SourceFileProto.FileOnDisk.getDefaultInstance()
 func SourceFileProto_FileOnDisk_GetDefaultInstance() *SourceFileProto_FileOnDisk {
 	return sourceFileProto_FileOnDisk_DEFAULT_INSTANCE
-}
-
-// Java: SourceFileProto_FileOnDisk.newBuilder()
-func SourceFileProto_FileOnDisk_NewBuilder() *SourceFileProto_FileOnDisk_Builder {
-	return &SourceFileProto_FileOnDisk_Builder{m: &SourceFileProto_FileOnDisk{memoizedSize: -1}}
 }
 
 // Java: SourceFileProto.FileOnDisk.getActualPath()
@@ -746,49 +556,6 @@ func (m *SourceFileProto_FileOnDisk) GetCharset() string {
 	return m.charset_
 }
 
-// SourceFileProto_FileOnDisk_Builder is SourceFileProto.FileOnDisk.Builder.
-type SourceFileProto_FileOnDisk_Builder struct{ m *SourceFileProto_FileOnDisk }
-
-// Java: SourceFileProto_FileOnDisk.Builder.build()
-func (b *SourceFileProto_FileOnDisk_Builder) Build() *SourceFileProto_FileOnDisk {
-	c := *b.m
-	c.frozen = true
-	c.memoizedSize = -1
-	return &c
-}
-
-// Java: SourceFileProto_FileOnDisk.Builder.buildPartial()
-func (b *SourceFileProto_FileOnDisk_Builder) BuildPartial() *SourceFileProto_FileOnDisk {
-	c := *b.m
-	c.frozen = true
-	c.memoizedSize = -1
-	return &c
-}
-
-// Java: SourceFileProto_FileOnDisk.Builder.clear()
-func (b *SourceFileProto_FileOnDisk_Builder) Clear() *SourceFileProto_FileOnDisk_Builder {
-	b.m = &SourceFileProto_FileOnDisk{memoizedSize: -1}
-	return b
-}
-
-// Java: SourceFileProto.FileOnDisk.Builder.getActualPath()
-func (b *SourceFileProto_FileOnDisk_Builder) GetActualPath() string { return b.m.GetActualPath() }
-
-// Java: SourceFileProto.FileOnDisk.Builder.setActualPath(String)
-func (b *SourceFileProto_FileOnDisk_Builder) SetActualPath(v string) *SourceFileProto_FileOnDisk_Builder {
-	b.m.actualPath_ = v
-	return b
-}
-
-// Java: SourceFileProto.FileOnDisk.Builder.getCharset()
-func (b *SourceFileProto_FileOnDisk_Builder) GetCharset() string { return b.m.GetCharset() }
-
-// Java: SourceFileProto.FileOnDisk.Builder.setCharset(String)
-func (b *SourceFileProto_FileOnDisk_Builder) SetCharset(v string) *SourceFileProto_FileOnDisk_Builder {
-	b.m.charset_ = v
-	return b
-}
-
 // Java: FileOnDisk.equals(Object)
 func (m *SourceFileProto_FileOnDisk) Equals(obj any) bool {
 	other, ok := obj.(*SourceFileProto_FileOnDisk)
@@ -798,13 +565,9 @@ func (m *SourceFileProto_FileOnDisk) Equals(obj any) bool {
 	if m == other {
 		return true
 	}
-	if !(m.actualPath_ == other.actualPath_) {
-		return false
-	}
-	if !(m.charset_ == other.charset_) {
-		return false
-	}
-	return protoBytesEqual(protoCanonicalUnknownFields(m.unknownFields), protoCanonicalUnknownFields(other.unknownFields))
+	return m.actualPath_ == other.actualPath_ &&
+		m.charset_ == other.charset_ &&
+		protoBytesEqual(protoCanonicalUnknownFields(m.unknownFields), protoCanonicalUnknownFields(other.unknownFields))
 }
 
 // appendTo is FileOnDisk.writeTo(CodedOutputStream): fields in number order, then unknown fields.
@@ -825,8 +588,8 @@ func (m *SourceFileProto_FileOnDisk) appendTo(b []byte) []byte {
 
 // serializedSize is getSerializedSize() (memoized once immutable).
 func (m *SourceFileProto_FileOnDisk) serializedSize() int {
-	if m.frozen && m.memoizedSize >= 0 {
-		return m.memoizedSize
+	if m.cachedSize > 0 {
+		return m.cachedSize - 1
 	}
 	size := 0
 	if m.actualPath_ != "" {
@@ -838,15 +601,8 @@ func (m *SourceFileProto_FileOnDisk) serializedSize() int {
 	if len(m.unknownFields) > 0 {
 		size += len(protoCanonicalUnknownFields(m.unknownFields))
 	}
-	if m.frozen {
-		m.memoizedSize = size
-	}
+	m.cachedSize = size + 1
 	return size
-}
-
-// Java: FileOnDisk.toByteArray()
-func (m *SourceFileProto_FileOnDisk) ToByteArray() []byte {
-	return m.appendTo(make([]byte, 0, m.serializedSize()))
 }
 
 // mergeFromReader is FileOnDisk.Builder.mergeFrom(CodedInputStream) on a mutable m.
@@ -878,13 +634,6 @@ func (m *SourceFileProto_FileOnDisk) printText(p *protoTextPrinter) {
 	p.unknownFields(m.unknownFields)
 }
 
-// String is FileOnDisk.toString() (protobuf text format).
-func (m *SourceFileProto_FileOnDisk) String() string {
-	p := &protoTextPrinter{}
-	m.printText(p)
-	return p.sb.String()
-}
-
 // SourceFileProto_ZipEntryOnDisk is the protobuf message jscomp.SourceFileProto.ZipEntryOnDisk.
 //
 // Java: com.google.javascript.jscomp.serialization.SourceFileProto.ZipEntryOnDisk
@@ -896,23 +645,11 @@ type SourceFileProto_ZipEntryOnDisk struct {
 	cachedSize    int
 }
 
-// Field numbers (SourceFileProto.ZipEntryOnDisk.X_FIELD_NUMBER).
-const (
-	SourceFileProto_ZipEntryOnDisk_ZIP_PATH_FIELD_NUMBER   = 1
-	SourceFileProto_ZipEntryOnDisk_ENTRY_NAME_FIELD_NUMBER = 2
-	SourceFileProto_ZipEntryOnDisk_CHARSET_FIELD_NUMBER    = 3
-)
-
 var sourceFileProto_ZipEntryOnDisk_DEFAULT_INSTANCE = &SourceFileProto_ZipEntryOnDisk{cachedSize: 1}
 
 // Java: SourceFileProto.ZipEntryOnDisk.getDefaultInstance()
 func SourceFileProto_ZipEntryOnDisk_GetDefaultInstance() *SourceFileProto_ZipEntryOnDisk {
 	return sourceFileProto_ZipEntryOnDisk_DEFAULT_INSTANCE
-}
-
-// Java: SourceFileProto_ZipEntryOnDisk.newBuilder()
-func SourceFileProto_ZipEntryOnDisk_NewBuilder() *SourceFileProto_ZipEntryOnDisk_Builder {
-	return &SourceFileProto_ZipEntryOnDisk_Builder{m: &SourceFileProto_ZipEntryOnDisk{}}
 }
 
 // Java: SourceFileProto.ZipEntryOnDisk.getZipPath()
@@ -930,58 +667,6 @@ func (m *SourceFileProto_ZipEntryOnDisk) GetCharset() string {
 	return m.charset_
 }
 
-// SourceFileProto_ZipEntryOnDisk_Builder is SourceFileProto.ZipEntryOnDisk.Builder.
-type SourceFileProto_ZipEntryOnDisk_Builder struct {
-	m *SourceFileProto_ZipEntryOnDisk
-}
-
-// Java: SourceFileProto_ZipEntryOnDisk.Builder.build()
-func (b *SourceFileProto_ZipEntryOnDisk_Builder) Build() *SourceFileProto_ZipEntryOnDisk {
-	c := *b.m
-	c.cachedSize = 0
-	return &c
-}
-
-// Java: SourceFileProto_ZipEntryOnDisk.Builder.buildPartial()
-func (b *SourceFileProto_ZipEntryOnDisk_Builder) BuildPartial() *SourceFileProto_ZipEntryOnDisk {
-	c := *b.m
-	c.cachedSize = 0
-	return &c
-}
-
-// Java: SourceFileProto_ZipEntryOnDisk.Builder.clear()
-func (b *SourceFileProto_ZipEntryOnDisk_Builder) Clear() *SourceFileProto_ZipEntryOnDisk_Builder {
-	b.m = &SourceFileProto_ZipEntryOnDisk{}
-	return b
-}
-
-// Java: SourceFileProto.ZipEntryOnDisk.Builder.getZipPath()
-func (b *SourceFileProto_ZipEntryOnDisk_Builder) GetZipPath() string { return b.m.GetZipPath() }
-
-// Java: SourceFileProto.ZipEntryOnDisk.Builder.setZipPath(String)
-func (b *SourceFileProto_ZipEntryOnDisk_Builder) SetZipPath(v string) *SourceFileProto_ZipEntryOnDisk_Builder {
-	b.m.zipPath_ = v
-	return b
-}
-
-// Java: SourceFileProto.ZipEntryOnDisk.Builder.getEntryName()
-func (b *SourceFileProto_ZipEntryOnDisk_Builder) GetEntryName() string { return b.m.GetEntryName() }
-
-// Java: SourceFileProto.ZipEntryOnDisk.Builder.setEntryName(String)
-func (b *SourceFileProto_ZipEntryOnDisk_Builder) SetEntryName(v string) *SourceFileProto_ZipEntryOnDisk_Builder {
-	b.m.entryName_ = v
-	return b
-}
-
-// Java: SourceFileProto.ZipEntryOnDisk.Builder.getCharset()
-func (b *SourceFileProto_ZipEntryOnDisk_Builder) GetCharset() string { return b.m.GetCharset() }
-
-// Java: SourceFileProto.ZipEntryOnDisk.Builder.setCharset(String)
-func (b *SourceFileProto_ZipEntryOnDisk_Builder) SetCharset(v string) *SourceFileProto_ZipEntryOnDisk_Builder {
-	b.m.charset_ = v
-	return b
-}
-
 // Java: ZipEntryOnDisk.equals(Object)
 func (m *SourceFileProto_ZipEntryOnDisk) Equals(obj any) bool {
 	other, ok := obj.(*SourceFileProto_ZipEntryOnDisk)
@@ -991,16 +676,10 @@ func (m *SourceFileProto_ZipEntryOnDisk) Equals(obj any) bool {
 	if m == other {
 		return true
 	}
-	if !(m.zipPath_ == other.zipPath_) {
-		return false
-	}
-	if !(m.entryName_ == other.entryName_) {
-		return false
-	}
-	if !(m.charset_ == other.charset_) {
-		return false
-	}
-	return protoBytesEqual(protoCanonicalUnknownFields(m.unknownFields), protoCanonicalUnknownFields(other.unknownFields))
+	return m.zipPath_ == other.zipPath_ &&
+		m.entryName_ == other.entryName_ &&
+		m.charset_ == other.charset_ &&
+		protoBytesEqual(protoCanonicalUnknownFields(m.unknownFields), protoCanonicalUnknownFields(other.unknownFields))
 }
 
 // appendTo is ZipEntryOnDisk.writeTo(CodedOutputStream): fields in number order, then unknown fields.
@@ -1045,11 +724,6 @@ func (m *SourceFileProto_ZipEntryOnDisk) serializedSize() int {
 	return size
 }
 
-// Java: ZipEntryOnDisk.toByteArray()
-func (m *SourceFileProto_ZipEntryOnDisk) ToByteArray() []byte {
-	return m.appendTo(make([]byte, 0, m.serializedSize()))
-}
-
 // mergeFromReader is ZipEntryOnDisk.Builder.mergeFrom(CodedInputStream) on a mutable m.
 func (m *SourceFileProto_ZipEntryOnDisk) mergeFromReader(r *protoReader) {
 	for {
@@ -1082,11 +756,4 @@ func (m *SourceFileProto_ZipEntryOnDisk) printText(p *protoTextPrinter) {
 		p.scalar("charset", protoTextString(m.charset_))
 	}
 	p.unknownFields(m.unknownFields)
-}
-
-// String is ZipEntryOnDisk.toString() (protobuf text format).
-func (m *SourceFileProto_ZipEntryOnDisk) String() string {
-	p := &protoTextPrinter{}
-	m.printText(p)
-	return p.sb.String()
 }

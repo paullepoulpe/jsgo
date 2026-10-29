@@ -31,26 +31,41 @@ import (
 var defaultConformanceRemoveRegexFromPath = jutil.Pattern_Compile(
 	"^((.*/)?google3/)?(/?(blaze|bazel)-out/[^/]+/(bin|genfiles)/)?")
 
+var (
+	compilerOptionsEmptyStringSet       = jutil.NewLinkedHashSet[string]()
+	compilerOptionsEmptyStringMap       = jutil.NewLinkedHashMap[string, string]()
+	compilerOptionsEmptyIdGeneratorsMap = jutil.NewLinkedHashMap[string, RenamingMap]()
+	compilerOptionsEmptyInputSourceMaps = jutil.NewLinkedHashMap[string, *SourceMapInput]()
+)
+
+func cloneOrEmptyStringSet(s *jutil.LinkedHashSet[string]) *jutil.LinkedHashSet[string] {
+	jutil.CheckNotNull(s)
+	if s.IsEmpty() {
+		return compilerOptionsEmptyStringSet
+	}
+	return jutil.NewLinkedHashSet(s.ToSlice()...)
+}
+
 // CompilerOptions holds the compiler options.
 //
 // Go-only: language-adapter — the fields are declared together here (Java
 // interleaves them with the accessors) and keep their Java declaration
 // order; their initializers run first in NewCompilerOptions, as Java's
 // field initializers run before the constructor body. Value types: a Java
-// String that may be null is a *string; Optional<Boolean> is a *bool and
+// String that may be null is a *string; Optional<Boolean> is base.Tri and
 // Optional<FeatureSet>/Optional<Pattern> are nil-able pointers (nil is
 // absent); ImmutableSet/Set are *jutil.LinkedHashSet, ImmutableMap/Map are
 // *jutil.LinkedHashMap and ImmutableList/List are slices; the @define
 // replacement values are bool, int32 (Integer), float64 (Double) or string.
 type CompilerOptions struct {
 	// Should the compiled output start with "'use strict';"?
-	emitUseStrict *bool
+	emitUseStrict base.Tri
 	// The JavaScript language version accepted.
 	languageIn CompilerOptions_LanguageMode
 	// The JavaScript features that are allowed to be in the output.
 	outputFeatureSet             *parser.FeatureSet
 	experimentalOutputFeatureSet *CompilerOptions_ExperimentalOutputFeatureSet
-	languageOutIsDefaultStrict   *bool
+	languageOutIsDefaultStrict   base.Tri
 	// The builtin set of externs to be used
 	environment CompilerOptions_Environment
 	// Represents BrowserFeaturesetYear to use for compilation
@@ -296,7 +311,7 @@ type CompilerOptions struct {
 	// Custom passes
 	customPasses *customPassMap
 	// Replacements for @defines. Will be Boolean, Numbers, or Strings
-	defineReplacements *jutil.LinkedHashMap[string, defineReplacement]
+	defineReplacements OrderedStringMap[defineReplacement]
 	// What kind of processing to do for goog.tweak functions.
 	tweakProcessing CompilerOptions_TweakProcessing
 	// Move top-level function declarations to the top
@@ -518,7 +533,7 @@ type CompilerOptions struct {
 	// Print all configuration options to stderr after the compiler is initialized.
 	printConfig bool
 	// Are the input files written for strict mode?
-	isStrictModeInput *bool
+	isStrictModeInput base.Tri
 	// Store four unique states:
 	//  - run module rewriting before typechecking
 	//  - run module rewriting after typechecking
@@ -554,7 +569,9 @@ type CompilerOptions struct {
 func NewCompilerOptions() *CompilerOptions {
 	o := &CompilerOptions{}
 	// Field initializers.
+	o.emitUseStrict = base.Tri_UNKNOWN
 	o.experimentalOutputFeatureSet = nil
+	o.languageOutIsDefaultStrict = base.Tri_UNKNOWN
 	o.optimizeLocalAccessForGlobalSymbolNamespace = CompilerOptions_OptimizeLocalAccess_DISABLED
 	o.inferConsts = true
 	o.incrementalCheckMode = CompilerOptions_IncrementalCheckMode_OFF
@@ -590,6 +607,7 @@ func NewCompilerOptions() *CompilerOptions {
 	o.conformanceReportingMode = CompilerOptions_ConformanceReportingMode_IGNORE_LIBRARY_LEVEL_BEHAVIOR_SPECIFIED_IN_CONFIG
 	o.conformanceRemoveRegexFromPath = defaultConformanceRemoveRegexFromPath
 	o.wrapGoogModulesForWhitespaceOnly = true
+	o.isStrictModeInput = base.Tri_UNKNOWN
 	o.enableModuleRewriting = true
 	o.unknownDefinesToIgnore = []string{}
 	o.es6ModuleTranspilation = CompilerOptions_Es6ModuleTranspilation_COMPILE
@@ -599,7 +617,7 @@ func NewCompilerOptions() *CompilerOptions {
 
 	// Which environment to use
 	o.environment = CompilerOptions_Environment_BROWSER
-	o.browserResolverPrefixReplacements = jutil.NewLinkedHashMap[string, string]()
+	o.browserResolverPrefixReplacements = compilerOptionsEmptyStringMap
 
 	// Modules
 	o.moduleResolutionMode = ModuleLoader_ResolutionMode_BROWSER
@@ -681,11 +699,10 @@ func NewCompilerOptions() *CompilerOptions {
 	o.j2clMinifierEnabled = true
 	o.removeAbstractMethods = false
 	o.removeClosureAsserts = false
-	o.stripTypes = jutil.NewLinkedHashSet[string]()
-	o.stripNameSuffixes = jutil.NewLinkedHashSet[string]()
-	o.stripNamePrefixes = jutil.NewLinkedHashSet[string]()
+	o.stripTypes = compilerOptionsEmptyStringSet
+	o.stripNameSuffixes = compilerOptionsEmptyStringSet
+	o.stripNamePrefixes = compilerOptionsEmptyStringSet
 	o.customPasses = nil
-	o.defineReplacements = jutil.NewLinkedHashMap[string, defineReplacement]()
 	o.tweakProcessing = CompilerOptions_TweakProcessing_OFF
 	o.rewriteGlobalDeclarationsForTryCatchWrapping = false
 	o.checksOnly = false
@@ -694,11 +711,11 @@ func NewCompilerOptions() *CompilerOptions {
 	o.exportLocalPropertyDefinitions = true
 	o.cssRenamingMap = nil
 	o.cssRenamingSkiplist = nil
-	o.idGenerators = jutil.NewLinkedHashMap[string, RenamingMap]()
+	o.idGenerators = compilerOptionsEmptyIdGeneratorsMap
 	o.replaceStringsFunctionDescriptions = []string{}
 	o.replaceStringsPlaceholderToken = ""
-	o.propertiesThatMustDisambiguate = jutil.NewLinkedHashSet[string]()
-	o.inputSourceMaps = jutil.NewLinkedHashMap[string, *SourceMapInput]()
+	o.propertiesThatMustDisambiguate = compilerOptionsEmptyStringSet
+	o.inputSourceMaps = compilerOptionsEmptyInputSourceMaps
 
 	o.instrumentForCoverageOption = CompilerOptions_InstrumentOption_NONE
 	o.productionInstrumentationArrayName = ""

@@ -179,7 +179,7 @@ type NodeTraversal_AbstractPostOrderCallbackBase struct{}
 // ShouldTraverse is final in Java.
 //
 // Java: NodeTraversal.AbstractPostOrderCallback.shouldTraverse(NodeTraversal, Node, Node)
-func (b *NodeTraversal_AbstractPostOrderCallbackBase) ShouldTraverse(nodeTraversal *NodeTraversal, n rhino.Node, parent rhino.Node) bool {
+func (NodeTraversal_AbstractPostOrderCallbackBase) ShouldTraverse(nodeTraversal *NodeTraversal, n rhino.Node, parent rhino.Node) bool {
 	return true
 }
 
@@ -194,7 +194,7 @@ type NodeTraversal_ExternsSkippingCallbackBase struct{}
 // ShouldTraverse is final in Java.
 //
 // Java: NodeTraversal.ExternsSkippingCallback.shouldTraverse(NodeTraversal, Node, Node)
-func (b *NodeTraversal_ExternsSkippingCallbackBase) ShouldTraverse(t *NodeTraversal, n rhino.Node, parent rhino.Node) bool {
+func (NodeTraversal_ExternsSkippingCallbackBase) ShouldTraverse(t *NodeTraversal, n rhino.Node, parent rhino.Node) bool {
 	return !n.IsScript() || !n.IsFromExterns() || NodeUtil_IsFromTypeSummary(n)
 }
 

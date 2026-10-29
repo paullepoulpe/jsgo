@@ -68,19 +68,19 @@ type makeDeclaredNamesUniqueTest_pass struct {
 
 // Java: MakeDeclaredNamesUniqueTest.getProcessor(...).new CompilerPass() {...}.process(Node, Node)
 func (p *makeDeclaredNamesUniqueTest_pass) Process(externs rhino.Node, root rhino.Node) {
-	renamer := MakeDeclaredNamesUnique_Builder_().WithAssertOnChange(p.c.assertOnChange)
-	if !p.c.useDefaultRenamer {
-		renamer =
-			renamer.WithRenamer(
-				NewMakeDeclaredNamesUnique_InlineRenamer(
-					p.compiler.GetCodingConvention(),
-					p.compiler.GetUniqueNameIdSupplier(),
-					makeDeclaredNamesUniqueTest_LOCAL_NAME_PREFIX,
-					p.c.removeConst,
-					true,
-					nil))
+	var renamer MakeDeclaredNamesUnique_Renamer
+	if p.c.useDefaultRenamer {
+		renamer = NewMakeDeclaredNamesUnique_ContextualRenamer()
+	} else {
+		renamer = NewMakeDeclaredNamesUnique_InlineRenamer(
+			p.compiler.GetCodingConvention(),
+			p.compiler.GetUniqueNameIdSupplier(),
+			makeDeclaredNamesUniqueTest_LOCAL_NAME_PREFIX,
+			p.c.removeConst,
+			true,
+			nil)
 	}
-	NodeTraversal_TraverseRoots(p.compiler, renamer.Build(), externs, root)
+	NodeTraversal_TraverseRoots(p.compiler, NewMakeDeclaredNamesUnique(renamer, true, p.c.assertOnChange), externs, root)
 }
 
 // Java: MakeDeclaredNamesUniqueTest.getProcessor(Compiler)

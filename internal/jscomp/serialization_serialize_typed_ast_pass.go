@@ -1,6 +1,5 @@
 // Port of com/google/javascript/jscomp/serialization/SerializeTypedAstPass.java @ closure-compiler v20261021
 // Port of com/google/javascript/jscomp/serialization/SerializationOptions.java @ closure-compiler v20261021
-// (with the AutoBuilder-generated serialization/AutoBuilder_SerializationOptions_Builder.java)
 
 /*
  * Copyright 2019 The Closure Compiler Authors.
@@ -143,18 +142,6 @@ type SerializationOptions struct {
 	runtimeLibraries []string
 }
 
-// Java: SerializationOptions(boolean, boolean, ImmutableList<String>)
-func NewSerializationOptions(includeDebugInfo bool, runValidation bool, runtimeLibraries []string) *SerializationOptions {
-	if runtimeLibraries == nil {
-		panic(jutil.NewNullPointerExceptionMsg("runtimeLibraries"))
-	}
-	return &SerializationOptions{
-		includeDebugInfo: includeDebugInfo,
-		runValidation:    runValidation,
-		runtimeLibraries: runtimeLibraries,
-	}
-}
-
 // Java: SerializationOptions.includeDebugInfo()
 func (o *SerializationOptions) IncludeDebugInfo() bool { return o.includeDebugInfo }
 
@@ -165,45 +152,32 @@ func (o *SerializationOptions) RunValidation() bool { return o.runValidation }
 func (o *SerializationOptions) RuntimeLibraries() []string { return o.runtimeLibraries }
 
 // SerializationOptions_Builder_ is SerializationOptions.builder().
-func SerializationOptions_Builder_() *SerializationOptions_Builder {
-	return &SerializationOptions_Builder{
-		opts: SerializationOptions{runtimeLibraries: emptyRuntimeLibraries},
-	}
-}
-
-// SerializationOptions_Builder is SerializationOptions.Builder.
-type SerializationOptions_Builder struct {
-	opts SerializationOptions
-}
-
-// Java: AutoBuilder_SerializationOptions_Builder()
-func NewSerializationOptions_Builder() *SerializationOptions_Builder {
-	return SerializationOptions_Builder_()
+func SerializationOptions_Builder_() *SerializationOptions {
+	return &SerializationOptions{runtimeLibraries: emptyRuntimeLibraries}
 }
 
 // Java: SerializationOptions.Builder.setIncludeDebugInfo(boolean)
-func (b *SerializationOptions_Builder) SetIncludeDebugInfo(includeDebugInfo bool) *SerializationOptions_Builder {
-	b.opts.includeDebugInfo = includeDebugInfo
-	return b
+func (o *SerializationOptions) SetIncludeDebugInfo(includeDebugInfo bool) *SerializationOptions {
+	o.includeDebugInfo = includeDebugInfo
+	return o
 }
 
 // Java: SerializationOptions.Builder.setRunValidation(boolean)
-func (b *SerializationOptions_Builder) SetRunValidation(runValidation bool) *SerializationOptions_Builder {
-	b.opts.runValidation = runValidation
-	return b
+func (o *SerializationOptions) SetRunValidation(runValidation bool) *SerializationOptions {
+	o.runValidation = runValidation
+	return o
 }
 
 // Java: SerializationOptions.Builder.setRuntimeLibraries(ImmutableList<String>)
-func (b *SerializationOptions_Builder) SetRuntimeLibraries(runtimeLibraries []string) *SerializationOptions_Builder {
+func (o *SerializationOptions) SetRuntimeLibraries(runtimeLibraries []string) *SerializationOptions {
 	if runtimeLibraries == nil {
 		panic(jutil.NewNullPointerExceptionMsg("Null runtimeLibraries"))
 	}
-	b.opts.runtimeLibraries = runtimeLibraries
-	return b
+	o.runtimeLibraries = runtimeLibraries
+	return o
 }
 
 // Java: SerializationOptions.Builder.build()
-func (b *SerializationOptions_Builder) Build() *SerializationOptions {
-	o := b.opts
-	return &o
+func (o *SerializationOptions) Build() *SerializationOptions {
+	return o
 }

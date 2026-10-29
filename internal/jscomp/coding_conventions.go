@@ -39,7 +39,6 @@ import (
 	"strings"
 
 	"github.com/paullepoulpe/jsgo/internal/ast"
-	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
 
@@ -142,10 +141,6 @@ func (d *CodingConventions_DefaultCodingConvention) IsExported(name string) bool
 	return CodingConvention_IsExported(d, name)
 }
 
-func (d *CodingConventions_DefaultCodingConvention) BlockRenamingForProperty(name string) bool {
-	return false
-}
-
 func (d *CodingConventions_DefaultCodingConvention) GetClassesDefinedByCall(callNode rhino.Node) *CodingConvention_SubclassRelationship {
 	callName := callNode.GetFirstChild()
 	if (jscompInheritsQName.Matches(callName) || callName.MatchesName("$jscomp$inherits")) &&
@@ -166,18 +161,6 @@ func (d *CodingConventions_DefaultCodingConvention) IsClassFactoryCall(callNode 
 
 func (d *CodingConventions_DefaultCodingConvention) IsSuperClassReference(propertyName string) bool {
 	return false
-}
-
-func (d *CodingConventions_DefaultCodingConvention) ExtractIsModuleFile(node rhino.Node, parent rhino.Node) bool {
-	panic(jutil.NewUnsupportedOperationExceptionMsg("only implemented in ClosureCodingConvention"))
-}
-
-func (d *CodingConventions_DefaultCodingConvention) ExtractClassNameIfProvide(node rhino.Node, parent rhino.Node) *string {
-	panic(jutil.NewUnsupportedOperationExceptionMsg("only implemented in ClosureCodingConvention"))
-}
-
-func (d *CodingConventions_DefaultCodingConvention) ExtractClassNameIfRequire(node rhino.Node, parent rhino.Node) *string {
-	panic(jutil.NewUnsupportedOperationExceptionMsg("only implemented in ClosureCodingConvention"))
 }
 
 func (d *CodingConventions_DefaultCodingConvention) GetExportPropertyFunction() *string {
@@ -219,10 +202,6 @@ func (d *CodingConventions_DefaultCodingConvention) IsPropertyTestFunction(call 
 
 func (d *CodingConventions_DefaultCodingConvention) IsPropertyRenameFunction(nameNode rhino.Node) bool {
 	return nameNode.MatchesName(NodeUtil_JSC_PROPERTY_NAME_FN)
-}
-
-func (d *CodingConventions_DefaultCodingConvention) IsPrototypeAlias(getProp rhino.Node) bool {
-	return false
 }
 
 func (d *CodingConventions_DefaultCodingConvention) GetObjectLiteralCast(callNode rhino.Node) *CodingConvention_ObjectLiteralCast {
@@ -294,14 +273,6 @@ func NewChromeCodingConventionWithConvention(wrapped CodingConvention) *ChromeCo
 
 func (c *ChromeCodingConvention) IsExported(name string) bool {
 	return CodingConvention_IsExported(c, name)
-}
-
-func (c *ChromeCodingConvention) BlockRenamingForProperty(name string) bool {
-	return false
-}
-
-func (c *ChromeCodingConvention) IsPrototypeAlias(getProp rhino.Node) bool {
-	return false
 }
 
 func (c *ChromeCodingConvention) GetSingletonGetterClassName(callNode rhino.Node) *string {

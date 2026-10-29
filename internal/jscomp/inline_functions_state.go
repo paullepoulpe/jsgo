@@ -97,7 +97,6 @@ type InlineFunctions_FunctionState struct {
 	refsBuf          [4]*FunctionInjector_Reference
 	refByNode        map[rhino.Node]int
 	chunk            *JSChunk
-	namesToAliasIDs  inlineIDSet
 	summary          *calleeSummary
 
 	hasRequireInliningAnnotation            bool
@@ -106,6 +105,7 @@ type InlineFunctions_FunctionState struct {
 	hasEncourageInliningAnnotation            bool
 	hasEncourageInliningAnnotationInitialized bool
 	bodyAstSize                               int32
+	aliasCount                                int32
 }
 
 // Java: InlineFunctions.FunctionState()
@@ -423,17 +423,6 @@ func (s *InlineFunctions_FunctionState) GetReference(n rhino.Node) *FunctionInje
 		return s.refs[idx]
 	}
 	return nil
-}
-
-func (s *InlineFunctions_FunctionState) setNamesToAliasIDs(ids *inlineIDSet) {
-	s.namesToAliasIDs.copyFrom(ids)
-}
-
-func (s *InlineFunctions_FunctionState) setNamesToAliasIDSlice(ids []uint32) {
-	s.namesToAliasIDs.clear()
-	for _, id := range ids {
-		s.namesToAliasIDs.add(id)
-	}
 }
 
 // Java: InlineFunctions.FunctionState.setChunk(JSChunk)

@@ -47,28 +47,28 @@ func FunctionType_Builder_(registry *JSTypeRegistry) *FunctionType_Builder {
 func (f *FunctionTypeBase) initBuilder(b *FunctionType_Builder) {
 	b.registry = f.GetRegistry()
 	b.implicitPrototype = jutil.CheckNotNull(f.GetRegistry().GetNativeObjectType(JSTypeNative_FUNCTION_PROTOTYPE))
-	b.googModuleID = rhinoStringIDFromPtr(f.selfFunc().GetGoogModuleId())
-	b.classNameID = rhinoStringIDFromPtr(f.selfFunc().GetReferenceName())
-	b.nativeType = f.selfFunc().IsNativeObjectType()
-	b.templateTypeMap = f.selfFunc().GetTemplateTypeMap()
-	b.canonicalRepresentation = f.selfFunc().GetCanonicalRepresentation()
+	b.googModuleID = rhinoStringIDFromPtr(f.GetGoogModuleId())
+	b.classNameID = rhinoStringIDFromPtr(f.GetReferenceName())
+	b.nativeType = f.IsNativeObjectType()
+	b.templateTypeMap = f.GetTemplateTypeMap()
+	b.canonicalRepresentation = f.GetCanonicalRepresentation()
 	b.isKnownAmbiguous = f.call.fnConstructorAmbiguity == FunctionType_ConstructorAmbiguity_IS_AMBIGUOUS_CONSTRUCTOR
-	if p := f.selfFunc().GetClosurePrimitive(); p != nil {
+	if p := f.GetClosurePrimitive(); p != nil {
 		b.primitivePlus1 = uint8(*p) + 1
 	} else {
 		b.primitivePlus1 = 0
 	}
-	b.isAbstract = f.selfFunc().IsAbstract()
-	b.kind = f.selfFunc().GetKind()
-	b.parameters = f.selfFunc().GetParameters()
-	b.returnType = f.selfFunc().GetReturnType()
-	b.returnTypeIsInferred = f.selfFunc().IsReturnTypeInferred()
-	b.sourceNode = f.selfFunc().GetSource()
-	b.typeOfThis = f.selfFunc().GetTypeOfThis()
-	b.templateParamCount = f.selfFunc().GetTemplateParamCount()
+	b.isAbstract = f.IsAbstract()
+	b.kind = f.GetKind()
+	b.parameters = f.GetParameters()
+	b.returnType = f.GetReturnType()
+	b.returnTypeIsInferred = f.IsReturnTypeInferred()
+	b.sourceNode = f.GetSource()
+	b.typeOfThis = f.GetTypeOfThis()
+	b.templateParamCount = f.GetTemplateParamCount()
 
-	if f.selfFunc().IsConstructor() {
-		b.WithConstructorTemplateKeys(f.selfFunc().GetConstructorOnlyTemplateParameters())
+	if f.IsConstructor() {
+		b.WithConstructorTemplateKeys(f.GetConstructorOnlyTemplateParameters())
 	}
 }
 

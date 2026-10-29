@@ -251,13 +251,7 @@ func (c *TypeInferenceTest) ParseAndRunTypeInferenceOfNode(root rhino.Node, cfgR
 	}()
 	scopeCreator.FinishAndFreeze()
 	// Create the control graph.
-	cfg :=
-		ControlFlowAnalysis_Builder_().
-			SetCompiler(c.compiler).
-			SetCfgRoot(cfgRoot).
-			SetTraverseFunctions(true).
-			SetIncludeEdgeAnnotations(true).
-			ComputeCfg()
+	cfg := ComputeControlFlowGraph(c.compiler, cfgRoot, true, true)
 	// Create a simple reverse abstract interpreter.
 	rai := c.compiler.GetReverseAbstractInterpreter()
 	// Do the type inference by data-flow analysis.

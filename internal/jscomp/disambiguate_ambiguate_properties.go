@@ -336,19 +336,20 @@ func (a *AmbiguateProperties) Process(externs rhino.Node, root rhino.Node) {
 	GatherGetterAndSetterProperties_Update(a.compiler, externs, root)
 
 	// Suppliers.memoize(...)
-	var summary *string
+	var summary string
+	var computed bool
 	summarySupplier := func() string {
-		if summary == nil {
-			s := "Collapsed " +
+		if !computed {
+			summary = "Collapsed " +
 				strconv.Itoa(finalNumRenamedPropertyNames) +
 				" properties into " +
 				strconv.Itoa(numNewPropertyNames) +
 				" and skipped renaming " +
 				strconv.Itoa(finalNumSkippedPropertyNames) +
 				" properties."
-			summary = &s
+			computed = true
 		}
-		return *summary
+		return summary
 	}
 	if ambiguateProperties_logger.IsLoggable(jutil.Level_FINE) {
 		ambiguateProperties_logger.Fine(summarySupplier())

@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/paullepoulpe/jsgo/internal/ast"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
@@ -790,11 +791,7 @@ func LiveVariablesAnalysisTest_ComputeLivenessWithWrapper(src string, wrapper Li
 	childScope := scopeCreator.CreateScopeOfScope(NodeUtil_GetFunctionBody(n), scope)
 
 	// Control flow graph
-	cfg := ControlFlowAnalysis_Builder_().
-		SetCompiler(compiler).
-		SetCfgRoot(n).
-		SetIncludeEdgeAnnotations(true).
-		ComputeCfg()
+	cfg := ComputeControlFlowGraph(compiler, n, false, true)
 
 	// All variables declared in function
 	allVarsDeclaredInFunction := NodeUtil_GetAllVarsDeclaredInFunction(compiler, scopeCreator, scope)
@@ -804,6 +801,39 @@ func LiveVariablesAnalysisTest_ComputeLivenessWithWrapper(src string, wrapper Li
 		cfg, scope, childScope, compiler, scopeCreator, allVarsDeclaredInFunction)
 	analysis.Analyze()
 	return analysis
+}
+
+func NewLiveVariablesAnalysis(
+	cfg *ControlFlowGraph[rhino.Node],
+	jsScope *Scope,
+	jsScopeChild *Scope,
+	compiler AbstractCompiler,
+	scopeCreator ScopeCreator,
+	allVarsDeclaredInFunction *NodeUtil_AllVarsDeclaredInFunction,
+) *LiveVariablesAnalysis {
+	l := &LiveVariablesAnalysis{}
+	l.Reset(cfg, jsScope, jsScopeChild, compiler, scopeCreator, allVarsDeclaredInFunction)
+	return l
+}
+
+func (l *LiveVariablesAnalysis) GetEscapedLocals() *jutil.ObjectLinkedHashSet[*Var] {
+	out := jutil.NewObjectLinkedHashSet[*Var]()
+	l.escaped.ForEach(func(idx int) {
+		if idx < len(l.table.vars) {
+			out.Add(l.table.vars[idx])
+		}
+	})
+	if l.paramsMarkedEscaped {
+		params := ast.MustFunction(l.jsScope.GetRootNode()).Params()
+		for param, ok := params.FirstParam(); ok; param, ok = param.Next() {
+			if param.Token() == rhino.Token_NAME {
+				if pv := l.jsScope.GetVarByID(param.Node().GetStringID()); pv != nil {
+					out.Add(pv)
+				}
+			}
+		}
+	}
+	return out
 }
 
 // LiveVariablesAnalysisTest_Wrapper: the kinds of functions that source code

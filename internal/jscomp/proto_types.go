@@ -8,8 +8,6 @@ package jscomp
 
 import "github.com/paullepoulpe/jsgo/internal/jutil"
 
-var _ = jutil.CheckNotNull[any]
-
 // PrimitiveType is the protobuf enum jscomp.PrimitiveType.
 type PrimitiveType int32
 
@@ -27,20 +25,6 @@ const (
 	PrimitiveType_UNRECOGNIZED
 )
 
-// The proto numbers (PrimitiveType.X_VALUE).
-const (
-	PrimitiveType_UNKNOWN_TYPE_VALUE      int32 = 0
-	PrimitiveType_BOOLEAN_TYPE_VALUE      int32 = 1
-	PrimitiveType_STRING_TYPE_VALUE       int32 = 2
-	PrimitiveType_NUMBER_TYPE_VALUE       int32 = 3
-	PrimitiveType_NULL_OR_VOID_TYPE_VALUE int32 = 4
-	PrimitiveType_SYMBOL_TYPE_VALUE       int32 = 5
-	PrimitiveType_BIGINT_TYPE_VALUE       int32 = 6
-	PrimitiveType_TOP_OBJECT_VALUE        int32 = 7
-	PrimitiveType_TOP_FUNCTION_VALUE      int32 = 8
-	PrimitiveType_GBIGINT_TYPE_VALUE      int32 = 9
-)
-
 var primitiveType_names = [...]string{
 	"UNKNOWN_TYPE",
 	"BOOLEAN_TYPE",
@@ -55,59 +39,25 @@ var primitiveType_names = [...]string{
 	"UNRECOGNIZED",
 }
 
-var primitiveType_numbers = [...]int32{
-	0,
-	1,
-	2,
-	3,
-	4,
-	5,
-	6,
-	7,
-	8,
-	9,
-	-1,
-}
-
 // String is Enum.name().
 func (e PrimitiveType) String() string { return primitiveType_names[e] }
-
-// Ordinal is Enum.ordinal().
-func (e PrimitiveType) Ordinal() int { return int(e) }
 
 // Java: PrimitiveType.getNumber()
 func (e PrimitiveType) GetNumber() int32 {
 	if e == PrimitiveType_UNRECOGNIZED {
 		panic(jutil.NewIllegalArgumentExceptionMsg("Can't get the number of an unknown enum value."))
 	}
-	return primitiveType_numbers[e]
+	return int32(e)
 }
 
-// PrimitiveType_ForNumber returns the constant with the given number, or nil.
+// PrimitiveType_ForNumber returns the constant with the given number, if valid.
 //
 // Java: PrimitiveType.forNumber(int)
-func PrimitiveType_ForNumber(value int32) *PrimitiveType {
-	for i, n := range primitiveType_numbers {
-		if n == value && PrimitiveType(i) != PrimitiveType_UNRECOGNIZED {
-			e := PrimitiveType(i)
-			return &e
-		}
+func PrimitiveType_ForNumber(value int32) (PrimitiveType, bool) {
+	if uint32(value) < uint32(PrimitiveType_UNRECOGNIZED) {
+		return PrimitiveType(value), true
 	}
-	return nil
-}
-
-func primitiveType_fromNumber(value int32) PrimitiveType {
-	if e := PrimitiveType_ForNumber(value); e != nil {
-		return *e
-	}
-	return PrimitiveType_UNRECOGNIZED
-}
-
-func primitiveType_text(value int32) string {
-	if e := PrimitiveType_ForNumber(value); e != nil {
-		return e.String()
-	}
-	return protoTextInt32(value)
+	return 0, false
 }
 
 // TypePool is the protobuf message jscomp.TypePool.
@@ -121,13 +71,6 @@ type TypePool struct {
 	cachedSize           int
 }
 
-// Field numbers (TypePool.X_FIELD_NUMBER).
-const (
-	TypePool_TYPE_FIELD_NUMBER                 = 1
-	TypePool_DISAMBIGUATION_EDGES_FIELD_NUMBER = 2
-	TypePool_DEBUG_INFO_FIELD_NUMBER           = 3
-)
-
 var typePool_DEFAULT_INSTANCE = &TypePool{cachedSize: 1}
 
 // Java: TypePool.getDefaultInstance()
@@ -138,7 +81,8 @@ func TypePool_GetDefaultInstance() *TypePool { return typePool_DEFAULT_INSTANCE 
 // Java: TypePool.parseFrom(byte[])
 func TypePool_ParseFrom(data []byte) *TypePool {
 	m := &TypePool{}
-	m.mergeFromReader(&protoReader{b: data})
+	r := protoReader{b: data}
+	m.mergeFromReader(&r)
 	return m
 }
 
@@ -146,13 +90,7 @@ func TypePool_ParseFrom(data []byte) *TypePool {
 func (m *TypePool) GetTypeList() []*TypeProto { return m.type_ }
 
 // Java: TypePool.getType(int)
-func (m *TypePool) GetType(index int) *TypeProto {
-	protoCheckIndexJDK(index, len(m.type_))
-	return m.type_[index]
-}
-
-// Java: TypePool.getTypeCount()
-func (m *TypePool) GetTypeCount() int { return len(m.type_) }
+func (m *TypePool) GetType(index int) *TypeProto { return m.type_[index] }
 
 // Java: TypePool.getDisambiguationEdgesList()
 func (m *TypePool) GetDisambiguationEdgesList() []*SubtypingEdge { return m.disambiguationEdges_ }
@@ -230,12 +168,14 @@ func (m *TypePool) mergeFromReader(r *protoReader) {
 		case 10:
 			data := r.readMessageBytes()
 			x := &TypeProto{}
-			x.mergeFromReader(r.sub(data))
+			sub := r.sub(data)
+			x.mergeFromReader(&sub)
 			m.type_ = append(m.type_, x)
 		case 18:
 			data := r.readMessageBytes()
 			x := &SubtypingEdge{}
-			x.mergeFromReader(r.sub(data))
+			sub := r.sub(data)
+			x.mergeFromReader(&sub)
 			m.disambiguationEdges_ = append(m.disambiguationEdges_, x)
 		case 26:
 			data := r.readMessageBytes()
@@ -246,7 +186,8 @@ func (m *TypePool) mergeFromReader(r *protoReader) {
 			} else {
 				x = &TypePool_DebugInfo{}
 			}
-			x.mergeFromReader(r.sub(data))
+			sub := r.sub(data)
+			x.mergeFromReader(&sub)
 			m.debugInfo_ = x
 		default:
 			r.skipField(tag)
@@ -283,11 +224,6 @@ type TypePool_DebugInfo struct {
 	unknownFields []byte
 	cachedSize    int
 }
-
-// Field numbers (TypePool.DebugInfo.X_FIELD_NUMBER).
-const (
-	TypePool_DebugInfo_MISMATCH_FIELD_NUMBER = 1
-)
 
 var typePool_DebugInfo_DEFAULT_INSTANCE = &TypePool_DebugInfo{cachedSize: 1}
 
@@ -329,11 +265,6 @@ func (m *TypePool_DebugInfo) serializedSize() int {
 	return size
 }
 
-// Java: DebugInfo.toByteArray()
-func (m *TypePool_DebugInfo) ToByteArray() []byte {
-	return m.appendTo(make([]byte, 0, m.serializedSize()))
-}
-
 // mergeFromReader is DebugInfo.Builder.mergeFrom(CodedInputStream) on a mutable m.
 func (m *TypePool_DebugInfo) mergeFromReader(r *protoReader) {
 	for {
@@ -345,7 +276,8 @@ func (m *TypePool_DebugInfo) mergeFromReader(r *protoReader) {
 		case 10:
 			data := r.readMessageBytes()
 			x := &TypePool_DebugInfo_Mismatch{}
-			x.mergeFromReader(r.sub(data))
+			sub := r.sub(data)
+			x.mergeFromReader(&sub)
 			m.mismatch_ = append(m.mismatch_, x)
 		default:
 			r.skipField(tag)
@@ -361,13 +293,6 @@ func (m *TypePool_DebugInfo) printText(p *protoTextPrinter) {
 	p.unknownFields(m.unknownFields)
 }
 
-// String is DebugInfo.toString() (protobuf text format).
-func (m *TypePool_DebugInfo) String() string {
-	p := &protoTextPrinter{}
-	m.printText(p)
-	return p.sb.String()
-}
-
 // TypePool_DebugInfo_Mismatch is the protobuf message jscomp.TypePool.DebugInfo.Mismatch.
 //
 // Java: com.google.javascript.jscomp.serialization.TypePool.DebugInfo.Mismatch
@@ -378,16 +303,8 @@ type TypePool_DebugInfo_Mismatch struct {
 	cachedSize     int
 }
 
-// Field numbers (TypePool.DebugInfo.Mismatch.X_FIELD_NUMBER).
-const (
-	TypePool_DebugInfo_Mismatch_SOURCE_REF_FIELD_NUMBER     = 1
-	TypePool_DebugInfo_Mismatch_INVOLVED_COLOR_FIELD_NUMBER = 2
-)
-
 // Java: TypePool.DebugInfo.Mismatch.getSourceRef()
-func (m *TypePool_DebugInfo_Mismatch) GetSourceRef() string {
-	return m.sourceRef_
-}
+func (m *TypePool_DebugInfo_Mismatch) GetSourceRef() string { return m.sourceRef_ }
 
 // Java: TypePool.DebugInfo.Mismatch.getInvolvedColorList()
 func (m *TypePool_DebugInfo_Mismatch) GetInvolvedColorList() []int32 { return m.involvedColor_ }
@@ -438,11 +355,6 @@ func (m *TypePool_DebugInfo_Mismatch) serializedSize() int {
 	return size
 }
 
-// Java: Mismatch.toByteArray()
-func (m *TypePool_DebugInfo_Mismatch) ToByteArray() []byte {
-	return m.appendTo(make([]byte, 0, m.serializedSize()))
-}
-
 // mergeFromReader is Mismatch.Builder.mergeFrom(CodedInputStream) on a mutable m.
 func (m *TypePool_DebugInfo_Mismatch) mergeFromReader(r *protoReader) {
 	for {
@@ -491,21 +403,11 @@ type SubtypingEdge struct {
 	cachedSize    int
 }
 
-// Field numbers (SubtypingEdge.X_FIELD_NUMBER).
-const (
-	SubtypingEdge_SUBTYPE_FIELD_NUMBER   = 1
-	SubtypingEdge_SUPERTYPE_FIELD_NUMBER = 2
-)
-
 // Java: SubtypingEdge.getSubtype()
-func (m *SubtypingEdge) GetSubtype() int32 {
-	return m.subtype_
-}
+func (m *SubtypingEdge) GetSubtype() int32 { return m.subtype_ }
 
 // Java: SubtypingEdge.getSupertype()
-func (m *SubtypingEdge) GetSupertype() int32 {
-	return m.supertype_
-}
+func (m *SubtypingEdge) GetSupertype() int32 { return m.supertype_ }
 
 // appendTo is SubtypingEdge.writeTo(CodedOutputStream): fields in number order, then unknown fields.
 func (m *SubtypingEdge) appendTo(b []byte) []byte {
@@ -542,9 +444,6 @@ func (m *SubtypingEdge) serializedSize() int {
 	return size
 }
 
-// Java: SubtypingEdge.toByteArray()
-func (m *SubtypingEdge) ToByteArray() []byte { return m.appendTo(make([]byte, 0, m.serializedSize())) }
-
 // mergeFromReader is SubtypingEdge.Builder.mergeFrom(CodedInputStream) on a mutable m.
 func (m *SubtypingEdge) mergeFromReader(r *protoReader) {
 	for {
@@ -574,13 +473,6 @@ func (m *SubtypingEdge) printText(p *protoTextPrinter) {
 	p.unknownFields(m.unknownFields)
 }
 
-// String is SubtypingEdge.toString() (protobuf text format).
-func (m *SubtypingEdge) String() string {
-	p := &protoTextPrinter{}
-	m.printText(p)
-	return p.sb.String()
-}
-
 // UnionTypeProto is the protobuf message jscomp.UnionTypeProto.
 //
 // Java: com.google.javascript.jscomp.serialization.UnionTypeProto
@@ -589,11 +481,6 @@ type UnionTypeProto struct {
 	unknownFields []byte
 	cachedSize    int
 }
-
-// Field numbers (UnionTypeProto.X_FIELD_NUMBER).
-const (
-	UnionTypeProto_UNION_MEMBER_FIELD_NUMBER = 1
-)
 
 var unionTypeProto_DEFAULT_INSTANCE = &UnionTypeProto{cachedSize: 1}
 
@@ -642,9 +529,6 @@ func (m *UnionTypeProto) serializedSize() int {
 	return size
 }
 
-// Java: UnionTypeProto.toByteArray()
-func (m *UnionTypeProto) ToByteArray() []byte { return m.appendTo(make([]byte, 0, m.serializedSize())) }
-
 // mergeFromReader is UnionTypeProto.Builder.mergeFrom(CodedInputStream) on a mutable m.
 func (m *UnionTypeProto) mergeFromReader(r *protoReader) {
 	for {
@@ -671,13 +555,6 @@ func (m *UnionTypeProto) printText(p *protoTextPrinter) {
 	p.unknownFields(m.unknownFields)
 }
 
-// String is UnionTypeProto.toString() (protobuf text format).
-func (m *UnionTypeProto) String() string {
-	p := &protoTextPrinter{}
-	m.printText(p)
-	return p.sb.String()
-}
-
 // ObjectTypeProto is the protobuf message jscomp.ObjectTypeProto.
 //
 // Java: com.google.javascript.jscomp.serialization.ObjectTypeProto
@@ -695,33 +572,16 @@ type ObjectTypeProto struct {
 	cachedSize                  int
 }
 
-// Field numbers (ObjectTypeProto.X_FIELD_NUMBER).
-const (
-	ObjectTypeProto_IS_INVALIDATING_FIELD_NUMBER               = 2
-	ObjectTypeProto_UUID_FIELD_NUMBER                          = 3
-	ObjectTypeProto_PROPERTIES_KEEP_ORIGINAL_NAME_FIELD_NUMBER = 4
-	ObjectTypeProto_INSTANCE_TYPE_FIELD_NUMBER                 = 5
-	ObjectTypeProto_PROTOTYPE_FIELD_NUMBER                     = 6
-	ObjectTypeProto_MARKED_CONSTRUCTOR_FIELD_NUMBER            = 7
-	ObjectTypeProto_OWN_PROPERTY_FIELD_NUMBER                  = 8
-	ObjectTypeProto_CLOSURE_ASSERT_FIELD_NUMBER                = 9
-	ObjectTypeProto_DEBUG_INFO_FIELD_NUMBER                    = 15
-)
-
 var objectTypeProto_DEFAULT_INSTANCE = &ObjectTypeProto{cachedSize: 1}
 
 // Java: ObjectTypeProto.getDefaultInstance()
 func ObjectTypeProto_GetDefaultInstance() *ObjectTypeProto { return objectTypeProto_DEFAULT_INSTANCE }
 
 // Java: ObjectTypeProto.getIsInvalidating()
-func (m *ObjectTypeProto) GetIsInvalidating() bool {
-	return m.isInvalidating_
-}
+func (m *ObjectTypeProto) GetIsInvalidating() bool { return m.isInvalidating_ }
 
 // Java: ObjectTypeProto.getUuid()
-func (m *ObjectTypeProto) GetUuid() []byte {
-	return m.uuid_
-}
+func (m *ObjectTypeProto) GetUuid() []byte { return m.uuid_ }
 
 // Java: ObjectTypeProto.getPropertiesKeepOriginalName()
 func (m *ObjectTypeProto) GetPropertiesKeepOriginalName() bool {
@@ -731,53 +591,17 @@ func (m *ObjectTypeProto) GetPropertiesKeepOriginalName() bool {
 // Java: ObjectTypeProto.getInstanceTypeList()
 func (m *ObjectTypeProto) GetInstanceTypeList() []int32 { return m.instanceType_ }
 
-// Java: ObjectTypeProto.getInstanceType(int)
-func (m *ObjectTypeProto) GetInstanceType(index int) int32 {
-	protoCheckIndex(index, len(m.instanceType_))
-	return m.instanceType_[index]
-}
-
 // Java: ObjectTypeProto.getPrototypeList()
 func (m *ObjectTypeProto) GetPrototypeList() []int32 { return m.prototype_ }
 
-// Java: ObjectTypeProto.getPrototype(int)
-func (m *ObjectTypeProto) GetPrototype(index int) int32 {
-	protoCheckIndex(index, len(m.prototype_))
-	return m.prototype_[index]
-}
-
 // Java: ObjectTypeProto.getMarkedConstructor()
-func (m *ObjectTypeProto) GetMarkedConstructor() bool {
-	return m.markedConstructor_
-}
+func (m *ObjectTypeProto) GetMarkedConstructor() bool { return m.markedConstructor_ }
 
 // Java: ObjectTypeProto.getOwnPropertyList()
 func (m *ObjectTypeProto) GetOwnPropertyList() []int32 { return m.ownProperty_ }
 
-// Java: ObjectTypeProto.getOwnProperty(int)
-func (m *ObjectTypeProto) GetOwnProperty(index int) int32 {
-	protoCheckIndex(index, len(m.ownProperty_))
-	return m.ownProperty_[index]
-}
-
-// Java: ObjectTypeProto.getOwnPropertyCount()
-func (m *ObjectTypeProto) GetOwnPropertyCount() int { return len(m.ownProperty_) }
-
 // Java: ObjectTypeProto.getClosureAssert()
-func (m *ObjectTypeProto) GetClosureAssert() bool {
-	return m.closureAssert_
-}
-
-// Java: ObjectTypeProto.hasDebugInfo()
-func (m *ObjectTypeProto) HasDebugInfo() bool { return m.debugInfo_ != nil }
-
-// Java: ObjectTypeProto.getDebugInfo()
-func (m *ObjectTypeProto) GetDebugInfo() *ObjectTypeProto_DebugInfo {
-	if m.debugInfo_ != nil {
-		return m.debugInfo_
-	}
-	return ObjectTypeProto_DebugInfo_GetDefaultInstance()
-}
+func (m *ObjectTypeProto) GetClosureAssert() bool { return m.closureAssert_ }
 
 // appendTo is ObjectTypeProto.writeTo(CodedOutputStream): fields in number order, then unknown fields.
 func (m *ObjectTypeProto) appendTo(b []byte) []byte {
@@ -898,11 +722,6 @@ func (m *ObjectTypeProto) serializedSize() int {
 	return size
 }
 
-// Java: ObjectTypeProto.toByteArray()
-func (m *ObjectTypeProto) ToByteArray() []byte {
-	return m.appendTo(make([]byte, 0, m.serializedSize()))
-}
-
 // mergeFromReader is ObjectTypeProto.Builder.mergeFrom(CodedInputStream) on a mutable m.
 func (m *ObjectTypeProto) mergeFromReader(r *protoReader) {
 	for {
@@ -942,7 +761,8 @@ func (m *ObjectTypeProto) mergeFromReader(r *protoReader) {
 			} else {
 				x = &ObjectTypeProto_DebugInfo{}
 			}
-			x.mergeFromReader(r.sub(data))
+			sub := r.sub(data)
+			x.mergeFromReader(&sub)
 			m.debugInfo_ = x
 		default:
 			r.skipField(tag)
@@ -982,13 +802,6 @@ func (m *ObjectTypeProto) printText(p *protoTextPrinter) {
 	p.unknownFields(m.unknownFields)
 }
 
-// String is ObjectTypeProto.toString() (protobuf text format).
-func (m *ObjectTypeProto) String() string {
-	p := &protoTextPrinter{}
-	m.printText(p)
-	return p.sb.String()
-}
-
 // ObjectTypeProto_DebugInfo is the protobuf message jscomp.ObjectTypeProto.DebugInfo.
 //
 // Java: com.google.javascript.jscomp.serialization.ObjectTypeProto.DebugInfo
@@ -996,18 +809,6 @@ type ObjectTypeProto_DebugInfo struct {
 	typenamePointer_ []int32
 	unknownFields    []byte
 	cachedSize       int
-}
-
-// Field numbers (ObjectTypeProto.DebugInfo.X_FIELD_NUMBER).
-const (
-	ObjectTypeProto_DebugInfo_TYPENAME_POINTER_FIELD_NUMBER = 1
-)
-
-var objectTypeProto_DebugInfo_DEFAULT_INSTANCE = &ObjectTypeProto_DebugInfo{cachedSize: 1}
-
-// Java: ObjectTypeProto.DebugInfo.getDefaultInstance()
-func ObjectTypeProto_DebugInfo_GetDefaultInstance() *ObjectTypeProto_DebugInfo {
-	return objectTypeProto_DebugInfo_DEFAULT_INSTANCE
 }
 
 // appendTo is DebugInfo.writeTo(CodedOutputStream): fields in number order, then unknown fields.
@@ -1049,11 +850,6 @@ func (m *ObjectTypeProto_DebugInfo) serializedSize() int {
 	return size
 }
 
-// Java: DebugInfo.toByteArray()
-func (m *ObjectTypeProto_DebugInfo) ToByteArray() []byte {
-	return m.appendTo(make([]byte, 0, m.serializedSize()))
-}
-
 // mergeFromReader is DebugInfo.Builder.mergeFrom(CodedInputStream) on a mutable m.
 func (m *ObjectTypeProto_DebugInfo) mergeFromReader(r *protoReader) {
 	for {
@@ -1078,51 +874,6 @@ func (m *ObjectTypeProto_DebugInfo) printText(p *protoTextPrinter) {
 		p.scalar("typename_pointer", protoTextInt32(x))
 	}
 	p.unknownFields(m.unknownFields)
-}
-
-// String is DebugInfo.toString() (protobuf text format).
-func (m *ObjectTypeProto_DebugInfo) String() string {
-	p := &protoTextPrinter{}
-	m.printText(p)
-	return p.sb.String()
-}
-
-// TypeProto_KindCase is TypeProto.KindCase.
-type TypeProto_KindCase int32
-
-const (
-	TypeProto_KindCase_OBJECT TypeProto_KindCase = iota
-	TypeProto_KindCase_UNION
-	TypeProto_KindCase_KIND_NOT_SET
-)
-
-var typeProto_KindCase_numbers = [...]int32{
-	2,
-	4,
-	0,
-}
-
-var typeProto_KindCase_names = [...]string{
-	"OBJECT",
-	"UNION",
-	"KIND_NOT_SET",
-}
-
-// String is Enum.name().
-func (c TypeProto_KindCase) String() string { return typeProto_KindCase_names[c] }
-
-// Java: KindCase.getNumber()
-func (c TypeProto_KindCase) GetNumber() int32 { return typeProto_KindCase_numbers[c] }
-
-// TypeProto_KindCase_ForNumber is KindCase.forNumber(int); nil if unknown.
-func TypeProto_KindCase_ForNumber(value int32) *TypeProto_KindCase {
-	for i, n := range typeProto_KindCase_numbers {
-		if n == value {
-			c := TypeProto_KindCase(i)
-			return &c
-		}
-	}
-	return nil
 }
 
 // TypeProto is the protobuf message jscomp.TypeProto.
@@ -1164,14 +915,6 @@ func (m *TypeProto) GetUnion() *UnionTypeProto {
 	return UnionTypeProto_GetDefaultInstance()
 }
 
-// Java: TypeProto.getKindCase()
-func (m *TypeProto) GetKindCase() TypeProto_KindCase {
-	if c := TypeProto_KindCase_ForNumber(m.kindCase_); c != nil {
-		return *c
-	}
-	return TypeProto_KindCase_KIND_NOT_SET
-}
-
 // appendTo is TypeProto.writeTo(CodedOutputStream): fields in number order, then unknown fields.
 func (m *TypeProto) appendTo(b []byte) []byte {
 	if m.kindCase_ == 2 {
@@ -1211,9 +954,6 @@ func (m *TypeProto) serializedSize() int {
 	return size
 }
 
-// Java: TypeProto.toByteArray()
-func (m *TypeProto) ToByteArray() []byte { return m.appendTo(make([]byte, 0, m.serializedSize())) }
-
 // mergeFromReader is TypeProto.Builder.mergeFrom(CodedInputStream) on a mutable m.
 func (m *TypeProto) mergeFromReader(r *protoReader) {
 	for {
@@ -1231,7 +971,8 @@ func (m *TypeProto) mergeFromReader(r *protoReader) {
 			} else {
 				x = &ObjectTypeProto{}
 			}
-			x.mergeFromReader(r.sub(data))
+			sub := r.sub(data)
+			x.mergeFromReader(&sub)
 			m.object_ = x
 			m.kindCase_ = 2
 		case 34:
@@ -1243,7 +984,8 @@ func (m *TypeProto) mergeFromReader(r *protoReader) {
 			} else {
 				x = &UnionTypeProto{}
 			}
-			x.mergeFromReader(r.sub(data))
+			sub := r.sub(data)
+			x.mergeFromReader(&sub)
 			m.union_ = x
 			m.kindCase_ = 4
 		default:

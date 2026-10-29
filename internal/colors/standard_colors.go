@@ -18,8 +18,6 @@
 
 package colors
 
-import "github.com/paullepoulpe/jsgo/internal/jutil"
-
 // StandardColors holds the Colors that are expected to be referencable as
 // part of any compilation.
 //
@@ -49,41 +47,54 @@ var (
 	StandardColors_SYMBOL_OBJECT_ID  = ColorId_FromUnsignedInt(0x5e514f7e)
 )
 
+const (
+	axiomaticBigintId      int64 = 0x234eb61a
+	axiomaticBooleanId     int64 = 0x126812ee
+	axiomaticNullOrVoidId  int64 = 0x22b49f69
+	axiomaticNumberId      int64 = 0xd081722c
+	axiomaticStringId      int64 = 0x8c4d8f65
+	axiomaticSymbolId      int64 = 0x759f2066
+	axiomaticTopObjectId   int64 = 0x889b6838
+	axiomaticTopFunctionId int64 = 0x283b5838
+	axiomaticUnknownId     int64 = 0
+	axiomaticGBigintId     int64 = 0xaaae3678
+)
+
 var StandardColors_BIGINT = Color_SingleBuilder().
-	SetId(ColorId_FromUnsignedInt(0x234eb61a)).
+	SetId(ColorId{rightAligned: axiomaticBigintId}).
 	SetBoxIdValue(StandardColors_BIGINT_OBJECT_ID).
 	SetInvalidating(false).
-	BuildAxiomatic()
+	buildAxiomatic()
 
 var StandardColors_BOOLEAN = Color_SingleBuilder().
-	SetId(ColorId_FromUnsignedInt(0x126812ee)).
+	SetId(ColorId{rightAligned: axiomaticBooleanId}).
 	SetBoxIdValue(StandardColors_BOOLEAN_OBJECT_ID).
 	SetInvalidating(false).
-	BuildAxiomatic()
+	buildAxiomatic()
 
 var StandardColors_NULL_OR_VOID = Color_SingleBuilder().
 	ClearBoxId().
-	SetId(ColorId_FromUnsignedInt(0x22b49f69)).
+	SetId(ColorId{rightAligned: axiomaticNullOrVoidId}).
 	SetInvalidating(false).
-	BuildAxiomatic()
+	buildAxiomatic()
 
 var StandardColors_NUMBER = Color_SingleBuilder().
-	SetId(ColorId_FromUnsignedInt(int32(-0x2f7e8dd4))). // 0xd081722c
+	SetId(ColorId{rightAligned: axiomaticNumberId}).
 	SetBoxIdValue(StandardColors_NUMBER_OBJECT_ID).
 	SetInvalidating(false).
-	BuildAxiomatic()
+	buildAxiomatic()
 
 var StandardColors_STRING = Color_SingleBuilder().
-	SetId(ColorId_FromUnsignedInt(int32(-0x73b2709b))). // 0x8c4d8f65
+	SetId(ColorId{rightAligned: axiomaticStringId}).
 	SetBoxIdValue(StandardColors_STRING_OBJECT_ID).
 	SetInvalidating(false).
-	BuildAxiomatic()
+	buildAxiomatic()
 
 var StandardColors_SYMBOL = Color_SingleBuilder().
-	SetId(ColorId_FromUnsignedInt(0x759f2066)).
+	SetId(ColorId{rightAligned: axiomaticSymbolId}).
 	SetBoxIdValue(StandardColors_SYMBOL_OBJECT_ID).
 	SetInvalidating(false).
-	BuildAxiomatic()
+	buildAxiomatic()
 
 // StandardColors_TOP_OBJECT is the supertype of all objects but not
 // primitives.
@@ -91,82 +102,68 @@ var StandardColors_SYMBOL = Color_SingleBuilder().
 // Separate from UNKNOWN because some optimizations back off on any
 // non-object primitives + unknown but operate on the top object.
 var StandardColors_TOP_OBJECT = Color_SingleBuilder().
-	SetId(ColorId_FromUnsignedInt(int32(-0x776497c8))). // 0x889b6838
+	SetId(ColorId{rightAligned: axiomaticTopObjectId}).
 	ClearBoxId().
 	SetInvalidating(true).
-	BuildAxiomatic()
+	buildAxiomatic()
 
 // StandardColors_TOP_FUNCTION is the supertype of all functions.
 var StandardColors_TOP_FUNCTION = Color_SingleBuilder().
-	SetId(ColorId_FromUnsignedInt(0x283b5838)).
+	SetId(ColorId{rightAligned: axiomaticTopFunctionId}).
 	ClearBoxId().
 	SetInvalidating(true).
-	BuildAxiomatic()
+	buildAxiomatic()
 
 // StandardColors_UNKNOWN is analagous to Closure '*'/'?' and TS unknown/any.
 var StandardColors_UNKNOWN = Color_SingleBuilder().
 	ClearBoxId().
-	SetId(ColorId_FromUnsignedInt(0)). // Make UNKNOWN the "default" numerical value.
+	SetId(ColorId{rightAligned: axiomaticUnknownId}). // Make UNKNOWN the "default" numerical value.
 	SetInvalidating(true).
-	BuildAxiomatic()
+	buildAxiomatic()
 
 // Java: StandardColors.GBIGINT
 var StandardColors_GBIGINT = Color_SingleBuilder().
-	SetId(ColorId_FromUnsignedInt(int32(-0x5551c988))). // 0xaaae3678
+	SetId(ColorId{rightAligned: axiomaticGBigintId}).
 	ClearBoxId().
 	SetInvalidating(false).
-	BuildAxiomatic()
+	buildAxiomatic()
 
-// StandardColors_AXIOMATIC_COLORS is the set of Colors whose definitions are
-// independent of all JS code.
-//
-// Because they have no dependencies, they are instantated once, here, and
-// made globally available. No other Color object may ever have these IDs.
-//
-// Some axiomatic Colors do not have an associated runtime type or set of
-// runtime instances. These represent abstract concepts, rather than
-// anything in a JSVM.
-//
-// Go-only: language-adapter — assigned in init() rather than by an
-// initializer: Color.Builder.buildAxiomatic reads it (and requires it to
-// still be null, as during Java's static initialization) while the
-// axiomatic colors above are built, which a Go initializer would reject as
-// an initialization cycle.
-var StandardColors_AXIOMATIC_COLORS map[ColorId]*Color
-
-func init() {
-	axiomatic := [...]*Color{
-		StandardColors_BIGINT,
-		StandardColors_BOOLEAN,
-		StandardColors_NULL_OR_VOID,
-		StandardColors_NUMBER,
-		StandardColors_STRING,
-		StandardColors_SYMBOL,
-		StandardColors_TOP_OBJECT,
-		StandardColors_UNKNOWN,
-		StandardColors_GBIGINT,
-		StandardColors_TOP_FUNCTION,
+func lookupAxiomaticColor(id ColorId) *Color {
+	switch id.rightAligned {
+	case axiomaticBigintId:
+		return StandardColors_BIGINT
+	case axiomaticBooleanId:
+		return StandardColors_BOOLEAN
+	case axiomaticNullOrVoidId:
+		return StandardColors_NULL_OR_VOID
+	case axiomaticNumberId:
+		return StandardColors_NUMBER
+	case axiomaticStringId:
+		return StandardColors_STRING
+	case axiomaticSymbolId:
+		return StandardColors_SYMBOL
+	case axiomaticTopObjectId:
+		return StandardColors_TOP_OBJECT
+	case axiomaticTopFunctionId:
+		return StandardColors_TOP_FUNCTION
+	case axiomaticUnknownId:
+		return StandardColors_UNKNOWN
+	case axiomaticGBigintId:
+		return StandardColors_GBIGINT
+	default:
+		return nil
 	}
-	m := make(map[ColorId]*Color, len(axiomatic))
-	for _, c := range axiomatic {
-		k := c.GetId()
-		if _, dup := m[k]; dup {
-			panic(jutil.NewIllegalArgumentExceptionMsg("Multiple entries with same key: " + k.String()))
-		}
-		m[k] = c
-	}
-	StandardColors_AXIOMATIC_COLORS = m
 }
 
 func isPrimitiveColorId(id ColorId) bool {
-	switch id {
-	case StandardColors_BIGINT.id,
-		StandardColors_BOOLEAN.id,
-		StandardColors_NULL_OR_VOID.id,
-		StandardColors_NUMBER.id,
-		StandardColors_STRING.id,
-		StandardColors_SYMBOL.id,
-		StandardColors_GBIGINT.id:
+	switch id.rightAligned {
+	case axiomaticBigintId,
+		axiomaticBooleanId,
+		axiomaticNullOrVoidId,
+		axiomaticNumberId,
+		axiomaticStringId,
+		axiomaticSymbolId,
+		axiomaticGBigintId:
 		return true
 	default:
 		return false

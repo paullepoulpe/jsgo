@@ -592,27 +592,6 @@ func NewParenExpressionTree(location SourceRange, expression ParseTree) *ParenEx
 	return t
 }
 
-// IsPattern looks through the parentheses.
-//
-// Java: ParseTree.isPattern()
-func (t *ParenExpressionTree) IsPattern() bool {
-	return t.Expression.IsPattern()
-}
-
-// IsValidNonVanillaAssignmentTarget looks through the parentheses.
-//
-// Java: ParseTree.isValidNonVanillaAssignmentTarget()
-func (t *ParenExpressionTree) IsValidNonVanillaAssignmentTarget() bool {
-	return t.Expression.IsValidNonVanillaAssignmentTarget()
-}
-
-// IsValidAssignmentTarget looks through the parentheses.
-//
-// Java: ParseTree.isValidAssignmentTarget()
-func (t *ParenExpressionTree) IsValidAssignmentTarget() bool {
-	return t.Expression.IsValidAssignmentTarget()
-}
-
 // PropertyNameAssignmentTree is the parse tree for ParseTreeType PROPERTY_NAME_ASSIGNMENT.
 type PropertyNameAssignmentTree struct {
 	ParseTreeBase

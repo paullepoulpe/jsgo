@@ -210,8 +210,8 @@ func dumpJsDoc(name, src string, config *Config) string {
 	}
 	annBuf.WriteByte('}')
 	line("# annotations " + annBuf.String())
-	line("# suppressions [" + strings.Join(config.SuppressionOrder(), ", ") + "]")
-	line("# primitives [" + strings.Join(config.ClosurePrimitiveOrder(), ", ") + "]")
+	line("# suppressions " + config.SuppressionNames().String())
+	line("# primitives " + config.ClosurePrimitiveNames().String())
 
 	file := parser.NewSourceFile(name, src)
 	p := parser.NewParser(testNewParserConfig(config), newSilentParserReporter(), file)

@@ -168,10 +168,10 @@ func (m *FunctionToBlockMutator) mutateInternalWithSummary(
 	renameLocals bool,
 	summary *calleeSummary,
 ) rhino.Node {
-	var localSummary calleeSummary
 	if summary == nil || summary.fnNode != fnNode {
-		if scanCalleeSummary(fnName, fnNode, &localSummary) {
-			summary = &localSummary
+		localSummary := new(calleeSummary)
+		if scanCalleeSummary(fnName, fnNode, localSummary) {
+			summary = localSummary
 		} else {
 			summary = nil
 		}

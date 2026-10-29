@@ -971,7 +971,7 @@ func (c *CodeConsumer) BreakAfterBlockFor(n rhino.Node, statementContext bool) b
 	case rhino.Token_TRY:
 		return n != parent.GetFirstChild() // Don't break before catch
 	case rhino.Token_CATCH:
-		return !NodeUtil_HasFinally(CodePrinter_PrettyCodePrinter_GetTryForCatch(parent)) // Don't break before finally
+		return !NodeUtil_HasFinally(getTryForCatch(parent)) // Don't break before finally
 	case rhino.Token_IF:
 		return n == parent.GetLastChild() // Don't break before else
 	default:

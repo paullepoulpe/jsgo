@@ -448,21 +448,15 @@ func (t *JSTypeBase) GetRestrictedTypeGivenOutcome(outcome Outcome) JSType {
 	}
 }
 
-// GetTypesUnderEquality computes the subset of this and that types if
+// GetTypesUnderEqualityPair computes the subset of this and that types if
 // equality is observed. If a value v1 of type null is equal to a value v2 of
 // type (undefined,number), we can infer that the type of v1 is null and the
 // type of v2 is undefined.
 //
 // Returns a pair containing the restricted type of this as the first
-// component and the restricted type of that as the second element. The
-// returned pair is never null even though its components may be null
+// component and the restricted type of that as the second element.
 //
 // Java: JSType.getTypesUnderEquality(JSType)
-func (t *JSTypeBase) GetTypesUnderEquality(that JSType) *JSType_TypePair {
-	a, b := t.GetTypesUnderEqualityPair(that)
-	return NewJSType_TypePair(a, b)
-}
-
 func (t *JSTypeBase) GetTypesUnderEqualityPair(that JSType) (JSType, JSType) {
 	// unions types
 	if that.IsUnionType() {
@@ -480,17 +474,12 @@ func (t *JSTypeBase) GetTypesUnderEqualityPair(that JSType) (JSType, JSType) {
 	return t.self(), that // TRUE, UNKNOWN
 }
 
-// GetTypesUnderInequality computes the subset of this and that types if
+// GetTypesUnderInequalityPair computes the subset of this and that types if
 // inequality is observed. If a value v1 of type number is not equal to a
 // value v2 of type (undefined,number), we can infer that the type of v1 is
 // number and the type of v2 is number as well.
 //
 // Java: JSType.getTypesUnderInequality(JSType)
-func (t *JSTypeBase) GetTypesUnderInequality(that JSType) *JSType_TypePair {
-	a, b := t.GetTypesUnderInequalityPair(that)
-	return NewJSType_TypePair(a, b)
-}
-
 func (t *JSTypeBase) GetTypesUnderInequalityPair(that JSType) (JSType, JSType) {
 	// unions types
 	if that.IsUnionType() {
@@ -507,29 +496,19 @@ func (t *JSTypeBase) GetTypesUnderInequalityPair(that JSType) (JSType, JSType) {
 	return t.self(), that
 }
 
-// GetTypesUnderShallowEquality computes the subset of this and that types
+// GetTypesUnderShallowEqualityPair computes the subset of this and that types
 // under shallow equality.
 //
 // Java: JSType.getTypesUnderShallowEquality(JSType)
-func (t *JSTypeBase) GetTypesUnderShallowEquality(that JSType) *JSType_TypePair {
-	a, b := t.GetTypesUnderShallowEqualityPair(that)
-	return NewJSType_TypePair(a, b)
-}
-
 func (t *JSTypeBase) GetTypesUnderShallowEqualityPair(that JSType) (JSType, JSType) {
 	commonType := t.self().GetGreatestSubtype(that)
 	return commonType, commonType
 }
 
-// GetTypesUnderShallowInequality computes the subset of this and that types
+// GetTypesUnderShallowInequalityPair computes the subset of this and that types
 // under shallow inequality.
 //
 // Java: JSType.getTypesUnderShallowInequality(JSType)
-func (t *JSTypeBase) GetTypesUnderShallowInequality(that JSType) *JSType_TypePair {
-	a, b := t.GetTypesUnderShallowInequalityPair(that)
-	return NewJSType_TypePair(a, b)
-}
-
 func (t *JSTypeBase) GetTypesUnderShallowInequalityPair(that JSType) (JSType, JSType) {
 	// union types
 	if that.IsUnionType() {
@@ -794,17 +773,6 @@ func JSType_SafeResolve(type_ JSType, reporter ErrorReporter) JSType {
 // Java: JSType.setValidator(Predicate<JSType>)
 func (t *JSTypeBase) SetValidator(validator func(JSType) bool) bool {
 	return validator(t.self())
-}
-
-// JSType_TypePair represents a pair of types.
-type JSType_TypePair struct {
-	TypeA JSType
-	TypeB JSType
-}
-
-// Java: JSType.TypePair(JSType, JSType)
-func NewJSType_TypePair(typeA JSType, typeB JSType) *JSType_TypePair {
-	return &JSType_TypePair{TypeA: typeA, TypeB: typeB}
 }
 
 // MatchConstraint modifies this type so that it matches the specified type.

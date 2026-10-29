@@ -148,7 +148,7 @@ func TestWarningsGuard_ComposeGuard(t *testing.T) {
 	}}
 
 	g2 := &jsaWgFuncGuard{level: func(error *JSError) *CheckLevel {
-		if error.GetLineNumber() == 12 {
+		if error.Lineno() == 12 {
 			return jsaWgWARNING
 		}
 		return nil

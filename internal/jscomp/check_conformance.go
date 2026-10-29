@@ -1,24 +1,7 @@
 // Port of com/google/javascript/jscomp/CheckConformance.java @ closure-compiler v20261021
-// Port of com/google/javascript/jscomp/ConformanceAllowlister.java @ closure-compiler v20261021
 
 /*
  * Copyright 2014 The Closure Compiler Authors.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
-/*
- * Copyright 2018 The Closure Compiler Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -460,20 +443,20 @@ func checkConformance_countNonExtendableFields(r *Requirement) int {
 	if r.HasTypeMatchingStrategy() {
 		n++
 	}
-	if r.GetWhitelistEntryCount() > 0 {
+	if len(r.GetWhitelistEntryList()) > 0 {
 		n++
 	}
 	if r.HasAllowExtendingValue() {
 		n++
 	}
-	if r.GetAllowlistEntryCount() > 0 {
+	if len(r.GetAllowlistEntryList()) > 0 {
 		n++
 	}
 	return n
 }
 
 type rootRequirementEntry struct {
-	builder  *Requirement_Builder
+	builder  *Requirement
 	behavior ConformanceConfig_LibraryLevelNonAllowlistedConformanceViolationsBehavior
 }
 
@@ -503,8 +486,8 @@ func (c *CheckConformance) mergeRequirements(
 ) []mergedRequirement {
 	// Root requirements (i.e. requirements that have no 'extends' field).
 	var rootRequirements []rootRequirementEntry
-	rootIndex := make(map[*Requirement_Builder]int)
-	putRoot := func(builder *Requirement_Builder, behavior ConformanceConfig_LibraryLevelNonAllowlistedConformanceViolationsBehavior) {
+	rootIndex := make(map[*Requirement]int)
+	putRoot := func(builder *Requirement, behavior ConformanceConfig_LibraryLevelNonAllowlistedConformanceViolationsBehavior) {
 		if idx, ok := rootIndex[builder]; ok {
 			rootRequirements[idx].behavior = behavior
 			return
@@ -513,13 +496,13 @@ func (c *CheckConformance) mergeRequirements(
 		rootRequirements = append(rootRequirements, rootRequirementEntry{builder: builder, behavior: behavior})
 	}
 	// Requirements that are extendable (i.e. have a 'rule_id' field).
-	extendable := make(map[string]*Requirement_Builder)
+	extendable := make(map[string]*Requirement)
 
 	// 1. Process the root requirements and add them to the rootRequirements list, and process the
 	// extendable requirements and add them to the extendable map.
 	for _, config := range configs {
 		for _, requirement := range config.GetRequirementList() {
-			builder := requirement.ToBuilder()
+			builder := requirement.Clone()
 			if requirement.HasRuleId() {
 				if !checkConformance_validateExtendableRequirement(compiler, requirement, extendable) {
 					continue
@@ -597,7 +580,7 @@ func (c *CheckConformance) mergeRequirements(
 //
 // Java: CheckConformance.mergeExtendingRequirementIntoExtended(Requirement.Builder, Requirement)
 func CheckConformance_MergeExtendingRequirementIntoExtended(
-	extendedRequirement *Requirement_Builder, extendingRequirement *Requirement) {
+	extendedRequirement *Requirement, extendingRequirement *Requirement) {
 	jutil.CheckStateMsg(
 		extendingRequirement.GetExtends() == extendedRequirement.GetRuleId(),
 		"Attempting to merge an requirement with the wrong extended requirement")
@@ -618,7 +601,7 @@ func CheckConformance_MergeExtendingRequirementIntoExtended(
 func checkConformance_validateExtendableRequirement(
 	compiler AbstractCompiler,
 	requirement *Requirement,
-	extendable map[string]*Requirement_Builder) bool {
+	extendable map[string]*Requirement) bool {
 	jutil.CheckStateMsg(requirement.HasRuleId(), "Extendable requirement must have a rule_id")
 
 	if requirement.GetRuleId() == "" {
@@ -642,7 +625,7 @@ func checkConformance_validateExtendableRequirement(
 func CheckConformance_ValidateExtendingRequirement(
 	compiler AbstractCompiler,
 	extendingRequirement *Requirement,
-	extendableRequirement *Requirement_Builder) bool {
+	extendableRequirement *Requirement) bool {
 	jutil.CheckStateMsg(extendingRequirement.HasExtends(), "Extending requirement must have an extends")
 	if extendableRequirement == nil {
 		CheckConformance_ReportInvalidRequirement(
@@ -655,7 +638,7 @@ func CheckConformance_ValidateExtendingRequirement(
 		CheckConformance_ReportInvalidRequirement(
 			compiler, extendingRequirement, "extending rules allow only "+checkConformance_EXTENDABLE_FIELDS_STR)
 	}
-	if extendingRequirement.GetValueCount() > 0 &&
+	if len(extendingRequirement.GetValueList()) > 0 &&
 		!extendableRequirement.GetAllowExtendingValue() {
 		CheckConformance_ReportInvalidRequirement(
 			compiler,
@@ -681,7 +664,7 @@ func checkConformance_dedupStrings(in []string) []string {
 }
 
 // Java: CheckConformance.removeDuplicates(Requirement.Builder)
-func CheckConformance_RemoveDuplicates(requirement *Requirement_Builder) {
+func CheckConformance_RemoveDuplicates(requirement *Requirement) {
 	list1 := checkConformance_dedupStrings(requirement.GetWhitelistList())
 	requirement.ClearWhitelist().AddAllWhitelist(list1)
 
@@ -763,98 +746,4 @@ func CheckConformance_ReportInvalidRequirement(
 		JSError_Make(
 			// TextFormat.printer().printToString(requirement) is Message.toString().
 			CheckConformance_INVALID_REQUIREMENT_SPEC, reason, requirement.String()))
-}
-
-// ConformanceAllowlister creates or updates conformance allowlist/whitelist
-// entries.
-//
-// Java: class ConformanceAllowlister
-type ConformanceAllowlister struct {
-	// Go-only: language-adapter — distinct identity.
-	_ byte
-}
-
-// ConformanceAllowlister_GetViolatingPaths returns, in encounter order, the
-// source names of the conformance violations of requirement. Like
-// toImmutableSet, it throws NullPointerException for a violation without a
-// source name.
-//
-// Java: ConformanceAllowlister.getViolatingPaths(Compiler, Node, Node, Requirement)
-func ConformanceAllowlister_GetViolatingPaths(
-	compiler *Compiler, externs rhino.Node, ast rhino.Node, requirement *Requirement) *jutil.LinkedHashSet[string] {
-	result := jutil.NewLinkedHashSet[string]()
-	for _, e := range ConformanceAllowlister_GetConformanceErrors(compiler, externs, ast, requirement) {
-		result.Add(*jutil.CheckNotNull(e.SourceName()))
-	}
-	return result
-}
-
-// ConformanceAllowlister_GetViolatingNodes returns, in encounter order, the
-// nodes of the conformance violations of requirement. Like toImmutableSet,
-// it throws NullPointerException for a violation without a node.
-//
-// Java: ConformanceAllowlister.getViolatingNodes(Compiler, Node, Node, Requirement)
-func ConformanceAllowlister_GetViolatingNodes(
-	compiler *Compiler, externs rhino.Node, ast rhino.Node, requirement *Requirement) *jutil.LinkedHashSet[rhino.Node] {
-	result := jutil.NewLinkedHashSet[rhino.Node]()
-	for _, e := range ConformanceAllowlister_GetConformanceErrors(compiler, externs, ast, requirement) {
-		result.Add(rhino.CheckNotNull(e.Node()))
-	}
-	return result
-}
-
-// Java: ConformanceAllowlister.getConformanceErrors(Compiler, Node, Node, Requirement)
-func ConformanceAllowlister_GetConformanceErrors(
-	compiler *Compiler, externs rhino.Node, ast rhino.Node, requirement *Requirement) []*JSError {
-	cleanedRequirement :=
-		requirement.ToBuilder().
-			ClearWhitelist().
-			ClearAllowlist().
-			ClearWhitelistRegexp().
-			ClearAllowlistRegexp().
-			ClearWhitelistEntry().
-			ClearAllowlistEntry().
-			SetSeverity(Requirement_Severity_ERROR).
-			Build() // So we only have one type of error.
-	cleanedConfig :=
-		ConformanceConfig_NewBuilder().AddRequirement(cleanedRequirement).Build()
-
-	oldErrorManager := compiler.GetErrorManager()
-	var errors []*JSError
-	func() {
-		defer compiler.SetErrorManager(oldErrorManager)
-		// TODO(bangert): handle invalid conformance requirements
-		compiler.SetErrorManager(
-			&conformanceAllowlister_ErrorManager{
-				ThreadSafeDelegatingErrorManager: NewThreadSafeDelegatingErrorManager(oldErrorManager),
-				errors:                           &errors,
-			})
-		check :=
-			NewCheckConformanceWithConfigs(
-				compiler, []*ConformanceConfig{cleanedConfig} /* reportingMode= */, nil)
-		check.Process(externs, ast)
-	}()
-	return errors
-}
-
-// conformanceAllowlister_ErrorManager is the anonymous
-// ThreadSafeDelegatingErrorManager of getConformanceErrors: it collects the
-// conformance violations instead of reporting them. Its synchronized
-// method holds the object's monitor, the embedded manager's.
-type conformanceAllowlister_ErrorManager struct {
-	*ThreadSafeDelegatingErrorManager
-	errors *[]*JSError
-}
-
-// Java: ThreadSafeDelegatingErrorManager.shouldReportConformanceViolation(Requirement, Optional<RequirementScopeEntry>, JSError, LibraryLevelNonAllowlistedConformanceViolationsBehavior, boolean)
-func (m *conformanceAllowlister_ErrorManager) ShouldReportConformanceViolation(
-	requirement *Requirement,
-	whitelistEntry *RequirementScopeEntry,
-	diagnostic *JSError,
-	behavior ConformanceConfig_LibraryLevelNonAllowlistedConformanceViolationsBehavior,
-	isAllowlisted bool) bool {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	*m.errors = append(*m.errors, diagnostic)
-	return false
 }

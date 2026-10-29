@@ -25,99 +25,19 @@ import (
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
 
-// generatorLabelMap is a lazy native Go map from label name to its break/continue
-// state cases. It allocates nothing until a generator contains labeled statements
-// wrapping yields.
-type generatorLabelMap map[string]generatorLabelCases
-
-func (m *generatorLabelMap) Put(k string, v generatorLabelCases) (generatorLabelCases, bool) {
-	if *m == nil {
-		*m = make(generatorLabelMap, 4)
-	}
-	old, existed := (*m)[k]
-	(*m)[k] = v
-	return old, existed
-}
-
-func (m generatorLabelMap) Get(k string) generatorLabelCases {
-	return m[k]
-}
-
-func (m generatorLabelMap) GetOk(k string) (generatorLabelCases, bool) {
-	v, ok := m[k]
-	return v, ok
-}
-
-func (m generatorLabelMap) ContainsKey(k string) bool {
-	_, ok := m[k]
-	return ok
-}
-
-func (m generatorLabelMap) Remove(k string) (generatorLabelCases, bool) {
-	v, ok := m[k]
-	if ok {
-		delete(m, k)
-	}
-	return v, ok
-}
-
-func (m generatorLabelMap) IsEmpty() bool {
-	return len(m) == 0
-}
-
-func (m generatorLabelMap) Size() int {
-	return len(m)
-}
-
-// generatorStringSet is a lazy native Go string set used to deduplicate hoisted
-// catch variable declarations in source encounter order.
-type generatorStringSet map[string]struct{}
-
-func (s *generatorStringSet) Add(k string) bool {
-	if _, exists := (*s)[k]; exists {
-		return false
-	}
-	if *s == nil {
-		*s = make(generatorStringSet, 4)
-	}
-	(*s)[k] = struct{}{}
-	return true
-}
-
-func (s generatorStringSet) Contains(k string) bool {
-	_, ok := s[k]
-	return ok
-}
-
-func (s generatorStringSet) Remove(k string) bool {
-	if _, ok := s[k]; ok {
-		delete(s, k)
-		return true
-	}
-	return false
-}
-
-func (s generatorStringSet) IsEmpty() bool {
-	return len(s) == 0
-}
-
-func (s generatorStringSet) Size() int {
-	return len(s)
-}
-
 // generatorTranspilationContext holds the state machine context used during
 // generator function transpilation.
 type generatorTranspilationContext struct {
 	pass *Es6RewriteGenerators
 	fn   *generatorFunctionTranspiler
 
-	namedLabels   generatorLabelMap
+	namedLabels   map[string]generatorLabelCases
 	breakCases    []*generatorStateCase
 	continueCases []*generatorStateCase
 
 	catchCases   []generatorCatchCase
 	finallyCases []*generatorStateCase
-	catchNames   generatorStringSet
+	catchNames   map[string]struct{}
 
 	// All "case" sections that will be added to generator program.
 	allCases []*generatorStateCase
@@ -289,7 +209,7 @@ func (c *generatorTranspilationContext) finalizeTransformation(generatorBody rhi
 }
 
 func (c *generatorTranspilationContext) checkStateIsEmpty() {
-	jutil.CheckState(c.namedLabels.IsEmpty())
+	jutil.CheckState(len(c.namedLabels) == 0)
 	jutil.CheckState(len(c.breakCases) == 0)
 	jutil.CheckState(len(c.continueCases) == 0)
 	jutil.CheckState(len(c.catchCases) == 0)
@@ -579,7 +499,11 @@ func (c *generatorTranspilationContext) enterCatchBlock(finallyCase *generatorSt
 
 	nextCatchCase := c.getNextCatchCase()
 
-	if c.catchNames.Add(excName.Ident()) {
+	if _, exists := c.catchNames[excName.Ident()]; !exists {
+		if c.catchNames == nil {
+			c.catchNames = make(map[string]struct{}, 4)
+		}
+		c.catchNames[excName.Ident()] = struct{}{}
 		c.fn.hoistVarNode(rhino.IR_Var(exceptionName.CloneNode()).Srcref(exceptionName))
 	}
 
@@ -679,14 +603,17 @@ func (c *generatorTranspilationContext) switchCaseTo(caseSection *generatorState
 func (c *generatorTranspilationContext) pushLabels(labelNames []rhino.Node, breakCase *generatorStateCase, continueCase *generatorStateCase) {
 	for _, labelName := range labelNames {
 		lbl := ast.MustLabelName(labelName)
-		c.namedLabels.Put(lbl.Ident(), generatorLabelCases{breakCase: breakCase, continueCase: continueCase})
+		if c.namedLabels == nil {
+			c.namedLabels = make(map[string]generatorLabelCases, 4)
+		}
+		c.namedLabels[lbl.Ident()] = generatorLabelCases{breakCase: breakCase, continueCase: continueCase}
 	}
 }
 
 func (c *generatorTranspilationContext) popLabels(labelNames []rhino.Node) {
 	for _, labelName := range labelNames {
 		lbl := ast.MustLabelName(labelName)
-		c.namedLabels.Remove(lbl.Ident())
+		delete(c.namedLabels, lbl.Ident())
 	}
 }
 

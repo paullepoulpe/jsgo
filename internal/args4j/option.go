@@ -83,8 +83,7 @@ type OptionDef struct {
 	handler     OptionHandlerClass
 }
 
-// NewOptionDef constructs an OptionDef for a positional Argument.
-func NewOptionDef(a *Argument, forceMultiValued bool) *OptionDef {
+func newOptionDef(a *Argument, forceMultiValued bool) *OptionDef {
 	return &OptionDef{
 		usage:       a.Usage,
 		metaVar:     a.MetaVar,
@@ -95,14 +94,13 @@ func NewOptionDef(a *Argument, forceMultiValued bool) *OptionDef {
 	}
 }
 
-// NewNamedOptionDef constructs an OptionDef from a named Option.
-func NewNamedOptionDef(o *Option) *OptionDef {
+func newNamedOptionDef(o *Option) *OptionDef {
 	return &OptionDef{
 		isNamed:  true,
 		name:     o.Name,
-		aliases:  nonNilStrings(o.Aliases),
-		depends:  nonNilStrings(o.Depends),
-		forbids:  nonNilStrings(o.Forbids),
+		aliases:  o.Aliases,
+		depends:  o.Depends,
+		forbids:  o.Forbids,
 		usage:    o.Usage,
 		metaVar:  o.MetaVar,
 		required: o.Required,
@@ -112,26 +110,9 @@ func NewNamedOptionDef(o *Option) *OptionDef {
 	}
 }
 
-func nonNilStrings(in []string) []string {
-	if in == nil {
-		return []string{}
-	}
-	return in
-}
-
-func (d *OptionDef) IsNamed() bool               { return d.isNamed }
-func (d *OptionDef) IsArgument() bool            { return !d.isNamed }
-func (d *OptionDef) Name() string                { return d.name }
-func (d *OptionDef) Aliases() []string           { return d.aliases }
-func (d *OptionDef) Depends() []string           { return d.depends }
-func (d *OptionDef) Forbids() []string           { return d.forbids }
-func (d *OptionDef) Usage() string               { return d.usage }
-func (d *OptionDef) MetaVar() string             { return d.metaVar }
-func (d *OptionDef) Required() bool              { return d.required }
-func (d *OptionDef) Help() bool                  { return d.help }
-func (d *OptionDef) Hidden() bool                { return d.hidden }
-func (d *OptionDef) Handler() OptionHandlerClass { return d.handler }
-func (d *OptionDef) IsMultiValued() bool         { return d.multiValued }
+func (d *OptionDef) IsNamed() bool { return d.isNamed }
+func (d *OptionDef) Name() string  { return d.name }
+func (d *OptionDef) Hidden() bool  { return d.hidden }
 
 func (d *OptionDef) String() string {
 	if !d.isNamed {
@@ -151,10 +132,10 @@ var (
 		return true
 	}
 	OptionHandlerFilter_PUBLIC OptionHandlerFilterFunc = func(o *OptionHandler) bool {
-		return !o.Option.Hidden()
+		return !o.Option.hidden
 	}
 	OptionHandlerFilter_REQUIRED OptionHandlerFilterFunc = func(o *OptionHandler) bool {
-		return o.Option.Required()
+		return o.Option.required
 	}
 )
 
@@ -173,26 +154,17 @@ type ParserProperties struct {
 func ParserProperties_Defaults() *ParserProperties {
 	return &ParserProperties{
 		usageWidth:           defaultUsageWidth,
-		optionSorter:         ParserProperties_DEFAULT_COMPARATOR,
+		optionSorter:         defaultOptionComparator,
 		optionValueDelimiter: " ",
 		atSyntax:             true,
 		showDefaults:         true,
 	}
 }
 
-func (p *ParserProperties) WithAtSyntax(atSyntax bool) *ParserProperties {
-	p.atSyntax = atSyntax
-	return p
-}
-
-func (p *ParserProperties) GetAtSyntax() bool { return p.atSyntax }
-
 func (p *ParserProperties) WithShowDefaults(showDefaults bool) *ParserProperties {
 	p.showDefaults = showDefaults
 	return p
 }
-
-func (p *ParserProperties) GetShowDefaults() bool { return p.showDefaults }
 
 func (p *ParserProperties) WithUsageWidth(usageWidth int) *ParserProperties {
 	if usageWidth < 0 {
@@ -202,24 +174,17 @@ func (p *ParserProperties) WithUsageWidth(usageWidth int) *ParserProperties {
 	return p
 }
 
-func (p *ParserProperties) GetUsageWidth() int { return p.usageWidth }
-
 func (p *ParserProperties) WithOptionSorter(sorter func(o1, o2 *OptionHandler) int) *ParserProperties {
 	p.optionSorter = sorter
 	return p
 }
-
-func (p *ParserProperties) GetOptionSorter() func(o1, o2 *OptionHandler) int { return p.optionSorter }
 
 func (p *ParserProperties) WithOptionValueDelimiter(v string) *ParserProperties {
 	p.optionValueDelimiter = v
 	return p
 }
 
-func (p *ParserProperties) GetOptionValueDelimiter() string { return p.optionValueDelimiter }
-
-// ParserProperties_DEFAULT_COMPARATOR sorts options alphabetically by OptionDef.String().
-var ParserProperties_DEFAULT_COMPARATOR = func(o1, o2 *OptionHandler) int {
+func defaultOptionComparator(o1, o2 *OptionHandler) int {
 	return jutil.StringCompareTo(o1.Option.String(), o2.Option.String())
 }
 
@@ -246,14 +211,13 @@ func NewCmdLineExceptionWithParser(parser *CmdLineParser, message string) *CmdLi
 	return e
 }
 
-func NewCmdLineExceptionWithParserMessageAndCause(parser *CmdLineParser, message string, cause jutil.Throwable) *CmdLineException {
+func newCmdLineExceptionWithCause(parser *CmdLineParser, message string, cause jutil.Throwable) *CmdLineException {
 	e := &CmdLineException{parser: parser}
 	jutil.InitThrowable(e, cmdLineExceptionClassName, &message, cause)
 	return e
 }
 
-func (e *CmdLineException) GetLocalizedMessage() string { return e.GetMessage() }
-func (e *CmdLineException) GetParser() *CmdLineParser   { return e.parser }
+func (e *CmdLineException) GetParser() *CmdLineParser { return e.parser }
 
 func (e *CmdLineException) Error() string {
 	if jutil.GetMessageOrNull(e) == nil {
@@ -264,13 +228,12 @@ func (e *CmdLineException) Error() string {
 
 const illegalAnnotationErrorClassName = "com.google.javascript.jscomp.jarjar.org.kohsuke.args4j.IllegalAnnotationError"
 
-// IllegalAnnotationError signals invalid option metadata on a Bean.
-type IllegalAnnotationError struct {
+type illegalAnnotationError struct {
 	jutil.JavaLangError
 }
 
-func NewIllegalAnnotationError(message string) *IllegalAnnotationError {
-	e := &IllegalAnnotationError{}
+func newIllegalAnnotationError(message string) *illegalAnnotationError {
+	e := &illegalAnnotationError{}
 	jutil.InitThrowable(e, illegalAnnotationErrorClassName, &message, nil)
 	return e
 }

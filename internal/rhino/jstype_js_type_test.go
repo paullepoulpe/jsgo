@@ -5817,16 +5817,16 @@ func TestJSType_GetTypesUnderEquality6(t *testing.T) {
 func (s *jsTypeTest) TestGetTypeUnderEquality(
 	t1 JSType, t2 JSType, t1Eq JSType, t2Eq JSType) {
 	// creating the pairs
-	p12 := t1.GetTypesUnderEquality(t2)
-	p21 := t2.GetTypesUnderEquality(t1)
+	p12A, p12B := t1.GetTypesUnderEqualityPair(t2)
+	p21A, p21B := t2.GetTypesUnderEqualityPair(t1)
 
 	// t1Eq
-	s.AssertTypeEquals(t1Eq, p12.TypeA)
-	s.AssertTypeEquals(t1Eq, p21.TypeB)
+	s.AssertTypeEquals(t1Eq, p12A)
+	s.AssertTypeEquals(t1Eq, p21B)
 
 	// t2Eq
-	s.AssertTypeEquals(t2Eq, p12.TypeB)
-	s.AssertTypeEquals(t2Eq, p21.TypeA)
+	s.AssertTypeEquals(t2Eq, p12B)
+	s.AssertTypeEquals(t2Eq, p21A)
 }
 
 func TestJSType_GetTypesUnderInequality1(t *testing.T) {
@@ -5881,16 +5881,16 @@ func TestJSType_GetTypesUnderInequality4(t *testing.T) {
 func (s *jsTypeTest) TestGetTypesUnderInequality(
 	t1 JSType, t2 JSType, t1Eq JSType, t2Eq JSType) {
 	// creating the pairs
-	p12 := t1.GetTypesUnderInequality(t2)
-	p21 := t2.GetTypesUnderInequality(t1)
+	p12A, p12B := t1.GetTypesUnderInequalityPair(t2)
+	p21A, p21B := t2.GetTypesUnderInequalityPair(t1)
 
 	// t1Eq
-	s.AssertTypeEquals(t1Eq, p12.TypeA)
-	s.AssertTypeEquals(t1Eq, p21.TypeB)
+	s.AssertTypeEquals(t1Eq, p12A)
+	s.AssertTypeEquals(t1Eq, p21B)
 
 	// t2Eq
-	s.AssertTypeEquals(t2Eq, p12.TypeB)
-	s.AssertTypeEquals(t2Eq, p21.TypeA)
+	s.AssertTypeEquals(t2Eq, p12B)
+	s.AssertTypeEquals(t2Eq, p21A)
 }
 
 /** Tests the factory method {@link JSTypeRegistry#createOptionalType(JSType)}. */

@@ -204,11 +204,7 @@ func (c *DataFlowAnalysisEscapedTest) computeEscapedLocals(src string) *jutil.Ob
 	}
 
 	// Control flow graph
-	cfg := ControlFlowAnalysis_Builder_().
-		SetCompiler(compiler).
-		SetCfgRoot(script).
-		SetIncludeEdgeAnnotations(true).
-		ComputeCfg()
+	cfg := ComputeControlFlowGraph(compiler, script, false, true)
 
 	// All variables declared in function
 	allVarsDeclaredInFunction := NodeUtil_GetAllVarsDeclaredInFunction(compiler, scopeCreator, scope)
@@ -218,4 +214,33 @@ func (c *DataFlowAnalysisEscapedTest) computeEscapedLocals(src string) *jutil.Ob
 		cfg, scope, childScope, compiler, scopeCreator, allVarsDeclaredInFunction)
 	analysis.Analyze()
 	return analysis.GetEscapedLocals()
+}
+
+func DataFlowAnalysis_ComputeEscaped(
+	jsScope *Scope,
+	escaped *jutil.ObjectLinkedHashSet[*Var],
+	compiler AbstractCompiler,
+	scopeCreator ScopeCreator,
+	allVarsInFn *jutil.LinkedHashMap[string, *Var],
+) {
+	jutil.CheckArgument(jsScope.IsFunctionScope())
+	if allVarsInFn != nil && allVarsInFn.IsEmpty() {
+		return
+	}
+	var localTable fnVarTable
+	table := &localTable
+	if allVarsInFn != nil {
+		table.vars = make([]*Var, 0, allVarsInFn.Size())
+		for var_ := range allVarsInFn.Values() {
+			table.vars = append(table.vars, var_)
+		}
+		table.finalize()
+	} else {
+		var finder lvaAllVarsFinder
+		table = &finder.collect(compiler, scopeCreator, jsScope).table
+	}
+	computeEscapedInTable(jsScope, table, compiler, scopeCreator)
+	table.escaped.ForEach(func(idx int) {
+		escaped.Add(table.vars[idx])
+	})
 }

@@ -190,13 +190,13 @@ func (p *Parser) ParseAssignment(expressionIn Parser_Expression) ParseTree {
 		if !p.Peek(TokenType_EQUAL) {
 			// not the vanilla assignment operator `=`, but a special equals operator (`+=`, `-=`,
 			// `**=`, etc)
-			if !left.IsValidNonVanillaAssignmentTarget() {
+			if !IsValidNonVanillaAssignmentTarget(left) {
 				p.ReportError("invalid assignment target")
 				return NewMissingPrimaryExpressionTree(p.GetTreeLocation(p.GetTreeStartLocation()))
 			}
 		}
 		left = p.TransformLeftHandSideExpression(left)
-		if !left.IsValidAssignmentTarget() {
+		if !IsValidAssignmentTarget(left) {
 			p.ReportError("invalid assignment target")
 			return NewMissingPrimaryExpressionTree(p.GetTreeLocation(p.GetTreeStartLocation()))
 		}

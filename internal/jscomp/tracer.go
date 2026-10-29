@@ -22,10 +22,13 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 )
+
+var tracerAnyThreadInitialized atomic.Bool
 
 // Tracer provides a simple way to trace the handling of a request.
 //
@@ -90,6 +93,9 @@ func NewTracerWithType(type_ *string, comment *string) *Tracer {
 	}
 	t.startTimeMs = Tracer_clock.CurrentTimeMillis()
 	t.startThread = jutil.Thread_CurrentThread()
+	if !tracerAnyThreadInitialized.Load() {
+		return t
+	}
 
 	trace := Tracer_GetThreadTrace()
 
@@ -183,6 +189,9 @@ func Tracer_AppendSpaces(sb *strings.Builder, numSpaces int) {
 // Java: Tracer.stop(int)
 func (t *Tracer) StopWithThreshold(silenceThreshold int) int64 {
 	jutil.CheckState(jutil.Thread_CurrentThread() == t.startThread)
+	if !tracerAnyThreadInitialized.Load() {
+		return 0
+	}
 
 	trace := Tracer_GetThreadTrace()
 	// Do nothing if the thread trace was not initialized.
@@ -233,6 +242,7 @@ func Tracer_InitCurrentThreadTrace() {
 	}
 
 	// Mark the thread trace as initialized.
+	tracerAnyThreadInitialized.Store(true)
 	events.Init()
 }
 
@@ -385,6 +395,7 @@ func NewTracer_ThreadTrace() *Tracer_ThreadTrace {
 
 // Java: Tracer.ThreadTrace.init()
 func (tt *Tracer_ThreadTrace) Init() {
+	tracerAnyThreadInitialized.Store(true)
 	tt.isInitialized = true
 }
 

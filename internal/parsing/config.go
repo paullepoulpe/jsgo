@@ -30,7 +30,7 @@ import (
 	"github.com/paullepoulpe/jsgo/internal/parser"
 )
 
-var config_emptyStringSet = map[string]struct{}{}
+var config_emptyStringSet = jutil.NewLinkedHashSet[string]()
 
 // Config is the configuration for the AST factory. Should be shared across
 // AST creation for all files of a compilation process.
@@ -40,12 +40,9 @@ type Config struct {
 	jsDocParsingMode      Config_JsDocParsing
 	runMode               Config_RunMode
 	annotations           map[string]Annotation
-	extraAnnotations      map[string]struct{}
-	extraAnnotationOrder  []string
-	suppressionNames      map[string]struct{}
-	suppressionOrder      []string
-	closurePrimitiveNames map[string]struct{}
-	closurePrimitiveOrder []string
+	extraAnnotations      *jutil.LinkedHashSet[string]
+	suppressionNames      *jutil.LinkedHashSet[string]
+	closurePrimitiveNames *jutil.LinkedHashSet[string]
 	parseInlineSourceMaps bool
 }
 
@@ -323,7 +320,7 @@ func (c *Config) LookupAnnotation(name string) (Annotation, bool) {
 	if ann, ok := Annotation_recognizedAnnotations[name]; ok {
 		return ann, true
 	}
-	if _, ok := c.extraAnnotations[name]; ok {
+	if c.extraAnnotations.Contains(name) {
 		return Annotation_NOT_IMPLEMENTED, true
 	}
 	return 0, false
@@ -337,14 +334,14 @@ func (c *Config) Annotations() map[string]Annotation {
 	if c.annotations != nil {
 		return c.annotations
 	}
-	if len(c.extraAnnotations) == 0 {
+	if c.extraAnnotations.IsEmpty() {
 		return Annotation_recognizedAnnotations
 	}
-	m := make(map[string]Annotation, len(Annotation_recognizedAnnotations)+len(c.extraAnnotations))
+	m := make(map[string]Annotation, len(Annotation_recognizedAnnotations)+c.extraAnnotations.Size())
 	for k, v := range Annotation_recognizedAnnotations { // order-independent: populating unordered lookup map
 		m[k] = v
 	}
-	for k := range c.extraAnnotations { // order-independent: populating unordered lookup map
+	for k := range c.extraAnnotations.All() {
 		m[k] = Annotation_NOT_IMPLEMENTED
 	}
 	return m
@@ -353,7 +350,7 @@ func (c *Config) Annotations() map[string]Annotation {
 // SuppressionNames is the set of recognized names in a `@suppress` tag.
 //
 // Java: Config.suppressionNames()
-func (c *Config) SuppressionNames() map[string]struct{} {
+func (c *Config) SuppressionNames() *jutil.LinkedHashSet[string] {
 	return c.suppressionNames
 }
 
@@ -361,18 +358,8 @@ func (c *Config) SuppressionNames() map[string]struct{} {
 // `@closurePrimitive` tag.
 //
 // Java: Config.closurePrimitiveNames()
-func (c *Config) ClosurePrimitiveNames() map[string]struct{} {
+func (c *Config) ClosurePrimitiveNames() *jutil.LinkedHashSet[string] {
 	return c.closurePrimitiveNames
-}
-
-// SuppressionOrder returns the recognized `@suppress` names in insertion order.
-func (c *Config) SuppressionOrder() []string {
-	return c.suppressionOrder
-}
-
-// ClosurePrimitiveOrder returns the recognized `@closurePrimitive` names in insertion order.
-func (c *Config) ClosurePrimitiveOrder() []string {
-	return c.closurePrimitiveOrder
 }
 
 // ParseInlineSourceMaps says whether to parse inline source maps
@@ -387,12 +374,14 @@ func (c *Config) ParseInlineSourceMaps() bool {
 //
 // Java: Config.annotationNames()
 func (c *Config) AnnotationNames() []string {
-	if len(c.extraAnnotationOrder) == 0 {
+	if c.extraAnnotations.IsEmpty() {
 		return slices.Clone(annotation_recognizedOrder)
 	}
-	out := make([]string, 0, len(annotation_recognizedOrder)+len(c.extraAnnotationOrder))
+	out := make([]string, 0, len(annotation_recognizedOrder)+c.extraAnnotations.Size())
 	out = append(out, annotation_recognizedOrder...)
-	out = append(out, c.extraAnnotationOrder...)
+	for name := range c.extraAnnotations.All() {
+		out = append(out, name)
+	}
 	return out
 }
 
@@ -409,31 +398,22 @@ func (c *Config) ToBuilder() *Config_Builder {
 // Java: Config.builder()
 func Config_Builder_() *Config_Builder {
 	return &Config_Builder{
-		languageMode:          Config_LanguageMode_UNSUPPORTED,
-		strictMode:            Config_StrictMode_STRICT,
-		jsDocParsingMode:      Config_JsDocParsing_TYPES_ONLY,
-		runMode:               Config_RunMode_STOP_AFTER_ERROR,
-		annotations:           Annotation_recognizedAnnotations,
-		suppressionNames:      config_emptyStringSet,
-		closurePrimitiveNames: config_emptyStringSet,
-		parseInlineSourceMaps: false,
+		cfg: Config{
+			languageMode:          Config_LanguageMode_UNSUPPORTED,
+			strictMode:            Config_StrictMode_STRICT,
+			jsDocParsingMode:      Config_JsDocParsing_TYPES_ONLY,
+			runMode:               Config_RunMode_STOP_AFTER_ERROR,
+			annotations:           Annotation_recognizedAnnotations,
+			suppressionNames:      config_emptyStringSet,
+			closurePrimitiveNames: config_emptyStringSet,
+			parseInlineSourceMaps: false,
+		},
 	}
 }
 
 // Config_Builder is the builder for a Config.
 type Config_Builder struct {
-	languageMode          Config_LanguageMode
-	strictMode            Config_StrictMode
-	jsDocParsingMode      Config_JsDocParsing
-	runMode               Config_RunMode
-	annotations           map[string]Annotation
-	extraAnnotations      map[string]struct{}
-	extraAnnotationOrder  []string
-	suppressionNames      map[string]struct{}
-	suppressionOrder      []string
-	closurePrimitiveNames map[string]struct{}
-	closurePrimitiveOrder []string
-	parseInlineSourceMaps bool
+	cfg Config
 }
 
 // NewConfig_Builder returns a builder initialized to default Config values.
@@ -443,49 +423,36 @@ func NewConfig_Builder() *Config_Builder {
 
 // NewConfig_BuilderFrom returns a builder initialized from source.
 func NewConfig_BuilderFrom(source *Config) *Config_Builder {
-	return &Config_Builder{
-		languageMode:          source.languageMode,
-		strictMode:            source.strictMode,
-		jsDocParsingMode:      source.jsDocParsingMode,
-		runMode:               source.runMode,
-		annotations:           source.annotations,
-		extraAnnotations:      source.extraAnnotations,
-		extraAnnotationOrder:  source.extraAnnotationOrder,
-		suppressionNames:      source.suppressionNames,
-		suppressionOrder:      source.suppressionOrder,
-		closurePrimitiveNames: source.closurePrimitiveNames,
-		closurePrimitiveOrder: source.closurePrimitiveOrder,
-		parseInlineSourceMaps: source.parseInlineSourceMaps,
-	}
+	return &Config_Builder{cfg: *source}
 }
 
 // Java: Config.Builder.setLanguageMode(LanguageMode)
 func (b *Config_Builder) SetLanguageMode(languageMode Config_LanguageMode) *Config_Builder {
-	b.languageMode = languageMode
+	b.cfg.languageMode = languageMode
 	return b
 }
 
 // Java: Config.Builder.setStrictMode(StrictMode)
 func (b *Config_Builder) SetStrictMode(strictMode Config_StrictMode) *Config_Builder {
-	b.strictMode = strictMode
+	b.cfg.strictMode = strictMode
 	return b
 }
 
 // Java: Config.Builder.setJsDocParsingMode(JsDocParsing)
 func (b *Config_Builder) SetJsDocParsingMode(jsDocParsingMode Config_JsDocParsing) *Config_Builder {
-	b.jsDocParsingMode = jsDocParsingMode
+	b.cfg.jsDocParsingMode = jsDocParsingMode
 	return b
 }
 
 // Java: Config.Builder.setRunMode(RunMode)
 func (b *Config_Builder) SetRunMode(runMode Config_RunMode) *Config_Builder {
-	b.runMode = runMode
+	b.cfg.runMode = runMode
 	return b
 }
 
 // Java: Config.Builder.setParseInlineSourceMaps(boolean)
 func (b *Config_Builder) SetParseInlineSourceMaps(parseInlineSourceMaps bool) *Config_Builder {
-	b.parseInlineSourceMaps = parseInlineSourceMaps
+	b.cfg.parseInlineSourceMaps = parseInlineSourceMaps
 	return b
 }
 
@@ -493,7 +460,7 @@ func (b *Config_Builder) SetParseInlineSourceMaps(parseInlineSourceMaps bool) *C
 //
 // Java: Config.Builder.setSuppressionNames(Iterable<String>)
 func (b *Config_Builder) SetSuppressionNames(names iter.Seq[string]) *Config_Builder {
-	b.suppressionNames, b.suppressionOrder = config_stringSetAndOrderCopyOf(names)
+	b.cfg.suppressionNames = config_stringSetCopyOf(names)
 	return b
 }
 
@@ -501,7 +468,7 @@ func (b *Config_Builder) SetSuppressionNames(names iter.Seq[string]) *Config_Bui
 //
 // Java: Config.Builder.setClosurePrimitiveNames(Iterable<String>)
 func (b *Config_Builder) SetClosurePrimitiveNames(names iter.Seq[string]) *Config_Builder {
-	b.closurePrimitiveNames, b.closurePrimitiveOrder = config_stringSetAndOrderCopyOf(names)
+	b.cfg.closurePrimitiveNames = config_stringSetCopyOf(names)
 	return b
 }
 
@@ -510,8 +477,7 @@ func (b *Config_Builder) SetExtraAnnotationNames(names iter.Seq[string]) *Config
 	if names == nil {
 		panic(jutil.NewNullPointerException())
 	}
-	var extra map[string]struct{}
-	var order []string
+	var extra *jutil.LinkedHashSet[string]
 	for unrecognizedAnnotation := range names {
 		if unrecognizedAnnotation == "" {
 			continue
@@ -520,57 +486,38 @@ func (b *Config_Builder) SetExtraAnnotationNames(names iter.Seq[string]) *Config
 			continue
 		}
 		if extra == nil {
-			extra = make(map[string]struct{})
+			extra = jutil.NewLinkedHashSet[string]()
 		}
-		if _, dup := extra[unrecognizedAnnotation]; dup {
+		if !extra.Add(unrecognizedAnnotation) {
 			panic(jutil.NewIllegalArgumentExceptionMsg(
 				"Multiple entries with same key: " + unrecognizedAnnotation + "=" +
 					Annotation_NOT_IMPLEMENTED.String() + " and " +
 					unrecognizedAnnotation + "=" + Annotation_NOT_IMPLEMENTED.String()))
 		}
-		extra[unrecognizedAnnotation] = struct{}{}
-		order = append(order, unrecognizedAnnotation)
 	}
-	if len(extra) == 0 {
-		b.annotations = Annotation_recognizedAnnotations
-		b.extraAnnotations = nil
-		b.extraAnnotationOrder = nil
+	if extra.IsEmpty() {
+		b.cfg.annotations = Annotation_recognizedAnnotations
+		b.cfg.extraAnnotations = nil
 	} else {
-		b.annotations = nil
-		b.extraAnnotations = extra
-		b.extraAnnotationOrder = order
+		b.cfg.annotations = nil
+		b.cfg.extraAnnotations = extra
 	}
 	return b
 }
 
 // Java: Config.Builder.build()
 func (b *Config_Builder) Build() *Config {
-	suppressionNames := b.suppressionNames
-	if suppressionNames == nil {
-		suppressionNames = config_emptyStringSet
+	c := b.cfg
+	if c.suppressionNames == nil {
+		c.suppressionNames = config_emptyStringSet
 	}
-	closurePrimitiveNames := b.closurePrimitiveNames
-	if closurePrimitiveNames == nil {
-		closurePrimitiveNames = config_emptyStringSet
+	if c.closurePrimitiveNames == nil {
+		c.closurePrimitiveNames = config_emptyStringSet
 	}
-	annotations := b.annotations
-	if annotations == nil && len(b.extraAnnotations) == 0 {
-		annotations = Annotation_recognizedAnnotations
+	if c.annotations == nil && c.extraAnnotations.IsEmpty() {
+		c.annotations = Annotation_recognizedAnnotations
 	}
-	return &Config{
-		languageMode:          b.languageMode,
-		strictMode:            b.strictMode,
-		jsDocParsingMode:      b.jsDocParsingMode,
-		runMode:               b.runMode,
-		annotations:           annotations,
-		extraAnnotations:      b.extraAnnotations,
-		extraAnnotationOrder:  b.extraAnnotationOrder,
-		suppressionNames:      suppressionNames,
-		suppressionOrder:      b.suppressionOrder,
-		closurePrimitiveNames: closurePrimitiveNames,
-		closurePrimitiveOrder: b.closurePrimitiveOrder,
-		parseInlineSourceMaps: b.parseInlineSourceMaps,
-	}
+	return &c
 }
 
 // SetAnnotations sets the recognized annotations map directly.
@@ -580,9 +527,8 @@ func (b *Config_Builder) SetAnnotations(names map[string]Annotation) *Config_Bui
 	if names == nil {
 		panic(jutil.NewNullPointerExceptionMsg("Null annotations"))
 	}
-	b.annotations = names
-	b.extraAnnotations = nil
-	b.extraAnnotationOrder = nil
+	b.cfg.annotations = names
+	b.cfg.extraAnnotations = nil
 	return b
 }
 
@@ -616,23 +562,19 @@ func Config_BuildAnnotations(allowlist iter.Seq[string]) map[string]Annotation {
 	return m
 }
 
-func config_stringSetAndOrderCopyOf(names iter.Seq[string]) (map[string]struct{}, []string) {
+func config_stringSetCopyOf(names iter.Seq[string]) *jutil.LinkedHashSet[string] {
 	if names == nil {
 		panic(jutil.NewNullPointerException())
 	}
-	var set map[string]struct{}
-	var order []string
+	var set *jutil.LinkedHashSet[string]
 	for name := range names {
 		if set == nil {
-			set = make(map[string]struct{})
+			set = jutil.NewLinkedHashSet[string]()
 		}
-		if _, dup := set[name]; !dup {
-			set[name] = struct{}{}
-			order = append(order, name)
-		}
+		set.Add(name)
 	}
 	if set == nil {
-		return config_emptyStringSet, nil
+		return config_emptyStringSet
 	}
-	return set, order
+	return set
 }

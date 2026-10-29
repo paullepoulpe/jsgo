@@ -19,6 +19,7 @@
 package jscomp
 
 import (
+	"github.com/paullepoulpe/jsgo/internal/base"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/parser"
 )
@@ -143,14 +144,13 @@ func (o *CompilerOptions) GetLanguageIn() CompilerOptions_LanguageMode {
 // Java: CompilerOptions.setLanguageOut(LanguageMode)
 func (o *CompilerOptions) SetLanguageOut(languageOut CompilerOptions_LanguageMode) {
 	if languageOut == CompilerOptions_LanguageMode_NO_TRANSPILE {
-		o.languageOutIsDefaultStrict = nil
+		o.languageOutIsDefaultStrict = base.Tri_UNKNOWN
 		o.outputFeatureSet = nil
 	} else {
 		if languageOut == CompilerOptions_LanguageMode_STABLE {
 			languageOut = CompilerOptions_LanguageMode_STABLE_OUT
 		}
-		isDefaultStrict := languageOut.IsDefaultStrict()
-		o.languageOutIsDefaultStrict = &isDefaultStrict
+		o.languageOutIsDefaultStrict = base.Tri_ForBoolean(languageOut.IsDefaultStrict())
 		o.SetOutputFeatureSet(languageOut.ToFeatureSet())
 	}
 }

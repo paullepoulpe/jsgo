@@ -49,13 +49,18 @@ import (
 
 // Java: Compiler.getScriptNode(String)
 func (c *Compiler) GetScriptNode(filename string) rhino.Node {
-	return c.scriptNodeByFilename.Get(jutil.CheckNotNull(filename))
+	return c.scriptNodeByFilename[jutil.CheckNotNull(filename)]
 }
 
 // GetResult returns the result of the compilation.
 //
 // Java: Compiler.getResult()
 func (c *Compiler) GetResult() *Result {
+	var externExports *string
+	if c.hasExternExports {
+		s := c.externExports
+		externExports = &s
+	}
 	return NewResultWithAllMaps(
 		c.GetErrors(),
 		c.GetWarnings(),
@@ -65,7 +70,7 @@ func (c *Compiler) GetResult() *Result {
 		c.stringMap,
 		c.instrumentationMapping,
 		c.sourceMap,
-		c.externExports,
+		externExports,
 		c.cssNames,
 		c.idGeneratorMap,
 		c.transpiledFiles)

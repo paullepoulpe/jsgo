@@ -210,6 +210,12 @@ func (r *TemplateTypeReplacer) visitJSType(type_ JSType) JSType {
 	case *TemplatizedType:
 		return r.CaseTemplatizedType(x)
 	case *FunctionTypeBase:
+		if x.isNoObjectOrNo() {
+			if x.isNo() {
+				return type_
+			}
+			return r.GetNativeType(JSTypeNative_NO_OBJECT_TYPE)
+		}
 		return r.CaseFunctionType(x)
 	case *InstanceObjectType, *PrototypeObjectTypeBase, *EnumType, *NoResolvedType, *EnumElementType, *NamedType:
 		return type_
@@ -231,19 +237,11 @@ func (r *TemplateTypeReplacer) visitJSType(type_ JSType) JSType {
 		return r.GetNativeType(JSTypeNative_ALL_TYPE)
 	case *BigIntType:
 		return r.GetNativeType(JSTypeNative_BIGINT_TYPE)
-	case *NoObjectType:
-		if x.IsNoType() {
-			return type_
-		}
-		return r.GetNativeType(JSTypeNative_NO_OBJECT_TYPE)
 	case *SymbolTypeBase, *KnownSymbolType:
 		return type_
 	case *ProxyObjectTypeBase:
 		return r.CaseProxyObjectType(x)
 	default:
-		if fn, ok := type_.(FunctionType); ok {
-			return r.CaseFunctionType(fn)
-		}
 		if proxy, ok := type_.(ProxyObjectType); ok {
 			return r.CaseProxyObjectType(proxy)
 		}
@@ -355,22 +353,14 @@ func (r *TemplateTypeReplacer) CaseFunctionTypeUnguarded(type_ FunctionType) JST
 		} else {
 			params = parameters
 		}
-		if fb, ok := type_.(*FunctionTypeBase); ok {
-			var builder FunctionType_Builder
-			fb.initBuilder(&builder)
-			return builder.
-				WithParametersOfList(params).
-				WithReturnType(afterReturn).
-				WithTypeOfThis(afterThis).
-				WithIsAbstract(false). // TODO(b/187989034): Copy this from the source function.
-				BuildAndResolve()
-		}
-		return type_.ToBuilder().
+		var builder FunctionType_Builder
+		type_.initBuilder(&builder)
+		return builder.
 			WithParametersOfList(params).
 			WithReturnType(afterReturn).
 			WithTypeOfThis(afterThis).
 			WithIsAbstract(false). // TODO(b/187989034): Copy this from the source function.
-			Build()
+			BuildAndResolve()
 	}
 
 	return type_

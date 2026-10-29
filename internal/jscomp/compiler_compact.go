@@ -144,8 +144,8 @@ func (c *Compiler) forwardASTHolders(fwd func(rhino.Node) rhino.Node, externs, r
 	if !root.IsNil() {
 		*root = fwd(*root)
 	}
-	for _, name := range c.scriptNodeByFilename.KeySlice() {
-		c.scriptNodeByFilename.Put(name, fwd(c.scriptNodeByFilename.Get(name)))
+	for name, n := range c.scriptNodeByFilename { // order-independent: updating existing keys in place without adding or removing keys
+		c.scriptNodeByFilename[name] = fwd(n)
 	}
 	forwardInput := func(in *CompilerInput) {
 		if in == nil {

@@ -40,12 +40,7 @@ func cfaTestCfg(t *testing.T, input string, expected string, shouldTraverseFunct
 	compiler := NewCompiler()
 	root := compiler.ParseSyntheticCode("cfgtest", input)
 
-	cfg := ControlFlowAnalysis_Builder_().
-		SetCompiler(compiler).
-		SetCfgRoot(root).
-		SetTraverseFunctions(shouldTraverseFunctions).
-		SetIncludeEdgeAnnotations(true).
-		ComputeCfg()
+	cfg := ComputeControlFlowGraph(compiler, root, shouldTraverseFunctions, true)
 
 	if got := DotFormatter_ToDotWithCfg(root, cfg); got != expected {
 		t.Errorf("DotFormatter.toDot(root, cfg):\n%s\nwant:\n%s", got, expected)
@@ -257,12 +252,7 @@ func cfaTestCreateCfg(t *testing.T, input string, runSynBlockPass bool) *Control
 		pass := NewCreateSyntheticBlocks(compiler, "START", "END")
 		pass.Process(rhino.NilNode, root)
 	}
-	return ControlFlowAnalysis_Builder_().
-		SetCompiler(compiler).
-		SetCfgRoot(root).
-		SetTraverseFunctions(true).
-		SetIncludeEdgeAnnotations(true).
-		ComputeCfg()
+	return ComputeControlFlowGraph(compiler, root, true, true)
 }
 
 // cfaFindNodes is CodeSubTree.findNodesNonEmpty (jscomp.testing): all the
@@ -1471,12 +1461,7 @@ func TestControlFlowAnalysis_PartialTraversalOfScope(t *testing.T) {
 	// Create a parent node for the scripts
 	rhino.NewNodeWith2Children(rhino.Token_BLOCK, script1, script2)
 
-	cfg := ControlFlowAnalysis_Builder_().
-		SetCompiler(compiler).
-		SetCfgRoot(script1).
-		SetTraverseFunctions(true).
-		SetIncludeEdgeAnnotations(true).
-		ComputeCfg()
+	cfg := ComputeControlFlowGraph(compiler, script1, true, true)
 
 	if cfg.GetDiGraphNode(script1) == nil {
 		t.Error("script1 should be in the CFG")
@@ -1812,7 +1797,7 @@ func TestControlFlowAnalysis_CfgRootedAtEmptyFunctionDeclaration(t *testing.T) {
 	globalRoot := compiler.ParseSyntheticCode("cfgtest", src)
 	fnRoot := cfaFindNodes(t, globalRoot, (rhino.Node).IsFunction)[0]
 
-	cfg := ControlFlowAnalysis_Builder_().SetCompiler(compiler).SetCfgRoot(fnRoot).ComputeCfg()
+	cfg := ComputeControlFlowGraph(compiler, fnRoot, false, false)
 
 	cfaAssertDownEdge(t, cfg, rhino.Token_FUNCTION, rhino.Token_BLOCK, ControlFlowGraph_Branch_UNCOND)
 	cfaAssertReturnEdge(t, cfg, rhino.Token_BLOCK)
@@ -1824,7 +1809,7 @@ func TestControlFlowAnalysis_CfgRootedAtFunctionDeclarationWithSingleStatement(t
 	globalRoot := compiler.ParseSyntheticCode("cfgtest", src)
 	fnRoot := cfaFindNodes(t, globalRoot, (rhino.Node).IsFunction)[0]
 
-	cfg := ControlFlowAnalysis_Builder_().SetCompiler(compiler).SetCfgRoot(fnRoot).ComputeCfg()
+	cfg := ComputeControlFlowGraph(compiler, fnRoot, false, false)
 
 	cfaAssertDownEdge(t, cfg, rhino.Token_FUNCTION, rhino.Token_BLOCK, ControlFlowGraph_Branch_UNCOND)
 	cfaAssertDownEdge(t, cfg, rhino.Token_BLOCK, rhino.Token_EXPR_RESULT, ControlFlowGraph_Branch_UNCOND)
@@ -1837,7 +1822,7 @@ func TestControlFlowAnalysis_CfgRootedAtEmptyClassStaticBlock(t *testing.T) {
 	globalRoot := compiler.ParseSyntheticCode("cfgtest", src)
 	staticBlock := cfaFindNodes(t, globalRoot, (rhino.Node).IsBlock)[0]
 
-	cfg := ControlFlowAnalysis_Builder_().SetCompiler(compiler).SetCfgRoot(staticBlock).ComputeCfg()
+	cfg := ComputeControlFlowGraph(compiler, staticBlock, false, false)
 
 	cfaAssertReturnEdge(t, cfg, rhino.Token_BLOCK)
 }
@@ -1848,7 +1833,7 @@ func TestControlFlowAnalysis_CfgRootedAtClassStaticBlockSingleStatementAndSubseq
 	globalRoot := compiler.ParseSyntheticCode("cfgtest", src)
 	staticBlock := cfaFindNodes(t, globalRoot, (rhino.Node).IsBlock)[0]
 
-	cfg := ControlFlowAnalysis_Builder_().SetCompiler(compiler).SetCfgRoot(staticBlock).ComputeCfg()
+	cfg := ComputeControlFlowGraph(compiler, staticBlock, false, false)
 
 	cfaAssertDownEdge(t, cfg, rhino.Token_BLOCK, rhino.Token_EXPR_RESULT, ControlFlowGraph_Branch_UNCOND)
 	// Double check edge removal from EXPR_RESULT to next child of CLASS_MEMBER
@@ -1875,7 +1860,7 @@ func TestControlFlowAnalysis_CfgRootedAtClassStaticBlockMultipleStatementAndSubs
 	staticBlock2 := staticBlocks[1]
 
 	// First Static Block
-	cfg1 := ControlFlowAnalysis_Builder_().SetCompiler(compiler).SetCfgRoot(staticBlock1).ComputeCfg()
+	cfg1 := ComputeControlFlowGraph(compiler, staticBlock1, false, false)
 
 	cfaAssertDownEdge(t, cfg1, rhino.Token_BLOCK, rhino.Token_EXPR_RESULT, ControlFlowGraph_Branch_UNCOND)
 	cfaAssertNoEdge(t, cfg1, rhino.Token_EXPR_RESULT, rhino.Token_MEMBER_FIELD_DEF)
@@ -1884,7 +1869,7 @@ func TestControlFlowAnalysis_CfgRootedAtClassStaticBlockMultipleStatementAndSubs
 	cfaAssertNoEdge(t, cfg1, rhino.Token_COMPUTED_PROP, rhino.Token_BLOCK)
 
 	// Second Static Block
-	cfg2 := ControlFlowAnalysis_Builder_().SetCompiler(compiler).SetCfgRoot(staticBlock2).ComputeCfg()
+	cfg2 := ComputeControlFlowGraph(compiler, staticBlock2, false, false)
 
 	cfaAssertDownEdge(t, cfg2, rhino.Token_BLOCK, rhino.Token_EXPR_RESULT, ControlFlowGraph_Branch_UNCOND)
 	cfaAssertNoEdge(t, cfg2, rhino.Token_EXPR_RESULT, rhino.Token_MEMBER_FIELD_DEF)

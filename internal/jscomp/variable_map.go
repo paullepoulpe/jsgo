@@ -217,13 +217,18 @@ func parseVariableMapLine(line string) (orig, newName string, ok bool) {
 }
 
 func parseVariableMapStream(stream io.Reader) (*VariableMap, error) {
+	b, err := io.ReadAll(stream)
+	if err != nil {
+		panic(jutil.NewIOException(err.Error()))
+	}
+	text := jutil.NewStringFromUTF8Bytes(b)
 	var entries []variableMapEntry
-	br := jutil.NewBufferedReaderUTF8(stream)
-	for {
-		line, ok := br.ReadLine()
+	for pos := 0; ; {
+		line, nextPos, ok := jutil.NextLineFromString(text, pos)
 		if !ok {
 			break
 		}
+		pos = nextPos
 		if line == "" {
 			continue
 		}

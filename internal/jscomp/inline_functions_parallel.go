@@ -81,7 +81,7 @@ func (f *InlineFunctions) findCandidateFunctionsParallel(root rhino.Node) bool {
 			} else {
 				fs = f.getOrCreateNamedFunctionState(cand.target.nameNode.GetStringID())
 			}
-			cand.applyTo(f, fs, nil)
+			cand.applyTo(f, fs)
 			jutil.CheckState(!(InlineFunctions_HasRequireInliningAnnotation(cand.target.fnNode) && !fs.CanInline()))
 		}
 	}

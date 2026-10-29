@@ -139,7 +139,7 @@ func (c *CodeConsumer) adjustSourceMappings(code string) {
 		}
 	}
 	for i := range c.allMappings {
-		c.allMappings[i].end = codePrinter_MappedCodePrinter_adjustEndPositionVal(lineLengths, c.allMappings[i].end)
+		c.allMappings[i].end = adjustEndPosition(lineLengths, c.allMappings[i].end)
 	}
 }
 
@@ -152,22 +152,22 @@ func (c *CodeConsumer) ReportLineCut(lineIndex int, charIndex int) {
 	if c.createSrcMap {
 		for i := c.cutIdx; i < len(c.allMappings); i++ {
 			mapping := &c.allMappings[i]
-			mapping.start = codePrinter_MappedCodePrinter_convertPositionAfterLineCutVal(mapping.start, lineIndex, charIndex)
+			mapping.start = convertPositionAfterLineCut(mapping.start, lineIndex, charIndex)
 			if mapping.end.GetLine() >= 0 {
-				mapping.end = codePrinter_MappedCodePrinter_convertPositionAfterLineCutVal(mapping.end, lineIndex, charIndex)
+				mapping.end = convertPositionAfterLineCut(mapping.end, lineIndex, charIndex)
 			}
 		}
 		c.cutIdx = len(c.allMappings)
 
 		for _, idx := range c.completeMappings {
-			c.allMappings[idx].end = codePrinter_MappedCodePrinter_convertPositionAfterLineCutVal(c.allMappings[idx].end, lineIndex, charIndex)
+			c.allMappings[idx].end = convertPositionAfterLineCut(c.allMappings[idx].end, lineIndex, charIndex)
 		}
 		c.completeMappings = c.completeMappings[:0]
 		c.cutStackDepth = len(c.openMappings)
 	}
 }
 
-func codePrinter_MappedCodePrinter_convertPositionAfterLineCutVal(
+func convertPositionAfterLineCut(
 	position sourcemap.FilePosition, lineIndex int, characterPosition int) sourcemap.FilePosition {
 	originalLine := position.GetLine()
 	originalChar := position.GetColumn()
@@ -195,7 +195,7 @@ func (c *CodeConsumer) GetCurrentLineIndex() int {
 	return c.lineIndex
 }
 
-func codePrinter_MappedCodePrinter_adjustEndPositionVal(
+func adjustEndPosition(
 	lineLengths []int, endPosition sourcemap.FilePosition) sourcemap.FilePosition {
 	line := endPosition.GetLine()
 	if line >= len(lineLengths) {
@@ -220,11 +220,10 @@ func codePrinter_panicBadEndPosition(endPosition sourcemap.FilePosition, lineLen
 		lineLen)
 }
 
-// CodePrinter_PrettyCodePrinter_GetTryForCatch returns the TRY node for the
-// specified CATCH node.
+// getTryForCatch returns the TRY node for the specified CATCH node.
 //
 // Java: CodePrinter.PrettyCodePrinter.getTryForCatch(Node)
-func CodePrinter_PrettyCodePrinter_GetTryForCatch(n rhino.Node) rhino.Node {
+func getTryForCatch(n rhino.Node) rhino.Node {
 	return n.GetGrandparent()
 }
 
@@ -509,6 +508,14 @@ func (b *CodePrinter_Builder) buildSourceAndMappingsWithFormatInto(
 	source := cc.GetCode()
 	if sm != nil {
 		sm.source = source
+		if !cc.hasNonASCII {
+			sm.utf16Len = len(source)
+			sm.lineIndex = cc.lineIndex
+			sm.lineLength = cc.lineLength
+			sm.hasMetrics = true
+		} else {
+			sm.hasMetrics = false
+		}
 		if gatherSourceMap {
 			cc.adjustSourceMappings(source)
 			sm.mappings = cc.allMappings
@@ -552,8 +559,12 @@ func CodePrinter_Format_FromOptions(options *CompilerOptions, outputTypes bool, 
 // CodePrinter_SourceAndMappings bundles together the source and generated
 // SourceMap Mappings for that source.
 type CodePrinter_SourceAndMappings struct {
-	source   string
-	mappings []SourceMap_Mapping
+	source     string
+	mappings   []SourceMap_Mapping
+	utf16Len   int
+	lineIndex  int
+	lineLength int
+	hasMetrics bool
 }
 
 // Java: CodePrinter.SourceAndMappings()

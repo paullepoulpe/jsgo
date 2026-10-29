@@ -453,19 +453,40 @@ func productionCoverageInstrumentationCallback_keysForJson(
 func (m *productionCoverageInstrumentationCallback_ParameterMapping) getParamMappingAsVariableMap() *VariableMap {
 	gson := jutil.NewGsonBuilder().DisableHtmlEscaping().Create()
 
-	preMap := jutil.NewLinkedHashMapWithCapacity[string, string](len(m.paramOrder) + 3)
+	n := len(m.paramOrder) + 3
+	preVal := make(map[string]string, n)
+	preKeys := make([]string, 0, n)
+	putPre := func(k, v string) {
+		if _, exists := preVal[k]; !exists {
+			preKeys = append(preKeys, k)
+		}
+		preVal[k] = v
+	}
 	for _, k := range m.paramOrder {
-		preMap.Put(k, m.paramEncodings[k])
+		putPre(k, m.paramEncodings[k])
 	}
 
 	// Array names are given a " " (space) prefix since when writing to file, VariableMap.java
 	// sorts the map by key values. This space will place the arrays at the top of the file.
 	// The key and value entry are put in this order because the map will be inversed.
-	preMap.Put(gson.ToJson(productionCoverageInstrumentationCallback_keysForJson(m.fileNames)), " FileNames")
-	preMap.Put(gson.ToJson(productionCoverageInstrumentationCallback_keysForJson(m.functionNames)), " FunctionNames")
-	preMap.Put(gson.ToJson(m.typeNames), " Types")
+	putPre(gson.ToJson(productionCoverageInstrumentationCallback_keysForJson(m.fileNames)), " FileNames")
+	putPre(gson.ToJson(productionCoverageInstrumentationCallback_keysForJson(m.functionNames)), " FunctionNames")
+	putPre(gson.ToJson(m.typeNames), " Types")
 
-	preInversedMap := NewVariableMap(preMap)
-	inversedMap := preInversedMap.GetNewNameToOriginalNameMap()
-	return NewVariableMap(inversedMap)
+	origToNew := make(map[string]string, len(preKeys))
+	origKeys := make([]string, 0, len(preKeys))
+	for _, k := range preKeys {
+		v := preVal[k]
+		if prevKey, dup := origToNew[v]; dup {
+			panic(jutil.NewIllegalArgumentExceptionMsg(
+				"Multiple entries with same value: " + k + "=" + v + " and " + prevKey + "=" + v))
+		}
+		origToNew[v] = k
+		origKeys = append(origKeys, v)
+	}
+	return &VariableMap{
+		origToNew: origToNew,
+		newToOrig: preVal,
+		origKeys:  origKeys,
+	}
 }

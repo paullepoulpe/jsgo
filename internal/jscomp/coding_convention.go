@@ -113,18 +113,6 @@ type CodingConvention interface {
 	// Java: CodingConvention.isExported(String)
 	IsExported(name string) bool
 
-	// BlockRenamingForProperty is a no-op convention that is never used.
-	//
-	// Deprecated: since this has a default value and is never checked, you
-	// can safely remove any overrides of this method from your coding
-	// conventions.
-	//
-	// A Java default method: implementations that do not override it call
-	// CodingConvention_BlockRenamingForProperty.
-	//
-	// Java: CodingConvention.blockRenamingForProperty(String)
-	BlockRenamingForProperty(name string) bool
-
 	// GetPackageName returns the package name for the given source file, or
 	// null if no package name is known.
 	//
@@ -155,25 +143,6 @@ type CodingConvention interface {
 	//
 	// Java: CodingConvention.isSuperClassReference(String)
 	IsSuperClassReference(propertyName string) bool
-
-	// ExtractIsModuleFile is a convenience method for determining if the
-	// node indicates the file is a "module" file (a file whose top level
-	// symbols are not in global scope).
-	//
-	// Java: CodingConvention.extractIsModuleFile(Node, Node)
-	ExtractIsModuleFile(node rhino.Node, parent rhino.Node) bool
-
-	// ExtractClassNameIfProvide is a convenience method for determining
-	// provided dependencies amongst different JS scripts.
-	//
-	// Java: CodingConvention.extractClassNameIfProvide(Node, Node)
-	ExtractClassNameIfProvide(node rhino.Node, parent rhino.Node) *string
-
-	// ExtractClassNameIfRequire is a convenience method for determining
-	// required dependencies amongst different JS scripts.
-	//
-	// Java: CodingConvention.extractClassNameIfRequire(Node, Node)
-	ExtractClassNameIfRequire(node rhino.Node, parent rhino.Node) *string
 
 	// GetExportPropertyFunction is the function name used when exporting
 	// properties. Signature: fn(object, publicName, symbol).
@@ -263,12 +232,6 @@ type CodingConvention interface {
 	// Java: CodingConvention.isPropertyTestFunction(Node)
 	IsPropertyTestFunction(call rhino.Node) bool
 
-	// IsPrototypeAlias: whether this GETPROP node is an alias for an object
-	// prototype.
-	//
-	// Java: CodingConvention.isPrototypeAlias(Node)
-	IsPrototypeAlias(getProp rhino.Node) bool
-
 	// IsPropertyRenameFunction: whether this GETPROP or NAME node is the
 	// function is returning the string name for a property, but allows
 	// renaming.
@@ -297,14 +260,6 @@ type CodingConvention interface {
 // Java: CodingConvention.isExported(String) (default method)
 func CodingConvention_IsExported(c CodingConvention, name string) bool {
 	return c.IsExportedWithLocal(name, true) || c.IsExportedWithLocal(name, false)
-}
-
-// CodingConvention_BlockRenamingForProperty is the default body of
-// CodingConvention.blockRenamingForProperty(String).
-//
-// Java: CodingConvention.blockRenamingForProperty(String) (default method)
-func CodingConvention_BlockRenamingForProperty(c CodingConvention, name string) bool {
-	return false
 }
 
 // CodingConvention_Bind is the Bind class.

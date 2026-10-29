@@ -617,12 +617,12 @@ func (f *InlineFunctions) decomposeExpressionsParallel(workRefs []*FunctionInjec
 			}
 			return entry.suffix
 		}
-		inj := NewFunctionInjector_Builder(rc).
-			SafeNameIdSupplier(placeholderSupplier).
-			AllowDecomposition(f.injector.allowDecomposition).
-			AssumeStrictThis(f.injector.assumeStrictThis).
-			FunctionArgumentInjector(NewFunctionArgumentInjector(f.compiler.GetAstAnalyzer())).
-			Build()
+		inj := NewFunctionInjector(rc, FunctionInjectorOptions{
+			SafeNameIdSupplier:       placeholderSupplier,
+			AllowDecomposition:       f.injector.allowDecomposition,
+			AssumeStrictThis:         f.injector.assumeStrictThis,
+			FunctionArgumentInjector: NewFunctionArgumentInjector(f.compiler.GetAstAnalyzer()),
+		})
 		inj.shareKnownConstantFunctionsFrom(f.injector)
 		w.inj = inj
 	}

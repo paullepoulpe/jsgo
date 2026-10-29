@@ -87,15 +87,15 @@ type PolymerPass struct {
 func NewPolymerPass(compiler AbstractCompiler) *PolymerPass {
 	return &PolymerPass{
 		compiler:           compiler,
-		tagNameMap:         TagNameToType_GetMap(),
+		tagNameMap:         tagNameToTypeMap,
 		nativeExternsAdded: make(map[string]bool),
 	}
 }
 
 // Java: PolymerPass.process(Node, Node)
 func (p *PolymerPass) Process(externs rhino.Node, root rhino.Node) {
-	externsCallback := NewPolymerPassFindExterns()
-	NodeTraversal_Traverse(p.compiler, externs, externsCallback)
+	var externsCallback polymerPassFindExterns
+	NodeTraversal_Traverse(p.compiler, externs, &externsCallback)
 	p.polymerElementExterns = externsCallback.GetPolymerElementExterns()
 	p.polymerElementProps = externsCallback.GetPolymerElementProps()
 
@@ -105,8 +105,7 @@ func (p *PolymerPass) Process(externs rhino.Node, root rhino.Node) {
 
 	externsAndJsRoot := root.GetParent()
 	NodeTraversal_Traverse(p.compiler, externsAndJsRoot, p)
-	suppressBehaviorsCallback := NewPolymerPassSuppressBehaviorsAndProtectKeys(p.compiler)
-	NodeTraversal_Traverse(p.compiler, externsAndJsRoot, suppressBehaviorsCallback)
+	NodeTraversal_Traverse(p.compiler, externsAndJsRoot, polymerPassSuppressBehaviorsAndProtectKeys{compiler: p.compiler})
 }
 
 // Java: PolymerPass.visit(NodeTraversal, Node, Node)
@@ -426,28 +425,23 @@ var polymerPassFindExternsVisitTokens = func() ast.TokenSet {
 	return s
 }()
 
-var _ nodeTraversal_visitTokens = (*PolymerPassFindExterns)(nil)
+var _ nodeTraversal_visitTokens = (*polymerPassFindExterns)(nil)
 
-func (*PolymerPassFindExterns) visitTokens() *ast.TokenSet {
+func (*polymerPassFindExterns) visitTokens() *ast.TokenSet {
 	return &polymerPassFindExternsVisitTokens
 }
 
-// PolymerPassFindExterns finds the externs for the PolymerElement base class
+// polymerPassFindExterns finds the externs for the PolymerElement base class
 // and all of its properties in the externs.
 //
 // Java: final class PolymerPassFindExterns implements NodeTraversal.Callback
-type PolymerPassFindExterns struct {
+type polymerPassFindExterns struct {
 	polymerElementExterns rhino.Node
 	polymerElementProps   []rhino.Node
 }
 
-// Java: PolymerPassFindExterns()
-func NewPolymerPassFindExterns() *PolymerPassFindExterns {
-	return &PolymerPassFindExterns{}
-}
-
 // Java: PolymerPassFindExterns.shouldTraverse(NodeTraversal, Node, Node)
-func (f *PolymerPassFindExterns) ShouldTraverse(t *NodeTraversal, n rhino.Node, parent rhino.Node) bool {
+func (f *polymerPassFindExterns) ShouldTraverse(t *NodeTraversal, n rhino.Node, parent rhino.Node) bool {
 	/*
 	 * The externs subtree also includes @typeSummary files, which are slightly different from
 	 * normal externs. The Polymer externs may exist in either file type. However,
@@ -458,7 +452,7 @@ func (f *PolymerPassFindExterns) ShouldTraverse(t *NodeTraversal, n rhino.Node, 
 }
 
 // Java: PolymerPassFindExterns.visit(NodeTraversal, Node, Node)
-func (f *PolymerPassFindExterns) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
+func (f *polymerPassFindExterns) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	if polymerPassFindExterns_isPolymerElementExterns(n) {
 		f.polymerElementExterns = n
 	} else if polymerPassFindExterns_isPolymerElementPropExpr(n) {
@@ -470,7 +464,7 @@ func (f *PolymerPassFindExterns) Visit(t *NodeTraversal, n rhino.Node, parent rh
 // in externs.
 //
 // Java: PolymerPassFindExterns.getPolymerElementProps()
-func (f *PolymerPassFindExterns) GetPolymerElementProps() []rhino.Node {
+func (f *polymerPassFindExterns) GetPolymerElementProps() []rhino.Node {
 	// ImmutableList.Builder.build() snapshots the elements added so far.
 	return append([]rhino.Node(nil), f.polymerElementProps...)
 }
@@ -479,7 +473,7 @@ func (f *PolymerPassFindExterns) GetPolymerElementProps() []rhino.Node {
 // externs.
 //
 // Java: PolymerPassFindExterns.getPolymerElementExterns()
-func (f *PolymerPassFindExterns) GetPolymerElementExterns() rhino.Node {
+func (f *polymerPassFindExterns) GetPolymerElementExterns() rhino.Node {
 	return f.polymerElementExterns
 }
 
@@ -587,9 +581,4 @@ var tagNameToTypeMap = map[string]string{
 	"track":    "HTMLTrackElement",
 	"ul":       "HTMLUListElement",
 	"video":    "HTMLVideoElement",
-}
-
-// Java: TagNameToType.getMap()
-func TagNameToType_GetMap() map[string]string {
-	return tagNameToTypeMap
 }

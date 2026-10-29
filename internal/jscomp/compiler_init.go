@@ -816,7 +816,7 @@ func (c *Compiler) maybePrintSourceAfterEachPass(passName string) {
 	}
 
 	currentJsSource := c.GetCurrentJsSource()
-	if c.lastJsSource != nil && currentJsSource == *c.lastJsSource {
+	if c.hasLastJsSource && currentJsSource == c.lastJsSource {
 		return
 	}
 
@@ -829,8 +829,8 @@ func (c *Compiler) maybePrintSourceAfterEachPass(passName string) {
 	} else {
 		err := jutil.System_Err()
 		err.PrintlnEmpty()
-		if c.debugMessage != nil {
-			err.Println("// DEBUG: " + *c.debugMessage)
+		if c.hasDebugMessage {
+			err.Println("// DEBUG: " + c.debugMessage)
 		}
 		err.Println("// " + passName + " yields:")
 		err.Println("// ************************************")
@@ -838,7 +838,8 @@ func (c *Compiler) maybePrintSourceAfterEachPass(passName string) {
 		err.Println("// ************************************")
 	}
 
-	c.lastJsSource = &currentJsSource
+	c.lastJsSource = currentJsSource
+	c.hasLastJsSource = true
 }
 
 // Java: Compiler.getCurrentJsSource()

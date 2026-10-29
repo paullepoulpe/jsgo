@@ -55,8 +55,8 @@ type removeUnusedCodeState struct {
 	varInfos []*RemoveUnusedCode_RealVarInfo
 
 	trackProps   bool
-	pinnedProps  jutil.BitSet
-	polyBits     jutil.BitSet
+	pinnedProps  inlineBitSet
+	polyBits     inlineBitSet
 	propIdxByID  map[uint32]uint32
 	propEntries  []rucPropEntry
 	propRemOrder []uint32

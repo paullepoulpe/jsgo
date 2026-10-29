@@ -303,9 +303,6 @@ func (p ConformanceRules_BannedProperty_RequirementPrecondition) String() string
 	return conformanceRules_BannedProperty_RequirementPrecondition_names[p]
 }
 
-// Ordinal is Enum.ordinal().
-func (p ConformanceRules_BannedProperty_RequirementPrecondition) Ordinal() int { return int(p) }
-
 // ShouldCheck is the per-constant body of shouldCheck.
 //
 // Java: ConformanceRules.BannedProperty.RequirementPrecondition.shouldCheck(Node)
@@ -346,7 +343,7 @@ func newConformanceRules_BannedProperty(compiler AbstractCompiler, requirement *
 		return nil, err
 	}
 
-	if requirement.GetValueCount() == 0 {
+	if len(requirement.GetValueList()) == 0 {
 		return nil, errInvalidRequirementSpec("missing value")
 	}
 

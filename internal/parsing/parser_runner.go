@@ -54,8 +54,6 @@ package parsing
 
 import (
 	_ "embed"
-	"maps"
-	"slices"
 	"strings"
 	"sync"
 	"unicode/utf16"
@@ -67,25 +65,12 @@ import (
 )
 
 var (
-	parserRunner_defaultExtraAnnotations map[string]struct{}
-	parserRunner_defaultExtraOrder       []string
+	parserRunner_defaultExtraAnnotations *jutil.LinkedHashSet[string]
 	parserRunner_defaultAnnotations      map[string]Annotation
-	parserRunner_suppressionSet          map[string]struct{}
-	parserRunner_suppressionOrder        []string
-	parserRunner_reservedVarsSet         map[string]struct{}
-	parserRunner_reservedVarsOrder       []string
-	parserRunner_closurePrimitiveSet     map[string]struct{}
-	parserRunner_closurePrimitiveOrder   []string
-
-	parserRunner_initOnce         sync.Once
-	parserRunner_reservedVarsOnce = sync.OnceValue(func() *jutil.LinkedHashSet[string] {
-		ParserRunner_InitResourceConfig()
-		return jutil.NewLinkedHashSet(parserRunner_reservedVarsOrder...)
-	})
-	parserRunner_suppressionNamesOnce = sync.OnceValue(func() *jutil.LinkedHashSet[string] {
-		ParserRunner_InitResourceConfig()
-		return jutil.NewLinkedHashSet(parserRunner_suppressionOrder...)
-	})
+	parserRunner_suppressionNames        *jutil.LinkedHashSet[string]
+	parserRunner_reservedVars            *jutil.LinkedHashSet[string]
+	parserRunner_closurePrimitives       *jutil.LinkedHashSet[string]
+	parserRunner_initOnce                sync.Once
 )
 
 // Java: ParserRunner.createConfig(LanguageMode, JsDocParsing, RunMode, Set<String>, boolean, StrictMode)
@@ -98,16 +83,16 @@ func ParserRunner_CreateConfigWithModes(
 	strictMode Config_StrictMode) *Config {
 	ParserRunner_InitResourceConfig()
 	extra := parserRunner_defaultExtraAnnotations
-	extraOrder := parserRunner_defaultExtraOrder
 	var annotations map[string]Annotation
 	if extraAnnotationNames == nil || extraAnnotationNames.IsEmpty() {
 		annotations = parserRunner_defaultAnnotations
 	} else {
-		var custom map[string]struct{}
-		var customOrder []string
-		if len(extra) > 0 {
-			custom = maps.Clone(extra)
-			customOrder = slices.Clone(extraOrder)
+		var custom *jutil.LinkedHashSet[string]
+		if !extra.IsEmpty() {
+			custom = jutil.NewLinkedHashSetWithCapacity[string](extra.Size() + extraAnnotationNames.Size())
+			for name := range extra.All() {
+				custom.AddNew(name)
+			}
 		}
 		for name := range extraAnnotationNames.All() {
 			if name == "" {
@@ -115,17 +100,13 @@ func ParserRunner_CreateConfigWithModes(
 			}
 			if _, recognized := Annotation_recognizedAnnotations[name]; !recognized {
 				if custom == nil {
-					custom = make(map[string]struct{})
+					custom = jutil.NewLinkedHashSet[string]()
 				}
-				if _, dup := custom[name]; !dup {
-					custom[name] = struct{}{}
-					customOrder = append(customOrder, name)
-				}
+				custom.Add(name)
 			}
 		}
 		extra = custom
-		extraOrder = customOrder
-		if len(extra) == 0 {
+		if extra.IsEmpty() {
 			annotations = Annotation_recognizedAnnotations
 		}
 	}
@@ -136,75 +117,52 @@ func ParserRunner_CreateConfigWithModes(
 		runMode:               runMode,
 		annotations:           annotations,
 		extraAnnotations:      extra,
-		extraAnnotationOrder:  extraOrder,
-		suppressionNames:      parserRunner_suppressionSet,
-		suppressionOrder:      parserRunner_suppressionOrder,
-		closurePrimitiveNames: parserRunner_closurePrimitiveSet,
-		closurePrimitiveOrder: parserRunner_closurePrimitiveOrder,
+		suppressionNames:      parserRunner_suppressionNames,
+		closurePrimitiveNames: parserRunner_closurePrimitives,
 		parseInlineSourceMaps: parseInlineSourceMaps,
 	}
 }
 
 // Java: ParserRunner.getReservedVars()
 func ParserRunner_GetReservedVars() *jutil.LinkedHashSet[string] {
-	return parserRunner_reservedVarsOnce()
-}
-
-// ParserRunner_GetReservedVarsSet returns the immutable reserved-variable set
-// as a plain Go map without allocating a LinkedHashSet.
-func ParserRunner_GetReservedVarsSet() map[string]struct{} {
 	ParserRunner_InitResourceConfig()
-	return parserRunner_reservedVarsSet
+	return parserRunner_reservedVars
 }
 
 // Java: ParserRunner.getSuppressionNames()
 func ParserRunner_GetSuppressionNames() *jutil.LinkedHashSet[string] {
-	return parserRunner_suppressionNamesOnce()
+	ParserRunner_InitResourceConfig()
+	return parserRunner_suppressionNames
 }
 
 // Java: ParserRunner.initResourceConfig()
 func ParserRunner_InitResourceConfig() {
 	parserRunner_initOnce.Do(func() {
-		_, annotationOrder := parserRunner_extractList(ParserConfiguration_GetString("jsdoc.annotations"))
-		parserRunner_suppressionSet, parserRunner_suppressionOrder = parserRunner_extractList(ParserConfiguration_GetString("jsdoc.suppressions"))
-		parserRunner_closurePrimitiveSet, parserRunner_closurePrimitiveOrder = parserRunner_extractList(ParserConfiguration_GetString("jsdoc.primitives"))
-		parserRunner_reservedVarsSet, parserRunner_reservedVarsOrder = parserRunner_extractList(ParserConfiguration_GetString("compiler.reserved.vars"))
-		for _, name := range annotationOrder {
+		annotations := parserRunner_extractList(ParserConfiguration_GetString("jsdoc.annotations"))
+		parserRunner_suppressionNames = parserRunner_extractList(ParserConfiguration_GetString("jsdoc.suppressions"))
+		parserRunner_closurePrimitives = parserRunner_extractList(ParserConfiguration_GetString("jsdoc.primitives"))
+		parserRunner_reservedVars = parserRunner_extractList(ParserConfiguration_GetString("compiler.reserved.vars"))
+		for name := range annotations.All() {
 			if name == "" {
 				continue
 			}
 			if _, recognized := Annotation_recognizedAnnotations[name]; !recognized {
 				if parserRunner_defaultExtraAnnotations == nil {
-					parserRunner_defaultExtraAnnotations = make(map[string]struct{})
+					parserRunner_defaultExtraAnnotations = jutil.NewLinkedHashSet[string]()
 				}
-				if _, dup := parserRunner_defaultExtraAnnotations[name]; !dup {
-					parserRunner_defaultExtraAnnotations[name] = struct{}{}
-					parserRunner_defaultExtraOrder = append(parserRunner_defaultExtraOrder, name)
-				}
+				parserRunner_defaultExtraAnnotations.Add(name)
 			}
 		}
-		parserRunner_defaultAnnotations = Config_BuildAnnotations(slices.Values(annotationOrder))
+		parserRunner_defaultAnnotations = Config_BuildAnnotations(annotations.All())
 	})
 }
 
-// Java: ParserRunner.extractList(String)
-func ParserRunner_ExtractList(configProp string) map[string]struct{} {
-	set, _ := parserRunner_extractList(configProp)
-	return set
-}
-
-func parserRunner_extractList(configProp string) (map[string]struct{}, []string) {
-	n := strings.Count(configProp, ",") + 1
-	set := make(map[string]struct{}, n)
-	order := make([]string, 0, n)
+func parserRunner_extractList(configProp string) *jutil.LinkedHashSet[string] {
+	set := jutil.NewLinkedHashSetWithCapacity[string](strings.Count(configProp, ",") + 1)
 	for part := range strings.SplitSeq(configProp, ",") {
-		trimmed := parserRunner_trimWhitespace(part)
-		if _, dup := set[trimmed]; !dup {
-			set[trimmed] = struct{}{}
-			order = append(order, trimmed)
-		}
+		set.Add(parserRunner_trimWhitespace(part))
 	}
-	return set, order
+	return set
 }
 
 func parserRunner_trimWhitespace(s string) string {

@@ -214,12 +214,6 @@ func (b Export_Builder) ClosureNamespace(closureNamespace string) Export_Builder
 	return b
 }
 
-// Java: AutoBuilder_Export_Builder.mutated(boolean)
-func (b Export_Builder) Mutated(mutated bool) Export_Builder {
-	b.e.mutated = mutated
-	return b
-}
-
 // Java: Export.Builder.build()
 func (b Export_Builder) Build() *Export {
 	if b.e.moduleMetadata == nil {
@@ -229,9 +223,9 @@ func (b Export_Builder) Build() *Export {
 	if e.moduleMetadata.IsEs6Module() {
 		export_validateEsModule(&e)
 	} else if e.moduleMetadata.IsGoogModule() {
-		Export_Builder_ValidateGoogModule(&e)
+		export_validateGoogModule(&e)
 	} else {
-		Export_Builder_ValidateOtherModule(&e)
+		export_validateOtherModule(&e)
 	}
 	return &e
 }
@@ -259,11 +253,11 @@ func export_validateEsModule(e *Export) {
 		"Exports with an import name should be a reexport.")
 }
 
-// Export_Builder_ValidateGoogModule validates some export from a goog
+// export_validateGoogModule validates some export from a goog
 // module.
 //
 // Java: Export.Builder.validateGoogModule(Export)
-func Export_Builder_ValidateGoogModule(e *Export) {
+func export_validateGoogModule(e *Export) {
 	jutil.CheckStateMsg(e.HasClosureNamespace(), "Exports should be associated with a namespace")
 	jutil.CheckStateMsg(e.HasExportName(), "Exports should be named")
 	jutil.CheckStateMsg(!e.ExportNode().IsNil(), "Exports should have a node")
@@ -271,11 +265,11 @@ func Export_Builder_ValidateGoogModule(e *Export) {
 	jutil.CheckStateMsg(!e.HasModuleRequest(), "goog modules cannot export from other modules")
 }
 
-// Export_Builder_ValidateOtherModule validates some faux export from a
+// export_validateOtherModule validates some faux export from a
 // non-ES module.
 //
 // Java: Export.Builder.validateOtherModule(Export)
-func Export_Builder_ValidateOtherModule(e *Export) {
+func export_validateOtherModule(e *Export) {
 	if !e.HasExportName() {
 		panic(jutil.NewNullPointerException())
 	}

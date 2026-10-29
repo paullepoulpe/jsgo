@@ -50,14 +50,6 @@ func (c *GoogleCodingConvention) IsExported(name string) bool {
 	return CodingConvention_IsExported(c, name)
 }
 
-func (c *GoogleCodingConvention) BlockRenamingForProperty(name string) bool {
-	return false
-}
-
-func (c *GoogleCodingConvention) IsPrototypeAlias(getProp rhino.Node) bool {
-	return false
-}
-
 // IsConstant enforces the Google const name convention: the first character
 // after the last $ must be an upper-case letter, all subsequent letters must be
 // upper case, and the name must be at least 2 characters long.

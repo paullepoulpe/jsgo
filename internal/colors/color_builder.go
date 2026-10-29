@@ -31,44 +31,78 @@ func Color_SingleBuilder() *Color_Builder {
 	}
 }
 
-func dedupClone[T comparable](src []T, empty []T) []T {
+func dedupCloneColors(src []*Color) []*Color {
 	if len(src) == 0 {
-		return empty
+		return emptyColorSlice
 	}
-	var zero T
-	_, checkNil := any((*T)(nil)).(**Color)
 	if len(src) == 1 {
-		if checkNil && src[0] == zero {
+		if src[0] == nil {
 			panic(jutil.NewNullPointerException())
 		}
-		return []T{src[0]}
+		return []*Color{src[0]}
 	}
 	if len(src) <= 16 {
 		allUnique := true
 		for i, v := range src {
-			if checkNil && v == zero {
+			if v == nil {
 				panic(jutil.NewNullPointerException())
 			}
-			for j := 0; j < i; j++ {
-				if elemEqual(src[j], v) {
-					allUnique = false
-					break
+			if allUnique {
+				for j := 0; j < i; j++ {
+					if src[j].equalsColor(v) {
+						allUnique = false
+						break
+					}
 				}
 			}
 		}
 		if allUnique {
-			out := make([]T, len(src))
+			out := make([]*Color, len(src))
 			copy(out, src)
 			return out
 		}
 	}
-	out := make([]T, 0, len(src))
-	var seen dedupSet[T]
+	out := make([]*Color, 0, len(src))
+	var seen colorDedupSet
 	for _, v := range src {
-		if checkNil && v == zero {
+		if v == nil {
 			panic(jutil.NewNullPointerException())
 		}
-		out = appendUnique(out, v, &seen)
+		out = appendUniqueColor(out, v, &seen)
+	}
+	return out
+}
+
+func dedupCloneStrings(src []string) []string {
+	if len(src) == 0 {
+		return emptyStringSlice
+	}
+	if len(src) == 1 {
+		return []string{src[0]}
+	}
+	if len(src) <= 16 {
+		allUnique := true
+		for i, v := range src {
+			for j := 0; j < i; j++ {
+				if src[j] == v {
+					allUnique = false
+					break
+				}
+			}
+			if !allUnique {
+				break
+			}
+		}
+		if allUnique {
+			out := make([]string, len(src))
+			copy(out, src)
+			return out
+		}
+	}
+	out := make([]string, 0, len(src))
+	var seen map[string]struct{}
+	for _, v := range src {
+		out = appendUniqueString(out, v, &seen)
 	}
 	return out
 }
@@ -147,7 +181,7 @@ func (b *Color_Builder) SetOwnProperties(ownProperties []string) *Color_Builder 
 	} else if b.trustUnique {
 		b.ownProperties = ownProperties
 	} else {
-		b.ownProperties = dedupClone(ownProperties, emptyStringSlice)
+		b.ownProperties = dedupCloneStrings(ownProperties)
 	}
 	return b
 }
@@ -168,7 +202,7 @@ func (b *Color_Builder) SetInstanceColors(instanceColors []*Color) *Color_Builde
 	} else if b.trustUnique {
 		b.instanceColors = instanceColors
 	} else {
-		b.instanceColors = dedupClone(instanceColors, emptyColorSlice)
+		b.instanceColors = dedupCloneColors(instanceColors)
 	}
 	return b
 }
@@ -183,7 +217,7 @@ func (b *Color_Builder) SetPrototypes(prototypes []*Color) *Color_Builder {
 	} else if b.trustUnique {
 		b.prototypes = prototypes
 	} else {
-		b.prototypes = dedupClone(prototypes, emptyColorSlice)
+		b.prototypes = dedupCloneColors(prototypes)
 	}
 	return b
 }
@@ -198,7 +232,7 @@ func (b *Color_Builder) SetUnionElements(unionElements []*Color) *Color_Builder 
 	} else if b.trustUnique {
 		b.unionElements = unionElements
 	} else {
-		b.unionElements = dedupClone(unionElements, emptyColorSlice)
+		b.unionElements = dedupCloneColors(unionElements)
 	}
 	return b
 }
@@ -262,7 +296,7 @@ func (b *Color_Builder) Build() *Color {
 	result := b.BuildInternal()
 	jutil.CheckStateMsg1(len(result.unionElements) == 0, "%s", result)
 	jutil.CheckStateMsg1(!result.hasBoxId, "%s", result)
-	jutil.CheckStateMsg1(StandardColors_AXIOMATIC_COLORS[result.GetId()] == nil, "%s", result)
+	jutil.CheckStateMsg1(lookupAxiomaticColor(result.GetId()) == nil, "%s", result)
 	return result
 }
 
@@ -275,9 +309,7 @@ func (b *Color_Builder) BuildUnion() *Color {
 }
 
 // Java: Color.Builder.buildAxiomatic()
-func (b *Color_Builder) BuildAxiomatic() *Color {
-	jutil.CheckStateMsg(StandardColors_AXIOMATIC_COLORS == nil, "StandardColors are all defined")
-
+func (b *Color_Builder) buildAxiomatic() *Color {
 	result := b.BuildInternal()
 	jutil.CheckStateMsg1(len(result.unionElements) == 0, "%s", result)
 	return result

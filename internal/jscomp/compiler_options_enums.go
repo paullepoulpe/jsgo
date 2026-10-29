@@ -21,6 +21,7 @@ package jscomp
 import (
 	"strings"
 
+	"github.com/paullepoulpe/jsgo/internal/base"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/parser"
 )
@@ -142,31 +143,41 @@ var compilerOptions_BrowserFeaturesetYear_featureSet = [...]*parser.FeatureSet{
 	parser.FeatureSet_BROWSER_2026,
 }
 
-// Java: CompilerOptions.BrowserFeaturesetYear.YEAR_MAP
-var compilerOptions_BrowserFeaturesetYear_YEAR_MAP = func() *jutil.LinkedHashMap[int, CompilerOptions_BrowserFeaturesetYear] {
-	m := jutil.NewLinkedHashMap[int, CompilerOptions_BrowserFeaturesetYear]()
-	// go/keep-sorted start
-	m.Put(2012, CompilerOptions_BrowserFeaturesetYear_YEAR_2012)
-	m.Put(2018, CompilerOptions_BrowserFeaturesetYear_YEAR_2018)
-	m.Put(2019, CompilerOptions_BrowserFeaturesetYear_YEAR_2019)
-	m.Put(2020, CompilerOptions_BrowserFeaturesetYear_YEAR_2020)
-	m.Put(2021, CompilerOptions_BrowserFeaturesetYear_YEAR_2021)
-	m.Put(2022, CompilerOptions_BrowserFeaturesetYear_YEAR_2022)
-	m.Put(2023, CompilerOptions_BrowserFeaturesetYear_YEAR_2023)
-	m.Put(2024, CompilerOptions_BrowserFeaturesetYear_YEAR_2024)
-	m.Put(2025, CompilerOptions_BrowserFeaturesetYear_YEAR_2025)
-	m.Put(2026, CompilerOptions_BrowserFeaturesetYear_YEAR_2026)
-	// go/keep-sorted end
-	return m
-}()
+func browserFeaturesetYearFromInt(year int) (CompilerOptions_BrowserFeaturesetYear, bool) {
+	switch year {
+	case 2012:
+		return CompilerOptions_BrowserFeaturesetYear_YEAR_2012, true
+	case 2018:
+		return CompilerOptions_BrowserFeaturesetYear_YEAR_2018, true
+	case 2019:
+		return CompilerOptions_BrowserFeaturesetYear_YEAR_2019, true
+	case 2020:
+		return CompilerOptions_BrowserFeaturesetYear_YEAR_2020, true
+	case 2021:
+		return CompilerOptions_BrowserFeaturesetYear_YEAR_2021, true
+	case 2022:
+		return CompilerOptions_BrowserFeaturesetYear_YEAR_2022, true
+	case 2023:
+		return CompilerOptions_BrowserFeaturesetYear_YEAR_2023, true
+	case 2024:
+		return CompilerOptions_BrowserFeaturesetYear_YEAR_2024, true
+	case 2025:
+		return CompilerOptions_BrowserFeaturesetYear_YEAR_2025, true
+	case 2026:
+		return CompilerOptions_BrowserFeaturesetYear_YEAR_2026, true
+	default:
+		return 0, false
+	}
+}
 
 // Java: CompilerOptions.BrowserFeaturesetYear.from(int)
 func CompilerOptions_BrowserFeaturesetYear_From(year int) CompilerOptions_BrowserFeaturesetYear {
+	y, ok := browserFeaturesetYearFromInt(year)
 	jutil.CheckStateMsg1(
-		compilerOptions_BrowserFeaturesetYear_YEAR_MAP.ContainsKey(year),
+		ok,
 		"Illegal browser_featureset_year=%s. We support values 2012, or 2018..2026 only",
 		year)
-	return compilerOptions_BrowserFeaturesetYear_YEAR_MAP.Get(year)
+	return y
 }
 
 // Java: CompilerOptions.BrowserFeaturesetYear.setDependentValuesFromYear(CompilerOptions)
@@ -174,8 +185,7 @@ func (e CompilerOptions_BrowserFeaturesetYear) SetDependentValuesFromYear(option
 	year := compilerOptions_BrowserFeaturesetYear_year[e]
 	options.SetOutputFeatureSet(compilerOptions_BrowserFeaturesetYear_featureSet[e])
 	// All values targeted by browser featureset year are default strict.
-	defaultStrict := true
-	options.languageOutIsDefaultStrict = &defaultStrict
+	options.languageOutIsDefaultStrict = base.Tri_TRUE
 	options.SetDefineToNumberLiteral("goog.FEATURESET_YEAR", year)
 	options.SetDefineToBooleanLiteral("$jscomp.ASSUME_ES5", year > 2012)
 	options.SetDefineToBooleanLiteral("$jscomp.ASSUME_ES6", year >= 2018)
@@ -199,11 +209,9 @@ func (e CompilerOptions_BrowserFeaturesetYear) GetYear() int {
 //
 // Java: CompilerOptions.BrowserFeaturesetYear.minimumRequiredFor(FeatureSet.Feature)
 func CompilerOptions_BrowserFeaturesetYear_MinimumRequiredFor(feature parser.FeatureSet_Feature) *CompilerOptions_BrowserFeaturesetYear {
-	// Depends on YEAR_TO_FEATURE_SET being created with keys in increasing order
-	for year := range compilerOptions_BrowserFeaturesetYear_YEAR_MAP.Keys() {
-		yearObject := compilerOptions_BrowserFeaturesetYear_YEAR_MAP.Get(year)
-		if yearObject.GetFeatureSet().ContainsFeature(feature) {
-			return yearObject.Ptr()
+	for i, fs := range compilerOptions_BrowserFeaturesetYear_featureSet {
+		if fs.ContainsFeature(feature) {
+			return CompilerOptions_BrowserFeaturesetYear(i).Ptr()
 		}
 	}
 	return nil

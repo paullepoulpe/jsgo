@@ -232,30 +232,12 @@ func (c *defaultNameGenerator_CharPriority) CompareTo(other *defaultNameGenerato
 // NONFIRST_CHAR, we would end up balancing the huffman tree and result is
 // bad compression.
 
-// DefaultNameGenerator_FIRST_CHAR: generate short name with this first
-// character.
-var DefaultNameGenerator_FIRST_CHAR = jutil.StringToUTF16(defaultNameGenerator_FIRST_CHAR_STR)
-
-// DefaultNameGenerator_NONFIRST_CHAR: these appear after the first
-// character.
-var DefaultNameGenerator_NONFIRST_CHAR = jutil.StringToUTF16(defaultNameGenerator_NONFIRST_CHAR_STR)
-
 // Java: DefaultNameGenerator()
 func NewDefaultNameGenerator() *DefaultNameGenerator {
 	g := &DefaultNameGenerator{}
 	g.initPriorities()
 	g.Reset(nil, "", ASCIICharSet{})
 	return g
-}
-
-// Java: DefaultNameGenerator(Set<String>, String, Set<Character>)
-func NewDefaultNameGeneratorWithReserved(
-	reservedNames jutil.Set[string], prefix string, reservedCharacters *ASCIICharSet) *DefaultNameGenerator {
-	var chars ASCIICharSet
-	if reservedCharacters != nil {
-		chars = *reservedCharacters
-	}
-	return NewDefaultNameGeneratorWithFirstAndNonFirstChars(reservedNames, prefix, chars, chars)
 }
 
 func NewDefaultNameGeneratorWithReservedChars(

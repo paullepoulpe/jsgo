@@ -18,8 +18,6 @@ type inlineBitSet struct {
 	ext []uint64
 }
 
-type dfaBitSet = inlineBitSet
-
 func (b *inlineBitSet) trim() {
 	i := len(b.ext)
 	for i > 0 && b.ext[i-1] == 0 {
@@ -71,10 +69,6 @@ func (b *inlineBitSet) Set(bitIndex int) {
 	b.ext[w] |= uint64(1) << uint(bitIndex&63)
 }
 
-func (b *inlineBitSet) set(idx int) {
-	b.Set(idx)
-}
-
 func (b *inlineBitSet) Get(bitIndex int) bool {
 	if uint(bitIndex) < 64 {
 		return (b.w0 & (uint64(1) << uint(bitIndex))) != 0
@@ -87,10 +81,6 @@ func (b *inlineBitSet) Get(bitIndex int) bool {
 	}
 	w := (bitIndex - 128) >> 6
 	return w < len(b.ext) && (b.ext[w]&(uint64(1)<<uint(bitIndex&63))) != 0
-}
-
-func (b *inlineBitSet) has(idx int) bool {
-	return b.Get(idx)
 }
 
 func (b *inlineBitSet) clear(releaseLarge bool) {

@@ -19,6 +19,8 @@
 package jscomp
 
 import (
+	"strconv"
+
 	"github.com/paullepoulpe/jsgo/internal/ast"
 	"github.com/paullepoulpe/jsgo/internal/graph"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
@@ -35,11 +37,7 @@ import (
 //
 // Example usage:
 //
-//	cfg := ControlFlowAnalysis_Builder_().
-//		SetCompiler(compiler).
-//		SetCfgRoot(functionRoot).
-//		SetIncludeEdgeAnnotations(true).
-//		ComputeCfg()
+//	cfg := ComputeControlFlowGraph(compiler, functionRoot, false, true)
 type ControlFlowAnalysis struct {
 	// Based roughly on the first few pages of
 	//
@@ -193,59 +191,13 @@ func (c *ControlFlowAnalysis) astPositionOfNode(v rhino.Node) int32 {
 	return p
 }
 
-// ControlFlowAnalysis_Builder configures a ControlFlowAnalysis instance then
-// computes the ControlFlowGraph
-type ControlFlowAnalysis_Builder struct {
-	compiler                AbstractCompiler
-	cfgRoot                 rhino.Node
-	shouldTraverseFunctions bool
-	edgeAnnotations         bool
-}
-
-// Java: ControlFlowAnalysis.Builder()
-func newControlFlowAnalysis_Builder() *ControlFlowAnalysis_Builder {
-	return &ControlFlowAnalysis_Builder{
-		shouldTraverseFunctions: false,
-		edgeAnnotations:         false,
-	}
-}
-
-// Java: ControlFlowAnalysis.Builder.setCompiler(AbstractCompiler)
-func (b *ControlFlowAnalysis_Builder) SetCompiler(compiler AbstractCompiler) *ControlFlowAnalysis_Builder {
-	b.compiler = compiler
-	return b
-}
-
-// Java: ControlFlowAnalysis.Builder.setCfgRoot(Node)
-func (b *ControlFlowAnalysis_Builder) SetCfgRoot(cfgRoot rhino.Node) *ControlFlowAnalysis_Builder {
-	b.cfgRoot = cfgRoot
-	return b
-}
-
-// Java: ControlFlowAnalysis.Builder.setTraverseFunctions(boolean)
-func (b *ControlFlowAnalysis_Builder) SetTraverseFunctions(shouldTraverseFunctions bool) *ControlFlowAnalysis_Builder {
-	b.shouldTraverseFunctions = shouldTraverseFunctions
-	return b
-}
-
-// Java: ControlFlowAnalysis.Builder.setIncludeEdgeAnnotations(boolean)
-func (b *ControlFlowAnalysis_Builder) SetIncludeEdgeAnnotations(includeEdgeAnnotations bool) *ControlFlowAnalysis_Builder {
-	b.edgeAnnotations = includeEdgeAnnotations
-	return b
-}
-
-// Java: ControlFlowAnalysis.Builder.computeCfg()
-func (b *ControlFlowAnalysis_Builder) ComputeCfg() *ControlFlowGraph[rhino.Node] {
-	jutil.CheckNotNullMsg(b.compiler, "Need to call setCompiler()")
-	rhino.CheckNotNullMsg(b.cfgRoot, "Need to call setCfgRoot()")
-	cfa := newControlFlowAnalysis(b.compiler, b.shouldTraverseFunctions, b.edgeAnnotations)
-	cfa.computeCfg(b.cfgRoot, nil)
+// ComputeControlFlowGraph computes the ControlFlowGraph rooted at cfgRoot.
+func ComputeControlFlowGraph(compiler AbstractCompiler, cfgRoot rhino.Node, shouldTraverseFunctions, edgeAnnotations bool) *ControlFlowGraph[rhino.Node] {
+	jutil.CheckNotNullMsg(compiler, "Need to call setCompiler()")
+	rhino.CheckNotNullMsg(cfgRoot, "Need to call setCfgRoot()")
+	cfa := newControlFlowAnalysis(compiler, shouldTraverseFunctions, edgeAnnotations)
+	cfa.computeCfg(cfgRoot, nil)
 	return cfa.cfg
-}
-
-// Java: ControlFlowAnalysis.builder()
-func ControlFlowAnalysis_Builder_() *ControlFlowAnalysis_Builder {
-	return newControlFlowAnalysis_Builder()
 }
 
 // Java: ControlFlowAnalysis.getCfg()
@@ -323,30 +275,61 @@ func (c *ControlFlowAnalysis) computeCfg(root rhino.Node, storage *ControlFlowGr
 	c.cfg.implicitReturn.SetPriority(c.priorityCounter)
 }
 
+func formatCfgNodeContext(compiler AbstractCompiler, label string, n rhino.Node) string {
+	if n.IsNil() {
+		return "  " + label + ": NULL"
+	}
+	pos := nodeTraversal_MISSING_SOURCE + "\n"
+	if sourceFileName := n.GetSourceFileName(); sourceFileName != nil {
+		lineNumber := n.GetLineno()
+		srcLine := nodeTraversal_MISSING_SOURCE
+		if src := compiler.GetSourceLine(sourceFileName, lineNumber); src != nil {
+			srcLine = *src
+		}
+		pos = *sourceFileName + ":" + strconv.Itoa(lineNumber) + ":" + strconv.Itoa(n.GetCharno()) + "\n" + srcLine + "\n"
+	}
+	return "  " + label + "(" + n.ToStringWithFlags(false, false, false) + "): " + pos
+}
+
+func reportUnexpectedCfgException(compiler AbstractCompiler, root, currentScript, currentNode rhino.Node, err jutil.Throwable) {
+	script := currentScript
+	if script.IsNil() {
+		for s := root; !s.IsNil(); s = s.GetParent() {
+			if s.IsScript() {
+				script = s
+				break
+			}
+		}
+	}
+	msg := jutil.ToJavaString(jutil.GetMessageOrNull(err))
+	if !script.IsNil() {
+		parentContext := ""
+		if !currentNode.IsNil() {
+			parentContext = formatCfgNodeContext(compiler, "Parent", currentNode.GetParent())
+		}
+		msg += "\n" + formatCfgNodeContext(compiler, "Node", currentNode) + parentContext
+	}
+	compiler.ThrowInternalError(msg, err)
+}
+
 func (c *ControlFlowAnalysis) traverse(root rhino.Node) {
 	jutil.CheckNotNull(c.compiler)
 	if root.IsNil() {
-		b := NodeTraversal_Builder{compiler: c.compiler, callback: newControlFlowAnalysis(c.compiler, c.shouldTraverseFunctions, c.edgeAnnotations)}
-		newNodeTraversal(&b).Traverse(root)
+		throwNilCfgNodeTraversal(c.compiler)
+		return
+	}
+	if Platform_IsThreadInterrupted() {
+		exc := jutil.NewRuntimeExceptionWithCause(jutil.NewInterruptedException())
+		c.compiler.ThrowInternalError(jutil.ToJavaString(jutil.GetMessageOrNull(exc)), exc)
 		return
 	}
 	var currentNode rhino.Node
 	var currentScript rhino.Node
 	defer func() {
 		if r := recover(); r != nil {
-			b := NodeTraversal_Builder{compiler: c.compiler, callback: newControlFlowAnalysis(c.compiler, c.shouldTraverseFunctions, c.edgeAnnotations)}
-			t := newNodeTraversal(&b)
-			t.InitTraversal(root)
-			if !currentScript.IsNil() {
-				t.currentScript = currentScript
-			}
-			t.currentNode = currentNode
-			t.ThrowUnexpectedException(jutil.AsThrowable(r))
+			reportUnexpectedCfgException(c.compiler, root, currentScript, currentNode, jutil.AsThrowable(r))
 		}
 	}()
-	if Platform_IsThreadInterrupted() {
-		panic(jutil.NewRuntimeExceptionWithCause(jutil.NewInterruptedException()))
-	}
 	currentNode = root
 	c.walkBranch(root, rhino.NilNode, &currentNode, &currentScript)
 }
@@ -359,19 +342,19 @@ func (c *ControlFlowAnalysis) walkBranch(n, parent rhino.Node, currentNode, curr
 		}
 		*currentNode = n
 		*currentScript = n
-		if c.ShouldTraverse(nil, n, parent) {
+		if c.shouldTraverse(n, parent) {
 			for child := n.GetFirstChild(); !child.IsNil(); {
 				next := child.GetNext()
 				c.walkBranch(child, n, currentNode, currentScript)
 				child = next
 			}
 			*currentNode = n
-			c.Visit(nil, n, parent)
+			c.visit(n, parent)
 		}
 		return
 	case rhino.Token_FUNCTION:
 		*currentNode = n
-		if c.ShouldTraverse(nil, n, parent) {
+		if c.shouldTraverse(n, parent) {
 			fnName := n.GetFirstChild()
 			args := fnName.GetNext()
 			body := args.GetNext()
@@ -379,12 +362,12 @@ func (c *ControlFlowAnalysis) walkBranch(n, parent rhino.Node, currentNode, curr
 			c.walkBranch(args, n, currentNode, currentScript)
 			c.walkBranch(body, n, currentNode, currentScript)
 			*currentNode = n
-			c.Visit(nil, n, parent)
+			c.visit(n, parent)
 		}
 		return
 	case rhino.Token_CLASS:
 		*currentNode = n
-		if c.ShouldTraverse(nil, n, parent) {
+		if c.shouldTraverse(n, parent) {
 			className := n.GetFirstChild()
 			extendsClause := className.GetNext()
 			body := extendsClause.GetNext()
@@ -392,12 +375,12 @@ func (c *ControlFlowAnalysis) walkBranch(n, parent rhino.Node, currentNode, curr
 			c.walkBranch(className, n, currentNode, currentScript)
 			c.walkBranch(body, n, currentNode, currentScript)
 			*currentNode = n
-			c.Visit(nil, n, parent)
+			c.visit(n, parent)
 		}
 		return
 	case rhino.Token_CLASS_MEMBERS:
 		*currentNode = n
-		if !c.ShouldTraverse(nil, n, parent) {
+		if !c.shouldTraverse(n, parent) {
 			return
 		}
 		for child := n.GetFirstChild(); !child.IsNil(); {
@@ -412,19 +395,19 @@ func (c *ControlFlowAnalysis) walkBranch(n, parent rhino.Node, currentNode, curr
 			switch child.GetToken() {
 			case rhino.Token_COMPUTED_PROP:
 				*currentNode = n
-				if c.ShouldTraverse(nil, child, n) {
+				if c.shouldTraverse(child, n) {
 					c.walkBranch(child.GetLastChild(), child, currentNode, currentScript)
 					*currentNode = n
-					c.Visit(nil, child, n)
+					c.visit(child, n)
 				}
 			case rhino.Token_COMPUTED_FIELD_DEF:
 				*currentNode = n
-				if c.ShouldTraverse(nil, child, n) {
+				if c.shouldTraverse(child, n) {
 					if child.HasTwoChildren() {
 						c.walkBranch(child.GetLastChild(), child, currentNode, currentScript)
 					}
 					*currentNode = n
-					c.Visit(nil, child, n)
+					c.visit(child, n)
 				}
 			case rhino.Token_MEMBER_FIELD_DEF, rhino.Token_BLOCK, rhino.Token_MEMBER_FUNCTION_DEF,
 				rhino.Token_MEMBER_VARIABLE_DEF, rhino.Token_GETTER_DEF, rhino.Token_SETTER_DEF:
@@ -435,13 +418,13 @@ func (c *ControlFlowAnalysis) walkBranch(n, parent rhino.Node, currentNode, curr
 			child = next
 		}
 		*currentNode = n
-		c.Visit(nil, n, parent)
+		c.visit(n, parent)
 		return
 	default:
 	}
 
 	*currentNode = n
-	if !c.ShouldTraverse(nil, n, parent) {
+	if !c.shouldTraverse(n, parent) {
 		return
 	}
 	for child := n.GetFirstChild(); !child.IsNil(); {
@@ -450,7 +433,7 @@ func (c *ControlFlowAnalysis) walkBranch(n, parent rhino.Node, currentNode, curr
 		child = next
 	}
 	*currentNode = n
-	c.Visit(nil, n, parent)
+	c.visit(n, parent)
 }
 
 type cfaWorkItem struct {
@@ -549,7 +532,7 @@ func (c *ControlFlowAnalysis) prioritizeFromEntryNode(entry *graph.LinkedDirecte
 }
 
 // Java: ControlFlowAnalysis.visit(NodeTraversal, Node, Node)
-func (c *ControlFlowAnalysis) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
+func (c *ControlFlowAnalysis) visit(n rhino.Node, parent rhino.Node) {
 	switch n.GetToken() {
 	case rhino.Token_IF:
 		c.handleIf(ast.MustIf(n))
@@ -864,7 +847,3 @@ func (c *ControlFlowAnalysis) handleStmt(node rhino.Node) {
 	c.createEdge(node, ControlFlowGraph_Branch_UNCOND, ControlFlowAnalysis_ComputeFollowNodeWithCfa(node, c))
 	c.connectToPossibleExceptionHandler(node, node)
 }
-
-var (
-	_ NodeTraversal_Callback = (*ControlFlowAnalysis)(nil)
-)

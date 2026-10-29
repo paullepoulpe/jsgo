@@ -1,3 +1,4 @@
+// Port of com/google/javascript/jscomp/ConformanceAllowlister.java @ closure-compiler v20261021
 // Port of test/com/google/javascript/jscomp/ConformanceAllowlisterTest.java @ closure-compiler v20261021
 
 /*
@@ -24,6 +25,7 @@ import (
 	"testing"
 
 	"github.com/paullepoulpe/jsgo/internal/jutil"
+	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
 
 // conformanceAllowlisterTest_entry is one (source file, line) pair of the
@@ -178,4 +180,89 @@ func conformanceAllowlisterTest_testConformanceAllowlister(
 		t.Errorf("violating node files %q, violating paths %q", g, w)
 	}
 	return errors
+}
+
+// ConformanceAllowlister_GetViolatingPaths returns, in encounter order, the
+// source names of the conformance violations of requirement. Like
+// toImmutableSet, it throws NullPointerException for a violation without a
+// source name.
+//
+// Java: ConformanceAllowlister.getViolatingPaths(Compiler, Node, Node, Requirement)
+func ConformanceAllowlister_GetViolatingPaths(
+	compiler *Compiler, externs rhino.Node, ast rhino.Node, requirement *Requirement) *jutil.LinkedHashSet[string] {
+	result := jutil.NewLinkedHashSet[string]()
+	for _, e := range ConformanceAllowlister_GetConformanceErrors(compiler, externs, ast, requirement) {
+		result.Add(*jutil.CheckNotNull(e.SourceName()))
+	}
+	return result
+}
+
+// ConformanceAllowlister_GetViolatingNodes returns, in encounter order, the
+// nodes of the conformance violations of requirement. Like toImmutableSet,
+// it throws NullPointerException for a violation without a node.
+//
+// Java: ConformanceAllowlister.getViolatingNodes(Compiler, Node, Node, Requirement)
+func ConformanceAllowlister_GetViolatingNodes(
+	compiler *Compiler, externs rhino.Node, ast rhino.Node, requirement *Requirement) *jutil.LinkedHashSet[rhino.Node] {
+	result := jutil.NewLinkedHashSet[rhino.Node]()
+	for _, e := range ConformanceAllowlister_GetConformanceErrors(compiler, externs, ast, requirement) {
+		result.Add(rhino.CheckNotNull(e.Node()))
+	}
+	return result
+}
+
+// Java: ConformanceAllowlister.getConformanceErrors(Compiler, Node, Node, Requirement)
+func ConformanceAllowlister_GetConformanceErrors(
+	compiler *Compiler, externs rhino.Node, ast rhino.Node, requirement *Requirement) []*JSError {
+	cleanedRequirement :=
+		requirement.Clone().
+			ClearWhitelist().
+			ClearAllowlist().
+			ClearWhitelistRegexp().
+			ClearAllowlistRegexp().
+			ClearWhitelistEntry().
+			ClearAllowlistEntry().
+			SetSeverity(Requirement_Severity_ERROR).
+			Build() // So we only have one type of error.
+	cleanedConfig :=
+		ConformanceConfig_NewBuilder().AddRequirement(cleanedRequirement).Build()
+
+	oldErrorManager := compiler.GetErrorManager()
+	var errors []*JSError
+	func() {
+		defer compiler.SetErrorManager(oldErrorManager)
+		// TODO(bangert): handle invalid conformance requirements
+		compiler.SetErrorManager(
+			&conformanceAllowlister_ErrorManager{
+				ThreadSafeDelegatingErrorManager: NewThreadSafeDelegatingErrorManager(oldErrorManager),
+				errors:                           &errors,
+			})
+		check :=
+			NewCheckConformanceWithConfigs(
+				compiler, []*ConformanceConfig{cleanedConfig} /* reportingMode= */, nil)
+		check.Process(externs, ast)
+	}()
+	return errors
+}
+
+// conformanceAllowlister_ErrorManager is the anonymous
+// ThreadSafeDelegatingErrorManager of getConformanceErrors: it collects the
+// conformance violations instead of reporting them. Its synchronized
+// method holds the object's monitor, the embedded manager's.
+type conformanceAllowlister_ErrorManager struct {
+	*ThreadSafeDelegatingErrorManager
+	errors *[]*JSError
+}
+
+// Java: ThreadSafeDelegatingErrorManager.shouldReportConformanceViolation(Requirement, Optional<RequirementScopeEntry>, JSError, LibraryLevelNonAllowlistedConformanceViolationsBehavior, boolean)
+func (m *conformanceAllowlister_ErrorManager) ShouldReportConformanceViolation(
+	requirement *Requirement,
+	whitelistEntry *RequirementScopeEntry,
+	diagnostic *JSError,
+	behavior ConformanceConfig_LibraryLevelNonAllowlistedConformanceViolationsBehavior,
+	isAllowlisted bool) bool {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	*m.errors = append(*m.errors, diagnostic)
+	return false
 }

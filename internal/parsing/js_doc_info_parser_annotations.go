@@ -721,7 +721,7 @@ func (p *JsDocInfoParser) ParseSuppressTag(token JsDocToken) JsDocToken {
 		p.SkipEOLs()
 		if p.Match(JsDocToken_STRING) {
 			name := p.stream.GetString()
-			if _, ok := p.suppressionNames[name]; !ok {
+			if !p.suppressionNames.Contains(name) {
 				p.AddParserWarningWithArg(rhino.Msg_JSDOC_SUPPRESS_UNKNOWN, name)
 			}
 
@@ -794,7 +794,7 @@ func (p *JsDocInfoParser) ParseClosurePrimitiveTag(token JsDocToken) JsDocToken 
 		return token
 	} else if p.Match(JsDocToken_STRING) {
 		name := p.stream.GetString()
-		if _, ok := p.closurePrimitiveNames[name]; !ok {
+		if !p.closurePrimitiveNames.Contains(name) {
 			p.AddParserWarningWithArg(rhino.Msg_JSDOC_CLOSUREPRIMITIVE_INVALID, name)
 		} else if !p.jsdocBuilder.RecordClosurePrimitiveId(name) {
 			p.AddParserWarning(rhino.Msg_JSDOC_CLOSUREPRIMITIVE_EXTRA)

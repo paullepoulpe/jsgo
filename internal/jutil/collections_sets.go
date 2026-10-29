@@ -28,7 +28,7 @@ var (
 func SetHashCode[T any](elems []T) int32 {
 	var h int32
 	for _, e := range elems {
-		h += ObjectHashCode(e)
+		h += objectHashCodeOf(e)
 	}
 	return h
 }
@@ -180,6 +180,27 @@ func (s *LinkedHashSet[T]) Equals(o any) bool {
 	if any(s) == o {
 		return true
 	}
+	if other, ok := o.(*LinkedHashSet[T]); ok {
+		if s == nil || other == nil || other.m.size != s.m.size {
+			return false
+		}
+		if s.m.size == 0 {
+			return true
+		}
+		var removed []bool
+		if m := s.m.loadIndex(); m != nil {
+			removed = m.removed
+		}
+		for i := int(s.m.first); i < len(s.m.slots); i++ {
+			if i < len(removed) && removed[i] {
+				continue
+			}
+			if other.m.find(s.m.slots[i].key) < 0 {
+				return false
+			}
+		}
+		return true
+	}
 	other, ok := o.(javaSet)
 	if !ok || IsNil(o) || other.Size() != s.Size() {
 		return false
@@ -247,8 +268,12 @@ func NewObjectLinkedHashMap[K any, V any]() *ObjectLinkedHashMap[K, V] {
 func (h *ObjectLinkedHashMap[K, V]) find(k K) (int, int32) {
 	// Go-only: performance — the ...Of forms do not box String keys.
 	hash := objectHashCodeOf(k)
+	return h.findWithHash(k, hash), hash
+}
+
+func (h *ObjectLinkedHashMap[K, V]) findWithHash(k K, hash int32) int {
 	if h == nil || h.size == 0 {
-		return -1, hash
+		return -1
 	}
 	slots := h.slots
 	if h.m != nil {
@@ -257,21 +282,21 @@ func (h *ObjectLinkedHashMap[K, V]) find(k K) (int, int32) {
 		for b := lhmHash(hash) & mask; ; b = (b + 1) & mask {
 			switch e := t[b]; e {
 			case 0:
-				return -1, hash
+				return -1
 			case lhmTombstone:
 			default:
 				if slots[e-1].hash == hash && ObjectsEqualsOf(slots[e-1].key, k) {
-					return int(e - 1), hash
+					return int(e - 1)
 				}
 			}
 		}
 	}
 	for i := int(h.first); i < len(slots); i++ {
 		if slots[i].hash == hash && !slots[i].removed && ObjectsEqualsOf(slots[i].key, k) {
-			return i, hash
+			return i
 		}
 	}
-	return -1, hash
+	return -1
 }
 
 func (h *ObjectLinkedHashMap[K, V]) Size() int {
@@ -494,6 +519,24 @@ func (h *ObjectLinkedHashMap[K, V]) Equals(o any) bool {
 	if any(h) == o {
 		return true
 	}
+	if other, ok := o.(*ObjectLinkedHashMap[K, V]); ok {
+		if h == nil || other == nil || other.size != h.size {
+			return false
+		}
+		if h.size == 0 {
+			return true
+		}
+		for i := int(h.first); i < len(h.slots); i++ {
+			if h.slots[i].removed {
+				continue
+			}
+			oi := other.findWithHash(h.slots[i].key, h.slots[i].hash)
+			if oi < 0 || !ObjectsEqualsOf(h.slots[i].value, other.slots[oi].value) {
+				return false
+			}
+		}
+		return true
+	}
 	other, ok := o.(javaMapEntries)
 	if !ok || IsNil(o) || other.Size() != h.Size() {
 		return false
@@ -517,7 +560,7 @@ func (h *ObjectLinkedHashMap[K, V]) HashCode() int32 {
 		if h.slots[i].removed {
 			continue
 		}
-		sum += objectHashCodeOf(h.slots[i].key) ^ objectHashCodeOf(h.slots[i].value)
+		sum += h.slots[i].hash ^ objectHashCodeOf(h.slots[i].value)
 	}
 	return sum
 }
@@ -651,6 +694,23 @@ func (s *ObjectLinkedHashSet[T]) Equals(o any) bool {
 	if any(s) == o {
 		return true
 	}
+	if other, ok := o.(*ObjectLinkedHashSet[T]); ok {
+		if s == nil || other == nil || other.m.size != s.m.size {
+			return false
+		}
+		if s.m.size == 0 {
+			return true
+		}
+		for i := int(s.m.first); i < len(s.m.slots); i++ {
+			if s.m.slots[i].removed {
+				continue
+			}
+			if other.m.findWithHash(s.m.slots[i].key, s.m.slots[i].hash) < 0 {
+				return false
+			}
+		}
+		return true
+	}
 	other, ok := o.(javaSet)
 	if !ok || IsNil(o) || other.Size() != s.Size() {
 		return false
@@ -673,7 +733,7 @@ func (s *ObjectLinkedHashSet[T]) HashCode() int32 {
 		if s.m.slots[i].removed {
 			continue
 		}
-		h += objectHashCodeOf(s.m.slots[i].key)
+		h += s.m.slots[i].hash
 	}
 	return h
 }

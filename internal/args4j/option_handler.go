@@ -85,72 +85,38 @@ func newBuiltinOptionHandler(
 	}
 }
 
-func (h *OptionHandler) ParseArguments(params Parameters) int {
-	n, err := h.parseErr(h, params)
-	if err != nil {
-		panic(err)
-	}
-	return n
-}
-
-func (h *OptionHandler) tryParseArguments(params Parameters) (int, *CmdLineException) {
-	return h.parseErr(h, params)
-}
-
-func (h *OptionHandler) GetDefaultMetaVariable() string {
-	return h.defaultMetaVar
-}
-
-func (h *OptionHandler) GetMetaVariable(rb ResourceBundle) string {
-	if h.ignoreOptionMetaVar {
+func (h *OptionHandler) getMetaVariable() string {
+	if h.ignoreOptionMetaVar || len(h.Option.metaVar) == 0 {
 		return h.defaultMetaVar
 	}
-	token := h.Option.MetaVar()
-	if len(token) == 0 {
-		token = h.defaultMetaVar
-	}
-	if len(token) == 0 {
-		return ""
-	}
-	if rb != nil {
-		return rb.GetString(token)
-	}
-	return token
+	return h.Option.metaVar
 }
 
-func (h *OptionHandler) GetNameAndMeta(rb ResourceBundle) string {
-	return h.GetNameAndMetaWithProperties(rb, ParserProperties_Defaults())
-}
-
-func (h *OptionHandler) GetNameAndMetaWithProperties(rb ResourceBundle, properties *ParserProperties) string {
+func (h *OptionHandler) getNameAndMeta(properties *ParserProperties) string {
 	str := ""
-	if !h.Option.IsArgument() {
+	if h.Option.isNamed {
 		str = h.Option.String()
 	}
-	if meta := h.GetMetaVariable(rb); len(meta) > 0 {
+	if meta := h.getMetaVariable(); len(meta) > 0 {
 		if len(str) > 0 {
-			str += properties.GetOptionValueDelimiter()
+			str += properties.optionValueDelimiter
 		}
 		str += meta
 	}
 	return str
 }
 
-func (h *OptionHandler) Print(v any) string {
-	return jutil.ToJavaString(v)
-}
-
-func (h *OptionHandler) PrintDefaultValue() (string, bool) {
-	getter, ok := h.Setter.(Getter)
+func (h *OptionHandler) printDefaultValue() (string, bool) {
+	fs, ok := h.Setter.(*FieldSetter)
 	if !ok {
 		return "", false
 	}
-	defaultValues := getter.GetValueList()
+	defaultValues := fs.getValueList()
 	if len(defaultValues) == 0 {
 		return "", false
 	}
 	if len(defaultValues) == 1 {
-		return h.Print(defaultValues[0]), true
+		return jutil.ToJavaString(defaultValues[0]), true
 	}
 	var buf strings.Builder
 	buf.WriteByte('[')
@@ -158,39 +124,32 @@ func (h *OptionHandler) PrintDefaultValue() (string, bool) {
 		if i > 0 {
 			buf.WriteByte(',')
 		}
-		buf.WriteString(h.Print(v))
+		buf.WriteString(jutil.ToJavaString(v))
 	}
 	buf.WriteByte(']')
 	return buf.String(), true
 }
 
 var defaultOptionHandlers = map[*Class]OptionHandlerClass{
-	Class_Boolean: NewBooleanOptionHandler,
-	Class_boolean: NewBooleanOptionHandler,
-	Class_Integer: NewIntOptionHandler,
-	Class_int:     NewIntOptionHandler,
-	Class_String:  NewStringOptionHandler,
-	Class_Map:     NewMapOptionHandler,
+	classBoolean:     newBooleanOptionHandler,
+	classBooleanPrim: newBooleanOptionHandler,
+	classInteger:     NewIntOptionHandler,
+	classIntPrim:     NewIntOptionHandler,
+	Class_String:     NewStringOptionHandler,
+	classMap:         newMapOptionHandler,
 }
 
 func createOptionHandler(parser *CmdLineParser, o *OptionDef, setter Setter) *OptionHandler {
-	if o == nil {
-		panic(jutil.NewNullPointerExceptionMsg("OptionDef is null"))
-	}
-	if setter == nil {
-		panic(jutil.NewNullPointerExceptionMsg("Setter is null"))
-	}
-
-	if h := o.Handler(); h != nil {
-		return h(parser, o, setter)
+	if o.handler != nil {
+		return o.handler(parser, o, setter)
 	}
 	t := setter.GetType()
-	if Class_Enum.IsAssignableFrom(t) {
-		return NewEnumOptionHandler(parser, o, setter, t)
+	if t.isEnum {
+		return newEnumOptionHandler(parser, o, setter, t)
 	}
 	cons, ok := defaultOptionHandlers[t]
 	if !ok {
-		panic(NewIllegalAnnotationError(msgUnknownHandler.format(t)))
+		panic(newIllegalAnnotationError(msgUnknownHandler.format(t)))
 	}
 	return cons(parser, o, setter)
 }
@@ -200,10 +159,9 @@ var (
 	acceptableBooleanFalse = []string{"false", "off", "no", "0"}
 )
 
-// NewBooleanOptionHandler parses boolean flags and positional boolean arguments.
-func NewBooleanOptionHandler(parser *CmdLineParser, option *OptionDef, setter Setter) *OptionHandler {
+func newBooleanOptionHandler(parser *CmdLineParser, option *OptionDef, setter Setter) *OptionHandler {
 	return newBuiltinOptionHandler(parser, option, setter, "", func(h *OptionHandler, params Parameters) (int, *CmdLineException) {
-		if !h.Option.IsArgument() {
+		if h.Option.isNamed {
 			h.Setter.AddValue(true)
 			return 0, nil
 		}
@@ -256,12 +214,10 @@ func NewIntOptionHandler(parser *CmdLineParser, option *OptionDef, setter Setter
 	})
 }
 
-// NewEnumOptionHandler parses a case-insensitive enum constant name (with '-' normalized to '_').
-func NewEnumOptionHandler(parser *CmdLineParser, option *OptionDef, setter Setter, enumType *Class) *OptionHandler {
-	constants := enumType.GetEnumConstants()
+func newEnumOptionHandler(parser *CmdLineParser, option *OptionDef, setter Setter, enumType *Class) *OptionHandler {
 	var buf strings.Builder
 	buf.WriteByte('[')
-	for i, c := range constants {
+	for i, c := range enumType.constants {
 		if i > 0 {
 			buf.WriteString(" | ")
 		}
@@ -285,7 +241,7 @@ func NewEnumOptionHandler(parser *CmdLineParser, option *OptionDef, setter Sette
 		}
 		if value == nil {
 			var optName string
-			if h.Option.IsArgument() {
+			if !h.Option.isNamed {
 				optName = h.Option.String()
 			} else {
 				var prevErr *CmdLineException
@@ -303,16 +259,15 @@ func NewEnumOptionHandler(parser *CmdLineParser, option *OptionDef, setter Sette
 	return h
 }
 
-// NewMapOptionHandler parses "key=value" operands into a Map field.
-func NewMapOptionHandler(parser *CmdLineParser, option *OptionDef, setter Setter) *OptionHandler {
+func newMapOptionHandler(parser *CmdLineParser, option *OptionDef, setter Setter) *OptionHandler {
 	if setter.AsFieldSetter() == nil {
 		panic(jutil.NewIllegalArgumentExceptionMsg("MapOptionHandler can only work with fields"))
 	}
 	return newBuiltinOptionHandler(parser, option, setter, "", func(h *OptionHandler, params Parameters) (int, *CmdLineException) {
 		fs := h.Setter.AsFieldSetter()
-		var m Map
-		if o := fs.GetValue(); o != nil {
-			m = o.(Map)
+		var m *jutil.LinkedHashMap[string, *string]
+		if o := fs.getValue(); o != nil {
+			m = o.(*jutil.LinkedHashMap[string, *string])
 		}
 		if m == nil {
 			m = jutil.NewLinkedHashMap[string, *string]()

@@ -287,9 +287,7 @@ func (t *UnknownType) RecursionUnsafeHashCode() int32 {
 // f(x) is legal no matter what the type of f's first argument is.
 //
 // Java: class NoObjectType extends FunctionType, and class NoType extends NoObjectType.
-type NoObjectType struct {
-	FunctionTypeBase
-}
+type NoObjectType = FunctionTypeBase
 
 // Java: NoObjectType(JSTypeRegistry)
 func NewNoObjectType(registry *JSTypeRegistry) *NoObjectType {
@@ -312,128 +310,6 @@ func newNoObjectTypeWithKind(registry *JSTypeRegistry, kind uint8) *NoObjectType
 	registry.releaseFunctionBuilder(b)
 	t.EagerlyResolveToSelf()
 	return t
-}
-
-func (t *NoObjectType) isNo() bool {
-	return t.objFlags&objKindMask == objKindNo
-}
-
-// Java: NoObjectType.getTypeClass() / NoType.getTypeClass()
-func (t *NoObjectType) GetTypeClass() JSTypeClass {
-	if t.isNo() {
-		return JSTypeClass_NO
-	}
-	return JSTypeClass_NO_OBJECT
-}
-
-// Java: JSType.isFunctionType()
-func (t *NoObjectType) IsFunctionType() bool {
-	return false
-}
-
-// Java: NoObjectType.toMaybeFunctionType()
-func (t *NoObjectType) ToMaybeFunctionType() FunctionType {
-	return nil
-}
-
-// Java: NoObjectType.isNoObjectType() / NoType.isNoObjectType()
-func (t *NoObjectType) IsNoObjectType() bool {
-	return !t.isNo()
-}
-
-// Java: NoType.isNoType()
-func (t *NoObjectType) IsNoType() bool {
-	return t.isNo()
-}
-
-// Java: NoType.isNullable()
-func (t *NoObjectType) IsNullable() bool {
-	return t.isNo()
-}
-
-// Java: NoType.isVoidable()
-func (t *NoObjectType) IsVoidable() bool {
-	return t.isNo()
-}
-
-// Java: ObjectType.getPossibleToBooleanOutcomes() / NoType.getPossibleToBooleanOutcomes()
-func (t *NoObjectType) GetPossibleToBooleanOutcomes() BooleanLiteralSet {
-	if t.isNo() {
-		return BooleanLiteralSet_BOTH
-	}
-	return BooleanLiteralSet_TRUE
-}
-
-// Java: NoObjectType.getImplicitPrototype()
-func (t *NoObjectType) GetImplicitPrototype() ObjectType {
-	return nil
-}
-
-// Java: ObjectType.hasReferenceName()
-func (t *NoObjectType) HasReferenceName() bool {
-	return false
-}
-
-// Java: NoObjectType.getReferenceName()
-func (t *NoObjectType) GetReferenceName() *string {
-	return nil
-}
-
-// Java: NoObjectType.matchesNumberContext()
-func (t *NoObjectType) MatchesNumberContext() bool {
-	return true
-}
-
-// Java: NoObjectType.matchesObjectContext()
-func (t *NoObjectType) MatchesObjectContext() bool {
-	return true
-}
-
-// Java: NoObjectType.matchesStringContext()
-func (t *NoObjectType) MatchesStringContext() bool {
-	return true
-}
-
-// Java: NoObjectType.matchesSymbolContext()
-func (t *NoObjectType) MatchesSymbolContext() bool {
-	return true
-}
-
-// Java: NoObjectType.recursionUnsafeHashCode()
-func (t *NoObjectType) RecursionUnsafeHashCode() int32 {
-	return jutil.IdentityHashCode(t)
-}
-
-// Java: NoObjectType.defineProperty(Property.Key, JSType, boolean, Node)
-func (t *NoObjectType) DefinePropertyByKey(propertyName Property_Key, type_ JSType, inferred bool, propertyNode Node) bool {
-	// nothing, all properties are defined
-	return true
-}
-
-// Java: NoObjectType.setPropertyJSDocInfo(Property.Key, JSDocInfo)
-func (t *NoObjectType) SetPropertyJSDocInfoByKey(propertyName Property_Key, info *JSDocInfo) {
-	// Do nothing, specific properties do not have JSDocInfo.
-}
-
-// Java: NoObjectType.appendTo(TypeStringBuilder) / NoType.appendTo(TypeStringBuilder)
-func (t *NoObjectType) AppendTo(sb *TypeStringBuilder) {
-	if sb.IsForAnnotations() {
-		sb.Append("?")
-	} else if t.isNo() {
-		sb.Append("None")
-	} else {
-		sb.Append("NoObject")
-	}
-}
-
-// Java: NoObjectType.getConstructor()
-func (t *NoObjectType) GetConstructor() FunctionType {
-	return nil
-}
-
-// Java: NoObjectType.resolveInternal(ErrorReporter)
-func (t *NoObjectType) ResolveInternal(reporter ErrorReporter) JSType {
-	panic(jutil.NewAssertionErrorNoMessage())
 }
 
 // NoResolvedType is an unresolved type that was forward declared. So we
