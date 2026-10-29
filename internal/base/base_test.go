@@ -45,4 +45,19 @@ func TestJSCompDoubles(t *testing.T) {
 		JSCompDoubles_IsMathematicalInteger(math.Inf(1)) || !JSCompDoubles_IsAtLeastIntegerPrecision(1e15) {
 		t.Fatal("exactness predicates")
 	}
+	if math.Signbit(MathMax(negZero, 0)) || math.Signbit(MathMax(0, negZero)) || !math.IsNaN(MathMax(1, math.NaN())) {
+		t.Fatal("MathMax")
+	}
+	if !math.Signbit(MathMin(negZero, 0)) || !math.Signbit(MathMin(0, negZero)) || !math.IsNaN(MathMin(math.NaN(), 1)) {
+		t.Fatal("MathMin")
+	}
+	if !math.Signbit(MathSignum(negZero)) || MathSignum(-3.5) != -1 || !math.IsNaN(MathSignum(math.NaN())) {
+		t.Fatal("MathSignum")
+	}
+	if MathRound(0.5) != 1 || MathRound(-0.5) != 0 || MathRound(math.Float64frombits(0x3fdfffffffffffff)) != 0 || MathRound(math.NaN()) != 0 {
+		t.Fatal("MathRound")
+	}
+	if MathPow(10, 2) != 100 || !math.Signbit(MathPow(negZero, 3)) || !math.IsNaN(MathPow(1, math.Inf(1))) || MathPow(2, 0.5) != math.Sqrt2 {
+		t.Fatal("MathPow")
+	}
 }

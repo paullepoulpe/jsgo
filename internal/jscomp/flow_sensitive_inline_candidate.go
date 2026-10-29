@@ -364,25 +364,10 @@ func fsivWalkClassMembers(body ast.ClassBody, walk func(n, parent rhino.Node)) {
 func (c *FlowSensitiveInlineVariables_Candidate) GetDefinition(n rhino.Node) {
 	jutil.CheckNotNull(c.outer.compiler)
 	if n.IsNil() {
-		gatherCb := flowSensitiveInlineVariables_definitionCallback{candidate: c}
-		traverseCfgNode(c.outer.compiler, n, &gatherCb)
+		throwNilCfgNodeTraversal(c.outer.compiler)
 		return
 	}
 	c.findDefWalk(n, rhino.NilNode)
-}
-
-// flowSensitiveInlineVariables_definitionCallback is the anonymous
-// AbstractCfgNodeTraversalCallback of Candidate.getDefinition.
-type flowSensitiveInlineVariables_definitionCallback struct {
-	ControlFlowGraph_AbstractCfgNodeTraversalCallbackBase
-	candidate *FlowSensitiveInlineVariables_Candidate
-}
-
-// Java: FlowSensitiveInlineVariables.Candidate.getDefinition(...).new AbstractCfgNodeTraversalCallback() {...}.visit(NodeTraversal, Node, Node)
-func (cb *flowSensitiveInlineVariables_definitionCallback) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
-	if cb.candidate.isDefOfVar(n) {
-		cb.candidate.def = n
-	}
 }
 
 func (c *FlowSensitiveInlineVariables_Candidate) countUseWalk(n, parent, cfgNode rhino.Node) {
@@ -421,34 +406,10 @@ func (c *FlowSensitiveInlineVariables_Candidate) GetNumUseInUseCfgNode(cfgNode r
 	c.numUsesWithinCfgNode = 0
 	jutil.CheckNotNull(c.outer.compiler)
 	if cfgNode.IsNil() {
-		gatherCb := flowSensitiveInlineVariables_numUseCallback{candidate: c, cfgNode: cfgNode}
-		traverseCfgNode(c.outer.compiler, cfgNode, &gatherCb)
+		throwNilCfgNodeTraversal(c.outer.compiler)
 		return
 	}
 	c.countUseWalk(cfgNode, rhino.NilNode, cfgNode)
-}
-
-// flowSensitiveInlineVariables_numUseCallback is the anonymous
-// AbstractCfgNodeTraversalCallback of Candidate.getNumUseInUseCfgNode.
-type flowSensitiveInlineVariables_numUseCallback struct {
-	ControlFlowGraph_AbstractCfgNodeTraversalCallbackBase
-	candidate *FlowSensitiveInlineVariables_Candidate
-	cfgNode   rhino.Node
-}
-
-// Java: FlowSensitiveInlineVariables.Candidate.getNumUseInUseCfgNode(...).new AbstractCfgNodeTraversalCallback() {...}.visit(NodeTraversal, Node, Node)
-func (cb *flowSensitiveInlineVariables_numUseCallback) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
-	if n.IsName() && n.GetString() == cb.candidate.varName {
-		if ast.RoleOf(n) == ast.RoleAssignTarget && cb.IsAssignChain(parent, cb.cfgNode) {
-			return
-		}
-		cb.candidate.numUsesWithinCfgNode++
-	}
-}
-
-// Java: FlowSensitiveInlineVariables.Candidate.getNumUseInUseCfgNode(...).new AbstractCfgNodeTraversalCallback() {...}.isAssignChain(Node, Node)
-func (cb *flowSensitiveInlineVariables_numUseCallback) IsAssignChain(child rhino.Node, ancestor rhino.Node) bool {
-	return fsivIsAssignChain(child, ancestor)
 }
 
 func fsivHasUnsafeRhsNode(n rhino.Node) bool {

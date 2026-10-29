@@ -127,9 +127,17 @@ func (f *File) IsDirectory() bool {
 }
 
 // File_IsDirectoryPath reports whether pathname exists and is a directory
-// without allocating a File or os.FileInfo.
+// without allocating a File.
 func File_IsDirectoryPath(pathname string) bool {
 	return fileIsDirectoryRaw(fileNormalize(pathname))
+}
+
+func fileIsDirectoryRaw(path string) bool {
+	if path == "" {
+		return false
+	}
+	st, err := os.Stat(path)
+	return err == nil && st.IsDir()
 }
 
 // Mkdirs is File.mkdirs(): creates the directory and any missing parents,

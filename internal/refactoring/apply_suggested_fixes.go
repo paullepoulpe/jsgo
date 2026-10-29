@@ -25,6 +25,7 @@ import (
 	"iter"
 	"os"
 	"slices"
+	"strconv"
 	"strings"
 
 	"github.com/paullepoulpe/jsgo/internal/jutil"
@@ -359,8 +360,8 @@ func (r *CodeReplacement) CompareTo(x *CodeReplacement) int {
 // Java: AutoValue_CodeReplacement.toString()
 func (r *CodeReplacement) String() string {
 	return "CodeReplacement{" +
-		"startPosition=" + jutil.ToJavaString(r.startPosition) + ", " +
-		"length=" + jutil.ToJavaString(r.length) + ", " +
+		"startPosition=" + strconv.Itoa(r.startPosition) + ", " +
+		"length=" + strconv.Itoa(r.length) + ", " +
 		"newContent=" + r.newContent + ", " +
 		"sortKey=" + r.sortKey +
 		"}"

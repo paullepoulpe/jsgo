@@ -28,7 +28,7 @@ import (
 // GoogleCodingConvention describes the Google-specific JavaScript coding
 // conventions. Within Google, variable names are semantically significant.
 type GoogleCodingConvention struct {
-	CodingConventions_ProxyBase
+	CodingConvention
 }
 
 const (
@@ -36,14 +36,26 @@ const (
 	googleVarArgsName       = "var_args"
 )
 
+var googleVarArgsID = rhino.RhinoStringPool_InternID(googleVarArgsName)
+
 func NewGoogleCodingConvention() *GoogleCodingConvention {
 	return NewGoogleCodingConventionWithConvention(NewClosureCodingConvention())
 }
 
 func NewGoogleCodingConventionWithConvention(convention CodingConvention) *GoogleCodingConvention {
-	c := &GoogleCodingConvention{}
-	c.CodingConventions_ProxyBase = newProxyBase(c, convention)
-	return c
+	return &GoogleCodingConvention{CodingConvention: convention}
+}
+
+func (c *GoogleCodingConvention) IsExported(name string) bool {
+	return CodingConvention_IsExported(c, name)
+}
+
+func (c *GoogleCodingConvention) BlockRenamingForProperty(name string) bool {
+	return false
+}
+
+func (c *GoogleCodingConvention) IsPrototypeAlias(getProp rhino.Node) bool {
+	return false
 }
 
 // IsConstant enforces the Google const name convention: the first character
@@ -139,21 +151,21 @@ func (c *GoogleCodingConvention) IsValidEnumKey(key string) bool {
 }
 
 func (c *GoogleCodingConvention) IsOptionalParameter(parameter rhino.Node) bool {
-	return c.CodingConventions_ProxyBase.IsOptionalParameter(parameter) ||
+	return c.CodingConvention.IsOptionalParameter(parameter) ||
 		(parameter.IsName() && strings.HasPrefix(parameter.GetString(), googleOptionalArgPrefix))
 }
 
 func (c *GoogleCodingConvention) IsVarArgsParameter(parameter rhino.Node) bool {
-	return c.CodingConventions_ProxyBase.IsVarArgsParameter(parameter) ||
-		(parameter.IsName() && parameter.GetString() == googleVarArgsName)
+	return c.CodingConvention.IsVarArgsParameter(parameter) ||
+		(parameter.IsName() && parameter.GetStringID() == googleVarArgsID)
 }
 
 func (c *GoogleCodingConvention) IsExportedWithLocal(name string, local bool) bool {
-	return c.CodingConventions_ProxyBase.IsExportedWithLocal(name, local) || (!local && strings.HasPrefix(name, "_"))
+	return c.CodingConvention.IsExportedWithLocal(name, local) || (!local && strings.HasPrefix(name, "_"))
 }
 
 func (c *GoogleCodingConvention) IsClassFactoryCall(callNode rhino.Node) bool {
-	return c.CodingConventions_ProxyBase.IsClassFactoryCall(callNode)
+	return c.CodingConvention.IsClassFactoryCall(callNode)
 }
 
 // GetPackageName returns the package directory path of source, stripping any

@@ -538,3 +538,235 @@ func translateJavaRegex(regex string, mode javaRegexMode) (string, javaRegexInfo
 	}
 	return sb.String(), info
 }
+
+// Matcher is java.util.regex.Matcher.
+type Matcher struct {
+	p            *Pattern
+	input        string
+	groups       []int
+	resumeAt     int
+	prevWasEmpty bool
+}
+
+// Matcher is Pattern.matcher(CharSequence).
+func (p *Pattern) Matcher(input string) *Matcher {
+	return &Matcher{p: p, input: input}
+}
+
+// Pattern is Matcher.pattern().
+func (m *Matcher) Pattern() *Pattern { return m.p }
+
+// Reset is Matcher.reset(): no current match, and the next find() looks
+// from the start again.
+func (m *Matcher) Reset() *Matcher {
+	m.groups, m.resumeAt, m.prevWasEmpty = nil, 0, false
+	return m
+}
+
+func (m *Matcher) record(loc []int) bool {
+	m.groups = loc
+	if loc == nil {
+		m.prevWasEmpty = false
+		return false
+	}
+	m.resumeAt = loc[1]
+	m.prevWasEmpty = loc[0] == loc[1]
+	return true
+}
+
+// Matches is Matcher.matches(): the entire input must match.
+func (m *Matcher) Matches() bool {
+	return m.record(m.p.full.FindStringSubmatchIndex(m.input))
+}
+
+// LookingAt is Matcher.lookingAt(): a match must start at the beginning of
+// the input but need not reach its end.
+func (m *Matcher) LookingAt() bool {
+	loc := m.p.findFrom(m.input, 0)
+	if loc != nil && loc[0] != 0 {
+		loc = nil
+	}
+	return m.record(loc)
+}
+
+// Find is Matcher.find(): the next match of the pattern.
+func (m *Matcher) Find() bool {
+	from := m.resumeAt
+	if m.prevWasEmpty {
+		if from == len(m.input) {
+			m.groups = nil
+			return false
+		}
+		_, size := decodeWTF8(m.input[from:])
+		if size == 4 {
+			unsupportedJavaRegex(m.p.pattern, "find() resuming inside a surrogate pair after an empty match")
+		}
+		from += size
+	}
+	return m.record(m.p.findFrom(m.input, from))
+}
+
+// GroupCount is Matcher.groupCount().
+func (m *Matcher) GroupCount() int { return m.p.groups }
+
+func (m *Matcher) requireMatch() {
+	if m.groups == nil {
+		panic(NewIllegalStateExceptionMsg("No match found"))
+	}
+}
+
+func (m *Matcher) requireGroupIndex(group int) {
+	if group < 0 || group > m.GroupCount() {
+		panic(NewIndexOutOfBoundsException("No group " + itoa(group)))
+	}
+}
+
+// Start is Matcher.start(): the UTF-16 index of the start of the match.
+func (m *Matcher) Start() int {
+	m.requireMatch()
+	return StringLength(m.input[:m.groups[0]])
+}
+
+// End is Matcher.end(): the UTF-16 index after the end of the match.
+func (m *Matcher) End() int {
+	m.requireMatch()
+	return StringLength(m.input[:m.groups[1]])
+}
+
+// StartGroup is Matcher.start(int): -1 when the group did not match.
+func (m *Matcher) StartGroup(group int) int {
+	m.requireMatch()
+	m.requireGroupIndex(group)
+	if m.groups[2*group] < 0 {
+		return -1
+	}
+	return StringLength(m.input[:m.groups[2*group]])
+}
+
+// EndGroup is Matcher.end(int): -1 when the group did not match.
+func (m *Matcher) EndGroup(group int) int {
+	m.requireMatch()
+	m.requireGroupIndex(group)
+	if m.groups[2*group+1] < 0 {
+		return -1
+	}
+	return StringLength(m.input[:m.groups[2*group+1]])
+}
+
+// Group is Matcher.group(int): nil when the group did not take part in the
+// match.
+func (m *Matcher) Group(group int) *string {
+	m.requireMatch()
+	m.requireGroupIndex(group)
+	if m.groups[2*group] < 0 {
+		return nil
+	}
+	s := m.input[m.groups[2*group]:m.groups[2*group+1]]
+	return &s
+}
+
+// GroupAll is Matcher.group() (the whole match).
+func (m *Matcher) GroupAll() string {
+	return *m.Group(0)
+}
+
+func (m *Matcher) appendReplacement(sb *strings.Builder, appendPos int, replacement string) {
+	m.requireMatch()
+	sb.WriteString(m.input[appendPos:m.groups[0]])
+	r := replacement
+	for i := 0; i < len(r); {
+		switch r[i] {
+		case '\\':
+			i++
+			if i == len(r) {
+				panic(NewIllegalArgumentExceptionMsg("character to be escaped is missing"))
+			}
+			sb.WriteByte(r[i])
+			i++
+		case '$':
+			i++
+			if i == len(r) {
+				panic(NewIllegalArgumentExceptionMsg("Illegal group reference: group index is missing"))
+			}
+			var group int
+			switch c := r[i]; {
+			case c == '{':
+				i++
+				start := i
+				for i < len(r) && isASCIIAlphanumeric(r[i]) {
+					i++
+				}
+				name := r[start:i]
+				switch {
+				case name == "":
+					panic(NewIllegalArgumentExceptionMsg("named capturing group has 0 length name"))
+				case i == len(r) || r[i] != '}':
+					panic(NewIllegalArgumentExceptionMsg("named capturing group is missing trailing '}'"))
+				case name[0] >= '0' && name[0] <= '9':
+					panic(NewIllegalArgumentExceptionMsg("capturing group name {" + name + "} starts with digit character"))
+				}
+				panic(NewIllegalArgumentExceptionMsg("No group with name {" + name + "}"))
+			case c >= '0' && c <= '9':
+				group = int(c - '0')
+				i++
+				count := m.GroupCount()
+				for i < len(r) && r[i] >= '0' && r[i] <= '9' {
+					longer := group*10 + int(r[i]-'0')
+					if longer > count {
+						break
+					}
+					group = longer
+					i++
+				}
+				m.requireGroupIndex(group)
+			default:
+				panic(NewIllegalArgumentExceptionMsg("Illegal group reference"))
+			}
+			if lo := m.groups[2*group]; lo >= 0 {
+				sb.WriteString(m.input[lo:m.groups[2*group+1]])
+			}
+		default:
+			j := i + 1
+			for j < len(r) && r[j] != '\\' && r[j] != '$' {
+				j++
+			}
+			sb.WriteString(r[i:j])
+			i = j
+		}
+	}
+}
+
+func isASCIIAlphanumeric(c byte) bool {
+	return c >= '0' && c <= '9' || c >= 'a' && c <= 'z' || c >= 'A' && c <= 'Z'
+}
+
+// ReplaceFirst is Matcher.replaceFirst(String).
+func (m *Matcher) ReplaceFirst(replacement string) string {
+	m.Reset()
+	if !m.Find() {
+		return m.input
+	}
+	var sb strings.Builder
+	m.appendReplacement(&sb, 0, replacement)
+	sb.WriteString(m.input[m.groups[1]:])
+	return sb.String()
+}
+
+// ReplaceAll is Matcher.replaceAll(String).
+func (m *Matcher) ReplaceAll(replacement string) string {
+	m.Reset()
+	if !m.Find() {
+		return m.input
+	}
+	var sb strings.Builder
+	appendPos := 0
+	for {
+		m.appendReplacement(&sb, appendPos, replacement)
+		appendPos = m.groups[1]
+		if !m.Find() {
+			break
+		}
+	}
+	sb.WriteString(m.input[appendPos:])
+	return sb.String()
+}

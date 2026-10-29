@@ -32,7 +32,6 @@ import (
 //
 // Go-only: test-helper — Mockito.
 type baseTranspilerTest_mockCompiler struct {
-	*BaseTranspiler_CompilerSupplierBase
 	compileResult *BaseTranspiler_CompileResult
 	runtimes      map[string]string
 }

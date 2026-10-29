@@ -35,172 +35,139 @@ import (
 // implementation returns one or more elements of that cycle. Those elements
 // are chosen arbitrarily but deterministically (as long as the underlying
 // graph has deterministic iteration).
-//
-// The class is not final (tests subclass it to stub findAll), so it is an
-// interface plus LowestCommonAncestorFinderBase (PORTING.md §4).
 type LowestCommonAncestorFinder[N comparable, E any] interface {
 	// FindAll executes a search on all the elements of roots.
 	//
-	// This is a general-purpose, bare-bones implementation. There are lots
-	// of special case optimizations that could be applied.
-	//
 	// Java: LowestCommonAncestorFinder.findAll(Set<N>)
-	FindAll(roots jutil.Set[N]) *jutil.LinkedHashSet[N]
+	FindAll(roots *jutil.LinkedHashSet[N]) *jutil.LinkedHashSet[N]
+
+	// FindAllSlice executes a search on distinct elements of roots, appending
+	// the resulting LCAs to dst without allocating sets.
+	FindAllSlice(roots []N, dst []N) []N
 }
 
 // LowestCommonAncestorFinder_Factory is an abstraction for
-// LowestCommonAncestorFinder::new.
-//
-// This interface allows injection in tests.
-//
-// Go-only: language-adapter — the @FunctionalInterface is a func type, so
-// constructor references and lambdas convert directly.
+// LowestCommonAncestorFinder::new, allowing injection in tests.
 type LowestCommonAncestorFinder_Factory[N comparable, E any] func(graph DiGraph[N, E]) LowestCommonAncestorFinder[N, E]
 
-// lowestCommonAncestorFinder_Color is a "color" for a node, encoded as a
-// combination of other colors using a one-hot scheme.
-type lowestCommonAncestorFinder_Color struct {
-	bitset int32
-}
+// lcaColorNotLowest marks common ancestors that have lower common ancestors.
+// Because its MSB is set (-1), bitwise OR with any root bitmask stays -1.
+const lcaColorNotLowest int32 = -1
 
-// A set of commonly used colors to minimize allocations.
-//
-// An array is used to prevent bounds checking overhead.
-var lowestCommonAncestorFinder_Color_COMMON_COLOR_CACHE = func() [2 << 5]*lowestCommonAncestorFinder_Color {
-	var cache [2 << 5]*lowestCommonAncestorFinder_Color
-	for i := range cache {
-		cache[i] = newLowestCommonAncestorFinder_Color(int32(i))
-	}
-	return cache
-}()
-
-// A color that when mixed with any other color x returns x.
-//
-// Mixing this color is idempotent.
-var lowestCommonAncestorFinder_Color_BLANK = jutil.CheckNotNull(lowestCommonAncestorFinder_Color_COMMON_COLOR_CACHE[0])
-
-// A color for common ancestors that indicates that there are lower common
-// ancestors.
-//
-// Because this color sets its MSB high, it can never equal any other color.
-// Also notice that mixing this Color with any other produces this Color
-// again; mixing it is nullipotent.
-var lowestCommonAncestorFinder_Color_NOT_LOWEST = newLowestCommonAncestorFinder_Color(-1)
-
-// Java: LowestCommonAncestorFinder.Color.create(int)
-func lowestCommonAncestorFinder_Color_create(bitset int32) *lowestCommonAncestorFinder_Color {
-	if bitset < 0 {
-		jutil.CheckArgument(bitset == -1)
-		return lowestCommonAncestorFinder_Color_NOT_LOWEST
-	} else if int(bitset) < len(lowestCommonAncestorFinder_Color_COMMON_COLOR_CACHE) {
-		return lowestCommonAncestorFinder_Color_COMMON_COLOR_CACHE[bitset]
-	}
-	return newLowestCommonAncestorFinder_Color(bitset)
-}
-
-// Java: LowestCommonAncestorFinder.Color(int)
-func newLowestCommonAncestorFinder_Color(bitset int32) *lowestCommonAncestorFinder_Color {
-	return &lowestCommonAncestorFinder_Color{bitset: bitset}
-}
-
-// Java: LowestCommonAncestorFinder.Color.mix(Color)
-func (c *lowestCommonAncestorFinder_Color) mix(other *lowestCommonAncestorFinder_Color) *lowestCommonAncestorFinder_Color {
-	if c.bitset == other.bitset {
-		return c
-	}
-	return lowestCommonAncestorFinder_Color_create(c.bitset | other.bitset)
-}
-
-// Java: LowestCommonAncestorFinder.Color.contains(Color)
-func (c *lowestCommonAncestorFinder_Color) contains(other *lowestCommonAncestorFinder_Color) bool {
-	return (c.bitset & other.bitset) == other.bitset
-}
-
-// Java: LowestCommonAncestorFinder.Color.equals(Object)
-func (c *lowestCommonAncestorFinder_Color) Equals(other any) bool {
-	return c.bitset == other.(*lowestCommonAncestorFinder_Color).bitset
-}
-
-// Java: LowestCommonAncestorFinder.Color.hashCode()
-func (c *lowestCommonAncestorFinder_Color) HashCode() int32 {
-	return c.bitset
-}
-
-// LowestCommonAncestorFinderBase holds LowestCommonAncestorFinder's fields
-// and implementation.
-type LowestCommonAncestorFinderBase[N comparable, E any] struct {
-	graph *LinkedDirectedGraph[N, E]
-
-	searchColoring *jutil.LinkedHashMap[*LinkedDiGraphNode[N, E], *lowestCommonAncestorFinder_Color]
-	searchQueue    []*LinkedDiGraphNode[N, E]
+type lowestCommonAncestorFinder[N comparable, E any] struct {
+	graph       *LinkedDirectedGraph[N, E]
+	colors      []int32
+	touched     []*LinkedDiGraphNode[N, E]
+	searchQueue []*LinkedDiGraphNode[N, E]
 }
 
 // Java: LowestCommonAncestorFinder(DiGraph<N, E>)
-func NewLowestCommonAncestorFinder[N comparable, E any](graph DiGraph[N, E]) *LowestCommonAncestorFinderBase[N, E] {
-	f := &LowestCommonAncestorFinderBase[N, E]{}
-	f.InitLowestCommonAncestorFinderBase(graph)
-	return f
-}
-
-// InitLowestCommonAncestorFinderBase runs the constructor on f.
-func (f *LowestCommonAncestorFinderBase[N, E]) InitLowestCommonAncestorFinderBase(graph DiGraph[N, E]) {
+func NewLowestCommonAncestorFinder[N comparable, E any](graph DiGraph[N, E]) LowestCommonAncestorFinder[N, E] {
+	f := &lowestCommonAncestorFinder[N, E]{}
 	if graph != nil {
 		f.graph = graph.AsLinkedDirectedGraph()
 	}
-	f.searchColoring = jutil.NewLinkedHashMap[*LinkedDiGraphNode[N, E], *lowestCommonAncestorFinder_Color]()
+	return f
+}
+
+func (f *lowestCommonAncestorFinder[N, E]) ensureColorCapacity() {
+	capNeeded := f.graph.NodeIndexCap()
+	if len(f.colors) < capNeeded {
+		if cap(f.colors) >= capNeeded {
+			f.colors = f.colors[:capNeeded]
+		} else {
+			newCap := max(capNeeded, len(f.colors)*2, 64)
+			f.colors = make([]int32, capNeeded, newCap)
+		}
+	}
+}
+
+func (f *lowestCommonAncestorFinder[N, E]) paintRoot(root N, bitForRoot int32) {
+	rootNode := f.graph.GetNode(root)
+	jutil.CheckNotNullMsg1(rootNode, "Root not present in graph: %s", root)
+	idx := rootNode.Index
+	if f.colors[idx] == 0 {
+		f.touched = append(f.touched, rootNode)
+	}
+	f.colors[idx] |= bitForRoot
+	f.paintAncestors(rootNode, bitForRoot)
+}
+
+func (f *lowestCommonAncestorFinder[N, E]) finishSearch(allColor int32, dst []N) []N {
+	// Every ancestor of a common ancestor is already painted with allColor
+	// (hence already in f.touched in insertion order).
+	for i := 0; i < len(f.touched); i++ {
+		node := f.touched[i]
+		if f.colors[node.Index] == allColor {
+			f.paintAncestors(node, lcaColorNotLowest)
+		}
+	}
+
+	for i, node := range f.touched {
+		if f.colors[node.Index] == allColor {
+			dst = append(dst, node.Value)
+		}
+		f.colors[node.Index] = 0
+		f.touched[i] = nil
+	}
+	f.touched = f.touched[:0]
+	return dst
 }
 
 // Java: LowestCommonAncestorFinder.findAll(Set<N>)
-func (f *LowestCommonAncestorFinderBase[N, E]) FindAll(roots jutil.Set[N]) *jutil.LinkedHashSet[N] {
+func (f *lowestCommonAncestorFinder[N, E]) FindAll(roots *jutil.LinkedHashSet[N]) *jutil.LinkedHashSet[N] {
+	if roots == nil {
+		panic(jutil.NewNullPointerException())
+	}
 	// We reserved the MSB of each Color for bookkeeping.
 	jutil.CheckArgumentMsg(roots.Size() <= 32-1, "Too many roots.")
-	jutil.CheckState(f.searchColoring.IsEmpty())
+	jutil.CheckState(len(f.touched) == 0)
 
-	// In two's-complement, (2^n - 1) sets the lowest n bits high.
-	allColor := lowestCommonAncestorFinder_Color_create((int32(1) << roots.Size()) - 1)
+	results := jutil.NewLinkedHashSet[N]()
+	if roots.IsEmpty() {
+		return results
+	}
 
-	// Paint up from each root using the color associated with that root.
-	//
-	// When done, the set of common ancestors is the set of nodes painted
-	// `allColor`.
+	f.ensureColorCapacity()
+	allColor := (int32(1) << roots.Size()) - 1
 	bitForRoot := int32(1)
 	for root := range roots.All() {
-		rootNode := f.graph.GetNode(root)
-		jutil.CheckNotNullMsg1(rootNode, "Root not present in graph: %s", root)
-
-		color := lowestCommonAncestorFinder_Color_create(bitForRoot)
-
-		// Preserve any existing colors (Map.merge with Color::mix).
-		if old, ok := f.searchColoring.Lookup(rootNode); ok {
-			f.searchColoring.Put(rootNode, old.mix(color))
-		} else {
-			f.searchColoring.Put(rootNode, color)
-		}
-		f.paintAncestors(rootNode, color)
+		f.paintRoot(root, bitForRoot)
 		bitForRoot <<= 1
 	}
 
-	// For every common ancestor, paint all of its ancestors with a color
-	// indicating it is not the lowest.
-	//
-	// (Every ancestor of a common ancestor is already a key, so this only
-	// updates values in place: Java's forEach sees the updates and never
-	// throws ConcurrentModificationException; All() behaves the same.)
-	for node, color := range f.searchColoring.All() {
-		if color.Equals(allColor) {
-			f.paintAncestors(node, lowestCommonAncestorFinder_Color_NOT_LOWEST)
+	for i := 0; i < len(f.touched); i++ {
+		node := f.touched[i]
+		if f.colors[node.Index] == allColor {
+			f.paintAncestors(node, lcaColorNotLowest)
 		}
 	}
-
-	results := jutil.NewLinkedHashSet[N]() // ImmutableSet.builder()
-	for node, color := range f.searchColoring.All() {
-		if color.Equals(allColor) {
+	for i, node := range f.touched {
+		if f.colors[node.Index] == allColor {
 			results.Add(node.Value)
 		}
+		f.colors[node.Index] = 0
+		f.touched[i] = nil
+	}
+	f.touched = f.touched[:0]
+	return results
+}
+
+func (f *lowestCommonAncestorFinder[N, E]) FindAllSlice(roots []N, dst []N) []N {
+	jutil.CheckArgumentMsg(len(roots) <= 32-1, "Too many roots.")
+	jutil.CheckState(len(f.touched) == 0)
+	if len(roots) == 0 {
+		return dst
 	}
 
-	f.searchColoring.Clear()
-	return results
+	f.ensureColorCapacity()
+	allColor := (int32(1) << len(roots)) - 1
+	bitForRoot := int32(1)
+	for _, root := range roots {
+		f.paintRoot(root, bitForRoot)
+		bitForRoot <<= 1
+	}
+	return f.finishSearch(allColor, dst)
 }
 
 // paintAncestors paints all nodes above root with color.
@@ -209,7 +176,7 @@ func (f *LowestCommonAncestorFinderBase[N, E]) FindAll(roots jutil.Set[N]) *juti
 // all existing colors on ancestor nodes.
 //
 // Java: LowestCommonAncestorFinder.paintAncestors(DiGraphNode<N, E>, Color)
-func (f *LowestCommonAncestorFinderBase[N, E]) paintAncestors(root *LinkedDiGraphNode[N, E], color *lowestCommonAncestorFinder_Color) {
+func (f *lowestCommonAncestorFinder[N, E]) paintAncestors(root *LinkedDiGraphNode[N, E], color int32) {
 	jutil.CheckState(len(f.searchQueue) == 0)
 
 	f.searchQueue = append(f.searchQueue, root)
@@ -222,16 +189,18 @@ func (f *LowestCommonAncestorFinderBase[N, E]) paintAncestors(root *LinkedDiGrap
 				continue // Don't paint `root`.
 			}
 
-			oldColor := f.searchColoring.GetOrDefault(parent, lowestCommonAncestorFinder_Color_BLANK)
-			if !oldColor.contains(color) {
+			pIdx := parent.Index
+			oldColor := f.colors[pIdx]
+			if (oldColor & color) != color {
 				// Only explore in directions that have not yet been painted.
 				f.searchQueue = append(f.searchQueue, parent)
-				f.searchColoring.Put(parent, oldColor.mix(color))
+				if oldColor == 0 {
+					f.touched = append(f.touched, parent)
+				}
+				f.colors[pIdx] = oldColor | color
 			}
 		}
 	}
 	clear(f.searchQueue)
 	f.searchQueue = f.searchQueue[:0]
 }
-
-var _ LowestCommonAncestorFinder[string, string] = (*LowestCommonAncestorFinderBase[string, string])(nil)

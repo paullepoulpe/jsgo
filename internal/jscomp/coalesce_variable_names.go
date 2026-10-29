@@ -211,20 +211,24 @@ func (c *CoalesceVariableNames) Process(externs rhino.Node, root rhino.Node) {
 			wc.deferChanges = true
 			wc.pushCfgRoot(root)
 			defer wc.resetCfgStack()
+			curIdx := -1
+			defer func() {
+				if r := recover(); r != nil && curIdx >= 0 {
+					failures[curIdx] = jutil.AsThrowable(r)
+				}
+			}()
 			for {
 				idx := int(next.Add(1) - 1)
 				if idx >= len(topFns) {
 					return
 				}
+				curIdx = idx
 				wc.changedScopes = wc.changedScopes[:0]
-				jutil.Try(func() {
-					wc.processTopFunction(topFns[idx], dummyGlobal)
-					if len(wc.changedScopes) > 0 {
-						changesByFn[idx] = slices.Clone(wc.changedScopes)
-					}
-				}, func(t jutil.Throwable) {
-					failures[idx] = t
-				})
+				wc.processTopFunction(topFns[idx], dummyGlobal)
+				if len(wc.changedScopes) > 0 {
+					changesByFn[idx] = slices.Clone(wc.changedScopes)
+				}
+				curIdx = -1
 			}
 		}()
 	}
@@ -331,11 +335,10 @@ func (c *CoalesceVariableNames) EnterScopeWithCfg(t *NodeTraversal) {
 		}
 	}
 
-	escaped := c.liveness.GetEscapedLocals()
 	unescapedCandidates := 0
 	unescapedNonParams := 0
-	for _, v := range orderedVars {
-		if escaped.Contains(v) {
+	for vIdx, v := range orderedVars {
+		if c.liveness.isEscapedIndex(vIdx) {
 			continue
 		}
 		p := v.GetParentNode()
@@ -354,7 +357,7 @@ func (c *CoalesceVariableNames) EnterScopeWithCfg(t *NodeTraversal) {
 	}
 
 	c.liveness.Analyze()
-	c.computeAndColorScope(cfg, escaped, state)
+	c.computeAndColorScope(cfg, state)
 	c.activeStates = append(c.activeStates, state)
 }
 
@@ -399,7 +402,7 @@ func (c *CoalesceVariableNames) Visit(t *NodeTraversal, n rhino.Node, parent rhi
 	if state == nil || !state.hasCoalescing {
 		return
 	}
-	vIdx, ok := c.liveness.scopeVariables[nameNode.Ident()]
+	vIdx, ok := c.liveness.lookupVarIndexByID(n.GetStringID())
 	if !ok {
 		return
 	}
@@ -507,7 +510,6 @@ func (c *CoalesceVariableNames) IsNameInsideDestructuringAssignment(n rhino.Node
 // and greedily colors them with exact LinkedUndirectedGraph degree + tie-break order.
 func (c *CoalesceVariableNames) computeAndColorScope(
 	cfg *ControlFlowGraph[rhino.Node],
-	escaped *jutil.ObjectLinkedHashSet[*Var],
 	state *coalesceScopeState,
 ) {
 	orderedVariables := c.liveness.GetAllVariablesInOrder()
@@ -520,7 +522,7 @@ func (c *CoalesceVariableNames) computeAndColorScope(
 	var paramW0, paramW1 uint64
 	worklist := state.worklistBuf[:0]
 	for vIndex, v := range orderedVariables {
-		if escaped.Contains(v) {
+		if c.liveness.isEscapedIndex(vIndex) {
 			continue
 		}
 		// NOTE(user): In theory, we CAN coalesce function names just like any variables,
@@ -647,7 +649,8 @@ func (c *CoalesceVariableNames) processCfgNodeBits128(
 ) {
 	state := c.liveness.FlowStateAt(cfgNode.Index)
 
-	inW0, inW1 := state.GetIn().liveSet.Words128()
+	inSet := state.GetIn().liveSet
+	inW0, inW1 := inSet[0], inSet[1]
 	for w := inW0; w != 0; w &= w - 1 {
 		i := bits.TrailingZeros64(w)
 		interferenceBits[i][0] |= inW0
@@ -659,7 +662,8 @@ func (c *CoalesceVariableNames) processCfgNodeBits128(
 		interferenceBits[i][1] |= inW1
 	}
 
-	outW0, outW1 := state.GetOut().liveSet.Words128()
+	outSet := state.GetOut().liveSet
+	outW0, outW1 := outSet[0], outSet[1]
 	for w := outW0; w != 0; w &= w - 1 {
 		i := bits.TrailingZeros64(w)
 		interferenceBits[i][0] |= outW0
@@ -810,7 +814,7 @@ func (c *CoalesceVariableNames) IsUninitializedLetNameInLoopBodyAndLive(nameNode
 	letNode := nameNode.GetParent()
 	cfgNode := jutil.CheckNotNull(c.liveness.GetCfg().Nodes.Get(letNode))
 	state := c.liveness.FlowStateAt(cfgNode.Index)
-	varIndex := c.liveness.GetVarIndex(originalVar.GetName())
+	varIndex := c.liveness.getVarIndexByID(originalVar.nameID)
 	return varIndex >= 0 && state.GetOut().IsLive(varIndex)
 }
 
@@ -836,19 +840,18 @@ func NewCoalesceVariableNames_LiveRangeChecker(
 	}
 }
 
-func (l *CoalesceVariableNames_LiveRangeChecker) varIndex(name string) int {
+func (l *CoalesceVariableNames_LiveRangeChecker) varIndexByID(id uint32) int {
+	if id == 0 {
+		return -1
+	}
 	if l.liveness != nil {
-		if idx, ok := l.liveness.scopeVariables[name]; ok {
+		if idx, ok := l.liveness.lookupVarIndexByID(id); ok {
 			return idx
 		}
 		return -1
 	}
-	id := rhino.RhinoStringPool_LookupID(name)
-	if id == 0 {
-		return -1
-	}
-	for i, v := range l.orderedVariables {
-		if v.nameID == id {
+	for i := len(l.orderedVariables) - 1; i >= 0; i-- {
+		if l.orderedVariables[i].nameID == id {
 			return i
 		}
 	}
@@ -893,30 +896,27 @@ func (l *CoalesceVariableNames_LiveRangeChecker) Check(n rhino.Node) {
 
 // Java: CoalesceVariableNames.LiveRangeChecker.visit(Node, Node)
 func (l *CoalesceVariableNames_LiveRangeChecker) Visit(n rhino.Node, parent rhino.Node) {
-	var assignedName string
-	hasAssign := false
+	var assignedID uint32
 	if name, isName := ast.AsName(n); isName {
 		_, hasInit := name.Init()
 		if parent.IsParamList() ||
 			(NodeUtil_IsNameDeclaration(parent) && hasInit) ||
 			NodeUtil_IsLhsByDestructuring(n) {
-			assignedName = name.Ident()
-			hasAssign = true
+			assignedID = n.GetStringID()
 		}
 	} else if assign, isAssign := ast.AsAssignment(n); isAssign {
-		if name, isTargetName := assign.Target().AsName(); isTargetName {
-			assignedName = name.Ident()
-			hasAssign = true
+		if target := assign.Target().Node(); target.IsName() {
+			assignedID = target.GetStringID()
 		}
 	}
-	if hasAssign {
-		if iVar := l.varIndex(assignedName); iVar >= 0 {
+	if assignedID != 0 {
+		if iVar := l.varIndexByID(assignedID); iVar >= 0 {
 			l.isAssignToList = append(l.isAssignToList, iVar)
 		}
 	}
 	if len(l.isAssignToList) != 0 {
-		if name, isName := ast.AsName(n); isName && !NodeUtil_IsNameDeclOrSimpleAssignLhs(n, parent) {
-			if iVar := l.varIndex(name.Ident()); iVar >= 0 {
+		if n.IsName() && !NodeUtil_IsNameDeclOrSimpleAssignLhs(n, parent) {
+			if iVar := l.varIndexByID(n.GetStringID()); iVar >= 0 {
 				l.isReadFromList = append(l.isReadFromList, iVar)
 			}
 		}

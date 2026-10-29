@@ -81,12 +81,11 @@ func BaseTranspiler_To(featureSet *parser.FeatureSet) *BaseTranspiler {
 	return BaseTranspiler_ToWithRuntime(featureSet, "es6_runtime")
 }
 
-// BaseTranspiler_CompilerSupplier wraps the Compiler into a more relevant
-// interface, making it easy to test the Transpiler without depending on
-// implementation details of the Compiler itself. Also works around the fact
-// that the Compiler is not thread-safe (since we may do multiple transpiles
-// concurrently), so we supply a fresh instance each time when we're in
-// single-file mode.
+// BaseTranspiler_CompilerSupplier wraps the Compiler into a small interface,
+// making it easy to test the Transpiler without depending on implementation
+// details of the Compiler itself. Also works around the fact that the Compiler
+// is not thread-safe (since we may do multiple transpiles concurrently), so we
+// supply a fresh instance each time when we're in single-file mode.
 //
 // Java: static class BaseTranspiler.CompilerSupplier
 type BaseTranspiler_CompilerSupplier interface {
@@ -94,46 +93,40 @@ type BaseTranspiler_CompilerSupplier interface {
 	Compile(path *jutil.URI, code string) *BaseTranspiler_CompileResult
 	// Java: CompilerSupplier.runtime(String)
 	Runtime(library string) string
-	// Java: CompilerSupplier.compiler()
-	Compiler() *jscomp.Compiler
-	// Java: CompilerSupplier.options()
-	Options() *jscomp.CompilerOptions
-	// Java: CompilerSupplier.setOptions(CompilerOptions)
-	SetOptions(options *jscomp.CompilerOptions)
-	// Java: CompilerSupplier.createTrivialExterns()
-	CreateTrivialExterns() *jscomp.SourceFile
-	// Java: CompilerSupplier.createEmptySource()
-	CreateEmptySource() *jscomp.SourceFile
 }
 
-// BaseTranspiler_CompilerSupplierBase holds the fields of CompilerSupplier
-// and its implementation.
-type BaseTranspiler_CompilerSupplierBase struct {
+// BaseTranspiler_DefaultCompilerSupplier is the concrete CompilerSupplier implementation.
+type BaseTranspiler_DefaultCompilerSupplier struct {
 	moduleResolution   jscomp.ModuleLoader_ResolutionMode
 	moduleRoots        []string
 	prefixReplacements *jutil.LinkedHashMap[string, string]
 	outputFeatureSet   *parser.FeatureSet
 }
 
-var _ BaseTranspiler_CompilerSupplier = (*BaseTranspiler_CompilerSupplierBase)(nil)
+var _ BaseTranspiler_CompilerSupplier = (*BaseTranspiler_DefaultCompilerSupplier)(nil)
+
+var (
+	baseTranspilerEmptyPrefixReplacements = jutil.NewLinkedHashMap[string, string]()
+	baseTranspilerDefaultResolutionMode   = jscomp.NewCompilerOptions().GetModuleResolutionMode()
+)
 
 // Java: CompilerSupplier()
-func NewBaseTranspiler_CompilerSupplier() *BaseTranspiler_CompilerSupplierBase {
+func NewBaseTranspiler_CompilerSupplier() *BaseTranspiler_DefaultCompilerSupplier {
 	return NewBaseTranspiler_CompilerSupplierWithOutputFeatureSet(jscomp.CompilerOptions_LanguageMode_ECMASCRIPT5.ToFeatureSet())
 }
 
 // Java: CompilerSupplier(FeatureSet)
-func NewBaseTranspiler_CompilerSupplierWithOutputFeatureSet(outputFeatureSet *parser.FeatureSet) *BaseTranspiler_CompilerSupplierBase {
+func NewBaseTranspiler_CompilerSupplierWithOutputFeatureSet(outputFeatureSet *parser.FeatureSet) *BaseTranspiler_DefaultCompilerSupplier {
 	// Use the default resolution mode
 	return NewBaseTranspiler_CompilerSupplierWithModuleResolution(
 		outputFeatureSet,
-		jscomp.NewCompilerOptions().GetModuleResolutionMode(),
-		[]string{},
-		jutil.NewLinkedHashMap[string, string]())
+		baseTranspilerDefaultResolutionMode,
+		nil,
+		baseTranspilerEmptyPrefixReplacements)
 }
 
 // NewBaseTranspiler_CompilerSupplierWithModuleResolution accepts commonly
-// overridden options for ES6 modules to avoid needed to subclass.
+// overridden options for ES6 modules to avoid needing to subclass.
 //
 // moduleResolution: module resolution for resolving import paths;
 // prefixReplacements: prefix replacements for when moduleResolution is
@@ -144,8 +137,8 @@ func NewBaseTranspiler_CompilerSupplierWithModuleResolution(
 	outputFeatureSet *parser.FeatureSet,
 	moduleResolution jscomp.ModuleLoader_ResolutionMode,
 	moduleRoots []string,
-	prefixReplacements *jutil.LinkedHashMap[string, string]) *BaseTranspiler_CompilerSupplierBase {
-	return &BaseTranspiler_CompilerSupplierBase{
+	prefixReplacements *jutil.LinkedHashMap[string, string]) *BaseTranspiler_DefaultCompilerSupplier {
+	return &BaseTranspiler_DefaultCompilerSupplier{
 		outputFeatureSet:   outputFeatureSet,
 		moduleResolution:   moduleResolution,
 		moduleRoots:        moduleRoots,
@@ -154,7 +147,7 @@ func NewBaseTranspiler_CompilerSupplierWithModuleResolution(
 }
 
 // Java: CompilerSupplier.compile(URI, String)
-func (s *BaseTranspiler_CompilerSupplierBase) Compile(path *jutil.URI, code string) *BaseTranspiler_CompileResult {
+func (s *BaseTranspiler_DefaultCompilerSupplier) Compile(path *jutil.URI, code string) *BaseTranspiler_CompileResult {
 	compiler := s.Compiler()
 	result :=
 		compiler.CompileOfSourceFiles(
@@ -177,7 +170,7 @@ func (s *BaseTranspiler_CompilerSupplierBase) Compile(path *jutil.URI, code stri
 }
 
 // Java: CompilerSupplier.runtime(String)
-func (s *BaseTranspiler_CompilerSupplierBase) Runtime(library string) string {
+func (s *BaseTranspiler_DefaultCompilerSupplier) Runtime(library string) string {
 	compiler := s.Compiler()
 	options := s.Options()
 	options.SetForceLibraryInjection([]string{library})
@@ -186,12 +179,12 @@ func (s *BaseTranspiler_CompilerSupplierBase) Runtime(library string) string {
 }
 
 // Java: CompilerSupplier.compiler()
-func (s *BaseTranspiler_CompilerSupplierBase) Compiler() *jscomp.Compiler {
+func (s *BaseTranspiler_DefaultCompilerSupplier) Compiler() *jscomp.Compiler {
 	return jscomp.NewCompiler()
 }
 
 // Java: CompilerSupplier.options()
-func (s *BaseTranspiler_CompilerSupplierBase) Options() *jscomp.CompilerOptions {
+func (s *BaseTranspiler_DefaultCompilerSupplier) Options() *jscomp.CompilerOptions {
 	options := jscomp.NewCompilerOptions()
 	s.SetOptions(options)
 	return options
@@ -202,7 +195,7 @@ var baseTranspiler_locationMappings = []jscomp.SourceMap_LocationMapping{baseTra
 var baseTranspiler_prefixMapping = jscomp.NewSourceMap_PrefixLocationMapping("", "/")
 
 // Java: CompilerSupplier.setOptions(CompilerOptions)
-func (s *BaseTranspiler_CompilerSupplierBase) SetOptions(options *jscomp.CompilerOptions) {
+func (s *BaseTranspiler_DefaultCompilerSupplier) SetOptions(options *jscomp.CompilerOptions) {
 	options.SetLanguageIn(jscomp.CompilerOptions_LanguageMode_ECMASCRIPT_NEXT)
 	options.LegacySetOutputFeatureSet(s.outputFeatureSet.WithoutFeatures(parser.FeatureSet_Feature_MODULES))
 	options.SetEmitUseStrict(false)
@@ -260,23 +253,10 @@ func hasPotentialURIScheme(s string) bool {
 	return false
 }
 
-func tryParseURI(str string) (u *jutil.URI, syntaxErr jutil.IURISyntaxException) {
-	defer func() {
-		if r := recover(); r != nil {
-			if e, ok := r.(jutil.IURISyntaxException); ok {
-				syntaxErr = e
-				return
-			}
-			panic(r)
-		}
-	}()
-	return jutil.NewURI(str), nil
-}
-
 // Java: SourceMap.LocationMapping.map(String)
 func (baseTranspiler_absoluteLocationMapping) Map(location string) *string {
 	if hasPotentialURIScheme(location) {
-		if u, err := tryParseURI(location); err == nil && u.GetScheme() != nil {
+		if u, err := jutil.ParseURI(location); err == nil && u.GetScheme() != nil {
 			return &location
 		}
 	}
@@ -284,12 +264,12 @@ func (baseTranspiler_absoluteLocationMapping) Map(location string) *string {
 }
 
 // Java: CompilerSupplier.createTrivialExterns()
-func (s *BaseTranspiler_CompilerSupplierBase) CreateTrivialExterns() *jscomp.SourceFile {
+func (s *BaseTranspiler_DefaultCompilerSupplier) CreateTrivialExterns() *jscomp.SourceFile {
 	return jscomp.SourceFile_FromCode("externs.js", "function Symbol() {}")
 }
 
 // Java: CompilerSupplier.createEmptySource()
-func (s *BaseTranspiler_CompilerSupplierBase) CreateEmptySource() *jscomp.SourceFile {
+func (s *BaseTranspiler_DefaultCompilerSupplier) CreateEmptySource() *jscomp.SourceFile {
 	return jscomp.SourceFile_FromCode("empty.js", "")
 }
 

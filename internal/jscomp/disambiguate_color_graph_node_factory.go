@@ -29,6 +29,7 @@ type ColorGraphNodeFactory struct {
 	// Colors are keyed with their equals()/hashCode().
 	typeIndex *jutil.ObjectLinkedHashMap[*colors.Color, *ColorGraphNode]
 	registry  *colors.ColorRegistry
+	nodeSlab  jutil.Slab[ColorGraphNode]
 }
 
 // Java: ColorGraphNodeFactory(LinkedHashMap<Color, ColorGraphNode>, ColorRegistry)
@@ -37,12 +38,22 @@ func NewColorGraphNodeFactory(
 	return &ColorGraphNodeFactory{typeIndex: initialTypeIndex, registry: registry}
 }
 
+func (f *ColorGraphNodeFactory) allocNode(single *colors.Color, index int) *ColorGraphNode {
+	jutil.CheckArgument(index >= 0)
+	jutil.CheckNotNullPtr(single)
+	n := f.nodeSlab.New()
+	n.index = index
+	n.color = single
+	return n
+}
+
 // Java: ColorGraphNodeFactory.createFactory(ColorRegistry)
 func ColorGraphNodeFactory_CreateFactory(colorRegistry *colors.ColorRegistry) *ColorGraphNodeFactory {
 	typeIndex := jutil.NewObjectLinkedHashMap[*colors.Color, *ColorGraphNode]()
-	unknownColorNode := ColorGraphNode_Create(colors.StandardColors_UNKNOWN, 0)
+	f := NewColorGraphNodeFactory(typeIndex, colorRegistry)
+	unknownColorNode := f.allocNode(colors.StandardColors_UNKNOWN, 0)
 	typeIndex.Put(colors.StandardColors_UNKNOWN, unknownColorNode)
-	return NewColorGraphNodeFactory(typeIndex, colorRegistry)
+	return f
 }
 
 // CreateNode returns the ColorGraphNode known by this factory for type.
@@ -73,7 +84,7 @@ func (f *ColorGraphNodeFactory) GetAllKnownTypes() *jutil.LinkedHashSet[*ColorGr
 
 // Java: ColorGraphNodeFactory.newColorGraphNode(Color)
 func (f *ColorGraphNodeFactory) newColorGraphNode(key *colors.Color) *ColorGraphNode {
-	return ColorGraphNode_Create(key, f.typeIndex.Size())
+	return f.allocNode(key, f.typeIndex.Size())
 }
 
 // simplifyColor merges different colors with the same ambiguation-behavior

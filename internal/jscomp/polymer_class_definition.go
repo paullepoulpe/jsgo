@@ -397,8 +397,9 @@ func addFunctionAssignmentsFromConstructor(
 func overwriteMembersIfPresent(
 	list []*PolymerPass_MemberDefinition, newMembers []*PolymerPass_MemberDefinition) []*PolymerPass_MemberDefinition {
 	for _, newMember := range newMembers {
+		newID := newMember.name.GetStringID()
 		for i, member := range list {
-			if member.name.GetString() == newMember.name.GetString() {
+			if member.name.GetStringID() == newID {
 				list = append(list[:i:i], list[i+1:]...)
 				break
 			}

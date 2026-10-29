@@ -20,9 +20,11 @@
 package jscomp
 
 import (
+	"fmt"
+	"testing"
+
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
-	"testing"
 )
 
 // Tests for LiveVariablesAnalysis. Test cases are snippets of a function and
@@ -544,6 +546,37 @@ func (c *LiveVariablesAnalysisTest) TestComplicatedDeclaration() {
 	LiveVariablesAnalysisTest_AssertNotEscaped("var a = 1, {b: b} = f(), c = g()", "a")
 	LiveVariablesAnalysisTest_AssertNotEscaped("var a = 1, {b: b} = f(), c = g()", "b")
 	LiveVariablesAnalysisTest_AssertNotEscaped("var a = 1, {b: b} = f(), c = g()", "c")
+}
+
+func (c *LiveVariablesAnalysisTest) TestLattice128AndVarTableThresholds() {
+	// > 16 variables exercises the reused idToIndex map; > 64 variables exercises
+	// the second 64-bit word of [2]uint64 in LiveVariableLattice / escaped / untracked.
+	var decls string
+	for i := 0; i < 80; i++ {
+		if i > 0 {
+			decls += ", "
+		}
+		decls += fmt.Sprintf("v%d = %d", i, i)
+	}
+	src := "var " + decls + "; X: f(); use(v0, v16, v17, v63, v64, v79);"
+	state := c.GetFlowStateAtX(src, false)
+	AssertThat(state).IsNotNull()
+	inLat := state.GetIn()
+	for _, liveName := range []string{"v0", "v16", "v17", "v63", "v64", "v79"} {
+		idx := c.liveness.GetVarIndex(liveName)
+		AssertWithMessage("%s (idx=%d) should be live", liveName, idx).That(inLat.IsLive(idx)).IsTrue()
+	}
+	for _, deadName := range []string{"v1", "v15", "v18", "v62", "v65", "v78"} {
+		idx := c.liveness.GetVarIndex(deadName)
+		AssertWithMessage("%s (idx=%d) should be dead", deadName, idx).That(inLat.IsLive(idx)).IsFalse()
+	}
+	v64Idx := c.liveness.GetVarIndex("v64")
+	AssertThat(v64Idx >= 64).IsTrue()
+	AssertThat(inLat.NextSetBit(v64Idx)).IsEqualTo(v64Idx)
+	copyLat := NewLiveVariablesAnalysis_LiveVariableLatticeOf(inLat)
+	AssertThat(inLat.Equals(copyLat)).IsTrue()
+	AssertThat(inLat.HashCode()).IsEqualTo(copyLat.HashCode())
+	AssertThat(inLat.String()).IsEqualTo(copyLat.String())
 }
 
 // Java: LiveVariablesAnalysisTest.assertLiveBeforeX(String, String)

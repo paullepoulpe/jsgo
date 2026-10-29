@@ -63,12 +63,13 @@ type AmbiguateProperties struct {
 	// Can't use these at all in property names.
 	reservedNonFirstCharacters jutil.Set[uint16]
 
-	// Properties discovered in deterministic encounter order, indexed by name.
-	properties      []AmbiguateProperties_Property
-	propIndexByName map[string]uint32
+	// Properties discovered in deterministic encounter order, indexed by name ID.
+	properties    []AmbiguateProperties_Property
+	propIndexByID map[uint32]uint32
 
 	// Property names that don't get renamed
 	externedNames *jutil.LinkedHashSet[string]
+	externedIDs   inlineBitSet
 
 	// Names to which properties shouldn't be renamed, to avoid name conflicts
 	quotedNames *jutil.LinkedHashSet[string]
@@ -103,18 +104,22 @@ func NewAmbiguateProperties(
 	externProperties jutil.Set[string]) *AmbiguateProperties {
 	jutil.CheckState(compiler.GetLifeCycleStage().IsNormalized())
 	// ImmutableSet.<String>builder().add("prototype").addAll(externProperties).build()
+	var externedIDs inlineBitSet
 	externedNames := jutil.NewLinkedHashSetWithCapacity[string](externProperties.Size() + 1)
 	externedNames.Add("prototype")
+	externedIDs.Set(int(rhino.RhinoStringPool_InternID("prototype")))
 	for name := range externProperties.All() {
 		externedNames.Add(name)
+		externedIDs.Set(int(rhino.RhinoStringPool_InternID(name)))
 	}
 	return &AmbiguateProperties{
 		compiler:                   compiler,
 		reservedFirstCharacters:    reservedFirstCharacters,
 		reservedNonFirstCharacters: reservedNonFirstCharacters,
 		properties:                 make([]AmbiguateProperties_Property, 0, 2048),
-		propIndexByName:            make(map[string]uint32, 2048),
+		propIndexByID:              make(map[uint32]uint32, 2048),
 		externedNames:              externedNames,
+		externedIDs:                externedIDs,
 		quotedNames:                jutil.NewLinkedHashSetWithCapacity[string](256),
 		colorRegistry:              compiler.GetColorRegistry(),
 	}
@@ -179,7 +184,7 @@ func (a *AmbiguateProperties) Process(externs rhino.Node, root rhino.Node) {
 			 * operation.
 			 */
 			superSet := supertype.GetSubtypeIndices()
-			if subtype.subtypeIndices == nil {
+			if !subtype.hasSubtypeIndices {
 				idx := subtype.GetIndex()
 				if superSet.Get(idx) {
 					return false
@@ -187,8 +192,8 @@ func (a *AmbiguateProperties) Process(externs rhino.Node, root rhino.Node) {
 				superSet.Set(idx)
 				return true
 			}
-			subSet := subtype.subtypeIndices
-			if subSet.Size() > superSet.Size() {
+			subSet := &subtype.subtypeIndices
+			if subSet.WordCapacityBits() > superSet.WordCapacityBits() {
 				superSet.Or(subSet)
 				return true
 			}
@@ -210,21 +215,21 @@ func (a *AmbiguateProperties) Process(externs rhino.Node, root rhino.Node) {
 		first := prop.firstColorSeed
 		prop.firstColorSeed = nil
 		if len(prop.extraSeeds) == 0 {
-			if first.subtypeIndices == nil {
+			if !first.hasSubtypeIndices {
 				prop.singleColorIndex = int32(first.index)
 			} else {
-				prop.relatedColors.Or(first.subtypeIndices)
+				prop.relatedColors.Or(&first.subtypeIndices)
 			}
 			continue
 		}
-		if first.subtypeIndices != nil {
-			prop.relatedColors.Or(first.subtypeIndices)
+		if first.hasSubtypeIndices {
+			prop.relatedColors.Or(&first.subtypeIndices)
 		} else {
 			prop.relatedColors.Set(first.index)
 		}
 		for _, color := range prop.extraSeeds {
-			if color.subtypeIndices != nil {
-				prop.relatedColors.Or(color.subtypeIndices)
+			if color.hasSubtypeIndices {
+				prop.relatedColors.Or(&color.subtypeIndices)
 			} else {
 				prop.relatedColors.Set(color.index)
 			}
@@ -234,7 +239,7 @@ func (a *AmbiguateProperties) Process(externs rhino.Node, root rhino.Node) {
 	}
 	colorGraph = nil
 	a.graphNodeFactory = nil
-	a.propIndexByName = nil
+	a.propIndexByID = nil
 
 	// ImmutableSet.<String>builder().addAll(externedNames).addAll(quotedNames)
 	numProperties := len(a.properties)
@@ -246,6 +251,7 @@ func (a *AmbiguateProperties) Process(externs rhino.Node, root rhino.Node) {
 		reservedNames.Add(name)
 	}
 	a.externedNames = nil
+	a.externedIDs = inlineBitSet{}
 	a.quotedNames = nil
 	numSkippedPropertyNames := 0
 	props := make([]*AmbiguateProperties_Property, 0, numProperties)
@@ -280,7 +286,7 @@ func (a *AmbiguateProperties) Process(externs rhino.Node, root rhino.Node) {
 		}
 		slices.SortStableFunc(props, ambiguateProperties_FREQUENCY_COMPARATOR)
 
-		var relatedTypes jutil.BitSet
+		var relatedTypes inlineBitSet
 		worklist := props
 		for len(worklist) > 0 {
 			relatedTypes.ClearAll()
@@ -320,7 +326,7 @@ func (a *AmbiguateProperties) Process(externs rhino.Node, root rhino.Node) {
 	// Assign the new names to the relevant STRING nodes in the AST.
 	for _, item := range a.nodesToRename {
 		p := &a.properties[item.propIdx]
-		if p.newName != "" && p.newName != p.oldName && item.node.GetString() != p.newName {
+		if p.newName != "" && p.newName != p.oldName && (item.node.GetStringID() == p.oldNameID || item.node.GetString() != p.newName) {
 			item.node.SetString(p.newName)
 			a.compiler.ReportChangeToEnclosingScope(item.node)
 		}
@@ -422,7 +428,7 @@ func (p *AmbiguateProperties_ProcessPropertiesAndConstructors) ProcessCall(call 
 		// Skip ambiguation for properties in renaming calls
 		// NOTE (lharker@) - I'm not sure if this behavior is necessary, or if we could safely
 		// ambiguate the property as long as we also updated the property renaming call
-		propIdx := a.getOrAddPropertyIndex(propName.GetString())
+		propIdx := a.getOrAddPropertyIndexByID(propName.GetStringID())
 		a.properties[propIdx].skipAmbiguating = true
 	} else if NodeUtil_IsObjectDefinePropertiesDefinition(call) {
 		typeObj := call.GetSecondChild()
@@ -565,30 +571,31 @@ func (p *AmbiguateProperties_ProcessPropertiesAndConstructors) ProcessClass(clas
 // Java: AmbiguateProperties.ProcessPropertiesAndConstructors.maybeMarkCandidate(Node, Color)
 func (p *AmbiguateProperties_ProcessPropertiesAndConstructors) MaybeMarkCandidate(n rhino.Node, type_ *colors.Color) {
 	a := p.outer
-	name := n.GetString()
-	if !a.externedNames.Contains(name) {
-		propIdx := p.recordProperty(name, type_)
+	id := n.GetStringID()
+	if !a.externedIDs.Get(int(id)) {
+		propIdx := p.recordPropertyByID(id, type_)
 		a.nodesToRename = append(a.nodesToRename, ambiguateNodeToRename{node: n, propIdx: propIdx})
 	}
 }
 
-func (p *AmbiguateProperties_ProcessPropertiesAndConstructors) recordProperty(name string, color *colors.Color) uint32 {
+func (p *AmbiguateProperties_ProcessPropertiesAndConstructors) recordPropertyByID(id uint32, color *colors.Color) uint32 {
 	a := p.outer
-	propIdx := a.getOrAddPropertyIndex(name)
+	propIdx := a.getOrAddPropertyIndexByID(id)
 	a.properties[propIdx].addRelatedColor(a.graphNodeFactory, color)
 	return propIdx
 }
 
-func (a *AmbiguateProperties) getOrAddPropertyIndex(name string) uint32 {
-	if idx, ok := a.propIndexByName[name]; ok {
+func (a *AmbiguateProperties) getOrAddPropertyIndexByID(id uint32) uint32 {
+	if idx, ok := a.propIndexByID[id]; ok {
 		return idx
 	}
 	idx := uint32(len(a.properties))
 	a.properties = append(a.properties, AmbiguateProperties_Property{
-		oldName:          name,
+		oldName:          rhino.RhinoStringPool_StringFromID(id),
+		oldNameID:        id,
 		singleColorIndex: -1,
 	})
-	a.propIndexByName[name] = idx
+	a.propIndexByID[id] = idx
 	return idx
 }
 
@@ -612,6 +619,7 @@ type AmbiguateProperties_Property struct {
 	oldName          string
 	newName          string
 	numOccurrences   int
+	oldNameID        uint32
 	singleColorIndex int32
 	skipAmbiguating  bool
 	seedDedupBitSet  bool
@@ -620,7 +628,7 @@ type AmbiguateProperties_Property struct {
 	extraSeeds     []*ColorGraphNode
 	// Includes seed colors + all subtypes of those seed colors. For example if this property
 	// was accessed off of Iterable, then this bitset will include Array as well.
-	relatedColors jutil.BitSet
+	relatedColors inlineBitSet
 }
 
 // addRelatedColor marks this color as related to this property.

@@ -96,11 +96,23 @@ type URI struct {
 	hashed    bool
 }
 
-// NewURI is new URI(String); it throws URISyntaxException.
-func NewURI(str string) *URI {
+// ParseURI parses str as a java.net.URI without panicking, returning a
+// *URISyntaxException on invalid syntax.
+func ParseURI(str string) (*URI, error) {
 	p := &uriParser{input: str, s: StringToUTF16(str)}
 	u := &URI{str: str, port: -1}
-	p.parse(u)
+	if err := p.parse(u); err != nil {
+		return nil, err
+	}
+	return u, nil
+}
+
+// NewURI is new URI(String); it throws URISyntaxException.
+func NewURI(str string) *URI {
+	u, err := ParseURI(str)
+	if err != nil {
+		panic(err)
+	}
 	return u
 }
 
@@ -425,8 +437,8 @@ type uriParser struct {
 	s     []uint16
 }
 
-func (p *uriParser) fail(reason string, index int) {
-	panic(NewURISyntaxException(p.input, reason, index))
+func (p *uriParser) fail(reason string, index int) *URISyntaxException {
+	return NewURISyntaxException(p.input, reason, index)
 }
 
 func (p *uriParser) str(from, to int) *string {
@@ -446,53 +458,58 @@ func (p *uriParser) find(from, to int, set string) int {
 }
 
 // check validates [from, to) against legal (plus escaped octets).
-func (p *uriParser) check(from, to int, legal func(uint16) bool, component string) {
+func (p *uriParser) check(from, to int, legal func(uint16) bool, component string) *URISyntaxException {
 	for i := from; i < to; i++ {
 		c := p.s[i]
 		if c == '%' {
-			p.checkEscape(i, to)
+			if err := p.checkEscape(i, to); err != nil {
+				return err
+			}
 			i += 2
 			continue
 		}
 		if !legal(c) {
-			p.fail("Illegal character in "+component, i)
+			return p.fail("Illegal character in "+component, i)
 		}
 	}
+	return nil
 }
 
 // checkEscape checks the escaped octet at i ('%' and two hex digits).
-func (p *uriParser) checkEscape(i, to int) {
+func (p *uriParser) checkEscape(i, to int) *URISyntaxException {
 	if i+2 >= to || !uriIsHex(p.s[i+1]) || !uriIsHex(p.s[i+2]) {
-		p.fail("Malformed escape pair", i)
+		return p.fail("Malformed escape pair", i)
 	}
+	return nil
 }
 
-func (p *uriParser) parse(u *URI) {
+func (p *uriParser) parse(u *URI) *URISyntaxException {
 	n := len(p.s)
 	start := 0
 	if c := p.find(0, n, ":/?#"); c < n && p.s[c] == ':' {
 		if c == 0 {
-			p.fail("Expected scheme name", 0)
+			return p.fail("Expected scheme name", 0)
 		}
 		if !uriIsAlpha(p.s[0]) {
-			p.fail("Illegal character in scheme name", 0)
+			return p.fail("Illegal character in scheme name", 0)
 		}
 		for i := 1; i < c; i++ {
 			if x := p.s[i]; !uriIsAlphanum(x) && x != '+' && x != '-' && x != '.' {
-				p.fail("Illegal character in scheme name", i)
+				return p.fail("Illegal character in scheme name", i)
 			}
 		}
 		u.scheme = p.str(0, c)
 		start = c + 1
 		if start == n || p.s[start] == '#' {
-			p.fail("Expected scheme-specific part", start)
+			return p.fail("Expected scheme-specific part", start)
 		}
 		if p.s[start] != '/' {
 			end := p.find(start, n, "#")
-			p.check(start, end, uriIsUricChar, "opaque part")
+			if err := p.check(start, end, uriIsUricChar, "opaque part"); err != nil {
+				return err
+			}
 			u.ssp = p.str(start, end)
-			p.parseFragment(u, end)
-			return
+			return p.parseFragment(u, end)
 		}
 	}
 	i := start
@@ -501,42 +518,53 @@ func (p *uriParser) parse(u *URI) {
 		authEnd := p.find(authStart, n, "/?#")
 		if authEnd == authStart {
 			if authEnd == n {
-				p.fail("Expected authority", authEnd)
+				return p.fail("Expected authority", authEnd)
 			}
 		} else {
-			p.parseAuthority(u, authStart, authEnd)
+			if err := p.parseAuthority(u, authStart, authEnd); err != nil {
+				return err
+			}
 		}
 		i = authEnd
 	}
 	pathEnd := p.find(i, n, "?#")
-	p.check(i, pathEnd, uriIsPathChar, "path")
+	if err := p.check(i, pathEnd, uriIsPathChar, "path"); err != nil {
+		return err
+	}
 	u.path = p.str(i, pathEnd)
 	i = pathEnd
 	if i < n && p.s[i] == '?' {
 		queryEnd := p.find(i+1, n, "#")
-		p.check(i+1, queryEnd, uriIsUricChar, "query")
+		if err := p.check(i+1, queryEnd, uriIsUricChar, "query"); err != nil {
+			return err
+		}
 		u.query = p.str(i+1, queryEnd)
 		i = queryEnd
 	}
-	p.parseFragment(u, i)
+	return p.parseFragment(u, i)
 }
 
-func (p *uriParser) parseFragment(u *URI, i int) {
+func (p *uriParser) parseFragment(u *URI, i int) *URISyntaxException {
 	n := len(p.s)
 	if i < n && p.s[i] == '#' {
-		p.check(i+1, n, uriIsUricChar, "fragment")
+		if err := p.check(i+1, n, uriIsUricChar, "fragment"); err != nil {
+			return err
+		}
 		u.fragment = p.str(i+1, n)
 	}
+	return nil
 }
 
 // parseAuthority parses the non-empty authority [from, to).
-func (p *uriParser) parseAuthority(u *URI, from, to int) {
+func (p *uriParser) parseAuthority(u *URI, from, to int) *URISyntaxException {
 	u.authority = p.str(from, to)
 	regEnd := from
 	for regEnd < to {
 		c := p.s[regEnd]
 		if c == '%' {
-			p.checkEscape(regEnd, to)
+			if err := p.checkEscape(regEnd, to); err != nil {
+				return err
+			}
 			regEnd += 3
 			continue
 		}
@@ -546,40 +574,34 @@ func (p *uriParser) parseAuthority(u *URI, from, to int) {
 		regEnd++
 	}
 	if regEnd == to {
-		func() {
-			defer func() {
-				if r := recover(); r != nil {
-					if _, ok := r.(*URISyntaxException); !ok {
-						panic(r)
-					}
-					u.userInfo, u.host, u.port = nil, nil, -1
-				}
-			}()
-			p.parseServer(u, from, to)
-		}()
-		return
+		if err := p.parseServer(u, from, to); err != nil {
+			u.userInfo, u.host, u.port = nil, nil, -1
+		}
+		return nil
 	}
 	for i := regEnd; i < to; i++ {
 		if c := p.s[i]; !uriIsRegNameChar(c) && c != '[' && c != ']' && c != '%' {
-			p.fail("Illegal character in authority", regEnd)
+			return p.fail("Illegal character in authority", regEnd)
 		}
 	}
-	p.parseServer(u, from, to)
+	return p.parseServer(u, from, to)
 }
 
 // parseServer parses [from, to) as [user-info@]host[:port].
-func (p *uriParser) parseServer(u *URI, from, to int) {
+func (p *uriParser) parseServer(u *URI, from, to int) *URISyntaxException {
 	i := from
 	if at := p.find(from, to, "@"); at < to {
 		for k := from; k < at; k++ {
 			c := p.s[k]
 			if c == '%' {
-				p.checkEscape(k, at)
+				if err := p.checkEscape(k, at); err != nil {
+					return err
+				}
 				k += 2
 				continue
 			}
 			if !uriIsUserInfoChar(c) {
-				p.fail("Illegal character in user info", k)
+				return p.fail("Illegal character in user info", k)
 			}
 		}
 		u.userInfo = p.str(from, at)
@@ -589,26 +611,32 @@ func (p *uriParser) parseServer(u *URI, from, to int) {
 	if i < to && p.s[i] == '[' {
 		close := p.find(i+1, to, "]")
 		if close == to || close == i+1 {
-			p.fail("Expected closing bracket for IPv6 address", close)
+			return p.fail("Expected closing bracket for IPv6 address", close)
 		}
 		scope := p.find(i+1, close, "%")
-		p.parseIPv6(i+1, scope)
+		if err := p.parseIPv6(i+1, scope); err != nil {
+			return err
+		}
 		if scope < close {
 			if scope+1 == close {
-				p.fail("scope id expected", -1)
+				return p.fail("scope id expected", -1)
 			}
 			for k := scope + 1; k < close; k++ {
 				if c := p.s[k]; !uriIsAlphanum(c) && c != '_' && c != '.' {
-					p.fail("Illegal character in scope id", k)
+					return p.fail("Illegal character in scope id", k)
 				}
 			}
 		}
 		hostEnd = close + 1
 		if hostEnd < to && p.s[hostEnd] != ':' {
-			p.fail("Expected port number", hostEnd)
+			return p.fail("Expected port number", hostEnd)
 		}
 	} else {
-		hostEnd = p.parseHostName(i, to)
+		var err *URISyntaxException
+		hostEnd, err = p.parseHostName(i, to)
+		if err != nil {
+			return err
+		}
 	}
 	u.host = p.str(i, hostEnd)
 	if hostEnd < to {
@@ -618,7 +646,7 @@ func (p *uriParser) parseServer(u *URI, from, to int) {
 		for k := portStart; k < to; k++ {
 			c := p.s[k]
 			if !uriIsDigit(c) {
-				p.fail("Illegal character in port number", k)
+				return p.fail("Illegal character in port number", k)
 			}
 			if port <= 1<<31 {
 				port = port*10 + int64(c-'0')
@@ -626,18 +654,19 @@ func (p *uriParser) parseServer(u *URI, from, to int) {
 		}
 		if portStart < to {
 			if port > 1<<31-1 {
-				p.fail("Malformed port number", portStart)
+				return p.fail("Malformed port number", portStart)
 			}
 			u.port = int(port)
 		}
 	}
+	return nil
 }
 
 // parseHostName parses a dotted-quad or a host name starting at from and
 // returns its end, which is to or the index of a ':'.
-func (p *uriParser) parseHostName(from, to int) int {
+func (p *uriParser) parseHostName(from, to int) (int, *URISyntaxException) {
 	if end, ok := p.dottedQuad(from, to); ok && (end == to || p.s[end] == ':') {
-		return end
+		return end, nil
 	}
 	i := from
 	labels, lastLabel := 0, from
@@ -660,15 +689,15 @@ func (p *uriParser) parseHostName(from, to int) int {
 		break
 	}
 	if i < to && p.s[i] != ':' {
-		p.fail("Illegal character in hostname", i)
+		return 0, p.fail("Illegal character in hostname", i)
 	}
 	if labels == 0 {
-		p.fail("Expected hostname", i)
+		return 0, p.fail("Expected hostname", i)
 	}
 	if labels > 1 && !uriIsAlpha(p.s[lastLabel]) {
-		p.fail("Illegal character in hostname", lastLabel)
+		return 0, p.fail("Illegal character in hostname", lastLabel)
 	}
-	return i
+	return i, nil
 }
 
 // dottedQuad reads four dot-separated decimal numbers up to 255 at from.
@@ -697,7 +726,7 @@ func (p *uriParser) dottedQuad(from, to int) (int, bool) {
 
 // parseIPv6 checks the IPv6 literal [from, to) (see the observed behaviour
 // above).
-func (p *uriParser) parseIPv6(from, to int) {
+func (p *uriParser) parseIPv6(from, to int) *URISyntaxException {
 	units := 0 // 16-bit pieces
 	compressed := false
 	hexRun := func(i int) int {
@@ -714,39 +743,39 @@ func (p *uriParser) parseIPv6(from, to int) {
 	// groups reads hex groups separated by single colons from i, which holds
 	// hex digits that do not start a dotted quad. It stops before "::", and
 	// before a ':' that introduces a dotted quad.
-	groups := func(i int) int {
+	groups := func(i int) (int, *URISyntaxException) {
 		for {
 			j := hexRun(i)
 			if j-i > 4 {
-				p.fail("IPv6 hexadecimal digit sequence too long", i)
+				return 0, p.fail("IPv6 hexadecimal digit sequence too long", i)
 			}
 			units++
 			i = j
 			if i >= to || p.s[i] != ':' || i+1 < to && p.s[i+1] == ':' {
-				return i
+				return i, nil
 			}
 			if hexRun(i+1) == i+1 {
-				p.fail("Expected digits for an IPv6 address", i+1)
+				return 0, p.fail("Expected digits for an IPv6 address", i+1)
 			}
 			if startsQuad(i + 1) {
-				return i
+				return i, nil
 			}
 			i++
 		}
 	}
-	quad := func(i int, expected string) int {
+	quad := func(i int, expected string) (int, *URISyntaxException) {
 		j := i
 		for j < to && (uriIsDigit(p.s[j]) || p.s[j] == '.') {
 			j++
 		}
 		if j == i || j != to {
-			p.fail("Expected "+expected, i)
+			return 0, p.fail("Expected "+expected, i)
 		}
 		k := i
 		for part := 0; part < 4; part++ {
 			if part > 0 {
 				if k >= j || p.s[k] != '.' {
-					p.fail("Malformed IPv4 address", k)
+					return 0, p.fail("Malformed IPv4 address", k)
 				}
 				k++
 			}
@@ -758,54 +787,72 @@ func (p *uriParser) parseIPv6(from, to int) {
 				k++
 			}
 			if k == start || value > 255 {
-				p.fail("Malformed IPv4 address", start)
+				return 0, p.fail("Malformed IPv4 address", start)
 			}
 		}
 		if k != j {
-			p.fail("Malformed IPv4 address", k)
+			return 0, p.fail("Malformed IPv4 address", k)
 		}
 		units += 2
-		return k
+		return k, nil
 	}
-	afterCompression := func(i int) int {
+	afterCompression := func(i int) (int, *URISyntaxException) {
 		if i == to {
-			return i
+			return i, nil
 		}
 		if hexRun(i) > i && !startsQuad(i) {
-			i = groups(i)
-			if i < to && p.s[i] == ':' {
-				i = quad(i+1, "hex digits or IPv4 address")
+			var err *URISyntaxException
+			i, err = groups(i)
+			if err != nil {
+				return 0, err
 			}
-			return i
+			if i < to && p.s[i] == ':' {
+				return quad(i+1, "hex digits or IPv4 address")
+			}
+			return i, nil
 		}
 		return quad(i, "hex digits or IPv4 address")
 	}
 	i := from
+	var err *URISyntaxException
 	switch {
 	case hexRun(i) > i && !startsQuad(i):
-		i = groups(i)
+		i, err = groups(i)
+		if err != nil {
+			return err
+		}
 		if i+1 < to && p.s[i] == ':' && p.s[i+1] == ':' {
 			compressed = true
-			i = afterCompression(i + 2)
+			i, err = afterCompression(i + 2)
+			if err != nil {
+				return err
+			}
 		} else if i < to && p.s[i] == ':' {
-			i = quad(i+1, "IPv4 address")
+			i, err = quad(i+1, "IPv4 address")
+			if err != nil {
+				return err
+			}
 		}
 	case i+1 < to && p.s[i] == ':' && p.s[i+1] == ':':
 		compressed = true
-		i = afterCompression(i + 2)
+		i, err = afterCompression(i + 2)
+		if err != nil {
+			return err
+		}
 	default:
-		p.fail("Malformed IPv6 address", from)
+		return p.fail("Malformed IPv6 address", from)
 	}
 	switch {
 	case i < to:
-		p.fail("Malformed IPv6 address", from)
+		return p.fail("Malformed IPv6 address", from)
 	case units > 8:
-		p.fail("IPv6 address too long", from)
+		return p.fail("IPv6 address too long", from)
 	case !compressed && units < 8:
-		p.fail("IPv6 address too short", from)
+		return p.fail("IPv6 address too short", from)
 	case compressed && units == 8:
-		p.fail("Malformed IPv6 address", from)
+		return p.fail("Malformed IPv6 address", from)
 	}
+	return nil
 }
 
 // URISyntaxException is java.net.URISyntaxException, a checked exception.

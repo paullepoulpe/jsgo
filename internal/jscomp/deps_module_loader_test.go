@@ -79,14 +79,14 @@ func jsaMlCollect(errors *[]*JSError) ErrorHandler { return jsaMlCollector{error
 
 // jsaMlCustomResolver is the anonymous ModuleResolver of testCustomResolution.
 type jsaMlCustomResolver struct {
-	ModuleResolverBase
+	moduleResolverCommon
 }
 
 func (r *jsaMlCustomResolver) ResolveJsModule(scriptAddress string, moduleAddress string, sourcename string, lineno int, colno int) *string {
 	if strings.HasPrefix(moduleAddress, "@custom/") {
 		moduleAddress = moduleAddress[8:]
 	}
-	return r.ModuleResolverBase.Locate(scriptAddress, moduleAddress)
+	return r.Locate(scriptAddress, moduleAddress)
 }
 
 func (r *jsaMlCustomResolver) ResolveJsModuleSilently(scriptAddress string, moduleAddress string) *string {
@@ -363,9 +363,9 @@ func TestModuleLoader_BrowserWithPrefixReplacementInvalidPrefix(t *testing.T) {
 
 func TestModuleLoader_CustomResolution(t *testing.T) {
 	loader := ModuleLoader_Builder_().SetModuleRoots([]string{"."}).SetInputs(jsaMlInputs("A/index.js", "B/index.js", "app.js")).SetFactory(ModuleLoader_ModuleResolverFactoryFunc(func(modulePaths *jutil.LinkedHashSet[string], moduleRootPaths []string, errorHandler ErrorHandler, pathEscaper ModuleLoader_PathEscaper) ModuleResolver {
-		r := &jsaMlCustomResolver{}
-		r.InitModuleResolverBase(modulePaths, moduleRootPaths, errorHandler, pathEscaper)
-		return r
+		return &jsaMlCustomResolver{
+			moduleResolverCommon: newModuleResolverCommon(modulePaths, moduleRootPaths, errorHandler, pathEscaper),
+		}
 	})).Build()
 	jsaMlAssertUri(t, "A/index.js", loader.Resolve("A/index.js"))
 	jsaMlAssertUri(t, "A/index.js", jsaMlResolveJsModule(loader.Resolve("B/index.js"), "../A/index.js"))

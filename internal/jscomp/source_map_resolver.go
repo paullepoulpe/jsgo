@@ -33,11 +33,10 @@ const sourceMapResolver_BASE64_URL_PREFIX = "data:"
 const sourceMapResolver_BASE64_START = "base64,"
 
 // For now only accept UTF-8. We could use the actual charset information in
-// the future.
-var sourceMapResolver_ACCEPTED_MEDIA_TYPES = jutil.NewLinkedHashSet(
-	"application/json;charset=utf-8;",
-	// default is UTF-8 if unspecified.
-	"application/json;")
+// the future. Default is UTF-8 if unspecified.
+func sourceMapResolver_isAcceptedMediaType(mediaType string) bool {
+	return mediaType == "application/json;charset=utf-8;" || mediaType == "application/json;"
+}
 
 // SourceMapResolver_ExtractSourceMap locates the appropriate sourcemap on
 // disk for a given //# sourceMappingUrl. This is use for sourcemap merging
@@ -68,7 +67,7 @@ func sourceMapResolver_extractRawBase64(url string) (rawBase64 string, canonical
 		base64StartIndex := strings.Index(url, sourceMapResolver_BASE64_START)
 		if base64StartIndex >= 0 {
 			mediaType := url[len(sourceMapResolver_BASE64_URL_PREFIX):base64StartIndex]
-			if sourceMapResolver_ACCEPTED_MEDIA_TYPES.Contains(mediaType) {
+			if sourceMapResolver_isAcceptedMediaType(mediaType) {
 				raw := url[base64StartIndex+len(sourceMapResolver_BASE64_START):]
 				canonical := jutil.BaseEncoding_Base64().ValidateAndCheckCanonicalUTF8(raw)
 				return strings.Clone(raw), canonical, true
@@ -87,7 +86,7 @@ func sourceMapResolver_extractBase64String(url string) *string {
 	if strings.HasPrefix(url, sourceMapResolver_BASE64_URL_PREFIX) && strings.Contains(url, sourceMapResolver_BASE64_START) {
 		base64StartIndex := strings.Index(url, sourceMapResolver_BASE64_START)
 		mediaType := url[len(sourceMapResolver_BASE64_URL_PREFIX):base64StartIndex]
-		if sourceMapResolver_ACCEPTED_MEDIA_TYPES.Contains(mediaType) {
+		if sourceMapResolver_isAcceptedMediaType(mediaType) {
 			data := jutil.BaseEncoding_Base64().Decode(
 				url[base64StartIndex+len(sourceMapResolver_BASE64_START):])
 			s := jutil.NewStringFromUTF8Bytes(data)
@@ -98,13 +97,13 @@ func sourceMapResolver_extractBase64String(url string) *string {
 }
 
 // Java: SourceMapResolver.isAbsolute(String)
-func sourceMapResolver_isAbsolute(url string) (result bool) {
-	jutil.Try(func() {
-		result = jutil.NewURI(url).IsAbsolute() || strings.HasPrefix(url, "/")
-	}, func(e jutil.IURISyntaxException) {
-		panic(jutil.NewRuntimeExceptionWithMessageAndCause("Sourcemap url was invalid: "+url, e))
-	})
-	return result
+func sourceMapResolver_isAbsolute(url string) bool {
+	u, err := jutil.ParseURI(url)
+	if err != nil {
+		cause, _ := err.(jutil.Throwable)
+		panic(jutil.NewRuntimeExceptionWithMessageAndCause("Sourcemap url was invalid: "+url, cause))
+	}
+	return u.IsAbsolute() || strings.HasPrefix(url, "/")
 }
 
 // SourceMapResolver_GetRelativePath returns the relative path, resolved

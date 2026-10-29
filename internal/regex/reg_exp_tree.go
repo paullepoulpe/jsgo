@@ -16,6 +16,15 @@
  * limitations under the License.
  */
 
+// Package regex is the port of Closure Compiler's
+// com.google.javascript.jscomp.regex package: the JavaScript regular
+// expression AST (RegExpTree and its node classes), the sparse code-unit set
+// CharRanges and the ES5 Canonicalize tables (CaseCanonicalize).
+//
+// Patterns are parsed as UTF-16 code units, like Java chars, so offsets in
+// exception messages and the code units that appendSourceCode escapes are
+// exactly Java's. reg_exp_tree_oracle_test.go diffs this package against the
+// Java classes (tools/oracle/java/RegExpDump.java).
 package regex
 
 import (
@@ -115,54 +124,13 @@ func RegExpTree_MatchesWholeInput(t RegExpTree, flags string) bool {
 	return firstAnchor.type_ == '^' && lastAnchor.type_ == '$'
 }
 
-// RegExpTree_RegExpTreeAtomBase holds RegExpTreeAtom's base implementations.
-// It represents a node that never has children such as an anchor or charset.
-//
-// Java: abstract static class RegExpTree.RegExpTreeAtom
-type RegExpTree_RegExpTreeAtomBase struct{}
-
-// IsCaseSensitive is false for atoms unless overridden.
-//
-// Java: RegExpTreeAtom.isCaseSensitive()
-func (a *RegExpTree_RegExpTreeAtomBase) IsCaseSensitive() bool {
-	return false
-}
-
-// ContainsAnchor is false for atoms unless overridden.
-//
-// Java: RegExpTreeAtom.containsAnchor()
-func (a *RegExpTree_RegExpTreeAtomBase) ContainsAnchor() bool {
-	return false
-}
-
-// HasCapturingGroup is false for atoms.
-//
-// Java: RegExpTree.hasCapturingGroup()
-func (a *RegExpTree_RegExpTreeAtomBase) HasCapturingGroup() bool {
-	return false
-}
-
-// NumCapturingGroups is 0 for atoms.
-//
-// Java: RegExpTreeAtom.numCapturingGroups()
-func (a *RegExpTree_RegExpTreeAtomBase) NumCapturingGroups() int {
-	return 0
-}
-
-// Children is empty for atoms.
-//
-// Java: RegExpTreeAtom.children()
-func (a *RegExpTree_RegExpTreeAtomBase) Children() []RegExpTree {
-	return []RegExpTree{}
-}
+var emptyRegExpChildren = []RegExpTree{}
 
 // RegExpTree_Empty represents an empty portion of a RegExp such as the middle
 // of "||".
 //
 // Java: private static final class RegExpTree.Empty
-type RegExpTree_Empty struct {
-	RegExpTree_RegExpTreeAtomBase
-}
+type RegExpTree_Empty struct{}
 
 // NewRegExpTree_Empty constructs an Empty.
 //
@@ -173,6 +141,12 @@ func NewRegExpTree_Empty() *RegExpTree_Empty {
 
 // RegExpTree_Empty_INSTANCE is the shared Empty.
 var RegExpTree_Empty_INSTANCE = NewRegExpTree_Empty()
+
+func (e *RegExpTree_Empty) IsCaseSensitive() bool   { return false }
+func (e *RegExpTree_Empty) ContainsAnchor() bool    { return false }
+func (e *RegExpTree_Empty) HasCapturingGroup() bool { return false }
+func (e *RegExpTree_Empty) NumCapturingGroups() int { return 0 }
+func (e *RegExpTree_Empty) Children() []RegExpTree  { return emptyRegExpChildren }
 
 // Simplify returns e.
 //
@@ -217,7 +191,6 @@ func (e *RegExpTree_Empty) String() string { return regExpTreeString(e) }
 //
 // Java: public static final class RegExpTree.Anchor
 type RegExpTree_Anchor struct {
-	RegExpTree_RegExpTreeAtomBase
 	type_ uint16
 }
 
@@ -227,6 +200,11 @@ type RegExpTree_Anchor struct {
 func NewRegExpTree_Anchor(type_ uint16) *RegExpTree_Anchor {
 	return &RegExpTree_Anchor{type_: type_}
 }
+
+func (a *RegExpTree_Anchor) IsCaseSensitive() bool   { return false }
+func (a *RegExpTree_Anchor) HasCapturingGroup() bool { return false }
+func (a *RegExpTree_Anchor) NumCapturingGroups() int { return 0 }
+func (a *RegExpTree_Anchor) Children() []RegExpTree  { return emptyRegExpChildren }
 
 // Simplify returns a.
 //
@@ -278,7 +256,6 @@ func (a *RegExpTree_Anchor) String() string { return regExpTreeString(a) }
 //
 // Java: public static final class RegExpTree.WordBoundary
 type RegExpTree_WordBoundary struct {
-	RegExpTree_RegExpTreeAtomBase
 	type_ uint16
 }
 
@@ -288,6 +265,12 @@ type RegExpTree_WordBoundary struct {
 func NewRegExpTree_WordBoundary(type_ uint16) *RegExpTree_WordBoundary {
 	return &RegExpTree_WordBoundary{type_: type_}
 }
+
+func (w *RegExpTree_WordBoundary) IsCaseSensitive() bool   { return false }
+func (w *RegExpTree_WordBoundary) ContainsAnchor() bool    { return false }
+func (w *RegExpTree_WordBoundary) HasCapturingGroup() bool { return false }
+func (w *RegExpTree_WordBoundary) NumCapturingGroups() int { return 0 }
+func (w *RegExpTree_WordBoundary) Children() []RegExpTree  { return emptyRegExpChildren }
 
 // Simplify returns w.
 //
@@ -334,7 +317,6 @@ func (w *RegExpTree_WordBoundary) String() string { return regExpTreeString(w) }
 //
 // Java: public static final class RegExpTree.BackReference
 type RegExpTree_BackReference struct {
-	RegExpTree_RegExpTreeAtomBase
 	groupIndex int
 }
 
@@ -345,6 +327,12 @@ func NewRegExpTree_BackReference(groupIndex int) *RegExpTree_BackReference {
 	jutil.CheckArgument(groupIndex >= 0 && groupIndex <= 99)
 	return &RegExpTree_BackReference{groupIndex: groupIndex}
 }
+
+func (b *RegExpTree_BackReference) IsCaseSensitive() bool   { return false }
+func (b *RegExpTree_BackReference) ContainsAnchor() bool    { return false }
+func (b *RegExpTree_BackReference) HasCapturingGroup() bool { return false }
+func (b *RegExpTree_BackReference) NumCapturingGroups() int { return 0 }
+func (b *RegExpTree_BackReference) Children() []RegExpTree  { return emptyRegExpChildren }
 
 // Simplify returns b.
 //
@@ -391,7 +379,6 @@ func (b *RegExpTree_BackReference) String() string { return regExpTreeString(b) 
 //
 // Java: public static final class RegExpTree.NamedBackReference
 type RegExpTree_NamedBackReference struct {
-	RegExpTree_RegExpTreeAtomBase
 	groupName string
 }
 
@@ -401,6 +388,12 @@ type RegExpTree_NamedBackReference struct {
 func NewRegExpTree_NamedBackReference(groupName string) *RegExpTree_NamedBackReference {
 	return &RegExpTree_NamedBackReference{groupName: groupName}
 }
+
+func (n *RegExpTree_NamedBackReference) IsCaseSensitive() bool   { return false }
+func (n *RegExpTree_NamedBackReference) ContainsAnchor() bool    { return false }
+func (n *RegExpTree_NamedBackReference) HasCapturingGroup() bool { return false }
+func (n *RegExpTree_NamedBackReference) NumCapturingGroups() int { return 0 }
+func (n *RegExpTree_NamedBackReference) Children() []RegExpTree  { return emptyRegExpChildren }
 
 // Simplify returns n.
 //
@@ -448,7 +441,6 @@ func (n *RegExpTree_NamedBackReference) String() string { return regExpTreeStrin
 //
 // Java: public static final class RegExpTree.Text
 type RegExpTree_Text struct {
-	RegExpTree_RegExpTreeAtomBase
 	text string
 }
 
@@ -458,6 +450,11 @@ type RegExpTree_Text struct {
 func NewRegExpTree_Text(text string) *RegExpTree_Text {
 	return &RegExpTree_Text{text: text}
 }
+
+func (t *RegExpTree_Text) ContainsAnchor() bool    { return false }
+func (t *RegExpTree_Text) HasCapturingGroup() bool { return false }
+func (t *RegExpTree_Text) NumCapturingGroups() int { return 0 }
+func (t *RegExpTree_Text) Children() []RegExpTree  { return emptyRegExpChildren }
 
 // RegExpTree_Text_EscapeRegularCharOnto escapes ch onto sb. ch is the
 // code-unit to escape; next is the next code-unit or -1 if indeterminable.
@@ -568,24 +565,12 @@ func (t *RegExpTree_Text) HashCode() int32 {
 // Java: RegExpTree.toString()
 func (t *RegExpTree_Text) String() string { return regExpTreeString(t) }
 
-// regExpTreeBodyBase implements single-child delegation for nodes wrapping a
-// body RegExpTree.
-type regExpTreeBodyBase struct {
-	body RegExpTree
-}
-
-func (b *regExpTreeBodyBase) IsCaseSensitive() bool   { return b.body.IsCaseSensitive() }
-func (b *regExpTreeBodyBase) ContainsAnchor() bool    { return b.body.ContainsAnchor() }
-func (b *regExpTreeBodyBase) HasCapturingGroup() bool { return b.body.HasCapturingGroup() }
-func (b *regExpTreeBodyBase) NumCapturingGroups() int { return b.body.NumCapturingGroups() }
-func (b *regExpTreeBodyBase) Children() []RegExpTree  { return []RegExpTree{b.body} }
-
 // RegExpTree_Repetition represents a repeating item such as ...+, ...*, or
 // ...{0,1}.
 //
 // Java: public static final class RegExpTree.Repetition
 type RegExpTree_Repetition struct {
-	regExpTreeBodyBase
+	body   RegExpTree
 	min    int
 	max    int
 	greedy bool
@@ -596,12 +581,18 @@ type RegExpTree_Repetition struct {
 // Java: Repetition(RegExpTree, int, int, boolean)
 func NewRegExpTree_Repetition(body RegExpTree, min_ int, max_ int, greedy bool) *RegExpTree_Repetition {
 	return &RegExpTree_Repetition{
-		regExpTreeBodyBase: regExpTreeBodyBase{body: body},
-		min:                min_,
-		max:                max_,
-		greedy:             greedy,
+		body:   body,
+		min:    min_,
+		max:    max_,
+		greedy: greedy,
 	}
 }
+
+func (r *RegExpTree_Repetition) IsCaseSensitive() bool   { return r.body.IsCaseSensitive() }
+func (r *RegExpTree_Repetition) ContainsAnchor() bool    { return r.body.ContainsAnchor() }
+func (r *RegExpTree_Repetition) HasCapturingGroup() bool { return r.body.HasCapturingGroup() }
+func (r *RegExpTree_Repetition) NumCapturingGroups() int { return r.body.NumCapturingGroups() }
+func (r *RegExpTree_Repetition) Children() []RegExpTree  { return []RegExpTree{r.body} }
 
 // Simplify folds nested and trivial repetitions.
 //
@@ -1063,7 +1054,7 @@ var RegExpTree_NEVER_MATCHES RegExpTree = NewRegExpTree_LookaheadAssertion(RegEx
 //
 // Java: private static final class RegExpTree.LookaheadAssertion
 type RegExpTree_LookaheadAssertion struct {
-	regExpTreeBodyBase
+	body     RegExpTree
 	positive bool
 }
 
@@ -1072,10 +1063,16 @@ type RegExpTree_LookaheadAssertion struct {
 // Java: LookaheadAssertion(RegExpTree, boolean)
 func NewRegExpTree_LookaheadAssertion(body RegExpTree, positive bool) *RegExpTree_LookaheadAssertion {
 	return &RegExpTree_LookaheadAssertion{
-		regExpTreeBodyBase: regExpTreeBodyBase{body: body},
-		positive:           positive,
+		body:     body,
+		positive: positive,
 	}
 }
+
+func (l *RegExpTree_LookaheadAssertion) IsCaseSensitive() bool   { return l.body.IsCaseSensitive() }
+func (l *RegExpTree_LookaheadAssertion) ContainsAnchor() bool    { return l.body.ContainsAnchor() }
+func (l *RegExpTree_LookaheadAssertion) HasCapturingGroup() bool { return l.body.HasCapturingGroup() }
+func (l *RegExpTree_LookaheadAssertion) NumCapturingGroups() int { return l.body.NumCapturingGroups() }
+func (l *RegExpTree_LookaheadAssertion) Children() []RegExpTree  { return []RegExpTree{l.body} }
 
 // Simplify simplifies the body; (?=) is always true.
 //
@@ -1140,7 +1137,7 @@ func (l *RegExpTree_LookaheadAssertion) String() string { return regExpTreeStrin
 //
 // Java: public static final class RegExpTree.LookbehindAssertion
 type RegExpTree_LookbehindAssertion struct {
-	regExpTreeBodyBase
+	body     RegExpTree
 	positive bool
 }
 
@@ -1149,10 +1146,16 @@ type RegExpTree_LookbehindAssertion struct {
 // Java: LookbehindAssertion(RegExpTree, boolean)
 func NewRegExpTree_LookbehindAssertion(body RegExpTree, positive bool) *RegExpTree_LookbehindAssertion {
 	return &RegExpTree_LookbehindAssertion{
-		regExpTreeBodyBase: regExpTreeBodyBase{body: body},
-		positive:           positive,
+		body:     body,
+		positive: positive,
 	}
 }
+
+func (l *RegExpTree_LookbehindAssertion) IsCaseSensitive() bool   { return l.body.IsCaseSensitive() }
+func (l *RegExpTree_LookbehindAssertion) ContainsAnchor() bool    { return l.body.ContainsAnchor() }
+func (l *RegExpTree_LookbehindAssertion) HasCapturingGroup() bool { return l.body.HasCapturingGroup() }
+func (l *RegExpTree_LookbehindAssertion) NumCapturingGroups() int { return l.body.NumCapturingGroups() }
+func (l *RegExpTree_LookbehindAssertion) Children() []RegExpTree  { return []RegExpTree{l.body} }
 
 // Simplify simplifies the body; (?<=) is always true.
 //
@@ -1216,15 +1219,19 @@ func (l *RegExpTree_LookbehindAssertion) String() string { return regExpTreeStri
 //
 // Java: public static final class RegExpTree.CapturingGroup
 type RegExpTree_CapturingGroup struct {
-	regExpTreeBodyBase
+	body RegExpTree
 }
 
 // NewRegExpTree_CapturingGroup constructs a CapturingGroup.
 //
 // Java: CapturingGroup(RegExpTree)
 func NewRegExpTree_CapturingGroup(body RegExpTree) *RegExpTree_CapturingGroup {
-	return &RegExpTree_CapturingGroup{regExpTreeBodyBase: regExpTreeBodyBase{body: body}}
+	return &RegExpTree_CapturingGroup{body: body}
 }
+
+func (c *RegExpTree_CapturingGroup) IsCaseSensitive() bool  { return c.body.IsCaseSensitive() }
+func (c *RegExpTree_CapturingGroup) ContainsAnchor() bool   { return c.body.ContainsAnchor() }
+func (c *RegExpTree_CapturingGroup) Children() []RegExpTree { return []RegExpTree{c.body} }
 
 // Simplify simplifies the body.
 //
@@ -1283,7 +1290,7 @@ func (c *RegExpTree_CapturingGroup) String() string { return regExpTreeString(c)
 //
 // Java: public static final class RegExpTree.NamedCaptureGroup
 type RegExpTree_NamedCaptureGroup struct {
-	regExpTreeBodyBase
+	body RegExpTree
 	name string
 }
 
@@ -1292,10 +1299,14 @@ type RegExpTree_NamedCaptureGroup struct {
 // Java: NamedCaptureGroup(RegExpTree, String)
 func NewRegExpTree_NamedCaptureGroup(body RegExpTree, name string) *RegExpTree_NamedCaptureGroup {
 	return &RegExpTree_NamedCaptureGroup{
-		regExpTreeBodyBase: regExpTreeBodyBase{body: body},
-		name:               name,
+		body: body,
+		name: name,
 	}
 }
+
+func (n *RegExpTree_NamedCaptureGroup) IsCaseSensitive() bool  { return n.body.IsCaseSensitive() }
+func (n *RegExpTree_NamedCaptureGroup) ContainsAnchor() bool   { return n.body.ContainsAnchor() }
+func (n *RegExpTree_NamedCaptureGroup) Children() []RegExpTree { return []RegExpTree{n.body} }
 
 // Simplify simplifies the body.
 //

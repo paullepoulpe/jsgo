@@ -613,9 +613,11 @@ func (f *FunctionTypeBuilder) paramNameConventions(name string) (isOptional, isV
 			if name == googleVarArgsName {
 				isVarArgs = true
 			}
-			conv = c.CodingConventions_ProxyBase.CodingConvention
+			conv = c.CodingConvention
 		case *ClosureCodingConvention:
-			conv = c.CodingConventions_ProxyBase.CodingConvention
+			conv = c.CodingConvention
+		case *ChromeCodingConvention:
+			conv = c.CodingConvention
 		case *CodingConventions_DefaultCodingConvention:
 			return isOptional, isVarArgs
 		default:

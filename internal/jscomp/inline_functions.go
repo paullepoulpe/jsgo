@@ -155,10 +155,7 @@ func functionStateAliasCount(fs *InlineFunctions_FunctionState) int {
 	if fs.summary != nil {
 		return int(fs.summary.numModified)
 	}
-	if fs.namesToAlias != nil {
-		return fs.namesToAlias.Size()
-	}
-	return 0
+	return fs.namesToAliasIDs.size()
 }
 
 func (f *InlineFunctions) allocReference(callNode rhino.Node, scope *Scope, chunk *JSChunk, mode FunctionInjector_InliningMode) *FunctionInjector_Reference {
@@ -645,7 +642,7 @@ func (f *InlineFunctions) applyBodyAnalysis(fnNode rhino.Node, functionState *In
 	f.functionArgumentInjector.findModifiedParametersByIDInto(fnNode, &paramIDs, &modifiedIDs)
 	if !modifiedIDs.isEmpty() {
 		functionState.InlineDirectly(false)
-		functionState.SetNamesToAlias(modifiedIDs.toLinkedHashSet())
+		functionState.setNamesToAliasIDs(&modifiedIDs)
 	}
 	body := ast.MustFunction(fnNode).Body().Node()
 	if NodeUtil_ReferencesEnclosingReceiver(body) {

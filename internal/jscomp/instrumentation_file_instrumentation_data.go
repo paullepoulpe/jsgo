@@ -19,8 +19,6 @@
 package jscomp
 
 import (
-	"encoding/hex"
-
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
@@ -29,7 +27,7 @@ import (
 // namely, the filename, the array name used in instrumentation, and the
 // lines which were instrumented (in encoded form).
 type FileInstrumentationData struct {
-	instrumentedBits *jutil.BitSet // Instrumented lines, a bit per line
+	instrumentedBits inlineBitSet // Instrumented lines, a bit per line
 	arrayName        string
 	fileName         string
 
@@ -37,7 +35,7 @@ type FileInstrumentationData struct {
 	// bit[i] set to 1 denotes the (i+1)-th line containing at least one
 	// branch bit[i] bit set to 0 denotes the (i+1)-th line containing no
 	// branches
-	branchPresent *jutil.BitSet
+	branchPresent inlineBitSet
 
 	// Number of branches in line, the index is zero-based.
 	branchesInLine map[int]int
@@ -83,12 +81,10 @@ func FileInstrumentationData_BranchIndexPair_Of(line int, branch int) FileInstru
 // Java: FileInstrumentationData(String, String)
 func NewFileInstrumentationData(fileName string, arrayName string) *FileInstrumentationData {
 	return &FileInstrumentationData{
-		fileName:         fileName,
-		arrayName:        arrayName,
-		instrumentedBits: jutil.NewBitSet(),
-		branchPresent:    jutil.NewBitSet(),
-		branchesInLine:   make(map[int]int),
-		branchNodes:      make(map[FileInstrumentationData_BranchIndexPair]rhino.Node),
+		fileName:       fileName,
+		arrayName:      arrayName,
+		branchesInLine: make(map[int]int),
+		branchNodes:    make(map[FileInstrumentationData_BranchIndexPair]rhino.Node),
 	}
 }
 
@@ -144,23 +140,12 @@ func (d *FileInstrumentationData) GetBranchNode(lineNumber int, branchNumber int
 	return d.branchNodes[FileInstrumentationData_BranchIndexPair_Of(lineNumber-1, branchNumber-1)]
 }
 
-// fileInstrumentationData_getHexString returns a byte-wise hex string
-// representation of the BitField from MSB (Most Significant Byte) to LSB
-// (Least Significant Byte). Eg. Single byte: a setting of "0001 1111",
-// returns "1f" Eg. Multiple bytes: a setting of "0000 0010 0001 1111",
-// returns "1f02"
-//
-// Java: FileInstrumentationData.getHexString(BitSet)
-func fileInstrumentationData_getHexString(bitSet *jutil.BitSet) string {
-	return hex.EncodeToString(bitSet.ToByteArray())
-}
-
 // GetInstrumentedLinesAsHexString gets a hex string representation of the
 // instrumentedBits bit vector.
 //
 // Java: FileInstrumentationData.getInstrumentedLinesAsHexString()
 func (d *FileInstrumentationData) GetInstrumentedLinesAsHexString() string {
-	return fileInstrumentationData_getHexString(d.instrumentedBits)
+	return d.instrumentedBits.HexString()
 }
 
 // GetBranchPresentAsHexString gets a hex string representation of the
@@ -168,7 +153,7 @@ func (d *FileInstrumentationData) GetInstrumentedLinesAsHexString() string {
 //
 // Java: FileInstrumentationData.getBranchPresentAsHexString()
 func (d *FileInstrumentationData) GetBranchPresentAsHexString() string {
-	return fileInstrumentationData_getHexString(d.branchPresent)
+	return d.branchPresent.HexString()
 }
 
 // SetLineAsInstrumented marks given 1-based line number as instrumented.

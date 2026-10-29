@@ -19,10 +19,22 @@
 package jscomp
 
 import (
+	"math/bits"
+	"strconv"
+
 	"github.com/paullepoulpe/jsgo/internal/ast"
 	"github.com/paullepoulpe/jsgo/internal/graph"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
+	"github.com/paullepoulpe/jsgo/internal/strpool"
+)
+
+var lvaArgumentsIdentID = uint32(strpool.Intern("arguments"))
+
+const (
+	LiveVariablesAnalysis_MAX_VARIABLES_TO_ANALYZE = 100
+	lvaMaxLatticeBits                              = 128
+	lvaInlineVarCap                                = 16
 )
 
 // LiveVariablesAnalysis computes the "liveness" of all local variables. A
@@ -47,29 +59,29 @@ type LiveVariablesAnalysis struct {
 
 	// The scope of the body of the function that we are analyzing.
 	jsScopeChild *Scope
-	escaped      *jutil.ObjectLinkedHashSet[*Var]
-	escapedSet   jutil.ObjectLinkedHashSet[*Var]
 
-	// Maps the variable name to it's position in this jsScope were we to
-	// combine the function and function body scopes. The Integer represents
-	// the equivalent of the variable index property within a scope
-	scopeVariables map[string]int
+	// escaped marks indices in orderedVars that are in escapedSet.
+	escaped [2]uint64
+	// untracked marks indices in orderedVars that are !local || escaped.
+	untracked           [2]uint64
+	escapedSet          jutil.ObjectLinkedHashSet[*Var]
+	paramsMarkedEscaped bool
+
+	// varIDs holds interned variable strpool IDs inline when numVars <= 16;
+	// idToIndex is reused across Reset calls when numVars > 16.
+	varIDs    [lvaInlineVarCap]uint32
+	idToIndex map[uint32]uint8
+	numVars   int
 
 	// obtain variables in the order in which they appear in the code
 	orderedVars []*Var
 
 	allVarsInFn *jutil.LinkedHashMap[string, *Var]
 
-	escapedBits jutil.BitSet
-	genScratch  jutil.BitSet
-	killScratch jutil.BitSet
-
 	emptyLattice LiveVariablesAnalysis_LiveVariableLattice
 	joinOp       LiveVariablesAnalysis_LiveVariableJoinOp
 	lattices     jutil.ReuseSlab[LiveVariablesAnalysis_LiveVariableLattice]
 }
-
-const LiveVariablesAnalysis_MAX_VARIABLES_TO_ANALYZE = 100
 
 // LiveVariablesAnalysis_LiveVariableJoinOp is the inner class
 // LiveVariableJoinOp.
@@ -86,7 +98,8 @@ func NewLiveVariablesAnalysis_LiveVariableJoinOp(outer *LiveVariablesAnalysis) *
 
 // Java: LiveVariablesAnalysis.LiveVariableJoinOp.joinFlow(LiveVariableLattice)
 func (j *LiveVariablesAnalysis_LiveVariableJoinOp) JoinFlow(x *LiveVariablesAnalysis_LiveVariableLattice) {
-	j.result.liveSet.Or(x.liveSet)
+	j.result.liveSet[0] |= x.liveSet[0]
+	j.result.liveSet[1] |= x.liveSet[1]
 }
 
 // Java: LiveVariablesAnalysis.LiveVariableJoinOp.finish()
@@ -98,35 +111,35 @@ func (j *LiveVariablesAnalysis_LiveVariableJoinOp) Finish() *LiveVariablesAnalys
 // liveness of all local variables at a given point in the program. The whole
 // lattice is the power set of all local variables and a variable is live if
 // it is in the set.
+//
+// Go-only: liveSet is a pointer-free [2]uint64 value so ReuseSlab chunks are
+// 100% noscan for the Go GC.
 type LiveVariablesAnalysis_LiveVariableLattice struct {
-	liveSet  *jutil.BitSet
-	liveBits jutil.BitSet
+	liveSet [2]uint64
 }
 
 // numVars is the number of all local variables.
 //
 // Java: LiveVariablesAnalysis.LiveVariableLattice(int)
 func NewLiveVariablesAnalysis_LiveVariableLattice(numVars int) *LiveVariablesAnalysis_LiveVariableLattice {
-	l := &LiveVariablesAnalysis_LiveVariableLattice{}
-	l.liveBits.InitWithSize(numVars)
-	l.liveSet = &l.liveBits
-	return l
+	if numVars < 0 {
+		panic(jutil.NewNegativeArraySizeException("nbits < 0: " + strconv.Itoa(numVars)))
+	}
+	jutil.CheckStateMsg1(numVars <= lvaMaxLatticeBits, "LiveVariablesAnalysis supports at most 128 variables, got %d", numVars)
+	return &LiveVariablesAnalysis_LiveVariableLattice{}
 }
 
 // Java: LiveVariablesAnalysis.LiveVariableLattice(LiveVariableLattice)
 func NewLiveVariablesAnalysis_LiveVariableLatticeOf(other *LiveVariablesAnalysis_LiveVariableLattice) *LiveVariablesAnalysis_LiveVariableLattice {
 	jutil.CheckNotNull(other)
-	l := &LiveVariablesAnalysis_LiveVariableLattice{}
-	other.liveSet.CloneInto(&l.liveBits)
-	l.liveSet = &l.liveBits
-	return l
+	return &LiveVariablesAnalysis_LiveVariableLattice{liveSet: other.liveSet}
 }
 
 // Java: LiveVariablesAnalysis.LiveVariableLattice.equals(Object)
 func (l *LiveVariablesAnalysis_LiveVariableLattice) Equals(other any) bool {
 	jutil.CheckNotNull(other)
 	liveVariableLattice, ok := other.(*LiveVariablesAnalysis_LiveVariableLattice)
-	return ok && (l == liveVariableLattice || l.liveSet.Equals(liveVariableLattice.liveSet))
+	return ok && (l == liveVariableLattice || l.liveSet == liveVariableLattice.liveSet)
 }
 
 // IsLive: there is only a version of this function with index since
@@ -135,12 +148,43 @@ func (l *LiveVariablesAnalysis_LiveVariableLattice) Equals(other any) bool {
 //
 // Java: LiveVariablesAnalysis.LiveVariableLattice.isLive(int)
 func (l *LiveVariablesAnalysis_LiveVariableLattice) IsLive(index int) bool {
-	return l.liveSet.Get(index)
+	if index < 0 {
+		panic(jutil.NewIndexOutOfBoundsException("bitIndex < 0: " + strconv.Itoa(index)))
+	}
+	if index < 64 {
+		return (l.liveSet[0] & (uint64(1) << uint(index))) != 0
+	}
+	if index < lvaMaxLatticeBits {
+		return (l.liveSet[1] & (uint64(1) << uint(index-64))) != 0
+	}
+	return false
 }
 
 // Java: LiveVariablesAnalysis.LiveVariableLattice.toString()
 func (l *LiveVariablesAnalysis_LiveVariableLattice) String() string {
-	return l.liveSet.String()
+	w0, w1 := l.liveSet[0], l.liveSet[1]
+	if w0 == 0 && w1 == 0 {
+		return "{}"
+	}
+	buf := make([]byte, 0, 32)
+	buf = append(buf, '{')
+	first := true
+	for w := w0; w != 0; w &= w - 1 {
+		if !first {
+			buf = append(buf, ',', ' ')
+		}
+		first = false
+		buf = strconv.AppendInt(buf, int64(bits.TrailingZeros64(w)), 10)
+	}
+	for w := w1; w != 0; w &= w - 1 {
+		if !first {
+			buf = append(buf, ',', ' ')
+		}
+		first = false
+		buf = strconv.AppendInt(buf, int64(64+bits.TrailingZeros64(w)), 10)
+	}
+	buf = append(buf, '}')
+	return string(buf)
 }
 
 // NextSetBit returns the index of the first bit that is set to true that
@@ -148,12 +192,52 @@ func (l *LiveVariablesAnalysis_LiveVariableLattice) String() string {
 //
 // Java: LiveVariablesAnalysis.LiveVariableLattice.nextSetBit(int)
 func (l *LiveVariablesAnalysis_LiveVariableLattice) NextSetBit(fromIndex int) int {
-	return l.liveSet.NextSetBit(fromIndex)
+	if fromIndex < 0 {
+		panic(jutil.NewIndexOutOfBoundsException("fromIndex < 0: " + strconv.Itoa(fromIndex)))
+	}
+	if fromIndex < 64 {
+		if w0 := l.liveSet[0] & (^uint64(0) << uint(fromIndex)); w0 != 0 {
+			return bits.TrailingZeros64(w0)
+		}
+		if w1 := l.liveSet[1]; w1 != 0 {
+			return 64 + bits.TrailingZeros64(w1)
+		}
+		return -1
+	}
+	if fromIndex < lvaMaxLatticeBits {
+		if w1 := l.liveSet[1] & (^uint64(0) << uint(fromIndex-64)); w1 != 0 {
+			return 64 + bits.TrailingZeros64(w1)
+		}
+		return -1
+	}
+	return -1
 }
 
 // Java: LiveVariablesAnalysis.LiveVariableLattice.hashCode()
 func (l *LiveVariablesAnalysis_LiveVariableLattice) HashCode() int32 {
-	return l.liveSet.HashCode()
+	var h int64 = 1234
+	if l.liveSet[1] != 0 {
+		h ^= int64(l.liveSet[1]) * 2
+		h ^= int64(l.liveSet[0])
+	} else if l.liveSet[0] != 0 {
+		h ^= int64(l.liveSet[0])
+	}
+	return int32((h >> 32) ^ h)
+}
+
+func lvaSetBit128(words *[2]uint64, idx int) {
+	if idx < 64 {
+		words[0] |= uint64(1) << uint(idx)
+	} else {
+		words[1] |= uint64(1) << uint(idx-64)
+	}
+}
+
+func lvaGetBit128(words [2]uint64, idx int) bool {
+	if idx < 64 {
+		return (words[0] & (uint64(1) << uint(idx))) != 0
+	}
+	return (words[1] & (uint64(1) << uint(idx-64))) != 0
 }
 
 // NewLiveVariablesAnalysis is Live Variables Analysis using the ES6 scope
@@ -198,20 +282,18 @@ func (l *LiveVariablesAnalysis) Reset(
 
 	l.jsScope = jsScope
 	l.jsScopeChild = jsScopeChild
+	l.escaped = [2]uint64{}
+	l.untracked = [2]uint64{}
+	l.paramsMarkedEscaped = false
 	l.escapedSet.Clear()
-	l.escaped = &l.escapedSet
 	l.orderedVars = allVarsDeclaredInFunction.GetAllVariablesInOrder()
+	l.numVars = len(l.orderedVars)
+	jutil.CheckStateMsg1(l.numVars <= lvaMaxLatticeBits, "LiveVariablesAnalysis supports at most 128 variables, got %d", l.numVars)
 	l.allVarsInFn = allVarsDeclaredInFunction.GetAllVariables()
-	if len(l.orderedVars) == 0 {
-		l.scopeVariables = nil
-	} else {
-		l.scopeVariables = make(map[string]int, len(l.orderedVars))
-	}
-	l.emptyLattice.liveBits.InitWithSize(len(l.orderedVars))
-	l.emptyLattice.liveSet = &l.emptyLattice.liveBits
+	l.emptyLattice = LiveVariablesAnalysis_LiveVariableLattice{}
 	l.lattices.Reset(nil)
 
-	DataFlowAnalysis_ComputeEscaped(jsScope, l.escaped, compiler, scopeCreator, l.allVarsInFn)
+	DataFlowAnalysis_ComputeEscaped(jsScope, &l.escapedSet, compiler, scopeCreator, l.allVarsInFn)
 
 	l.AddScopeVariables()
 }
@@ -286,7 +368,7 @@ func (f *lvaAllVarsFinder) collectWithLimit(
 
 func (l *LiveVariablesAnalysis) allocLattice() *LiveVariablesAnalysis_LiveVariableLattice {
 	lat := l.lattices.Alloc()
-	lat.liveSet = &lat.liveBits
+	*lat = LiveVariablesAnalysis_LiveVariableLattice{}
 	return lat
 }
 
@@ -296,35 +378,108 @@ func (l *LiveVariablesAnalysis) allocLattice() *LiveVariablesAnalysis_LiveVariab
 //
 // Java: LiveVariablesAnalysis.addScopeVariables()
 func (l *LiveVariablesAnalysis) AddScopeVariables() {
-	l.escapedBits.InitWithSize(len(l.orderedVars))
-	num := 0
-	for _, v := range l.orderedVars {
-		name := v.GetName()
-		l.scopeVariables[name] = num
+	l.numVars = len(l.orderedVars)
+	useInline := l.numVars <= lvaInlineVarCap
+	if !useInline {
+		if l.idToIndex == nil {
+			l.idToIndex = make(map[uint32]uint8, l.numVars)
+		} else {
+			clear(l.idToIndex)
+		}
+	}
+	for num, v := range l.orderedVars {
+		id := v.nameID
+		if useInline {
+			l.varIDs[num] = id
+		} else {
+			l.idToIndex[id] = uint8(num)
+		}
 		localScope, _ := v.GetScope().(*Scope)
 		var local bool
 		if localScope.IsFunctionBlockScope() {
-			local = LiveVariablesAnalysis_IsDeclaredInFunctionBlockOrParameter(localScope, name)
+			local = isDeclaredInFunctionBlockOrParameterByID(localScope, id)
 		} else if localScope == l.jsScope && l.jsScopeChild != nil {
-			local = LiveVariablesAnalysis_IsDeclaredInFunctionBlockOrParameter(l.jsScopeChild, name)
+			local = isDeclaredInFunctionBlockOrParameterByID(l.jsScopeChild, id)
 		} else {
-			local = localScope.HasOwnSlot(name)
+			local = localScope.hasOwnSlotByID(id)
 		}
-		if !local || l.escaped.Contains(v) {
-			l.escapedBits.Set(num)
+		isEsc := l.escapedSet.Contains(v)
+		if isEsc {
+			lvaSetBit128(&l.escaped, num)
 		}
-		num++
+		if !local || isEsc {
+			lvaSetBit128(&l.untracked, num)
+		}
 	}
 }
 
+func (l *LiveVariablesAnalysis) lookupVarIndexByID(id uint32) (int, bool) {
+	if id == 0 || l.numVars == 0 {
+		return 0, false
+	}
+	if l.numVars <= lvaInlineVarCap {
+		for i := l.numVars - 1; i >= 0; i-- {
+			if l.varIDs[i] == id {
+				return i, true
+			}
+		}
+		return 0, false
+	}
+	idx, ok := l.idToIndex[id]
+	return int(idx), ok
+}
+
 func (l *LiveVariablesAnalysis) lookupVarIndex(name string) (int, bool) {
-	idx, ok := l.scopeVariables[name]
-	return idx, ok
+	id := rhino.RhinoStringPool_LookupID(name)
+	if id == 0 {
+		return 0, false
+	}
+	return l.lookupVarIndexByID(id)
+}
+
+func (l *LiveVariablesAnalysis) getVarIndexByID(id uint32) int {
+	index, ok := l.lookupVarIndexByID(id)
+	if !ok {
+		panic(jutil.NewNullPointerException())
+	}
+	return index
+}
+
+func (l *LiveVariablesAnalysis) isEscapedIndex(idx int) bool {
+	return lvaGetBit128(l.escaped, idx)
+}
+
+func (l *LiveVariablesAnalysis) allInFnVarsEscaped() bool {
+	total := l.allVarsInFn.Size()
+	if l.escapedSet.Size() < total {
+		return false
+	}
+	if l.numVars == total && l.numVars > 0 {
+		var mask0, mask1 uint64
+		if l.numVars < 64 {
+			mask0 = (uint64(1) << uint(l.numVars)) - 1
+		} else if l.numVars == 64 {
+			mask0 = ^uint64(0)
+		} else if l.numVars < lvaMaxLatticeBits {
+			mask0 = ^uint64(0)
+			mask1 = (uint64(1) << uint(l.numVars-64)) - 1
+		} else {
+			mask0 = ^uint64(0)
+			mask1 = ^uint64(0)
+		}
+		return (l.escaped[0]&mask0) == mask0 && (l.escaped[1]&mask1) == mask1
+	}
+	for v := range l.allVarsInFn.Values() {
+		if !l.escapedSet.Contains(v) {
+			return false
+		}
+	}
+	return true
 }
 
 // Java: LiveVariablesAnalysis.getEscapedLocals()
 func (l *LiveVariablesAnalysis) GetEscapedLocals() *jutil.ObjectLinkedHashSet[*Var] {
-	return l.escaped
+	return &l.escapedSet
 }
 
 // Java: LiveVariablesAnalysis.getAllVariables()
@@ -369,22 +524,18 @@ func (l *LiveVariablesAnalysis) EqualsLattice(a, b *LiveVariablesAnalysis_LiveVa
 	if a == nil || b == nil {
 		return false
 	}
-	return a.liveSet.Equals(b.liveSet)
+	return a.liveSet == b.liveSet
 }
 
 // Java: LiveVariablesAnalysis.createFlowJoiner()
 func (l *LiveVariablesAnalysis) CreateFlowJoiner() DataFlowAnalysis_FlowJoiner[*LiveVariablesAnalysis_LiveVariableLattice] {
-	lat := l.allocLattice()
-	lat.liveBits.InitWithSize(len(l.orderedVars))
-	l.joinOp.result = lat
+	l.joinOp.result = l.allocLattice()
 	return &l.joinOp
 }
 
 // Java: LiveVariablesAnalysis.flowThrough(Node, LiveVariableLattice)
 func (l *LiveVariablesAnalysis) FlowThrough(node rhino.Node, input *LiveVariablesAnalysis_LiveVariableLattice) *LiveVariablesAnalysis_LiveVariableLattice {
-	size := input.liveSet.Size()
-	l.genScratch.InitWithSize(size)
-	l.killScratch.InitWithSize(size)
+	var gen, kill [2]uint64
 
 	// Make kills conditional if the node can end abruptly by an exception.
 	conditional := false
@@ -400,16 +551,26 @@ func (l *LiveVariablesAnalysis) FlowThrough(node rhino.Node, input *LiveVariable
 			break
 		}
 	}
-	l.ComputeGenKill(node, &l.genScratch, &l.killScratch, conditional)
-	if l.genScratch.IsEmpty() && l.killScratch.IsEmpty() {
+	l.computeGenKill128(node, &gen, &kill, conditional)
+	// L_in = L_out - Kill + Gen
+	out0 := (input.liveSet[0] &^ kill[0]) | gen[0]
+	out1 := (input.liveSet[1] &^ kill[1]) | gen[1]
+	if out0 == input.liveSet[0] && out1 == input.liveSet[1] {
 		return input
 	}
 	result := l.allocLattice()
-	input.liveSet.CloneInto(&result.liveBits)
-	// L_in = L_out - Kill + Gen
-	result.liveSet.AndNot(&l.killScratch)
-	result.liveSet.Or(&l.genScratch)
+	result.liveSet[0] = out0
+	result.liveSet[1] = out1
 	return result
+}
+
+func lvaOrIntoBitSet(dst *jutil.BitSet, src [2]uint64) {
+	for w := src[0]; w != 0; w &= w - 1 {
+		dst.Set(bits.TrailingZeros64(w))
+	}
+	for w := src[1]; w != 0; w &= w - 1 {
+		dst.Set(64 + bits.TrailingZeros64(w))
+	}
 }
 
 // ComputeGenKill computes the GEN and KILL set.
@@ -422,12 +583,18 @@ func (l *LiveVariablesAnalysis) FlowThrough(node rhino.Node, input *LiveVariable
 //
 // Java: LiveVariablesAnalysis.computeGenKill(Node, BitSet, BitSet, boolean)
 func (l *LiveVariablesAnalysis) ComputeGenKill(n rhino.Node, gen *jutil.BitSet, kill *jutil.BitSet, conditional bool) {
+	var gen128, kill128 [2]uint64
+	l.computeGenKill128(n, &gen128, &kill128, conditional)
+	lvaOrIntoBitSet(gen, gen128)
+	lvaOrIntoBitSet(kill, kill128)
+}
 
+func (l *LiveVariablesAnalysis) computeGenKill128(n rhino.Node, gen *[2]uint64, kill *[2]uint64, conditional bool) {
 	switch n.GetToken() {
 	case rhino.Token_SCRIPT, rhino.Token_ROOT, rhino.Token_FUNCTION, rhino.Token_BLOCK:
 		return
 	case rhino.Token_WHILE, rhino.Token_DO, rhino.Token_IF, rhino.Token_FOR:
-		l.ComputeGenKill(NodeUtil_GetConditionExpression(n), gen, kill, conditional)
+		l.computeGenKill128(NodeUtil_GetConditionExpression(n), gen, kill, conditional)
 		return
 	case rhino.Token_FOR_OF, rhino.Token_FOR_AWAIT_OF, rhino.Token_FOR_IN:
 		{
@@ -445,7 +612,7 @@ func (l *LiveVariablesAnalysis) ComputeGenKill(n rhino.Node, gen *jutil.BitSet, 
 			// Note that the LHS may never be assigned to or evaluated, like in:
 			//   for (x in []) {}
 			// so should not be killed.
-			l.ComputeGenKill(lhs, gen, kill, conditional)
+			l.computeGenKill128(lhs, gen, kill, conditional)
 
 			// rhs is executed only once so we don't go into it every loop.
 			return
@@ -455,19 +622,19 @@ func (l *LiveVariablesAnalysis) ComputeGenKill(n rhino.Node, gen *jutil.BitSet, 
 		for d, ok := decl.FirstDeclarator(); ok; d, ok = d.Next() {
 			if name, isName := d.AsName(); isName {
 				if init, hasInit := name.Init(); hasInit {
-					l.ComputeGenKill(init.Node(), gen, kill, conditional)
+					l.computeGenKill128(init.Node(), gen, kill, conditional)
 					if !conditional {
-						l.AddToSetIfLocal(name.Node(), kill)
+						l.addToSetIfLocal128(name.Node(), kill)
 					}
 				}
 			} else {
 				dlhs := d.MustDestructuringLhs()
 				if !conditional {
-					NodeUtil_VisitLhsNodesInNode(dlhs.Node(), func(lhsNode rhino.Node) { l.AddToSetIfLocal(lhsNode, kill) })
+					NodeUtil_VisitLhsNodesInNode(dlhs.Node(), func(lhsNode rhino.Node) { l.addToSetIfLocal128(lhsNode, kill) })
 				}
-				l.ComputeGenKill(dlhs.Pattern().Node(), gen, kill, conditional)
+				l.computeGenKill128(dlhs.Pattern().Node(), gen, kill, conditional)
 				if init, hasInit := dlhs.Init(); hasInit {
-					l.ComputeGenKill(init.Node(), gen, kill, conditional)
+					l.computeGenKill128(init.Node(), gen, kill, conditional)
 				}
 			}
 		}
@@ -475,56 +642,56 @@ func (l *LiveVariablesAnalysis) ComputeGenKill(n rhino.Node, gen *jutil.BitSet, 
 	case rhino.Token_OPTCHAIN_GETPROP:
 		// Go-only: OPTCHAIN_GETPROP has only one child (Object; property is its string),
 		// so visiting Object once matches Java without O(2^k) re-traversal on chains.
-		l.ComputeGenKill(ast.MustOptChainGetProp(n).Object().Node(), gen, kill, conditional)
+		l.computeGenKill128(ast.MustOptChainGetProp(n).Object().Node(), gen, kill, conditional)
 		return
 	case rhino.Token_AND, rhino.Token_OR, rhino.Token_COALESCE:
 		bin := ast.MustBinary(n)
-		l.ComputeGenKill(bin.Left().Node(), gen, kill, conditional)
+		l.computeGenKill128(bin.Left().Node(), gen, kill, conditional)
 		// May short circuit.
-		l.ComputeGenKill(bin.Right().Node(), gen, kill, true)
+		l.computeGenKill128(bin.Right().Node(), gen, kill, true)
 		return
 	case rhino.Token_OPTCHAIN_GETELEM:
 		ge := ast.MustOptChainGetElem(n)
-		l.ComputeGenKill(ge.Object().Node(), gen, kill, conditional)
+		l.computeGenKill128(ge.Object().Node(), gen, kill, conditional)
 		// May short circuit.
-		l.ComputeGenKill(ge.Index().Node(), gen, kill, true)
+		l.computeGenKill128(ge.Index().Node(), gen, kill, true)
 		return
 	case rhino.Token_OPTCHAIN_CALL:
 		call := ast.MustOptChainCall(n)
-		l.ComputeGenKill(call.Callee().Node(), gen, kill, conditional)
+		l.computeGenKill128(call.Callee().Node(), gen, kill, conditional)
 		// Unlike OPTCHAIN_GETPROP and OPTCHAIN_GETELEM, the OPTCHAIN_CALLs can have multiple
 		// children on rhs which get executed conditionally
 		for arg, ok := call.FirstArg(); ok; arg, ok = arg.Next() {
-			l.ComputeGenKill(arg.Node(), gen, kill, true)
+			l.computeGenKill128(arg.Node(), gen, kill, true)
 		}
 		return
 	case rhino.Token_HOOK:
 		hook := ast.MustHook(n)
-		l.ComputeGenKill(hook.Cond().Node(), gen, kill, conditional)
+		l.computeGenKill128(hook.Cond().Node(), gen, kill, conditional)
 		// Assume both sides are conditional.
-		l.ComputeGenKill(hook.Then().Node(), gen, kill, true)
-		l.ComputeGenKill(hook.Else().Node(), gen, kill, true)
+		l.computeGenKill128(hook.Then().Node(), gen, kill, true)
+		l.computeGenKill128(hook.Else().Node(), gen, kill, true)
 		return
 	case rhino.Token_NAME:
-		if ast.MustName(n).Ident() == "arguments" {
+		if n.GetStringID() == lvaArgumentsIdentID {
 			l.MarkAllParametersEscaped()
 		} else if !NodeUtil_IsLhsByDestructuring(n) {
 			// Only add names in destructuring patterns if they're not lvalues.
 			// e.g. "x" in "const {foo = x} = obj;"
-			l.AddToSetIfLocal(n, gen)
+			l.addToSetIfLocal128(n, gen)
 		}
 		return
 	default:
 		if assign, ok := ast.AsAssignment(n); ok {
 			if lhs, isName := assign.Target().AsName(); isName {
 				if !conditional {
-					l.AddToSetIfLocal(lhs.Node(), kill)
+					l.addToSetIfLocal128(lhs.Node(), kill)
 				}
 				if assign.Token() != rhino.Token_ASSIGN {
 					// assignments such as a += 1 reads a.
-					l.AddToSetIfLocal(lhs.Node(), gen)
+					l.addToSetIfLocal128(lhs.Node(), gen)
 				}
-				l.ComputeGenKill(assign.Value().Node(), gen, kill, conditional)
+				l.computeGenKill128(assign.Value().Node(), gen, kill, conditional)
 				return
 			}
 			if assign.Token() == rhino.Token_ASSIGN {
@@ -534,32 +701,45 @@ func (l *LiveVariablesAnalysis) ComputeGenKill(n rhino.Node, gen *jutil.BitSet, 
 							n,
 							func(child rhino.Node) {
 								if child.IsName() {
-									l.AddToSetIfLocal(child, kill)
+									l.addToSetIfLocal128(child, kill)
 								}
 							})
 					}
-					l.ComputeGenKill(pat.Node(), gen, kill, conditional)
-					l.ComputeGenKill(assign.Value().Node(), gen, kill, conditional)
+					l.computeGenKill128(pat.Node(), gen, kill, conditional)
+					l.computeGenKill128(assign.Value().Node(), gen, kill, conditional)
 					return
 				}
 			}
 		}
 		for c := n.GetFirstChild(); !c.IsNil(); c = c.GetNext() {
-			l.ComputeGenKill(c, gen, kill, conditional)
+			l.computeGenKill128(c, gen, kill, conditional)
 		}
 		return
 	}
 }
 
+func (l *LiveVariablesAnalysis) addToSetIfLocal128(node rhino.Node, set *[2]uint64) {
+	jutil.CheckStateMsg1(node.IsName(), "%s", node)
+	idx, found := l.lookupVarIndexByID(node.GetStringID())
+	if !found || lvaGetBit128(l.untracked, idx) {
+		return
+	}
+	lvaSetBit128(set, idx)
+}
+
 // Java: LiveVariablesAnalysis.addToSetIfLocal(Node, BitSet)
 func (l *LiveVariablesAnalysis) AddToSetIfLocal(node rhino.Node, set *jutil.BitSet) {
-	name, ok := ast.AsName(node)
-	jutil.CheckStateMsg1(ok, "%s", node)
-	idx, found := l.lookupVarIndex(name.Ident())
-	if !found || l.escapedBits.Get(idx) {
+	jutil.CheckStateMsg1(node.IsName(), "%s", node)
+	idx, found := l.lookupVarIndexByID(node.GetStringID())
+	if !found || lvaGetBit128(l.untracked, idx) {
 		return
 	}
 	set.Set(idx)
+}
+
+func isDeclaredInFunctionBlockOrParameterByID(scope *Scope, id uint32) bool {
+	jutil.CheckState(scope.IsFunctionBlockScope())
+	return scope.hasOwnSlotByID(id) || scope.GetParent().hasOwnSlotByID(id)
 }
 
 // Java: LiveVariablesAnalysis.isDeclaredInFunctionBlockOrParameter(Scope, String)
@@ -568,7 +748,8 @@ func LiveVariablesAnalysis_IsDeclaredInFunctionBlockOrParameter(scope *Scope, na
 	// default parameters. Since nothing in the function block scope is allowed to shadow
 	// the variables in the function scope, we treat the two scopes as one in this method.
 	jutil.CheckState(scope.IsFunctionBlockScope())
-	return scope.HasOwnSlot(name) || scope.GetParent().HasOwnSlot(name)
+	id := rhino.RhinoStringPool_LookupID(name)
+	return id != 0 && (scope.hasOwnSlotByID(id) || scope.GetParent().hasOwnSlotByID(id))
 }
 
 // MarkAllParametersEscaped gives up computing liveness of formal parameters
@@ -588,13 +769,18 @@ func LiveVariablesAnalysis_IsDeclaredInFunctionBlockOrParameter(scope *Scope, na
 //
 // Java: LiveVariablesAnalysis.markAllParametersEscaped()
 func (l *LiveVariablesAnalysis) MarkAllParametersEscaped() {
+	if l.paramsMarkedEscaped {
+		return
+	}
+	l.paramsMarkedEscaped = true
 	params := ast.MustFunction(l.jsScope.GetRootNode()).Params()
 	for param, ok := params.FirstParam(); ok; param, ok = param.Next() {
-		if name, isName := param.AsName(); isName {
-			ident := name.Ident()
-			l.escaped.Add(l.jsScope.GetVar(ident))
-			if idx, ok := l.lookupVarIndex(ident); ok {
-				l.escapedBits.Set(idx)
+		if param.Token() == rhino.Token_NAME {
+			id := param.Node().GetStringID()
+			l.escapedSet.Add(l.jsScope.GetVarByID(id))
+			if idx, ok := l.lookupVarIndexByID(id); ok {
+				lvaSetBit128(&l.escaped, idx)
+				lvaSetBit128(&l.untracked, idx)
 			}
 		}
 	}

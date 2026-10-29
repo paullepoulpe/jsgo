@@ -383,7 +383,7 @@ func abstractVar_strongerOf(left, right rhino.StaticSourceFile_SourceKind) rhino
 
 func equalsScopedName(name string, scopeRoot rhino.Node, other any) bool {
 	scoped, ok := other.(ScopedName)
-	if !ok || jutil.IsNil(scoped) {
+	if !ok || isScopedNameNil(scoped) {
 		return false
 	}
 	return name == scoped.GetName() && scopedName_nodeEquals(scopeRoot, scoped.GetScopeRoot())

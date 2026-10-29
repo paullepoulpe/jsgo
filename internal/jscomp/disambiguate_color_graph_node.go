@@ -40,10 +40,11 @@ type ColorGraphNode struct {
 	propsInline [4]*PropertyClustering
 	propSet     map[*PropertyClustering]struct{}
 
-	subtypeIndices *jutil.BitSet
+	subtypeIndices inlineBitSet
 
-	index            int
-	reflexiveSubtype bool
+	index             int
+	reflexiveSubtype  bool
+	hasSubtypeIndices bool
 }
 
 // ColorGraphNode_PropAssociation lists the reasons a property name became
@@ -215,14 +216,14 @@ func (n *ColorGraphNode) AssociatedPropsSize() int {
 // found to be subtypes of this type.
 //
 // Java: ColorGraphNode.getSubtypeIndices()
-func (n *ColorGraphNode) GetSubtypeIndices() *jutil.BitSet {
-	if n.subtypeIndices == nil {
-		n.subtypeIndices = jutil.NewBitSet()
+func (n *ColorGraphNode) GetSubtypeIndices() *inlineBitSet {
+	if !n.hasSubtypeIndices {
+		n.hasSubtypeIndices = true
 		if n.reflexiveSubtype && n.index >= 0 {
 			n.subtypeIndices.Set(n.index)
 		}
 	}
-	return n.subtypeIndices
+	return &n.subtypeIndices
 }
 
 // String is for debugging only (@DoNotCall).

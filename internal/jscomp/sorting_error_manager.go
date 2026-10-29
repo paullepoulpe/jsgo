@@ -65,8 +65,6 @@ func makeSortingErrorKey(err *JSError, level *CheckLevel) sortingErrorKey {
 // SortingErrorManagerBase holds the fields and base implementations of
 // SortingErrorManager; subclasses embed it.
 type SortingErrorManagerBase struct {
-	self SortingErrorManager
-
 	messages           []*SortingErrorManager_ErrorWithLevel
 	seen               map[sortingErrorKey]struct{}
 	sorted             bool
@@ -88,17 +86,15 @@ var _ SortingErrorManager = (*SortingErrorManagerBase)(nil)
 // Java: SortingErrorManager(Set<ErrorReportGenerator>)
 func NewSortingErrorManager(errorReportGenerators []SortingErrorManager_ErrorReportGenerator) *SortingErrorManagerBase {
 	m := &SortingErrorManagerBase{}
-	m.InitSortingErrorManagerBase(m, errorReportGenerators)
+	m.InitSortingErrorManagerBase(errorReportGenerators)
 	return m
 }
 
-// InitSortingErrorManagerBase is the Go form of super(errorReportGenerators);
-// self is the object being constructed.
+// InitSortingErrorManagerBase is the Go form of super(errorReportGenerators).
 //
 // Java: SortingErrorManager(Set<ErrorReportGenerator>)
 func (m *SortingErrorManagerBase) InitSortingErrorManagerBase(
-	self SortingErrorManager, errorReportGenerators []SortingErrorManager_ErrorReportGenerator) {
-	m.self = self
+	errorReportGenerators []SortingErrorManager_ErrorReportGenerator) {
 	m.seen = make(map[sortingErrorKey]struct{})
 	m.sorted = true
 	m.errorReportGenerators = sortingErrorManager_immutableSetCopyOf(errorReportGenerators)
@@ -227,7 +223,7 @@ func (m *SortingErrorManagerBase) GenerateReport() {
 	// TODO(b/114762232): It should be invalid to report errors during the execution of this method;
 	// doing so will become impossible once all subclases have migrated to an ErrorReportGenerator.
 	for _, generator := range m.errorReportGenerators {
-		generator.GenerateReport(m.self)
+		generator.GenerateReport(m)
 	}
 }
 
@@ -238,7 +234,7 @@ func (m *SortingErrorManagerBase) ShouldReportConformanceViolation(
 	diagnostic *JSError,
 	behavior ConformanceConfig_LibraryLevelNonAllowlistedConformanceViolationsBehavior,
 	isAllowlisted bool) bool {
-	return ErrorManager_ShouldReportConformanceViolation(m.self, requirement, allowlistEntry, diagnostic, behavior, isAllowlisted)
+	return ErrorManager_ShouldReportConformanceViolation(m, requirement, allowlistEntry, diagnostic, behavior, isAllowlisted)
 }
 
 // SortingErrorManager_ErrorReportGenerator is the strategy for customizing

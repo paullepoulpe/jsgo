@@ -19,6 +19,8 @@
 package jscomp
 
 import (
+	"iter"
+
 	"github.com/paullepoulpe/jsgo/internal/ast"
 	"github.com/paullepoulpe/jsgo/internal/graph"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
@@ -114,13 +116,117 @@ type ControlFlowAnalysis struct {
 	//	foo() -> bar()
 	//	bar() -> END
 	//
-	// A LinkedHashMultimap: the values of a key iterate in insertion order.
-	finallyMap *jutil.SetMultimap[rhino.Node, rhino.Node]
+	// Insertion-ordered unique targets per jump node (avoids SetMultimap heap allocations).
+	finallyMap cfaFinallyMap
 }
 
-// cfaEmptyFinallyMap stands for an empty finallyMap until putFinally needs a
-// real one (most CFGs have no FINALLY).
-var cfaEmptyFinallyMap = jutil.NewSetMultimap[rhino.Node, rhino.Node]()
+type cfaFinallyEntry struct {
+	jump     rhino.Node
+	head     [4]rhino.Node
+	nHead    uint8
+	overflow []rhino.Node
+}
+
+func (e *cfaFinallyEntry) addTarget(target rhino.Node) {
+	for i := uint8(0); i < e.nHead; i++ {
+		if e.head[i] == target {
+			return
+		}
+	}
+	if int(e.nHead) < len(e.head) {
+		e.head[e.nHead] = target
+		e.nHead++
+		return
+	}
+	for _, existing := range e.overflow {
+		if existing == target {
+			return
+		}
+	}
+	e.overflow = append(e.overflow, target)
+}
+
+type cfaFinallyTargets struct {
+	entry *cfaFinallyEntry
+}
+
+func (t cfaFinallyTargets) Size() int {
+	if t.entry == nil {
+		return 0
+	}
+	return int(t.entry.nHead) + len(t.entry.overflow)
+}
+
+func (t cfaFinallyTargets) All() iter.Seq[rhino.Node] {
+	return func(yield func(rhino.Node) bool) {
+		if t.entry == nil {
+			return
+		}
+		for i := uint8(0); i < t.entry.nHead; i++ {
+			if !yield(t.entry.head[i]) {
+				return
+			}
+		}
+		for _, n := range t.entry.overflow {
+			if !yield(n) {
+				return
+			}
+		}
+	}
+}
+
+type cfaFinallyMap struct {
+	entries []cfaFinallyEntry
+}
+
+func (m *cfaFinallyMap) reset() {
+	if len(m.entries) == 0 {
+		return
+	}
+	if cap(m.entries) > cfaReuseMaxSize {
+		m.entries = nil
+		return
+	}
+	clear(m.entries)
+	m.entries = m.entries[:0]
+}
+
+func (m *cfaFinallyMap) put(jump, target rhino.Node) {
+	for i := range m.entries {
+		if m.entries[i].jump == jump {
+			m.entries[i].addTarget(target)
+			return
+		}
+	}
+	m.entries = append(m.entries, cfaFinallyEntry{
+		jump:  jump,
+		head:  [4]rhino.Node{0: target},
+		nHead: 1,
+	})
+}
+
+func (m *cfaFinallyMap) find(jump rhino.Node) *cfaFinallyEntry {
+	for i := range m.entries {
+		if m.entries[i].jump == jump {
+			return &m.entries[i]
+		}
+	}
+	return nil
+}
+
+func (m *cfaFinallyMap) Get(jump rhino.Node) cfaFinallyTargets {
+	return cfaFinallyTargets{entry: m.find(jump)}
+}
+
+func (m *cfaFinallyMap) KeySet() iter.Seq[rhino.Node] {
+	return func(yield func(rhino.Node) bool) {
+		for i := range m.entries {
+			if !yield(m.entries[i].jump) {
+				return
+			}
+		}
+	}
+}
 
 // cfaReuseMaxSize is the largest astPosition map or worklist that a
 // ControlFlowAnalysis keeps for its next CFG.
@@ -160,7 +266,7 @@ func (rc *ReusableCfg) release() {
 	rc.cfa.compiler = nil
 	rc.cfa.cfg = nil
 	rc.cfa.root = rhino.NilNode
-	rc.cfa.finallyMap = cfaEmptyFinallyMap
+	rc.cfa.finallyMap.reset()
 }
 
 // newControlFlowAnalysis is the constructor. Should only be called from
@@ -184,14 +290,11 @@ func (c *ControlFlowAnalysis) init(compiler AbstractCompiler, shouldTraverseFunc
 	c.edgeAnnotations = edgeAnnotations
 	clear(c.exceptionHandler)
 	c.exceptionHandler = c.exceptionHandler[:0]
-	c.finallyMap = cfaEmptyFinallyMap
+	c.finallyMap.reset()
 }
 
 func (c *ControlFlowAnalysis) putFinally(jump rhino.Node, target rhino.Node) {
-	if c.finallyMap == cfaEmptyFinallyMap {
-		c.finallyMap = jutil.NewSetMultimap[rhino.Node, rhino.Node]()
-	}
-	c.finallyMap.Put(jump, target)
+	c.finallyMap.put(jump, target)
 }
 
 // astPositionOfNode is checkNotNull(astPosition.get(v), v).
@@ -343,22 +446,23 @@ func (c *ControlFlowAnalysis) traverse(root rhino.Node) {
 	}
 	var currentNode rhino.Node
 	var currentScript rhino.Node
-	jutil.Try(func() {
-		if Platform_IsThreadInterrupted() {
-			panic(jutil.NewRuntimeExceptionWithCause(jutil.NewInterruptedException()))
+	defer func() {
+		if r := recover(); r != nil {
+			b := NodeTraversal_Builder{compiler: c.compiler, callback: newControlFlowAnalysis(c.compiler, c.shouldTraverseFunctions, c.edgeAnnotations)}
+			t := newNodeTraversal(&b)
+			t.InitTraversal(root)
+			if !currentScript.IsNil() {
+				t.currentScript = currentScript
+			}
+			t.currentNode = currentNode
+			t.ThrowUnexpectedException(jutil.AsThrowable(r))
 		}
-		currentNode = root
-		c.walkBranch(root, rhino.NilNode, &currentNode, &currentScript)
-	}, func(unexpectedException jutil.Throwable) {
-		b := NodeTraversal_Builder{compiler: c.compiler, callback: newControlFlowAnalysis(c.compiler, c.shouldTraverseFunctions, c.edgeAnnotations)}
-		t := newNodeTraversal(&b)
-		t.InitTraversal(root)
-		if !currentScript.IsNil() {
-			t.currentScript = currentScript
-		}
-		t.currentNode = currentNode
-		t.ThrowUnexpectedException(unexpectedException)
-	})
+	}()
+	if Platform_IsThreadInterrupted() {
+		panic(jutil.NewRuntimeExceptionWithCause(jutil.NewInterruptedException()))
+	}
+	currentNode = root
+	c.walkBranch(root, rhino.NilNode, &currentNode, &currentScript)
 }
 
 func (c *ControlFlowAnalysis) walkBranch(n, parent rhino.Node, currentNode, currentScript *rhino.Node) {
@@ -1230,9 +1334,14 @@ func ControlFlowAnalysis_ComputeFollowNodeFrom(fromNode rhino.Node, node rhino.N
 			return ControlFlowAnalysis_ComputeFollowNodeFrom(fromNode, parent, cfa)
 		// If we are coming out of the FINALLY block...
 		case hasFinally && finally.Is(node):
-			if cfa != nil && cfa.finallyMap != nil && cfa.finallyMap.ContainsKey(parent) {
-				for finallyNode := range cfa.finallyMap.Get(parent).All() {
-					cfa.createEdge(fromNode, ControlFlowGraph_Branch_ON_EX, finallyNode)
+			if cfa != nil && len(cfa.finallyMap.entries) > 0 {
+				if e := cfa.finallyMap.find(parent); e != nil {
+					for i := uint8(0); i < e.nHead; i++ {
+						cfa.createEdge(fromNode, ControlFlowGraph_Branch_ON_EX, e.head[i])
+					}
+					for _, finallyNode := range e.overflow {
+						cfa.createEdge(fromNode, ControlFlowGraph_Branch_ON_EX, finallyNode)
+					}
 				}
 			}
 			return ControlFlowAnalysis_ComputeFollowNodeFrom(fromNode, parent, cfa)

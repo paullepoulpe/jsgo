@@ -71,32 +71,32 @@ var (
 type esFindMutableExports struct {
 	NodeTraversal_AbstractPostOrderCallbackBase
 
-	exports            []*Export
-	exportsByLocalName map[string][]*Export
+	exports          []*Export
+	exportsByLocalID map[uint32][]*Export
 }
 
 func newEsFindMutableExports(exports []*Export) *esFindMutableExports {
 	f := &esFindMutableExports{exports: exports}
 	if len(exports) > 0 {
-		f.exportsByLocalName = make(map[string][]*Export, len(exports))
+		f.exportsByLocalID = make(map[uint32][]*Export, len(exports))
 		for _, e := range exports {
-			name := e.LocalName()
-			f.exportsByLocalName[name] = append(f.exportsByLocalName[name], e)
+			id := rhino.RhinoStringPool_InternID(e.LocalName())
+			f.exportsByLocalID[id] = append(f.exportsByLocalID[id], e)
 		}
 	}
 	return f
 }
 
 func (f *esFindMutableExports) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
-	if !n.IsName() || len(f.exportsByLocalName) == 0 {
+	if !n.IsName() || len(f.exportsByLocalID) == 0 {
+		return
+	}
+	exports := f.exportsByLocalID[n.GetStringID()]
+	if len(exports) == 0 {
 		return
 	}
 	scope := t.GetScope()
 	if !NodeUtil_IsLValue(n) || scope.GetClosestHoistScope().IsModuleScope() {
-		return
-	}
-	exports := f.exportsByLocalName[n.GetString()]
-	if len(exports) == 0 {
 		return
 	}
 	var_ := scope.GetVar(n.GetString())
@@ -176,7 +176,7 @@ func (b *esUnresolvedModuleBuilder) build() UnresolvedModule {
 
 	NodeTraversal_Traverse(b.outer.compiler, b.root, newEsFindMutableExports(localExports))
 
-	m := &unresolvedEsModule{
+	return &unresolvedEsModule{
 		outer:              b.outer,
 		metadata:           b.outer.metadata,
 		path:               b.path,
@@ -188,13 +188,9 @@ func (b *esUnresolvedModuleBuilder) build() UnresolvedModule {
 		resolvedImports:    make(map[string]*ResolveExportResult, len(b.importsByLocalName)),
 		resolvedExports:    make(map[string]*ResolveExportResult, len(b.exports)),
 	}
-	m.InitUnresolvedModuleBase(m)
-	return m
 }
 
 type unresolvedEsModule struct {
-	UnresolvedModuleBase
-
 	outer              *EsModuleProcessor
 	metadata           *ModuleMetadataMap_ModuleMetadata
 	path               *ModuleLoader_ModulePath
@@ -203,33 +199,51 @@ type unresolvedEsModule struct {
 	localExports       []*Export
 	indirectExports    []*Export
 	starExports        []*Export
-	exportedNames      *jutil.LinkedHashSet[string]
+	exportedNames      []string
+	hasExportedNames   bool
 	resolvedImports    map[string]*ResolveExportResult
 	resolvedExports    map[string]*ResolveExportResult
 	resolved           *Module
 }
 
+var _ UnresolvedModule = (*unresolvedEsModule)(nil)
+
 func (m *unresolvedEsModule) Reset() {
 	m.resolved = nil
 	m.exportedNames = nil
+	m.hasExportedNames = false
 	clear(m.resolvedImports)
 	clear(m.resolvedExports)
+}
+
+func (m *unresolvedEsModule) Resolve(moduleRequestResolver ModuleRequestResolver) *Module {
+	return m.ResolveWithModuleSpecifier(moduleRequestResolver, "", false)
+}
+
+func (m *unresolvedEsModule) ResolveExport(
+	moduleRequestResolver ModuleRequestResolver, exportName string) *ResolveExportResult {
+	return m.ResolveExportWithTraces(moduleRequestResolver, "", false, exportName, nil, nil)
 }
 
 func (m *unresolvedEsModule) ResolveWithModuleSpecifier(
 	moduleRequestResolver ModuleRequestResolver, moduleSpecifier string, hasModuleSpecifier bool) *Module {
 	if m.resolved == nil {
 		boundNames := m.getAllResolvedImports(moduleRequestResolver)
-		localNameToLocalExport := jutil.NewLinkedHashMap[string, *Export]()
-
-		for _, e := range m.localExports {
-			localName := e.LocalName()
-			localNameToLocalExport.Put(localName, e)
-			if localName != Export_DEFAULT_EXPORT_NAME {
-				b := m.ResolveExport(moduleRequestResolver, e.ExportName())
-				jutil.CheckStateMsg(b.Resolved(), "Cannot have invalid missing own export!")
-				if !b.IsAmbiguous() {
-					boundNames.Put(localName, jutil.CheckNotNull(b.GetBinding()))
+		localNameToLocalExport := nonEsEmptyExportMap
+		if len(m.localExports) > 0 {
+			localNameToLocalExport = NewOrderedStringMapWithCapacity[*Export](len(m.localExports))
+			for _, e := range m.localExports {
+				localName := e.LocalName()
+				localNameToLocalExport.Put(localName, e)
+				if localName != Export_DEFAULT_EXPORT_NAME {
+					b := m.ResolveExport(moduleRequestResolver, e.ExportName())
+					jutil.CheckStateMsg(b.Resolved(), "Cannot have invalid missing own export!")
+					if !b.IsAmbiguous() {
+						if boundNames == nonEsEmptyBindingMap {
+							boundNames = NewOrderedStringMapWithCapacity[*Binding](len(m.localExports))
+						}
+						boundNames.Put(localName, jutil.CheckNotNull(b.GetBinding()))
+					}
 				}
 			}
 		}
@@ -245,13 +259,22 @@ func (m *unresolvedEsModule) Metadata() *ModuleMetadataMap_ModuleMetadata {
 }
 
 func (m *unresolvedEsModule) getAllResolvedImports(
-	moduleRequestResolver ModuleRequestResolver) *jutil.LinkedHashMap[string, *Binding] {
-	imports := jutil.NewLinkedHashMap[string, *Binding]()
+	moduleRequestResolver ModuleRequestResolver) *OrderedStringMap[*Binding] {
+	if len(m.importNames) == 0 {
+		return nonEsEmptyBindingMap
+	}
+	var imports *OrderedStringMap[*Binding]
 	for _, name := range m.importNames {
 		b := m.resolveImport(moduleRequestResolver, name)
 		if b.Resolved() {
+			if imports == nil {
+				imports = NewOrderedStringMapWithCapacity[*Binding](len(m.importNames))
+			}
 			imports.Put(name, jutil.CheckNotNull(b.GetBinding()))
 		}
+	}
+	if imports == nil {
+		return nonEsEmptyBindingMap
 	}
 	return imports
 }
@@ -259,8 +282,8 @@ func (m *unresolvedEsModule) getAllResolvedImports(
 func (m *unresolvedEsModule) resolveImportWithSets(
 	moduleRequestResolver ModuleRequestResolver,
 	name string,
-	resolveSet *jutil.LinkedHashSet[ExportTrace],
-	exportStarSet *jutil.LinkedHashSet[UnresolvedModule]) *ResolveExportResult {
+	resolveSet map[ExportTrace]struct{},
+	exportStarSet map[UnresolvedModule]struct{}) *ResolveExportResult {
 	if res, ok := m.resolvedImports[name]; ok {
 		return res
 	}
@@ -271,15 +294,14 @@ func (m *unresolvedEsModule) resolveImportWithSets(
 
 func (m *unresolvedEsModule) resolveImport(
 	moduleRequestResolver ModuleRequestResolver, name string) *ResolveExportResult {
-	return m.resolveImportWithSets(
-		moduleRequestResolver, name, jutil.NewLinkedHashSet[ExportTrace](), jutil.NewLinkedHashSet[UnresolvedModule]())
+	return m.resolveImportWithSets(moduleRequestResolver, name, nil, nil)
 }
 
 func (m *unresolvedEsModule) resolveImportImpl(
 	moduleRequestResolver ModuleRequestResolver,
 	name string,
-	resolveSet *jutil.LinkedHashSet[ExportTrace],
-	exportStarSet *jutil.LinkedHashSet[UnresolvedModule]) *ResolveExportResult {
+	resolveSet map[ExportTrace]struct{},
+	exportStarSet map[UnresolvedModule]struct{}) *ResolveExportResult {
 	i := m.importsByLocalName[name]
 	requested := moduleRequestResolver.Resolve(i)
 	if requested == nil {
@@ -356,43 +378,52 @@ func (m *unresolvedEsModule) resolveImportImpl(
 	return result.Copy(forSourceInfo, Binding_CreatedBy_IMPORT)
 }
 
-func (m *unresolvedEsModule) GetExportedNames(moduleRequestResolver ModuleRequestResolver) *jutil.LinkedHashSet[string] {
-	if m.exportedNames == nil {
-		m.exportedNames = m.GetExportedNamesWithVisited(moduleRequestResolver, jutil.NewLinkedHashSet[UnresolvedModule]())
+func (m *unresolvedEsModule) GetExportedNames(moduleRequestResolver ModuleRequestResolver) []string {
+	if !m.hasExportedNames {
+		var visited map[UnresolvedModule]struct{}
+		if len(m.starExports) > 0 {
+			visited = make(map[UnresolvedModule]struct{})
+		}
+		m.exportedNames = m.GetExportedNamesWithVisited(moduleRequestResolver, visited)
+		m.hasExportedNames = true
 	}
 	return m.exportedNames
 }
 
+func (m *unresolvedEsModule) hasExportedName(moduleRequestResolver ModuleRequestResolver, name string) bool {
+	_, ok := slices.BinarySearchFunc(m.GetExportedNames(moduleRequestResolver), name, jutil.StringCompareTo)
+	return ok
+}
+
 func (m *unresolvedEsModule) GetExportedNamesWithVisited(
-	moduleRequestResolver ModuleRequestResolver, visited *jutil.LinkedHashSet[UnresolvedModule]) *jutil.LinkedHashSet[string] {
-	if visited.Contains(m) {
-		return jutil.NewLinkedHashSet[string]()
+	moduleRequestResolver ModuleRequestResolver, visited map[UnresolvedModule]struct{}) []string {
+	if visited != nil {
+		if _, seen := visited[m]; seen {
+			return nil
+		}
+		visited[m] = struct{}{}
+	} else if len(m.starExports) > 0 {
+		visited = map[UnresolvedModule]struct{}{m: {}}
 	}
-	visited.Add(m)
 
 	capHint := len(m.localExports) + len(m.indirectExports)
-	seen := make(map[string]struct{}, capHint)
-	names := make([]string, 0, capHint)
-	addName := func(n string) {
-		if _, ok := seen[n]; !ok {
-			seen[n] = struct{}{}
-			names = append(names, n)
-		}
+	if capHint == 0 && len(m.starExports) == 0 {
+		return nil
 	}
-
+	names := make([]string, 0, capHint)
 	for _, e := range m.localExports {
-		addName(e.ExportName())
+		names = append(names, e.ExportName())
 	}
 	for _, e := range m.indirectExports {
-		addName(e.ExportName())
+		names = append(names, e.ExportName())
 	}
 	for _, e := range m.starExports {
 		requested := moduleRequestResolver.ResolveWithExport(e)
 		if requested != nil {
 			if requested.Metadata().IsEs6Module() {
-				for n := range requested.GetExportedNamesWithVisited(moduleRequestResolver, visited).All() {
+				for _, n := range requested.GetExportedNamesWithVisited(moduleRequestResolver, visited) {
 					if n != Export_DEFAULT {
-						addName(n)
+						names = append(names, n)
 					}
 				}
 			} else {
@@ -406,16 +437,23 @@ func (m *unresolvedEsModule) GetExportedNamesWithVisited(
 	}
 
 	slices.SortFunc(names, jutil.StringCompareTo)
-	return jutil.NewLinkedHashSet(names...)
+	return slices.Compact(names)
 }
 
 func (m *unresolvedEsModule) getAllResolvedExports(
-	moduleRequestResolver ModuleRequestResolver) *jutil.LinkedHashMap[string, *Binding] {
-	exports := jutil.NewLinkedHashMap[string, *Binding]()
-	for name := range m.GetExportedNames(moduleRequestResolver).All() {
+	moduleRequestResolver ModuleRequestResolver) *OrderedStringMap[*Binding] {
+	exportedNames := m.GetExportedNames(moduleRequestResolver)
+	if len(exportedNames) == 0 {
+		return nonEsEmptyBindingMap
+	}
+	var exports *OrderedStringMap[*Binding]
+	for _, name := range exportedNames {
 		b := m.ResolveExport(moduleRequestResolver, name)
 		jutil.CheckStateMsg(b.Found(), "Cannot have invalid own export.")
 		if b.Resolved() {
+			if exports == nil {
+				exports = NewOrderedStringMapWithCapacity[*Binding](len(exportedNames))
+			}
 			exports.Put(name, jutil.CheckNotNull(b.GetBinding()))
 		} else if b.IsAmbiguous() {
 			srcName := m.path.String()
@@ -423,23 +461,30 @@ func (m *unresolvedEsModule) getAllResolvedExports(
 				&srcName, -1, -1, EsModuleProcessor_AMBIGUOUS_EXPORT_DEFINITION, name))
 		}
 	}
+	if exports == nil {
+		return nonEsEmptyBindingMap
+	}
 	return exports
 }
 
 func (m *unresolvedEsModule) resolveExportWithSets(
 	moduleRequestResolver ModuleRequestResolver,
 	exportName string,
-	resolveSet *jutil.LinkedHashSet[ExportTrace],
-	exportStarSet *jutil.LinkedHashSet[UnresolvedModule]) *ResolveExportResult {
-	if !m.GetExportedNames(moduleRequestResolver).Contains(exportName) {
+	resolveSet map[ExportTrace]struct{},
+	exportStarSet map[UnresolvedModule]struct{}) *ResolveExportResult {
+	if !m.hasExportedName(moduleRequestResolver, exportName) {
 		return ResolveExportResult_NOT_FOUND
 	}
 
-	if !resolveSet.Add(ExportTrace_Create(m, exportName)) {
-		srcName := m.path.String()
-		m.outer.compiler.Report(JSError_MakeWithSourceLocation(
-			&srcName, 0, 0, EsModuleProcessor_CYCLIC_EXPORT_DEFINITION, exportName))
-		return ResolveExportResult_ERROR
+	if resolveSet != nil {
+		trace := ExportTrace_Create(m, exportName)
+		if _, seen := resolveSet[trace]; seen {
+			srcName := m.path.String()
+			m.outer.compiler.Report(JSError_MakeWithSourceLocation(
+				&srcName, 0, 0, EsModuleProcessor_CYCLIC_EXPORT_DEFINITION, exportName))
+			return ResolveExportResult_ERROR
+		}
+		resolveSet[trace] = struct{}{}
 	}
 
 	for _, e := range m.localExports {
@@ -450,6 +495,10 @@ func (m *unresolvedEsModule) resolveExportWithSets(
 			}
 			return ResolveExportResult_Of(Binding_From(e, forSourceInfo))
 		}
+	}
+
+	if resolveSet == nil {
+		resolveSet = map[ExportTrace]struct{}{ExportTrace_Create(m, exportName): {}}
 	}
 
 	for _, e := range m.indirectExports {
@@ -497,13 +546,17 @@ func (m *unresolvedEsModule) resolveExportWithSets(
 
 	jutil.CheckStateMsg(exportName != Export_DEFAULT, "Default export cannot come from export *.")
 
-	if exportStarSet.Contains(m) {
-		srcName := m.path.String()
-		m.outer.compiler.Report(JSError_MakeWithSourceLocation(
-			&srcName, -1, -1, EsModuleProcessor_CYCLIC_EXPORT_DEFINITION, exportName))
-		return ResolveExportResult_ERROR
+	if exportStarSet == nil {
+		exportStarSet = map[UnresolvedModule]struct{}{m: {}}
+	} else {
+		if _, seen := exportStarSet[m]; seen {
+			srcName := m.path.String()
+			m.outer.compiler.Report(JSError_MakeWithSourceLocation(
+				&srcName, -1, -1, EsModuleProcessor_CYCLIC_EXPORT_DEFINITION, exportName))
+			return ResolveExportResult_ERROR
+		}
+		exportStarSet[m] = struct{}{}
 	}
-	exportStarSet.Add(m)
 
 	var starResolution *ResolveExportResult
 	for _, e := range m.starExports {
@@ -511,7 +564,7 @@ func (m *unresolvedEsModule) resolveExportWithSets(
 		if requested == nil {
 			return ResolveExportResult_ERROR
 		}
-		if requested.GetExportedNames(moduleRequestResolver).Contains(exportName) {
+		if _, has := slices.BinarySearchFunc(requested.GetExportedNames(moduleRequestResolver), exportName, jutil.StringCompareTo); has {
 			resolution := requested.ResolveExportWithTraces(
 				moduleRequestResolver, e.ModuleRequest(), e.HasModuleRequest(), exportName, resolveSet, exportStarSet)
 			if resolution.HadError() || resolution.IsAmbiguous() {
@@ -536,8 +589,8 @@ func (m *unresolvedEsModule) ResolveExportWithTraces(
 	moduleSpecifier string,
 	hasModuleSpecifier bool,
 	exportName string,
-	resolveSet *jutil.LinkedHashSet[ExportTrace],
-	exportStarSet *jutil.LinkedHashSet[UnresolvedModule]) *ResolveExportResult {
+	resolveSet map[ExportTrace]struct{},
+	exportStarSet map[UnresolvedModule]struct{}) *ResolveExportResult {
 	if res, ok := m.resolvedExports[exportName]; ok {
 		return res
 	}

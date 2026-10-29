@@ -295,7 +295,7 @@ func (c *Compiler) GetSourceFileContentByName(sourceName string) *string {
 
 // Java: Compiler.addInputSourceMap(String, SourceMapInput)
 func (c *Compiler) AddInputSourceMap(sourceFileName string, inputSourceMap *SourceMapInput) {
-	c.inputSourceMaps.Put(sourceFileName, inputSourceMap)
+	c.putInputSourceMap(sourceFileName, inputSourceMap)
 	if c.options.GetSourceMapIncludeSourcesContent() && c.sourceMap != nil {
 		c.addSourceMapSourceFiles(inputSourceMap)
 	}
@@ -309,7 +309,7 @@ func (c *Compiler) AddInputSourceMap(sourceFileName string, inputSourceMap *Sour
 //
 // Java: Compiler.getBase64SourceMapContents(String)
 func (c *Compiler) GetBase64SourceMapContents(sourceFileName string) *string {
-	sourceMapInput := c.inputSourceMaps.GetOrDefault(sourceFileName, nil)
+	sourceMapInput := c.inputSourceMaps[sourceFileName]
 	// This sourceMappingURL ends with a ".inline.map", and we want to get its base4-encoded
 	// contents (i.e. "data:application/json;base64,<encoded_source_map>").
 	var sourceMappingURL *string
@@ -417,10 +417,10 @@ func (c *Compiler) getSourceMappingValueCached(
 	resolvedCache *compiler_ResolvedSourceMap,
 	lineCache *sourcemap.SourceMapLineCache,
 ) (sourcemap.Mapping_OriginalMapping, *string, bool, bool) {
-	if c.inputSourceMaps.IsEmpty() {
+	if len(c.inputSourceMaps) == 0 {
 		return sourcemap.Mapping_OriginalMapping{}, nil, false, false
 	}
-	sourceMap := c.inputSourceMaps.Get(sourceName)
+	sourceMap := c.inputSourceMaps[sourceName]
 	if sourceMap == nil {
 		return sourcemap.Mapping_OriginalMapping{}, nil, false, false
 	}
@@ -1083,8 +1083,8 @@ func (c *Compiler) ResetAndIntitializeSourceMap() {
 	if c.options.GetSourceMapIncludeSourcesContent() {
 		if c.options.GetApplyInputSourceMaps() {
 			// Add any input source map content files to the source map as potential sources
-			for inputSourceMap := range c.inputSourceMaps.Values() {
-				c.addSourceMapSourceFiles(inputSourceMap)
+			for _, name := range c.inputSourceMapOrder {
+				c.addSourceMapSourceFiles(c.inputSourceMaps[name])
 			}
 		}
 

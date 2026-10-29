@@ -134,12 +134,11 @@ func (d *DeadAssignmentsElimination) eliminateFunction(fn rhino.Node, dummyGloba
 	d.livenessStorage.Reset(
 		cfg, functionScope, blockScope, d.compiler, scopeCreator, allVarsDeclaredInFunction)
 	d.liveness = &d.livenessStorage
-	allVarsInFn := d.liveness.GetAllVariables()
-	if allVarsEscaped(allVarsInFn, d.liveness.GetEscapedLocals()) {
+	if d.liveness.allInFnVarsEscaped() {
 		return
 	}
 	d.liveness.Analyze()
-	d.TryRemoveDeadAssignments(nil, cfg, allVarsInFn)
+	d.TryRemoveDeadAssignments(nil, cfg, d.liveness.GetAllVariables())
 }
 
 func (d *DeadAssignmentsElimination) reportChange(n rhino.Node) {
@@ -196,18 +195,22 @@ func (d *DeadAssignmentsElimination) Process(externs rhino.Node, root rhino.Node
 			defer func() {
 				wd.scopeCreator = nil
 			}()
+			curIdx := -1
+			defer func() {
+				if r := recover(); r != nil && curIdx >= 0 {
+					failures[curIdx] = jutil.AsThrowable(r)
+				}
+			}()
 			for {
 				idx := int(next.Add(1) - 1)
 				if idx >= len(candidates) {
 					return
 				}
+				curIdx = idx
 				wd.changeCount = 0
-				jutil.Try(func() {
-					wd.eliminateFunction(candidates[idx], dummyGlobal)
-					changeCounts[idx] = wd.changeCount
-				}, func(t jutil.Throwable) {
-					failures[idx] = t
-				})
+				wd.eliminateFunction(candidates[idx], dummyGlobal)
+				changeCounts[idx] = wd.changeCount
+				curIdx = -1
 			}
 		}()
 	}
@@ -321,24 +324,11 @@ func (d *DeadAssignmentsElimination) EliminateDeadAssignments(t *NodeTraversal) 
 	d.livenessStorage.Reset(
 		cfg, functionScope, blockScope, d.compiler, scopeCreator, allVarsDeclaredInFunction)
 	d.liveness = &d.livenessStorage
-	allVarsInFn := d.liveness.GetAllVariables()
-	if allVarsEscaped(allVarsInFn, d.liveness.GetEscapedLocals()) {
+	if d.liveness.allInFnVarsEscaped() {
 		return
 	}
 	d.liveness.Analyze()
-	d.TryRemoveDeadAssignments(t, cfg, allVarsInFn)
-}
-
-func allVarsEscaped(allVarsInFn *jutil.LinkedHashMap[string, *Var], escaped *jutil.ObjectLinkedHashSet[*Var]) bool {
-	if escaped.Size() < allVarsInFn.Size() {
-		return false
-	}
-	for v := range allVarsInFn.Values() {
-		if !escaped.Contains(v) {
-			return false
-		}
-	}
-	return true
+	d.TryRemoveDeadAssignments(t, cfg, d.liveness.GetAllVariables())
 }
 
 // IsRemovableAssign matches all assignment operators and increment/decrement
@@ -463,41 +453,49 @@ func (d *DeadAssignmentsElimination) TryRemoveAssignmentWithExprRoot(
 			return
 		}
 
-		lhsName, isLhsName := ast.AsName(lhs)
-		if !isLhsName {
+		if !lhs.IsName() {
 			return // Not a local variable assignment.
 		}
-		name := lhsName.Ident()
 		if t != nil {
 			scope := t.GetScope()
 			jutil.CheckState(scope.IsFunctionBlockScope() || scope.IsBlockScope())
 		}
-		var_ := allVarsInFn.Get(name)
-		if var_ == nil {
-			return
-		}
-
-		if d.liveness.GetEscapedLocals().Contains(var_) {
-			return // Local variable that might be escaped due to closures.
+		lhsID := lhs.GetStringID()
+		var index int
+		if allVarsInFn == d.liveness.allVarsInFn {
+			var ok bool
+			index, ok = d.liveness.lookupVarIndexByID(lhsID)
+			if !ok || d.liveness.isEscapedIndex(index) {
+				return
+			}
+		} else {
+			var_ := allVarsInFn.Get(lhs.GetString())
+			if var_ == nil {
+				return
+			}
+			if d.liveness.GetEscapedLocals().Contains(var_) {
+				return // Local variable that might be escaped due to closures.
+			}
+			lhsID = var_.nameID
+			index = d.liveness.getVarIndexByID(lhsID)
 		}
 
 		// If we have an identity assignment such as a=a, always remove it
 		// regardless of what the liveness results because it
 		// does not change the result afterward.
-		if rhsName, isRhsName := ast.AsName(rhs); isRhsName && rhsName.Ident() == var_.GetName() && isAssignOp && assign.Token() == rhino.Token_ASSIGN {
+		if isAssignOp && assign.Token() == rhino.Token_ASSIGN && !rhs.IsNil() && rhs.IsName() && rhs.GetStringID() == lhsID {
 			rhs.Detach()
 			n.ReplaceWith(rhs)
 			d.reportChange(rhs)
 			return
 		}
 
-		index := d.liveness.GetVarIndex(var_.GetName())
 		if state.GetOut().IsLive(index) {
 			return // Variable not dead.
 		}
 
 		if state.GetIn().IsLive(index) &&
-			d.IsVariableStillLiveWithinExpression(n, exprRoot, var_.GetName()) {
+			d.isVariableStillLiveWithinExpressionByID(n, exprRoot, lhsID) {
 			// The variable is killed here but it is also live before it.
 			// This is possible if we have say:
 			//    if (X = a && a = C) {..} ; .......; a = S;
@@ -572,6 +570,15 @@ func (d *DeadAssignmentsElimination) TryRemoveAssignmentWithExprRoot(
 // Java: DeadAssignmentsElimination.isVariableStillLiveWithinExpression(Node, Node, String)
 func (d *DeadAssignmentsElimination) IsVariableStillLiveWithinExpression(
 	n rhino.Node, exprRoot rhino.Node, variable string) bool {
+	id := rhino.RhinoStringPool_LookupID(variable)
+	if id == 0 {
+		return false
+	}
+	return d.isVariableStillLiveWithinExpressionByID(n, exprRoot, id)
+}
+
+func (d *DeadAssignmentsElimination) isVariableStillLiveWithinExpressionByID(
+	n rhino.Node, exprRoot rhino.Node, varID uint32) bool {
 	for n != exprRoot {
 		parent := n.GetParent()
 		state := DeadAssignmentsElimination_VariableLiveness_MAYBE_LIVE
@@ -582,7 +589,7 @@ func (d *DeadAssignmentsElimination) IsVariableStillLiveWithinExpression(
 			// evaluated. Therefore, be conservative: a READ in subsequent siblings means the variable
 			// might be read, but a KILL cannot be guaranteed to occur.
 			for sibling := n.GetNext(); !sibling.IsNil(); sibling = sibling.GetNext() {
-				state = d.IsVariableReadBeforeKill(sibling, variable)
+				state = d.isVariableReadBeforeKillByID(sibling, varID)
 				if state != DeadAssignmentsElimination_VariableLiveness_MAYBE_LIVE {
 					break
 				}
@@ -596,11 +603,11 @@ func (d *DeadAssignmentsElimination) IsVariableStillLiveWithinExpression(
 			// other branch can be ignored.
 			hook := ast.MustHook(parent)
 			if hook.Cond().Is(n) {
-				state = d.CheckHookBranchReadBeforeKill(hook.Then().Node(), hook.Else().Node(), variable)
+				state = d.checkHookBranchReadBeforeKillByID(hook.Then().Node(), hook.Else().Node(), varID)
 			}
 		default:
 			for sibling := n.GetNext(); !sibling.IsNil(); sibling = sibling.GetNext() {
-				state = d.IsVariableReadBeforeKill(sibling, variable)
+				state = d.isVariableReadBeforeKillByID(sibling, varID)
 				if state != DeadAssignmentsElimination_VariableLiveness_MAYBE_LIVE {
 					break
 				}
@@ -643,11 +650,20 @@ func (v DeadAssignmentsElimination_VariableLiveness) String() string {
 // Java: DeadAssignmentsElimination.isVariableReadBeforeKill(Node, String)
 func (d *DeadAssignmentsElimination) IsVariableReadBeforeKill(
 	n rhino.Node, variable string) DeadAssignmentsElimination_VariableLiveness {
+	id := rhino.RhinoStringPool_LookupID(variable)
+	if id == 0 {
+		return DeadAssignmentsElimination_VariableLiveness_MAYBE_LIVE
+	}
+	return d.isVariableReadBeforeKillByID(n, id)
+}
+
+func (d *DeadAssignmentsElimination) isVariableReadBeforeKillByID(
+	n rhino.Node, varID uint32) DeadAssignmentsElimination_VariableLiveness {
 	if ControlFlowGraph_IsEnteringNewCfgNode(n) { // Not a FUNCTION
 		return DeadAssignmentsElimination_VariableLiveness_MAYBE_LIVE
 	}
 
-	if name, ok := ast.AsName(n); ok && variable == name.Ident() {
+	if n.IsName() && n.GetStringID() == varID {
 		parent := n.GetParent()
 		if NodeUtil_IsNameDeclOrSimpleAssignLhs(n, parent) {
 			assign, isAssign := ast.AsAssign(parent)
@@ -655,7 +671,7 @@ func (d *DeadAssignmentsElimination) IsVariableReadBeforeKill(
 			// The expression to which the assignment is made is evaluated before
 			// the RHS is evaluated (normal left to right evaluation) but the KILL
 			// occurs after the RHS is evaluated.
-			state := d.IsVariableReadBeforeKill(assign.Value().Node(), variable)
+			state := d.isVariableReadBeforeKillByID(assign.Value().Node(), varID)
 			if state == DeadAssignmentsElimination_VariableLiveness_READ {
 				return state
 			}
@@ -668,11 +684,11 @@ func (d *DeadAssignmentsElimination) IsVariableReadBeforeKill(
 	case rhino.Token_OPTCHAIN_GETPROP:
 		// Go-only: OPTCHAIN_GETPROP has only one child (Object; property is its string),
 		// so visiting Object once matches Java without O(2^k) re-traversal on chains.
-		return d.IsVariableReadBeforeKill(ast.MustOptChainGetProp(n).Object().Node(), variable)
+		return d.isVariableReadBeforeKillByID(ast.MustOptChainGetProp(n).Object().Node(), varID)
 	case rhino.Token_OR, rhino.Token_AND, rhino.Token_COALESCE:
 		bin := ast.MustBinary(n)
-		v1 := d.IsVariableReadBeforeKill(bin.Left().Node(), variable)
-		v2 := d.IsVariableReadBeforeKill(bin.Right().Node(), variable)
+		v1 := d.isVariableReadBeforeKillByID(bin.Left().Node(), varID)
+		v2 := d.isVariableReadBeforeKillByID(bin.Right().Node(), varID)
 		// With a AND/OR/COALESCE the first branch always runs, but the second
 		// may not.
 		if v1 != DeadAssignmentsElimination_VariableLiveness_MAYBE_LIVE {
@@ -683,8 +699,8 @@ func (d *DeadAssignmentsElimination) IsVariableReadBeforeKill(
 		return DeadAssignmentsElimination_VariableLiveness_MAYBE_LIVE
 	case rhino.Token_OPTCHAIN_GETELEM:
 		ge := ast.MustOptChainGetElem(n)
-		v1 := d.IsVariableReadBeforeKill(ge.Object().Node(), variable)
-		v2 := d.IsVariableReadBeforeKill(ge.Index().Node(), variable)
+		v1 := d.isVariableReadBeforeKillByID(ge.Object().Node(), varID)
+		v2 := d.isVariableReadBeforeKillByID(ge.Index().Node(), varID)
 		if v1 != DeadAssignmentsElimination_VariableLiveness_MAYBE_LIVE {
 			return v1
 		} else if v2 == DeadAssignmentsElimination_VariableLiveness_READ {
@@ -693,12 +709,12 @@ func (d *DeadAssignmentsElimination) IsVariableReadBeforeKill(
 		return DeadAssignmentsElimination_VariableLiveness_MAYBE_LIVE
 	case rhino.Token_OPTCHAIN_CALL:
 		call := ast.MustOptChainCall(n)
-		v1 := d.IsVariableReadBeforeKill(call.Callee().Node(), variable)
+		v1 := d.isVariableReadBeforeKillByID(call.Callee().Node(), varID)
 		if v1 != DeadAssignmentsElimination_VariableLiveness_MAYBE_LIVE {
 			return v1
 		}
 		for arg, ok := call.FirstArg(); ok; arg, ok = arg.Next() {
-			state := d.IsVariableReadBeforeKill(arg.Node(), variable)
+			state := d.isVariableReadBeforeKillByID(arg.Node(), varID)
 			if state != DeadAssignmentsElimination_VariableLiveness_MAYBE_LIVE {
 				if state == DeadAssignmentsElimination_VariableLiveness_READ {
 					return DeadAssignmentsElimination_VariableLiveness_READ
@@ -709,15 +725,15 @@ func (d *DeadAssignmentsElimination) IsVariableReadBeforeKill(
 		return DeadAssignmentsElimination_VariableLiveness_MAYBE_LIVE
 	case rhino.Token_HOOK:
 		hook := ast.MustHook(n)
-		first := d.IsVariableReadBeforeKill(hook.Cond().Node(), variable)
+		first := d.isVariableReadBeforeKillByID(hook.Cond().Node(), varID)
 		if first != DeadAssignmentsElimination_VariableLiveness_MAYBE_LIVE {
 			return first
 		}
-		return d.CheckHookBranchReadBeforeKill(hook.Then().Node(), hook.Else().Node(), variable)
+		return d.checkHookBranchReadBeforeKillByID(hook.Then().Node(), hook.Else().Node(), varID)
 	default:
 		// Expressions are evaluated left-right, depth first.
 		for child := n.GetFirstChild(); !child.IsNil(); child = child.GetNext() {
-			state := d.IsVariableReadBeforeKill(child, variable)
+			state := d.isVariableReadBeforeKillByID(child, varID)
 			if state != DeadAssignmentsElimination_VariableLiveness_MAYBE_LIVE {
 				return state
 			}
@@ -730,10 +746,17 @@ func (d *DeadAssignmentsElimination) IsVariableReadBeforeKill(
 // Java: DeadAssignmentsElimination.checkHookBranchReadBeforeKill(Node, Node, String)
 func (d *DeadAssignmentsElimination) CheckHookBranchReadBeforeKill(
 	trueCase rhino.Node, falseCase rhino.Node, variable string) DeadAssignmentsElimination_VariableLiveness {
-	v1 := d.IsVariableReadBeforeKill(
-		trueCase, variable)
-	v2 := d.IsVariableReadBeforeKill(
-		falseCase, variable)
+	id := rhino.RhinoStringPool_LookupID(variable)
+	if id == 0 {
+		return DeadAssignmentsElimination_VariableLiveness_MAYBE_LIVE
+	}
+	return d.checkHookBranchReadBeforeKillByID(trueCase, falseCase, id)
+}
+
+func (d *DeadAssignmentsElimination) checkHookBranchReadBeforeKillByID(
+	trueCase rhino.Node, falseCase rhino.Node, varID uint32) DeadAssignmentsElimination_VariableLiveness {
+	v1 := d.isVariableReadBeforeKillByID(trueCase, varID)
+	v2 := d.isVariableReadBeforeKillByID(falseCase, varID)
 	// With a hook it is unknown which branch will run, so
 	// we must be conservative.  A read by either is a READ, and
 	// a KILL is only considered if both KILL.

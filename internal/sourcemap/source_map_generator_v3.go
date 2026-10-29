@@ -68,14 +68,12 @@ type SourceMapGeneratorV3 struct {
 	sourceIdxToFileId      []int32
 	orderedSourceFiles     []string
 	lastAddedSourceFile    string
-	hasLastAddedSourceFile bool
 	lastAddedSourceFileIdx int32
 	addedSymbolNames       []string
 	addedSymbolIndex       map[string]int32
 	symbolIdxToNameId      []int32
 	orderedSymbolNames     []string
 	lastAddedSymbolName    string
-	hasLastAddedSymbolName bool
 	lastAddedSymbolNameIdx int32
 	addedSourceFilesBuf    [16]string
 	addedSymbolNamesBuf    [16]string
@@ -208,7 +206,6 @@ func (g *SourceMapGeneratorV3) Reset() {
 	clear(g.orderedSourceFiles)
 	g.orderedSourceFiles = g.orderedSourceFiles[:0]
 	g.lastAddedSourceFile = ""
-	g.hasLastAddedSourceFile = false
 	g.lastAddedSourceFileIdx = -1
 	clear(g.addedSymbolNames)
 	g.addedSymbolNames = g.addedSymbolNames[:0]
@@ -217,7 +214,6 @@ func (g *SourceMapGeneratorV3) Reset() {
 	clear(g.orderedSymbolNames)
 	g.orderedSymbolNames = g.orderedSymbolNames[:0]
 	g.lastAddedSymbolName = ""
-	g.hasLastAddedSymbolName = false
 	g.lastAddedSymbolNameIdx = -1
 	g.offsetPosition = MakeFilePosition(0, 0)
 	g.prefixPosition = MakeFilePosition(0, 0)
@@ -335,14 +331,14 @@ func (g *SourceMapGeneratorV3) AddMappingPositions(
 
 	sourceFileIdx := internSourceMapString(
 		&g.addedSourceFiles, &g.addedSourceFileIndex,
-		&g.lastAddedSourceFile, &g.hasLastAddedSourceFile, &g.lastAddedSourceFileIdx,
+		&g.lastAddedSourceFile, &g.lastAddedSourceFileIdx,
 		sourceName)
 
 	originalNameIdx := int32(-1)
 	if symbolName != nil {
 		originalNameIdx = internSourceMapString(
 			&g.addedSymbolNames, &g.addedSymbolIndex,
-			&g.lastAddedSymbolName, &g.hasLastAddedSymbolName, &g.lastAddedSymbolNameIdx,
+			&g.lastAddedSymbolName, &g.lastAddedSymbolNameIdx,
 			*symbolName)
 	}
 
@@ -364,11 +360,10 @@ func internSourceMapString(
 	items *[]string,
 	index *map[string]int32,
 	last *string,
-	hasLast *bool,
 	lastIdx *int32,
 	s string,
 ) int32 {
-	if *hasLast && *last == s {
+	if *lastIdx >= 0 && *last == s {
 		return *lastIdx
 	}
 	var idx int32
@@ -404,7 +399,6 @@ func internSourceMapString(
 	}
 	*last = s
 	*lastIdx = idx
-	*hasLast = true
 	return idx
 }
 
@@ -567,7 +561,7 @@ func (g *SourceMapGeneratorV3) appendToTail(out io.StringWriter) {
 		if s, ok := sourceMapGeneratorV3_asJavaString(objValue); ok {
 			value = SourceMapGeneratorV3_EscapeString(s) // escapes native String
 		} else {
-			if jutil.IsNil(objValue) {
+			if sourceMapGeneratorV3_isNilExtension(objValue) {
 				// objValue.toString()
 				panic(jutil.NewNullPointerException())
 			}
@@ -577,6 +571,25 @@ func (g *SourceMapGeneratorV3) appendToTail(out io.StringWriter) {
 	}
 
 	appendString(out, "\n}\n")
+}
+
+func sourceMapGeneratorV3_isNilExtension(v any) bool {
+	switch x := v.(type) {
+	case nil:
+		return true
+	case *string:
+		return x == nil
+	case *jutil.JsonObject:
+		return x == nil
+	case *jutil.JsonArray:
+		return x == nil
+	case *jutil.JsonPrimitive:
+		return x == nil
+	case *jutil.JsonNull:
+		return x == nil
+	default:
+		return false
+	}
 }
 
 // sourceMapGeneratorV3_asJavaString is `objValue instanceof String string`:

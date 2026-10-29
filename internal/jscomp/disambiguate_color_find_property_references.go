@@ -36,7 +36,7 @@ import (
 type ColorFindPropertyReferences struct {
 	NodeTraversal_AbstractPostOrderCallbackBase
 
-	propIndex  *jutil.LinkedHashMap[string, *PropertyClustering]
+	propIndex  *propertyClusteringIndex
 	ownerMap   map[*colors.Color]*ColorGraphNode
 	propAssocs map[propAssocKey]ColorGraphNode_PropAssociation
 
@@ -63,7 +63,7 @@ type ColorFindPropertyReferences_IsPropertyReflector func(nameNode rhino.Node) b
 func NewColorFindPropertyReferences(
 	colorGraphNodeFactory *ColorGraphNodeFactory, isPropertyReflector ColorFindPropertyReferences_IsPropertyReflector) *ColorFindPropertyReferences {
 	return &ColorFindPropertyReferences{
-		propIndex:             jutil.NewLinkedHashMapWithCapacity[string, *PropertyClustering](4096),
+		propIndex:             newPropertyClusteringIndex(4096),
 		ownerMap:              make(map[*colors.Color]*ColorGraphNode, 512),
 		colorGraphNodeFactory: colorGraphNodeFactory,
 		isPropertyReflector:   isPropertyReflector,
@@ -83,7 +83,7 @@ func (r *ColorFindPropertyReferences) createNode(owner *colors.Color) *ColorGrap
 }
 
 // Java: ColorFindPropertyReferences.getPropertyIndex()
-func (r *ColorFindPropertyReferences) GetPropertyIndex() *jutil.LinkedHashMap[string, *PropertyClustering] {
+func (r *ColorFindPropertyReferences) GetPropertyIndex() *propertyClusteringIndex {
 	tmp := r.propIndex
 	r.propIndex = nil
 	return tmp
@@ -115,8 +115,7 @@ func (r *ColorFindPropertyReferences) handleObjectLit(t *NodeTraversal, n rhino.
 		return
 	}
 
-	c := n.GetColor()
-	r.traverseObjectlitLike(t, n, func(rhino.Node) *colors.Color { return c })
+	r.traverseObjectlitLike(t, n, n.GetColor())
 }
 
 // handleCall examines calls in case they are Object.defineProperties calls
@@ -199,8 +198,7 @@ func (r *ColorFindPropertyReferences) handleFunction(fnNode rhino.Node) {
 
 // Java: ColorFindPropertyReferences.handleObjectPattern(NodeTraversal, Node)
 func (r *ColorFindPropertyReferences) handleObjectPattern(t *NodeTraversal, pattern rhino.Node) {
-	c := pattern.GetColor()
-	r.traverseObjectlitLike(t, pattern, func(rhino.Node) *colors.Color { return c })
+	r.traverseObjectlitLike(t, pattern, pattern.GetColor())
 }
 
 // Java: ColorFindPropertyReferences.handlePropertyReflectorCall(NodeTraversal, Node)
@@ -226,12 +224,11 @@ func (r *ColorFindPropertyReferences) handleObjectDefineProperties(t *NodeTraver
 		return
 	}
 
-	c := typeObj.GetColor()
-	r.traverseObjectlitLike(t, objectLiteral, func(rhino.Node) *colors.Color { return c })
+	r.traverseObjectlitLike(t, objectLiteral, typeObj.GetColor())
 }
 
 // Java: ColorFindPropertyReferences.traverseObjectlitLike(NodeTraversal, Node, Function<Node, Color>)
-func (r *ColorFindPropertyReferences) traverseObjectlitLike(t *NodeTraversal, n rhino.Node, memberOwnerFn func(rhino.Node) *colors.Color) {
+func (r *ColorFindPropertyReferences) traverseObjectlitLike(t *NodeTraversal, n rhino.Node, owner *colors.Color) {
 	// The keys in an object pattern are r-values, not l-values, but they are still accesses.
 	jutil.CheckState(n.IsObjectLit() || n.IsObjectPattern() || n.IsClassMembers())
 
@@ -244,7 +241,7 @@ func (r *ColorFindPropertyReferences) traverseObjectlitLike(t *NodeTraversal, n 
 				continue // These won't be renamed due to our assumptions. Ignore them.
 			}
 
-			r.registerPropertyUse(t, child, memberOwnerFn(child))
+			r.registerPropertyUse(t, child, owner)
 		default:
 			panic(jutil.NewIllegalStateExceptionMsg(
 				"Unexpected child of " + n.GetToken().String() + ": " + child.ToStringTree()))
@@ -257,7 +254,7 @@ func (r *ColorFindPropertyReferences) traverseObjectlitLike(t *NodeTraversal, n 
 //
 // Java: ColorFindPropertyReferences.registerPropertyUse(NodeTraversal, Node, Color)
 func (r *ColorFindPropertyReferences) registerPropertyUse(t *NodeTraversal, site rhino.Node, owner *colors.Color) {
-	prop := r.propIndex.ComputeIfAbsent(site.GetString(), NewPropertyClustering)
+	prop := r.propIndex.getOrCreateByID(site.GetStringID())
 	flatOwner := r.createNode(owner)
 
 	// Set the initial condition for flowing this property along the graph.

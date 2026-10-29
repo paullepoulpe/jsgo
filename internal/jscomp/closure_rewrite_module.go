@@ -67,7 +67,7 @@ type ClosureRewriteModule struct {
 	preserveSugar           bool
 
 	syntheticExternNodes []rhino.Node
-	syntheticExternSeen  map[string]struct{}
+	syntheticExternSeen  map[uint32]struct{}
 
 	globalScope *Scope // set after Process() starts updating scripts
 
@@ -252,12 +252,22 @@ func (e *closureExportDefinition) hasInlinableName(exportedVars map[*Var]struct{
 		return true
 	}
 	maybeGoog, ok := method.Object().AsName()
-	if !ok || maybeGoog.Ident() != "goog" {
+	if !ok || maybeGoog.Node().GetStringID() != rewriteGoogJsGoogID {
 		return true
 	}
-	name := method.Property()
-	return name != "require" && name != "forwardDeclare" && name != "getMsg"
+	switch method.Node().GetStringID() {
+	case closureRewriteRequireID, closureRewriteForwardDeclareID, closureRewriteGetMsgID:
+		return false
+	default:
+		return true
+	}
 }
+
+var (
+	closureRewriteRequireID        = rhino.RhinoStringPool_InternID("require")
+	closureRewriteForwardDeclareID = rhino.RhinoStringPool_InternID("forwardDeclare")
+	closureRewriteGetMsgID         = rhino.RhinoStringPool_InternID("getMsg")
+)
 
 func (e *closureExportDefinition) localName() (string, bool) {
 	if e.nameDecl != nil {
@@ -279,7 +289,7 @@ type closureScriptDescription struct {
 	namespaceId            string // "a.b.c"
 	binaryNamespace        string // "module$exports$a$b$c"
 	contentsPrefix         string // "module$contents$a$b$c_"
-	topLevelNames          map[string]struct{}
+	topLevelNameIDs        map[uint32]struct{}
 	childScripts           []*closureScriptDescription
 	namesToInlineByAlias   map[string]closureAliasName
 
@@ -516,7 +526,7 @@ func (m *ClosureRewriteModule) globalTypedStaticScope() rhino.StaticScope {
 }
 
 func (m *ClosureRewriteModule) isWeakNamespace(namespaceId string) bool {
-	metadata := m.compiler.GetModuleMetadataMap().GetModulesByGoogNamespace().Get(namespaceId)
+	metadata := m.compiler.GetModuleMetadataMap().ModuleByGoogNamespace(namespaceId)
 	return metadata != nil && metadata.RootNode().GetStaticSourceFile().IsWeak()
 }
 
@@ -526,7 +536,7 @@ func (m *ClosureRewriteModule) isUnrequiredWeakNamespace(call rhino.Node, namesp
 	}
 	var callerMetadata *ModuleMetadataMap_ModuleMetadata
 	if sourceFileName := call.GetSourceFileName(); sourceFileName != nil {
-		callerMetadata = m.compiler.GetModuleMetadataMap().GetModulesByPath().Get(*sourceFileName)
+		callerMetadata = m.compiler.GetModuleMetadataMap().ModuleByPath(*sourceFileName)
 	}
 	return callerMetadata == nil ||
 		!callerMetadata.StronglyRequiredGoogNamespaces().Contains(namespaceId)
@@ -639,12 +649,12 @@ func (m *ClosureRewriteModule) Process(externs rhino.Node, root rhino.Node) {
 }
 
 func (m *ClosureRewriteModule) addSyntheticExternIfAbsent(lhs rhino.Node) {
-	name := lhs.GetString()
+	id := lhs.GetStringID()
 	if m.syntheticExternSeen == nil {
-		m.syntheticExternSeen = make(map[string]struct{})
+		m.syntheticExternSeen = make(map[uint32]struct{})
 	}
-	if _, seen := m.syntheticExternSeen[name]; !seen {
-		m.syntheticExternSeen[name] = struct{}{}
+	if _, seen := m.syntheticExternSeen[id]; !seen {
+		m.syntheticExternSeen[id] = struct{}{}
 		m.syntheticExternNodes = append(m.syntheticExternNodes, lhs)
 	}
 }
@@ -877,20 +887,20 @@ func (m *ClosureRewriteModule) recordTopLevelClassOrFunctionName(classOrFunction
 		nameNode, ok = ast.MustClass(classOrFunctionNode).Name()
 	}
 	if ok {
-		if m.currentScript.topLevelNames == nil {
-			m.currentScript.topLevelNames = make(map[string]struct{})
+		if m.currentScript.topLevelNameIDs == nil {
+			m.currentScript.topLevelNameIDs = make(map[uint32]struct{})
 		}
-		m.currentScript.topLevelNames[nameNode.Ident()] = struct{}{}
+		m.currentScript.topLevelNameIDs[nameNode.Node().GetStringID()] = struct{}{}
 	}
 }
 
 func (m *ClosureRewriteModule) recordTopLevelVarNames(varNode rhino.Node) {
 	NodeUtil_VisitLhsNodesInNode(
 		varNode, func(lhs rhino.Node) {
-			if m.currentScript.topLevelNames == nil {
-				m.currentScript.topLevelNames = make(map[string]struct{})
+			if m.currentScript.topLevelNameIDs == nil {
+				m.currentScript.topLevelNameIDs = make(map[uint32]struct{})
 			}
-			m.currentScript.topLevelNames[lhs.GetString()] = struct{}{}
+			m.currentScript.topLevelNameIDs[lhs.GetStringID()] = struct{}{}
 		})
 }
 

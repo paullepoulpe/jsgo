@@ -63,15 +63,15 @@ type ModuleResolver interface {
 
 	// Java: ModuleResolver.setErrorHandler(ErrorHandler)
 	SetErrorHandler(errorHandler ErrorHandler)
-
-	GetModuleResolverBase() *ModuleResolverBase
 }
 
-// ModuleResolverBase holds the fields and base implementations of
-// ModuleResolver; subclasses embed it.
-type ModuleResolverBase struct {
+var emptyPackageJsonMainEntries = jutil.NewLinkedHashMap[string, string]()
+
+// moduleResolverCommon holds the shared fields and path helpers for concrete
+// ModuleResolver implementations without Base/Init fake-inheritance boilerplate.
+type moduleResolverCommon struct {
 	// The set of all known input module URIs (including trailing .js), after normalization.
-	modulePaths *jutil.LinkedHashSet[string]
+	modulePaths map[string]struct{}
 
 	// Root URIs to match module roots against.
 	moduleRootPaths []string
@@ -80,30 +80,33 @@ type ModuleResolverBase struct {
 	pathEscaper  ModuleLoader_PathEscaper
 }
 
-// InitModuleResolverBase is the Go form of super(...).
-//
-// Java: ModuleResolver(ImmutableSet<String>, ImmutableList<String>, ErrorHandler, PathEscaper)
-func (r *ModuleResolverBase) InitModuleResolverBase(
+func newModuleResolverCommon(
 	modulePaths *jutil.LinkedHashSet[string],
 	moduleRootPaths []string,
 	errorHandler ErrorHandler,
-	pathEscaper ModuleLoader_PathEscaper) {
-	r.modulePaths = modulePaths
-	r.moduleRootPaths = moduleRootPaths
-	r.errorHandler = errorHandler
-	r.pathEscaper = pathEscaper
+	pathEscaper ModuleLoader_PathEscaper) moduleResolverCommon {
+	var mp map[string]struct{}
+	if modulePaths != nil && modulePaths.Size() > 0 {
+		mp = make(map[string]struct{}, modulePaths.Size())
+		for p := range modulePaths.All() {
+			mp[p] = struct{}{}
+		}
+	}
+	return moduleResolverCommon{
+		modulePaths:     mp,
+		moduleRootPaths: moduleRootPaths,
+		errorHandler:    errorHandler,
+		pathEscaper:     pathEscaper,
+	}
 }
 
-// GetModuleResolverBase gives access to the base fields.
-func (r *ModuleResolverBase) GetModuleResolverBase() *ModuleResolverBase { return r }
-
 // Java: ModuleResolver.getPackageJsonMainEntries()
-func (r *ModuleResolverBase) GetPackageJsonMainEntries() *jutil.LinkedHashMap[string, string] {
-	return jutil.NewLinkedHashMap[string, string]()
+func (r *moduleResolverCommon) GetPackageJsonMainEntries() *jutil.LinkedHashMap[string, string] {
+	return emptyPackageJsonMainEntries
 }
 
 // Java: ModuleResolver.resolveModuleAsPath(String, String)
-func (r *ModuleResolverBase) ResolveModuleAsPath(scriptAddress string, moduleAddress string) string {
+func (r *moduleResolverCommon) ResolveModuleAsPath(scriptAddress string, moduleAddress string) string {
 	if !strings.HasSuffix(moduleAddress, ".js") {
 		moduleAddress += ".js"
 	}
@@ -122,7 +125,7 @@ func (r *ModuleResolverBase) ResolveModuleAsPath(scriptAddress string, moduleAdd
 // is no JS file in the expected location.
 //
 // Java: ModuleResolver.locate(String, String)
-func (r *ModuleResolverBase) Locate(scriptAddress string, name string) *string {
+func (r *moduleResolverCommon) Locate(scriptAddress string, name string) *string {
 	canonicalizedPath := r.CanonicalizePath(scriptAddress, name)
 
 	normalizedPath := canonicalizedPath
@@ -130,8 +133,8 @@ func (r *ModuleResolverBase) Locate(scriptAddress string, name string) *string {
 		normalizedPath = ModuleLoader_MODULE_SLASH + canonicalizedPath
 	}
 
-	// First check to see if the module is known with it's provided path
-	if r.modulePaths.Contains(normalizedPath) {
+	// First check to see if the module is known with its provided path
+	if _, ok := r.modulePaths[normalizedPath]; ok {
 		return &canonicalizedPath
 	}
 
@@ -139,10 +142,9 @@ func (r *ModuleResolverBase) Locate(scriptAddress string, name string) *string {
 	for _, rootPath := range r.moduleRootPaths {
 		modulePath := rootPath + normalizedPath
 
-		// Since there might be code that relying on whether the path has a leading slash or not,
-		// honor the state it was provided in. In an ideal world this would always be normalized
-		// to contain a leading slash.
-		if r.modulePaths.Contains(modulePath) {
+		// Since there might be code relying on whether the path has a leading slash or not,
+		// honor the state it was provided in.
+		if _, ok := r.modulePaths[modulePath]; ok {
 			return &canonicalizedPath
 		}
 	}
@@ -154,7 +156,7 @@ func (r *ModuleResolverBase) Locate(scriptAddress string, name string) *string {
 // special characters and converting relative paths to absolute references.
 //
 // Java: ModuleResolver.canonicalizePath(String, String)
-func (r *ModuleResolverBase) CanonicalizePath(scriptAddress string, moduleAddress string) string {
+func (r *moduleResolverCommon) CanonicalizePath(scriptAddress string, moduleAddress string) string {
 	path := r.pathEscaper.Escape(moduleAddress)
 	if ModuleLoader_IsRelativeIdentifier(moduleAddress) {
 		ourPath := scriptAddress
@@ -167,7 +169,7 @@ func (r *ModuleResolverBase) CanonicalizePath(scriptAddress string, moduleAddres
 }
 
 // Java: ModuleResolver.setErrorHandler(ErrorHandler)
-func (r *ModuleResolverBase) SetErrorHandler(errorHandler ErrorHandler) {
+func (r *moduleResolverCommon) SetErrorHandler(errorHandler ErrorHandler) {
 	r.errorHandler = errorHandler
 }
 
@@ -176,7 +178,7 @@ func (r *ModuleResolverBase) SetErrorHandler(errorHandler ErrorHandler) {
 // Only unambiguous paths are supported. Paths must specify a file
 // extension.
 type BrowserModuleResolver struct {
-	ModuleResolverBase
+	moduleResolverCommon
 }
 
 var _ ModuleResolver = (*BrowserModuleResolver)(nil)
@@ -193,9 +195,9 @@ func NewBrowserModuleResolver(
 	moduleRootPaths []string,
 	errorHandler ErrorHandler,
 	pathEscaper ModuleLoader_PathEscaper) *BrowserModuleResolver {
-	r := &BrowserModuleResolver{}
-	r.InitModuleResolverBase(modulePaths, moduleRootPaths, errorHandler, pathEscaper)
-	return r
+	return &BrowserModuleResolver{
+		moduleResolverCommon: newModuleResolverCommon(modulePaths, moduleRootPaths, errorHandler, pathEscaper),
+	}
 }
 
 // ResolveJsModule may return nil.

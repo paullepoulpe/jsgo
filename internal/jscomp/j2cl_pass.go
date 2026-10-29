@@ -294,7 +294,11 @@ func (f *J2clPass_ClassStaticFunctionsInliner_InlinableFunction) InliningMode() 
 //
 // Java: J2clPass.ClassStaticFunctionsInliner.InlinableFunction.toString()
 func (f *J2clPass_ClassStaticFunctionsInliner_InlinableFunction) String() string {
-	return "InlinableFunction[impl=" + jutil.ToJavaString(f.impl) + ", inliningMode=" + f.inliningMode.String() + "]"
+	implStr := "null"
+	if !f.impl.IsNil() {
+		implStr = f.impl.String()
+	}
+	return "InlinableFunction[impl=" + implStr + ", inliningMode=" + f.inliningMode.String() + "]"
 }
 
 func (p *J2clPass) getOrCreateInliner(root rhino.Node, inlineSpecs []*J2clPass_InlineSpec) *J2clPass_ClassStaticFunctionsInliner {

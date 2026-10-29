@@ -48,15 +48,3 @@ func TestBufferedWriterMatchesJava(t *testing.T) {
 	}
 	bw.Close() // no effect
 }
-
-func TestFilesNewOutputStreamOptions(t *testing.T) {
-	p := Path_Of(t.TempDir(), "f.txt")
-	if got := throwableString(func() {
-		Files_NewOutputStream(p, StandardOpenOption_APPEND, StandardOpenOption_TRUNCATE_EXISTING)
-	}); got != "java.lang.IllegalArgumentException: APPEND + TRUNCATE_EXISTING not allowed" {
-		t.Errorf("got %s", got)
-	}
-	if got := throwableString(func() { Files_CreateDirectories(nil) }); !strings.HasPrefix(got, "java.lang.NullPointerException: Cannot invoke") {
-		t.Errorf("got %s", got)
-	}
-}

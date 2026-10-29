@@ -1,7 +1,24 @@
 // Port of com/google/javascript/jscomp/CodingConventions.java @ closure-compiler v20261021
+// Port of com/google/javascript/jscomp/ChromeCodingConvention.java @ closure-compiler v20261021
 
 /*
  * Copyright 2011 The Closure Compiler Authors.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+/*
+ * Copyright 2014 The Closure Compiler Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -43,6 +60,11 @@ var (
 
 	jscompInheritsQName        = rhino.QualifiedName_Of("$jscomp.inherits")
 	functionPrototypeBindCallQ = rhino.QualifiedName_Of("Function.prototype.bind.call")
+	chromeAddSingletonGetterQ  = rhino.QualifiedName_Of("cr.addSingletonGetter")
+
+	codingConvArrayID   = rhino.RhinoStringPool_InternID("Array")
+	codingConvIsArrayID = rhino.RhinoStringPool_InternID("isArray")
+	codingConvBindID    = rhino.RhinoStringPool_InternID("bind")
 )
 
 // CodingConventions_GetDefault gets the default coding convention.
@@ -69,36 +91,8 @@ func callAlwaysThrowsQName(n rhino.Node, qname rhino.QualifiedName) bool {
 	return ok && qname.Matches(call.Callee().Node())
 }
 
-// CodingConventions_ProxyBase wraps a CodingConvention via Go struct embedding
-// so subclasses only declare the methods they customize.
-type CodingConventions_ProxyBase struct {
-	CodingConvention
-	self CodingConvention
-}
-
-func newProxyBase(self, next CodingConvention) CodingConventions_ProxyBase {
-	return CodingConventions_ProxyBase{
-		CodingConvention: next,
-		self:             self,
-	}
-}
-
-// IsExported dispatches through p.self so subclass overrides of
-// IsExportedWithLocal are observed.
-func (p *CodingConventions_ProxyBase) IsExported(name string) bool {
-	return CodingConvention_IsExported(p.self, name)
-}
-
-func (p *CodingConventions_ProxyBase) BlockRenamingForProperty(name string) bool {
-	return false
-}
-
-func (p *CodingConventions_ProxyBase) IsPrototypeAlias(getProp rhino.Node) bool {
-	return false
-}
-
 // CodingConventions_DefaultCodingConvention is the default coding convention
-// at the bottom of proxy chains.
+// at the bottom of convention chains.
 type CodingConventions_DefaultCodingConvention struct{}
 
 func (d *CodingConventions_DefaultCodingConvention) IsConstant(variableName string) bool {
@@ -215,10 +209,10 @@ func (d *CodingConventions_DefaultCodingConvention) ApplySingletonGetter(
 }
 
 func (d *CodingConventions_DefaultCodingConvention) IsPropertyTestFunction(call rhino.Node) bool {
-	if gp, ok := ast.AsGetProp(call.GetFirstChild()); ok && gp.Property() == "isArray" {
-		if recv, ok := gp.Object().AsName(); ok && recv.Ident() == "Array" {
-			return true
-		}
+	callee := call.GetFirstChild()
+	if callee.IsGetProp() && callee.GetStringID() == codingConvIsArrayID {
+		recv := callee.GetFirstChild()
+		return recv.IsName() && recv.GetStringID() == codingConvArrayID
 	}
 	return false
 }
@@ -256,8 +250,8 @@ func (d *CodingConventions_DefaultCodingConvention) DescribeFunctionBind(n rhino
 		return NewCodingConvention_Bind(fn, thisValue, parameters)
 	}
 
-	if gp, ok := ast.AsGetProp(callTarget); ok && gp.Property() == "bind" {
-		maybeFn := gp.Object().Node()
+	if callTarget.IsGetProp() && callTarget.GetStringID() == codingConvBindID {
+		maybeFn := callTarget.GetFirstChild()
 		maybeFnType := maybeFn.GetJSType()
 		var fnType rhino.FunctionType
 		if checkTypes && maybeFnType != nil {
@@ -282,4 +276,44 @@ func safeNextNode(n rhino.Node) rhino.Node {
 		return n.GetNext()
 	}
 	return rhino.NilNode
+}
+
+// ChromeCodingConvention is the coding convention used by the Chrome team to
+// compile Chrome's JS.
+type ChromeCodingConvention struct {
+	CodingConvention
+}
+
+func NewChromeCodingConvention() *ChromeCodingConvention {
+	return NewChromeCodingConventionWithConvention(CodingConventions_GetDefault())
+}
+
+func NewChromeCodingConventionWithConvention(wrapped CodingConvention) *ChromeCodingConvention {
+	return &ChromeCodingConvention{CodingConvention: wrapped}
+}
+
+func (c *ChromeCodingConvention) IsExported(name string) bool {
+	return CodingConvention_IsExported(c, name)
+}
+
+func (c *ChromeCodingConvention) BlockRenamingForProperty(name string) bool {
+	return false
+}
+
+func (c *ChromeCodingConvention) IsPrototypeAlias(getProp rhino.Node) bool {
+	return false
+}
+
+func (c *ChromeCodingConvention) GetSingletonGetterClassName(callNode rhino.Node) *string {
+	callArg := callNode.GetFirstChild()
+	if !chromeAddSingletonGetterQ.Matches(callArg) || !callNode.HasTwoChildren() {
+		return c.CodingConvention.GetSingletonGetterClassName(callNode)
+	}
+	return callArg.GetNext().GetQualifiedName()
+}
+
+func (c *ChromeCodingConvention) ApplySingletonGetter(classType *rhino.NominalTypeBuilder, getterType rhino.FunctionType) {
+	defSite := classType.Constructor().GetSource()
+	classType.DeclareConstructorProperty("getInstance", getterType, defSite)
+	classType.DeclareConstructorProperty("instance_", classType.Instance(), defSite)
 }

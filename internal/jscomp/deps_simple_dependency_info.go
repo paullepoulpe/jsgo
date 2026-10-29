@@ -21,8 +21,15 @@ package jscomp
 
 import (
 	"slices"
+	"strconv"
 
 	"github.com/paullepoulpe/jsgo/internal/jutil"
+)
+
+const (
+	simpleDepModuleNone uint8 = iota
+	simpleDepModuleGoog
+	simpleDepModuleES6
 )
 
 // SimpleDependencyInfo holds JS dependency information for a single .js file.
@@ -33,6 +40,7 @@ type SimpleDependencyInfo struct {
 	requires                  []*DependencyInfo_Require
 	typeRequires              []string
 	loadFlags                 *jutil.LinkedHashMap[string, string]
+	moduleKind                uint8
 	hasExternsAnnotation      bool
 	hasNoCompileAnnotation    bool
 }
@@ -53,34 +61,99 @@ var (
 		m.Put("module", "es6")
 		return m
 	}()
-	simpleDependencyInfo_langModuleFlags = func() map[[2]string]*jutil.LinkedHashMap[string, string] {
+	simpleDependencyInfo_singletonModuleKind = map[*jutil.LinkedHashMap[string, string]]uint8{}
+	simpleDependencyInfo_langModuleFlags     = func() map[[2]string]*jutil.LinkedHashMap[string, string] {
 		langs := []string{"", "es5", "es6", "es7", "es8", "es9", "es_2020", "es_2021", "es_next", "ts_unsupported"}
 		mods := []string{"", "goog", "es6"}
 		out := make(map[[2]string]*jutil.LinkedHashMap[string, string], len(langs)*len(mods))
 		for _, l := range langs {
 			for _, mod := range mods {
+				var m *jutil.LinkedHashMap[string, string]
 				switch {
 				case l == "" && mod == "":
-					out[[2]string{l, mod}] = simpleDependencyInfo_EMPTY_FLAGS
+					m = simpleDependencyInfo_EMPTY_FLAGS
 				case l == "" && mod == "goog":
-					out[[2]string{l, mod}] = simpleDependencyInfo_Builder_GOOG_MODULE_FLAGS
+					m = simpleDependencyInfo_Builder_GOOG_MODULE_FLAGS
 				case l == "" && mod == "es6":
-					out[[2]string{l, mod}] = simpleDependencyInfo_ES6_FLAGS
+					m = simpleDependencyInfo_ES6_FLAGS
 				default:
-					m := jutil.NewLinkedHashMap[string, string]()
+					m = jutil.NewLinkedHashMap[string, string]()
 					if l != "" {
 						m.Put("lang", l)
 					}
 					if mod != "" {
 						m.Put("module", mod)
 					}
-					out[[2]string{l, mod}] = m
 				}
+				out[[2]string{l, mod}] = m
+				var kind uint8
+				switch mod {
+				case "goog":
+					kind = simpleDepModuleGoog
+				case "es6":
+					kind = simpleDepModuleES6
+				}
+				simpleDependencyInfo_singletonModuleKind[m] = kind
 			}
 		}
 		return out
 	}()
 )
+
+func simpleDependencyInfo_moduleKindOf(mod string) uint8 {
+	switch mod {
+	case "goog":
+		return simpleDepModuleGoog
+	case "es6":
+		return simpleDepModuleES6
+	default:
+		return simpleDepModuleNone
+	}
+}
+
+func simpleDependencyInfo_normalizeFlags(
+	loadFlags *jutil.LinkedHashMap[string, string],
+	cloneCustom bool,
+) (*jutil.LinkedHashMap[string, string], uint8) {
+	if loadFlags == nil || loadFlags.IsEmpty() {
+		return simpleDependencyInfo_EMPTY_FLAGS, simpleDepModuleNone
+	}
+	if kind, ok := simpleDependencyInfo_singletonModuleKind[loadFlags]; ok {
+		return loadFlags, kind
+	}
+	if loadFlags.Size() <= 2 {
+		var lang, mod string
+		validOrder := true
+		idx := 0
+		for k, v := range loadFlags.All() {
+			switch k {
+			case "lang":
+				if idx != 0 || v == "" {
+					validOrder = false
+				}
+				lang = v
+			case "module":
+				if v == "" {
+					validOrder = false
+				}
+				mod = v
+			default:
+				validOrder = false
+			}
+			idx++
+		}
+		if validOrder {
+			if singleton, ok := simpleDependencyInfo_langModuleFlags[[2]string{lang, mod}]; ok {
+				return singleton, simpleDependencyInfo_moduleKindOf(mod)
+			}
+		}
+	}
+	mod, _ := loadFlags.Lookup("module")
+	if cloneCustom {
+		loadFlags = jutil.NewLinkedHashMapFrom(loadFlags)
+	}
+	return loadFlags, simpleDependencyInfo_moduleKindOf(mod)
+}
 
 func simpleDependencyInfo_flagsForLangModule(lang, mod string) *jutil.LinkedHashMap[string, string] {
 	if m, ok := simpleDependencyInfo_langModuleFlags[[2]string{lang, mod}]; ok {
@@ -119,16 +192,15 @@ func newSimpleDependencyInfoDirect(
 			typeReqCopy = combined[np:]
 		}
 	}
-	if loadFlags == nil || loadFlags.IsEmpty() {
-		loadFlags = simpleDependencyInfo_EMPTY_FLAGS
-	}
+	normFlags, modKind := simpleDependencyInfo_normalizeFlags(loadFlags, false)
 	return &SimpleDependencyInfo{
 		name:                      pathOfDefiningFile,
 		pathRelativeToClosureBase: srcPathRelativeToClosure,
 		provides:                  provCopy,
 		requires:                  simpleDependencyInfo_copyRequires(requires),
 		typeRequires:              typeReqCopy,
-		loadFlags:                 loadFlags,
+		loadFlags:                 normFlags,
+		moduleKind:                modKind,
 		hasExternsAnnotation:      hasExternsAnnotation,
 		hasNoCompileAnnotation:    hasNoCompileAnnotation,
 	}
@@ -168,10 +240,10 @@ func (d *SimpleDependencyInfo) GetRequiredSymbols() []string {
 }
 
 // Java: DependencyInfo.isEs6Module()
-func (d *SimpleDependencyInfo) IsEs6Module() bool { return DependencyInfo_IsEs6Module(d) }
+func (d *SimpleDependencyInfo) IsEs6Module() bool { return d.moduleKind == simpleDepModuleES6 }
 
 // Java: DependencyInfo.isGoogModule()
-func (d *SimpleDependencyInfo) IsGoogModule() bool { return DependencyInfo_IsGoogModule(d) }
+func (d *SimpleDependencyInfo) IsGoogModule() bool { return d.moduleKind == simpleDepModuleGoog }
 
 // Java: AutoValue_SimpleDependencyInfo.toString()
 func (d *SimpleDependencyInfo) String() string {
@@ -182,8 +254,8 @@ func (d *SimpleDependencyInfo) String() string {
 		"requires=" + jutil.CollectionToString(d.requires) + ", " +
 		"typeRequires=" + jutil.CollectionToString(d.typeRequires) + ", " +
 		"loadFlags=" + d.loadFlags.String() + ", " +
-		"hasExternsAnnotation=" + jutil.ToJavaString(d.hasExternsAnnotation) + ", " +
-		"hasNoCompileAnnotation=" + jutil.ToJavaString(d.hasNoCompileAnnotation) +
+		"hasExternsAnnotation=" + strconv.FormatBool(d.hasExternsAnnotation) + ", " +
+		"hasNoCompileAnnotation=" + strconv.FormatBool(d.hasNoCompileAnnotation) +
 		"}"
 }
 
@@ -332,13 +404,7 @@ func (b *SimpleDependencyInfo_Builder) SetTypeRequiresArray(typeRequires ...stri
 // Java: SimpleDependencyInfo.Builder.setLoadFlags(Map<String, String>)
 func (b *SimpleDependencyInfo_Builder) SetLoadFlags(loadFlags *jutil.LinkedHashMap[string, string]) *SimpleDependencyInfo_Builder {
 	jutil.CheckNotNull(loadFlags)
-	if loadFlags.IsEmpty() {
-		b.info.loadFlags = simpleDependencyInfo_EMPTY_FLAGS
-	} else if loadFlags == simpleDependencyInfo_Builder_GOOG_MODULE_FLAGS || loadFlags == simpleDependencyInfo_ES6_FLAGS {
-		b.info.loadFlags = loadFlags
-	} else {
-		b.info.loadFlags = jutil.NewLinkedHashMapFrom(loadFlags)
-	}
+	b.info.loadFlags, b.info.moduleKind = simpleDependencyInfo_normalizeFlags(loadFlags, true)
 	return b
 }
 
@@ -358,8 +424,10 @@ func (b *SimpleDependencyInfo_Builder) SetHasNoCompileAnnotation(hasNoCompileAnn
 func (b *SimpleDependencyInfo_Builder) SetGoogModule(isModule bool) *SimpleDependencyInfo_Builder {
 	if isModule {
 		b.info.loadFlags = simpleDependencyInfo_Builder_GOOG_MODULE_FLAGS
+		b.info.moduleKind = simpleDepModuleGoog
 	} else {
 		b.info.loadFlags = simpleDependencyInfo_EMPTY_FLAGS
+		b.info.moduleKind = simpleDepModuleNone
 	}
 	return b
 }

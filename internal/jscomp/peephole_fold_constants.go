@@ -37,6 +37,8 @@ var (
 	foldIDDefineProperties = uint32(strpool.Intern("defineProperties"))
 	foldIDString           = uint32(strpool.Intern("String"))
 	foldIDLength           = uint32(strpool.Intern("length"))
+	foldIDNaN              = uint32(strpool.Intern("NaN"))
+	foldIDObject           = uint32(strpool.Intern("Object"))
 )
 
 // Go-only: this pass uses the typed AST view (internal/ast) where it reads
@@ -63,7 +65,7 @@ var PeepholeFoldConstants_INVALID_GETELEM_INDEX_ERROR = DiagnosticType_Warning("
 
 var PeepholeFoldConstants_FRACTIONAL_BITWISE_OPERAND = DiagnosticType_Warning("JSC_FRACTIONAL_BITWISE_OPERAND", "Fractional bitwise operand: {0}")
 
-var peepholeFoldConstants_MAX_FOLD_NUMBER = jutil.MathPow(2, 53)
+var peepholeFoldConstants_MAX_FOLD_NUMBER = base.MathPow(2, 53)
 
 // NewPeepholeFoldConstants creates the optimization.
 //
@@ -349,7 +351,7 @@ func (p *PeepholeFoldConstants) TryFoldUnaryOperator(n rhino.Node) rhino.Node {
 		return n
 	case rhino.Token_NEG:
 		var result rhino.Node
-		if left.IsName() && left.GetString() == "NaN" {
+		if left.IsName() && left.GetStringID() == foldIDNaN {
 			result = left.Detach() // "-NaN" is "NaN".
 		} else if neg, ok := ast.AsUnary(left); ok && neg.Token() == rhino.Token_NEG {
 			leftLeft := neg.Operand().Node()
@@ -419,7 +421,7 @@ func (p *PeepholeFoldConstants) TryFoldInstanceof(n rhino.Node, left rhino.Node,
 			if !p.MayHaveSideEffects(left) {
 				replacementNode = rhino.IR_FalseNode()
 			}
-		} else if right.IsName() && right.GetString() == "Object" {
+		} else if right.IsName() && right.GetStringID() == foldIDObject {
 			replacementNode = rhino.IR_TrueNode()
 		}
 
@@ -867,7 +869,7 @@ func (p *PeepholeFoldConstants) PerformArithmeticOp(n rhino.Node, left rhino.Nod
 	case rhino.Token_EXPONENT:
 		if lOk && rOk {
 			return p.MaybeReplaceBinaryOpWithNumericResult(
-				jutil.MathPow(lval, rval), lval, rval)
+				base.MathPow(lval, rval), lval, rval)
 		}
 		return rhino.NilNode
 	default:
@@ -1200,7 +1202,7 @@ func (p *PeepholeFoldConstants) FoldAddTemplateLiterals(oldNode rhino.Node, left
 		strings.HasPrefix(firstRight.GetRawString(), "{") {
 		return oldNode
 	}
-	cooked := jutil.ToJavaString(lastLeft.GetCookedString()) + jutil.ToJavaString(firstRight.GetCookedString())
+	cooked := peepholeCookedString(lastLeft) + peepholeCookedString(firstRight)
 	mergeNode :=
 		rhino.IR_TemplateLiteralString(
 			&cooked,
@@ -1384,6 +1386,13 @@ func (p *PeepholeFoldConstants) TryFoldAdd(node rhino.Node, left rhino.Node, rig
 	}
 }
 
+func peepholeCookedString(n rhino.Node) string {
+	if s := n.GetCookedString(); s != nil {
+		return *s
+	}
+	return "null"
+}
+
 // Java: PeepholeFoldConstants.foldTemplateLiteralAndConstant(Node, Node, String)
 func (p *PeepholeFoldConstants) FoldTemplateLiteralAndConstant(oldNode rhino.Node, left rhino.Node, rightStr string) rhino.Node {
 	lastLeft := left.GetLastChild()
@@ -1393,7 +1402,7 @@ func (p *PeepholeFoldConstants) FoldTemplateLiteralAndConstant(oldNode rhino.Nod
 		return oldNode
 	}
 
-	cooked := jutil.ToJavaString(lastLeft.GetCookedString()) + rightStr
+	cooked := peepholeCookedString(lastLeft) + rightStr
 	mergeNode :=
 		rhino.IR_TemplateLiteralString(
 			&cooked, lastLeft.GetRawString()+rightStr)
@@ -1413,7 +1422,7 @@ func (p *PeepholeFoldConstants) FoldConstantAndTemplateLiteral(oldNode rhino.Nod
 		return oldNode
 	}
 
-	cooked := leftStr + jutil.ToJavaString(firstRight.GetCookedString())
+	cooked := leftStr + peepholeCookedString(firstRight)
 	mergeNode :=
 		rhino.IR_TemplateLiteralString(
 			&cooked, leftStr+firstRight.GetRawString())

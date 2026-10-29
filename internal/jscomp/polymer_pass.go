@@ -1,7 +1,25 @@
 // Port of com/google/javascript/jscomp/PolymerPass.java @ closure-compiler v20261021
+// Port of com/google/javascript/jscomp/PolymerPassErrors.java @ closure-compiler v20261021
+// Port of com/google/javascript/jscomp/PolymerPassFindExterns.java @ closure-compiler v20261021
 
 /*
  * Copyright 2015 The Closure Compiler Authors.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+/*
+ * Copyright 2016 The Closure Compiler Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -316,4 +334,155 @@ func NewPolymerPass_MemberDefinition(info *rhino.JSDocInfo, name rhino.Node, val
 // Java: PolymerPass.MemberDefinition.toString()
 func (m *PolymerPass_MemberDefinition) String() string {
 	return jutil.MoreObjects_ToStringHelper("MemberDefinition").Add("name", m.name).Add("value", m.value).String()
+}
+
+// PolymerPassErrors holds the static error constants related to the
+// PolymerPass.
+type PolymerPassErrors struct{}
+
+var (
+	// TODO(jlklein): Switch back to an error when everyone is upgraded to
+	// Polymer 1.0
+	PolymerPassErrors_POLYMER_DESCRIPTOR_NOT_VALID = DiagnosticType_Warning(
+		"JSC_POLYMER_DESCRIPTOR_NOT_VALID",
+		"The argument to Polymer() is not an obj lit or the Polymer 2 class does not have a"+
+			" static getter named 'config'. Ignoring this definition.")
+
+	PolymerPassErrors_POLYMER_INVALID_BEHAVIOR = DiagnosticType_Error(
+		"JSC_POLYMER_INVALID_BEHAVIOR", "A Polymer behavior may not include an ''is'' property.")
+
+	PolymerPassErrors_POLYMER_MISSING_IS = DiagnosticType_Error("JSC_POLYMER_MISSING_IS",
+		"The class descriptor must include an ''is'' property.")
+
+	PolymerPassErrors_POLYMER_UNEXPECTED_PARAMS = DiagnosticType_Error(
+		"JSC_POLYMER_UNEXPECTED_PARAMS", "The class definition has too many arguments.")
+
+	PolymerPassErrors_POLYMER_MISSING_EXTERNS = DiagnosticType_Error(
+		"JSC_POLYMER_MISSING_EXTERNS", "Missing Polymer externs.")
+
+	PolymerPassErrors_POLYMER_INVALID_PROPERTY = DiagnosticType_Error(
+		"JSC_POLYMER_INVALID_PROPERTY", "Polymer property has an invalid or missing type.")
+
+	PolymerPassErrors_POLYMER_INVALID_EXTENDS = DiagnosticType_Error(
+		"JSC_POLYMER_INVALID_EXTENDS",
+		"Cannot extend HTML element ''{0}''. The element is probably either misspelled,"+
+			" or needs to be added to the list of known elements.")
+
+	PolymerPassErrors_POLYMER_INVALID_BEHAVIOR_ARRAY = DiagnosticType_Error(
+		"JSC_POLYMER_INVALID_BEHAVIOR_ARRAY", "The behaviors property must be an array literal.")
+
+	PolymerPassErrors_POLYMER_UNQUALIFIED_BEHAVIOR = DiagnosticType_Error(
+		"JSC_POLYMER_UNQUALIFIED_BEHAVIOR",
+		"Behaviors must be global names or qualified names that are declared as object literals or "+
+			"array literals of other valid Behaviors.")
+
+	PolymerPassErrors_POLYMER_UNANNOTATED_BEHAVIOR = DiagnosticType_Error(
+		"JSC_POLYMER_UNANNOTATED_BEHAVIOR",
+		"Behavior declarations must be annotated with @polymerBehavior.")
+
+	PolymerPassErrors_POLYMER_CLASS_PROPERTIES_INVALID = DiagnosticType_Error(
+		"JSC_POLYMER_CLASS_PROPERTIES_INVALID",
+		"The Polymer element class 'properties' getter does not return an object literal. "+
+			"Ignoring this definition.")
+
+	PolymerPassErrors_POLYMER_CLASS_PROPERTIES_NOT_STATIC = DiagnosticType_Error(
+		"JSC_POLYMER_CLASS_PROPERTIES_NOT_STATIC",
+		"The Polymer element class 'properties' getter is not declared static. "+
+			"Ignoring this definition.")
+
+	PolymerPassErrors_POLYMER_CLASS_UNNAMED = DiagnosticType_Warning(
+		"JSC_POLYMER2_UNNAMED",
+		"Unable to locate a valid name for the Polymer element class."+
+			"Ignoring this definition.")
+
+	PolymerPassErrors_POLYMER_MISPLACED_PROPERTY_JSDOC = DiagnosticType_Warning(
+		"JSC_POLYMER_MISPLACED_PROPERTY_JSDOC",
+		"When a Polymer property is declared in the constructor, its JSDoc "+
+			"should only be in the constructor, not on the Polymer properties configuration.")
+
+	PolymerPassErrors_POLYMER_UNPARSABLE_STRING = DiagnosticType_Error(
+		"JSC_POLYMER_UNPARSABLE_STRING",
+		"The Polymer computed property or complex observer string could not be parsed.")
+)
+
+const polymerPassFindExterns_POLYMER_ELEMENT_NAME = "PolymerElement"
+
+// PolymerPassFindExterns finds the externs for the PolymerElement base class
+// and all of its properties in the externs.
+//
+// Java: final class PolymerPassFindExterns implements NodeTraversal.Callback
+type PolymerPassFindExterns struct {
+	polymerElementExterns rhino.Node
+	polymerElementProps   []rhino.Node
+}
+
+// Java: PolymerPassFindExterns()
+func NewPolymerPassFindExterns() *PolymerPassFindExterns {
+	return &PolymerPassFindExterns{}
+}
+
+// Java: PolymerPassFindExterns.shouldTraverse(NodeTraversal, Node, Node)
+func (f *PolymerPassFindExterns) ShouldTraverse(t *NodeTraversal, n rhino.Node, parent rhino.Node) bool {
+	/*
+	 * The externs subtree also includes @typeSummary files, which are slightly different from
+	 * normal externs. The Polymer externs may exist in either file type. However,
+	 * some @typeSummaries are goog.modules, which definitely don't contain Polymer externs, and
+	 * which we don't want to search.
+	 */
+	return !n.IsModuleBody()
+}
+
+// Java: PolymerPassFindExterns.visit(NodeTraversal, Node, Node)
+func (f *PolymerPassFindExterns) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
+	if polymerPassFindExterns_isPolymerElementExterns(n) {
+		f.polymerElementExterns = n
+	} else if polymerPassFindExterns_isPolymerElementPropExpr(n) {
+		f.polymerElementProps = append(f.polymerElementProps, n)
+	}
+}
+
+// GetPolymerElementProps returns all properties of the PolymerElement class
+// in externs.
+//
+// Java: PolymerPassFindExterns.getPolymerElementProps()
+func (f *PolymerPassFindExterns) GetPolymerElementProps() []rhino.Node {
+	// ImmutableList.Builder.build() snapshots the elements added so far.
+	return append([]rhino.Node(nil), f.polymerElementProps...)
+}
+
+// GetPolymerElementExterns returns the root Node PolymerElement class in
+// externs.
+//
+// Java: PolymerPassFindExterns.getPolymerElementExterns()
+func (f *PolymerPassFindExterns) GetPolymerElementExterns() rhino.Node {
+	return f.polymerElementExterns
+}
+
+// polymerPassFindExterns_isPolymerElementExterns returns whether the node is
+// the declaration of PolymerElement.
+//
+// Java: PolymerPassFindExterns.isPolymerElementExterns(Node)
+func polymerPassFindExterns_isPolymerElementExterns(value rhino.Node) bool {
+	// Explicitly allow var, let or const.
+	decl, ok := ast.AsNameDeclaration(value)
+	if !ok {
+		return false
+	}
+	first, ok := decl.FirstDeclarator()
+	return ok && first.Node().MatchesQualifiedName(polymerPassFindExterns_POLYMER_ELEMENT_NAME)
+}
+
+// polymerPassFindExterns_isPolymerElementPropExpr returns whether the node is
+// an expression result of an assignment to a property of PolymerElement.
+//
+// Java: PolymerPassFindExterns.isPolymerElementPropExpr(Node)
+func polymerPassFindExterns_isPolymerElementPropExpr(value rhino.Node) bool {
+	stmt, ok := ast.AsExprStmt(value)
+	if !ok {
+		return false
+	}
+	first := stmt.Expr().Node().GetFirstChild()
+	return first.IsGetProp() &&
+		first.IsQualifiedName() &&
+		NodeUtil_GetRootOfQualifiedName(first).MatchesQualifiedName(polymerPassFindExterns_POLYMER_ELEMENT_NAME)
 }

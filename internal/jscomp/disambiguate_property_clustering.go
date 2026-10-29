@@ -396,7 +396,8 @@ func (u *ColorNodeUnionFind) Elements() ColorNodeUFElementsView {
 // to enforce invariants in the contents of its datastructures. Instances
 // trust that sibling classes make mutations correctly.
 type PropertyClustering struct {
-	name string
+	name   string
+	nameID uint32
 
 	useSites PropertyUseSites
 
@@ -411,12 +412,16 @@ type PropertyClustering struct {
 func NewPropertyClustering(name string) *PropertyClustering {
 	// checkNotNull(name): a Go string is never null.
 	return &PropertyClustering{
-		name: name,
+		name:   name,
+		nameID: rhino.RhinoStringPool_InternID(name),
 	}
 }
 
 // Java: PropertyClustering.getName()
 func (p *PropertyClustering) GetName() string {
+	if p.name == "" && p.nameID != 0 {
+		p.name = rhino.RhinoStringPool_StringFromID(p.nameID)
+	}
 	return p.name
 }
 
@@ -505,5 +510,59 @@ func (p *PropertyClustering) RegisterOriginalNameType(type_ *ColorGraphNode) {
 //
 // Java: PropertyClustering.toString()
 func (p *PropertyClustering) String() string {
-	return jutil.MoreObjects_ToStringHelper("PropertyClustering").Add("name", p.name).String()
+	return jutil.MoreObjects_ToStringHelper("PropertyClustering").Add("name", p.GetName()).String()
+}
+
+type propertyClusteringIndex struct {
+	slab  jutil.Slab[PropertyClustering]
+	order []*PropertyClustering
+	byID  map[uint32]uint32
+}
+
+func newPropertyClusteringIndex(capHint int) *propertyClusteringIndex {
+	return &propertyClusteringIndex{
+		order: make([]*PropertyClustering, 0, capHint),
+		byID:  make(map[uint32]uint32, capHint),
+	}
+}
+
+func (idx *propertyClusteringIndex) getOrCreateByID(id uint32) *PropertyClustering {
+	if pos, ok := idx.byID[id]; ok {
+		return idx.order[pos]
+	}
+	p := idx.slab.New()
+	p.nameID = id
+	pos := uint32(len(idx.order))
+	idx.order = append(idx.order, p)
+	idx.byID[id] = pos
+	return p
+}
+
+func (idx *propertyClusteringIndex) getOrCreateByName(name string) *PropertyClustering {
+	id := rhino.RhinoStringPool_InternID(name)
+	if pos, ok := idx.byID[id]; ok {
+		return idx.order[pos]
+	}
+	p := idx.slab.New()
+	p.name = name
+	p.nameID = id
+	pos := uint32(len(idx.order))
+	idx.order = append(idx.order, p)
+	idx.byID[id] = pos
+	return p
+}
+
+func (idx *propertyClusteringIndex) getByName(name string) *PropertyClustering {
+	id := rhino.RhinoStringPool_LookupID(name)
+	if id == 0 && name != "" {
+		return nil
+	}
+	if pos, ok := idx.byID[id]; ok {
+		return idx.order[pos]
+	}
+	return nil
+}
+
+func (idx *propertyClusteringIndex) values() []*PropertyClustering {
+	return idx.order
 }

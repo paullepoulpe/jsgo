@@ -40,14 +40,6 @@ import (
 // com.google.protobuf.InvalidProtocolBufferException (an IOException).
 type InvalidProtocolBufferException struct{ jutil.IOException }
 
-func (*InvalidProtocolBufferException) invalidProtocolBufferException() {}
-
-// IInvalidProtocolBufferException matches InvalidProtocolBufferException.
-type IInvalidProtocolBufferException interface {
-	jutil.IIOException
-	invalidProtocolBufferException()
-}
-
 // NewInvalidProtocolBufferException is new InvalidProtocolBufferException(String).
 func NewInvalidProtocolBufferException(description string) *InvalidProtocolBufferException {
 	e := &InvalidProtocolBufferException{}
@@ -619,7 +611,7 @@ func (p *protoTextPrinter) unknownFieldSet(s *protoUnknownFieldSet) {
 			var nested *protoUnknownFieldSet
 			jutil.Try(func() {
 				nested = protoParseUnknownFieldSet(v)
-			}, func(e IInvalidProtocolBufferException) {
+			}, func(e *InvalidProtocolBufferException) {
 				nested = nil
 			})
 			if nested != nil {

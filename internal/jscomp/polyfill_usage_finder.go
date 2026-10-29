@@ -1,4 +1,5 @@
 // Port of com/google/javascript/jscomp/PolyfillUsageFinder.java @ closure-compiler v20261021
+// Port of com/google/javascript/jscomp/GuardedCallback.java @ closure-compiler v20261021
 
 /*
  * Copyright 2020 The Closure Compiler Authors.
@@ -16,12 +17,30 @@
  * limitations under the License.
  */
 
+/*
+ * Copyright 2016 The Closure Compiler Authors.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 package jscomp
 
 import (
+	"slices"
 	"strings"
 	"sync"
 
+	"github.com/paullepoulpe/jsgo/internal/ast"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/parser"
 	"github.com/paullepoulpe/jsgo/internal/resources"
@@ -480,7 +499,7 @@ func (g polyfillUsageFinder_Guard) ShouldInclude(isGuarded bool) bool {
 
 // Java: private class PolyfillUsageFinder.Traverser extends GuardedCallback<String>
 type polyfillUsageFinder_Traverser struct {
-	GuardedCallbackBase[string]
+	guardedTracker
 	outer *PolyfillUsageFinder
 
 	polyfillConsumer func(*PolyfillUsageFinder_PolyfillUsage)
@@ -494,10 +513,12 @@ func newPolyfillUsageFinder_Traverser(
 	compiler AbstractCompiler,
 	polyfillConsumer func(*PolyfillUsageFinder_PolyfillUsage),
 	includeGuardedUsages polyfillUsageFinder_Guard) *polyfillUsageFinder_Traverser {
-	tr := &polyfillUsageFinder_Traverser{outer: outer}
-	tr.InitGuardedCallbackBase(tr, compiler)
-	tr.polyfillConsumer = polyfillConsumer
-	tr.includeGuardedUsages = includeGuardedUsages
+	tr := &polyfillUsageFinder_Traverser{
+		outer:                outer,
+		polyfillConsumer:     polyfillConsumer,
+		includeGuardedUsages: includeGuardedUsages,
+	}
+	tr.initGuardedTracker(compiler)
 	return tr
 }
 
@@ -516,7 +537,13 @@ func (tr *polyfillUsageFinder_Traverser) ShouldTraverse(traversal *NodeTraversal
 			return false
 		}
 	}
-	return tr.GuardedCallbackBase.ShouldTraverse(traversal, n, parent)
+	return tr.shouldTraverse(n, parent)
+}
+
+func (tr *polyfillUsageFinder_Traverser) Visit(traversal *NodeTraversal, n rhino.Node, parent rhino.Node) {
+	tr.beforeVisit(n, parent)
+	tr.VisitGuarded(traversal, n, parent)
+	tr.afterVisit()
 }
 
 // Java: PolyfillUsageFinder.Traverser.visitGuarded(NodeTraversal, Node, Node)
@@ -543,7 +570,7 @@ func (tr *polyfillUsageFinder_Traverser) VisitName(traversal *NodeTraversal, nam
 	}
 	name := polyfill.nativeSymbol
 	if tr.outer.IsPolyfillVisibleInScope(traversal, name) &&
-		tr.includeGuardedUsages.ShouldInclude(tr.canPossiblyBeGuarded() && tr.IsGuarded(name)) {
+		tr.includeGuardedUsages.ShouldInclude(tr.canPossiblyBeGuarded() && tr.isGuarded(name)) {
 		tr.polyfillConsumer(PolyfillUsageFinder_PolyfillUsage_CreateNonExplicit(polyfill, nameNode, name))
 	}
 }
@@ -559,7 +586,7 @@ func (tr *polyfillUsageFinder_Traverser) VisitGetPropChain(traversal *NodeTraver
 	staticPolyfillUsage :=
 		tr.outer.MaybeCreateStaticPolyfillUsageForGetPropChain(traversal, getPropNode)
 	if staticPolyfillUsage != nil {
-		if tr.includeGuardedUsages.ShouldInclude(tr.canPossiblyBeGuarded() && tr.IsGuarded(staticPolyfillUsage.Name())) {
+		if tr.includeGuardedUsages.ShouldInclude(tr.canPossiblyBeGuarded() && tr.isGuarded(staticPolyfillUsage.Name())) {
 			tr.polyfillConsumer(staticPolyfillUsage)
 		}
 	} else {
@@ -571,7 +598,7 @@ func (tr *polyfillUsageFinder_Traverser) VisitGetPropChain(traversal *NodeTraver
 		// Note that we use ".foo" as the guard check for methods to keep them distinct in case
 		// there is also a static "foo" polyfill.
 		if methodEntry != nil &&
-			tr.includeGuardedUsages.ShouldInclude(tr.canPossiblyBeGuarded() && tr.IsGuarded(methodEntry.dotGuardName)) {
+			tr.includeGuardedUsages.ShouldInclude(tr.canPossiblyBeGuarded() && tr.isGuarded(methodEntry.dotGuardName)) {
 			for _, polyfill := range methodEntry.polyfills {
 				tr.polyfillConsumer(
 					PolyfillUsageFinder_PolyfillUsage_CreateNonExplicit(polyfill, getPropNode, methodEntry.methodName))
@@ -714,3 +741,253 @@ func PolyfillUsageFinder_FindGlobalPrefix(qualifiedName string) *string {
 
 // Java: PolyfillUsageFinder.GLOBAL_NAMES
 var polyfillUsageFinder_GLOBAL_NAMES = []string{"goog.global.", "window.", "goog$global.", "globalThis."}
+
+// guardedTracker keeps track of whether access to a string resource is
+// "guarded" or not (either intrinsically, e.g. `typeof x` / `if (x)`, or
+// conditionally behind an intrinsically guarded check).
+//
+// Ported from GuardedCallback<String>, flattened without generic/virtual self
+// dispatch.
+type guardedTracker struct {
+	compiler         AbstractCompiler
+	codingConvention CodingConvention
+	registeredGuards map[rhino.Node][]string
+	guarded          map[string]struct{}
+	installedGuards  map[rhino.Node][]string
+	contextStack     []*guardedCallback_Context
+	contextStackBuf  [64]*guardedCallback_Context
+}
+
+func (b *guardedTracker) initGuardedTracker(compiler AbstractCompiler) {
+	b.registeredGuards = nil
+	b.guarded = nil
+	b.installedGuards = nil
+	b.compiler = compiler
+	if compiler != nil {
+		b.codingConvention = compiler.GetCodingConvention()
+	}
+	b.contextStack = b.contextStackBuf[:0]
+}
+
+func (b *guardedTracker) putRegisteredGuard(node rhino.Node, resource string) {
+	list := b.registeredGuards[node]
+	if slices.Contains(list, resource) {
+		return
+	}
+	if b.registeredGuards == nil {
+		b.registeredGuards = make(map[rhino.Node][]string)
+	}
+	b.registeredGuards[node] = append(list, resource)
+}
+
+func (b *guardedTracker) canPossiblyBeGuarded() bool {
+	if len(b.contextStack) > 0 && b.contextStack[len(b.contextStack)-1].safe {
+		return true
+	}
+	return len(b.guarded) > 0
+}
+
+// Java: GuardedCallback.shouldTraverse(NodeTraversal, Node, Node)
+func (b *guardedTracker) shouldTraverse(n rhino.Node, parent rhino.Node) bool {
+	if parent.IsNil() {
+		b.contextStack = append(b.contextStack, guardedCallback_Context_EMPTY)
+		return true
+	}
+
+	top := b.contextStack[len(b.contextStack)-1]
+	b.contextStack = append(b.contextStack, top.descendWithCC(b.compiler, b.codingConvention, parent, n))
+
+	if len(b.registeredGuards) > 0 && guardedCallback_canHaveGuards(parent.GetToken()) {
+		if resources, ok := b.registeredGuards[parent]; ok {
+			delete(b.registeredGuards, parent)
+			if b.guarded == nil {
+				b.guarded = make(map[string]struct{})
+			}
+			if b.installedGuards == nil {
+				b.installedGuards = make(map[rhino.Node][]string)
+			}
+			for _, resource := range resources {
+				b.guarded[resource] = struct{}{}
+			}
+			b.installedGuards[parent] = append(b.installedGuards[parent], resources...)
+		}
+	}
+	return true
+}
+
+func (b *guardedTracker) beforeVisit(n rhino.Node, parent rhino.Node) {
+	ntok := n.GetToken()
+	if len(b.installedGuards) > 0 {
+		if !parent.IsNil() && guardedCallback_canHaveGuards(ntok) {
+			if resources, ok := b.installedGuards[n]; ok {
+				delete(b.installedGuards, n)
+				for _, r := range resources {
+					delete(b.guarded, r)
+				}
+			}
+		}
+		if ntok == rhino.Token_RETURN || ntok == rhino.Token_THROW {
+			b.promoteAbruptReturns(parent)
+		}
+	}
+}
+
+func (b *guardedTracker) afterVisit() {
+	if len(b.contextStack) == 0 {
+		panic(jutil.NewNoSuchElementException())
+	}
+	b.contextStack = b.contextStack[:len(b.contextStack)-1]
+}
+
+// Java: GuardedCallback.promoteAbruptReturns(Node)
+func (b *guardedTracker) promoteAbruptReturns(parent rhino.Node) {
+	if parent.IsBlock() {
+		parent = parent.GetParent()
+	}
+	if parent.IsIf() {
+		if resources := b.installedGuards[parent]; len(resources) > 0 {
+			grandparent := parent.GetParent()
+			if grandparent.IsBlock() || grandparent.IsScript() {
+				for _, r := range resources {
+					b.putRegisteredGuard(grandparent, r)
+				}
+			}
+		}
+	}
+}
+
+// Java: GuardedCallback.isGuarded(T)
+func (b *guardedTracker) isGuarded(resource string) bool {
+	if len(b.guarded) > 0 {
+		if _, ok := b.guarded[resource]; ok {
+			return true
+		}
+	}
+	if len(b.contextStack) == 0 {
+		return false
+	}
+	context := b.contextStack[len(b.contextStack)-1]
+	if !context.safe {
+		return false
+	}
+	for context != nil && !context.conditional.IsNil() {
+		b.putRegisteredGuard(context.conditional, resource)
+		context = context.linked
+	}
+	return true
+}
+
+type guardedCallback_Context struct {
+	conditional rhino.Node
+	safe        bool
+	linked      *guardedCallback_Context
+}
+
+var guardedCallback_Context_EMPTY = newGuardedCallback_Context(rhino.NilNode, false, nil)
+
+func newGuardedCallback_Context(conditional rhino.Node, safe bool, linked *guardedCallback_Context) *guardedCallback_Context {
+	return &guardedCallback_Context{conditional: conditional, safe: safe, linked: linked}
+}
+
+func (c *guardedCallback_Context) Link(newConditional rhino.Node, newSafe bool) *guardedCallback_Context {
+	var linked *guardedCallback_Context
+	if !c.conditional.IsNil() {
+		linked = c
+	}
+	return newGuardedCallback_Context(newConditional, newSafe, linked)
+}
+
+var guardedCallback_Context_SAFE_EMPTY = newGuardedCallback_Context(rhino.NilNode, true, nil)
+
+func (c *guardedCallback_Context) Propagate(newSafe bool) *guardedCallback_Context {
+	if newSafe == c.safe {
+		return c
+	}
+	if c.conditional.IsNil() && c.linked == nil {
+		if newSafe {
+			return guardedCallback_Context_SAFE_EMPTY
+		}
+		return guardedCallback_Context_EMPTY
+	}
+	return newGuardedCallback_Context(c.conditional, newSafe, c.linked)
+}
+
+func (c *guardedCallback_Context) descendWithCC(compiler AbstractCompiler, cc CodingConvention, parent rhino.Node, child rhino.Node) *guardedCallback_Context {
+	role := ast.RoleIn(child, parent)
+	switch parent.GetToken() {
+	case rhino.Token_CAST:
+		return c
+	case rhino.Token_COMMA:
+		if role == ast.RoleBinaryRight {
+			return c
+		}
+		return c.Propagate(true)
+	case rhino.Token_AND, rhino.Token_HOOK:
+		if role == ast.RoleBinaryLeft || role == ast.RoleHookCond {
+			return c.Link(parent, true)
+		}
+		return c
+	case rhino.Token_OR, rhino.Token_COALESCE:
+		if role == ast.RoleBinaryLeft {
+			return c.Link(parent, false)
+		}
+		return c
+	case rhino.Token_IF:
+		if role == ast.RoleIfCond {
+			return c.Link(parent, true)
+		}
+		return guardedCallback_Context_EMPTY
+	case rhino.Token_INSTANCEOF, rhino.Token_ASSIGN:
+		return c.Propagate(role == ast.RoleBinaryLeft || role == ast.RoleAssignTarget)
+	case rhino.Token_TYPEOF, rhino.Token_NOT, rhino.Token_EQ, rhino.Token_NE, rhino.Token_SHEQ, rhino.Token_SHNE:
+		return c.Propagate(true)
+	case rhino.Token_CALL:
+		return c.Propagate(role == ast.RoleCallArgs && guardedCallback_isPropertyTestFunction(compiler, cc, parent))
+	case rhino.Token_ROOT:
+		return guardedCallback_Context_EMPTY
+	case rhino.Token_OPTCHAIN_CALL, rhino.Token_OPTCHAIN_GETELEM, rhino.Token_OPTCHAIN_GETPROP:
+		if role == ast.RoleOptChainCallCallee || role == ast.RoleOptChainGetElemObject || role == ast.RoleOptChainGetPropObject {
+			return c.Link(parent, ast.MustOptChain(parent).IsStart())
+		}
+		return c.Propagate(false)
+	default:
+		if c.conditional.IsNil() || NodeUtil_IsStatement(parent) {
+			return guardedCallback_Context_EMPTY
+		}
+		return c.Propagate(false)
+	}
+}
+
+func guardedCallback_isPropertyTestFunction(compiler AbstractCompiler, cc CodingConvention, n rhino.Node) bool {
+	if cc == nil && compiler != nil {
+		cc = compiler.GetCodingConvention()
+	}
+	if cc != nil && cc.IsPropertyTestFunction(n) {
+		return true
+	}
+	if call, ok := ast.AsCall(n); ok {
+		if target, ok := call.Callee().AsName(); ok {
+			name := target.Ident()
+			return name == "String" || name == "Boolean"
+		}
+	}
+	return false
+}
+
+func guardedCallback_canHaveGuards(t rhino.Token) bool {
+	switch t {
+	case rhino.Token_AND,
+		rhino.Token_OR,
+		rhino.Token_COALESCE,
+		rhino.Token_HOOK,
+		rhino.Token_IF,
+		rhino.Token_BLOCK,
+		rhino.Token_SCRIPT,
+		rhino.Token_OPTCHAIN_CALL,
+		rhino.Token_OPTCHAIN_GETELEM,
+		rhino.Token_OPTCHAIN_GETPROP:
+		return true
+	default:
+		return false
+	}
+}

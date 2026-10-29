@@ -20,6 +20,7 @@ package graph
 
 import (
 	"slices"
+	"strconv"
 
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 )
@@ -156,7 +157,7 @@ func (g *LinkedDirectedGraph[N, E]) getLinkedNodeOrFail(val N) *LinkedDiGraphNod
 	if n := g.Nodes.Get(val); n != nil {
 		return n
 	}
-	panic(jutil.NewIllegalArgumentExceptionMsg(jutil.ToJavaString(val) + " does not exist in graph"))
+	panic(jutil.NewIllegalArgumentExceptionMsg(formatGraphValue(val) + " does not exist in graph"))
 }
 
 // Java: Graph.getNodeOrFail(N)
@@ -407,6 +408,12 @@ func (g *LinkedDirectedGraph[N, E]) IsConnectedInDirectionWithEdge(source N, edg
 	dNode1 := g.getLinkedNodeOrFail(source)
 	dNode2 := g.getLinkedNodeOrFail(dest)
 	return g.isConnectedInDirectionOfNodesWithEdge(dNode1, edgeValue, dNode2)
+}
+
+// IsConnectedInDirectionOfNodesAny reports whether source has any directed edge to dest.
+func (g *LinkedDirectedGraph[N, E]) IsConnectedInDirectionOfNodesAny(
+	source *LinkedDiGraphNode[N, E], dest *LinkedDiGraphNode[N, E]) bool {
+	return g.isConnectedInDirectionOfNodesAny(source, dest)
 }
 
 func (g *LinkedDirectedGraph[N, E]) isConnectedInDirectionOfNodesAny(
@@ -745,7 +752,7 @@ func (n *LinkedDiGraphNode[N, E]) GetColor() string {
 
 // Java: LinkedDirectedGraph.LinkedDiGraphNode.getId()
 func (n *LinkedDiGraphNode[N, E]) GetId() string {
-	return "LDN" + jutil.ToJavaString(jutil.IdentityHashCode(n))
+	return "LDN" + strconv.FormatInt(int64(jutil.IdentityHashCode(n)), 10)
 }
 
 // Java: LinkedDirectedGraph.LinkedDiGraphNode.getLabel()
@@ -753,7 +760,7 @@ func (n *LinkedDiGraphNode[N, E]) GetLabel() string {
 	if n.annotated {
 		result := n.String()
 		if n.Annotation != nil {
-			result += "\n" + jutil.ToJavaString(n.Annotation)
+			result += "\n" + formatGraphValue(n.Annotation)
 		}
 		return result
 	}
@@ -762,7 +769,7 @@ func (n *LinkedDiGraphNode[N, E]) GetLabel() string {
 
 // Java: LinkedDirectedGraph.LinkedDiGraphNode.toString()
 func (n *LinkedDiGraphNode[N, E]) String() string {
-	return jutil.ToJavaString(n.Value)
+	return formatGraphValue(n.Value)
 }
 
 // Java: LinkedDirectedGraph.LinkedDiGraphNode.getInEdges()
@@ -859,7 +866,7 @@ func (e *LinkedDiGraphEdge[N, E]) GetColor() string {
 
 // Java: LinkedDirectedGraph.LinkedDiGraphEdge.getLabel()
 func (e *LinkedDiGraphEdge[N, E]) GetLabel() string {
-	return jutil.ToJavaString(e.Value)
+	return formatGraphValue(e.Value)
 }
 
 // Java: LinkedDirectedGraph.LinkedDiGraphEdge.getNode1Id()

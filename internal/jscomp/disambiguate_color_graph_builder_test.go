@@ -670,7 +670,7 @@ func (f *colorGraphBuilderTest_StubLcaFinder) addStub(from, to *jutil.LinkedHash
 }
 
 // Java: ColorGraphBuilderTest.StubLcaFinder.findAll(Set<ColorGraphNode>)
-func (f *colorGraphBuilderTest_StubLcaFinder) FindAll(roots jutil.Set[*ColorGraphNode]) *jutil.LinkedHashSet[*ColorGraphNode] {
+func (f *colorGraphBuilderTest_StubLcaFinder) FindAll(roots *jutil.LinkedHashSet[*ColorGraphNode]) *jutil.LinkedHashSet[*ColorGraphNode] {
 	for _, entry := range f.preconditions {
 		entry.run()
 		entry.count--
@@ -703,6 +703,18 @@ func (f *colorGraphBuilderTest_StubLcaFinder) FindAll(roots jutil.Set[*ColorGrap
 	AssertThat(results).HasSize(resultNames.Size())
 
 	return results
+}
+
+func (f *colorGraphBuilderTest_StubLcaFinder) FindAllSlice(roots []*ColorGraphNode, dst []*ColorGraphNode) []*ColorGraphNode {
+	set := jutil.NewLinkedHashSetWithCapacity[*ColorGraphNode](len(roots))
+	for _, r := range roots {
+		set.Add(r)
+	}
+	out := dst[:0]
+	for r := range f.FindAll(set).All() {
+		out = append(out, r)
+	}
+	return out
 }
 
 var _ graph.LowestCommonAncestorFinder[*ColorGraphNode, ColorGraphBuilder_EdgeReason] = (*colorGraphBuilderTest_StubLcaFinder)(nil)

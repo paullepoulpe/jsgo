@@ -678,7 +678,7 @@ func (c *Compiler) ToSource() string {
 								localLT = newCompiler_SingleBinaryLicenseTracker(c)
 								printed[j].lt = localLT
 							} else {
-								localLT.currentlySeenLicenses.Clear()
+								localLT.current.clear()
 								localLT.lastSeenFile = ""
 							}
 							c.toSourceAndMappingsIntoWithScratch(scripts[idx], idx == 0, localLT, &printed[j].sm, &scratches[w])
@@ -696,10 +696,10 @@ func (c *Compiler) ToSource() string {
 								}
 								printed[j].resolved = out
 							}
-							if localLT.currentlySeenLicenses.IsEmpty() {
-								printed[j].licenses = nil
+							if localLT.current.isEmpty() {
+								printed[j].licenses = printed[j].licenses[:0]
 							} else {
-								printed[j].licenses = localLT.currentlySeenLicenses.ToSlice()
+								printed[j].licenses = append(printed[j].licenses[:0], localLT.current.order...)
 							}
 						})
 						for _, f := range failures {
@@ -710,11 +710,9 @@ func (c *Compiler) ToSource() string {
 						for j := 0; j < batchLen; j++ {
 							idx := batchStart + j
 							for _, lic := range printed[j].licenses {
-								if !lt.globallyUniqueLicenses.Contains(lic) {
-									lt.currentlySeenLicenses.Add(lic)
-								}
+								lt.addLicense(lic)
 							}
-							printed[j].licenses = nil
+							printed[j].licenses = printed[j].licenses[:0]
 							if fastResolve {
 								c.appendSourceAndResolvedMappingsToCodeBuilder(cb, lt, idx, scripts[idx], &printed[j].sm, printed[j].resolved)
 								printed[j].resolved = printed[j].resolved[:0]

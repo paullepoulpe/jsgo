@@ -62,25 +62,35 @@ func (c *GuardedCallbackTest) GetProcessor(compiler *Compiler) CompilerPass {
 // property references with "GUARDED_NAME" and "GUARDED_PROP",
 // respectively.
 type guardedCallbackTest_GuardSwitchingCallback struct {
-	GuardedCallbackBase[string]
+	guardedTracker
 }
 
 // Java: GuardedCallbackTest.GuardSwitchingCallback(AbstractCompiler)
 func newGuardedCallbackTest_GuardSwitchingCallback(compiler AbstractCompiler) *guardedCallbackTest_GuardSwitchingCallback {
 	cb := &guardedCallbackTest_GuardSwitchingCallback{}
-	cb.InitGuardedCallbackBase(cb, compiler)
+	cb.initGuardedTracker(compiler)
 	return cb
 }
 
+func (cb *guardedCallbackTest_GuardSwitchingCallback) ShouldTraverse(traversal *NodeTraversal, n rhino.Node, parent rhino.Node) bool {
+	return cb.shouldTraverse(n, parent)
+}
+
+func (cb *guardedCallbackTest_GuardSwitchingCallback) Visit(traversal *NodeTraversal, n rhino.Node, parent rhino.Node) {
+	cb.beforeVisit(n, parent)
+	cb.visitGuarded(traversal, n)
+	cb.afterVisit()
+}
+
 // Java: GuardedCallbackTest.GuardSwitchingCallback.visitGuarded(NodeTraversal, Node, Node)
-func (cb *guardedCallbackTest_GuardSwitchingCallback) VisitGuarded(traversal *NodeTraversal, n rhino.Node, parent rhino.Node) {
-	if n.IsName() && cb.IsGuarded(n.GetString()) {
+func (cb *guardedCallbackTest_GuardSwitchingCallback) visitGuarded(traversal *NodeTraversal, n rhino.Node) {
+	if n.IsName() && cb.isGuarded(n.GetString()) {
 		n.SetString("GUARDED_NAME")
 		traversal.ReportCodeChange()
 	} else if n.IsGetProp() || n.IsOptChainGetProp() {
 		// prefix guarded resource name with "." to keep properties distinct
 		// from names
-		if cb.IsGuarded("." + n.GetString()) {
+		if cb.isGuarded("." + n.GetString()) {
 			n.SetString("GUARDED_PROP")
 			traversal.ReportCodeChange()
 		}

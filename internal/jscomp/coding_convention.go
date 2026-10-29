@@ -524,9 +524,9 @@ func (k CodingConvention_AssertionFunctionSpec_AssertionKind) String() string {
 // CodingConvention_AssertionFunctionLookup stores a relation from either
 // name or Closure Primitive to assertion function.
 type CodingConvention_AssertionFunctionLookup struct {
-	byPrimitive map[rhino.ClosurePrimitive]*CodingConvention_AssertionFunctionSpec
-	byName      map[string]*CodingConvention_AssertionFunctionSpec
-	byLastProp  map[string][]*CodingConvention_AssertionFunctionSpec
+	byPrimitive  map[rhino.ClosurePrimitive]*CodingConvention_AssertionFunctionSpec
+	byNameID     map[uint32]*CodingConvention_AssertionFunctionSpec
+	byLastPropID map[uint32][]*CodingConvention_AssertionFunctionSpec
 }
 
 // CodingConvention_AssertionFunctionLookup_Of returns a new lookup containing
@@ -550,26 +550,27 @@ func CodingConvention_AssertionFunctionLookup_Of(
 		case spec.hasFunctionName:
 			key := spec.functionName
 			if lastDot := strings.LastIndexByte(key, '.'); lastDot >= 0 {
-				if l.byLastProp == nil {
-					l.byLastProp = make(map[string][]*CodingConvention_AssertionFunctionSpec)
+				if l.byLastPropID == nil {
+					l.byLastPropID = make(map[uint32][]*CodingConvention_AssertionFunctionSpec)
 				}
-				lastProp := key[lastDot+1:]
-				for _, prev := range l.byLastProp[lastProp] {
+				lastPropID := rhino.RhinoStringPool_InternID(key[lastDot+1:])
+				for _, prev := range l.byLastPropID[lastPropID] {
 					if prev.hasFunctionName && prev.functionName == key {
 						panic(jutil.NewIllegalArgumentExceptionMsg(
 							"Multiple entries with same key: " + key + "=" + spec.String() + " and " + key + "=" + prev.String()))
 					}
 				}
-				l.byLastProp[lastProp] = append(l.byLastProp[lastProp], spec)
+				l.byLastPropID[lastPropID] = append(l.byLastPropID[lastPropID], spec)
 			} else {
-				if l.byName == nil {
-					l.byName = make(map[string]*CodingConvention_AssertionFunctionSpec)
+				if l.byNameID == nil {
+					l.byNameID = make(map[uint32]*CodingConvention_AssertionFunctionSpec)
 				}
-				if prev, exists := l.byName[key]; exists {
+				nameID := rhino.RhinoStringPool_InternID(key)
+				if prev, exists := l.byNameID[nameID]; exists {
 					panic(jutil.NewIllegalArgumentExceptionMsg(
 						"Multiple entries with same key: " + key + "=" + spec.String() + " and " + key + "=" + prev.String()))
 				}
-				l.byName[key] = spec
+				l.byNameID[nameID] = spec
 			}
 		default:
 			panic(jutil.NewNullPointerException())
@@ -588,10 +589,10 @@ func (l *CodingConvention_AssertionFunctionLookup) LookupByCallee(callee rhino.N
 		}
 	}
 	if callee.IsName() {
-		return l.byName[callee.GetString()]
+		return l.byNameID[callee.GetStringID()]
 	}
-	if callee.IsGetProp() && len(l.byLastProp) > 0 {
-		for _, spec := range l.byLastProp[callee.GetString()] {
+	if callee.IsGetProp() && len(l.byLastPropID) > 0 {
+		for _, spec := range l.byLastPropID[callee.GetStringID()] {
 			if spec.qname != nil && spec.qname.Matches(callee) {
 				return spec
 			}

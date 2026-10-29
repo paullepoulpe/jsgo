@@ -187,9 +187,9 @@ func (m *CrossChunkMethodMotion) tryToMovePrototypeMethod(
 		}
 		destParent := m.compiler.GetNodeForCodeInsertion(deepestCommonChunkRef)
 		if valueParent.IsMemberFunctionDef() {
-			m.MovePrototypeObjectLiteralMethodShorthand(nameInfo.name, destParent, value)
+			m.MovePrototypeObjectLiteralMethodShorthand(nameInfo.String(), destParent, value)
 		} else if valueParent.IsStringKey() {
-			m.MovePrototypeObjectLiteralProperty(nameInfo.name, destParent, value)
+			m.MovePrototypeObjectLiteralProperty(nameInfo.String(), destParent, value)
 		} else {
 			// Note that computed properties should have been filtered out by
 			// AnalyzePrototypeProperties, because they don't have a recognizable property name.
@@ -218,7 +218,7 @@ func (m *CrossChunkMethodMotion) MovePrototypeObjectLiteralProperty(
 	ownerDotPrototypeNode := assign.Target().Node()
 	jutil.CheckStateMsg1(
 		ownerDotPrototypeNode.IsQualifiedName() &&
-			ownerDotPrototypeNode.GetString() == "prototype",
+			ownerDotPrototypeNode.GetStringID() == analyzeProtoPrototypeID,
 		"%s", ownerDotPrototypeNode)
 
 	if m.noStubFunctions {
@@ -325,7 +325,7 @@ func (m *CrossChunkMethodMotion) MovePrototypeObjectLiteralMethodShorthand(
 	ownerDotPrototypeNode := assign.Target().Node()
 	jutil.CheckStateMsg1(
 		ownerDotPrototypeNode.IsQualifiedName() &&
-			ownerDotPrototypeNode.GetString() == "prototype",
+			ownerDotPrototypeNode.GetStringID() == analyzeProtoPrototypeID,
 		"%s", ownerDotPrototypeNode)
 	originalScript := NodeUtil_GetEnclosingScript(memberFunctionDef)
 

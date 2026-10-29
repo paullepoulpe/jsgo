@@ -344,6 +344,14 @@ func (d *PotentialDeclaration) simplifyDefine(compiler AbstractCompiler) {
 	NodeUtil_DeleteNode(d.GetRemovableNode(), compiler)
 }
 
+var (
+	potentialDeclBooleanID  = rhino.RhinoStringPool_InternID("boolean")
+	potentialDeclNumberID   = rhino.RhinoStringPool_InternID("number")
+	potentialDeclStringID   = rhino.RhinoStringPool_InternID("string")
+	potentialDeclTypeID     = rhino.RhinoStringPool_InternID("type")
+	potentialDeclReadOnlyID = rhino.RhinoStringPool_InternID("readOnly")
+)
+
 func potentialDeclaration_makeEmptyValueNode(type_ *rhino.JSTypeExpression) rhino.Node {
 	n := type_.GetRoot()
 	for !n.IsNil() && !n.IsStringLit() && !n.IsName() {
@@ -352,12 +360,12 @@ func potentialDeclaration_makeEmptyValueNode(type_ *rhino.JSTypeExpression) rhin
 	if n.IsNil() {
 		return rhino.NilNode
 	}
-	switch n.GetString() {
-	case "boolean":
+	switch n.GetStringID() {
+	case potentialDeclBooleanID:
 		return rhino.NewNode(rhino.Token_FALSE)
-	case "number":
+	case potentialDeclNumberID:
 		return rhino.Node_NewNumber(0)
-	case "string":
+	case potentialDeclStringID:
 		return rhino.Node_NewString("")
 	default:
 		return rhino.NilNode
@@ -398,7 +406,8 @@ func (d *PotentialDeclaration) simplifyPolymerBehaviorProperties(compiler Abstra
 		if defObj, isObj := ast.AsObjectLit(propDef); isObj {
 			for subProp := range ast.ReadAhead(defObj.FirstMember()) {
 				subNode := subProp.Node()
-				if subNode.GetString() != "type" && subNode.GetString() != "readOnly" {
+				subID := subNode.GetStringID()
+				if subID != potentialDeclTypeID && subID != potentialDeclReadOnlyID {
 					NodeUtil_DeleteNode(subNode, compiler)
 				}
 			}

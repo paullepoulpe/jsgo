@@ -19,7 +19,6 @@
 package resources
 
 import (
-	"regexp"
 	"strings"
 
 	"github.com/paullepoulpe/jsgo/internal/jutil"
@@ -33,11 +32,29 @@ import (
 // Java: final class PropertiesParser (only static members).
 type PropertiesParser struct{}
 
-// propertiesParser_lineSeparator is the regex of source.split("\r?\n").
-//
-// Go-only: language-adapter — the java.util.regex pattern as an RE2 regexp
-// (it has no backreferences or lookaround, so both engines agree).
-var propertiesParser_lineSeparator = regexp.MustCompile("\r?\n")
+// propertiesParser_splitLines implements source.split("\r?\n") (Java limit 0).
+func propertiesParser_splitLines(source string) []string {
+	if strings.IndexByte(source, '\n') < 0 {
+		return []string{source}
+	}
+	var parts []string
+	start := 0
+	for i := 0; i < len(source); i++ {
+		if source[i] == '\n' {
+			end := i
+			if end > start && source[end-1] == '\r' {
+				end--
+			}
+			parts = append(parts, source[start:end])
+			start = i + 1
+		}
+	}
+	parts = append(parts, source[start:])
+	for len(parts) > 0 && parts[len(parts)-1] == "" {
+		parts = parts[:len(parts)-1]
+	}
+	return parts
+}
 
 // PropertiesParser_Parse parses source into an ordered key/value map. It
 // throws IllegalArgumentException if a key occurs twice.
@@ -46,7 +63,7 @@ var propertiesParser_lineSeparator = regexp.MustCompile("\r?\n")
 func PropertiesParser_Parse(source string) *jutil.LinkedHashMap[string, string] {
 	builder := jutil.NewImmutableMapBuilder[string, string]()
 
-	lines := jutil.StringSplitRegexp(source, propertiesParser_lineSeparator)
+	lines := propertiesParser_splitLines(source)
 	for i := 0; i < len(lines); i++ {
 		line := lines[i]
 		if line == "" || strings.HasPrefix(line, "#") || strings.HasPrefix(line, "!") {

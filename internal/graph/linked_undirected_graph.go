@@ -21,6 +21,7 @@ package graph
 import (
 	"iter"
 	"slices"
+	"strconv"
 
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 )
@@ -118,7 +119,7 @@ func (g *LinkedUndirectedGraph[N, E]) getLinkedNodeOrFail(val N) *LinkedUndirect
 	if n := g.Nodes.Get(val); n != nil {
 		return n
 	}
-	panic(jutil.NewIllegalArgumentExceptionMsg(jutil.ToJavaString(val) + " does not exist in graph"))
+	panic(jutil.NewIllegalArgumentExceptionMsg(formatGraphValue(val) + " does not exist in graph"))
 }
 
 // Java: Graph.getNodeOrFail(N)
@@ -463,7 +464,7 @@ func (g *LinkedUndirectedGraph[N, E]) GetNodeCount() int {
 func (g *LinkedUndirectedGraph[N, E]) GetNodeDegree(value N) int {
 	uNode := g.Nodes.Get(value)
 	if uNode == nil {
-		panic(jutil.NewIllegalArgumentExceptionMsg(jutil.ToJavaString(value) + " not found in graph"))
+		panic(jutil.NewIllegalArgumentExceptionMsg(formatGraphValue(value) + " not found in graph"))
 	}
 	return len(uNode.NeighborEdges)
 }
@@ -535,12 +536,12 @@ func (n *LinkedUndirectedGraphNode[N, E]) GetColor() string {
 
 // Java: LinkedUndirectedGraph.LinkedUndirectedGraphNode.getId()
 func (n *LinkedUndirectedGraphNode[N, E]) GetId() string {
-	return "LDN" + jutil.ToJavaString(jutil.IdentityHashCode(n))
+	return "LDN" + strconv.FormatInt(int64(jutil.IdentityHashCode(n)), 10)
 }
 
 // Java: LinkedUndirectedGraph.LinkedUndirectedGraphNode.getLabel()
 func (n *LinkedUndirectedGraphNode[N, E]) GetLabel() string {
-	return jutil.ToJavaString(n.Value)
+	return formatGraphValue(n.Value)
 }
 
 func (n *LinkedUndirectedGraphNode[N, E]) String() string {
@@ -616,7 +617,7 @@ func (e *LinkedUndirectedGraphEdge[N, E]) GetColor() string {
 
 // Java: LinkedUndirectedGraph.LinkedUndirectedGraphEdge.getLabel()
 func (e *LinkedUndirectedGraphEdge[N, E]) GetLabel() string {
-	return jutil.ToJavaString(e.value)
+	return formatGraphValue(e.value)
 }
 
 // Java: LinkedUndirectedGraph.LinkedUndirectedGraphEdge.getNode1Id()
@@ -631,7 +632,7 @@ func (e *LinkedUndirectedGraphEdge[N, E]) GetNode2Id() string {
 
 // Java: LinkedUndirectedGraph.LinkedUndirectedGraphEdge.toString()
 func (e *LinkedUndirectedGraphEdge[N, E]) String() string {
-	return jutil.ToJavaString(e.nodeA) + " -- " + jutil.ToJavaString(e.nodeB)
+	return formatGraphValue(e.nodeA) + " -- " + formatGraphValue(e.nodeB)
 }
 
 var (

@@ -2,7 +2,6 @@ package jutil
 
 import (
 	"fmt"
-	"regexp"
 	"strings"
 	"testing"
 )
@@ -29,8 +28,6 @@ func TestBoundsExceptionMessagesMatchJava(t *testing.T) {
 		{func() { StringSubstring("abc", -1, 2) }, "java.lang.StringIndexOutOfBoundsException: Range [-1, 2) out of bounds for length 3"},
 		{func() { StringSubstring("abc", 1, 5) }, "java.lang.StringIndexOutOfBoundsException: Range [1, 5) out of bounds for length 3"},
 		{func() { NewStringBuilder().AppendCharSequenceRange(NewStringBuilderFrom("xyz"), 2, 5) }, "java.lang.IndexOutOfBoundsException: Range [2, 5) out of bounds for length 3"},
-		{func() { CharacterToChars(0x110000) }, "java.lang.IllegalArgumentException: Not a valid Unicode code point: 0x110000"},
-		{func() { CharacterToChars(-1) }, "java.lang.IllegalArgumentException: Not a valid Unicode code point: 0xFFFFFFFF"},
 		{func() { panic(NewIndexOutOfBoundsExceptionNoMessage()) }, "java.lang.IndexOutOfBoundsException"},
 	}
 	for i, c := range cases {
@@ -68,57 +65,12 @@ func TestArraysBinarySearchIntsMatchesJava(t *testing.T) {
 	}
 }
 
-func TestCharacterToChars(t *testing.T) {
-	cases := map[int][]uint16{
-		0:        {0},
-		0x41:     {0x41},
-		0xD800:   {0xD800},
-		0xFFFF:   {0xFFFF},
-		0x10000:  {0xD800, 0xDC00},
-		0x1F600:  {0xD83D, 0xDE00},
-		0x10FFFF: {0xDBFF, 0xDFFF},
-	}
-	for cp, want := range cases {
-		got := CharacterToChars(cp)
-		if !equalU16(got, want) {
-			t.Errorf("toChars(%#x) = %x, want %x", cp, got, want)
-		}
-	}
-}
-
 func TestAppendCharSequenceRangeOfItself(t *testing.T) {
 	// Java: sb.append(sb, start, end), as RegExpTree.Repetition does.
 	sb := NewStringBuilderFrom("x(?:ab)")
 	sb.AppendCharSequenceRange(sb, 1, sb.Length())
 	if got := sb.String(); got != "x(?:ab)(?:ab)" {
 		t.Errorf("got %q", got)
-	}
-}
-
-func TestStringSplitRegexpMatchesJava(t *testing.T) {
-	re := regexp.MustCompile("\r?\n")
-	// Java: s.split("\r?\n")
-	cases := []struct {
-		in   string
-		want []string
-	}{
-		{"", []string{""}},
-		{"\n", []string{}},
-		{"\n\n", []string{}},
-		{"\na", []string{"", "a"}},
-		{"a\n\n", []string{"a"}},
-		{"a\r\nb\r\n", []string{"a", "b"}},
-		{"a\rb", []string{"a\rb"}},
-		{"a\r\r\nb", []string{"a\r", "b"}},
-		{"\r\n\r\nx", []string{"", "", "x"}},
-		{"x\r", []string{"x\r"}},
-		{"a\nb\nc", []string{"a", "b", "c"}},
-	}
-	for _, c := range cases {
-		got := StringSplitRegexp(c.in, re)
-		if fmt.Sprintf("%q", got) != fmt.Sprintf("%q", c.want) {
-			t.Errorf("split(%q) = %q, Java %q", c.in, got, c.want)
-		}
 	}
 }
 

@@ -5,7 +5,6 @@ import (
 	"encoding/hex"
 	"os"
 	"path/filepath"
-	"regexp"
 	"strconv"
 	"strings"
 	"testing"
@@ -182,35 +181,6 @@ func TestPropertiesTextVectors(t *testing.T) {
 		})
 		if got != r[2] {
 			t.Errorf("%v:\n got %s\nwant %s", r, got, r[2])
-		}
-	}
-}
-
-// textSplitRegexes is JutilTextVectors.SPLIT_REGEX.
-var textSplitRegexes = []string{"\r?\n", ",", ",+", ";|,", `\s+`, "[,;]", "(,)", "\u00e9", "\U0001F600|,", "a|b",
-	"a*", "", "b?", ",|", "x*", ",*"}
-
-func TestSplitTextVectors(t *testing.T) {
-	for _, r := range readTextVectors(t, "text_split.tsv", 2000) {
-		s, _ := unescVector(t, r[1])
-		ri, _ := strconv.Atoi(r[2])
-		limit, _ := strconv.Atoi(r[3])
-		got := textGuard(func() string {
-			re := regexp.MustCompile(textSplitRegexes[ri])
-			var parts []string
-			if limit == 0 {
-				parts = StringSplitRegexp(s, re)
-			} else {
-				parts = stringSplitRegexpLimit(s, re, limit)
-			}
-			return strconv.Itoa(len(parts)) + "\x01" + strings.Join(parts, "\x01")
-		})
-		want := r[4]
-		if !strings.Contains(want, `\u0001`) {
-			want += `\u0001` // no elements
-		}
-		if got != want {
-			t.Errorf("%v:\n got %s\nwant %s", r, got, want)
 		}
 	}
 }

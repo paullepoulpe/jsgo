@@ -19,6 +19,8 @@
 package jscomp
 
 import (
+	"os"
+
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
@@ -300,12 +302,15 @@ func (c *Compiler) performPostCompilationTasksInternal() {
 			c.tracker.OutputTracerReport(c.outStream)
 		} else {
 			jutil.Try(func() {
-				stream := jutil.Files_NewOutputStream(c.options.GetTracerOutput())
+				stream, err := os.OpenFile(c.options.GetTracerOutput().String(), os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o666)
+				if err != nil {
+					panic(jutil.NewIOException(err.Error()))
+				}
 				out := jutil.NewPrintStream(stream)
 				defer func() {
 					// PrintStream.close: flush, then close the stream.
 					out.Flush()
-					stream.Close()
+					_ = stream.Close()
 				}()
 				c.tracker.OutputTracerReport(out)
 			}, func(e jutil.Throwable) {

@@ -20,6 +20,7 @@ package colors
 
 import (
 	"maps"
+	"slices"
 
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 )
@@ -30,9 +31,10 @@ import (
 // This includes any information that isn't specifically can't be set on a
 // single Color object,
 type ColorRegistry struct {
-	nativeColors                        map[ColorId]*Color
-	colorToDisambiguationSupertypeGraph *jutil.SetMultimap[*Color, *Color]
-	mismatchLocations                   *jutil.SetMultimap[ColorId, string]
+	nativeColors             map[ColorId]*Color
+	disambiguationSupertypes map[*Color][]*Color
+	mismatchLocations        map[ColorId][]string
+	mismatchOrder            []ColorId
 }
 
 // Java: ColorRegistry(Builder)
@@ -41,12 +43,14 @@ func NewColorRegistry(builder *ColorRegistry_Builder) *ColorRegistry {
 	if !builder.consumed {
 		builder.consumed = true
 		r.nativeColors = builder.nativeColors
-		r.colorToDisambiguationSupertypeGraph = builder.colorToDisambiguationSupertypeGraph
+		r.disambiguationSupertypes = builder.disambiguationSupertypes
 		r.mismatchLocations = builder.mismatchLocations
+		r.mismatchOrder = builder.mismatchOrder
 	} else {
 		r.nativeColors = maps.Clone(builder.nativeColors)
-		r.colorToDisambiguationSupertypeGraph = jutil.SetMultimapCopyOf(builder.colorToDisambiguationSupertypeGraph)
-		r.mismatchLocations = jutil.SetMultimapCopyOf(builder.mismatchLocations)
+		r.disambiguationSupertypes = cloneDisambiguationSupertypes(builder.disambiguationSupertypes)
+		r.mismatchLocations = cloneMismatchLocations(builder.mismatchLocations)
+		r.mismatchOrder = slices.Clone(builder.mismatchOrder)
 	}
 
 	ok := len(r.nativeColors) == ColorRegistry_REQUIRED_IDS.Size()
@@ -62,6 +66,28 @@ func NewColorRegistry(builder *ColorRegistry_Builder) *ColorRegistry {
 	return r
 }
 
+func cloneDisambiguationSupertypes(src map[*Color][]*Color) map[*Color][]*Color {
+	if len(src) == 0 {
+		return nil
+	}
+	dst := make(map[*Color][]*Color, len(src))
+	for k, vs := range src { // order-independent: copying distinct *Color keys into a new map
+		dst[k] = slices.Clone(vs)
+	}
+	return dst
+}
+
+func cloneMismatchLocations(src map[ColorId][]string) map[ColorId][]string {
+	if len(src) == 0 {
+		return nil
+	}
+	dst := make(map[ColorId][]string, len(src))
+	for k, vs := range src { // order-independent: copying distinct ColorId keys into a new map
+		dst[k] = slices.Clone(vs)
+	}
+	return dst
+}
+
 // Java: ColorRegistry.get(ColorId)
 func (r *ColorRegistry) Get(id ColorId) *Color {
 	// checkNotNull(id): ColorId is a Go value type and cannot be null.
@@ -72,12 +98,28 @@ func (r *ColorRegistry) Get(id ColorId) *Color {
 	return c
 }
 
+// GetDisambiguationSupertypesSlice returns the colors directly above `x` in the
+// subtyping graph as a read-only slice in insertion order without allocation.
+func (r *ColorRegistry) GetDisambiguationSupertypesSlice(x *Color) []*Color {
+	jutil.CheckNotNull(x)
+	return r.disambiguationSupertypes[x]
+}
+
 // GetDisambiguationSupertypes returns the colors directly above `x` in the
 // subtyping graph for the purposes of property (dis)ambiguation.
 //
 // Java: ColorRegistry.getDisambiguationSupertypes(Color)
 func (r *ColorRegistry) GetDisambiguationSupertypes(x *Color) *jutil.ObjectLinkedHashSet[*Color] {
-	return r.colorToDisambiguationSupertypeGraph.GetOrEmpty(x, colorEmptyColorSet)
+	jutil.CheckNotNull(x)
+	sups := r.disambiguationSupertypes[x]
+	if len(sups) == 0 {
+		return colorEmptyColorSet
+	}
+	out := jutil.NewObjectLinkedHashSet[*Color]()
+	for _, s := range sups {
+		out.Add(s)
+	}
+	return out
 }
 
 // GetMismatchLocationsForDebugging returns an index (mismatch sourceref
@@ -88,7 +130,13 @@ func (r *ColorRegistry) GetDisambiguationSupertypes(x *Color) *jutil.ObjectLinke
 //
 // Java: ColorRegistry.getMismatchLocationsForDebugging()
 func (r *ColorRegistry) GetMismatchLocationsForDebugging() *jutil.SetMultimap[ColorId, string] {
-	return r.mismatchLocations
+	out := jutil.NewSetMultimap[ColorId, string]()
+	for _, id := range r.mismatchOrder {
+		for _, loc := range r.mismatchLocations[id] {
+			out.Put(id, loc)
+		}
+	}
+	return out
 }
 
 // Java: ColorRegistry.builder()
@@ -98,26 +146,26 @@ func ColorRegistry_Builder_() *ColorRegistry_Builder {
 
 // ColorRegistry_Builder builds a ColorRegistry.
 type ColorRegistry_Builder struct {
-	nativeColors                        map[ColorId]*Color
-	colorToDisambiguationSupertypeGraph *jutil.SetMultimap[*Color, *Color]
-	mismatchLocations                   *jutil.SetMultimap[ColorId, string]
-	consumed                            bool
+	nativeColors             map[ColorId]*Color
+	disambiguationSupertypes map[*Color][]*Color
+	mismatchLocations        map[ColorId][]string
+	mismatchOrder            []ColorId
+	consumed                 bool
 }
 
 // Java: ColorRegistry.Builder()
 func NewColorRegistry_Builder() *ColorRegistry_Builder {
 	return &ColorRegistry_Builder{
-		nativeColors:                        make(map[ColorId]*Color),
-		colorToDisambiguationSupertypeGraph: jutil.NewSetMultimap[*Color, *Color](),
-		mismatchLocations:                   jutil.NewSetMultimap[ColorId, string](),
+		nativeColors: make(map[ColorId]*Color, ColorRegistry_REQUIRED_IDS.Size()),
 	}
 }
 
 func (b *ColorRegistry_Builder) ensureMutable() {
 	if b.consumed {
 		b.nativeColors = maps.Clone(b.nativeColors)
-		b.colorToDisambiguationSupertypeGraph = jutil.SetMultimapCopyOf(b.colorToDisambiguationSupertypeGraph)
-		b.mismatchLocations = jutil.SetMultimapCopyOf(b.mismatchLocations)
+		b.disambiguationSupertypes = cloneDisambiguationSupertypes(b.disambiguationSupertypes)
+		b.mismatchLocations = cloneMismatchLocations(b.mismatchLocations)
+		b.mismatchOrder = slices.Clone(b.mismatchOrder)
 		b.consumed = false
 	}
 }
@@ -132,15 +180,39 @@ func (b *ColorRegistry_Builder) SetNativeColor(x *Color) *ColorRegistry_Builder 
 
 // Java: ColorRegistry.Builder.addDisambiguationEdge(Color, Color)
 func (b *ColorRegistry_Builder) AddDisambiguationEdge(subtype *Color, supertype *Color) *ColorRegistry_Builder {
+	jutil.CheckNotNull(subtype)
+	jutil.CheckNotNull(supertype)
 	b.ensureMutable()
-	b.colorToDisambiguationSupertypeGraph.Put(subtype, supertype)
+	if b.disambiguationSupertypes == nil {
+		b.disambiguationSupertypes = make(map[*Color][]*Color)
+	}
+	sups := b.disambiguationSupertypes[subtype]
+	for _, existing := range sups {
+		if existing == supertype || existing.Equals(supertype) {
+			return b
+		}
+	}
+	b.disambiguationSupertypes[subtype] = append(sups, supertype)
 	return b
 }
 
 // Java: ColorRegistry.Builder.addMismatchLocation(ColorId, String)
 func (b *ColorRegistry_Builder) AddMismatchLocation(id ColorId, location string) *ColorRegistry_Builder {
 	b.ensureMutable()
-	b.mismatchLocations.Put(id, location)
+	if b.mismatchLocations == nil {
+		b.mismatchLocations = make(map[ColorId][]string)
+	}
+	locs, exists := b.mismatchLocations[id]
+	if !exists {
+		b.mismatchOrder = append(b.mismatchOrder, id)
+	} else {
+		for _, existing := range locs {
+			if existing == location {
+				return b
+			}
+		}
+	}
+	b.mismatchLocations[id] = append(locs, location)
 	return b
 }
 

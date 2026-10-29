@@ -30,7 +30,7 @@ import (
 //
 // Java: class LintPassConfig extends PassConfig.PassConfigDelegate
 type LintPassConfig struct {
-	jscomp.PassConfig_PassConfigDelegateBase
+	jscomp.PassConfigDelegate
 
 	gatherModuleMetadataPass *jscomp.PassFactory
 	earlyLintChecks          *jscomp.PassFactory
@@ -40,8 +40,9 @@ type LintPassConfig struct {
 
 // Java: LintPassConfig(CompilerOptions)
 func NewLintPassConfig(options *jscomp.CompilerOptions) *LintPassConfig {
-	c := &LintPassConfig{}
-	c.InitPassConfigDelegate(c, jscomp.NewDefaultPassConfig(options))
+	c := &LintPassConfig{
+		PassConfigDelegate: jscomp.NewPassConfigDelegate(jscomp.NewDefaultPassConfig(options)),
+	}
 
 	c.gatherModuleMetadataPass =
 		jscomp.PassFactory_Builder_().

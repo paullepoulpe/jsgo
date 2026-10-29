@@ -304,12 +304,7 @@ func (v *AstValidator) ValidateTemplateLitString(n rhino.Node) {
 	v.ValidateNodeType(rhino.Token_TEMPLATELIT_STRING, n)
 	v.ValidateProperties(n)
 	v.ValidateChildCount(n)
-	jutil.Try(func() {
-		// Validate that getRawString doesn't throw
-		n.GetRawString()
-	}, func(e jutil.IUnsupportedOperationException) {
-		v.Violation("Invalid TEMPLATELIT_STRING node.", n)
-	})
+	_ = n.GetRawString()
 }
 
 // Java: AstValidator.validateTemplateLitSub(Node)
@@ -557,12 +552,7 @@ func (v *AstValidator) ValidateStringLit(n rhino.Node) {
 	v.ValidateNodeType(rhino.Token_STRINGLIT, n)
 	v.ValidateProperties(n)
 	v.ValidateChildCount(n)
-	jutil.Try(func() {
-		// Validate that getString doesn't throw
-		n.GetString()
-	}, func(e jutil.IUnsupportedOperationException) {
-		v.Violation("Invalid STRING node.", n)
-	})
+	_ = n.GetString()
 }
 
 // Java: AstValidator.validateNumber(Node)
@@ -570,12 +560,7 @@ func (v *AstValidator) ValidateNumber(n rhino.Node) {
 	v.ValidateNodeType(rhino.Token_NUMBER, n)
 	v.ValidateProperties(n)
 	v.ValidateChildCount(n)
-	jutil.Try(func() {
-		// Validate that getDouble doesn't throw
-		n.GetDouble()
-	}, func(e jutil.IUnsupportedOperationException) {
-		v.Violation("Invalid NUMBER node.", n)
-	})
+	_ = n.GetDouble()
 }
 
 // Java: AstValidator.validateBigInt(Node)
@@ -583,12 +568,7 @@ func (v *AstValidator) ValidateBigInt(n rhino.Node) {
 	v.ValidateNodeType(rhino.Token_BIGINT, n)
 	v.ValidateProperties(n)
 	v.ValidateChildCount(n)
-	jutil.Try(func() {
-		// Validate that getBigInt doesn't throw
-		n.GetBigInt()
-	}, func(e jutil.IUnsupportedOperationException) {
-		v.Violation("Invalid BIGINT node.", n)
-	})
+	_ = n.GetBigInt()
 }
 
 // Java: AstValidator.validateArrayLit(Node)
@@ -743,12 +723,7 @@ func (v *AstValidator) ValidateObjectLitComputedPropSetKey(n rhino.Node) {
 // Java: AstValidator.validateObjectLiteralKeyName(Node)
 func (v *AstValidator) ValidateObjectLiteralKeyName(n rhino.Node) {
 	if n.IsQuotedStringKey() {
-		jutil.Try(func() {
-			// Validate that getString doesn't throw
-			n.GetString()
-		}, func(e jutil.IUnsupportedOperationException) {
-			v.Violation("getString failed for"+n.GetToken().String(), n)
-		})
+		_ = n.GetString()
 	} else {
 		v.ValidateNonEmptyString(n)
 	}

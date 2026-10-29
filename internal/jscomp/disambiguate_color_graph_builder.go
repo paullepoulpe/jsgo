@@ -51,6 +51,9 @@ type ColorGraphBuilder struct {
 	//   - Transitive edges (shortcut edges for which there exist alternate
 	//     paths) are kept minimal.
 	colorHoldsInstanceGraph *graph.LinkedDirectedGraph[*ColorGraphNode, ColorGraphBuilder_EdgeReason]
+
+	lcaRoots   []*ColorGraphNode
+	lcaResults []*ColorGraphNode
 }
 
 // ColorGraphBuilder_EdgeReason is the relationship that caused an edge to
@@ -115,6 +118,8 @@ func (b *ColorGraphBuilder) Build() *graph.LinkedDirectedGraph[*ColorGraphNode, 
 
 	temp := b.colorHoldsInstanceGraph
 	b.colorHoldsInstanceGraph = nil
+	b.lcaRoots = nil
+	b.lcaResults = nil
 	return temp
 }
 
@@ -142,11 +147,24 @@ func (b *ColorGraphBuilder) connectUnionWithAncestors(unionNode *graph.LinkedDir
 	// disambiguation is too slow and stricter invariants would help, we
 	// could be more careful.
 	jutil.CheckState(len(unionNode.GetOutEdges()) != 0)
-	graphNodes := jutil.NewLinkedHashSet[*ColorGraphNode]() // toImmutableSet()
+	roots := b.lcaRoots[:0]
 	for _, alt := range flatUnion.GetColor().GetUnionElements() {
-		graphNodes.Add(b.nodeFactory.CreateNode(alt))
+		n := b.nodeFactory.CreateNode(alt)
+		dup := false
+		for _, existing := range roots {
+			if existing == n {
+				dup = true
+				break
+			}
+		}
+		if !dup {
+			roots = append(roots, n)
+		}
 	}
-	for lca := range b.lcaFinder.FindAll(graphNodes).All() {
+	b.lcaRoots = roots
+	lcas := b.lcaFinder.FindAllSlice(roots, b.lcaResults[:0])
+	b.lcaResults = lcas
+	for _, lca := range lcas {
 		b.connectSourceToDest(
 			jutil.CheckNotNull(b.colorHoldsInstanceGraph.GetLinkedDiGraphNode(lca)), ColorGraphBuilder_EdgeReason_ALGEBRAIC, unionNode)
 	}
@@ -179,11 +197,11 @@ func (b *ColorGraphBuilder) addInternal(node *ColorGraphNode) *graph.LinkedDirec
 	}
 
 	color := node.GetColor()
-	supertypes := b.registry.GetDisambiguationSupertypes(color)
-	if supertypes.IsEmpty() {
+	supertypes := b.registry.GetDisambiguationSupertypesSlice(color)
+	if len(supertypes) == 0 {
 		b.connectSourceToDest(b.topNode, ColorGraphBuilder_EdgeReason_ALGEBRAIC, flatNode)
 	} else {
-		for supertype := range supertypes.All() {
+		for _, supertype := range supertypes {
 			b.connectSourceToDest(b.addInternalColor(supertype), ColorGraphBuilder_EdgeReason_CAN_HOLD, flatNode)
 		}
 	}
@@ -211,7 +229,7 @@ func (b *ColorGraphBuilder) connectSourceToDest(
 	reason ColorGraphBuilder_EdgeReason,
 	dest *graph.LinkedDirectedGraph_LinkedDiGraphNode[*ColorGraphNode, ColorGraphBuilder_EdgeReason]) {
 	if source == dest ||
-		b.colorHoldsInstanceGraph.IsConnectedInDirectionOfNodes(source, func(ColorGraphBuilder_EdgeReason) bool { return true }, dest) {
+		b.colorHoldsInstanceGraph.IsConnectedInDirectionOfNodesAny(source, dest) {
 		return
 	}
 

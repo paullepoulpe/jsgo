@@ -29,7 +29,7 @@ import (
 // NodeModuleResolver is the resolution algorithm for NodeJS. See
 // https://nodejs.org/api/modules.html#modules_all_together
 type NodeModuleResolver struct {
-	ModuleResolverBase
+	moduleResolverCommon
 
 	packageJsonMainEntries *jutil.LinkedHashMap[string, string]
 	nodeModulesFolders     []string
@@ -120,12 +120,13 @@ func NewNodeModuleResolver(
 	packageJsonMainEntries *jutil.LinkedHashMap[string, string],
 	errorHandler ErrorHandler,
 	pathEscaper ModuleLoader_PathEscaper) *NodeModuleResolver {
-	r := &NodeModuleResolver{}
-	r.InitModuleResolverBase(modulePaths, moduleRootPaths, errorHandler, pathEscaper)
-	r.nodeModulesFolders = nodeModuleResolver_buildNodeModulesFoldersRegistry(modulePaths, moduleRootPaths)
+	r := &NodeModuleResolver{
+		moduleResolverCommon: newModuleResolverCommon(modulePaths, moduleRootPaths, errorHandler, pathEscaper),
+		nodeModulesFolders:   nodeModuleResolver_buildNodeModulesFoldersRegistry(modulePaths, moduleRootPaths),
+	}
 
 	if packageJsonMainEntries == nil {
-		r.packageJsonMainEntries = jutil.NewLinkedHashMap[string, string]()
+		r.packageJsonMainEntries = emptyPackageJsonMainEntries
 	} else {
 		r.packageJsonMainEntries = nodeModuleResolver_buildPackageJsonMainEntries(packageJsonMainEntries)
 	}

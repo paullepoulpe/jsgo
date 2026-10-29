@@ -28,15 +28,15 @@ import (
 //
 // Java: class bundle.CoverageInstrumenter extends CompilerBasedTransformer
 type CoverageInstrumenter struct {
-	CompilerBasedTransformerBase
+	CompilerBasedTransformer
 }
 
-var _ CompilerBasedTransformer = (*CoverageInstrumenter)(nil)
+var _ Source_Transformer = (*CoverageInstrumenter)(nil)
 
 // Java: CoverageInstrumenter(CompilerBasedTransformer.CompilerSupplier)
 func NewCoverageInstrumenter(compilerSupplier CompilerBasedTransformer_CompilerSupplier) *CoverageInstrumenter {
 	return &CoverageInstrumenter{
-		CompilerBasedTransformerBase: CompilerBasedTransformerBase{
+		CompilerBasedTransformer: CompilerBasedTransformer{
 			compilerSupplier:   jutil.CheckNotNull(compilerSupplier),
 			transformationName: "Coverage Instrumentation",
 		},
@@ -46,9 +46,7 @@ func NewCoverageInstrumenter(compilerSupplier CompilerBasedTransformer_CompilerS
 // CoverageInstrumenter_CompilerSupplier supplies options for coverage.
 //
 // Java: static class CoverageInstrumenter.CompilerSupplier extends CompilerBasedTransformer.CompilerSupplier
-type CoverageInstrumenter_CompilerSupplier struct {
-	CompilerBasedTransformer_CompilerSupplierBase
-}
+type CoverageInstrumenter_CompilerSupplier struct{}
 
 var _ CompilerBasedTransformer_CompilerSupplier = (*CoverageInstrumenter_CompilerSupplier)(nil)
 
@@ -59,12 +57,12 @@ func NewCoverageInstrumenter_CompilerSupplier() *CoverageInstrumenter_CompilerSu
 
 // Java: CompilerSupplier.compile(Path, String)
 func (s *CoverageInstrumenter_CompilerSupplier) Compile(path *jutil.Path, code string) *CompilerBasedTransformer_CompileResult {
-	return compileWithSupplier(s, path, code)
+	return compileSingleFileWithOptions(path, code, s.Options(), true)
 }
 
 // Java: CompilerSupplier.runtime(String)
 func (s *CoverageInstrumenter_CompilerSupplier) Runtime(library string) string {
-	return runtimeWithSupplier(s, library)
+	return runtimeSingleFileWithOptions(s.Options(), library)
 }
 
 // Java: CompilerSupplier.options()

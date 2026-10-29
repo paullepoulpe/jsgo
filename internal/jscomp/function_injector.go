@@ -761,10 +761,10 @@ func (f *FunctionInjector) inlineFunctionWithSummary(
 	case FunctionInjector_CallSiteType_SIMPLE_ASSIGNMENT:
 		target, _ := functionInjector_simpleAssignTarget(callNode)
 		resultName = target.Ident()
-		FunctionInjector_RemoveConstantVarAnnotation(ref.scope, resultName)
+		removeConstantVarAnnotationByID(ref.scope, target.Node().GetStringID())
 	case FunctionInjector_CallSiteType_VAR_DECL_SIMPLE_ASSIGNMENT:
 		resultName = ast.MustName(parent).Ident()
-		FunctionInjector_RemoveConstantVarAnnotation(ref.scope, resultName)
+		removeConstantVarAnnotationByID(ref.scope, parent.GetStringID())
 	case FunctionInjector_CallSiteType_SIMPLE_CALL:
 		resultName = "" // "foo()" doesn't need a result.
 		needsDefaultReturnResult = false
@@ -817,6 +817,21 @@ func (f *FunctionInjector) inlineFunctionWithSummary(
 // Java: FunctionInjector.removeConstantVarAnnotation(Scope, String)
 func FunctionInjector_RemoveConstantVarAnnotation(scope *Scope, name string) {
 	var_ := scope.GetVar(name)
+	var nameNode rhino.Node
+	if var_ != nil {
+		nameNode = var_.GetNameNode()
+	}
+	if nameNode.IsNil() {
+		return
+	}
+
+	if nameNode.IsDeclaredConstantVar() {
+		nameNode.SetDeclaredConstantVar(false)
+	}
+}
+
+func removeConstantVarAnnotationByID(scope *Scope, id uint32) {
+	var_ := scope.GetVarByID(id)
 	var nameNode rhino.Node
 	if var_ != nil {
 		nameNode = var_.GetNameNode()
@@ -1003,34 +1018,35 @@ func (f *FunctionInjector) ReferencesEval(fn rhino.Node) bool {
 	return result
 }
 
-func functionInjector_findInnerFunctions(n rhino.Node, containerFn rhino.Node, first *rhino.Node, count *int) {
+func functionInjector_findInnerFunctions(n rhino.Node, containerFn rhino.Node, first rhino.Node, count int) (rhino.Node, int) {
 	if n != containerFn && NodeUtil_IsFunctionOrNonStaticClassFieldInitializer(n) {
-		if *count == 0 {
-			*first = n
+		if count == 0 {
+			first = n
 		}
-		*count++
-		if *count > 1 {
-			return
+		count++
+		if count > 1 {
+			return first, count
 		}
 	}
 	for c := n.GetFirstChild(); !c.IsNil(); c = c.GetNext() {
 		if c.GetFirstChild().IsNil() {
 			if c.IsMemberFieldDef() && !c.IsStaticMember() {
-				if *count == 0 {
-					*first = c
+				if count == 0 {
+					first = c
 				}
-				*count++
-				if *count > 1 {
-					return
+				count++
+				if count > 1 {
+					return first, count
 				}
 			}
 			continue
 		}
-		functionInjector_findInnerFunctions(c, containerFn, first, count)
-		if *count > 1 {
-			return
+		first, count = functionInjector_findInnerFunctions(c, containerFn, first, count)
+		if count > 1 {
+			return first, count
 		}
 	}
+	return first, count
 }
 
 // InnerFunctionOf returns any inner function or non-static class field
@@ -1053,9 +1069,7 @@ func (f *FunctionInjector) InnerFunctionOf(containerFn rhino.Node) rhino.Node {
 		return info.inner
 	}
 
-	var firstInner rhino.Node
-	count := 0
-	functionInjector_findInnerFunctions(containerFn, containerFn, &firstInner, &count)
+	firstInner, count := functionInjector_findInnerFunctions(containerFn, containerFn, rhino.NilNode, 0)
 
 	var cached rhino.Node
 	switch count {

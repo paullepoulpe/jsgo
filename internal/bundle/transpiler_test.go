@@ -33,7 +33,6 @@ import (
 //
 // Go-only: test-helper — Mockito.
 type bundleTest_mockCompiler struct {
-	*CompilerBasedTransformer_CompilerSupplierBase
 	compilePath   string
 	compileCode   string
 	compileResult *CompilerBasedTransformer_CompileResult

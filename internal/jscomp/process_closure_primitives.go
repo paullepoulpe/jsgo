@@ -1,7 +1,41 @@
 // Port of com/google/javascript/jscomp/ProcessClosurePrimitives.java @ closure-compiler v20261021
+// Port of com/google/javascript/jscomp/ClosurePrimitiveErrors.java @ closure-compiler v20261021
+// Port of com/google/javascript/jscomp/WhitespaceWrapGoogModules.java @ closure-compiler v20261021
 
 /*
  * Copyright 2006 The Closure Compiler Authors.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+/*
+ * Copyright 2018 The Closure Compiler Authors.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+/*
+ * Copyright 2015 The Closure Compiler Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -48,7 +82,7 @@ type ProcessClosurePrimitives struct {
 
 	knownClosureSubclasses map[string]struct{}
 
-	closureModules *jutil.LinkedHashMap[string, *ModuleMetadataMap_ModuleMetadata]
+	closureModules *OrderedStringMap[*ModuleMetadataMap_ModuleMetadata]
 }
 
 var ProcessClosurePrimitives_EXPECTED_OBJECTLIT_ERROR = DiagnosticType_Error(
@@ -125,7 +159,7 @@ func NewProcessClosurePrimitives(compiler AbstractCompiler) *ProcessClosurePrimi
 	p.compiler = compiler
 	p.closureModules =
 		jutil.CheckNotNullMsg(compiler.GetModuleMetadataMap(), "Need to run GatherModuleMetadata").
-			GetModulesByGoogNamespace()
+			ModulesByGoogNamespaceMap()
 	return p
 }
 
@@ -850,4 +884,145 @@ func (p *ProcessClosurePrimitives) CheckPropertyRenameCall(call ast.Call) {
 				calleeName,
 				"The first argument must not be a property path."))
 	}
+}
+
+// ClosurePrimitiveErrors holds common errors for Closure primitives that are
+// reported in multiple passses.
+type ClosurePrimitiveErrors struct{}
+
+var (
+	ClosurePrimitiveErrors_DUPLICATE_MODULE = DiagnosticType_Error(
+		"JSC_DUPLICATE_MODULE",
+		"Duplicate module: {0}. Module already declared in other file {1}")
+
+	ClosurePrimitiveErrors_DUPLICATE_NAMESPACE = DiagnosticType_Error(
+		"JSC_DUPLICATE_NAMESPACE",
+		"Duplicate namespace: {0}. Namespace already provided in other file {1}")
+
+	ClosurePrimitiveErrors_DUPLICATE_NAMESPACE_AND_MODULE = DiagnosticType_Error(
+		"JSC_DUPLICATE_NAMESPACE_AND_MODULE",
+		"Duplicate module: {0}. Module already goog.provided in other file {1}")
+
+	ClosurePrimitiveErrors_INVALID_DESTRUCTURING_FORWARD_DECLARE = DiagnosticType_Error(
+		"JSC_INVALID_DESTRUCTURING_FORWARD_DECLARE",
+		"Cannot destructure a forward-declared type")
+
+	ClosurePrimitiveErrors_MODULE_USES_GOOG_MODULE_GET = DiagnosticType_Error(
+		"JSC_MODULE_USES_GOOG_MODULE_GET",
+		"It's illegal to use a 'goog.module.get' at the module top-level."+
+			" Did you mean to use goog.require instead?")
+
+	ClosurePrimitiveErrors_INVALID_FORWARD_DECLARE_NAMESPACE = DiagnosticType_Error(
+		"JSC_GOOG_MODULE_INVALID_FORWARD_DECLARE_NAMESPACE",
+		"goog.forwardDeclare parameter must be a string literal.")
+
+	ClosurePrimitiveErrors_INVALID_GET_NAMESPACE = DiagnosticType_Error(
+		"JSC_GOOG_MODULE_INVALID_GET_NAMESPACE",
+		"goog.module.get parameter must be a string literal.")
+
+	ClosurePrimitiveErrors_INVALID_REQUIRE_DYNAMIC = DiagnosticType_Error(
+		"JSC_GOOG_MODULE_INVALID_REQUIRE_DYNAMIC_NAMESPACE",
+		"goog.requireDynamic parameter must be a string literal.")
+
+	ClosurePrimitiveErrors_INVALID_REQUIRE_NAMESPACE = DiagnosticType_Error(
+		"JSC_GOOG_MODULE_INVALID_REQUIRE_NAMESPACE",
+		"goog.require parameter must be a string literal.")
+
+	ClosurePrimitiveErrors_INVALID_REQUIRE_TYPE_NAMESPACE = DiagnosticType_Error(
+		"JSC_GOOG_MODULE_INVALID_REQUIRE_TYPE_NAMESPACE",
+		"goog.requireType parameter must be a string literal.")
+
+	ClosurePrimitiveErrors_MISSING_MODULE_OR_PROVIDE = DiagnosticType_Error(
+		"JSC_MISSING_MODULE_OR_PROVIDE", "Required namespace \"{0}\" never defined.")
+
+	ClosurePrimitiveErrors_MISSING_MODULE_OR_PROVIDE_FOR_FORWARD_DECLARE = DiagnosticType_Error(
+		"JSC_MISSING_MODULE_OR_PROVIDE_FOR_FORWARD_DECLARE",
+		"Required namespace \"{0}\" never defined.")
+
+	ClosurePrimitiveErrors_INVALID_GET_CALL_SCOPE = DiagnosticType_Error(
+		"JSC_GOOG_MODULE_INVALID_GET_CALL_SCOPE",
+		"goog.module.get values should not be assigned to global variables.")
+
+	ClosurePrimitiveErrors_INVALID_CLOSURE_CALL_SCOPE_ERROR = DiagnosticType_Error(
+		"JSC_INVALID_CLOSURE_CALL_ERROR",
+		"Closure primitive methods (goog.provide, goog.require, goog.define, etc) must be called "+
+			"at file scope.")
+
+	ClosurePrimitiveErrors_TOO_MANY_ARGUMENTS_ERROR = DiagnosticType_Error(
+		"JSC_TOO_MANY_ARGUMENTS_ERROR", "method \"{0}\" called with more than one argument")
+
+	ClosurePrimitiveErrors_NULL_ARGUMENT_ERROR = DiagnosticType_Error("JSC_NULL_ARGUMENT_ERROR", "method \"{0}\" called without an argument")
+
+	ClosurePrimitiveErrors_INVALID_ARGUMENT_ERROR = DiagnosticType_Error(
+		"JSC_INVALID_ARGUMENT_ERROR", "method \"{0}\" called with invalid argument")
+
+	ClosurePrimitiveErrors_GOOG_MODULE_GET_OF_WEAK_MODULE = DiagnosticType_Error(
+		"JSC_GOOG_MODULE_GET_OF_WEAK_MODULE",
+		"goog.module.get of \"{0}\" references a namespace that is only imported by"+
+			" goog.requireType.")
+)
+
+// WhitespaceWrapGoogModules replicates the effect of ClosureBundler in
+// whitespace-only mode and wraps goog.modules in goog.loadModule calls. See
+// comment block below.
+type WhitespaceWrapGoogModules struct {
+	compiler AbstractCompiler
+}
+
+// Java: WhitespaceWrapGoogModules(AbstractCompiler)
+func NewWhitespaceWrapGoogModules(compiler AbstractCompiler) *WhitespaceWrapGoogModules {
+	w := &WhitespaceWrapGoogModules{}
+	w.compiler = compiler
+	return w
+}
+
+// Java: WhitespaceWrapGoogModules.process(Node, Node)
+func (w *WhitespaceWrapGoogModules) Process(externs rhino.Node, root rhino.Node) {
+	for c := root.GetFirstChild(); !c.IsNil(); c = c.GetNext() {
+		jutil.CheckState(c.IsScript())
+		w.VisitScript(c)
+	}
+}
+
+// Java: WhitespaceWrapGoogModules.visitScript(Node)
+func (w *WhitespaceWrapGoogModules) VisitScript(scriptRoot rhino.Node) {
+	if !NodeUtil_IsGoogModuleFile(scriptRoot) {
+		return
+	}
+	moduleBody := scriptRoot.GetFirstChild()
+	moduleBody.SetToken(rhino.Token_BLOCK)
+	NodeUtil_TryMergeBlock(moduleBody, true)
+	w.compiler.ReportChangeToEnclosingScope(scriptRoot)
+
+	// As per ClosureBundler:
+	/*
+	   // add the prefix on the first line so the line numbers aren't affected.
+	   out.append(
+	       "goog.loadModule(function(exports) {"
+	       + "'use strict';");
+	   append(out, Mode.NORMAL, contents);
+	   out.append(
+	       "\n" // terminate any trailing single line comment.
+	       + ";" // terminate any trailing expression.
+	       + "return exports;});\n");
+	   appendSourceUrl(out, Mode.NORMAL);
+	*/
+
+	block := rhino.IR_Block()
+	block.AddChildToBack(
+		rhino.IR_ExprResult(rhino.IR_String("use strict"))) // needs to be explicit, to match ClosureBundler
+
+	function := rhino.IR_Function(rhino.IR_Name(""), rhino.IR_ParamList(rhino.IR_Name("exports")), block)
+	w.compiler.ReportChangeToChangeScope(function)
+	loadMod :=
+		rhino.IR_ExprResult(rhino.IR_Call(rhino.IR_Getprop(rhino.IR_Name("goog"), "loadModule"), function)).
+			SrcrefTree(scriptRoot)
+
+	if scriptRoot.HasChildren() {
+		block.AddChildrenToBack(scriptRoot.RemoveChildren())
+	}
+	block.AddChildToBack(rhino.IR_ReturnNodeWithExpr(rhino.IR_Name("exports")).SrcrefTree(scriptRoot))
+
+	scriptRoot.AddChildToBack(loadMod)
+	w.compiler.ReportChangeToChangeScope(scriptRoot)
 }

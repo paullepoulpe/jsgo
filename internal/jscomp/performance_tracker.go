@@ -1,4 +1,5 @@
 // Port of com/google/javascript/jscomp/PerformanceTracker.java @ closure-compiler v20261021
+// Port of com/google/javascript/jscomp/PerformanceTrackerCodeSizeEstimator.java @ closure-compiler v20261021
 
 /*
  * Copyright 2008 The Closure Compiler Authors.
@@ -16,10 +17,28 @@
  * limitations under the License.
  */
 
+/*
+ * Copyright 2016 The Closure Compiler Authors.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 package jscomp
 
 import (
+	"bytes"
 	"cmp"
+	"compress/gzip"
 	"iter"
 	"slices"
 	"strconv"
@@ -485,21 +504,21 @@ func (p *PerformanceTracker) OutputTracerReport(output *jutil.PrintStream) {
 		strings.Join([]string{
 			"",
 			"TOTAL:",
-			"Start time(ms): " + jutil.ToJavaString(p.startTime),
-			"End time(ms): " + jutil.ToJavaString(p.endTime),
-			"Wall time(ms): " + jutil.ToJavaString(p.endTime-p.startTime),
-			"Passes runtime(ms): " + jutil.ToJavaString(p.passesRuntime),
-			"Max mem usage (measured after each pass)(MB): " + jutil.ToJavaString(p.maxMem),
-			"#Runs: " + jutil.ToJavaString(p.runs),
-			"#Changing runs: " + jutil.ToJavaString(p.changes),
-			"#Loopable runs: " + jutil.ToJavaString(p.loopRuns),
-			"#Changing loopable runs: " + jutil.ToJavaString(p.loopChanges),
-			"Estimated AST reduction(#nodes): " + jutil.ToJavaString(p.astDiff),
-			"Estimated Reduction(bytes): " + jutil.ToJavaString(p.diff),
-			"Estimated GzReduction(bytes): " + jutil.ToJavaString(p.gzDiff),
-			"Estimated AST size(#nodes): " + jutil.ToJavaString(p.astSize),
-			"Estimated Size(bytes): " + jutil.ToJavaString(p.codeSize),
-			"Estimated GzSize(bytes): " + jutil.ToJavaString(p.gzCodeSize),
+			"Start time(ms): " + strconv.FormatInt(p.startTime, 10),
+			"End time(ms): " + strconv.FormatInt(p.endTime, 10),
+			"Wall time(ms): " + strconv.FormatInt(p.endTime-p.startTime, 10),
+			"Passes runtime(ms): " + strconv.Itoa(p.passesRuntime),
+			"Max mem usage (measured after each pass)(MB): " + strconv.Itoa(p.maxMem),
+			"#Runs: " + strconv.Itoa(p.runs),
+			"#Changing runs: " + strconv.Itoa(p.changes),
+			"#Loopable runs: " + strconv.Itoa(p.loopRuns),
+			"#Changing loopable runs: " + strconv.Itoa(p.loopChanges),
+			"Estimated AST reduction(#nodes): " + strconv.Itoa(p.astDiff),
+			"Estimated Reduction(bytes): " + strconv.Itoa(p.diff),
+			"Estimated GzReduction(bytes): " + strconv.Itoa(p.gzDiff),
+			"Estimated AST size(#nodes): " + strconv.Itoa(p.astSize),
+			"Estimated Size(bytes): " + strconv.Itoa(p.codeSize),
+			"Estimated GzSize(bytes): " + strconv.Itoa(p.gzCodeSize),
 			"",
 			"DisambiguateProperties: " + p.disambiguatePropertiesSummary,
 			"AmbiguateProperties: " + p.ambiguatePropertiesSummary,
@@ -515,16 +534,16 @@ func (p *PerformanceTracker) OutputTracerReport(output *jutil.PrintStream) {
 		strings.Join([]string{
 			"",
 			"Inputs:",
-			"JS lines:   " + jutil.ToJavaString(p.jsLines),
-			"JS sources: " + jutil.ToJavaString(p.jsSources),
-			"Extern lines:   " + jutil.ToJavaString(p.externLines),
-			"Extern sources: " + jutil.ToJavaString(p.externSources),
+			"JS lines:   " + strconv.Itoa(p.jsLines),
+			"JS sources: " + strconv.Itoa(p.jsSources),
+			"Extern lines:   " + strconv.Itoa(p.externLines),
+			"Extern sources: " + strconv.Itoa(p.externSources),
 			"Type summary lines (raw input):   " +
-				jutil.ToJavaString(summaryLinesRaw),
-			"Type summary lines (post-pruning):   " + jutil.ToJavaString(p.transitiveSummaryLines),
+				strconv.Itoa(summaryLinesRaw),
+			"Type summary lines (post-pruning):   " + strconv.Itoa(p.transitiveSummaryLines),
 			"Type summary sources (raw input):   " +
-				jutil.ToJavaString(summarySourcesRaw),
-			"Type summary sources (post-pruning):   " + jutil.ToJavaString(p.transitiveSummarySources),
+				strconv.Itoa(summarySourcesRaw),
+			"Type summary sources (post-pruning):   " + strconv.Itoa(p.transitiveSummarySources),
 			"",
 			"Dependency pruning analysis: " + p.pruningAnalysisSummary,
 		}, "\n"))
@@ -603,18 +622,54 @@ type PerformanceTracker_Stats struct {
 
 // Java: PerformanceTracker.Stats(String, boolean)
 func NewPerformanceTracker_Stats(pass string, iot bool) *PerformanceTracker_Stats {
-	s := &PerformanceTracker_Stats{}
-	s.runtime = 0
-	s.allocMem = 0
-	s.runs = 0
-	s.changes = 0
-	s.diff = 0
-	s.gzDiff = 0
-	s.size = 0
-	s.gzSize = 0
-	s.astDiff = 0
-	s.astSize = 0
-	s.pass = pass
-	s.isOneTime = iot
-	return s
+	return &PerformanceTracker_Stats{
+		pass:      pass,
+		isOneTime: iot,
+	}
+}
+
+// PerformanceTrackerCodeSizeEstimator computes a raw and optional gzip'ed
+// size estimate without allocating an output code buffer.
+type PerformanceTrackerCodeSizeEstimator struct {
+	cg     CodeGenerator
+	output *bytes.Buffer
+}
+
+// Java: PerformanceTrackerCodeSizeEstimator.estimate(Node, boolean)
+func PerformanceTrackerCodeSizeEstimator_Estimate(jsRoot rhino.Node, trackGzSize bool) *PerformanceTrackerCodeSizeEstimator {
+	estimator := NewPerformanceTrackerCodeSizeEstimator(trackGzSize)
+	estimator.cg.AddNode(jsRoot)
+	return estimator
+}
+
+// Java: PerformanceTrackerCodeSizeEstimator(boolean)
+func NewPerformanceTrackerCodeSizeEstimator(trackGzSize bool) *PerformanceTrackerCodeSizeEstimator {
+	e := &PerformanceTrackerCodeSizeEstimator{}
+	e.cg.initDefaults()
+	e.cg.cc = CodeConsumer{
+		mode:               sinkSize,
+		continueProcessing: true,
+		trackGzSize:        trackGzSize,
+	}
+	if trackGzSize {
+		e.output = &bytes.Buffer{}
+		e.cg.cc.gzStream = gzip.NewWriter(e.output)
+	}
+	return e
+}
+
+// Java: PerformanceTrackerCodeSizeEstimator.getCodeSize()
+func (e *PerformanceTrackerCodeSizeEstimator) GetCodeSize() int {
+	return e.cg.cc.cost
+}
+
+// Java: PerformanceTrackerCodeSizeEstimator.getZippedCodeSize()
+func (e *PerformanceTrackerCodeSizeEstimator) GetZippedCodeSize() int {
+	if e.cg.cc.trackGzSize {
+		if err := e.cg.cc.gzStream.Close(); err != nil {
+			panic(jutil.NewRuntimeExceptionWithCause(jutil.NewIOException(err.Error())))
+		}
+		return e.output.Len()
+	}
+	return 0
 }

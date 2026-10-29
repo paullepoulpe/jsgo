@@ -1,12 +1,13 @@
-// Port of com/google/gson/Gson.java (Gson 2.9.1): fromJson, with
-// TypeAdapters.JSON_ELEMENT of com/google/gson/internal/bind/TypeAdapters.java
+// Port of com/google/gson/Gson.java (Gson 2.9.1): fromJson and toJson, with
+// com/google/gson/internal/bind/TypeAdapters.java,
+// com/google/gson/internal/bind/ReflectiveTypeAdapterFactory.java,
 // and Streams.write of com/google/gson/internal/Streams.java
 // Port of com/google/gson/TypeAdapter.java (Gson 2.9.1)
 
 /*
  * Copyright (C) 2008 Google Inc. (Gson.java)
  * Copyright (C) 2010 Google Inc. (Streams.java)
- * Copyright (C) 2011 Google Inc. (TypeAdapters.java, TypeAdapter.java)
+ * Copyright (C) 2011 Google Inc. (TypeAdapters.java, TypeAdapter.java, ReflectiveTypeAdapterFactory.java)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -22,6 +23,15 @@
  */
 
 package jutil
+
+import (
+	"fmt"
+	"io"
+	"math"
+	"reflect"
+	"strconv"
+	"strings"
+)
 
 // Go-only: language-adapter — the parts of com.google.gson.Gson (2.9.1, as
 // shaded into the pinned closure-compiler.jar) that Closure uses on JSON
@@ -384,4 +394,310 @@ type TypeAdapter interface {
 	//
 	// Java: TypeAdapter.read(JsonReader)
 	Read(in *JsonReader) any
+}
+
+// ToJson serializes src to its JSON representation; nil is "null".
+//
+// Java: Gson.toJson(Object)
+func (g *Gson) ToJson(src any) string {
+	if IsNil(src) {
+		return g.ToJsonElement(JsonNull_INSTANCE)
+	}
+	var writer strings.Builder
+	g.ToJsonWithWriter(src, g.NewJsonWriter(&writer))
+	return writer.String()
+}
+
+// ToJsonWithWriter writes the JSON representation of src to writer, with
+// the writer's lenient, htmlSafe and serializeNulls settings replaced by
+// this Gson's for the duration of the call.
+//
+// Java: Gson.toJson(Object, Type, JsonWriter)
+func (g *Gson) ToJsonWithWriter(src any, writer *JsonWriter) {
+	oldLenient := writer.IsLenient()
+	writer.SetLenient(true)
+	oldHtmlSafe := writer.IsHtmlSafe()
+	writer.SetHtmlSafe(g.htmlSafe)
+	oldSerializeNulls := writer.GetSerializeNulls()
+	writer.SetSerializeNulls(g.serializeNulls)
+	defer func() {
+		writer.SetLenient(oldLenient)
+		writer.SetHtmlSafe(oldHtmlSafe)
+		writer.SetSerializeNulls(oldSerializeNulls)
+	}()
+	gson_wrapWriteExceptions(func() { g.writeValue(writer, src) })
+}
+
+// ToJsonElement serializes a JSON tree.
+//
+// Java: Gson.toJson(JsonElement)
+func (g *Gson) ToJsonElement(jsonElement JsonElement) string {
+	var writer strings.Builder
+	jsonWriter := g.NewJsonWriter(&writer)
+	oldLenient := jsonWriter.IsLenient()
+	jsonWriter.SetLenient(true)
+	oldHtmlSafe := jsonWriter.IsHtmlSafe()
+	jsonWriter.SetHtmlSafe(g.htmlSafe)
+	oldSerializeNulls := jsonWriter.GetSerializeNulls()
+	jsonWriter.SetSerializeNulls(g.serializeNulls)
+	defer func() {
+		jsonWriter.SetLenient(oldLenient)
+		jsonWriter.SetHtmlSafe(oldHtmlSafe)
+		jsonWriter.SetSerializeNulls(oldSerializeNulls)
+	}()
+	gson_wrapWriteExceptions(func() { Streams_Write(jsonElement, jsonWriter) })
+	return writer.String()
+}
+
+func gson_wrapWriteExceptions(write func()) {
+	Try(func() {
+		Try(write, func(e IIOException) {
+			panic(NewJsonIOExceptionWithCause(e))
+		})
+	}, func(e *AssertionError) {
+		err := NewAssertionError("AssertionError (GSON " + GsonBuildConfig_VERSION + "): " + javaMessageOrNull(e))
+		err.InitCause(e)
+		panic(err)
+	})
+}
+
+// NewJsonWriter returns a JSON writer configured for this Gson's settings.
+//
+// Java: Gson.newJsonWriter(Writer)
+func (g *Gson) NewJsonWriter(writer io.StringWriter) *JsonWriter {
+	jsonWriter := NewJsonWriter(writer)
+	if g.prettyPrinting {
+		jsonWriter.SetIndent("  ")
+	}
+	jsonWriter.SetHtmlSafe(g.htmlSafe)
+	jsonWriter.SetLenient(g.lenient)
+	jsonWriter.SetSerializeNulls(g.serializeNulls)
+	return jsonWriter
+}
+
+func (g *Gson) writeValue(out *JsonWriter, value any) {
+	if IsNil(value) {
+		out.NullValue()
+		return
+	}
+	if e, ok := value.(JsonElement); ok {
+		TypeAdapters_JSON_ELEMENT_Write(out, e)
+		return
+	}
+	for _, f := range g.factoriesToBeAdded {
+		if f.baseType(value) {
+			f.typeAdapter.Write(out, value)
+			return
+		}
+	}
+	switch v := value.(type) {
+	case gson_collection:
+		out.BeginArray()
+		for _, element := range v.gsonElements() {
+			g.writeValue(out, element)
+		}
+		out.EndArray()
+		return
+	case gson_map:
+		out.BeginObject()
+		keys, values := v.gsonEntries()
+		for i, key := range keys {
+			out.Name(ToJavaString(key))
+			g.writeValue(out, values[i])
+		}
+		out.EndObject()
+		return
+	}
+	g.writeReflectValue(out, reflect.ValueOf(value))
+}
+
+func (g *Gson) writeReflectValue(out *JsonWriter, rv reflect.Value) {
+	switch rv.Kind() {
+	case reflect.String:
+		s := rv.String()
+		out.ValueString(&s)
+	case reflect.Bool:
+		out.ValueBoolean(rv.Bool())
+	case reflect.Int32:
+		if s, ok := rv.Interface().(fmt.Stringer); ok && rv.Type().PkgPath() != "" {
+			name := s.String()
+			out.ValueString(&name)
+			return
+		}
+		out.ValueNumber(gson_javaInteger(rv.Int()))
+	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int64:
+		out.ValueNumber(gson_javaInteger(rv.Int()))
+	case reflect.Uint16:
+		s := StringFromChar(uint16(rv.Uint()))
+		out.ValueString(&s)
+	case reflect.Float64:
+		d := rv.Float()
+		gson_checkValidFloatingPoint(d)
+		out.ValueNumber(gson_javaDouble(d))
+	case reflect.Slice, reflect.Array:
+		if rv.Kind() == reflect.Slice && rv.IsNil() {
+			out.NullValue()
+			return
+		}
+		out.BeginArray()
+		for i := 0; i < rv.Len(); i++ {
+			g.writeValue(out, rv.Index(i).Interface())
+		}
+		out.EndArray()
+	case reflect.Pointer:
+		if rv.IsNil() {
+			out.NullValue()
+			return
+		}
+		if rv.Elem().Kind() == reflect.Struct {
+			g.writeStruct(out, rv.Elem(), rv)
+			return
+		}
+		g.writeValue(out, rv.Elem().Interface())
+	case reflect.Interface:
+		if rv.IsNil() {
+			out.NullValue()
+			return
+		}
+		g.writeValue(out, rv.Elem().Interface())
+	case reflect.Struct:
+		g.writeStruct(out, rv, reflect.Value{})
+	default:
+		panic(NewUnsupportedOperationExceptionMsg("Gson cannot serialize Go type " + rv.Type().String()))
+	}
+}
+
+func (g *Gson) writeStruct(out *JsonWriter, sv reflect.Value, self reflect.Value) {
+	fields := gson_boundFields(sv.Type())
+	out.BeginObject()
+	for _, f := range fields {
+		fieldValue := sv.FieldByIndex(f.index).Interface()
+		if self.IsValid() && !IsNil(fieldValue) {
+			if fp := reflect.ValueOf(fieldValue); fp.Kind() == reflect.Pointer && fp.Pointer() == self.Pointer() {
+				continue
+			}
+		}
+		out.Name(f.name)
+		g.writeValue(out, fieldValue)
+	}
+	out.EndObject()
+}
+
+type gson_boundField struct {
+	name  string
+	index []int
+}
+
+func gson_boundFields(t reflect.Type) []gson_boundField {
+	var fields []gson_boundField
+	seen := map[string]bool{}
+	var collect func(t reflect.Type, prefix []int)
+	collect = func(t reflect.Type, prefix []int) {
+		var embedded []int
+		for i := 0; i < t.NumField(); i++ {
+			sf := t.Field(i)
+			if sf.Anonymous && sf.Type.Kind() == reflect.Struct {
+				if sf.IsExported() {
+					embedded = append(embedded, i)
+				}
+				continue
+			}
+			tag := sf.Tag.Get("gson")
+			if tag == "-" || !sf.IsExported() {
+				continue
+			}
+			name := sf.Name
+			if tag != "" {
+				name = tag
+			}
+			if seen[name] {
+				panic(NewIllegalArgumentExceptionMsg(t.String() + " declares multiple JSON fields named " + name))
+			}
+			seen[name] = true
+			fields = append(fields, gson_boundField{name: name, index: append(append([]int{}, prefix...), i)})
+		}
+		for _, i := range embedded {
+			collect(t.Field(i).Type, append(append([]int{}, prefix...), i))
+		}
+	}
+	collect(t, nil)
+	return fields
+}
+
+func gson_checkValidFloatingPoint(value float64) {
+	if math.IsNaN(value) || math.IsInf(value, 0) {
+		panic(NewIllegalArgumentExceptionMsg(DoubleToString(value) +
+			" is not a valid double value as per JSON specification. To override this" +
+			" behavior, use GsonBuilder.serializeSpecialFloatingPointValues() method."))
+	}
+}
+
+type gson_javaInteger int64
+
+func (n gson_javaInteger) IntValue() int32      { return int32(n) }
+func (n gson_javaInteger) LongValue() int64     { return int64(n) }
+func (n gson_javaInteger) DoubleValue() float64 { return float64(n) }
+func (n gson_javaInteger) String() string       { return strconv.FormatInt(int64(n), 10) }
+
+type gson_javaDouble float64
+
+func (n gson_javaDouble) IntValue() int32      { return D2I(float64(n)) }
+func (n gson_javaDouble) LongValue() int64     { return D2L(float64(n)) }
+func (n gson_javaDouble) DoubleValue() float64 { return float64(n) }
+func (n gson_javaDouble) String() string       { return DoubleToString(float64(n)) }
+
+type gson_collection interface {
+	gsonElements() []any
+}
+
+type gson_map interface {
+	gsonEntries() (keys []any, values []any)
+}
+
+func (l *ArrayList[T]) gsonElements() []any {
+	out := make([]any, 0, l.Size())
+	for e := range l.All() {
+		out = append(out, e)
+	}
+	return out
+}
+
+func (s *LinkedHashSet[T]) gsonElements() []any {
+	out := make([]any, 0, s.Size())
+	for e := range s.All() {
+		out = append(out, e)
+	}
+	return out
+}
+
+func (s *ObjectLinkedHashSet[T]) gsonElements() []any {
+	var out []any
+	for e := range s.All() {
+		out = append(out, e)
+	}
+	return out
+}
+
+func (h *LinkedHashMap[K, V]) gsonEntries() (keys []any, values []any) {
+	for k, v := range h.All() {
+		keys = append(keys, k)
+		values = append(values, v)
+	}
+	return keys, values
+}
+
+func (h *ObjectLinkedHashMap[K, V]) gsonEntries() (keys []any, values []any) {
+	for k, v := range h.All() {
+		keys = append(keys, k)
+		values = append(values, v)
+	}
+	return keys, values
+}
+
+func (m *TreeMap[K, V]) gsonEntries() (keys []any, values []any) {
+	for k, v := range m.All() {
+		keys = append(keys, k)
+		values = append(values, v)
+	}
+	return keys, values
 }

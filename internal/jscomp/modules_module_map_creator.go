@@ -1,5 +1,9 @@
 // Port of com/google/javascript/jscomp/modules/ModuleMapCreator.java @ closure-compiler v20261021
 // Port of com/google/javascript/jscomp/modules/ModuleMap.java @ closure-compiler v20261021
+// Port of com/google/javascript/jscomp/modules/Module.java @ closure-compiler v20261021
+// Port of com/google/javascript/jscomp/modules/AutoBuilder_Module_Builder.java @ closure-compiler v20261021
+// Port of com/google/javascript/jscomp/modules/Import.java @ closure-compiler v20261021
+// Port of com/google/javascript/jscomp/modules/AutoBuilder_Import_Builder.java @ closure-compiler v20261021
 // Port of com/google/javascript/jscomp/modules/ModuleRequestResolver.java @ closure-compiler v20261021
 // Port of com/google/javascript/jscomp/modules/GoogEsImports.java @ closure-compiler v20261021
 // Port of com/google/javascript/jscomp/modules/ExportTrace.java @ closure-compiler v20261021
@@ -47,6 +51,193 @@ import (
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
+
+// Module holds information for modules, particularly ES modules, that is
+// useful for rewriting. The primary pieces of information are what
+// variables are exported (transitive or local), and what names are
+// imported.
+//
+// Go-only: language-adapter — closureNamespace is stored unboxed on Module
+// (returning an interior pointer from ClosureNamespace when present), native
+// OrderedStringMap fields back Namespace/BoundNames/LocalNameToLocalExport
+// with lazy LinkedHashMap materialization, and AutoBuilder_Module_Builder is
+// replaced by NewModule / WithBoundNames.
+type Module struct {
+	metadata               *ModuleMetadataMap_ModuleMetadata
+	path                   *ModuleLoader_ModulePath
+	namespace              *OrderedStringMap[*Binding]
+	boundNames             *OrderedStringMap[*Binding]
+	localNameToLocalExport *OrderedStringMap[*Export]
+	lazyNamespace          *jutil.LinkedHashMap[string, *Binding]
+	lazyBoundNames         *jutil.LinkedHashMap[string, *Binding]
+	lazyLocalExports       *jutil.LinkedHashMap[string, *Export]
+	closureNamespace       string
+	hasClosureNamespace    bool
+}
+
+// Java: Module(ModuleMetadata, ModulePath, ImmutableMap<String, Binding>, ImmutableMap<String, Binding>, ImmutableMap<String, Export>, String)
+func NewModule(
+	metadata *ModuleMetadataMap_ModuleMetadata,
+	path *ModuleLoader_ModulePath,
+	namespace *OrderedStringMap[*Binding],
+	boundNames *OrderedStringMap[*Binding],
+	localNameToLocalExport *OrderedStringMap[*Export],
+	closureNamespace string,
+	hasClosureNamespace bool) *Module {
+	jutil.CheckNotNullMsg(metadata, "metadata")
+	jutil.CheckNotNullMsg(namespace, "namespace")
+	jutil.CheckNotNullMsg(boundNames, "boundNames")
+	jutil.CheckNotNullMsg(localNameToLocalExport, "localNameToLocalExport")
+	return &Module{
+		metadata:               metadata,
+		path:                   path,
+		namespace:              namespace,
+		boundNames:             boundNames,
+		localNameToLocalExport: localNameToLocalExport,
+		closureNamespace:       closureNamespace,
+		hasClosureNamespace:    hasClosureNamespace,
+	}
+}
+
+// Java: Module.metadata()
+func (m *Module) Metadata() *ModuleMetadataMap_ModuleMetadata { return m.metadata }
+
+// Path may return nil.
+//
+// Java: Module.path()
+func (m *Module) Path() *ModuleLoader_ModulePath { return m.path }
+
+// NamespaceMap returns the native OrderedStringMap of exported bindings.
+func (m *Module) NamespaceMap() *OrderedStringMap[*Binding] { return m.namespace }
+
+// BoundNamesMap returns the native OrderedStringMap of bound names.
+func (m *Module) BoundNamesMap() *OrderedStringMap[*Binding] { return m.boundNames }
+
+// LocalExportsMap returns the native OrderedStringMap of local exports.
+func (m *Module) LocalExportsMap() *OrderedStringMap[*Export] { return m.localNameToLocalExport }
+
+// Java: Module.namespace()
+func (m *Module) Namespace() *jutil.LinkedHashMap[string, *Binding] {
+	if m.lazyNamespace == nil {
+		m.lazyNamespace = m.namespace.toLinkedHashMap(nonEsEmptyLinkedBindingMap)
+	}
+	return m.lazyNamespace
+}
+
+// Java: Module.boundNames()
+func (m *Module) BoundNames() *jutil.LinkedHashMap[string, *Binding] {
+	if m.lazyBoundNames == nil {
+		m.lazyBoundNames = m.boundNames.toLinkedHashMap(nonEsEmptyLinkedBindingMap)
+	}
+	return m.lazyBoundNames
+}
+
+// Java: Module.localNameToLocalExport()
+func (m *Module) LocalNameToLocalExport() *jutil.LinkedHashMap[string, *Export] {
+	if m.lazyLocalExports == nil {
+		m.lazyLocalExports = m.localNameToLocalExport.toLinkedHashMap(nonEsEmptyLinkedExportMap)
+	}
+	return m.lazyLocalExports
+}
+
+// ClosureNamespace returns an interior pointer to closureNamespace when
+// present, or nil when absent (zero extra heap allocation).
+//
+// Java: Module.closureNamespace()
+func (m *Module) ClosureNamespace() *string {
+	if !m.hasClosureNamespace {
+		return nil
+	}
+	return &m.closureNamespace
+}
+
+// ClosureNamespaceString returns the unboxed closureNamespace string ("" when absent).
+func (m *Module) ClosureNamespaceString() string { return m.closureNamespace }
+
+// HasClosureNamespace reports whether closureNamespace was set.
+func (m *Module) HasClosureNamespace() bool { return m.hasClosureNamespace }
+
+// WithBoundNamesMap returns a shallow copy of m with boundNames replaced by an OrderedStringMap.
+func (m *Module) WithBoundNamesMap(boundNames *OrderedStringMap[*Binding]) *Module {
+	if boundNames == nil {
+		panic(jutil.NewNullPointerExceptionMsg("Null boundNames"))
+	}
+	cp := *m
+	cp.boundNames = boundNames
+	cp.lazyBoundNames = nil
+	return &cp
+}
+
+// WithBoundNames returns a shallow copy of m with boundNames replaced.
+func (m *Module) WithBoundNames(boundNames *jutil.LinkedHashMap[string, *Binding]) *Module {
+	if boundNames == nil {
+		panic(jutil.NewNullPointerExceptionMsg("Null boundNames"))
+	}
+	om := NewOrderedStringMapWithCapacity[*Binding](boundNames.Size())
+	for k, v := range boundNames.All() {
+		om.Put(k, jutil.CheckNotNull(v))
+	}
+	cp := *m
+	cp.boundNames = om
+	cp.lazyBoundNames = nil
+	return &cp
+}
+
+// Import is an imported name in a module.
+//
+// See the ImportEntry in the ECMAScript spec
+// (https://www.ecma-international.org/ecma-262/9.0/index.html#table-39).
+//
+// Go-only: language-adapter — callers construct Import directly via NewImport
+// rather than heap-allocating AutoBuilder_Import_Builder.
+type Import struct {
+	moduleRequest string
+	importName    string
+	localName     string
+	modulePath    *ModuleLoader_ModulePath
+	importNode    rhino.Node
+	nameNode      rhino.Node
+}
+
+// Java: Import(String, String, String, ModulePath, Node, Node)
+func NewImport(
+	moduleRequest string,
+	importName string,
+	localName string,
+	modulePath *ModuleLoader_ModulePath,
+	importNode rhino.Node,
+	nameNode rhino.Node) *Import {
+	rhino.CheckNotNullMsg(importNode, "importNode")
+	rhino.CheckNotNullMsg(nameNode, "nameNode")
+	return &Import{
+		moduleRequest: moduleRequest,
+		importName:    importName,
+		localName:     localName,
+		modulePath:    modulePath,
+		importNode:    importNode,
+		nameNode:      nameNode,
+	}
+}
+
+// Java: Import.moduleRequest()
+func (i *Import) ModuleRequest() string { return i.moduleRequest }
+
+// Java: Import.importName()
+func (i *Import) ImportName() string { return i.importName }
+
+// Java: Import.localName()
+func (i *Import) LocalName() string { return i.localName }
+
+// ModulePath may return nil.
+//
+// Java: Import.modulePath()
+func (i *Import) ModulePath() *ModuleLoader_ModulePath { return i.modulePath }
+
+// Java: Import.importNode()
+func (i *Import) ImportNode() rhino.Node { return i.importNode }
+
+// Java: Import.nameNode()
+func (i *Import) NameNode() rhino.Node { return i.nameNode }
 
 type orderedUnresolvedMap struct {
 	keys  []string
@@ -98,23 +289,25 @@ type moduleRequestResolverImpl struct {
 var _ ModuleRequestResolver = (*moduleRequestResolverImpl)(nil)
 
 type fallbackMissingNonClosureModule struct {
-	UnresolvedModuleBase
-
 	path     *ModuleLoader_ModulePath
 	metadata *ModuleMetadataMap_ModuleMetadata
 }
+
+var _ UnresolvedModule = (*fallbackMissingNonClosureModule)(nil)
 
 func newFallbackMissingNonClosureModule(path *ModuleLoader_ModulePath) UnresolvedModule {
 	metadata := &ModuleMetadataMap_ModuleMetadata{
 		path:       path,
 		moduleType: ModuleMetadataMap_ModuleType_ES6_MODULE,
 	}
-	m := &fallbackMissingNonClosureModule{path: path, metadata: metadata}
-	m.InitUnresolvedModuleBase(m)
-	return m
+	return &fallbackMissingNonClosureModule{path: path, metadata: metadata}
 }
 
 func (m *fallbackMissingNonClosureModule) Reset() {}
+
+func (m *fallbackMissingNonClosureModule) Resolve(moduleRequestResolver ModuleRequestResolver) *Module {
+	return m.ResolveWithModuleSpecifier(moduleRequestResolver, "", false)
+}
 
 func (m *fallbackMissingNonClosureModule) ResolveWithModuleSpecifier(
 	moduleRequestResolver ModuleRequestResolver, moduleSpecifier string, hasModuleSpecifier bool) *Module {
@@ -125,13 +318,18 @@ func (m *fallbackMissingNonClosureModule) Metadata() *ModuleMetadataMap_ModuleMe
 	return m.metadata
 }
 
-func (m *fallbackMissingNonClosureModule) GetExportedNames(moduleRequestResolver ModuleRequestResolver) *jutil.LinkedHashSet[string] {
-	return nonEsEmptyExportedSet
+func (m *fallbackMissingNonClosureModule) GetExportedNames(moduleRequestResolver ModuleRequestResolver) []string {
+	return nil
 }
 
 func (m *fallbackMissingNonClosureModule) GetExportedNamesWithVisited(
-	moduleRequestResolver ModuleRequestResolver, visited *jutil.LinkedHashSet[UnresolvedModule]) *jutil.LinkedHashSet[string] {
-	return nonEsEmptyExportedSet
+	moduleRequestResolver ModuleRequestResolver, visited map[UnresolvedModule]struct{}) []string {
+	return nil
+}
+
+func (m *fallbackMissingNonClosureModule) ResolveExport(
+	moduleRequestResolver ModuleRequestResolver, exportName string) *ResolveExportResult {
+	return m.ResolveExportWithTraces(moduleRequestResolver, "", false, exportName, nil, nil)
 }
 
 func (m *fallbackMissingNonClosureModule) ResolveExportWithTraces(
@@ -139,8 +337,8 @@ func (m *fallbackMissingNonClosureModule) ResolveExportWithTraces(
 	moduleSpecifier string,
 	hasModuleSpecifier bool,
 	exportName string,
-	resolveSet *jutil.LinkedHashSet[ExportTrace],
-	exportStarSet *jutil.LinkedHashSet[UnresolvedModule]) *ResolveExportResult {
+	resolveSet map[ExportTrace]struct{},
+	exportStarSet map[UnresolvedModule]struct{}) *ResolveExportResult {
 	return ResolveExportResult_Of(
 		Binding_From(
 			Export_Builder_().
@@ -230,7 +428,7 @@ func (c *ModuleMapCreator) Create() *ModuleMap {
 	c.unresolvedModules.reset()
 	c.unresolvedModulesByClosureNamespace.reset()
 
-	for moduleMetadata := range c.moduleMetadataMap.GetAllModuleMetadata().All() {
+	for _, moduleMetadata := range c.moduleMetadataMap.AllMetadataSlice() {
 		c.processModuleMetadata(moduleMetadata)
 	}
 	return c.resolve()
@@ -238,8 +436,8 @@ func (c *ModuleMapCreator) Create() *ModuleMap {
 
 func (c *ModuleMapCreator) resolve() *ModuleMap {
 	requestResolver := &moduleRequestResolverImpl{outer: c}
-	resolvedModules := jutil.NewLinkedHashMap[string, *Module]()
-	resolvedClosureModules := jutil.NewLinkedHashMap[string, *Module]()
+	resolvedModules := NewOrderedStringMapWithCapacity[*Module](len(c.unresolvedModules.keys))
+	resolvedClosureModules := NewOrderedStringMapWithCapacity[*Module](len(c.unresolvedModulesByClosureNamespace.keys))
 
 	// Missing references append fallback entries to unresolvedModules.keys during
 	// resolution, so advancing an index cursor resolves known and fallback modules
@@ -298,14 +496,14 @@ func (c *ModuleMapCreator) Process(externs rhino.Node, root rhino.Node) {
 
 // ModuleMap holds resolved module information for the compilation.
 type ModuleMap struct {
-	resolvedModules        *jutil.LinkedHashMap[string, *Module]
-	resolvedClosureModules *jutil.LinkedHashMap[string, *Module]
+	resolvedModules        *OrderedStringMap[*Module]
+	resolvedClosureModules *OrderedStringMap[*Module]
 }
 
 // Java: ModuleMap(ImmutableMap<String, Module>, ImmutableMap<String, Module>)
 func NewModuleMap(
-	resolvedModules *jutil.LinkedHashMap[string, *Module],
-	resolvedClosureModules *jutil.LinkedHashMap[string, *Module]) *ModuleMap {
+	resolvedModules *OrderedStringMap[*Module],
+	resolvedClosureModules *OrderedStringMap[*Module]) *ModuleMap {
 	return &ModuleMap{resolvedModules: resolvedModules, resolvedClosureModules: resolvedClosureModules}
 }
 
@@ -320,12 +518,12 @@ func (m *ModuleMap) GetModuleByPath(path *ModuleLoader_ModulePath) *Module {
 }
 
 // Java: ModuleMap.getModulesByPath()
-func (m *ModuleMap) GetModulesByPath() *jutil.LinkedHashMap[string, *Module] {
+func (m *ModuleMap) GetModulesByPath() *OrderedStringMap[*Module] {
 	return m.resolvedModules
 }
 
 // Java: ModuleMap.getModulesByClosureNamespace()
-func (m *ModuleMap) GetModulesByClosureNamespace() *jutil.LinkedHashMap[string, *Module] {
+func (m *ModuleMap) GetModulesByClosureNamespace() *OrderedStringMap[*Module] {
 	return m.resolvedClosureModules
 }
 
@@ -336,7 +534,7 @@ func (m *ModuleMap) GetClosureModule(namespace string) *Module {
 
 // Java: ModuleMap.emptyForTesting()
 func ModuleMap_EmptyForTesting() *ModuleMap {
-	return NewModuleMap(jutil.NewLinkedHashMap[string, *Module](), jutil.NewLinkedHashMap[string, *Module]())
+	return NewModuleMap(&OrderedStringMap[*Module]{}, &OrderedStringMap[*Module]{})
 }
 
 // ModuleRequestResolver resolves requests for other modules.
@@ -410,17 +608,17 @@ type UnresolvedModule interface {
 	Metadata() *ModuleMetadataMap_ModuleMetadata
 
 	// GetExportedNames returns all names in this module's namespace, sorted
-	// per Java's string ordering.
+	// per Java's UTF-16 string ordering.
 	//
 	// Java: UnresolvedModule.getExportedNames(ModuleRequestResolver)
-	GetExportedNames(moduleRequestResolver ModuleRequestResolver) *jutil.LinkedHashSet[string]
+	GetExportedNames(moduleRequestResolver ModuleRequestResolver) []string
 
 	// GetExportedNamesWithVisited returns all names in this module's
-	// namespace, sorted per Java's string ordering. visited is the set used
-	// to detect export * cycles.
+	// namespace, sorted per Java's UTF-16 string ordering. visited is the set
+	// used to detect export * cycles.
 	//
 	// Java: UnresolvedModule.getExportedNames(ModuleRequestResolver, Set<UnresolvedModule>)
-	GetExportedNamesWithVisited(moduleRequestResolver ModuleRequestResolver, visited *jutil.LinkedHashSet[UnresolvedModule]) *jutil.LinkedHashSet[string]
+	GetExportedNamesWithVisited(moduleRequestResolver ModuleRequestResolver, visited map[UnresolvedModule]struct{}) []string
 
 	// Java: UnresolvedModule.resolveExport(ModuleRequestResolver, String)
 	ResolveExport(moduleRequestResolver ModuleRequestResolver, exportName string) *ResolveExportResult
@@ -434,39 +632,8 @@ type UnresolvedModule interface {
 		moduleSpecifier string,
 		hasModuleSpecifier bool,
 		exportName string,
-		resolveSet *jutil.LinkedHashSet[ExportTrace],
-		exportStarSet *jutil.LinkedHashSet[UnresolvedModule]) *ResolveExportResult
-}
-
-// UnresolvedModuleBase holds the base implementations of UnresolvedModule;
-// subclasses embed it and call InitUnresolvedModuleBase.
-type UnresolvedModuleBase struct {
-	self UnresolvedModule
-}
-
-// InitUnresolvedModuleBase is the Go form of super(); self is the object
-// being constructed.
-func (m *UnresolvedModuleBase) InitUnresolvedModuleBase(self UnresolvedModule) {
-	m.self = self
-}
-
-// Java: UnresolvedModule.resolve(ModuleRequestResolver)
-func (m *UnresolvedModuleBase) Resolve(moduleRequestResolver ModuleRequestResolver) *Module {
-	return m.self.ResolveWithModuleSpecifier(moduleRequestResolver, "", false)
-}
-
-// ResolveExport resolves exportName; see ResolveExportWithTraces.
-//
-// Java: UnresolvedModule.resolveExport(ModuleRequestResolver, String)
-func (m *UnresolvedModuleBase) ResolveExport(
-	moduleRequestResolver ModuleRequestResolver, exportName string) *ResolveExportResult {
-	return m.self.ResolveExportWithTraces(
-		moduleRequestResolver,
-		"",
-		false,
-		exportName,
-		jutil.NewLinkedHashSet[ExportTrace](),
-		jutil.NewLinkedHashSet[UnresolvedModule]())
+		resolveSet map[ExportTrace]struct{},
+		exportStarSet map[UnresolvedModule]struct{}) *ResolveExportResult
 }
 
 // ResolveExportResult is the result of resolving an export, which can be a
@@ -559,9 +726,10 @@ func ResolveExportResult_Of(binding *Binding) *ResolveExportResult {
 }
 
 var (
-	nonEsEmptyBindingMap  = jutil.NewLinkedHashMap[string, *Binding]()
-	nonEsEmptyExportMap   = jutil.NewLinkedHashMap[string, *Export]()
-	nonEsEmptyExportedSet = jutil.NewLinkedHashSet[string]()
+	nonEsEmptyBindingMap       = &OrderedStringMap[*Binding]{}
+	nonEsEmptyExportMap        = &OrderedStringMap[*Export]{}
+	nonEsEmptyLinkedBindingMap = jutil.NewLinkedHashMap[string, *Binding]()
+	nonEsEmptyLinkedExportMap  = jutil.NewLinkedHashMap[string, *Export]()
 )
 
 // NonEsModuleProcessor is the catch-all module processor for non-ES and
@@ -576,11 +744,15 @@ func NewNonEsModuleProcessor() *NonEsModuleProcessor {
 }
 
 type nonEsModule struct {
-	UnresolvedModuleBase
-
 	metadata   *ModuleMetadataMap_ModuleMetadata
 	path       *ModuleLoader_ModulePath
 	scriptNode rhino.Node
+}
+
+var _ UnresolvedModule = (*nonEsModule)(nil)
+
+func (m *nonEsModule) Resolve(moduleRequestResolver ModuleRequestResolver) *Module {
+	return m.ResolveWithModuleSpecifier(moduleRequestResolver, "", false)
 }
 
 func (m *nonEsModule) ResolveExport(
@@ -593,8 +765,8 @@ func (m *nonEsModule) ResolveExportWithTraces(
 	moduleSpecifier string,
 	hasModuleSpecifier bool,
 	exportName string,
-	resolveSet *jutil.LinkedHashSet[ExportTrace],
-	exportStarSet *jutil.LinkedHashSet[UnresolvedModule]) *ResolveExportResult {
+	resolveSet map[ExportTrace]struct{},
+	exportStarSet map[UnresolvedModule]struct{}) *ResolveExportResult {
 	var namespace string
 	hasNamespace := false
 	if hasModuleSpecifier && GoogEsImports_IsGoogImportSpecifier(moduleSpecifier) {
@@ -642,23 +814,21 @@ func (m *nonEsModule) Metadata() *ModuleMetadataMap_ModuleMetadata {
 	return m.metadata
 }
 
-func (m *nonEsModule) GetExportedNames(moduleRequestResolver ModuleRequestResolver) *jutil.LinkedHashSet[string] {
+func (m *nonEsModule) GetExportedNames(moduleRequestResolver ModuleRequestResolver) []string {
 	panic(jutil.NewUnsupportedOperationException())
 }
 
 func (m *nonEsModule) GetExportedNamesWithVisited(
-	moduleRequestResolver ModuleRequestResolver, visited *jutil.LinkedHashSet[UnresolvedModule]) *jutil.LinkedHashSet[string] {
+	moduleRequestResolver ModuleRequestResolver, visited map[UnresolvedModule]struct{}) []string {
 	panic(jutil.NewUnsupportedOperationException())
 }
 
 // Java: NonEsModuleProcessor.process(ModuleMetadata, ModulePath, Node)
 func (p *NonEsModuleProcessor) Process(
 	metadata *ModuleMetadataMap_ModuleMetadata, path *ModuleLoader_ModulePath, script rhino.Node) UnresolvedModule {
-	m := &nonEsModule{
+	return &nonEsModule{
 		metadata:   metadata,
 		path:       path,
 		scriptNode: script,
 	}
-	m.InitUnresolvedModuleBase(m)
-	return m
 }

@@ -68,36 +68,39 @@ type CrossChunkCodeMotion struct {
 	// declarations that have to be moved into that chunk
 	chunkInsertionPointMap map[*JSChunk]rhino.Node
 
-	scratchImmovableChunks jutil.BitSet
+	scratchImmovableChunks inlineBitSet
 	scratchDsgCycle        CrossChunkCodeMotion_DeclarationStatementGroupCycle
+
+	symbolSlab jutil.Slab[CrossChunkCodeMotion_GlobalSymbol]
+	dsgSlab    jutil.Slab[CrossChunkCodeMotion_DeclarationStatementGroup]
+	cycleSlab  jutil.Slab[CrossChunkCodeMotion_GlobalSymbolCycle]
 
 	parentChunkCanSeeSymbolsDeclaredInChildren bool
 }
 
 func (c *CrossChunkCodeMotion) allocGlobalSymbol(var_ *Var) *CrossChunkCodeMotion_GlobalSymbol {
-	s := &CrossChunkCodeMotion_GlobalSymbol{
-		outer:                c,
-		preorderNumber:       -1,
-		singleImmovableChunk: -1,
-		var_:                 var_,
-	}
+	s := c.symbolSlab.New()
+	s.outer = c
+	s.preorderNumber = -1
+	s.singleImmovableChunk = -1
+	s.var_ = var_
 	s.dsgs = s.dsgBuf[:0]
 	s.referencingSlice = s.referencingBuf[:0]
 	return s
 }
 
 func (c *CrossChunkCodeMotion) allocDsg(declaredGlobalSymbol *CrossChunkCodeMotion_GlobalSymbol, currentChunk *JSChunk) *CrossChunkCodeMotion_DeclarationStatementGroup {
-	g := &CrossChunkCodeMotion_DeclarationStatementGroup{
-		declaredGlobalSymbol: declaredGlobalSymbol,
-		currentChunk:         currentChunk,
-	}
+	g := c.dsgSlab.New()
+	g.declaredGlobalSymbol = declaredGlobalSymbol
+	g.currentChunk = currentChunk
 	g.statements = g.stmtBuf[:0]
 	g.referencedSlice = g.referencedBuf[:0]
 	return g
 }
 
 func (c *CrossChunkCodeMotion) allocCycle() *CrossChunkCodeMotion_GlobalSymbolCycle {
-	y := &CrossChunkCodeMotion_GlobalSymbolCycle{outer: c}
+	y := c.cycleSlab.New()
+	y.outer = c
 	y.symbolsSlice = y.symbolsBuf[:0]
 	return y
 }
@@ -125,6 +128,11 @@ func (c *CrossChunkCodeMotion) Process(externs rhino.Node, root rhino.Node) {
 	defer logFile.Close()
 	defer func() {
 		c.cccmLog = diagnostic.LogFile{}
+		c.symbolSlab = jutil.Slab[CrossChunkCodeMotion_GlobalSymbol]{}
+		c.dsgSlab = jutil.Slab[CrossChunkCodeMotion_DeclarationStatementGroup]{}
+		c.cycleSlab = jutil.Slab[CrossChunkCodeMotion_GlobalSymbolCycle]{}
+		c.scratchImmovableChunks = inlineBitSet{}
+		clear(c.chunkInsertionPointMap)
 	}()
 	c.cccmLog = logFile
 	c.cccmLog.LogString("doing cccm")
@@ -350,7 +358,7 @@ type CrossChunkCodeMotion_GlobalSymbol struct {
 	dsgs   []*CrossChunkCodeMotion_DeclarationStatementGroup
 	dsgBuf [2]*CrossChunkCodeMotion_DeclarationStatementGroup
 
-	chunksWithImmovableReferences jutil.BitSet
+	chunksWithImmovableReferences inlineBitSet
 	singleImmovableChunk          int32
 
 	// Symbols whose declaration statements refer to this symbol.
@@ -406,7 +414,7 @@ func (s *CrossChunkCodeMotion_GlobalSymbol) AddImmovableReference(chunk *JSChunk
 	s.chunksWithImmovableReferences.Set(int(idx))
 }
 
-func (s *CrossChunkCodeMotion_GlobalSymbol) orImmovableChunksInto(dst *jutil.BitSet) {
+func (s *CrossChunkCodeMotion_GlobalSymbol) orImmovableChunksInto(dst *inlineBitSet) {
 	if s.singleImmovableChunk >= 0 {
 		dst.Set(int(s.singleImmovableChunk))
 	} else if s.singleImmovableChunk == -2 {
@@ -840,7 +848,7 @@ func NewCrossChunkCodeMotion_DeclarationStatementGroupCycle(outer *CrossChunkCod
 }
 
 // Java: CrossChunkCodeMotion.DeclarationStatementGroupCycle.moveToPreferredChunk(BitSet)
-func (y *CrossChunkCodeMotion_DeclarationStatementGroupCycle) MoveToPreferredChunk(chunksWithImmovableReferences *jutil.BitSet) {
+func (y *CrossChunkCodeMotion_DeclarationStatementGroupCycle) MoveToPreferredChunk(chunksWithImmovableReferences *inlineBitSet) {
 	y.moveToPreferredChunkDirect(y.GetPreferredChunk(chunksWithImmovableReferences))
 }
 
@@ -956,13 +964,13 @@ func (y *CrossChunkCodeMotion_DeclarationStatementGroupCycle) GetStatementsLastF
 }
 
 // Java: CrossChunkCodeMotion.DeclarationStatementGroupCycle.getPreferredChunk(BitSet)
-func (y *CrossChunkCodeMotion_DeclarationStatementGroupCycle) GetPreferredChunk(chunksWithImmovableReferences *jutil.BitSet) *JSChunk {
+func (y *CrossChunkCodeMotion_DeclarationStatementGroupCycle) GetPreferredChunk(chunksWithImmovableReferences *inlineBitSet) *JSChunk {
 	if chunksWithImmovableReferences.IsEmpty() {
 		return y.currentChunk
 	} else if !y.AllStatementsCanMove() {
 		return y.currentChunk
 	} else {
-		return y.outer.graph.GetSmallestCoveringSubtree(y.currentChunk, chunksWithImmovableReferences)
+		return y.outer.graph.getSmallestCoveringSubtree(y.currentChunk, chunksWithImmovableReferences)
 	}
 }
 

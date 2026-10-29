@@ -31,17 +31,23 @@ type ClosureModuleProcessor struct {
 
 var _ moduleProcessor = (*ClosureModuleProcessor)(nil)
 
-type unresolvedGoogModule struct {
-	UnresolvedModuleBase
+var closureModuleExportsID = rhino.RhinoStringPool_InternID("exports")
 
+type unresolvedGoogModule struct {
 	metadata            *ModuleMetadataMap_ModuleMetadata
 	srcFileName         *string
 	path                *ModuleLoader_ModulePath
-	namespace           *jutil.LinkedHashMap[string, *Binding]
+	namespace           *OrderedStringMap[*Binding]
 	requireNames        []string
 	requiresByLocalName map[string]*ClosureRequireProcessor_Require
 	compiler            AbstractCompiler
 	resolved            *Module
+}
+
+var _ UnresolvedModule = (*unresolvedGoogModule)(nil)
+
+func (m *unresolvedGoogModule) Resolve(moduleRequestResolver ModuleRequestResolver) *Module {
+	return m.ResolveWithModuleSpecifier(moduleRequestResolver, "", false)
 }
 
 func (m *unresolvedGoogModule) ResolveExport(
@@ -57,8 +63,8 @@ func (m *unresolvedGoogModule) ResolveExportWithTraces(
 	moduleSpecifier string,
 	hasModuleSpecifier bool,
 	exportName string,
-	resolveSet *jutil.LinkedHashSet[ExportTrace],
-	exportStarSet *jutil.LinkedHashSet[UnresolvedModule]) *ResolveExportResult {
+	resolveSet map[ExportTrace]struct{},
+	exportStarSet map[UnresolvedModule]struct{}) *ResolveExportResult {
 	return m.ResolveExport(moduleRequestResolver, exportName)
 }
 
@@ -97,25 +103,24 @@ func (m *unresolvedGoogModule) ResolveWithModuleSpecifier(
 }
 
 func (m *unresolvedGoogModule) getAllResolvedImports(
-	moduleRequestResolver ModuleRequestResolver) *jutil.LinkedHashMap[string, *Binding] {
-	imports := jutil.NewLinkedHashMapWithCapacity[string, *Binding](len(m.requireNames))
+	moduleRequestResolver ModuleRequestResolver) *OrderedStringMap[*Binding] {
+	if len(m.requireNames) == 0 {
+		return nonEsEmptyBindingMap
+	}
+	var imports *OrderedStringMap[*Binding]
 	for _, name := range m.requireNames {
 		b := m.resolveImport(moduleRequestResolver, name)
 		if b.Resolved() {
+			if imports == nil {
+				imports = NewOrderedStringMapWithCapacity[*Binding](len(m.requireNames))
+			}
 			imports.Put(name, jutil.CheckNotNull(b.GetBinding()))
 		}
 	}
-	return imports
-}
-
-// closureModuleProcessor_immutableMapCopyOf is ImmutableMap.copyOf(Map),
-// which rejects null values.
-func closureModuleProcessor_immutableMapCopyOf[V any](m *jutil.LinkedHashMap[string, V]) *jutil.LinkedHashMap[string, V] {
-	out := jutil.NewLinkedHashMapWithCapacity[string, V](m.Size())
-	for k, v := range m.All() {
-		out.Put(k, jutil.CheckNotNull(v))
+	if imports == nil {
+		return nonEsEmptyBindingMap
 	}
-	return out
+	return imports
 }
 
 func (m *unresolvedGoogModule) resolveImport(
@@ -142,8 +147,8 @@ func (m *unresolvedGoogModule) resolveImport(
 		moduleRequest,
 		true,
 		importRecord.ImportName(),
-		jutil.NewLinkedHashSet[ExportTrace](),
-		jutil.NewLinkedHashSet[UnresolvedModule]())
+		nil,
+		nil)
 	if !result.Found() && !result.HadError() {
 		m.reportInvalidDestructuringRequire(requested, importRecord)
 		return ResolveExportResult_ERROR
@@ -159,12 +164,12 @@ func (m *unresolvedGoogModule) Metadata() *ModuleMetadataMap_ModuleMetadata {
 	return m.metadata
 }
 
-func (m *unresolvedGoogModule) GetExportedNames(moduleRequestResolver ModuleRequestResolver) *jutil.LinkedHashSet[string] {
+func (m *unresolvedGoogModule) GetExportedNames(moduleRequestResolver ModuleRequestResolver) []string {
 	panic(jutil.NewUnsupportedOperationException())
 }
 
 func (m *unresolvedGoogModule) GetExportedNamesWithVisited(
-	moduleRequestResolver ModuleRequestResolver, visited *jutil.LinkedHashSet[UnresolvedModule]) *jutil.LinkedHashSet[string] {
+	moduleRequestResolver ModuleRequestResolver, visited map[UnresolvedModule]struct{}) []string {
 	panic(jutil.NewUnsupportedOperationException())
 }
 
@@ -243,22 +248,24 @@ func (p *ClosureModuleProcessor) Process(
 	cb := &closureModuleProcessingCallback{
 		metadata:            metadata,
 		closureNamespace:    closureModuleProcessor_onlyNamespace(metadata),
-		namespace:           jutil.NewLinkedHashMap[string, *Binding](),
+		namespace:           &OrderedStringMap[*Binding]{},
 		requiresByLocalName: make(map[string]*ClosureRequireProcessor_Require),
 	}
 	NodeTraversal_Traverse(p.compiler, script, cb)
+	namespace := cb.namespace
+	if namespace.IsEmpty() {
+		namespace = nonEsEmptyBindingMap
+	}
 
-	m := &unresolvedGoogModule{
+	return &unresolvedGoogModule{
 		metadata:            metadata,
 		srcFileName:         script.GetSourceFileName(),
 		path:                path,
-		namespace:           cb.namespace,
+		namespace:           namespace,
 		requireNames:        cb.requireNames,
 		requiresByLocalName: cb.requiresByLocalName,
 		compiler:            p.compiler,
 	}
-	m.InitUnresolvedModuleBase(m)
-	return m
 }
 
 type closureModuleProcessingCallback struct {
@@ -266,7 +273,7 @@ type closureModuleProcessingCallback struct {
 
 	metadata              *ModuleMetadataMap_ModuleMetadata
 	closureNamespace      string
-	namespace             *jutil.LinkedHashMap[string, *Binding]
+	namespace             *OrderedStringMap[*Binding]
 	requireNames          []string
 	requiresByLocalName   map[string]*ClosureRequireProcessor_Require
 	seenExportsAssignment bool
@@ -296,7 +303,7 @@ func (c *closureModuleProcessingCallback) ShouldTraverse(t *NodeTraversal, n rhi
 
 func (c *closureModuleProcessingCallback) maybeInitializeExports(assign ast.Assign) {
 	lhs := assign.Target()
-	if lhsName, ok := lhs.AsName(); ok && lhsName.Ident() == "exports" {
+	if lhsName, ok := lhs.AsName(); ok && lhsName.Node().GetStringID() == closureModuleExportsID {
 		rhs := assign.Value().Node()
 		if NodeUtil_IsNamedExportsLiteral(rhs) {
 			for member := range ast.MustObjectLit(rhs).Members() {
@@ -307,14 +314,14 @@ func (c *closureModuleProcessingCallback) maybeInitializeExports(assign ast.Assi
 			c.markExportsAssignmentInNamespace(lhs.Node())
 		}
 	} else if getProp, ok := lhs.AsGetProp(); ok {
-		if owner, ok := getProp.Object().AsName(); ok && owner.Ident() == "exports" {
+		if owner, ok := getProp.Object().AsName(); ok && owner.Node().GetStringID() == closureModuleExportsID {
 			c.addPropertyExport(getProp.Property(), getProp.Node())
 		}
 	}
 }
 
 func (c *closureModuleProcessingCallback) maybeInitializeExportsStub(getProp ast.GetProp) {
-	if owner, ok := getProp.Object().AsName(); ok && owner.Ident() == "exports" {
+	if owner, ok := getProp.Object().AsName(); ok && owner.Node().GetStringID() == closureModuleExportsID {
 		c.addPropertyExport(getProp.Property(), getProp.Node())
 	}
 }

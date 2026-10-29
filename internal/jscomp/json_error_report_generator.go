@@ -155,7 +155,7 @@ func (g *JsonErrorReportGenerator) GenerateReport(manager SortingErrorManager) {
 			summaryBuilder.WriteString(
 				jutil.StringFormat(
 					"%d error(s), %d warning(s), %s%% typed",
-					manager.GetErrorCount(), manager.GetWarningCount(), jutil.Formatter_FormatDecimalFloat(manager.GetTypedPercent(), 1)))
+					manager.GetErrorCount(), manager.GetWarningCount(), formatDecimalFloat(manager.GetTypedPercent(), 1)))
 		} else {
 			summaryBuilder.WriteString(
 				jutil.StringFormat(

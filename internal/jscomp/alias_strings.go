@@ -19,6 +19,7 @@
 package jscomp
 
 import (
+	"slices"
 	"strconv"
 	"strings"
 
@@ -43,7 +44,9 @@ type AliasStrings struct {
 
 	outputStringUsage bool
 
-	stringInfoMap *jutil.TreeMap[string, *AliasStrings_StringInfo]
+	stringInfoMap map[string]*AliasStrings_StringInfo
+	sortedStrings []string
+	stringsSorted bool
 
 	usedHashedAliases map[string]struct{}
 
@@ -81,7 +84,7 @@ func NewAliasStrings(
 	outputStringUsage bool,
 	aliasStringsMode CompilerOptions_AliasStringsMode) *AliasStrings {
 	a := &AliasStrings{
-		stringInfoMap:             jutil.NewTreeMap[string, *AliasStrings_StringInfo](jutil.StringCompareTo),
+		stringInfoMap:             make(map[string]*AliasStrings_StringInfo),
 		usedHashedAliases:         make(map[string]struct{}),
 		chunkVarParentMap:         make(map[*JSChunk]rhino.Node),
 		unitTestHashReductionMask: ^0,
@@ -180,12 +183,23 @@ func (a *AliasStrings) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) 
 //
 // Java: AliasStrings.getOrCreateStringInfo(String)
 func (a *AliasStrings) GetOrCreateStringInfo(string_ string) *AliasStrings_StringInfo {
-	info := a.stringInfoMap.Get(string_)
+	info := a.stringInfoMap[string_]
 	if info == nil {
-		info = NewAliasStrings_StringInfo(a, a.stringInfoMap.Size())
-		a.stringInfoMap.Put(string_, info)
+		info = NewAliasStrings_StringInfo(a, len(a.stringInfoMap))
+		a.stringInfoMap[string_] = info
+		a.sortedStrings = append(a.sortedStrings, string_)
+		a.stringsSorted = false
 	}
 	return info
+}
+
+func (a *AliasStrings) ensureSortedStrings() []string {
+	if !a.stringsSorted {
+		slices.SortFunc(a.sortedStrings, jutil.StringCompareTo)
+		a.sortedStrings = slices.Compact(a.sortedStrings)
+		a.stringsSorted = true
+	}
+	return a.sortedStrings
 }
 
 // ReplaceStringsWithAliases replaces strings with references to alias
@@ -193,7 +207,8 @@ func (a *AliasStrings) GetOrCreateStringInfo(string_ string) *AliasStrings_Strin
 //
 // Java: AliasStrings.replaceStringsWithAliases()
 func (a *AliasStrings) ReplaceStringsWithAliases() {
-	for literal, info := range a.stringInfoMap.All() {
+	for _, literal := range a.ensureSortedStrings() {
+		info := a.stringInfoMap[literal]
 		if a.ShouldReplaceWithAlias(literal, info) {
 			for _, node := range info.occurrences {
 				a.ReplaceStringWithAliasName(node, info.GetVariableName(literal), info)
@@ -208,7 +223,8 @@ func (a *AliasStrings) ReplaceStringsWithAliases() {
 //
 // Java: AliasStrings.addAliasDeclarationNodes()
 func (a *AliasStrings) AddAliasDeclarationNodes() {
-	for key, info := range a.stringInfoMap.All() {
+	for _, key := range a.ensureSortedStrings() {
+		info := a.stringInfoMap[key]
 		if !info.isAliased {
 			continue
 		}
@@ -280,7 +296,8 @@ func (a *AliasStrings) ReplaceStringWithAliasName(n rhino.Node, name string, inf
 func (a *AliasStrings) OutputStringUsage() {
 	var sb strings.Builder
 	sb.WriteString("Strings used more than once:\n")
-	for key, info := range a.stringInfoMap.All() {
+	for _, key := range a.ensureSortedStrings() {
+		info := a.stringInfoMap[key]
 		count := len(info.occurrences)
 		if count > 1 {
 			sb.WriteString(strconv.Itoa(count))

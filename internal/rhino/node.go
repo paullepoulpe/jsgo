@@ -290,6 +290,11 @@ func (n Node) IsPlainNode() bool {
 	return n.nodeKind() == node_kindNode
 }
 
+// IsStringNode reports whether this node carries a string payload (StringNode).
+func (n Node) IsStringNode() bool {
+	return n.nodeKind() == node_kindString
+}
+
 //go:noinline
 func failNodeCastKind(got, want node_kind) {
 	panic(jutil.NewClassCastException(node_kindClassNames[got], node_kindClassNames[want]))

@@ -35,7 +35,7 @@ type browserPrefixReplacement struct {
 // BrowserModuleResolver that allows for replacing some path prefixes before
 // resolving.
 type BrowserWithTransformedPrefixesModuleResolver struct {
-	ModuleResolverBase
+	moduleResolverCommon
 	prefixReplacements []browserPrefixReplacement
 	expectedPrefixes   string
 }
@@ -77,8 +77,9 @@ func NewBrowserWithTransformedPrefixesModuleResolver(
 	errorHandler ErrorHandler,
 	pathEscaper ModuleLoader_PathEscaper,
 	prefixReplacements *jutil.LinkedHashMap[string, string]) *BrowserWithTransformedPrefixesModuleResolver {
-	r := &BrowserWithTransformedPrefixesModuleResolver{}
-	r.InitModuleResolverBase(modulePaths, moduleRootPaths, errorHandler, pathEscaper)
+	r := &BrowserWithTransformedPrefixesModuleResolver{
+		moduleResolverCommon: newModuleResolverCommon(modulePaths, moduleRootPaths, errorHandler, pathEscaper),
+	}
 	n := prefixReplacements.Size()
 	replacements := make([]browserPrefixReplacement, 0, n)
 	prefixes := make([]string, 0, n)
@@ -141,7 +142,7 @@ func (r *BrowserWithTransformedPrefixesModuleResolver) ResolveJsModuleSilently(s
 // Java: BrowserWithTransformedPrefixesModuleResolver.resolveModuleAsPath(String, String)
 func (r *BrowserWithTransformedPrefixesModuleResolver) ResolveModuleAsPath(scriptAddress string, moduleAddress string) string {
 	if ModuleLoader_IsRelativeIdentifier(moduleAddress) {
-		return r.ModuleResolverBase.ResolveModuleAsPath(scriptAddress, moduleAddress)
+		return r.moduleResolverCommon.ResolveModuleAsPath(scriptAddress, moduleAddress)
 	}
 	transformedAddress, _ := r.replacePathPrefixes(moduleAddress)
 	return ModuleLoader_Normalize(transformedAddress, r.moduleRootPaths)

@@ -22,6 +22,7 @@ package colors
 import (
 	"encoding/binary"
 	"slices"
+	"strconv"
 	"strings"
 	"sync/atomic"
 
@@ -619,21 +620,30 @@ func (c *Color) subtractNullOrVoidImpl() *Color {
 // Java: $AutoValue_Color.toString()
 func (c *Color) String() string {
 	var sb strings.Builder
-	sb.WriteString("Color{")
-	sb.WriteString("id=" + c.id.String() + ", ")
-	sb.WriteString("prototypes=" + jutil.CollectionToString(c.prototypes) + ", ")
-	sb.WriteString("instanceColors=" + jutil.CollectionToString(c.instanceColors) + ", ")
-	sb.WriteString("invalidating=" + jutil.ToJavaString(c.invalidating) + ", ")
-	sb.WriteString("propertiesKeepOriginalName=" + jutil.ToJavaString(c.propertiesKeepOriginalName) + ", ")
-	sb.WriteString("constructor=" + jutil.ToJavaString(c.constructor) + ", ")
-	sb.WriteString("ownProperties=" + jutil.CollectionToString(c.ownProperties) + ", ")
+	sb.WriteString("Color{id=")
+	sb.WriteString(c.id.String())
+	sb.WriteString(", prototypes=")
+	sb.WriteString(jutil.CollectionToString(c.prototypes))
+	sb.WriteString(", instanceColors=")
+	sb.WriteString(jutil.CollectionToString(c.instanceColors))
+	sb.WriteString(", invalidating=")
+	sb.WriteString(strconv.FormatBool(c.invalidating))
+	sb.WriteString(", propertiesKeepOriginalName=")
+	sb.WriteString(strconv.FormatBool(c.propertiesKeepOriginalName))
+	sb.WriteString(", constructor=")
+	sb.WriteString(strconv.FormatBool(c.constructor))
+	sb.WriteString(", ownProperties=")
+	sb.WriteString(jutil.CollectionToString(c.ownProperties))
 	if !c.hasBoxId {
-		sb.WriteString("boxId=null, ")
+		sb.WriteString(", boxId=null, closureAssert=")
 	} else {
-		sb.WriteString("boxId=" + c.boxId.String() + ", ")
+		sb.WriteString(", boxId=")
+		sb.WriteString(c.boxId.String())
+		sb.WriteString(", closureAssert=")
 	}
-	sb.WriteString("closureAssert=" + jutil.ToJavaString(c.closureAssert) + ", ")
-	sb.WriteString("unionElements=" + jutil.CollectionToString(c.unionElements))
+	sb.WriteString(strconv.FormatBool(c.closureAssert))
+	sb.WriteString(", unionElements=")
+	sb.WriteString(jutil.CollectionToString(c.unionElements))
 	sb.WriteString("}")
 	return sb.String()
 }

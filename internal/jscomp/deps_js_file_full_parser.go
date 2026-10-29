@@ -50,12 +50,12 @@ type JsFileFullParser_FileInfo struct {
 	moduleType        JsFileFullParser_FileInfo_ModuleType
 	isLegacyNamespace bool
 
-	delcalls     *jutil.TreeSet[string]
-	deltemplates *jutil.TreeSet[string]
-	// Use a LinkedHashSet as import order matters!
-	importedModules *jutil.LinkedHashSet[string]
-	dynamicRequires *jutil.LinkedHashSet[string]
-	readToggles     *jutil.LinkedHashSet[string]
+	delcalls     []string
+	deltemplates []string
+	// Import order matters!
+	importedModules []string
+	dynamicRequires []string
+	readToggles     []string
 	modName         []string
 	mods            []string
 
@@ -69,7 +69,18 @@ type JsFileFullParser_FileInfo struct {
 	visibility    []string
 }
 
+func jsFileFullParser_appendUnique(dst []string, elem string) []string {
+	if slices.Contains(dst, elem) {
+		return dst
+	}
+	return append(dst, elem)
+}
+
 func (info *JsFileFullParser_FileInfo) sortMultisets() {
+	slices.SortFunc(info.delcalls, jutil.StringCompareTo)
+	info.delcalls = slices.Compact(info.delcalls)
+	slices.SortFunc(info.deltemplates, jutil.StringCompareTo)
+	info.deltemplates = slices.Compact(info.deltemplates)
 	slices.SortFunc(info.provides, jutil.StringCompareTo)
 	slices.SortFunc(info.requires, jutil.StringCompareTo)
 	slices.SortFunc(info.typeRequires, jutil.StringCompareTo)
@@ -81,14 +92,9 @@ func (info *JsFileFullParser_FileInfo) sortMultisets() {
 // Java: JsFileFullParser.FileInfo()
 func NewJsFileFullParser_FileInfo() *JsFileFullParser_FileInfo {
 	return &JsFileFullParser_FileInfo{
-		moduleType:      JsFileFullParser_FileInfo_ModuleType_UNKNOWN,
-		delcalls:        jutil.NewTreeSet[string](jutil.StringCompareTo),
-		deltemplates:    jutil.NewTreeSet[string](jutil.StringCompareTo),
-		importedModules: jutil.NewLinkedHashSet[string](),
-		dynamicRequires: jutil.NewLinkedHashSet[string](),
-		readToggles:     jutil.NewLinkedHashSet[string](),
-		modName:         []string{},
-		mods:            []string{},
+		moduleType: JsFileFullParser_FileInfo_ModuleType_UNKNOWN,
+		modName:    []string{},
+		mods:       []string{},
 	}
 }
 
@@ -205,14 +211,12 @@ func JsFileFullParser_Parse(code string, filename string, reporter JsFileFullPar
 			compiler /* processCommonJsModules= */, false, ModuleLoader_ResolutionMode_BROWSER)
 	gatherModuleMetadata.Process(rhino.NewNode(rhino.Token_ROOT), parsed.Ast)
 	compiler.GenerateReport()
-	if compiler.GetModuleMetadataMap().GetModulesByPath().Size() != 1 {
+	byPath := compiler.GetModuleMetadataMap().ModulesByPathMap()
+	if byPath.Size() != 1 {
 		info.sortMultisets()
 		return info // Avoid potential crashes due to assumptions of the code below being violated.
 	}
-	var module *ModuleMetadataMap_ModuleMetadata
-	for m := range compiler.GetModuleMetadataMap().GetModulesByPath().Values() {
-		module = m // Iterables.getOnlyElement
-	}
+	module := byPath.Entries()[0].Value
 	switch module.ModuleType() {
 	case ModuleMetadataMap_ModuleType_GOOG_PROVIDE:
 		info.moduleType = JsFileFullParser_FileInfo_ModuleType_GOOG_PROVIDE
@@ -274,7 +278,9 @@ func (m *jsFileFullParser_ErrorManager) PrintSummary() {}
 
 // Java: JsFileFullParser.recordModuleMetadata(FileInfo, ModuleMetadata)
 func jsFileFullParser_recordModuleMetadata(info *JsFileFullParser_FileInfo, module *ModuleMetadataMap_ModuleMetadata) {
-	info.importedModules.AddAll(module.Es6ImportSpecifiers().ElementSet().ToSlice()...)
+	for _, e := range module.Es6ImportSpecifiers().Entries() {
+		info.importedModules = jsFileFullParser_appendUnique(info.importedModules, e.Key)
+	}
 
 	// If something doesn't have an external dependency on Closure, then it
 	// does not have any externally required files or symbols to provide.
@@ -285,8 +291,12 @@ func jsFileFullParser_recordModuleMetadata(info *JsFileFullParser_FileInfo, modu
 		info.provides = slices.AppendSeq(info.provides, module.GoogNamespaces().All())
 		info.requires = slices.AppendSeq(info.requires, module.StronglyRequiredGoogNamespaces().All())
 		info.maybeRequires = slices.AppendSeq(info.maybeRequires, module.MaybeRequiredGoogNamespaces().All())
-		info.dynamicRequires.AddAll(module.DynamicallyRequiredGoogNamespaces().ElementSet().ToSlice()...)
-		info.readToggles.AddAll(module.ReadToggles().ElementSet().ToSlice()...)
+		for _, e := range module.DynamicallyRequiredGoogNamespaces().Entries() {
+			info.dynamicRequires = jsFileFullParser_appendUnique(info.dynamicRequires, e.Key)
+		}
+		for _, e := range module.ReadToggles().Entries() {
+			info.readToggles = jsFileFullParser_appendUnique(info.readToggles, e.Key)
+		}
 		info.typeRequires = slices.AppendSeq(info.typeRequires, module.WeaklyRequiredGoogNamespaces().All())
 		info.testonly = module.IsTestOnly()
 	}
@@ -361,13 +371,13 @@ func jsFileFullParser_parseComment(comment *parser.Comment, info *JsFileFullPars
 			// TODO(b/210468818): Remove legacy @hassoydeltemplate annotation
 			// once Soy gencode has been updated to use the new one.
 			if annotation.value != "" {
-				info.deltemplates.Add(annotation.value)
+				info.deltemplates = append(info.deltemplates, annotation.value)
 			}
 		case "@delcall", "@hassoydelcall":
 			// TODO(b/210468818): Remove legacy @hassoydelcall annotation once
 			// Soy gencode has been updated to use the new one.
 			if annotation.value != "" {
-				info.delcalls.Add(annotation.value)
+				info.delcalls = append(info.delcalls, annotation.value)
 			}
 		case "@externs":
 			info.isExterns = true

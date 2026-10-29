@@ -123,8 +123,8 @@ var fixedPointGraphTraversal_MAX_NODE_COUNT_FOR_ITERATION_LIMIT = int64(math.Flo
 // from.
 //
 // Java: FixedPointGraphTraversal.computeFixedPoint(DiGraph<N, E>, Set<N>)
-func (t *FixedPointGraphTraversal[N, E]) ComputeFixedPointFromSet(graph DiGraph[N, E], entrySet jutil.Set[N]) {
-	if jutil.IsNil(entrySet) {
+func (t *FixedPointGraphTraversal[N, E]) ComputeFixedPointFromSet(graph DiGraph[N, E], entrySet *jutil.LinkedHashSet[N]) {
+	if entrySet == nil {
 		panic(jutil.NewNullPointerException())
 	}
 	var zeroN N
@@ -132,7 +132,7 @@ func (t *FixedPointGraphTraversal[N, E]) ComputeFixedPointFromSet(graph DiGraph[
 }
 
 func (t *FixedPointGraphTraversal[N, E]) computeFixedPointLinked(
-	ldg *LinkedDirectedGraph[N, E], initAll bool, singleEntry N, entrySet jutil.Set[N]) {
+	ldg *LinkedDirectedGraph[N, E], initAll bool, singleEntry N, entrySet *jutil.LinkedHashSet[N]) {
 	nodeCountInt := ldg.Nodes.Size()
 	ringCap := 16
 	for ringCap <= nodeCountInt+1 {

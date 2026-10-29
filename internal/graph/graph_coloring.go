@@ -45,7 +45,7 @@ func GraphColoring_ColorOf(a Annotation) *GraphColoring_Color {
 	}
 	c, ok := a.(*GraphColoring_Color)
 	if !ok {
-		panic(jutil.NewClassCastException(jutil.ToJavaString(a), "com.google.javascript.jscomp.graph.GraphColoring$Color"))
+		panic(jutil.NewClassCastException(formatGraphValue(a), "com.google.javascript.jscomp.graph.GraphColoring$Color"))
 	}
 	return c
 }

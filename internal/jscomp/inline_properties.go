@@ -311,7 +311,7 @@ func (r *inlineReplaceCandidates) hasInSupertypesList(subCtor *colors.Color, sup
 		return true
 	}
 
-	for immediateSupertype := range r.outer.registry.GetDisambiguationSupertypes(subCtor).All() {
+	for _, immediateSupertype := range r.outer.registry.GetDisambiguationSupertypesSlice(subCtor) {
 		if !immediateSupertype.IsUnion() && r.hasInSupertypesList(immediateSupertype, superCtor) {
 			return true
 		}

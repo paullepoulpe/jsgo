@@ -19,6 +19,7 @@
 package jscomp
 
 import (
+	"slices"
 	"strings"
 
 	"github.com/paullepoulpe/jsgo/internal/ast"
@@ -90,23 +91,26 @@ type es6CommonJsModuleRewriter struct {
 
 	requireInsertSpot        rhino.Node
 	script                   rhino.Node
-	exportedNameToLocalQName *jutil.TreeMap[string, es6CommonJsLocalQName]
-	imports                  *jutil.LinkedHashSet[rhino.Node]
-	importRequests           *jutil.LinkedHashSet[es6CommonJsModuleRequest]
+	exportedNameToLocalQName map[string]es6CommonJsLocalQName
+	exportedNames            []string
+	imports                  []rhino.Node
+	importRequests           []es6CommonJsModuleRequest
 	compiler                 AbstractCompiler
 	modulePath               *ModuleLoader_ModulePath
 }
 
 func newEs6CommonJsModuleRewriter(compiler AbstractCompiler, script rhino.Node) *es6CommonJsModuleRewriter {
 	return &es6CommonJsModuleRewriter{
-		compiler: compiler,
-		script:   script,
-		// TreeMap because ES6 orders the export keys using natural ordering.
-		exportedNameToLocalQName: jutil.NewTreeMap[string, es6CommonJsLocalQName](jutil.StringCompareTo),
-		importRequests:           jutil.NewLinkedHashSet[es6CommonJsModuleRequest](),
-		imports:                  jutil.NewLinkedHashSet[rhino.Node](),
+		compiler:                 compiler,
+		script:                   script,
+		exportedNameToLocalQName: make(map[string]es6CommonJsLocalQName),
 		modulePath:               compiler.GetInput(script.GetInputId()).GetPath(),
 	}
+}
+
+func (r *es6CommonJsModuleRewriter) putExport(name string, localQName es6CommonJsLocalQName) {
+	r.exportedNameToLocalQName[name] = localQName
+	r.exportedNames = append(r.exportedNames, name)
 }
 
 func (r *es6CommonJsModuleRewriter) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
@@ -195,16 +199,17 @@ func (r *es6CommonJsModuleRewriter) visitScript(t *NodeTraversal, script rhino.N
 }
 
 func (r *es6CommonJsModuleRewriter) addRequireCalls() {
-	if r.importRequests.IsEmpty() {
+	if len(r.importRequests) == 0 {
 		return
 	}
-	for importDecl := range r.imports.All() {
+	for _, importDecl := range r.imports {
 		importDecl.Detach()
 	}
 
-	importedNames := jutil.NewLinkedHashSet[string]()
-	for request := range r.importRequests.All() {
-		if importedNames.Add(request.varName) {
+	importedNames := make(map[string]struct{}, len(r.importRequests))
+	for _, request := range r.importRequests {
+		if _, seen := importedNames[request.varName]; !seen {
+			importedNames[request.varName] = struct{}{}
 			requireCall := rhino.IR_Call(rhino.IR_Name(es6CommonJsRequire), rhino.IR_String(request.specifier))
 			ast.MustCall(requireCall).SetFreeCall(true)
 			decl := rhino.IR_VarWithValue(rhino.IR_Name(request.varName), requireCall)
@@ -233,7 +238,7 @@ func (r *es6CommonJsModuleRewriter) registerAndLoadModule(t *NodeTraversal) {
 			block)
 
 	shallowDeps := rhino.NewNode(rhino.Token_ARRAYLIT)
-	for request := range r.importRequests.All() {
+	for _, request := range r.importRequests {
 		shallowDeps.AddChildToBack(rhino.IR_String(request.specifier))
 	}
 
@@ -255,12 +260,16 @@ func (r *es6CommonJsModuleRewriter) registerAndLoadModule(t *NodeTraversal) {
 }
 
 func (r *es6CommonJsModuleRewriter) addExportDef() {
-	if r.exportedNameToLocalQName.IsEmpty() {
+	if len(r.exportedNames) == 0 {
 		return
 	}
+	// ES6 orders the export keys using natural UTF-16 code-unit ordering.
+	slices.SortFunc(r.exportedNames, jutil.StringCompareTo)
+	r.exportedNames = slices.Compact(r.exportedNames)
+
 	definePropertiesLit := rhino.IR_Objectlit()
-	for key, value := range r.exportedNameToLocalQName.All() {
-		r.addExport(definePropertiesLit, key, value)
+	for _, key := range r.exportedNames {
+		r.addExport(definePropertiesLit, key, r.exportedNameToLocalQName[key])
 	}
 
 	r.script.AddChildToFront(
@@ -295,11 +304,16 @@ func (r *es6CommonJsModuleRewriter) visitImport(path *ModuleLoader_ModulePath, i
 				importDecl.Node(), TranspilationUtil_CANNOT_CONVERT, "Module requests with protocols."))
 	}
 
-	r.importRequests.Add(es6CommonJsModuleRequest{
+	req := es6CommonJsModuleRequest{
 		specifier: Es6RewriteModulesToCommonJsModules_NormalizePath(path.ResolveModuleAsPath(specifier).String()),
 		varName:   r.varNameOfImport(importDecl),
-	})
-	r.imports.Add(importDecl.Node())
+	}
+	if !slices.Contains(r.importRequests, req) {
+		r.importRequests = append(r.importRequests, req)
+	}
+	if !slices.Contains(r.imports, importDecl.Node()) {
+		r.imports = append(r.imports, importDecl.Node())
+	}
 }
 
 func (r *es6CommonJsModuleRewriter) visitExportDefault(t *NodeTraversal, export ast.Export) {
@@ -329,7 +343,7 @@ func (r *es6CommonJsModuleRewriter) visitExportDefault(t *NodeTraversal, export 
 		NodeUtil_AddFeatureToScript(t.GetCurrentScript(), parser.FeatureSet_Feature_CONST_DECLARATIONS, r.compiler)
 	}
 
-	r.exportedNameToLocalQName.Put("default", es6CommonJsLocalQName{qName: localName, nodeForSourceInfo: exportNode})
+	r.putExport("default", es6CommonJsLocalQName{qName: localName, nodeForSourceInfo: exportNode})
 	t.ReportCodeChange()
 }
 
@@ -343,7 +357,7 @@ func (r *es6CommonJsModuleRewriter) visitExportFrom(t *NodeTraversal, export ast
 	moduleName := r.varNameOfImportRequest(source.Value())
 	specs := ast.MustExportSpecs(export.Body().Node())
 	for exportSpec := range specs.Specs() {
-		r.exportedNameToLocalQName.Put(
+		r.putExport(
 			exportSpec.Exported().Ident(),
 			es6CommonJsLocalQName{
 				qName:             moduleName + "." + exportSpec.Local().Ident(),
@@ -367,7 +381,7 @@ func (r *es6CommonJsModuleRewriter) visitExportSpecs(t *NodeTraversal, export as
 			}
 			localName = importedQName
 		}
-		r.exportedNameToLocalQName.Put(
+		r.putExport(
 			exportSpec.Exported().Ident(),
 			es6CommonJsLocalQName{qName: localName, nodeForSourceInfo: exportSpec.Node()})
 	}
@@ -378,7 +392,7 @@ func (r *es6CommonJsModuleRewriter) visitExportSpecs(t *NodeTraversal, export as
 func (r *es6CommonJsModuleRewriter) addExportedName(lhs rhino.Node) {
 	nm := ast.MustName(lhs)
 	name := nm.Ident()
-	r.exportedNameToLocalQName.Put(name, es6CommonJsLocalQName{qName: name, nodeForSourceInfo: lhs})
+	r.putExport(name, es6CommonJsLocalQName{qName: name, nodeForSourceInfo: lhs})
 }
 
 func (r *es6CommonJsModuleRewriter) visitExportDeclaration(t *NodeTraversal, export ast.Export) {
@@ -389,12 +403,12 @@ func (r *es6CommonJsModuleRewriter) visitExportDeclaration(t *NodeTraversal, exp
 		NodeUtil_VisitLhsNodesInNode(declaration, r.addExportedName)
 	} else if fn, ok := ast.AsFunction(declaration); ok {
 		name := fn.NameNode().Ident()
-		r.exportedNameToLocalQName.Put(name, es6CommonJsLocalQName{qName: name, nodeForSourceInfo: exportNode})
+		r.putExport(name, es6CommonJsLocalQName{qName: name, nodeForSourceInfo: exportNode})
 	} else {
 		cls := ast.MustClass(declaration)
 		nm, _ := cls.Name()
 		name := nm.Ident()
-		r.exportedNameToLocalQName.Put(name, es6CommonJsLocalQName{qName: name, nodeForSourceInfo: exportNode})
+		r.putExport(name, es6CommonJsLocalQName{qName: name, nodeForSourceInfo: exportNode})
 	}
 
 	exportNode.ReplaceWith(declaration.Detach())

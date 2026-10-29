@@ -48,10 +48,9 @@ type SortedDependencies_Input interface {
 //
 // Inputs are compared with equals/hashCode, as in the Java collections.
 type SortedDependencies[InputT SortedDependencies_Input] struct {
-	userOrderedInputs          []InputT
-	importOrderedInputs        []InputT
-	nonExportingInputs         *jutil.LinkedHashMap[string, InputT]
-	exportingInputBySymbolName *jutil.LinkedHashMap[string, InputT]
+	userOrderedInputs   []InputT
+	importOrderedInputs []InputT
+	nonExportingInputs  OrderedStringMap[InputT]
 
 	uniqueInputs            []InputT
 	ptrToID                 map[InputT]int32
@@ -72,9 +71,7 @@ type SortedDependencies[InputT SortedDependencies_Input] struct {
 // Java: SortedDependencies(List<InputT>)
 func NewSortedDependencies[InputT SortedDependencies_Input](userOrderedInputs []InputT) *SortedDependencies[InputT] {
 	d := &SortedDependencies[InputT]{
-		userOrderedInputs:          append([]InputT{}, userOrderedInputs...),
-		nonExportingInputs:         jutil.NewLinkedHashMap[string, InputT](),
-		exportingInputBySymbolName: jutil.NewLinkedHashMap[string, InputT](),
+		userOrderedInputs: slices.Clone(userOrderedInputs),
 	}
 	d.ProcessInputs()
 	return d
@@ -102,13 +99,14 @@ func (d *SortedDependencies[InputT]) nextGen() uint32 {
 func (d *SortedDependencies[InputT]) collectStrongDeps(rootInputs []InputT) uint32 {
 	gen := d.nextGen()
 	worklist := d.worklist[:0]
+	var zero InputT
 	for _, root := range rootInputs {
 		if id, ok := d.lookupID(root); ok {
 			if d.visited[id] != gen {
 				d.visited[id] = gen
 				worklist = append(worklist, id)
 			}
-		} else if !jutil.IsNil(root) {
+		} else if root != zero {
 			for _, req := range root.GetRequires() {
 				if depID, ok := d.exportingIDBySymbolName[req.GetSymbol()]; ok && d.visited[depID] != gen {
 					d.visited[depID] = gen
@@ -205,14 +203,20 @@ func (d *SortedDependencies[InputT]) GetStrongDependenciesOf(rootInputs []InputT
 	return builder
 }
 
+func (d *SortedDependencies[InputT]) lookupInputProviding(symbol string) (InputT, bool) {
+	if id, ok := d.exportingIDBySymbolName[symbol]; ok {
+		return d.uniqueInputs[id], true
+	}
+	return d.nonExportingInputs.Lookup(ModuleNames_FileToModuleName(symbol))
+}
+
 // GetInputProviding returns the input that gives us the given symbol. It
 // panics with *SortedDependencies_MissingProvideException if there is no
 // input for this symbol.
 //
 // Java: SortedDependencies.getInputProviding(String)
 func (d *SortedDependencies[InputT]) GetInputProviding(symbolName string) InputT {
-	input := d.MaybeGetInputProviding(symbolName)
-	if !jutil.IsNil(input) {
+	if input, ok := d.lookupInputProviding(symbolName); ok {
 		return input
 	}
 	panic(NewSortedDependencies_MissingProvideException(symbolName))
@@ -220,7 +224,15 @@ func (d *SortedDependencies[InputT]) GetInputProviding(symbolName string) InputT
 
 // Java: SortedDependencies.getInputsWithoutProvides()
 func (d *SortedDependencies[InputT]) GetInputsWithoutProvides() []InputT {
-	return slices.Collect(d.nonExportingInputs.Values())
+	entries := d.nonExportingInputs.Entries()
+	if len(entries) == 0 {
+		return nil
+	}
+	out := make([]InputT, len(entries))
+	for i, e := range entries {
+		out[i] = e.Value
+	}
+	return out
 }
 
 // GetSortedStrongDependenciesOf gets all the strong dependencies of the
@@ -265,8 +277,9 @@ func (d *SortedDependencies[InputT]) GetSortedWeakDependenciesOf(rootInputs []In
 			}
 		}
 	}
+	var zero InputT
 	for _, root := range rootInputs {
-		if _, ok := d.lookupID(root); !ok && !jutil.IsNil(root) {
+		if _, ok := d.lookupID(root); !ok && root != zero {
 			for _, symbolName := range root.GetTypeRequires() {
 				if depID, ok := d.exportingIDBySymbolName[symbolName]; ok && d.visited[depID] != strongGen && d.visited[depID] != weakGen {
 					d.visited[depID] = weakGen
@@ -332,10 +345,8 @@ func (d *SortedDependencies[InputT]) GetSortedList() []InputT {
 //
 // Java: SortedDependencies.maybeGetInputProviding(String)
 func (d *SortedDependencies[InputT]) MaybeGetInputProviding(symbol string) InputT {
-	if v, ok := d.exportingInputBySymbolName.Lookup(symbol); ok {
-		return v
-	}
-	return d.nonExportingInputs.Get(ModuleNames_FileToModuleName(symbol))
+	v, _ := d.lookupInputProviding(symbol)
+	return v
 }
 
 func (d *SortedDependencies[InputT]) ProcessInputs() {
@@ -388,7 +399,6 @@ func (d *SortedDependencies[InputT]) ProcessInputs() {
 			d.nonExportingInputs.Put(ModuleNames_FileToModuleName(userOrderedInput.GetName()), userOrderedInput)
 		}
 		for _, providedSymbolName := range provides {
-			d.exportingInputBySymbolName.Put(providedSymbolName, userOrderedInput)
 			d.exportingIDBySymbolName[providedSymbolName] = id
 		}
 	}

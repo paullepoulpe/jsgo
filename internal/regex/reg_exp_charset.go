@@ -117,7 +117,6 @@ var RegExpTree_DOT_CHARSET = NewRegExpTree_Charset(
 //
 // Java: private static final class RegExpTree.Charset
 type RegExpTree_Charset struct {
-	RegExpTree_RegExpTreeAtomBase
 	ranges *CharRanges
 
 	// Code units that were mentioned explicitly and that might be matched by
@@ -135,6 +134,11 @@ func NewRegExpTree_Charset(ranges *CharRanges, ieExplicits *CharRanges) *RegExpT
 		ieExplicits: ieExplicits,
 	}
 }
+
+func (c *RegExpTree_Charset) ContainsAnchor() bool    { return false }
+func (c *RegExpTree_Charset) HasCapturingGroup() bool { return false }
+func (c *RegExpTree_Charset) NumCapturingGroups() int { return 0 }
+func (c *RegExpTree_Charset) Children() []RegExpTree  { return emptyRegExpChildren }
 
 // RegExpTree_Charset_ComplexityWordFolded is the complexity of ranges or of
 // its inverse, whichever is smaller.
@@ -520,12 +524,16 @@ func (d *RegExpTree_DecomposedCharset) HashCode() int32 {
 //
 // Java: public static final class RegExpTree.UnicodePropertyEscape
 type RegExpTree_UnicodePropertyEscape struct {
-	RegExpTree_RegExpTreeAtomBase
-
 	propertyName  *string // Java: @Nullable String
 	propertyValue string
 	negated       bool
 }
+
+func (u *RegExpTree_UnicodePropertyEscape) IsCaseSensitive() bool   { return false }
+func (u *RegExpTree_UnicodePropertyEscape) ContainsAnchor() bool    { return false }
+func (u *RegExpTree_UnicodePropertyEscape) HasCapturingGroup() bool { return false }
+func (u *RegExpTree_UnicodePropertyEscape) NumCapturingGroups() int { return 0 }
+func (u *RegExpTree_UnicodePropertyEscape) Children() []RegExpTree  { return emptyRegExpChildren }
 
 func newUnicodePropertyEscape(propertyName *string, propertyValue string, negated bool) (*RegExpTree_UnicodePropertyEscape, *RegExpParseError) {
 	if propertyName != nil && *propertyName == "" {

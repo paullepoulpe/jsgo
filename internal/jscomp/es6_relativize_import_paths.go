@@ -86,33 +86,20 @@ func (r *Es6RelativizeImportPaths_Rewriter) VisitImport(t *NodeTraversal, import
 	// absolute paths without a scheme (starting with "/") and ambiguous paths.
 	if ModuleLoader_IsRelativeIdentifier(specifier) {
 		return
-	} else {
-		returned := false
-		jutil.Try(func() {
-			specifierURI := jutil.NewURI(specifier)
-			if specifierURI.IsAbsolute() {
-				returned = true
-			}
-		}, func(e *jutil.URISyntaxException) {
-			returned = true
-		})
-		if returned {
-			return
-		}
+	}
+	specifierURI, err := jutil.ParseURI(specifier)
+	if err != nil || specifierURI.IsAbsolute() {
+		return
 	}
 
 	scriptPath := t.GetInput().GetPath().String()
 
-	returned := false
-	jutil.Try(func() {
-		// If the script path has a scheme / host / port then just use the path part.
-		scriptPath = *jutil.NewURI(scriptPath).GetPath()
-	}, func(e *jutil.URISyntaxException) {
-		returned = true
-	})
-	if returned {
+	// If the script path has a scheme / host / port then just use the path part.
+	scriptURI, err := jutil.ParseURI(scriptPath)
+	if err != nil {
 		return
 	}
+	scriptPath = *scriptURI.GetPath()
 
 	newSpecifier := t.GetInput().GetPath().ResolveModuleAsPath(specifier).String()
 

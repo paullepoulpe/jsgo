@@ -23,11 +23,9 @@ import (
 	"math/big"
 	"math/bits"
 	"strings"
-	"unicode/utf8"
 
 	"github.com/paullepoulpe/jsgo/internal/ast"
 	"github.com/paullepoulpe/jsgo/internal/base"
-	"github.com/paullepoulpe/jsgo/internal/colors"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 	"github.com/paullepoulpe/jsgo/internal/strpool"
@@ -56,27 +54,6 @@ var (
 	rkmIDMin           = uint32(strpool.Intern("min"))
 	rkmIDImul          = uint32(strpool.Intern("imul"))
 	rkmIDPow           = uint32(strpool.Intern("pow"))
-	rkmIDSplit         = uint32(strpool.Intern("split"))
-	rkmIDToLowerCase   = uint32(strpool.Intern("toLowerCase"))
-	rkmIDToUpperCase   = uint32(strpool.Intern("toUpperCase"))
-	rkmIDTrim          = uint32(strpool.Intern("trim"))
-	rkmIDTrimStart     = uint32(strpool.Intern("trimStart"))
-	rkmIDTrimEnd       = uint32(strpool.Intern("trimEnd"))
-	rkmIDTrimLeft      = uint32(strpool.Intern("trimLeft"))
-	rkmIDTrimRight     = uint32(strpool.Intern("trimRight"))
-	rkmIDAt            = uint32(strpool.Intern("at"))
-	rkmIDIndexOf       = uint32(strpool.Intern("indexOf"))
-	rkmIDLastIndexOf   = uint32(strpool.Intern("lastIndexOf"))
-	rkmIDIncludes      = uint32(strpool.Intern("includes"))
-	rkmIDStartsWith    = uint32(strpool.Intern("startsWith"))
-	rkmIDEndsWith      = uint32(strpool.Intern("endsWith"))
-	rkmIDSubstr        = uint32(strpool.Intern("substr"))
-	rkmIDSubstring     = uint32(strpool.Intern("substring"))
-	rkmIDSlice         = uint32(strpool.Intern("slice"))
-	rkmIDCharAt        = uint32(strpool.Intern("charAt"))
-	rkmIDCharCodeAt    = uint32(strpool.Intern("charCodeAt"))
-	rkmIDReplace       = uint32(strpool.Intern("replace"))
-	rkmIDReplaceAll    = uint32(strpool.Intern("replaceAll"))
 	rkmIDJoin          = uint32(strpool.Intern("join"))
 	rkmIDConcat        = uint32(strpool.Intern("concat"))
 	rkmIDComma         = uint32(strpool.Intern(","))
@@ -95,70 +72,6 @@ var (
 // number value logic, the elements folded by Array.join and the edits that
 // move children in bulk or in place (Array.of, the join's new elements, the
 // charAt rewrite) use the rhino API, in the Java's order.
-
-// Java: PeepholeReplaceKnownMethods.TRIM_BOTH_PATTERN
-var peepholeReplaceKnownMethods_TRIM_BOTH_PATTERN = peepholeReplaceKnownMethods_trimPattern{leading: true, trailing: true}
-
-// Java: PeepholeReplaceKnownMethods.TRIM_START_PATTERN
-var peepholeReplaceKnownMethods_TRIM_START_PATTERN = peepholeReplaceKnownMethods_trimPattern{leading: true}
-
-// Java: PeepholeReplaceKnownMethods.TRIM_END_PATTERN
-var peepholeReplaceKnownMethods_TRIM_END_PATTERN = peepholeReplaceKnownMethods_trimPattern{trailing: true}
-
-// peepholeReplaceKnownMethods_trimPattern is one of the compiled patterns
-// TRIM_BOTH_PATTERN (`^W|W\z`), TRIM_START_PATTERN (`^W`) and
-// TRIM_END_PATTERN (`W\z`), where W is ECMA_WHITESPACE.
-//
-// Go-only: language-adapter — `\z` (jutil.Pattern rejects it), so this is an
-// equivalent hand matcher for these java.util.regex uses (PORTING.md,
-// Regex). With W a greedy run of whitespace characters, `^W` matches the
-// maximal leading run, and `W\z` matches only a run that reaches the end of
-// the input: the first position from which one does is the start of the
-// maximal trailing run. Every character of W is in the BMP and is not a
-// surrogate, so matching code points of the WTF-8 string is matching Java's.
-type peepholeReplaceKnownMethods_trimPattern struct {
-	leading, trailing bool
-}
-
-// replaceAll is Pattern.matcher(s).replaceAll("").
-func (t peepholeReplaceKnownMethods_trimPattern) replaceAll(s string) string {
-	start := 0
-	if t.leading {
-		for start < len(s) {
-			r, size := utf8.DecodeRuneInString(s[start:])
-			if !peepholeReplaceKnownMethods_isEcmaWhitespace(r) {
-				break
-			}
-			start += size
-		}
-	}
-	end := len(s)
-	if t.trailing {
-		for end > start {
-			r, size := utf8.DecodeLastRuneInString(s[start:end])
-			if !peepholeReplaceKnownMethods_isEcmaWhitespace(r) {
-				break
-			}
-			end -= size
-		}
-	}
-	return s[start:end]
-}
-
-// peepholeReplaceKnownMethods_isEcmaWhitespace is the character class of
-// ECMA_WHITESPACE: [ \t\n-\r\u00A0\u1680\u2000-\u200A\u2028\u2029\u202F
-// \u205F\u3000\uFEFF].
-func peepholeReplaceKnownMethods_isEcmaWhitespace(r rune) bool {
-	switch {
-	case r == ' ' || r == '\t' || (r >= '\n' && r <= '\r'):
-		return true
-	case r == 0x00A0 || r == 0x1680 || (r >= 0x2000 && r <= 0x200A):
-		return true
-	case r == 0x2028 || r == 0x2029 || r == 0x202F || r == 0x205F || r == 0x3000 || r == 0xFEFF:
-		return true
-	}
-	return false
-}
 
 // PeepholeReplaceKnownMethods is just to fold known methods when they are
 // called with constants.
@@ -354,8 +267,8 @@ func (p *PeepholeReplaceKnownMethods) TryFoldKnownNumberMethods(call ast.Call, c
 		case rkmIDIsSafeInteger:
 			replacement =
 				NodeUtil_BooleanNode(
-					onlyArg < jutil.MathPow(2, 53) &&
-						onlyArg >= (-1*(jutil.MathPow(2, 53)-1)) &&
+					onlyArg < base.MathPow(2, 53) &&
+						onlyArg >= (-1*(base.MathPow(2, 53)-1)) &&
 						float64(jutil.D2L(onlyArg)) == onlyArg)
 		}
 	} else if !p.MayHaveSideEffects(valueNode) &&
@@ -420,15 +333,15 @@ func (p *PeepholeReplaceKnownMethods) TryFoldKnownMathMethods(call ast.Call, cal
 				// Go-only: language-adapter — the Go constant -0.0 is +0.
 				replacement, hasReplacement = math.Copysign(0, -1), true
 			} else {
-				replacement, hasReplacement = float64(jutil.MathRound(arg)), true
+				replacement, hasReplacement = float64(base.MathRound(arg)), true
 			}
 		case rkmIDSign:
-			replacement, hasReplacement = jutil.MathSignum(arg), true
+			replacement, hasReplacement = base.MathSignum(arg), true
 		case rkmIDTrunc:
 			if math.IsNaN(arg) || math.IsInf(arg, 0) {
 				replacement, hasReplacement = arg, true
 			} else {
-				replacement, hasReplacement = jutil.MathSignum(arg)*math.Floor(math.Abs(arg)), true
+				replacement, hasReplacement = base.MathSignum(arg)*math.Floor(math.Abs(arg)), true
 			}
 		case rkmIDClz32:
 			replacement, hasReplacement = float64(bits.LeadingZeros32(uint32(base.JSCompDoubles_EcmascriptToUint32(arg)))), true
@@ -443,13 +356,13 @@ func (p *PeepholeReplaceKnownMethods) TryFoldKnownMathMethods(call ast.Call, cal
 		case rkmIDMax:
 			result := math.Inf(-1)
 			for _, d := range args {
-				result = jutil.MathMax(result, d)
+				result = base.MathMax(result, d)
 			}
 			replacement, hasReplacement = result, true
 		case rkmIDMin:
 			result := math.Inf(1)
 			for _, d := range args {
-				result = jutil.MathMin(result, d)
+				result = base.MathMin(result, d)
 			}
 			replacement, hasReplacement = result, true
 		case rkmIDImul:
@@ -462,7 +375,7 @@ func (p *PeepholeReplaceKnownMethods) TryFoldKnownMathMethods(call ast.Call, cal
 			}
 		case rkmIDPow:
 			if len(args) == 2 {
-				replacement, hasReplacement = jutil.MathPow(args[0], args[1]), true
+				replacement, hasReplacement = base.MathPow(args[0], args[1]), true
 			}
 		default:
 		}
@@ -473,109 +386,6 @@ func (p *PeepholeReplaceKnownMethods) TryFoldKnownMathMethods(call ast.Call, cal
 		subtree.ReplaceWith(numberNode)
 		p.ReportChangeToEnclosingScope(numberNode)
 		return numberNode
-	}
-	return subtree
-}
-
-// TryFoldKnownStringMethods tries to evaluate known String methods
-// .indexOf(), .substr(), .substring()
-//
-// Java: PeepholeReplaceKnownMethods.tryFoldKnownStringMethods(Node, Node)
-func (p *PeepholeReplaceKnownMethods) TryFoldKnownStringMethods(call ast.Call, callTarget ast.GetProp) rhino.Node {
-	subtree := call.Node()
-
-	// check if this is a call on a string method
-	// then dispatch to specific folding method.
-	stringNode := callTarget.Object()
-
-	str, isStringLiteral := stringNode.AsStringLit()
-	if !isStringLiteral && !p.useTypes {
-		return subtree
-	}
-	methodID := callTarget.Node().GetStringID()
-	firstArg, hasArgs := call.FirstArg()
-	if isStringLiteral {
-		if methodID == rkmIDSplit {
-			return p.TryFoldStringSplit(call, str)
-		} else if !hasArgs {
-			switch methodID {
-			case rkmIDToLowerCase:
-				return p.TryFoldStringToLowerCase(call, str)
-			case rkmIDToUpperCase:
-				return p.TryFoldStringToUpperCase(call, str)
-			case rkmIDTrim, rkmIDTrimStart, rkmIDTrimEnd, rkmIDTrimLeft, rkmIDTrimRight:
-				return p.TryFoldStringTrim(call, str, callTarget.Property())
-			case rkmIDAt:
-				return p.TryFoldStringAt(call, str)
-			default:
-			}
-		} else {
-			if NodeUtil_IsImmutableValue(firstArg.Node()) {
-				switch methodID {
-				case rkmIDIndexOf:
-					return p.TryFoldStringIndexOf(call, "indexOf", str, firstArg)
-				case rkmIDLastIndexOf:
-					return p.TryFoldStringIndexOf(call, "lastIndexOf", str, firstArg)
-				case rkmIDIncludes:
-					return p.TryFoldStringIncludes(call, str, firstArg)
-				case rkmIDStartsWith:
-					return p.TryFoldStringStartsWith(call, str, firstArg)
-				case rkmIDEndsWith:
-					return p.TryFoldStringEndsWith(call, str, firstArg)
-				case rkmIDAt:
-					return p.TryFoldStringAt(call, str)
-				case rkmIDSubstr:
-					return p.TryFoldStringSubstr(call, str, firstArg)
-				case rkmIDSubstring, rkmIDSlice:
-					return p.TryFoldStringSubstringOrSlice(call, str, firstArg)
-				case rkmIDCharAt:
-					return p.TryFoldStringCharAt(call, str, firstArg)
-				case rkmIDCharCodeAt:
-					return p.TryFoldStringCharCodeAt(call, str, firstArg)
-				case rkmIDReplace:
-					return p.TryFoldStringReplace(call, str, firstArg)
-				case rkmIDReplaceAll:
-					return p.TryFoldStringReplaceAll(call, str, firstArg)
-				default:
-				}
-			}
-		}
-	}
-	if !p.useTypes ||
-		!hasArgs ||
-		(methodID != rkmIDSubstr && methodID != rkmIDSubstring && methodID != rkmIDSlice) ||
-		!(isStringLiteral || colors.StandardColors_STRING.Equals(stringNode.Node().GetColor())) {
-		return subtree
-	}
-	// A call with exactly two arguments: the start, and the length or the end.
-	secondArg, ok := firstArg.Next()
-	if !ok {
-		return subtree
-	}
-	if _, ok := secondArg.Next(); ok {
-		return subtree
-	}
-	maybeStart, ok := p.GetSideEffectFreeNumberValue(firstArg.Node())
-	if !ok {
-		return subtree
-	}
-	start := int(jutil.D2I(maybeStart))
-	maybeLengthOrEnd, ok := p.GetSideEffectFreeNumberValue(secondArg.Node())
-	if !ok {
-		return subtree
-	}
-	switch methodID {
-	case rkmIDSubstr:
-		length := int(jutil.D2I(maybeLengthOrEnd))
-		if start >= 0 && length == 1 {
-			return p.ReplaceWithCharAt(call, callTarget, firstArg, secondArg)
-		}
-	case rkmIDSubstring, rkmIDSlice:
-		end := int(jutil.D2I(maybeLengthOrEnd))
-		// unlike slice and substring, chatAt can not be used with negative indexes
-		if start >= 0 && jutil.IntSub(end, start) == 1 {
-			return p.ReplaceWithCharAt(call, callTarget, firstArg, secondArg)
-		}
 	}
 	return subtree
 }
@@ -598,69 +408,6 @@ func (p *PeepholeReplaceKnownMethods) TryFoldKnownNumericMethods(call ast.Call, 
 		}
 	}
 	return call.Node()
-}
-
-// TryFoldStringToLowerCase returns The lowered string Node.
-//
-// This method is believed to be correct independent of the locale of the
-// compiler and the JSVM executing the compiled code, assuming both are
-// implementations of Unicode are correct.
-//
-// See https://tc39.es/ecma262/#sec-string.prototype.tolowercase,
-// https://unicode.org/faq/casemap_charprop.html#5 and
-// https://docs.oracle.com/javase/8/docs/api/java/lang/String.html#toLowerCase-java.util.Locale-
-//
-// Java: PeepholeReplaceKnownMethods.tryFoldStringToLowerCase(Node, Node)
-func (p *PeepholeReplaceKnownMethods) TryFoldStringToLowerCase(call ast.Call, stringNode ast.StringLit) rhino.Node {
-	lowered := jutil.StringToLowerCaseRoot(stringNode.Value())
-	replacement := rhino.IR_String(lowered)
-	call.Node().ReplaceWith(replacement)
-	p.ReportChangeToEnclosingScope(replacement)
-	return replacement
-}
-
-// TryFoldStringToUpperCase returns The upped string Node.
-//
-// This method is believed to be correct independent of the locale of the
-// compiler and the JSVM executing the compiled code, assuming both are
-// implementations of Unicode are correct.
-//
-// See https://tc39.es/ecma262/#sec-string.prototype.touppercase,
-// https://unicode.org/faq/casemap_charprop.html#5 and
-// https://docs.oracle.com/javase/8/docs/api/java/lang/String.html#toUpperCase-java.util.Locale-
-//
-// Java: PeepholeReplaceKnownMethods.tryFoldStringToUpperCase(Node, Node)
-func (p *PeepholeReplaceKnownMethods) TryFoldStringToUpperCase(call ast.Call, stringNode ast.StringLit) rhino.Node {
-	upped := jutil.StringToUpperCaseRoot(stringNode.Value())
-	replacement := rhino.IR_String(upped)
-	call.Node().ReplaceWith(replacement)
-	p.ReportChangeToEnclosingScope(replacement)
-	return replacement
-}
-
-// TryFoldStringTrim returns The trimmed string Node.
-//
-// Java: PeepholeReplaceKnownMethods.tryFoldStringTrim(Node, Node, String)
-func (p *PeepholeReplaceKnownMethods) TryFoldStringTrim(call ast.Call, stringNode ast.StringLit, functionName string) rhino.Node {
-	subtree := call.Node()
-	// See ECMA-262 § 22.1.3.32 (trim), § 22.1.3.34 (trimStart), § 22.1.3.33 (trimEnd),
-	// Annex B.2.2.15 (trimLeft), Annex B.2.2.16 (trimRight), § 12.2, and § 12.3
-	// All Unicode whitespace + LineTerminator + BOM
-	var result string
-	switch functionName {
-	case "trim":
-		result = peepholeReplaceKnownMethods_TRIM_BOTH_PATTERN.replaceAll(stringNode.Value())
-	case "trimStart", "trimLeft":
-		result = peepholeReplaceKnownMethods_TRIM_START_PATTERN.replaceAll(stringNode.Value())
-	case "trimEnd", "trimRight":
-		result = peepholeReplaceKnownMethods_TRIM_END_PATTERN.replaceAll(stringNode.Value())
-	default:
-		return subtree
-	}
-	replacement := rhino.IR_String(result).Srcref(subtree)
-	subtree.ReplaceWith(replacement)
-	p.ReportChangeToEnclosingScope(replacement)
-	return replacement
 }
 
 // PeepholeReplaceKnownMethods_NormalizeNumericString takes the string
@@ -733,37 +480,36 @@ func (p *PeepholeReplaceKnownMethods) TryFoldParseNumber(call ast.Call, function
 			n.ReplaceWith(numericNode)
 			p.ReportChangeToEnclosingScope(numericNode)
 			return numericNode
-		} else {
-			stringVal, ok := p.GetSideEffectFreeStringValue(firstArg.Node())
-			if !ok {
-				return n
-			}
-			if _, ok := nodeUtil_getStringNumberValue(stringVal); !ok {
-				return n
-			}
-			stringVal = NodeUtil_TrimJsWhiteSpace(stringVal)
-			if stringVal == "" {
-				return n
-			}
-			if stringVal == "0" {
-				newNode := rhino.IR_Number(0)
-				n.ReplaceWith(newNode)
-				p.ReportChangeToEnclosingScope(newNode)
-				return newNode
-			}
-			newVal, ok := jutil.TryParseDouble(stringVal)
-			if !ok {
-				return n
-			}
-			newNode := NodeUtil_NumberNode(newVal, n)
-			normalizedNewVal := PeepholeReplaceKnownMethods_NormalizeNumericString(jutil.DoubleToString(newVal))
-			if PeepholeReplaceKnownMethods_NormalizeNumericString(stringVal) != normalizedNewVal {
-				return n
-			}
+		}
+		stringVal, ok := p.GetSideEffectFreeStringValue(firstArg.Node())
+		if !ok {
+			return n
+		}
+		if _, ok := nodeUtil_getStringNumberValue(stringVal); !ok {
+			return n
+		}
+		stringVal = NodeUtil_TrimJsWhiteSpace(stringVal)
+		if stringVal == "" {
+			return n
+		}
+		if stringVal == "0" {
+			newNode := rhino.IR_Number(0)
 			n.ReplaceWith(newNode)
 			p.ReportChangeToEnclosingScope(newNode)
 			return newNode
 		}
+		newVal, ok := jutil.TryParseDouble(stringVal)
+		if !ok {
+			return n
+		}
+		newNode := NodeUtil_NumberNode(newVal, n)
+		normalizedNewVal := PeepholeReplaceKnownMethods_NormalizeNumericString(jutil.DoubleToString(newVal))
+		if PeepholeReplaceKnownMethods_NormalizeNumericString(stringVal) != normalizedNewVal {
+			return n
+		}
+		n.ReplaceWith(newNode)
+		p.ReportChangeToEnclosingScope(newNode)
+		return newNode
 	}
 
 	// parseInt logic following ECMA-262 semantics
@@ -858,227 +604,6 @@ func PeepholeReplaceKnownMethods_GetRadixDigit(c uint16, radix int) int {
 		return -1
 	}
 	return -1
-}
-
-// TryFoldStringIndexOf tries to evaluate String.indexOf/lastIndexOf:
-//
-//	"abcdef".indexOf("bc") -> 1
-//	"abcdefbc".indexOf("bc", 3) -> 6
-//
-// Java: PeepholeReplaceKnownMethods.tryFoldStringIndexOf(Node, String, Node, Node)
-func (p *PeepholeReplaceKnownMethods) TryFoldStringIndexOf(call ast.Call, functionName string, lstringNode ast.StringLit, firstArg ast.Arg) rhino.Node {
-	n := call.Node()
-	lstring := lstringNode.Value()
-	isIndexOf := functionName == "indexOf"
-	searchValue, ok := p.GetSideEffectFreeStringValue(firstArg.Node())
-	// searchValue must be a valid string.
-	if !ok {
-		return n
-	}
-	fromIndex := 0
-	if !isIndexOf {
-		fromIndex = jutil.StringLength(lstring)
-	}
-	if secondArg, ok := firstArg.Next(); ok {
-		// Third-argument and non-numeric second arg are problematic. Discard.
-		from, isNumber := secondArg.AsNumber()
-		if _, ok := secondArg.Next(); ok || !isNumber {
-			return n
-		}
-		fromIndex = int(jutil.D2I(from.Value()))
-	}
-	var indexVal int
-	if isIndexOf {
-		indexVal = jutil.StringIndexOfFrom(lstring, searchValue, fromIndex)
-	} else {
-		indexVal = jutil.StringLastIndexOfFrom(lstring, searchValue, fromIndex)
-	}
-	newNode := NodeUtil_NumberNode(float64(indexVal), n)
-	n.ReplaceWith(newNode)
-	p.ReportChangeToEnclosingScope(newNode)
-
-	return newNode
-}
-
-// TryFoldStringIncludes tries to evaluate String.prototype.includes:
-//
-//	"abcdef".includes("bc") -> true
-//	"abcdef".includes("bc", 2) -> false
-//
-// Java: PeepholeReplaceKnownMethods.tryFoldStringIncludes(Node, Node, Node)
-func (p *PeepholeReplaceKnownMethods) TryFoldStringIncludes(call ast.Call, lstringNode ast.StringLit, firstArg ast.Arg) rhino.Node {
-	n := call.Node()
-	if _, ok := firstArg.AsRegExp(); ok {
-		return n
-	}
-
-	lstring := lstringNode.Value()
-	searchValue, ok := p.GetSideEffectFreeStringValue(firstArg.Node())
-	if !ok {
-		return n
-	}
-
-	fromIndex := 0
-	if arg, ok := firstArg.Next(); ok {
-		secondArg := arg.Node()
-		if _, ok := arg.Next(); ok || p.MayHaveSideEffects(secondArg) {
-			return n
-		}
-		if NodeUtil_IsNumericLiteral(secondArg) {
-			posVal := NodeUtil_GetNumericLiteralValue(secondArg)
-			fromIndex = int(jutil.D2I(jutil.MathMin(jutil.MathMax(posVal, 0), float64(jutil.StringLength(lstring)))))
-		} else if !NodeUtil_IsNullOrUndefined(secondArg) {
-			return n
-		}
-	}
-
-	contains := jutil.StringIndexOfFrom(lstring, searchValue, fromIndex) != -1
-	newNode := NodeUtil_BooleanNode(contains).Srcref(n)
-	n.ReplaceWith(newNode)
-	p.ReportChangeToEnclosingScope(newNode)
-	return newNode
-}
-
-// TryFoldStringStartsWith tries to evaluate String.prototype.startsWith:
-//
-//	"abcdef".startsWith("abc") -> true
-//	"abcdef".startsWith("bc", 1) -> true
-//
-// Java: PeepholeReplaceKnownMethods.tryFoldStringStartsWith(Node, Node, Node)
-func (p *PeepholeReplaceKnownMethods) TryFoldStringStartsWith(call ast.Call, lstringNode ast.StringLit, firstArg ast.Arg) rhino.Node {
-	n := call.Node()
-	if _, ok := firstArg.AsRegExp(); ok {
-		return n
-	}
-
-	lstring := lstringNode.Value()
-	searchValue, ok := p.GetSideEffectFreeStringValue(firstArg.Node())
-	if !ok {
-		return n
-	}
-
-	start := 0
-	if arg, ok := firstArg.Next(); ok {
-		secondArg := arg.Node()
-		if _, ok := arg.Next(); ok || p.MayHaveSideEffects(secondArg) {
-			return n
-		}
-		if NodeUtil_IsNumericLiteral(secondArg) {
-			posVal := NodeUtil_GetNumericLiteralValue(secondArg)
-			start = int(jutil.D2I(jutil.MathMin(jutil.MathMax(posVal, 0), float64(jutil.StringLength(lstring)))))
-		} else if !NodeUtil_IsNullOrUndefined(secondArg) {
-			return n
-		}
-	}
-
-	// String.startsWith(String, int)
-	result := jutil.StringRegionMatches(lstring, start, searchValue, 0, jutil.StringLength(searchValue))
-	newNode := NodeUtil_BooleanNode(result).Srcref(n)
-	n.ReplaceWith(newNode)
-	p.ReportChangeToEnclosingScope(newNode)
-	return newNode
-}
-
-// TryFoldStringEndsWith tries to evaluate String.prototype.endsWith:
-//
-//	"abcdef".endsWith("def") -> true
-//	"abcdef".endsWith("de", 5) -> true
-//
-// Java: PeepholeReplaceKnownMethods.tryFoldStringEndsWith(Node, Node, Node)
-func (p *PeepholeReplaceKnownMethods) TryFoldStringEndsWith(call ast.Call, lstringNode ast.StringLit, firstArg ast.Arg) rhino.Node {
-	n := call.Node()
-	if _, ok := firstArg.AsRegExp(); ok {
-		return n
-	}
-
-	lstring := lstringNode.Value()
-	searchValue, ok := p.GetSideEffectFreeStringValue(firstArg.Node())
-	if !ok {
-		return n
-	}
-
-	end := jutil.StringLength(lstring)
-	if arg, ok := firstArg.Next(); ok {
-		secondArg := arg.Node()
-		if _, ok := arg.Next(); ok || p.MayHaveSideEffects(secondArg) {
-			return n
-		}
-		if NodeUtil_IsNumericLiteral(secondArg) {
-			posVal := NodeUtil_GetNumericLiteralValue(secondArg)
-			end = int(jutil.D2I(jutil.MathMin(jutil.MathMax(posVal, 0), float64(jutil.StringLength(lstring)))))
-		} else if secondArg.IsNull() {
-			end = 0
-		} else if NodeUtil_IsUndefined(secondArg) {
-			end = jutil.StringLength(lstring)
-		} else {
-			return n
-		}
-	}
-
-	searchLength := jutil.StringLength(searchValue)
-	start := end - searchLength
-	// String.startsWith(String, int)
-	result := start >= 0 && jutil.StringRegionMatches(lstring, start, searchValue, 0, searchLength)
-	newNode := NodeUtil_BooleanNode(result).Srcref(n)
-	n.ReplaceWith(newNode)
-	p.ReportChangeToEnclosingScope(newNode)
-	return newNode
-}
-
-// TryFoldStringAt tries to evaluate String.prototype.at:
-//
-//	"abcdef".at(0) -> "a"
-//	"abcdef".at(-1) -> "f"
-//	"abcdef".at(10) -> void 0
-//
-// Java: PeepholeReplaceKnownMethods.tryFoldStringAt(Node, Node, Node)
-func (p *PeepholeReplaceKnownMethods) TryFoldStringAt(call ast.Call, stringNode ast.StringLit) rhino.Node {
-	n := call.Node()
-	var posVal float64
-	firstArg, ok := call.FirstArg()
-	if !ok {
-		posVal = 0.0
-	} else {
-		if _, ok := firstArg.Next(); ok {
-			return n
-		}
-		maybePos, ok := p.GetSideEffectFreeNumberValue(firstArg.Node())
-		if !ok {
-			return n
-		}
-		if math.IsNaN(maybePos) {
-			posVal = 0.0
-		} else {
-			posVal = maybePos
-		}
-	}
-
-	stringVal := stringNode.Value()
-	len_ := jutil.StringLength(stringVal)
-
-	var replacement rhino.Node
-	if math.IsInf(posVal, 0) || posVal >= float64(len_) || posVal <= float64(-(len_+1)) {
-		replacement = NodeUtil_NewUndefinedNode(n)
-	} else {
-		intPos := jutil.D2L(posVal)
-		var k int64
-		if intPos >= 0 {
-			k = intPos
-		} else {
-			k = int64(len_) + intPos
-		}
-		if k < 0 || k >= int64(len_) {
-			replacement = NodeUtil_NewUndefinedNode(n)
-		} else if jutil.IsASCII(stringVal) {
-			replacement = rhino.IR_String(stringVal[k : k+1]).Srcref(n)
-		} else {
-			replacement = rhino.IR_String(jutil.StringFromChar(jutil.StringCharAt(stringVal, int(k)))).Srcref(n)
-		}
-	}
-
-	n.ReplaceWith(replacement)
-	p.ReportChangeToEnclosingScope(replacement)
-	return replacement
 }
 
 // TryFoldArrayJoin tries to fold an array join: ['a', 'b', 'c'].join(”) ->
@@ -1180,7 +705,6 @@ func (p *PeepholeReplaceKnownMethods) TryFoldArrayJoin(call ast.Call) rhino.Node
 		return emptyStringNode
 	case 1:
 		foldedStringNode := arrayFoldedChildren[0]
-		arrayFoldedChildren = arrayFoldedChildren[1:]
 		// The spread isn't valid outside any array literal (or would change meaning)
 		// so don't try to fold it.
 		if foldedStringNode.IsSpread() || foldedSize > originalSize {
@@ -1191,12 +715,11 @@ func (p *PeepholeReplaceKnownMethods) TryFoldArrayJoin(call ast.Call) rhino.Node
 			n.ReplaceWith(foldedStringNode)
 			p.ReportChangeToEnclosingScope(foldedStringNode)
 			return foldedStringNode
-		} else {
-			// Because of special case behavior for `null` and `undefined` values, there's no safe way
-			// to convert `[someNonStringValue].join()` to something shorter.
-			// e.g. String(someNonStringValue) would turn `null` into `"null"`, which isn't right.
-			return n
 		}
+		// Because of special case behavior for `null` and `undefined` values, there's no safe way
+		// to convert `[someNonStringValue].join()` to something shorter.
+		// e.g. String(someNonStringValue) would turn `null` into `"null"`, which isn't right.
+		return n
 	default:
 		if arrayNode.HasXChildren(len(arrayFoldedChildren)) {
 			// No folding could actually be performed.
@@ -1220,376 +743,6 @@ func (p *PeepholeReplaceKnownMethods) TryFoldArrayJoin(call ast.Call) rhino.Node
 	}
 
 	return n
-}
-
-// TryFoldStringSubstr tries to fold .substr() calls on strings.
-//
-// Java: PeepholeReplaceKnownMethods.tryFoldStringSubstr(Node, Node, Node)
-func (p *PeepholeReplaceKnownMethods) TryFoldStringSubstr(call ast.Call, stringNode ast.StringLit, arg1 ast.Arg) rhino.Node {
-	n := call.Node()
-
-	var start int
-	var length int
-	stringAsString := stringNode.Value()
-
-	maybeStart, ok := p.GetSideEffectFreeNumberValue(arg1.Node())
-	if ok {
-		start = int(jutil.D2I(maybeStart))
-	} else {
-		return n
-	}
-
-	if arg2, ok := arg1.Next(); ok {
-		maybeLength, ok := p.GetSideEffectFreeNumberValue(arg2.Node())
-		if ok {
-			length = int(jutil.D2I(maybeLength))
-		} else {
-			return n
-		}
-
-		if _, ok := arg2.Next(); ok {
-			// If we got more args than we expected, bail out.
-			return n
-		}
-	} else {
-		// parameter 2 not passed
-		length = jutil.IntSub(jutil.StringLength(stringAsString), start)
-	}
-
-	// Don't handle these cases. The specification actually does
-	// specify the behavior in some of these cases, but we haven't
-	// done a thorough investigation that it is correctly implemented
-	// in all browsers.
-	if jutil.IntAdd(start, length) > jutil.StringLength(stringAsString) || (length < 0) || (start < 0) {
-		return n
-	}
-
-	result := jutil.StringSubstring(stringAsString, start, jutil.IntAdd(start, length))
-	resultNode := rhino.IR_String(result)
-
-	parent := n.GetParent()
-	n.ReplaceWith(resultNode)
-	p.ReportChangeToEnclosingScope(parent)
-	return resultNode
-}
-
-// TryFoldStringSubstringOrSlice tries to fold .substring() or .slice() calls
-// on strings.
-//
-// Java: PeepholeReplaceKnownMethods.tryFoldStringSubstringOrSlice(Node, Node, Node)
-func (p *PeepholeReplaceKnownMethods) TryFoldStringSubstringOrSlice(call ast.Call, stringNode ast.StringLit, arg1 ast.Arg) rhino.Node {
-	n := call.Node()
-
-	var start int
-	var end int
-	stringAsString := stringNode.Value()
-
-	maybeStart, ok := p.GetSideEffectFreeNumberValue(arg1.Node())
-	if ok {
-		start = int(jutil.D2I(maybeStart))
-	} else {
-		return n
-	}
-
-	if arg2, ok := arg1.Next(); ok {
-		maybeEnd, ok := p.GetSideEffectFreeNumberValue(arg2.Node())
-		if ok {
-			end = int(jutil.D2I(maybeEnd))
-		} else {
-			return n
-		}
-
-		if _, ok := arg2.Next(); ok {
-			// If we got more args than we expected, bail out.
-			return n
-		}
-	} else {
-		// parameter 2 not passed
-		end = jutil.StringLength(stringAsString)
-	}
-
-	// Don't handle these cases. The specification actually does
-	// specify the behavior in some of these cases, but we haven't
-	// done a thorough investigation that it is correctly implemented
-	// in all browsers.
-	if (end > jutil.StringLength(stringAsString)) ||
-		(start > jutil.StringLength(stringAsString)) ||
-		(start < 0) ||
-		(end < 0) ||
-		(start > end) {
-		return n
-	}
-
-	result := jutil.StringSubstring(stringAsString, start, end)
-	resultNode := rhino.IR_String(result)
-
-	parent := n.GetParent()
-	n.ReplaceWith(resultNode)
-	p.ReportChangeToEnclosingScope(parent)
-	return resultNode
-}
-
-// ReplaceWithCharAt rewrites s.substr(start, 1), s.substring(start, start
-// + 1) or s.slice(start, start + 1) in place to s.charAt(start): it renames
-// the method and removes secondArg.
-//
-// Go-only: it takes the second argument (Java: firstArg.getNext()).
-//
-// Java: PeepholeReplaceKnownMethods.replaceWithCharAt(Node, Node, Node)
-func (p *PeepholeReplaceKnownMethods) ReplaceWithCharAt(call ast.Call, callTarget ast.GetProp, firstArg ast.Arg, secondArg ast.Arg) rhino.Node {
-	// TODO(moz): Maybe correct the arity of the function type here.
-	callTarget.SetProperty("charAt")
-	secondArg.Detach()
-	p.ReportChangeToEnclosingScope(firstArg.Node())
-	return call.Node()
-}
-
-// TryFoldStringCharAt tries to fold .charAt() calls on strings.
-//
-// Java: PeepholeReplaceKnownMethods.tryFoldStringCharAt(Node, Node, Node)
-func (p *PeepholeReplaceKnownMethods) TryFoldStringCharAt(call ast.Call, stringNode ast.StringLit, arg1 ast.Arg) rhino.Node {
-	n := call.Node()
-
-	var index int
-	stringAsString := stringNode.Value()
-
-	// The only argument, a number.
-	num, isNumber := arg1.AsNumber()
-	if _, more := arg1.Next(); isNumber && !more {
-		index = int(jutil.D2I(num.Value()))
-	} else {
-		return n
-	}
-
-	if index < 0 || jutil.StringLength(stringAsString) <= index {
-		// http://es5.github.com/#x15.5.4.4 says "" is returned when index is
-		// out of bounds but we bail.
-		return n
-	}
-
-	resultNode := rhino.IR_String(jutil.StringSubstring(stringAsString, index, index+1))
-	parent := n.GetParent()
-	n.ReplaceWith(resultNode)
-	p.ReportChangeToEnclosingScope(parent)
-	return resultNode
-}
-
-// TryFoldStringReplace tries to fold .replace() calls on strings.
-//
-// Java: PeepholeReplaceKnownMethods.tryFoldStringReplace(Node, Node, Node)
-func (p *PeepholeReplaceKnownMethods) TryFoldStringReplace(call ast.Call, stringNode ast.StringLit, arg1 ast.Arg) rhino.Node {
-	return p.tryFoldStringReplaceImpl(call, stringNode, arg1, false)
-}
-
-// TryFoldStringReplaceAll tries to fold .replaceAll() calls on strings.
-//
-// Java: PeepholeReplaceKnownMethods.tryFoldStringReplaceAll(Node, Node, Node)
-func (p *PeepholeReplaceKnownMethods) TryFoldStringReplaceAll(call ast.Call, stringNode ast.StringLit, arg1 ast.Arg) rhino.Node {
-	return p.tryFoldStringReplaceImpl(call, stringNode, arg1, true)
-}
-
-func (p *PeepholeReplaceKnownMethods) tryFoldStringReplaceImpl(call ast.Call, stringNode ast.StringLit, arg1 ast.Arg, replaceAll bool) rhino.Node {
-	n := call.Node()
-	arg2, ok := arg1.Next()
-	if !ok {
-		return n
-	}
-	if _, ok := arg2.Next(); ok {
-		return n
-	}
-
-	pattern, isString1 := arg1.AsStringLit()
-	replacement, isString2 := arg2.AsStringLit()
-	if !isString1 || !isString2 {
-		// only string literals are supported for folding.
-		return n
-	}
-
-	lookForPattern := pattern.Value()
-	replacementPattern := replacement.Value()
-	if strings.IndexByte(replacementPattern, '$') != -1 {
-		// 'special' replacements aren't supported yet.
-		return n
-	}
-
-	original := stringNode.Value()
-	var newString string
-	if replaceAll {
-		if jutil.IsASCII(original) && jutil.IsASCII(lookForPattern) {
-			newString = strings.ReplaceAll(original, lookForPattern, replacementPattern)
-		} else {
-			newString = jutil.StringReplace(original, lookForPattern, replacementPattern)
-		}
-	} else if jutil.IsASCII(original) && jutil.IsASCII(lookForPattern) {
-		index := strings.Index(original, lookForPattern)
-		if index == -1 {
-			return n
-		}
-		newString = original[:index] + replacementPattern + original[index+len(lookForPattern):]
-	} else {
-		index := jutil.StringIndexOf(original, lookForPattern)
-		if index == -1 {
-			return n
-		}
-		newString =
-			jutil.StringSubstring(original, 0, index) +
-				replacementPattern +
-				jutil.StringSubstringFrom(original, index+jutil.StringLength(lookForPattern))
-	}
-
-	resultNode := rhino.IR_String(newString).Srcref(stringNode.Node())
-	parent := n.GetParent()
-	n.ReplaceWith(resultNode)
-	p.ReportChangeToEnclosingScope(parent)
-	return resultNode
-}
-
-// TryFoldStringCharCodeAt tries to fold .charCodeAt() calls on strings.
-//
-// Java: PeepholeReplaceKnownMethods.tryFoldStringCharCodeAt(Node, Node, Node)
-func (p *PeepholeReplaceKnownMethods) TryFoldStringCharCodeAt(call ast.Call, stringNode ast.StringLit, arg1 ast.Arg) rhino.Node {
-	n := call.Node()
-
-	var index int
-	stringAsString := stringNode.Value()
-
-	// The only argument, a number.
-	num, isNumber := arg1.AsNumber()
-	if _, more := arg1.Next(); isNumber && !more {
-		index = int(jutil.D2I(num.Value()))
-	} else {
-		return n
-	}
-
-	if index < 0 || jutil.StringLength(stringAsString) <= index {
-		// http://es5.github.com/#x15.5.4.5 says NaN is returned when index is
-		// out of bounds but we bail.
-		return n
-	}
-
-	resultNode := rhino.IR_Number(float64(jutil.StringCharAt(stringAsString, index)))
-	parent := n.GetParent()
-	n.ReplaceWith(resultNode)
-	p.ReportChangeToEnclosingScope(parent)
-	return resultNode
-}
-
-// JsSplit implements the JS String.split method using a string separator.
-//
-// Java: PeepholeReplaceKnownMethods.jsSplit(String, String, int)
-func (p *PeepholeReplaceKnownMethods) JsSplit(stringValue string, separator string, hasSeparator bool, limit int) []string {
-	jutil.CheckArgument(limit >= 0)
-
-	if limit == 0 {
-		return []string{}
-	}
-	if !hasSeparator {
-		return []string{stringValue}
-	}
-
-	var splitStrings []string
-	if jutil.IsASCII(stringValue) && jutil.IsASCII(separator) {
-		if separator == "" {
-			n := min(len(stringValue), limit)
-			splitStrings = make([]string, n)
-			for i := 0; i < n; i++ {
-				splitStrings[i] = stringValue[i : i+1]
-			}
-			return splitStrings
-		}
-		startIndex := 0
-		for len(splitStrings) < limit && startIndex+len(separator) <= len(stringValue) {
-			rel := strings.Index(stringValue[startIndex:], separator)
-			if rel < 0 {
-				break
-			}
-			matchIndex := startIndex + rel
-			splitStrings = append(splitStrings, stringValue[startIndex:matchIndex])
-			startIndex = matchIndex + len(separator)
-		}
-		if len(splitStrings) < limit {
-			splitStrings = append(splitStrings, stringValue[startIndex:])
-		}
-		return splitStrings
-	}
-
-	strLen := jutil.StringLength(stringValue)
-	if separator == "" {
-		for i := 0; i < strLen && i < limit; i++ {
-			splitStrings = append(splitStrings, jutil.StringSubstring(stringValue, i, i+1))
-		}
-		return splitStrings
-	}
-
-	sepLen := jutil.StringLength(separator)
-	startIndex := 0
-	for len(splitStrings) < limit && startIndex+sepLen <= strLen {
-		matchIndex := jutil.StringIndexOfFrom(stringValue, separator, startIndex)
-		if matchIndex < 0 {
-			break
-		}
-		splitStrings = append(splitStrings, jutil.StringSubstring(stringValue, startIndex, matchIndex))
-		startIndex = matchIndex + sepLen
-	}
-	if len(splitStrings) < limit {
-		if startIndex < strLen {
-			splitStrings = append(splitStrings, jutil.StringSubstringFrom(stringValue, startIndex))
-		} else {
-			splitStrings = append(splitStrings, "")
-		}
-	}
-	return splitStrings
-}
-
-// TryFoldStringSplit tries to fold .split() calls on strings.
-//
-// Java: PeepholeReplaceKnownMethods.tryFoldStringSplit(Node, Node, Node)
-func (p *PeepholeReplaceKnownMethods) TryFoldStringSplit(call ast.Call, stringNode ast.StringLit) rhino.Node {
-	n := call.Node()
-	if p.late {
-		return n
-	}
-
-	var separator string
-	hasSeparator := false
-	stringValue := stringNode.Value()
-
-	// Maximum number of possible splits
-	limit := jutil.StringLength(stringValue) + 1
-
-	if arg1, ok := call.FirstArg(); ok {
-		if sep, ok := arg1.AsStringLit(); ok {
-			separator, hasSeparator = sep.Value(), true
-		} else if arg1.Token() != rhino.Token_NULL {
-			return n
-		}
-
-		// Go-only note: like the Java, this does not look past the limit, so
-		// "a,b".split(",", 1, f()) folds to ["a"] and drops the call to f.
-		// Kept for identical output.
-		if arg2, ok := arg1.Next(); ok {
-			if NodeUtil_IsNumericLiteral(arg2.Node()) {
-				// Integer.toUnsignedLong(int)
-				uint32Limit :=
-					int64(uint32(base.JSCompDoubles_EcmascriptToUint32(NodeUtil_GetNumericLiteralValue(arg2.Node()))))
-				limit = int(min(uint32Limit, int64(limit)))
-			} else {
-				return n
-			}
-		}
-	}
-
-	// Split the string and convert the returned array into JS nodes
-	stringArray := p.JsSplit(stringValue, separator, hasSeparator, limit)
-	arrayOfStrings := rhino.IR_Arraylit()
-	for _, element := range stringArray {
-		arrayOfStrings.AddChildToBack(rhino.IR_String(element).Srcref(stringNode.Node()))
-	}
-
-	parent := n.GetParent()
-	n.ReplaceWith(arrayOfStrings)
-	p.ReportChangeToEnclosingScope(parent)
-	return arrayOfStrings
 }
 
 // Java: PeepholeReplaceKnownMethods.tryToFoldArrayConcat(Node)

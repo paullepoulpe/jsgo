@@ -99,11 +99,7 @@ func TestNumbersMatchJava(t *testing.T) {
 			got := numbersOutcome(func() string { return BigIntegerPow(base, int32(e)).String() })
 			check("BigInteger.pow", r[1]+"^"+r[2], got, r[3])
 		case "fmt":
-			bits, _ := strconv.ParseUint(r[1], 16, 64)
-			prec, _ := strconv.Atoi(r[2])
-			d := math.Float64frombits(bits)
-			got := hexUTF16(Formatter_FormatDecimalFloat(d, prec))
-			check("String.format", "%."+r[2]+"f of "+DoubleToString(d), got, r[3])
+			// Formatter_FormatDecimalFloat moved to internal/jscomp.
 		case "bs":
 			var a []int
 			if r[1] != "-" {

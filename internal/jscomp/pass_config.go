@@ -31,36 +31,14 @@ type PassConfig interface {
 	GetChecks() *PassListBuilder
 	GetOptimizations() *PassListBuilder
 	GetFinalizations() *PassListBuilder
-	GetPassGraph() graph.GraphvizGraph
 	GetBasePassConfig() PassConfig
-	GetPassConfigBase() *PassConfigBase
+	Options() *CompilerOptions
 }
 
-// PassConfigBase holds PassConfig's fields and base implementations.
-type PassConfigBase struct {
-	self    PassConfig
-	options *CompilerOptions
-}
-
-func (b *PassConfigBase) InitPassConfigBase(options *CompilerOptions) {
-	b.options = options
-}
-
-func (b *PassConfigBase) GetPassConfigBase() *PassConfigBase { return b }
-
-func (b *PassConfigBase) Options() *CompilerOptions { return b.options }
-
-func (b *PassConfigBase) GetWhitespaceOnlyPasses() *PassListBuilder {
-	return NewPassListBuilder(b.options)
-}
-
-func (b *PassConfigBase) GetTranspileOnlyPasses() *PassListBuilder {
-	return NewPassListBuilder(b.options)
-}
-
-func (b *PassConfigBase) GetPassGraph() graph.GraphvizGraph {
+// BuildPassGraph builds the Graphviz pass graph for pc.
+func BuildPassGraph(pc PassConfig) graph.GraphvizGraph {
 	passGraph := graph.LinkedDirectedGraph_CreateWithoutAnnotations[string, string]()
-	allPasses := append(b.self.GetChecks().Build(), b.self.GetOptimizations().Build()...)
+	allPasses := append(pc.GetChecks().Build(), pc.GetOptimizations().Build()...)
 	var lastPass, loopStart string
 	var hasLast, inLoop bool
 	for _, pass := range allPasses {
@@ -89,79 +67,74 @@ func (b *PassConfigBase) GetPassGraph() graph.GraphvizGraph {
 	return passGraph
 }
 
-func (b *PassConfigBase) GetBasePassConfig() PassConfig {
-	current := b.self
-	for {
-		delegate, ok := current.(PassConfig_PassConfigDelegate)
-		if !ok {
-			return current
-		}
-		current = delegate.GetPassConfig_PassConfigDelegateBase().delegate
-	}
-}
-
-// PassConfig_PassConfigDelegate proxies PassConfig method calls to an inner delegate.
-type PassConfig_PassConfigDelegate interface {
-	PassConfig
-	GetPassConfig_PassConfigDelegateBase() *PassConfig_PassConfigDelegateBase
-}
-
-// PassConfig_PassConfigDelegateBase holds PassConfigDelegate's fields and base implementations.
-type PassConfig_PassConfigDelegateBase struct {
-	PassConfigBase
+// PassConfigDelegate proxies PassConfig method calls to an inner delegate.
+type PassConfigDelegate struct {
+	options  *CompilerOptions
 	delegate PassConfig
 }
 
-func NewPassConfig_PassConfigDelegate(delegate PassConfig) *PassConfig_PassConfigDelegateBase {
-	d := &PassConfig_PassConfigDelegateBase{}
-	d.InitPassConfigDelegate(d, delegate)
-	return d
+// PassConfig_PassConfigDelegateBase preserves test compatibility for custom
+// PassConfig test stubs that assign .self and call InitPassConfig_PassConfigDelegateBase.
+type PassConfig_PassConfigDelegateBase struct {
+	PassConfigDelegate
+	self PassConfig
 }
 
-func (d *PassConfig_PassConfigDelegateBase) InitPassConfigDelegate(self PassConfig, delegate PassConfig) {
-	d.self = self
-	d.InitPassConfig_PassConfigDelegateBase(delegate)
+func NewPassConfigDelegate(delegate PassConfig) PassConfigDelegate {
+	return PassConfigDelegate{
+		options:  delegate.Options(),
+		delegate: delegate,
+	}
 }
 
-func (d *PassConfig_PassConfigDelegateBase) InitPassConfig_PassConfigDelegateBase(delegate PassConfig) {
-	d.InitPassConfigBase(delegate.GetPassConfigBase().options)
+func NewPassConfig_PassConfigDelegate(delegate PassConfig) *PassConfigDelegate {
+	d := NewPassConfigDelegate(delegate)
+	return &d
+}
+
+func (d *PassConfigDelegate) InitPassConfig_PassConfigDelegateBase(delegate PassConfig) {
+	d.options = delegate.Options()
 	d.delegate = delegate
 }
 
-func (d *PassConfig_PassConfigDelegateBase) GetPassConfig_PassConfigDelegateBase() *PassConfig_PassConfigDelegateBase {
-	return d
+func (d *PassConfigDelegate) Options() *CompilerOptions {
+	return d.options
 }
 
-func (d *PassConfig_PassConfigDelegateBase) GetWhitespaceOnlyPasses() *PassListBuilder {
+func (d *PassConfigDelegate) GetBasePassConfig() PassConfig {
+	return d.delegate.GetBasePassConfig()
+}
+
+func (d *PassConfigDelegate) GetWhitespaceOnlyPasses() *PassListBuilder {
 	return d.delegate.GetWhitespaceOnlyPasses()
 }
 
-func (d *PassConfig_PassConfigDelegateBase) GetChecks() *PassListBuilder {
+func (d *PassConfigDelegate) GetChecks() *PassListBuilder {
 	return d.delegate.GetChecks()
 }
 
-func (d *PassConfig_PassConfigDelegateBase) GetOptimizations() *PassListBuilder {
+func (d *PassConfigDelegate) GetOptimizations() *PassListBuilder {
 	return d.delegate.GetOptimizations()
 }
 
-func (d *PassConfig_PassConfigDelegateBase) GetFinalizations() *PassListBuilder {
+func (d *PassConfigDelegate) GetFinalizations() *PassListBuilder {
 	return d.delegate.GetFinalizations()
 }
 
-func (d *PassConfig_PassConfigDelegateBase) GetTranspileOnlyPasses() *PassListBuilder {
+func (d *PassConfigDelegate) GetTranspileOnlyPasses() *PassListBuilder {
 	return d.delegate.GetTranspileOnlyPasses()
 }
 
 // ConformancePassConfig runs only the user-supplied conformance checks and any
 // earlier passes required by conformance.
 type ConformancePassConfig struct {
-	PassConfig_PassConfigDelegateBase
+	PassConfigDelegate
 }
 
 func NewConformancePassConfig(delegate PassConfig) *ConformancePassConfig {
-	c := &ConformancePassConfig{}
-	c.InitPassConfigDelegate(c, delegate)
-	return c
+	return &ConformancePassConfig{
+		PassConfigDelegate: NewPassConfigDelegate(delegate),
+	}
 }
 
 func (c *ConformancePassConfig) GetChecks() *PassListBuilder {
@@ -178,13 +151,13 @@ func (c *ConformancePassConfig) GetOptimizations() *PassListBuilder {
 // CheckExtraRequiresPassConfig runs only the CheckExtraRequires linter rule to
 // remove unused goog.require imports.
 type CheckExtraRequiresPassConfig struct {
-	PassConfig_PassConfigDelegateBase
+	PassConfigDelegate
 }
 
 func NewCheckExtraRequiresPassConfig(options *CompilerOptions) *CheckExtraRequiresPassConfig {
-	c := &CheckExtraRequiresPassConfig{}
-	c.InitPassConfigDelegate(c, NewDefaultPassConfig(options))
-	return c
+	return &CheckExtraRequiresPassConfig{
+		PassConfigDelegate: NewPassConfigDelegate(NewDefaultPassConfig(options)),
+	}
 }
 
 func (c *CheckExtraRequiresPassConfig) GetChecks() *PassListBuilder {

@@ -170,7 +170,8 @@ func (m *ClosureRewriteModule) visitJsdocTypeRef(t *NodeTraversal, typeRefNode r
 			newType += typeName[dot:]
 		}
 		m.safeSetString(typeRefNode, newType)
-	} else if _, isTopLevel := m.currentScript.topLevelNames[rootOfType]; m.currentScript.isModule && isTopLevel {
+	} else if m.currentScript.isModule && len(m.currentScript.topLevelNameIDs) > 0 &&
+		hasUint32Key(m.currentScript.topLevelNameIDs, rhino.RhinoStringPool_LookupID(rootOfType)) {
 		if isClosureLocalShadowVar(t, rootOfType) {
 			return
 		}
@@ -595,14 +596,22 @@ func (m *ClosureRewriteModule) updateExportsPropertyAssignment(getProp ast.GetPr
 	}
 }
 
+func hasUint32Key(m map[uint32]struct{}, k uint32) bool {
+	if k == 0 {
+		return false
+	}
+	_, ok := m[k]
+	return ok
+}
+
 func (m *ClosureRewriteModule) maybeUpdateTopLevelName(t *NodeTraversal, nameNode rhino.Node) {
-	name := nameNode.GetString()
 	if !m.currentScript.isModule {
 		return
 	}
-	if _, ok := m.currentScript.topLevelNames[name]; !ok {
+	if _, ok := m.currentScript.topLevelNameIDs[nameNode.GetStringID()]; !ok {
 		return
 	}
+	name := nameNode.GetString()
 	var_ := t.LookupVar(name)
 	if var_ == nil || var_.GetScope().(*Scope).GetRootNode() != m.currentScript.rootNode {
 		return
@@ -1083,7 +1092,7 @@ func ClosureRewriteModule_IsModuleContent(name string) bool {
 }
 
 func closureRewriteModule_isGoogModuleExportsRef(t *NodeTraversal, target rhino.Node) bool {
-	if !target.IsName() || !target.MatchesName("exports") {
+	if !target.IsName() || target.GetStringID() != closureModuleExportsID {
 		return false
 	}
 	exportsVar := t.LookupVar("exports")

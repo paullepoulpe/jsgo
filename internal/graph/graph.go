@@ -57,6 +57,10 @@
 package graph
 
 import (
+	"fmt"
+	"reflect"
+	"strconv"
+
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 )
 
@@ -209,4 +213,48 @@ func popAnnotations(stack *annotationStack) {
 	}
 	stack.states[topIdx] = top[:0]
 	stack.states = stack.states[:topIdx]
+}
+
+func formatGraphValue(v any) string {
+	if v == nil {
+		return "null"
+	}
+	switch x := v.(type) {
+	case string:
+		return x
+	case *string:
+		if x == nil {
+			return "null"
+		}
+		return *x
+	case int:
+		return strconv.Itoa(x)
+	case int32:
+		return strconv.FormatInt(int64(x), 10)
+	case int64:
+		return strconv.FormatInt(x, 10)
+	case bool:
+		return strconv.FormatBool(x)
+	case *int:
+		if x == nil {
+			return "null"
+		}
+		return strconv.Itoa(*x)
+	case *int32:
+		if x == nil {
+			return "null"
+		}
+		return strconv.FormatInt(int64(*x), 10)
+	}
+	rv := reflect.ValueOf(v)
+	switch rv.Kind() {
+	case reflect.Pointer, reflect.Slice, reflect.Map, reflect.Func, reflect.Chan, reflect.Interface:
+		if rv.IsNil() {
+			return "null"
+		}
+	}
+	if s, ok := v.(fmt.Stringer); ok {
+		return s.String()
+	}
+	return fmt.Sprint(v)
 }

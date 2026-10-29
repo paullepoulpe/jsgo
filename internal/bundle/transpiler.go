@@ -33,16 +33,16 @@ import (
 //
 // Java: class bundle.Transpiler extends CompilerBasedTransformer
 type Transpiler struct {
-	CompilerBasedTransformerBase
+	CompilerBasedTransformer
 }
 
-var _ CompilerBasedTransformer = (*Transpiler)(nil)
+var _ Source_Transformer = (*Transpiler)(nil)
 
 // Java: Transpiler(CompilerBasedTransformer.CompilerSupplier, String)
 func NewTranspiler(compilerSupplier CompilerBasedTransformer_CompilerSupplier,
 	runtimeLibraryName string) *Transpiler {
 	return &Transpiler{
-		CompilerBasedTransformerBase: CompilerBasedTransformerBase{
+		CompilerBasedTransformer: CompilerBasedTransformer{
 			compilerSupplier:   jutil.CheckNotNull(compilerSupplier),
 			transformationName: "Transpilation",
 			runtimeLibraryName: runtimeLibraryName,

@@ -19,6 +19,7 @@
 package jscomp
 
 import (
+	"slices"
 	"strconv"
 
 	"github.com/paullepoulpe/jsgo/internal/jutil"
@@ -30,8 +31,9 @@ import (
 type UseSiteRenamer struct {
 	mutationCb func(rhino.Node)
 
-	// ImmutableSetMultimap.Builder: keys and values in insertion order.
-	renamingIndex       *jutil.SetMultimap[string, string]
+	// Keys and values in insertion order, populated lazily when trackRenamingIndex is true.
+	renamingEntries     map[string][]string
+	renamingOrder       []string
 	trackRenamingIndex  bool
 	scratchReps         []*ColorGraphNode
 	scratchClusterNames map[*ColorGraphNode]string
@@ -43,8 +45,22 @@ const useSiteRenamer_INVALIDATED_NAME_VALUE = "<INVALIDATED>"
 func NewUseSiteRenamer(mutationCb func(rhino.Node)) *UseSiteRenamer {
 	return &UseSiteRenamer{
 		mutationCb:         mutationCb,
-		renamingIndex:      jutil.NewSetMultimap[string, string](),
 		trackRenamingIndex: true,
+	}
+}
+
+func (r *UseSiteRenamer) recordRenaming(propName, newName string) {
+	if r.renamingEntries == nil {
+		r.renamingEntries = make(map[string][]string)
+	}
+	vals, exists := r.renamingEntries[propName]
+	if !exists {
+		r.renamingOrder = append(r.renamingOrder, propName)
+		r.renamingEntries[propName] = []string{newName}
+		return
+	}
+	if !slices.Contains(vals, newName) {
+		r.renamingEntries[propName] = append(vals, newName)
 	}
 }
 
@@ -62,10 +78,9 @@ func (r *UseSiteRenamer) allocClusterName(origRep *ColorGraphNode, propName stri
 //
 // Java: UseSiteRenamer.renameUses(PropertyClustering)
 func (r *UseSiteRenamer) RenameUses(prop *PropertyClustering) UseSiteRenamer_RenameUsesResult {
-	propName := prop.GetName()
 	if prop.IsInvalidated() {
 		if r.trackRenamingIndex {
-			r.renamingIndex.Put(propName, useSiteRenamer_INVALIDATED_NAME_VALUE)
+			r.recordRenaming(prop.GetName(), useSiteRenamer_INVALIDATED_NAME_VALUE)
 		}
 		return UseSiteRenamer_RenameUsesResult_INVALIDATED
 	}
@@ -76,11 +91,13 @@ func (r *UseSiteRenamer) RenameUses(prop *PropertyClustering) UseSiteRenamer_Ren
 		// won't actaully disambiguate anything in this case, so skip the
 		// work.
 		if r.trackRenamingIndex {
-			r.renamingIndex.Put(propName, propName)
+			propName := prop.GetName()
+			r.recordRenaming(propName, propName)
 		}
 		return UseSiteRenamer_RenameUsesResult_ONLY_ONE_CLUSTER
 	}
 
+	propName := prop.GetName()
 	reps := clusters.AppendRepresentatives(r.scratchReps[:0])
 	r.scratchReps = reps
 	if r.scratchClusterNames == nil {
@@ -93,12 +110,18 @@ func (r *UseSiteRenamer) RenameUses(prop *PropertyClustering) UseSiteRenamer_Ren
 		name := r.allocClusterName(origRep, propName, rep)
 		r.scratchClusterNames[rep] = name
 		if r.trackRenamingIndex {
-			r.renamingIndex.Put(propName, name)
+			r.recordRenaming(propName, name)
 		}
 	}
 
-	for site, owner := range prop.GetUseSites().All() {
-		flatRep := clusters.Find(owner)
+	sites := prop.useSites.sites
+	origID := prop.nameID
+	for i := range sites {
+		site := sites[i].site
+		flatRep := clusters.Find(sites[i].owner)
+		if flatRep == origRep && site.GetStringID() == origID {
+			continue
+		}
 		newName := r.scratchClusterNames[flatRep]
 		if newName != site.GetString() {
 			site.SetString(newName)
@@ -134,7 +157,13 @@ func (r UseSiteRenamer_RenameUsesResult) Ordinal() int { return int(r) }
 //
 // Java: UseSiteRenamer.getRenamingIndex()
 func (r *UseSiteRenamer) GetRenamingIndex() *jutil.SetMultimap[string, string] {
-	return jutil.SetMultimapCopyOf(r.renamingIndex)
+	out := jutil.NewSetMultimap[string, string]()
+	for _, k := range r.renamingOrder {
+		for _, v := range r.renamingEntries[k] {
+			out.Put(k, v)
+		}
+	}
+	return out
 }
 
 // useSiteRenamer_createAllClusterNames creates a unique name for each
@@ -155,5 +184,5 @@ func useSiteRenamer_createClusterName(prop *PropertyClustering, rep *ColorGraphN
 		return prop.GetName()
 	}
 
-	return "JSC$" + jutil.ToJavaString(rep.GetIndex()) + "_" + prop.GetName()
+	return "JSC$" + strconv.Itoa(rep.GetIndex()) + "_" + prop.GetName()
 }

@@ -2085,6 +2085,44 @@ func TestNodeUtil_AssortedTests_TestGetNumberValueNoConversions(t *testing.T) {
 	nuAssertThatDouble(t, NodeUtil_GetNumberValueNoConversions(nuParseExpr(t, "~Infinity"))).IsEqualTo(-1.0)
 }
 
+func TestNodeUtil_GetNumberValueOpt(t *testing.T) {
+	exprs := []string{
+		"0", "-0", "42", "-1.5", "0x22", "NaN", "Infinity", "-Infinity",
+		"undefined", "null", "true", "false", `"123"`, `" 0b1010 "`, `"abc"`, `"infinity"`,
+		"1n", "{}", "[1]", "x",
+	}
+	for _, src := range exprs {
+		n := nuParseExpr(t, src)
+		gotV, gotOK := NodeUtil_GetNumberValueOpt(n)
+		wantPtr := NodeUtil_GetNumberValue(n)
+		if (wantPtr != nil) != gotOK {
+			t.Fatalf("GetNumberValueOpt(%s) ok=%v, want %v", src, gotOK, wantPtr != nil)
+		}
+		if gotOK && math.Float64bits(gotV) != math.Float64bits(*wantPtr) && !(math.IsNaN(gotV) && math.IsNaN(*wantPtr)) {
+			t.Fatalf("GetNumberValueOpt(%s) = %v, want %v", src, gotV, *wantPtr)
+		}
+
+		ncV, ncOK := NodeUtil_GetNumberValueNoConversionsOpt(n)
+		wantNcPtr := NodeUtil_GetNumberValueNoConversions(n)
+		if (wantNcPtr != nil) != ncOK {
+			t.Fatalf("GetNumberValueNoConversionsOpt(%s) ok=%v, want %v", src, ncOK, wantNcPtr != nil)
+		}
+		if ncOK && math.Float64bits(ncV) != math.Float64bits(*wantNcPtr) && !(math.IsNaN(ncV) && math.IsNaN(*wantNcPtr)) {
+			t.Fatalf("GetNumberValueNoConversionsOpt(%s) = %v, want %v", src, ncV, *wantNcPtr)
+		}
+	}
+	for _, raw := range []string{"", " 42 ", "-0", "0x10", "0b", "+0x1", "infinity", "-Infinity", "\v1", "notanumber"} {
+		gotV, gotOK := NodeUtil_GetStringNumberValueOpt(raw)
+		wantPtr := NodeUtil_GetStringNumberValue(raw)
+		if (wantPtr != nil) != gotOK {
+			t.Fatalf("GetStringNumberValueOpt(%q) ok=%v, want %v", raw, gotOK, wantPtr != nil)
+		}
+		if gotOK && math.Float64bits(gotV) != math.Float64bits(*wantPtr) && !(math.IsNaN(gotV) && math.IsNaN(*wantPtr)) {
+			t.Fatalf("GetStringNumberValueOpt(%q) = %v, want %v", raw, gotV, *wantPtr)
+		}
+	}
+}
+
 func TestNodeUtil_AssortedTests_TestIsNumericLiteral(t *testing.T) {
 	nuAssertThat(t, NodeUtil_IsNumericLiteral(nuParseExpr(t, "1"))).IsTrue()
 	nuAssertThat(t, NodeUtil_IsNumericLiteral(nuParseExpr(t, "0"))).IsTrue()

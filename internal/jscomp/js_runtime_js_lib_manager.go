@@ -1,7 +1,24 @@
 // Port of com/google/javascript/jscomp/js/RuntimeJsLibManager.java @ closure-compiler v20261021
+// Port of com/google/javascript/jscomp/InjectRuntimeLibraries.java @ closure-compiler v20261021
 
 /*
  * Copyright 2025 The Closure Compiler Authors.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+/*
+ * Copyright 2014 The Closure Compiler Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -534,4 +551,34 @@ func (m *RuntimeJsLibManager) SetLastInjectedLibrary(lastInjectedLibrary rhino.N
 // Java: RuntimeJsLibManager.getLastInjectedLibrary()
 func (m *RuntimeJsLibManager) GetLastInjectedLibrary() rhino.Node {
 	return m.lastInjectedLibrary
+}
+
+// InjectRuntimeLibraries adds runtime libraries to the beginning of the
+// AST. Any libraries explicitly requested via the
+// CompilerOptions#forceLibraryInjection field.
+//
+// TODO(b/120486392): merge this pass with InjectTranspilationRuntimeLibraries.
+type InjectRuntimeLibraries struct {
+	runtimeLibs            *RuntimeJsLibManager
+	forceInjectedLibraries *jutil.LinkedHashSet[string]
+}
+
+// Java: InjectRuntimeLibraries(AbstractCompiler, ImmutableSet<String>)
+func NewInjectRuntimeLibraries(compiler AbstractCompiler, forceInjectedLibraries *jutil.LinkedHashSet[string]) *InjectRuntimeLibraries {
+	return &InjectRuntimeLibraries{
+		runtimeLibs:            compiler.GetRuntimeJsLibManager(),
+		forceInjectedLibraries: forceInjectedLibraries,
+	}
+}
+
+// Java: InjectRuntimeLibraries.process(Node, Node)
+func (i *InjectRuntimeLibraries) Process(externs rhino.Node, root rhino.Node) {
+	i.InjectLibraries()
+}
+
+// Java: InjectRuntimeLibraries.injectLibraries()
+func (i *InjectRuntimeLibraries) InjectLibraries() {
+	for forced := range i.forceInjectedLibraries.All() {
+		i.runtimeLibs.EnsureLibraryInjected(forced, true)
+	}
 }

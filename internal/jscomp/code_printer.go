@@ -469,7 +469,7 @@ type CodePrinter_LicenseTracker interface {
 	TrackLicensesForNode(node rhino.Node)
 
 	// Java: CodePrinter.LicenseTracker.emitLicenses()
-	EmitLicenses() *jutil.LinkedHashSet[string]
+	EmitLicenses() []string
 }
 
 // CodePrinter_Builder builds the source code of an AST.

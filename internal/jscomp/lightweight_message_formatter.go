@@ -1,7 +1,26 @@
 // Port of com/google/javascript/jscomp/LightweightMessageFormatter.java @ closure-compiler v20261021
+// Port of com/google/javascript/jscomp/AbstractMessageFormatter.java @ closure-compiler v20261021
+// Port of com/google/javascript/jscomp/ErrorFormat.java @ closure-compiler v20261021
+// Port of com/google/javascript/jscomp/VerboseMessageFormatter.java @ closure-compiler v20261021
 
 /*
  * Copyright 2007 The Closure Compiler Authors.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+/*
+ * Copyright 2009 The Closure Compiler Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -27,16 +46,186 @@ import (
 	"github.com/paullepoulpe/jsgo/internal/sourcemap"
 )
 
+// MessageFormatter formats warnings and errors. This interface may be used
+// by implementations of ErrorManager to request message formatting
+// capabilities.
+type MessageFormatter interface {
+	// FormatError formats an error.
+	FormatError(error *JSError) string
+
+	// FormatWarning formats a warning.
+	FormatWarning(warning *JSError) string
+}
+
+// Java: AbstractMessageFormatter.termSupportsColor(String)
+func AbstractMessageFormatter_TermSupportsColor(term string) bool {
+	switch term {
+	case "xterm", "xterm-color", "xterm-256color", "screen-bce":
+		return true
+	default:
+		return false
+	}
+}
+
+// Java: AbstractMessageFormatter.Color
+type abstractMessageFormatter_Color int32
+
+const (
+	abstractMessageFormatter_Color_ERROR abstractMessageFormatter_Color = iota
+	abstractMessageFormatter_Color_WARNING
+	abstractMessageFormatter_Color_NO_COLOR
+	abstractMessageFormatter_Color_BOLD
+	abstractMessageFormatter_Color_UNBOLD
+)
+
+var abstractMessageFormatter_Color_controlCharacter = [...]string{
+	"\u001b[31m",
+	"\u001b[35m",
+	"\u001b[39m",
+	"\u001b[1m",
+	"\u001b[0m",
+}
+
+func (c abstractMessageFormatter_Color) controlCharacter() string {
+	return abstractMessageFormatter_Color_controlCharacter[c]
+}
+
+func messageFormatterGetLevelName(level CheckLevel, colorize bool) string {
+	switch level {
+	case CheckLevel_ERROR:
+		return messageFormatterMaybeColorize("ERROR", abstractMessageFormatter_Color_ERROR, colorize)
+	case CheckLevel_WARNING:
+		return messageFormatterMaybeColorize("WARNING", abstractMessageFormatter_Color_WARNING, colorize)
+	default:
+		return level.String()
+	}
+}
+
+func messageFormatterMaybeEmbolden(text string, colorize bool) string {
+	if !colorize {
+		return text
+	}
+	return abstractMessageFormatter_Color_BOLD.controlCharacter() +
+		text + abstractMessageFormatter_Color_UNBOLD.controlCharacter()
+}
+
+func messageFormatterMaybeColorize(text string, color abstractMessageFormatter_Color, colorize bool) string {
+	if !colorize {
+		return text
+	}
+	return color.controlCharacter() +
+		text + abstractMessageFormatter_Color_NO_COLOR.controlCharacter()
+}
+
+// ErrorFormat lists the error formats available.
+type ErrorFormat int32
+
+const (
+	ErrorFormat_SINGLELINE ErrorFormat = iota
+	ErrorFormat_FULL
+	ErrorFormat_MULTILINE
+	ErrorFormat_SOURCELESS
+)
+
+var errorFormat_names = [...]string{"SINGLELINE", "FULL", "MULTILINE", "SOURCELESS"}
+
+// Java: ErrorFormat.values()
+func ErrorFormat_values() []ErrorFormat {
+	return []ErrorFormat{ErrorFormat_SINGLELINE, ErrorFormat_FULL, ErrorFormat_MULTILINE, ErrorFormat_SOURCELESS}
+}
+
+// String is Enum.name().
+func (f ErrorFormat) String() string { return errorFormat_names[f] }
+
+// Ordinal is Enum.ordinal().
+func (f ErrorFormat) Ordinal() int { return int(f) }
+
+// ToFormatter converts to a concrete formatter.
+//
+// Java: ErrorFormat.toFormatter(SourceExcerptProvider, boolean)
+func (f ErrorFormat) ToFormatter(source SourceExcerptProvider, colorize bool) MessageFormatter {
+	var formatter *LightweightMessageFormatter
+	switch f {
+	case ErrorFormat_SINGLELINE:
+		formatter = NewLightweightMessageFormatter(source)
+	case ErrorFormat_FULL:
+		formatter = NewLightweightMessageFormatterWithFormat(source, SourceExcerptProvider_SourceExcerpt_FULL)
+	case ErrorFormat_MULTILINE:
+		formatter = NewLightweightMessageFormatterWithFormat(source, SourceExcerptProvider_SourceExcerpt_REGION)
+	default: // SOURCELESS
+		formatter = LightweightMessageFormatter_WithoutSource()
+	}
+	formatter.SetColorize(colorize)
+	return formatter
+}
+
+// VerboseMessageFormatter is a verbose message formatter. This formatter
+// generates very loud and long messages with multi-line source excerpts.
+type VerboseMessageFormatter struct {
+	source   SourceExcerptProvider
+	colorize bool
+}
+
+var _ MessageFormatter = (*VerboseMessageFormatter)(nil)
+
+// Java: VerboseMessageFormatter(SourceExcerptProvider)
+func NewVerboseMessageFormatter(source SourceExcerptProvider) *VerboseMessageFormatter {
+	return &VerboseMessageFormatter{source: source}
+}
+
+// Java: AbstractMessageFormatter.setColorize(boolean)
+func (f *VerboseMessageFormatter) SetColorize(colorize bool) {
+	f.colorize = colorize
+}
+
+// Java: AbstractMessageFormatter.getSource()
+func (f *VerboseMessageFormatter) GetSource() SourceExcerptProvider {
+	return f.source
+}
+
+// Java: VerboseMessageFormatter.formatError(JSError)
+func (f *VerboseMessageFormatter) FormatError(error *JSError) string {
+	return messageFormatterGetLevelName(CheckLevel_ERROR, f.colorize) + ": " + f.Format(error)
+}
+
+// Java: VerboseMessageFormatter.formatWarning(JSError)
+func (f *VerboseMessageFormatter) FormatWarning(warning *JSError) string {
+	return messageFormatterGetLevelName(CheckLevel_WARNING, f.colorize) + ": " + f.Format(warning)
+}
+
+// Java: VerboseMessageFormatter.format(JSError)
+func (f *VerboseMessageFormatter) Format(message *JSError) string {
+	description := message.Description()
+	sourceName := message.SourceName()
+	lineNumber := message.GetLineNumber()
+	sourceRegion := f.source.GetSourceRegion(sourceName, lineNumber)
+
+	source := "(unknown source)"
+	if sourceName != nil && *sourceName != "" {
+		source = *sourceName
+	}
+	line := "(unknown line)"
+	if lineNumber >= 0 {
+		line = strconv.Itoa(lineNumber)
+	}
+	excerpt := "."
+	if sourceRegion != nil {
+		excerpt = ":\n\n" + sourceRegion.GetSourceExcerpt()
+	}
+	return description + " at " + source + " line " + line + " " + excerpt
+}
+
 // LightweightMessageFormatter is a lightweight message formatter. The format
 // of messages this formatter produces is very compact and to the point.
 type LightweightMessageFormatter struct {
-	AbstractMessageFormatterBase
+	source          SourceExcerptProvider
+	colorize        bool
 	defaultFormat   SourceExcerptProvider_SourceExcerpt
 	includeLocation bool
 	includeLevel    bool
 }
 
-var _ AbstractMessageFormatter = (*LightweightMessageFormatter)(nil)
+var _ MessageFormatter = (*LightweightMessageFormatter)(nil)
 
 var lightweightMessageFormatter_excerptFormatter SourceExcerptProvider_ExcerptFormatter = NewLightweightMessageFormatter_LineNumberingFormatter()
 
@@ -47,10 +236,11 @@ const lightweightMessageFormatter_MAX_MULTILINE_ERROR_LENGTH = 4 // must be even
 //
 // Java: LightweightMessageFormatter()
 func newLightweightMessageFormatterWithoutSource() *LightweightMessageFormatter {
-	f := &LightweightMessageFormatter{includeLocation: true, includeLevel: true}
-	f.InitAbstractMessageFormatterBase(nil)
-	f.defaultFormat = SourceExcerptProvider_SourceExcerpt_LINE
-	return f
+	return &LightweightMessageFormatter{
+		defaultFormat:   SourceExcerptProvider_SourceExcerpt_LINE,
+		includeLocation: true,
+		includeLevel:    true,
+	}
 }
 
 // Java: LightweightMessageFormatter(SourceExcerptProvider)
@@ -60,11 +250,23 @@ func NewLightweightMessageFormatter(source SourceExcerptProvider) *LightweightMe
 
 // Java: LightweightMessageFormatter(SourceExcerptProvider, SourceExcerpt)
 func NewLightweightMessageFormatterWithFormat(source SourceExcerptProvider, defaultFormat SourceExcerptProvider_SourceExcerpt) *LightweightMessageFormatter {
-	f := &LightweightMessageFormatter{includeLocation: true, includeLevel: true}
-	f.InitAbstractMessageFormatterBase(source)
 	jutil.CheckNotNull(source)
-	f.defaultFormat = defaultFormat
-	return f
+	return &LightweightMessageFormatter{
+		source:          source,
+		defaultFormat:   defaultFormat,
+		includeLocation: true,
+		includeLevel:    true,
+	}
+}
+
+// Java: AbstractMessageFormatter.setColorize(boolean)
+func (f *LightweightMessageFormatter) SetColorize(colorize bool) {
+	f.colorize = colorize
+}
+
+// Java: AbstractMessageFormatter.getSource()
+func (f *LightweightMessageFormatter) GetSource() SourceExcerptProvider {
+	return f.source
 }
 
 // Java: LightweightMessageFormatter.withoutSource()
@@ -111,7 +313,7 @@ func (f *LightweightMessageFormatter) appendHeaderLine(
 		if warning {
 			level = CheckLevel_WARNING
 		}
-		b.WriteString(f.GetLevelName(level))
+		b.WriteString(messageFormatterGetLevelName(level, f.colorize))
 		b.WriteString(" - [")
 		b.WriteString(error.Type().key)
 		b.WriteString("] ")
@@ -121,7 +323,7 @@ func (f *LightweightMessageFormatter) appendHeaderLine(
 
 // Java: LightweightMessageFormatter.format(JSError, boolean)
 func (f *LightweightMessageFormatter) Format(error *JSError, warning bool) string {
-	source := f.GetSource()
+	source := f.source
 	sourceNamePtr := error.SourceName()
 	var sourceName string
 	hasSource := sourceNamePtr != nil
@@ -161,7 +363,7 @@ func (f *LightweightMessageFormatter) Format(error *JSError, warning bool) strin
 	} else {
 		var boldLine strings.Builder
 		f.appendHeaderLine(&boldLine, error, warning, sourceName, hasSource, lineNumber, charno)
-		b.WriteString(f.MaybeEmbolden(boldLine.String()))
+		b.WriteString(messageFormatterMaybeEmbolden(boldLine.String(), f.colorize))
 	}
 	b.WriteByte('\n')
 
@@ -227,7 +429,7 @@ func (f *LightweightMessageFormatter) appendExcerptWithPositionAndLength(
 	charno int,
 	length int,
 	format SourceExcerptProvider_SourceExcerpt) {
-	source := f.GetSource()
+	source := f.source
 	if source == nil {
 		return
 	}

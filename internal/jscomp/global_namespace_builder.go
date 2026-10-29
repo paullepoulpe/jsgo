@@ -108,7 +108,7 @@ func globalNamespace_hasPrototype(s string) bool {
 
 func globalNamespace_nodeHasPrototype(n rhino.Node) bool {
 	for cur := n; !cur.IsNil() && cur.IsGetProp(); cur = cur.GetFirstChild() {
-		if cur.GetString() == "prototype" {
+		if cur.GetStringID() == gnPrototypeStrID {
 			return true
 		}
 	}
@@ -155,7 +155,7 @@ func (b *GlobalNamespace_BuildGlobalNamespace) resolveObjectLit(objLit rhino.Nod
 		return b.putObjLitCache(objLit, "", rhino.NilNode, scope, gnObjLitInvalid)
 	}
 	if ownerParent.IsClassMembers() && !owner.IsComputedProp() {
-		if !owner.IsStaticMember() || owner.GetString() == "prototype" {
+		if !owner.IsStaticMember() || owner.GetStringID() == gnPrototypeStrID {
 			return b.putObjLitCache(objLit, "", rhino.NilNode, scope, gnObjLitInvalid)
 		}
 		nameNode := NodeUtil_GetNameNode(ownerParent.GetParent())
@@ -293,7 +293,7 @@ func (b *GlobalNamespace_BuildGlobalNamespace) ShouldTraverse(t *NodeTraversal, 
 	if g.forProcessDefines && g.processDefinesCheck && g.sourceKind == GlobalNamespace_SourceKind_CODE {
 		if jsdoc := n.GetJSDocInfo(); (jsdoc != nil && jsdoc.IsDefine()) ||
 			(n.IsCall() && n.GetFirstChild().MatchesQualifiedNameNode(processDefines_GOOG_DEFINE)) ||
-			(n.IsName() && n.GetString() == "CLOSURE_DEFINES") {
+			(n.IsName() && n.GetStringID() == gnClosureDefinesStrID) {
 			if !t.currentScript.IsNil() {
 				if g.defineCandidateScripts == nil {
 					g.defineCandidateScripts = make(map[rhino.Node]struct{}, 8)
@@ -357,11 +357,11 @@ func (b *GlobalNamespace_BuildGlobalNamespace) collect(scope *Scope, chunk *JSCh
 	case rhino.Token_GETTER_DEF, rhino.Token_SETTER_DEF, rhino.Token_MEMBER_FUNCTION_DEF, rhino.Token_MEMBER_FIELD_DEF:
 		if parent.IsObjectLit() {
 			prefix, r, s, state := b.resolveObjectLit(parent, scope, t)
-			if state != gnObjLitLValue {
+			if state != gnObjLitLValue || n.GetStringID() == gnPrototypeStrID {
 				return
 			}
 			key := n.GetString()
-			if key == "prototype" || !rhino.TokenStream_IsJSIdentifier(key) {
+			if !rhino.TokenStream_IsJSIdentifier(key) {
 				return
 			}
 			nameStr = prefix + "." + key
@@ -410,13 +410,10 @@ func (b *GlobalNamespace_BuildGlobalNamespace) collect(scope *Scope, chunk *JSCh
 		sk := ast.MustStringKey(n)
 		if parent.IsObjectLit() {
 			prefix, r, s, state := b.resolveObjectLit(parent, scope, t)
-			if state == gnObjLitInvalid {
+			if state == gnObjLitInvalid || n.GetStringID() == gnPrototypeStrID {
 				return
 			}
 			key := sk.Key()
-			if key == "prototype" {
-				return
-			}
 			if state == gnObjLitLValue {
 				if !rhino.TokenStream_IsJSIdentifier(key) {
 					return
@@ -1208,8 +1205,8 @@ func (b *GlobalNamespace_BuildGlobalNamespace) IsObjectHasOwnPropertyCall(callNo
 	if !ok {
 		return false
 	}
-	propName := callee.Property()
-	return ("hasOwnProperty" == propName || "propertyIsEnumerable" == propName) &&
+	propID := callee.Node().GetStringID()
+	return (propID == gnHasOwnPropertyStrID || propID == gnPropertyIsEnumerableStrID) &&
 		callee.Object().Node().IsQualifiedName()
 }
 

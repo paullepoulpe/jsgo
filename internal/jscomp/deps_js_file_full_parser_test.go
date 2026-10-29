@@ -109,7 +109,7 @@ func TestJsFileFullParser_ProvidesRequires(t *testing.T) {
 	jsFileFullParserTest_containsExactly(t, "provides", info.provides, "providedSymbol")
 	jsFileFullParserTest_containsExactly(t, "requires", info.requires, "stronglyRequiredSymbol")
 	jsFileFullParserTest_containsExactly(t, "typeRequires", info.typeRequires, "weaklyRequiredSymbol")
-	jsFileFullParserTest_containsExactly(t, "dynamicRequires", info.dynamicRequires.ToSlice(), "dynamicallyRequiredSymbol")
+	jsFileFullParserTest_containsExactly(t, "dynamicRequires", info.dynamicRequires, "dynamicallyRequiredSymbol")
 }
 
 // jsFileFullParserTest_ErrorCollector is the local class ErrorCollector of
@@ -224,7 +224,7 @@ func TestJsFileFullParser_SoyDeltemplate(t *testing.T) {
 			" * @deltemplate {a}\n" +
 			" * @modName {m}\n" +
 			" */\n")
-	jsFileFullParserTest_containsExactly(t, "deltemplates", info.deltemplates.ToSlice(), "a")
+	jsFileFullParserTest_containsExactly(t, "deltemplates", info.deltemplates, "a")
 }
 
 func TestJsFileFullParser_SoyDeltemplate_legacy(t *testing.T) {
@@ -233,7 +233,7 @@ func TestJsFileFullParser_SoyDeltemplate_legacy(t *testing.T) {
 			" * @hassoydeltemplate {a}\n" +
 			" * @modName {m}\n" +
 			" */\n")
-	jsFileFullParserTest_containsExactly(t, "deltemplates", info.deltemplates.ToSlice(), "a")
+	jsFileFullParserTest_containsExactly(t, "deltemplates", info.deltemplates, "a")
 }
 
 func TestJsFileFullParser_SoyDelcall(t *testing.T) {
@@ -241,7 +241,7 @@ func TestJsFileFullParser_SoyDelcall(t *testing.T) {
 		"/**\n" +
 			" * @delcall {a}\n" +
 			" */\n")
-	jsFileFullParserTest_containsExactly(t, "delcalls", info.delcalls.ToSlice(), "a")
+	jsFileFullParserTest_containsExactly(t, "delcalls", info.delcalls, "a")
 }
 
 func TestJsFileFullParser_SoyDelcall_legacy(t *testing.T) {
@@ -249,12 +249,12 @@ func TestJsFileFullParser_SoyDelcall_legacy(t *testing.T) {
 		"/**\n" +
 			" * @hassoydelcall {a}\n" +
 			" */\n")
-	jsFileFullParserTest_containsExactly(t, "delcalls", info.delcalls.ToSlice(), "a")
+	jsFileFullParserTest_containsExactly(t, "delcalls", info.delcalls, "a")
 }
 
 func TestJsFileFullParser_ReadToggle(t *testing.T) {
 	info := jsFileFullParserTest_parse("const {TOGGLE_foo_bar} = goog.require('foo$2etoggles');")
-	jsFileFullParserTest_containsExactly(t, "readToggles", info.readToggles.ToSlice(), "foo_bar")
+	jsFileFullParserTest_containsExactly(t, "readToggles", info.readToggles, "foo_bar")
 }
 
 func TestJsFileFullParser_TopLevelJsDocComments_beforeBetweenAndAfterStatements(t *testing.T) {

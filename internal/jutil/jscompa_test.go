@@ -2,7 +2,6 @@ package jutil
 
 import (
 	"encoding/hex"
-	"math"
 	"strconv"
 	"strings"
 	"testing"
@@ -159,25 +158,6 @@ func TestURIMatchesJava(t *testing.T) {
 	}
 }
 
-func TestFormatDecimalFloatMatchesJava(t *testing.T) {
-	rows := readTSV(t, "jscompa_fixed.tsv")
-	if len(rows) < 1000 {
-		t.Fatalf("only %d vectors", len(rows))
-	}
-	for _, r := range rows {
-		bits, err := strconv.ParseUint(r[0], 16, 64)
-		if err != nil {
-			t.Fatal(err)
-		}
-		d := math.Float64frombits(bits)
-		for i, prec := range []int{1, 0, 3} {
-			if got := Formatter_FormatDecimalFloat(d, prec); got != r[1+i] {
-				t.Errorf("%%.%df of %v (%s) = %q, want %q", prec, d, r[0], got, r[1+i])
-			}
-		}
-	}
-}
-
 func TestStringsMatchJava(t *testing.T) {
 	for _, r := range readTSV(t, "jscompa_strings.tsv") {
 		var got, want string
@@ -201,12 +181,6 @@ func TestStringsMatchJava(t *testing.T) {
 		if got != want {
 			t.Errorf("%v: got %q", r, got)
 		}
-	}
-	if got := ImmutableMultiset_Of("a", "b", "a", "c", "a", "b").String(); got != "[a x 3, b x 2, c]" {
-		t.Errorf("multiset: %q", got)
-	}
-	if got := ImmutableMultiset_Of[string]().String(); got != "[]" {
-		t.Errorf("multiset: %q", got)
 	}
 }
 

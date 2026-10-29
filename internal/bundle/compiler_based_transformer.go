@@ -25,35 +25,23 @@ import (
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 )
 
-// CompilerBasedTransformer is a source transformer base class. May also
+// CompilerBasedTransformer is a source transformer base struct. May also
 // include a runtime that needs to be shipped with the final bundle.
 //
 // Java: abstract class bundle.CompilerBasedTransformer implements Source.Transformer
-type CompilerBasedTransformer interface {
-	Source_Transformer
-
-	// GetRuntime returns nil for Optional.empty().
-	//
-	// Java: CompilerBasedTransformer.getRuntime()
-	GetRuntime() *string
-
-	// Java: CompilerBasedTransformer.getTranformationName()
-	GetTranformationName() string
-}
-
-// CompilerBasedTransformerBase holds the fields of CompilerBasedTransformer
-// and its implementation; subclasses embed it.
-type CompilerBasedTransformerBase struct {
+type CompilerBasedTransformer struct {
 	compilerSupplier   CompilerBasedTransformer_CompilerSupplier
 	transformationName string
 	runtimeLibraryName string
 	hasRuntime         bool
 }
 
+var _ Source_Transformer = (*CompilerBasedTransformer)(nil)
+
 // GetRuntime returns nil for Optional.empty().
 //
 // Java: CompilerBasedTransformer.getRuntime()
-func (t *CompilerBasedTransformerBase) GetRuntime() *string {
+func (t *CompilerBasedTransformer) GetRuntime() *string {
 	if !t.hasRuntime {
 		return nil
 	}
@@ -62,12 +50,12 @@ func (t *CompilerBasedTransformerBase) GetRuntime() *string {
 }
 
 // Java: CompilerBasedTransformer.getTranformationName()
-func (t *CompilerBasedTransformerBase) GetTranformationName() string {
+func (t *CompilerBasedTransformer) GetTranformationName() string {
 	return t.transformationName
 }
 
 // Java: CompilerBasedTransformer.transform(Source)
-func (t *CompilerBasedTransformerBase) Transform(input *Source) *Source {
+func (t *CompilerBasedTransformer) Transform(input *Source) *Source {
 	result := t.compilerSupplier.Compile(input.Path(), input.Code())
 	if len(result.errors) != 0 {
 		// TODO(sdh): how to handle this?  Currently we throw an ISE with the
@@ -95,49 +83,48 @@ func (t *CompilerBasedTransformerBase) Transform(input *Source) *Source {
 	return builder.Build()
 }
 
-// CompilerBasedTransformer_CompilerSupplier wraps the Compiler into a more
-// relevant interface, making it easy to test the CompilerBasedTransformer
-// without depending on implementation details of the Compiler itself. Also
-// works around the fact that the Compiler is not thread-safe (since we may
-// do multiple transpiles concurrently), so we supply a fresh instance each
-// time when we're in single-file mode.
+// CompilerBasedTransformer_CompilerSupplier wraps the Compiler into a small
+// interface, making it easy to test the CompilerBasedTransformer without
+// depending on implementation details of the Compiler itself. Also works
+// around the fact that the Compiler is not thread-safe (since we may do
+// multiple transpiles concurrently), so we supply a fresh instance each time
+// when we're in single-file mode.
 //
 // Java: static class CompilerBasedTransformer.CompilerSupplier
 type CompilerBasedTransformer_CompilerSupplier interface {
 	// Java: CompilerSupplier.compile(Path, String)
 	Compile(path *jutil.Path, code string) *CompilerBasedTransformer_CompileResult
-	// Java: CompilerSupplier.transformed(Result)
-	Transformed(result *jscomp.Result) bool
 	// Java: CompilerSupplier.runtime(String)
 	Runtime(library string) string
-	// Java: CompilerSupplier.compiler()
-	Compiler() *jscomp.Compiler
-	// Java: CompilerSupplier.options()
-	Options() *jscomp.CompilerOptions
-	// Java: CompilerSupplier.setOptions(CompilerOptions)
-	SetOptions(options *jscomp.CompilerOptions)
 }
 
-// CompilerBasedTransformer_CompilerSupplierBase holds the implementation of
-// CompilerSupplier; subclasses embed it.
-type CompilerBasedTransformer_CompilerSupplierBase struct{}
+// CompilerBasedTransformer_DefaultCompilerSupplier is the default ES5 CompilerSupplier.
+type CompilerBasedTransformer_DefaultCompilerSupplier struct{}
+
+var _ CompilerBasedTransformer_CompilerSupplier = (*CompilerBasedTransformer_DefaultCompilerSupplier)(nil)
 
 // Java: CompilerSupplier()
-func NewCompilerBasedTransformer_CompilerSupplier() *CompilerBasedTransformer_CompilerSupplierBase {
-	return &CompilerBasedTransformer_CompilerSupplierBase{}
+func NewCompilerBasedTransformer_CompilerSupplier() *CompilerBasedTransformer_DefaultCompilerSupplier {
+	return &CompilerBasedTransformer_DefaultCompilerSupplier{}
 }
 
-func compileWithSupplier(s CompilerBasedTransformer_CompilerSupplier, path *jutil.Path, code string) *CompilerBasedTransformer_CompileResult {
-	compiler := s.Compiler()
-	result :=
-		compiler.CompileOfSourceFiles(CompilerBasedTransformer_CompilerSupplier_EXTERNS, jscomp.SourceFile_FromCode(path.String(), code), s.Options())
+func compileSingleFileWithOptions(
+	path *jutil.Path,
+	code string,
+	options *jscomp.CompilerOptions,
+	alwaysTransformed bool) *CompilerBasedTransformer_CompileResult {
+	compiler := jscomp.NewCompiler()
+	result := compiler.CompileOfSourceFiles(
+		CompilerBasedTransformer_CompilerSupplier_EXTERNS,
+		jscomp.SourceFile_FromCode(path.String(), code),
+		options)
 	source := compiler.ToSource()
 	var sourceMap strings.Builder
 	if result.SourceMap != nil {
 		name := path.String()
 		result.SourceMap.AppendTo(&sourceMap, &name)
 	}
-	transformed := s.Transformed(result)
+	transformed := alwaysTransformed || result.TranspiledFiles
 	sm := ""
 	if transformed {
 		sm = sourceMap.String()
@@ -146,43 +133,45 @@ func compileWithSupplier(s CompilerBasedTransformer_CompilerSupplier, path *juti
 		source, result.Errors, transformed, sm)
 }
 
-func runtimeWithSupplier(s CompilerBasedTransformer_CompilerSupplier, library string) string {
-	compiler := s.Compiler()
-	options := s.Options()
+func runtimeSingleFileWithOptions(options *jscomp.CompilerOptions, library string) string {
+	compiler := jscomp.NewCompiler()
 	options.SetForceLibraryInjection([]string{library})
-	compiler.CompileOfSourceFiles(CompilerBasedTransformer_CompilerSupplier_EXTERNS, CompilerBasedTransformer_CompilerSupplier_EMPTY, options)
+	compiler.CompileOfSourceFiles(
+		CompilerBasedTransformer_CompilerSupplier_EXTERNS,
+		CompilerBasedTransformer_CompilerSupplier_EMPTY,
+		options)
 	return compiler.ToSource()
 }
 
 // Java: CompilerSupplier.compile(Path, String)
-func (s *CompilerBasedTransformer_CompilerSupplierBase) Compile(path *jutil.Path, code string) *CompilerBasedTransformer_CompileResult {
-	return compileWithSupplier(s, path, code)
+func (s *CompilerBasedTransformer_DefaultCompilerSupplier) Compile(path *jutil.Path, code string) *CompilerBasedTransformer_CompileResult {
+	return compileSingleFileWithOptions(path, code, s.Options(), false)
 }
 
 // Java: CompilerSupplier.transformed(Result)
-func (s *CompilerBasedTransformer_CompilerSupplierBase) Transformed(result *jscomp.Result) bool {
+func (s *CompilerBasedTransformer_DefaultCompilerSupplier) Transformed(result *jscomp.Result) bool {
 	return result.TranspiledFiles
 }
 
 // Java: CompilerSupplier.runtime(String)
-func (s *CompilerBasedTransformer_CompilerSupplierBase) Runtime(library string) string {
-	return runtimeWithSupplier(s, library)
+func (s *CompilerBasedTransformer_DefaultCompilerSupplier) Runtime(library string) string {
+	return runtimeSingleFileWithOptions(s.Options(), library)
 }
 
 // Java: CompilerSupplier.compiler()
-func (s *CompilerBasedTransformer_CompilerSupplierBase) Compiler() *jscomp.Compiler {
+func (s *CompilerBasedTransformer_DefaultCompilerSupplier) Compiler() *jscomp.Compiler {
 	return jscomp.NewCompiler()
 }
 
 // Java: CompilerSupplier.options()
-func (s *CompilerBasedTransformer_CompilerSupplierBase) Options() *jscomp.CompilerOptions {
+func (s *CompilerBasedTransformer_DefaultCompilerSupplier) Options() *jscomp.CompilerOptions {
 	options := jscomp.NewCompilerOptions()
 	s.SetOptions(options)
 	return options
 }
 
 // Java: CompilerSupplier.setOptions(CompilerOptions)
-func (s *CompilerBasedTransformer_CompilerSupplierBase) SetOptions(options *jscomp.CompilerOptions) {
+func (s *CompilerBasedTransformer_DefaultCompilerSupplier) SetOptions(options *jscomp.CompilerOptions) {
 	// TODO(sdh): It would be nice to allow people to output code in
 	// strict mode.  But currently we swallow all the input language
 	// strictness checks, and there are various tests that are never

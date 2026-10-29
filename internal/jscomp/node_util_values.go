@@ -274,6 +274,12 @@ func NodeUtil_GetNumberValue(n rhino.Node) *float64 {
 	return &v
 }
 
+// NodeUtil_GetNumberValueOpt is the unboxed (float64, bool) form of
+// NodeUtil_GetNumberValue, avoiding a *float64 heap box on success.
+func NodeUtil_GetNumberValueOpt(n rhino.Node) (float64, bool) {
+	return nodeUtil_doGetNumberValue(n, true /* numberConversions */)
+}
+
 // NodeUtil_GetNumberValueNoConversions gets the value of a node as a Number,
 // or null if it isn't a number. This method is similar to
 // `typeof v == "number" ? v : null` as it does not perform any automatic
@@ -288,6 +294,12 @@ func NodeUtil_GetNumberValueNoConversions(n rhino.Node) *float64 {
 		return nil
 	}
 	return &v
+}
+
+// NodeUtil_GetNumberValueNoConversionsOpt is the unboxed (float64, bool) form
+// of NodeUtil_GetNumberValueNoConversions.
+func NodeUtil_GetNumberValueNoConversionsOpt(n rhino.Node) (float64, bool) {
+	return nodeUtil_doGetNumberValue(n, false /* numberConversions */)
 }
 
 // Java: NodeUtil.doGetNumberValue(Node, boolean)
@@ -381,6 +393,12 @@ func NodeUtil_GetStringNumberValue(rawJsString string) *float64 {
 		return nil
 	}
 	return &v
+}
+
+// NodeUtil_GetStringNumberValueOpt is the unboxed (float64, bool) form of
+// NodeUtil_GetStringNumberValue.
+func NodeUtil_GetStringNumberValueOpt(rawJsString string) (float64, bool) {
+	return nodeUtil_getStringNumberValue(rawJsString)
 }
 
 func nodeUtil_getStringNumberValue(rawJsString string) (float64, bool) {

@@ -74,27 +74,6 @@ type Scanner interface {
 	ProcessAllMatches(matches []*Match) []*SuggestedFix
 }
 
-// ScannerBase holds Scanner's method bodies; subclasses embed it and define
-// Matches.
-type ScannerBase struct{}
-
-// ProcessMatch processes one Match at a time. There is no order guaranteed for
-// when this function will be called with the Match.
-//
-// Java: Scanner.processMatch(Match)
-func (s *ScannerBase) ProcessMatch(match *Match) []*SuggestedFix {
-	return []*SuggestedFix{}
-}
-
-// ProcessAllMatches processes every given match at one time. This function
-// can be used when the refactoring needs the information from the entire run
-// to perform the refactoring, such as moving functions around.
-//
-// Java: Scanner.processAllMatches(Collection<Match>)
-func (s *ScannerBase) ProcessAllMatches(matches []*Match) []*SuggestedFix {
-	return []*SuggestedFix{}
-}
-
 // JsFlumeCallback is a compiler node traversal callback that invokes matchers
 // against every node and keeps track of any suggested fixes from the
 // refactoring.

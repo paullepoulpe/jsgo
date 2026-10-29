@@ -204,11 +204,11 @@ func (b *ScopedAliases_Builder) SetInvalidModuleGetHandling(invalidModuleGetHand
 func (b *ScopedAliases_Builder) Build() *ScopedAliases {
 	var closureNamespaces map[string]struct{}
 	if b.moduleMetadataMap != nil {
-		byNs := b.moduleMetadataMap.GetModulesByGoogNamespace()
-		if !byNs.IsEmpty() {
-			closureNamespaces = make(map[string]struct{}, byNs.Size())
-			for k := range byNs.Keys() {
-				closureNamespaces[k] = struct{}{}
+		entries := b.moduleMetadataMap.ModulesByGoogNamespaceMap().Entries()
+		if len(entries) > 0 {
+			closureNamespaces = make(map[string]struct{}, len(entries))
+			for _, e := range entries {
+				closureNamespaces[e.Key] = struct{}{}
 			}
 		}
 	}
@@ -377,7 +377,8 @@ type ScopedAliases_Traversal struct {
 	aliasUsages              []aliasUsage
 
 	// This map is temporary and cleared for each scope.
-	aliases map[string]*Var
+	aliases   map[string]*Var
+	aliasByID map[uint32]*Var
 
 	// Also temporary and cleared for each scope.
 	injectedDecls map[rhino.Node]struct{}
@@ -480,6 +481,7 @@ func (v *ScopedAliases_Traversal) ExitScope(t *NodeTraversal) {
 		v.RenameNamespaceShadows(t)
 		clear(v.injectedDecls)
 		clear(v.aliases)
+		clear(v.aliasByID)
 		v.forbiddenLocals.Clear()
 		v.hasNamespaceShadows = false
 	} else if v.InGoogScopeBody() {
@@ -618,10 +620,12 @@ func (v *ScopedAliases_Traversal) FindAliases(scope *Scope) {
 // Java: ScopedAliases.Traversal.recordAlias(Var)
 func (v *ScopedAliases_Traversal) RecordAlias(aliasVar *Var) {
 	initialValue := aliasVar.GetInitialValue()
-	v.aliasDefinitionsToDelete = append(v.aliasDefinitionsToDelete, aliasVar.GetNameNode())
+	nameNode := aliasVar.GetNameNode()
+	v.aliasDefinitionsToDelete = append(v.aliasDefinitionsToDelete, nameNode)
 
 	if v.aliases == nil {
 		v.aliases = make(map[string]*Var)
+		v.aliasByID = make(map[uint32]*Var)
 	}
 
 	if v.outer.invalidModuleGetHandling.ShouldGiveUniqueName() &&
@@ -634,7 +638,7 @@ func (v *ScopedAliases_Traversal) RecordAlias(aliasVar *Var) {
 		fileName := initialValue.GetSourceFileName()
 		var metadata *ModuleMetadataMap_ModuleMetadata
 		if fileName != nil {
-			metadata = v.outer.moduleMetadataMap.GetModulesByPath().Get(*fileName)
+			metadata = v.outer.moduleMetadataMap.ModuleByPath(*fileName)
 		}
 		// LINT.IfChange
 		suffix := "unknownScript"
@@ -649,11 +653,13 @@ func (v *ScopedAliases_Traversal) RecordAlias(aliasVar *Var) {
 		}
 		v.deletedAliasVars[aliasVar] = struct{}{}
 		v.aliases[name] = aliasVar
+		v.aliasByID[nameNode.GetStringID()] = aliasVar
 		return
 	}
 
 	name := aliasVar.GetName()
 	v.aliases[name] = aliasVar
+	v.aliasByID[nameNode.GetStringID()] = aliasVar
 
 	qualifiedName := scopedAliases_getAliasedNamespace(initialValue)
 	if rootIndex := strings.IndexByte(qualifiedName, '.'); rootIndex != -1 {
@@ -728,6 +734,7 @@ type scopedAliases_renameBleedingFunctionNameCallback struct {
 	NodeTraversal_AbstractPostOrderCallbackBase
 	compiler AbstractCompiler
 	name     string
+	nameID   uint32
 	suffix   string
 	fnName   rhino.Node
 }
@@ -735,7 +742,7 @@ type scopedAliases_renameBleedingFunctionNameCallback struct {
 // Java: ScopedAliases.Traversal.renameBleedingFunctionName(NodeTraversal, Node).new AbstractPostOrderCallback() {...}.visit(NodeTraversal, Node, Node)
 func (c *scopedAliases_renameBleedingFunctionNameCallback) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	if name, ok := ast.AsName(n); ok &&
-		name.Ident() == c.name &&
+		n.GetStringID() == c.nameID &&
 		t.GetScope().GetVar(c.name).GetNode() == c.fnName {
 		name.SetIdent(c.name + "$jscomp$scopedAliases$" + c.suffix)
 		c.compiler.ReportChangeToEnclosingScope(n)
@@ -748,7 +755,7 @@ func (v *ScopedAliases_Traversal) RenameBleedingFunctionName(t *NodeTraversal, f
 	name := fnName.GetString()
 	suffix := compiler.GetUniqueIdSupplier().GetUniqueId(t.GetInput())
 	cb := &scopedAliases_renameBleedingFunctionNameCallback{
-		compiler: compiler, name: name, suffix: suffix, fnName: fnName}
+		compiler: compiler, name: name, nameID: fnName.GetStringID(), suffix: suffix, fnName: fnName}
 	NodeTraversal_Builder_().
 		SetCompiler(compiler).
 		SetCallback(cb).
@@ -800,15 +807,16 @@ func (v *ScopedAliases_Traversal) Visit(t *NodeTraversal, n rhino.Node, parent r
 	type_ := n.GetToken()
 	var aliasVar *Var
 	if type_ == rhino.Token_NAME {
-		name := n.GetString()
-		lexicalVar := t.GetScope().GetVar(name)
-		if lexicalVar != nil && lexicalVar == v.aliases[name] {
-			aliasVar = lexicalVar
-			// For nodes that are referencing the aliased type, set the original
-			// name so it can be accessed later in tools such as the CodePrinter
-			// or refactoring tools.
-			if compiler.GetOptions().PreservesDetailedSourceInfo() {
-				n.SetOriginalName(&name)
+		if candidate := v.aliasByID[n.GetStringID()]; candidate != nil {
+			name := n.GetString()
+			if t.GetScope().GetVar(name) == candidate {
+				aliasVar = candidate
+				// For nodes that are referencing the aliased type, set the original
+				// name so it can be accessed later in tools such as the CodePrinter
+				// or refactoring tools.
+				if compiler.GetOptions().PreservesDetailedSourceInfo() {
+					n.SetOriginalName(&name)
+				}
 			}
 		}
 	}

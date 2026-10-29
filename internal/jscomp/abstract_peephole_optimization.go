@@ -1,7 +1,25 @@
 // Port of com/google/javascript/jscomp/AbstractPeepholeOptimization.java @ closure-compiler v20261021
+// Port of com/google/javascript/jscomp/AbstractPeepholeTranspilation.java @ closure-compiler v20261021
+// Port of com/google/javascript/jscomp/OptimizeLetAndConstPeephole.java @ closure-compiler v20261021
 
 /*
  * Copyright 2010 The Closure Compiler Authors.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+/*
+ * Copyright 2026 The Closure Compiler Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -21,6 +39,7 @@ package jscomp
 import (
 	"math/big"
 
+	"github.com/paullepoulpe/jsgo/internal/ast"
 	"github.com/paullepoulpe/jsgo/internal/base"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/parser"
@@ -350,4 +369,120 @@ func (b *AbstractPeepholeOptimizationBase) AddFeatureToEnclosingScript(feature p
 // Java: AbstractPeepholeOptimization.clearNewFeatures()
 func (b *AbstractPeepholeOptimizationBase) ClearNewFeatures() {
 	b.newFeatures = parser.FeatureSet_BARE_MINIMUM
+}
+
+// AbstractPeepholeTranspilation is an abstract class whose implementations
+// run peephole transpilations: transpilations that look at a small section
+// of code with TranspileSubtree and transpile it. The set of transpilations
+// done must be small, independent and local rewritings that don't transform
+// the AST structure outside of the provided subtree.
+type AbstractPeepholeTranspilation interface {
+	// GetTranspiledAwayFeatures represents the set of features that get
+	// transpiled away by this pass.
+	//
+	// Java: AbstractPeepholeTranspilation.getTranspiledAwayFeatures()
+	GetTranspiledAwayFeatures() *parser.FeatureSet
+
+	// GetAdditionalFeaturesToRunOn is the set of additional features, if
+	// any, beyond those transpiled away which if present in a SCRIPT should
+	// trigger this pass.
+	//
+	// Most passes return FeatureSet_BARE_MINIMUM, except passes that need to
+	// run on files containing features they don't transpile away (e.g.
+	// ReportUntranspilableFeatures triggering on REGEXP_SYNTAX).
+	//
+	// Java: AbstractPeepholeTranspilation.getAdditionalFeaturesToRunOn()
+	GetAdditionalFeaturesToRunOn() *parser.FeatureSet
+
+	// HandledTokens returns the exact set of AST node tokens inspected by
+	// TranspileSubtree.
+	HandledTokens() ast.TokenSet
+
+	// TranspileSubtree transpiles the given node. Subclasses should
+	// override to do their own peephole rewriting.
+	//
+	// Returns the new version of the subtree (or null if the subtree was
+	// removed from the AST). If the subtree has not changed, this method
+	// must return subtree.
+	//
+	// Java: AbstractPeepholeTranspilation.transpileSubtree(Node)
+	TranspileSubtree(subtree rhino.Node) rhino.Node
+}
+
+// OptimizeLetAndConstPeephole is a late-stage compiler pass that lowers
+// `const`/`let` to `var` where safe, and `const` to `let`, improving keyword
+// homogeneity for better compression.
+type OptimizeLetAndConstPeephole struct {
+	AbstractPeepholeOptimizationBase
+	assumeOutputIsWrapped bool
+}
+
+// Java: OptimizeLetAndConstPeephole(boolean)
+func NewOptimizeLetAndConstPeephole(assumeOutputIsWrapped bool) *OptimizeLetAndConstPeephole {
+	return &OptimizeLetAndConstPeephole{assumeOutputIsWrapped: assumeOutputIsWrapped}
+}
+
+// Java: OptimizeLetAndConstPeephole.optimizeSubtree(Node)
+func (p *OptimizeLetAndConstPeephole) OptimizeSubtree(subtree rhino.Node) rhino.Node {
+	switch subtree.GetToken() {
+	case rhino.Token_LET:
+		return p.ProcessLet(subtree)
+	case rhino.Token_CONST:
+		return p.ProcessConst(subtree)
+	default:
+		return subtree
+	}
+}
+
+// Java: OptimizeLetAndConstPeephole.processLet(Node)
+func (p *OptimizeLetAndConstPeephole) ProcessLet(n rhino.Node) rhino.Node {
+	if !p.assumeOutputIsWrapped && n.GetParent().IsScript() {
+		return n
+	}
+
+	if p.IsDirectlyInHoistScope(n) {
+		n.SetToken(rhino.Token_VAR)
+		p.ReportChangeToEnclosingScope(n)
+	}
+	return n
+}
+
+// Java: OptimizeLetAndConstPeephole.processConst(Node)
+func (p *OptimizeLetAndConstPeephole) ProcessConst(n rhino.Node) rhino.Node {
+	if !p.assumeOutputIsWrapped && n.GetParent().IsScript() {
+		return n
+	}
+
+	if p.IsDirectlyInHoistScope(n) {
+		n.SetToken(rhino.Token_VAR)
+	} else {
+		n.SetToken(rhino.Token_LET)
+		p.AddFeatureToEnclosingScript(parser.FeatureSet_Feature_LET_DECLARATIONS)
+	}
+	p.ReportChangeToEnclosingScope(n)
+	return n
+}
+
+// Java: OptimizeLetAndConstPeephole.isDirectlyInHoistScope(Node)
+func (p *OptimizeLetAndConstPeephole) IsDirectlyInHoistScope(n rhino.Node) bool {
+	parent := n.GetParent()
+	for !parent.IsNil() && parent.IsLabel() {
+		parent = parent.GetParent()
+	}
+	if parent.IsNil() {
+		return false
+	}
+
+	if parent.IsScript() || parent.IsModuleBody() {
+		return true
+	}
+
+	if parent.IsBlock() {
+		grandparent := parent.GetParent()
+		if !grandparent.IsNil() && (grandparent.IsFunction() || grandparent.IsClassMembers()) {
+			return true
+		}
+	}
+
+	return false
 }

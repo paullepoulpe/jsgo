@@ -19,6 +19,8 @@
 package jscomp
 
 import (
+	"slices"
+
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/parser"
 )
@@ -62,15 +64,28 @@ func (d *LazyParsedDependencyInfo) IsGoogModule() bool {
 // Java: LazyParsedDependencyInfo.getLoadFlags()
 func (d *LazyParsedDependencyInfo) GetLoadFlags() *jutil.LinkedHashMap[string, string] {
 	if d.loadFlags == nil {
-		loadFlagsBuilder := jutil.NewTreeMap[string, string](jutil.StringCompareTo)
 		hadSourceInMemory := d.ast.GetSourceFile().HasSourceInMemory()
-		for k, v := range d.delegate.GetLoadFlags().All() {
-			loadFlagsBuilder.Put(k, v)
-		}
+		delegateFlags := d.delegate.GetLoadFlags()
 		features := d.ast.GetFeatures(d.compiler)
-		if features.Has(parser.FeatureSet_Feature_MODULES) {
-			previousModule, ok := loadFlagsBuilder.Lookup("module")
-			if ok && previousModule != "es6" {
+		hasModules := features.Has(parser.FeatureSet_Feature_MODULES)
+		version := features.Version()
+
+		var langFlag, modFlag string
+		hasLang, hasMod := false, false
+		onlyLangAndMod := true
+		for k, v := range delegateFlags.All() {
+			switch k {
+			case "lang":
+				langFlag, hasLang = v, true
+			case "module":
+				modFlag, hasMod = v, true
+			default:
+				onlyLangAndMod = false
+			}
+		}
+
+		if hasModules {
+			if hasMod && modFlag != "es6" {
 				name := d.GetName()
 				d.compiler.Report(
 					JSError_MakeWithSourceLocation(
@@ -80,17 +95,38 @@ func (d *LazyParsedDependencyInfo) GetLoadFlags() *jutil.LinkedHashMap[string, s
 						ModuleLoader_MODULE_CONFLICT,
 						d.GetName()))
 			}
-			loadFlagsBuilder.Put("module", "es6")
+			modFlag, hasMod = "es6", true
 		}
-		version := features.Version()
 		if version != "es3" {
-			loadFlagsBuilder.Put("lang", version)
+			langFlag, hasLang = version, true
 		}
-		loadFlags := jutil.NewLinkedHashMap[string, string]()
-		for k, v := range loadFlagsBuilder.All() {
-			loadFlags.Put(k, v)
+
+		if onlyLangAndMod && (hasLang || langFlag == "") && (hasMod || modFlag == "") {
+			// Fast path: reuse pre-built singleton LinkedHashMap in UTF-16 key order ("lang" < "module").
+			d.loadFlags = simpleDependencyInfo_flagsForLangModule(langFlag, modFlag)
+		} else {
+			vals := make(map[string]string, delegateFlags.Size()+2)
+			keys := make([]string, 0, delegateFlags.Size()+2)
+			for k, v := range delegateFlags.All() {
+				vals[k] = v
+				keys = append(keys, k)
+			}
+			if hasMod {
+				vals["module"] = modFlag
+				keys = append(keys, "module")
+			}
+			if hasLang {
+				vals["lang"] = langFlag
+				keys = append(keys, "lang")
+			}
+			slices.SortFunc(keys, jutil.StringCompareTo)
+			keys = slices.Compact(keys)
+			loadFlags := jutil.NewLinkedHashMap[string, string]()
+			for _, k := range keys {
+				loadFlags.Put(k, vals[k])
+			}
+			d.loadFlags = loadFlags
 		}
-		d.loadFlags = loadFlags
 
 		// Don't preserve the source in memory if it was loaded only for getLoadFlags().
 		if !hadSourceInMemory {

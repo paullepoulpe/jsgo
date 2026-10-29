@@ -19,9 +19,20 @@
 package jscomp
 
 import (
+	"maps"
+	"slices"
+
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
+
+type invalidatingTypeEntry struct {
+	typ         rhino.JSType
+	firstLoc    rhino.Node
+	extraLocs   []rhino.Node
+	nextPlusOne uint32
+	hasFirstLoc bool
+}
 
 // InvalidatingTypes keeps track of "invalidating types" that force
 // type-based optimizations to back off.
@@ -29,16 +40,8 @@ import (
 // Specifically for InlineProperties, disambiguate.AmbiguateProperties, and
 // disambiguate.DisambiguateProperties.
 type InvalidatingTypes struct {
-	// Go-only: language-adapter — an ImmutableSetMultimap keyed by JSType
-	// (JSType.equals/hashCode) with Node values (identity).
-	typeToLocation *jutil.SetMultimap[rhino.JSType, rhino.Node]
-}
-
-// Java: InvalidatingTypes(ImmutableSetMultimap<JSType, Node>)
-func newInvalidatingTypes(typeToLocation *jutil.SetMultimap[rhino.JSType, rhino.Node]) *InvalidatingTypes {
-	t := &InvalidatingTypes{}
-	t.typeToLocation = typeToLocation
-	return t
+	entries []invalidatingTypeEntry
+	buckets map[int32]uint32
 }
 
 // Java: InvalidatingTypes.isInvalidating(JSType)
@@ -61,7 +64,6 @@ func (it *InvalidatingTypes) IsInvalidating(type_ rhino.JSType) bool {
 	}
 
 	objType := type_.ToMaybeObjectType()
-
 	if objType == nil {
 		// TODO(b/174534994): why can't scalars be invalidating?
 		return false
@@ -71,15 +73,34 @@ func (it *InvalidatingTypes) IsInvalidating(type_ rhino.JSType) bool {
 		objType = objType.ToMaybeTemplatizedType().GetReferencedType()
 	}
 
-	return it.typeToLocation.ContainsKey(objType) ||
-		// Don't disambiguate properties on object types that are structurally compared or that
-		// don't come from a literal class or function definition
-		InvalidatingTypes_IsAmbiguousOrStructuralType(objType)
+	// Don't disambiguate properties on object types that are structurally compared or that
+	// don't come from a literal class or function definition.
+	if InvalidatingTypes_IsAmbiguousOrStructuralType(objType) {
+		return true
+	}
+
+	for cur := it.buckets[objType.HashCode()]; cur != 0; cur = it.entries[cur-1].nextPlusOne {
+		e := it.entries[cur-1].typ
+		if e == objType || e.Equals(objType) {
+			return true
+		}
+	}
+	return false
 }
 
 // Java: InvalidatingTypes.getMismatchLocations()
 func (it *InvalidatingTypes) GetMismatchLocations() *jutil.SetMultimap[rhino.JSType, rhino.Node] {
-	return it.typeToLocation
+	out := jutil.NewSetMultimap[rhino.JSType, rhino.Node]()
+	for i := range it.entries {
+		e := &it.entries[i]
+		if e.hasFirstLoc {
+			out.Put(e.typ, e.firstLoc)
+			for _, loc := range e.extraLocs {
+				out.Put(e.typ, loc)
+			}
+		}
+	}
+	return out
 }
 
 // InvalidatingTypes_IsAmbiguousOrStructuralType returns true if any of the
@@ -119,27 +140,78 @@ func InvalidatingTypes_IsAmbiguousOrStructuralType(type_ rhino.ObjectType) bool 
 // InvalidatingTypes_Builder is InvalidatingTypes.Builder.
 type InvalidatingTypes_Builder struct {
 	registry *rhino.JSTypeRegistry
-
-	// Go-only: language-adapter — ImmutableSetMultimap.Builder: keys and
-	// values in insertion order, duplicate pairs dropped.
-	typeToLocation *jutil.SetMultimap[rhino.JSType, rhino.Node]
+	entries  []invalidatingTypeEntry
+	buckets  map[int32]uint32
+	consumed bool
 }
 
 // Java: InvalidatingTypes.Builder(JSTypeRegistry)
 func NewInvalidatingTypes_Builder(registry *rhino.JSTypeRegistry) *InvalidatingTypes_Builder {
-	b := &InvalidatingTypes_Builder{}
-	b.typeToLocation = jutil.NewSetMultimap[rhino.JSType, rhino.Node]()
-	b.registry = registry
-	return b
+	return &InvalidatingTypes_Builder{
+		registry: registry,
+		entries:  make([]invalidatingTypeEntry, 0, 8),
+		buckets:  make(map[int32]uint32, 8),
+	}
+}
+
+func (b *InvalidatingTypes_Builder) ensureMutable() {
+	if b.consumed {
+		cloned := make([]invalidatingTypeEntry, len(b.entries))
+		copy(cloned, b.entries)
+		for i := range cloned {
+			if len(cloned[i].extraLocs) > 0 {
+				cloned[i].extraLocs = slices.Clone(cloned[i].extraLocs)
+			}
+		}
+		b.entries = cloned
+		b.buckets = maps.Clone(b.buckets)
+		b.consumed = false
+	}
+}
+
+func (b *InvalidatingTypes_Builder) putTypeLocation(typ rhino.JSType, location rhino.Node) {
+	b.ensureMutable()
+	h := typ.HashCode()
+	for cur := b.buckets[h]; cur != 0; cur = b.entries[cur-1].nextPlusOne {
+		e := &b.entries[cur-1]
+		if e.typ == typ || e.typ.Equals(typ) {
+			if !e.hasFirstLoc {
+				e.firstLoc = location
+				e.hasFirstLoc = true
+				return
+			}
+			if e.firstLoc == location {
+				return
+			}
+			for _, existing := range e.extraLocs {
+				if existing == location {
+					return
+				}
+			}
+			e.extraLocs = append(e.extraLocs, location)
+			return
+		}
+	}
+	idx := uint32(len(b.entries))
+	b.entries = append(b.entries, invalidatingTypeEntry{
+		typ:         typ,
+		firstLoc:    location,
+		nextPlusOne: b.buckets[h],
+		hasFirstLoc: true,
+	})
+	b.buckets[h] = idx + 1
 }
 
 // Java: InvalidatingTypes.Builder.build()
 func (b *InvalidatingTypes_Builder) Build() *InvalidatingTypes {
 	for _, t := range invalidatingTypes_ALWAYS_INVALIDATING_TYPES {
-		b.typeToLocation.Put(b.registry.GetNativeType(t), invalidatingTypes_ALWAYS_INVALIDATING_LOCATION)
+		b.putTypeLocation(b.registry.GetNativeType(t), invalidatingTypes_ALWAYS_INVALIDATING_LOCATION)
 	}
-
-	return newInvalidatingTypes(jutil.SetMultimapCopyOf(b.typeToLocation))
+	b.consumed = true
+	return &InvalidatingTypes{
+		entries: b.entries,
+		buckets: b.buckets,
+	}
 }
 
 // Java: InvalidatingTypes.Builder.addAllTypeMismatches(Iterable<TypeMismatch>)
@@ -205,7 +277,7 @@ func (b *InvalidatingTypes_Builder) RecordTypeWithReason(type_ rhino.ObjectType,
 		return
 	}
 
-	b.typeToLocation.Put(type_, location)
+	b.putTypeLocation(type_, location)
 }
 
 // Java: InvalidatingTypes.ALWAYS_INVALIDATING_TYPES

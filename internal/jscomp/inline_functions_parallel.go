@@ -50,7 +50,7 @@ type ifPhase1Candidate struct {
 	inlineDirectly      bool
 	referencesThis      bool
 	hasInnerClosures    bool
-	namesToAlias        *jutil.LinkedHashSet[string]
+	namesToAliasIDs     []uint32
 	bodyAstSize         int32
 	summary             *calleeSummary
 }
@@ -157,7 +157,7 @@ func (w *ifPhase1Worker) buildNamedOrVarCandidate(kind ifCandKind, node rhino.No
 			collectModifiedParameterIDs(body, &w.scratchParamIDs, false, &w.scratchModifiedIDs)
 			if !w.scratchModifiedIDs.isEmpty() {
 				cand.inlineDirectly = false
-				cand.namesToAlias = w.scratchModifiedIDs.toLinkedHashSet()
+				cand.namesToAliasIDs = slices.Clone(w.scratchModifiedIDs.items)
 			}
 		}
 		cand.referencesThis = NodeUtil_ReferencesEnclosingReceiver(body)
@@ -343,9 +343,9 @@ func (f *InlineFunctions) findCandidateFunctionsParallel(root rhino.Node) bool {
 							fs.InlineDirectly(true)
 						}
 						fs.SetChunk(cand.chunk)
-						if cand.namesToAlias != nil && !cand.namesToAlias.IsEmpty() {
+						if len(cand.namesToAliasIDs) > 0 {
 							fs.InlineDirectly(false)
-							fs.SetNamesToAlias(cand.namesToAlias)
+							fs.setNamesToAliasIDSlice(cand.namesToAliasIDs)
 						}
 						if cand.referencesThis {
 							fs.SetReferencesThis(true)
@@ -1333,15 +1333,39 @@ func (f *InlineFunctions) decomposeExpressionsParallel(workRefs []*FunctionInjec
 	eventsByRef := make([][]recordedCompilerEvent, len(workRefs))
 	placeholdersByRef := make([][]ifDecompPlaceholder, len(workRefs))
 
-	runGroup := func(g *ifDecompScriptGroup, rc *recordingCompiler, workerInj *FunctionInjector, curRefIdx *int, curSeq *int) {
+	type ifDecompWorker struct {
+		boundRC   *recordingCompiler
+		inj       *FunctionInjector
+		curRefIdx int
+		curSeq    int
+	}
+
+	initWorkerInjector := func(w *ifDecompWorker, rc *recordingCompiler) {
+		w.boundRC = rc
+		placeholderSupplier := func() string {
+			s := w.curSeq
+			w.curSeq = s + 1
+			return ifDecompPlaceholderMarker + strconv.Itoa(w.curRefIdx) + "_" + strconv.Itoa(s) + "\x00"
+		}
+		inj := NewFunctionInjector_Builder(rc).
+			SafeNameIdSupplier(placeholderSupplier).
+			AllowDecomposition(f.injector.allowDecomposition).
+			AssumeStrictThis(f.injector.assumeStrictThis).
+			FunctionArgumentInjector(NewFunctionArgumentInjector(f.compiler.GetAstAnalyzer())).
+			Build()
+		inj.SetKnownConstantFunctions(f.injector.knownConstantFunctions)
+		w.inj = inj
+	}
+
+	runGroup := func(g *ifDecompScriptGroup, rc *recordingCompiler, w *ifDecompWorker) {
 		anyPlaceholder := false
 		for _, refIdx := range g.refIndices {
 			initRecordingCompiler(rc, f.compiler)
-			*curRefIdx = refIdx
-			*curSeq = 0
-			workerInj.MaybePrepareCall(workRefs[refIdx])
-			if *curSeq > 0 {
-				seqCounts[refIdx] = *curSeq
+			w.curRefIdx = refIdx
+			w.curSeq = 0
+			w.inj.MaybePrepareCall(workRefs[refIdx])
+			if w.curSeq > 0 {
+				seqCounts[refIdx] = w.curSeq
 				anyPlaceholder = true
 			}
 			eventsByRef[refIdx] = rc.takeEvents()
@@ -1357,36 +1381,14 @@ func (f *InlineFunctions) decomposeExpressionsParallel(workRefs []*FunctionInjec
 		}
 	}
 
-	newWorkerInjector := func(rc *recordingCompiler) (*FunctionInjector, *int, *int) {
-		curRefIdx := new(int)
-		curSeq := new(int)
-		placeholderSupplier := func() string {
-			s := *curSeq
-			*curSeq = s + 1
-			return ifDecompPlaceholderMarker + strconv.Itoa(*curRefIdx) + "_" + strconv.Itoa(s) + "\x00"
-		}
-		inj := NewFunctionInjector_Builder(rc).
-			SafeNameIdSupplier(placeholderSupplier).
-			AllowDecomposition(f.injector.allowDecomposition).
-			AssumeStrictThis(f.injector.assumeStrictThis).
-			FunctionArgumentInjector(NewFunctionArgumentInjector(f.compiler.GetAstAnalyzer())).
-			Build()
-		inj.SetKnownConstantFunctions(f.injector.knownConstantFunctions)
-		return inj, curRefIdx, curSeq
-	}
-
 	runParallelWork(f.compiler, numWorkers, len(parallelGroupIndices), func(_ int) (func(int, *recordingCompiler), func()) {
-		var boundRC *recordingCompiler
-		var workerInj *FunctionInjector
-		var curRefIdx *int
-		var curSeq *int
+		var w ifDecompWorker
 		runItem := func(idx int, rc *recordingCompiler) {
-			if workerInj == nil || boundRC != rc {
-				boundRC = rc
-				workerInj, curRefIdx, curSeq = newWorkerInjector(rc)
+			if w.inj == nil || w.boundRC != rc {
+				initWorkerInjector(&w, rc)
 			}
 			g := &groups[parallelGroupIndices[idx]]
-			runGroup(g, rc, workerInj, curRefIdx, curSeq)
+			runGroup(g, rc, &w)
 		}
 		return runItem, nil
 	}, false)
@@ -1394,9 +1396,10 @@ func (f *InlineFunctions) decomposeExpressionsParallel(workRefs []*FunctionInjec
 	if len(mainGroupIndices) > 0 {
 		var mainRC recordingCompiler
 		initRecordingCompiler(&mainRC, f.compiler)
-		mainInj, curRefIdx, curSeq := newWorkerInjector(&mainRC)
+		var mainW ifDecompWorker
+		initWorkerInjector(&mainW, &mainRC)
 		for _, gIdx := range mainGroupIndices {
-			runGroup(&groups[gIdx], &mainRC, mainInj, curRefIdx, curSeq)
+			runGroup(&groups[gIdx], &mainRC, &mainW)
 		}
 	}
 

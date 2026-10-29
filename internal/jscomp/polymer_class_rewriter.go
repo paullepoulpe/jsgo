@@ -164,7 +164,7 @@ func (r *PolymerClassRewriter) RewritePolymerCall(cls *PolymerClassDefinition, t
 	objLitDoc := rhino.JSDocInfo_Builder_().ParseDocumentation()
 	jsTypeExpression := rhino.NewJSTypeExpression(
 		rhino.IR_String(targetQName+".prototype").Srcref(exprRoot),
-		jutil.ToJavaString(exprRoot.GetSourceFileName()))
+		polymerSourceFileName(exprRoot))
 	objLitDoc.RecordLends(jsTypeExpression)
 	objLit.SetJSDocInfo(objLitDoc.Build())
 
@@ -196,7 +196,7 @@ func (r *PolymerClassRewriter) RewritePolymerCall(cls *PolymerClassDefinition, t
 				JSError_MakeWithNode(
 					cls.constructor.value,
 					PolymerClassRewriter_POLYMER_ELEMENT_CONFLICT,
-					jutil.ToJavaString(nameNode.GetSourceFileName()),
+					polymerSourceFileName(nameNode),
 					strconv.Itoa(nameNode.GetLineno()),
 					strconv.Itoa(nameNode.GetCharno())))
 		}
@@ -647,7 +647,7 @@ func (r *PolymerClassRewriter) appendBehaviorMembersToBlock(cls *PolymerClassDef
 					info.RecordReturnType(
 						rhino.NewJSTypeExpression(
 							rhino.NewNode(rhino.Token_QMARK).Srcref(fnValue),
-							jutil.ToJavaString(fnValue.GetSourceFileName())))
+							polymerSourceFileName(fnValue)))
 				}
 			}
 
@@ -697,6 +697,13 @@ func polymerMakeParamSafe(param rhino.Node, index int) {
 	}
 }
 
+func polymerSourceFileName(n rhino.Node) string {
+	if s := n.GetSourceFileName(); s != nil {
+		return *s
+	}
+	return "null"
+}
+
 func polymerReadOnlySetterName(propName string) string {
 	if len(propName) > 0 && propName[0] < 0x80 {
 		ch := propName[0]
@@ -705,7 +712,7 @@ func polymerReadOnlySetterName(propName string) string {
 		}
 		return "_set" + string(ch) + propName[1:]
 	}
-	return "_set" + jutil.StringToUpperCaseRoot(jutil.StringSubstring(propName, 0, 1)) + jutil.StringSubstringFrom(propName, 1)
+	return "_set" + stringToUpperCaseRoot(jutil.StringSubstring(propName, 0, 1)) + jutil.StringSubstringFrom(propName, 1)
 }
 
 func (r *PolymerClassRewriter) makeReadOnlySetter(prop *PolymerPass_MemberDefinition, qualifiedPath string) rhino.Node {

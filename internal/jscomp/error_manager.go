@@ -23,6 +23,10 @@
 package jscomp
 
 import (
+	"math"
+	"strconv"
+	"strings"
+
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
@@ -166,7 +170,7 @@ var _ SortingErrorManager = (*BlackHoleErrorManager)(nil)
 // Java: BlackHoleErrorManager()
 func NewBlackHoleErrorManager() *BlackHoleErrorManager {
 	m := &BlackHoleErrorManager{}
-	m.InitSortingErrorManagerBase(m, nil)
+	m.InitSortingErrorManagerBase(nil)
 	return m
 }
 
@@ -226,7 +230,8 @@ type BasicErrorManager interface {
 // PrintSummary.
 type BasicErrorManagerBase struct {
 	SortingErrorManagerBase
-	basicSelf BasicErrorManager
+	printlnFn      func(*CheckLevel, *JSError)
+	printSummaryFn func()
 }
 
 // InitBasicErrorManagerBase is the Go form of super(); self is the object
@@ -234,8 +239,9 @@ type BasicErrorManagerBase struct {
 //
 // Java: BasicErrorManager()
 func (m *BasicErrorManagerBase) InitBasicErrorManagerBase(self BasicErrorManager) {
-	m.InitSortingErrorManagerBase(self, nil)
-	m.basicSelf = self
+	m.InitSortingErrorManagerBase(nil)
+	m.printlnFn = self.Println
+	m.printSummaryFn = self.PrintSummary
 }
 
 // GetBasicErrorManagerBase gives access to the base fields.
@@ -244,9 +250,9 @@ func (m *BasicErrorManagerBase) GetBasicErrorManagerBase() *BasicErrorManagerBas
 // Java: BasicErrorManager.generateReport()
 func (m *BasicErrorManagerBase) GenerateReport() {
 	for _, message := range m.SortingErrorManagerBase.GetSortedDiagnostics() {
-		m.basicSelf.Println(message.Level, message.Error)
+		m.printlnFn(message.Level, message.Error)
 	}
-	m.basicSelf.PrintSummary()
+	m.printSummaryFn()
 }
 
 // LoggerErrorManager is an error manager that logs errors and warnings using
@@ -306,7 +312,7 @@ func (m *LoggerErrorManager) PrintSummary() {
 			level,
 			jutil.StringFormat(
 				"%d error(s), %d warning(s), %s%% typed",
-				errCount, warnCount, jutil.Formatter_FormatDecimalFloat(m.GetTypedPercent(), 1)))
+				errCount, warnCount, formatDecimalFloat(m.GetTypedPercent(), 1)))
 	} else if errCount+warnCount > 0 {
 		m.logger.Log(
 			level, jutil.StringFormat("%d error(s), %d warning(s)", errCount, warnCount))
@@ -330,11 +336,88 @@ func printStreamPrintSummary(stream *jutil.PrintStream, summaryDetailLevel int, 
 		if typedPercent > 0.0 {
 			stream.Printf(
 				"%d error(s), %d warning(s), %s%% typed%n",
-				errCount, warnCount, jutil.Formatter_FormatDecimalFloat(typedPercent, 1))
+				errCount, warnCount, formatDecimalFloat(typedPercent, 1))
 		} else {
 			stream.Printf("%d error(s), %d warning(s)%n", errCount, warnCount)
 		}
 	}
+}
+
+func formatDecimalFloat(value float64, precision int) string {
+	if math.IsNaN(value) || math.IsInf(value, 0) {
+		return jutil.DoubleToString(value)
+	}
+	negative := math.Signbit(value)
+	s := jutil.DoubleToString(math.Abs(value))
+	digits, exp10 := parseDecimalDigits(s)
+	total := exp10 + precision
+	var out []byte
+	if total <= 0 {
+		out = make([]byte, 1+precision)
+		for i := range out {
+			out[i] = '0'
+		}
+		if total == 0 && len(digits) > 0 && digits[0] >= '5' {
+			out[len(out)-1] = '1'
+		}
+	} else {
+		out = make([]byte, max(total, 1+precision))
+		leadZeros := len(out) - total
+		for i := 0; i < leadZeros; i++ {
+			out[i] = '0'
+		}
+		for i := 0; i < total; i++ {
+			if i < len(digits) {
+				out[leadZeros+i] = digits[i]
+			} else {
+				out[leadZeros+i] = '0'
+			}
+		}
+		if total < len(digits) && digits[total] >= '5' {
+			carry := true
+			for i := len(out) - 1; i >= 0 && carry; i-- {
+				if out[i] == '9' {
+					out[i] = '0'
+				} else {
+					out[i]++
+					carry = false
+				}
+			}
+			if carry {
+				out = append([]byte{'1'}, out...)
+			}
+		}
+	}
+	var sb strings.Builder
+	if negative {
+		sb.WriteByte('-')
+	}
+	intLen := len(out) - precision
+	sb.Write(out[:intLen])
+	if precision > 0 {
+		sb.WriteByte('.')
+		sb.Write(out[intLen:])
+	}
+	return sb.String()
+}
+
+func parseDecimalDigits(s string) (digits string, exp10 int) {
+	mant, exp := s, 0
+	if e := strings.IndexByte(s, 'E'); e >= 0 {
+		mant = s[:e]
+		exp, _ = strconv.Atoi(s[e+1:])
+	}
+	dot := strings.IndexByte(mant, '.')
+	raw := mant[:dot] + mant[dot+1:]
+	p := dot + exp
+	i := 0
+	for i < len(raw) && raw[i] == '0' {
+		i++
+	}
+	if i == len(raw) {
+		return "", 0
+	}
+	return strings.TrimRight(raw[i:], "0"), p - i
 }
 
 // PrintStreamErrorManager is an error manager that prints errors and

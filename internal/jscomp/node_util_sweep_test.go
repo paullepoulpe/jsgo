@@ -758,11 +758,11 @@ func (s *nodeUtilSweeper) sweepNode(sb *strings.Builder, i int, n rhino.Node) {
 
 	// Constructions (the AST is not changed).
 	field(n.IsNumber() || n.IsName() || n.IsNeg() || n.IsStringLit(), func() string {
-		v := NodeUtil_GetNumberValue(n)
-		if v == nil {
+		v, ok := NodeUtil_GetNumberValueOpt(n)
+		if !ok {
 			return "-"
 		}
-		return nodeUtilSweepCompact(NodeUtil_NumberNode(*v, n))
+		return nodeUtilSweepCompact(NodeUtil_NumberNode(v, n))
 	})
 	field(n.IsNumber() || n.IsName(), func() string { return nodeUtilSweepCompact(NodeUtil_NewUndefinedNode(n)) })
 	isOuterQName := isQName && !(hasParent && parent.IsGetProp() && parent.GetFirstChild() == n)

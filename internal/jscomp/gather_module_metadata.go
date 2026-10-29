@@ -32,13 +32,13 @@ type GatherModuleMetadata struct {
 	// Map from module path to module. These modules represent files and thus
 	// will contain all goog namespaces that are in the file. These are not
 	// the same modules in modulesByGoogNamespace.
-	modulesByPath *jutil.LinkedHashMap[string, *ModuleMetadataMap_ModuleMetadata]
+	modulesByPath OrderedStringMap[*ModuleMetadataMap_ModuleMetadata]
 
 	// Map from Closure namespace to module. These modules represent just the
 	// single namespace and thus each module has only one goog namespace in
 	// its ModuleMetadata#googNamespaces(). These are not the same modules in
 	// modulesByPath.
-	modulesByGoogNamespace *jutil.LinkedHashMap[string, *ModuleMetadataMap_ModuleMetadata]
+	modulesByGoogNamespace OrderedStringMap[*ModuleMetadataMap_ModuleMetadata]
 
 	// The current module being traversed, and the module it is nested under
 	// (at most two deep: a script and a goog.loadModule call).
@@ -94,14 +94,17 @@ var GatherModuleMetadata_INVALID_TOGGLE_USAGE = DiagnosticType_Error("JSC_INVALI
 
 const gatherModuleMetadata_TOGGLE_NAME_PREFIX = "TOGGLE_"
 
+var (
+	gatherMetaGoogID       = rhino.RhinoStringPool_InternID("goog")
+	gatherMetaLoadModuleID = rhino.RhinoStringPool_InternID("loadModule")
+)
+
 // Java: GatherModuleMetadata(AbstractCompiler, boolean, ModuleLoader.ResolutionMode)
 func NewGatherModuleMetadata(
 	compiler AbstractCompiler,
 	processCommonJsModules bool,
 	moduleResolutionMode ModuleLoader_ResolutionMode) *GatherModuleMetadata {
 	return &GatherModuleMetadata{
-		modulesByPath:          jutil.NewLinkedHashMap[string, *ModuleMetadataMap_ModuleMetadata](),
-		modulesByGoogNamespace: jutil.NewLinkedHashMap[string, *ModuleMetadataMap_ModuleMetadata](),
 		compiler:               compiler,
 		processCommonJsModules: processCommonJsModules,
 		moduleResolutionMode:   moduleResolutionMode,
@@ -213,8 +216,8 @@ func (f *GatherModuleMetadata_Finder) ShouldTraverse(t *NodeTraversal, n rhino.N
 		f.VisitImportOrExport(t, n)
 	case rhino.Token_CALL:
 		if call, ok := ast.AsCall(n); ok {
-			if gp, ok := call.Callee().AsGetProp(); ok && gp.Property() == "loadModule" {
-				if base, ok := gp.Object().AsName(); ok && base.Ident() == "goog" {
+			if gp, ok := call.Callee().AsGetProp(); ok && gp.Node().GetStringID() == gatherMetaLoadModuleID {
+				if base, ok := gp.Object().AsName(); ok && base.Node().GetStringID() == gatherMetaGoogID {
 					f.outer.loadModuleCall = n
 					f.EnterModule(t, n, nil)
 				}
@@ -323,7 +326,7 @@ func (f *GatherModuleMetadata_Finder) Visit(t *NodeTraversal, n rhino.Node, pare
 func (f *GatherModuleMetadata_Finder) IsFromGoogImport(goog *Var) bool {
 	// Because other tools are regex based we force importing this file as "import * as goog".
 	star, ok := ast.AsImportStar(goog.GetNameNode())
-	if !ok || star.Ident() != "goog" {
+	if !ok || star.Node().GetStringID() != gatherMetaGoogID {
 		return false
 	}
 	imp, ok := ast.AsImport(star.Node().GetParent())
@@ -336,8 +339,9 @@ func (f *GatherModuleMetadata_Finder) IsFromGoogImport(goog *Var) bool {
 
 // Java: GatherModuleMetadata.Finder.visitName(NodeTraversal, Node)
 func (f *GatherModuleMetadata_Finder) VisitName(t *NodeTraversal, n rhino.Node) {
-	name := n.GetString()
+	id := n.GetStringID()
 	if f.toggleModuleNames != nil {
+		name := rhino.RhinoStringPool_StringFromID(id)
 		if _, ok := f.toggleModuleNames[name]; ok {
 			nameVar := t.GetScope().GetVar(name)
 			if _, ok := f.toggleModules[nameVar]; ok {
@@ -353,7 +357,7 @@ func (f *GatherModuleMetadata_Finder) VisitName(t *NodeTraversal, n rhino.Node) 
 			}
 		}
 	}
-	if name != "goog" {
+	if id != gatherMetaGoogID {
 		return
 	}
 
@@ -373,8 +377,7 @@ func (f *GatherModuleMetadata_Finder) VisitGoogCall(t *NodeTraversal, call ast.C
 	}
 
 	// Walk the GetProp chain to its root object, capturing depth (1 = goog.X, 2 = goog.Y.X).
-	prop := callee.Property()
-	parentProp := ""
+	var innerPropNode ast.GetProp
 	depth := 1
 	firstProp := callee.Object()
 	for {
@@ -382,13 +385,19 @@ func (f *GatherModuleMetadata_Finder) VisitGoogCall(t *NodeTraversal, call ast.C
 		if !ok {
 			break
 		}
-		parentProp = inner.Property()
+		innerPropNode = inner
 		firstProp = inner.Object()
 		depth++
 	}
 
-	if name, ok := firstProp.AsName(); !ok || name.Ident() != "goog" {
+	if name, ok := firstProp.AsName(); !ok || name.Node().GetStringID() != gatherMetaGoogID {
 		return
+	}
+
+	prop := callee.Property()
+	parentProp := ""
+	if depth > 1 {
+		parentProp = innerPropNode.Property()
 	}
 
 	n := call.Node()
@@ -630,7 +639,7 @@ func (g *GatherModuleMetadata) Process(externs rhino.Node, root rhino.Node) {
 	NodeTraversal_Builder_().SetCompiler(g.compiler).SetScopeCreator(sc).SetCallback(&finder).Traverse(externs)
 	finder = GatherModuleMetadata_Finder{outer: g}
 	NodeTraversal_Builder_().SetCompiler(g.compiler).SetScopeCreator(sc).SetCallback(&finder).Traverse(root)
-	g.compiler.SetModuleMetadataMap(NewModuleMetadataMap(g.modulesByPath, g.modulesByGoogNamespace))
+	g.compiler.SetModuleMetadataMap(newModuleMetadataMapDirect(g.modulesByPath, g.modulesByGoogNamespace))
 }
 
 // Must match closure/base.js's goog.VALID_MODULE_RE_ & also validates that

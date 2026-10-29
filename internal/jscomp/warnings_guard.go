@@ -5,9 +5,27 @@
 // Port of com/google/javascript/jscomp/ShowByPathWarningsGuard.java @ closure-compiler v20261021
 // Port of com/google/javascript/jscomp/J2clSuppressWarningsGuard.java @ closure-compiler v20261021
 // Port of com/google/javascript/jscomp/ByPathWarningsGuard.java @ closure-compiler v20261021
+// Port of com/google/javascript/jscomp/DiagnosticGroupWarningsGuard.java @ closure-compiler v20261021
+// Port of com/google/javascript/jscomp/DiagnosticGroupPathSuppressingWarningsGuard.java @ closure-compiler v20261021
 
 /*
  * Copyright 2008 The Closure Compiler Authors.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+/*
+ * Copyright 2016 The Closure Compiler Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -574,4 +592,87 @@ func (g *J2clSuppressWarningsGuard) Level(error *JSError) *CheckLevel {
 // Java: J2clSuppressWarningsGuard.getPriority()
 func (g *J2clSuppressWarningsGuard) GetPriority() int {
 	return WarningsGuard_Priority_MAX.GetValue()
+}
+
+// DiagnosticGroupWarningsGuard sets the level for a particular
+// DiagnosticGroup.
+type DiagnosticGroupWarningsGuard struct {
+	WarningsGuardBase
+	group *DiagnosticGroup
+	level CheckLevel
+}
+
+var _ WarningsGuard = (*DiagnosticGroupWarningsGuard)(nil)
+
+// Java: DiagnosticGroupWarningsGuard(DiagnosticGroup, CheckLevel)
+func NewDiagnosticGroupWarningsGuard(
+	group *DiagnosticGroup, level CheckLevel) *DiagnosticGroupWarningsGuard {
+	return &DiagnosticGroupWarningsGuard{group: group, level: level}
+}
+
+// Level may return nil.
+//
+// Java: DiagnosticGroupWarningsGuard.level(JSError)
+func (g *DiagnosticGroupWarningsGuard) Level(error *JSError) *CheckLevel {
+	if g.group.Matches(error) {
+		return g.level.Ptr()
+	}
+	return nil
+}
+
+// Java: DiagnosticGroupWarningsGuard.mustRunChecks(DiagnosticGroup)
+func (g *DiagnosticGroupWarningsGuard) MustRunChecks(otherGroup *DiagnosticGroup) base.Tri {
+	if g.level.IsOn() {
+		for _, t := range otherGroup.GetTypes() {
+			if g.group.MatchesType(t) {
+				return base.Tri_TRUE
+			}
+		}
+		return base.Tri_UNKNOWN
+	}
+	for _, t := range otherGroup.GetTypes() {
+		if !g.group.MatchesType(t) {
+			return base.Tri_UNKNOWN
+		}
+	}
+	return base.Tri_FALSE
+}
+
+// Java: DiagnosticGroupWarningsGuard.toString()
+func (g *DiagnosticGroupWarningsGuard) String() string {
+	return g.group.String() + "(" + g.level.String() + ")"
+}
+
+// DiagnosticGroupPathSuppressingWarningsGuard is a warnings guard that
+// suppresses warnings for a particular diagnostic group for a file that
+// contains the specified substring.
+type DiagnosticGroupPathSuppressingWarningsGuard struct {
+	WarningsGuardBase
+	group *DiagnosticGroup
+	part  string
+}
+
+var _ WarningsGuard = (*DiagnosticGroupPathSuppressingWarningsGuard)(nil)
+
+// Java: DiagnosticGroupPathSuppressingWarningsGuard(DiagnosticGroup, String)
+func NewDiagnosticGroupPathSuppressingWarningsGuard(group *DiagnosticGroup, part string) *DiagnosticGroupPathSuppressingWarningsGuard {
+	return &DiagnosticGroupPathSuppressingWarningsGuard{group: group, part: part}
+}
+
+// Level does not touch warnings in other paths. It may return nil.
+//
+// Java: DiagnosticGroupPathSuppressingWarningsGuard.level(JSError)
+func (g *DiagnosticGroupPathSuppressingWarningsGuard) Level(error *JSError) *CheckLevel {
+	if error.SourceName() == nil || !strings.Contains(*error.SourceName(), g.part) {
+		return nil
+	}
+	if g.group.Matches(error) {
+		return CheckLevel_OFF.Ptr()
+	}
+	return nil
+}
+
+// Java: DiagnosticGroupPathSuppressingWarningsGuard.toString()
+func (g *DiagnosticGroupPathSuppressingWarningsGuard) String() string {
+	return g.group.String() + "(" + g.part + ")"
 }

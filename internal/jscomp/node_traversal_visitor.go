@@ -116,14 +116,6 @@ type NodeTraversal_ScopedCallback interface {
 	ExitScope(t *NodeTraversal)
 }
 
-// NodeTraversal_AbstractPostOrderCallback is the abstract callback to visit
-// all nodes in postorder. Note: Do not create anonymous subclasses of this.
-// Instead, write a lambda expression which will be interpreted as an
-// AbstractPostOrderCallbackInterface.
-type NodeTraversal_AbstractPostOrderCallback interface {
-	NodeTraversal_Callback
-}
-
 // NodeTraversal_AbstractPostOrderCallbackBase holds the methods of
 // AbstractPostOrderCallback; subclasses embed it and define Visit.
 type NodeTraversal_AbstractPostOrderCallbackBase struct {
@@ -139,15 +131,10 @@ func (b *NodeTraversal_AbstractPostOrderCallbackBase) ShouldTraverse(nodeTravers
 
 func (NodeTraversal_AbstractPostOrderCallbackBase) nodeTraversalNoShouldTraverse() {}
 
-// NodeTraversal_ExternsSkippingCallback is the abstract callback to visit
-// all non-extern nodes in postorder. Note: Even though type-summary nodes are
-// included under the externs roots, they are traversed by this callback.
-type NodeTraversal_ExternsSkippingCallback interface {
-	NodeTraversal_Callback
-}
-
 // NodeTraversal_ExternsSkippingCallbackBase holds the methods of
 // ExternsSkippingCallback; subclasses embed it and define Visit.
+// Note: Even though type-summary nodes are included under the externs roots,
+// they are traversed by this callback.
 type NodeTraversal_ExternsSkippingCallbackBase struct {
 	_ byte // Go-only: language-adapter — distinct identity
 }
@@ -178,12 +165,6 @@ func (f NodeTraversal_AbstractPostOrderCallbackInterface) Visit(t *NodeTraversal
 	f(t, n, parent)
 }
 
-// NodeTraversal_AbstractPreOrderCallback is the abstract callback to visit
-// all nodes in preorder.
-type NodeTraversal_AbstractPreOrderCallback interface {
-	NodeTraversal_Callback
-}
-
 // NodeTraversal_AbstractPreOrderCallbackBase holds the methods of
 // AbstractPreOrderCallback; subclasses embed it and define ShouldTraverse.
 type NodeTraversal_AbstractPreOrderCallbackBase struct {
@@ -197,12 +178,6 @@ func (b *NodeTraversal_AbstractPreOrderCallbackBase) Visit(t *NodeTraversal, n r
 }
 
 func (NodeTraversal_AbstractPreOrderCallbackBase) nodeTraversalNoVisit() {}
-
-// NodeTraversal_AbstractScopedCallback is the abstract scoped callback to
-// visit all nodes in postorder.
-type NodeTraversal_AbstractScopedCallback interface {
-	NodeTraversal_ScopedCallback
-}
 
 // NodeTraversal_AbstractScopedCallbackBase holds the methods of
 // AbstractScopedCallback; subclasses embed it, define Visit and may
@@ -378,14 +353,9 @@ func (b *NodeTraversal_AbstractCfgCallbackBase) ShouldTraverse(t *NodeTraversal,
 func (b *NodeTraversal_AbstractCfgCallbackBase) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 }
 
-// NodeTraversal_AbstractShallowCallback is the abstract callback to visit
-// all nodes but not traverse into function bodies.
-type NodeTraversal_AbstractShallowCallback interface {
-	NodeTraversal_Callback
-}
-
 // NodeTraversal_AbstractShallowCallbackBase holds the methods of
-// AbstractShallowCallback; subclasses embed it and define Visit.
+// AbstractShallowCallback (visits all nodes without traversing into function
+// bodies); subclasses embed it and define Visit.
 type NodeTraversal_AbstractShallowCallbackBase struct {
 	_ byte // Go-only: language-adapter — distinct identity
 }
@@ -399,15 +369,10 @@ func (b *NodeTraversal_AbstractShallowCallbackBase) ShouldTraverse(nodeTraversal
 	return parent.IsNil() || !parent.IsFunction() || n == parent.GetFirstChild()
 }
 
-// NodeTraversal_AbstractShallowStatementCallback is the abstract callback to
-// visit all structure and statement nodes but doesn't traverse into
-// functions or expressions.
-type NodeTraversal_AbstractShallowStatementCallback interface {
-	NodeTraversal_Callback
-}
-
 // NodeTraversal_AbstractShallowStatementCallbackBase holds the methods of
-// AbstractShallowStatementCallback; subclasses embed it and define Visit.
+// AbstractShallowStatementCallback (visits all structure and statement nodes
+// without traversing into functions or expressions); subclasses embed it and
+// define Visit.
 type NodeTraversal_AbstractShallowStatementCallbackBase struct {
 	_ byte // Go-only: language-adapter — distinct identity
 }
@@ -512,7 +477,7 @@ func (m *moduleTraversal) exitNode(t *NodeTraversal, n rhino.Node) (exitedModule
 // NodeTraversal_AbstractChangedScopeCallback is the callback that fires on
 // changed scopes.
 type NodeTraversal_AbstractChangedScopeCallback interface {
-	NodeTraversal_AbstractPreOrderCallback
+	NodeTraversal_Callback
 
 	// Java: NodeTraversal.AbstractChangedScopeCallback.enterChangedScopeRoot(AbstractCompiler, Node)
 	EnterChangedScopeRoot(compiler AbstractCompiler, root rhino.Node)

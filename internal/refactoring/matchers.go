@@ -513,9 +513,30 @@ func matchers_areTypesEquivalentIgnoringGenerics(a rhino.JSType, b rhino.JSType)
 // matchesPrototypeInstanceVar: each `.` is Java's any-char-but-a-line-terminator.
 var matchers_PROTOTYPE_SPLIT_RE = regexp.MustCompile(`[^\n\r\x{85}\x{2028}\x{2029}]prototype[^\n\r\x{85}\x{2028}\x{2029}]`)
 
+func matchers_splitPrototype(s string) []string {
+	matches := matchers_PROTOTYPE_SPLIT_RE.FindAllStringIndex(s, -1)
+	var parts []string
+	index := 0
+	for _, m := range matches {
+		if (m[0] == 0 || m[0] == len(s) || s[m[0]]&0xC0 != 0x80) &&
+			(m[1] == 0 || m[1] == len(s) || s[m[1]]&0xC0 != 0x80) {
+			parts = append(parts, s[index:m[0]])
+			index = m[1]
+		}
+	}
+	if index == 0 {
+		return []string{s}
+	}
+	parts = append(parts, s[index:])
+	for len(parts) > 0 && parts[len(parts)-1] == "" {
+		parts = parts[:len(parts)-1]
+	}
+	return parts
+}
+
 // Java: Matchers.matchesPrototypeInstanceVar(Node, NodeMetadata, String)
 func matchers_matchesPrototypeInstanceVar(node rhino.Node, metadata *NodeMetadata, name string) bool {
-	parts := jutil.StringSplitRegexp(name, matchers_PROTOTYPE_SPLIT_RE)
+	parts := matchers_splitPrototype(name)
 	className := parts[0]
 	propertyName := parts[1]
 	providedJsType := matchers_getJsType(metadata, className)

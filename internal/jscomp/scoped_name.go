@@ -82,10 +82,26 @@ func (s *ScopedName_Simple) GetScopeRoot() rhino.Node {
 	return s.scopeRoot
 }
 
+func isScopedNameNil(s ScopedName) bool {
+	if s == nil {
+		return true
+	}
+	switch v := s.(type) {
+	case *Var:
+		return v == nil
+	case *TypedVar:
+		return v == nil
+	case *ScopedName_Simple:
+		return v == nil
+	default:
+		return false
+	}
+}
+
 // Java: ScopedName.equals(Object)
 func (s *ScopedName_Simple) Equals(other any) bool {
 	scopedName, ok := other.(ScopedName)
-	if !ok || jutil.IsNil(scopedName) {
+	if !ok || isScopedNameNil(scopedName) {
 		return false
 	}
 	return s.name == scopedName.GetName() &&

@@ -27,7 +27,7 @@ import (
 // JSCompiler passes across whitespace-only, transpile-only, checks,
 // optimizations, and finalizations stages.
 type DefaultPassConfig struct {
-	PassConfigBase
+	options *CompilerOptions
 
 	// Symbol table for registering references removed during preprocessing.
 	preprocessorSymbolTableFactory *PreprocessorSymbolTable_CachedInstanceFactory
@@ -203,10 +203,16 @@ var (
 )
 
 func NewDefaultPassConfig(options *CompilerOptions) *DefaultPassConfig {
-	c := &DefaultPassConfig{}
-	c.self = c
-	c.InitPassConfigBase(options)
+	c := &DefaultPassConfig{options: options}
 	c.initFields()
+	return c
+}
+
+func (c *DefaultPassConfig) Options() *CompilerOptions {
+	return c.options
+}
+
+func (c *DefaultPassConfig) GetBasePassConfig() PassConfig {
 	return c
 }
 

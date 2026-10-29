@@ -48,9 +48,12 @@ const (
 )
 
 var (
-	gnPrototypeStrID = uint32(strpool.Intern("prototype"))
-	gnThisStrID      = uint32(strpool.Intern("this"))
-	gnSuperStrID     = uint32(strpool.Intern("super"))
+	gnPrototypeStrID            = uint32(strpool.Intern("prototype"))
+	gnThisStrID                 = uint32(strpool.Intern("this"))
+	gnSuperStrID                = uint32(strpool.Intern("super"))
+	gnClosureDefinesStrID       = uint32(strpool.Intern("CLOSURE_DEFINES"))
+	gnHasOwnPropertyStrID       = uint32(strpool.Intern("hasOwnProperty"))
+	gnPropertyIsEnumerableStrID = uint32(strpool.Intern("propertyIsEnumerable"))
 )
 
 type gnChildSlot struct {

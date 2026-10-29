@@ -162,7 +162,6 @@ type MustBeReachingVariableDef struct {
 
 	emptyLattice MustBeReachingVariableDef_MustDef
 	joinOp       MustBeReachingVariableDef_MustDefJoin
-	depCallback  mustBeReachingVariableDef_dependenceCallback
 
 	flowInput  *MustBeReachingVariableDef_MustDef
 	flowOutput *MustBeReachingVariableDef_MustDef
@@ -194,8 +193,6 @@ func (d *MustBeReachingVariableDef) Reset(
 	d.InitDataFlowAnalysisBase(d, cfg)
 	d.compiler = compiler
 	d.initVars(allVarsInFn, escaped)
-	d.depCallback.outer = d
-	d.depCallback.def = nil
 	d.flowInput = nil
 	d.flowOutput = nil
 	d.mustDefs.Rewind()
@@ -945,27 +942,10 @@ func (d *MustBeReachingVariableDef) computeDependenceWalk(def *MustBeReachingVar
 func (d *MustBeReachingVariableDef) ComputeDependence(def *MustBeReachingVariableDef_Definition, rValue rhino.Node) {
 	jutil.CheckNotNull(d.compiler)
 	if rValue.IsNil() {
-		d.depCallback.def = def
-		traverseCfgNode(d.compiler, rValue, &d.depCallback)
-		d.depCallback.def = nil
+		throwNilCfgNodeTraversal(d.compiler)
 		return
 	}
 	d.computeDependenceWalk(def, rValue, rhino.NilNode)
-}
-
-// mustBeReachingVariableDef_dependenceCallback is the anonymous
-// AbstractCfgNodeTraversalCallback of computeDependence.
-type mustBeReachingVariableDef_dependenceCallback struct {
-	ControlFlowGraph_AbstractCfgNodeTraversalCallbackBase
-	outer *MustBeReachingVariableDef
-	def   *MustBeReachingVariableDef_Definition
-}
-
-// Java: MustBeReachingVariableDef.computeDependence(...).new AbstractCfgNodeTraversalCallback() {...}.visit(NodeTraversal, Node, Node)
-func (c *mustBeReachingVariableDef_dependenceCallback) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
-	if n.IsName() {
-		c.outer.recordDependenceID(c.def, n.GetStringID())
-	}
 }
 
 func (d *MustBeReachingVariableDef) getDefFromMustDef(name string, inState *MustBeReachingVariableDef_MustDef) *MustBeReachingVariableDef_Definition {

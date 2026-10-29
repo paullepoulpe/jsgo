@@ -19,6 +19,7 @@
 package jscomp
 
 import (
+	"slices"
 	"strconv"
 	"strings"
 
@@ -223,10 +224,8 @@ func (c *Compiler) appendSourceToCodeBuilderForChunk(
 	}
 
 	// Check whether there is any license information that should be emitted.
-	if emittedLicenses := licenseTracker.EmitLicenses(); emittedLicenses != nil && !emittedLicenses.IsEmpty() {
-		for license := range emittedLicenses.All() {
-			cb.Append("/*\n").Append(license).Append("*/\n")
-		}
+	for _, license := range licenseTracker.EmitLicenses() {
+		cb.Append("/*\n").Append(license).Append("*/\n")
 	}
 
 	// Check whether there's any actual code to emit.
@@ -266,57 +265,105 @@ func (c *Compiler) ToSourceOfNode(n rhino.Node) string {
 	// about what licenses are included in the resulting JS.
 	lt := NewCompiler_ScriptNodeLicensesOnlyTracker(c)
 	code := c.toSourceWithoutMappings(n, false, lt)
-	if emitted := lt.EmitLicenses(); emitted != nil && !emitted.IsEmpty() {
-		for license := range emitted.All() {
-			sb.Append("/*\n").Append(license).Append("*/\n")
-		}
+	for _, license := range lt.EmitLicenses() {
+		sb.Append("/*\n").Append(license).Append("*/\n")
 	}
 	sb.Append(code)
 	return sb.String()
 }
 
-// compiler_SeenSetLicenseTracker is a license tracker implementation that
-// maintains two sets of licenses: the "currently seen set" which will be
-// emitted on the next call to emitLicenses, and the "globally seen set"
-// which includes every license ever seen. Licenses in the global set are
-// never added to the currently seen set. On every call to emitLicenses, the
-// currently seen set is added to the globally seen set, and the currently
-// seen set is cleared. There is no way to clear the globally seen set.
+type licenseSet struct {
+	seen  map[string]struct{}
+	order []string
+}
+
+var emptyLicenseSet = &licenseSet{}
+
+func (s *licenseSet) isEmpty() bool { return len(s.order) == 0 }
+
+func (s *licenseSet) contains(lic string) bool {
+	if len(s.seen) == 0 {
+		return false
+	}
+	_, ok := s.seen[lic]
+	return ok
+}
+
+func (s *licenseSet) add(lic string) bool {
+	if s.seen == nil {
+		s.seen = make(map[string]struct{}, 4)
+	} else if _, ok := s.seen[lic]; ok {
+		return false
+	}
+	s.seen[lic] = struct{}{}
+	s.order = append(s.order, lic)
+	return true
+}
+
+func (s *licenseSet) addAll(lics []string) {
+	for _, lic := range lics {
+		s.add(lic)
+	}
+}
+
+func (s *licenseSet) clear() {
+	if len(s.seen) > 0 {
+		clear(s.seen)
+	}
+	s.order = s.order[:0]
+}
+
+// licenseTracker maintains two sets of licenses without virtual self-dispatch:
+// the "currently seen set" emitted on the next call to EmitLicenses, and the
+// "globally seen set" of every license ever emitted. When onlyScript is true,
+// only licenses on SCRIPT/ROOT nodes are tracked (ScriptNodeLicensesOnlyTracker);
+// otherwise only licenses on non-SCRIPT/non-ROOT nodes are tracked
+// (SingleBinaryLicenseTracker).
+type licenseTracker struct {
+	compiler     AbstractCompiler
+	globalSeen   map[string]struct{}
+	current      licenseSet
+	lastSeenFile string
+	onlyScript   bool
+}
+
+// Compiler_ScriptNodeLicensesOnlyTracker emits all licenses attached to script
+// nodes, regardless of whether the content of that script is used in the output.
 //
-// Java: Compiler.SeenSetLicenseTracker
-type compiler_SeenSetLicenseTracker interface {
-	CodePrinter_LicenseTracker
-	// Java: Compiler.SeenSetLicenseTracker.shouldUseLicenseInfo(Node)
-	ShouldUseLicenseInfo(node rhino.Node) bool
+// Java: Compiler.ScriptNodeLicensesOnlyTracker
+type Compiler_ScriptNodeLicensesOnlyTracker = licenseTracker
+
+// Java: Compiler.ScriptNodeLicensesOnlyTracker(AbstractCompiler)
+func NewCompiler_ScriptNodeLicensesOnlyTracker(compiler AbstractCompiler) *Compiler_ScriptNodeLicensesOnlyTracker {
+	return &licenseTracker{compiler: compiler, onlyScript: true}
 }
 
-// compiler_SeenSetLicenseTrackerBase holds the fields and base
-// implementations of SeenSetLicenseTracker.
-type compiler_SeenSetLicenseTrackerBase struct {
-	self                   compiler_SeenSetLicenseTracker
-	compiler               AbstractCompiler
-	globallyUniqueLicenses *jutil.LinkedHashSet[string]
-	currentlySeenLicenses  *jutil.LinkedHashSet[string]
-	lastSeenFile           string
+// Compiler_SingleBinaryLicenseTracker retains only licenses for which there are
+// useful non-SCRIPT/non-ROOT nodes in a binary.
+//
+// Java: Compiler.SingleBinaryLicenseTracker
+type Compiler_SingleBinaryLicenseTracker = licenseTracker
+
+// Java: Compiler.SingleBinaryLicenseTracker(AbstractCompiler)
+func NewCompiler_SingleBinaryLicenseTracker(compiler AbstractCompiler) *Compiler_SingleBinaryLicenseTracker {
+	return newCompiler_SingleBinaryLicenseTracker(compiler)
 }
 
-// Java: Compiler.SeenSetLicenseTracker(AbstractCompiler)
-func (t *compiler_SeenSetLicenseTrackerBase) initCompiler_SeenSetLicenseTrackerBase(self compiler_SeenSetLicenseTracker, compiler AbstractCompiler) {
-	t.self = self
-	t.compiler = compiler
-	t.globallyUniqueLicenses = jutil.NewLinkedHashSet[string]()
-	t.currentlySeenLicenses = jutil.NewLinkedHashSet[string]()
-	t.lastSeenFile = ""
+func newCompiler_SingleBinaryLicenseTracker(compiler AbstractCompiler) *Compiler_SingleBinaryLicenseTracker {
+	return &licenseTracker{compiler: compiler}
 }
 
-// Java: Compiler.SeenSetLicenseTracker.shouldUseLicenseInfo(Node)
-func (t *compiler_SeenSetLicenseTrackerBase) ShouldUseLicenseInfo(node rhino.Node) bool {
-	return !node.IsRoot() && !node.IsScript()
+func (t *licenseTracker) addLicense(lic string) {
+	if _, ok := t.globalSeen[lic]; ok {
+		return
+	}
+	t.current.add(lic)
 }
 
 // Java: Compiler.SeenSetLicenseTracker.trackLicensesForNode(Node)
-func (t *compiler_SeenSetLicenseTrackerBase) TrackLicensesForNode(node rhino.Node) {
-	if !t.self.ShouldUseLicenseInfo(node) {
+func (t *licenseTracker) TrackLicensesForNode(node rhino.Node) {
+	isRootOrScript := node.IsRoot() || node.IsScript()
+	if t.onlyScript != isRootOrScript {
 		return
 	}
 	file := node.GetSourceFileName()
@@ -326,92 +373,32 @@ func (t *compiler_SeenSetLicenseTrackerBase) TrackLicensesForNode(node rhino.Nod
 	t.trackLicensesForFileName(*file)
 }
 
-func (t *compiler_SeenSetLicenseTrackerBase) trackLicensesForFileName(file string) {
+func (t *licenseTracker) trackLicensesForFileName(file string) {
 	if file == t.lastSeenFile {
-		// Skip files we just saw.
 		return
-	} else {
-		t.lastSeenFile = file
 	}
+	t.lastSeenFile = file
 	license := compiler_getLicenseForFileName(t.compiler, file)
 	if license == nil {
 		return
 	}
-	if t.globallyUniqueLicenses.Contains(*license) {
-		return
-	}
-	t.currentlySeenLicenses.Add(*license)
+	t.addLicense(*license)
 }
 
 // Java: Compiler.SeenSetLicenseTracker.emitLicenses()
-func (t *compiler_SeenSetLicenseTrackerBase) EmitLicenses() *jutil.LinkedHashSet[string] {
-	if t.currentlySeenLicenses.IsEmpty() {
-		return compiler_emptyLicenseSet
+func (t *licenseTracker) EmitLicenses() []string {
+	if t.current.isEmpty() {
+		return nil
 	}
-	slice := t.currentlySeenLicenses.ToSlice()
-	rv := jutil.NewLinkedHashSet[string](slice...)
-	t.globallyUniqueLicenses.AddAll(slice...)
-	t.currentlySeenLicenses.Clear()
+	rv := slices.Clone(t.current.order)
+	if t.globalSeen == nil {
+		t.globalSeen = make(map[string]struct{}, len(rv))
+	}
+	for _, lic := range rv {
+		t.globalSeen[lic] = struct{}{}
+	}
+	t.current.clear()
 	return rv
-}
-
-// Compiler_ScriptNodeLicensesOnlyTracker is a license tracker
-// implementation that emits all licenses attached to script nodes,
-// regardless of if the content of that script is used anywhere in the
-// compilation.
-//
-// This license tracker encapsulates the logic that the compiler used
-// before the concept of license tracking was implemented, and should only
-// used in places where a better implementation cannot be used. See
-// SingleBinaryLicenseTracker and ChunkGraphAwareLicenseTracker for smarter
-// implementations of a license tracker for the single-binary and
-// multiple-chunk emit use-cases.
-//
-// Java: Compiler.ScriptNodeLicensesOnlyTracker
-type Compiler_ScriptNodeLicensesOnlyTracker struct {
-	compiler_SeenSetLicenseTrackerBase
-}
-
-// Java: Compiler.ScriptNodeLicensesOnlyTracker(AbstractCompiler)
-func NewCompiler_ScriptNodeLicensesOnlyTracker(compiler AbstractCompiler) *Compiler_ScriptNodeLicensesOnlyTracker {
-	t := &Compiler_ScriptNodeLicensesOnlyTracker{}
-	t.initCompiler_SeenSetLicenseTrackerBase(t, compiler)
-	return t
-}
-
-// Java: Compiler.ScriptNodeLicensesOnlyTracker.shouldUseLicenseInfo(Node)
-func (t *Compiler_ScriptNodeLicensesOnlyTracker) ShouldUseLicenseInfo(node rhino.Node) bool {
-	// Only use license information that is found on the script or root nodes of the tree.
-	return node.IsRoot() || node.IsScript()
-}
-
-// Compiler_SingleBinaryLicenseTracker is a license tracker implementation
-// that only retains licenses for which there are useful nodes in a binary.
-// This will ignore licenses attached to script or root nodes when there
-// are no other nodes from that script in use in the binary (likely removed
-// due to compiler optimizations).
-//
-// Java: Compiler.SingleBinaryLicenseTracker
-type Compiler_SingleBinaryLicenseTracker struct {
-	compiler_SeenSetLicenseTrackerBase
-}
-
-// Java: Compiler.SingleBinaryLicenseTracker(AbstractCompiler)
-func NewCompiler_SingleBinaryLicenseTracker(compiler AbstractCompiler) *Compiler_SingleBinaryLicenseTracker {
-	return newCompiler_SingleBinaryLicenseTracker(compiler)
-}
-
-func newCompiler_SingleBinaryLicenseTracker(compiler AbstractCompiler) *Compiler_SingleBinaryLicenseTracker {
-	t := &Compiler_SingleBinaryLicenseTracker{}
-	t.initCompiler_SeenSetLicenseTrackerBase(t, compiler)
-	return t
-}
-
-// Java: Compiler.SingleBinaryLicenseTracker.shouldUseLicenseInfo(Node)
-func (t *Compiler_SingleBinaryLicenseTracker) ShouldUseLicenseInfo(node rhino.Node) bool {
-	// Ignore the licensing information attached to root or script nodes, and only carry license
-	// info for nodes that emit visible JS.
-	return !node.IsRoot() && !node.IsScript()
 }
 
 // Compiler_ChunkGraphAwareLicenseTracker is an implementation of a license
@@ -431,38 +418,33 @@ func (t *Compiler_SingleBinaryLicenseTracker) ShouldUseLicenseInfo(node rhino.No
 // Java: Compiler.ChunkGraphAwareLicenseTracker
 type Compiler_ChunkGraphAwareLicenseTracker struct {
 	compiler           AbstractCompiler
-	licensesFromChunks *jutil.LinkedHashMap[*JSChunk, *jutil.LinkedHashSet[string]]
-	cumulativeLicenses map[*JSChunk]*jutil.LinkedHashSet[string]
+	licensesFromChunks map[*JSChunk]*licenseSet
+	cumulativeLicenses map[*JSChunk]*licenseSet
 
 	haveInitializedCurrentChunkLicenses bool
-	currentChunkLicencesInTDeps         *jutil.LinkedHashSet[string]
-	currentChunkTDepsRef                *jutil.LinkedHashSet[string]
+	currentChunkLicencesInTDeps         licenseSet
+	currentChunkTDepsRef                *licenseSet
 
 	lastSeenFile             string
-	licensesNewInCurrentFile *jutil.LinkedHashSet[string]
+	licensesNewInCurrentFile licenseSet
 
-	// Not a final set as this is re-initialized in setCurrentChunkContext, and then stored into
-	// the licensesFromChunks map.
-	licensesNewInCurrentChunk *jutil.LinkedHashSet[string]
+	// Re-initialized in SetCurrentChunkContext and stored into licensesFromChunks.
+	licensesNewInCurrentChunk *licenseSet
 	log                       diagnostic.LogFile
 	currentChunk              *JSChunk
 }
 
 // Java: Compiler.ChunkGraphAwareLicenseTracker(AbstractCompiler)
 func NewCompiler_ChunkGraphAwareLicenseTracker(compiler AbstractCompiler) *Compiler_ChunkGraphAwareLicenseTracker {
-	tdeps := jutil.NewLinkedHashSet[string]()
-	return &Compiler_ChunkGraphAwareLicenseTracker{
-		licensesFromChunks:                  jutil.NewLinkedHashMap[*JSChunk, *jutil.LinkedHashSet[string]](),
-		cumulativeLicenses:                  make(map[*JSChunk]*jutil.LinkedHashSet[string], 16),
-		haveInitializedCurrentChunkLicenses: false,
-		currentChunkLicencesInTDeps:         tdeps,
-		currentChunkTDepsRef:                tdeps,
-		lastSeenFile:                        "",
-		licensesNewInCurrentFile:            jutil.NewLinkedHashSet[string](),
-		licensesNewInCurrentChunk:           compiler_emptyLicenseSet,
-		log:                                 diagnostic.LogFile_CreateNoOp(),
-		compiler:                            compiler,
+	t := &Compiler_ChunkGraphAwareLicenseTracker{
+		licensesFromChunks:        make(map[*JSChunk]*licenseSet, 16),
+		cumulativeLicenses:        make(map[*JSChunk]*licenseSet, 16),
+		licensesNewInCurrentChunk: emptyLicenseSet,
+		log:                       diagnostic.LogFile_CreateNoOp(),
+		compiler:                  compiler,
 	}
+	t.currentChunkTDepsRef = &t.currentChunkLicencesInTDeps
+	return t
 }
 
 // Java: Compiler.ChunkGraphAwareLicenseTracker.setLogFile(LogFile)
@@ -476,26 +458,26 @@ func (t *Compiler_ChunkGraphAwareLicenseTracker) SetCurrentChunkContext(chunk *J
 		t.log.LogFormat("Initializing licenses from deps for chunk %s", chunk)
 	}
 	t.currentChunk = chunk
-	if !t.currentChunkLicencesInTDeps.IsEmpty() {
-		t.currentChunkLicencesInTDeps.Clear()
+	if !t.currentChunkLicencesInTDeps.isEmpty() {
+		t.currentChunkLicencesInTDeps.clear()
 	}
-	t.currentChunkTDepsRef = compiler_emptyLicenseSet
-	if !t.licensesNewInCurrentFile.IsEmpty() {
-		t.licensesNewInCurrentFile.Clear()
+	t.currentChunkTDepsRef = emptyLicenseSet
+	if !t.licensesNewInCurrentFile.isEmpty() {
+		t.licensesNewInCurrentFile.clear()
 	}
 	t.haveInitializedCurrentChunkLicenses = false
-	if t.licensesFromChunks.ContainsKey(chunk) {
+	if _, visited := t.licensesFromChunks[chunk]; visited {
 		panic(jutil.NewIllegalStateExceptionMsg("Visiting a chunk more than once is not allowed."))
 	}
-	t.licensesNewInCurrentChunk = compiler_emptyLicenseSet
-	t.licensesFromChunks.Put(chunk, compiler_emptyLicenseSet)
+	t.licensesNewInCurrentChunk = emptyLicenseSet
+	t.licensesFromChunks[chunk] = emptyLicenseSet
 }
 
-func (t *Compiler_ChunkGraphAwareLicenseTracker) ensureCumulativeLicenses(chunk *JSChunk) *jutil.LinkedHashSet[string] {
+func (t *Compiler_ChunkGraphAwareLicenseTracker) ensureCumulativeLicenses(chunk *JSChunk) *licenseSet {
 	if cum, ok := t.cumulativeLicenses[chunk]; ok {
 		return cum
 	}
-	chunkNew, visited := t.licensesFromChunks.Lookup(chunk)
+	chunkNew, visited := t.licensesFromChunks[chunk]
 	if !visited {
 		panic(jutil.NewIllegalStateExceptionMsg(
 			"Chunk aware license analysis error - analysis out of order."))
@@ -507,24 +489,25 @@ func (t *Compiler_ChunkGraphAwareLicenseTracker) ensureCumulativeLicenses(chunk 
 	}
 	if len(deps) == 1 {
 		cum0 := t.ensureCumulativeLicenses(deps[0])
-		if chunkNew.IsEmpty() {
+		if chunkNew.isEmpty() {
 			t.cumulativeLicenses[chunk] = cum0
 			return cum0
 		}
-		if cum0.IsEmpty() {
+		if cum0.isEmpty() {
 			t.cumulativeLicenses[chunk] = chunkNew
 			return chunkNew
 		}
-		merged := jutil.NewLinkedHashSet[string](cum0.ToSlice()...)
-		merged.AddAll(chunkNew.ToSlice()...)
+		merged := &licenseSet{}
+		merged.addAll(cum0.order)
+		merged.addAll(chunkNew.order)
 		t.cumulativeLicenses[chunk] = merged
 		return merged
 	}
-	var shared *jutil.LinkedHashSet[string]
+	var shared *licenseSet
 	needMerge := false
 	for _, dep := range deps {
 		cumDep := t.ensureCumulativeLicenses(dep)
-		if cumDep.IsEmpty() {
+		if cumDep.isEmpty() {
 			continue
 		}
 		if shared == nil {
@@ -533,22 +516,22 @@ func (t *Compiler_ChunkGraphAwareLicenseTracker) ensureCumulativeLicenses(chunk 
 			needMerge = true
 		}
 	}
-	if !needMerge && chunkNew.IsEmpty() {
+	if !needMerge && chunkNew.isEmpty() {
 		if shared == nil {
-			shared = compiler_emptyLicenseSet
+			shared = emptyLicenseSet
 		}
 		t.cumulativeLicenses[chunk] = shared
 		return shared
 	}
-	merged := jutil.NewLinkedHashSet[string]()
+	merged := &licenseSet{}
 	for _, dep := range deps {
 		cumDep := t.cumulativeLicenses[dep]
-		if !cumDep.IsEmpty() {
-			merged.AddAll(cumDep.ToSlice()...)
+		if !cumDep.isEmpty() {
+			merged.addAll(cumDep.order)
 		}
 	}
-	if !chunkNew.IsEmpty() {
-		merged.AddAll(chunkNew.ToSlice()...)
+	if !chunkNew.isEmpty() {
+		merged.addAll(chunkNew.order)
 	}
 	t.cumulativeLicenses[chunk] = merged
 	return merged
@@ -571,38 +554,35 @@ func (t *Compiler_ChunkGraphAwareLicenseTracker) trackLicensesForFileName(source
 	if t.lastSeenFile == sourceFile {
 		// We just saw this file during the previous call to trackLicensesForNode
 		return
-	} else {
-		// Record the file whose license info we are going to analyze so that if we see this file
-		// again in consecutive calls to trackLicensesForNode we can skip redundant analysis.
-		t.lastSeenFile = sourceFile
 	}
+	t.lastSeenFile = sourceFile
 	// Lazily initialize the set of licenses provided by the chunk's transitive dependencies
 	if !t.haveInitializedCurrentChunkLicenses {
 		if t.log.IsLogging() {
 			for depChunk := range t.currentChunk.GetAllDependencies().All() {
 				t.log.LogFormat("Chunk %s depends on chunk %s", t.currentChunk, depChunk)
-				if !t.licensesFromChunks.ContainsKey(depChunk) {
+				depSet, visited := t.licensesFromChunks[depChunk]
+				if !visited {
 					panic(jutil.NewIllegalStateExceptionMsg(
 						"Chunk aware license analysis error - analysis out of order."))
 				}
-				depSet := t.licensesFromChunks.Get(depChunk)
-				if !depSet.IsEmpty() {
-					t.currentChunkLicencesInTDeps.AddAll(depSet.ToSlice()...)
+				if !depSet.isEmpty() {
+					t.currentChunkLicencesInTDeps.addAll(depSet.order)
 				}
 			}
-			t.currentChunkTDepsRef = t.currentChunkLicencesInTDeps
+			t.currentChunkTDepsRef = &t.currentChunkLicencesInTDeps
 		} else {
 			deps := t.currentChunk.deps
 			if len(deps) == 0 {
-				t.currentChunkTDepsRef = compiler_emptyLicenseSet
+				t.currentChunkTDepsRef = emptyLicenseSet
 			} else if len(deps) == 1 {
 				t.currentChunkTDepsRef = t.ensureCumulativeLicenses(deps[0])
 			} else {
-				var shared *jutil.LinkedHashSet[string]
+				var shared *licenseSet
 				needMerge := false
 				for _, dep := range deps {
 					cumDep := t.ensureCumulativeLicenses(dep)
-					if cumDep.IsEmpty() {
+					if cumDep.isEmpty() {
 						continue
 					}
 					if shared == nil {
@@ -613,17 +593,17 @@ func (t *Compiler_ChunkGraphAwareLicenseTracker) trackLicensesForFileName(source
 				}
 				if !needMerge {
 					if shared == nil {
-						shared = compiler_emptyLicenseSet
+						shared = emptyLicenseSet
 					}
 					t.currentChunkTDepsRef = shared
 				} else {
 					for _, dep := range deps {
 						cumDep := t.cumulativeLicenses[dep]
-						if !cumDep.IsEmpty() {
-							t.currentChunkLicencesInTDeps.AddAll(cumDep.ToSlice()...)
+						if !cumDep.isEmpty() {
+							t.currentChunkLicencesInTDeps.addAll(cumDep.order)
 						}
 					}
-					t.currentChunkTDepsRef = t.currentChunkLicencesInTDeps
+					t.currentChunkTDepsRef = &t.currentChunkLicencesInTDeps
 				}
 			}
 		}
@@ -633,16 +613,13 @@ func (t *Compiler_ChunkGraphAwareLicenseTracker) trackLicensesForFileName(source
 	if license == nil {
 		return
 	}
-	if t.currentChunkTDepsRef.Contains(*license) {
-		// This node's license is covered by one of its transitive dependencies - no need to
-		// duplicate it.
+	if t.currentChunkTDepsRef.contains(*license) {
 		return
 	}
-	if t.licensesNewInCurrentChunk.Contains(*license) {
-		// This license is new as of this chunk, but another file has already seen it.
+	if t.licensesNewInCurrentChunk.contains(*license) {
 		return
 	}
-	newlyAddedLicense := t.licensesNewInCurrentFile.Add(*license)
+	newlyAddedLicense := t.licensesNewInCurrentFile.add(*license)
 	if t.log.IsLogging() {
 		if !newlyAddedLicense {
 			t.log.LogFormat(
@@ -690,7 +667,7 @@ func (r *compiler_ParallelScriptLicenseRecorder) TrackLicensesForNode(node rhino
 	r.seenFiles = append(r.seenFiles, *file)
 }
 
-func (r *compiler_ParallelScriptLicenseRecorder) EmitLicenses() *jutil.LinkedHashSet[string] {
+func (r *compiler_ParallelScriptLicenseRecorder) EmitLicenses() []string {
 	return nil
 }
 
@@ -698,30 +675,28 @@ func compiler_licenseTrackerReplay(lt CodePrinter_LicenseTracker) (replay func(s
 	switch t := lt.(type) {
 	case *Compiler_ChunkGraphAwareLicenseTracker:
 		return t.trackLicensesForFileName, false, true
-	case *Compiler_SingleBinaryLicenseTracker:
-		return t.trackLicensesForFileName, false, true
-	case *Compiler_ScriptNodeLicensesOnlyTracker:
-		return t.trackLicensesForFileName, true, true
+	case *licenseTracker:
+		return t.trackLicensesForFileName, t.onlyScript, true
 	default:
 		return nil, false, false
 	}
 }
 
 // Java: Compiler.ChunkGraphAwareLicenseTracker.emitLicenses()
-func (t *Compiler_ChunkGraphAwareLicenseTracker) EmitLicenses() *jutil.LinkedHashSet[string] {
-	if t.licensesNewInCurrentFile.IsEmpty() {
-		return compiler_emptyLicenseSet
+func (t *Compiler_ChunkGraphAwareLicenseTracker) EmitLicenses() []string {
+	if t.licensesNewInCurrentFile.isEmpty() {
+		return nil
 	}
-	slice := t.licensesNewInCurrentFile.ToSlice()
-	licensesNewInFile := jutil.NewLinkedHashSet[string](slice...)
-	if t.licensesNewInCurrentChunk == compiler_emptyLicenseSet {
-		t.licensesNewInCurrentChunk = jutil.NewLinkedHashSet[string](slice...)
-		t.licensesFromChunks.Put(t.currentChunk, t.licensesNewInCurrentChunk)
+	rv := slices.Clone(t.licensesNewInCurrentFile.order)
+	if t.licensesNewInCurrentChunk == emptyLicenseSet {
+		t.licensesNewInCurrentChunk = &licenseSet{}
+		t.licensesNewInCurrentChunk.addAll(rv)
+		t.licensesFromChunks[t.currentChunk] = t.licensesNewInCurrentChunk
 	} else {
-		t.licensesNewInCurrentChunk.AddAll(slice...)
+		t.licensesNewInCurrentChunk.addAll(rv)
 	}
-	t.licensesNewInCurrentFile.Clear()
-	return licensesNewInFile
+	t.licensesNewInCurrentFile.clear()
+	return rv
 }
 
 // toSourceAndMappings generates JavaScript source code for an AST.

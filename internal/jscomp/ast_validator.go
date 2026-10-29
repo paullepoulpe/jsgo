@@ -366,17 +366,11 @@ func (v *AstValidator) ValidateEmptyString(n rhino.Node) {
 
 // Java: AstValidator.validateNonNullString(Node)
 func (v *AstValidator) ValidateNonNullString(n rhino.Node) bool {
-	valid := true
-	jutil.Try(func() {
-		// Go-only: language-adapter — `if (n.getString() == null)`: a Go
-		// string is never null (nor is a Java StringNode's), so only the
-		// exception of a node that is not a string node remains.
-		n.GetString()
-	}, func(e jutil.IRuntimeException) {
+	if !n.IsStringNode() {
 		v.Violation("Expected non-null string.", n)
-		valid = false
-	})
-	return valid
+		return false
+	}
+	return true
 }
 
 // Java: AstValidator.validateName(Node)
@@ -395,7 +389,7 @@ func (v *AstValidator) ValidateOptionalName(n rhino.Node) {
 	v.ValidateNonNullString(n)
 	v.ValidateProperties(n)
 	v.ValidateChildCount(n)
-	// `n.getString() != null && n.getString().isEmpty()`: never null.
+	// `n.getString() != null && !n.getString().isEmpty()`: never null.
 	if n.GetString() != "" {
 		v.ValidateTypeInformation(n)
 	}

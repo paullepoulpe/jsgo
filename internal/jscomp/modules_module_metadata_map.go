@@ -250,6 +250,227 @@ func (e StringCountsElements) String() string {
 	return sb.String()
 }
 
+// OrderedStringEntry pairs a string key with a value in insertion order.
+type OrderedStringEntry[V any] struct {
+	Key   string
+	Value V
+}
+
+// OrderedStringMap is a compact, insertion-ordered string-keyed map backed by a
+// contiguous entry slice and an optional Go map index for larger maps (>8 keys).
+// Its zero value is ready to use and allocates zero heap memory when empty.
+type OrderedStringMap[V any] struct {
+	entries []OrderedStringEntry[V]
+	index   map[string]int
+}
+
+// NewOrderedStringMapWithCapacity allocates an OrderedStringMap with pre-sized slice storage.
+func NewOrderedStringMapWithCapacity[V any](capHint int) *OrderedStringMap[V] {
+	if capHint <= 0 {
+		return &OrderedStringMap[V]{}
+	}
+	m := &OrderedStringMap[V]{
+		entries: make([]OrderedStringEntry[V], 0, capHint),
+	}
+	if capHint > stringCountsMapThreshold {
+		m.index = make(map[string]int, capHint)
+	}
+	return m
+}
+
+// Put inserts or updates key k, preserving first-seen key order.
+func (m *OrderedStringMap[V]) Put(k string, v V) {
+	if m.index != nil {
+		if idx, ok := m.index[k]; ok {
+			m.entries[idx].Value = v
+			return
+		}
+		m.index[k] = len(m.entries)
+		m.entries = append(m.entries, OrderedStringEntry[V]{Key: k, Value: v})
+		return
+	}
+	for i := range m.entries {
+		if m.entries[i].Key == k {
+			m.entries[i].Value = v
+			return
+		}
+	}
+	if len(m.entries) >= stringCountsMapThreshold {
+		m.index = make(map[string]int, len(m.entries)+4)
+		for i, e := range m.entries {
+			m.index[e.Key] = i
+		}
+		m.index[k] = len(m.entries)
+	}
+	m.entries = append(m.entries, OrderedStringEntry[V]{Key: k, Value: v})
+}
+
+// Lookup returns (value, true) if k is present, or (zero, false) if absent.
+func (m *OrderedStringMap[V]) Lookup(k string) (V, bool) {
+	var zero V
+	if m == nil || len(m.entries) == 0 {
+		return zero, false
+	}
+	if m.index != nil {
+		if idx, ok := m.index[k]; ok {
+			return m.entries[idx].Value, true
+		}
+		return zero, false
+	}
+	for i := range m.entries {
+		if m.entries[i].Key == k {
+			return m.entries[i].Value, true
+		}
+	}
+	return zero, false
+}
+
+// Get returns the value for k, or the zero value of V if absent.
+func (m *OrderedStringMap[V]) Get(k string) V {
+	v, _ := m.Lookup(k)
+	return v
+}
+
+// ContainsKey reports whether k is present in the map.
+func (m *OrderedStringMap[V]) ContainsKey(k string) bool {
+	_, ok := m.Lookup(k)
+	return ok
+}
+
+// Size returns the number of entries in the map.
+func (m *OrderedStringMap[V]) Size() int {
+	if m == nil {
+		return 0
+	}
+	return len(m.entries)
+}
+
+// IsEmpty reports whether the map has zero entries.
+func (m *OrderedStringMap[V]) IsEmpty() bool {
+	return m == nil || len(m.entries) == 0
+}
+
+// Entries returns the underlying (Key, Value) slice in insertion order.
+func (m *OrderedStringMap[V]) Entries() []OrderedStringEntry[V] {
+	if m == nil {
+		return nil
+	}
+	return m.entries
+}
+
+// KeySlice materializes keys into a slice in insertion order.
+func (m *OrderedStringMap[V]) KeySlice() []string {
+	if m == nil || len(m.entries) == 0 {
+		return nil
+	}
+	out := make([]string, len(m.entries))
+	for i, e := range m.entries {
+		out[i] = e.Key
+	}
+	return out
+}
+
+// All yields (key, value) pairs in insertion order.
+func (m *OrderedStringMap[V]) All() iter.Seq2[string, V] {
+	return func(yield func(string, V) bool) {
+		if m == nil {
+			return
+		}
+		for _, e := range m.entries {
+			if !yield(e.Key, e.Value) {
+				return
+			}
+		}
+	}
+}
+
+// Keys yields keys in insertion order.
+func (m *OrderedStringMap[V]) Keys() iter.Seq[string] {
+	return func(yield func(string) bool) {
+		if m == nil {
+			return
+		}
+		for _, e := range m.entries {
+			if !yield(e.Key) {
+				return
+			}
+		}
+	}
+}
+
+// Values yields values in insertion order.
+func (m *OrderedStringMap[V]) Values() iter.Seq[V] {
+	return func(yield func(V) bool) {
+		if m == nil {
+			return
+		}
+		for _, e := range m.entries {
+			if !yield(e.Value) {
+				return
+			}
+		}
+	}
+}
+
+// toLinkedHashMap materializes a jutil.LinkedHashMap view, reusing emptySingleton when empty.
+func (m *OrderedStringMap[V]) toLinkedHashMap(emptySingleton *jutil.LinkedHashMap[string, V]) *jutil.LinkedHashMap[string, V] {
+	if m == nil || len(m.entries) == 0 {
+		if emptySingleton != nil {
+			return emptySingleton
+		}
+		return jutil.NewLinkedHashMap[string, V]()
+	}
+	out := jutil.NewLinkedHashMapWithCapacity[string, V](len(m.entries))
+	for _, e := range m.entries {
+		out.Put(e.Key, e.Value)
+	}
+	return out
+}
+
+// ModuleMetadataSet is a zero-allocation ordered set view over []*ModuleMetadataMap_ModuleMetadata.
+type ModuleMetadataSet struct {
+	items []*ModuleMetadataMap_ModuleMetadata
+}
+
+// Size returns the number of metadata items.
+func (s ModuleMetadataSet) Size() int { return len(s.items) }
+
+// IsEmpty reports whether the set is empty.
+func (s ModuleMetadataSet) IsEmpty() bool { return len(s.items) == 0 }
+
+// ToSlice returns a slice copy of the metadata items.
+func (s ModuleMetadataSet) ToSlice() []*ModuleMetadataMap_ModuleMetadata {
+	if len(s.items) == 0 {
+		return []*ModuleMetadataMap_ModuleMetadata{}
+	}
+	out := make([]*ModuleMetadataMap_ModuleMetadata, len(s.items))
+	copy(out, s.items)
+	return out
+}
+
+// Contains reports whether target is in the set.
+func (s ModuleMetadataSet) Contains(target *ModuleMetadataMap_ModuleMetadata) bool {
+	for _, item := range s.items {
+		if item == target {
+			return true
+		}
+	}
+	return false
+}
+
+// All yields metadata items in insertion order.
+func (s ModuleMetadataSet) All() iter.Seq[*ModuleMetadataMap_ModuleMetadata] {
+	return func(yield func(*ModuleMetadataMap_ModuleMetadata) bool) {
+		for _, item := range s.items {
+			if !yield(item) {
+				return
+			}
+		}
+	}
+}
+
+var moduleMetadataEmptyLinkedMap = jutil.NewLinkedHashMap[string, *ModuleMetadataMap_ModuleMetadata]()
+
 // ModuleMetadataMap contains metadata around modules (or scripts) that is
 // useful for checking imports / requires.
 //
@@ -265,14 +486,18 @@ func (e StringCountsElements) String() string {
 type ModuleMetadataMap struct {
 	// Map from module path to module. These modules represent files and thus will contain all goog
 	// namespaces that are in the file. These are not the same modules in modulesByGoogNamespace.
-	modulesByPath *jutil.LinkedHashMap[string, *ModuleMetadataMap_ModuleMetadata]
+	byPath OrderedStringMap[*ModuleMetadataMap_ModuleMetadata]
 
 	// Map from Closure namespace to module. These modules represent just the single namespace and
 	// thus each module has only one goog namespace in its ModuleMetadata#googNamespaces().
 	// These are not the same modules in modulesByPath.
-	modulesByGoogNamespace *jutil.LinkedHashMap[string, *ModuleMetadataMap_ModuleMetadata]
+	byGoogNamespace OrderedStringMap[*ModuleMetadataMap_ModuleMetadata]
 
-	moduleMetadata *jutil.LinkedHashSet[*ModuleMetadataMap_ModuleMetadata]
+	allMetadata []*ModuleMetadataMap_ModuleMetadata
+
+	// Lazily materialized only if external LinkedHashMap getters are called.
+	lazyByPath          *jutil.LinkedHashMap[string, *ModuleMetadataMap_ModuleMetadata]
+	lazyByGoogNamespace *jutil.LinkedHashMap[string, *ModuleMetadataMap_ModuleMetadata]
 }
 
 // ModuleMetadataMap_ModuleType lists the various types of Javascript
@@ -317,34 +542,59 @@ func (t ModuleMetadataMap_ModuleType) Description() string {
 	return moduleMetadataMap_ModuleType_description[t]
 }
 
+// newModuleMetadataMapDirect constructs ModuleMetadataMap directly from native
+// OrderedStringMaps without any jutil.LinkedHashMap or jutil.LinkedHashSet allocations.
+func newModuleMetadataMapDirect(
+	byPath OrderedStringMap[*ModuleMetadataMap_ModuleMetadata],
+	byGoogNamespace OrderedStringMap[*ModuleMetadataMap_ModuleMetadata],
+) *ModuleMetadataMap {
+	m := &ModuleMetadataMap{
+		byPath:          byPath,
+		byGoogNamespace: byGoogNamespace,
+	}
+	m.buildAllMetadata()
+	return m
+}
+
+func (m *ModuleMetadataMap) buildAllMetadata() {
+	total := m.byPath.Size() + m.byGoogNamespace.Size()
+	if total == 0 {
+		return
+	}
+	seen := make(map[*ModuleMetadataMap_ModuleMetadata]struct{}, total)
+	all := make([]*ModuleMetadataMap_ModuleMetadata, 0, total)
+	for _, e := range m.byPath.Entries() {
+		v := jutil.CheckNotNull(e.Value)
+		if _, ok := seen[v]; !ok {
+			seen[v] = struct{}{}
+			all = append(all, v)
+		}
+	}
+	for _, e := range m.byGoogNamespace.Entries() {
+		v := jutil.CheckNotNull(e.Value)
+		if _, ok := seen[v]; !ok {
+			seen[v] = struct{}{}
+			all = append(all, v)
+		}
+	}
+	m.allMetadata = all
+}
+
 // Java: ModuleMetadataMap(Map<String, ModuleMetadata>, Map<String, ModuleMetadata>)
 func NewModuleMetadataMap(
 	modulesByPath *jutil.LinkedHashMap[string, *ModuleMetadataMap_ModuleMetadata],
 	modulesByGoogNamespace *jutil.LinkedHashMap[string, *ModuleMetadataMap_ModuleMetadata]) *ModuleMetadataMap {
-	m := &ModuleMetadataMap{
-		modulesByPath:          moduleMetadataMap_immutableMapCopyOf(modulesByPath),
-		modulesByGoogNamespace: moduleMetadataMap_immutableMapCopyOf(modulesByGoogNamespace),
+	jutil.CheckNotNull(modulesByPath)
+	jutil.CheckNotNull(modulesByGoogNamespace)
+	byPath := NewOrderedStringMapWithCapacity[*ModuleMetadataMap_ModuleMetadata](modulesByPath.Size())
+	for k, v := range modulesByPath.All() {
+		byPath.Put(k, jutil.CheckNotNull(v))
 	}
-	m.moduleMetadata = jutil.NewLinkedHashSetWithCapacity[*ModuleMetadataMap_ModuleMetadata](
-		modulesByPath.Size() + modulesByGoogNamespace.Size())
-	for v := range modulesByPath.Values() {
-		m.moduleMetadata.Add(jutil.CheckNotNull(v))
+	byNs := NewOrderedStringMapWithCapacity[*ModuleMetadataMap_ModuleMetadata](modulesByGoogNamespace.Size())
+	for k, v := range modulesByGoogNamespace.All() {
+		byNs.Put(k, jutil.CheckNotNull(v))
 	}
-	for v := range modulesByGoogNamespace.Values() {
-		m.moduleMetadata.Add(jutil.CheckNotNull(v))
-	}
-	return m
-}
-
-// moduleMetadataMap_immutableMapCopyOf is ImmutableMap.copyOf(Map), which
-// rejects null values.
-func moduleMetadataMap_immutableMapCopyOf(
-	m *jutil.LinkedHashMap[string, *ModuleMetadataMap_ModuleMetadata]) *jutil.LinkedHashMap[string, *ModuleMetadataMap_ModuleMetadata] {
-	out := jutil.NewLinkedHashMapWithCapacity[string, *ModuleMetadataMap_ModuleMetadata](m.Size())
-	for k, v := range m.All() {
-		out.Put(k, jutil.CheckNotNull(v))
-	}
-	return out
+	return newModuleMetadataMapDirect(*byPath, *byNs)
 }
 
 // ModuleMetadataMap_ModuleMetadata is the struct containing basic
@@ -698,6 +948,31 @@ func (b ModuleMetadataMap_ModuleMetadata_Builder) Build() *ModuleMetadataMap_Mod
 	return b.m
 }
 
+// ModulesByPathMap returns the native Go OrderedStringMap from module path to metadata.
+func (m *ModuleMetadataMap) ModulesByPathMap() *OrderedStringMap[*ModuleMetadataMap_ModuleMetadata] {
+	return &m.byPath
+}
+
+// ModulesByGoogNamespaceMap returns the native Go OrderedStringMap from Closure namespace to metadata.
+func (m *ModuleMetadataMap) ModulesByGoogNamespaceMap() *OrderedStringMap[*ModuleMetadataMap_ModuleMetadata] {
+	return &m.byGoogNamespace
+}
+
+// ModuleByPath looks up metadata by module path in O(1) without materializing LinkedHashMap.
+func (m *ModuleMetadataMap) ModuleByPath(path string) *ModuleMetadataMap_ModuleMetadata {
+	return m.byPath.Get(path)
+}
+
+// ModuleByGoogNamespace looks up metadata by Closure namespace in O(1) without materializing LinkedHashMap.
+func (m *ModuleMetadataMap) ModuleByGoogNamespace(namespace string) *ModuleMetadataMap_ModuleMetadata {
+	return m.byGoogNamespace.Get(namespace)
+}
+
+// AllMetadataSlice returns the slice of all distinct ModuleMetadata values in insertion order.
+func (m *ModuleMetadataMap) AllMetadataSlice() []*ModuleMetadataMap_ModuleMetadata {
+	return m.allMetadata
+}
+
 // GetModulesByPath returns the map from module path to module. These
 // modules represent files and thus ModuleMetadata#googNamespaces() contains
 // all Closure namespaces in the file. These are not the same modules from
@@ -708,7 +983,10 @@ func (b ModuleMetadataMap_ModuleMetadata_Builder) Build() *ModuleMetadataMap_Mod
 //
 // Java: ModuleMetadataMap.getModulesByPath()
 func (m *ModuleMetadataMap) GetModulesByPath() *jutil.LinkedHashMap[string, *ModuleMetadataMap_ModuleMetadata] {
-	return m.modulesByPath
+	if m.lazyByPath == nil {
+		m.lazyByPath = m.byPath.toLinkedHashMap(moduleMetadataEmptyLinkedMap)
+	}
+	return m.lazyByPath
 }
 
 // GetModulesByGoogNamespace returns the map from Closure namespace to
@@ -720,7 +998,10 @@ func (m *ModuleMetadataMap) GetModulesByPath() *jutil.LinkedHashMap[string, *Mod
 //
 // Java: ModuleMetadataMap.getModulesByGoogNamespace()
 func (m *ModuleMetadataMap) GetModulesByGoogNamespace() *jutil.LinkedHashMap[string, *ModuleMetadataMap_ModuleMetadata] {
-	return m.modulesByGoogNamespace
+	if m.lazyByGoogNamespace == nil {
+		m.lazyByGoogNamespace = m.byGoogNamespace.toLinkedHashMap(moduleMetadataEmptyLinkedMap)
+	}
+	return m.lazyByGoogNamespace
 }
 
 // GetAllModuleMetadata is the set of all modules across both maps.
@@ -729,13 +1010,11 @@ func (m *ModuleMetadataMap) GetModulesByGoogNamespace() *jutil.LinkedHashMap[str
 // have no namespaces.
 //
 // Java: ModuleMetadataMap.getAllModuleMetadata()
-func (m *ModuleMetadataMap) GetAllModuleMetadata() *jutil.LinkedHashSet[*ModuleMetadataMap_ModuleMetadata] {
-	return m.moduleMetadata
+func (m *ModuleMetadataMap) GetAllModuleMetadata() ModuleMetadataSet {
+	return ModuleMetadataSet{items: m.allMetadata}
 }
 
 // Java: ModuleMetadataMap.emptyForTesting()
 func ModuleMetadataMap_EmptyForTesting() *ModuleMetadataMap {
-	return NewModuleMetadataMap(
-		jutil.NewLinkedHashMap[string, *ModuleMetadataMap_ModuleMetadata](),
-		jutil.NewLinkedHashMap[string, *ModuleMetadataMap_ModuleMetadata]())
+	return &ModuleMetadataMap{}
 }

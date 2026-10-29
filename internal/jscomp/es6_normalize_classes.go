@@ -1,7 +1,58 @@
 // Port of com/google/javascript/jscomp/Es6NormalizeClasses.java @ closure-compiler v20261021
+// Port of com/google/javascript/jscomp/Es6NormalizeShorthandProperties.java @ closure-compiler v20261021
+// Port of com/google/javascript/jscomp/Es6RenameReferences.java @ closure-compiler v20261021
+// Port of com/google/javascript/jscomp/SynthesizeExplicitConstructors.java @ closure-compiler v20261021
 
 /*
  * Copyright 2025 The Closure Compiler Authors.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+/*
+ * Copyright 2017 The Closure Compiler Authors.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+/*
+ * Copyright 2015 The Closure Compiler Authors.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+/*
+ * Copyright 2021 The Closure Compiler Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -738,4 +789,182 @@ func Es6NormalizeClasses_IsInStaticInitializationContext(rootNode rhino.Node) bo
 	default:
 		panic(jutil.NewIllegalArgumentExceptionMsg("invalid root " + jutil.ToJavaString(rootNode)))
 	}
+}
+
+// Es6NormalizeShorthandProperties normalizes shorthand object properties.
+// This should be one of the first things done when transpiling from ES6 down
+// to ES5, as it allows all the following checks and transpilations to not
+// care about shorthand and destructured assignments.
+type Es6NormalizeShorthandProperties struct{}
+
+var es6NormalizeShorthandTokens = func() ast.TokenSet {
+	var s ast.TokenSet
+	s.Add(rhino.Token_STRING_KEY)
+	return s
+}()
+
+// Java: Es6NormalizeShorthandProperties(AbstractCompiler)
+func NewEs6NormalizeShorthandProperties(compiler AbstractCompiler) *Es6NormalizeShorthandProperties {
+	return &Es6NormalizeShorthandProperties{}
+}
+
+func (*Es6NormalizeShorthandProperties) HandledTokens() ast.TokenSet {
+	return es6NormalizeShorthandTokens
+}
+
+func (*Es6NormalizeShorthandProperties) GetAdditionalFeaturesToRunOn() *parser.FeatureSet {
+	return parser.FeatureSet_BARE_MINIMUM
+}
+
+// Java: Es6NormalizeShorthandProperties.transpileSubtree(Node)
+func (e *Es6NormalizeShorthandProperties) TranspileSubtree(subtree rhino.Node) rhino.Node {
+	if subtree.IsStringKey() {
+		subtree.SetShorthandProperty(false)
+	}
+	return subtree
+}
+
+// Java: Es6NormalizeShorthandProperties.getTranspiledAwayFeatures()
+func (e *Es6NormalizeShorthandProperties) GetTranspiledAwayFeatures() *parser.FeatureSet {
+	return parser.FeatureSet_BARE_MINIMUM.With(parser.FeatureSet_Feature_SHORTHAND_OBJECT_PROPERTIES)
+}
+
+type Es6ScopeRenameKey struct {
+	Root rhino.Node
+	Name string
+}
+
+// Es6RenameReferences renames references in code.
+type Es6RenameReferences struct {
+	NodeTraversal_AbstractPostOrderCallbackBase
+
+	// Map from the root node of a scope + the original variable name to a
+	// new name for the variable.
+	//
+	// An entry in this map means we should rename a variable that was
+	// originally declared in the scope with the given root and had the
+	// original variable name to the new name.
+	renameTable map[Es6ScopeRenameKey]string
+}
+
+// Java: Es6RenameReferences(Table<Node, String, String>)
+func NewEs6RenameReferences(renameTable map[Es6ScopeRenameKey]string) *Es6RenameReferences {
+	return &Es6RenameReferences{renameTable: renameTable}
+}
+
+// Java: Es6RenameReferences.visit(NodeTraversal, Node, Node)
+func (e *Es6RenameReferences) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
+	if NodeUtil_IsReferenceName(n) {
+		e.RenameReference(t, n, n.GetString())
+	}
+}
+
+// RenameReference: t is the NodeTraversal; oldName is the root name of a
+// qualified name.
+//
+// Java: Es6RenameReferences.renameReference(NodeTraversal, Node, String)
+func (e *Es6RenameReferences) RenameReference(t *NodeTraversal, n rhino.Node, oldName string) {
+	current := t.GetScope()
+	// You should be wondering:
+	//
+	// Why are we searching up the stack of scopes here instead of just looking up the Var for
+	// oldName and getting the scope from that?
+	//
+	// The answer is:
+	//
+	// When Es6RewriteBlockScopedDeclaration uses this class, it has already modified the scopes so
+	// that `oldName` is no longer declared in its original scope.
+	//
+	// I don't know if the other users of this class are also modifying the scopes in advance.
+	// - bradfordcsmith@google.com
+	for current != nil {
+		newName, ok := e.renameTable[Es6ScopeRenameKey{Root: current.GetRootNode(), Name: oldName}]
+		if ok {
+			n.SetString(newName)
+			t.ReportCodeChange()
+			return
+		} else if current.HasOwnSlot(oldName) {
+			return
+		} else {
+			current = current.GetParent()
+		}
+	}
+}
+
+// SynthesizeExplicitConstructors adds explicit constructors to classes that
+// lack them.
+type SynthesizeExplicitConstructors struct {
+	compiler   AbstractCompiler
+	astFactory *AstFactory
+}
+
+// Java: SynthesizeExplicitConstructors(AbstractCompiler)
+func NewSynthesizeExplicitConstructors(compiler AbstractCompiler) *SynthesizeExplicitConstructors {
+	s := &SynthesizeExplicitConstructors{}
+	s.compiler = compiler
+	s.astFactory = compiler.CreateAstFactory()
+	return s
+}
+
+// SynthesizeClassConstructorIfMissing adds a synthetic constructor to the
+// given class if no constructor is present.
+//
+// Java: SynthesizeExplicitConstructors.synthesizeClassConstructorIfMissing(NodeTraversal, Node)
+func (s *SynthesizeExplicitConstructors) SynthesizeClassConstructorIfMissing(t *NodeTraversal, classNode rhino.Node) {
+	jutil.CheckArgument(classNode.IsClass())
+	if NodeUtil_GetEs6ClassConstructorMemberFunctionDef(classNode).IsNil() {
+		s.AddSyntheticConstructor(t, classNode)
+	}
+}
+
+// Java: SynthesizeExplicitConstructors.addSyntheticConstructor(NodeTraversal, Node)
+func (s *SynthesizeExplicitConstructors) AddSyntheticConstructor(t *NodeTraversal, classNode rhino.Node) {
+	superClass := classNode.GetSecondChild()
+	classMembers := classNode.GetLastChild()
+	var memberDef rhino.Node
+	if superClass.IsEmpty() {
+		function := s.astFactory.CreateEmptyFunction(AstFactory_Type_(classNode))
+		s.compiler.ReportChangeToChangeScope(function)
+		memberDef = s.astFactory.CreateMemberFunctionDef("constructor", function)
+	} else {
+		jutil.CheckStateMsg1(
+			superClass.IsQualifiedName(),
+			"Expected Es6NormalizeClasses to make all extends clauses into qualified names, found %s",
+			superClass)
+		body := rhino.IR_Block()
+
+		// If a class is defined in an externs file or as an interface, it's only a stub, not an
+		// implementation that should be instantiated.
+		// A call to super() shouldn't actually exist for these cases and is problematic to
+		// transpile, so don't generate it.
+		if !classNode.IsFromExterns() && !s.IsInterface(classNode) {
+			// Generate required call to super()
+			// `super(...arguments);`
+			// Note that transpilation of spread args must occur after this pass for this to work.
+			exprResult := rhino.IR_ExprResult(
+				s.astFactory.CreateConstructorCall(
+					AstFactory_Type_(classNode), // returned type is the subclass
+					s.astFactory.CreateSuper(AstFactory_Type_(superClass)),
+					rhino.IR_IterSpread(s.astFactory.CreateArgumentsReference())))
+			body.AddChildToFront(exprResult)
+			NodeUtil_AddFeatureToScript(t.GetCurrentScript(), parser.FeatureSet_Feature_SUPER, s.compiler)
+			NodeUtil_AddFeatureToScript(t.GetCurrentScript(), parser.FeatureSet_Feature_SPREAD_EXPRESSIONS, s.compiler)
+		}
+		constructor := s.astFactory.CreateFunction("", rhino.IR_ParamList(), body, AstFactory_Type_(classNode))
+		memberDef = s.astFactory.CreateMemberFunctionDef("constructor", constructor)
+	}
+	memberDef.SrcrefTreeIfMissing(classNode)
+	memberDef.MakeNonIndexableRecursive()
+	classMembers.AddChildToFront(memberDef)
+	NodeUtil_AddFeatureToScript(t.GetCurrentScript(), parser.FeatureSet_Feature_MEMBER_DECLARATIONS, s.compiler)
+	// report newly created constructor
+	s.compiler.ReportChangeToChangeScope(memberDef.GetOnlyChild())
+	// report change to scope containing the class
+	s.compiler.ReportChangeToEnclosingScope(memberDef)
+}
+
+// Java: SynthesizeExplicitConstructors.isInterface(Node)
+func (s *SynthesizeExplicitConstructors) IsInterface(classNode rhino.Node) bool {
+	classJsDocInfo := NodeUtil_GetBestJSDocInfo(classNode)
+	return classJsDocInfo != nil && classJsDocInfo.IsInterface()
 }

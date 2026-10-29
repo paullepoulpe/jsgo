@@ -173,42 +173,6 @@ func (b ControlFlowGraph_Branch) IsConditional() bool {
 	return b == ControlFlowGraph_Branch_ON_TRUE || b == ControlFlowGraph_Branch_ON_FALSE
 }
 
-// ControlFlowGraph_AbstractCfgNodeTraversalCallback is an abstract callback
-// to visit a control flow graph node without going into subtrees of the node
-// that are also represented by other control flow graph nodes.
-//
-// For example, traversing an IF node as root will visit the two subtrees
-// pointed by the ControlFlowGraph.Branch#ON_TRUE and
-// ControlFlowGraph.Branch#ON_FALSE edges.
-//
-// Subclasses embed ControlFlowGraph_AbstractCfgNodeTraversalCallbackBase,
-// which provides the final shouldTraverse, and implement Visit.
-type ControlFlowGraph_AbstractCfgNodeTraversalCallback interface {
-	NodeTraversal_Callback
-
-	GetControlFlowGraph_AbstractCfgNodeTraversalCallbackBase() *ControlFlowGraph_AbstractCfgNodeTraversalCallbackBase
-}
-
-// ControlFlowGraph_AbstractCfgNodeTraversalCallbackBase holds the base
-// implementation of ControlFlowGraph_AbstractCfgNodeTraversalCallback.
-type ControlFlowGraph_AbstractCfgNodeTraversalCallbackBase struct{}
-
-// GetControlFlowGraph_AbstractCfgNodeTraversalCallbackBase gives access to
-// the base through the interface.
-func (b *ControlFlowGraph_AbstractCfgNodeTraversalCallbackBase) GetControlFlowGraph_AbstractCfgNodeTraversalCallbackBase() *ControlFlowGraph_AbstractCfgNodeTraversalCallbackBase {
-	return b
-}
-
-// ShouldTraverse is final in Java.
-//
-// Java: ControlFlowGraph.AbstractCfgNodeTraversalCallback.shouldTraverse(NodeTraversal, Node, Node)
-func (b *ControlFlowGraph_AbstractCfgNodeTraversalCallbackBase) ShouldTraverse(nodeTraversal *NodeTraversal, n rhino.Node, parent rhino.Node) bool {
-	if parent.IsNil() {
-		return true
-	}
-	return !ControlFlowGraph_IsEnteringNewCfgNode(n)
-}
-
 // ControlFlowGraph_IsEnteringNewCfgNode returns true if n should be
 // represented by a new CFG node in the control flow graph.
 //
@@ -267,106 +231,14 @@ func (c *ControlFlowGraph[N]) String() string {
 	return s
 }
 
-// traverseCfgNode walks a single CFG node's subtree with a scope-free
-// ControlFlowGraph_AbstractCfgNodeTraversalCallback without allocating a
-// NodeTraversal or walking parent pointers to the script root.
-func traverseCfgNode[T ControlFlowGraph_AbstractCfgNodeTraversalCallback](compiler AbstractCompiler, root rhino.Node, cb T) {
+func throwNilCfgNodeTraversal(compiler AbstractCompiler) {
 	jutil.CheckNotNull(compiler)
-	if root.IsNil() {
-		b := NodeTraversal_Builder{compiler: compiler, callback: cb}
-		newNodeTraversal(&b).Traverse(root)
+	if Platform_IsThreadInterrupted() {
+		exc := jutil.NewRuntimeExceptionWithCause(jutil.NewInterruptedException())
+		compiler.ThrowInternalError(jutil.ToJavaString(jutil.GetMessageOrNull(exc)), exc)
 		return
 	}
-	var currentNode rhino.Node
-	jutil.Try(func() {
-		if Platform_IsThreadInterrupted() {
-			panic(jutil.NewRuntimeExceptionWithCause(jutil.NewInterruptedException()))
-		}
-		currentNode = root
-		walkCfgNodeBranch(root, rhino.NilNode, cb, &currentNode)
-	}, func(unexpectedException jutil.Throwable) {
-		b := NodeTraversal_Builder{compiler: compiler, callback: cb}
-		t := newNodeTraversal(&b)
-		t.InitTraversal(root)
-		t.currentNode = currentNode
-		t.ThrowUnexpectedException(unexpectedException)
-	})
-}
-
-func walkCfgNodeBranch[T ControlFlowGraph_AbstractCfgNodeTraversalCallback](n, parent rhino.Node, cb T, currentNode *rhino.Node) {
-	*currentNode = n
-	if !parent.IsNil() && ControlFlowGraph_IsEnteringNewCfgNode(n) {
-		return
-	}
-	switch n.GetToken() {
-	case rhino.Token_SCRIPT:
-		if Platform_IsThreadInterrupted() {
-			panic(jutil.NewRuntimeExceptionWithCause(jutil.NewInterruptedException()))
-		}
-		for child := n.GetFirstChild(); !child.IsNil(); {
-			next := child.GetNext()
-			walkCfgNodeBranch(child, n, cb, currentNode)
-			child = next
-		}
-	case rhino.Token_FUNCTION:
-		fn := ast.MustFunction(n)
-		if !parent.IsNil() {
-			_ = NodeUtil_IsFunctionDeclaration(n)
-		}
-		fnName := fn.NameNode().Node()
-		args := fn.Params().Node()
-		body := fn.Body().Node()
-		walkCfgNodeBranch(fnName, n, cb, currentNode)
-		walkCfgNodeBranch(args, n, cb, currentNode)
-		walkCfgNodeBranch(body, n, cb, currentNode)
-	case rhino.Token_CLASS:
-		cls := ast.MustClass(n)
-		className := cls.NameNode()
-		extendsClause := cls.ExtendsNode()
-		body := cls.Body().Node()
-		_ = NodeUtil_IsClassExpression(n)
-		walkCfgNodeBranch(extendsClause, n, cb, currentNode)
-		walkCfgNodeBranch(className, n, cb, currentNode)
-		walkCfgNodeBranch(body, n, cb, currentNode)
-	case rhino.Token_CLASS_MEMBERS:
-		for child := n.GetFirstChild(); !child.IsNil(); {
-			next := child.GetNext()
-			if cm, ok := ast.AsComputedMember(child); ok {
-				walkCfgNodeBranch(cm.Key().Node(), child, cb, currentNode)
-			}
-			child = next
-		}
-		for child := n.GetFirstChild(); !child.IsNil(); {
-			next := child.GetNext()
-			if cm, ok := ast.AsComputedMember(child); ok {
-				*currentNode = n
-				if !ControlFlowGraph_IsEnteringNewCfgNode(child) {
-					if val, hasVal := cm.Value(); hasVal {
-						walkCfgNodeBranch(val.Node(), child, cb, currentNode)
-					}
-					*currentNode = n
-					cb.Visit(nil, child, n)
-				}
-			} else {
-				switch child.GetToken() {
-				case rhino.Token_MEMBER_FIELD_DEF, rhino.Token_BLOCK, rhino.Token_MEMBER_FUNCTION_DEF,
-					rhino.Token_MEMBER_VARIABLE_DEF, rhino.Token_GETTER_DEF, rhino.Token_SETTER_DEF:
-					walkCfgNodeBranch(child, n, cb, currentNode)
-				default:
-					panic(jutil.NewIllegalStateExceptionMsg("Invalid class member: " + child.GetToken().String()))
-				}
-			}
-			child = next
-		}
-	default:
-		for child := n.GetFirstChild(); !child.IsNil(); {
-			next := child.GetNext()
-			walkCfgNodeBranch(child, n, cb, currentNode)
-			child = next
-		}
-	}
-	*currentNode = n
-	cb.Visit(nil, n, parent)
+	compiler.ThrowInternalError("null", jutil.NewNullPointerException())
 }
 
 var (
