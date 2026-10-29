@@ -376,14 +376,12 @@ func (d *MustBeReachingVariableDef) ResolveVarID(v *Var) (int, bool) {
 	return id, true
 }
 
-// AddDependencyNames adds the names of all local variables read by def into dst.
-func (d *MustBeReachingVariableDef) AddDependencyNames(def *MustBeReachingVariableDef_Definition, dst *jutil.LinkedHashSet[string]) {
-	if def == nil {
-		return
+func (d *MustBeReachingVariableDef) hasDependentNameID(def *MustBeReachingVariableDef_Definition, nameID uint32) bool {
+	if def == nil || def.deps.isEmpty() {
+		return false
 	}
-	def.deps.forEach(func(id int) {
-		dst.Add(d.vars[id].GetName())
-	})
+	id, ok := d.lookupVarIDByStringID(nameID)
+	return ok && def.deps.has(id)
 }
 
 func (d *MustBeReachingVariableDef) allocMustDefEmpty() *MustBeReachingVariableDef_MustDef {
@@ -1035,6 +1033,12 @@ func (d *MustBeReachingVariableDef) getDefFromMustDef(name string, inState *Must
 	return d.getDefFromMustDefByID(rhino.RhinoStringPool_LookupID(name), inState)
 }
 
+func (d *MustBeReachingVariableDef) getDefByID(nameID uint32, useNode rhino.Node) *MustBeReachingVariableDef_Definition {
+	n := d.cfg.Nodes.Get(useNode)
+	jutil.CheckArgument(n != nil)
+	return d.getDefFromMustDefByID(nameID, d.nodeStates[n.Index].in)
+}
+
 // GetDef gets the must-be-reaching definition of a given use node.
 //
 // name is the name of the variable. It can only be names of local variable
@@ -1044,9 +1048,7 @@ func (d *MustBeReachingVariableDef) getDefFromMustDef(name string, inState *Must
 //
 // Java: MustBeReachingVariableDef.getDef(String, Node)
 func (d *MustBeReachingVariableDef) GetDef(name string, useNode rhino.Node) *MustBeReachingVariableDef_Definition {
-	n := d.cfg.Nodes.Get(useNode)
-	jutil.CheckArgument(n != nil)
-	return d.getDefFromMustDef(name, d.nodeStates[n.Index].in)
+	return d.getDefByID(rhino.RhinoStringPool_LookupID(name), useNode)
 }
 
 // Java: MustBeReachingVariableDef.getDefNode(String, Node)

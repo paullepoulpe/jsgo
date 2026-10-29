@@ -147,24 +147,58 @@ var (
 	runtimeLibsTypedAstShards []cachedTypedAstShard
 )
 
+type typedAstFileEntry struct {
+	sd        *ScriptNodeDeserializer
+	synthetic *typedAstDeserializer_SyntheticExternsDeserializer
+	weakFile  *SourceFile
+}
+
+func (e typedAstFileEntry) DeserializeNew() rhino.Node {
+	if e.sd != nil {
+		return e.sd.DeserializeNew()
+	}
+	if e.synthetic != nil {
+		return e.synthetic.Deserialize()
+	}
+	return typedAstDeserializer_deserializeWeakScriptNode(e.weakFile)
+}
+
+func (e typedAstFileEntry) toSupplier() func() rhino.Node {
+	if e.sd != nil {
+		return e.sd.DeserializeNew
+	}
+	if e.synthetic != nil {
+		return e.synthetic.Deserialize
+	}
+	return typedAstDeserializer_createStubWeakScriptNode(e.weakFile)
+}
+
+type typedAstFilesystemMap map[*SourceFile]typedAstFileEntry
+
+func (m typedAstFilesystemMap) Remove(file *SourceFile) (typedAstFileEntry, bool) {
+	e, ok := m[file]
+	if ok {
+		delete(m, file)
+	}
+	return e, ok
+}
+
 // TypedAstDeserializer deserializes a list of TypedAst protos into the
 // JSCompiler AST structure.
 //
 // Go-only: language-adapter — Guava/JDK Optional values are nil-able
-// pointers (nil is absent); java.util.function.Supplier<Node> is
-// func() rhino.Node; the ConcurrentMap filesystem is a
-// *jutil.LinkedHashMap (Java's ConcurrentHashMap iteration order is
-// unspecified, and Closure only looks suppliers up by file).
+// pointers (nil is absent).
 type TypedAstDeserializer struct {
 	mode             typedAstDeserializer_Mode
 	syntheticExterns *SourceFile
 	colorPoolBuilder *ColorPool_Builder // Optional: nil when absent
 
-	requiredInputFiles            *jutil.LinkedHashSet[*SourceFile] // Optional: nil when absent
+	requiredInputFiles            map[*SourceFile]struct{} // Optional: nil when absent
+	requiredOrder                 []*SourceFile
 	filePoolBuilder               map[string]*SourceFile
 	canonicalFilePool             map[string]*SourceFile
-	typedAstFilesystem            *jutil.LinkedHashMap[*SourceFile, func() rhino.Node]
-	scriptDeserializers           map[*SourceFile]*ScriptNodeDeserializer
+	typedAstFilesystem            typedAstFilesystemMap
+	filesystemOrder               []*SourceFile
 	externProperties              *jutil.LinkedHashSet[string]
 	runtimeLibraries              *jutil.LinkedHashSet[string]
 	syntheticExternsDeserializers []*ScriptNodeDeserializer
@@ -178,20 +212,21 @@ func typedAstDeserializer_scriptSentinel() rhino.Node {
 func newTypedAstDeserializer(
 	syntheticExterns *SourceFile,
 	existingColorPool *ColorPool_Builder,
-	requiredInputFiles *jutil.LinkedHashSet[*SourceFile],
+	requiredOrder []*SourceFile,
+	requiredInputFiles map[*SourceFile]struct{},
 	mode typedAstDeserializer_Mode,
 	includeTypeInformation bool) *TypedAstDeserializer {
 	capHint := 16
 	if requiredInputFiles != nil {
-		capHint = requiredInputFiles.Size() + 1
+		capHint = len(requiredInputFiles) + 1
 	}
 	d := &TypedAstDeserializer{
-		filePoolBuilder:     make(map[string]*SourceFile, capHint),
-		canonicalFilePool:   make(map[string]*SourceFile),
-		typedAstFilesystem:  jutil.NewLinkedHashMap[*SourceFile, func() rhino.Node](),
-		scriptDeserializers: make(map[*SourceFile]*ScriptNodeDeserializer),
-		externProperties:    jutil.NewLinkedHashSet[string](),
-		runtimeLibraries:    jutil.NewLinkedHashSet[string](),
+		filePoolBuilder:    make(map[string]*SourceFile, capHint),
+		canonicalFilePool:  make(map[string]*SourceFile),
+		typedAstFilesystem: make(typedAstFilesystemMap, capHint),
+		filesystemOrder:    make([]*SourceFile, 0, capHint),
+		externProperties:   jutil.NewLinkedHashSet[string](),
+		runtimeLibraries:   jutil.NewLinkedHashSet[string](),
 	}
 	d.syntheticExterns = syntheticExterns
 	d.mode = mode
@@ -205,6 +240,7 @@ func newTypedAstDeserializer(
 	} else {
 		d.colorPoolBuilder = nil
 	}
+	d.requiredOrder = requiredOrder
 	d.requiredInputFiles = requiredInputFiles
 	return d
 }
@@ -240,9 +276,36 @@ func TypedAstDeserializer_DeserializeFullAst(
 	includeTypeInformation bool,
 	resolveSourceMapAnnotations bool,
 	parseInlineSourceMaps bool) *TypedAstDeserializer_DeserializedAst {
-	// requiredInputFiles.stream().collect(toImmutableMap(SourceFile::getName, Function.identity()))
-	seenNames := make(map[string]*SourceFile, requiredInputFiles.Size())
+	n := requiredInputFiles.Size()
+	requiredOrder := make([]*SourceFile, 0, n)
+	requiredSet := make(map[*SourceFile]struct{}, n)
 	for f := range requiredInputFiles.All() {
+		requiredOrder = append(requiredOrder, f)
+		requiredSet[f] = struct{}{}
+	}
+	return typedAstDeserializer_deserializeFullAstFromSet(
+		compiler,
+		syntheticExterns,
+		requiredOrder,
+		requiredSet,
+		typedAstsStream,
+		includeTypeInformation,
+		resolveSourceMapAnnotations,
+		parseInlineSourceMaps)
+}
+
+func typedAstDeserializer_deserializeFullAstFromSet(
+	compiler AbstractCompiler,
+	syntheticExterns *SourceFile,
+	requiredOrder []*SourceFile,
+	requiredSet map[*SourceFile]struct{},
+	typedAstsStream io.Reader,
+	includeTypeInformation bool,
+	resolveSourceMapAnnotations bool,
+	parseInlineSourceMaps bool) *TypedAstDeserializer_DeserializedAst {
+	// requiredInputFiles.stream().collect(toImmutableMap(SourceFile::getName, Function.identity()))
+	seenNames := make(map[string]*SourceFile, len(requiredOrder))
+	for _, f := range requiredOrder {
 		name := f.GetName()
 		if prev, dup := seenNames[name]; dup {
 			panic(jutil.NewIllegalArgumentExceptionMsg(
@@ -253,7 +316,8 @@ func TypedAstDeserializer_DeserializeFullAst(
 	return typedAstDeserializer_deserialize(
 		compiler,
 		syntheticExterns,
-		requiredInputFiles,
+		requiredOrder,
+		requiredSet,
 		nil,
 		typedAstsStream,
 		typedAstDeserializer_Mode_FULL_AST,
@@ -283,6 +347,7 @@ func TypedAstDeserializer_DeserializeRuntimeLibraries(
 		// we don't a priori know the SourceFiles corresponding to the runtime libraries like we
 		// do for normal CompilerInputs
 		nil,
+		nil,
 		colorPool,
 		typedAstsStream,
 		typedAstDeserializer_Mode_RUNTIME_LIBRARY_ONLY,
@@ -295,7 +360,8 @@ func TypedAstDeserializer_DeserializeRuntimeLibraries(
 func typedAstDeserializer_deserialize(
 	compiler AbstractCompiler,
 	syntheticExterns *SourceFile,
-	requiredInputFiles *jutil.LinkedHashSet[*SourceFile],
+	requiredOrder []*SourceFile,
+	requiredInputFiles map[*SourceFile]struct{},
 	colorPool *ColorPool_Builder,
 	typedAstStream io.Reader,
 	mode typedAstDeserializer_Mode,
@@ -308,12 +374,10 @@ func typedAstDeserializer_deserialize(
 
 	deserializer :=
 		newTypedAstDeserializer(
-			syntheticExterns, colorPool, requiredInputFiles, mode, includeTypeInformation)
+			syntheticExterns, colorPool, requiredOrder, requiredInputFiles, mode, includeTypeInformation)
 	deserializer.addToFilePool(syntheticExterns.GetName(), syntheticExterns)
-	if requiredInputFiles != nil {
-		for file := range requiredInputFiles.All() {
-			deserializer.addToFilePool(file.GetName(), file)
-		}
+	for _, file := range requiredOrder {
+		deserializer.addToFilePool(file.GetName(), file)
 	}
 
 	if mode != typedAstDeserializer_Mode_RUNTIME_LIBRARY_ONLY {
@@ -325,11 +389,13 @@ func typedAstDeserializer_deserialize(
 	typedAstDeserializer_deserializeTypedAsts(
 		typedAstStream, deserializer, compiler, resolveSourceMapAnnotations, parseInlineSourceMaps)
 
-	deserializer.typedAstFilesystem.Put(
-		syntheticExterns,
-		newTypedAstDeserializer_SyntheticExternsDeserializer(
-			syntheticExterns, deserializer.syntheticExternsDeserializers).
-			Deserialize)
+	if _, exists := deserializer.typedAstFilesystem[syntheticExterns]; !exists {
+		deserializer.filesystemOrder = append(deserializer.filesystemOrder, syntheticExterns)
+	}
+	deserializer.typedAstFilesystem[syntheticExterns] = typedAstFileEntry{
+		synthetic: newTypedAstDeserializer_SyntheticExternsDeserializer(
+			syntheticExterns, deserializer.syntheticExternsDeserializers),
+	}
 
 	return deserializer.toDeserializedAst()
 }
@@ -390,12 +456,10 @@ func (d *TypedAstDeserializer) toDeserializedAst() *TypedAstDeserializer_Deseria
 	runtimeLibs := d.runtimeLibraries
 	d.externProperties = nil
 	d.runtimeLibraries = nil
-	out := typedAstDeserializer_DeserializedAst_create(
-		d.typedAstFilesystem, registry,
+	return typedAstDeserializer_DeserializedAst_create(
+		d.typedAstFilesystem, d.filesystemOrder, registry,
 		externProps,
 		runtimeLibs)
-	out.scriptDeserializers = d.scriptDeserializers
-	return out
 }
 
 // typedAstDeserializer_forEachLazyAst visits externAst followed by codeAst without allocating a concatenated slice.
@@ -436,10 +500,13 @@ func (d *TypedAstDeserializer) deserializeTypedAstWithStringShard(
 		// TypedAST only containing ["c.js", "synthetic:externs"], it's a drain on performance to
 		// include it.
 		containsRequiredInput := false
-		req := jutil.CheckNotNull(d.requiredInputFiles)
+		if d.requiredInputFiles == nil {
+			panic(jutil.NewNullPointerException())
+		}
+		req := d.requiredInputFiles
 		typedAstDeserializer_forEachLazyAst(typedAstProto, func(lazyAst *LazyAst) bool {
 			file := fileShard[lazyAst.GetSourceFile()-1]
-			if req.Contains(file) {
+			if _, ok := req[file]; ok {
 				containsRequiredInput = true
 				return false
 			}
@@ -536,16 +603,20 @@ func (d *TypedAstDeserializer) initLazyAstDeserializer(
 	parseInlineSourceMaps bool) {
 	file := fileShard[lazyAst.GetSourceFile()-1]
 
-	if d.requiredInputFiles != nil &&
-		!d.requiredInputFiles.Contains(file) &&
-		// Synthetic externs bypass the normal dependency system and are always included in a
-		// compilation.
-		d.syntheticExterns != file {
-		return
+	if d.requiredInputFiles != nil {
+		if _, ok := d.requiredInputFiles[file]; !ok &&
+			// Synthetic externs bypass the normal dependency system and are always included in a
+			// compilation.
+			d.syntheticExterns != file {
+			return
+		}
 	}
 
 	if file.IsWeak() {
-		d.typedAstFilesystem.ComputeIfAbsent(file, typedAstDeserializer_createStubWeakScriptNode)
+		if _, exists := d.typedAstFilesystem[file]; !exists {
+			d.typedAstFilesystem[file] = typedAstFileEntry{weakFile: file}
+			d.filesystemOrder = append(d.filesystemOrder, file)
+		}
 		return
 	}
 
@@ -554,15 +625,9 @@ func (d *TypedAstDeserializer) initLazyAstDeserializer(
 
 	if d.syntheticExterns == file {
 		d.syntheticExternsDeserializers = append(d.syntheticExternsDeserializers, deserializer)
-	} else {
-		if !d.typedAstFilesystem.ContainsKey(file) {
-			if d.mode == typedAstDeserializer_Mode_FULL_AST {
-				d.typedAstFilesystem.Put(file, typedAstDeserializer_scriptSentinel)
-			} else {
-				d.typedAstFilesystem.Put(file, deserializer.DeserializeNew)
-			}
-			d.scriptDeserializers[file] = deserializer
-		}
+	} else if _, exists := d.typedAstFilesystem[file]; !exists {
+		d.typedAstFilesystem[file] = typedAstFileEntry{sd: deserializer}
+		d.filesystemOrder = append(d.filesystemOrder, file)
 	}
 
 	typedAstDeserializer_addInputSourceMap(deserializer, compiler, resolveSourceMapAnnotations, parseInlineSourceMaps)
@@ -607,6 +672,13 @@ func typedAstDeserializer_addInputSourceMap(
 	}
 }
 
+func typedAstDeserializer_deserializeWeakScriptNode(file *SourceFile) rhino.Node {
+	stubScript := rhino.IR_Script()
+	stubScript.SetStaticSourceFileFrom(file.getOrCreateSourceInfoTemplate())
+	stubScript.PutProp(rhino.Node_FEATURE_SET, parser.FeatureSet_BARE_MINIMUM)
+	return stubScript
+}
+
 // typedAstDeserializer_createStubWeakScriptNode adds a stub deserializer for
 // weak files to the typed ast files system.
 //
@@ -616,10 +688,7 @@ func typedAstDeserializer_addInputSourceMap(
 // Java: TypedAstDeserializer.createStubWeakScriptNode(SourceFile)
 func typedAstDeserializer_createStubWeakScriptNode(file *SourceFile) func() rhino.Node {
 	return func() rhino.Node {
-		stubScript := rhino.IR_Script()
-		stubScript.SetStaticSourceFileFrom(file.getOrCreateSourceInfoTemplate())
-		stubScript.PutProp(rhino.Node_FEATURE_SET, parser.FeatureSet_BARE_MINIMUM)
-		return stubScript
+		return typedAstDeserializer_deserializeWeakScriptNode(file)
 	}
 }
 
@@ -659,95 +728,100 @@ func typedAstDeserializer_deserializeTypedAsts(
 		return
 	}
 
-	jutil.Try(func() {
-		numWorkers := 1
-		if compiler != nil && compiler.GetOptions() != nil && compiler.GetOptions().GetNumParallelThreads() > 1 {
-			numWorkers = compiler.GetOptions().GetNumParallelThreads()
-		} else if n := runtime.GOMAXPROCS(0); n > 1 {
-			numWorkers = n
-		}
-
-		var requiredNames map[string]struct{}
-		ensureRequiredNames := func() {
-			if requiredNames != nil {
-				return
+	defer func() {
+		if r := recover(); r != nil {
+			if ex, ok := r.(jutil.IIOException); ok {
+				message := "Cannot read from TypedAST input stream"
+				e := &jutil.IllegalArgumentException{}
+				jutil.InitThrowable(e, "java.lang.IllegalArgumentException", &message, ex)
+				panic(e)
 			}
-			requiredNames = make(map[string]struct{}, deserializer.requiredInputFiles.Size()*2)
-			for f := range deserializer.requiredInputFiles.All() {
-				name := f.GetName()
-				requiredNames[name] = struct{}{}
-				if canon := SourceFile_CanonicalizePathForMatching(name); canon != name {
-					requiredNames[canon] = struct{}{}
+			panic(r)
+		}
+	}()
+
+	numWorkers := 1
+	if compiler != nil && compiler.GetOptions() != nil && compiler.GetOptions().GetNumParallelThreads() > 1 {
+		numWorkers = compiler.GetOptions().GetNumParallelThreads()
+	} else if n := runtime.GOMAXPROCS(0); n > 1 {
+		numWorkers = n
+	}
+
+	var requiredNames map[string]struct{}
+	ensureRequiredNames := func() {
+		if requiredNames != nil {
+			return
+		}
+		requiredNames = make(map[string]struct{}, len(deserializer.requiredOrder)*2)
+		for _, f := range deserializer.requiredOrder {
+			name := f.GetName()
+			requiredNames[name] = struct{}{}
+			if canon := SourceFile_CanonicalizePathForMatching(name); canon != name {
+				requiredNames[canon] = struct{}{}
+			}
+		}
+	}
+	buildStringPool := func(typedAstProto *TypedAst) bool {
+		if deserializer.mode != typedAstDeserializer_Mode_FULL_AST || deserializer.requiredInputFiles == nil {
+			return true
+		}
+		ensureRequiredNames()
+		protos := typedAstProto.GetSourceFilePool().GetSourceFileList()
+		found := false
+		typedAstDeserializer_forEachLazyAst(typedAstProto, func(lazyAst *LazyAst) bool {
+			idx := int(lazyAst.GetSourceFile()) - 1
+			if idx >= 0 && idx < len(protos) {
+				fn := protos[idx].GetFilename()
+				if _, ok := requiredNames[fn]; ok {
+					found = true
+					return false
+				}
+				if _, ok := requiredNames[SourceFile_CanonicalizePathForMatching(fn)]; ok {
+					found = true
+					return false
 				}
 			}
+			return true
+		})
+		return found
+	}
+
+	processShardBatch := func(batch [][]byte) {
+		if len(batch) == 1 {
+			typedAst, stringShard := typedAstDeserializer_decodeShardBytes(batch[0], buildStringPool)
+			deserializer.deserializeTypedAstWithStringShard(
+				typedAst, stringShard, compiler, resolveSourceMapAnnotations, parseInlineSourceMaps)
+			return
 		}
-		buildStringPool := func(typedAstProto *TypedAst) bool {
-			if deserializer.mode != typedAstDeserializer_Mode_FULL_AST || deserializer.requiredInputFiles == nil {
-				return true
-			}
+		if deserializer.mode == typedAstDeserializer_Mode_FULL_AST && deserializer.requiredInputFiles != nil {
 			ensureRequiredNames()
-			protos := typedAstProto.GetSourceFilePool().GetSourceFileList()
-			found := false
-			typedAstDeserializer_forEachLazyAst(typedAstProto, func(lazyAst *LazyAst) bool {
-				idx := int(lazyAst.GetSourceFile()) - 1
-				if idx >= 0 && idx < len(protos) {
-					fn := protos[idx].GetFilename()
-					if _, ok := requiredNames[fn]; ok {
-						found = true
-						return false
-					}
-					if _, ok := requiredNames[SourceFile_CanonicalizePathForMatching(fn)]; ok {
-						found = true
-						return false
-					}
-				}
-				return true
-			})
-			return found
 		}
-
-		processShardBatch := func(batch [][]byte) {
-			if len(batch) == 1 {
-				typedAst, stringShard := typedAstDeserializer_decodeShardBytes(batch[0], buildStringPool)
-				deserializer.deserializeTypedAstWithStringShard(
-					typedAst, stringShard, compiler, resolveSourceMapAnnotations, parseInlineSourceMaps)
-				return
+		outcomes := make([]cachedTypedAstShard, len(batch))
+		failures := parallelPrebuild(len(batch), min(numWorkers, len(batch)), func(i int) {
+			typedAst, stringShard := typedAstDeserializer_decodeShardBytes(batch[i], buildStringPool)
+			outcomes[i] = cachedTypedAstShard{proto: typedAst, stringShard: stringShard}
+		})
+		for i := range batch {
+			if failures[i] != nil {
+				panic(failures[i])
 			}
-			if deserializer.mode == typedAstDeserializer_Mode_FULL_AST && deserializer.requiredInputFiles != nil {
-				ensureRequiredNames()
-			}
-			outcomes := make([]cachedTypedAstShard, len(batch))
-			failures := parallelPrebuild(len(batch), min(numWorkers, len(batch)), func(i int) {
-				typedAst, stringShard := typedAstDeserializer_decodeShardBytes(batch[i], buildStringPool)
-				outcomes[i] = cachedTypedAstShard{proto: typedAst, stringShard: stringShard}
-			})
-			for i := range batch {
-				if failures[i] != nil {
-					panic(failures[i])
-				}
-				deserializer.deserializeTypedAstWithStringShard(
-					outcomes[i].proto,
-					outcomes[i].stringShard,
-					compiler,
-					resolveSourceMapAnnotations,
-					parseInlineSourceMaps)
-			}
+			deserializer.deserializeTypedAstWithStringShard(
+				outcomes[i].proto,
+				outcomes[i].stringShard,
+				compiler,
+				resolveSourceMapAnnotations,
+				parseInlineSourceMaps)
 		}
+	}
 
-		typedAstDeserializer_scanTypedAstStream(
-			typedAstsStream,
-			processShardBatch,
-			func(largeMsgLen int) {
-				typedAst, stringShard := typedAstDeserializer_streamLargeShard(typedAstsStream, largeMsgLen, buildStringPool)
-				deserializer.deserializeTypedAstWithStringShard(
-					typedAst, stringShard, compiler, resolveSourceMapAnnotations, parseInlineSourceMaps)
-			})
-	}, func(ex jutil.IIOException) {
-		message := "Cannot read from TypedAST input stream"
-		e := &jutil.IllegalArgumentException{}
-		jutil.InitThrowable(e, "java.lang.IllegalArgumentException", &message, ex)
-		panic(e)
-	})
+	typedAstDeserializer_scanTypedAstStream(
+		typedAstsStream,
+		processShardBatch,
+		func(largeMsgLen int) {
+			typedAst, stringShard := typedAstDeserializer_streamLargeShard(typedAstsStream, largeMsgLen, buildStringPool)
+			deserializer.deserializeTypedAstWithStringShard(
+				typedAst, stringShard, compiler, resolveSourceMapAnnotations, parseInlineSourceMaps)
+		})
 }
 
 // TypedAstDeserializer_DeserializedAst is the result of deserializing a
@@ -759,15 +833,16 @@ func typedAstDeserializer_deserializeTypedAsts(
 //
 // Java: public abstract static class TypedAstDeserializer.DeserializedAst
 type TypedAstDeserializer_DeserializedAst struct {
-	filesystem          *jutil.LinkedHashMap[*SourceFile, func() rhino.Node]
+	filesystem          typedAstFilesystemMap
+	filesystemOrder     []*SourceFile
+	lazyFilesystem      *jutil.LinkedHashMap[*SourceFile, func() rhino.Node]
 	scriptDeserializers map[*SourceFile]*ScriptNodeDeserializer
-	suppliersBound      bool
 	colorRegistry       *colors.ColorRegistry // Optional: nil when absent
 	externProperties    *jutil.LinkedHashSet[string]
 	runtimeLibraries    *jutil.LinkedHashSet[string]
 }
 
-func (a *TypedAstDeserializer_DeserializedAst) rawFilesystem() *jutil.LinkedHashMap[*SourceFile, func() rhino.Node] {
+func (a *TypedAstDeserializer_DeserializedAst) rawFilesystem() typedAstFilesystemMap {
 	return a.filesystem
 }
 
@@ -779,16 +854,16 @@ func (a *TypedAstDeserializer_DeserializedAst) rawFilesystem() *jutil.LinkedHash
 //
 // Java: TypedAstDeserializer.DeserializedAst.getFilesystem()
 func (a *TypedAstDeserializer_DeserializedAst) GetFilesystem() *jutil.LinkedHashMap[*SourceFile, func() rhino.Node] {
-	if !a.suppliersBound && len(a.scriptDeserializers) > 0 && a.filesystem != nil {
-		a.suppliersBound = true
-		// order-independent: replaces values of existing keys, which keeps the LinkedHashMap's order
-		for file, sd := range a.scriptDeserializers {
-			if a.filesystem.ContainsKey(file) {
-				a.filesystem.Put(file, sd.DeserializeNew)
+	if a.lazyFilesystem == nil {
+		m := jutil.NewLinkedHashMapWithCapacity[*SourceFile, func() rhino.Node](len(a.filesystem))
+		for _, file := range a.filesystemOrder {
+			if entry, ok := a.filesystem[file]; ok {
+				m.Put(file, entry.toSupplier())
 			}
 		}
+		a.lazyFilesystem = m
 	}
-	return a.filesystem
+	return a.lazyFilesystem
 }
 
 // GetColorRegistry is the built ColorRegistry (nil when absent).
@@ -820,17 +895,19 @@ func (a *TypedAstDeserializer_DeserializedAst) GetRuntimeLibraries() *jutil.Link
 
 // Java: TypedAstDeserializer.DeserializedAst.create(ConcurrentMap<SourceFile, Supplier<Node>>, Optional<ColorRegistry>, ImmutableSet<String>, ImmutableSet<String>)
 func typedAstDeserializer_DeserializedAst_create(
-	filesystem *jutil.LinkedHashMap[*SourceFile, func() rhino.Node],
+	filesystem typedAstFilesystemMap,
+	filesystemOrder []*SourceFile,
 	colorRegistry *colors.ColorRegistry,
 	externProperties *jutil.LinkedHashSet[string],
 	runtimeLibraries *jutil.LinkedHashSet[string]) *TypedAstDeserializer_DeserializedAst {
 	return newAutoValue_TypedAstDeserializer_DeserializedAst(
-		filesystem, colorRegistry, externProperties, runtimeLibraries)
+		filesystem, filesystemOrder, colorRegistry, externProperties, runtimeLibraries)
 }
 
 // Java: AutoValue_TypedAstDeserializer_DeserializedAst(ConcurrentMap<SourceFile, Supplier<Node>>, Optional<ColorRegistry>, ImmutableSet<String>, ImmutableSet<String>)
 func newAutoValue_TypedAstDeserializer_DeserializedAst(
-	filesystem *jutil.LinkedHashMap[*SourceFile, func() rhino.Node],
+	filesystem typedAstFilesystemMap,
+	filesystemOrder []*SourceFile,
 	colorRegistry *colors.ColorRegistry,
 	externProperties *jutil.LinkedHashSet[string],
 	runtimeLibraries *jutil.LinkedHashSet[string]) *TypedAstDeserializer_DeserializedAst {
@@ -843,6 +920,7 @@ func newAutoValue_TypedAstDeserializer_DeserializedAst(
 	}
 	return &TypedAstDeserializer_DeserializedAst{
 		filesystem:       filesystem,
+		filesystemOrder:  filesystemOrder,
 		colorRegistry:    colorRegistry,
 		externProperties: externProperties,
 		runtimeLibraries: runtimeLibraries,
@@ -862,7 +940,7 @@ func (a *TypedAstDeserializer_DeserializedAst) String() string {
 		externProperties = a.externProperties.String()
 	}
 	return "DeserializedAst{" +
-		"filesystem=" + a.filesystem.String() + ", " +
+		"filesystem=" + a.GetFilesystem().String() + ", " +
 		"colorRegistry=" + colorRegistry + ", " +
 		"externProperties=" + externProperties + ", " +
 		"runtimeLibraries=" + a.runtimeLibraries.String() +
@@ -887,7 +965,7 @@ func (a *TypedAstDeserializer_DeserializedAst) Equals(o any) bool {
 		} else {
 			externPropertiesEqual = a.externProperties.Equals(that.GetExternProperties())
 		}
-		return a.filesystem == that.GetFilesystem() &&
+		return a.GetFilesystem() == that.GetFilesystem() &&
 			a.colorRegistry == that.GetColorRegistry() &&
 			externPropertiesEqual &&
 			a.runtimeLibraries.Equals(that.GetRuntimeLibraries())
@@ -905,7 +983,7 @@ func (a *TypedAstDeserializer_DeserializedAst) Equals(o any) bool {
 func (a *TypedAstDeserializer_DeserializedAst) HashCode() int32 {
 	h := int32(1)
 	h *= 1000003
-	h ^= int32(a.filesystem.Size())
+	h ^= int32(len(a.filesystem))
 	h *= 1000003
 	if a.colorRegistry != nil {
 		h ^= 1

@@ -38,7 +38,6 @@ import (
 
 type fsivCandidateDef struct {
 	nameID  uint32
-	varName string
 	rhs     ast.Expr
 	hasRead bool
 	hasFunc bool
@@ -93,7 +92,6 @@ type FlowSensitiveInlineVariables struct {
 	varTable            fnVarTable
 	candVarSeen         dfaBitSet
 	candVarIDs          []uint32
-	namesToCheckSet     jutil.LinkedHashSet[string]
 	gatherCandidates    FlowSensitiveInlineVariables_GatherCandidates
 	gatherCb            FlowSensitiveInlineVariables_GatherCandidatesCfgNodeCallback
 	pathChecker         graph.CheckPathsBetweenNodes[rhino.Node, ControlFlowGraph_Branch]
@@ -153,7 +151,7 @@ func (f *FlowSensitiveInlineVariables) getReachingUses() *MaybeReachingVariableU
 			if cand.removed {
 				continue
 			}
-			idx, ok := table.lookupIndexByID(rhino.RhinoStringPool_LookupID(cand.varName))
+			idx, ok := table.lookupIndexByID(cand.nameID)
 			if !ok || f.candVarSeen.has(idx) {
 				continue
 			}
@@ -305,12 +303,11 @@ func (f *FlowSensitiveInlineVariables) maybeAddCandidateDef(name ast.Name, rhs a
 	if nameID <= rhino.RhinoStringPool_EmptyID {
 		return
 	}
-	varName := name.Ident()
 	unsafe, hasFunc := fsivInspectRhs(rhs.Node())
 	if unsafe {
 		return
 	}
-	if f.getCodingConvention().IsExportedWithLocal(varName, true) {
+	if f.getCodingConvention().IsExportedWithLocal(rhino.RhinoStringPool_StringFromID(nameID), true) {
 		return
 	}
 	if f.getAstAnalyzer().MayHaveSideEffects(rhs.Node()) {
@@ -318,7 +315,6 @@ func (f *FlowSensitiveInlineVariables) maybeAddCandidateDef(name ast.Name, rhs a
 	}
 	f.inlinableDefs = append(f.inlinableDefs, fsivCandidateDef{
 		nameID:  nameID,
-		varName: varName,
 		rhs:     rhs,
 		hasFunc: hasFunc,
 	})
@@ -582,7 +578,7 @@ func (f *FlowSensitiveInlineVariables) processFunction(fn ast.Function, body ast
 		if c.removed {
 			continue
 		}
-		candidateVar := jutil.CheckNotNull(table.lookupVar(c.varName))
+		candidateVar := jutil.CheckNotNull(table.lookupVarByID(c.nameID))
 		if c.CanInline(candidateVar.GetScope().(*Scope)) {
 			c.InlineVariable()
 			c.removed = true
@@ -594,7 +590,7 @@ func (f *FlowSensitiveInlineVariables) processFunction(fn ast.Function, body ast
 			// a conservative heuristic here: For each candidate "other", we back off if its set of
 			// dependencies cannot contain all of "c"'s dependencies.
 			if c.defMetadata.HasDependencies() {
-				if scopeVarID, ok := f.reachingDef.ResolveVarID(scope.GetVar(c.varName)); ok {
+				if scopeVarID, ok := f.reachingDef.ResolveVarID(scope.GetVarByID(c.nameID)); ok {
 					for j := i + 1; j < len(f.candidates); j++ {
 						other := &f.candidates[j]
 						if !other.removed &&
@@ -921,11 +917,11 @@ func (f *FlowSensitiveInlineVariables) buildEnclosingScope() *Scope {
 	return parentScope
 }
 
-func (f *FlowSensitiveInlineVariables) hasEnclosingSlot(name string) bool {
+func (f *FlowSensitiveInlineVariables) hasEnclosingSlotByID(nameID uint32) bool {
 	if f.curFnEnclosingScope == nil {
 		f.curFnEnclosingScope = f.buildEnclosingScope()
 	}
-	return f.curFnEnclosingScope != nil && f.curFnEnclosingScope.HasSlot(name)
+	return f.curFnEnclosingScope != nil && f.curFnEnclosingScope.GetVarByID(nameID) != nil
 }
 
 // FlowSensitiveInlineVariables_GatherCandidatesCfgNodeCallback visits a
@@ -966,15 +962,14 @@ func (cb *FlowSensitiveInlineVariables_GatherCandidatesCfgNodeCallback) Visit(t 
 		if cb.inState != nil {
 			def = cb.outer.reachingDef.getDefFromMustDefByID(nameID, cb.inState)
 		} else {
-			def = cb.outer.reachingDef.GetDef(n.GetString(), cb.cfgNode)
+			def = cb.outer.reachingDef.getDefByID(nameID, cb.cfgNode)
 		}
 		if def != nil && !def.node.IsFunction() && !def.node.IsBlock() &&
 			!cb.outer.reachingDef.DependsOnOuterScopeVars(def) {
-			name := n.GetString()
-			if !cb.outer.getCodingConvention().IsExportedWithLocal(name /* local= */, true) {
+			if !cb.outer.getCodingConvention().IsExportedWithLocal(rhino.RhinoStringPool_StringFromID(nameID) /* local= */, true) {
 				cb.outer.candidates = append(cb.outer.candidates, FlowSensitiveInlineVariables_Candidate{
 					outer:       cb.outer,
-					varName:     name,
+					nameID:      nameID,
 					defMetadata: def,
 					use:         n,
 					useCfgNode:  cb.cfgNode,

@@ -64,50 +64,39 @@ func (c *CollapsePropertiesAndModuleRewritingTest) GetProcessor(compiler *Compil
 		factories := NewPassListBuilder(options)
 		gatherModuleMetadata :=
 			NewGatherModuleMetadata(compiler, false, options.GetModuleResolutionMode())
-		factories.MaybeAdd(
-			PassFactory_Builder_().
-				SetName(PassNames_GATHER_MODULE_METADATA).
-				SetRunInFixedPointLoop(true).
-				SetInternalFactory(func(x AbstractCompiler) CompilerPass { return gatherModuleMetadata }).
-				Build())
-		factories.MaybeAdd(
-			PassFactory_Builder_().
-				SetName(PassNames_CREATE_MODULE_MAP).
-				SetRunInFixedPointLoop(true).
-				SetInternalFactory(
-					func(x AbstractCompiler) CompilerPass {
-						return NewModuleMapCreator(compiler, compiler.GetModuleMetadataMap())
-					}).
-				Build())
+		factories.MaybeAdd(NewLoopablePassFactory(
+			PassNames_GATHER_MODULE_METADATA,
+			func(x AbstractCompiler) CompilerPass { return gatherModuleMetadata },
+		))
+		factories.MaybeAdd(NewLoopablePassFactory(
+			PassNames_CREATE_MODULE_MAP,
+			func(x AbstractCompiler) CompilerPass {
+				return NewModuleMapCreator(compiler, compiler.GetModuleMetadataMap())
+			},
+		))
 		TranspilationPasses_AddEs6ModulePass(
 			factories, NewPreprocessorSymbolTable_CachedInstanceFactory())
-		factories.MaybeAdd(
-			PassFactory_Builder_().
-				SetName("REWRITE_DYNAMIC_IMPORT").
-				SetInternalFactory(
-					func(x AbstractCompiler) CompilerPass {
-						return NewRewriteDynamicImports(compiler, nil, CompilerOptions_ChunkOutputType_ES_MODULES)
-					}).
-				Build())
-		factories.MaybeAdd(
-			PassFactory_Builder_().
-				SetName(PassNames_ES6_NORMALIZE_CLASSES).
-				SetInternalFactory(func(comp AbstractCompiler) CompilerPass { return NewEs6NormalizeClasses(comp) }).
-				Build())
-		factories.MaybeAdd(
-			PassFactory_Builder_().
-				SetName(PassNames_COLLAPSE_PROPERTIES).
-				SetRunInFixedPointLoop(true).
-				SetInternalFactory(
-					func(x AbstractCompiler) CompilerPass {
-						return InlineAndCollapseProperties_Builder_(compiler).
-							SetPropertyCollapseLevel(c.collapseLevel).
-							SetChunkOutputType(c.chunkOutputType).
-							SetHaveModulesBeenRewritten(true).
-							SetModuleResolutionMode(options.GetModuleResolutionMode()).
-							Build()
-					}).
-				Build())
+		factories.MaybeAdd(NewPassFactory(
+			"REWRITE_DYNAMIC_IMPORT",
+			func(x AbstractCompiler) CompilerPass {
+				return NewRewriteDynamicImports(compiler, nil, CompilerOptions_ChunkOutputType_ES_MODULES)
+			},
+		))
+		factories.MaybeAdd(NewPassFactory(
+			PassNames_ES6_NORMALIZE_CLASSES,
+			func(comp AbstractCompiler) CompilerPass { return NewEs6NormalizeClasses(comp) },
+		))
+		factories.MaybeAdd(NewLoopablePassFactory(
+			PassNames_COLLAPSE_PROPERTIES,
+			func(x AbstractCompiler) CompilerPass {
+				return InlineAndCollapseProperties_Builder_(compiler).
+					SetPropertyCollapseLevel(c.collapseLevel).
+					SetChunkOutputType(c.chunkOutputType).
+					SetHaveModulesBeenRewritten(true).
+					SetModuleResolutionMode(options.GetModuleResolutionMode()).
+					Build()
+			},
+		))
 
 		for _, factory := range factories.Build() {
 			factory.Create(compiler).Process(externs, root)

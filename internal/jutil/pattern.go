@@ -5,7 +5,7 @@ package jutil
 // Java regexes are translated to RE2 syntax so that the constructs they have
 // in common keep Java's meaning:
 //   - `.` excludes Java's line terminators (\n, \r, \u0085, \u2028, \u2029),
-//     not only \n as in RE2 (unless Pattern_DOTALL or (?s) is active);
+//     not only \n as in RE2 (unless (?s) is active);
 //   - \s, \S (and \s inside classes) are Java's [ \t\n\x0B\f\r];
 //   - \v, \h (also inside classes), \V and \H are the vertical and
 //     horizontal whitespace classes of the Pattern Javadoc;
@@ -49,12 +49,6 @@ import (
 	"sync/atomic"
 )
 
-const (
-	Pattern_CASE_INSENSITIVE = 0x02
-	Pattern_MULTILINE        = 0x08
-	Pattern_DOTALL           = 0x20
-)
-
 // Pattern is a compiled java.util.regex.Pattern.
 type Pattern struct {
 	pattern string
@@ -80,7 +74,6 @@ type javaRegexMode struct {
 	anchored bool // for matches(): `$` is end of text
 	resumed  bool // the search starts past offset 0: `^` never matches
 	crlf     bool // the input ends in "\r\n"
-	flags    int
 }
 
 // javaRegexInfo is what translateJavaRegex learns about the pattern.
@@ -100,11 +93,6 @@ const javaSpaceChars = `\t\n\x0B\f\r `
 const javaVerticalSpaceChars = `\n\x0B\f\r\x{85}\x{2028}\x{2029}`
 const javaHorizontalSpaceChars = ` \t\x{A0}\x{1680}\x{180E}\x{2000}-\x{200A}\x{202F}\x{205F}\x{3000}`
 
-type patternCacheKey struct {
-	regex string
-	flags int
-}
-
 // Pattern_Compile is Pattern.compile(String).
 //
 // Go-only: performance — translating a Java regex and compiling its RE2
@@ -116,20 +104,14 @@ type patternCacheKey struct {
 // sharing the cached translation; a regex that fails to compile is not
 // cached and fails the same way every time.
 func Pattern_Compile(regex string) *Pattern {
-	return Pattern_CompileWithFlags(regex, 0)
-}
-
-// Pattern_CompileWithFlags is Pattern.compile(String, int).
-func Pattern_CompileWithFlags(regex string, flags int) *Pattern {
-	key := patternCacheKey{regex: regex, flags: flags}
-	if cached, ok := patternCache.Load(key); ok {
+	if cached, ok := patternCache.Load(regex); ok {
 		p := *cached.(*Pattern)
 		return &p
 	}
-	p := patternCompileWithFlags(regex, flags)
+	p := patternCompile(regex)
 	if patternCacheSize.Add(1) <= patternCacheLimit {
 		cached := *p
-		patternCache.Store(key, &cached)
+		patternCache.Store(regex, &cached)
 	}
 	return p
 }
@@ -137,7 +119,7 @@ func Pattern_CompileWithFlags(regex string, flags int) *Pattern {
 // patternCache maps a regex to its compiled Pattern (see Pattern_Compile).
 // It stops growing at patternCacheLimit entries, so that regexes built from
 // input cannot make it grow without bound.
-var patternCache sync.Map // patternCacheKey -> *Pattern
+var patternCache sync.Map // string -> *Pattern
 
 var patternCacheSize atomic.Int64
 
@@ -145,15 +127,8 @@ const patternCacheLimit = 4096
 
 // patternCompile compiles regex (Pattern_Compile without the cache).
 func patternCompile(regex string) *Pattern {
-	return patternCompileWithFlags(regex, 0)
-}
-
-func patternCompileWithFlags(regex string, flags int) *Pattern {
-	whole, info := translateJavaRegex(regex, javaRegexMode{anchored: true, flags: flags})
+	whole, info := translateJavaRegex(regex, javaRegexMode{anchored: true})
 	fullRe := `\A(?:` + whole + `)\z`
-	if (flags & Pattern_DOTALL) != 0 {
-		fullRe = `(?s)` + fullRe
-	}
 	p := &Pattern{
 		pattern: regex,
 		groups:  info.groups,
@@ -167,7 +142,7 @@ func patternCompileWithFlags(regex string, flags int) *Pattern {
 			case crlf == 1 && !info.dollar:
 				p.searchers[resumed][1] = p.searchers[resumed][0]
 			default:
-				t, ti := translateJavaRegex(regex, javaRegexMode{resumed: resumed == 1, crlf: crlf == 1, flags: flags})
+				t, ti := translateJavaRegex(regex, javaRegexMode{resumed: resumed == 1, crlf: crlf == 1})
 				p.searchers[resumed][crlf] = searcher{compileTranslatedJavaRegex(regex, t), ti.marks}
 			}
 		}
@@ -288,17 +263,8 @@ const (
 func translateJavaRegex(regex string, mode javaRegexMode) (string, javaRegexInfo) {
 	var sb strings.Builder
 	var info javaRegexInfo
-	multiline := (mode.flags & Pattern_MULTILINE) != 0
-	dotall := (mode.flags & Pattern_DOTALL) != 0
-	if (mode.flags & Pattern_CASE_INSENSITIVE) != 0 {
-		sb.WriteString("(?i)")
-	}
-	if multiline {
-		sb.WriteString("(?m)")
-	}
-	if dotall {
-		sb.WriteString("(?s)")
-	}
+	multiline := false
+	dotall := false
 	rs := []rune(regex)
 	n := len(rs)
 	inClass := false
@@ -553,9 +519,6 @@ func (p *Pattern) Matcher(input string) *Matcher {
 	return &Matcher{p: p, input: input}
 }
 
-// Pattern is Matcher.pattern().
-func (m *Matcher) Pattern() *Pattern { return m.p }
-
 // Reset is Matcher.reset(): no current match, and the next find() looks
 // from the start again.
 func (m *Matcher) Reset() *Matcher {
@@ -606,8 +569,8 @@ func (m *Matcher) Find() bool {
 	return m.record(m.p.findFrom(m.input, from))
 }
 
-// GroupCount is Matcher.groupCount().
-func (m *Matcher) GroupCount() int { return m.p.groups }
+// groupCount is Matcher.groupCount().
+func (m *Matcher) groupCount() int { return m.p.groups }
 
 func (m *Matcher) requireMatch() {
 	if m.groups == nil {
@@ -616,7 +579,7 @@ func (m *Matcher) requireMatch() {
 }
 
 func (m *Matcher) requireGroupIndex(group int) {
-	if group < 0 || group > m.GroupCount() {
+	if group < 0 || group > m.groupCount() {
 		panic(NewIndexOutOfBoundsException("No group " + itoa(group)))
 	}
 }
@@ -633,8 +596,8 @@ func (m *Matcher) End() int {
 	return StringLength(m.input[:m.groups[1]])
 }
 
-// StartGroup is Matcher.start(int): -1 when the group did not match.
-func (m *Matcher) StartGroup(group int) int {
+// startGroup is Matcher.start(int): -1 when the group did not match.
+func (m *Matcher) startGroup(group int) int {
 	m.requireMatch()
 	m.requireGroupIndex(group)
 	if m.groups[2*group] < 0 {
@@ -643,8 +606,8 @@ func (m *Matcher) StartGroup(group int) int {
 	return StringLength(m.input[:m.groups[2*group]])
 }
 
-// EndGroup is Matcher.end(int): -1 when the group did not match.
-func (m *Matcher) EndGroup(group int) int {
+// endGroup is Matcher.end(int): -1 when the group did not match.
+func (m *Matcher) endGroup(group int) int {
 	m.requireMatch()
 	m.requireGroupIndex(group)
 	if m.groups[2*group+1] < 0 {
@@ -663,11 +626,6 @@ func (m *Matcher) Group(group int) *string {
 	}
 	s := m.input[m.groups[2*group]:m.groups[2*group+1]]
 	return &s
-}
-
-// GroupAll is Matcher.group() (the whole match).
-func (m *Matcher) GroupAll() string {
-	return *m.Group(0)
 }
 
 func (m *Matcher) appendReplacement(sb *strings.Builder, appendPos int, replacement string) {
@@ -709,7 +667,7 @@ func (m *Matcher) appendReplacement(sb *strings.Builder, appendPos int, replacem
 			case c >= '0' && c <= '9':
 				group = int(c - '0')
 				i++
-				count := m.GroupCount()
+				count := m.groupCount()
 				for i < len(r) && r[i] >= '0' && r[i] <= '9' {
 					longer := group*10 + int(r[i]-'0')
 					if longer > count {

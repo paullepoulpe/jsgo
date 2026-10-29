@@ -51,21 +51,50 @@ type ModuleResolver interface {
 	// Java: ModuleResolver.getPackageJsonMainEntries()
 	GetPackageJsonMainEntries() *jutil.LinkedHashMap[string, string]
 
-	// ResolveJsModule may return nil.
+	// ResolveJsModule resolves a JS module reference, returning (path, true) if found.
 	//
 	// Java: ModuleResolver.resolveJsModule(String, String, String, int, int)
-	ResolveJsModule(scriptAddress string, moduleAddress string, sourcename string, lineno int, colno int) *string
+	ResolveJsModule(scriptAddress string, moduleAddress string, sourcename string, lineno int, colno int) (string, bool)
 
-	// ResolveJsModuleSilently may return nil.
+	// ResolveJsModuleSilently resolves a JS module reference silently, returning (path, true) if found.
 	//
 	// Java: ModuleResolver.resolveJsModuleSilently(String, String)
-	ResolveJsModuleSilently(scriptAddress string, moduleAddress string) *string
+	ResolveJsModuleSilently(scriptAddress string, moduleAddress string) (string, bool)
 
 	// Java: ModuleResolver.resolveModuleAsPath(String, String)
 	ResolveModuleAsPath(scriptAddress string, moduleAddress string) string
 
 	// Java: ModuleResolver.setErrorHandler(ErrorHandler)
 	SetErrorHandler(errorHandler ErrorHandler)
+}
+
+func isASCIIPath(s string) bool {
+	for i := 0; i < len(s); i++ {
+		if s[i] >= 0x80 {
+			return false
+		}
+	}
+	return true
+}
+
+func comparePathsLongestFirst(a, b string) int {
+	if isASCIIPath(a) && isASCIIPath(b) {
+		if len(a) != len(b) {
+			return cmp.Compare(len(b), len(a))
+		}
+		return strings.Compare(a, b)
+	}
+	if c := cmp.Compare(jutil.StringLength(b), jutil.StringLength(a)); c != 0 {
+		return c
+	}
+	return jutil.StringCompareTo(a, b)
+}
+
+func comparePathCodeUnits(a, b string) int {
+	if isASCIIPath(a) && isASCIIPath(b) {
+		return strings.Compare(a, b)
+	}
+	return jutil.StringCompareTo(a, b)
 }
 
 var emptyPackageJsonMainEntries = jutil.NewLinkedHashMap[string, string]()
@@ -124,11 +153,11 @@ func (r *moduleResolverCommon) ResolveModuleAsPath(scriptAddress string, moduleA
 	return ModuleLoader_Normalize(path, r.moduleRootPaths)
 }
 
-// Locate locates the module with the given name, but returns nil if there
+// Locate locates the module with the given name, returning ("", false) if there
 // is no JS file in the expected location.
 //
 // Java: ModuleResolver.locate(String, String)
-func (r *moduleResolverCommon) Locate(scriptAddress string, name string) *string {
+func (r *moduleResolverCommon) Locate(scriptAddress string, name string) (string, bool) {
 	canonicalizedPath := r.CanonicalizePath(scriptAddress, name)
 
 	normalizedPath := canonicalizedPath
@@ -138,7 +167,7 @@ func (r *moduleResolverCommon) Locate(scriptAddress string, name string) *string
 
 	// First check to see if the module is known with its provided path
 	if _, ok := r.modulePaths[normalizedPath]; ok {
-		return &canonicalizedPath
+		return canonicalizedPath, true
 	}
 
 	// Check for the module beneath each of the module roots
@@ -148,11 +177,11 @@ func (r *moduleResolverCommon) Locate(scriptAddress string, name string) *string
 		// Since there might be code relying on whether the path has a leading slash or not,
 		// honor the state it was provided in.
 		if _, ok := r.modulePaths[modulePath]; ok {
-			return &canonicalizedPath
+			return canonicalizedPath, true
 		}
 	}
 
-	return nil
+	return "", false
 }
 
 // CanonicalizePath normalizes a module path reference. Includes escaping
@@ -203,11 +232,9 @@ func NewBrowserModuleResolver(
 	}
 }
 
-// ResolveJsModule may return nil.
-//
 // Java: BrowserModuleResolver.resolveJsModule(String, String, String, int, int)
 func (r *BrowserModuleResolver) ResolveJsModule(
-	scriptAddress string, moduleAddress string, sourcename string, lineno int, colno int) *string {
+	scriptAddress string, moduleAddress string, sourcename string, lineno int, colno int) (string, bool) {
 
 	if ModuleLoader_IsAmbiguousIdentifier(moduleAddress) {
 		r.errorHandler.Report(
@@ -219,24 +246,22 @@ func (r *BrowserModuleResolver) ResolveJsModule(
 				ModuleLoader_INVALID_MODULE_PATH,
 				moduleAddress,
 				ModuleLoader_ResolutionMode_BROWSER.String()))
-		return nil
+		return "", false
 	}
 
-	loadAddress := r.Locate(scriptAddress, moduleAddress)
-	if loadAddress == nil {
+	loadAddress, ok := r.Locate(scriptAddress, moduleAddress)
+	if !ok {
 		r.errorHandler.Report(
 			CheckLevel_WARNING.Ptr(),
 			JSError_MakeWithSourceLocation(&sourcename, lineno, colno, ModuleLoader_LOAD_WARNING, moduleAddress))
 	}
-	return loadAddress
+	return loadAddress, ok
 }
 
-// ResolveJsModuleSilently may return nil.
-//
 // Java: BrowserModuleResolver.resolveJsModuleSilently(String, String)
-func (r *BrowserModuleResolver) ResolveJsModuleSilently(scriptAddress string, moduleAddress string) *string {
+func (r *BrowserModuleResolver) ResolveJsModuleSilently(scriptAddress string, moduleAddress string) (string, bool) {
 	if ModuleLoader_IsAmbiguousIdentifier(moduleAddress) {
-		return nil
+		return "", false
 	}
 	return r.Locate(scriptAddress, moduleAddress)
 }
@@ -290,17 +315,17 @@ func (f *WebpackModuleResolver_Factory) Create(
 
 // Java: WebpackModuleResolver.resolveJsModule(String, String, String, int, int)
 func (r *WebpackModuleResolver) ResolveJsModule(
-	scriptAddress string, moduleAddress string, sourcename string, lineno int, colno int) *string {
+	scriptAddress string, moduleAddress string, sourcename string, lineno int, colno int) (string, bool) {
 	if loadAddress, ok := r.modulesById[moduleAddress]; ok {
-		return &loadAddress
+		return loadAddress, true
 	}
 	return r.NodeModuleResolver.ResolveJsModule(scriptAddress, moduleAddress, sourcename, lineno, colno)
 }
 
 // Java: WebpackModuleResolver.resolveJsModuleSilently(String, String)
-func (r *WebpackModuleResolver) ResolveJsModuleSilently(scriptAddress string, moduleAddress string) *string {
+func (r *WebpackModuleResolver) ResolveJsModuleSilently(scriptAddress string, moduleAddress string) (string, bool) {
 	if loadAddress, ok := r.modulesById[moduleAddress]; ok {
-		return &loadAddress
+		return loadAddress, true
 	}
 	return r.NodeModuleResolver.ResolveJsModuleSilently(scriptAddress, moduleAddress)
 }
@@ -367,13 +392,10 @@ func NewBrowserWithTransformedPrefixesModuleResolver(
 		prefixes = append(prefixes, k)
 	}
 	slices.SortFunc(replacements, func(a, b browserPrefixReplacement) int {
-		if c := cmp.Compare(jutil.StringLength(b.prefix), jutil.StringLength(a.prefix)); c != 0 {
-			return c
-		}
-		return jutil.StringCompareTo(a.prefix, b.prefix)
+		return comparePathsLongestFirst(a.prefix, b.prefix)
 	})
 	r.prefixReplacements = replacements
-	slices.SortFunc(prefixes, jutil.StringCompareTo)
+	slices.SortFunc(prefixes, comparePathCodeUnits)
 	r.expectedPrefixes = strings.Join(prefixes, ", ")
 	return r
 }
@@ -389,7 +411,7 @@ func (r *BrowserWithTransformedPrefixesModuleResolver) replacePathPrefixes(modul
 
 // Java: BrowserWithTransformedPrefixesModuleResolver.resolveJsModule(String, String, String, int, int)
 func (r *BrowserWithTransformedPrefixesModuleResolver) ResolveJsModule(
-	scriptAddress string, moduleAddress string, sourcename string, lineno int, colno int) *string {
+	scriptAddress string, moduleAddress string, sourcename string, lineno int, colno int) (string, bool) {
 	transformedAddress, replaced := r.replacePathPrefixes(moduleAddress)
 	//Note: in Java, `replaced = !transformedAddress.equals(moduleAddress)` (so replacing "" -> "" or "x" -> "x" has replaced == false!)
 	replaced = replaced && transformedAddress != moduleAddress
@@ -403,17 +425,17 @@ func (r *BrowserWithTransformedPrefixesModuleResolver) ResolveJsModule(
 				BrowserWithTransformedPrefixesModuleResolver_INVALID_AMBIGUOUS_PATH,
 				transformedAddress,
 				r.expectedPrefixes))
-		return nil
+		return "", false
 	}
 	return r.Locate(scriptAddress, transformedAddress)
 }
 
 // Java: BrowserWithTransformedPrefixesModuleResolver.resolveJsModuleSilently(String, String)
-func (r *BrowserWithTransformedPrefixesModuleResolver) ResolveJsModuleSilently(scriptAddress string, moduleAddress string) *string {
+func (r *BrowserWithTransformedPrefixesModuleResolver) ResolveJsModuleSilently(scriptAddress string, moduleAddress string) (string, bool) {
 	transformedAddress, replaced := r.replacePathPrefixes(moduleAddress)
 	replaced = replaced && transformedAddress != moduleAddress
 	if !replaced && ModuleLoader_IsAmbiguousIdentifier(transformedAddress) {
-		return nil
+		return "", false
 	}
 	return r.Locate(scriptAddress, transformedAddress)
 }

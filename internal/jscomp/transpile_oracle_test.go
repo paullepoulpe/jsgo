@@ -159,11 +159,9 @@ func transpileOraclePasses(compiler *Compiler) []*PassFactory {
 	options := compiler.GetOptions()
 	passes := NewPassListBuilder(options)
 	TranspilationPasses_AddTranspilationRuntimeLibraries(passes)
-	passes.MaybeAdd(
-		PassFactory_Builder_().
-			SetName(PassNames_NORMALIZE).
-			SetInternalFactory(func(c AbstractCompiler) CompilerPass { return Normalize_CreateNormalizeForOptimizations(c) }).
-			Build())
+	passes.MaybeAdd(NewPassFactory(PassNames_NORMALIZE, func(c AbstractCompiler) CompilerPass {
+		return Normalize_CreateNormalizeForOptimizations(c)
+	}))
 	TranspilationPasses_AddTranspilationPasses(passes, options)
 	return passes.Build()
 }

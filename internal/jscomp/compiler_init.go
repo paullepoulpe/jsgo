@@ -316,41 +316,52 @@ func (c *Compiler) ReconcileOptionsWithGuards() {
 	}
 }
 
+func (c *Compiler) checkMissingTypedAstFile(file *SourceFile) {
+	jutil.CheckStateMsg1(
+		strings.HasPrefix(file.GetName(), compiler_SYNTHETIC_FILE_NAME_PREFIX) ||
+			AbstractCompiler_IsFillFileName(file.GetName()),
+		"TypedAST filesystem initialized, but missing requested file: %s",
+		file)
+}
+
+func (c *Compiler) deserializeTypedAstRoot(file *SourceFile) (rhino.Node, bool) {
+	if c.typedAstFilesystem == nil {
+		return rhino.NilNode, false
+	}
+	entry, ok := c.typedAstFilesystem.Remove(file)
+	if !ok {
+		c.checkMissingTypedAstFile(file)
+		return rhino.NilNode, false
+	}
+	return entry.DeserializeNew(), true
+}
+
 // Java: Compiler.getTypedAstDeserializer(SourceFile)
 func (c *Compiler) GetTypedAstDeserializer(file *SourceFile) func() rhino.Node {
 	if c.typedAstFilesystem == nil {
 		return nil
 	}
-
-	sd := c.typedAstScriptDeserializers[file]
-	delete(c.typedAstScriptDeserializers, file)
-	ast := c.typedAstFilesystem.Remove(file)
-	if sd != nil {
-		return sd.DeserializeNew
+	entry, ok := c.typedAstFilesystem.Remove(file)
+	if !ok {
+		c.checkMissingTypedAstFile(file)
+		return nil
 	}
-	jutil.CheckStateMsg1(
-		ast != nil ||
-			strings.HasPrefix(file.GetName(), compiler_SYNTHETIC_FILE_NAME_PREFIX) ||
-			AbstractCompiler_IsFillFileName(file.GetName()),
-		"TypedAST filesystem initialized, but missing requested file: %s",
-		file)
-	return ast
+	return entry.toSupplier()
 }
 
 func (c *Compiler) takeTypedAstDeserializer(file *SourceFile) (*ScriptNodeDeserializer, func() rhino.Node) {
 	if c.typedAstFilesystem == nil {
 		return nil, nil
 	}
-	sd := c.typedAstScriptDeserializers[file]
-	delete(c.typedAstScriptDeserializers, file)
-	ast := c.typedAstFilesystem.Remove(file)
-	jutil.CheckStateMsg1(
-		ast != nil ||
-			strings.HasPrefix(file.GetName(), compiler_SYNTHETIC_FILE_NAME_PREFIX) ||
-			AbstractCompiler_IsFillFileName(file.GetName()),
-		"TypedAST filesystem initialized, but missing requested file: %s",
-		file)
-	return sd, ast
+	entry, ok := c.typedAstFilesystem.Remove(file)
+	if !ok {
+		c.checkMissingTypedAstFile(file)
+		return nil, nil
+	}
+	if entry.sd != nil {
+		return entry.sd, typedAstDeserializer_scriptSentinel
+	}
+	return nil, entry.toSupplier()
 }
 
 // InitWithTypedAstFilesystem initializes a compiler with deserialized state
@@ -368,15 +379,27 @@ func (c *Compiler) InitWithTypedAstFilesystem(
 	options *CompilerOptions,
 	typedAstListStream io.Reader) {
 
-	files := jutil.NewLinkedHashSet[*SourceFile]()
-	files.AddAll(externs...)
-	files.AddAll(sources...)
+	capHint := len(externs) + len(sources)
+	requiredOrder := make([]*SourceFile, 0, capHint)
+	requiredSet := make(map[*SourceFile]struct{}, capHint)
+	for _, f := range externs {
+		if _, dup := requiredSet[f]; !dup {
+			requiredSet[f] = struct{}{}
+			requiredOrder = append(requiredOrder, f)
+		}
+	}
+	for _, f := range sources {
+		if _, dup := requiredSet[f]; !dup {
+			requiredSet[f] = struct{}{}
+			requiredOrder = append(requiredOrder, f)
+		}
+	}
 
 	options.SetMergedPrecompiledLibraries(true)
 
 	c.InitOptions(options)
 	c.Init(externs, sources, options)
-	c.mergeAndDeserializeTypedAsts(files, typedAstListStream, options)
+	c.mergeAndDeserializeTypedAsts(requiredOrder, requiredSet, typedAstListStream, options)
 }
 
 // InitChunksWithTypedAstFilesystem initializes a compiler with deserialized
@@ -394,25 +417,39 @@ func (c *Compiler) InitChunksWithTypedAstFilesystem(
 	options *CompilerOptions,
 	typedAstListStream io.Reader) {
 
-	filesBuilder := jutil.NewLinkedHashSet[*SourceFile]()
-	filesBuilder.AddAll(externs...)
+	capHint := len(externs)
 	for _, chunk := range chunks {
-		for _, input := range chunk.GetInputs() {
-			filesBuilder.Add(input.GetSourceFile())
+		capHint += len(chunk.GetInputs())
+	}
+	requiredOrder := make([]*SourceFile, 0, capHint)
+	requiredSet := make(map[*SourceFile]struct{}, capHint)
+	for _, f := range externs {
+		if _, dup := requiredSet[f]; !dup {
+			requiredSet[f] = struct{}{}
+			requiredOrder = append(requiredOrder, f)
 		}
 	}
-	files := filesBuilder
+	for _, chunk := range chunks {
+		for _, input := range chunk.GetInputs() {
+			f := input.GetSourceFile()
+			if _, dup := requiredSet[f]; !dup {
+				requiredSet[f] = struct{}{}
+				requiredOrder = append(requiredOrder, f)
+			}
+		}
+	}
 
 	options.SetMergedPrecompiledLibraries(true)
 
 	c.InitOptions(options)
 	c.InitChunks(externs, chunks, options)
-	c.mergeAndDeserializeTypedAsts(files, typedAstListStream, options)
+	c.mergeAndDeserializeTypedAsts(requiredOrder, requiredSet, typedAstListStream, options)
 }
 
 // Java: Compiler.mergeAndDeserializeTypedAsts(ImmutableSet<SourceFile>, InputStream, CompilerOptions)
 func (c *Compiler) mergeAndDeserializeTypedAsts(
-	requiredInputFiles *jutil.LinkedHashSet[*SourceFile],
+	requiredOrder []*SourceFile,
+	requiredSet map[*SourceFile]struct{},
 	typedAstListStream io.Reader,
 	options *CompilerOptions) {
 	jutil.CheckState(c.typedAstFilesystem == nil)
@@ -426,10 +463,11 @@ func (c *Compiler) mergeAndDeserializeTypedAsts(
 		func() *TypedAstDeserializer_DeserializedAst {
 			tracer := c.NewTracer("deserializeTypedAst")
 			defer c.StopTracer(tracer, "deserializeTypedAst")
-			return TypedAstDeserializer_DeserializeFullAst(
+			return typedAstDeserializer_deserializeFullAstFromSet(
 				c,
 				c.SYNTHETIC_EXTERNS_FILE,
-				requiredInputFiles,
+				requiredOrder,
+				requiredSet,
 				typedAstListStream,
 				deserializeTypes,
 				options.GetResolveSourceMapAnnotations(),
@@ -489,13 +527,18 @@ func (c *Compiler) InitRuntimeLibraryTypedAsts(colorPoolBuilder *ColorPool_Build
 		c.GetOptions().GetParseInlineSourceMaps())
 
 	// Re-index the runtime libraries by file name rather than SourceFile object
-	runtimeLibraryTypedAsts := jutil.NewLinkedHashMap[string, func() rhino.Node]()
-	for key, value := range astData.GetFilesystem().All() {
-		runtimeLibraryTypedAsts.ComputeIfAbsent(
-			key.GetName(), func(f string) func() rhino.Node { return value })
+	fs := astData.rawFilesystem()
+	runtimeLibraryTypedAsts := make(map[string]*ScriptNodeDeserializer, len(fs))
+	for _, key := range astData.filesystemOrder {
+		if entry := fs[key]; entry.sd != nil {
+			name := key.GetName()
+			if _, exists := runtimeLibraryTypedAsts[name]; !exists {
+				runtimeLibraryTypedAsts[name] = entry.sd
+			}
+		}
 	}
 
-	c.runtimeLibraryTypedAsts = jutil.NewLinkedHashMapFrom(runtimeLibraryTypedAsts)
+	c.runtimeLibraryTypedAsts = runtimeLibraryTypedAsts
 }
 
 // Init initializes the instance state needed for a compile job.

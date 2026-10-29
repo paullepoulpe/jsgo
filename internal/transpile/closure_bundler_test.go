@@ -98,24 +98,23 @@ func TestClosureBundler_TraditionalWithEvalWithSourceUrl(t *testing.T) {
 //
 // Go-only: test-helper — Mockito.
 type closureBundlerTest_mockTranspiler struct {
-	uri   *jutil.URI
+	path  string
 	input string
 }
 
 func (m *closureBundlerTest_mockTranspiler) Runtime() string { return "RUNTIME;" }
 
-func (m *closureBundlerTest_mockTranspiler) Transpile(path *jutil.URI, code string) *TranspileResult {
-	if path.String() == m.uri.String() && code == m.input {
-		return NewTranspileResult(m.uri, m.input, "TRANSPILED;", "")
+func (m *closureBundlerTest_mockTranspiler) Transpile(path string, code string) *TranspileResult {
+	if path == m.path && code == m.input {
+		return NewTranspileResult(m.path, m.input, "TRANSPILED;", "")
 	}
 	return nil
 }
 
 func TestClosureBundler_Transpilation(t *testing.T) {
 	input := "goog.module('Foo');\nclass Foo {}"
-	uri := jutil.NewURI("foo.js")
 
-	var transpiler Transpiler = &closureBundlerTest_mockTranspiler{uri: uri, input: input}
+	var transpiler Transpiler = &closureBundlerTest_mockTranspiler{path: "foo.js", input: input}
 
 	bundler := NewClosureBundlerWithTranspiler(transpiler).WithPath("foo.js")
 	sb := jutil.NewStringWriter()

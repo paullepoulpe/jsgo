@@ -67,16 +67,16 @@ func typeCheckDump_options() *CompilerOptions {
 }
 
 // typeCheckDump_errorManager is TypeCheckDump.RecordingErrorManager: it
-// records every report(level, error) in order; BasicErrorManager keeps the
+// records every report(level, error) in order; SortingErrorManager keeps the
 // counts.
 type typeCheckDump_errorManager struct {
-	BasicErrorManagerBase
+	SortingErrorManager
 	lines []string
 }
 
 func newTypeCheckDump_errorManager() *typeCheckDump_errorManager {
 	m := &typeCheckDump_errorManager{}
-	m.InitBasicErrorManagerBase(m)
+	m.InitSortingErrorManager(nil)
 	return m
 }
 
@@ -94,12 +94,8 @@ func (m *typeCheckDump_errorManager) Report(level *CheckLevel, error_ *JSError) 
 			" \""+
 			error_.GetDescription()+
 			"\"")
-	m.BasicErrorManagerBase.Report(level, error_)
+	m.SortingErrorManager.Report(level, error_)
 }
-
-func (m *typeCheckDump_errorManager) Println(level *CheckLevel, error_ *JSError) {}
-
-func (m *typeCheckDump_errorManager) PrintSummary() {}
 
 // typeCheckDump_dumpOne is TypeCheckDump.dumpOne.
 func typeCheckDump_dumpOne(sb *strings.Builder, externs string, name string, src string) {

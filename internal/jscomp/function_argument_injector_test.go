@@ -948,3 +948,82 @@ func (c *FunctionArgumentInjectorTest) Parse(js string) rhino.Node {
 	AssertThat(c.compiler.GetErrors()).IsEmpty()
 	return n
 }
+
+// Java: FunctionArgumentInjector.inject(AbstractCompiler, Node, Node, Map<String, Node>)
+func (f *FunctionArgumentInjector) Inject(compiler AbstractCompiler, node rhino.Node, parent rhino.Node, replacements *jutil.LinkedHashMap[string, rhino.Node]) rhino.Node {
+	return f.InjectWithReplaceThis(compiler, node, parent, replacements, true /* replaceThis= */)
+}
+
+// Java: FunctionArgumentInjector.inject(AbstractCompiler, Node, Node, Map<String, Node>, boolean)
+func (f *FunctionArgumentInjector) InjectWithReplaceThis(
+	compiler AbstractCompiler,
+	node rhino.Node,
+	parent rhino.Node,
+	replacements *jutil.LinkedHashMap[string, rhino.Node],
+	replaceThis bool) rhino.Node {
+	var idMap inlineIDNodeMap
+	idMap.clear()
+	hadThis := false
+	if replacements != nil {
+		for k, v := range replacements.All() {
+			id := rhino.RhinoStringPool_InternID(k)
+			if id == calleeThisMarkerID {
+				hadThis = true
+			}
+			idMap.put(id, v)
+		}
+	}
+	res := f.injectByID(compiler, node, parent, &idMap, replaceThis)
+	if hadThis && idMap.get(calleeThisMarkerID).IsNil() {
+		replacements.Remove(FunctionArgumentInjector_THIS_MARKER)
+	}
+	return res
+}
+
+// Java: FunctionArgumentInjector.getFunctionCallParameterMap(Node, Node, Supplier<String>)
+func (f *FunctionArgumentInjector) GetFunctionCallParameterMap(
+	fnNode rhino.Node, callNode rhino.Node, safeNameIdSupplier func() string) *jutil.LinkedHashMap[string, FunctionArgumentInjector_ParamArgPair] {
+	var bindingsBuf [inlineSmallCap]callParamBinding
+	bindings := f.appendCallParamBindings(bindingsBuf[:0], fnNode, callNode, safeNameIdSupplier, callParamWalkOwned)
+	if hasDuplicateBindingID(bindings) {
+		throwDuplicateParamBinding(bindings)
+	}
+	argMap := jutil.NewLinkedHashMapWithCapacity[string, FunctionArgumentInjector_ParamArgPair](len(bindings))
+	for _, b := range bindings {
+		argMap.PutNew(b.nameStr(), NewFunctionArgumentInjector_ParamArgPair(b.paramNode, b.argNode))
+	}
+	return argMap
+}
+
+// Java: FunctionArgumentInjector.gatherCallArgumentsNeedingTemps(AbstractCompiler, Node, ImmutableMap<String, ParamArgPair>, ImmutableSet<String>, CodingConvention)
+func (f *FunctionArgumentInjector) GatherCallArgumentsNeedingTemps(
+	compiler AbstractCompiler,
+	fnNode rhino.Node,
+	argMap *jutil.LinkedHashMap[string, FunctionArgumentInjector_ParamArgPair],
+	modifiedParameters *jutil.LinkedHashSet[string],
+	convention CodingConvention) *jutil.LinkedHashSet[string] {
+	jutil.CheckArgumentMsg1(fnNode.IsFunction(), "%s", fnNode)
+	if argMap.IsEmpty() {
+		return modifiedParameters
+	}
+	var bindingsBuf [inlineSmallCap]callParamBinding
+	bindings := bindingsFromArgMap(bindingsBuf[:0], argMap)
+	var modifiedIDs inlineIDSet
+	modifiedIDs.fromLinkedHashSet(modifiedParameters, true)
+	requiresTempsUpToID := f.findRequiresTempsUpToParameterID(
+		compiler, fnNode, bindings, &modifiedIDs, convention, nil, false)
+	if requiresTempsUpToID == 0 {
+		return modifiedParameters
+	}
+	var dstIDs inlineIDSet
+	dstIDs.addAll(&modifiedIDs)
+	addCallArgumentsNeedingTempsByID(fnNode, bindings, requiresTempsUpToID, &dstIDs)
+	return dstIDs.toLinkedHashSet()
+}
+
+// Java: FunctionArgumentInjector.findModifiedParameters(Node)
+func (f *FunctionArgumentInjector) FindModifiedParameters(fnNode rhino.Node) *jutil.LinkedHashSet[string] {
+	var paramIDs, modifiedIDs inlineIDSet
+	f.findModifiedParametersByIDInto(fnNode, &paramIDs, &modifiedIDs)
+	return modifiedIDs.toLinkedHashSet()
+}

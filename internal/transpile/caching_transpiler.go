@@ -25,12 +25,13 @@ import (
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 )
 
-type cachingTranspilerEntry struct {
-	path       *jutil.URI
-	code       string
-	hash       int32
-	value      *TranspileResult
-	prev, next *cachingTranspilerEntry
+type cacheKey struct {
+	path, code string
+}
+
+type cachingTranspilerNode struct {
+	key        cacheKey
+	prev, next *cachingTranspilerNode
 }
 
 // CachingTranspiler is a transpiler implementation that delegates to a
@@ -39,10 +40,10 @@ type CachingTranspiler struct {
 	delegate Transpiler
 	maxSize  int // -1: unbounded
 	mu       sync.Mutex
-	table    map[int32][]*cachingTranspilerEntry
-	count    int
-	head     *cachingTranspilerEntry // least recently accessed
-	tail     *cachingTranspilerEntry // most recently accessed
+	cache    map[cacheKey]*TranspileResult
+	lru      map[cacheKey]*cachingTranspilerNode
+	head     *cachingTranspilerNode // least recently accessed
+	tail     *cachingTranspilerNode // most recently accessed
 	runtime  func() string
 }
 
@@ -58,14 +59,16 @@ func NewCachingTranspiler(delegate Transpiler, maxSize int) *CachingTranspiler {
 		runtime:  bundle.Source_Suppliers_Memoize(delegate.Runtime),
 	}
 	if maxSize != 0 {
-		t.table = make(map[int32][]*cachingTranspilerEntry)
+		t.cache = make(map[cacheKey]*TranspileResult)
+		if maxSize > 0 {
+			t.lru = make(map[cacheKey]*cachingTranspilerNode)
+		}
 	}
 	return t
 }
 
 // Java: CachingTranspiler.transpile(URI, String)
-func (t *CachingTranspiler) Transpile(path *jutil.URI, code string) *TranspileResult {
-	jutil.CheckNotNull(path)
+func (t *CachingTranspiler) Transpile(path string, code string) *TranspileResult {
 	if t.maxSize == 0 {
 		value := t.delegate.Transpile(path, code)
 		if value == nil {
@@ -74,11 +77,12 @@ func (t *CachingTranspiler) Transpile(path *jutil.URI, code string) *TranspileRe
 		return value
 	}
 
-	hash := 31*(31+path.HashCode()) + jutil.StringHashCode(code)
+	key := cacheKey{path: path, code: code}
 	t.mu.Lock()
-	if e := t.findLocked(path, code, hash); e != nil {
-		t.moveToTailLocked(e)
-		val := e.value
+	if val, ok := t.cache[key]; ok {
+		if t.lru != nil {
+			t.moveToTailLocked(t.lru[key])
+		}
 		t.mu.Unlock()
 		return val
 	}
@@ -90,18 +94,24 @@ func (t *CachingTranspiler) Transpile(path *jutil.URI, code string) *TranspileRe
 	}
 
 	t.mu.Lock()
-	if e := t.findLocked(path, code, hash); e != nil {
-		t.moveToTailLocked(e)
-		val := e.value
+	if val, ok := t.cache[key]; ok {
+		if t.lru != nil {
+			t.moveToTailLocked(t.lru[key])
+		}
 		t.mu.Unlock()
 		return val
 	}
-	e := &cachingTranspilerEntry{path: path, code: code, hash: hash, value: value}
-	t.table[hash] = append(t.table[hash], e)
-	t.count++
-	t.linkLastLocked(e)
-	if t.maxSize > 0 && t.count > t.maxSize {
-		t.removeLocked(t.head)
+	t.cache[key] = value
+	if t.lru != nil {
+		node := &cachingTranspilerNode{key: key}
+		t.lru[key] = node
+		t.linkLastLocked(node)
+		if len(t.cache) > t.maxSize {
+			oldest := t.head
+			t.unlinkLocked(oldest)
+			delete(t.lru, oldest.key)
+			delete(t.cache, oldest.key)
+		}
 	}
 	t.mu.Unlock()
 	return value
@@ -112,59 +122,35 @@ func (t *CachingTranspiler) Runtime() string {
 	return t.runtime()
 }
 
-func (t *CachingTranspiler) findLocked(path *jutil.URI, code string, hash int32) *cachingTranspilerEntry {
-	for _, e := range t.table[hash] {
-		if e.code == code && (e.path == path || e.path.Equals(path)) {
-			return e
-		}
+func (t *CachingTranspiler) unlinkLocked(n *cachingTranspilerNode) {
+	if n.prev != nil {
+		n.prev.next = n.next
+	} else {
+		t.head = n.next
 	}
-	return nil
+	if n.next != nil {
+		n.next.prev = n.prev
+	} else {
+		t.tail = n.prev
+	}
+	n.prev, n.next = nil, nil
 }
 
-func (t *CachingTranspiler) unlinkLocked(e *cachingTranspilerEntry) {
-	if e.prev != nil {
-		e.prev.next = e.next
-	} else {
-		t.head = e.next
-	}
-	if e.next != nil {
-		e.next.prev = e.prev
-	} else {
-		t.tail = e.prev
-	}
-	e.prev, e.next = nil, nil
-}
-
-func (t *CachingTranspiler) linkLastLocked(e *cachingTranspilerEntry) {
-	e.prev = t.tail
-	e.next = nil
+func (t *CachingTranspiler) linkLastLocked(n *cachingTranspilerNode) {
+	n.prev = t.tail
+	n.next = nil
 	if t.tail != nil {
-		t.tail.next = e
+		t.tail.next = n
 	} else {
-		t.head = e
+		t.head = n
 	}
-	t.tail = e
+	t.tail = n
 }
 
-func (t *CachingTranspiler) moveToTailLocked(e *cachingTranspilerEntry) {
-	if t.tail == e {
+func (t *CachingTranspiler) moveToTailLocked(n *cachingTranspilerNode) {
+	if t.tail == n {
 		return
 	}
-	t.unlinkLocked(e)
-	t.linkLastLocked(e)
-}
-
-func (t *CachingTranspiler) removeLocked(e *cachingTranspilerEntry) {
-	t.unlinkLocked(e)
-	bucket := t.table[e.hash]
-	for i, x := range bucket {
-		if x == e {
-			t.table[e.hash] = append(bucket[:i:i], bucket[i+1:]...)
-			break
-		}
-	}
-	if len(t.table[e.hash]) == 0 {
-		delete(t.table, e.hash)
-	}
-	t.count--
+	t.unlinkLocked(n)
+	t.linkLastLocked(n)
 }

@@ -36,7 +36,6 @@ type FunctionToBlockMutator struct {
 	localScopeCreator        SyntacticScopeCreator
 	localMakeUnique          MakeDeclaredNamesUnique
 	localRenamerStackBuf     [16]MakeDeclaredNamesUnique_Renamer
-	localScopeRootsCb        nodeTraversal_TraverseScopeRootsCallback
 	allowMoveCallArgs        bool
 	currentCallNode          rhino.Node
 	onMovedArg               func(rhino.Node)
@@ -450,12 +449,6 @@ func (m *FunctionToBlockMutator) makeLocalNamesUnique(fnNode rhino.Node, isCallI
 	cb.markChanges = false
 	cb.assertOnChange = false
 
-	scb := &m.localScopeRootsCb
-	scb.cb = cb
-	scb.scopedCb = cb
-	scb.traverseNested = true
-	scb.scopeNode = fnNode
-
 	if m.localScopeCreator.compiler == nil {
 		m.localScopeCreator = SyntacticScopeCreator{
 			compiler:             m.compiler,
@@ -467,14 +460,13 @@ func (m *FunctionToBlockMutator) makeLocalNamesUnique(fnNode rhino.Node, isCallI
 	}
 	b := NodeTraversal_Builder{
 		compiler:     m.compiler,
-		callback:     scb,
+		callback:     cb,
 		scopeCreator: &m.localScopeCreator,
 	}
-	b.TraverseScopeRoot(fnNode)
+	b.traverseScopedRoot(fnNode, true)
 	clear(cb.renamerStack)
 	cb.renamerStack = nil
 	cb.rootRenamer = nil
-	scb.scopeNode = rhino.NilNode
 
 	// Make label names unique to this instance.
 	if checkLabels && hasLabelNode(fnNode) {

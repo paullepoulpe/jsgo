@@ -400,19 +400,19 @@ func (ti *TypeInference) MatchFunction(
 }
 
 // evaluateTypeTransformations evaluates the type transformations associated
-// with the template types and updates inferredTypes in place.
+// with the template types and updates values in place.
 //
 // Java: TypeInference.evaluateTypeTransformations(ImmutableList<TemplateType>, Map<TemplateType, JSType>, FlowScope)
 func (ti *TypeInference) evaluateTypeTransformations(
 	templateTypes []*rhino.TemplateType,
-	inferredTypes *jutil.LinkedHashMap[*rhino.TemplateType, rhino.JSType],
+	values []rhino.JSType,
 	scope *LinkedFlowScope) {
 	var typeVarBuf [8]ttlTypeVar
 	typeVars := typeVarBuf[:0]
 	var ttlObj TypeTransformation
 	initialized := false
 
-	for _, type_ := range templateTypes {
+	for idx, type_ := range templateTypes {
 		if !type_.IsTypeTransformation() {
 			continue
 		}
@@ -424,17 +424,31 @@ func (ti *TypeInference) evaluateTypeTransformations(
 				registry: ti.registry,
 				typeEnv:  scope.GetDeclarationScope(),
 			}
-			for key, value := range inferredTypes.All() {
+			for j, key := range templateTypes {
 				// Only add the template types that do not have a type transformation
 				if !key.IsTypeTransformation() {
-					typeVars = append(typeVars, ttlTypeVar{name: *key.GetReferenceName(), typ: value})
+					dup := false
+					for k := 0; k < j; k++ {
+						if templateTypes[k] == key {
+							dup = true
+							break
+						}
+					}
+					if !dup {
+						typeVars = append(typeVars, ttlTypeVar{name: *key.GetReferenceName(), typ: values[j]})
+					}
 				}
 			}
 		}
 		// Evaluate the type transformation expression using the current
 		// known types for the template type variables
 		transformedType := ttlObj.evalWithSlices(type_.GetTypeTransformation(), typeVars, nil)
-		inferredTypes.Put(type_, transformedType)
+		values[idx] = transformedType
+		for j := range templateTypes {
+			if j != idx && templateTypes[j] == type_ {
+				values[j] = transformedType
+			}
+		}
 		// Add the transformed type to the type variables
 		refName := *type_.GetReferenceName()
 		updated := false
@@ -451,23 +465,6 @@ func (ti *TypeInference) evaluateTypeTransformations(
 	}
 }
 
-func (ti *TypeInference) matchInvocationTemplateTypes(
-	calleeType rhino.FunctionType, localThisType rhino.JSType, invocation rhino.Node) *jutil.LinkedHashMap[*rhino.TemplateType, rhino.JSType] {
-	ti.templatedMatched.Clear()
-	if calleeType.GetTemplateTypeMap().IsEmpty() {
-		return &ti.templatedMatched
-	}
-	matcher := InvocationTemplateTypeMatcher{
-		matchedTypes:  &ti.templatedMatched,
-		registry:      ti.registry,
-		calleeType:    calleeType,
-		localThisType: localThisType,
-		invocation:    invocation,
-		unknownType:   ti.unknownType,
-	}
-	return matcher.Match()
-}
-
 // InferTemplatedTypesForCall: for functions that use template types,
 // specialize the function type for the call target based on the call-site
 // specific arguments. Specifically, this enables inference to set the type
@@ -481,25 +478,49 @@ func (ti *TypeInference) InferTemplatedTypesForCall(n rhino.Node, fnType rhino.F
 	}
 
 	// Try to infer the template types
-	bindings := ti.matchInvocationTemplateTypes(fnType, scope.GetTypeOfThis(), n)
-	inferred := &ti.templatedInferred
-	inferred.Clear()
+	matcher := InvocationTemplateTypeMatcher{
+		registry:      ti.registry,
+		calleeType:    fnType,
+		localThisType: scope.GetTypeOfThis(),
+		invocation:    n,
+		unknownType:   ti.unknownType,
+	}
+	matcher.match()
+
+	var valuesBuf [8]rhino.JSType
+	var values []rhino.JSType
+	if len(keys) <= len(valuesBuf) {
+		values = valuesBuf[:len(keys)]
+	} else {
+		values = make([]rhino.JSType, len(keys))
+	}
 	// If the inferred type doesn't satisfy the template bound, swap to using the bound. This
 	// ensures errors will be reported in type-checking.
-	for _, key := range keys {
-		v := bindings.GetOrDefault(key, ti.unknownType)
+	for i, key := range keys {
+		v := matcher.getOrDefault(key, ti.unknownType)
 		if !v.IsSubtypeOf(key.GetBound()) {
 			v = key.GetBound()
 		}
-		inferred.Put(key, v)
+		values[i] = v
 	}
 
 	// Try to infer the template types using the type transformations
-	ti.evaluateTypeTransformations(keys, inferred, scope)
+	ti.evaluateTypeTransformations(keys, values, scope)
+
+	for i, v := range values {
+		if v == nil {
+			values[i] = ti.unknownType
+		}
+	}
 
 	// Replace all template types. If we couldn't find a replacement, we
 	// replace it with UNKNOWN.
-	replacer := rhino.TemplateTypeReplacer_MakeForInference(ti.registry, inferred)
+	replacer := rhino.MakeTemplateTypeReplacer(
+		ti.registry,
+		ti.registry.GetEmptyTemplateTypeMap().CopyWithExtensionOfKeys(keys, values),
+		true,
+		true,
+		true)
 	callTarget := ast.MustInvocation(n).Callee().Node()
 
 	replacementFnType := replacer.VisitJSType(fnType).ToMaybeFunctionType()
@@ -552,9 +573,24 @@ func (ti *TypeInference) TraverseInstantiation(n rhino.Node, ctorType rhino.JSTy
 			instantiatedType = instantiatedType.ToMaybeTemplatizedType().GetRawType()
 		}
 		// If necessary, templatized the instance type based on the the constructor parameters.
-		inferredTypes := ti.matchInvocationTemplateTypes(ctorFnType, scope.GetTypeOfThis(), n)
+		matcher := InvocationTemplateTypeMatcher{
+			registry:      ti.registry,
+			calleeType:    ctorFnType,
+			localThisType: scope.GetTypeOfThis(),
+			invocation:    n,
+			unknownType:   ti.unknownType,
+		}
+		matcher.match()
+		typeParams := instantiatedType.GetTypeParameters()
+		var typeArgs []rhino.JSType
+		if len(typeParams) > 0 {
+			typeArgs = make([]rhino.JSType, len(typeParams))
+			for i, param := range typeParams {
+				typeArgs[i] = matcher.getOrDefault(param, ti.unknownType)
+			}
+		}
 		instantiatedType =
-			ti.registry.CreateTemplatizedTypeOfMap(instantiatedType, inferredTypes).ToMaybeObjectType()
+			ti.registry.CreateTemplatizedTypeOfList(instantiatedType, typeArgs).ToMaybeObjectType()
 	}
 
 	if instantiatedType != nil {

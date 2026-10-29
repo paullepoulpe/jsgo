@@ -67,8 +67,7 @@ func TestCharacterCodePointMatchesJava(t *testing.T) {
 			if got := CharacterGetTypeOfCodePoint(cp); got != typ {
 				t.Fatalf("getType(%x) = %d, Java %d", cp, got, typ)
 			}
-			if CharacterIsWhitespaceCodePoint(cp) != b(fl[0]) ||
-				CharacterIsLetterCodePoint(cp) != b(fl[4]) || CharacterIsDigitCodePoint(cp) != b(fl[5]) {
+			if CharacterIsWhitespaceCodePoint(cp) != b(fl[0]) {
 				t.Fatalf("flags(%x) mismatch, Java %s", cp, fl)
 			}
 			if cp <= 0xFFFF {

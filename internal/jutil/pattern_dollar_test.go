@@ -28,8 +28,8 @@ func dollarUnits(t *testing.T, s string) string {
 func dollarMatch(m *Matcher) string {
 	var sb strings.Builder
 	sb.WriteString(strconv.Itoa(m.Start()) + "," + strconv.Itoa(m.End()))
-	for g := 1; g <= m.GroupCount(); g++ {
-		sb.WriteString("," + strconv.Itoa(m.StartGroup(g)) + ":" + strconv.Itoa(m.EndGroup(g)))
+	for g := 1; g <= m.groupCount(); g++ {
+		sb.WriteString("," + strconv.Itoa(m.startGroup(g)) + ":" + strconv.Itoa(m.endGroup(g)))
 	}
 	return sb.String()
 }

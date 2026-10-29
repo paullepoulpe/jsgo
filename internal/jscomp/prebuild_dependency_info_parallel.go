@@ -41,6 +41,67 @@ func NewPrebuildDependencyInfo(numParalleThreads int) *PrebuildDependencyInfo {
 	return &PrebuildDependencyInfo{numParallelThreads: numParalleThreads}
 }
 
+func prebuildCallDependencyInfo(input *CompilerInput) (failure jutil.Throwable) {
+	defer func() {
+		if r := recover(); r != nil {
+			if t, ok := r.(jutil.Throwable); ok {
+				failure = t
+				return
+			}
+			panic(r)
+		}
+	}()
+	input.GetDependencyInfo()
+	return nil
+}
+
+func prebuildRunTask(run func(int), index int) (failure jutil.Throwable) {
+	defer func() {
+		if r := recover(); r != nil {
+			if t, ok := r.(jutil.Throwable); ok {
+				failure = t
+				return
+			}
+			panic(r)
+		}
+	}()
+	run(index)
+	return nil
+}
+
+func prebuildRunIndexedTask(run func(worker, index int), worker, index int) (failure jutil.Throwable) {
+	defer func() {
+		if r := recover(); r != nil {
+			if t, ok := r.(jutil.Throwable); ok {
+				failure = t
+				return
+			}
+			panic(r)
+		}
+	}()
+	run(worker, index)
+	return nil
+}
+
+func prebuildPublishDiagnostics(events []prebuildDependencyDiagnostic) (failure jutil.Throwable) {
+	if len(events) == 0 {
+		return nil
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			if t, ok := r.(jutil.Throwable); ok {
+				failure = t
+				return
+			}
+			panic(r)
+		}
+	}()
+	for _, diagnostic := range events {
+		diagnostic.target.Report(diagnostic.level, diagnostic.error)
+	}
+	return nil
+}
+
 // Prebuild gets the dependency info of every input.
 //
 // Go-only: language-adapter — dependency scans run in a bounded worker pool.
@@ -61,13 +122,9 @@ func (p *PrebuildDependencyInfo) Prebuild(allInputs iter.Seq[*CompilerInput]) {
 	var failure jutil.Throwable
 	// TODO(moz): Support canceling all parsing on the first halting error
 	for input := range allInputs {
-		jutil.Try(func() {
-			input.GetDependencyInfo()
-		}, func(t jutil.Throwable) {
-			if failure == nil {
-				failure = t
-			}
-		})
+		if t := prebuildCallDependencyInfo(input); t != nil && failure == nil {
+			failure = t
+		}
 	}
 
 	if failure != nil {
@@ -84,7 +141,9 @@ func parallelPrebuild(count, workers int, run func(int)) []jutil.Throwable {
 			if !ok {
 				return
 			}
-			jutil.Try(func() { run(index) }, func(t jutil.Throwable) { recordFailure(index, t) })
+			if t := prebuildRunTask(run, index); t != nil {
+				recordFailure(index, t)
+			}
 		}
 	})
 }
@@ -98,7 +157,9 @@ func parallelPrebuildIndexed(count, workers int, run func(worker, index int)) []
 			if !ok {
 				return
 			}
-			jutil.Try(func() { run(worker, index) }, func(t jutil.Throwable) { recordFailure(index, t) })
+			if t := prebuildRunIndexedTask(run, worker, index); t != nil {
+				recordFailure(index, t)
+			}
 		}
 	})
 }
@@ -225,49 +286,57 @@ func (p *PrebuildDependencyInfo) prebuildParallel(inputs []*CompilerInput) bool 
 			var cachedSource *ModuleLoader
 			var workerLoader *ModuleLoader
 			var privatePath ModuleLoader_ModulePath
+			scanOne := func(i int) (failure jutil.Throwable) {
+				defer func() {
+					if r := recover(); r != nil {
+						if t, ok := r.(jutil.Throwable); ok {
+							failure = t
+							return
+						}
+						panic(r)
+					}
+				}()
+				input := inputs[i]
+				orig := origPaths[i]
+				workerEvents = nil
+				workerModuleErrors.target = orig.outer.GetErrorHandler()
+				if orig.outer != cachedSource {
+					cachedSource = orig.outer
+					workerLoader = prebuildCloneModuleLoader(orig.outer, &workerModuleErrors)
+				}
+				privatePath = *orig
+				privatePath.outer = workerLoader
+				input.modulePath = &privatePath
+				defer func() {
+					input.modulePath = orig
+					if len(workerEvents) > 0 {
+						errorsByInput[i] = workerEvents
+					}
+				}()
+				input.GetDependencyInfo()
+				return nil
+			}
 			for {
 				i, ok := claim()
 				if !ok {
 					return
 				}
-				jutil.Try(func() {
-					input := inputs[i]
-					orig := origPaths[i]
-					workerEvents = nil
-					workerModuleErrors.target = orig.outer.GetErrorHandler()
-					if orig.outer != cachedSource {
-						cachedSource = orig.outer
-						workerLoader = prebuildCloneModuleLoader(orig.outer, &workerModuleErrors)
-					}
-					privatePath = *orig
-					privatePath.outer = workerLoader
-					input.modulePath = &privatePath
-					defer func() {
-						input.modulePath = orig
-						if len(workerEvents) > 0 {
-							errorsByInput[i] = workerEvents
-						}
-					}()
-					input.GetDependencyInfo()
-				}, func(t jutil.Throwable) {
+				if t := scanOne(i); t != nil {
 					recordFailure(i, t)
-				})
+				}
 			}
 		})
 		var failure jutil.Throwable
 		for i := range inputs {
-			jutil.Try(func() {
-				for _, diagnostic := range errorsByInput[i] {
-					diagnostic.target.Report(diagnostic.level, diagnostic.error)
-				}
-				if failures[i] != nil {
-					panic(failures[i])
-				}
-			}, func(t jutil.Throwable) {
+			if t := prebuildPublishDiagnostics(errorsByInput[i]); t != nil {
 				if failure == nil {
 					failure = t
 				}
-			})
+				continue
+			}
+			if failures[i] != nil && failure == nil {
+				failure = failures[i]
+			}
 		}
 		if failure != nil {
 			panic(jutil.NewRuntimeExceptionWithCause(jutil.NewExecutionException(failure)))
@@ -294,55 +363,68 @@ func (p *PrebuildDependencyInfo) prebuildParallel(inputs []*CompilerInput) bool 
 		}
 		loader := prebuildCloneModuleLoader(compiler.GetModuleLoader(), &workerModuleErrors)
 		parser := NewJsFileRegexParser(&workerErrors).SetModuleLoader(loader).SetIncludeGoogBase(true)
+		parseOne := func(i int) (failure jutil.Throwable) {
+			defer func() {
+				if r := recover(); r != nil {
+					if t, ok := r.(jutil.Throwable); ok {
+						failure = t
+						return
+					}
+					panic(r)
+				}
+			}()
+			input, result := inputs[i], &results[i]
+			if input.dependencyInfo != nil {
+				return nil
+			}
+			workerErrors.events = nil
+			if code, err := input.getCode(); err != nil {
+				result.readFailure = true
+				workerErrors.Report(CheckLevel_ERROR.Ptr(),
+					JSError_Make(AbstractCompiler_READ_ERROR, input.GetName(), ioErrorMessage(err)))
+				result.info = SimpleDependencyInfo_EMPTY
+			} else {
+				result.info = parser.ParseFile(input.GetName(), input.GetName(), code)
+			}
+			result.events = workerErrors.events
+			return nil
+		}
 		for {
 			i, ok := claim()
 			if !ok {
 				return
 			}
-			jutil.Try(func() {
-				input, result := inputs[i], &results[i]
-				if input.dependencyInfo != nil {
-					return
-				}
-				workerErrors.events = nil
-				jutil.Try(func() {
-					result.info = parser.ParseFile(input.GetName(), input.GetName(), input.GetCode())
-				}, func(e jutil.IIOException) {
-					result.readFailure = true
-					workerErrors.Report(CheckLevel_ERROR.Ptr(),
-						JSError_Make(AbstractCompiler_READ_ERROR, input.GetName(), e.GetMessage()))
-					result.info = SimpleDependencyInfo_EMPTY
-				})
-				result.events = workerErrors.events
-			}, func(t jutil.Throwable) {
+			if t := parseOne(i); t != nil {
 				recordFailure(i, t)
-			})
+			}
 		}
 	})
 	var failure jutil.Throwable
 	for i, input := range inputs {
 		result := &results[i]
-		jutil.Try(func() {
-			for _, diagnostic := range result.events {
-				diagnostic.target.Report(diagnostic.level, diagnostic.error)
-			}
-			if failures[i] != nil {
-				panic(failures[i])
-			}
-			if result.info != nil {
-				// IO failures return EMPTY directly, matching generateDependencyInfo.
-				if result.readFailure {
-					input.dependencyInfo = result.info
-				} else {
-					input.dependencyInfo = NewLazyParsedDependencyInfo(result.info, input, compiler)
-				}
-			}
-			input.GetDependencyInfo() // merge extra requires/provides in encounter order
-		}, func(t jutil.Throwable) {
+		if t := prebuildPublishDiagnostics(result.events); t != nil {
 			if failure == nil {
 				failure = t
 			}
-		})
+			continue
+		}
+		if failures[i] != nil {
+			if failure == nil {
+				failure = failures[i]
+			}
+			continue
+		}
+		if result.info != nil {
+			// IO failures return EMPTY directly, matching generateDependencyInfo.
+			if result.readFailure {
+				input.dependencyInfo = result.info
+			} else {
+				input.dependencyInfo = NewLazyParsedDependencyInfo(result.info, input, compiler)
+			}
+		}
+		if t := prebuildCallDependencyInfo(input); t != nil && failure == nil { // merge extra requires/provides in encounter order
+			failure = t
+		}
 	}
 	if failure != nil {
 		panic(jutil.NewRuntimeExceptionWithCause(jutil.NewExecutionException(failure)))

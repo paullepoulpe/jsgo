@@ -87,27 +87,34 @@ func (c *Compiler) ParseInputs() (result rhino.Node) {
 
 		// Build a map of module identifiers for any input which provides no namespace.
 		// These files could be imported modules which have no exports, but do have side effects.
-		inputModuleIdentifiers := jutil.NewLinkedHashMap[string, *CompilerInput]()
-		for _, input := range c.chunkGraph.GetAllInputs() {
+		allModInputs := c.chunkGraph.GetAllInputs()
+		inputModuleIdentifiers := make(map[string]*CompilerInput, len(allModInputs))
+		for _, input := range allModInputs {
 			if len(input.GetKnownProvides()) == 0 {
 				modPath := c.moduleLoader.Resolve(input.GetSourceFile().GetName())
-				inputModuleIdentifiers.Put(modPath.ToModuleName(), input)
+				inputModuleIdentifiers[modPath.ToModuleName()] = input
 			}
 		}
 
 		// Find out if any input attempted to import a module that had no exports.
 		// In this case we must force module rewriting to occur on the imported file
-		inputsToRewrite := jutil.NewLinkedHashMap[string, *CompilerInput]()
-		for _, input := range c.chunkGraph.GetAllInputs() {
+		var inputsToRewrite map[string]struct{}
+		var inputsToRewriteOrder []*CompilerInput
+		for _, input := range allModInputs {
 			for _, require := range input.GetKnownRequiredSymbols() {
-				if inputModuleIdentifiers.ContainsKey(require) &&
-					!inputsToRewrite.ContainsKey(require) {
-					inputsToRewrite.Put(require, inputModuleIdentifiers.Get(require))
+				if modInput, ok := inputModuleIdentifiers[require]; ok {
+					if inputsToRewrite == nil {
+						inputsToRewrite = make(map[string]struct{})
+					}
+					if _, seen := inputsToRewrite[require]; !seen {
+						inputsToRewrite[require] = struct{}{}
+						inputsToRewriteOrder = append(inputsToRewriteOrder, modInput)
+					}
 				}
 			}
 		}
 
-		for input := range inputsToRewrite.Values() {
+		for _, input := range inputsToRewriteOrder {
 			input.SetJsModuleType(CompilerInput_ModuleType_IMPORTED_SCRIPT)
 		}
 	}
@@ -189,9 +196,9 @@ func (c *Compiler) ParseInputs() (result rhino.Node) {
 		// it never should have been added in the first place: every CompilerInput should now be
 		// initialized, a process which removes it from the typedAstFilesystem
 		jutil.CheckStateMsg1(
-			c.typedAstFilesystem.Size() == 1 || c.typedAstFilesystem.IsEmpty(),
+			len(c.typedAstFilesystem) <= 1,
 			"%s",
-			c.typedAstFilesystem.Size())
+			len(c.typedAstFilesystem))
 	}
 	return c.externAndJsRoot
 }
@@ -227,6 +234,24 @@ func (c *Compiler) OrderInputsWithLargeStack() {
 	})
 }
 
+func (c *Compiler) manageDependenciesForOrderInputs() (staleInputs bool) {
+	defer func() {
+		if r := recover(); r != nil {
+			switch e := r.(type) {
+			case *SortedDependencies_MissingProvideException:
+				c.Report(JSError_Make(Compiler_MISSING_ENTRY_ERROR, e.GetMessage()))
+			case *JSChunkGraph_MissingChunkException:
+				c.Report(JSError_Make(Compiler_MISSING_CHUNK_ERROR, e.GetMessage()))
+			default:
+				panic(r)
+			}
+		}
+	}()
+	result := c.chunkGraph.ManageDependencies(c, c.options.GetDependencyOptions())
+	c.maybeLogPruningAnalysis(result)
+	return true
+}
+
 // Java: Compiler.orderInputs()
 func (c *Compiler) OrderInputs() {
 	c.maybeDoThreadedParsing()
@@ -244,18 +269,7 @@ func (c *Compiler) OrderInputs() {
 	// Check if the sources need to be re-ordered.
 	staleInputs := false
 	if c.options.GetDependencyOptions().NeedsManagement() {
-		jutil.Try(func() {
-			jutil.Try(func() {
-				result :=
-					c.chunkGraph.ManageDependencies(c, c.options.GetDependencyOptions())
-				staleInputs = true
-				c.maybeLogPruningAnalysis(result)
-			}, func(e *SortedDependencies_MissingProvideException) {
-				c.Report(JSError_Make(Compiler_MISSING_ENTRY_ERROR, e.GetMessage()))
-			})
-		}, func(e *JSChunkGraph_MissingChunkException) {
-			c.Report(JSError_Make(Compiler_MISSING_CHUNK_ERROR, e.GetMessage()))
-		})
+		staleInputs = c.manageDependenciesForOrderInputs()
 	}
 	c.HoistExterns(originalInputs)
 
@@ -283,10 +297,11 @@ func (c *Compiler) OrderInputs() {
 func (c *Compiler) findModulesFromEntryPoints(
 	supportEs6Modules bool, supportCommonJSModules bool) {
 	c.maybeDoThreadedParsing()
+	allInputs := c.chunkGraph.GetAllInputs()
 	entryPoints := []*CompilerInput{}
-	inputsByProvide := jutil.NewLinkedHashMap[string, *CompilerInput]()
-	inputsByIdentifier := jutil.NewLinkedHashMap[string, *CompilerInput]()
-	for _, input := range c.chunkGraph.GetAllInputs() {
+	inputsByProvide := make(map[string]*CompilerInput, len(allInputs))
+	inputsByIdentifier := make(map[string]*CompilerInput, len(allInputs))
+	for _, input := range allInputs {
 		var provides []string
 		for _, p := range input.GetProvides() {
 			if !strings.HasPrefix(p, "module$") {
@@ -296,25 +311,25 @@ func (c *Compiler) findModulesFromEntryPoints(
 		if !c.options.GetDependencyOptions().ShouldDropMoochers() && len(provides) == 0 {
 			entryPoints = append(entryPoints, input)
 		}
-		inputsByIdentifier.Put(
-			ModuleIdentifier_ForFile(input.GetPath().String()).String(), input)
+		inputsByIdentifier[ModuleIdentifier_ForFile(input.GetPath().String()).String()] = input
 		for _, provide := range provides {
-			inputsByProvide.Put(provide, input)
+			inputsByProvide[provide] = input
 		}
 	}
 	for _, moduleIdentifier := range c.options.GetDependencyOptions().EntryPoints() {
-		input := inputsByProvide.Get(moduleIdentifier.String())
+		idStr := moduleIdentifier.String()
+		input := inputsByProvide[idStr]
 		if input == nil {
-			input = inputsByIdentifier.Get(moduleIdentifier.String())
+			input = inputsByIdentifier[idStr]
 		}
 		if input != nil {
 			entryPoints = append(entryPoints, input)
 		}
 	}
 
-	workingInputSet := jutil.NewLinkedHashSet[*CompilerInput]()
-	for _, input := range c.chunkGraph.GetAllInputs() {
-		workingInputSet.Add(input)
+	workingInputSet := make(map[*CompilerInput]struct{}, len(allInputs))
+	for _, input := range allInputs {
+		workingInputSet[input] = struct{}{}
 	}
 	for _, entryPoint := range entryPoints {
 		c.findModulesFromInput(
@@ -335,12 +350,12 @@ func (c *Compiler) findModulesFromEntryPoints(
 func (c *Compiler) findModulesFromInput(
 	input *CompilerInput,
 	wasImportedByModule bool,
-	inputs *jutil.LinkedHashSet[*CompilerInput],
-	inputsByIdentifier *jutil.LinkedHashMap[string, *CompilerInput],
-	inputsByProvide *jutil.LinkedHashMap[string, *CompilerInput],
+	inputs map[*CompilerInput]struct{},
+	inputsByIdentifier map[string]*CompilerInput,
+	inputsByProvide map[string]*CompilerInput,
 	supportEs6Modules bool,
 	supportCommonJSModules bool) {
-	if !inputs.Remove(input) {
+	if _, present := inputs[input]; !present {
 		// It's possible for a module to be included as both a script
 		// and a module in the same compilation. In these cases, it should
 		// be forced to be a module.
@@ -349,6 +364,7 @@ func (c *Compiler) findModulesFromInput(
 		}
 		return
 	}
+	delete(inputs, input)
 
 	findDeps := NewFindModuleDependencies(
 		c, supportEs6Modules, supportCommonJSModules, c.inputPathByWebpackId)
@@ -368,11 +384,11 @@ func (c *Compiler) findModulesFromInput(
 	for _, requiredNamespace := range allDeps {
 		var requiredInput *CompilerInput
 		requiredByModuleImport := false
-		if inputsByProvide.ContainsKey(requiredNamespace) {
-			requiredInput = inputsByProvide.Get(requiredNamespace)
-		} else if inputsByIdentifier.ContainsKey(requiredNamespace) {
+		if in, ok := inputsByProvide[requiredNamespace]; ok {
+			requiredInput = in
+		} else if in, ok := inputsByIdentifier[requiredNamespace]; ok {
 			requiredByModuleImport = true
-			requiredInput = inputsByIdentifier.Get(requiredNamespace)
+			requiredInput = in
 		}
 
 		if requiredInput != nil {
@@ -503,16 +519,12 @@ func (c *Compiler) ProcessJsonInputs(inputsToProcess []*CompilerInput) *jutil.Li
 		}
 
 		input.SetCompiler(c)
-		readFailed := false
-		jutil.Try(func() {
-			// JSON objects need wrapped in parens to parse properly
-			input.GetSourceFile().SetCodeDeprecated("(" + input.GetSourceFile().GetCode() + ")")
-		}, func(e jutil.IIOException) {
-			readFailed = true
-		})
-		if readFailed {
+		code, err := input.getCode()
+		if err != nil {
 			continue
 		}
+		// JSON objects need wrapped in parens to parse properly
+		input.GetSourceFile().SetCodeDeprecated("(" + code + ")")
 
 		root := rhino.CheckNotNull(input.GetAstRoot(c))
 		input.SetJsModuleType(CompilerInput_ModuleType_JSON)

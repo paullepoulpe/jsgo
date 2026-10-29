@@ -21,9 +21,13 @@ package jscomp
 import (
 	"slices"
 
-	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
+
+type templateTypeSlot struct {
+	key *rhino.TemplateType
+	typ rhino.JSType
+}
 
 // InvocationTemplateTypeMatcher determines the types that fill any template
 // parameters at a function invocation.
@@ -37,8 +41,10 @@ import (
 // Instances of this class are single use. They provide a "scope" for the
 // matching but accumulate state as the matching progresses.
 type InvocationTemplateTypeMatcher struct {
-	matchedTypes *jutil.LinkedHashMap[*rhino.TemplateType, rhino.JSType]
-	seenTypes    []rhino.JSType
+	matchedBuf [8]templateTypeSlot
+	matched    []templateTypeSlot
+	seenBuf    [4]rhino.JSType
+	seenTypes  []rhino.JSType
 
 	registry      *rhino.JSTypeRegistry
 	calleeType    rhino.FunctionType
@@ -52,7 +58,6 @@ type InvocationTemplateTypeMatcher struct {
 func NewInvocationTemplateTypeMatcher(
 	registry *rhino.JSTypeRegistry, calleeType rhino.FunctionType, localThisType rhino.JSType, invocation rhino.Node) *InvocationTemplateTypeMatcher {
 	return &InvocationTemplateTypeMatcher{
-		matchedTypes:  &jutil.LinkedHashMap[*rhino.TemplateType, rhino.JSType]{},
 		registry:      registry,
 		calleeType:    calleeType,
 		localThisType: localThisType,
@@ -62,9 +67,11 @@ func NewInvocationTemplateTypeMatcher(
 }
 
 // Java: InvocationTemplateTypeMatcher.match()
-func (m *InvocationTemplateTypeMatcher) Match() *jutil.LinkedHashMap[*rhino.TemplateType, rhino.JSType] {
+func (m *InvocationTemplateTypeMatcher) match() {
+	m.matched = m.matchedBuf[:0]
+	m.seenTypes = m.seenBuf[:0]
 	if m.calleeType.GetTemplateTypeMap().IsEmpty() {
-		return m.matchedTypes
+		return
 	}
 
 	target := m.invocation.GetFirstChild()
@@ -93,7 +100,7 @@ func (m *InvocationTemplateTypeMatcher) Match() *jutil.LinkedHashMap[*rhino.Temp
 		calleeParameters := m.calleeType.GetParameters()
 		if len(calleeParameters) == 0 {
 			// TypeCheck will warn if there are too few function parameters
-			return m.matchedTypes
+			return
 		}
 
 		// The first argument to the tag function is an array of strings (typed as ITemplateArray)
@@ -120,8 +127,15 @@ func (m *InvocationTemplateTypeMatcher) Match() *jutil.LinkedHashMap[*rhino.Temp
 			}
 		}
 	}
+}
 
-	return m.matchedTypes
+func (m *InvocationTemplateTypeMatcher) getOrDefault(key *rhino.TemplateType, defaultValue rhino.JSType) rhino.JSType {
+	for i := range m.matched {
+		if m.matched[i].key == key && m.matched[i].typ != nil {
+			return m.matched[i].typ
+		}
+	}
+	return defaultValue
 }
 
 func (m *InvocationTemplateTypeMatcher) matchCallArg(
@@ -255,11 +269,17 @@ func (m *InvocationTemplateTypeMatcher) recordTemplateMatch(template *rhino.Temp
 	}
 
 	// Don't worry about checking bounds here. We'll validate them once they're all collected.
-	if prev, ok := m.matchedTypes.Lookup(template); ok && prev != nil {
-		m.matchedTypes.Put(template, prev.GetLeastSupertype(match))
-	} else {
-		m.matchedTypes.Put(template, match)
+	for i := range m.matched {
+		if m.matched[i].key == template {
+			if m.matched[i].typ != nil {
+				m.matched[i].typ = m.matched[i].typ.GetLeastSupertype(match)
+			} else {
+				m.matched[i].typ = match
+			}
+			return
+		}
 	}
+	m.matched = append(m.matched, templateTypeSlot{key: template, typ: match})
 }
 
 // Java: InvocationTemplateTypeMatcher.getTypeOrUnknown(Node)

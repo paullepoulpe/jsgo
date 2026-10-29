@@ -576,25 +576,6 @@ func scanCalleeSummary(fnName string, fnNode rhino.Node, dst *calleeSummary) boo
 	return true
 }
 
-// FindModifiedParameters retrieves a set of names that can not be safely
-// substituted in place.
-//
-// Example:
-//
-//	function(a) {
-//	  a = 0;
-//	}
-//
-// Inlining this without taking precautions would cause the call site value
-// to be modified (bad).
-//
-// Java: FunctionArgumentInjector.findModifiedParameters(Node)
-func (f *FunctionArgumentInjector) FindModifiedParameters(fnNode rhino.Node) *jutil.LinkedHashSet[string] {
-	var paramIDs, modifiedIDs inlineIDSet
-	f.findModifiedParametersByIDInto(fnNode, &paramIDs, &modifiedIDs)
-	return modifiedIDs.toLinkedHashSet()
-}
-
 func (f *FunctionArgumentInjector) findModifiedParametersByIDInto(
 	fnNode rhino.Node, dstNames *inlineIDSet, dstModified *inlineIDSet,
 ) {
@@ -608,29 +589,6 @@ func (f *FunctionArgumentInjector) findModifiedParametersByIDInto(
 	if !dstNames.isEmpty() {
 		collectModifiedParameterIDs(fn.Body().Node(), dstNames, false, dstModified)
 	}
-}
-
-// FunctionArgumentInjector_FindModifiedParametersIn checks for uses of the
-// named value that imply a pass-by-value parameter is expected. This is used
-// to prevent cases like:
-//
-// function (x) { x=2; return x; }
-//
-// We don't want "undefined" to be substituted for "x", and get undefined=2
-//
-// n is the node in question; names is the set of names to check;
-// inInnerClosure is whether the inspection is occurring inside an inner
-// function or non-static class field initializer.
-//
-// Java: FunctionArgumentInjector.findModifiedParameters(Node, ImmutableSet<String>, boolean)
-func FunctionArgumentInjector_FindModifiedParametersIn(
-	n rhino.Node, names *jutil.LinkedHashSet[string], inInnerClosure bool) *jutil.LinkedHashSet[string] {
-	var nameIDs, modifiedIDs inlineIDSet
-	nameIDs.fromLinkedHashSet(names, true)
-	if !nameIDs.isEmpty() {
-		collectModifiedParameterIDs(n, &nameIDs, inInnerClosure, &modifiedIDs)
-	}
-	return modifiedIDs.toLinkedHashSet()
 }
 
 func collectModifiedParameterIDs(
@@ -677,33 +635,11 @@ func gatherLocalNameIDs(n rhino.Node, names *inlineIDSet) {
 	}
 }
 
-// FunctionArgumentInjector_GatherLocalNames gathers any names declared in
-// the local scope.
-//
-// Java: FunctionArgumentInjector.gatherLocalNames(Node, Set<String>)
-func FunctionArgumentInjector_GatherLocalNames(n rhino.Node, names *jutil.LinkedHashSet[string]) {
-	var localIDs inlineIDSet
-	gatherLocalNameIDs(n, &localIDs)
-	for _, id := range localIDs.items {
-		names.Add(rhino.RhinoStringPool_StringFromID(id))
-	}
-}
-
 func collectFunctionParameterIDs(fnNode rhino.Node, dst *inlineIDSet) {
 	dst.clear()
 	for p, more := ast.MustFunction(fnNode).Params().FirstParam(); more; p, more = p.Next() {
 		dst.add(functionArgumentInjector_paramID(p))
 	}
-}
-
-// FunctionArgumentInjector_GetFunctionParameterSet gets a set of function
-// parameter names.
-//
-// Java: FunctionArgumentInjector.getFunctionParameterSet(Node)
-func FunctionArgumentInjector_GetFunctionParameterSet(fnNode rhino.Node) *jutil.LinkedHashSet[string] {
-	var paramIDs inlineIDSet
-	collectFunctionParameterIDs(fnNode, &paramIDs)
-	return paramIDs.toLinkedHashSet()
 }
 
 // functionArgumentInjector_paramID returns the strpool ID of a parameter name,

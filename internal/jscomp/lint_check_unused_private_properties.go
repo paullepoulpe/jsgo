@@ -36,11 +36,10 @@ var checkUnusedPrivatePropertiesVisitTokens = func() ast.TokenSet {
 	return s
 }()
 
+var _ nodeTraversal_visitTokens = (*CheckUnusedPrivateProperties)(nil)
+
 func (*CheckUnusedPrivateProperties) visitTokens() *ast.TokenSet {
 	return &checkUnusedPrivatePropertiesVisitTokens
-}
-func (*CheckUnusedPrivateProperties) combinedVisitTokens() ast.TokenSet {
-	return checkUnusedPrivatePropertiesVisitTokens
 }
 
 // CheckUnusedPrivateProperties looks for properties that are never read.

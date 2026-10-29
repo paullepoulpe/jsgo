@@ -679,24 +679,20 @@ func coreG3TryRuntime(body func()) (thrown jutil.Throwable) {
 // coreG3Collector is CoreG3Dump.Collector: an ErrorManager that records every
 // report.
 type coreG3Collector struct {
-	BasicErrorManagerBase
+	SortingErrorManager
 	reports []string
 }
 
 func newCoreG3Collector() *coreG3Collector {
 	c := &coreG3Collector{}
-	c.InitBasicErrorManagerBase(c)
+	c.InitSortingErrorManager(nil)
 	return c
 }
 
 func (c *coreG3Collector) Report(level *CheckLevel, error *JSError) {
 	c.reports = append(c.reports, level.String()+" "+error.String())
-	c.BasicErrorManagerBase.Report(level, error)
+	c.SortingErrorManager.Report(level, error)
 }
-
-func (c *coreG3Collector) Println(level *CheckLevel, error *JSError) {}
-
-func (c *coreG3Collector) PrintSummary() {}
 
 // coreG3DepInfo is CoreG3Dump.depInfo for a CompilerInput.
 func coreG3DepInfo(d *CompilerInput) string {

@@ -118,7 +118,7 @@ func NewBaseJSTypeTestCase(t testing.TB) *BaseJSTypeTestCase {
 func NewBaseJSTypeTestCaseWithRegistry(t testing.TB, registry *rhino.JSTypeRegistry) *BaseJSTypeTestCase {
 	b := &BaseJSTypeTestCase{Truth: Truth{T: t}, ErrorReporter: NewTestErrorReporter()}
 	if registry == nil {
-		b.Registry = rhino.NewJSTypeRegistryWithForwardDeclaredTypes(b.ErrorReporter, jutil.NewLinkedHashSet[string]())
+		b.Registry = rhino.NewJSTypeRegistry(b.ErrorReporter)
 	} else {
 		b.Registry = registry
 	}

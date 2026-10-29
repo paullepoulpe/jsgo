@@ -89,7 +89,7 @@ type ObjectType interface {
 	DetectInheritanceCycle() bool
 	GetReferenceName() *string
 	HasReferenceName() bool
-	GetNormalizedReferenceName() *string
+	GetNormalizedReferenceName() string
 	GetRawType() ObjectType
 	GetConstructor() FunctionType
 	GetSuperClassConstructor() FunctionType
@@ -147,7 +147,6 @@ type ObjectType interface {
 	SetOwnerFunction(type_ FunctionType)
 	GetCtorImplementedInterfaces() []ObjectType
 	GetCtorExtendedInterfaces() []ObjectType
-	GetPropertyTypeMap() *jutil.LinkedHashMap[string, JSType]
 	GetEnumeratedTypeOfEnumObject() JSType
 
 	// GetObjectTypeBase gives access to ObjectType's fields through the
@@ -358,6 +357,20 @@ func (o *ObjectTypeBase) HasReferenceName() bool {
 	return o.selfObj().GetReferenceName() != nil
 }
 
+func normalizeReferenceName(s string) string {
+	start := jutil.StringIndexOfChar(s, '(')
+	if start != -1 {
+		end := jutil.StringLastIndexOfCharFrom(s, ')', jutil.StringLength(s)-1)
+		prefix := jutil.StringSubstring(s, 0, start)
+		// Java: `end + 1 % name.length() == 0` (% binds tighter than +).
+		if end+1%jutil.StringLength(s) == 0 {
+			return prefix
+		}
+		return prefix + jutil.StringSubstringFrom(s, end+1)
+	}
+	return s
+}
+
 // GetNormalizedReferenceName: due to the complexity of some of our internal
 // type systems, sometimes we have different types constructed by the same
 // constructor. In other parts of the type system, these are called
@@ -370,29 +383,25 @@ func (o *ObjectTypeBase) HasReferenceName() bool {
 // anything after the parentheses must still be retained.
 //
 // Java: ObjectType.getNormalizedReferenceName()
-func (o *ObjectTypeBase) GetNormalizedReferenceName() *string {
+func (o *ObjectTypeBase) GetNormalizedReferenceName() string {
 	name := o.selfObj().GetReferenceName()
-	if name != nil {
-		start := jutil.StringIndexOfChar(*name, '(')
-		if start != -1 {
-			end := jutil.StringLastIndexOfCharFrom(*name, ')', jutil.StringLength(*name)-1)
-			prefix := jutil.StringSubstring(*name, 0, start)
-			// Java: `end + 1 % name.length() == 0` (% binds tighter than +).
-			var result string
-			if end+1%jutil.StringLength(*name) == 0 {
-				result = prefix
-			} else {
-				result = prefix + jutil.StringSubstringFrom(*name, end+1)
-			}
-			return &result
-		}
+	if name == nil {
+		return ""
 	}
-	return name
+	return normalizeReferenceName(*name)
 }
 
 // Java: ObjectType.getDisplayName()
 func (o *ObjectTypeBase) GetDisplayName() *string {
-	return o.selfObj().GetNormalizedReferenceName()
+	name := o.selfObj().GetReferenceName()
+	if name == nil {
+		return nil
+	}
+	if jutil.StringIndexOfChar(*name, '(') == -1 {
+		return name
+	}
+	norm := normalizeReferenceName(*name)
+	return &norm
 }
 
 // ObjectType_CreateDelegateSuffix creates a suffix for a proxy delegate.
@@ -1152,24 +1161,6 @@ func (o *ObjectTypeBase) GetCtorImplementedInterfaces() []ObjectType {
 // Java: ObjectType.getCtorExtendedInterfaces()
 func (o *ObjectTypeBase) GetCtorExtendedInterfaces() []ObjectType {
 	return []ObjectType{}
-}
-
-// GetPropertyTypeMap gets the map of properties to types covered in an
-// object type. Returns a Map that maps the property's name to the
-// property's type
-//
-// Java: ObjectType.getPropertyTypeMap()
-func (o *ObjectTypeBase) GetPropertyTypeMap() *jutil.LinkedHashMap[string, JSType] {
-	self := o.selfObj()
-	propTypeMap := jutil.NewLinkedHashMap[string, JSType]()
-	for _, name := range self.GetPropertyNames() {
-		if propTypeMap.ContainsKey(name) {
-			// ImmutableMap.Builder.buildOrThrow() rejects duplicate keys.
-			panic(jutil.NewIllegalArgumentExceptionMsg("Multiple entries with same key: " + name))
-		}
-		propTypeMap.Put(name, self.GetPropertyType(name))
-	}
-	return propTypeMap
 }
 
 // Java: ObjectType.getEnumeratedTypeOfEnumObject()

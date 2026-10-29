@@ -47,7 +47,7 @@ func NewJsonErrorReportGenerator(stream *jutil.PrintStream, sourceExcerptProvide
 }
 
 // Java: JsonErrorReportGenerator.generateReport(SortingErrorManager)
-func (g *JsonErrorReportGenerator) GenerateReport(manager SortingErrorManager) {
+func (g *JsonErrorReportGenerator) GenerateReport(manager *SortingErrorManager) {
 	// new JsonWriter(new OutputStreamWriter(new ByteArrayOutputStream(), UTF_8)): the
 	// characters are collected here and encoded when appended to the stream.
 	var bufferedStream strings.Builder

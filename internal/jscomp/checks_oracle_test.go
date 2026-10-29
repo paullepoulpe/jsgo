@@ -83,13 +83,13 @@ func checksDumpOptions() *CompilerOptions {
 // checksDumpErrorManager is ChecksDump.RecordingErrorManager: it records
 // every diagnostic that reaches the error manager, in report order.
 type checksDumpErrorManager struct {
-	BasicErrorManagerBase
+	SortingErrorManager
 	sb *strings.Builder
 }
 
 func newChecksDumpErrorManager(sb *strings.Builder) *checksDumpErrorManager {
 	m := &checksDumpErrorManager{sb: sb}
-	m.InitBasicErrorManagerBase(m)
+	m.InitSortingErrorManager(nil)
 	return m
 }
 
@@ -110,12 +110,8 @@ func (m *checksDumpErrorManager) Report(level *CheckLevel, error *JSError) {
 			strconv.Itoa(error.GetLength())+
 			" "+
 			error.GetDescription())
-	m.BasicErrorManagerBase.Report(level, error)
+	m.SortingErrorManager.Report(level, error)
 }
-
-func (m *checksDumpErrorManager) Println(level *CheckLevel, error *JSError) {}
-
-func (m *checksDumpErrorManager) PrintSummary() {}
 
 type checksDumpPass func(c *Compiler, externsRoot rhino.Node, mainRoot rhino.Node, out *strings.Builder)
 

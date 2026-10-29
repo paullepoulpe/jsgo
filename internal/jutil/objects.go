@@ -517,9 +517,9 @@ func toStringHelperIsEmpty(v any) bool {
 	switch x := v.(type) {
 	case string:
 		return x == ""
-	case JavaCollection:
+	case javaCollection:
 		return x.IsEmpty()
-	case JavaMap:
+	case javaMap:
 		return x.IsEmpty()
 	}
 	return false

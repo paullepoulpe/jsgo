@@ -168,7 +168,7 @@ type Compiler struct {
 	tracker *PerformanceTracker
 
 	// Runtime-library files deserailized from a TypedAST JAR resource; indexed by filename
-	runtimeLibraryTypedAsts *jutil.LinkedHashMap[string, func() rhino.Node]
+	runtimeLibraryTypedAsts map[string]*ScriptNodeDeserializer
 
 	// Types that have been forward declared
 	forwardDeclaredTypes compilerForwardDeclaredSet
@@ -202,7 +202,7 @@ type Compiler struct {
 	resolvedSourceMap compiler_ResolvedSourceMap
 	sourceMapMu       sync.RWMutex
 
-	typedAstFilesystem          *jutil.LinkedHashMap[*SourceFile, func() rhino.Node]
+	typedAstFilesystem          typedAstFilesystemMap
 	typedAstScriptDeserializers map[*SourceFile]*ScriptNodeDeserializer
 
 	validityCheck *PassFactory
@@ -406,6 +406,19 @@ func (s *compilerForwardDeclaredSet) All() iter.Seq[string] {
 	}
 }
 
+var compiler_validityCheck = &PassFactory{
+	name:                "validityCheck",
+	runInFixedPointLoop: true,
+	preconditionCheck:   passFactoryAlwaysValid,
+	internalFactory:     func(compiler AbstractCompiler) CompilerPass { return NewValidityCheck(compiler) },
+	// TODO(b/280906684): Cannot use a lambda nor a simple anonymous function (which might be
+	// converted to lambdas) directly due to this inference problem. Needs the cast to
+	// make jscompiler happy.
+	condition: func(o *CompilerOptions) bool {
+		panic(jutil.NewIllegalStateExceptionMsg("Unexpected"))
+	},
+}
+
 // initFields runs the Java field initializers, in declaration order.
 func (c *Compiler) initFields() {
 	c.externs = nil
@@ -428,18 +441,7 @@ func (c *Compiler) initFields() {
 	c.compilerExecutor = c.CreateCompilerExecutor()
 	c.changeTracker = NewChangeTracker()
 	c.resolvedSourceMap = compiler_ResolvedSourceMap{}
-	c.validityCheck = PassFactory_Builder_().
-		SetName("validityCheck").
-		SetRunInFixedPointLoop(true).
-		SetInternalFactory(func(compiler AbstractCompiler) CompilerPass { return NewValidityCheck(compiler) }).
-		// TODO(b/280906684): Cannot use a lambda nor a simple anonymous function (which might be
-		// converted to lambdas) directly due to this inference problem. Needs the cast to
-		// make jscompiler happy.
-		SetCondition(
-			func(o *CompilerOptions) bool {
-				panic(jutil.NewIllegalStateExceptionMsg("Unexpected"))
-			}).
-		Build()
+	c.validityCheck = compiler_validityCheck
 	c.currentPassIndex = -1
 	c.stage = AbstractCompiler_LifeCycleStage_RAW
 	c.preferRegexParser = false

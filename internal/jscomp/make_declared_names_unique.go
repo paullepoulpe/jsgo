@@ -211,17 +211,6 @@ func (m *MakeDeclaredNamesUnique) VisitNameOrImportStar(t *NodeTraversal, n rhin
 	}
 }
 
-// GetReplacementName walks the stack of name maps and finds the replacement
-// name for the current scope.
-//
-// Java: MakeDeclaredNamesUnique.getReplacementName(String)
-func (m *MakeDeclaredNamesUnique) GetReplacementName(oldName string) *string {
-	if v, ok := m.GetReplacementNameValue(oldName); ok {
-		return &v
-	}
-	return nil
-}
-
 // GetReplacementNameValue walks the stack of name maps and returns the replacement
 // name without heap-allocating a *string wrapper.
 func (m *MakeDeclaredNamesUnique) GetReplacementNameValue(oldName string) (string, bool) {
@@ -279,12 +268,10 @@ type MakeDeclaredNamesUnique_Renamer interface {
 
 	addDeclaredNameID(origID strpool.ID, hoisted bool)
 
-	// GetReplacementName returns a replacement name, null if oldName is
-	// unknown or should not be replaced.
+	// GetReplacementNameValue returns a replacement name and true, or ("", false)
+	// if oldName is unknown or should not be replaced.
 	//
 	// Java: MakeDeclaredNamesUnique.Renamer.getReplacementName(String)
-	GetReplacementName(oldName string) *string
-
 	GetReplacementNameValue(oldName string) (string, bool)
 
 	getReplacementNameID(oldID strpool.ID) (strpool.ID, bool)

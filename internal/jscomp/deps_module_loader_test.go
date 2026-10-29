@@ -82,14 +82,14 @@ type jsaMlCustomResolver struct {
 	moduleResolverCommon
 }
 
-func (r *jsaMlCustomResolver) ResolveJsModule(scriptAddress string, moduleAddress string, sourcename string, lineno int, colno int) *string {
+func (r *jsaMlCustomResolver) ResolveJsModule(scriptAddress string, moduleAddress string, sourcename string, lineno int, colno int) (string, bool) {
 	if strings.HasPrefix(moduleAddress, "@custom/") {
 		moduleAddress = moduleAddress[8:]
 	}
 	return r.Locate(scriptAddress, moduleAddress)
 }
 
-func (r *jsaMlCustomResolver) ResolveJsModuleSilently(scriptAddress string, moduleAddress string) *string {
+func (r *jsaMlCustomResolver) ResolveJsModuleSilently(scriptAddress string, moduleAddress string) (string, bool) {
 	return r.ResolveJsModule(scriptAddress, moduleAddress, "", 0, 0)
 }
 

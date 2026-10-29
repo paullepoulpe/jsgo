@@ -4,10 +4,13 @@
 // and Streams.write of com/google/gson/internal/Streams.java
 // Port of com/google/gson/GsonBuilder.java (Gson 2.9.1)
 // Port of com/google/gson/TypeAdapter.java (Gson 2.9.1)
+// Port of com/google/gson/JsonParseException.java (Gson 2.9.1), with
+// com/google/gson/JsonSyntaxException.java, com/google/gson/JsonIOException.java
+// and com/google/gson/stream/MalformedJsonException.java
 
 /*
- * Copyright (C) 2008 Google Inc. (Gson.java, GsonBuilder.java)
- * Copyright (C) 2010 Google Inc. (Streams.java)
+ * Copyright (C) 2008 Google Inc. (Gson.java, GsonBuilder.java, JsonParseException.java, JsonIOException.java)
+ * Copyright (C) 2010 Google Inc. (Streams.java, JsonSyntaxException.java, MalformedJsonException.java)
  * Copyright (C) 2011 Google Inc. (TypeAdapters.java, TypeAdapter.java, ReflectiveTypeAdapterFactory.java)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -766,4 +769,97 @@ func (b *GsonBuilder) Create() *Gson {
 		prettyPrinting:     b.prettyPrinting,
 		factoriesToBeAdded: factories,
 	}
+}
+
+// ---------------------------------------------------------------------------
+// Gson exceptions
+
+// GsonPackage is the (shaded) Java package of Gson's classes in the pinned
+// closure-compiler.jar.
+const GsonPackage = "com.google.javascript.jscomp.jarjar.com.google.gson"
+
+// EOFException is java.io.EOFException.
+type EOFException struct{ IOException }
+
+func (*EOFException) eofException() {}
+
+// IEOFException matches EOFException.
+type IEOFException interface {
+	IIOException
+	eofException()
+}
+
+// NewEOFException is new EOFException(String).
+func NewEOFException(message string) *EOFException {
+	e := &EOFException{}
+	InitThrowable(e, "java.io.EOFException", msgPtr(message), nil)
+	return e
+}
+
+// MalformedJsonException is com.google.gson.stream.MalformedJsonException
+// (an IOException).
+type MalformedJsonException struct{ IOException }
+
+func (*MalformedJsonException) malformedJsonException() {}
+
+// IMalformedJsonException matches MalformedJsonException.
+type IMalformedJsonException interface {
+	IIOException
+	malformedJsonException()
+}
+
+// NewMalformedJsonException is new MalformedJsonException(String).
+func NewMalformedJsonException(msg string) *MalformedJsonException {
+	e := &MalformedJsonException{}
+	InitThrowable(e, GsonPackage+".stream.MalformedJsonException", msgPtr(msg), nil)
+	return e
+}
+
+// JsonParseException is com.google.gson.JsonParseException (a
+// RuntimeException).
+type JsonParseException struct{ RuntimeException }
+
+func (*JsonParseException) jsonParseException() {}
+
+// IJsonParseException matches JsonParseException and its subclasses.
+type IJsonParseException interface {
+	IRuntimeException
+	jsonParseException()
+}
+
+// JsonSyntaxException is com.google.gson.JsonSyntaxException.
+type JsonSyntaxException struct{ JsonParseException }
+
+// NewJsonSyntaxException is new JsonSyntaxException(String).
+func NewJsonSyntaxException(msg string) *JsonSyntaxException {
+	e := &JsonSyntaxException{}
+	InitThrowable(e, GsonPackage+".JsonSyntaxException", msgPtr(msg), nil)
+	return e
+}
+
+// NewJsonSyntaxExceptionWithCause is new JsonSyntaxException(Throwable).
+func NewJsonSyntaxExceptionWithCause(cause Throwable) *JsonSyntaxException {
+	e := &JsonSyntaxException{}
+	InitThrowable(e, GsonPackage+".JsonSyntaxException", nil, cause)
+	return e
+}
+
+// JsonIOException is com.google.gson.JsonIOException.
+type JsonIOException struct{ JsonParseException }
+
+// NewJsonIOExceptionWithCause is new JsonIOException(Throwable).
+func NewJsonIOExceptionWithCause(cause Throwable) *JsonIOException {
+	e := &JsonIOException{}
+	InitThrowable(e, GsonPackage+".JsonIOException", nil, cause)
+	return e
+}
+
+// javaMessageOrNull is "" + t.getMessage(): the message, or "null" when
+// the Java message is null.
+func javaMessageOrNull(t Throwable) string {
+	b := t.throwable()
+	if !b.hasMsg {
+		return "null"
+	}
+	return b.message
 }

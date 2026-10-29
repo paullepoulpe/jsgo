@@ -37,8 +37,12 @@ package cli
 
 import (
 	"archive/zip"
+	"bufio"
 	"bytes"
+	"compress/gzip"
+	"io"
 	"math"
+	"os"
 	"strconv"
 	"strings"
 
@@ -180,7 +184,11 @@ func AbstractCommandLineRunner_GetBuiltinExterns(env jscomp.CompilerOptions_Envi
 					panic(jutil.NewZipException(err.Error()))
 				}
 				defer entryStream.Close()
-				return jutil.CharStreams_ToString(jutil.NewInputStreamReader(entryStream, jutil.StandardCharsets_UTF_8))
+				b, err := io.ReadAll(entryStream)
+				if err != nil {
+					panic(jutil.IOExceptionFromError(err, ""))
+				}
+				return jutil.StandardCharsets_UTF_8.Decode(b)
 			}).
 			Build()
 	}
@@ -319,6 +327,19 @@ func (r *AbstractCommandLineRunnerBase) CreateInputsWithJsonFilesAndAllowStdIn(
 	jsonFiles []*AbstractCommandLineRunner_JsonFileSpec,
 	allowStdIn bool,
 	jsChunkSpecs []*AbstractCommandLineRunner_JsChunkSpec) []*jscomp.SourceFile {
+	inputs, flagErr := r.createInputs(files, jsonFiles, allowStdIn, jsChunkSpecs)
+	if flagErr != nil {
+		panic(flagErr)
+	}
+	return inputs
+}
+
+func (r *AbstractCommandLineRunnerBase) createInputs(
+	files []*AbstractCommandLineRunner_FlagEntry[AbstractCommandLineRunner_JsSourceType],
+	jsonFiles []*AbstractCommandLineRunner_JsonFileSpec,
+	allowStdIn bool,
+	jsChunkSpecs []*AbstractCommandLineRunner_JsChunkSpec) ([]*jscomp.SourceFile, *jscomp.FlagUsageException) {
+	_ = allowStdIn
 	inputs := make([]*jscomp.SourceFile, 0, len(files))
 	usingStdin := false
 	jsChunkIndex := 0
@@ -335,7 +356,7 @@ func (r *AbstractCommandLineRunnerBase) CreateInputsWithJsonFilesAndAllowStdIn(
 		filename := file.value
 		if file.flag == AbstractCommandLineRunner_JsSourceType_JS_ZIP {
 			if r.config.typedAstListInputFilename != nil {
-				panic(jscomp.NewFlagUsageException("Can't use TypedASTs with --zip."))
+				return nil, jscomp.NewFlagUsageException("Can't use TypedASTs with --zip.")
 			}
 
 			if "-" != filename {
@@ -368,22 +389,22 @@ func (r *AbstractCommandLineRunnerBase) CreateInputsWithJsonFilesAndAllowStdIn(
 					Build())
 		} else {
 			if r.config.typedAstListInputFilename != nil {
-				panic(jscomp.NewFlagUsageException("Can't use TypedASTs with stdin."))
+				return nil, jscomp.NewFlagUsageException("Can't use TypedASTs with stdin.")
 			}
 			if !r.config.defaultToStdin {
-				panic(jscomp.NewFlagUsageException("Can't specify stdin."))
+				return nil, jscomp.NewFlagUsageException("Can't specify stdin.")
 			}
 			if usingStdin {
-				panic(jscomp.NewFlagUsageException("Can't specify stdin twice."))
+				return nil, jscomp.NewFlagUsageException("Can't specify stdin twice.")
 			}
 
 			if len(r.config.outputManifests) != 0 {
-				panic(jscomp.NewFlagUsageException(
-					"Manifest files cannot be generated when the input is from stdin."))
+				return nil, jscomp.NewFlagUsageException(
+					"Manifest files cannot be generated when the input is from stdin.")
 			}
 			if len(r.config.outputBundles) != 0 {
-				panic(jscomp.NewFlagUsageException(
-					"Bundle files cannot be generated when the input is from stdin."))
+				return nil, jscomp.NewFlagUsageException(
+					"Bundle files cannot be generated when the input is from stdin.")
 			}
 
 			r.err.Println(AbstractCommandLineRunner_WAITING_FOR_INPUT_WARNING)
@@ -409,7 +430,7 @@ func (r *AbstractCommandLineRunnerBase) CreateInputsWithJsonFilesAndAllowStdIn(
 		}
 	}
 
-	return inputs
+	return inputs, nil
 }
 
 // DeduplicateIjsFiles removes input --ijs files whose basename matches an
@@ -506,15 +527,15 @@ func (r *AbstractCommandLineRunnerBase) CreateSourceInputs(
 	}
 
 	var result []*jscomp.SourceFile
-	jutil.Try(func() {
-		if jsonFiles != nil {
-			result = r.CreateInputsWithJsonFiles(files, jsonFiles, jsChunkSpecs)
-		} else {
-			result = r.CreateInputs(files, true, jsChunkSpecs)
-		}
-	}, func(e jscomp.IFlagUsageException) {
-		panic(jscomp.NewFlagUsageException("Bad --js flag. " + e.GetMessage()))
-	})
+	var flagErr *jscomp.FlagUsageException
+	if jsonFiles != nil {
+		result, flagErr = r.createInputs(files, jsonFiles, false, jsChunkSpecs)
+	} else {
+		result, flagErr = r.createInputs(files, nil, true, jsChunkSpecs)
+	}
+	if flagErr != nil {
+		panic(jscomp.NewFlagUsageException("Bad --js flag. " + flagErr.GetMessage()))
+	}
 	return result
 }
 
@@ -529,12 +550,10 @@ func (r *AbstractCommandLineRunnerBase) CreateExternInputs(files []string) []*js
 			externFiles[i] = NewAbstractCommandLineRunner_FlagEntry(AbstractCommandLineRunner_JsSourceType_EXTERN, file)
 		}
 	}
-	var result []*jscomp.SourceFile
-	jutil.Try(func() {
-		result = r.CreateInputs(externFiles, false, []*AbstractCommandLineRunner_JsChunkSpec{})
-	}, func(e jscomp.IFlagUsageException) {
-		panic(jscomp.NewFlagUsageException("Bad --externs flag. " + e.GetMessage()))
-	})
+	result, flagErr := r.createInputs(externFiles, nil, false, []*AbstractCommandLineRunner_JsChunkSpec{})
+	if flagErr != nil {
+		panic(jscomp.NewFlagUsageException("Bad --externs flag. " + flagErr.GetMessage()))
+	}
 	return result
 }
 
@@ -641,20 +660,53 @@ func (r *AbstractCommandLineRunnerBase) CheckChunkName(name string) {
 	}
 }
 
+func openFileForReading(name string) (*os.File, jutil.IIOException) {
+	f, err := os.Open(name)
+	if err == nil {
+		if st, serr := f.Stat(); serr == nil && st.IsDir() {
+			f.Close()
+			return nil, jutil.NewFileNotFoundException(name + " (Is a directory)")
+		}
+		return f, nil
+	}
+	return nil, jutil.FileNotFoundExceptionFromError(err, name)
+}
+
+type gzipFileReader struct {
+	file *os.File
+	zr   *gzip.Reader
+}
+
+func (g *gzipFileReader) Read(p []byte) (int, error) {
+	return g.zr.Read(p)
+}
+
+func (g *gzipFileReader) Close() error {
+	_ = g.zr.Close()
+	return g.file.Close()
+}
+
+func openGzipFileForReading(filename string) (io.ReadCloser, error) {
+	f, ioErr := openFileForReading(filename)
+	if ioErr != nil {
+		return nil, ioErr
+	}
+	zr, err := gzip.NewReader(bufio.NewReaderSize(f, abstractCommandLineRunner_GZIPPED_TYPEDAST_BUFFER_SIZE))
+	if err != nil {
+		_ = f.Close()
+		return nil, err
+	}
+	return &gzipFileReader{file: f, zr: zr}, nil
+}
+
 // Java: AbstractCommandLineRunner.initWithTypedAstFilesystem(List<SourceFile>, List<SourceFile>, CompilerOptions, String)
 func (r *AbstractCommandLineRunnerBase) InitWithTypedAstFilesystem(
 	externs []*jscomp.SourceFile,
 	sources []*jscomp.SourceFile,
 	options *jscomp.CompilerOptions,
 	filename string) {
-	fileStream, ioErr := jutil.TryNewFileInputStream(filename)
-	if ioErr != nil {
-		r.compiler.Report(jscomp.JSError_Make(AbstractCommandLineRunner_COULD_NOT_DESERIALIZE_AST, filename))
-		return
-	}
-	typedAstListStream, ioErr := jutil.TryNewGZIPInputStreamWithSize(fileStream, abstractCommandLineRunner_GZIPPED_TYPEDAST_BUFFER_SIZE)
-	if ioErr != nil {
-		_ = fileStream.Close()
+	typedAstListStream, err := openGzipFileForReading(filename)
+	if err != nil {
 		r.compiler.Report(jscomp.JSError_Make(AbstractCommandLineRunner_COULD_NOT_DESERIALIZE_AST, filename))
 		return
 	}
@@ -669,14 +721,8 @@ func (r *AbstractCommandLineRunnerBase) InitWithTypedAstFilesystem(
 // Java: AbstractCommandLineRunner.initChunksWithTypedAstFilesystem(List<SourceFile>, List<JSChunk>, CompilerOptions, String)
 func (r *AbstractCommandLineRunnerBase) InitChunksWithTypedAstFilesystem(
 	externs []*jscomp.SourceFile, chunks []*jscomp.JSChunk, options *jscomp.CompilerOptions, filename string) {
-	fileStream, ioErr := jutil.TryNewFileInputStream(filename)
-	if ioErr != nil {
-		r.compiler.Report(jscomp.JSError_Make(AbstractCommandLineRunner_COULD_NOT_DESERIALIZE_AST, filename))
-		return
-	}
-	typedAstListStream, ioErr := jutil.TryNewGZIPInputStreamWithSize(fileStream, abstractCommandLineRunner_GZIPPED_TYPEDAST_BUFFER_SIZE)
-	if ioErr != nil {
-		_ = fileStream.Close()
+	typedAstListStream, err := openGzipFileForReading(filename)
+	if err != nil {
 		r.compiler.Report(jscomp.JSError_Make(AbstractCommandLineRunner_COULD_NOT_DESERIALIZE_AST, filename))
 		return
 	}
@@ -690,7 +736,7 @@ func (r *AbstractCommandLineRunnerBase) InitChunksWithTypedAstFilesystem(
 
 // Java: AbstractCommandLineRunner.restoreState(String)
 func (r *AbstractCommandLineRunnerBase) RestoreState(filename string) {
-	serializedInputStream, ioErr := jutil.TryNewFileInputStream(filename)
+	serializedInputStream, ioErr := openFileForReading(filename)
 	if ioErr != nil {
 		r.compiler.Report(jscomp.JSError_Make(AbstractCommandLineRunner_COULD_NOT_DESERIALIZE_AST, filename))
 		return
@@ -713,8 +759,8 @@ func (r *AbstractCommandLineRunnerBase) SaveState() {
 		return
 	}
 	filename := *r.config.GetSaveCompilationStateToFilename()
-	serializedOutputStream, ioErr := jutil.TryNewFileOutputStream(filename)
-	if ioErr != nil {
+	serializedOutputStream, err := os.OpenFile(filename, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o666)
+	if err != nil {
 		r.compiler.Report(jscomp.JSError_Make(AbstractCommandLineRunner_COULD_NOT_SERIALIZE_AST, filename))
 		return
 	}

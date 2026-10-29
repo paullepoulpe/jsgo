@@ -22,32 +22,8 @@ func NewBitSet() *BitSet {
 	return b
 }
 
-// NewBitSetWithSize is new BitSet(nbits): an empty set with room for nbits
-// bits. new BitSet() is NewBitSetWithSize(64).
-func NewBitSetWithSize(nbits int) *BitSet {
-	b := &BitSet{}
-	b.InitWithSize(nbits)
-	return b
-}
-
-// InitWithSize initializes b for nbits bits, using b's inline buffer when it fits.
-func (b *BitSet) InitWithSize(nbits int) {
-	if nbits < 0 {
-		panic(NewNegativeArraySizeException("nbits < 0: " + itoa(nbits)))
-	}
-	nwords := (nbits + 63) >> 6
-	if nwords <= len(b.buf) {
-		b.words = b.buf[:0:nwords]
-	} else {
-		b.words = make([]uint64, 0, nwords)
-	}
-}
-
 // Size is BitSet.size(): the number of bits of space in use, a multiple of
-// 64. It is the capacity reserved by NewBitSetWithSize or, once the set has
-// grown past it, the capacity Go's append chose; Java's growth policy
-// (doubling) can differ, but both are at least the highest bit index ever
-// set plus one.
+// 64.
 func (b *BitSet) Size() int { return cap(b.words) * 64 }
 
 func bitSetCheckIndex(bitIndex int, name string) {
@@ -94,15 +70,6 @@ func (b *BitSet) Set(bitIndex int) {
 	b.words[w] |= 1 << (uint(bitIndex) & 63)
 }
 
-// SetTo is BitSet.set(int, boolean).
-func (b *BitSet) SetTo(bitIndex int, value bool) {
-	if value {
-		b.Set(bitIndex)
-	} else {
-		b.Clear(bitIndex)
-	}
-}
-
 // SetRange is BitSet.set(int fromIndex, int toIndex).
 func (b *BitSet) SetRange(fromIndex, toIndex int) {
 	bitSetCheckRange(fromIndex, toIndex)
@@ -147,16 +114,6 @@ func (b *BitSet) Clear(bitIndex int) {
 
 // ClearAll is BitSet.clear().
 func (b *BitSet) ClearAll() { b.words = b.words[:0] }
-
-// Flip is BitSet.flip(int): sets the bit at bitIndex to the complement of
-// its current value.
-func (b *BitSet) Flip(bitIndex int) {
-	bitSetCheckIndex(bitIndex, "bitIndex")
-	w := bitIndex >> 6
-	b.ensure(w)
-	b.words[w] ^= 1 << (uint(bitIndex) & 63)
-	b.trim()
-}
 
 // FlipRange is BitSet.flip(int fromIndex, int toIndex): sets each bit from
 // fromIndex (inclusive) to toIndex (exclusive) to the complement of its
@@ -266,26 +223,6 @@ func (b *BitSet) PreviousSetBit(fromIndex int) int {
 	}
 }
 
-// NextClearBit is BitSet.nextClearBit(int).
-func (b *BitSet) NextClearBit(fromIndex int) int {
-	bitSetCheckIndex(fromIndex, "fromIndex")
-	w := fromIndex >> 6
-	if w >= len(b.words) {
-		return fromIndex
-	}
-	word := ^b.words[w] & (^uint64(0) << (uint(fromIndex) & 63))
-	for {
-		if word != 0 {
-			return w*64 + bits.TrailingZeros64(word)
-		}
-		w++
-		if w == len(b.words) {
-			return len(b.words) * 64
-		}
-		word = ^b.words[w]
-	}
-}
-
 // Or is BitSet.or(BitSet).
 func (b *BitSet) Or(set *BitSet) {
 	if b == set || len(set.words) == 0 {
@@ -341,29 +278,18 @@ func (b *BitSet) Intersects(set *BitSet) bool {
 	return false
 }
 
-// ToByteArray is BitSet.toByteArray(): little-endian bytes, without
-// trailing zero bytes.
-func (b *BitSet) ToByteArray() []byte {
-	n := len(b.words)
-	if n == 0 {
-		return []byte{}
-	}
-	length := 8 * (n - 1)
-	for x := b.words[n-1]; x != 0; x >>= 8 {
-		length++
-	}
-	out := make([]byte, length)
-	for i := 0; i < length; i++ {
-		out[i] = byte(b.words[i/8] >> (8 * uint(i%8)))
-	}
-	return out
-}
-
 // Clone is BitSet.clone().
 func (b *BitSet) Clone() *BitSet {
-	c := &BitSet{}
-	b.CloneInto(c)
-	return c
+	dst := &BitSet{}
+	n := len(b.words)
+	c := cap(b.words)
+	if c <= len(dst.buf) {
+		dst.words = dst.buf[:n:c]
+	} else {
+		dst.words = make([]uint64, n, c)
+	}
+	copy(dst.words, b.words)
+	return dst
 }
 
 // CopyFrom copies src into b, reusing b's existing slice capacity when possible.
@@ -380,18 +306,6 @@ func (b *BitSet) CopyFrom(src *BitSet) {
 		b.words = make([]uint64, n)
 	}
 	copy(b.words, src.words)
-}
-
-// CloneInto copies b into dst, using dst's inline buffer when it fits.
-func (b *BitSet) CloneInto(dst *BitSet) {
-	n := len(b.words)
-	c := cap(b.words)
-	if c <= len(dst.buf) {
-		dst.words = dst.buf[:n:c]
-	} else {
-		dst.words = make([]uint64, n, c)
-	}
-	copy(dst.words, b.words)
 }
 
 // Equals is BitSet.equals(Object).

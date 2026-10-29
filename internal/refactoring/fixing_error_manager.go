@@ -37,7 +37,7 @@ type fixingMultiEntry struct {
 //
 // Java: public class FixingErrorManager extends BasicErrorManager
 type FixingErrorManager struct {
-	jscomp.BasicErrorManagerBase
+	jscomp.SortingErrorManager
 
 	fixer                                 *ErrorToFixMapper
 	sureFixes                             map[int32][]fixingSureEntry
@@ -75,7 +75,7 @@ func NewFixingErrorManager() *FixingErrorManager {
 // Java: FixingErrorManager(ImmutableSet<DiagnosticType>)
 func NewFixingErrorManagerWithUnfixableErrors(unfixableErrors []*jscomp.DiagnosticType) *FixingErrorManager {
 	m := &FixingErrorManager{}
-	m.InitBasicErrorManagerBase(m)
+	m.InitSortingErrorManager(nil)
 	m.sureFixes = make(map[int32][]fixingSureEntry)
 	m.multiFixes = make(map[int32][]fixingMultiEntry)
 	if len(unfixableErrors) > 0 {
@@ -160,7 +160,7 @@ func (m *FixingErrorManager) getMultiFixes(err *jscomp.JSError) []*SuggestedFix 
 
 // Java: FixingErrorManager.report(CheckLevel, JSError)
 func (m *FixingErrorManager) Report(level *jscomp.CheckLevel, error *jscomp.JSError) {
-	m.BasicErrorManagerBase.Report(level, error)
+	m.SortingErrorManager.Report(level, error)
 	if !m.isUnfixable(error.Type()) {
 		fixes := m.fixer.GetFixesForJsError(error)
 		if len(fixes) == 1 {

@@ -30,8 +30,9 @@ var checkEnumsVisitTokens = func() ast.TokenSet {
 	return s
 }()
 
-func (*CheckEnums) visitTokens() *ast.TokenSet        { return &checkEnumsVisitTokens }
-func (*CheckEnums) combinedVisitTokens() ast.TokenSet { return checkEnumsVisitTokens }
+var _ nodeTraversal_visitTokens = (*CheckEnums)(nil)
+
+func (*CheckEnums) visitTokens() *ast.TokenSet { return &checkEnumsVisitTokens }
 
 // CheckEnums checks the following:
 //

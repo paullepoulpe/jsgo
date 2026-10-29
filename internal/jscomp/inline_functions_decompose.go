@@ -306,27 +306,6 @@ func inlineFunctions_isIsolatedStmtFn(fnNode rhino.Node) bool {
 	return false
 }
 
-// FindCalledFunctions: this functions that may be called directly.
-//
-// Java: InlineFunctions.findCalledFunctions(Node)
-func (f *InlineFunctions) FindCalledFunctions(node rhino.Node) *jutil.LinkedHashSet[string] {
-	var calledIDs inlineIDSet
-	inlineFunctions_collectCalledFunctionIDs(ast.MustFunction(node).Body().Node(), &calledIDs)
-	return calledIDs.toLinkedHashSet()
-}
-
-// InlineFunctions_FindCalledFunctionsInto: see findCalledFunctions(Node).
-//
-// Java: InlineFunctions.findCalledFunctions(Node, Set<String>)
-func InlineFunctions_FindCalledFunctionsInto(node rhino.Node, changed *jutil.LinkedHashSet[string]) {
-	jutil.CheckArgument(changed != nil)
-	var calledIDs inlineIDSet
-	inlineFunctions_collectCalledFunctionIDs(node, &calledIDs)
-	for _, id := range calledIDs.items {
-		changed.Add(rhino.RhinoStringPool_StringFromID(id))
-	}
-}
-
 func inlineFunctions_collectCalledFunctionIDs(node rhino.Node, changed *inlineIDSet) {
 	if node.IsName() && InlineFunctions_IsCandidateUsage(node) {
 		changed.add(node.GetStringID())

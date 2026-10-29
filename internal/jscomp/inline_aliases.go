@@ -19,6 +19,9 @@
 package jscomp
 
 import (
+	"slices"
+	"strings"
+
 	"github.com/paullepoulpe/jsgo/internal/ast"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
@@ -59,7 +62,7 @@ var (
 type InlineAndCollapseProperties_InlineAliases struct {
 	outer *InlineAndCollapseProperties
 
-	aliases    *jutil.LinkedHashMap[string, string]
+	aliases    map[string]string
 	namespace  *GlobalNamespace
 	astFactory *AstFactory
 }
@@ -68,7 +71,7 @@ type InlineAndCollapseProperties_InlineAliases struct {
 func NewInlineAndCollapseProperties_InlineAliases(outer *InlineAndCollapseProperties) *InlineAndCollapseProperties_InlineAliases {
 	a := &InlineAndCollapseProperties_InlineAliases{
 		outer:   outer,
-		aliases: jutil.NewLinkedHashMap[string, string](),
+		aliases: make(map[string]string),
 	}
 	a.astFactory = outer.compiler.CreateAstFactory()
 	return a
@@ -81,7 +84,7 @@ func (a *InlineAndCollapseProperties_InlineAliases) Process(externs rhino.Node, 
 		a.namespace = nil
 	}()
 	NodeTraversal_TraverseRoots(a.outer.compiler, NewInlineAndCollapseProperties_InlineAliases_AliasesCollector(a), externs, root)
-	if !a.aliases.IsEmpty() {
+	if len(a.aliases) > 0 {
 		NodeTraversal_TraverseRoots(a.outer.compiler, NewInlineAndCollapseProperties_InlineAliases_AliasesInliner(a), externs, root)
 	}
 }
@@ -144,7 +147,7 @@ func (c *InlineAndCollapseProperties_InlineAliases_AliasesCollector) VisitAliasD
 					lhsName.CalculateInlinability().ShouldInlineUsages() &&
 					rhsName != nil &&
 					rhsName.CalculateInlinability().ShouldInlineUsages() {
-					c.outer.aliases.Put(lhsQName, rhsQName)
+					c.outer.aliases[lhsQName] = rhsQName
 				}
 			}
 		}
@@ -181,36 +184,38 @@ func (*InlineAndCollapseProperties_InlineAliases_AliasesInliner) visitTokens() *
 func (i *InlineAndCollapseProperties_InlineAliases_AliasesInliner) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	switch n.GetToken() {
 	case rhino.Token_NAME, rhino.Token_GETPROP:
-		if i.outer.aliases.IsEmpty() {
+		if len(i.outer.aliases) == 0 {
 			return
 		}
 		qname, ok := n.GetQualifiedNameString()
-		if ok && i.outer.aliases.ContainsKey(qname) {
-			if i.IsLeftmostNameLocal(t, n) {
-				// The alias is shadowed by a local variable. Don't rewrite.
-				return
-			}
-			if NodeUtil_IsNameDeclOrSimpleAssignLhs(n, parent) {
-				// The node defines an alias. Don't rewrite.
-				return
-			}
+		if ok {
+			if _, hasAlias := i.outer.aliases[qname]; hasAlias {
+				if i.IsLeftmostNameLocal(t, n) {
+					// The alias is shadowed by a local variable. Don't rewrite.
+					return
+				}
+				if NodeUtil_IsNameDeclOrSimpleAssignLhs(n, parent) {
+					// The node defines an alias. Don't rewrite.
+					return
+				}
 
-			newNode := i.outer.astFactory.CreateQName(i.outer.namespace, i.ResolveAlias(qname, n))
-			if i.IsLeftmostNameLocal(t, newNode) {
-				// The aliased name is shadowed by a local variable. Don't rewrite.
-				return
-			}
+				newNode := i.outer.astFactory.CreateQName(i.outer.namespace, i.ResolveAlias(qname, n))
+				if i.IsLeftmostNameLocal(t, newNode) {
+					// The aliased name is shadowed by a local variable. Don't rewrite.
+					return
+				}
 
-			// If n is get_prop like "obj.foo" then newNode should use only location of foo, not
-			// obj.foo.
-			newNode.SrcrefTree(n)
-			// Similarly if n is get_prop like "obj.foo" we should index only foo. obj should not
-			// be indexed as it's invisible to users.
-			if newNode.IsGetProp() {
-				newNode.GetFirstChild().MakeNonIndexableRecursive()
+				// If n is get_prop like "obj.foo" then newNode should use only location of foo, not
+				// obj.foo.
+				newNode.SrcrefTree(n)
+				// Similarly if n is get_prop like "obj.foo" we should index only foo. obj should not
+				// be indexed as it's invisible to users.
+				if newNode.IsGetProp() {
+					newNode.GetFirstChild().MakeNonIndexableRecursive()
+				}
+				n.ReplaceWith(newNode)
+				t.ReportCodeChange()
 			}
-			n.ReplaceWith(newNode)
-			t.ReportCodeChange()
 		}
 	default:
 	}
@@ -219,8 +224,7 @@ func (i *InlineAndCollapseProperties_InlineAliases_AliasesInliner) Visit(t *Node
 // Java: InlineAndCollapseProperties.InlineAliases.AliasesInliner.isLeftmostNameLocal(NodeTraversal, Node)
 func (i *InlineAndCollapseProperties_InlineAliases_AliasesInliner) IsLeftmostNameLocal(t *NodeTraversal, n rhino.Node) bool {
 	jutil.CheckState(n.IsQualifiedName())
-	leftmostName := NodeUtil_GetRootOfQualifiedName(n).GetString()
-	v := t.LookupVar(leftmostName)
+	v := t.LookupVarByID(NodeUtil_GetRootOfQualifiedName(n).GetStringID())
 	return v != nil && v.IsLocal()
 }
 
@@ -230,17 +234,23 @@ func (i *InlineAndCollapseProperties_InlineAliases_AliasesInliner) IsLeftmostNam
 //
 // Java: InlineAndCollapseProperties.InlineAliases.AliasesInliner.resolveAlias(String, Node)
 func (i *InlineAndCollapseProperties_InlineAliases_AliasesInliner) ResolveAlias(name string, n rhino.Node) string {
-	aliasPath := jutil.NewLinkedHashSet[string]()
-	for i.outer.aliases.ContainsKey(name) {
-		if !aliasPath.Add(name) {
-			i.outer.outer.compiler.Report(JSError_MakeWithNode(n, InlineAndCollapseProperties_ALIAS_CYCLE, aliasPath.String(), name))
+	var aliasPathBuf [8]string
+	aliasPath := aliasPathBuf[:0]
+	for {
+		target, ok := i.outer.aliases[name]
+		if !ok {
+			break
+		}
+		if slices.Contains(aliasPath, name) {
+			i.outer.outer.compiler.Report(JSError_MakeWithNode(n, InlineAndCollapseProperties_ALIAS_CYCLE, "["+strings.Join(aliasPath, ", ")+"]", name))
 
 			// Cut the cycle so that it doesn't get reported more than once.
-			i.outer.aliases.Remove(name)
+			delete(i.outer.aliases, name)
 			break
 		}
 
-		name = i.outer.aliases.Get(name)
+		aliasPath = append(aliasPath, name)
+		name = target
 	}
 	return name
 }

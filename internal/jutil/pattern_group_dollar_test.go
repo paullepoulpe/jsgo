@@ -66,7 +66,7 @@ func TestPatternGroupDollarFindBeforeTerminator(t *testing.T) {
 			t.Errorf("find on %q: got %v, want one match", in, got)
 		}
 		m = Pattern_Compile("(code$)").Matcher(in)
-		if !m.Find() || m.Start() != 0 || m.End() != 4 || m.StartGroup(1) != 0 || m.EndGroup(1) != 4 {
+		if !m.Find() || m.Start() != 0 || m.End() != 4 || m.startGroup(1) != 0 || m.endGroup(1) != 4 {
 			t.Errorf("find on %q: want 0-4, group 1 0-4", in)
 		}
 	}

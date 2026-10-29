@@ -539,7 +539,7 @@ func (c *CrossChunkReferenceCollector) CanMoveValue(scope *Scope, valueNode rhin
 	case rhino.Token_NAME:
 		// If the value is guaranteed to never be changed after
 		// this reference, then we can move it.
-		v := scope.GetVar(ast.MustName(valueNode).Ident())
+		v := scope.GetVarByID(valueNode.GetStringID())
 		if v != nil && v.IsGlobal() {
 			refCollection := c.GetReferences(v)
 			if refCollection != nil &&

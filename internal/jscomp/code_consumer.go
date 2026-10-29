@@ -830,9 +830,9 @@ func (c *CodeConsumer) AddNumber(x float64, n rhino.Node) {
 		return
 	}
 	if c.mode == sinkPretty {
-		if numberFromSource := c.GetNumberFromSource(n); numberFromSource != nil {
-			if d, ok := codePrinter_parseDouble(*numberFromSource); ok && x == d {
-				c.AddConstant(*numberFromSource)
+		if numberFromSource, ok := c.GetNumberFromSource(n); ok {
+			if d, ok := codePrinter_parseDouble(numberFromSource); ok && x == d {
+				c.AddConstant(numberFromSource)
 				return
 			}
 		}

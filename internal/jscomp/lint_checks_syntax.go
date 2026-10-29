@@ -77,8 +77,9 @@ var checkVarVisitTokens = func() ast.TokenSet {
 	return s
 }()
 
-func (*CheckVar) visitTokens() *ast.TokenSet        { return &checkVarVisitTokens }
-func (*CheckVar) combinedVisitTokens() ast.TokenSet { return checkVarVisitTokens }
+var _ nodeTraversal_visitTokens = (*CheckVar)(nil)
+
+func (*CheckVar) visitTokens() *ast.TokenSet { return &checkVarVisitTokens }
 
 // Java: CheckVar.visit(NodeTraversal, Node, Node)
 func (c *CheckVar) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
@@ -120,10 +121,9 @@ var checkEmptyStatementsVisitTokens = func() ast.TokenSet {
 	return s
 }()
 
+var _ nodeTraversal_visitTokens = (*CheckEmptyStatements)(nil)
+
 func (*CheckEmptyStatements) visitTokens() *ast.TokenSet { return &checkEmptyStatementsVisitTokens }
-func (*CheckEmptyStatements) combinedVisitTokens() ast.TokenSet {
-	return checkEmptyStatementsVisitTokens
-}
 
 // Java: CheckEmptyStatements.visit(NodeTraversal, Node, Node)
 func (c *CheckEmptyStatements) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
@@ -168,8 +168,9 @@ var checkDuplicateCaseVisitTokens = func() ast.TokenSet {
 	return s
 }()
 
-func (*CheckDuplicateCase) visitTokens() *ast.TokenSet        { return &checkDuplicateCaseVisitTokens }
-func (*CheckDuplicateCase) combinedVisitTokens() ast.TokenSet { return checkDuplicateCaseVisitTokens }
+var _ nodeTraversal_visitTokens = (*CheckDuplicateCase)(nil)
+
+func (*CheckDuplicateCase) visitTokens() *ast.TokenSet { return &checkDuplicateCaseVisitTokens }
 
 // Java: CheckDuplicateCase.visit(NodeTraversal, Node, Node)
 func (c *CheckDuplicateCase) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
@@ -273,8 +274,9 @@ var checkUnusedLabelsVisitTokens = func() ast.TokenSet {
 	return s
 }()
 
-func (*CheckUnusedLabels) visitTokens() *ast.TokenSet        { return &checkUnusedLabelsVisitTokens }
-func (*CheckUnusedLabels) combinedVisitTokens() ast.TokenSet { return checkUnusedLabelsVisitTokens }
+var _ nodeTraversal_visitTokens = (*CheckUnusedLabels)(nil)
+
+func (*CheckUnusedLabels) visitTokens() *ast.TokenSet { return &checkUnusedLabelsVisitTokens }
 
 // Java: CheckUnusedLabels.visit(NodeTraversal, Node, Node)
 func (c *CheckUnusedLabels) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
@@ -353,11 +355,10 @@ var checkMissingSemicolonVisitTokens = func() ast.TokenSet {
 	return s
 }()
 
+var _ nodeTraversal_visitTokens = (*CheckMissingSemicolon)(nil)
+
 func (*CheckMissingSemicolon) visitTokens() *ast.TokenSet {
 	return &checkMissingSemicolonVisitTokens
-}
-func (*CheckMissingSemicolon) combinedVisitTokens() ast.TokenSet {
-	return checkMissingSemicolonVisitTokens
 }
 
 // Java: CheckMissingSemicolon.visit(NodeTraversal, Node, Node)
@@ -528,8 +529,9 @@ var checkUselessBlocksVisitTokens = func() ast.TokenSet {
 	return s
 }()
 
-func (*CheckUselessBlocks) visitTokens() *ast.TokenSet        { return &checkUselessBlocksVisitTokens }
-func (*CheckUselessBlocks) combinedVisitTokens() ast.TokenSet { return checkUselessBlocksVisitTokens }
+var _ nodeTraversal_visitTokens = (*CheckUselessBlocks)(nil)
+
+func (*CheckUselessBlocks) visitTokens() *ast.TokenSet { return &checkUselessBlocksVisitTokens }
 
 // Java: CheckUselessBlocks.visit(NodeTraversal, Node, Node)
 func (c *CheckUselessBlocks) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {

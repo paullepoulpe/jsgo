@@ -759,14 +759,6 @@ func (c *Compiler) toSourceWithoutMappings(
 	return builder.buildSourceAndMappingsInto(nil, false, scratch)
 }
 
-// Java: Compiler.getLicenseForFile(AbstractCompiler, String)
-func Compiler_GetLicenseForFile(compiler AbstractCompiler, fileName *string) *string {
-	if fileName == nil {
-		return nil
-	}
-	return compiler_getLicenseForFileName(compiler, *fileName)
-}
-
 func compiler_getLicenseForFileName(compiler AbstractCompiler, fileName string) *string {
 	licenseRoot := compiler.GetScriptNode(fileName)
 	if licenseRoot.IsNil() {

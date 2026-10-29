@@ -131,16 +131,16 @@ func sigmaAgreesWithJava(cp rune) bool {
 	typ := CharacterGetType(uint16(cp))
 	switch {
 	case cased:
-		return typ == Character_UPPERCASE_LETTER || typ == Character_LOWERCASE_LETTER || typ == Character_TITLECASE_LETTER
+		return typ == character_UPPERCASE_LETTER || typ == character_LOWERCASE_LETTER || typ == character_TITLECASE_LETTER
 	case ignorable:
-		return typ == Character_NON_SPACING_MARK || typ == Character_ENCLOSING_MARK || typ == Character_FORMAT
+		return typ == Character_NON_SPACING_MARK || typ == character_ENCLOSING_MARK || typ == Character_FORMAT
 	}
 	if cp == '"' {
 		return false
 	}
 	switch typ {
-	case Character_OTHER_LETTER, Character_COMBINING_SPACING_MARK, Character_DECIMAL_DIGIT_NUMBER,
-		Character_LETTER_NUMBER, Character_OTHER_NUMBER, Character_CONNECTOR_PUNCTUATION, Character_DASH_PUNCTUATION:
+	case character_OTHER_LETTER, character_COMBINING_SPACING_MARK, character_DECIMAL_DIGIT_NUMBER,
+		character_LETTER_NUMBER, character_OTHER_NUMBER, character_CONNECTOR_PUNCTUATION, character_DASH_PUNCTUATION:
 		return false
 	}
 	return true

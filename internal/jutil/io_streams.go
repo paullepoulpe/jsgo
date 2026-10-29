@@ -175,36 +175,18 @@ func Files_AsCharSource(file *File, charset *Charset) *CharSource {
 	return &CharSource{file: CheckNotNull(file), charset: CheckNotNull(charset)}
 }
 
-// OpenStream is CharSource.openStream(): a new InputStreamReader over a new
-// FileInputStream for the file. It panics with FileNotFoundException when
-// the file cannot be opened.
-func (c *CharSource) OpenStream() JavaReader {
-	f, err := os.Open(c.file.GetPath())
-	if err == nil {
-		var st os.FileInfo
-		if st, err = f.Stat(); err == nil && st.IsDir() {
-			f.Close()
-			panic(NewFileNotFoundException(c.file.GetPath() + " (Is a directory)"))
-		}
-	}
-	if err != nil {
-		panic(FileNotFoundExceptionFromError(err, c.file.GetPath()))
-	}
-	return NewInputStreamReader(f, c.charset)
-}
-
 // Read is CharSource.read(): the whole content of the source as a string
 // (for a file, decoded with the source's charset; it panics with an
 // IOException (FileNotFoundException) when the file cannot be read).
 func (c *CharSource) Read() string {
-	r := c.OpenStream()
-	defer r.Close()
-	return CharStreams_ToString(r)
+	s, ex := c.tryRead()
+	if ex != nil {
+		panic(ex)
+	}
+	return s
 }
 
-// TryRead reads the whole content of the source as a string, returning an
-// IIOException instead of panicking if opening or reading the file fails.
-func (c *CharSource) TryRead() (string, IIOException) {
+func (c *CharSource) tryRead() (string, IIOException) {
 	f, err := os.Open(c.file.GetPath())
 	if err == nil {
 		var st os.FileInfo
@@ -231,7 +213,7 @@ func (c *CharSource) TryRead() (string, IIOException) {
 // CharStreams.readLines(openStream()), returning an IIOException instead of
 // panicking if opening or reading the file fails.
 func (c *CharSource) TryReadLines() ([]string, IIOException) {
-	s, ex := c.TryRead()
+	s, ex := c.tryRead()
 	if ex != nil {
 		return nil, ex
 	}
@@ -268,98 +250,12 @@ func splitLinesUTF16(units []uint16) []string {
 	return result
 }
 
-// Go-only: language-adapter — java.io.FileInputStream as a Go
-// io.ReadCloser over an *os.File.
-
-// NewFileInputStream is new FileInputStream(String name): it throws
-// FileNotFoundException("<name> (<reason>)") when the file does not exist,
-// is a directory, or cannot be opened for reading.
-func NewFileInputStream(name string) io.ReadCloser {
-	f, err := TryNewFileInputStream(name)
-	if err != nil {
-		panic(err)
-	}
-	return f
-}
-
-// TryNewFileInputStream opens name like NewFileInputStream, returning an
-// IIOException instead of panicking on failure.
-func TryNewFileInputStream(name string) (io.ReadCloser, IIOException) {
-	f, err := os.Open(name)
-	if err == nil {
-		if st, serr := f.Stat(); serr == nil && st.IsDir() {
-			f.Close()
-			return nil, NewFileNotFoundException(name + " (Is a directory)")
-		}
-		return f, nil
-	}
-	return nil, FileNotFoundExceptionFromError(err, name)
-}
-
-// Go-only: language-adapter — java.io.FileOutputStream as a Go
-// io.WriteCloser over an *os.File.
-
-// NewFileOutputStream is new FileOutputStream(String name): it creates or
-// truncates the file, and throws FileNotFoundException("<name> (<reason>)")
-// when the file cannot be opened for writing. A write error is thrown as
-// IOException by the writers that wrap it.
-func NewFileOutputStream(name string) io.WriteCloser {
-	f, err := TryNewFileOutputStream(name)
-	if err != nil {
-		panic(err)
-	}
-	return f
-}
-
-// TryNewFileOutputStream opens name for writing like NewFileOutputStream,
-// returning an IIOException instead of panicking on failure.
-func TryNewFileOutputStream(name string) (io.WriteCloser, IIOException) {
-	f, err := os.OpenFile(name, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o666)
-	if err != nil {
-		return nil, FileNotFoundExceptionFromError(err, name)
-	}
-	return f, nil
-}
-
 // Go-only: language-adapter — the reading methods of java.nio.file.Files
 // (see files.go).
 
-// Files_ReadString is Files.readString(Path, Charset): it panics with
-// MalformedInputException on malformed input, and with an IOException
-// (NoSuchFileException, ...) when the file cannot be read.
-func Files_ReadString(path *Path, cs *Charset) string {
-	return Files_ReadStringRaw(path.String(), cs)
-}
-
-// Files_ReadStringRaw is Files_ReadString for a pre-normalized path string.
-func Files_ReadStringRaw(pathStr string, cs *Charset) string {
-	s, err := TryFiles_ReadStringRaw(pathStr, cs)
-	if err != nil {
-		panic(err)
-	}
-	return s
-}
-
-// TryFiles_ReadStringRaw reads pathStr like Files_ReadStringRaw, returning an
-// IIOException instead of panicking on I/O or charset decoding failure.
-func TryFiles_ReadStringRaw(pathStr string, cs *Charset) (string, IIOException) {
-	b, err := os.ReadFile(pathStr)
-	if err != nil {
-		return "", IOExceptionFromError(err, pathStr).(IIOException)
-	}
-	if (cs == nil || cs == StandardCharsets_UTF_8) && utf8.Valid(b) {
-		return string(b), nil
-	}
-	return cs.TryDecodeStrict(b)
-}
-
-// Files_NewBufferedReader is Files.newBufferedReader(Path, Charset): the
-// file is opened now, and malformed input is reported while reading.
-func Files_NewBufferedReader(path *Path, cs *Charset) JavaReader {
-	return Files_NewBufferedReaderRaw(path.String(), cs)
-}
-
-// Files_NewBufferedReaderRaw is Files_NewBufferedReader for a pre-normalized path string.
+// Files_NewBufferedReaderRaw is Files.newBufferedReader(Path, Charset) for a
+// pre-normalized path string: the file is opened now, and malformed input is
+// reported while reading.
 func Files_NewBufferedReaderRaw(pathStr string, cs *Charset) JavaReader {
 	f, err := os.Open(pathStr)
 	if err != nil {
@@ -371,15 +267,19 @@ func Files_NewBufferedReaderRaw(pathStr string, cs *Charset) JavaReader {
 }
 
 // Files_ReadStringUTF8 is java.nio.file.Files.readString(Path), which
-// decodes with UTF-8.
+// decodes with UTF-8. It panics with MalformedInputException on malformed
+// input, and with an IOException (NoSuchFileException, ...) when the file
+// cannot be read.
 func Files_ReadStringUTF8(path *Path) string {
-	return Files_ReadString(path, StandardCharsets_UTF_8)
-}
-
-// TryFiles_ReadStringUTF8 reads path with UTF-8 like Files_ReadStringUTF8,
-// returning an IIOException instead of panicking on failure.
-func TryFiles_ReadStringUTF8(path *Path) (string, IIOException) {
-	return TryFiles_ReadStringRaw(path.String(), StandardCharsets_UTF_8)
+	pathStr := path.String()
+	b, err := os.ReadFile(pathStr)
+	if err != nil {
+		panic(IOExceptionFromError(err, pathStr))
+	}
+	if utf8.Valid(b) {
+		return string(b)
+	}
+	return StandardCharsets_UTF_8.DecodeStrict(b)
 }
 
 // Go-only: language-adapter — java.util.zip.GZIPInputStream over Go's
@@ -396,30 +296,20 @@ type gzipInputStream struct {
 // it reads and checks the GZIP header immediately. The buffer size only
 // affects performance.
 func NewGZIPInputStreamWithSize(in io.ReadCloser, size int) io.ReadCloser {
-	r, err := TryNewGZIPInputStreamWithSize(in, size)
-	if err != nil {
-		panic(err)
-	}
-	return r
-}
-
-// TryNewGZIPInputStreamWithSize wraps in like NewGZIPInputStreamWithSize,
-// returning an IIOException instead of panicking on header/EOF failure.
-func TryNewGZIPInputStreamWithSize(in io.ReadCloser, size int) (io.ReadCloser, IIOException) {
 	zr, err := gzip.NewReader(bufio.NewReaderSize(in, size))
 	if err != nil {
 		if err == gzip.ErrHeader {
-			return nil, NewZipException("Not in GZIP format")
+			panic(NewZipException("Not in GZIP format"))
 		}
 		if err == io.EOF || err == io.ErrUnexpectedEOF {
 			// Java: new EOFException(), with a null message.
 			e := &EOFException{}
 			InitThrowable(e, "java.io.EOFException", nil, nil)
-			return nil, e
+			panic(e)
 		}
-		return nil, NewIOException(err.Error())
+		panic(NewIOException(err.Error()))
 	}
-	return &gzipInputStream{in: in, zr: zr}, nil
+	return &gzipInputStream{in: in, zr: zr}
 }
 
 func (g *gzipInputStream) Read(b []byte) (int, error) {

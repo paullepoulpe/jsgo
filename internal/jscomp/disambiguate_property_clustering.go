@@ -315,24 +315,6 @@ func (u *ColorNodeUnionFind) AppendRepresentatives(dst []*ColorGraphNode) []*Col
 	return dst
 }
 
-func (u *ColorNodeUnionFind) AllRepresentatives() *jutil.LinkedHashSet[*ColorGraphNode] {
-	result := jutil.NewLinkedHashSet[*ColorGraphNode]()
-	if u.slotByIdx == nil {
-		for i := uint8(0); i < u.inlineLen; i++ {
-			if u.inlineParent[i] == i {
-				result.Add(u.inlineElems[i])
-			}
-		}
-		return result
-	}
-	for i := range u.meta {
-		if u.meta[i].parent == uint32(i) {
-			result.Add(u.elems[i])
-		}
-	}
-	return result
-}
-
 // ColorNodeUFElementsView provides a read-only set view over the elements of a
 // ColorNodeUnionFind.
 type ColorNodeUFElementsView struct {

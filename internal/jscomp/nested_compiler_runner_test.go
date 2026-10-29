@@ -207,14 +207,9 @@ type nestedCompilerRunnerTest_alwaysThrowsPassConfig struct {
 // Java: NestedCompilerRunnerTest.stackTrace_specifiesInShadowAstCompilation() (anonymous PassConfigDelegate).getOptimizations()
 func (p *nestedCompilerRunnerTest_alwaysThrowsPassConfig) GetOptimizations() *PassListBuilder {
 	passes := NewPassListBuilder(p.options)
-	passes.MaybeAdd(
-		PassFactory_Builder_().
-			SetName("throw").
-			SetInternalFactory(
-				func(compiler AbstractCompiler) CompilerPass {
-					panic(jutil.NewAssertionError("foobarbaz"))
-				}).
-			Build())
+	passes.MaybeAdd(NewPassFactory("throw", func(compiler AbstractCompiler) CompilerPass {
+		panic(jutil.NewAssertionError("foobarbaz"))
+	}))
 	return passes
 }
 

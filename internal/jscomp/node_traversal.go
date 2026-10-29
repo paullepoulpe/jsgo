@@ -44,9 +44,12 @@ type NodeTraversal struct {
 	noVisit                                        bool
 	noVisitLeaves                                  bool
 	onlyNameLeaves                                 bool
+	stopAtNestedChangeScope                        bool
 	// visitTokens, if not nil, holds the only tokens Visit acts on (see
 	// nodeTraversal_visitTokens): the traversal skips the call for others.
 	visitTokens *ast.TokenSet
+
+	scopeTraversalRoot rhino.Node
 
 	// Contains the current node
 	currentNode rhino.Node
@@ -125,6 +128,8 @@ func newNodeTraversal(builder *NodeTraversal_Builder) *NodeTraversal {
 func initNodeTraversalFromBuilder(t *NodeTraversal, builder *NodeTraversal_Builder) {
 	t.compiler = builder.compiler
 	cb := builder.callback
+	t.stopAtNestedChangeScope = false
+	t.scopeTraversalRoot = rhino.NilNode
 	t.callback = cb
 	_, t.noShouldTraverse = cb.(nodeTraversal_noShouldTraverse)
 	if !t.noShouldTraverse {
@@ -263,6 +268,14 @@ func (b *NodeTraversal_Builder) TraverseWithScope(root rhino.Node, s AbstractSco
 func (b *NodeTraversal_Builder) TraverseScopeRoot(scopeNode rhino.Node) {
 	t := acquireNodeTraversal(b)
 	t.TraverseScopeRoot(scopeNode)
+	releaseNodeTraversal(t)
+}
+
+func (b *NodeTraversal_Builder) traverseScopedRoot(scopeNode rhino.Node, traverseNested bool) {
+	t := acquireNodeTraversal(b)
+	t.stopAtNestedChangeScope = !traverseNested
+	t.scopeTraversalRoot = scopeNode
+	t.traverseScopeRoot(scopeNode, true)
 	releaseNodeTraversal(t)
 }
 
@@ -460,6 +473,9 @@ func (t *NodeTraversal) GetCurrentNode() rhino.Node {
 }
 
 func (t *NodeTraversal) shouldTraverseScriptOrFunction(n, parent rhino.Node) bool {
+	if t.stopAtNestedChangeScope && n != t.scopeTraversalRoot {
+		return false
+	}
 	return t.noShouldTraverse || t.callback.ShouldTraverse(t, n, parent)
 }
 

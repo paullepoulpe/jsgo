@@ -94,8 +94,8 @@ func TestMatcherMatchesJava(t *testing.T) {
 				m := pattern.Matcher(input)
 				for m.Find() {
 					fmt.Fprintf(&sb, "%d,%d", m.Start(), m.End())
-					for g := 1; g <= m.GroupCount(); g++ {
-						fmt.Fprintf(&sb, ",%s@%d-%d", matcherVectorEscape(m.Group(g)), m.StartGroup(g), m.EndGroup(g))
+					for g := 1; g <= m.groupCount(); g++ {
+						fmt.Fprintf(&sb, ",%s@%d-%d", matcherVectorEscape(m.Group(g)), m.startGroup(g), m.endGroup(g))
 					}
 					sb.WriteByte(';')
 				}

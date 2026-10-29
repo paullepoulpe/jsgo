@@ -50,7 +50,7 @@ import (
 type Transpiler interface {
 	// Transpile transforms the given chunk of code. The input should be an
 	// entire file worth of code.
-	Transpile(path *jutil.URI, code string) *TranspileResult
+	Transpile(path string, code string) *TranspileResult
 
 	// Runtime returns any necessary runtime code as a string. This should
 	// include everything that could possibly be required at runtime,
@@ -61,7 +61,7 @@ type Transpiler interface {
 
 type transpile_Transpiler_null struct{}
 
-func (transpile_Transpiler_null) Transpile(path *jutil.URI, code string) *TranspileResult {
+func (transpile_Transpiler_null) Transpile(path string, code string) *TranspileResult {
 	return NewTranspileResult(path, code, code, "")
 }
 
@@ -142,7 +142,7 @@ func NewBaseTranspiler(compilerSupplier BaseTranspiler_CompilerSupplier, runtime
 }
 
 // Java: BaseTranspiler.transpile(URI, String)
-func (t *BaseTranspiler) Transpile(path *jutil.URI, code string) *TranspileResult {
+func (t *BaseTranspiler) Transpile(path string, code string) *TranspileResult {
 	result := t.compilerSupplier.Compile(path, code)
 	if !result.transpiled {
 		return NewTranspileResult(path, code, code, "")
@@ -185,7 +185,7 @@ func BaseTranspiler_To(featureSet *parser.FeatureSet) *BaseTranspiler {
 // Java: static class BaseTranspiler.CompilerSupplier
 type BaseTranspiler_CompilerSupplier interface {
 	// Java: CompilerSupplier.compile(URI, String)
-	Compile(path *jutil.URI, code string) *BaseTranspiler_CompileResult
+	Compile(path string, code string) *BaseTranspiler_CompileResult
 	// Java: CompilerSupplier.runtime(String)
 	Runtime(library string) string
 }
@@ -233,16 +233,15 @@ func NewBaseTranspiler_CompilerSupplierWithModuleResolution(
 }
 
 // Java: CompilerSupplier.compile(URI, String)
-func (s *BaseTranspiler_DefaultCompilerSupplier) Compile(path *jutil.URI, code string) *BaseTranspiler_CompileResult {
+func (s *BaseTranspiler_DefaultCompilerSupplier) Compile(path string, code string) *BaseTranspiler_CompileResult {
 	compiler := s.Compiler()
 	result :=
 		compiler.CompileOfSourceFiles(
-			s.CreateTrivialExterns(), jscomp.SourceFile_FromCode(path.String(), code), s.Options())
+			s.CreateTrivialExterns(), jscomp.SourceFile_FromCode(path, code), s.Options())
 	source := compiler.ToSource()
 	var sourceMap strings.Builder
 	if result.SourceMap != nil {
-		name := path.String()
-		result.SourceMap.AppendTo(&sourceMap, &name)
+		result.SourceMap.AppendTo(&sourceMap, &path)
 	}
 	transpiled := result.TranspiledFiles
 	if len(result.Errors) != 0 {
@@ -344,7 +343,7 @@ func hasPotentialURIScheme(s string) bool {
 // Java: SourceMap.LocationMapping.map(String)
 func (baseTranspiler_absoluteLocationMapping) Map(location string) *string {
 	if hasPotentialURIScheme(location) {
-		if u, err := jutil.ParseURI(location); err == nil && u.GetScheme() != nil {
+		if u, err := jutil.ParseURI(location); err == nil && u.IsAbsolute() {
 			return &location
 		}
 	}

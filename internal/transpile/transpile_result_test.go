@@ -20,19 +20,17 @@ package transpile
 
 import (
 	"testing"
-
-	"github.com/paullepoulpe/jsgo/internal/jutil"
 )
 
 func TestTranspileResult_Equals(t *testing.T) {
 	// EqualsTester: members of a group are equal (with equal hash codes),
 	// members of different groups are not.
 	groups := [][]*TranspileResult{
-		{NewTranspileResult(jutil.NewURI("a"), "b", "c", "d"), NewTranspileResult(jutil.NewURI("a"), "b", "c", "d")},
-		{NewTranspileResult(jutil.NewURI("A"), "b", "c", "d")},
-		{NewTranspileResult(jutil.NewURI("a"), "B", "c", "d")},
-		{NewTranspileResult(jutil.NewURI("a"), "b", "C", "d")},
-		{NewTranspileResult(jutil.NewURI("a"), "b", "c", "D")},
+		{NewTranspileResult("a", "b", "c", "d"), NewTranspileResult("a", "b", "c", "d")},
+		{NewTranspileResult("A", "b", "c", "d")},
+		{NewTranspileResult("a", "B", "c", "d")},
+		{NewTranspileResult("a", "b", "C", "d")},
+		{NewTranspileResult("a", "b", "c", "D")},
 	}
 	for i, g := range groups {
 		for j, h := range groups {
@@ -51,21 +49,21 @@ func TestTranspileResult_Equals(t *testing.T) {
 }
 
 func TestTranspileResult_EmbedSourceMap_noSourceMap(t *testing.T) {
-	result := NewTranspileResult(jutil.NewURI("a"), "b", "c", "")
+	result := NewTranspileResult("a", "b", "c", "")
 	jsaTrue(t, result.EmbedSourcemap() == result)
 	jsaTrue(t, result.EmbedSourcemapUrl("foo") == result)
 }
 
 func TestTranspileResult_EmbedSourceMap(t *testing.T) {
-	result := NewTranspileResult(jutil.NewURI("a"), "b", "c", "{\"version\": 3}")
+	result := NewTranspileResult("a", "b", "c", "{\"version\": 3}")
 	jsaJavaEq(t, result.EmbedSourcemap(),
-		NewTranspileResult(jutil.NewURI("a"), "b", "c\n//# sourceMappingURL=data:,%7B%22version%22%3A%203%7D\n", ""))
+		NewTranspileResult("a", "b", "c\n//# sourceMappingURL=data:,%7B%22version%22%3A%203%7D\n", ""))
 	jsaJavaEq(t, result.EmbedSourcemapUrl("foo.js.map"),
-		NewTranspileResult(jutil.NewURI("a"), "b", "c\n//# sourceMappingURL=foo.js.map\n", "{\"version\": 3}"))
+		NewTranspileResult("a", "b", "c\n//# sourceMappingURL=foo.js.map\n", "{\"version\": 3}"))
 	jsaJavaEq(t, result.EmbedSourcemapBase64(),
-		NewTranspileResult(jutil.NewURI("a"), "b", "c\n//# sourceMappingURL=data:application/json;base64,eyJ2ZXJzaW9uIjogM30=\n", ""))
+		NewTranspileResult("a", "b", "c\n//# sourceMappingURL=data:application/json;base64,eyJ2ZXJzaW9uIjogM30=\n", ""))
 
-	safeAndUnicode := NewTranspileResult(jutil.NewURI("a"), "b", "c", "aZ09-_.* é😀")
+	safeAndUnicode := NewTranspileResult("a", "b", "c", "aZ09-_.* é😀")
 	jsaJavaEq(t, safeAndUnicode.EmbedSourcemap(),
-		NewTranspileResult(jutil.NewURI("a"), "b", "c\n//# sourceMappingURL=data:,aZ09-_.*%20%C3%A9%F0%9F%98%80\n", ""))
+		NewTranspileResult("a", "b", "c\n//# sourceMappingURL=data:,aZ09-_.*%20%C3%A9%F0%9F%98%80\n", ""))
 }

@@ -33,12 +33,11 @@ var checkConstPrivatePropertiesVisitTokens = func() ast.TokenSet {
 	return s
 }()
 
+var _ nodeTraversal_visitTokens = (*CheckConstPrivateProperties)(nil)
+
 func (*CheckConstPrivateProperties) noVisitLeaves() {}
 func (*CheckConstPrivateProperties) visitTokens() *ast.TokenSet {
 	return &checkConstPrivatePropertiesVisitTokens
-}
-func (*CheckConstPrivateProperties) combinedVisitTokens() ast.TokenSet {
-	return checkConstPrivatePropertiesVisitTokens
 }
 
 // CheckConstPrivateProperties looks for properties that are not modified and

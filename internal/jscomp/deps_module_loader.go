@@ -219,11 +219,8 @@ func (p *ModuleLoader_ModulePath) ToModuleName() string {
 // Java: ModuleLoader.ModulePath.resolveJsModule(String, String, int, int)
 func (p *ModuleLoader_ModulePath) ResolveJsModule(
 	moduleAddress string, sourcename string, lineno int, colno int) *ModuleLoader_ModulePath {
-	loadAddress :=
-		p.outer.moduleResolver.ResolveJsModule(p.path, moduleAddress, sourcename, lineno, colno)
-
-	if loadAddress != nil {
-		return p.outer.newModulePath(*loadAddress)
+	if loadAddress, ok := p.outer.moduleResolver.ResolveJsModule(p.path, moduleAddress, sourcename, lineno, colno); ok {
+		return p.outer.newModulePath(loadAddress)
 	}
 
 	return nil
@@ -237,10 +234,8 @@ func (p *ModuleLoader_ModulePath) ResolveJsModule(
 //
 // Java: ModuleLoader.ModulePath.resolveJsModuleSilently(String)
 func (p *ModuleLoader_ModulePath) ResolveJsModuleSilently(moduleAddress string) *ModuleLoader_ModulePath {
-	loadAddress := p.outer.moduleResolver.ResolveJsModuleSilently(p.path, moduleAddress)
-
-	if loadAddress != nil {
-		return p.outer.newModulePath(*loadAddress)
+	if loadAddress, ok := p.outer.moduleResolver.ResolveJsModuleSilently(p.path, moduleAddress); ok {
+		return p.outer.newModulePath(loadAddress)
 	}
 
 	return nil
@@ -509,14 +504,7 @@ func (f ModuleLoader_ModuleResolverFactoryFunc) Create(
 //
 // Java: Comparator.comparingInt(String::length).reversed().thenComparing(naturalOrder())
 func moduleLoader_BEST_MATCH_PATH_ORDERING(a, b string) int {
-	la, lb := jutil.StringLength(a), jutil.StringLength(b)
-	if la != lb {
-		if lb < la {
-			return -1
-		}
-		return 1
-	}
-	return jutil.StringCompareTo(a, b)
+	return comparePathsLongestFirst(a, b)
 }
 
 // moduleLoader_noopErrorHandler is the lambda (CheckLevel level, JSError error) -> {}.

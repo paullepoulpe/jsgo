@@ -36,8 +36,8 @@ type baseTranspilerTest_mockCompiler struct {
 	runtimes      map[string]string
 }
 
-func (m *baseTranspilerTest_mockCompiler) Compile(path *jutil.URI, code string) *BaseTranspiler_CompileResult {
-	if path.String() == baseTranspilerTest_FOO_JS.String() && code == "bar" {
+func (m *baseTranspilerTest_mockCompiler) Compile(path string, code string) *BaseTranspiler_CompileResult {
+	if path == baseTranspilerTest_FOO_JS && code == "bar" {
 		return m.compileResult
 	}
 	return nil
@@ -47,9 +47,9 @@ func (m *baseTranspilerTest_mockCompiler) Runtime(library string) string {
 	return m.runtimes[library]
 }
 
-var (
-	baseTranspilerTest_FOO_JS    = jutil.NewURI("foo.js")
-	baseTranspilerTest_SOURCE_JS = jutil.NewURI("source.js")
+const (
+	baseTranspilerTest_FOO_JS    = "foo.js"
+	baseTranspilerTest_SOURCE_JS = "source.js"
 )
 
 type baseTranspilerTest struct {

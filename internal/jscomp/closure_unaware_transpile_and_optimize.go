@@ -321,13 +321,9 @@ func (p *TranspileAndOptimizeClosureUnaware) createInjectRuntimeLibrariesPass(sh
 			NewInjectClosureUnawareRuntimeLibraries_ClosureUnawareCallSite(
 				shadowAst.CallNode(), closureUnawareFunction))
 	}
-	return PassFactory_Builder_().
-		SetName("injectClosureUnawareRuntimeLibs").
-		SetInternalFactory(
-			func(compiler AbstractCompiler) CompilerPass {
-				return NewInjectClosureUnawareRuntimeLibraries(p.original, compiler, callSites)
-			}).
-		Build()
+	return makePassFactory("injectClosureUnawareRuntimeLibs", func(compiler AbstractCompiler) CompilerPass {
+		return NewInjectClosureUnawareRuntimeLibraries(p.original, compiler, callSites)
+	})
 }
 
 // ManageClosureUnawareCode is the pass that "unwraps" closure-unaware code

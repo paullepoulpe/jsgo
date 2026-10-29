@@ -81,9 +81,6 @@ type TypeInference struct {
 	branchConditionFlowScope *LinkedFlowScope
 	branchConditionOutcomes  *TypeInference_BooleanOutcomePair
 
-	templatedMatched  jutil.LinkedHashMap[*rhino.TemplateType, rhino.JSType]
-	templatedInferred jutil.LinkedHashMap[*rhino.TemplateType, rhino.JSType]
-
 	lastScopeRoot           rhino.Node
 	lastModule              *Module
 	lastSyntacticBlockScope *TypedScope

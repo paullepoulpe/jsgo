@@ -170,18 +170,19 @@ func (g *CodeGenerator) TagAsStrict() {
 
 // Java: CodeGenerator.printJSDocComment(Node, JSDocInfo)
 func (g *CodeGenerator) PrintJSDocComment(node rhino.Node, jsDocInfo *rhino.JSDocInfo) {
-	var jsdocAsString *string
+	var jsdocAsString string
+	var hasJSDoc bool
 	// In gents mode, we print NonJSDocInfo without special handling, as we
 	// already have pre-filtered the comments properly.
 	if g.gentsMode {
-		jsdocAsString = jsDocInfo.GetOriginalCommentString()
+		jsdocAsString, hasJSDoc = jsDocInfo.GetOriginalCommentStringValue()
 	} else {
-		s := g.jsDocInfoPrinter.Print(jsDocInfo)
-		jsdocAsString = &s
+		jsdocAsString = g.jsDocInfoPrinter.Print(jsDocInfo)
+		hasJSDoc = true
 	}
 	// Don't print an empty jsdoc
-	if jsdocAsString != nil && *jsdocAsString != "/** */ " {
-		g.Add(*jsdocAsString)
+	if hasJSDoc && jsdocAsString != "/** */ " {
+		g.Add(jsdocAsString)
 		if !node.IsCast() {
 			g.cc.EndLine()
 		}

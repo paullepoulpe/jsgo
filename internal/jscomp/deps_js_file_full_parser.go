@@ -178,7 +178,7 @@ const jsFileFullParser_CommentAnnotation_ANNOTATION_VALUE_GROUP = 2
 func JsFileFullParser_Parse(code string, filename string, reporter JsFileFullParser_Reporter) *JsFileFullParser_FileInfo {
 	errorReporter := newJsFileFullParser_DelegatingReporter(reporter)
 	em := &jsFileFullParser_ErrorManager{errorReporter: errorReporter}
-	em.InitBasicErrorManagerBase(em)
+	em.initReportHooks(em.Println, nil)
 	compiler := NewCompilerWithErrorManager(em)
 	source := SourceFile_FromCode(filename, code)
 
@@ -241,7 +241,7 @@ func JsFileFullParser_Parse(code string, filename string, reporter JsFileFullPar
 // jsFileFullParser_ErrorManager is the anonymous BasicErrorManager of parse:
 // it forwards errors and warnings to the DelegatingReporter.
 type jsFileFullParser_ErrorManager struct {
-	BasicErrorManagerBase
+	SortingErrorManager
 	errorReporter *jsFileFullParser_DelegatingReporter
 }
 
@@ -272,9 +272,6 @@ func jsFileFullParser_sourceName(error *JSError) string {
 	}
 	return ""
 }
-
-// Java: BasicErrorManager.printSummary()
-func (m *jsFileFullParser_ErrorManager) PrintSummary() {}
 
 // Java: JsFileFullParser.recordModuleMetadata(FileInfo, ModuleMetadata)
 func jsFileFullParser_recordModuleMetadata(info *JsFileFullParser_FileInfo, module *ModuleMetadataMap_ModuleMetadata) {

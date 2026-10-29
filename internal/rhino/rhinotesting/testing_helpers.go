@@ -1,6 +1,8 @@
 // Port of com/google/javascript/rhino/testing/AbstractStaticScope.java @ closure-compiler v20261021
+// Port of com/google/javascript/rhino/testing/Asserts.java @ closure-compiler v20261021
 // Port of com/google/javascript/rhino/testing/MapBasedScope.java @ closure-compiler v20261021
 // Port of com/google/javascript/rhino/testing/TemplateTypeMapSubject.java @ closure-compiler v20261021
+// Port of com/google/javascript/rhino/testing/TestErrorReporter.java @ closure-compiler v20261021
 
 /*
  *
@@ -58,6 +60,39 @@
  * the Initial Developer. All Rights Reserved.
  *
  * Contributor(s):
+ *   Nick Santos
+ *   Google Inc.
+ *
+ * This Go translation is distributed under the MPL 1.1 only, as the
+ * original's dual licence allows; the other licence it offers is not
+ * used.
+ *
+ * ***** END LICENSE BLOCK ***** */
+
+/*
+ *
+ * ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is Rhino code, released
+ * May 6, 1999.
+ *
+ * The Initial Developer of the Original Code is
+ * Netscape Communications Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 1997-1999
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
  *   Bob Jervis
  *   Google Inc.
  *
@@ -70,6 +105,8 @@
 package rhinotesting
 
 import (
+	"slices"
+	"strconv"
 	"testing"
 
 	"github.com/paullepoulpe/jsgo/internal/jutil"
@@ -262,4 +299,136 @@ func (s *TemplateTypeMapSubject) HasSubmapsAt(indices ...int) {
 	Truth{T: s.t}.AssertWithMessage("value of: templateTypeMap.getIndicesOfSubmapsForTesting()").
 		That(s.actual.GetIndicesOfSubmapsForTesting()).
 		ContainsExactlyElementsIn(indices)
+}
+
+// Helper methods for making assertions about the validity of types.
+
+// Java: Asserts.assertResolvesToSame(JSType)
+func Asserts_AssertResolvesToSame(t testing.TB, type_ rhino.JSType) rhino.JSType {
+	t.Helper()
+	Truth{T: t}.AssertThat(Asserts_AssertValidResolve(t, type_)).IsSameInstanceAs(type_)
+	return type_
+}
+
+// Returns the resolved type.
+//
+// Java: Asserts.assertValidResolve(JSType)
+func Asserts_AssertValidResolve(t testing.TB, type_ rhino.JSType) rhino.JSType {
+	t.Helper()
+	reporter := NewTestErrorReporter()
+	resolvedType := type_.Resolve(reporter)
+	Truth{T: t}.AssertWithMessage("JSType#resolve should not affect object equality").
+		AboutTypes().
+		That(resolvedType).
+		IsEqualTo(type_)
+	reporter.VerifyHasEncounteredAllWarningsAndErrors(t)
+	return resolvedType
+}
+
+// Java: Asserts.assertTypeCollectionEquals(Iterable<T>, Iterable<S>)
+func Asserts_AssertTypeCollectionEquals[T rhino.JSType, S rhino.JSType](t testing.TB, a []T, b []S) {
+	t.Helper()
+	tr := Truth{T: t}
+	tr.AssertThat(b).HasSize(len(a))
+	for i := range a {
+		tr.AssertType(b[i]).IsEqualTo(a[i])
+	}
+}
+
+// For the given equivalent types, run all type operations that should have
+// trivially predictable results. Proves that the two types are equivalent.
+//
+// Java: Asserts.assertEquivalenceOperations(JSType, JSType)
+func Asserts_AssertEquivalenceOperations(t testing.TB, a rhino.JSType, b rhino.JSType) {
+	t.Helper()
+	tr := Truth{T: t}
+	tr.AssertType(a).IsEqualTo(a)
+	tr.AssertType(b).IsEqualTo(a)
+	tr.AssertType(b).IsEqualTo(b)
+
+	tr.AssertThat(a.IsSubtypeOf(b)).IsTrue()
+	tr.AssertThat(a.IsSubtypeOf(a)).IsTrue()
+	tr.AssertThat(b.IsSubtypeOf(b)).IsTrue()
+	tr.AssertThat(b.IsSubtypeOf(a)).IsTrue()
+
+	tr.AssertType(a.GetGreatestSubtype(b)).IsEqualTo(a)
+	tr.AssertType(a.GetGreatestSubtype(a)).IsEqualTo(a)
+	tr.AssertType(b.GetGreatestSubtype(b)).IsEqualTo(a)
+	tr.AssertType(b.GetGreatestSubtype(a)).IsEqualTo(a)
+
+	tr.AssertType(a.GetLeastSupertype(b)).IsEqualTo(a)
+	tr.AssertType(a.GetLeastSupertype(a)).IsEqualTo(a)
+	tr.AssertType(b.GetLeastSupertype(b)).IsEqualTo(a)
+	tr.AssertType(b.GetLeastSupertype(a)).IsEqualTo(a)
+
+	tr.AssertThat(a.CanCastTo(b)).IsTrue()
+	tr.AssertThat(a.CanCastTo(a)).IsTrue()
+	tr.AssertThat(b.CanCastTo(b)).IsTrue()
+	tr.AssertThat(b.CanCastTo(a)).IsTrue()
+}
+
+// TestErrorReporter is an error reporter for testing that verifies that
+// messages reported to the reporter are expected.
+//
+// Use expectAllErrors/expectAllWarnings before the code that reports them,
+// and VerifyHasEncounteredAllWarningsAndErrors to check that all were seen.
+type TestErrorReporter struct {
+	expectedErrors   []string
+	expectedWarnings []string
+	// Seen diagnostics are stored in a LinkedHashMap to deduplicate
+	// identical diagnostics. The default
+	// com.google.javascript.jscomp.SortingErrorManager behaves in this way.
+	seenErrors   *jutil.LinkedHashMap[string, string]
+	seenWarnings *jutil.LinkedHashMap[string, string]
+}
+
+// NewTestErrorReporter returns a reporter that expects no diagnostics.
+//
+// Java: TestErrorReporter()
+func NewTestErrorReporter() *TestErrorReporter {
+	return &TestErrorReporter{
+		expectedErrors:   []string{},
+		expectedWarnings: []string{},
+		seenErrors:       jutil.NewLinkedHashMap[string, string](),
+		seenWarnings:     jutil.NewLinkedHashMap[string, string](),
+	}
+}
+
+// Java: TestErrorReporter.error(String, String, int, int)
+func (r *TestErrorReporter) Error(message string, sourceName string, line int, lineOffset int) {
+	r.seenErrors.Put(r.fmtDiagnosticKey(message, sourceName, line, lineOffset), message)
+}
+
+// Java: TestErrorReporter.warning(String, String, int, int)
+func (r *TestErrorReporter) Warning(message string, sourceName string, line int, lineOffset int) {
+	r.seenWarnings.Put(r.fmtDiagnosticKey(message, sourceName, line, lineOffset), message)
+}
+
+// Java: TestErrorReporter.expectAllErrors(String...)
+func (r *TestErrorReporter) ExpectAllErrors(errors ...string) *TestErrorReporter {
+	r.expectedErrors = append(r.expectedErrors, errors...)
+	return r
+}
+
+// Java: TestErrorReporter.expectAllWarnings(String...)
+func (r *TestErrorReporter) ExpectAllWarnings(warnings ...string) *TestErrorReporter {
+	r.expectedWarnings = append(r.expectedWarnings, warnings...)
+	return r
+}
+
+// VerifyHasEncounteredAllWarningsAndErrors checks that exactly the expected
+// diagnostics were reported, in order. Go-only: language-adapter — takes
+// the test that Truth reports to.
+//
+// Java: TestErrorReporter.verifyHasEncounteredAllWarningsAndErrors()
+func (r *TestErrorReporter) VerifyHasEncounteredAllWarningsAndErrors(t testing.TB) {
+	t.Helper()
+	tr := Truth{T: t}
+	tr.AssertThat(slices.Collect(r.seenWarnings.Values())).ContainsExactlyElementsIn(r.expectedWarnings).InOrder()
+	tr.AssertThat(slices.Collect(r.seenErrors.Values())).ContainsExactlyElementsIn(r.expectedErrors).InOrder()
+}
+
+// Java: TestErrorReporter.fmtDiagnosticKey(String, String, int, int)
+func (r *TestErrorReporter) fmtDiagnosticKey(message string, sourceName string, line int, lineOffset int) string {
+	return message + ":" + sourceName + ":" + strconv.Itoa(line) + ":" + strconv.Itoa(lineOffset)
 }

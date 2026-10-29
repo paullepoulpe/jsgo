@@ -19,6 +19,7 @@
 package jscomp
 
 import (
+	"github.com/paullepoulpe/jsgo/internal/ast"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
 
@@ -105,6 +106,24 @@ func (p *InferJSDocInfo) Process(externs rhino.Node, root rhino.Node) {
 		NodeTraversal_Traverse(p.compiler, root, p)
 	}
 }
+
+var inferJSDocInfoVisitTokens = func() ast.TokenSet {
+	var s ast.TokenSet
+	s.Add(rhino.Token_NAME)
+	s.Add(rhino.Token_STRING_KEY)
+	s.Add(rhino.Token_GETTER_DEF)
+	s.Add(rhino.Token_SETTER_DEF)
+	s.Add(rhino.Token_MEMBER_FUNCTION_DEF)
+	s.Add(rhino.Token_MEMBER_FIELD_DEF)
+	s.Add(rhino.Token_COMPUTED_PROP)
+	s.Add(rhino.Token_COMPUTED_FIELD_DEF)
+	s.Add(rhino.Token_GETPROP)
+	return s
+}()
+
+func (*InferJSDocInfo) visitTokens() *ast.TokenSet { return &inferJSDocInfoVisitTokens }
+
+var _ nodeTraversal_visitTokens = (*InferJSDocInfo)(nil)
 
 // Java: InferJSDocInfo.visit(NodeTraversal, Node, Node)
 func (p *InferJSDocInfo) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {

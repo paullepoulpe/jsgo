@@ -28,12 +28,6 @@ import (
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
 
-// combinedVisitTokenFilter may be implemented by a NodeTraversal_Callback whose
-// Visit method inspects a closed set of AST token kinds.
-type combinedVisitTokenFilter interface {
-	combinedVisitTokens() ast.TokenSet
-}
-
 // CombinedCompilerPass is a compiler pass combining multiple Callback and
 // ScopedCallback objects. This pass can be used to separate logically
 // different verifications without incurring any additional traversal and
@@ -65,11 +59,13 @@ type CombinedCompilerPass struct {
 	compiler              AbstractCompiler
 	concreteCompiler      *Compiler
 	cachedErrorManager    ErrorManager
-	sortingErrorManager   *SortingErrorManagerBase
+	sortingErrorManager   *SortingErrorManager
 	continueAfterErrors   bool
 	allNoVisit            bool
 	inactiveCount         int
 }
+
+var _ nodeTraversal_visitTokens = (*CombinedCompilerPass)(nil)
 
 func (p *CombinedCompilerPass) visitTokens() *ast.TokenSet {
 	if p.hasVisitTokenFilter && p.inactiveCount == 0 {
@@ -110,8 +106,11 @@ func NewCombinedCompilerPassOfList(compiler AbstractCompiler, callbacks []NodeTr
 			p.visitCallbacks = append(p.visitCallbacks, w.callback)
 			if p.useVisitTokenMask {
 				bit := uint32(1) << i
-				if f, ok := w.callback.(combinedVisitTokenFilter); ok {
-					ts := f.combinedVisitTokens()
+				var ts *ast.TokenSet
+				if f, ok := w.callback.(nodeTraversal_visitTokens); ok {
+					ts = f.visitTokens()
+				}
+				if ts != nil {
 					for wordIdx := 0; wordIdx < 4; wordIdx++ {
 						for word := ts[wordIdx]; word != 0; word &= word - 1 {
 							tok := wordIdx*64 + bits.TrailingZeros64(word)
@@ -155,8 +154,8 @@ func (p *CombinedCompilerPass) refreshErrorState() {
 	if ts, ok := em.(*ThreadSafeDelegatingErrorManager); ok {
 		em = ts.delegated
 	}
-	if sem, ok := em.(SortingErrorManager); ok {
-		p.sortingErrorManager = sem.GetSortingErrorManagerBase()
+	if sem, ok := em.(interface{ sortingErrorManager() *SortingErrorManager }); ok {
+		p.sortingErrorManager = sem.sortingErrorManager()
 	}
 }
 

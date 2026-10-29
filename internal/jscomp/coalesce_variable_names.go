@@ -386,7 +386,19 @@ func (c *CoalesceVariableNames) ExitScopeWithCfg(t *NodeTraversal) {
 	}
 }
 
-func (*CoalesceVariableNames) onlyNameLeaves() {}
+var coalesceVariableNamesVisitTokens = func() ast.TokenSet {
+	var s ast.TokenSet
+	s.Add(rhino.Token_NAME)
+	return s
+}()
+
+var (
+	_ nodeTraversal_visitTokens    = (*CoalesceVariableNames)(nil)
+	_ nodeTraversal_onlyNameLeaves = (*CoalesceVariableNames)(nil)
+)
+
+func (*CoalesceVariableNames) visitTokens() *ast.TokenSet { return &coalesceVariableNamesVisitTokens }
+func (*CoalesceVariableNames) onlyNameLeaves()            {}
 
 // Java: CoalesceVariableNames.visit(NodeTraversal, Node, Node)
 func (c *CoalesceVariableNames) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {

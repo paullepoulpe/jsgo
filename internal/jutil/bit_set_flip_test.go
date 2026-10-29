@@ -24,7 +24,11 @@ func TestBitSetFlipMatchesJDK(t *testing.T) {
 					b.Set(n)
 				case 'f':
 					n, _ := strconv.Atoi(op[1:])
-					b.Flip(n)
+					if n < 0 {
+						bitSetCheckIndex(n, "bitIndex")
+					} else {
+						b.FlipRange(n, n+1)
+					}
 				case 'F':
 					parts := strings.Split(op[1:], ":")
 					from, _ := strconv.Atoi(parts[0])

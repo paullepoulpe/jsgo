@@ -68,23 +68,19 @@ func (c *nodeTraversalTestScopedCallback) ExitScope(t *NodeTraversal) {
 // nodeTraversalTest_ErrorManager is the tests' anonymous BasicErrorManager
 // that collects the reported errors.
 type nodeTraversalTest_ErrorManager struct {
-	BasicErrorManagerBase
+	SortingErrorManager
 	errors *[]*JSError
 }
 
 func newNodeTraversalTest_ErrorManager(errors *[]*JSError) *nodeTraversalTest_ErrorManager {
 	m := &nodeTraversalTest_ErrorManager{errors: errors}
-	m.InitBasicErrorManagerBase(m)
+	m.InitSortingErrorManager(nil)
 	return m
 }
 
 func (m *nodeTraversalTest_ErrorManager) Report(level *CheckLevel, error_ *JSError) {
 	*m.errors = append(*m.errors, error_)
 }
-
-func (m *nodeTraversalTest_ErrorManager) Println(level *CheckLevel, error_ *JSError) {}
-
-func (m *nodeTraversalTest_ErrorManager) PrintSummary() {}
 
 func TestNodeTraversal_Report(t *testing.T) {
 	dt := DiagnosticType_Warning("FOO", "{0}, {1} - {2}")

@@ -55,14 +55,14 @@ func TestFileCharSourceReadLines(t *testing.T) {
 		f()
 	}
 	expectPanic("java.io.FileNotFoundException: /nonexistent/zz (No such file or directory)", func() {
-		Files_AsCharSource(NewFile("/nonexistent/zz"), StandardCharsets_UTF_8).OpenStream()
+		Files_AsCharSource(NewFile("/nonexistent/zz"), StandardCharsets_UTF_8).Read()
 	})
 	expectPanic("java.io.FileNotFoundException: /nonexistent/zz (No such file or directory)", func() {
 		NewPrintStreamFromFile(NewFile("/nonexistent/zz"))
 	})
 	dir := t.TempDir()
 	expectPanic("java.io.FileNotFoundException: "+dir+" (Is a directory)", func() {
-		Files_AsCharSource(NewFile(dir), StandardCharsets_UTF_8).OpenStream()
+		Files_AsCharSource(NewFile(dir), StandardCharsets_UTF_8).Read()
 	})
 	path := filepath.Join(dir, "out.txt")
 	ps := NewPrintStreamFromFile(NewFile(path))
@@ -72,11 +72,10 @@ func TestFileCharSourceReadLines(t *testing.T) {
 	if string(b) != "xé\n" {
 		t.Errorf("PrintStream(File) wrote %q", b)
 	}
-	r := Files_AsCharSource(NewFile(path), StandardCharsets_UTF_8).OpenStream()
-	if lines := CharStreams_ReadLines(r); len(lines) != 1 || lines[0] != "xé" {
-		t.Errorf("read back %q", lines)
+	lines, ex := Files_AsCharSource(NewFile(path), StandardCharsets_UTF_8).TryReadLines()
+	if ex != nil || len(lines) != 1 || lines[0] != "xé" {
+		t.Errorf("read back %q (err=%v)", lines, ex)
 	}
-	r.Close()
 }
 
 // Go-only: CharSource.read as Guava documents it.

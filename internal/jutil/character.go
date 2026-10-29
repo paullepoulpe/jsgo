@@ -12,88 +12,88 @@ import (
 
 // Java Character.getType() general category constants.
 const (
-	Character_UNASSIGNED                = 0
-	Character_UPPERCASE_LETTER          = 1
-	Character_LOWERCASE_LETTER          = 2
-	Character_TITLECASE_LETTER          = 3
-	Character_MODIFIER_LETTER           = 4
-	Character_OTHER_LETTER              = 5
+	character_UNASSIGNED                = 0
+	character_UPPERCASE_LETTER          = 1
+	character_LOWERCASE_LETTER          = 2
+	character_TITLECASE_LETTER          = 3
+	character_MODIFIER_LETTER           = 4
+	character_OTHER_LETTER              = 5
 	Character_NON_SPACING_MARK          = 6
-	Character_ENCLOSING_MARK            = 7
-	Character_COMBINING_SPACING_MARK    = 8
-	Character_DECIMAL_DIGIT_NUMBER      = 9
-	Character_LETTER_NUMBER             = 10
-	Character_OTHER_NUMBER              = 11
+	character_ENCLOSING_MARK            = 7
+	character_COMBINING_SPACING_MARK    = 8
+	character_DECIMAL_DIGIT_NUMBER      = 9
+	character_LETTER_NUMBER             = 10
+	character_OTHER_NUMBER              = 11
 	Character_SPACE_SEPARATOR           = 12
-	Character_LINE_SEPARATOR            = 13
-	Character_PARAGRAPH_SEPARATOR       = 14
-	Character_CONTROL                   = 15
+	character_LINE_SEPARATOR            = 13
+	character_PARAGRAPH_SEPARATOR       = 14
+	character_CONTROL                   = 15
 	Character_FORMAT                    = 16
-	Character_PRIVATE_USE               = 18
-	Character_SURROGATE                 = 19
-	Character_DASH_PUNCTUATION          = 20
-	Character_START_PUNCTUATION         = 21
-	Character_END_PUNCTUATION           = 22
-	Character_CONNECTOR_PUNCTUATION     = 23
-	Character_OTHER_PUNCTUATION         = 24
-	Character_MATH_SYMBOL               = 25
-	Character_CURRENCY_SYMBOL           = 26
-	Character_MODIFIER_SYMBOL           = 27
-	Character_OTHER_SYMBOL              = 28
-	Character_INITIAL_QUOTE_PUNCTUATION = 29
-	Character_FINAL_QUOTE_PUNCTUATION   = 30
+	character_PRIVATE_USE               = 18
+	character_SURROGATE                 = 19
+	character_DASH_PUNCTUATION          = 20
+	character_START_PUNCTUATION         = 21
+	character_END_PUNCTUATION           = 22
+	character_CONNECTOR_PUNCTUATION     = 23
+	character_OTHER_PUNCTUATION         = 24
+	character_MATH_SYMBOL               = 25
+	character_CURRENCY_SYMBOL           = 26
+	character_MODIFIER_SYMBOL           = 27
+	character_OTHER_SYMBOL              = 28
+	character_INITIAL_QUOTE_PUNCTUATION = 29
+	character_FINAL_QUOTE_PUNCTUATION   = 30
 )
 
 var characterCategories = []struct {
 	table *unicode.RangeTable
 	typ   int
 }{
-	{unicode.Lu, Character_UPPERCASE_LETTER},
-	{unicode.Ll, Character_LOWERCASE_LETTER},
-	{unicode.Lt, Character_TITLECASE_LETTER},
-	{unicode.Lm, Character_MODIFIER_LETTER},
-	{unicode.Lo, Character_OTHER_LETTER},
+	{unicode.Lu, character_UPPERCASE_LETTER},
+	{unicode.Ll, character_LOWERCASE_LETTER},
+	{unicode.Lt, character_TITLECASE_LETTER},
+	{unicode.Lm, character_MODIFIER_LETTER},
+	{unicode.Lo, character_OTHER_LETTER},
 	{unicode.Mn, Character_NON_SPACING_MARK},
-	{unicode.Me, Character_ENCLOSING_MARK},
-	{unicode.Mc, Character_COMBINING_SPACING_MARK},
-	{unicode.Nd, Character_DECIMAL_DIGIT_NUMBER},
-	{unicode.Nl, Character_LETTER_NUMBER},
-	{unicode.No, Character_OTHER_NUMBER},
+	{unicode.Me, character_ENCLOSING_MARK},
+	{unicode.Mc, character_COMBINING_SPACING_MARK},
+	{unicode.Nd, character_DECIMAL_DIGIT_NUMBER},
+	{unicode.Nl, character_LETTER_NUMBER},
+	{unicode.No, character_OTHER_NUMBER},
 	{unicode.Zs, Character_SPACE_SEPARATOR},
-	{unicode.Zl, Character_LINE_SEPARATOR},
-	{unicode.Zp, Character_PARAGRAPH_SEPARATOR},
-	{unicode.Cc, Character_CONTROL},
+	{unicode.Zl, character_LINE_SEPARATOR},
+	{unicode.Zp, character_PARAGRAPH_SEPARATOR},
+	{unicode.Cc, character_CONTROL},
 	{unicode.Cf, Character_FORMAT},
-	{unicode.Co, Character_PRIVATE_USE},
-	{unicode.Cs, Character_SURROGATE},
-	{unicode.Pd, Character_DASH_PUNCTUATION},
-	{unicode.Ps, Character_START_PUNCTUATION},
-	{unicode.Pe, Character_END_PUNCTUATION},
-	{unicode.Pc, Character_CONNECTOR_PUNCTUATION},
-	{unicode.Po, Character_OTHER_PUNCTUATION},
-	{unicode.Sm, Character_MATH_SYMBOL},
-	{unicode.Sc, Character_CURRENCY_SYMBOL},
-	{unicode.Sk, Character_MODIFIER_SYMBOL},
-	{unicode.So, Character_OTHER_SYMBOL},
-	{unicode.Pi, Character_INITIAL_QUOTE_PUNCTUATION},
-	{unicode.Pf, Character_FINAL_QUOTE_PUNCTUATION},
+	{unicode.Co, character_PRIVATE_USE},
+	{unicode.Cs, character_SURROGATE},
+	{unicode.Pd, character_DASH_PUNCTUATION},
+	{unicode.Ps, character_START_PUNCTUATION},
+	{unicode.Pe, character_END_PUNCTUATION},
+	{unicode.Pc, character_CONNECTOR_PUNCTUATION},
+	{unicode.Po, character_OTHER_PUNCTUATION},
+	{unicode.Sm, character_MATH_SYMBOL},
+	{unicode.Sc, character_CURRENCY_SYMBOL},
+	{unicode.Sk, character_MODIFIER_SYMBOL},
+	{unicode.So, character_OTHER_SYMBOL},
+	{unicode.Pi, character_INITIAL_QUOTE_PUNCTUATION},
+	{unicode.Pf, character_FINAL_QUOTE_PUNCTUATION},
 }
 
 // CharacterGetType is Character.getType(char).
 func CharacterGetType(ch uint16) int {
 	if ch == 0x0295 {
-		return Character_LOWERCASE_LETTER
+		return character_LOWERCASE_LETTER
 	}
 	r := rune(ch)
 	if isUnassignedUnicode15(r) {
-		return Character_UNASSIGNED
+		return character_UNASSIGNED
 	}
 	for _, c := range characterCategories {
 		if unicode.Is(c.table, r) {
 			return c.typ
 		}
 	}
-	return Character_UNASSIGNED
+	return character_UNASSIGNED
 }
 
 // CharacterIsLetter is Character.isLetter(char): general category Lu, Ll,
@@ -127,10 +127,10 @@ func CharacterIsUpperCase(ch uint16) bool {
 
 func isSurrogate(ch uint16) bool { return ch >= 0xD800 && ch <= 0xDFFF }
 
-// Character_MIN_RADIX / Character_MAX_RADIX are Character.MIN_RADIX/MAX_RADIX.
+// character_MIN_RADIX / character_MAX_RADIX are Character.MIN_RADIX/MAX_RADIX.
 const (
-	Character_MIN_RADIX = 2
-	Character_MAX_RADIX = 36
+	character_MIN_RADIX = 2
+	character_MAX_RADIX = 36
 )
 
 // CharacterDigit is Character.digit(char, int): the value of ch in radix, or
@@ -138,7 +138,7 @@ const (
 // of 0..9), ASCII Latin letters and their fullwidth forms (U+FF21..U+FF3A,
 // U+FF41..U+FF5A) are digits.
 func CharacterDigit(ch uint16, radix int) int {
-	if radix < Character_MIN_RADIX || radix > Character_MAX_RADIX {
+	if radix < character_MIN_RADIX || radix > character_MAX_RADIX {
 		return -1
 	}
 	value := -1
@@ -465,7 +465,7 @@ func isLowSurrogateUnit(c uint16) bool { return c >= 0xDC00 && c <= 0xDFFF }
 // CharacterGetTypeOfCodePoint is Character.getType(int codePoint).
 func CharacterGetTypeOfCodePoint(codePoint int) int {
 	if codePoint < 0 || codePoint > unicode.MaxRune {
-		return Character_UNASSIGNED
+		return character_UNASSIGNED
 	}
 	if codePoint <= 0xFFFF {
 		return CharacterGetType(uint16(codePoint))
@@ -475,29 +475,14 @@ func CharacterGetTypeOfCodePoint(codePoint int) int {
 	}
 	r := rune(codePoint)
 	if isUnassignedUnicode15(r) {
-		return Character_UNASSIGNED
+		return character_UNASSIGNED
 	}
 	for _, c := range characterCategories {
 		if unicode.Is(c.table, r) {
 			return c.typ
 		}
 	}
-	return Character_UNASSIGNED
-}
-
-// CharacterIsLetterCodePoint is Character.isLetter(int).
-func CharacterIsLetterCodePoint(codePoint int) bool {
-	switch CharacterGetTypeOfCodePoint(codePoint) {
-	case Character_UPPERCASE_LETTER, Character_LOWERCASE_LETTER, Character_TITLECASE_LETTER,
-		Character_MODIFIER_LETTER, Character_OTHER_LETTER:
-		return true
-	}
-	return false
-}
-
-// CharacterIsDigitCodePoint is Character.isDigit(int).
-func CharacterIsDigitCodePoint(codePoint int) bool {
-	return CharacterGetTypeOfCodePoint(codePoint) == Character_DECIMAL_DIGIT_NUMBER
+	return character_UNASSIGNED
 }
 
 // CharacterIsWhitespaceCodePoint is Character.isWhitespace(int): a Unicode
@@ -511,7 +496,7 @@ func CharacterIsWhitespaceCodePoint(codePoint int) bool {
 		return false
 	}
 	switch CharacterGetTypeOfCodePoint(codePoint) {
-	case Character_SPACE_SEPARATOR, Character_LINE_SEPARATOR, Character_PARAGRAPH_SEPARATOR:
+	case Character_SPACE_SEPARATOR, character_LINE_SEPARATOR, character_PARAGRAPH_SEPARATOR:
 		return true
 	}
 	return false
@@ -531,9 +516,9 @@ func CharacterIsIdentifierIgnorable(ch uint16) bool {
 // a letter, a letter number, a currency symbol or a connector punctuation.
 func CharacterIsJavaIdentifierStart(ch uint16) bool {
 	switch CharacterGetType(ch) {
-	case Character_UPPERCASE_LETTER, Character_LOWERCASE_LETTER, Character_TITLECASE_LETTER,
-		Character_MODIFIER_LETTER, Character_OTHER_LETTER, Character_LETTER_NUMBER,
-		Character_CURRENCY_SYMBOL, Character_CONNECTOR_PUNCTUATION:
+	case character_UPPERCASE_LETTER, character_LOWERCASE_LETTER, character_TITLECASE_LETTER,
+		character_MODIFIER_LETTER, character_OTHER_LETTER, character_LETTER_NUMBER,
+		character_CURRENCY_SYMBOL, character_CONNECTOR_PUNCTUATION:
 		return true
 	}
 	return false
@@ -544,10 +529,10 @@ func CharacterIsJavaIdentifierStart(ch uint16) bool {
 // identifier-ignorable character.
 func CharacterIsJavaIdentifierPart(ch uint16) bool {
 	switch CharacterGetType(ch) {
-	case Character_UPPERCASE_LETTER, Character_LOWERCASE_LETTER, Character_TITLECASE_LETTER,
-		Character_MODIFIER_LETTER, Character_OTHER_LETTER, Character_LETTER_NUMBER,
-		Character_CURRENCY_SYMBOL, Character_CONNECTOR_PUNCTUATION,
-		Character_DECIMAL_DIGIT_NUMBER, Character_COMBINING_SPACING_MARK, Character_NON_SPACING_MARK:
+	case character_UPPERCASE_LETTER, character_LOWERCASE_LETTER, character_TITLECASE_LETTER,
+		character_MODIFIER_LETTER, character_OTHER_LETTER, character_LETTER_NUMBER,
+		character_CURRENCY_SYMBOL, character_CONNECTOR_PUNCTUATION,
+		character_DECIMAL_DIGIT_NUMBER, character_COMBINING_SPACING_MARK, Character_NON_SPACING_MARK:
 		return true
 	}
 	return CharacterIsIdentifierIgnorable(ch)

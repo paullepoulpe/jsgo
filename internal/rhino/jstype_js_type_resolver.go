@@ -228,7 +228,7 @@ func (r *JSTypeResolver) ResolveAll() {
 	// default, the global "this" type is just an anonymous object. If the user
 	// has defined a Window type, make the Window the implicit prototype of
 	// "this".
-	globalThis := r.registry.GetNativeType(JSTypeNative_GLOBAL_THIS).(PrototypeObjectType)
+	globalThis := r.registry.GetNativeType(JSTypeNative_GLOBAL_THIS).(*InstanceObjectType)
 	windowType := r.registry.GetGlobalType("Window")
 	if globalThis.IsUnknownType() {
 		windowObjType := ObjectType_Cast(windowType)

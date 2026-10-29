@@ -51,8 +51,14 @@ import (
 // Java: class FunctionType extends PrototypeObjectType implements
 // JSType.WithSourceRef (subclassed by NoObjectType).
 type FunctionType interface {
-	PrototypeObjectType
+	ObjectType
 	JSType_WithSourceRef
+
+	SetPrettyPrint(prettyPrint bool)
+	IsPrettyPrint() bool
+	SetImplicitPrototype(implicitPrototype ObjectType)
+	IsAnonymous() bool
+	MatchRecordTypeConstraint(constraintObj ObjectType)
 
 	GetKind() FunctionType_Kind
 	MakesStructs() bool

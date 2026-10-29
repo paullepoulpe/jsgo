@@ -1293,18 +1293,18 @@ func (c *MakeDeclaredNamesUniqueTest) TestAssertOnChange_noExceptionIfNothingCha
 func TestMakeDeclaredNamesUnique_renamers(t *testing.T) {
 	root := NewMakeDeclaredNamesUnique_ContextualRenamer()
 	root.AddDeclaredName("a", false)
-	if got := root.GetReplacementName("a"); got != nil {
-		t.Errorf("global a renamed to %q", *got)
+	if got, ok := root.GetReplacementNameValue("a"); ok {
+		t.Errorf("global a renamed to %q", got)
 	}
 	fn := rhino.IR_Function(rhino.IR_Name("f"), rhino.IR_ParamList(), rhino.IR_Block())
 	child := root.CreateForChildScope(fn, false)
 	child.AddDeclaredName("a", false)
 	child.AddDeclaredName("arguments", false)
-	if got := child.GetReplacementName("a"); got == nil || *got != "a$jscomp$1" {
-		t.Errorf("local a: got %v", got)
+	if got, ok := child.GetReplacementNameValue("a"); !ok || got != "a$jscomp$1" {
+		t.Errorf("local a: got %q, %v", got, ok)
 	}
-	if got := child.GetReplacementName("arguments"); got != nil {
-		t.Errorf("arguments renamed to %q", *got)
+	if got, ok := child.GetReplacementNameValue("arguments"); ok {
+		t.Errorf("arguments renamed to %q", got)
 	}
 	if !strings.HasPrefix(root.String(), "ContextualRenamer{scopeRoot=null, nameUsage=[") {
 		t.Errorf("toString: %s", root.String())
@@ -1319,7 +1319,7 @@ func TestMakeDeclaredNamesUnique_renamers(t *testing.T) {
 		NewMakeDeclaredNamesUnique_ContextualRenamer(), jutil.NewLinkedHashSet("t"))
 	targetted.AddDeclaredName("t", false)
 	targetted.AddDeclaredName("u", false)
-	if targetted.GetReplacementName("u") != nil {
+	if _, ok := targetted.GetReplacementNameValue("u"); ok {
 		t.Errorf("untargetted name replaced")
 	}
 }

@@ -37,12 +37,11 @@ func TestURIGetPathMatchesJDK(t *testing.T) {
 	for _, r := range rows {
 		in := *uriGetPathHex(t, r[0])
 		var got []string
-		Try(func() {
-			uri := NewURI(in)
-			got = []string{uriVectorHex(uri.GetPath()), uriVectorHex(uri.GetRawPath())}
-		}, func(e *URISyntaxException) {
+		if uri, err := ParseURI(in); err != nil {
 			got = []string{"error"}
-		})
+		} else {
+			got = []string{uriVectorHex(uri.GetPath()), uriVectorHex(uri.path)}
+		}
 		if strings.Join(got, "\t") != strings.Join(r[1:], "\t") {
 			t.Errorf("%q: got %v, want %v", in, got, r[1:])
 		}

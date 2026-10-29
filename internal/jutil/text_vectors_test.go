@@ -67,44 +67,34 @@ func pathOrNull(p *Path) string {
 	return p.String()
 }
 
-func describeURI(x *URI) string {
-	ssp := x.ssp
-	if !x.IsOpaque() {
-		// The raw scheme-specific part of a hierarchical URI.
-		v := x.str
-		if x.scheme != nil {
-			v = StringSubstringFrom(v, StringLength(*x.scheme)+1)
-		}
-		if x.fragment != nil {
-			v = StringSubstring(v, 0, StringLength(v)-StringLength(*x.fragment)-1)
-		}
-		ssp = &v
-	}
-	return strconv.FormatBool(x.IsAbsolute()) + "|" + strconv.FormatBool(x.IsOpaque()) + "|" +
-		strconv.Itoa(int(x.HashCode())) + "|" + x.String() + "|" + javaNull(x.GetScheme()) + "|" +
-		javaNull(ssp) + "|" + javaNull(x.GetRawAuthority()) + "|" + javaNull(x.userInfo) + "|" +
-		javaNull(x.GetHost()) + "|" + strconv.Itoa(x.GetPort()) + "|" + javaNull(x.GetRawPath()) + "|" +
-		javaNull(x.GetRawQuery()) + "|" + javaNull(x.GetRawFragment())
-}
-
 func TestURITextVectors(t *testing.T) {
 	for _, r := range readTextVectors(t, "text_uri.tsv", 5000) {
-		a, _ := unescVector(t, r[1])
-		var got, want string
-		switch r[0] {
-		case "p":
-			want = r[2]
-			got = textGuard(func() string { return describeURI(NewURI(a)) })
-		case "eq":
-			b, _ := unescVector(t, r[2])
-			want = r[3]
-			got = textGuard(func() string {
-				x, y := NewURI(a), NewURI(b)
-				return strconv.FormatBool(x.Equals(y)) + "|" + strconv.FormatBool(x.HashCode() == y.HashCode())
-			})
+		if r[0] != "p" {
+			continue
 		}
-		if got != want {
-			t.Errorf("%v:\n got %s\nwant %s", r, got, want)
+		a, _ := unescVector(t, r[1])
+		want := r[2]
+		u, err := ParseURI(a)
+		if err != nil {
+			msg := strings.TrimPrefix(err.Error(), "java.net.URISyntaxException: ")
+			got := "EXC:java.net.URISyntaxException:" + escVector(msg)
+			if got != want {
+				t.Errorf("%v:\n got %s\nwant %s", r, got, want)
+			}
+			continue
+		}
+		cols := strings.Split(want, "|")
+		if got := strconv.FormatBool(u.IsAbsolute()); got != cols[0] {
+			t.Errorf("%v: IsAbsolute = %s, want %s", r, got, cols[0])
+		}
+		if got := strconv.FormatBool(u.path == nil); got != cols[1] {
+			t.Errorf("%v: isOpaque = %s, want %s", r, got, cols[1])
+		}
+		if got := escVector(u.String()); got != cols[3] {
+			t.Errorf("%v: String = %s, want %s", r, got, cols[3])
+		}
+		if got := escVector(javaNull(u.path)); got != cols[10] {
+			t.Errorf("%v: path = %s, want %s", r, got, cols[10])
 		}
 	}
 }

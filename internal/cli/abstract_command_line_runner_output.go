@@ -22,6 +22,7 @@ import (
 	"bufio"
 	"errors"
 	"io"
+	"os"
 	"slices"
 	"strings"
 
@@ -150,7 +151,7 @@ func (r *AbstractCommandLineRunnerBase) WriteChunkOutput(fileName string, out ju
 	}
 
 	if !r.IsOutputInJson() {
-		abstractCommandLineRunner_maybeCreateDirsForPath(&fileName)
+		abstractCommandLineRunner_maybeCreateDirsForPath(fileName)
 	}
 	baseName := jutil.NewFile(fileName).GetName()
 	r.self.WriteOutput(
@@ -263,9 +264,9 @@ func (r *AbstractCommandLineRunnerBase) writeOutputOfCodeWithSourceMap(
 // necessary to write a file that will have a given path prefix.
 //
 // Java: AbstractCommandLineRunner.maybeCreateDirsForPath(String)
-func abstractCommandLineRunner_maybeCreateDirsForPath(pathPrefix *string) {
-	if pathPrefix != nil && *pathPrefix != "" {
-		parent := jutil.NewFile(*pathPrefix).GetParentFile()
+func abstractCommandLineRunner_maybeCreateDirsForPath(pathPrefix string) {
+	if pathPrefix != "" {
+		parent := jutil.NewFile(pathPrefix).GetParentFile()
 		if parent != nil {
 			parent.Mkdirs()
 		}
@@ -274,11 +275,14 @@ func abstractCommandLineRunner_maybeCreateDirsForPath(pathPrefix *string) {
 
 // Java: AbstractCommandLineRunner.createDefaultOutput()
 func (r *AbstractCommandLineRunnerBase) CreateDefaultOutput() AbstractCommandLineRunner_Writer {
-	writeOutputToFile := r.config.jsOutputFile != ""
-	if writeOutputToFile {
-		return r.FileNameToLegacyOutputWriter(&r.config.jsOutputFile)
+	if r.config.jsOutputFile != "" {
+		return r.FileNameToLegacyOutputWriter(r.config.jsOutputFile)
 	}
-	return r.StreamToLegacyOutputWriter(abstractCommandLineRunner_printStreamAsOutputStream{r.defaultJsOutput})
+	cs := r.legacyOutputCharset
+	if cs == nil {
+		cs = jutil.StandardCharsets_UTF_8
+	}
+	return newCliBufferedWriter(r.defaultJsOutput, nil, r.defaultJsOutput.Flush, cs)
 }
 
 // Java: AbstractCommandLineRunner.closeAppendable(Appendable)
@@ -310,7 +314,7 @@ func (r *AbstractCommandLineRunnerBase) OutputSingleBinary(options *jscomp.Compi
 		r.filesToStreamOut = append(r.filesToStreamOut, r.self.CreateJsonFile(options, marker, escaper))
 	} else {
 		if config.jsOutputFile != "" {
-			abstractCommandLineRunner_maybeCreateDirsForPath(&config.jsOutputFile)
+			abstractCommandLineRunner_maybeCreateDirsForPath(config.jsOutputFile)
 		}
 
 		jsOutput := r.CreateDefaultOutput()
@@ -365,34 +369,30 @@ func (r *AbstractCommandLineRunnerBase) CreateJsonFile(options *jscomp.CompilerO
 
 // Java: AbstractCommandLineRunner.outputJsonStream()
 func (r *AbstractCommandLineRunnerBase) OutputJsonStream() {
-	jsonWriter := jutil.NewJsonWriter(newAbstractCommandLineRunnerBufferedWriter(
-		abstractCommandLineRunner_printStreamAsOutputStream{r.defaultJsOutput}, jutil.StandardCharsets_UTF_8))
+	jsonWriter := jutil.NewJsonWriter(newCliBufferedWriter(
+		r.defaultJsOutput, nil, r.defaultJsOutput.Flush, jutil.StandardCharsets_UTF_8))
 	defer jsonWriter.Close()
 	jsonWriter.SetLenient(true)
 	jsonWriter.SetHtmlSafe(false)
 	jsonWriter.SetSerializeNulls(false)
-	jutil.Try(func() {
-		if r.filesToStreamOut == nil {
+	if r.filesToStreamOut == nil {
+		jsonWriter.NullValue()
+		return
+	}
+	jsonWriter.BeginArray()
+	for _, spec := range r.filesToStreamOut {
+		if spec == nil {
 			jsonWriter.NullValue()
-			return
+			continue
 		}
-		jsonWriter.BeginArray()
-		for _, spec := range r.filesToStreamOut {
-			if spec == nil {
-				jsonWriter.NullValue()
-				continue
-			}
-			jsonWriter.BeginObject()
-			jsonWriter.Name("src").ValueString(spec.Src)
-			jsonWriter.Name("path").ValueString(spec.Path)
-			jsonWriter.Name("source_map").ValueString(spec.SourceMap)
-			jsonWriter.Name("webpack_id").ValueString(spec.WebpackId)
-			jsonWriter.EndObject()
-		}
-		jsonWriter.EndArray()
-	}, func(e jutil.IIOException) {
-		panic(jutil.NewJsonIOExceptionWithCause(e))
-	})
+		jsonWriter.BeginObject()
+		jsonWriter.Name("src").ValueString(spec.Src)
+		jsonWriter.Name("path").ValueString(spec.Path)
+		jsonWriter.Name("source_map").ValueString(spec.SourceMap)
+		jsonWriter.Name("webpack_id").ValueString(spec.WebpackId)
+		jsonWriter.EndObject()
+	}
+	jsonWriter.EndArray()
 }
 
 // Java: AbstractCommandLineRunner.outputChunkBinaryAndSourceMaps(JSChunkGraph, B)
@@ -403,8 +403,7 @@ func (r *AbstractCommandLineRunnerBase) OutputChunkBinaryAndSourceMaps(
 	r.parsedChunkWrappers = AbstractCommandLineRunner_ParseChunkWrappers(config.chunkWrapper, chunks)
 	if !r.IsOutputInJson() {
 		// make sure the method generates all dirs up to the latest /
-		dummy := config.chunkOutputPathPrefix + "dummy"
-		abstractCommandLineRunner_maybeCreateDirsForPath(&dummy)
+		abstractCommandLineRunner_maybeCreateDirsForPath(config.chunkOutputPathPrefix + "dummy")
 	}
 
 	// If the source map path is in fact a pattern for each
@@ -445,9 +444,9 @@ func (r *AbstractCommandLineRunnerBase) OutputChunkBinaryAndSourceMaps(
 			}
 
 			chunkFilename := r.self.GetChunkOutputFileName(m)
-			abstractCommandLineRunner_maybeCreateDirsForPath(&chunkFilename)
+			abstractCommandLineRunner_maybeCreateDirsForPath(chunkFilename)
 			func() {
-				writer := r.FileNameToLegacyOutputWriter(&chunkFilename)
+				writer := r.FileNameToLegacyOutputWriter(chunkFilename)
 				defer abstractCommandLineRunner_closeWriter(writer)
 				if options.ShouldGatherSourceMapInfo() {
 					r.compiler.ResetAndIntitializeSourceMap()
@@ -495,7 +494,11 @@ func (r *AbstractCommandLineRunnerBase) outputChunksParallel(
 			return r.self.GetChunkOutputFileName(m)
 		},
 		SourceMapPath: func(m *jscomp.JSChunk) *string {
-			return r.self.ExpandSourceMapPath(options, m)
+			if !options.ShouldGatherSourceMapInfo() {
+				return nil
+			}
+			p := r.self.ExpandSourceMapPath(options, m)
+			return &p
 		},
 		WrapperTemplate: func(chunkName string) string {
 			return r.parsedChunkWrappers[chunkName]
@@ -510,18 +513,18 @@ func (r *AbstractCommandLineRunnerBase) outputChunksParallel(
 			}
 			if _, ok := createdDirs[dir]; !ok {
 				createdDirs[dir] = struct{}{}
-				abstractCommandLineRunner_maybeCreateDirsForPath(filename)
+				abstractCommandLineRunner_maybeCreateDirsForPath(*filename)
 			}
 		},
 		WriteChunkWithMap: func(filename string, mapFilename string, sm *jscomp.SourceMap, code string, wrapper string) {
 			var mapFileOut AbstractCommandLineRunner_Writer
 			if mapFilename != "" {
-				mapFileOut = r.FileNameToOutputWriter2(&mapFilename)
+				mapFileOut = r.FileNameToOutputWriter2(mapFilename)
 				if mapFileOut != nil {
 					defer mapFileOut.Close()
 				}
 			}
-			writer := r.FileNameToLegacyOutputWriter(&filename)
+			writer := r.FileNameToLegacyOutputWriter(filename)
 			defer abstractCommandLineRunner_closeWriter(writer)
 			r.writeOutputOfCodeWithSourceMap(writer, sm, code, wrapper, "%s", nil)
 			if mapFileOut != nil {
@@ -529,7 +532,7 @@ func (r *AbstractCommandLineRunnerBase) outputChunksParallel(
 			}
 		},
 		WriteChunkNoMap: func(filename string, code string, wrapper string) {
-			writer := r.FileNameToLegacyOutputWriter(&filename)
+			writer := r.FileNameToLegacyOutputWriter(filename)
 			defer abstractCommandLineRunner_closeWriter(writer)
 			r.self.WriteOutputOfCode(writer, r.compiler, code, wrapper, "%s", nil, filename)
 		},
@@ -595,7 +598,7 @@ func (r *AbstractCommandLineRunnerBase) OpenExternExportsStream(options *jscomp.
 		exPath = parent + string(rune(jutil.File_separatorChar)) + exPath
 	}
 
-	return r.FileNameToOutputWriter2(&exPath)
+	return r.FileNameToOutputWriter2(exPath)
 }
 
 // ExpandCommandLinePath expands a file path specified on the command-line.
@@ -627,22 +630,18 @@ func (r *AbstractCommandLineRunnerBase) ExpandCommandLinePath(path string, forCh
 // ExpandSourceMapPath is the expansion function for source map.
 //
 // Java: AbstractCommandLineRunner.expandSourceMapPath(B, JSChunk)
-func (r *AbstractCommandLineRunnerBase) ExpandSourceMapPath(options *jscomp.CompilerOptions, forChunk *jscomp.JSChunk) *string {
+func (r *AbstractCommandLineRunnerBase) ExpandSourceMapPath(options *jscomp.CompilerOptions, forChunk *jscomp.JSChunk) string {
 	if !options.ShouldGatherSourceMapInfo() {
-		return nil
+		return ""
 	}
-	expanded := r.ExpandCommandLinePath(*options.GetSourceMapOutputPath(), forChunk)
-	return &expanded
+	return r.ExpandCommandLinePath(*options.GetSourceMapOutputPath(), forChunk)
 }
 
 // FileNameToLegacyOutputWriter converts a file name into a Writer taking in
-// account the output charset. Returns null if the file name is null.
+// account the output charset.
 //
 // Java: AbstractCommandLineRunner.fileNameToLegacyOutputWriter(String)
-func (r *AbstractCommandLineRunnerBase) FileNameToLegacyOutputWriter(fileName *string) AbstractCommandLineRunner_Writer {
-	if fileName == nil {
-		return nil
-	}
+func (r *AbstractCommandLineRunnerBase) FileNameToLegacyOutputWriter(fileName string) AbstractCommandLineRunner_Writer {
 	if r.self.IsInTestMode() {
 		return jutil.NewStringWriter()
 	}
@@ -651,13 +650,10 @@ func (r *AbstractCommandLineRunnerBase) FileNameToLegacyOutputWriter(fileName *s
 }
 
 // FileNameToOutputWriter2 converts a file name into a Writer taking in
-// account the output charset. Returns null if the file name is null.
+// account the output charset.
 //
 // Java: AbstractCommandLineRunner.fileNameToOutputWriter2(String)
-func (r *AbstractCommandLineRunnerBase) FileNameToOutputWriter2(fileName *string) AbstractCommandLineRunner_Writer {
-	if fileName == nil {
-		return nil
-	}
+func (r *AbstractCommandLineRunnerBase) FileNameToOutputWriter2(fileName string) AbstractCommandLineRunner_Writer {
 	if r.self.IsInTestMode() {
 		return jutil.NewStringWriter()
 	}
@@ -665,15 +661,15 @@ func (r *AbstractCommandLineRunnerBase) FileNameToOutputWriter2(fileName *string
 	return r.StreamToOutputWriter2(r.self.FilenameToOutputStream(fileName))
 }
 
-// FilenameToOutputStream converts a file name into a Outputstream. Returns
-// null if the file name is null.
+// FilenameToOutputStream converts a file name into an OutputStream.
 //
 // Java: AbstractCommandLineRunner.filenameToOutputStream(String)
-func (r *AbstractCommandLineRunnerBase) FilenameToOutputStream(fileName *string) io.WriteCloser {
-	if fileName == nil {
-		return nil
+func (r *AbstractCommandLineRunnerBase) FilenameToOutputStream(fileName string) io.WriteCloser {
+	f, err := os.OpenFile(fileName, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o666)
+	if err != nil {
+		panic(jutil.FileNotFoundExceptionFromError(err, fileName))
 	}
-	return jutil.NewFileOutputStream(*fileName)
+	return f
 }
 
 // StreamToLegacyOutputWriter creates a writer with the legacy output
@@ -702,7 +698,7 @@ func (r *AbstractCommandLineRunnerBase) StreamToOutputWriter2(stream io.WriteClo
 //
 // Java: AbstractCommandLineRunner.createWriter(OutputStream, Charset)
 func (r *AbstractCommandLineRunnerBase) CreateWriter(stream io.WriteCloser, charset *jutil.Charset) AbstractCommandLineRunner_Writer {
-	return newAbstractCommandLineRunnerBufferedWriter(stream, charset)
+	return newCliBufferedWriter(stream, stream, nil, charset)
 }
 
 // OutputSourceMap outputs the source map found in the compiler to the
@@ -876,7 +872,7 @@ func (r *AbstractCommandLineRunnerBase) OutputManifestOrBundle(outputFiles []str
 			for _, chunk := range chunks {
 				func() {
 					path := r.ExpandCommandLinePath(output, chunk)
-					out := r.FileNameToOutputWriter2(&path)
+					out := r.FileNameToOutputWriter2(path)
 					defer abstractCommandLineRunner_closeWriter(out)
 					if isManifest {
 						r.self.PrintManifestTo(chunk, out)
@@ -889,7 +885,7 @@ func (r *AbstractCommandLineRunnerBase) OutputManifestOrBundle(outputFiles []str
 			// Generate a single file manifest or bundle.
 			func() {
 				path := r.ExpandCommandLinePath(output, nil)
-				out := r.FileNameToOutputWriter2(&path)
+				out := r.FileNameToOutputWriter2(path)
 				defer abstractCommandLineRunner_closeWriter(out)
 				if len(r.config.chunk) == 0 {
 					// For a single-chunk compilation, generate a single headerless manifest or bundle
@@ -915,7 +911,7 @@ func (r *AbstractCommandLineRunnerBase) OutputManifestOrBundle(outputFiles []str
 // Java: AbstractCommandLineRunner.outputChunkGraphJson()
 func (r *AbstractCommandLineRunnerBase) OutputChunkGraphJson() {
 	if r.config.outputChunkDependencies != nil && *r.config.outputChunkDependencies != "" {
-		out := r.FileNameToOutputWriter2(r.config.outputChunkDependencies)
+		out := r.FileNameToOutputWriter2(*r.config.outputChunkDependencies)
 		defer abstractCommandLineRunner_closeWriter(out)
 		r.self.PrintChunkGraphJsonTo(out)
 	}
@@ -1054,111 +1050,102 @@ func abstractCommandLineRunner_closeWriter(w AbstractCommandLineRunner_Writer) {
 	}
 }
 
-// abstractCommandLineRunner_printStreamAsOutputStream passes a PrintStream
-// where Java passes it as an OutputStream: bytes go through
-// PrintStream.write(byte[]) unchanged, and close() closes the PrintStream.
-//
-// Go-only: language-adapter — PrintStream is an OutputStream.
-type abstractCommandLineRunner_printStreamAsOutputStream struct {
-	ps *jutil.PrintStream
-}
-
-func (s abstractCommandLineRunner_printStreamAsOutputStream) Write(b []byte) (int, error) {
-	return s.ps.Write(b)
-}
-
-func (s abstractCommandLineRunner_printStreamAsOutputStream) Close() error {
-	s.ps.Close()
-	return nil
-}
-
-type abstractCommandLineRunner_bufferedOutputStream struct {
+type cliBufferedWriter struct {
 	bw     *bufio.Writer
-	out    io.WriteCloser
+	closer io.Closer
+	flush  func()
+	enc    jutil.StreamEncoder
 	closed bool
 }
 
-func (s *abstractCommandLineRunner_bufferedOutputStream) Write(p []byte) (int, error) {
-	return s.bw.Write(p)
-}
-
-func (s *abstractCommandLineRunner_bufferedOutputStream) Close() error {
-	if s.closed {
-		return nil
-	}
-	s.closed = true
-	flushErr := s.bw.Flush()
-	closeErr := s.out.Close()
-	if flushErr != nil {
-		return flushErr
-	}
-	return closeErr
-}
-
-type abstractCommandLineRunner_bufferedWriter struct {
-	stream *abstractCommandLineRunner_bufferedOutputStream
-	w      jutil.Writer
-}
-
-func newAbstractCommandLineRunnerBufferedWriter(stream io.WriteCloser, charset *jutil.Charset) AbstractCommandLineRunner_Writer {
-	if stream == nil || charset == nil {
+func newCliBufferedWriter(out io.Writer, closer io.Closer, flush func(), charset *jutil.Charset) *cliBufferedWriter {
+	if out == nil || charset == nil {
 		panic(jutil.NewNullPointerException())
 	}
-	bs := &abstractCommandLineRunner_bufferedOutputStream{
-		bw:  bufio.NewWriterSize(stream, 8192),
-		out: stream,
-	}
-	return &abstractCommandLineRunner_bufferedWriter{
-		stream: bs,
-		w:      jutil.NewOutputStreamWriterWithCharset(bs, charset),
+	return &cliBufferedWriter{
+		bw:     bufio.NewWriterSize(out, 8192),
+		closer: closer,
+		flush:  flush,
+		enc:    charset.NewStreamEncoder(),
 	}
 }
 
-func (b *abstractCommandLineRunner_bufferedWriter) Write(s string) {
-	b.w.Write(s)
-}
-
-func (b *abstractCommandLineRunner_bufferedWriter) TryWrite(s string) jutil.IIOException {
-	return b.w.TryWrite(s)
-}
-
-func (b *abstractCommandLineRunner_bufferedWriter) AppendCharSequence(csq string) {
-	b.w.Write(csq)
-}
-
-func (b *abstractCommandLineRunner_bufferedWriter) AppendCharacter(c uint16) {
-	b.w.Write(jutil.StringFromChar(c))
-}
-
-func (b *abstractCommandLineRunner_bufferedWriter) WriteString(s string) (int, error) {
-	if ex := b.w.TryWrite(s); ex != nil {
-		return 0, errors.New(ex.GetMessage())
-	}
-	return len(s), nil
-}
-
-func (b *abstractCommandLineRunner_bufferedWriter) Flush() {
-	if ex := b.TryFlush(); ex != nil {
+func (b *cliBufferedWriter) Write(s string) {
+	if ex := b.TryWrite(s); ex != nil {
 		panic(ex)
 	}
 }
 
-func (b *abstractCommandLineRunner_bufferedWriter) TryFlush() jutil.IIOException {
-	if ex := b.w.TryFlush(); ex != nil {
-		return ex
-	}
-	if err := b.stream.bw.Flush(); err != nil {
+func (b *cliBufferedWriter) TryWrite(s string) jutil.IIOException {
+	if _, err := b.WriteString(s); err != nil {
 		return jutil.NewIOException(err.Error())
 	}
 	return nil
 }
 
-func (b *abstractCommandLineRunner_bufferedWriter) Close() {
-	defer func() {
-		if r := recover(); r != nil {
-			_ = b.stream.Close()
-			panic(r)
-		}
-	}()
-	b.w.Close()
+func (b *cliBufferedWriter) AppendCharSequence(csq string) {
+	b.Write(csq)
+}
+
+func (b *cliBufferedWriter) AppendCharacter(c uint16) {
+	if b.closed {
+		panic(jutil.NewIOException("Stream closed"))
+	}
+	if err := b.enc.WriteCharTo(b.bw, c); err != nil {
+		panic(jutil.NewIOException(err.Error()))
+	}
+}
+
+func (b *cliBufferedWriter) WriteString(s string) (int, error) {
+	if b.closed {
+		return 0, errors.New("Stream closed")
+	}
+	if err := b.enc.WriteTo(b.bw, s); err != nil {
+		return 0, err
+	}
+	return len(s), nil
+}
+
+func (b *cliBufferedWriter) Flush() {
+	if ex := b.TryFlush(); ex != nil {
+		panic(ex)
+	}
+}
+
+func (b *cliBufferedWriter) TryFlush() jutil.IIOException {
+	if b.closed {
+		return jutil.NewIOException("Stream closed")
+	}
+	if err := b.bw.Flush(); err != nil {
+		return jutil.NewIOException(err.Error())
+	}
+	if b.flush != nil {
+		b.flush()
+	}
+	return nil
+}
+
+func (b *cliBufferedWriter) Close() {
+	if b.closed {
+		return
+	}
+	b.closed = true
+	finishErr := b.enc.FinishTo(b.bw)
+	flushErr := b.bw.Flush()
+	if b.flush != nil {
+		b.flush()
+	}
+	var closeErr error
+	if b.closer != nil {
+		closeErr = b.closer.Close()
+	}
+	if finishErr != nil {
+		panic(jutil.NewIOException(finishErr.Error()))
+	}
+	if flushErr != nil {
+		panic(jutil.NewIOException(flushErr.Error()))
+	}
+	if closeErr != nil {
+		panic(jutil.NewIOException(closeErr.Error()))
+	}
 }

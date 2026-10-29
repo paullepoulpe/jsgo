@@ -638,7 +638,7 @@ var commandLineRunner_Flags_categories = []struct {
 
 // Java: CommandLineRunner.Flags.printUsage(PrintStream)
 func (f *commandLineRunner_Flags) PrintUsage(ps *jutil.PrintStream) {
-	outputStream := jutil.NewOutputStreamWriter(abstractCommandLineRunner_printStreamAsOutputStream{ps})
+	outputStream := newCliBufferedWriter(ps, nil, ps.Flush, jutil.StandardCharsets_UTF_8)
 
 	isFirst := true
 	for _, entry := range commandLineRunner_Flags_categories {
@@ -673,7 +673,7 @@ func (f *commandLineRunner_Flags) PrintUsage(ps *jutil.PrintStream) {
 		f.PrintCategoryUsage(entry.key, entry.values, outputStream, prefix, suffix)
 	}
 
-	ps.Flush()
+	_ = outputStream.TryFlush()
 }
 
 // Java: CommandLineRunner.Flags.BOLD_PREFIX

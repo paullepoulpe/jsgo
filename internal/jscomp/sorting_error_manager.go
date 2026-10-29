@@ -24,18 +24,6 @@ import (
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 )
 
-// SortingErrorManager is a customizable error manager that sorts all errors
-// and warnings reported to it, and has customizable output through the
-// ErrorReportGenerator interface.
-type SortingErrorManager interface {
-	ErrorManager
-
-	// Java: SortingErrorManager.getSortedDiagnostics()
-	GetSortedDiagnostics() []*SortingErrorManager_ErrorWithLevel
-
-	GetSortingErrorManagerBase() *SortingErrorManagerBase
-}
-
 type sortingErrorKey struct {
 	level       CheckLevel
 	hasLevel    bool
@@ -62,9 +50,10 @@ func makeSortingErrorKey(err *JSError, level *CheckLevel) sortingErrorKey {
 	return k
 }
 
-// SortingErrorManagerBase holds the fields and base implementations of
-// SortingErrorManager; subclasses embed it.
-type SortingErrorManagerBase struct {
+// SortingErrorManager is a customizable error manager that sorts all errors
+// and warnings reported to it, and has customizable output through the
+// ErrorReportGenerator interface.
+type SortingErrorManager struct {
 	messages           []*SortingErrorManager_ErrorWithLevel
 	seen               map[sortingErrorKey]struct{}
 	sorted             bool
@@ -77,28 +66,43 @@ type SortingErrorManagerBase struct {
 
 	// Responsible for generating the report of the errors at the end of compilation
 	errorReportGenerators []SortingErrorManager_ErrorReportGenerator
+	println               func(*CheckLevel, *JSError)
+	printSummary          func(*SortingErrorManager)
 }
 
-var _ SortingErrorManager = (*SortingErrorManagerBase)(nil)
+var _ ErrorManager = (*SortingErrorManager)(nil)
 
 // NewSortingErrorManager creates a SortingErrorManager.
 //
 // Java: SortingErrorManager(Set<ErrorReportGenerator>)
-func NewSortingErrorManager(errorReportGenerators []SortingErrorManager_ErrorReportGenerator) *SortingErrorManagerBase {
-	m := &SortingErrorManagerBase{}
-	m.InitSortingErrorManagerBase(errorReportGenerators)
+func NewSortingErrorManager(errorReportGenerators []SortingErrorManager_ErrorReportGenerator) *SortingErrorManager {
+	m := &SortingErrorManager{}
+	m.InitSortingErrorManager(errorReportGenerators)
 	return m
 }
 
-// InitSortingErrorManagerBase is the Go form of super(errorReportGenerators).
+// InitSortingErrorManager initializes an embedded SortingErrorManager.
 //
 // Java: SortingErrorManager(Set<ErrorReportGenerator>)
-func (m *SortingErrorManagerBase) InitSortingErrorManagerBase(
+func (m *SortingErrorManager) InitSortingErrorManager(
 	errorReportGenerators []SortingErrorManager_ErrorReportGenerator) {
 	m.seen = make(map[sortingErrorKey]struct{})
 	m.sorted = true
-	m.errorReportGenerators = sortingErrorManager_immutableSetCopyOf(errorReportGenerators)
+	if len(errorReportGenerators) > 0 {
+		m.errorReportGenerators = sortingErrorManager_immutableSetCopyOf(errorReportGenerators)
+	}
 }
+
+func (m *SortingErrorManager) initReportHooks(
+	printlnFn func(*CheckLevel, *JSError),
+	printSummaryFn func(*SortingErrorManager),
+) {
+	m.InitSortingErrorManager(nil)
+	m.println = printlnFn
+	m.printSummary = printSummaryFn
+}
+
+func (m *SortingErrorManager) sortingErrorManager() *SortingErrorManager { return m }
 
 // sortingErrorManager_immutableSetCopyOf is ImmutableSet.copyOf for the
 // generators, which compare by identity.
@@ -120,11 +124,8 @@ func sortingErrorManager_immutableSetCopyOf(generators []SortingErrorManager_Err
 	return out
 }
 
-// GetSortingErrorManagerBase gives access to the base fields.
-func (m *SortingErrorManagerBase) GetSortingErrorManagerBase() *SortingErrorManagerBase { return m }
-
 // Java: SortingErrorManager.report(CheckLevel, JSError)
-func (m *SortingErrorManagerBase) Report(level *CheckLevel, error *JSError) {
+func (m *SortingErrorManager) Report(level *CheckLevel, error *JSError) {
 	if (level == nil && m.hasNonNilLevel) || (level != nil && m.hasNilLevel) {
 		panic(jutil.NewNullPointerException())
 	}
@@ -154,7 +155,7 @@ func (m *SortingErrorManagerBase) Report(level *CheckLevel, error *JSError) {
 	}
 }
 
-func (m *SortingErrorManagerBase) ensureSorted() {
+func (m *SortingErrorManager) ensureSorted() {
 	if !m.sorted {
 		slices.SortFunc(m.messages, sortingErrorManagerCompare)
 		m.sorted = true
@@ -162,32 +163,32 @@ func (m *SortingErrorManagerBase) ensureSorted() {
 }
 
 // Java: SortingErrorManager.hasHaltingErrors()
-func (m *SortingErrorManagerBase) HasHaltingErrors() bool {
+func (m *SortingErrorManager) HasHaltingErrors() bool {
 	return m.originalErrorCount != 0
 }
 
 // Java: SortingErrorManager.getErrorCount()
-func (m *SortingErrorManagerBase) GetErrorCount() int {
+func (m *SortingErrorManager) GetErrorCount() int {
 	return m.originalErrorCount + m.promotedErrorCount
 }
 
 // Java: SortingErrorManager.getWarningCount()
-func (m *SortingErrorManagerBase) GetWarningCount() int {
+func (m *SortingErrorManager) GetWarningCount() int {
 	return m.warningCount
 }
 
 // Java: SortingErrorManager.getErrors()
-func (m *SortingErrorManagerBase) GetErrors() []*JSError {
+func (m *SortingErrorManager) GetErrors() []*JSError {
 	return m.FilterToListOf(CheckLevel_ERROR)
 }
 
 // Java: SortingErrorManager.getWarnings()
-func (m *SortingErrorManagerBase) GetWarnings() []*JSError {
+func (m *SortingErrorManager) GetWarnings() []*JSError {
 	return m.FilterToListOf(CheckLevel_WARNING)
 }
 
 // Java: SortingErrorManager.getSortedDiagnostics()
-func (m *SortingErrorManagerBase) GetSortedDiagnostics() []*SortingErrorManager_ErrorWithLevel {
+func (m *SortingErrorManager) GetSortedDiagnostics() []*SortingErrorManager_ErrorWithLevel {
 	// TODO(b/114762232): It should be possible to remove the copying here and switch to an
 	// unmodifiable collection once we get rid of usages that add warnings during generateReport.
 	m.ensureSorted()
@@ -197,17 +198,17 @@ func (m *SortingErrorManagerBase) GetSortedDiagnostics() []*SortingErrorManager_
 }
 
 // Java: SortingErrorManager.setTypedPercent(double)
-func (m *SortingErrorManagerBase) SetTypedPercent(typedPercent float64) {
+func (m *SortingErrorManager) SetTypedPercent(typedPercent float64) {
 	m.typedPercent = typedPercent
 }
 
 // Java: SortingErrorManager.getTypedPercent()
-func (m *SortingErrorManagerBase) GetTypedPercent() float64 {
+func (m *SortingErrorManager) GetTypedPercent() float64 {
 	return m.typedPercent
 }
 
 // Java: SortingErrorManager.filterToListOf(CheckLevel)
-func (m *SortingErrorManagerBase) FilterToListOf(level CheckLevel) []*JSError {
+func (m *SortingErrorManager) FilterToListOf(level CheckLevel) []*JSError {
 	m.ensureSorted()
 	out := []*JSError{}
 	for _, e := range m.messages {
@@ -219,7 +220,19 @@ func (m *SortingErrorManagerBase) FilterToListOf(level CheckLevel) []*JSError {
 }
 
 // Java: SortingErrorManager.generateReport()
-func (m *SortingErrorManagerBase) GenerateReport() {
+func (m *SortingErrorManager) GenerateReport() {
+	if m.println != nil || m.printSummary != nil {
+		diagnostics := m.GetSortedDiagnostics()
+		if m.println != nil {
+			for _, message := range diagnostics {
+				m.println(message.Level, message.Error)
+			}
+		}
+		if m.printSummary != nil {
+			m.printSummary(m)
+		}
+		return
+	}
 	// TODO(b/114762232): It should be invalid to report errors during the execution of this method;
 	// doing so will become impossible once all subclases have migrated to an ErrorReportGenerator.
 	for _, generator := range m.errorReportGenerators {
@@ -228,7 +241,7 @@ func (m *SortingErrorManagerBase) GenerateReport() {
 }
 
 // Java: ErrorManager.shouldReportConformanceViolation(Requirement, Optional<RequirementScopeEntry>, JSError, LibraryLevelNonAllowlistedConformanceViolationsBehavior, boolean)
-func (m *SortingErrorManagerBase) ShouldReportConformanceViolation(
+func (m *SortingErrorManager) ShouldReportConformanceViolation(
 	requirement *Requirement,
 	allowlistEntry *RequirementScopeEntry,
 	diagnostic *JSError,
@@ -241,7 +254,7 @@ func (m *SortingErrorManagerBase) ShouldReportConformanceViolation(
 // the output format of the error report.
 type SortingErrorManager_ErrorReportGenerator interface {
 	// Java: SortingErrorManager.ErrorReportGenerator.generateReport(SortingErrorManager)
-	GenerateReport(manager SortingErrorManager)
+	GenerateReport(manager *SortingErrorManager)
 }
 
 // SortingErrorManager_LeveledJSErrorComparator is the comparator of JSError

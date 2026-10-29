@@ -19,6 +19,7 @@
 package jscomp
 
 import (
+	"github.com/paullepoulpe/jsgo/internal/ast"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
@@ -195,8 +196,21 @@ func (v *VarCheck) Process(externs rhino.Node, root rhino.Node) {
 	}
 }
 
-func (*VarCheck) nodeTraversalNoShouldTraverse() {}
-func (*VarCheck) onlyNameLeaves()                {}
+var varCheckVisitTokens = func() ast.TokenSet {
+	var s ast.TokenSet
+	s.Add(rhino.Token_NAME)
+	return s
+}()
+
+func (*VarCheck) nodeTraversalNoShouldTraverse()                   {}
+func (*VarCheck) onlyNameLeaves()                                  {}
+func (*VarCheck) visitTokens() *ast.TokenSet                       { return &varCheckVisitTokens }
+func (*VarCheck_NameRefInExternsCheck) visitTokens() *ast.TokenSet { return &varCheckVisitTokens }
+
+var (
+	_ nodeTraversal_visitTokens = (*VarCheck)(nil)
+	_ nodeTraversal_visitTokens = (*VarCheck_NameRefInExternsCheck)(nil)
+)
 
 // Java: VarCheck.shouldTraverse(NodeTraversal, Node, Node)
 func (v *VarCheck) ShouldTraverse(t *NodeTraversal, n rhino.Node, parent rhino.Node) bool {

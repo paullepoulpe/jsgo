@@ -23,13 +23,15 @@ import (
 
 	"github.com/paullepoulpe/jsgo/internal/bundle"
 	"github.com/paullepoulpe/jsgo/internal/jscomp"
-	"github.com/paullepoulpe/jsgo/internal/jutil"
+)
+
+const (
+	jsaCtFOO_JS = "foo.js"
+	jsaCtBAR_JS = "bar.js"
+	jsaCtQUX_JS = "qux.js"
 )
 
 var (
-	jsaCtFOO_JS  = jutil.NewURI("foo.js")
-	jsaCtBAR_JS  = jutil.NewURI("bar.js")
-	jsaCtQUX_JS  = jutil.NewURI("qux.js")
 	jsaCtRESULT1 = NewTranspileResult(jsaCtFOO_JS, "bar", "baz", "")
 	jsaCtRESULT2 = NewTranspileResult(jsaCtQUX_JS, "qux", "corge", "")
 	jsaCtRESULT3 = NewTranspileResult(jsaCtBAR_JS, "baz", "xyzzy", "")
@@ -37,22 +39,22 @@ var (
 
 // jsaMockTranspiler stands in for the Mockito mock of Transpiler.
 type jsaMockTranspiler struct {
-	results       map[string]*TranspileResult
-	transpileCall map[string]int
+	results       map[cacheKey]*TranspileResult
+	transpileCall map[cacheKey]int
 	runtime       string
 	runtimeCalls  int
 }
 
 func newJsaMockTranspiler() *jsaMockTranspiler {
-	return &jsaMockTranspiler{results: map[string]*TranspileResult{}, transpileCall: map[string]int{}}
+	return &jsaMockTranspiler{results: map[cacheKey]*TranspileResult{}, transpileCall: map[cacheKey]int{}}
 }
 
-func (m *jsaMockTranspiler) when(path *jutil.URI, code string, r *TranspileResult) {
-	m.results[path.String()+"\x00"+code] = r
+func (m *jsaMockTranspiler) when(path string, code string, r *TranspileResult) {
+	m.results[cacheKey{path: path, code: code}] = r
 }
 
-func (m *jsaMockTranspiler) Transpile(path *jutil.URI, code string) *TranspileResult {
-	k := path.String() + "\x00" + code
+func (m *jsaMockTranspiler) Transpile(path string, code string) *TranspileResult {
+	k := cacheKey{path: path, code: code}
 	m.transpileCall[k]++
 	return m.results[k]
 }
@@ -78,7 +80,7 @@ func TestCachingTranspiler_TranspileCaches(t *testing.T) {
 	delegate.when(jsaCtFOO_JS, "bar", jsaCtRESULT1)
 	jsaTrue(t, transpiler.Transpile(jsaCtFOO_JS, "bar") == jsaCtRESULT1)
 	jsaTrue(t, transpiler.Transpile(jsaCtFOO_JS, "bar") == jsaCtRESULT1)
-	jsaEq(t, delegate.transpileCall["foo.js\x00bar"], 1)
+	jsaEq(t, delegate.transpileCall[cacheKey{path: "foo.js", code: "bar"}], 1)
 }
 
 func TestCachingTranspiler_TranspileDependsOnBothPathAndCode(t *testing.T) {
@@ -108,7 +110,7 @@ func TestCachingTranspiler_RuntimeCaches(t *testing.T) {
 // jsaFailingTranspiler throws a TranspilationException.
 type jsaFailingTranspiler struct{}
 
-func (jsaFailingTranspiler) Transpile(path *jutil.URI, code string) *TranspileResult {
+func (jsaFailingTranspiler) Transpile(path string, code string) *TranspileResult {
 	panic(bundle.NewTranspilationException(nil, []*jscomp.JSError{jscomp.JSError_Make(jscomp.DiagnosticType_Error("TEST_FOO", "Foo"))}, nil))
 }
 

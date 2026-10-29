@@ -278,7 +278,7 @@ func LongParseLong(s string, radix int) int64 {
 // TryParseLong parses s in radix using Long.parseLong's grammar and range,
 // returning (0, false) where Long.parseLong would throw NumberFormatException.
 func TryParseLong(s string, radix int) (int64, bool) {
-	if radix < Character_MIN_RADIX || radix > Character_MAX_RADIX {
+	if radix < character_MIN_RADIX || radix > character_MAX_RADIX {
 		return 0, false
 	}
 	return parseRadixInteger(s, radix, math.MaxInt64)
@@ -290,10 +290,10 @@ func LongToString(v int64) string {
 }
 
 func checkParseRadix(radix int) {
-	if radix < Character_MIN_RADIX {
+	if radix < character_MIN_RADIX {
 		panic(NewNumberFormatException("radix " + itoa(radix) + " less than Character.MIN_RADIX"))
 	}
-	if radix > Character_MAX_RADIX {
+	if radix > character_MAX_RADIX {
 		panic(NewNumberFormatException("radix " + itoa(radix) + " greater than Character.MAX_RADIX"))
 	}
 }

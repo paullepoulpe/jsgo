@@ -110,7 +110,7 @@ func TestPatternDollarTerminatorsObserved(t *testing.T) {
 		}
 	}
 	m := Pattern_Compile("(x)($)").Matcher("x\r\n")
-	if !m.Find() || m.Start() != 0 || m.End() != 1 || m.StartGroup(1) != 0 || m.EndGroup(1) != 1 || m.StartGroup(2) != 1 || m.EndGroup(2) != 1 {
+	if !m.Find() || m.Start() != 0 || m.End() != 1 || m.startGroup(1) != 0 || m.endGroup(1) != 1 || m.startGroup(2) != 1 || m.endGroup(2) != 1 {
 		t.Errorf("(x)($) on x\\r\\n: %v", m.groups)
 	}
 	for _, regex := range []string{"a$b", "(a$)*", "(a$|b)c", "a$\\n", "(a$)?"} {
@@ -123,13 +123,6 @@ func TestPatternDollarTerminatorsObserved(t *testing.T) {
 }
 
 func TestPatternMultilineAndDotallMatches(t *testing.T) {
-	pm := Pattern_CompileWithFlags("^foo$", Pattern_MULTILINE)
-	if pm.Matches("foo\nbar") {
-		t.Errorf("MULTILINE Matches should anchor to full string, matched 'foo\\nbar'")
-	}
-	if !pm.Find("foo\nbar") {
-		t.Errorf("MULTILINE Find should match line in 'foo\\nbar'")
-	}
 	pmEmbedded := Pattern_Compile("(?m)^foo$")
 	if pmEmbedded.Matches("foo\nbar") {
 		t.Errorf("(?m) Matches should anchor to full string, matched 'foo\\nbar'")
@@ -137,8 +130,8 @@ func TestPatternMultilineAndDotallMatches(t *testing.T) {
 	if !pmEmbedded.Find("foo\nbar") {
 		t.Errorf("(?m) Find should match line in 'foo\\nbar'")
 	}
-	ps := Pattern_CompileWithFlags("foo.*bar", Pattern_DOTALL)
+	ps := Pattern_Compile("(?s)foo.*bar")
 	if !ps.Matches("foo\nbar") {
-		t.Errorf("DOTALL Matches should match across newline in 'foo\\nbar'")
+		t.Errorf("(?s) Matches should match across newline in 'foo\\nbar'")
 	}
 }

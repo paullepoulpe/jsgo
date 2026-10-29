@@ -153,18 +153,14 @@ func (c *ReplaceCssNamesTest) SetUp() {
 // replaceCssNamesTest_silentErrorManager is the anonymous BasicErrorManager
 // of testNoSymbolMapStripsCallAndDoesntIssueWarnings.
 type replaceCssNamesTest_silentErrorManager struct {
-	BasicErrorManagerBase
+	SortingErrorManager
 }
 
 func newReplaceCssNamesTest_silentErrorManager() *replaceCssNamesTest_silentErrorManager {
 	m := &replaceCssNamesTest_silentErrorManager{}
-	m.InitBasicErrorManagerBase(m)
+	m.InitSortingErrorManager(nil)
 	return m
 }
-
-func (m *replaceCssNamesTest_silentErrorManager) PrintSummary() {}
-
-func (m *replaceCssNamesTest_silentErrorManager) Println(level *CheckLevel, error *JSError) {}
 
 // Java: ReplaceCssNamesTest.testSimpleValidMapping()
 func (c *ReplaceCssNamesTest) TestSimpleValidMapping() {

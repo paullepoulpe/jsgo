@@ -407,6 +407,42 @@ func (d *typeAlgebraDump) parsed(typeString string, s StaticTypedScope) JSType {
 	return d.registry.CreateTypeFromCommentNodeWithScope(n, "src.js", s)
 }
 
+func taPropertyTypeMap(o ObjectType) *jutil.LinkedHashMap[string, JSType] {
+	propTypeMap := jutil.NewLinkedHashMap[string, JSType]()
+	if fn, ok := o.(FunctionType); ok {
+		var cacheBuf [8]FunctionType
+		taUpdateFnPropertyTypeMap(fn, propTypeMap, cacheBuf[:0])
+		return propTypeMap
+	}
+	for _, name := range o.GetPropertyNames() {
+		if propTypeMap.ContainsKey(name) {
+			panic(jutil.NewIllegalArgumentExceptionMsg("Multiple entries with same key: " + name))
+		}
+		propTypeMap.Put(name, o.GetPropertyType(name))
+	}
+	return propTypeMap
+}
+
+func taUpdateFnPropertyTypeMap(type_ FunctionType, propTypeMap *jutil.LinkedHashMap[string, JSType], cache []FunctionType) {
+	if type_ == nil {
+		return
+	}
+	if prototype := type_.GetPrototype(); prototype != nil {
+		for _, name := range prototype.GetOwnPropertyNames() {
+			if !propTypeMap.ContainsKey(name) {
+				propTypeMap.Put(name, prototype.GetPropertyType(name))
+			}
+		}
+	}
+	for _, interfaceType := range type_.GetExtendedInterfaces() {
+		superConstructor := interfaceType.GetConstructor()
+		if superConstructor == nil || fnSliceContains(cache, superConstructor) {
+			continue
+		}
+		taUpdateFnPropertyTypeMap(superConstructor, propTypeMap, append(cache, superConstructor))
+	}
+}
+
 func taRecord(keysAndValues ...any) *jutil.LinkedHashMap[string, JSType] {
 	m := jutil.NewLinkedHashMap[string, JSType]()
 	for i := 0; i < len(keysAndValues); i += 2 {
@@ -1054,7 +1090,12 @@ func (d *typeAlgebraDump) unaryFacts(i int) {
 	})
 	if o := t.ToMaybeObjectType(); o != nil {
 		d.fact("o.referenceName", func() any { return o.GetReferenceName() })
-		d.fact("o.normalizedReferenceName", func() any { return o.GetNormalizedReferenceName() })
+		d.fact("o.normalizedReferenceName", func() any {
+			if !o.HasReferenceName() {
+				return nil
+			}
+			return o.GetNormalizedReferenceName()
+		})
 		d.fact("o.hasReferenceName", func() any { return o.HasReferenceName() })
 		d.fact("o.constructor", func() any { return o.GetConstructor() })
 		d.fact("o.implicitPrototype", func() any { return o.GetImplicitPrototype() })
@@ -1068,7 +1109,7 @@ func (d *typeAlgebraDump) unaryFacts(i int) {
 		d.fact("o.typeOfThis", func() any { return o.GetTypeOfThis() })
 		d.fact("o.superClassConstructor", func() any { return o.GetSuperClassConstructor() })
 		d.fact("o.rawType", func() any { return o.GetRawType() })
-		d.fact("o.propertyTypeMap", func() any { return o.GetPropertyTypeMap().String() })
+		d.fact("o.propertyTypeMap", func() any { return taPropertyTypeMap(o).String() })
 		d.fact("o.ownPropertyKeys", func() any { return o.GetOwnPropertyKeys() })
 		d.fact("o.hasCachedValues", func() any { return o.HasCachedValues() })
 		d.fact("o.enumeratedTypeOfEnumObject", func() any { return o.GetEnumeratedTypeOfEnumObject() })
@@ -1116,7 +1157,7 @@ func (d *typeAlgebraDump) unaryFacts(i int) {
 		d.fact(
 			"f.acceptsArguments(number,string)",
 			func() any { return f.AcceptsArguments([]JSType{number, d.nat(JSTypeNative_STRING_TYPE)}) })
-		d.fact("f.propertyTypeMap", func() any { return f.GetPropertyTypeMap().String() })
+		d.fact("f.propertyTypeMap", func() any { return taPropertyTypeMap(f).String() })
 	}
 	if u := t.ToMaybeUnionType(); u != nil {
 		d.fact("u.alternates", func() any { return u.GetAlternates() })

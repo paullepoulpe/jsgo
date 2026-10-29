@@ -425,20 +425,18 @@ func (c *CompilerInput) generateDependencyInfo() DependencyInfo {
 		// getPathRelativeToClosureBase() here because we're not using
 		// this to generate deps files. (We're only using it for
 		// symbol dependencies.)
-		var result DependencyInfo
-		jutil.Try(func() {
-			info := NewJsFileRegexParser(c.compiler.GetErrorManager()).
-				SetModuleLoader(c.compiler.GetModuleLoader()).
-				SetIncludeGoogBase(true).
-				ParseFile(c.GetName(), c.GetName(), c.GetCode())
-			result = NewLazyParsedDependencyInfo(info, c, c.compiler)
-		}, func(e jutil.IIOException) {
+		code, err := c.getCode()
+		if err != nil {
 			c.compiler.GetErrorManager().Report(
 				CheckLevel_ERROR.Ptr(),
-				JSError_Make(AbstractCompiler_READ_ERROR, c.GetName(), e.GetMessage()))
-			result = SimpleDependencyInfo_EMPTY
-		})
-		return result
+				JSError_Make(AbstractCompiler_READ_ERROR, c.GetName(), ioErrorMessage(err)))
+			return SimpleDependencyInfo_EMPTY
+		}
+		info := NewJsFileRegexParser(c.compiler.GetErrorManager()).
+			SetModuleLoader(c.compiler.GetModuleLoader()).
+			SetIncludeGoogBase(true).
+			ParseFile(c.GetName(), c.GetName(), code)
+		return NewLazyParsedDependencyInfo(info, c, c.compiler)
 	} else {
 		// Otherwise, just look at the AST.
 		root := c.GetAstRoot(c.compiler)
@@ -651,6 +649,10 @@ func (c *CompilerInput) GetCode() string {
 	return c.GetSourceFile().GetCode()
 }
 
+func (c *CompilerInput) getCode() (string, error) {
+	return c.GetSourceFile().getCode()
+}
+
 // GetChunk returns the chunk to which the input belongs.
 //
 // Java: CompilerInput.getChunk()
@@ -818,8 +820,13 @@ func (a *CompilerInput_JsAst) GetAstRoot(compiler AbstractCompiler) rhino.Node {
 	}
 
 	sourceFile := a.outer.sourceFile
-	astRootSource := compiler.GetTypedAstDeserializer(sourceFile)
-	if astRootSource != nil {
+	if c, ok := compiler.(*Compiler); ok {
+		if root, found := c.deserializeTypedAstRoot(sourceFile); found {
+			a.installDeserializedRoot(root)
+		} else {
+			a.parse(compiler)
+		}
+	} else if astRootSource := compiler.GetTypedAstDeserializer(sourceFile); astRootSource != nil {
 		a.installDeserializedRoot(astRootSource())
 	} else {
 		a.parse(compiler)
@@ -858,21 +865,22 @@ func (a *CompilerInput_JsAst) isParsed() bool {
 // Java: CompilerInput.JsAst.parse(AbstractCompiler)
 func (a *CompilerInput_JsAst) parse(compiler AbstractCompiler) {
 	sourceFile := a.outer.sourceFile
-	jutil.Try(func() {
+	code, err := sourceFile.getCode()
+	if err != nil {
+		compiler.Report(
+			JSError_Make(AbstractCompiler_READ_ERROR, sourceFile.GetName(), ioErrorMessage(err)))
+	} else {
 		context := AbstractCompiler_ConfigContext_DEFAULT
 		if sourceFile.IsExtern() {
 			context = AbstractCompiler_ConfigContext_EXTERNS
 		}
 		result := parsing.ParserRunner_Parse(
 			sourceFile,
-			sourceFile.GetCode(),
+			code,
 			compiler.GetParserConfig(context),
 			compiler.GetDefaultErrorReporter())
 		a.installParseResult(compiler, result)
-	}, func(e jutil.IIOException) {
-		compiler.Report(
-			JSError_Make(AbstractCompiler_READ_ERROR, sourceFile.GetName(), e.GetMessage()))
-	})
+	}
 
 	a.ensureScriptRoot()
 }

@@ -6,12 +6,14 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"time"
 )
 
 // Go-only: language-adapter — java.util.logging: Logger, Level, LogRecord
 // and Handler, with the default configuration of the JDK (a root logger at
-// INFO whose ConsoleHandler writes SimpleFormatter output to stderr).
+// INFO whose consoleHandler writes SimpleFormatter output to stderr).
 //
 // Differences that Go forces: SimpleFormatter's "source" is the logger name
 // (Java infers the calling class and method by walking the stack), and a
@@ -40,9 +42,6 @@ var (
 // GetName is Level.getName().
 func (l *Level) GetName() string { return l.name }
 
-// IntValue is Level.intValue().
-func (l *Level) IntValue() int32 { return l.value }
-
 // String is Level.toString().
 func (l *Level) String() string { return l.name }
 
@@ -56,20 +55,7 @@ type LogRecord struct {
 	millis     int64
 }
 
-// NewLogRecord is new LogRecord(Level, String).
-func NewLogRecord(level *Level, msg string) *LogRecord {
-	return &LogRecord{level: level, message: msg, millis: time.Now().UnixMilli()}
-}
-
-func (r *LogRecord) GetLevel() *Level       { return r.level }
-func (r *LogRecord) GetMessage() string     { return r.message }
-func (r *LogRecord) GetParameters() []any   { return r.parameters }
-func (r *LogRecord) SetParameters(p []any)  { r.parameters = p }
-func (r *LogRecord) GetThrown() Throwable   { return r.thrown }
-func (r *LogRecord) SetThrown(t Throwable)  { r.thrown = t }
-func (r *LogRecord) GetLoggerName() string  { return r.loggerName }
-func (r *LogRecord) SetLoggerName(n string) { r.loggerName = n }
-func (r *LogRecord) GetMillis() int64       { return r.millis }
+func (r *LogRecord) GetLevel() *Level { return r.level }
 
 // Handler is java.util.logging.Handler (the part loggers call).
 type Handler interface {
@@ -79,19 +65,38 @@ type Handler interface {
 // Logger is java.util.logging.Logger.
 type Logger struct {
 	name              string
-	level             *Level
+	level             atomic.Pointer[Level]
 	handlers          []Handler
 	useParentHandlers bool
 }
 
+func newRootLogger() *Logger {
+	l := &Logger{
+		name:              "",
+		useParentHandlers: true,
+		handlers:          []Handler{&consoleHandler{out: os.Stderr, level: Level_INFO}},
+	}
+	l.level.Store(Level_INFO)
+	return l
+}
+
 var (
-	loggerRoot = &Logger{name: "", level: Level_INFO, useParentHandlers: true,
-		handlers: []Handler{&ConsoleHandler{out: os.Stderr, level: Level_INFO}}}
-	loggers = map[string]*Logger{"": loggerRoot}
+	loggersMu  sync.RWMutex
+	loggerRoot = newRootLogger()
+	loggers    = map[string]*Logger{"": loggerRoot}
 )
 
 // Logger_GetLogger is Logger.getLogger(String): one logger per name.
 func Logger_GetLogger(name string) *Logger {
+	loggersMu.RLock()
+	if l, ok := loggers[name]; ok {
+		loggersMu.RUnlock()
+		return l
+	}
+	loggersMu.RUnlock()
+
+	loggersMu.Lock()
+	defer loggersMu.Unlock()
 	if l, ok := loggers[name]; ok {
 		return l
 	}
@@ -100,15 +105,10 @@ func Logger_GetLogger(name string) *Logger {
 	return l
 }
 
-// Logger_GetGlobal is Logger.getGlobal().
-func Logger_GetGlobal() *Logger { return Logger_GetLogger("global") }
-
 // GetName is Logger.getName().
 func (l *Logger) GetName() string { return l.name }
 
-// GetParent is Logger.getParent(): the nearest existing ancestor in the
-// dotted name hierarchy, else the root logger (nil for the root).
-func (l *Logger) GetParent() *Logger {
+func (l *Logger) parentLocked() *Logger {
 	if l == loggerRoot {
 		return nil
 	}
@@ -125,18 +125,33 @@ func (l *Logger) GetParent() *Logger {
 	}
 }
 
-// SetLevel is Logger.setLevel(Level); nil inherits the parent's level.
-func (l *Logger) SetLevel(level *Level) { l.level = level }
+// GetParent is Logger.getParent(): the nearest existing ancestor in the
+// dotted name hierarchy, else the root logger (nil for the root).
+func (l *Logger) GetParent() *Logger {
+	if l == loggerRoot {
+		return nil
+	}
+	loggersMu.RLock()
+	p := l.parentLocked()
+	loggersMu.RUnlock()
+	return p
+}
 
-// GetLevel is Logger.getLevel().
-func (l *Logger) GetLevel() *Level { return l.level }
+// SetLevel is Logger.setLevel(Level); nil inherits the parent's level.
+func (l *Logger) SetLevel(level *Level) { l.level.Store(level) }
 
 func (l *Logger) effectiveLevel() *Level {
-	for x := l; x != nil; x = x.GetParent() {
-		if x.level != nil {
-			return x.level
+	if lv := l.level.Load(); lv != nil {
+		return lv
+	}
+	loggersMu.RLock()
+	for x := l.parentLocked(); x != nil; x = x.parentLocked() {
+		if lv := x.level.Load(); lv != nil {
+			loggersMu.RUnlock()
+			return lv
 		}
 	}
+	loggersMu.RUnlock()
 	return Level_INFO
 }
 
@@ -147,10 +162,16 @@ func (l *Logger) IsLoggable(level *Level) bool {
 }
 
 // AddHandler is Logger.addHandler(Handler).
-func (l *Logger) AddHandler(h Handler) { l.handlers = append(l.handlers, h) }
+func (l *Logger) AddHandler(h Handler) {
+	loggersMu.Lock()
+	l.handlers = append(l.handlers, h)
+	loggersMu.Unlock()
+}
 
 // RemoveHandler is Logger.removeHandler(Handler).
 func (l *Logger) RemoveHandler(h Handler) {
+	loggersMu.Lock()
+	defer loggersMu.Unlock()
 	for i, x := range l.handlers {
 		if x == h {
 			l.handlers = append(l.handlers[:i:i], l.handlers[i+1:]...)
@@ -159,31 +180,39 @@ func (l *Logger) RemoveHandler(h Handler) {
 	}
 }
 
-// GetHandlers is Logger.getHandlers().
-func (l *Logger) GetHandlers() []Handler { return append([]Handler(nil), l.handlers...) }
-
 // SetUseParentHandlers is Logger.setUseParentHandlers(boolean).
-func (l *Logger) SetUseParentHandlers(b bool) { l.useParentHandlers = b }
+func (l *Logger) SetUseParentHandlers(b bool) {
+	loggersMu.Lock()
+	l.useParentHandlers = b
+	loggersMu.Unlock()
+}
 
-// LogRecordTo is Logger.log(LogRecord).
-func (l *Logger) LogRecordTo(r *LogRecord) {
+func (l *Logger) logRecord(r *LogRecord) {
 	if !l.IsLoggable(r.level) {
 		return
 	}
-	for x := l; x != nil; x = x.GetParent() {
-		for _, h := range x.handlers {
-			h.Publish(r)
-		}
+	var buf [4]Handler
+	hs := buf[:0]
+	loggersMu.RLock()
+	for x := l; x != nil; x = x.parentLocked() {
+		hs = append(hs, x.handlers...)
 		if !x.useParentHandlers {
 			break
 		}
 	}
+	loggersMu.RUnlock()
+	for _, h := range hs {
+		h.Publish(r)
+	}
 }
 
 func (l *Logger) newRecord(level *Level, msg string) *LogRecord {
-	r := NewLogRecord(level, msg)
-	r.loggerName = l.name
-	return r
+	return &LogRecord{
+		level:      level,
+		message:    msg,
+		loggerName: l.name,
+		millis:     time.Now().UnixMilli(),
+	}
 }
 
 // Log is Logger.log(Level, String).
@@ -191,7 +220,7 @@ func (l *Logger) Log(level *Level, msg string) {
 	if !l.IsLoggable(level) {
 		return
 	}
-	l.LogRecordTo(l.newRecord(level, msg))
+	l.logRecord(l.newRecord(level, msg))
 }
 
 // LogWithParam is Logger.log(Level, String, Object).
@@ -201,17 +230,7 @@ func (l *Logger) LogWithParam(level *Level, msg string, param any) {
 	}
 	r := l.newRecord(level, msg)
 	r.parameters = []any{param}
-	l.LogRecordTo(r)
-}
-
-// LogWithParams is Logger.log(Level, String, Object[]).
-func (l *Logger) LogWithParams(level *Level, msg string, params []any) {
-	if !l.IsLoggable(level) {
-		return
-	}
-	r := l.newRecord(level, msg)
-	r.parameters = params
-	l.LogRecordTo(r)
+	l.logRecord(r)
 }
 
 // LogWithThrown is Logger.log(Level, String, Throwable).
@@ -221,7 +240,7 @@ func (l *Logger) LogWithThrown(level *Level, msg string, thrown Throwable) {
 	}
 	r := l.newRecord(level, msg)
 	r.thrown = thrown
-	l.LogRecordTo(r)
+	l.logRecord(r)
 }
 
 // Severe is Logger.severe(String).
@@ -233,36 +252,34 @@ func (l *Logger) Warning(msg string) { l.Log(Level_WARNING, msg) }
 // Info is Logger.info(String).
 func (l *Logger) Info(msg string) { l.Log(Level_INFO, msg) }
 
-// Config is Logger.config(String).
-func (l *Logger) Config(msg string) { l.Log(Level_CONFIG, msg) }
-
 // Fine is Logger.fine(String).
 func (l *Logger) Fine(msg string) { l.Log(Level_FINE, msg) }
-
-// Finer is Logger.finer(String).
-func (l *Logger) Finer(msg string) { l.Log(Level_FINER, msg) }
 
 // Finest is Logger.finest(String).
 func (l *Logger) Finest(msg string) { l.Log(Level_FINEST, msg) }
 
-// ConsoleHandler is java.util.logging.ConsoleHandler with SimpleFormatter.
-type ConsoleHandler struct {
+// consoleHandler is java.util.logging.ConsoleHandler with SimpleFormatter.
+type consoleHandler struct {
+	mu    sync.Mutex
 	out   io.Writer
 	level *Level
 }
 
 // Publish is ConsoleHandler.publish(LogRecord).
-func (h *ConsoleHandler) Publish(r *LogRecord) {
+func (h *consoleHandler) Publish(r *LogRecord) {
 	if r.level.value < h.level.value || h.level.value == Level_OFF.value {
 		return
 	}
-	io.WriteString(h.out, SimpleFormatter_Format(r))
+	formatted := simpleFormatterFormat(r)
+	h.mu.Lock()
+	_, _ = io.WriteString(h.out, formatted)
+	h.mu.Unlock()
 }
 
-// SimpleFormatter_Format is SimpleFormatter.format(LogRecord) with the
+// simpleFormatterFormat is SimpleFormatter.format(LogRecord) with the
 // default format "%1$tb %1$td, %1$tY %1$tl:%1$tM:%1$tS %1$Tp %2$s%n%4$s:
 // %5$s%6$s%n" (source = logger name).
-func SimpleFormatter_Format(r *LogRecord) string {
+func simpleFormatterFormat(r *LogRecord) string {
 	var sb strings.Builder
 	sb.WriteString(time.UnixMilli(r.millis).Format("Jan 02, 2006 3:04:05 PM"))
 	sb.WriteByte(' ')
@@ -338,13 +355,8 @@ func Level_Parse(name string) *Level {
 			return l
 		}
 	}
-	var value int32
-	parsed := false
-	Try(func() {
-		value = IntegerParseInt(name, 10)
-		parsed = true
-	}, func(e INumberFormatException) {})
-	if parsed {
+	if v, ok := parseRadixInteger(name, 10, math.MaxInt32); ok {
+		value := int32(v)
 		for _, l := range levelKnown {
 			if l.value == value {
 				return l

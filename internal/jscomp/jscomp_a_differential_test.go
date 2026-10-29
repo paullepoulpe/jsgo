@@ -275,7 +275,7 @@ func TestJscompADifferential(t *testing.T) {
 	rows := jsaReadVectors(t)
 	d := &jsaDiff{t: t, checked: map[string]int{}, failed: map[string]int{}}
 	provider := &jsaDiffProvider{files: map[string]*SourceFile{}}
-	var manager *SortingErrorManagerBase
+	var manager *SortingErrorManager
 	loaders := map[string]*ModuleLoader{}
 	var loaderErrors []string
 	jsdocIndex := 0
@@ -406,7 +406,7 @@ func jsaDiffMakeError(t *testing.T, provider *jsaDiffProvider, row []string) *JS
 	return JSError_MakeWithNode(n, type_, arg)
 }
 
-func jsaDiffFormat(t *testing.T, d *jsaDiff, row []string, provider *jsaDiffProvider, manager *SortingErrorManagerBase) {
+func jsaDiffFormat(t *testing.T, d *jsaDiff, row []string, provider *jsaDiffProvider, manager *SortingErrorManager) {
 	error := jsaDiffMakeError(t, provider, row)
 	col := 8
 	for _, f := range ErrorFormat_values() {
@@ -430,7 +430,7 @@ func jsaDiffFormat(t *testing.T, d *jsaDiff, row []string, provider *jsaDiffProv
 	manager.Report(jsaDiffLevels[jsaAtoi(t, row[7])].Ptr(), error)
 }
 
-func jsaDiffReport(t *testing.T, d *jsaDiff, row []string, provider *jsaDiffProvider, manager *SortingErrorManagerBase) {
+func jsaDiffReport(t *testing.T, d *jsaDiff, row []string, provider *jsaDiffProvider, manager *SortingErrorManager) {
 	manager.SetTypedPercent([]float64{0.0, 12.25, 99.95}[jsaAtoi(t, row[2])])
 	var json, ps1, ps3, ps2 bytes.Buffer
 	NewJsonErrorReportGenerator(jutil.NewPrintStream(&json), provider).GenerateReport(manager)

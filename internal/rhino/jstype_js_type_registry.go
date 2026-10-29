@@ -201,6 +201,11 @@ func (s propTypeSet) forEachObjectType(fn func(ObjectType)) {
 	}
 }
 
+type scopedTypeKey struct {
+	root Node
+	name string
+}
+
 // JSTypeRegistry is the type registry used to resolve named types.
 //
 // This class is not thread-safe.
@@ -315,10 +320,10 @@ type JSTypeRegistry struct {
 	nativeTypes []JSType
 
 	// Table<Node, String, JSType> (a HashBasedTable).
-	scopedNameTable *jutil.LinkedHashMap[Node, *jutil.LinkedHashMap[string, JSType]]
+	scopedNameTable map[scopedTypeKey]JSType
 
 	// Only needed for type resolution at the moment
-	closureNamespaces *jutil.LinkedHashMap[string, *JSTypeRegistry_ClosureNamespace]
+	closureNamespaces map[string]*JSTypeRegistry_ClosureNamespace
 
 	// NOTE: This would normally be "static final" but that causes unit test
 	// failures when serializing and deserializing compiler state for
@@ -344,7 +349,7 @@ type JSTypeRegistry struct {
 	// evaluation.
 	//
 	// Multimap<Node, String> with hash keys and hash set values.
-	nonNullableTypeNames *jutil.LinkedHashMap[Node, *jutil.LinkedHashSet[string]]
+	nonNullableTypeNames map[scopedTypeKey]struct{}
 
 	// Types that have been "forward-declared." If these types are not
 	// declared anywhere in the binary, we shouldn't try to type-check them at
@@ -527,7 +532,7 @@ const JSTypeRegistry_OBJECT_ELEMENT_TEMPLATE = JSTypeRegistry_I_OBJECT_ELEMENT_T
 
 // Java: JSTypeRegistry(ErrorReporter)
 func NewJSTypeRegistry(reporter ErrorReporter) *JSTypeRegistry {
-	return NewJSTypeRegistryWithForwardDeclaredTypes(reporter, jutil.NewLinkedHashSet[string]())
+	return NewJSTypeRegistryWithForwardDeclaredTypes(reporter, nil)
 }
 
 // NewJSTypeRegistryWithForwardDeclaredTypes constructs a new type registry
@@ -536,10 +541,8 @@ func NewJSTypeRegistry(reporter ErrorReporter) *JSTypeRegistry {
 // Java: JSTypeRegistry(ErrorReporter, Set<String>)
 func NewJSTypeRegistryWithForwardDeclaredTypes(reporter ErrorReporter, forwardDeclaredTypes jutil.Set[string]) *JSTypeRegistry {
 	r := &JSTypeRegistry{
-		scopedNameTable:              jutil.NewLinkedHashMap[Node, *jutil.LinkedHashMap[string, JSType]](),
-		closureNamespaces:            jutil.NewLinkedHashMap[string, *JSTypeRegistry_ClosureNamespace](),
+		scopedNameTable:              make(map[scopedTypeKey]JSType, 64),
 		nameTableGlobalRoot:          NewNode(Token_ROOT),
-		nonNullableTypeNames:         jutil.NewLinkedHashMap[Node, *jutil.LinkedHashSet[string]](),
 		nonRefTypesIndexedByProperty: make(map[rhinoStringID]propTypeSet),
 		eachRefTypeIndexedByProperty: make(map[rhinoStringID]propTypeSet),
 		leastSupertypeGen:            1,
@@ -895,4 +898,10 @@ func JSTypeRegistry_GetSuperStack(a ObjectType) []ObjectType {
 		stack = append(stack, current)
 	}
 	return stack
+}
+
+func (r *JSTypeRegistry) ForEachScopedType(fn func(scopeRoot Node, isGlobal bool, name string, typ JSType)) {
+	for k, typ := range r.scopedNameTable { // order-independent: callers sort or aggregate entries
+		fn(k.root, k.root == r.nameTableGlobalRoot, k.name, typ)
+	}
 }

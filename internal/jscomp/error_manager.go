@@ -162,15 +162,15 @@ func ErrorManager_ShouldReportConformanceViolation(
 // BlackHoleErrorManager is an ErrorManager that silently swallows all
 // messages.
 type BlackHoleErrorManager struct {
-	SortingErrorManagerBase
+	SortingErrorManager
 }
 
-var _ SortingErrorManager = (*BlackHoleErrorManager)(nil)
+var _ ErrorManager = (*BlackHoleErrorManager)(nil)
 
 // Java: BlackHoleErrorManager()
 func NewBlackHoleErrorManager() *BlackHoleErrorManager {
 	m := &BlackHoleErrorManager{}
-	m.InitSortingErrorManagerBase(nil)
+	m.InitSortingErrorManager(nil)
 	return m
 }
 
@@ -198,82 +198,26 @@ func (p *ErrorPass) Process(externs rhino.Node, root rhino.Node) {
 	p.compiler.Report(p.error_)
 }
 
-// BasicErrorManager is an error manager that generates a sorted report when
-// the GenerateReport method is called.
-//
-// This error manager does not produce any output, but subclasses can
-// override the Println(CheckLevel, JSError) method to generate custom
-// output. Consider using the SortingErrorManager with a custom
-// SortingErrorManager.ErrorReportGenerator instead.
-//
-// Deprecated: as in Java.
-type BasicErrorManager interface {
-	SortingErrorManager
-
-	// Println prints a message with a trailing new line. This method is
-	// called by the GenerateReport method when generating messages.
-	//
-	// Java: BasicErrorManager.println(CheckLevel, JSError)
-	Println(level *CheckLevel, error *JSError)
-
-	// PrintSummary prints the summary of the compilation - number of errors
-	// and warnings.
-	//
-	// Java: BasicErrorManager.printSummary()
-	PrintSummary()
-
-	GetBasicErrorManagerBase() *BasicErrorManagerBase
-}
-
-// BasicErrorManagerBase holds the base implementations of
-// BasicErrorManager; subclasses embed it and implement Println and
-// PrintSummary.
-type BasicErrorManagerBase struct {
-	SortingErrorManagerBase
-	printlnFn      func(*CheckLevel, *JSError)
-	printSummaryFn func()
-}
-
-// InitBasicErrorManagerBase is the Go form of super(); self is the object
-// being constructed.
-//
-// Java: BasicErrorManager()
-func (m *BasicErrorManagerBase) InitBasicErrorManagerBase(self BasicErrorManager) {
-	m.InitSortingErrorManagerBase(nil)
-	m.printlnFn = self.Println
-	m.printSummaryFn = self.PrintSummary
-}
-
-// GetBasicErrorManagerBase gives access to the base fields.
-func (m *BasicErrorManagerBase) GetBasicErrorManagerBase() *BasicErrorManagerBase { return m }
-
-// Java: BasicErrorManager.generateReport()
-func (m *BasicErrorManagerBase) GenerateReport() {
-	for _, message := range m.SortingErrorManagerBase.GetSortedDiagnostics() {
-		m.printlnFn(message.Level, message.Error)
-	}
-	m.printSummaryFn()
-}
-
 // LoggerErrorManager is an error manager that logs errors and warnings using
 // a logger in addition to collecting them in memory. Errors are logged at
 // the SEVERE level and warnings are logged at the WARNING level.
 type LoggerErrorManager struct {
-	BasicErrorManagerBase
+	SortingErrorManager
 	formatter MessageFormatter
 	logger    *jutil.Logger
 }
 
-var _ BasicErrorManager = (*LoggerErrorManager)(nil)
+var _ ErrorManager = (*LoggerErrorManager)(nil)
 
 // NewLoggerErrorManagerWithFormatter creates an instance.
 //
 // Java: LoggerErrorManager(MessageFormatter, Logger)
 func NewLoggerErrorManagerWithFormatter(formatter MessageFormatter, logger *jutil.Logger) *LoggerErrorManager {
-	m := &LoggerErrorManager{}
-	m.InitBasicErrorManagerBase(m)
-	m.formatter = formatter
-	m.logger = logger
+	m := &LoggerErrorManager{
+		formatter: formatter,
+		logger:    logger,
+	}
+	m.initReportHooks(m.Println, func(*SortingErrorManager) { m.PrintSummary() })
 	return m
 }
 
@@ -421,8 +365,8 @@ func parseDecimalDigits(s string) (digits string, exp10 int) {
 }
 
 // PrintStreamErrorManager is an error manager that prints errors and
-// warnings to the print stream provided in addition to the functionality of
-// the BasicErrorManager.
+// warnings to the print stream provided in addition to sorting reported
+// diagnostics.
 //
 // It collaborates with a SourceExcerptProvider via a MessageFormatter to
 // display error messages with source context.
@@ -430,13 +374,13 @@ func parseDecimalDigits(s string) (digits string, exp10 int) {
 // Deprecated: Please use the SortingErrorManager with a
 // PrintStreamErrorReportGenerator instead.
 type PrintStreamErrorManager struct {
-	BasicErrorManagerBase
+	SortingErrorManager
 	formatter          MessageFormatter
 	stream             *jutil.PrintStream
 	summaryDetailLevel int
 }
 
-var _ BasicErrorManager = (*PrintStreamErrorManager)(nil)
+var _ ErrorManager = (*PrintStreamErrorManager)(nil)
 
 // NewPrintStreamErrorManagerWithFormatter creates an error manager.
 // formatter is the message formatter used to format the messages; stream is
@@ -446,10 +390,12 @@ var _ BasicErrorManager = (*PrintStreamErrorManager)(nil)
 // Java: PrintStreamErrorManager(MessageFormatter, PrintStream)
 func NewPrintStreamErrorManagerWithFormatter(formatter MessageFormatter,
 	stream *jutil.PrintStream) *PrintStreamErrorManager {
-	m := &PrintStreamErrorManager{summaryDetailLevel: 1}
-	m.InitBasicErrorManagerBase(m)
-	m.formatter = formatter
-	m.stream = stream
+	m := &PrintStreamErrorManager{
+		formatter:          formatter,
+		stream:             stream,
+		summaryDetailLevel: 1,
+	}
+	m.initReportHooks(m.Println, func(*SortingErrorManager) { m.PrintSummary() })
 	return m
 }
 
@@ -501,7 +447,7 @@ func NewPrintStreamErrorReportGenerator(
 }
 
 // Java: PrintStreamErrorReportGenerator.generateReport(SortingErrorManager)
-func (g *PrintStreamErrorReportGenerator) GenerateReport(manager SortingErrorManager) {
+func (g *PrintStreamErrorReportGenerator) GenerateReport(manager *SortingErrorManager) {
 	for _, e := range manager.GetSortedDiagnostics() {
 		g.Println(e.Level, e.Error)
 	}

@@ -314,9 +314,9 @@ func (r *JSTypeRegistry) CreateAnonymousObjectType(info *JSDocInfo) ObjectType {
 //
 // Java: JSTypeRegistry.resetImplicitPrototype(JSType, ObjectType)
 func (r *JSTypeRegistry) ResetImplicitPrototype(type_ JSType, newImplicitProto ObjectType) {
-	if poType, ok := type_.(PrototypeObjectType); ok {
-		poType.ClearCachedValues()
-		poType.SetImplicitPrototype(newImplicitProto)
+	if poBase := prototypeObjectTypeBaseOf(type_); poBase != nil {
+		poBase.selfObj().ClearCachedValues()
+		poBase.SetImplicitPrototype(newImplicitProto)
 	}
 }
 
@@ -453,12 +453,10 @@ func (r *JSTypeRegistry) createNamedTypeByID(
 func (r *JSTypeRegistry) IdentifyNonNullableName(scope StaticScope, name string) {
 	lookupScope := JSTypeRegistry_GetLookupScope(scope, name)
 	rootNode := r.GetRootNodeForScope(lookupScope)
-	names := r.nonNullableTypeNames.Get(rootNode)
-	if names == nil {
-		names = jutil.NewLinkedHashSet[string]()
-		r.nonNullableTypeNames.Put(rootNode, names)
+	if r.nonNullableTypeNames == nil {
+		r.nonNullableTypeNames = make(map[scopedTypeKey]struct{})
 	}
-	names.Add(name)
+	r.nonNullableTypeNames[scopedTypeKey{root: rootNode, name: name}] = struct{}{}
 }
 
 // IsNonNullableName identifies the name of a typedef or enum before we
@@ -466,9 +464,12 @@ func (r *JSTypeRegistry) IdentifyNonNullableName(scope StaticScope, name string)
 //
 // Java: JSTypeRegistry.isNonNullableName(StaticScope, String)
 func (r *JSTypeRegistry) IsNonNullableName(scope StaticScope, name string) bool {
+	if len(r.nonNullableTypeNames) == 0 {
+		return false
+	}
 	scope = JSTypeRegistry_GetLookupScope(scope, name)
-	names := r.nonNullableTypeNames.Get(r.GetRootNodeForScope(scope))
-	return names != nil && names.Contains(name)
+	_, ok := r.nonNullableTypeNames[scopedTypeKey{root: r.GetRootNodeForScope(scope), name: name}]
+	return ok
 }
 
 // Java: JSTypeRegistry.evaluateTypeExpression(JSTypeExpression, StaticTypedScope)

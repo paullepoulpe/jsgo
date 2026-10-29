@@ -896,19 +896,20 @@ func (c *Compiler) SetAccessorSummary(summary *AccessorSummary) {
 // Java: Compiler.loadResourceContents(String, String)
 func (c *Compiler) loadResourceContents(resourceName string, path string) rhino.Node {
 	if c.GetLifeCycleStage().HasColorAndSimplifiedJSDoc() {
-		jutil.CheckNotNullMsg(
-			c.runtimeLibraryTypedAsts,
-			"Must call initRuntimeLibraryTypedAsts before calling ensureLibraryInjected during"+
-				" optimizations")
+		if c.runtimeLibraryTypedAsts == nil {
+			panic(jutil.NewNullPointerExceptionMsg(
+				"Must call initRuntimeLibraryTypedAsts before calling ensureLibraryInjected during" +
+					" optimizations"))
+		}
 
-		typedAstSupplier := jutil.CheckNotNullMsg1(
-			c.runtimeLibraryTypedAsts.Get(path),
+		sd := jutil.CheckNotNullMsg1(
+			c.runtimeLibraryTypedAsts[path],
 			strings.Join([]string{
 				"Missing precompiled .typedast for '%s'. If this file is newly added, ",
 				"you may need to regenerate runtime_libs.typedast.textproto",
 				""}, ""),
 			path)
-		return typedAstSupplier()
+		return sd.DeserializeNew()
 	}
 	jutil.CheckStateMsg(
 		!c.HasTypeCheckingRun(),
@@ -959,11 +960,17 @@ func (c *Compiler) addFilesToSourceMap(files []*SourceFile) {
 	defer c.monitor.Unlock()
 	if c.GetOptions().GetSourceMapIncludeSourcesContent() && c.GetSourceMap() != nil {
 		for _, file := range files {
-			jutil.Try(func() {
-				c.GetSourceMap().AddSourceFile(file.GetName(), jutil.StringPtr(file.GetCode()))
-			}, func(e jutil.IIOException) {
-				panic(jutil.NewRuntimeExceptionWithMessageAndCause("Cannot read code of a source map's source file.", e))
-			})
+			code, err := file.getCode()
+			if err != nil {
+				var cause jutil.Throwable
+				if t, ok := err.(jutil.Throwable); ok {
+					cause = t
+				} else {
+					cause = jutil.AsThrowable(err)
+				}
+				panic(jutil.NewRuntimeExceptionWithMessageAndCause("Cannot read code of a source map's source file.", cause))
+			}
+			c.GetSourceMap().AddSourceFile(file.GetName(), &code)
 		}
 	}
 }

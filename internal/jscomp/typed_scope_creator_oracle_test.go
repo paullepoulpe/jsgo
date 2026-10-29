@@ -31,11 +31,9 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"reflect"
 	"slices"
 	"strings"
 	"testing"
-	"unsafe"
 
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/parsing"
@@ -216,13 +214,9 @@ func typedScopeDump(externs string, inputs []*SourceFile, baseline *jutil.Linked
 	}
 
 	var table []string
-	registry := compiler.GetTypeRegistry()
-	globalRoot := typedScopeDump_registryField[rhino.Node](registry, "nameTableGlobalRoot")
-	nameTable := typedScopeDump_registryField[*jutil.LinkedHashMap[rhino.Node, *jutil.LinkedHashMap[string, rhino.JSType]]](
-		registry, "scopedNameTable")
-	for rowKey, row := range nameTable.All() {
+	compiler.GetTypeRegistry().ForEachScopedType(func(rowKey rhino.Node, isGlobal bool, name string, type_ rhino.JSType) {
 		var rowLabel string
-		if rowKey == globalRoot {
+		if isGlobal {
 			rowLabel = "GLOBAL"
 		} else {
 			rowLabel = jutil.ToJavaString(rowKey.GetSourceFileName()) + ":" + typedScopeDump_pos(rowKey)
@@ -230,26 +224,17 @@ func typedScopeDump(externs string, inputs []*SourceFile, baseline *jutil.Linked
 				rowLabel += "!"
 			}
 		}
-		for name, type_ := range row.All() {
-			line := "T " + rowLabel + " " + name + " | " + typedScopeDump_typeString(type_)
-			if baseline != nil && baseline.Contains(line) {
-				continue
-			}
-			table = append(table, line)
+		line := "T " + rowLabel + " " + name + " | " + typedScopeDump_typeString(type_)
+		if baseline != nil && baseline.Contains(line) {
+			return
 		}
-	}
+		table = append(table, line)
+	})
 	slices.SortFunc(table, jutil.StringCompareTo)
 	out = append(out, table...)
 
 	out = typedScopeDump_nodeTypes(out, jsRoot)
 	return out
-}
-
-// typedScopeDump_registryField reads an unexported field of the registry, as
-// the Java dump reads JSTypeRegistry's private fields by reflection.
-func typedScopeDump_registryField[T any](registry *rhino.JSTypeRegistry, name string) T {
-	f := reflect.ValueOf(registry).Elem().FieldByName(name)
-	return reflect.NewAt(f.Type(), unsafe.Pointer(f.UnsafeAddr())).Elem().Interface().(T)
 }
 
 func typedScopeDump_varLine(v *TypedVar) string {

@@ -210,8 +210,9 @@ var (
 	}()
 )
 
-func (*StrictModeCheck) visitTokens() *ast.TokenSet        { return &strictModeCheckVisitTokens }
-func (*StrictModeCheck) combinedVisitTokens() ast.TokenSet { return strictModeCheckVisitTokens }
+var _ nodeTraversal_visitTokens = (*StrictModeCheck)(nil)
+
+func (*StrictModeCheck) visitTokens() *ast.TokenSet { return &strictModeCheckVisitTokens }
 
 // Java: StrictModeCheck.visit(NodeTraversal, Node, Node)
 func (c *StrictModeCheck) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
@@ -394,11 +395,10 @@ func NewStrictModeCheck_NonExternChecks(outer *StrictModeCheck) *StrictModeCheck
 	return &StrictModeCheck_NonExternChecks{outer: outer}
 }
 
+var _ nodeTraversal_visitTokens = (*StrictModeCheck_NonExternChecks)(nil)
+
 func (*StrictModeCheck_NonExternChecks) visitTokens() *ast.TokenSet {
 	return &strictModeNonExternVisitTokens
-}
-func (*StrictModeCheck_NonExternChecks) combinedVisitTokens() ast.TokenSet {
-	return strictModeNonExternVisitTokens
 }
 
 // Java: StrictModeCheck.NonExternChecks.visit(NodeTraversal, Node, Node)

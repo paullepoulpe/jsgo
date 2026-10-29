@@ -73,28 +73,11 @@ type PassConfigDelegate struct {
 	delegate PassConfig
 }
 
-// PassConfig_PassConfigDelegateBase preserves test compatibility for custom
-// PassConfig test stubs that assign .self and call InitPassConfig_PassConfigDelegateBase.
-type PassConfig_PassConfigDelegateBase struct {
-	PassConfigDelegate
-	self PassConfig
-}
-
 func NewPassConfigDelegate(delegate PassConfig) PassConfigDelegate {
 	return PassConfigDelegate{
 		options:  delegate.Options(),
 		delegate: delegate,
 	}
-}
-
-func NewPassConfig_PassConfigDelegate(delegate PassConfig) *PassConfigDelegate {
-	d := NewPassConfigDelegate(delegate)
-	return &d
-}
-
-func (d *PassConfigDelegate) InitPassConfig_PassConfigDelegateBase(delegate PassConfig) {
-	d.options = delegate.Options()
-	d.delegate = delegate
 }
 
 func (d *PassConfigDelegate) Options() *CompilerOptions {

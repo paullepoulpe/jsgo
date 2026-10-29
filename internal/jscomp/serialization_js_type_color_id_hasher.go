@@ -26,6 +26,7 @@ import (
 
 // JSTypeColorIdHasher computes the ColorId of an ObjectType.
 type JSTypeColorIdHasher struct {
+	registry *rhino.JSTypeRegistry
 	// Go-only: language-adapter — an ImmutableMap keyed by ObjectType, whose
 	// equals/hashCode are JSType.equals/hashCode, so it is an
 	// ObjectLinkedHashMap rather than a Go-== keyed map.
@@ -41,23 +42,32 @@ func (h *JSTypeColorIdHasher) onOwnProp(prop string) {
 
 // Java: JSTypeColorIdHasher(JSTypeRegistry)
 func NewJSTypeColorIdHasher(registry *rhino.JSTypeRegistry) *JSTypeColorIdHasher {
-	h := &JSTypeColorIdHasher{}
-	h.hashOwnPropFn = h.onOwnProp
-	// NATIVE_TYPE_TO_ID.entrySet().stream().collect(toImmutableMap(...))
+	if registry == nil {
+		panic(jutil.NewNullPointerException())
+	}
+	return &JSTypeColorIdHasher{registry: registry}
+}
+
+func (h *JSTypeColorIdHasher) initStandardColorByPtr() {
+	standardColorByPtr := make(map[*rhino.JSTypeBase]colors.ColorId, len(jsTypeColorIdHasherNativeEntries))
+	for _, entry := range jsTypeColorIdHasherNativeEntries {
+		k := h.registry.GetNativeObjectType(entry.native)
+		standardColorByPtr[k.GetJSTypeBase()] = entry.id
+	}
+	h.standardColorByPtr = standardColorByPtr
+}
+
+func (h *JSTypeColorIdHasher) initStandardColorObjectIds() {
 	standardColorObjectIds := jutil.NewObjectLinkedHashMap[rhino.ObjectType, colors.ColorId]()
-	standardColorByPtr := make(map[*rhino.JSTypeBase]colors.ColorId, 16)
-	for e, v := range JSTypeColorIdHasher_NATIVE_TYPE_TO_ID.All() {
-		k := registry.GetNativeObjectType(e)
+	for _, entry := range jsTypeColorIdHasherNativeEntries {
+		k := h.registry.GetNativeObjectType(entry.native)
 		if old, ok := standardColorObjectIds.Lookup(k); ok {
 			panic(jutil.NewIllegalArgumentExceptionMsg("Multiple entries with same key: " +
-				k.String() + "=" + v.String() + " and " + k.String() + "=" + old.String()))
+				k.String() + "=" + entry.id.String() + " and " + k.String() + "=" + old.String()))
 		}
-		standardColorObjectIds.Put(k, v)
-		standardColorByPtr[k.GetJSTypeBase()] = v
+		standardColorObjectIds.Put(k, entry.id)
 	}
 	h.standardColorObjectIds = standardColorObjectIds
-	h.standardColorByPtr = standardColorByPtr
-	return h
 }
 
 // Java: JSTypeColorIdHasher.hashObjectType(ObjectType)
@@ -73,10 +83,16 @@ func (h *JSTypeColorIdHasher) HashObjectType(type_ rhino.ObjectType) colors.Colo
 		type_)
 
 	if type_.IsNominalType() {
+		if h.standardColorByPtr == nil {
+			h.initStandardColorByPtr()
+		}
 		if boxId, ok := h.standardColorByPtr[type_.GetJSTypeBase()]; ok {
 			return boxId
 		}
 		if type_.IsNamedType() {
+			if h.standardColorObjectIds == nil {
+				h.initStandardColorObjectIds()
+			}
 			if boxId, ok := h.standardColorObjectIds.Lookup(type_); ok {
 				return boxId
 			}
@@ -96,6 +112,9 @@ func (h *JSTypeColorIdHasher) HashObjectType(type_ rhino.ObjectType) colors.Colo
 	if type_.HasReferenceName() {
 		h.PutReferenceNameType(hasher, type_)
 	} else {
+		if h.hashOwnPropFn == nil {
+			h.hashOwnPropFn = h.onOwnProp
+		}
 		type_.ForEachOwnPropertyName(h.hashOwnPropFn)
 	}
 
@@ -162,19 +181,42 @@ const (
 	jsTypeColorIdHasher_Marker_UNKNOWN_SOURCEREF int32 = 0x660be782
 )
 
+const jsTypeNativeCount = int(rhino.JSTypeNative_NUMBER_ADDITION_SUPERTYPE) + 1
+
+type jsTypeNativeColorIdEntry struct {
+	native rhino.JSTypeNative
+	id     colors.ColorId
+}
+
+var jsTypeColorIdHasherNativeEntries = [...]jsTypeNativeColorIdEntry{
+	{rhino.JSTypeNative_ARGUMENTS_TYPE, colors.StandardColors_ARGUMENTS_ID},
+	{rhino.JSTypeNative_ARRAY_TYPE, colors.StandardColors_ARRAY_ID},
+	{rhino.JSTypeNative_READONLY_ARRAY_TYPE, colors.StandardColors_READONLY_ARRAY_ID},
+	{rhino.JSTypeNative_ASYNC_ITERATOR_ITERABLE_TYPE, colors.StandardColors_ASYNC_ITERATOR_ITERABLE_ID},
+	{rhino.JSTypeNative_GENERATOR_TYPE, colors.StandardColors_GENERATOR_ID},
+	{rhino.JSTypeNative_I_TEMPLATE_ARRAY_TYPE, colors.StandardColors_I_TEMPLATE_ARRAY_ID},
+	{rhino.JSTypeNative_ITERATOR_TYPE, colors.StandardColors_ITERATOR_ID},
+	{rhino.JSTypeNative_PROMISE_TYPE, colors.StandardColors_PROMISE_ID},
+	{rhino.JSTypeNative_BIGINT_OBJECT_TYPE, colors.StandardColors_BIGINT_OBJECT_ID},
+	{rhino.JSTypeNative_BOOLEAN_OBJECT_TYPE, colors.StandardColors_BOOLEAN_OBJECT_ID},
+	{rhino.JSTypeNative_NUMBER_OBJECT_TYPE, colors.StandardColors_NUMBER_OBJECT_ID},
+	{rhino.JSTypeNative_STRING_OBJECT_TYPE, colors.StandardColors_STRING_OBJECT_ID},
+	{rhino.JSTypeNative_SYMBOL_OBJECT_TYPE, colors.StandardColors_SYMBOL_OBJECT_ID},
+}
+
 // Java: JSTypeColorIdHasher.NATIVE_TYPE_TO_ID
-var JSTypeColorIdHasher_NATIVE_TYPE_TO_ID = jutil.NewImmutableMapBuilder[rhino.JSTypeNative, colors.ColorId]().
-	Put(rhino.JSTypeNative_ARGUMENTS_TYPE, colors.StandardColors_ARGUMENTS_ID).
-	Put(rhino.JSTypeNative_ARRAY_TYPE, colors.StandardColors_ARRAY_ID).
-	Put(rhino.JSTypeNative_READONLY_ARRAY_TYPE, colors.StandardColors_READONLY_ARRAY_ID).
-	Put(rhino.JSTypeNative_ASYNC_ITERATOR_ITERABLE_TYPE, colors.StandardColors_ASYNC_ITERATOR_ITERABLE_ID).
-	Put(rhino.JSTypeNative_GENERATOR_TYPE, colors.StandardColors_GENERATOR_ID).
-	Put(rhino.JSTypeNative_I_TEMPLATE_ARRAY_TYPE, colors.StandardColors_I_TEMPLATE_ARRAY_ID).
-	Put(rhino.JSTypeNative_ITERATOR_TYPE, colors.StandardColors_ITERATOR_ID).
-	Put(rhino.JSTypeNative_PROMISE_TYPE, colors.StandardColors_PROMISE_ID).
-	Put(rhino.JSTypeNative_BIGINT_OBJECT_TYPE, colors.StandardColors_BIGINT_OBJECT_ID).
-	Put(rhino.JSTypeNative_BOOLEAN_OBJECT_TYPE, colors.StandardColors_BOOLEAN_OBJECT_ID).
-	Put(rhino.JSTypeNative_NUMBER_OBJECT_TYPE, colors.StandardColors_NUMBER_OBJECT_ID).
-	Put(rhino.JSTypeNative_STRING_OBJECT_TYPE, colors.StandardColors_STRING_OBJECT_ID).
-	Put(rhino.JSTypeNative_SYMBOL_OBJECT_TYPE, colors.StandardColors_SYMBOL_OBJECT_ID).
-	BuildOrThrow()
+var JSTypeColorIdHasher_NATIVE_TYPE_TO_ID = [jsTypeNativeCount]colors.ColorId{
+	rhino.JSTypeNative_ARGUMENTS_TYPE:               colors.StandardColors_ARGUMENTS_ID,
+	rhino.JSTypeNative_ARRAY_TYPE:                   colors.StandardColors_ARRAY_ID,
+	rhino.JSTypeNative_READONLY_ARRAY_TYPE:          colors.StandardColors_READONLY_ARRAY_ID,
+	rhino.JSTypeNative_ASYNC_ITERATOR_ITERABLE_TYPE: colors.StandardColors_ASYNC_ITERATOR_ITERABLE_ID,
+	rhino.JSTypeNative_GENERATOR_TYPE:               colors.StandardColors_GENERATOR_ID,
+	rhino.JSTypeNative_I_TEMPLATE_ARRAY_TYPE:        colors.StandardColors_I_TEMPLATE_ARRAY_ID,
+	rhino.JSTypeNative_ITERATOR_TYPE:                colors.StandardColors_ITERATOR_ID,
+	rhino.JSTypeNative_PROMISE_TYPE:                 colors.StandardColors_PROMISE_ID,
+	rhino.JSTypeNative_BIGINT_OBJECT_TYPE:           colors.StandardColors_BIGINT_OBJECT_ID,
+	rhino.JSTypeNative_BOOLEAN_OBJECT_TYPE:          colors.StandardColors_BOOLEAN_OBJECT_ID,
+	rhino.JSTypeNative_NUMBER_OBJECT_TYPE:           colors.StandardColors_NUMBER_OBJECT_ID,
+	rhino.JSTypeNative_STRING_OBJECT_TYPE:           colors.StandardColors_STRING_OBJECT_ID,
+	rhino.JSTypeNative_SYMBOL_OBJECT_TYPE:           colors.StandardColors_SYMBOL_OBJECT_ID,
+}

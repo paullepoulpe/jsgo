@@ -69,44 +69,6 @@ func (f *FunctionArgumentInjector) getTemplateUndefinedNode(callNode rhino.Node)
 	return NodeUtil_NewUndefinedNode(callNode)
 }
 
-// Inject, with the map provided, replaces the names with expression trees.
-//
-// node is the root node of the tree within which to perform the
-// substitutions; parent is the parent root node; replacements is the map of
-// names to template node trees with which to replace the name Nodes.
-// Returns the root node or its replacement.
-//
-// Java: FunctionArgumentInjector.inject(AbstractCompiler, Node, Node, Map<String, Node>)
-func (f *FunctionArgumentInjector) Inject(compiler AbstractCompiler, node rhino.Node, parent rhino.Node, replacements *jutil.LinkedHashMap[string, rhino.Node]) rhino.Node {
-	return f.InjectWithReplaceThis(compiler, node, parent, replacements, true /* replaceThis= */)
-}
-
-// Java: FunctionArgumentInjector.inject(AbstractCompiler, Node, Node, Map<String, Node>, boolean)
-func (f *FunctionArgumentInjector) InjectWithReplaceThis(
-	compiler AbstractCompiler,
-	node rhino.Node,
-	parent rhino.Node,
-	replacements *jutil.LinkedHashMap[string, rhino.Node],
-	replaceThis bool) rhino.Node {
-	var idMap inlineIDNodeMap
-	idMap.clear()
-	hadThis := false
-	if replacements != nil {
-		for k, v := range replacements.All() {
-			id := rhino.RhinoStringPool_InternID(k)
-			if id == calleeThisMarkerID {
-				hadThis = true
-			}
-			idMap.put(id, v)
-		}
-	}
-	res := f.injectByID(compiler, node, parent, &idMap, replaceThis)
-	if hadThis && idMap.get(calleeThisMarkerID).IsNil() {
-		replacements.Remove(FunctionArgumentInjector_THIS_MARKER)
-	}
-	return res
-}
-
 func (f *FunctionArgumentInjector) injectByID(
 	compiler AbstractCompiler,
 	node rhino.Node,
@@ -370,24 +332,6 @@ func (f *FunctionArgumentInjector) failDuplicateParamBindings(
 	var bindingsBuf [inlineSmallCap]callParamBinding
 	bindings := f.appendCallParamBindings(bindingsBuf[:0], fnNode, callNode, safeNameIdSupplier, callParamWalkOwned)
 	throwDuplicateParamBinding(bindings)
-}
-
-// GetFunctionCallParameterMap gets a mapping for function parameter names to
-// call arguments.
-//
-// Java: FunctionArgumentInjector.getFunctionCallParameterMap(Node, Node, Supplier<String>)
-func (f *FunctionArgumentInjector) GetFunctionCallParameterMap(
-	fnNode rhino.Node, callNode rhino.Node, safeNameIdSupplier func() string) *jutil.LinkedHashMap[string, FunctionArgumentInjector_ParamArgPair] {
-	var bindingsBuf [inlineSmallCap]callParamBinding
-	bindings := f.appendCallParamBindings(bindingsBuf[:0], fnNode, callNode, safeNameIdSupplier, callParamWalkOwned)
-	if hasDuplicateBindingID(bindings) {
-		throwDuplicateParamBinding(bindings)
-	}
-	argMap := jutil.NewLinkedHashMapWithCapacity[string, FunctionArgumentInjector_ParamArgPair](len(bindings))
-	for _, b := range bindings {
-		argMap.PutNew(b.nameStr(), NewFunctionArgumentInjector_ParamArgPair(b.paramNode, b.argNode))
-	}
-	return argMap
 }
 
 func (f *FunctionArgumentInjector) fillCallParamNodeMap(
@@ -722,32 +666,6 @@ func (f *FunctionArgumentInjector) hasCallArgumentsNeedingTempsForBindings(
 	return false
 }
 
-// Java: FunctionArgumentInjector.gatherCallArgumentsNeedingTemps(AbstractCompiler, Node, ImmutableMap<String, ParamArgPair>, ImmutableSet<String>, CodingConvention)
-func (f *FunctionArgumentInjector) GatherCallArgumentsNeedingTemps(
-	compiler AbstractCompiler,
-	fnNode rhino.Node,
-	argMap *jutil.LinkedHashMap[string, FunctionArgumentInjector_ParamArgPair],
-	modifiedParameters *jutil.LinkedHashSet[string],
-	convention CodingConvention) *jutil.LinkedHashSet[string] {
-	jutil.CheckArgumentMsg1(fnNode.IsFunction(), "%s", fnNode)
-	if argMap.IsEmpty() {
-		return modifiedParameters
-	}
-	var bindingsBuf [inlineSmallCap]callParamBinding
-	bindings := bindingsFromArgMap(bindingsBuf[:0], argMap)
-	var modifiedIDs inlineIDSet
-	modifiedIDs.fromLinkedHashSet(modifiedParameters, true)
-	requiresTempsUpToID := f.findRequiresTempsUpToParameterID(
-		compiler, fnNode, bindings, &modifiedIDs, convention, nil, false)
-	if requiresTempsUpToID == 0 {
-		return modifiedParameters
-	}
-	var dstIDs inlineIDSet
-	dstIDs.addAll(&modifiedIDs)
-	addCallArgumentsNeedingTempsByID(fnNode, bindings, requiresTempsUpToID, &dstIDs)
-	return dstIDs.toLinkedHashSet()
-}
-
 func (f *FunctionArgumentInjector) gatherCallArgumentsNeedingTempsByID(
 	compiler AbstractCompiler,
 	fnNode rhino.Node,
@@ -835,33 +753,6 @@ func (f *FunctionArgumentInjector) MayHaveConditionalCode(n rhino.Node) bool {
 	return false
 }
 
-// FindParametersReferencedAfterSideEffect bootstraps a traversal to look for
-// parameters referenced after a non-local side-effect, and parameters with
-// names referenced before the parameter is referenced.
-//
-// NOTE: This assumes no-inner functions.
-//
-// parameters is the set of parameter names; root is the function code
-// block. Returns two sets: Set #1 is the subset of parameters referenced
-// after the first seen non-local side-effect. Set #2 is the subset of
-// parameters with names referenced before the parameter is referenced.
-//
-// Java: FunctionArgumentInjector.findParametersReferencedAfterSideEffect(ImmutableSet<String>, Node)
-func (f *FunctionArgumentInjector) FindParametersReferencedAfterSideEffect(
-	parameters *jutil.LinkedHashSet[string], root rhino.Node) *FunctionArgumentInjector_SetContainer {
-	f.scratchLocals.clear()
-	gatherLocalNameIDs(root, &f.scratchLocals)
-
-	collector := &f.referencedAfter
-	collector.reset(f, nil, &f.scratchLocals)
-	collector.parameterIDs.fromLinkedHashSet(parameters, true)
-	NodeUtil_VisitPostOrderWithPred(root, collector, collector.Apply)
-	return NewFunctionArgumentInjector_SetContainer(
-		collector.parametersReferenced.toLinkedHashSet(),
-		collector.parametersWithNamesReferencedBeforeParameter.toLinkedHashSet(),
-	)
-}
-
 func (f *FunctionArgumentInjector) collectReferencedAfterSideEffectForBindings(
 	bindings []callParamBinding, root rhino.Node,
 ) {
@@ -923,32 +814,6 @@ func (f *FunctionArgumentInjector) ensureCalleeSideEffects(summary *calleeSummar
 	return se, true
 }
 
-// FunctionArgumentInjector_SetContainer is the record SetContainer.
-type FunctionArgumentInjector_SetContainer struct {
-	parametersReferencedAfterSideEffect          *jutil.LinkedHashSet[string]
-	parametersWithNamesReferencedBeforeParameter *jutil.LinkedHashSet[string]
-}
-
-// Java: FunctionArgumentInjector.SetContainer(ImmutableSet<String>, ImmutableSet<String>)
-func NewFunctionArgumentInjector_SetContainer(
-	parametersReferencedAfterSideEffect *jutil.LinkedHashSet[string],
-	parametersWithNamesReferencedBeforeParameter *jutil.LinkedHashSet[string]) *FunctionArgumentInjector_SetContainer {
-	return &FunctionArgumentInjector_SetContainer{
-		parametersReferencedAfterSideEffect:          parametersReferencedAfterSideEffect,
-		parametersWithNamesReferencedBeforeParameter: parametersWithNamesReferencedBeforeParameter,
-	}
-}
-
-// Java: FunctionArgumentInjector.SetContainer.parametersReferencedAfterSideEffect()
-func (s *FunctionArgumentInjector_SetContainer) ParametersReferencedAfterSideEffect() *jutil.LinkedHashSet[string] {
-	return s.parametersReferencedAfterSideEffect
-}
-
-// Java: FunctionArgumentInjector.SetContainer.parametersWithNamesReferencedBeforeParameter()
-func (s *FunctionArgumentInjector_SetContainer) ParametersWithNamesReferencedBeforeParameter() *jutil.LinkedHashSet[string] {
-	return s.parametersWithNamesReferencedBeforeParameter
-}
-
 // FunctionArgumentInjector_ReferencedAfterSideEffect collects parameter
 // names referenced after a non-local side-effect.
 //
@@ -974,7 +839,6 @@ type FunctionArgumentInjector_ReferencedAfterSideEffect struct {
 	parameterIDs         inlineIDSet
 	summary              *calleeSummary
 	locals               *inlineIDSet
-	ownedLocals          inlineIDSet
 	sideEffectSeen       bool
 	parametersReferenced inlineIDSet
 
@@ -1012,28 +876,6 @@ func (r *FunctionArgumentInjector_ReferencedAfterSideEffect) hasParameterID(name
 		return r.summary.findParamByID(nameID) >= 0
 	}
 	return r.parameterIDs.contains(nameID)
-}
-
-// Java: FunctionArgumentInjector.ReferencedAfterSideEffect(ImmutableSet<String>, ImmutableSet<String>)
-func NewFunctionArgumentInjector_ReferencedAfterSideEffect(
-	outer *FunctionArgumentInjector, parameters *jutil.LinkedHashSet[string], locals *jutil.LinkedHashSet[string]) *FunctionArgumentInjector_ReferencedAfterSideEffect {
-	r := &FunctionArgumentInjector_ReferencedAfterSideEffect{
-		outer: outer,
-	}
-	r.parameterIDs.fromLinkedHashSet(parameters, true)
-	r.ownedLocals.fromLinkedHashSet(locals, true)
-	r.locals = &r.ownedLocals
-	return r
-}
-
-// Java: FunctionArgumentInjector.ReferencedAfterSideEffect.getParametersReferencedAfterSideEffect()
-func (r *FunctionArgumentInjector_ReferencedAfterSideEffect) GetParametersReferencedAfterSideEffect() *jutil.LinkedHashSet[string] {
-	return r.parametersReferenced.toLinkedHashSet()
-}
-
-// Java: FunctionArgumentInjector.ReferencedAfterSideEffect.getParametersWithNamesReferencedBeforeParameter()
-func (r *FunctionArgumentInjector_ReferencedAfterSideEffect) GetParametersWithNamesReferencedBeforeParameter() *jutil.LinkedHashSet[string] {
-	return r.parametersWithNamesReferencedBeforeParameter.toLinkedHashSet()
 }
 
 // Java: FunctionArgumentInjector.ReferencedAfterSideEffect.apply(Node)

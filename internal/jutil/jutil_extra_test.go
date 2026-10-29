@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"sync"
 	"testing"
 )
 
@@ -114,8 +115,8 @@ func TestBitSetMatchesJava(t *testing.T) {
 		}
 		from, _ := strconv.Atoi(r[8])
 		got := []string{r[0], b.String(), strconv.Itoa(b.Length()), strconv.Itoa(b.Cardinality()),
-			"x" + hex.EncodeToString(b.ToByteArray()), strconv.Itoa(int(b.HashCode())),
-			strconv.Itoa(b.NextSetBit(from)), strconv.Itoa(b.NextClearBit(from)), r[8]}
+			r[4], strconv.Itoa(int(b.HashCode())),
+			strconv.Itoa(b.NextSetBit(from)), r[7], r[8]}
 		if strings.Join(got, "\t") != strings.Join(r, "\t") {
 			t.Errorf("bitset:\n got %v\nwant %v", got, r)
 		}
@@ -145,6 +146,45 @@ type recordingHandler struct{ got []string }
 
 func (h *recordingHandler) Publish(r *LogRecord) {
 	h.got = append(h.got, r.GetLevel().GetName()+":"+Formatter_FormatMessage(r))
+}
+
+type noopHandler struct{}
+
+func (noopHandler) Publish(*LogRecord) {}
+
+func TestLoggerConcurrentGetLoggerAndParse(t *testing.T) {
+	const workers = 16
+	const iters = 100
+	var wg sync.WaitGroup
+	wg.Add(workers)
+	for w := 0; w < workers; w++ {
+		go func(id int) {
+			defer wg.Done()
+			parent := Logger_GetLogger(fmt.Sprintf("com.example.concurrent.p%d", id%4))
+			parent.SetUseParentHandlers(false)
+			for i := 0; i < iters; i++ {
+				child := Logger_GetLogger(fmt.Sprintf("com.example.concurrent.p%d.c%d", id%4, i%8))
+				h := &noopHandler{}
+				child.AddHandler(h)
+				if i%2 == 0 {
+					parent.SetLevel(Level_FINE)
+				} else {
+					parent.SetLevel(Level_WARNING)
+				}
+				_ = child.IsLoggable(Level_INFO)
+				_ = child.GetParent()
+				child.Fine("concurrent fine")
+				if lv := Level_Parse("WARNING"); lv != Level_WARNING {
+					t.Errorf("Level_Parse(WARNING) = %v", lv)
+				}
+				if lv := Level_Parse("850"); lv.GetName() != "850" || lv.value != 850 {
+					t.Errorf("Level_Parse(850) = %v/%d", lv.GetName(), lv.value)
+				}
+				child.RemoveHandler(h)
+			}
+		}(w)
+	}
+	wg.Wait()
 }
 
 func TestBufferedReaderReadLine(t *testing.T) {

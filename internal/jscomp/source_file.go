@@ -292,6 +292,13 @@ func (f *SourceFile) FindLineOffsets() {
 	f.lineByteOffsets = byteOffsets
 }
 
+func ioErrorMessage(err error) string {
+	if t, ok := err.(jutil.Throwable); ok {
+		return t.GetMessage()
+	}
+	return err.Error()
+}
+
 // GetCode gets all the code in this source file. It panics with an
 // IOException if the code cannot be loaded.
 //
@@ -772,35 +779,35 @@ func SourceFile_StubSourceFile(fileName string, kind rhino.StaticSourceFile_Sour
 // Java: SourceFile.stripConfigSegment(String)
 func SourceFile_StripConfigSegment(path string) string {
 	// Case 1: Starts with bare config segment (e.g. mapped paths or relative roots)
-	if jutil.StringStartsWith(path, "bin/") {
-		return jutil.StringSubstringFrom(path, 4)
+	if strings.HasPrefix(path, "bin/") {
+		return path[4:]
 	}
-	if jutil.StringStartsWith(path, "genfiles/") {
-		return jutil.StringSubstringFrom(path, 9)
+	if strings.HasPrefix(path, "genfiles/") {
+		return path[9:]
 	}
-	if jutil.StringStartsWith(path, "testlogs/") {
-		return jutil.StringSubstringFrom(path, 9)
+	if strings.HasPrefix(path, "testlogs/") {
+		return path[9:]
 	}
 
 	// Case 2: Contains blaze-out/ or bazel-out/
-	blazeOutIdx := jutil.StringIndexOf(path, "blaze-out/")
+	blazeOutIdx := strings.Index(path, "blaze-out/")
 	if blazeOutIdx == -1 {
-		blazeOutIdx = jutil.StringIndexOf(path, "bazel-out/")
+		blazeOutIdx = strings.Index(path, "bazel-out/")
 	}
 
 	if blazeOutIdx != -1 {
 		// Find the next slash after blaze-out/ or bazel-out/
-		nextSlash := jutil.StringIndexOfCharFrom(path, '/', blazeOutIdx+10)
-		if nextSlash != -1 {
-			// String.startsWith(String, int)
-			if jutil.StringRegionMatches(path, nextSlash+1, "bin/", 0, 4) {
-				return jutil.StringSubstringFrom(path, nextSlash+5)
+		afterBlazeOut := path[blazeOutIdx+10:]
+		if nextSlash := strings.IndexByte(afterBlazeOut, '/'); nextSlash != -1 {
+			rest := afterBlazeOut[nextSlash+1:]
+			if strings.HasPrefix(rest, "bin/") {
+				return rest[4:]
 			}
-			if jutil.StringRegionMatches(path, nextSlash+1, "genfiles/", 0, 9) {
-				return jutil.StringSubstringFrom(path, nextSlash+10)
+			if strings.HasPrefix(rest, "genfiles/") {
+				return rest[9:]
 			}
-			if jutil.StringRegionMatches(path, nextSlash+1, "testlogs/", 0, 9) {
-				return jutil.StringSubstringFrom(path, nextSlash+10)
+			if strings.HasPrefix(rest, "testlogs/") {
+				return rest[9:]
 			}
 		}
 	}

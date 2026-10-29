@@ -11,12 +11,11 @@ import (
 // Go-only: language-adapter — java.io.PrintStream over a Go io.Writer,
 // encoding with UTF-8 (unpaired surrogates become '?', as the JDK encoder
 // replaces them) and with "\n" as the line separator. Like PrintStream,
-// it never throws: a write error sets the flag that CheckError reports.
+// it never throws on I/O errors.
 
 // PrintStream is java.io.PrintStream.
 type PrintStream struct {
-	out           io.Writer
-	errorOccurred bool
+	out io.Writer
 }
 
 // NewPrintStream is new PrintStream(OutputStream).
@@ -26,28 +25,14 @@ func NewPrintStream(out io.Writer) *PrintStream {
 
 func (p *PrintStream) write(s string) {
 	if utf8.ValidString(s) {
-		if _, err := io.WriteString(p.out, s); err != nil {
-			p.errorOccurred = true
-		}
+		_, _ = io.WriteString(p.out, s)
 		return
 	}
-	if _, err := p.out.Write(StringGetBytesUTF8(s)); err != nil {
-		p.errorOccurred = true
-	}
+	_, _ = p.out.Write(StringGetBytesUTF8(s))
 }
 
 // Print is PrintStream.print(String).
 func (p *PrintStream) Print(s string) { p.write(s) }
-
-// PrintNullable is PrintStream.print(String) for a possibly-null String
-// ("null" when nil).
-func (p *PrintStream) PrintNullable(s *string) {
-	if s == nil {
-		p.write("null")
-		return
-	}
-	p.write(*s)
-}
 
 // Println is PrintStream.println(String).
 func (p *PrintStream) Println(s string) {
@@ -58,9 +43,7 @@ func (p *PrintStream) Println(s string) {
 		var buf [512]byte
 		copy(buf[:], s)
 		buf[len(s)] = '\n'
-		if _, err := p.out.Write(buf[:len(s)+1]); err != nil {
-			p.errorOccurred = true
-		}
+		_, _ = p.out.Write(buf[:len(s)+1])
 		return
 	}
 	p.write(s)
@@ -69,8 +52,11 @@ func (p *PrintStream) Println(s string) {
 
 // PrintlnNullable is PrintStream.println(String) for a possibly-null String.
 func (p *PrintStream) PrintlnNullable(s *string) {
-	p.PrintNullable(s)
-	p.write("\n")
+	if s == nil {
+		p.Println("null")
+		return
+	}
+	p.Println(*s)
 }
 
 // PrintlnEmpty is PrintStream.println().
@@ -97,27 +83,17 @@ func (p *PrintStream) AppendCharacter(c uint16) { p.write(StringFromChar(c)) }
 // Flush is PrintStream.flush().
 func (p *PrintStream) Flush() {
 	if f, ok := p.out.(interface{ Flush() error }); ok {
-		if err := f.Flush(); err != nil {
-			p.errorOccurred = true
-		}
+		_ = f.Flush()
 	}
-}
-
-// CheckError is PrintStream.checkError().
-func (p *PrintStream) CheckError() bool {
-	p.Flush()
-	return p.errorOccurred
 }
 
 // Write is PrintStream.write(byte[]) (which PrintStream inherits from
 // FilterOutputStream and implements with write(byte[], int, int)): the
-// bytes are written unchanged and, as PrintStream never throws, an I/O error
-// only sets the flag that CheckError reports. It makes a *PrintStream an
-// io.Writer, for code taking an OutputStream.
+// bytes are written unchanged and, as PrintStream never throws, I/O errors
+// are ignored. It makes a *PrintStream an io.Writer, for code taking an
+// OutputStream.
 func (p *PrintStream) Write(b []byte) (int, error) {
-	if _, err := p.out.Write(b); err != nil {
-		p.errorOccurred = true
-	}
+	_, _ = p.out.Write(b)
 	return len(b), nil
 }
 
@@ -137,9 +113,7 @@ func NewPrintStreamFromFile(file *File) *PrintStream {
 func (p *PrintStream) Close() {
 	p.Flush()
 	if c, ok := p.out.(io.Closer); ok {
-		if err := c.Close(); err != nil {
-			p.errorOccurred = true
-		}
+		_ = c.Close()
 	}
 }
 

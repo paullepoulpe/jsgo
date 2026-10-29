@@ -497,8 +497,11 @@ func (s *SemanticReverseAbstractInterpreter) CaseIn(object rhino.Node, propertyN
 // Java: SemanticReverseAbstractInterpreter.RestrictByTrueInstanceOfResultVisitor
 func (s *SemanticReverseAbstractInterpreter) restrictByTrueInstanceOf(t rhino.JSType, target rhino.ObjectType) rhino.JSType {
 	switch x := t.(type) {
-	case *rhino.NoType:
-		return x
+	case *rhino.NoObjectType:
+		if x.IsNoType() {
+			return x
+		}
+		return nil
 	case *rhino.AllType:
 		return applyCommonInstanceOfRestriction(s.GetNativeType(rhino.JSTypeNative_ALL_TYPE), target)
 	case *rhino.UnknownType:
@@ -523,14 +526,11 @@ func (s *SemanticReverseAbstractInterpreter) restrictByTrueInstanceOf(t rhino.JS
 		return s.restrictByTrueInstanceOf(x.GetReferencedTypeInternal(), target)
 	case *rhino.ProxyObjectTypeBase:
 		return s.restrictByTrueInstanceOf(x.GetReferencedTypeInternal(), target)
-	case *rhino.NoObjectTypeBase, *rhino.BooleanType, *rhino.NullType,
+	case *rhino.BooleanType, *rhino.NullType,
 		*rhino.NumberType, *rhino.BigIntType, *rhino.StringType,
 		*rhino.SymbolTypeBase, *rhino.KnownSymbolType, *rhino.VoidType:
 		return nil
 	default:
-		if _, ok := t.(rhino.NoObjectType); ok {
-			return nil
-		}
 		if _, ok := t.(rhino.FunctionType); ok {
 			return applyCommonInstanceOfRestriction(t, target)
 		}
@@ -539,9 +539,6 @@ func (s *SemanticReverseAbstractInterpreter) restrictByTrueInstanceOf(t rhino.JS
 		}
 		if _, ok := t.(rhino.ObjectType); ok {
 			return applyCommonInstanceOfRestriction(t, target)
-		}
-		if _, ok := t.(rhino.SymbolType); ok {
-			return nil
 		}
 		panic(jutil.NewUnsupportedOperationException())
 	}
@@ -564,14 +561,15 @@ func applyCommonInstanceOfRestriction(type_ rhino.JSType, target rhino.ObjectTyp
 // Java: SemanticReverseAbstractInterpreter.RestrictByFalseInstanceOfResultVisitor
 func (s *SemanticReverseAbstractInterpreter) restrictByFalseInstanceOf(t rhino.JSType, target rhino.ObjectType) rhino.JSType {
 	switch x := t.(type) {
-	case *rhino.NoType:
-		return x
+	case *rhino.NoObjectType:
+		if x.IsNoType() {
+			return x
+		}
+		return s.GetNativeType(rhino.JSTypeNative_NO_OBJECT_TYPE)
 	case *rhino.AllType:
 		return s.GetNativeType(rhino.JSTypeNative_ALL_TYPE)
 	case *rhino.UnknownType:
 		return s.GetNativeType(rhino.JSTypeNative_CHECKED_UNKNOWN_TYPE)
-	case *rhino.NoObjectTypeBase:
-		return s.GetNativeType(rhino.JSTypeNative_NO_OBJECT_TYPE)
 	case *rhino.BooleanType:
 		return s.GetNativeType(rhino.JSTypeNative_BOOLEAN_TYPE)
 	case *rhino.NullType:
@@ -610,9 +608,6 @@ func (s *SemanticReverseAbstractInterpreter) restrictByFalseInstanceOf(t rhino.J
 	case *rhino.ProxyObjectTypeBase:
 		return s.restrictByFalseInstanceOf(x.GetReferencedTypeInternal(), target)
 	default:
-		if _, ok := t.(rhino.NoObjectType); ok {
-			return s.GetNativeType(rhino.JSTypeNative_NO_OBJECT_TYPE)
-		}
 		if fn, ok := t.(rhino.FunctionType); ok {
 			return restrictObjectByFalseInstanceOf(fn, target)
 		}
@@ -621,9 +616,6 @@ func (s *SemanticReverseAbstractInterpreter) restrictByFalseInstanceOf(t rhino.J
 		}
 		if obj, ok := t.(rhino.ObjectType); ok {
 			return restrictObjectByFalseInstanceOf(obj, target)
-		}
-		if _, ok := t.(rhino.SymbolType); ok {
-			return t
 		}
 		panic(jutil.NewUnsupportedOperationException())
 	}

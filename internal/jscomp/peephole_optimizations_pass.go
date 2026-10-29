@@ -515,11 +515,6 @@ func (p *PeepholeOptimizationsPass) processChangedScopesParallel(changedScopeNod
 			workerPass.BeginTraversal()
 			defer workerPass.EndTraversal()
 			workerCb := newPeepholeOptimizationsPass_PeepCallback(workerPass)
-			scb := &nodeTraversal_TraverseScopeRootsCallback{
-				cb:             workerCb,
-				scopedCb:       workerCb,
-				traverseNested: false,
-			}
 			scopeCreator := NewMemoizedScopeCreator(NewSyntacticScopeCreator(&rc))
 
 			for {
@@ -529,8 +524,7 @@ func (p *PeepholeOptimizationsPass) processChangedScopesParallel(changedScopeNod
 				}
 				for _, origIdx := range buckets[bIdx].origIndices {
 					initRecordingCompiler(&rc, p.compiler)
-					scb.insideScopeNode = false
-					scb.scopeNode = changedScopeNodes[origIdx]
+					scopeNode := changedScopeNodes[origIdx]
 					func() {
 						defer func() {
 							if r := recover(); r != nil {
@@ -539,10 +533,10 @@ func (p *PeepholeOptimizationsPass) processChangedScopesParallel(changedScopeNod
 						}()
 						b := NodeTraversal_Builder{
 							compiler:     &rc,
-							callback:     scb,
+							callback:     workerCb,
 							scopeCreator: scopeCreator,
 						}
-						b.TraverseScopeRoot(changedScopeNodes[origIdx])
+						b.traverseScopedRoot(scopeNode, false)
 					}()
 					eventsByOrigIdx[origIdx] = rc.takeEvents()
 					if panicsByOrigIdx[origIdx] != nil {

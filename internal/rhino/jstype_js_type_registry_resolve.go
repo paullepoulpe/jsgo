@@ -340,14 +340,14 @@ func JSTypeRegistry_IsNameDefinedLocally(resolutionScope StaticTypedScope, refer
 //
 // Java: JSTypeRegistry.resolveViaClosureNamespace(String)
 func (r *JSTypeRegistry) ResolveViaClosureNamespace(reference string) JSType {
-	if r.closureNamespaces.IsEmpty() {
+	if len(r.closureNamespaces) == 0 {
 		return nil
 	}
 	// Find the `exports` type of the longest prefix match of this namespace,
 	// if any. Then resolve it via property.
 	prefix := reference
 	for {
-		namespace := r.closureNamespaces.Get(prefix)
+		namespace := r.closureNamespaces[prefix]
 		if namespace != nil {
 			if namespace.IsLegacy() {
 				// Try to resolve this name via registry or properties.
@@ -472,12 +472,7 @@ func JSTypeRegistry_ResolveTypeFromNodeIfTypedef(node Node) JSType {
 
 // Java: JSTypeRegistry.getTypeForScopeInternal(StaticScope, String)
 func (r *JSTypeRegistry) GetTypeForScopeInternal(scope StaticScope, name string) JSType {
-	rootNode := r.GetRootNodeForScope(scope)
-	row := r.scopedNameTable.Get(rootNode)
-	if row == nil {
-		return nil
-	}
-	return row.Get(name)
+	return r.scopedNameTable[scopedTypeKey{root: r.GetRootNodeForScope(scope), name: name}]
 }
 
 // Java: JSTypeRegistry.registerGlobalType(JSType)
@@ -505,12 +500,7 @@ func (r *JSTypeRegistry) RegisterForScope(scope StaticScope, type_ JSType, name 
 func (r *JSTypeRegistry) scopedNameTablePut(rowKey Node, columnKey string, value JSType) {
 	CheckNotNull(rowKey)
 	jutil.CheckNotNull(value)
-	row := r.scopedNameTable.Get(rowKey)
-	if row == nil {
-		row = jutil.NewLinkedHashMap[string, JSType]()
-		r.scopedNameTable.Put(rowKey, row)
-	}
-	row.Put(columnKey, value)
+	r.scopedNameTable[scopedTypeKey{root: rowKey, name: columnKey}] = value
 }
 
 // DeclareType records declared global type names. This makes resolution
@@ -559,7 +549,7 @@ func (r *JSTypeRegistry) OverwriteDeclaredType(scope StaticScope, name string, t
 //
 // Java: JSTypeRegistry.isForwardDeclaredType(String)
 func (r *JSTypeRegistry) IsForwardDeclaredType(name string) bool {
-	return r.forwardDeclaredTypes.Contains(name)
+	return r.forwardDeclaredTypes != nil && r.forwardDeclaredTypes.Contains(name)
 }
 
 // GetReadableTypeName first dereferences the JSType to remove
@@ -577,10 +567,7 @@ func (r *JSTypeRegistry) GetReadableTypeNameNoDeref(n Node) string {
 
 // Java: JSTypeRegistry.getSimpleReadableJSTypeName(JSType)
 func JSTypeRegistry_GetSimpleReadableJSTypeName(type_ JSType) *string {
-	if _, ok := type_.(*AllType); ok {
-		s := type_.String()
-		return &s
-	} else if _, ok := type_.(ValueType); ok {
+	if ((uint32(1) << (type_.GetJSTypeBase().objFlags & objKindMask)) & jsKindNonObjectMask) != 0 {
 		s := type_.String()
 		return &s
 	} else if type_.IsFunctionPrototypeType() {
@@ -799,8 +786,10 @@ func (r *JSTypeRegistry) EvaluateTypeExpressionInGlobalScope(expr *JSTypeExpress
 //
 // Java: JSTypeRegistry.registerNonLegacyClosureNamespace(String, Node, JSType)
 func (r *JSTypeRegistry) RegisterNonLegacyClosureNamespace(moduleName string, definitionNode Node, type_ JSType) {
-	r.closureNamespaces.Put(
-		moduleName, JSTypeRegistry_ClosureNamespace_Create( /* isLegacy= */ false, definitionNode, type_))
+	if r.closureNamespaces == nil {
+		r.closureNamespaces = make(map[string]*JSTypeRegistry_ClosureNamespace)
+	}
+	r.closureNamespaces[moduleName] = JSTypeRegistry_ClosureNamespace_Create( /* isLegacy= */ false, definitionNode, type_)
 }
 
 // RegisterLegacyClosureNamespace registers a goog.provide or legacy
@@ -808,7 +797,10 @@ func (r *JSTypeRegistry) RegisterNonLegacyClosureNamespace(moduleName string, de
 //
 // Java: JSTypeRegistry.registerLegacyClosureNamespace(String)
 func (r *JSTypeRegistry) RegisterLegacyClosureNamespace(moduleName string) {
-	r.closureNamespaces.Put(moduleName, JSTypeRegistry_ClosureNamespace_Create( /* isLegacy= */ true, NilNode, nil))
+	if r.closureNamespaces == nil {
+		r.closureNamespaces = make(map[string]*JSTypeRegistry_ClosureNamespace)
+	}
+	r.closureNamespaces[moduleName] = JSTypeRegistry_ClosureNamespace_Create( /* isLegacy= */ true, NilNode, nil)
 }
 
 // JSTypeRegistry_ClosureNamespace stores information about a Closure

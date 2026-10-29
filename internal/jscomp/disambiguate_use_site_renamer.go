@@ -24,7 +24,6 @@ import (
 	"slices"
 	"strconv"
 
-	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
 
@@ -206,25 +205,4 @@ func (r *UseSiteRenamer) GetRenamingIndex() *UseSiteRenamingIndex {
 		entries: entries,
 		order:   slices.Clone(r.renamingOrder),
 	}
-}
-
-// useSiteRenamer_createAllClusterNames creates a unique name for each
-// cluster in prop and maps it to the cluster representative.
-//
-// Java: UseSiteRenamer.createAllClusterNames(PropertyClustering)
-func useSiteRenamer_createAllClusterNames(prop *PropertyClustering) *jutil.LinkedHashMap[*ColorGraphNode, string] {
-	out := jutil.NewLinkedHashMap[*ColorGraphNode, string]()
-	for r := range prop.GetClusters().AllRepresentatives().All() {
-		out.Put(r, useSiteRenamer_createClusterName(prop, r))
-	}
-	return out
-}
-
-// Java: UseSiteRenamer.createClusterName(PropertyClustering, ColorGraphNode)
-func useSiteRenamer_createClusterName(prop *PropertyClustering, rep *ColorGraphNode) string {
-	if prop.GetOriginalNameClusterRep() == rep {
-		return prop.GetName()
-	}
-
-	return "JSC$" + strconv.Itoa(rep.GetIndex()) + "_" + prop.GetName()
 }

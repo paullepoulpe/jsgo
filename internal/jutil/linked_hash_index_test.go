@@ -172,8 +172,8 @@ func TestLinkedHashMapIndexedRemoveAllAndClear(t *testing.T) {
 			t.Fatalf("Lookup(%d) = %d, %v", i, v, ok)
 		}
 	}
-	if k, _ := h.KeyAt(29); k != 87 {
-		t.Fatalf("KeyAt(29) = %d", k)
+	if v, _ := h.ValueAt(29); v != 29 {
+		t.Fatalf("ValueAt(29) = %d", v)
 	}
 }
 
@@ -202,13 +202,13 @@ func TestLinkedHashMapZeroKeys(t *testing.T) {
 
 // LinkedHashSet slots carry no padding for their struct{} values.
 func TestLinkedHashSetSlotSize(t *testing.T) {
-	var p LhmSlot[*int, struct{}]
-	var s LhmSlot[string, struct{}]
+	var p lhmSlot[*int, struct{}]
+	var s lhmSlot[string, struct{}]
 	if got := unsafe.Sizeof(p); got != 8 {
-		t.Errorf("LhmSlot[*int, struct{}] is %d bytes", got)
+		t.Errorf("lhmSlot[*int, struct{}] is %d bytes", got)
 	}
 	if got := unsafe.Sizeof(s); got != 16 {
-		t.Errorf("LhmSlot[string, struct{}] is %d bytes", got)
+		t.Errorf("lhmSlot[string, struct{}] is %d bytes", got)
 	}
 }
 
@@ -299,7 +299,6 @@ func TestLinkedHashMapConcurrentReadsLazyIndex(t *testing.T) {
 				_ = s.ToSlice()
 				_ = s.HashCode()
 				_, _ = s.First()
-				_, _, _ = s.FirstTwo()
 			}()
 		}
 		close(start)

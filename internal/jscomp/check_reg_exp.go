@@ -31,8 +31,9 @@ var checkRegExpVisitTokens = func() ast.TokenSet {
 	return s
 }()
 
-func (*CheckRegExp) visitTokens() *ast.TokenSet        { return &checkRegExpVisitTokens }
-func (*CheckRegExp) combinedVisitTokens() ast.TokenSet { return checkRegExpVisitTokens }
+var _ nodeTraversal_visitTokens = (*CheckRegExp)(nil)
+
+func (*CheckRegExp) visitTokens() *ast.TokenSet { return &checkRegExpVisitTokens }
 
 // CheckRegExp looks for references to the global RegExp object that would
 // cause regular expressions to be unoptimizable, and checks that regular

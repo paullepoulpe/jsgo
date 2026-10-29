@@ -542,9 +542,7 @@ func (b *TypeStringBuilder) AppendType(x JSType) {
 		} else {
 			b.builder.WriteString("?")
 		}
-	case *NoType:
-		t.AppendTo(b)
-	case *NoObjectTypeBase:
+	case *NoObjectType:
 		t.AppendTo(b)
 	case *NoResolvedType:
 		t.AppendTo(b)
@@ -699,12 +697,17 @@ func containsUpperBoundSuperTypeRec(type_ JSType, target JSType, seen *[]JSType)
 			}
 		}
 		return ContainsUpperBoundSuperTypeVisitor_Result_ABSENT
-	case *AllType, *BooleanType, *NoObjectTypeBase, *UnknownType, *NullType,
+	case *NoObjectType:
+		if x.IsNoType() && target != nil && type_ == target {
+			return ContainsUpperBoundSuperTypeVisitor_Result_PRESENT
+		}
+		return ContainsUpperBoundSuperTypeVisitor_Result_ABSENT
+	case *AllType, *BooleanType, *UnknownType, *NullType,
 		*NumberType, *BigIntType, *StringType, *VoidType:
 		// Visitor.WithDefaultCase passes nil for zero-arg cases, so CaseDefault
 		// always returns ABSENT for these types.
 		return ContainsUpperBoundSuperTypeVisitor_Result_ABSENT
-	case *NoType, *EnumElementType, *FunctionTypeBase,
+	case *EnumElementType, *FunctionTypeBase,
 		*InstanceObjectType, *PrototypeObjectTypeBase, *RecordType, *EnumType, *NoResolvedType,
 		*ProxyObjectTypeBase, *SymbolTypeBase, *KnownSymbolType:
 		if target != nil && type_ == target {
@@ -712,11 +715,8 @@ func containsUpperBoundSuperTypeRec(type_ JSType, target JSType, seen *[]JSType)
 		}
 		return ContainsUpperBoundSuperTypeVisitor_Result_ABSENT
 	default:
-		if _, ok := type_.(NoObjectType); ok {
-			return ContainsUpperBoundSuperTypeVisitor_Result_ABSENT
-		}
 		switch type_.(type) {
-		case FunctionType, ProxyObjectType, ObjectType, SymbolType:
+		case FunctionType, ProxyObjectType, ObjectType:
 			if target != nil && type_ == target {
 				return ContainsUpperBoundSuperTypeVisitor_Result_PRESENT
 			}
@@ -761,7 +761,7 @@ func (r ContainsUpperBoundSuperTypeVisitor_Result) String() string {
 // Java: CanCastToVisitor + JSType.visit(RelationshipVisitor, JSType)
 func canCastTo(thisType JSType, thatType JSType) bool {
 	switch x := thisType.(type) {
-	case *UnknownType, *NoType, *NoObjectTypeBase, *AllType, *TemplateType:
+	case *UnknownType, *NoObjectType, *AllType, *TemplateType:
 		return true
 	case *BigIntType, *BooleanType, *NullType, *NumberType, *StringType,
 		*SymbolTypeBase, *KnownSymbolType, *VoidType,
@@ -781,9 +781,6 @@ func canCastTo(thisType JSType, thatType JSType) bool {
 	case *ProxyObjectTypeBase:
 		return canCastTo(x.referencedType, thatType)
 	default:
-		if _, ok := thisType.(NoObjectType); ok {
-			return true // TODO(johnlenz): restrict to objects
-		}
 		if fn, ok := thisType.(FunctionType); ok {
 			return canCastToHelper(fn, thatType)
 		}
@@ -792,9 +789,6 @@ func canCastTo(thisType JSType, thatType JSType) bool {
 		}
 		if obj, ok := thisType.(ObjectType); ok {
 			return canCastToHelper(obj, thatType)
-		}
-		if val, ok := thisType.(ValueType); ok {
-			return canCastToHelper(val, thatType)
 		}
 		panic(jutil.NewUnsupportedOperationException())
 	}

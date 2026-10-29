@@ -279,72 +279,60 @@ func NewLintPassConfig(options *jscomp.CompilerOptions) *LintPassConfig {
 		PassConfigDelegate: jscomp.NewPassConfigDelegate(jscomp.NewDefaultPassConfig(options)),
 	}
 
-	c.gatherModuleMetadataPass =
-		jscomp.PassFactory_Builder_().
-			SetName(jscomp.PassNames_GATHER_MODULE_METADATA).
-			SetInternalFactory(
-				func(compiler jscomp.AbstractCompiler) jscomp.CompilerPass {
-					return jscomp.NewGatherModuleMetadata(
-						compiler,
-						compiler.GetOptions().GetProcessCommonJSModules(),
-						compiler.GetOptions().GetModuleResolutionMode())
-				}).
-			Build()
+	c.gatherModuleMetadataPass = jscomp.NewPassFactory(
+		jscomp.PassNames_GATHER_MODULE_METADATA,
+		func(compiler jscomp.AbstractCompiler) jscomp.CompilerPass {
+			return jscomp.NewGatherModuleMetadata(
+				compiler,
+				compiler.GetOptions().GetProcessCommonJSModules(),
+				compiler.GetOptions().GetModuleResolutionMode())
+		})
 
-	c.earlyLintChecks =
-		jscomp.PassFactory_Builder_().
-			SetName("earlyLintChecks").
-			SetInternalFactory(
-				func(compiler jscomp.AbstractCompiler) jscomp.CompilerPass {
-					return jscomp.NewCombinedCompilerPassOfList(
-						compiler,
-						[]jscomp.NodeTraversal_Callback{
-							jscomp.NewCheckConstPrivateProperties(compiler),
-							jscomp.NewCheckConstantCaseNames(compiler),
-							jscomp.NewCheckDuplicateCase(compiler),
-							jscomp.NewCheckEmptyStatements(compiler),
-							jscomp.NewCheckEnums(compiler),
-							jscomp.NewCheckExtraRequires(compiler, c.Options().GetUnusedImportsToRemove()),
-							jscomp.NewCheckGoogModuleTypeScriptName(compiler),
-							jscomp.NewCheckJSDocStyle(compiler),
-							jscomp.NewCheckJSDoc(compiler),
-							jscomp.NewCheckMissingSemicolon(compiler),
-							jscomp.NewCheckSuper(compiler),
-							jscomp.NewCheckPrimitiveAsObject(compiler),
-							jscomp.NewClosureCheckModule(compiler, compiler.GetModuleMetadataMap()),
-							jscomp.NewCheckNullabilityModifiers(compiler),
-							jscomp.NewCheckProvidesSorted(jscomp.CheckProvidesSorted_Mode_COLLECT_AND_REPORT),
-							jscomp.NewCheckRequiresSorted(jscomp.CheckRequiresSorted_Mode_COLLECT_AND_REPORT),
-							jscomp.NewCheckSideEffects(
-								compiler /* report= */, true /* protectSideEffectFreeCode= */, false),
-							jscomp.NewCheckTypeImportCodeReferences(compiler),
-							jscomp.NewCheckUnusedLabels(compiler),
-							jscomp.NewCheckUnusedPrivateProperties(compiler),
-							jscomp.NewCheckUselessBlocks(compiler),
-							jscomp.NewCheckVar(compiler)})
-				}).
-			Build()
+	c.earlyLintChecks = jscomp.NewPassFactory(
+		"earlyLintChecks",
+		func(compiler jscomp.AbstractCompiler) jscomp.CompilerPass {
+			return jscomp.NewCombinedCompilerPassOfList(
+				compiler,
+				[]jscomp.NodeTraversal_Callback{
+					jscomp.NewCheckConstPrivateProperties(compiler),
+					jscomp.NewCheckConstantCaseNames(compiler),
+					jscomp.NewCheckDuplicateCase(compiler),
+					jscomp.NewCheckEmptyStatements(compiler),
+					jscomp.NewCheckEnums(compiler),
+					jscomp.NewCheckExtraRequires(compiler, c.Options().GetUnusedImportsToRemove()),
+					jscomp.NewCheckGoogModuleTypeScriptName(compiler),
+					jscomp.NewCheckJSDocStyle(compiler),
+					jscomp.NewCheckJSDoc(compiler),
+					jscomp.NewCheckMissingSemicolon(compiler),
+					jscomp.NewCheckSuper(compiler),
+					jscomp.NewCheckPrimitiveAsObject(compiler),
+					jscomp.NewClosureCheckModule(compiler, compiler.GetModuleMetadataMap()),
+					jscomp.NewCheckNullabilityModifiers(compiler),
+					jscomp.NewCheckProvidesSorted(jscomp.CheckProvidesSorted_Mode_COLLECT_AND_REPORT),
+					jscomp.NewCheckRequiresSorted(jscomp.CheckRequiresSorted_Mode_COLLECT_AND_REPORT),
+					jscomp.NewCheckSideEffects(
+						compiler /* report= */, true /* protectSideEffectFreeCode= */, false),
+					jscomp.NewCheckTypeImportCodeReferences(compiler),
+					jscomp.NewCheckUnusedLabels(compiler),
+					jscomp.NewCheckUnusedPrivateProperties(compiler),
+					jscomp.NewCheckUselessBlocks(compiler),
+					jscomp.NewCheckVar(compiler)})
+		})
 
-	c.variableReferenceCheck =
-		jscomp.PassFactory_Builder_().
-			SetName("variableReferenceCheck").
-			SetRunInFixedPointLoop(true).
-			SetInternalFactory(func(compiler jscomp.AbstractCompiler) jscomp.CompilerPass {
-				return jscomp.NewVariableReferenceCheck(compiler)
-			}).
-			Build()
+	c.variableReferenceCheck = jscomp.NewLoopablePassFactory(
+		"variableReferenceCheck",
+		func(compiler jscomp.AbstractCompiler) jscomp.CompilerPass {
+			return jscomp.NewVariableReferenceCheck(compiler)
+		})
 
-	c.lateLintChecks =
-		jscomp.PassFactory_Builder_().
-			SetName("lateLintChecks").
-			SetInternalFactory(
-				func(compiler jscomp.AbstractCompiler) jscomp.CompilerPass {
-					return jscomp.NewCombinedCompilerPassOfList(
-						compiler,
-						[]jscomp.NodeTraversal_Callback{
-							jscomp.NewCheckInterfaces(compiler), jscomp.NewCheckPrototypeProperties(compiler)})
-				}).
-			Build()
+	c.lateLintChecks = jscomp.NewPassFactory(
+		"lateLintChecks",
+		func(compiler jscomp.AbstractCompiler) jscomp.CompilerPass {
+			return jscomp.NewCombinedCompilerPassOfList(
+				compiler,
+				[]jscomp.NodeTraversal_Callback{
+					jscomp.NewCheckInterfaces(compiler), jscomp.NewCheckPrototypeProperties(compiler)})
+		})
 	return c
 }
 

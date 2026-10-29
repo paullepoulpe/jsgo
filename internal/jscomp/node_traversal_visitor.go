@@ -402,65 +402,23 @@ func NodeTraversal_TraverseScopeRoots(
 		return
 	}
 
-	scopedCb, _ := cb.(NodeTraversal_ScopedCallback)
-	scb := &nodeTraversal_TraverseScopeRootsCallback{
-		cb:             cb,
-		scopedCb:       scopedCb,
-		traverseNested: traverseNested,
+	b := NodeTraversal_Builder{
+		compiler:     compiler,
+		callback:     cb,
+		scopeCreator: NewMemoizedScopeCreator(NewSyntacticScopeCreator(compiler)),
 	}
-	scopeCreator := NewMemoizedScopeCreator(NewSyntacticScopeCreator(compiler))
-
+	t := acquireNodeTraversal(&b)
+	defer releaseNodeTraversal(t)
+	t.stopAtNestedChangeScope = !traverseNested
+	origNoShouldTraverse := t.noShouldTraverse
+	origNoVisit := t.noVisit
+	origVisitTokens := t.visitTokens
 	for _, scopeNode := range scopeNodes {
-		scb.scopeNode = scopeNode
-		b := NodeTraversal_Builder{
-			compiler:     compiler,
-			callback:     scb,
-			scopeCreator: scopeCreator,
-		}
-		b.TraverseScopeRoot(scopeNode)
-	}
-}
-
-// nodeTraversal_TraverseScopeRootsCallback is the local class
-// TraverseScopeRootsCallback of traverseScopeRoots (cb and traverseNested
-// are its captured variables).
-type nodeTraversal_TraverseScopeRootsCallback struct {
-	insideScopeNode bool
-	scopeNode       rhino.Node
-
-	cb             NodeTraversal_Callback
-	scopedCb       NodeTraversal_ScopedCallback
-	traverseNested bool
-}
-
-// Java: NodeTraversal.traverseScopeRoots.TraverseScopeRootsCallback.shouldTraverse(NodeTraversal, Node, Node)
-func (c *nodeTraversal_TraverseScopeRootsCallback) ShouldTraverse(t *NodeTraversal, n rhino.Node, parent rhino.Node) bool {
-	if c.scopeNode == n {
-		c.insideScopeNode = true
-	}
-	return (c.traverseNested || c.scopeNode == n || !ChangeTracker_IsChangeScopeRoot(n)) &&
-		c.cb.ShouldTraverse(t, n, parent)
-}
-
-// Java: NodeTraversal.traverseScopeRoots.TraverseScopeRootsCallback.visit(NodeTraversal, Node, Node)
-func (c *nodeTraversal_TraverseScopeRootsCallback) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
-	if c.scopeNode == n {
-		c.insideScopeNode = false
-	}
-	c.cb.Visit(t, n, parent)
-}
-
-// Java: NodeTraversal.traverseScopeRoots.TraverseScopeRootsCallback.enterScope(NodeTraversal)
-func (c *nodeTraversal_TraverseScopeRootsCallback) EnterScope(t *NodeTraversal) {
-	if c.insideScopeNode && c.scopedCb != nil {
-		c.scopedCb.EnterScope(t)
-	}
-}
-
-// Java: NodeTraversal.traverseScopeRoots.TraverseScopeRootsCallback.exitScope(NodeTraversal)
-func (c *nodeTraversal_TraverseScopeRootsCallback) ExitScope(t *NodeTraversal) {
-	if c.insideScopeNode && c.scopedCb != nil {
-		c.scopedCb.ExitScope(t)
+		t.noShouldTraverse = origNoShouldTraverse
+		t.noVisit = origNoVisit
+		t.visitTokens = origVisitTokens
+		t.scopeTraversalRoot = scopeNode
+		t.traverseScopeRoot(scopeNode, true)
 	}
 }
 

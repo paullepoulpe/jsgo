@@ -42,6 +42,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 )
@@ -217,10 +218,7 @@ func (p *CmdLineParser) PrintOption(out jutil.Writer, handler *OptionHandler, ma
 	namesAndMetas := p.wrapLines(handler.GetNameAndMetaWithProperties(rb, p.parserProperties), widthMetadata)
 	usages := p.wrapLines(localize(option.Usage(), rb)+defaultValuePart, widthUsage)
 
-	widthStr := strconv.Itoa(widthMetadata)
-	colonFmt := " %1$-" + widthStr + "s : %2$-1s"
-	spaceFmt := " %1$-" + widthStr + "s   %2$-1s"
-
+	var lineBuf strings.Builder
 	for i := 0; i < max(len(namesAndMetas), len(usages)); i++ {
 		nameAndMeta := ""
 		if i < len(namesAndMetas) {
@@ -230,12 +228,24 @@ func (p *CmdLineParser) PrintOption(out jutil.Writer, handler *OptionHandler, ma
 		if i < len(usages) {
 			usage = usages[i]
 		}
-		format := spaceFmt
-		if len(nameAndMeta) > 0 && i == 0 {
-			format = colonFmt
+		lineBuf.Reset()
+		lineBuf.WriteByte(' ')
+		lineBuf.WriteString(nameAndMeta)
+		for pad := widthMetadata - utf8.RuneCountInString(nameAndMeta); pad > 0; pad-- {
+			lineBuf.WriteByte(' ')
 		}
-		line := jutil.StringFormat(format, nameAndMeta, usage) + "\n"
-		_ = out.TryWrite(line)
+		if len(nameAndMeta) > 0 && i == 0 {
+			lineBuf.WriteString(" : ")
+		} else {
+			lineBuf.WriteString("   ")
+		}
+		if len(usage) == 0 {
+			lineBuf.WriteByte(' ')
+		} else {
+			lineBuf.WriteString(usage)
+		}
+		lineBuf.WriteByte('\n')
+		_ = out.TryWrite(lineBuf.String())
 	}
 }
 
@@ -258,15 +268,28 @@ func localize(s string, rb ResourceBundle) string {
 func (p *CmdLineParser) wrapLines(line string, maxLength int) []string {
 	var rv []string
 	for _, restOfLine := range jutil.StringSplitLiteral(line, "\n") {
-		for jutil.StringLength(restOfLine) > maxLength {
-			candidate := jutil.StringSubstring(restOfLine, 0, maxLength)
-			sp := jutil.StringLastIndexOf(candidate, " ")
-			lineLength := maxLength
-			if sp > maxLength*3/5 {
-				lineLength = sp
+		for utf8.RuneCountInString(restOfLine) > maxLength {
+			byteAtMax := len(restOfLine)
+			lastSpaceRune := -1
+			lastSpaceByte := -1
+			runeCount := 0
+			for byteIdx, r := range restOfLine {
+				if runeCount == maxLength {
+					byteAtMax = byteIdx
+					break
+				}
+				if r == ' ' {
+					lastSpaceRune = runeCount
+					lastSpaceByte = byteIdx
+				}
+				runeCount++
 			}
-			rv = append(rv, jutil.StringSubstring(restOfLine, 0, lineLength))
-			restOfLine = jutil.StringTrim(jutil.StringSubstringFrom(restOfLine, lineLength))
+			cutByte := byteAtMax
+			if lastSpaceRune > maxLength*3/5 {
+				cutByte = lastSpaceByte
+			}
+			rv = append(rv, restOfLine[:cutByte])
+			restOfLine = jutil.StringTrim(restOfLine[cutByte:])
 		}
 		rv = append(rv, restOfLine)
 	}
@@ -277,7 +300,7 @@ func (p *CmdLineParser) getPrefixLen(h *OptionHandler, rb ResourceBundle) int {
 	if len(h.Option.Usage()) == 0 {
 		return 0
 	}
-	return jutil.StringLength(h.GetNameAndMetaWithProperties(rb, p.parserProperties))
+	return utf8.RuneCountInString(h.GetNameAndMetaWithProperties(rb, p.parserProperties))
 }
 
 type cmdLineParams struct {
@@ -469,12 +492,12 @@ func (p *CmdLineParser) tryCheckRequiredOptionsAndArguments(presentSet map[*Opti
 
 func (p *CmdLineParser) findOptionHandler(name string) *OptionHandler {
 	delim := p.parserProperties.GetOptionValueDelimiter()
-	pos := jutil.StringIndexOf(name, delim)
+	pos := strings.Index(name, delim)
 	if pos < 0 {
-		pos = jutil.StringIndexOf(name, "=")
+		pos = strings.IndexByte(name, '=')
 	}
 	if pos > 0 {
-		name = jutil.StringSubstring(name, 0, pos)
+		name = name[:pos]
 	}
 	return p.findOptionByName(name)
 }

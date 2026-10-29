@@ -83,33 +83,28 @@ func (c *ManageClosureUnawareCodeTest) GetOptions() *CompilerOptions {
 func (c *ManageClosureUnawareCodeTest) GetProcessor(compiler *Compiler) CompilerPass {
 	phaseopt := NewPhaseOptimizer(compiler, nil)
 	passes := []*PassFactory{
-		PassFactory_Builder_().
-			SetName("gatherShadowNodes").
-			SetInternalFactory(
-				func(x AbstractCompiler) CompilerPass {
-					return CompilerPassFunc(func(externs rhino.Node, root rhino.Node) {
-						NodeUtil_VisitPreOrder(
-							root,
-							NodeUtil_VisitorFunc(func(node rhino.Node) {
-								shadow := node.GetClosureUnawareShadow()
-								if !shadow.IsNil() {
-									if !c.runUnwrapPass {
-										node.SetClosureUnawareShadow(rhino.NilNode)
-									}
-									c.gatheredShadowNodeRoot.AddChildToBack(shadow.CloneTree())
-								}
-							}))
-					})
-				}).
-			Build(),
+		NewPassFactory("gatherShadowNodes", func(x AbstractCompiler) CompilerPass {
+			return CompilerPassFunc(func(externs rhino.Node, root rhino.Node) {
+				NodeUtil_VisitPreOrder(
+					root,
+					NodeUtil_VisitorFunc(func(node rhino.Node) {
+						shadow := node.GetClosureUnawareShadow()
+						if !shadow.IsNil() {
+							if !c.runUnwrapPass {
+								node.SetClosureUnawareShadow(rhino.NilNode)
+							}
+							c.gatheredShadowNodeRoot.AddChildToBack(shadow.CloneTree())
+						}
+					}))
+			})
+		}),
 	}
 
 	if c.runUnwrapPass {
 		passes = append(passes,
-			PassFactory_Builder_().
-				SetName("unwrapClosureUnawareCode").
-				SetInternalFactory(func(x AbstractCompiler) CompilerPass { return ManageClosureUnawareCode_Unwrap(x) }).
-				Build())
+			NewPassFactory("unwrapClosureUnawareCode", func(x AbstractCompiler) CompilerPass {
+				return ManageClosureUnawareCode_Unwrap(x)
+			}))
 	}
 	phaseopt.Consume(passes)
 	return phaseopt

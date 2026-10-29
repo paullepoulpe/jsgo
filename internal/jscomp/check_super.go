@@ -286,8 +286,9 @@ var checkSuperVisitTokens = func() ast.TokenSet {
 	return s
 }()
 
-func (*CheckSuper) visitTokens() *ast.TokenSet        { return &checkSuperVisitTokens }
-func (*CheckSuper) combinedVisitTokens() ast.TokenSet { return checkSuperVisitTokens }
+var _ nodeTraversal_visitTokens = (*CheckSuper)(nil)
+
+func (*CheckSuper) visitTokens() *ast.TokenSet { return &checkSuperVisitTokens }
 
 // Java: CheckSuper.visit(NodeTraversal, Node, Node)
 func (c *CheckSuper) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {

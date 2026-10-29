@@ -81,7 +81,11 @@ func NewCheckMissingReturn(compiler AbstractCompiler) *CheckMissingReturn {
 	return c
 }
 
-func (*CheckMissingReturn) combinedVisitTokens() ast.TokenSet { return ast.TokenSet{} }
+var checkMissingReturnVisitTokens ast.TokenSet
+
+var _ nodeTraversal_visitTokens = (*CheckMissingReturn)(nil)
+
+func (*CheckMissingReturn) visitTokens() *ast.TokenSet { return &checkMissingReturnVisitTokens }
 
 func (c *CheckMissingReturn) EnterScope(t *NodeTraversal) {
 	c.pushScopeRoot(t.GetScopeRoot())

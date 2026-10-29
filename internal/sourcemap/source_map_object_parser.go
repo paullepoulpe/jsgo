@@ -226,15 +226,6 @@ func parseFast(contents string) (*SourceMapObject, *SourceMapParseException) {
 	return obj, nil
 }
 
-// Java: SourceMapObjectParser.buildSection(JsonObject)
-func SourceMapObjectParser_BuildSection(section *jutil.JsonObject) *SourceMapSection {
-	sec, err := buildSection(section)
-	if err != nil {
-		panic(err)
-	}
-	return sec
-}
-
 func buildSection(section *jutil.JsonObject) (*SourceMapSection, jutil.Throwable) {
 	offsetElem, err := sourceMapObjectParser_nonNullErr(section.Get("offset"), "getAsJsonObject()")
 	if err != nil {
@@ -304,12 +295,6 @@ func getOptionalString(object *jutil.JsonObject, key string) optionalString {
 	return optionalString{}
 }
 
-// Java: SourceMapObjectParser.getStringOrNull(JsonObject, String)
-func SourceMapObjectParser_GetStringOrNull(object *jutil.JsonObject, key string) *string {
-	s := getOptionalString(object, key)
-	return s.ptr()
-}
-
 func getOptionalStringArray(element jutil.JsonElement) []optionalString {
 	if element == nil || element.IsJsonNull() {
 		return nil
@@ -324,14 +309,6 @@ func getOptionalStringArray(element jutil.JsonElement) []optionalString {
 		}
 	}
 	return result
-}
-
-// SourceMapObjectParser_GetJavaStringArray returns the array's strings (nil
-// elements for JSON nulls), or nil for an absent or null element.
-//
-// Java: SourceMapObjectParser.getJavaStringArray(JsonElement)
-func SourceMapObjectParser_GetJavaStringArray(element jutil.JsonElement) []*string {
-	return optionalStringsToPtrs(getOptionalStringArray(element))
 }
 
 func readOptionalStringArray(lexer *SourceMapJsonLexer) ([]optionalString, error) {
@@ -358,13 +335,4 @@ func readOptionalStringArray(lexer *SourceMapJsonLexer) ([]optionalString, error
 		return nil, err
 	}
 	return list, nil
-}
-
-// Java: SourceMapObjectParser.readStringArray(SourceMapJsonLexer)
-func SourceMapObjectParser_ReadStringArray(lexer *SourceMapJsonLexer) []*string {
-	list, err := readOptionalStringArray(lexer)
-	if err != nil {
-		panic(err)
-	}
-	return optionalStringsToPtrs(list)
 }

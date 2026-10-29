@@ -29,16 +29,16 @@ import (
 // TranspileResult is the result of transpiling a single file. Includes
 // transpiled and original source, and an optional source map.
 type TranspileResult struct {
-	path       *jutil.URI
+	path       string
 	original   string
 	transpiled string
 	sourceMap  string
 }
 
 // Java: TranspileResult(URI, String, String, String)
-func NewTranspileResult(path *jutil.URI, original string, transpiled string, sourceMap string) *TranspileResult {
+func NewTranspileResult(path string, original string, transpiled string, sourceMap string) *TranspileResult {
 	return &TranspileResult{
-		path:       jutil.CheckNotNull(path),
+		path:       path,
 		original:   original,
 		transpiled: transpiled,
 		sourceMap:  sourceMap,
@@ -46,7 +46,7 @@ func NewTranspileResult(path *jutil.URI, original string, transpiled string, sou
 }
 
 // Java: TranspileResult.path()
-func (r *TranspileResult) Path() *jutil.URI { return r.path }
+func (r *TranspileResult) Path() string { return r.path }
 
 // TODO(sdh): how to specify naming scheme for sourcemap and original?
 //  - if we're not embedding then we need to know how to find them.
@@ -167,7 +167,7 @@ func (r *TranspileResult) WasTranspiled() bool { return r.transpiled != r.origin
 func (r *TranspileResult) Equals(other any) bool {
 	transpileResult, ok := other.(*TranspileResult)
 	return ok && transpileResult != nil &&
-		transpileResult.path.Equals(r.path) &&
+		transpileResult.path == r.path &&
 		transpileResult.original == r.original &&
 		transpileResult.transpiled == r.transpiled &&
 		transpileResult.sourceMap == r.sourceMap
@@ -176,7 +176,7 @@ func (r *TranspileResult) Equals(other any) bool {
 // Java: TranspileResult.hashCode() (Objects.hash)
 func (r *TranspileResult) HashCode() int32 {
 	h := int32(1)
-	h = 31*h + r.path.HashCode()
+	h = 31*h + jutil.StringHashCode(r.path)
 	h = 31*h + jutil.StringHashCode(r.original)
 	h = 31*h + jutil.StringHashCode(r.transpiled)
 	h = 31*h + jutil.StringHashCode(r.sourceMap)
@@ -185,7 +185,8 @@ func (r *TranspileResult) HashCode() int32 {
 
 // Java: TranspileResult.toString()
 func (r *TranspileResult) String() string {
-	return jutil.StringFormat(
-		"TranspileResut{path=%s, original=%s, transpiled=%s, sourceMapURL=%s}",
-		r.path, r.original, r.transpiled, r.sourceMap)
+	return "TranspileResut{path=" + r.path +
+		", original=" + r.original +
+		", transpiled=" + r.transpiled +
+		", sourceMapURL=" + r.sourceMap + "}"
 }

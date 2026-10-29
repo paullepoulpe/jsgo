@@ -182,6 +182,18 @@ type generatorFunctionsTranspiler struct {
 	pass *Es6RewriteGenerators
 }
 
+var generatorFunctionsTranspilerVisitTokens = func() ast.TokenSet {
+	var s ast.TokenSet
+	s.Add(rhino.Token_FUNCTION)
+	return s
+}()
+
+func (*generatorFunctionsTranspiler) visitTokens() *ast.TokenSet {
+	return &generatorFunctionsTranspilerVisitTokens
+}
+
+var _ nodeTraversal_visitTokens = (*generatorFunctionsTranspiler)(nil)
+
 func (g *generatorFunctionsTranspiler) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	if fn, ok := ast.AsFunction(n); ok && fn.IsGenerator() {
 		newGeneratorFunctionTranspiler(g.pass, fn, g.pass.uniqueIdSupplier.GetUniqueId(t.GetInput())).

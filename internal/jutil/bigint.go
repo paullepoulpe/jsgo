@@ -230,7 +230,7 @@ func BigIntegerMod(x, m *big.Int) *big.Int {
 //     bigIntegerRadixGroup(radix) chars, the first group taking the
 //     remainder (or a whole group), and the first bad group is named.
 func NewBigIntegerFromStringRadix(s string, radix int) *big.Int {
-	if radix < Character_MIN_RADIX || radix > Character_MAX_RADIX {
+	if radix < character_MIN_RADIX || radix > character_MAX_RADIX {
 		panic(NewNumberFormatException("Radix out of range"))
 	}
 	units := StringToUTF16(s)
@@ -281,7 +281,7 @@ func NewBigIntegerFromStringRadix(s string, radix int) *big.Int {
 // grammar, returning (nil, false) where NewBigIntegerFromStringRadix would
 // throw NumberFormatException or ArithmeticException.
 func TryParseBigInt(s string, radix int) (*big.Int, bool) {
-	if radix < Character_MIN_RADIX || radix > Character_MAX_RADIX {
+	if radix < character_MIN_RADIX || radix > character_MAX_RADIX {
 		return nil, false
 	}
 	if IsASCII(s) {

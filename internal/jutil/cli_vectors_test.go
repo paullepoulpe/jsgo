@@ -39,7 +39,7 @@ func TestCliVectors(t *testing.T) {
 			}
 		case "level":
 			var got string
-			Try(func() { l := Level_Parse(parts[1]); got = l.GetName() + "/" + strconv.Itoa(int(l.IntValue())) }, func(e Throwable) { got = e.Error() })
+			Try(func() { l := Level_Parse(parts[1]); got = l.GetName() + "/" + strconv.Itoa(int(l.value)) }, func(e Throwable) { got = e.Error() })
 			if got != parts[2] {
 				t.Errorf("Level.parse(%q) = %s, want %s", parts[1], got, parts[2])
 			}

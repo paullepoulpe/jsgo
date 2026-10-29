@@ -86,24 +86,33 @@ func (*jsFileLineParser) parseJsDocCommentLine(string) bool {
 	return true
 }
 
+func readJavaReaderToString(r jutil.JavaReader) (text string, err error) {
+	defer func() {
+		if p := recover(); p != nil {
+			if e, ok := p.(error); ok {
+				if _, isIO := p.(jutil.IIOException); isIO {
+					err = e
+					return
+				}
+			}
+			panic(p)
+		}
+	}()
+	return jutil.CharStreams_ToString(r), nil
+}
+
 func parseJsReader[H jsLineHandler](b *jsFileLineParser, h H, filePath string, fileContents jutil.JavaReader) {
 	b.filePath = filePath
 	b.parseSucceeded = true
 	b.lineNum = 0
 
-	var text string
-	readOK := true
-	jutil.Try(func() {
-		text = jutil.CharStreams_ToString(fileContents)
-	}, func(e jutil.IIOException) {
+	text, err := readJavaReaderToString(fileContents)
+	if err != nil {
 		fp := filePath
 		b.errorManager.Report(CheckLevel_ERROR.Ptr(),
 			JSError_MakeWithSourceLocation(&fp, 0, 0,
 				JsFileLineParser_PARSE_ERROR, "Error reading file: "+filePath))
 		b.parseSucceeded = false
-		readOK = false
-	})
-	if !readOK {
 		return
 	}
 	parseJsLines(b, h, filePath, text)

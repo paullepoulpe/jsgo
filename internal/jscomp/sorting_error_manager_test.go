@@ -96,7 +96,7 @@ func TestSortingErrorManager_OrderingDescription(t *testing.T) {
 // jsaSemPrintingManager is the anonymous BasicErrorManager of
 // testDeduplicatedErrors.
 type jsaSemPrintingManager struct {
-	BasicErrorManagerBase
+	SortingErrorManager
 	printedErrors []*JSError
 }
 
@@ -104,11 +104,9 @@ func (m *jsaSemPrintingManager) Println(level *CheckLevel, error *JSError) {
 	m.printedErrors = append(m.printedErrors, error)
 }
 
-func (m *jsaSemPrintingManager) PrintSummary() {}
-
 func TestSortingErrorManager_DeduplicatedErrors(t *testing.T) {
 	manager := &jsaSemPrintingManager{}
-	manager.InitBasicErrorManagerBase(manager)
+	manager.initReportHooks(manager.Println, nil)
 	e1 := JSError_MakeWithSourceLocation(jsaSemNULL_SOURCE, -1, -1, jsaSemFOO_TYPE)
 	e2 := JSError_MakeWithSourceLocation(jsaSemNULL_SOURCE, -1, -1, jsaSemFOO_TYPE)
 	manager.Report(CheckLevel_ERROR.Ptr(), e1)
@@ -120,7 +118,7 @@ func TestSortingErrorManager_DeduplicatedErrors(t *testing.T) {
 // jsaSemReportingManager is the anonymous BasicErrorManager of
 // testGenerateReportCausesMoreWarnings.
 type jsaSemReportingManager struct {
-	BasicErrorManagerBase
+	SortingErrorManager
 	t       *testing.T
 	printed int
 }
@@ -141,7 +139,7 @@ func (m *jsaSemReportingManager) PrintSummary() {
 // This test is testing a "feature" that seems bogus and should likely be forbidden.
 func TestSortingErrorManager_GenerateReportCausesMoreWarnings(t *testing.T) {
 	manager := &jsaSemReportingManager{t: t}
-	manager.InitBasicErrorManagerBase(manager)
+	manager.initReportHooks(manager.Println, func(*SortingErrorManager) { manager.PrintSummary() })
 	manager.Report(CheckLevel_ERROR.Ptr(), JSError_MakeWithSourceLocation(jsaSemNULL_SOURCE, -1, -1, jsaSemFOO_TYPE))
 	manager.GenerateReport()
 }
@@ -165,7 +163,7 @@ func jsaSemAssertSmaller(t *testing.T, p1, p2 *SortingErrorManager_ErrorWithLeve
 // Go-only: extra coverage — counts, filtering and the report generators.
 func TestSortingErrorManager_CountsAndGenerators(t *testing.T) {
 	var reported []string
-	gen := jsaSemGenerator(func(m SortingErrorManager) {
+	gen := jsaSemGenerator(func(m *SortingErrorManager) {
 		for _, e := range m.GetSortedDiagnostics() {
 			reported = append(reported, e.Error.Description())
 		}
@@ -190,6 +188,6 @@ func TestSortingErrorManager_CountsAndGenerators(t *testing.T) {
 	jsaEq(t, b.GetWarningCount(), 1)
 }
 
-type jsaSemGenerator func(m SortingErrorManager)
+type jsaSemGenerator func(m *SortingErrorManager)
 
-func (g jsaSemGenerator) GenerateReport(m SortingErrorManager) { g(m) }
+func (g jsaSemGenerator) GenerateReport(m *SortingErrorManager) { g(m) }

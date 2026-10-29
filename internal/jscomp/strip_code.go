@@ -48,7 +48,7 @@ type StripCode struct {
 	stripNameSuffixesList []string
 	stripNamePrefixesSet  map[string]struct{}
 	stripNamePrefixesList []string
-	varsToRemove          map[string]struct{}
+	varsToRemove          map[uint32]struct{}
 
 	stripTypesSet                  map[string]struct{}
 	stripTypesList                 []string
@@ -221,11 +221,41 @@ func stripCode_qualifiedNameOrNull(n rhino.Node) string {
 	return "null"
 }
 
+var stripCodeVisitTokens = func() ast.TokenSet {
+	var s ast.TokenSet
+	s.Add(rhino.Token_VAR)
+	s.Add(rhino.Token_CONST)
+	s.Add(rhino.Token_LET)
+	s.Add(rhino.Token_NAME)
+	s.Add(rhino.Token_ASSIGN)
+	s.Add(rhino.Token_ASSIGN_BITOR)
+	s.Add(rhino.Token_ASSIGN_BITXOR)
+	s.Add(rhino.Token_ASSIGN_BITAND)
+	s.Add(rhino.Token_ASSIGN_LSH)
+	s.Add(rhino.Token_ASSIGN_RSH)
+	s.Add(rhino.Token_ASSIGN_URSH)
+	s.Add(rhino.Token_ASSIGN_ADD)
+	s.Add(rhino.Token_ASSIGN_SUB)
+	s.Add(rhino.Token_ASSIGN_MUL)
+	s.Add(rhino.Token_ASSIGN_DIV)
+	s.Add(rhino.Token_ASSIGN_MOD)
+	s.Add(rhino.Token_OBJECTLIT)
+	s.Add(rhino.Token_EXPR_RESULT)
+	s.Add(rhino.Token_CLASS)
+	return s
+}()
+
+var _ nodeTraversal_visitTokens = (*StripCode_Strip)(nil)
+
 // StripCode_Strip is a callback that strips debug code from a JavaScript
 // parse tree.
 type StripCode_Strip struct {
 	this_        *StripCode
 	decisionsLog diagnostic.LogFile
+}
+
+func (*StripCode_Strip) visitTokens() *ast.TokenSet {
+	return &stripCodeVisitTokens
 }
 
 // Java: Strip(LogFile)
@@ -319,9 +349,9 @@ func (st *StripCode_Strip) RemoveVarDeclarationsByNameOrRvalue(t *NodeTraversal,
 			(hasInit && st.IsCallWhoseReturnValueShouldBeStripped(initExpr.Node())) {
 			// Remove the NAME.
 			if s.varsToRemove == nil {
-				s.varsToRemove = make(map[string]struct{})
+				s.varsToRemove = make(map[uint32]struct{})
 			}
-			s.varsToRemove[name] = struct{}{}
+			s.varsToRemove[nameNode.GetStringID()] = struct{}{}
 			if lastDollarSign != -1 {
 				// We need to be careful with this code pattern that appears after
 				// collapsing properties.
@@ -672,23 +702,6 @@ func (st *StripCode_Strip) QualifiedNameBeginsWithStripType(n rhino.Node) bool {
 	return st.qualifiedNameBeginsWithStripType(name, ok)
 }
 
-// QualifiedNameBeginsWithStripTypeName gets whether a qualified name begins
-// with a strip name. The names "goog.debug", "goog.debug.Logger", and
-// "goog.debug.Logger.Level" are examples of strip names that would result in
-// this function returning true for a node representing the name
-// "goog.debug.Logger.Level".
-//
-// name is a qualified class name (nil is Java null). Returns whether the name
-// begins with a strip name.
-//
-// Java: Strip.qualifiedNameBeginsWithStripType(String)
-func (st *StripCode_Strip) QualifiedNameBeginsWithStripTypeName(name *string) bool {
-	if name == nil {
-		return st.qualifiedNameBeginsWithStripType("", false)
-	}
-	return st.qualifiedNameBeginsWithStripType(*name, true)
-}
-
 func (st *StripCode_Strip) qualifiedNameBeginsWithStripType(name string, hasName bool) bool {
 	s := st.this_
 	if hasName {
@@ -724,7 +737,7 @@ func (st *StripCode_Strip) qualifiedNameBeginsWithStripType(name string, hasName
 //
 // Java: Strip.isReferenceToRemovedVar(Node)
 func (st *StripCode_Strip) IsReferenceToRemovedVar(n rhino.Node) bool {
-	_, ok := st.this_.varsToRemove[n.GetString()]
+	_, ok := st.this_.varsToRemove[n.GetStringID()]
 	return ok
 }
 

@@ -1587,21 +1587,16 @@ func compilerTestCase_rewriteEsModules(compiler AbstractCompiler, externsRoot rh
 
 	gatherModuleMetadata := NewGatherModuleMetadata(
 		compiler, options.GetProcessCommonJSModules(), options.GetModuleResolutionMode())
-	factories.MaybeAdd(
-		PassFactory_Builder_().
-			SetName(PassNames_GATHER_MODULE_METADATA).
-			SetRunInFixedPointLoop(true).
-			SetInternalFactory(func(x1 AbstractCompiler) CompilerPass { return gatherModuleMetadata }).
-			Build())
-	factories.MaybeAdd(
-		PassFactory_Builder_().
-			SetName(PassNames_CREATE_MODULE_MAP).
-			SetRunInFixedPointLoop(true).
-			SetInternalFactory(
-				func(x AbstractCompiler) CompilerPass {
-					return NewModuleMapCreator(compiler, compiler.GetModuleMetadataMap())
-				}).
-			Build())
+	factories.MaybeAdd(NewLoopablePassFactory(
+		PassNames_GATHER_MODULE_METADATA,
+		func(x1 AbstractCompiler) CompilerPass { return gatherModuleMetadata },
+	))
+	factories.MaybeAdd(NewLoopablePassFactory(
+		PassNames_CREATE_MODULE_MAP,
+		func(x AbstractCompiler) CompilerPass {
+			return NewModuleMapCreator(compiler, compiler.GetModuleMetadataMap())
+		},
+	))
 	TranspilationPasses_AddEs6ModulePass(
 		factories, NewPreprocessorSymbolTable_CachedInstanceFactory())
 	for _, factory := range factories.Build() {
@@ -1619,22 +1614,14 @@ func (b *CompilerTestCaseBase) transpileToEs5(compiler AbstractCompiler, externs
 	TranspilationPasses_AddTranspilationRuntimeLibraries(factories)
 	TranspilationPasses_AddRewritePolyfillPass(factories)
 	// Transpilation requires normalization.
-	factories.MaybeAdd(
-		PassFactory_Builder_().
-			SetName(PassNames_NORMALIZE).
-			SetInternalFactory(func(abstractCompiler AbstractCompiler) CompilerPass {
-				return Normalize_Builder_(abstractCompiler).Build()
-			}).
-			Build())
+	factories.MaybeAdd(NewPassFactory(PassNames_NORMALIZE, func(abstractCompiler AbstractCompiler) CompilerPass {
+		return Normalize_Builder_(abstractCompiler).Build()
+	}))
 	TranspilationPasses_AddTranspilationPasses(factories, options)
 	// We need to put back the original variable names where possible once transpilation is
 	// complete. This matches the behavior in DefaultPassConfig. See comments there for further
 	// explanation.
-	factories.MaybeAdd(
-		PassFactory_Builder_().
-			SetName("invertContextualRenaming").
-			SetInternalFactory(MakeDeclaredNamesUnique_GetContextualRenameInverter).
-			Build())
+	factories.MaybeAdd(NewPassFactory("invertContextualRenaming", MakeDeclaredNamesUnique_GetContextualRenameInverter))
 	for _, factory := range factories.Build() {
 		factory.Create(compiler).Process(externsRoot, codeRoot)
 	}
@@ -2587,7 +2574,7 @@ func compilerTestCase_createPrettyPrinter(compiler *Compiler) func(rhino.Node) s
 
 // Java: CompilerTestCase.makePassFactory(String, Function<AbstractCompiler, CompilerPass>)
 func CompilerTestCase_MakePassFactory(name string, pass func(AbstractCompiler) CompilerPass) *PassFactory {
-	return PassFactory_Builder_().SetName(name).SetInternalFactory(pass).Build()
+	return NewPassFactory(name, pass)
 }
 
 // --- Go-only: language-adapter — run-time overload resolution.

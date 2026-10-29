@@ -114,27 +114,19 @@ import (
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 )
 
-// ValueType is the class of value types (null, void, number, boolean,
-// string).
+// ValueTypeBase holds ValueType's base method implementations (for null, void,
+// number, boolean, string, bigint, symbol); the virtual calls go through
+// JSTypeBase.self().
 //
 // Java: abstract class ValueType extends JSType.
-type ValueType interface {
-	JSType
-	isValueType()
-}
-
-// ValueTypeBase holds ValueType's base method implementations; the virtual
-// calls go through JSTypeBase.self().
 type ValueTypeBase struct {
 	JSTypeBase
 }
 
-func (*ValueTypeBase) isValueType() {}
-
 // InitValueTypeBase is the Go form of the ValueType constructor.
 //
 // Java: ValueType(JSTypeRegistry)
-func (v *ValueTypeBase) InitValueTypeBase(self ValueType, registry *JSTypeRegistry) {
+func (v *ValueTypeBase) InitValueTypeBase(self JSType, registry *JSTypeRegistry) {
 	v.InitJSTypeBase(self, registry)
 	v.EagerlyResolveToSelf()
 }
@@ -620,21 +612,13 @@ func (t *VoidType) GetPossibleToBooleanOutcomes() BooleanLiteralSet {
 
 var jsType_displayName_undefined = "undefined"
 
-// SymbolType is the symbol type.
-//
-// Java: class SymbolType extends ValueType (subclassed by KnownSymbolType).
-type SymbolType interface {
-	ValueType
-	isSymbolType()
-}
-
 // SymbolTypeBase holds SymbolType's methods; plain symbol types are
 // *SymbolTypeBase values.
+//
+// Java: class SymbolType extends ValueType (subclassed by KnownSymbolType).
 type SymbolTypeBase struct {
 	ValueTypeBase
 }
-
-func (*SymbolTypeBase) isSymbolType() {}
 
 // NewSymbolType constructs the plain symbol type.
 //
@@ -649,7 +633,7 @@ func NewSymbolType(registry *JSTypeRegistry) *SymbolTypeBase {
 // InitSymbolTypeBase is the Go form of the constructor for subclasses.
 //
 // Java: SymbolType(JSTypeRegistry)
-func (t *SymbolTypeBase) InitSymbolTypeBase(self SymbolType, registry *JSTypeRegistry) {
+func (t *SymbolTypeBase) InitSymbolTypeBase(self JSType, registry *JSTypeRegistry) {
 	t.InitValueTypeBase(self, registry)
 }
 

@@ -182,7 +182,7 @@ func (t *InstanceObjectType) AppendTo(sb *TypeStringBuilder) {
 		t.PrototypeObjectTypeBase.AppendTo(sb)
 		return
 	} else if sb.IsForAnnotations() {
-		sb.Append(*ctor.GetNormalizedReferenceName())
+		sb.Append(ctor.GetNormalizedReferenceName())
 		return
 	}
 

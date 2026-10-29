@@ -28,15 +28,6 @@ import (
 	"github.com/paullepoulpe/jsgo/internal/sourcemap"
 )
 
-// CodePrinter prints out JS code in either pretty format or compact format.
-//
-// See CodeGenerator.
-type CodePrinter struct {
-	// Go-only: language-adapter — distinct identity (Java gives every `new`
-	// one; a zero-size struct would not).
-	_ byte
-}
-
 // CodePrinter_PrettyCodePrinter_INDENT is PrettyCodePrinter.INDENT.
 const CodePrinter_PrettyCodePrinter_INDENT = "  "
 
@@ -361,51 +352,39 @@ func CodePrinter_PrettyCodePrinter_GetTryForCatch(n rhino.Node) rhino.Node {
 	return n.GetGrandparent()
 }
 
-// codePrinter_parseDouble is `Double.parseDouble(s)` inside
-// `try { ... } catch (NumberFormatException e)`; ok is false when it threw.
-func codePrinter_parseDouble(s string) (d float64, ok bool) {
-	defer func() {
-		if r := recover(); r != nil {
-			if _, isNFE := r.(jutil.INumberFormatException); isNFE {
-				d, ok = 0, false
-				return
-			}
-			panic(r)
-		}
-	}()
-	return jutil.DoubleParseDouble(s), true
+func codePrinter_parseDouble(s string) (float64, bool) {
+	return jutil.TryParseDouble(s)
 }
 
 // Java: CodePrinter.PrettyCodePrinter.getNumberFromSource(Node)
-func (c *CodeConsumer) GetNumberFromSource(n rhino.Node) *string {
+func (c *CodeConsumer) GetNumberFromSource(n rhino.Node) (string, bool) {
 	if !n.IsNumber() {
-		return nil
+		return "", false
 	}
 
 	staticSrc := NodeUtil_GetSourceFile(n)
 	src, isSourceFile := staticSrc.(*SourceFile)
 	if !isSourceFile || src == nil || src.IsStubSourceFileForAlreadyProvidedInput() {
-		return nil
+		return "", false
 	}
-	srcCode, ok := codePrinter_getCode(src)
-	if !ok {
-		return nil
+	srcCode, err := src.getCode()
+	if err != nil {
+		return "", false
 	}
 
 	offset, ok := codePrinter_getSourceOffset(n)
 	if !ok {
-		return nil
+		return "", false
 	}
 	if c.prettySrc == nil {
 		c.prettySrc = &prettyNumberSource{}
 	}
 	endOffset := offset + n.GetLength()
 	if offset < 0 || endOffset > c.prettySrc.length(srcCode) {
-		return nil
+		return "", false
 	}
 
-	s := c.prettySrc.substring(offset, endOffset)
-	return &s
+	return c.prettySrc.substring(offset, endOffset), true
 }
 
 func (p *prettyNumberSource) length(srcCode string) int {
@@ -434,30 +413,24 @@ func (p *prettyNumberSource) substring(begin int, end int) string {
 	return jutil.StringFromUTF16(p.units[begin:end])
 }
 
-func codePrinter_getCode(src *SourceFile) (code string, ok bool) {
-	defer func() {
-		if r := recover(); r != nil {
-			if _, isIOE := r.(jutil.IIOException); isIOE {
-				code, ok = "", false
-				return
-			}
-			panic(r)
-		}
-	}()
-	return src.GetCode(), true
-}
-
-func codePrinter_getSourceOffset(n rhino.Node) (offset int, ok bool) {
-	defer func() {
-		if r := recover(); r != nil {
-			if _, isIAE := r.(jutil.IIllegalArgumentException); isIAE {
-				offset, ok = 0, false
-				return
-			}
-			panic(r)
-		}
-	}()
-	return n.GetSourceOffset(), true
+func codePrinter_getSourceOffset(n rhino.Node) (int, bool) {
+	src, ok := n.GetStaticSourceFile().(*SourceFile)
+	if !ok || src == nil {
+		return 0, false
+	}
+	lineno := n.GetLineno()
+	if lineno < 1 {
+		return 0, false
+	}
+	src.FindLineOffsets()
+	if lineno > len(src.lineOffsets) {
+		return 0, false
+	}
+	offset := int(int32(src.lineOffsets[lineno-1]) + int32(n.GetCharno()))
+	if offset < 0 {
+		return 0, false
+	}
+	return offset, true
 }
 
 // CodePrinter_LicenseTracker: License Trackers are responsible for ensuring
@@ -710,9 +683,4 @@ type CodePrinter_SourceAndMappings struct {
 // Java: CodePrinter.SourceAndMappings()
 func NewCodePrinter_SourceAndMappings() *CodePrinter_SourceAndMappings {
 	return &CodePrinter_SourceAndMappings{}
-}
-
-// Java: CodePrinter()
-func NewCodePrinter() *CodePrinter {
-	return &CodePrinter{}
 }

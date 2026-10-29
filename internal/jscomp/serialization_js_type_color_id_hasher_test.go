@@ -427,8 +427,11 @@ func (c *JSTypeColorIdHasherTest) TestReturnsNativeId_forNativeTypes() {
 	registry := rhino.NewJSTypeRegistry(rhino.ErrorReporter_ALWAYS_THROWS_INSTANCE)
 	c.hasher = NewJSTypeColorIdHasher(registry)
 
-	for n, i := range JSTypeColorIdHasher_NATIVE_TYPE_TO_ID.All() {
-		t := registry.GetNativeObjectType(n)
+	for idx, i := range JSTypeColorIdHasher_NATIVE_TYPE_TO_ID {
+		if i == (colors.ColorId{}) {
+			continue
+		}
+		t := registry.GetNativeObjectType(rhino.JSTypeNative(idx))
 		AssertThat(c.hasher.HashObjectType(t)).IsEqualTo(i)
 	}
 }

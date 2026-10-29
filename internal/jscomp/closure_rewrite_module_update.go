@@ -100,6 +100,18 @@ func (u *closureScriptUpdater) ShouldTraverse(t *NodeTraversal, n rhino.Node, pa
 	return true
 }
 
+var closureScriptUpdaterVisitTokens = func() ast.TokenSet {
+	var s ast.TokenSet
+	s.Add(rhino.Token_MODULE_BODY)
+	s.Add(rhino.Token_NAME)
+	s.Add(rhino.Token_SCRIPT)
+	return s
+}()
+
+func (*closureScriptUpdater) visitTokens() *ast.TokenSet { return &closureScriptUpdaterVisitTokens }
+
+var _ nodeTraversal_visitTokens = (*closureScriptUpdater)(nil)
+
 func (u *closureScriptUpdater) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	m := u.outer
 	switch n.GetToken() {

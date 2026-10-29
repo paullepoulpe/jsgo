@@ -242,6 +242,19 @@ func es6RewriteDestructuring_objectRest(objectPattern ast.ObjectPattern) (ast.Ob
 	return last.AsObjectRest()
 }
 
+var es6RewriteDestructuringVisitTokens = func() ast.TokenSet {
+	var s ast.TokenSet
+	s.Add(rhino.Token_ARRAY_PATTERN)
+	s.Add(rhino.Token_OBJECT_PATTERN)
+	return s
+}()
+
+func (*Es6RewriteDestructuring) visitTokens() *ast.TokenSet {
+	return &es6RewriteDestructuringVisitTokens
+}
+
+var _ nodeTraversal_visitTokens = (*Es6RewriteDestructuring)(nil)
+
 // Java: Es6RewriteDestructuring.visit(NodeTraversal, Node, Node)
 func (e *Es6RewriteDestructuring) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	switch n.GetToken() {

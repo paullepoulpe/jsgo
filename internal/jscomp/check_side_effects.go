@@ -243,9 +243,11 @@ func (c *CheckSideEffects) Visit(t *NodeTraversal, n rhino.Node, parent rhino.No
 							rootNameNode := NodeUtil_GetRootOfQualifiedName(first)
 							isDefinedInSrc = !rootNameNode.IsNil() &&
 								rootNameNode.IsName() &&
-								t.GetScope().GetVar(rootNameNode.GetString()) != nil
+								t.LookupVarByID(rootNameNode.GetStringID()) != nil
+						} else if first.IsName() {
+							isDefinedInSrc = t.LookupVarByID(first.GetStringID()) != nil
 						} else {
-							isDefinedInSrc = t.GetScope().GetVar(qnameStr) != nil
+							isDefinedInSrc = t.LookupVarByID(rhino.RhinoStringPool_LookupID(qnameStr)) != nil
 						}
 
 						if !isDefinedInSrc {
@@ -349,12 +351,10 @@ var checkSideEffectsStripProtectionTokens = func() ast.TokenSet {
 	return s
 }()
 
+var _ nodeTraversal_visitTokens = (*CheckSideEffects_StripProtection)(nil)
+
 func (*CheckSideEffects_StripProtection) visitTokens() *ast.TokenSet {
 	return &checkSideEffectsStripProtectionTokens
-}
-
-func (*CheckSideEffects_StripProtection) combinedVisitTokens() ast.TokenSet {
-	return checkSideEffectsStripProtectionTokens
 }
 
 // Java: CheckSideEffects.StripProtection.visit(NodeTraversal, Node, Node)
@@ -402,12 +402,10 @@ var checkSideEffectsNoSideEffectExternsTokens = func() ast.TokenSet {
 	return s
 }()
 
+var _ nodeTraversal_visitTokens = (*CheckSideEffects_GetNoSideEffectExterns)(nil)
+
 func (*CheckSideEffects_GetNoSideEffectExterns) visitTokens() *ast.TokenSet {
 	return &checkSideEffectsNoSideEffectExternsTokens
-}
-
-func (*CheckSideEffects_GetNoSideEffectExterns) combinedVisitTokens() ast.TokenSet {
-	return checkSideEffectsNoSideEffectExternsTokens
 }
 
 // Java: CheckSideEffects.GetNoSideEffectExterns.visit(NodeTraversal, Node, Node)

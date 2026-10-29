@@ -64,17 +64,11 @@ func NewLinkedHashSetWithCapacity[T comparable](cap int) *LinkedHashSet[T] {
 	if cap > 0 {
 		return &LinkedHashSet[T]{
 			m: LinkedHashMap[T, struct{}]{
-				slots: slices.Grow([]LhmSlot[T, struct{}](nil), cap),
+				slots: slices.Grow([]lhmSlot[T, struct{}](nil), cap),
 			},
 		}
 	}
 	return &LinkedHashSet[T]{}
-}
-
-// InitWithBuffer makes s an empty set that stores its first len(buf) elements
-// in buf; it grows into a new slice past that.
-func (s *LinkedHashSet[T]) InitWithBuffer(buf []LhmSlot[T, struct{}]) {
-	s.m.InitWithBuffer(buf)
 }
 
 func (s *LinkedHashSet[T]) Size() int {
@@ -173,59 +167,6 @@ func (s *LinkedHashSet[T]) First() (T, bool) {
 	return zero, false
 }
 
-// FirstTwo returns the first two elements in insertion order when Size() >= 2.
-func (s *LinkedHashSet[T]) FirstTwo() (T, T, bool) {
-	if s != nil && s.m.size >= 2 {
-		h := &s.m
-		m := h.loadIndex()
-		if m == nil || len(m.removed) == 0 {
-			f := int(h.first)
-			return h.slots[f].key, h.slots[f+1].key, true
-		}
-		var a T
-		gotFirst := false
-		for i := int(h.first); i < len(h.slots); i++ {
-			if i < len(m.removed) && m.removed[i] {
-				continue
-			}
-			if !gotFirst {
-				a = h.slots[i].key
-				gotFirst = true
-			} else {
-				return a, h.slots[i].key, true
-			}
-		}
-	}
-	var zero T
-	return zero, zero, false
-}
-
-// CopyTo copies up to len(dst) elements in insertion order into dst without
-// allocating an iterator closure, returning the number of elements copied.
-func (s *LinkedHashSet[T]) CopyTo(dst []T) int {
-	if s == nil || s.m.size == 0 || len(dst) == 0 {
-		return 0
-	}
-	h := &s.m
-	m := h.loadIndex()
-	n := 0
-	if m == nil || len(m.removed) == 0 {
-		for i := int(h.first); i < len(h.slots) && n < len(dst); i++ {
-			dst[n] = h.slots[i].key
-			n++
-		}
-		return n
-	}
-	for i := int(h.first); i < len(h.slots) && n < len(dst); i++ {
-		if i < len(m.removed) && m.removed[i] {
-			continue
-		}
-		dst[n] = h.slots[i].key
-		n++
-	}
-	return n
-}
-
 // String renders like AbstractCollection.toString(): "[a, b]".
 func (s *LinkedHashSet[T]) String() string { return CollectionToString(s.ToSlice()) }
 
@@ -297,22 +238,9 @@ type ObjectLinkedHashMap[K any, V any] struct {
 	first int32
 }
 
-// OlhmSlot is an entry slot of ObjectLinkedHashMap / ObjectLinkedHashSet for
-// callers that provide an inline or slab-allocated initial buffer via InitWithBuffer.
-type OlhmSlot[K any, V any] = olhmSlot[K, V]
-
 // NewObjectLinkedHashMap returns an empty map.
 func NewObjectLinkedHashMap[K any, V any]() *ObjectLinkedHashMap[K, V] {
 	return &ObjectLinkedHashMap[K, V]{}
-}
-
-// InitWithBuffer makes h an empty map that stores its first len(buf) entries
-// in buf; it grows into a new slice past that.
-func (h *ObjectLinkedHashMap[K, V]) InitWithBuffer(buf []OlhmSlot[K, V]) {
-	h.m = nil
-	h.slots = buf[:0:len(buf)]
-	h.size = 0
-	h.first = 0
 }
 
 // find returns k's slot index (or -1) and its hash code.
@@ -514,19 +442,6 @@ func (h *ObjectLinkedHashMap[K, V]) Keys() iter.Seq[K] {
 	}
 }
 
-// FirstKey returns the first non-removed key in insertion order.
-func (h *ObjectLinkedHashMap[K, V]) FirstKey() (K, bool) {
-	if h != nil && h.size > 0 {
-		for i := int(h.first); i < len(h.slots); i++ {
-			if !h.slots[i].removed {
-				return h.slots[i].key, true
-			}
-		}
-	}
-	var zero K
-	return zero, false
-}
-
 // Values iterates values in insertion order.
 func (h *ObjectLinkedHashMap[K, V]) Values() iter.Seq[V] {
 	return func(yield func(V) bool) {
@@ -650,12 +565,6 @@ func NewObjectLinkedHashSet[T any](elems ...T) *ObjectLinkedHashSet[T] {
 		s.Add(e)
 	}
 	return s
-}
-
-// InitWithBuffer makes s an empty set that stores its first len(buf) elements
-// in buf; it grows into a new slice past that.
-func (s *ObjectLinkedHashSet[T]) InitWithBuffer(buf []OlhmSlot[T, struct{}]) {
-	s.m.InitWithBuffer(buf)
 }
 
 func (s *ObjectLinkedHashSet[T]) Size() int {

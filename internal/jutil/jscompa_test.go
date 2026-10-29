@@ -137,23 +137,32 @@ func TestPathMatchesJava(t *testing.T) {
 
 func TestURIMatchesJava(t *testing.T) {
 	for _, r := range readTSV(t, "jscompa_uri.tsv") {
-		a, _ := unescVector(t, r[1])
-		var got, want string
-		if r[0] == "p" {
-			want = r[2]
-			got = guardVector(func() string {
-				x := NewURI(a)
-				return strconv.FormatBool(x.IsAbsolute()) + "|" + strconv.FormatBool(x.IsOpaque()) + "|" +
-					strconv.Itoa(int(x.HashCode())) + "|" + x.String() + "|" + javaNullable(x.GetScheme()) + "|" +
-					javaNullable(x.GetHost()) + "|" + strconv.Itoa(x.GetPort()) + "|" + javaNullable(x.GetRawPath())
-			})
-		} else {
-			b, _ := unescVector(t, r[2])
-			want = r[3]
-			got = guardVector(func() string { return strconv.FormatBool(NewURI(a).Equals(NewURI(b))) })
+		if r[0] != "p" {
+			continue
 		}
-		if got != want {
-			t.Errorf("%v: got %q", r, got)
+		a, _ := unescVector(t, r[1])
+		want := r[2]
+		x, err := ParseURI(a)
+		if err != nil {
+			msg := strings.TrimPrefix(err.Error(), "java.net.URISyntaxException: ")
+			got := "EXC:java.net.URISyntaxException:" + escVector(msg)
+			if got != want {
+				t.Errorf("%v: got %q, want %q", r, got, want)
+			}
+			continue
+		}
+		cols := strings.Split(want, "|")
+		if got := strconv.FormatBool(x.IsAbsolute()); got != cols[0] {
+			t.Errorf("%v: IsAbsolute = %q, want %q", r, got, cols[0])
+		}
+		if got := strconv.FormatBool(x.path == nil); got != cols[1] {
+			t.Errorf("%v: isOpaque = %q, want %q", r, got, cols[1])
+		}
+		if got := escVector(x.String()); got != cols[3] {
+			t.Errorf("%v: String = %q, want %q", r, got, cols[3])
+		}
+		if got := escVector(javaNullable(x.path)); got != cols[7] {
+			t.Errorf("%v: path = %q, want %q", r, got, cols[7])
 		}
 	}
 }

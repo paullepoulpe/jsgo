@@ -19,7 +19,6 @@
 package jscomp
 
 import (
-	"cmp"
 	"slices"
 	"strings"
 
@@ -55,9 +54,10 @@ var nodeModuleResolver_FILES_TO_SEARCH = []string{
 // Java: NodeModuleResolver.buildNodeModulesFoldersRegistry(Iterable<String>, Iterable<String>)
 func nodeModuleResolver_buildNodeModulesFoldersRegistry(
 	modulePaths *jutil.LinkedHashSet[string], moduleRootPaths []string) []string {
-	seen := make(map[string]struct{})
+	var seen map[string]struct{}
 	var registry []string
 
+	const sep = "/node_modules/"
 	for modulePath := range modulePaths.All() {
 		for _, moduleRootPath := range moduleRootPaths {
 			if strings.HasPrefix(modulePath, moduleRootPath) {
@@ -65,24 +65,32 @@ func nodeModuleResolver_buildNodeModulesFoldersRegistry(
 				break
 			}
 		}
-		nodeModulesDirs := jutil.StringSplitLiteral(modulePath, "/node_modules/")
-		parentPath := ""
-		for i := 0; i < len(nodeModulesDirs)-1; i++ {
-			parentPath += nodeModulesDirs[i] + "/"
+		if !strings.Contains(modulePath, sep) {
+			continue
+		}
+		trimmed := modulePath
+		for strings.HasSuffix(trimmed, sep) {
+			trimmed = trimmed[:len(trimmed)-len(sep)]
+		}
+		offset := 0
+		for {
+			idx := strings.Index(trimmed[offset:], sep)
+			if idx == -1 {
+				break
+			}
+			parentPath := trimmed[:offset+idx+1]
+			if seen == nil {
+				seen = make(map[string]struct{})
+			}
 			if _, ok := seen[parentPath]; !ok {
 				seen[parentPath] = struct{}{}
 				registry = append(registry, parentPath)
 			}
-			parentPath += "node_modules/"
+			offset += idx + len(sep)
 		}
 	}
 
-	slices.SortFunc(registry, func(a, b string) int {
-		if c := cmp.Compare(jutil.StringLength(b), jutil.StringLength(a)); c != 0 {
-			return c
-		}
-		return jutil.StringCompareTo(a, b)
-	})
+	slices.SortFunc(registry, comparePathsLongestFirst)
 	return registry
 }
 
@@ -156,17 +164,17 @@ func (r *NodeModuleResolver) GetPackageJsonMainEntries() *jutil.LinkedHashMap[st
 
 // Java: NodeModuleResolver.resolveJsModule(String, String, String, int, int)
 func (r *NodeModuleResolver) ResolveJsModule(
-	scriptAddress string, moduleAddress string, sourcename string, lineno int, colno int) *string {
-	loadAddress := r.internalResolveJsModule(scriptAddress, moduleAddress)
-	if loadAddress == nil {
+	scriptAddress string, moduleAddress string, sourcename string, lineno int, colno int) (string, bool) {
+	loadAddress, ok := r.internalResolveJsModule(scriptAddress, moduleAddress)
+	if !ok {
 		r.errorHandler.Report(
 			CheckLevel_WARNING.Ptr(),
 			JSError_MakeWithSourceLocation(&sourcename, lineno, colno, ModuleLoader_LOAD_WARNING, moduleAddress))
 	}
-	return loadAddress
+	return loadAddress, ok
 }
 
-func (r *NodeModuleResolver) internalResolveJsModule(scriptAddress string, moduleAddress string) *string {
+func (r *NodeModuleResolver) internalResolveJsModule(scriptAddress string, moduleAddress string) (string, bool) {
 	if ModuleLoader_IsAbsoluteIdentifier(moduleAddress) ||
 		ModuleLoader_IsRelativeIdentifier(moduleAddress) {
 		return r.resolveJsModuleNodeFileOrDirectory(scriptAddress, moduleAddress)
@@ -175,53 +183,53 @@ func (r *NodeModuleResolver) internalResolveJsModule(scriptAddress string, modul
 }
 
 // Java: NodeModuleResolver.resolveJsModuleSilently(String, String)
-func (r *NodeModuleResolver) ResolveJsModuleSilently(scriptAddress string, moduleAddress string) *string {
+func (r *NodeModuleResolver) ResolveJsModuleSilently(scriptAddress string, moduleAddress string) (string, bool) {
 	return r.internalResolveJsModule(scriptAddress, moduleAddress)
 }
 
-func (r *NodeModuleResolver) resolveJsModuleFile(scriptAddress string, moduleAddress string) *string {
+func (r *NodeModuleResolver) resolveJsModuleFile(scriptAddress string, moduleAddress string) (string, bool) {
 	for _, extension := range nodeModuleResolver_FILE_EXTENSIONS_TO_SEARCH {
 		moduleAddressCandidate := moduleAddress + extension
 		canonicalizedCandidatePath := r.CanonicalizePath(scriptAddress, moduleAddressCandidate)
 
 		if mapped, ok := r.packageJsonMainEntries.Lookup(canonicalizedCandidatePath); ok {
 			if mapped == ModuleLoader_JSC_BROWSER_SKIPLISTED_MARKER {
-				return nil
+				return "", false
 			}
 			moduleAddressCandidate = mapped
 		}
 
-		if loadAddress := r.Locate(scriptAddress, moduleAddressCandidate); loadAddress != nil {
-			return loadAddress
+		if loadAddress, ok := r.Locate(scriptAddress, moduleAddressCandidate); ok {
+			return loadAddress, true
 		}
 	}
-	return nil
+	return "", false
 }
 
-func (r *NodeModuleResolver) resolveJsModuleNodeFileOrDirectory(scriptAddress string, moduleAddress string) *string {
-	if loadAddress := r.resolveJsModuleFile(scriptAddress, moduleAddress); loadAddress != nil {
-		return loadAddress
+func (r *NodeModuleResolver) resolveJsModuleNodeFileOrDirectory(scriptAddress string, moduleAddress string) (string, bool) {
+	if loadAddress, ok := r.resolveJsModuleFile(scriptAddress, moduleAddress); ok {
+		return loadAddress, true
 	}
 	return r.resolveJsModuleNodeDirectory(scriptAddress, moduleAddress)
 }
 
-func (r *NodeModuleResolver) resolveJsModuleNodeDirectory(scriptAddress string, moduleAddress string) *string {
+func (r *NodeModuleResolver) resolveJsModuleNodeDirectory(scriptAddress string, moduleAddress string) (string, bool) {
 	moduleAddress = strings.TrimSuffix(moduleAddress, ModuleLoader_MODULE_SLASH)
 	for _, suffix := range nodeModuleResolver_FILES_TO_SEARCH {
-		if loadAddress := r.Locate(scriptAddress, moduleAddress+suffix); loadAddress != nil {
+		if loadAddress, ok := r.Locate(scriptAddress, moduleAddress+suffix); ok {
 			if suffix == ModuleLoader_MODULE_SLASH+"package.json" {
-				if mainEntry, ok := r.packageJsonMainEntries.Lookup(*loadAddress); ok {
+				if mainEntry, ok := r.packageJsonMainEntries.Lookup(loadAddress); ok {
 					return r.resolveJsModuleFile(scriptAddress, mainEntry)
 				}
 			} else {
-				return loadAddress
+				return loadAddress, true
 			}
 		}
 	}
-	return nil
+	return "", false
 }
 
-func (r *NodeModuleResolver) resolveJsModuleFromRegistry(scriptAddress string, moduleAddress string) *string {
+func (r *NodeModuleResolver) resolveJsModuleFromRegistry(scriptAddress string, moduleAddress string) (string, bool) {
 	normalizedScriptAddress := scriptAddress
 	if ModuleLoader_IsAmbiguousIdentifier(scriptAddress) {
 		normalizedScriptAddress = ModuleLoader_MODULE_SLASH + scriptAddress
@@ -230,10 +238,10 @@ func (r *NodeModuleResolver) resolveJsModuleFromRegistry(scriptAddress string, m
 		if !strings.HasPrefix(normalizedScriptAddress, nodeModulesFolder) {
 			continue
 		}
-		if loadAddress := r.resolveJsModuleNodeFileOrDirectory(
-			scriptAddress, nodeModulesFolder+"node_modules/"+moduleAddress); loadAddress != nil {
-			return loadAddress
+		if loadAddress, ok := r.resolveJsModuleNodeFileOrDirectory(
+			scriptAddress, nodeModulesFolder+"node_modules/"+moduleAddress); ok {
+			return loadAddress, true
 		}
 	}
-	return nil
+	return "", false
 }

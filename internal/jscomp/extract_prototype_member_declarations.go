@@ -302,6 +302,18 @@ func NewExtractPrototypeMemberDeclarations_ExtractionInstanceInfo() *ExtractProt
 	return &ExtractPrototypeMemberDeclarations_ExtractionInstanceInfo{}
 }
 
+var epmdGatherVisitTokens = func() ast.TokenSet {
+	var s ast.TokenSet
+	s.Add(rhino.Token_SCRIPT)
+	s.Add(rhino.Token_BLOCK)
+	return s
+}()
+
+var (
+	_ nodeTraversal_visitTokens   = (*ExtractPrototypeMemberDeclarations_GatherExtractionInfo)(nil)
+	_ nodeTraversal_noVisitLeaves = (*ExtractPrototypeMemberDeclarations_GatherExtractionInfo)(nil)
+)
+
 // ExtractPrototypeMemberDeclarations_GatherExtractionInfo collects all the
 // possible extraction instances in a node traversal.
 type ExtractPrototypeMemberDeclarations_GatherExtractionInfo struct {
@@ -311,6 +323,12 @@ type ExtractPrototypeMemberDeclarations_GatherExtractionInfo struct {
 	chunkOrder       []*JSChunk
 	scratchDecls     []ExtractPrototypeMemberDeclarations_PrototypeMemberDeclaration
 }
+
+func (*ExtractPrototypeMemberDeclarations_GatherExtractionInfo) visitTokens() *ast.TokenSet {
+	return &epmdGatherVisitTokens
+}
+
+func (*ExtractPrototypeMemberDeclarations_GatherExtractionInfo) noVisitLeaves() {}
 
 // Java: ExtractPrototypeMemberDeclarations.GatherExtractionInfo()
 func NewExtractPrototypeMemberDeclarations_GatherExtractionInfo(outer *ExtractPrototypeMemberDeclarations) *ExtractPrototypeMemberDeclarations_GatherExtractionInfo {

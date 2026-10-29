@@ -33,6 +33,8 @@ type FlowSensitiveInlineVariables_SideEffectPredicate struct {
 	// Check if there are side effects affecting the value of any of these
 	// names (but not properties defined on that name)
 	namesToCheck *jutil.LinkedHashSet[string]
+	defDeps      *MustBeReachingVariableDef_Definition
+	checkDeps    bool
 }
 
 // Java: FlowSensitiveInlineVariables.SideEffectPredicate()
@@ -53,9 +55,10 @@ func (p *FlowSensitiveInlineVariables_SideEffectPredicate) Apply(n rhino.Node) b
 		return false
 	}
 
-	if p.namesToCheck != nil &&
+	if (p.checkDeps || p.namesToCheck != nil) &&
 		n.IsName() &&
-		p.namesToCheck.Contains(n.GetString()) &&
+		((p.checkDeps && p.outer.reachingDef.hasDependentNameID(p.defDeps, n.GetStringID())) ||
+			(p.namesToCheck != nil && p.namesToCheck.Contains(n.GetString()))) &&
 		NodeUtil_IsLValue(n) {
 		// the name is being written to. this is a problem, unless it is part of a top-level assign
 		// chain and the write will take place after all CFG node subexpressions are evaluated
@@ -77,7 +80,7 @@ func (p *FlowSensitiveInlineVariables_SideEffectPredicate) Apply(n rhino.Node) b
 	}
 
 	if (n.IsGetProp() || n.IsGetElem()) && NodeUtil_IsLValue(n) {
-		return p.namesToCheck == nil || !FlowSensitiveInlineVariables_IsTopLevelAssignTarget(n)
+		return (!p.checkDeps && p.namesToCheck == nil) || !FlowSensitiveInlineVariables_IsTopLevelAssignTarget(n)
 	}
 
 	for c := n.GetFirstChild(); !c.IsNil(); c = c.GetNext() {
@@ -105,8 +108,8 @@ func FlowSensitiveInlineVariables_IsTopLevelAssignTarget(n rhino.Node) bool {
 type FlowSensitiveInlineVariables_Candidate struct {
 	outer *FlowSensitiveInlineVariables
 
-	// Name of the variable.
-	varName string
+	// Pool ID of the variable name.
+	nameID uint32
 
 	// Nodes related to the definition.
 	def         rhino.Node
@@ -134,7 +137,7 @@ func NewFlowSensitiveInlineVariables_Candidate(
 	jutil.CheckArgument(use.IsName())
 	return &FlowSensitiveInlineVariables_Candidate{
 		outer:       outer,
-		varName:     varName,
+		nameID:      rhino.RhinoStringPool_InternID(varName),
 		defMetadata: defMetadata,
 		use:         use,
 		useCfgNode:  useCfgNode,
@@ -186,13 +189,10 @@ func (c *FlowSensitiveInlineVariables_Candidate) CanInline(scope *Scope) bool {
 		return false
 	}
 
-	namesToCheck := &c.outer.namesToCheckSet
-	namesToCheck.Clear()
-	c.outer.reachingDef.AddDependencyNames(c.defMetadata, namesToCheck)
-
 	sideEffectPredicateWithNames := FlowSensitiveInlineVariables_SideEffectPredicate{
-		outer:        c.outer,
-		namesToCheck: namesToCheck,
+		outer:     c.outer,
+		defDeps:   c.defMetadata,
+		checkDeps: true,
 	}
 
 	// A subexpression evaluated after the variable has a side effect.
@@ -209,7 +209,7 @@ func (c *FlowSensitiveInlineVariables_Candidate) CanInline(scope *Scope) bool {
 		return false
 	}
 
-	if !c.outer.getReachingUses().HasExactlyOneUse(c.varName, c.GetDefCfgNode()) {
+	if !c.outer.getReachingUses().HasExactlyOneUse(rhino.RhinoStringPool_StringFromID(c.nameID), c.GetDefCfgNode()) {
 		return false
 	}
 
@@ -308,10 +308,10 @@ func (c *FlowSensitiveInlineVariables_Candidate) findDefWalk(n, parent rhino.Nod
 func (c *FlowSensitiveInlineVariables_Candidate) isDefOfVar(n rhino.Node) bool {
 	switch n.GetToken() {
 	case rhino.Token_NAME:
-		return n.GetString() == c.varName && n.HasChildren()
+		return n.GetStringID() == c.nameID && n.HasChildren()
 	case rhino.Token_ASSIGN:
 		lhs, ok := ast.MustAssign(n).Target().AsName()
-		return ok && lhs.Ident() == c.varName
+		return ok && lhs.Node().GetStringID() == c.nameID
 	}
 	return false
 }
@@ -381,7 +381,7 @@ func (c *FlowSensitiveInlineVariables_Candidate) countUseWalk(n, parent, cfgNode
 	for child := n.GetFirstChild(); !child.IsNil(); child = child.GetNext() {
 		c.countUseWalk(child, n, cfgNode)
 	}
-	if n.IsName() && n.GetString() == c.varName {
+	if n.IsName() && n.GetStringID() == c.nameID {
 		if ast.RoleOf(n) == ast.RoleAssignTarget && fsivIsAssignChain(parent, cfgNode) {
 			return
 		}
@@ -437,9 +437,9 @@ func fsivHasUnsafeRhsNode(n rhino.Node) bool {
 
 func (c *FlowSensitiveInlineVariables_Candidate) hasOutOfScopeName(n rhino.Node, usageScope *Scope) bool {
 	if n.IsName() {
-		name := n.GetString()
-		if name != "" && !usageScope.HasSlot(name) {
-			if c.outer == nil || !c.outer.hasEnclosingSlot(name) {
+		id := n.GetStringID()
+		if id > rhino.RhinoStringPool_EmptyID && usageScope.GetVarByID(id) == nil {
+			if c.outer == nil || !c.outer.hasEnclosingSlotByID(id) {
 				return true
 			}
 		}

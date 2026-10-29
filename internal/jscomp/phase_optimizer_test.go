@@ -183,31 +183,42 @@ func (c *PhaseOptimizerTest) TestDuplicateLoop() {
 	})
 }
 
+// PassConfig_PassConfigDelegateBase preserves test compatibility for custom
+// PassConfig test stubs that assign .self and call InitPassConfig_PassConfigDelegateBase.
+type PassConfig_PassConfigDelegateBase struct {
+	PassConfigDelegate
+	self PassConfig
+}
+
+func (d *PassConfigDelegate) InitPassConfig_PassConfigDelegateBase(delegate PassConfig) {
+	d.options = delegate.Options()
+	d.delegate = delegate
+}
+
 // Java: PhaseOptimizerTest.preconditionCheck_success()
 func (c *PhaseOptimizerTest) TestPreconditionCheck_success() {
-	passFactory :=
-		PassFactory_Builder_().
-			SetName("myPass").
-			SetInternalFactory(func(compiler AbstractCompiler) CompilerPass { return c.CreatePass("myPass", 0) }).
-			SetPreconditionCheck(func(options *CompilerOptions) *PassFactory_PreconditionResult {
-				return NewPassFactory_PreconditionResult(true, nil)
-			}).
-			Build()
+	passFactory := makeCheckedPassFactory(
+		"myPass",
+		func(options *CompilerOptions) PassFactory_PreconditionResult {
+			return NewPassFactory_PreconditionResult(true, "")
+		},
+		false,
+		func(compiler AbstractCompiler) CompilerPass { return c.CreatePass("myPass", 0) },
+	)
 	c.optimizer.AddOneTimePass(passFactory)
 	c.AssertPasses("myPass")
 }
 
 // Java: PhaseOptimizerTest.preconditionCheck_failure()
 func (c *PhaseOptimizerTest) TestPreconditionCheck_failure() {
-	passFactory :=
-		PassFactory_Builder_().
-			SetName("myPass").
-			SetInternalFactory(func(compiler AbstractCompiler) CompilerPass { return c.CreatePass("myPass", 0) }).
-			SetPreconditionCheck(func(options *CompilerOptions) *PassFactory_PreconditionResult {
-				message := "message"
-				return NewPassFactory_PreconditionResult(false, &message)
-			}).
-			Build()
+	passFactory := makeCheckedPassFactory(
+		"myPass",
+		func(options *CompilerOptions) PassFactory_PreconditionResult {
+			return NewPassFactory_PreconditionResult(false, "message")
+		},
+		false,
+		func(compiler AbstractCompiler) CompilerPass { return c.CreatePass("myPass", 0) },
+	)
 	c.optimizer.AddOneTimePass(passFactory)
 
 	ex :=
@@ -239,11 +250,10 @@ func (c *PhaseOptimizerTest) CreatePassFactory(name string, numChanges int, isOn
 
 // Java: PhaseOptimizerTest.createPassFactory(String, CompilerPass, boolean)
 func (c *PhaseOptimizerTest) CreatePassFactoryWithPass(name string, pass CompilerPass, isOneTime bool) *PassFactory {
-	return PassFactory_Builder_().
-		SetName(name).
-		SetRunInFixedPointLoop(!isOneTime).
-		SetInternalFactory(func(compiler AbstractCompiler) CompilerPass { return pass }).
-		Build()
+	if isOneTime {
+		return NewPassFactory(name, func(compiler AbstractCompiler) CompilerPass { return pass })
+	}
+	return NewLoopablePassFactory(name, func(compiler AbstractCompiler) CompilerPass { return pass })
 }
 
 // Java: PhaseOptimizerTest.createPass(String, int)

@@ -27,19 +27,19 @@ import (
 
 var errPropsNotStaticallyAnalyzable = NewPassFactory_PreconditionResult(
 	false,
-	jutil.StringPtr("requires assumePropertiesAreStaticallyAnalyzable to be enabled"),
+	"requires assumePropertiesAreStaticallyAnalyzable to be enabled",
 )
 
 func defaultPassConfig_requirePropertiesAreStaticallyAnalyzable(
 	options *CompilerOptions,
-) *PassFactory_PreconditionResult {
+) PassFactory_PreconditionResult {
 	if options.GetAssumePropertiesAreStaticallyAnalyzable() {
 		return PassFactory_PreconditionResult_SUCCESS
 	}
 	return errPropsNotStaticallyAnalyzable
 }
 
-func inlineAndCollapsePrecondition(options *CompilerOptions) *PassFactory_PreconditionResult {
+func inlineAndCollapsePrecondition(options *CompilerOptions) PassFactory_PreconditionResult {
 	if options.GetPropertyCollapseLevel() == CompilerOptions_PropertyCollapseLevel_NONE ||
 		options.GetAssumePropertiesAreStaticallyAnalyzable() {
 		return PassFactory_PreconditionResult_SUCCESS
@@ -797,7 +797,7 @@ func (c *DefaultPassConfig) initFields() {
 			AssumeGettersArePure(options.GetAssumeGettersArePure()).
 			Build()
 	})
-	c.removeUnusedCodeOnce = c.removeUnusedCode.ToBuilder().SetRunInFixedPointLoop(false).Build()
+	c.removeUnusedCodeOnce = makePassFactory(PassNames_REMOVE_UNUSED_CODE, c.removeUnusedCode.internalFactory)
 
 	c.crossChunkCodeMotion = makeLoopPassFactory(PassNames_CROSS_CHUNK_CODE_MOTION, func(compiler AbstractCompiler) CompilerPass {
 		return NewCrossChunkCodeMotion(

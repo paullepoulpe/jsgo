@@ -107,50 +107,28 @@ func (c *Es6TranspilationIntegrationTest) GetProcessor(compiler *Compiler) Compi
 	compilerOptions := compiler.GetOptions()
 	passes := NewPassListBuilder(compilerOptions)
 
-	passes.MaybeAdd(
-		PassFactory_Builder_().
-			SetName("es6InjectRuntimeLibraries").
-			SetInternalFactory(func(abstractCompiler AbstractCompiler) CompilerPass {
-				return NewInjectTranspilationRuntimeLibraries(abstractCompiler)
-			}).
-			Build())
+	passes.MaybeAdd(NewPassFactory("es6InjectRuntimeLibraries", func(abstractCompiler AbstractCompiler) CompilerPass {
+		return NewInjectTranspilationRuntimeLibraries(abstractCompiler)
+	}))
 
-	passes.MaybeAdd(
-		PassFactory_Builder_().
-			SetName("rewritePolyfills").
-			SetInternalFactory(
-				func(ac AbstractCompiler) CompilerPass {
-					return NewRewritePolyfills(
-						ac /* injectPolyfills= */, true /* isolatePolyfills= */, false, nil)
-				}).
-			Build())
+	passes.MaybeAdd(NewPassFactory("rewritePolyfills", func(ac AbstractCompiler) CompilerPass {
+		return NewRewritePolyfills(
+			ac /* injectPolyfills= */, true /* isolatePolyfills= */, false, nil)
+	}))
 
-	passes.MaybeAdd(
-		PassFactory_Builder_().
-			SetName("convertTypesToColors").
-			SetInternalFactory(
-				func(ac AbstractCompiler) CompilerPass {
-					return NewConvertTypesToColors(
-						ac, SerializationOptions_Builder_().SetIncludeDebugInfo(true).Build())
-				}).
-			Build())
+	passes.MaybeAdd(NewPassFactory("convertTypesToColors", func(ac AbstractCompiler) CompilerPass {
+		return NewConvertTypesToColors(
+			ac, SerializationOptions_Builder_().SetIncludeDebugInfo(true).Build())
+	}))
 
-	passes.MaybeAdd(
-		PassFactory_Builder_().
-			SetName(PassNames_NORMALIZE).
-			SetInternalFactory(func(abstractCompiler AbstractCompiler) CompilerPass {
-				return Normalize_Builder_(abstractCompiler).Build()
-			}).
-			Build())
+	passes.MaybeAdd(NewPassFactory(PassNames_NORMALIZE, func(abstractCompiler AbstractCompiler) CompilerPass {
+		return Normalize_Builder_(abstractCompiler).Build()
+	}))
 	TranspilationPasses_AddTranspilationPasses(passes, compilerOptions)
 	// Since we're testing the transpile-only case, we need to put back the original variable names
 	// where possible once transpilation is complete. This matches the behavior in
 	// DefaultPassConfig. See comments there for further explanation.
-	passes.MaybeAdd(
-		PassFactory_Builder_().
-			SetName("invertContextualRenaming").
-			SetInternalFactory(MakeDeclaredNamesUnique_GetContextualRenameInverter).
-			Build())
+	passes.MaybeAdd(NewPassFactory("invertContextualRenaming", MakeDeclaredNamesUnique_GetContextualRenameInverter))
 	optimizer.Consume(passes.Build())
 
 	return optimizer

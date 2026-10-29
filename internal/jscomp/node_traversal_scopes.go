@@ -162,10 +162,7 @@ func (t *NodeTraversal) GetEnclosingFunction() rhino.Node {
 	return t.currentFunction
 }
 
-// PushScope creates a new scope (e.g. when entering a function).
-//
-// Java: NodeTraversal.pushScope(Node)
-func (t *NodeTraversal) PushScope(node rhino.Node) {
+func (t *NodeTraversal) pushScopeQuietly(node rhino.Node) {
 	if t.currentNode.IsNil() {
 		panic(jutil.NewNullPointerException()) // checkNotNull(currentNode)
 	}
@@ -177,6 +174,13 @@ func (t *NodeTraversal) PushScope(node rhino.Node) {
 	if releaseInline {
 		clear(t.scopesBuf[:])
 	}
+}
+
+// PushScope creates a new scope (e.g. when entering a function).
+//
+// Java: NodeTraversal.pushScope(Node)
+func (t *NodeTraversal) PushScope(node rhino.Node) {
+	t.pushScopeQuietly(node)
 	if t.scopeCallback != nil {
 		t.scopeCallback.EnterScope(t)
 	}
@@ -571,6 +575,10 @@ func (t *NodeTraversal) InModuleHoistScope() bool {
 //
 // Java: NodeTraversal.initScopeRoots(Node)
 func (t *NodeTraversal) InitScopeRoots(n rhino.Node) {
+	t.initScopeRoots(n, false)
+}
+
+func (t *NodeTraversal) initScopeRoots(n rhino.Node, quietly bool) {
 	// Go-only: language-adapter — the Deque filled with addFirst: roots are
 	// collected innermost first and pushed outermost first.
 	var queuedScopeRootsBuf [16]rhino.Node
@@ -581,8 +589,14 @@ func (t *NodeTraversal) InitScopeRoots(n rhino.Node) {
 		}
 		n = n.GetParent()
 	}
-	for i := len(queuedScopeRoots) - 1; i >= 0; i-- {
-		t.PushScope(queuedScopeRoots[i])
+	if quietly {
+		for i := len(queuedScopeRoots) - 1; i >= 0; i-- {
+			t.pushScopeQuietly(queuedScopeRoots[i])
+		}
+	} else {
+		for i := len(queuedScopeRoots) - 1; i >= 0; i-- {
+			t.PushScope(queuedScopeRoots[i])
+		}
 	}
 }
 
@@ -760,13 +774,19 @@ func traverseScriptUnderRoot(
 
 // Java: NodeTraversal.traverseScopeRoot(Node)
 func (t *NodeTraversal) TraverseScopeRoot(scopeRoot rhino.Node) {
+	t.traverseScopeRoot(scopeRoot, false)
+}
+
+func (t *NodeTraversal) traverseScopeRoot(scopeRoot rhino.Node, quietly bool) {
 	defer func() {
 		if r := recover(); r != nil {
 			t.ThrowUnexpectedException(jutil.AsThrowable(r))
 		}
 	}()
+	clear(t.scopes)
+	t.scopes = t.scopes[:0]
 	t.InitTraversal(scopeRoot)
 	t.currentNode = scopeRoot
-	t.InitScopeRoots(scopeRoot.GetParent())
+	t.initScopeRoots(scopeRoot.GetParent(), quietly)
 	t.TraverseBranch(scopeRoot, scopeRoot.GetParent())
 }

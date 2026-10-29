@@ -87,10 +87,7 @@ func (t *JSTypeBase) ContainsReferenceAncestor(target JSType) bool {
 
 // Java: JSType.isLiteralObject()
 func (t *JSTypeBase) IsLiteralObject() bool {
-	if prototypeObjectType, ok := t.self().(PrototypeObjectType); ok {
-		return prototypeObjectType.IsAnonymous()
-	}
-	return false
+	return (t.protoFlags & protoFlagAnonymous) != 0
 }
 
 // ToMaybeUnionType downcasts this to a UnionType, or returns null if this is

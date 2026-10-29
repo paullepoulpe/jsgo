@@ -25,26 +25,26 @@ var (
 	_ MapSource[string, int] = (*ObjectLinkedHashMap[string, int])(nil)
 )
 
-// JavaCollection is implemented by the jutil types that model a
+// javaCollection is implemented by the jutil types that model a
 // java.util.Collection, so that `x instanceof Collection` can be expressed
 // as a Go type assertion.
-type JavaCollection interface {
+type javaCollection interface {
 	Size() int
 	IsEmpty() bool
-	javaCollection()
+	isJavaCollection()
 }
 
-// JavaMap is implemented by the jutil types that model a java.util.Map.
-type JavaMap interface {
+// javaMap is implemented by the jutil types that model a java.util.Map.
+type javaMap interface {
 	Size() int
 	IsEmpty() bool
-	javaMap()
+	isJavaMap()
 }
 
-func (*LinkedHashSet[T]) javaCollection()       {}
-func (*LinkedHashMap[K, V]) javaMap()           {}
-func (*ObjectLinkedHashSet[T]) javaCollection() {}
-func (*ObjectLinkedHashMap[K, V]) javaMap()     {}
+func (*LinkedHashSet[T]) isJavaCollection()       {}
+func (*LinkedHashMap[K, V]) isJavaMap()           {}
+func (*ObjectLinkedHashSet[T]) isJavaCollection() {}
+func (*ObjectLinkedHashMap[K, V]) isJavaMap()     {}
 
 // CollectionToString renders elements like Java's AbstractCollection.toString.
 func CollectionToString[T any](elems []T) string {
@@ -72,14 +72,14 @@ func ListHashCode[T any](elems []T) int32 {
 // ---------------------------------------------------------------------------
 // LinkedHashMap
 
-// LhmSlot is an entry slot of a LinkedHashMap.
+// lhmSlot is an entry slot of a LinkedHashMap.
 //
 // Go-only: performance — storing entries in a flat contiguous slice instead
 // of a doubly-linked list of heap-allocated nodes eliminates per-entry heap
 // allocations and the 16-byte prev/next pointer overhead per entry. The
 // value comes first because Go pads a struct that ends in a zero-size field
 // (the struct{} values of a LinkedHashSet) by a word.
-type LhmSlot[K comparable, V any] struct {
+type lhmSlot[K comparable, V any] struct {
 	value V
 	key   K
 }
@@ -97,7 +97,7 @@ type LhmSlot[K comparable, V any] struct {
 // map does.
 type LinkedHashMap[K comparable, V any] struct {
 	m     atomic.Pointer[lhmIndex] // nil until len(slots) exceeds lhmSmallSize or a non-front slot is removed
-	slots []LhmSlot[K, V]
+	slots []lhmSlot[K, V]
 	size  int32
 	first int32
 }
@@ -208,19 +208,10 @@ func NewLinkedHashMap[K comparable, V any]() *LinkedHashMap[K, V] {
 func NewLinkedHashMapWithCapacity[K comparable, V any](cap int) *LinkedHashMap[K, V] {
 	if cap > 0 {
 		return &LinkedHashMap[K, V]{
-			slots: slices.Grow([]LhmSlot[K, V](nil), cap),
+			slots: slices.Grow([]lhmSlot[K, V](nil), cap),
 		}
 	}
 	return &LinkedHashMap[K, V]{}
-}
-
-// InitWithBuffer makes h an empty map that stores its first len(buf) entries
-// in buf; it grows into a new slice past that.
-func (h *LinkedHashMap[K, V]) InitWithBuffer(buf []LhmSlot[K, V]) {
-	h.m.Store(nil)
-	h.slots = buf[:0:len(buf)]
-	h.size = 0
-	h.first = 0
 }
 
 // Reset drops all entries and releases the backing slice and index.
@@ -229,14 +220,6 @@ func (h *LinkedHashMap[K, V]) Reset() {
 	h.slots = nil
 	h.size = 0
 	h.first = 0
-}
-
-// EnsureCapacity grows h's backing slot slice so it can hold at least totalCap
-// entries without reallocating.
-func (h *LinkedHashMap[K, V]) EnsureCapacity(totalCap int) {
-	if rem := totalCap - len(h.slots); rem > 0 {
-		h.slots = slices.Grow(h.slots, rem)
-	}
 }
 
 func (h *LinkedHashMap[K, V]) loadIndex() *lhmIndex {
@@ -257,11 +240,6 @@ func (h *LinkedHashMap[K, V]) find(k K) int {
 		}
 	}
 	return -1
-}
-
-// lookup is find through the index.
-func (h *LinkedHashMap[K, V]) lookup(k K) int {
-	return h.lookupIn(h.m.Load(), k)
 }
 
 func (h *LinkedHashMap[K, V]) lookupIn(m *lhmIndex, k K) int {
@@ -352,7 +330,7 @@ func (h *LinkedHashMap[K, V]) Cap() int {
 // add appends an entry for k, which must be absent.
 func (h *LinkedHashMap[K, V]) add(k K, v V) {
 	if len(h.slots) < cap(h.slots) && h.m.Load() == nil {
-		h.slots = append(h.slots, LhmSlot[K, V]{key: k, value: v})
+		h.slots = append(h.slots, lhmSlot[K, V]{key: k, value: v})
 		h.size++
 		return
 	}
@@ -362,13 +340,13 @@ func (h *LinkedHashMap[K, V]) add(k K, v V) {
 //go:noinline
 func (h *LinkedHashMap[K, V]) addSlow(k K, v V) {
 	if cap(h.slots) == 0 {
-		h.slots = make([]LhmSlot[K, V], 0, 2)
+		h.slots = make([]lhmSlot[K, V], 0, 2)
 		h.first = 0
 	} else if len(h.slots) >= 64 && int(h.size)*4 < len(h.slots) {
 		h.compact()
 	}
 	idx := len(h.slots)
-	h.slots = append(h.slots, LhmSlot[K, V]{key: k, value: v})
+	h.slots = append(h.slots, lhmSlot[K, V]{key: k, value: v})
 	h.size++
 	if m := h.m.Load(); m != nil {
 		if m.needsGrow() {
@@ -502,7 +480,7 @@ func (h *LinkedHashMap[K, V]) removeSlot(i int) {
 		m.erase(lhmHash(h.slots[i].key), i)
 	}
 	h.size--
-	h.slots[i] = LhmSlot[K, V]{}
+	h.slots[i] = lhmSlot[K, V]{}
 	first := i + 1
 	if m != nil {
 		for first < len(h.slots) && m.isRemoved(first) {
@@ -521,7 +499,7 @@ func (h *LinkedHashMap[K, V]) removeSlotMiddle(i int) {
 	}
 	m.erase(lhmHash(h.slots[i].key), i)
 	h.size--
-	h.slots[i] = LhmSlot[K, V]{}
+	h.slots[i] = lhmSlot[K, V]{}
 	if i >= len(m.removed) {
 		newLen := max(i+1, len(m.removed)*2, len(h.slots))
 		newRemoved := make([]bool, newLen)
@@ -562,29 +540,6 @@ func (h *LinkedHashMap[K, V]) All() iter.Seq2[K, V] {
 	}
 }
 
-// KeyAt returns the index-th key in insertion order without allocating a slice.
-func (h *LinkedHashMap[K, V]) KeyAt(index int) (K, bool) {
-	var zero K
-	if h == nil || index < 0 || index >= int(h.size) {
-		return zero, false
-	}
-	m := h.loadIndex()
-	if h.first == 0 && (m == nil || len(m.removed) == 0) {
-		return h.slots[index].key, true
-	}
-	cur := 0
-	for i := int(h.first); i < len(h.slots); i++ {
-		if m != nil && m.isRemoved(i) {
-			continue
-		}
-		if cur == index {
-			return h.slots[i].key, true
-		}
-		cur++
-	}
-	return zero, false
-}
-
 // ValueAt returns the index-th value in insertion order without allocating a slice.
 func (h *LinkedHashMap[K, V]) ValueAt(index int) (V, bool) {
 	var zero V
@@ -606,27 +561,6 @@ func (h *LinkedHashMap[K, V]) ValueAt(index int) (V, bool) {
 		cur++
 	}
 	return zero, false
-}
-
-// NextSlotValue advances from raw slot index `slot` (pass 0 initially) and
-// returns the next live value, the next raw slot index to pass on the
-// following call, and true; or the zero value, len(h.slots), and false.
-func (h *LinkedHashMap[K, V]) NextSlotValue(slot int) (V, int, bool) {
-	var zero V
-	if h == nil {
-		return zero, 0, false
-	}
-	if slot < int(h.first) {
-		slot = int(h.first)
-	}
-	m := h.loadIndex()
-	for i := slot; i < len(h.slots); i++ {
-		if m != nil && m.isRemoved(i) {
-			continue
-		}
-		return h.slots[i].value, i + 1, true
-	}
-	return zero, len(h.slots), false
 }
 
 // Keys iterates keys in insertion order (Java: map.keySet()).
@@ -768,7 +702,7 @@ func NewLinkedHashMapFrom[K comparable, V any](src *LinkedHashMap[K, V]) *Linked
 		return &LinkedHashMap[K, V]{}
 	}
 	if int(src.size) == len(src.slots) && src.first == 0 {
-		slots := make([]LhmSlot[K, V], n)
+		slots := make([]lhmSlot[K, V], n)
 		copy(slots, src.slots)
 		return &LinkedHashMap[K, V]{
 			slots: slots,
@@ -779,6 +713,117 @@ func NewLinkedHashMapFrom[K comparable, V any](src *LinkedHashMap[K, V]) *Linked
 	for k, v := range src.All() {
 		out.PutNew(k, v)
 	}
+	return out
+}
+
+// ---------------------------------------------------------------------------
+// ImmutableMapBuilder
+
+// ImmutableMapBuilder is Guava's ImmutableMap.Builder: entries keep their
+// insertion order, and duplicate keys are rejected when the map is built.
+type ImmutableMapBuilder[K comparable, V any] struct {
+	slots []lhmSlot[K, V]
+	buf   [4]lhmSlot[K, V]
+	out   LinkedHashMap[K, V]
+	built bool
+}
+
+// NewImmutableMapBuilder is ImmutableMap.builder().
+func NewImmutableMapBuilder[K comparable, V any]() *ImmutableMapBuilder[K, V] {
+	b := &ImmutableMapBuilder[K, V]{}
+	b.slots = b.buf[:0]
+	return b
+}
+
+// Put is ImmutableMap.Builder.put(K, V).
+func (b *ImmutableMapBuilder[K, V]) Put(k K, v V) *ImmutableMapBuilder[K, V] {
+	// Java: CollectPreconditions.checkEntryNotNull(key, value)
+	if IsNil(k) {
+		panic(NewNullPointerExceptionMsg("null key in entry: null=" + ToJavaString(v)))
+	} else if IsNil(v) {
+		panic(NewNullPointerExceptionMsg("null value in entry: " + ToJavaString(k) + "=null"))
+	}
+	if b.slots == nil {
+		b.slots = b.buf[:0]
+	}
+	b.slots = append(b.slots, lhmSlot[K, V]{key: k, value: v})
+	return b
+}
+
+// BuildOrThrow is ImmutableMap.Builder.buildOrThrow() (and build()).
+// Guava's RegularImmutableMap.fromEntryArray inserts the entries from the
+// last to the first, so the duplicate reported is the last entry (in
+// insertion order) whose key is put again later, together with the nearest
+// later entry with that key: IllegalArgumentException "Multiple entries
+// with same key: k=later and k=earlier".
+func (b *ImmutableMapBuilder[K, V]) BuildOrThrow() *LinkedHashMap[K, V] {
+	n := len(b.slots)
+	if n == 0 {
+		if !b.built {
+			b.built = true
+			b.out.Reset()
+			return &b.out
+		}
+		return &LinkedHashMap[K, V]{}
+	}
+	src := b.slots
+	if n <= lhmSmallSize {
+		for i := n - 1; i >= 0; i-- {
+			k := src[i].key
+			for j := i + 1; j < n; j++ {
+				if src[j].key == k {
+					panic(NewIllegalArgumentExceptionMsg("Multiple entries with same key: " +
+						ToJavaString(k) + "=" + ToJavaString(src[j].value) + " and " +
+						ToJavaString(k) + "=" + ToJavaString(src[i].value)))
+				}
+			}
+		}
+		if !b.built {
+			b.built = true
+			slots := src[:n:n]
+			b.slots = slots
+			b.out.m.Store(nil)
+			b.out.slots = slots
+			b.out.size = int32(n)
+			b.out.first = 0
+			return &b.out
+		}
+		slots := make([]lhmSlot[K, V], n)
+		copy(slots, src)
+		return &LinkedHashMap[K, V]{
+			slots: slots,
+			size:  int32(n),
+		}
+	}
+	var out *LinkedHashMap[K, V]
+	if !b.built {
+		out = &b.out
+	} else {
+		out = &LinkedHashMap[K, V]{}
+	}
+	idx := &lhmIndex{table: make([]uint32, lhmTableLen(n))}
+	out.m.Store(idx)
+	out.slots = src
+	out.size = int32(n)
+	out.first = 0
+	for i := n - 1; i >= 0; i-- {
+		k := src[i].key
+		if later := out.lookupIn(idx, k); later >= 0 {
+			out.Reset()
+			panic(NewIllegalArgumentExceptionMsg("Multiple entries with same key: " +
+				ToJavaString(k) + "=" + ToJavaString(src[later].value) + " and " +
+				ToJavaString(k) + "=" + ToJavaString(src[i].value)))
+		}
+		idx.insert(lhmHash(k), i)
+	}
+	if !b.built {
+		b.built = true
+		out.slots = src[:n:n]
+		b.slots = out.slots
+		return out
+	}
+	out.slots = make([]lhmSlot[K, V], n)
+	copy(out.slots, src)
 	return out
 }
 

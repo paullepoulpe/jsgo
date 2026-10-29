@@ -63,15 +63,38 @@ import (
 type PassFactory struct {
 	name                string
 	condition           func(options *CompilerOptions) bool
-	preconditionCheck   func(options *CompilerOptions) *PassFactory_PreconditionResult
+	preconditionCheck   func(options *CompilerOptions) PassFactory_PreconditionResult
 	runInFixedPointLoop bool
 	internalFactory     func(compiler AbstractCompiler) CompilerPass
 }
 
 func passFactoryAlwaysEnabled(*CompilerOptions) bool { return true }
 
-func passFactoryAlwaysValid(*CompilerOptions) *PassFactory_PreconditionResult {
+func passFactoryAlwaysValid(*CompilerOptions) PassFactory_PreconditionResult {
 	return PassFactory_PreconditionResult_SUCCESS
+}
+
+// NewPassFactory creates a one-time PassFactory that always runs when scheduled.
+func NewPassFactory(name string, create func(AbstractCompiler) CompilerPass) *PassFactory {
+	jutil.CheckState(name != "" && create != nil)
+	return &PassFactory{
+		name:              name,
+		condition:         passFactoryAlwaysEnabled,
+		preconditionCheck: passFactoryAlwaysValid,
+		internalFactory:   create,
+	}
+}
+
+// NewLoopablePassFactory creates a PassFactory that can run inside a fixed-point loop.
+func NewLoopablePassFactory(name string, create func(AbstractCompiler) CompilerPass) *PassFactory {
+	jutil.CheckState(name != "" && create != nil)
+	return &PassFactory{
+		name:                name,
+		condition:           passFactoryAlwaysEnabled,
+		preconditionCheck:   passFactoryAlwaysValid,
+		runInFixedPointLoop: true,
+		internalFactory:     create,
+	}
 }
 
 func makePassFactory(name string, factory func(AbstractCompiler) CompilerPass) *PassFactory {
@@ -95,7 +118,7 @@ func makeLoopPassFactory(name string, factory func(AbstractCompiler) CompilerPas
 
 func makeCheckedPassFactory(
 	name string,
-	precond func(*CompilerOptions) *PassFactory_PreconditionResult,
+	precond func(*CompilerOptions) PassFactory_PreconditionResult,
 	loop bool,
 	factory func(AbstractCompiler) CompilerPass,
 ) *PassFactory {
@@ -115,21 +138,21 @@ func (f *PassFactory) GetCondition() func(options *CompilerOptions) bool { retur
 
 // PassFactory_PreconditionResult is the result of a pass precondition check.
 type PassFactory_PreconditionResult struct {
-	success bool
-	message *string
+	ok      bool
+	message string
 }
 
-func NewPassFactory_PreconditionResult(success bool, message *string) *PassFactory_PreconditionResult {
-	return &PassFactory_PreconditionResult{success: success, message: message}
+func NewPassFactory_PreconditionResult(ok bool, message string) PassFactory_PreconditionResult {
+	return PassFactory_PreconditionResult{ok: ok, message: message}
 }
 
-var PassFactory_PreconditionResult_SUCCESS = NewPassFactory_PreconditionResult(true, nil)
+var PassFactory_PreconditionResult_SUCCESS = PassFactory_PreconditionResult{ok: true}
 
-func (r *PassFactory_PreconditionResult) Success() bool    { return r.success }
-func (r *PassFactory_PreconditionResult) Message() *string { return r.message }
+func (r PassFactory_PreconditionResult) Success() bool   { return r.ok }
+func (r PassFactory_PreconditionResult) Message() string { return r.message }
 
 // GetPreconditionCheck runs before this pass runs to validate preconditions.
-func (f *PassFactory) GetPreconditionCheck() func(options *CompilerOptions) *PassFactory_PreconditionResult {
+func (f *PassFactory) GetPreconditionCheck() func(options *CompilerOptions) PassFactory_PreconditionResult {
 	return f.preconditionCheck
 }
 
@@ -160,89 +183,9 @@ func (f *PassFactory) Equals(o any) bool {
 		jutil.ObjectsEquals(f.internalFactory, that.internalFactory)
 }
 
-func (f *PassFactory) ToBuilder() *PassFactory_Builder {
-	return &PassFactory_Builder{
-		name:                f.name,
-		condition:           f.condition,
-		preconditionCheck:   f.preconditionCheck,
-		runInFixedPointLoop: f.runInFixedPointLoop,
-		internalFactory:     f.internalFactory,
-	}
-}
-
-// PassFactory_Builder builds a PassFactory.
-type PassFactory_Builder struct {
-	name                string
-	condition           func(options *CompilerOptions) bool
-	preconditionCheck   func(options *CompilerOptions) *PassFactory_PreconditionResult
-	runInFixedPointLoop bool
-	internalFactory     func(compiler AbstractCompiler) CompilerPass
-}
-
-func PassFactory_Builder_() *PassFactory_Builder {
-	return &PassFactory_Builder{
-		condition:         passFactoryAlwaysEnabled,
-		preconditionCheck: passFactoryAlwaysValid,
-	}
-}
-
-func (b *PassFactory_Builder) SetName(name string) *PassFactory_Builder {
-	b.name = name
-	return b
-}
-
-func (b *PassFactory_Builder) SetCondition(condition func(options *CompilerOptions) bool) *PassFactory_Builder {
-	if condition == nil {
-		panic(jutil.NewNullPointerExceptionMsg("Null condition"))
-	}
-	b.condition = condition
-	return b
-}
-
-func (b *PassFactory_Builder) SetPreconditionCheck(preconditionCheck func(options *CompilerOptions) *PassFactory_PreconditionResult) *PassFactory_Builder {
-	if preconditionCheck == nil {
-		panic(jutil.NewNullPointerExceptionMsg("Null preconditionCheck"))
-	}
-	b.preconditionCheck = preconditionCheck
-	return b
-}
-
-func (b *PassFactory_Builder) SetRunInFixedPointLoop(runInFixedPointLoop bool) *PassFactory_Builder {
-	b.runInFixedPointLoop = runInFixedPointLoop
-	return b
-}
-
-func (b *PassFactory_Builder) SetInternalFactory(internalFactory func(compiler AbstractCompiler) CompilerPass) *PassFactory_Builder {
-	if internalFactory == nil {
-		panic(jutil.NewNullPointerExceptionMsg("Null internalFactory"))
-	}
-	b.internalFactory = internalFactory
-	return b
-}
-
-func (b *PassFactory_Builder) Build() *PassFactory {
-	if b.condition == nil || b.preconditionCheck == nil || b.internalFactory == nil || b.name == "" {
-		b.failBuild()
-	}
-	return &PassFactory{
-		name:                b.name,
-		condition:           b.condition,
-		preconditionCheck:   b.preconditionCheck,
-		runInFixedPointLoop: b.runInFixedPointLoop,
-		internalFactory:     b.internalFactory,
-	}
-}
-
-func (b *PassFactory_Builder) failBuild() {
-	if b.condition == nil || b.preconditionCheck == nil || b.internalFactory == nil {
-		panic(jutil.NewIllegalStateExceptionMsg("Missing required PassFactory properties"))
-	}
-	jutil.CheckState(b.name != "")
-}
-
 func (f *PassFactory) ValidatePreconditions(options *CompilerOptions) {
 	canRun := f.preconditionCheck(options)
-	if !canRun.success {
+	if !canRun.ok {
 		panic(jutil.NewIllegalArgumentExceptionMsg(
 			jutil.StringFormat("Precondition for pass %s failed: %s", f.name, canRun.message)))
 	}

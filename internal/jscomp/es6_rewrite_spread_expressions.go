@@ -19,6 +19,7 @@
 package jscomp
 
 import (
+	"github.com/paullepoulpe/jsgo/internal/ast"
 	"github.com/paullepoulpe/jsgo/internal/colors"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/parser"
@@ -61,6 +62,20 @@ func (e *Es6RewriteSpreadExpressions) Process(externs rhino.Node, root rhino.Nod
 	TranspilationPasses_ProcessTranspile(e.compiler, root, Es6RewriteSpreadExpressions_TRANSPILED_FEATURES, e)
 	TranspilationPasses_MaybeMarkFeaturesAsTranspiledAway(e.compiler, root, Es6RewriteSpreadExpressions_TRANSPILED_FEATURES)
 }
+
+var es6RewriteSpreadExpressionsVisitTokens = func() ast.TokenSet {
+	var s ast.TokenSet
+	s.Add(rhino.Token_ARRAYLIT)
+	s.Add(rhino.Token_NEW)
+	s.Add(rhino.Token_CALL)
+	return s
+}()
+
+func (*Es6RewriteSpreadExpressions) visitTokens() *ast.TokenSet {
+	return &es6RewriteSpreadExpressionsVisitTokens
+}
+
+var _ nodeTraversal_visitTokens = (*Es6RewriteSpreadExpressions)(nil)
 
 // Java: Es6RewriteSpreadExpressions.visit(NodeTraversal, Node, Node)
 func (e *Es6RewriteSpreadExpressions) Visit(traversal *NodeTraversal, current rhino.Node, parent rhino.Node) {

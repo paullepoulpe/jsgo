@@ -31,8 +31,9 @@ var checkGlobalThisVisitTokens = func() ast.TokenSet {
 	return s
 }()
 
-func (*CheckGlobalThis) visitTokens() *ast.TokenSet        { return &checkGlobalThisVisitTokens }
-func (*CheckGlobalThis) combinedVisitTokens() ast.TokenSet { return checkGlobalThisVisitTokens }
+var _ nodeTraversal_visitTokens = (*CheckGlobalThis)(nil)
+
+func (*CheckGlobalThis) visitTokens() *ast.TokenSet { return &checkGlobalThisVisitTokens }
 
 // CheckGlobalThis checks for certain uses of the {@code this} keyword that are
 // considered unsafe because they are likely to reference the global

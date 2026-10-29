@@ -30,9 +30,10 @@ var checkNestedNamesVisitTokens = func() ast.TokenSet {
 	return s
 }()
 
-func (*CheckNestedNames) noVisitLeaves()                    {}
-func (*CheckNestedNames) visitTokens() *ast.TokenSet        { return &checkNestedNamesVisitTokens }
-func (*CheckNestedNames) combinedVisitTokens() ast.TokenSet { return checkNestedNamesVisitTokens }
+var _ nodeTraversal_visitTokens = (*CheckNestedNames)(nil)
+
+func (*CheckNestedNames) noVisitLeaves()             {}
+func (*CheckNestedNames) visitTokens() *ast.TokenSet { return &checkNestedNamesVisitTokens }
 
 // CheckNestedNames checks if code has a module-level static property
 // assignment (`X.Y`) inside a `goog.module`. If yes, reports a linter warning

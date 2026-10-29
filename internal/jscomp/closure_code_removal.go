@@ -152,12 +152,10 @@ type ClosureCodeRemoval_FindAbstractMethods struct {
 
 func (*ClosureCodeRemoval_FindAbstractMethods) noVisitLeaves() {}
 
+var _ nodeTraversal_visitTokens = (*ClosureCodeRemoval_FindAbstractMethods)(nil)
+
 func (*ClosureCodeRemoval_FindAbstractMethods) visitTokens() *ast.TokenSet {
 	return &closureCodeRemovalAbstractVisitTokens
-}
-
-func (*ClosureCodeRemoval_FindAbstractMethods) combinedVisitTokens() ast.TokenSet {
-	return closureCodeRemovalAbstractVisitTokens
 }
 
 // Java: ClosureCodeRemoval.FindAbstractMethods.visit(NodeTraversal, Node, Node)
@@ -198,12 +196,10 @@ type ClosureCodeRemoval_FindAssertionCalls struct {
 
 func (*ClosureCodeRemoval_FindAssertionCalls) noVisitLeaves() {}
 
+var _ nodeTraversal_visitTokens = (*ClosureCodeRemoval_FindAssertionCalls)(nil)
+
 func (*ClosureCodeRemoval_FindAssertionCalls) visitTokens() *ast.TokenSet {
 	return &closureCodeRemovalAssertVisitTokens
-}
-
-func (*ClosureCodeRemoval_FindAssertionCalls) combinedVisitTokens() ast.TokenSet {
-	return closureCodeRemovalAssertVisitTokens
 }
 
 // Java: ClosureCodeRemoval.FindAssertionCalls()

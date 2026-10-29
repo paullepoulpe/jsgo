@@ -21,6 +21,7 @@ package jscomp
 import (
 	"strconv"
 
+	"github.com/paullepoulpe/jsgo/internal/ast"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
@@ -82,7 +83,31 @@ func (c *ConstCheck) Process(externs rhino.Node, root rhino.Node) {
 	b.TraverseRoots(externs, root)
 }
 
-func (*ConstCheck) onlyNameLeaves() {}
+var constCheckVisitTokens = func() ast.TokenSet {
+	var s ast.TokenSet
+	s.Add(rhino.Token_NAME)
+	s.Add(rhino.Token_ASSIGN)
+	s.Add(rhino.Token_ASSIGN_BITOR)
+	s.Add(rhino.Token_ASSIGN_BITXOR)
+	s.Add(rhino.Token_ASSIGN_BITAND)
+	s.Add(rhino.Token_ASSIGN_LSH)
+	s.Add(rhino.Token_ASSIGN_RSH)
+	s.Add(rhino.Token_ASSIGN_URSH)
+	s.Add(rhino.Token_ASSIGN_ADD)
+	s.Add(rhino.Token_ASSIGN_SUB)
+	s.Add(rhino.Token_ASSIGN_MUL)
+	s.Add(rhino.Token_ASSIGN_DIV)
+	s.Add(rhino.Token_ASSIGN_MOD)
+	s.Add(rhino.Token_ASSIGN_EXPONENT)
+	s.Add(rhino.Token_INC)
+	s.Add(rhino.Token_DEC)
+	return s
+}()
+
+func (*ConstCheck) onlyNameLeaves()            {}
+func (*ConstCheck) visitTokens() *ast.TokenSet { return &constCheckVisitTokens }
+
+var _ nodeTraversal_visitTokens = (*ConstCheck)(nil)
 
 // Java: ConstCheck.visit(NodeTraversal, Node, Node)
 func (c *ConstCheck) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {

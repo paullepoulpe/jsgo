@@ -156,11 +156,10 @@ var checkPrototypePropertiesVisitTokens = func() ast.TokenSet {
 	return s
 }()
 
+var _ nodeTraversal_visitTokens = (*CheckPrototypeProperties)(nil)
+
 func (*CheckPrototypeProperties) visitTokens() *ast.TokenSet {
 	return &checkPrototypePropertiesVisitTokens
-}
-func (*CheckPrototypeProperties) combinedVisitTokens() ast.TokenSet {
-	return checkPrototypePropertiesVisitTokens
 }
 
 // Java: CheckPrototypeProperties.visit(NodeTraversal, Node, Node)
@@ -230,8 +229,9 @@ var checkEs6ModulesVisitTokens = func() ast.TokenSet {
 	return s
 }()
 
-func (*CheckEs6Modules) visitTokens() *ast.TokenSet        { return &checkEs6ModulesVisitTokens }
-func (*CheckEs6Modules) combinedVisitTokens() ast.TokenSet { return checkEs6ModulesVisitTokens }
+var _ nodeTraversal_visitTokens = (*CheckEs6Modules)(nil)
+
+func (*CheckEs6Modules) visitTokens() *ast.TokenSet { return &checkEs6ModulesVisitTokens }
 
 // Java: CheckEs6Modules.visit(NodeTraversal, Node, Node)
 func (c *CheckEs6Modules) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
@@ -426,11 +426,10 @@ var checkGoogModuleTypeScriptNameVisitTokens = func() ast.TokenSet {
 	return s
 }()
 
+var _ nodeTraversal_visitTokens = (*CheckGoogModuleTypeScriptName)(nil)
+
 func (*CheckGoogModuleTypeScriptName) visitTokens() *ast.TokenSet {
 	return &checkGoogModuleTypeScriptNameVisitTokens
-}
-func (*CheckGoogModuleTypeScriptName) combinedVisitTokens() ast.TokenSet {
-	return checkGoogModuleTypeScriptNameVisitTokens
 }
 
 // Java: CheckGoogModuleTypeScriptName.visit(NodeTraversal, Node, Node)
@@ -587,11 +586,10 @@ var checkArrayWithGoogObjectVisitTokens = func() ast.TokenSet {
 	return s
 }()
 
+var _ nodeTraversal_visitTokens = (*CheckArrayWithGoogObject)(nil)
+
 func (*CheckArrayWithGoogObject) visitTokens() *ast.TokenSet {
 	return &checkArrayWithGoogObjectVisitTokens
-}
-func (*CheckArrayWithGoogObject) combinedVisitTokens() ast.TokenSet {
-	return checkArrayWithGoogObjectVisitTokens
 }
 
 // Java: CheckArrayWithGoogObject.visit(NodeTraversal, Node, Node)
@@ -683,10 +681,9 @@ var checkConstantCaseNamesVisitTokens = func() ast.TokenSet {
 	return s
 }()
 
+var _ nodeTraversal_visitTokens = (*CheckConstantCaseNames)(nil)
+
 func (*CheckConstantCaseNames) visitTokens() *ast.TokenSet { return &checkConstantCaseNamesVisitTokens }
-func (*CheckConstantCaseNames) combinedVisitTokens() ast.TokenSet {
-	return checkConstantCaseNamesVisitTokens
-}
 
 // Java: CheckConstantCaseNames.visit(NodeTraversal, Node, Node)
 func (c *CheckConstantCaseNames) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
@@ -781,12 +778,11 @@ var checkNoMutatedEs6ExportsVisitTokens = func() ast.TokenSet {
 	return s
 }()
 
+var _ nodeTraversal_visitTokens = (*CheckNoMutatedEs6Exports)(nil)
+
 func (*CheckNoMutatedEs6Exports) noVisitLeaves() {}
 func (*CheckNoMutatedEs6Exports) visitTokens() *ast.TokenSet {
 	return &checkNoMutatedEs6ExportsVisitTokens
-}
-func (*CheckNoMutatedEs6Exports) combinedVisitTokens() ast.TokenSet {
-	return checkNoMutatedEs6ExportsVisitTokens
 }
 
 func (c *CheckNoMutatedEs6Exports) CheckNoMutations() {

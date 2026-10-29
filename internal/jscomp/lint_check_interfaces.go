@@ -31,9 +31,10 @@ var checkInterfacesVisitTokens = func() ast.TokenSet {
 	return s
 }()
 
-func (*CheckInterfaces) noVisitLeaves()                    {}
-func (*CheckInterfaces) visitTokens() *ast.TokenSet        { return &checkInterfacesVisitTokens }
-func (*CheckInterfaces) combinedVisitTokens() ast.TokenSet { return checkInterfacesVisitTokens }
+var _ nodeTraversal_visitTokens = (*CheckInterfaces)(nil)
+
+func (*CheckInterfaces) noVisitLeaves()             {}
+func (*CheckInterfaces) visitTokens() *ast.TokenSet { return &checkInterfacesVisitTokens }
 
 // CheckInterfaces checks for errors related to interfaces.
 type CheckInterfaces struct {

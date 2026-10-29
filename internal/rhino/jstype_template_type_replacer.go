@@ -211,7 +211,7 @@ func (r *TemplateTypeReplacer) visitJSType(type_ JSType) JSType {
 		return r.CaseTemplatizedType(x)
 	case *FunctionTypeBase:
 		return r.CaseFunctionType(x)
-	case *InstanceObjectType, *PrototypeObjectTypeBase, *EnumType, *NoResolvedType, *EnumElementType, *NamedType, *NoType:
+	case *InstanceObjectType, *PrototypeObjectTypeBase, *EnumType, *NoResolvedType, *EnumElementType, *NamedType:
 		return type_
 	case *RecordType:
 		return r.CaseObjectType(x)
@@ -231,7 +231,10 @@ func (r *TemplateTypeReplacer) visitJSType(type_ JSType) JSType {
 		return r.GetNativeType(JSTypeNative_ALL_TYPE)
 	case *BigIntType:
 		return r.GetNativeType(JSTypeNative_BIGINT_TYPE)
-	case *NoObjectTypeBase:
+	case *NoObjectType:
+		if x.IsNoType() {
+			return type_
+		}
 		return r.GetNativeType(JSTypeNative_NO_OBJECT_TYPE)
 	case *SymbolTypeBase, *KnownSymbolType:
 		return type_
@@ -239,9 +242,6 @@ func (r *TemplateTypeReplacer) visitJSType(type_ JSType) JSType {
 		return r.CaseProxyObjectType(x)
 	default:
 		if fn, ok := type_.(FunctionType); ok {
-			if _, isNoObj := type_.(NoObjectType); isNoObj {
-				return r.GetNativeType(JSTypeNative_NO_OBJECT_TYPE)
-			}
 			return r.CaseFunctionType(fn)
 		}
 		if proxy, ok := type_.(ProxyObjectType); ok {
@@ -250,15 +250,12 @@ func (r *TemplateTypeReplacer) visitJSType(type_ JSType) JSType {
 		if obj, ok := type_.(ObjectType); ok {
 			return r.CaseObjectType(obj)
 		}
-		if _, ok := type_.(SymbolType); ok {
-			return type_
-		}
 		panic(jutil.NewUnsupportedOperationException())
 	}
 }
 
 // Java: TemplateTypeReplacer.caseNoType(NoType)
-func (r *TemplateTypeReplacer) CaseNoType(type_ *NoType) JSType {
+func (r *TemplateTypeReplacer) CaseNoType(type_ *NoObjectType) JSType {
 	return type_
 }
 
@@ -519,7 +516,7 @@ func (r *TemplateTypeReplacer) CaseStringType() JSType {
 }
 
 // Java: TemplateTypeReplacer.caseSymbolType(SymbolType)
-func (r *TemplateTypeReplacer) CaseSymbolType(type_ SymbolType) JSType {
+func (r *TemplateTypeReplacer) CaseSymbolType(type_ JSType) JSType {
 	return type_
 }
 

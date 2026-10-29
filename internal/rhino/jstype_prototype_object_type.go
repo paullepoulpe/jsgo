@@ -41,6 +41,9 @@ import (
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 )
 
+// PrototypeObjectTypeBase holds PrototypeObjectType's fields and methods;
+// plain prototype object types are *PrototypeObjectTypeBase values.
+//
 // PrototypeObjectType is the object type that represents instances of
 // JavaScript objects such as Object, Date, Function.
 //
@@ -58,18 +61,6 @@ import (
 //
 // Java: class PrototypeObjectType extends ObjectType (subclassed by
 // EnumType, FunctionType, InstanceObjectType and RecordType).
-type PrototypeObjectType interface {
-	ObjectType
-
-	SetPrettyPrint(prettyPrint bool)
-	IsPrettyPrint() bool
-	SetImplicitPrototype(implicitPrototype ObjectType)
-	IsAnonymous() bool
-	MatchRecordTypeConstraint(constraintObj ObjectType)
-}
-
-// PrototypeObjectTypeBase holds PrototypeObjectType's fields and methods;
-// plain prototype object types are *PrototypeObjectTypeBase values.
 type PrototypeObjectTypeBase struct {
 	ObjectTypeBase
 
@@ -115,7 +106,7 @@ func NewPrototypeObjectType(builder *PrototypeObjectType_Builder) *PrototypeObje
 // subclasses.
 //
 // Java: PrototypeObjectType(Builder<?>)
-func (p *PrototypeObjectTypeBase) InitPrototypeObjectTypeBase(self PrototypeObjectType, builder *PrototypeObjectType_Builder) {
+func (p *PrototypeObjectTypeBase) InitPrototypeObjectTypeBase(self ObjectType, builder *PrototypeObjectType_Builder) {
 	p.InitObjectTypeBaseWithTemplateTypeMap(self, builder.registry, builder.templateTypeMap)
 
 	p.classNameID = builder.classNameID
@@ -223,8 +214,27 @@ func (b *PrototypeObjectType_Builder) SetTemplateParamCount(x int) *PrototypeObj
 }
 
 // Java: PrototypeObjectType.Builder.build()
-func (b *PrototypeObjectType_Builder) Build() PrototypeObjectType {
+func (b *PrototypeObjectType_Builder) Build() *PrototypeObjectTypeBase {
 	return NewPrototypeObjectType(b)
+}
+
+func prototypeObjectTypeBaseOf(t JSType) *PrototypeObjectTypeBase {
+	switch x := t.(type) {
+	case *PrototypeObjectTypeBase:
+		return x
+	case *InstanceObjectType:
+		return &x.PrototypeObjectTypeBase
+	case *FunctionTypeBase:
+		return &x.PrototypeObjectTypeBase
+	case *NoObjectType:
+		return &x.PrototypeObjectTypeBase
+	case *RecordType:
+		return &x.PrototypeObjectTypeBase
+	case *EnumType:
+		return &x.PrototypeObjectTypeBase
+	default:
+		return nil
+	}
 }
 
 // Java: PrototypeObjectType.builder(JSTypeRegistry)
@@ -378,7 +388,7 @@ func (p *PrototypeObjectTypeBase) AppendTo(sb *TypeStringBuilder) {
 	self := p.selfObj()
 	if self.HasReferenceName() {
 		if sb.IsForAnnotations() {
-			sb.Append(*self.GetNormalizedReferenceName())
+			sb.Append(self.GetNormalizedReferenceName())
 		} else {
 			sb.Append(*self.GetReferenceName())
 		}

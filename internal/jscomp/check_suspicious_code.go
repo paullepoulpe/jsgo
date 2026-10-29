@@ -104,8 +104,9 @@ var checkSuspiciousCodeVisitTokens = func() ast.TokenSet {
 	return s
 }()
 
-func (*CheckSuspiciousCode) visitTokens() *ast.TokenSet        { return &checkSuspiciousCodeVisitTokens }
-func (*CheckSuspiciousCode) combinedVisitTokens() ast.TokenSet { return checkSuspiciousCodeVisitTokens }
+var _ nodeTraversal_visitTokens = (*CheckSuspiciousCode)(nil)
+
+func (*CheckSuspiciousCode) visitTokens() *ast.TokenSet { return &checkSuspiciousCodeVisitTokens }
 
 // Java: CheckSuspiciousCode.visit(NodeTraversal, Node, Node)
 //

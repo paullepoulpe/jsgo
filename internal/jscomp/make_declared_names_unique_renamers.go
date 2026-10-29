@@ -247,13 +247,6 @@ func (c *MakeDeclaredNamesUnique_ContextualRenamer) getReplacementNameID(origID 
 }
 
 // Java: MakeDeclaredNamesUnique.ContextualRenamer.getReplacementName(String)
-func (c *MakeDeclaredNamesUnique_ContextualRenamer) GetReplacementName(oldName string) *string {
-	if v, ok := c.GetReplacementNameValue(oldName); ok {
-		return &v
-	}
-	return nil
-}
-
 func (c *MakeDeclaredNamesUnique_ContextualRenamer) GetReplacementNameValue(oldName string) (string, bool) {
 	if c.inlineLen == 0 && len(c.overflow) == 0 {
 		return "", false
@@ -481,13 +474,6 @@ func (r *MakeDeclaredNamesUnique_InlineRenamer) GetUniqueName(name string) strin
 }
 
 // Java: MakeDeclaredNamesUnique.InlineRenamer.getReplacementName(String)
-func (r *MakeDeclaredNamesUnique_InlineRenamer) GetReplacementName(oldName string) *string {
-	if v, ok := r.GetReplacementNameValue(oldName); ok {
-		return &v
-	}
-	return nil
-}
-
 func (r *MakeDeclaredNamesUnique_InlineRenamer) GetReplacementNameValue(oldName string) (string, bool) {
 	if r.inlineLen == 0 && len(r.overflow) == 0 {
 		return "", false
@@ -612,13 +598,6 @@ func (r *MakeDeclaredNamesUnique_TargettedRenamer) getReplacementNameID(oldID st
 }
 
 // Java: MakeDeclaredNamesUnique.TargettedRenamer.getReplacementName(String)
-func (r *MakeDeclaredNamesUnique_TargettedRenamer) GetReplacementName(oldName string) *string {
-	if r.targets.Contains(oldName) {
-		return r.delegate.GetReplacementName(oldName)
-	}
-	return nil
-}
-
 func (r *MakeDeclaredNamesUnique_TargettedRenamer) GetReplacementNameValue(oldName string) (string, bool) {
 	if r.targets.Contains(oldName) {
 		return r.delegate.GetReplacementNameValue(oldName)

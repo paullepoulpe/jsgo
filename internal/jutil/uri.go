@@ -83,60 +83,30 @@ import (
 // URI is java.net.URI.
 type URI struct {
 	str       string
-	scheme    *string
-	ssp       *string // scheme-specific part (opaque URIs only)
-	authority *string
-	userInfo  *string
-	host      *string
-	port      int
 	path      *string // nil for opaque URIs
-	query     *string
-	fragment  *string
-	hash      int32
-	hashed    bool
+	hasScheme bool
 }
 
-// ParseURI parses str as a java.net.URI without panicking, returning a
-// *URISyntaxException on invalid syntax.
+// ParseURI parses str as a java.net.URI without panicking.
 func ParseURI(str string) (*URI, error) {
 	p := &uriParser{input: str, s: StringToUTF16(str)}
-	u := &URI{str: str, port: -1}
+	u := &URI{str: str}
 	if err := p.parse(u); err != nil {
 		return nil, err
 	}
 	return u, nil
 }
 
-// NewURI is new URI(String); it throws URISyntaxException.
-func NewURI(str string) *URI {
-	u, err := ParseURI(str)
-	if err != nil {
-		panic(err)
-	}
-	return u
-}
-
-// GetScheme is URI.getScheme().
-func (u *URI) GetScheme() *string { return u.scheme }
-
 // IsAbsolute is URI.isAbsolute(): whether the URI has a scheme.
-func (u *URI) IsAbsolute() bool { return u.scheme != nil }
-
-// IsOpaque is URI.isOpaque(): an absolute URI whose scheme-specific part
-// does not start with '/'.
-func (u *URI) IsOpaque() bool { return u.path == nil }
-
-// GetRawPath is URI.getRawPath().
-func (u *URI) GetRawPath() *string { return u.path }
+func (u *URI) IsAbsolute() bool { return u.hasScheme }
 
 // GetPath is URI.getPath(): the decoded path component, nil if the path is
 // undefined.
 func (u *URI) GetPath() *string {
-	raw := u.GetRawPath()
-	if raw == nil {
+	if u.path == nil {
 		return nil
 	}
-	s := uriDecodeEscapedOctets(*raw)
+	s := uriDecodeEscapedOctets(*u.path)
 	return &s
 }
 
@@ -177,202 +147,8 @@ func uriGetPathHexValue(c uint16) int {
 	}
 }
 
-// GetRawQuery is URI.getRawQuery().
-func (u *URI) GetRawQuery() *string { return u.query }
-
-// GetRawFragment is URI.getRawFragment().
-func (u *URI) GetRawFragment() *string { return u.fragment }
-
-// GetRawAuthority is URI.getRawAuthority().
-func (u *URI) GetRawAuthority() *string { return u.authority }
-
-// GetHost is URI.getHost(): the host of a server-based authority.
-func (u *URI) GetHost() *string { return u.host }
-
-// GetPort is URI.getPort(): -1 when undefined.
-func (u *URI) GetPort() int { return u.port }
-
 // String is URI.toString(): the string the URI was parsed from.
 func (u *URI) String() string { return u.str }
-
-// Equals is URI.equals(Object) (see the Javadoc).
-func (u *URI) Equals(ob any) bool {
-	o, ok := ob.(*URI)
-	if !ok || o == nil {
-		return false
-	}
-	if u == o {
-		return true
-	}
-	if u.IsOpaque() != o.IsOpaque() ||
-		!uriSameIgnoringASCIICase(u.scheme, o.scheme) ||
-		!uriEqualEscapes(u.fragment, o.fragment) {
-		return false
-	}
-	if u.IsOpaque() {
-		return uriEqualEscapes(u.ssp, o.ssp)
-	}
-	if !uriEqualEscapes(u.path, o.path) || !uriEqualEscapes(u.query, o.query) {
-		return false
-	}
-	if (u.authority == nil) != (o.authority == nil) {
-		return false
-	}
-	if u.authority == nil {
-		return true
-	}
-	if (u.host == nil) != (o.host == nil) {
-		return false // one registry-based, one server-based
-	}
-	if u.host == nil {
-		return uriEqualEscapes(u.authority, o.authority)
-	}
-	return uriEqualEscapes(u.userInfo, o.userInfo) && uriSameIgnoringASCIICase(u.host, o.host) && u.port == o.port
-}
-
-// uriHashPart is one component in the hashCode fold, and whether it is
-// folded char by char after lower-casing (scheme and host) rather than as a
-// whole with its escapes normalised.
-type uriHashPart struct {
-	s     *string
-	lower bool
-}
-
-// HashCode is URI.hashCode(): a fold over the components in the order the
-// hashCode bullet of the file comment lists, and then, for a server-based
-// authority, 1949 times the port added on.
-func (u *URI) HashCode() int32 {
-	if u.hashed {
-		return u.hash
-	}
-	var parts [6]uriHashPart
-	n := 0
-	add := func(s *string, lower bool) {
-		parts[n] = uriHashPart{s, lower}
-		n++
-	}
-	add(u.scheme, true)
-	add(u.fragment, false)
-	serverBased := false
-	switch {
-	case u.IsOpaque():
-		add(u.ssp, false)
-	case u.host != nil:
-		add(u.path, false)
-		add(u.query, false)
-		add(u.userInfo, false)
-		add(u.host, true)
-		serverBased = true
-	default:
-		add(u.path, false)
-		add(u.query, false)
-		add(u.authority, false)
-	}
-	var h int32
-	for _, p := range parts[:n] {
-		if p.lower {
-			h = uriFoldLowerASCII(h, p.s)
-		} else {
-			h = uriHashEscapes(h, p.s)
-		}
-	}
-	if serverBased {
-		h += 1949 * int32(u.port)
-	}
-	u.hash, u.hashed = h, true
-	return h
-}
-
-// uriFoldLowerASCII folds the UTF-16 units of s, ASCII letters lower-cased,
-// into h as 31*h + unit; a nil s leaves h as it is.
-func uriFoldLowerASCII(h int32, s *string) int32 {
-	if s == nil {
-		return h
-	}
-	for _, c := range StringToUTF16(*s) {
-		h = 31*h + int32(uriLowerASCII(c))
-	}
-	return h
-}
-
-// uriHashEscapes folds s into h as 127*h + its String.hashCode, taken with
-// the two hex digits after each '%' upper-cased; a nil s leaves h alone.
-func uriHashEscapes(h int32, s *string) int32 {
-	if s == nil {
-		return h
-	}
-	units := StringToUTF16(*s)
-	var sh int32
-	for i := 0; i < len(units); i++ {
-		c := units[i]
-		sh = 31*sh + int32(c)
-		if c == '%' && i+2 < len(units) {
-			sh = 31*sh + int32(uriUpperASCII(units[i+1]))
-			sh = 31*sh + int32(uriUpperASCII(units[i+2]))
-			i += 2
-		}
-	}
-	return 127*h + sh
-}
-
-func uriLowerASCII(c uint16) uint16 {
-	if c >= 'A' && c <= 'Z' {
-		return c + 'a' - 'A'
-	}
-	return c
-}
-
-func uriUpperASCII(c uint16) uint16 {
-	if c >= 'a' && c <= 'z' {
-		return c - 'a' + 'A'
-	}
-	return c
-}
-
-// uriSameIgnoringASCIICase compares two optional components, treating
-// ASCII letters of either case as equal.
-func uriSameIgnoringASCIICase(a, b *string) bool {
-	if a == nil || b == nil {
-		return a == b
-	}
-	x, y := StringToUTF16(*a), StringToUTF16(*b)
-	if len(x) != len(y) {
-		return false
-	}
-	for i := range x {
-		if uriLowerASCII(x[i]) != uriLowerASCII(y[i]) {
-			return false
-		}
-	}
-	return true
-}
-
-// uriEqualEscapes compares two components exactly, except for the hex
-// digits of escaped octets.
-func uriEqualEscapes(a, b *string) bool {
-	if a == nil || b == nil {
-		return a == b
-	}
-	if *a == *b {
-		return true
-	}
-	x, y := StringToUTF16(*a), StringToUTF16(*b)
-	if len(x) != len(y) {
-		return false
-	}
-	for i := 0; i < len(x); i++ {
-		if x[i] != y[i] {
-			return false
-		}
-		if x[i] == '%' && i+2 < len(x) {
-			if uriUpperASCII(x[i+1]) != uriUpperASCII(y[i+1]) || uriUpperASCII(x[i+2]) != uriUpperASCII(y[i+2]) {
-				return false
-			}
-			i += 2
-		}
-	}
-	return true
-}
 
 // ---------------------------------------------------------------------------
 // Character classes (Javadoc of java.net.URI, "Categories of characters").
@@ -437,8 +213,8 @@ type uriParser struct {
 	s     []uint16
 }
 
-func (p *uriParser) fail(reason string, index int) *URISyntaxException {
-	return NewURISyntaxException(p.input, reason, index)
+func (p *uriParser) fail(reason string, index int) *uriSyntaxError {
+	return &uriSyntaxError{input: p.input, reason: reason, index: index}
 }
 
 func (p *uriParser) str(from, to int) *string {
@@ -458,7 +234,7 @@ func (p *uriParser) find(from, to int, set string) int {
 }
 
 // check validates [from, to) against legal (plus escaped octets).
-func (p *uriParser) check(from, to int, legal func(uint16) bool, component string) *URISyntaxException {
+func (p *uriParser) check(from, to int, legal func(uint16) bool, component string) *uriSyntaxError {
 	for i := from; i < to; i++ {
 		c := p.s[i]
 		if c == '%' {
@@ -476,14 +252,14 @@ func (p *uriParser) check(from, to int, legal func(uint16) bool, component strin
 }
 
 // checkEscape checks the escaped octet at i ('%' and two hex digits).
-func (p *uriParser) checkEscape(i, to int) *URISyntaxException {
+func (p *uriParser) checkEscape(i, to int) *uriSyntaxError {
 	if i+2 >= to || !uriIsHex(p.s[i+1]) || !uriIsHex(p.s[i+2]) {
 		return p.fail("Malformed escape pair", i)
 	}
 	return nil
 }
 
-func (p *uriParser) parse(u *URI) *URISyntaxException {
+func (p *uriParser) parse(u *URI) *uriSyntaxError {
 	n := len(p.s)
 	start := 0
 	if c := p.find(0, n, ":/?#"); c < n && p.s[c] == ':' {
@@ -498,7 +274,7 @@ func (p *uriParser) parse(u *URI) *URISyntaxException {
 				return p.fail("Illegal character in scheme name", i)
 			}
 		}
-		u.scheme = p.str(0, c)
+		u.hasScheme = true
 		start = c + 1
 		if start == n || p.s[start] == '#' {
 			return p.fail("Expected scheme-specific part", start)
@@ -508,8 +284,7 @@ func (p *uriParser) parse(u *URI) *URISyntaxException {
 			if err := p.check(start, end, uriIsUricChar, "opaque part"); err != nil {
 				return err
 			}
-			u.ssp = p.str(start, end)
-			return p.parseFragment(u, end)
+			return p.parseFragment(end)
 		}
 	}
 	i := start
@@ -521,7 +296,7 @@ func (p *uriParser) parse(u *URI) *URISyntaxException {
 				return p.fail("Expected authority", authEnd)
 			}
 		} else {
-			if err := p.parseAuthority(u, authStart, authEnd); err != nil {
+			if err := p.parseAuthority(authStart, authEnd); err != nil {
 				return err
 			}
 		}
@@ -538,26 +313,23 @@ func (p *uriParser) parse(u *URI) *URISyntaxException {
 		if err := p.check(i+1, queryEnd, uriIsUricChar, "query"); err != nil {
 			return err
 		}
-		u.query = p.str(i+1, queryEnd)
 		i = queryEnd
 	}
-	return p.parseFragment(u, i)
+	return p.parseFragment(i)
 }
 
-func (p *uriParser) parseFragment(u *URI, i int) *URISyntaxException {
+func (p *uriParser) parseFragment(i int) *uriSyntaxError {
 	n := len(p.s)
 	if i < n && p.s[i] == '#' {
 		if err := p.check(i+1, n, uriIsUricChar, "fragment"); err != nil {
 			return err
 		}
-		u.fragment = p.str(i+1, n)
 	}
 	return nil
 }
 
 // parseAuthority parses the non-empty authority [from, to).
-func (p *uriParser) parseAuthority(u *URI, from, to int) *URISyntaxException {
-	u.authority = p.str(from, to)
+func (p *uriParser) parseAuthority(from, to int) *uriSyntaxError {
 	regEnd := from
 	for regEnd < to {
 		c := p.s[regEnd]
@@ -574,9 +346,7 @@ func (p *uriParser) parseAuthority(u *URI, from, to int) *URISyntaxException {
 		regEnd++
 	}
 	if regEnd == to {
-		if err := p.parseServer(u, from, to); err != nil {
-			u.userInfo, u.host, u.port = nil, nil, -1
-		}
+		_ = p.parseServer(from, to)
 		return nil
 	}
 	for i := regEnd; i < to; i++ {
@@ -584,11 +354,11 @@ func (p *uriParser) parseAuthority(u *URI, from, to int) *URISyntaxException {
 			return p.fail("Illegal character in authority", regEnd)
 		}
 	}
-	return p.parseServer(u, from, to)
+	return p.parseServer(from, to)
 }
 
 // parseServer parses [from, to) as [user-info@]host[:port].
-func (p *uriParser) parseServer(u *URI, from, to int) *URISyntaxException {
+func (p *uriParser) parseServer(from, to int) *uriSyntaxError {
 	i := from
 	if at := p.find(from, to, "@"); at < to {
 		for k := from; k < at; k++ {
@@ -604,7 +374,6 @@ func (p *uriParser) parseServer(u *URI, from, to int) *URISyntaxException {
 				return p.fail("Illegal character in user info", k)
 			}
 		}
-		u.userInfo = p.str(from, at)
 		i = at + 1
 	}
 	var hostEnd int
@@ -632,13 +401,12 @@ func (p *uriParser) parseServer(u *URI, from, to int) *URISyntaxException {
 			return p.fail("Expected port number", hostEnd)
 		}
 	} else {
-		var err *URISyntaxException
+		var err *uriSyntaxError
 		hostEnd, err = p.parseHostName(i, to)
 		if err != nil {
 			return err
 		}
 	}
-	u.host = p.str(i, hostEnd)
 	if hostEnd < to {
 		// p.s[hostEnd] == ':'
 		portStart := hostEnd + 1
@@ -652,11 +420,8 @@ func (p *uriParser) parseServer(u *URI, from, to int) *URISyntaxException {
 				port = port*10 + int64(c-'0')
 			}
 		}
-		if portStart < to {
-			if port > 1<<31-1 {
-				return p.fail("Malformed port number", portStart)
-			}
-			u.port = int(port)
+		if portStart < to && port > 1<<31-1 {
+			return p.fail("Malformed port number", portStart)
 		}
 	}
 	return nil
@@ -664,7 +429,7 @@ func (p *uriParser) parseServer(u *URI, from, to int) *URISyntaxException {
 
 // parseHostName parses a dotted-quad or a host name starting at from and
 // returns its end, which is to or the index of a ':'.
-func (p *uriParser) parseHostName(from, to int) (int, *URISyntaxException) {
+func (p *uriParser) parseHostName(from, to int) (int, *uriSyntaxError) {
 	if end, ok := p.dottedQuad(from, to); ok && (end == to || p.s[end] == ':') {
 		return end, nil
 	}
@@ -726,7 +491,7 @@ func (p *uriParser) dottedQuad(from, to int) (int, bool) {
 
 // parseIPv6 checks the IPv6 literal [from, to) (see the observed behaviour
 // above).
-func (p *uriParser) parseIPv6(from, to int) *URISyntaxException {
+func (p *uriParser) parseIPv6(from, to int) *uriSyntaxError {
 	units := 0 // 16-bit pieces
 	compressed := false
 	hexRun := func(i int) int {
@@ -743,7 +508,7 @@ func (p *uriParser) parseIPv6(from, to int) *URISyntaxException {
 	// groups reads hex groups separated by single colons from i, which holds
 	// hex digits that do not start a dotted quad. It stops before "::", and
 	// before a ':' that introduces a dotted quad.
-	groups := func(i int) (int, *URISyntaxException) {
+	groups := func(i int) (int, *uriSyntaxError) {
 		for {
 			j := hexRun(i)
 			if j-i > 4 {
@@ -763,7 +528,7 @@ func (p *uriParser) parseIPv6(from, to int) *URISyntaxException {
 			i++
 		}
 	}
-	quad := func(i int, expected string) (int, *URISyntaxException) {
+	quad := func(i int, expected string) (int, *uriSyntaxError) {
 		j := i
 		for j < to && (uriIsDigit(p.s[j]) || p.s[j] == '.') {
 			j++
@@ -796,12 +561,12 @@ func (p *uriParser) parseIPv6(from, to int) *URISyntaxException {
 		units += 2
 		return k, nil
 	}
-	afterCompression := func(i int) (int, *URISyntaxException) {
+	afterCompression := func(i int) (int, *uriSyntaxError) {
 		if i == to {
 			return i, nil
 		}
 		if hexRun(i) > i && !startsQuad(i) {
-			var err *URISyntaxException
+			var err *uriSyntaxError
 			i, err = groups(i)
 			if err != nil {
 				return 0, err
@@ -814,7 +579,7 @@ func (p *uriParser) parseIPv6(from, to int) *URISyntaxException {
 		return quad(i, "hex digits or IPv4 address")
 	}
 	i := from
-	var err *URISyntaxException
+	var err *uriSyntaxError
 	switch {
 	case hexRun(i) > i && !startsQuad(i):
 		i, err = groups(i)
@@ -855,40 +620,16 @@ func (p *uriParser) parseIPv6(from, to int) *URISyntaxException {
 	return nil
 }
 
-// URISyntaxException is java.net.URISyntaxException, a checked exception.
-type URISyntaxException struct {
-	JavaException
+type uriSyntaxError struct {
 	input  string
 	reason string
 	index  int
 }
 
-func (*URISyntaxException) uriSyntaxException() {}
-
-// IURISyntaxException matches URISyntaxException.
-type IURISyntaxException interface {
-	IException
-	uriSyntaxException()
-}
-
-// NewURISyntaxException is new URISyntaxException(input, reason, index);
-// index -1 means unknown.
-func NewURISyntaxException(input, reason string, index int) *URISyntaxException {
-	e := &URISyntaxException{input: input, reason: reason, index: index}
-	msg := reason
-	if index > -1 {
-		msg += " at index " + strconv.Itoa(index)
+func (e *uriSyntaxError) Error() string {
+	msg := e.reason
+	if e.index > -1 {
+		msg += " at index " + strconv.Itoa(e.index)
 	}
-	msg += ": " + input
-	InitThrowable(e, "java.net.URISyntaxException", &msg, nil)
-	return e
+	return "java.net.URISyntaxException: " + msg + ": " + e.input
 }
-
-// GetInput is URISyntaxException.getInput().
-func (e *URISyntaxException) GetInput() string { return e.input }
-
-// GetReason is URISyntaxException.getReason().
-func (e *URISyntaxException) GetReason() string { return e.reason }
-
-// GetIndex is URISyntaxException.getIndex().
-func (e *URISyntaxException) GetIndex() int { return e.index }

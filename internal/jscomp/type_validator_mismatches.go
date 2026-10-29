@@ -477,7 +477,7 @@ func (v *TypeValidator) checkWellFormedTemplatizedType(n rhino.Node, t rhino.JST
 		valid = v.checkWellFormedTemplatizedInstance(n, x)
 	case *rhino.TemplateType:
 		valid = !x.ContainsCycle() && v.checkWellFormedTemplatizedType(n, x.GetBound())
-	case *rhino.NoType, *rhino.NoObjectTypeBase,
+	case *rhino.NoObjectType,
 		*rhino.AllType, *rhino.BooleanType, *rhino.UnknownType, *rhino.NullType,
 		*rhino.NumberType, *rhino.BigIntType, *rhino.StringType, *rhino.VoidType,
 		*rhino.InstanceObjectType, *rhino.PrototypeObjectTypeBase, *rhino.RecordType,
@@ -485,13 +485,11 @@ func (v *TypeValidator) checkWellFormedTemplatizedType(n rhino.Node, t rhino.JST
 		*rhino.SymbolTypeBase, *rhino.KnownSymbolType:
 		valid = true
 	default:
-		if _, ok := t.(rhino.NoObjectType); ok {
-			valid = true
-		} else if fn, ok := t.(rhino.FunctionType); ok {
+		if fn, ok := t.(rhino.FunctionType); ok {
 			valid = v.checkWellFormedFunctionType(n, fn)
 		} else {
 			switch t.(type) {
-			case rhino.ProxyObjectType, rhino.ObjectType, rhino.SymbolType:
+			case rhino.ProxyObjectType, rhino.ObjectType:
 				valid = true
 			default:
 				panic(jutil.NewUnsupportedOperationException())
