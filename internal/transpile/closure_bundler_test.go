@@ -39,52 +39,52 @@ func closureBundlerTest_assertEquals(t *testing.T, got string, want string) {
 }
 
 func TestClosureBundler_GoogModule(t *testing.T) {
-	sb := jutil.NewStringBuilder()
+	sb := jutil.NewStringWriter()
 	NewClosureBundler().AppendTo(sb, closureBundlerTest_MODULE, "\"a string\"")
 	closureBundlerTest_assertEquals(t, sb.String(),
 		"goog.loadModule(function(exports) {'use strict';\"a string\"\n;return exports;});\n")
 }
 
 func TestClosureBundler_GoogModuleWithSourceURL(t *testing.T) {
-	sb := jutil.NewStringBuilder()
+	sb := jutil.NewStringWriter()
 	NewClosureBundler().UseEval(true).WithSourceUrl("URL").AppendTo(sb, closureBundlerTest_MODULE, "\"a string\"")
 	closureBundlerTest_assertEquals(t, sb.String(),
 		"goog.loadModule(\"\\x22a string\\x22\\n//# sourceURL\\x3dURL\\n\");\n")
 }
 
 func TestClosureBundler_GoogModuleWithEval(t *testing.T) {
-	sb := jutil.NewStringBuilder()
+	sb := jutil.NewStringWriter()
 	NewClosureBundler().UseEval(true).AppendTo(sb, closureBundlerTest_MODULE, "\"a string\"")
 	closureBundlerTest_assertEquals(t, sb.String(), "goog.loadModule(\"\\x22a string\\x22\");\n")
 }
 
 func TestClosureBundler_GoogModuleWithEvalWithURL(t *testing.T) {
-	sb := jutil.NewStringBuilder()
+	sb := jutil.NewStringWriter()
 	NewClosureBundler().UseEval(true).WithSourceUrl("URL").AppendTo(sb, closureBundlerTest_MODULE, "\"a string\"")
 	closureBundlerTest_assertEquals(t, sb.String(),
 		"goog.loadModule(\"\\x22a string\\x22\\n//# sourceURL\\x3dURL\\n\");\n")
 }
 
 func TestClosureBundler_Traditional(t *testing.T) {
-	sb := jutil.NewStringBuilder()
+	sb := jutil.NewStringWriter()
 	NewClosureBundler().AppendTo(sb, closureBundlerTest_TRADITIONAL, "\"a string\"")
 	closureBundlerTest_assertEquals(t, sb.String(), "\"a string\"")
 }
 
 func TestClosureBundler_TraditionalWithSourceURL(t *testing.T) {
-	sb := jutil.NewStringBuilder()
+	sb := jutil.NewStringWriter()
 	NewClosureBundler().WithSourceUrl("URL").AppendTo(sb, closureBundlerTest_TRADITIONAL, "\"a string\"")
 	closureBundlerTest_assertEquals(t, sb.String(), "\"a string\"\n//# sourceURL=URL\n")
 }
 
 func TestClosureBundler_TraditionalWithEval(t *testing.T) {
-	sb := jutil.NewStringBuilder()
+	sb := jutil.NewStringWriter()
 	NewClosureBundler().UseEval(true).AppendTo(sb, closureBundlerTest_TRADITIONAL, "\"a string\"")
 	closureBundlerTest_assertEquals(t, sb.String(), "eval(this.CLOSURE_EVAL_PREFILTER(\"\\x22a string\\x22\"));\n")
 }
 
 func TestClosureBundler_TraditionalWithEvalWithSourceUrl(t *testing.T) {
-	sb := jutil.NewStringBuilder()
+	sb := jutil.NewStringWriter()
 	NewClosureBundler().
 		UseEval(true).
 		WithSourceUrl("URL").
@@ -118,7 +118,7 @@ func TestClosureBundler_Transpilation(t *testing.T) {
 	var transpiler Transpiler = &closureBundlerTest_mockTranspiler{uri: uri, input: input}
 
 	bundler := NewClosureBundlerWithTranspiler(transpiler).WithPath("foo.js")
-	sb := jutil.NewStringBuilder()
+	sb := jutil.NewStringWriter()
 	bundler.AppendRuntimeTo(sb)
 	bundler.AppendTo(sb, closureBundlerTest_MODULE, input)
 	if !strings.HasPrefix(sb.String(), "RUNTIME;") {
@@ -131,7 +131,7 @@ func TestClosureBundler_Transpilation(t *testing.T) {
 	}
 
 	// Without calling appendRuntimeTo(), the runtime is not included anymore.
-	sb = jutil.NewStringBuilder()
+	sb = jutil.NewStringWriter()
 	bundler.AppendTo(sb, closureBundlerTest_MODULE, input)
 	closureBundlerTest_assertEquals(t, sb.String(), want)
 }
@@ -142,7 +142,7 @@ func TestClosureBundler_Es6Module(t *testing.T) {
 		"let local;\n" +
 		"export function foo() { return local; }\n"
 	bundler := NewClosureBundlerWithTranspiler(BaseTranspiler_LATEST_TRANSPILER).WithPath("nested/path/foo.js")
-	sb := jutil.NewStringBuilder()
+	sb := jutil.NewStringWriter()
 	bundler.AppendRuntimeTo(sb)
 	flags := jutil.NewLinkedHashMap[string, string]()
 	flags.Put("module", "es6")
@@ -178,7 +178,7 @@ func TestClosureBundler_Es6Module(t *testing.T) {
 func TestClosureBundler_PassThroughIfNoTranspilationNeeded(t *testing.T) {
 	input := "/** Hello Comments! */ const s = 0;\n  let intended;"
 	bundler := NewClosureBundlerWithTranspiler(BaseTranspiler_LATEST_TRANSPILER)
-	sb := jutil.NewStringBuilder()
+	sb := jutil.NewStringWriter()
 	bundler.AppendTo(sb, jscomp.SimpleDependencyInfo_Builder_("", "").Build(), input)
 	closureBundlerTest_assertEquals(t, sb.String(), input)
 }
@@ -186,7 +186,7 @@ func TestClosureBundler_PassThroughIfNoTranspilationNeeded(t *testing.T) {
 func TestClosureBundler_CommentsAndFormattingRemovedWithTranspilation(t *testing.T) {
 	input := "/** Hello Comments! */ const s = 0;\n  let intended;"
 	bundler := NewClosureBundlerWithTranspiler(BaseTranspiler_ES5_TRANSPILER)
-	sb := jutil.NewStringBuilder()
+	sb := jutil.NewStringWriter()
 	bundler.AppendTo(sb, jscomp.SimpleDependencyInfo_Builder_("", "").Build(), input)
 	closureBundlerTest_assertEquals(t, sb.String(), "var s = 0;\nvar intended;\n")
 }
@@ -195,7 +195,7 @@ func TestClosureBundler_FullWidthLowLineWithDefaultTranspilerIsOkay(t *testing.T
 	// The last character is something the compiler doesn't handle correctly
 	input := "var ａｅｓｔｈｅｔｉｃ＿"
 	bundler := NewClosureBundler()
-	sb := jutil.NewStringBuilder()
+	sb := jutil.NewStringWriter()
 	bundler.AppendTo(sb, jscomp.SimpleDependencyInfo_Builder_("", "").Build(), input)
 	closureBundlerTest_assertEquals(t, sb.String(), input)
 }
@@ -206,7 +206,7 @@ func TestClosureBundler_FullWidthLowLineInTranspiledCodeIsError(t *testing.T) {
 	// The last character is something the compiler doesn't handle correctly
 	input := "let ａｅｓｔｈｅｔｉｃ＿"
 	bundler := NewClosureBundlerWithTranspiler(BaseTranspiler_ES5_TRANSPILER)
-	sb := jutil.NewStringBuilder()
+	sb := jutil.NewStringWriter()
 	thrown := false
 	jutil.Try(func() {
 		bundler.AppendTo(sb, jscomp.SimpleDependencyInfo_Builder_("", "").Build(), input)

@@ -179,7 +179,8 @@ func (c *RegExpTree_Charset) Simplify(flags string) RegExpTree {
 		// Java: Set<CharRanges> options = new LinkedHashSet<>();
 		// Go-only: language-adapter — a LinkedHashSet with CharRanges value
 		// equality, as an insertion-ordered slice.
-		var options []*CharRanges
+		var optionsBuf [7]*CharRanges
+		options := optionsBuf[:0]
 		add := func(option *CharRanges) {
 			for _, o := range options {
 				if o.Equals(option) {
@@ -216,7 +217,7 @@ func (c *RegExpTree_Charset) Simplify(flags string) RegExpTree {
 	}
 
 	if best.GetNumRanges() == 1 && best.End(0)-best.Start(0) == 1 {
-		return NewRegExpTree_Text(jutil.StringFromChar(uint16(best.Start(0))))
+		return NewRegExpTree_Text(stringFromUTF16Char(uint16(best.Start(0))))
 	}
 
 	if !best.Equals(c.ranges) {
@@ -517,166 +518,4 @@ func (d *RegExpTree_DecomposedCharset) HashCode() int32 {
 	}
 	h = 31*h + rangesHash
 	return 31*h + jutil.StringHashCode(d.namedGroups)
-}
-
-// RegExpTree_UnicodePropertyEscape represents a Unicode Property Escape such
-// as in /\p{Script=Greek}/u.
-//
-// Java: public static final class RegExpTree.UnicodePropertyEscape
-type RegExpTree_UnicodePropertyEscape struct {
-	propertyName  *string // Java: @Nullable String
-	propertyValue string
-	negated       bool
-}
-
-func (u *RegExpTree_UnicodePropertyEscape) IsCaseSensitive() bool   { return false }
-func (u *RegExpTree_UnicodePropertyEscape) ContainsAnchor() bool    { return false }
-func (u *RegExpTree_UnicodePropertyEscape) HasCapturingGroup() bool { return false }
-func (u *RegExpTree_UnicodePropertyEscape) NumCapturingGroups() int { return 0 }
-func (u *RegExpTree_UnicodePropertyEscape) Children() []RegExpTree  { return emptyRegExpChildren }
-
-func newUnicodePropertyEscape(propertyName *string, propertyValue string, negated bool) (*RegExpTree_UnicodePropertyEscape, *RegExpParseError) {
-	if propertyName != nil && *propertyName == "" {
-		return nil, illegalArgError("if '=' is present in a unicode property escape, the name cannot be empty")
-	}
-	if propertyValue == "" {
-		return nil, illegalArgError("unicode property escape value cannot be empty")
-	}
-	return &RegExpTree_UnicodePropertyEscape{
-		propertyName:  propertyName,
-		propertyValue: propertyValue,
-		negated:       negated,
-	}, nil
-}
-
-// NewRegExpTree_UnicodePropertyEscape constructs a UnicodePropertyEscape;
-// propertyName is nil for the shorthand form \p{Value}.
-//
-// Java: UnicodePropertyEscape(@Nullable String, String, boolean)
-func NewRegExpTree_UnicodePropertyEscape(propertyName *string, propertyValue string, negated bool) *RegExpTree_UnicodePropertyEscape {
-	u, err := newUnicodePropertyEscape(propertyName, propertyValue, negated)
-	if err != nil {
-		panic(err.toThrowable())
-	}
-	return u
-}
-
-// Simplify returns u.
-//
-// Java: UnicodePropertyEscape.simplify(String)
-func (u *RegExpTree_UnicodePropertyEscape) Simplify(flags string) RegExpTree {
-	return u
-}
-
-// AppendSourceCode emits \p{...} or \P{...}.
-//
-// Java: UnicodePropertyEscape.appendSourceCode(StringBuilder)
-func (u *RegExpTree_UnicodePropertyEscape) AppendSourceCode(sb *strings.Builder) {
-	if u.negated {
-		sb.WriteString("\\P{")
-	} else {
-		sb.WriteString("\\p{")
-	}
-	if u.propertyName != nil {
-		sb.WriteString(*u.propertyName)
-		sb.WriteByte('=')
-	}
-	sb.WriteString(u.propertyValue)
-	sb.WriteByte('}')
-}
-
-// AppendDebugInfo emits nothing.
-//
-// Java: UnicodePropertyEscape.appendDebugInfo(StringBuilder)
-func (u *RegExpTree_UnicodePropertyEscape) AppendDebugInfo(sb *strings.Builder) {
-	// Nothing besides properties and possible negation.
-}
-
-// Equals compares negation, name and value.
-//
-// Java: UnicodePropertyEscape.equals(Object)
-func (u *RegExpTree_UnicodePropertyEscape) Equals(o any) bool {
-	unicodePropertyEscape, ok := o.(*RegExpTree_UnicodePropertyEscape)
-	return ok &&
-		u.negated == unicodePropertyEscape.negated &&
-		regExpTree_nullableStringEquals(u.propertyName, unicodePropertyEscape.propertyName) &&
-		u.propertyValue == unicodePropertyEscape.propertyValue
-}
-
-// HashCode hashes negation, name and value.
-//
-// Java: UnicodePropertyEscape.hashCode()
-func (u *RegExpTree_UnicodePropertyEscape) HashCode() int32 {
-	// Java: Objects.hash(negated, propertyName, propertyValue), i.e.
-	// Arrays.hashCode(new Object[] {negated, propertyName, propertyValue}).
-	negatedHash := int32(1237) // Boolean.hashCode(false)
-	if u.negated {
-		negatedHash = 1231
-	}
-	nameHash := int32(0)
-	if u.propertyName != nil {
-		nameHash = jutil.StringHashCode(*u.propertyName)
-	}
-	result := int32(1)
-	result = 31*result + negatedHash
-	result = 31*result + nameHash
-	result = 31*result + jutil.StringHashCode(u.propertyValue)
-	return result
-}
-
-// Java: RegExpTree.toString()
-func (u *RegExpTree_UnicodePropertyEscape) String() string { return regExpTreeString(u) }
-
-// regExpTree_nullableStringEquals is Objects.equals on nullable strings.
-//
-// Go-only: language-adapter — java.util.Objects.equals(String, String).
-func regExpTree_nullableStringEquals(a, b *string) bool {
-	if a == nil || b == nil {
-		return a == b
-	}
-	return *a == *b
-}
-
-// RegExpTree_EscapeCharOnto escapes a code unit for regular expression
-// source.
-//
-// Java: RegExpTree.escapeCharOnto(char, StringBuilder)
-func RegExpTree_EscapeCharOnto(ch uint16, sb *strings.Builder) {
-	const hexDigits = "0123456789abcdef"
-	switch ch {
-	case '\u0000':
-		sb.WriteString("\\0")
-	case '\f':
-		sb.WriteString("\\f")
-	case '\t':
-		sb.WriteString("\\t")
-	case '\n':
-		sb.WriteString("\\n")
-	case '\r':
-		sb.WriteString("\\r")
-	case '\\':
-		sb.WriteString("\\\\")
-	default:
-		if ch < 0x20 || ch >= 0x7f {
-			if ch >= 0x100 {
-				buf := [6]byte{
-					'\\', 'u',
-					hexDigits[(ch>>12)&0xf],
-					hexDigits[(ch>>8)&0xf],
-					hexDigits[(ch>>4)&0xf],
-					hexDigits[ch&0xf],
-				}
-				sb.Write(buf[:])
-			} else {
-				buf := [4]byte{
-					'\\', 'x',
-					hexDigits[(ch>>4)&0xf],
-					hexDigits[ch&0xf],
-				}
-				sb.Write(buf[:])
-			}
-		} else {
-			sb.WriteByte(byte(ch))
-		}
-	}
 }

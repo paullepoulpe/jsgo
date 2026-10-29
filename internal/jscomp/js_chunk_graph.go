@@ -432,6 +432,14 @@ func NewJSChunkGraphFromArray(chunksInDepOrder []*JSChunk) *JSChunkGraph {
 //
 // Java: JSChunkGraph(List<JSChunk>)
 func NewJSChunkGraph(chunksInDepOrder []*JSChunk) *JSChunkGraph {
+	g, err := tryNewJSChunkGraph(chunksInDepOrder)
+	if err != nil {
+		panic(err)
+	}
+	return g
+}
+
+func tryNewJSChunkGraph(chunksInDepOrder []*JSChunk) (*JSChunkGraph, *JSChunkGraph_ChunkDependenceException) {
 	g := &JSChunkGraph{}
 	jutil.CheckState(len(chunksInDepOrder) != 0)
 	chunksInDepOrder = g.makeWeakChunk(chunksInDepOrder)
@@ -449,7 +457,11 @@ func NewJSChunkGraph(chunksInDepOrder []*JSChunk) *JSChunkGraph {
 	// Determine depth for all chunks.
 	// m = number of edges in the graph
 	// O(n*m)
-	g.chunksByDepth = g.initChunksByDepth()
+	chunksByDepth, err := g.tryInitChunksByDepth()
+	if err != nil {
+		return nil, err
+	}
+	g.chunksByDepth = chunksByDepth
 
 	// Determine transitive deps for all chunks.
 	// O(n*m * log(n)) (probably a bit better than that)
@@ -460,11 +472,19 @@ func NewJSChunkGraph(chunksInDepOrder []*JSChunk) *JSChunkGraph {
 
 	// Move all sources marked as weak by outside sources (e.g. flags) into the weak chunk.
 	jsChunkGraph_moveMarkedWeakSources(g.GetChunkByName(JSChunk_WEAK_CHUNK_NAME), g.GetAllInputs())
-	return g
+	return g, nil
 }
 
 // Java: JSChunkGraph.initChunksByDepth()
 func (g *JSChunkGraph) initChunksByDepth() [][]*JSChunk {
+	chunksByDepth, err := g.tryInitChunksByDepth()
+	if err != nil {
+		panic(err)
+	}
+	return chunksByDepth
+}
+
+func (g *JSChunkGraph) tryInitChunksByDepth() ([][]*JSChunk, *JSChunkGraph_ChunkDependenceException) {
 	tmpChunksByDepth := [][]*JSChunk{}
 	for chunkIndex := 0; chunkIndex < len(g.chunks); chunkIndex++ {
 		chunk := g.chunks[chunkIndex]
@@ -473,10 +493,10 @@ func (g *JSChunkGraph) initChunksByDepth() [][]*JSChunk {
 		for _, dep := range chunk.GetDependencies() {
 			depDepth := dep.GetDepth()
 			if depDepth < 0 {
-				panic(NewJSChunkGraph_ChunkDependenceException(
+				return nil, NewJSChunkGraph_ChunkDependenceException(
 					"Chunks not in dependency order: "+chunk.GetName()+" preceded "+dep.GetName(),
 					chunk,
-					dep))
+					dep)
 			}
 			depth = max(depth, depDepth+1)
 		}
@@ -487,7 +507,7 @@ func (g *JSChunkGraph) initChunksByDepth() [][]*JSChunk {
 		}
 		tmpChunksByDepth[depth] = append(tmpChunksByDepth[depth], chunk)
 	}
-	return tmpChunksByDepth
+	return tmpChunksByDepth, nil
 }
 
 // makeWeakChunk: if a weak chunk doesn't already exist, creates a weak chunk
@@ -1236,32 +1256,35 @@ func (g *JSChunkGraph) createEntryPointInputs(
 		var chunksByName map[string]*JSChunk
 		for _, entryPoint := range dependencyOptions.EntryPoints() {
 			var entryPointInput *CompilerInput
-			jutil.Try(func() {
-				if entryPoint.ClosureNamespace() == entryPoint.ModuleName() {
-					entryPointInput = sorter.MaybeGetInputProviding(entryPoint.ClosureNamespace())
-					// Check to see if we can find the entry point as an ES6 and CommonJS module
-					// ES6 and CommonJS entry points may not provide any symbols
+			if entryPoint.ClosureNamespace() == entryPoint.ModuleName() {
+				entryPointInput = sorter.MaybeGetInputProviding(entryPoint.ClosureNamespace())
+				// Check to see if we can find the entry point as an ES6 and CommonJS module
+				// ES6 and CommonJS entry points may not provide any symbols
+				if entryPointInput == nil {
+					entryPointInput = sorter.MaybeGetInputProviding(entryPoint.Name())
 					if entryPointInput == nil {
-						entryPointInput = sorter.GetInputProviding(entryPoint.Name())
-					}
-				} else {
-					if chunksByName == nil {
-						chunksByName = make(map[string]*JSChunk, len(g.chunks))
-						for _, m := range g.chunks {
-							chunksByName[m.GetName()] = m
-						}
-					}
-					chunk := chunksByName[entryPoint.ModuleName()]
-					if chunk == nil {
-						panic(NewJSChunkGraph_MissingChunkException(entryPoint.ModuleName()))
-					} else {
-						entryPointInput = sorter.GetInputProviding(entryPoint.ClosureNamespace())
-						entryPointInput.OverrideChunk(chunk)
+						panic(NewSortedDependencies_MissingProvideExceptionWithCause(
+							entryPoint.Name(), NewSortedDependencies_MissingProvideException(entryPoint.Name())))
 					}
 				}
-			}, func(e ISortedDependencies_MissingProvideException) {
-				panic(NewSortedDependencies_MissingProvideExceptionWithCause(entryPoint.Name(), e))
-			})
+			} else {
+				if chunksByName == nil {
+					chunksByName = make(map[string]*JSChunk, len(g.chunks))
+					for _, m := range g.chunks {
+						chunksByName[m.GetName()] = m
+					}
+				}
+				chunk := chunksByName[entryPoint.ModuleName()]
+				if chunk == nil {
+					panic(NewJSChunkGraph_MissingChunkException(entryPoint.ModuleName()))
+				}
+				entryPointInput = sorter.MaybeGetInputProviding(entryPoint.ClosureNamespace())
+				if entryPointInput == nil {
+					panic(NewSortedDependencies_MissingProvideExceptionWithCause(
+						entryPoint.Name(), NewSortedDependencies_MissingProvideException(entryPoint.ClosureNamespace())))
+				}
+				entryPointInput.OverrideChunk(chunk)
+			}
 
 			if entryPointInput.GetSourceFile().IsWeak() {
 				compiler.Report(

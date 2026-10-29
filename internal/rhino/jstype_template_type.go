@@ -106,7 +106,9 @@ func (t *TemplateType) AppendTo(sb *TypeStringBuilder) {
 		// This is an unbound template, don't print it's bound
 		sb.Append(t.name)
 	} else {
-		sb.Append(t.name).Append(" extends ").AppendType(t.bound)
+		sb.Append(t.name)
+		sb.Append(" extends ")
+		sb.AppendType(t.bound)
 	}
 }
 

@@ -517,7 +517,13 @@ func (f *FunctionTypeBase) GetInternalArrowType() *ArrowType {
 
 // Java: FunctionType.getSlot(Property.Key)
 func (f *FunctionTypeBase) GetSlotByKey(name Property_Key) *Property {
-	if name.Matches("prototype") {
+	isProto := false
+	if !rhinoStringPoolWasCleared() {
+		isProto = name.symbol == nil && name.stringID == propKeyIDPrototype
+	} else {
+		isProto = name.Matches("prototype")
+	}
+	if isProto {
 		// Lazy initialization of the prototype field.
 		f.selfFunc().GetPrototype()
 		return f.prototypeSlot()
@@ -571,14 +577,15 @@ func (f *FunctionTypeBase) GetPropertyTypeByKey(name Property_Key) JSType {
 			f.selfFunc().DefineDeclaredPropertyByKey(name, f.GetCallOrBindSignature(isCall), f.source)
 		} else if name.Matches("apply") {
 			// Define the "apply" function lazily.
-			builder := NewFunctionParamBuilder(f.GetRegistry())
+			var builder FunctionParamBuilder
+			builder.Init(f.GetRegistry(), 2)
 
 			// ECMA-262 says that apply's second argument must be an Array or an
 			// arguments object. We don't model the arguments object, so let's
 			// just be forgiving for now.
 			// TODO(nicksantos): Model the Arguments object.
-			builder.AddOptionalParams(
-				f.GetRegistry().CreateNullableType(f.selfFunc().GetTypeOfThis()),
+			builder.AddOptionalParam(f.GetRegistry().CreateNullableType(f.selfFunc().GetTypeOfThis()))
+			builder.AddOptionalParam(
 				f.GetRegistry().CreateNullableType(f.GetRegistry().GetNativeType(JSTypeNative_OBJECT_TYPE)))
 
 			f.selfFunc().DefineDeclaredPropertyByKey(
@@ -728,7 +735,9 @@ func (f *FunctionTypeBase) AppendTo(sb *TypeStringBuilder) {
 		// Foo)". This includes types defined like "/** @constructor */ function
 		// Foo() { }" but not to those defined like "@param
 		// {function(new:Foo)}". Only the former will have a source node.
-		sb.Append("(typeof ").AppendType(f.selfFunc().GetInstanceType()).Append(")")
+		sb.Append("(typeof ")
+		sb.AppendType(f.selfFunc().GetInstanceType())
+		sb.Append(")")
 		return
 	}
 
@@ -780,7 +789,8 @@ func (f *FunctionTypeBase) AppendArgString(sb *TypeStringBuilder, p *FunctionTyp
 //
 // Java: FunctionType.AppendVarArgsString(TypeStringBuilder, JSType)
 func (f *FunctionTypeBase) AppendVarArgsString(sb *TypeStringBuilder, paramType JSType) {
-	sb.Append("...").AppendNonNull(paramType)
+	sb.Append("...")
+	sb.AppendNonNull(paramType)
 }
 
 // appendOptionalArgString gets the string representation of an optional
@@ -794,7 +804,8 @@ func (f *FunctionTypeBase) AppendOptionalArgString(sb *TypeStringBuilder, paramT
 			ToMaybeUnionType().
 			GetRestrictedUnion(f.GetRegistry().GetNativeType(JSTypeNative_VOID_TYPE))
 	}
-	sb.AppendNonNull(paramType).Append("=")
+	sb.AppendNonNull(paramType)
+	sb.Append("=")
 }
 
 // GetTypeOfThis gets the type of this in this function.

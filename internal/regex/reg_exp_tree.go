@@ -30,7 +30,6 @@ package regex
 import (
 	"math"
 	"slices"
-	"strconv"
 	"strings"
 
 	"github.com/paullepoulpe/jsgo/internal/jutil"
@@ -68,19 +67,6 @@ type RegExpTree interface {
 	HashCode() int32
 }
 
-func writeUTF16Char(sb *strings.Builder, ch uint16) {
-	if ch < 0x80 {
-		sb.WriteByte(byte(ch))
-		return
-	}
-	sb.WriteString(jutil.StringFromChar(ch))
-}
-
-func writeDecimalInt(sb *strings.Builder, n int) {
-	var buf [12]byte
-	sb.Write(strconv.AppendInt(buf[:0], int64(n), 10))
-}
-
 // regExpTreeString renders the regular expression as a literal, e.g. "/foo/".
 //
 // Java: RegExpTree.toString()
@@ -95,475 +81,6 @@ func regExpTreeString(t RegExpTree) string {
 	sb.WriteByte('/')
 	return sb.String()
 }
-
-// RegExpTree_MatchesWholeInput reports true if, but not necessarily always
-// when, the given regular expression must match the whole input or none of
-// it.
-//
-// Java: RegExpTree.matchesWholeInput(RegExpTree, String)
-func RegExpTree_MatchesWholeInput(t RegExpTree, flags string) bool {
-	if strings.IndexByte(flags, 'm') >= 0 {
-		return false
-	}
-
-	c, ok := t.(*RegExpTree_Concatenation)
-	if !ok {
-		return false
-	}
-
-	if len(c.elements) == 0 {
-		return false
-	}
-	first := c.elements[0]
-	last := c.elements[len(c.elements)-1]
-	firstAnchor, ok1 := first.(*RegExpTree_Anchor)
-	lastAnchor, ok2 := last.(*RegExpTree_Anchor)
-	if !(ok1 && ok2) {
-		return false
-	}
-	return firstAnchor.type_ == '^' && lastAnchor.type_ == '$'
-}
-
-var emptyRegExpChildren = []RegExpTree{}
-
-// RegExpTree_Empty represents an empty portion of a RegExp such as the middle
-// of "||".
-//
-// Java: private static final class RegExpTree.Empty
-type RegExpTree_Empty struct{}
-
-// NewRegExpTree_Empty constructs an Empty.
-//
-// Java: Empty()
-func NewRegExpTree_Empty() *RegExpTree_Empty {
-	return &RegExpTree_Empty{}
-}
-
-// RegExpTree_Empty_INSTANCE is the shared Empty.
-var RegExpTree_Empty_INSTANCE = NewRegExpTree_Empty()
-
-func (e *RegExpTree_Empty) IsCaseSensitive() bool   { return false }
-func (e *RegExpTree_Empty) ContainsAnchor() bool    { return false }
-func (e *RegExpTree_Empty) HasCapturingGroup() bool { return false }
-func (e *RegExpTree_Empty) NumCapturingGroups() int { return 0 }
-func (e *RegExpTree_Empty) Children() []RegExpTree  { return emptyRegExpChildren }
-
-// Simplify returns e.
-//
-// Java: Empty.simplify(String)
-func (e *RegExpTree_Empty) Simplify(flags string) RegExpTree {
-	return e
-}
-
-// AppendSourceCode emits nothing.
-//
-// Java: Empty.appendSourceCode(StringBuilder)
-func (e *RegExpTree_Empty) AppendSourceCode(sb *strings.Builder) {
-	// No output
-}
-
-// AppendDebugInfo emits nothing.
-//
-// Java: Empty.appendDebugInfo(StringBuilder)
-func (e *RegExpTree_Empty) AppendDebugInfo(sb *strings.Builder) {
-	// No output
-}
-
-// Equals reports whether o is an Empty.
-//
-// Java: Empty.equals(Object)
-func (e *RegExpTree_Empty) Equals(o any) bool {
-	_, ok := o.(*RegExpTree_Empty)
-	return ok
-}
-
-// HashCode is a constant.
-//
-// Java: Empty.hashCode()
-func (e *RegExpTree_Empty) HashCode() int32 {
-	return 0x7ee06141
-}
-
-// Java: RegExpTree.toString()
-func (e *RegExpTree_Empty) String() string { return regExpTreeString(e) }
-
-// RegExpTree_Anchor represents an anchor, namely ^ or $.
-//
-// Java: public static final class RegExpTree.Anchor
-type RegExpTree_Anchor struct {
-	type_ uint16
-}
-
-// NewRegExpTree_Anchor constructs an Anchor.
-//
-// Java: Anchor(char)
-func NewRegExpTree_Anchor(type_ uint16) *RegExpTree_Anchor {
-	return &RegExpTree_Anchor{type_: type_}
-}
-
-func (a *RegExpTree_Anchor) IsCaseSensitive() bool   { return false }
-func (a *RegExpTree_Anchor) HasCapturingGroup() bool { return false }
-func (a *RegExpTree_Anchor) NumCapturingGroups() int { return 0 }
-func (a *RegExpTree_Anchor) Children() []RegExpTree  { return emptyRegExpChildren }
-
-// Simplify returns a.
-//
-// Java: Anchor.simplify(String)
-func (a *RegExpTree_Anchor) Simplify(flags string) RegExpTree {
-	return a
-}
-
-// ContainsAnchor is true.
-//
-// Java: Anchor.containsAnchor()
-func (a *RegExpTree_Anchor) ContainsAnchor() bool {
-	return true
-}
-
-// AppendSourceCode emits ^ or $.
-//
-// Java: Anchor.appendSourceCode(StringBuilder)
-func (a *RegExpTree_Anchor) AppendSourceCode(sb *strings.Builder) {
-	writeUTF16Char(sb, a.type_)
-}
-
-// AppendDebugInfo emits the anchor character.
-//
-// Java: Anchor.appendDebugInfo(StringBuilder)
-func (a *RegExpTree_Anchor) AppendDebugInfo(sb *strings.Builder) {
-	writeUTF16Char(sb, a.type_)
-}
-
-// Equals compares anchor types.
-//
-// Java: Anchor.equals(Object)
-func (a *RegExpTree_Anchor) Equals(o any) bool {
-	anchor, ok := o.(*RegExpTree_Anchor)
-	return ok && a.type_ == anchor.type_
-}
-
-// HashCode hashes the anchor type.
-//
-// Java: Anchor.hashCode()
-func (a *RegExpTree_Anchor) HashCode() int32 {
-	return int32(uint32(a.type_) ^ 0xe85317ff)
-}
-
-// Java: RegExpTree.toString()
-func (a *RegExpTree_Anchor) String() string { return regExpTreeString(a) }
-
-// RegExpTree_WordBoundary represents \b or \B.
-//
-// Java: public static final class RegExpTree.WordBoundary
-type RegExpTree_WordBoundary struct {
-	type_ uint16
-}
-
-// NewRegExpTree_WordBoundary constructs a WordBoundary.
-//
-// Java: WordBoundary(char)
-func NewRegExpTree_WordBoundary(type_ uint16) *RegExpTree_WordBoundary {
-	return &RegExpTree_WordBoundary{type_: type_}
-}
-
-func (w *RegExpTree_WordBoundary) IsCaseSensitive() bool   { return false }
-func (w *RegExpTree_WordBoundary) ContainsAnchor() bool    { return false }
-func (w *RegExpTree_WordBoundary) HasCapturingGroup() bool { return false }
-func (w *RegExpTree_WordBoundary) NumCapturingGroups() int { return 0 }
-func (w *RegExpTree_WordBoundary) Children() []RegExpTree  { return emptyRegExpChildren }
-
-// Simplify returns w.
-//
-// Java: WordBoundary.simplify(String)
-func (w *RegExpTree_WordBoundary) Simplify(flags string) RegExpTree {
-	return w
-}
-
-// AppendSourceCode emits \b or \B.
-//
-// Java: WordBoundary.appendSourceCode(StringBuilder)
-func (w *RegExpTree_WordBoundary) AppendSourceCode(sb *strings.Builder) {
-	sb.WriteByte('\\')
-	writeUTF16Char(sb, w.type_)
-}
-
-// AppendDebugInfo emits the boundary type.
-//
-// Java: WordBoundary.appendDebugInfo(StringBuilder)
-func (w *RegExpTree_WordBoundary) AppendDebugInfo(sb *strings.Builder) {
-	writeUTF16Char(sb, w.type_)
-}
-
-// Equals compares boundary types.
-//
-// Java: WordBoundary.equals(Object)
-func (w *RegExpTree_WordBoundary) Equals(o any) bool {
-	wordBoundary, ok := o.(*RegExpTree_WordBoundary)
-	return ok && w.type_ == wordBoundary.type_
-}
-
-// HashCode hashes the boundary type.
-//
-// Java: WordBoundary.hashCode()
-func (w *RegExpTree_WordBoundary) HashCode() int32 {
-	return 0x5673aa29 ^ int32(w.type_)
-}
-
-// Java: RegExpTree.toString()
-func (w *RegExpTree_WordBoundary) String() string { return regExpTreeString(w) }
-
-// RegExpTree_BackReference represents a reference to a previous group such
-// as \1 or \2.
-//
-// Java: public static final class RegExpTree.BackReference
-type RegExpTree_BackReference struct {
-	groupIndex int
-}
-
-// NewRegExpTree_BackReference constructs a BackReference.
-//
-// Java: BackReference(int)
-func NewRegExpTree_BackReference(groupIndex int) *RegExpTree_BackReference {
-	jutil.CheckArgument(groupIndex >= 0 && groupIndex <= 99)
-	return &RegExpTree_BackReference{groupIndex: groupIndex}
-}
-
-func (b *RegExpTree_BackReference) IsCaseSensitive() bool   { return false }
-func (b *RegExpTree_BackReference) ContainsAnchor() bool    { return false }
-func (b *RegExpTree_BackReference) HasCapturingGroup() bool { return false }
-func (b *RegExpTree_BackReference) NumCapturingGroups() int { return 0 }
-func (b *RegExpTree_BackReference) Children() []RegExpTree  { return emptyRegExpChildren }
-
-// Simplify returns b.
-//
-// Java: BackReference.simplify(String)
-func (b *RegExpTree_BackReference) Simplify(flags string) RegExpTree {
-	return b
-}
-
-// AppendSourceCode emits \N.
-//
-// Java: BackReference.appendSourceCode(StringBuilder)
-func (b *RegExpTree_BackReference) AppendSourceCode(sb *strings.Builder) {
-	sb.WriteByte('\\')
-	writeDecimalInt(sb, b.groupIndex)
-}
-
-// AppendDebugInfo emits the group index.
-//
-// Java: BackReference.appendDebugInfo(StringBuilder)
-func (b *RegExpTree_BackReference) AppendDebugInfo(sb *strings.Builder) {
-	writeDecimalInt(sb, b.groupIndex)
-}
-
-// Equals compares group indices.
-//
-// Java: BackReference.equals(Object)
-func (b *RegExpTree_BackReference) Equals(o any) bool {
-	backReference, ok := o.(*RegExpTree_BackReference)
-	return ok && b.groupIndex == backReference.groupIndex
-}
-
-// HashCode hashes the group index.
-//
-// Java: BackReference.hashCode()
-func (b *RegExpTree_BackReference) HashCode() int32 {
-	return int32(uint32(0xff072663) ^ uint32(int32(b.groupIndex)))
-}
-
-// Java: RegExpTree.toString()
-func (b *RegExpTree_BackReference) String() string { return regExpTreeString(b) }
-
-// RegExpTree_NamedBackReference represents a reference to a previous named
-// group.
-//
-// Java: public static final class RegExpTree.NamedBackReference
-type RegExpTree_NamedBackReference struct {
-	groupName string
-}
-
-// NewRegExpTree_NamedBackReference constructs a NamedBackReference.
-//
-// Java: NamedBackReference(String)
-func NewRegExpTree_NamedBackReference(groupName string) *RegExpTree_NamedBackReference {
-	return &RegExpTree_NamedBackReference{groupName: groupName}
-}
-
-func (n *RegExpTree_NamedBackReference) IsCaseSensitive() bool   { return false }
-func (n *RegExpTree_NamedBackReference) ContainsAnchor() bool    { return false }
-func (n *RegExpTree_NamedBackReference) HasCapturingGroup() bool { return false }
-func (n *RegExpTree_NamedBackReference) NumCapturingGroups() int { return 0 }
-func (n *RegExpTree_NamedBackReference) Children() []RegExpTree  { return emptyRegExpChildren }
-
-// Simplify returns n.
-//
-// Java: NamedBackReference.simplify(String)
-func (n *RegExpTree_NamedBackReference) Simplify(flags string) RegExpTree {
-	return n
-}
-
-// AppendSourceCode emits \k<name>.
-//
-// Java: NamedBackReference.appendSourceCode(StringBuilder)
-func (n *RegExpTree_NamedBackReference) AppendSourceCode(sb *strings.Builder) {
-	sb.WriteString("\\k<")
-	sb.WriteString(n.groupName)
-	sb.WriteByte('>')
-}
-
-// AppendDebugInfo emits the group name.
-//
-// Java: NamedBackReference.appendDebugInfo(StringBuilder)
-func (n *RegExpTree_NamedBackReference) AppendDebugInfo(sb *strings.Builder) {
-	sb.WriteString(n.groupName)
-}
-
-// Equals compares group names.
-//
-// Java: NamedBackReference.equals(Object)
-func (n *RegExpTree_NamedBackReference) Equals(o any) bool {
-	namedBackReference, ok := o.(*RegExpTree_NamedBackReference)
-	return ok && n.groupName == namedBackReference.groupName
-}
-
-// HashCode hashes the group name.
-//
-// Java: NamedBackReference.hashCode()
-func (n *RegExpTree_NamedBackReference) HashCode() int32 {
-	return jutil.StringHashCode(n.groupName) // Java: Objects.hashCode(groupName)
-}
-
-// Java: RegExpTree.toString()
-func (n *RegExpTree_NamedBackReference) String() string { return regExpTreeString(n) }
-
-// RegExpTree_Text represents a run of non-special characters such as
-// "foobar".
-//
-// Java: public static final class RegExpTree.Text
-type RegExpTree_Text struct {
-	text string
-}
-
-// NewRegExpTree_Text constructs a Text.
-//
-// Java: Text(String)
-func NewRegExpTree_Text(text string) *RegExpTree_Text {
-	return &RegExpTree_Text{text: text}
-}
-
-func (t *RegExpTree_Text) ContainsAnchor() bool    { return false }
-func (t *RegExpTree_Text) HasCapturingGroup() bool { return false }
-func (t *RegExpTree_Text) NumCapturingGroups() int { return 0 }
-func (t *RegExpTree_Text) Children() []RegExpTree  { return emptyRegExpChildren }
-
-// RegExpTree_Text_EscapeRegularCharOnto escapes ch onto sb. ch is the
-// code-unit to escape; next is the next code-unit or -1 if indeterminable.
-//
-// Java: Text.escapeRegularCharOnto(char, int, StringBuilder)
-func RegExpTree_Text_EscapeRegularCharOnto(ch uint16, next int, sb *strings.Builder) {
-	switch ch {
-	case '$', '^', '*', '(', ')', '+', '[', '|', '.', '/', '?':
-		sb.WriteByte('\\')
-		sb.WriteByte(byte(ch))
-	case '{':
-		// If possibly part of a repetition, then escape.
-		// Concatenation is handled by the digitsMightBleed check.
-		if '0' <= next && next <= '9' {
-			sb.WriteByte('\\')
-		}
-		sb.WriteByte('{')
-	default:
-		RegExpTree_EscapeCharOnto(ch, sb)
-	}
-}
-
-// Simplify drops empty text and case-canonicalizes under the 'i' flag.
-//
-// Java: Text.simplify(String)
-func (t *RegExpTree_Text) Simplify(flags string) RegExpTree {
-	if t.text == "" {
-		return RegExpTree_Empty_INSTANCE
-	}
-	if strings.IndexByte(flags, 'i') >= 0 {
-		canonicalized := CaseCanonicalize_CaseCanonicalize(t.text)
-		if t.text != canonicalized {
-			return NewRegExpTree_Text(canonicalized)
-		}
-	}
-	return t
-}
-
-// IsCaseSensitive reports whether any character is case sensitive.
-//
-// Java: Text.isCaseSensitive()
-func (t *RegExpTree_Text) IsCaseSensitive() bool {
-	if jutil.IsASCII(t.text) {
-		for i := 0; i < len(t.text); i++ {
-			if CaseCanonicalize_CASE_SENSITIVE.Contains(int(t.text[i])) {
-				return true
-			}
-		}
-		return false
-	}
-	chars := jutil.StringToUTF16(t.text) // Java: text.charAt(i)
-	for _, ch := range chars {
-		if CaseCanonicalize_CASE_SENSITIVE.Contains(int(ch)) {
-			return true
-		}
-	}
-	return false
-}
-
-// AppendSourceCode emits the escaped text.
-//
-// Java: Text.appendSourceCode(StringBuilder)
-func (t *RegExpTree_Text) AppendSourceCode(sb *strings.Builder) {
-	if jutil.IsASCII(t.text) {
-		for i, n := 0, len(t.text); i < n; i++ {
-			next := -1
-			if i+1 < n {
-				next = int(t.text[i+1])
-			}
-			RegExpTree_Text_EscapeRegularCharOnto(uint16(t.text[i]), next, sb)
-		}
-		return
-	}
-	chars := jutil.StringToUTF16(t.text) // Java: text.charAt(i)
-	for i, n := 0, len(chars); i < n; i++ {
-		next := -1
-		if i+1 < n {
-			next = int(chars[i+1])
-		}
-		RegExpTree_Text_EscapeRegularCharOnto(chars[i], next, sb)
-	}
-}
-
-// AppendDebugInfo emits `text`.
-//
-// Java: Text.appendDebugInfo(StringBuilder)
-func (t *RegExpTree_Text) AppendDebugInfo(sb *strings.Builder) {
-	sb.WriteByte('`')
-	sb.WriteString(t.text)
-	sb.WriteByte('`')
-}
-
-// Equals compares the text.
-//
-// Java: Text.equals(Object)
-func (t *RegExpTree_Text) Equals(o any) bool {
-	text, ok := o.(*RegExpTree_Text)
-	return ok && t.text == text.text
-}
-
-// HashCode hashes the text.
-//
-// Java: Text.hashCode()
-func (t *RegExpTree_Text) HashCode() int32 {
-	return jutil.StringHashCode(t.text) ^ 0x617e310
-}
-
-// Java: RegExpTree.toString()
-func (t *RegExpTree_Text) String() string { return regExpTreeString(t) }
 
 // RegExpTree_Repetition represents a repeating item such as ...+, ...*, or
 // ...{0,1}.
@@ -639,11 +156,11 @@ func (r *RegExpTree_Repetition) AppendBodySourceCode(sb *strings.Builder) {
 	_, isAlternation := r.body.(*RegExpTree_Alternation)
 	_, isConcatenation := r.body.(*RegExpTree_Concatenation)
 	_, isRepetition := r.body.(*RegExpTree_Repetition)
-	text, isText := r.body.(*RegExpTree_Text)
+	_, isText := r.body.(*RegExpTree_Text)
 	if isAlternation ||
 		isConcatenation ||
 		isRepetition ||
-		(isText && jutil.StringLength(text.text) > 1) {
+		(isText && !regExpTree_isSingleCharText(r.body) && r.body.(*RegExpTree_Text).text != "") {
 		sb.WriteString("(?:")
 		r.body.AppendSourceCode(sb)
 		sb.WriteByte(')')
@@ -834,7 +351,7 @@ func NewRegExpTree_Alternation(alternatives []RegExpTree) *RegExpTree_Alternatio
 //
 // Java: Alternation.simplify(String)
 func (a *RegExpTree_Alternation) Simplify(flags string) RegExpTree {
-	alternatives := []RegExpTree{}
+	alternatives := make([]RegExpTree, 0, len(a.alternatives))
 	for _, alternative := range a.alternatives {
 		alternative = alternative.Simplify(flags)
 		if alternation, ok := alternative.(*RegExpTree_Alternation); ok {
@@ -881,8 +398,7 @@ func (a *RegExpTree_Alternation) Simplify(flags string) RegExpTree {
 				ieExplicits := CharRanges_EMPTY
 				charAlternatives := alternatives[i:end] // Java: alternatives.subList(i, end)
 				for _, charAlternative := range charAlternatives {
-					if text, ok := charAlternative.(*RegExpTree_Text); ok {
-						ch := jutil.StringCharAt(text.text, 0)
+					if ch, ok := regExpTree_singleCharUnit(charAlternative); ok {
 						members[memberIdx] = int(ch)
 						memberIdx++
 						if RegExpTree_IE_SPEC_ERRORS.Contains(int(ch)) {
@@ -917,16 +433,7 @@ func (a *RegExpTree_Alternation) Simplify(flags string) RegExpTree {
 	if regExpTree_listEquals(alternatives, a.alternatives) {
 		return a
 	}
-	return NewRegExpTree_Alternation(alternatives)
-}
-
-// regExpTree_isSingleCharText is `x instanceof Text text &&
-// text.text.length() == 1`.
-//
-// Go-only: language-adapter — pattern-matching instanceof as a helper.
-func regExpTree_isSingleCharText(t RegExpTree) bool {
-	text, ok := t.(*RegExpTree_Text)
-	return ok && jutil.StringLength(text.text) == 1
+	return &RegExpTree_Alternation{alternatives: alternatives}
 }
 
 // IsCaseSensitive reports whether any alternative is.
@@ -1286,86 +793,6 @@ func (c *RegExpTree_CapturingGroup) HashCode() int32 {
 // Java: RegExpTree.toString()
 func (c *RegExpTree_CapturingGroup) String() string { return regExpTreeString(c) }
 
-// RegExpTree_NamedCaptureGroup represents a named capture group.
-//
-// Java: public static final class RegExpTree.NamedCaptureGroup
-type RegExpTree_NamedCaptureGroup struct {
-	body RegExpTree
-	name string
-}
-
-// NewRegExpTree_NamedCaptureGroup constructs a NamedCaptureGroup.
-//
-// Java: NamedCaptureGroup(RegExpTree, String)
-func NewRegExpTree_NamedCaptureGroup(body RegExpTree, name string) *RegExpTree_NamedCaptureGroup {
-	return &RegExpTree_NamedCaptureGroup{
-		body: body,
-		name: name,
-	}
-}
-
-func (n *RegExpTree_NamedCaptureGroup) IsCaseSensitive() bool  { return n.body.IsCaseSensitive() }
-func (n *RegExpTree_NamedCaptureGroup) ContainsAnchor() bool   { return n.body.ContainsAnchor() }
-func (n *RegExpTree_NamedCaptureGroup) Children() []RegExpTree { return []RegExpTree{n.body} }
-
-// Simplify simplifies the body.
-//
-// Java: NamedCaptureGroup.simplify(String)
-func (n *RegExpTree_NamedCaptureGroup) Simplify(flags string) RegExpTree {
-	return NewRegExpTree_NamedCaptureGroup(n.body.Simplify(flags), n.name)
-}
-
-// Java: RegExpTree.hasCapturingGroup()
-func (n *RegExpTree_NamedCaptureGroup) HasCapturingGroup() bool {
-	return true
-}
-
-// NumCapturingGroups is one plus the body's.
-//
-// Java: NamedCaptureGroup.numCapturingGroups()
-func (n *RegExpTree_NamedCaptureGroup) NumCapturingGroups() int {
-	return 1 + n.body.NumCapturingGroups()
-}
-
-// AppendSourceCode emits (?<name>...).
-//
-// Java: NamedCaptureGroup.appendSourceCode(StringBuilder)
-func (n *RegExpTree_NamedCaptureGroup) AppendSourceCode(sb *strings.Builder) {
-	sb.WriteString("(?<")
-	sb.WriteString(n.name)
-	sb.WriteByte('>')
-	n.body.AppendSourceCode(sb)
-	sb.WriteByte(')')
-}
-
-// AppendDebugInfo emits the name.
-//
-// Java: NamedCaptureGroup.appendDebugInfo(StringBuilder)
-func (n *RegExpTree_NamedCaptureGroup) AppendDebugInfo(sb *strings.Builder) {
-	sb.WriteString(" name=")
-	sb.WriteString(n.name)
-}
-
-// Equals compares name and body.
-//
-// Java: NamedCaptureGroup.equals(Object)
-func (n *RegExpTree_NamedCaptureGroup) Equals(o any) bool {
-	namedCaptureGroup, ok := o.(*RegExpTree_NamedCaptureGroup)
-	return ok &&
-		n.name == namedCaptureGroup.name &&
-		n.body.Equals(namedCaptureGroup.body)
-}
-
-// HashCode hashes name and body.
-//
-// Java: NamedCaptureGroup.hashCode()
-func (n *RegExpTree_NamedCaptureGroup) HashCode() int32 {
-	return jutil.StringHashCode(n.name) ^ n.body.HashCode() // Java: Objects.hashCode(name)
-}
-
-// Java: RegExpTree.toString()
-func (n *RegExpTree_NamedCaptureGroup) String() string { return regExpTreeString(n) }
-
 // RegExpTree_Concatenation represents a series of nodes chained one after
 // another such as (?:...)[a-z]*(...).
 //
@@ -1396,7 +823,10 @@ func NewRegExpTree_Concatenation(elements []RegExpTree) *RegExpTree_Concatenatio
 //
 // Java: Concatenation.simplify(String)
 func (c *RegExpTree_Concatenation) Simplify(flags string) RegExpTree {
-	s := NewRegExpTree_Concatenation_Simplifier(flags)
+	s := RegExpTree_Concatenation_Simplifier{
+		flags:      flags,
+		simplified: make([]RegExpTree, 0, len(c.elements)),
+	}
 	for _, element := range c.elements {
 		s.Simplify(element.Simplify(flags))
 	}
@@ -1407,7 +837,7 @@ func (c *RegExpTree_Concatenation) Simplify(flags string) RegExpTree {
 	case 1:
 		return s.simplified[0]
 	default:
-		return NewRegExpTree_Concatenation(s.simplified)
+		return &RegExpTree_Concatenation{elements: s.simplified}
 	}
 }
 
@@ -1424,10 +854,10 @@ type RegExpTree_Concatenation_Simplifier struct {
 //
 // Java: new Simplifier() (inside Concatenation.simplify)
 func NewRegExpTree_Concatenation_Simplifier(flags string) *RegExpTree_Concatenation_Simplifier {
-	s := &RegExpTree_Concatenation_Simplifier{}
-	s.flags = flags
-	s.simplified = []RegExpTree{}
-	return s
+	return &RegExpTree_Concatenation_Simplifier{
+		flags:      flags,
+		simplified: []RegExpTree{},
+	}
 }
 
 // Simplify appends t, flattening and folding pairwise.

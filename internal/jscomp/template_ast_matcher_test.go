@@ -23,7 +23,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
 
@@ -654,16 +653,17 @@ func (c *TemplateAstMatcherTest) assertMatchWithStrategy(
 	shouldMatch bool,
 	typeMatchingStrategy TypeMatchingStrategy) {
 	matcher := NewTemplateAstMatcher(c.lastCompiler, templateRoot.GetFirstChild(), typeMatchingStrategy)
-	sb := jutil.NewStringBuilder()
-	sb.Append("The nodes should")
-	if shouldMatch {
-		sb.Append("")
-	} else {
-		sb.Append(" not")
+	var sb strings.Builder
+	sb.WriteString("The nodes should")
+	if !shouldMatch {
+		sb.WriteString(" not")
 	}
-	sb.Append(" have matched.\n")
-	sb.Append("Template node:\n").Append(templateRoot.ToStringTree()).Append("\n")
-	sb.Append("Test node:\n").Append(testNode.GetParent().ToStringTree()).Append("\n")
+	sb.WriteString(" have matched.\n")
+	sb.WriteString("Template node:\n")
+	sb.WriteString(templateRoot.ToStringTree())
+	sb.WriteString("\nTest node:\n")
+	sb.WriteString(testNode.GetParent().ToStringTree())
+	sb.WriteString("\n")
 	AssertWithMessage(sb.String()).That(matcher.Matches(testNode)).IsEqualTo(shouldMatch)
 }
 

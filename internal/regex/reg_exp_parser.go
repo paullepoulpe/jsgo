@@ -139,7 +139,7 @@ type regExpParser struct {
 	patternChars                      []uint16
 	pos                               int
 	numCapturingGroups                int
-	capturingGroupNames               map[string]bool
+	capturingGroupNames               map[string]struct{}
 	limit                             int
 	isASCII                           bool
 	isCaseInsensitive                 bool
@@ -362,9 +362,9 @@ func (p *regExpParser) parseParenthetical() (RegExpTree, *RegExpParseError) {
 					}
 					captureName = name
 					if p.capturingGroupNames == nil {
-						p.capturingGroupNames = make(map[string]bool)
+						p.capturingGroupNames = make(map[string]struct{})
 					}
-					p.capturingGroupNames[captureName] = true
+					p.capturingGroupNames[captureName] = struct{}{}
 					kind = parentheticalNamedGroups
 				}
 			default:
@@ -585,13 +585,6 @@ func isUnicodePropertyIdentChar(ch uint16) bool {
 		('0' <= ch && ch <= '9')
 }
 
-func stringFromCodePoint(cp int) string {
-	if cp <= 0xFFFF {
-		return jutil.StringFromChar(uint16(cp))
-	}
-	return string(rune(cp))
-}
-
 // parseEscape parses an escape that appears outside a charset.
 //
 // Java: Parser.parseEscape()
@@ -630,7 +623,7 @@ func (p *regExpParser) parseEscape() (RegExpTree, *RegExpParseError) {
 			if p.pos < p.limit && ch == '}' {
 				// Case of shorthand like /\p{ASCII_Hex_Digit}/u
 				p.pos++
-				return newUnicodePropertyEscape(nil, lhs, negated)
+				return newUnicodePropertyEscape("", false, lhs, negated)
 			} else if p.pos < p.limit && ch == '=' {
 				// Case of having '=' like /\p{Script=Greek}/u
 				rhsStart := p.pos + 1
@@ -650,7 +643,7 @@ func (p *regExpParser) parseEscape() (RegExpTree, *RegExpParseError) {
 						return nil, err
 					}
 					p.pos++
-					return newUnicodePropertyEscape(&lhs, rhs, negated)
+					return newUnicodePropertyEscape(lhs, true, rhs, negated)
 				}
 				return nil, p.sliceError("Malformed Unicode Property Escape: expected '}' after ", start, p.pos)
 			}
@@ -680,7 +673,7 @@ func (p *regExpParser) parseEscape() (RegExpTree, *RegExpParseError) {
 		if possibleGroupIndex <= 7 {
 			c = uint16(possibleGroupIndex)
 		}
-		return NewRegExpTree_Text(jutil.StringFromChar(c)), nil
+		return NewRegExpTree_Text(stringFromUTF16Char(c)), nil
 	} else if p.lookForNamedCaptureBackreferences &&
 		ch == 'k' &&
 		p.pos+1 < p.limit &&
@@ -694,7 +687,7 @@ func (p *regExpParser) parseEscape() (RegExpTree, *RegExpParseError) {
 		if err != nil {
 			return nil, err
 		}
-		if !p.capturingGroupNames[potentialName] {
+		if _, ok := p.capturingGroupNames[potentialName]; !ok {
 			return nil, p.tailError("Invalid named capture referenced: ", start)
 		}
 		return NewRegExpTree_NamedBackReference(potentialName), nil

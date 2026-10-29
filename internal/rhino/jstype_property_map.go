@@ -199,26 +199,20 @@ func (m *PropertyMap) GetSecondaryParentObjects() []ObjectType {
 
 // Java: PropertyMap.findClosest(String)
 func (m *PropertyMap) FindClosest(name string) *Property_OwnedProperty {
-	return m.FindClosestByKey(NewProperty_StringKey(name))
+	return m.FindClosestByKey(propertyKeyLookup(name))
 }
 
 // findClosestPairByKey resolves the closest (owner, Property) pair without
 // heap-allocating a Property_OwnedProperty wrapper.
 func (m *PropertyMap) findClosestPairByKey(name Property_Key) (ObjectType, *Property) {
-	if name.Kind() == Property_KeyKind_STRING {
-		if name.stringID != 0 {
-			return m.findClosestPairByStringID(name.string_, name.stringID)
+	if name.symbol == nil {
+		if name.stringID == 0 {
+			return nil, nil
 		}
-		str := name.String_()
-		if len(m.entries()) == 1 && !m.hasNonASCII {
-			if p := m.entries()[0]; rhinoStringFromID(p.nameID) == str {
-				return m.getParentSource(), p
-			}
-		}
-		return m.findClosestPairByStringID(str, rhinoStringPoolLookup(str))
+		return m.findClosestPairByStringID("", name.stringID)
 	}
 	// Check primary parents which always has precedence over secondary.
-	sym := name.Symbol()
+	sym := name.symbol
 	for pm := m; pm != nil; pm = pm.GetPrimaryParent() {
 		if pm.ext != nil && len(pm.ext.knownSymbols) != 0 {
 			if prop := pm.ext.getKnownSymbol(sym); prop != nil {
@@ -344,15 +338,11 @@ func (m *PropertyMap) GetOwnProperty(propertyName string) *Property {
 
 // Java: PropertyMap.getOwnProperty(Property.Key)
 func (m *PropertyMap) GetOwnPropertyByKey(propertyName Property_Key) *Property {
-	switch propertyName.Kind() {
-	case Property_KeyKind_STRING:
-		if propertyName.stringID != 0 {
-			return m.GetOwnPropertyByID(propertyName.stringID)
-		}
-		return m.GetOwnProperty(propertyName.String_())
+	if propertyName.symbol == nil {
+		return m.GetOwnPropertyByID(propertyName.stringID)
 	}
 	if m.ext != nil && len(m.ext.knownSymbols) != 0 {
-		return m.ext.getKnownSymbol(propertyName.Symbol())
+		return m.ext.getKnownSymbol(propertyName.symbol)
 	}
 	return nil
 }
@@ -415,11 +405,11 @@ func (m *PropertyMap) GetOwnKnownSymbols() []*KnownSymbolType {
 
 // Java: PropertyMap.getAllKeys()
 func (m *PropertyMap) GetAllKeys() *PropertyMap_AllKeys {
-	ancestors := jutil.NewLinkedHashSet[*PropertyMap]()
-	m.CollectAllAncestors(ancestors)
+	var ancestorsBuf [8]*PropertyMap
+	ancestors := m.collectAllAncestorsSlice(ancestorsBuf[:0])
 
 	var maxAncestorCounter int32 = 0
-	for ancestor := range ancestors.All() {
+	for _, ancestor := range ancestors {
 		if ancestor.cachedKeySetCounter > maxAncestorCounter {
 			maxAncestorCounter = ancestor.cachedKeySetCounter
 		}
@@ -430,8 +420,8 @@ func (m *PropertyMap) GetAllKeys() *PropertyMap_AllKeys {
 	ext := m.ensureExt()
 	if maxAncestorCounter != m.cachedKeySetCounter || ext.cachedKeySet == nil {
 		var keys []string
-		knownSymbolsKeys := jutil.NewObjectLinkedHashSet[*KnownSymbolType]()
-		for ancestor := range ancestors.All() {
+		var knownSymbolsKeys []*KnownSymbolType
+		for _, ancestor := range ancestors {
 			// Update the counters in all ancestors.
 			//
 			// This update scheme is convergent. As long as there are no
@@ -449,7 +439,17 @@ func (m *PropertyMap) GetAllKeys() *PropertyMap_AllKeys {
 			}
 			if ancestor.ext != nil {
 				for _, kv := range ancestor.ext.knownSymbols {
-					knownSymbolsKeys.Add(kv.symbol)
+					sym := kv.symbol
+					seen := false
+					for _, existing := range knownSymbolsKeys {
+						if existing == sym || (existing != nil && existing.Equals(sym)) {
+							seen = true
+							break
+						}
+					}
+					if !seen {
+						knownSymbolsKeys = append(knownSymbolsKeys, sym)
+					}
 				}
 			}
 		}
@@ -459,7 +459,11 @@ func (m *PropertyMap) GetAllKeys() *PropertyMap_AllKeys {
 			slices.SortFunc(keys, jutil.StringCompareTo)
 			ext.cachedKeySet = slices.Compact(keys)
 		}
-		ext.cachedKnownSymbolsKeySet = knownSymbolsKeys.ToSlice()
+		if len(knownSymbolsKeys) == 0 {
+			ext.cachedKnownSymbolsKeySet = []*KnownSymbolType{}
+		} else {
+			ext.cachedKnownSymbolsKeySet = knownSymbolsKeys
+		}
 	}
 
 	return NewPropertyMap_AllKeys(ext.cachedKeySet, ext.cachedKnownSymbolsKeySet)
@@ -527,6 +531,22 @@ func propertyMap_setsEqual[T any](a, b []T) bool {
 	return true
 }
 
+func (m *PropertyMap) collectAllAncestorsSlice(ancestors []*PropertyMap) []*PropertyMap {
+	if slices.Contains(ancestors, m) {
+		return ancestors
+	}
+	ancestors = append(ancestors, m)
+	if primaryParent := m.GetPrimaryParent(); primaryParent != nil {
+		ancestors = primaryParent.collectAllAncestorsSlice(ancestors)
+	}
+	for _, parentType := range m.GetSecondaryParentObjects() {
+		if parentMap := parentType.GetPropertyMap(); parentMap != nil {
+			ancestors = parentMap.collectAllAncestorsSlice(ancestors)
+		}
+	}
+	return ancestors
+}
+
 // Java: PropertyMap.CollectAllAncestors(LinkedHashSet<PropertyMap>)
 func (m *PropertyMap) CollectAllAncestors(ancestors *jutil.LinkedHashSet[*PropertyMap]) {
 	if !ancestors.Add(m) {
@@ -549,9 +569,13 @@ func (m *PropertyMap) CollectAllAncestors(ancestors *jutil.LinkedHashSet[*Proper
 // Java: PropertyMap.putProperty(String, Property)
 func (m *PropertyMap) PutProperty(name string, newProp *Property) {
 	nameID := newProp.nameID
-	if newProp.isSymbol || rhinoStringFromID(nameID) != name {
+	if newProp.isSymbol || nameID == 0 || rhinoStringFromID(nameID) != name {
 		nameID = rhinoStringPoolIntern(name)
 	}
+	m.putPropertyWithID(name, nameID, newProp)
+}
+
+func (m *PropertyMap) putPropertyWithID(name string, nameID rhinoStringID, newProp *Property) {
 	isASCII := !m.hasNonASCII && propMapIsASCII(name)
 	var oldProp *Property
 	oldIdx := -1
@@ -658,12 +682,15 @@ func (m *PropertyMap) PutPropertyBySymbol(symbol *KnownSymbolType, newProp *Prop
 
 // Java: PropertyMap.putProperty(Property.Key, Property)
 func (m *PropertyMap) PutPropertyByKey(name Property_Key, newProp *Property) {
-	switch name.Kind() {
-	case Property_KeyKind_STRING:
-		m.PutProperty(name.String_(), newProp)
-	case Property_KeyKind_SYMBOL:
-		m.PutPropertyBySymbol(name.Symbol(), newProp)
+	if name.symbol == nil {
+		nameID := name.stringID
+		if nameID == 0 {
+			nameID = rhinoStringPoolIntern("")
+		}
+		m.putPropertyWithID(rhinoStringFromID(nameID), nameID, newProp)
+		return
 	}
+	m.PutPropertyBySymbol(name.symbol, newProp)
 }
 
 // Java: PropertyMap.values()

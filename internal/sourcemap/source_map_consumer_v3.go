@@ -85,8 +85,67 @@ func (*SourceMapConsumerV3_DefaultSourceMapSupplier) GetSourceMap(url string) *s
 //
 // Java: SourceMapConsumerV3.parse(String)
 func (c *SourceMapConsumerV3) Parse(contents string) {
-	sourceMapObject := SourceMapObjectParser_Parse(contents)
-	c.ParseSourceMapObject(sourceMapObject, nil)
+	if err := c.TryParse(contents); err != nil {
+		panic(err)
+	}
+}
+
+// TryParse parses the given contents containing a source map, returning a
+// *SourceMapParseException instead of panicking on malformed source maps.
+func (c *SourceMapConsumerV3) TryParse(contents string) *SourceMapParseException {
+	sourceMapObject, err := tryParseSourceMapObjectFromJSON(contents)
+	if err != nil {
+		return err
+	}
+	return c.tryParseSourceMapObject(sourceMapObject, nil)
+}
+
+func tryParseSourceMapObjectFromJSON(contents string) (*SourceMapObject, *SourceMapParseException) {
+	sourceMapRoot, parseEx := sourceMapObjectParser_gson.TryFromJsonObject(contents)
+	if parseEx != nil {
+		return nil, NewSourceMapParseException("JSON parse exception: " + parseEx.Error())
+	}
+
+	obj := &SourceMapObject{
+		version:   int(sourceMapRoot.Get("version").GetAsInt()),
+		file:      getOptionalString(sourceMapRoot, "file"),
+		lineCount: -1,
+	}
+	if sourceMapRoot.Has("lineCount") {
+		obj.lineCount = int(sourceMapRoot.Get("lineCount").GetAsInt())
+	}
+	obj.mappings = getOptionalString(sourceMapRoot, "mappings")
+	obj.sourceRoot = getOptionalString(sourceMapRoot, "sourceRoot")
+
+	if sourceMapRoot.Has("sections") {
+		sectionsArray := sourceMapRoot.Get("sections").GetAsJsonArray()
+		listBuilder := make([]*SourceMapSection, 0, sectionsArray.Size())
+		for each := range sectionsArray.All() {
+			sec, err := buildSection(each.GetAsJsonObject())
+			if err != nil {
+				if smErr, ok := err.(*SourceMapParseException); ok {
+					return nil, smErr
+				}
+				panic(err)
+			}
+			listBuilder = append(listBuilder, sec)
+		}
+		obj.sections = listBuilder
+	}
+
+	obj.sources = getOptionalStringArray(sourceMapRoot.Get("sources"))
+	obj.sourcesContent = getOptionalStringArray(sourceMapRoot.Get("sourcesContent"))
+	obj.names = getOptionalStringArray(sourceMapRoot.Get("names"))
+
+	extensions := jutil.NewLinkedHashMap[string, any]()
+	for key, value := range sourceMapRoot.EntrySet().All() {
+		if strings.HasPrefix(key, "x_") {
+			extensions.Put(key, value)
+		}
+	}
+	obj.extensions = extensions
+
+	return obj, nil
 }
 
 // ParseSourceMapObject parses the given contents containing a source map.
@@ -94,19 +153,24 @@ func (c *SourceMapConsumerV3) Parse(contents string) {
 //
 // Java: SourceMapConsumerV3.parse(SourceMapObject, SourceMapSupplier)
 func (c *SourceMapConsumerV3) ParseSourceMapObject(sourceMapObject *SourceMapObject, sectionSupplier SourceMapSupplier) {
+	if err := c.tryParseSourceMapObject(sourceMapObject, sectionSupplier); err != nil {
+		panic(err)
+	}
+}
+
+func (c *SourceMapConsumerV3) tryParseSourceMapObject(sourceMapObject *SourceMapObject, sectionSupplier SourceMapSupplier) *SourceMapParseException {
 	if sourceMapObject.version != 3 {
-		panic(NewSourceMapParseException("Unknown version: " + strconv.Itoa(sourceMapObject.version)))
+		return NewSourceMapParseException("Unknown version: " + strconv.Itoa(sourceMapObject.version))
 	}
 
 	c.file = sourceMapObject.file
 	if c.file.present && c.file.text == "" {
-		panic(NewSourceMapParseException("File entry is empty"))
+		return NewSourceMapParseException("File entry is empty")
 	}
 
 	if sourceMapObject.sections != nil {
 		// Looks like a index map, try to parse it that way.
-		c.ParseMetaMap(sourceMapObject, sectionSupplier)
-		return
+		return c.tryParseMetaMap(sourceMapObject, sectionSupplier)
 	}
 
 	c.lineCount = sourceMapObject.lineCount
@@ -153,10 +217,14 @@ func (c *SourceMapConsumerV3) ParseSourceMapObject(sourceMapObject *SourceMapObj
 	for k, v := range sourceMapObject.extensions.All() {
 		c.extensions.Put(k, v)
 	}
-	c.mappings =
-		newMappingBuilder(
-			c, sourceMapObject.mappings, c.lineCount, useCompactMappings, estimatedEntries).
-			Build()
+	mappings, err := newMappingBuilder(
+		c, sourceMapObject.mappings, c.lineCount, useCompactMappings, estimatedEntries).
+		tryBuild()
+	if err != nil {
+		return err
+	}
+	c.mappings = mappings
+	return nil
 }
 
 // ParseMetaMap parses an index map: its sections are merged into a new
@@ -164,54 +232,77 @@ func (c *SourceMapConsumerV3) ParseSourceMapObject(sourceMapObject *SourceMapObj
 //
 // Java: SourceMapConsumerV3.parseMetaMap(SourceMapObject, SourceMapSupplier)
 func (c *SourceMapConsumerV3) ParseMetaMap(sourceMapObject *SourceMapObject, sectionSupplier SourceMapSupplier) {
+	if err := c.tryParseMetaMap(sourceMapObject, sectionSupplier); err != nil {
+		panic(err)
+	}
+}
+
+func (c *SourceMapConsumerV3) tryParseMetaMap(sourceMapObject *SourceMapObject, sectionSupplier SourceMapSupplier) *SourceMapParseException {
 	if sectionSupplier == nil {
 		sectionSupplier = &SourceMapConsumerV3_DefaultSourceMapSupplier{}
 	}
 
-	jutil.Try(func() {
-		if sourceMapObject.lineCount >= 0 ||
-			sourceMapObject.mappings.present ||
-			len(sourceMapObject.sources) > 0 ||
-			sourceMapObject.names != nil {
-			panic(NewSourceMapParseException("Invalid map format"))
-		}
+	if sourceMapObject.lineCount >= 0 ||
+		sourceMapObject.mappings.present ||
+		len(sourceMapObject.sources) > 0 ||
+		sourceMapObject.names != nil {
+		return NewSourceMapParseException("Invalid map format")
+	}
 
-		// Build up a new source map in a new generator using the mappings of
-		// this metamap. The new map will be rendered to JSON and then parsed
-		// using this consumer.
-		generator := NewSourceMapGeneratorV3()
-		for _, section := range sourceMapObject.sections {
-			var mapText string
-			var hasMap bool
-			if section.type_ == SourceMapSection_SectionType_URL {
-				if !section.value.present {
-					panic(jutil.NewNullPointerException())
-				}
-				if supplied := sectionSupplier.GetSourceMap(section.value.text); supplied != nil {
-					mapText = *supplied
-					hasMap = true
-				}
-			} else if section.value.present {
-				mapText = section.value.text
+	// Build up a new source map in a new generator using the mappings of
+	// this metamap. The new map will be rendered to JSON and then parsed
+	// using this consumer.
+	generator := NewSourceMapGeneratorV3()
+	for _, section := range sourceMapObject.sections {
+		var mapText string
+		var hasMap bool
+		if section.type_ == SourceMapSection_SectionType_URL {
+			if !section.value.present {
+				panic(jutil.NewNullPointerException())
+			}
+			supplied, supplierErr := callSupplierGetSourceMap(sectionSupplier, section.value.text)
+			if supplierErr != nil {
+				return supplierErr
+			}
+			if supplied != nil {
+				mapText = *supplied
 				hasMap = true
 			}
-			if !hasMap {
-				valStr := "null"
-				if section.value.present {
-					valStr = section.value.text
-				}
-				panic(NewSourceMapParseException("Unable to retrieve: " + valStr))
-			}
-			generator.MergeMapSection(section.line, section.column, mapText)
+		} else if section.value.present {
+			mapText = section.value.text
+			hasMap = true
 		}
+		if !hasMap {
+			valStr := "null"
+			if section.value.present {
+				valStr = section.value.text
+			}
+			return NewSourceMapParseException("Unable to retrieve: " + valStr)
+		}
+		generator.SetStartingPosition(section.line, section.column)
+		sectionConsumer := NewSourceMapConsumerV3()
+		if err := sectionConsumer.TryParse(mapText); err != nil {
+			return err
+		}
+		sectionConsumer.VisitMappings(&SourceMapGeneratorV3_ConsumerEntryVisitor{outer: generator})
+	}
 
-		var sb strings.Builder
-		generator.AppendTo(&sb, sourceMapObject.file.ptr())
-		c.Parse(sb.String())
+	var sb strings.Builder
+	generator.AppendTo(&sb, sourceMapObject.file.ptr())
+	return c.TryParse(sb.String())
+}
 
-	}, func(ex jutil.IIOException) {
-		panic(NewSourceMapParseException("IO exception: " + ex.Error()))
-	})
+func callSupplierGetSourceMap(supplier SourceMapSupplier, url string) (supplied *string, parseErr *SourceMapParseException) {
+	defer func() {
+		if r := recover(); r != nil {
+			if ex, ok := r.(jutil.IIOException); ok {
+				parseErr = NewSourceMapParseException("IO exception: " + ex.Error())
+				return
+			}
+			panic(r)
+		}
+	}()
+	return supplier.GetSourceMap(url), nil
 }
 
 // GetMappingForLine returns the original mapping for the line number and
@@ -416,6 +507,14 @@ func newMappingBuilder(
 
 // Java: SourceMapConsumerV3.MappingBuilder.build()
 func (b *SourceMapConsumerV3_MappingBuilder) Build() *SourceMapConsumerV3_Mappings {
+	m, err := b.tryBuild()
+	if err != nil {
+		panic(err)
+	}
+	return m
+}
+
+func (b *SourceMapConsumerV3_MappingBuilder) tryBuild() (*SourceMapConsumerV3_Mappings, *SourceMapParseException) {
 	var temp [SourceMapConsumerV3_MappingBuilder_MAX_ENTRY_VALUES]int32
 
 	entriesCount := 0
@@ -440,7 +539,10 @@ func (b *SourceMapConsumerV3_MappingBuilder) Build() *SourceMapConsumerV3_Mappin
 				entryValues++
 			}
 
-			e := b.decodeEntry(temp[:], entryValues)
+			e, err := b.tryDecodeEntry(temp[:], entryValues)
+			if err != nil {
+				return nil, err
+			}
 			b.validateEntry(e, b.line)
 
 			b.previousCol = e.genCol
@@ -470,7 +572,7 @@ func (b *SourceMapConsumerV3_MappingBuilder) Build() *SourceMapConsumerV3_Mappin
 
 	b.Trim(entriesCount, linesCount)
 
-	return newSourceMapConsumerV3_Mappings(b.data, b.lineStart, b.lineCount, b.entrySize)
+	return newSourceMapConsumerV3_Mappings(b.data, b.lineStart, b.lineCount, b.entrySize), nil
 }
 
 // appendEntry encodes e onto the stream as deltas against the previous entry
@@ -521,9 +623,9 @@ func maskCompactId(id int32) int32 {
 	return id & 0xFFFF
 }
 
-// decodeEntry resolves the VLQ deltas in vals against the builder's running
+// tryDecodeEntry resolves the VLQ deltas in vals against the builder's running
 // state, applying compact 16-bit ID masking when entrySize == 4.
-func (b *SourceMapConsumerV3_MappingBuilder) decodeEntry(vals []int32, entryValues int) sourceMapConsumerV3_entry {
+func (b *SourceMapConsumerV3_MappingBuilder) tryDecodeEntry(vals []int32, entryValues int) (sourceMapConsumerV3_entry, *SourceMapParseException) {
 	if b.entrySize > b.flatLength {
 		b.flatLength *= 2
 		if b.entrySize > b.flatLength {
@@ -558,10 +660,10 @@ func (b *SourceMapConsumerV3_MappingBuilder) decodeEntry(vals []int32, entryValu
 			e.nameId = maskCompactId(e.nameId)
 		}
 	default:
-		panic(NewSourceMapParseException(
-			"Unexpected number of values for entry:" + jutil.ToJavaString(entryValues)))
+		return e, NewSourceMapParseException(
+			"Unexpected number of values for entry:" + jutil.ToJavaString(entryValues))
 	}
-	return e
+	return e, nil
 }
 
 // Java: SourceMapConsumerV3.MappingBuilder.validateEntry(int, int)

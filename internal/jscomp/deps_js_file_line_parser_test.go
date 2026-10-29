@@ -19,6 +19,7 @@
 package jscomp
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/paullepoulpe/jsgo/internal/jutil"
@@ -146,8 +147,8 @@ func jsFileLineParserTest_assertBlocks(t *testing.T, expected string, input stri
 
 type jsFileLineParserTest_TestParser struct {
 	jsFileLineParser
-	sb       *jutil.StringBuilder
-	comments *jutil.StringBuilder
+	sb       strings.Builder
+	comments strings.Builder
 }
 
 // Java: JsFileLineParserTest.TestParser()
@@ -159,18 +160,16 @@ func newJsFileLineParserTest_TestParser() *jsFileLineParserTest_TestParser {
 func newJsFileLineParserTest_TestParserWithErrorManager(errorManager ErrorManager) *jsFileLineParserTest_TestParser {
 	return &jsFileLineParserTest_TestParser{
 		jsFileLineParser: jsFileLineParser{errorManager: errorManager},
-		sb:               jutil.NewStringBuilder(),
-		comments:         jutil.NewStringBuilder(),
 	}
 }
 
 func (p *jsFileLineParserTest_TestParser) parseLine(line string) (bool, string) {
-	p.sb.Append(line)
+	p.sb.WriteString(line)
 	return true, ""
 }
 
 func (p *jsFileLineParserTest_TestParser) parseJsDocCommentLine(line string) bool {
-	p.comments.Append(line)
+	p.comments.WriteString(line)
 	return true
 }
 

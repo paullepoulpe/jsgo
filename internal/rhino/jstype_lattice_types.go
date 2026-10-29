@@ -567,6 +567,8 @@ func (t *NoResolvedType) AppendTo(sb *TypeStringBuilder) {
 	if sb.IsForAnnotations() {
 		sb.Append("?")
 	} else {
-		sb.Append("NoResolvedType<" + t.referenceName + ">")
+		sb.Append("NoResolvedType<")
+		sb.Append(t.referenceName)
+		sb.Append(">")
 	}
 }

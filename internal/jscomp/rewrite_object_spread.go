@@ -48,13 +48,23 @@ type RewriteObjectSpread struct {
 // Java: RewriteObjectSpread.transpiledFeatures
 var RewriteObjectSpread_transpiledFeatures = parser.FeatureSet_BARE_MINIMUM.With(parser.FeatureSet_Feature_OBJECT_LITERALS_WITH_SPREAD)
 
+var rewriteObjectSpreadVisitTokens = func() ast.TokenSet {
+	var s ast.TokenSet
+	s.Add(rhino.Token_OBJECTLIT)
+	return s
+}()
+
 // Java: RewriteObjectSpread(AbstractCompiler)
 func NewRewriteObjectSpread(compiler AbstractCompiler) *RewriteObjectSpread {
-	r := &RewriteObjectSpread{}
-	r.compiler = compiler
-	r.astFactory = compiler.CreateAstFactory()
-	r.namespace = r.compiler.GetTranspilationNamespace()
-	return r
+	return &RewriteObjectSpread{
+		compiler:   compiler,
+		astFactory: compiler.CreateAstFactory(),
+		namespace:  compiler.GetTranspilationNamespace(),
+	}
+}
+
+func (*RewriteObjectSpread) visitTokens() *ast.TokenSet {
+	return &rewriteObjectSpreadVisitTokens
 }
 
 // Java: RewriteObjectSpread.process(Node, Node)

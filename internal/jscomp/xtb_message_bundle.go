@@ -58,20 +58,27 @@ func NewXtbMessageBundle(xtb io.Reader, projectId *string) *XtbMessageBundle {
 		idGenerator: NewGoogleJsMessageIdGenerator(projectId),
 	}
 
-	jutil.Try(func() {
-		// Use a SAX parser for speed and less memory usage.
-		parser := xtbMessageBundle_createSAXParser()
-		reader := parser.GetXMLReader()
-		contentHandler := &xtbMessageBundle_Handler{outer: b}
-		reader.SetContentHandler(contentHandler)
-		reader.Parse(jutil.NewInputSource(xtb))
-	}, func(e jutil.IException) {
-		switch e.(type) {
-		case *jutil.ParserConfigurationException, jutil.IIOException, jutil.ISAXException:
-			panic(jutil.NewRuntimeExceptionWithCause(e))
+	defer func() {
+		if r := recover(); r != nil {
+			switch e := r.(type) {
+			case *jutil.ParserConfigurationException:
+				panic(jutil.NewRuntimeExceptionWithCause(e))
+			case jutil.IIOException:
+				panic(jutil.NewRuntimeExceptionWithCause(e))
+			case jutil.ISAXException:
+				panic(jutil.NewRuntimeExceptionWithCause(e))
+			default:
+				panic(r)
+			}
 		}
-		panic(e)
-	})
+	}()
+
+	// Use a SAX parser for speed and less memory usage.
+	parser := xtbMessageBundle_createSAXParser()
+	reader := parser.GetXMLReader()
+	contentHandler := &xtbMessageBundle_Handler{outer: b}
+	reader.SetContentHandler(contentHandler)
+	reader.Parse(jutil.NewInputSource(xtb))
 	return b
 }
 

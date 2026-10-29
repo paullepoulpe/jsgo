@@ -503,7 +503,7 @@ func (c *SubtypeChecker) IsStructuralSubtypeHelper(
 		pm.ensureSorted()
 		for i := range pm.entries() {
 			if !c.CheckPropertyPresence(
-				NewProperty_StringKey(rhinoStringFromID(pm.entries()[i].nameID)), subtype, supertype, optionality) {
+				NewProperty_StringKeyByID(uint32(pm.entries()[i].nameID)), subtype, supertype, optionality) {
 				return false
 			}
 		}

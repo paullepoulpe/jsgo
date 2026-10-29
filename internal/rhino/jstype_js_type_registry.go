@@ -725,9 +725,7 @@ func (k JSTypeRegistry_PropDefinitionKind) String() string {
 //
 // Java: JSTypeRegistry.canPropertyBeDefined(JSType, String)
 func (r *JSTypeRegistry) CanPropertyBeDefined(type_ JSType, propertyName string) JSTypeRegistry_PropDefinitionKind {
-	return r.canPropertyBeDefinedWithKey(
-		type_,
-		Property_Key{kind: Property_KeyKind_STRING, stringID: rhinoStringPoolLookup(propertyName), string_: propertyName})
+	return r.canPropertyBeDefinedWithKey(type_, propertyKeyLookup(propertyName))
 }
 
 // CanPropertyBeDefinedByID returns whether the property identified by propID

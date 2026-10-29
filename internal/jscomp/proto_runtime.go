@@ -503,6 +503,144 @@ func protoParseUnknownFieldSet(data []byte) *protoUnknownFieldSet {
 	return s
 }
 
+func tryParseUnknownFieldSet(data []byte) (*protoUnknownFieldSet, bool) {
+	r := &protoReader{b: data}
+	return r.tryReadUnknownFieldSet(-1)
+}
+
+func (r *protoReader) tryReadRawVarint64() (uint64, bool) {
+	var x uint64
+	for shift := 0; shift < 64; shift += 7 {
+		if r.pos >= len(r.b) {
+			return 0, false
+		}
+		c := r.b[r.pos]
+		r.pos++
+		x |= uint64(c&0x7F) << shift
+		if c < 0x80 {
+			return x, true
+		}
+	}
+	return 0, false
+}
+
+func (r *protoReader) tryReadTag() (int, bool) {
+	if r.atEnd() {
+		return 0, true
+	}
+	raw, ok := r.tryReadRawVarint64()
+	if !ok {
+		return 0, false
+	}
+	tag := int32(raw)
+	if uint32(tag)>>3 == 0 {
+		return 0, false
+	}
+	return int(tag), true
+}
+
+func (r *protoReader) tryReadFixed32() (uint32, bool) {
+	if len(r.b)-r.pos < 4 {
+		return 0, false
+	}
+	v := binary.LittleEndian.Uint32(r.b[r.pos:])
+	r.pos += 4
+	return v, true
+}
+
+func (r *protoReader) tryReadFixed64() (uint64, bool) {
+	if len(r.b)-r.pos < 8 {
+		return 0, false
+	}
+	v := binary.LittleEndian.Uint64(r.b[r.pos:])
+	r.pos += 8
+	return v, true
+}
+
+func (r *protoReader) tryReadBytes() ([]byte, bool) {
+	rawSize, ok := r.tryReadRawVarint64()
+	if !ok {
+		return nil, false
+	}
+	size := int32(rawSize)
+	if size < 0 || int(size) > len(r.b)-r.pos {
+		return nil, false
+	}
+	out := append([]byte(nil), r.b[r.pos:r.pos+int(size)]...)
+	r.pos += int(size)
+	return out, true
+}
+
+func (r *protoReader) tryReadUnknownFieldSet(endGroup int) (*protoUnknownFieldSet, bool) {
+	s := &protoUnknownFieldSet{fields: map[int]*protoUnknownField{}}
+	for {
+		tag, ok := r.tryReadTag()
+		if !ok {
+			return nil, false
+		}
+		if tag == 0 {
+			if endGroup >= 0 {
+				return nil, false
+			}
+			return s, true
+		}
+		number := tag >> 3
+		switch tag & 7 {
+		case protoWireVarint:
+			v, ok := r.tryReadRawVarint64()
+			if !ok {
+				return nil, false
+			}
+			f := s.field(number)
+			f.varint = append(f.varint, v)
+		case protoWireFixed64:
+			v, ok := r.tryReadFixed64()
+			if !ok {
+				return nil, false
+			}
+			f := s.field(number)
+			f.fixed64 = append(f.fixed64, v)
+		case protoWireBytes:
+			v, ok := r.tryReadBytes()
+			if !ok {
+				return nil, false
+			}
+			f := s.field(number)
+			f.lengthDelimited = append(f.lengthDelimited, v)
+		case protoWireStartGroup:
+			limit := r.limit
+			if limit == 0 {
+				limit = protoDefaultRecursionLimit
+			}
+			if r.depth >= limit {
+				return nil, false
+			}
+			r.depth++
+			g, ok := r.tryReadUnknownFieldSet(number)
+			r.depth--
+			if !ok {
+				return nil, false
+			}
+			f := s.field(number)
+			f.group = append(f.group, g)
+		case protoWireEndGroup:
+			if number != endGroup {
+				return nil, false
+			}
+			return s, true
+		case protoWireFixed32:
+			v, ok := r.tryReadFixed32()
+			if !ok {
+				return nil, false
+			}
+			f := s.field(number)
+			f.fixed32 = append(f.fixed32, v)
+		default:
+			return nil, false
+		}
+	}
+}
+
 func (r *protoReader) readUnknownFieldSet(endGroup int) *protoUnknownFieldSet {
 	s := &protoUnknownFieldSet{fields: map[int]*protoUnknownField{}}
 	for {
@@ -608,13 +746,7 @@ func (p *protoTextPrinter) unknownFieldSet(s *protoUnknownFieldSet) {
 			p.scalar(n, "0x"+strings.Repeat("0", 16-len(h))+h)
 		}
 		for _, v := range f.lengthDelimited {
-			var nested *protoUnknownFieldSet
-			jutil.Try(func() {
-				nested = protoParseUnknownFieldSet(v)
-			}, func(e *InvalidProtocolBufferException) {
-				nested = nil
-			})
-			if nested != nil {
+			if nested, ok := tryParseUnknownFieldSet(v); ok {
 				p.messageWithSeparator(n, ": {\n", func(p *protoTextPrinter) { p.unknownFieldSet(nested) })
 			} else {
 				p.scalar(n, protoTextBytes(v))

@@ -19,18 +19,28 @@
 package jscomp
 
 import (
+	"github.com/paullepoulpe/jsgo/internal/ast"
+	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/parser"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
 
+var rewriteOptChainVisitTokens = func() ast.TokenSet {
+	var s ast.TokenSet
+	s.Add(rhino.Token_SCRIPT)
+	s.Add(rhino.Token_OPTCHAIN_GETPROP)
+	s.Add(rhino.Token_OPTCHAIN_GETELEM)
+	s.Add(rhino.Token_OPTCHAIN_CALL)
+	return s
+}()
+
 // RewriteOptionalChainingOperator replaces the ES2020 `?.` operator with
 // conditional (? :).
 type RewriteOptionalChainingOperator struct {
-	compiler AbstractCompiler
-
-	// Produces the object responsible for creating temporary variable names for a given
-	// CompilerInput.
-	getTmpVarNameCreatorForInput func(input *CompilerInput) OptionalChainRewriter_TmpVarNameCreator
+	compiler                AbstractCompiler
+	uniqueIdSupplier        *UniqueIdSupplier
+	customTmpVarNameCreator OptionalChainRewriter_TmpVarNameCreator
+	callback                RewriteOptionalChainingOperator_TranspilationCallback
 }
 
 // NewRewriteOptionalChainingOperator is the constructor to be used for
@@ -38,18 +48,10 @@ type RewriteOptionalChainingOperator struct {
 //
 // Java: RewriteOptionalChainingOperator(AbstractCompiler)
 func NewRewriteOptionalChainingOperator(compiler AbstractCompiler) *RewriteOptionalChainingOperator {
-	r := &RewriteOptionalChainingOperator{}
-	r.compiler = compiler
-	// Temporary variable names are generated based on the compiler input they will go into and use
-	// a recognizable prefix to aid debugging.
-	uniqueIdSupplier := compiler.GetUniqueIdSupplier()
-	r.getTmpVarNameCreatorForInput =
-		func(input *CompilerInput) OptionalChainRewriter_TmpVarNameCreator {
-			return func() string {
-				return "$jscomp$optchain$tmp" + uniqueIdSupplier.GetUniqueId(input)
-			}
-		}
-	return r
+	return &RewriteOptionalChainingOperator{
+		compiler:         compiler,
+		uniqueIdSupplier: compiler.GetUniqueIdSupplier(),
+	}
 }
 
 // NewRewriteOptionalChainingOperatorWithTmpVarNameCreator is the
@@ -58,18 +60,16 @@ func NewRewriteOptionalChainingOperator(compiler AbstractCompiler) *RewriteOptio
 // Java: RewriteOptionalChainingOperator(AbstractCompiler, TmpVarNameCreator)
 func NewRewriteOptionalChainingOperatorWithTmpVarNameCreator(
 	compiler AbstractCompiler, tmpVarNameCreator OptionalChainRewriter_TmpVarNameCreator) *RewriteOptionalChainingOperator {
-	r := &RewriteOptionalChainingOperator{}
-	r.compiler = compiler
-	// The test provides a simple variable name creator that makes for more readable test cases.
-	r.getTmpVarNameCreatorForInput = func(input *CompilerInput) OptionalChainRewriter_TmpVarNameCreator {
-		return tmpVarNameCreator
+	return &RewriteOptionalChainingOperator{
+		compiler:                compiler,
+		customTmpVarNameCreator: jutil.CheckNotNull(tmpVarNameCreator),
 	}
-	return r
 }
 
 // Java: RewriteOptionalChainingOperator.process(Node, Node)
 func (r *RewriteOptionalChainingOperator) Process(externs rhino.Node, root rhino.Node) {
-	NodeTraversal_TraverseRoots(r.compiler, NewRewriteOptionalChainingOperator_TranspilationCallback(r), externs, root)
+	r.callback.initForProcess(r)
+	NodeTraversal_TraverseRoots(r.compiler, &r.callback, externs, root)
 	TranspilationPasses_MaybeMarkFeatureAsTranspiledAway(r.compiler, root, parser.FeatureSet_Feature_OPTIONAL_CHAINING)
 }
 
@@ -78,33 +78,67 @@ func (r *RewriteOptionalChainingOperator) Process(externs rhino.Node, root rhino
 type RewriteOptionalChainingOperator_TranspilationCallback struct {
 	outer           *RewriteOptionalChainingOperator
 	rewriterBuilder *OptionalChainRewriter_Builder
+	builderVal      OptionalChainRewriter_Builder
+	currentInput    *CompilerInput
+	boundTmpCreator OptionalChainRewriter_TmpVarNameCreator
 	optChains       []*OptionalChainRewriter
+	optChainsBuf    [4]*OptionalChainRewriter
 }
 
 // Java: RewriteOptionalChainingOperator.TranspilationCallback()
 func NewRewriteOptionalChainingOperator_TranspilationCallback(outer *RewriteOptionalChainingOperator) *RewriteOptionalChainingOperator_TranspilationCallback {
-	c := &RewriteOptionalChainingOperator_TranspilationCallback{outer: outer}
-	c.rewriterBuilder = OptionalChainRewriter_Builder_(outer.compiler)
+	c := &RewriteOptionalChainingOperator_TranspilationCallback{}
+	c.initForProcess(outer)
 	return c
+}
+
+func (c *RewriteOptionalChainingOperator_TranspilationCallback) initForProcess(outer *RewriteOptionalChainingOperator) {
+	c.outer = outer
+	c.builderVal = OptionalChainRewriter_Builder{
+		compiler:   jutil.CheckNotNull(outer.compiler),
+		astFactory: outer.compiler.CreateAstFactory(),
+	}
+	c.rewriterBuilder = &c.builderVal
+	if outer.customTmpVarNameCreator != nil {
+		c.rewriterBuilder.SetTmpVarNameCreator(outer.customTmpVarNameCreator)
+	} else {
+		if c.boundTmpCreator == nil {
+			c.boundTmpCreator = c.nextTmpVarName
+		}
+		c.rewriterBuilder.SetTmpVarNameCreator(c.boundTmpCreator)
+	}
+	if c.optChains == nil {
+		c.optChains = c.optChainsBuf[:0]
+	} else {
+		clear(c.optChains)
+		c.optChains = c.optChains[:0]
+	}
+}
+
+func (c *RewriteOptionalChainingOperator_TranspilationCallback) nextTmpVarName() string {
+	return "$jscomp$optchain$tmp" + c.outer.uniqueIdSupplier.GetUniqueId(c.currentInput)
+}
+
+func (*RewriteOptionalChainingOperator_TranspilationCallback) visitTokens() *ast.TokenSet {
+	return &rewriteOptChainVisitTokens
 }
 
 // Java: RewriteOptionalChainingOperator.TranspilationCallback.shouldTraverse(NodeTraversal, Node, Node)
 func (c *RewriteOptionalChainingOperator_TranspilationCallback) ShouldTraverse(t *NodeTraversal, n rhino.Node, parent rhino.Node) bool {
 	if n.IsScript() {
-		// Set the TmpVarNameCreator to be used when rewriting optional chains in this script.
-		c.rewriterBuilder.SetTmpVarNameCreator(c.outer.getTmpVarNameCreatorForInput(t.GetInput()))
 		scriptFeatures := NodeUtil_GetFeatureSetOfScript(n)
 		// ensures that the pass early exits if script does not contain the feature
-		return scriptFeatures == nil || scriptFeatures.ContainsFeature(parser.FeatureSet_Feature_OPTIONAL_CHAINING)
+		if scriptFeatures != nil && !scriptFeatures.ContainsFeature(parser.FeatureSet_Feature_OPTIONAL_CHAINING) {
+			return false
+		}
+		c.currentInput = t.GetInput()
 	}
 	return true
 }
 
 // Java: RewriteOptionalChainingOperator.TranspilationCallback.visit(NodeTraversal, Node, Node)
 func (c *RewriteOptionalChainingOperator_TranspilationCallback) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
-	if NodeUtil_IsEndOfFullOptChain(n) {
-		c.optChains = append(c.optChains, c.rewriterBuilder.Build(n))
-	} else if n.IsScript() {
+	if n.IsScript() {
 		// We transpile all of the optional chains in a single script as a batch because,
 		// rewriting changes the AST in ways that could interfere with traversal
 		// if we change the chains as we visit them.
@@ -115,5 +149,7 @@ func (c *RewriteOptionalChainingOperator_TranspilationCallback) Visit(t *NodeTra
 			clear(c.optChains)
 			c.optChains = c.optChains[:0]
 		}
+	} else if NodeUtil_IsEndOfFullOptChain(n) {
+		c.optChains = append(c.optChains, c.rewriterBuilder.Build(n))
 	}
 }

@@ -27,7 +27,7 @@ func TestBoundsExceptionMessagesMatchJava(t *testing.T) {
 		{func() { StringSubstringFrom("abc", 4) }, "java.lang.StringIndexOutOfBoundsException: Range [4, 3) out of bounds for length 3"},
 		{func() { StringSubstring("abc", -1, 2) }, "java.lang.StringIndexOutOfBoundsException: Range [-1, 2) out of bounds for length 3"},
 		{func() { StringSubstring("abc", 1, 5) }, "java.lang.StringIndexOutOfBoundsException: Range [1, 5) out of bounds for length 3"},
-		{func() { NewStringBuilder().AppendCharSequenceRange(NewStringBuilderFrom("xyz"), 2, 5) }, "java.lang.IndexOutOfBoundsException: Range [2, 5) out of bounds for length 3"},
+		{func() { panic(NewIndexOutOfBoundsExceptionForRange(2, 5, 3)) }, "java.lang.IndexOutOfBoundsException: Range [2, 5) out of bounds for length 3"},
 		{func() { panic(NewIndexOutOfBoundsExceptionNoMessage()) }, "java.lang.IndexOutOfBoundsException"},
 	}
 	for i, c := range cases {
@@ -62,15 +62,6 @@ func TestArraysBinarySearchIntsMatchesJava(t *testing.T) {
 		if sb.String() != want[i] {
 			t.Errorf("binarySearch(%v) = %s, Java %s", arr, sb.String(), want[i])
 		}
-	}
-}
-
-func TestAppendCharSequenceRangeOfItself(t *testing.T) {
-	// Java: sb.append(sb, start, end), as RegExpTree.Repetition does.
-	sb := NewStringBuilderFrom("x(?:ab)")
-	sb.AppendCharSequenceRange(sb, 1, sb.Length())
-	if got := sb.String(); got != "x(?:ab)(?:ab)" {
-		t.Errorf("got %q", got)
 	}
 }
 

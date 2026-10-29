@@ -684,10 +684,19 @@ func (t *UnionType) AppendTo(sb *TypeStringBuilder) {
 	sb.Append("(")
 
 	alts := t.rawAlternates()
-	names := make([]string, 0, len(alts))
+	var namesBuf [8]string
+	names := namesBuf[:0]
+	if len(alts) > len(namesBuf) {
+		names = make([]string, 0, len(alts))
+	}
+	var clone TypeStringBuilder
 	for _, alt := range alts {
 		// Clone the config to preserve indentation.
-		names = append(names, sb.CloneWithConfig().AppendType(alt).Build())
+		clone.builder.Reset()
+		clone.isForAnnotations = sb.isForAnnotations
+		clone.indentDepth = sb.indentDepth
+		clone.AppendType(alt)
+		names = append(names, clone.Build())
 	}
 	// Sort types by stringification to get deterministic behaviour.
 	slices.SortStableFunc(names, jutil.StringCompareTo)

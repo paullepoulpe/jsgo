@@ -126,7 +126,7 @@ func (p *PeepholeFoldConstants) TryFoldGetElem(n rhino.Node) rhino.Node {
 
 	if obj, ok := left.AsObjectLit(); ok {
 		if key, ok := right.AsStringLit(); ok {
-			return p.TryFoldObjectPropAccess(n, obj, key.Value())
+			return p.tryFoldObjectPropAccessByID(n, obj, key.Node().GetStringID())
 		}
 	} else if arr, ok := left.AsArrayLit(); ok {
 		return p.TryFoldArrayAccess(n, arr, right.Node())
@@ -150,7 +150,7 @@ func (p *PeepholeFoldConstants) TryFoldGetProp(n rhino.Node) rhino.Node {
 	switch left.Token() {
 	case rhino.Token_OBJECTLIT:
 		obj, _ := left.AsObjectLit() // the case proves the kind
-		return p.TryFoldObjectPropAccess(n, obj, get.Property())
+		return p.tryFoldObjectPropAccessByID(n, obj, get.Node().GetStringID())
 	case rhino.Token_ARRAYLIT, rhino.Token_STRINGLIT:
 		if get.Node().GetStringID() != foldIDLength || NodeUtil_IsLValue(n) {
 			return n
@@ -190,7 +190,11 @@ func (p *PeepholeFoldConstants) TryFoldGetProp(n rhino.Node) rhino.Node {
 // Java: PeepholeFoldConstants.isFoldableElementIndexKey(Node, int)
 func PeepholeFoldConstants_IsFoldableElementIndexKey(right rhino.Node, intIndex int32) bool {
 	if right.IsStringLit() {
-		return intIndex >= 0 && right.GetString() == strconv.Itoa(int(intIndex))
+		if intIndex < 0 {
+			return false
+		}
+		var buf [32]byte
+		return right.GetString() == string(strconv.AppendInt(buf[:0], int64(intIndex), 10))
 	}
 	return NodeUtil_IsNumericResult(right)
 }
@@ -385,6 +389,10 @@ func (p *PeepholeFoldConstants) TryFoldStringArrayAccess(n rhino.Node, left ast.
 //
 // Go-only: left is typed, so the Java's isObjectLit() test is gone.
 func (p *PeepholeFoldConstants) TryFoldObjectPropAccess(n rhino.Node, left ast.ObjectLit, name string) rhino.Node {
+	return p.tryFoldObjectPropAccessByID(n, left, uint32(strpool.Lookup(name)))
+}
+
+func (p *PeepholeFoldConstants) tryFoldObjectPropAccessByID(n rhino.Node, left ast.ObjectLit, nameID uint32) rhino.Node {
 	jutil.CheckArgument(NodeUtil_IsNormalOrOptChainGet(n))
 
 	if NodeUtil_IsLValue(n) {
@@ -396,7 +404,6 @@ func (p *PeepholeFoldConstants) TryFoldObjectPropAccess(n rhino.Node, left ast.O
 	}
 
 	// find the last definition in the object literal
-	nameID := uint32(strpool.Lookup(name))
 	var key rhino.Node
 	var value rhino.Node
 	for member := range left.Members() {

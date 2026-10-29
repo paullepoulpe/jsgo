@@ -324,19 +324,10 @@ func dtoaRoundOff(buf []byte) ([]byte, bool) {
 }
 
 // Java: DToA.roundOff(StringBuilder)
-func DToA_RoundOff(buf *jutil.StringBuilder) bool {
-	i := buf.Length()
-	for i != 0 {
-		i--
-		c := buf.CharAt(i)
-		if c != '9' {
-			buf.SetCharAt(i, c+1)
-			buf.SetLength(i + 1)
-			return false
-		}
-	}
-	buf.SetLength(0)
-	return true
+func DToA_RoundOff(buf *[]byte) bool {
+	var carry bool
+	*buf, carry = dtoaRoundOff(*buf)
+	return carry
 }
 
 // bigShiftLeft is BigInteger.shiftLeft(n).
@@ -390,17 +381,9 @@ func dtoaInsertByte(buf []byte, pos int, ch byte) []byte {
 // stack-backed ASCII []byte buffer without StringBuilder heap allocations.
 //
 // Java: DToA.JS_dtoa(double, int, boolean, int, boolean[], StringBuilder)
-func DToA_JS_dtoa(d float64, mode int32, biasUp bool, ndigits int32, sign []bool, buf *jutil.StringBuilder) int32 {
-	var scratch [64]byte
-	b := scratch[:0]
-	for i := 0; i < buf.Length(); i++ {
-		b = append(b, byte(buf.CharAt(i)))
-	}
-	out, decPt := dtoaJSdtoa(d, mode, biasUp, ndigits, &sign[0], b)
-	buf.SetLength(0)
-	for _, c := range out {
-		buf.AppendChar(uint16(c))
-	}
+func DToA_JS_dtoa(d float64, mode int32, biasUp bool, ndigits int32, sign []bool, buf *[]byte) int32 {
+	var decPt int32
+	*buf, decPt = dtoaJSdtoa(d, mode, biasUp, ndigits, &sign[0], *buf)
 	return decPt
 }
 
@@ -997,15 +980,8 @@ func dtoaStripTrailingZeroes(buf []byte) []byte {
 }
 
 // Java: DToA.stripTrailingZeroes(StringBuilder)
-func DToA_StripTrailingZeroes(buf *jutil.StringBuilder) {
-	bl := buf.Length()
-	for {
-		bl--
-		if !(bl >= 0 && buf.CharAt(bl) == '0') {
-			break
-		}
-	}
-	buf.SetLength(bl + 1)
+func DToA_StripTrailingZeroes(buf *[]byte) {
+	*buf = dtoaStripTrailingZeroes(*buf)
 }
 
 // DToA_dtoaModes maps JSDToStrMode -> JS_dtoa mode.
@@ -1123,17 +1099,8 @@ func dtoaJSdtostr(buf []byte, mode int32, precision int32, d float64) []byte {
 }
 
 // Java: DToA.JS_dtostr(StringBuilder, int, int, double)
-func DToA_JS_dtostr(buffer *jutil.StringBuilder, mode int32, precision int32, d float64) {
-	var scratch [64]byte
-	buf := scratch[:0]
-	for i := 0; i < buffer.Length(); i++ {
-		buf = append(buf, byte(buffer.CharAt(i)))
-	}
-	out := dtoaJSdtostr(buf, mode, precision, d)
-	buffer.SetLength(0)
-	for _, b := range out {
-		buffer.AppendChar(uint16(b))
-	}
+func DToA_JS_dtostr(buffer *[]byte, mode int32, precision int32, d float64) {
+	*buffer = dtoaJSdtostr(*buffer, mode, precision, d)
 }
 
 // DToA_NumberToString is JavaScript's Number.prototype.toString().

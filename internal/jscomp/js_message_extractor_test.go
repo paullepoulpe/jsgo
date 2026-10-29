@@ -36,13 +36,16 @@ var jsMessageExtractorTest_TEST_ID_GENERATOR JsMessage_IdGenerator = jsMessageEx
 type jsMessageExtractorTest_idGenerator struct{}
 
 func (jsMessageExtractorTest_idGenerator) GenerateId(meaning *string, messageParts []JsMessage_Part) string {
-	idBuilder := jutil.NewStringBuilder()
-	idBuilder.Append(jutil.ToJavaString(meaning)).AppendChar('_')
+	var idBuilder strings.Builder
+	idBuilder.WriteString(jutil.ToJavaString(meaning))
+	idBuilder.WriteByte('_')
 	for _, messagePart := range messageParts {
 		if messagePart.IsPlaceholder() {
-			idBuilder.AppendChar('p').Append(strconv.Itoa(jutil.StringLength(messagePart.GetCanonicalPlaceholderName())))
+			idBuilder.WriteByte('p')
+			idBuilder.WriteString(strconv.Itoa(jutil.StringLength(messagePart.GetCanonicalPlaceholderName())))
 		} else {
-			idBuilder.AppendChar('s').Append(strconv.Itoa(jutil.StringLength(messagePart.GetString())))
+			idBuilder.WriteByte('s')
+			idBuilder.WriteString(strconv.Itoa(jutil.StringLength(messagePart.GetString())))
 		}
 	}
 
@@ -109,10 +112,10 @@ func TestJsMessageExtractor_ExtractNewStyleMessage1(t *testing.T) {
 		jsMessageExtractorTest_extractMessage(t, nil, "var MSG_SILLY = goog.getMsg('silly test message');"))
 }
 
-func jsMessageExtractorTest_map(kv ...string) *jutil.LinkedHashMap[string, string] {
-	m := jutil.NewLinkedHashMap[string, string]()
+func jsMessageExtractorTest_map(kv ...string) map[string]string {
+	m := make(map[string]string, len(kv)/2)
 	for i := 0; i < len(kv); i += 2 {
-		m.Put(kv[i], kv[i+1])
+		m[kv[i]] = kv[i+1]
 	}
 	return m
 }

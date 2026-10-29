@@ -553,21 +553,21 @@ func (t *JSTypeBase) GetPropertyKindByKeyWithAutobox(pname Property_Key, autobox
 //
 // Java: JSType.getPropertyKind(String, boolean)
 func (t *JSTypeBase) GetPropertyKindWithAutobox(pname string, autobox bool) JSType_HasPropertyKind {
-	return t.self().GetPropertyKindByKeyWithAutobox(NewProperty_StringKey(pname), autobox)
+	return t.self().GetPropertyKindByKeyWithAutobox(propertyKeyLookup(pname), autobox)
 }
 
 // GetPropertyKind checks whether the property is present on the object.
 //
 // Java: JSType.getPropertyKind(String)
 func (t *JSTypeBase) GetPropertyKind(pname string) JSType_HasPropertyKind {
-	return t.self().GetPropertyKindByKey(NewProperty_StringKey(pname))
+	return t.self().GetPropertyKindByKey(propertyKeyLookup(pname))
 }
 
 // HasProperty checks whether the property is present on the object.
 //
 // Java: JSType.hasProperty(String)
 func (t *JSTypeBase) HasProperty(pname string) bool {
-	return t.self().HasPropertyByKey(NewProperty_StringKey(pname))
+	return t.self().HasPropertyByKey(propertyKeyLookup(pname))
 }
 
 // Java: JSType.hasProperty(Property.Key)
@@ -1339,7 +1339,7 @@ func (t *JSTypeBase) FindPropertyTypeByKey(propertyName Property_Key) JSType {
 //
 // Java: JSType.findPropertyType(String)
 func (t *JSTypeBase) FindPropertyType(propertyName string) JSType {
-	return t.self().FindPropertyTypeByKey(NewProperty_StringKey(propertyName))
+	return t.self().FindPropertyTypeByKey(propertyKeyLookup(propertyName))
 }
 
 // FindPropertyTypeWithoutConsideringTemplateTypes looks up a property on
@@ -1384,7 +1384,9 @@ type JSType_WithSourceRef interface {
 //
 // Java: JSType.toString()
 func (t *JSTypeBase) String() string {
-	return NewTypeStringBuilder(false).AppendType(t.self()).Build()
+	var sb TypeStringBuilder
+	sb.AppendType(t.self())
+	return sb.Build()
 }
 
 // ToAnnotationString: don't call from this package; use appendAsNonNull
@@ -1392,11 +1394,13 @@ func (t *JSTypeBase) String() string {
 //
 // Java: JSType.toAnnotationString(Nullability)
 func (t *JSTypeBase) ToAnnotationString(nullability JSType_Nullability) string {
-	builder := NewTypeStringBuilder(true)
+	builder := TypeStringBuilder{isForAnnotations: true}
 	if nullability == JSType_Nullability_EXPLICIT {
-		return builder.AppendNonNull(t.self()).Build()
+		builder.AppendNonNull(t.self())
+	} else {
+		builder.AppendType(t.self())
 	}
-	return builder.AppendType(t.self()).Build()
+	return builder.Build()
 }
 
 // Java: JSType.toMaybeObjectType()

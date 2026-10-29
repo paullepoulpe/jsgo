@@ -367,18 +367,20 @@ func jsMessageVisitor_isDeclareIcuTemplateCallee(calleeNode rhino.Node) bool {
 }
 
 type jsMessageBuildInput struct {
-	messageKeyFromLhs          string
-	sourceName                 string
-	messageText                string
-	description                string
-	meaning                    string
-	alternateMessageId         string
-	messageParts               []JsMessage_Part
-	placeholderExampleMap      *jutil.LinkedHashMap[string, string]
-	placeholderOriginalCodeMap *jutil.LinkedHashMap[string, string]
-	hasDescription             bool
-	hasMeaning                 bool
-	hasAlternateMessageId      bool
+	messageKeyFromLhs            string
+	sourceName                   string
+	messageText                  string
+	description                  string
+	meaning                      string
+	alternateMessageId           string
+	messageParts                 []JsMessage_Part
+	placeholderExampleMap        map[string]string
+	placeholderExampleOrder      []string
+	placeholderOriginalCodeMap   map[string]string
+	placeholderOriginalCodeOrder []string
+	hasDescription               bool
+	hasMeaning                   bool
+	hasAlternateMessageId        bool
 }
 
 // Java: JsMessageVisitor.buildJsMessage(InputForBuildJsMsg)
@@ -418,8 +420,8 @@ func (v *JsMessageVisitor) buildJsMessage(input jsMessageBuildInput) *JsMessage 
 
 	return NewJsMessage_Builder().
 		AppendParts(messageParts).
-		SetPlaceholderNameToExampleMap(input.placeholderExampleMap).
-		SetPlaceholderNameToOriginalCodeMap(input.placeholderOriginalCodeMap).
+		setPlaceholderNameToExampleOrdered(input.placeholderExampleMap, input.placeholderExampleOrder).
+		setPlaceholderNameToOriginalCodeOrdered(input.placeholderOriginalCodeMap, input.placeholderOriginalCodeOrder).
 		SetIsAnonymous(isAnonymous).
 		SetIsExternalMsg(isExternal).
 		SetKey(messageKeyFinal).
@@ -679,7 +681,7 @@ func (v *JsMessageVisitor) extractJsMessageDefinition(
 		return JsMessageDefinition{}, malErr
 	}
 
-	placeholderValuesMap := placeholderObjectLiteralMap.extractAsValueMap()
+	placeholderValuesMap, placeholderValuesOrder := placeholderObjectLiteralMap.extractAsValueMapAndOrder()
 
 	jsMessageOptions, malErr := extractJsMessageOptions(optionsBagArgument)
 	if malErr != nil {
@@ -690,18 +692,20 @@ func (v *JsMessageVisitor) extractJsMessageDefinition(
 	}
 
 	jsExtractedMessage := v.buildJsMessage(jsMessageBuildInput{
-		messageKeyFromLhs:          messageKeyFromLhs,
-		sourceName:                 sourceName,
-		messageText:                googGetMsgParsedText.originalMsgText,
-		messageParts:               googGetMsgParsedText.parts,
-		placeholderExampleMap:      jsMessageOptions.placeholderExamplesMap,
-		placeholderOriginalCodeMap: jsMessageOptions.placeholderOriginalCodeMap,
-		description:                description,
-		hasDescription:             hasDescription,
-		meaning:                    meaning,
-		hasMeaning:                 hasMeaning,
-		alternateMessageId:         alternateMessageId,
-		hasAlternateMessageId:      hasAlternateMessageId,
+		messageKeyFromLhs:            messageKeyFromLhs,
+		sourceName:                   sourceName,
+		messageText:                  googGetMsgParsedText.originalMsgText,
+		messageParts:                 googGetMsgParsedText.parts,
+		placeholderExampleMap:        jsMessageOptions.placeholderExamplesMap,
+		placeholderExampleOrder:      jsMessageOptions.placeholderExamplesOrder,
+		placeholderOriginalCodeMap:   jsMessageOptions.placeholderOriginalCodeMap,
+		placeholderOriginalCodeOrder: jsMessageOptions.placeholderOriginalCodeOrder,
+		description:                  description,
+		hasDescription:               hasDescription,
+		meaning:                      meaning,
+		hasMeaning:                   hasMeaning,
+		alternateMessageId:           alternateMessageId,
+		hasAlternateMessageId:        hasAlternateMessageId,
 	})
 
 	return JsMessageDefinition{
@@ -710,6 +714,7 @@ func (v *JsMessageVisitor) extractJsMessageDefinition(
 		templateTextNode:      msgTextNode,
 		placeholderValuesNode: valuesObjLit,
 		placeholderValueMap:   placeholderValuesMap,
+		placeholderValueOrder: placeholderValuesOrder,
 		escapeLessThan:        jsMessageOptions.isEscapeLessThan,
 		unescapeHtmlEntities:  jsMessageOptions.isUnescapeHtmlEntities,
 	}, nil
@@ -774,18 +779,20 @@ func (v *JsMessageVisitor) extractIcuTemplateDefinition(
 	}
 
 	extractedMessage := v.buildJsMessage(jsMessageBuildInput{
-		messageKeyFromLhs:          messageKeyFromLhs,
-		sourceName:                 sourceName,
-		messageText:                icuMessageTemplateString.template,
-		messageParts:               extractedIcuTemplateParts.extractedParts,
-		placeholderExampleMap:      icuOptions.placeholderExamplesMap,
-		placeholderOriginalCodeMap: icuOptions.placeholderOriginalCodeMap,
-		description:                icuOptions.description,
-		hasDescription:             true,
-		meaning:                    icuOptions.meaning,
-		hasMeaning:                 icuOptions.hasMeaning,
-		alternateMessageId:         icuOptions.alternateMessageId,
-		hasAlternateMessageId:      icuOptions.hasAlternateMessageId,
+		messageKeyFromLhs:            messageKeyFromLhs,
+		sourceName:                   sourceName,
+		messageText:                  icuMessageTemplateString.template,
+		messageParts:                 extractedIcuTemplateParts.extractedParts,
+		placeholderExampleMap:        icuOptions.placeholderExamplesMap,
+		placeholderExampleOrder:      icuOptions.placeholderExamplesOrder,
+		placeholderOriginalCodeMap:   icuOptions.placeholderOriginalCodeMap,
+		placeholderOriginalCodeOrder: icuOptions.placeholderOriginalCodeOrder,
+		description:                  icuOptions.description,
+		hasDescription:               true,
+		meaning:                      icuOptions.meaning,
+		hasMeaning:                   icuOptions.hasMeaning,
+		alternateMessageId:           icuOptions.alternateMessageId,
+		hasAlternateMessageId:        icuOptions.hasAlternateMessageId,
 	})
 
 	return IcuTemplateDefinition{
@@ -883,8 +890,10 @@ func isJsMessageOptionName(key string) bool {
 }
 
 type jsMessageOptions struct {
-	placeholderExamplesMap       *jutil.LinkedHashMap[string, string]
-	placeholderOriginalCodeMap   *jutil.LinkedHashMap[string, string]
+	placeholderExamplesMap       map[string]string
+	placeholderExamplesOrder     []string
+	placeholderOriginalCodeMap   map[string]string
+	placeholderOriginalCodeOrder []string
 	exampleObjectLiteralMap      jsMessageObjectLiteralMap
 	originalCodeObjectLiteralMap jsMessageObjectLiteralMap
 	isEscapeLessThan             bool
@@ -924,7 +933,7 @@ func extractJsMessageOptions(optionsBag rhino.Node) (jsMessageOptions, *malforme
 	if err != nil {
 		return jsMessageOptions{}, err
 	}
-	placeholderExamplesMap, err := exampleObjectLiteralMap.extractAsStringToStringMap()
+	placeholderExamplesMap, placeholderExamplesOrder, err := exampleObjectLiteralMap.extractAsStringToStringMap()
 	if err != nil {
 		return jsMessageOptions{}, err
 	}
@@ -933,7 +942,7 @@ func extractJsMessageOptions(optionsBag rhino.Node) (jsMessageOptions, *malforme
 	if err != nil {
 		return jsMessageOptions{}, err
 	}
-	placeholderOriginalCodeMap, err := originalCodeObjectLiteralMap.extractAsStringToStringMap()
+	placeholderOriginalCodeMap, placeholderOriginalCodeOrder, err := originalCodeObjectLiteralMap.extractAsStringToStringMap()
 	if err != nil {
 		return jsMessageOptions{}, err
 	}
@@ -942,7 +951,9 @@ func extractJsMessageOptions(optionsBag rhino.Node) (jsMessageOptions, *malforme
 		isEscapeLessThan:             isEscapeLessThan,
 		isUnescapeHtmlEntities:       isUnescapeHtmlEntities,
 		placeholderExamplesMap:       placeholderExamplesMap,
+		placeholderExamplesOrder:     placeholderExamplesOrder,
 		placeholderOriginalCodeMap:   placeholderOriginalCodeMap,
+		placeholderOriginalCodeOrder: placeholderOriginalCodeOrder,
 		exampleObjectLiteralMap:      exampleObjectLiteralMap,
 		originalCodeObjectLiteralMap: originalCodeObjectLiteralMap,
 	}, nil
@@ -960,8 +971,10 @@ type icuTemplateOptions struct {
 	description                  string
 	meaning                      string
 	alternateMessageId           string
-	placeholderExamplesMap       *jutil.LinkedHashMap[string, string]
-	placeholderOriginalCodeMap   *jutil.LinkedHashMap[string, string]
+	placeholderExamplesMap       map[string]string
+	placeholderExamplesOrder     []string
+	placeholderOriginalCodeMap   map[string]string
+	placeholderOriginalCodeOrder []string
 	placeholderNames             map[string]struct{}
 	exampleObjectLiteralMap      jsMessageObjectLiteralMap
 	originalCodeObjectLiteralMap jsMessageObjectLiteralMap
@@ -1021,7 +1034,7 @@ func extractIcuTemplateOptions(optionsBag rhino.Node) (icuTemplateOptions, *malf
 	if err != nil {
 		return icuTemplateOptions{}, err
 	}
-	placeholderExamplesMap, err := exampleObjectLiteralMap.extractAsStringToStringMap()
+	placeholderExamplesMap, placeholderExamplesOrder, err := exampleObjectLiteralMap.extractAsStringToStringMap()
 	if err != nil {
 		return icuTemplateOptions{}, err
 	}
@@ -1030,15 +1043,15 @@ func extractIcuTemplateOptions(optionsBag rhino.Node) (icuTemplateOptions, *malf
 	if err != nil {
 		return icuTemplateOptions{}, err
 	}
-	placeholderOriginalCodeMap, err := originalCodeObjectLiteralMap.extractAsStringToStringMap()
+	placeholderOriginalCodeMap, placeholderOriginalCodeOrder, err := originalCodeObjectLiteralMap.extractAsStringToStringMap()
 	if err != nil {
 		return icuTemplateOptions{}, err
 	}
 
 	var placeholderNames map[string]struct{}
-	if !placeholderExamplesMap.IsEmpty() || !placeholderOriginalCodeMap.IsEmpty() {
-		placeholderNames = make(map[string]struct{}, placeholderExamplesMap.Size()+placeholderOriginalCodeMap.Size())
-		for k := range placeholderExamplesMap.Keys() {
+	if len(placeholderExamplesOrder) > 0 || len(placeholderOriginalCodeOrder) > 0 {
+		placeholderNames = make(map[string]struct{}, len(placeholderExamplesOrder)+len(placeholderOriginalCodeOrder))
+		for _, k := range placeholderExamplesOrder {
 			if !JsMessage_IsCanonicalPlaceholderNameFormat(k) {
 				return icuTemplateOptions{}, &malformedMessageError{
 					msg:  "Placeholder not in UPPER_SNAKE_CASE: " + k,
@@ -1047,7 +1060,7 @@ func extractIcuTemplateOptions(optionsBag rhino.Node) (icuTemplateOptions, *malf
 			}
 			placeholderNames[k] = struct{}{}
 		}
-		for k := range placeholderOriginalCodeMap.Keys() {
+		for _, k := range placeholderOriginalCodeOrder {
 			if _, seen := placeholderNames[k]; !seen && !JsMessage_IsCanonicalPlaceholderNameFormat(k) {
 				return icuTemplateOptions{}, &malformedMessageError{
 					msg:  "Placeholder not in UPPER_SNAKE_CASE: " + k,
@@ -1065,7 +1078,9 @@ func extractIcuTemplateOptions(optionsBag rhino.Node) (icuTemplateOptions, *malf
 		alternateMessageId:           alternateMessageId,
 		hasAlternateMessageId:        hasAlternateMessageId,
 		placeholderExamplesMap:       placeholderExamplesMap,
+		placeholderExamplesOrder:     placeholderExamplesOrder,
 		placeholderOriginalCodeMap:   placeholderOriginalCodeMap,
+		placeholderOriginalCodeOrder: placeholderOriginalCodeOrder,
 		placeholderNames:             placeholderNames,
 		exampleObjectLiteralMap:      exampleObjectLiteralMap,
 		originalCodeObjectLiteralMap: originalCodeObjectLiteralMap,
@@ -1167,19 +1182,34 @@ func (m *jsMessageObjectLiteralMap) extractAsValueMap() *jutil.LinkedHashMap[str
 	return out
 }
 
-func (m *jsMessageObjectLiteralMap) extractAsStringToStringMap() (*jutil.LinkedHashMap[string, string], *malformedMessageError) {
+func (m *jsMessageObjectLiteralMap) extractAsValueMapAndOrder() (map[string]rhino.Node, []string) {
 	if len(m.entries) == 0 {
 		return nil, nil
 	}
-	out := jutil.NewLinkedHashMapWithCapacity[string, string](len(m.entries))
-	for _, e := range m.entries {
+	out := make(map[string]rhino.Node, len(m.entries))
+	order := make([]string, len(m.entries))
+	for i, e := range m.entries {
+		out[e.key] = e.node.GetOnlyChild()
+		order[i] = e.key
+	}
+	return out, order
+}
+
+func (m *jsMessageObjectLiteralMap) extractAsStringToStringMap() (map[string]string, []string, *malformedMessageError) {
+	if len(m.entries) == 0 {
+		return nil, nil, nil
+	}
+	out := make(map[string]string, len(m.entries))
+	order := make([]string, len(m.entries))
+	for i, e := range m.entries {
 		val, err := jsMessageVisitor_extractStringFromStringExprNode(e.node.GetOnlyChild())
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
-		out.PutNew(e.key, val)
+		out[e.key] = val
+		order[i] = e.key
 	}
-	return out, nil
+	return out, order, nil
 }
 
 func (m *jsMessageObjectLiteralMap) checkForUnexpectedKeys(

@@ -25,6 +25,7 @@ import (
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/parser"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
+	"github.com/paullepoulpe/jsgo/internal/strpool"
 )
 
 // Go-only: this pass uses the typed AST view (internal/ast) to read the
@@ -82,11 +83,11 @@ func (p *PeepholeCollectPropertyAssignments) OptimizeSubtree(subtree rhino.Node)
 			continue
 		}
 
-		ident := name.Ident()
+		identID := name.Node().GetStringID()
 		for propertyCandidate := child.GetNext(); !propertyCandidate.IsNil(); propertyCandidate = child.GetNext() {
 			// This does not infinitely loop because collectProperty always
 			// removes propertyCandidate from its parent when it returns true.
-			if !p.CollectProperty(propertyCandidate, ident, value) {
+			if !p.collectPropertyByID(propertyCandidate, identID, value) {
 				break
 			}
 			codeChanged = true
@@ -184,13 +185,21 @@ func PeepholeCollectPropertyAssignments_IsPropertyAssignmentToName(propertyCandi
 
 // Java: PeepholeCollectPropertyAssignments.collectProperty(Node, String, Node)
 func (p *PeepholeCollectPropertyAssignments) CollectProperty(propertyCandidate rhino.Node, name string, value ast.Expr) bool {
+	id := uint32(strpool.Lookup(name))
+	if id == 0 {
+		return false
+	}
+	return p.collectPropertyByID(propertyCandidate, id, value)
+}
+
+func (p *PeepholeCollectPropertyAssignments) collectPropertyByID(propertyCandidate rhino.Node, nameID uint32, value ast.Expr) bool {
 	prop, ok := PeepholeCollectPropertyAssignments_IsPropertyAssignmentToName(propertyCandidate)
 	if !ok {
 		return false
 	}
 
 	// Must be an assignment to the recent variable...
-	if name != prop.obj.Ident() {
+	if nameID != prop.obj.Node().GetStringID() {
 		return false
 	}
 
@@ -202,7 +211,7 @@ func (p *PeepholeCollectPropertyAssignments) CollectProperty(propertyCandidate r
 	}
 	// and does not have a reference to a variable initialized after it.
 	if !NodeUtil_IsLiteralValue(rhs, true) &&
-		PeepholeCollectPropertyAssignments_MightContainForwardReference(rhs, name) {
+		peepholeCollectPropertyAssignments_mightContainForwardReferenceByID(rhs, nameID) {
 		return false
 	}
 
@@ -300,19 +309,26 @@ func (p *PeepholeCollectPropertyAssignments) CollectObjectProperty(objectLiteral
 	// Go-only: Java checks that the lhs is a GETPROP or a GETELEM, and returns
 	// false for anything else; prop.lhs is one of them.
 	var propertyName string
+	var propertyNameNode rhino.Node
+	var propertyNameID uint32
 	var hasPropertyName bool
 	elem, isGetElem := prop.lhs.AsGetElem()
 	if isGetElem {
 		property := elem.Index()
 		if number, ok := property.AsNumber(); ok {
 			propertyName, hasPropertyName = p.GetSideEffectFreeStringValue(number.Node())
+			if hasPropertyName {
+				propertyNameID = uint32(strpool.Lookup(propertyName))
+			}
 		} else if str, ok := property.AsStringLit(); ok {
-			propertyName, hasPropertyName = str.Value(), true
+			propertyNameNode = str.Node()
+			propertyNameID, hasPropertyName = propertyNameNode.GetStringID(), true
 		} else {
 			return false
 		}
 	} else if get, ok := prop.lhs.AsGetProp(); ok {
-		propertyName, hasPropertyName = get.Property(), true
+		propertyNameNode = get.Node()
+		propertyNameID, hasPropertyName = propertyNameNode.GetStringID(), true
 	}
 
 	// Check if the new property already exists in the object literal
@@ -320,12 +336,9 @@ func (p *PeepholeCollectPropertyAssignments) CollectObjectProperty(objectLiteral
 	var existingProperty rhino.Node
 	for currentProperty := objectLiteral.Node().GetFirstChild(); !currentProperty.IsNil(); currentProperty = currentProperty.GetNext() {
 		if currentProperty.IsStringKey() || currentProperty.IsMemberFunctionDef() {
-			// Get the name of the current property
-			currentPropertyName := currentProperty.GetString()
-			// Get the value of the property
 			currentValue := currentProperty.GetFirstChild()
 			// Compare the current property name with the new property name
-			if hasPropertyName && currentPropertyName == propertyName {
+			if hasPropertyName && propertyNameID != 0 && currentProperty.GetStringID() == propertyNameID {
 				existingProperty = currentProperty
 				// Check if the current value and the new value are side-effect
 				isCurrentValueSideEffect := NodeUtil_CanBeSideEffected(currentValue)
@@ -338,18 +351,20 @@ func (p *PeepholeCollectPropertyAssignments) CollectObjectProperty(objectLiteral
 				break
 			}
 		} else if currentProperty.IsGetterDef() || currentProperty.IsSetterDef() {
-			currentPropertyName := currentProperty.GetString()
-			if hasPropertyName && currentPropertyName == propertyName {
+			if hasPropertyName && propertyNameID != 0 && currentProperty.GetStringID() == propertyNameID {
 				return false
 			}
 		} else if computed, ok := ast.AsComputedProp(currentProperty); ok {
 			key, ok := computed.Key().AsStringLit()
-			if !ok || (hasPropertyName && key.Value() == propertyName) {
+			if !ok || (hasPropertyName && propertyNameID != 0 && key.Node().GetStringID() == propertyNameID) {
 				return false
 			}
 		}
 	}
 
+	if !propertyNameNode.IsNil() {
+		propertyName = propertyNameNode.GetString()
+	}
 	newProperty := rhino.IR_StringKey(propertyName).SrcrefIfMissing(prop.stmt.Node())
 	// Preserve the quotedness of a property reference
 	if isGetElem {
@@ -369,11 +384,19 @@ func (p *PeepholeCollectPropertyAssignments) CollectObjectProperty(objectLiteral
 
 // Java: PeepholeCollectPropertyAssignments.mightContainForwardReference(Node, String)
 func PeepholeCollectPropertyAssignments_MightContainForwardReference(node rhino.Node, varName string) bool {
+	id := uint32(strpool.Lookup(varName))
+	if id == 0 {
+		return false
+	}
+	return peepholeCollectPropertyAssignments_mightContainForwardReferenceByID(node, id)
+}
+
+func peepholeCollectPropertyAssignments_mightContainForwardReferenceByID(node rhino.Node, varNameID uint32) bool {
 	if node.IsName() {
-		return varName == node.GetString()
+		return varNameID == node.GetStringID()
 	}
 	for child := node.GetFirstChild(); !child.IsNil(); child = child.GetNext() {
-		if PeepholeCollectPropertyAssignments_MightContainForwardReference(child, varName) {
+		if peepholeCollectPropertyAssignments_mightContainForwardReferenceByID(child, varNameID) {
 			return true
 		}
 	}

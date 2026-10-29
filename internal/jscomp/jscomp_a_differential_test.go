@@ -339,7 +339,7 @@ func TestJscompADifferential(t *testing.T) {
 		case "adddep":
 			if d.expectCols(row, 5) {
 				info := jsaDepInfo(row[1])
-				sb := jutil.NewStringBuilder()
+				sb := jutil.NewStringWriter()
 				DependencyInfo_Util_WriteAddDependency(sb, info)
 				d.check("adddep", row, "writeAddDependency", sb.String(), row[2])
 				d.check("adddep", row, "toString", info.String(), row[3])

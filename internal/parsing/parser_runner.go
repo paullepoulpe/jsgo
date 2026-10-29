@@ -68,14 +68,22 @@ var (
 	parserRunner_defaultExtraAnnotations map[string]struct{}
 	parserRunner_defaultExtraOrder       []string
 	parserRunner_defaultAnnotations      map[string]Annotation
-	parserRunner_suppressionNames        *jutil.LinkedHashSet[string]
 	parserRunner_suppressionSet          map[string]struct{}
 	parserRunner_suppressionOrder        []string
-	parserRunner_reservedVars            *jutil.LinkedHashSet[string]
+	parserRunner_reservedVarsSet         map[string]struct{}
+	parserRunner_reservedVarsOrder       []string
 	parserRunner_closurePrimitiveSet     map[string]struct{}
 	parserRunner_closurePrimitiveOrder   []string
 
-	parserRunner_initOnce sync.Once
+	parserRunner_initOnce         sync.Once
+	parserRunner_reservedVarsOnce = sync.OnceValue(func() *jutil.LinkedHashSet[string] {
+		ParserRunner_InitResourceConfig()
+		return jutil.NewLinkedHashSet(parserRunner_reservedVarsOrder...)
+	})
+	parserRunner_suppressionNamesOnce = sync.OnceValue(func() *jutil.LinkedHashSet[string] {
+		ParserRunner_InitResourceConfig()
+		return jutil.NewLinkedHashSet(parserRunner_suppressionOrder...)
+	})
 )
 
 // Java: ParserRunner.createConfig(LanguageMode, Set<String>, StrictMode)
@@ -149,26 +157,29 @@ func ParserRunner_CreateConfigWithModes(
 
 // Java: ParserRunner.getReservedVars()
 func ParserRunner_GetReservedVars() *jutil.LinkedHashSet[string] {
+	return parserRunner_reservedVarsOnce()
+}
+
+// ParserRunner_GetReservedVarsSet returns the immutable reserved-variable set
+// as a plain Go map without allocating a LinkedHashSet.
+func ParserRunner_GetReservedVarsSet() map[string]struct{} {
 	ParserRunner_InitResourceConfig()
-	return parserRunner_reservedVars
+	return parserRunner_reservedVarsSet
 }
 
 // Java: ParserRunner.getSuppressionNames()
 func ParserRunner_GetSuppressionNames() *jutil.LinkedHashSet[string] {
-	ParserRunner_InitResourceConfig()
-	return parserRunner_suppressionNames
+	return parserRunner_suppressionNamesOnce()
 }
 
 // Java: ParserRunner.initResourceConfig()
 func ParserRunner_InitResourceConfig() {
 	parserRunner_initOnce.Do(func() {
-		annotationNames := ParserRunner_ExtractList(ParserConfiguration_GetString("jsdoc.annotations"))
-		parserRunner_suppressionNames = ParserRunner_ExtractList(ParserConfiguration_GetString("jsdoc.suppressions"))
-		closurePrimitiveNames := ParserRunner_ExtractList(ParserConfiguration_GetString("jsdoc.primitives"))
-		parserRunner_reservedVars = ParserRunner_ExtractList(ParserConfiguration_GetString("compiler.reserved.vars"))
-		parserRunner_suppressionSet, parserRunner_suppressionOrder = config_stringSetAndOrderCopyOf(parserRunner_suppressionNames.All())
-		parserRunner_closurePrimitiveSet, parserRunner_closurePrimitiveOrder = config_stringSetAndOrderCopyOf(closurePrimitiveNames.All())
-		for name := range annotationNames.All() {
+		_, annotationOrder := parserRunner_extractList(ParserConfiguration_GetString("jsdoc.annotations"))
+		parserRunner_suppressionSet, parserRunner_suppressionOrder = parserRunner_extractList(ParserConfiguration_GetString("jsdoc.suppressions"))
+		parserRunner_closurePrimitiveSet, parserRunner_closurePrimitiveOrder = parserRunner_extractList(ParserConfiguration_GetString("jsdoc.primitives"))
+		parserRunner_reservedVarsSet, parserRunner_reservedVarsOrder = parserRunner_extractList(ParserConfiguration_GetString("compiler.reserved.vars"))
+		for _, name := range annotationOrder {
 			if name == "" {
 				continue
 			}
@@ -182,25 +193,50 @@ func ParserRunner_InitResourceConfig() {
 				}
 			}
 		}
-		parserRunner_defaultAnnotations = Config_BuildAnnotations(annotationNames.All())
+		parserRunner_defaultAnnotations = Config_BuildAnnotations(slices.Values(annotationOrder))
 	})
 }
 
 // Java: ParserRunner.extractList(String)
-func ParserRunner_ExtractList(configProp string) *jutil.LinkedHashSet[string] {
-	parts := strings.Split(configProp, ",")
-	for i, part := range parts {
-		u := jutil.StringToUTF16(part)
-		first, last := 0, len(u)-1
-		for first < len(u) && jutil.CharMatcher_Whitespace_Matches(u[first]) {
+func ParserRunner_ExtractList(configProp string) map[string]struct{} {
+	set, _ := parserRunner_extractList(configProp)
+	return set
+}
+
+func parserRunner_extractList(configProp string) (map[string]struct{}, []string) {
+	n := strings.Count(configProp, ",") + 1
+	set := make(map[string]struct{}, n)
+	order := make([]string, 0, n)
+	for part := range strings.SplitSeq(configProp, ",") {
+		trimmed := parserRunner_trimWhitespace(part)
+		if _, dup := set[trimmed]; !dup {
+			set[trimmed] = struct{}{}
+			order = append(order, trimmed)
+		}
+	}
+	return set, order
+}
+
+func parserRunner_trimWhitespace(s string) string {
+	if jutil.IsASCII(s) {
+		first, last := 0, len(s)
+		for first < last && jutil.CharMatcher_Whitespace_Matches(uint16(s[first])) {
 			first++
 		}
-		for last > first && jutil.CharMatcher_Whitespace_Matches(u[last]) {
+		for last > first && jutil.CharMatcher_Whitespace_Matches(uint16(s[last-1])) {
 			last--
 		}
-		parts[i] = jutil.StringFromUTF16(u[first : last+1])
+		return s[first:last]
 	}
-	return jutil.NewLinkedHashSet(parts...)
+	u := jutil.StringToUTF16(s)
+	first, last := 0, len(u)
+	for first < last && jutil.CharMatcher_Whitespace_Matches(u[first]) {
+		first++
+	}
+	for last > first && jutil.CharMatcher_Whitespace_Matches(u[last-1]) {
+		last--
+	}
+	return jutil.StringFromUTF16(u[first:last])
 }
 
 // Java: ParserRunner.parse(StaticSourceFile, String, Config, ErrorReporter)

@@ -706,9 +706,10 @@ func transpileAndOptimizeClosureUnawareTest_buildCode(idx int, closureUnaware ..
 goog.module('test%d');
 `,
 			idx)
-	output := jutil.NewStringBuilder().Append(prefix)
+	var output strings.Builder
+	output.WriteString(prefix)
 	for _, block := range closureUnaware {
-		output.Append(
+		output.WriteString(
 			jutil.StringFormat(
 				`/** @closureUnaware */
 (function() {

@@ -184,8 +184,8 @@ func ApplySuggestedFixes_ApplyCodeReplacements(
 		for _, replacement := range sortedReplacements {
 			start := replacement.GetStartPosition()
 			end := replacement.GetEndPosition()
-			if lastIndex < 0 || start < lastIndex || start > len(code) {
-				panic(jutil.NewIndexOutOfBoundsException("Index out of bounds"))
+			if lastIndex < 0 || lastIndex > start || start > len(code) {
+				panic(jutil.NewIndexOutOfBoundsExceptionForRange(lastIndex, start, len(code)))
 			}
 			sb.WriteString(code[lastIndex:start])
 			sb.WriteString(replacement.GetNewContent())
@@ -193,36 +193,33 @@ func ApplySuggestedFixes_ApplyCodeReplacements(
 		}
 		if lastIndex <= len(code) {
 			if lastIndex < 0 {
-				panic(jutil.NewIndexOutOfBoundsException("Index out of bounds"))
+				panic(jutil.NewIndexOutOfBoundsExceptionForRange(lastIndex, len(code), len(code)))
 			}
 			sb.WriteString(code[lastIndex:])
 		}
 		return sb.String()
 	}
 
-	codeUnits := applySuggestedFixes_CharSequence(jutil.StringToUTF16(code))
-	sb := jutil.NewStringBuilder()
+	codeUnits := jutil.StringToUTF16(code)
+	out := make([]uint16, 0, len(codeUnits))
 	lastIndex := 0
 	for _, replacement := range sortedReplacements {
-		sb.AppendCharSequenceRange(codeUnits, lastIndex, replacement.GetStartPosition())
-		sb.Append(replacement.GetNewContent())
+		start := replacement.GetStartPosition()
+		if lastIndex < 0 || lastIndex > start || start > len(codeUnits) {
+			panic(jutil.NewIndexOutOfBoundsExceptionForRange(lastIndex, start, len(codeUnits)))
+		}
+		out = append(out, codeUnits[lastIndex:start]...)
+		out = append(out, jutil.StringToUTF16(replacement.GetNewContent())...)
 		lastIndex = replacement.GetEndPosition()
 	}
-	if lastIndex <= codeUnits.Length() {
-		sb.AppendCharSequenceRange(codeUnits, lastIndex, codeUnits.Length())
+	if lastIndex <= len(codeUnits) {
+		if lastIndex < 0 {
+			panic(jutil.NewIndexOutOfBoundsExceptionForRange(lastIndex, len(codeUnits), len(codeUnits)))
+		}
+		out = append(out, codeUnits[lastIndex:]...)
 	}
-	return sb.String()
+	return jutil.StringFromUTF16(out)
 }
-
-// applySuggestedFixes_CharSequence is the String `code` as the
-// CharSequence that StringBuilder.append(CharSequence, int, int) reads.
-//
-// Go-only: language-adapter — the UTF-16 code units of a Go string.
-type applySuggestedFixes_CharSequence []uint16
-
-func (s applySuggestedFixes_CharSequence) Length() int { return len(s) }
-
-func (s applySuggestedFixes_CharSequence) CharAt(index int) uint16 { return s[index] }
 
 // applySuggestedFixes_ImmutableSortedSetCopyOf is
 // ImmutableSortedSet.copyOf(replacements) and
@@ -258,21 +255,25 @@ func ApplySuggestedFixes_ContainsOverlaps(replacements []*CodeReplacement) bool 
 
 // Java: private static class ApplySuggestedFixes.ReplacementMap
 type ApplySuggestedFixes_ReplacementMap struct {
-	map_ *jutil.LinkedHashMap[string, []*CodeReplacement]
+	map_ map[string][]*CodeReplacement
+	keys []string
 }
 
 // Java: ApplySuggestedFixes.ReplacementMap()
 func NewApplySuggestedFixes_ReplacementMap() *ApplySuggestedFixes_ReplacementMap {
-	return &ApplySuggestedFixes_ReplacementMap{map_: jutil.NewLinkedHashMap[string, []*CodeReplacement]()}
+	return &ApplySuggestedFixes_ReplacementMap{map_: make(map[string][]*CodeReplacement)}
 }
 
 // Java: ApplySuggestedFixes.ReplacementMap.putIfNoOverlap(SuggestedFix)
 func (r *ApplySuggestedFixes_ReplacementMap) PutIfNoOverlap(fix *SuggestedFix) {
 	if r.CanPut(fix) {
 		for k, v := range fix.GetReplacements().Entries() {
-			cur := r.map_.Get(k)
+			cur, ok := r.map_[k]
+			if !ok {
+				r.keys = append(r.keys, k)
+			}
 			if !slices.ContainsFunc(cur, func(existing *CodeReplacement) bool { return existing.Equals(v) }) {
-				r.map_.Put(k, append(cur, v))
+				r.map_[k] = append(cur, v)
 			}
 		}
 	}
@@ -282,7 +283,7 @@ func (r *ApplySuggestedFixes_ReplacementMap) PutIfNoOverlap(fix *SuggestedFix) {
 func (r *ApplySuggestedFixes_ReplacementMap) CanPut(fix *SuggestedFix) bool {
 	reps := fix.GetReplacements()
 	for filename := range reps.KeySet() {
-		existing := r.map_.Get(filename)
+		existing := r.map_[filename]
 		incoming := reps.GetSlice(filename)
 		combined := make([]*CodeReplacement, 0, len(existing)+len(incoming))
 		combined = append(combined, existing...)
@@ -297,7 +298,13 @@ func (r *ApplySuggestedFixes_ReplacementMap) CanPut(fix *SuggestedFix) bool {
 
 // Java: ApplySuggestedFixes.ReplacementMap.entrySet()
 func (r *ApplySuggestedFixes_ReplacementMap) EntrySet() iter.Seq2[string, []*CodeReplacement] {
-	return r.map_.All()
+	return func(yield func(string, []*CodeReplacement) bool) {
+		for _, k := range r.keys {
+			if !yield(k, r.map_[k]) {
+				return
+			}
+		}
+	}
 }
 
 // Java: ApplySuggestedFixes()

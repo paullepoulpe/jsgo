@@ -116,14 +116,15 @@ func (c *IsolatePolyfillsTest) BuildPolyfillJs() string {
 		jscompPolyfillName = "$jscomp$polyfill"
 	}
 
-	syntheticCode := jutil.NewStringBuilder().Append("var $jscomp = {};\n")
+	var syntheticCode strings.Builder
+	syntheticCode.WriteString("var $jscomp = {};\n")
 
 	for polyfill := range c.polyfillsToInject.All() {
 		// $jscomp.polyfill('syntheticName');
-		syntheticCode.Append(jscompPolyfillName)
-		syntheticCode.Append("('")
-		syntheticCode.Append(polyfill)
-		syntheticCode.Append("');\n")
+		syntheticCode.WriteString(jscompPolyfillName)
+		syntheticCode.WriteString("('")
+		syntheticCode.WriteString(polyfill)
+		syntheticCode.WriteString("');\n")
 	}
 	return syntheticCode.String()
 }

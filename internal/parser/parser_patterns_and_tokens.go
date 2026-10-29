@@ -97,15 +97,17 @@ func (p *Parser) ParseRestAssignmentTarget(patternKind Parser_PatternKind) Parse
 // Java: Parser.parseArrayPattern(PatternKind)
 func (p *Parser) ParseArrayPattern(kind Parser_PatternKind) ParseTree {
 	start := p.GetTreeStartLocation()
-	elements := []ParseTree{}
+	base := len(p.treeStack)
 	p.Eat(TokenType_OPEN_SQUARE)
 	for p.Peek(TokenType_COMMA) || p.PeekArrayPatternElement() {
 		if p.Peek(TokenType_COMMA) {
 			nullStart := p.GetTreeStartLocation()
 			p.Eat(TokenType_COMMA)
-			elements = append(elements, NewNullTree(p.GetTreeLocation(nullStart)))
+			elem := NewNullTree(p.GetTreeLocation(nullStart))
+			p.treeStack = append(p.treeStack, elem)
 		} else {
-			elements = append(elements, p.ParsePatternAssignmentTarget(kind))
+			elem := p.ParsePatternAssignmentTarget(kind)
+			p.treeStack = append(p.treeStack, elem)
 
 			if p.Peek(TokenType_COMMA) {
 				// Consume the comma separator
@@ -118,14 +120,18 @@ func (p *Parser) ParseArrayPattern(kind Parser_PatternKind) ParseTree {
 	}
 	if p.Peek(TokenType_ELLIPSIS) {
 		p.RecordFeatureUsed(FeatureSet_Feature_ARRAY_PATTERN_REST)
-		elements = append(elements, p.ParseIterRest(kind))
+		rest := p.ParseIterRest(kind)
+		p.treeStack = append(p.treeStack, rest)
 	}
 	if p.Eat(TokenType_CLOSE_SQUARE).IsNull() {
+		clear(p.treeStack[base:])
+		p.treeStack = p.treeStack[:base]
 		// If we get no closing bracket then return invalid tree to avoid compiler tripping
 		// downstream. It's needed only for IDE mode where compiler continues processing even if
 		// source has syntactic errors.
 		return NewMissingPrimaryExpressionTree(p.GetTreeLocation(p.GetTreeStartLocation()))
 	}
+	elements := p.popTrees(base)
 	return NewArrayPatternTree(p.GetTreeLocation(start), elements)
 }
 
@@ -135,10 +141,11 @@ func (p *Parser) ParseArrayPattern(kind Parser_PatternKind) ParseTree {
 // Java: Parser.parseObjectPattern(PatternKind)
 func (p *Parser) ParseObjectPattern(kind Parser_PatternKind) ParseTree {
 	start := p.GetTreeStartLocation()
-	fields := []ParseTree{}
+	base := len(p.treeStack)
 	p.Eat(TokenType_OPEN_CURLY)
 	for p.PeekObjectPatternField() {
-		fields = append(fields, p.ParseObjectPatternField(kind))
+		field := p.ParseObjectPatternField(kind)
+		p.treeStack = append(p.treeStack, field)
 
 		if p.Peek(TokenType_COMMA) {
 			// Consume the comma separator
@@ -153,9 +160,11 @@ func (p *Parser) ParseObjectPattern(kind Parser_PatternKind) ParseTree {
 		restStart := p.GetTreeStartLocation()
 		p.Eat(TokenType_ELLIPSIS)
 		patternAssignmentTarget := p.ParseRestAssignmentTarget(kind)
-		fields = append(fields, NewObjectRestTree(p.GetTreeLocation(restStart), patternAssignmentTarget))
+		rest := NewObjectRestTree(p.GetTreeLocation(restStart), patternAssignmentTarget)
+		p.treeStack = append(p.treeStack, rest)
 	}
 	p.Eat(TokenType_CLOSE_CURLY)
+	fields := p.popTrees(base)
 	return NewObjectPatternTree(p.GetTreeLocation(start), fields)
 }
 
@@ -647,6 +656,30 @@ func (p *Parser) RecordFeatureUsed(feature FeatureSet_Feature) *Parser {
 	return p
 }
 
+// Java: Parser.peekPredefinedString(String)
+func (p *Parser) PeekPredefinedString(string_ string) bool {
+	return p.PeekPredefinedStringAt(0, string_)
+}
+
+// EatPredefinedString consumes an identifier with the given value, or
+// reports an error and returns Token{}.
+//
+// Java: Parser.eatPredefinedString(String)
+func (p *Parser) EatPredefinedString(string_ string) Token {
+	token := p.EatId()
+	if token.IsNull() || !token.ValueEquals(string_) {
+		p.ReportExpectedError(token, string_)
+		return Token{}
+	}
+	return token
+}
+
+// Java: Parser.peekPredefinedString(int, String)
+func (p *Parser) PeekPredefinedStringAt(index int, string_ string) bool {
+	return p.PeekAt(index, TokenType_IDENTIFIER) &&
+		p.PeekTokenAt(index).ValueEquals(string_)
+}
+
 // variableDeclarationListAsParseTree widens a possibly-nil
 // *VariableDeclarationListTree to ParseTree.
 func variableDeclarationListAsParseTree(t *VariableDeclarationListTree) ParseTree {
@@ -654,4 +687,75 @@ func variableDeclarationListAsParseTree(t *VariableDeclarationListTree) ParseTre
 		return nil
 	}
 	return t
+}
+
+// Java: Parser.resetScanner(SourcePosition)
+func (p *Parser) ResetScanner(start SourcePosition) {
+	// TODO(bradfordcsmith): lastSourcePosition should really point to the end of the last token
+	//     before the tree to correctly detect implicit semicolons, but it doesn't matter for the
+	//     current use case.
+	p.lastSourcePosition = start
+	p.scanner.SetPosition(p.lastSourcePosition)
+}
+
+// Java: Parser.resetScanner(ParseTree)
+func (p *Parser) ResetScannerToTree(tree ParseTree) {
+	p.scanner.SetPosition(tree.GetParseTreeBase().Location.Start)
+}
+
+// Java: Parser.resetScannerAfter(ParseTree)
+func (p *Parser) ResetScannerAfter(parseTree ParseTree) {
+	p.lastSourcePosition = parseTree.GetParseTreeBase().Location.End
+	// NOTE: The "end" position for a parseTree actually points to the first character after the
+	//     last token in the tree, so this is not an off-by-one error.
+	p.scanner.SetPosition(p.lastSourcePosition)
+}
+
+// Java: Parser.parseSuperExpression()
+func (p *Parser) ParseSuperExpression() *SuperExpressionTree {
+	start := p.GetTreeStartLocation()
+	p.Eat(TokenType_SUPER)
+	if p.Peek(TokenType_QUESTION_DOT) { // super?.() not allowed
+		p.ReportError("Optional chaining is forbidden in super?.")
+	}
+	return NewSuperExpressionTree(p.GetTreeLocation(start))
+}
+
+// Java: Parser.parseThisExpression()
+func (p *Parser) ParseThisExpression() *ThisExpressionTree {
+	start := p.GetTreeStartLocation()
+	p.Eat(TokenType_THIS)
+	return p.newThisExpressionTree(p.GetTreeLocation(start))
+}
+
+// ParseDynamicImportExpression parses import(...).
+// https://tc39.github.io/proposal-dynamic-import
+//
+// Java: Parser.parseDynamicImportExpression()
+func (p *Parser) ParseDynamicImportExpression() *DynamicImportTree {
+	start := p.GetTreeStartLocation()
+	p.Eat(TokenType_IMPORT)
+	if p.Peek(TokenType_QUESTION_DOT) { // import?.() not allowed
+		p.ReportError("Optional chaining is forbidden in import?.")
+	}
+	p.Eat(TokenType_OPEN_PAREN)
+	argument := p.ParseAssignmentExpression()
+	p.Eat(TokenType_CLOSE_PAREN)
+	p.RecordFeatureUsed(FeatureSet_Feature_DYNAMIC_IMPORT)
+	return NewDynamicImportTree(p.GetTreeLocation(start), argument)
+}
+
+// Java: Parser.parseIdentifierExpression()
+func (p *Parser) ParseIdentifierExpression() *IdentifierExpressionTree {
+	start := p.GetTreeStartLocation()
+	identifier := p.EatId()
+	return p.newIdentifierExpressionTree(p.GetTreeLocation(start), identifier)
+}
+
+// Java: Parser.parseMissingPrimaryExpression()
+func (p *Parser) ParseMissingPrimaryExpression() ParseTree {
+	start := p.GetTreeStartLocation()
+	p.NextToken()
+	p.ReportError("primary expression expected")
+	return NewMissingPrimaryExpressionTree(p.GetTreeLocation(start))
 }

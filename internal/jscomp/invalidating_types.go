@@ -89,72 +89,170 @@ func (it *InvalidatingTypes) IsInvalidating(type_ rhino.JSType) bool {
 	return false
 }
 
-// MismatchLocations maps invalidating JSTypes to their mismatch AST nodes in insertion order.
-type MismatchLocations struct {
-	m *jutil.ObjectLinkedHashMap[rhino.JSType, *jutil.ObjectLinkedHashSet[rhino.Node]]
+// MismatchNodeSet is an insertion-ordered, deduplicated view of mismatch AST nodes.
+type MismatchNodeSet []rhino.Node
+
+// Contains reports whether n is in s.
+func (s MismatchNodeSet) Contains(n rhino.Node) bool {
+	return slices.Contains(s, n)
 }
 
-func (ml *MismatchLocations) put(typ rhino.JSType, loc rhino.Node) {
-	s, ok := ml.m.Lookup(typ)
-	if !ok {
-		s = jutil.NewObjectLinkedHashSet[rhino.Node]()
-		ml.m.Put(typ, s)
+// All iterates AST nodes in insertion order.
+func (s MismatchNodeSet) All() iter.Seq[rhino.Node] {
+	return slices.Values([]rhino.Node(s))
+}
+
+// Size returns the number of AST nodes.
+func (s MismatchNodeSet) Size() int { return len(s) }
+
+// IsEmpty reports whether s has no AST nodes.
+func (s MismatchNodeSet) IsEmpty() bool { return len(s) == 0 }
+
+// ToSlice returns a defensive copy of the AST nodes (non-nil empty slice when empty).
+func (s MismatchNodeSet) ToSlice() []rhino.Node {
+	if len(s) == 0 {
+		return []rhino.Node{}
 	}
-	s.Add(loc)
+	return slices.Clone([]rhino.Node(s))
+}
+
+type mismatchLocEntry struct {
+	typ         rhino.JSType
+	locs        []rhino.Node
+	nextPlusOne uint32
+}
+
+// MismatchLocations maps invalidating JSTypes to their mismatch AST nodes in insertion order.
+type MismatchLocations struct {
+	entries []mismatchLocEntry
+	buckets map[int32]uint32
 }
 
 // KeySet iterates the invalidating JSTypes in insertion order.
-func (ml *MismatchLocations) KeySet() iter.Seq[rhino.JSType] { return ml.m.Keys() }
+func (ml *MismatchLocations) KeySet() iter.Seq[rhino.JSType] {
+	return func(yield func(rhino.JSType) bool) {
+		for i := range ml.entries {
+			if !yield(ml.entries[i].typ) {
+				return
+			}
+		}
+	}
+}
 
 // Get returns the mismatch AST nodes for typ (empty when absent).
-func (ml *MismatchLocations) Get(typ rhino.JSType) *jutil.ObjectLinkedHashSet[rhino.Node] {
-	if s, ok := ml.m.Lookup(typ); ok {
-		return s
+func (ml *MismatchLocations) Get(typ rhino.JSType) MismatchNodeSet {
+	if typ == nil || len(ml.entries) == 0 {
+		return nil
 	}
-	return jutil.NewObjectLinkedHashSet[rhino.Node]()
+	for cur := ml.buckets[typ.HashCode()]; cur != 0; cur = ml.entries[cur-1].nextPlusOne {
+		e := &ml.entries[cur-1]
+		if e.typ == typ || e.typ.Equals(typ) {
+			return MismatchNodeSet(e.locs)
+		}
+	}
+	return nil
 }
 
 // InverseMismatchLocations maps mismatch AST nodes to their involved invalidating JSTypes.
 type InverseMismatchLocations struct {
-	m *jutil.ObjectLinkedHashMap[rhino.Node, *jutil.ObjectLinkedHashSet[rhino.JSType]]
+	order  []rhino.Node
+	byNode map[rhino.Node][]rhino.JSType
 }
 
-// AsMap returns the underlying node-to-types map.
-func (iml *InverseMismatchLocations) AsMap() *jutil.ObjectLinkedHashMap[rhino.Node, *jutil.ObjectLinkedHashSet[rhino.JSType]] {
-	return iml.m
+// InverseMismatchLocationsMap adapts InverseMismatchLocations for ordered iteration.
+type InverseMismatchLocationsMap struct {
+	inv *InverseMismatchLocations
+}
+
+// All iterates (node, involved types) pairs in insertion order.
+func (m InverseMismatchLocationsMap) All() iter.Seq2[rhino.Node, *jutil.ObjectLinkedHashSet[rhino.JSType]] {
+	return func(yield func(rhino.Node, *jutil.ObjectLinkedHashSet[rhino.JSType]) bool) {
+		if m.inv == nil {
+			return
+		}
+		for _, loc := range m.inv.order {
+			types := m.inv.byNode[loc]
+			s := jutil.NewObjectLinkedHashSet[rhino.JSType]()
+			for _, t := range types {
+				s.Add(t)
+			}
+			if !yield(loc, s) {
+				return
+			}
+		}
+	}
+}
+
+// AsMap returns an ordered map view of the node-to-types index.
+func (iml *InverseMismatchLocations) AsMap() InverseMismatchLocationsMap {
+	return InverseMismatchLocationsMap{inv: iml}
 }
 
 // Inverse returns a node-to-types view preserving insertion order.
 func (ml *MismatchLocations) Inverse() *InverseMismatchLocations {
-	inv := jutil.NewObjectLinkedHashMap[rhino.Node, *jutil.ObjectLinkedHashSet[rhino.JSType]]()
-	for typ, locs := range ml.m.All() {
-		for loc := range locs.All() {
-			s, ok := inv.Lookup(loc)
+	if len(ml.entries) == 0 {
+		return &InverseMismatchLocations{}
+	}
+	byNode := make(map[rhino.Node][]rhino.JSType, len(ml.entries))
+	order := make([]rhino.Node, 0, len(ml.entries))
+	for i := range ml.entries {
+		typ := ml.entries[i].typ
+		for _, loc := range ml.entries[i].locs {
+			existing, ok := byNode[loc]
 			if !ok {
-				s = jutil.NewObjectLinkedHashSet[rhino.JSType]()
-				inv.Put(loc, s)
+				order = append(order, loc)
+			} else {
+				dup := false
+				for _, t := range existing {
+					if t == typ || t.Equals(typ) {
+						dup = true
+						break
+					}
+				}
+				if dup {
+					continue
+				}
 			}
-			s.Add(typ)
+			byNode[loc] = append(existing, typ)
 		}
 	}
-	return &InverseMismatchLocations{m: inv}
+	return &InverseMismatchLocations{order: order, byNode: byNode}
 }
 
 // Java: InvalidatingTypes.getMismatchLocations()
 func (it *InvalidatingTypes) GetMismatchLocations() *MismatchLocations {
-	out := &MismatchLocations{
-		m: jutil.NewObjectLinkedHashMap[rhino.JSType, *jutil.ObjectLinkedHashSet[rhino.Node]](),
-	}
+	count := 0
 	for i := range it.entries {
-		e := &it.entries[i]
-		if e.hasFirstLoc {
-			out.put(e.typ, e.firstLoc)
-			for _, loc := range e.extraLocs {
-				out.put(e.typ, loc)
-			}
+		if it.entries[i].hasFirstLoc {
+			count++
 		}
 	}
-	return out
+	if count == 0 {
+		return &MismatchLocations{}
+	}
+	entries := make([]mismatchLocEntry, 0, count)
+	buckets := make(map[int32]uint32, count)
+	for i := range it.entries {
+		e := &it.entries[i]
+		if !e.hasFirstLoc {
+			continue
+		}
+		locs := make([]rhino.Node, 1+len(e.extraLocs))
+		locs[0] = e.firstLoc
+		copy(locs[1:], e.extraLocs)
+		h := e.typ.HashCode()
+		idx := uint32(len(entries))
+		entries = append(entries, mismatchLocEntry{
+			typ:         e.typ,
+			locs:        locs,
+			nextPlusOne: buckets[h],
+		})
+		buckets[h] = idx + 1
+	}
+	return &MismatchLocations{
+		entries: entries,
+		buckets: buckets,
+	}
 }
 
 // InvalidatingTypes_IsAmbiguousOrStructuralType returns true if any of the

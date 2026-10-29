@@ -129,11 +129,11 @@ func (c *RewritePolyfillsTest) CreateRuntimeJsLibManager(compiler *Compiler) *Ru
 
 // Java: RewritePolyfillsTest.addLibraries(String, String[])
 func (c *RewritePolyfillsTest) AddLibraries(code string, libraries []string) string {
-	expected := jutil.NewStringBuilder()
+	var expected strings.Builder
 	for _, library := range libraries {
-		expected.Append(c.injectableLibraries.Get(library))
+		expected.WriteString(c.injectableLibraries.Get(library))
 	}
-	expected.Append(code)
+	expected.WriteString(code)
 	return expected.String()
 }
 

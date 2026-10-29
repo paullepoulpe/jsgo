@@ -195,11 +195,11 @@ func (t *InstanceObjectType) AppendTo(sb *TypeStringBuilder) {
 			sourceFileName = jutil.ToJavaString(n.GetSourceFileName())
 			lineno = n.GetLineno()
 		}
-		sb.Append("<anonymous@").
-			Append(sourceFileName).
-			Append(":").
-			Append(jutil.ToJavaString(lineno)).
-			Append(">")
+		sb.Append("<anonymous@")
+		sb.Append(sourceFileName)
+		sb.Append(":")
+		sb.Append(jutil.ToJavaString(lineno))
+		sb.Append(">")
 	}
 	sb.Append(name)
 }

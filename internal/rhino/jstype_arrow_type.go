@@ -191,7 +191,7 @@ func (t *ArrowType) HasTemplatedParameterType() bool {
 //
 // Java: ArrowType.toString()
 func (t *ArrowType) String() string {
-	typeStringBuilder := NewTypeStringBuilder(false)
+	var typeStringBuilder TypeStringBuilder
 	typeStringBuilder.Append("(")
 	if len(t.parameterList) != 0 {
 		panic(jutil.NewClassCastException("java.lang.Object", "java.lang.String"))

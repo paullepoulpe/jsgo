@@ -156,19 +156,6 @@ func TestCaseFormat(t *testing.T) {
 	}
 }
 
-func TestStringBuilder(t *testing.T) {
-	sb := NewStringBuilderFrom("ab")
-	sb.AppendChar(0xD800).Append("c").AppendInt(-12).InsertChar(0, '[').Insert(1, "x")
-	if sb.Length() != 9 || sb.CharAt(4) != 0xD800 {
-		t.Fatalf("length %d", sb.Length())
-	}
-	sb.SetCharAt(0, '{')
-	sb.SetLength(3)
-	if sb.String() != "{xa" {
-		t.Fatalf("got %q", sb.String())
-	}
-}
-
 func TestBigIntegerOverflow(t *testing.T) {
 	caught := ""
 	Try(func() { BigIntegerPow(NewBigIntegerFromString("5"), 800000000) }, func(e IArithmeticException) { caught = e.GetMessage() })

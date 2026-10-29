@@ -21,6 +21,7 @@ package jscomp
 
 import (
 	"strconv"
+	"strings"
 	"testing"
 
 	"github.com/paullepoulpe/jsgo/internal/jutil"
@@ -3158,11 +3159,10 @@ func (c *InlineFunctionsTest) TestIssue423() {
 // Java: InlineFunctionsTest.testIssue728()
 func (c *InlineFunctionsTest) TestIssue728() {
 	f := "var f = function() { return false; };"
-	calls := jutil.NewStringBuilder()
-	folded := jutil.NewStringBuilder()
+	var calls, folded strings.Builder
 	for i := 0; i < 30; i++ {
-		calls.Append("if (!f()) alert('x');")
-		folded.Append("if (!false) alert('x');")
+		calls.WriteString("if (!f()) alert('x');")
+		folded.WriteString("if (!false) alert('x');")
 	}
 	c.Test(f+calls.String(), folded.String())
 }

@@ -42,21 +42,41 @@ import "slices"
 type FunctionParamBuilder struct {
 	registry   *JSTypeRegistry
 	parameters []*FunctionType_Parameter
+	consumed   bool
 }
 
 var emptyFunctionTypeParams = []*FunctionType_Parameter{}
 
+// Init initializes a stack-allocated FunctionParamBuilder with an optional capacity hint.
+func (b *FunctionParamBuilder) Init(registry *JSTypeRegistry, initialParameterCapacity int) {
+	b.registry = registry
+	b.consumed = false
+	if initialParameterCapacity > 0 {
+		b.parameters = make([]*FunctionType_Parameter, 0, initialParameterCapacity)
+	} else {
+		b.parameters = nil
+	}
+}
+
+func (b *FunctionParamBuilder) ensureMutable() {
+	if b.consumed {
+		b.parameters = slices.Clone(b.parameters)
+		b.consumed = false
+	}
+}
+
 // Java: FunctionParamBuilder(JSTypeRegistry)
 func NewFunctionParamBuilder(registry *JSTypeRegistry) *FunctionParamBuilder {
-	return &FunctionParamBuilder{registry: registry, parameters: emptyFunctionTypeParams}
+	return &FunctionParamBuilder{registry: registry}
 }
 
 // Java: FunctionParamBuilder(JSTypeRegistry, int)
 func NewFunctionParamBuilderWithCapacity(registry *JSTypeRegistry, initialParameterCapacity int) *FunctionParamBuilder {
-	return &FunctionParamBuilder{
-		registry:   registry,
-		parameters: make([]*FunctionType_Parameter, 0, initialParameterCapacity),
+	b := &FunctionParamBuilder{registry: registry}
+	if initialParameterCapacity > 0 {
+		b.parameters = make([]*FunctionType_Parameter, 0, initialParameterCapacity)
 	}
+	return b
 }
 
 // AddRequiredParam adds a single required parameter without variadic slice allocation.
@@ -125,6 +145,7 @@ func (b *FunctionParamBuilder) AddVarArgs(type_ JSType) bool {
 //
 // Java: FunctionParamBuilder.newParameterFrom(Parameter)
 func (b *FunctionParamBuilder) NewParameterFrom(n *FunctionType_Parameter) {
+	b.ensureMutable()
 	b.parameters = append(b.parameters, n)
 }
 
@@ -145,6 +166,7 @@ func (b *FunctionParamBuilder) NewOptionalParameterFrom(p *FunctionType_Paramete
 //
 // Java: FunctionParamBuilder.NewParameter(JSType, boolean, boolean)
 func (b *FunctionParamBuilder) NewParameter(type_ JSType, isOptional bool, isVariadic bool) {
+	b.ensureMutable()
 	b.parameters = append(b.parameters, FunctionType_Parameter_Create(type_, isOptional, isVariadic))
 }
 
@@ -167,5 +189,6 @@ func (b *FunctionParamBuilder) Build() []*FunctionType_Parameter {
 	if len(b.parameters) == 0 {
 		return emptyFunctionTypeParams
 	}
-	return slices.Clone(b.parameters)
+	b.consumed = true
+	return b.parameters
 }

@@ -529,20 +529,16 @@ func (c *Compiler) InitChunks(externs []*SourceFile, chunks []*JSChunk, options 
 	}
 
 	// Generate the chunk graph, and report any errors in the chunk specification as errors.
-	failed := false
-	jutil.Try(func() {
-		c.chunkGraph = NewJSChunkGraph(chunks)
-	}, func(e *JSChunkGraph_ChunkDependenceException) {
+	chunkGraph, depErr := tryNewJSChunkGraph(chunks)
+	if depErr != nil {
 		// problems with the chunk format.  Report as an error.  The
 		// message gives all details.
 		c.Report(
 			JSError_Make(
-				Compiler_CHUNK_DEPENDENCY_ERROR, e.GetChunk().GetName(), e.GetDependentChunk().GetName()))
-		failed = true
-	})
-	if failed {
+				Compiler_CHUNK_DEPENDENCY_ERROR, depErr.GetChunk().GetName(), depErr.GetDependentChunk().GetName()))
 		return
 	}
+	c.chunkGraph = chunkGraph
 
 	// Creating the chunk graph can move weak source around, and end up with empty chunks.
 	c.fillEmptyChunks(c.GetChunks())

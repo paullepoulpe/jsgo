@@ -62,43 +62,36 @@ func (i *SourceMapInput) GetSourceMap(errorManager ErrorManager) *sourcemap.Sour
 		// Avoid re-reading or reparsing files.
 		i.cached = true
 		sourceMapPath := i.sourceFile.GetName()
-		jutil.Try(func() {
-			sourceMapContents := i.sourceFile.GetCode()
+		sourceMapContents, ioErr := i.sourceFile.getCode()
+		if ioErr != nil {
+			error := JSError_Make(SourceMapInput_SOURCEMAP_RESOLVE_FAILED, sourceMapPath, ioErr.GetMessage())
+			errorManager.Report(error.DefaultLevel().Ptr(), error)
+		} else {
 			consumer := sourcemap.NewSourceMapConsumerV3()
-			consumer.Parse(sourceMapContents)
-
-			// Detect an empty "default" source map provided by Gulp. We do not want
-			// to treat this file as having a real source map (implying this is an
-			// intermediate source file). Rather, this is the original source file.
-			// https://github.com/gulp-sourcemaps/gulp-sourcemaps/blob/91b94954/src/init/index.js#L116-L124
-			if consumer.GetFile() != nil &&
-				*consumer.GetFile() != "" &&
-				len(consumer.GetOriginalSources()) == 1 &&
-				sourceMapInput_contains(consumer.GetOriginalSources(), consumer.GetFile()) &&
-				len(consumer.GetOriginalSourcesContent()) == 1 &&
-				len(consumer.GetOriginalNames()) == 0 &&
-				consumer.GetLineCount() == -1 {
-				consumer = nil
-			}
-
-			i.parsedSourceMap = consumer
-			// Go-only: performance — the parsed map holds all that is
-			// needed; do not also keep the map's text (read again on demand).
-			i.sourceFile.ClearCachedSource()
-		}, func(e jutil.IException) {
-			switch e.(type) {
-			case jutil.IIOException:
-				error :=
-					JSError_Make(SourceMapInput_SOURCEMAP_RESOLVE_FAILED, sourceMapPath, e.GetMessage())
+			if parseErr := consumer.TryParse(sourceMapContents); parseErr != nil {
+				error := JSError_Make(SourceMapInput_SOURCEMAP_PARSE_FAILED, sourceMapPath, parseErr.GetMessage())
 				errorManager.Report(error.DefaultLevel().Ptr(), error)
-			case sourcemap.ISourceMapParseException:
-				error :=
-					JSError_Make(SourceMapInput_SOURCEMAP_PARSE_FAILED, sourceMapPath, e.GetMessage())
-				errorManager.Report(error.DefaultLevel().Ptr(), error)
-			default:
-				panic(e)
+			} else {
+				// Detect an empty "default" source map provided by Gulp. We do not want
+				// to treat this file as having a real source map (implying this is an
+				// intermediate source file). Rather, this is the original source file.
+				// https://github.com/gulp-sourcemaps/gulp-sourcemaps/blob/91b94954/src/init/index.js#L116-L124
+				if consumer.GetFile() != nil &&
+					*consumer.GetFile() != "" &&
+					len(consumer.GetOriginalSources()) == 1 &&
+					sourceMapInput_contains(consumer.GetOriginalSources(), consumer.GetFile()) &&
+					len(consumer.GetOriginalSourcesContent()) == 1 &&
+					len(consumer.GetOriginalNames()) == 0 &&
+					consumer.GetLineCount() == -1 {
+					consumer = nil
+				}
+
+				i.parsedSourceMap = consumer
+				// Go-only: performance — the parsed map holds all that is
+				// needed; do not also keep the map's text (read again on demand).
+				i.sourceFile.ClearCachedSource()
 			}
-		})
+		}
 		i.ready.Store(true)
 	}
 	return i.parsedSourceMap
@@ -138,12 +131,10 @@ func (i *SourceMapInput) GetOriginalPath() string {
 // GetRawSourceMapContents may return nil.
 //
 // Java: SourceMapInput.getRawSourceMapContents()
-func (i *SourceMapInput) GetRawSourceMapContents() (result *string) {
-	jutil.Try(func() {
-		code := i.sourceFile.GetCode()
-		result = &code
-	}, func(e jutil.IIOException) {
-		result = nil
-	})
-	return result
+func (i *SourceMapInput) GetRawSourceMapContents() *string {
+	code, err := i.sourceFile.getCode()
+	if err != nil {
+		return nil
+	}
+	return &code
 }

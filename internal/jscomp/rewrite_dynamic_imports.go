@@ -294,29 +294,69 @@ func RewriteDynamicImports_GetChunkFileName(chunk *JSChunk) string {
 //
 // Java: RewriteDynamicImports.retargetImportSpecifier(NodeTraversal, Node, JSChunk)
 func (r *RewriteDynamicImports) RetargetImportSpecifier(t *NodeTraversal, dynamicImport rhino.Node, targetChunk *JSChunk) {
-	var retargetedSpecifier string
 	importingChunkFilename := RewriteDynamicImports_GetChunkFileName(t.GetInput().GetChunk())
 	targetChunkFilename := RewriteDynamicImports_GetChunkFileName(targetChunk)
-	failed := false
-	jutil.Try(func() {
-		retargetedSpecifier =
-			ModuleLoader_RelativePathFrom(importingChunkFilename, targetChunkFilename)
-	}, func(e *jutil.IllegalArgumentException) {
+	retargetedSpecifier, ok := tryRelativePathFrom(importingChunkFilename, targetChunkFilename)
+	if !ok {
 		r.compiler.Report(
 			JSError_MakeWithNode(
 				dynamicImport,
 				ConvertChunksToESModules_UNABLE_TO_COMPUTE_RELATIVE_PATH,
 				importingChunkFilename,
 				targetChunkFilename))
-		failed = true
-	})
-	if failed {
 		return
 	}
 	originalSpecifierNode := dynamicImport.GetFirstChild()
 	newSpecifier := r.astFactory.CreateString(retargetedSpecifier).Srcref(originalSpecifierNode)
 	originalSpecifierNode.ReplaceWith(newSpecifier)
 	t.ReportCodeChangeWithNode(newSpecifier)
+}
+
+func tryRelativePathFrom(fromUriPath, toUriPath string) (string, bool) {
+	fromPath := jutil.Path_Of(fromUriPath)
+	toPath := jutil.Path_Of(toUriPath)
+	fromFolder := fromPath.GetParent()
+
+	if fromFolder == nil && toPath.GetParent() == nil {
+		return "./" + toUriPath, true
+	} else if fromFolder == nil &&
+		(strings.HasPrefix(toUriPath, ".") ||
+			strings.HasPrefix(toPath.String(), "/") ||
+			strings.HasPrefix(toPath.String(), "\\")) {
+		return toUriPath, true
+	} else if fromFolder == nil {
+		return "", false
+	}
+
+	if !canRelativizePath(fromFolder, toPath) {
+		return "", false
+	}
+	calculatedPath := fromFolder.Relativize(toPath).String()
+	if strings.HasPrefix(calculatedPath, ".") || strings.HasPrefix(calculatedPath, "/") {
+		return calculatedPath, true
+	}
+	return "./" + calculatedPath, true
+}
+
+func canRelativizePath(base, target *jutil.Path) bool {
+	if target.IsAbsolute() != base.IsAbsolute() {
+		return false
+	}
+	if base.Equals(target) || base.String() == "" {
+		return true
+	}
+	nb, nt := base.Normalize(), target.Normalize()
+	bCount, tCount := nb.GetNameCount(), nt.GetNameCount()
+	common := 0
+	for common < bCount && common < tCount && nb.GetName(common).Equals(nt.GetName(common)) {
+		common++
+	}
+	for i := common; i < bCount; i++ {
+		if nb.GetName(i).String() == ".." {
+			return false
+		}
+	}
+	return true
 }
 
 // AddChainedThen: since a dynamic import expression is a promise resolving

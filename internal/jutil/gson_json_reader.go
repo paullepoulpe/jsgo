@@ -1284,7 +1284,8 @@ func (r *JsonReader) locationString() string {
 }
 
 func (r *JsonReader) getPath(usePreviousPath bool) string {
-	result := NewStringBuilder().AppendChar('$')
+	var result strings.Builder
+	result.WriteByte('$')
 	for i := 0; i < r.stackSize; i++ {
 		switch r.stack[i] {
 		case jsonScope_EMPTY_ARRAY, jsonScope_NONEMPTY_ARRAY:
@@ -1294,11 +1295,13 @@ func (r *JsonReader) getPath(usePreviousPath bool) string {
 			if usePreviousPath && pathIndex > 0 && i == r.stackSize-1 {
 				pathIndex--
 			}
-			result.AppendChar('[').AppendInt(int64(pathIndex)).AppendChar(']')
+			result.WriteByte('[')
+			result.WriteString(itoa(pathIndex))
+			result.WriteByte(']')
 		case jsonScope_EMPTY_OBJECT, jsonScope_DANGLING_NAME, jsonScope_NONEMPTY_OBJECT:
-			result.AppendChar('.')
+			result.WriteByte('.')
 			if r.pathNames[i] != nil {
-				result.Append(*r.pathNames[i])
+				result.WriteString(*r.pathNames[i])
 			}
 		case jsonScope_NONEMPTY_DOCUMENT, jsonScope_EMPTY_DOCUMENT, jsonScope_CLOSED:
 		}

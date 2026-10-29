@@ -97,15 +97,9 @@ func MapDiagnosticToSuppression_PrintHelp() {
 // Java: MapDiagnosticToSuppression.printSuppressions(String[])
 func (m *MapDiagnosticToSuppression) PrintSuppressions(args []string) {
 	parser := args4j.NewCmdLineParser(m)
-	parsed := false
-	jutil.Try(func() {
-		parser.ParseArgument(args...)
-		parsed = true
-	}, func(ex args4j.ICmdLineException) {
+	if ex := parser.TryParseArgument(args...); ex != nil {
 		jutil.System_Err().Println("Could not parse arguments: " + ex.Error())
 		MapDiagnosticToSuppression_PrintHelp()
-	})
-	if !parsed {
 		return
 	}
 

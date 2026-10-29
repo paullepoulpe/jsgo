@@ -75,7 +75,22 @@ import (
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/parser"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
+	"github.com/paullepoulpe/jsgo/internal/strpool"
 )
+
+var es6ClassProtoID = uint32(strpool.Intern("__proto__"))
+
+var es6NormalizeClassesVisitTokens = func() ast.TokenSet {
+	var s ast.TokenSet
+	s.Add(rhino.Token_IN)
+	s.Add(rhino.Token_GETPROP)
+	s.Add(rhino.Token_OPTCHAIN_GETPROP)
+	s.Add(rhino.Token_CLASS)
+	s.Add(rhino.Token_NAME)
+	s.Add(rhino.Token_THIS)
+	s.Add(rhino.Token_SUPER)
+	return s
+}()
 
 // Go-only: this pass uses the typed AST view (internal/ast) where it reads
 // class shapes: the class (cls.Name(), cls.Extends(), cls.Body()), its
@@ -107,7 +122,7 @@ type Es6NormalizeClasses struct {
 	compiler                    AbstractCompiler
 	astFactory                  *AstFactory
 	expressionDecomposer        *ExpressionDecomposer
-	ctorCreator                 *SynthesizeExplicitConstructors
+	ctorCreator                 SynthesizeExplicitConstructors
 	transpileClassFields        bool
 	transpilePrivateClassFields bool
 
@@ -163,17 +178,19 @@ var Es6NormalizeClasses_ILLEGAL_PRIVATE_MEMBER_ASSIGNMENT = DiagnosticType_Error
 // rather than hardcoding compiler-generated variable names.
 //
 // Java: Es6NormalizeClasses.GENERIC_NAME_REPLACEMENTS
-var Es6NormalizeClasses_GENERIC_NAME_REPLACEMENTS = jutil.NewImmutableMapBuilder[string, string]().
-	Put("CLASS_DECL", es6NormalizeClasses_CLASS_DECL_VAR).
-	Put("CLASS_EXTENDS", es6NormalizeClasses_CLASS_EXTENDS_VAR).
-	Put("COMP_FIELD", es6NormalizeClasses_COMP_FIELD_VAR).
-	Put("STATIC_INIT", es6NormalizeClasses_STATIC_INIT_METHOD_NAME).
-	Put("STATIC_PRIVATE_MAP", es6NormalizeClasses_STATIC_PRIVATE_MAP_VAR).
-	Put("PRIVATE_MAP", es6NormalizeClasses_PRIVATE_MAP_VAR).
-	Put("PRIVATE_PROTO", es6NormalizeClasses_PRIVATE_PROTO_VAR).
-	Put("PRIVATE", es6NormalizeClasses_PRIVATE_VAR).
-	Put("TMP", es6NormalizeClasses_TMP_VAR).
-	BuildOrThrow()
+var Es6NormalizeClasses_GENERIC_NAME_REPLACEMENTS = func() *jutil.LinkedHashMap[string, string] {
+	m := jutil.NewLinkedHashMapWithCapacity[string, string](9)
+	m.Put("CLASS_DECL", es6NormalizeClasses_CLASS_DECL_VAR)
+	m.Put("CLASS_EXTENDS", es6NormalizeClasses_CLASS_EXTENDS_VAR)
+	m.Put("COMP_FIELD", es6NormalizeClasses_COMP_FIELD_VAR)
+	m.Put("STATIC_INIT", es6NormalizeClasses_STATIC_INIT_METHOD_NAME)
+	m.Put("STATIC_PRIVATE_MAP", es6NormalizeClasses_STATIC_PRIVATE_MAP_VAR)
+	m.Put("PRIVATE_MAP", es6NormalizeClasses_PRIVATE_MAP_VAR)
+	m.Put("PRIVATE_PROTO", es6NormalizeClasses_PRIVATE_PROTO_VAR)
+	m.Put("PRIVATE", es6NormalizeClasses_PRIVATE_VAR)
+	m.Put("TMP", es6NormalizeClasses_TMP_VAR)
+	return m
+}()
 
 // GenerateUniqueTmpVarName returns $jscomp$tmp$[FILE_ID]$[number]
 //
@@ -249,11 +266,16 @@ func Es6NormalizeClasses_GenerateUniquePrivateVarName(compiler AbstractCompiler,
 
 // Java: Es6NormalizeClasses(AbstractCompiler)
 func NewEs6NormalizeClasses(compiler AbstractCompiler) *Es6NormalizeClasses {
-	e := &Es6NormalizeClasses{}
-	e.compiler = compiler
-	e.astFactory = compiler.CreateAstFactory()
-	e.expressionDecomposer = compiler.CreateDefaultExpressionDecomposer()
-	e.ctorCreator = NewSynthesizeExplicitConstructors(compiler)
+	astFactory := compiler.CreateAstFactory()
+	e := &Es6NormalizeClasses{
+		compiler:             compiler,
+		astFactory:           astFactory,
+		expressionDecomposer: compiler.CreateDefaultExpressionDecomposer(),
+		ctorCreator: SynthesizeExplicitConstructors{
+			compiler:   compiler,
+			astFactory: astFactory,
+		},
+	}
 	// Note: This covers both public fields as well as static fields (they launched together).
 	options := compiler.GetOptions()
 	e.transpileClassFields = options.NeedsTranspilationOf(parser.FeatureSet_Feature_PUBLIC_CLASS_FIELDS)
@@ -267,6 +289,10 @@ func NewEs6NormalizeClasses(compiler AbstractCompiler) *Es6NormalizeClasses {
 	e.jscompPrivateMap = compiler.GetRuntimeJsLibManager().GetJsLibField("$jscomp.PrivateMap")
 	e.classStack = e.classStackBuf[:0]
 	return e
+}
+
+func (*Es6NormalizeClasses) visitTokens() *ast.TokenSet {
+	return &es6NormalizeClassesVisitTokens
 }
 
 // Java: Es6NormalizeClasses.process(Node, Node)
@@ -662,7 +688,11 @@ func (e *Es6NormalizeClasses) Visit(t *NodeTraversal, n rhino.Node, parent rhino
 
 // Java: Es6NormalizeClasses.maybeUpdateClassSelfRef(NodeTraversal, Node)
 func (e *Es6NormalizeClasses) MaybeUpdateClassSelfRef(t *NodeTraversal, name ast.Name) {
+	if len(e.classStack) == 0 {
+		return
+	}
 	nameNode := name.Node()
+	nameID := nameNode.GetStringID()
 	for i := len(e.classStack) - 1; i >= 0; i-- {
 		klass := e.classStack[i]
 		if !klass.hasBindingIdentifier {
@@ -671,13 +701,12 @@ func (e *Es6NormalizeClasses) MaybeUpdateClassSelfRef(t *NodeTraversal, name ast
 
 		bindingIdentifier := klass.bindingIdentifier.Node()
 		if
-		// Skip if the inner class name is the same as the class name (either this is a class
-		// declaration or the outer and inner class names are the same).
-		bindingIdentifier.MatchesNameNode(klass.normalizedNames.ClassNameNode()) ||
-			// Skip if this IS the inner class name node (removed later when we visit the class).
+		// Fast-path: reject when this nameNode does not match the inner class name ID,
+		// or IS the inner class name node itself (removed later when we visit the class),
+		// or the inner class name is the same as the outer class name.
+		nameID != bindingIdentifier.GetStringID() ||
 			nameNode == bindingIdentifier ||
-			// Skip if this nameNode is not equal to the inner class name.
-			!nameNode.MatchesQualifiedNameNode(bindingIdentifier) {
+			bindingIdentifier.MatchesNameNode(klass.normalizedNames.ClassNameNode()) {
 			continue
 		}
 
@@ -829,10 +858,18 @@ func (e *Es6NormalizeShorthandProperties) GetTranspiledAwayFeatures() *parser.Fe
 	return parser.FeatureSet_BARE_MINIMUM.With(parser.FeatureSet_Feature_SHORTHAND_OBJECT_PROPERTIES)
 }
 
+var es6RenameReferencesVisitTokens = func() ast.TokenSet {
+	var s ast.TokenSet
+	s.Add(rhino.Token_NAME)
+	return s
+}()
+
 type Es6ScopeRenameKey struct {
 	Root rhino.Node
 	Name string
 }
+
+const es6RenameSmallIDCap = 8
 
 // Es6RenameReferences renames references in code.
 type Es6RenameReferences struct {
@@ -845,18 +882,72 @@ type Es6RenameReferences struct {
 	// originally declared in the scope with the given root and had the
 	// original variable name to the new name.
 	renameTable map[Es6ScopeRenameKey]string
+	hasFilter   bool
+	smallIDs    [es6RenameSmallIDCap]uint32
+	smallCount  int
+	idSet       map[uint32]struct{}
 }
 
 // Java: Es6RenameReferences(Table<Node, String, String>)
 func NewEs6RenameReferences(renameTable map[Es6ScopeRenameKey]string) *Es6RenameReferences {
-	return &Es6RenameReferences{renameTable: renameTable}
+	e := &Es6RenameReferences{
+		renameTable: renameTable,
+		hasFilter:   true,
+	}
+	for k := range renameTable { // order-independent: collecting set of interned target name IDs for fast-path membership filter
+		e.addNameID(uint32(strpool.Intern(k.Name)))
+	}
+	return e
+}
+
+func (e *Es6RenameReferences) addNameID(id uint32) {
+	if e.idSet != nil {
+		e.idSet[id] = struct{}{}
+		return
+	}
+	for i := 0; i < e.smallCount; i++ {
+		if e.smallIDs[i] == id {
+			return
+		}
+	}
+	if e.smallCount < es6RenameSmallIDCap {
+		e.smallIDs[e.smallCount] = id
+		e.smallCount++
+		return
+	}
+	e.idSet = make(map[uint32]struct{}, len(e.renameTable))
+	for i := 0; i < e.smallCount; i++ {
+		e.idSet[e.smallIDs[i]] = struct{}{}
+	}
+	e.idSet[id] = struct{}{}
+}
+
+func (e *Es6RenameReferences) hasNameID(id uint32) bool {
+	if e.idSet != nil {
+		_, ok := e.idSet[id]
+		return ok
+	}
+	for i := 0; i < e.smallCount; i++ {
+		if e.smallIDs[i] == id {
+			return true
+		}
+	}
+	return false
+}
+
+func (*Es6RenameReferences) visitTokens() *ast.TokenSet {
+	return &es6RenameReferencesVisitTokens
 }
 
 // Java: Es6RenameReferences.visit(NodeTraversal, Node, Node)
 func (e *Es6RenameReferences) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
-	if NodeUtil_IsReferenceName(n) {
-		e.RenameReference(t, n, n.GetString())
+	if len(e.renameTable) == 0 || !NodeUtil_IsReferenceName(n) {
+		return
 	}
+	if e.hasFilter && !e.hasNameID(n.GetStringID()) {
+		return
+	}
+	e.RenameReference(t, n, n.GetString())
 }
 
 // RenameReference: t is the NodeTraversal; oldName is the root name of a

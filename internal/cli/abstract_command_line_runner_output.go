@@ -335,7 +335,7 @@ func (r *AbstractCommandLineRunnerBase) OutputSingleBinary(options *jscomp.Compi
 // Java: AbstractCommandLineRunner.createJsonFile(B, String, Function<String, String>)
 func (r *AbstractCommandLineRunnerBase) CreateJsonFile(options *jscomp.CompilerOptions, outputMarker string, escaper func(string) string) *AbstractCommandLineRunner_JsonFileSpec {
 	config := r.config
-	jsOutput := jutil.NewStringBuilder()
+	jsOutput := jutil.NewStringWriter()
 	r.self.WriteOutput(
 		jsOutput,
 		r.compiler,
@@ -544,7 +544,7 @@ func (r *AbstractCommandLineRunnerBase) CreateJsonFileFromChunk(chunk *jscomp.JS
 	r.compiler.ResetAndIntitializeSourceMap()
 
 	filename := r.self.GetChunkOutputFileName(chunk)
-	output := jutil.NewStringBuilder()
+	output := jutil.NewStringWriter()
 	r.self.WriteChunkOutput(filename, output, jscomp.NewCompiler_ScriptNodeLicensesOnlyTracker(r.compiler), chunk)
 
 	jsonFile := NewAbstractCommandLineRunner_JsonFileSpec(output.String(), filename)
@@ -1118,6 +1118,10 @@ func (b *abstractCommandLineRunner_bufferedWriter) Write(s string) {
 	b.w.Write(s)
 }
 
+func (b *abstractCommandLineRunner_bufferedWriter) TryWrite(s string) jutil.IIOException {
+	return b.w.TryWrite(s)
+}
+
 func (b *abstractCommandLineRunner_bufferedWriter) AppendCharSequence(csq string) {
 	b.w.Write(csq)
 }
@@ -1126,25 +1130,27 @@ func (b *abstractCommandLineRunner_bufferedWriter) AppendCharacter(c uint16) {
 	b.w.Write(jutil.StringFromChar(c))
 }
 
-func (b *abstractCommandLineRunner_bufferedWriter) WriteString(s string) (n int, err error) {
-	defer func() {
-		if r := recover(); r != nil {
-			e, ok := r.(jutil.IIOException)
-			if !ok {
-				panic(r)
-			}
-			n, err = 0, errors.New(e.GetMessage())
-		}
-	}()
-	b.w.Write(s)
+func (b *abstractCommandLineRunner_bufferedWriter) WriteString(s string) (int, error) {
+	if ex := b.w.TryWrite(s); ex != nil {
+		return 0, errors.New(ex.GetMessage())
+	}
 	return len(s), nil
 }
 
 func (b *abstractCommandLineRunner_bufferedWriter) Flush() {
-	b.w.Flush()
-	if err := b.stream.bw.Flush(); err != nil {
-		panic(jutil.NewIOException(err.Error()))
+	if ex := b.TryFlush(); ex != nil {
+		panic(ex)
 	}
+}
+
+func (b *abstractCommandLineRunner_bufferedWriter) TryFlush() jutil.IIOException {
+	if ex := b.w.TryFlush(); ex != nil {
+		return ex
+	}
+	if err := b.stream.bw.Flush(); err != nil {
+		return jutil.NewIOException(err.Error())
+	}
+	return nil
 }
 
 func (b *abstractCommandLineRunner_bufferedWriter) Close() {

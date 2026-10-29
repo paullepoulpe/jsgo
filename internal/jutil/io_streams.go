@@ -21,13 +21,6 @@ type Appendable interface {
 	AppendCharacter(c uint16)
 }
 
-// AppendCharSequence is StringBuilder.append(CharSequence) as an
-// Appendable.
-func (b *StringBuilder) AppendCharSequence(csq string) { b.Append(csq) }
-
-// AppendCharacter is StringBuilder.append(char) as an Appendable.
-func (b *StringBuilder) AppendCharacter(c uint16) { b.AppendChar(c) }
-
 // Go-only: language-adapter — java.io.Writer. An IOException is thrown as
 // a panic (jutil.IOException), like every other Java exception.
 
@@ -35,8 +28,12 @@ func (b *StringBuilder) AppendCharacter(c uint16) { b.AppendChar(c) }
 type Writer interface {
 	// Write is Writer.write(String).
 	Write(s string)
+	// TryWrite writes s and returns an IIOException instead of panicking on I/O failure.
+	TryWrite(s string) IIOException
 	// Flush is Writer.flush().
 	Flush()
+	// TryFlush flushes the writer and returns an IIOException instead of panicking on I/O failure.
+	TryFlush() IIOException
 	// Close is Writer.close().
 	Close()
 }
@@ -57,8 +54,17 @@ func NewStringWriter() *StringWriter { return &StringWriter{} }
 // Write is StringWriter.write(String).
 func (w *StringWriter) Write(s string) { w.buf.WriteString(s) }
 
+// TryWrite writes s to the buffer (never fails).
+func (w *StringWriter) TryWrite(s string) IIOException {
+	w.buf.WriteString(s)
+	return nil
+}
+
 // Flush is StringWriter.flush().
 func (w *StringWriter) Flush() {}
+
+// TryFlush is a no-op on StringWriter (never fails).
+func (w *StringWriter) TryFlush() IIOException { return nil }
 
 // Close is StringWriter.close().
 func (w *StringWriter) Close() {}
@@ -70,7 +76,13 @@ func (w *StringWriter) String() string { return w.buf.String() }
 func (w *StringWriter) AppendCharSequence(csq string) { w.buf.WriteString(csq) }
 
 // AppendCharacter is StringWriter.append(char) (Appendable).
-func (w *StringWriter) AppendCharacter(c uint16) { w.buf.WriteString(StringFromChar(c)) }
+func (w *StringWriter) AppendCharacter(c uint16) {
+	if c < 0x80 {
+		w.buf.WriteByte(byte(c))
+		return
+	}
+	w.buf.WriteString(StringFromChar(c))
+}
 
 // WriteString is io.StringWriter (Writer.write(String)), for callers that
 // take a Go io.StringWriter.
@@ -188,18 +200,36 @@ func (c *CharSource) OpenStream() JavaReader {
 func (c *CharSource) Read() string {
 	r := c.OpenStream()
 	defer r.Close()
-	var sb StringBuilder
-	buf := make([]uint16, 8192)
-	for {
-		n := r.Read(buf, 0, len(buf))
-		if n < 0 {
-			break
-		}
-		for _, u := range buf[:n] {
-			sb.AppendChar(u)
+	return CharStreams_ToString(r)
+}
+
+// TryReadLines reads and splits the lines of the source like
+// CharStreams.readLines(openStream()), returning an IIOException instead of
+// panicking if opening or reading the file fails.
+func (c *CharSource) TryReadLines() ([]string, IIOException) {
+	f, err := os.Open(c.file.GetPath())
+	if err == nil {
+		var st os.FileInfo
+		if st, err = f.Stat(); err == nil && st.IsDir() {
+			f.Close()
+			return nil, NewFileNotFoundException(c.file.GetPath() + " (Is a directory)")
 		}
 	}
-	return sb.String()
+	if err != nil {
+		return nil, FileNotFoundExceptionFromError(err, c.file.GetPath())
+	}
+	defer f.Close()
+	b, err := io.ReadAll(f)
+	if err != nil {
+		return nil, IOExceptionFromError(err, "").(IIOException)
+	}
+	var s string
+	if (c.charset == nil || c.charset == StandardCharsets_UTF_8) && utf8.Valid(b) {
+		s = string(b)
+	} else {
+		s = charStreamsRoundTrip(c.charset.Decode(b))
+	}
+	return splitLinesUTF16(StringToUTF16(s)), nil
 }
 
 // CharStreams_ReadLines is Guava CharStreams.readLines(Readable): the lines
@@ -207,7 +237,10 @@ func (c *CharSource) Read() string {
 // line terminators are not included, and an input that ends with a
 // terminator has no empty last line.
 func CharStreams_ReadLines(r JavaReader) []string {
-	units := StringToUTF16(CharStreams_ToString(r))
+	return splitLinesUTF16(StringToUTF16(CharStreams_ToString(r)))
+}
+
+func splitLinesUTF16(units []uint16) []string {
 	var result []string
 	start := 0
 	for i := 0; i < len(units); i++ {

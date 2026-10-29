@@ -20,6 +20,7 @@
 package jscomp
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/paullepoulpe/jsgo/internal/jutil"
@@ -95,16 +96,14 @@ func (c *CombinedCompilerPassTest) SetUp() {
 // nodes encountered in pre-order and post-order traversals. Abbreviates
 // traversals by ignoring subtrees rooted with specified strings.
 type combinedCompilerPassTest_ConcatTraversal struct {
-	visited         *jutil.StringBuilder
-	shouldTraversed *jutil.StringBuilder
+	visited         strings.Builder
+	shouldTraversed strings.Builder
 	ignoring        *jutil.LinkedHashSet[string]
 }
 
 func newCombinedCompilerPassTest_ConcatTraversal() *combinedCompilerPassTest_ConcatTraversal {
 	return &combinedCompilerPassTest_ConcatTraversal{
-		visited:         jutil.NewStringBuilder(),
-		shouldTraversed: jutil.NewStringBuilder(),
-		ignoring:        jutil.NewLinkedHashSet[string](),
+		ignoring: jutil.NewLinkedHashSet[string](),
 	}
 }
 
@@ -117,13 +116,13 @@ func (c *combinedCompilerPassTest_ConcatTraversal) Ignore(s string) *combinedCom
 // Java: CombinedCompilerPassTest.ConcatTraversal.visit(NodeTraversal, Node, Node)
 func (c *combinedCompilerPassTest_ConcatTraversal) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	AssertThat(n.GetToken()).IsEqualTo(rhino.Token_STRINGLIT)
-	c.visited.Append(n.GetString())
+	c.visited.WriteString(n.GetString())
 }
 
 // Java: CombinedCompilerPassTest.ConcatTraversal.shouldTraverse(NodeTraversal, Node, Node)
 func (c *combinedCompilerPassTest_ConcatTraversal) ShouldTraverse(t *NodeTraversal, n rhino.Node, parent rhino.Node) bool {
 	AssertThat(n.GetToken()).IsEqualTo(rhino.Token_STRINGLIT)
-	c.shouldTraversed.Append(n.GetString())
+	c.shouldTraversed.WriteString(n.GetString())
 	return !c.ignoring.Contains(n.GetString())
 }
 

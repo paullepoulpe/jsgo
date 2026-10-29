@@ -20,7 +20,7 @@
 package jscomp
 
 import (
-	"github.com/paullepoulpe/jsgo/internal/jutil"
+	"strings"
 	"testing"
 )
 
@@ -309,18 +309,17 @@ func (c *FunctionRewriterTest) TestNoRewriteWithNonSimpleParameters() {
 
 // Java: FunctionRewriterTest.checkCompilesTo(String, String, String, int)
 func (c *FunctionRewriterTest) CheckCompilesTo(src string, expectedHdr string, expectedBody string, repetitions int) {
-	srcBuffer := jutil.NewStringBuilder()
-	expectedBuffer := jutil.NewStringBuilder()
+	var srcBuffer, expectedBuffer strings.Builder
 
-	expectedBuffer.Append(expectedHdr)
+	expectedBuffer.WriteString(expectedHdr)
 
 	for idx := 0; idx < repetitions; idx++ {
 		if idx != 0 {
-			srcBuffer.Append(";")
-			expectedBuffer.Append(";")
+			srcBuffer.WriteString(";")
+			expectedBuffer.WriteString(";")
 		}
-		srcBuffer.Append(src)
-		expectedBuffer.Append(expectedBody)
+		srcBuffer.WriteString(src)
+		expectedBuffer.WriteString(expectedBody)
 	}
 	c.Test(srcBuffer.String(), expectedBuffer.String())
 }

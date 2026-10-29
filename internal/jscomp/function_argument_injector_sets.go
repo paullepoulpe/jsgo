@@ -146,7 +146,7 @@ func (s *inlineIDSet) fromLinkedHashSet(src *jutil.LinkedHashSet[string], intern
 }
 
 func (s *inlineIDSet) toLinkedHashSet() *jutil.LinkedHashSet[string] {
-	out := jutil.NewLinkedHashSet[string]()
+	out := jutil.NewLinkedHashSetWithCapacity[string](s.size())
 	if s != nil {
 		for _, id := range s.items {
 			out.Add(rhino.RhinoStringPool_StringFromID(id))

@@ -186,7 +186,10 @@ func (t *EnumElementType) AppendTo(sb *TypeStringBuilder) {
 		// this.primitiveType
 		sb.AppendType(t.primitiveType)
 	} else {
-		sb.Append(jsTypeNullableToString(t.GetReferenceName())).Append("<").AppendType(t.primitiveType).Append(">")
+		sb.Append(jsTypeNullableToString(t.GetReferenceName()))
+		sb.Append("<")
+		sb.AppendType(t.primitiveType)
+		sb.Append(">")
 	}
 }
 

@@ -25,7 +25,7 @@ import (
 )
 
 func TestDependencyInfo_WriteAddDependency(t *testing.T) {
-	sb := jutil.NewStringBuilder()
+	sb := jutil.NewStringWriter()
 	flags := jutil.NewLinkedHashMap[string, string]()
 	flags.Put("module", "goog")
 	flags.Put("lang", "es6")
@@ -42,7 +42,7 @@ func TestDependencyInfo_WriteAddDependency(t *testing.T) {
 }
 
 func TestDependencyInfo_WriteAddDependency_emptyArguments(t *testing.T) {
-	sb := jutil.NewStringBuilder()
+	sb := jutil.NewStringWriter()
 	DependencyInfo_Util_WriteAddDependency(sb, SimpleDependencyInfo_Builder_("path.js", "unused.js").Build())
 	jsaEq(t, sb.String(), "goog.addDependency('path.js', [], []);\n")
 }

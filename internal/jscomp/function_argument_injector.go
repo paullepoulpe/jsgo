@@ -347,17 +347,47 @@ func (f *FunctionArgumentInjector) appendCallParamBindings(
 	return dst
 }
 
+func throwDuplicateParamBinding(bindings []callParamBinding) {
+	n := len(bindings)
+	for i := n - 1; i >= 0; i-- {
+		id := bindings[i].nameID
+		for j := i + 1; j < n; j++ {
+			if bindings[j].nameID == id {
+				k := bindings[i].nameStr()
+				laterPair := NewFunctionArgumentInjector_ParamArgPair(bindings[j].paramNode, bindings[j].argNode)
+				earlierPair := NewFunctionArgumentInjector_ParamArgPair(bindings[i].paramNode, bindings[i].argNode)
+				panic(jutil.NewIllegalArgumentExceptionMsg("Multiple entries with same key: " +
+					k + "=" + jutil.ToJavaString(laterPair) + " and " +
+					k + "=" + jutil.ToJavaString(earlierPair)))
+			}
+		}
+	}
+}
+
+func (f *FunctionArgumentInjector) failDuplicateParamBindings(
+	fnNode rhino.Node, callNode rhino.Node, safeNameIdSupplier func() string,
+) {
+	var bindingsBuf [inlineSmallCap]callParamBinding
+	bindings := f.appendCallParamBindings(bindingsBuf[:0], fnNode, callNode, safeNameIdSupplier, callParamWalkOwned)
+	throwDuplicateParamBinding(bindings)
+}
+
 // GetFunctionCallParameterMap gets a mapping for function parameter names to
 // call arguments.
 //
 // Java: FunctionArgumentInjector.getFunctionCallParameterMap(Node, Node, Supplier<String>)
 func (f *FunctionArgumentInjector) GetFunctionCallParameterMap(
 	fnNode rhino.Node, callNode rhino.Node, safeNameIdSupplier func() string) *jutil.LinkedHashMap[string, FunctionArgumentInjector_ParamArgPair] {
-	argMap := jutil.NewImmutableMapBuilder[string, FunctionArgumentInjector_ParamArgPair]()
-	for _, b := range f.appendCallParamBindings(nil, fnNode, callNode, safeNameIdSupplier, callParamWalkOwned) {
-		argMap.Put(b.nameStr(), NewFunctionArgumentInjector_ParamArgPair(b.paramNode, b.argNode))
+	var bindingsBuf [inlineSmallCap]callParamBinding
+	bindings := f.appendCallParamBindings(bindingsBuf[:0], fnNode, callNode, safeNameIdSupplier, callParamWalkOwned)
+	if hasDuplicateBindingID(bindings) {
+		throwDuplicateParamBinding(bindings)
 	}
-	return argMap.BuildOrThrow()
+	argMap := jutil.NewLinkedHashMapWithCapacity[string, FunctionArgumentInjector_ParamArgPair](len(bindings))
+	for _, b := range bindings {
+		argMap.PutNew(b.nameStr(), NewFunctionArgumentInjector_ParamArgPair(b.paramNode, b.argNode))
+	}
+	return argMap
 }
 
 func (f *FunctionArgumentInjector) fillCallParamNodeMap(
@@ -370,7 +400,7 @@ func (f *FunctionArgumentInjector) fillCallParamNodeMap(
 	f.paramBindings = f.appendCallParamBindings(f.paramBindings[:0], fnNode, callNode, safeNameIdSupplier, callParamWalkTemplate)
 	for _, b := range f.paramBindings {
 		if !dst.put(b.nameID, b.argNode).IsNil() {
-			f.GetFunctionCallParameterMap(fnNode, callNode, safeNameIdSupplier)
+			f.failDuplicateParamBindings(fnNode, callNode, safeNameIdSupplier)
 		}
 	}
 }
@@ -383,7 +413,7 @@ func (f *FunctionArgumentInjector) fillCallParamBindings(
 ) []callParamBinding {
 	dst = f.appendCallParamBindings(dst[:0], fnNode, callNode, safeNameIdSupplier, callParamWalkTemplate)
 	if hasDuplicateBindingID(dst) {
-		f.GetFunctionCallParameterMap(fnNode, callNode, safeNameIdSupplier)
+		f.failDuplicateParamBindings(fnNode, callNode, safeNameIdSupplier)
 	}
 	return dst
 }
@@ -395,7 +425,7 @@ func (f *FunctionArgumentInjector) getCallParamBindingsScratch(
 ) []callParamBinding {
 	f.paramBindings = f.appendCallParamBindings(f.paramBindings[:0], fnNode, callNode, safeNameIdSupplier, callParamWalkReadOnly)
 	if hasDuplicateBindingID(f.paramBindings) {
-		f.GetFunctionCallParameterMap(fnNode, callNode, safeNameIdSupplier)
+		f.failDuplicateParamBindings(fnNode, callNode, safeNameIdSupplier)
 	}
 	return f.paramBindings
 }
@@ -594,7 +624,7 @@ func (f *FunctionArgumentInjector) findRequiresTempsUpToParameterID(
 				references = int(summaryParams[paramIdx].refCount)
 			}
 		} else if paramID != calleeThisMarkerID {
-			references = NodeUtil_GetNameReferenceCount(block, rhino.RhinoStringPool_StringFromID(paramID))
+			references = nodeUtil_countNameID(block, paramID)
 		}
 
 		argSideEffects := astAnalyzer.MayHaveSideEffects(cArg)

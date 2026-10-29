@@ -1604,7 +1604,7 @@ func (c *CommandLineRunnerTest) TestChunkWrapperBaseNameExpansion() {
 	c.useChunks = commandLineRunnerTest_ChunkPattern_CHAIN
 	c.argsAdd("--chunk_wrapper=m0:%s // %basename%")
 	c.testSame([]string{"var x = 3;", "var y = 4;"})
-	builder := jutil.NewStringBuilder()
+	builder := jutil.NewStringWriter()
 	licenseTracker := jscomp.NewCompiler_ScriptNodeLicensesOnlyTracker(c.lastCompiler)
 	chunk := c.lastCompiler.GetChunkGraph().GetRootChunk()
 	filename := c.lastCommandLineRunner.GetChunkOutputFileName(chunk)
@@ -1617,7 +1617,7 @@ func (c *CommandLineRunnerTest) TestChunkWrapperExpansion() {
 	c.useChunks = commandLineRunnerTest_ChunkPattern_CHAIN
 	c.argsAdd("--chunk_wrapper=m0:%output%%n%//# SourceMappingUrl=%basename%.map")
 	c.testSame([]string{"var x = 3;", "var y = 4;"})
-	builder := jutil.NewStringBuilder()
+	builder := jutil.NewStringWriter()
 	licenseTracker := jscomp.NewCompiler_ScriptNodeLicensesOnlyTracker(c.lastCompiler)
 	chunk := c.lastCompiler.GetChunkGraph().GetRootChunk()
 	filename := c.lastCommandLineRunner.GetChunkOutputFileName(chunk)
@@ -1658,7 +1658,7 @@ func (c *CommandLineRunnerTest) TestCharSetExpansion() {
 func (c *CommandLineRunnerTest) TestChainChunkManifest() {
 	c.useChunks = commandLineRunnerTest_ChunkPattern_CHAIN
 	c.testSame([]string{"var x = 3;", "var y = 5;", "var z = 7;", "var a = 9;"})
-	builder := jutil.NewStringBuilder()
+	builder := jutil.NewStringWriter()
 	c.lastCommandLineRunner.PrintChunkGraphManifestOrBundleTo(
 		c.lastCompiler.GetChunkGraph(), builder, true)
 	testjunit.AssertThat(builder.String()).
@@ -1682,7 +1682,7 @@ i3.js
 func (c *CommandLineRunnerTest) TestStarChunkManifest() {
 	c.useChunks = commandLineRunnerTest_ChunkPattern_STAR
 	c.testSame([]string{"var x = 3;", "var y = 5;", "var z = 7;", "var a = 9;"})
-	builder := jutil.NewStringBuilder()
+	builder := jutil.NewStringWriter()
 	c.lastCommandLineRunner.PrintChunkGraphManifestOrBundleTo(
 		c.lastCompiler.GetChunkGraph(), builder, true)
 	testjunit.AssertThat(builder.String()).
@@ -1706,7 +1706,7 @@ i3.js
 func (c *CommandLineRunnerTest) TestOutputChunkGraphJson() {
 	c.useChunks = commandLineRunnerTest_ChunkPattern_STAR
 	c.testSame([]string{"var x = 3;", "var y = 5;", "var z = 7;", "var a = 9;"})
-	builder := jutil.NewStringBuilder()
+	builder := jutil.NewStringWriter()
 	c.lastCommandLineRunner.PrintChunkGraphJsonTo(builder)
 	testjunit.AssertThat(builder.String()).Contains("transitive-dependencies")
 }

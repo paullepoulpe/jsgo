@@ -166,7 +166,9 @@ func (b *lvaBitSet) clone() lvaBitSet {
 // variables can escape the function. These variables will be considered as
 // global and they can be retrieved with GetEscapedLocals().
 type LiveVariablesAnalysis struct {
-	DataFlowAnalysisBase[rhino.Node, *LiveVariablesAnalysis_LiveVariableLattice]
+	cfg      *ControlFlowGraph[rhino.Node]
+	worklist backwardCfgWorklist
+	states   []DataFlowAnalysis_LinearFlowState[*LiveVariablesAnalysis_LiveVariableLattice]
 
 	// The scope of the function that we are analyzing.
 	jsScope *Scope
@@ -193,7 +195,6 @@ type LiveVariablesAnalysis struct {
 	allVarsInFn *jutil.LinkedHashMap[string, *Var]
 
 	emptyLattice LiveVariablesAnalysis_LiveVariableLattice
-	joinOp       LiveVariablesAnalysis_LiveVariableJoinOp
 	lattices     jutil.ReuseSlab[LiveVariablesAnalysis_LiveVariableLattice]
 }
 
@@ -375,7 +376,11 @@ func (l *LiveVariablesAnalysis) Reset(
 	compiler AbstractCompiler,
 	scopeCreator ScopeCreator,
 	allVarsDeclaredInFunction *NodeUtil_AllVarsDeclaredInFunction) {
-	l.InitDataFlowAnalysisBase(l, cfg)
+	l.cfg = cfg
+	l.worklist.releaseLarge()
+	if cap(l.states) > dfaReuseMaxNodes {
+		l.states = nil
+	}
 	jutil.CheckStateMsg1(jsScope.IsFunctionScope(), "%s", jsScope)
 
 	l.jsScope = jsScope
@@ -599,8 +604,22 @@ func (l *LiveVariablesAnalysis) GetVarIndex(var_ string) int {
 	return index
 }
 
+// Java: DataFlowAnalysis.getCfg()
+func (l *LiveVariablesAnalysis) GetCfg() *ControlFlowGraph[rhino.Node] {
+	return l.cfg
+}
+
+func (l *LiveVariablesAnalysis) FlowStateAt(index uint32) *DataFlowAnalysis_LinearFlowState[*LiveVariablesAnalysis_LiveVariableLattice] {
+	return &l.states[index]
+}
+
 // Java: LiveVariablesAnalysis.isForward()
 func (l *LiveVariablesAnalysis) IsForward() bool {
+	return false
+}
+
+// Java: DataFlowAnalysis.isBranched()
+func (l *LiveVariablesAnalysis) IsBranched() bool {
 	return false
 }
 
@@ -624,24 +643,167 @@ func (l *LiveVariablesAnalysis) EqualsLattice(a, b *LiveVariablesAnalysis_LiveVa
 	return a.liveSet.equals(&b.liveSet)
 }
 
-// Java: LiveVariablesAnalysis.createFlowJoiner()
-func (l *LiveVariablesAnalysis) CreateFlowJoiner() DataFlowAnalysis_FlowJoiner[*LiveVariablesAnalysis_LiveVariableLattice] {
-	l.joinOp.result = l.allocLattice()
-	return &l.joinOp
+// Java: DataFlowAnalysis.join(L, L)
+func (l *LiveVariablesAnalysis) Join(latticeA, latticeB *LiveVariablesAnalysis_LiveVariableLattice) *LiveVariablesAnalysis_LiveVariableLattice {
+	jutil.CheckNotNull(latticeA)
+	jutil.CheckNotNull(latticeB)
+	result := l.allocLattice()
+	result.liveSet.orWith(&latticeA.liveSet)
+	result.liveSet.orWith(&latticeB.liveSet)
+	return result
+}
+
+// Java: DataFlowAnalysis.analyze()
+func (l *LiveVariablesAnalysis) Analyze() {
+	cfg := l.cfg
+	implicitReturn := cfg.implicitReturn
+	cfgNodes := &cfg.Nodes
+	numNodes := cfgNodes.Size()
+	nodeCap := cfg.NodeIndexCap()
+
+	l.worklist.reset(cfg, numNodes)
+	if cap(l.states) < nodeCap {
+		l.states = make([]DataFlowAnalysis_LinearFlowState[*LiveVariablesAnalysis_LiveVariableLattice], nodeCap)
+	} else {
+		clear(l.states[:max(len(l.states), nodeCap)])
+		l.states = l.states[:nodeCap]
+	}
+
+	initLat := &l.emptyLattice
+	states := l.states
+	for node := range cfgNodes.Values() {
+		node.DfaInQueue = false
+		state := &states[node.Index]
+		state.in = initLat
+		state.out = initLat
+		node.SetAnnotation(state)
+		if node != implicitReturn {
+			l.worklist.enqueue(node)
+		}
+	}
+
+	for l.worklist.notEmpty() {
+		curNode := l.worklist.dequeue()
+		curState := &states[curNode.Index]
+		stepCount := curState.stepCount
+		curState.stepCount++
+		if stepCount > DataFlowAnalysis_MAX_STEPS_PER_NODE {
+			panic(jutil.NewIllegalStateExceptionMsg("Dataflow analysis appears to diverge around: " + jutil.ToJavaString(curNode)))
+		}
+
+		l.joinNodeInputs(curNode, curState, implicitReturn)
+		inBefore := curState.in
+		inAfter := l.flowThroughEdges(curNode.Value, curNode.OutEdgeList.Slice(), curState.out, inBefore)
+		curState.in = jutil.CheckNotNull(inAfter)
+		if !l.EqualsLattice(inBefore, inAfter) {
+			for _, edge := range curNode.InEdgeList.Slice() {
+				nextNode := edge.SourceNode
+				if !nextNode.DfaInQueue && nextNode != implicitReturn {
+					l.worklist.enqueue(nextNode)
+				}
+			}
+		}
+	}
+}
+
+func (l *LiveVariablesAnalysis) joinNodeInputs(
+	node *graph.LinkedDiGraphNode[rhino.Node, ControlFlowGraph_Branch],
+	state *DataFlowAnalysis_LinearFlowState[*LiveVariablesAnalysis_LiveVariableLattice],
+	implicitReturn *graph.LinkedDiGraphNode[rhino.Node, ControlFlowGraph_Branch],
+) {
+	outEdges := node.OutEdgeList.Slice()
+	switch len(outEdges) {
+	case 0:
+		return
+	case 1:
+		dest := outEdges[0].DestNode
+		if dest == implicitReturn {
+			state.out = &l.emptyLattice
+		} else {
+			state.out = l.states[dest.Index].in
+		}
+		return
+	}
+
+	var first *LiveVariablesAnalysis_LiveVariableLattice
+	var w0, w1 uint64
+	maxExtra := 0
+	distinct := false
+	for _, edge := range outEdges {
+		dest := edge.DestNode
+		if dest == implicitReturn {
+			continue
+		}
+		inLat := l.states[dest.Index].in
+		if inLat == &l.emptyLattice {
+			continue
+		}
+		w0 |= inLat.liveSet.w0
+		w1 |= inLat.liveSet.w1
+		if n := len(inLat.liveSet.extra); n > maxExtra {
+			maxExtra = n
+		}
+		if first == nil {
+			first = inLat
+		} else if !distinct && first != inLat && !first.liveSet.equals(&inLat.liveSet) {
+			distinct = true
+		}
+	}
+	if first == nil {
+		state.out = &l.emptyLattice
+		return
+	}
+	if !distinct {
+		state.out = first
+		return
+	}
+	if maxExtra == 0 {
+		if len(first.liveSet.extra) == 0 && first.liveSet.w0 == w0 && first.liveSet.w1 == w1 {
+			state.out = first
+			return
+		}
+		if prev := state.out; prev != nil && len(prev.liveSet.extra) == 0 && prev.liveSet.w0 == w0 && prev.liveSet.w1 == w1 {
+			return
+		}
+		joined := l.allocLattice()
+		joined.liveSet.w0 = w0
+		joined.liveSet.w1 = w1
+		state.out = joined
+		return
+	}
+	extra := make([]uint64, maxExtra)
+	for _, edge := range outEdges {
+		dest := edge.DestNode
+		if dest == implicitReturn {
+			continue
+		}
+		inLat := l.states[dest.Index].in
+		for i, ew := range inLat.liveSet.extra {
+			extra[i] |= ew
+		}
+	}
+	joined := l.allocLattice()
+	joined.liveSet.w0 = w0
+	joined.liveSet.w1 = w1
+	joined.liveSet.extra = extra
+	state.out = joined
 }
 
 // Java: LiveVariablesAnalysis.flowThrough(Node, LiveVariableLattice)
 func (l *LiveVariablesAnalysis) FlowThrough(node rhino.Node, input *LiveVariablesAnalysis_LiveVariableLattice) *LiveVariablesAnalysis_LiveVariableLattice {
+	return l.flowThroughEdges(node, l.cfg.GetOutEdges(node), input, nil)
+}
+
+func (l *LiveVariablesAnalysis) flowThroughEdges(
+	node rhino.Node,
+	edgeList []*graph.LinkedDiGraphEdge[rhino.Node, ControlFlowGraph_Branch],
+	input *LiveVariablesAnalysis_LiveVariableLattice,
+	prevIn *LiveVariablesAnalysis_LiveVariableLattice,
+) *LiveVariablesAnalysis_LiveVariableLattice {
 	var gen, kill lvaBitSet
 
 	// Make kills conditional if the node can end abruptly by an exception.
 	conditional := false
-	var edgeList []*graph.LinkedDiGraphEdge[rhino.Node, ControlFlowGraph_Branch]
-	if l.curLinkedNode != nil && l.curLinkedNode.Value == node {
-		edgeList = l.curLinkedNode.OutEdgeList.Slice()
-	} else {
-		edgeList = l.GetCfg().GetOutEdges(node)
-	}
 	for _, edge := range edgeList {
 		if ControlFlowGraph_Branch_ON_EX == edge.GetValue() {
 			conditional = true
@@ -655,6 +817,12 @@ func (l *LiveVariablesAnalysis) FlowThrough(node rhino.Node, input *LiveVariable
 	if len(input.liveSet.extra) == 0 && len(gen.extra) == 0 {
 		if out0 == input.liveSet.w0 && out1 == input.liveSet.w1 {
 			return input
+		}
+		if (out0 | out1) == 0 {
+			return &l.emptyLattice
+		}
+		if prevIn != nil && len(prevIn.liveSet.extra) == 0 && prevIn.liveSet.w0 == out0 && prevIn.liveSet.w1 == out1 {
+			return prevIn
 		}
 		result := l.allocLattice()
 		result.liveSet.w0 = out0

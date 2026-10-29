@@ -25,6 +25,24 @@ import (
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
 
+var (
+	denormalizeVisitTokens = func() ast.TokenSet {
+		var s ast.TokenSet
+		s.Add(rhino.Token_EXPR_RESULT)
+		s.Add(rhino.Token_VAR)
+		s.Add(rhino.Token_ASSIGN)
+		s.Add(rhino.Token_OR)
+		s.Add(rhino.Token_AND)
+		s.Add(rhino.Token_COALESCE)
+		return s
+	}()
+	denormalizeVarInlinerVisitTokens = func() ast.TokenSet {
+		var s ast.TokenSet
+		s.Add(rhino.Token_NAME)
+		return s
+	}()
+)
+
 // Go-only: this pass uses the typed AST view (internal/ast). visit hands
 // each rewrite the kind it works on (ast.Statement, ast.Assign, ast.Binary),
 // and the rewrites read their shapes by role (stmt.Next(), forNode.Init(),
@@ -54,6 +72,7 @@ type Denormalize struct {
 	compiler         AbstractCompiler
 	outputFeatureSet *parser.FeatureSet
 	hasLogicalAssign bool
+	varInliner       denormalizeVarInliner
 }
 
 // Java: Denormalize(AbstractCompiler, FeatureSet)
@@ -71,15 +90,15 @@ func (d *Denormalize) Process(externs rhino.Node, root rhino.Node) {
 	NodeTraversal_Traverse(d.compiler, root, d)
 	// Don't inline the VAR declaration if this compilation involves old-style ctemplates.
 	if d.compiler.GetOptions().GetSyntheticBlockStartMarker() == nil {
-		inliner := newDenormalizeVarInliner()
-		sc := NewSyntacticScopeCreator(d.compiler)
+		d.varInliner.reset()
 		b := NodeTraversal_Builder{
 			compiler:     d.compiler,
-			callback:     inliner,
-			scopeCreator: sc,
+			callback:     &d.varInliner,
+			scopeCreator: NewSyntacticScopeCreator(d.compiler),
 			obeyDestructuringAndDefaultValueExecutionOrder: true,
 		}
 		b.Traverse(root)
+		d.varInliner.reset()
 	}
 }
 
@@ -89,31 +108,31 @@ type denormalizeVarState struct {
 }
 
 type denormalizeVarInliner struct {
-	states          map[*Var]*denormalizeVarState
+	states          map[*Var]denormalizeVarState
 	scopesWithDecls map[rhino.Node]*Scope
 }
 
-func newDenormalizeVarInliner() *denormalizeVarInliner {
-	return &denormalizeVarInliner{}
+func (inliner *denormalizeVarInliner) reset() {
+	if len(inliner.states) > 1024 {
+		inliner.states = nil
+	} else if len(inliner.states) > 0 {
+		clear(inliner.states)
+	}
+	if len(inliner.scopesWithDecls) > 256 {
+		inliner.scopesWithDecls = nil
+	} else if len(inliner.scopesWithDecls) > 0 {
+		clear(inliner.scopesWithDecls)
+	}
 }
 
-func (inliner *denormalizeVarInliner) getOrAllocState(v *Var) *denormalizeVarState {
-	if inliner.states == nil {
-		inliner.states = make(map[*Var]*denormalizeVarState, 32)
-	}
-	st := inliner.states[v]
-	if st == nil {
-		st = &denormalizeVarState{}
-		inliner.states[v] = st
-	}
-	return st
-}
-
-func (inliner *denormalizeVarInliner) ShouldTraverse(t *NodeTraversal, n rhino.Node, parent rhino.Node) bool {
+func (*denormalizeVarInliner) ShouldTraverse(t *NodeTraversal, n rhino.Node, parent rhino.Node) bool {
 	return true
 }
 
-func (inliner *denormalizeVarInliner) EnterScope(t *NodeTraversal) {}
+func (*denormalizeVarInliner) nodeTraversalNoShouldTraverse()  {}
+func (*denormalizeVarInliner) onlyNameLeaves()                 {}
+func (*denormalizeVarInliner) visitTokens() *ast.TokenSet      { return &denormalizeVarInlinerVisitTokens }
+func (*denormalizeVarInliner) EnterScope(t *NodeTraversal)     {}
 
 func (inliner *denormalizeVarInliner) ExitScope(t *NodeTraversal) {
 	if len(inliner.scopesWithDecls) == 0 {
@@ -130,8 +149,8 @@ func (inliner *denormalizeVarInliner) ExitScope(t *NodeTraversal) {
 		if v == nil {
 			continue
 		}
-		st := inliner.states[v]
-		if st == nil {
+		st, ok := inliner.states[v]
+		if !ok {
 			continue
 		}
 		delete(inliner.states, v)
@@ -148,23 +167,26 @@ func (inliner *denormalizeVarInliner) ExitScope(t *NodeTraversal) {
 // declaration without value (var x;) and its first assignment (x = value)
 // in the same hoist scope.
 func (inliner *denormalizeVarInliner) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
-	name, ok := ast.AsName(n)
-	if !ok || parent.IsNil() {
+	if !n.IsName() || parent.IsNil() {
 		return
 	}
 	switch parent.GetToken() {
 	case rhino.Token_VAR:
-		if _, hasValue := name.Init(); !hasValue && NodeUtil_IsStatement(parent) {
-			ident := name.Ident()
-			if ident == "" {
+		if n.GetFirstChild().IsNil() && NodeUtil_IsStatement(parent) {
+			id := n.GetStringID()
+			if id == 0 || id == rhino.RhinoStringPool_EmptyID {
 				return
 			}
-			v := t.LookupVar(ident)
+			v := t.LookupVarByID(id)
 			if v != nil {
 				vRoot := v.scope.GetRootNode()
 				if vRoot.IsBlock() && vRoot.GetParent().IsFunction() {
-					st := inliner.getOrAllocState(v)
+					if inliner.states == nil {
+						inliner.states = make(map[*Var]denormalizeVarState, 32)
+					}
+					st := inliner.states[v]
 					st.declNode = n
+					inliner.states[v] = st
 					if inliner.scopesWithDecls == nil {
 						inliner.scopesWithDecls = make(map[rhino.Node]*Scope, 8)
 					}
@@ -173,20 +195,22 @@ func (inliner *denormalizeVarInliner) Visit(t *NodeTraversal, n rhino.Node, pare
 			}
 		}
 	case rhino.Token_ASSIGN:
-		assign := ast.MustAssign(parent)
-		if assign.Target().Is(n) {
-			ident := name.Ident()
-			if ident == "" {
+		if parent.GetFirstChild() == n {
+			id := n.GetStringID()
+			if id == 0 || id == rhino.RhinoStringPool_EmptyID {
 				return
 			}
 			scope := t.resolveLookupScope(len(t.scopes) - 1)
-			v := scope.GetVar(ident)
+			v := scope.GetVarByID(id)
 			if v != nil && scope.GetClosestHoistScope() == v.scope {
 				vRoot := v.scope.GetRootNode()
 				if vRoot.IsBlock() && vRoot.GetParent().IsFunction() {
-					st := inliner.getOrAllocState(v)
-					if st.assignNode.IsNil() {
+					if inliner.states == nil {
+						inliner.states = make(map[*Var]denormalizeVarState, 32)
+					}
+					if st := inliner.states[v]; st.assignNode.IsNil() {
 						st.assignNode = n
+						inliner.states[v] = st
 					}
 				}
 			}
@@ -253,9 +277,13 @@ func (d *Denormalize) AfterExitScope(t *NodeTraversal, referenceMap ReferenceMap
 }
 
 // Java: Denormalize.shouldTraverse(NodeTraversal, Node, Node)
-func (d *Denormalize) ShouldTraverse(t *NodeTraversal, n rhino.Node, parent rhino.Node) bool {
+func (*Denormalize) ShouldTraverse(t *NodeTraversal, n rhino.Node, parent rhino.Node) bool {
 	return true
 }
+
+func (*Denormalize) nodeTraversalNoShouldTraverse() {}
+func (*Denormalize) noVisitLeaves()                 {}
+func (*Denormalize) visitTokens() *ast.TokenSet     { return &denormalizeVisitTokens }
 
 // (Go: a token switch, not an ast.Visitor: the pass does little per node, and
 // the visitor's dispatch made this traversal about 10% slower.)
@@ -309,7 +337,7 @@ func (d *Denormalize) MaybeCollapseIntoForStatements(stmt ast.Statement) {
 		if !ok || !isVar {
 			return
 		}
-		if name, ok := denormalize_onlyNameWithoutValue(varNode); ok && forVar.Ident() == name.Ident() {
+		if name, ok := denormalize_onlyNameWithoutValue(varNode); ok && forVar.Node().GetStringID() == name.Node().GetStringID() {
 			// OK, the names match, and the var declaration does not have an
 			// initializer. Move it into the loop.
 			varNode.Detach()
@@ -430,7 +458,7 @@ func (d *Denormalize) IsCollapsableAssign(assign ast.Assign) (ast.Binary, bool) 
 		return ast.Binary{}, false
 	}
 	left, ok := op.Left().AsName()
-	return op, ok && target.Ident() == left.Ident()
+	return op, ok && target.Node().GetStringID() == left.Node().GetStringID()
 }
 
 // IsCollapsableLogicalAssign returns the assignment of op if op is
@@ -459,7 +487,7 @@ func (d *Denormalize) IsCollapsableLogicalAssign(op ast.Binary) (ast.Assign, boo
 		return ast.Assign{}, false
 	}
 	target, ok := assign.Target().AsName()
-	return assign, ok && left.Ident() == target.Ident()
+	return assign, ok && left.Node().GetStringID() == target.Node().GetStringID()
 }
 
 // Java: Denormalize.getAssignOpFromOp(Node)

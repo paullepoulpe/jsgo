@@ -376,7 +376,7 @@ func (p *ProxyObjectTypeBase) RecursionUnsafeHashCode() int32 {
 
 // Java: ProxyObjectType.appendTo(TypeStringBuilder)
 func (p *ProxyObjectTypeBase) AppendTo(sb *TypeStringBuilder) {
-	p.referencedType.AppendTo(sb)
+	sb.AppendType(p.referencedType)
 }
 
 // Java: ProxyObjectType.getImplicitPrototype()

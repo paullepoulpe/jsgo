@@ -339,33 +339,32 @@ type PrototypeObjectType_PropertyForPrettyPrinting struct {
 
 // Java: PrototypeObjectType.PropertyForPrettyPrinting.appendTo(TypeStringBuilder)
 func (r PrototypeObjectType_PropertyForPrettyPrinting) AppendTo(sb *TypeStringBuilder) {
-	switch r.key.Kind() {
-	case Property_KeyKind_STRING:
+	if r.key.symbol == nil {
 		sb.Append(r.key.HumanReadableName())
-	case Property_KeyKind_SYMBOL:
+	} else {
 		sb.Append("[")
 		sb.Append(r.key.HumanReadableName())
 		sb.Append("]")
 	}
-	sb.Append(": ").AppendNonNull(r.type_)
+	sb.Append(": ")
+	sb.AppendNonNull(r.type_)
 }
 
 // Java: PrototypeObjectType.PROP_COMPARATOR
 func PrototypeObjectType_PROP_COMPARATOR(thisProp, otherProp PrototypeObjectType_PropertyForPrettyPrinting) int {
 	// Handle the easy case where the property names are distinct.
-	if thisProp.key.HumanReadableName() != otherProp.key.HumanReadableName() {
-		return jutil.StringCompareTo(thisProp.key.HumanReadableName(), otherProp.key.HumanReadableName())
+	thisName := thisProp.key.HumanReadableName()
+	otherName := otherProp.key.HumanReadableName()
+	if thisName != otherName {
+		return jutil.StringCompareTo(thisName, otherName)
 	}
-	switch thisProp.key.Kind() {
-	case Property_KeyKind_STRING:
-		switch otherProp.key.Kind() {
-		case Property_KeyKind_STRING:
-			return jutil.StringCompareTo(thisProp.key.String_(), otherProp.key.String_())
+	if thisProp.key.symbol == nil {
+		if otherProp.key.symbol == nil {
+			return jutil.StringCompareTo(thisName, otherName)
 		}
 		return -1 // order string keys before symbol keys
 	}
-	switch otherProp.key.Kind() {
-	case Property_KeyKind_STRING:
+	if otherProp.key.symbol == nil {
 		return 1 // order string keys before symbol keys.
 	}
 	// Given two symbol keys with the same human-readable name, compare them by
@@ -399,7 +398,8 @@ func (p *PrototypeObjectTypeBase) AppendTo(sb *TypeStringBuilder) {
 	p.protoFlags &^= protoFlagPrettyPrint
 
 	// Sort and deduplicate properties across the prototype chain (subtype wins).
-	var properties []PrototypeObjectType_PropertyForPrettyPrinting
+	var propsBuf [8]PrototypeObjectType_PropertyForPrettyPrinting
+	properties := propsBuf[:0]
 	propEq := func(a, b PrototypeObjectType_PropertyForPrettyPrinting) bool {
 		return PrototypeObjectType_PROP_COMPARATOR(a, b) == 0
 	}
@@ -421,31 +421,31 @@ func (p *PrototypeObjectTypeBase) AppendTo(sb *TypeStringBuilder) {
 	}
 
 	multiline := !sb.IsForAnnotations() && len(properties) > 1
-	sb.Append("{").
-		Indent(func() {
+	sb.Append("{")
+	sb.indentDepth++
+	if multiline {
+		sb.BreakLineAndIndent()
+	}
+
+	for idx, property := range properties {
+		i := idx + 1
+
+		if !sb.IsForAnnotations() && i > PrototypeObjectType_MAX_PRETTY_PRINTED_PROPERTIES {
+			sb.Append("...")
+			break
+		}
+
+		property.AppendTo(sb)
+		if i < len(properties) {
+			sb.Append(",")
 			if multiline {
 				sb.BreakLineAndIndent()
+			} else {
+				sb.Append(" ")
 			}
-
-			for idx, property := range properties {
-				i := idx + 1
-
-				if !sb.IsForAnnotations() && i > PrototypeObjectType_MAX_PRETTY_PRINTED_PROPERTIES {
-					sb.Append("...")
-					break
-				}
-
-				property.AppendTo(sb)
-				if i < len(properties) {
-					sb.Append(",")
-					if multiline {
-						sb.BreakLineAndIndent()
-					} else {
-						sb.Append(" ")
-					}
-				}
-			}
-		})
+		}
+	}
+	sb.indentDepth--
 	if multiline {
 		sb.BreakLineAndIndent()
 	}

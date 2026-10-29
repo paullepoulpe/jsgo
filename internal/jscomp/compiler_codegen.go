@@ -259,16 +259,22 @@ func (c *Compiler) ToSourceOfNode(n rhino.Node) string {
 	if !n.IsNil() && !n.IsRoot() && !n.IsScript() {
 		return c.toSourceWithoutMappings(n, false, nil)
 	}
-	sb := jutil.NewStringBuilder()
 	// We don't know whether this node is part of a single JS binary, or part of a module, or
 	// something else. Use the legacy license tracking implementation to match existing expectations
 	// about what licenses are included in the resulting JS.
 	lt := NewCompiler_ScriptNodeLicensesOnlyTracker(c)
 	code := c.toSourceWithoutMappings(n, false, lt)
-	for _, license := range lt.EmitLicenses() {
-		sb.Append("/*\n").Append(license).Append("*/\n")
+	licenses := lt.EmitLicenses()
+	if len(licenses) == 0 {
+		return code
 	}
-	sb.Append(code)
+	var sb strings.Builder
+	for _, license := range licenses {
+		sb.WriteString("/*\n")
+		sb.WriteString(license)
+		sb.WriteString("*/\n")
+	}
+	sb.WriteString(code)
 	return sb.String()
 }
 

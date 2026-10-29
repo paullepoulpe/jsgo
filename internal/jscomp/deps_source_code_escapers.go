@@ -162,8 +162,7 @@ func sourceCodeEscapers_JavaScriptEscaper_asUnicodeHexEscape(c uint16) []uint16 
 
 // Java: SourceCodeEscapers.JavaScriptEscaper.escape(String)
 func (e *SourceCodeEscapers_JavaScriptEscaper) Escape(s string) string {
-	sb := jutil.NewStringBuilder()
-	// StringBuilder.append doesn't actually throw IOException.
+	sb := jutil.NewStringWriter()
 	e.AppendTo(s, sb)
 	return sb.String()
 }

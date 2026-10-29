@@ -98,47 +98,63 @@ var property_KeyKind_names = [...]string{"STRING", "SYMBOL"}
 // String is Enum.name().
 func (k Property_KeyKind) String() string { return property_KeyKind_names[k] }
 
+var (
+	propKeyIDPrototype = rhinoStringPoolIntern("prototype")
+	propKeyIDCall      = rhinoStringPoolIntern("call")
+	propKeyIDBind      = rhinoStringPoolIntern("bind")
+	propKeyIDApply     = rhinoStringPoolIntern("apply")
+)
+
 // Property_Key is a valid key for a property. May be either a string or a
 // well-known symbol such as Symbol.iterator.
 //
 // Go-only: language-adapter — Java's sealed interface Property.Key and its
-// two records (Property.StringKey, Property.SymbolKey) are one value struct
-// tagged by kind, so that keys (created on every string-keyed property
-// lookup) are passed without allocation. NewProperty_StringKey and
+// two records (Property.StringKey, Property.SymbolKey) are one 16-byte
+// Go-comparable value struct (symbol == nil selects StringKey backed by
+// 32-bit rhinoStringID; symbol != nil selects SymbolKey), so keys are passed
+// in two registers without allocation. NewProperty_StringKey and
 // NewProperty_SymbolKey are the record constructors; Equals, HashCode and
 // String are the records' generated methods.
 type Property_Key struct {
-	kind     Property_KeyKind
-	stringID rhinoStringID
-	string_  string
 	symbol   *KnownSymbolType
+	stringID rhinoStringID
 }
 
 // Kind returns the kind of the key.
 //
 // Java: Property.Key.kind()
 func (k Property_Key) Kind() Property_KeyKind {
-	return k.kind
+	if k.symbol != nil {
+		return Property_KeyKind_SYMBOL
+	}
+	return Property_KeyKind_STRING
+}
+
+// IsSymbol reports whether k is a symbol key.
+func (k Property_Key) IsSymbol() bool {
+	return k.symbol != nil
+}
+
+// IsString reports whether k is a string key.
+func (k Property_Key) IsString() bool {
+	return k.symbol == nil
 }
 
 // String_ is the string of a StringKey; it throws for a SymbolKey.
 //
 // Java: Property.Key.string()
 func (k Property_Key) String_() string {
-	if k.kind == Property_KeyKind_SYMBOL {
+	if k.symbol != nil {
 		panic(jutil.NewUnsupportedOperationException())
 	}
-	if k.string_ == "" && k.stringID != 0 {
-		return rhinoStringFromID(k.stringID)
-	}
-	return k.string_
+	return rhinoStringFromID(k.stringID)
 }
 
 // Symbol is the symbol of a SymbolKey; it throws for a StringKey.
 //
 // Java: Property.Key.symbol()
 func (k Property_Key) Symbol() *KnownSymbolType {
-	if k.kind == Property_KeyKind_STRING {
+	if k.symbol == nil {
 		panic(jutil.NewUnsupportedOperationException())
 	}
 	return k.symbol
@@ -148,45 +164,47 @@ func (k Property_Key) Symbol() *KnownSymbolType {
 //
 // Java: Property.Key.humanReadableName()
 func (k Property_Key) HumanReadableName() string {
-	switch k.kind {
-	case Property_KeyKind_STRING:
-		return k.String_()
+	if k.symbol == nil {
+		return rhinoStringFromID(k.stringID)
 	}
-	return *k.Symbol().GetDisplayName()
+	return *k.symbol.GetDisplayName()
 }
 
 // Java: Property.Key.matches(String) (default method)
 func (k Property_Key) Matches(stringKey string) bool {
-	return k.kind == Property_KeyKind_STRING && k.String_() == stringKey
+	return k.symbol == nil && k.stringID != 0 && rhinoStringFromID(k.stringID) == stringKey
 }
 
 // Equals is the records' equals(Object).
 func (k Property_Key) Equals(o any) bool {
 	other, ok := o.(Property_Key)
-	if !ok || other.kind != k.kind {
+	if !ok {
 		return false
 	}
-	if k.kind == Property_KeyKind_STRING {
-		if k.stringID != 0 && other.stringID != 0 {
-			return k.stringID == other.stringID
-		}
-		return k.String_() == other.String_()
+	if k == other {
+		return true
 	}
-	return jutil.ObjectsEquals(k.symbol, other.symbol)
+	if (k.symbol == nil) != (other.symbol == nil) {
+		return false
+	}
+	if k.symbol == nil {
+		return rhinoStringFromID(k.stringID) == rhinoStringFromID(other.stringID)
+	}
+	return k.symbol.Equals(other.symbol)
 }
 
 // HashCode is the records' hashCode().
 func (k Property_Key) HashCode() int32 {
-	if k.kind == Property_KeyKind_STRING {
-		return jutil.StringHashCode(k.String_())
+	if k.symbol == nil {
+		return jutil.StringHashCode(rhinoStringFromID(k.stringID))
 	}
 	return jutil.ObjectHashCode(k.symbol)
 }
 
 // String is the records' toString().
 func (k Property_Key) String() string {
-	if k.kind == Property_KeyKind_STRING {
-		return "StringKey[string=" + k.String_() + "]"
+	if k.symbol == nil {
+		return "StringKey[string=" + rhinoStringFromID(k.stringID) + "]"
 	}
 	return "SymbolKey[symbol=" + jutil.ToJavaString(k.symbol) + "]"
 }
@@ -195,13 +213,23 @@ func (k Property_Key) String() string {
 //
 // Java: Property.StringKey(String)
 func NewProperty_StringKey(string_ string) Property_Key {
-	return Property_Key{kind: Property_KeyKind_STRING, string_: string_}
+	return Property_Key{stringID: rhinoStringPoolIntern(string_)}
 }
 
 // NewProperty_StringKeyByID constructs a Property_Key for an interned string ID
 // without eagerly resolving its string representation.
 func NewProperty_StringKeyByID(id uint32) Property_Key {
-	return Property_Key{kind: Property_KeyKind_STRING, stringID: rhinoStringID(id)}
+	return Property_Key{stringID: rhinoStringID(id)}
+}
+
+// propertyKeyLookup looks up an existing string ID for read-only property
+// queries without interning unseen ASCII strings.
+func propertyKeyLookup(s string) Property_Key {
+	id := rhinoStringPoolLookup(s)
+	if id == 0 && (!propMapIsASCII(s) || rhinoStringPoolWasCleared()) {
+		id = rhinoStringPoolIntern(s)
+	}
+	return Property_Key{stringID: id}
 }
 
 // NewProperty_SymbolKey is a property well-known symbol key, such as
@@ -210,7 +238,7 @@ func NewProperty_StringKeyByID(id uint32) Property_Key {
 // Java: Property.SymbolKey(KnownSymbolType)
 func NewProperty_SymbolKey(symbol *KnownSymbolType) Property_Key {
 	jutil.CheckNotNull(symbol)
-	return Property_Key{kind: Property_KeyKind_SYMBOL, symbol: symbol}
+	return Property_Key{symbol: symbol}
 }
 
 // Property_OwnedProperty is a property instance associated with particular
@@ -268,15 +296,14 @@ func NewPropertyByKey(name Property_Key, type_ JSType, inferred bool, propertyNo
 		jutil.CheckNotNullMsg1(type_, "Null type specified for %s", name)
 	}
 	p := &Property{}
-	switch name.Kind() {
-	case Property_KeyKind_STRING:
+	if name.symbol == nil {
 		if name.stringID != 0 {
 			p.nameID = name.stringID
 		} else {
-			p.nameID = rhinoStringPoolIntern(name.String_())
+			p.nameID = rhinoStringPoolIntern("")
 		}
-	case Property_KeyKind_SYMBOL:
-		p.nameID = type_.GetJSTypeBase().GetRegistry().propertySymbolID(name.Symbol())
+	} else {
+		p.nameID = type_.GetJSTypeBase().GetRegistry().propertySymbolID(name.symbol)
 		p.isSymbol = true
 	}
 	p.type_ = type_.GetJSTypeBase()

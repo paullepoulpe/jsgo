@@ -424,6 +424,10 @@ func (e *Es6NormalizeClasses) CreateCallCallee(methodGetProp rhino.Node, isOptio
 	return e.astFactory.CreateGetPropWithUnknownType(methodGetProp, "call")
 }
 
+func es6NonClassOrNonArrowFnPred(n rhino.Node) bool {
+	return !n.IsClass() && (!n.IsFunction() || n.IsArrowFunction())
+}
+
 // RewriteThisToThisDotSelf rewrites top-level `this` references inside a
 // private accessor body to `this.$self`.
 //
@@ -431,37 +435,50 @@ func (e *Es6NormalizeClasses) CreateCallCallee(methodGetProp rhino.Node, isOptio
 //
 // Java: Es6NormalizeClasses.rewriteThisToThisDotSelf(Node)
 func (e *Es6NormalizeClasses) RewriteThisToThisDotSelf(fn ast.Function) bool {
+	return e.rewriteThisToThisDotSelfInSubtree(fn.Body().Node())
+}
+
+func (e *Es6NormalizeClasses) rewriteThisToThisDotSelfInSubtree(node rhino.Node) bool {
 	hasThis := false
-	NodeUtil_VisitPostOrderWithPred(
-		fn.Body().Node(),
-		NodeUtil_VisitorFunc(func(n rhino.Node) {
-			if n.IsThis() {
+	if es6NonClassOrNonArrowFnPred(node) {
+		for c := node.GetFirstChild(); !c.IsNil(); {
+			next := c.GetNext()
+			if e.rewriteThisToThisDotSelfInSubtree(c) {
 				hasThis = true
-				target :=
-					e.astFactory.
-						CreateGetPropWithUnknownType(
-							e.astFactory.CreateThis(AstFactory_Type_OfColor(colors.StandardColors_UNKNOWN)), "$self").
-						Srcref(n)
-				n.ReplaceWith(target)
-				e.compiler.ReportChangeToEnclosingScope(target)
 			}
-		}),
-		func(n rhino.Node) bool { return !n.IsClass() && (!n.IsFunction() || n.IsArrowFunction()) })
+			c = next
+		}
+	}
+	if node.IsThis() {
+		hasThis = true
+		target :=
+			e.astFactory.
+				CreateGetPropWithUnknownType(
+					e.astFactory.CreateThis(AstFactory_Type_OfColor(colors.StandardColors_UNKNOWN)), "$self").
+				Srcref(node)
+		node.ReplaceWith(target)
+		e.compiler.ReportChangeToEnclosingScope(target)
+	}
 	return hasThis
 }
 
 // Java: Es6NormalizeClasses.hasThisReference(Node)
 func (e *Es6NormalizeClasses) HasThisReference(fn ast.Function) bool {
-	hasThis := false
-	NodeUtil_VisitPostOrderWithPred(
-		fn.Body().Node(),
-		NodeUtil_VisitorFunc(func(n rhino.Node) {
-			if n.IsThis() {
-				hasThis = true
+	return es6SubtreeHasThis(fn.Body().Node())
+}
+
+func es6SubtreeHasThis(node rhino.Node) bool {
+	if node.IsThis() {
+		return true
+	}
+	if es6NonClassOrNonArrowFnPred(node) {
+		for c := node.GetFirstChild(); !c.IsNil(); c = c.GetNext() {
+			if es6SubtreeHasThis(c) {
+				return true
 			}
-		}),
-		func(n rhino.Node) bool { return !n.IsClass() && (!n.IsFunction() || n.IsArrowFunction()) })
-	return hasThis
+		}
+	}
+	return false
 }
 
 // RewriteSuperReferencesInPrivateMember rewrites `super` references inside
@@ -476,68 +493,77 @@ func (e *Es6NormalizeClasses) RewriteSuperReferencesInPrivateMember(fn ast.Funct
 	if !NodeUtil_ReferencesSuper(fnBody) {
 		return
 	}
+	e.rewriteSuperRefsInSubtree(fnBody, fnBody, isStatic, record)
+}
 
-	NodeUtil_VisitPostOrderWithPred(
-		fnBody,
-		NodeUtil_VisitorFunc(func(n rhino.Node) {
-			if n.IsSuper() {
-				parent := n.GetParent()
-				if get, ok := ast.AsNormalGet(parent); ok {
-					var target rhino.Node
-					if isStatic {
-						target = record.CreateNewSuperclassReferenceNode().SrcrefTree(n)
-					} else {
-						target =
-							e.astFactory.
-								CreatePrototypeAccess(record.CreateNewSuperclassReferenceNode()).
-								SrcrefTree(n)
-					}
+func (e *Es6NormalizeClasses) rewriteSuperRefsInSubtree(
+	node rhino.Node, fnBody rhino.Node, isStatic bool, record *es6NormalizeClasses_ClassRecord) {
+	if !node.IsClass() {
+		for c := node.GetFirstChild(); !c.IsNil(); {
+			next := c.GetNext()
+			e.rewriteSuperRefsInSubtree(c, fnBody, isStatic, record)
+			c = next
+		}
+	}
+	if !node.IsSuper() {
+		return
+	}
+	parent := node.GetParent()
+	get, ok := ast.AsNormalGet(parent)
+	if !ok {
+		return
+	}
+	var target rhino.Node
+	if isStatic {
+		target = record.CreateNewSuperclassReferenceNode().SrcrefTree(node)
+	} else {
+		target =
+			e.astFactory.
+				CreatePrototypeAccess(record.CreateNewSuperclassReferenceNode()).
+				SrcrefTree(node)
+	}
 
-					grandParent := parent.GetParent()
-					if call, ok := ast.AsCall(grandParent); ok && call.Callee().Is(parent) {
-						// Method call: super.method(...)
-						n.ReplaceWith(target)
-						if !isStatic || !e.compiler.GetOptions().GetAssumeStaticInheritanceIsNotUsed() {
-							callCallee :=
-								e.astFactory.CreateGetPropWithUnknownType(parent.Detach(), "call")
-							grandParent.AddChildToFront(callCallee.SrcrefTreeIfMissing(parent))
-							thisArg := e.astFactory.CreateThis(AstFactory_Type_OfColor(colors.StandardColors_UNKNOWN)).Srcref(n)
-							thisArg.InsertAfter(callCallee)
-						}
-					} else if assign, ok := ast.AsAssign(grandParent); ok && assign.Target().Is(parent) {
-						// Setter write: super.prop = value
-						rhs := assign.Value().Detach().Node()
-						propKey := e.superPropertyKey(get, record, n)
+	grandParent := parent.GetParent()
+	if call, ok := ast.AsCall(grandParent); ok && call.Callee().Is(parent) {
+		// Method call: super.method(...)
+		node.ReplaceWith(target)
+		if !isStatic || !e.compiler.GetOptions().GetAssumeStaticInheritanceIsNotUsed() {
+			callCallee :=
+				e.astFactory.CreateGetPropWithUnknownType(parent.Detach(), "call")
+			grandParent.AddChildToFront(callCallee.SrcrefTreeIfMissing(parent))
+			thisArg := e.astFactory.CreateThis(AstFactory_Type_OfColor(colors.StandardColors_UNKNOWN)).Srcref(node)
+			thisArg.InsertAfter(callCallee)
+		}
+	} else if assign, ok := ast.AsAssign(grandParent); ok && assign.Target().Is(parent) {
+		// Setter write: super.prop = value
+		rhs := assign.Value().Detach().Node()
+		propKey := e.superPropertyKey(get, record, node)
 
-						reflectSet :=
-							e.astFactory.CreateCall(
-								e.astFactory.CreateGetPropWithUnknownType(
-									e.astFactory.CreateName("Reflect", AstFactory_Type_OfColor(colors.StandardColors_UNKNOWN)), "set"),
-								AstFactory_Type_OfColor(colors.StandardColors_UNKNOWN),
-								target,
-								propKey,
-								rhs,
-								e.astFactory.CreateThis(AstFactory_Type_OfColor(colors.StandardColors_UNKNOWN)).Srcref(n))
-						grandParent.ReplaceWith(reflectSet.SrcrefTreeIfMissing(grandParent))
-					} else {
-						// Getter read: super.prop
-						propKey := e.superPropertyKey(get, record, n)
+		reflectSet :=
+			e.astFactory.CreateCall(
+				e.astFactory.CreateGetPropWithUnknownType(
+					e.astFactory.CreateName("Reflect", AstFactory_Type_OfColor(colors.StandardColors_UNKNOWN)), "set"),
+				AstFactory_Type_OfColor(colors.StandardColors_UNKNOWN),
+				target,
+				propKey,
+				rhs,
+				e.astFactory.CreateThis(AstFactory_Type_OfColor(colors.StandardColors_UNKNOWN)).Srcref(node))
+		grandParent.ReplaceWith(reflectSet.SrcrefTreeIfMissing(grandParent))
+	} else {
+		// Getter read: super.prop
+		propKey := e.superPropertyKey(get, record, node)
 
-						reflectGet :=
-							e.astFactory.CreateCall(
-								e.astFactory.CreateGetPropWithUnknownType(
-									e.astFactory.CreateName("Reflect", AstFactory_Type_OfColor(colors.StandardColors_UNKNOWN)), "get"),
-								AstFactory_Type_OfColor(colors.StandardColors_UNKNOWN),
-								target,
-								propKey,
-								e.astFactory.CreateThis(AstFactory_Type_OfColor(colors.StandardColors_UNKNOWN)).Srcref(n))
-						parent.ReplaceWith(reflectGet.SrcrefTreeIfMissing(parent))
-					}
-					e.compiler.ReportChangeToEnclosingScope(fnBody)
-				}
-			}
-		}),
-		func(n rhino.Node) bool { return !n.IsClass() })
+		reflectGet :=
+			e.astFactory.CreateCall(
+				e.astFactory.CreateGetPropWithUnknownType(
+					e.astFactory.CreateName("Reflect", AstFactory_Type_OfColor(colors.StandardColors_UNKNOWN)), "get"),
+				AstFactory_Type_OfColor(colors.StandardColors_UNKNOWN),
+				target,
+				propKey,
+				e.astFactory.CreateThis(AstFactory_Type_OfColor(colors.StandardColors_UNKNOWN)).Srcref(node))
+		parent.ReplaceWith(reflectGet.SrcrefTreeIfMissing(parent))
+	}
+	e.compiler.ReportChangeToEnclosingScope(fnBody)
 }
 
 func (e *Es6NormalizeClasses) superPropertyKey(

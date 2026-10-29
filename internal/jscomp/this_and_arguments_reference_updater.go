@@ -19,9 +19,20 @@
 package jscomp
 
 import (
+	"github.com/paullepoulpe/jsgo/internal/ast"
 	"github.com/paullepoulpe/jsgo/internal/parser"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
+	"github.com/paullepoulpe/jsgo/internal/strpool"
 )
+
+var thisAndArgsArgumentsID = uint32(strpool.Intern("arguments"))
+
+var thisAndArgsVisitTokens = func() ast.TokenSet {
+	var s ast.TokenSet
+	s.Add(rhino.Token_THIS)
+	s.Add(rhino.Token_NAME)
+	return s
+}()
 
 // ThisAndArgumentsReferenceUpdater rewrites references to `this` and
 // `arguments` in a single function to instead refer to local variables.
@@ -53,11 +64,15 @@ const (
 // Java: ThisAndArgumentsReferenceUpdater(AbstractCompiler, ThisAndArgumentsContext, AstFactory)
 func NewThisAndArgumentsReferenceUpdater(
 	compiler AbstractCompiler, context *ThisAndArgumentsReferenceUpdater_ThisAndArgumentsContext, astFactory *AstFactory) *ThisAndArgumentsReferenceUpdater {
-	u := &ThisAndArgumentsReferenceUpdater{}
-	u.compiler = compiler
-	u.context = context
-	u.astFactory = astFactory
-	return u
+	return &ThisAndArgumentsReferenceUpdater{
+		compiler:   compiler,
+		context:    context,
+		astFactory: astFactory,
+	}
+}
+
+func (*ThisAndArgumentsReferenceUpdater) visitTokens() *ast.TokenSet {
+	return &thisAndArgsVisitTokens
 }
 
 // Java: ThisAndArgumentsReferenceUpdater.visit(NodeTraversal, Node, Node)
@@ -69,20 +84,18 @@ func (u *ThisAndArgumentsReferenceUpdater) Visit(t *NodeTraversal, n rhino.Node,
 			ThisAndArgumentsReferenceUpdater_THIS_VAR+"$"+u.context.uniqueId, u.context.GetThisType()).Srcref(n)
 		name.MakeNonIndexable()
 		if u.compiler.GetOptions().PreservesDetailedSourceInfo() {
-			originalName := "this"
-			name.SetOriginalName(&originalName)
+			name.SetOriginalNameString("this")
 		}
 
 		n.ReplaceWith(name)
-	} else if n.IsName() && n.GetString() == "arguments" {
+	} else if n.IsName() && n.GetStringID() == thisAndArgsArgumentsID {
 		u.context.SetNeedsArgumentsVar()
 
 		name := u.astFactory.
 			CreateName(ThisAndArgumentsReferenceUpdater_ARGUMENTS_VAR+"$"+u.context.uniqueId, AstFactory_Type_(n)).
 			Srcref(n)
 		if u.compiler.GetOptions().PreservesDetailedSourceInfo() {
-			originalName := "arguments"
-			name.SetOriginalName(&originalName)
+			name.SetOriginalNameString("arguments")
 		}
 
 		n.ReplaceWith(name)
@@ -121,19 +134,21 @@ type ThisAndArgumentsReferenceUpdater_ThisAndArgumentsContext struct {
 	needsArgumentsVar bool
 }
 
+func makeThisAndArgumentsContext(
+	scopeBody rhino.Node, isConstructor bool, uniqueId string) ThisAndArgumentsReferenceUpdater_ThisAndArgumentsContext {
+	return ThisAndArgumentsReferenceUpdater_ThisAndArgumentsContext{
+		scopeBody:          scopeBody,
+		isConstructor:      isConstructor,
+		lastSuperStatement: rhino.NilNode,
+		uniqueId:           uniqueId,
+	}
+}
+
 // Java: ThisAndArgumentsContext(Node, boolean, String)
 func NewThisAndArgumentsReferenceUpdater_ThisAndArgumentsContext(
 	scopeBody rhino.Node, isConstructor bool, uniqueId string) *ThisAndArgumentsReferenceUpdater_ThisAndArgumentsContext {
-	c := &ThisAndArgumentsReferenceUpdater_ThisAndArgumentsContext{
-		lastSuperStatement: rhino.NilNode,
-		uniqueId:           "",
-		needsThisVar:       false,
-		needsArgumentsVar:  false,
-	}
-	c.scopeBody = scopeBody
-	c.isConstructor = isConstructor
-	c.uniqueId = uniqueId
-	return c
+	c := makeThisAndArgumentsContext(scopeBody, isConstructor, uniqueId)
+	return &c
 }
 
 // Java: ThisAndArgumentsContext.getThisType()

@@ -21,6 +21,7 @@ package jscomp
 import (
 	"slices"
 	"strconv"
+	"strings"
 
 	"github.com/paullepoulpe/jsgo/internal/graph"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
@@ -66,7 +67,7 @@ type DotFormatter struct {
 func NewDotFormatter() *DotFormatter {
 	return &DotFormatter{
 		assignments: make(map[rhino.Node]int),
-		builder:     jutil.NewStringBuilder(),
+		builder:     jutil.NewStringWriter(),
 	}
 }
 
@@ -103,7 +104,7 @@ func DotFormatter_ToDot(n rhino.Node) string {
 //
 // Java: DotFormatter.toDot(Node, ControlFlowGraph<Node>)
 func DotFormatter_ToDotWithCfg(n rhino.Node, inCFG *ControlFlowGraph[rhino.Node]) string {
-	builder := jutil.NewStringBuilder()
+	builder := jutil.NewStringWriter()
 	_ = NewDotFormatterWithGraph(n, inCFG, builder, false)
 	return builder.String()
 }
@@ -116,17 +117,17 @@ func DotFormatter_ToDotWithCfg(n rhino.Node, inCFG *ControlFlowGraph[rhino.Node]
 //
 // Java: DotFormatter.toDot(GraphvizGraph)
 func DotFormatter_ToDotOfGraphvizGraph(gvGraph graph.GraphvizGraph) string {
-	builder := jutil.NewStringBuilder()
+	var builder strings.Builder
 	if gvGraph.IsDirected() {
-		builder.Append("digraph")
+		builder.WriteString("digraph")
 	} else {
-		builder.Append("graph")
+		builder.WriteString("graph")
 	}
-	builder.Append(dotFormatter_INDENT)
-	builder.Append(gvGraph.GetName())
-	builder.Append(" {\n")
-	builder.Append(dotFormatter_INDENT)
-	builder.Append("node [color=lightblue2, style=filled];\n")
+	builder.WriteString(dotFormatter_INDENT)
+	builder.WriteString(gvGraph.GetName())
+	builder.WriteString(" {\n")
+	builder.WriteString(dotFormatter_INDENT)
+	builder.WriteString("node [color=lightblue2, style=filled];\n")
 
 	edgeSymbol := dotFormatter_LINE
 	if gvGraph.IsDirected() {
@@ -152,9 +153,9 @@ func DotFormatter_ToDotOfGraphvizGraph(gvGraph graph.GraphvizGraph) string {
 	slices.SortStableFunc(nodeNames, jutil.StringCompareTo)
 
 	for _, nodeName := range nodeNames {
-		builder.Append(dotFormatter_INDENT)
-		builder.Append(nodeName)
-		builder.Append(";\n")
+		builder.WriteString(dotFormatter_INDENT)
+		builder.WriteString(nodeName)
+		builder.WriteString(";\n")
 	}
 
 	// Sort the list of edges so the output is deterministic
@@ -167,20 +168,18 @@ func DotFormatter_ToDotOfGraphvizGraph(gvGraph graph.GraphvizGraph) string {
 	})
 
 	for _, edge := range edges {
-		builder.Append(dotFormatter_INDENT)
-		builder.Append(edge.GetNode1Id())
-		builder.Append(edgeSymbol)
-		builder.Append(edge.GetNode2Id())
-		builder.
-			Append(" [label=\"").
-			Append(edge.GetLabel()).
-			Append("\" color=\"").
-			Append(edge.GetColor()).
-			Append("\"]")
-		builder.Append(";\n")
+		builder.WriteString(dotFormatter_INDENT)
+		builder.WriteString(edge.GetNode1Id())
+		builder.WriteString(edgeSymbol)
+		builder.WriteString(edge.GetNode2Id())
+		builder.WriteString(" [label=\"")
+		builder.WriteString(edge.GetLabel())
+		builder.WriteString("\" color=\"")
+		builder.WriteString(edge.GetColor())
+		builder.WriteString("\"];\n")
 	}
 
-	builder.Append("}\n")
+	builder.WriteString("}\n")
 	return builder.String()
 }
 

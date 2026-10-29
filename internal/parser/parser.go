@@ -74,8 +74,8 @@ type Parser struct {
 	sourceMapURL *string
 
 	// Go-only: performance — scratch stacks for the lists being parsed (Java
-	// uses an ImmutableList.Builder per list); popStack copies each finished
-	// list out at its exact length.
+	// uses an ImmutableList.Builder per list); popStackChunked copies each
+	// finished list out at its exact length.
 	treeStack    []ParseTree
 	posStack     []SourcePosition
 	varDeclStack []*VariableDeclarationTree
@@ -180,8 +180,8 @@ const (
 	parser_posListChunk  = 340
 )
 
-// popStackChunked is popStack with the result carved from *chunk, a shared
-// chunk of chunkSize elements.
+// popStackChunked returns the elements pushed on *stack since base, carved
+// from *chunk (a shared chunk of chunkSize elements), and pops them.
 func popStackChunked[T any](stack *[]T, base int, chunk *[]T, chunkSize int) []T {
 	s := (*stack)[base:]
 	n := len(s)
@@ -204,10 +204,20 @@ func popStackChunked[T any](stack *[]T, base int, chunk *[]T, chunkSize int) []T
 	return res
 }
 
-// popTrees is popStack(&p.treeStack, base) with the result carved from a
-// shared chunk.
+// popTrees pops the elements pushed on p.treeStack since base into a slice
+// carved from a shared chunk.
 func (p *Parser) popTrees(base int) []ParseTree {
 	return popStackChunked(&p.treeStack, base, &p.treeLists, parser_treeListChunk)
+}
+
+func (p *Parser) singleTreeList(t ParseTree) []ParseTree {
+	if len(p.treeLists) < 1 {
+		p.treeLists = jutil.SlabChunk[ParseTree](parser_treeListChunk)
+	}
+	res := p.treeLists[:1:1]
+	p.treeLists = p.treeLists[1:]
+	res[0] = t
+	return res
 }
 
 func (p *Parser) newIdentifierExpressionTree(location SourceRange, identifierToken Token) *IdentifierExpressionTree {
@@ -247,17 +257,6 @@ func (p *Parser) newPropertyNameAssignmentTree(location SourceRange, name Token,
 	t.Name = name
 	t.Value = value
 	return t
-}
-
-// popStack returns the elements pushed on *stack since base as a new slice
-// of exactly that length (never nil), and pops them.
-func popStack[T any](stack *[]T, base int) []T {
-	s := (*stack)[base:]
-	res := make([]T, len(s))
-	copy(res, s)
-	clear(s)
-	*stack = (*stack)[:base]
-	return res
 }
 
 // Parser_FunctionFlavor is Parser.FunctionFlavor: indicates the type of
@@ -572,16 +571,17 @@ func (p *Parser) ParseImportDeclaration() ParseTree {
 //
 // Java: Parser.parseImportSpecifierSet()
 func (p *Parser) ParseImportSpecifierSet() []ParseTree {
-	elements := []ParseTree{}
+	base := len(p.treeStack)
 	p.Eat(TokenType_OPEN_CURLY)
 	for p.PeekIdOrKeyword() {
-		elements = append(elements, p.ParseImportSpecifier())
+		spec := p.ParseImportSpecifier()
+		p.treeStack = append(p.treeStack, spec)
 		if !p.Peek(TokenType_CLOSE_CURLY) {
 			p.Eat(TokenType_COMMA)
 		}
 	}
 	p.Eat(TokenType_CLOSE_CURLY)
-	return elements
+	return p.popTrees(base)
 }
 
 // ParseImportSpecifier parses ImportSpecifier ::= Identifier ('as' Identifier)?
@@ -708,16 +708,17 @@ func (p *Parser) ParseExportDeclaration() ParseTree {
 //
 // Java: Parser.parseExportSpecifierSet()
 func (p *Parser) ParseExportSpecifierSet() []ParseTree {
-	elements := []ParseTree{}
+	base := len(p.treeStack)
 	p.Eat(TokenType_OPEN_CURLY)
 	for p.PeekIdOrKeyword() {
-		elements = append(elements, p.ParseExportSpecifier())
+		spec := p.ParseExportSpecifier()
+		p.treeStack = append(p.treeStack, spec)
 		if !p.Peek(TokenType_CLOSE_CURLY) {
 			p.Eat(TokenType_COMMA)
 		}
 	}
 	p.Eat(TokenType_CLOSE_CURLY)
-	return elements
+	return p.popTrees(base)
 }
 
 // ParseExportSpecifier parses ExportSpecifier ::= Identifier ('as' Identifier)?
@@ -734,196 +735,6 @@ func (p *Parser) ParseExportSpecifier() ParseTree {
 	return NewExportSpecifierTree(p.GetTreeLocation(start), importedName, destinationName)
 }
 
-// Java: Parser.peekClassDeclaration()
-func (p *Parser) PeekClassDeclaration() bool {
-	return p.Peek(TokenType_CLASS)
-}
-
-// Java: Parser.parseClassDeclaration()
-func (p *Parser) ParseClassDeclaration() ParseTree {
-	return p.ParseClass( /* isExpression= */ false)
-}
-
-// Java: Parser.parseClassExpression()
-func (p *Parser) ParseClassExpression() ParseTree {
-	return p.ParseClass( /* isExpression= */ true)
-}
-
-// Java: Parser.parseClass(boolean)
-func (p *Parser) ParseClass(isExpression bool) ParseTree {
-	start := p.GetTreeStartLocation()
-	p.Eat(TokenType_CLASS)
-	var name Token
-	if !isExpression || p.PeekId() {
-		name = p.EatId()
-	}
-
-	var superClass ParseTree
-	if p.Peek(TokenType_EXTENDS) {
-		p.Eat(TokenType_EXTENDS)
-		superClass = p.ParseLeftHandSideExpression()
-	}
-
-	p.Eat(TokenType_OPEN_CURLY)
-	elements := p.ParseClassElements()
-	p.Eat(TokenType_CLOSE_CURLY)
-	return NewClassDeclarationTree(p.GetTreeLocation(start), name, superClass, elements)
-}
-
-// Java: Parser.parseClassElements()
-func (p *Parser) ParseClassElements() []ParseTree {
-	result := []ParseTree{}
-	for {
-		token := p.PeekToken()
-		if token.Type() == TokenType_SEMI_COLON {
-			p.Eat(TokenType_SEMI_COLON)
-			continue
-		} else {
-			if p.IsClassElementStart(token) {
-			} else {
-				return result
-			}
-		}
-		result = append(result, p.ParseClassElement())
-	}
-}
-
-// Java: Parser.isClassElementStart(Token)
-func (p *Parser) IsClassElementStart(token Token) bool {
-	switch token.Type() {
-	case TokenType_IDENTIFIER, TokenType_NUMBER, TokenType_BIGINT, TokenType_STAR, TokenType_STATIC, TokenType_STRING, TokenType_OPEN_SQUARE:
-		return true
-	default:
-		if Keywords_IsKeywordTokenType(token.Type()) {
-			return true
-		}
-	}
-	return false
-}
-
-// Java: Parser.createObjectLiteralElementInfo()
-func (p *Parser) CreateObjectLiteralElementInfo() *ClassOrObjectElementInfo {
-	return ClassOrObjectElementInfo_CreateObjectLiteralElementInfo(p.GetTreeStartLocation())
-}
-
-// Java: Parser.parseClassElement()
-func (p *Parser) ParseClassElement() ParseTree {
-	if p.Peek(TokenType_SEMI_COLON) {
-		return p.ParseEmptyStatement()
-	}
-
-	if p.PeekClassStaticInitializerBlock() {
-		return p.ParseClassStaticInitializerBlock()
-	}
-
-	elementInfo := ClassOrObjectElementInfo_CreateClassMemberInfo(
-		p.GetTreeStartLocation(), p.EatStaticIfNotElementName())
-	if p.PeekGetAccessor() {
-		return p.ParseGetAccessor(elementInfo)
-	} else if p.PeekSetAccessor() {
-		return p.ParseSetAccessor(elementInfo)
-	} else if p.PeekAsyncMethod() {
-		return p.ParseAsyncMethod(elementInfo)
-	} else {
-		return p.ParseClassMemberDeclaration(elementInfo)
-	}
-}
-
-// Java: Parser.eatStaticIfNotElementName()
-func (p *Parser) EatStaticIfNotElementName() bool {
-	// only eat `static` if it being used as a keyword and not
-	// a member name.
-	if p.Peek(TokenType_STATIC) && p.IsClassElementStart(p.PeekTokenAt(1)) {
-		p.Eat(TokenType_STATIC)
-		return true
-	}
-	return false
-}
-
-// Java: Parser.peekAsyncMethod()
-func (p *Parser) PeekAsyncMethod() bool {
-	return p.PeekPredefinedString(Parser_ASYNC) &&
-		!p.PeekImplicitSemiColonAt(1) &&
-		(p.PeekPropertyNameOrComputedProp(1) ||
-			(p.PeekAt(1, TokenType_STAR) && p.PeekPropertyNameOrComputedProp(2)))
-}
-
-// Java: Parser.peekClassStaticInitializerBlock()
-func (p *Parser) PeekClassStaticInitializerBlock() bool {
-	return p.Peek(TokenType_STATIC) && p.PeekAt(1, TokenType_OPEN_CURLY)
-}
-
-// Java: Parser.parseClassElementName(ClassOrObjectElementInfo)
-func (p *Parser) ParseClassElementName(elementInfo *ClassOrObjectElementInfo) {
-	if p.PeekPropertyName(0) {
-		if p.PeekIdOrKeyword() {
-			elementInfo.SetName(p.EatIdOrKeywordAsId())
-			if elementInfo.GetName().IsKeyword() {
-				p.RecordFeatureUsed(FeatureSet_Feature_KEYWORDS_AS_PROPERTIES)
-			}
-		} else {
-			// { 'str'() {} }
-			// { 123() {} }
-			// Treat these as if they were computed properties.
-			// TODO(b/123769080): Stop making this assumption!
-			elementInfo.SetNameExpr(p.ParseLiteralExpression())
-		}
-	} else {
-		elementInfo.SetNameExpr(p.ParseComputedPropertyName())
-	}
-}
-
-// Java: Parser.parseFieldDefinition(ClassOrObjectElementInfo)
-func (p *Parser) ParseFieldDefinition(elementInfo *ClassOrObjectElementInfo) ParseTree {
-	var initializer ParseTree
-	if p.Peek(TokenType_EQUAL) {
-		initializer = p.ParseInitializer(Parser_Expression_NORMAL)
-	}
-
-	p.EatPossiblyImplicitSemiColon()
-	if elementInfo.HasName() {
-		return NewFieldDeclarationTree(
-			p.GetTreeLocation(elementInfo.start),
-			elementInfo.GetName(),
-			elementInfo.isStatic,
-			initializer)
-	} else {
-		jutil.CheckState(elementInfo.HasNameExpr())
-		return NewComputedPropertyFieldTree(
-			p.GetTreeLocation(elementInfo.start),
-			elementInfo.GetNameExpr(),
-			elementInfo.isStatic,
-			initializer)
-	}
-}
-
-// Java: Parser.parseMethodDefinition(ClassOrObjectElementInfo, boolean)
-func (p *Parser) ParseMethodDefinition(elementInfo *ClassOrObjectElementInfo, isGenerator bool) ParseTree {
-	var kind FunctionDeclarationTree_Kind
-	if elementInfo.HasNameExpr() {
-		kind = FunctionDeclarationTree_Kind_EXPRESSION
-	} else {
-		kind = FunctionDeclarationTree_Kind_MEMBER
-	}
-
-	builder := FunctionDeclarationTree_NewBuilder(kind).
-		SetIsClassMember(elementInfo.isClassMember).
-		SetStatic(elementInfo.isStatic)
-	if elementInfo.HasName() {
-		builder.SetName(elementInfo.GetName())
-	}
-	p.ParseFunctionTail(builder, functionFlavorOf(isGenerator, Parser_FunctionFlavor_GENERATOR, Parser_FunctionFlavor_NORMAL))
-
-	var function ParseTree = builder.Build(p.GetTreeLocation(elementInfo.start))
-	if kind == FunctionDeclarationTree_Kind_MEMBER {
-		return function
-	} else {
-		jutil.CheckState(elementInfo.HasNameExpr())
-		return NewComputedPropertyMethodTree(
-			p.GetTreeLocation(elementInfo.start), elementInfo.GetNameExpr(), function)
-	}
-}
-
 // functionFlavorOf is the Java conditional `cond ? ifTrue : ifFalse` over
 // FunctionFlavor values.
 //
@@ -933,96 +744,6 @@ func functionFlavorOf(cond bool, ifTrue, ifFalse Parser_FunctionFlavor) Parser_F
 		return ifTrue
 	}
 	return ifFalse
-}
-
-// Java: Parser.parseObjectLiteralMethodDeclaration()
-func (p *Parser) ParseObjectLiteralMethodDeclaration() ParseTree {
-	return p.ParseMethodDeclaration(p.CreateObjectLiteralElementInfo())
-}
-
-// Java: Parser.parseMethodDeclaration(ClassOrObjectElementInfo)
-func (p *Parser) ParseMethodDeclaration(elementInfo *ClassOrObjectElementInfo) ParseTree {
-	isGenerator := p.EatOpt(TokenType_STAR).IsPresent()
-	p.ParseClassElementName(elementInfo)
-	return p.ParseMethodDefinition(elementInfo, isGenerator)
-}
-
-// Java: Parser.parseClassMemberDeclaration(ClassOrObjectElementInfo)
-func (p *Parser) ParseClassMemberDeclaration(elementInfo *ClassOrObjectElementInfo) ParseTree {
-	isGenerator := p.EatOpt(TokenType_STAR).IsPresent()
-	p.ParseClassElementName(elementInfo)
-	if p.PeekTypeAt(0) == TokenType_OPEN_PAREN {
-		return p.ParseMethodDefinition(elementInfo, isGenerator)
-	} else {
-		return p.ParseFieldDefinition(elementInfo)
-	}
-}
-
-// Java: Parser.parseObjectLiteralAsyncMethod()
-func (p *Parser) ParseObjectLiteralAsyncMethod() ParseTree {
-	return p.ParseAsyncMethod(p.CreateObjectLiteralElementInfo())
-}
-
-// Java: Parser.parseAsyncMethod(ClassOrObjectElementInfo)
-func (p *Parser) ParseAsyncMethod(elementInfo *ClassOrObjectElementInfo) ParseTree {
-	p.EatPredefinedString(Parser_ASYNC)
-	generator := p.Peek(TokenType_STAR)
-	if generator {
-		p.Eat(TokenType_STAR)
-	}
-	if p.PeekPropertyName(0) {
-		if p.PeekIdOrKeyword() {
-			name := p.EatIdOrKeywordAsId()
-			builder := FunctionDeclarationTree_NewBuilder(FunctionDeclarationTree_Kind_MEMBER).
-				SetAsync(true).
-				SetGenerator(generator).
-				SetIsClassMember(elementInfo.isClassMember).
-				SetStatic(elementInfo.isStatic).
-				SetName(name)
-			p.ParseFunctionTail(
-				builder,
-				functionFlavorOf(generator, Parser_FunctionFlavor_ASYNCHRONOUS_GENERATOR, Parser_FunctionFlavor_ASYNCHRONOUS))
-
-			return builder.Build(p.GetTreeLocation(name.GetStart()))
-		} else {
-			// { 'str'() {} }
-			// { 123() {} }
-			// Treat these as if they were computed properties.
-			var nameExpr ParseTree = p.ParseLiteralExpression()
-			builder := FunctionDeclarationTree_NewBuilder(FunctionDeclarationTree_Kind_EXPRESSION).
-				SetAsync(true).
-				SetGenerator(generator).
-				SetIsClassMember(elementInfo.isClassMember).
-				SetStatic(elementInfo.isStatic)
-			p.ParseFunctionTail(
-				builder,
-				functionFlavorOf(generator, Parser_FunctionFlavor_ASYNCHRONOUS_GENERATOR, Parser_FunctionFlavor_ASYNCHRONOUS))
-
-			var function ParseTree = builder.Build(p.GetTreeLocation(nameExpr.GetStart()))
-			return NewComputedPropertyMethodTree(
-				p.GetTreeLocation(nameExpr.GetStart()), nameExpr, function)
-		}
-	} else {
-		// expect '[' to start computed property name
-		nameExpr := p.ParseComputedPropertyName()
-		builder := FunctionDeclarationTree_NewBuilder(FunctionDeclarationTree_Kind_EXPRESSION).
-			SetAsync(true).
-			SetGenerator(generator).
-			SetIsClassMember(elementInfo.isClassMember).
-			SetStatic(elementInfo.isStatic)
-		p.ParseFunctionTail(
-			builder, functionFlavorOf(generator, Parser_FunctionFlavor_ASYNCHRONOUS_GENERATOR, Parser_FunctionFlavor_ASYNCHRONOUS))
-
-		var function ParseTree = builder.Build(p.GetTreeLocation(nameExpr.GetStart()))
-		return NewComputedPropertyMethodTree(
-			p.GetTreeLocation(nameExpr.GetStart()), nameExpr, function)
-	}
-}
-
-// Java: Parser.parseClassStaticInitializerBlock()
-func (p *Parser) ParseClassStaticInitializerBlock() ParseTree {
-	p.Eat(TokenType_STATIC)
-	return p.ParseBlock()
 }
 
 // Java: Parser.parseFunctionTail(FunctionDeclarationTree.Builder, FunctionFlavor)
@@ -1103,19 +824,6 @@ func (p *Parser) ParseFunctionDeclaration() ParseTree {
 	return builder.Build(p.GetTreeLocation(start))
 }
 
-// Java: Parser.parseFunctionExpression()
-func (p *Parser) ParseFunctionExpression() ParseTree {
-	start := p.GetTreeStartLocation()
-	p.Eat(Keywords_FUNCTION.Type())
-	isGenerator := p.EatOpt(TokenType_STAR).IsPresent()
-
-	builder := FunctionDeclarationTree_NewBuilder(FunctionDeclarationTree_Kind_EXPRESSION).
-		SetName(p.EatIdOpt())
-	p.ParseFunctionTail(builder, functionFlavorOf(isGenerator, Parser_FunctionFlavor_GENERATOR, Parser_FunctionFlavor_NORMAL))
-
-	return builder.Build(p.GetTreeLocation(start))
-}
-
 // Java: Parser.parseAsyncFunctionDeclaration()
 func (p *Parser) ParseAsyncFunctionDeclaration() ParseTree {
 	start := p.GetTreeStartLocation()
@@ -1128,25 +836,6 @@ func (p *Parser) ParseAsyncFunctionDeclaration() ParseTree {
 
 	builder := FunctionDeclarationTree_NewBuilder(FunctionDeclarationTree_Kind_DECLARATION).
 		SetName(p.EatId()).
-		SetAsync(true)
-
-	p.ParseFunctionTail(
-		builder, functionFlavorOf(generator, Parser_FunctionFlavor_ASYNCHRONOUS_GENERATOR, Parser_FunctionFlavor_ASYNCHRONOUS))
-	return builder.Build(p.GetTreeLocation(start))
-}
-
-// Java: Parser.parseAsyncFunctionExpression()
-func (p *Parser) ParseAsyncFunctionExpression() ParseTree {
-	start := p.GetTreeStartLocation()
-	p.EatAsyncFunctionStart()
-
-	generator := p.Peek(TokenType_STAR)
-	if generator {
-		p.Eat(TokenType_STAR)
-	}
-
-	builder := FunctionDeclarationTree_NewBuilder(FunctionDeclarationTree_Kind_EXPRESSION).
-		SetName(p.EatIdOpt()).
 		SetAsync(true)
 
 	p.ParseFunctionTail(

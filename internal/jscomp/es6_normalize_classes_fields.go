@@ -386,18 +386,17 @@ func (e *Es6NormalizeClasses) ConvNonCompFieldToGetProp(
 	}
 
 	field := noncomputedField.Node()
-	propName := noncomputedField.Key()
-	if propName == "__proto__" {
+	if field.GetStringID() == es6ClassProtoID {
 		return e.CreateFieldDefineProperty(
-			field, fieldValue, receiver, e.astFactory.CreateString(propName))
+			field, fieldValue, receiver, e.astFactory.CreateString("__proto__"))
 	}
 
-	return e.CreateFieldAssignment(
-		field,
-		fieldValue,
-		func() rhino.Node {
-			return e.astFactory.CreateGetProp(receiver, propName, AstFactory_Type_(field))
-		})
+	val, ok := e.prepareFieldInitValue(field, fieldValue)
+	if !ok {
+		return rhino.NilNode
+	}
+	lhs := e.astFactory.CreateGetProp(receiver, noncomputedField.Key(), AstFactory_Type_(field))
+	return e.finishFieldInitStmt(field, e.astFactory.CreateAssignStatement(lhs, val))
 }
 
 // ConvCompFieldToGetElem creates a node that represents receiver[key] =
@@ -424,66 +423,89 @@ func (e *Es6NormalizeClasses) ConvCompFieldToGetElem(
 	}
 
 	field := computedField.Node()
-	if v := NodeUtil_GetStringValue(compFieldNameExpr); v != nil && *v == "__proto__" {
+	if es6IsProtoKeyExpr(compFieldNameExpr) {
 		return e.CreateFieldDefineProperty(field, fieldValue, receiver, compFieldNameExpr)
 	}
 
-	return e.CreateFieldAssignment(
-		field, fieldValue, func() rhino.Node { return e.astFactory.CreateGetElem(receiver, compFieldNameExpr) })
+	val, ok := e.prepareFieldInitValue(field, fieldValue)
+	if !ok {
+		return rhino.NilNode
+	}
+	lhs := e.astFactory.CreateGetElem(receiver, compFieldNameExpr)
+	return e.finishFieldInitStmt(field, e.astFactory.CreateAssignStatement(lhs, val))
+}
+
+func es6IsProtoKeyExpr(expr rhino.Node) bool {
+	if expr.IsStringLit() {
+		return expr.GetStringID() == es6ClassProtoID
+	}
+	v := NodeUtil_GetStringValue(expr)
+	return v != nil && *v == "__proto__"
 }
 
 // Java: Es6NormalizeClasses.createFieldDefineProperty(Node, Node, Node, Node)
 func (e *Es6NormalizeClasses) CreateFieldDefineProperty(
 	field rhino.Node, fieldValue rhino.Node, receiver rhino.Node, keyNode rhino.Node) rhino.Node {
-	return e.CreateFieldInitializationStatement(
-		field,
-		fieldValue,
-		func(val rhino.Node) rhino.Node {
-			descriptor :=
-				e.astFactory.CreateObjectLit(
-					e.astFactory.CreateStringKey("configurable", e.astFactory.CreateBoolean(true)),
-					e.astFactory.CreateStringKey("enumerable", e.astFactory.CreateBoolean(true)),
-					e.astFactory.CreateStringKey("writable", e.astFactory.CreateBoolean(true)),
-					e.astFactory.CreateStringKey("value", val))
-
-			definePropertyCall :=
-				e.astFactory.CreateCallWithUnknownType(
-					e.CreateObjectDotDefineProperty(), receiver, keyNode, descriptor)
-
-			return e.astFactory.ExprResult(definePropertyCall)
-		})
+	val, ok := e.prepareFieldInitValue(field, fieldValue)
+	if !ok {
+		return rhino.NilNode
+	}
+	descriptor :=
+		e.astFactory.CreateObjectLit(
+			e.astFactory.CreateStringKey("configurable", e.astFactory.CreateBoolean(true)),
+			e.astFactory.CreateStringKey("enumerable", e.astFactory.CreateBoolean(true)),
+			e.astFactory.CreateStringKey("writable", e.astFactory.CreateBoolean(true)),
+			e.astFactory.CreateStringKey("value", val))
+	definePropertyCall :=
+		e.astFactory.CreateCallWithUnknownType(
+			e.CreateObjectDotDefineProperty(), receiver, keyNode, descriptor)
+	return e.finishFieldInitStmt(field, e.astFactory.ExprResult(definePropertyCall))
 }
 
 // Java: Es6NormalizeClasses.createFieldAssignment(Node, Node, Supplier<Node>)
 func (e *Es6NormalizeClasses) CreateFieldAssignment(
 	field rhino.Node, fieldValue rhino.Node, createAssignLhs func() rhino.Node) rhino.Node {
-	return e.CreateFieldInitializationStatement(
-		field, fieldValue, func(val rhino.Node) rhino.Node { return e.astFactory.CreateAssignStatement(createAssignLhs(), val) })
+	val, ok := e.prepareFieldInitValue(field, fieldValue)
+	if !ok {
+		return rhino.NilNode
+	}
+	return e.finishFieldInitStmt(field, e.astFactory.CreateAssignStatement(createAssignLhs(), val))
 }
 
 // Java: Es6NormalizeClasses.createFieldInitializationStatement(Node, Node, Function<Node, Node>)
 func (e *Es6NormalizeClasses) CreateFieldInitializationStatement(
 	field rhino.Node, fieldValue rhino.Node, createStatement func(rhino.Node) rhino.Node) rhino.Node {
+	val, ok := e.prepareFieldInitValue(field, fieldValue)
+	if !ok {
+		return rhino.NilNode
+	}
+	return e.finishFieldInitStmt(field, createStatement(val))
+}
+
+func (e *Es6NormalizeClasses) prepareFieldInitValue(field rhino.Node, fieldValue rhino.Node) (rhino.Node, bool) {
 	if e.transpileClassFields && !field.IsPrivateIdentifier() {
 		field.Detach()
 	}
-
 	if fieldValue.IsNil() {
 		if !e.transpileClassFields {
-			return rhino.NilNode
+			return rhino.NilNode, false
 		}
-		fieldValue = e.astFactory.CreateUndefinedValue()
-	} else {
-		fieldValue.Detach()
+		return e.astFactory.CreateUndefinedValue(), true
 	}
+	fieldValue.Detach()
+	return fieldValue, true
+}
 
-	result := createStatement(fieldValue)
-
+func (e *Es6NormalizeClasses) finishFieldInitStmt(field rhino.Node, result rhino.Node) rhino.Node {
 	if e.transpileClassFields {
 		result.GetFirstChild().SetJSDocInfo(field.GetJSDocInfo())
 	}
 	result.SrcrefTreeIfMissing(field)
 	return result
+}
+
+func es6StaticInitNeedsMethodPred(n rhino.Node) bool {
+	return n.IsSuper() || n.IsPrivateIdentifier()
 }
 
 // RewriteStaticMembers rewrites and moves all static blocks and fields.
@@ -602,10 +624,8 @@ func (e *Es6NormalizeClasses) RewriteStaticMembers(t *NodeTraversal, record *es6
 	if !hasPriv &&
 		!NodeUtil_Has(
 			staticInitTempParent,
-			/* pred= */ func(n rhino.Node) bool { return n.IsSuper() || n.IsPrivateIdentifier() },
-			/* traverseChildrenPred= */ func(n rhino.Node) bool {
-				return !n.IsClass() && (!n.IsFunction() || n.IsArrowFunction())
-			}) {
+			es6StaticInitNeedsMethodPred,
+			es6NonClassOrNonArrowFnPred) {
 		for staticInitTempParent.HasChildren() {
 			staticInitTempParent.GetLastChild().Detach().InsertAfter(insertionPoint)
 		}

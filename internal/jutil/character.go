@@ -350,3 +350,205 @@ func unicode15ToLower(r rune) rune {
 	}
 	return unicode.ToLower(r)
 }
+
+// Go-only: language-adapter — java.lang.Character case mapping and
+// isSupplementaryCodePoint, and String.regionMatches on UTF-16 code units.
+// Java's Character.toUpperCase(char)/toLowerCase(char) are the simple
+// UnicodeData mappings; Go's unicode package uses the same data (Unicode
+// 15.0 in both JDK 21 and Go 1.24), checked on all 65536 chars by
+// TestCharacterCaseMatchesJava.
+
+// CharacterToUpperCase is Character.toUpperCase(char).
+func CharacterToUpperCase(ch uint16) uint16 {
+	if ch < 0x80 {
+		if ch >= 'a' && ch <= 'z' {
+			return ch - 'a' + 'A'
+		}
+		return ch
+	}
+	if isSurrogate(ch) {
+		return ch
+	}
+	u := unicode15ToUpper(rune(ch))
+	if u > 0xFFFF {
+		return ch
+	}
+	return uint16(u)
+}
+
+// CharacterToLowerCase is Character.toLowerCase(char).
+func CharacterToLowerCase(ch uint16) uint16 {
+	if ch < 0x80 {
+		if ch >= 'A' && ch <= 'Z' {
+			return ch - 'A' + 'a'
+		}
+		return ch
+	}
+	if isSurrogate(ch) {
+		return ch
+	}
+	l := unicode15ToLower(rune(ch))
+	if l > 0xFFFF {
+		return ch
+	}
+	return uint16(l)
+}
+
+// CharacterIsSupplementaryCodePoint is
+// Character.isSupplementaryCodePoint(int).
+func CharacterIsSupplementaryCodePoint(codePoint int) bool {
+	return codePoint >= 0x10000 && codePoint < 0x110000
+}
+
+// UTF16RegionMatches is String.regionMatches(boolean ignoreCase, int
+// toffset, String other, int ooffset, int len) on UTF-16 code units (see its
+// Javadoc). The result is false when an offset is negative or a region runs
+// past the end of its string; otherwise the len units starting at each
+// offset are compared. With ignoreCase, two code points are equal when they
+// are the same or when Character.toLowerCase(Character.toUpperCase(cp)) is
+// the same for both.
+//
+// Observed behaviour (black-box): the case-insensitive comparison works on
+// code points, so a surrogate pair inside both regions is mapped as one
+// supplementary character (U+10400 matches U+10428), while a half of a pair
+// cut off by a region boundary is compared as a lone surrogate. No case
+// mapping crosses between the BMP and the supplementary planes (checked on
+// every code point), so walking both regions in step is exact. A negative
+// len with in-range offsets compares nothing and gives true.
+func UTF16RegionMatches(ignoreCase bool, value []uint16, toffset int, other []uint16, ooffset int, length int) bool {
+	if toffset < 0 || ooffset < 0 || toffset > len(value)-length || ooffset > len(other)-length {
+		return false
+	}
+	for i := 0; i < length; i++ {
+		a, b := value[toffset+i], other[ooffset+i]
+		if a == b && !(ignoreCase && isHighSurrogateUnit(a)) {
+			continue
+		}
+		if !ignoreCase {
+			return false
+		}
+		cpA, cpB := rune(a), rune(b)
+		if i+1 < length && isHighSurrogateUnit(a) && isHighSurrogateUnit(b) {
+			la, lb := value[toffset+i+1], other[ooffset+i+1]
+			if isLowSurrogateUnit(la) && isLowSurrogateUnit(lb) {
+				cpA = (cpA-0xD800)<<10 + rune(la) - 0xDC00 + 0x10000
+				cpB = (cpB-0xD800)<<10 + rune(lb) - 0xDC00 + 0x10000
+				i++
+			}
+		}
+		if cpA != cpB && caseKey(cpA) != caseKey(cpB) {
+			return false
+		}
+	}
+	return true
+}
+
+// caseKey is Character.toLowerCase(Character.toUpperCase(cp)), the
+// equivalence used by regionMatches(true, ...). Surrogates map to
+// themselves.
+func caseKey(cp rune) rune {
+	if cp < 0x10000 {
+		return rune(CharacterToLowerCase(CharacterToUpperCase(uint16(cp))))
+	}
+	return unicode15ToLower(unicode15ToUpper(cp))
+}
+
+func isHighSurrogateUnit(c uint16) bool { return c >= 0xD800 && c <= 0xDBFF }
+
+func isLowSurrogateUnit(c uint16) bool { return c >= 0xDC00 && c <= 0xDFFF }
+
+// Go-only: language-adapter — the java.lang.Character methods that take an
+// int code point (character.go has the char overloads), and the Java
+// identifier predicates. testdata/character_codepoint.tsv (JDK 21) checks
+// every code point.
+
+// CharacterGetTypeOfCodePoint is Character.getType(int codePoint).
+func CharacterGetTypeOfCodePoint(codePoint int) int {
+	if codePoint < 0 || codePoint > unicode.MaxRune {
+		return Character_UNASSIGNED
+	}
+	if codePoint <= 0xFFFF {
+		return CharacterGetType(uint16(codePoint))
+	}
+	if codePoint == 0x1171E {
+		return Character_NON_SPACING_MARK
+	}
+	r := rune(codePoint)
+	if isUnassignedUnicode15(r) {
+		return Character_UNASSIGNED
+	}
+	for _, c := range characterCategories {
+		if unicode.Is(c.table, r) {
+			return c.typ
+		}
+	}
+	return Character_UNASSIGNED
+}
+
+// CharacterIsLetterCodePoint is Character.isLetter(int).
+func CharacterIsLetterCodePoint(codePoint int) bool {
+	switch CharacterGetTypeOfCodePoint(codePoint) {
+	case Character_UPPERCASE_LETTER, Character_LOWERCASE_LETTER, Character_TITLECASE_LETTER,
+		Character_MODIFIER_LETTER, Character_OTHER_LETTER:
+		return true
+	}
+	return false
+}
+
+// CharacterIsDigitCodePoint is Character.isDigit(int).
+func CharacterIsDigitCodePoint(codePoint int) bool {
+	return CharacterGetTypeOfCodePoint(codePoint) == Character_DECIMAL_DIGIT_NUMBER
+}
+
+// CharacterIsWhitespaceCodePoint is Character.isWhitespace(int): a Unicode
+// space, line or paragraph separator other than the non-breaking spaces
+// U+00A0, U+2007 and U+202F, or one of \t \n \u000B \f \r \u001C-\u001F.
+func CharacterIsWhitespaceCodePoint(codePoint int) bool {
+	switch codePoint {
+	case '\t', '\n', 0x0B, '\f', '\r', 0x1C, 0x1D, 0x1E, 0x1F:
+		return true
+	case 0x00A0, 0x2007, 0x202F:
+		return false
+	}
+	switch CharacterGetTypeOfCodePoint(codePoint) {
+	case Character_SPACE_SEPARATOR, Character_LINE_SEPARATOR, Character_PARAGRAPH_SEPARATOR:
+		return true
+	}
+	return false
+}
+
+// CharacterIsIdentifierIgnorable is Character.isIdentifierIgnorable(char):
+// ISO control characters that are not whitespace (U+0000-U+0008,
+// U+000E-U+001B, U+007F-U+009F) and FORMAT characters.
+func CharacterIsIdentifierIgnorable(ch uint16) bool {
+	if ch <= 0x08 || (ch >= 0x0E && ch <= 0x1B) || (ch >= 0x7F && ch <= 0x9F) {
+		return true
+	}
+	return CharacterGetType(ch) == Character_FORMAT
+}
+
+// CharacterIsJavaIdentifierStart is Character.isJavaIdentifierStart(char):
+// a letter, a letter number, a currency symbol or a connector punctuation.
+func CharacterIsJavaIdentifierStart(ch uint16) bool {
+	switch CharacterGetType(ch) {
+	case Character_UPPERCASE_LETTER, Character_LOWERCASE_LETTER, Character_TITLECASE_LETTER,
+		Character_MODIFIER_LETTER, Character_OTHER_LETTER, Character_LETTER_NUMBER,
+		Character_CURRENCY_SYMBOL, Character_CONNECTOR_PUNCTUATION:
+		return true
+	}
+	return false
+}
+
+// CharacterIsJavaIdentifierPart is Character.isJavaIdentifierPart(char): an
+// identifier start, a digit, a combining or non-spacing mark, or an
+// identifier-ignorable character.
+func CharacterIsJavaIdentifierPart(ch uint16) bool {
+	switch CharacterGetType(ch) {
+	case Character_UPPERCASE_LETTER, Character_LOWERCASE_LETTER, Character_TITLECASE_LETTER,
+		Character_MODIFIER_LETTER, Character_OTHER_LETTER, Character_LETTER_NUMBER,
+		Character_CURRENCY_SYMBOL, Character_CONNECTOR_PUNCTUATION,
+		Character_DECIMAL_DIGIT_NUMBER, Character_COMBINING_SPACING_MARK, Character_NON_SPACING_MARK:
+		return true
+	}
+	return CharacterIsIdentifierIgnorable(ch)
+}

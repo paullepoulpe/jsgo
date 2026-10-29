@@ -231,7 +231,7 @@ func (o *ObjectTypeBase) GetSlotByID(id uint32) *Property {
 
 // Java: ObjectType.getSlot(String)
 func (o *ObjectTypeBase) GetSlot(name string) *Property {
-	return o.selfObj().GetSlotByKey(NewProperty_StringKey(name))
+	return o.selfObj().GetSlotByKey(propertyKeyLookup(name))
 }
 
 // Java: ObjectType.getOwnSlot(String)
@@ -454,7 +454,7 @@ func (o *ObjectTypeBase) GetSuperClassConstructor() FunctionType {
 //
 // Java: ObjectType.getClosestDefiningType(String)
 func (o *ObjectTypeBase) GetClosestDefiningType(propertyName string) ObjectType {
-	owner, _ := o.selfObj().GetPropertyMap().findClosestPairByKey(NewProperty_StringKey(propertyName))
+	owner, _ := o.selfObj().GetPropertyMap().findClosestPairByKey(propertyKeyLookup(propertyName))
 	return owner
 }
 
@@ -463,7 +463,7 @@ func (o *ObjectTypeBase) GetClosestDefiningType(propertyName string) ObjectType 
 //
 // Java: ObjectType.findClosestDefinition(String)
 func (o *ObjectTypeBase) FindClosestDefinition(propertyName string) *Property_OwnedProperty {
-	return o.selfObj().FindClosestDefinitionByKey(NewProperty_StringKey(propertyName))
+	return o.selfObj().FindClosestDefinitionByKey(propertyKeyLookup(propertyName))
 }
 
 // Java: ObjectType.findClosestDefinition(Property.Key)
@@ -501,11 +501,11 @@ func propertyKeyForNameAndNode(propertyName string, propertyNode Node) Property_
 		rec := propertyNode.rec()
 		if rec.kindFlags&kindMask == uint8(node_kindString) {
 			if id := rhinoStringID(rec.payload); id != 0 && rhinoStringFromID(id) == propertyName {
-				return Property_Key{kind: Property_KeyKind_STRING, stringID: id, string_: propertyName}
+				return Property_Key{stringID: id}
 			}
 		}
 	}
-	return Property_Key{kind: Property_KeyKind_STRING, stringID: rhinoStringPoolIntern(propertyName), string_: propertyName}
+	return Property_Key{stringID: rhinoStringPoolIntern(propertyName)}
 }
 
 // DefineDeclaredProperty defines a property whose type is explicitly
@@ -524,7 +524,7 @@ func (o *ObjectTypeBase) DefineDeclaredProperty(propertyName string, type_ JSTyp
 func (o *ObjectTypeBase) DefineDeclaredPropertyByKey(propertyName Property_Key, type_ JSType, propertyNode Node) bool {
 	self := o.selfObj()
 	result := self.DefinePropertyByKey(propertyName, type_ /* inferred= */, false, propertyNode)
-	if propertyName.Kind() == Property_KeyKind_STRING {
+	if propertyName.symbol == nil {
 		// All property definitions go through this method or
 		// defineInferredProperty. Because the properties defined an an object
 		// can affect subtyping, it's slightly more efficient to register this
@@ -532,7 +532,7 @@ func (o *ObjectTypeBase) DefineDeclaredPropertyByKey(propertyName Property_Key, 
 		if propertyName.stringID != 0 {
 			o.GetRegistry().registerPropertyOnTypeByID(propertyName.stringID, self)
 		} else {
-			o.GetRegistry().RegisterPropertyOnType(propertyName.String_(), self)
+			o.GetRegistry().RegisterPropertyOnType("", self)
 		}
 	}
 	return result
@@ -554,13 +554,13 @@ func (o *ObjectTypeBase) DefineInferredPropertyByKey(propertyName Property_Key, 
 	// Java: checkArgument(propertyName.string() != null, ...); string() throws
 	// UnsupportedOperationException for a symbol key and is never null
 	// otherwise.
-	name := propertyName.String_()
-	jutil.CheckArgumentMsg(
-		true, "Symbol-based property keys are not supported for inferred properties.")
+	if propertyName.symbol != nil {
+		panic(jutil.NewUnsupportedOperationException())
+	}
 	if propertyName.stringID != 0 {
 		return o.defineInferredPropertyWithKey(propertyName, type_, propertyNode)
 	}
-	return o.selfObj().DefineInferredProperty(name, type_, propertyNode)
+	return o.selfObj().DefineInferredProperty("", type_, propertyNode)
 }
 
 // DefineInferredProperty defines a property whose type is inferred.
@@ -631,7 +631,7 @@ func (o *ObjectTypeBase) DefineProperty(propertyName string, type_ JSType, infer
 //
 // Java: ObjectType.getPropertyNode(String)
 func (o *ObjectTypeBase) GetPropertyNode(propertyName string) Node {
-	return o.selfObj().GetPropertyNodeByKey(NewProperty_StringKey(propertyName))
+	return o.selfObj().GetPropertyNodeByKey(propertyKeyLookup(propertyName))
 }
 
 // Java: ObjectType.getPropertyNode(Property.Key)
@@ -645,7 +645,7 @@ func (o *ObjectTypeBase) GetPropertyNodeByKey(propertyName Property_Key) Node {
 
 // Java: ObjectType.getPropertyDefSite(String)
 func (o *ObjectTypeBase) GetPropertyDefSite(propertyName string) Node {
-	return o.selfObj().GetPropertyDefSiteByKey(NewProperty_StringKey(propertyName))
+	return o.selfObj().GetPropertyDefSiteByKey(propertyKeyLookup(propertyName))
 }
 
 // Java: ObjectType.getPropertyDefSite(Property.Key)
@@ -655,7 +655,7 @@ func (o *ObjectTypeBase) GetPropertyDefSiteByKey(propertyName Property_Key) Node
 
 // Java: ObjectType.getPropertyJSDocInfo(String)
 func (o *ObjectTypeBase) GetPropertyJSDocInfo(propertyName string) *JSDocInfo {
-	return o.selfObj().GetPropertyJSDocInfoByKey(NewProperty_StringKey(propertyName))
+	return o.selfObj().GetPropertyJSDocInfoByKey(propertyKeyLookup(propertyName))
 }
 
 // Java: ObjectType.getPropertyJSDocInfo(Property.Key)
@@ -674,7 +674,7 @@ func (o *ObjectTypeBase) GetPropertyJSDocInfoByKey(propertyName Property_Key) *J
 //
 // Java: ObjectType.getOwnPropertyJSDocInfo(String)
 func (o *ObjectTypeBase) GetOwnPropertyJSDocInfo(propertyName string) *JSDocInfo {
-	return o.selfObj().GetOwnPropertyJSDocInfoByKey(NewProperty_StringKey(propertyName))
+	return o.selfObj().GetOwnPropertyJSDocInfoByKey(propertyKeyLookup(propertyName))
 }
 
 // Java: ObjectType.getOwnPropertyJSDocInfo(Property.Key)
@@ -688,7 +688,7 @@ func (o *ObjectTypeBase) GetOwnPropertyJSDocInfoByKey(propertyName Property_Key)
 
 // Java: ObjectType.getOwnPropertyDefSite(String)
 func (o *ObjectTypeBase) GetOwnPropertyDefSite(propertyName string) Node {
-	return o.selfObj().GetOwnPropertyDefSiteByKey(NewProperty_StringKey(propertyName))
+	return o.selfObj().GetOwnPropertyDefSiteByKey(propertyKeyLookup(propertyName))
 }
 
 // Java: ObjectType.getOwnPropertyDefSite(Property.Key)
@@ -773,7 +773,7 @@ func FindPropertyTypeByID(t JSType, id uint32) JSType {
 //
 // Java: ObjectType.getPropertyType(String)
 func (o *ObjectTypeBase) GetPropertyType(propertyName string) JSType {
-	return o.selfObj().GetPropertyTypeByKey(NewProperty_StringKey(propertyName))
+	return o.selfObj().GetPropertyTypeByKey(propertyKeyLookup(propertyName))
 }
 
 // Java: ObjectType.getPropertyType(Property.Key)
@@ -807,7 +807,7 @@ func (o *ObjectTypeBase) GetPropertyKindByKeyWithAutobox(propertyName Property_K
 //
 // Java: ObjectType.getOwnPropertyKind(String)
 func (o *ObjectTypeBase) GetOwnPropertyKind(propertyName string) JSType_HasPropertyKind {
-	return o.selfObj().GetOwnPropertyKindByKey(NewProperty_StringKey(propertyName))
+	return o.selfObj().GetOwnPropertyKindByKey(propertyKeyLookup(propertyName))
 }
 
 // Java: ObjectType.getOwnPropertyKind(Property.Key)
@@ -824,7 +824,7 @@ func (o *ObjectTypeBase) GetOwnPropertyKindByKey(propertyName Property_Key) JSTy
 //
 // Java: ObjectType.hasOwnProperty(String)
 func (o *ObjectTypeBase) HasOwnProperty(propertyName string) bool {
-	return o.selfObj().HasOwnPropertyByKey(NewProperty_StringKey(propertyName))
+	return o.selfObj().HasOwnPropertyByKey(propertyKeyLookup(propertyName))
 }
 
 // Java: ObjectType.hasOwnProperty(Property.Key)
@@ -897,7 +897,7 @@ func (o *ObjectTypeBase) GetOwnPropertyKeys() []Property_Key {
 //
 // Java: ObjectType.isPropertyTypeInferred(String)
 func (o *ObjectTypeBase) IsPropertyTypeInferred(propertyName string) bool {
-	return o.selfObj().IsPropertyTypeInferredByKey(NewProperty_StringKey(propertyName))
+	return o.selfObj().IsPropertyTypeInferredByKey(propertyKeyLookup(propertyName))
 }
 
 // Java: ObjectType.isPropertyTypeInferred(Property.Key)
@@ -913,7 +913,7 @@ func (o *ObjectTypeBase) IsPropertyTypeInferredByKey(propertyName Property_Key) 
 //
 // Java: ObjectType.isPropertyTypeDeclared(String)
 func (o *ObjectTypeBase) IsPropertyTypeDeclared(propertyName string) bool {
-	return o.selfObj().IsPropertyTypeDeclaredByKey(NewProperty_StringKey(propertyName))
+	return o.selfObj().IsPropertyTypeDeclaredByKey(propertyKeyLookup(propertyName))
 }
 
 // Java: ObjectType.isPropertyTypeDeclared(Property.Key)

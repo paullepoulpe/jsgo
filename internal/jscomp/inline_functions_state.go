@@ -37,6 +37,7 @@ package jscomp
 
 import (
 	"math"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -113,6 +114,8 @@ func (t inlineFnTarget) remove(compiler AbstractCompiler) {
 	NodeUtil_MarkFunctionsDeleted(t.declNode, compiler)
 }
 
+const fnStateSmallRefs = 8
+
 // InlineFunctions_FunctionState is used to track the decisions that have
 // been made about a function.
 type InlineFunctions_FunctionState struct {
@@ -124,8 +127,9 @@ type InlineFunctions_FunctionState struct {
 	referencesThis   bool
 	hasInnerClosures bool
 	summaryValid     bool
-	references       *jutil.LinkedHashMap[rhino.Node, *FunctionInjector_Reference]
-	refMapVal        jutil.LinkedHashMap[rhino.Node, *FunctionInjector_Reference]
+	refs             []*FunctionInjector_Reference
+	refsBuf          [4]*FunctionInjector_Reference
+	refByNode        map[rhino.Node]int
 	chunk            *JSChunk
 	namesToAliasIDs  inlineIDSet
 	summary          *calleeSummary
@@ -177,24 +181,43 @@ func (s *InlineFunctions_FunctionState) HasInnerClosures() bool {
 	return s.hasInnerClosures
 }
 
+func (s *InlineFunctions_FunctionState) rebuildRefIndex() {
+	if s.refByNode == nil {
+		s.refByNode = make(map[rhino.Node]int, len(s.refs)*2)
+	} else {
+		clear(s.refByNode)
+	}
+	for i, r := range s.refs {
+		s.refByNode[r.callNode] = i
+	}
+}
+
 // Java: InlineFunctions.FunctionState.removeBlockInliningReferences()
 func (s *InlineFunctions_FunctionState) RemoveBlockInliningReferences() {
-	if s.references == nil {
+	if len(s.refs) == 0 {
 		return
 	}
-	for key, value := range s.references.All() {
-		if value.mode == FunctionInjector_InliningMode_BLOCK {
-			s.references.Remove(key)
+	w := 0
+	for _, r := range s.refs {
+		if r.mode != FunctionInjector_InliningMode_BLOCK {
+			s.refs[w] = r
+			w++
+		}
+	}
+	clear(s.refs[w:])
+	s.refs = s.refs[:w]
+	if s.refByNode != nil {
+		if w <= fnStateSmallRefs {
+			s.refByNode = nil
+		} else {
+			s.rebuildRefIndex()
 		}
 	}
 }
 
 // Java: InlineFunctions.FunctionState.hasBlockInliningReferences()
 func (s *InlineFunctions_FunctionState) HasBlockInliningReferences() bool {
-	if s.references == nil {
-		return false
-	}
-	for r := range s.references.Values() {
+	for _, r := range s.refs {
 		if r.mode == FunctionInjector_InliningMode_BLOCK {
 			return true
 		}
@@ -307,10 +330,11 @@ func (s *InlineFunctions_FunctionState) DisallowInliningWithWarning(
 	s.inline = false
 
 	// No need to keep references to function that can't be inlined.
-	if s.refMapVal.Size() > 0 {
-		s.refMapVal.Clear()
+	if len(s.refs) > 0 {
+		clear(s.refs)
+		s.refs = nil
 	}
-	s.references = nil
+	s.refByNode = nil
 	s.summary = nil
 	s.summaryValid = false
 	// Don't remove functions that we aren't inlining.
@@ -368,23 +392,45 @@ func (s *InlineFunctions_FunctionState) InlineDirectly(directReplacement bool) {
 
 // Java: InlineFunctions.FunctionState.hasReferences()
 func (s *InlineFunctions_FunctionState) HasReferences() bool {
-	return s.references != nil && !s.references.IsEmpty()
+	return len(s.refs) > 0
 }
 
 // Java: InlineFunctions.FunctionState.getReferencesInternal()
 func (s *InlineFunctions_FunctionState) GetReferencesInternal() *jutil.LinkedHashMap[rhino.Node, *FunctionInjector_Reference] {
-	if s.references == nil {
-		return jutil.NewLinkedHashMap[rhino.Node, *FunctionInjector_Reference]()
+	out := jutil.NewLinkedHashMapWithCapacity[rhino.Node, *FunctionInjector_Reference](len(s.refs))
+	for _, r := range s.refs {
+		out.Put(r.callNode, r)
 	}
-	return s.references
+	return out
 }
 
 // Java: InlineFunctions.FunctionState.addReference(Reference)
 func (s *InlineFunctions_FunctionState) AddReference(ref *FunctionInjector_Reference) {
-	if s.references == nil {
-		s.references = &s.refMapVal
+	if len(s.refs) <= fnStateSmallRefs {
+		for i, existing := range s.refs {
+			if existing.callNode == ref.callNode {
+				s.refs[i] = ref
+				return
+			}
+		}
+		if s.refs == nil {
+			s.refs = s.refsBuf[:0]
+		}
+		s.refs = append(s.refs, ref)
+		if len(s.refs) > fnStateSmallRefs {
+			s.rebuildRefIndex()
+		}
+		return
 	}
-	s.references.PutNew(ref.callNode, ref)
+	if s.refByNode == nil {
+		s.rebuildRefIndex()
+	}
+	if idx, ok := s.refByNode[ref.callNode]; ok {
+		s.refs[idx] = ref
+		return
+	}
+	s.refByNode[ref.callNode] = len(s.refs)
+	s.refs = append(s.refs, ref)
 }
 
 var inlineFunctions_emptyStringSet = jutil.NewLinkedHashSet[string]()
@@ -396,22 +442,32 @@ var inlineFunctions_emptyStringSet = jutil.NewLinkedHashSet[string]()
 //
 // Java: InlineFunctions.FunctionState.getReferences()
 func (s *InlineFunctions_FunctionState) GetReferences() []*FunctionInjector_Reference {
-	if s.references == nil || s.references.IsEmpty() {
+	if len(s.refs) == 0 {
 		return nil
 	}
-	out := make([]*FunctionInjector_Reference, 0, s.references.Size())
-	for ref := range s.references.Values() {
-		out = append(out, ref)
-	}
-	return out
+	return slices.Clone(s.refs)
 }
 
 // Java: InlineFunctions.FunctionState.getReference(Node)
 func (s *InlineFunctions_FunctionState) GetReference(n rhino.Node) *FunctionInjector_Reference {
-	if s.references == nil {
+	if len(s.refs) == 0 {
 		return nil
 	}
-	return s.references.Get(n)
+	if len(s.refs) <= fnStateSmallRefs {
+		for _, r := range s.refs {
+			if r.callNode == n {
+				return r
+			}
+		}
+		return nil
+	}
+	if s.refByNode == nil {
+		s.rebuildRefIndex()
+	}
+	if idx, ok := s.refByNode[n]; ok {
+		return s.refs[idx]
+	}
+	return nil
 }
 
 // Java: InlineFunctions.FunctionState.getNamesToAlias()

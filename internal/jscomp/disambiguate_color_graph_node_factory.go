@@ -19,23 +19,121 @@
 package jscomp
 
 import (
+	"iter"
+	"slices"
+
 	"github.com/paullepoulpe/jsgo/internal/colors"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 )
+
+type colorGraphNodeEntry struct {
+	key         *colors.Color
+	node        *ColorGraphNode
+	nextPlusOne uint32
+}
+
+// colorGraphNodeIndex maps Colors (by structural Equals/HashCode) to ColorGraphNodes
+// in deterministic insertion order using a flat slice + open hash bucket table.
+type colorGraphNodeIndex struct {
+	entries []colorGraphNodeEntry
+	buckets map[int32]uint32
+}
+
+func (idx *colorGraphNodeIndex) init(capHint int) {
+	idx.entries = make([]colorGraphNodeEntry, 0, capHint)
+	idx.buckets = make(map[int32]uint32, capHint)
+}
+
+func (idx *colorGraphNodeIndex) Lookup(key *colors.Color) (*ColorGraphNode, bool) {
+	if key == nil || len(idx.entries) == 0 {
+		return nil, false
+	}
+	for cur := idx.buckets[key.HashCode()]; cur != 0; cur = idx.entries[cur-1].nextPlusOne {
+		e := &idx.entries[cur-1]
+		if e.key == key || e.key.Equals(key) {
+			return e.node, true
+		}
+	}
+	return nil, false
+}
+
+func (idx *colorGraphNodeIndex) Put(key *colors.Color, node *ColorGraphNode) {
+	if idx.buckets == nil {
+		idx.buckets = make(map[int32]uint32, 16)
+	}
+	h := key.HashCode()
+	for cur := idx.buckets[h]; cur != 0; cur = idx.entries[cur-1].nextPlusOne {
+		e := &idx.entries[cur-1]
+		if e.key == key || e.key.Equals(key) {
+			e.node = node
+			return
+		}
+	}
+	pos := uint32(len(idx.entries))
+	idx.entries = append(idx.entries, colorGraphNodeEntry{
+		key:         key,
+		node:        node,
+		nextPlusOne: idx.buckets[h],
+	})
+	idx.buckets[h] = pos + 1
+}
+
+func (idx *colorGraphNodeIndex) Size() int {
+	return len(idx.entries)
+}
+
+func (idx *colorGraphNodeIndex) Values() iter.Seq[*ColorGraphNode] {
+	return func(yield func(*ColorGraphNode) bool) {
+		for i := range idx.entries {
+			if !yield(idx.entries[i].node) {
+				return
+			}
+		}
+	}
+}
+
+// ColorGraphNodeSet is an insertion-ordered set of ColorGraphNodes.
+type ColorGraphNodeSet struct {
+	order   []*ColorGraphNode
+	members map[*ColorGraphNode]struct{}
+}
+
+// Contains reports whether n is in s.
+func (s ColorGraphNodeSet) Contains(n *ColorGraphNode) bool {
+	_, ok := s.members[n]
+	return ok
+}
+
+// All iterates the nodes in insertion order.
+func (s ColorGraphNodeSet) All() iter.Seq[*ColorGraphNode] {
+	return slices.Values(s.order)
+}
+
+// Size returns the number of distinct nodes.
+func (s ColorGraphNodeSet) Size() int { return len(s.order) }
+
+// ToSlice returns a defensive copy of the nodes in insertion order.
+func (s ColorGraphNodeSet) ToSlice() []*ColorGraphNode {
+	if len(s.order) == 0 {
+		return []*ColorGraphNode{}
+	}
+	return slices.Clone(s.order)
+}
 
 // ColorGraphNodeFactory is a factory and cache for ColorGraphNode
 // instances.
 type ColorGraphNodeFactory struct {
 	// Colors are keyed with their equals()/hashCode().
-	typeIndex *jutil.ObjectLinkedHashMap[*colors.Color, *ColorGraphNode]
+	typeIndex colorGraphNodeIndex
 	registry  *colors.ColorRegistry
 	nodeSlab  jutil.Slab[ColorGraphNode]
 }
 
 // Java: ColorGraphNodeFactory(LinkedHashMap<Color, ColorGraphNode>, ColorRegistry)
-func NewColorGraphNodeFactory(
-	initialTypeIndex *jutil.ObjectLinkedHashMap[*colors.Color, *ColorGraphNode], registry *colors.ColorRegistry) *ColorGraphNodeFactory {
-	return &ColorGraphNodeFactory{typeIndex: initialTypeIndex, registry: registry}
+func NewColorGraphNodeFactory(registry *colors.ColorRegistry) *ColorGraphNodeFactory {
+	f := &ColorGraphNodeFactory{registry: registry}
+	f.typeIndex.init(64)
+	return f
 }
 
 func (f *ColorGraphNodeFactory) allocNode(single *colors.Color, index int) *ColorGraphNode {
@@ -49,10 +147,9 @@ func (f *ColorGraphNodeFactory) allocNode(single *colors.Color, index int) *Colo
 
 // Java: ColorGraphNodeFactory.createFactory(ColorRegistry)
 func ColorGraphNodeFactory_CreateFactory(colorRegistry *colors.ColorRegistry) *ColorGraphNodeFactory {
-	typeIndex := jutil.NewObjectLinkedHashMap[*colors.Color, *ColorGraphNode]()
-	f := NewColorGraphNodeFactory(typeIndex, colorRegistry)
+	f := NewColorGraphNodeFactory(colorRegistry)
 	unknownColorNode := f.allocNode(colors.StandardColors_UNKNOWN, 0)
-	typeIndex.Put(colors.StandardColors_UNKNOWN, unknownColorNode)
+	f.typeIndex.Put(colors.StandardColors_UNKNOWN, unknownColorNode)
 	return f
 }
 
@@ -74,12 +171,17 @@ func (f *ColorGraphNodeFactory) CreateNode(color *colors.Color) *ColorGraphNode 
 }
 
 // Java: ColorGraphNodeFactory.getAllKnownTypes()
-func (f *ColorGraphNodeFactory) GetAllKnownTypes() *jutil.LinkedHashSet[*ColorGraphNode] {
-	out := jutil.NewLinkedHashSet[*ColorGraphNode]()
+func (f *ColorGraphNodeFactory) GetAllKnownTypes() ColorGraphNodeSet {
+	n := f.typeIndex.Size()
+	members := make(map[*ColorGraphNode]struct{}, n)
+	order := make([]*ColorGraphNode, 0, n)
 	for v := range f.typeIndex.Values() {
-		out.Add(v)
+		if _, exists := members[v]; !exists {
+			members[v] = struct{}{}
+			order = append(order, v)
+		}
 	}
-	return out
+	return ColorGraphNodeSet{order: order, members: members}
 }
 
 // Java: ColorGraphNodeFactory.newColorGraphNode(Color)

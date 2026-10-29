@@ -25,6 +25,19 @@ import (
 	"github.com/paullepoulpe/jsgo/internal/ast"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
+	"github.com/paullepoulpe/jsgo/internal/strpool"
+)
+
+var (
+	psasIDUndefined = uint32(strpool.Intern("undefined"))
+	psasIDWindow    = uint32(strpool.Intern("window"))
+	psasIDObject    = uint32(strpool.Intern("Object"))
+	psasIDArray     = uint32(strpool.Intern("Array"))
+	psasIDError     = uint32(strpool.Intern("Error"))
+	psasIDRegExp    = uint32(strpool.Intern("RegExp"))
+	psasIDMath      = uint32(strpool.Intern("Math"))
+	psasIDBoolean   = uint32(strpool.Intern("Boolean"))
+	psasIDString    = uint32(strpool.Intern("String"))
 )
 
 // Go-only: this pass uses the typed AST view (internal/ast) to read the
@@ -93,11 +106,10 @@ func (p *PeepholeSubstituteAlternateSyntax) OptimizeSubtree(node rhino.Node) rhi
 		}
 		return node
 	case rhino.Token_NAME:
-		name := ast.MustName(node)
-		if name.Ident() != "undefined" {
+		if node.GetStringID() != psasIDUndefined {
 			return node
 		}
-		return p.TryReplaceUndefined(name)
+		return p.TryReplaceUndefined(ast.MustName(node))
 	case rhino.Token_ARRAYLIT:
 		array := ast.MustArrayLit(node)
 		return p.TryMinimizeArrayLiteral(array)
@@ -121,9 +133,9 @@ func (p *PeepholeSubstituteAlternateSyntax) OptimizeSubtree(node rhino.Node) rhi
 	}
 }
 
-func peepholeSubstituteAlternateSyntax_isBuiltinExtern(name string) bool {
-	switch name {
-	case "Object", "Array", "Error", "RegExp", "Math":
+func peepholeSubstituteAlternateSyntax_isBuiltinExternID(id uint32) bool {
+	switch id {
+	case psasIDObject, psasIDArray, psasIDError, psasIDRegExp, psasIDMath:
 		return true
 	default:
 		return false
@@ -134,12 +146,12 @@ func peepholeSubstituteAlternateSyntax_isBuiltinExtern(name string) bool {
 func (p *PeepholeSubstituteAlternateSyntax) TryMinimizeWindowRefs(getProp ast.GetProp) rhino.Node {
 	node := getProp.Node()
 	window, ok := getProp.Object().AsName()
-	if !ok || window.Ident() != "window" {
+	if !ok || window.Node().GetStringID() != psasIDWindow {
 		return node
 	}
 	// Normalization needs to be done to ensure there's no shadowing.
 	// Since normalization has run we know we're referring to the global window.
-	if !p.IsASTNormalized() || !peepholeSubstituteAlternateSyntax_isBuiltinExtern(getProp.Property()) {
+	if !p.IsASTNormalized() || !peepholeSubstituteAlternateSyntax_isBuiltinExternID(node.GetStringID()) {
 		return node
 	}
 	newNameNode := rhino.IR_Name(getProp.Property())
@@ -217,8 +229,8 @@ func (p *PeepholeSubstituteAlternateSyntax) TryFoldSimpleFunctionCall(call ast.C
 	if !ok {
 		return n
 	}
-	switch callTarget.Ident() {
-	case "Boolean":
+	switch callTarget.Node().GetStringID() {
+	case psasIDBoolean:
 		// Fold Boolean(a) to !!a
 		// http://www.ecma-international.org/ecma-262/6.0/index.html#sec-boolean-constructor-boolean-value
 		// and
@@ -247,7 +259,7 @@ func (p *PeepholeSubstituteAlternateSyntax) TryFoldSimpleFunctionCall(call ast.C
 		p.ReportChangeToEnclosingScope(replacement)
 		// (Like the Java, this returns n, now out of the tree, not the
 		// replacement.)
-	case "String":
+	case psasIDString:
 		// Fold String(a) to '' + (a) on immutable literals,
 		// which allows further optimizations
 		//
@@ -369,7 +381,7 @@ func (p *PeepholeSubstituteAlternateSyntax) TrySplitComma(stmt ast.ExprStmt) rhi
 func (p *PeepholeSubstituteAlternateSyntax) TryReplaceUndefined(name ast.Name) rhino.Node {
 	n := name.Node()
 	// TODO(johnlenz): consider doing this as a normalization.
-	if name.Ident() == "undefined" &&
+	if n.GetStringID() == psasIDUndefined &&
 		p.IsASTNormalized() &&
 		!NodeUtil_IsLValue(n) {
 		replacement := NodeUtil_NewUndefinedNode(n)
@@ -411,7 +423,7 @@ func (p *PeepholeSubstituteAlternateSyntax) TryReduceReturn(ret ast.Return) rhin
 			ret.RemoveValue()
 			p.ReportChangeToEnclosingScope(n)
 		}
-	} else if name, ok := result.AsName(); ok && name.Ident() == "undefined" {
+	} else if name, ok := result.AsName(); ok && name.Node().GetStringID() == psasIDUndefined {
 		ret.RemoveValue()
 		p.ReportChangeToEnclosingScope(n)
 	}
@@ -421,9 +433,9 @@ func (p *PeepholeSubstituteAlternateSyntax) TryReduceReturn(ret ast.Return) rhin
 // String, Number, and Boolean functions return non-object types, whereas
 // new String, new Number, and new Boolean return object types, so don't
 // include them here.
-func peepholeSubstituteAlternateSyntax_isStandardObjectConstructor(name string) bool {
-	switch name {
-	case "Object", "Array", "Error":
+func peepholeSubstituteAlternateSyntax_isStandardObjectConstructorID(id uint32) bool {
+	switch id {
+	case psasIDObject, psasIDArray, psasIDError:
 		return true
 	default:
 		return false
@@ -456,11 +468,11 @@ func (p *PeepholeSubstituteAlternateSyntax) CanFoldStandardConstructors(newNode 
 	if !ok || !p.IsASTNormalized() {
 		return false
 	}
-	className := constructor.Ident()
-	if peepholeSubstituteAlternateSyntax_isStandardObjectConstructor(className) {
+	classNameID := constructor.Node().GetStringID()
+	if peepholeSubstituteAlternateSyntax_isStandardObjectConstructorID(classNameID) {
 		return true
 	}
-	if "RegExp" == className {
+	if classNameID == psasIDRegExp {
 		// Fold "new RegExp()" to "RegExp()", but only if the argument is a string.
 		// See issue 1260.
 		arg, ok := newNode.FirstArg()
@@ -490,16 +502,16 @@ func (p *PeepholeSubstituteAlternateSyntax) TryFoldLiteralConstructor(call ast.C
 	if !ok {
 		return n
 	}
-	className := constructorName.Ident()
-	if ("Object" != className && "Array" != className) || !p.IsASTNormalized() {
+	classNameID := constructorName.Node().GetStringID()
+	if (classNameID != psasIDObject && classNameID != psasIDArray) || !p.IsASTNormalized() {
 		return n
 	}
 
 	var newLiteralNode rhino.Node
-	if "Object" == className && !call.HasArgs() {
+	if classNameID == psasIDObject && !call.HasArgs() {
 		// "Object()" --> "{}"
 		newLiteralNode = rhino.IR_Objectlit()
-	} else if "Array" == className {
+	} else if classNameID == psasIDArray {
 		// "Array(arg0, arg1, ...)" --> "[arg0, arg1, ...]"
 		action := PeepholeSubstituteAlternateSyntax_IsSafeToFoldArrayConstructor(call)
 

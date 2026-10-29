@@ -24,7 +24,24 @@ import (
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/parser"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
+	"github.com/paullepoulpe/jsgo/internal/strpool"
 )
+
+var asyncArgumentsID = uint32(strpool.Intern("arguments"))
+
+var rewriteAsyncVisitTokens = func() ast.TokenSet {
+	var s ast.TokenSet
+	s.Add(rhino.Token_SCRIPT)
+	s.Add(rhino.Token_ROOT)
+	s.Add(rhino.Token_FUNCTION)
+	s.Add(rhino.Token_PARAM_LIST)
+	s.Add(rhino.Token_NAME)
+	s.Add(rhino.Token_THIS)
+	s.Add(rhino.Token_NEW_TARGET)
+	s.Add(rhino.Token_SUPER)
+	s.Add(rhino.Token_AWAIT)
+	return s
+}()
 
 // RewriteAsyncFunctions converts async functions to valid ES6 generator
 // functions code.
@@ -32,10 +49,11 @@ import (
 // This pass must run before the passes that transpile let declarations,
 // arrow functions, and generators.
 type RewriteAsyncFunctions struct {
-	namespace    rhino.StaticScope
-	contextStack []*rewriteAsyncLexicalContext
-	compiler     AbstractCompiler
-	astFactory   *AstFactory
+	namespace       rhino.StaticScope
+	contextStack    []rewriteAsyncLexicalContext
+	contextStackBuf [8]rewriteAsyncLexicalContext
+	compiler        AbstractCompiler
+	astFactory      *AstFactory
 }
 
 const (
@@ -46,6 +64,7 @@ const (
 )
 
 type asyncSuperPropertyWrapperInfo struct {
+	propertyID                      uint32
 	propertyName                    string
 	firstInstanceOfSuperDotProperty rhino.Node
 	wrapperFunctionName             string
@@ -65,18 +84,21 @@ const (
 	asyncContextFunction
 )
 
+// rewriteAsyncLexicalContext stores lexical context entries by value in
+// RewriteAsyncFunctions.contextStack, referencing ancestor contexts via stack
+// indices (-1 when absent) so slice growth never invalidates interior pointers.
 type rewriteAsyncLexicalContext struct {
 	kind            asyncContextKind
-	pass            *RewriteAsyncFunctions
 	contextRootNode rhino.Node
 	uniqueId        string
 
-	// Set when kind == asyncContextParamList.
-	functionContext *rewriteAsyncLexicalContext
+	// Set when kind == asyncContextParamList (-1 otherwise).
+	functionContextIdx int
 
-	// Set when kind == asyncContextFunction: points to the enclosing async FunctionContext whose
-	// `this`, `arguments`, `new.target`, and `super` bindings apply here, or nil if none.
-	asyncThisAndArgumentsContext *rewriteAsyncLexicalContext
+	// Set when kind == asyncContextFunction (-1 if none): stack index of the
+	// enclosing async FunctionContext whose `this`, `arguments`, `new.target`,
+	// and `super` bindings apply here.
+	asyncThisAndArgumentsContextIdx int
 	// Ordered list of distinct `super.prop` wrappers needed by this async context.
 	superPropertyWrappers []asyncSuperPropertyWrapperInfo
 
@@ -87,92 +109,63 @@ type rewriteAsyncLexicalContext struct {
 	typeOfNewTarget               AstFactory_Type
 }
 
-func newAsyncRootContext(pass *RewriteAsyncFunctions, contextRootNode rhino.Node, uniqueId string) *rewriteAsyncLexicalContext {
-	return &rewriteAsyncLexicalContext{
-		kind:            asyncContextRoot,
-		pass:            pass,
-		contextRootNode: rhino.CheckNotNull(contextRootNode),
-		uniqueId:        uniqueId,
+func newAsyncRootContext(contextRootNode rhino.Node, uniqueId string) rewriteAsyncLexicalContext {
+	return rewriteAsyncLexicalContext{
+		kind:                            asyncContextRoot,
+		contextRootNode:                 rhino.CheckNotNull(contextRootNode),
+		uniqueId:                        uniqueId,
+		functionContextIdx:              -1,
+		asyncThisAndArgumentsContextIdx: -1,
 	}
 }
 
 func newAsyncParamListContext(
-	pass *RewriteAsyncFunctions,
-	functionContext *rewriteAsyncLexicalContext,
+	functionContextIdx int,
 	contextRootNode rhino.Node,
 	uniqueId string,
-) *rewriteAsyncLexicalContext {
-	return &rewriteAsyncLexicalContext{
-		kind:            asyncContextParamList,
-		pass:            pass,
-		contextRootNode: rhino.CheckNotNull(contextRootNode),
-		uniqueId:        uniqueId,
-		functionContext: jutil.CheckNotNull(functionContext),
+) rewriteAsyncLexicalContext {
+	jutil.CheckState(functionContextIdx >= 0)
+	return rewriteAsyncLexicalContext{
+		kind:                            asyncContextParamList,
+		contextRootNode:                 rhino.CheckNotNull(contextRootNode),
+		uniqueId:                        uniqueId,
+		functionContextIdx:              functionContextIdx,
+		asyncThisAndArgumentsContextIdx: -1,
 	}
 }
 
 func newAsyncFunctionContext(
-	pass *RewriteAsyncFunctions,
-	outerAsyncContext *rewriteAsyncLexicalContext,
+	selfIdx int,
+	outerAsyncIdx int,
 	fn ast.Function,
 	uniqueId string,
-) *rewriteAsyncLexicalContext {
-	c := &rewriteAsyncLexicalContext{
-		kind:            asyncContextFunction,
-		pass:            pass,
-		contextRootNode: rhino.CheckNotNull(fn.Node()),
-		uniqueId:        uniqueId,
-	}
+) rewriteAsyncLexicalContext {
+	asyncIdx := -1
 	if fn.IsAsync() {
-		if fn.IsArrow() && outerAsyncContext != nil {
-			c.asyncThisAndArgumentsContext = outerAsyncContext
+		if fn.IsArrow() && outerAsyncIdx >= 0 {
+			asyncIdx = outerAsyncIdx
 		} else {
-			c.asyncThisAndArgumentsContext = c
+			asyncIdx = selfIdx
 		}
 	} else if fn.IsArrow() {
-		c.asyncThisAndArgumentsContext = outerAsyncContext
+		asyncIdx = outerAsyncIdx
 	}
-	return c
+	return rewriteAsyncLexicalContext{
+		kind:                            asyncContextFunction,
+		contextRootNode:                 rhino.CheckNotNull(fn.Node()),
+		uniqueId:                        uniqueId,
+		functionContextIdx:              -1,
+		asyncThisAndArgumentsContextIdx: asyncIdx,
+	}
 }
 
-func (c *rewriteAsyncLexicalContext) asyncContextForParameterList() *rewriteAsyncLexicalContext {
-	asyncContext := c.functionContext.asyncThisAndArgumentsContext
-	if asyncContext == c.functionContext {
-		return nil
+func (r *RewriteAsyncFunctions) asyncContextIdxForParameterList(paramCtxIdx int) int {
+	fnIdx := r.contextStack[paramCtxIdx].functionContextIdx
+	asyncIdx := r.contextStack[fnIdx].asyncThisAndArgumentsContextIdx
+	if asyncIdx == fnIdx {
+		return -1
 	}
-	return asyncContext
-}
-
-func (c *rewriteAsyncLexicalContext) contextForNode(t *NodeTraversal, n rhino.Node) *rewriteAsyncLexicalContext {
-	switch c.kind {
-	case asyncContextRoot:
-		if fn, ok := ast.AsFunction(n); ok {
-			uniqueId := c.pass.compiler.GetUniqueIdSupplier().GetUniqueId(t.GetInput())
-			return newAsyncFunctionContext(c.pass, nil, fn, uniqueId)
-		}
-		return c
-	case asyncContextParamList:
-		if fn, ok := ast.AsFunction(n); ok {
-			uniqueId := c.pass.compiler.GetUniqueIdSupplier().GetUniqueId(t.GetInput())
-			return newAsyncFunctionContext(c.pass, c.asyncContextForParameterList(), fn, uniqueId)
-		}
-		return c
-	case asyncContextFunction:
-		if n == c.contextRootNode {
-			return c
-		}
-		if fn, ok := ast.AsFunction(n); ok {
-			uniqueId := c.pass.compiler.GetUniqueIdSupplier().GetUniqueId(t.GetInput())
-			return newAsyncFunctionContext(c.pass, c.asyncThisAndArgumentsContext, fn, uniqueId)
-		}
-		if _, ok := ast.AsParamList(n); ok {
-			uniqueId := c.pass.compiler.GetUniqueIdSupplier().GetUniqueId(t.GetInput())
-			return newAsyncParamListContext(c.pass, c, n, uniqueId)
-		}
-		return c
-	default:
-		panic("unreachable asyncContextKind")
-	}
+	return asyncIdx
 }
 
 func (c *rewriteAsyncLexicalContext) recordAsyncThisReplacement(typeOfThis AstFactory_Type) {
@@ -180,27 +173,27 @@ func (c *rewriteAsyncLexicalContext) recordAsyncThisReplacement(typeOfThis AstFa
 	c.typeOfThis = typeOfThis
 }
 
-func (c *rewriteAsyncLexicalContext) createThisVariableReference(typeOfThis AstFactory_Type) rhino.Node {
+func (r *RewriteAsyncFunctions) createThisVariableReference(c *rewriteAsyncLexicalContext, typeOfThis AstFactory_Type) rhino.Node {
 	c.recordAsyncThisReplacement(typeOfThis)
-	return c.pass.astFactory.CreateName(asyncFuncThisPrefix+c.uniqueId, typeOfThis)
+	return r.astFactory.CreateName(asyncFuncThisPrefix+c.uniqueId, typeOfThis)
 }
 
-func (c *rewriteAsyncLexicalContext) createNewTargetVariableReference(typeOfNewTarget AstFactory_Type) rhino.Node {
+func (r *RewriteAsyncFunctions) createNewTargetVariableReference(c *rewriteAsyncLexicalContext, typeOfNewTarget AstFactory_Type) rhino.Node {
 	c.mustAddAsyncNewTargetVariable = true
 	c.typeOfNewTarget = typeOfNewTarget
-	return c.pass.astFactory.CreateName(asyncFuncNewTargetPrefix+c.uniqueId, typeOfNewTarget)
+	return r.astFactory.CreateName(asyncFuncNewTargetPrefix+c.uniqueId, typeOfNewTarget)
 }
 
-func (c *rewriteAsyncLexicalContext) getOrCreateSuperPropertyWrapperInfo(superDotPropertyNode rhino.Node) asyncSuperPropertyWrapperInfo {
+func (r *RewriteAsyncFunctions) getOrCreateSuperPropertyWrapperInfo(c *rewriteAsyncLexicalContext, superDotPropertyNode rhino.Node) asyncSuperPropertyWrapperInfo {
 	gp, ok := ast.AsGetProp(superDotPropertyNode)
 	jutil.CheckArgumentMsg1(ok, "%s", superDotPropertyNode)
 	superNode := gp.Object().Node()
 	jutil.CheckArgumentMsg1(superNode.IsSuper(), "%s", superNode)
 
-	propertyName := gp.Property()
+	propID := superDotPropertyNode.GetStringID()
 	propertyType := superDotPropertyNode.GetColor()
 	for _, info := range c.superPropertyWrappers {
-		if info.propertyName == propertyName {
+		if info.propertyID == propID {
 			existingColor := info.firstInstanceOfSuperDotProperty.GetColor()
 			jutil.CheckStateMsg2(
 				jutil.ObjectsEquals(existingColor, propertyType),
@@ -211,10 +204,12 @@ func (c *rewriteAsyncLexicalContext) getOrCreateSuperPropertyWrapperInfo(superDo
 		}
 	}
 
+	propertyName := gp.Property()
 	wrapperFunctionName := asyncFuncSuperGetterPrefix +
-		c.pass.compiler.GetUniqueIdSupplier().GetUniqueId(c.pass.compiler.GetInput(NodeUtil_GetInputId(superDotPropertyNode))) +
+		r.compiler.GetUniqueIdSupplier().GetUniqueId(r.compiler.GetInput(NodeUtil_GetInputId(superDotPropertyNode))) +
 		"$" + propertyName
 	info := asyncSuperPropertyWrapperInfo{
+		propertyID:                      propID,
 		propertyName:                    propertyName,
 		firstInstanceOfSuperDotProperty: superDotPropertyNode,
 		wrapperFunctionName:             wrapperFunctionName,
@@ -224,42 +219,42 @@ func (c *rewriteAsyncLexicalContext) getOrCreateSuperPropertyWrapperInfo(superDo
 	return info
 }
 
-func (c *rewriteAsyncLexicalContext) createWrapperArrowFunction(wrapperInfo asyncSuperPropertyWrapperInfo) rhino.Node {
+func (r *RewriteAsyncFunctions) createWrapperArrowFunction(wrapperInfo asyncSuperPropertyWrapperInfo) rhino.Node {
 	superDotProperty := wrapperInfo.firstInstanceOfSuperDotProperty.CloneTree()
-	return c.pass.astFactory.CreateZeroArgArrowFunctionForExpression(
-		c.pass.astFactory.CreateBlock(c.pass.astFactory.CreateReturn(superDotProperty)))
+	return r.astFactory.CreateZeroArgArrowFunctionForExpression(
+		r.astFactory.CreateBlock(r.astFactory.CreateReturn(superDotProperty)))
 }
 
-func (c *rewriteAsyncLexicalContext) visit(t *NodeTraversal, n rhino.Node) {
-	switch c.kind {
+func (r *RewriteAsyncFunctions) visitContext(t *NodeTraversal, ctxIdx int, n rhino.Node) {
+	switch r.contextStack[ctxIdx].kind {
 	case asyncContextRoot:
 		// Outside any async function.
 	case asyncContextParamList:
-		if c.asyncContextForParameterList() != nil {
-			c.functionContext.visitFunctionNode(t, n)
+		if r.asyncContextIdxForParameterList(ctxIdx) >= 0 {
+			r.visitFunctionNode(t, r.contextStack[ctxIdx].functionContextIdx, n)
 		}
 	case asyncContextFunction:
-		c.visitFunctionNode(t, n)
+		r.visitFunctionNode(t, ctxIdx, n)
 	}
 }
 
-func (c *rewriteAsyncLexicalContext) visitFunctionNode(t *NodeTraversal, n rhino.Node) {
-	r := c.pass
+func (r *RewriteAsyncFunctions) visitFunctionNode(t *NodeTraversal, fnCtxIdx int, n rhino.Node) {
+	c := &r.contextStack[fnCtxIdx]
 	if c.contextRootNode == n {
 		if fn, ok := ast.AsFunction(n); ok && fn.IsAsync() {
 			r.convertAsyncFunction(t, c, fn)
 		}
 		return
 	}
-	asyncCtx := c.asyncThisAndArgumentsContext
-	if asyncCtx == nil {
+	if c.asyncThisAndArgumentsContextIdx < 0 {
 		return
 	}
+	asyncCtx := &r.contextStack[c.asyncThisAndArgumentsContextIdx]
 
 	switch n.GetToken() {
 	case rhino.Token_NAME:
-		nm := ast.MustName(n)
-		if nm.Ident() == "arguments" {
+		if n.GetStringID() == asyncArgumentsID {
+			nm := ast.MustName(n)
 			nm.SetIdent(asyncFuncArgumentsPrefix + asyncCtx.uniqueId)
 			if r.compiler.GetLifeCycleStage().IsNormalized() {
 				nm.SetConstantName(true)
@@ -268,10 +263,10 @@ func (c *rewriteAsyncLexicalContext) visitFunctionNode(t *NodeTraversal, n rhino
 			r.compiler.ReportChangeToChangeScope(c.contextRootNode)
 		}
 	case rhino.Token_THIS:
-		n.ReplaceWith(asyncCtx.createThisVariableReference(AstFactory_Type_(n)))
+		n.ReplaceWith(r.createThisVariableReference(asyncCtx, AstFactory_Type_(n)))
 		r.compiler.ReportChangeToChangeScope(c.contextRootNode)
 	case rhino.Token_NEW_TARGET:
-		n.ReplaceWith(asyncCtx.createNewTargetVariableReference(AstFactory_Type_(n)))
+		n.ReplaceWith(r.createNewTargetVariableReference(asyncCtx, AstFactory_Type_(n)))
 		r.compiler.ReportChangeToChangeScope(c.contextRootNode)
 	case rhino.Token_SUPER:
 		parent := n.GetParent()
@@ -286,7 +281,7 @@ func (c *rewriteAsyncLexicalContext) visitFunctionNode(t *NodeTraversal, n rhino
 					"assignment to super property"))
 		}
 		superDotProperty := parent
-		wrapperInfo := asyncCtx.getOrCreateSuperPropertyWrapperInfo(superDotProperty)
+		wrapperInfo := r.getOrCreateSuperPropertyWrapperInfo(asyncCtx, superDotProperty)
 
 		getPropReplacement := wrapperInfo.createWrapperFunctionCallNode(r.astFactory)
 		grandparent := superDotProperty.GetParent()
@@ -323,11 +318,17 @@ func (c *rewriteAsyncLexicalContext) visitFunctionNode(t *NodeTraversal, n rhino
 var rewriteAsyncFunctionsTranspiledFeatures = parser.FeatureSet_BARE_MINIMUM.With(parser.FeatureSet_Feature_ASYNC_FUNCTIONS)
 
 func RewriteAsyncFunctions_Create(compiler AbstractCompiler) *RewriteAsyncFunctions {
-	return &RewriteAsyncFunctions{
+	r := &RewriteAsyncFunctions{
 		compiler:   jutil.CheckNotNull(compiler),
 		astFactory: jutil.CheckNotNull(compiler.CreateAstFactory()),
 		namespace:  jutil.CheckNotNull(compiler.GetTranspilationNamespace()),
 	}
+	r.contextStack = r.contextStackBuf[:0]
+	return r
+}
+
+func (*RewriteAsyncFunctions) visitTokens() *ast.TokenSet {
+	return &rewriteAsyncVisitTokens
 }
 
 func (r *RewriteAsyncFunctions) Process(externs rhino.Node, root rhino.Node) {
@@ -335,36 +336,58 @@ func (r *RewriteAsyncFunctions) Process(externs rhino.Node, root rhino.Node) {
 	TranspilationPasses_MaybeMarkFeaturesAsTranspiledAway(r.compiler, root, rewriteAsyncFunctionsTranspiledFeatures)
 }
 
-func (r *RewriteAsyncFunctions) contextStackPeek() *rewriteAsyncLexicalContext {
-	if len(r.contextStack) == 0 {
-		return nil
-	}
-	return r.contextStack[len(r.contextStack)-1]
-}
-
 func (r *RewriteAsyncFunctions) ShouldTraverse(t *NodeTraversal, n rhino.Node, parent rhino.Node) bool {
 	if parent.IsNil() {
 		jutil.CheckState(len(r.contextStack) == 0)
 		uniqueId := r.compiler.GetUniqueIdSupplier().GetUniqueId(t.GetInput())
-		r.contextStack = append(r.contextStack, newAsyncRootContext(r, n, uniqueId))
-	} else {
-		parentContext := r.contextStackPeek()
-		nodeContext := parentContext.contextForNode(t, n)
-		if nodeContext != parentContext {
-			r.contextStack = append(r.contextStack, nodeContext)
+		r.contextStack = append(r.contextStack, newAsyncRootContext(n, uniqueId))
+		return true
+	}
+	tok := n.GetToken()
+	if tok != rhino.Token_FUNCTION && tok != rhino.Token_PARAM_LIST {
+		return true
+	}
+	parentIdx := len(r.contextStack) - 1
+	parentCtx := &r.contextStack[parentIdx]
+	switch parentCtx.kind {
+	case asyncContextRoot:
+		if fn, ok := ast.AsFunction(n); ok {
+			uniqueId := r.compiler.GetUniqueIdSupplier().GetUniqueId(t.GetInput())
+			r.contextStack = append(r.contextStack, newAsyncFunctionContext(len(r.contextStack), -1, fn, uniqueId))
 		}
+	case asyncContextParamList:
+		if fn, ok := ast.AsFunction(n); ok {
+			outerAsyncIdx := r.asyncContextIdxForParameterList(parentIdx)
+			uniqueId := r.compiler.GetUniqueIdSupplier().GetUniqueId(t.GetInput())
+			r.contextStack = append(r.contextStack, newAsyncFunctionContext(len(r.contextStack), outerAsyncIdx, fn, uniqueId))
+		}
+	case asyncContextFunction:
+		if n == parentCtx.contextRootNode {
+			return true
+		}
+		if fn, ok := ast.AsFunction(n); ok {
+			outerAsyncIdx := parentCtx.asyncThisAndArgumentsContextIdx
+			uniqueId := r.compiler.GetUniqueIdSupplier().GetUniqueId(t.GetInput())
+			r.contextStack = append(r.contextStack, newAsyncFunctionContext(len(r.contextStack), outerAsyncIdx, fn, uniqueId))
+		} else if _, ok := ast.AsParamList(n); ok {
+			uniqueId := r.compiler.GetUniqueIdSupplier().GetUniqueId(t.GetInput())
+			r.contextStack = append(r.contextStack, newAsyncParamListContext(parentIdx, n, uniqueId))
+		}
+	default:
+		panic("unreachable asyncContextKind")
 	}
 	return true
 }
 
 func (r *RewriteAsyncFunctions) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
-	context := r.contextStackPeek()
-	context.visit(t, n)
-	if context.contextRootNode == n {
-		if len(r.contextStack) == 0 {
-			panic(jutil.NewNoSuchElementException())
-		}
-		r.contextStack = r.contextStack[:len(r.contextStack)-1]
+	if len(r.contextStack) == 0 {
+		panic(jutil.NewNoSuchElementException())
+	}
+	topIdx := len(r.contextStack) - 1
+	r.visitContext(t, topIdx, n)
+	if r.contextStack[topIdx].contextRootNode == n {
+		r.contextStack[topIdx] = rewriteAsyncLexicalContext{}
+		r.contextStack = r.contextStack[:topIdx]
 	}
 }
 
@@ -386,7 +409,10 @@ func (r *RewriteAsyncFunctions) convertAsyncFunction(
 	originalBody.ReplaceWith(newBody)
 
 	enclosingScript := t.GetCurrentScript()
-	asyncCtx := functionContext.asyncThisAndArgumentsContext
+	var asyncCtx *rewriteAsyncLexicalContext
+	if functionContext.asyncThisAndArgumentsContextIdx >= 0 {
+		asyncCtx = &r.contextStack[functionContext.asyncThisAndArgumentsContextIdx]
+	}
 	if functionContext.mustAddAsyncThisVariable {
 		newBody.AddChildToBack(
 			r.astFactory.CreateSingleConstNameDeclaration(
@@ -408,7 +434,7 @@ func (r *RewriteAsyncFunctions) convertAsyncFunction(
 		NodeUtil_AddFeatureToScript(enclosingScript, parser.FeatureSet_Feature_CONST_DECLARATIONS, r.compiler)
 	}
 	for _, wrapperInfo := range functionContext.superPropertyWrappers {
-		arrowFunction := functionContext.createWrapperArrowFunction(wrapperInfo)
+		arrowFunction := r.createWrapperArrowFunction(wrapperInfo)
 		newBody.AddChildToBack(
 			r.astFactory.CreateSingleConstNameDeclaration(
 				wrapperInfo.wrapperFunctionName, arrowFunction))

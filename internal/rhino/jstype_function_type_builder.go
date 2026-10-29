@@ -189,7 +189,7 @@ func (b *FunctionType_Builder) WithParametersOfList(parameters []*FunctionType_P
 
 // WithParams sets the parameters of the function type from a FunctionParamBuilder.
 func (b *FunctionType_Builder) WithParams(paramBuilder *FunctionParamBuilder) *FunctionType_Builder {
-	b.parameters = paramBuilder.parameters
+	b.parameters = paramBuilder.Build()
 	return b
 }
 

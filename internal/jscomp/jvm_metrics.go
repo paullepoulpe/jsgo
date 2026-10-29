@@ -342,12 +342,14 @@ func jvmMetrics_normalizeName(name string) string {
 
 // Java: JvmMetrics.normalizeTabularColonPos(String)
 func jvmMetrics_normalizeTabularColonPos(s string) string {
-	sb := jutil.NewStringBuilderFrom(s)
 	index := jutil.StringIndexOf(s, ":")
-	for ; index < jvmMetrics_TABULAR_COLON_POS; index++ {
-		sb.InsertChar(index, ' ')
+	if index < 0 {
+		panic(jutil.NewStringIndexOutOfBoundsException(index, jutil.StringLength(s)))
 	}
-	return sb.String()
+	if index >= jvmMetrics_TABULAR_COLON_POS {
+		return s
+	}
+	return jutil.StringSubstring(s, 0, index) + strings.Repeat(" ", jvmMetrics_TABULAR_COLON_POS-index) + jutil.StringSubstringFrom(s, index)
 }
 
 // Java: JvmMetrics.formatBytes(long)

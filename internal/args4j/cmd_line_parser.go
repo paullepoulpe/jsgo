@@ -1,5 +1,8 @@
 // Port of org/kohsuke/args4j/CmdLineParser.java @ args4j 2.33
 // Port of org/kohsuke/args4j/ClassParser.java @ args4j 2.33
+// Port of org/kohsuke/args4j/Localizable.java @ args4j 2.33
+// Port of org/kohsuke/args4j/Messages.java @ args4j 2.33
+// Port of org/kohsuke/args4j/spi/Messages.java @ args4j 2.33
 // Port of org/kohsuke/args4j/spi/Parameters.java @ args4j 2.33
 // Port of org/kohsuke/args4j/Utilities.java @ args4j 2.33
 
@@ -196,7 +199,7 @@ func (p *CmdLineParser) PrintUsageToWriterWithFilter(out jutil.Writer, rb Resour
 	for _, h := range p.options {
 		p.PrintOption(out, h, prefixLen, rb, filter)
 	}
-	jutil.Try(func() { out.Flush() }, func(jutil.IIOException) {})
+	_ = out.TryFlush()
 }
 
 func (p *CmdLineParser) PrintOption(out jutil.Writer, handler *OptionHandler, maxMetaLen int, rb ResourceBundle, filter OptionHandlerFilter) {
@@ -231,7 +234,7 @@ func (p *CmdLineParser) PrintOption(out jutil.Writer, handler *OptionHandler, ma
 			format = colonFmt
 		}
 		line := jutil.StringFormat(format, nameAndMeta, usage) + "\n"
-		jutil.Try(func() { out.Write(line) }, func(jutil.IIOException) {})
+		_ = out.TryWrite(line)
 	}
 }
 
@@ -288,11 +291,19 @@ func (c *cmdLineParams) proceed(n int)        { c.pos += n }
 func (c *cmdLineParams) Size() int            { return len(c.args) - c.pos }
 
 func (c *cmdLineParams) GetParameter(idx int) string {
+	val, err := c.tryGetParameter(idx)
+	if err != nil {
+		panic(err)
+	}
+	return val
+}
+
+func (c *cmdLineParams) tryGetParameter(idx int) (string, ICmdLineException) {
 	if c.pos+idx >= len(c.args) || c.pos+idx < 0 {
 		optName := c.owner.currentOptionHandler.Option.String()
-		panic(newCmdLineException(c.owner, msgMissingOperand, optName))
+		return "", newCmdLineException(c.owner, msgMissingOperand, optName)
 	}
-	return c.args[c.pos+idx]
+	return c.args[c.pos+idx], nil
 }
 
 // splitToken replaces "-option=value" at c.pos with "value".
@@ -309,9 +320,31 @@ func (p *CmdLineParser) ParseArgumentCollection(args []string) {
 }
 
 func (p *CmdLineParser) ParseArgument(args ...string) {
+	if err := p.TryParseArgument(args...); err != nil {
+		panic(err)
+	}
+}
+
+// TryParseArgument parses command-line flags and positional arguments, returning
+// an ICmdLineException instead of panicking on user argument errors.
+func (p *CmdLineParser) TryParseArgument(args ...string) (retErr ICmdLineException) {
+	defer func() {
+		if r := recover(); r != nil {
+			if ex, ok := r.(ICmdLineException); ok {
+				retErr = ex
+				return
+			}
+			panic(r)
+		}
+	}()
+
 	expandedArgs := args
 	if p.parserProperties.GetAtSyntax() {
-		expandedArgs = p.expandAtFiles(args)
+		var err ICmdLineException
+		expandedArgs, err = p.tryExpandAtFiles(args)
+		if err != nil {
+			return err
+		}
 	}
 	cmdLine := &cmdLineParams{owner: p, args: expandedArgs}
 
@@ -330,7 +363,7 @@ func (p *CmdLineParser) ParseArgument(args ...string) {
 				p.currentOptionHandler = p.findOptionByName(arg)
 			}
 			if p.currentOptionHandler == nil {
-				panic(newCmdLineException(p, msgUndefinedOption, arg))
+				return newCmdLineException(p, msgUndefinedOption, arg)
 			}
 			if isKeyValuePair {
 				cmdLine.splitToken()
@@ -343,7 +376,7 @@ func (p *CmdLineParser) ParseArgument(args ...string) {
 				if len(p.arguments) == 0 {
 					msg = msgNoArgumentAllowed
 				}
-				panic(newCmdLineException(p, msg, arg))
+				return newCmdLineException(p, msg, arg)
 			}
 			p.currentOptionHandler = p.arguments[argIndex]
 			if p.currentOptionHandler == nil {
@@ -353,7 +386,10 @@ func (p *CmdLineParser) ParseArgument(args ...string) {
 				argIndex++
 			}
 		}
-		diff := p.currentOptionHandler.ParseArguments(cmdLine)
+		diff, err := p.currentOptionHandler.tryParseArguments(cmdLine)
+		if err != nil {
+			return err
+		}
 		cmdLine.proceed(diff)
 		if !presentSet[p.currentOptionHandler] {
 			presentSet[p.currentOptionHandler] = true
@@ -363,43 +399,41 @@ func (p *CmdLineParser) ParseArgument(args ...string) {
 
 	for _, handler := range p.options {
 		if handler.Option.Help() && presentSet[handler] {
-			return
+			return nil
 		}
 	}
-	p.checkRequiredOptionsAndArguments(presentSet, presentOrder)
+	return p.tryCheckRequiredOptionsAndArguments(presentSet, presentOrder)
 }
 
-func (p *CmdLineParser) expandAtFiles(args []string) []string {
+func (p *CmdLineParser) tryExpandAtFiles(args []string) ([]string, ICmdLineException) {
 	var result []string
 	for _, arg := range args {
 		if strings.HasPrefix(arg, "@") {
 			file := jutil.NewFile(arg[1:])
 			if !file.Exists() {
-				panic(newCmdLineException(p, msgNoSuchFile, file.GetPath()))
+				return nil, newCmdLineException(p, msgNoSuchFile, file.GetPath())
 			}
-			jutil.Try(func() {
-				r := jutil.Files_AsCharSource(file, jutil.StandardCharsets_UTF_8).OpenStream()
-				defer r.Close()
-				result = append(result, jutil.CharStreams_ReadLines(r)...)
-			}, func(ex jutil.IIOException) {
-				panic(NewCmdLineExceptionWithParserMessageAndCause(p, "Failed to parse "+file.String(), ex))
-			})
+			lines, ex := jutil.Files_AsCharSource(file, jutil.StandardCharsets_UTF_8).TryReadLines()
+			if ex != nil {
+				return nil, NewCmdLineExceptionWithParserMessageAndCause(p, "Failed to parse "+file.String(), ex)
+			}
+			result = append(result, lines...)
 		} else {
 			result = append(result, arg)
 		}
 	}
-	return result
+	return result, nil
 }
 
-func (p *CmdLineParser) checkRequiredOptionsAndArguments(presentSet map[*OptionHandler]bool, presentOrder []*OptionHandler) {
+func (p *CmdLineParser) tryCheckRequiredOptionsAndArguments(presentSet map[*OptionHandler]bool, presentOrder []*OptionHandler) ICmdLineException {
 	for _, handler := range p.options {
 		if handler.Option.Required() && !presentSet[handler] {
-			panic(newCmdLineException(p, msgRequiredOptionMissing, handler.Option.String()))
+			return newCmdLineException(p, msgRequiredOptionMissing, handler.Option.String())
 		}
 	}
 	for _, handler := range p.arguments {
 		if handler.Option.Required() && !presentSet[handler] {
-			panic(newCmdLineException(p, msgRequiredArgumentMissing, handler.Option.String()))
+			return newCmdLineException(p, msgRequiredArgumentMissing, handler.Option.String())
 		}
 	}
 	for _, handler := range presentOrder {
@@ -408,7 +442,7 @@ func (p *CmdLineParser) checkRequiredOptionsAndArguments(presentSet map[*OptionH
 		}
 		for _, depend := range handler.Option.Depends() {
 			if !presentSet[p.findOptionHandler(depend)] {
-				panic(newCmdLineException(p, msgRequiresOptionMissing, handler.Option.String(), "["+strings.Join(handler.Option.Depends(), ", ")+"]"))
+				return newCmdLineException(p, msgRequiresOptionMissing, handler.Option.String(), "["+strings.Join(handler.Option.Depends(), ", ")+"]")
 			}
 		}
 	}
@@ -418,10 +452,11 @@ func (p *CmdLineParser) checkRequiredOptionsAndArguments(presentSet map[*OptionH
 		}
 		for _, forbid := range handler.Option.Forbids() {
 			if presentSet[p.findOptionHandler(forbid)] {
-				panic(newCmdLineException(p, msgForbiddenOptionPresent, handler.Option.String(), "["+strings.Join(handler.Option.Forbids(), ", ")+"]"))
+				return newCmdLineException(p, msgForbiddenOptionPresent, handler.Option.String(), "["+strings.Join(handler.Option.Forbids(), ", ")+"]")
 			}
 		}
 	}
+	return nil
 }
 
 func (p *CmdLineParser) findOptionHandler(name string) *OptionHandler {
@@ -485,10 +520,9 @@ func (p *CmdLineParser) PrintSingleLineUsageToWriter(w jutil.Writer, rb Resource
 		p.printSingleLineOption(&buf, h, rb)
 	}
 	if buf.Len() > 0 {
-		s := buf.String()
-		jutil.Try(func() { w.Write(s) }, func(jutil.IIOException) {})
+		_ = w.TryWrite(buf.String())
 	}
-	jutil.Try(func() { w.Flush() }, func(jutil.IIOException) {})
+	_ = w.TryFlush()
 }
 
 func (p *CmdLineParser) printSingleLineOption(buf *strings.Builder, h *OptionHandler, rb ResourceBundle) {
@@ -522,3 +556,75 @@ func outputStream(out io.Writer) io.WriteCloser {
 type nopCloser struct{ io.Writer }
 
 func (nopCloser) Close() error { return nil }
+
+// ResourceBundle localizes option usage strings and meta variables when passed
+// to CmdLineParser usage printers.
+type ResourceBundle interface {
+	GetString(key string) string
+}
+
+// messageTemplate is an English args4j MessageFormat pattern from
+// org/kohsuke/args4j/Messages.properties or spi/Messages.properties.
+type messageTemplate string
+
+func (m messageTemplate) format(args ...any) string {
+	s := string(m)
+	var sb strings.Builder
+	sb.Grow(len(s) + 16)
+	quoted := false
+	for i := 0; i < len(s); i++ {
+		c := s[i]
+		if c == '\'' {
+			if i+1 < len(s) && s[i+1] == '\'' {
+				sb.WriteByte('\'')
+				i++
+			} else {
+				quoted = !quoted
+			}
+			continue
+		}
+		if c == '{' && !quoted {
+			if end := strings.IndexByte(s[i+1:], '}'); end >= 0 {
+				if idx, err := strconv.Atoi(s[i+1 : i+1+end]); err == nil && idx >= 0 {
+					if idx < len(args) {
+						sb.WriteString(jutil.ToJavaString(args[idx]))
+					} else {
+						sb.WriteByte('{')
+						sb.WriteString(strconv.Itoa(idx))
+						sb.WriteByte('}')
+					}
+					i += 1 + end
+					continue
+				}
+			}
+		}
+		sb.WriteByte(c)
+	}
+	return sb.String()
+}
+
+const (
+	msgMissingOperand          messageTemplate = `Option "{0}" takes an operand`
+	msgUndefinedOption         messageTemplate = `"{0}" is not a valid option`
+	msgNoArgumentAllowed       messageTemplate = `No argument is allowed: {0}`
+	msgRequiredOptionMissing   messageTemplate = `Option "{0}" is required`
+	msgRequiredArgumentMissing messageTemplate = `Argument "{0}" is required`
+	msgTooManyArguments        messageTemplate = `Too many arguments: {0}`
+	msgMultipleUseOfArgument   messageTemplate = `Argument with index {0} is used more than once`
+	msgMultipleUseOfOption     messageTemplate = `Option name {0} is used more than once`
+	msgUnknownHandler          messageTemplate = `No OptionHandler is registered to handle {0}`
+	msgRequiresOptionMissing   messageTemplate = `option "{0}" requires the option(s) {1}`
+	msgForbiddenOptionPresent  messageTemplate = `option "{0}" cannot be used with the option(s) {1}`
+	msgNoSuchFile              messageTemplate = `No such file: {0}`
+	msgDefaultValue            messageTemplate = `(default: {0})`
+
+	spiMsgIllegalOperand        messageTemplate = `"{1}" is not a valid value for "{0}"`
+	spiMsgIllegalBoolean        messageTemplate = `"{0}" is not a legal boolean value`
+	spiMsgIllegalFieldSignature messageTemplate = `Field of type {0} isn't supported by args4j`
+	spiMsgIllegalList           messageTemplate = `type of {0} is not a List`
+	spiMsgFormatErrorForMap     messageTemplate = `An argument for setting a Map must contain a "="`
+	spiMsgMapHasNoKey           messageTemplate = `A key must be set.`
+
+	defaultMetaStringArray = "STRING[]"
+	defaultMetaString      = "VAL"
+)

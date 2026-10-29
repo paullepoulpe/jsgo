@@ -500,8 +500,8 @@ func (b *NominalTypeBuilder) PrototypeOrInstance() ObjectType {
 // during traversal.
 type TypeStringBuilder struct {
 	builder          strings.Builder
+	indentDepth      int
 	isForAnnotations bool
-	indentation      string
 }
 
 // Java: TypeStringBuilder(boolean)
@@ -515,45 +515,101 @@ func (b *TypeStringBuilder) IsForAnnotations() bool {
 }
 
 // Java: TypeStringBuilder.append(String)
-func (b *TypeStringBuilder) Append(x string) *TypeStringBuilder {
+func (b *TypeStringBuilder) Append(x string) {
 	b.builder.WriteString(x)
-	return b
 }
 
 // Java: TypeStringBuilder.append(JSType)
-func (b *TypeStringBuilder) AppendType(x JSType) *TypeStringBuilder {
-	x.AppendTo(b)
-	return b
+func (b *TypeStringBuilder) AppendType(x JSType) {
+	switch t := x.(type) {
+	case *BooleanType:
+		b.builder.WriteString("boolean")
+	case *NumberType:
+		b.builder.WriteString("number")
+	case *StringType:
+		b.builder.WriteString("string")
+	case *BigIntType:
+		b.builder.WriteString("bigint")
+	case *NullType:
+		b.builder.WriteString("null")
+	case *VoidType:
+		b.builder.WriteString("undefined")
+	case *AllType:
+		b.builder.WriteString("*")
+	case *UnknownType:
+		if t.isChecked {
+			b.builder.WriteString("??")
+		} else {
+			b.builder.WriteString("?")
+		}
+	case *NoType:
+		t.AppendTo(b)
+	case *NoObjectTypeBase:
+		t.AppendTo(b)
+	case *NoResolvedType:
+		t.AppendTo(b)
+	case *KnownSymbolType:
+		b.builder.WriteString(t.name)
+	case *SymbolTypeBase:
+		t.AppendTo(b)
+	case *InstanceObjectType:
+		t.AppendTo(b)
+	case *RecordType:
+		t.AppendTo(b)
+	case *PrototypeObjectTypeBase:
+		t.AppendTo(b)
+	case *FunctionTypeBase:
+		t.AppendTo(b)
+	case *UnionType:
+		t.AppendTo(b)
+	case *TemplatizedType:
+		t.AppendTo(b)
+	case *TemplateType:
+		t.AppendTo(b)
+	case *NamedType:
+		t.AppendTo(b)
+	case *EnumType:
+		t.AppendTo(b)
+	case *EnumElementType:
+		t.AppendTo(b)
+	case *ProxyObjectTypeBase:
+		t.AppendTo(b)
+	default:
+		tmp := &TypeStringBuilder{
+			isForAnnotations: b.isForAnnotations,
+			indentDepth:      b.indentDepth,
+		}
+		x.AppendTo(tmp)
+		b.builder.WriteString(tmp.Build())
+	}
 }
 
 // AppendTypes appends the JSTypes separated by separator.
 //
 // Java: TypeStringBuilder.appendAll(Iterable<?>, String)
-func (b *TypeStringBuilder) AppendTypes(elements []JSType, separator string) *TypeStringBuilder {
+func (b *TypeStringBuilder) AppendTypes(elements []JSType, separator string) {
 	for i, e := range elements {
 		if i > 0 {
-			b.Append(separator)
+			b.builder.WriteString(separator)
 		}
 		b.AppendType(e)
 	}
-	return b
 }
 
 // AppendStrings appends the strings separated by separator.
 //
 // Java: TypeStringBuilder.appendAll(Iterable<?>, String)
-func (b *TypeStringBuilder) AppendStrings(elements []string, separator string) *TypeStringBuilder {
+func (b *TypeStringBuilder) AppendStrings(elements []string, separator string) {
 	for i, s := range elements {
 		if i > 0 {
-			b.Append(separator)
+			b.builder.WriteString(separator)
 		}
-		b.Append(s)
+		b.builder.WriteString(s)
 	}
-	return b
 }
 
 // Java: TypeStringBuilder.appendNonNull(JSType)
-func (b *TypeStringBuilder) AppendNonNull(type_ JSType) *TypeStringBuilder {
+func (b *TypeStringBuilder) AppendNonNull(type_ JSType) {
 	if b.isForAnnotations &&
 		type_.IsObject() &&
 		!type_.IsUnknownType() &&
@@ -562,25 +618,31 @@ func (b *TypeStringBuilder) AppendNonNull(type_ JSType) *TypeStringBuilder {
 		!type_.IsFunctionType() &&
 		!type_.IsUnionType() &&
 		!type_.IsLiteralObject() {
-		b.Append("!")
+		b.builder.WriteString("!")
 	}
-	return b.AppendType(type_)
+	b.AppendType(type_)
 }
 
+const typeStringIndentSpaces = "                                "
+
 // Java: TypeStringBuilder.breakLineAndIndent()
-func (b *TypeStringBuilder) BreakLineAndIndent() *TypeStringBuilder {
-	b.builder.WriteString("\n")
-	b.builder.WriteString(b.indentation)
-	return b
+func (b *TypeStringBuilder) BreakLineAndIndent() {
+	b.builder.WriteByte('\n')
+	spaces := b.indentDepth * 2
+	for spaces > len(typeStringIndentSpaces) {
+		b.builder.WriteString(typeStringIndentSpaces)
+		spaces -= len(typeStringIndentSpaces)
+	}
+	if spaces > 0 {
+		b.builder.WriteString(typeStringIndentSpaces[:spaces])
+	}
 }
 
 // Java: TypeStringBuilder.indent(Runnable)
-func (b *TypeStringBuilder) Indent(cb func()) *TypeStringBuilder {
-	lastIndent := b.indentation
-	b.indentation = lastIndent + "  "
+func (b *TypeStringBuilder) Indent(cb func()) {
+	b.indentDepth++
 	cb()
-	b.indentation = lastIndent
-	return b
+	b.indentDepth--
 }
 
 // Java: TypeStringBuilder.build()
@@ -590,9 +652,10 @@ func (b *TypeStringBuilder) Build() string {
 
 // Java: TypeStringBuilder.cloneWithConfig()
 func (b *TypeStringBuilder) CloneWithConfig() *TypeStringBuilder {
-	clone := NewTypeStringBuilder(b.isForAnnotations)
-	clone.indentation = b.indentation
-	return clone
+	return &TypeStringBuilder{
+		isForAnnotations: b.isForAnnotations,
+		indentDepth:      b.indentDepth,
+	}
 }
 
 // containsUpperBoundSuperTypePresent reports whether target appears in the

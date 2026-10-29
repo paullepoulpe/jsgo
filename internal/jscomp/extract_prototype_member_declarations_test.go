@@ -21,8 +21,10 @@ package jscomp
 
 import (
 	"fmt"
-	"github.com/paullepoulpe/jsgo/internal/jutil"
+	"strings"
 	"testing"
+
+	"github.com/paullepoulpe/jsgo/internal/jutil"
 )
 
 type ExtractPrototypeMemberDeclarationsTest struct {
@@ -350,17 +352,14 @@ func (c *ExtractPrototypeMemberDeclarationsTest) TestExtractingSingleClassProtot
 			AddChunk(c.GeneratePrototypeDeclarations("y", 7)).
 			Build()
 
-	builderX := jutil.NewStringBuilder()
-	builderY := jutil.NewStringBuilder()
+	var builderX, builderY strings.Builder
 	xTmp := ExtractPrototypeMemberDeclarationsTest_TMP + "0"
 	yTmp := ExtractPrototypeMemberDeclarationsTest_TMP + "1"
 	fileIndex0, fileIndex1 := 0, 1
-	builderX.
-		Append(fmt.Sprintf("var %s; %s = x.prototype;", xTmp, xTmp)).
-		Append(c.GenerateExtractedDeclarationsWithFileIndex(7, &fileIndex0))
-	builderY.
-		Append(fmt.Sprintf("var %s; %s = y.prototype;", yTmp, yTmp)).
-		Append(c.GenerateExtractedDeclarationsWithFileIndex(7, &fileIndex1))
+	builderX.WriteString(fmt.Sprintf("var %s; %s = x.prototype;", xTmp, xTmp))
+	builderX.WriteString(c.GenerateExtractedDeclarationsWithFileIndex(7, &fileIndex0))
+	builderY.WriteString(fmt.Sprintf("var %s; %s = y.prototype;", yTmp, yTmp))
+	builderY.WriteString(c.GenerateExtractedDeclarationsWithFileIndex(7, &fileIndex1))
 
 	expectedChunks :=
 		JSChunkGraphBuilder_ForStar().
@@ -391,10 +390,10 @@ func (c *ExtractPrototypeMemberDeclarationsTest) Extract(src string, expected st
 
 // Java: ExtractPrototypeMemberDeclarationsTest.generatePrototypeDeclarations(String, int)
 func (c *ExtractPrototypeMemberDeclarationsTest) GeneratePrototypeDeclarations(className string, num int) string {
-	builder := jutil.NewStringBuilder()
+	var builder strings.Builder
 	for i := 0; i < num; i++ {
 		member := uint16('a' + i)
-		builder.Append(c.GeneratePrototypeDeclaration(className, jutil.StringFromChar(member), jutil.StringFromChar(member)))
+		builder.WriteString(c.GeneratePrototypeDeclaration(className, jutil.StringFromChar(member), jutil.StringFromChar(member)))
 	}
 	return builder.String()
 }
@@ -411,18 +410,20 @@ func (c *ExtractPrototypeMemberDeclarationsTest) GenerateExtractedDeclarations(n
 
 // Java: ExtractPrototypeMemberDeclarationsTest.generateExtractedDeclarations(int, Integer)
 func (c *ExtractPrototypeMemberDeclarationsTest) GenerateExtractedDeclarationsWithFileIndex(num int, fileIndex *int) string {
-	builder := jutil.NewStringBuilder()
+	var builder strings.Builder
 
 	alias := ExtractPrototypeMemberDeclarationsTest_TMP
 	if c.pattern == ExtractPrototypeMemberDeclarations_Pattern_USE_IIFE {
-		builder.Append("(function(").Append(ExtractPrototypeMemberDeclarationsTest_TMP).Append("){")
+		builder.WriteString("(function(")
+		builder.WriteString(ExtractPrototypeMemberDeclarationsTest_TMP)
+		builder.WriteString("){")
 	} else if c.pattern == ExtractPrototypeMemberDeclarations_Pattern_USE_CHUNK_TEMP && fileIndex != nil {
 		alias += jutil.ToJavaString(*fileIndex)
 	}
 
 	for i := 0; i < num; i++ {
 		member := uint16('a' + i)
-		builder.Append(ExtractPrototypeMemberDeclarationsTest_GenerateExtractedDeclaration(alias, jutil.StringFromChar(member), jutil.StringFromChar(member)))
+		builder.WriteString(ExtractPrototypeMemberDeclarationsTest_GenerateExtractedDeclaration(alias, jutil.StringFromChar(member), jutil.StringFromChar(member)))
 	}
 	return builder.String()
 }

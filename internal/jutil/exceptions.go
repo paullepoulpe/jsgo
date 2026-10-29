@@ -456,8 +456,7 @@ func NewIOExceptionWithCause(cause Throwable) *IOException {
 }
 
 // NewStringIndexOutOfBoundsExceptionForIndex is the exception thrown by
-// String.charAt(int) and StringBuilder.charAt(int) / setCharAt(int, char):
-// "Index 3 out of bounds for length 3".
+// String.charAt(int): "Index 3 out of bounds for length 3".
 func NewStringIndexOutOfBoundsExceptionForIndex(index, length int) *StringIndexOutOfBoundsException {
 	e := &StringIndexOutOfBoundsException{}
 	InitThrowable(e, "java.lang.StringIndexOutOfBoundsException",
@@ -483,8 +482,7 @@ func NewIndexOutOfBoundsExceptionNoMessage() *IndexOutOfBoundsException {
 }
 
 // NewIndexOutOfBoundsExceptionForRange is the exception thrown by
-// Preconditions.checkFromToIndex with the IOOBE formatter, e.g. by
-// StringBuilder.append(CharSequence, int, int):
+// Preconditions.checkFromToIndex with the IOOBE formatter:
 // "Range [2, 5) out of bounds for length 3".
 func NewIndexOutOfBoundsExceptionForRange(from, to, length int) *IndexOutOfBoundsException {
 	e := &IndexOutOfBoundsException{}
