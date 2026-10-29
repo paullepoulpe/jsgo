@@ -99,11 +99,12 @@ func (r *JSTypeRegistry) InitializeBuiltInTypes() {
 	//
 	// Must be created and registered early so `FunctionType.Builder` has
 	// access to it.
-	functionPrototype := PrototypeObjectType_Builder_(r).
-		SetName(jutil.StringPtr("Function.prototype")).
-		SetNative(true).
-		// Defer until `Object` is defined. .setImplicitPrototype(objectType)
-		Build()
+	functionPrototype := NewPrototypeObjectType(&PrototypeObjectType_Builder{
+		registry:        r,
+		className:       jutil.StringPtr("Function.prototype"),
+		nativeType:      true,
+		templateTypeMap: r.GetEmptyTemplateTypeMap(),
+	})
 	r.RegisterNativeType(JSTypeNative_FUNCTION_PROTOTYPE, functionPrototype)
 
 	// The ".prototype" property of the type `Function`.
@@ -111,11 +112,12 @@ func (r *JSTypeRegistry) InitializeBuiltInTypes() {
 	// So named because `Function` constructs `?`s. This type is not
 	// particularly interesting, since its properties aren't inherited by any
 	// other type.
-	functionInstancePrototype := PrototypeObjectType_Builder_(r).
-		SetName(jutil.StringPtr("?.prototype")).
-		SetNative(true).
-		// Defer until `Object` is defined. .setImplicitPrototype(objectType)
-		Build()
+	functionInstancePrototype := NewPrototypeObjectType(&PrototypeObjectType_Builder{
+		registry:        r,
+		className:       jutil.StringPtr("?.prototype"),
+		nativeType:      true,
+		templateTypeMap: r.GetEmptyTemplateTypeMap(),
+	})
 	r.RegisterNativeType(JSTypeNative_FUNCTION_INSTANCE_PROTOTYPE, functionInstancePrototype)
 
 	// `Function`
@@ -149,11 +151,12 @@ func (r *JSTypeRegistry) InitializeBuiltInTypes() {
 	r.RegisterNativeType(JSTypeNative_FUNCTION_FUNCTION_TYPE, functionFunctionType)
 
 	// `Object.prototype`
-	objectPrototype := PrototypeObjectType_Builder_(r).
-		SetName(jutil.StringPtr("Object.prototype")).
-		SetNative(true).
-		SetImplicitPrototype(nil).
-		Build()
+	objectPrototype := NewPrototypeObjectType(&PrototypeObjectType_Builder{
+		registry:        r,
+		className:       jutil.StringPtr("Object.prototype"),
+		nativeType:      true,
+		templateTypeMap: r.GetEmptyTemplateTypeMap(),
+	})
 	r.RegisterNativeType(JSTypeNative_OBJECT_PROTOTYPE, objectPrototype)
 
 	// Object

@@ -50,7 +50,7 @@ func TestInvalidatingTypes_InvaliatingRawTypeAlsoInvalidatesTemplatization(t *te
 	registry, truth := newInvalidatingTypesTest(t)
 	invalidatingTypes := NewInvalidatingTypes_Builder(registry).
 		AddAllTypeMismatches(
-			[]*TypeMismatch{
+			[]TypeMismatch{
 				TypeMismatch_CreateForTesting(
 					registry.GetNativeObjectType(rhino.JSTypeNative_ARRAY_TYPE),
 					registry.GetNativeType(rhino.JSTypeNative_STRING_TYPE)),
@@ -68,7 +68,7 @@ func TestInvalidatingTypes_InvalidatingOneTemplatizationInvalidatesAll(t *testin
 		registry.GetNativeObjectType(rhino.JSTypeNative_ARRAY_TYPE), registry.GetNativeType(rhino.JSTypeNative_STRING_TYPE))
 	invalidatingTypes := NewInvalidatingTypes_Builder(registry).
 		AddAllTypeMismatches(
-			[]*TypeMismatch{
+			[]TypeMismatch{
 				TypeMismatch_CreateForTesting(
 					arrayOfString, registry.GetNativeType(rhino.JSTypeNative_STRING_TYPE)),
 			}).
@@ -85,7 +85,7 @@ func TestInvalidatingTypes_InvalidatingOneTemplatizationInvalidatesRawType(t *te
 		registry.GetNativeObjectType(rhino.JSTypeNative_ARRAY_TYPE), registry.GetNativeType(rhino.JSTypeNative_STRING_TYPE))
 	invalidatingTypes := NewInvalidatingTypes_Builder(registry).
 		AddAllTypeMismatches(
-			[]*TypeMismatch{
+			[]TypeMismatch{
 				TypeMismatch_CreateForTesting(
 					arrayOfString, registry.GetNativeType(rhino.JSTypeNative_STRING_TYPE)),
 			}).
@@ -109,7 +109,7 @@ func TestInvalidatingTypes_InvalidatingInstanceTypeInvalidatesCtor(t *testing.T)
 	registry, truth := newInvalidatingTypesTest(t)
 	invalidatingTypes := NewInvalidatingTypes_Builder(registry).
 		AddAllTypeMismatches(
-			[]*TypeMismatch{
+			[]TypeMismatch{
 				TypeMismatch_CreateForTesting(
 					registry.GetNativeObjectType(rhino.JSTypeNative_ARRAY_TYPE),
 					registry.GetNativeType(rhino.JSTypeNative_STRING_TYPE)),
@@ -128,7 +128,7 @@ func TestInvalidatingTypes_InvalidatingTemplatizedInstanceTypeInvalidatesCtor(t 
 		registry.GetNativeObjectType(rhino.JSTypeNative_ARRAY_TYPE), registry.GetNativeType(rhino.JSTypeNative_STRING_TYPE))
 	invalidatingTypes := NewInvalidatingTypes_Builder(registry).
 		AddAllTypeMismatches(
-			[]*TypeMismatch{
+			[]TypeMismatch{
 				TypeMismatch_CreateForTesting(
 					arrayOfString, registry.GetNativeType(rhino.JSTypeNative_STRING_TYPE)),
 			}).

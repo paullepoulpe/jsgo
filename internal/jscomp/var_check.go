@@ -30,7 +30,8 @@ import (
 type VarCheck struct {
 	// Vars that were referenced in the externs without being declared in externs, even if they were
 	// defined in code. These will be declared at the end of this pass.
-	undefinedNamesFromExterns *jutil.LinkedHashSet[string]
+	undefinedNamesFromExterns    []string
+	undefinedNamesFromExternsSet map[string]struct{}
 
 	compiler AbstractCompiler
 
@@ -106,8 +107,10 @@ const varCheck_ARGUMENTS = "arguments"
 // Java: VarCheck.JSCOMP_CLOSURE_UNAWARE_CODE_SHADOW_HOST_NAME
 const varCheck_JSCOMP_CLOSURE_UNAWARE_CODE_SHADOW_HOST_NAME = "$jscomp_wrap_closure_unaware_code"
 
-// Java: VarCheck.googForwardDeclare
-var varCheck_googForwardDeclare = rhino.IR_Getprop(rhino.IR_Name("goog"), "forwardDeclare")
+var (
+	varCheckGoogID           = rhino.IR_Name("goog").GetStringID()
+	varCheckForwardDeclareID = rhino.IR_Name("forwardDeclare").GetStringID()
+)
 
 // Java: VarCheck(AbstractCompiler)
 func NewVarCheck(compiler AbstractCompiler) *VarCheck {
@@ -117,7 +120,6 @@ func NewVarCheck(compiler AbstractCompiler) *VarCheck {
 // Java: VarCheck(AbstractCompiler, boolean)
 func NewVarCheckWithValidityCheck(compiler AbstractCompiler, validityCheck bool) *VarCheck {
 	v := &VarCheck{}
-	v.undefinedNamesFromExterns = jutil.NewLinkedHashSet[string]()
 	v.compiler = compiler
 	empty := ""
 	// getErrorLevel returns a nullable CheckLevel; CheckLevel.Ptr() pointers are canonical, so
@@ -126,6 +128,24 @@ func NewVarCheckWithValidityCheck(compiler AbstractCompiler, validityCheck bool)
 		JSError_MakeWithSourceLocation(&empty, 0, 0, VarCheck_UNDEFINED_EXTERN_VAR_ERROR)) == CheckLevel_ERROR.Ptr()
 	v.validityCheck = validityCheck
 	return v
+}
+
+func (v *VarCheck) addUndefinedNameFromExterns(name string) {
+	if v.undefinedNamesFromExternsSet == nil {
+		v.undefinedNamesFromExternsSet = make(map[string]struct{}, 32)
+	} else if _, exists := v.undefinedNamesFromExternsSet[name]; exists {
+		return
+	}
+	v.undefinedNamesFromExternsSet[name] = struct{}{}
+	v.undefinedNamesFromExterns = append(v.undefinedNamesFromExterns, name)
+}
+
+func (v *VarCheck) hasUndefinedNameFromExterns(name string) bool {
+	if v.undefinedNamesFromExternsSet == nil {
+		return false
+	}
+	_, exists := v.undefinedNamesFromExternsSet[name]
+	return exists
 }
 
 // CreateScopeCreator creates the scope creator used by this pass. If not in
@@ -151,20 +171,22 @@ func (v *VarCheck) Process(externs rhino.Node, root rhino.Node) {
 	// remove duplicate VAR declarations, which will make
 	// externs look like they have assigns.
 	if !v.validityCheck {
-		NodeTraversal_Builder_().
-			SetCompiler(v.compiler).
-			SetCallback(NewVarCheck_NameRefInExternsCheck(v)).
-			SetScopeCreator(scopeCreator).
-			Traverse(externs)
+		b := NodeTraversal_Builder{
+			compiler:     v.compiler,
+			callback:     &VarCheck_NameRefInExternsCheck{outer: v},
+			scopeCreator: scopeCreator,
+		}
+		b.Traverse(externs)
 	}
 
-	NodeTraversal_Builder_().
-		SetCompiler(v.compiler).
-		SetCallback(v).
-		SetScopeCreator(scopeCreator).
-		TraverseRoots(externs, root)
+	b := NodeTraversal_Builder{
+		compiler:     v.compiler,
+		callback:     v,
+		scopeCreator: scopeCreator,
+	}
+	b.TraverseRoots(externs, root)
 
-	for varName := range v.undefinedNamesFromExterns.All() {
+	for _, varName := range v.undefinedNamesFromExterns {
 		v.CreateSynthesizedExternVar(varName, false /* isFromUndefinedCodeRef */)
 	}
 
@@ -306,7 +328,7 @@ func (v *VarCheck) HandleUndeclaredVariableRef(t *NodeTraversal, n rhino.Node) {
 		// declared or marked as an extern. A failure at this point means that we have created
 		// some variable/generated some code with an undefined reference.
 		panic(jutil.NewIllegalStateExceptionMsg("Unexpected variable " + varName))
-	} else if !v.undefinedNamesFromExterns.Contains(varName) {
+	} else if !v.hasUndefinedNameFromExterns(varName) {
 		// Skip this case if the name is already going to be added as an "undefined name from extern"
 		// That declaration must take priority, to avoid the RemoveUnnecessarySyntheticExterns pass
 		// accidentally treating the synthetic extern as unnecessary.
@@ -322,21 +344,16 @@ func (v *VarCheck) ExitScope(t *NodeTraversal) {
 	if !v.validityCheck && t.InGlobalScope() {
 		scope := t.GetScope()
 		// Add symbols that are known to be needed to the standard injected code (polyfills, etc).
-		for requiredSymbol := range VarCheck_REQUIRED_SYMBOLS.All() {
+		for _, requiredSymbol := range varCheck_requiredSymbols {
 			var_ := scope.GetVar(requiredSymbol)
 			if var_ == nil {
-				v.undefinedNamesFromExterns.Add(requiredSymbol)
+				v.addUndefinedNameFromExterns(requiredSymbol)
 			}
 		}
 	}
 }
 
-// VarCheck_REQUIRED_SYMBOLS is the list of symbols that must always be
-// externed even if they are not referenced anywhere (yet). These are used by
-// runtime libraries that might not be present when the first VarCheck runs.
-//
-// Java: VarCheck.REQUIRED_SYMBOLS
-var VarCheck_REQUIRED_SYMBOLS = jutil.NewLinkedHashSet(
+var varCheck_requiredSymbols = [...]string{
 	// go/keep-sorted start
 	"AggregateError",
 	"Array",
@@ -372,7 +389,14 @@ var VarCheck_REQUIRED_SYMBOLS = jutil.NewLinkedHashSet(
 	"undefined",
 	"window",
 	// go/keep-sorted end
-)
+}
+
+// VarCheck_REQUIRED_SYMBOLS is the list of symbols that must always be
+// externed even if they are not referenced anywhere (yet). These are used by
+// runtime libraries that might not be present when the first VarCheck runs.
+//
+// Java: VarCheck.REQUIRED_SYMBOLS
+var VarCheck_REQUIRED_SYMBOLS = jutil.NewLinkedHashSet(varCheck_requiredSymbols[:]...)
 
 // CreateSynthesizedExternVar creates a new variable in a synthetic script.
 // This will prevent subsequent compiler passes from crashing.
@@ -442,18 +466,19 @@ func (c *VarCheck_NameRefInExternsCheck) Visit(t *NodeTraversal, n rhino.Node, p
 			}
 		case rhino.Token_GETPROP:
 			if n == parent.GetFirstChild() {
-				scope := t.GetScope()
-				var_ := scope.GetVar(n.GetString())
-				if var_ != nil {
-					return
-				}
-				if parent.MatchesQualifiedNameNode(varCheck_googForwardDeclare) {
+				if n.GetStringID() == varCheckGoogID && parent.GetStringID() == varCheckForwardDeclareID {
 					// Allow using `goog.forwardDeclare` in the externs without an externs definition
 					// of goog.
 					return
 				}
-				t.Report(n, VarCheck_UNDEFINED_EXTERN_VAR_ERROR, n.GetString())
-				c.outer.undefinedNamesFromExterns.Add(n.GetString())
+				nameStr := n.GetString()
+				scope := t.GetScope()
+				var_ := scope.GetVar(nameStr)
+				if var_ != nil {
+					return
+				}
+				t.Report(n, VarCheck_UNDEFINED_EXTERN_VAR_ERROR, nameStr)
+				c.outer.addUndefinedNameFromExterns(nameStr)
 			}
 			return
 		case rhino.Token_ASSIGN:
@@ -478,11 +503,12 @@ func (c *VarCheck_NameRefInExternsCheck) Visit(t *NodeTraversal, n rhino.Node, p
 			}
 		default:
 		}
-		t.Report(n, VarCheck_NAME_REFERENCE_IN_EXTERNS_ERROR, n.GetString())
+		nameStr := n.GetString()
+		t.Report(n, VarCheck_NAME_REFERENCE_IN_EXTERNS_ERROR, nameStr)
 		scope := t.GetScope()
-		var_ := scope.GetVar(n.GetString())
+		var_ := scope.GetVar(nameStr)
 		if var_ == nil {
-			c.outer.undefinedNamesFromExterns.Add(n.GetString())
+			c.outer.addUndefinedNameFromExterns(nameStr)
 		}
 	}
 }

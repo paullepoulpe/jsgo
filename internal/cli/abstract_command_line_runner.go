@@ -130,8 +130,6 @@ type AbstractCommandLineRunner interface {
 		filename string)
 	// Java: AbstractCommandLineRunner.doRun()
 	DoRun() int
-	// Java: AbstractCommandLineRunner.getCompileMetricsRecorder()
-	GetCompileMetricsRecorder() CompileMetricsRecorderInterface
 	// Java: AbstractCommandLineRunner.processResults(Result, List<JSChunk>, B)
 	ProcessResults(result *jscomp.Result, chunks []*jscomp.JSChunk, options *jscomp.CompilerOptions) int
 	// Java: AbstractCommandLineRunner.getJavascriptEscaper()
@@ -200,13 +198,13 @@ type AbstractCommandLineRunnerBase struct {
 
 	exitCodeReceiver func(int)
 
-	rootRelativePathsMap *jutil.LinkedHashMap[string, string] // nil is null
+	rootRelativePathsMap map[string]string // nil is null
 
-	parsedChunkWrappers *jutil.LinkedHashMap[string, string] // nil is null
+	parsedChunkWrappers map[string]string // nil is null
 
-	parsedChunkOutputFiles *jutil.LinkedHashMap[string, string] // nil is null
+	parsedChunkOutputFiles map[string]string // nil is null
 
-	parsedChunkConformanceFiles *jutil.LinkedHashMap[string, string] // nil is null
+	parsedChunkConformanceFiles map[string]string // nil is null
 
 	filesToStreamOut []*AbstractCommandLineRunner_JsonFileSpec
 }
@@ -456,9 +454,9 @@ func (r *AbstractCommandLineRunnerBase) SetRunOptions(options *jscomp.CompilerOp
 	options.SetApplyInputSourceMaps(config.applyInputSourceMaps)
 
 	inputSourceMaps := jutil.NewImmutableMapBuilder[string, *jscomp.SourceMapInput]()
-	for key, value := range config.sourceMapInputFiles.All() {
-		sourceMap := jscomp.SourceFile_Builder_().WithKind(rhino.StaticSourceFile_SourceKind_NON_CODE).WithPath(value).Build()
-		inputSourceMaps.Put(key, jscomp.NewSourceMapInput(sourceMap))
+	for _, entry := range config.sourceMapInputFiles {
+		sourceMap := jscomp.SourceFile_Builder_().WithKind(rhino.StaticSourceFile_SourceKind_NON_CODE).WithPath(entry.Value).Build()
+		inputSourceMaps.Put(entry.Key, jscomp.NewSourceMapInput(sourceMap))
 	}
 	options.SetInputSourceMaps(inputSourceMaps.BuildOrThrow())
 
@@ -471,22 +469,24 @@ func (r *AbstractCommandLineRunnerBase) SetRunOptions(options *jscomp.CompilerOp
 	}
 
 	if len(config.outputManifests) != 0 {
-		uniqueNames := jutil.NewLinkedHashSet[string]()
+		uniqueNames := make(map[string]struct{}, len(config.outputManifests))
 		for _, filename := range config.outputManifests {
-			if !uniqueNames.Add(filename) {
+			if _, exists := uniqueNames[filename]; exists {
 				panic(jscomp.NewFlagUsageException(
 					"output_manifest flags specify duplicate file names: " + filename))
 			}
+			uniqueNames[filename] = struct{}{}
 		}
 	}
 
 	if len(config.outputBundles) != 0 {
-		uniqueNames := jutil.NewLinkedHashSet[string]()
+		uniqueNames := make(map[string]struct{}, len(config.outputBundles))
 		for _, filename := range config.outputBundles {
-			if !uniqueNames.Add(filename) {
+			if _, exists := uniqueNames[filename]; exists {
 				panic(jscomp.NewFlagUsageException(
 					"output_bundle flags specify duplicate file names: " + filename))
 			}
+			uniqueNames[filename] = struct{}{}
 		}
 	}
 
@@ -749,13 +749,12 @@ func (r *AbstractCommandLineRunnerBase) CreateInputsWithJsonFilesAndAllowStdIn(
 			if "-" != filename {
 				newFiles := jscomp.SourceFile_FromZipFile(filename, r.inputCharset)
 				// Update the manifest maps for new zip entries.
-				if r.rootRelativePathsMap.ContainsKey(filename) {
-					rootFilename := r.rootRelativePathsMap.Get(filename)
+				if rootFilename, ok := r.rootRelativePathsMap[filename]; ok {
 					for _, zipEntry := range newFiles {
 						zipEntryName := zipEntry.GetName()
 						jutil.CheckState(strings.Contains(zipEntryName, filename))
 						zipmap := strings.ReplaceAll(zipEntryName, filename, rootFilename)
-						r.rootRelativePathsMap.Put(zipEntryName, zipmap)
+						r.rootRelativePathsMap[zipEntryName] = zipmap
 					}
 				}
 
@@ -837,13 +836,13 @@ func (r *AbstractCommandLineRunnerBase) DeduplicateIjsFiles(
 	var errors []*jscomp.JSError
 
 	// First pass: collect the (module root relative) names of --js and --weakdep files.
-	relativeToAbsoluteName := jutil.NewLinkedHashMap[string, string]()
+	relativeToAbsoluteName := make(map[string]string, len(*files))
 	for _, file := range *files {
 		// TODO(tjgq): Handle zip files.
 		if file.flag == AbstractCommandLineRunner_JsSourceType_JS || file.flag == AbstractCommandLineRunner_JsSourceType_WEAKDEP {
 			absoluteName := file.value
 			relativeName := r.GetModuleRootRelativeName(absoluteName, moduleRoots)
-			relativeToAbsoluteName.Put(relativeName, absoluteName)
+			relativeToAbsoluteName[relativeName] = absoluteName
 		}
 	}
 
@@ -864,11 +863,11 @@ func (r *AbstractCommandLineRunnerBase) DeduplicateIjsFiles(
 			}
 			relativeName := r.GetModuleRootRelativeName(absoluteName, moduleRoots)
 			relativeNonIjsName := relativeName[:len(relativeName)-len(".i.js")]
-			if relativeToAbsoluteName.ContainsKey(relativeNonIjsName) {
+			if conflictingAbsName, ok := relativeToAbsoluteName[relativeNonIjsName]; ok {
 				errors = append(errors,
 					jscomp.JSError_Make(
 						jscomp.IjsErrors_CONFLICTING_IJS_FILE,
-						relativeToAbsoluteName.Get(relativeNonIjsName),
+						conflictingAbsName,
 						absoluteName))
 				*files = append((*files)[:i:i], (*files)[i+1:]...)
 				continue
@@ -1053,8 +1052,6 @@ func (r *AbstractCommandLineRunnerBase) CheckChunkName(name string) {
 // Java: AbstractCommandLineRunner.doRun()
 func (r *AbstractCommandLineRunnerBase) DoRun() int {
 	config := r.config
-	metricsRecorder := r.self.GetCompileMetricsRecorder()
-	metricsRecorder.RecordActionStart()
 	if config.printVersion {
 		r.defaultJsOutput.Println(r.self.GetVersionText())
 		r.defaultJsOutput.Flush()
@@ -1180,12 +1177,10 @@ func (r *AbstractCommandLineRunnerBase) DoRun() int {
 
 	var result *jscomp.Result
 	if config.skipNormalOutputs {
-		metricsRecorder.RecordActionName("skip normal outputs")
 		// TODO(bradfordcsmith): Should we be ignoring possible init/initChunks() errors here?
 		r.compiler.OrderInputsWithLargeStack()
 		result = nil
 	} else if r.compiler.HasErrors() {
-		metricsRecorder.RecordActionName("initialization errors occurred")
 		// init() or initChunks() encountered an error.
 		r.compiler.GenerateReport()
 		result = r.compiler.GetResult()
@@ -1197,7 +1192,7 @@ func (r *AbstractCommandLineRunnerBase) DoRun() int {
 				r.compiler.GenerateReport()
 			}()
 			// This is the common case - we're actually compiling something.
-			r.PerformCompilation(metricsRecorder)
+			r.PerformCompilation()
 
 			// If we're finished with compilation (i.e. we're not saving state), /and/ the compiler was
 			// restored from a previous state, then we need to re-initialize the set of chunks.
@@ -1235,17 +1230,16 @@ func (r *AbstractCommandLineRunnerBase) DoRun() int {
 	} else {
 		exitStatus = abstractCommandLineRunner_getExitStatusForResult(result)
 	}
-	metricsRecorder.RecordResultMetrics(r.compiler, result)
 	return exitStatus
 }
 
-// Java: AbstractCommandLineRunner.performCompilation(CompileMetricsRecorderInterface)
-func (r *AbstractCommandLineRunnerBase) PerformCompilation(metricsRecorder CompileMetricsRecorderInterface) {
+// Java: AbstractCommandLineRunner.performCompilation()
+func (r *AbstractCommandLineRunnerBase) PerformCompilation() {
 	// Parse, restore from a save file, or initialize from a TypedAST list.
 	r.InitializeStateBeforeCompilation()
 
 	// Do the interesting work - checks, optimizations, etc.
-	r.RunCompilerPasses(metricsRecorder)
+	r.RunCompilerPasses()
 
 	// Save state unless there was an exception or error - we won't go on to the next stage if there
 	// was an error, and saving state itself might throw an exception if the compiler is in a bad
@@ -1257,56 +1251,40 @@ func (r *AbstractCommandLineRunnerBase) PerformCompilation(metricsRecorder Compi
 	r.compiler.PerformPostCompilationTasks()
 }
 
-// Java: AbstractCommandLineRunner.runCompilerPasses(CompileMetricsRecorderInterface)
-func (r *AbstractCommandLineRunnerBase) RunCompilerPasses(metricsRecorder CompileMetricsRecorderInterface) {
+// Java: AbstractCommandLineRunner.runCompilerPasses()
+func (r *AbstractCommandLineRunnerBase) RunCompilerPasses() {
 	config := r.config
 	runStage1 := false
 	runStage2 := false
 	runStage3 := false
 	instrumentForCoverage := false
-	var actionMetricsName string
 	if r.compiler.GetOptions().GetInstrumentForCoverageOnly() {
-		actionMetricsName = "instrument for coverage"
 		instrumentForCoverage = true
 	} else if config.ShouldSaveAfterStage1() {
-		actionMetricsName = "stage 1"
 		runStage1 = true
 	} else if config.ShouldRestoreTypedAstsPerformStage2AndSave() {
-		actionMetricsName = "parse & optimize"
 		runStage2 = true
 	} else if config.ShouldRestoreTypedAstsPerformStages2And3() {
-		actionMetricsName = "skip-checks compile"
 		runStage2 = true
 		runStage3 = true
 	} else if config.ShouldRestoreAndPerformStage2AndSave() {
-		actionMetricsName = "stage 2/3"
 		runStage2 = true
 	} else if config.ShouldRestoreAndPerformStages2And3() {
-		// From the outside this looks like the second stage of a 2-stage compile.
-		actionMetricsName = "stage 2/2"
 		runStage2 = true
 		runStage3 = true
 	} else if config.ShouldRestoreAndPerformStage3() {
-		actionMetricsName = "stage 3/3"
 		runStage3 = true
 	} else {
 		// This is the code path taken when "building" a library by just checking it for errors
 		// and generating an .ijs file and also when doing a full compilation.
-		if r.compiler.GetOptions().IsChecksOnly() {
-			actionMetricsName = "checks-only"
-		} else {
-			actionMetricsName = "full compile"
-		}
 		runStage1 = true
 		runStage2 = true
 		runStage3 = true
 	}
 
-	metricsRecorder.RecordActionName(actionMetricsName)
 	if r.compiler.HasErrors() {
 		return
 	}
-	metricsRecorder.RecordStartState(r.compiler)
 	if runStage1 {
 		r.compiler.Stage1Passes()
 		if r.compiler.HasErrors() {
@@ -1328,14 +1306,6 @@ func (r *AbstractCommandLineRunnerBase) RunCompilerPasses(metricsRecorder Compil
 	if instrumentForCoverage {
 		r.compiler.InstrumentForCoverage()
 	}
-}
-
-// GetCompileMetricsRecorder: child classes should override this if they
-// want to actually record metrics about the compilation.
-//
-// Java: AbstractCommandLineRunner.getCompileMetricsRecorder()
-func (r *AbstractCommandLineRunnerBase) GetCompileMetricsRecorder() CompileMetricsRecorderInterface {
-	return NewDummyCompileMetricsRecorder()
 }
 
 // Java: AbstractCommandLineRunner.initWithTypedAstFilesystem(List<SourceFile>, List<SourceFile>, CompilerOptions, String)
@@ -1391,12 +1361,7 @@ func (r *AbstractCommandLineRunnerBase) RestoreState(filename string) {
 		serializedInputStream := jutil.NewFileInputStream(filename)
 		defer serializedInputStream.Close()
 		r.compiler.RestoreState(serializedInputStream)
-	}, func(e jutil.Throwable) {
-		_, isIO := e.(jutil.IIOException)
-		_, isCNF := e.(jutil.IClassNotFoundException)
-		if !isIO && !isCNF {
-			panic(e)
-		}
+	}, func(e jutil.IIOException) {
 		r.compiler.Report(jscomp.JSError_Make(AbstractCommandLineRunner_COULD_NOT_DESERIALIZE_AST, filename))
 	})
 }
@@ -1653,15 +1618,15 @@ func AbstractCommandLineRunner_CreateDefineReplacements(definitions []string, op
 // corresponding root relative path.
 //
 // Java: AbstractCommandLineRunner.constructRootRelativePathsMap()
-func (r *AbstractCommandLineRunnerBase) ConstructRootRelativePathsMap() *jutil.LinkedHashMap[string, string] {
-	rootRelativePathsMap := jutil.NewLinkedHashMap[string, string]()
+func (r *AbstractCommandLineRunnerBase) ConstructRootRelativePathsMap() map[string]string {
+	rootRelativePathsMap := make(map[string]string, len(r.config.manifestMaps))
 	for _, mapString := range r.config.manifestMaps {
-		colonIndex := jutil.StringIndexOfChar(mapString, ':')
+		colonIndex := strings.IndexByte(mapString, ':')
 		jutil.CheckState(colonIndex > 0)
-		execPath := jutil.StringSubstring(mapString, 0, colonIndex)
-		rootRelativePath := jutil.StringSubstringFrom(mapString, colonIndex+1)
-		jutil.CheckState(jutil.StringIndexOfChar(rootRelativePath, ':') == -1)
-		rootRelativePathsMap.Put(execPath, rootRelativePath)
+		execPath := mapString[:colonIndex]
+		rootRelativePath := mapString[colonIndex+1:]
+		jutil.CheckState(strings.IndexByte(rootRelativePath, ':') == -1)
+		rootRelativePathsMap[execPath] = rootRelativePath
 	}
 	return rootRelativePathsMap
 }

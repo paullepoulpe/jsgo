@@ -19,6 +19,7 @@
 package cli
 
 import (
+	"slices"
 	"strings"
 
 	"github.com/paullepoulpe/jsgo/internal/jscomp"
@@ -48,7 +49,7 @@ var AllowlistWarningsGuard_LINE_NUMBER = jutil.Pattern_Compile(":-?\\d+")
 
 // Java: AllowlistWarningsGuard()
 func NewAllowlistWarningsGuard() *AllowlistWarningsGuard {
-	return NewAllowlistWarningsGuardWithAllowlist(jutil.NewLinkedHashSet[string]())
+	return NewAllowlistWarningsGuardWithAllowlist([]string{})
 }
 
 // NewAllowlistWarningsGuardWithAllowlist: this class depends on an input set
@@ -59,7 +60,7 @@ func NewAllowlistWarningsGuard() *AllowlistWarningsGuard {
 // to have similar format as formatWarning(JSError).
 //
 // Java: AllowlistWarningsGuard(Set<String>)
-func NewAllowlistWarningsGuardWithAllowlist(allowlist *jutil.LinkedHashSet[string]) *AllowlistWarningsGuard {
+func NewAllowlistWarningsGuardWithAllowlist(allowlist []string) *AllowlistWarningsGuard {
 	g := &AllowlistWarningsGuard{}
 	jutil.CheckNotNull(allowlist)
 	g.allowlist = AllowlistWarningsGuard_NormalizeAllowlist(allowlist)
@@ -75,11 +76,11 @@ func NewAllowlistWarningsGuardWithAllowlist(allowlist *jutil.LinkedHashSet[strin
 // Returns known legacy warnings without line numbers.
 //
 // Java: AllowlistWarningsGuard.normalizeAllowlist(Set<String>)
-func AllowlistWarningsGuard_NormalizeAllowlist(allowlist *jutil.LinkedHashSet[string]) map[string]struct{} {
-	result := make(map[string]struct{}, allowlist.Size())
-	for line := range allowlist.All() {
+func AllowlistWarningsGuard_NormalizeAllowlist(allowlist []string) map[string]struct{} {
+	result := make(map[string]struct{}, len(allowlist))
+	for _, line := range allowlist {
 		trimmed := jutil.StringTrim(line)
-		if trimmed == "" || jutil.StringCharAt(trimmed, 0) == '#' {
+		if trimmed == "" || trimmed[0] == '#' {
 			// strip out empty lines and comments.
 			continue
 		}
@@ -134,7 +135,7 @@ func AllowlistWarningsGuard_FromFile(file *jutil.File) *AllowlistWarningsGuard {
 // Returns the lines of the file.
 //
 // Java: AllowlistWarningsGuard.loadAllowlistedJsWarnings(File)
-func AllowlistWarningsGuard_LoadAllowlistedJsWarnings(file *jutil.File) *jutil.LinkedHashSet[string] {
+func AllowlistWarningsGuard_LoadAllowlistedJsWarnings(file *jutil.File) []string {
 	return AllowlistWarningsGuard_LoadAllowlistedJsWarningsFromCharSource(
 		jutil.Files_AsCharSource(file, jutil.StandardCharsets_UTF_8))
 }
@@ -145,8 +146,8 @@ func AllowlistWarningsGuard_LoadAllowlistedJsWarnings(file *jutil.File) *jutil.L
 // Returns the lines of the file.
 //
 // Java: AllowlistWarningsGuard.loadAllowlistedJsWarnings(CharSource)
-func AllowlistWarningsGuard_LoadAllowlistedJsWarningsFromCharSource(supplier *jutil.CharSource) *jutil.LinkedHashSet[string] {
-	var result *jutil.LinkedHashSet[string]
+func AllowlistWarningsGuard_LoadAllowlistedJsWarningsFromCharSource(supplier *jutil.CharSource) []string {
+	var result []string
 	jutil.Try(func() {
 		result = AllowlistWarningsGuard_LoadAllowlistedJsWarningsFromReader(supplier.OpenStream())
 	}, func(e jutil.IIOException) {
@@ -162,13 +163,18 @@ func AllowlistWarningsGuard_LoadAllowlistedJsWarningsFromCharSource(supplier *ju
 // Returns the lines of the file.
 //
 // Java: AllowlistWarningsGuard.loadAllowlistedJsWarnings(Reader)
-func AllowlistWarningsGuard_LoadAllowlistedJsWarningsFromReader(reader jutil.JavaReader) *jutil.LinkedHashSet[string] {
+func AllowlistWarningsGuard_LoadAllowlistedJsWarningsFromReader(reader jutil.JavaReader) []string {
 	// TODO(nicksantos): This is a weird API.
 	jutil.CheckNotNull(reader)
-	result := jutil.NewLinkedHashSet[string]()
-
-	result.AddAll(jutil.CharStreams_ReadLines(reader)...)
-
+	lines := jutil.CharStreams_ReadLines(reader)
+	seen := make(map[string]struct{}, len(lines))
+	result := make([]string, 0, len(lines))
+	for _, line := range lines {
+		if _, ok := seen[line]; !ok {
+			seen[line] = struct{}{}
+			result = append(result, line)
+		}
+	}
 	return result
 }
 
@@ -223,9 +229,9 @@ func (g *AllowlistWarningsGuard) NormalizeSourceName(sourceName *string) *string
 
 // Java: AllowlistWarningsGuard.getFirstLine(String)
 func AllowlistWarningsGuard_GetFirstLine(warning string) string {
-	lineLength := jutil.StringIndexOfChar(warning, '\n')
+	lineLength := strings.IndexByte(warning, '\n')
 	if lineLength > 0 {
-		warning = jutil.StringSubstring(warning, 0, lineLength)
+		warning = warning[:lineLength]
 	}
 	return warning
 }
@@ -234,7 +240,7 @@ func AllowlistWarningsGuard_GetFirstLine(warning string) string {
 type AllowlistWarningsGuard_AllowlistBuilder struct {
 	outer *AllowlistWarningsGuard
 
-	warnings *jutil.ObjectLinkedHashSet[*jscomp.JSError]
+	warnings []*jscomp.JSError
 	// May be nil.
 	productName *string
 	// May be nil.
@@ -245,13 +251,9 @@ type AllowlistWarningsGuard_AllowlistBuilder struct {
 
 // Java: AllowlistWarningsGuard.AllowlistBuilder()
 func NewAllowlistWarningsGuard_AllowlistBuilder(outer *AllowlistWarningsGuard) *AllowlistWarningsGuard_AllowlistBuilder {
-	b := &AllowlistWarningsGuard_AllowlistBuilder{}
-	b.outer = outer
-	b.warnings = jutil.NewObjectLinkedHashSet[*jscomp.JSError]()
-	b.productName = nil
-	b.generatorTarget = nil
-	b.headerNote = nil
-	return b
+	return &AllowlistWarningsGuard_AllowlistBuilder{
+		outer: outer,
+	}
 }
 
 // SetProductName: fill in your product name to get a fun message!
@@ -285,7 +287,7 @@ func (b *AllowlistWarningsGuard_AllowlistBuilder) Report(level *jscomp.CheckLeve
 		// ERROR-level diagnostics are ignored by AllowlistWarningsGuard (c.f. above getLevel).
 		return
 	}
-	b.warnings.Add(error)
+	b.warnings = append(b.warnings, error)
 }
 
 // WriteAllowlist writes the warnings collected in a format that the
@@ -306,7 +308,7 @@ func (b *AllowlistWarningsGuard_AllowlistBuilder) WriteAllowlist(out *jutil.File
 func (b *AllowlistWarningsGuard_AllowlistBuilder) AppendAllowlist(out *jutil.PrintStream) {
 	out.Append("# This is a list of legacy warnings that have yet to be fixed.\n")
 
-	if b.productName != nil && *b.productName != "" && !b.warnings.IsEmpty() {
+	if b.productName != nil && *b.productName != "" && len(b.warnings) > 0 {
 		out.Append(
 			"# Please find some time and fix at least one of them " +
 				"and it will be the happiest day for " +
@@ -322,19 +324,38 @@ func (b *AllowlistWarningsGuard_AllowlistBuilder) AppendAllowlist(out *jutil.Pri
 		out.Append("#" + strings.Join(strings.Split(*b.headerNote, "\n"), "\n# ") + "\n")
 	}
 
-	// TreeMultimap.create(): keys and values in their natural order.
-	warningsByType := jutil.NewTreeMap[*jscomp.DiagnosticType, *jutil.TreeSet[string]](
-		func(a, c *jscomp.DiagnosticType) int { return a.CompareTo(c) })
-	for warning := range b.warnings.All() {
-		values, ok := warningsByType.Lookup(warning.Type())
+	type allowlistTypeGroup struct {
+		diagType *jscomp.DiagnosticType
+		seen     map[string]struct{}
+		warnings []string
+	}
+	groupsByKey := make(map[string]*allowlistTypeGroup)
+	var groups []*allowlistTypeGroup
+	for _, warning := range b.warnings {
+		t := warning.Type()
+		key := t.Key()
+		grp, ok := groupsByKey[key]
 		if !ok {
-			values = jutil.NewTreeSet[string](jutil.StringCompareTo)
-			warningsByType.Put(warning.Type(), values)
+			grp = &allowlistTypeGroup{
+				diagType: t,
+				seen:     make(map[string]struct{}),
+			}
+			groupsByKey[key] = grp
+			groups = append(groups, grp)
 		}
-		values.Add(b.outer.FormatWarningWithMetaData(warning, true /* withLineNumber */))
+		formatted := b.outer.FormatWarningWithMetaData(warning, true /* withLineNumber */)
+		if _, exists := grp.seen[formatted]; !exists {
+			grp.seen[formatted] = struct{}{}
+			grp.warnings = append(grp.warnings, formatted)
+		}
 	}
 
-	for type_, values := range warningsByType.All() {
+	slices.SortFunc(groups, func(a, c *allowlistTypeGroup) int {
+		return a.diagType.CompareTo(c.diagType)
+	})
+
+	for _, grp := range groups {
+		type_ := grp.diagType
 		if jscomp.DiagnosticGroups_DEPRECATED.MatchesType(type_) {
 			// Deprecation warnings are not raisable to error, so we don't need them in allowlists.
 			continue
@@ -344,7 +365,8 @@ func (b *AllowlistWarningsGuard_AllowlistBuilder) AppendAllowlist(out *jutil.Pri
 			Append(": ").
 			Println(AllowlistWarningsGuard_LINE_SPLITTER(type_.FormatPattern())[0])
 
-		for warning := range values.All() {
+		slices.SortFunc(grp.warnings, jutil.StringCompareTo)
+		for _, warning := range grp.warnings {
 			out.Println(warning)
 		}
 	}

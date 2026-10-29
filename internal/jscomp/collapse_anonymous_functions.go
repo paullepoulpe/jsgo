@@ -21,7 +21,10 @@ package jscomp
 import (
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
+	"github.com/paullepoulpe/jsgo/internal/strpool"
 )
+
+var cafEmptyStringID = uint32(strpool.Intern(""))
 
 // CollapseAnonymousFunctions collapses anonymous function expressions into
 // named function declarations, i.e. the following:
@@ -115,24 +118,36 @@ func (c *CollapseAnonymousFunctions) Visit(t *NodeTraversal, n rhino.Node, paren
 // Java: CollapseAnonymousFunctions.isRecursiveFunction(Node)
 func (c *CollapseAnonymousFunctions) IsRecursiveFunction(function rhino.Node) bool {
 	name := function.GetFirstChild()
-	if name.GetString() == "" {
+	nameID := name.GetStringID()
+	if nameID == 0 || nameID == cafEmptyStringID {
 		return false
 	}
 	args := name.GetNext()
 	body := args.GetNext()
-	return c.ContainsName(body, name.GetString())
+	return cafContainsNameID(body, nameID)
 }
 
-// Java: CollapseAnonymousFunctions.containsName(Node, String)
-func (c *CollapseAnonymousFunctions) ContainsName(n rhino.Node, name string) bool {
-	if n.IsName() && n.GetString() == name {
+func cafContainsNameID(n rhino.Node, nameID uint32) bool {
+	if n.IsName() && n.GetStringID() == nameID {
 		return true
 	}
 
 	for child := n.GetFirstChild(); !child.IsNil(); child = child.GetNext() {
-		if c.ContainsName(child, name) {
+		if cafContainsNameID(child, nameID) {
 			return true
 		}
 	}
 	return false
+}
+
+// Java: CollapseAnonymousFunctions.containsName(Node, String)
+func (c *CollapseAnonymousFunctions) ContainsName(n rhino.Node, name string) bool {
+	if name == "" {
+		return cafContainsNameID(n, cafEmptyStringID)
+	}
+	id := strpool.Lookup(name)
+	if id == 0 {
+		return false
+	}
+	return cafContainsNameID(n, uint32(id))
 }

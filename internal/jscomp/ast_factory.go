@@ -70,15 +70,6 @@ type AstFactory struct {
 	runtimeJsLibManager *RuntimeJsLibManager
 }
 
-// AstFactory_DOT_SPLITTER is Splitter.on("."); see astFactorySplitDots.
-//
-// Go-only: language-adapter — Guava's Splitter.on('.') keeps every empty
-// piece, exactly as strings.Split does; '.' is ASCII, so splitting the
-// WTF-8 bytes splits the UTF-16 string at the same places.
-func astFactorySplitDots(s string) []string {
-	return strings.Split(s, ".")
-}
-
 // Java: AstFactory.bigintNumberStringColor (Suppliers.memoize)
 var AstFactory_bigintNumberStringColor = sync.OnceValue(func() *colors.Color {
 	return colors.Color_CreateUnionSlice(
@@ -789,18 +780,32 @@ func (a *AstFactory) CreateNameWithUnknownType(name string) rhino.Node {
 func (a *AstFactory) CreateQNameUsingJSTypeInfo(globalTypedScope *TypedScope, qname string) rhino.Node {
 	jutil.CheckArgumentMsg1(globalTypedScope == nil || globalTypedScope.IsGlobal(), "%s", globalTypedScope)
 	a.AssertNotAddingColors()
-	nameParts := astFactorySplitDots(qname)
-	jutil.CheckState(len(nameParts) != 0)
 
-	receiverPart := nameParts[0]
+	dot := strings.IndexByte(qname, '.')
+	receiverPart := qname
+	if dot >= 0 {
+		receiverPart = qname[:dot]
+	}
+
 	receiver := rhino.IR_Name(receiverPart)
 	if a.IsAddingTypes() {
 		var_ := jutil.CheckNotNullMsg1(globalTypedScope.GetVar(receiverPart), "%s", receiverPart)
 		receiver.SetJSType(jutil.CheckNotNullMsg1(var_.GetType(), "%s", var_))
 	}
+	if dot < 0 {
+		return receiver
+	}
 
-	otherParts := nameParts[1:len(nameParts)]
-	return a.CreateGetPropsWithoutColors(receiver, otherParts)
+	result := receiver
+	rest := qname[dot+1:]
+	for {
+		nextDot := strings.IndexByte(rest, '.')
+		if nextDot < 0 {
+			return a.CreateGetPropWithoutColor(result, rest)
+		}
+		result = a.CreateGetPropWithoutColor(result, rest[:nextDot])
+		rest = rest[nextDot+1:]
+	}
 }
 
 // CreateQName creates a qualfied name in the given scope.
@@ -811,7 +816,42 @@ func (a *AstFactory) CreateQNameUsingJSTypeInfo(globalTypedScope *TypedScope, qn
 //
 // Java: AstFactory.createQName(StaticScope, String)
 func (a *AstFactory) CreateQName(scope rhino.StaticScope, qname string) rhino.Node {
-	return a.CreateQNameOfNames(scope, astFactorySplitDots(qname))
+	dot := strings.IndexByte(qname, '.')
+	if dot < 0 {
+		return a.CreateNameInScope(scope, qname)
+	}
+	baseNameNode := a.CreateNameInScope(scope, qname[:dot])
+	return a.createQNamePropsFromString(scope, baseNameNode, qname, dot+1)
+}
+
+func (a *AstFactory) createQNamePropsFromString(
+	scope rhino.StaticScope, baseNameNode rhino.Node, qname string, propStart int) rhino.Node {
+	result := baseNameNode
+	addingTypeInfo := a.IsAddingTypes() || a.IsAddingColors()
+	for {
+		relDot := strings.IndexByte(qname[propStart:], '.')
+		var propertyName, prefix string
+		if relDot < 0 {
+			propertyName = qname[propStart:]
+			prefix = qname
+		} else {
+			nextDot := propStart + relDot
+			propertyName = qname[propStart:nextDot]
+			prefix = qname[:nextDot]
+			propStart = nextDot + 1
+		}
+		var type_ AstFactory_Type
+		if addingTypeInfo {
+			def := jutil.CheckNotNullMsg1(scope.GetSlot(prefix), "Cannot find name %s in StaticScope.", prefix).
+				GetDeclaration().
+				GetNode()
+			type_ = AstFactory_Type_(def)
+		}
+		result = a.CreateGetProp(result, propertyName, type_)
+		if relDot < 0 {
+			return result
+		}
+	}
 }
 
 // CreateQNameOfNames creates a qualfied name in the given scope.
@@ -822,9 +862,10 @@ func (a *AstFactory) CreateQName(scope rhino.StaticScope, qname string) rhino.No
 //
 // Java: AstFactory.createQName(StaticScope, Iterable<String>)
 func (a *AstFactory) CreateQNameOfNames(scope rhino.StaticScope, names []string) rhino.Node {
-	baseName := jutil.CheckNotNull(astFactoryGetFirst(names))
-	propertyNames := astFactorySkip(names, 1)
-	return a.CreateQNameWithPropertyList(scope, *baseName, propertyNames)
+	if len(names) == 0 {
+		panic(jutil.NewNullPointerException())
+	}
+	return a.CreateQNameWithPropertyList(scope, names[0], names[1:])
 }
 
 // CreateQNameWithProperties creates a qualfied name in the given scope.
@@ -863,19 +904,35 @@ func (a *AstFactory) CreateQNameWithPropertyList(
 func (a *AstFactory) CreateQNameWithBaseNameNode(
 	scope rhino.StaticScope, baseName string, baseNameNode rhino.Node, propertyNames []string) rhino.Node {
 	qname := baseNameNode
+	if !a.IsAddingTypes() && !a.IsAddingColors() {
+		for _, propertyName := range propertyNames {
+			qname = a.CreateGetProp(qname, propertyName, AstFactory_Type{})
+		}
+		return qname
+	}
 	name := baseName
 	for _, propertyName := range propertyNames {
 		name += "." + propertyName
-		var type_ AstFactory_Type = nil
-		if a.IsAddingTypes() || a.IsAddingColors() {
-			def := jutil.CheckNotNullMsg1(scope.GetSlot(name), "Cannot find name %s in StaticScope.", name).
-				GetDeclaration().
-				GetNode()
-			type_ = AstFactory_Type_(def)
-		}
-		qname = a.CreateGetProp(qname, propertyName, type_)
+		def := jutil.CheckNotNullMsg1(scope.GetSlot(name), "Cannot find name %s in StaticScope.", name).
+			GetDeclaration().
+			GetNode()
+		qname = a.CreateGetProp(qname, propertyName, AstFactory_Type_(def))
 	}
 	return qname
+}
+
+func (a *AstFactory) createJscompFieldBaseNode(baseName string) rhino.Node {
+	jutil.CheckStateMsg1(strings.HasPrefix(baseName, "$jscomp"), "Unexpected Field name %s", baseName)
+	var baseNameNode rhino.Node
+	if baseName == "$jscomp" {
+		baseNameNode = a.CreateJscomp()
+	} else {
+		baseNameNode = a.CreateName(baseName, AstFactory_Type_OfJSTypeAndColor(a.unknownType, colors.StandardColors_UNKNOWN))
+	}
+	if a.lifeCycleStage.IsNormalized() {
+		baseNameNode.PutBooleanProp(rhino.Node_IS_CONSTANT_NAME, true)
+	}
+	return baseNameNode
 }
 
 // CreateQNameOfField creates a qualfied name in the given scope.
@@ -885,77 +942,57 @@ func (a *AstFactory) CreateQNameWithBaseNameNode(
 // Java: AstFactory.createQName(StaticScope, RuntimeJsLibManager.JsLibField)
 func (a *AstFactory) CreateQNameOfField(scope rhino.StaticScope, field RuntimeJsLibManager_JsLibField) rhino.Node {
 	qname := field.AssertInjected().QualifiedName()
-	parts := astFactorySplitDots(qname)
-	baseName := *jutil.CheckNotNull(astFactoryGetFirst(parts))
-	jutil.CheckStateMsg1(strings.HasPrefix(baseName, "$jscomp"), "Unexpected Field name %s", baseName)
-
-	var baseNameNode rhino.Node
-	if baseName == "$jscomp" {
-		baseNameNode = a.CreateJscomp()
-	} else {
-		baseNameNode = a.CreateName(baseName, AstFactory_Type_OfJSTypeAndColor(a.unknownType, colors.StandardColors_UNKNOWN))
+	dot := strings.IndexByte(qname, '.')
+	if dot < 0 {
+		return a.createJscompFieldBaseNode(qname)
 	}
-	if a.lifeCycleStage.IsNormalized() {
-		baseNameNode.PutBooleanProp(rhino.Node_IS_CONSTANT_NAME, true)
-	}
-	propertyNames := astFactorySkip(parts, 1)
-	return a.CreateQNameWithBaseNameNode(scope, baseName, baseNameNode, propertyNames)
+	baseNameNode := a.createJscompFieldBaseNode(qname[:dot])
+	return a.createQNamePropsFromString(scope, baseNameNode, qname, dot+1)
 }
 
 // Java: AstFactory.createQNameWithUnknownType(String)
 func (a *AstFactory) CreateQNameWithUnknownType(qname string) rhino.Node {
-	return a.CreateQNameWithUnknownTypeOfNames(astFactorySplitDots(qname))
+	dot := strings.IndexByte(qname, '.')
+	if dot < 0 {
+		return a.CreateNameWithUnknownType(qname)
+	}
+	return a.createGetPropsWithUnknownTypeFromString(a.CreateNameWithUnknownType(qname[:dot]), qname[dot+1:])
 }
 
 // Java: AstFactory.createQNameWithUnknownType(RuntimeJsLibManager.JsLibField)
 func (a *AstFactory) CreateQNameWithUnknownTypeOfField(field RuntimeJsLibManager_JsLibField) rhino.Node {
-	parts := astFactorySplitDots(field.AssertInjected().QualifiedName())
-	baseName := *jutil.CheckNotNull(astFactoryGetFirst(parts))
-	jutil.CheckStateMsg1(strings.HasPrefix(baseName, "$jscomp"), "Unexpected Field name %s", baseName)
-	var baseNameNode rhino.Node
-	if baseName == "$jscomp" {
-		baseNameNode = a.CreateJscomp()
-	} else {
-		baseNameNode = a.CreateName(baseName, AstFactory_Type_OfJSTypeAndColor(a.unknownType, colors.StandardColors_UNKNOWN))
+	qname := field.AssertInjected().QualifiedName()
+	dot := strings.IndexByte(qname, '.')
+	if dot < 0 {
+		return a.createJscompFieldBaseNode(qname)
 	}
-	if a.lifeCycleStage.IsNormalized() {
-		baseNameNode.PutBooleanProp(rhino.Node_IS_CONSTANT_NAME, true)
+	return a.createGetPropsWithUnknownTypeFromString(a.createJscompFieldBaseNode(qname[:dot]), qname[dot+1:])
+}
+
+func (a *AstFactory) createGetPropsWithUnknownTypeFromString(receiver rhino.Node, rest string) rhino.Node {
+	result := receiver
+	for {
+		dot := strings.IndexByte(rest, '.')
+		if dot < 0 {
+			return a.CreateGetPropWithUnknownType(result, rest)
+		}
+		result = a.CreateGetPropWithUnknownType(result, rest[:dot])
+		rest = rest[dot+1:]
 	}
-	propertyNames := astFactorySkip(parts, 1)
-	return a.CreateGetPropsWithUnknownType(baseNameNode, propertyNames)
 }
 
 // Java: AstFactory.createQNameWithUnknownType(Iterable<String>)
 func (a *AstFactory) CreateQNameWithUnknownTypeOfNames(names []string) rhino.Node {
-	baseName := *jutil.CheckNotNull(astFactoryGetFirst(names))
-	propertyNames := astFactorySkip(names, 1)
-	return a.CreateQNameWithUnknownTypeWithPropertyList(baseName, propertyNames)
+	if len(names) == 0 {
+		panic(jutil.NewNullPointerException())
+	}
+	return a.CreateQNameWithUnknownTypeWithPropertyList(names[0], names[1:])
 }
 
 // Java: AstFactory.createQNameWithUnknownType(String, Iterable<String>)
 func (a *AstFactory) CreateQNameWithUnknownTypeWithPropertyList(baseName string, propertyNames []string) rhino.Node {
 	baseNameNode := a.CreateNameWithUnknownType(baseName)
 	return a.CreateGetPropsWithUnknownType(baseNameNode, propertyNames)
-}
-
-// astFactoryGetFirst is Iterables.getFirst(names, null).
-//
-// Go-only: language-adapter — Guava helper; nil is Java's null default.
-func astFactoryGetFirst(names []string) *string {
-	if len(names) == 0 {
-		return nil
-	}
-	return &names[0]
-}
-
-// astFactorySkip is Iterables.skip(names, n).
-//
-// Go-only: language-adapter — Guava helper.
-func astFactorySkip(names []string, n int) []string {
-	if len(names) <= n {
-		return nil
-	}
-	return names[n:]
 }
 
 // Java: AstFactory.createJscomp()
@@ -1288,7 +1325,7 @@ func (a *AstFactory) CreateCallWithUnknownType(callee rhino.Node, args ...rhino.
 // Java: AstFactory.createObjectDotAssignCall(StaticScope, AstFactory.Type, Node...)
 func (a *AstFactory) CreateObjectDotAssignCall(
 	scope rhino.StaticScope, returnType AstFactory_Type, args ...rhino.Node) rhino.Node {
-	objAssign := a.CreateQNameWithProperties(scope, "Object", "assign")
+	objAssign := a.CreateQName(scope, "Object.assign")
 	result := a.CreateCall(objAssign, returnType, args...)
 
 	switch a.typeMode {
@@ -1899,101 +1936,45 @@ func (a *AstFactory) SetJSTypeOrColor(type_ AstFactory_Type, result rhino.Node) 
 	}
 }
 
-// AstFactory_Type is AstFactory.Type.
-type AstFactory_Type interface {
-	// Java: AstFactory.Type.getJSType(JSTypeRegistry)
-	GetJSType(registry *rhino.JSTypeRegistry) rhino.JSType
+type astFactoryTypeKind uint8
 
-	// Java: AstFactory.Type.getColor(ColorRegistry)
-	GetColor(registry *colors.ColorRegistry) *colors.Color
+const (
+	astFactoryTypeZero     astFactoryTypeKind = 0
+	astFactoryTypeFromNode astFactoryTypeKind = 1 << iota
+	astFactoryTypeExplicit
+	astFactoryTypeHasJSTypeNative
+	astFactoryTypeHasColorId
+)
+
+// AstFactory_Type is AstFactory.Type, represented as a zero-allocation value.
+type AstFactory_Type struct {
+	jstype       rhino.JSType
+	color        *colors.Color
+	colorId      colors.ColorId
+	node         rhino.Node
+	jstypeNative rhino.JSTypeNative
+	kind         astFactoryTypeKind
 }
 
-// AstFactory_TypeOnNode is AstFactory.TypeOnNode.
-type AstFactory_TypeOnNode struct {
-	n rhino.Node
+// IsZero reports whether t is the zero AstFactory_Type value.
+func (t AstFactory_Type) IsZero() bool {
+	return t.kind == astFactoryTypeZero
 }
 
-// Java: AstFactory.TypeOnNode(Node)
-func NewAstFactory_TypeOnNode(n rhino.Node) *AstFactory_TypeOnNode {
-	return &AstFactory_TypeOnNode{n: n}
-}
-
-// Java: AstFactory.TypeOnNode.getJSType(JSTypeRegistry)
-func (t AstFactory_TypeOnNode) GetJSType(registry *rhino.JSTypeRegistry) rhino.JSType {
-	jstype := t.n.GetJSType()
-	// TODO(b/149843534): crash instead of defaulting to unknown
-	if jstype != nil {
-		return jstype
+// Java: AstFactory.Type.getJSType(JSTypeRegistry)
+func (t AstFactory_Type) GetJSType(registry *rhino.JSTypeRegistry) rhino.JSType {
+	if t.kind == astFactoryTypeFromNode {
+		jstype := t.node.GetJSType()
+		// TODO(b/149843534): crash instead of defaulting to unknown
+		if jstype != nil {
+			return jstype
+		}
+		return registry.GetNativeType(rhino.JSTypeNative_UNKNOWN_TYPE)
 	}
-	return registry.GetNativeType(rhino.JSTypeNative_UNKNOWN_TYPE)
-}
-
-// Java: AstFactory.TypeOnNode.getColor(ColorRegistry)
-func (t AstFactory_TypeOnNode) GetColor(registry *colors.ColorRegistry) *colors.Color {
-	color := t.n.GetColor()
-	// TODO(b/149843534): crash instead of defaulting to unknown
-	if color != nil {
-		return color
-	}
-	return colors.StandardColors_UNKNOWN
-}
-
-// AstFactory_JSTypeOrColor is AstFactory.JSTypeOrColor.
-type AstFactory_JSTypeOrColor struct {
-	jstype rhino.JSType
-	// Go-only: language-adapter — a @Nullable JSTypeNative is the enum
-	// value plus a presence flag (hasJstypeNative false is Java's null).
-	jstypeNative    rhino.JSTypeNative
-	hasJstypeNative bool
-	color           *colors.Color
-	colorId         *colors.ColorId
-}
-
-// Java: AstFactory.JSTypeOrColor(JSTypeNative, ColorId)
-//
-// Go-only: language-adapter — jstypeNative may be nil (Java null).
-func NewAstFactory_JSTypeOrColorOfNativeAndColorId(
-	jstypeNative *rhino.JSTypeNative, colorId colors.ColorId) *AstFactory_JSTypeOrColor {
-	t := &AstFactory_JSTypeOrColor{}
-	if jstypeNative != nil {
-		t.jstypeNative = *jstypeNative
-		t.hasJstypeNative = true
-	}
-	t.jstype = nil
-	t.color = nil
-	t.colorId = &colorId
-	return t
-}
-
-// Java: AstFactory.JSTypeOrColor(JSTypeNative, Color)
-func NewAstFactory_JSTypeOrColorOfNativeAndColor(
-	jstypeNative rhino.JSTypeNative, color *colors.Color) *AstFactory_JSTypeOrColor {
-	t := &AstFactory_JSTypeOrColor{}
-	t.jstypeNative = jstypeNative
-	t.hasJstypeNative = true
-	t.jstype = nil
-	t.color = color
-	t.colorId = nil
-	return t
-}
-
-// Java: AstFactory.JSTypeOrColor(JSType, Color)
-func NewAstFactory_JSTypeOrColorOfJSTypeAndColor(
-	jstype rhino.JSType, color *colors.Color) *AstFactory_JSTypeOrColor {
-	t := &AstFactory_JSTypeOrColor{}
-	t.jstype = jstype
-	t.hasJstypeNative = false
-	t.color = color
-	t.colorId = nil
-	return t
-}
-
-// Java: AstFactory.JSTypeOrColor.getJSType(JSTypeRegistry)
-func (t *AstFactory_JSTypeOrColor) GetJSType(registry *rhino.JSTypeRegistry) rhino.JSType {
 	if t.jstype != nil {
 		return t.jstype
 	}
-	if !t.hasJstypeNative {
+	if t.kind&astFactoryTypeHasJSTypeNative == 0 {
 		// Go-only: language-adapter — registry.getNativeType(null) throws a
 		// NullPointerException (typeId.ordinal()).
 		panic(jutil.NewNullPointerException())
@@ -2001,83 +1982,74 @@ func (t *AstFactory_JSTypeOrColor) GetJSType(registry *rhino.JSTypeRegistry) rhi
 	return registry.GetNativeType(t.jstypeNative)
 }
 
-// Java: AstFactory.JSTypeOrColor.getColor(ColorRegistry)
-func (t *AstFactory_JSTypeOrColor) GetColor(registry *colors.ColorRegistry) *colors.Color {
+// Java: AstFactory.Type.getColor(ColorRegistry)
+func (t AstFactory_Type) GetColor(registry *colors.ColorRegistry) *colors.Color {
+	if t.kind == astFactoryTypeFromNode {
+		color := t.node.GetColor()
+		// TODO(b/149843534): crash instead of defaulting to unknown
+		if color != nil {
+			return color
+		}
+		return colors.StandardColors_UNKNOWN
+	}
 	if t.color != nil {
 		return t.color
 	}
-	return registry.Get(*jutil.CheckNotNull(t.colorId))
+	if t.kind&astFactoryTypeHasColorId == 0 {
+		panic(jutil.NewNullPointerException())
+	}
+	return registry.Get(t.colorId)
 }
-
-var (
-	astFactory_noTypeInfo     AstFactory_Type = &AstFactory_JSTypeOrColor{}
-	astFactory_colorUnknown   AstFactory_Type = &AstFactory_JSTypeOrColor{color: colors.StandardColors_UNKNOWN}
-	astFactory_colorTopObject AstFactory_Type = &AstFactory_JSTypeOrColor{color: colors.StandardColors_TOP_OBJECT}
-	astFactory_colorString    AstFactory_Type = &AstFactory_JSTypeOrColor{color: colors.StandardColors_STRING}
-	astFactory_colorNumber    AstFactory_Type = &AstFactory_JSTypeOrColor{color: colors.StandardColors_NUMBER}
-	astFactory_colorBoolean   AstFactory_Type = &AstFactory_JSTypeOrColor{color: colors.StandardColors_BOOLEAN}
-	astFactory_colorNullVoid  AstFactory_Type = &AstFactory_JSTypeOrColor{color: colors.StandardColors_NULL_OR_VOID}
-	astFactory_colorBigint    AstFactory_Type = &AstFactory_JSTypeOrColor{color: colors.StandardColors_BIGINT}
-	astFactory_colorSymbol    AstFactory_Type = &AstFactory_JSTypeOrColor{color: colors.StandardColors_SYMBOL}
-)
 
 // AstFactory_Type_ uses the JSType or Color of the given node as a template
 // for adding type information
 //
 // Java: AstFactory.type(Node)
 func AstFactory_Type_(node rhino.Node) AstFactory_Type {
-	return AstFactory_TypeOnNode{n: node}
+	return AstFactory_Type{kind: astFactoryTypeFromNode, node: node}
 }
 
 // Java: AstFactory.type(JSType)
 func AstFactory_Type_OfJSType(type_ rhino.JSType) AstFactory_Type {
-	return NewAstFactory_JSTypeOrColorOfJSTypeAndColor(type_, nil)
+	return AstFactory_Type{kind: astFactoryTypeExplicit, jstype: type_}
 }
 
 // Java: AstFactory.type(JSTypeNative)
 func AstFactory_Type_OfJSTypeNative(type_ rhino.JSTypeNative) AstFactory_Type {
-	return NewAstFactory_JSTypeOrColorOfNativeAndColor(type_, nil)
+	return AstFactory_Type{
+		kind:         astFactoryTypeExplicit | astFactoryTypeHasJSTypeNative,
+		jstypeNative: type_,
+	}
 }
 
 // Java: AstFactory.type(Color)
 func AstFactory_Type_OfColor(type_ *colors.Color) AstFactory_Type {
-	switch type_ {
-	case colors.StandardColors_UNKNOWN:
-		return astFactory_colorUnknown
-	case colors.StandardColors_TOP_OBJECT:
-		return astFactory_colorTopObject
-	case colors.StandardColors_STRING:
-		return astFactory_colorString
-	case colors.StandardColors_NUMBER:
-		return astFactory_colorNumber
-	case colors.StandardColors_BOOLEAN:
-		return astFactory_colorBoolean
-	case colors.StandardColors_NULL_OR_VOID:
-		return astFactory_colorNullVoid
-	case colors.StandardColors_BIGINT:
-		return astFactory_colorBigint
-	case colors.StandardColors_SYMBOL:
-		return astFactory_colorSymbol
-	}
-	return NewAstFactory_JSTypeOrColorOfJSTypeAndColor(nil, type_)
+	return AstFactory_Type{kind: astFactoryTypeExplicit, color: type_}
 }
 
 // Java: AstFactory.type(ColorId)
 func AstFactory_Type_OfColorId(type_ colors.ColorId) AstFactory_Type {
-	return NewAstFactory_JSTypeOrColorOfNativeAndColorId(nil, type_)
+	return AstFactory_Type{
+		kind:    astFactoryTypeExplicit | astFactoryTypeHasColorId,
+		colorId: type_,
+	}
 }
 
 // Java: AstFactory.type(JSType, Color)
 func AstFactory_Type_OfJSTypeAndColor(type_ rhino.JSType, color *colors.Color) AstFactory_Type {
-	return NewAstFactory_JSTypeOrColorOfJSTypeAndColor(type_, color)
+	return AstFactory_Type{kind: astFactoryTypeExplicit, jstype: type_, color: color}
 }
 
 // Java: AstFactory.type(JSTypeNative, Color)
 func AstFactory_Type_OfJSTypeNativeAndColor(type_ rhino.JSTypeNative, color *colors.Color) AstFactory_Type {
-	return NewAstFactory_JSTypeOrColorOfNativeAndColor(type_, color)
+	return AstFactory_Type{
+		kind:         astFactoryTypeExplicit | astFactoryTypeHasJSTypeNative,
+		jstypeNative: type_,
+		color:        color,
+	}
 }
 
 // Java: AstFactory.noTypeInformation()
 func AstFactory_NoTypeInformation() AstFactory_Type {
-	return astFactory_noTypeInfo
+	return AstFactory_Type{kind: astFactoryTypeExplicit}
 }

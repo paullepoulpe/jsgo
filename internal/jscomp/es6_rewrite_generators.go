@@ -99,7 +99,7 @@ func NewEs6RewriteGenerators(compiler AbstractCompiler) *Es6RewriteGenerators {
 	if compiler.HasOptimizationColors() {
 		// typechecking has run, so we must preserve and propagate type information
 		e.nullableStringType =
-			colors.Color_CreateUnion(jutil.NewObjectLinkedHashSet(colors.StandardColors_NULL_OR_VOID, colors.StandardColors_STRING))
+			colors.Color_CreateUnion2(colors.StandardColors_NULL_OR_VOID, colors.StandardColors_STRING)
 	}
 
 	runtimeJsLibManager := compiler.GetRuntimeJsLibManager()
@@ -114,7 +114,7 @@ func NewEs6RewriteGenerators(compiler AbstractCompiler) *Es6RewriteGenerators {
 }
 
 func (e *Es6RewriteGenerators) generatorContextType() AstFactory_Type {
-	if e.generatorContextTypeValue == nil {
+	if e.generatorContextTypeValue.IsZero() {
 		e.generatorContextTypeValue =
 			AstFactory_Type_(
 				e.astFactory.CreateNewNode(

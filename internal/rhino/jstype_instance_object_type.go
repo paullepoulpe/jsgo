@@ -54,7 +54,7 @@ const InstanceObjectType_TYPE_CLASS = JSTypeClass_INSTANCE_OBJECT
 func NewInstanceObjectType(builder *InstanceObjectType_Builder) *InstanceObjectType {
 	t := &InstanceObjectType{}
 	t.objFlags = objKindInstance
-	t.InitPrototypeObjectTypeBase(t, builder.GetBuilderFields())
+	t.InitPrototypeObjectTypeBase(t, &builder.PrototypeObjectType_Builder)
 	t.constructor = jutil.CheckNotNull(builder.constructor).GetFunctionTypeBase()
 
 	t.GetRegistry().GetResolver().ResolveIfClosed(t, InstanceObjectType_TYPE_CLASS)
@@ -63,7 +63,7 @@ func NewInstanceObjectType(builder *InstanceObjectType_Builder) *InstanceObjectT
 
 // InstanceObjectType_Builder is InstanceObjectType.Builder.
 type InstanceObjectType_Builder struct {
-	PrototypeObjectType_Builder[*InstanceObjectType_Builder]
+	PrototypeObjectType_Builder
 
 	constructor FunctionType
 }
@@ -71,7 +71,43 @@ type InstanceObjectType_Builder struct {
 // Java: InstanceObjectType.Builder(JSTypeRegistry)
 func NewInstanceObjectType_Builder(registry *JSTypeRegistry) *InstanceObjectType_Builder {
 	b := &InstanceObjectType_Builder{}
-	b.InitPrototypeObjectType_Builder(b, registry)
+	b.InitPrototypeObjectType_Builder(registry)
+	return b
+}
+
+// Java: PrototypeObjectType.Builder.setName(String)
+func (b *InstanceObjectType_Builder) SetName(x *string) *InstanceObjectType_Builder {
+	b.className = x
+	return b
+}
+
+// Java: PrototypeObjectType.Builder.setImplicitPrototype(ObjectType)
+func (b *InstanceObjectType_Builder) SetImplicitPrototype(x ObjectType) *InstanceObjectType_Builder {
+	b.implicitPrototype = x
+	return b
+}
+
+// Java: PrototypeObjectType.Builder.setNative(boolean)
+func (b *InstanceObjectType_Builder) SetNative(x bool) *InstanceObjectType_Builder {
+	b.nativeType = x
+	return b
+}
+
+// Java: PrototypeObjectType.Builder.setAnonymous(boolean)
+func (b *InstanceObjectType_Builder) SetAnonymous(x bool) *InstanceObjectType_Builder {
+	b.anonymousType = x
+	return b
+}
+
+// Java: PrototypeObjectType.Builder.setTemplateTypeMap(TemplateTypeMap)
+func (b *InstanceObjectType_Builder) SetTemplateTypeMap(x *TemplateTypeMap) *InstanceObjectType_Builder {
+	b.templateTypeMap = x
+	return b
+}
+
+// Java: PrototypeObjectType.Builder.setTemplateParamCount(int)
+func (b *InstanceObjectType_Builder) SetTemplateParamCount(x int) *InstanceObjectType_Builder {
+	b.templateParamCount = x
 	return b
 }
 
@@ -88,17 +124,21 @@ func (b *InstanceObjectType_Builder) Build() *InstanceObjectType {
 
 // Java: InstanceObjectType.builderForCtor(FunctionType)
 func InstanceObjectType_BuilderForCtor(ctor FunctionType) *InstanceObjectType_Builder {
-	return NewInstanceObjectType_Builder(ctor.GetJSTypeBase().GetRegistry()).
-		SetName(ctor.GetReferenceName()).
-		SetImplicitPrototype(nil). // This isn't shared by a function and it's instances.
-		SetNative(ctor.IsNativeObjectType()).
-		SetAnonymous(ctor.IsAnonymous()).
-		SetTemplateTypeMap(ctor.GetTemplateTypeMap()).
-		// Recall that in ES5 code, instance and constructor template parameters
-		// were indistinguishable. That asumption is maintained here by deault,
-		// but later code may may overwrite the template parameter count.
-		SetTemplateParamCount(ctor.GetTemplateParamCount()).
-		SetConstructor(ctor)
+	return &InstanceObjectType_Builder{
+		PrototypeObjectType_Builder: PrototypeObjectType_Builder{
+			registry:          ctor.GetJSTypeBase().GetRegistry(),
+			className:         ctor.GetReferenceName(),
+			implicitPrototype: nil, // This isn't shared by a function and it's instances.
+			nativeType:        ctor.IsNativeObjectType(),
+			anonymousType:     ctor.IsAnonymous(),
+			templateTypeMap:   ctor.GetTemplateTypeMap(),
+			// Recall that in ES5 code, instance and constructor template parameters
+			// were indistinguishable. That asumption is maintained here by deault,
+			// but later code may may overwrite the template parameter count.
+			templateParamCount: ctor.GetTemplateParamCount(),
+		},
+		constructor: ctor,
+	}
 }
 
 // Java: InstanceObjectType.getTypeClass()

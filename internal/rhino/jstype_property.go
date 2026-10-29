@@ -128,6 +128,9 @@ func (k Property_Key) String_() string {
 	if k.kind == Property_KeyKind_SYMBOL {
 		panic(jutil.NewUnsupportedOperationException())
 	}
+	if k.string_ == "" && k.stringID != 0 {
+		return rhinoStringFromID(k.stringID)
+	}
 	return k.string_
 }
 
@@ -154,7 +157,7 @@ func (k Property_Key) HumanReadableName() string {
 
 // Java: Property.Key.matches(String) (default method)
 func (k Property_Key) Matches(stringKey string) bool {
-	return k.Kind() == Property_KeyKind_STRING && k.String_() == stringKey
+	return k.kind == Property_KeyKind_STRING && k.String_() == stringKey
 }
 
 // Equals is the records' equals(Object).
@@ -164,7 +167,10 @@ func (k Property_Key) Equals(o any) bool {
 		return false
 	}
 	if k.kind == Property_KeyKind_STRING {
-		return k.string_ == other.string_
+		if k.stringID != 0 && other.stringID != 0 {
+			return k.stringID == other.stringID
+		}
+		return k.String_() == other.String_()
 	}
 	return jutil.ObjectsEquals(k.symbol, other.symbol)
 }
@@ -172,7 +178,7 @@ func (k Property_Key) Equals(o any) bool {
 // HashCode is the records' hashCode().
 func (k Property_Key) HashCode() int32 {
 	if k.kind == Property_KeyKind_STRING {
-		return jutil.StringHashCode(k.string_)
+		return jutil.StringHashCode(k.String_())
 	}
 	return jutil.ObjectHashCode(k.symbol)
 }
@@ -180,7 +186,7 @@ func (k Property_Key) HashCode() int32 {
 // String is the records' toString().
 func (k Property_Key) String() string {
 	if k.kind == Property_KeyKind_STRING {
-		return "StringKey[string=" + k.string_ + "]"
+		return "StringKey[string=" + k.String_() + "]"
 	}
 	return "SymbolKey[symbol=" + jutil.ToJavaString(k.symbol) + "]"
 }
@@ -192,10 +198,10 @@ func NewProperty_StringKey(string_ string) Property_Key {
 	return Property_Key{kind: Property_KeyKind_STRING, string_: string_}
 }
 
-// NewProperty_StringKeyByID constructs a Property_Key for an interned string ID.
+// NewProperty_StringKeyByID constructs a Property_Key for an interned string ID
+// without eagerly resolving its string representation.
 func NewProperty_StringKeyByID(id uint32) Property_Key {
-	sid := rhinoStringID(id)
-	return Property_Key{kind: Property_KeyKind_STRING, stringID: sid, string_: rhinoStringFromID(sid)}
+	return Property_Key{kind: Property_KeyKind_STRING, stringID: rhinoStringID(id)}
 }
 
 // NewProperty_SymbolKey is a property well-known symbol key, such as

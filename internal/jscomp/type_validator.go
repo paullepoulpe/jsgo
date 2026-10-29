@@ -19,6 +19,7 @@
 package jscomp
 
 import (
+	"slices"
 	"strconv"
 	"strings"
 
@@ -44,24 +45,11 @@ type TypeValidator struct {
 	// this field to IGNORE_NULL_UNDEFINED
 	subtypingMode rhino.JSType_SubtypingMode
 
-	mismatches *TypeMismatch_Accumulator
+	mismatches TypeMismatch_Accumulator
 }
 
 // User warnings
-const typeValidator_FOUND_REQUIRED = "{0}\n" +
-	"found   : {1}\n" +
-	"required: {2}"
-
-const typeValidator_FOUND_REQUIRED_MISSING = "{0}\n" +
-	"found   : {1}\n" +
-	"required: {2}\n" +
-	"missing : [{3}]\n" +
-	"mismatch: [{4}]"
-
 var (
-	typeValidator_foundRequiredFormat        = jutil.NewMessageFormat(typeValidator_FOUND_REQUIRED)
-	typeValidator_foundRequiredMissingFormat = jutil.NewMessageFormat(typeValidator_FOUND_REQUIRED_MISSING)
-
 	TypeValidator_INVALID_CAST = DiagnosticType_Warning(
 		"JSC_INVALID_CAST",
 		"invalid cast - must be a subtype or supertype\n"+
@@ -131,7 +119,6 @@ var (
 func NewTypeValidator(compiler AbstractCompiler) *TypeValidator {
 	v := &TypeValidator{
 		subtypingMode: rhino.JSType_SubtypingMode_NORMAL,
-		mismatches:    NewTypeMismatch_Accumulator(),
 	}
 	v.compiler = compiler
 	v.typeRegistry = compiler.GetTypeRegistry()
@@ -174,7 +161,7 @@ func TypeValidator_GetInstanceOfCtor(t rhino.JSType) rhino.ObjectType {
 // instead of a set of type pairs.
 //
 // Java: TypeValidator.getMismatches()
-func (v *TypeValidator) GetMismatches() []*TypeMismatch {
+func (v *TypeValidator) GetMismatches() []TypeMismatch {
 	return v.mismatches.GetMismatches()
 }
 
@@ -668,8 +655,8 @@ func (v *TypeValidator) reportPropertyAssignmentMismatch(
 			msg,
 			rightType,
 			leftType,
-			jutil.NewLinkedHashSet[string](),
-			jutil.NewLinkedHashSet[string]())
+			nil,
+			nil)
 		return
 	}
 	v.Mismatch(n, msg, rightType, leftType)
@@ -702,8 +689,8 @@ func (v *TypeValidator) ExpectCanAssignTo(n rhino.Node, rightType rhino.JSType, 
 				msg,
 				rightType,
 				leftType,
-				jutil.NewLinkedHashSet[string](),
-				jutil.NewLinkedHashSet[string]())
+				nil,
+				nil)
 			return false
 		}
 	}
@@ -1072,13 +1059,14 @@ func (v *TypeValidator) CheckPropertyType(
 func (v *TypeValidator) ExpectAbstractMethodsImplemented(n rhino.Node, ctorType rhino.FunctionType) {
 	jutil.CheckArgument(ctorType.IsConstructor())
 
-	// Go-only: language-adapter — an ObjectLinkedHashMap, since Property.Key
-	// compares with equals()/hashCode() (a SymbolKey through its symbol type).
-	abstractMethodSuperTypeMap := jutil.NewObjectLinkedHashMap[rhino.Property_Key, rhino.ObjectType]()
 	currSuperCtor := ctorType.GetSuperClassConstructor()
 	if currSuperCtor == nil || !currSuperCtor.IsAbstract() {
 		return
 	}
+
+	// Go-only: language-adapter — an ObjectLinkedHashMap, since Property.Key
+	// compares with equals()/hashCode() (a SymbolKey through its symbol type).
+	abstractMethodSuperTypeMap := jutil.NewObjectLinkedHashMap[rhino.Property_Key, rhino.ObjectType]()
 
 	for currSuperCtor != nil && currSuperCtor.IsAbstract() {
 		superType := currSuperCtor.GetInstanceType()
@@ -1118,8 +1106,8 @@ func (v *TypeValidator) MismatchNative(n rhino.Node, msg string, found rhino.JST
 // Java: TypeValidator.mismatch(Node, String, JSType, JSType)
 func (v *TypeValidator) Mismatch(n rhino.Node, msg string, found rhino.JSType, required rhino.JSType) {
 	if !found.IsSubtypeOfWithMode(required, v.subtypingMode) {
-		var missing jutil.Set[string]
-		var mismatch jutil.Set[string]
+		var missing []string
+		var mismatch []string
 		var structuralType rhino.JSType
 		if required.IsStructuralType() {
 			structuralType = required
@@ -1132,10 +1120,6 @@ func (v *TypeValidator) Mismatch(n rhino.Node, msg string, found rhino.JSType, r
 		}
 
 		if structuralType != nil {
-			missingSet := jutil.NewTreeSet(jutil.StringCompareTo)
-			mismatchSet := jutil.NewTreeSet(jutil.StringCompareTo)
-			missing = missingSet
-			mismatch = mismatchSet
 			requiredObject := structuralType.ToMaybeObjectType()
 			foundObject := found.ToMaybeObjectType()
 			if requiredObject != nil && foundObject != nil {
@@ -1147,12 +1131,20 @@ func (v *TypeValidator) Mismatch(n rhino.Node, msg string, found rhino.JSType, r
 							if !foundObject.
 								GetPropertyType(property).
 								IsSubtypeOfWithMode(propRequired, v.subtypingMode) {
-								mismatchSet.Add(property)
+								mismatch = append(mismatch, property)
 							}
 						} else {
-							missingSet.Add(property)
+							missing = append(missing, property)
 						}
 					}
+				}
+				if len(missing) > 1 {
+					slices.SortFunc(missing, jutil.StringCompareTo)
+					missing = slices.Compact(missing)
+				}
+				if len(mismatch) > 1 {
+					slices.SortFunc(mismatch, jutil.StringCompareTo)
+					mismatch = slices.Compact(mismatch)
 				}
 			}
 		}
@@ -1170,8 +1162,8 @@ func (v *TypeValidator) RegisterMismatchAndReportWithDiagnostic(
 	msg string,
 	found rhino.JSType,
 	required rhino.JSType,
-	missing jutil.Set[string],
-	mismatch jutil.Set[string]) {
+	missing []string,
+	mismatch []string) {
 	foundRequiredFormatted := TypeValidator_FormatFoundRequired(msg, found, required, missing, mismatch)
 	err := JSError_MakeWithNode(n, diagnostic, foundRequiredFormatted)
 	v.RegisterMismatchAndReport(found, required, err)
@@ -1202,8 +1194,8 @@ func TypeValidator_FormatFoundRequired(
 	description string,
 	found rhino.JSType,
 	required rhino.JSType,
-	missing jutil.Set[string],
-	mismatch jutil.Set[string]) string {
+	missing []string,
+	mismatch []string) string {
 	foundStr := found.String()
 	requiredStr := required.String()
 	if foundStr == requiredStr {
@@ -1229,34 +1221,18 @@ func TypeValidator_FormatFoundRequired(
 				")"
 		}
 	}
-	missingStr := ""
-	mismatchStr := ""
-	if missing != nil && !missing.IsEmpty() {
-		missingStr = typeValidator_joinComma(missing)
-	}
-	if mismatch != nil && !mismatch.IsEmpty() {
-		mismatchStr = typeValidator_joinComma(mismatch)
-	}
+	missingStr := strings.Join(missing, ",")
+	mismatchStr := strings.Join(mismatch, ",")
 	if len(missingStr) > 0 || len(mismatchStr) > 0 {
-		return typeValidator_foundRequiredMissingFormat.FormatStrings(
-			description, foundStr, requiredStr, missingStr, mismatchStr)
-	} else {
-		return typeValidator_foundRequiredFormat.FormatStrings(description, foundStr, requiredStr)
+		return description + "\n" +
+			"found   : " + foundStr + "\n" +
+			"required: " + requiredStr + "\n" +
+			"missing : [" + missingStr + "]\n" +
+			"mismatch: [" + mismatchStr + "]"
 	}
-}
-
-// typeValidator_joinComma is Joiner.on(",").join(set).
-func typeValidator_joinComma(set jutil.Set[string]) string {
-	var sb strings.Builder
-	first := true
-	for s := range set.All() {
-		if !first {
-			sb.WriteString(",")
-		}
-		first = false
-		sb.WriteString(s)
-	}
-	return sb.String()
+	return description + "\n" +
+		"found   : " + foundStr + "\n" +
+		"required: " + requiredStr
 }
 
 // GetJSType gets the JSType from the Node argument and verifies that it is

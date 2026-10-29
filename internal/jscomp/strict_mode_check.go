@@ -38,9 +38,16 @@ const (
 )
 
 type strictModeMemberEntry struct {
-	name string
+	id   uint32
 	mask uint8
 }
+
+var (
+	strictModeArgumentsID = rhino.IR_Name("arguments").GetStringID()
+	strictModeEvalID      = rhino.IR_Name("eval").GetStringID()
+	strictModeCalleeID    = rhino.IR_Name("callee").GetStringID()
+	strictModeCallerID    = rhino.IR_Name("caller").GetStringID()
+)
 
 // StrictModeCheck checks that the code obeys the static restrictions of
 // strict mode:
@@ -57,7 +64,7 @@ type StrictModeCheck struct {
 
 	compiler     AbstractCompiler
 	defaultLevel CheckLevel
-	memberFlags  map[string]uint8
+	memberFlags  map[uint32]uint8
 }
 
 // Java: StrictModeCheck.USE_OF_WITH
@@ -235,9 +242,10 @@ func StrictModeCheck_IsDeclaration(n rhino.Node) bool {
 // Java: StrictModeCheck.checkAssignment(Node)
 func (c *StrictModeCheck) CheckAssignment(assign ast.Assign) {
 	if name, ok := assign.Target().AsName(); ok {
-		if "arguments" == name.Ident() {
+		switch name.Node().GetStringID() {
+		case strictModeArgumentsID:
 			c.Report(assign.Node(), StrictModeCheck_ARGUMENTS_ASSIGNMENT)
-		} else if "eval" == name.Ident() {
+		case strictModeEvalID:
 			// Note that assignment to eval is already illegal because any use of
 			// that name is illegal.
 			c.Report(assign.Node(), StrictModeCheck_EVAL_ASSIGNMENT)
@@ -287,7 +295,7 @@ func (c *StrictModeCheck) CheckObjectLiteralOrClass(n rhino.Node) {
 			continue
 		}
 
-		keyName := key.GetString()
+		keyID := key.GetStringID()
 		isSetter := key.IsSetterDef()
 		isGetter := key.IsGetterDef()
 		getterBit := strictModeGetterBit
@@ -308,7 +316,7 @@ func (c *StrictModeCheck) CheckObjectLiteralOrClass(n rhino.Node) {
 		if !usedMap {
 			found := false
 			for i := 0; i < seenLen; i++ {
-				if seenBuf[i].name == keyName {
+				if seenBuf[i].id == keyID {
 					oldMask = seenBuf[i].mask
 					seenBuf[i].mask = oldMask | addMask
 					found = true
@@ -317,33 +325,33 @@ func (c *StrictModeCheck) CheckObjectLiteralOrClass(n rhino.Node) {
 			}
 			if !found {
 				if seenLen < len(seenBuf) {
-					seenBuf[seenLen] = strictModeMemberEntry{name: keyName, mask: addMask}
+					seenBuf[seenLen] = strictModeMemberEntry{id: keyID, mask: addMask}
 					seenLen++
 				} else {
 					usedMap = true
 					if c.memberFlags == nil {
-						c.memberFlags = make(map[string]uint8, 64)
+						c.memberFlags = make(map[uint32]uint8, 64)
 					} else {
 						clear(c.memberFlags)
 					}
 					for i := range seenBuf {
-						c.memberFlags[seenBuf[i].name] = seenBuf[i].mask
+						c.memberFlags[seenBuf[i].id] = seenBuf[i].mask
 					}
-					c.memberFlags[keyName] = addMask
+					c.memberFlags[keyID] = addMask
 				}
 			}
 		} else {
-			oldMask = c.memberFlags[keyName]
-			c.memberFlags[keyName] = oldMask | addMask
+			oldMask = c.memberFlags[keyID]
+			c.memberFlags[keyID] = oldMask | addMask
 		}
 
 		if !isSetter && (oldMask&getterBit) != 0 {
 			// normal property and getter cases
-			c.Report(key, StrictModeCheck_DUPLICATE_MEMBER, keyName)
+			c.Report(key, StrictModeCheck_DUPLICATE_MEMBER, key.GetString())
 		}
 		if !isGetter && (oldMask&setterBit) != 0 {
 			// normal property and setter cases
-			c.Report(key, StrictModeCheck_DUPLICATE_MEMBER, keyName)
+			c.Report(key, StrictModeCheck_DUPLICATE_MEMBER, key.GetString())
 		}
 	}
 }
@@ -381,9 +389,10 @@ func (c *StrictModeCheck_NonExternChecks) Visit(t *NodeTraversal, n rhino.Node, 
 //
 // Java: StrictModeCheck.NonExternChecks.checkDeclaration(Node)
 func (c *StrictModeCheck_NonExternChecks) CheckDeclaration(name ast.Name) {
-	if "eval" == name.Ident() {
+	switch name.Node().GetStringID() {
+	case strictModeEvalID:
 		c.outer.Report(name.Node(), StrictModeCheck_EVAL_DECLARATION)
-	} else if "arguments" == name.Ident() {
+	case strictModeArgumentsID:
 		c.outer.Report(name.Node(), StrictModeCheck_ARGUMENTS_DECLARATION)
 	}
 }
@@ -394,19 +403,21 @@ func (c *StrictModeCheck_NonExternChecks) CheckDeclaration(name ast.Name) {
 func (c *StrictModeCheck_NonExternChecks) CheckGetProp(getProp ast.GetProp) {
 	n := getProp.Node()
 	target := getProp.Object()
-	name := getProp.Property()
-	if name == "callee" {
+	switch n.GetStringID() {
+	case strictModeCalleeID:
 		if strictModeCheck_isArguments(target) {
 			c.outer.Report(n, StrictModeCheck_ARGUMENTS_CALLEE_FORBIDDEN)
 		}
-	} else if name == "caller" {
+	case strictModeCallerID:
 		if strictModeCheck_isArguments(target) {
 			c.outer.Report(n, StrictModeCheck_ARGUMENTS_CALLER_FORBIDDEN)
 		} else if StrictModeCheck_IsFunctionType(target.Node()) {
 			c.outer.Report(n, StrictModeCheck_FUNCTION_CALLER_FORBIDDEN)
 		}
-	} else if name == "arguments" && StrictModeCheck_IsFunctionType(target.Node()) {
-		c.outer.Report(n, StrictModeCheck_FUNCTION_ARGUMENTS_PROP_FORBIDDEN)
+	case strictModeArgumentsID:
+		if StrictModeCheck_IsFunctionType(target.Node()) {
+			c.outer.Report(n, StrictModeCheck_FUNCTION_ARGUMENTS_PROP_FORBIDDEN)
+		}
 	}
 }
 
@@ -415,7 +426,7 @@ func (c *StrictModeCheck_NonExternChecks) CheckGetProp(getProp ast.GetProp) {
 // Go-only: CheckGetProp's `target.isName() && target.getString().equals("arguments")`.
 func strictModeCheck_isArguments(e ast.Expr) bool {
 	name, ok := e.AsName()
-	return ok && name.Ident() == "arguments"
+	return ok && name.Node().GetStringID() == strictModeArgumentsID
 }
 
 // Java: StrictModeCheck.isFunctionType(Node)

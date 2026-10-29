@@ -109,7 +109,7 @@ const PrototypeObjectType_MAX_PRETTY_PRINTED_PROPERTIES = 10
 // types.
 //
 // Java: PrototypeObjectType(Builder<?>)
-func NewPrototypeObjectType(builder *PrototypeObjectType_BuilderFields) *PrototypeObjectTypeBase {
+func NewPrototypeObjectType(builder *PrototypeObjectType_Builder) *PrototypeObjectTypeBase {
 	t := &PrototypeObjectTypeBase{}
 	t.objFlags = objKindPrototype
 	t.InitPrototypeObjectTypeBase(t, builder)
@@ -120,7 +120,7 @@ func NewPrototypeObjectType(builder *PrototypeObjectType_BuilderFields) *Prototy
 // subclasses.
 //
 // Java: PrototypeObjectType(Builder<?>)
-func (p *PrototypeObjectTypeBase) InitPrototypeObjectTypeBase(self PrototypeObjectType, builder *PrototypeObjectType_BuilderFields) {
+func (p *PrototypeObjectTypeBase) InitPrototypeObjectTypeBase(self PrototypeObjectType, builder *PrototypeObjectType_Builder) {
 	p.InitObjectTypeBaseWithTemplateTypeMap(self, builder.registry, builder.templateTypeMap)
 
 	p.className = builder.className
@@ -153,13 +153,9 @@ func (p *PrototypeObjectTypeBase) GetTypeClass() JSTypeClass {
 	return PrototypeObjectType_TYPE_CLASS
 }
 
-// PrototypeObjectType_BuilderFields holds the fields of
+// PrototypeObjectType_Builder holds the fields and fluent setters of
 // PrototypeObjectType.Builder.
-//
-// Go-only: language-adapter — Builder<T extends Builder<T>> is generic in the
-// type its setters return; the fields live in this non-generic struct so the
-// PrototypeObjectType constructor can read any builder.
-type PrototypeObjectType_BuilderFields struct {
+type PrototypeObjectType_Builder struct {
 	registry *JSTypeRegistry
 
 	className         *string
@@ -172,97 +168,65 @@ type PrototypeObjectType_BuilderFields struct {
 	templateParamCount int
 }
 
-// PrototypeObjectType_Builder is PrototypeObjectType.Builder<T>: its
-// setters return the concrete builder T (Java's castThis()).
-type PrototypeObjectType_Builder[T any] struct {
-	PrototypeObjectType_BuilderFields
-	self T
-}
-
-// InitPrototypeObjectType_Builder is the Go form of the Builder
-// constructor; self is the concrete builder.
+// InitPrototypeObjectType_Builder initializes the embedded base builder.
 //
 // Java: PrototypeObjectType.Builder(JSTypeRegistry)
-func (b *PrototypeObjectType_Builder[T]) InitPrototypeObjectType_Builder(self T, registry *JSTypeRegistry) {
-	b.self = self
+func (b *PrototypeObjectType_Builder) InitPrototypeObjectType_Builder(registry *JSTypeRegistry) {
 	b.registry = registry
-
 	b.templateTypeMap = registry.GetEmptyTemplateTypeMap()
 }
 
-// GetBuilderFields gives access to the builder's fields.
-//
-// Go-only: language-adapter — see PrototypeObjectType_BuilderFields.
-func (b *PrototypeObjectType_Builder[T]) GetBuilderFields() *PrototypeObjectType_BuilderFields {
-	return &b.PrototypeObjectType_BuilderFields
+// Java: PrototypeObjectType.Builder(JSTypeRegistry)
+func NewPrototypeObjectType_Builder(registry *JSTypeRegistry) *PrototypeObjectType_Builder {
+	b := &PrototypeObjectType_Builder{}
+	b.InitPrototypeObjectType_Builder(registry)
+	return b
 }
 
 // Java: PrototypeObjectType.Builder.setName(String)
-func (b *PrototypeObjectType_Builder[T]) SetName(x *string) T {
+func (b *PrototypeObjectType_Builder) SetName(x *string) *PrototypeObjectType_Builder {
 	b.className = x
-	return b.CastThis()
+	return b
 }
 
 // Java: PrototypeObjectType.Builder.setImplicitPrototype(ObjectType)
-func (b *PrototypeObjectType_Builder[T]) SetImplicitPrototype(x ObjectType) T {
+func (b *PrototypeObjectType_Builder) SetImplicitPrototype(x ObjectType) *PrototypeObjectType_Builder {
 	b.implicitPrototype = x
-	return b.CastThis()
+	return b
 }
 
 // Java: PrototypeObjectType.Builder.setNative(boolean)
-func (b *PrototypeObjectType_Builder[T]) SetNative(x bool) T {
+func (b *PrototypeObjectType_Builder) SetNative(x bool) *PrototypeObjectType_Builder {
 	b.nativeType = x
-	return b.CastThis()
+	return b
 }
 
 // Java: PrototypeObjectType.Builder.setAnonymous(boolean)
-func (b *PrototypeObjectType_Builder[T]) SetAnonymous(x bool) T {
+func (b *PrototypeObjectType_Builder) SetAnonymous(x bool) *PrototypeObjectType_Builder {
 	b.anonymousType = x
-	return b.CastThis()
+	return b
 }
 
 // Java: PrototypeObjectType.Builder.setTemplateTypeMap(TemplateTypeMap)
-func (b *PrototypeObjectType_Builder[T]) SetTemplateTypeMap(x *TemplateTypeMap) T {
+func (b *PrototypeObjectType_Builder) SetTemplateTypeMap(x *TemplateTypeMap) *PrototypeObjectType_Builder {
 	b.templateTypeMap = x
-	return b.CastThis()
+	return b
 }
 
 // Java: PrototypeObjectType.Builder.setTemplateParamCount(int)
-func (b *PrototypeObjectType_Builder[T]) SetTemplateParamCount(x int) T {
+func (b *PrototypeObjectType_Builder) SetTemplateParamCount(x int) *PrototypeObjectType_Builder {
 	b.templateParamCount = x
-	return b.CastThis()
-}
-
-// Java: PrototypeObjectType.Builder.castThis()
-func (b *PrototypeObjectType_Builder[T]) CastThis() T {
-	return b.self
-}
-
-// PrototypeObjectType_PlainBuilder is the Builder<?> returned by
-// PrototypeObjectType.builder(registry), which builds plain
-// PrototypeObjectTypes.
-//
-// Go-only: language-adapter — names the instantiation of the generic
-// Builder<T> whose T is itself.
-type PrototypeObjectType_PlainBuilder struct {
-	PrototypeObjectType_Builder[*PrototypeObjectType_PlainBuilder]
-}
-
-// Java: PrototypeObjectType.Builder(JSTypeRegistry)
-func NewPrototypeObjectType_PlainBuilder(registry *JSTypeRegistry) *PrototypeObjectType_PlainBuilder {
-	b := &PrototypeObjectType_PlainBuilder{}
-	b.InitPrototypeObjectType_Builder(b, registry)
 	return b
 }
 
 // Java: PrototypeObjectType.Builder.build()
-func (b *PrototypeObjectType_PlainBuilder) Build() PrototypeObjectType {
-	return NewPrototypeObjectType(b.GetBuilderFields())
+func (b *PrototypeObjectType_Builder) Build() PrototypeObjectType {
+	return NewPrototypeObjectType(b)
 }
 
 // Java: PrototypeObjectType.builder(JSTypeRegistry)
-func PrototypeObjectType_Builder_(registry *JSTypeRegistry) *PrototypeObjectType_PlainBuilder {
-	return NewPrototypeObjectType_PlainBuilder(registry)
+func PrototypeObjectType_Builder_(registry *JSTypeRegistry) *PrototypeObjectType_Builder {
+	return NewPrototypeObjectType_Builder(registry)
 }
 
 // Java: PrototypeObjectType.getPropertyMap()

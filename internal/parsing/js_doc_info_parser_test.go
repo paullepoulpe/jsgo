@@ -60,10 +60,10 @@ func newJsDocInfoParserTest(t *testing.T) *jsDocInfoParserTest {
 	// HashSet order.
 	jt.extraAnnotations = jutil.NewLinkedHashSet(
 		ParserRunner_CreateConfig(Config_LanguageMode_ECMASCRIPT3, nil, Config_StrictMode_SLOPPY).
-			AnnotationNames().ToSlice()...)
+			AnnotationNames()...)
 	jt.extraSuppressions = jutil.NewLinkedHashSet(
 		ParserRunner_CreateConfig(Config_LanguageMode_ECMASCRIPT3, nil, Config_StrictMode_SLOPPY).
-			SuppressionNames().ToSlice()...)
+			SuppressionOrder()...)
 
 	jt.extraSuppressions.Add("x")
 	jt.extraSuppressions.Add("y")

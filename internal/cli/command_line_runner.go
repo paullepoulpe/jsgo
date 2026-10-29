@@ -20,7 +20,9 @@ package cli
 
 import (
 	"io"
-	"math"
+	"io/fs"
+	"os"
+	"path/filepath"
 	"slices"
 	"strings"
 
@@ -164,24 +166,26 @@ func NewCommandLineRunnerWithStreams(args []string, in io.Reader, out *jutil.Pri
 	return r
 }
 
+var commandLineRunner_quotesPattern = jutil.Pattern_Compile("^['\"](.*)['\"]$")
+
 // Java: CommandLineRunner.processArgs(String[])
 func commandLineRunner_processArgs(args []string) []string {
 	// Args4j has a different format that the old command-line parser.
 	// So we use some voodoo to get the args into the format that args4j
 	// expects.
-	quotesPattern := jutil.Pattern_Compile("^['\"](.*)['\"]$")
-	var processedArgs []string
+	processedArgs := make([]string, 0, len(args))
 
 	for _, arg := range args {
 		if name, value, ok := commandLineRunner_matchArgPattern(arg); ok {
 			processedArgs = append(processedArgs, name)
 
-			quotesMatcher := quotesPattern.Matcher(value)
-			if quotesMatcher.Matches() {
-				processedArgs = append(processedArgs, *quotesMatcher.Group(1))
-			} else {
-				processedArgs = append(processedArgs, value)
+			if len(value) >= 2 && (value[0] == '\'' || value[0] == '"') {
+				if quotesMatcher := commandLineRunner_quotesPattern.Matcher(value); quotesMatcher.Matches() {
+					processedArgs = append(processedArgs, *quotesMatcher.Group(1))
+					continue
+				}
 			}
+			processedArgs = append(processedArgs, value)
 		} else {
 			processedArgs = append(processedArgs, arg)
 		}
@@ -239,64 +243,44 @@ func (r *CommandLineRunner) ProcessFlagFiles() {
 
 // Java: CommandLineRunner.processFlagFile(String)
 func (r *CommandLineRunner) ProcessFlagFile(flagFileString string) {
-	flagFile := jutil.Path_Of(flagFileString)
+	content := strings.TrimPrefix(
+		jutil.Files_ReadStringUTF8(jutil.Path_Of(flagFileString)),
+		"\uFEFF",
+	)
 
-	buffer := jutil.Files_NewBufferedReader(flagFile, jutil.StandardCharsets_UTF_8)
-	// Builds the tokens.
-	builder := jutil.NewStringBuilder()
-	// Stores the built tokens.
 	var tokens []string
-	// Indicates if we are in a "quoted" token.
+	var token []byte
 	quoted := false
-	// Indicates if the char being processed has been escaped.
 	escaped := false
-	// Indicates whether this is the beginning of the file.
-	isFirstCharacter := true
 
-	cbuf := make([]uint16, 1)
-	for {
-		// Java: c = buffer.read()
-		if buffer.Read(cbuf, 0, 1) < 0 {
-			break
-		}
-		c := int(cbuf[0])
-
-		// Ignoring the BOM.
-		if isFirstCharacter {
-			isFirstCharacter = false
-			if c == CommandLineRunner_UTF8_BOM_CODE {
-				continue
-			}
-		}
-
-		if c == 32 || c == 9 || c == 10 || c == 13 {
+	for i := 0; i < len(content); i++ {
+		c := content[i]
+		switch c {
+		case ' ', '\t', '\n', '\r':
 			if quoted {
-				builder.AppendChar(uint16(c))
-			} else if builder.Length() != 0 {
-				tokens = append(tokens, builder.String())
-				builder.SetLength(0)
+				token = append(token, c)
+			} else if len(token) != 0 {
+				tokens = append(tokens, string(token))
+				token = token[:0]
 			}
-		} else if c == 34 {
+		case '"':
 			if escaped {
 				if quoted {
-					builder.SetCharAt(builder.Length()-1, uint16(c))
+					token[len(token)-1] = '"'
 				} else {
-					builder.AppendChar(uint16(c))
+					token = append(token, '"')
 				}
 			} else {
 				quoted = !quoted
 			}
-		} else {
-			builder.AppendChar(uint16(c))
+		default:
+			token = append(token, c)
 		}
-
-		escaped = c == 92
+		escaped = c == '\\'
 	}
 
-	buffer.Close()
-
-	if builder.Length() != 0 {
-		tokens = append(tokens, builder.String())
+	if len(token) != 0 {
+		tokens = append(tokens, string(token))
 	}
 
 	r.flags.flagFiles = []string{}
@@ -340,7 +324,7 @@ func (r *CommandLineRunner) InitConfigFromFlags(args []string, out *jutil.PrintS
 
 	var mixedSources []*AbstractCommandLineRunner_FlagEntry[AbstractCommandLineRunner_JsSourceType]
 	var mappings []jscomp.SourceMap_LocationMapping
-	var sourceMapInputs *jutil.LinkedHashMap[string, string]
+	var sourceMapInputs []PipeFlagEntry
 	parseInlineSourceMaps := false
 	applyInputSourceMaps := false
 	jutil.Try(func() {
@@ -853,11 +837,8 @@ func commandLineRunner_loadConformanceConfig(configFile string) *jscomp.Conforma
 
 	builder := jscomp.ConformanceConfig_NewBuilder()
 
-	// Looking for BOM.
-	if textProto != "" && jutil.StringCharAt(textProto, 0) == CommandLineRunner_UTF8_BOM_CODE {
-		// Stripping the BOM.
-		textProto = jutil.StringSubstringFrom(textProto, 1)
-	}
+	// Stripping the BOM if present.
+	textProto = strings.TrimPrefix(textProto, "\uFEFF")
 
 	jutil.Try(func() {
 		jscomp.TextFormat_Merge(textProto, builder)
@@ -885,23 +866,31 @@ func CommandLineRunner_FindJsFiles(patterns []string) []string {
 	return commandLineRunner_findJsFilesSorted(patterns, false)
 }
 
-// commandLineRunner_jsInputs is the Map<String, String> of findJsFiles: a
-// TreeMap or a LinkedHashMap.
-//
-// Go-only: language-adapter — the two Map implementations behind one
-// interface.
-type commandLineRunner_jsInputs interface {
-	Put(k string, v string) string
-	Remove(k string) string
-	Values() func(yield func(string) bool)
+// jsInputsCollector tracks normalized-absolute-path -> original-path entries
+// while preserving insertion order (or sorting keys alphabetically on output).
+type jsInputsCollector struct {
+	byAbs map[string]string
+	order []string
 }
 
-type commandLineRunner_linkedJsInputs struct {
-	*jutil.LinkedHashMap[string, string]
+func (c *jsInputsCollector) put(absPath, origPath string) {
+	if c.byAbs == nil {
+		c.byAbs = make(map[string]string)
+	}
+	if _, exists := c.byAbs[absPath]; !exists {
+		c.order = append(c.order, absPath)
+	}
+	c.byAbs[absPath] = origPath
 }
 
-func (m commandLineRunner_linkedJsInputs) Values() func(yield func(string) bool) {
-	return m.LinkedHashMap.Values()
+func (c *jsInputsCollector) remove(absPath string) {
+	if _, exists := c.byAbs[absPath]; !exists {
+		return
+	}
+	delete(c.byAbs, absPath)
+	if i := slices.Index(c.order, absPath); i >= 0 {
+		c.order = slices.Delete(c.order, i, i+1)
+	}
 }
 
 // commandLineRunner_findJsFilesSorted returns all the JavaScript files from
@@ -916,18 +905,13 @@ func commandLineRunner_findJsFilesSorted(patterns []string, sortAlphabetically b
 	}
 	// A map from normalized absolute paths to original paths. We need to return original paths to
 	// support allowlist files that depend on them.
-	var allJsInputs commandLineRunner_jsInputs
-	if sortAlphabetically {
-		allJsInputs = jutil.NewTreeMap[string, string](jutil.StringCompareTo)
-	} else {
-		allJsInputs = commandLineRunner_linkedJsInputs{jutil.NewLinkedHashMap[string, string]()}
-	}
-	excludes := jutil.NewLinkedHashSet[string]()
+	var allJsInputs jsInputsCollector
+	var excludes map[string]struct{}
 	var wd *jutil.Path
 	for _, pattern := range patterns {
 		if !strings.Contains(pattern, "*") && !strings.HasPrefix(pattern, "!") {
 			if jutil.File_IsDirectoryPath(pattern) {
-				commandLineRunner_matchPaths(jutil.NewFileWithParent(jutil.NewFile(pattern), "**.js").String(), allJsInputs, excludes)
+				commandLineRunner_matchPaths(jutil.NewFileWithParent(jutil.NewFile(pattern), "**.js").String(), &allJsInputs, &excludes, &wd)
 			} else {
 				original := jutil.Path_Of(pattern)
 				norm := original.Normalize()
@@ -935,25 +919,36 @@ func commandLineRunner_findJsFilesSorted(patterns []string, sortAlphabetically b
 					wd = jutil.Path_WorkingDir()
 				}
 				pathStringAbsolute := norm.ToAbsolutePathWithWd(wd).String()
-				if !excludes.Contains(pathStringAbsolute) {
-					allJsInputs.Put(pathStringAbsolute, original.String())
+				if _, excluded := excludes[pathStringAbsolute]; !excluded {
+					allJsInputs.put(pathStringAbsolute, original.String())
 				}
 			}
 		} else {
-			commandLineRunner_matchPaths(pattern, allJsInputs, excludes)
+			commandLineRunner_matchPaths(pattern, &allJsInputs, &excludes, &wd)
 		}
 	}
 
-	var result []string
-	for v := range allJsInputs.Values() {
-		result = append(result, v)
+	if len(allJsInputs.order) == 0 {
+		return nil
+	}
+	if sortAlphabetically {
+		slices.SortFunc(allJsInputs.order, jutil.StringCompareTo)
+	}
+	result := make([]string, len(allJsInputs.order))
+	for i, absPath := range allJsInputs.order {
+		result[i] = allJsInputs.byAbs[absPath]
 	}
 	return result
 }
 
 // Java: CommandLineRunner.matchPaths(String, Map<String, String>, Set<String>)
-func commandLineRunner_matchPaths(pattern string, allJsInputs commandLineRunner_jsInputs, excludes *jutil.LinkedHashSet[string]) {
-	remove := strings.IndexByte(pattern, '!') == 0
+func commandLineRunner_matchPaths(
+	pattern string,
+	allJsInputs *jsInputsCollector,
+	excludes *map[string]struct{},
+	wd **jutil.Path,
+) {
+	remove := strings.HasPrefix(pattern, "!")
 	if remove {
 		pattern = pattern[1:]
 	}
@@ -964,7 +959,7 @@ func commandLineRunner_matchPaths(pattern string, allJsInputs commandLineRunner_
 	// and the non-globbing prefix.
 	// Go-only: language-adapter — Guava Splitter.on / Joiner.on with the
 	// ASCII separator are strings.Split / strings.Join.
-	patternParts := strings.Split(pattern, jutil.File_separator)
+	patternParts := strings.Split(pattern, separator)
 	prefix := "."
 	for i := 0; i < len(patternParts); i++ {
 		if strings.Contains(patternParts[i], "*") {
@@ -977,38 +972,113 @@ func commandLineRunner_matchPaths(pattern string, allJsInputs commandLineRunner_
 	}
 
 	matcher := jutil.FileSystem_GetPathMatcher("glob:" + prefix + separator + pattern)
-	jutil.Files_WalkFileTree(
-		jutil.Path_Of(prefix),
-		/* FOLLOW_LINKS */ true,
-		math.MaxInt32,
-		&commandLineRunner_matchPathsVisitor{matcher: matcher, remove: remove, allJsInputs: allJsInputs, excludes: excludes})
-}
-
-// commandLineRunner_matchPathsVisitor is matchPaths' anonymous
-// SimpleFileVisitor<Path>.
-type commandLineRunner_matchPathsVisitor struct {
-	jutil.SimpleFileVisitor
-	matcher     *jutil.PathMatcher
-	remove      bool
-	allJsInputs commandLineRunner_jsInputs
-	excludes    *jutil.LinkedHashSet[string]
-}
-
-func (v *commandLineRunner_matchPathsVisitor) VisitFile(p *jutil.Path) jutil.FileVisitResult {
-	if v.matcher.Matches(p) || v.matcher.Matches(p.Normalize()) {
-		pathStringAbsolute := p.Normalize().ToAbsolutePath().String()
-		if v.remove {
-			v.excludes.Add(pathStringAbsolute)
-			v.allJsInputs.Remove(pathStringAbsolute)
-		} else if !v.excludes.Contains(pathStringAbsolute) {
-			v.allJsInputs.Put(pathStringAbsolute, p.String())
+	visitFile := func(p *jutil.Path) {
+		var norm *jutil.Path
+		matched := matcher.Matches(p)
+		if !matched {
+			norm = p.Normalize()
+			matched = matcher.Matches(norm)
+		}
+		if !matched {
+			return
+		}
+		if norm == nil {
+			norm = p.Normalize()
+		}
+		if !norm.IsAbsolute() && *wd == nil {
+			*wd = jutil.Path_WorkingDir()
+		}
+		pathStringAbsolute := norm.ToAbsolutePathWithWd(*wd).String()
+		if remove {
+			if *excludes == nil {
+				*excludes = make(map[string]struct{})
+			}
+			(*excludes)[pathStringAbsolute] = struct{}{}
+			allJsInputs.remove(pathStringAbsolute)
+		} else if _, excluded := (*excludes)[pathStringAbsolute]; !excluded {
+			allJsInputs.put(pathStringAbsolute, p.String())
 		}
 	}
-	return jutil.FileVisitResult_CONTINUE
+
+	startPath := jutil.Path_Of(prefix)
+	startStr := startPath.String()
+	st, err := os.Stat(startStr)
+	if err != nil {
+		// Broken symlink: visit the link itself as a file; nonexistent start: skip.
+		if lst, lerr := os.Lstat(startStr); lerr == nil && !lst.IsDir() {
+			visitFile(startPath)
+		}
+		return
+	}
+	if !st.IsDir() {
+		visitFile(startPath)
+		return
+	}
+	evalRoot, err := filepath.EvalSymlinks(startStr)
+	if err != nil {
+		return
+	}
+	commandLineRunner_walkDir(evalRoot, startPath, nil, visitFile)
 }
 
-func (v *commandLineRunner_matchPathsVisitor) VisitFileFailed(file *jutil.Path, e jutil.IIOException) jutil.FileVisitResult {
-	return jutil.FileVisitResult_SKIP_SUBTREE
+func commandLineRunner_walkDir(
+	evalRoot string,
+	logicalRoot *jutil.Path,
+	ancestors []os.FileInfo,
+	visitFile func(*jutil.Path),
+) {
+	_ = filepath.WalkDir(evalRoot, func(walkPath string, d fs.DirEntry, walkErr error) error {
+		if walkErr != nil || walkPath == evalRoot {
+			return nil
+		}
+		var rel string
+		switch evalRoot {
+		case ".":
+			rel = walkPath
+		case "/":
+			rel = walkPath[1:]
+		default:
+			rel = walkPath[len(evalRoot)+1:]
+		}
+		if d.IsDir() {
+			return nil
+		}
+		logicalPath := logicalRoot.ResolveString(rel)
+		if d.Type()&fs.ModeSymlink != 0 {
+			targetInfo, err := os.Stat(walkPath)
+			if err == nil && targetInfo.IsDir() {
+				for _, anc := range ancestors {
+					if os.SameFile(anc, targetInfo) {
+						return nil
+					}
+				}
+				nextAncestors := slices.Clone(ancestors)
+				for cur := filepath.Dir(walkPath); ; {
+					dirInfo, derr := os.Stat(cur)
+					if derr != nil || os.SameFile(dirInfo, targetInfo) {
+						return nil
+					}
+					nextAncestors = append(nextAncestors, dirInfo)
+					if cur == evalRoot {
+						break
+					}
+					parent := filepath.Dir(cur)
+					if parent == cur {
+						break
+					}
+					cur = parent
+				}
+				evalTarget, err := filepath.EvalSymlinks(walkPath)
+				if err != nil {
+					return nil
+				}
+				commandLineRunner_walkDir(evalTarget, logicalPath, nextAncestors, visitFile)
+				return nil
+			}
+		}
+		visitFile(logicalPath)
+		return nil
+	})
 }
 
 // ShouldRunCompiler returns whether the configuration is valid and

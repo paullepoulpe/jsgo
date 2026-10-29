@@ -67,7 +67,8 @@ type Es6NormalizeClasses struct {
 	// Go-only: language-adapter — the Java ArrayDeque used as a stack
 	// (addFirst/peek/removeFirst, iterated from the first element): the
 	// first element is the last one here.
-	classStack []*es6NormalizeClasses_ClassRecord
+	classStack    []*es6NormalizeClasses_ClassRecord
+	classStackBuf [4]*es6NormalizeClasses_ClassRecord
 }
 
 // Java: Es6NormalizeClasses.CLASS_DECL_VAR
@@ -213,6 +214,7 @@ func NewEs6NormalizeClasses(compiler AbstractCompiler) *Es6NormalizeClasses {
 	// Es6ConvertSuper handles static super rewrites otherwise.
 	e.doStaticSuperRewrites = !options.NeedsTranspilationOf(parser.FeatureSet_Feature_SUPER)
 	e.jscompPrivateMap = compiler.GetRuntimeJsLibManager().GetJsLibField("$jscomp.PrivateMap")
+	e.classStack = e.classStackBuf[:0]
 	return e
 }
 

@@ -813,7 +813,7 @@ func commandLineRunner_Flags_printShortUsageAfterErrors(ps *jutil.PrintStream) {
 // Java: CommandLineRunner.Flags.getMixedJsSources()
 func (f *commandLineRunner_Flags) GetMixedJsSources() []*AbstractCommandLineRunner_FlagEntry[AbstractCommandLineRunner_JsSourceType] {
 	mixedSources := make([]*AbstractCommandLineRunner_FlagEntry[AbstractCommandLineRunner_JsSourceType], 0, len(f.mixedJsSources)+len(f.arguments))
-	var excludes *jutil.LinkedHashSet[string]
+	var excludes map[string]struct{}
 	allocJsEntry := func(filename string) *AbstractCommandLineRunner_FlagEntry[AbstractCommandLineRunner_JsSourceType] {
 		return NewAbstractCommandLineRunner_FlagEntry(AbstractCommandLineRunner_JsSourceType_JS, filename)
 	}
@@ -823,10 +823,10 @@ func (f *commandLineRunner_Flags) GetMixedJsSources() []*AbstractCommandLineRunn
 			mixedSources = append(mixedSources, source)
 		} else if strings.HasPrefix(val, "!") {
 			if excludes == nil {
-				excludes = jutil.NewLinkedHashSet[string]()
+				excludes = make(map[string]struct{})
 			}
 			for _, filename := range CommandLineRunner_FindJsFiles([]string{val[1:]}) {
-				excludes.Add(filename)
+				excludes[filename] = struct{}{}
 				// Java: List.remove(Object) removes the first equal element.
 				if i := slices.IndexFunc(mixedSources, func(e *AbstractCommandLineRunner_FlagEntry[AbstractCommandLineRunner_JsSourceType]) bool {
 					return e != nil && e.flag == AbstractCommandLineRunner_JsSourceType_JS && e.value == filename
@@ -836,7 +836,7 @@ func (f *commandLineRunner_Flags) GetMixedJsSources() []*AbstractCommandLineRunn
 			}
 		} else if !strings.Contains(val, "*") && !jutil.File_IsDirectoryPath(val) {
 			filename := jutil.Path_NormalizeString(val)
-			if excludes == nil || !excludes.Contains(filename) {
+			if _, excluded := excludes[filename]; !excluded {
 				if source.flag == AbstractCommandLineRunner_JsSourceType_JS && filename == val {
 					mixedSources = append(mixedSources, source)
 				} else {
@@ -845,7 +845,7 @@ func (f *commandLineRunner_Flags) GetMixedJsSources() []*AbstractCommandLineRunn
 			}
 		} else {
 			for _, filename := range commandLineRunner_findJsFilesSorted([]string{val}, true) {
-				if excludes == nil || !excludes.Contains(filename) {
+				if _, excluded := excludes[filename]; !excluded {
 					mixedSources = append(mixedSources, allocJsEntry(filename))
 				}
 			}
@@ -865,25 +865,28 @@ func (f *commandLineRunner_Flags) GetMixedJsSources() []*AbstractCommandLineRunn
 
 // Java: CommandLineRunner.Flags.getSourceMapLocationMappings()
 func (f *commandLineRunner_Flags) GetSourceMapLocationMappings() []jscomp.SourceMap_LocationMapping {
-	var locationMappings []jscomp.SourceMap_LocationMapping
-
 	split := f.SplitPipeParts(f.sourceMapLocationMapping, "--source_map_location_mapping")
-	for key, value := range split.All() {
-		locationMappings = append(locationMappings,
-			jscomp.NewSourceMap_PrefixLocationMapping(key, value))
+	if len(split) == 0 {
+		return nil
 	}
-
+	locationMappings := make([]jscomp.SourceMap_LocationMapping, len(split))
+	for i, entry := range split {
+		locationMappings[i] = jscomp.NewSourceMap_PrefixLocationMapping(entry.Key, entry.Value)
+	}
 	return locationMappings
 }
 
 // Java: CommandLineRunner.Flags.getSourceMapInputs()
-func (f *commandLineRunner_Flags) GetSourceMapInputs() *jutil.LinkedHashMap[string, string] {
+func (f *commandLineRunner_Flags) GetSourceMapInputs() []PipeFlagEntry {
 	return f.SplitPipeParts(f.sourceMapInputs, "--source_map_input")
 }
 
 // Java: CommandLineRunner.Flags.splitPipeParts(Iterable<String>, String)
-func (f *commandLineRunner_Flags) SplitPipeParts(input []string, flagName string) *jutil.LinkedHashMap[string, string] {
-	result := jutil.NewImmutableMapBuilder[string, string]()
+func (f *commandLineRunner_Flags) SplitPipeParts(input []string, flagName string) []PipeFlagEntry {
+	if len(input) == 0 {
+		return nil
+	}
+	entries := make([]PipeFlagEntry, 0, len(input))
 
 	// Go-only: language-adapter — Guava Splitter.on('|').limit(2) is
 	// strings.SplitN on the ASCII separator.
@@ -893,10 +896,11 @@ func (f *commandLineRunner_Flags) SplitPipeParts(input []string, flagName string
 			panic(args4j.NewCmdLineExceptionWithParser(
 				f.parser, "Bad value for "+flagName+" (duplicate key): "+jutil.CollectionToString(input)))
 		}
-		result.Put(parts[0], parts[1])
+		entries = append(entries, PipeFlagEntry{Key: parts[0], Value: parts[1]})
 	}
 
-	return result.BuildOrThrow()
+	checkNoDuplicatePipeFlagKeys(entries)
+	return entries
 }
 
 // Java: CommandLineRunner.Flags.getPackageJsonEntryNames()
@@ -914,12 +918,6 @@ func (f *commandLineRunner_Flags) GetPackageJsonEntryNames() []string {
 type commandLineRunner_Flags_BooleanOptionHandler struct {
 	args4j.OptionHandlerBase
 }
-
-// Java: CommandLineRunner.Flags.BooleanOptionHandler.TRUES
-var commandLineRunner_Flags_BooleanOptionHandler_TRUES = jutil.NewLinkedHashSet("true", "on", "yes", "1")
-
-// Java: CommandLineRunner.Flags.BooleanOptionHandler.FALSES
-var commandLineRunner_Flags_BooleanOptionHandler_FALSES = jutil.NewLinkedHashSet("false", "off", "no", "0")
 
 // Handlers are used reflectively by args4j
 //
@@ -944,17 +942,17 @@ func (h *commandLineRunner_Flags_BooleanOptionHandler) ParseArguments(params arg
 	if param == nil {
 		h.Setter.AddValue(true)
 		return 0
-	} else {
-		lowerParam := jutil.Ascii_ToLowerCase(*param)
-		if commandLineRunner_Flags_BooleanOptionHandler_TRUES.Contains(lowerParam) {
-			h.Setter.AddValue(true)
-		} else if commandLineRunner_Flags_BooleanOptionHandler_FALSES.Contains(lowerParam) {
-			h.Setter.AddValue(false)
-		} else {
-			h.Setter.AddValue(true)
-			return 0
-		}
+	}
+	switch jutil.Ascii_ToLowerCase(*param) {
+	case "true", "on", "yes", "1":
+		h.Setter.AddValue(true)
 		return 1
+	case "false", "off", "no", "0":
+		h.Setter.AddValue(false)
+		return 1
+	default:
+		h.Setter.AddValue(true)
+		return 0
 	}
 }
 

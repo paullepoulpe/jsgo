@@ -52,9 +52,8 @@ type Es6RewriteDestructuring struct {
 	featuresToTriggerRunningPass *parser.FeatureSet
 	featuresToMarkAsRemoved      *parser.FeatureSet
 
-	// Go-only: language-adapter — the ArrayDeque is a slice: addLast/removeLast
-	// append to and drop from its end, and iteration runs first to last.
-	patternNestingStack []*Es6RewriteDestructuring_PatternNestingLevel
+	patternNestingStack []patternNestingLevel
+	stackBuf            [4]patternNestingLevel
 
 	destructuringVarCounter int
 }
@@ -99,7 +98,7 @@ const Es6RewriteDestructuring_DESTRUCTURING_TEMP_VAR = "$jscomp$destructuring$va
 // Java: Es6RewriteDestructuring(Builder)
 func newEs6RewriteDestructuring(builder *Es6RewriteDestructuring_Builder) *Es6RewriteDestructuring {
 	e := &Es6RewriteDestructuring{}
-	e.patternNestingStack = nil
+	e.patternNestingStack = e.stackBuf[:0]
 	e.destructuringVarCounter = 0
 	e.compiler = builder.compiler
 	e.rewriteMode = builder.rewriteMode
@@ -158,40 +157,36 @@ func (b *Es6RewriteDestructuring_Builder) Build() *Es6RewriteDestructuring {
 	return newEs6RewriteDestructuring(b)
 }
 
-// Es6RewriteDestructuring_PatternNestingLevel is
-// Es6RewriteDestructuring.PatternNestingLevel.
-type Es6RewriteDestructuring_PatternNestingLevel struct {
+type patternNestingLevel struct {
 	pattern             ast.Pattern
 	hasNestedObjectRest bool
 }
 
-// Java: PatternNestingLevel(Node, boolean)
-func NewEs6RewriteDestructuring_PatternNestingLevel(pattern ast.Pattern, hasNestedRest bool) *Es6RewriteDestructuring_PatternNestingLevel {
-	l := &Es6RewriteDestructuring_PatternNestingLevel{}
-	l.pattern = pattern
-	l.hasNestedObjectRest = hasNestedRest
-	return l
+func (e *Es6RewriteDestructuring) pushPatternNestingLevel(pattern ast.Pattern, hasNestedRest bool) {
+	e.patternNestingStack = append(e.patternNestingStack, patternNestingLevel{
+		pattern:             pattern,
+		hasNestedObjectRest: hasNestedRest,
+	})
 }
 
-// patternNestingStackPeekLast is Deque.peekLast(): the last element, or null.
-//
-// Go-only: language-adapter — the ArrayDeque operation on the slice stack.
-func (e *Es6RewriteDestructuring) patternNestingStackPeekLast() *Es6RewriteDestructuring_PatternNestingLevel {
+func (e *Es6RewriteDestructuring) peekPatternNestingLevel() *patternNestingLevel {
 	if len(e.patternNestingStack) == 0 {
 		return nil
 	}
-	return e.patternNestingStack[len(e.patternNestingStack)-1]
+	return &e.patternNestingStack[len(e.patternNestingStack)-1]
 }
 
-// patternNestingStackGetLast is Deque.getLast(): the last element, or
-// NoSuchElementException.
-//
-// Go-only: language-adapter — the ArrayDeque operation on the slice stack.
-func (e *Es6RewriteDestructuring) patternNestingStackGetLast() *Es6RewriteDestructuring_PatternNestingLevel {
+func (e *Es6RewriteDestructuring) lastPatternNestingLevel() patternNestingLevel {
 	if len(e.patternNestingStack) == 0 {
 		panic(jutil.NewNoSuchElementException())
 	}
 	return e.patternNestingStack[len(e.patternNestingStack)-1]
+}
+
+func (e *Es6RewriteDestructuring) popPatternNestingLevel() {
+	last := len(e.patternNestingStack) - 1
+	e.patternNestingStack[last] = patternNestingLevel{}
+	e.patternNestingStack = e.patternNestingStack[:last]
 }
 
 // Java: Es6RewriteDestructuring.process(Node, Node)
@@ -220,16 +215,15 @@ func (e *Es6RewriteDestructuring) ShouldTraverse(t *NodeTraversal, n rhino.Node,
 		if objectPattern, ok := pattern.AsObjectPattern(); ok {
 			_, hasRest = es6RewriteDestructuring_objectRest(objectPattern)
 		}
-		if len(e.patternNestingStack) != 0 && hasRest {
-			for _, level := range e.patternNestingStack {
-				if level.hasNestedObjectRest {
+		if hasRest {
+			for i := len(e.patternNestingStack) - 1; i >= 0; i-- {
+				if e.patternNestingStack[i].hasNestedObjectRest {
 					break
 				}
-				level.hasNestedObjectRest = true
+				e.patternNestingStack[i].hasNestedObjectRest = true
 			}
-			e.patternNestingStackPeekLast().hasNestedObjectRest = true
 		}
-		e.patternNestingStack = append(e.patternNestingStack, NewEs6RewriteDestructuring_PatternNestingLevel(pattern, hasRest))
+		e.pushPatternNestingLevel(pattern, hasRest)
 	default:
 	}
 	return true
@@ -254,8 +248,8 @@ func (e *Es6RewriteDestructuring) Visit(t *NodeTraversal, n rhino.Node, parent r
 	case rhino.Token_ARRAY_PATTERN, rhino.Token_OBJECT_PATTERN:
 		pattern := ast.MustPattern(n)
 		e.VisitPattern(t, pattern)
-		if e.patternNestingStackGetLast().pattern.Is(n) {
-			e.patternNestingStack = e.patternNestingStack[:len(e.patternNestingStack)-1]
+		if e.lastPatternNestingLevel().pattern.Is(n) {
+			e.popPatternNestingLevel()
 		}
 	default:
 	}
@@ -558,7 +552,7 @@ func (e *Es6RewriteDestructuring) ReplaceObjectPattern(
 		restTempVarName = e.GetTempVariableName()
 	} else if e.rewriteMode == Es6RewriteDestructuring_ObjectDestructuringRewriteMode_REWRITE_OBJECT_REST {
 		// We are configured to only break object pattern rest, but this destructure has none.
-		if !e.patternNestingStackPeekLast().hasNestedObjectRest {
+		if !e.peekPatternNestingLevel().hasNestedObjectRest {
 			// Replacement is performed after the post-order visit has reached the root pattern node, so
 			// peeking last represents if there is a rest property anywhere in the entire pattern. All
 			// nesting levels of lower levels have already been popped.
@@ -807,7 +801,7 @@ func (e *Es6RewriteDestructuring) ReplaceArrayPattern(
 	t *NodeTraversal, arrayPattern ast.ArrayPattern, rhs rhino.Node, parent rhino.Node, nodeToDetach rhino.Node) {
 
 	if e.rewriteMode == Es6RewriteDestructuring_ObjectDestructuringRewriteMode_REWRITE_OBJECT_REST {
-		if len(e.patternNestingStack) == 0 || !e.patternNestingStackPeekLast().hasNestedObjectRest {
+		if len(e.patternNestingStack) == 0 || !e.peekPatternNestingLevel().hasNestedObjectRest {
 			return
 		}
 	}

@@ -76,7 +76,7 @@ type AbstractCommandLineRunner_CommandLineConfig struct {
 
 	chunk []string
 
-	sourceMapInputFiles *jutil.LinkedHashMap[string, string]
+	sourceMapInputFiles []PipeFlagEntry
 
 	parseInlineSourceMaps bool
 
@@ -180,7 +180,7 @@ func NewAbstractCommandLineRunner_CommandLineConfig() *AbstractCommandLineRunner
 		saveAfterCompilationStage:       -1,
 		stage2SegmentOfCompilationToRun: jscomp.CompilerOptions_SegmentOfCompilationToRun_OPTIMIZATIONS,
 		chunk:                           []string{},
-		sourceMapInputFiles:             jutil.NewLinkedHashMap[string, string](),
+		sourceMapInputFiles:             []PipeFlagEntry{},
 		parseInlineSourceMaps:           false,
 		expectedDiagnostics:             []string{},
 		variableMapInputFile:            "",
@@ -480,9 +480,46 @@ func (c *AbstractCommandLineRunner_CommandLineConfig) SetChunk(chunk []string) *
 	return c
 }
 
+// PipeFlagEntry holds an ordered key-value pair parsed from a delimited CLI
+// flag (such as --source_map_input or --source_map_location_mapping).
+type PipeFlagEntry struct {
+	Key   string
+	Value string
+}
+
+func checkNoDuplicatePipeFlagKeys(entries []PipeFlagEntry) {
+	n := len(entries)
+	if n <= 1 {
+		return
+	}
+	if n > 8 {
+		seen := make(map[string]struct{}, n)
+		hasDup := false
+		for _, e := range entries {
+			if _, ok := seen[e.Key]; ok {
+				hasDup = true
+				break
+			}
+			seen[e.Key] = struct{}{}
+		}
+		if !hasDup {
+			return
+		}
+	}
+	for i := n - 1; i >= 0; i-- {
+		k := entries[i].Key
+		for j := i + 1; j < n; j++ {
+			if entries[j].Key == k {
+				panic(jutil.NewIllegalArgumentExceptionMsg("Multiple entries with same key: " +
+					k + "=" + entries[j].Value + " and " + k + "=" + entries[i].Value))
+			}
+		}
+	}
+}
+
 // Java: AbstractCommandLineRunner.CommandLineConfig.setSourceMapInputFiles(Map<String, String>)
-func (c *AbstractCommandLineRunner_CommandLineConfig) SetSourceMapInputFiles(sourceMapInputFiles *jutil.LinkedHashMap[string, string]) *AbstractCommandLineRunner_CommandLineConfig {
-	c.sourceMapInputFiles = sourceMapInputFiles
+func (c *AbstractCommandLineRunner_CommandLineConfig) SetSourceMapInputFiles(sourceMapInputFiles []PipeFlagEntry) *AbstractCommandLineRunner_CommandLineConfig {
+	c.sourceMapInputFiles = slices.Clone(sourceMapInputFiles)
 	return c
 }
 

@@ -25,6 +25,12 @@ import (
 	"github.com/paullepoulpe/jsgo/internal/ast"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
+	"github.com/paullepoulpe/jsgo/internal/strpool"
+)
+
+var (
+	eepGoogleExportSymbolID   = uint32(strpool.Intern("google_exportSymbol"))
+	eepGoogleExportPropertyID = uint32(strpool.Intern("google_exportProperty"))
 )
 
 // ExternExportsPass creates an externs file containing all exported symbols
@@ -36,7 +42,7 @@ type ExternExportsPass struct {
 	exports []externExport
 
 	// A map of all assigns to their parent nodes.
-	definitionMap *jutil.LinkedHashMap[string, rhino.Node]
+	definitionMap map[string]rhino.Node
 
 	// The parent compiler.
 	compiler AbstractCompiler
@@ -45,7 +51,7 @@ type ExternExportsPass struct {
 	externsRoot rhino.Node
 
 	// A mapping of internal paths to exported paths.
-	mappedPaths *jutil.LinkedHashMap[string, string]
+	mappedPaths map[string]string
 
 	// A set of exported paths.
 	alreadyExportedPaths map[string]struct{}
@@ -82,8 +88,8 @@ func externExportsPass_qNameJoin(a string, b string) string {
 
 func (p *ExternExportsPass) addSymbolExport(symbolName string, value rhino.Node) {
 	rhino.CheckNotNull(value)
-	if qualifiedName := value.GetQualifiedName(); qualifiedName != nil {
-		p.mappedPaths.Put(*qualifiedName, symbolName)
+	if qualifiedName, ok := value.GetQualifiedNameString(); ok {
+		p.mappedPaths[qualifiedName] = symbolName
 	}
 	p.exports = append(p.exports, externExport{
 		kind:       exportKindSymbol,
@@ -112,7 +118,7 @@ func (p *ExternExportsPass) exportedPath(e externExport) string {
 		currentPath := prefixes[i]
 		jutil.CheckState(len(currentPath) > 0)
 
-		mappedPath, ok := p.mappedPaths.Lookup(currentPath)
+		mappedPath, ok := p.mappedPaths[currentPath]
 		if !ok {
 			continue
 		}
@@ -125,11 +131,11 @@ func (p *ExternExportsPass) exportedPath(e externExport) string {
 }
 
 func (p *ExternExportsPass) exportValue(e externExport) rhino.Node {
-	qualifiedName := e.value.GetQualifiedName()
-	if qualifiedName == nil {
+	qualifiedName, ok := e.value.GetQualifiedNameString()
+	if !ok {
 		return rhino.NilNode
 	}
-	definition := p.definitionMap.Get(*qualifiedName)
+	definition := p.definitionMap[qualifiedName]
 	if definition.IsNil() {
 		return rhino.NilNode
 	}
@@ -333,10 +339,10 @@ func externExportsPass_computePathPrefixes(path string) []string {
 func NewExternExportsPass(compiler AbstractCompiler) *ExternExportsPass {
 	p := &ExternExportsPass{
 		compiler:             compiler,
-		definitionMap:        jutil.NewLinkedHashMap[string, rhino.Node](),
+		definitionMap:        make(map[string]rhino.Node),
 		externsRoot:          rhino.IR_Script(),
 		alreadyExportedPaths: make(map[string]struct{}),
-		mappedPaths:          jutil.NewLinkedHashMap[string, string](),
+		mappedPaths:          make(map[string]string),
 	}
 
 	p.InitExportMethods()
@@ -393,44 +399,51 @@ func (p *ExternExportsPass) SetGeneratedExternsOnCompiler() {
 
 // Java: ExternExportsPass.visit(NodeTraversal, Node, Node)
 func (p *ExternExportsPass) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
-	p.LookForQnameDefinition(n)
-	p.LookForAtExportOnThisDotProperty(t, n)
-	p.LookForSymbolExportCall(n)
-	p.LookForPropertyExportCall(n)
+	switch n.GetToken() {
+	case rhino.Token_CLASS, rhino.Token_FUNCTION, rhino.Token_ASSIGN, rhino.Token_NAME, rhino.Token_MEMBER_FUNCTION_DEF:
+		p.LookForQnameDefinition(n)
+	case rhino.Token_GETPROP:
+		p.LookForAtExportOnThisDotProperty(t, n)
+	case rhino.Token_CALL:
+		p.LookForSymbolExportCall(n)
+		p.LookForPropertyExportCall(n)
+	}
 }
 
 // Java: ExternExportsPass.lookForQnameDefinition(Node)
 func (p *ExternExportsPass) LookForQnameDefinition(n rhino.Node) {
 	if cls, ok := ast.AsClass(n); ok {
 		if NodeUtil_IsClassDeclaration(n) {
-			p.definitionMap.Put(cls.NameNode().GetString(), n)
+			p.definitionMap[cls.NameNode().GetString()] = n
 		}
 	} else if fn, ok := ast.AsFunction(n); ok {
 		if NodeUtil_IsFunctionDeclaration(n) {
-			p.definitionMap.Put(fn.NameNode().Ident(), n)
+			p.definitionMap[fn.NameNode().Ident()] = n
 		}
 	} else if assign, ok := ast.AsAssign(n); ok {
 		lhs := assign.Target().Node()
-		if lhs.IsQualifiedName() && (!lhs.HasChildren() || !lhs.GetFirstChild().IsThis()) {
-			p.definitionMap.Put(*lhs.GetQualifiedName(), assign.Value().Node())
+		if !lhs.HasChildren() || !lhs.GetFirstChild().IsThis() {
+			if qname, ok := lhs.GetQualifiedNameString(); ok {
+				p.definitionMap[qname] = assign.Value().Node()
+			}
 		}
 	} else if name, ok := ast.AsName(n); ok {
 		parent := rhino.CheckNotNullMsg1(n.GetParent(), "%s", n)
 		if NodeUtil_IsNameDeclaration(parent) {
 			if value, ok := name.Init(); ok {
-				p.definitionMap.Put(name.Ident(), value.Node())
+				p.definitionMap[name.Ident()] = value.Node()
 			}
 		}
 	} else if methodDef, ok := ast.AsMemberFunctionDef(n); ok {
 		if lvalueName := NodeUtil_GetBestLValueName(n); lvalueName != nil {
-			p.definitionMap.Put(*lvalueName, methodDef.Function().Node())
+			p.definitionMap[*lvalueName] = methodDef.Function().Node()
 		}
 	}
 }
 
 // Java: ExternExportsPass.lookForSymbolExportCall(Node)
 func (p *ExternExportsPass) LookForSymbolExportCall(n rhino.Node) {
-	call, ok := p.asCallToOneOf(n, p.exportSymbolFunction, "google_exportSymbol")
+	call, ok := p.asCallToOneOf(n, p.exportSymbolFunction, eepGoogleExportSymbolID)
 	if !ok || call.NumArgs() != 2 {
 		return
 	}
@@ -446,7 +459,7 @@ func (p *ExternExportsPass) LookForSymbolExportCall(n rhino.Node) {
 
 // Java: ExternExportsPass.lookForPropertyExportCall(Node)
 func (p *ExternExportsPass) LookForPropertyExportCall(n rhino.Node) {
-	call, ok := p.asCallToOneOf(n, p.exportPropertyFunction, "google_exportProperty")
+	call, ok := p.asCallToOneOf(n, p.exportPropertyFunction, eepGoogleExportPropertyID)
 	if !ok || call.NumArgs() != 3 {
 		return
 	}
@@ -454,30 +467,27 @@ func (p *ExternExportsPass) LookForPropertyExportCall(n rhino.Node) {
 	objectArg, _ := callOrNew.ArgAt(0)
 	nameArg, _ := callOrNew.ArgAt(1)
 	valueArg, _ := callOrNew.ArgAt(2)
-	if !objectArg.Node().IsQualifiedName() {
+	objectQName, ok := objectArg.Node().GetQualifiedNameString()
+	if !ok {
 		return
 	}
 	nameLit, ok := nameArg.AsStringLit()
 	if !ok {
 		return
 	}
-	p.addPropertyExport(*objectArg.Node().GetQualifiedName(), nameLit.Value(), valueArg.Node())
+	p.addPropertyExport(objectQName, nameLit.Value(), valueArg.Node())
 }
 
-func (p *ExternExportsPass) asCallToOneOf(n rhino.Node, fn1, fn2 string) (ast.Call, bool) {
+func (p *ExternExportsPass) asCallToOneOf(n rhino.Node, fn1 string, fn2ID uint32) (ast.Call, bool) {
 	call, ok := ast.AsCall(n)
 	if !ok {
 		return ast.Call{}, false
 	}
 	callee := call.Callee().Node()
-	if !callee.IsQualifiedName() {
-		return ast.Call{}, false
+	if (callee.IsName() && callee.GetStringID() == fn2ID) || (fn1 != "" && callee.MatchesQualifiedName(fn1)) {
+		return call, true
 	}
-	qname := *callee.GetQualifiedName()
-	if qname != fn1 && qname != fn2 {
-		return ast.Call{}, false
-	}
-	return call, true
+	return ast.Call{}, false
 }
 
 // Java: ExternExportsPass.lookForAtExportOnThisDotProperty(NodeTraversal, Node)
@@ -503,8 +513,12 @@ func (p *ExternExportsPass) LookForAtExportOnThisDotProperty(t *NodeTraversal, t
 		classNode = constructorNode
 	}
 	className := NodeUtil_GetName(classNode)
+	classNameStr := "null"
+	if className != nil {
+		classNameStr = *className
+	}
 	propertyName := gp.Property()
-	prototypeName := jutil.ToJavaString(className) + ".prototype"
+	prototypeName := classNameStr + ".prototype"
 	propertyNameNode := NodeUtil_NewQName(p.compiler, "this."+propertyName)
 
 	p.addPropertyExport(prototypeName, propertyName, propertyNameNode)

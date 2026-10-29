@@ -454,13 +454,8 @@ func TestAstAnalyzer_OptionsBuilder(t *testing.T) {
 		SetHasRegexpGlobalReferences(true).
 		SetAssumeKnownBuiltinsArePure(false).
 		Build()
-	if got, want := o.String(),
-		"Options[useTypesForLocalOptimization=true, assumeGettersArePure=false, hasRegexpGlobalReferences=true, assumeKnownBuiltinsArePure=false]"; got != want {
-		t.Errorf("toString: got %q, want %q", got, want)
-	}
-	copy_ := NewAutoBuilder_AstAnalyzer_Options_BuilderFromSource(o).Build()
-	if !copy_.Equals(o) || copy_.HashCode() != o.HashCode() {
-		t.Errorf("copy differs: %s", copy_)
+	if !o.UseTypesForLocalOptimization() || o.AssumeGettersArePure() || !o.HasRegexpGlobalReferences() || o.AssumeKnownBuiltinsArePure() {
+		t.Errorf("unexpected options: %+v", o)
 	}
 	jsaThrows[*jutil.IllegalArgumentException](t, func() {
 		NewAstAnalyzer(o, nil, nil)

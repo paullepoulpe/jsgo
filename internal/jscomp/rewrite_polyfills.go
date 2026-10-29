@@ -40,7 +40,8 @@ type RewritePolyfills struct {
 	polyfills           *PolyfillUsageFinder_Polyfills
 	injectPolyfills     bool
 	isolatePolyfills    bool
-	libraries           *jutil.LinkedHashSet[string]
+	libraries           []string
+	librariesSeen       map[string]struct{}
 	// Go-only: language-adapter — a nullable LanguageMode: nil is null.
 	injectPolyfillsNewerThan *CompilerOptions_LanguageMode
 }
@@ -115,7 +116,8 @@ func (r *RewritePolyfills) Process(externs rhino.Node, root rhino.Node) {
 		return
 	}
 	if r.injectPolyfills {
-		r.libraries = jutil.NewLinkedHashSet[string]()
+		r.libraries = nil
+		r.librariesSeen = make(map[string]struct{})
 		NewPolyfillUsageFinder(r.compiler, r.polyfills).TraverseExcludingGuarded(root, r.Inject)
 	}
 
@@ -123,7 +125,7 @@ func (r *RewritePolyfills) Process(externs rhino.Node, root rhino.Node) {
 	if r.injectPolyfillsNewerThan != nil {
 		polyfillsToInject :=
 			r.polyfills.GetPolyfillsNewerThan(*r.injectPolyfillsNewerThan)
-		librariesToInject = []string{}
+		librariesToInject = make([]string, 0, len(polyfillsToInject))
 		for _, p := range polyfillsToInject {
 			// Skip polyfills that have no associated library. This is true for language
 			// features like `Proxy` and `String.raw` that have no associated polyfill, hence
@@ -134,7 +136,7 @@ func (r *RewritePolyfills) Process(externs rhino.Node, root rhino.Node) {
 			}
 		}
 	} else {
-		librariesToInject = r.libraries.ToSlice()
+		librariesToInject = r.libraries
 	}
 
 	r.InjectAll(librariesToInject /* forceInjection= */, r.injectPolyfillsNewerThan != nil)
@@ -224,6 +226,12 @@ func (r *RewritePolyfills) Inject(polyfillUsage *PolyfillUsageFinder_PolyfillUsa
 	// version that introduced this symbol?"
 	if !outputFeatureSet.Contains(parser.FeatureSet_ValueOf(polyfill.nativeVersion)) &&
 		polyfill.library != "" {
-		r.libraries.Add(polyfill.library)
+		if r.librariesSeen == nil {
+			r.librariesSeen = make(map[string]struct{})
+		}
+		if _, seen := r.librariesSeen[polyfill.library]; !seen {
+			r.librariesSeen[polyfill.library] = struct{}{}
+			r.libraries = append(r.libraries, polyfill.library)
+		}
 	}
 }

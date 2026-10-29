@@ -26,11 +26,23 @@ type DiagnosticGroups struct{}
 
 var DiagnosticGroups_UNUSED = DiagnosticType_Warning("JSC_UNUSED", "{0}")
 
-var DiagnosticGroups_wildcardExcludedGroups = jutil.NewLinkedHashSet(
-	"reportUnknownTypes",
-	"analyzerChecks",
-	"missingSourcesWarnings",
-	"closureUnawareCodeAnnotationPresent")
+type diagnosticGroupNameSet map[string]struct{}
+
+func (s diagnosticGroupNameSet) Contains(name string) bool {
+	_, ok := s[name]
+	return ok
+}
+
+func (s diagnosticGroupNameSet) Size() int {
+	return len(s)
+}
+
+var DiagnosticGroups_wildcardExcludedGroups = diagnosticGroupNameSet{
+	"reportUnknownTypes":                  {},
+	"analyzerChecks":                      {},
+	"missingSourcesWarnings":              {},
+	"closureUnawareCodeAnnotationPresent": {},
+}
 
 // Java: DiagnosticGroups()
 func NewDiagnosticGroups() *DiagnosticGroups {

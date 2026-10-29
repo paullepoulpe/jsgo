@@ -26,7 +26,57 @@ import (
 	"github.com/paullepoulpe/jsgo/internal/parser"
 	"github.com/paullepoulpe/jsgo/internal/resources"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
+	"github.com/paullepoulpe/jsgo/internal/strpool"
 )
+
+var (
+	pufEmptyID      = uint32(strpool.Intern(""))
+	pufGoogID       = uint32(strpool.Intern("goog"))
+	pufGlobalID     = uint32(strpool.Intern("global"))
+	pufWindowID     = uint32(strpool.Intern("window"))
+	pufGoogGlobalID = uint32(strpool.Intern("goog$global"))
+	pufGlobalThisID = uint32(strpool.Intern("globalThis"))
+)
+
+type pufIDSet struct {
+	bits []uint64
+	high map[uint32]struct{}
+}
+
+func (s *pufIDSet) add(id uint32) {
+	if id < 131072 {
+		word := int(id >> 6)
+		if word >= len(s.bits) {
+			grown := make([]uint64, max(word+1, len(s.bits)*2))
+			copy(grown, s.bits)
+			s.bits = grown
+		}
+		s.bits[word] |= uint64(1) << (id & 63)
+		return
+	}
+	if s.high == nil {
+		s.high = make(map[uint32]struct{})
+	}
+	s.high[id] = struct{}{}
+}
+
+func (s *pufIDSet) has(id uint32) bool {
+	word := int(id >> 6)
+	if word < len(s.bits) {
+		return (s.bits[word] & (uint64(1) << (id & 63))) != 0
+	}
+	if s.high == nil {
+		return false
+	}
+	_, ok := s.high[id]
+	return ok
+}
+
+type pufMethodEntry struct {
+	methodName   string
+	dotGuardName string
+	polyfills    []*PolyfillUsageFinder_Polyfill
+}
 
 // PolyfillUsageFinder detects all potential usages of polyfilled classes or
 // methods
@@ -104,34 +154,47 @@ type PolyfillUsageFinder_Polyfills struct {
 	nativeVersions  []string
 	byNativeVersion map[string][]*PolyfillUsageFinder_Polyfill
 
-	staticsMap  map[string]*PolyfillUsageFinder_Polyfill
-	staticRoots map[string]struct{}
-	suffixesMap map[string]struct{}
-	methodsMap  map[string][]*PolyfillUsageFinder_Polyfill
-	anyPropMap  map[string]struct{}
+	staticsMap     map[string]*PolyfillUsageFinder_Polyfill
+	staticsOneByID map[uint32]*PolyfillUsageFinder_Polyfill
+	staticsPairMap map[[2]uint32]*PolyfillUsageFinder_Polyfill
+	staticNameIDs  pufIDSet
+	staticRootIDs  pufIDSet
+	suffixIDs      pufIDSet
+	anyPropIDs     pufIDSet
+	methodsByID    map[uint32]*pufMethodEntry
 }
 
 func (p *PolyfillUsageFinder_Polyfills) getStatic(name string) *PolyfillUsageFinder_Polyfill {
 	return p.staticsMap[name]
 }
 
-func (p *PolyfillUsageFinder_Polyfills) hasStaticRoot(name string) bool {
-	_, ok := p.staticRoots[name]
-	return ok
-}
-
-func (p *PolyfillUsageFinder_Polyfills) hasSuffix(s string) bool {
-	_, ok := p.suffixesMap[s]
-	return ok
-}
-
 func (p *PolyfillUsageFinder_Polyfills) getMethods(name string) []*PolyfillUsageFinder_Polyfill {
-	return p.methodsMap[name]
+	id := strpool.Lookup(name)
+	if id == 0 {
+		return nil
+	}
+	if entry := p.methodsByID[uint32(id)]; entry != nil {
+		return entry.polyfills
+	}
+	return nil
 }
 
-func (p *PolyfillUsageFinder_Polyfills) mightHavePropPolyfill(name string) bool {
-	_, ok := p.anyPropMap[name]
-	return ok
+func (p *PolyfillUsageFinder_Polyfills) lookupStaticChain(reversedIDs []uint32) *PolyfillUsageFinder_Polyfill {
+	switch len(reversedIDs) {
+	case 1:
+		return p.staticsOneByID[reversedIDs[0]]
+	case 2:
+		return p.staticsPairMap[[2]uint32{reversedIDs[1], reversedIDs[0]}]
+	default:
+		var sb strings.Builder
+		for i := len(reversedIDs) - 1; i >= 0; i-- {
+			if i < len(reversedIDs)-1 {
+				sb.WriteByte('.')
+			}
+			sb.WriteString(strpool.String(strpool.ID(reversedIDs[i])))
+		}
+		return p.staticsMap[sb.String()]
+	}
 }
 
 // PolyfillUsageFinder_Polyfills_FromTable builds a Polyfills instance from a
@@ -168,24 +231,25 @@ func polyfillUsageFinder_Polyfills_parseTable(table string) *PolyfillUsageFinder
 	p := &PolyfillUsageFinder_Polyfills{
 		byNativeVersion: make(map[string][]*PolyfillUsageFinder_Polyfill),
 		staticsMap:      make(map[string]*PolyfillUsageFinder_Polyfill),
-		staticRoots:     make(map[string]struct{}),
-		suffixesMap:     make(map[string]struct{}),
-		methodsMap:      make(map[string][]*PolyfillUsageFinder_Polyfill),
-		anyPropMap:      make(map[string]struct{}),
+		staticsOneByID:  make(map[uint32]*PolyfillUsageFinder_Polyfill),
+		staticsPairMap:  make(map[[2]uint32]*PolyfillUsageFinder_Polyfill),
+		methodsByID:     make(map[uint32]*pufMethodEntry),
 	}
 	for _, line := range strings.Split(table, "\n") {
 		if line == "" {
 			continue
 		}
+		trimmed := strings.TrimFunc(line, func(r rune) bool { return r <= ' ' })
+		if trimmed == "" {
+			continue
+		}
 		var tokens []string
-		for _, tok := range strings.Split(jutil.StringTrim(line), " ") {
+		for _, tok := range strings.Split(trimmed, " ") {
 			if tok != "" {
 				tokens = append(tokens, tok)
 			}
 		}
-		if len(tokens) == 1 && tokens[0] == "" {
-			continue
-		} else if len(tokens) < 3 {
+		if len(tokens) < 3 {
 			panic(jutil.NewIllegalArgumentExceptionMsg("Invalid table: too few tokens on line: " + line))
 		}
 		symbol := tokens[0]
@@ -210,19 +274,43 @@ func polyfillUsageFinder_Polyfills_parseTable(table string) *PolyfillUsageFinder
 				kind)
 		if isPrototypeMethod {
 			methodName := symbol[protoIdx+len(".prototype."):]
-			p.methodsMap[methodName] = append(p.methodsMap[methodName], polyfill)
-			p.anyPropMap[methodName] = struct{}{}
+			methodID := uint32(strpool.Intern(methodName))
+			entry := p.methodsByID[methodID]
+			if entry == nil {
+				entry = &pufMethodEntry{
+					methodName:   methodName,
+					dotGuardName: "." + methodName,
+				}
+				p.methodsByID[methodID] = entry
+			}
+			entry.polyfills = append(entry.polyfills, polyfill)
+			p.anyPropIDs.add(methodID)
 		} else {
 			if _, exists := p.staticsMap[symbol]; exists {
 				panic(jutil.NewIllegalArgumentExceptionMsg("Multiple entries with same key: " + symbol))
 			}
 			p.staticsMap[symbol] = polyfill
-			if dot := strings.IndexByte(symbol, '.'); dot > 0 {
-				p.staticRoots[symbol[:dot]] = struct{}{}
+			dot := strings.IndexByte(symbol, '.')
+			if dot < 0 {
+				symID := uint32(strpool.Intern(symbol))
+				p.staticsOneByID[symID] = polyfill
+				p.staticNameIDs.add(symID)
+				p.suffixIDs.add(symID)
+				p.anyPropIDs.add(symID)
+			} else {
+				var rootID uint32
+				if dot > 0 {
+					rootID = uint32(strpool.Intern(symbol[:dot]))
+					p.staticRootIDs.add(rootID)
+				}
+				lastDot := strings.LastIndexByte(symbol, '.')
+				suffixID := uint32(strpool.Intern(symbol[lastDot+1:]))
+				p.suffixIDs.add(suffixID)
+				p.anyPropIDs.add(suffixID)
+				if dot > 0 && dot == lastDot {
+					p.staticsPairMap[[2]uint32{rootID, suffixID}] = polyfill
+				}
 			}
-			suffix := symbol[strings.LastIndexByte(symbol, '.')+1:]
-			p.suffixesMap[suffix] = struct{}{}
-			p.anyPropMap[suffix] = struct{}{}
 		}
 		if _, exists := p.byNativeVersion[nativeVersionStr]; !exists {
 			p.nativeVersions = append(p.nativeVersions, nativeVersionStr)
@@ -417,7 +505,7 @@ func (tr *polyfillUsageFinder_Traverser) ShouldTraverse(traversal *NodeTraversal
 	if !parent.IsNil() && n.GetFirstChild().IsNil() && len(tr.registeredGuards) == 0 {
 		switch n.GetToken() {
 		case rhino.Token_NAME:
-			if tr.outer.polyfills.getStatic(n.GetString()) == nil {
+			if !tr.outer.polyfills.staticNameIDs.has(n.GetStringID()) {
 				return false
 			}
 		case rhino.Token_RETURN, rhino.Token_THROW:
@@ -448,13 +536,12 @@ func (tr *polyfillUsageFinder_Traverser) VisitGuarded(traversal *NodeTraversal, 
 
 // Java: PolyfillUsageFinder.Traverser.visitName(NodeTraversal, Node)
 func (tr *polyfillUsageFinder_Traverser) VisitName(traversal *NodeTraversal, nameNode rhino.Node) {
-	name := nameNode.GetString()
-	polyfill := tr.outer.polyfills.getStatic(name)
+	polyfill := tr.outer.polyfills.staticsOneByID[nameNode.GetStringID()]
 	if polyfill == nil {
 		// no polyfill exists for this name
 		return
 	}
-
+	name := polyfill.nativeSymbol
 	if tr.outer.IsPolyfillVisibleInScope(traversal, name) &&
 		tr.includeGuardedUsages.ShouldInclude(tr.canPossiblyBeGuarded() && tr.IsGuarded(name)) {
 		tr.polyfillConsumer(PolyfillUsageFinder_PolyfillUsage_CreateNonExplicit(polyfill, nameNode, name))
@@ -463,8 +550,8 @@ func (tr *polyfillUsageFinder_Traverser) VisitName(traversal *NodeTraversal, nam
 
 // Java: PolyfillUsageFinder.Traverser.visitGetPropChain(NodeTraversal, Node)
 func (tr *polyfillUsageFinder_Traverser) VisitGetPropChain(traversal *NodeTraversal, getPropNode rhino.Node) {
-	propertyName := getPropNode.GetString()
-	if !tr.outer.polyfills.mightHavePropPolyfill(propertyName) {
+	propID := getPropNode.GetStringID()
+	if !tr.outer.polyfills.anyPropIDs.has(propID) {
 		return
 	}
 	// First see if we have a usage that matches a full static polyfill name.
@@ -480,14 +567,14 @@ func (tr *polyfillUsageFinder_Traverser) VisitGetPropChain(traversal *NodeTraver
 		// several possible method polyfills.
 		// e.g. `obj.includes(x)` could be a usage of `Array.prototype.includes` or
 		// `String.prototype.includes`.
-		methodPolyfills := tr.outer.polyfills.getMethods(propertyName)
+		methodEntry := tr.outer.polyfills.methodsByID[propID]
 		// Note that we use ".foo" as the guard check for methods to keep them distinct in case
 		// there is also a static "foo" polyfill.
-		if len(methodPolyfills) != 0 &&
-			tr.includeGuardedUsages.ShouldInclude(tr.canPossiblyBeGuarded() && tr.IsGuarded("."+propertyName)) {
-			for _, polyfill := range methodPolyfills {
+		if methodEntry != nil &&
+			tr.includeGuardedUsages.ShouldInclude(tr.canPossiblyBeGuarded() && tr.IsGuarded(methodEntry.dotGuardName)) {
+			for _, polyfill := range methodEntry.polyfills {
 				tr.polyfillConsumer(
-					PolyfillUsageFinder_PolyfillUsage_CreateNonExplicit(polyfill, getPropNode, propertyName))
+					PolyfillUsageFinder_PolyfillUsage_CreateNonExplicit(polyfill, getPropNode, methodEntry.methodName))
 			}
 		}
 	}
@@ -497,37 +584,30 @@ func (tr *polyfillUsageFinder_Traverser) VisitGetPropChain(traversal *NodeTraver
 func (f *PolyfillUsageFinder) MaybeCreateStaticPolyfillUsageForGetPropChain(
 	traversal *NodeTraversal, getPropNode rhino.Node) *PolyfillUsageFinder_PolyfillUsage {
 	jutil.CheckArgumentMsg1(getPropNode.IsGetProp() || getPropNode.IsOptChainGetProp(), "%s", getPropNode)
-	lastComponent := getPropNode.GetString()
-	if !f.polyfills.hasSuffix(lastComponent) {
+	lastID := getPropNode.GetStringID()
+	if !f.polyfills.suffixIDs.has(lastID) {
 		// Save execution time by bailing out early if the property name at the end of the chain
 		// doesn't match any of the known polyfills.
 		return nil
 	}
 	firstChild := getPropNode.GetFirstChild()
 	if firstChild.IsName() {
-		rootName := firstChild.GetString()
-		if len(rootName) == 0 {
+		rootID := firstChild.GetStringID()
+		if rootID == 0 || rootID == pufEmptyID {
 			return nil
 		}
-		mayHaveGlobalPrefix := rootName == "goog" || rootName == "window" || rootName == "goog$global" || rootName == "globalThis"
-		if !mayHaveGlobalPrefix && !f.polyfills.hasStaticRoot(rootName) {
-			return nil
-		}
-		fullName := rootName + "." + lastComponent
-		var globalPrefix *string
-		if mayHaveGlobalPrefix {
-			globalPrefix = PolyfillUsageFinder_FindGlobalPrefix(fullName)
-		}
-		if globalPrefix != nil {
-			polyfill := f.polyfills.getStatic(jutil.StringSubstringFrom(fullName, jutil.StringLength(*globalPrefix)))
-			if polyfill != nil {
+		if rootID == pufWindowID || rootID == pufGoogGlobalID || rootID == pufGlobalThisID {
+			if polyfill := f.polyfills.staticsOneByID[lastID]; polyfill != nil {
 				return PolyfillUsageFinder_PolyfillUsage_CreateExplicit(polyfill, getPropNode, polyfill.nativeSymbol)
 			}
-		} else {
-			polyfill := f.polyfills.getStatic(fullName)
-			if polyfill != nil && f.IsPolyfillVisibleInScope(traversal, rootName) {
-				return PolyfillUsageFinder_PolyfillUsage_CreateNonExplicit(polyfill, getPropNode, polyfill.nativeSymbol)
-			}
+			return nil
+		}
+		if !f.polyfills.staticRootIDs.has(rootID) {
+			return nil
+		}
+		if polyfill := f.polyfills.staticsPairMap[[2]uint32{rootID, lastID}]; polyfill != nil &&
+			f.isPolyfillVisibleInScopeNode(traversal, firstChild) {
+			return PolyfillUsageFinder_PolyfillUsage_CreateNonExplicit(polyfill, getPropNode, polyfill.nativeSymbol)
 		}
 		return nil
 	}
@@ -536,70 +616,59 @@ func (f *PolyfillUsageFinder) MaybeCreateStaticPolyfillUsageForGetPropChain(
 	}
 	// NOTE: We are not using isQualifiedName() and getQualifiedName() here, because we want to
 	// locate the owner node and also have this code work for optional chains.
-	//
-	// Go-only: language-adapter — the ArrayDeque filled with addFirst is a
-	// slice filled from the end and reversed when joined.
-	var reversedComponentsBuf [8]string
-	reversedComponents := reversedComponentsBuf[:0]
-	reversedComponents = append(reversedComponents, lastComponent)
-	totalLen := len(lastComponent)
+	var reversedIDsBuf [8]uint32
+	reversedIDs := reversedIDsBuf[:0]
+	reversedIDs = append(reversedIDs, lastID)
 	var ownerNode rhino.Node
 	for ownerNode = firstChild; ownerNode.IsGetProp() || ownerNode.IsOptChainGetProp(); ownerNode = ownerNode.GetFirstChild() {
-		comp := ownerNode.GetString()
-		reversedComponents = append(reversedComponents, comp)
-		totalLen += 1 + len(comp)
+		reversedIDs = append(reversedIDs, ownerNode.GetStringID())
 	}
 	if !ownerNode.IsName() {
 		// Static polyfills are always fully qualified names beginning with a NAME node.
 		// e.g. `Array.from` or `globalThis.Promise`
 		return nil
 	}
-	rootName := ownerNode.GetString()
-	if len(rootName) == 0 {
+	rootID := ownerNode.GetStringID()
+	if rootID == 0 || rootID == pufEmptyID {
 		return nil
 	}
-	totalLen += 1 + len(rootName)
-	mayHaveGlobalPrefix := rootName == "goog" || rootName == "window" || rootName == "goog$global" || rootName == "globalThis"
-	if !mayHaveGlobalPrefix && !f.polyfills.hasStaticRoot(rootName) {
-		return nil
-	}
-	reversedComponents = append(reversedComponents, rootName)
-	var sb strings.Builder
-	sb.Grow(totalLen)
-	for i := len(reversedComponents) - 1; i >= 0; i-- {
-		sb.WriteString(reversedComponents[i])
-		if i > 0 {
-			sb.WriteByte('.')
-		}
-	}
-	fullName := sb.String()
-	var globalPrefix *string
-	if mayHaveGlobalPrefix {
-		globalPrefix = PolyfillUsageFinder_FindGlobalPrefix(fullName)
-	}
-	if globalPrefix != nil {
-		// The full name starts with a known global value, like `goog.global.` or `globalThis.`.
-		// We must strip that off before matching with the known polyfill names.
-		// (Note that the connecting '.' is included and will also be stripped.)
-		// Also, the presence of the explicit global value name means we don't have to check the
-		// scope for a shadowing variable as we do below.
-		polyfill := f.polyfills.getStatic(jutil.StringSubstringFrom(fullName, jutil.StringLength(*globalPrefix)))
-		if polyfill != nil {
+	// If the full name starts with a known global value, like `goog.global.` or `globalThis.`,
+	// we must strip that off before matching with the known polyfill names. Also, the presence of
+	// the explicit global value name means we don't have to check the scope for a shadowing
+	// variable.
+	if rootID == pufWindowID || rootID == pufGoogGlobalID || rootID == pufGlobalThisID {
+		if polyfill := f.polyfills.lookupStaticChain(reversedIDs); polyfill != nil {
 			return PolyfillUsageFinder_PolyfillUsage_CreateExplicit(polyfill, getPropNode, polyfill.nativeSymbol)
 		}
-	} else {
-		polyfill := f.polyfills.getStatic(fullName)
-		if polyfill != nil {
-			// If we see a declaration of the name, then it is defined by the source code,
-			// and we won't count it as a reference to our polyfill.
-			// Checking the scope is relatively expensive, so we don't want to do it until
-			// we've confirmed that this node looks like it could be a polyfill reference.
-			if f.IsPolyfillVisibleInScope(traversal, rootName) {
-				return PolyfillUsageFinder_PolyfillUsage_CreateNonExplicit(polyfill, getPropNode, polyfill.nativeSymbol)
-			}
+		return nil
+	}
+	if rootID == pufGoogID && reversedIDs[len(reversedIDs)-1] == pufGlobalID {
+		if polyfill := f.polyfills.lookupStaticChain(reversedIDs[:len(reversedIDs)-1]); polyfill != nil {
+			return PolyfillUsageFinder_PolyfillUsage_CreateExplicit(polyfill, getPropNode, polyfill.nativeSymbol)
+		}
+		return nil
+	}
+	if !f.polyfills.staticRootIDs.has(rootID) {
+		return nil
+	}
+	reversedIDs = append(reversedIDs, rootID)
+	if polyfill := f.polyfills.lookupStaticChain(reversedIDs); polyfill != nil {
+		// If we see a declaration of the name, then it is defined by the source code,
+		// and we won't count it as a reference to our polyfill.
+		// Checking the scope is relatively expensive, so we don't want to do it until
+		// we've confirmed that this node looks like it could be a polyfill reference.
+		if f.isPolyfillVisibleInScopeNode(traversal, ownerNode) {
+			return PolyfillUsageFinder_PolyfillUsage_CreateNonExplicit(polyfill, getPropNode, polyfill.nativeSymbol)
 		}
 	}
 	return nil
+}
+
+func (f *PolyfillUsageFinder) isPolyfillVisibleInScopeNode(t *NodeTraversal, rootNameNode rhino.Node) bool {
+	if f.compiler.GetLifeCycleStage() == AbstractCompiler_LifeCycleStage_NORMALIZED {
+		return true
+	}
+	return t.GetScope().GetVar(rootNameNode.GetString()) == nil
 }
 
 // IsPolyfillVisibleInScope returns whether the Polyfill name is visible in
@@ -626,12 +695,19 @@ func (f *PolyfillUsageFinder) IsPolyfillVisibleInScope(t *NodeTraversal, globalN
 		t.GetScope().GetVar(globalName) == nil
 }
 
-// Java: PolyfillUsageFinder.findGlobalPrefix(String)
-func PolyfillUsageFinder_FindGlobalPrefix(qualifiedName string) *string {
+func pufFindGlobalPrefix(qualifiedName string) (string, bool) {
 	for _, global := range polyfillUsageFinder_GLOBAL_NAMES {
 		if strings.HasPrefix(qualifiedName, global) {
-			return &global
+			return global, true
 		}
+	}
+	return "", false
+}
+
+// Java: PolyfillUsageFinder.findGlobalPrefix(String)
+func PolyfillUsageFinder_FindGlobalPrefix(qualifiedName string) *string {
+	if prefix, ok := pufFindGlobalPrefix(qualifiedName); ok {
+		return &prefix
 	}
 	return nil
 }

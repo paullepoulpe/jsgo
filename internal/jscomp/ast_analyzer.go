@@ -56,42 +56,98 @@ type AstAnalyzer struct {
 	hasRegexpGlobalReferences    bool
 }
 
-// The set of builtin constructors that don't have side effects.
-//
-// TODO(bradfordcsmith): If all of these are annotated sideefectfree, can we
-// drop this list?
-func astAnalyzerIsConstructorWithoutSideEffects(name string) bool {
-	switch name {
-	case "Array", "Date", "Error", "Object", "RegExp", "XMLHttpRequest":
-		return true
-	default:
-		return false
+type astAnalyzerNameFlag uint8
+
+const (
+	astAnalyzerFlagPureCtor astAnalyzerNameFlag = 1 << iota
+	astAnalyzerFlagPureBuiltinFn
+	astAnalyzerFlagMathPureMethod
+	astAnalyzerFlagRegexpMethod
+	astAnalyzerFlagStringRegexpMethod
+)
+
+var (
+	astAnalyzerIDFlags    []astAnalyzerNameFlag
+	astAnalyzerIDFlagsMap map[uint32]astAnalyzerNameFlag
+
+	astAnalyzerID_Math     uint32
+	astAnalyzerID_valueOf  uint32
+	astAnalyzerID_toString uint32
+	astAnalyzerID_random   uint32
+	astAnalyzerID_replace  uint32
+)
+
+func init() {
+	intern := func(s string) uint32 {
+		return rhino.IR_Name(s).GetStringID()
+	}
+
+	astAnalyzerID_Math = intern("Math")
+	astAnalyzerID_valueOf = intern("valueOf")
+	astAnalyzerID_toString = intern("toString")
+	astAnalyzerID_random = intern("random")
+	astAnalyzerID_replace = intern("replace")
+
+	type entry struct {
+		id   uint32
+		flag astAnalyzerNameFlag
+	}
+	entries := make([]entry, 0, 52)
+	add := func(flag astAnalyzerNameFlag, names ...string) {
+		for _, name := range names {
+			entries = append(entries, entry{id: intern(name), flag: flag})
+		}
+	}
+
+	// The set of builtin constructors that don't have side effects.
+	// TODO(bradfordcsmith): If all of these are annotated sideefectfree, can we
+	// drop this list?
+	add(astAnalyzerFlagPureCtor,
+		"Array", "Date", "Error", "Object", "RegExp", "XMLHttpRequest")
+
+	// Built-in object creation or primitive type cast functions that can also be
+	// called as constructors without side effects.
+	// TODO(johnlenz): consider adding an extern annotation for this.
+	add(astAnalyzerFlagPureBuiltinFn,
+		"Object", "Array", "String", "Number", "BigInt", "Boolean", "RegExp", "Error", "Symbol")
+
+	// Common Math functions with no side-effects.
+	add(astAnalyzerFlagMathPureMethod,
+		"abs", "acos", "acosh", "asin", "asinh", "atan", "atanh", "atan2",
+		"cbrt", "ceil", "cos", "cosh", "exp", "expm1", "floor", "hypot",
+		"log", "log10", "log1p", "log2", "max", "min", "pow", "round",
+		"sign", "sin", "sinh", "sqrt", "tan", "tanh", "trunc")
+
+	add(astAnalyzerFlagRegexpMethod, "test", "exec")
+	add(astAnalyzerFlagStringRegexpMethod, "match", "replace", "search", "split")
+
+	var maxID uint32
+	for _, e := range entries {
+		if e.id > maxID {
+			maxID = e.id
+		}
+	}
+	if maxID < 16384 {
+		astAnalyzerIDFlags = make([]astAnalyzerNameFlag, maxID+1)
+		for _, e := range entries {
+			astAnalyzerIDFlags[e.id] |= e.flag
+		}
+	} else {
+		astAnalyzerIDFlagsMap = make(map[uint32]astAnalyzerNameFlag, len(entries))
+		for _, e := range entries {
+			astAnalyzerIDFlagsMap[e.id] |= e.flag
+		}
 	}
 }
 
-// Built-in object creation or primitive type cast functions that can also be
-// called as constructors without side effects.
-// TODO(johnlenz): consider adding an extern annotation for this.
-func astAnalyzerIsBuiltinFunctionWithoutSideEffects(name string) bool {
-	switch name {
-	case "Object", "Array", "String", "Number", "BigInt", "Boolean", "RegExp", "Error", "Symbol":
-		return true
-	default:
-		return false
+func astAnalyzerHasNameFlag(id uint32, flag astAnalyzerNameFlag) bool {
+	if int(id) < len(astAnalyzerIDFlags) {
+		return astAnalyzerIDFlags[id]&flag != 0
 	}
-}
-
-func astAnalyzerIsRegexpMethod(method string) bool {
-	return method == "test" || method == "exec"
-}
-
-func astAnalyzerIsStringRegexpMethod(method string) bool {
-	switch method {
-	case "match", "replace", "search", "split":
-		return true
-	default:
-		return false
+	if astAnalyzerIDFlagsMap != nil {
+		return astAnalyzerIDFlagsMap[id]&flag != 0
 	}
+	return false
 }
 
 // Java: AstAnalyzer(AstAnalyzer.Options, JSTypeRegistry, AccessorSummary)
@@ -102,14 +158,14 @@ func NewAstAnalyzer(
 	jutil.CheckArgumentMsg(
 		options.assumeGettersArePure || accessorSummary != nil,
 		"accessorSummary must be provided if assumeGettersArePure is false")
-	a := &AstAnalyzer{}
-	a.typeRegistry = typeRegistry
-	a.accessorSummary = accessorSummary
-	a.useTypesForLocalOptimization = options.useTypesForLocalOptimization
-	a.assumeGettersArePure = options.assumeGettersArePure
-	a.hasRegexpGlobalReferences = options.hasRegexpGlobalReferences
-	a.assumeKnownBuiltinsArePure = options.assumeKnownBuiltinsArePure
-	return a
+	return &AstAnalyzer{
+		typeRegistry:                 typeRegistry,
+		accessorSummary:              accessorSummary,
+		useTypesForLocalOptimization: options.useTypesForLocalOptimization,
+		assumeGettersArePure:         options.assumeGettersArePure,
+		hasRegexpGlobalReferences:    options.hasRegexpGlobalReferences,
+		assumeKnownBuiltinsArePure:   options.assumeKnownBuiltinsArePure,
+	}
 }
 
 // AstAnalyzer_Options is the record AstAnalyzer.Options.
@@ -152,118 +208,48 @@ func (o *AstAnalyzer_Options) AssumeKnownBuiltinsArePure() bool {
 	return o.assumeKnownBuiltinsArePure
 }
 
-// Equals is the record's componentwise equals.
-//
-// Java: AstAnalyzer.Options.equals(Object)
-func (o *AstAnalyzer_Options) Equals(other any) bool {
-	that, ok := other.(*AstAnalyzer_Options)
-	return ok && that != nil &&
-		o.useTypesForLocalOptimization == that.useTypesForLocalOptimization &&
-		o.assumeGettersArePure == that.assumeGettersArePure &&
-		o.hasRegexpGlobalReferences == that.hasRegexpGlobalReferences &&
-		o.assumeKnownBuiltinsArePure == that.assumeKnownBuiltinsArePure
-}
-
-// HashCode is the record's hashCode (31 * h + Boolean.hashCode(c) per
-// component, as java.lang.runtime.ObjectMethods computes it).
-//
-// Java: AstAnalyzer.Options.hashCode()
-func (o *AstAnalyzer_Options) HashCode() int32 {
-	h := int32(0)
-	for _, c := range [...]bool{
-		o.useTypesForLocalOptimization,
-		o.assumeGettersArePure,
-		o.hasRegexpGlobalReferences,
-		o.assumeKnownBuiltinsArePure,
-	} {
-		bh := int32(1237)
-		if c {
-			bh = 1231
-		}
-		h = 31*h + bh
-	}
-	return h
-}
-
-// String is the record's toString.
-//
-// Java: AstAnalyzer.Options.toString()
-func (o *AstAnalyzer_Options) String() string {
-	return "Options[useTypesForLocalOptimization=" + jutil.ToJavaString(o.useTypesForLocalOptimization) +
-		", assumeGettersArePure=" + jutil.ToJavaString(o.assumeGettersArePure) +
-		", hasRegexpGlobalReferences=" + jutil.ToJavaString(o.hasRegexpGlobalReferences) +
-		", assumeKnownBuiltinsArePure=" + jutil.ToJavaString(o.assumeKnownBuiltinsArePure) + "]"
-}
-
-// AstAnalyzer_Options_Builder is the @AutoBuilder interface
-// AstAnalyzer.Options.Builder.
-//
-// Go-only: language-adapter — the AutoBuilder-generated
-// AutoBuilder_AstAnalyzer_Options_Builder (its only implementation) is
-// folded into this struct.
+// AstAnalyzer_Options_Builder builds AstAnalyzer_Options.
 type AstAnalyzer_Options_Builder struct {
-	useTypesForLocalOptimization bool
-	assumeGettersArePure         bool
-	hasRegexpGlobalReferences    bool
-	assumeKnownBuiltinsArePure   bool
+	opts AstAnalyzer_Options
 }
 
 // Java: AstAnalyzer.Options.builder()
 func AstAnalyzer_Options_Builder_() *AstAnalyzer_Options_Builder {
-	return NewAutoBuilder_AstAnalyzer_Options_Builder()
-}
-
-// Java: AutoBuilder_AstAnalyzer_Options_Builder()
-func NewAutoBuilder_AstAnalyzer_Options_Builder() *AstAnalyzer_Options_Builder {
 	return &AstAnalyzer_Options_Builder{}
-}
-
-// Java: AutoBuilder_AstAnalyzer_Options_Builder(AstAnalyzer.Options)
-func NewAutoBuilder_AstAnalyzer_Options_BuilderFromSource(
-	source *AstAnalyzer_Options) *AstAnalyzer_Options_Builder {
-	return &AstAnalyzer_Options_Builder{
-		useTypesForLocalOptimization: source.UseTypesForLocalOptimization(),
-		assumeGettersArePure:         source.AssumeGettersArePure(),
-		hasRegexpGlobalReferences:    source.HasRegexpGlobalReferences(),
-		assumeKnownBuiltinsArePure:   source.AssumeKnownBuiltinsArePure(),
-	}
 }
 
 // Java: AutoBuilder_AstAnalyzer_Options_Builder.setUseTypesForLocalOptimization(boolean)
 func (b *AstAnalyzer_Options_Builder) SetUseTypesForLocalOptimization(
 	useTypesForLocalOptimization bool) *AstAnalyzer_Options_Builder {
-	b.useTypesForLocalOptimization = useTypesForLocalOptimization
+	b.opts.useTypesForLocalOptimization = useTypesForLocalOptimization
 	return b
 }
 
 // Java: AutoBuilder_AstAnalyzer_Options_Builder.setAssumeGettersArePure(boolean)
 func (b *AstAnalyzer_Options_Builder) SetAssumeGettersArePure(
 	assumeGettersArePure bool) *AstAnalyzer_Options_Builder {
-	b.assumeGettersArePure = assumeGettersArePure
+	b.opts.assumeGettersArePure = assumeGettersArePure
 	return b
 }
 
 // Java: AutoBuilder_AstAnalyzer_Options_Builder.setHasRegexpGlobalReferences(boolean)
 func (b *AstAnalyzer_Options_Builder) SetHasRegexpGlobalReferences(
 	hasRegexpGlobalReferences bool) *AstAnalyzer_Options_Builder {
-	b.hasRegexpGlobalReferences = hasRegexpGlobalReferences
+	b.opts.hasRegexpGlobalReferences = hasRegexpGlobalReferences
 	return b
 }
 
 // Java: AutoBuilder_AstAnalyzer_Options_Builder.setAssumeKnownBuiltinsArePure(boolean)
 func (b *AstAnalyzer_Options_Builder) SetAssumeKnownBuiltinsArePure(
 	assumeKnownBuiltinsArePure bool) *AstAnalyzer_Options_Builder {
-	b.assumeKnownBuiltinsArePure = assumeKnownBuiltinsArePure
+	b.opts.assumeKnownBuiltinsArePure = assumeKnownBuiltinsArePure
 	return b
 }
 
 // Java: AutoBuilder_AstAnalyzer_Options_Builder.build()
 func (b *AstAnalyzer_Options_Builder) Build() *AstAnalyzer_Options {
-	return NewAstAnalyzer_Options(
-		b.useTypesForLocalOptimization,
-		b.assumeGettersArePure,
-		b.hasRegexpGlobalReferences,
-		b.assumeKnownBuiltinsArePure)
+	opts := b.opts
+	return &opts
 }
 
 // MayEffectMutableState returns true if the node may create new mutable
@@ -316,17 +302,17 @@ func (a *AstAnalyzer) FunctionCallHasSideEffects(callNode rhino.Node) bool {
 
 	// Built-in functions with no side effects.
 	if name, ok := callee.AsName(); ok {
-		if a.assumeKnownBuiltinsArePure && astAnalyzerIsBuiltinFunctionWithoutSideEffects(name.Ident()) {
+		if a.assumeKnownBuiltinsArePure && astAnalyzerHasNameFlag(name.Node().GetStringID(), astAnalyzerFlagPureBuiltinFn) {
 			return false
 		}
 	} else if getProp, ok := callee.AsNormalOrOptChainGetProp(); ok {
-		method := getProp.Property()
+		methodID := getProp.Node().GetStringID()
 		obj := getProp.Object()
 		if a.assumeKnownBuiltinsArePure {
 			var pureMethodCall bool
-			if method == "valueOf" {
+			if methodID == astAnalyzerID_valueOf {
 				pureMethodCall = isCall && !call.HasArgs()
-			} else if method == "toString" {
+			} else if methodID == astAnalyzerID_toString {
 				if isCall {
 					firstArg, hasArgs := call.FirstArg()
 					pureMethodCall = !hasArgs || firstArg.IsLast()
@@ -349,63 +335,31 @@ func (a *AstAnalyzer) FunctionCallHasSideEffects(callNode rhino.Node) bool {
 		// I create a definitionProvider that understands namespacing.
 		if objName, isName := obj.AsName(); a.assumeKnownBuiltinsArePure &&
 			isName &&
-			getProp.Node().IsQualifiedName() &&
-			objName.Ident() == "Math" {
-			switch method {
-			case "abs",
-				"acos",
-				"acosh",
-				"asin",
-				"asinh",
-				"atan",
-				"atanh",
-				"atan2",
-				"cbrt",
-				"ceil",
-				"cos",
-				"cosh",
-				"exp",
-				"expm1",
-				"floor",
-				"hypot",
-				"log",
-				"log10",
-				"log1p",
-				"log2",
-				"max",
-				"min",
-				"pow",
-				"round",
-				"sign",
-				"sin",
-				"sinh",
-				"sqrt",
-				"tan",
-				"tanh",
-				"trunc":
+			objName.Node().GetStringID() == astAnalyzerID_Math &&
+			getProp.Node().IsQualifiedName() {
+			if astAnalyzerHasNameFlag(methodID, astAnalyzerFlagMathPureMethod) {
 				return false
-			case "random":
+			}
+			if methodID == astAnalyzerID_random {
 				// no parameters
 				return !isCall || call.HasArgs()
-			default:
-				// Unknown Math.* function, so fall out of this switch statement.
 			}
 		}
 
 		if !a.hasRegexpGlobalReferences && a.assumeKnownBuiltinsArePure {
-			if _, isRegExp := obj.AsRegExp(); isRegExp && astAnalyzerIsRegexpMethod(method) {
+			if _, isRegExp := obj.AsRegExp(); isRegExp && astAnalyzerHasNameFlag(methodID, astAnalyzerFlagRegexpMethod) {
 				return false
-			} else if a.IsTypedAsString(obj.Node()) && isCall {
+			} else if isCall &&
+				astAnalyzerHasNameFlag(methodID, astAnalyzerFlagStringRegexpMethod) &&
+				a.IsTypedAsString(obj.Node()) {
 				// Unlike regexs, string methods don't need to be hosted on a string literal
 				// to avoid leaking mutating global state changes, it is just necessary that
 				// the regex object can't be referenced.
 				if param, hasParam := call.FirstArg(); hasParam {
 					if _, isStr := param.AsStringLit(); isStr {
-						if astAnalyzerIsStringRegexpMethod(method) {
-							return false
-						}
+						return false
 					} else if _, isRe := param.AsRegExp(); isRe {
-						if "replace" == method {
+						if methodID == astAnalyzerID_replace {
 							// Assume anything but a string constant has side-effects
 							secondArg, hasSecond := param.Next()
 							if !hasSecond {
@@ -413,9 +367,8 @@ func (a *AstAnalyzer) FunctionCallHasSideEffects(callNode rhino.Node) bool {
 							}
 							_, secondIsStr := secondArg.AsStringLit()
 							return !secondIsStr
-						} else if astAnalyzerIsStringRegexpMethod(method) {
-							return false
 						}
+						return false
 					}
 				}
 			}
@@ -723,7 +676,7 @@ func (a *AstAnalyzer) ConstructorCallHasSideEffects(newNode rhino.Node) bool {
 	calleeName, isName := newExpr.Callee().AsName()
 	return !isName ||
 		!a.assumeKnownBuiltinsArePure ||
-		!astAnalyzerIsConstructorWithoutSideEffects(calleeName.Ident())
+		!astAnalyzerHasNameFlag(calleeName.Node().GetStringID(), astAnalyzerFlagPureCtor)
 }
 
 // NodeTypeMayHaveSideEffects returns true if the current node's type

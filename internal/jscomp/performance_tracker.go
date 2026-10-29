@@ -19,15 +19,24 @@
 package jscomp
 
 import (
+	"cmp"
 	"iter"
 	"slices"
-	"sort"
+	"strconv"
 	"strings"
 	"time"
 
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
+
+// PerformanceTracker_StatsMap maps pass names to their cumulative statistics.
+type PerformanceTracker_StatsMap map[string]*PerformanceTracker_Stats
+
+// Get returns the cumulative Stats for passName, or nil if absent.
+func (m PerformanceTracker_StatsMap) Get(passName string) *PerformanceTracker_Stats {
+	return m[passName]
+}
 
 // PerformanceTracker collects statistics about the runtime of each pass,
 // and how much a pass impacts the size of the compiled output, before and
@@ -82,10 +91,12 @@ type PerformanceTracker struct {
 	// ArrayDeque used as a stack: the top is the last element.
 	currentPass []*PerformanceTracker_Stats
 
-	// Cumulative stats for each compiler pass.
-	passSummary *jutil.LinkedHashMap[string, *PerformanceTracker_Stats]
+	// Cumulative stats for each compiler pass, plus first-seen order.
+	passSummary      PerformanceTracker_StatsMap
+	passSummaryOrder []*PerformanceTracker_Stats
 
-	astManifest *jutil.ImmutableMultiset[rhino.Token]
+	astManifest          [256]int32
+	astManifestPopulated bool
 
 	// Stats a single run of a compiler pass.
 	log []*PerformanceTracker_Stats
@@ -355,7 +366,7 @@ func (p *PerformanceTracker) GetLoopRuns() int {
 }
 
 // Java: PerformanceTracker.getStats()
-func (p *PerformanceTracker) GetStats() *jutil.LinkedHashMap[string, *PerformanceTracker_Stats] {
+func (p *PerformanceTracker) GetStats() PerformanceTracker_StatsMap {
 	p.CalcTotalStats()
 	return p.passSummary
 }
@@ -370,7 +381,7 @@ func (p *PerformanceTracker) CalcTotalStats() {
 
 	p.PopulatePassSummary()
 
-	for stats := range p.passSummary.Values() {
+	for _, stats := range p.passSummaryOrder {
 		p.passesRuntime = int(int32(int64(p.passesRuntime) + stats.runtime))
 		p.maxMem = max(p.maxMem, stats.allocMem)
 		p.runs += stats.runs
@@ -390,14 +401,17 @@ func (p *PerformanceTracker) CalcTotalStats() {
 
 // Java: PerformanceTracker.populatePassSummary()
 func (p *PerformanceTracker) PopulatePassSummary() {
-	tmpPassSummary := jutil.NewLinkedHashMap[string, *PerformanceTracker_Stats]()
+	p.passSummary = make(PerformanceTracker_StatsMap, len(p.log))
+	p.passSummaryOrder = make([]*PerformanceTracker_Stats, 0, len(p.log))
 
 	for _, logStat := range p.log {
 		passName := logStat.pass
-		entry :=
-			tmpPassSummary.ComputeIfAbsent(passName, func(k string) *PerformanceTracker_Stats {
-				return NewPerformanceTracker_Stats(k, logStat.isOneTime)
-			})
+		entry := p.passSummary[passName]
+		if entry == nil {
+			entry = NewPerformanceTracker_Stats(passName, logStat.isOneTime)
+			p.passSummary[passName] = entry
+			p.passSummaryOrder = append(p.passSummaryOrder, entry)
+		}
 		entry.runtime += logStat.runtime
 		entry.allocMem = max(entry.allocMem, logStat.allocMem)
 		entry.runs++
@@ -409,19 +423,17 @@ func (p *PerformanceTracker) PopulatePassSummary() {
 		// We used to put the size after the last time a pass was run, but that is
 		// a pretty meaningless thing to measure.
 	}
-
-	p.passSummary = jutil.NewLinkedHashMapFrom(tmpPassSummary)
 }
 
 // Java: PerformanceTracker.populateAstManifest()
 func (p *PerformanceTracker) PopulateAstManifest() {
-	if p.astManifest != nil {
+	if p.astManifestPopulated {
 		return
 	}
-
-	builder := jutil.NewImmutableMultiset_Builder[rhino.Token]()
-	NodeUtil_VisitPreOrder(p.jsRoot, NodeUtil_VisitorFunc(func(n rhino.Node) { builder.Add(n.GetToken()) }))
-	p.astManifest = builder.Build()
+	p.astManifestPopulated = true
+	NodeUtil_VisitPreOrder(p.jsRoot, NodeUtil_VisitorFunc(func(n rhino.Node) {
+		p.astManifest[n.GetToken()]++
+	}))
 }
 
 // Java: PerformanceTracker.setPruningAnalysisSummary(String)
@@ -518,22 +530,15 @@ func (p *PerformanceTracker) OutputTracerReport(output *jutil.PrintStream) {
 		}, "\n"))
 
 	output.Println("\nSummary:\npass,runtime,allocMem,runs,changingRuns,astReduction,reduction,gzReduction")
-	type passSummaryEntry struct {
-		key   string
-		stats *PerformanceTracker_Stats
-	}
-	var entries []passSummaryEntry
-	for key, stats := range p.passSummary.All() {
-		entries = append(entries, passSummaryEntry{key, stats})
-	}
+	entries := slices.Clone(p.passSummaryOrder)
 	// Stream.sorted is stable for an ordered stream.
-	sort.SliceStable(entries, func(i, j int) bool { return entries[i].stats.runtime < entries[j].stats.runtime })
-	for _, entry := range entries {
-		key := entry.key
-		stats := entry.stats
+	slices.SortStableFunc(entries, func(a, b *PerformanceTracker_Stats) int {
+		return cmp.Compare(a.runtime, b.runtime)
+	})
+	for _, stats := range entries {
 		output.Println(jutil.StringFormat(
 			"%s,%d,%d,%d,%d,%d,%d,%d",
-			key,
+			stats.pass,
 			stats.runtime,
 			stats.allocMem,
 			stats.runs,
@@ -559,13 +564,15 @@ func (p *PerformanceTracker) OutputTracerReport(output *jutil.PrintStream) {
 			stats.gzSize)
 	}
 
-	if p.astManifest != nil {
+	if p.astManifestPopulated {
 		output.Println("\nInput AST Manifest:\ntoken,count")
 		var lines []string
-		for element, count := range p.astManifest.EntrySet() {
-			lines = append(lines, jutil.StringFormat("%s,%d", element, count))
+		for tok, count := range p.astManifest {
+			if count > 0 {
+				lines = append(lines, rhino.Token(tok).String()+","+strconv.Itoa(int(count)))
+			}
 		}
-		slices.SortStableFunc(lines, jutil.StringCompareTo)
+		slices.SortFunc(lines, jutil.StringCompareTo)
 		for _, line := range lines {
 			output.Println(line)
 		}

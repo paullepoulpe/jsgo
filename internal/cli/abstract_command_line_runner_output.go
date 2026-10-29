@@ -37,37 +37,37 @@ import (
 // map.
 //
 // Java: AbstractCommandLineRunner.parseChunkWrappers(List<String>, Iterable<JSChunk>)
-func AbstractCommandLineRunner_ParseChunkWrappers(specs []string, chunks []*jscomp.JSChunk) *jutil.LinkedHashMap[string, string] {
+func AbstractCommandLineRunner_ParseChunkWrappers(specs []string, chunks []*jscomp.JSChunk) map[string]string {
 	jutil.CheckState(specs != nil)
 
-	wrappers := jutil.NewLinkedHashMap[string, string]()
+	wrappers := make(map[string]string, len(chunks))
 
 	// Prepopulate the map with chunk names.
 	for _, c := range chunks {
-		wrappers.Put(c.GetName(), "")
+		wrappers[c.GetName()] = ""
 	}
 
 	for _, spec := range specs {
 		// Format is "<name>:<wrapper>".
-		pos := jutil.StringIndexOfChar(spec, ':')
+		pos := strings.IndexByte(spec, ':')
 		if pos == -1 {
 			panic(jscomp.NewFlagUsageException(
 				"Expected chunk wrapper to have " + "<name>:<wrapper> format: " + spec))
 		}
 
 		// Parse chunk name.
-		name := jutil.StringSubstring(spec, 0, pos)
-		if !wrappers.ContainsKey(name) {
+		name := spec[:pos]
+		if _, ok := wrappers[name]; !ok {
 			panic(jscomp.NewFlagUsageException("Unknown chunk: '" + name + "'"))
 		}
-		wrapper := jutil.StringSubstringFrom(spec, pos+1)
+		wrapper := spec[pos+1:]
 		// Support for %n% and %output%
 		wrapper = strings.ReplaceAll(strings.ReplaceAll(wrapper, "%output%", "%s"), "%n%", "\n")
 		if !strings.Contains(wrapper, "%s") {
 			panic(jscomp.NewFlagUsageException("No %s placeholder in chunk wrapper: '" + wrapper + "'"))
 		}
 
-		wrappers.Put(name, wrapper)
+		wrappers[name] = wrapper
 	}
 	return wrappers
 }
@@ -81,24 +81,30 @@ func AbstractCommandLineRunner_ParseChunkWrappers(specs []string, chunks []*jsco
 // will have no entry in this map.
 //
 // Java: AbstractCommandLineRunner.parseChunkOutputFiles(List<String>)
-func abstractCommandLineRunner_parseChunkOutputFiles(specs []string) *jutil.LinkedHashMap[string, string] {
+func abstractCommandLineRunner_parseChunkOutputFiles(specs []string) map[string]string {
 	jutil.CheckArgument(specs != nil)
 
-	outputFilesBuilder := jutil.NewImmutableMapBuilder[string, string]()
+	if len(specs) == 0 {
+		return map[string]string{}
+	}
 
+	entries := make([]PipeFlagEntry, 0, len(specs))
 	for _, spec := range specs {
 		// Format is "<name>:<output_file>".
-		pos := jutil.StringIndexOfChar(spec, ':')
+		pos := strings.IndexByte(spec, ':')
 		if pos == -1 {
 			panic(jscomp.NewFlagUsageException(
 				"Expected chunk_output_file to have " + "<name>:<output_file> format: " + spec))
 		}
-
-		name := jutil.StringSubstring(spec, 0, pos)
-		filename := jutil.StringSubstringFrom(spec, pos+1)
-		outputFilesBuilder.Put(name, filename)
+		entries = append(entries, PipeFlagEntry{Key: spec[:pos], Value: spec[pos+1:]})
 	}
-	return outputFilesBuilder.BuildOrThrow()
+	checkNoDuplicatePipeFlagKeys(entries)
+
+	outputFiles := make(map[string]string, len(entries))
+	for _, e := range entries {
+		outputFiles[e.Key] = e.Value
+	}
+	return outputFiles
 }
 
 // GetChunkOutputFileName returns the output file name for a chunk.
@@ -114,7 +120,7 @@ func (r *AbstractCommandLineRunnerBase) GetChunkOutputFileName(m *jscomp.JSChunk
 	if r.parsedChunkOutputFiles == nil {
 		r.parsedChunkOutputFiles = abstractCommandLineRunner_parseChunkOutputFiles(r.config.chunkOutputFiles)
 	}
-	if outputFile, ok := r.parsedChunkOutputFiles.Lookup(m.GetName()); ok {
+	if outputFile, ok := r.parsedChunkOutputFiles[m.GetName()]; ok {
 		return r.config.chunkOutputPathPrefix + outputFile
 	}
 	return r.config.chunkOutputPathPrefix + m.GetName() + ".js"
@@ -128,7 +134,7 @@ func (r *AbstractCommandLineRunnerBase) GetChunkConformanceFileName(m *jscomp.JS
 	if r.parsedChunkConformanceFiles == nil {
 		r.parsedChunkConformanceFiles = abstractCommandLineRunner_parseChunkOutputFiles(r.config.chunkConformanceFiles)
 	}
-	if name, ok := r.parsedChunkConformanceFiles.Lookup(m.GetName()); ok {
+	if name, ok := r.parsedChunkConformanceFiles[m.GetName()]; ok {
 		return &name
 	}
 	return nil
@@ -150,7 +156,7 @@ func (r *AbstractCommandLineRunnerBase) WriteChunkOutput(fileName string, out ju
 		r.compiler,
 		lt,
 		m,
-		strings.ReplaceAll(r.parsedChunkWrappers.Get(m.GetName()), "%basename%", baseName),
+		strings.ReplaceAll(r.parsedChunkWrappers[m.GetName()], "%basename%", baseName),
 		"%s",
 		nil,
 		fileName)
@@ -490,7 +496,7 @@ func (r *AbstractCommandLineRunnerBase) outputChunksParallel(
 			return r.self.ExpandSourceMapPath(options, m)
 		},
 		WrapperTemplate: func(chunkName string) string {
-			return r.parsedChunkWrappers.Get(chunkName)
+			return r.parsedChunkWrappers[chunkName]
 		},
 		EnsureDir: func(filename *string) {
 			if filename == nil || *filename == "" {
@@ -967,7 +973,7 @@ func (r *AbstractCommandLineRunnerBase) PrintManifestTo(chunk *jscomp.JSChunk, o
 		}
 
 		displayName := name
-		if rootRelativePath, ok := r.rootRelativePathsMap.Lookup(name); ok {
+		if rootRelativePath, ok := r.rootRelativePathsMap[name]; ok {
 			displayName = rootRelativePath
 		}
 		out.AppendCharSequence(displayName)
@@ -1012,7 +1018,7 @@ func (r *AbstractCommandLineRunnerBase) PrintBundleTo(chunk *jscomp.JSChunk, out
 		}
 
 		displayName := input.GetName()
-		if rootRelativePath, ok := r.rootRelativePathsMap.Lookup(name); ok {
+		if rootRelativePath, ok := r.rootRelativePathsMap[name]; ok {
 			displayName = rootRelativePath
 		}
 		out.AppendCharSequence("//")

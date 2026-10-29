@@ -258,12 +258,12 @@ func (r *JSTypeRegistry) BuildRecordTypeFromObject(objType ObjectType) JSType {
 	if len(propNames) == 0 {
 		return r.GetNativeType(JSTypeNative_OBJECT_TYPE)
 	}
-	props := jutil.NewLinkedHashMap[string, JSType]()
+	builder := NewRecordTypeBuilder(r)
 	// Otherwise collect the properties and build a record type
 	for _, propName := range propNames {
-		props.Put(propName, objType.GetPropertyType(propName))
+		builder.AddProperty(propName, objType.GetPropertyType(propName), NilNode)
 	}
-	return r.CreateRecordType(props)
+	return builder.Build()
 }
 
 // Java: JSTypeRegistry.createRecordType(Map<String, ? extends JSType>)
@@ -279,13 +279,13 @@ func (r *JSTypeRegistry) CreateRecordType(props *jutil.LinkedHashMap[string, JST
 //
 // Java: JSTypeRegistry.createObjectType(String, ObjectType)
 func (r *JSTypeRegistry) CreateObjectType(name *string, implicitPrototype ObjectType) ObjectType {
-	fields := PrototypeObjectType_BuilderFields{
+	builder := PrototypeObjectType_Builder{
 		registry:          r,
 		className:         name,
 		implicitPrototype: implicitPrototype,
 		templateTypeMap:   r.GetEmptyTemplateTypeMap(),
 	}
-	return NewPrototypeObjectType(&fields)
+	return NewPrototypeObjectType(&builder)
 }
 
 // CreateAnonymousObjectType creates an anonymous object type.
@@ -294,12 +294,12 @@ func (r *JSTypeRegistry) CreateObjectType(name *string, implicitPrototype Object
 //
 // Java: JSTypeRegistry.createAnonymousObjectType(JSDocInfo)
 func (r *JSTypeRegistry) CreateAnonymousObjectType(info *JSDocInfo) ObjectType {
-	fields := PrototypeObjectType_BuilderFields{
+	builder := PrototypeObjectType_Builder{
 		registry:        r,
 		anonymousType:   true,
 		templateTypeMap: r.GetEmptyTemplateTypeMap(),
 	}
-	type_ := NewPrototypeObjectType(&fields)
+	type_ := NewPrototypeObjectType(&builder)
 	type_.SetPrettyPrint(true)
 	type_.SetJSDocInfo(info)
 	return type_

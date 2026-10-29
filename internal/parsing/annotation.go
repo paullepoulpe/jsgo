@@ -18,8 +18,6 @@
 
 package parsing
 
-import "github.com/paullepoulpe/jsgo/internal/jutil"
-
 // Annotation is the set of all natively recognized JSDoc annotations.
 type Annotation int32
 
@@ -204,87 +202,168 @@ func (a Annotation) Name() string { return annotation_names[a] }
 func (a Annotation) String() string { return a.Name() }
 
 // Java: Annotation.recognizedAnnotations
-var Annotation_recognizedAnnotations = func() *jutil.LinkedHashMap[string, Annotation] {
-	b := jutil.NewImmutableMapBuilder[string, Annotation]()
-	b.Put("ngInject", Annotation_NG_INJECT)
-	b.Put("abstract", Annotation_ABSTRACT)
-	b.Put("alternateMessageId", Annotation_ALTERNATE_MESSAGE_ID)
-	b.Put("argument", Annotation_PARAM)
-	b.Put("author", Annotation_AUTHOR)
-	b.Put("closurePrimitive", Annotation_CLOSURE_PRIMITIVE)
-	b.Put("closureUnaware", Annotation_CLOSURE_UNAWARE_CODE)
-	b.Put("const", Annotation_CONSTANT)
-	b.Put("collapsibleOrBreakMyCode", Annotation_COLLAPSIBLE_OR_BREAK_MY_CODE)
-	b.Put("constant", Annotation_CONSTANT)
-	b.Put("constructor", Annotation_CONSTRUCTOR)
-	b.Put("customElement", Annotation_CUSTOM_ELEMENT)
-	b.Put("copyright", Annotation_LICENSE)
-	b.Put("define", Annotation_DEFINE)
-	b.Put("deprecated", Annotation_DEPRECATED)
-	b.Put("desc", Annotation_DESC)
-	b.Put("dict", Annotation_DICT)
-	b.Put("requireInlining", Annotation_REQUIRE_INLINING)
-	b.Put("encourageInlining", Annotation_ENCOURAGE_INLINING)
-	b.Put("enum", Annotation_ENUM)
-	b.Put("enhance", Annotation_ENHANCE)
-	b.Put("export", Annotation_EXPORT)
-	b.Put("extends", Annotation_EXTENDS)
-	b.Put("externs", Annotation_EXTERNS)
-	b.Put("fileoverview", Annotation_FILE_OVERVIEW)
-	b.Put("final", Annotation_FINAL)
-	b.Put("idGenerator", Annotation_IDGENERATOR)
-	b.Put("implements", Annotation_IMPLEMENTS)
-	b.Put("implicitCast", Annotation_IMPLICIT_CAST)
-	b.Put("inheritDoc", Annotation_INHERIT_DOC)
-	b.Put("interface", Annotation_INTERFACE)
-	b.Put("record", Annotation_RECORD)
-	b.Put("lends", Annotation_LENDS)
-	b.Put("license", Annotation_LICENSE)
-	b.Put("logTypeInCompiler", Annotation_LOG_TYPE_IN_COMPILER)
-	b.Put("mayhaveextraedge", Annotation_MAY_HAVE_EXTRA_EDGE)
-	b.Put("meaning", Annotation_MEANING)
-	b.Put("mixinClass", Annotation_MIXIN_CLASS)
-	b.Put("mixinFunction", Annotation_MIXIN_FUNCTION)
-	b.Put("modifies", Annotation_MODIFIES)
-	b.Put("mods", Annotation_MODS)
-	b.Put("nocollapse", Annotation_NO_COLLAPSE)
-	b.Put("nocompile", Annotation_NO_COMPILE)
-	b.Put("nocoverage", Annotation_NO_COVERAGE)
-	b.Put("nodts", Annotation_NO_DTS)
-	b.Put("noinline", Annotation_NO_INLINE)
-	b.Put("nosideeffects", Annotation_NO_SIDE_EFFECTS)
-	b.Put("override", Annotation_OVERRIDE)
-	b.Put("owner", Annotation_AUTHOR)
-	b.Put("package", Annotation_PACKAGE)
-	b.Put("param", Annotation_PARAM)
-	b.Put("polymer", Annotation_POLYMER)
-	b.Put("polymerBehavior", Annotation_POLYMER_BEHAVIOR)
-	b.Put("preserve", Annotation_PRESERVE)
-	b.Put("private", Annotation_PRIVATE)
-	b.Put("protected", Annotation_PROTECTED)
-	b.Put("provideGoog", Annotation_PROVIDE_GOOG)
-	b.Put("provideAlreadyProvided", Annotation_PROVIDE_ALREADY_PROVIDED)
-	b.Put("public", Annotation_PUBLIC)
-	b.Put("pureOrBreakMyCode", Annotation_PURE_OR_BREAK_MY_CODE)
-	b.Put("return", Annotation_RETURN)
-	b.Put("returns", Annotation_RETURN)
-	b.Put("sassGeneratedCssTs", Annotation_SASS_GENERATED_CSS_TS)
-	b.Put("see", Annotation_SEE)
-	b.Put("soyModule", Annotation_SOY_MODULE)
-	b.Put("soyTemplate", Annotation_SOY_TEMPLATE)
-	b.Put("struct", Annotation_STRUCT)
-	b.Put("suppress", Annotation_SUPPRESS)
-	b.Put("template", Annotation_TEMPLATE)
-	b.Put("this", Annotation_THIS)
-	b.Put("throws", Annotation_THROWS)
-	b.Put("type", Annotation_TYPE)
-	b.Put("typedef", Annotation_TYPEDEF)
-	b.Put("typeSummary", Annotation_TYPE_SUMMARY)
-	b.Put("unrestricted", Annotation_UNRESTRICTED)
-	b.Put("usedViaDotConstructor", Annotation_USED_VIA_DOT_CONSTRUCTOR)
-	b.Put("wizaction", Annotation_WIZACTION)
-	b.Put("tsType", Annotation_TS_TYPE)
-	b.Put("wizAnalyzer", Annotation_WIZ_ANALYZER)
-	b.Put("wizcallback", Annotation_WIZCALLBACK)
-	return b.BuildOrThrow()
-}()
+var Annotation_recognizedAnnotations = map[string]Annotation{
+	"ngInject":                 Annotation_NG_INJECT,
+	"abstract":                 Annotation_ABSTRACT,
+	"alternateMessageId":       Annotation_ALTERNATE_MESSAGE_ID,
+	"argument":                 Annotation_PARAM,
+	"author":                   Annotation_AUTHOR,
+	"closurePrimitive":         Annotation_CLOSURE_PRIMITIVE,
+	"closureUnaware":           Annotation_CLOSURE_UNAWARE_CODE,
+	"const":                    Annotation_CONSTANT,
+	"collapsibleOrBreakMyCode": Annotation_COLLAPSIBLE_OR_BREAK_MY_CODE,
+	"constant":                 Annotation_CONSTANT,
+	"constructor":              Annotation_CONSTRUCTOR,
+	"customElement":            Annotation_CUSTOM_ELEMENT,
+	"copyright":                Annotation_LICENSE,
+	"define":                   Annotation_DEFINE,
+	"deprecated":               Annotation_DEPRECATED,
+	"desc":                     Annotation_DESC,
+	"dict":                     Annotation_DICT,
+	"requireInlining":          Annotation_REQUIRE_INLINING,
+	"encourageInlining":        Annotation_ENCOURAGE_INLINING,
+	"enum":                     Annotation_ENUM,
+	"enhance":                  Annotation_ENHANCE,
+	"export":                   Annotation_EXPORT,
+	"extends":                  Annotation_EXTENDS,
+	"externs":                  Annotation_EXTERNS,
+	"fileoverview":             Annotation_FILE_OVERVIEW,
+	"final":                    Annotation_FINAL,
+	"idGenerator":              Annotation_IDGENERATOR,
+	"implements":               Annotation_IMPLEMENTS,
+	"implicitCast":             Annotation_IMPLICIT_CAST,
+	"inheritDoc":               Annotation_INHERIT_DOC,
+	"interface":                Annotation_INTERFACE,
+	"record":                   Annotation_RECORD,
+	"lends":                    Annotation_LENDS,
+	"license":                  Annotation_LICENSE,
+	"logTypeInCompiler":        Annotation_LOG_TYPE_IN_COMPILER,
+	"mayhaveextraedge":         Annotation_MAY_HAVE_EXTRA_EDGE,
+	"meaning":                  Annotation_MEANING,
+	"mixinClass":               Annotation_MIXIN_CLASS,
+	"mixinFunction":            Annotation_MIXIN_FUNCTION,
+	"modifies":                 Annotation_MODIFIES,
+	"mods":                     Annotation_MODS,
+	"nocollapse":               Annotation_NO_COLLAPSE,
+	"nocompile":                Annotation_NO_COMPILE,
+	"nocoverage":               Annotation_NO_COVERAGE,
+	"nodts":                    Annotation_NO_DTS,
+	"noinline":                 Annotation_NO_INLINE,
+	"nosideeffects":            Annotation_NO_SIDE_EFFECTS,
+	"override":                 Annotation_OVERRIDE,
+	"owner":                    Annotation_AUTHOR,
+	"package":                  Annotation_PACKAGE,
+	"param":                    Annotation_PARAM,
+	"polymer":                  Annotation_POLYMER,
+	"polymerBehavior":          Annotation_POLYMER_BEHAVIOR,
+	"preserve":                 Annotation_PRESERVE,
+	"private":                  Annotation_PRIVATE,
+	"protected":                Annotation_PROTECTED,
+	"provideGoog":              Annotation_PROVIDE_GOOG,
+	"provideAlreadyProvided":   Annotation_PROVIDE_ALREADY_PROVIDED,
+	"public":                   Annotation_PUBLIC,
+	"pureOrBreakMyCode":        Annotation_PURE_OR_BREAK_MY_CODE,
+	"return":                   Annotation_RETURN,
+	"returns":                  Annotation_RETURN,
+	"sassGeneratedCssTs":       Annotation_SASS_GENERATED_CSS_TS,
+	"see":                      Annotation_SEE,
+	"soyModule":                Annotation_SOY_MODULE,
+	"soyTemplate":              Annotation_SOY_TEMPLATE,
+	"struct":                   Annotation_STRUCT,
+	"suppress":                 Annotation_SUPPRESS,
+	"template":                 Annotation_TEMPLATE,
+	"this":                     Annotation_THIS,
+	"throws":                   Annotation_THROWS,
+	"type":                     Annotation_TYPE,
+	"typedef":                  Annotation_TYPEDEF,
+	"typeSummary":              Annotation_TYPE_SUMMARY,
+	"unrestricted":             Annotation_UNRESTRICTED,
+	"usedViaDotConstructor":    Annotation_USED_VIA_DOT_CONSTRUCTOR,
+	"wizaction":                Annotation_WIZACTION,
+	"tsType":                   Annotation_TS_TYPE,
+	"wizAnalyzer":              Annotation_WIZ_ANALYZER,
+	"wizcallback":              Annotation_WIZCALLBACK,
+}
+
+var annotation_recognizedOrder = []string{
+	"ngInject",
+	"abstract",
+	"alternateMessageId",
+	"argument",
+	"author",
+	"closurePrimitive",
+	"closureUnaware",
+	"const",
+	"collapsibleOrBreakMyCode",
+	"constant",
+	"constructor",
+	"customElement",
+	"copyright",
+	"define",
+	"deprecated",
+	"desc",
+	"dict",
+	"requireInlining",
+	"encourageInlining",
+	"enum",
+	"enhance",
+	"export",
+	"extends",
+	"externs",
+	"fileoverview",
+	"final",
+	"idGenerator",
+	"implements",
+	"implicitCast",
+	"inheritDoc",
+	"interface",
+	"record",
+	"lends",
+	"license",
+	"logTypeInCompiler",
+	"mayhaveextraedge",
+	"meaning",
+	"mixinClass",
+	"mixinFunction",
+	"modifies",
+	"mods",
+	"nocollapse",
+	"nocompile",
+	"nocoverage",
+	"nodts",
+	"noinline",
+	"nosideeffects",
+	"override",
+	"owner",
+	"package",
+	"param",
+	"polymer",
+	"polymerBehavior",
+	"preserve",
+	"private",
+	"protected",
+	"provideGoog",
+	"provideAlreadyProvided",
+	"public",
+	"pureOrBreakMyCode",
+	"return",
+	"returns",
+	"sassGeneratedCssTs",
+	"see",
+	"soyModule",
+	"soyTemplate",
+	"struct",
+	"suppress",
+	"template",
+	"this",
+	"throws",
+	"type",
+	"typedef",
+	"typeSummary",
+	"unrestricted",
+	"usedViaDotConstructor",
+	"wizaction",
+	"tsType",
+	"wizAnalyzer",
+	"wizcallback",
+}

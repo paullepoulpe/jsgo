@@ -25,19 +25,99 @@ import (
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
 
+// generatorLabelMap is a lazy native Go map from label name to its break/continue
+// state cases. It allocates nothing until a generator contains labeled statements
+// wrapping yields.
+type generatorLabelMap map[string]generatorLabelCases
+
+func (m *generatorLabelMap) Put(k string, v generatorLabelCases) (generatorLabelCases, bool) {
+	if *m == nil {
+		*m = make(generatorLabelMap, 4)
+	}
+	old, existed := (*m)[k]
+	(*m)[k] = v
+	return old, existed
+}
+
+func (m generatorLabelMap) Get(k string) generatorLabelCases {
+	return m[k]
+}
+
+func (m generatorLabelMap) GetOk(k string) (generatorLabelCases, bool) {
+	v, ok := m[k]
+	return v, ok
+}
+
+func (m generatorLabelMap) ContainsKey(k string) bool {
+	_, ok := m[k]
+	return ok
+}
+
+func (m generatorLabelMap) Remove(k string) (generatorLabelCases, bool) {
+	v, ok := m[k]
+	if ok {
+		delete(m, k)
+	}
+	return v, ok
+}
+
+func (m generatorLabelMap) IsEmpty() bool {
+	return len(m) == 0
+}
+
+func (m generatorLabelMap) Size() int {
+	return len(m)
+}
+
+// generatorStringSet is a lazy native Go string set used to deduplicate hoisted
+// catch variable declarations in source encounter order.
+type generatorStringSet map[string]struct{}
+
+func (s *generatorStringSet) Add(k string) bool {
+	if _, exists := (*s)[k]; exists {
+		return false
+	}
+	if *s == nil {
+		*s = make(generatorStringSet, 4)
+	}
+	(*s)[k] = struct{}{}
+	return true
+}
+
+func (s generatorStringSet) Contains(k string) bool {
+	_, ok := s[k]
+	return ok
+}
+
+func (s generatorStringSet) Remove(k string) bool {
+	if _, ok := s[k]; ok {
+		delete(s, k)
+		return true
+	}
+	return false
+}
+
+func (s generatorStringSet) IsEmpty() bool {
+	return len(s) == 0
+}
+
+func (s generatorStringSet) Size() int {
+	return len(s)
+}
+
 // generatorTranspilationContext holds the state machine context used during
 // generator function transpilation.
 type generatorTranspilationContext struct {
 	pass *Es6RewriteGenerators
 	fn   *generatorFunctionTranspiler
 
-	namedLabels   *jutil.LinkedHashMap[string, generatorLabelCases]
+	namedLabels   generatorLabelMap
 	breakCases    []*generatorStateCase
 	continueCases []*generatorStateCase
 
 	catchCases   []generatorCatchCase
 	finallyCases []*generatorStateCase
-	catchNames   *jutil.LinkedHashSet[string]
+	catchNames   generatorStringSet
 
 	// All "case" sections that will be added to generator program.
 	allCases []*generatorStateCase
@@ -62,10 +142,8 @@ type generatorTranspilationContext struct {
 
 func newGeneratorTranspilationContext(pass *Es6RewriteGenerators, fn *generatorFunctionTranspiler) *generatorTranspilationContext {
 	c := &generatorTranspilationContext{
-		pass:        pass,
-		fn:          fn,
-		namedLabels: jutil.NewLinkedHashMap[string, generatorLabelCases](),
-		catchNames:  jutil.NewLinkedHashSet[string](),
+		pass: pass,
+		fn:   fn,
 	}
 	c.programEndCase = newGeneratorStateCase(pass, c)
 	jutil.CheckState(c.programEndCase.id == 0)
@@ -77,9 +155,7 @@ func newGeneratorTranspilationContext(pass *Es6RewriteGenerators, fn *generatorF
 
 // optimizeCaseIds shortcuts jump chains and merges unreferenced/embeddable cases.
 func (c *generatorTranspilationContext) optimizeCaseIds() {
-	if len(c.allCases) == 0 {
-		jutil.CheckStateMsg1(false, "%s", jutil.CollectionToString(c.allCases))
-	}
+	jutil.CheckStateMsg(len(c.allCases) != 0, "[]")
 
 	for _, currentCase := range c.allCases {
 		if currentCase.jumpTo != nil {

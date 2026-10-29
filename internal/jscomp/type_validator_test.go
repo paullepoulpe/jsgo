@@ -777,7 +777,7 @@ function f() {}
 }
 
 // Java: TypeValidatorTest.fromNatives(JSTypeNative, JSTypeNative)
-func (c *TypeValidatorTest) fromNatives(a rhino.JSTypeNative, b rhino.JSTypeNative) *TypeMismatch {
+func (c *TypeValidatorTest) fromNatives(a rhino.JSTypeNative, b rhino.JSTypeNative) TypeMismatch {
 	registry := c.GetLastCompiler().GetTypeRegistry()
 	return TypeMismatch_CreateForTesting(registry.GetNativeType(a), registry.GetNativeType(b))
 }
@@ -789,6 +789,6 @@ func (c *TypeValidatorTest) assertThatRecordedMismatches() *Subject {
 
 // Java: TypeValidatorTest.HAVE_SAME_TYPES
 var TypeValidatorTest_HAVE_SAME_TYPES = Correspondence_TransformingBoth(
-	func(x *TypeMismatch) []rhino.JSType { return []rhino.JSType{x.Found(), x.Required()} },
-	func(x *TypeMismatch) []rhino.JSType { return []rhino.JSType{x.Found(), x.Required()} },
+	func(x TypeMismatch) []rhino.JSType { return []rhino.JSType{x.Found(), x.Required()} },
+	func(x TypeMismatch) []rhino.JSType { return []rhino.JSType{x.Found(), x.Required()} },
 	"has same types as")

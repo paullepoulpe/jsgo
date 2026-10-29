@@ -44,6 +44,14 @@ var es6ConvertSuper_FEATURES_TO_RUN_FOR = parser.FeatureSet_BARE_MINIMUM.WithFea
 	parser.FeatureSet_Feature_CLASSES,
 )
 
+var es6ConvertSuperOriginalName = "super"
+
+func es6ConvertSuperIsMemberDef(n rhino.Node) bool {
+	_, isMethod := ast.AsMethodDef(n)
+	_, isCompProp := ast.AsComputedProp(n)
+	return isMethod || isCompProp
+}
+
 // Java: Es6ConvertSuper(AbstractCompiler)
 func NewEs6ConvertSuper(compiler AbstractCompiler) *Es6ConvertSuper {
 	return &Es6ConvertSuper{
@@ -73,13 +81,7 @@ func (e *Es6ConvertSuper) visitSuper(node rhino.Node, parent rhino.Node) {
 		exprRoot = exprRoot.GetParent()
 	}
 
-	enclosingMemberDef := NodeUtil_GetEnclosingNode(
-		exprRoot,
-		func(n rhino.Node) bool {
-			_, isMethod := ast.AsMethodDef(n)
-			_, isCompProp := ast.AsComputedProp(n)
-			return isMethod || isCompProp
-		})
+	enclosingMemberDef := NodeUtil_GetEnclosingNode(exprRoot, es6ConvertSuperIsMemberDef)
 
 	if enclosingMemberDef.IsNil() || enclosingMemberDef.GetParent().IsObjectLit() {
 		e.compiler.Report(
@@ -148,7 +150,7 @@ func (e *Es6ConvertSuper) visitSuperPropertyCall(node rhino.Node, parent rhino.N
 	callTarget := parent
 	if enclosingMemberDef.IsStaticMember() {
 		expandedSuper := superName.CloneTree().SrcrefTree(node)
-		expandedSuper.SetOriginalName(jutil.StringPtr("super"))
+		expandedSuper.SetOriginalName(&es6ConvertSuperOriginalName)
 		node.ReplaceWith(expandedSuper)
 		callTarget = e.astFactory.CreateGetPropWithUnknownType(callTarget.Detach(), "call")
 		grandparent.AddChildToFront(callTarget)
@@ -160,7 +162,7 @@ func (e *Es6ConvertSuper) visitSuperPropertyCall(node rhino.Node, parent rhino.N
 		e.ensureNoCollapseOnStaticMemberDef(enclosingMemberDef)
 	} else {
 		expandedSuper := e.astFactory.CreatePrototypeAccess(superName.CloneTree()).SrcrefTree(node)
-		expandedSuper.SetOriginalName(jutil.StringPtr("super"))
+		expandedSuper.SetOriginalName(&es6ConvertSuperOriginalName)
 		node.ReplaceWith(expandedSuper)
 		callTarget = e.astFactory.CreateGetPropWithUnknownType(callTarget.Detach(), "call")
 		grandparent.AddChildToFront(callTarget)
@@ -195,7 +197,7 @@ func (e *Es6ConvertSuper) visitSuperPropertyAccess(node rhino.Node, parent rhino
 	}
 
 	if gp, ok := ast.AsGetProp(parent); ok &&
-		e.compiler.GetAccessorSummary().GetKind(gp.Property()).HasGetter() {
+		e.compiler.GetAccessorSummary().GetKindByID(gp.Node().GetStringID()).HasGetter() {
 		superPlaceholder := rhino.IR_Name("sp")
 
 		reflectGet := e.astFactory.CreateGetPropWithUnknownType(
@@ -223,7 +225,7 @@ func (e *Es6ConvertSuper) visitSuperPropertyAccess(node rhino.Node, parent rhino
 	}
 
 	node.ReplaceWith(newProp)
-	newProp.SetOriginalName(jutil.StringPtr("super"))
+	newProp.SetOriginalName(&es6ConvertSuperOriginalName)
 
 	e.compiler.ReportChangeToEnclosingScope(grandparent)
 }

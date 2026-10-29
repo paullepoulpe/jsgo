@@ -40,7 +40,7 @@ type CheckSideEffects struct {
 
 	problemNodes []rhino.Node
 
-	noSideEffectExterns map[string]bool
+	noSideEffectExterns map[string]struct{}
 
 	compiler AbstractCompiler
 
@@ -68,10 +68,14 @@ const CheckSideEffects_PROTECTOR_FN = "JSCOMPILER_PRESERVE"
 // Java: CheckSideEffects.J2CL_PROTECTOR_FN
 const CheckSideEffects_J2CL_PROTECTOR_FN = "$J2CL_PRESERVE$"
 
+var (
+	checkSideEffectsProtectorID     = rhino.IR_Name(CheckSideEffects_PROTECTOR_FN).GetStringID()
+	checkSideEffectsJ2clProtectorID = rhino.IR_Name(CheckSideEffects_J2CL_PROTECTOR_FN).GetStringID()
+)
+
 // Java: CheckSideEffects(AbstractCompiler, boolean, boolean)
 func NewCheckSideEffects(compiler AbstractCompiler, report bool, protectSideEffectFreeCode bool) *CheckSideEffects {
 	return &CheckSideEffects{
-		noSideEffectExterns:       make(map[string]bool),
 		compiler:                  compiler,
 		report:                    report,
 		protectSideEffectFreeCode: protectSideEffectFreeCode,
@@ -207,7 +211,7 @@ func (c *CheckSideEffects) Visit(t *NodeTraversal, n rhino.Node, parent rhino.No
 					msg = "Is there a missing '+' on the previous line?"
 				} else if isSimpleOp {
 					msg = "The result of the '" +
-						jutil.StringToLowerCaseASCII(n.GetToken().String()) +
+						strings.ToLower(n.GetToken().String()) +
 						"' operator is not being used."
 				}
 
@@ -230,23 +234,25 @@ func (c *CheckSideEffects) Visit(t *NodeTraversal, n rhino.Node, parent rhino.No
 					qnameStr, ok = first.GetQualifiedNameString()
 				}
 
-				if ok && c.noSideEffectExterns[qnameStr] {
-					// The name should not be defined in src scopes - only externs
-					isDefinedInSrc := false
-					if first.IsGetProp() {
-						rootNameNode := NodeUtil_GetRootOfQualifiedName(first)
-						isDefinedInSrc = !rootNameNode.IsNil() &&
-							rootNameNode.IsName() &&
-							t.GetScope().GetVar(rootNameNode.GetString()) != nil
-					} else {
-						isDefinedInSrc = t.GetScope().GetVar(qnameStr) != nil
-					}
+				if ok {
+					if _, isNoSideEffect := c.noSideEffectExterns[qnameStr]; isNoSideEffect {
+						// The name should not be defined in src scopes - only externs
+						isDefinedInSrc := false
+						if first.IsGetProp() {
+							rootNameNode := NodeUtil_GetRootOfQualifiedName(first)
+							isDefinedInSrc = !rootNameNode.IsNil() &&
+								rootNameNode.IsName() &&
+								t.GetScope().GetVar(rootNameNode.GetString()) != nil
+						} else {
+							isDefinedInSrc = t.GetScope().GetVar(qnameStr) != nil
+						}
 
-					if !isDefinedInSrc {
-						c.problemNodes = append(c.problemNodes, n)
-						if c.report {
-							msg := "The result of the extern function call '" + qnameStr + "' is not being used."
-							t.Report(n, CheckSideEffects_USELESS_CODE_ERROR, msg)
+						if !isDefinedInSrc {
+							c.problemNodes = append(c.problemNodes, n)
+							if c.report {
+								msg := "The result of the extern function call '" + qnameStr + "' is not being used."
+								t.Report(n, CheckSideEffects_USELESS_CODE_ERROR, msg)
+							}
 						}
 					}
 				}
@@ -344,7 +350,8 @@ func (s *CheckSideEffects_StripProtection) Visit(t *NodeTraversal, n rhino.Node,
 			return
 		}
 
-		if target.GetString() == CheckSideEffects_J2CL_PROTECTOR_FN {
+		targetID := target.GetStringID()
+		if targetID == checkSideEffectsJ2clProtectorID {
 			// Do not let non-J2CL code abuse it.
 			jutil.CheckStateMsg(
 				J2clSourceUtils_IsJ2clSource(n.GetSourceFileName()), "Only allowed for J2CL code")
@@ -354,7 +361,7 @@ func (s *CheckSideEffects_StripProtection) Visit(t *NodeTraversal, n rhino.Node,
 
 		// TODO(johnlenz): add this to the coding convention
 		// so we can remove goog.reflect.sinkValue as well.
-		if target.GetString() == CheckSideEffects_PROTECTOR_FN {
+		if targetID == checkSideEffectsProtectorID {
 			expr := n.GetLastChild()
 			n.DetachChildren()
 			n.ReplaceWith(expr)
@@ -379,12 +386,15 @@ func (g *CheckSideEffects_GetNoSideEffectExterns) Visit(t *NodeTraversal, n rhin
 		jsDoc := NodeUtil_GetBestJSDocInfo(n)
 		if jsDoc != nil && jsDoc.IsNoSideEffects() {
 			if name, ok := NodeUtil_GetNameString(n); ok {
-				g.c.noSideEffectExterns[name] = true
+				if g.c.noSideEffectExterns == nil {
+					g.c.noSideEffectExterns = make(map[string]struct{})
+				}
+				g.c.noSideEffectExterns[name] = struct{}{}
 			}
 		}
 	}
 
-	if n.IsName() && CheckSideEffects_PROTECTOR_FN == n.GetString() {
+	if n.IsName() && n.GetStringID() == checkSideEffectsProtectorID {
 		g.c.preserveFunctionInjected = true
 	}
 }

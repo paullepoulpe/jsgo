@@ -50,6 +50,27 @@ func ObjectsEquals(a, b any) bool {
 	case int64:
 		y, ok := b.(int64)
 		return ok && x == y
+	case int16:
+		y, ok := b.(int16)
+		return ok && x == y
+	case int8:
+		y, ok := b.(int8)
+		return ok && x == y
+	case uint:
+		y, ok := b.(uint)
+		return ok && x == y
+	case uint64:
+		y, ok := b.(uint64)
+		return ok && x == y
+	case uint32:
+		y, ok := b.(uint32)
+		return ok && x == y
+	case uint16:
+		y, ok := b.(uint16)
+		return ok && x == y
+	case uint8:
+		y, ok := b.(uint8)
+		return ok && x == y
 	case bool:
 		y, ok := b.(bool)
 		return ok && x == y
@@ -66,13 +87,13 @@ func ObjectsEquals(a, b any) bool {
 		y, ok := b.(*string)
 		return ok && y != nil && *x == *y
 	}
-	ta := reflect.TypeOf(a)
-	switch ta.Kind() {
+	va := reflect.ValueOf(a)
+	switch va.Kind() {
 	case reflect.Pointer:
 		if a == b {
 			return true
 		}
-		if reflect.ValueOf(a).IsNil() {
+		if va.IsNil() {
 			return IsNil(b)
 		}
 		if IsNil(b) {
@@ -83,7 +104,7 @@ func ObjectsEquals(a, b any) bool {
 		}
 		return false
 	case reflect.Uint32:
-		if reflect.ValueOf(a).Uint() == 0 {
+		if va.Uint() == 0 {
 			if _, ok := a.(interface{ IsNil() bool }); ok {
 				return IsNil(b)
 			}
@@ -106,13 +127,14 @@ func ObjectsEquals(a, b any) bool {
 	if e, ok := a.(Equaler); ok {
 		return e.Equals(b)
 	}
+	ta := va.Type()
 	tb := reflect.TypeOf(b)
 	if ta != tb {
 		return false
 	}
 	if !ta.Comparable() {
 		// Arrays and other reference types without equals(): identity.
-		va, vb := reflect.ValueOf(a), reflect.ValueOf(b)
+		vb := reflect.ValueOf(b)
 		switch va.Kind() {
 		case reflect.Slice:
 			return va.Len() == vb.Len() && (va.Len() == 0 || va.Pointer() == vb.Pointer())
@@ -477,7 +499,11 @@ func (h *ToStringHelper) Add(name string, value any) *ToStringHelper {
 // AddBool is ToStringHelper.add(String, boolean), which (like the other
 // primitive overloads) is never omitted.
 func (h *ToStringHelper) AddBool(name string, value bool) *ToStringHelper {
-	h.holders = append(h.holders, toStringHolder{name: name, hasName: true, value: ToJavaString(value), unconditional: true})
+	s := "false"
+	if value {
+		s = "true"
+	}
+	h.holders = append(h.holders, toStringHolder{name: name, hasName: true, value: s, unconditional: true})
 	return h
 }
 
@@ -507,20 +533,22 @@ func (h *ToStringHelper) String() string {
 	sep := ""
 	for _, vh := range h.holders {
 		v := vh.value
-		if vh.unconditional || (func() bool {
+		if !vh.unconditional {
 			if IsNil(v) {
-				return !h.omitNullValues
+				if h.omitNullValues {
+					continue
+				}
+			} else if h.omitEmpty && toStringHelperIsEmpty(v) {
+				continue
 			}
-			return !h.omitEmpty || !toStringHelperIsEmpty(v)
-		})() {
-			sb.WriteString(sep)
-			sep = ", "
-			if vh.hasName {
-				sb.WriteString(vh.name)
-				sb.WriteByte('=')
-			}
-			sb.WriteString(ToJavaString(v))
 		}
+		sb.WriteString(sep)
+		sep = ", "
+		if vh.hasName {
+			sb.WriteString(vh.name)
+			sb.WriteByte('=')
+		}
+		sb.WriteString(ToJavaString(v))
 	}
 	sb.WriteByte('}')
 	return sb.String()

@@ -944,7 +944,7 @@ func (d *raiDump) runSerialization(typeStrings []string) {
 	r := d.registry
 
 	// Seeded mismatches, each with its own location.
-	mismatches := []*TypeMismatch{}
+	mismatches := make([]TypeMismatch, 0, 300)
 	for k := 0; k < 300; k++ {
 		found := d.types[d.nextInt(n)]
 		required := d.types[d.nextInt(n)]

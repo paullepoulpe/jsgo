@@ -24,10 +24,15 @@ import (
 	"github.com/paullepoulpe/jsgo/internal/ast"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
+	"github.com/paullepoulpe/jsgo/internal/strpool"
 )
 
+var ismPrototypeID = uint32(strpool.Intern("prototype"))
+
 type ismPropSlot struct {
-	defs          []ast.Function
+	firstDef      ast.Function
+	extraDefs     []ast.Function
+	hasFirst      bool
 	nonInlineable bool
 	checked       bool
 }
@@ -54,9 +59,12 @@ type ismPropSlot struct {
 // the prototype method is mutated and we don't detect that, inlining it is
 // unsafe. We enable it whenever function inlining is enabled.
 type InlineSimpleMethods struct {
-	externProperties *jutil.LinkedHashSet[string]
-	props            map[string]*ismPropSlot
-	hasDefs          bool
+	externPropsRaw  *jutil.LinkedHashSet[string]
+	externPropBits  []uint64
+	externPropHigh  map[uint32]struct{}
+	externPropsInit bool
+	props           map[uint32]ismPropSlot
+	hasDefs         bool
 
 	compiler         AbstractCompiler
 	astAnalyzer      *AstAnalyzer
@@ -66,28 +74,67 @@ type InlineSimpleMethods struct {
 // Java: InlineSimpleMethods(AbstractCompiler)
 func NewInlineSimpleMethods(compiler AbstractCompiler) *InlineSimpleMethods {
 	return &InlineSimpleMethods{
-		externProperties: compiler.GetExternProperties(),
+		externPropsRaw:   compiler.GetExternProperties(),
 		compiler:         compiler,
 		astAnalyzer:      compiler.GetAstAnalyzer(),
 		codingConvention: compiler.GetCodingConvention(),
 	}
 }
 
-func (m *InlineSimpleMethods) ensureProps() map[string]*ismPropSlot {
+func (m *InlineSimpleMethods) ensureProps() map[uint32]ismPropSlot {
 	if m.props == nil {
-		m.props = make(map[string]*ismPropSlot)
+		m.props = make(map[uint32]ismPropSlot)
 	}
 	return m.props
 }
 
-func (m *InlineSimpleMethods) markNonInlineable(name string) {
+func (m *InlineSimpleMethods) hasExternProp(id uint32) bool {
+	if !m.externPropsInit {
+		m.externPropsInit = true
+		if m.externPropsRaw != nil {
+			for name := range m.externPropsRaw.All() {
+				pid := uint32(strpool.Lookup(name))
+				if pid == 0 {
+					continue
+				}
+				if pid < 131072 {
+					word := int(pid >> 6)
+					if word >= len(m.externPropBits) {
+						newLen := max(word+1, len(m.externPropBits)*2)
+						grown := make([]uint64, newLen)
+						copy(grown, m.externPropBits)
+						m.externPropBits = grown
+					}
+					m.externPropBits[word] |= uint64(1) << (pid & 63)
+				} else {
+					if m.externPropHigh == nil {
+						m.externPropHigh = make(map[uint32]struct{})
+					}
+					m.externPropHigh[pid] = struct{}{}
+				}
+			}
+		}
+	}
+	word := int(id >> 6)
+	if word < len(m.externPropBits) {
+		return (m.externPropBits[word] & (uint64(1) << (id & 63))) != 0
+	}
+	if m.externPropHigh == nil {
+		return false
+	}
+	_, ok := m.externPropHigh[id]
+	return ok
+}
+
+func (m *InlineSimpleMethods) markNonInlineable(propID uint32) {
 	props := m.ensureProps()
-	slot := props[name]
-	if slot == nil {
-		slot = &ismPropSlot{}
-		props[name] = slot
+	slot := props[propID]
+	if slot.nonInlineable {
+		return
 	}
 	slot.nonInlineable = true
+	slot.extraDefs = nil
+	props[propID] = slot
 }
 
 // Java: InlineSimpleMethods.process(Node, Node)
@@ -103,8 +150,8 @@ func (m *InlineSimpleMethods) Process(externs rhino.Node, root rhino.Node) {
 	}()
 
 	NodeTraversal_TraverseRootsVisitor(m.compiler, externs, root, &ast.Visitor[*NodeTraversal]{
-		GetProp:   func(_ *NodeTraversal, x ast.GetProp) { m.gatherNormalGet(x.AsNormalGet()) },
-		GetElem:   func(_ *NodeTraversal, x ast.GetElem) { m.gatherNormalGet(x.AsNormalGet()) },
+		GetProp:   func(_ *NodeTraversal, x ast.GetProp) { m.gatherNormalGet(x.Node()) },
+		GetElem:   func(_ *NodeTraversal, x ast.GetElem) { m.gatherNormalGet(x.Node()) },
 		ObjectLit: func(_ *NodeTraversal, x ast.ObjectLit) { m.gatherMemberContainer(x.Node()) },
 		ClassBody: func(_ *NodeTraversal, x ast.ClassBody) { m.gatherMemberContainer(x.Node()) },
 		Call:      m.gatherCall,
@@ -125,21 +172,25 @@ func (m *InlineSimpleMethods) inlineCall(t *NodeTraversal, call ast.Call) {
 	if !ok {
 		return
 	}
-	slot := m.props[callee.Property()]
-	if slot == nil || slot.nonInlineable || len(slot.defs) == 0 {
+	propID := callee.Node().GetStringID()
+	slot, ok := m.props[propID]
+	if !ok || slot.nonInlineable || !slot.hasFirst {
 		return
 	}
 
-	defs := slot.defs
+	firstDefinition := slot.firstDef
 	if !slot.checked {
-		if (len(defs) > 1 && !m.allDefinitionsEquivalent(defs)) || m.anyDefinitionsNotInlineable(defs) {
+		if (len(slot.extraDefs) > 0 && !m.allDefinitionsEquivalent(firstDefinition, slot.extraDefs)) ||
+			m.anyDefinitionsNotInlineable(firstDefinition, slot.extraDefs) {
 			slot.nonInlineable = true
+			slot.extraDefs = nil
+			m.props[propID] = slot
 			return
 		}
 		slot.checked = true
+		m.props[propID] = slot
 	}
 
-	firstDefinition := defs[0]
 	callNode := call.Node()
 
 	// Do not inline if the callsite is a derived class calling a base method using `super.`
@@ -207,32 +258,39 @@ func inlineSimpleMethods_isEmptyMethod(fn ast.Function) bool {
 }
 
 // Java: InlineSimpleMethods.allDefinitionsEquivalent(Set<Node>)
-func (m *InlineSimpleMethods) allDefinitionsEquivalent(definitions []ast.Function) bool {
-	first := definitions[0].Node()
-	for _, fn := range definitions[1:] {
-		if !m.compiler.AreNodesEqualForInlining(first, fn.Node()) {
+func (m *InlineSimpleMethods) allDefinitionsEquivalent(first ast.Function, extraDefs []ast.Function) bool {
+	firstNode := first.Node()
+	for _, fn := range extraDefs {
+		if !m.compiler.AreNodesEqualForInlining(firstNode, fn.Node()) {
 			return false
 		}
 	}
 	return true
 }
 
+func (m *InlineSimpleMethods) isDefinitionNotInlineable(fn ast.Function) bool {
+	if fn.IsAsync() || fn.IsGenerator() {
+		// async and generator functions cannot be trivially inlined because they return a Promise
+		// or generator object, not the return value directly. For now just don't inline them -
+		// it's unclear it's worth the complexity.
+		return true
+	}
+	if NodeUtil_FunctionParametersMayHaveSideEffects(fn.Node(), m.astAnalyzer) {
+		// Methods with parameters that may have side effects or throw on destructuring are not
+		// inlined to prevent altering runtime behavior.
+		return true
+	}
+	jsDocInfo := NodeUtil_GetBestJSDocInfo(fn.Node().GetParent())
+	return jsDocInfo != nil && jsDocInfo.IsNoInline()
+}
+
 // Java: InlineSimpleMethods.anyDefinitionsNotInlineable(Set<Node>)
-func (m *InlineSimpleMethods) anyDefinitionsNotInlineable(definitions []ast.Function) bool {
-	for _, fn := range definitions {
-		if fn.IsAsync() || fn.IsGenerator() {
-			// async and generator functions cannot be trivially inlined because they return a Promise
-			// or generator object, not the return value directly. For now just don't inline them -
-			// it's unclear it's worth the complexity.
-			return true
-		}
-		if NodeUtil_FunctionParametersMayHaveSideEffects(fn.Node(), m.astAnalyzer) {
-			// Methods with parameters that may have side effects or throw on destructuring are not
-			// inlined to prevent altering runtime behavior.
-			return true
-		}
-		jsDocInfo := NodeUtil_GetBestJSDocInfo(fn.Node().GetParent())
-		if jsDocInfo != nil && jsDocInfo.IsNoInline() {
+func (m *InlineSimpleMethods) anyDefinitionsNotInlineable(first ast.Function, extraDefs []ast.Function) bool {
+	if m.isDefinitionNotInlineable(first) {
+		return true
+	}
+	for _, fn := range extraDefs {
+		if m.isDefinitionNotInlineable(fn) {
 			return true
 		}
 	}
@@ -279,62 +337,74 @@ func (m *InlineSimpleMethods) argsMayHaveSideEffects(call ast.Call) bool {
 }
 
 // Java: InlineSimpleMethods.addPossibleSignature(String, Node)
-func (m *InlineSimpleMethods) addPossibleSignature(name string, node rhino.Node) {
+func (m *InlineSimpleMethods) addPossibleSignature(propID uint32, node rhino.Node) {
 	if fn, ok := ast.AsFunction(node); ok {
-		m.addSignature(name, fn)
+		m.addSignature(propID, fn)
 	} else {
-		m.markNonInlineable(name)
+		m.markNonInlineable(propID)
 	}
 }
 
 // Java: InlineSimpleMethods.addSignature(String, Node)
-func (m *InlineSimpleMethods) addSignature(name string, function ast.Function) {
+func (m *InlineSimpleMethods) addSignature(propID uint32, function ast.Function) {
 	props := m.ensureProps()
-	slot := props[name]
-	if slot != nil && slot.nonInlineable {
+	slot := props[propID]
+	if slot.nonInlineable {
 		return
 	}
-	if m.externProperties != nil && m.externProperties.Contains(name) {
-		if slot == nil {
-			slot = &ismPropSlot{}
-			props[name] = slot
-		}
+	if m.hasExternProp(propID) {
 		slot.nonInlineable = true
+		slot.extraDefs = nil
+		props[propID] = slot
 		return
 	}
-	if slot == nil {
-		slot = &ismPropSlot{defs: []ast.Function{function}}
-		props[name] = slot
+	if !slot.hasFirst {
+		slot.firstDef = function
+		slot.hasFirst = true
+		props[propID] = slot
 		m.hasDefs = true
 		return
 	}
-	if slices.Contains(slot.defs, function) {
+	if slot.firstDef == function || slices.Contains(slot.extraDefs, function) {
 		return
 	}
-	slot.defs = append(slot.defs, function)
+	slot.extraDefs = append(slot.extraDefs, function)
+	props[propID] = slot
 	m.hasDefs = true
 }
 
+func ismStaticPropertyID(n rhino.Node) (uint32, bool) {
+	switch n.GetToken() {
+	case rhino.Token_GETPROP:
+		return n.GetStringID(), true
+	case rhino.Token_GETELEM:
+		last := n.GetLastChild()
+		if last.IsStringLit() {
+			return last.GetStringID(), true
+		}
+	}
+	return 0, false
+}
+
 // Java: InlineSimpleMethods.GatherSignatures.visit (GETPROP / GETELEM)
-func (m *InlineSimpleMethods) gatherNormalGet(get ast.NormalGet) {
-	n := get.Node()
+func (m *InlineSimpleMethods) gatherNormalGet(n rhino.Node) {
 	parent := n.GetParent()
 	pt := parent.GetToken()
 	if pt != rhino.Token_ASSIGN && pt != rhino.Token_GETPROP && pt != rhino.Token_GETELEM {
 		return
 	}
 	// TODO(b/251573710): Handle ES2015+ language features that can reference properties
-	name, ok := get.StaticPropertyName()
+	propID, ok := ismStaticPropertyID(n)
 	if !ok {
 		return
 	}
 
-	if name == "prototype" {
+	if propID == ismPrototypeID {
 		m.processPrototypeParent(parent)
 	} else if assign, ok := ast.AsAssign(parent); ok && assign.Target().Is(n) {
 		// Static methods of the form Foo.bar = function() {} or
 		// Static methods of the form Foo.bar = baz (where baz is a function name).
-		m.addPossibleSignature(name, assign.Value().Node())
+		m.addPossibleSignature(propID, assign.Value().Node())
 	}
 }
 
@@ -343,9 +413,9 @@ func (m *InlineSimpleMethods) gatherMemberContainer(container rhino.Node) {
 	for key := container.GetFirstChild(); !key.IsNil(); key = key.GetNext() {
 		switch key.GetToken() {
 		case rhino.Token_MEMBER_FUNCTION_DEF, rhino.Token_MEMBER_FIELD_DEF, rhino.Token_STRING_KEY:
-			m.addPossibleSignature(key.GetString(), key.GetFirstChild())
+			m.addPossibleSignature(key.GetStringID(), key.GetFirstChild())
 		case rhino.Token_SETTER_DEF, rhino.Token_GETTER_DEF:
-			m.markNonInlineable(key.GetString())
+			m.markNonInlineable(key.GetStringID())
 		case rhino.Token_COMPUTED_PROP, // complicated
 			rhino.Token_OBJECT_SPREAD,
 			rhino.Token_COMPUTED_FIELD_DEF,
@@ -363,21 +433,17 @@ func (m *InlineSimpleMethods) gatherCall(_ *NodeTraversal, call ast.Call) {
 	callee := call.Callee().Node()
 	if firstArg, ok := call.FirstArg(); ok && m.codingConvention.IsPropertyRenameFunction(callee) {
 		// Other code guarantees that getSecondChild() is a STRINGLIT
-		m.markNonInlineable(firstArg.Node().GetString())
+		m.markNonInlineable(firstArg.Node().GetStringID())
 	}
 }
 
 // Java: InlineSimpleMethods.GatherSignatures.processPrototypeParent(Node)
 func (m *InlineSimpleMethods) processPrototypeParent(n rhino.Node) {
-	get, ok := ast.AsNormalGet(n)
-	if !ok {
-		return
-	}
-	name, hasName := get.StaticPropertyName()
+	propID, hasName := ismStaticPropertyID(n)
 	if !hasName {
 		return
 	}
 	if assign, isAssign := ast.AsAssign(n.GetGrandparent()); isAssign {
-		m.addPossibleSignature(name, assign.Value().Node())
+		m.addPossibleSignature(propID, assign.Value().Node())
 	}
 }

@@ -319,7 +319,7 @@ type AbstractCompiler interface {
 	// GetTypeMismatches gets the central registry of type violations.
 	//
 	// Java: AbstractCompiler.getTypeMismatches()
-	GetTypeMismatches() []*TypeMismatch
+	GetTypeMismatches() []TypeMismatch
 
 	// Java: AbstractCompiler.setExternExports(String)
 	SetExternExports(externExports string)

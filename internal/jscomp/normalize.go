@@ -268,6 +268,57 @@ type normalizeRenameUndo struct {
 	hadOld  bool
 }
 
+type normalizePostOrderContext struct {
+	s *Normalize_NormalizeStatements
+	t *NodeTraversal
+}
+
+// normalizePreOrderVisitor lists what NormalizeStatements does to each kind of
+// node before its children are traversed, to add siblings or parents that the
+// traversal then visits (doStatementNormalizations, called from ShouldTraverse).
+//
+// Java: Normalize.NormalizeStatements.doStatementNormalizations(Node)
+var normalizePreOrderVisitor = ast.Visitor[*Normalize_NormalizeStatements]{
+	Root:       func(s *Normalize_NormalizeStatements, x ast.Root) { s.normalizeStatements(x.Node()) },
+	Script:     func(s *Normalize_NormalizeStatements, x ast.Script) { s.normalizeStatements(x.Node()) },
+	ModuleBody: func(s *Normalize_NormalizeStatements, x ast.ModuleBody) { s.normalizeStatements(x.Node()) },
+	Block:      (*Normalize_NormalizeStatements).normalizeBlock,
+	Label:      (*Normalize_NormalizeStatements).normalizeLabel,
+	Function:   (*Normalize_NormalizeStatements).normalizeFunction,
+	// Perform the split in pre-order traversal to accurately normalize destructuring
+	// declarations.
+	Export: (*Normalize_NormalizeStatements).SplitExportDeclaration,
+	AssignOp: func(s *Normalize_NormalizeStatements, x ast.AssignOp) {
+		// Logical assignments should be handled in visit(), not here
+		if !NodeUtil_IsLogicalAssignmentOp(x.Node()) {
+			s.NormalizeAssignShorthand(x)
+		}
+	},
+}
+
+// normalizePostOrderVisitor lists what NormalizeStatements does to each kind of
+// node after its children are traversed (Visit).
+//
+// Java: Normalize.NormalizeStatements.visit(NodeTraversal, Node, Node)
+var normalizePostOrderVisitor = ast.Visitor[normalizePostOrderContext]{
+	Name:             func(c normalizePostOrderContext, x ast.Name) { c.s.visitName(c.t, x) },
+	ImportStar:       func(c normalizePostOrderContext, x ast.ImportStar) { c.s.visitImportStar(c.t, x) },
+	While:            func(c normalizePostOrderContext, x ast.While) { c.s.visitWhile(x) },
+	DestructuringLhs: func(c normalizePostOrderContext, x ast.DestructuringLhs) { c.s.NormalizeDestructuringLhs(x) },
+	AssignOp: func(c normalizePostOrderContext, x ast.AssignOp) {
+		if NodeUtil_IsLogicalAssignmentOp(x.Node()) {
+			c.s.rewriteLogicalAssignmentOperatorsHelper.VisitLogicalAssignmentOperator(c.t, x.Node())
+		}
+	},
+	// The kinds that can have a trailing comma.
+	ArrayLit:     func(_ normalizePostOrderContext, x ast.ArrayLit) { x.Node().SetTrailingComma(false) },
+	Call:         func(_ normalizePostOrderContext, x ast.Call) { x.Node().SetTrailingComma(false) },
+	New:          func(_ normalizePostOrderContext, x ast.New) { x.Node().SetTrailingComma(false) },
+	ObjectLit:    func(_ normalizePostOrderContext, x ast.ObjectLit) { x.Node().SetTrailingComma(false) },
+	OptChainCall: func(_ normalizePostOrderContext, x ast.OptChainCall) { x.Node().SetTrailingComma(false) },
+	ParamList:    func(_ normalizePostOrderContext, x ast.ParamList) { x.Node().SetTrailingComma(false) },
+}
+
 // Normalize_NormalizeStatements simplifies the AST:
 //   - VAR declarations split, so they represent exactly one child
 //     declaration.
@@ -291,11 +342,8 @@ type Normalize_NormalizeStatements struct {
 	activeReplacements       map[string]string
 	undoStack                []normalizeRenameUndo
 	scopeUndoOffsets         []int
-
-	// Go-only: the work per node kind, before its children are traversed
-	// (doStatementNormalizations) and after (visit); see initVisitors.
-	preOrder  ast.Visitor[*NodeTraversal]
-	postOrder ast.Visitor[*NodeTraversal]
+	undoStackBuf             [8]normalizeRenameUndo
+	scopeUndoOffsetsBuf      [8]int
 }
 
 // NewNormalize_NormalizeStatements: prefer using Normalize as a compiler
@@ -318,59 +366,15 @@ func NewNormalize_NormalizeStatements(
 	s.rewriteLogicalAssignmentOperatorsHelper =
 		NewRewriteLogicalAssignmentOperatorsHelper(
 			compiler, s.astFactory, compiler.GetUniqueIdSupplier())
-	s.initVisitors()
 	return s
-}
-
-// initVisitors lists what the pass does to each kind of node: before its
-// children are traversed, to add siblings or parents that the traversal then
-// visits (doStatementNormalizations, called from shouldTraverse), and after
-// (visit).
-func (s *Normalize_NormalizeStatements) initVisitors() {
-	// Java: Normalize.NormalizeStatements.doStatementNormalizations(Node)
-	s.preOrder = ast.Visitor[*NodeTraversal]{
-		Root:       func(_ *NodeTraversal, x ast.Root) { s.normalizeStatements(x.Node()) },
-		Script:     func(_ *NodeTraversal, x ast.Script) { s.normalizeStatements(x.Node()) },
-		ModuleBody: func(_ *NodeTraversal, x ast.ModuleBody) { s.normalizeStatements(x.Node()) },
-		Block:      s.normalizeBlock,
-		Label:      s.normalizeLabel,
-		Function:   s.normalizeFunction,
-		// Perform the split in pre-order traversal to accurately normalize destructuring
-		// declarations.
-		Export: func(_ *NodeTraversal, x ast.Export) { s.SplitExportDeclaration(x) },
-		AssignOp: func(_ *NodeTraversal, x ast.AssignOp) {
-			// Logical assignments should be handled in visit(), not here
-			if !NodeUtil_IsLogicalAssignmentOp(x.Node()) {
-				s.NormalizeAssignShorthand(x)
-			}
-		},
-	}
-
-	// Java: Normalize.NormalizeStatements.visit(NodeTraversal, Node, Node)
-	s.postOrder = ast.Visitor[*NodeTraversal]{
-		Name:             s.visitName,
-		ImportStar:       s.visitImportStar,
-		While:            s.visitWhile,
-		DestructuringLhs: func(_ *NodeTraversal, x ast.DestructuringLhs) { s.NormalizeDestructuringLhs(x) },
-		AssignOp: func(t *NodeTraversal, x ast.AssignOp) {
-			if NodeUtil_IsLogicalAssignmentOp(x.Node()) {
-				s.rewriteLogicalAssignmentOperatorsHelper.VisitLogicalAssignmentOperator(t, x.Node())
-			}
-		},
-		// The kinds that can have a trailing comma.
-		ArrayLit:     func(_ *NodeTraversal, x ast.ArrayLit) { x.Node().SetTrailingComma(false) },
-		Call:         func(_ *NodeTraversal, x ast.Call) { x.Node().SetTrailingComma(false) },
-		New:          func(_ *NodeTraversal, x ast.New) { x.Node().SetTrailingComma(false) },
-		ObjectLit:    func(_ *NodeTraversal, x ast.ObjectLit) { x.Node().SetTrailingComma(false) },
-		OptChainCall: func(_ *NodeTraversal, x ast.OptChainCall) { x.Node().SetTrailingComma(false) },
-		ParamList:    func(_ *NodeTraversal, x ast.ParamList) { x.Node().SetTrailingComma(false) },
-	}
 }
 
 func (s *Normalize_NormalizeStatements) initFastContextualRenamer() {
 	s.useFastContextualRenamer = true
-	s.nameUsage = make(map[string]int)
-	s.activeReplacements = make(map[string]string)
+	s.nameUsage = nil
+	s.activeReplacements = nil
+	s.undoStack = s.undoStackBuf[:0]
+	s.scopeUndoOffsets = s.scopeUndoOffsetsBuf[:0]
 }
 
 func (s *Normalize_NormalizeStatements) releaseFastContextualRenamer() {
@@ -549,6 +553,9 @@ func (s *Normalize_NormalizeStatements) fastEnterScope(t *NodeTraversal) {
 				oldRepl: oldRepl,
 				hadOld:  hadOld,
 			})
+			if s.activeReplacements == nil {
+				s.activeReplacements = make(map[string]string, 16)
+			}
 			s.activeReplacements[name] = unique
 		}
 	}
@@ -636,14 +643,14 @@ func (s *Normalize_NormalizeStatements) ShouldTraverse(t *NodeTraversal, n rhino
 	return true
 }
 
-// Visit runs the handler of s.postOrder for n's kind.
+// Visit runs the handler of normalizePostOrderVisitor for n's kind.
 //
 // Java: Normalize.NormalizeStatements.visit(NodeTraversal, Node, Node)
 func (s *Normalize_NormalizeStatements) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	if !s.useFastContextualRenamer && s.makeDeclaredNamesUnique != nil {
 		s.makeDeclaredNamesUnique.Visit(t, n, parent)
 	}
-	s.postOrder.Visit(t, n)
+	normalizePostOrderVisitor.Visit(normalizePostOrderContext{s: s, t: t}, n)
 }
 
 // visitName renames x if it is shadowed (with the fast contextual renamer;
@@ -680,7 +687,7 @@ func (s *Normalize_NormalizeStatements) visitImportStar(t *NodeTraversal, x ast.
 // visitWhile turns while (cond) body into for (; cond; ) body.
 //
 // Java: Normalize.NormalizeStatements.visit(NodeTraversal, Node, Node) (WHILE)
-func (s *Normalize_NormalizeStatements) visitWhile(_ *NodeTraversal, x ast.While) {
+func (s *Normalize_NormalizeStatements) visitWhile(x ast.While) {
 	n := x.Node()
 	cond := x.Cond().Node()
 	n.SetToken(rhino.Token_FOR)
@@ -794,11 +801,11 @@ func (s *Normalize_NormalizeStatements) NormalizeBlocklessFunction(fn ast.Functi
 }
 
 // DoStatementNormalizations does normalizations that introduce new siblings
-// or parents: the handlers of s.preOrder.
+// or parents: the handlers of normalizePreOrderVisitor.
 //
 // Java: Normalize.NormalizeStatements.doStatementNormalizations(Node)
-func (s *Normalize_NormalizeStatements) DoStatementNormalizations(t *NodeTraversal, n rhino.Node) {
-	s.preOrder.Visit(t, n)
+func (s *Normalize_NormalizeStatements) DoStatementNormalizations(_ *NodeTraversal, n rhino.Node) {
+	normalizePreOrderVisitor.Visit(s, n)
 }
 
 // normalizeStatements normalizes the statements of n: a root, a script, a
@@ -811,7 +818,7 @@ func (s *Normalize_NormalizeStatements) normalizeStatements(n rhino.Node) {
 }
 
 // Java: Normalize.NormalizeStatements.doStatementNormalizations(Node) (BLOCK)
-func (s *Normalize_NormalizeStatements) normalizeBlock(_ *NodeTraversal, x ast.Block) {
+func (s *Normalize_NormalizeStatements) normalizeBlock(x ast.Block) {
 	s.normalizeStatements(x.Node())
 	if NodeUtil_IsClassStaticBlock(x.Node()) {
 		s.MoveNamedFunctions(x)
@@ -819,13 +826,13 @@ func (s *Normalize_NormalizeStatements) normalizeBlock(_ *NodeTraversal, x ast.B
 }
 
 // Java: Normalize.NormalizeStatements.doStatementNormalizations(Node) (LABEL)
-func (s *Normalize_NormalizeStatements) normalizeLabel(_ *NodeTraversal, x ast.Label) {
+func (s *Normalize_NormalizeStatements) normalizeLabel(x ast.Label) {
 	s.NormalizeLabels(x)
 	s.ExtractForInitializer(x.Node(), rhino.NilNode, rhino.NilNode)
 }
 
 // Java: Normalize.NormalizeStatements.doStatementNormalizations(Node) (FUNCTION)
-func (s *Normalize_NormalizeStatements) normalizeFunction(_ *NodeTraversal, x ast.Function) {
+func (s *Normalize_NormalizeStatements) normalizeFunction(x ast.Function) {
 	s.NormalizeBlocklessFunction(x)
 	body, ok := x.Body().AsBlock()
 	jutil.CheckState(ok) // normalizeBlocklessFunction gave it one
@@ -957,17 +964,11 @@ func (s *Normalize_NormalizeStatements) ExtractForInitializer(n rhino.Node, befo
 	var next rhino.Node
 	for c := n.GetFirstChild(); !c.IsNil(); c = next {
 		next = c.GetNext()
-		var insertBefore rhino.Node
-		if before.IsNil() {
+		insertBefore := before
+		insertBeforeParent := beforeParent
+		if insertBefore.IsNil() {
 			insertBefore = c
-		} else {
-			insertBefore = before
-		}
-		var insertBeforeParent rhino.Node
-		if before.IsNil() {
 			insertBeforeParent = n
-		} else {
-			insertBeforeParent = beforeParent
 		}
 		if _, ok := ast.AsLabel(c); ok {
 			s.ExtractForInitializer(c, insertBefore, insertBeforeParent)

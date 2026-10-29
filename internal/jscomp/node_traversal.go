@@ -217,7 +217,7 @@ func initNodeTraversalFromBuilder(t *NodeTraversal, builder *NodeTraversal_Build
 	if !t.noShouldTraverse {
 		_, t.noShouldTraverse = cb.(NodeTraversal_AbstractPostOrderCallbackInterface)
 		if !t.noShouldTraverse {
-			if tc, ok := cb.(*TypeCheck); ok && (tc.debugTypeLogger == nil || !tc.debugTypeLogger.typeLogFile.IsLogging()) {
+			if tc, ok := cb.(*TypeCheck); ok && !tc.debugTypeLogger.isLogging {
 				t.noShouldTraverse = true
 			}
 		}

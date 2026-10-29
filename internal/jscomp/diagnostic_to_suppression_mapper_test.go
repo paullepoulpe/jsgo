@@ -41,7 +41,8 @@ func TestDiagnosticToSuppressionMapper_CreateSuppressionMap_asJson_skipsNonParse
 	suppressions := NewDiagnosticToSuppressionMapper(jutil.NewLinkedHashSet("validSuppress"), diagnosticGroups).
 		CreateSuppressionMap()
 
-	jsaEq(t, jsaTreeMapString(suppressions), "{"+testError1.key+"=validSuppress}")
+	jsaEq(t, len(suppressions), 1)
+	jsaEq(t, suppressions[testError1.key], "validSuppress")
 }
 
 func TestDiagnosticToSuppressionMapper_CreateSuppressionMap_choosesArbitrarySuppressionGivenMultiple(t *testing.T) {
@@ -54,7 +55,8 @@ func TestDiagnosticToSuppressionMapper_CreateSuppressionMap_choosesArbitrarySupp
 		jutil.NewLinkedHashSet("suppress0", "suppress1"), diagnosticGroups).
 		CreateSuppressionMap()
 
-	jsaEq(t, jsaTreeMapString(suppressions), "{"+testError.key+"=suppress1}")
+	jsaEq(t, len(suppressions), 1)
+	jsaEq(t, suppressions[testError.key], "suppress1")
 }
 
 func TestDiagnosticToSuppressionMapper_PrintSuppressionMap_asJson_printsValidJson(t *testing.T) {
@@ -74,8 +76,8 @@ func TestDiagnosticToSuppressionMapper_PrintSuppressionMap_asJson_printsValidJso
 
 	// Java: assertThat(suppressions).isEqualTo(mapper.createSuppressionMap()) (Map equality)
 	expected := mapper.CreateSuppressionMap()
-	jsaEq(t, len(suppressions), expected.Size())
-	for k, v := range expected.All() {
+	jsaEq(t, len(suppressions), len(expected))
+	for k, v := range expected {
 		got, ok := suppressions[k]
 		if !ok || got != v {
 			t.Errorf("suppressions[%q] = %q (present %v), want %q", k, got, ok, v)

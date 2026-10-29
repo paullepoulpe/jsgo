@@ -24,7 +24,15 @@ import (
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/parser"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
+	"github.com/paullepoulpe/jsgo/internal/strpool"
 )
+
+var (
+	ipJscompPolyfillQName = rhino.QualifiedName_Of("$jscomp.polyfill")
+	ipJscompPolyfillColID = uint32(strpool.Intern("$jscomp$polyfill"))
+)
+
+const isolatePolyfills_LOOKUP_METHOD = "$jscomp$lookupPolyfilledValue"
 
 // IsolatePolyfills rewrites potential polyfill usages to use the hidden
 // JSCompiler polyfills instead of the global.
@@ -62,15 +70,12 @@ func NewIsolatePolyfills(compiler AbstractCompiler) *IsolatePolyfills {
 
 // Java: IsolatePolyfills(AbstractCompiler, Polyfills)
 func NewIsolatePolyfillsWithPolyfills(compiler AbstractCompiler, polyfills *PolyfillUsageFinder_Polyfills) *IsolatePolyfills {
-	i := &IsolatePolyfills{}
-	i.jscompLookupMethod = rhino.IR_Name("$jscomp$lookupPolyfilledValue")
-	i.usedPolyfillMethodLookup = false
-	i.isTempVarInitialized = false
-	i.compiler = compiler
-	i.polyfills = polyfills
-	hasPropertyCollapsingRun :=
-		compiler.GetOptions().GetPropertyCollapseLevel() == CompilerOptions_PropertyCollapseLevel_ALL
-	if hasPropertyCollapsingRun {
+	i := &IsolatePolyfills{
+		jscompLookupMethod: rhino.IR_Name(isolatePolyfills_LOOKUP_METHOD),
+		compiler:           compiler,
+		polyfills:          polyfills,
+	}
+	if compiler.GetOptions().GetPropertyCollapseLevel() == CompilerOptions_PropertyCollapseLevel_ALL {
 		i.jscompPolyfillsObject = IsolatePolyfills_CreateCollapsedName()
 	} else {
 		i.jscompPolyfillsObject = IsolatePolyfills_CreateJSCompPolyfillsAccess()
@@ -103,18 +108,20 @@ func (i *IsolatePolyfills) Process(externs rhino.Node, root rhino.Node) {
 	// the potential polyfills which PolyfillFindingCallback finds (it's fine if it's a superset.)
 	injectedPolyfills := i.FindAllInjectedPolyfills()
 
-	polyfillUsages := []*PolyfillUsageFinder_PolyfillUsage{}
+	var polyfillUsages []*PolyfillUsageFinder_PolyfillUsage
 	NewPolyfillUsageFinder(i.compiler, i.polyfills).
 		TraverseIncludingGuarded(root, func(u *PolyfillUsageFinder_PolyfillUsage) {
 			polyfillUsages = append(polyfillUsages, u)
 		})
 
-	visitedNodes := make(map[rhino.Node]bool, len(polyfillUsages))
+	visitedNodes := make(map[rhino.Node]struct{}, len(polyfillUsages))
 	for _, usage := range polyfillUsages {
+		node := usage.Node()
+		_, visited := visitedNodes[node]
 		if
 		// Some nodes map to more than one polyfill usage. For example, `x.includes` maps to both
 		// Array.prototype.includes and String.prototype.includes, but only needs to be isolated once.
-		visitedNodes[usage.Node()] ||
+		visited ||
 			// Skip visiting nodes whose 'polyfill.library' is empty. This is true for language
 			// features like `Proxy` and `String.raw` that have no associated polyfill, and hence are
 			// unnecessary to isolate.
@@ -125,7 +132,7 @@ func (i *IsolatePolyfills) Process(externs rhino.Node, root rhino.Node) {
 			continue
 		}
 		i.RewritePolyfill(usage)
-		visitedNodes[usage.Node()] = true
+		visitedNodes[node] = struct{}{}
 	}
 
 	i.CleanUpJscompLookupPolyfilledValue()
@@ -182,11 +189,11 @@ func (i *IsolatePolyfills) IsJSCompPolyfillCall(call rhino.Node) bool {
 	if !call.IsCall() {
 		return false
 	}
-	jscompPolyfillName := "$jscomp.polyfill"
+	callee := call.GetFirstChild()
 	if i.compiler.GetOptions().GetPropertyCollapseLevel() == CompilerOptions_PropertyCollapseLevel_ALL {
-		jscompPolyfillName = "$jscomp$polyfill"
+		return callee.IsName() && callee.GetStringID() == ipJscompPolyfillColID
 	}
-	return call.GetFirstChild().MatchesQualifiedName(jscompPolyfillName)
+	return ipJscompPolyfillQName.Matches(callee)
 }
 
 // RewritePolyfill rewrites a potential access of a polyfilled class or
@@ -377,7 +384,7 @@ func (i *IsolatePolyfills) CleanUpJscompLookupPolyfilledValue() {
 		NewSyntacticScopeCreator(i.compiler).CreateScopeOfScope(syntheticExternsRoot /* parent= */, nil)
 	externVar :=
 		jutil.CheckNotNullMsg(
-			syntheticExternsScope.GetVar(i.jscompLookupMethod.GetString()),
+			syntheticExternsScope.GetVar(isolatePolyfills_LOOKUP_METHOD),
 			"Failed to find synthetic $jscomp$lookupPolyfilledValue extern")
 	NodeUtil_DeleteNode(externVar.GetParentNode(), i.compiler)
 
@@ -388,7 +395,7 @@ func (i *IsolatePolyfills) CleanUpJscompLookupPolyfilledValue() {
 	syntheticCodeScope :=
 		NewSyntacticScopeCreator(i.compiler).
 			CreateScopeOfScope(i.compiler.GetNodeForCodeInsertion( /* chunk= */ nil) /* parent= */, nil)
-	syntheticVar := syntheticCodeScope.GetVar(i.jscompLookupMethod.GetString())
+	syntheticVar := syntheticCodeScope.GetVar(isolatePolyfills_LOOKUP_METHOD)
 	// Don't error if we can't find a definition for jscompLookupMethod. It's possible that we are
 	// running in transpileOnly mode and are not injecting runtime libraries.
 	if syntheticVar != nil {

@@ -1,5 +1,4 @@
 // Port of com/google/javascript/jscomp/parsing/Config.java @ closure-compiler v20261021
-// (with its generated subclass AutoValue_Config.java folded in)
 
 /*
  * Copyright 2009 The Closure Compiler Authors.
@@ -24,31 +23,29 @@ package parsing
 
 import (
 	"iter"
-	"strings"
-	"sync/atomic"
+	"maps"
+	"slices"
 
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/parser"
 )
 
-var config_emptyStringSet = jutil.NewLinkedHashSet[string]()
+var config_emptyStringSet = map[string]struct{}{}
 
 // Config is the configuration for the AST factory. Should be shared across
 // AST creation for all files of a compilation process.
-//
-// Go-only: language-adapter — Config is an @AutoValue abstract class; its
-// generated implementation AutoValue_Config (fields, accessors, toString,
-// equals, hashCode, toBuilder and the Builder subclass) is folded into this
-// struct and Config_Builder.
 type Config struct {
 	languageMode          Config_LanguageMode
 	strictMode            Config_StrictMode
 	jsDocParsingMode      Config_JsDocParsing
 	runMode               Config_RunMode
-	annotations           atomic.Pointer[jutil.LinkedHashMap[string, Annotation]]
-	extraAnnotations      *jutil.LinkedHashSet[string]
-	suppressionNames      *jutil.LinkedHashSet[string]
-	closurePrimitiveNames *jutil.LinkedHashSet[string]
+	annotations           map[string]Annotation
+	extraAnnotations      map[string]struct{}
+	extraAnnotationOrder  []string
+	suppressionNames      map[string]struct{}
+	suppressionOrder      []string
+	closurePrimitiveNames map[string]struct{}
+	closurePrimitiveOrder []string
 	parseInlineSourceMaps bool
 }
 
@@ -284,34 +281,6 @@ func (m Config_RunMode) Name() string { return config_RunMode_names[m] }
 // Java: Config.RunMode.toString()
 func (m Config_RunMode) String() string { return m.Name() }
 
-// NewConfig is the private AutoValue_Config constructor.
-//
-// Java: AutoValue_Config(Config.LanguageMode, Config.StrictMode, Config.JsDocParsing,
-// Config.RunMode, ImmutableMap<String, Annotation>, ImmutableSet<String>, ImmutableSet<String>,
-// boolean)
-func NewConfig(
-	languageMode Config_LanguageMode,
-	strictMode Config_StrictMode,
-	jsDocParsingMode Config_JsDocParsing,
-	runMode Config_RunMode,
-	annotations *jutil.LinkedHashMap[string, Annotation],
-	suppressionNames *jutil.LinkedHashSet[string],
-	closurePrimitiveNames *jutil.LinkedHashSet[string],
-	parseInlineSourceMaps bool,
-) *Config {
-	c := &Config{
-		languageMode:          languageMode,
-		strictMode:            strictMode,
-		jsDocParsingMode:      jsDocParsingMode,
-		runMode:               runMode,
-		suppressionNames:      suppressionNames,
-		closurePrimitiveNames: closurePrimitiveNames,
-		parseInlineSourceMaps: parseInlineSourceMaps,
-	}
-	c.annotations.Store(annotations)
-	return c
-}
-
 // LanguageMode is the language level to accept.
 //
 // Java: Config.languageMode()
@@ -343,13 +312,14 @@ func (c *Config) RunMode() Config_RunMode {
 // LookupAnnotation resolves a JSDoc @annotation name without materializing a
 // merged map copy when extraAnnotations are configured.
 func (c *Config) LookupAnnotation(name string) (Annotation, bool) {
-	if m := c.annotations.Load(); m != nil {
-		return m.Lookup(name)
+	if c.annotations != nil {
+		ann, ok := c.annotations[name]
+		return ann, ok
 	}
-	if ann, ok := Annotation_recognizedAnnotations.Lookup(name); ok {
+	if ann, ok := Annotation_recognizedAnnotations[name]; ok {
 		return ann, true
 	}
-	if c.extraAnnotations != nil && c.extraAnnotations.Contains(name) {
+	if _, ok := c.extraAnnotations[name]; ok {
 		return Annotation_NOT_IMPLEMENTED, true
 	}
 	return 0, false
@@ -359,24 +329,27 @@ func (c *Config) LookupAnnotation(name string) (Annotation, bool) {
 // to their internal representation.
 //
 // Java: Config.annotations()
-func (c *Config) Annotations() *jutil.LinkedHashMap[string, Annotation] {
-	if m := c.annotations.Load(); m != nil {
-		return m
+func (c *Config) Annotations() map[string]Annotation {
+	if c.annotations != nil {
+		return c.annotations
 	}
-	var m *jutil.LinkedHashMap[string, Annotation]
-	if c.extraAnnotations == nil || c.extraAnnotations.IsEmpty() {
-		m = Annotation_recognizedAnnotations
-	} else {
-		m = Config_BuildAnnotations(c.extraAnnotations.All())
+	if len(c.extraAnnotations) == 0 {
+		return Annotation_recognizedAnnotations
 	}
-	c.annotations.Store(m)
+	m := make(map[string]Annotation, len(Annotation_recognizedAnnotations)+len(c.extraAnnotations))
+	for k, v := range Annotation_recognizedAnnotations { // order-independent: populating unordered lookup map
+		m[k] = v
+	}
+	for k := range c.extraAnnotations { // order-independent: populating unordered lookup map
+		m[k] = Annotation_NOT_IMPLEMENTED
+	}
 	return m
 }
 
 // SuppressionNames is the set of recognized names in a `@suppress` tag.
 //
 // Java: Config.suppressionNames()
-func (c *Config) SuppressionNames() *jutil.LinkedHashSet[string] {
+func (c *Config) SuppressionNames() map[string]struct{} {
 	return c.suppressionNames
 }
 
@@ -384,8 +357,18 @@ func (c *Config) SuppressionNames() *jutil.LinkedHashSet[string] {
 // `@closurePrimitive` tag.
 //
 // Java: Config.closurePrimitiveNames()
-func (c *Config) ClosurePrimitiveNames() *jutil.LinkedHashSet[string] {
+func (c *Config) ClosurePrimitiveNames() map[string]struct{} {
 	return c.closurePrimitiveNames
+}
+
+// SuppressionOrder returns the recognized `@suppress` names in insertion order.
+func (c *Config) SuppressionOrder() []string {
+	return c.suppressionOrder
+}
+
+// ClosurePrimitiveOrder returns the recognized `@closurePrimitive` names in insertion order.
+func (c *Config) ClosurePrimitiveOrder() []string {
+	return c.closurePrimitiveOrder
 }
 
 // ParseInlineSourceMaps says whether to parse inline source maps
@@ -396,80 +379,20 @@ func (c *Config) ParseInlineSourceMaps() bool {
 	return c.parseInlineSourceMaps
 }
 
-// AnnotationNames is annotations().keySet().
+// AnnotationNames is annotations().keySet() in insertion order.
 //
 // Java: Config.annotationNames()
-func (c *Config) AnnotationNames() *jutil.LinkedHashSet[string] {
-	keys := jutil.NewLinkedHashSet[string]()
-	for k := range c.Annotations().Keys() {
-		keys.Add(k)
+func (c *Config) AnnotationNames() []string {
+	if len(c.extraAnnotationOrder) == 0 {
+		return slices.Clone(annotation_recognizedOrder)
 	}
-	return keys
+	out := make([]string, 0, len(annotation_recognizedOrder)+len(c.extraAnnotationOrder))
+	out = append(out, annotation_recognizedOrder...)
+	out = append(out, c.extraAnnotationOrder...)
+	return out
 }
 
-// Java: AutoValue_Config.toString()
-func (c *Config) String() string {
-	return "Config{" +
-		"languageMode=" + c.languageMode.String() + ", " +
-		"strictMode=" + c.strictMode.String() + ", " +
-		"jsDocParsingMode=" + c.jsDocParsingMode.String() + ", " +
-		"runMode=" + c.runMode.String() + ", " +
-		"annotations=" + c.Annotations().String() + ", " +
-		"suppressionNames=" + c.suppressionNames.String() + ", " +
-		"closurePrimitiveNames=" + c.closurePrimitiveNames.String() + ", " +
-		"parseInlineSourceMaps=" + jutil.ToJavaString(c.parseInlineSourceMaps) +
-		"}"
-}
-
-// Java: AutoValue_Config.equals(Object)
-func (c *Config) Equals(o any) bool {
-	if that, ok := o.(*Config); ok && that == c {
-		return true
-	}
-	if that, ok := o.(*Config); ok && that != nil {
-		return c.languageMode == that.LanguageMode() &&
-			c.strictMode == that.StrictMode() &&
-			c.jsDocParsingMode == that.JsDocParsingMode() &&
-			c.runMode == that.RunMode() &&
-			c.Annotations().Equals(that.Annotations()) &&
-			c.suppressionNames.Equals(that.SuppressionNames()) &&
-			c.closurePrimitiveNames.Equals(that.ClosurePrimitiveNames()) &&
-			c.parseInlineSourceMaps == that.ParseInlineSourceMaps()
-	}
-	return false
-}
-
-// HashCode mirrors the generated hashCode. Java hashes the enum fields by
-// identity (Enum.hashCode), which differs from run to run; here they hash by
-// value (jutil.IdentityHashCode of a value type).
-//
-// Java: AutoValue_Config.hashCode()
-func (c *Config) HashCode() int32 {
-	var h int32 = 1
-	h *= 1000003
-	h ^= jutil.IdentityHashCode(c.languageMode)
-	h *= 1000003
-	h ^= jutil.IdentityHashCode(c.strictMode)
-	h *= 1000003
-	h ^= jutil.IdentityHashCode(c.jsDocParsingMode)
-	h *= 1000003
-	h ^= jutil.IdentityHashCode(c.runMode)
-	h *= 1000003
-	h ^= c.Annotations().HashCode()
-	h *= 1000003
-	h ^= c.suppressionNames.HashCode()
-	h *= 1000003
-	h ^= c.closurePrimitiveNames.HashCode()
-	h *= 1000003
-	if c.parseInlineSourceMaps {
-		h ^= 1231
-	} else {
-		h ^= 1237
-	}
-	return h
-}
-
-// Java: Config.toBuilder() / AutoValue_Config.toBuilder()
+// Java: Config.toBuilder()
 func (c *Config) ToBuilder() *Config_Builder {
 	return NewConfig_BuilderFrom(c)
 }
@@ -486,117 +409,95 @@ func Config_Builder_() *Config_Builder {
 		strictMode:            Config_StrictMode_STRICT,
 		jsDocParsingMode:      Config_JsDocParsing_TYPES_ONLY,
 		runMode:               Config_RunMode_STOP_AFTER_ERROR,
-		hasAnnotations:        true,
+		annotations:           Annotation_recognizedAnnotations,
 		suppressionNames:      config_emptyStringSet,
 		closurePrimitiveNames: config_emptyStringSet,
 		parseInlineSourceMaps: false,
-		set: config_Builder_setParseInlineSourceMaps | config_Builder_setLanguageMode |
-			config_Builder_setStrictMode | config_Builder_setJsDocParsingMode | config_Builder_setRunMode,
 	}
 }
 
 // Config_Builder is the builder for a Config.
-//
-// Go-only: language-adapter — Config.Builder is an abstract @AutoValue.Builder;
-// its generated implementation AutoValue_Config.Builder is folded in. Java
-// tracks unset object properties as null; the enum-typed ones are Go value
-// types, so a bit in `set` records whether each was set (bit 0 is the
-// generated set$0 bit for parseInlineSourceMaps).
 type Config_Builder struct {
 	languageMode          Config_LanguageMode
 	strictMode            Config_StrictMode
 	jsDocParsingMode      Config_JsDocParsing
 	runMode               Config_RunMode
-	annotations           *jutil.LinkedHashMap[string, Annotation]
-	extraAnnotations      *jutil.LinkedHashSet[string]
-	hasAnnotations        bool
-	suppressionNames      *jutil.LinkedHashSet[string]
-	closurePrimitiveNames *jutil.LinkedHashSet[string]
+	annotations           map[string]Annotation
+	extraAnnotations      map[string]struct{}
+	extraAnnotationOrder  []string
+	suppressionNames      map[string]struct{}
+	suppressionOrder      []string
+	closurePrimitiveNames map[string]struct{}
+	closurePrimitiveOrder []string
 	parseInlineSourceMaps bool
-	set                   uint8
 }
 
-// Go-only: language-adapter — the bits of Config_Builder.set.
-const (
-	config_Builder_setParseInlineSourceMaps uint8 = 1 << iota
-	config_Builder_setLanguageMode
-	config_Builder_setStrictMode
-	config_Builder_setJsDocParsingMode
-	config_Builder_setRunMode
-)
-
-// Java: AutoValue_Config.Builder()
+// NewConfig_Builder returns a builder initialized to default Config values.
 func NewConfig_Builder() *Config_Builder {
-	return &Config_Builder{}
+	return Config_Builder_()
 }
 
-// Java: AutoValue_Config.Builder(Config)
+// NewConfig_BuilderFrom returns a builder initialized from source.
 func NewConfig_BuilderFrom(source *Config) *Config_Builder {
-	b := &Config_Builder{
-		languageMode:          source.LanguageMode(),
-		strictMode:            source.StrictMode(),
-		jsDocParsingMode:      source.JsDocParsingMode(),
-		runMode:               source.RunMode(),
-		annotations:           source.annotations.Load(),
+	return &Config_Builder{
+		languageMode:          source.languageMode,
+		strictMode:            source.strictMode,
+		jsDocParsingMode:      source.jsDocParsingMode,
+		runMode:               source.runMode,
+		annotations:           source.annotations,
 		extraAnnotations:      source.extraAnnotations,
-		hasAnnotations:        true,
-		suppressionNames:      source.SuppressionNames(),
-		closurePrimitiveNames: source.ClosurePrimitiveNames(),
-		parseInlineSourceMaps: source.ParseInlineSourceMaps(),
-		set: config_Builder_setParseInlineSourceMaps | config_Builder_setLanguageMode |
-			config_Builder_setStrictMode | config_Builder_setJsDocParsingMode | config_Builder_setRunMode,
+		extraAnnotationOrder:  source.extraAnnotationOrder,
+		suppressionNames:      source.suppressionNames,
+		suppressionOrder:      source.suppressionOrder,
+		closurePrimitiveNames: source.closurePrimitiveNames,
+		closurePrimitiveOrder: source.closurePrimitiveOrder,
+		parseInlineSourceMaps: source.parseInlineSourceMaps,
 	}
-	return b
 }
 
 // Java: Config.Builder.setLanguageMode(LanguageMode)
 func (b *Config_Builder) SetLanguageMode(languageMode Config_LanguageMode) *Config_Builder {
 	b.languageMode = languageMode
-	b.set |= config_Builder_setLanguageMode
 	return b
 }
 
 // Java: Config.Builder.setStrictMode(StrictMode)
 func (b *Config_Builder) SetStrictMode(strictMode Config_StrictMode) *Config_Builder {
 	b.strictMode = strictMode
-	b.set |= config_Builder_setStrictMode
 	return b
 }
 
 // Java: Config.Builder.setJsDocParsingMode(JsDocParsing)
 func (b *Config_Builder) SetJsDocParsingMode(jsDocParsingMode Config_JsDocParsing) *Config_Builder {
 	b.jsDocParsingMode = jsDocParsingMode
-	b.set |= config_Builder_setJsDocParsingMode
 	return b
 }
 
 // Java: Config.Builder.setRunMode(RunMode)
 func (b *Config_Builder) SetRunMode(runMode Config_RunMode) *Config_Builder {
 	b.runMode = runMode
-	b.set |= config_Builder_setRunMode
 	return b
 }
 
 // Java: Config.Builder.setParseInlineSourceMaps(boolean)
 func (b *Config_Builder) SetParseInlineSourceMaps(parseInlineSourceMaps bool) *Config_Builder {
 	b.parseInlineSourceMaps = parseInlineSourceMaps
-	b.set |= config_Builder_setParseInlineSourceMaps
 	return b
 }
 
-// SetSuppressionNames stores ImmutableSet.copyOf(names).
+// SetSuppressionNames stores a copy of names.
 //
 // Java: Config.Builder.setSuppressionNames(Iterable<String>)
 func (b *Config_Builder) SetSuppressionNames(names iter.Seq[string]) *Config_Builder {
-	b.suppressionNames = config_immutableSetCopyOf(names)
+	b.suppressionNames, b.suppressionOrder = config_stringSetAndOrderCopyOf(names)
 	return b
 }
 
-// SetClosurePrimitiveNames stores ImmutableSet.copyOf(names).
+// SetClosurePrimitiveNames stores a copy of names.
 //
 // Java: Config.Builder.setClosurePrimitiveNames(Iterable<String>)
 func (b *Config_Builder) SetClosurePrimitiveNames(names iter.Seq[string]) *Config_Builder {
-	b.closurePrimitiveNames = config_immutableSetCopyOf(names)
+	b.closurePrimitiveNames, b.closurePrimitiveOrder = config_stringSetAndOrderCopyOf(names)
 	return b
 }
 
@@ -605,91 +506,79 @@ func (b *Config_Builder) SetExtraAnnotationNames(names iter.Seq[string]) *Config
 	if names == nil {
 		panic(jutil.NewNullPointerException())
 	}
-	var extra *jutil.LinkedHashSet[string]
+	var extra map[string]struct{}
+	var order []string
 	for unrecognizedAnnotation := range names {
-		if unrecognizedAnnotation != "" &&
-			!Annotation_recognizedAnnotations.ContainsKey(unrecognizedAnnotation) {
-			if extra == nil {
-				extra = jutil.NewLinkedHashSet[string]()
-			}
-			if !extra.Add(unrecognizedAnnotation) {
-				panic(jutil.NewIllegalArgumentExceptionMsg(
-					"Multiple entries with same key: " + unrecognizedAnnotation + "=" +
-						Annotation_NOT_IMPLEMENTED.String() + " and " +
-						unrecognizedAnnotation + "=" + Annotation_NOT_IMPLEMENTED.String()))
-			}
+		if unrecognizedAnnotation == "" {
+			continue
 		}
+		if _, recognized := Annotation_recognizedAnnotations[unrecognizedAnnotation]; recognized {
+			continue
+		}
+		if extra == nil {
+			extra = make(map[string]struct{})
+		}
+		if _, dup := extra[unrecognizedAnnotation]; dup {
+			panic(jutil.NewIllegalArgumentExceptionMsg(
+				"Multiple entries with same key: " + unrecognizedAnnotation + "=" +
+					Annotation_NOT_IMPLEMENTED.String() + " and " +
+					unrecognizedAnnotation + "=" + Annotation_NOT_IMPLEMENTED.String()))
+		}
+		extra[unrecognizedAnnotation] = struct{}{}
+		order = append(order, unrecognizedAnnotation)
 	}
-	b.annotations = nil
-	b.extraAnnotations = extra
-	b.hasAnnotations = true
+	if len(extra) == 0 {
+		b.annotations = Annotation_recognizedAnnotations
+		b.extraAnnotations = nil
+		b.extraAnnotationOrder = nil
+	} else {
+		b.annotations = nil
+		b.extraAnnotations = extra
+		b.extraAnnotationOrder = order
+	}
 	return b
 }
 
-// Java: Config.Builder.build() / AutoValue_Config.Builder.build()
+// Java: Config.Builder.build()
 func (b *Config_Builder) Build() *Config {
-	const allSet = config_Builder_setParseInlineSourceMaps | config_Builder_setLanguageMode |
-		config_Builder_setStrictMode | config_Builder_setJsDocParsingMode | config_Builder_setRunMode
-	if b.set != allSet ||
-		!b.hasAnnotations ||
-		b.suppressionNames == nil ||
-		b.closurePrimitiveNames == nil {
-		var missing strings.Builder
-		if b.set&config_Builder_setLanguageMode == 0 {
-			missing.WriteString(" languageMode")
-		}
-		if b.set&config_Builder_setStrictMode == 0 {
-			missing.WriteString(" strictMode")
-		}
-		if b.set&config_Builder_setJsDocParsingMode == 0 {
-			missing.WriteString(" jsDocParsingMode")
-		}
-		if b.set&config_Builder_setRunMode == 0 {
-			missing.WriteString(" runMode")
-		}
-		if !b.hasAnnotations {
-			missing.WriteString(" annotations")
-		}
-		if b.suppressionNames == nil {
-			missing.WriteString(" suppressionNames")
-		}
-		if b.closurePrimitiveNames == nil {
-			missing.WriteString(" closurePrimitiveNames")
-		}
-		if b.set&config_Builder_setParseInlineSourceMaps == 0 {
-			missing.WriteString(" parseInlineSourceMaps")
-		}
-		panic(jutil.NewIllegalStateExceptionMsg("Missing required properties:" + missing.String()))
+	suppressionNames := b.suppressionNames
+	if suppressionNames == nil {
+		suppressionNames = config_emptyStringSet
 	}
-	c := &Config{
+	closurePrimitiveNames := b.closurePrimitiveNames
+	if closurePrimitiveNames == nil {
+		closurePrimitiveNames = config_emptyStringSet
+	}
+	annotations := b.annotations
+	if annotations == nil && len(b.extraAnnotations) == 0 {
+		annotations = Annotation_recognizedAnnotations
+	}
+	return &Config{
 		languageMode:          b.languageMode,
 		strictMode:            b.strictMode,
 		jsDocParsingMode:      b.jsDocParsingMode,
 		runMode:               b.runMode,
+		annotations:           annotations,
 		extraAnnotations:      b.extraAnnotations,
-		suppressionNames:      b.suppressionNames,
-		closurePrimitiveNames: b.closurePrimitiveNames,
+		extraAnnotationOrder:  b.extraAnnotationOrder,
+		suppressionNames:      suppressionNames,
+		suppressionOrder:      b.suppressionOrder,
+		closurePrimitiveNames: closurePrimitiveNames,
+		closurePrimitiveOrder: b.closurePrimitiveOrder,
 		parseInlineSourceMaps: b.parseInlineSourceMaps,
 	}
-	if b.annotations != nil {
-		c.annotations.Store(b.annotations)
-	} else if b.extraAnnotations == nil {
-		c.annotations.Store(Annotation_recognizedAnnotations)
-	}
-	return c
 }
 
-// SetAnnotations is intended to be used internally only (but isn't private
-// due to AutoValue).
+// SetAnnotations sets the recognized annotations map directly.
 //
 // Java: Config.Builder.setAnnotations(ImmutableMap<String, Annotation>)
-func (b *Config_Builder) SetAnnotations(names *jutil.LinkedHashMap[string, Annotation]) *Config_Builder {
+func (b *Config_Builder) SetAnnotations(names map[string]Annotation) *Config_Builder {
 	if names == nil {
 		panic(jutil.NewNullPointerExceptionMsg("Null annotations"))
 	}
 	b.annotations = names
 	b.extraAnnotations = nil
-	b.hasAnnotations = true
+	b.extraAnnotationOrder = nil
 	return b
 }
 
@@ -697,43 +586,49 @@ func (b *Config_Builder) SetAnnotations(names *jutil.LinkedHashMap[string, Annot
 // user-specified annotation allowlist.
 //
 // Java: Config.buildAnnotations(Iterable<String>)
-func Config_BuildAnnotations(allowlist iter.Seq[string]) *jutil.LinkedHashMap[string, Annotation] {
+func Config_BuildAnnotations(allowlist iter.Seq[string]) map[string]Annotation {
 	var extra []string
 	for unrecognizedAnnotation := range allowlist {
-		if unrecognizedAnnotation != "" &&
-			!Annotation_recognizedAnnotations.ContainsKey(unrecognizedAnnotation) {
+		if unrecognizedAnnotation == "" {
+			continue
+		}
+		if _, recognized := Annotation_recognizedAnnotations[unrecognizedAnnotation]; !recognized {
 			extra = append(extra, unrecognizedAnnotation)
 		}
 	}
 	if len(extra) == 0 {
 		return Annotation_recognizedAnnotations
 	}
-	annotationsBuilder := jutil.NewImmutableMapBuilder[string, Annotation]()
-	for k, v := range Annotation_recognizedAnnotations.All() {
-		annotationsBuilder.Put(k, v)
-	}
+	m := maps.Clone(Annotation_recognizedAnnotations)
 	for _, unrecognizedAnnotation := range extra {
-		annotationsBuilder.Put(unrecognizedAnnotation, Annotation_NOT_IMPLEMENTED)
+		if _, dup := m[unrecognizedAnnotation]; dup {
+			panic(jutil.NewIllegalArgumentExceptionMsg(
+				"Multiple entries with same key: " + unrecognizedAnnotation + "=" +
+					Annotation_NOT_IMPLEMENTED.String() + " and " +
+					unrecognizedAnnotation + "=" + Annotation_NOT_IMPLEMENTED.String()))
+		}
+		m[unrecognizedAnnotation] = Annotation_NOT_IMPLEMENTED
 	}
-	return annotationsBuilder.BuildOrThrow()
+	return m
 }
 
-// config_immutableSetCopyOf is ImmutableSet.copyOf(Iterable<String>).
-//
-// Go-only: language-adapter — Guava ImmutableSet.copyOf.
-func config_immutableSetCopyOf(names iter.Seq[string]) *jutil.LinkedHashSet[string] {
+func config_stringSetAndOrderCopyOf(names iter.Seq[string]) (map[string]struct{}, []string) {
 	if names == nil {
 		panic(jutil.NewNullPointerException())
 	}
-	var set *jutil.LinkedHashSet[string]
+	var set map[string]struct{}
+	var order []string
 	for name := range names {
 		if set == nil {
-			set = jutil.NewLinkedHashSet[string]()
+			set = make(map[string]struct{})
 		}
-		set.Add(name)
+		if _, dup := set[name]; !dup {
+			set[name] = struct{}{}
+			order = append(order, name)
+		}
 	}
 	if set == nil {
-		return config_emptyStringSet
+		return config_emptyStringSet, nil
 	}
-	return set
+	return set, order
 }

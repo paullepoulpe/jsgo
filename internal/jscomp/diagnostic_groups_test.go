@@ -43,8 +43,8 @@ func TestDiagnosticGroupsTest(t *testing.T) {
 // list in set1's order.
 func diagnosticGroupsTest_intersection(set1, set2 *DiagnosticGroup) []*DiagnosticType {
 	var result []*DiagnosticType
-	for type_ := range set1.GetTypes().All() {
-		if set2.GetTypes().Contains(type_) {
+	for _, type_ := range set1.GetTypes() {
+		if set2.MatchesType(type_) {
 			result = append(result, type_)
 		}
 	}
@@ -121,11 +121,7 @@ func (c *DiagnosticGroupsTest) TestDiagnosticGroupPathSuppressingWarningsGuard()
 		NewDiagnosticGroupPathSuppressingWarningsGuard(
 			DiagnosticGroups_LINT_CHECKS, "suppress_me")
 
-	var lintCheck *DiagnosticType
-	for t := range DiagnosticGroups_LINT_CHECKS.GetTypes().All() {
-		lintCheck = t
-		break
-	}
+	lintCheck := DiagnosticGroups_LINT_CHECKS.GetTypes()[0]
 	errorInPath := JSError_MakeWithSourceLocation(jutil.StringPtr("some/path/suppress_me/file.js"), -1, -1, lintCheck)
 	AssertWithMessage(
 		"DiagnosticGroupPathSuppressingWarningsGuard should suppress in matching path").

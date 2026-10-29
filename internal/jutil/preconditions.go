@@ -99,14 +99,20 @@ func failArgument(template string, args ...any) {
 // map, slice, func or chan stored in an interface, or a node id whose IsNil
 // method says so (rhino.Node, which is nil when 0).
 func IsNil(v any) bool {
-	if v == nil {
+	switch x := v.(type) {
+	case nil:
 		return true
+	case string, int, int32, int64, int16, int8, uint, uint64, uint32, uint16, uint8, bool, float64, float32:
+		return false
+	case *string:
+		return x == nil
 	}
-	switch reflect.TypeOf(v).Kind() {
+	rv := reflect.ValueOf(v)
+	switch rv.Kind() {
 	case reflect.Pointer, reflect.Map, reflect.Slice, reflect.Func, reflect.Chan, reflect.Interface, reflect.UnsafePointer:
-		return reflect.ValueOf(v).IsNil()
+		return rv.IsNil()
 	case reflect.Uint32:
-		if reflect.ValueOf(v).Uint() != 0 {
+		if rv.Uint() != 0 {
 			return false
 		}
 		_, ok := v.(interface{ IsNil() bool })
@@ -202,6 +208,9 @@ func failElementIndex(index, size int) {
 // the next argument's Java string form; leftover arguments are appended as
 // " [a, b]".
 func LenientFormat(template string, args ...any) string {
+	if len(args) == 0 {
+		return template
+	}
 	var sb strings.Builder
 	i := 0
 	for i < len(args) {

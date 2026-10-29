@@ -42,9 +42,10 @@ type ReplaceStrings struct {
 
 	compiler AbstractCompiler
 
-	functions     *jutil.LinkedHashMap[string, *ReplaceStrings_Config]
+	functions     map[string]*ReplaceStrings_Config
 	nameGenerator *DefaultNameGenerator
-	results       *jutil.LinkedHashMap[string, *ReplaceStrings_Result]
+	resultsByKey  map[string]*ReplaceStrings_Result
+	resultOrder   []*ReplaceStrings_Result
 }
 
 // Java: ReplaceStrings.BAD_REPLACEMENT_CONFIGURATION
@@ -72,24 +73,32 @@ type ReplaceStrings_Config struct {
 	// TODO(johnlenz): Support name "groups" so that unrelated strings can
 	// reuse strings.  For example, event-id can reuse the names used for logger
 	// classes.
-	name                     string
-	parameters               []int
-	excludedFilenameSuffixes *jutil.LinkedHashSet[string]
+	name             string
+	parameters       []int
+	excludedSuffixes []string
 }
 
 // Java: ReplaceStrings.Config.REPLACE_ALL_VALUE
 const ReplaceStrings_Config_REPLACE_ALL_VALUE = 0
+
+func newReplaceStringsConfig(name string, replacementParameters []int, excludedSuffixes []string) *ReplaceStrings_Config {
+	return &ReplaceStrings_Config{
+		name:             name,
+		parameters:       replacementParameters,
+		excludedSuffixes: excludedSuffixes,
+	}
+}
 
 // Java: ReplaceStrings.Config(String, List<Integer>, ImmutableSet<String>)
 func NewReplaceStrings_Config(
 	name string,
 	replacementParameters []int,
 	excludedFilenameSuffixes *jutil.LinkedHashSet[string]) *ReplaceStrings_Config {
-	c := &ReplaceStrings_Config{}
-	c.name = name
-	c.parameters = replacementParameters
-	c.excludedFilenameSuffixes = excludedFilenameSuffixes
-	return c
+	var suffixes []string
+	if excludedFilenameSuffixes != nil {
+		suffixes = excludedFilenameSuffixes.ToSlice()
+	}
+	return newReplaceStringsConfig(name, replacementParameters, suffixes)
 }
 
 // Java: ReplaceStrings.Config.isReplaceAll()
@@ -127,8 +136,8 @@ func NewReplaceStrings_Result(original string, replacement string) *ReplaceStrin
 func NewReplaceStrings(
 	compiler AbstractCompiler, placeholderToken string, functionsToInspect []string) *ReplaceStrings {
 	r := &ReplaceStrings{
-		functions: jutil.NewLinkedHashMap[string, *ReplaceStrings_Config](),
-		results:   jutil.NewLinkedHashMap[string, *ReplaceStrings_Result](),
+		functions:    make(map[string]*ReplaceStrings_Config, len(functionsToInspect)),
+		resultsByKey: make(map[string]*ReplaceStrings_Result),
 	}
 	r.compiler = compiler
 	if placeholderToken == "" {
@@ -152,7 +161,7 @@ var ReplaceStrings_USED_RESULTS = func(result *ReplaceStrings_Result) bool { ret
 // Java: ReplaceStrings.getResult()
 func (r *ReplaceStrings) GetResult() []*ReplaceStrings_Result {
 	var out []*ReplaceStrings_Result
-	for result := range r.results.Values() {
+	for _, result := range r.resultOrder {
 		if ReplaceStrings_USED_RESULTS(result) {
 			out = append(out, result)
 		}
@@ -165,7 +174,7 @@ func (r *ReplaceStrings) GetResult() []*ReplaceStrings_Result {
 // Java: ReplaceStrings.getStringMap()
 func (r *ReplaceStrings) GetStringMap() *VariableMap {
 	map_ := jutil.NewImmutableMapBuilder[string, string]()
-	for result := range r.results.Values() {
+	for _, result := range r.resultOrder {
 		if ReplaceStrings_USED_RESULTS(result) {
 			map_.Put(result.replacement, result.original)
 		}
@@ -181,6 +190,9 @@ func (r *ReplaceStrings) Process(externs rhino.Node, root rhino.Node) {
 
 // Java: ReplaceStrings.visit(NodeTraversal, Node, Node)
 func (r *ReplaceStrings) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
+	if len(r.functions) == 0 {
+		return
+	}
 	// TODO(johnlenz): Determine if it is necessary to support ".call" or ".apply".
 	switch n.GetToken() {
 	case rhino.Token_NEW, // e.g. new Error('msg');
@@ -207,13 +219,12 @@ func (r *ReplaceStrings) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node
 //
 // Java: ReplaceStrings.findMatching(String, String)
 func (r *ReplaceStrings) FindMatching(name string, callsiteSourceFileName *string) *ReplaceStrings_Config {
-	config := r.functions.Get(name)
-	if config == nil {
-		name = strings.ReplaceAll(name, "$", ".")
-		config = r.functions.Get(name)
+	config := r.functions[name]
+	if config == nil && strings.IndexByte(name, '$') >= 0 {
+		config = r.functions[strings.ReplaceAll(name, "$", ".")]
 	}
 	if config != nil {
-		for excludedSuffix := range config.excludedFilenameSuffixes.All() {
+		for _, excludedSuffix := range config.excludedSuffixes {
 			// callsiteSourceFileName.endsWith(excludedSuffix): a null name throws.
 			if callsiteSourceFileName == nil {
 				panic(jutil.NewNullPointerException())
@@ -303,14 +314,15 @@ func (r *ReplaceStrings) ReplaceExpression(t *NodeTraversal, expr rhino.Node) rh
 //
 // Java: ReplaceStrings.getReplacement(String)
 func (r *ReplaceStrings) GetReplacement(key string) string {
-	result := r.results.Get(key)
+	result := r.resultsByKey[key]
 	if result != nil {
 		return result.replacement
 	}
 
 	replacement := r.nameGenerator.GenerateNextName()
 	result = NewReplaceStrings_Result(key, replacement)
-	r.results.Put(key, result)
+	r.resultsByKey[key] = result
+	r.resultOrder = append(r.resultOrder, result)
 	return replacement
 }
 
@@ -318,7 +330,7 @@ func (r *ReplaceStrings) GetReplacement(key string) string {
 //
 // Java: ReplaceStrings.recordReplacement(String)
 func (r *ReplaceStrings) RecordReplacement(key string) {
-	result := r.results.Get(key)
+	result := r.resultsByKey[key]
 	jutil.CheckState(result != nil)
 
 	result.didReplacement = true
@@ -347,7 +359,11 @@ func (r *ReplaceStrings) BuildReplacement(t *NodeTraversal, expr rhino.Node, pre
 		for child := expr.GetFirstChild(); !child.IsNil(); child = child.GetNext() {
 			switch child.GetToken() {
 			case rhino.Token_TEMPLATELIT_STRING:
-				keyBuilder.WriteString(jutil.ToJavaString(child.GetCookedString()))
+				if cooked := child.GetCookedString(); cooked != nil {
+					keyBuilder.WriteString(*cooked)
+				} else {
+					keyBuilder.WriteString("null")
+				}
 			case rhino.Token_TEMPLATELIT_SUB:
 				prefix = r.BuildReplacement(t, child.GetFirstChild(), prefix, keyBuilder)
 			default:
@@ -390,7 +406,7 @@ func (r *ReplaceStrings) ParseConfiguration(functionsToInspect []string) {
 	for _, function := range functionsToInspect {
 		config := r.ParseConfigurationOfFunction(function)
 		if config != nil {
-			r.functions.Put(config.name, config)
+			r.functions[config.name] = config
 		}
 	}
 }
@@ -405,9 +421,9 @@ func (r *ReplaceStrings) ParseConfiguration(functionsToInspect []string) {
 // Java: ReplaceStrings.parseConfiguration(String)
 func (r *ReplaceStrings) ParseConfigurationOfFunction(function string) *ReplaceStrings_Config {
 	// Looks like this function_name(,$,)
-	first := jutil.StringIndexOfChar(function, '(')
-	last := jutil.StringIndexOfChar(function, ')')
-	colon := jutil.StringIndexOf(function, ReplaceStrings_EXCLUSION_PREFIX)
+	first := strings.IndexByte(function, '(')
+	last := strings.IndexByte(function, ')')
+	colon := strings.Index(function, ReplaceStrings_EXCLUSION_PREFIX)
 
 	// TODO(johnlenz): Make parsing precondition checks JSErrors reports.
 	jutil.CheckState(first != -1 && last != -1)
@@ -421,8 +437,8 @@ func (r *ReplaceStrings) ParseConfigurationOfFunction(function string) *ReplaceS
 		return nil
 	}
 
-	name := jutil.StringSubstring(function, 0, first)
-	params := jutil.StringSubstring(function, first+1, last)
+	name := function[:first]
+	params := function[first+1 : last]
 
 	paramCount := 0
 	var replacementParameters []int
@@ -444,17 +460,19 @@ func (r *ReplaceStrings) ParseConfigurationOfFunction(function string) *ReplaceS
 
 	jutil.CheckState(len(replacementParameters) != 0)
 
-	excludedFilenameSuffixes := jutil.NewLinkedHashSet[string]()
+	var excludedSuffixes []string
 	if colon != -1 {
 		for _, suffix := range jutil.StringSplitLiteral(
-			jutil.StringSubstringFrom(function, colon+jutil.StringLength(ReplaceStrings_EXCLUSION_PREFIX)), ",") {
-			excludedFilenameSuffixes.Add(suffix)
+			function[colon+len(ReplaceStrings_EXCLUSION_PREFIX):], ",") {
+			if !slices.Contains(excludedSuffixes, suffix) {
+				excludedSuffixes = append(excludedSuffixes, suffix)
+			}
 		}
 	}
-	return NewReplaceStrings_Config(
+	return newReplaceStringsConfig(
 		name,
 		replacementParameters,
-		excludedFilenameSuffixes)
+		excludedSuffixes)
 }
 
 // ReplaceStrings_CreateNameGenerator uses a name generate to create names so

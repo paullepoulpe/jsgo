@@ -20,6 +20,12 @@ package jscomp
 
 import (
 	"github.com/paullepoulpe/jsgo/internal/rhino"
+	"github.com/paullepoulpe/jsgo/internal/strpool"
+)
+
+var (
+	ccrGoogID           = uint32(strpool.Intern("goog"))
+	ccrAbstractMethodID = uint32(strpool.Intern("abstractMethod"))
 )
 
 // ClosureCodeRemoval is a compiler pass that removes Closure-specific code
@@ -138,20 +144,22 @@ func (f *ClosureCodeRemoval_FindAbstractMethods) Visit(t *NodeTraversal, n rhino
 		nameNode := n.GetFirstChild()
 		valueNode := n.GetLastChild()
 
-		if nameNode.IsQualifiedName() &&
-			valueNode.IsQualifiedName() &&
-			valueNode.MatchesQualifiedName(ClosureCodeRemoval_ABSTRACT_METHOD_NAME) {
+		if valueNode.IsGetProp() &&
+			valueNode.GetStringID() == ccrAbstractMethodID &&
+			valueNode.GetFirstChild().IsName() &&
+			valueNode.GetFirstChild().GetStringID() == ccrGoogID &&
+			nameNode.IsQualifiedName() {
 			// Foo.prototype.bar = goog.abstractMethod
-			c.abstractMethodAssignmentNodes = append(c.abstractMethodAssignmentNodes, c.makeRemovableAssignment(n.GetFirstChild(), n))
-		} else if n.GetJSDocInfo() != nil &&
-			n.GetJSDocInfo().IsAbstract() &&
-			NodeUtil_IsEmptyFunctionExpression(valueNode) &&
-			!n.GetJSDocInfo().IsConstructor() {
+			c.abstractMethodAssignmentNodes = append(c.abstractMethodAssignmentNodes, c.makeRemovableAssignment(nameNode, n))
+		} else if jsdoc := n.GetJSDocInfo(); jsdoc != nil &&
+			jsdoc.IsAbstract() &&
+			!jsdoc.IsConstructor() &&
+			NodeUtil_IsEmptyFunctionExpression(valueNode) {
 			// @abstract
-			c.abstractMethodAssignmentNodes = append(c.abstractMethodAssignmentNodes, c.makeRemovableAssignment(n.GetFirstChild(), n))
+			c.abstractMethodAssignmentNodes = append(c.abstractMethodAssignmentNodes, c.makeRemovableAssignment(nameNode, n))
 		}
 	} else if n.IsMemberFunctionDef() && parent.IsClassMembers() {
-		if n.GetJSDocInfo() != nil && n.GetJSDocInfo().IsAbstract() {
+		if jsdoc := n.GetJSDocInfo(); jsdoc != nil && jsdoc.IsAbstract() {
 			c.abstractMemberFunctionNodes = append(c.abstractMemberFunctionNodes, n)
 		}
 	}
@@ -181,8 +189,9 @@ func (f *ClosureCodeRemoval_FindAssertionCalls) Visit(t *NodeTraversal, n rhino.
 
 	callee := n.GetFirstChild()
 
-	if f.assertionNames.LookupByCallee(callee) != nil || // type-based
-		(callee.GetColor() != nil && callee.GetColor().IsClosureAssert()) { // color-based
+	if f.assertionNames.LookupByCallee(callee) != nil { // type-based
+		f.outer.assertionCalls = append(f.outer.assertionCalls, n)
+	} else if color := callee.GetColor(); color != nil && color.IsClosureAssert() { // color-based
 		f.outer.assertionCalls = append(f.outer.assertionCalls, n)
 	}
 }

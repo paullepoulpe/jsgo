@@ -51,20 +51,19 @@ func (g *DiagnosticGroupWarningsGuard) Level(error *JSError) *CheckLevel {
 // Java: DiagnosticGroupWarningsGuard.mustRunChecks(DiagnosticGroup)
 func (g *DiagnosticGroupWarningsGuard) MustRunChecks(otherGroup *DiagnosticGroup) base.Tri {
 	if g.level.IsOn() {
-		for t := range otherGroup.GetTypes().All() {
+		for _, t := range otherGroup.GetTypes() {
 			if g.group.MatchesType(t) {
 				return base.Tri_TRUE
 			}
 		}
 		return base.Tri_UNKNOWN
-	} else {
-		for t := range otherGroup.GetTypes().All() {
-			if !g.group.MatchesType(t) {
-				return base.Tri_UNKNOWN
-			}
-		}
-		return base.Tri_FALSE
 	}
+	for _, t := range otherGroup.GetTypes() {
+		if !g.group.MatchesType(t) {
+			return base.Tri_UNKNOWN
+		}
+	}
+	return base.Tri_FALSE
 }
 
 // Java: DiagnosticGroupWarningsGuard.toString()

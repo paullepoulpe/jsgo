@@ -54,6 +54,8 @@ package parsing
 
 import (
 	_ "embed"
+	"maps"
+	"slices"
 	"sync"
 
 	"github.com/paullepoulpe/jsgo/internal/jutil"
@@ -62,12 +64,15 @@ import (
 )
 
 var (
-	parserRunner_annotationNames         *jutil.LinkedHashSet[string]
-	parserRunner_defaultExtraAnnotations *jutil.LinkedHashSet[string]
-	parserRunner_defaultAnnotations      *jutil.LinkedHashMap[string, Annotation]
+	parserRunner_defaultExtraAnnotations map[string]struct{}
+	parserRunner_defaultExtraOrder       []string
+	parserRunner_defaultAnnotations      map[string]Annotation
 	parserRunner_suppressionNames        *jutil.LinkedHashSet[string]
+	parserRunner_suppressionSet          map[string]struct{}
+	parserRunner_suppressionOrder        []string
 	parserRunner_reservedVars            *jutil.LinkedHashSet[string]
-	parserRunner_closurePrimitiveNames   *jutil.LinkedHashSet[string]
+	parserRunner_closurePrimitiveSet     map[string]struct{}
+	parserRunner_closurePrimitiveOrder   []string
 
 	parserRunner_initOnce sync.Once
 )
@@ -94,41 +99,51 @@ func ParserRunner_CreateConfigWithModes(
 	strictMode Config_StrictMode) *Config {
 	ParserRunner_InitResourceConfig()
 	extra := parserRunner_defaultExtraAnnotations
-	var annotations *jutil.LinkedHashMap[string, Annotation]
+	extraOrder := parserRunner_defaultExtraOrder
+	var annotations map[string]Annotation
 	if extraAnnotationNames == nil || extraAnnotationNames.IsEmpty() {
 		annotations = parserRunner_defaultAnnotations
 	} else {
-		var custom *jutil.LinkedHashSet[string]
-		if extra != nil {
-			custom = jutil.NewLinkedHashSet(extra.ToSlice()...)
+		var custom map[string]struct{}
+		var customOrder []string
+		if len(extra) > 0 {
+			custom = maps.Clone(extra)
+			customOrder = slices.Clone(extraOrder)
 		}
 		for name := range extraAnnotationNames.All() {
-			if name != "" && !Annotation_recognizedAnnotations.ContainsKey(name) {
+			if name == "" {
+				continue
+			}
+			if _, recognized := Annotation_recognizedAnnotations[name]; !recognized {
 				if custom == nil {
-					custom = jutil.NewLinkedHashSet[string]()
+					custom = make(map[string]struct{})
 				}
-				custom.Add(name)
+				if _, dup := custom[name]; !dup {
+					custom[name] = struct{}{}
+					customOrder = append(customOrder, name)
+				}
 			}
 		}
 		extra = custom
-		if extra == nil {
+		extraOrder = customOrder
+		if len(extra) == 0 {
 			annotations = Annotation_recognizedAnnotations
 		}
 	}
-	c := &Config{
+	return &Config{
 		languageMode:          languageMode,
 		strictMode:            strictMode,
 		jsDocParsingMode:      jsdocParsingMode,
 		runMode:               runMode,
+		annotations:           annotations,
 		extraAnnotations:      extra,
-		suppressionNames:      parserRunner_suppressionNames,
-		closurePrimitiveNames: parserRunner_closurePrimitiveNames,
+		extraAnnotationOrder:  extraOrder,
+		suppressionNames:      parserRunner_suppressionSet,
+		suppressionOrder:      parserRunner_suppressionOrder,
+		closurePrimitiveNames: parserRunner_closurePrimitiveSet,
+		closurePrimitiveOrder: parserRunner_closurePrimitiveOrder,
 		parseInlineSourceMaps: parseInlineSourceMaps,
 	}
-	if annotations != nil {
-		c.annotations.Store(annotations)
-	}
-	return c
 }
 
 // Java: ParserRunner.getReservedVars()
@@ -146,19 +161,27 @@ func ParserRunner_GetSuppressionNames() *jutil.LinkedHashSet[string] {
 // Java: ParserRunner.initResourceConfig()
 func ParserRunner_InitResourceConfig() {
 	parserRunner_initOnce.Do(func() {
-		parserRunner_annotationNames = ParserRunner_ExtractList(ParserConfiguration_GetString("jsdoc.annotations"))
+		annotationNames := ParserRunner_ExtractList(ParserConfiguration_GetString("jsdoc.annotations"))
 		parserRunner_suppressionNames = ParserRunner_ExtractList(ParserConfiguration_GetString("jsdoc.suppressions"))
-		parserRunner_closurePrimitiveNames = ParserRunner_ExtractList(ParserConfiguration_GetString("jsdoc.primitives"))
+		closurePrimitiveNames := ParserRunner_ExtractList(ParserConfiguration_GetString("jsdoc.primitives"))
 		parserRunner_reservedVars = ParserRunner_ExtractList(ParserConfiguration_GetString("compiler.reserved.vars"))
-		for name := range parserRunner_annotationNames.All() {
-			if name != "" && !Annotation_recognizedAnnotations.ContainsKey(name) {
+		parserRunner_suppressionSet, parserRunner_suppressionOrder = config_stringSetAndOrderCopyOf(parserRunner_suppressionNames.All())
+		parserRunner_closurePrimitiveSet, parserRunner_closurePrimitiveOrder = config_stringSetAndOrderCopyOf(closurePrimitiveNames.All())
+		for name := range annotationNames.All() {
+			if name == "" {
+				continue
+			}
+			if _, recognized := Annotation_recognizedAnnotations[name]; !recognized {
 				if parserRunner_defaultExtraAnnotations == nil {
-					parserRunner_defaultExtraAnnotations = jutil.NewLinkedHashSet[string]()
+					parserRunner_defaultExtraAnnotations = make(map[string]struct{})
 				}
-				parserRunner_defaultExtraAnnotations.Add(name)
+				if _, dup := parserRunner_defaultExtraAnnotations[name]; !dup {
+					parserRunner_defaultExtraAnnotations[name] = struct{}{}
+					parserRunner_defaultExtraOrder = append(parserRunner_defaultExtraOrder, name)
+				}
 			}
 		}
-		parserRunner_defaultAnnotations = Config_BuildAnnotations(parserRunner_annotationNames.All())
+		parserRunner_defaultAnnotations = Config_BuildAnnotations(annotationNames.All())
 	})
 }
 

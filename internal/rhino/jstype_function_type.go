@@ -247,7 +247,7 @@ func NewFunctionType(builder *FunctionType_Builder) *FunctionTypeBase {
 //
 // Java: FunctionType(Builder)
 func (f *FunctionTypeBase) InitFunctionTypeBase(self FunctionType, builder *FunctionType_Builder) {
-	f.InitPrototypeObjectTypeBase(self, builder.GetBuilderFields())
+	f.InitPrototypeObjectTypeBase(self, &builder.PrototypeObjectType_Builder)
 	self.SetPrettyPrint(true)
 
 	source := builder.sourceNode
@@ -278,9 +278,9 @@ func (f *FunctionTypeBase) InitFunctionTypeBase(self FunctionType, builder *Func
 			typeOfThisBuilder.constructor = self
 
 			ctorKeys := builder.constructorOnlyKeys
-			if ctorKeys != nil && !ctorKeys.IsEmpty() {
-				typeOfThisBuilder.templateTypeMap = f.templateTypeMap.CopyWithoutKeys(ctorKeys)
-				typeOfThisBuilder.templateParamCount = f.selfFunc().GetTemplateParamCount() - ctorKeys.Size()
+			if len(ctorKeys) > 0 {
+				typeOfThisBuilder.templateTypeMap = f.templateTypeMap.CopyWithoutKeys(jutil.NewLinkedHashSet(ctorKeys...))
+				typeOfThisBuilder.templateParamCount = f.selfFunc().GetTemplateParamCount() - len(ctorKeys)
 			}
 
 			f.typeOfThis = NewInstanceObjectType(&typeOfThisBuilder).GetJSTypeBase()
@@ -593,8 +593,8 @@ func (f *FunctionTypeBase) GetPrototype() ObjectType {
 			// then it would propagate to all structural functions.
 			f.SetPrototypeNoCheck(f.GetRegistry().GetNativeObjectType(JSTypeNative_UNKNOWN_TYPE), NilNode)
 		} else {
-			name := jutil.ToJavaString(refName) + ".prototype"
-			fields := PrototypeObjectType_BuilderFields{
+			name := *refName + ".prototype"
+			fields := PrototypeObjectType_Builder{
 				registry:          f.GetRegistry(),
 				className:         &name,
 				implicitPrototype: f.GetRegistry().GetNativeObjectType(JSTypeNative_OBJECT_TYPE),
@@ -653,7 +653,7 @@ func (f *FunctionTypeBase) SetPrototypeBasedOnWithPropertyNode(baseType ObjectTy
 			return
 		}
 		name := jutil.ToJavaString(f.selfFunc().GetReferenceName()) + ".prototype"
-		fields := PrototypeObjectType_BuilderFields{
+		fields := PrototypeObjectType_Builder{
 			registry:          f.GetRegistry(),
 			className:         &name,
 			implicitPrototype: baseType,

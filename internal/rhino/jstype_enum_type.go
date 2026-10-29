@@ -64,7 +64,7 @@ func EnumType_Builder_(registry *JSTypeRegistry) *EnumType_Builder {
 
 // EnumType_Builder is EnumType.Builder.
 type EnumType_Builder struct {
-	PrototypeObjectType_Builder[*EnumType_Builder]
+	PrototypeObjectType_Builder
 
 	elementName  *string
 	source       Node
@@ -75,15 +75,45 @@ type EnumType_Builder struct {
 // Java: EnumType.Builder(JSTypeRegistry)
 func NewEnumType_Builder(registry *JSTypeRegistry) *EnumType_Builder {
 	b := &EnumType_Builder{}
-	b.InitPrototypeObjectType_Builder(b, registry)
+	b.InitPrototypeObjectType_Builder(registry)
 	return b
 }
 
 // Java: EnumType.Builder.setName(String)
 func (b *EnumType_Builder) SetName(x *string) *EnumType_Builder {
 	name := "enum{" + jutil.ToJavaString(x) + "}"
-	b.PrototypeObjectType_Builder.SetName(&name)
+	b.className = &name
 	b.elementName = x
+	return b
+}
+
+// Java: PrototypeObjectType.Builder.setImplicitPrototype(ObjectType)
+func (b *EnumType_Builder) SetImplicitPrototype(x ObjectType) *EnumType_Builder {
+	b.implicitPrototype = x
+	return b
+}
+
+// Java: PrototypeObjectType.Builder.setNative(boolean)
+func (b *EnumType_Builder) SetNative(x bool) *EnumType_Builder {
+	b.nativeType = x
+	return b
+}
+
+// Java: PrototypeObjectType.Builder.setAnonymous(boolean)
+func (b *EnumType_Builder) SetAnonymous(x bool) *EnumType_Builder {
+	b.anonymousType = x
+	return b
+}
+
+// Java: PrototypeObjectType.Builder.setTemplateTypeMap(TemplateTypeMap)
+func (b *EnumType_Builder) SetTemplateTypeMap(x *TemplateTypeMap) *EnumType_Builder {
+	b.templateTypeMap = x
+	return b
+}
+
+// Java: PrototypeObjectType.Builder.setTemplateParamCount(int)
+func (b *EnumType_Builder) SetTemplateParamCount(x int) *EnumType_Builder {
+	b.templateParamCount = x
 	return b
 }
 
@@ -123,7 +153,7 @@ func NewEnumType(builder *EnumType_Builder) *EnumType {
 	t := &EnumType{}
 	t.objFlags = objKindEnum
 	t.elements = jutil.NewLinkedHashSet[string]()
-	t.InitPrototypeObjectTypeBase(t, builder.GetBuilderFields())
+	t.InitPrototypeObjectTypeBase(t, &builder.PrototypeObjectType_Builder)
 	t.elementType = NewEnumElementType(builder.registry, builder.elementType, builder.elementName, t)
 	t.source = builder.source
 	t.googModuleId = builder.googModuleId

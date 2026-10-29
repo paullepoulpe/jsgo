@@ -147,9 +147,8 @@ func (tc *TypeCheck) CheckAbstractPropertyAccess(method ast.NormalOrOptChainGetP
 		// even if the `this` object changes. So `super` will never resolve to a concrete subclass.
 		tc.Report(method.Node(), TypeCheck_ABSTRACT_SUPER_METHOD_NOT_USABLE, jutil.ToJavaString(methodType.GetDisplayName()))
 	} else if objectGetProp, ok := object.AsGetProp(); ok {
-		objectProp := objectGetProp.Property()
-		if objectProp == "prototype" || // case (b), e.g. `Foo.prototype.bar`
-			tc.compiler.GetCodingConvention().IsSuperClassReference(objectProp) { // case (c)
+		if objectGetProp.Node().GetStringID() == typeCheckPrototypeID || // case (b), e.g. `Foo.prototype.bar`
+			tc.compiler.GetCodingConvention().IsSuperClassReference(objectGetProp.Property()) { // case (c)
 			tc.Report(method.Node(), TypeCheck_ABSTRACT_SUPER_METHOD_NOT_USABLE, jutil.ToJavaString(methodType.GetDisplayName()))
 		}
 	}
@@ -173,7 +172,8 @@ func (tc *TypeCheck) CheckPropertyAccess(
 	childType rhino.JSType, propNode rhino.Node, propType rhino.JSType, objNode rhino.Node) {
 	isGetprop := NodeUtil_IsNormalOrOptChainGetProp(propNode)
 
-	if propType.Equals(tc.typeRegistry.GetNativeType(rhino.JSTypeNative_UNKNOWN_TYPE)) {
+	unknownType := tc.typeRegistry.GetNativeType(rhino.JSTypeNative_UNKNOWN_TYPE)
+	if propType == unknownType || propType.Equals(unknownType) {
 		childType = childType.Autobox()
 		objectType := rhino.ObjectType_Cast(childType)
 		if objectType != nil {
@@ -181,7 +181,8 @@ func (tc *TypeCheck) CheckPropertyAccess(
 			// much stricter, and so that we can use hasProperty (which is much
 			// faster in most cases).
 			if !rhino.HasPropertyByID(objectType, propNode.GetStringID()) ||
-				objectType.Equals(tc.typeRegistry.GetNativeType(rhino.JSTypeNative_UNKNOWN_TYPE)) {
+				objectType == unknownType ||
+				objectType.Equals(unknownType) {
 				if _, isEnum := objectType.(*rhino.EnumType); isEnum {
 					tc.Report(propNode, TypeCheck_INEXISTENT_ENUM_ELEMENT, propNode.GetString())
 				} else {
@@ -602,7 +603,8 @@ func (tc *TypeCheck) CheckConstructor(n rhino.Node, functionType rhino.FunctionT
 		// Warn if any @implemented types are not interfaces or if there are any duplicates
 		implementedInterfaces := functionType.GetOwnImplementedInterfaces()
 		if len(implementedInterfaces) > 0 {
-			alreadySeenInterfaces := jutil.NewObjectLinkedHashSet[rhino.JSType]()
+			var seenBuf [8]rhino.JSType
+			seen := seenBuf[:0]
 
 			for _, baseInterfaceObjectType := range implementedInterfaces {
 				var baseInterface rhino.JSType = baseInterfaceObjectType
@@ -619,10 +621,21 @@ func (tc *TypeCheck) CheckConstructor(n rhino.Node, functionType rhino.FunctionT
 				if badImplementedType {
 					tc.Report(n, TypeCheck_BAD_IMPLEMENTED_TYPE, tc.GetBestFunctionName(n))
 				}
-				// Disallow implementing both `Foo<string>` and `Foo<number>`, for example.
-				baseInterface = tc.NormalizeTemplatizedType(baseInterface)
-				if !alreadySeenInterfaces.Add(baseInterface) {
-					tc.Report(n, TypeCheck_SAME_INTERFACE_MULTIPLE_IMPLEMENTS, baseInterface.String())
+				if len(implementedInterfaces) > 1 {
+					// Disallow implementing both `Foo<string>` and `Foo<number>`, for example.
+					baseInterface = tc.NormalizeTemplatizedType(baseInterface)
+					duplicate := false
+					for _, prev := range seen {
+						if prev == baseInterface || prev.Equals(baseInterface) {
+							duplicate = true
+							break
+						}
+					}
+					if duplicate {
+						tc.Report(n, TypeCheck_SAME_INTERFACE_MULTIPLE_IMPLEMENTS, baseInterface.String())
+					} else {
+						seen = append(seen, baseInterface)
+					}
 				}
 			}
 		}

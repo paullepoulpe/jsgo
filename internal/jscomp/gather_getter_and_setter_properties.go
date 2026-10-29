@@ -21,6 +21,12 @@ package jscomp
 import (
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
+	"github.com/paullepoulpe/jsgo/internal/strpool"
+)
+
+var (
+	gatherPropGetID = uint32(strpool.Intern("get"))
+	gatherPropSetID = uint32(strpool.Intern("set"))
 )
 
 // GatherGetterAndSetterProperties finds getter and setter properties in the
@@ -33,9 +39,7 @@ type GatherGetterAndSetterProperties struct {
 
 // Java: GatherGetterAndSetterProperties(AbstractCompiler)
 func NewGatherGetterAndSetterProperties(compiler AbstractCompiler) *GatherGetterAndSetterProperties {
-	g := &GatherGetterAndSetterProperties{}
-	g.compiler = compiler
-	return g
+	return &GatherGetterAndSetterProperties{compiler: compiler}
 }
 
 // Java: GatherGetterAndSetterProperties.process(Node, Node)
@@ -55,7 +59,7 @@ func GatherGetterAndSetterProperties_Update(compiler AbstractCompiler, externs r
 	jutil.CheckState(externs.GetParent() == root.GetParent())
 	var accessorSummary *AccessorSummary
 	if compiler.GetOptions().GetAssumePropertiesAreStaticallyAnalyzable() {
-		accessorSummary = AccessorSummary_Create(GatherGetterAndSetterProperties_Gather(compiler, externs.GetParent()))
+		accessorSummary = gatherAccessorSummary(compiler, externs.GetParent())
 	} else {
 		accessorSummary = AccessorSummary_CreateAssumingAlwaysGetterAndSetter()
 	}
@@ -64,12 +68,21 @@ func GatherGetterAndSetterProperties_Update(compiler AbstractCompiler, externs r
 
 // Java: GatherGetterAndSetterProperties.gather(AbstractCompiler, Node)
 func GatherGetterAndSetterProperties_Gather(compiler AbstractCompiler, root rhino.Node) *jutil.LinkedHashMap[string, AccessorSummary_PropertyAccessKind] {
-	if out, ok := gatherGetterAndSetterPropertiesParallel(compiler, root); ok {
+	return gatherAccessorSummary(compiler, root).GetAccessors()
+}
+
+func gatherAccessorSummary(compiler AbstractCompiler, root rhino.Node) *AccessorSummary {
+	if out, ok := gatherAccessorSummaryParallel(compiler, root); ok {
 		return out
 	}
-	gatherCallback := NewGatherGetterAndSetterProperties_GatherCallback()
-	NodeTraversal_Traverse(compiler, root, gatherCallback)
-	return gatherCallback.properties
+	var gatherCallback GatherGetterAndSetterProperties_GatherCallback
+	NodeTraversal_Traverse(compiler, root, &gatherCallback)
+	if len(gatherCallback.entries) == 0 {
+		return &AccessorSummary{}
+	}
+	var batches [1][]accessorIDEntry
+	batches[0] = gatherCallback.entries
+	return newAccessorSummaryFromIDs(batches[:])
 }
 
 func collectGatherScripts(n rhino.Node, out *[]rhino.Node) bool {
@@ -91,10 +104,10 @@ func collectGatherScripts(n rhino.Node, out *[]rhino.Node) bool {
 	return true
 }
 
-func gatherGetterAndSetterPropertiesParallel(
+func gatherAccessorSummaryParallel(
 	compiler AbstractCompiler,
 	root rhino.Node,
-) (*jutil.LinkedHashMap[string, AccessorSummary_PropertyAccessKind], bool) {
+) (*AccessorSummary, bool) {
 	var scripts []rhino.Node
 	if !collectGatherScripts(root, &scripts) {
 		return nil, false
@@ -105,54 +118,42 @@ func gatherGetterAndSetterPropertiesParallel(
 	}
 
 	prewarmCompilerForParallelReads(compiler)
-	perScript := make([]*jutil.LinkedHashMap[string, AccessorSummary_PropertyAccessKind], len(scripts))
+	perScript := make([][]accessorIDEntry, len(scripts))
 	runParallelWork(compiler, numWorkers, len(scripts), func(_ int) (func(int, *recordingCompiler), func()) {
 		runItem := func(idx int, rc *recordingCompiler) {
-			cb := NewGatherGetterAndSetterProperties_GatherCallback()
-			NodeTraversal_Traverse(rc, scripts[idx], cb)
-			if !cb.properties.IsEmpty() {
-				perScript[idx] = cb.properties
+			var cb GatherGetterAndSetterProperties_GatherCallback
+			NodeTraversal_Traverse(rc, scripts[idx], &cb)
+			if len(cb.entries) > 0 {
+				perScript[idx] = cb.entries
 			}
 		}
 		return runItem, nil
 	}, false)
 
-	merged := NewGatherGetterAndSetterProperties_GatherCallback()
-	for _, props := range perScript {
-		if props == nil {
-			continue
-		}
-		for prop, kind := range props.All() {
-			merged.Record(prop, kind)
-		}
-	}
-	return merged.properties, true
+	return newAccessorSummaryFromIDs(perScript), true
 }
 
 // GatherGetterAndSetterProperties_GatherCallback is the traversal that
 // records the accessors.
 type GatherGetterAndSetterProperties_GatherCallback struct {
 	NodeTraversal_AbstractPostOrderCallbackBase
-	properties *jutil.LinkedHashMap[string, AccessorSummary_PropertyAccessKind]
+	entries []accessorIDEntry
 }
 
 func (*GatherGetterAndSetterProperties_GatherCallback) noVisitLeaves() {}
 
 // Java: GatherCallback()
 func NewGatherGetterAndSetterProperties_GatherCallback() *GatherGetterAndSetterProperties_GatherCallback {
-	return &GatherGetterAndSetterProperties_GatherCallback{
-		properties: jutil.NewLinkedHashMap[string, AccessorSummary_PropertyAccessKind](),
-	}
+	return &GatherGetterAndSetterProperties_GatherCallback{}
+}
+
+func (c *GatherGetterAndSetterProperties_GatherCallback) recordByID(propertyID uint32, kind AccessorSummary_PropertyAccessKind) {
+	c.entries = append(c.entries, accessorIDEntry{id: propertyID, kind: kind})
 }
 
 // Java: GatherCallback.record(String, PropertyAccessKind)
 func (c *GatherGetterAndSetterProperties_GatherCallback) Record(property string, kind AccessorSummary_PropertyAccessKind) {
-	// properties.merge(property, kind, PropertyAccessKind::unionWith)
-	if old, ok := c.properties.Lookup(property); ok {
-		c.properties.Put(property, old.UnionWith(kind))
-	} else {
-		c.properties.Put(property, kind)
-	}
+	c.recordByID(uint32(strpool.Intern(property)), kind)
 }
 
 // Java: GatherCallback.visit(NodeTraversal, Node, Node)
@@ -176,17 +177,26 @@ func (c *GatherGetterAndSetterProperties_GatherCallback) Visit(t *NodeTraversal,
 // Java: GatherCallback.recordGetterDef(Node)
 func (c *GatherGetterAndSetterProperties_GatherCallback) RecordGetterDef(getterDef rhino.Node) {
 	jutil.CheckState(getterDef.IsGetterDef())
-
-	name := getterDef.GetString()
-	c.Record(name, AccessorSummary_PropertyAccessKind_GETTER_ONLY)
+	c.recordByID(getterDef.GetStringID(), AccessorSummary_PropertyAccessKind_GETTER_ONLY)
 }
 
 // Java: GatherCallback.recordSetterDef(Node)
 func (c *GatherGetterAndSetterProperties_GatherCallback) RecordSetterDef(setterDef rhino.Node) {
 	jutil.CheckState(setterDef.IsSetterDef())
+	c.recordByID(setterDef.GetStringID(), AccessorSummary_PropertyAccessKind_SETTER_ONLY)
+}
 
-	name := setterDef.GetString()
-	c.Record(name, AccessorSummary_PropertyAccessKind_SETTER_ONLY)
+func (c *GatherGetterAndSetterProperties_GatherCallback) visitDescriptorByID(propertyID uint32, descriptor rhino.Node) {
+	for key := descriptor.GetFirstChild(); !key.IsNil(); key = key.GetNext() {
+		if key.IsStringKey() || key.IsMemberFunctionDef() {
+			switch key.GetStringID() {
+			case gatherPropGetID:
+				c.recordByID(propertyID, AccessorSummary_PropertyAccessKind_GETTER_ONLY)
+			case gatherPropSetID:
+				c.recordByID(propertyID, AccessorSummary_PropertyAccessKind_SETTER_ONLY)
+			}
+		}
+	}
 }
 
 // VisitDescriptor looks for getters and setters passed to
@@ -197,15 +207,7 @@ func (c *GatherGetterAndSetterProperties_GatherCallback) RecordSetterDef(setterD
 //
 // Java: GatherCallback.visitDescriptor(String, Node)
 func (c *GatherGetterAndSetterProperties_GatherCallback) VisitDescriptor(propertyName string, descriptor rhino.Node) {
-	for key := descriptor.GetFirstChild(); !key.IsNil(); key = key.GetNext() {
-		if key.IsStringKey() || key.IsMemberFunctionDef() {
-			if "get" == key.GetString() {
-				c.Record(propertyName, AccessorSummary_PropertyAccessKind_GETTER_ONLY)
-			} else if "set" == key.GetString() {
-				c.Record(propertyName, AccessorSummary_PropertyAccessKind_SETTER_ONLY)
-			}
-		}
-	}
+	c.visitDescriptorByID(uint32(strpool.Intern(propertyName)), descriptor)
 }
 
 // Java: GatherCallback.visitDefineProperty(Node)
@@ -217,8 +219,7 @@ func (c *GatherGetterAndSetterProperties_GatherCallback) VisitDefineProperty(def
 		return
 	}
 
-	propertyName := propertyNameNode.GetString()
-	c.VisitDescriptor(propertyName, descriptor)
+	c.visitDescriptorByID(propertyNameNode.GetStringID(), descriptor)
 }
 
 // Java: GatherCallback.visitDefineProperties(Node)
@@ -231,10 +232,7 @@ func (c *GatherGetterAndSetterProperties_GatherCallback) VisitDefineProperties(d
 
 	for prop := props.GetFirstChild(); !prop.IsNil(); prop = prop.GetNext() {
 		if prop.IsStringKey() && prop.HasOneChild() && prop.GetFirstChild().IsObjectLit() {
-			propertyName := prop.GetString()
-			descriptor := prop.GetFirstChild()
-
-			c.VisitDescriptor(propertyName, descriptor)
+			c.visitDescriptorByID(prop.GetStringID(), prop.GetFirstChild())
 		}
 	}
 }

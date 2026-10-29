@@ -20,11 +20,15 @@ package jscomp
 
 import (
 	"slices"
+	"strconv"
 
 	"github.com/paullepoulpe/jsgo/internal/ast"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
+	"github.com/paullepoulpe/jsgo/internal/strpool"
 )
+
+var epmdPrototypeID = uint32(strpool.Intern("prototype"))
 
 // ExtractPrototypeMemberDeclarations: when there are multiple prototype
 // member declarations to the same class, use a temp variable to alias the
@@ -187,7 +191,8 @@ func (e *ExtractPrototypeMemberDeclarations) MaybeDoExtraction(info *ExtractProt
 		e.compiler.ReportChangeToEnclosingScope(var_)
 	}
 	// Go through all extraction instances and extract each of them.
-	for entryKey, entryValue := range info.instancesByChunk.All() {
+	for _, entryKey := range info.chunkOrder {
+		entryValue := info.instancesByChunk[entryKey]
 		alias := ExtractPrototypeMemberDeclarations_PROTOTYPE_ALIAS
 		if e.pattern == ExtractPrototypeMemberDeclarations_Pattern_USE_CHUNK_TEMP {
 			// Rather than a truly global variable, use a unique variable per output chunk.
@@ -195,7 +200,7 @@ func (e *ExtractPrototypeMemberDeclarations) MaybeDoExtraction(info *ExtractProt
 			// namespace properties which reduces the benefit of the alias.
 			if info.ShouldExtractChunk(entryKey) {
 				injectionPoint := e.compiler.GetNodeForCodeInsertion(entryKey)
-				alias = ExtractPrototypeMemberDeclarations_PROTOTYPE_ALIAS + jutil.ToJavaString(entryKey.GetIndex())
+				alias = ExtractPrototypeMemberDeclarations_PROTOTYPE_ALIAS + strconv.Itoa(int(entryKey.GetIndex()))
 				var_ := NodeUtil_NewVarNode(alias, rhino.NilNode).SrcrefTreeIfMissing(injectionPoint)
 
 				injectionPoint.AddChildToFront(var_)
@@ -302,7 +307,8 @@ func NewExtractPrototypeMemberDeclarations_ExtractionInstanceInfo() *ExtractProt
 type ExtractPrototypeMemberDeclarations_GatherExtractionInfo struct {
 	NodeTraversal_AbstractShallowCallbackBase
 	outer            *ExtractPrototypeMemberDeclarations
-	instancesByChunk *jutil.LinkedHashMap[*JSChunk, *ExtractPrototypeMemberDeclarations_ExtractionInstanceInfo]
+	instancesByChunk map[*JSChunk]*ExtractPrototypeMemberDeclarations_ExtractionInstanceInfo
+	chunkOrder       []*JSChunk
 	scratchDecls     []ExtractPrototypeMemberDeclarations_PrototypeMemberDeclaration
 }
 
@@ -310,7 +316,7 @@ type ExtractPrototypeMemberDeclarations_GatherExtractionInfo struct {
 func NewExtractPrototypeMemberDeclarations_GatherExtractionInfo(outer *ExtractPrototypeMemberDeclarations) *ExtractPrototypeMemberDeclarations_GatherExtractionInfo {
 	return &ExtractPrototypeMemberDeclarations_GatherExtractionInfo{
 		outer:            outer,
-		instancesByChunk: jutil.NewLinkedHashMap[*JSChunk, *ExtractPrototypeMemberDeclarations_ExtractionInstanceInfo](),
+		instancesByChunk: make(map[*JSChunk]*ExtractPrototypeMemberDeclarations_ExtractionInstanceInfo),
 	}
 }
 
@@ -358,10 +364,11 @@ func (g *ExtractPrototypeMemberDeclarations_GatherExtractionInfo) Visit(t *NodeT
 			}
 
 			chunk := t.GetChunk()
-			instanceInfo := g.instancesByChunk.Get(chunk)
+			instanceInfo := g.instancesByChunk[chunk]
 			if instanceInfo == nil {
 				instanceInfo = NewExtractPrototypeMemberDeclarations_ExtractionInstanceInfo()
-				g.instancesByChunk.PutNew(chunk, instanceInfo)
+				g.instancesByChunk[chunk] = instanceInfo
+				g.chunkOrder = append(g.chunkOrder, chunk)
 			}
 			instanceInfo.instances = append(instanceInfo.instances, instance)
 			instanceInfo.totalDelta += instance.delta
@@ -375,8 +382,8 @@ func (g *ExtractPrototypeMemberDeclarations_GatherExtractionInfo) Visit(t *NodeT
 // Java: ExtractPrototypeMemberDeclarations.GatherExtractionInfo.shouldExtractGlobal()
 func (g *ExtractPrototypeMemberDeclarations_GatherExtractionInfo) ShouldExtractGlobal() bool {
 	allModulesDelta := 0
-	for instanceInfo := range g.instancesByChunk.Values() {
-		allModulesDelta += instanceInfo.totalDelta
+	for _, chunk := range g.chunkOrder {
+		allModulesDelta += g.instancesByChunk[chunk].totalDelta
 	}
 	return allModulesDelta+extractPrototypeMemberDeclarations_Pattern_globalOverhead[g.outer.pattern] < 0
 }
@@ -386,7 +393,7 @@ func (g *ExtractPrototypeMemberDeclarations_GatherExtractionInfo) ShouldExtractG
 //
 // Java: ExtractPrototypeMemberDeclarations.GatherExtractionInfo.shouldExtractChunk(JSChunk)
 func (g *ExtractPrototypeMemberDeclarations_GatherExtractionInfo) ShouldExtractChunk(chunk *JSChunk) bool {
-	instanceInfo := g.instancesByChunk.Get(chunk)
+	instanceInfo := g.instancesByChunk[chunk]
 	if instanceInfo == nil {
 		return false
 	}
@@ -477,7 +484,7 @@ func (d *ExtractPrototypeMemberDeclarations_PrototypeMemberDeclaration) IsSameCl
 // Java: ExtractPrototypeMemberDeclarations.PrototypeMemberDeclaration.getPrototypeClassName(Node)
 func ExtractPrototypeMemberDeclarations_PrototypeMemberDeclaration_GetPrototypeClassName(qName rhino.Node) rhino.Node {
 	for gp, ok := ast.AsGetProp(qName); ok; gp, ok = gp.Object().AsGetProp() {
-		if gp.Property() == "prototype" {
+		if gp.Node().GetStringID() == epmdPrototypeID {
 			return gp.Object().Node()
 		}
 	}
@@ -492,7 +499,7 @@ func ExtractPrototypeMemberDeclarations_PrototypeMemberDeclaration_IsPrototypePr
 	lvalue := ast.MustExprStmt(n).Expr().MustAssign().Target()
 	if gp, ok := lvalue.AsGetProp(); ok {
 		for cur, ok := gp.Object().AsGetProp(); ok; cur, ok = cur.Object().AsGetProp() {
-			if cur.Property() == "prototype" {
+			if cur.Node().GetStringID() == epmdPrototypeID {
 				return cur.Node().IsQualifiedName()
 			}
 		}

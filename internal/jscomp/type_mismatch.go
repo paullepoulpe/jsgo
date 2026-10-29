@@ -45,50 +45,50 @@ type TypeMismatch struct {
 // NewTypeMismatch is the record's canonical (compact) constructor.
 //
 // Java: TypeMismatch(JSType, JSType, Node)
-func NewTypeMismatch(found rhino.JSType, required rhino.JSType, location rhino.Node) *TypeMismatch {
+func NewTypeMismatch(found rhino.JSType, required rhino.JSType, location rhino.Node) TypeMismatch {
 	jutil.CheckNotNullMsg(found, "found")
 	jutil.CheckNotNullMsg(required, "required")
 	rhino.CheckNotNullMsg(location, "location")
-	return &TypeMismatch{found: found, required: required, location: location}
+	return TypeMismatch{found: found, required: required, location: location}
 }
 
 // Found is the record component accessor.
 //
 // Java: TypeMismatch.found()
-func (m *TypeMismatch) Found() rhino.JSType { return m.found }
+func (m TypeMismatch) Found() rhino.JSType { return m.found }
 
 // Required is the record component accessor.
 //
 // Java: TypeMismatch.required()
-func (m *TypeMismatch) Required() rhino.JSType { return m.required }
+func (m TypeMismatch) Required() rhino.JSType { return m.required }
 
 // Location is the record component accessor.
 //
 // Java: TypeMismatch.location()
-func (m *TypeMismatch) Location() rhino.Node { return m.location }
+func (m TypeMismatch) Location() rhino.Node { return m.location }
 
 // Java: TypeMismatch.getFound()
-func (m *TypeMismatch) GetFound() rhino.JSType {
+func (m TypeMismatch) GetFound() rhino.JSType {
 	return m.Found()
 }
 
 // Java: TypeMismatch.getRequired()
-func (m *TypeMismatch) GetRequired() rhino.JSType {
+func (m TypeMismatch) GetRequired() rhino.JSType {
 	return m.Required()
 }
 
 // Java: TypeMismatch.getLocation()
-func (m *TypeMismatch) GetLocation() rhino.Node {
+func (m TypeMismatch) GetLocation() rhino.Node {
 	return m.Location()
 }
 
 // Java: TypeMismatch.create(JSType, JSType, Node)
-func TypeMismatch_Create(found rhino.JSType, required rhino.JSType, location rhino.Node) *TypeMismatch {
+func TypeMismatch_Create(found rhino.JSType, required rhino.JSType, location rhino.Node) TypeMismatch {
 	return NewTypeMismatch(found, required, location)
 }
 
 // Java: TypeMismatch.createForTesting(JSType, JSType)
-func TypeMismatch_CreateForTesting(found rhino.JSType, required rhino.JSType) *TypeMismatch {
+func TypeMismatch_CreateForTesting(found rhino.JSType, required rhino.JSType) TypeMismatch {
 	return TypeMismatch_Create(found, required, typeMismatch_TEST_LOCATION)
 }
 
@@ -100,16 +100,21 @@ var typeMismatch_TEST_LOCATION = rhino.IR_Empty()
 // does not override equals).
 //
 // Java: TypeMismatch.equals(Object)
-func (m *TypeMismatch) Equals(o any) bool {
-	that, ok := o.(*TypeMismatch)
-	if !ok || that == nil {
+func (m TypeMismatch) Equals(o any) bool {
+	var that TypeMismatch
+	switch x := o.(type) {
+	case TypeMismatch:
+		that = x
+	case *TypeMismatch:
+		if x == nil {
+			return false
+		}
+		that = *x
+	default:
 		return false
 	}
-	if m == that {
-		return true
-	}
-	return m.found.Equals(that.found) &&
-		m.required.Equals(that.required) &&
+	return (m.found == that.found || (m.found != nil && m.found.Equals(that.found))) &&
+		(m.required == that.required || (m.required != nil && m.required.Equals(that.required))) &&
 		m.location == that.location
 }
 
@@ -117,7 +122,7 @@ func (m *TypeMismatch) Equals(o any) bool {
 // the components in order, starting from 0.
 //
 // Java: TypeMismatch.hashCode()
-func (m *TypeMismatch) HashCode() int32 {
+func (m TypeMismatch) HashCode() int32 {
 	var h int32
 	h = 31*h + m.found.HashCode()
 	h = 31*h + m.required.HashCode()
@@ -128,7 +133,7 @@ func (m *TypeMismatch) HashCode() int32 {
 // String is the record's implicit toString.
 //
 // Java: TypeMismatch.toString()
-func (m *TypeMismatch) String() string {
+func (m TypeMismatch) String() string {
 	return "TypeMismatch[found=" + m.found.String() +
 		", required=" + m.required.String() +
 		", location=" + m.location.String() + "]"
@@ -136,12 +141,12 @@ func (m *TypeMismatch) String() string {
 
 // TypeMismatch_Accumulator collects a set of related mismatches.
 type TypeMismatch_Accumulator struct {
-	mismatches []*TypeMismatch
+	mismatches []TypeMismatch
 }
 
 // Java: TypeMismatch.Accumulator()
 func NewTypeMismatch_Accumulator() *TypeMismatch_Accumulator {
-	return &TypeMismatch_Accumulator{mismatches: []*TypeMismatch{}}
+	return &TypeMismatch_Accumulator{}
 }
 
 // Java: TypeMismatch.Accumulator.registerMismatch(Node, JSType, JSType)
@@ -178,7 +183,10 @@ func (a *TypeMismatch_Accumulator) RegisterMismatch(location rhino.Node, found r
 }
 
 // Java: TypeMismatch.Accumulator.getMismatches()
-func (a *TypeMismatch_Accumulator) GetMismatches() []*TypeMismatch {
+func (a *TypeMismatch_Accumulator) GetMismatches() []TypeMismatch {
+	if len(a.mismatches) == 0 {
+		return []TypeMismatch{}
+	}
 	return slices.Clone(a.mismatches)
 }
 

@@ -72,11 +72,11 @@ const RecordType_TYPE_CLASS = JSTypeClass_RECORD
 func NewRecordType(registry *JSTypeRegistry, properties *jutil.TreeMap[string, *RecordTypeBuilder_RecordProperty], declared bool) *RecordType {
 	t := &RecordType{}
 	t.objFlags = objKindRecord
-	builderFields := PrototypeObjectType_BuilderFields{
+	builder := PrototypeObjectType_Builder{
 		registry:        registry,
 		templateTypeMap: registry.GetEmptyTemplateTypeMap(),
 	}
-	t.InitPrototypeObjectTypeBase(t, &builderFields)
+	t.InitPrototypeObjectTypeBase(t, &builder)
 	t.SetPrettyPrint(true)
 	t.declared = declared
 

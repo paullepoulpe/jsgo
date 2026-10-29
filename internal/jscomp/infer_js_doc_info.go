@@ -149,6 +149,9 @@ func (p *InferJSDocInfo) inferJSDocForName(n rhino.Node, parent rhino.Node) {
 		} else {
 			typeDoc = parent.GetJSDocInfo()
 		}
+		if typeDoc == nil {
+			return
+		}
 
 		inferredType = n.GetJSType()
 		// Example: for `const y = x.y;`, the type of `x.y`.
@@ -160,10 +163,16 @@ func (p *InferJSDocInfo) inferJSDocForName(n rhino.Node, parent rhino.Node) {
 		// Case: `/** ... */ function f() { ... }`.
 		// Case: `/** ... */ class Foo() { ... }`.
 		typeDoc = parent.GetJSDocInfo()
+		if typeDoc == nil {
+			return
+		}
 		inferredType = parent.GetJSType()
 		aliasedType = nil // the value is definitely a class or function, not a qualified name.
 	} else if parent.IsAssign() && n.IsFirstChildOf(parent) {
 		typeDoc = parent.GetJSDocInfo()
+		if typeDoc == nil {
+			return
+		}
 		inferredType = n.GetJSType()
 		// Example: y = x.y;
 		value := n.GetNext()
@@ -171,10 +180,6 @@ func (p *InferJSDocInfo) inferJSDocForName(n rhino.Node, parent rhino.Node) {
 			aliasedType = value.GetJSType()
 		}
 	} else {
-		return
-	}
-
-	if typeDoc == nil {
 		return
 	}
 
@@ -212,18 +217,20 @@ func (p *InferJSDocInfo) inferJSDocForObjectKeyOrClassField(n rhino.Node, parent
 		return
 	}
 
-	var propName rhino.Property_Key
 	if n.IsComputedFieldDef() || n.IsComputedProp() {
 		keyType := n.GetFirstChild().GetJSType()
 		if keyType == nil || !keyType.IsKnownSymbolValueType() {
 			return
 		}
-		propName = rhino.NewProperty_SymbolKey(keyType.ToMaybeKnownSymbolType())
+		propName := rhino.NewProperty_SymbolKey(keyType.ToMaybeKnownSymbolType())
+		if owningType.HasOwnPropertyByKey(propName) && owningType.GetPropertyJSDocInfoByKey(propName) == nil {
+			owningType.SetPropertyJSDocInfoByKey(propName, typeDoc)
+		}
 	} else {
-		propName = rhino.NewProperty_StringKey(n.GetString())
-	}
-	if owningType.HasOwnPropertyByKey(propName) && owningType.GetPropertyJSDocInfoByKey(propName) == nil {
-		owningType.SetPropertyJSDocInfoByKey(propName, typeDoc)
+		propName := n.GetString()
+		if owningType.HasOwnProperty(propName) && owningType.GetPropertyJSDocInfo(propName) == nil {
+			owningType.SetPropertyJSDocInfo(propName, typeDoc)
+		}
 	}
 
 	// NOTE(lharker): it seems surprising that this doesn't also call
@@ -240,6 +247,9 @@ func (p *InferJSDocInfo) inferJSDocForProperty(n rhino.Node, parent rhino.Node) 
 	if parent.IsAssign() && n.IsFirstChildOf(parent) {
 		// Case: `/** @deprecated */ obj.prop = ...;`
 		typeDoc = parent.GetJSDocInfo()
+		if typeDoc == nil || !typeDoc.ContainsDeclaration() {
+			return
+		}
 		rhs := n.GetNext()
 		// Example: for `/** @deprecated */ obj.prop = obj.newProp;`, the type of `obj.newProp`.
 		if rhs.IsQualifiedName() {
@@ -248,12 +258,10 @@ func (p *InferJSDocInfo) inferJSDocForProperty(n rhino.Node, parent rhino.Node) 
 	} else if parent.IsExprResult() {
 		// Case: `/** @deprecated */ obj.prop;`
 		typeDoc = n.GetJSDocInfo()
-		aliasedType = nil // there's no value being assigned here
+		if typeDoc == nil || !typeDoc.ContainsDeclaration() {
+			return
+		}
 	} else {
-		return
-	}
-
-	if typeDoc == nil || !typeDoc.ContainsDeclaration() {
 		return
 	}
 

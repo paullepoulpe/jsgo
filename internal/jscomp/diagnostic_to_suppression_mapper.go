@@ -18,7 +18,13 @@
 
 package jscomp
 
-import "github.com/paullepoulpe/jsgo/internal/jutil"
+import (
+	"encoding/json"
+	"slices"
+	"strings"
+
+	"github.com/paullepoulpe/jsgo/internal/jutil"
+)
 
 // DiagnosticToSuppressionMapper is used to print a map from diagnostic id to
 // suppression.
@@ -74,12 +80,11 @@ func (m *DiagnosticToSuppressionMapper) PrintSuppressions(output DiagnosticToSup
 	}
 }
 
-// CreateSuppressionMap returns the map from diagnostic key to suppression,
-// sorted by key (ImmutableSortedMap).
+// CreateSuppressionMap returns the map from diagnostic key to suppression.
 //
 // Java: DiagnosticToSuppressionMapper.createSuppressionMap()
-func (m *DiagnosticToSuppressionMapper) CreateSuppressionMap() *jutil.TreeMap[string, string] {
-	diagnosticToSuppression := jutil.NewObjectLinkedHashMap[*DiagnosticType, string]()
+func (m *DiagnosticToSuppressionMapper) CreateSuppressionMap() map[string]string {
+	result := make(map[string]string)
 
 	for suppression, group := range m.diagnosticGroups.All() {
 		// "accessControls" and "missingSourcesWarnings" are deprecated in favor of "visibility"
@@ -89,22 +94,17 @@ func (m *DiagnosticToSuppressionMapper) CreateSuppressionMap() *jutil.TreeMap[st
 			continue
 		}
 
-		for diagnosticType := range group.GetTypes().All() {
-			// Map.merge(key, value, remappingFunction)
-			if old, ok := diagnosticToSuppression.Lookup(diagnosticType); ok {
-				diagnosticToSuppression.Put(diagnosticType, m.PreferMoreTargetedGroup(old, suppression))
+		for _, diagnosticType := range group.GetTypes() {
+			key := diagnosticType.key
+			// Map.merge(key, value, remappingFunction); DiagnosticType equality is key equality.
+			if old, ok := result[key]; ok {
+				result[key] = m.PreferMoreTargetedGroup(old, suppression)
 			} else {
-				diagnosticToSuppression.Put(diagnosticType, suppression)
+				result[key] = suppression
 			}
 		}
 	}
 
-	// toImmutableSortedMap(naturalOrder(), entry -> entry.getKey().key, Map.Entry::getValue): the
-	// keys are distinct because DiagnosticType equality is key equality.
-	result := jutil.NewTreeMap[string, string](jutil.StringCompareTo)
-	for diagnosticType, suppression := range diagnosticToSuppression.All() {
-		result.Put(diagnosticType.key, suppression)
-	}
 	return result
 }
 
@@ -114,23 +114,47 @@ func (m *DiagnosticToSuppressionMapper) CreateSuppressionMap() *jutil.TreeMap[st
 func (m *DiagnosticToSuppressionMapper) PreferMoreTargetedGroup(next string, current string) string {
 	nextGroup := m.diagnosticGroups.Get(next)
 	currentGroup := m.diagnosticGroups.Get(current)
-	if nextGroup.GetTypes().Size() < currentGroup.GetTypes().Size() {
+	if len(nextGroup.GetTypes()) < len(currentGroup.GetTypes()) {
 		return next
 	}
 	return current
 }
 
+func diagnosticToSuppressionMapper_sortedKeys(diagnosticToSuppression map[string]string) []string {
+	keys := make([]string, 0, len(diagnosticToSuppression))
+	for k := range diagnosticToSuppression { // order-independent: sorted immediately below
+		keys = append(keys, k)
+	}
+	slices.SortFunc(keys, jutil.StringCompareTo)
+	return keys
+}
+
 // Java: DiagnosticToSuppressionMapper.printAsJson(ImmutableSortedMap<String, String>)
-func diagnosticToSuppressionMapper_printAsJson(diagnosticToSuppression *jutil.TreeMap[string, string]) {
-	jutil.System_Out().Println(jutil.NewGson().ToJson(diagnosticToSuppression))
+func diagnosticToSuppressionMapper_printAsJson(diagnosticToSuppression map[string]string) {
+	keys := diagnosticToSuppressionMapper_sortedKeys(diagnosticToSuppression)
+	var sb strings.Builder
+	sb.WriteByte('{')
+	for i, k := range keys {
+		if i > 0 {
+			sb.WriteByte(',')
+		}
+		kb, _ := json.Marshal(k)
+		vb, _ := json.Marshal(diagnosticToSuppression[k])
+		sb.Write(kb)
+		sb.WriteByte(':')
+		sb.Write(vb)
+	}
+	sb.WriteByte('}')
+	jutil.System_Out().Println(sb.String())
 }
 
 // Java: DiagnosticToSuppressionMapper.printAsMarkdown(ImmutableSortedMap<String, String>)
-func diagnosticToSuppressionMapper_printAsMarkdown(diagnosticToSuppression *jutil.TreeMap[string, string]) {
-	jutil.System_Out().Println("| Error | Suppression tag |")
-	jutil.System_Out().Println("|---|---|")
+func diagnosticToSuppressionMapper_printAsMarkdown(diagnosticToSuppression map[string]string) {
+	out := jutil.System_Out()
+	out.Println("| Error | Suppression tag |")
+	out.Println("|---|---|")
 
-	for k, v := range diagnosticToSuppression.All() {
-		jutil.System_Out().Println(jutil.StringFormat("|%s|%s|", k, v))
+	for _, k := range diagnosticToSuppressionMapper_sortedKeys(diagnosticToSuppression) {
+		out.Println("|" + k + "|" + diagnosticToSuppression[k] + "|")
 	}
 }

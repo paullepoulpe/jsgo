@@ -223,7 +223,7 @@ func (s *SerializeTypesToPointers) logSerializationDebugInfo(serializer *JSTypeR
 //
 // Java: SerializeTypesToPointers.logTypeMismatches(Iterable<TypeMismatch>, JSTypeReconserializer, TypePool)
 func (s *SerializeTypesToPointers) logTypeMismatches(
-	typeMismatches []*TypeMismatch, serializer *JSTypeReconserializer) []*serializeTypesToPointers_TypeMismatchJson {
+	typeMismatches []TypeMismatch, serializer *JSTypeReconserializer) []*serializeTypesToPointers_TypeMismatchJson {
 	result := make([]*serializeTypesToPointers_TypeMismatchJson, 0, len(typeMismatches))
 	for _, mismatch := range typeMismatches {
 		result = append(result, serializeTypesToPointers_TypeMismatchJson_Create(mismatch, serializer))
@@ -278,7 +278,7 @@ type serializeTypesToPointers_TypeMismatchJson struct {
 }
 
 // Java: SerializeTypesToPointers.TypeMismatchJson(TypeMismatch, ColorId, ColorId)
-func newSerializeTypesToPointers_TypeMismatchJson(x *TypeMismatch, found colors.ColorId, required colors.ColorId) *serializeTypesToPointers_TypeMismatchJson {
+func newSerializeTypesToPointers_TypeMismatchJson(x TypeMismatch, found colors.ColorId, required colors.ColorId) *serializeTypesToPointers_TypeMismatchJson {
 	return &serializeTypesToPointers_TypeMismatchJson{
 		Location:        x.Location().GetLocation(),
 		FoundColorId:    found.String(),
@@ -288,7 +288,7 @@ func newSerializeTypesToPointers_TypeMismatchJson(x *TypeMismatch, found colors.
 
 // Java: SerializeTypesToPointers.TypeMismatchJson.create(TypeMismatch, JSTypeReconserializer, TypePool)
 func serializeTypesToPointers_TypeMismatchJson_Create(
-	x *TypeMismatch, serializer *JSTypeReconserializer) *serializeTypesToPointers_TypeMismatchJson {
+	x TypeMismatch, serializer *JSTypeReconserializer) *serializeTypesToPointers_TypeMismatchJson {
 	foundRecord := serializer.RecordType(x.Found())
 	requiredRecord := serializer.RecordType(x.Required())
 	return newSerializeTypesToPointers_TypeMismatchJson(x, foundRecord.colorId, requiredRecord.colorId)

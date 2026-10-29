@@ -35,15 +35,33 @@ func TestDiagnosticGroup_Basics(t *testing.T) {
 	a := DiagnosticType_Warning("JSC_DG_A", "a")
 	b := DiagnosticType_Warning("JSC_DG_B", "b")
 	g1 := NewDiagnosticGroupWithName(jsaStr("g1"), a, b, a)
-	jsaEq(t, g1.GetTypes().Size(), 2)
+	jsaEq(t, len(g1.GetTypes()), 2)
 	jsaTrue(t, g1.MatchesType(DiagnosticType_Warning("JSC_DG_A", "other format")))
 	jsaTrue(t, g1.Matches(JSError_Make(b)))
 	jsaEq(t, g1.String(), "DiagnosticGroup<g1>")
 	composite := NewDiagnosticGroupFromGroups(g1, NewDiagnosticGroup(DiagnosticType_Error("JSC_DG_C", "c")))
-	jsaEq(t, composite.GetTypes().Size(), 3)
+	jsaEq(t, len(composite.GetTypes()), 3)
 	jsaTrue(t, composite.GetName() == nil)
 	jsaTrue(t, DiagnosticGroup_ForType(a) == DiagnosticGroup_ForType(a))
 	jsaFalse(t, DiagnosticGroup_ForType(a).MatchesType(b))
+	jsaFalse(t, g1.MatchesType(nil))
+
+	large := NewDiagnosticGroup(
+		a, b,
+		DiagnosticType_Warning("JSC_DG_3", "3"),
+		DiagnosticType_Warning("JSC_DG_4", "4"),
+		DiagnosticType_Warning("JSC_DG_5", "5"),
+		DiagnosticType_Warning("JSC_DG_6", "6"),
+		DiagnosticType_Warning("JSC_DG_7", "7"),
+		DiagnosticType_Warning("JSC_DG_8", "8"),
+		DiagnosticType_Warning("JSC_DG_9", "9"),
+		DiagnosticType_Warning("JSC_DG_10", "10"),
+		a,
+	)
+	jsaEq(t, len(large.GetTypes()), 10)
+	jsaTrue(t, large.MatchesType(DiagnosticType_Warning("JSC_DG_10", "other")))
+	jsaFalse(t, large.MatchesType(DiagnosticType_Warning("JSC_DG_11", "11")))
+	jsaFalse(t, large.MatchesType(nil))
 }
 
 func TestDiagnosticGroup_ValueCopyEquality(t *testing.T) {

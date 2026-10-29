@@ -56,11 +56,13 @@ import (
 // Go-only: language-adapter — Java's Property<T> values are `any`; each
 // typed accessor converts with jsdocGet. The property value types are:
 // String → string, Integer → int, List<String> → []string,
+// List<Marker> → []JSDocInfo_Marker,
 // ArrayList<JSTypeExpression> → []*JSTypeExpression,
-// LinkedHashMap<String, X> → *jutil.LinkedHashMap[string, X],
+// LinkedHashMap<String, JSTypeExpression> → []JSDocParam,
+// LinkedHashMap<String, String> → []jsDocKV,
+// ImmutableMap<ImmutableSet<String>, String> → []JSDocSuppression,
 // ImmutableSet<String> → *jutil.LinkedHashSet[string], and
-// ImmutableMap<ImmutableSet<String>, String> →
-// *jutil.ObjectLinkedHashMap[*jutil.LinkedHashSet[string], string].
+// LinkedHashMap<String, Node> → *jutil.LinkedHashMap[string, Node].
 type JSDocInfo struct {
 	propertyBits       int64
 	propertyKeysBitset int64
@@ -608,6 +610,9 @@ func (b JSDocInfo_Bit) Mask() int64 { return int64(1) << b }
 type JSDocInfo_TypeTransform func(arg *JSTypeExpression) *JSTypeExpression
 
 func newJSDocInfoFromBuilder(bits_ int64, propMask int64, entries []any) *JSDocInfo {
+	if propMask == 0 {
+		return &JSDocInfo{propertyBits: bits_}
+	}
 	var keys int64 = 0
 	var valsBuf [8]any
 	values := valsBuf[:0]
@@ -796,6 +801,9 @@ func (i *JSDocInfo) ToBuilderWithTransform(transform JSDocInfo_TypeTransform) *J
 	builder.populated = true
 	bits_ := i.propertyKeysBitset
 	builder.propMask = bits_
+	if n := bits.OnesCount64(uint64(bits_)); n > cap(builder.entries) {
+		builder.entries = make([]any, 0, n)
+	}
 	for index := 0; bits_ != 0; index++ {
 		low := bits.TrailingZeros64(uint64(bits_))
 		bits_ &^= int64(1) << low
@@ -1741,7 +1749,7 @@ func (i *JSDocInfo) ToStringVerbose() string {
 		switch prop.kind {
 		case jsDocPropKindStringList:
 			if s := jsdocGet[[]string](val); s != nil {
-				val = jutil.CollectionToString(s)
+				val = "[" + strings.Join(s, ", ") + "]"
 			}
 		case jsDocPropKindMarkerList:
 			if s := jsdocGet[[]JSDocInfo_Marker](val); s != nil {
@@ -1758,7 +1766,20 @@ func (i *JSDocInfo) ToStringVerbose() string {
 			}
 		case jsDocPropKindTypeList:
 			if s := jsdocGet[[]*JSTypeExpression](val); s != nil {
-				val = jutil.CollectionToString(s)
+				var b strings.Builder
+				b.WriteByte('[')
+				for idx, elem := range s {
+					if idx > 0 {
+						b.WriteString(", ")
+					}
+					if elem == nil {
+						b.WriteString("null")
+					} else {
+						b.WriteString(elem.String())
+					}
+				}
+				b.WriteByte(']')
+				val = b.String()
 			}
 		case jsDocPropKindTypeMap:
 			if s := jsdocGet[[]JSDocParam](val); s != nil {

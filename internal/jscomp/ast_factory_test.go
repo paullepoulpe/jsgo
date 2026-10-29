@@ -1876,3 +1876,23 @@ func astFactoryTest_childList(parent rhino.Node) []rhino.Node {
 	}
 	return list
 }
+
+func TestAstFactoryValueType(t *testing.T) {
+	var zeroType AstFactory_Type
+	if !zeroType.IsZero() {
+		t.Fatal("expected zero AstFactory_Type to report IsZero() == true")
+	}
+	noInfo := AstFactory_NoTypeInformation()
+	if noInfo.IsZero() {
+		t.Fatal("expected AstFactory_NoTypeInformation() to report IsZero() == false")
+	}
+	fromNode := AstFactory_Type_(rhino.IR_Name("x"))
+	if fromNode.IsZero() {
+		t.Fatal("expected AstFactory_Type_(node) to report IsZero() == false")
+	}
+	colorRegistry := colors.ColorRegistry_Builder_().SetDefaultNativeColorsForTesting().Build()
+	byColorId := AstFactory_Type_OfColorId(colors.StandardColors_ARRAY_ID)
+	if byColorId.GetColor(colorRegistry) != colorRegistry.Get(colors.StandardColors_ARRAY_ID) {
+		t.Fatal("unexpected color resolved from ColorId")
+	}
+}

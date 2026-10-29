@@ -19,6 +19,7 @@
 package parsing
 
 import (
+	"slices"
 	"strings"
 
 	"github.com/paullepoulpe/jsgo/internal/jutil"
@@ -49,8 +50,8 @@ type JsDocInfoParser struct {
 	state                 JsDocInfoParser_State
 
 	config                *Config
-	suppressionNames      *jutil.LinkedHashSet[string]
-	closurePrimitiveNames *jutil.LinkedHashSet[string]
+	suppressionNames      map[string]struct{}
+	closurePrimitiveNames map[string]struct{}
 	preserveWhitespace    bool
 	onlyParseLicenseJsDoc bool
 
@@ -365,7 +366,7 @@ func JsDocInfoParser_ParseFileOverviewJsdoc(toParse string) *rhino.JSDocInfo {
 var jsDocInfoParser_defaultConfig = Config_Builder_().
 	SetLanguageMode(Config_LanguageMode_ECMASCRIPT3).
 	SetStrictMode(Config_StrictMode_SLOPPY).
-	SetClosurePrimitiveNames(jutil.NewLinkedHashSet("testPrimitive").All()).
+	SetClosurePrimitiveNames(slices.Values([]string{"testPrimitive"})).
 	Build()
 
 // Java: JsDocInfoParser.getParser(String)
@@ -1474,7 +1475,7 @@ func (p *JsDocInfoParser) ParseSuppressTag(token JsDocToken) JsDocToken {
 			p.SkipEOLs()
 			if p.Match(JsDocToken_STRING) {
 				name := p.stream.GetString()
-				if !p.suppressionNames.Contains(name) {
+				if _, ok := p.suppressionNames[name]; !ok {
 					p.AddParserWarningWithArg(rhino.Msg_JSDOC_SUPPRESS_UNKNOWN, name)
 				}
 
@@ -1549,7 +1550,7 @@ func (p *JsDocInfoParser) ParseClosurePrimitiveTag(token JsDocToken) JsDocToken 
 		return token
 	} else if p.Match(JsDocToken_STRING) {
 		name := p.stream.GetString()
-		if !p.closurePrimitiveNames.Contains(name) {
+		if _, ok := p.closurePrimitiveNames[name]; !ok {
 			p.AddParserWarningWithArg(rhino.Msg_JSDOC_CLOSUREPRIMITIVE_INVALID, name)
 		} else if !p.jsdocBuilder.RecordClosurePrimitiveId(name) {
 			p.AddParserWarning(rhino.Msg_JSDOC_CLOSUREPRIMITIVE_EXTRA)

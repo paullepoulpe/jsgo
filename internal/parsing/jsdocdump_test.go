@@ -196,9 +196,21 @@ func dumpJsDoc(name, src string, config *Config) string {
 	line("# config " + config.LanguageMode().String() + " " + config.StrictMode().String() + " " +
 		config.JsDocParsingMode().String() + " " + config.RunMode().String() +
 		" parseInlineSourceMaps=" + jutil.ToJavaString(config.ParseInlineSourceMaps()))
-	line("# annotations " + config.Annotations().String())
-	line("# suppressions " + config.SuppressionNames().String())
-	line("# primitives " + config.ClosurePrimitiveNames().String())
+	var annBuf strings.Builder
+	annBuf.WriteByte('{')
+	for i, k := range config.AnnotationNames() {
+		if i > 0 {
+			annBuf.WriteString(", ")
+		}
+		v, _ := config.LookupAnnotation(k)
+		annBuf.WriteString(k)
+		annBuf.WriteByte('=')
+		annBuf.WriteString(v.String())
+	}
+	annBuf.WriteByte('}')
+	line("# annotations " + annBuf.String())
+	line("# suppressions [" + strings.Join(config.SuppressionOrder(), ", ") + "]")
+	line("# primitives [" + strings.Join(config.ClosurePrimitiveOrder(), ", ") + "]")
 
 	file := parser.NewSourceFile(name, src)
 	p := parser.NewParser(testNewParserConfig(config), newSilentParserReporter(), file)

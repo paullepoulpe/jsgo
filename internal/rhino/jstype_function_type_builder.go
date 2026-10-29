@@ -73,14 +73,13 @@ func (f *FunctionTypeBase) initBuilder(b *FunctionType_Builder) {
 // Java: FunctionType.toBuilder()
 func (f *FunctionTypeBase) ToBuilder() *FunctionType_Builder {
 	b := f.GetRegistry().acquireFunctionBuilder()
-	b.self = b
 	f.initBuilder(b)
 	return b
 }
 
 // FunctionType_Builder is a builder class for function and arrow types.
 type FunctionType_Builder struct {
-	PrototypeObjectType_Builder[*FunctionType_Builder]
+	PrototypeObjectType_Builder
 
 	sourceNode   Node
 	googModuleId *string
@@ -89,7 +88,7 @@ type FunctionType_Builder struct {
 	returnType              JSType
 	typeOfThis              JSType
 	setPrototypeBasedOn     ObjectType
-	constructorOnlyKeys     *jutil.LinkedHashSet[*TemplateType]
+	constructorOnlyKeys     []*TemplateType
 	kind                    FunctionType_Kind
 	isAbstract              bool
 	isKnownAmbiguous        bool
@@ -103,11 +102,45 @@ type FunctionType_Builder struct {
 // Java: FunctionType.Builder(JSTypeRegistry)
 func NewFunctionType_Builder(registry *JSTypeRegistry) *FunctionType_Builder {
 	b := registry.acquireFunctionBuilder()
-	b.InitPrototypeObjectType_Builder(b, registry)
+	b.InitPrototypeObjectType_Builder(registry)
 	b.kind = FunctionType_Kind_ORDINARY
+	b.implicitPrototype = jutil.CheckNotNull(registry.GetNativeObjectType(JSTypeNative_FUNCTION_PROTOTYPE))
+	return b
+}
 
-	b.SetImplicitPrototype(
-		jutil.CheckNotNull(registry.GetNativeObjectType(JSTypeNative_FUNCTION_PROTOTYPE)))
+// Java: PrototypeObjectType.Builder.setName(String)
+func (b *FunctionType_Builder) SetName(x *string) *FunctionType_Builder {
+	b.className = x
+	return b
+}
+
+// Java: PrototypeObjectType.Builder.setImplicitPrototype(ObjectType)
+func (b *FunctionType_Builder) SetImplicitPrototype(x ObjectType) *FunctionType_Builder {
+	b.implicitPrototype = x
+	return b
+}
+
+// Java: PrototypeObjectType.Builder.setNative(boolean)
+func (b *FunctionType_Builder) SetNative(x bool) *FunctionType_Builder {
+	b.nativeType = x
+	return b
+}
+
+// Java: PrototypeObjectType.Builder.setAnonymous(boolean)
+func (b *FunctionType_Builder) SetAnonymous(x bool) *FunctionType_Builder {
+	b.anonymousType = x
+	return b
+}
+
+// Java: PrototypeObjectType.Builder.setTemplateTypeMap(TemplateTypeMap)
+func (b *FunctionType_Builder) SetTemplateTypeMap(x *TemplateTypeMap) *FunctionType_Builder {
+	b.templateTypeMap = x
+	return b
+}
+
+// Java: PrototypeObjectType.Builder.setTemplateParamCount(int)
+func (b *FunctionType_Builder) SetTemplateParamCount(x int) *FunctionType_Builder {
+	b.templateParamCount = x
 	return b
 }
 
@@ -115,7 +148,8 @@ func NewFunctionType_Builder(registry *JSTypeRegistry) *FunctionType_Builder {
 //
 // Java: FunctionType.Builder.withName(String)
 func (b *FunctionType_Builder) WithName(name *string) *FunctionType_Builder {
-	return b.SetName(name)
+	b.className = name
+	return b
 }
 
 // WithSourceNode sets the source node of the function type.
@@ -209,12 +243,12 @@ func (b *FunctionType_Builder) WithTemplateKeysOfList(templateKeys []*TemplateTy
 		templateKeys = []*TemplateType{}
 	}
 
-	return b.SetTemplateTypeMap(
-		b.registry.
-			GetEmptyTemplateTypeMap().
-			CopyWithExtensionOfKeys(templateKeys, []JSType{})).
-		// TODO(nickreid): This value should only consider ctor only keys.
-		SetTemplateParamCount(len(templateKeys))
+	b.templateTypeMap = b.registry.
+		GetEmptyTemplateTypeMap().
+		CopyWithExtensionOfKeys(templateKeys, []JSType{})
+	// TODO(nickreid): This value should only consider ctor only keys.
+	b.templateParamCount = len(templateKeys)
+	return b
 }
 
 // WithTemplateKeys sets the template name.
@@ -244,7 +278,21 @@ func (b *FunctionType_Builder) WithConstructorTemplateKeys(constructorOnlyKeys [
 		b.constructorOnlyKeys = nil
 		return b
 	}
-	b.constructorOnlyKeys = jutil.NewLinkedHashSet(jsTypeCopyOfTemplateTypes(constructorOnlyKeys)...)
+	out := make([]*TemplateType, 0, len(constructorOnlyKeys))
+	for _, k := range constructorOnlyKeys {
+		jutil.CheckNotNull(k)
+		dup := false
+		for _, existing := range out {
+			if existing == k || existing.Equals(k) {
+				dup = true
+				break
+			}
+		}
+		if !dup {
+			out = append(out, k)
+		}
+	}
+	b.constructorOnlyKeys = out
 	return b
 }
 
@@ -277,7 +325,8 @@ func (b *FunctionType_Builder) ForInterface() *FunctionType_Builder {
 //
 // Java: FunctionType.Builder.forNativeType()
 func (b *FunctionType_Builder) ForNativeType() *FunctionType_Builder {
-	return b.SetNative(true)
+	b.nativeType = true
+	return b
 }
 
 // WithIsAbstract marks abstract method.
@@ -348,7 +397,7 @@ func (b *FunctionType_Builder) Build() FunctionType {
 	switch b.kind {
 	case FunctionType_Kind_CONSTRUCTOR, FunctionType_Kind_INTERFACE:
 	case FunctionType_Kind_NONE, FunctionType_Kind_ORDINARY:
-		jutil.CheckState(b.constructorOnlyKeys == nil || b.constructorOnlyKeys.IsEmpty())
+		jutil.CheckState(len(b.constructorOnlyKeys) == 0)
 	}
 
 	res := NewFunctionType(b)

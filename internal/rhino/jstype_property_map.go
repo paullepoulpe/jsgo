@@ -41,11 +41,25 @@ import (
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 )
 
+type knownSymbolProp struct {
+	symbol *KnownSymbolType
+	prop   *Property
+}
+
 type propMapExt struct {
 	byID                     map[rhinoStringID]*Property
-	knownSymbols             *jutil.ObjectLinkedHashMap[*KnownSymbolType, *Property]
+	knownSymbols             []knownSymbolProp
 	cachedKeySet             []string
 	cachedKnownSymbolsKeySet []*KnownSymbolType
+}
+
+func (e *propMapExt) getKnownSymbol(symbol *KnownSymbolType) *Property {
+	for _, kv := range e.knownSymbols {
+		if kv.symbol == symbol || (kv.symbol != nil && kv.symbol.Equals(symbol)) {
+			return kv.prop
+		}
+	}
+	return nil
 }
 
 // PropertyMap is the representation for a collection of properties on an
@@ -109,9 +123,6 @@ func propMapIsASCII(s string) bool {
 
 // Java: PropertyMap.EMPTY_MAP
 var PropertyMap_EMPTY_MAP = &PropertyMap{
-	ext: &propMapExt{
-		knownSymbols: jutil.NewObjectLinkedHashMap[*KnownSymbolType, *Property](),
-	},
 	immutable: true,
 	sorted:    true,
 }
@@ -207,9 +218,10 @@ func (m *PropertyMap) findClosestPairByKey(name Property_Key) (ObjectType, *Prop
 		return m.findClosestPairByStringID(str, rhinoStringPoolLookup(str))
 	}
 	// Check primary parents which always has precedence over secondary.
+	sym := name.Symbol()
 	for pm := m; pm != nil; pm = pm.GetPrimaryParent() {
-		if pm.ext != nil && pm.ext.knownSymbols != nil {
-			if prop := pm.ext.knownSymbols.Get(name.Symbol()); prop != nil {
+		if pm.ext != nil && len(pm.ext.knownSymbols) != 0 {
+			if prop := pm.ext.getKnownSymbol(sym); prop != nil {
 				return pm.getParentSource(), prop
 			}
 		}
@@ -276,6 +288,9 @@ func (m *PropertyMap) getOwnPropertyByID(propertyName string, id rhinoStringID) 
 		}
 		return nil
 	}
+	if propertyName == "" && id != 0 {
+		propertyName = rhinoStringFromID(id)
+	}
 	for _, p := range m.entries() {
 		if (id != 0 && p.nameID == id) || jutil.StringCompareTo(rhinoStringFromID(p.nameID), propertyName) == 0 {
 			return p
@@ -290,7 +305,7 @@ func (m *PropertyMap) FindPropertyByID(id rhinoStringID) *Property {
 	if id == 0 {
 		return nil
 	}
-	_, prop := m.findClosestPairByStringID(rhinoStringFromID(id), id)
+	_, prop := m.findClosestPairByStringID("", id)
 	return prop
 }
 
@@ -310,7 +325,7 @@ func (m *PropertyMap) GetOwnPropertyByID(id rhinoStringID) *Property {
 		}
 		return nil
 	}
-	return m.getOwnPropertyByID(rhinoStringFromID(id), id)
+	return m.getOwnPropertyByID("", id)
 }
 
 // Java: PropertyMap.getOwnProperty(String)
@@ -336,8 +351,8 @@ func (m *PropertyMap) GetOwnPropertyByKey(propertyName Property_Key) *Property {
 		}
 		return m.GetOwnProperty(propertyName.String_())
 	}
-	if m.ext != nil && m.ext.knownSymbols != nil {
-		return m.ext.knownSymbols.Get(propertyName.Symbol())
+	if m.ext != nil && len(m.ext.knownSymbols) != 0 {
+		return m.ext.getKnownSymbol(propertyName.Symbol())
 	}
 	return nil
 }
@@ -388,10 +403,14 @@ func (m *PropertyMap) HasAnyOwnProperties() bool {
 
 // Java: PropertyMap.getOwnKnownSymbols()
 func (m *PropertyMap) GetOwnKnownSymbols() []*KnownSymbolType {
-	if m.ext != nil && m.ext.knownSymbols != nil {
-		return m.ext.knownSymbols.KeySlice()
+	if m.ext == nil || len(m.ext.knownSymbols) == 0 {
+		return nil
 	}
-	return nil
+	out := make([]*KnownSymbolType, len(m.ext.knownSymbols))
+	for i, kv := range m.ext.knownSymbols {
+		out[i] = kv.symbol
+	}
+	return out
 }
 
 // Java: PropertyMap.getAllKeys()
@@ -428,9 +447,9 @@ func (m *PropertyMap) GetAllKeys() *PropertyMap_AllKeys {
 			for _, p := range ancestor.entries() {
 				keys.Add(rhinoStringFromID(p.nameID))
 			}
-			if ancestor.ext != nil && ancestor.ext.knownSymbols != nil {
-				for s := range ancestor.ext.knownSymbols.Keys() {
-					knownSymbolsKeys.Add(s)
+			if ancestor.ext != nil {
+				for _, kv := range ancestor.ext.knownSymbols {
+					knownSymbolsKeys.Add(kv.symbol)
 				}
 			}
 		}
@@ -608,24 +627,32 @@ func (m *PropertyMap) PutProperty(name string, newProp *Property) {
 
 // Java: PropertyMap.putProperty(KnownSymbolType, Property)
 func (m *PropertyMap) PutPropertyBySymbol(symbol *KnownSymbolType, newProp *Property) {
-	var oldProp *Property
-	if m.ext != nil && m.ext.knownSymbols != nil {
-		oldProp = m.ext.knownSymbols.Get(symbol)
+	oldIdx := -1
+	if m.ext != nil {
+		for i, kv := range m.ext.knownSymbols {
+			if kv.symbol == symbol || (kv.symbol != nil && kv.symbol.Equals(symbol)) {
+				oldIdx = i
+				break
+			}
+		}
 	}
 
-	if oldProp == nil {
+	if oldIdx < 0 {
 		// The cache is only invalidated if this is a new property name.
-		m.IncrementCachedKeySetCounter()
+		if !m.immutable {
+			m.IncrementCachedKeySetCounter()
+		}
 	}
 
-	ext := m.ensureExt()
-	if ext.knownSymbols == nil {
-		ext.knownSymbols = jutil.NewObjectLinkedHashMap[*KnownSymbolType, *Property]()
-	}
 	if m.immutable {
 		panic(jutil.NewUnsupportedOperationException())
 	}
-	ext.knownSymbols.Put(symbol, newProp)
+	ext := m.ensureExt()
+	if oldIdx >= 0 {
+		ext.knownSymbols[oldIdx].prop = newProp
+	} else {
+		ext.knownSymbols = append(ext.knownSymbols, knownSymbolProp{symbol: symbol, prop: newProp})
+	}
 }
 
 // Java: PropertyMap.putProperty(Property.Key, Property)
@@ -663,12 +690,12 @@ func (m *PropertyMap) HashCode() int32 {
 	for _, p := range m.entries() {
 		propHash += jutil.StringHashCode(rhinoStringFromID(p.nameID))
 	}
-	if m.ext == nil || m.ext.knownSymbols == nil {
+	if m.ext == nil || len(m.ext.knownSymbols) == 0 {
 		return propHash
 	}
 	var symHash int32
-	for s := range m.ext.knownSymbols.Keys() {
-		symHash += jutil.ObjectHashCode(s)
+	for _, kv := range m.ext.knownSymbols {
+		symHash += jutil.ObjectHashCode(kv.symbol)
 	}
 	return 31*(31*1+propHash) + symHash
 }

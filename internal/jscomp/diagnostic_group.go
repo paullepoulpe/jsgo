@@ -19,24 +19,64 @@
 package jscomp
 
 import (
+	"iter"
 	"sync"
 	"sync/atomic"
 
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 )
 
-var nextDiagnosticGroupID atomic.Uint64
+const diagnosticGroupMapThreshold = 8
+
+var nextDiagnosticGroupID atomic.Uint32
+
+// DiagnosticTypeSlice is an ordered, deduplicated slice of *DiagnosticType
+// values belonging to a DiagnosticGroup.
+type DiagnosticTypeSlice []*DiagnosticType
+
+func (s DiagnosticTypeSlice) All() iter.Seq[*DiagnosticType] {
+	return func(yield func(*DiagnosticType) bool) {
+		for _, t := range s {
+			if !yield(t) {
+				return
+			}
+		}
+	}
+}
+
+func (s DiagnosticTypeSlice) Size() int {
+	return len(s)
+}
+
+func (s DiagnosticTypeSlice) IsEmpty() bool {
+	return len(s) == 0
+}
+
+func (s DiagnosticTypeSlice) Contains(type_ *DiagnosticType) bool {
+	if type_ == nil {
+		return false
+	}
+	for _, t := range s {
+		if t == type_ || t.key == type_.key {
+			return true
+		}
+	}
+	return false
+}
 
 // DiagnosticGroup groups a set of related diagnostic types together, so that
 // they can be toggled on and off as one unit.
 type DiagnosticGroup struct {
-	id uint64
+	// The deduplicated types represented by this group, in insertion order.
+	types DiagnosticTypeSlice
 
-	// The set of types represented by this group, hashed by key.
-	types *jutil.ObjectLinkedHashSet[*DiagnosticType]
+	// Allocated only when len(types) > diagnosticGroupMapThreshold; keyed by DiagnosticType.key.
+	typeKeySet map[string]struct{}
 
 	// A human-readable name for the group. May be nil.
 	name *string
+
+	id uint32
 }
 
 const diagnosticGroup_serialVersionUID int64 = 1
@@ -46,15 +86,47 @@ const diagnosticGroup_serialVersionUID int64 = 1
 //
 // Java: DiagnosticGroup(String, DiagnosticType...)
 func NewDiagnosticGroupWithName(name *string, types ...*DiagnosticType) *DiagnosticGroup {
-	g := &DiagnosticGroup{
-		id:    nextDiagnosticGroupID.Add(1),
-		name:  name,
-		types: jutil.NewObjectLinkedHashSet[*DiagnosticType](),
+	if len(types) <= diagnosticGroupMapThreshold {
+		dedup := make(DiagnosticTypeSlice, 0, len(types))
+		for _, t := range types {
+			jutil.CheckNotNull(t)
+			dup := false
+			for _, existing := range dedup {
+				if existing == t || existing.key == t.key {
+					dup = true
+					break
+				}
+			}
+			if !dup {
+				dedup = append(dedup, t)
+			}
+		}
+		return &DiagnosticGroup{
+			id:    nextDiagnosticGroupID.Add(1),
+			name:  name,
+			types: dedup,
+		}
 	}
+
+	keySet := make(map[string]struct{}, len(types))
+	dedup := make(DiagnosticTypeSlice, 0, len(types))
 	for _, t := range types {
-		g.types.Add(jutil.CheckNotNull(t))
+		jutil.CheckNotNull(t)
+		if _, exists := keySet[t.key]; !exists {
+			keySet[t.key] = struct{}{}
+			dedup = append(dedup, t)
+		}
 	}
-	return g
+	var storedSet map[string]struct{}
+	if len(dedup) > diagnosticGroupMapThreshold {
+		storedSet = keySet
+	}
+	return &DiagnosticGroup{
+		id:         nextDiagnosticGroupID.Add(1),
+		name:       name,
+		types:      dedup,
+		typeKeySet: storedSet,
+	}
 }
 
 // NewDiagnosticGroup creates a group that matches all errors of the given
@@ -70,10 +142,10 @@ func NewDiagnosticGroup(types ...*DiagnosticType) *DiagnosticGroup {
 //
 // Java: DiagnosticGroup(DiagnosticType)
 func newDiagnosticGroupForSingleType(type_ *DiagnosticType) *DiagnosticGroup {
+	jutil.CheckNotNull(type_)
 	return &DiagnosticGroup{
 		id:    nextDiagnosticGroupID.Add(1),
-		name:  nil,
-		types: jutil.NewObjectLinkedHashSet(jutil.CheckNotNull(type_)),
+		types: DiagnosticTypeSlice{type_},
 	}
 }
 
@@ -88,21 +160,58 @@ func NewDiagnosticGroupFromGroups(groups ...*DiagnosticGroup) *DiagnosticGroup {
 //
 // Java: DiagnosticGroup(String, DiagnosticGroup...)
 func NewDiagnosticGroupWithNameFromGroups(name *string, groups ...*DiagnosticGroup) *DiagnosticGroup {
-	set := jutil.NewObjectLinkedHashSet[*DiagnosticType]()
-
+	total := 0
 	for _, group := range groups {
-		set.AddAll(group.types.All())
+		jutil.CheckNotNull(group)
+		total += len(group.types)
+	}
+	if total <= diagnosticGroupMapThreshold {
+		dedup := make(DiagnosticTypeSlice, 0, total)
+		for _, group := range groups {
+			for _, t := range group.types {
+				dup := false
+				for _, existing := range dedup {
+					if existing == t || existing.key == t.key {
+						dup = true
+						break
+					}
+				}
+				if !dup {
+					dedup = append(dedup, t)
+				}
+			}
+		}
+		return &DiagnosticGroup{
+			id:    nextDiagnosticGroupID.Add(1),
+			name:  name,
+			types: dedup,
+		}
 	}
 
+	keySet := make(map[string]struct{}, total)
+	dedup := make(DiagnosticTypeSlice, 0, total)
+	for _, group := range groups {
+		for _, t := range group.types {
+			if _, exists := keySet[t.key]; !exists {
+				keySet[t.key] = struct{}{}
+				dedup = append(dedup, t)
+			}
+		}
+	}
+	var storedSet map[string]struct{}
+	if len(dedup) > diagnosticGroupMapThreshold {
+		storedSet = keySet
+	}
 	return &DiagnosticGroup{
-		id:    nextDiagnosticGroupID.Add(1),
-		name:  name,
-		types: set,
+		id:         nextDiagnosticGroupID.Add(1),
+		name:       name,
+		types:      dedup,
+		typeKeySet: storedSet,
 	}
 }
 
-// DiagnosticGroups with only a single DiagnosticType.
-var diagnosticGroup_singletons = jutil.NewObjectLinkedHashMap[*DiagnosticType, *DiagnosticGroup]()
+// DiagnosticGroups with only a single DiagnosticType, keyed by DiagnosticType.key.
+var diagnosticGroup_singletons = make(map[string]*DiagnosticGroup)
 
 // Go-only: language-adapter — guards diagnosticGroup_singletons.
 var diagnosticGroup_mu sync.Mutex
@@ -112,13 +221,14 @@ var diagnosticGroup_mu sync.Mutex
 //
 // Java: DiagnosticGroup.forType(DiagnosticType)
 func DiagnosticGroup_ForType(type_ *DiagnosticType) *DiagnosticGroup {
+	jutil.CheckNotNull(type_)
 	diagnosticGroup_mu.Lock()
-	defer diagnosticGroup_mu.Unlock()
-	if g, ok := diagnosticGroup_singletons.Lookup(type_); ok && g != nil {
-		return g
+	g := diagnosticGroup_singletons[type_.key]
+	if g == nil {
+		g = newDiagnosticGroupForSingleType(type_)
+		diagnosticGroup_singletons[type_.key] = g
 	}
-	g := newDiagnosticGroupForSingleType(type_)
-	diagnosticGroup_singletons.Put(type_, g)
+	diagnosticGroup_mu.Unlock()
 	return g
 }
 
@@ -134,13 +244,25 @@ func (g *DiagnosticGroup) Matches(error *JSError) bool {
 //
 // Java: DiagnosticGroup.matches(DiagnosticType)
 func (g *DiagnosticGroup) MatchesType(type_ *DiagnosticType) bool {
-	return g.types.Contains(type_)
+	if type_ == nil {
+		return false
+	}
+	if g.typeKeySet != nil {
+		_, ok := g.typeKeySet[type_.key]
+		return ok
+	}
+	for _, t := range g.types {
+		if t == type_ || t.key == type_.key {
+			return true
+		}
+	}
+	return false
 }
 
 // GetTypes returns all the types in this group.
 //
 // Java: DiagnosticGroup.getTypes()
-func (g *DiagnosticGroup) GetTypes() *jutil.ObjectLinkedHashSet[*DiagnosticType] {
+func (g *DiagnosticGroup) GetTypes() DiagnosticTypeSlice {
 	return g.types
 }
 
@@ -185,7 +307,7 @@ func (g *DiagnosticGroup) HashCode() int32 {
 		return 0
 	}
 	if g.id != 0 {
-		return int32(g.id ^ (g.id >> 32))
+		return int32(g.id)
 	}
 	return jutil.IdentityHashCodeOfPointer(g)
 }

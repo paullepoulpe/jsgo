@@ -112,6 +112,56 @@ func AccessorSummary_Create(accessors *jutil.LinkedHashMap[string, AccessorSumma
 	return newAccessorSummary(jutil.CheckNotNull(accessors))
 }
 
+type accessorIDEntry struct {
+	id   uint32
+	kind AccessorSummary_PropertyAccessKind
+}
+
+func newAccessorSummaryFromIDs(batches [][]accessorIDEntry) *AccessorSummary {
+	var maxID uint32
+	totalEntries := 0
+	hasAny := false
+	for _, batch := range batches {
+		totalEntries += len(batch)
+		for _, e := range batch {
+			if e.kind != AccessorSummary_PropertyAccessKind_NORMAL {
+				hasAny = true
+				if e.id > maxID {
+					maxID = e.id
+				}
+			}
+		}
+	}
+	if !hasAny {
+		return &AccessorSummary{}
+	}
+	kindsByID := make([]uint64, int(maxID>>5)+1)
+	capHint := totalEntries
+	if int(maxID)+1 < capHint {
+		capHint = int(maxID) + 1
+	}
+	accessorIDs := make([]uint32, 0, capHint)
+	for _, batch := range batches {
+		for _, e := range batch {
+			if e.kind == AccessorSummary_PropertyAccessKind_NORMAL {
+				continue
+			}
+			wordIdx := e.id >> 5
+			shift := (e.id & 31) * 2
+			word := kindsByID[wordIdx]
+			if (word>>shift)&3 == 0 {
+				accessorIDs = append(accessorIDs, e.id)
+			}
+			kindsByID[wordIdx] = word | ((uint64(e.kind) & 3) << shift)
+		}
+	}
+	return &AccessorSummary{
+		hasAnyAccessors: true,
+		kindsByID:       kindsByID,
+		accessorIDs:     accessorIDs,
+	}
+}
+
 // Java: AccessorSummary(ImmutableMap<String, PropertyAccessKind>)
 func newAccessorSummary(accessors *jutil.LinkedHashMap[string, AccessorSummary_PropertyAccessKind]) *AccessorSummary {
 	if accessors.IsEmpty() {

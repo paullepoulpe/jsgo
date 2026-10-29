@@ -1909,7 +1909,7 @@ func (c *Compiler) GetTypeValidator() *TypeValidator {
 }
 
 // Java: Compiler.getTypeMismatches()
-func (c *Compiler) GetTypeMismatches() []*TypeMismatch {
+func (c *Compiler) GetTypeMismatches() []TypeMismatch {
 	if c.typeCheckingHasRun {
 		return c.GetTypeValidator().GetMismatches()
 	}

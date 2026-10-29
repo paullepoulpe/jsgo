@@ -98,10 +98,7 @@ func (m *es6NormalizeClasses_ClassRecord_PrivateMember) recordAccessor(member as
 
 // Java: Es6NormalizeClasses.ClassRecord.PrivateMember.propertyName()
 func (m *es6NormalizeClasses_ClassRecord_PrivateMember) PropertyName() string {
-	if strings.HasPrefix(m.name, "#") {
-		return jutil.StringSubstringFrom(m.name, 1)
-	}
-	return m.name
+	return strings.TrimPrefix(m.name, "#")
 }
 
 // Java: Es6NormalizeClasses.ClassRecord.PrivateMember.getPrimaryDeclarationNode()
@@ -121,7 +118,7 @@ func (m *es6NormalizeClasses_ClassRecord_PrivateMember) GetPrimaryDeclarationNod
 // Java: private static class Es6NormalizeClasses.ClassRecord
 type es6NormalizeClasses_ClassRecord struct {
 	privateMembers       []*es6NormalizeClasses_ClassRecord_PrivateMember
-	privateMembersByName *jutil.LinkedHashMap[string, *es6NormalizeClasses_ClassRecord_PrivateMember]
+	privateMembersByName map[string]*es6NormalizeClasses_ClassRecord_PrivateMember
 
 	privateMapVarName       string
 	staticPrivateMapVarName string
@@ -139,7 +136,7 @@ type es6NormalizeClasses_ClassRecord struct {
 	bindingIdentifier    ast.Name
 	hasBindingIdentifier bool
 	classNode            ast.Class
-	normalizedNames      *es6NormalizeClasses_NormalizedNames
+	normalizedNames      es6NormalizeClasses_NormalizedNames
 
 	instanceMembers              []ast.ClassMember
 	staticMembers                []ast.ClassMember
@@ -167,13 +164,16 @@ func (r *es6NormalizeClasses_ClassRecord) RecordPrivateMember(member ast.ClassMe
 		panic(jutil.NewIllegalStateExceptionMsg("Unexpected node for private member: " + jutil.ToJavaString(n)))
 	}
 
-	if pm := r.privateMembersByName.Get(name); pm != nil {
+	if pm := r.privateMembersByName[name]; pm != nil {
 		pm.declarationNodes = append(pm.declarationNodes, n)
 		pm.recordAccessor(member)
 	} else {
 		pm = newEs6NormalizeClasses_ClassRecord_PrivateMember(name, kind, isStatic, member)
 		r.privateMembers = append(r.privateMembers, pm)
-		r.privateMembersByName.Put(name, pm)
+		if r.privateMembersByName == nil {
+			r.privateMembersByName = make(map[string]*es6NormalizeClasses_ClassRecord_PrivateMember, 4)
+		}
+		r.privateMembersByName[name] = pm
 	}
 
 	if (kind == es6NormalizeClasses_ClassRecord_PrivateMemberKind_METHOD || kind == es6NormalizeClasses_ClassRecord_PrivateMemberKind_ACCESSOR) && !isStatic {
@@ -189,12 +189,13 @@ func (r *es6NormalizeClasses_ClassRecord) RecordPrivateMember(member ast.ClassMe
 
 // Java: Es6NormalizeClasses.ClassRecord.hasPrivateMember(String)
 func (r *es6NormalizeClasses_ClassRecord) HasPrivateMember(name string) bool {
-	return r.privateMembersByName.ContainsKey(name)
+	_, ok := r.privateMembersByName[name]
+	return ok
 }
 
 // Java: Es6NormalizeClasses.ClassRecord.getPrivateMember(String)
 func (r *es6NormalizeClasses_ClassRecord) GetPrivateMember(name string) *es6NormalizeClasses_ClassRecord_PrivateMember {
-	return r.privateMembersByName.Get(name)
+	return r.privateMembersByName[name]
 }
 
 // Java: Es6NormalizeClasses.ClassRecord.getPrivateMapVarName(AbstractCompiler, NodeTraversal)
@@ -238,9 +239,8 @@ func (r *es6NormalizeClasses_ClassRecord) GetStaticPrivateVarName(compiler Abstr
 }
 
 // Java: Es6NormalizeClasses.ClassRecord(NormalizedNames, Optional<Node>, Node)
-func newEs6NormalizeClasses_ClassRecord(normalizedNames *es6NormalizeClasses_NormalizedNames, bindingIdentifier ast.Name, hasBindingIdentifier bool, classNode ast.Class) *es6NormalizeClasses_ClassRecord {
+func newEs6NormalizeClasses_ClassRecord(normalizedNames es6NormalizeClasses_NormalizedNames, bindingIdentifier ast.Name, hasBindingIdentifier bool, classNode ast.Class) *es6NormalizeClasses_ClassRecord {
 	return &es6NormalizeClasses_ClassRecord{
-		privateMembersByName: jutil.NewLinkedHashMap[string, *es6NormalizeClasses_ClassRecord_PrivateMember](),
 		normalizedNames:      normalizedNames,
 		bindingIdentifier:    bindingIdentifier,
 		hasBindingIdentifier: hasBindingIdentifier,
@@ -301,12 +301,12 @@ func newEs6NormalizeClasses_NormalizedNames(
 	classNameNode rhino.Node,
 	superClassNode rhino.Node,
 	shouldExtractClass bool,
-	shouldExtractExtends bool) *es6NormalizeClasses_NormalizedNames {
+	shouldExtractExtends bool) es6NormalizeClasses_NormalizedNames {
 	jutil.CheckArgumentMsg1(classNameNode.IsQualifiedName(), "%s", classNameNode)
 	if !(superClassNode.IsNil() || superClassNode.IsQualifiedName()) {
 		jutil.CheckArgumentMsg1(false, "Optional[%s]", superClassNode)
 	}
-	return &es6NormalizeClasses_NormalizedNames{
+	return es6NormalizeClasses_NormalizedNames{
 		classNameNode:        classNameNode,
 		superClassNode:       superClassNode,
 		shouldExtractClass:   shouldExtractClass,
@@ -315,15 +315,15 @@ func newEs6NormalizeClasses_NormalizedNames(
 }
 
 // Java: Es6NormalizeClasses.NormalizedNames.classNameNode()
-func (n *es6NormalizeClasses_NormalizedNames) ClassNameNode() rhino.Node { return n.classNameNode }
+func (n es6NormalizeClasses_NormalizedNames) ClassNameNode() rhino.Node { return n.classNameNode }
 
 // Java: Es6NormalizeClasses.NormalizedNames.superClassNode()
-func (n *es6NormalizeClasses_NormalizedNames) SuperClassNode() rhino.Node {
+func (n es6NormalizeClasses_NormalizedNames) SuperClassNode() rhino.Node {
 	return n.superClassNode
 }
 
 // Java: Es6NormalizeClasses.generateNormalizedClassNames(NodeTraversal, Node)
-func (e *Es6NormalizeClasses) GenerateNormalizedClassNames(t *NodeTraversal, classNode ast.Class) *es6NormalizeClasses_NormalizedNames {
+func (e *Es6NormalizeClasses) GenerateNormalizedClassNames(t *NodeTraversal, classNode ast.Class) es6NormalizeClasses_NormalizedNames {
 	extendsClause, hasExtends := classNode.Extends()
 
 	shouldExtractExtends := e.ShouldExtractExtends(classNode)

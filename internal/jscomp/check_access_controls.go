@@ -44,12 +44,9 @@ type CheckAccessControls struct {
 	// Go-only: language-adapter — the Deque is a slice whose last element is
 	// the head (push/pop at the end); iteration runs from the end.
 	currentClassStack []rhino.ObjectType
-	// Go-only: language-adapter — the Guava Table<JSType, String,
-	// ConstantDeclaration> of Tables.newCustomTable(new LinkedHashMap<>(),
-	// LinkedHashMap::new): the row keys hash and compare with
-	// JSType.hashCode()/equals() (ObjectLinkedHashMap); the table is only
-	// looked up, never iterated.
-	constPropertyInits *jutil.ObjectLinkedHashMap[rhino.JSType, map[string]CheckAccessControls_ConstantDeclaration]
+
+	constPropertyInits      map[checkAccessControlsConstPropKey]CheckAccessControls_ConstantDeclaration
+	equivConstPropertyInits []checkAccessControlsEquivConstPropEntry
 
 	defaultVisibilityForFiles map[rhino.StaticSourceFile]rhino.JSDocInfo_Visibility
 
@@ -171,12 +168,22 @@ type CheckAccessControls_ConstantDeclaration struct {
 	annotation CheckAccessControls_Constancy
 }
 
+type checkAccessControlsConstPropKey struct {
+	owner rhino.JSType
+	prop  string
+}
+
+type checkAccessControlsEquivConstPropEntry struct {
+	owner rhino.JSType
+	prop  string
+	decl  CheckAccessControls_ConstantDeclaration
+}
+
 // Java: CheckAccessControls(AbstractCompiler)
 func NewCheckAccessControls(compiler AbstractCompiler) *CheckAccessControls {
 	return &CheckAccessControls{
-		constPropertyInits: jutil.NewObjectLinkedHashMap[rhino.JSType, map[string]CheckAccessControls_ConstantDeclaration](),
-		compiler:           compiler,
-		typeRegistry:       compiler.GetTypeRegistry(),
+		compiler:     compiler,
+		typeRegistry: compiler.GetTypeRegistry(),
 	}
 }
 
@@ -811,27 +818,53 @@ func (c *CheckAccessControls) CheckConstantProperty(
 	c.RecordConstPropertyInit(propRef, objectType, constness)
 }
 
+func isEquivConstOwnerType(t rhino.JSType) bool {
+	return t.IsTemplatizedType() || t.IsRecordType()
+}
+
 func (c *CheckAccessControls) checkAccessControls_tableGet(rowKey rhino.JSType, columnKey string) (CheckAccessControls_ConstantDeclaration, bool) {
-	row, ok := c.constPropertyInits.Lookup(rowKey)
-	if !ok {
+	if rowKey == nil {
 		return CheckAccessControls_ConstantDeclaration{}, false
 	}
-	init, ok := row[columnKey]
+	if isEquivConstOwnerType(rowKey) {
+		for i := range c.equivConstPropertyInits {
+			e := &c.equivConstPropertyInits[i]
+			if e.prop == columnKey && (e.owner == rowKey || rowKey.Equals(e.owner)) {
+				return e.decl, true
+			}
+		}
+		return CheckAccessControls_ConstantDeclaration{}, false
+	}
+	if c.constPropertyInits == nil {
+		return CheckAccessControls_ConstantDeclaration{}, false
+	}
+	init, ok := c.constPropertyInits[checkAccessControlsConstPropKey{owner: rowKey, prop: columnKey}]
 	return init, ok
 }
 
 func (c *CheckAccessControls) checkAccessControls_tableRowPutIfAbsent(
 	rowKey rhino.JSType, columnKey string, value CheckAccessControls_ConstantDeclaration) {
-	row, ok := c.constPropertyInits.Lookup(rowKey)
-	if ok {
-		if _, exists := row[columnKey]; exists {
-			return
+	if isEquivConstOwnerType(rowKey) {
+		for i := range c.equivConstPropertyInits {
+			e := &c.equivConstPropertyInits[i]
+			if e.prop == columnKey && (e.owner == rowKey || rowKey.Equals(e.owner)) {
+				return
+			}
 		}
-	} else {
-		row = make(map[string]CheckAccessControls_ConstantDeclaration)
-		c.constPropertyInits.Put(rowKey, row)
+		c.equivConstPropertyInits = append(c.equivConstPropertyInits, checkAccessControlsEquivConstPropEntry{
+			owner: rowKey,
+			prop:  columnKey,
+			decl:  value,
+		})
+		return
 	}
-	row[columnKey] = value
+	if c.constPropertyInits == nil {
+		c.constPropertyInits = make(map[checkAccessControlsConstPropKey]CheckAccessControls_ConstantDeclaration)
+	}
+	key := checkAccessControlsConstPropKey{owner: rowKey, prop: columnKey}
+	if _, exists := c.constPropertyInits[key]; !exists {
+		c.constPropertyInits[key] = value
+	}
 }
 
 // Java: CheckAccessControls.getConstPropertyInit(PropertyReference, ObjectType)

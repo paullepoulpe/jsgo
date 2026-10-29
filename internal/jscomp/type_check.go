@@ -74,11 +74,13 @@ type TypeCheck struct {
 	unknownCount int
 	inExterns    bool
 
-	badKeyCheckedTypes *jutil.ObjectLinkedHashSet[rhino.JSType]
+	badKeyCheckedTypes map[rhino.JSType]struct{}
 
 	// Logs types for @logTypeInCompiler.
-	debugTypeLogger *TypeCheck_DebugTypeLogger
+	debugTypeLogger TypeCheck_DebugTypeLogger
 }
+
+var typeCheckPrototypeID = rhino.IR_Name("prototype").GetStringID()
 
 //
 // Internal errors
@@ -366,7 +368,6 @@ func NewTypeCheckWithScope(
 	tc.typedCount = 0
 	tc.nullCount = 0
 	tc.unknownCount = 0
-	tc.debugTypeLogger = nil
 	// Constructor body.
 	tc.compiler = compiler
 	tc.validator = compiler.GetTypeValidator()
@@ -419,16 +420,13 @@ func (tc *TypeCheck) Process(externsRoot rhino.Node, jsRoot rhino.Node) {
 	jutil.CheckState(!externsAndJs.IsNil())
 	jutil.CheckState(externsRoot.IsNil() || externsAndJs.HasChild(externsRoot))
 
-	func() {
-		debugTypeLogger := NewTypeCheck_DebugTypeLogger(tc)
-		defer debugTypeLogger.Close()
-		tc.debugTypeLogger = debugTypeLogger
+	tc.debugTypeLogger.init(tc.compiler)
+	defer tc.debugTypeLogger.Close()
 
-		if !externsRoot.IsNil() {
-			tc.Check(externsRoot, true)
-		}
-		tc.Check(jsRoot, false)
-	}()
+	if !externsRoot.IsNil() {
+		tc.Check(externsRoot, true)
+	}
+	tc.Check(jsRoot, false)
 }
 
 // ProcessForTesting is the main entry point of this phase for testing code.
@@ -490,7 +488,9 @@ func (tc *TypeCheck) Report(n rhino.Node, diagnosticType *DiagnosticType, argume
 // Java: TypeCheck.shouldTraverse(NodeTraversal, Node, Node)
 func (tc *TypeCheck) ShouldTraverse(t *NodeTraversal, n rhino.Node, parent rhino.Node) bool {
 	// Start logging types if we're in debug mode and this node was annotated.
-	tc.debugTypeLogger.MaybeStartLoggingAt(n)
+	if tc.debugTypeLogger.isLogging {
+		tc.debugTypeLogger.MaybeStartLoggingAt(n)
+	}
 
 	if n.IsScript() {
 		if NodeUtil_IsFromTypeSummary(n) {
@@ -933,14 +933,18 @@ func (tc *TypeCheck) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 
 	// Record typing logs and metrics.
 	if typeable {
-		tc.debugTypeLogger.MaybeLogTypeOfNode(n)
+		if !tc.debugTypeLogger.parentNode.IsNil() {
+			tc.debugTypeLogger.MaybeLogTypeOfNode(n)
+		}
 		tc.DoPercentTypedAccounting(n)
 	}
 
 	tc.CheckJsdocInfoContainsObjectWithBadKey(n)
 
 	// If this is the node which started logging types, stop logging.
-	tc.debugTypeLogger.StopLoggingIfThisIsWhereWeStarted(n)
+	if !tc.debugTypeLogger.parentNode.IsNil() {
+		tc.debugTypeLogger.StopLoggingIfThisIsWhereWeStarted(n)
+	}
 }
 
 // Java: TypeCheck.visitUnaryPlus(Node)
@@ -1207,13 +1211,13 @@ func (tc *TypeCheck) CheckCanAssignToNameGetpropOrGetelem(
 	if getProp, ok := lvalue.AsGetProp(); ok {
 		object := getProp.Object()
 		objectJsType := tc.GetJSType(object.Node())
-		pname := getProp.Property()
+		getPropNode := getProp.Node()
 
 		// the first name in this getprop refers to an interface
 		// we perform checks in addition to the ones below
 		if objectGetProp, ok := object.AsGetProp(); ok {
 			jsType := tc.GetJSType(objectGetProp.Object().Node())
-			if jsType.IsInterface() && objectGetProp.Property() == "prototype" {
+			if jsType.IsInterface() && objectGetProp.Node().GetStringID() == typeCheckPrototypeID {
 				tc.VisitInterfacePropertyAssignment(object, getProp)
 			}
 		}
@@ -1225,10 +1229,12 @@ func (tc *TypeCheck) CheckCanAssignToNameGetpropOrGetelem(
 		// the definition of a class. These are mostly validated
 		// during TypedScopeCreator, and we only look for the "dumb" cases here.
 		// object.prototype = ...;
-		if pname == "prototype" {
+		if getPropNode.GetStringID() == typeCheckPrototypeID {
 			tc.validator.ExpectCanAssignToPrototype(objectJsType, nodeToWarn, rightType)
 			return
 		}
+
+		pname := getProp.Property()
 
 		// The generic checks for 'object.property' when 'object' is known,
 		// and 'property' is declared on it.
@@ -1295,15 +1301,15 @@ func (tc *TypeCheck) CheckPropCreation(lvalue ast.Target) {
 	if getProp, ok := lvalue.AsGetProp(); ok {
 		objType := tc.GetJSType(getProp.Object().Node())
 		if !objType.IsEmptyType() && !objType.IsUnknownType() {
-			propName := getProp.Property()
-			kind := tc.typeRegistry.CanPropertyBeDefined(objType, propName)
+			propNode := getProp.Node()
+			kind := tc.typeRegistry.CanPropertyBeDefinedByID(objType, propNode.GetStringID())
 			if kind != rhino.JSTypeRegistry_PropDefinitionKind_KNOWN {
 
 				if objType.IsStruct() {
 					if objType.RestrictByNotNullOrUndefined().IsUnionType() {
-						tc.Report(getProp.Node(), TypeCheck_ILLEGAL_PROPERTY_CREATION_ON_UNION_TYPE)
+						tc.Report(propNode, TypeCheck_ILLEGAL_PROPERTY_CREATION_ON_UNION_TYPE)
 					} else {
-						tc.Report(getProp.Node(), TypeCheck_ILLEGAL_PROPERTY_CREATION)
+						tc.Report(propNode, TypeCheck_ILLEGAL_PROPERTY_CREATION)
 					}
 				} else {
 					// null checks are reported elsewhere
@@ -1313,7 +1319,7 @@ func (tc *TypeCheck) CheckPropCreation(lvalue ast.Target) {
 						return
 					}
 
-					tc.ReportMissingProperty(getProp.Object().Node(), objType, getProp.Node(), kind, true)
+					tc.ReportMissingProperty(getProp.Object().Node(), objType, propNode, kind, true)
 				}
 			}
 		}
@@ -1333,7 +1339,7 @@ func (tc *TypeCheck) CheckPropertyInheritanceOnAssignment(
 	//
 	// As-is, this misses many other ways to override a property.
 
-	if prototype, ok := object.AsGetProp(); ok && prototype.Property() == "prototype" {
+	if prototype, ok := object.AsGetProp(); ok && prototype.Node().GetStringID() == typeCheckPrototypeID {
 		// ASSIGN = assign
 		//   GETPROP
 		//     GETPROP = object
@@ -2134,13 +2140,13 @@ func (tc *TypeCheck) CheckTypeContainsObjectWithBadKey(n rhino.Node, type_ *rhin
 			return
 		}
 		if tc.badKeyCheckedTypes == nil {
-			tc.badKeyCheckedTypes = jutil.NewObjectLinkedHashSet[rhino.JSType]()
+			tc.badKeyCheckedTypes = make(map[rhino.JSType]struct{}, 8)
 		} else {
-			tc.badKeyCheckedTypes.Clear()
+			clear(tc.badKeyCheckedTypes)
 		}
 		objectWithBadKey :=
 			tc.FindObjectWithNonStringifiableKey(realType, tc.badKeyCheckedTypes)
-		tc.badKeyCheckedTypes.Clear()
+		clear(tc.badKeyCheckedTypes)
 		if objectWithBadKey != nil {
 			tc.compiler.Report(JSError_MakeWithNode(n, TypeCheck_NON_STRINGIFIABLE_OBJECT_KEY, objectWithBadKey.String()))
 		}
@@ -2254,15 +2260,16 @@ func (tc *TypeCheck) IsObjectTypeWithNonStringifiableKey(type_ rhino.JSType) boo
 //
 // Java: TypeCheck.findObjectWithNonStringifiableKey(JSType, Set<JSType>)
 func (tc *TypeCheck) FindObjectWithNonStringifiableKey(
-	type_ rhino.JSType, alreadyCheckedTypes *jutil.ObjectLinkedHashSet[rhino.JSType]) rhino.JSType {
+	type_ rhino.JSType, alreadyCheckedTypes map[rhino.JSType]struct{}) rhino.JSType {
 	if !type_.IsTemplatizedType() && !type_.IsUnionType() && !type_.IsOrdinaryFunction() {
 		return nil
 	}
-	if !alreadyCheckedTypes.Add(type_) {
+	if _, seen := alreadyCheckedTypes[type_]; seen {
 		// This can happen in recursive types. Current type already being checked earlier in
 		// stacktrace so now we just skip it.
 		return nil
 	}
+	alreadyCheckedTypes[type_] = struct{}{}
 	if tc.IsObjectTypeWithNonStringifiableKey(type_) {
 		return type_
 	}
@@ -2378,30 +2385,36 @@ func TypeCheck_DeclaresOverride(jsdoc *rhino.JSDocInfo) bool {
 
 // TypeCheck_DebugTypeLogger logs types for @logTypeInCompiler.
 type TypeCheck_DebugTypeLogger struct {
-	outer *TypeCheck
-
 	// Output log file for @logTypeInCompiler.
 	typeLogFile diagnostic.LogFile
 
 	// The node where we started logging, if we're logging.
 	parentNode rhino.Node
+
+	isLogging bool
 }
 
 // Suppress MustBeClosedChecker because `.close` is called by our `close` method.
 //
 // Java: TypeCheck.DebugTypeLogger()
 func NewTypeCheck_DebugTypeLogger(outer *TypeCheck) *TypeCheck_DebugTypeLogger {
-	l := &TypeCheck_DebugTypeLogger{outer: outer}
-	if outer.compiler.IsDebugLoggingEnabled() {
-		l.typeLogFile = outer.compiler.CreateOrReopenLog("DebugTypeLogger", "types_logged_in_compiler.log")
-	}
+	l := &TypeCheck_DebugTypeLogger{}
+	l.init(outer.compiler)
 	return l
+}
+
+func (l *TypeCheck_DebugTypeLogger) init(compiler AbstractCompiler) {
+	*l = TypeCheck_DebugTypeLogger{}
+	if compiler.IsDebugLoggingEnabled() {
+		l.typeLogFile = compiler.CreateOrReopenLog("DebugTypeLogger", "types_logged_in_compiler.log")
+		l.isLogging = l.typeLogFile.IsLogging()
+	}
 }
 
 // Java: TypeCheck.DebugTypeLogger.maybeStartLoggingAt(Node)
 func (l *TypeCheck_DebugTypeLogger) MaybeStartLoggingAt(n rhino.Node) {
 	// We don't log outside debug mode, or if we're already logging.
-	if !l.typeLogFile.IsLogging() || !l.parentNode.IsNil() {
+	if !l.isLogging || !l.parentNode.IsNil() {
 		return
 	}
 
@@ -2422,6 +2435,8 @@ func (l *TypeCheck_DebugTypeLogger) StopLoggingIfThisIsWhereWeStarted(n rhino.No
 // Java: TypeCheck.DebugTypeLogger.close()
 func (l *TypeCheck_DebugTypeLogger) Close() {
 	l.typeLogFile.Close()
+	l.isLogging = false
+	l.parentNode = rhino.NilNode
 }
 
 // Java: TypeCheck.DebugTypeLogger.maybeLogTypeOfNode(Node)
