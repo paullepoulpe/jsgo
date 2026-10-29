@@ -62,19 +62,17 @@ var (
 type InlineAndCollapseProperties_InlineAliases struct {
 	outer *InlineAndCollapseProperties
 
-	aliases    map[string]string
+	aliases    map[*GlobalNamespace_Name]*GlobalNamespace_Name
 	namespace  *GlobalNamespace
 	astFactory *AstFactory
 }
 
 // Java: InlineAndCollapseProperties.InlineAliases()
 func NewInlineAndCollapseProperties_InlineAliases(outer *InlineAndCollapseProperties) *InlineAndCollapseProperties_InlineAliases {
-	a := &InlineAndCollapseProperties_InlineAliases{
-		outer:   outer,
-		aliases: make(map[string]string),
+	return &InlineAndCollapseProperties_InlineAliases{
+		outer:      outer,
+		astFactory: outer.compiler.CreateAstFactory(),
 	}
-	a.astFactory = outer.compiler.CreateAstFactory()
-	return a
 }
 
 // Java: InlineAndCollapseProperties.InlineAliases.process(Node, Node)
@@ -82,6 +80,7 @@ func (a *InlineAndCollapseProperties_InlineAliases) Process(externs rhino.Node, 
 	a.namespace = NewGlobalNamespaceWithRoots(a.outer.compiler, externs, root)
 	defer func() {
 		a.namespace = nil
+		a.aliases = nil
 	}()
 	NodeTraversal_TraverseRoots(a.outer.compiler, NewInlineAndCollapseProperties_InlineAliases_AliasesCollector(a), externs, root)
 	if len(a.aliases) > 0 {
@@ -147,9 +146,10 @@ func (c *InlineAndCollapseProperties_InlineAliases_AliasesCollector) VisitAliasD
 				lhsName.CalculateInlinability().ShouldInlineUsages() &&
 				rhsName != nil &&
 				rhsName.CalculateInlinability().ShouldInlineUsages() {
-				lhsQName, _ := lhs.GetQualifiedNameString()
-				rhsQName, _ := rhs.GetQualifiedNameString()
-				c.outer.aliases[lhsQName] = rhsQName
+				if c.outer.aliases == nil {
+					c.outer.aliases = make(map[*GlobalNamespace_Name]*GlobalNamespace_Name)
+				}
+				c.outer.aliases[lhsName] = rhsName
 			}
 		}
 	}
@@ -188,9 +188,9 @@ func (i *InlineAndCollapseProperties_InlineAliases_AliasesInliner) Visit(t *Node
 		if len(i.outer.aliases) == 0 {
 			return
 		}
-		qname, ok := n.GetQualifiedNameString()
-		if ok {
-			if _, hasAlias := i.outer.aliases[qname]; hasAlias {
+		nameObj, ok := i.outer.namespace.lookupGlobalNode(n)
+		if ok && nameObj != nil {
+			if _, hasAlias := i.outer.aliases[nameObj]; hasAlias {
 				if i.IsLeftmostNameLocal(t, n) {
 					// The alias is shadowed by a local variable. Don't rewrite.
 					return
@@ -200,7 +200,7 @@ func (i *InlineAndCollapseProperties_InlineAliases_AliasesInliner) Visit(t *Node
 					return
 				}
 
-				newNode := i.outer.astFactory.CreateQName(i.outer.namespace, i.ResolveAlias(qname, n))
+				newNode := i.outer.astFactory.CreateQName(i.outer.namespace, i.ResolveAlias(nameObj, n))
 				if i.IsLeftmostNameLocal(t, newNode) {
 					// The aliased name is shadowed by a local variable. Don't rewrite.
 					return
@@ -234,8 +234,8 @@ func (i *InlineAndCollapseProperties_InlineAliases_AliasesInliner) IsLeftmostNam
 // resolved.
 //
 // Java: InlineAndCollapseProperties.InlineAliases.AliasesInliner.resolveAlias(String, Node)
-func (i *InlineAndCollapseProperties_InlineAliases_AliasesInliner) ResolveAlias(name string, n rhino.Node) string {
-	var aliasPathBuf [8]string
+func (i *InlineAndCollapseProperties_InlineAliases_AliasesInliner) ResolveAlias(name *GlobalNamespace_Name, n rhino.Node) string {
+	var aliasPathBuf [8]*GlobalNamespace_Name
 	aliasPath := aliasPathBuf[:0]
 	for {
 		target, ok := i.outer.aliases[name]
@@ -243,7 +243,16 @@ func (i *InlineAndCollapseProperties_InlineAliases_AliasesInliner) ResolveAlias(
 			break
 		}
 		if slices.Contains(aliasPath, name) {
-			i.outer.outer.compiler.Report(JSError_MakeWithNode(n, InlineAndCollapseProperties_ALIAS_CYCLE, "["+strings.Join(aliasPath, ", ")+"]", name))
+			var b strings.Builder
+			b.WriteByte('[')
+			for idx, p := range aliasPath {
+				if idx > 0 {
+					b.WriteString(", ")
+				}
+				b.WriteString(p.GetFullName())
+			}
+			b.WriteByte(']')
+			i.outer.outer.compiler.Report(JSError_MakeWithNode(n, InlineAndCollapseProperties_ALIAS_CYCLE, b.String(), name.GetFullName()))
 
 			// Cut the cycle so that it doesn't get reported more than once.
 			delete(i.outer.aliases, name)
@@ -253,5 +262,5 @@ func (i *InlineAndCollapseProperties_InlineAliases_AliasesInliner) ResolveAlias(
 		aliasPath = append(aliasPath, name)
 		name = target
 	}
-	return name
+	return name.GetFullName()
 }

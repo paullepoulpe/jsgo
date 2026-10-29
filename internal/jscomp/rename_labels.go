@@ -97,24 +97,6 @@ func NewRenameLabelsWithSupplier(
 	}
 }
 
-// RenameLabels_DefaultNameSupplier is the nested class DefaultNameSupplier.
-type RenameLabels_DefaultNameSupplier struct {
-	// DefaultNameGenerator is used to create safe label names.
-	nameGenerator *DefaultNameGenerator
-}
-
-// Java: RenameLabels.DefaultNameSupplier()
-func NewRenameLabels_DefaultNameSupplier() *RenameLabels_DefaultNameSupplier {
-	return &RenameLabels_DefaultNameSupplier{
-		nameGenerator: NewDefaultNameGenerator(),
-	}
-}
-
-// Java: RenameLabels.DefaultNameSupplier.get()
-func (s *RenameLabels_DefaultNameSupplier) Get() string {
-	return s.nameGenerator.GenerateNextName()
-}
-
 type labelStackEntry struct {
 	origID     strpool.ID
 	depth      int32

@@ -32,142 +32,7 @@ type DefaultPassConfig struct {
 	// Symbol table for registering references removed during preprocessing.
 	preprocessorSymbolTableFactory *PreprocessorSymbolTable_CachedInstanceFactory
 
-	checkSideEffects                             *PassFactory
-	stripSideEffectProtection                    *PassFactory
-	suspiciousCode                               *PassFactory
-	extraRequires                                *PassFactory
-	checkMissingRequires                         *PassFactory
-	checkJsDocAndEs6Modules                      *PassFactory
-	generateExports                              *PassFactory
-	generateIjs                                  *PassFactory
-	removeExtraRequires                          *PassFactory
-	exportTestFunctions                          *PassFactory
-	gatherRawExports                             *PassFactory
-	closurePrimitives                            *PassFactory
-	closureProvidesRequires                      *PassFactory
-	angularPass                                  *PassFactory
-	replaceMessagesForChrome                     *PassFactory
-	closureGoogScopeAliasesForIjs                *PassFactory
-	closureGoogScopeAliases                      *PassFactory
-	injectRuntimeLibraries                       *PassFactory
-	removeWeakSources                            *PassFactory
-	declaredGlobalExternsOnWindow                *PassFactory
-	checkTypeImportCodeReferences                *PassFactory
-	closureCheckModule                           *PassFactory
-	closureRewriteModule                         *PassFactory
-	checkClosureImports                          *PassFactory
-	rewriteGoogJsImports                         *PassFactory
-	closureReplaceGetCssName                     *PassFactory
-	createSyntheticBlocks                        *PassFactory
-	earlyPeepholeOptimizations                   *PassFactory
-	earlyInlineVariables                         *PassFactory
-	peepholeOptimizations                        *PassFactory
-	peepholeOptimizationsOnceNormalized          *PassFactory
-	peepholeOptimizationsOnceNonNormalized       *PassFactory
-	latePeepholeOptimizations                    *PassFactory
-	checkVars                                    *PassFactory
-	inferConsts                                  *PassFactory
-	checkRegExp                                  *PassFactory
-	checkRegExpForOptimizations                  *PassFactory
-	checkVariableReferences                      *PassFactory
-	checkSuper                                   *PassFactory
-	clearTypedScopeCreatorPass                   *PassFactory
-	clearTopTypedScopePass                       *PassFactory
-	inferTypes                                   *PassFactory
-	inferJsDocInfo                               *PassFactory
-	checkTypes                                   *PassFactory
-	checkControlFlow                             *PassFactory
-	checkAccessControls                          *PassFactory
-	lintChecks                                   *PassFactory
-	analyzerChecks                               *PassFactory
-	checkRequiresAndProvidesSorted               *PassFactory
-	checkStrictMode                              *PassFactory
-	processTweaks                                *PassFactory
-	processDefinesCheck                          *PassFactory
-	processDefinesOptimize                       *PassFactory
-	stripCode                                    *PassFactory
-	checkConsts                                  *PassFactory
-	rewriteCallerCodeLocation                    *PassFactory
-	replaceToggles                               *PassFactory
-	replaceIdGenerators                          *PassFactory
-	replaceStrings                               *PassFactory
-	closureCodeRemoval                           *PassFactory
-	closureOptimizePrimitives                    *PassFactory
-	rescopeGlobalSymbols                         *PassFactory
-	convertChunksToESModules                     *PassFactory
-	inlineAndCollapseProperties                  *PassFactory
-	collapseObjectLiterals                       *PassFactory
-	disambiguateProperties                       *PassFactory
-	devirtualizeMethods                          *PassFactory
-	optimizeCalls                                *PassFactory
-	optimizeConstructors                         *PassFactory
-	markPureFunctions                            *PassFactory
-	inlineVariables                              *PassFactory
-	inlineConstants                              *PassFactory
-	inlineSimpleMethods                          *PassFactory
-	deadAssignmentsElimination                   *PassFactory
-	deadPropertyAssignmentElimination            *PassFactory
-	inlineFunctions                              *PassFactory
-	inlineProperties                             *PassFactory
-	isolatePolyfills                             *PassFactory
-	removeUnusedCode                             *PassFactory
-	removeUnusedCodeOnce                         *PassFactory
-	crossChunkCodeMotion                         *PassFactory
-	crossChunkMethodMotion                       *PassFactory
-	flowSensitiveInlineVariables                 *PassFactory
-	coalesceVariableNames                        *PassFactory
-	postNormalizePeephole                        *PassFactory
-	collapseVariableDeclarations                 *PassFactory
-	extractPrototypeMemberDeclarations           *PassFactory
-	rewriteFunctionExpressions                   *PassFactory
-	collapseAnonymousFunctions                   *PassFactory
-	rewriteGlobalDeclarationsForTryCatchWrapping *PassFactory
-	aliasStrings                                 *PassFactory
-	ambiguateProperties                          *PassFactory
-	markUnnormalized                             *PassFactory
-	normalize                                    *PassFactory
-	externExports                                *PassFactory
-	denormalize                                  *PassFactory
-	invertContextualRenaming                     *PassFactory
-	renameProperties                             *PassFactory
-	removePropertyRenamingCalls                  *PassFactory
-	renameVars                                   *PassFactory
-	renameLabels                                 *PassFactory
-	convertToDottedProperties                    *PassFactory
-	checkAstValidity                             *PassFactory
-	varCheckValidity                             *PassFactory
-	instrumentForCodeCoverage                    *PassFactory
-	gatherExternPropertiesCheck                  *PassFactory
-	gatherExternPropertiesOptimize               *PassFactory
-	polymerPass                                  *PassFactory
-	chromePass                                   *PassFactory
-	j2clConstantHoisterPass                      *PassFactory
-	j2clClinitPass                               *PassFactory
-	j2clPropertyInlinerPass                      *PassFactory
-	j2clPass                                     *PassFactory
-	j2clUtilGetDefineRewriterPass                *PassFactory
-	j2clAssertRemovalPass                        *PassFactory
-	j2clSourceFileChecker                        *PassFactory
-	j2clChecksPass                               *PassFactory
-	checkConformance                             *PassFactory
-	removeCastNodes                              *PassFactory
-	typesToColors                                *PassFactory
-	serializeTypedAst                            *PassFactory
-	removeUnnecessarySyntheticExterns            *PassFactory
-	optimizeToEs6                                *PassFactory
-	whitespaceWrapGoogModules                    *PassFactory
-	rewriteCommonJsModules                       *PassFactory
-	rewriteScriptsToEs6Modules                   *PassFactory
-	gatherModuleMetadataPass                     *PassFactory
-	createModuleMapPass                          *PassFactory
-	gatherGettersAndSetters                      *PassFactory
-	addSyntheticScript                           *PassFactory
-	removeSyntheticScript                        *PassFactory
-	mergeSyntheticScript                         *PassFactory
-	protectLocaleData                            *PassFactory
-	substituteLocaleData                         *PassFactory
-	transpileOnlyClosureUnaware                  *PassFactory
-	transpileAndOptimizeClosureUnaware           *PassFactory
+	inferTypes *PassFactory
 }
 
 const (
@@ -203,9 +68,11 @@ var (
 )
 
 func NewDefaultPassConfig(options *CompilerOptions) *DefaultPassConfig {
-	c := &DefaultPassConfig{options: options}
-	c.initFields()
-	return c
+	return &DefaultPassConfig{
+		options:                        options,
+		preprocessorSymbolTableFactory: NewPreprocessorSymbolTable_CachedInstanceFactory(),
+		inferTypes:                     defaultPass_inferTypes,
+	}
 }
 
 func (c *DefaultPassConfig) Options() *CompilerOptions {
@@ -225,14 +92,14 @@ func (c *DefaultPassConfig) GetTranspileOnlyPasses() *PassListBuilder {
 	passes := NewPassListBuilder(options)
 
 	// Certain errors in block-scoped variable declarations prevent correct transpilation.
-	passes.MaybeAdd(c.checkVariableReferences)
-	passes.MaybeAdd(c.checkVars)
+	passes.MaybeAdd(defaultPass_checkVariableReferences)
+	passes.MaybeAdd(defaultPass_checkVars)
 
-	passes.MaybeAdd(c.gatherModuleMetadataPass)
-	passes.MaybeAdd(c.createModuleMapPass)
+	passes.MaybeAdd(defaultPass_gatherModuleMetadataPass)
+	passes.MaybeAdd(defaultPass_createModuleMapPass)
 
 	if options.GetLanguageIn().ToFeatureSet().Has(parser.FeatureSet_Feature_MODULES) {
-		passes.MaybeAdd(c.rewriteGoogJsImports)
+		passes.MaybeAdd(defaultPass_rewriteGoogJsImports)
 		switch options.GetEs6ModuleTranspilation() {
 		case CompilerOptions_Es6ModuleTranspilation_COMPILE:
 			TranspilationPasses_AddEs6ModulePass(passes, c.preprocessorSymbolTableFactory)
@@ -244,11 +111,11 @@ func (c *DefaultPassConfig) GetTranspileOnlyPasses() *PassListBuilder {
 		}
 	}
 
-	passes.MaybeAdd(c.checkSuper)
+	passes.MaybeAdd(defaultPass_checkSuper)
 
 	TranspilationPasses_AddTranspilationRuntimeLibraries(passes)
 
-	passes.MaybeAdd(c.transpileOnlyClosureUnaware)
+	passes.MaybeAdd(defaultPass_transpileOnlyClosureUnaware)
 
 	if options.NeedsTranspilationFrom(parser.FeatureSet_ES2015) && options.GetRewritePolyfills() {
 		if options.GetIsolatePolyfills() {
@@ -259,22 +126,22 @@ func (c *DefaultPassConfig) GetTranspileOnlyPasses() *PassListBuilder {
 		TranspilationPasses_AddRewritePolyfillPass(passes)
 	}
 
-	passes.MaybeAdd(c.injectRuntimeLibraries)
+	passes.MaybeAdd(defaultPass_injectRuntimeLibraries)
 
 	// Passes below this point rely on normalization and must maintain it.
-	passes.MaybeAdd(c.normalize)
-	passes.MaybeAdd(c.gatherGettersAndSetters)
+	passes.MaybeAdd(defaultPass_normalize)
+	passes.MaybeAdd(defaultPass_gatherGettersAndSetters)
 
 	TranspilationPasses_AddTranspilationPasses(passes, options)
 
-	passes.MaybeAdd(c.markUnnormalized)
+	passes.MaybeAdd(defaultPass_markUnnormalized)
 	// Restore original variable/parameter names (e.g. for frameworks doing DI by parameter name).
-	passes.MaybeAdd(c.invertContextualRenaming)
+	passes.MaybeAdd(defaultPass_invertContextualRenaming)
 	// Es6ConvertSuper may emit property renaming calls that must be stripped in transpile-only mode.
-	passes.MaybeAdd(c.removePropertyRenamingCalls)
+	passes.MaybeAdd(defaultPass_removePropertyRenamingCalls)
 
 	passes.AssertAllOneTimePasses()
-	c.assertValidOrderForChecks(passes)
+	assertValidOrderForChecks(passes, nil, nil, nil)
 	return passes
 }
 
@@ -283,24 +150,29 @@ func (c *DefaultPassConfig) GetWhitespaceOnlyPasses() *PassListBuilder {
 	passes := NewPassListBuilder(options)
 
 	if options.GetProcessCommonJSModules() {
-		passes.MaybeAdd(c.rewriteCommonJsModules)
+		passes.MaybeAdd(defaultPass_rewriteCommonJsModules)
 	} else if options.GetLanguageIn().ToFeatureSet().Has(parser.FeatureSet_Feature_MODULES) {
-		passes.MaybeAdd(c.rewriteScriptsToEs6Modules)
+		passes.MaybeAdd(defaultPass_rewriteScriptsToEs6Modules)
 	}
 
 	if options.ShouldWrapGoogModulesForWhitespaceOnly() {
-		passes.MaybeAdd(c.whitespaceWrapGoogModules)
+		passes.MaybeAdd(defaultPass_whitespaceWrapGoogModules)
 	}
 	return passes
 }
 
-func (c *DefaultPassConfig) addModuleRewritingPasses(checks *PassListBuilder, options *CompilerOptions) {
+func (c *DefaultPassConfig) addModuleRewritingPasses(
+	checks *PassListBuilder, options *CompilerOptions, closureRewriteModule **PassFactory,
+) {
 	if options.GetLanguageIn().ToFeatureSet().Has(parser.FeatureSet_Feature_MODULES) {
-		checks.MaybeAdd(c.rewriteGoogJsImports)
+		checks.MaybeAdd(defaultPass_rewriteGoogJsImports)
 		TranspilationPasses_AddEs6ModulePass(checks, c.preprocessorSymbolTableFactory)
 	}
 	if options.GetClosurePass() {
-		checks.MaybeAdd(c.closureRewriteModule)
+		if *closureRewriteModule == nil {
+			*closureRewriteModule = c.makeClosureRewriteModule()
+		}
+		checks.MaybeAdd(*closureRewriteModule)
 	}
 }
 
@@ -314,41 +186,42 @@ func (c *DefaultPassConfig) GetChecks() *PassListBuilder {
 			" PassConfig::getTranspileOnlyPasses instead.")
 
 	if options.IsPropertyRenamingOnlyCompilationMode() {
-		checks.MaybeAdd(c.addSyntheticScript)
-		checks.MaybeAdd(c.gatherGettersAndSetters)
-		checks.MaybeAdd(c.gatherModuleMetadataPass)
-		checks.MaybeAdd(c.createModuleMapPass)
-		checks.MaybeAdd(c.declaredGlobalExternsOnWindow)
-		checks.MaybeAdd(c.checkSideEffects)
-		checks.MaybeAdd(c.angularPass)
-		checks.MaybeAdd(c.closureGoogScopeAliases)
-		checks.MaybeAdd(c.closurePrimitives)
-		c.addModuleRewritingPasses(checks, options)
-		checks.MaybeAdd(c.clearTypedScopeCreatorPass)
-		checks.MaybeAdd(c.clearTopTypedScopePass)
-		checks.MaybeAdd(c.generateExports)
+		var closureRewriteModule *PassFactory
+		checks.MaybeAdd(defaultPass_addSyntheticScript)
+		checks.MaybeAdd(defaultPass_gatherGettersAndSetters)
+		checks.MaybeAdd(defaultPass_gatherModuleMetadataPass)
+		checks.MaybeAdd(defaultPass_createModuleMapPass)
+		checks.MaybeAdd(defaultPass_declaredGlobalExternsOnWindow)
+		checks.MaybeAdd(defaultPass_checkSideEffects)
+		checks.MaybeAdd(defaultPass_angularPass)
+		checks.MaybeAdd(c.makeClosureGoogScopeAliases())
+		checks.MaybeAdd(c.makeClosurePrimitives())
+		c.addModuleRewritingPasses(checks, options, &closureRewriteModule)
+		checks.MaybeAdd(defaultPass_clearTypedScopeCreatorPass)
+		checks.MaybeAdd(defaultPass_clearTopTypedScopePass)
+		checks.MaybeAdd(defaultPass_generateExports)
 		checks.MaybeAdd(emptyAfterStandardChecks)
-		checks.MaybeAdd(c.mergeSyntheticScript)
-		checks.MaybeAdd(c.gatherExternPropertiesCheck)
+		checks.MaybeAdd(defaultPass_mergeSyntheticScript)
+		checks.MaybeAdd(defaultPass_gatherExternPropertiesCheck)
 		checks.MaybeAdd(emptyBeforeSerialization)
 		return checks
 	}
 
 	if options.ShouldGenerateTypedExterns() {
-		checks.MaybeAdd(c.addSyntheticScript)
-		checks.MaybeAdd(c.closureGoogScopeAliasesForIjs)
-		checks.MaybeAdd(c.generateIjs)
-		checks.MaybeAdd(c.removeExtraRequires)
+		checks.MaybeAdd(defaultPass_addSyntheticScript)
+		checks.MaybeAdd(defaultPass_closureGoogScopeAliasesForIjs)
+		checks.MaybeAdd(defaultPass_generateIjs)
+		checks.MaybeAdd(defaultPass_removeExtraRequires)
 		if options.ShouldWrapGoogModulesForWhitespaceOnly() {
-			checks.MaybeAdd(c.whitespaceWrapGoogModules)
+			checks.MaybeAdd(defaultPass_whitespaceWrapGoogModules)
 		}
-		checks.MaybeAdd(c.removeSyntheticScript)
+		checks.MaybeAdd(defaultPass_removeSyntheticScript)
 		return checks
 	}
 
 	// Run before any pass tries to inject runtime libraries.
-	checks.MaybeAdd(c.addSyntheticScript)
-	checks.MaybeAdd(c.gatherGettersAndSetters)
+	checks.MaybeAdd(defaultPass_addSyntheticScript)
+	checks.MaybeAdd(defaultPass_gatherGettersAndSetters)
 
 	inFeatures := options.GetLanguageIn().ToFeatureSet()
 	if inFeatures.ContainsFeature(parser.FeatureSet_Feature_DYNAMIC_IMPORT) && !options.ShouldAllowDynamicImport() {
@@ -358,110 +231,113 @@ func (c *DefaultPassConfig) GetChecks() *PassListBuilder {
 	checks.MaybeAdd(emptyBeforeStandardChecks)
 
 	if !options.GetProcessCommonJSModules() && inFeatures.Has(parser.FeatureSet_Feature_MODULES) {
-		checks.MaybeAdd(c.rewriteScriptsToEs6Modules)
+		checks.MaybeAdd(defaultPass_rewriteScriptsToEs6Modules)
 	}
 
 	// Run after promoting scripts to modules, but before rewriting any other modules.
-	checks.MaybeAdd(c.gatherModuleMetadataPass)
-	checks.MaybeAdd(c.createModuleMapPass)
+	checks.MaybeAdd(defaultPass_gatherModuleMetadataPass)
+	checks.MaybeAdd(defaultPass_createModuleMapPass)
 
 	if options.GetProcessCommonJSModules() {
-		checks.MaybeAdd(c.rewriteCommonJsModules)
+		checks.MaybeAdd(defaultPass_rewriteCommonJsModules)
 	}
 
 	// ChromePass can rewrite invalid @type annotations into valid ones, so run before JSDoc checks.
 	if options.IsChromePassEnabled() {
-		checks.MaybeAdd(c.chromePass)
+		checks.MaybeAdd(defaultPass_chromePass)
 	}
 
-	checks.MaybeAdd(c.checkJsDocAndEs6Modules)
-	checks.MaybeAdd(c.checkTypeImportCodeReferences)
+	checks.MaybeAdd(defaultPass_checkJsDocAndEs6Modules)
+	checks.MaybeAdd(defaultPass_checkTypeImportCodeReferences)
 
 	if options.Enables(DiagnosticGroups_LINT_CHECKS) {
-		checks.MaybeAdd(c.lintChecks)
+		checks.MaybeAdd(defaultPass_lintChecks)
 		if options.GetClosurePass() {
-			checks.MaybeAdd(c.checkRequiresAndProvidesSorted)
+			checks.MaybeAdd(defaultPass_checkRequiresAndProvidesSorted)
 		}
 	}
 
 	if options.Enables(DiagnosticGroups_EXTRA_REQUIRE) {
-		checks.MaybeAdd(c.extraRequires)
+		checks.MaybeAdd(defaultPass_extraRequires)
 	}
 	if options.Enables(DiagnosticGroups_MISSING_REQUIRE) {
-		checks.MaybeAdd(c.checkMissingRequires)
+		checks.MaybeAdd(defaultPass_checkMissingRequires)
 	}
 
-	checks.MaybeAdd(c.declaredGlobalExternsOnWindow)
+	checks.MaybeAdd(defaultPass_declaredGlobalExternsOnWindow)
 
 	if !options.GetProcessCommonJSModules() {
-		checks.MaybeAdd(c.checkVariableReferences)
-		checks.MaybeAdd(c.checkVars)
+		checks.MaybeAdd(defaultPass_checkVariableReferences)
+		checks.MaybeAdd(defaultPass_checkVars)
 	}
 
 	if options.GetClosurePass() {
-		checks.MaybeAdd(c.checkClosureImports)
+		checks.MaybeAdd(defaultPass_checkClosureImports)
 	}
 
-	checks.MaybeAdd(c.checkStrictMode)
+	checks.MaybeAdd(defaultPass_checkStrictMode)
 
 	if options.GetClosurePass() {
-		checks.MaybeAdd(c.closureCheckModule)
+		checks.MaybeAdd(defaultPass_closureCheckModule)
 	}
 
-	checks.MaybeAdd(c.checkSuper)
-	checks.MaybeAdd(c.checkSideEffects)
+	checks.MaybeAdd(defaultPass_checkSuper)
+	checks.MaybeAdd(defaultPass_checkSideEffects)
 
 	if options.GetAngularPass() {
-		checks.MaybeAdd(c.angularPass)
+		checks.MaybeAdd(defaultPass_angularPass)
 	}
 
+	var closureGoogScopeAliases, closurePrimitives, closureRewriteModule *PassFactory
 	if options.GetClosurePass() {
-		checks.MaybeAdd(c.closureGoogScopeAliases)
-		checks.MaybeAdd(c.closurePrimitives)
+		closureGoogScopeAliases = c.makeClosureGoogScopeAliases()
+		closurePrimitives = c.makeClosurePrimitives()
+		checks.MaybeAdd(closureGoogScopeAliases)
+		checks.MaybeAdd(closurePrimitives)
 	}
 
 	if options.ShouldRewriteModulesBeforeTypechecking() {
-		c.addModuleRewritingPasses(checks, options)
+		c.addModuleRewritingPasses(checks, options, &closureRewriteModule)
 	}
 
 	// PolymerPass must run after ClosurePrimitives/ChromePass and before suspiciousCode checks.
 	if options.IsPolymerPassEnabled() {
-		checks.MaybeAdd(c.polymerPass)
+		checks.MaybeAdd(defaultPass_polymerPass)
 	}
 
 	if options.GetProcessCommonJSModules() {
-		checks.MaybeAdd(c.checkVariableReferences)
-		checks.MaybeAdd(c.checkVars)
+		checks.MaybeAdd(defaultPass_checkVariableReferences)
+		checks.MaybeAdd(defaultPass_checkVars)
 	}
 
 	if options.ShouldInferConsts() {
-		checks.MaybeAdd(c.inferConsts)
+		checks.MaybeAdd(defaultPass_inferConsts)
 	}
 	if options.ShouldComputeFunctionSideEffects() {
-		checks.MaybeAdd(c.checkRegExp)
+		checks.MaybeAdd(defaultPass_checkRegExp)
 	}
 
 	checks.MaybeAdd(emptyBeforeTypeChecking)
 
 	if options.GetCheckTypes() || options.GetInferTypes() {
-		checks.MaybeAdd(c.inferTypes)
+		checks.MaybeAdd(defaultPass_inferTypes)
 		if options.GetCheckTypes() {
-			checks.MaybeAdd(c.checkTypes)
+			checks.MaybeAdd(defaultPass_checkTypes)
 		} else {
-			checks.MaybeAdd(c.inferJsDocInfo)
+			checks.MaybeAdd(defaultPass_inferJsDocInfo)
 		}
 	}
 
 	if options.Enables(DiagnosticGroups_ANALYZER_CHECKS) && options.IsTypecheckingEnabled() {
-		checks.MaybeAdd(c.analyzerChecks)
+		checks.MaybeAdd(defaultPass_analyzerChecks)
 	}
 
 	if !options.PreservesDetailedSourceInfo() {
-		checks.MaybeAdd(c.clearTypedScopeCreatorPass)
+		checks.MaybeAdd(defaultPass_clearTypedScopeCreatorPass)
 	}
 
 	if options.ShouldRewriteModulesAfterTypechecking() {
-		c.addModuleRewritingPasses(checks, options)
+		c.addModuleRewritingPasses(checks, options, &closureRewriteModule)
 	}
 
 	if options.ShouldAllowDynamicImport() && inFeatures.Has(parser.FeatureSet_Feature_DYNAMIC_IMPORT) {
@@ -469,68 +345,68 @@ func (c *DefaultPassConfig) GetChecks() *PassListBuilder {
 	}
 
 	if !options.PreservesDetailedSourceInfo() {
-		checks.MaybeAdd(c.clearTopTypedScopePass)
+		checks.MaybeAdd(defaultPass_clearTopTypedScopePass)
 	}
 
 	if options.GetCheckSuspiciousCode() ||
 		options.Enables(DiagnosticGroups_GLOBAL_THIS) ||
 		options.Enables(DiagnosticGroups_DEBUGGER_STATEMENT_PRESENT) {
-		checks.MaybeAdd(c.suspiciousCode)
+		checks.MaybeAdd(defaultPass_suspiciousCode)
 	}
 
 	if options.GetJ2clPass().ShouldAddJ2clPasses() {
-		checks.MaybeAdd(c.j2clSourceFileChecker)
+		checks.MaybeAdd(defaultPass_j2clSourceFileChecker)
 	}
 
 	if !options.Disables(DiagnosticGroups_CHECK_USELESS_CODE) ||
 		!options.Disables(DiagnosticGroups_MISSING_RETURN) {
-		checks.MaybeAdd(c.checkControlFlow)
+		checks.MaybeAdd(defaultPass_checkControlFlow)
 	}
 
 	if options.IsTypecheckingEnabled() &&
 		(!options.Disables(DiagnosticGroups_ACCESS_CONTROLS) ||
 			options.Enables(DiagnosticGroups_CONSTANT_PROPERTY)) {
-		checks.MaybeAdd(c.checkAccessControls)
+		checks.MaybeAdd(defaultPass_checkAccessControls)
 	}
 
-	checks.MaybeAdd(c.checkConsts)
-	checks.MaybeAdd(c.rewriteCallerCodeLocation)
+	checks.MaybeAdd(defaultPass_checkConsts)
+	checks.MaybeAdd(defaultPass_rewriteCallerCodeLocation)
 
 	if len(options.GetConformanceConfigs()) != 0 {
-		checks.MaybeAdd(c.checkConformance)
+		checks.MaybeAdd(defaultPass_checkConformance)
 	}
 	if options.GetTweakProcessing().IsOn() {
-		checks.MaybeAdd(c.processTweaks)
+		checks.MaybeAdd(defaultPass_processTweaks)
 	}
 
-	checks.MaybeAdd(c.processDefinesCheck)
+	checks.MaybeAdd(defaultPass_processDefinesCheck)
 
 	if options.GetJ2clPass().ShouldAddJ2clPasses() {
-		checks.MaybeAdd(c.j2clChecksPass)
+		checks.MaybeAdd(defaultPass_j2clChecksPass)
 	}
 	if options.ShouldGenerateExports() {
-		checks.MaybeAdd(c.generateExports)
+		checks.MaybeAdd(defaultPass_generateExports)
 	}
 
 	checks.MaybeAdd(emptyAfterStandardChecks)
-	checks.MaybeAdd(c.mergeSyntheticScript)
+	checks.MaybeAdd(defaultPass_mergeSyntheticScript)
 
 	if options.GetExternExportsPath() != nil {
-		checks.MaybeAdd(c.externExports)
+		checks.MaybeAdd(defaultPass_externExports)
 	}
 	if !options.IsChecksOnly() {
-		checks.MaybeAdd(c.removeWeakSources)
+		checks.MaybeAdd(defaultPass_removeWeakSources)
 	}
 
-	checks.MaybeAdd(c.gatherExternPropertiesCheck)
+	checks.MaybeAdd(defaultPass_gatherExternPropertiesCheck)
 	checks.MaybeAdd(emptyBeforeSerialization)
 
 	if options.GetTypedAstOutputFile() != nil {
-		checks.MaybeAdd(c.serializeTypedAst)
+		checks.MaybeAdd(defaultPass_serializeTypedAst)
 	}
 
 	checks.AssertAllOneTimePasses()
-	c.assertValidOrderForChecks(checks)
+	assertValidOrderForChecks(checks, closureRewriteModule, closurePrimitives, closureGoogScopeAliases)
 	return checks
 }
 
@@ -539,18 +415,18 @@ func (c *DefaultPassConfig) GetOptimizations() *PassListBuilder {
 	passes := NewPassListBuilder(options)
 
 	if options.IsPropertyRenamingOnlyCompilationMode() {
-		passes.MaybeAdd(c.removeUnnecessarySyntheticExterns)
+		passes.MaybeAdd(defaultPass_removeUnnecessarySyntheticExterns)
 		TranspilationPasses_AddTranspilationRuntimeLibraries(passes)
-		passes.MaybeAdd(c.closureProvidesRequires)
-		passes.MaybeAdd(c.processDefinesOptimize)
-		passes.MaybeAdd(c.normalize)
-		passes.MaybeAdd(c.gatherGettersAndSetters)
+		passes.MaybeAdd(c.makeClosureProvidesRequires())
+		passes.MaybeAdd(defaultPass_processDefinesOptimize)
+		passes.MaybeAdd(defaultPass_normalize)
+		passes.MaybeAdd(defaultPass_gatherGettersAndSetters)
 		TranspilationPasses_AddTranspilationPasses(passes, options)
-		passes.MaybeAdd(c.gatherExternPropertiesOptimize)
+		passes.MaybeAdd(defaultPass_gatherExternPropertiesOptimize)
 		passes.MaybeAdd(emptyBeforeStandardOptimizations)
-		passes.MaybeAdd(c.inlineAndCollapseProperties)
-		passes.MaybeAdd(c.closureOptimizePrimitives)
-		passes.MaybeAdd(c.stripSideEffectProtection)
+		passes.MaybeAdd(defaultPass_inlineAndCollapseProperties)
+		passes.MaybeAdd(defaultPass_closureOptimizePrimitives)
+		passes.MaybeAdd(defaultPass_stripSideEffectProtection)
 		return passes
 	}
 
@@ -576,29 +452,29 @@ func (c *DefaultPassConfig) GetFinalizations() *PassListBuilder {
 
 	if options.IsPropertyRenamingOnlyCompilationMode() {
 		if options.ShouldRewriteGlobalDeclarationsForTryCatchWrapping() || options.GetRenamePrefixNamespace() != nil {
-			passes.MaybeAdd(c.rewriteGlobalDeclarationsForTryCatchWrapping)
+			passes.MaybeAdd(defaultPass_rewriteGlobalDeclarationsForTryCatchWrapping)
 		}
-		passes.MaybeAdd(c.renameProperties)
+		passes.MaybeAdd(defaultPass_renameProperties)
 		if ns := options.GetRenamePrefixNamespace(); ns != nil &&
 			options.GetChunkOutputType() == CompilerOptions_ChunkOutputType_GLOBAL_NAMESPACE {
 			validateRenamePrefixNamespace(*ns)
-			passes.MaybeAdd(c.rescopeGlobalSymbols)
+			passes.MaybeAdd(defaultPass_rescopeGlobalSymbols)
 		}
 		return passes
 	}
 
 	if options.DoLateLocalization() {
 		if options.ShouldRunReplaceMessagesPass() {
-			passes.MaybeAdd(c.getReplaceProtectedMessagesPass())
+			passes.MaybeAdd(defaultPass_replaceProtectedMessages)
 		}
-		passes.MaybeAdd(c.substituteLocaleData)
-		passes.MaybeAdd(c.peepholeOptimizationsOnceNormalized)
+		passes.MaybeAdd(defaultPass_substituteLocaleData)
+		passes.MaybeAdd(defaultPass_peepholeOptimizationsOnceNormalized)
 	}
 
 	if options.ShouldInlineVariables() || options.ShouldInlineLocalVariables() {
-		passes.MaybeAdd(c.flowSensitiveInlineVariables)
+		passes.MaybeAdd(defaultPass_flowSensitiveInlineVariables)
 		if !options.DoLateLocalization() && c.shouldRunRemoveUnusedCode() {
-			passes.MaybeAdd(c.removeUnusedCodeOnce)
+			passes.MaybeAdd(defaultPass_removeUnusedCodeOnce)
 		}
 	}
 
@@ -608,110 +484,110 @@ func (c *DefaultPassConfig) GetFinalizations() *PassListBuilder {
 
 	passes.MaybeAdd(emptyBeforeChunkMotion)
 	if options.ShouldRunCrossChunkCodeMotion() {
-		passes.MaybeAdd(c.crossChunkCodeMotion)
+		passes.MaybeAdd(defaultPass_crossChunkCodeMotion)
 	}
 	if options.ShouldRunCrossChunkMethodMotion() {
-		passes.MaybeAdd(c.crossChunkMethodMotion)
+		passes.MaybeAdd(defaultPass_crossChunkMethodMotion)
 	}
 	passes.MaybeAdd(emptyAfterChunkMotion)
 
 	if options.GetOptimizeESClassConstructors() &&
 		options.GetOutputFeatureSet().Contains(parser.FeatureSet_ES2015) {
-		passes.MaybeAdd(c.optimizeConstructors)
+		passes.MaybeAdd(defaultPass_optimizeConstructors)
 	}
 
 	if options.GetIsolatePolyfills() {
-		passes.MaybeAdd(c.isolatePolyfills)
+		passes.MaybeAdd(defaultPass_isolatePolyfills)
 	}
 	if options.ShouldCollapseAnonymousFunctions() {
-		passes.MaybeAdd(c.collapseAnonymousFunctions)
+		passes.MaybeAdd(defaultPass_collapseAnonymousFunctions)
 	}
 	if options.ShouldRewriteGlobalDeclarationsForTryCatchWrapping() || options.GetRenamePrefixNamespace() != nil {
-		passes.MaybeAdd(c.rewriteGlobalDeclarationsForTryCatchWrapping)
+		passes.MaybeAdd(defaultPass_rewriteGlobalDeclarationsForTryCatchWrapping)
 	}
 
 	passes.MaybeAdd(emptyBeforeExtractPrototypeMemberDeclarations)
 	if options.GetExtractPrototypeMemberDeclarationsMode() != CompilerOptions_ExtractPrototypeMemberDeclarationsMode_OFF {
-		passes.MaybeAdd(c.extractPrototypeMemberDeclarations)
+		passes.MaybeAdd(defaultPass_extractPrototypeMemberDeclarations)
 	}
 
 	if options.ShouldAmbiguateProperties() &&
 		options.GetPropertyRenaming() == PropertyRenamingPolicy_ALL_UNQUOTED &&
 		options.IsTypecheckingEnabled() {
-		passes.MaybeAdd(c.ambiguateProperties)
+		passes.MaybeAdd(defaultPass_ambiguateProperties)
 	}
 
 	passes.MaybeAdd(emptyBeforeRenameProperties)
 	if options.GetPropertyRenaming() == PropertyRenamingPolicy_ALL_UNQUOTED {
-		passes.MaybeAdd(c.renameProperties)
+		passes.MaybeAdd(defaultPass_renameProperties)
 	} else {
-		passes.MaybeAdd(c.removePropertyRenamingCalls)
+		passes.MaybeAdd(defaultPass_removePropertyRenamingCalls)
 	}
 
 	if options.ShouldReserveRawExports() {
-		passes.MaybeAdd(c.gatherRawExports)
+		passes.MaybeAdd(defaultPass_gatherRawExports)
 	}
 	if options.ShouldConvertToDottedProperties() {
-		passes.MaybeAdd(c.convertToDottedProperties)
+		passes.MaybeAdd(defaultPass_convertToDottedProperties)
 	}
 	if options.ShouldRewriteFunctionExpressions() {
-		passes.MaybeAdd(c.rewriteFunctionExpressions)
+		passes.MaybeAdd(defaultPass_rewriteFunctionExpressions)
 	}
 	if options.GetAliasStringsMode() != CompilerOptions_AliasStringsMode_NONE {
-		passes.MaybeAdd(c.aliasStrings)
+		passes.MaybeAdd(defaultPass_aliasStrings)
 	}
 
 	if options.ShouldCoalesceVariableNames() {
-		passes.MaybeAdd(c.coalesceVariableNames)
+		passes.MaybeAdd(defaultPass_coalesceVariableNames)
 		if options.ShouldFoldConstants() {
-			passes.MaybeAdd(c.peepholeOptimizationsOnceNonNormalized)
+			passes.MaybeAdd(defaultPass_peepholeOptimizationsOnceNonNormalized)
 		}
 	}
 
-	passes.MaybeAdd(c.markUnnormalized)
+	passes.MaybeAdd(defaultPass_markUnnormalized)
 
 	if options.ShouldCollapseVariableDeclarations() || options.ShouldOptimizeLetAndConst() {
-		passes.MaybeAdd(c.postNormalizePeephole)
+		passes.MaybeAdd(defaultPass_postNormalizePeephole)
 	}
 	if options.ShouldCollapseVariableDeclarations() {
-		passes.MaybeAdd(c.collapseVariableDeclarations)
+		passes.MaybeAdd(defaultPass_collapseVariableDeclarations)
 	}
 
-	passes.MaybeAdd(c.denormalize)
+	passes.MaybeAdd(defaultPass_denormalize)
 	passes.MaybeAdd(emptyBeforeVariableRenaming)
 
 	if options.GetVariableRenaming() != VariableRenamingPolicy_ALL {
-		passes.MaybeAdd(c.invertContextualRenaming)
+		passes.MaybeAdd(defaultPass_invertContextualRenaming)
 	}
 	if options.GetVariableRenaming() != VariableRenamingPolicy_OFF {
-		passes.MaybeAdd(c.renameVars)
+		passes.MaybeAdd(defaultPass_renameVars)
 	}
 	if options.ShouldRenameLabels() {
-		passes.MaybeAdd(c.renameLabels)
+		passes.MaybeAdd(defaultPass_renameLabels)
 	}
 	if options.ShouldFoldConstants() {
-		passes.MaybeAdd(c.latePeepholeOptimizations)
+		passes.MaybeAdd(defaultPass_latePeepholeOptimizations)
 	}
 
 	if options.ShouldProtectHiddenSideEffects() || options.GetMergedPrecompiledLibraries() {
-		passes.MaybeAdd(c.stripSideEffectProtection)
+		passes.MaybeAdd(defaultPass_stripSideEffectProtection)
 	}
 
 	if ns := options.GetRenamePrefixNamespace(); ns != nil &&
 		options.GetChunkOutputType() == CompilerOptions_ChunkOutputType_GLOBAL_NAMESPACE {
 		validateRenamePrefixNamespace(*ns)
-		passes.MaybeAdd(c.rescopeGlobalSymbols)
+		passes.MaybeAdd(defaultPass_rescopeGlobalSymbols)
 	}
 
 	if options.GetOutputFeatureSet().Contains(parser.FeatureSet_ES2015) {
-		passes.MaybeAdd(c.optimizeToEs6)
+		passes.MaybeAdd(defaultPass_optimizeToEs6)
 	}
 	if options.GetChunkOutputType() == CompilerOptions_ChunkOutputType_ES_MODULES {
-		passes.MaybeAdd(c.convertChunksToESModules)
+		passes.MaybeAdd(defaultPass_convertChunksToESModules)
 	}
 
-	passes.MaybeAdd(c.checkAstValidity)
-	passes.MaybeAdd(c.varCheckValidity)
+	passes.MaybeAdd(defaultPass_checkAstValidity)
+	passes.MaybeAdd(defaultPass_varCheckValidity)
 	return passes
 }
 
@@ -720,18 +596,18 @@ func (c *DefaultPassConfig) getEarlyOptimizationLoopPasses() *PassListBuilder {
 	earlyLoopPasses := NewPassListBuilder(options)
 
 	if options.ShouldInlineVariables() || options.ShouldInlineLocalVariables() {
-		earlyLoopPasses.MaybeAdd(c.inlineVariables)
+		earlyLoopPasses.MaybeAdd(defaultPass_inlineVariables)
 	} else if options.ShouldInlineConstantVars() {
-		earlyLoopPasses.MaybeAdd(c.inlineConstants)
+		earlyLoopPasses.MaybeAdd(defaultPass_inlineConstants)
 	}
 	if options.GetCollapseObjectLiterals() {
-		earlyLoopPasses.MaybeAdd(c.collapseObjectLiterals)
+		earlyLoopPasses.MaybeAdd(defaultPass_collapseObjectLiterals)
 	}
 	if c.shouldRunRemoveUnusedCode() {
-		earlyLoopPasses.MaybeAdd(c.removeUnusedCode)
+		earlyLoopPasses.MaybeAdd(defaultPass_removeUnusedCode)
 	}
 	if options.ShouldFoldConstants() {
-		earlyLoopPasses.MaybeAdd(c.peepholeOptimizations)
+		earlyLoopPasses.MaybeAdd(defaultPass_peepholeOptimizations)
 	}
 
 	earlyLoopPasses.AssertAllLoopablePasses()
@@ -743,25 +619,25 @@ func (c *DefaultPassConfig) getPostL10nOptimizations() *PassListBuilder {
 	loopPasses := NewPassListBuilder(options)
 
 	if options.ShouldOptimizeCalls() {
-		loopPasses.MaybeAdd(c.optimizeCalls)
+		loopPasses.MaybeAdd(defaultPass_optimizeCalls)
 	}
 	if options.GetJ2clPass().ShouldAddJ2clPasses() {
-		loopPasses.MaybeAdd(c.j2clConstantHoisterPass)
-		loopPasses.MaybeAdd(c.j2clClinitPass)
+		loopPasses.MaybeAdd(defaultPass_j2clConstantHoisterPass)
+		loopPasses.MaybeAdd(defaultPass_j2clClinitPass)
 	}
 	if options.GetInlineFunctionsLevel() != CompilerOptions_Reach_NONE {
-		loopPasses.MaybeAdd(c.inlineFunctions)
+		loopPasses.MaybeAdd(defaultPass_inlineFunctions)
 	}
 	if options.ShouldInlineVariables() || options.ShouldInlineLocalVariables() {
-		loopPasses.MaybeAdd(c.inlineVariables)
+		loopPasses.MaybeAdd(defaultPass_inlineVariables)
 	} else if options.ShouldInlineConstantVars() {
-		loopPasses.MaybeAdd(c.inlineConstants)
+		loopPasses.MaybeAdd(defaultPass_inlineConstants)
 	}
 	if c.shouldRunRemoveUnusedCode() {
-		loopPasses.MaybeAdd(c.removeUnusedCode)
+		loopPasses.MaybeAdd(defaultPass_removeUnusedCode)
 	}
 	if options.ShouldFoldConstants() {
-		loopPasses.MaybeAdd(c.peepholeOptimizations)
+		loopPasses.MaybeAdd(defaultPass_peepholeOptimizations)
 	}
 
 	loopPasses.AssertAllLoopablePasses()
@@ -773,29 +649,29 @@ func (c *DefaultPassConfig) getEarlyOptimizationPasses() *PassListBuilder {
 	passes := NewPassListBuilder(options)
 
 	if options.ShouldExportTestFunctions() {
-		passes.MaybeAdd(c.exportTestFunctions)
+		passes.MaybeAdd(defaultPass_exportTestFunctions)
 	}
 
 	if options.GetMergedPrecompiledLibraries() {
-		passes.MaybeAdd(c.removeWeakSources)
-		passes.MaybeAdd(c.checkRegExpForOptimizations)
+		passes.MaybeAdd(defaultPass_removeWeakSources)
+		passes.MaybeAdd(defaultPass_checkRegExpForOptimizations)
 		if options.GetJ2clPass().ShouldAddJ2clPasses() {
-			passes.MaybeAdd(c.j2clSourceFileChecker)
+			passes.MaybeAdd(defaultPass_j2clSourceFileChecker)
 		}
 	} else {
-		c.addNonTypedAstNormalizationPasses(passes)
+		addNonTypedAstNormalizationPasses(passes)
 	}
 
-	passes.MaybeAdd(c.removeUnnecessarySyntheticExterns)
+	passes.MaybeAdd(defaultPass_removeUnnecessarySyntheticExterns)
 
 	if options.GetSyntheticBlockStartMarker() != nil {
-		passes.MaybeAdd(c.createSyntheticBlocks)
+		passes.MaybeAdd(defaultPass_createSyntheticBlocks)
 	}
 	if options.GetJ2clPass().ShouldAddJ2clPasses() {
-		passes.MaybeAdd(c.j2clPass)
+		passes.MaybeAdd(defaultPass_j2clPass)
 	}
 
-	passes.MaybeAdd(c.transpileAndOptimizeClosureUnaware)
+	passes.MaybeAdd(defaultPass_transpileAndOptimizeClosureUnaware)
 
 	TranspilationPasses_AddTranspilationRuntimeLibraries(passes)
 
@@ -803,75 +679,75 @@ func (c *DefaultPassConfig) getEarlyOptimizationPasses() *PassListBuilder {
 		TranspilationPasses_AddRewritePolyfillPass(passes)
 	}
 
-	passes.MaybeAdd(c.injectRuntimeLibraries)
+	passes.MaybeAdd(defaultPass_injectRuntimeLibraries)
 
 	if options.GetClosurePass() {
-		passes.MaybeAdd(c.closureProvidesRequires)
+		passes.MaybeAdd(c.makeClosureProvidesRequires())
 	}
 
 	if options.ShouldRunReplaceMessagesForChrome() {
-		passes.MaybeAdd(c.replaceMessagesForChrome)
+		passes.MaybeAdd(defaultPass_replaceMessagesForChrome)
 	} else if options.ShouldRunReplaceMessagesPass() {
 		if options.DoLateLocalization() {
-			passes.MaybeAdd(c.getProtectMessagesPass())
+			passes.MaybeAdd(defaultPass_protectMessages)
 		} else {
-			passes.MaybeAdd(c.getFullReplaceMessagesPass())
+			passes.MaybeAdd(defaultPass_fullReplaceMessages)
 		}
 	}
 
 	if options.DoLateLocalization() {
-		passes.MaybeAdd(c.protectLocaleData)
+		passes.MaybeAdd(defaultPass_protectLocaleData)
 	}
 
 	if options.GetClosurePass() && !options.ShouldPreserveGoogLibraryPrimitives() {
-		passes.MaybeAdd(c.closureReplaceGetCssName)
+		passes.MaybeAdd(defaultPass_closureReplaceGetCssName)
 	}
 
-	passes.MaybeAdd(c.processDefinesOptimize)
+	passes.MaybeAdd(defaultPass_processDefinesOptimize)
 	passes.MaybeAdd(emptyBeforeEarlyOptimizationsTranspilation)
-	passes.MaybeAdd(c.normalize)
-	passes.MaybeAdd(c.gatherGettersAndSetters)
+	passes.MaybeAdd(defaultPass_normalize)
+	passes.MaybeAdd(defaultPass_gatherGettersAndSetters)
 
 	TranspilationPasses_AddTranspilationPasses(passes, options)
 
 	if options.GetJ2clPass().ShouldAddJ2clPasses() {
-		passes.MaybeAdd(c.j2clUtilGetDefineRewriterPass)
+		passes.MaybeAdd(defaultPass_j2clUtilGetDefineRewriterPass)
 	}
 	if options.GetInstrumentForCoverageOption() != CompilerOptions_InstrumentOption_NONE {
-		passes.MaybeAdd(c.instrumentForCodeCoverage)
+		passes.MaybeAdd(defaultPass_instrumentForCodeCoverage)
 	}
 
-	passes.MaybeAdd(c.gatherExternPropertiesOptimize)
+	passes.MaybeAdd(defaultPass_gatherExternPropertiesOptimize)
 	passes.MaybeAdd(emptyBeforeStandardOptimizations)
 
 	if options.GetClosurePass() && (options.ShouldRemoveAbstractMethods() || options.ShouldRemoveClosureAsserts()) {
-		passes.MaybeAdd(c.closureCodeRemoval)
+		passes.MaybeAdd(defaultPass_closureCodeRemoval)
 	}
 	if options.ShouldRemoveJ2clAsserts() {
-		passes.MaybeAdd(c.j2clAssertRemovalPass)
+		passes.MaybeAdd(defaultPass_j2clAssertRemovalPass)
 	}
 
-	passes.MaybeAdd(c.replaceToggles)
-	passes.MaybeAdd(c.inlineAndCollapseProperties)
+	passes.MaybeAdd(defaultPass_replaceToggles)
+	passes.MaybeAdd(defaultPass_inlineAndCollapseProperties)
 
 	if options.GetTweakProcessing().ShouldStrip() ||
 		!options.GetStripTypes().IsEmpty() ||
 		!options.GetStripNameSuffixes().IsEmpty() ||
 		!options.GetStripNamePrefixes().IsEmpty() {
-		passes.MaybeAdd(c.stripCode)
+		passes.MaybeAdd(defaultPass_stripCode)
 	}
 
 	if options.ShouldReplaceIdGenerators() {
-		passes.MaybeAdd(c.replaceIdGenerators)
+		passes.MaybeAdd(defaultPass_replaceIdGenerators)
 	}
 
 	if options.GetJ2clPass().ShouldAddJ2clPasses() &&
 		options.GetPropertyCollapseLevel() == CompilerOptions_PropertyCollapseLevel_ALL {
-		passes.MaybeAdd(c.j2clPropertyInlinerPass)
+		passes.MaybeAdd(defaultPass_j2clPropertyInlinerPass)
 	}
 
 	if options.ShouldInferConsts() {
-		passes.MaybeAdd(c.inferConsts)
+		passes.MaybeAdd(defaultPass_inferConsts)
 	}
 
 	passes.MaybeAdd(emptyObfuscationPassMarker)
@@ -879,17 +755,17 @@ func (c *DefaultPassConfig) getEarlyOptimizationPasses() *PassListBuilder {
 	if options.GetSmartNameRemoval() {
 		if options.ShouldFoldConstants() &&
 			(options.ShouldInlineVariables() || options.ShouldInlineLocalVariables()) {
-			passes.MaybeAdd(c.earlyInlineVariables)
-			passes.MaybeAdd(c.earlyPeepholeOptimizations)
+			passes.MaybeAdd(defaultPass_earlyInlineVariables)
+			passes.MaybeAdd(defaultPass_earlyPeepholeOptimizations)
 		}
-		passes.MaybeAdd(c.removeUnusedCodeOnce)
+		passes.MaybeAdd(defaultPass_removeUnusedCodeOnce)
 	}
 
 	if options.ShouldDisambiguateProperties() && options.IsTypecheckingEnabled() {
-		passes.MaybeAdd(c.disambiguateProperties)
+		passes.MaybeAdd(defaultPass_disambiguateProperties)
 	}
 	if options.ShouldComputeFunctionSideEffects() {
-		passes.MaybeAdd(c.markPureFunctions)
+		passes.MaybeAdd(defaultPass_markPureFunctions)
 	}
 
 	passes.AssertAllOneTimePasses()
@@ -907,30 +783,30 @@ func (c *DefaultPassConfig) getLateOptimizationPasses() *PassListBuilder {
 	}
 
 	if options.GetClosurePass() {
-		passes.MaybeAdd(c.closureOptimizePrimitives)
+		passes.MaybeAdd(defaultPass_closureOptimizePrimitives)
 	}
 	if len(options.GetReplaceStringsFunctionDescriptions()) != 0 {
-		passes.MaybeAdd(c.replaceStrings)
+		passes.MaybeAdd(defaultPass_replaceStrings)
 	}
 	if options.ShouldRunCrossChunkCodeMotion() {
-		passes.MaybeAdd(c.crossChunkCodeMotion)
+		passes.MaybeAdd(defaultPass_crossChunkCodeMotion)
 	}
 	if options.ShouldDevirtualizeMethods() {
-		passes.MaybeAdd(c.devirtualizeMethods)
+		passes.MaybeAdd(defaultPass_devirtualizeMethods)
 	}
 
-	passes.MaybeAdd(c.getCustomPasses(CustomPassExecutionTime_BEFORE_OPTIMIZATION_LOOP))
+	passes.MaybeAdd(defaultPass_customPassesBeforeOptimizationLoop)
 	passes.MaybeAdd(emptyBeforeMainOptimizations)
 
 	if options.ShouldInlineVariables() || options.ShouldInlineLocalVariables() {
-		passes.MaybeAdd(c.flowSensitiveInlineVariables)
+		passes.MaybeAdd(defaultPass_flowSensitiveInlineVariables)
 	}
 
 	passes.AddAll(c.getMainOptimizationLoop())
 	passes.MaybeAdd(emptyAfterMainOptimizations)
-	passes.MaybeAdd(c.getCustomPasses(CustomPassExecutionTime_AFTER_OPTIMIZATION_LOOP))
+	passes.MaybeAdd(defaultPass_customPassesAfterOptimizationLoop)
 
-	c.assertValidOrderForOptimizations(passes)
+	assertValidOrderForOptimizations(passes)
 	return passes
 }
 
@@ -939,51 +815,51 @@ func (c *DefaultPassConfig) getMainOptimizationLoop() *PassListBuilder {
 	passes := NewPassListBuilder(options)
 
 	if options.ShouldInlineGetters() {
-		passes.MaybeAdd(c.inlineSimpleMethods)
+		passes.MaybeAdd(defaultPass_inlineSimpleMethods)
 	}
 	if options.ShouldInlineProperties() && options.IsTypecheckingEnabled() {
-		passes.MaybeAdd(c.inlineProperties)
+		passes.MaybeAdd(defaultPass_inlineProperties)
 	}
 	if options.ShouldRunDeadPropertyAssignmentElimination() {
-		passes.MaybeAdd(c.deadPropertyAssignmentElimination)
+		passes.MaybeAdd(defaultPass_deadPropertyAssignmentElimination)
 	}
 	if options.ShouldOptimizeCalls() {
-		passes.MaybeAdd(c.optimizeCalls)
+		passes.MaybeAdd(defaultPass_optimizeCalls)
 	}
 	if options.GetJ2clPass().ShouldAddJ2clPasses() {
-		passes.MaybeAdd(c.j2clConstantHoisterPass)
-		passes.MaybeAdd(c.j2clClinitPass)
+		passes.MaybeAdd(defaultPass_j2clConstantHoisterPass)
+		passes.MaybeAdd(defaultPass_j2clClinitPass)
 	}
 	// inlineVariables and peepholeOptimizations must run after inlineFunctions to clean up patterns
 	// it introduces (which affects the size-based loop-termination heuristic).
 	if options.GetInlineFunctionsLevel() != CompilerOptions_Reach_NONE {
-		passes.MaybeAdd(c.inlineFunctions)
+		passes.MaybeAdd(defaultPass_inlineFunctions)
 	}
 	if options.ShouldInlineVariables() || options.ShouldInlineLocalVariables() {
-		passes.MaybeAdd(c.inlineVariables)
+		passes.MaybeAdd(defaultPass_inlineVariables)
 	} else if options.ShouldInlineConstantVars() {
-		passes.MaybeAdd(c.inlineConstants)
+		passes.MaybeAdd(defaultPass_inlineConstants)
 	}
 	if options.ShouldRunDeadAssignmentElimination() {
-		passes.MaybeAdd(c.deadAssignmentsElimination)
+		passes.MaybeAdd(defaultPass_deadAssignmentsElimination)
 	}
 	if options.GetCollapseObjectLiterals() {
-		passes.MaybeAdd(c.collapseObjectLiterals)
+		passes.MaybeAdd(defaultPass_collapseObjectLiterals)
 	}
 	if c.shouldRunRemoveUnusedCode() {
-		passes.MaybeAdd(c.removeUnusedCode)
+		passes.MaybeAdd(defaultPass_removeUnusedCode)
 	}
 	if options.ShouldFoldConstants() {
-		passes.MaybeAdd(c.peepholeOptimizations)
+		passes.MaybeAdd(defaultPass_peepholeOptimizations)
 	}
 
 	passes.AssertAllLoopablePasses()
 	return passes
 }
 
-func (c *DefaultPassConfig) addNonTypedAstNormalizationPasses(passes *PassListBuilder) {
-	passes.MaybeAdd(c.removeCastNodes)
-	passes.MaybeAdd(c.typesToColors)
+func addNonTypedAstNormalizationPasses(passes *PassListBuilder) {
+	passes.MaybeAdd(defaultPass_removeCastNodes)
+	passes.MaybeAdd(defaultPass_typesToColors)
 }
 
 func (c *DefaultPassConfig) shouldRunRemoveUnusedCode() bool {
@@ -995,99 +871,110 @@ func (c *DefaultPassConfig) shouldRunRemoveUnusedCode() bool {
 		options.GetRewritePolyfills()
 }
 
-func (c *DefaultPassConfig) assertValidOrderForChecks(checks *PassListBuilder) {
+func assertValidOrderForChecks(
+	checks *PassListBuilder,
+	closureRewriteModule *PassFactory,
+	closurePrimitives *PassFactory,
+	closureGoogScopeAliases *PassFactory,
+) {
 	checks.AssertPassOrder(
-		c.declaredGlobalExternsOnWindow,
-		c.checkVars,
+		defaultPass_declaredGlobalExternsOnWindow,
+		defaultPass_checkVars,
 		"declaredGlobalExternsOnWindow must happen before VarCheck, which adds synthetic externs")
 	checks.AssertPassOrder(
-		c.chromePass,
-		c.checkJsDocAndEs6Modules,
+		defaultPass_chromePass,
+		defaultPass_checkJsDocAndEs6Modules,
 		"The ChromePass must run before after JsDoc and Es6 module checking.")
+	if closureRewriteModule != nil {
+		checks.AssertPassOrder(
+			closureRewriteModule,
+			defaultPass_processDefinesCheck,
+			"Must rewrite goog.module before processing @define's, so that @defines in modules work.")
+	}
+	if closurePrimitives != nil {
+		checks.AssertPassOrder(
+			closurePrimitives, defaultPass_polymerPass, "The Polymer pass must run after goog.provide processing.")
+	}
 	checks.AssertPassOrder(
-		c.closureRewriteModule,
-		c.processDefinesCheck,
-		"Must rewrite goog.module before processing @define's, so that @defines in modules work.")
+		defaultPass_chromePass, defaultPass_polymerPass, "The Polymer pass must run after ChromePass processing.")
 	checks.AssertPassOrder(
-		c.closurePrimitives, c.polymerPass, "The Polymer pass must run after goog.provide processing.")
+		defaultPass_polymerPass, defaultPass_suspiciousCode, "The Polymer pass must run before suspiciousCode processing.")
 	checks.AssertPassOrder(
-		c.chromePass, c.polymerPass, "The Polymer pass must run after ChromePass processing.")
-	checks.AssertPassOrder(
-		c.polymerPass, c.suspiciousCode, "The Polymer pass must run before suspiciousCode processing.")
-	checks.AssertPassOrder(
-		c.addSyntheticScript,
-		c.gatherModuleMetadataPass,
+		defaultPass_addSyntheticScript,
+		defaultPass_gatherModuleMetadataPass,
 		"Cannot add a synthetic script node after module metadata creation.")
-	checks.AssertPassOrder(
-		c.closureRewriteModule,
-		c.removeSyntheticScript,
-		"Synthetic script node should be removed only after module rewriting.")
-	checks.AssertPassOrder(
-		c.closureRewriteModule,
-		c.rewriteCallerCodeLocation,
-		"ClosureRewriteModule must happen before RewriteCallerCodeLocation, so that exported"+
-			" functions and call sites are rewritten correctly.")
-	checks.AssertPassOrder(
-		c.closureRewriteModule,
-		TranspilationPasses_GetEs6RewriteDestructuring(
-			Es6RewriteDestructuring_ObjectDestructuringRewriteMode_REWRITE_ALL_OBJECT_PATTERNS),
-		"RewriteCallerCodeLocation must happen before Es6RewriteDestructuring, because we need"+
-			" ReWriteCallerCodeLocation to run before default parameters get rewritten.")
-	checks.AssertPassOrder(
-		c.closureRewriteModule,
-		TranspilationPasses_GetEs6RewriteDestructuring(
-			Es6RewriteDestructuring_ObjectDestructuringRewriteMode_REWRITE_OBJECT_REST),
-		"RewriteCallerCodeLocation must happen before Es6RewriteDestructuring, because we need"+
-			" ReWriteCallerCodeLocation to run before default parameters get rewritten.")
+	if closureRewriteModule != nil {
+		checks.AssertPassOrder(
+			closureRewriteModule,
+			defaultPass_removeSyntheticScript,
+			"Synthetic script node should be removed only after module rewriting.")
+		checks.AssertPassOrder(
+			closureRewriteModule,
+			defaultPass_rewriteCallerCodeLocation,
+			"ClosureRewriteModule must happen before RewriteCallerCodeLocation, so that exported"+
+				" functions and call sites are rewritten correctly.")
+		checks.AssertPassOrder(
+			closureRewriteModule,
+			TranspilationPasses_GetEs6RewriteDestructuring(
+				Es6RewriteDestructuring_ObjectDestructuringRewriteMode_REWRITE_ALL_OBJECT_PATTERNS),
+			"RewriteCallerCodeLocation must happen before Es6RewriteDestructuring, because we need"+
+				" ReWriteCallerCodeLocation to run before default parameters get rewritten.")
+		checks.AssertPassOrder(
+			closureRewriteModule,
+			TranspilationPasses_GetEs6RewriteDestructuring(
+				Es6RewriteDestructuring_ObjectDestructuringRewriteMode_REWRITE_OBJECT_REST),
+			"RewriteCallerCodeLocation must happen before Es6RewriteDestructuring, because we need"+
+				" ReWriteCallerCodeLocation to run before default parameters get rewritten.")
+	}
 
-	if checks.Contains(c.closureGoogScopeAliases) {
+	if closureGoogScopeAliases != nil && checks.Contains(closureGoogScopeAliases) {
 		jutil.CheckStateMsg(
-			checks.Contains(c.checkVariableReferences),
+			checks.Contains(defaultPass_checkVariableReferences),
 			"goog.scope processing requires variable checking")
 	}
 
 	checks.AssertPassOrder(
-		c.gatherModuleMetadataPass,
-		c.closureCheckModule,
+		defaultPass_gatherModuleMetadataPass,
+		defaultPass_closureCheckModule,
 		"Need to gather module metadata before checking closure modules.")
 	checks.AssertPassOrder(
-		c.gatherModuleMetadataPass,
-		c.createModuleMapPass,
+		defaultPass_gatherModuleMetadataPass,
+		defaultPass_createModuleMapPass,
 		"Need to gather module metadata before scanning modules.")
 	checks.AssertPassOrder(
-		c.createModuleMapPass,
-		c.rewriteCommonJsModules,
+		defaultPass_createModuleMapPass,
+		defaultPass_rewriteCommonJsModules,
 		"Need to gather module information before rewriting CommonJS modules.")
 	checks.AssertPassOrder(
-		c.rewriteScriptsToEs6Modules,
-		c.gatherModuleMetadataPass,
+		defaultPass_rewriteScriptsToEs6Modules,
+		defaultPass_gatherModuleMetadataPass,
 		"Need to gather module information after rewriting scripts to modules.")
 	checks.AssertPassOrder(
-		c.gatherModuleMetadataPass,
-		c.checkMissingRequires,
+		defaultPass_gatherModuleMetadataPass,
+		defaultPass_checkMissingRequires,
 		"Need to gather module information before checking for missing requires.")
 }
 
-func (c *DefaultPassConfig) assertValidOrderForOptimizations(optimizations *PassListBuilder) {
+func assertValidOrderForOptimizations(optimizations *PassListBuilder) {
 	optimizations.AssertPassOrder(
-		c.j2clPass,
+		defaultPass_j2clPass,
 		TranspilationPasses_rewriteGenerators,
 		"J2CL normalization should be done before generator re-writing.")
 	optimizations.AssertPassOrder(
 		TranspilationPasses_rewritePolyfills,
-		c.processDefinesOptimize,
+		defaultPass_processDefinesOptimize,
 		"Polyfill injection must be done before processDefines as some polyfills reference goog.defines.")
 	optimizations.AssertPassOrder(
 		TranspilationPasses_injectTranspilationRuntimeLibraries,
-		c.processDefinesOptimize,
+		defaultPass_processDefinesOptimize,
 		"Runtime library injection must be done before processDefines some runtime libraries reference goog.defines.")
 	optimizations.AssertPassOrder(
-		c.processDefinesOptimize,
-		c.j2clUtilGetDefineRewriterPass,
+		defaultPass_processDefinesOptimize,
+		defaultPass_j2clUtilGetDefineRewriterPass,
 		"J2CL define re-writing should be done after processDefines since it relies on Compiler#getDefineNames to have been populated by it.")
 	optimizations.AssertPassOrder(
-		c.removeUnusedCode,
-		c.isolatePolyfills,
+		defaultPass_removeUnusedCode,
+		defaultPass_isolatePolyfills,
 		"Polyfill isolation should be done after RemovedUnusedCode. Otherwise unused polyfill removal will not find any polyfill usages and will delete all polyfills.")
 	optimizations.AssertPassOrder(
 		TranspilationPasses_instrumentAsyncContext,

@@ -19,9 +19,6 @@
 package jscomp
 
 import (
-	"math/bits"
-	"slices"
-
 	"github.com/paullepoulpe/jsgo/internal/ast"
 	"github.com/paullepoulpe/jsgo/internal/graph"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
@@ -195,225 +192,12 @@ func (w *forwardCfgWorklist) releaseLarge() {
 	w.cfgWorklist.releaseLarge(dfaReuseMaxNodes)
 }
 
-// dfaBitSet is a compact bitset indexed by dense local variable ID.
-// Functions with <= 128 variables stay strictly in w0/w1 with zero heap allocation.
-type dfaBitSet struct {
-	w0    uint64
-	w1    uint64
-	extra []uint64
-}
-
-func (b *dfaBitSet) clear(releaseLarge bool) {
-	b.w0 = 0
-	b.w1 = 0
-	if releaseLarge && cap(b.extra) > 16 {
-		b.extra = nil
-	} else if len(b.extra) > 0 {
-		clear(b.extra)
-		b.extra = b.extra[:0]
-	}
-}
-
-func (b *dfaBitSet) copyFrom(src *dfaBitSet) {
-	b.w0 = src.w0
-	b.w1 = src.w1
-	if len(src.extra) == 0 {
-		if len(b.extra) > 0 {
-			clear(b.extra)
-			b.extra = b.extra[:0]
-		}
-		return
-	}
-	if cap(b.extra) >= len(src.extra) {
-		b.extra = b.extra[:len(src.extra)]
-	} else {
-		b.extra = make([]uint64, len(src.extra))
-	}
-	copy(b.extra, src.extra)
-}
-
-func (b *dfaBitSet) set(idx int) {
-	if idx < 64 {
-		b.w0 |= uint64(1) << uint(idx)
-		return
-	}
-	if idx < 128 {
-		b.w1 |= uint64(1) << uint(idx-64)
-		return
-	}
-	wi := (idx - 128) >> 6
-	if wi >= len(b.extra) {
-		if cap(b.extra) > wi {
-			oldLen := len(b.extra)
-			b.extra = b.extra[:wi+1]
-			clear(b.extra[oldLen:])
-		} else {
-			extra := make([]uint64, wi+1, max(wi+1, 4))
-			copy(extra, b.extra)
-			b.extra = extra
-		}
-	}
-	b.extra[wi] |= uint64(1) << uint((idx-128)&63)
-}
-
-func (b *dfaBitSet) has(idx int) bool {
-	if idx < 64 {
-		return (b.w0 & (uint64(1) << uint(idx))) != 0
-	}
-	if idx < 128 {
-		return (b.w1 & (uint64(1) << uint(idx-64))) != 0
-	}
-	wi := (idx - 128) >> 6
-	return wi < len(b.extra) && (b.extra[wi]&(uint64(1)<<uint((idx-128)&63))) != 0
-}
-
-func (b *dfaBitSet) isEmpty() bool {
-	if (b.w0 | b.w1) != 0 {
-		return false
-	}
-	for _, w := range b.extra {
-		if w != 0 {
-			return false
-		}
-	}
-	return true
-}
-
-func (b *dfaBitSet) count() int {
-	c := bits.OnesCount64(b.w0) + bits.OnesCount64(b.w1)
-	for _, w := range b.extra {
-		c += bits.OnesCount64(w)
-	}
-	return c
-}
-
-func (b *dfaBitSet) equals(o *dfaBitSet) bool {
-	if b.w0 != o.w0 || b.w1 != o.w1 {
-		return false
-	}
-	if len(b.extra) == 0 && len(o.extra) == 0 {
-		return true
-	}
-	n := min(len(b.extra), len(o.extra))
-	for i := 0; i < n; i++ {
-		if b.extra[i] != o.extra[i] {
-			return false
-		}
-	}
-	for _, w := range b.extra[n:] {
-		if w != 0 {
-			return false
-		}
-	}
-	for _, w := range o.extra[n:] {
-		if w != 0 {
-			return false
-		}
-	}
-	return true
-}
-
-func (b *dfaBitSet) orWith(o *dfaBitSet) {
-	b.w0 |= o.w0
-	b.w1 |= o.w1
-	if len(o.extra) == 0 {
-		return
-	}
-	if len(b.extra) < len(o.extra) {
-		grown := make([]uint64, len(o.extra))
-		copy(grown, b.extra)
-		b.extra = grown
-	}
-	for i, w := range o.extra {
-		b.extra[i] |= w
-	}
-}
-
-func (b *dfaBitSet) clone() dfaBitSet {
-	out := dfaBitSet{w0: b.w0, w1: b.w1}
-	if len(b.extra) > 0 {
-		out.extra = slices.Clone(b.extra)
-	}
-	return out
-}
-
-func (b *dfaBitSet) intersects(other *dfaBitSet) bool {
-	if (b.w0&other.w0)|(b.w1&other.w1) != 0 {
-		return true
-	}
-	n := min(len(b.extra), len(other.extra))
-	for i := 0; i < n; i++ {
-		if b.extra[i]&other.extra[i] != 0 {
-			return true
-		}
-	}
-	return false
-}
-
-func (b *dfaBitSet) containsAll(other *dfaBitSet) bool {
-	if (other.w0&^b.w0)|(other.w1&^b.w1) != 0 {
-		return false
-	}
-	for wi, ow := range other.extra {
-		if ow != 0 && (wi >= len(b.extra) || ow&^b.extra[wi] != 0) {
-			return false
-		}
-	}
-	return true
-}
-
-func (b *dfaBitSet) forEach(fn func(idx int)) {
-	for w := b.w0; w != 0; w &= w - 1 {
-		fn(bits.TrailingZeros64(w))
-	}
-	for w := b.w1; w != 0; w &= w - 1 {
-		fn(64 + bits.TrailingZeros64(w))
-	}
-	for wi, word := range b.extra {
-		base := 128 + wi*64
-		for w := word; w != 0; w &= w - 1 {
-			fn(base + bits.TrailingZeros64(w))
-		}
-	}
-}
-
-func (b *dfaBitSet) nextSetBit(fromIndex int) int {
-	if fromIndex < 64 {
-		if w0 := b.w0 & (^uint64(0) << uint(fromIndex)); w0 != 0 {
-			return bits.TrailingZeros64(w0)
-		}
-		fromIndex = 64
-	}
-	if fromIndex < 128 {
-		if w1 := b.w1 & (^uint64(0) << uint(fromIndex-64)); w1 != 0 {
-			return 64 + bits.TrailingZeros64(w1)
-		}
-		fromIndex = 128
-	}
-	if len(b.extra) == 0 {
-		return -1
-	}
-	wi := (fromIndex - 128) >> 6
-	if wi >= len(b.extra) {
-		return -1
-	}
-	if w := b.extra[wi] & (^uint64(0) << uint((fromIndex-128)&63)); w != 0 {
-		return 128 + wi*64 + bits.TrailingZeros64(w)
-	}
-	for wi++; wi < len(b.extra); wi++ {
-		if w := b.extra[wi]; w != 0 {
-			return 128 + wi*64 + bits.TrailingZeros64(w)
-		}
-	}
-	return -1
-}
-
 const fnVarTableInlineCap = 16
 
 type fnVarTable struct {
 	vars              []*Var
 	idToIndex         map[uint32]int
-	escaped           dfaBitSet
+	escaped           inlineBitSet
 	uniqueCount       int
 	hasDuplicateNames bool
 }
@@ -663,7 +447,7 @@ func DataFlowAnalysis_ComputeEscaped(
 	}
 
 	computeEscapedInTableState(jsScope, table, escaped, compiler, scopeCreator, escapedStartedEmpty)
-	table.escaped.forEach(func(idx int) {
+	table.escaped.ForEach(func(idx int) {
 		escaped.Add(table.vars[idx])
 	})
 }
@@ -674,7 +458,7 @@ func computeEscapedInTable(
 	compiler AbstractCompiler,
 	scopeCreator ScopeCreator,
 ) {
-	computeEscapedInTableState(jsScope, table, nil, compiler, scopeCreator, table.escaped.isEmpty())
+	computeEscapedInTableState(jsScope, table, nil, compiler, scopeCreator, table.escaped.IsEmpty())
 }
 
 func computeEscapedInTableState(
@@ -720,7 +504,7 @@ func computeEscapedInTableState(
 		}
 	}
 
-	if !hasNestedScopeVars && !fnNameShadowed && escapedStartedEmpty && table.escaped.count() >= table.uniqueCount {
+	if !hasNestedScopeVars && !fnNameShadowed && escapedStartedEmpty && table.escaped.Cardinality() >= table.uniqueCount {
 		return
 	}
 
@@ -802,7 +586,7 @@ type fnVarEscapedFinder struct {
 }
 
 func (f *fnVarEscapedFinder) ShouldTraverse(t *NodeTraversal, n rhino.Node, parent rhino.Node) bool {
-	if !f.hasDuplicateVarNames && f.escapedStartedEmpty && f.table.escaped.count() >= f.table.uniqueCount {
+	if !f.hasDuplicateVarNames && f.escapedStartedEmpty && f.table.escaped.Cardinality() >= f.table.uniqueCount {
 		return false
 	}
 	if n == f.skipArgs {

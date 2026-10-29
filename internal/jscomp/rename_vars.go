@@ -144,11 +144,6 @@ type RenameVars_Assignment struct {
 	count             int // Number of times this is referenced
 }
 
-// Java: RenameVars.Assignment(String)
-func NewRenameVars_Assignment(outer *RenameVars, name string) *RenameVars_Assignment {
-	return outer.allocAssignment(name, strings.HasPrefix(name, RenameVars_LOCAL_VAR_PREFIX))
-}
-
 type renameVarDecision struct {
 	assignment *RenameVars_Assignment
 	invertID   strpool.ID

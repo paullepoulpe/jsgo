@@ -71,7 +71,10 @@ func NewNormalize(builder *Normalize_Builder) *Normalize {
 // Java: Normalize.createNormalizeForOptimizations(AbstractCompiler)
 func Normalize_CreateNormalizeForOptimizations(compiler AbstractCompiler) *Normalize {
 	// The default option values are the right ones for optimizations
-	return Normalize_Builder_(compiler).Build()
+	return &Normalize{
+		compiler:   compiler,
+		astFactory: compiler.CreateAstFactory(),
+	}
 }
 
 // Go-only: language-adapter — the trailing underscore keeps the mechanical

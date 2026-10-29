@@ -926,13 +926,6 @@ func (st *StripCode_Strip) LogStripName(name string, reason string) {
 	}
 }
 
-// Java: Strip.logStripName(String, Supplier<String>)
-func (st *StripCode_Strip) LogStripNameSupplier(name string, reasonSupplier func() string) {
-	if st.decisionsLog.IsLogging() {
-		st.decisionsLog.LogString(name + "\tstrip name: " + reasonSupplier())
-	}
-}
-
 // ReplaceWithNull replaces a node with a NULL node. This is useful where a
 // value is expected.
 //

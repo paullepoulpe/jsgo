@@ -54,22 +54,17 @@ var JsFileLineParser_PARSE_WARNING = DiagnosticType_Warning("DEPS_PARSE_WARNING"
 // Java: JsFileLineParser.PARSE_ERROR
 var JsFileLineParser_PARSE_ERROR = DiagnosticType_Error("DEPS_PARSE_ERROR", "{0}\n{1}")
 
-// JsFileLineParser_ParseException signifies a problem parsing a line or literal.
+// JsFileLineParser_ParseException signifies a problem parsing a JS literal
+// (retained for direct ParseJs* test/oracle entrypoints; production line
+// parsing returns error strings without panicking).
 type JsFileLineParser_ParseException struct {
 	jutil.JavaException
-	fatal bool
 }
 
-// Java: JsFileLineParser.ParseException(String, boolean)
-func NewJsFileLineParser_ParseException(message string, fatal bool) *JsFileLineParser_ParseException {
-	e := &JsFileLineParser_ParseException{fatal: fatal}
+func newJsFileLineParser_ParseException(message string) *JsFileLineParser_ParseException {
+	e := &JsFileLineParser_ParseException{}
 	jutil.InitThrowable(e, "com.google.javascript.jscomp.deps.JsFileLineParser$ParseException", &message, nil)
 	return e
-}
-
-// Java: JsFileLineParser.ParseException.isFatal()
-func (e *JsFileLineParser_ParseException) IsFatal() bool {
-	return e.fatal
 }
 
 // Java: JsFileLineParser.setShortcutMode(boolean)
@@ -281,7 +276,7 @@ func jsFileLineParser_isEscaped(line string, closingQuoteIndex int) bool {
 func (b *jsFileLineParser) ParseJsString(jsStringLiteral string) string {
 	val, errMsg, ok := b.parseJsString(jsStringLiteral)
 	if !ok {
-		panic(NewJsFileLineParser_ParseException(errMsg, true))
+		panic(newJsFileLineParser_ParseException(errMsg))
 	}
 	return val
 }
@@ -298,7 +293,7 @@ func (b *jsFileLineParser) parseJsString(jsStringLiteral string) (string, string
 func (b *jsFileLineParser) ParseJsStringArray(input string) []string {
 	vals, errMsg, ok := b.parseJsStringArray(input)
 	if !ok {
-		panic(NewJsFileLineParser_ParseException(errMsg, true))
+		panic(newJsFileLineParser_ParseException(errMsg))
 	}
 	return vals
 }
@@ -339,7 +334,7 @@ func (b *jsFileLineParser) parseJsStringArray(input string) ([]string, string, b
 func (b *jsFileLineParser) ParseJsStringMap(input string) *jutil.LinkedHashMap[string, string] {
 	m, errMsg, ok := b.parseJsStringMap(input)
 	if !ok {
-		panic(NewJsFileLineParser_ParseException(errMsg, true))
+		panic(newJsFileLineParser_ParseException(errMsg))
 	}
 	return m
 }

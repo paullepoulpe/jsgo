@@ -109,112 +109,71 @@ func (u *PropertyUseSites) KeySlice() []rhino.Node {
 	return out
 }
 
-type colorUFNodeMeta struct {
-	parent uint32
-	rank   uint8
-}
-
-// ColorNodeUnionFind is a compact, pointer-minimal union-find specialized for
-// *ColorGraphNode with exact StandardUnionFind rank and representative
-// tie-breaking semantics.
+// ColorNodeUnionFind is a compact union-find specialized for *ColorGraphNode
+// with exact StandardUnionFind rank and representative tie-breaking semantics.
 type ColorNodeUnionFind struct {
-	elems        []*ColorGraphNode
-	meta         []colorUFNodeMeta
-	slotByIdx    map[uint32]uint32
-	inlineElems  [4]*ColorGraphNode
-	inlineParent [4]uint8
-	inlineRank   [4]uint8
-	inlineLen    uint8
-	numSets      uint32
+	nodes     []*ColorGraphNode
+	parent    []int32
+	rank      []uint8
+	slotByIdx map[uint32]int32
+	nodesBuf  [4]*ColorGraphNode
+	parentBuf [4]int32
+	rankBuf   [4]uint8
+	numSets   uint32
 }
 
-func (u *ColorNodeUnionFind) findInlineRoot(slot uint8) uint8 {
-	p := u.inlineParent[slot]
-	if p == slot {
+func (u *ColorNodeUnionFind) findRoot(slot int32) int32 {
+	root := u.parent[slot]
+	if root == slot {
 		return slot
 	}
-	root := p
-	for u.inlineParent[root] != root {
-		root = u.inlineParent[root]
+	for u.parent[root] != root {
+		root = u.parent[root]
 	}
 	for slot != root {
-		next := u.inlineParent[slot]
-		u.inlineParent[slot] = root
+		next := u.parent[slot]
+		u.parent[slot] = root
 		slot = next
 	}
 	return root
 }
 
-func (u *ColorNodeUnionFind) findSpilledRoot(slot uint32) uint32 {
-	p := u.meta[slot].parent
-	if p == slot {
-		return slot
-	}
-	root := p
-	for u.meta[root].parent != root {
-		root = u.meta[root].parent
-	}
-	for slot != root {
-		next := u.meta[slot].parent
-		u.meta[slot].parent = root
-		slot = next
-	}
-	return root
-}
-
-func (u *ColorNodeUnionFind) spillToHeap(fifth *ColorGraphNode) uint32 {
-	elems := make([]*ColorGraphNode, 5, 8)
-	meta := make([]colorUFNodeMeta, 5, 8)
-	slotByIdx := make(map[uint32]uint32, 8)
-	for i := uint8(0); i < 4; i++ {
-		el := u.inlineElems[i]
-		elems[i] = el
-		meta[i] = colorUFNodeMeta{
-			parent: uint32(u.inlineParent[i]),
-			rank:   u.inlineRank[i],
-		}
-		slotByIdx[uint32(el.GetIndex())] = uint32(i)
-	}
-	elems[4] = fifth
-	meta[4] = colorUFNodeMeta{parent: 4, rank: 0}
-	slotByIdx[uint32(fifth.GetIndex())] = 4
-
-	u.inlineElems = [4]*ColorGraphNode{}
-	u.elems = elems
-	u.meta = meta
-	u.slotByIdx = slotByIdx
-	u.numSets++
-	return 4
-}
-
-func (u *ColorNodeUnionFind) findRootOrCreate(e *ColorGraphNode) uint32 {
+func (u *ColorNodeUnionFind) lookupSlot(e *ColorGraphNode) (int32, bool) {
 	if u.slotByIdx != nil {
-		key := uint32(e.GetIndex())
-		if slot, ok := u.slotByIdx[key]; ok {
-			return u.findSpilledRoot(slot)
-		}
-		slot := uint32(len(u.elems))
-		u.elems = append(u.elems, e)
-		u.meta = append(u.meta, colorUFNodeMeta{parent: slot, rank: 0})
-		u.slotByIdx[key] = slot
-		u.numSets++
-		return slot
+		slot, ok := u.slotByIdx[uint32(e.GetIndex())]
+		return slot, ok && u.nodes[slot] == e
 	}
-	for i := uint8(0); i < u.inlineLen; i++ {
-		if u.inlineElems[i] == e {
-			return uint32(u.findInlineRoot(i))
+	for i, n := range u.nodes {
+		if n == e {
+			return int32(i), true
 		}
 	}
-	if u.inlineLen < 4 {
-		slot := u.inlineLen
-		u.inlineElems[slot] = e
-		u.inlineParent[slot] = slot
-		u.inlineRank[slot] = 0
-		u.inlineLen++
-		u.numSets++
-		return uint32(slot)
+	return -1, false
+}
+
+func (u *ColorNodeUnionFind) findRootOrCreate(e *ColorGraphNode) int32 {
+	if slot, ok := u.lookupSlot(e); ok {
+		return u.findRoot(slot)
 	}
-	return u.spillToHeap(e)
+	if u.nodes == nil {
+		u.nodes = u.nodesBuf[:0]
+		u.parent = u.parentBuf[:0]
+		u.rank = u.rankBuf[:0]
+	} else if u.slotByIdx == nil && len(u.nodes) == 8 {
+		u.slotByIdx = make(map[uint32]int32, 16)
+		for i, n := range u.nodes {
+			u.slotByIdx[uint32(n.GetIndex())] = int32(i)
+		}
+	}
+	slot := int32(len(u.nodes))
+	u.nodes = append(u.nodes, e)
+	u.parent = append(u.parent, slot)
+	u.rank = append(u.rank, 0)
+	if u.slotByIdx != nil {
+		u.slotByIdx[uint32(e.GetIndex())] = slot
+	}
+	u.numSets++
+	return slot
 }
 
 func (u *ColorNodeUnionFind) Add(e *ColorGraphNode) {
@@ -223,71 +182,39 @@ func (u *ColorNodeUnionFind) Add(e *ColorGraphNode) {
 
 func (u *ColorNodeUnionFind) Union(a, b *ColorGraphNode) *ColorGraphNode {
 	if a == b {
-		root := u.findRootOrCreate(a)
-		if u.slotByIdx == nil {
-			return u.inlineElems[root]
-		}
-		return u.elems[root]
+		return u.nodes[u.findRootOrCreate(a)]
 	}
 	rootA := u.findRootOrCreate(a)
 	rootB := u.findRootOrCreate(b)
-	if u.slotByIdx == nil {
-		ra := uint8(rootA)
-		rb := uint8(rootB)
-		if ra == rb {
-			return u.inlineElems[ra]
-		}
-		u.numSets--
-		if u.inlineRank[ra] >= u.inlineRank[rb] {
-			u.inlineParent[rb] = ra
-			if u.inlineRank[ra] == u.inlineRank[rb] {
-				u.inlineRank[ra]++
-			}
-			return u.inlineElems[ra]
-		}
-		u.inlineParent[ra] = rb
-		u.inlineElems[rb], u.inlineElems[ra] = u.inlineElems[ra], u.inlineElems[rb]
-		return u.inlineElems[rb]
-	}
 	if rootA == rootB {
-		return u.elems[rootA]
+		return u.nodes[rootA]
 	}
 	u.numSets--
-	rankA := u.meta[rootA].rank
-	rankB := u.meta[rootB].rank
+	rankA, rankB := u.rank[rootA], u.rank[rootB]
 	if rankA >= rankB {
-		u.meta[rootB].parent = rootA
+		u.parent[rootB] = rootA
 		if rankA == rankB {
-			u.meta[rootA].rank = rankA + 1
+			u.rank[rootA] = rankA + 1
 		}
-		return u.elems[rootA]
+		return u.nodes[rootA]
 	}
-	u.meta[rootA].parent = rootB
-	elemA := u.elems[rootA]
-	elemB := u.elems[rootB]
-	u.elems[rootB] = elemA
-	u.elems[rootA] = elemB
-	u.slotByIdx[uint32(elemA.GetIndex())] = rootB
-	u.slotByIdx[uint32(elemB.GetIndex())] = rootA
+	u.parent[rootA] = rootB
+	elemA, elemB := u.nodes[rootA], u.nodes[rootB]
+	u.nodes[rootB], u.nodes[rootA] = elemA, elemB
+	if u.slotByIdx != nil {
+		u.slotByIdx[uint32(elemA.GetIndex())] = rootB
+		u.slotByIdx[uint32(elemB.GetIndex())] = rootA
+	}
 	return elemA
 }
 
 func (u *ColorNodeUnionFind) Find(e *ColorGraphNode) *ColorGraphNode {
-	if u.slotByIdx == nil {
-		for i := uint8(0); i < u.inlineLen; i++ {
-			if u.inlineElems[i] == e {
-				return u.inlineElems[u.findInlineRoot(i)]
-			}
-		}
+	slot, ok := u.lookupSlot(e)
+	if !ok {
 		jutil.CheckArgumentMsg1(false, "Element does not exist: %s", e)
 		return nil
 	}
-	slot, ok := u.slotByIdx[uint32(e.GetIndex())]
-	if !ok || u.elems[slot] != e {
-		jutil.CheckArgumentMsg1(false, "Element does not exist: %s", e)
-		return nil
-	}
-	return u.elems[u.findSpilledRoot(slot)]
+	return u.nodes[u.findRoot(slot)]
 }
 
 func (u *ColorNodeUnionFind) AreEquivalent(a, b *ColorGraphNode) bool {
@@ -299,17 +226,9 @@ func (u *ColorNodeUnionFind) NumSets() int {
 }
 
 func (u *ColorNodeUnionFind) AppendRepresentatives(dst []*ColorGraphNode) []*ColorGraphNode {
-	if u.slotByIdx == nil {
-		for i := uint8(0); i < u.inlineLen; i++ {
-			if u.inlineParent[i] == i {
-				dst = append(dst, u.inlineElems[i])
-			}
-		}
-		return dst
-	}
-	for i := range u.meta {
-		if u.meta[i].parent == uint32(i) {
-			dst = append(dst, u.elems[i])
+	for i, p := range u.parent {
+		if p == int32(i) {
+			dst = append(dst, u.nodes[i])
 		}
 	}
 	return dst
@@ -322,43 +241,24 @@ type ColorNodeUFElementsView struct {
 }
 
 func (v ColorNodeUFElementsView) Size() int {
-	if v.u.slotByIdx == nil {
-		return int(v.u.inlineLen)
-	}
-	return len(v.u.elems)
+	return len(v.u.nodes)
 }
 
 func (v ColorNodeUFElementsView) IsEmpty() bool {
-	return v.Size() == 0
+	return len(v.u.nodes) == 0
 }
 
 func (v ColorNodeUFElementsView) Contains(e *ColorGraphNode) bool {
 	if e == nil {
 		return false
 	}
-	if v.u.slotByIdx == nil {
-		for i := uint8(0); i < v.u.inlineLen; i++ {
-			if v.u.inlineElems[i] == e {
-				return true
-			}
-		}
-		return false
-	}
-	slot, ok := v.u.slotByIdx[uint32(e.GetIndex())]
-	return ok && v.u.elems[slot] == e
+	_, ok := v.u.lookupSlot(e)
+	return ok
 }
 
 func (v ColorNodeUFElementsView) All() iter.Seq[*ColorGraphNode] {
 	return func(yield func(*ColorGraphNode) bool) {
-		if v.u.slotByIdx == nil {
-			for i := uint8(0); i < v.u.inlineLen; i++ {
-				if !yield(v.u.inlineElems[i]) {
-					return
-				}
-			}
-			return
-		}
-		for _, el := range v.u.elems {
+		for _, el := range v.u.nodes {
 			if !yield(el) {
 				return
 			}

@@ -55,7 +55,7 @@ func gatherModuleMetadataTest_list(m *StringCounts) []string {
 // Truth's assertThat(Iterable) gets.
 //
 // Go-only: test-helper — an empty key set is an empty collection, not null.
-func gatherModuleMetadataTest_keys(m *jutil.LinkedHashMap[string, *ModuleMetadataMap_ModuleMetadata]) []string {
+func gatherModuleMetadataTest_keys(m *OrderedStringMap[*ModuleMetadataMap_ModuleMetadata]) []string {
 	return slices.AppendSeq([]string{}, m.Keys())
 }
 
@@ -100,7 +100,7 @@ func (c *GatherModuleMetadataTest) MetadataMap() *ModuleMetadataMap {
 func (c *GatherModuleMetadataTest) TestGoogProvide() {
 	c.TestSame("goog.provide('my.provide');")
 	AssertThat(gatherModuleMetadataTest_keys(c.MetadataMap().GetModulesByGoogNamespace())).ContainsExactly("my.provide")
-	AssertThat(c.MetadataMap().GetModulesByPath()).ContainsKey("testcode")
+	AssertThat(c.MetadataMap().GetModulesByPath().ContainsKey("testcode")).IsTrue()
 	m := c.MetadataMap().GetModulesByGoogNamespace().Get("my.provide")
 	AssertThat(gatherModuleMetadataTest_list(m.GoogNamespaces())).ContainsExactly("my.provide")
 	AssertThat(m.IsGoogProvide()).IsTrue()
@@ -129,7 +129,7 @@ func (c *GatherModuleMetadataTest) TestMultipleGoogProvide() {
 	c.TestSame("goog.provide('my.first.provide'); goog.provide('my.second.provide');")
 	AssertThat(gatherModuleMetadataTest_keys(c.MetadataMap().GetModulesByGoogNamespace())).
 		ContainsExactly("my.first.provide", "my.second.provide")
-	AssertThat(c.MetadataMap().GetModulesByPath()).ContainsKey("testcode")
+	AssertThat(c.MetadataMap().GetModulesByPath().ContainsKey("testcode")).IsTrue()
 	m := c.MetadataMap().GetModulesByGoogNamespace().Get("my.first.provide")
 	AssertThat(gatherModuleMetadataTest_list(m.GoogNamespaces())).ContainsExactly("my.first.provide", "my.second.provide")
 	AssertThat(m.IsGoogProvide()).IsTrue()
@@ -423,7 +423,7 @@ goog.loadModule(function(exports) {
 func (c *GatherModuleMetadataTest) TestEs6Module() {
 	c.TestSame("export var x;")
 	AssertThat(gatherModuleMetadataTest_keys(c.MetadataMap().GetModulesByGoogNamespace())).IsEmpty()
-	AssertThat(c.MetadataMap().GetModulesByPath()).ContainsKey("testcode")
+	AssertThat(c.MetadataMap().GetModulesByPath().ContainsKey("testcode")).IsTrue()
 	m := c.MetadataMap().GetModulesByPath().Get("testcode")
 	AssertThat(gatherModuleMetadataTest_list(m.GoogNamespaces())).IsEmpty()
 	AssertThat(m.IsEs6Module()).IsTrue()
@@ -460,7 +460,7 @@ goog.declareModuleId('my.module');
 // Java: GatherModuleMetadataTest.testCommonJsModule()
 func (c *GatherModuleMetadataTest) TestCommonJsModule() {
 	c.TestSame("exports = 0;")
-	AssertThat(c.MetadataMap().GetModulesByGoogNamespace()).IsEmpty()
+	AssertThat(c.MetadataMap().GetModulesByGoogNamespace().IsEmpty()).IsTrue()
 	m := c.MetadataMap().GetModulesByPath().Get("testcode")
 	AssertThat(m.IsCommonJs()).IsTrue()
 }
@@ -742,7 +742,7 @@ func (c *GatherModuleMetadataTest) TestImportedScriptWithEntryPoint() {
 	AssertThat(c.MetadataMap().GetModulesByPath().Get("imported.js").ModuleType()).
 		IsEqualTo(ModuleMetadataMap_ModuleType_ES6_MODULE)
 	// Pruned
-	AssertThat(c.MetadataMap().GetModulesByPath()).DoesNotContainKey("notimported.js")
+	AssertThat(c.MetadataMap().GetModulesByPath().ContainsKey("notimported.js")).IsFalse()
 }
 
 // Java: GatherModuleMetadataTest.testImportedScriptWithSortOnly()

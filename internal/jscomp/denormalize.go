@@ -240,42 +240,6 @@ func denormalize_inlineVar(decl rhino.Node, target rhino.Node) bool {
 	return true
 }
 
-// AfterExitScope implements step 3 (inlining the var keyword).
-//
-// (Go: not called; Process runs denormalizeVarInliner instead of a
-// ReferenceCollector with this behavior.)
-//
-// Java: Denormalize.afterExitScope(NodeTraversal, ReferenceMap)
-func (d *Denormalize) AfterExitScope(t *NodeTraversal, referenceMap ReferenceMap) {
-	scopeRoot := t.GetScopeRoot()
-	if scopeRoot.IsBlock() && scopeRoot.GetParent().IsFunction() {
-		changed := false
-		for v := range t.GetScope().GetVarIterable() {
-			references := referenceMap.GetReferences(v)
-			var declaration *Reference
-			var assign *Reference
-			for r := range references.All() {
-				if r.IsVarDeclaration() &&
-					NodeUtil_IsStatement(r.GetNode().GetParent()) &&
-					!r.IsInitializingDeclaration() {
-					declaration = r
-				} else if assign == nil &&
-					r.IsSimpleAssignmentToName() &&
-					r.GetScope().GetClosestHoistScope() == t.GetScope() {
-					assign = r
-				}
-			}
-			if declaration != nil && assign != nil && denormalize_inlineVar(declaration.GetNode(), assign.GetNode()) {
-				changed = true
-			}
-		}
-
-		if changed {
-			t.ReportCodeChange()
-		}
-	}
-}
-
 // Java: Denormalize.shouldTraverse(NodeTraversal, Node, Node)
 func (*Denormalize) ShouldTraverse(t *NodeTraversal, n rhino.Node, parent rhino.Node) bool {
 	return true

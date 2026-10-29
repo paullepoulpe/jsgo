@@ -24,6 +24,7 @@ package transpile
 
 import (
 	"strings"
+	"sync"
 
 	"github.com/paullepoulpe/jsgo/internal/bundle"
 	"github.com/paullepoulpe/jsgo/internal/jscomp"
@@ -109,11 +110,41 @@ func (t *BaseTranspiler) Runtime() string {
 	return sb.String()
 }
 
-// Java: BaseTranspiler.LATEST_TRANSPILER
-var BaseTranspiler_LATEST_TRANSPILER = BaseTranspiler_ToWithRuntime(parser.FeatureSet_Latest(), "")
+var (
+	latestTranspilerOnce sync.Once
+	latestTranspilerVal  *BaseTranspiler
+	es5TranspilerOnce    sync.Once
+	es5TranspilerVal     *BaseTranspiler
+)
 
-// Java: BaseTranspiler.ES5_TRANSPILER
-var BaseTranspiler_ES5_TRANSPILER = BaseTranspiler_To(jscomp.CompilerOptions_LanguageMode_ECMASCRIPT5.ToFeatureSet())
+// LatestTranspiler returns the shared latest-ES transpiler, initialized on first use.
+func LatestTranspiler() *BaseTranspiler {
+	latestTranspilerOnce.Do(func() {
+		latestTranspilerVal = BaseTranspiler_ToWithRuntime(parser.FeatureSet_Latest(), "")
+	})
+	return latestTranspilerVal
+}
+
+// ToEs5Transpiler returns the shared ES5 transpiler, initialized on first use.
+func ToEs5Transpiler() *BaseTranspiler {
+	es5TranspilerOnce.Do(func() {
+		es5TranspilerVal = BaseTranspiler_To(jscomp.CompilerOptions_LanguageMode_ECMASCRIPT5.ToFeatureSet())
+	})
+	return es5TranspilerVal
+}
+
+type baseTranspilerLatest struct{}
+
+func (baseTranspilerLatest) Transpile(path string, code string) *TranspileResult {
+	return LatestTranspiler().Transpile(path, code)
+}
+
+func (baseTranspilerLatest) Runtime() string {
+	return LatestTranspiler().Runtime()
+}
+
+// Java: BaseTranspiler.LATEST_TRANSPILER
+var BaseTranspiler_LATEST_TRANSPILER Transpiler = baseTranspilerLatest{}
 
 // Java: BaseTranspiler.to(FeatureSet, String)
 func BaseTranspiler_ToWithRuntime(featureSet *parser.FeatureSet, runtime string) *BaseTranspiler {
@@ -149,7 +180,7 @@ type BaseTranspiler_DefaultCompilerSupplier struct {
 
 var _ BaseTranspiler_CompilerSupplier = (*BaseTranspiler_DefaultCompilerSupplier)(nil)
 
-var baseTranspilerDefaultResolutionMode = jscomp.NewCompilerOptions().GetModuleResolutionMode()
+const baseTranspilerDefaultResolutionMode = jscomp.ModuleLoader_ResolutionMode_BROWSER
 
 // Java: CompilerSupplier()
 func NewBaseTranspiler_CompilerSupplier() *BaseTranspiler_DefaultCompilerSupplier {

@@ -162,55 +162,71 @@ func Color_CreateUnion2(e1, e2 *Color) *Color {
 	return Color_CreateUnionSliceWithBuilder(buf[:], &builder, nil, nil)
 }
 
-func appendUniqueColor(dst []*Color, c *Color, byHash *map[int32][]*Color) []*Color {
-	if *byHash != nil {
-		h := c.HashCode()
-		bucket := (*byHash)[h]
-		for _, existing := range bucket {
-			if existing == c || existing.Equals(c) {
-				return dst
-			}
-		}
-		(*byHash)[h] = append(bucket, c)
-		return append(dst, c)
-	}
-	for _, existing := range dst {
-		if existing == c || existing.Equals(c) {
-			return dst
-		}
-	}
-	dst = append(dst, c)
-	if len(dst) > 16 {
-		m := make(map[int32][]*Color, len(dst)*2)
-		for _, existing := range dst {
-			eh := existing.HashCode()
-			m[eh] = append(m[eh], existing)
-		}
-		*byHash = m
-	}
-	return dst
+type dedupSet[T comparable] struct {
+	seen   map[T]struct{}
+	byHash map[int32][]*Color
 }
 
-func appendUniqueString(dst []string, s string, seen *map[string]struct{}) []string {
-	if *seen != nil {
-		if _, ok := (*seen)[s]; ok {
-			return dst
+func elemEqual[T comparable](a, b T) bool {
+	if a == b {
+		return true
+	}
+	if _, isColor := any((*T)(nil)).(**Color); isColor {
+		return any(a).(*Color).Equals(any(b).(*Color))
+	}
+	return false
+}
+
+func (s *dedupSet[T]) initialized() bool {
+	return s.seen != nil || s.byHash != nil
+}
+
+func (s *dedupSet[T]) init(capHint int) {
+	if _, isColor := any((*T)(nil)).(**Color); isColor {
+		s.byHash = make(map[int32][]*Color, capHint)
+	} else {
+		s.seen = make(map[T]struct{}, capHint)
+	}
+}
+
+func (s *dedupSet[T]) add(v T) bool {
+	if _, isColor := any((*T)(nil)).(**Color); isColor {
+		c := any(v).(*Color)
+		h := c.HashCode()
+		bucket := s.byHash[h]
+		for _, existing := range bucket {
+			if existing == c || existing.Equals(c) {
+				return false
+			}
 		}
-		(*seen)[s] = struct{}{}
-		return append(dst, s)
+		s.byHash[h] = append(bucket, c)
+		return true
+	}
+	if _, ok := s.seen[v]; ok {
+		return false
+	}
+	s.seen[v] = struct{}{}
+	return true
+}
+
+func appendUnique[T comparable](dst []T, v T, seen *dedupSet[T]) []T {
+	if seen.initialized() {
+		if seen.add(v) {
+			return append(dst, v)
+		}
+		return dst
 	}
 	for _, existing := range dst {
-		if existing == s {
+		if elemEqual(existing, v) {
 			return dst
 		}
 	}
-	dst = append(dst, s)
+	dst = append(dst, v)
 	if len(dst) > 16 {
-		m := make(map[string]struct{}, len(dst)*2)
+		seen.init(len(dst) * 2)
 		for _, existing := range dst {
-			m[existing] = struct{}{}
+			seen.add(existing)
 		}
-		*seen = m
 	}
 	return dst
 }
@@ -263,24 +279,24 @@ func Color_CreateUnionSliceWithBuilder(
 
 	var flatStack [8]*Color
 	flatElems := flatStack[:0]
-	var flatByHash map[int32][]*Color
+	var flatSeen dedupSet[*Color]
 
 	var instStack [8]*Color
 	var mergedInst []*Color
 	var singleInst []*Color
-	var instByHash map[int32][]*Color
+	var instSeen dedupSet[*Color]
 	spilledInst := false
 
 	var protoStack [8]*Color
 	var mergedProtos []*Color
 	var singleProtos []*Color
-	var protoByHash map[int32][]*Color
+	var protoSeen dedupSet[*Color]
 	spilledProtos := false
 
 	var propStack [8]string
 	var mergedProps []string
 	var singleProps []string
-	var propSeen map[string]struct{}
+	var propSeen dedupSet[string]
 	spilledProps := false
 
 	isClosureAssert := true
@@ -291,16 +307,16 @@ func Color_CreateUnionSliceWithBuilder(
 	for _, element := range elements {
 		if element.IsUnion() {
 			for _, nestedElement := range element.unionElements {
-				flatElems = appendUniqueColor(flatElems, nestedElement, &flatByHash)
+				flatElems = appendUnique(flatElems, nestedElement, &flatSeen)
 			}
 		} else {
-			flatElems = appendUniqueColor(flatElems, element, &flatByHash)
+			flatElems = appendUnique(flatElems, element, &flatSeen)
 		}
 
 		if ic := element.instanceColors; len(ic) > 0 {
 			if spilledInst {
 				for _, c := range ic {
-					mergedInst = appendUniqueColor(mergedInst, c, &instByHash)
+					mergedInst = appendUnique(mergedInst, c, &instSeen)
 				}
 			} else if singleInst == nil || &singleInst[0] == &ic[0] {
 				singleInst = ic
@@ -308,10 +324,10 @@ func Color_CreateUnionSliceWithBuilder(
 				spilledInst = true
 				mergedInst = instStack[:0]
 				for _, c := range singleInst {
-					mergedInst = appendUniqueColor(mergedInst, c, &instByHash)
+					mergedInst = appendUnique(mergedInst, c, &instSeen)
 				}
 				for _, c := range ic {
-					mergedInst = appendUniqueColor(mergedInst, c, &instByHash)
+					mergedInst = appendUnique(mergedInst, c, &instSeen)
 				}
 				singleInst = nil
 			}
@@ -324,7 +340,7 @@ func Color_CreateUnionSliceWithBuilder(
 		if op := element.ownProperties; len(op) > 0 {
 			if spilledProps {
 				for _, p := range op {
-					mergedProps = appendUniqueString(mergedProps, p, &propSeen)
+					mergedProps = appendUnique(mergedProps, p, &propSeen)
 				}
 			} else if singleProps == nil || &singleProps[0] == &op[0] {
 				singleProps = op
@@ -332,10 +348,10 @@ func Color_CreateUnionSliceWithBuilder(
 				spilledProps = true
 				mergedProps = propStack[:0]
 				for _, p := range singleProps {
-					mergedProps = appendUniqueString(mergedProps, p, &propSeen)
+					mergedProps = appendUnique(mergedProps, p, &propSeen)
 				}
 				for _, p := range op {
-					mergedProps = appendUniqueString(mergedProps, p, &propSeen)
+					mergedProps = appendUnique(mergedProps, p, &propSeen)
 				}
 				singleProps = nil
 			}
@@ -346,7 +362,7 @@ func Color_CreateUnionSliceWithBuilder(
 		if pr := element.prototypes; len(pr) > 0 {
 			if spilledProtos {
 				for _, c := range pr {
-					mergedProtos = appendUniqueColor(mergedProtos, c, &protoByHash)
+					mergedProtos = appendUnique(mergedProtos, c, &protoSeen)
 				}
 			} else if singleProtos == nil || &singleProtos[0] == &pr[0] {
 				singleProtos = pr
@@ -354,10 +370,10 @@ func Color_CreateUnionSliceWithBuilder(
 				spilledProtos = true
 				mergedProtos = protoStack[:0]
 				for _, c := range singleProtos {
-					mergedProtos = appendUniqueColor(mergedProtos, c, &protoByHash)
+					mergedProtos = appendUnique(mergedProtos, c, &protoSeen)
 				}
 				for _, c := range pr {
-					mergedProtos = appendUniqueColor(mergedProtos, c, &protoByHash)
+					mergedProtos = appendUnique(mergedProtos, c, &protoSeen)
 				}
 				singleProtos = nil
 			}

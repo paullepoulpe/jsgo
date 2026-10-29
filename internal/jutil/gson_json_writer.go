@@ -30,28 +30,27 @@ import (
 // ValueLong, and ValueNumber.
 
 var (
-	jsonWriter_REPLACEMENT_CHARS           [128]*string
-	jsonWriter_HTML_SAFE_REPLACEMENT_CHARS [128]*string
-)
-
-func init() {
-	for i := 0; i <= 0x1f; i++ {
-		jsonWriter_REPLACEMENT_CHARS[i] = StringPtr(StringFormat("\\u%04x", int32(i)))
+	jsonWriter_REPLACEMENT_CHARS = [128]string{
+		0x00: `\u0000`, 0x01: `\u0001`, 0x02: `\u0002`, 0x03: `\u0003`,
+		0x04: `\u0004`, 0x05: `\u0005`, 0x06: `\u0006`, 0x07: `\u0007`,
+		'\b': `\b`, '\t': `\t`, '\n': `\n`, 0x0b: `\u000b`,
+		'\f': `\f`, '\r': `\r`, 0x0e: `\u000e`, 0x0f: `\u000f`,
+		0x10: `\u0010`, 0x11: `\u0011`, 0x12: `\u0012`, 0x13: `\u0013`,
+		0x14: `\u0014`, 0x15: `\u0015`, 0x16: `\u0016`, 0x17: `\u0017`,
+		0x18: `\u0018`, 0x19: `\u0019`, 0x1a: `\u001a`, 0x1b: `\u001b`,
+		0x1c: `\u001c`, 0x1d: `\u001d`, 0x1e: `\u001e`, 0x1f: `\u001f`,
+		'"': `\"`, '\\': `\\`,
 	}
-	jsonWriter_REPLACEMENT_CHARS['"'] = StringPtr("\\\"")
-	jsonWriter_REPLACEMENT_CHARS['\\'] = StringPtr("\\\\")
-	jsonWriter_REPLACEMENT_CHARS['\t'] = StringPtr("\\t")
-	jsonWriter_REPLACEMENT_CHARS['\b'] = StringPtr("\\b")
-	jsonWriter_REPLACEMENT_CHARS['\n'] = StringPtr("\\n")
-	jsonWriter_REPLACEMENT_CHARS['\r'] = StringPtr("\\r")
-	jsonWriter_REPLACEMENT_CHARS['\f'] = StringPtr("\\f")
-	jsonWriter_HTML_SAFE_REPLACEMENT_CHARS = jsonWriter_REPLACEMENT_CHARS
-	jsonWriter_HTML_SAFE_REPLACEMENT_CHARS['<'] = StringPtr("\\u003c")
-	jsonWriter_HTML_SAFE_REPLACEMENT_CHARS['>'] = StringPtr("\\u003e")
-	jsonWriter_HTML_SAFE_REPLACEMENT_CHARS['&'] = StringPtr("\\u0026")
-	jsonWriter_HTML_SAFE_REPLACEMENT_CHARS['='] = StringPtr("\\u003d")
-	jsonWriter_HTML_SAFE_REPLACEMENT_CHARS['\''] = StringPtr("\\u0027")
-}
+	jsonWriter_HTML_SAFE_REPLACEMENT_CHARS = func() [128]string {
+		t := jsonWriter_REPLACEMENT_CHARS
+		t['<'] = `\u003c`
+		t['>'] = `\u003e`
+		t['&'] = `\u0026`
+		t['='] = `\u003d`
+		t['\''] = `\u0027`
+		return t
+	}()
+)
 
 // JsonWriter is com.google.gson.stream.JsonWriter: writes a JSON (RFC 7159)
 // encoded value to a stream, one token at a time.
@@ -450,38 +449,74 @@ func (w *JsonWriter) Close() {
 }
 
 func (w *JsonWriter) string(value string) {
-	replacements := &jsonWriter_REPLACEMENT_CHARS
-	if w.htmlSafe {
-		replacements = &jsonWriter_HTML_SAFE_REPLACEMENT_CHARS
-	}
 	w.write("\"")
-	units := StringToUTF16(value)
 	last := 0
-	length := len(units)
-	for i := 0; i < length; i++ {
-		c := units[i]
-		var replacement string
-		if c < 128 {
-			r := replacements[c]
-			if r == nil {
+	length := len(value)
+	if !w.htmlSafe {
+		for i := 0; i < length; i++ {
+			b := value[i]
+			var replacement string
+			step := 1
+			if b < 0x80 {
+				if b >= 0x20 && b != '"' && b != '\\' {
+					continue
+				}
+				replacement = jsonWriter_REPLACEMENT_CHARS[b]
+			} else if b == 0xe2 && i+2 < length && value[i+1] == 0x80 {
+				switch value[i+2] {
+				case 0xa8:
+					replacement = `\u2028`
+					step = 3
+				case 0xa9:
+					replacement = `\u2029`
+					step = 3
+				default:
+					continue
+				}
+			} else {
 				continue
 			}
-			replacement = *r
-		} else if c == 0x2028 {
-			replacement = "\\u2028"
-		} else if c == 0x2029 {
-			replacement = "\\u2029"
-		} else {
-			continue
+			if last < i {
+				w.write(value[last:i])
+			}
+			w.write(replacement)
+			last = i + step
+			i += step - 1
 		}
-		if last < i {
-			w.write(StringFromUTF16(units[last:i]))
+	} else {
+		for i := 0; i < length; i++ {
+			b := value[i]
+			var replacement string
+			step := 1
+			if b < 0x80 {
+				if b >= 0x20 && b != '"' && b != '\\' && b != '<' && b != '>' && b != '&' && b != '=' && b != '\'' {
+					continue
+				}
+				replacement = jsonWriter_HTML_SAFE_REPLACEMENT_CHARS[b]
+			} else if b == 0xe2 && i+2 < length && value[i+1] == 0x80 {
+				switch value[i+2] {
+				case 0xa8:
+					replacement = `\u2028`
+					step = 3
+				case 0xa9:
+					replacement = `\u2029`
+					step = 3
+				default:
+					continue
+				}
+			} else {
+				continue
+			}
+			if last < i {
+				w.write(value[last:i])
+			}
+			w.write(replacement)
+			last = i + step
+			i += step - 1
 		}
-		w.write(replacement)
-		last = i + 1
 	}
 	if last < length {
-		w.write(StringFromUTF16(units[last:length]))
+		w.write(value[last:length])
 	}
 	w.write("\"")
 }

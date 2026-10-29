@@ -49,25 +49,69 @@ type TypedAstSerializer struct {
 	usedPropBits        []uint64
 	recordUsedProps     bool
 
-	nodeSlabs        [][]AstNode
-	nodeSlabIdx      int
-	nodeSlabPos      int
-	childPtrSlabs    [][]*AstNode
-	childSlabIdx     int
-	childSlabPos     int
+	nodeArena        slabArena[AstNode]
+	childPtrArena    slabArena[*AstNode]
 	childStack       []*AstNode
-	jsdocSlabs       [][]OptimizationJsdoc
-	jsdocSlabIdx     int
-	jsdocSlabPos     int
-	jsdocKindSlabs   [][]int32
-	jsdocKindSlabIdx int
-	jsdocKindSlabPos int
+	jsdocArena       slabArena[OptimizationJsdoc]
+	jsdocKindArena   slabArena[int32]
 	jsdocKindScratch []int32
-	templateSlabs    [][]TemplateStringValue
-	templateSlabIdx  int
-	templateSlabPos  int
+	templateArena    slabArena[TemplateStringValue]
+	lazyAstArena     slabArena[LazyAst]
 	scriptByteSlab   []byte
-	lazyAstSlab      []LazyAst
+}
+
+// slabArena is a two-level bump allocator that retains backing slabs across resets.
+type slabArena[T any] struct {
+	slabs   [][]T
+	slabIdx int
+	slabPos int
+}
+
+func (a *slabArena[T]) reset() {
+	a.slabIdx = 0
+	a.slabPos = 0
+}
+
+func (a *slabArena[T]) alloc(chunkSize int) *T {
+	if a.slabIdx >= len(a.slabs) {
+		a.slabs = append(a.slabs, make([]T, chunkSize))
+	}
+	slab := a.slabs[a.slabIdx]
+	if a.slabPos >= len(slab) {
+		a.slabIdx++
+		a.slabPos = 0
+		if a.slabIdx >= len(a.slabs) {
+			a.slabs = append(a.slabs, make([]T, chunkSize))
+		}
+		slab = a.slabs[a.slabIdx]
+	}
+	p := &slab[a.slabPos]
+	a.slabPos++
+	return p
+}
+
+func (a *slabArena[T]) allocCopy(src []T, chunkSize int) []T {
+	n := len(src)
+	if n == 0 {
+		return nil
+	}
+	if a.slabIdx >= len(a.slabs) {
+		a.slabs = append(a.slabs, make([]T, max(chunkSize, n)))
+	}
+	slab := a.slabs[a.slabIdx]
+	if a.slabPos+n > len(slab) {
+		a.slabIdx++
+		a.slabPos = 0
+		if a.slabIdx >= len(a.slabs) || len(a.slabs[a.slabIdx]) < n {
+			a.slabs = append(a.slabs, make([]T, max(chunkSize, n)))
+			a.slabIdx = len(a.slabs) - 1
+		}
+		slab = a.slabs[a.slabIdx]
+	}
+	dst := slab[a.slabPos : a.slabPos+n : a.slabPos+n]
+	a.slabPos += n
+	copy(dst, src)
+	return dst
 }
 
 // Java: TypedAstSerializer(AbstractCompiler, SerializationOptions)
@@ -81,122 +125,35 @@ func NewTypedAstSerializer(compiler AbstractCompiler, serializationMode *Seriali
 }
 
 func (s *TypedAstSerializer) resetScriptSlabs() {
-	s.nodeSlabIdx = 0
-	s.nodeSlabPos = 0
-	s.childSlabIdx = 0
-	s.childSlabPos = 0
+	s.nodeArena.reset()
+	s.childPtrArena.reset()
 	s.childStack = s.childStack[:0]
-	s.jsdocSlabIdx = 0
-	s.jsdocSlabPos = 0
-	s.jsdocKindSlabIdx = 0
-	s.jsdocKindSlabPos = 0
-	s.templateSlabIdx = 0
-	s.templateSlabPos = 0
+	s.jsdocArena.reset()
+	s.jsdocKindArena.reset()
+	s.templateArena.reset()
 }
 
 func (s *TypedAstSerializer) allocAstNode() *AstNode {
-	const chunkSize = 256
-	if s.nodeSlabIdx >= len(s.nodeSlabs) {
-		s.nodeSlabs = append(s.nodeSlabs, make([]AstNode, chunkSize))
-	}
-	slab := s.nodeSlabs[s.nodeSlabIdx]
-	if s.nodeSlabPos >= len(slab) {
-		s.nodeSlabIdx++
-		s.nodeSlabPos = 0
-		if s.nodeSlabIdx >= len(s.nodeSlabs) {
-			s.nodeSlabs = append(s.nodeSlabs, make([]AstNode, chunkSize))
-		}
-		slab = s.nodeSlabs[s.nodeSlabIdx]
-	}
-	m := &slab[s.nodeSlabPos]
-	s.nodeSlabPos++
+	m := s.nodeArena.alloc(256)
 	*m = AstNode{frozen: true, memoizedSize: -1}
 	return m
 }
 
 func (s *TypedAstSerializer) allocChildren(children []*AstNode) []*AstNode {
-	const chunkSize = 4096
-	n := len(children)
-	if n == 0 {
-		return nil
-	}
-	if s.childSlabIdx >= len(s.childPtrSlabs) {
-		s.childPtrSlabs = append(s.childPtrSlabs, make([]*AstNode, max(chunkSize, n)))
-	}
-	slab := s.childPtrSlabs[s.childSlabIdx]
-	if s.childSlabPos+n > len(slab) {
-		s.childSlabIdx++
-		s.childSlabPos = 0
-		if s.childSlabIdx >= len(s.childPtrSlabs) || len(s.childPtrSlabs[s.childSlabIdx]) < n {
-			s.childPtrSlabs = append(s.childPtrSlabs, make([]*AstNode, max(chunkSize, n)))
-			s.childSlabIdx = len(s.childPtrSlabs) - 1
-		}
-		slab = s.childPtrSlabs[s.childSlabIdx]
-	}
-	dst := slab[s.childSlabPos : s.childSlabPos+n : s.childSlabPos+n]
-	s.childSlabPos += n
-	copy(dst, children)
-	return dst
+	return s.childPtrArena.allocCopy(children, 4096)
 }
 
 func (s *TypedAstSerializer) allocJsdoc(src OptimizationJsdoc) *OptimizationJsdoc {
-	const chunkSize = 512
-	if s.jsdocSlabIdx >= len(s.jsdocSlabs) {
-		s.jsdocSlabs = append(s.jsdocSlabs, make([]OptimizationJsdoc, chunkSize))
-	}
-	slab := s.jsdocSlabs[s.jsdocSlabIdx]
-	if s.jsdocSlabPos >= len(slab) {
-		s.jsdocSlabIdx++
-		s.jsdocSlabPos = 0
-		if s.jsdocSlabIdx >= len(s.jsdocSlabs) {
-			s.jsdocSlabs = append(s.jsdocSlabs, make([]OptimizationJsdoc, chunkSize))
-		}
-		slab = s.jsdocSlabs[s.jsdocSlabIdx]
-	}
-	dst := &slab[s.jsdocSlabPos]
-	s.jsdocSlabPos++
+	dst := s.jsdocArena.alloc(512)
 	*dst = src
-	if n := len(src.kind_); n > 0 {
-		if s.jsdocKindSlabIdx >= len(s.jsdocKindSlabs) {
-			s.jsdocKindSlabs = append(s.jsdocKindSlabs, make([]int32, max(1024, n)))
-		}
-		kslab := s.jsdocKindSlabs[s.jsdocKindSlabIdx]
-		if s.jsdocKindSlabPos+n > len(kslab) {
-			s.jsdocKindSlabIdx++
-			s.jsdocKindSlabPos = 0
-			if s.jsdocKindSlabIdx >= len(s.jsdocKindSlabs) || len(s.jsdocKindSlabs[s.jsdocKindSlabIdx]) < n {
-				s.jsdocKindSlabs = append(s.jsdocKindSlabs, make([]int32, max(1024, n)))
-				s.jsdocKindSlabIdx = len(s.jsdocKindSlabs) - 1
-			}
-			kslab = s.jsdocKindSlabs[s.jsdocKindSlabIdx]
-		}
-		kdst := kslab[s.jsdocKindSlabPos : s.jsdocKindSlabPos+n : s.jsdocKindSlabPos+n]
-		s.jsdocKindSlabPos += n
-		copy(kdst, src.kind_)
-		dst.kind_ = kdst
-	} else {
-		dst.kind_ = nil
-	}
+	dst.kind_ = s.jsdocKindArena.allocCopy(src.kind_, 1024)
 	dst.frozen = true
 	dst.memoizedSize = dst.scalarsSerializedSize()
 	return dst
 }
 
 func (s *TypedAstSerializer) allocTemplateStringValue(rawPtr, cookedPtr int32) *TemplateStringValue {
-	if s.templateSlabIdx >= len(s.templateSlabs) {
-		s.templateSlabs = append(s.templateSlabs, make([]TemplateStringValue, 64))
-	}
-	slab := s.templateSlabs[s.templateSlabIdx]
-	if s.templateSlabPos >= len(slab) {
-		s.templateSlabIdx++
-		s.templateSlabPos = 0
-		if s.templateSlabIdx >= len(s.templateSlabs) {
-			s.templateSlabs = append(s.templateSlabs, make([]TemplateStringValue, 64))
-		}
-		slab = s.templateSlabs[s.templateSlabIdx]
-	}
-	dst := &slab[s.templateSlabPos]
-	s.templateSlabPos++
+	dst := s.templateArena.alloc(64)
 	*dst = TemplateStringValue{
 		rawStringPointer_:    rawPtr,
 		cookedStringPointer_: cookedPtr,
@@ -204,6 +161,20 @@ func (s *TypedAstSerializer) allocTemplateStringValue(rawPtr, cookedPtr int32) *
 	}
 	dst.memoizedSize = dst.scalarsSerializedSize()
 	return dst
+}
+
+func marshalProtoIntoByteSlab(proto *AstNode, byteSlab *[]byte) []byte {
+	sz := proto.serializedSize()
+	if sz > 262144 {
+		return proto.ToByteString()
+	}
+	slab := *byteSlab
+	if len(slab) < sz {
+		slab = make([]byte, max(4*1024*1024, sz))
+	}
+	buf := slab[:0:sz]
+	*byteSlab = slab[sz:]
+	return proto.appendTo(buf)
 }
 
 // SerializeRoots transforms the given compiler AST root nodes into into a
@@ -307,24 +278,9 @@ func (s *TypedAstSerializer) SerializeScriptNode(script rhino.Node) *LazyAst {
 
 	encodedSourceMap := s.compiler.GetBase64SourceMapContents(*script.GetSourceFileName())
 
-	var scriptBytes []byte
-	sz := scriptProto.serializedSize()
-	if sz <= 262144 {
-		if len(s.scriptByteSlab) < sz {
-			s.scriptByteSlab = make([]byte, max(4*1024*1024, sz))
-		}
-		buf := s.scriptByteSlab[:0:sz]
-		s.scriptByteSlab = s.scriptByteSlab[sz:]
-		scriptBytes = scriptProto.appendTo(buf)
-	} else {
-		scriptBytes = scriptProto.ToByteString()
-	}
+	scriptBytes := marshalProtoIntoByteSlab(scriptProto, &s.scriptByteSlab)
 
-	if len(s.lazyAstSlab) == 0 {
-		s.lazyAstSlab = make([]LazyAst, 256)
-	}
-	lazyAst := &s.lazyAstSlab[0]
-	s.lazyAstSlab = s.lazyAstSlab[1:]
+	lazyAst := s.lazyAstArena.alloc(256)
 	*lazyAst = LazyAst{
 		script_:      scriptBytes,
 		sourceFile_:  int32(sourceFile),

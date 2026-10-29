@@ -60,7 +60,7 @@ type ismPropSlot struct {
 // unsafe. We enable it whenever function inlining is enabled.
 type InlineSimpleMethods struct {
 	externPropsRaw  *jutil.LinkedHashSet[string]
-	externPropBits  []uint64
+	externPropBits  inlineBitSet
 	externPropsInit bool
 	props           map[uint32]ismPropSlot
 	hasDefs         bool
@@ -92,22 +92,13 @@ func (m *InlineSimpleMethods) hasExternProp(id uint32) bool {
 		m.externPropsInit = true
 		if m.externPropsRaw != nil {
 			for name := range m.externPropsRaw.All() {
-				pid := uint32(strpool.Lookup(name))
-				if pid == 0 {
-					continue
+				if pid := strpool.Lookup(name); pid != 0 {
+					m.externPropBits.Set(int(pid))
 				}
-				word := int(pid >> 6)
-				if word >= len(m.externPropBits) {
-					grown := make([]uint64, max(word+1, len(m.externPropBits)*2))
-					copy(grown, m.externPropBits)
-					m.externPropBits = grown
-				}
-				m.externPropBits[word] |= uint64(1) << (pid & 63)
 			}
 		}
 	}
-	word := int(id >> 6)
-	return word < len(m.externPropBits) && (m.externPropBits[word]&(uint64(1)<<(id&63))) != 0
+	return m.externPropBits.Get(int(id))
 }
 
 func (m *InlineSimpleMethods) markNonInlineable(propID uint32) {
@@ -130,7 +121,7 @@ func (m *InlineSimpleMethods) Process(externs rhino.Node, root rhino.Node) {
 	m.ensureProps()
 	defer func() {
 		m.props = nil
-		m.externPropBits = nil
+		m.externPropBits = inlineBitSet{}
 		m.externPropsInit = false
 		m.hasDefs = false
 	}()

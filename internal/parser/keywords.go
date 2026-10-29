@@ -131,7 +131,6 @@ var keywords_type = [...]TokenType{
 	TokenType_FALSE,
 }
 var (
-	keywords_KEYWORDS_BY_NAME map[string]*Keywords
 	keywords_KEYWORDS_BY_TYPE [len(tokenType_names)]*Keywords
 	// keywords_constants backs the *Keywords values handed out by the
 	// lookups (a nil *Keywords is Java null).
@@ -140,20 +139,11 @@ var (
 
 // Java: Keywords static initializer
 func init() {
-	// Go-only: language-adapter — KEYWORDS_BY_NAME is only ever looked up,
-	// never iterated, so a Go map is order-safe; KEYWORDS_BY_TYPE is an
-	// EnumMap, i.e. an array indexed by TokenType ordinal.
-	keywordsByName := make(map[string]*Keywords)
-	for _, kw := range Keywords_values() {
-		keywords_constants[kw] = kw
-		p := &keywords_constants[kw]
-		if _, dup := keywordsByName[kw.Value()]; dup {
-			panic("Multiple entries with same key: " + kw.Value())
-		}
-		keywordsByName[kw.Value()] = p
-		keywords_KEYWORDS_BY_TYPE[kw.Type()] = p
+	for i := range keywords_constants {
+		kw := Keywords(i)
+		keywords_constants[i] = kw
+		keywords_KEYWORDS_BY_TYPE[keywords_type[i]] = &keywords_constants[i]
 	}
-	keywords_KEYWORDS_BY_NAME = keywordsByName
 }
 
 // Keywords_values is Keywords.values().
@@ -221,14 +211,6 @@ func Keywords_IsStrictKeyword(token TokenType) bool {
 	default:
 		return false
 	}
-}
-
-// Keywords_GetTokenType returns the token type of keyword value (a Go nil
-// dereference, like Java's NPE, if value is not a keyword).
-//
-// Java: Keywords.getTokenType(String)
-func Keywords_GetTokenType(value string) TokenType {
-	return Keywords_Get(value).Type()
 }
 
 // Keywords_Get returns the keyword named value, or nil.

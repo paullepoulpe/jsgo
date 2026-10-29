@@ -39,6 +39,7 @@ import (
 	"io"
 	"slices"
 	"strconv"
+	"sync"
 
 	"github.com/paullepoulpe/jsgo/internal/jscomp"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
@@ -1014,11 +1015,9 @@ func buildUniqueLinkedMap[V any](entries []kvEntry[V]) *jutil.LinkedHashMap[stri
 // are swallowed if matched. Unexpected diagnostics are passed to the
 // delegate. At the end of compilation (when generateReport is called), any
 // unmatched expectations are reported as errors to the delegate.
-//
-// Its synchronized methods hold the object's monitor, which is the embedded
-// ThreadSafeDelegatingErrorManager's.
 type VerifyingErrorManager struct {
 	*jscomp.ThreadSafeDelegatingErrorManager
+	mu                    sync.Mutex
 	unmatchedExpectations []*jutil.Pattern
 	formatter             *jscomp.LightweightMessageFormatter
 }
@@ -1040,8 +1039,8 @@ func NewVerifyingErrorManager(delegate jscomp.ErrorManager, expectedDiagnostics 
 
 // Java: VerifyingErrorManager.report(CheckLevel, JSError)
 func (m *VerifyingErrorManager) Report(level *jscomp.CheckLevel, error *jscomp.JSError) {
-	m.LockMonitor()
-	defer m.UnlockMonitor()
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	formattedError := m.FormatErrorForMatching(level, error)
 
 	var matchedPattern *jutil.Pattern
@@ -1082,16 +1081,20 @@ func (m *VerifyingErrorManager) Report(level *jscomp.CheckLevel, error *jscomp.J
 
 // Java: VerifyingErrorManager.generateReport()
 func (m *VerifyingErrorManager) GenerateReport() {
-	m.LockMonitor()
-	defer m.UnlockMonitor()
-	m.ReportMissingExpectations()
+	m.mu.Lock()
+	m.reportMissingExpectationsLocked()
+	m.mu.Unlock()
 	m.ThreadSafeDelegatingErrorManager.GenerateReport()
 }
 
 // Java: VerifyingErrorManager.reportMissingExpectations()
 func (m *VerifyingErrorManager) ReportMissingExpectations() {
-	m.LockMonitor()
-	defer m.UnlockMonitor()
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.reportMissingExpectationsLocked()
+}
+
+func (m *VerifyingErrorManager) reportMissingExpectationsLocked() {
 	for _, p := range m.unmatchedExpectations {
 		m.ThreadSafeDelegatingErrorManager.Report(
 			jscomp.CheckLevel_ERROR.Ptr(),

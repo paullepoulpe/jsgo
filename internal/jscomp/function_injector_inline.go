@@ -35,12 +35,13 @@ import (
 // specified FUNCTION body, replacing and aliasing function parameters as
 // necessary.
 type FunctionInjector struct {
-	compiler               AbstractCompiler
-	allowDecomposition     bool
-	knownConstantFunctions map[string]bool
-	assumeStrictThis       bool
-	safeNameIdSupplier     func() string
-	throwawayNameSupplier  func() string
+	compiler              AbstractCompiler
+	allowDecomposition    bool
+	knownConstantFnIDs    map[uint32]struct{}
+	knownConstantQNames   map[string]struct{}
+	assumeStrictThis      bool
+	safeNameIdSupplier    func() string
+	throwawayNameSupplier func() string
 
 	functionArgumentInjector *FunctionArgumentInjector
 	mutator                  FunctionToBlockMutator
@@ -517,11 +518,12 @@ func functionInjector_simpleVarDecl(callNode rhino.Node) (ast.Name, bool) {
 // Java: FunctionInjector.getDecomposer(Scope)
 func (f *FunctionInjector) GetDecomposer(scope *Scope) *ExpressionDecomposer {
 	if f.decomposer == nil {
-		f.decomposer = f.compiler.CreateExpressionDecomposer(f.safeNameIdSupplier, f.knownConstantFunctions, scope)
+		f.decomposer = f.compiler.CreateExpressionDecomposer(f.safeNameIdSupplier, nil, scope)
 	} else {
 		f.decomposer.scope = scope
-		f.decomposer.knownConstantFunctions = f.knownConstantFunctions
 	}
+	f.decomposer.knownConstantFnIDs = f.knownConstantFnIDs
+	f.decomposer.knownConstantQNames = f.knownConstantQNames
 	return f.decomposer
 }
 
@@ -640,6 +642,36 @@ func removeConstantVarAnnotationByID(scope *Scope, id uint32) {
 func (f *FunctionInjector) SetKnownConstantFunctions(knownConstantFunctions map[string]bool) {
 	// This is only expected to be set once. The same set should be used
 	// when evaluating call-sites and inlining calls.
-	jutil.CheckState(len(f.knownConstantFunctions) == 0)
-	f.knownConstantFunctions = knownConstantFunctions
+	jutil.CheckState(len(f.knownConstantFnIDs) == 0 && len(f.knownConstantQNames) == 0)
+	f.knownConstantFnIDs, f.knownConstantQNames = internKnownConstantFunctions(knownConstantFunctions)
+}
+
+func (f *FunctionInjector) hasKnownConstantFunctions() bool {
+	return len(f.knownConstantFnIDs) > 0 || len(f.knownConstantQNames) > 0
+}
+
+func (f *FunctionInjector) setKnownConstantFunctionIDs(ids []uint32) {
+	jutil.CheckState(!f.hasKnownConstantFunctions())
+	if len(ids) == 0 {
+		return
+	}
+	m := make(map[uint32]struct{}, len(ids))
+	for _, id := range ids {
+		m[id] = struct{}{}
+	}
+	f.knownConstantFnIDs = m
+}
+
+func (f *FunctionInjector) shareKnownConstantFunctionsFrom(other *FunctionInjector) {
+	f.knownConstantFnIDs = other.knownConstantFnIDs
+	f.knownConstantQNames = other.knownConstantQNames
+}
+
+func (f *FunctionInjector) clearKnownConstantFunctions() {
+	f.knownConstantFnIDs = nil
+	f.knownConstantQNames = nil
+	if f.decomposer != nil {
+		f.decomposer.knownConstantFnIDs = nil
+		f.decomposer.knownConstantQNames = nil
+	}
 }

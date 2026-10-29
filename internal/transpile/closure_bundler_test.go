@@ -144,7 +144,7 @@ func TestClosureBundler_Es6Module(t *testing.T) {
 		"export {x as y};\n" +
 		"let local;\n" +
 		"export function foo() { return local; }\n"
-	bundler := NewClosureBundlerWithTranspiler(BaseTranspiler_LATEST_TRANSPILER).WithPath("nested/path/foo.js")
+	bundler := NewClosureBundlerWithTranspiler(LatestTranspiler()).WithPath("nested/path/foo.js")
 	sb := jutil.NewStringWriter()
 	bundler.AppendRuntimeTo(sb)
 	bundler.AppendTo(
@@ -178,7 +178,7 @@ func TestClosureBundler_Es6Module(t *testing.T) {
 
 func TestClosureBundler_PassThroughIfNoTranspilationNeeded(t *testing.T) {
 	input := "/** Hello Comments! */ const s = 0;\n  let intended;"
-	bundler := NewClosureBundlerWithTranspiler(BaseTranspiler_LATEST_TRANSPILER)
+	bundler := NewClosureBundlerWithTranspiler(LatestTranspiler())
 	sb := jutil.NewStringWriter()
 	bundler.AppendTo(sb, jscomp.SimpleDependencyInfo_Builder_("", "").Build(), input)
 	closureBundlerTest_assertEquals(t, sb.String(), input)
@@ -186,7 +186,7 @@ func TestClosureBundler_PassThroughIfNoTranspilationNeeded(t *testing.T) {
 
 func TestClosureBundler_CommentsAndFormattingRemovedWithTranspilation(t *testing.T) {
 	input := "/** Hello Comments! */ const s = 0;\n  let intended;"
-	bundler := NewClosureBundlerWithTranspiler(BaseTranspiler_ES5_TRANSPILER)
+	bundler := NewClosureBundlerWithTranspiler(ToEs5Transpiler())
 	sb := jutil.NewStringWriter()
 	bundler.AppendTo(sb, jscomp.SimpleDependencyInfo_Builder_("", "").Build(), input)
 	closureBundlerTest_assertEquals(t, sb.String(), "var s = 0;\nvar intended;\n")
@@ -206,7 +206,7 @@ func TestClosureBundler_FullWidthLowLineWithDefaultTranspilerIsOkay(t *testing.T
 func TestClosureBundler_FullWidthLowLineInTranspiledCodeIsError(t *testing.T) {
 	// The last character is something the compiler doesn't handle correctly
 	input := "let ａｅｓｔｈｅｔｉｃ＿"
-	bundler := NewClosureBundlerWithTranspiler(BaseTranspiler_ES5_TRANSPILER)
+	bundler := NewClosureBundlerWithTranspiler(ToEs5Transpiler())
 	sb := jutil.NewStringWriter()
 	thrown := false
 	jutil.Try(func() {

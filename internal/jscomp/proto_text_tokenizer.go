@@ -273,13 +273,14 @@ func (t *TextFormat_Tokenizer) TryConsume(token string) bool {
 }
 
 // Consume: if the next token exactly matches token, consume it. Otherwise,
-// throw a ParseException.
+// return a ParseException.
 //
 // Java: TextFormat.Tokenizer.consume(String)
-func (t *TextFormat_Tokenizer) Consume(token string) {
+func (t *TextFormat_Tokenizer) Consume(token string) *TextFormat_ParseException {
 	if !t.TryConsume(token) {
-		panic(t.ParseException("Expected \"" + token + "\"."))
+		return t.ParseException("Expected \"" + token + "\".")
 	}
+	return nil
 }
 
 // LookingAtInteger returns true if the next token is an integer, but does not
@@ -312,17 +313,17 @@ func (t *TextFormat_Tokenizer) isIdentifier() bool {
 }
 
 // ConsumeIdentifier: if the next token is an identifier, consume it and
-// return its value. Otherwise, throw a ParseException.
+// return its value. Otherwise, return a ParseException.
 //
 // Java: TextFormat.Tokenizer.consumeIdentifier()
-func (t *TextFormat_Tokenizer) ConsumeIdentifier() string {
+func (t *TextFormat_Tokenizer) ConsumeIdentifier() (string, *TextFormat_ParseException) {
 	if !t.isIdentifier() {
-		panic(t.ParseException("Expected identifier. Found '" + t.currentToken + "'"))
+		return "", t.ParseException("Expected identifier. Found '" + t.currentToken + "'")
 	}
 
 	result := t.currentToken
 	t.NextToken()
-	return result
+	return result, nil
 }
 
 // TryConsumeIdentifier: if the next token is an identifier, consume it and
@@ -338,42 +339,16 @@ func (t *TextFormat_Tokenizer) TryConsumeIdentifier() bool {
 }
 
 // ConsumeInt32: if the next token is a 32-bit signed integer, consume it and
-// return its value. Otherwise, throw a ParseException.
+// return its value. Otherwise, return a ParseException.
 //
 // Java: TextFormat.Tokenizer.consumeInt32()
-func (t *TextFormat_Tokenizer) ConsumeInt32() int32 {
+func (t *TextFormat_Tokenizer) ConsumeInt32() (int32, *TextFormat_ParseException) {
 	result, errMsg, ok := textFormat_parseInteger(t.currentToken, true, false)
 	if !ok {
-		panic(t.ParseException("Couldn't parse integer: " + errMsg))
+		return 0, t.ParseException("Couldn't parse integer: " + errMsg)
 	}
 	t.NextToken()
-	return int32(result)
-}
-
-// ConsumeUInt32: if the next token is a 32-bit unsigned integer, consume it
-// and return its value. Otherwise, throw a ParseException.
-//
-// Java: TextFormat.Tokenizer.consumeUInt32()
-func (t *TextFormat_Tokenizer) ConsumeUInt32() int32 {
-	result, errMsg, ok := textFormat_parseInteger(t.currentToken, false, false)
-	if !ok {
-		panic(t.ParseException("Couldn't parse integer: " + errMsg))
-	}
-	t.NextToken()
-	return int32(result)
-}
-
-// ConsumeInt64: if the next token is a 64-bit signed integer, consume it and
-// return its value. Otherwise, throw a ParseException.
-//
-// Java: TextFormat.Tokenizer.consumeInt64()
-func (t *TextFormat_Tokenizer) ConsumeInt64() int64 {
-	result, errMsg, ok := textFormat_parseInteger(t.currentToken, true, true)
-	if !ok {
-		panic(t.ParseException("Couldn't parse integer: " + errMsg))
-	}
-	t.NextToken()
-	return result
+	return int32(result), nil
 }
 
 // TryConsumeInt64: if the next token is a 64-bit signed integer, consume it
@@ -386,19 +361,6 @@ func (t *TextFormat_Tokenizer) TryConsumeInt64() bool {
 	}
 	t.NextToken()
 	return true
-}
-
-// ConsumeUInt64: if the next token is a 64-bit unsigned integer, consume it
-// and return its value. Otherwise, throw a ParseException.
-//
-// Java: TextFormat.Tokenizer.consumeUInt64()
-func (t *TextFormat_Tokenizer) ConsumeUInt64() int64 {
-	result, errMsg, ok := textFormat_parseInteger(t.currentToken, false, true)
-	if !ok {
-		panic(t.ParseException("Couldn't parse integer: " + errMsg))
-	}
-	t.NextToken()
-	return result
 }
 
 // TryConsumeUInt64: if the next token is a 64-bit unsigned integer, consume
@@ -425,19 +387,6 @@ func (t *TextFormat_Tokenizer) parseDoubleToken() (float64, string, bool) {
 		return jutil.Double_NaN, "", true
 	}
 	return textFormat_parseJavaDouble(t.currentToken)
-}
-
-// ConsumeDouble: if the next token is a double, consume it and return its
-// value. Otherwise, throw a ParseException.
-//
-// Java: TextFormat.Tokenizer.consumeDouble()
-func (t *TextFormat_Tokenizer) ConsumeDouble() float64 {
-	result, errMsg, ok := t.parseDoubleToken()
-	if !ok {
-		panic(t.ParseException("Couldn't parse number: " + errMsg))
-	}
-	t.NextToken()
-	return result
 }
 
 // TryConsumeDouble: if the next token is a double, consume it and return
@@ -470,24 +419,6 @@ func (t *TextFormat_Tokenizer) parseFloatToken() (float32, string, bool) {
 	return float32(v), "", true
 }
 
-// ConsumeFloat: if the next token is a float, consume it and return its
-// value. Otherwise, throw a ParseException.
-//
-// Go-only: language-adapter — Float.parseFloat accepts exactly the strings
-// that Double.parseDouble accepts; the value is computed by parsing as a
-// double and rounding to float32 (no reconstructed message has a float
-// field, and the parser only uses this to skip unknown fields).
-//
-// Java: TextFormat.Tokenizer.consumeFloat()
-func (t *TextFormat_Tokenizer) ConsumeFloat() float32 {
-	result, errMsg, ok := t.parseFloatToken()
-	if !ok {
-		panic(t.ParseException("Couldn't parse number: " + errMsg))
-	}
-	t.NextToken()
-	return result
-}
-
 // TryConsumeFloat: if the next token is a float, consume it and return true.
 // Otherwise, return false without doing anything.
 //
@@ -501,50 +432,57 @@ func (t *TextFormat_Tokenizer) TryConsumeFloat() bool {
 }
 
 // ConsumeBoolean: if the next token is a boolean, consume it and return its
-// value. Otherwise, throw a ParseException.
+// value. Otherwise, return a ParseException.
 //
 // Java: TextFormat.Tokenizer.consumeBoolean()
-func (t *TextFormat_Tokenizer) ConsumeBoolean() bool {
+func (t *TextFormat_Tokenizer) ConsumeBoolean() (bool, *TextFormat_ParseException) {
 	if t.currentToken == "true" ||
 		t.currentToken == "True" ||
 		t.currentToken == "t" ||
 		t.currentToken == "1" {
 		t.NextToken()
-		return true
+		return true, nil
 	} else if t.currentToken == "false" ||
 		t.currentToken == "False" ||
 		t.currentToken == "f" ||
 		t.currentToken == "0" {
 		t.NextToken()
-		return false
-	} else {
-		panic(t.ParseException("Expected \"true\" or \"false\". Found \"" + t.currentToken + "\"."))
+		return false, nil
 	}
+	return false, t.ParseException("Expected \"true\" or \"false\". Found \"" + t.currentToken + "\".")
 }
 
 // ConsumeString: if the next token is a string, consume it and return its
-// (unescaped) value. Otherwise, throw a ParseException.
+// (unescaped) value. Otherwise, return a ParseException.
 //
 // Java: TextFormat.Tokenizer.consumeString()
-func (t *TextFormat_Tokenizer) ConsumeString() string {
-	return jutil.NewStringFromUTF8Bytes(t.ConsumeByteString())
+func (t *TextFormat_Tokenizer) ConsumeString() (string, *TextFormat_ParseException) {
+	b, err := t.ConsumeByteString()
+	if err != nil {
+		return "", err
+	}
+	return jutil.NewStringFromUTF8Bytes(b), nil
 }
 
 // ConsumeByteString: if the next token is a string, consume it, unescape it
-// as a ByteString, and return it. Otherwise, throw a ParseException.
+// as a ByteString, and return it. Otherwise, return a ParseException.
 //
 // Java: TextFormat.Tokenizer.consumeByteString()
-func (t *TextFormat_Tokenizer) ConsumeByteString() []byte {
+func (t *TextFormat_Tokenizer) ConsumeByteString() ([]byte, *TextFormat_ParseException) {
 	list := [][]byte{}
-	t.consumeByteStringInto(&list)
+	if err := t.consumeByteStringInto(&list); err != nil {
+		return nil, err
+	}
 	for strings.HasPrefix(t.currentToken, "'") || strings.HasPrefix(t.currentToken, "\"") {
-		t.consumeByteStringInto(&list)
+		if err := t.consumeByteStringInto(&list); err != nil {
+			return nil, err
+		}
 	}
 	var result []byte
 	for _, b := range list {
 		result = append(result, b...)
 	}
-	return result
+	return result, nil
 }
 
 // TryConsumeByteString: if the next token is a string, consume it and return
@@ -571,13 +509,14 @@ func (t *TextFormat_Tokenizer) TryConsumeByteString() bool {
 // C or Python.
 //
 // Java: TextFormat.Tokenizer.consumeByteString(List<ByteString>)
-func (t *TextFormat_Tokenizer) consumeByteStringInto(list *[][]byte) {
+func (t *TextFormat_Tokenizer) consumeByteStringInto(list *[][]byte) *TextFormat_ParseException {
 	result, errMsg, ok := t.parseByteStringToken()
 	if !ok {
-		panic(t.ParseException(errMsg))
+		return t.ParseException(errMsg)
 	}
 	t.NextToken()
 	*list = append(*list, result)
+	return nil
 }
 
 func (t *TextFormat_Tokenizer) parseByteStringToken() ([]byte, string, bool) {

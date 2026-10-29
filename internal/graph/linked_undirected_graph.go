@@ -44,36 +44,6 @@ type LinkedUndirectedGraph[N, E comparable] struct {
 	useEdgeAnnotations bool
 }
 
-type linkedUndirectedSubGraph[N, E comparable] struct {
-	graph *LinkedUndirectedGraph[N, E]
-	nodes []*LinkedUndirectedGraphNode[N, E]
-	buf   [8]*LinkedUndirectedGraphNode[N, E]
-}
-
-// Java: LinkedUndirectedGraph.newSubGraph()
-func (g *LinkedUndirectedGraph[N, E]) NewSubGraph() SubGraph[N, E] {
-	s := &linkedUndirectedSubGraph[N, E]{graph: g}
-	s.nodes = s.buf[:0]
-	return s
-}
-
-func (s *linkedUndirectedSubGraph[N, E]) IsIndependentOf(value N) bool {
-	node := s.graph.Nodes.Get(value)
-	if node == nil || len(node.NeighborEdges) == 0 {
-		return true
-	}
-	for _, n := range s.nodes {
-		if s.graph.IsConnectedNodesAny(n, node) {
-			return false
-		}
-	}
-	return true
-}
-
-func (s *linkedUndirectedSubGraph[N, E]) AddNode(value N) {
-	s.nodes = append(s.nodes, s.graph.getLinkedNodeOrFail(value))
-}
-
 // Java: LinkedUndirectedGraph.create()
 func LinkedUndirectedGraph_Create[N, E comparable]() *LinkedUndirectedGraph[N, E] {
 	return NewLinkedUndirectedGraph[N, E](true, true)
@@ -171,16 +141,6 @@ func (g *LinkedUndirectedGraph[N, E]) Disconnect(srcValue N, destValue N) {
 	}
 }
 
-// CreateLinkedNode returns or creates the concrete linked undirected graph node for nodeValue.
-func (g *LinkedUndirectedGraph[N, E]) CreateLinkedNode(nodeValue N) *LinkedUndirectedGraphNode[N, E] {
-	if n := g.Nodes.Get(nodeValue); n != nil {
-		return n
-	}
-	n := g.allocNode(nodeValue)
-	g.Nodes.PutNew(nodeValue, n)
-	return n
-}
-
 // Java: LinkedUndirectedGraph.getNeighborNodes(N)
 func (g *LinkedUndirectedGraph[N, E]) GetNeighborNodes(value N) []*LinkedUndirectedGraphNode[N, E] {
 	uNode := g.Nodes.Get(value)
@@ -214,7 +174,12 @@ func (g *LinkedUndirectedGraph[N, E]) GetUndirectedGraphEdges(n1 N, n2 N) []*Lin
 
 // Java: LinkedUndirectedGraph.createNode(N)
 func (g *LinkedUndirectedGraph[N, E]) CreateNode(value N) *LinkedUndirectedGraphNode[N, E] {
-	return g.CreateLinkedNode(value)
+	if n := g.Nodes.Get(value); n != nil {
+		return n
+	}
+	n := g.allocNode(value)
+	g.Nodes.PutNew(value, n)
+	return n
 }
 
 // GetEdgesBetween panics with a NullPointerException when either node is

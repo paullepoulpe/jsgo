@@ -19,14 +19,20 @@
 package jscomp
 
 import (
+	"github.com/paullepoulpe/jsgo/internal/ast"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 	"github.com/paullepoulpe/jsgo/internal/strpool"
 )
 
 var (
-	gatherPropGetID = uint32(strpool.Intern("get"))
-	gatherPropSetID = uint32(strpool.Intern("set"))
+	gatherPropGetID           = uint32(strpool.Intern("get"))
+	gatherPropSetID           = uint32(strpool.Intern("set"))
+	gatherCallbackVisitTokens = makeVisitTokenSet(
+		rhino.Token_GETTER_DEF,
+		rhino.Token_SETTER_DEF,
+		rhino.Token_CALL,
+	)
 )
 
 // GatherGetterAndSetterProperties finds getter and setter properties in the
@@ -140,7 +146,16 @@ type GatherGetterAndSetterProperties_GatherCallback struct {
 	entries []accessorIDEntry
 }
 
+var (
+	_ nodeTraversal_noVisitLeaves = (*GatherGetterAndSetterProperties_GatherCallback)(nil)
+	_ nodeTraversal_visitTokens   = (*GatherGetterAndSetterProperties_GatherCallback)(nil)
+)
+
 func (*GatherGetterAndSetterProperties_GatherCallback) noVisitLeaves() {}
+
+func (*GatherGetterAndSetterProperties_GatherCallback) visitTokens() *ast.TokenSet {
+	return &gatherCallbackVisitTokens
+}
 
 // Java: GatherCallback()
 func NewGatherGetterAndSetterProperties_GatherCallback() *GatherGetterAndSetterProperties_GatherCallback {

@@ -204,9 +204,14 @@ func (t *InstanceObjectType) AppendTo(sb *TypeStringBuilder) {
 	sb.Append(name)
 }
 
+func (t *InstanceObjectType) isNativeClass(name string) bool {
+	c := t.constructor
+	return (c.protoFlags&protoFlagNative) != 0 && c.classNameID != 0 && rhinoStringFromID(c.classNameID) == name
+}
+
 // Java: InstanceObjectType.isTheObjectType()
 func (t *InstanceObjectType) IsTheObjectType() bool {
-	return t.GetConstructor().IsNativeObjectType() && jsTypeStringEquals("Object", t.GetReferenceName())
+	return t.isNativeClass("Object")
 }
 
 // Java: InstanceObjectType.isInstanceType()
@@ -216,47 +221,47 @@ func (t *InstanceObjectType) IsInstanceType() bool {
 
 // Java: InstanceObjectType.isArrayType()
 func (t *InstanceObjectType) IsArrayType() bool {
-	return t.GetConstructor().IsNativeObjectType() && jsTypeStringEquals("Array", t.GetReferenceName())
+	return t.isNativeClass("Array")
 }
 
 // Java: InstanceObjectType.isReadonlyArrayType()
 func (t *InstanceObjectType) IsReadonlyArrayType() bool {
-	return t.GetConstructor().IsNativeObjectType() && jsTypeStringEquals("ReadonlyArray", t.GetReferenceName())
+	return t.isNativeClass("ReadonlyArray")
 }
 
 // Java: InstanceObjectType.isBigIntObjectType()
 func (t *InstanceObjectType) IsBigIntObjectType() bool {
-	return t.GetConstructor().IsNativeObjectType() && jsTypeStringEquals("BigInt", t.GetReferenceName())
+	return t.isNativeClass("BigInt")
 }
 
 // Java: InstanceObjectType.isStringObjectType()
 func (t *InstanceObjectType) IsStringObjectType() bool {
-	return t.GetConstructor().IsNativeObjectType() && jsTypeStringEquals("String", t.GetReferenceName())
+	return t.isNativeClass("String")
 }
 
 // Java: InstanceObjectType.isSymbolObjectType()
 func (t *InstanceObjectType) IsSymbolObjectType() bool {
-	return t.GetConstructor().IsNativeObjectType() && jsTypeStringEquals("Symbol", t.GetReferenceName())
+	return t.isNativeClass("Symbol")
 }
 
 // Java: InstanceObjectType.isBooleanObjectType()
 func (t *InstanceObjectType) IsBooleanObjectType() bool {
-	return t.GetConstructor().IsNativeObjectType() && jsTypeStringEquals("Boolean", t.GetReferenceName())
+	return t.isNativeClass("Boolean")
 }
 
 // Java: InstanceObjectType.isNumberObjectType()
 func (t *InstanceObjectType) IsNumberObjectType() bool {
-	return t.GetConstructor().IsNativeObjectType() && jsTypeStringEquals("Number", t.GetReferenceName())
+	return t.isNativeClass("Number")
 }
 
 // Java: InstanceObjectType.isDateType()
 func (t *InstanceObjectType) IsDateType() bool {
-	return t.GetConstructor().IsNativeObjectType() && jsTypeStringEquals("Date", t.GetReferenceName())
+	return t.isNativeClass("Date")
 }
 
 // Java: InstanceObjectType.isRegexpType()
 func (t *InstanceObjectType) IsRegexpType() bool {
-	return t.GetConstructor().IsNativeObjectType() && jsTypeStringEquals("RegExp", t.GetReferenceName())
+	return t.isNativeClass("RegExp")
 }
 
 // Java: InstanceObjectType.isNominalType()

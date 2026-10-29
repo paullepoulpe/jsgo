@@ -85,11 +85,9 @@ func (c cliParityCase) runHere(t *testing.T) {
 }
 
 // A diagnostic in a file whose sourceMappingURL names a missing map: while
-// the synchronized ThreadSafeDelegatingErrorManager.generateReport formats
-// it, the compiler looks the position up in that input source map, fails to
-// load it and reports SOURCEMAP_RESOLVE_FAILED through the same error
-// manager. Java's monitors are re-entrant (jutil.Monitor); a sync.Mutex
-// deadlocked here.
+// ThreadSafeDelegatingErrorManager.generateReport formats it, the compiler
+// looks the position up in that input source map, fails to load it and
+// reports SOURCEMAP_RESOLVE_FAILED through the same error manager.
 func TestCliParity_ReportWhileGeneratingReport(t *testing.T) {
 	cliParityCase{
 		files: map[string]string{"in.js": "var x = y;\n//# sourceMappingURL=in.js.map\n"},

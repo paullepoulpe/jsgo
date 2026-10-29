@@ -323,6 +323,10 @@ func (f *SourceFile) getCode() (string, jutil.IIOException) {
 	switch l := f.loader.(type) {
 	case *SourceFile_CodeLoader_Preloaded:
 		raw = l.preloadedCode
+	case *sourceFile_CodeLoader_Reloadable:
+		raw = l.load()
+	case *sourceFile_CodeLoader_InlineBase64:
+		raw = l.LoadUncachedCode()
 	case *SourceFile_CodeLoader_OnDisk:
 		var err jutil.IIOException
 		raw, err = l.loadCode()

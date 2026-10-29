@@ -65,6 +65,7 @@ type Es6RewriteModules struct {
 
 	requireRewriter       es6RewriteRequiresForEs6Modules
 	moduleRequireRewriter es6RewriteModuleRequiresCallback
+	inlineAliasesCallback es6RewriteInlineAliasesCallback
 	globalVarRenamer      es6RenameGlobalVars
 }
 
@@ -146,6 +147,7 @@ func NewEs6RewriteModulesWithChunkOutputType(
 	}
 	e.requireRewriter.pass = e
 	e.moduleRequireRewriter.pass = e
+	e.inlineAliasesCallback.pass = e
 	e.globalVarRenamer.pass = e
 	return e
 }
@@ -637,33 +639,38 @@ func (r *es6RewriteModuleRequiresCallback) Visit(t *NodeTraversal, n rhino.Node,
 	}
 }
 
+type es6RewriteInlineAliasesCallback struct {
+	NodeTraversal_AbstractPostOrderCallbackBase
+
+	pass *Es6RewriteModules
+}
+
+func (r *es6RewriteInlineAliasesCallback) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
+	e := r.pass
+	if info := n.GetJSDocInfo(); info != nil {
+		for it := info.TypeExprIter(); it.Next(); {
+			e.inlineAliasedTypes(t, it.Node())
+		}
+	}
+
+	if nm, ok := ast.AsName(n); ok {
+		ident := nm.Ident()
+		if replacementName, found := e.namesToInlineByAlias[ident]; found {
+			v := t.GetScope().GetVarByNode(n)
+			if v == nil || v.GetNameNode() != n {
+				replacement := replacementName.ToQname(e.astFactory).SrcrefTree(n)
+				n.ReplaceWith(replacement)
+			}
+		}
+	}
+}
+
 func (e *Es6RewriteModules) rewriteRequires(script rhino.Node) {
 	NodeTraversal_Traverse(e.compiler, script, &e.moduleRequireRewriter)
 	if len(e.namesToInlineByAlias) == 0 {
 		return
 	}
-	NodeTraversal_Builder_().
-		SetCompiler(e.compiler).
-		SetCallbackFunc(
-			func(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
-				if info := n.GetJSDocInfo(); info != nil {
-					for it := info.TypeExprIter(); it.Next(); {
-						e.inlineAliasedTypes(t, it.Node())
-					}
-				}
-
-				if nm, ok := ast.AsName(n); ok {
-					ident := nm.Ident()
-					if replacementName, found := e.namesToInlineByAlias[ident]; found {
-						v := t.GetScope().GetVarByNode(n)
-						if v == nil || v.GetNameNode() != n {
-							replacement := replacementName.ToQname(e.astFactory).SrcrefTree(n)
-							n.ReplaceWith(replacement)
-						}
-					}
-				}
-			}).
-		Traverse(script)
+	NodeTraversal_Traverse(e.compiler, script, &e.inlineAliasesCallback)
 }
 
 func (e *Es6RewriteModules) inlineAliasedTypes(t *NodeTraversal, typeNode rhino.Node) {

@@ -88,161 +88,6 @@ func (f *InlineFunctions) findCandidateFunctionsParallel(root rhino.Node) bool {
 	return true
 }
 
-type ifPhase2EventKind uint8
-
-const (
-	ifEvAddRef ifPhase2EventKind = iota + 1
-	ifEvUninlinableCall
-	ifEvDisallowReassigned
-	ifEvUnremovableConst
-	ifEvUnremovableContext
-)
-
-type ifPhase2Event struct {
-	kind                  ifPhase2EventKind
-	fs                    *InlineFunctions_FunctionState
-	node                  rhino.Node
-	scope                 *Scope
-	chunk                 *JSChunk
-	mode                  FunctionInjector_InliningMode
-	requiresDecomposition bool
-	safeIdsConsumed       uint32
-}
-
-type ifPhase2RefCallback struct {
-	visitor              inlineCallVisitor
-	fnByID               map[uint32]*InlineFunctions_FunctionState
-	outer                *InlineFunctions
-	injector             *FunctionInjector
-	safeIdsCounter       int
-	scratchRef           FunctionInjector_Reference
-	lastContainingFn     rhino.Node
-	lastContainingFnSize int
-	localDisallowed      map[*InlineFunctions_FunctionState]struct{}
-	events               []ifPhase2Event
-}
-
-var (
-	_ nodeTraversal_visitTokens      = (*ifPhase2RefCallback)(nil)
-	_ nodeTraversal_onlyNameLeaves   = (*ifPhase2RefCallback)(nil)
-	_ nodeTraversal_noShouldTraverse = (*ifPhase2RefCallback)(nil)
-)
-
-func (*ifPhase2RefCallback) ShouldTraverse(*NodeTraversal, rhino.Node, rhino.Node) bool { return true }
-func (*ifPhase2RefCallback) nodeTraversalNoShouldTraverse()                             {}
-func (*ifPhase2RefCallback) onlyNameLeaves()                                            {}
-func (*ifPhase2RefCallback) visitTokens() *ast.TokenSet                                 { return &inlineCallAndNameVisitTokens }
-
-func (r *ifPhase2RefCallback) isDisallowed(fs *InlineFunctions_FunctionState) bool {
-	if !fs.CanInline() {
-		return true
-	}
-	if r.localDisallowed != nil {
-		_, ok := r.localDisallowed[fs]
-		return ok
-	}
-	return false
-}
-
-func (r *ifPhase2RefCallback) targetSizeExceedsLimit(t *NodeTraversal, fs *InlineFunctions_FunctionState) bool {
-	return inlineTargetSizeExceedsLimit(
-		t, fs, r.outer.maxSizeAfterInlining, &r.lastContainingFn, &r.lastContainingFnSize, false)
-}
-
-func (r *ifPhase2RefCallback) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
-	switch n.GetToken() {
-	case rhino.Token_NAME:
-		r.checkNameUsage(n, parent)
-	case rhino.Token_OPTCHAIN_CALL, rhino.Token_CALL:
-		r.visitor.visitCallNode(t, n)
-	}
-}
-
-func (r *ifPhase2RefCallback) VisitCallSite(t *NodeTraversal, callNode rhino.Node, functionState *InlineFunctions_FunctionState) {
-	if r.isDisallowed(functionState) {
-		return
-	}
-	chunk := t.GetChunk()
-	mode := FunctionInjector_InliningMode_BLOCK
-	if functionState.CanInlineDirectly() {
-		mode = FunctionInjector_InliningMode_DIRECT
-	}
-	beforeIds := r.safeIdsCounter
-	added, scope, reqDecomp, usedMode := r.tryMode(t, functionState, callNode, chunk, mode)
-	if !added && mode == FunctionInjector_InliningMode_DIRECT {
-		added, scope, reqDecomp, usedMode = r.tryMode(t, functionState, callNode, chunk, FunctionInjector_InliningMode_BLOCK)
-	}
-	consumed := uint32(r.safeIdsCounter - beforeIds)
-	if added {
-		r.events = append(r.events, ifPhase2Event{
-			kind:                  ifEvAddRef,
-			fs:                    functionState,
-			node:                  callNode,
-			scope:                 scope,
-			chunk:                 chunk,
-			mode:                  usedMode,
-			requiresDecomposition: reqDecomp,
-			safeIdsConsumed:       consumed,
-		})
-	} else {
-		r.events = append(r.events, ifPhase2Event{
-			kind:            ifEvUninlinableCall,
-			fs:              functionState,
-			node:            callNode,
-			safeIdsConsumed: consumed,
-		})
-	}
-}
-
-func (r *ifPhase2RefCallback) tryMode(
-	t *NodeTraversal,
-	functionState *InlineFunctions_FunctionState,
-	callNode rhino.Node,
-	chunk *JSChunk,
-	mode FunctionInjector_InliningMode,
-) (bool, *Scope, bool, FunctionInjector_InliningMode) {
-	if r.outer.enforceMaxSizeAfterInlining && r.targetSizeExceedsLimit(t, functionState) {
-		return false, nil, false, mode
-	}
-	ok, scope, reqDecomp := inlineCheckCallSiteWithMode(
-		t, r.injector, &r.scratchRef, functionState, functionState.readOnlySummary(), callNode, chunk, mode)
-	return ok, scope, reqDecomp, mode
-}
-
-func (r *ifPhase2RefCallback) checkNameUsage(n rhino.Node, parent rhino.Node) {
-	jutil.CheckStateMsg1(n.IsName(), "%s", n)
-
-	id := n.GetStringID()
-	if id == rhino.RhinoStringPool_EmptyID {
-		return
-	}
-	functionState := r.fnByID[id]
-	if functionState == nil || InlineFunctions_IsCandidateUsage(n) {
-		return
-	}
-	if NodeUtil_IsLValue(n) {
-		if r.localDisallowed == nil {
-			r.localDisallowed = make(map[*InlineFunctions_FunctionState]struct{}, 4)
-		}
-		r.localDisallowed[functionState] = struct{}{}
-		r.events = append(r.events, ifPhase2Event{
-			kind: ifEvDisallowReassigned,
-			fs:   functionState,
-		})
-	} else if inlineFunctions_isConstAlias(n, parent) {
-		r.events = append(r.events, ifPhase2Event{
-			kind: ifEvUnremovableConst,
-			fs:   functionState,
-		})
-	} else {
-		r.events = append(r.events, ifPhase2Event{
-			kind: ifEvUnremovableContext,
-			fs:   functionState,
-			node: parent,
-		})
-	}
-}
-
 func (f *InlineFunctions) findCandidatesReferencesParallel(root rhino.Node) bool {
 	scripts, ok := collectRootScripts(root)
 	if !ok {
@@ -272,7 +117,7 @@ func (f *InlineFunctions) findCandidatesReferencesParallel(root rhino.Node) bool
 	ifEventsByScript := make([][]ifPhase2Event, len(scripts))
 	runParallelWork(f.compiler, numWorkers, len(scripts), func(workerID int) (func(int, *recordingCompiler), func()) {
 		var workerRC *recordingCompiler
-		var cb *ifPhase2RefCallback
+		var cb *inlineRefCollector
 		var sc *SyntacticScopeCreator
 
 		cleanup := func() {
@@ -288,12 +133,7 @@ func (f *InlineFunctions) findCandidatesReferencesParallel(root rhino.Node) bool
 		runItem := func(idx int, rc *recordingCompiler) {
 			if cb == nil || workerRC != rc {
 				workerRC = rc
-				cb = &ifPhase2RefCallback{outer: f, fnByID: f.namedFns}
-				cb.visitor = inlineCallVisitor{
-					namedFns:   f.namedFns,
-					anonFns:    f.anonFns,
-					onCallSite: cb.VisitCallSite,
-				}
+				cb = &inlineRefCollector{}
 				localSafeSupplier := func() string {
 					id := cb.safeIdsCounter
 					cb.safeIdsCounter++
@@ -301,24 +141,21 @@ func (f *InlineFunctions) findCandidatesReferencesParallel(root rhino.Node) bool
 				}
 				argInj := NewFunctionArgumentInjector(f.compiler.GetAstAnalyzer())
 				argInj.readOnlySummaries = true
-				injBuilder := NewFunctionInjector_Builder(rc).
+				inj := NewFunctionInjector_Builder(rc).
 					SafeNameIdSupplier(localSafeSupplier).
 					AllowDecomposition(f.injector.allowDecomposition).
 					AssumeStrictThis(f.injector.assumeStrictThis).
-					FunctionArgumentInjector(argInj)
-				cb.injector = injBuilder.Build()
-				cb.injector.SetKnownConstantFunctions(f.injector.knownConstantFunctions)
+					FunctionArgumentInjector(argInj).
+					Build()
+				inj.shareKnownConstantFunctionsFrom(f.injector)
+				cb.initParallel(f, inj)
 				sc = NewSyntacticScopeCreator(rc)
 			} else {
-				cb.events = nil
-				cb.lastContainingFn = rhino.NilNode
-				if cb.localDisallowed != nil {
-					clear(cb.localDisallowed)
-				}
+				cb.resetForScript()
 			}
 			b := NodeTraversal_Builder{
 				compiler:     rc,
-				callback:     cb,
+				callback:     &cb.visitor,
 				scopeCreator: sc,
 			}
 			b.traverseScriptUnderRoot(root, root, scripts[idx], lazyGlobal)
@@ -328,50 +165,7 @@ func (f *InlineFunctions) findCandidatesReferencesParallel(root rhino.Node) bool
 	}, false)
 
 	for idx := range ifEventsByScript {
-		events := ifEventsByScript[idx]
-		for i := range events {
-			ev := &events[i]
-			switch ev.kind {
-			case ifEvAddRef:
-				if !ev.fs.CanInline() {
-					continue
-				}
-				for k := uint32(0); k < ev.safeIdsConsumed; k++ {
-					_ = f.injector.safeNameIdSupplier()
-				}
-				candidate := f.allocReference(ev.node, ev.scope, ev.chunk, ev.mode)
-				candidate.SetRequiresDecomposition(ev.requiresDecomposition)
-				ev.fs.AddReference(candidate)
-			case ifEvUninlinableCall:
-				if !ev.fs.CanInline() {
-					continue
-				}
-				for k := uint32(0); k < ev.safeIdsConsumed; k++ {
-					_ = f.injector.safeNameIdSupplier()
-				}
-				ev.fs.SetRemoveWithContext(
-					false,
-					f.compiler,
-					InlineFunctions_CannotRemoveReason_UNINLINABLE_REFERENCE,
-					InlineFunctions_ShouldWarnWhenRequireInliningCannotInline_NO,
-					ev.node)
-			case ifEvDisallowReassigned:
-				ev.fs.DisallowInlining(f.compiler, InlineFunctions_DisallowInliningReason_REASSIGNED)
-			case ifEvUnremovableConst:
-				ev.fs.SetRemove(
-					false,
-					f.compiler,
-					InlineFunctions_CannotRemoveReason_UNREMOVABLE_REFERENCE,
-					InlineFunctions_ShouldWarnWhenRequireInliningCannotInline_NO)
-			case ifEvUnremovableContext:
-				ev.fs.SetRemoveWithContext(
-					false,
-					f.compiler,
-					InlineFunctions_CannotRemoveReason_UNREMOVABLE_REFERENCE,
-					InlineFunctions_ShouldWarnWhenRequireInliningCannotInline_YES,
-					ev.node)
-			}
-		}
+		f.replayPhase2Events(ifEventsByScript[idx])
 	}
 
 	for _, cache := range workerFnCaches {

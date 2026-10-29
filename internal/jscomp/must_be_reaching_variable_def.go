@@ -55,9 +55,9 @@ type MustBeReachingVariableDef struct {
 	compiler     AbstractCompiler
 	vars         []*Var
 	idByNameID   map[uint32]int
-	escapedBits  dfaBitSet
-	paramBits    dfaBitSet
-	catchBits    dfaBitSet
+	escapedBits  inlineBitSet
+	paramBits    inlineBitSet
+	catchBits    inlineBitSet
 	hasParams    bool
 	hasCatchVars bool
 
@@ -377,7 +377,7 @@ func (d *MustBeReachingVariableDef) ResolveVarID(v *Var) (int, bool) {
 }
 
 func (d *MustBeReachingVariableDef) hasDependentNameID(def *MustBeReachingVariableDef_Definition, nameID uint32) bool {
-	if def == nil || def.deps.isEmpty() {
+	if def == nil || def.deps.IsEmpty() {
 		return false
 	}
 	id, ok := d.lookupVarIDByStringID(nameID)
@@ -476,7 +476,7 @@ func (d *MustBeReachingVariableDef) ensureMutableDefs(def *MustBeReachingVariabl
 // depending set would be {b,c}.
 type MustBeReachingVariableDef_Definition struct {
 	node                rhino.Node
-	deps                dfaBitSet
+	deps                inlineBitSet
 	unknownDependencies bool
 }
 
@@ -487,7 +487,7 @@ func NewMustBeReachingVariableDef_Definition(node rhino.Node) *MustBeReachingVar
 
 // HasDependencies reports whether this definition reads any local variables.
 func (d *MustBeReachingVariableDef_Definition) HasDependencies() bool {
-	return !d.deps.isEmpty()
+	return !d.deps.IsEmpty()
 }
 
 // DependsOnVarID reports whether this definition reads local variable id.
@@ -498,7 +498,7 @@ func (d *MustBeReachingVariableDef_Definition) DependsOnVarID(id int) bool {
 // ContainsAllDependencies reports whether this definition reads every local
 // variable read by other.
 func (d *MustBeReachingVariableDef_Definition) ContainsAllDependencies(other *MustBeReachingVariableDef_Definition) bool {
-	return d.deps.containsAll(&other.deps)
+	return d.deps.ContainsAll(&other.deps)
 }
 
 // Java: MustBeReachingVariableDef.Definition.equals(Object)
@@ -861,7 +861,7 @@ func hasDependent(defs []*MustBeReachingVariableDef_Definition, id int) bool {
 	wi := (id - 128) >> 6
 	bit := uint64(1) << ((id - 128) & 63)
 	for _, otherDef := range defs {
-		if otherDef != nil && wi < len(otherDef.deps.extra) && otherDef.deps.extra[wi]&bit != 0 {
+		if otherDef != nil && wi < len(otherDef.deps.ext) && otherDef.deps.ext[wi]&bit != 0 {
 			return true
 		}
 	}
@@ -890,7 +890,7 @@ func invalidateDependents(defs []*MustBeReachingVariableDef_Definition, id int) 
 	wi := (id - 128) >> 6
 	bit := uint64(1) << ((id - 128) & 63)
 	for i, otherDef := range defs {
-		if otherDef != nil && wi < len(otherDef.deps.extra) && otherDef.deps.extra[wi]&bit != 0 {
+		if otherDef != nil && wi < len(otherDef.deps.ext) && otherDef.deps.ext[wi]&bit != 0 {
 			defs[i] = &mustDefBottom
 		}
 	}
@@ -946,19 +946,14 @@ func (d *MustBeReachingVariableDef) EscapeParameters(output *MustBeReachingVaria
 		return
 	}
 	defs := d.ensureMutableDefs(output)
-	d.paramBits.forEach(func(id int) {
+	d.paramBits.ForEach(func(id int) {
 		defs[id] = &mustDefBottom
 	})
 	for i, val := range defs {
-		if val != nil && val.deps.intersects(&d.paramBits) {
+		if val != nil && val.deps.Intersects(&d.paramBits) {
 			defs[i] = &mustDefBottom
 		}
 	}
-}
-
-// Java: MustBeReachingVariableDef.isParameter(Var)
-func MustBeReachingVariableDef_IsParameter(v *Var) bool {
-	return v.IsParam()
 }
 
 func (d *MustBeReachingVariableDef) recordDependenceID(def *MustBeReachingVariableDef_Definition, nameID uint32) {
@@ -1068,5 +1063,5 @@ func (d *MustBeReachingVariableDef) DependsOnOuterScopeVars(def *MustBeReachingV
 	if !d.hasCatchVars {
 		return false
 	}
-	return def.deps.intersects(&d.catchBits)
+	return def.deps.Intersects(&d.catchBits)
 }

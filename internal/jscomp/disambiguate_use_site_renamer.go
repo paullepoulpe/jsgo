@@ -25,6 +25,7 @@ import (
 	"strconv"
 
 	"github.com/paullepoulpe/jsgo/internal/rhino"
+	"github.com/paullepoulpe/jsgo/internal/strpool"
 )
 
 // UseSiteRenamer applies renaming to property use sites following cluster
@@ -33,11 +34,11 @@ type UseSiteRenamer struct {
 	mutationCb func(rhino.Node)
 
 	// Keys and values in insertion order, populated lazily when trackRenamingIndex is true.
-	renamingEntries     map[string][]string
-	renamingOrder       []string
-	trackRenamingIndex  bool
-	scratchReps         []*ColorGraphNode
-	scratchClusterNames map[*ColorGraphNode]string
+	renamingEntries    map[string][]string
+	renamingOrder      []string
+	trackRenamingIndex bool
+	scratchReps        []*ColorGraphNode
+	scratchClusterIDs  map[*ColorGraphNode]strpool.ID
 }
 
 const useSiteRenamer_INVALIDATED_NAME_VALUE = "<INVALIDATED>"
@@ -99,33 +100,42 @@ func (r *UseSiteRenamer) RenameUses(prop *PropertyClustering) UseSiteRenamer_Ren
 	}
 
 	propName := prop.GetName()
+	origID := prop.nameID
 	reps := clusters.AppendRepresentatives(r.scratchReps[:0])
 	r.scratchReps = reps
-	if r.scratchClusterNames == nil {
-		r.scratchClusterNames = make(map[*ColorGraphNode]string, max(16, len(reps)))
+	if r.scratchClusterIDs == nil {
+		r.scratchClusterIDs = make(map[*ColorGraphNode]strpool.ID, max(16, len(reps)))
 	} else {
-		clear(r.scratchClusterNames)
+		clear(r.scratchClusterIDs)
 	}
 	origRep := prop.GetOriginalNameClusterRep()
 	for _, rep := range reps {
-		name := r.allocClusterName(origRep, propName, rep)
-		r.scratchClusterNames[rep] = name
-		if r.trackRenamingIndex {
-			r.recordRenaming(propName, name)
+		var id strpool.ID
+		if rep == origRep && origID != 0 {
+			id = strpool.ID(origID)
+			if r.trackRenamingIndex {
+				r.recordRenaming(propName, propName)
+			}
+		} else {
+			name := r.allocClusterName(origRep, propName, rep)
+			id = strpool.Intern(name)
+			if r.trackRenamingIndex {
+				r.recordRenaming(propName, name)
+			}
 		}
+		r.scratchClusterIDs[rep] = id
 	}
 
 	sites := prop.useSites.sites
-	origID := prop.nameID
 	for i := range sites {
 		site := sites[i].site
 		flatRep := clusters.Find(sites[i].owner)
 		if flatRep == origRep && site.GetStringID() == origID {
 			continue
 		}
-		newName := r.scratchClusterNames[flatRep]
-		if newName != site.GetString() {
-			site.SetString(newName)
+		newID := r.scratchClusterIDs[flatRep]
+		if site.GetStringID() != uint32(newID) {
+			setNodeStringID(site, newID)
 			r.mutationCb(site)
 		}
 	}

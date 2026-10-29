@@ -19,6 +19,7 @@
 package jscomp
 
 import (
+	"encoding/binary"
 	"maps"
 	"slices"
 	"unicode/utf8"
@@ -604,10 +605,10 @@ type JsMessage_Hash struct{}
 
 const (
 	// Default hash seed (64 bit)
-	jsMessage_Hash_SEED64 int64 = 0x2b992ddfa23249d6 // part of pi, arbitrary
+	jsMessage_Hash_SEED64 uint64 = 0x2b992ddfa23249d6 // part of pi, arbitrary
 
 	// Hash constant (64 bit)
-	jsMessage_Hash_CONSTANT64 int64 = -0x1f73e299748a907e // 0xe08c1d668b756f82L; part of golden ratio, arbitrary
+	jsMessage_Hash_CONSTANT64 uint64 = 0xe08c1d668b756f82 // part of golden ratio, arbitrary
 )
 
 // JsMessage_Hash_Hash64 hashes a string to a 64 bit value. The digits of
@@ -622,7 +623,8 @@ func JsMessage_Hash_Hash64(value *string) int64 {
 }
 
 func jsMessage_Hash_hash64String(value string) int64 {
-	b := jutil.StringGetBytesUTF8(value)
+	var buf [128]byte
+	b := jutil.AppendStringBytesUTF8(buf[:0], value)
 	return jsMessage_Hash_hash64Range(b, 0, len(b), jsMessage_Hash_SEED64)
 }
 
@@ -630,190 +632,135 @@ func jsMessage_Hash_hash64String(value string) int64 {
 // supplied seed.
 //
 // Java: JsMessage.Hash.hash64(byte[], int, int, long)
-func jsMessage_Hash_hash64Range(value []byte, offset int, length int, seed int64) int64 {
+func jsMessage_Hash_hash64Range(value []byte, offset int, length int, seed uint64) int64 {
 	a := jsMessage_Hash_CONSTANT64
 	b := a
 	c := seed
-	var keylen int
+	keylen := length
 
-	ff := func(i int) int64 { return int64(value[i]) & 0xff }
-
-	for keylen = length; keylen >= 24; keylen, offset = keylen-24, offset+24 {
-		a += jsMessage_Hash_word64At(value, offset)
-		b += jsMessage_Hash_word64At(value, offset+8)
-		c += jsMessage_Hash_word64At(value, offset+16)
-
-		// Mix
-		a -= b
-		a -= c
-		a ^= jutil.Ushr64(c, 43)
-		b -= c
-		b -= a
-		b ^= a << 9
-		c -= a
-		c -= b
-		c ^= jutil.Ushr64(b, 8)
-		a -= b
-		a -= c
-		a ^= jutil.Ushr64(c, 38)
-		b -= c
-		b -= a
-		b ^= a << 23
-		c -= a
-		c -= b
-		c ^= jutil.Ushr64(b, 5)
-		a -= b
-		a -= c
-		a ^= jutil.Ushr64(c, 35)
-		b -= c
-		b -= a
-		b ^= a << 49
-		c -= a
-		c -= b
-		c ^= jutil.Ushr64(b, 11)
-		a -= b
-		a -= c
-		a ^= jutil.Ushr64(c, 12)
-		b -= c
-		b -= a
-		b ^= a << 18
-		c -= a
-		c -= b
-		c ^= jutil.Ushr64(b, 22)
+	for ; keylen >= 24; keylen, offset = keylen-24, offset+24 {
+		a += binary.LittleEndian.Uint64(value[offset:])
+		b += binary.LittleEndian.Uint64(value[offset+8:])
+		c += binary.LittleEndian.Uint64(value[offset+16:])
+		a, b, c = jsMessage_Hash_mix64(a, b, c)
 	}
 
-	c += int64(length)
-	if keylen >= 16 {
-		if keylen == 23 {
-			c += int64(int8(value[offset+22])) << 56
-		}
-		if keylen >= 22 {
-			c += ff(offset+21) << 48
-		}
-		if keylen >= 21 {
-			c += ff(offset+20) << 40
-		}
-		if keylen >= 20 {
-			c += ff(offset+19) << 32
-		}
-		if keylen >= 19 {
-			c += ff(offset+18) << 24
-		}
-		if keylen >= 18 {
-			c += ff(offset+17) << 16
-		}
-		if keylen >= 17 {
-			c += ff(offset+16) << 8
-			// the first byte of c is reserved for the length
-		}
-		if keylen >= 16 {
-			b += jsMessage_Hash_word64At(value, offset+8)
-			a += jsMessage_Hash_word64At(value, offset)
-		}
-	} else if keylen >= 8 {
-		if keylen == 15 {
-			b += ff(offset+14) << 48
-		}
-		if keylen >= 14 {
-			b += ff(offset+13) << 40
-		}
-		if keylen >= 13 {
-			b += ff(offset+12) << 32
-		}
-		if keylen >= 12 {
-			b += ff(offset+11) << 24
-		}
-		if keylen >= 11 {
-			b += ff(offset+10) << 16
-		}
-		if keylen >= 10 {
-			b += ff(offset+9) << 8
-		}
-		if keylen >= 9 {
-			b += ff(offset + 8)
-		}
-		if keylen >= 8 {
-			a += jsMessage_Hash_word64At(value, offset)
-		}
-	} else {
-		if keylen == 7 {
-			a += ff(offset+6) << 48
-		}
-		if keylen >= 6 {
-			a += ff(offset+5) << 40
-		}
-		if keylen >= 5 {
-			a += ff(offset+4) << 32
-		}
-		if keylen >= 4 {
-			a += ff(offset+3) << 24
-		}
-		if keylen >= 3 {
-			a += ff(offset+2) << 16
-		}
-		if keylen >= 2 {
-			a += ff(offset+1) << 8
-		}
-		if keylen >= 1 {
-			a += ff(offset + 0)
-			// case 0: nothing left to add
-		}
+	c += uint64(length)
+	tail := value[offset : offset+keylen]
+	switch keylen {
+	case 23:
+		c += uint64(tail[22]) << 56
+		fallthrough
+	case 22:
+		c += uint64(tail[21]) << 48
+		fallthrough
+	case 21:
+		c += uint64(tail[20]) << 40
+		fallthrough
+	case 20:
+		c += uint64(tail[19]) << 32
+		fallthrough
+	case 19:
+		c += uint64(tail[18]) << 24
+		fallthrough
+	case 18:
+		c += uint64(tail[17]) << 16
+		fallthrough
+	case 17:
+		c += uint64(tail[16]) << 8
+		// the first byte of c is reserved for the length
+		fallthrough
+	case 16:
+		b += binary.LittleEndian.Uint64(tail[8:])
+		a += binary.LittleEndian.Uint64(tail)
+	case 15:
+		b += uint64(tail[14]) << 48
+		fallthrough
+	case 14:
+		b += uint64(tail[13]) << 40
+		fallthrough
+	case 13:
+		b += uint64(tail[12]) << 32
+		fallthrough
+	case 12:
+		b += uint64(tail[11]) << 24
+		fallthrough
+	case 11:
+		b += uint64(tail[10]) << 16
+		fallthrough
+	case 10:
+		b += uint64(tail[9]) << 8
+		fallthrough
+	case 9:
+		b += uint64(tail[8])
+		fallthrough
+	case 8:
+		a += binary.LittleEndian.Uint64(tail)
+	case 7:
+		a += uint64(tail[6]) << 48
+		fallthrough
+	case 6:
+		a += uint64(tail[5]) << 40
+		fallthrough
+	case 5:
+		a += uint64(tail[4]) << 32
+		fallthrough
+	case 4:
+		a += uint64(tail[3]) << 24
+		fallthrough
+	case 3:
+		a += uint64(tail[2]) << 16
+		fallthrough
+	case 2:
+		a += uint64(tail[1]) << 8
+		fallthrough
+	case 1:
+		a += uint64(tail[0])
+		// case 0: nothing left to add
 	}
-	return jsMessage_Hash_mix64(a, b, c)
+	_, _, c = jsMessage_Hash_mix64(a, b, c)
+	return int64(c)
 }
 
-// Java: JsMessage.Hash.word64At(byte[], int)
-func jsMessage_Hash_word64At(bytes []byte, offset int) int64 {
-	return (int64(bytes[offset+0]) & 0xff) +
-		((int64(bytes[offset+1]) & 0xff) << 8) +
-		((int64(bytes[offset+2]) & 0xff) << 16) +
-		((int64(bytes[offset+3]) & 0xff) << 24) +
-		((int64(bytes[offset+4]) & 0xff) << 32) +
-		((int64(bytes[offset+5]) & 0xff) << 40) +
-		((int64(bytes[offset+6]) & 0xff) << 48) +
-		((int64(bytes[offset+7]) & 0xff) << 56)
-}
-
-// jsMessage_Hash_mix64 mixes longs a, b, and c, and returns the final value
-// of c.
+// jsMessage_Hash_mix64 mixes 64-bit words a, b, and c.
 //
 // Java: JsMessage.Hash.mix64(long, long, long)
-func jsMessage_Hash_mix64(a int64, b int64, c int64) int64 {
+func jsMessage_Hash_mix64(a, b, c uint64) (uint64, uint64, uint64) {
 	a -= b
 	a -= c
-	a ^= jutil.Ushr64(c, 43)
+	a ^= c >> 43
 	b -= c
 	b -= a
 	b ^= a << 9
 	c -= a
 	c -= b
-	c ^= jutil.Ushr64(b, 8)
+	c ^= b >> 8
 	a -= b
 	a -= c
-	a ^= jutil.Ushr64(c, 38)
+	a ^= c >> 38
 	b -= c
 	b -= a
 	b ^= a << 23
 	c -= a
 	c -= b
-	c ^= jutil.Ushr64(b, 5)
+	c ^= b >> 5
 	a -= b
 	a -= c
-	a ^= jutil.Ushr64(c, 35)
+	a ^= c >> 35
 	b -= c
 	b -= a
 	b ^= a << 49
 	c -= a
 	c -= b
-	c ^= jutil.Ushr64(b, 11)
+	c ^= b >> 11
 	a -= b
 	a -= c
-	a ^= jutil.Ushr64(c, 12)
+	a ^= c >> 12
 	b -= c
 	b -= a
 	b ^= a << 18
 	c -= a
 	c -= b
-	c ^= jutil.Ushr64(b, 22)
-	return c
+	c ^= b >> 22
+	return a, b, c
 }

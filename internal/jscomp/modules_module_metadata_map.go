@@ -469,8 +469,6 @@ func (s ModuleMetadataSet) All() iter.Seq[*ModuleMetadataMap_ModuleMetadata] {
 	}
 }
 
-var moduleMetadataEmptyLinkedMap = jutil.NewLinkedHashMap[string, *ModuleMetadataMap_ModuleMetadata]()
-
 // ModuleMetadataMap contains metadata around modules (or scripts) that is
 // useful for checking imports / requires.
 //
@@ -494,10 +492,6 @@ type ModuleMetadataMap struct {
 	byGoogNamespace OrderedStringMap[*ModuleMetadataMap_ModuleMetadata]
 
 	allMetadata []*ModuleMetadataMap_ModuleMetadata
-
-	// Lazily materialized only if external LinkedHashMap getters are called.
-	lazyByPath          *jutil.LinkedHashMap[string, *ModuleMetadataMap_ModuleMetadata]
-	lazyByGoogNamespace *jutil.LinkedHashMap[string, *ModuleMetadataMap_ModuleMetadata]
 }
 
 // ModuleMetadataMap_ModuleType lists the various types of Javascript
@@ -982,11 +976,8 @@ func (m *ModuleMetadataMap) AllMetadataSlice() []*ModuleMetadataMap_ModuleMetada
 // Closure namespace as it is ambiguous.
 //
 // Java: ModuleMetadataMap.getModulesByPath()
-func (m *ModuleMetadataMap) GetModulesByPath() *jutil.LinkedHashMap[string, *ModuleMetadataMap_ModuleMetadata] {
-	if m.lazyByPath == nil {
-		m.lazyByPath = m.byPath.toLinkedHashMap(moduleMetadataEmptyLinkedMap)
-	}
-	return m.lazyByPath
+func (m *ModuleMetadataMap) GetModulesByPath() *OrderedStringMap[*ModuleMetadataMap_ModuleMetadata] {
+	return &m.byPath
 }
 
 // GetModulesByGoogNamespace returns the map from Closure namespace to
@@ -997,11 +988,8 @@ func (m *ModuleMetadataMap) GetModulesByPath() *jutil.LinkedHashMap[string, *Mod
 // ModuleMetadataMap#getModulesByPath().
 //
 // Java: ModuleMetadataMap.getModulesByGoogNamespace()
-func (m *ModuleMetadataMap) GetModulesByGoogNamespace() *jutil.LinkedHashMap[string, *ModuleMetadataMap_ModuleMetadata] {
-	if m.lazyByGoogNamespace == nil {
-		m.lazyByGoogNamespace = m.byGoogNamespace.toLinkedHashMap(moduleMetadataEmptyLinkedMap)
-	}
-	return m.lazyByGoogNamespace
+func (m *ModuleMetadataMap) GetModulesByGoogNamespace() *OrderedStringMap[*ModuleMetadataMap_ModuleMetadata] {
+	return &m.byGoogNamespace
 }
 
 // GetAllModuleMetadata is the set of all modules across both maps.

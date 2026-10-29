@@ -77,9 +77,6 @@ import (
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
 
-// J2clSourceUtils holds static helpers for recognizing J2CL sources.
-type J2clSourceUtils struct{}
-
 // J2clSourceUtils_IsJ2clSource: sourceFileName is a nullable Java String.
 //
 // Java: J2clSourceUtils.isJ2clSource(String)
@@ -352,12 +349,43 @@ func (c *J2clPass_ClassStaticFunctionsInliner) findMatchingSpecsForFile(
 	return matchingSpecs
 }
 
+var (
+	j2clFunctionDefsCollectorVisitTokens = func() ast.TokenSet {
+		var s ast.TokenSet
+		s.Add(rhino.Token_ASSIGN)
+		s.Add(rhino.Token_MEMBER_FUNCTION_DEF)
+		return s
+	}()
+
+	j2clCallOnlyVisitTokens = func() ast.TokenSet {
+		var s ast.TokenSet
+		s.Add(rhino.Token_CALL)
+		return s
+	}()
+)
+
 // Java: private class J2clPass.ClassStaticFunctionsInliner.FunctionDefsCollector implements NodeTraversal.Callback
 type J2clPass_ClassStaticFunctionsInliner_FunctionDefsCollector struct {
 	outer *J2clPass_ClassStaticFunctionsInliner
 	// This list is initialized every time the node traversal enters a new script. It contains
 	// all InlineSpecs whose classFileName matches the script's filename.
 	currFileInlineSpecs []*J2clPass_InlineSpec
+}
+
+var (
+	_ nodeTraversal_visitTokens                         = (*J2clPass_ClassStaticFunctionsInliner_FunctionDefsCollector)(nil)
+	_ nodeTraversal_noVisitLeaves                       = (*J2clPass_ClassStaticFunctionsInliner_FunctionDefsCollector)(nil)
+	_ nodeTraversal_onlyScriptAndFunctionShouldTraverse = (*J2clPass_ClassStaticFunctionsInliner_FunctionDefsCollector)(nil)
+)
+
+func (*J2clPass_ClassStaticFunctionsInliner_FunctionDefsCollector) noVisitLeaves() {}
+
+func (*J2clPass_ClassStaticFunctionsInliner_FunctionDefsCollector) visitTokens() *ast.TokenSet {
+	return &j2clFunctionDefsCollectorVisitTokens
+}
+
+func (*J2clPass_ClassStaticFunctionsInliner_FunctionDefsCollector) shouldTraverseOnlyScriptAndFunction() bool {
+	return true
 }
 
 // Java: J2clPass.ClassStaticFunctionsInliner.FunctionDefsCollector.shouldTraverse(NodeTraversal, Node, Node)
@@ -437,6 +465,17 @@ type J2clPass_ClassStaticFunctionsInliner_StaticCallInliner struct {
 	outer *J2clPass_ClassStaticFunctionsInliner
 }
 
+var (
+	_ nodeTraversal_visitTokens   = (*J2clPass_ClassStaticFunctionsInliner_StaticCallInliner)(nil)
+	_ nodeTraversal_noVisitLeaves = (*J2clPass_ClassStaticFunctionsInliner_StaticCallInliner)(nil)
+)
+
+func (*J2clPass_ClassStaticFunctionsInliner_StaticCallInliner) noVisitLeaves() {}
+
+func (*J2clPass_ClassStaticFunctionsInliner_StaticCallInliner) visitTokens() *ast.TokenSet {
+	return &j2clCallOnlyVisitTokens
+}
+
 // Java: J2clPass.ClassStaticFunctionsInliner.StaticCallInliner.visit(NodeTraversal, Node, Node)
 func (s *J2clPass_ClassStaticFunctionsInliner_StaticCallInliner) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	// Only look at method calls
@@ -493,6 +532,17 @@ func (s *J2clPass_ClassStaticFunctionsInliner_StaticCallInliner) Visit(t *NodeTr
 type J2clAssertRemovalPass struct {
 	NodeTraversal_AbstractPostOrderCallbackBase
 	compiler AbstractCompiler
+}
+
+var (
+	_ nodeTraversal_visitTokens   = (*J2clAssertRemovalPass)(nil)
+	_ nodeTraversal_noVisitLeaves = (*J2clAssertRemovalPass)(nil)
+)
+
+func (*J2clAssertRemovalPass) noVisitLeaves() {}
+
+func (*J2clAssertRemovalPass) visitTokens() *ast.TokenSet {
+	return &j2clCallOnlyVisitTokens
 }
 
 // Java: J2clAssertRemovalPass(AbstractCompiler)

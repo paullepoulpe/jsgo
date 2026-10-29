@@ -36,6 +36,7 @@
 package jscomp
 
 import (
+	"iter"
 	"slices"
 	"strings"
 
@@ -245,9 +246,9 @@ func (r *ReplaceMessages) CreateMsgPropertiesNode(message *JsMessage, msgOptions
 		result.AddChildToBack(r.astFactory.CreateQuotedStringKey(key, r.astFactory.CreateString(value)))
 	}
 	addString("key", message.GetKey())
-	if msgOptions.isIcuTemplate && !message.CanonicalPlaceholderNames().IsEmpty() {
+	if msgOptions.isIcuTemplate && message.HasCanonicalPlaceholders() {
 		namesArrayLit := r.astFactory.CreateArraylit()
-		for name := range message.CanonicalPlaceholderNames().All() {
+		for name := range message.CanonicalPlaceholderAll() {
 			namesArrayLit.AddChildToBack(r.astFactory.CreateString(name))
 		}
 		result.AddChildToBack(r.astFactory.CreateQuotedStringKey("icu_placeholder_names", namesArrayLit))
@@ -347,7 +348,7 @@ func (p *ReplaceMessages_ReplacementCompletionPass) VisitMsgDefinition(protected
 		msgToUse = originalMsg
 	}
 	placeholderMap := ReplaceMessages_ExtractPlaceholderValuesMapOrThrow(protectedJsMessage.substitutionsNode)
-	finalMsgConstructionExpression, err := r.ConstructStringExprNode(msgToUse, placeholderMap, protectedJsMessage.options, nodeToReplace)
+	finalMsgConstructionExpression, err := r.ConstructStringExprNode(msgToUse, &placeholderMap, protectedJsMessage.options, nodeToReplace)
 	if err != nil {
 		r.compiler.Report(JSError_MakeWithNode(err.node, JsMessageVisitor_MESSAGE_TREE_MALFORMED, err.msg))
 		return
@@ -372,19 +373,58 @@ func (p *ReplaceMessages_ReplacementCompletionPass) VisitMsgFallback(protectedMs
 	p.outer.compiler.ReportChangeToEnclosingScope(valueNodeToUse)
 }
 
+type replaceMessagesPlaceholders struct {
+	byName map[string]rhino.Node
+	order  []string
+	objLit jsMessageObjectLiteralMap
+}
+
+func (p *replaceMessagesPlaceholders) isEmpty() bool {
+	return len(p.order) == 0 && len(p.objLit.entries) == 0
+}
+
+func (p *replaceMessagesPlaceholders) size() int {
+	if len(p.order) > 0 {
+		return len(p.order)
+	}
+	return len(p.objLit.entries)
+}
+
+func (p *replaceMessagesPlaceholders) get(name string) rhino.Node {
+	if p.byName != nil {
+		return p.byName[name]
+	}
+	return p.objLit.getValueNode(name)
+}
+
+func (p *replaceMessagesPlaceholders) entries() iter.Seq2[string, rhino.Node] {
+	return func(yield func(string, rhino.Node) bool) {
+		if len(p.order) > 0 {
+			for _, k := range p.order {
+				if !yield(k, p.byName[k]) {
+					return
+				}
+			}
+			return
+		}
+		for _, e := range p.objLit.entries {
+			if !yield(e.key, e.node.GetOnlyChild()) {
+				return
+			}
+		}
+	}
+}
+
 // Java: ReplaceMessages.extractPlaceholderValuesMapOrThrow(Node)
-func ReplaceMessages_ExtractPlaceholderValuesMapOrThrow(valuesObjLit rhino.Node) *jutil.LinkedHashMap[string, rhino.Node] {
+func ReplaceMessages_ExtractPlaceholderValuesMapOrThrow(valuesObjLit rhino.Node) replaceMessagesPlaceholders {
 	if valuesObjLit.IsNil() {
-		return &jsMessageEmptyNodeMap
+		return replaceMessagesPlaceholders{}
 	}
 	m, err := extractObjectLiteralMap(valuesObjLit)
 	if err != nil {
 		panic(jutil.NewIllegalStateExceptionMsg(err.Error()))
 	}
-	if res := m.extractAsValueMap(); res != nil {
-		return res
-	}
-	return &jsMessageEmptyNodeMap
+	return replaceMessagesPlaceholders{objLit: m}
 }
 
 // ReplaceMessages_ProtectedMsgFallback represents a `__jscomp_msg_fallback__` call.
@@ -436,10 +476,8 @@ func (r *ReplaceMessages) LookupMessage(
 
 	alternateMessage := bundle.GetMessage(alternateId)
 	if alternateMessage != nil {
-		jsCodePlaceholderNames := message.JsPlaceholderNames()
-		alternateMsgPlaceholderNames := alternateMessage.JsPlaceholderNames()
-		if !jsMessage_stringSetEqual(jsCodePlaceholderNames, alternateMsgPlaceholderNames) {
-			if jsCodePlaceholderNames.IsEmpty() && ReplaceMessages_IsStartOfIcuMessage(message.AsIcuMessageString()) {
+		if !message.sameJsPlaceholders(alternateMessage) {
+			if !message.HasJsPlaceholders() && ReplaceMessages_IsStartOfIcuMessage(message.AsIcuMessageString()) {
 				return alternateMessage
 			}
 			r.compiler.Report(
@@ -447,9 +485,9 @@ func (r *ReplaceMessages) LookupMessage(
 					callNode,
 					ReplaceMessages_INVALID_ALTERNATE_MESSAGE_PLACEHOLDERS,
 					alternateId,
-					alternateMsgPlaceholderNames.String(),
+					alternateMessage.formatJsPlaceholders(),
 					message.GetKey(),
-					jsCodePlaceholderNames.String()))
+					message.formatJsPlaceholders()))
 			return nil
 		}
 	}
@@ -466,7 +504,7 @@ func (r *ReplaceMessages) GetFullReplacementPass() CompilerPass {
 // ReplaceMessages_FullReplacementMsgData holds inputs for single-phase replacement.
 type ReplaceMessages_FullReplacementMsgData struct {
 	message             *JsMessage
-	placeholderValueMap *jutil.LinkedHashMap[string, rhino.Node]
+	placeholderValueMap replaceMessagesPlaceholders
 	messageNode         rhino.Node
 	messageOptions      ReplaceMessages_MsgOptions
 }
@@ -511,10 +549,9 @@ func (p *ReplaceMessages_FullReplacementPass) ProcessMessageFallback(callNode rh
 // Java: ReplaceMessages.FullReplacementPass.processIcuTemplateDefinition(IcuTemplateDefinition)
 func (p *ReplaceMessages_FullReplacementPass) ProcessIcuTemplateDefinition(definition IcuTemplateDefinition) {
 	p.ProcessFullReplacement(ReplaceMessages_FullReplacementMsgData{
-		message:             definition.GetMessage(),
-		messageNode:         definition.GetMessageNode(),
-		messageOptions:      replaceMessages_ICU_MSG_OPTIONS,
-		placeholderValueMap: &jsMessageEmptyNodeMap,
+		message:        definition.GetMessage(),
+		messageNode:    definition.GetMessageNode(),
+		messageOptions: replaceMessages_ICU_MSG_OPTIONS,
 	})
 }
 
@@ -527,7 +564,10 @@ func (p *ReplaceMessages_FullReplacementPass) ProcessJsMessageDefinition(definit
 			escapeLessThan:       definition.ShouldEscapeLessThan(),
 			unescapeHtmlEntities: definition.ShouldUnescapeHtmlEntities(),
 		},
-		placeholderValueMap: definition.GetPlaceholderValueMap(),
+		placeholderValueMap: replaceMessagesPlaceholders{
+			byName: definition.placeholderValueMap,
+			order:  definition.placeholderValueOrder,
+		},
 	})
 }
 
@@ -537,7 +577,7 @@ func (p *ReplaceMessages_FullReplacementPass) ProcessFullReplacement(fullReplace
 	message := fullReplacementMsgData.message
 	msgNode := fullReplacementMsgData.messageNode
 	options := fullReplacementMsgData.messageOptions
-	placeholderValueMap := fullReplacementMsgData.placeholderValueMap
+	placeholderValueMap := &fullReplacementMsgData.placeholderValueMap
 
 	replacement := r.LookupMessage(msgNode, r.bundle, message)
 	if replacement == nil {
@@ -564,7 +604,7 @@ func (p *ReplaceMessages_FullReplacementPass) ProcessFullReplacement(fullReplace
 // Java: ReplaceMessages.createNodeForGenderedMsgString(JsMessage, Map<String, Node>, ReplaceMessages.MsgOptions, Node)
 func (r *ReplaceMessages) CreateNodeForGenderedMsgString(
 	message *JsMessage,
-	placeholderMap *jutil.LinkedHashMap[string, rhino.Node],
+	placeholderMap *replaceMessagesPlaceholders,
 	options ReplaceMessages_MsgOptions,
 	nodeToReplace rhino.Node,
 ) (rhino.Node, *malformedMessageError) {
@@ -574,9 +614,9 @@ func (r *ReplaceMessages) CreateNodeForGenderedMsgString(
 		GetUniqueIdSupplier().
 		GetUniqueId(r.compiler.GetInput(NodeUtil_GetInputId(nodeToReplace)))
 	var placeholderMapIds map[string]string
-	if !placeholderMap.IsEmpty() {
-		placeholderMapIds = make(map[string]string, placeholderMap.Size())
-		for placeholderName := range placeholderMap.Keys() {
+	if !placeholderMap.isEmpty() {
+		placeholderMapIds = make(map[string]string, placeholderMap.size())
+		for placeholderName := range placeholderMap.entries() {
 			placeholderId := placeholderName + uniqueId
 			paramList.AddChildToBack(r.astFactory.CreateName(placeholderId, type_))
 			placeholderMapIds[placeholderName] = placeholderId
@@ -589,7 +629,7 @@ func (r *ReplaceMessages) CreateNodeForGenderedMsgString(
 		return rhino.NilNode, err
 	}
 
-	if placeholderMap.IsEmpty() {
+	if placeholderMap.isEmpty() {
 		return hookExpression, nil
 	}
 
@@ -598,7 +638,7 @@ func (r *ReplaceMessages) CreateNodeForGenderedMsgString(
 	r.compiler.ReportChangeToChangeScope(function)
 
 	callNode := r.astFactory.CreateCall(function, type_)
-	for node := range placeholderMap.Values() {
+	for _, node := range placeholderMap.entries() {
 		callNode.AddChildToBack(node.CloneTree())
 	}
 	return callNode, nil
@@ -651,7 +691,7 @@ func (r *ReplaceMessages) CreateHookExpressionForGenderedMsg(
 		return rhino.NilNode
 	}
 
-	for grammaticalGender, genderParts := range msg.GetGenderedMessagesMap().All() {
+	for grammaticalGender, genderParts := range msg.GenderedMessagesAll() {
 		if grammaticalGender == JsMessage_GrammaticalGenderCase_OTHER {
 			continue
 		}
@@ -736,7 +776,7 @@ func (r *ReplaceMessages) BuildMessageNode(
 // Java: ReplaceMessages.constructStringExprNode(JsMessage, Map<String, Node>, ReplaceMessages.MsgOptions, Node)
 func (r *ReplaceMessages) ConstructStringExprNode(
 	message *JsMessage,
-	placeholderMap *jutil.LinkedHashMap[string, rhino.Node],
+	placeholderMap *replaceMessagesPlaceholders,
 	options ReplaceMessages_MsgOptions,
 	nodeToReplace rhino.Node,
 ) (rhino.Node, *malformedMessageError) {
@@ -749,15 +789,15 @@ func (r *ReplaceMessages) ConstructStringExprNode(
 // Java: ReplaceMessages.constructNonGenderedMsgNode(JsMessage, Map<String, Node>, ReplaceMessages.MsgOptions, Node)
 func (r *ReplaceMessages) ConstructNonGenderedMsgNode(
 	message *JsMessage,
-	placeholderMap *jutil.LinkedHashMap[string, rhino.Node],
+	placeholderMap *replaceMessagesPlaceholders,
 	options ReplaceMessages_MsgOptions,
 	nodeToReplace rhino.Node,
 ) (rhino.Node, *malformedMessageError) {
-	if placeholderMap.IsEmpty() {
+	if placeholderMap.isEmpty() {
 		if options.isIcuTemplate {
 			return r.CreateNodeForMsgString(options, message.AsIcuMessageString()), nil
 		}
-		if message.JsPlaceholderNames().IsEmpty() {
+		if !message.HasJsPlaceholders() {
 			return r.CreateNodeForMsgString(options, message.AsJsMessageString()), nil
 		}
 		icuMsgString := message.AsIcuMessageString()
@@ -774,7 +814,7 @@ func (r *ReplaceMessages) ConstructNonGenderedMsgNode(
 		message.GetParts(),
 		options,
 		nodeToReplace,
-		placeholderMap.Get,
+		placeholderMap.get,
 		false,
 	)
 }
@@ -1039,14 +1079,14 @@ func (r *ReplaceMessagesForChrome) GetNewValueNode(message *JsMessage, definitio
 	newValueNode := r.GetChromeI18nGetMessageNode(message.GetId())
 
 	isHtml := definition.ShouldEscapeLessThan()
-	if !message.JsPlaceholderNames().IsEmpty() || isHtml {
-		placeholderNames := message.JsPlaceholderNames().ToSlice()
+	if message.HasJsPlaceholders() || isHtml {
+		placeholderNames := slices.Clone(message.JsPlaceholderSlice())
 		slices.SortStableFunc(placeholderNames, jutil.StringCompareTo)
 
 		placeholderValueArray := r.astFactory.CreateArraylit()
-		placeholderValueMap := definition.GetPlaceholderValueMap()
 		for _, name := range placeholderNames {
-			value := rhino.CheckNotNull(placeholderValueMap.Get(name)).CloneTree()
+			valueNode, _ := definition.LookupPlaceholderNode(name)
+			value := rhino.CheckNotNull(valueNode).CloneTree()
 			placeholderValueArray.AddChildToBack(value)
 		}
 		if isHtml {

@@ -916,24 +916,10 @@ func commandLineRunner_loadConformanceConfig(configFile string) (*jscomp.Conform
 	// Stripping the BOM if present.
 	textProto = strings.TrimPrefix(textProto, "\uFEFF")
 
-	if parseErr := mergeConformanceTextProto(textProto, builder); parseErr != nil {
+	if parseErr := jscomp.TextFormat_MergeErr(textProto, builder); parseErr != nil {
 		return nil, jutil.NewRuntimeExceptionWithCause(parseErr)
 	}
 	return builder.Build(), nil
-}
-
-func mergeConformanceTextProto(textProto string, builder *jscomp.ConformanceConfig_Builder) (parseErr jutil.IException) {
-	defer func() {
-		if rec := recover(); rec != nil {
-			if e, ok := rec.(jutil.IException); ok {
-				parseErr = e
-				return
-			}
-			panic(rec)
-		}
-	}()
-	jscomp.TextFormat_Merge(textProto, builder)
-	return nil
 }
 
 // Deprecated: use AbstractCommandLineRunner_GetBuiltinExterns(

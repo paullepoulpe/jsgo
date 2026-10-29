@@ -92,6 +92,13 @@ func (d JsMessageDefinition) GetPlaceholderValueMap() *jutil.LinkedHashMap[strin
 	return out
 }
 
+// LookupPlaceholderNode looks up the value Node assigned to placeholder name
+// without allocating a copy-on-get LinkedHashMap.
+func (d JsMessageDefinition) LookupPlaceholderNode(name string) (rhino.Node, bool) {
+	v, ok := d.placeholderValueMap[name]
+	return v, ok
+}
+
 // ShouldEscapeLessThan returns the value of the 'html' options key in the
 // options bag argument.
 func (d JsMessageDefinition) ShouldEscapeLessThan() bool { return d.escapeLessThan }
@@ -189,6 +196,18 @@ func (m *JsMessage) HasGenderedVariants() bool {
 	return len(m.genderedMessagesMap) > 0
 }
 
+// GenderedMessagesAll yields gendered message variants in insertion order
+// without allocating a LinkedHashMap.
+func (m *JsMessage) GenderedMessagesAll() iter.Seq2[JsMessage_GrammaticalGenderCase, []JsMessage_Part] {
+	return func(yield func(JsMessage_GrammaticalGenderCase, []JsMessage_Part) bool) {
+		for _, k := range m.genderedMessagesOrder {
+			if !yield(k, m.genderedMessagesMap[k]) {
+				return
+			}
+		}
+	}
+}
+
 // Java: JsMessage.getAlternateId()
 func (m *JsMessage) GetAlternateId() *string {
 	if !m.hasAlternateId {
@@ -258,6 +277,32 @@ func (m *JsMessage) JsPlaceholderNames() *jutil.LinkedHashSet[string] {
 	return out
 }
 
+// HasJsPlaceholders reports whether the message references any JS placeholders.
+func (m *JsMessage) HasJsPlaceholders() bool {
+	return len(m.jsPlaceholderNamesOrder) > 0
+}
+
+// JsPlaceholderSlice returns the ordered JS placeholder names (read-only view).
+func (m *JsMessage) JsPlaceholderSlice() []string {
+	return m.jsPlaceholderNamesOrder
+}
+
+func (m *JsMessage) sameJsPlaceholders(other *JsMessage) bool {
+	if len(m.jsPlaceholderNames) != len(other.jsPlaceholderNames) {
+		return false
+	}
+	for _, name := range m.jsPlaceholderNamesOrder {
+		if _, ok := other.jsPlaceholderNames[name]; !ok {
+			return false
+		}
+	}
+	return true
+}
+
+func (m *JsMessage) formatJsPlaceholders() string {
+	return jsMessage_formatStringSlice(m.jsPlaceholderNamesOrder)
+}
+
 // Java: JsMessage.canonicalPlaceholderNames()
 func (m *JsMessage) CanonicalPlaceholderNames() *jutil.LinkedHashSet[string] {
 	if len(m.canonicalPlaceholderNamesOrder) == 0 {
@@ -268,6 +313,16 @@ func (m *JsMessage) CanonicalPlaceholderNames() *jutil.LinkedHashSet[string] {
 		out.AddNew(name)
 	}
 	return out
+}
+
+// HasCanonicalPlaceholders reports whether the message references any canonical placeholders.
+func (m *JsMessage) HasCanonicalPlaceholders() bool {
+	return len(m.canonicalPlaceholderNamesOrder) > 0
+}
+
+// CanonicalPlaceholderAll yields canonical placeholder names in insertion order.
+func (m *JsMessage) CanonicalPlaceholderAll() iter.Seq[string] {
+	return slices.Values(m.canonicalPlaceholderNamesOrder)
 }
 
 // Java: JsMessage.PH_JS_PREFIX
@@ -486,18 +541,6 @@ func (m *JsMessage) Equals(o any) bool {
 		maps.Equal(m.placeholderNameToOriginalCodeMap, that.placeholderNameToOriginalCodeMap) &&
 		maps.Equal(m.jsPlaceholderNames, that.jsPlaceholderNames) &&
 		maps.Equal(m.canonicalPlaceholderNames, that.canonicalPlaceholderNames)
-}
-
-func jsMessage_stringSetEqual(a, b *jutil.LinkedHashSet[string]) bool {
-	if a.Size() != b.Size() {
-		return false
-	}
-	for k := range a.All() {
-		if !b.Contains(k) {
-			return false
-		}
-	}
-	return true
 }
 
 func jsMessage_partsHashCode(parts []JsMessage_Part) int32 {

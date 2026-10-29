@@ -19,7 +19,6 @@
 package jscomp
 
 import (
-	"math/bits"
 	"strconv"
 
 	"github.com/paullepoulpe/jsgo/internal/ast"
@@ -62,9 +61,9 @@ type LiveVariablesAnalysis struct {
 	jsScopeChild *Scope
 
 	// escaped marks indices in orderedVars that are escaped.
-	escaped dfaBitSet
+	escaped inlineBitSet
 	// untracked marks indices in orderedVars that are !local || escaped.
-	untracked           dfaBitSet
+	untracked           inlineBitSet
 	escapedSet          jutil.ObjectLinkedHashSet[*Var]
 	escapedSetInit      bool
 	paramsMarkedEscaped bool
@@ -101,7 +100,7 @@ func NewLiveVariablesAnalysis_LiveVariableJoinOp(outer *LiveVariablesAnalysis) *
 
 // Java: LiveVariablesAnalysis.LiveVariableJoinOp.joinFlow(LiveVariableLattice)
 func (j *LiveVariablesAnalysis_LiveVariableJoinOp) JoinFlow(x *LiveVariablesAnalysis_LiveVariableLattice) {
-	j.result.liveSet.orWith(&x.liveSet)
+	j.result.liveSet.Or(&x.liveSet)
 }
 
 // Java: LiveVariablesAnalysis.LiveVariableJoinOp.finish()
@@ -114,7 +113,7 @@ func (j *LiveVariablesAnalysis_LiveVariableJoinOp) Finish() *LiveVariablesAnalys
 // lattice is the power set of all local variables and a variable is live if
 // it is in the set.
 type LiveVariablesAnalysis_LiveVariableLattice struct {
-	liveSet dfaBitSet
+	liveSet inlineBitSet
 }
 
 // numVars is the number of all local variables.
@@ -130,14 +129,14 @@ func NewLiveVariablesAnalysis_LiveVariableLattice(numVars int) *LiveVariablesAna
 // Java: LiveVariablesAnalysis.LiveVariableLattice(LiveVariableLattice)
 func NewLiveVariablesAnalysis_LiveVariableLatticeOf(other *LiveVariablesAnalysis_LiveVariableLattice) *LiveVariablesAnalysis_LiveVariableLattice {
 	jutil.CheckNotNull(other)
-	return &LiveVariablesAnalysis_LiveVariableLattice{liveSet: other.liveSet.clone()}
+	return &LiveVariablesAnalysis_LiveVariableLattice{liveSet: other.liveSet.Clone()}
 }
 
 // Java: LiveVariablesAnalysis.LiveVariableLattice.equals(Object)
 func (l *LiveVariablesAnalysis_LiveVariableLattice) Equals(other any) bool {
 	jutil.CheckNotNull(other)
 	liveVariableLattice, ok := other.(*LiveVariablesAnalysis_LiveVariableLattice)
-	return ok && (l == liveVariableLattice || l.liveSet.equals(&liveVariableLattice.liveSet))
+	return ok && (l == liveVariableLattice || l.liveSet.Equals(&liveVariableLattice.liveSet))
 }
 
 // IsLive: there is only a version of this function with index since
@@ -146,36 +145,12 @@ func (l *LiveVariablesAnalysis_LiveVariableLattice) Equals(other any) bool {
 //
 // Java: LiveVariablesAnalysis.LiveVariableLattice.isLive(int)
 func (l *LiveVariablesAnalysis_LiveVariableLattice) IsLive(index int) bool {
-	if index < 0 {
-		panic(jutil.NewIndexOutOfBoundsException("bitIndex < 0: " + strconv.Itoa(index)))
-	}
-	return l.liveSet.has(index)
+	return l.liveSet.Get(index)
 }
 
 // Java: LiveVariablesAnalysis.LiveVariableLattice.toString()
 func (l *LiveVariablesAnalysis_LiveVariableLattice) String() string {
-	if l.liveSet.isEmpty() {
-		return "{}"
-	}
-	buf := make([]byte, 0, 32)
-	buf = append(buf, '{')
-	first := true
-	appendWord := func(base int, word uint64) {
-		for w := word; w != 0; w &= w - 1 {
-			if !first {
-				buf = append(buf, ',', ' ')
-			}
-			first = false
-			buf = strconv.AppendInt(buf, int64(base+bits.TrailingZeros64(w)), 10)
-		}
-	}
-	appendWord(0, l.liveSet.w0)
-	appendWord(64, l.liveSet.w1)
-	for i, w := range l.liveSet.extra {
-		appendWord(128+i*64, w)
-	}
-	buf = append(buf, '}')
-	return string(buf)
+	return l.liveSet.String()
 }
 
 // NextSetBit returns the index of the first bit that is set to true that
@@ -183,10 +158,7 @@ func (l *LiveVariablesAnalysis_LiveVariableLattice) String() string {
 //
 // Java: LiveVariablesAnalysis.LiveVariableLattice.nextSetBit(int)
 func (l *LiveVariablesAnalysis_LiveVariableLattice) NextSetBit(fromIndex int) int {
-	if fromIndex < 0 {
-		panic(jutil.NewIndexOutOfBoundsException("fromIndex < 0: " + strconv.Itoa(fromIndex)))
-	}
-	return l.liveSet.nextSetBit(fromIndex)
+	return l.liveSet.NextSetBit(fromIndex)
 }
 
 // Java: LiveVariablesAnalysis.LiveVariableLattice.hashCode()
@@ -194,7 +166,7 @@ func (l *LiveVariablesAnalysis_LiveVariableLattice) HashCode() int32 {
 	var h int64 = 1234
 	h ^= int64(l.liveSet.w0)
 	h ^= int64(l.liveSet.w1) * 2
-	for i, w := range l.liveSet.extra {
+	for i, w := range l.liveSet.ext {
 		h ^= int64(w) * int64(i+3)
 	}
 	return int32((h >> 32) ^ h)
@@ -251,7 +223,7 @@ func (l *LiveVariablesAnalysis) Reset(
 
 	l.jsScope = jsScope
 	l.jsScopeChild = jsScopeChild
-	l.escaped.copyFrom(&table.escaped)
+	l.escaped.CopyFrom(&table.escaped)
 	l.untracked.clear(releaseLarge)
 	l.paramsMarkedEscaped = false
 	l.escapedSetInit = false
@@ -417,7 +389,7 @@ func (l *LiveVariablesAnalysis) isEscapedIndex(idx int) bool {
 }
 
 func (l *LiveVariablesAnalysis) allInFnVarsEscaped() bool {
-	if l.escaped.count() < l.uniqueVarCount {
+	if l.escaped.Cardinality() < l.uniqueVarCount {
 		return false
 	}
 	if !l.hasDuplicateNames {
@@ -435,7 +407,7 @@ func (l *LiveVariablesAnalysis) allInFnVarsEscaped() bool {
 func (l *LiveVariablesAnalysis) GetEscapedLocals() *jutil.ObjectLinkedHashSet[*Var] {
 	if !l.escapedSetInit {
 		l.escapedSet.Clear()
-		l.escaped.forEach(func(idx int) {
+		l.escaped.ForEach(func(idx int) {
 			if idx < len(l.orderedVars) {
 				l.escapedSet.Add(l.orderedVars[idx])
 			}
@@ -511,7 +483,7 @@ func (l *LiveVariablesAnalysis) EqualsLattice(a, b *LiveVariablesAnalysis_LiveVa
 	if a == nil || b == nil {
 		return false
 	}
-	return a.liveSet.equals(&b.liveSet)
+	return a.liveSet.Equals(&b.liveSet)
 }
 
 // Java: DataFlowAnalysis.join(L, L)
@@ -519,8 +491,8 @@ func (l *LiveVariablesAnalysis) Join(latticeA, latticeB *LiveVariablesAnalysis_L
 	jutil.CheckNotNull(latticeA)
 	jutil.CheckNotNull(latticeB)
 	result := l.allocLattice()
-	result.liveSet.orWith(&latticeA.liveSet)
-	result.liveSet.orWith(&latticeB.liveSet)
+	result.liveSet.Or(&latticeA.liveSet)
+	result.liveSet.Or(&latticeB.liveSet)
 	return result
 }
 
@@ -611,12 +583,12 @@ func (l *LiveVariablesAnalysis) joinNodeInputs(
 		}
 		w0 |= inLat.liveSet.w0
 		w1 |= inLat.liveSet.w1
-		if n := len(inLat.liveSet.extra); n > maxExtra {
+		if n := len(inLat.liveSet.ext); n > maxExtra {
 			maxExtra = n
 		}
 		if first == nil {
 			first = inLat
-		} else if !distinct && first != inLat && !first.liveSet.equals(&inLat.liveSet) {
+		} else if !distinct && first != inLat && !first.liveSet.Equals(&inLat.liveSet) {
 			distinct = true
 		}
 	}
@@ -629,11 +601,11 @@ func (l *LiveVariablesAnalysis) joinNodeInputs(
 		return
 	}
 	if maxExtra == 0 {
-		if len(first.liveSet.extra) == 0 && first.liveSet.w0 == w0 && first.liveSet.w1 == w1 {
+		if len(first.liveSet.ext) == 0 && first.liveSet.w0 == w0 && first.liveSet.w1 == w1 {
 			state.out = first
 			return
 		}
-		if prev := state.out; prev != nil && len(prev.liveSet.extra) == 0 && prev.liveSet.w0 == w0 && prev.liveSet.w1 == w1 {
+		if prev := state.out; prev != nil && len(prev.liveSet.ext) == 0 && prev.liveSet.w0 == w0 && prev.liveSet.w1 == w1 {
 			return
 		}
 		joined := l.allocLattice()
@@ -642,21 +614,21 @@ func (l *LiveVariablesAnalysis) joinNodeInputs(
 		state.out = joined
 		return
 	}
-	extra := make([]uint64, maxExtra)
+	ext := make([]uint64, maxExtra)
 	for _, edge := range outEdges {
 		dest := edge.DestNode
 		if dest == implicitReturn {
 			continue
 		}
 		inLat := l.states[dest.Index].in
-		for i, ew := range inLat.liveSet.extra {
-			extra[i] |= ew
+		for i, ew := range inLat.liveSet.ext {
+			ext[i] |= ew
 		}
 	}
 	joined := l.allocLattice()
 	joined.liveSet.w0 = w0
 	joined.liveSet.w1 = w1
-	joined.liveSet.extra = extra
+	joined.liveSet.ext = ext
 	state.out = joined
 }
 
@@ -671,7 +643,7 @@ func (l *LiveVariablesAnalysis) flowThroughEdges(
 	input *LiveVariablesAnalysis_LiveVariableLattice,
 	prevIn *LiveVariablesAnalysis_LiveVariableLattice,
 ) *LiveVariablesAnalysis_LiveVariableLattice {
-	var gen, kill dfaBitSet
+	var gen, kill inlineBitSet
 
 	// Make kills conditional if the node can end abruptly by an exception.
 	conditional := false
@@ -685,14 +657,14 @@ func (l *LiveVariablesAnalysis) flowThroughEdges(
 	// L_in = L_out - Kill + Gen
 	out0 := (input.liveSet.w0 &^ kill.w0) | gen.w0
 	out1 := (input.liveSet.w1 &^ kill.w1) | gen.w1
-	if len(input.liveSet.extra) == 0 && len(gen.extra) == 0 {
+	if len(input.liveSet.ext) == 0 && len(gen.ext) == 0 {
 		if out0 == input.liveSet.w0 && out1 == input.liveSet.w1 {
 			return input
 		}
 		if (out0 | out1) == 0 {
 			return &l.emptyLattice
 		}
-		if prevIn != nil && len(prevIn.liveSet.extra) == 0 && prevIn.liveSet.w0 == out0 && prevIn.liveSet.w1 == out1 {
+		if prevIn != nil && len(prevIn.liveSet.ext) == 0 && prevIn.liveSet.w0 == out0 && prevIn.liveSet.w1 == out1 {
 			return prevIn
 		}
 		result := l.allocLattice()
@@ -700,84 +672,65 @@ func (l *LiveVariablesAnalysis) flowThroughEdges(
 		result.liveSet.w1 = out1
 		return result
 	}
-	maxExtra := max(len(input.liveSet.extra), len(gen.extra))
+	maxExtra := max(len(input.liveSet.ext), len(gen.ext))
+	effectiveExt := 0
 	changed := out0 != input.liveSet.w0 || out1 != input.liveSet.w1
+	for i := 0; i < maxExtra; i++ {
+		var inW, killW, genW uint64
+		if i < len(input.liveSet.ext) {
+			inW = input.liveSet.ext[i]
+		}
+		if i < len(kill.ext) {
+			killW = kill.ext[i]
+		}
+		if i < len(gen.ext) {
+			genW = gen.ext[i]
+		}
+		outW := (inW &^ killW) | genW
+		if outW != inW {
+			changed = true
+		}
+		if outW != 0 {
+			effectiveExt = i + 1
+		}
+	}
 	if !changed {
-		for i := 0; i < maxExtra; i++ {
-			var inW, killW, genW uint64
-			if i < len(input.liveSet.extra) {
-				inW = input.liveSet.extra[i]
-			}
-			if i < len(kill.extra) {
-				killW = kill.extra[i]
-			}
-			if i < len(gen.extra) {
-				genW = gen.extra[i]
-			}
-			if (inW&^killW)|genW != inW {
-				changed = true
-				break
-			}
+		return input
+	}
+	if effectiveExt == 0 {
+		if (out0 | out1) == 0 {
+			return &l.emptyLattice
 		}
-		if !changed {
-			return input
+		if prevIn != nil && len(prevIn.liveSet.ext) == 0 && prevIn.liveSet.w0 == out0 && prevIn.liveSet.w1 == out1 {
+			return prevIn
 		}
+		result := l.allocLattice()
+		result.liveSet.w0 = out0
+		result.liveSet.w1 = out1
+		return result
 	}
 	result := l.allocLattice()
 	result.liveSet.w0 = out0
 	result.liveSet.w1 = out1
-	if maxExtra > 0 {
-		extra := make([]uint64, maxExtra)
-		for i := 0; i < maxExtra; i++ {
-			var inW, killW, genW uint64
-			if i < len(input.liveSet.extra) {
-				inW = input.liveSet.extra[i]
-			}
-			if i < len(kill.extra) {
-				killW = kill.extra[i]
-			}
-			if i < len(gen.extra) {
-				genW = gen.extra[i]
-			}
-			extra[i] = (inW &^ killW) | genW
+	ext := make([]uint64, effectiveExt)
+	for i := 0; i < effectiveExt; i++ {
+		var inW, killW, genW uint64
+		if i < len(input.liveSet.ext) {
+			inW = input.liveSet.ext[i]
 		}
-		result.liveSet.extra = extra
+		if i < len(kill.ext) {
+			killW = kill.ext[i]
+		}
+		if i < len(gen.ext) {
+			genW = gen.ext[i]
+		}
+		ext[i] = (inW &^ killW) | genW
 	}
+	result.liveSet.ext = ext
 	return result
 }
 
-func lvaOrIntoBitSet(dst *jutil.BitSet, src *dfaBitSet) {
-	for w := src.w0; w != 0; w &= w - 1 {
-		dst.Set(bits.TrailingZeros64(w))
-	}
-	for w := src.w1; w != 0; w &= w - 1 {
-		dst.Set(64 + bits.TrailingZeros64(w))
-	}
-	for i, word := range src.extra {
-		base := 128 + i*64
-		for w := word; w != 0; w &= w - 1 {
-			dst.Set(base + bits.TrailingZeros64(w))
-		}
-	}
-}
-
-// ComputeGenKill computes the GEN and KILL set.
-//
-// n is the root node. gen: local variables that are live because of the
-// instruction at n will be added to this set. kill: local variables that are
-// killed because of the instruction at n will be added to this set.
-// conditional: true if any assignments encountered are conditionally
-// executed. These assignments might not kill a variable.
-//
-// Java: LiveVariablesAnalysis.computeGenKill(Node, BitSet, BitSet, boolean)
-func (l *LiveVariablesAnalysis) ComputeGenKill(n rhino.Node, gen *jutil.BitSet, kill *jutil.BitSet, conditional bool) {
-	var genBits, killBits dfaBitSet
-	l.computeGenKillBits(n, &genBits, &killBits, conditional)
-	lvaOrIntoBitSet(gen, &genBits)
-	lvaOrIntoBitSet(kill, &killBits)
-}
-
-func (l *LiveVariablesAnalysis) computeGenKillBits(n rhino.Node, gen *dfaBitSet, kill *dfaBitSet, conditional bool) {
+func (l *LiveVariablesAnalysis) computeGenKillBits(n rhino.Node, gen *inlineBitSet, kill *inlineBitSet, conditional bool) {
 	switch n.GetToken() {
 	case rhino.Token_SCRIPT, rhino.Token_ROOT, rhino.Token_FUNCTION, rhino.Token_BLOCK:
 		return
@@ -906,7 +859,7 @@ func (l *LiveVariablesAnalysis) computeGenKillBits(n rhino.Node, gen *dfaBitSet,
 	}
 }
 
-func (l *LiveVariablesAnalysis) addToSetIfLocalBits(node rhino.Node, set *dfaBitSet) {
+func (l *LiveVariablesAnalysis) addToSetIfLocalBits(node rhino.Node, set *inlineBitSet) {
 	jutil.CheckStateMsg1(node.IsName(), "%s", node)
 	idx, found := l.lookupVarIndexByID(node.GetStringID())
 	if !found || l.untracked.has(idx) {

@@ -20,8 +20,6 @@ package jscomp
 
 import (
 	"math/bits"
-	"sync"
-	"sync/atomic"
 
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 	"github.com/paullepoulpe/jsgo/internal/strpool"
@@ -142,22 +140,32 @@ func (p *PeepholeOptimizationsPass) SetRetraverseOnChange(retraverse bool) {
 
 // Java: PeepholeOptimizationsPass.process(Node, Node)
 func (p *PeepholeOptimizationsPass) Process(externs rhino.Node, root rhino.Node) {
-	if p.canCloneForParallel() && parallelThreadCount(p.compiler, 2) > 1 {
-		p.processParallelLoop(root)
-		return
+	parallel := p.canCloneForParallel() && parallelThreadCount(p.compiler, 2) > 1
+	if parallel {
+		prewarmCompilerForParallelReads(p.compiler)
+		restoreReg := enableParallelTypeRegistryReads(p.compiler)
+		defer restoreReg()
 	}
+
 	p.BeginTraversal()
-	cb := newPeepholeOptimizationsPass_PeepCallback(p)
+	var seqCb *peepholeOptimizationsPass_PeepCallback
 
 	// Repeat to an internal fixed point.
 	for changedScopeNodes := p.compiler.GetChangeTracker().GetChangedScopeNodesForPass(p.passName); changedScopeNodes == nil || len(changedScopeNodes) != 0; changedScopeNodes = p.compiler.GetChangeTracker().GetChangedScopeNodesForPass(p.passName) {
-
 		if changedScopeNodes == nil {
 			// changedScopeNodes is null if this is the first run of peepholeOptimizationsPass.
-			NodeTraversal_Traverse(p.compiler, root, cb)
-		} else {
+			if !parallel || !p.processFullRootParallel(root) {
+				if seqCb == nil {
+					seqCb = newPeepholeOptimizationsPass_PeepCallback(p)
+				}
+				NodeTraversal_Traverse(p.compiler, root, seqCb)
+			}
+		} else if !parallel || !p.processChangedScopesParallel(changedScopeNodes) {
+			if seqCb == nil {
+				seqCb = newPeepholeOptimizationsPass_PeepCallback(p)
+			}
 			NodeTraversal_TraverseScopeRoots(
-				p.compiler, changedScopeNodes, cb, false /* traverseNested */)
+				p.compiler, changedScopeNodes, seqCb, false /* traverseNested */)
 		}
 
 		// Cancel the fixed point if requested.
@@ -199,39 +207,6 @@ func enclosingScriptForPeephole(n rhino.Node) rhino.Node {
 
 type peepholeScriptBucket struct {
 	origIndices []int
-}
-
-func (p *PeepholeOptimizationsPass) processParallelLoop(root rhino.Node) {
-	prewarmCompilerForParallelReads(p.compiler)
-	restoreReg := enableParallelTypeRegistryReads(p.compiler)
-	defer restoreReg()
-
-	p.BeginTraversal()
-	var seqCb *peepholeOptimizationsPass_PeepCallback
-
-	for changedScopeNodes := p.compiler.GetChangeTracker().GetChangedScopeNodesForPass(p.passName); changedScopeNodes == nil || len(changedScopeNodes) != 0; changedScopeNodes = p.compiler.GetChangeTracker().GetChangedScopeNodesForPass(p.passName) {
-		if changedScopeNodes == nil {
-			if !p.processFullRootParallel(root) {
-				if seqCb == nil {
-					seqCb = newPeepholeOptimizationsPass_PeepCallback(p)
-				}
-				NodeTraversal_Traverse(p.compiler, root, seqCb)
-			}
-		} else {
-			if !p.processChangedScopesParallel(changedScopeNodes) {
-				if seqCb == nil {
-					seqCb = newPeepholeOptimizationsPass_PeepCallback(p)
-				}
-				NodeTraversal_TraverseScopeRoots(
-					p.compiler, changedScopeNodes, seqCb, false /* traverseNested */)
-			}
-		}
-		if !p.retraverseOnChange {
-			break
-		}
-	}
-
-	p.EndTraversal()
 }
 
 func (p *PeepholeOptimizationsPass) processFullRootParallel(root rhino.Node) bool {
@@ -299,50 +274,43 @@ func (p *PeepholeOptimizationsPass) processChangedScopesParallel(changedScopeNod
 	eventsByOrigIdx := make([][]recordedCompilerEvent, len(changedScopeNodes))
 	panicsByOrigIdx := make([]any, len(changedScopeNodes))
 
-	var nextBucket atomic.Uint32
-	var wg sync.WaitGroup
-	wg.Add(numWorkers)
-	for w := 0; w < numWorkers; w++ {
-		go func() {
-			defer wg.Done()
-			var rc recordingCompiler
-			initRecordingCompiler(&rc, p.compiler)
-			workerPass := p.cloneForWorker(&rc)
-			workerPass.BeginTraversal()
-			defer workerPass.EndTraversal()
-			workerCb := newPeepholeOptimizationsPass_PeepCallback(workerPass)
-			scopeCreator := NewMemoizedScopeCreator(NewSyntacticScopeCreator(&rc))
+	runParallelWork(p.compiler, numWorkers, len(buckets), func(_ int) (func(int, *recordingCompiler), func()) {
+		var workerRC *recordingCompiler
+		var workerPass *PeepholeOptimizationsPass
+		var workerCb *peepholeOptimizationsPass_PeepCallback
+		var scopeCreator ScopeCreator
 
-			for {
-				bIdx := int(nextBucket.Add(1) - 1)
-				if bIdx >= len(buckets) {
+		cleanup := func() {
+			if workerPass != nil {
+				workerPass.EndTraversal()
+			}
+		}
+		runItem := func(bIdx int, rc *recordingCompiler) {
+			if workerPass == nil || workerRC != rc {
+				workerRC = rc
+				workerPass = p.cloneForWorker(rc)
+				workerPass.BeginTraversal()
+				workerCb = newPeepholeOptimizationsPass_PeepCallback(workerPass)
+				scopeCreator = NewMemoizedScopeCreator(NewSyntacticScopeCreator(rc))
+			}
+			for _, origIdx := range buckets[bIdx].origIndices {
+				initRecordingCompiler(rc, p.compiler)
+				panicked := runParallelItemIndexed(rc, origIdx, panicsByOrigIdx, func(rc *recordingCompiler, itemIdx int) {
+					b := NodeTraversal_Builder{
+						compiler:     rc,
+						callback:     workerCb,
+						scopeCreator: scopeCreator,
+					}
+					b.traverseScopedRoot(changedScopeNodes[itemIdx], false)
+				})
+				eventsByOrigIdx[origIdx] = rc.takeEvents()
+				if panicked {
 					return
 				}
-				for _, origIdx := range buckets[bIdx].origIndices {
-					initRecordingCompiler(&rc, p.compiler)
-					scopeNode := changedScopeNodes[origIdx]
-					func() {
-						defer func() {
-							if r := recover(); r != nil {
-								panicsByOrigIdx[origIdx] = r
-							}
-						}()
-						b := NodeTraversal_Builder{
-							compiler:     &rc,
-							callback:     workerCb,
-							scopeCreator: scopeCreator,
-						}
-						b.traverseScopedRoot(scopeNode, false)
-					}()
-					eventsByOrigIdx[origIdx] = rc.takeEvents()
-					if panicsByOrigIdx[origIdx] != nil {
-						return
-					}
-				}
 			}
-		}()
-	}
-	wg.Wait()
+		}
+		return runItem, cleanup
+	}, false)
 
 	for i := range changedScopeNodes {
 		if len(eventsByOrigIdx[i]) != 0 {

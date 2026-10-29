@@ -635,7 +635,12 @@ func (a *TypedScopeCreator_FirstOrderFunctionAnalyzer) EnterScope(t *NodeTravers
 		return
 	}
 	root := t.GetScopeRoot()
-	if root.IsFunction() || root.IsModuleBody() || NodeUtil_IsClassStaticBlock(root) {
+	if root.IsFunction() {
+		a.localContainerDepth++
+		if !root.GetLastChild().IsBlock() {
+			a.outer.functionsWithNonEmptyReturns[root] = struct{}{}
+		}
+	} else if root.IsModuleBody() || NodeUtil_IsClassStaticBlock(root) {
 		a.localContainerDepth++
 	}
 }
@@ -719,6 +724,26 @@ const (
 	localVarEscapedBit       uint8 = 4
 )
 
+var firstOrderFunctionAnalyzerVisitTokens = func() ast.TokenSet {
+	var s ast.TokenSet
+	s.Add(rhino.Token_LET)
+	s.Add(rhino.Token_CONST)
+	s.Add(rhino.Token_VAR)
+	s.Add(rhino.Token_EXPR_RESULT)
+	s.Add(rhino.Token_FUNCTION)
+	s.Add(rhino.Token_CLASS)
+	s.Add(rhino.Token_ASSIGN)
+	s.Add(rhino.Token_RETURN)
+	s.Add(rhino.Token_NAME)
+	s.Add(rhino.Token_GETPROP)
+	return s
+}()
+
+func (*TypedScopeCreator_FirstOrderFunctionAnalyzer) onlyNameLeaves() {}
+func (*TypedScopeCreator_FirstOrderFunctionAnalyzer) visitTokens() *ast.TokenSet {
+	return &firstOrderFunctionAnalyzerVisitTokens
+}
+
 // Java: TypedScopeCreator.FirstOrderFunctionAnalyzer.visit(NodeTraversal, Node, Node)
 func (a *TypedScopeCreator_FirstOrderFunctionAnalyzer) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	if a.identifyEnumsAndTypedefs.registry != nil {
@@ -743,8 +768,8 @@ func (a *TypedScopeCreator_FirstOrderFunctionAnalyzer) Visit(t *NodeTraversal, n
 		return
 	}
 
-	// Record function with returns or arrow functions without bodies
-	if (n.IsReturn() && n.HasChildren()) || NodeUtil_IsBlocklessArrowFunctionResult(n) {
+	// Record function with returns (blockless arrow functions are recorded in EnterScope)
+	if n.IsReturn() && n.HasChildren() {
 		for i := len(t.scopes) - 1; i >= 0; i-- {
 			rootNode := t.scopes[i].node
 			if !NodeUtil_CreatesBlockScope(rootNode) {
@@ -752,14 +777,14 @@ func (a *TypedScopeCreator_FirstOrderFunctionAnalyzer) Visit(t *NodeTraversal, n
 				break
 			}
 		}
+		return
 	}
 
 	// Be careful of bleeding functions, which create variables
 	// in the inner scope, not the scope where the name appears.
 	if n.IsName() && NodeUtil_IsLValue(n) && !NodeUtil_IsBleedingFunctionName(n) {
-		name := n.GetString()
 		scope := t.resolveLookupScope(len(t.scopes) - 1)
-		var_ := scope.GetVar(name)
+		var_ := scope.GetVarByID(n.GetStringID())
 		// TODO(sdh): consider checking hasSameHoistScope instead of container scope here and
 		// below. This will detect function(a) { a.foo = bar } as an escaped qualified name,
 		// which seems like the right thing to do (but could possibly break things?)
@@ -786,8 +811,13 @@ func (a *TypedScopeCreator_FirstOrderFunctionAnalyzer) Visit(t *NodeTraversal, n
 	} else if n.IsGetProp() && n.IsUnscopedQualifiedName() && NodeUtil_IsLValue(n) {
 		scope := t.resolveLookupScope(len(t.scopes) - 1)
 		if a.localContainerDepth > 1 {
-			name := NodeUtil_GetRootOfQualifiedName(n).GetString()
-			var_ := scope.GetVar(name)
+			root := NodeUtil_GetRootOfQualifiedName(n)
+			var var_ *Var
+			if root.IsName() {
+				var_ = scope.GetVarByID(root.GetStringID())
+			} else {
+				var_ = scope.GetVar(root.GetString())
+			}
 			if var_ != nil {
 				ownerScope := var_.scope
 				if ownerScope.IsLocal() {

@@ -7,7 +7,6 @@
 // Port of com/google/javascript/jscomp/graph/GraphvizGraph.java @ closure-compiler v20261021
 // Port of com/google/javascript/jscomp/graph/LatticeElement.java @ closure-compiler v20261021
 // Port of com/google/javascript/jscomp/graph/StandardUnionFind.java @ closure-compiler v20261021
-// Port of com/google/javascript/jscomp/graph/SubGraph.java @ closure-compiler v20261021
 // Port of com/google/javascript/jscomp/graph/UndiGraph.java @ closure-compiler v20261021
 // Port of com/google/javascript/jscomp/graph/UnionFind.java @ closure-compiler v20261021
 
@@ -50,7 +49,7 @@
 // Core types and algorithms:
 //   - [LinkedDirectedGraph] and [LinkedUndirectedGraph] — insertion-ordered
 //     graphs backed by slab-allocated nodes and inline 2-edge lists
-//   - [DiGraph], [Graph], [SubGraph], [GraphvizGraph]
+//   - [DiGraph], [Graph], [GraphvizGraph]
 //   - [FixedPointGraphTraversal], [GraphReachability], [CheckPathsBetweenNodes]
 //   - [DominatorTree], [LowestCommonAncestorFinder]
 //   - [GreedyGraphColoring]
@@ -172,19 +171,6 @@ type GraphNode[N, E comparable] interface {
 	GetValue() N
 }
 
-// SubGraph represents a subgraph that provides adjacency checks against a node.
-type SubGraph[N, E comparable] interface {
-	// IsIndependentOf returns true if node is not adjacent to any node in this SubGraph.
-	//
-	// Java: SubGraph.isIndependentOf(N)
-	IsIndependentOf(node N) bool
-
-	// AddNode adds value into this subgraph.
-	//
-	// Java: SubGraph.addNode(N)
-	AddNode(value N)
-}
-
 // Graph is the common interface shared by [LinkedDirectedGraph] and
 // [LinkedUndirectedGraph] for algorithms such as [GreedyGraphColoring].
 type Graph[N, E comparable] interface {
@@ -195,7 +181,6 @@ type Graph[N, E comparable] interface {
 	GetNodeDegree(value N) int
 	HasNode(n N) bool
 	IsConnected(n1 N, n2 N) bool
-	NewSubGraph() SubGraph[N, E]
 	ClearNodeAnnotations()
 	ClearEdgeAnnotations()
 	PushNodeAnnotations()

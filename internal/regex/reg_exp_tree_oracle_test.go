@@ -170,9 +170,9 @@ func line(sb *strings.Builder, s string) {
 // dumpOne mirrors RegExpDump.dumpOne.
 func dumpOne(sb *strings.Builder, pattern, flags string) {
 	sb.WriteString("=== " + escape(pattern) + "\t" + escape(flags) + "\n")
-	var t RegExpTree
-	if e := catch(func() { t = RegExpTree_ParseRegExp(pattern, flags) }); e != nil {
-		line(sb, "parse: "+exceptionString(e))
+	t, parseErr := ParseRegExp(pattern, flags)
+	if parseErr != nil {
+		line(sb, "parse: "+exceptionString(parseErr.toThrowable()))
 		return
 	}
 	dumpAnalyzed(sb, "parse", t, flags)

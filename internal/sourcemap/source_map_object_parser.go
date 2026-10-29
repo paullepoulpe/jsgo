@@ -48,10 +48,10 @@ func parseSourceMapObject(contents string) (*SourceMapObject, *SourceMapParseExc
 	return parseSourceMapObjectGson(contents)
 }
 
-// tryParseStrictFast parses standard strict-JSON V3 source maps directly via
-// SourceMapJsonLexer without allocating a Gson DOM. It returns (_, false) on
-// index maps ("sections"), missing "version", or non-strict / malformed JSON
-// so parseSourceMapObjectGson preserves exact Gson diagnostics and coercions.
+// tryParseStrictFast parses standard strict-JSON V3 and index ("sections")
+// source maps directly via SourceMapJsonLexer without allocating a Gson DOM.
+// It returns (_, false) on missing "version" or non-strict / malformed JSON so
+// parseSourceMapObjectGson preserves exact Gson diagnostics and coercions.
 func tryParseStrictFast(contents string) (*SourceMapObject, bool) {
 	obj := &SourceMapObject{lineCount: -1}
 	lexer := NewSourceMapJsonLexer(contents)
@@ -60,6 +60,7 @@ func tryParseStrictFast(contents string) (*SourceMapObject, bool) {
 	}
 	var extensions []SourceMapExtension
 	hasVersion := false
+	hasSections := false
 
 	for lexer.HasNext() {
 		name, ok := strictNextName(lexer)
@@ -99,7 +100,15 @@ func tryParseStrictFast(contents string) (*SourceMapObject, bool) {
 			}
 			obj.sourceRoot = sr
 		case "sections":
-			return nil, false
+			if hasSections {
+				return nil, false
+			}
+			secs, ok := strictReadSections(lexer)
+			if !ok {
+				return nil, false
+			}
+			obj.sections = secs
+			hasSections = true
 		case "sources":
 			arr, ok := strictReadOptionalStringArray(lexer)
 			if !ok {
@@ -286,6 +295,336 @@ func strictReadOptionalStringArray(l *SourceMapJsonLexer) ([]optionalString, boo
 	return list, true
 }
 
+func strictReadSections(l *SourceMapJsonLexer) ([]*SourceMapSection, bool) {
+	if l.beginArray() != nil {
+		return nil, false
+	}
+	sections := []*SourceMapSection{}
+	for l.HasNext() {
+		sec, ok := strictReadSection(l)
+		if !ok || l.checkComma() != nil {
+			return nil, false
+		}
+		sections = append(sections, sec)
+	}
+	if l.endArray() != nil {
+		return nil, false
+	}
+	return sections, true
+}
+
+func strictReadSection(l *SourceMapJsonLexer) (*SourceMapSection, bool) {
+	if l.beginObject() != nil {
+		return nil, false
+	}
+	var line, column int
+	hasOffset := false
+	hasURL := false
+	hasMap := false
+	var urlStr, mapStr string
+
+	for l.HasNext() {
+		key, ok := strictNextName(l)
+		if !ok {
+			return nil, false
+		}
+		switch key {
+		case "offset":
+			if hasOffset || l.beginObject() != nil {
+				return nil, false
+			}
+			hasLine, hasCol := false, false
+			for l.HasNext() {
+				okey, ok := strictNextName(l)
+				if !ok {
+					return nil, false
+				}
+				switch okey {
+				case "line":
+					if hasLine {
+						return nil, false
+					}
+					v, ok := strictNextInt(l)
+					if !ok {
+						return nil, false
+					}
+					line = v
+					hasLine = true
+				case "column":
+					if hasCol {
+						return nil, false
+					}
+					v, ok := strictNextInt(l)
+					if !ok {
+						return nil, false
+					}
+					column = v
+					hasCol = true
+				default:
+					if !strictSkipValue(l) {
+						return nil, false
+					}
+				}
+				if l.checkComma() != nil {
+					return nil, false
+				}
+			}
+			if !hasLine || !hasCol || l.endObject() != nil {
+				return nil, false
+			}
+			hasOffset = true
+		case "url":
+			if hasURL || hasMap {
+				return nil, false
+			}
+			s, ok := strictNextString(l)
+			if !ok {
+				return nil, false
+			}
+			urlStr = s
+			hasURL = true
+		case "map":
+			if hasMap || hasURL {
+				return nil, false
+			}
+			l.SkipWhitespace()
+			if l.pos < l.length && l.json[l.pos] == '"' {
+				s, ok := strictNextString(l)
+				if !ok {
+					return nil, false
+				}
+				mapStr = s
+			} else {
+				var sb strings.Builder
+				if !strictAppendCompactValue(l, &sb) {
+					return nil, false
+				}
+				mapStr = sb.String()
+			}
+			hasMap = true
+		default:
+			if !strictSkipValue(l) {
+				return nil, false
+			}
+		}
+		if l.checkComma() != nil {
+			return nil, false
+		}
+	}
+	if !hasOffset || (!hasURL && !hasMap) || l.endObject() != nil {
+		return nil, false
+	}
+	if hasURL {
+		return SourceMapSection_ForURL(urlStr, line, column), true
+	}
+	return SourceMapSection_ForMap(mapStr, line, column), true
+}
+
+func strictAppendCompactValue(l *SourceMapJsonLexer, sb *strings.Builder) bool {
+	l.SkipWhitespace()
+	if l.pos >= l.length {
+		return false
+	}
+	switch c := l.json[l.pos]; {
+	case c == '{':
+		l.pos++
+		sb.WriteByte('{')
+		var seenBuf [12]string
+		seen := seenBuf[:0]
+		first := true
+		for l.HasNext() {
+			name, ok := strictNextName(l)
+			if !ok {
+				return false
+			}
+			for _, prev := range seen {
+				if prev == name {
+					return false
+				}
+			}
+			seen = append(seen, name)
+			if !first {
+				sb.WriteByte(',')
+			}
+			first = false
+			writeCompactJsonString(sb, name)
+			sb.WriteByte(':')
+			if !strictAppendCompactValue(l, sb) || l.checkComma() != nil {
+				return false
+			}
+		}
+		if l.endObject() != nil {
+			return false
+		}
+		sb.WriteByte('}')
+		return true
+	case c == '[':
+		l.pos++
+		sb.WriteByte('[')
+		first := true
+		for l.HasNext() {
+			if !first {
+				sb.WriteByte(',')
+			}
+			first = false
+			if !strictAppendCompactValue(l, sb) || l.checkComma() != nil {
+				return false
+			}
+		}
+		if l.endArray() != nil {
+			return false
+		}
+		sb.WriteByte(']')
+		return true
+	case c == '"':
+		s, ok := strictNextString(l)
+		if !ok {
+			return false
+		}
+		writeCompactJsonString(sb, s)
+		return true
+	case c == 't' && l.startsWith("true", l.pos):
+		l.pos += 4
+		sb.WriteString("true")
+		return true
+	case c == 'f' && l.startsWith("false", l.pos):
+		l.pos += 5
+		sb.WriteString("false")
+		return true
+	case c == 'n' && l.startsWith("null", l.pos):
+		l.pos += 4
+		sb.WriteString("null")
+		return true
+	case c == '-' || (c >= '0' && c <= '9'):
+		start := l.pos
+		if !strictSkipNumber(l) {
+			return false
+		}
+		sb.WriteString(l.json[start:l.pos])
+		return true
+	default:
+		return false
+	}
+}
+
+func writeCompactJsonString(sb *strings.Builder, s string) {
+	sb.WriteByte('"')
+	last := 0
+	for i := 0; i < len(s); {
+		b := s[i]
+		if b < 0x80 {
+			var esc string
+			switch b {
+			case '"':
+				esc = `\"`
+			case '\\':
+				esc = `\\`
+			case '\b':
+				esc = `\b`
+			case '\f':
+				esc = `\f`
+			case '\n':
+				esc = `\n`
+			case '\r':
+				esc = `\r`
+			case '\t':
+				esc = `\t`
+			default:
+				if b < 0x20 {
+					const hex = "0123456789abcdef"
+					if last < i {
+						sb.WriteString(s[last:i])
+					}
+					var buf [6]byte
+					buf[0] = '\\'
+					buf[1] = 'u'
+					buf[2] = '0'
+					buf[3] = '0'
+					buf[4] = hex[b>>4]
+					buf[5] = hex[b&0x0f]
+					sb.Write(buf[:])
+					i++
+					last = i
+					continue
+				}
+				i++
+				continue
+			}
+			if last < i {
+				sb.WriteString(s[last:i])
+			}
+			sb.WriteString(esc)
+			i++
+			last = i
+			continue
+		}
+		if b == 0xe2 && i+2 < len(s) && s[i+1] == 0x80 && (s[i+2] == 0xa8 || s[i+2] == 0xa9) {
+			if last < i {
+				sb.WriteString(s[last:i])
+			}
+			if s[i+2] == 0xa8 {
+				sb.WriteString(`\u2028`)
+			} else {
+				sb.WriteString(`\u2029`)
+			}
+			i += 3
+			last = i
+			continue
+		}
+		i++
+	}
+	if last < len(s) {
+		sb.WriteString(s[last:])
+	}
+	sb.WriteByte('"')
+}
+
+func strictSkipNumber(l *SourceMapJsonLexer) bool {
+	start := l.pos
+	if l.json[l.pos] == '-' {
+		l.pos++
+	}
+	if l.pos >= l.length || l.json[l.pos] < '0' || l.json[l.pos] > '9' {
+		return false
+	}
+	if l.json[l.pos] == '0' {
+		l.pos++
+		if l.pos < l.length && l.json[l.pos] >= '0' && l.json[l.pos] <= '9' {
+			return false
+		}
+	} else {
+		for l.pos < l.length && l.json[l.pos] >= '0' && l.json[l.pos] <= '9' {
+			l.pos++
+		}
+	}
+	if l.pos < l.length && l.json[l.pos] == '.' {
+		l.pos++
+		if l.pos >= l.length || l.json[l.pos] < '0' || l.json[l.pos] > '9' {
+			return false
+		}
+		for l.pos < l.length && l.json[l.pos] >= '0' && l.json[l.pos] <= '9' {
+			l.pos++
+		}
+	}
+	if l.pos < l.length && (l.json[l.pos] == 'e' || l.json[l.pos] == 'E') {
+		l.pos++
+		if l.pos < l.length && (l.json[l.pos] == '+' || l.json[l.pos] == '-') {
+			l.pos++
+		}
+		if l.pos >= l.length || l.json[l.pos] < '0' || l.json[l.pos] > '9' {
+			return false
+		}
+		expStart := l.pos
+		for l.pos < l.length && l.json[l.pos] >= '0' && l.json[l.pos] <= '9' {
+			l.pos++
+		}
+		if l.pos-expStart > 3 {
+			return false
+		}
+	}
+	return l.pos-start <= 32
+}
+
 func strictSkipValue(l *SourceMapJsonLexer) bool {
 	l.SkipWhitespace()
 	if l.pos >= l.length {
@@ -324,49 +663,7 @@ func strictSkipValue(l *SourceMapJsonLexer) bool {
 		l.pos += 4
 		return true
 	case c == '-' || (c >= '0' && c <= '9'):
-		start := l.pos
-		if c == '-' {
-			l.pos++
-		}
-		if l.pos >= l.length || l.json[l.pos] < '0' || l.json[l.pos] > '9' {
-			return false
-		}
-		if l.json[l.pos] == '0' {
-			l.pos++
-			if l.pos < l.length && l.json[l.pos] >= '0' && l.json[l.pos] <= '9' {
-				return false
-			}
-		} else {
-			for l.pos < l.length && l.json[l.pos] >= '0' && l.json[l.pos] <= '9' {
-				l.pos++
-			}
-		}
-		if l.pos < l.length && l.json[l.pos] == '.' {
-			l.pos++
-			if l.pos >= l.length || l.json[l.pos] < '0' || l.json[l.pos] > '9' {
-				return false
-			}
-			for l.pos < l.length && l.json[l.pos] >= '0' && l.json[l.pos] <= '9' {
-				l.pos++
-			}
-		}
-		if l.pos < l.length && (l.json[l.pos] == 'e' || l.json[l.pos] == 'E') {
-			l.pos++
-			if l.pos < l.length && (l.json[l.pos] == '+' || l.json[l.pos] == '-') {
-				l.pos++
-			}
-			if l.pos >= l.length || l.json[l.pos] < '0' || l.json[l.pos] > '9' {
-				return false
-			}
-			expStart := l.pos
-			for l.pos < l.length && l.json[l.pos] >= '0' && l.json[l.pos] <= '9' {
-				l.pos++
-			}
-			if l.pos-expStart > 3 {
-				return false
-			}
-		}
-		return l.pos-start <= 32
+		return strictSkipNumber(l)
 	default:
 		return false
 	}
@@ -482,26 +779,32 @@ func parseFast(contents string) (*SourceMapObject, *SourceMapParseException) {
 			}
 			obj.sourceRoot = sr
 		case "sections":
-			rawSections, err := lexer.nextRawValue()
-			if err != nil {
-				return nil, wrapFastParseErr(err)
-			}
-			sectionsArray, parseEx := sourceMapObjectParser_gson.TryFromJsonArray(rawSections)
-			if parseEx != nil {
-				return nil, wrapFastParseErr(parseEx)
-			}
-			listBuilder := make([]*SourceMapSection, 0, sectionsArray.Size())
-			for each := range sectionsArray.All() {
-				if !each.IsJsonObject() {
-					return nil, wrapFastParseErr(jutil.NewIllegalStateExceptionMsg("Not a JSON Object: " + each.String()))
-				}
-				sec, err := buildSection(each.GetAsJsonObject())
+			savedPos := lexer.pos
+			if secs, ok := strictReadSections(lexer); ok {
+				obj.sections = secs
+			} else {
+				lexer.pos = savedPos
+				rawSections, err := lexer.nextRawValue()
 				if err != nil {
 					return nil, wrapFastParseErr(err)
 				}
-				listBuilder = append(listBuilder, sec)
+				sectionsArray, parseEx := sourceMapObjectParser_gson.TryFromJsonArray(rawSections)
+				if parseEx != nil {
+					return nil, wrapFastParseErr(parseEx)
+				}
+				listBuilder := make([]*SourceMapSection, 0, sectionsArray.Size())
+				for each := range sectionsArray.All() {
+					if !each.IsJsonObject() {
+						return nil, wrapFastParseErr(jutil.NewIllegalStateExceptionMsg("Not a JSON Object: " + each.String()))
+					}
+					sec, err := buildSection(each.GetAsJsonObject())
+					if err != nil {
+						return nil, wrapFastParseErr(err)
+					}
+					listBuilder = append(listBuilder, sec)
+				}
+				obj.sections = listBuilder
 			}
-			obj.sections = listBuilder
 		case "sources":
 			arr, err := readOptionalStringArray(lexer)
 			if err != nil {

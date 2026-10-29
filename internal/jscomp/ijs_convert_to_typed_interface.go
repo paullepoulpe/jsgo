@@ -1,5 +1,6 @@
 // Port of com/google/javascript/jscomp/ijs/ConvertToTypedInterface.java @ closure-compiler v20261021
 // Port of com/google/javascript/jscomp/ijs/FileInfo.java @ closure-compiler v20261021
+// Port of com/google/javascript/jscomp/ijs/ClassUtil.java @ closure-compiler v20261021
 
 /*
  * Copyright 2016 The Closure Compiler Authors.
@@ -74,17 +75,22 @@ var ConvertToTypedInterface_GOOG_SCOPE_HIDDEN_TYPE = DiagnosticType_Warning(
 		"If you can't yet migrate this file to goog.module, use a /** @private */"+
 		" declaration within the goog.provide namespace.")
 
-var convertToTypedInterface_CALLS_TO_PRESERVE = jutil.NewLinkedHashSet[string](
-	"Polymer",
-	"goog.addSingletonGetter",
-	"goog.define",
-	"goog.forwardDeclare",
-	"goog.module",
-	"goog.module.declareLegacyNamespace",
-	"goog.declareModuleId",
-	"goog.provide",
-	"goog.require",
-	"goog.requireType")
+func isCallToPreserve(name string) bool {
+	switch name {
+	case "Polymer",
+		"goog.addSingletonGetter",
+		"goog.define",
+		"goog.forwardDeclare",
+		"goog.module",
+		"goog.module.declareLegacyNamespace",
+		"goog.declareModuleId",
+		"goog.provide",
+		"goog.require",
+		"goog.requireType":
+		return true
+	}
+	return false
+}
 
 // Java: ConvertToTypedInterface(AbstractCompiler)
 func NewConvertToTypedInterface(compiler AbstractCompiler) *ConvertToTypedInterface {
@@ -207,7 +213,7 @@ func (r *ConvertToTypedInterface_RemoveNonDeclarations) ShouldTraverse(t *NodeTr
 		case rhino.Token_CALL:
 			callee := expr.GetFirstChild()
 			jutil.CheckState(!convertToTypedInterface_RemoveNonDeclarations_GOOG_SCOPE.Matches(callee))
-			if qname := callee.GetQualifiedName(); qname != nil && convertToTypedInterface_CALLS_TO_PRESERVE.Contains(*qname) {
+			if qname := callee.GetQualifiedName(); qname != nil && isCallToPreserve(*qname) {
 				return true
 			}
 			NodeUtil_DeleteNode(n, t.GetCompiler())
@@ -378,10 +384,6 @@ func ConvertToTypedInterface_RemoveNonDeclarations_SplitNameDeclarationsAndRemov
 		t.ReportCodeChange()
 	}
 }
-
-// IjsErrors holds IJS-related errors occurring outside the
-// ConvertToTypedInterface pass.
-type IjsErrors struct{}
 
 var (
 	IjsErrors_BAD_IJS_FILE_NAME = DiagnosticType_Error("JSC_BAD_IJS_FILE_NAME", "--ijs file name must end in .i.js: {0}")
@@ -921,4 +923,141 @@ func (f *FileInfo) IsStrictPrefixDeclared(fullyQualifiedName string) bool {
 func (f *FileInfo) MarkProvided(providedName string) {
 	// checkNotNull(providedName): a Go string cannot be null.
 	f.providedNamespaces.Add(providedName)
+}
+
+// ClassUtil holds static utility methods for dealing with classes. The
+// primary benefit is for papering over the differences between ES6 class
+// syntax.
+//
+// Go-only: language-adapter — the Java class has only a private
+// constructor and static methods; it has no Go type.
+
+// ClassUtil_IsThisPropInsideClassWithName returns whether the given node
+// represents a GETPROP with a first child THIS inside a named class.
+//
+// Java: ClassUtil.isThisPropInsideClassWithName(Node)
+func ClassUtil_IsThisPropInsideClassWithName(maybeGetProp rhino.Node) bool {
+	return classUtil_getClassNameOfThisProp(maybeGetProp) != nil
+}
+
+// ClassUtil_GetFullyQualifiedNameOfThisProp returns the fully qualified name
+// of a this.property inside a constructor. This method called should only
+// be called if `isThisPropInsideClassWithName` returns true.
+//
+// Java: ClassUtil.getFullyQualifiedNameOfThisProp(Node)
+func ClassUtil_GetFullyQualifiedNameOfThisProp(getProp rhino.Node) string {
+	jutil.CheckArgument(ClassUtil_IsThisPropInsideClassWithName(getProp))
+	className := classUtil_getClassNameOfThisProp(getProp)
+	return *className + ".prototype." + getProp.GetString()
+}
+
+// Java: ClassUtil.getClassNameOfThisProp(Node)
+func classUtil_getClassNameOfThisProp(getprop rhino.Node) *string {
+	gp, ok := ast.AsGetProp(getprop)
+	if !ok || !gp.Object().Node().IsThis() {
+		return nil
+	}
+	function := NodeUtil_GetEnclosingFunction(getprop)
+	if function.IsNil() {
+		return nil
+	}
+	className := classUtil_getMemberFunctionClassName(function)
+	if className == nil || *className == "" {
+		return nil
+	}
+	return className
+}
+
+// ClassUtil_IsMemberFieldDefInsideClassWithName returns whether the given
+// node represents a MEMBER_FIELD_DEF that is inside a class with a name.
+//
+// Java: ClassUtil.isMemberFieldDefInsideClassWithName(Node)
+func ClassUtil_IsMemberFieldDefInsideClassWithName(fieldNode rhino.Node) bool {
+	return classUtil_getMemberFieldDefClassName(fieldNode) != nil
+}
+
+// ClassUtil_IsComputedMemberInsideClassWithName returns whether the given
+// node represents a MEMBER_FIELD_DEF that is inside a class with a name.
+//
+// Java: ClassUtil.isComputedMemberInsideClassWithName(Node)
+func ClassUtil_IsComputedMemberInsideClassWithName(fieldNode rhino.Node) bool {
+	if !fieldNode.GetParent().IsClassMembers() {
+		return false
+	}
+	gp, ok := ast.AsGetProp(fieldNode.GetFirstChild())
+	return ok && gp.Object().Node().MatchesName("Symbol")
+}
+
+// ClassUtil_GetFullyQualifiedNameOfMemberFieldDef returns the fully
+// qualified name of a MEMBER_FIELD_DEF. It is invalid to call this method
+// for a field that belongs to a nameless class.
+//
+// Java: ClassUtil.getFullyQualifiedNameOfMemberFieldDef(Node)
+func ClassUtil_GetFullyQualifiedNameOfMemberFieldDef(fieldNode rhino.Node) string {
+	jutil.CheckArgument(ClassUtil_IsMemberFieldDefInsideClassWithName(fieldNode))
+	className := classUtil_getMemberFieldDefClassName(fieldNode)
+	if fieldNode.IsStaticMember() {
+		return *className + "." + fieldNode.GetString()
+	}
+	return *className + ".prototype." + fieldNode.GetString()
+}
+
+// Java: ClassUtil.getMemberFieldDefClassName(Node)
+func classUtil_getMemberFieldDefClassName(fieldNode rhino.Node) *string {
+	jutil.CheckArgument(fieldNode.IsMemberFieldDef())
+	classNode := fieldNode.GetGrandparent()
+	jutil.CheckState(classNode.IsClass())
+	return NodeUtil_GetName(classNode)
+}
+
+// Java: ClassUtil.getFullyQualifiedNameOfMethod(Node)
+func ClassUtil_GetFullyQualifiedNameOfMethod(function rhino.Node) string {
+	jutil.CheckArgument(ClassUtil_IsClassMethod(function))
+	className := classUtil_getMemberFunctionClassName(function)
+	jutil.CheckState(className != nil && *className != "")
+	memberFunctionDef := function.GetParent()
+	methodName := memberFunctionDef.GetString()
+	if memberFunctionDef.IsStaticMember() {
+		return *className + "." + methodName
+	}
+	return *className + ".prototype." + methodName
+}
+
+// Java: ClassUtil.isClassMethod(Node)
+func ClassUtil_IsClassMethod(functionNode rhino.Node) bool {
+	jutil.CheckArgument(functionNode.IsFunction())
+	parent := functionNode.GetParent()
+	return parent.IsMemberFunctionDef() && parent.GetParent().IsClassMembers()
+}
+
+// ClassUtil_HasNamedClass checks whether the given constructor/member
+// function belongs to a named class, as opposed to an anonymous class.
+//
+// Java: ClassUtil.hasNamedClass(Node)
+func ClassUtil_HasNamedClass(functionNode rhino.Node) bool {
+	jutil.CheckArgument(functionNode.IsFunction())
+	return classUtil_getMemberFunctionClassName(functionNode) != nil
+}
+
+// Java: ClassUtil.getMemberFunctionClassName(Node)
+func classUtil_getMemberFunctionClassName(functionNode rhino.Node) *string {
+	jutil.CheckArgument(functionNode.IsFunction())
+	if ClassUtil_IsClassMethod(functionNode) {
+		parent := functionNode.GetParent()
+		jutil.CheckState(parent.IsMemberFunctionDef())
+		// ES6 class
+		classNode := functionNode.GetGrandparent().GetParent()
+		jutil.CheckState(classNode.IsClass())
+		return NodeUtil_GetName(classNode)
+	}
+	return NodeUtil_GetName(functionNode)
+}
+
+// Java: ClassUtil.isConstructor(Node)
+func ClassUtil_IsConstructor(functionNode rhino.Node) bool {
+	if ClassUtil_IsClassMethod(functionNode) {
+		return NodeUtil_IsEs6Constructor(functionNode)
+	}
+	jsdoc := NodeUtil_GetBestJSDocInfo(functionNode)
+	return jsdoc != nil && jsdoc.IsConstructorOrInterface()
 }

@@ -178,9 +178,9 @@ func TestSourceMappingExactMatch(t *testing.T) {
 	consumer := sourcemap.NewSourceMapConsumerV3()
 	consumer.Parse(basicMapJSON())
 
-	mapping := consumer.GetMappingForLine(1, 1)
+	mapping, _, ok := consumer.GetMappingForLineValue(1, 1)
 
-	if mapping == nil {
+	if !ok {
 		t.Fatal("mapping is null")
 	}
 	if mapping.GetLineNumber() != 1 {
@@ -215,9 +215,9 @@ func TestSourceMappingApproximatedLine(t *testing.T) {
 				setNames("Shape", "id", "Rectangle", "s").
 				build()))
 
-	mapping := consumer.GetMappingForLine(40, 10)
+	mapping, _, ok := consumer.GetMappingForLineValue(40, 10)
 
-	if mapping == nil {
+	if !ok {
 		t.Fatal("mapping is null")
 	}
 	// The Previous line mapping was retrieved, and thus it is "approximated"
@@ -257,7 +257,7 @@ func TestLargeMappings(t *testing.T) {
 	if consumer.GetLineCount() != 1 {
 		t.Errorf("lineCount = %d", consumer.GetLineCount())
 	}
-	if consumer.GetMappingForLine(1, 1) == nil {
+	if _, _, ok := consumer.GetMappingForLineValue(1, 1); !ok {
 		t.Error("mapping is null")
 	}
 }
@@ -279,15 +279,15 @@ func TestMixedEntryTypes(t *testing.T) {
 				setNames("name1").
 				build()))
 
-	m1 := consumer.GetMappingForLine(1, 1) // col 0
-	m2 := consumer.GetMappingForLine(1, 2) // col 1
-	m4 := consumer.GetMappingForLine(1, 4) // col 3
+	m1, _, ok1 := consumer.GetMappingForLineValue(1, 1) // col 0
+	m2, _, ok2 := consumer.GetMappingForLineValue(1, 2) // col 1
+	m4, _, ok4 := consumer.GetMappingForLineValue(1, 4) // col 3
 
-	if m1 != nil {
+	if ok1 {
 		t.Errorf("m1 = %v", m1)
 	}
-	if m2 == nil || m4 == nil {
-		t.Fatalf("m2 = %v, m4 = %v", m2, m4)
+	if !ok2 || !ok4 {
+		t.Fatalf("ok2 = %v, ok4 = %v", ok2, ok4)
 	}
 
 	if m2.GetOriginalFile() != "testcode" || m2.GetIdentifier() != "" {
@@ -342,8 +342,8 @@ func TestBinarySearchEdgeCases(t *testing.T) {
 					build()))
 
 		for col := 0; col < numEntries; col++ {
-			mapping := consumer.GetMappingForLine(1, col+1)
-			if mapping == nil {
+			mapping, _, ok := consumer.GetMappingForLineValue(1, col+1)
+			if !ok {
 				t.Fatalf("%d entries, col %d: null", numEntries, col)
 			}
 			// All map to source line 0, col 0 (OriginalMapping uses 1-indexed)

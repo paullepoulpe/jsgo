@@ -23,15 +23,6 @@
 
 package sourcemap
 
-// Field numbers of OriginalMapping.
-const (
-	Mapping_OriginalMapping_ORIGINAL_FILE_FIELD_NUMBER   = 1
-	Mapping_OriginalMapping_LINE_NUMBER_FIELD_NUMBER     = 2
-	Mapping_OriginalMapping_COLUMN_POSITION_FIELD_NUMBER = 3
-	Mapping_OriginalMapping_IDENTIFIER_FIELD_NUMBER      = 4
-	Mapping_OriginalMapping_PRECISION_FIELD_NUMBER       = 5
-)
-
 // Has-bits of bitField0_.
 const (
 	mapping_originalFileBit   = 0x00000001
@@ -59,13 +50,6 @@ const (
 	Mapping_OriginalMapping_Precision_UNKNOWN_PRECISION Mapping_OriginalMapping_Precision = 0
 	Mapping_OriginalMapping_Precision_EXACT             Mapping_OriginalMapping_Precision = 1
 	Mapping_OriginalMapping_Precision_APPROXIMATE_LINE  Mapping_OriginalMapping_Precision = 2
-)
-
-// The enum values' numbers.
-const (
-	Mapping_OriginalMapping_Precision_UNKNOWN_PRECISION_VALUE = 0
-	Mapping_OriginalMapping_Precision_EXACT_VALUE             = 1
-	Mapping_OriginalMapping_Precision_APPROXIMATE_LINE_VALUE  = 2
 )
 
 var mapping_OriginalMapping_Precision_names = [...]string{"UNKNOWN_PRECISION", "EXACT", "APPROXIMATE_LINE"}
@@ -239,13 +223,6 @@ func Mapping_OriginalMapping_NewBuilderFrom(prototype *Mapping_OriginalMapping) 
 	return Mapping_OriginalMapping_NewBuilder().MergeFrom(prototype)
 }
 
-// NewBuilderForType returns an empty builder.
-//
-// Java: OriginalMapping.newBuilderForType()
-func (m *Mapping_OriginalMapping) NewBuilderForType() *Mapping_OriginalMapping_Builder {
-	return Mapping_OriginalMapping_NewBuilder()
-}
-
 // ToBuilder returns a builder initialized from this message.
 //
 // Java: OriginalMapping.toBuilder()
@@ -254,13 +231,6 @@ func (m *Mapping_OriginalMapping) ToBuilder() *Mapping_OriginalMapping_Builder {
 		return &Mapping_OriginalMapping_Builder{}
 	}
 	return (&Mapping_OriginalMapping_Builder{}).MergeFrom(m)
-}
-
-// GetDefaultInstanceForType returns the default instance.
-//
-// Java: OriginalMapping.getDefaultInstanceForType()
-func (m *Mapping_OriginalMapping) GetDefaultInstanceForType() *Mapping_OriginalMapping {
-	return mapping_OriginalMapping_DEFAULT_INSTANCE
 }
 
 // IsInitialized is always true: the message has no required fields.
@@ -288,56 +258,15 @@ func (b *Mapping_OriginalMapping_Builder) Clear() *Mapping_OriginalMapping_Build
 	return b
 }
 
-// GetDefaultInstanceForType returns the default instance.
-//
-// Java: OriginalMapping.Builder.getDefaultInstanceForType()
-func (b *Mapping_OriginalMapping_Builder) GetDefaultInstanceForType() *Mapping_OriginalMapping {
-	return mapping_OriginalMapping_DEFAULT_INSTANCE
-}
-
 // Build returns the message (no field is required).
 //
 // Java: OriginalMapping.Builder.build()
 func (b *Mapping_OriginalMapping_Builder) Build() *Mapping_OriginalMapping {
-	return b.BuildPartial()
-}
-
-// BuildPartial returns the message.
-//
-// Java: OriginalMapping.Builder.buildPartial()
-func (b *Mapping_OriginalMapping_Builder) BuildPartial() *Mapping_OriginalMapping {
-	result := &Mapping_OriginalMapping{}
-	if b.bitField0_ != 0 {
-		b.buildPartial0(result)
+	if b.bitField0_ == 0 {
+		return &Mapping_OriginalMapping{}
 	}
-	return result
-}
-
-// Java: OriginalMapping.Builder.buildPartial0(OriginalMapping)
-func (b *Mapping_OriginalMapping_Builder) buildPartial0(result *Mapping_OriginalMapping) {
-	fromBitField0_ := b.bitField0_
-	var toBitField0_ int32
-	if (fromBitField0_ & mapping_originalFileBit) != 0 {
-		result.originalFile_ = b.originalFile_
-		toBitField0_ |= mapping_originalFileBit
-	}
-	if (fromBitField0_ & mapping_lineNumberBit) != 0 {
-		result.lineNumber_ = b.lineNumber_
-		toBitField0_ |= mapping_lineNumberBit
-	}
-	if (fromBitField0_ & mapping_columnPositionBit) != 0 {
-		result.columnPosition_ = b.columnPosition_
-		toBitField0_ |= mapping_columnPositionBit
-	}
-	if (fromBitField0_ & mapping_identifierBit) != 0 {
-		result.identifier_ = b.identifier_
-		toBitField0_ |= mapping_identifierBit
-	}
-	if (fromBitField0_ & mapping_precisionBit) != 0 {
-		result.precision_ = b.precision_
-		toBitField0_ |= mapping_precisionBit
-	}
-	result.bitField0_ |= toBitField0_
+	m := Mapping_OriginalMapping(*b)
+	return &m
 }
 
 // MergeFrom sets every field that other has set.
@@ -367,23 +296,6 @@ func (b *Mapping_OriginalMapping_Builder) MergeFrom(other *Mapping_OriginalMappi
 	return b
 }
 
-// IsInitialized is always true: the message has no required fields.
-//
-// Java: OriginalMapping.Builder.isInitialized()
-func (b *Mapping_OriginalMapping_Builder) IsInitialized() bool {
-	return true
-}
-
-// Java: OriginalMapping.Builder.hasOriginalFile()
-func (b *Mapping_OriginalMapping_Builder) HasOriginalFile() bool {
-	return (b.bitField0_ & mapping_originalFileBit) != 0
-}
-
-// Java: OriginalMapping.Builder.getOriginalFile()
-func (b *Mapping_OriginalMapping_Builder) GetOriginalFile() string {
-	return b.originalFile_
-}
-
 // Java: OriginalMapping.Builder.setOriginalFile(String)
 func (b *Mapping_OriginalMapping_Builder) SetOriginalFile(value string) *Mapping_OriginalMapping_Builder {
 	b.originalFile_ = value
@@ -393,14 +305,9 @@ func (b *Mapping_OriginalMapping_Builder) SetOriginalFile(value string) *Mapping
 
 // Java: OriginalMapping.Builder.clearOriginalFile()
 func (b *Mapping_OriginalMapping_Builder) ClearOriginalFile() *Mapping_OriginalMapping_Builder {
-	b.originalFile_ = Mapping_OriginalMapping_GetDefaultInstance().GetOriginalFile()
-	b.bitField0_ = b.bitField0_ & ^mapping_originalFileBit
+	b.originalFile_ = ""
+	b.bitField0_ &^= mapping_originalFileBit
 	return b
-}
-
-// Java: OriginalMapping.Builder.hasLineNumber()
-func (b *Mapping_OriginalMapping_Builder) HasLineNumber() bool {
-	return (b.bitField0_ & mapping_lineNumberBit) != 0
 }
 
 // Java: OriginalMapping.Builder.getLineNumber()
@@ -415,34 +322,10 @@ func (b *Mapping_OriginalMapping_Builder) SetLineNumber(value int) *Mapping_Orig
 	return b
 }
 
-// Java: OriginalMapping.Builder.clearLineNumber()
-func (b *Mapping_OriginalMapping_Builder) ClearLineNumber() *Mapping_OriginalMapping_Builder {
-	b.bitField0_ = b.bitField0_ & ^mapping_lineNumberBit
-	b.lineNumber_ = 0
-	return b
-}
-
-// Java: OriginalMapping.Builder.hasColumnPosition()
-func (b *Mapping_OriginalMapping_Builder) HasColumnPosition() bool {
-	return (b.bitField0_ & mapping_columnPositionBit) != 0
-}
-
-// Java: OriginalMapping.Builder.getColumnPosition()
-func (b *Mapping_OriginalMapping_Builder) GetColumnPosition() int {
-	return b.columnPosition_
-}
-
 // Java: OriginalMapping.Builder.setColumnPosition(int)
 func (b *Mapping_OriginalMapping_Builder) SetColumnPosition(value int) *Mapping_OriginalMapping_Builder {
 	b.columnPosition_ = value
 	b.bitField0_ |= mapping_columnPositionBit
-	return b
-}
-
-// Java: OriginalMapping.Builder.clearColumnPosition()
-func (b *Mapping_OriginalMapping_Builder) ClearColumnPosition() *Mapping_OriginalMapping_Builder {
-	b.bitField0_ = b.bitField0_ & ^mapping_columnPositionBit
-	b.columnPosition_ = 0
 	return b
 }
 
@@ -465,14 +348,9 @@ func (b *Mapping_OriginalMapping_Builder) SetIdentifier(value string) *Mapping_O
 
 // Java: OriginalMapping.Builder.clearIdentifier()
 func (b *Mapping_OriginalMapping_Builder) ClearIdentifier() *Mapping_OriginalMapping_Builder {
-	b.identifier_ = Mapping_OriginalMapping_GetDefaultInstance().GetIdentifier()
-	b.bitField0_ = b.bitField0_ & ^mapping_identifierBit
+	b.identifier_ = ""
+	b.bitField0_ &^= mapping_identifierBit
 	return b
-}
-
-// Java: OriginalMapping.Builder.hasPrecision()
-func (b *Mapping_OriginalMapping_Builder) HasPrecision() bool {
-	return (b.bitField0_ & mapping_precisionBit) != 0
 }
 
 // Java: OriginalMapping.Builder.getPrecision()

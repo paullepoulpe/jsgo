@@ -398,9 +398,15 @@ func (e *ExpressionDecomposer) IsExpressionTreeUnsafe(tree rhino.Node, following
 				if e.IsTempConstantValueName(callee) {
 					return false
 				}
-				if len(e.knownConstantFunctions) > 0 {
-					if qn, ok := callee.GetQualifiedNameString(); ok && e.knownConstantFunctions[qn] {
+				if callee.IsName() {
+					if e.isKnownConstantFunctionID(callee.GetStringID()) {
 						return false
+					}
+				} else if len(e.knownConstantQNames) > 0 {
+					if qn, ok := callee.GetQualifiedNameString(); ok {
+						if _, isConst := e.knownConstantQNames[qn]; isConst {
+							return false
+						}
 					}
 				}
 			}
@@ -425,10 +431,38 @@ func (e *ExpressionDecomposer) IsExpressionTreeUnsafe(tree rhino.Node, following
 			return false
 		}
 		// This is a superset of "AstAnalyzer.mayHaveSideEffects".
-		return NodeUtil_CanBeSideEffectedWithScope(tree, e.knownConstantFunctions, e.scope)
+		return e.canBeSideEffected(tree)
 	} else {
 		// The function called doesn't have side-effects but check to see if there
 		// are side-effects that that may affect it.
 		return e.astAnalyzer.MayHaveSideEffects(tree)
 	}
+}
+
+func (e *ExpressionDecomposer) canBeSideEffected(n rhino.Node) bool {
+	switch n.GetToken() {
+	case rhino.Token_YIELD, rhino.Token_CALL, rhino.Token_OPTCHAIN_CALL, rhino.Token_NEW, rhino.Token_TAGGED_TEMPLATELIT, rhino.Token_AWAIT, rhino.Token_DYNAMIC_IMPORT:
+		return true
+	case rhino.Token_NAME:
+		if NodeUtil_IsConstantVar(n, e.scope) {
+			return false
+		}
+		return !e.isKnownConstantFunctionID(n.GetStringID())
+	case rhino.Token_GETPROP:
+		first := n.GetFirstChild()
+		return !(first.IsName() && first.GetStringID() == nodeUtilIDSymbol)
+	case rhino.Token_GETELEM, rhino.Token_OPTCHAIN_GETPROP, rhino.Token_OPTCHAIN_GETELEM:
+		return true
+	case rhino.Token_FUNCTION:
+		jutil.CheckStateMsg1(!NodeUtil_IsFunctionDeclaration(n), "%s", n)
+		return false
+	default:
+	}
+
+	for c := n.GetFirstChild(); !c.IsNil(); c = c.GetNext() {
+		if e.canBeSideEffected(c) {
+			return true
+		}
+	}
+	return false
 }

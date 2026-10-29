@@ -45,9 +45,6 @@ import (
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 )
 
-// TypePointers holds TypePointer utilities.
-type TypePointers struct{}
-
 // Java: TypePointers.AXIOMATIC_COLOR_COUNT
 const TypePointers_AXIOMATIC_COLOR_COUNT = int(PrimitiveType_UNRECOGNIZED)
 

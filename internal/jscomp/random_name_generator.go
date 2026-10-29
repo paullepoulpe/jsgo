@@ -67,10 +67,10 @@ import (
 // This class is not thread safe.
 type RandomNameGenerator struct {
 	// The possible first characters, after reserved characters are removed
-	firstChars []uint16
+	firstChars []byte
 
 	// Possible non-first characters, after reserved characters are removed
-	nonFirstChars []uint16
+	nonFirstChars []byte
 
 	firstAllowed    [128]bool
 	nonFirstAllowed [128]bool
@@ -82,8 +82,7 @@ type RandomNameGenerator struct {
 	reservedNames map[string]struct{}
 
 	// Prefix added to all generated names
-	prefix         string
-	prefixUTF16Len int
+	prefix string
 
 	// How many names have we issued so far (includes names that cannot be
 	// used because they are reserved through 'reservedNames' or JavaScript
@@ -91,16 +90,16 @@ type RandomNameGenerator struct {
 	nameCount int
 
 	// Randomly-shuffled version of firstChars
-	shuffledFirst []uint16
+	shuffledFirst []byte
 
 	// Randomly-shuffled versions of nonFirstChars (there are NUM_SHUFFLES of
 	// them)
-	shuffledNonFirst [randomNameGenerator_NUM_SHUFFLES][]uint16
+	shuffledNonFirst [randomNameGenerator_NUM_SHUFFLES][]byte
 
-	firstBuf            [len(defaultNameGenerator_FIRST_CHAR_STR)]uint16
-	nonFirstBuf         [len(defaultNameGenerator_NONFIRST_CHAR_STR)]uint16
-	shuffledFirstBuf    [len(defaultNameGenerator_FIRST_CHAR_STR)]uint16
-	shuffledNonFirstBuf [randomNameGenerator_NUM_SHUFFLES][len(defaultNameGenerator_NONFIRST_CHAR_STR)]uint16
+	firstBuf            [len(defaultNameGenerator_FIRST_CHAR_STR)]byte
+	nonFirstBuf         [len(defaultNameGenerator_NONFIRST_CHAR_STR)]byte
+	shuffledFirstBuf    [len(defaultNameGenerator_FIRST_CHAR_STR)]byte
+	shuffledNonFirstBuf [randomNameGenerator_NUM_SHUFFLES][len(defaultNameGenerator_NONFIRST_CHAR_STR)]byte
 	scratchBuf          [32]byte
 }
 
@@ -168,14 +167,13 @@ func (g *RandomNameGenerator) ResetWithFirstAndNonFirstChars(
 	reservedNonFirstCharacters ASCIICharSet) {
 	g.reservedNames = randomNameGenerator_copyOf(reservedNames)
 	g.prefix = prefix
-	g.prefixUTF16Len = jutil.StringLength(prefix)
 	g.nameCount = 0
 
 	// Build the character sets to use
 	g.firstChars, g.firstAllowed = randomNameGenerator_filterASCII(
-		DefaultNameGenerator_FIRST_CHAR, reservedFirstCharacters, g.firstBuf[:0])
+		defaultNameGenerator_FIRST_CHAR_STR, reservedFirstCharacters, g.firstBuf[:0])
 	g.nonFirstChars, g.nonFirstAllowed = randomNameGenerator_filterASCII(
-		DefaultNameGenerator_NONFIRST_CHAR, reservedNonFirstCharacters, g.nonFirstBuf[:0])
+		defaultNameGenerator_NONFIRST_CHAR_STR, reservedNonFirstCharacters, g.nonFirstBuf[:0])
 
 	g.checkPrefix(prefix)
 	g.shuffleAlphabets()
@@ -196,20 +194,21 @@ func randomNameGenerator_copyOf(s jutil.Set[string]) map[string]struct{} {
 // randomNameGenerator_filterASCII filters an ASCII base alphabet (in order)
 // against reserved, returning the remaining slice and an O(1) ASCII table.
 func randomNameGenerator_filterASCII(
-	base []uint16,
+	base string,
 	reserved ASCIICharSet,
-	dst []uint16,
-) ([]uint16, [128]bool) {
+	dst []byte,
+) ([]byte, [128]bool) {
 	var allowed [128]bool
 	if reserved.IsEmpty() {
-		for _, c := range base {
-			dst = append(dst, c)
-			allowed[c] = true
+		dst = append(dst, base...)
+		for i := 0; i < len(base); i++ {
+			allowed[base[i]] = true
 		}
 		return dst, allowed
 	}
-	for _, c := range base {
-		if !reserved.Contains(c) {
+	for i := 0; i < len(base); i++ {
+		c := base[i]
+		if !reserved.Contains(uint16(c)) {
 			dst = append(dst, c)
 			allowed[c] = true
 		}
@@ -224,12 +223,19 @@ func (g *RandomNameGenerator) Clone(
 }
 
 // randomNameGenerator_joinChars is Joiner.on(", ").join(chars).
-func randomNameGenerator_joinChars(chars []uint16) string {
-	parts := make([]string, len(chars))
-	for i, c := range chars {
-		parts[i] = jutil.StringFromChar(c)
+func randomNameGenerator_joinChars(chars []byte) string {
+	if len(chars) == 0 {
+		return ""
 	}
-	return strings.Join(parts, ", ")
+	var sb strings.Builder
+	sb.Grow(3*len(chars) - 2)
+	for i, c := range chars {
+		if i > 0 {
+			sb.WriteString(", ")
+		}
+		sb.WriteByte(c)
+	}
+	return sb.String()
 }
 
 // checkPrefix validates a name prefix.
@@ -239,26 +245,16 @@ func (g *RandomNameGenerator) checkPrefix(prefix string) {
 	if prefix == "" {
 		return
 	}
-	asciiValid := prefix[0] < 0x80 && g.firstAllowed[prefix[0]]
-	for i := 1; asciiValid && i < len(prefix); i++ {
-		asciiValid = prefix[i] < 0x80 && g.nonFirstAllowed[prefix[i]]
+	// Make sure that prefix starts with a legal character.
+	if prefix[0] >= 0x80 || !g.firstAllowed[prefix[0]] {
+		panic(jutil.NewIllegalArgumentExceptionMsg(
+			"prefix must start with one of: " + randomNameGenerator_joinChars(g.firstChars)))
 	}
-	if asciiValid {
-		return
-	}
-	units := jutil.StringToUTF16(prefix)
-	if len(units) > 0 {
-		// Make sure that prefix starts with a legal character.
-		if units[0] >= 0x80 || !g.firstAllowed[units[0]] {
+	for pos := 1; pos < len(prefix); pos++ {
+		if prefix[pos] >= 0x80 || !g.nonFirstAllowed[prefix[pos]] {
 			panic(jutil.NewIllegalArgumentExceptionMsg(
-				"prefix must start with one of: " + randomNameGenerator_joinChars(g.firstChars)))
-		}
-		for pos := 1; pos < len(units); pos++ {
-			if units[pos] >= 0x80 || !g.nonFirstAllowed[units[pos]] {
-				panic(jutil.NewIllegalArgumentExceptionMsg(
-					"prefix has invalid characters, must be one of: " +
-						randomNameGenerator_joinChars(g.nonFirstChars)))
-			}
+				"prefix has invalid characters, must be one of: " +
+					randomNameGenerator_joinChars(g.nonFirstChars)))
 		}
 	}
 }
@@ -309,7 +305,7 @@ func (g *RandomNameGenerator) getNameLength(position int, nameIdx int) int {
 
 // rngMurmur3HashLengthAndChars computes Hashing.murmur3_128().newHasher()
 // .putInt(length).putUnencodedChars(name).hash().asInt() without heap allocation.
-func rngMurmur3HashLengthAndChars(length int32, chars []uint16) int32 {
+func rngMurmur3HashLengthAndChars[C byte | uint16](length int32, chars []C) int32 {
 	n := 4 + 2*len(chars)
 	var stackBuf [32]byte
 	var data []byte
@@ -320,7 +316,7 @@ func rngMurmur3HashLengthAndChars(length int32, chars []uint16) int32 {
 	}
 	binary.LittleEndian.PutUint32(data[0:4], uint32(length))
 	for idx, c := range chars {
-		binary.LittleEndian.PutUint16(data[4+2*idx:], c)
+		binary.LittleEndian.PutUint16(data[4+2*idx:], uint16(c))
 	}
 	return murmur3_128BytesAsInt(data)
 }
@@ -333,19 +329,19 @@ func (g *RandomNameGenerator) isReserved(cand string) bool {
 	return ok
 }
 
-// generateCandidate returns g.prefix + generateSuffix(prefixUTF16Len, nameIdx)
+// generateCandidate returns g.prefix + generateSuffix(len(prefix), nameIdx)
 // using stack/inline buffers without intermediate string or slice allocations.
 //
 // Java: prefix + RandomNameGenerator.generateSuffix(int, int)
 func (g *RandomNameGenerator) generateCandidate(nameIdx int) string {
-	position := g.prefixUTF16Len
+	position := len(g.prefix)
 	length := g.getNameLength(position, nameIdx)
-	var nameBuf [16]uint16
+	var nameBuf [16]byte
 	name := nameBuf[:0]
 	nameIdx++
 	for {
 		nameIdx--
-		var alphabet []uint16
+		var alphabet []byte
 		if position == 0 {
 			alphabet = g.shuffledFirst
 		} else {
@@ -366,18 +362,15 @@ func (g *RandomNameGenerator) generateCandidate(nameIdx int) string {
 		}
 	}
 	if g.prefix == "" && len(name) == 1 {
-		b := byte(name[0])
+		b := name[0]
 		return asciiByteTable[b : b+1]
 	}
 	if len(g.prefix)+len(name) <= len(g.scratchBuf) {
 		n := copy(g.scratchBuf[:], g.prefix)
-		for _, c := range name {
-			g.scratchBuf[n] = byte(c)
-			n++
-		}
+		n += copy(g.scratchBuf[n:], name)
 		return string(g.scratchBuf[:n])
 	}
-	return g.prefix + jutil.StringFromUTF16(name)
+	return g.prefix + string(name)
 }
 
 // GenerateNextName generates the next short name.

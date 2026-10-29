@@ -435,22 +435,41 @@ func CheckConformance_ValidateBehaviorSettingOfConfigs(
 
 const checkConformance_EXTENDABLE_FIELDS_STR = "[config_file, extends, only_apply_to, only_apply_to_regexp, whitelist, whitelist_regexp, allowlist, allowlist_regexp, value]"
 
-// Java: CheckConformance.EXTENDABLE_FIELDS.contains(String)
-func checkConformance_isExtendableField(name string) bool {
-	switch name {
-	case "config_file",
-		"extends",
-		"only_apply_to",
-		"only_apply_to_regexp",
-		"whitelist",
-		"whitelist_regexp",
-		"allowlist",
-		"allowlist_regexp",
-		"value":
-		return true
-	default:
-		return false
+// checkConformance_countNonExtendableFields counts set fields on r that are not
+// in CheckConformance.EXTENDABLE_FIELDS (matching iterating r.getAllFields().keySet()).
+func checkConformance_countNonExtendableFields(r *Requirement) int {
+	n := 0
+	if r.HasErrorMessage() {
+		n++
 	}
+	if r.HasType() {
+		n++
+	}
+	if r.HasJavaClass() {
+		n++
+	}
+	if r.HasRuleId() {
+		n++
+	}
+	if r.HasReportLooseTypeViolations() {
+		n++
+	}
+	if r.HasSeverity() {
+		n++
+	}
+	if r.HasTypeMatchingStrategy() {
+		n++
+	}
+	if r.GetWhitelistEntryCount() > 0 {
+		n++
+	}
+	if r.HasAllowExtendingValue() {
+		n++
+	}
+	if r.GetAllowlistEntryCount() > 0 {
+		n++
+	}
+	return n
 }
 
 type rootRequirementEntry struct {
@@ -632,11 +651,9 @@ func CheckConformance_ValidateExtendingRequirement(
 			"no extendable requirement with rule_id: "+extendingRequirement.GetExtends())
 		return false
 	}
-	for field := range extendingRequirement.GetAllFields().Keys() {
-		if !checkConformance_isExtendableField(field.GetName()) {
-			CheckConformance_ReportInvalidRequirement(
-				compiler, extendingRequirement, "extending rules allow only "+checkConformance_EXTENDABLE_FIELDS_STR)
-		}
+	for range checkConformance_countNonExtendableFields(extendingRequirement) {
+		CheckConformance_ReportInvalidRequirement(
+			compiler, extendingRequirement, "extending rules allow only "+checkConformance_EXTENDABLE_FIELDS_STR)
 	}
 	if extendingRequirement.GetValueCount() > 0 &&
 		!extendableRequirement.GetAllowExtendingValue() {
@@ -836,8 +853,8 @@ func (m *conformanceAllowlister_ErrorManager) ShouldReportConformanceViolation(
 	diagnostic *JSError,
 	behavior ConformanceConfig_LibraryLevelNonAllowlistedConformanceViolationsBehavior,
 	isAllowlisted bool) bool {
-	m.monitor.Lock()
-	defer m.monitor.Unlock()
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	*m.errors = append(*m.errors, diagnostic)
 	return false
 }

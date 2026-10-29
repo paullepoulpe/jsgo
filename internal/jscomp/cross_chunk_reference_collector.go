@@ -35,8 +35,12 @@ type CrossChunkReferenceCollector struct {
 	maxVarIndex int
 
 	// The stack of basic blocks and scopes the current traversal is in.
-	blockStack    []*BasicBlock
-	blockStackBuf [16]*BasicBlock
+	blockStack    []basicBlockEntry
+	blockStackBuf [16]basicBlockEntry
+	blocks        jutil.Slab[BasicBlock]
+	refSlab       jutil.Slab[Reference]
+	colSlab       jutil.Slab[ReferenceCollection]
+	stmtSlab      jutil.Slab[CrossChunkReferenceCollector_TopLevelStatement]
 
 	// List of all top-level statements in the order they appear in the AST.
 	topLevelStatements []*CrossChunkReferenceCollector_TopLevelStatement
@@ -51,6 +55,54 @@ type CrossChunkReferenceCollector struct {
 	draftVal               CrossChunkReferenceCollector_TopLevelStatementDraft
 	draftRefsBuf           [16]*Reference
 	draftVarsBuf           [16]*Var
+}
+
+var crossChunkRefCollectorVisitTokens = func() ast.TokenSet {
+	s := ast.TokenSet{^uint64(0), ^uint64(0), ^uint64(0), ^uint64(0)}
+	for _, tok := range [...]rhino.Token{
+		rhino.Token_ROOT,
+		rhino.Token_SCRIPT,
+		rhino.Token_MODULE_BODY,
+		rhino.Token_PARAM_LIST,
+		rhino.Token_STRING_KEY,
+		rhino.Token_OBJECT_SPREAD,
+		rhino.Token_OBJECT_REST,
+		rhino.Token_ITER_REST,
+		rhino.Token_MEMBER_FUNCTION_DEF,
+		rhino.Token_MEMBER_FIELD_DEF,
+		rhino.Token_MEMBER_VARIABLE_DEF,
+		rhino.Token_COMPUTED_PROP,
+		rhino.Token_COMPUTED_FIELD_DEF,
+		rhino.Token_GETTER_DEF,
+		rhino.Token_SETTER_DEF,
+		rhino.Token_IMPORT_SPECS,
+		rhino.Token_IMPORT_SPEC,
+		rhino.Token_IMPORT_STAR,
+		rhino.Token_EXPORT_SPECS,
+		rhino.Token_EXPORT_SPEC,
+		rhino.Token_TEMPLATELIT_SUB,
+		rhino.Token_TEMPLATELIT_STRING,
+		rhino.Token_LABEL_NAME,
+		rhino.Token_NUMBER,
+		rhino.Token_STRINGLIT,
+		rhino.Token_BIGINT,
+		rhino.Token_TRUE,
+		rhino.Token_FALSE,
+		rhino.Token_NULL,
+		rhino.Token_THIS,
+		rhino.Token_SUPER,
+		rhino.Token_EMPTY,
+		rhino.Token_DEBUGGER,
+	} {
+		s[tok>>6] &^= 1 << (tok & 63)
+	}
+	return s
+}()
+
+var _ nodeTraversal_visitTokens = (*CrossChunkReferenceCollector)(nil)
+
+func (*CrossChunkReferenceCollector) visitTokens() *ast.TokenSet {
+	return &crossChunkRefCollectorVisitTokens
 }
 
 // NewCrossChunkReferenceCollector: constructor initializes block stack.
@@ -77,17 +129,18 @@ func (c *CrossChunkReferenceCollector) allocTopLevelStatement(draft *CrossChunkR
 			vars = append([]*Var(nil), draft.nonDeclarationVars...)
 		}
 	}
-	s := &CrossChunkReferenceCollector_TopLevelStatement{
+	s := c.stmtSlab.New()
+	*s = CrossChunkReferenceCollector_TopLevelStatement{
 		outer:                    c,
 		originalOrder:            draft.originalOrder,
 		chunk:                    draft.chunk,
 		statementNode:            draft.statementNode,
 		nonDeclarationReferences: refs,
 		nonDeclarationVars:       vars,
+		declaredNameReference:    draft.declaredNameReference,
+		declaredVar:              draft.declaredVar,
+		declaredValueNode:        draft.declaredValueNode,
 	}
-	s.declaredNameReference = draft.declaredNameReference
-	s.declaredVar = draft.declaredVar
-	s.declaredValueNode = draft.declaredValueNode
 	return s
 }
 
@@ -95,7 +148,7 @@ func (c *CrossChunkReferenceCollector) createReferencesForNewVar(v *Var) *Refere
 	if idx := v.GetIndex(); idx > c.maxVarIndex {
 		c.maxVarIndex = idx
 	}
-	col := &ReferenceCollection{}
+	col := c.colSlab.New()
 	c.vars = append(c.vars, v)
 	if c.byKey == nil {
 		c.byKey = make(map[scopedVarKey]*ReferenceCollection, 64)
@@ -160,6 +213,29 @@ func (c *CrossChunkReferenceCollector) GetGlobalVariableNamesMap() *jutil.Linked
 	return out
 }
 
+func (c *CrossChunkReferenceCollector) getCurrentBlock() *BasicBlock {
+	if len(c.blockStack) == 0 {
+		panic(jutil.NewNoSuchElementException())
+	}
+	idx := len(c.blockStack) - 1
+	if b := c.blockStack[idx].block; b != nil {
+		return b
+	}
+	i := idx
+	for i > 0 && c.blockStack[i-1].block == nil {
+		i--
+	}
+	var parent *BasicBlock
+	if i > 0 {
+		parent = c.blockStack[i-1].block
+	}
+	for ; i <= idx; i++ {
+		parent = initBasicBlock(c.blocks.New(), parent, c.blockStack[i].root)
+		c.blockStack[i].block = parent
+	}
+	return parent
+}
+
 // Visit, for each node, updates the block stack and reference collection as
 // appropriate.
 //
@@ -183,7 +259,13 @@ func (c *CrossChunkReferenceCollector) Visit(t *NodeTraversal, n rhino.Node, par
 						}
 						col = c.createReferencesForNewVar(v)
 					}
-					reference := &Reference{nameNode: n, basicBlock: crossChunkReferenceCollector_peek(c.blockStack), scope: scope, inputId: t.GetInput().GetInputId()}
+					reference := c.refSlab.New()
+					*reference = Reference{
+						nameNode:   n,
+						basicBlock: c.getCurrentBlock(),
+						scope:      scope,
+						inputId:    t.GetInput().GetInputId(),
+					}
 					if n == c.topLevelStatementDraft.declaredNameNode {
 						c.topLevelStatementDraft.declaredNameReference = reference
 						c.topLevelStatementDraft.declaredVar = v
@@ -206,16 +288,11 @@ checkBoundary:
 //
 // Java: CrossChunkReferenceCollector.enterScope(NodeTraversal)
 func (c *CrossChunkReferenceCollector) EnterScope(t *NodeTraversal) {
-	n := t.GetScopeRoot()
-	var parent *BasicBlock
-	if len(c.blockStack) != 0 {
-		parent = crossChunkReferenceCollector_peek(c.blockStack)
-	}
 	// Don't add all ES6 scope roots to blockStack, only those that are also scopes according to
 	// the ES5 scoping rules. Other nodes that ought to be considered the root of a BasicBlock
 	// are added in shouldTraverse() and removed in visit().
 	if t.IsHoistScope() {
-		c.blockStack = append(c.blockStack, NewBasicBlock(parent, n))
+		c.blockStack = append(c.blockStack, basicBlockEntry{root: t.GetScopeRoot()})
 	}
 }
 
@@ -232,11 +309,22 @@ func (c *CrossChunkReferenceCollector) ExitScope(t *NodeTraversal) {
 func (c *CrossChunkReferenceCollector) ShouldTraverse(t *NodeTraversal, n rhino.Node, parent rhino.Node) bool {
 	if !parent.IsNil() && NodeUtil_IsTopLevel(parent) {
 		jutil.CheckStateMsg1(c.topLevelStatementDraft == nil, "%s", n)
-		c.topLevelStatementDraft = c.InitializeDraftStatement(t.GetChunk(), n)
+		draft := c.InitializeDraftStatement(t.GetChunk(), n)
+		if n.GetFirstChild().IsNil() && !n.IsName() && !n.IsBlock() && !n.IsSwitchBody() {
+			c.topLevelStatements = append(c.topLevelStatements, c.allocTopLevelStatement(draft))
+			return false
+		}
+		c.topLevelStatementDraft = draft
+	} else if n.GetFirstChild().IsNil() {
+		switch n.GetToken() {
+		case rhino.Token_NAME, rhino.Token_BLOCK, rhino.Token_SWITCH_BODY:
+		default:
+			return false
+		}
 	}
 	// If node is a new basic block, put on basic block stack
 	if CrossChunkReferenceCollector_IsBlockBoundary(n, parent) {
-		c.blockStack = append(c.blockStack, NewBasicBlock(crossChunkReferenceCollector_peek(c.blockStack), n))
+		c.blockStack = append(c.blockStack, basicBlockEntry{root: n})
 	}
 	return true
 }
@@ -376,15 +464,6 @@ func crossChunkReferenceCollector_pop[T any](list *[]T) T {
 	l[len(l)-1] = zero
 	*list = l[:len(l)-1]
 	return last
-}
-
-// Java: CrossChunkReferenceCollector.peek(List<T>)
-func crossChunkReferenceCollector_peek[T any](list []T) T {
-	if len(list) == 0 {
-		// Iterables.getLast of an empty list.
-		panic(jutil.NewNoSuchElementException())
-	}
-	return list[len(list)-1]
 }
 
 var crossChunkParentBoundaryKind = [256]uint8{

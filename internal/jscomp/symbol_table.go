@@ -621,6 +621,8 @@ func (f *symbolTable_scopeFinder) EnterScope(t *NodeTraversal) {
 // Java: SymbolTable.findScopes(...).new AbstractScopedCallback() {...}.visit(NodeTraversal, Node, Node)
 func (f *symbolTable_scopeFinder) Visit(t *NodeTraversal, n rhino.Node, p rhino.Node) {}
 
+func (*symbolTable_scopeFinder) nodeTraversalNoVisit() {}
+
 // GetAllScopes gets all the scopes in this symbol table.
 //
 // Java: SymbolTable.getAllScopes()

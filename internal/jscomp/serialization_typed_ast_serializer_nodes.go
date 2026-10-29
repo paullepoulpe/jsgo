@@ -432,19 +432,7 @@ func (a *typedAstScriptArena) marshalScriptPassC(byteSlab *[]byte) {
 		m.memoizedSize = size
 	}
 
-	sz := a.rootProto.serializedSize()
-	var scriptBytes []byte
-	if sz <= 262144 {
-		slab := *byteSlab
-		if len(slab) < sz {
-			slab = make([]byte, max(4*1024*1024, sz))
-		}
-		buf := slab[:0:sz]
-		*byteSlab = slab[sz:]
-		scriptBytes = a.rootProto.appendTo(buf)
-	} else {
-		scriptBytes = a.rootProto.ToByteString()
-	}
+	scriptBytes := marshalProtoIntoByteSlab(a.rootProto, byteSlab)
 	a.lazyAst.script_ = scriptBytes
 	if len(a.lazyAst.sourceMappingUrl_) == 0 {
 		ls := 0

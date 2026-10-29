@@ -335,25 +335,6 @@ func graphTest_testDirectedConnectIfNotFound(t *testing.T, graph Graph[string, a
 	assertEqual(t, "degree", graph.GetNodeDegree("a"), 2)
 }
 
-func TestGraph_SimpleSubGraph(t *testing.T) {
-	graph := LinkedUndirectedGraph_Create[string, string]()
-	graph.CreateNode("a")
-	graph.CreateNode("b")
-	graph.CreateNode("c")
-	graph.Connect("a", "--", "b")
-
-	subGraph := graph.NewSubGraph()
-	subGraph.AddNode("a")
-	subGraph.AddNode("b")
-
-	// SubGraph should not allow add for node that is not in graph.
-	assertThrows[jutil.IIllegalArgumentException](t, func() { subGraph.AddNode("d") })
-
-	assertFalse(t, "independent of a", subGraph.IsIndependentOf("a"))
-	assertFalse(t, "independent of b", subGraph.IsIndependentOf("b"))
-	assertTrue(t, "independent of c", subGraph.IsIndependentOf("c"))
-}
-
 func graphTest_assertListCount[T GraphNode[string, string]](t *testing.T, list []T, target string, count int) {
 	t.Helper()
 	for _, node := range list {

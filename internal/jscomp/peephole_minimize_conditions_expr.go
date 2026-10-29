@@ -524,7 +524,7 @@ func (p *PeepholeMinimizeConditions) TryMinimizeCondition(n rhino.Node) rhino.No
 }
 
 // Java: PeepholeMinimizeConditions.replaceNode(Node, MeasuredNode)
-func (p *PeepholeMinimizeConditions) ReplaceNode(original rhino.Node, measuredNodeReplacement *MinimizedCondition_MeasuredNode) rhino.Node {
+func (p *PeepholeMinimizeConditions) ReplaceNode(original rhino.Node, measuredNodeReplacement MinimizedCondition_MeasuredNode) rhino.Node {
 	if measuredNodeReplacement.WillChange(original) {
 		replacement := measuredNodeReplacement.ApplyTo(original)
 		p.ReportChangeToEnclosingScope(replacement)

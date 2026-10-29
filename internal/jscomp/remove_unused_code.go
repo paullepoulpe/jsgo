@@ -407,6 +407,32 @@ func (r *RemoveUnusedCode) popContinuation() RemoveUnusedCode_Continuation {
 	return c
 }
 
+func (r *RemoveUnusedCode) createGlobalScope(root rhino.Node) *Scope {
+	// Create scope from parent of root node, which also has externs as a child, so we'll
+	// have extern definitions in scope.
+	scope := r.scopeCreator.CreateScopeOfScope(root.GetParent(), nil)
+	if !scope.HasSlotByID(rucCalleeJscPropNameFnID) {
+		// TODO(b/70730762): Passes that add references to this should ensure it is declared.
+		// NOTE: null input makes this an extern var.
+		scope.Declare(
+			NodeUtil_JSC_PROPERTY_NAME_FN /* no declaration node */, rhino.NilNode /* no input */, nil)
+	}
+	return scope
+}
+
+func (r *RemoveUnusedCode) traverseRootAndRemoveVars(node rhino.Node, scope *Scope) {
+	r.root = node
+	r.guardedUsagesComputed = false
+
+	r.enqueueContinuation(RemoveUnusedCode_Continuation{node: node, scope: scope})
+	for r.worklistSize > 0 {
+		continuation := r.popContinuation() // worklist.remove()
+		continuation.Apply(r)
+	}
+
+	r.RemoveUnreferencedVarsAndPolyfills()
+}
+
 // TraverseAndRemoveUnusedReferences traverses a node recursively. Call this
 // once per pass.
 //
@@ -421,33 +447,16 @@ func (r *RemoveUnusedCode) TraverseAndRemoveUnusedReferences(root rhino.Node) {
 			r.pinnedProps.Set(int(id))
 		}
 	}
-	// Create scope from parent of root node, which also has externs as a child, so we'll
-	// have extern definitions in scope.
-	scope := r.scopeCreator.CreateScopeOfScope(root.GetParent(), nil)
+	scope := r.createGlobalScope(root)
 	if r.varByKey == nil {
 		r.varByKey = make(map[scopedVarKey]*RemoveUnusedCode_RealVarInfo, 1024)
 	}
-	if !scope.HasSlotByID(rucCalleeJscPropNameFnID) {
-		// TODO(b/70730762): Passes that add references to this should ensure it is declared.
-		// NOTE: null input makes this an extern var.
-		scope.Declare(
-			NodeUtil_JSC_PROPERTY_NAME_FN /* no declaration node */, rhino.NilNode /* no input */, nil)
-	}
 
-	r.root = root
-	r.guardedUsagesComputed = false
-
-	r.enqueueContinuation(RemoveUnusedCode_Continuation{node: root, scope: scope})
-	for r.worklistSize > 0 {
-		continuation := r.popContinuation() // worklist.remove()
-		continuation.Apply(r)
-	}
-
-	r.RemoveUnreferencedVarsAndPolyfills()
+	r.traverseRootAndRemoveVars(root, scope)
 	r.RemoveIndependentlyRemovableProperties()
-	if !r.removeUnreferencedFunctionArgsParallel() {
+	if r.removeGlobals && !r.removeUnreferencedFunctionArgsParallel() {
 		for _, fparamScope := range r.allFunctionParamScopes {
-			r.RemoveUnreferencedFunctionArgs(fparamScope)
+			r.removeUnreferencedFunctionArgsWithCompiler(r.compiler, fparamScope, false)
 		}
 	}
 }
@@ -479,10 +488,7 @@ func (r *RemoveUnusedCode) traverseAndRemoveLocalScriptsParallel(root rhino.Node
 	restoreReg := enableParallelTypeRegistryReads(r.compiler)
 	defer restoreReg()
 
-	globalScope := r.scopeCreator.CreateScopeOfScope(root.GetParent(), nil)
-	if !globalScope.HasSlotByID(rucCalleeJscPropNameFnID) {
-		globalScope.Declare(NodeUtil_JSC_PROPERTY_NAME_FN, rhino.NilNode, nil)
-	}
+	globalScope := r.createGlobalScope(root)
 	freezeGlobalScopeForParallelReads(globalScope)
 
 	runParallelWork(r.compiler, numWorkers, len(scripts), func(_ int) (func(int, *recordingCompiler), func()) {
@@ -516,15 +522,7 @@ func (r *RemoveUnusedCode) traverseAndRemoveLocalScriptsParallel(root rhino.Node
 				wr.worklistSize = 0
 				wr.extraContSlab = wr.extraContSlab[:0]
 			}
-			script := scripts[idx]
-			wr.root = script
-			wr.guardedUsagesComputed = false
-			wr.enqueueContinuation(RemoveUnusedCode_Continuation{node: script, scope: globalScope})
-			for wr.worklistSize > 0 {
-				cont := wr.popContinuation()
-				cont.Apply(wr)
-			}
-			wr.RemoveUnreferencedVarsAndPolyfills()
+			wr.traverseRootAndRemoveVars(scripts[idx], globalScope)
 		}
 		return runItem, nil
 	}, false)
@@ -548,7 +546,10 @@ func (r *RemoveUnusedCode) trailingParamBinding(p ast.Param) (binding rhino.Node
 	return binding, true
 }
 
-func (r *RemoveUnusedCode) isParamVarRemovableReadOnly(nameNode rhino.Node, fparamScope *Scope) bool {
+func (r *RemoveUnusedCode) isParamVarRemovable(nameNode rhino.Node, fparamScope *Scope, readOnly bool) bool {
+	if !readOnly && r.unremovableLog.IsLogging() {
+		return r.GetVarInfo(r.GetVarForNameNode(nameNode, fparamScope)).IsRemovable()
+	}
 	v := fparamScope.GetVarByNode(nameNode)
 	if v == nil {
 		jutil.CheckNotNullMsg1(v, "%s", nameNode)
@@ -566,55 +567,39 @@ func (r *RemoveUnusedCode) isParamVarRemovableReadOnly(nameNode rhino.Node, fpar
 	return r.removeLocalVars || isGlobal
 }
 
+// removeUnreferencedFunctionArgsWithCompiler removes unreferenced arguments from a
+// function declaration and when possible the function's callSites.
+//
+// Notice that removing unreferenced function args breaks
+// Function.prototype.length. In advanced mode, we don't really care
+// about this: we consider "length" the equivalent of reflecting on
+// the function's lexical source.
+//
+// Rather than create a new option for this, we assume that if the user
+// is removing globals, then it's OK to remove unused function args.
+//
+// See http://blickly.github.io/closure-compiler-issues/#253
+//
+// Java: RemoveUnusedCode.removeUnreferencedFunctionArgs(Scope)
 func (r *RemoveUnusedCode) removeUnreferencedFunctionArgsWithCompiler(
 	compiler AbstractCompiler,
 	fparamScope *Scope,
+	readOnly bool,
 ) {
 	function, ok := ast.AsFunction(fparamScope.GetRootNode())
 	if !ok {
 		jutil.CheckState(false)
 	}
 	if NodeUtil_IsGetOrSetKey(function.Node().GetParent()) {
+		// The parameters object literal setters can not be removed.
 		return
 	}
-	params := function.Params()
-	argList := params.Node()
-	for {
-		lastArg, ok := params.LastParam()
-		if !ok {
-			break
-		}
-		argNode, removable := r.trailingParamBinding(lastArg)
-		if !removable {
-			break
-		}
-		if argNode.IsDestructuringPattern() {
-			if argNode.HasChildren() {
-				break
-			}
-			NodeUtil_DeleteNode(lastArg.Node(), compiler)
-			continue
-		}
-		if r.isParamVarRemovableReadOnly(argNode, fparamScope) {
-			NodeUtil_DeleteNode(lastArg.Node(), compiler)
-		} else {
-			break
-		}
-	}
-
-	for param := range params.Params() {
-		if param.Node().IsUnusedParameter() {
-			continue
-		}
-		paramNameNode := RemoveUnusedCode_NameOfParam(param.Node())
-		if paramNameNode.IsNil() {
-			continue
-		}
-		if r.isParamVarRemovableReadOnly(paramNameNode, fparamScope) {
-			param.Node().SetUnusedParameter(true)
-			compiler.ReportChangeToEnclosingScope(argList)
-		}
-	}
+	argList := function.Params().Node()
+	// Strip as many unreferenced args off the end of the function declaration as possible.
+	r.maybeRemoveUnusedTrailingParameters(compiler, argList, fparamScope, readOnly)
+	// Mark any remaining unused parameters are unused to OptimizeParameters can try to remove
+	// them.
+	r.markUnusedParameters(compiler, argList, fparamScope, readOnly)
 }
 
 type rucParamScriptGroup struct {
@@ -673,7 +658,7 @@ func (r *RemoveUnusedCode) removeUnreferencedFunctionArgsParallel() bool {
 			g := &groups[gIdx]
 			for _, origIdx := range g.indices {
 				initRecordingCompiler(rc, r.compiler)
-				r.removeUnreferencedFunctionArgsWithCompiler(rc, r.allFunctionParamScopes[origIdx])
+				r.removeUnreferencedFunctionArgsWithCompiler(rc, r.allFunctionParamScopes[origIdx], true)
 				eventsByIdx[origIdx] = rc.takeEvents()
 			}
 		}
@@ -684,7 +669,7 @@ func (r *RemoveUnusedCode) removeUnreferencedFunctionArgsParallel() bool {
 		var mainRC recordingCompiler
 		for _, origIdx := range detachedIndices {
 			initRecordingCompiler(&mainRC, r.compiler)
-			r.removeUnreferencedFunctionArgsWithCompiler(&mainRC, r.allFunctionParamScopes[origIdx])
+			r.removeUnreferencedFunctionArgsWithCompiler(&mainRC, r.allFunctionParamScopes[origIdx], true)
 			eventsByIdx[origIdx] = mainRC.takeEvents()
 		}
 	}
@@ -743,44 +728,6 @@ func (r *RemoveUnusedCode) CanRemoveParameters(parameterList rhino.Node) bool {
 	}
 	function := parameterList.GetParent()
 	return r.removeGlobals && !NodeUtil_IsGetOrSetKey(function.GetParent())
-}
-
-// RemoveUnreferencedFunctionArgs removes unreferenced arguments from a
-// function declaration and when possible the function's callSites.
-//
-// fparamScope is the function parameter scope.
-//
-// Java: RemoveUnusedCode.removeUnreferencedFunctionArgs(Scope)
-func (r *RemoveUnusedCode) RemoveUnreferencedFunctionArgs(fparamScope *Scope) {
-	// Notice that removing unreferenced function args breaks
-	// Function.prototype.length. In advanced mode, we don't really care
-	// about this: we consider "length" the equivalent of reflecting on
-	// the function's lexical source.
-	//
-	// Rather than create a new option for this, we assume that if the user
-	// is removing globals, then it's OK to remove unused function args.
-	//
-	// See http://blickly.github.io/closure-compiler-issues/#253
-	if !r.removeGlobals {
-		return
-	}
-
-	function := fparamScope.GetRootNode()
-	if !function.IsFunction() {
-		jutil.CheckState(false)
-	}
-	if NodeUtil_IsGetOrSetKey(function.GetParent()) {
-		// The parameters object literal setters can not be removed.
-		return
-	}
-
-	argList := NodeUtil_GetFunctionParameters(function)
-	// Strip as many unreferenced args off the end of the function declaration as possible.
-	r.MaybeRemoveUnusedTrailingParameters(argList, fparamScope)
-
-	// Mark any remaining unused parameters are unused to OptimizeParameters can try to remove
-	// them.
-	r.MarkUnusedParameters(argList, fparamScope)
 }
 
 func (r *RemoveUnusedCode) markPropertyIDPinned(id uint32) {
@@ -911,13 +858,13 @@ func (r *RemoveUnusedCode) IsIndependentlyRemovable(removable *RemoveUnusedCode_
 	return false
 }
 
-// MarkUnusedParameters marks any remaining unused parameters as being unused
+// markUnusedParameters marks any remaining unused parameters as being unused
 // so it can be used elsewhere.
 //
 // paramList is the list of function's parameters.
 //
 // Java: RemoveUnusedCode.markUnusedParameters(Node, Scope)
-func (r *RemoveUnusedCode) MarkUnusedParameters(paramList rhino.Node, fparamScope *Scope) {
+func (r *RemoveUnusedCode) markUnusedParameters(compiler AbstractCompiler, paramList rhino.Node, fparamScope *Scope, readOnly bool) {
 	params, ok := ast.AsParamList(paramList)
 	if !ok {
 		jutil.CheckArgumentMsg1(false, "%s", paramList)
@@ -938,18 +885,17 @@ func (r *RemoveUnusedCode) MarkUnusedParameters(paramList rhino.Node, fparamScop
 			continue
 		}
 
-		varInfo := r.TraverseNameNode(paramNameNode, fparamScope)
-		if varInfo.IsRemovable() {
+		if r.isParamVarRemovable(paramNameNode, fparamScope, readOnly) {
 			param.SetUnusedParameter(true)
-			r.compiler.ReportChangeToEnclosingScope(paramList)
-			if r.removalLog.IsLogging() {
+			compiler.ReportChangeToEnclosingScope(paramList)
+			if !readOnly && r.removalLog.IsLogging() {
 				r.logRemoval("argmark", paramNameNode.GetString(), loggableFunctionName(paramList))
 			}
 		}
 	}
 }
 
-// MaybeRemoveUnusedTrailingParameters strips as many unreferenced args off
+// maybeRemoveUnusedTrailingParameters strips as many unreferenced args off
 // the end of the function declaration as possible. We start from the end of
 // the function declaration because removing parameters from the middle of
 // the param list could mess up the interpretation of parameters being sent
@@ -958,7 +904,7 @@ func (r *RemoveUnusedCode) MarkUnusedParameters(paramList rhino.Node, fparamScop
 // argList is the list of function's arguments.
 //
 // Java: RemoveUnusedCode.maybeRemoveUnusedTrailingParameters(Node, Scope)
-func (r *RemoveUnusedCode) MaybeRemoveUnusedTrailingParameters(argList rhino.Node, fparamScope *Scope) {
+func (r *RemoveUnusedCode) maybeRemoveUnusedTrailingParameters(compiler AbstractCompiler, argList rhino.Node, fparamScope *Scope, readOnly bool) {
 	params, ok := ast.AsParamList(argList)
 	if !ok {
 		jutil.CheckArgumentMsg1(false, "%s", argList)
@@ -983,17 +929,16 @@ func (r *RemoveUnusedCode) MaybeRemoveUnusedTrailingParameters(argList rhino.Nod
 			// if it exists and if the right hand side does not have side effects. Note, a
 			// destructuring pattern with a "leftover" property key as in {a:{}} is not considered
 			// empty in this case!
-			NodeUtil_DeleteNode(lastArg, r.compiler)
-			if r.removalLog.IsLogging() {
+			NodeUtil_DeleteNode(lastArg, compiler)
+			if !readOnly && r.removalLog.IsLogging() {
 				r.logRemoval("arg", "<pattern>", loggableFunctionName(argList))
 			}
 			continue
 		}
 
-		varInfo := r.GetVarInfo(r.GetVarForNameNode(argNode, fparamScope))
-		if varInfo.IsRemovable() {
-			NodeUtil_DeleteNode(lastArg, r.compiler)
-			if r.removalLog.IsLogging() {
+		if r.isParamVarRemovable(argNode, fparamScope, readOnly) {
+			NodeUtil_DeleteNode(lastArg, compiler)
+			if !readOnly && r.removalLog.IsLogging() {
 				r.logRemoval("arg", argNode.GetString(), loggableFunctionName(argList))
 			}
 		} else {

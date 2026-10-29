@@ -537,23 +537,21 @@ func (l *SourceFile_CodeLoader_OnDisk) loadCode() (string, jutil.IIOException) {
 	return sourceFile_decodeStrictBytes(l.GetCharset(), b, l.relativePathStr)
 }
 
-func sourceFile_decodeStrictBytes(cs *jutil.Charset, b []byte, path string) (s string, ioErr jutil.IIOException) {
-	if (cs == nil || cs == jutil.StandardCharsets_UTF_8) && utf8.Valid(b) {
+func sourceFile_decodeStrictBytes(cs *jutil.Charset, b []byte, path string) (string, jutil.IIOException) {
+	if cs == nil {
+		cs = jutil.StandardCharsets_UTF_8
+	}
+	if cs == jutil.StandardCharsets_UTF_8 && utf8.Valid(b) {
 		return string(b), nil
 	}
-	defer func() {
-		if r := recover(); r != nil {
-			if ce, ok := r.(jutil.ICharacterCodingException); ok {
-				msg := "Failed to read: " + path + ", is this input UTF-8 encoded?"
-				ex := &jutil.IOException{}
-				jutil.InitThrowable(ex, "java.io.IOException", &msg, ce)
-				ioErr = ex
-				return
-			}
-			panic(r)
-		}
-	}()
-	return cs.DecodeStrict(b), nil
+	s, decodeErr := cs.TryDecodeStrict(b)
+	if decodeErr != nil {
+		msg := "Failed to read: " + path + ", is this input UTF-8 encoded?"
+		ex := &jutil.IOException{}
+		jutil.InitThrowable(ex, "java.io.IOException", &msg, decodeErr)
+		return "", ex
+	}
+	return s, nil
 }
 
 // Java: SourceFile.CodeLoader.OnDisk.loadUncachedCode()
@@ -618,7 +616,11 @@ func (l *SourceFile_CodeLoader_AtZip) loadCode() (string, jutil.IIOException) {
 	if err != nil {
 		return "", jutil.IOExceptionFromError(err, "").(jutil.IIOException)
 	}
-	return jutil.CharStreams_ToString(jutil.NewInputStreamReader(bytes.NewReader(data), l.GetCharset())), nil
+	cs := l.GetCharset()
+	if (cs == nil || cs == jutil.StandardCharsets_UTF_8) && utf8.Valid(data) {
+		return string(data), nil
+	}
+	return jutil.CharStreams_ToString(jutil.NewInputStreamReader(bytes.NewReader(data), cs)), nil
 }
 
 // Java: SourceFile.CodeLoader.AtZip.loadUncachedCode()

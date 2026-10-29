@@ -19,6 +19,7 @@
 package jscomp
 
 import (
+	"encoding/binary"
 	"strconv"
 	"strings"
 
@@ -90,14 +91,15 @@ func (g *GoogleJsMessageIdGenerator) generateId(meaning string, messageParts []J
 //
 // Java: GoogleJsMessageIdGenerator.FP.fingerprint(byte[], int, int)
 func googleJsMessageIdGenerator_FP_fingerprintRange(str []byte, start int, limit int) int64 {
-	hi := googleJsMessageIdGenerator_FP_hash32(str, start, limit, 0)
-	lo := googleJsMessageIdGenerator_FP_hash32(str, start, limit, 102072)
-	if (hi == 0) && (lo == 0 || lo == 1) {
+	b := str[start:limit]
+	hi := googleJsMessageIdGenerator_FP_hash32(b, 0)
+	lo := googleJsMessageIdGenerator_FP_hash32(b, 102072)
+	if hi == 0 && (lo == 0 || lo == 1) {
 		// Turn 0/1 into another fingerprint
 		hi ^= 0x130f9bef
-		lo ^= -0x6b5f56d8 // 0x94a0a928
+		lo ^= 0x94a0a928
 	}
-	return (int64(hi) << 32) | (int64(lo) & 0xffffffff)
+	return int64((uint64(hi) << 32) | uint64(lo))
 }
 
 // googleJsMessageIdGenerator_FP_fingerprint generates fingerprint of
@@ -106,126 +108,94 @@ func googleJsMessageIdGenerator_FP_fingerprintRange(str []byte, start int, limit
 //
 // Java: GoogleJsMessageIdGenerator.FP.fingerprint(String)
 func googleJsMessageIdGenerator_FP_fingerprint(str string) int64 {
-	tmp := jutil.StringGetBytesUTF8(str)
+	var buf [128]byte
+	tmp := jutil.AppendStringBytesUTF8(buf[:0], str)
 	return googleJsMessageIdGenerator_FP_fingerprintRange(tmp, 0, len(tmp))
 }
 
 // Java: GoogleJsMessageIdGenerator.FP.hash32(byte[], int, int, int)
-func googleJsMessageIdGenerator_FP_hash32(str []byte, start int, limit int, c int32) int32 {
-	var a int32 = -0x61c88647 // 0x9e3779b9
-	var b int32 = -0x61c88647 // 0x9e3779b9
-	at := func(i int) int32 { return int32(str[i]) & 0xff }
-	var i int
-	for i = start; i+12 <= limit; i += 12 {
-		a += (at(i+0) << 0) |
-			(at(i+1) << 8) |
-			(at(i+2) << 16) |
-			(at(i+3) << 24)
-		b += (at(i+4) << 0) |
-			(at(i+5) << 8) |
-			(at(i+6) << 16) |
-			(at(i+7) << 24)
-		c += (at(i+8) << 0) |
-			(at(i+9) << 8) | (at(i+10) << 16) |
-			(at(i+11) << 24)
-
-		// Mix
-		a -= b
-		a -= c
-		a ^= jutil.Ushr32(c, 13)
-		b -= c
-		b -= a
-		b ^= a << 8
-		c -= a
-		c -= b
-		c ^= jutil.Ushr32(b, 13)
-		a -= b
-		a -= c
-		a ^= jutil.Ushr32(c, 12)
-		b -= c
-		b -= a
-		b ^= a << 16
-		c -= a
-		c -= b
-		c ^= jutil.Ushr32(b, 5)
-		a -= b
-		a -= c
-		a ^= jutil.Ushr32(c, 3)
-		b -= c
-		b -= a
-		b ^= a << 10
-		c -= a
-		c -= b
-		c ^= jutil.Ushr32(b, 15)
+func googleJsMessageIdGenerator_FP_hash32(str []byte, c uint32) uint32 {
+	var a uint32 = 0x9e3779b9
+	var b uint32 = 0x9e3779b9
+	i := 0
+	for ; i+12 <= len(str); i += 12 {
+		a += binary.LittleEndian.Uint32(str[i:])
+		b += binary.LittleEndian.Uint32(str[i+4:])
+		c += binary.LittleEndian.Uint32(str[i+8:])
+		a, b, c = jenkinsMix32(a, b, c)
 	}
 
-	c += int32(limit - start)
-	tmp := limit - i
-	if tmp == 11 {
-		c += at(i+10) << 24
-	}
-	if tmp >= 10 {
-		c += at(i+9) << 16
-	}
-	if tmp >= 9 {
-		c += at(i+8) << 8
+	c += uint32(len(str))
+	tail := str[i:]
+	switch len(tail) {
+	case 11:
+		c += uint32(tail[10]) << 24
+		fallthrough
+	case 10:
+		c += uint32(tail[9]) << 16
+		fallthrough
+	case 9:
+		c += uint32(tail[8]) << 8
 		// the first byte of c is reserved for the length
-	}
-	if tmp >= 8 {
-		b += at(i+7) << 24
-	}
-	if tmp >= 7 {
-		b += at(i+6) << 16
-	}
-	if tmp >= 6 {
-		b += at(i+5) << 8
-	}
-	if tmp >= 5 {
-		b += at(i + 4)
-	}
-	if tmp >= 4 {
-		a += at(i+3) << 24
-	}
-	if tmp >= 3 {
-		a += at(i+2) << 16
-	}
-	if tmp >= 2 {
-		a += at(i+1) << 8
-	}
-	if tmp >= 1 {
-		a += at(i + 0)
+		fallthrough
+	case 8:
+		b += binary.LittleEndian.Uint32(tail[4:])
+		a += binary.LittleEndian.Uint32(tail)
+	case 7:
+		b += uint32(tail[6]) << 16
+		fallthrough
+	case 6:
+		b += uint32(tail[5]) << 8
+		fallthrough
+	case 5:
+		b += uint32(tail[4])
+		fallthrough
+	case 4:
+		a += binary.LittleEndian.Uint32(tail)
+	case 3:
+		a += uint32(tail[2]) << 16
+		fallthrough
+	case 2:
+		a += uint32(tail[1]) << 8
+		fallthrough
+	case 1:
+		a += uint32(tail[0])
 		// case 0 : nothing left to add
 	}
 
-	// Mix
+	_, _, c = jenkinsMix32(a, b, c)
+	return c
+}
+
+func jenkinsMix32(a, b, c uint32) (uint32, uint32, uint32) {
 	a -= b
 	a -= c
-	a ^= jutil.Ushr32(c, 13)
+	a ^= c >> 13
 	b -= c
 	b -= a
 	b ^= a << 8
 	c -= a
 	c -= b
-	c ^= jutil.Ushr32(b, 13)
+	c ^= b >> 13
 	a -= b
 	a -= c
-	a ^= jutil.Ushr32(c, 12)
+	a ^= c >> 12
 	b -= c
 	b -= a
 	b ^= a << 16
 	c -= a
 	c -= b
-	c ^= jutil.Ushr32(b, 5)
+	c ^= b >> 5
 	a -= b
 	a -= c
-	a ^= jutil.Ushr32(c, 3)
+	a ^= c >> 3
 	b -= c
 	b -= a
 	b ^= a << 10
 	c -= a
 	c -= b
-	c ^= jutil.Ushr32(b, 15)
-	return c
+	c ^= b >> 15
+	return a, b, c
 }
 
 // googleJsMessageIdGenerator_MessageId_generateId generates fingerprint
@@ -233,16 +203,12 @@ func googleJsMessageIdGenerator_FP_hash32(str []byte, start int, limit int, c in
 //
 // Java: GoogleJsMessageIdGenerator.MessageId.generateId(String, String)
 func googleJsMessageIdGenerator_MessageId_generateId(message string, meaning string) int64 {
-	fp := googleJsMessageIdGenerator_FP_fingerprint(message)
+	fp := uint64(googleJsMessageIdGenerator_FP_fingerprint(message))
 	if len(meaning) > 0 {
 		// combine the fingerprints of message and meaning
-		fp2 := googleJsMessageIdGenerator_FP_fingerprint(meaning)
-		var carry int64
-		if fp < 0 {
-			carry = 1
-		}
-		fp = fp2 + (fp << 1) + carry
+		fp2 := uint64(googleJsMessageIdGenerator_FP_fingerprint(meaning))
+		fp = fp2 + (fp << 1) + (fp >> 63)
 	}
 	// To avoid negative ids we strip the high-order bit
-	return fp & 0x7fffffffffffffff
+	return int64(fp & 0x7fffffffffffffff)
 }

@@ -3,14 +3,27 @@ package jscomp
 import (
 	"fmt"
 	"reflect"
+	"runtime"
 	"slices"
 	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
-
-	"github.com/paullepoulpe/jsgo/internal/jutil"
 )
+
+func testGoroutineID() int64 {
+	var buf [64]byte
+	b := buf[:runtime.Stack(buf[:], false)]
+	const prefix = "goroutine "
+	var id int64
+	for _, c := range b[len(prefix):] {
+		if c < '0' || c > '9' {
+			break
+		}
+		id = id*10 + int64(c-'0')
+	}
+	return id
+}
 
 type prebuildDependencyCallback struct {
 	kind, source string
@@ -29,7 +42,7 @@ type prebuildDependencyCallbackRecorder struct {
 }
 
 func (r *prebuildDependencyCallbackRecorder) record(kind string, level CheckLevel, error *JSError) {
-	if jutil.GoroutineID() != r.owner {
+	if testGoroutineID() != r.owner {
 		r.offOwner.Store(true)
 	}
 	source := ""
@@ -63,7 +76,7 @@ func TestPrebuildDependencyDiagnosticsPreserveHandlerAndGuardRouting(t *testing.
 	for _, regex := range []bool{false, true} {
 		for _, level := range []CheckLevel{CheckLevel_WARNING, CheckLevel_OFF} {
 			t.Run(fmt.Sprintf("regex=%t/level=%s", regex, level.String()), func(t *testing.T) {
-				recorder := &prebuildDependencyCallbackRecorder{owner: jutil.GoroutineID()}
+				recorder := &prebuildDependencyCallbackRecorder{owner: testGoroutineID()}
 				options := NewCompilerOptions()
 				options.SetLanguageIn(CompilerOptions_LanguageMode_ECMASCRIPT_NEXT)
 				options.SetErrorHandler(recorder)

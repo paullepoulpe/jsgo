@@ -19,93 +19,56 @@
 
 package colors
 
-import (
-	"strings"
-
-	"github.com/paullepoulpe/jsgo/internal/jutil"
-)
+import "github.com/paullepoulpe/jsgo/internal/jutil"
 
 // Java: Color.singleBuilder()
 func Color_SingleBuilder() *Color_Builder {
 	return &Color_Builder{
-		prototypes:                    emptyColorSlice,
-		instanceColors:                emptyColorSlice,
-		ownProperties:                 emptyStringSlice,
-		unionElements:                 emptyColorSlice,
-		hasInvalidating:               true,
-		hasPropertiesKeepOriginalName: true,
-		hasConstructor:                true,
-		hasClosureAssert:              true,
+		prototypes:     emptyColorSlice,
+		instanceColors: emptyColorSlice,
+		ownProperties:  emptyStringSlice,
+		unionElements:  emptyColorSlice,
 	}
 }
 
-func dedupCloneColors(src []*Color) []*Color {
+func dedupClone[T comparable](src []T, empty []T) []T {
 	if len(src) == 0 {
-		return emptyColorSlice
+		return empty
 	}
+	var zero T
+	_, checkNil := any((*T)(nil)).(**Color)
 	if len(src) == 1 {
-		if src[0] == nil {
+		if checkNil && src[0] == zero {
 			panic(jutil.NewNullPointerException())
 		}
-		return []*Color{src[0]}
+		return []T{src[0]}
 	}
 	if len(src) <= 16 {
 		allUnique := true
-		for i, c := range src {
-			if c == nil {
+		for i, v := range src {
+			if checkNil && v == zero {
 				panic(jutil.NewNullPointerException())
 			}
 			for j := 0; j < i; j++ {
-				if src[j] == c || src[j].Equals(c) {
+				if elemEqual(src[j], v) {
 					allUnique = false
 					break
 				}
 			}
 		}
 		if allUnique {
-			out := make([]*Color, len(src))
+			out := make([]T, len(src))
 			copy(out, src)
 			return out
 		}
 	}
-	out := make([]*Color, 0, len(src))
-	var byHash map[int32][]*Color
-	for _, c := range src {
-		if c == nil {
+	out := make([]T, 0, len(src))
+	var seen dedupSet[T]
+	for _, v := range src {
+		if checkNil && v == zero {
 			panic(jutil.NewNullPointerException())
 		}
-		out = appendUniqueColor(out, c, &byHash)
-	}
-	return out
-}
-
-func dedupCloneStrings(src []string) []string {
-	if len(src) == 0 {
-		return emptyStringSlice
-	}
-	if len(src) == 1 {
-		return []string{src[0]}
-	}
-	if len(src) <= 16 {
-		allUnique := true
-		for i, s := range src {
-			for j := 0; j < i; j++ {
-				if src[j] == s {
-					allUnique = false
-					break
-				}
-			}
-		}
-		if allUnique {
-			out := make([]string, len(src))
-			copy(out, src)
-			return out
-		}
-	}
-	out := make([]string, 0, len(src))
-	var seen map[string]struct{}
-	for _, s := range src {
-		out = appendUniqueString(out, s, &seen)
+		out = appendUnique(out, v, &seen)
 	}
 	return out
 }
@@ -117,24 +80,20 @@ func dedupCloneStrings(src []string) []string {
 // Go-only: language-adapter — the abstract Color.Builder and the generated
 // $AutoValue_Color.Builder are one struct.
 type Color_Builder struct {
-	prototypes                    []*Color
-	instanceColors                []*Color
-	ownProperties                 []string
-	unionElements                 []*Color
-	slab                          *jutil.Slab[Color]
-	id                            ColorId
-	boxId                         ColorId
-	hasId                         bool
-	hasBoxId                      bool
-	invalidating                  bool
-	hasInvalidating               bool
-	propertiesKeepOriginalName    bool
-	hasPropertiesKeepOriginalName bool
-	constructor                   bool
-	hasConstructor                bool
-	closureAssert                 bool
-	hasClosureAssert              bool
-	trustUnique                   bool
+	prototypes                 []*Color
+	instanceColors             []*Color
+	ownProperties              []string
+	unionElements              []*Color
+	slab                       *jutil.Slab[Color]
+	id                         ColorId
+	boxId                      ColorId
+	hasId                      bool
+	hasBoxId                   bool
+	invalidating               bool
+	propertiesKeepOriginalName bool
+	constructor                bool
+	closureAssert              bool
+	trustUnique                bool
 }
 
 // SetSlab attaches an optional Color slab to b.
@@ -163,21 +122,18 @@ func (b *Color_Builder) SetId(id ColorId) *Color_Builder {
 // Java: Color.Builder.setInvalidating(boolean)
 func (b *Color_Builder) SetInvalidating(invalidating bool) *Color_Builder {
 	b.invalidating = invalidating
-	b.hasInvalidating = true
 	return b
 }
 
 // Java: Color.Builder.setPropertiesKeepOriginalName(boolean)
 func (b *Color_Builder) SetPropertiesKeepOriginalName(propertiesKeepOriginalName bool) *Color_Builder {
 	b.propertiesKeepOriginalName = propertiesKeepOriginalName
-	b.hasPropertiesKeepOriginalName = true
 	return b
 }
 
 // Java: Color.Builder.setConstructor(boolean)
 func (b *Color_Builder) SetConstructor(constructor bool) *Color_Builder {
 	b.constructor = constructor
-	b.hasConstructor = true
 	return b
 }
 
@@ -191,7 +147,7 @@ func (b *Color_Builder) SetOwnProperties(ownProperties []string) *Color_Builder 
 	} else if b.trustUnique {
 		b.ownProperties = ownProperties
 	} else {
-		b.ownProperties = dedupCloneStrings(ownProperties)
+		b.ownProperties = dedupClone(ownProperties, emptyStringSlice)
 	}
 	return b
 }
@@ -199,7 +155,6 @@ func (b *Color_Builder) SetOwnProperties(ownProperties []string) *Color_Builder 
 // Java: Color.Builder.setClosureAssert(boolean)
 func (b *Color_Builder) SetClosureAssert(closureAssert bool) *Color_Builder {
 	b.closureAssert = closureAssert
-	b.hasClosureAssert = true
 	return b
 }
 
@@ -213,7 +168,7 @@ func (b *Color_Builder) SetInstanceColors(instanceColors []*Color) *Color_Builde
 	} else if b.trustUnique {
 		b.instanceColors = instanceColors
 	} else {
-		b.instanceColors = dedupCloneColors(instanceColors)
+		b.instanceColors = dedupClone(instanceColors, emptyColorSlice)
 	}
 	return b
 }
@@ -228,7 +183,7 @@ func (b *Color_Builder) SetPrototypes(prototypes []*Color) *Color_Builder {
 	} else if b.trustUnique {
 		b.prototypes = prototypes
 	} else {
-		b.prototypes = dedupCloneColors(prototypes)
+		b.prototypes = dedupClone(prototypes, emptyColorSlice)
 	}
 	return b
 }
@@ -243,7 +198,7 @@ func (b *Color_Builder) SetUnionElements(unionElements []*Color) *Color_Builder 
 	} else if b.trustUnique {
 		b.unionElements = unionElements
 	} else {
-		b.unionElements = dedupCloneColors(unionElements)
+		b.unionElements = dedupClone(unionElements, emptyColorSlice)
 	}
 	return b
 }
@@ -284,44 +239,8 @@ func (b *Color_Builder) SetInstanceColor(x *Color) *Color_Builder {
 
 // Java: $AutoValue_Color.Builder.buildInternal()
 func (b *Color_Builder) BuildInternal() *Color {
-	if !b.hasId ||
-		!b.hasInvalidating ||
-		!b.hasPropertiesKeepOriginalName ||
-		!b.hasConstructor ||
-		!b.hasClosureAssert ||
-		b.prototypes == nil ||
-		b.instanceColors == nil ||
-		b.ownProperties == nil ||
-		b.unionElements == nil {
-		var missing strings.Builder
-		if !b.hasId {
-			missing.WriteString(" id")
-		}
-		if b.prototypes == nil {
-			missing.WriteString(" prototypes")
-		}
-		if b.instanceColors == nil {
-			missing.WriteString(" instanceColors")
-		}
-		if !b.hasInvalidating {
-			missing.WriteString(" invalidating")
-		}
-		if !b.hasPropertiesKeepOriginalName {
-			missing.WriteString(" propertiesKeepOriginalName")
-		}
-		if !b.hasConstructor {
-			missing.WriteString(" constructor")
-		}
-		if b.ownProperties == nil {
-			missing.WriteString(" ownProperties")
-		}
-		if !b.hasClosureAssert {
-			missing.WriteString(" closureAssert")
-		}
-		if b.unionElements == nil {
-			missing.WriteString(" unionElements")
-		}
-		panic(jutil.NewIllegalStateExceptionMsg("Missing required properties:" + missing.String()))
+	if !b.hasId {
+		panic(jutil.NewIllegalStateExceptionMsg("Missing required properties: id"))
 	}
 	return newColor(
 		b.slab,

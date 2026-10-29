@@ -26,93 +26,12 @@ import (
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 )
 
-// JvmMetrics is a class to report jvm/jmx statistics. Borrowed from:
-// http://code.google.com/p/dart/source/browse/trunk/dart/compiler/java/com/google/dart/compiler/metrics/JvmMetrics.java
-//
-// Go-only: language-adapter — there is no JVM. The java.lang.management
-// beans are modelled by jvmMetrics_* adapters that report the Go runtime's
-// equivalents: one "Go GC" collector (runtime.MemStats NumGC and
-// PauseTotalNs), the heap and non-heap (stack + other system) memory, one
-// "Go heap" memory pool, and a "Go" compiler with a total compilation time
-// of 0 (Go is compiled ahead of time). The report formats are Java's.
-type JvmMetrics struct{}
-
 const (
 	jvmMetrics_TABULAR_COLON_POS       = 40
 	jvmMetrics_ONE_KILO_BYTE     int64 = 1 << 10
 	jvmMetrics_ONE_MEGA_BYTE     int64 = 1 << 20
 	jvmMetrics_ONE_GIGA_BYTE     int64 = 1 << 30
 )
-
-// jvmMetrics_MemoryUsage is java.lang.management.MemoryUsage.
-type jvmMetrics_MemoryUsage struct {
-	init, used, committed, max int64
-}
-
-func newJvmMetrics_MemoryUsage(init, used, committed, max int64) *jvmMetrics_MemoryUsage {
-	return &jvmMetrics_MemoryUsage{init: init, used: used, committed: committed, max: max}
-}
-
-func (u *jvmMetrics_MemoryUsage) GetUsed() int64 { return u.used }
-func (u *jvmMetrics_MemoryUsage) GetMax() int64  { return u.max }
-
-// jvmMetrics_GarbageCollectorMXBean is java.lang.management.GarbageCollectorMXBean.
-type jvmMetrics_GarbageCollectorMXBean struct {
-	name            string
-	collectionCount int64
-	collectionTime  int64
-}
-
-func (b *jvmMetrics_GarbageCollectorMXBean) GetName() string           { return b.name }
-func (b *jvmMetrics_GarbageCollectorMXBean) GetCollectionCount() int64 { return b.collectionCount }
-func (b *jvmMetrics_GarbageCollectorMXBean) GetCollectionTime() int64  { return b.collectionTime }
-
-// jvmMetrics_MemoryPoolMXBean is java.lang.management.MemoryPoolMXBean.
-type jvmMetrics_MemoryPoolMXBean struct {
-	name      string
-	usage     *jvmMetrics_MemoryUsage
-	peakUsage *jvmMetrics_MemoryUsage
-}
-
-func (b *jvmMetrics_MemoryPoolMXBean) GetName() string                       { return b.name }
-func (b *jvmMetrics_MemoryPoolMXBean) GetUsage() *jvmMetrics_MemoryUsage     { return b.usage }
-func (b *jvmMetrics_MemoryPoolMXBean) GetPeakUsage() *jvmMetrics_MemoryUsage { return b.peakUsage }
-
-func jvmMetrics_memStats() *runtime.MemStats {
-	var ms runtime.MemStats
-	runtime.ReadMemStats(&ms)
-	return &ms
-}
-
-// ManagementFactory.getGarbageCollectorMXBeans()
-func jvmMetrics_getGarbageCollectorMXBeans() []*jvmMetrics_GarbageCollectorMXBean {
-	ms := jvmMetrics_memStats()
-	return []*jvmMetrics_GarbageCollectorMXBean{{
-		name:            "Go GC",
-		collectionCount: int64(ms.NumGC),
-		collectionTime:  int64(ms.PauseTotalNs / 1e6),
-	}}
-}
-
-// ManagementFactory.getMemoryPoolMXBeans()
-func jvmMetrics_getMemoryPoolMXBeans() []*jvmMetrics_MemoryPoolMXBean {
-	ms := jvmMetrics_memStats()
-	usage := newJvmMetrics_MemoryUsage(0, int64(ms.HeapAlloc), int64(ms.HeapSys), int64(ms.HeapSys))
-	return []*jvmMetrics_MemoryPoolMXBean{{name: "Go heap", usage: usage, peakUsage: usage}}
-}
-
-// ManagementFactory.getMemoryMXBean().getHeapMemoryUsage() and
-// getNonHeapMemoryUsage().
-func jvmMetrics_getHeapMemoryUsage() *jvmMetrics_MemoryUsage {
-	ms := jvmMetrics_memStats()
-	return newJvmMetrics_MemoryUsage(0, int64(ms.HeapAlloc), int64(ms.HeapSys), int64(ms.HeapSys))
-}
-
-func jvmMetrics_getNonHeapMemoryUsage() *jvmMetrics_MemoryUsage {
-	ms := jvmMetrics_memStats()
-	nonHeap := int64(ms.Sys - ms.HeapSys)
-	return newJvmMetrics_MemoryUsage(0, int64(ms.StackInuse), nonHeap, nonHeap)
-}
 
 // Java: JvmMetrics.maybeWriteJvmMetrics(PrintStream, String)
 func JvmMetrics_MaybeWriteJvmMetrics(out io.Writer, options *string) {
@@ -142,22 +61,29 @@ func JvmMetrics_MaybeWriteJvmMetrics(out io.Writer, options *string) {
 		}
 	}
 
+	var ms runtime.MemStats
+	var msLoaded bool
+	getMemStats := func() *runtime.MemStats {
+		if !msLoaded {
+			runtime.ReadMemStats(&ms)
+			msLoaded = true
+		}
+		return &ms
+	}
+
 	if len(st) > 0 {
 		for len(st) > 0 {
 			types := st[0]
 			st = st[1:]
 			for _, type_ := range jvmMetrics_tokenize(types, ",") {
-				jvmMetrics_writeMetrics(out, type_, verboseMode, prettyMode)
+				jvmMetrics_writeMetrics(out, type_, verboseMode, prettyMode, getMemStats)
 			}
 		}
 	} else {
-		// the default
-		jvmMetrics_writeMetrics(out, "all", verboseMode, prettyMode)
+		jvmMetrics_writeMetrics(out, "all", verboseMode, prettyMode, getMemStats)
 	}
 }
 
-// jvmMetrics_tokenize is java.util.StringTokenizer(s, delims): the
-// non-empty runs between delimiter characters.
 func jvmMetrics_tokenize(s string, delims string) []string {
 	return strings.FieldsFunc(s, func(r rune) bool { return strings.ContainsRune(delims, r) })
 }
@@ -166,181 +92,132 @@ func jvmMetrics_println(out io.Writer, s string) {
 	io.WriteString(out, s+"\n")
 }
 
-// Java: JvmMetrics.writeMetrics(PrintStream, String, boolean, boolean)
-func jvmMetrics_writeMetrics(out io.Writer, type_ string, verbose bool, pretty bool) {
+func jvmMetrics_writeMetrics(out io.Writer, type_ string, verbose, pretty bool, getMemStats func() *runtime.MemStats) {
 	if type_ == "gc" || strings.EqualFold(type_, "all") {
-		jvmMetrics_writeGarbageCollectionStats(out, verbose, pretty)
+		jvmMetrics_writeGarbageCollectionStats(out, verbose, pretty, getMemStats())
 	}
 	if type_ == "mem" || strings.EqualFold(type_, "all") {
-		jvmMetrics_writeMemoryMetrics(out, verbose, pretty)
+		jvmMetrics_writeMemoryMetrics(out, verbose, pretty, getMemStats())
 	}
 	if type_ == "jit" || strings.EqualFold(type_, "all") {
 		jvmMetrics_writeJitMetrics(out, verbose, pretty)
 	}
 }
 
-// Java: JvmMetrics.writeJitMetrics(PrintStream, boolean, boolean)
-func jvmMetrics_writeJitMetrics(out io.Writer, verbose bool, pretty bool) {
-	// Go-only: language-adapter — CompilationMXBean: no JIT.
-	cBeanName := "Go"
-	var cBeanTotalCompilationTime int64 = 0
-	var name string
+func jvmMetrics_writeJitMetrics(out io.Writer, verbose, pretty bool) {
+	name := "total"
 	if verbose {
-		name = cBeanName
-	} else {
-		name = "total"
+		name = "Go"
 	}
-
 	if pretty {
 		jvmMetrics_println(out, "\nJIT Stats")
-		io.WriteString(out, jutil.StringFormat("\t%s jit time: %d ms%n", name, cBeanTotalCompilationTime))
+		io.WriteString(out, jutil.StringFormat("\t%s jit time: %d ms%n", name, int64(0)))
 	} else {
 		jvmMetrics_println(out, jvmMetrics_normalizeTabularColonPos(jutil.StringFormat("%s-jit-time-ms : %d",
-			jvmMetrics_normalizeName(name), cBeanTotalCompilationTime)))
+			jvmMetrics_normalizeName(name), int64(0))))
 	}
 }
 
-// Java: JvmMetrics.writeOverallMemoryUsage(PrintStream, MemoryUsage, String, boolean)
-func jvmMetrics_writeOverallMemoryUsage(out io.Writer, usage *jvmMetrics_MemoryUsage, prefix string, pretty bool) {
+func jvmMetrics_writeOverallMemoryUsage(out io.Writer, used, maxBytes int64, prefix string, pretty bool) {
 	if pretty {
 		io.WriteString(out, jutil.StringFormat("\t%s\n", prefix))
-		io.WriteString(out, jutil.StringFormat("\t\tavailable         : %s\n", jvmMetrics_formatBytes(usage.GetMax())))
-		io.WriteString(out, jutil.StringFormat("\t\tcurrent           : %s\n", jvmMetrics_formatBytes(usage.GetUsed())))
+		io.WriteString(out, jutil.StringFormat("\t\tavailable         : %s\n", jvmMetrics_formatBytes(maxBytes)))
+		io.WriteString(out, jutil.StringFormat("\t\tcurrent           : %s\n", jvmMetrics_formatBytes(used)))
 	} else {
 		prefix = jvmMetrics_normalizeName(prefix)
 		jvmMetrics_println(out, jvmMetrics_normalizeTabularColonPos(
-			jutil.StringFormat("%s-available-bytes : %d", prefix, usage.GetMax())))
+			jutil.StringFormat("%s-available-bytes : %d", prefix, maxBytes)))
 		jvmMetrics_println(out, jvmMetrics_normalizeTabularColonPos(
-			jutil.StringFormat("%s-current-bytes : %d", prefix, usage.GetUsed())))
+			jutil.StringFormat("%s-current-bytes : %d", prefix, used)))
 	}
 }
 
-// Java: JvmMetrics.writePoolMemoryUsage(PrintStream, MemoryUsage, MemoryUsage, String, boolean)
-func jvmMetrics_writePoolMemoryUsage(out io.Writer, usage *jvmMetrics_MemoryUsage, peakUsage *jvmMetrics_MemoryUsage, prefix *string, pretty bool) {
+func jvmMetrics_writePoolMemoryUsage(out io.Writer, used, peakUsed, maxBytes int64, prefix *string, pretty bool) {
 	if pretty {
-		io.WriteString(out, jutil.StringFormat("\t\tavailable         : %s\n",
-			jvmMetrics_formatBytes(usage.GetMax())))
-		io.WriteString(out, jutil.StringFormat("\t\tpeak              : %s\n",
-			jvmMetrics_formatBytes(peakUsage.GetUsed())))
-		io.WriteString(out, jutil.StringFormat("\t\tcurrent           : %s\n",
-			jvmMetrics_formatBytes(usage.GetUsed())))
+		io.WriteString(out, jutil.StringFormat("\t\tavailable         : %s\n", jvmMetrics_formatBytes(maxBytes)))
+		io.WriteString(out, jutil.StringFormat("\t\tpeak              : %s\n", jvmMetrics_formatBytes(peakUsed)))
+		io.WriteString(out, jutil.StringFormat("\t\tcurrent           : %s\n", jvmMetrics_formatBytes(used)))
 	} else {
 		var p any = prefix
 		jvmMetrics_println(out, jvmMetrics_normalizeTabularColonPos(
-			jutil.StringFormat("%s-available-bytes : %d", p, usage.GetMax())))
+			jutil.StringFormat("%s-available-bytes : %d", p, maxBytes)))
 		jvmMetrics_println(out, jvmMetrics_normalizeTabularColonPos(
-			jutil.StringFormat("%s-peak-bytes : %d", p, peakUsage.GetUsed())))
+			jutil.StringFormat("%s-peak-bytes : %d", p, peakUsed)))
 		jvmMetrics_println(out, jvmMetrics_normalizeTabularColonPos(
-			jutil.StringFormat("%s-current-bytes : %d", p, usage.GetUsed())))
+			jutil.StringFormat("%s-current-bytes : %d", p, used)))
 	}
 }
 
-// Java: JvmMetrics.writeMemoryMetrics(PrintStream, boolean, boolean)
-func jvmMetrics_writeMemoryMetrics(out io.Writer, verbose bool, pretty bool) {
+func jvmMetrics_writeMemoryMetrics(out io.Writer, verbose, pretty bool, ms *runtime.MemStats) {
 	if pretty {
 		jvmMetrics_println(out, "\nMemory usage")
 	}
 
-	// only show overall stats in verbose mode
-	if verbose {
-		usage := jvmMetrics_getHeapMemoryUsage()
-		jvmMetrics_writeOverallMemoryUsage(out, usage, "Heap", pretty)
-
-		usage = jvmMetrics_getNonHeapMemoryUsage()
-		jvmMetrics_writeOverallMemoryUsage(out, usage, "Non-heap", pretty)
-	}
+	heapUsed := int64(ms.HeapAlloc)
+	heapMax := int64(ms.HeapSys)
 
 	if verbose {
-		mpBeans := jvmMetrics_getMemoryPoolMXBeans()
-		for _, mpBean := range mpBeans {
-			currentUsage := mpBean.GetUsage()
-			peakUsage := mpBean.GetPeakUsage()
-			if pretty {
-				jvmMetrics_println(out, "\tPool "+mpBean.GetName())
-				jvmMetrics_writePoolMemoryUsage(out, currentUsage, peakUsage, nil, true)
-			} else {
-				prefix := "mem-pool-" + jvmMetrics_normalizeName(mpBean.GetName())
-				jvmMetrics_writePoolMemoryUsage(out, currentUsage, peakUsage, &prefix, false)
-			}
+		jvmMetrics_writeOverallMemoryUsage(out, heapUsed, heapMax, "Heap", pretty)
+		nonHeap := int64(ms.Sys - ms.HeapSys)
+		jvmMetrics_writeOverallMemoryUsage(out, int64(ms.StackInuse), nonHeap, "Non-heap", pretty)
+
+		const poolName = "Go heap"
+		if pretty {
+			jvmMetrics_println(out, "\tPool "+poolName)
+			jvmMetrics_writePoolMemoryUsage(out, heapUsed, heapUsed, heapMax, nil, true)
+		} else {
+			prefix := "mem-pool-" + jvmMetrics_normalizeName(poolName)
+			jvmMetrics_writePoolMemoryUsage(out, heapUsed, heapUsed, heapMax, &prefix, false)
 		}
 	} else {
-		var available int64 = 0
-		var current int64 = 0
-		var peak int64 = 0
-		mpBeans := jvmMetrics_getMemoryPoolMXBeans()
-		for _, mpBean := range mpBeans {
-			currentUsage := mpBean.GetUsage()
-			available += currentUsage.GetMax()
-			current += currentUsage.GetUsed()
-			peakUsage := mpBean.GetPeakUsage()
-			peak += peakUsage.GetUsed()
-		}
-		summaryUsage := newJvmMetrics_MemoryUsage(0, current, current, available)
-		summaryPeakUsage := newJvmMetrics_MemoryUsage(0, peak, peak, peak)
 		if pretty {
-			io.WriteString(out, jutil.StringFormat("\tAggregate of %d memory pools\n", len(mpBeans)))
-			jvmMetrics_writePoolMemoryUsage(out, summaryUsage, summaryPeakUsage, nil, true)
+			io.WriteString(out, jutil.StringFormat("\tAggregate of %d memory pools\n", 1))
+			jvmMetrics_writePoolMemoryUsage(out, heapUsed, heapUsed, heapMax, nil, true)
 		} else {
 			prefix := "mem"
-			jvmMetrics_writePoolMemoryUsage(out, summaryUsage, summaryPeakUsage, &prefix, false)
+			jvmMetrics_writePoolMemoryUsage(out, heapUsed, heapUsed, heapMax, &prefix, false)
 		}
 	}
 }
 
-// Java: JvmMetrics.writeGarbageCollectionStats(PrintStream, boolean, boolean)
-func jvmMetrics_writeGarbageCollectionStats(out io.Writer, verbose bool, pretty bool) {
-	gcBeans := jvmMetrics_getGarbageCollectorMXBeans()
+func jvmMetrics_writeGarbageCollectionStats(out io.Writer, verbose, pretty bool, ms *runtime.MemStats) {
+	collectionCount := int64(ms.NumGC)
+	collectionTime := int64(ms.PauseTotalNs / 1e6)
 
 	if verbose {
+		const gcName = "Go GC"
 		if pretty {
 			jvmMetrics_println(out, "\nGarbage collection stats")
-			for _, gcBean := range gcBeans {
-				jvmMetrics_println(out, "\tCollector "+gcBean.GetName())
-				io.WriteString(out, jutil.StringFormat(
-					"\t\tcollection count   : %d\n", gcBean.GetCollectionCount()))
-				io.WriteString(out, jutil.StringFormat(
-					"\t\tcollection time    : %d ms\n", gcBean.GetCollectionTime()))
-			}
+			jvmMetrics_println(out, "\tCollector "+gcName)
+			io.WriteString(out, jutil.StringFormat("\t\tcollection count   : %d\n", collectionCount))
+			io.WriteString(out, jutil.StringFormat("\t\tcollection time    : %d ms\n", collectionTime))
 		} else {
-			for _, gcBean := range gcBeans {
-				name := jvmMetrics_normalizeName(gcBean.GetName())
-				jvmMetrics_println(out, jvmMetrics_normalizeTabularColonPos(jutil.StringFormat("gc-"+name+
-					"-collection-count : %d", gcBean.GetCollectionCount())))
-				jvmMetrics_println(out, jvmMetrics_normalizeTabularColonPos(jutil.StringFormat("gc-"+name+
-					"-collection-time-ms : %d", gcBean.GetCollectionTime())))
-			}
+			name := jvmMetrics_normalizeName(gcName)
+			jvmMetrics_println(out, jvmMetrics_normalizeTabularColonPos(
+				jutil.StringFormat("gc-"+name+"-collection-count : %d", collectionCount)))
+			jvmMetrics_println(out, jvmMetrics_normalizeTabularColonPos(
+				jutil.StringFormat("gc-"+name+"-collection-time-ms : %d", collectionTime)))
 		}
 	} else {
-		var collectionCount int64 = 0
-		var collectionTime int64 = 0
-		collectorCount := len(gcBeans)
-		for _, gcBean := range gcBeans {
-			collectionCount += gcBean.GetCollectionCount()
-			collectionTime += gcBean.GetCollectionTime()
-		}
 		if pretty {
 			jvmMetrics_println(out, "\nGarbage collection stats")
-			io.WriteString(out, jutil.StringFormat("\tAggregate of %d collectors\n", collectorCount))
+			io.WriteString(out, jutil.StringFormat("\tAggregate of %d collectors\n", 1))
 			io.WriteString(out, jutil.StringFormat("\t\tcollection count   : %d\n", collectionCount))
 			io.WriteString(out, jutil.StringFormat("\t\tcollection time    : %d ms\n", collectionTime))
 		} else {
 			name := jvmMetrics_normalizeName("aggregate")
 			jvmMetrics_println(out, jvmMetrics_normalizeTabularColonPos(
-				jutil.StringFormat("gc-%s-collection-count : %d", name,
-					collectionCount)))
+				jutil.StringFormat("gc-%s-collection-count : %d", name, collectionCount)))
 			jvmMetrics_println(out, jvmMetrics_normalizeTabularColonPos(
-				jutil.StringFormat("gc-%s-collection-time-ms : %d", name,
-					collectionTime)))
+				jutil.StringFormat("gc-%s-collection-time-ms : %d", name, collectionTime)))
 		}
 	}
 }
 
-// Java: JvmMetrics.normalizeName(String)
 func jvmMetrics_normalizeName(name string) string {
 	return strings.ToLower(strings.ReplaceAll(name, " ", "_"))
 }
 
-// Java: JvmMetrics.normalizeTabularColonPos(String)
 func jvmMetrics_normalizeTabularColonPos(s string) string {
 	index := jutil.StringIndexOf(s, ":")
 	if index < 0 {
@@ -352,7 +229,6 @@ func jvmMetrics_normalizeTabularColonPos(s string) string {
 	return jutil.StringSubstring(s, 0, index) + strings.Repeat(" ", jvmMetrics_TABULAR_COLON_POS-index) + jutil.StringSubstringFrom(s, index)
 }
 
-// Java: JvmMetrics.formatBytes(long)
 func jvmMetrics_formatBytes(numBytes int64) string {
 	if numBytes < jvmMetrics_ONE_KILO_BYTE {
 		return jutil.StringFormat("%d B", numBytes)
@@ -360,7 +236,6 @@ func jvmMetrics_formatBytes(numBytes int64) string {
 		return jutil.StringFormat("%d KB", numBytes/jvmMetrics_ONE_KILO_BYTE)
 	} else if numBytes < jvmMetrics_ONE_GIGA_BYTE {
 		return jutil.StringFormat("%d MB", numBytes/jvmMetrics_ONE_MEGA_BYTE)
-	} else {
-		return jutil.StringFormat("%d GB", numBytes/jvmMetrics_ONE_GIGA_BYTE)
 	}
+	return jutil.StringFormat("%d GB", numBytes/jvmMetrics_ONE_GIGA_BYTE)
 }

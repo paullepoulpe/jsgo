@@ -330,6 +330,26 @@ type ConcretizeStaticInheritanceForInlining_FindStaticMembers struct {
 	nodeOrder map[rhino.Node]int
 }
 
+var findStaticMembersVisitTokens = makeVisitTokenSet(
+	rhino.Token_CALL,
+	rhino.Token_CONST,
+	rhino.Token_LET,
+	rhino.Token_VAR,
+	rhino.Token_ASSIGN,
+	rhino.Token_FUNCTION,
+)
+
+var (
+	_ nodeTraversal_noVisitLeaves = (*ConcretizeStaticInheritanceForInlining_FindStaticMembers)(nil)
+	_ nodeTraversal_visitTokens   = (*ConcretizeStaticInheritanceForInlining_FindStaticMembers)(nil)
+)
+
+func (*ConcretizeStaticInheritanceForInlining_FindStaticMembers) noVisitLeaves() {}
+
+func (*ConcretizeStaticInheritanceForInlining_FindStaticMembers) visitTokens() *ast.TokenSet {
+	return &findStaticMembersVisitTokens
+}
+
 // Java: ConcretizeStaticInheritanceForInlining.FindStaticMembers()
 func NewConcretizeStaticInheritanceForInlining_FindStaticMembers(outer *ConcretizeStaticInheritanceForInlining) *ConcretizeStaticInheritanceForInlining_FindStaticMembers {
 	return &ConcretizeStaticInheritanceForInlining_FindStaticMembers{

@@ -53,37 +53,6 @@ type (
 	DiGraph_DiGraphEdge[N, E comparable]                   = *LinkedDiGraphEdge[N, E]
 )
 
-type linkedDirectedSubGraph[N, E comparable] struct {
-	graph *LinkedDirectedGraph[N, E]
-	nodes []*LinkedDiGraphNode[N, E]
-	buf   [8]*LinkedDiGraphNode[N, E]
-}
-
-// Java: LinkedDirectedGraph.newSubGraph()
-func (g *LinkedDirectedGraph[N, E]) NewSubGraph() SubGraph[N, E] {
-	s := &linkedDirectedSubGraph[N, E]{graph: g}
-	s.nodes = s.buf[:0]
-	return s
-}
-
-func (s *linkedDirectedSubGraph[N, E]) IsIndependentOf(value N) bool {
-	node := s.graph.Nodes.Get(value)
-	if node == nil {
-		return true
-	}
-	for _, n := range s.nodes {
-		if s.graph.isConnectedInDirectionOfNodesAny(n, node) ||
-			s.graph.isConnectedInDirectionOfNodesAny(node, n) {
-			return false
-		}
-	}
-	return true
-}
-
-func (s *linkedDirectedSubGraph[N, E]) AddNode(value N) {
-	s.nodes = append(s.nodes, s.graph.getLinkedNodeOrFail(value))
-}
-
 // Java: LinkedDirectedGraph.createWithoutAnnotations()
 func LinkedDirectedGraph_CreateWithoutAnnotations[N, E comparable]() *LinkedDirectedGraph[N, E] {
 	return NewLinkedDirectedGraph[N, E](false, false)
@@ -810,16 +779,6 @@ func (e *LinkedDiGraphEdge[N, E]) GetNode2Id() string {
 // Java: LinkedDirectedGraph.LinkedDiGraphEdge.toString()
 func (e *LinkedDiGraphEdge[N, E]) String() string {
 	return e.SourceNode.String() + " -> " + e.DestNode.String()
-}
-
-// Java: LinkedDirectedGraph.LinkedDiGraphEdge.getNodeA()
-func (e *LinkedDiGraphEdge[N, E]) GetNodeA() *LinkedDiGraphNode[N, E] {
-	return e.SourceNode
-}
-
-// Java: LinkedDirectedGraph.LinkedDiGraphEdge.getNodeB()
-func (e *LinkedDiGraphEdge[N, E]) GetNodeB() *LinkedDiGraphNode[N, E] {
-	return e.DestNode
 }
 
 var (

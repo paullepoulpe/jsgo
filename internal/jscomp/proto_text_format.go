@@ -10,16 +10,11 @@
 // Here that LICENSE file is LICENSES/BSD-3-Clause-protobuf.txt.
 
 // Go-only: language-adapter — protobuf is a leaf package (PORTING.md §2) and
-// its messages are reconstructed (proto_runtime.go, which already prints the
-// text format). This file translates the parsing half of
-// com.google.protobuf.TextFormat (the version shaded into the pinned
-// closure-compiler.jar): Parser (merge, the skipping of unknown fields) and
-// parseInteger / parseJavaDouble, over the generated builders'
-// MessageReflection.MergeTarget (proto_descriptors.go). The reconstructed
-// messages have no extensions, no google.protobuf.Any and no groups, and no
-// caller asks for a parse-info tree, so those branches are not translated;
-// an extension name always resolves to "unknown", as with an empty
-// ExtensionRegistry.
+// its messages are reconstructed (proto_runtime.go). Closure Compiler only
+// parses text-format ConformanceConfig protos, so field dispatch is wired
+// directly onto ConformanceConfig_Builder, Requirement_Builder,
+// RequirementScopeEntry_Builder, and RequirementScope_Builder without runtime
+// descriptor tables or reflection.
 
 package jscomp
 
@@ -34,407 +29,479 @@ import (
 
 const textFormat_DEFAULT_RECURSION_LIMIT = 100
 
-// Java: TextFormat.PARSER
-var textFormat_PARSER = &TextFormat_Parser{}
-
-// TextFormat_Merge parses a text-format message from input and merges the
-// contents into builder. It panics with TextFormat_ParseException (a checked
-// exception).
-//
-// Java: TextFormat.merge(CharSequence, Message.Builder)
-func TextFormat_Merge(input string, builder TextFormat_MergeTarget) {
-	textFormat_PARSER.Merge(input, builder)
+// ConformanceTextFormatTarget is implemented by the reconstructed conformance
+// message builders that support textproto parsing.
+type ConformanceTextFormatTarget interface {
+	conformanceFullName() string
+	conformanceMergeField(name string, t *TextFormat_Tokenizer, unknownFields *[]string, recursionLimit int) (bool, *TextFormat_ParseException)
 }
 
-// TextFormat_Parser is the parser for text-format proto2 instances. This
-// class is thread-safe. The implementation largely follows
-// google/protobuf/text_format.cc.
-type TextFormat_Parser struct{}
-
-// CheckUnknownFields checks both unknown fields and unknown extensions and
-// throws an exception if any were encountered.
+// TextFormat_Merge parses a text-format message from input and merges the
+// contents into builder, panicking with *TextFormat_ParseException on error.
 //
-// Java: TextFormat.Parser.checkUnknownFields(List<UnknownField>)
-func (p *TextFormat_Parser) CheckUnknownFields(unknownFields []string) {
-	if len(unknownFields) == 0 {
-		return
+// Java: TextFormat.merge(CharSequence, Message.Builder)
+func TextFormat_Merge(input string, builder ConformanceTextFormatTarget) {
+	if err := TextFormat_MergeErr(input, builder); err != nil {
+		panic(err)
 	}
+}
 
+// TextFormat_MergeErr parses a text-format message from input and merges the
+// contents into builder, returning a *TextFormat_ParseException on malformed
+// input instead of panicking.
+func TextFormat_MergeErr(input string, builder ConformanceTextFormatTarget) *TextFormat_ParseException {
+	tokenizer := NewTextFormat_Tokenizer(input)
+	var unknownFields []string
+	for !tokenizer.AtEnd() {
+		if err := textFormat_mergeField(tokenizer, builder, &unknownFields, textFormat_DEFAULT_RECURSION_LIMIT); err != nil {
+			return err
+		}
+	}
+	return textFormat_checkUnknownFields(unknownFields)
+}
+
+func (*ConformanceConfig_Builder) conformanceFullName() string { return "jscomp.ConformanceConfig" }
+func (*Requirement_Builder) conformanceFullName() string       { return "jscomp.Requirement" }
+func (*RequirementScopeEntry_Builder) conformanceFullName() string {
+	return "jscomp.RequirementScopeEntry"
+}
+func (*RequirementScope_Builder) conformanceFullName() string { return "jscomp.RequirementScope" }
+
+func (b *ConformanceConfig_Builder) conformanceMergeField(
+	name string, t *TextFormat_Tokenizer, unknownFields *[]string, recursionLimit int,
+) (bool, *TextFormat_ParseException) {
+	switch name {
+	case "requirement":
+		return consumeProtoMessageField(t, true, unknownFields, recursionLimit, Requirement_NewBuilder, b.AddRequirement)
+	case "library_level_non_allowlisted_conformance_violations_behavior":
+		return consumeProtoEnumField(t,
+			"jscomp.ConformanceConfig.LibraryLevelNonAllowlistedConformanceViolationsBehavior",
+			conformanceConfig_LibraryLevelNonAllowlistedConformanceViolationsBehavior_names[:],
+			ConformanceConfig_LibraryLevelNonAllowlistedConformanceViolationsBehavior_ForNumber,
+			b.SetLibraryLevelNonAllowlistedConformanceViolationsBehavior)
+	}
+	return false, nil
+}
+
+func (b *Requirement_Builder) conformanceMergeField(
+	name string, t *TextFormat_Tokenizer, unknownFields *[]string, recursionLimit int,
+) (bool, *TextFormat_ParseException) {
+	switch name {
+	case "error_message":
+		return consumeProtoStringField(t, false, b.SetErrorMessage)
+	case "whitelist":
+		return consumeProtoStringField(t, true, b.AddWhitelist)
+	case "whitelist_regexp":
+		return consumeProtoStringField(t, true, b.AddWhitelistRegexp)
+	case "allowlist":
+		return consumeProtoStringField(t, true, b.AddAllowlist)
+	case "allowlist_regexp":
+		return consumeProtoStringField(t, true, b.AddAllowlistRegexp)
+	case "whitelist_entry":
+		return consumeProtoMessageField(t, true, unknownFields, recursionLimit, RequirementScopeEntry_NewBuilder, b.AddWhitelistEntry)
+	case "allowlist_entry":
+		return consumeProtoMessageField(t, true, unknownFields, recursionLimit, RequirementScopeEntry_NewBuilder, b.AddAllowlistEntry)
+	case "only_apply_to":
+		return consumeProtoStringField(t, true, b.AddOnlyApplyTo)
+	case "only_apply_to_regexp":
+		return consumeProtoStringField(t, true, b.AddOnlyApplyToRegexp)
+	case "type":
+		return consumeProtoEnumField(t, "jscomp.Requirement.Type", requirement_Type_names[:], Requirement_Type_ForNumber, b.SetType)
+	case "value":
+		return consumeProtoStringField(t, true, b.AddValue)
+	case "allow_extending_value":
+		return consumeProtoBoolField(t, b.SetAllowExtendingValue)
+	case "type_matching_strategy":
+		return consumeProtoEnumField(t, "jscomp.Requirement.TypeMatchingStrategy", requirement_TypeMatchingStrategy_names[:], Requirement_TypeMatchingStrategy_ForNumber, b.SetTypeMatchingStrategy)
+	case "java_class":
+		return consumeProtoStringField(t, false, b.SetJavaClass)
+	case "rule_id":
+		return consumeProtoStringField(t, false, b.SetRuleId)
+	case "extends":
+		return consumeProtoStringField(t, false, b.SetExtends)
+	case "report_loose_type_violations":
+		return consumeProtoBoolField(t, b.SetReportLooseTypeViolations)
+	case "severity":
+		return consumeProtoEnumField(t, "jscomp.Requirement.Severity", requirement_Severity_names[:], Requirement_Severity_ForNumber, b.SetSeverity)
+	case "config_file":
+		return consumeProtoStringField(t, true, b.AddConfigFile)
+	}
+	return false, nil
+}
+
+func (b *RequirementScopeEntry_Builder) conformanceMergeField(
+	name string, t *TextFormat_Tokenizer, _ *[]string, _ int,
+) (bool, *TextFormat_ParseException) {
+	switch name {
+	case "reason":
+		return consumeProtoEnumField(t, "jscomp.RequirementScopeEntry.Reason", requirementScopeEntry_Reason_names[:], RequirementScopeEntry_Reason_ForNumber, b.SetReason)
+	case "prefix":
+		return consumeProtoStringField(t, true, b.AddPrefix)
+	case "regexp":
+		return consumeProtoStringField(t, true, b.AddRegexp)
+	case "explanation":
+		return consumeProtoStringField(t, false, b.SetExplanation)
+	case "comment":
+		return consumeProtoStringField(t, true, b.AddComment)
+	case "automatically_prune":
+		return consumeProtoBoolField(t, b.SetAutomaticallyPrune)
+	case "do_not_record_violations_in_summary_because_this_is_gencode_and_always_safe":
+		return consumeProtoBoolField(t, b.SetDoNotRecordViolationsInSummaryBecauseThisIsGencodeAndAlwaysSafe)
+	}
+	return false, nil
+}
+
+func (b *RequirementScope_Builder) conformanceMergeField(
+	name string, t *TextFormat_Tokenizer, unknownFields *[]string, recursionLimit int,
+) (bool, *TextFormat_ParseException) {
+	switch name {
+	case "rule_id":
+		return consumeProtoStringField(t, false, b.SetRuleId)
+	case "allowlist":
+		return consumeProtoMessageField(t, true, unknownFields, recursionLimit, RequirementScopeEntry_NewBuilder, b.AddAllowlist)
+	case "only_apply_to":
+		return consumeProtoMessageField(t, true, unknownFields, recursionLimit, RequirementScopeEntry_NewBuilder, b.AddOnlyApplyTo)
+	}
+	return false, nil
+}
+
+func consumeProtoScalarValues(
+	t *TextFormat_Tokenizer, repeated bool, consumeOne func() *TextFormat_ParseException,
+) (bool, *TextFormat_ParseException) {
+	if err := t.Consume(":"); err != nil {
+		return true, err
+	}
+	if repeated && t.TryConsume("[") {
+		if !t.TryConsume("]") {
+			for {
+				if err := consumeOne(); err != nil {
+					return true, err
+				}
+				if t.TryConsume("]") {
+					break
+				}
+				if err := t.Consume(","); err != nil {
+					return true, err
+				}
+			}
+		}
+		return true, nil
+	}
+	return true, consumeOne()
+}
+
+func consumeProtoStringField[R any](
+	t *TextFormat_Tokenizer, repeated bool, set func(string) R,
+) (bool, *TextFormat_ParseException) {
+	return consumeProtoScalarValues(t, repeated, func() *TextFormat_ParseException {
+		v, err := t.ConsumeString()
+		if err != nil {
+			return err
+		}
+		set(v)
+		return nil
+	})
+}
+
+func consumeProtoBoolField[R any](
+	t *TextFormat_Tokenizer, set func(bool) R,
+) (bool, *TextFormat_ParseException) {
+	return consumeProtoScalarValues(t, false, func() *TextFormat_ParseException {
+		v, err := t.ConsumeBoolean()
+		if err != nil {
+			return err
+		}
+		set(v)
+		return nil
+	})
+}
+
+func consumeProtoEnumField[E ~int32, R any](
+	t *TextFormat_Tokenizer, enumFullName string, names []string, forNumber func(int32) *E, set func(E) R,
+) (bool, *TextFormat_ParseException) {
+	return consumeProtoScalarValues(t, false, func() *TextFormat_ParseException {
+		if t.LookingAtInteger() {
+			number, err := t.ConsumeInt32()
+			if err != nil {
+				return err
+			}
+			enumValue := forNumber(number)
+			if enumValue == nil {
+				return t.ParseExceptionPreviousToken("Enum type \"" +
+					enumFullName +
+					"\" has no value with number " +
+					strconv.Itoa(int(number)) +
+					".")
+			}
+			set(*enumValue)
+			return nil
+		}
+		id, err := t.ConsumeIdentifier()
+		if err != nil {
+			return err
+		}
+		for i, name := range names {
+			if name == id {
+				set(E(i))
+				return nil
+			}
+		}
+		return t.ParseExceptionPreviousToken("Enum type \"" +
+			enumFullName +
+			"\" has no value named \"" +
+			id +
+			"\".")
+	})
+}
+
+func consumeProtoMessageField[B interface {
+	ConformanceTextFormatTarget
+	BuildPartial() M
+}, M, R any](
+	t *TextFormat_Tokenizer,
+	repeated bool,
+	unknownFields *[]string,
+	recursionLimit int,
+	newBuilder func() B,
+	add func(M) R,
+) (bool, *TextFormat_ParseException) {
+	t.TryConsume(":") // optional before message value
+	consumeOne := func() *TextFormat_ParseException {
+		if recursionLimit < 1 {
+			return t.ParseException("Message is nested too deep")
+		}
+		var endToken string
+		if t.TryConsume("<") {
+			endToken = ">"
+		} else {
+			if err := t.Consume("{"); err != nil {
+				return err
+			}
+			endToken = "}"
+		}
+		sub := newBuilder()
+		for !t.TryConsume(endToken) {
+			if t.AtEnd() {
+				return t.ParseException("Expected \"" + endToken + "\".")
+			}
+			if err := textFormat_mergeField(t, sub, unknownFields, recursionLimit-1); err != nil {
+				return err
+			}
+		}
+		add(sub.BuildPartial())
+		return nil
+	}
+	if repeated && t.TryConsume("[") {
+		if !t.TryConsume("]") {
+			for {
+				if err := consumeOne(); err != nil {
+					return true, err
+				}
+				if t.TryConsume("]") {
+					break
+				}
+				if err := t.Consume(","); err != nil {
+					return true, err
+				}
+			}
+		}
+		return true, nil
+	}
+	return true, consumeOne()
+}
+
+// Java: TextFormat.Parser.checkUnknownFields(List<UnknownField>)
+func textFormat_checkUnknownFields(unknownFields []string) *TextFormat_ParseException {
+	if len(unknownFields) == 0 {
+		return nil
+	}
 	var msg strings.Builder
 	msg.WriteString("Input contains unknown fields and/or extensions:")
 	for _, field := range unknownFields {
 		msg.WriteByte('\n')
 		msg.WriteString(field)
 	}
-
 	lineColumn := strings.Split(unknownFields[0], ":")
 	line, _ := strconv.Atoi(lineColumn[0])
 	column, _ := strconv.Atoi(lineColumn[1])
-	panic(NewTextFormat_ParseExceptionAt(line, column, msg.String()))
+	return NewTextFormat_ParseExceptionAt(line, column, msg.String())
 }
 
-// Merge parses a text-format message from input and merges the contents
-// into builder.
-//
-// Java: TextFormat.Parser.merge(CharSequence, ExtensionRegistry, Message.Builder)
-func (p *TextFormat_Parser) Merge(input string, target TextFormat_MergeTarget) {
-	tokenizer := NewTextFormat_Tokenizer(input)
-	var unknownFields []string
-
-	for !tokenizer.AtEnd() {
-		p.MergeField(tokenizer, target, &unknownFields, textFormat_DEFAULT_RECURSION_LIMIT)
-	}
-	p.CheckUnknownFields(unknownFields)
-}
-
-// MergeField parses a single field from tokenizer and merges it into target.
-//
-// Java: TextFormat.Parser.mergeField(Tokenizer, ExtensionRegistry, MergeTarget, TextFormatParseInfoTree.Builder, List<UnknownField>, int)
-func (p *TextFormat_Parser) MergeField(
+// Java: TextFormat.Parser.mergeField(...)
+func textFormat_mergeField(
 	tokenizer *TextFormat_Tokenizer,
-	target TextFormat_MergeTarget,
+	target ConformanceTextFormatTarget,
 	unknownFields *[]string,
-	recursionLimit int) {
-	var field *Descriptors_FieldDescriptor
-	var name string
-	type_ := target.GetDescriptorForType()
-
-	// (A google.protobuf.Any type URL "[...]" needs the Any descriptor; no
-	// reconstructed message is an Any.)
+	recursionLimit int,
+) *TextFormat_ParseException {
+	fullName := target.conformanceFullName()
 
 	if tokenizer.TryConsume("[") {
-		// An extension.
 		var nameBuilder strings.Builder
-		nameBuilder.WriteString(tokenizer.ConsumeIdentifier())
+		id, err := tokenizer.ConsumeIdentifier()
+		if err != nil {
+			return err
+		}
+		nameBuilder.WriteString(id)
 		for tokenizer.TryConsume(".") {
 			nameBuilder.WriteByte('.')
-			nameBuilder.WriteString(tokenizer.ConsumeIdentifier())
-		}
-		name = nameBuilder.String()
-
-		// target.findExtensionByName: the reconstructed messages declare no
-		// extensions (an empty ExtensionRegistry).
-		message := strconv.Itoa(tokenizer.GetPreviousLine()+1) +
-			":" +
-			strconv.Itoa(tokenizer.GetPreviousColumn()+1) +
-			":\t" +
-			type_.GetFullName() +
-			".[" +
-			name +
-			"]"
-		*unknownFields = append(*unknownFields, message)
-
-		tokenizer.Consume("]")
-	} else {
-		name = tokenizer.ConsumeIdentifier()
-		field = type_.FindFieldByName(name)
-
-		// Group names are expected to be capitalized as they appear in the
-		// .proto file, which actually matches their type names, not their field
-		// names.
-		if field == nil {
-			// Explicitly specify US locale so that this code does not break when
-			// executing in Turkey.
-			lowerName := jutil.StringToLowerCaseRoot(name)
-			field = type_.FindFieldByName(lowerName)
-			// If the case-insensitive match worked but the field is NOT a group,
-			if field != nil && !field.IsGroupLike() {
-				field = nil
+			id, err = tokenizer.ConsumeIdentifier()
+			if err != nil {
+				return err
 			}
-			if field != nil && field.GetMessageType().GetName() != name {
-				field = nil
-			}
+			nameBuilder.WriteString(id)
 		}
-
-		if field == nil {
-			message := strconv.Itoa(tokenizer.GetPreviousLine()+1) +
-				":" +
-				strconv.Itoa(tokenizer.GetPreviousColumn()+1) +
-				":\t" +
-				type_.GetFullName() +
-				"." +
-				name
-			*unknownFields = append(*unknownFields, message)
+		*unknownFields = append(*unknownFields,
+			strconv.Itoa(tokenizer.GetPreviousLine()+1)+":"+
+				strconv.Itoa(tokenizer.GetPreviousColumn()+1)+":\t"+
+				fullName+".["+nameBuilder.String()+"]")
+		if err := tokenizer.Consume("]"); err != nil {
+			return err
 		}
+		return textFormat_guessFieldTypeAndSkip(tokenizer, recursionLimit)
 	}
 
-	// Skips unknown fields.
-	if field == nil {
-		p.GuessFieldTypeAndSkip(tokenizer, type_, recursionLimit)
-		return
+	name, err := tokenizer.ConsumeIdentifier()
+	if err != nil {
+		return err
+	}
+	matched, err := target.conformanceMergeField(name, tokenizer, unknownFields, recursionLimit)
+	if err != nil {
+		return err
+	}
+	if !matched {
+		*unknownFields = append(*unknownFields,
+			strconv.Itoa(tokenizer.GetPreviousLine()+1)+":"+
+				strconv.Itoa(tokenizer.GetPreviousColumn()+1)+":\t"+
+				fullName+"."+name)
+		return textFormat_guessFieldTypeAndSkip(tokenizer, recursionLimit)
 	}
 
-	// Handle potential ':'.
-	if field.GetJavaType() == Descriptors_FieldDescriptor_JavaType_MESSAGE {
-		tokenizer.TryConsume(":") // optional
-		p.ConsumeFieldValues(tokenizer, target, field, unknownFields, recursionLimit)
-	} else {
-		tokenizer.Consume(":") // required
-		p.ConsumeFieldValues(tokenizer, target, field, unknownFields, recursionLimit)
-	}
-
-	// For historical reasons, fields may optionally be separated by commas or
-	// semicolons.
+	// For historical reasons, fields may optionally be separated by commas or semicolons.
 	if !tokenizer.TryConsume(";") {
 		tokenizer.TryConsume(",")
 	}
+	return nil
 }
 
 // Java: TextFormat.Parser.consumeFullTypeName(Tokenizer)
-func (p *TextFormat_Parser) ConsumeFullTypeName(tokenizer *TextFormat_Tokenizer) {
-	// If there is not a leading `[`, this is just a type name.
+func textFormat_consumeFullTypeName(tokenizer *TextFormat_Tokenizer) *TextFormat_ParseException {
 	if !tokenizer.TryConsume("[") {
-		tokenizer.ConsumeIdentifier()
-		return
+		_, err := tokenizer.ConsumeIdentifier()
+		return err
 	}
-
-	// Otherwise, this is an extension or google.protobuf.Any type URL: we consume proto path
-	// elements until we've addressed the type.
-	tokenizer.ConsumeIdentifier()
+	if _, err := tokenizer.ConsumeIdentifier(); err != nil {
+		return err
+	}
 	for tokenizer.TryConsume(".") {
-		tokenizer.ConsumeIdentifier()
+		if _, err := tokenizer.ConsumeIdentifier(); err != nil {
+			return err
+		}
 	}
 	if tokenizer.TryConsume("/") {
-		tokenizer.ConsumeIdentifier()
+		if _, err := tokenizer.ConsumeIdentifier(); err != nil {
+			return err
+		}
 		for tokenizer.TryConsume(".") {
-			tokenizer.ConsumeIdentifier()
-		}
-	}
-	tokenizer.Consume("]")
-}
-
-// ConsumeFieldValues parses one or more field values from tokenizer and
-// merges them into target.
-//
-// Java: TextFormat.Parser.consumeFieldValues(Tokenizer, ExtensionRegistry, MergeTarget, FieldDescriptor, ExtensionInfo, TextFormatParseInfoTree.Builder, List<UnknownField>, int)
-func (p *TextFormat_Parser) ConsumeFieldValues(
-	tokenizer *TextFormat_Tokenizer,
-	target TextFormat_MergeTarget,
-	field *Descriptors_FieldDescriptor,
-	unknownFields *[]string,
-	recursionLimit int) {
-	// Support specifying repeated field values as a comma-separated list.
-	// Ex."foo: [1, 2, 3]"
-	if field.IsRepeated() && tokenizer.TryConsume("[") {
-		if !tokenizer.TryConsume("]") { // Allow "foo: []" to be treated as empty.
-			for {
-				p.ConsumeFieldValue(tokenizer, target, field, unknownFields, recursionLimit)
-				if tokenizer.TryConsume("]") {
-					// End of list.
-					break
-				}
-				tokenizer.Consume(",")
+			if _, err := tokenizer.ConsumeIdentifier(); err != nil {
+				return err
 			}
 		}
-	} else {
-		p.ConsumeFieldValue(tokenizer, target, field, unknownFields, recursionLimit)
 	}
+	return tokenizer.Consume("]")
 }
 
-// ConsumeFieldValue parses a single field value from tokenizer and merges it
-// into target.
-//
-// Java: TextFormat.Parser.consumeFieldValue(Tokenizer, ExtensionRegistry, MergeTarget, FieldDescriptor, ExtensionInfo, TextFormatParseInfoTree.Builder, List<UnknownField>, int)
-func (p *TextFormat_Parser) ConsumeFieldValue(
-	tokenizer *TextFormat_Tokenizer,
-	target TextFormat_MergeTarget,
-	field *Descriptors_FieldDescriptor,
-	unknownFields *[]string,
-	recursionLimit int) {
-	var value any
-
-	if field.GetJavaType() == Descriptors_FieldDescriptor_JavaType_MESSAGE {
-		if recursionLimit < 1 {
-			panic(tokenizer.ParseException("Message is nested too deep"))
-		}
-
-		var endToken string
-		if tokenizer.TryConsume("<") {
-			endToken = ">"
-		} else {
-			tokenizer.Consume("{")
-			endToken = "}"
-		}
-
-		subField := target.protoNewMergeTargetForField(field)
-
-		for !tokenizer.TryConsume(endToken) {
-			if tokenizer.AtEnd() {
-				panic(tokenizer.ParseException("Expected \"" + endToken + "\"."))
-			}
-			p.MergeField(tokenizer, subField, unknownFields, recursionLimit-1)
-		}
-
-		value = subField.protoFinish()
-	} else {
-		switch field.GetType() {
-		case Descriptors_FieldDescriptor_Type_INT32,
-			Descriptors_FieldDescriptor_Type_SINT32,
-			Descriptors_FieldDescriptor_Type_SFIXED32:
-			value = tokenizer.ConsumeInt32()
-
-		case Descriptors_FieldDescriptor_Type_INT64,
-			Descriptors_FieldDescriptor_Type_SINT64,
-			Descriptors_FieldDescriptor_Type_SFIXED64:
-			value = tokenizer.ConsumeInt64()
-
-		case Descriptors_FieldDescriptor_Type_UINT32,
-			Descriptors_FieldDescriptor_Type_FIXED32:
-			value = tokenizer.ConsumeUInt32()
-
-		case Descriptors_FieldDescriptor_Type_UINT64,
-			Descriptors_FieldDescriptor_Type_FIXED64:
-			value = tokenizer.ConsumeUInt64()
-
-		case Descriptors_FieldDescriptor_Type_FLOAT:
-			value = tokenizer.ConsumeFloat()
-
-		case Descriptors_FieldDescriptor_Type_DOUBLE:
-			value = tokenizer.ConsumeDouble()
-
-		case Descriptors_FieldDescriptor_Type_BOOL:
-			value = tokenizer.ConsumeBoolean()
-
-		case Descriptors_FieldDescriptor_Type_STRING:
-			value = tokenizer.ConsumeString()
-
-		case Descriptors_FieldDescriptor_Type_BYTES:
-			value = tokenizer.ConsumeByteString()
-
-		case Descriptors_FieldDescriptor_Type_ENUM:
-			enumType := field.GetEnumType()
-
-			if tokenizer.LookingAtInteger() {
-				number := tokenizer.ConsumeInt32()
-				// (Every reconstructed enum that a parsed message uses is closed.)
-				var enumValue *Descriptors_EnumValueDescriptor
-				if enumType.IsClosed() {
-					enumValue = enumType.FindValueByNumber(number)
-				} else {
-					panic(jutil.NewUnsupportedOperationExceptionMsg("open enum " + enumType.GetFullName()))
-				}
-				if enumValue == nil {
-					panic(tokenizer.ParseExceptionPreviousToken("Enum type \"" +
-						enumType.GetFullName() +
-						"\" has no value with number " +
-						strconv.Itoa(int(number)) +
-						"."))
-				}
-				value = enumValue
-			} else {
-				id := tokenizer.ConsumeIdentifier()
-				enumValue := enumType.FindValueByName(id)
-				if enumValue == nil {
-					panic(tokenizer.ParseExceptionPreviousToken("Enum type \"" +
-						enumType.GetFullName() +
-						"\" has no value named \"" +
-						id +
-						"\"."))
-				}
-				value = enumValue
-			}
-
-		case Descriptors_FieldDescriptor_Type_MESSAGE, Descriptors_FieldDescriptor_Type_GROUP:
-			panic(jutil.NewRuntimeException("Can't get here."))
-		}
-	}
-
-	if field.IsRepeated() {
-		target.protoAddRepeatedField(field, value)
-	} else {
-		target.protoSetField(field, value)
-	}
-}
-
-// SkipField skips the next field including the field's name and value.
-//
 // Java: TextFormat.Parser.skipField(Tokenizer, Descriptor, int)
-func (p *TextFormat_Parser) SkipField(tokenizer *TextFormat_Tokenizer, type_ *Descriptors_Descriptor, recursionLimit int) {
-	p.ConsumeFullTypeName(tokenizer)
-	p.GuessFieldTypeAndSkip(tokenizer, type_, recursionLimit)
-
+func textFormat_skipField(tokenizer *TextFormat_Tokenizer, recursionLimit int) *TextFormat_ParseException {
+	if err := textFormat_consumeFullTypeName(tokenizer); err != nil {
+		return err
+	}
+	if err := textFormat_guessFieldTypeAndSkip(tokenizer, recursionLimit); err != nil {
+		return err
+	}
 	if !tokenizer.TryConsume(";") {
 		tokenizer.TryConsume(",")
 	}
+	return nil
 }
 
-// SkipFieldMessage skips the whole body of a message including the beginning
-// delimiter and the ending delimiter.
-//
 // Java: TextFormat.Parser.skipFieldMessage(Tokenizer, Descriptor, int)
-func (p *TextFormat_Parser) SkipFieldMessage(tokenizer *TextFormat_Tokenizer, type_ *Descriptors_Descriptor, recursionLimit int) {
+func textFormat_skipFieldMessage(tokenizer *TextFormat_Tokenizer, recursionLimit int) *TextFormat_ParseException {
 	var delimiter string
 	if tokenizer.TryConsume("<") {
 		delimiter = ">"
 	} else {
-		tokenizer.Consume("{")
+		if err := tokenizer.Consume("{"); err != nil {
+			return err
+		}
 		delimiter = "}"
 	}
 	for !tokenizer.LookingAt(">") && !tokenizer.LookingAt("}") {
-		p.SkipField(tokenizer, type_, recursionLimit)
+		if err := textFormat_skipField(tokenizer, recursionLimit); err != nil {
+			return err
+		}
 	}
-	tokenizer.Consume(delimiter)
+	return tokenizer.Consume(delimiter)
 }
 
-// SkipFieldValue skips a field value.
-//
 // Java: TextFormat.Parser.skipFieldValue(Tokenizer)
-func (p *TextFormat_Parser) SkipFieldValue(tokenizer *TextFormat_Tokenizer) {
+func textFormat_skipFieldValue(tokenizer *TextFormat_Tokenizer) *TextFormat_ParseException {
 	if !tokenizer.TryConsumeByteString() &&
 		!tokenizer.TryConsumeIdentifier() && // includes enum & boolean
 		!tokenizer.TryConsumeInt64() && // includes int32
 		!tokenizer.TryConsumeUInt64() && // includes uint32
 		!tokenizer.TryConsumeDouble() &&
 		!tokenizer.TryConsumeFloat() {
-		panic(tokenizer.ParseException("Invalid field value: " + tokenizer.currentToken))
+		return tokenizer.ParseException("Invalid field value: " + tokenizer.currentToken)
 	}
+	return nil
 }
 
-// GuessFieldTypeAndSkip tries to guess the type of this field and skips it.
-//
 // Java: TextFormat.Parser.guessFieldTypeAndSkip(Tokenizer, Descriptor, int)
-func (p *TextFormat_Parser) GuessFieldTypeAndSkip(tokenizer *TextFormat_Tokenizer, type_ *Descriptors_Descriptor, recursionLimit int) {
-	semicolonConsumed := tokenizer.TryConsume(":")
+func textFormat_guessFieldTypeAndSkip(tokenizer *TextFormat_Tokenizer, recursionLimit int) *TextFormat_ParseException {
+	colonConsumed := tokenizer.TryConsume(":")
 	if tokenizer.LookingAt("[") {
-		p.SkipFieldShortFormedRepeated(tokenizer, semicolonConsumed, type_, recursionLimit)
-	} else if semicolonConsumed && !tokenizer.LookingAt("{") && !tokenizer.LookingAt("<") {
-		p.SkipFieldValue(tokenizer)
-	} else {
-		if recursionLimit < 1 {
-			panic(tokenizer.ParseException("Message is nested too deep"))
-		}
-		p.SkipFieldMessage(tokenizer, type_, recursionLimit-1)
+		return textFormat_skipFieldShortFormedRepeated(tokenizer, colonConsumed, recursionLimit)
+	} else if colonConsumed && !tokenizer.LookingAt("{") && !tokenizer.LookingAt("<") {
+		return textFormat_skipFieldValue(tokenizer)
 	}
+	if recursionLimit < 1 {
+		return tokenizer.ParseException("Message is nested too deep")
+	}
+	return textFormat_skipFieldMessage(tokenizer, recursionLimit-1)
 }
 
-// SkipFieldShortFormedRepeated skips a short-formed repeated field value.
-//
-// Reports an error if scalar type is not allowed but showing up inside "[]".
-//
 // Java: TextFormat.Parser.skipFieldShortFormedRepeated(Tokenizer, boolean, Descriptor, int)
-func (p *TextFormat_Parser) SkipFieldShortFormedRepeated(
-	tokenizer *TextFormat_Tokenizer, scalarAllowed bool, type_ *Descriptors_Descriptor, recursionLimit int) {
+func textFormat_skipFieldShortFormedRepeated(
+	tokenizer *TextFormat_Tokenizer, scalarAllowed bool, recursionLimit int,
+) *TextFormat_ParseException {
 	if !tokenizer.TryConsume("[") || tokenizer.TryConsume("]") {
-		return
+		return nil
 	}
-
 	for {
 		if tokenizer.LookingAt("{") || tokenizer.LookingAt("<") {
 			if recursionLimit < 1 {
-				panic(tokenizer.ParseException("Message is nested too deep"))
+				return tokenizer.ParseException("Message is nested too deep")
 			}
-			p.SkipFieldMessage(tokenizer, type_, recursionLimit-1)
+			if err := textFormat_skipFieldMessage(tokenizer, recursionLimit-1); err != nil {
+				return err
+			}
 		} else if scalarAllowed {
-			p.SkipFieldValue(tokenizer)
+			if err := textFormat_skipFieldValue(tokenizer); err != nil {
+				return err
+			}
 		} else {
-			panic(tokenizer.ParseException(
-				"Invalid repeated scalar field: missing \":\" before \"[\"."))
+			return tokenizer.ParseException(
+				"Invalid repeated scalar field: missing \":\" before \"[\".")
 		}
 		if tokenizer.TryConsume("]") {
 			break
 		}
-		tokenizer.Consume(",")
+		if err := tokenizer.Consume(","); err != nil {
+			return err
+		}
 	}
+	return nil
 }
 
 func textFormat_parseInteger(text string, isSigned bool, isLong bool) (int64, string, bool) {

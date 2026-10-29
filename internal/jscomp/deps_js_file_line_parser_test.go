@@ -121,6 +121,12 @@ func TestJsFileLineParser_ParseJsString_escapedQuotes(t *testing.T) {
 
 func TestJsFileLineParser_ParseJsString_unterminatedEscapedQuote_throwsParseException(t *testing.T) {
 	parser := newJsFileLineParserTest_TestParser()
+	if _, errMsg, ok := parser.parseJsString("'foo\\'"); ok || errMsg == "" {
+		t.Fatalf("expected error on unterminated single-quoted string")
+	}
+	if _, errMsg, ok := parser.parseJsString("\"foo\\\""); ok || errMsg == "" {
+		t.Fatalf("expected error on unterminated double-quoted string")
+	}
 	assertThrows[*JsFileLineParser_ParseException](t, func() { parser.ParseJsString("'foo\\'") })
 	assertThrows[*JsFileLineParser_ParseException](t, func() { parser.ParseJsString("\"foo\\\"") })
 }

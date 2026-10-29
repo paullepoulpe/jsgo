@@ -34,6 +34,18 @@ type SymbolTable_PropertyRefCollector struct {
 	outer *SymbolTable
 }
 
+var symbolTablePropertyRefVisitTokens = func() ast.TokenSet {
+	var s ast.TokenSet
+	s.Add(rhino.Token_GETPROP)
+	s.Add(rhino.Token_OPTCHAIN_GETPROP)
+	s.Add(rhino.Token_STRING_KEY)
+	return s
+}()
+
+func (*SymbolTable_PropertyRefCollector) visitTokens() *ast.TokenSet {
+	return &symbolTablePropertyRefVisitTokens
+}
+
 // Java: SymbolTable.PropertyRefCollector()
 func NewSymbolTable_PropertyRefCollector(outer *SymbolTable) *SymbolTable_PropertyRefCollector {
 	return &SymbolTable_PropertyRefCollector{outer: outer}
@@ -240,6 +252,16 @@ type SymbolTable_ThisRefCollector struct {
 	thisStack []*SymbolTable_Symbol
 }
 
+var symbolTableThisRefVisitTokens = func() ast.TokenSet {
+	var s ast.TokenSet
+	s.Add(rhino.Token_THIS)
+	return s
+}()
+
+func (*SymbolTable_ThisRefCollector) visitTokens() *ast.TokenSet {
+	return &symbolTableThisRefVisitTokens
+}
+
 // Java: SymbolTable.ThisRefCollector()
 func NewSymbolTable_ThisRefCollector(outer *SymbolTable) *SymbolTable_ThisRefCollector {
 	return &SymbolTable_ThisRefCollector{outer: outer}
@@ -442,6 +464,19 @@ type SymbolTable_VisibilityCollector struct {
 	fileVisibilityMap *jutil.LinkedHashMap[rhino.StaticSourceFile, rhino.JSDocInfo_Visibility]
 }
 
+var symbolTableVisibilityVisitTokens = func() ast.TokenSet {
+	var s ast.TokenSet
+	s.Add(rhino.Token_NAME)
+	s.Add(rhino.Token_GETPROP)
+	s.Add(rhino.Token_OPTCHAIN_GETPROP)
+	return s
+}()
+
+func (*SymbolTable_VisibilityCollector) onlyNameLeaves() {}
+func (*SymbolTable_VisibilityCollector) visitTokens() *ast.TokenSet {
+	return &symbolTableVisibilityVisitTokens
+}
+
 // Java: SymbolTable.VisibilityCollector(ImmutableMap<StaticSourceFile, Visibility>)
 func NewSymbolTable_VisibilityCollector(
 	outer *SymbolTable, fileVisibilityMap *jutil.LinkedHashMap[rhino.StaticSourceFile, rhino.JSDocInfo_Visibility]) *SymbolTable_VisibilityCollector {
@@ -469,7 +504,7 @@ func (c *SymbolTable_VisibilityCollector) visitName(t *NodeTraversal, nameNode a
 	if symbol.HasVisibility() {
 		return
 	}
-	var_ := t.GetScope().GetVar(ident)
+	var_ := t.GetScope().GetVarByID(n.GetStringID())
 	if var_ == nil {
 		return
 	}

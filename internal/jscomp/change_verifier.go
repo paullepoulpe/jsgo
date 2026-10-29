@@ -99,12 +99,12 @@ func (v *ChangeVerifier) VerifyScopeChangesHaveBeenRecorded(passName string, roo
 	}
 
 	// Gather all the scope nodes that existed when the snapshot was taken.
-	snapshotScopeNodes := jutil.NewLinkedHashSet[rhino.Node]()
+	snapshotScopeNodes := make(map[rhino.Node]struct{})
 	NodeUtil_VisitPreOrder(
 		v.clonesByCurrent[root],
 		func(oldNode rhino.Node) {
 			if ChangeTracker_IsChangeScopeRoot(oldNode) {
-				snapshotScopeNodes.Add(oldNode)
+				snapshotScopeNodes[oldNode] = struct{}{}
 			}
 		})
 
@@ -116,7 +116,7 @@ func (v *ChangeVerifier) VerifyScopeChangesHaveBeenRecorded(passName string, roo
 			} else if ChangeTracker_IsChangeScopeRoot(n) {
 				clone := v.clonesByCurrent[n]
 				// Remove any scope nodes that still exist.
-				snapshotScopeNodes.Remove(clone)
+				delete(snapshotScopeNodes, clone)
 				v.VerifyNode(passNameMsg, n)
 				if clone.IsNil() {
 					v.VerifyNewNode(passNameMsg, n)
@@ -131,8 +131,9 @@ func (v *ChangeVerifier) VerifyScopeChangesHaveBeenRecorded(passName string, roo
 }
 
 // Java: ChangeVerifier.verifyDeletedScopeNodes(String, Set<Node>)
-func (v *ChangeVerifier) VerifyDeletedScopeNodes(passNameMsg string, deletedScopeNodes *jutil.LinkedHashSet[rhino.Node]) {
-	for snapshotScopeNode := range deletedScopeNodes.All() {
+func (v *ChangeVerifier) VerifyDeletedScopeNodes(passNameMsg string, deletedScopeNodes map[rhino.Node]struct{}) {
+	// order-independent: verification passes iff every remaining snapshot scope node is marked deleted
+	for snapshotScopeNode := range deletedScopeNodes {
 		currentNode := v.currentByClone[snapshotScopeNode]
 		// If the original was marked deleted, that's fine, ignore it.
 		if currentNode.IsDeleted() {

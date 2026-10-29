@@ -554,14 +554,6 @@ func (p *RenameProperties_ProcessProperties) CountCallCandidates(t *NodeTraversa
 	}
 }
 
-// CountPropertyOccurrence increments the occurrence count for a property
-// name.
-//
-// Java: RenameProperties.ProcessProperties.countPropertyOccurrence(String)
-func (p *RenameProperties_ProcessProperties) CountPropertyOccurrence(name string) {
-	p.countPropertyOccurrenceID(strpool.Intern(name))
-}
-
 func (p *RenameProperties_ProcessProperties) countPropertyOccurrenceID(id strpool.ID) *RenameProperties_Property {
 	r := p.outer
 	prop := r.propertyByID[id]
@@ -598,11 +590,6 @@ type RenameProperties_Property struct {
 	newNameID      strpool.ID
 	numOccurrences int
 	externed       bool
-}
-
-// Java: RenameProperties.Property(String)
-func NewRenameProperties_Property(name string) *RenameProperties_Property {
-	return &RenameProperties_Property{oldName: name, oldNameID: strpool.Intern(name)}
 }
 
 // -------------------------------------------------------------------------

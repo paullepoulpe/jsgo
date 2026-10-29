@@ -26,7 +26,10 @@ import (
 )
 
 func parseRegExpAndPrintPattern(regex, flags string) string {
-	tree := RegExpTree_ParseRegExp(regex, flags)
+	tree, err := ParseRegExp(regex, flags)
+	if err != nil {
+		panic(err.toThrowable())
+	}
 	var sb strings.Builder
 	tree.AppendSourceCode(&sb)
 	return sb.String()
@@ -34,14 +37,14 @@ func parseRegExpAndPrintPattern(regex, flags string) string {
 
 func exceptionFrom(t *testing.T, regex, flags string) jutil.IRuntimeException {
 	t.Helper()
-	var thrown jutil.IRuntimeException
-	jutil.Try(func() {
-		printed := parseRegExpAndPrintPattern(regex, flags)
-		t.Fatalf("Expected exception, but none was thrown. Instead got back: %s", printed)
-	}, func(e jutil.IRuntimeException) {
-		thrown = e
-	})
-	return thrown
+	tree, err := ParseRegExp(regex, flags)
+	if err != nil {
+		return err.toThrowable()
+	}
+	var sb strings.Builder
+	tree.AppendSourceCode(&sb)
+	t.Fatalf("Expected exception, but none was thrown. Instead got back: %s", sb.String())
+	return nil
 }
 
 func assertRegexCompilesTo(t *testing.T, regex, flags, expected string) {

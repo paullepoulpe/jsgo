@@ -130,8 +130,8 @@ func (c *Compiler) getParserConfigLanguageMode(languageMode CompilerOptions_Lang
 func (c *Compiler) GetParserConfig(context AbstractCompiler_ConfigContext) *parsing.Config {
 	if c.parserConfig == nil || c.externsParserConfig == nil {
 		func() {
-			c.monitor.Lock()
-			defer c.monitor.Unlock()
+			c.mu.Lock()
+			defer c.mu.Unlock()
 			if c.parserConfig == nil {
 				configLanguageMode := c.getParserConfigLanguageMode(c.options.GetLanguageIn())
 				strictMode := parsing.Config_StrictMode_SLOPPY
@@ -326,8 +326,8 @@ func (c *Compiler) GetBase64SourceMapContents(sourceFileName string) *string {
 // Java: Compiler.addSourceMapSourceFiles(SourceMapInput)
 func (c *Compiler) addSourceMapSourceFiles(inputSourceMap *SourceMapInput) {
 	// synchronized annotation guards concurrent access to sourceMap during parsing.
-	c.monitor.Lock()
-	defer c.monitor.Unlock()
+	c.mu.Lock()
+	defer c.mu.Unlock()
 	consumer := inputSourceMap.GetSourceMap(c.errorManager)
 	if consumer == nil {
 		return
@@ -888,8 +888,8 @@ func (c *Compiler) GetModuleLoader() *ModuleLoader {
 // Java: Compiler.addFilesToSourceMap(Iterable<SourceFile>)
 func (c *Compiler) addFilesToSourceMap(files []*SourceFile) {
 	// synchronized annotation guards concurrent access to sourceMap during parsing.
-	c.monitor.Lock()
-	defer c.monitor.Unlock()
+	c.mu.Lock()
+	defer c.mu.Unlock()
 	if c.GetOptions().GetSourceMapIncludeSourcesContent() && c.GetSourceMap() != nil {
 		for _, file := range files {
 			code, err := file.getCode()

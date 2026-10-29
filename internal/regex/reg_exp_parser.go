@@ -119,18 +119,6 @@ func ParseRegExp(pattern string, flags string) (RegExpTree, *RegExpParseError) {
 	return p.parseTopLevel()
 }
 
-// RegExpTree_ParseRegExp parses a regular expression to an AST, panicking with
-// the matching Java RuntimeException on malformed input.
-//
-// Java: RegExpTree.parseRegExp(String, String)
-func RegExpTree_ParseRegExp(pattern string, flags string) RegExpTree {
-	tree, err := ParseRegExp(pattern, flags)
-	if err != nil {
-		panic(err.toThrowable())
-	}
-	return tree
-}
-
 // regExpParser is a recursive descent parser over pattern and flags.
 //
 // Java: local class Parser in RegExpTree.parseRegExp(String, String).

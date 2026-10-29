@@ -52,11 +52,7 @@ type TypeInference struct {
 	// Inference of the type at the end of the optional chain requires scope information
 	// from traversing the start of the chain. This stack serves as a communication channel
 	// for that information.
-	//
-	// Go-only: language-adapter — the ArrayDeque is only used as a stack
-	// (addFirst/peekFirst/removeFirst), so it is a slice whose last element is
-	// the deque's first.
-	optChainArrayDeque []*TypeInference_OptChainInfo
+	optChainStack []TypeInference_OptChainInfo
 
 	// Scopes that have had their unbound untyped vars inferred as undefined.
 	inferredUnboundVarScope *TypedScope
@@ -79,7 +75,8 @@ type TypeInference struct {
 	branchOutput             *LinkedFlowScope
 	branchCondition          rhino.Node
 	branchConditionFlowScope *LinkedFlowScope
-	branchConditionOutcomes  *TypeInference_BooleanOutcomePair
+	branchConditionOutcomes  TypeInference_BooleanOutcomePair
+	hasBranchOutcomes        bool
 
 	lastScopeRoot           rhino.Node
 	lastModule              *Module
@@ -140,7 +137,9 @@ func (ti *TypeInference) initTypeInference(
 			clear(ti.inferredUnboundVars)
 		}
 	}
-	ti.optChainArrayDeque = ti.optChainArrayDeque[:0]
+	ti.optChainStack = ti.optChainStack[:0]
+	ti.hasBranchOutcomes = false
+	ti.branchConditionOutcomes = TypeInference_BooleanOutcomePair{}
 	// Constructor body.
 	jutil.CheckArgumentMsg2(
 		syntacticScope.GetRootNode() == cfg.GetEntry().GetValue(),
@@ -329,7 +328,8 @@ func (ti *TypeInference) flowNode(
 	ti.branchOutput = outAfter
 	ti.branchCondition = rhino.NilNode
 	ti.branchConditionFlowScope = nil
-	ti.branchConditionOutcomes = nil
+	ti.branchConditionOutcomes = TypeInference_BooleanOutcomePair{}
+	ti.hasBranchOutcomes = false
 	for _, le := range node.OutEdgeList.Slice() {
 		outBranchBefore := ti.edgeStates[le.Index]
 		outBranchAfter := ti.branchFlow(le.Value)
@@ -495,7 +495,7 @@ func (ti *TypeInference) UpdateModuleScope(module *Module, syntacticBlockScope *
 			syntacticBlockScope)
 		return
 	case ModuleMetadataMap_ModuleType_GOOG_MODULE, ModuleMetadataMap_ModuleType_LEGACY_GOOG_MODULE:
-		exportsVar := syntacticBlockScope.GetVar("exports")
+		exportsVar := syntacticBlockScope.GetVarByID(implicitExportsID)
 		if exportsVar == nil {
 			panic(jutil.NewNullPointerExceptionMsg(jutil.StringFormat("Missing exports var for %s", module.Metadata())))
 		}
@@ -585,12 +585,13 @@ func (ti *TypeInference) branchFlow(branch ControlFlowGraph_Branch) *LinkedFlowS
 			// a "good enough" approximation.
 
 			// conditionOutcomes is cached from previous calls to the brancher
-			if ti.branchConditionOutcomes == nil {
+			if !ti.hasBranchOutcomes {
 				if ti.branchCondition.IsAnd() {
 					ti.branchConditionOutcomes = ti.TraverseAnd(ti.branchCondition, output)
 				} else {
 					ti.branchConditionOutcomes = ti.TraverseOr(ti.branchCondition, output)
 				}
+				ti.hasBranchOutcomes = true
 			}
 			return ti.reverseInterpreter.GetPreciserScopeKnowingConditionOutcome(
 				ti.branchCondition,
@@ -628,9 +629,11 @@ func (ti *TypeInference) Traverse(n rhino.Node, scope *LinkedFlowScope) *LinkedF
 	case rhino.Token_ASSIGN_AND, rhino.Token_ASSIGN_OR:
 		scope = ti.TraverseShortCircuitingBinOpAssignment(n, scope)
 	case rhino.Token_AND:
-		scope = ti.TraverseAnd(n, scope).GetJoinedFlowScope()
+		pair := ti.TraverseAnd(n, scope)
+		scope = pair.GetJoinedFlowScope()
 	case rhino.Token_OR:
-		scope = ti.TraverseOr(n, scope).GetJoinedFlowScope()
+		pair := ti.TraverseOr(n, scope)
+		scope = pair.GetJoinedFlowScope()
 	case rhino.Token_ASSIGN_COALESCE, rhino.Token_COALESCE:
 		scope = ti.TraverseNullishCoalesce(n, scope)
 	case rhino.Token_HOOK:

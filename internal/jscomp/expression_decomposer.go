@@ -52,8 +52,8 @@ type ExpressionDecomposer struct {
 	astAnalyzer              *AstAnalyzer
 	astFactory               *AstFactory
 	safeNameIdSupplier       func() string
-	knownConstantFunctions   map[string]bool
 	knownConstantFnIDs       map[uint32]struct{}
+	knownConstantQNames      map[string]struct{}
 	scope                    *Scope
 	brokenIE11LocationAssign bool
 	unknownType              rhino.JSType
@@ -116,7 +116,7 @@ func NewExpressionDecomposer(
 	e.astAnalyzer = compiler.GetAstAnalyzer()
 	e.astFactory = compiler.CreateAstFactory()
 	e.safeNameIdSupplier = safeNameIdSupplier
-	e.knownConstantFunctions = constFunctionNames
+	e.knownConstantFnIDs, e.knownConstantQNames = internKnownConstantFunctions(constFunctionNames)
 	e.scope = scope
 	e.brokenIE11LocationAssign = brokenIE11LocationAssign
 	if compiler.HasTypeCheckingRun() && !compiler.HasOptimizationColors() {
@@ -668,19 +668,35 @@ func ExpressionDecomposer_BuildResultExpression(expr rhino.Node, needResult bool
 	}
 }
 
-func (e *ExpressionDecomposer) isKnownConstantFunctionID(id uint32) bool {
-	if len(e.knownConstantFunctions) == 0 {
-		e.knownConstantFnIDs = nil
-		return false
+func internKnownConstantFunctions(names map[string]bool) (map[uint32]struct{}, map[string]struct{}) {
+	if len(names) == 0 {
+		return nil, nil
 	}
-	if e.knownConstantFnIDs == nil {
-		e.knownConstantFnIDs = make(map[uint32]struct{}, len(e.knownConstantFunctions))
-		// order-independent: populates set of interned constant-function name IDs
-		for name, isConst := range e.knownConstantFunctions {
-			if isConst {
-				e.knownConstantFnIDs[rhino.RhinoStringPool_InternID(name)] = struct{}{}
-			}
+	var ids map[uint32]struct{}
+	var qnames map[string]struct{}
+	// order-independent: populates unordered constant-function lookup sets
+	for name, isConst := range names {
+		if !isConst {
+			continue
 		}
+		if strings.IndexByte(name, '.') >= 0 {
+			if qnames == nil {
+				qnames = make(map[string]struct{}, 4)
+			}
+			qnames[name] = struct{}{}
+			continue
+		}
+		if ids == nil {
+			ids = make(map[uint32]struct{}, len(names))
+		}
+		ids[rhino.RhinoStringPool_InternID(name)] = struct{}{}
+	}
+	return ids, qnames
+}
+
+func (e *ExpressionDecomposer) isKnownConstantFunctionID(id uint32) bool {
+	if len(e.knownConstantFnIDs) == 0 {
+		return false
 	}
 	_, ok := e.knownConstantFnIDs[id]
 	return ok

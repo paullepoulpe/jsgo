@@ -57,25 +57,6 @@ var (
 	pufGlobalThisID = uint32(strpool.Intern("globalThis"))
 )
 
-type pufIDSet struct {
-	bits []uint64
-}
-
-func (s *pufIDSet) add(id uint32) {
-	word := int(id >> 6)
-	if word >= len(s.bits) {
-		grown := make([]uint64, max(word+1, len(s.bits)*2))
-		copy(grown, s.bits)
-		s.bits = grown
-	}
-	s.bits[word] |= uint64(1) << (id & 63)
-}
-
-func (s *pufIDSet) has(id uint32) bool {
-	word := int(id >> 6)
-	return word < len(s.bits) && (s.bits[word]&(uint64(1)<<(id&63))) != 0
-}
-
 type pufMethodEntry struct {
 	methodName   string
 	dotGuardName string
@@ -161,10 +142,10 @@ type PolyfillUsageFinder_Polyfills struct {
 	staticsMap     map[string]*PolyfillUsageFinder_Polyfill
 	staticsOneByID map[uint32]*PolyfillUsageFinder_Polyfill
 	staticsPairMap map[[2]uint32]*PolyfillUsageFinder_Polyfill
-	staticNameIDs  pufIDSet
-	staticRootIDs  pufIDSet
-	suffixIDs      pufIDSet
-	anyPropIDs     pufIDSet
+	staticNameIDs  inlineBitSet
+	staticRootIDs  inlineBitSet
+	suffixIDs      inlineBitSet
+	anyPropIDs     inlineBitSet
 	methodsByID    map[uint32]*pufMethodEntry
 }
 
@@ -288,7 +269,7 @@ func polyfillUsageFinder_Polyfills_parseTable(table string) *PolyfillUsageFinder
 				p.methodsByID[methodID] = entry
 			}
 			entry.polyfills = append(entry.polyfills, polyfill)
-			p.anyPropIDs.add(methodID)
+			p.anyPropIDs.Set(int(methodID))
 		} else {
 			if _, exists := p.staticsMap[symbol]; exists {
 				panic(jutil.NewIllegalArgumentExceptionMsg("Multiple entries with same key: " + symbol))
@@ -298,19 +279,19 @@ func polyfillUsageFinder_Polyfills_parseTable(table string) *PolyfillUsageFinder
 			if dot < 0 {
 				symID := uint32(strpool.Intern(symbol))
 				p.staticsOneByID[symID] = polyfill
-				p.staticNameIDs.add(symID)
-				p.suffixIDs.add(symID)
-				p.anyPropIDs.add(symID)
+				p.staticNameIDs.Set(int(symID))
+				p.suffixIDs.Set(int(symID))
+				p.anyPropIDs.Set(int(symID))
 			} else {
 				var rootID uint32
 				if dot > 0 {
 					rootID = uint32(strpool.Intern(symbol[:dot]))
-					p.staticRootIDs.add(rootID)
+					p.staticRootIDs.Set(int(rootID))
 				}
 				lastDot := strings.LastIndexByte(symbol, '.')
 				suffixID := uint32(strpool.Intern(symbol[lastDot+1:]))
-				p.suffixIDs.add(suffixID)
-				p.anyPropIDs.add(suffixID)
+				p.suffixIDs.Set(int(suffixID))
+				p.anyPropIDs.Set(int(suffixID))
 				if dot > 0 && dot == lastDot {
 					p.staticsPairMap[[2]uint32{rootID, suffixID}] = polyfill
 				}
@@ -511,7 +492,7 @@ func (tr *polyfillUsageFinder_Traverser) ShouldTraverse(traversal *NodeTraversal
 	if !parent.IsNil() && n.GetFirstChild().IsNil() && len(tr.registeredGuards) == 0 {
 		switch n.GetToken() {
 		case rhino.Token_NAME:
-			if !tr.outer.polyfills.staticNameIDs.has(n.GetStringID()) {
+			if !tr.outer.polyfills.staticNameIDs.Get(int(n.GetStringID())) {
 				return false
 			}
 		case rhino.Token_RETURN, rhino.Token_THROW:
@@ -563,7 +544,7 @@ func (tr *polyfillUsageFinder_Traverser) VisitName(traversal *NodeTraversal, nam
 // Java: PolyfillUsageFinder.Traverser.visitGetPropChain(NodeTraversal, Node)
 func (tr *polyfillUsageFinder_Traverser) VisitGetPropChain(traversal *NodeTraversal, getPropNode rhino.Node) {
 	propID := getPropNode.GetStringID()
-	if !tr.outer.polyfills.anyPropIDs.has(propID) {
+	if !tr.outer.polyfills.anyPropIDs.Get(int(propID)) {
 		return
 	}
 	// First see if we have a usage that matches a full static polyfill name.
@@ -597,7 +578,7 @@ func (f *PolyfillUsageFinder) MaybeCreateStaticPolyfillUsageForGetPropChain(
 	traversal *NodeTraversal, getPropNode rhino.Node) *PolyfillUsageFinder_PolyfillUsage {
 	jutil.CheckArgumentMsg1(getPropNode.IsGetProp() || getPropNode.IsOptChainGetProp(), "%s", getPropNode)
 	lastID := getPropNode.GetStringID()
-	if !f.polyfills.suffixIDs.has(lastID) {
+	if !f.polyfills.suffixIDs.Get(int(lastID)) {
 		// Save execution time by bailing out early if the property name at the end of the chain
 		// doesn't match any of the known polyfills.
 		return nil
@@ -614,7 +595,7 @@ func (f *PolyfillUsageFinder) MaybeCreateStaticPolyfillUsageForGetPropChain(
 			}
 			return nil
 		}
-		if !f.polyfills.staticRootIDs.has(rootID) {
+		if !f.polyfills.staticRootIDs.Get(int(rootID)) {
 			return nil
 		}
 		if polyfill := f.polyfills.staticsPairMap[[2]uint32{rootID, lastID}]; polyfill != nil &&
@@ -660,7 +641,7 @@ func (f *PolyfillUsageFinder) MaybeCreateStaticPolyfillUsageForGetPropChain(
 		}
 		return nil
 	}
-	if !f.polyfills.staticRootIDs.has(rootID) {
+	if !f.polyfills.staticRootIDs.Get(int(rootID)) {
 		return nil
 	}
 	reversedIDs = append(reversedIDs, rootID)

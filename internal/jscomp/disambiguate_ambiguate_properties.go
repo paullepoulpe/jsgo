@@ -27,6 +27,7 @@ import (
 	"github.com/paullepoulpe/jsgo/internal/graph"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
+	"github.com/paullepoulpe/jsgo/internal/strpool"
 )
 
 type ambiguateNodeToRename struct {
@@ -285,6 +286,7 @@ func (a *AmbiguateProperties) Process(externs rhino.Node, root rhino.Node) {
 		for len(worklist) > 0 {
 			relatedTypes.ClearAll()
 			colorName := nameGen.GenerateNextName()
+			colorID := strpool.Intern(colorName)
 			numNewPropertyNames++
 			kept := worklist[:0]
 			for _, prop := range worklist {
@@ -301,6 +303,7 @@ func (a *AmbiguateProperties) Process(externs rhino.Node, root rhino.Node) {
 						relatedTypes.Or(&prop.relatedColors)
 					}
 					prop.newName = colorName
+					prop.newNameID = colorID
 				} else {
 					kept = append(kept, prop)
 				}
@@ -320,8 +323,8 @@ func (a *AmbiguateProperties) Process(externs rhino.Node, root rhino.Node) {
 	// Assign the new names to the relevant STRING nodes in the AST.
 	for _, item := range a.nodesToRename {
 		p := &a.properties[item.propIdx]
-		if p.newName != "" && p.newName != p.oldName && (item.node.GetStringID() == p.oldNameID || item.node.GetString() != p.newName) {
-			item.node.SetString(p.newName)
+		if p.newNameID != 0 && uint32(p.newNameID) != p.oldNameID && item.node.GetStringID() != uint32(p.newNameID) {
+			setNodeStringID(item.node, p.newNameID)
 			a.compiler.ReportChangeToEnclosingScope(item.node)
 		}
 	}
@@ -636,6 +639,7 @@ type AmbiguateProperties_Property struct {
 	newName          string
 	numOccurrences   int
 	oldNameID        uint32
+	newNameID        strpool.ID
 	singleColorIndex int32
 	skipAmbiguating  bool
 	seedDedupBitSet  bool

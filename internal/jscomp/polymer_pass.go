@@ -350,10 +350,6 @@ func (m *PolymerPass_MemberDefinition) String() string {
 	return jutil.MoreObjects_ToStringHelper("MemberDefinition").Add("name", m.name).Add("value", m.value).String()
 }
 
-// PolymerPassErrors holds the static error constants related to the
-// PolymerPass.
-type PolymerPassErrors struct{}
-
 var (
 	// TODO(jlklein): Switch back to an error when everyone is upgraded to
 	// Polymer 1.0
@@ -516,10 +512,8 @@ func polymerPassFindExterns_isPolymerElementPropExpr(value rhino.Node) bool {
 		NodeUtil_GetRootOfQualifiedName(first).MatchesQualifiedName(polymerPassFindExterns_POLYMER_ELEMENT_NAME)
 }
 
-// TagNameToType contains a mapping from HTML Element tag name to the
+// tagNameToTypeMap contains a mapping from HTML Element tag name to the
 // javascript type of that element at runtime.
-type TagNameToType struct{}
-
 var tagNameToTypeMap = map[string]string{
 	"a":        "HTMLAnchorElement",
 	"area":     "HTMLAreaElement",

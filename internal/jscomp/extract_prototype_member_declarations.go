@@ -426,43 +426,6 @@ type ExtractPrototypeMemberDeclarations_ExtractionInstance struct {
 	parent       rhino.Node
 }
 
-// Java: ExtractPrototypeMemberDeclarations.ExtractionInstance(PrototypeMemberDeclaration, Node)
-func NewExtractPrototypeMemberDeclarations_ExtractionInstance(
-	outer *ExtractPrototypeMemberDeclarations, head *ExtractPrototypeMemberDeclarations_PrototypeMemberDeclaration, parent rhino.Node) *ExtractPrototypeMemberDeclarations_ExtractionInstance {
-	i := &ExtractPrototypeMemberDeclarations_ExtractionInstance{
-		parent: parent,
-	}
-	i.declarations = append(i.declarations, *head)
-	i.delta = extractPrototypeMemberDeclarations_Pattern_perExtractionOverhead[outer.pattern] +
-		extractPrototypeMemberDeclarations_Pattern_perMemberOverhead[outer.pattern]
-
-	for cur := head.node.GetNext(); !cur.IsNil(); cur = cur.GetNext() {
-
-		// We can skip over any named functions because they have no effect on
-		// the control flow. In fact, they are lifted to the beginning of the
-		// block. This happens a lot when devirtualization breaks the whole chain.
-		if cur.IsFunction() {
-			continue
-		}
-
-		prototypeMember := ExtractPrototypeMemberDeclarations_PrototypeMemberDeclaration_ExtractDeclaration(cur)
-		if prototypeMember == nil || !head.IsSameClass(prototypeMember) {
-			break
-		}
-		i.declarations = append(i.declarations, *prototypeMember)
-		i.delta += extractPrototypeMemberDeclarations_Pattern_perMemberOverhead[outer.pattern]
-	}
-	return i
-}
-
-// IsFavorable returns true if extracting all the declarations at this
-// instance will overweight the overhead of aliasing the prototype object.
-//
-// Java: ExtractPrototypeMemberDeclarations.ExtractionInstance.isFavorable()
-func (i *ExtractPrototypeMemberDeclarations_ExtractionInstance) IsFavorable() bool {
-	return i.delta <= 0
-}
-
 // ExtractPrototypeMemberDeclarations_PrototypeMemberDeclaration is the
 // abstraction for a prototype member declaration.
 //
@@ -485,12 +448,6 @@ func makePrototypeMemberDeclaration(lhs rhino.Node, node rhino.Node) ExtractProt
 		lhs:        lhs,
 		constant:   classNode.GetBooleanProp(rhino.Node_IS_CONSTANT_NAME),
 	}
-}
-
-// Java: ExtractPrototypeMemberDeclarations.PrototypeMemberDeclaration(Node, Node)
-func NewExtractPrototypeMemberDeclarations_PrototypeMemberDeclaration(lhs rhino.Node, node rhino.Node) *ExtractPrototypeMemberDeclarations_PrototypeMemberDeclaration {
-	d := makePrototypeMemberDeclaration(lhs, node)
-	return &d
 }
 
 // Java: ExtractPrototypeMemberDeclarations.PrototypeMemberDeclaration.isSameClass(PrototypeMemberDeclaration)
@@ -523,17 +480,4 @@ func ExtractPrototypeMemberDeclarations_PrototypeMemberDeclaration_IsPrototypePr
 		}
 	}
 	return false
-}
-
-// ExtractPrototypeMemberDeclarations_PrototypeMemberDeclaration_ExtractDeclaration
-// returns a prototype member declaration representation if there is one else
-// it returns null.
-//
-// Java: ExtractPrototypeMemberDeclarations.PrototypeMemberDeclaration.extractDeclaration(Node)
-func ExtractPrototypeMemberDeclarations_PrototypeMemberDeclaration_ExtractDeclaration(n rhino.Node) *ExtractPrototypeMemberDeclarations_PrototypeMemberDeclaration {
-	if !ExtractPrototypeMemberDeclarations_PrototypeMemberDeclaration_IsPrototypePropertyDeclaration(n) {
-		return nil
-	}
-	lhs := ast.MustExprStmt(n).Expr().MustAssign().Target().Node()
-	return NewExtractPrototypeMemberDeclarations_PrototypeMemberDeclaration(lhs, n)
 }

@@ -642,56 +642,6 @@ func (g *CodeGenerator) strEscapeUnits(
 	}
 }
 
-// Java: CodeGenerator.appendEscapedEq(StringBuilder, boolean)
-func (g *CodeGenerator) AppendEscapedEq(sb *strings.Builder, isRegexp bool) {
-	if g.trustedStrings || isRegexp {
-		sb.WriteByte('=')
-	} else {
-		sb.WriteString("\\x3d")
-	}
-}
-
-// Java: CodeGenerator.appendEscapedAmp(StringBuilder, boolean)
-func (g *CodeGenerator) AppendEscapedAmp(sb *strings.Builder, isRegexp bool) {
-	if g.trustedStrings || isRegexp {
-		sb.WriteByte('&')
-	} else {
-		sb.WriteString("\\x26")
-	}
-}
-
-// AppendEscapedGt: s is the string being escaped, as its UTF-16 units.
-//
-// Java: CodeGenerator.appendEscapedGt(StringBuilder, String, int, boolean)
-func (g *CodeGenerator) AppendEscapedGt(sb *strings.Builder, s []uint16, index int, isRegexp bool) {
-	if !g.trustedStrings && !isRegexp {
-		sb.WriteString(codeGenerator_GT_ESCAPED)
-		return
-	}
-	if index >= 2 &&
-		((s[index-1] == '-' && s[index-2] == '-') ||
-			(s[index-1] == ']' && s[index-2] == ']')) {
-		sb.WriteString(codeGenerator_GT_ESCAPED)
-	} else {
-		sb.WriteByte('>')
-	}
-}
-
-// AppendEscapedLt: s is the string being escaped, as its UTF-16 units.
-//
-// Java: CodeGenerator.appendEscapedLt(StringBuilder, String, int, boolean)
-func (g *CodeGenerator) AppendEscapedLt(sb *strings.Builder, s []uint16, index int, isRegexp bool) {
-	if !g.trustedStrings && !isRegexp {
-		sb.WriteString(codeGenerator_LT_ESCAPED)
-		return
-	}
-	if codeGenerator_matchesLtHazardUnits(s, index+1) {
-		sb.WriteString(codeGenerator_LT_ESCAPED)
-	} else {
-		sb.WriteByte('<')
-	}
-}
-
 // EscapeUnrecognizedCharacters is a helper to escape the characters that
 // might be misinterpreted.
 //
