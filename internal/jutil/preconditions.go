@@ -142,6 +142,11 @@ func IsNil(v any) bool {
 	}
 }
 
+// IsNilOf reports whether v is Java null without boxing typed pointers into any.
+func IsNilOf[T any](v T) bool {
+	return isNilOf(v)
+}
+
 func isNilOf[T any](v T) bool {
 	switch reflect.TypeFor[T]().Kind() {
 	case reflect.Pointer, reflect.UnsafePointer, reflect.Chan:

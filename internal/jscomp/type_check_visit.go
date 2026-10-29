@@ -55,7 +55,7 @@ func (tc *TypeCheck) ShouldTraverse(t *NodeTraversal, n rhino.Node, parent rhino
 			outerScope := t.GetTypedScope()
 			var_ := outerScope.GetVarByID(fnName.Node().GetStringID())
 			if var_ != nil &&
-				var_.GetScope().(*TypedScope).HasSameContainerScope(outerScope) &&
+				var_.Scope().HasSameContainerScope(outerScope) &&
 				// Ideally, we would want to check whether the type in the scope
 				// differs from the type being defined, but then the extern
 				// redeclarations of built-in types generates spurious warnings.
@@ -93,19 +93,18 @@ func (tc *TypeCheck) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	// To be explicitly set to false if the node is not typeable.
 	typeable := true
 
-	if nodeType := n.GetJSType(); nodeType != nil {
-		if tb := nodeType.GetJSTypeBase(); !tb.IsWellFormedTemplateValid() {
-			switch nodeType.GetTypeClass() {
-			case rhino.JSTypeClass_ENUM_ELEMENT,
-				rhino.JSTypeClass_FUNCTION,
-				rhino.JSTypeClass_NAMED,
-				rhino.JSTypeClass_UNION,
-				rhino.JSTypeClass_TEMPLATIZED,
-				rhino.JSTypeClass_TEMPLATE:
-				tc.validator.checkWellFormedTemplatizedType(n, nodeType)
-			default:
-				tb.MarkWellFormedTemplateValidIfResolved()
-			}
+	if tb := n.GetJSTypeBase(); tb != nil && !tb.IsWellFormedTemplateValid() {
+		nodeType := tb.Self()
+		switch nodeType.GetTypeClass() {
+		case rhino.JSTypeClass_ENUM_ELEMENT,
+			rhino.JSTypeClass_FUNCTION,
+			rhino.JSTypeClass_NAMED,
+			rhino.JSTypeClass_UNION,
+			rhino.JSTypeClass_TEMPLATIZED,
+			rhino.JSTypeClass_TEMPLATE:
+			tc.validator.checkWellFormedTemplatizedType(n, nodeType)
+		default:
+			tb.MarkWellFormedTemplateValidIfResolved()
 		}
 	}
 
@@ -114,16 +113,17 @@ func (tc *TypeCheck) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 		expr := ast.MustCast(n).Expr().Node()
 		exprType := tc.GetJSType(expr)
 		castType := tc.GetJSType(n)
+		isObjLit := expr.IsObjectLit()
 
 		// TODO(johnlenz): determine if we can limit object literals in some
 		// way.
-		if !expr.IsObjectLit() {
+		if !isObjLit {
 			tc.validator.ExpectCanCast(n, castType, exprType)
 		}
 		tc.EnsureTypedWithType(n, castType)
 
 		expr.SetJSTypeBeforeCast(exprType)
-		if castType.RestrictByNotNullOrUndefined().IsSubtypeOf(exprType) || expr.IsObjectLit() {
+		if isObjLit || castType.RestrictByNotNullOrUndefined().IsSubtypeOf(exprType) {
 			expr.SetJSType(castType)
 		}
 	case rhino.Token_NAME:
@@ -393,11 +393,12 @@ func (tc *TypeCheck) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	case rhino.Token_DEFAULT_VALUE:
 		defaultValue := ast.MustDefaultValue(n)
 		target, value := defaultValue.Target(), defaultValue.Value().Node()
+		valueType := tc.GetJSType(value)
 		tc.CheckCanAssignToWithScope(
 			t,
 			n,
 			target,
-			tc.GetJSType(value),
+			valueType,
 			/* info= */ nil,
 			"default value has wrong type")
 
@@ -407,11 +408,11 @@ func (tc *TypeCheck) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 		switch target.Token() {
 		case rhino.Token_ARRAY_PATTERN:
 			tc.validator.ExpectAutoboxesToIterable(
-				value, tc.GetJSType(value), "array pattern destructuring requires an Iterable")
+				value, valueType, "array pattern destructuring requires an Iterable")
 		case rhino.Token_OBJECT_PATTERN:
 			// Verify that the value is not null/undefined, since those can't be destructured.
 			tc.validator.ExpectObject(
-				value, tc.GetJSType(value), "cannot destructure a 'null' or 'undefined' default value")
+				value, valueType, "cannot destructure a 'null' or 'undefined' default value")
 		}
 
 		typeable = false
@@ -440,8 +441,8 @@ func (tc *TypeCheck) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 		tc.EnsureTyped(n)
 	case rhino.Token_OBJECTLIT:
 		// If this is an enum, then give that type to the objectlit as well.
-		if _, isEnum := parent.GetJSType().(*rhino.EnumType); isEnum {
-			tc.EnsureTypedWithType(n, parent.GetJSType())
+		if pt := parent.GetJSType(); pt != nil && pt.IsEnumType() {
+			tc.EnsureTypedWithType(n, pt)
 		} else {
 			tc.EnsureTyped(n)
 		}
@@ -458,16 +459,19 @@ func (tc *TypeCheck) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	}
 
 	if p := n.GetParent(); !p.IsNil() {
-		// Visit the body of blockless arrow functions
-		if fn, ok := ast.AsFunction(p); ok && fn.Body().Is(n) && !n.IsBlock() {
-			tc.VisitImplicitReturnExpression(t, n)
-		}
-
-		// Visit the loop initializer of a for-of loop
-		// We do this check here, instead of when visiting FOR_OF, in order to get the correct
-		// TypedScope.
-		if forOf, ok := ast.AsForOfLoop(p); ok && forOf.Target().Is(n) {
-			tc.CheckForOfTypes(t, forOf)
+		switch p.GetToken() {
+		case rhino.Token_FUNCTION:
+			// Visit the body of blockless arrow functions
+			if !n.IsBlock() && ast.MustFunction(p).Body().Is(n) {
+				tc.VisitImplicitReturnExpression(t, n)
+			}
+		case rhino.Token_FOR_OF, rhino.Token_FOR_AWAIT_OF:
+			// Visit the loop initializer of a for-of loop
+			// We do this check here, instead of when visiting FOR_OF, in order to get the correct
+			// TypedScope.
+			if forOf := ast.MustForOfLoop(p); forOf.Target().Is(n) {
+				tc.CheckForOfTypes(t, forOf)
+			}
 		}
 	}
 

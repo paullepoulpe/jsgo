@@ -89,29 +89,34 @@ func hashOrderFormat(e *JSError) string {
 		" \"" + e.GetDescription() + "\""
 }
 
-// hashOrderCompiler records every JSError reported while recording is on,
+// hashOrderGuard records every JSError reported while recording is on,
 // in report order, as HashOrderDump's Compiler.report override does.
-type hashOrderCompiler struct {
-	*Compiler
+type hashOrderGuard struct {
+	WarningsGuardBase
 	recording bool
 	diags     []string
 }
 
-func (c *hashOrderCompiler) Report(error *JSError) {
-	if c.recording {
-		c.diags = append(c.diags, hashOrderFormat(error))
+func (*hashOrderGuard) GetPriority() int { return -1000 }
+
+func (g *hashOrderGuard) Level(error *JSError) *CheckLevel {
+	if g.recording {
+		g.diags = append(g.diags, hashOrderFormat(error))
 	}
-	c.Compiler.Report(error)
+	return nil
 }
 
 // hashOrderDumpOne is HashOrderDump.dumpOne.
 func hashOrderDumpOne(t testing.TB, sb *strings.Builder, c hashOrderCase) {
 	lintChecksDumpLine(sb, "# case "+c.name+" "+c.pass)
-	compiler := &hashOrderCompiler{Compiler: NewCompiler()}
+	guard := &hashOrderGuard{}
+	options := lintChecksDumpOptions(t, "google")
+	options.AddWarningsGuard(guard)
+	compiler := NewCompiler()
 	compiler.Init(
 		[]*SourceFile{SourceFile_FromCode("externs", "")},
 		c.files,
-		lintChecksDumpOptions(t, "google"))
+		options)
 	var root rhino.Node
 	jutil.Try(func() {
 		root = compiler.ParseInputs()
@@ -126,14 +131,14 @@ func hashOrderDumpOne(t testing.TB, sb *strings.Builder, c hashOrderCase) {
 		lintChecksDumpLine(sb, failed)
 		return
 	}
-	compiler.recording = true
+	guard.recording = true
 	jutil.Try(func() {
 		hashOrderCreatePass(t, c.pass, compiler).Process(root.GetFirstChild(), root.GetSecondChild())
 	}, func(e jutil.IRuntimeException) {
-		compiler.diags = append(compiler.diags, "# exception "+lintChecksDumpClassName(e))
+		guard.diags = append(guard.diags, "# exception "+lintChecksDumpClassName(e))
 	})
-	compiler.recording = false
-	for _, d := range compiler.diags {
+	guard.recording = false
+	for _, d := range guard.diags {
 		lintChecksDumpLine(sb, d)
 	}
 }

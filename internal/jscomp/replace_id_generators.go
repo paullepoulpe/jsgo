@@ -40,6 +40,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/paullepoulpe/jsgo/internal/ast"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 	"github.com/paullepoulpe/jsgo/internal/sourcemap"
@@ -197,10 +198,14 @@ type obfuscatedIdNameSupplier struct {
 }
 
 func newObfuscatedIdNameSupplier(strategy idRenameStrategy, previousMappings *IdMappingSection) *obfuscatedIdNameSupplier {
-	reservedNames := jutil.NewLinkedHashSet[string]()
+	var reservedNames jutil.Set[string]
 	if previousMappings != nil {
-		for _, k := range previousMappings.Keys() {
-			reservedNames.Add(k)
+		if keys := previousMappings.Keys(); len(keys) > 0 {
+			m := make(stringMapSet, len(keys))
+			for _, k := range keys {
+				m[k] = struct{}{}
+			}
+			reservedNames = m
 		}
 	}
 	return &obfuscatedIdNameSupplier{
@@ -264,7 +269,11 @@ type mappedIdNameSupplier struct {
 }
 
 func (s *mappedIdNameSupplier) getName(id, name string) string {
-	return *s.map_.Get(name)
+	v, ok := s.map_.Get(name)
+	if !ok {
+		panic(jutil.NewNullPointerException())
+	}
+	return v
 }
 
 func (s *mappedIdNameSupplier) renameStrategy() idRenameStrategy { return idRenameMapped }
@@ -346,12 +355,22 @@ func (r *ReplaceIdGenerators) Process(externs rhino.Node, root rhino.Node) {
 	}
 }
 
+var replaceIdGeneratorsVisitTokens = makeVisitTokenSet(rhino.Token_CALL, rhino.Token_TAGGED_TEMPLATELIT)
+
 type replaceIdGeneratorsPass struct {
 	NodeTraversal_AbstractPostOrderCallbackBase
 	r                *ReplaceIdGenerators
 	hasNullGenerator bool
 	lastPropSet      map[string]struct{}
 }
+
+var (
+	_ nodeTraversal_noVisitLeaves = (*replaceIdGeneratorsPass)(nil)
+	_ nodeTraversal_visitTokens   = (*replaceIdGeneratorsPass)(nil)
+)
+
+func (*replaceIdGeneratorsPass) noVisitLeaves()             {}
+func (*replaceIdGeneratorsPass) visitTokens() *ast.TokenSet { return &replaceIdGeneratorsVisitTokens }
 
 func newReplaceIdGeneratorsPass(r *ReplaceIdGenerators) *replaceIdGeneratorsPass {
 	g := &replaceIdGeneratorsPass{r: r}

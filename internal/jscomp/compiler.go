@@ -224,7 +224,6 @@ type Compiler struct {
 	// There is exactly one cached resolvedSourceMap, which you can think of
 	// as a cache of size one.
 	resolvedSourceMap compiler_ResolvedSourceMap
-	sourceMapMu       sync.RWMutex
 
 	typedAstFilesystem typedAstFilesystemMap
 
@@ -297,10 +296,28 @@ type Compiler struct {
 	// time, as `this` is in Java.
 	asErrorHandler    *compiler_errorHandler
 	cachedAstAnalyzer *AstAnalyzer
-	printScratch      codePrinterScratch
-	printScratchBusy  atomic.Bool
+	sync              *compilerSync
+	*parallelRecorder
+}
 
-	mu sync.Mutex
+// compilerSync holds non-copyable synchronization and scratch state shared
+// between the main Compiler and shallow-copied parallel worker Compilers.
+type compilerSync struct {
+	mu               sync.Mutex
+	sourceMapMu      sync.RWMutex
+	printScratchBusy atomic.Bool
+	printScratch     codePrinterScratch
+}
+
+func (c *Compiler) ensureSync() *compilerSync {
+	if c.sync == nil {
+		c.sync = &compilerSync{}
+	}
+	return c.sync
+}
+
+func (c *Compiler) isParallelWorker() bool {
+	return c.parallelRecorder != nil
 }
 
 // Java: Compiler.CHUNK_DEPENDENCY_ERROR
@@ -475,6 +492,7 @@ func (c *Compiler) initFields() {
 	c.crossChunkIdGenerator = NewIdGenerator()
 	c.exportedNames = jutil.NewLinkedHashSet[string]()
 	c.defineNames = jutil.NewLinkedHashSet[string]()
+	c.sync = &compilerSync{}
 }
 
 // NewCompiler creates a Compiler that reports errors and warnings to its

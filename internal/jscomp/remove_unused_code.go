@@ -194,23 +194,35 @@ var (
 	rucJscompIdentID                          = rhino.RhinoStringPool_InternID("$jscomp")
 )
 
+// RemoveUnusedCodeOptions configures a RemoveUnusedCode pass.
+type RemoveUnusedCodeOptions struct {
+	RemoveLocalVars                               bool
+	RemoveGlobals                                 bool
+	PreserveFunctionExpressionNames               bool
+	RemoveUnusedPrototypeProperties               bool
+	RemoveUnusedThisProperties                    bool
+	RemoveUnusedObjectDefinePropertiesDefinitions bool
+	RemoveUnusedPolyfills                         bool
+	AssumeGettersArePure                          bool
+}
+
 // Java: RemoveUnusedCode(Builder)
-func NewRemoveUnusedCode(builder *RemoveUnusedCode_Builder) *RemoveUnusedCode {
-	sc := NewSyntacticScopeCreator(builder.compiler)
+func NewRemoveUnusedCode(compiler AbstractCompiler, opts RemoveUnusedCodeOptions) *RemoveUnusedCode {
+	sc := NewSyntacticScopeCreator(compiler)
 	r := &RemoveUnusedCode{
-		compiler:                        builder.compiler,
-		astAnalyzer:                     builder.compiler.GetAstAnalyzer(),
-		codingConvention:                builder.compiler.GetCodingConvention(),
+		compiler:                        compiler,
+		astAnalyzer:                     compiler.GetAstAnalyzer(),
+		codingConvention:                compiler.GetCodingConvention(),
 		scopeCreator:                    sc,
-		removeLocalVars:                 builder.removeLocalVars,
-		removeGlobals:                   builder.removeGlobals,
-		preserveFunctionExpressionNames: builder.preserveFunctionExpressionNames,
-		removeUnusedPrototypeProperties: builder.removeUnusedPrototypeProperties,
-		removeUnusedThisProperties:      builder.removeUnusedThisProperties,
-		removeUnusedObjectDefinePropertiesDefinitions: builder.removeUnusedObjectDefinePropertiesDefinitions,
-		removeUnusedPolyfills:                         builder.removeUnusedPolyfills,
+		removeLocalVars:                 opts.RemoveLocalVars,
+		removeGlobals:                   opts.RemoveGlobals,
+		preserveFunctionExpressionNames: opts.PreserveFunctionExpressionNames,
+		removeUnusedPrototypeProperties: opts.RemoveUnusedPrototypeProperties,
+		removeUnusedThisProperties:      opts.RemoveUnusedThisProperties,
+		removeUnusedObjectDefinePropertiesDefinitions: opts.RemoveUnusedObjectDefinePropertiesDefinitions,
+		removeUnusedPolyfills:                         opts.RemoveUnusedPolyfills,
 		polyfillsFromTable:                            defaultPolyfillsTable(),
-		assumeGettersArePure:                          builder.assumeGettersArePure,
+		assumeGettersArePure:                          opts.AssumeGettersArePure,
 	}
 
 	// All Vars that are completely unremovable will share this VarInfo instance.
@@ -218,78 +230,6 @@ func NewRemoveUnusedCode(builder *RemoveUnusedCode_Builder) *RemoveUnusedCode {
 	r.canonicalUnremovableVarInfoVal.flags = rucVarFlagCanonical
 	r.canonicalUnremovableVarInfo = &r.canonicalUnremovableVarInfoVal
 	return r
-}
-
-// RemoveUnusedCode_Builder is the nested class Builder.
-type RemoveUnusedCode_Builder struct {
-	compiler AbstractCompiler
-
-	removeLocalVars                               bool
-	removeGlobals                                 bool
-	preserveFunctionExpressionNames               bool
-	removeUnusedPrototypeProperties               bool
-	removeUnusedThisProperties                    bool
-	removeUnusedObjectDefinePropertiesDefinitions bool
-	removeUnusedPolyfills                         bool
-	assumeGettersArePure                          bool
-}
-
-// Java: RemoveUnusedCode.Builder(AbstractCompiler)
-func NewRemoveUnusedCode_Builder(compiler AbstractCompiler) *RemoveUnusedCode_Builder {
-	return &RemoveUnusedCode_Builder{compiler: compiler}
-}
-
-// Java: RemoveUnusedCode.Builder.removeLocalVars(boolean)
-func (b *RemoveUnusedCode_Builder) RemoveLocalVars(value bool) *RemoveUnusedCode_Builder {
-	b.removeLocalVars = value
-	return b
-}
-
-// Java: RemoveUnusedCode.Builder.removeGlobals(boolean)
-func (b *RemoveUnusedCode_Builder) RemoveGlobals(value bool) *RemoveUnusedCode_Builder {
-	b.removeGlobals = value
-	return b
-}
-
-// Java: RemoveUnusedCode.Builder.preserveFunctionExpressionNames(boolean)
-func (b *RemoveUnusedCode_Builder) PreserveFunctionExpressionNames(value bool) *RemoveUnusedCode_Builder {
-	b.preserveFunctionExpressionNames = value
-	return b
-}
-
-// Java: RemoveUnusedCode.Builder.removeUnusedPrototypeProperties(boolean)
-func (b *RemoveUnusedCode_Builder) RemoveUnusedPrototypeProperties(value bool) *RemoveUnusedCode_Builder {
-	b.removeUnusedPrototypeProperties = value
-	return b
-}
-
-// Java: RemoveUnusedCode.Builder.removeUnusedThisProperties(boolean)
-func (b *RemoveUnusedCode_Builder) RemoveUnusedThisProperties(value bool) *RemoveUnusedCode_Builder {
-	b.removeUnusedThisProperties = value
-	return b
-}
-
-// Java: RemoveUnusedCode.Builder.removeUnusedObjectDefinePropertiesDefinitions(boolean)
-func (b *RemoveUnusedCode_Builder) RemoveUnusedObjectDefinePropertiesDefinitions(value bool) *RemoveUnusedCode_Builder {
-	b.removeUnusedObjectDefinePropertiesDefinitions = value
-	return b
-}
-
-// Java: RemoveUnusedCode.Builder.removeUnusedPolyfills(boolean)
-func (b *RemoveUnusedCode_Builder) RemoveUnusedPolyfills(value bool) *RemoveUnusedCode_Builder {
-	b.removeUnusedPolyfills = value
-	return b
-}
-
-// Java: RemoveUnusedCode.Builder.assumeGettersArePure(boolean)
-func (b *RemoveUnusedCode_Builder) AssumeGettersArePure(value bool) *RemoveUnusedCode_Builder {
-	b.assumeGettersArePure = value
-	return b
-}
-
-// Java: RemoveUnusedCode.Builder.build()
-func (b *RemoveUnusedCode_Builder) Build() *RemoveUnusedCode {
-	return NewRemoveUnusedCode(b)
 }
 
 func (r *RemoveUnusedCode) logRemoval(kind, name, fnName string) {
@@ -657,7 +597,7 @@ func (r *RemoveUnusedCode) removeUnreferencedFunctionArgsParallel() bool {
 		runItem := func(gIdx int, rc *recordingCompiler) {
 			g := &groups[gIdx]
 			for _, origIdx := range g.indices {
-				initRecordingCompiler(rc, r.compiler)
+				resetRecordingCompiler(rc, r.compiler)
 				r.removeUnreferencedFunctionArgsWithCompiler(rc, r.allFunctionParamScopes[origIdx], true)
 				eventsByIdx[origIdx] = rc.takeEvents()
 			}
@@ -667,8 +607,9 @@ func (r *RemoveUnusedCode) removeUnreferencedFunctionArgsParallel() bool {
 
 	if len(detachedIndices) > 0 {
 		var mainRC recordingCompiler
+		initRecordingCompiler(&mainRC, r.compiler)
 		for _, origIdx := range detachedIndices {
-			initRecordingCompiler(&mainRC, r.compiler)
+			resetRecordingCompiler(&mainRC, r.compiler)
 			r.removeUnreferencedFunctionArgsWithCompiler(&mainRC, r.allFunctionParamScopes[origIdx], true)
 			eventsByIdx[origIdx] = mainRC.takeEvents()
 		}

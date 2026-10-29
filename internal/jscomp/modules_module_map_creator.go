@@ -61,7 +61,7 @@ import (
 // (returning an interior pointer from ClosureNamespace when present), native
 // OrderedStringMap fields back Namespace/BoundNames/LocalNameToLocalExport
 // with lazy LinkedHashMap materialization, and AutoBuilder_Module_Builder is
-// replaced by NewModule / WithBoundNames.
+// replaced by NewModule / WithBoundNamesMap.
 type Module struct {
 	metadata               *ModuleMetadataMap_ModuleMetadata
 	path                   *ModuleLoader_ModulePath
@@ -164,21 +164,6 @@ func (m *Module) WithBoundNamesMap(boundNames *OrderedStringMap[*Binding]) *Modu
 	}
 	cp := *m
 	cp.boundNames = boundNames
-	cp.lazyBoundNames = nil
-	return &cp
-}
-
-// WithBoundNames returns a shallow copy of m with boundNames replaced.
-func (m *Module) WithBoundNames(boundNames *jutil.LinkedHashMap[string, *Binding]) *Module {
-	if boundNames == nil {
-		panic(jutil.NewNullPointerExceptionMsg("Null boundNames"))
-	}
-	om := NewOrderedStringMapWithCapacity[*Binding](boundNames.Size())
-	for k, v := range boundNames.All() {
-		om.Put(k, jutil.CheckNotNull(v))
-	}
-	cp := *m
-	cp.boundNames = om
 	cp.lazyBoundNames = nil
 	return &cp
 }

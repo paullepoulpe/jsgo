@@ -64,8 +64,8 @@ import (
 type Parser struct {
 	scanner              *Scanner
 	errorReporter        ErrorReporter
-	config               *Parser_Config
-	commentRecorder      *Parser_CommentRecorder
+	config               Parser_Config
+	commentRecorder      Parser_CommentRecorder
 	functionContextStack []Parser_FunctionFlavor
 	functionContextBuf   [8]Parser_FunctionFlavor
 	featureBits          uint64
@@ -99,6 +99,12 @@ type Parser struct {
 	varStmts     jutil.Slab[VariableStatementTree]
 	memberLkps   jutil.Slab[MemberLookupExpressionTree]
 	thisExprs    jutil.Slab[ThisExpressionTree]
+	funcDecls    jutil.Slab[FunctionDeclarationTree]
+	paramLists   jutil.Slab[FormalParameterListTree]
+	returnStmts  jutil.Slab[ReturnStatementTree]
+	ifStmts      jutil.Slab[IfStatementTree]
+	parenExprs   jutil.Slab[ParenExpressionTree]
+	unaryExprs   jutil.Slab[UnaryExpressionTree]
 	treeLists    []ParseTree
 	posLists     []SourcePosition
 	varDeclLists []*VariableDeclarationTree
@@ -260,6 +266,78 @@ func (p *Parser) newPropertyNameAssignmentTree(location SourceRange, name Token,
 	return t
 }
 
+func (p *Parser) newFunctionDeclarationTree(
+	location SourceRange,
+	name Token,
+	formalParameterList *FormalParameterListTree,
+	functionBody ParseTree,
+	kind FunctionDeclarationTree_Kind,
+	isClassMember, isStatic, isGenerator, isAsync bool,
+) *FunctionDeclarationTree {
+	if formalParameterList == nil || functionBody == nil {
+		panic(jutil.NewNullPointerException())
+	}
+	t := p.funcDecls.New()
+	t.InitParseTreeBase(ParseTreeType_FUNCTION_DECLARATION, location)
+	t.Name = name
+	t.FormalParameterList = formalParameterList
+	t.FunctionBody = functionBody
+	t.IsClassMember = isClassMember
+	t.IsStatic = isStatic
+	t.IsGenerator = isGenerator
+	t.IsAsync = isAsync
+	t.Kind = kind
+	return t
+}
+
+func (p *Parser) newFormalParameterListTree(location SourceRange, parameters []ParseTree, hasTrailingComma bool, commaPositions []SourcePosition) *FormalParameterListTree {
+	numParams := len(parameters)
+	numCommas := len(commaPositions)
+	if !(numCommas <= numParams && numCommas >= numParams-1) {
+		panic(jutil.NewIllegalArgumentExceptionMsg(jutil.LenientFormat(
+			"Unexpected # of comma and formal params.\nparams: %s\ncomma positions: %s",
+			jutil.CollectionToString(parameters),
+			jutil.CollectionToString(commaPositions))))
+	}
+	t := p.paramLists.New()
+	t.InitParseTreeBase(ParseTreeType_FORMAL_PARAMETER_LIST, location)
+	t.Parameters = parameters
+	t.HasTrailingComma = hasTrailingComma
+	t.CommaPositions = commaPositions
+	return t
+}
+
+func (p *Parser) newReturnStatementTree(location SourceRange, expression ParseTree) *ReturnStatementTree {
+	t := p.returnStmts.New()
+	t.InitParseTreeBase(ParseTreeType_RETURN_STATEMENT, location)
+	t.Expression = expression
+	return t
+}
+
+func (p *Parser) newIfStatementTree(location SourceRange, condition ParseTree, ifClause ParseTree, elseClause ParseTree) *IfStatementTree {
+	t := p.ifStmts.New()
+	t.InitParseTreeBase(ParseTreeType_IF_STATEMENT, location)
+	t.Condition = condition
+	t.IfClause = ifClause
+	t.ElseClause = elseClause
+	return t
+}
+
+func (p *Parser) newParenExpressionTree(location SourceRange, expression ParseTree) *ParenExpressionTree {
+	t := p.parenExprs.New()
+	t.InitParseTreeBase(ParseTreeType_PAREN_EXPRESSION, location)
+	t.Expression = expression
+	return t
+}
+
+func (p *Parser) newUnaryExpressionTree(location SourceRange, operator Token, operand ParseTree) *UnaryExpressionTree {
+	t := p.unaryExprs.New()
+	t.InitParseTreeBase(ParseTreeType_UNARY_EXPRESSION, location)
+	t.Operator = operator
+	t.Operand = operand
+	return t
+}
+
 // Parser_FunctionFlavor is Parser.FunctionFlavor: indicates the type of
 // function currently being parsed.
 type Parser_FunctionFlavor int32
@@ -306,13 +384,13 @@ func (f Parser_FunctionFlavor) IsGenerator() bool { return parser_FunctionFlavor
 // NewParser constructs a Parser.
 //
 // Java: Parser(Config, ErrorReporter, SourceFile)
-func NewParser(config *Parser_Config, errorReporter ErrorReporter, source *SourceFile) *Parser {
+func NewParser(config Parser_Config, errorReporter ErrorReporter, source *SourceFile) *Parser {
 	p := &Parser{}
-	p.commentRecorder = NewParser_CommentRecorder(p)
+	p.commentRecorder = Parser_CommentRecorder{this: p, lastCommentEndOffset: -1}
 	p.functionContextStack = p.functionContextBuf[:0]
 	p.config = config
 	p.errorReporter = errorReporter
-	p.scanner = NewScanner(errorReporter, p.commentRecorder, source, 0)
+	p.scanner = NewScanner(errorReporter, &p.commentRecorder, source, 0)
 	p.functionContextStack = append(p.functionContextStack, Parser_FunctionFlavor_NORMAL)
 	p.lastSourcePosition = p.scanner.GetPosition()
 	return p
@@ -363,23 +441,22 @@ func (m Parser_Config_Mode) String() string { return m.Name() }
 // NewParser_Config constructs the default Config (ES8_OR_GREATER, sloppy).
 //
 // Java: Parser.Config()
-func NewParser_Config() *Parser_Config {
+func NewParser_Config() Parser_Config {
 	return NewParser_ConfigWithMode(Parser_Config_Mode_ES8_OR_GREATER /* isStrictMode= */, false)
 }
 
 // NewParser_ConfigWithMode constructs a Config.
 //
 // Java: Parser.Config(Mode, boolean)
-func NewParser_ConfigWithMode(mode Parser_Config_Mode, isStrictMode bool) *Parser_Config {
-	c := &Parser_Config{}
-	c.atLeast6 = !(mode == Parser_Config_Mode_ES3 || mode == Parser_Config_Mode_ES5)
-	c.atLeast8 = mode == Parser_Config_Mode_ES8_OR_GREATER
-	c.isStrictMode = isStrictMode
-
-	// Generally, we allow everything that is valid in any mode
-	// we only warn about things that are not represented in the AST.
-	c.warnTrailingCommas = mode == Parser_Config_Mode_ES3
-	return c
+func NewParser_ConfigWithMode(mode Parser_Config_Mode, isStrictMode bool) Parser_Config {
+	return Parser_Config{
+		atLeast6:     !(mode == Parser_Config_Mode_ES3 || mode == Parser_Config_Mode_ES5),
+		atLeast8:     mode == Parser_Config_Mode_ES8_OR_GREATER,
+		isStrictMode: isStrictMode,
+		// Generally, we allow everything that is valid in any mode
+		// we only warn about things that are not represented in the AST.
+		warnTrailingCommas: mode == Parser_Config_Mode_ES3,
+	}
 }
 
 // Parser_SOURCE_MAPPING_URL_PREFIX is Parser.SOURCE_MAPPING_URL_PREFIX.
@@ -426,7 +503,10 @@ func (c *Parser_CommentRecorder) RecordComment(type_ Comment_Type, range_ LineRa
 //
 // Java: Parser.CommentRecorder.getComments()
 func (c *Parser_CommentRecorder) GetComments() []Comment {
-	return append([]Comment{}, c.comments...)
+	if len(c.comments) == 0 {
+		return []Comment{}
+	}
+	return c.comments
 }
 
 // GetComments returns the comments of the source file.
@@ -753,13 +833,12 @@ func functionFlavorOf(cond bool, ifTrue, ifFalse Parser_FunctionFlavor) Parser_F
 }
 
 // Java: Parser.parseFunctionTail(FunctionDeclarationTree.Builder, FunctionFlavor)
-func (p *Parser) ParseFunctionTail(builder *FunctionDeclarationTree_Builder, functionFlavor Parser_FunctionFlavor) {
+func (p *Parser) parseFunctionTail(functionFlavor Parser_FunctionFlavor) (*FormalParameterListTree, *BlockTree) {
 	p.functionContextStack = append(p.functionContextStack, functionFlavor)
-	builder.
-		SetGenerator(functionFlavor.IsGenerator()).
-		SetFormalParameterList(p.ParseFormalParameterList()).
-		SetFunctionBody(p.ParseFunctionBody())
+	params := p.ParseFormalParameterList()
+	body := p.ParseFunctionBody()
 	p.functionContextStack = p.functionContextStack[:len(p.functionContextStack)-1]
+	return params, body
 }
 
 // Java: Parser.parseSourceElement()
@@ -825,9 +904,11 @@ func (p *Parser) ParseFunctionDeclaration() ParseTree {
 	p.Eat(Keywords_FUNCTION.Type())
 	isGenerator := p.EatOpt(TokenType_STAR).IsPresent()
 
-	builder := FunctionDeclarationTree_NewBuilder(FunctionDeclarationTree_Kind_DECLARATION).SetName(p.EatId())
-	p.ParseFunctionTail(builder, functionFlavorOf(isGenerator, Parser_FunctionFlavor_GENERATOR, Parser_FunctionFlavor_NORMAL))
-	return builder.Build(p.GetTreeLocation(start))
+	name := p.EatId()
+	params, body := p.parseFunctionTail(functionFlavorOf(isGenerator, Parser_FunctionFlavor_GENERATOR, Parser_FunctionFlavor_NORMAL))
+	return p.newFunctionDeclarationTree(
+		p.GetTreeLocation(start), name, params, body,
+		FunctionDeclarationTree_Kind_DECLARATION, false, false, isGenerator, false)
 }
 
 // Java: Parser.parseAsyncFunctionDeclaration()
@@ -840,13 +921,12 @@ func (p *Parser) ParseAsyncFunctionDeclaration() ParseTree {
 		p.Eat(TokenType_STAR)
 	}
 
-	builder := FunctionDeclarationTree_NewBuilder(FunctionDeclarationTree_Kind_DECLARATION).
-		SetName(p.EatId()).
-		SetAsync(true)
-
-	p.ParseFunctionTail(
-		builder, functionFlavorOf(generator, Parser_FunctionFlavor_ASYNCHRONOUS_GENERATOR, Parser_FunctionFlavor_ASYNCHRONOUS))
-	return builder.Build(p.GetTreeLocation(start))
+	name := p.EatId()
+	params, body := p.parseFunctionTail(
+		functionFlavorOf(generator, Parser_FunctionFlavor_ASYNCHRONOUS_GENERATOR, Parser_FunctionFlavor_ASYNCHRONOUS))
+	return p.newFunctionDeclarationTree(
+		p.GetTreeLocation(start), name, params, body,
+		FunctionDeclarationTree_Kind_DECLARATION, false, false, generator, true)
 }
 
 // Java: Parser.peekParameter()
@@ -915,7 +995,7 @@ func (p *Parser) ParseFormalParameterList() *FormalParameterListTree {
 	p.Eat(TokenType_CLOSE_PAREN)
 	result := p.popTrees(treeBase)
 	commaPositions := popStackChunked(&p.posStack, posBase, &p.posLists, parser_posListChunk)
-	return NewFormalParameterListTree(
+	return p.newFormalParameterListTree(
 		p.GetTreeLocation(listStart), result, trailingComma, commaPositions)
 }
 

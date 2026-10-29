@@ -91,8 +91,8 @@ type FlowSensitiveInlineVariables struct {
 	varTable            fnVarTable
 	candVarSeen         dfaBitSet
 	candVarIDs          []uint32
-	gatherCandidates    FlowSensitiveInlineVariables_GatherCandidates
-	gatherCb            FlowSensitiveInlineVariables_GatherCandidatesCfgNodeCallback
+	gatherCfgNode       rhino.Node
+	gatherInState       *MustBeReachingVariableDef_MustDef
 	pathChecker         graph.CheckPathsBetweenNodes[rhino.Node, ControlFlowGraph_Branch]
 
 	varsFinder          lvaAllVarsFinder
@@ -163,17 +163,17 @@ func (f *FlowSensitiveInlineVariables) getReachingUses() *MaybeReachingVariableU
 	return f.reachingUses
 }
 
+func (f *FlowSensitiveInlineVariables) sideEffectPredicateFunc() func(rhino.Node) bool {
+	if f.sideEffectPredicateFn == nil {
+		f.sideEffectPredicateFn = f.sideEffectPredicate.Apply
+	}
+	return f.sideEffectPredicateFn
+}
+
 // Java: FlowSensitiveInlineVariables(AbstractCompiler)
 func NewFlowSensitiveInlineVariables(compiler AbstractCompiler) *FlowSensitiveInlineVariables {
-	f := &FlowSensitiveInlineVariables{}
-	f.compiler = compiler
-	f.sideEffectPredicate = FlowSensitiveInlineVariables_SideEffectPredicate{outer: f}
-	f.sideEffectPredicateFn = f.sideEffectPredicate.Apply
-	f.gatherCb = FlowSensitiveInlineVariables_GatherCandidatesCfgNodeCallback{outer: f}
-	f.gatherCandidates = FlowSensitiveInlineVariables_GatherCandidates{
-		outer:    f,
-		gatherCb: &f.gatherCb,
-	}
+	f := &FlowSensitiveInlineVariables{compiler: compiler}
+	f.sideEffectPredicate.outer = f
 	return f
 }
 
@@ -529,7 +529,7 @@ func (f *FlowSensitiveInlineVariables) processFunction(fn ast.Function, body ast
 
 	// Using the forward reaching definition search to find all the inline
 	// candidates
-	fsivTraverseGatherCandidates(f.compiler, fnBody, &f.gatherCandidates)
+	f.traverseGatherCandidates(fnBody)
 
 	if len(f.candidates) == 0 {
 		return
@@ -822,48 +822,38 @@ func (f *FlowSensitiveInlineVariables) hasEnclosingSlotByID(nameID uint32) bool 
 	return f.curFnEnclosingScope != nil && f.curFnEnclosingScope.GetVarByID(nameID) != nil
 }
 
-// FlowSensitiveInlineVariables_GatherCandidatesCfgNodeCallback visits a
-// control flow graph node without entering subtrees represented by other CFG
-// nodes.
-type FlowSensitiveInlineVariables_GatherCandidatesCfgNodeCallback struct {
-	outer *FlowSensitiveInlineVariables
-
-	cfgNode rhino.Node
-	inState *MustBeReachingVariableDef_MustDef
-}
-
-func (cb *FlowSensitiveInlineVariables_GatherCandidatesCfgNodeCallback) visitName(n rhino.Node, parent rhino.Node) {
+func (f *FlowSensitiveInlineVariables) visitCandidateName(n rhino.Node, parent rhino.Node) {
 	// Make sure that the name node is purely a read.
 	if !fsivIsReadName(n, parent) {
 		return
 	}
 
 	nameID := n.GetStringID()
-	if len(cb.outer.inlinableDefs) > 0 && !cb.outer.isInlinableDefVarID(nameID) {
+	if len(f.inlinableDefs) > 0 && !f.isInlinableDefVarID(nameID) {
 		return
 	}
 
 	var def *MustBeReachingVariableDef_Definition
-	if cb.inState != nil {
-		def = cb.outer.reachingDef.getDefFromMustDefByID(nameID, cb.inState)
+	if f.gatherInState != nil {
+		def = f.reachingDef.getDefFromMustDefByID(nameID, f.gatherInState)
 	} else {
-		def = cb.outer.reachingDef.getDefByID(nameID, cb.cfgNode)
+		def = f.reachingDef.getDefByID(nameID, f.gatherCfgNode)
 	}
 	if def != nil && !def.node.IsFunction() && !def.node.IsBlock() &&
-		!cb.outer.reachingDef.DependsOnOuterScopeVars(def) {
-		if !cb.outer.getCodingConvention().IsExportedWithLocal(rhino.RhinoStringPool_StringFromID(nameID) /* local= */, true) {
-			cb.outer.candidates = append(cb.outer.candidates, FlowSensitiveInlineVariables_Candidate{
-				outer:       cb.outer,
+		!f.reachingDef.DependsOnOuterScopeVars(def) {
+		if !f.getCodingConvention().IsExportedWithLocal(rhino.RhinoStringPool_StringFromID(nameID) /* local= */, true) {
+			f.candidates = append(f.candidates, FlowSensitiveInlineVariables_Candidate{
+				outer:       f,
 				nameID:      nameID,
 				defMetadata: def,
 				use:         n,
-				useCfgNode:  cb.cfgNode,
+				useCfgNode:  f.gatherCfgNode,
 			})
 		}
 	}
 }
 
-func (cb *FlowSensitiveInlineVariables_GatherCandidatesCfgNodeCallback) walkCfgNode(n, parent rhino.Node, currentNode *rhino.Node) {
+func (f *FlowSensitiveInlineVariables) walkGatherCfgNode(n, parent rhino.Node, currentNode *rhino.Node) {
 	*currentNode = n
 	if !parent.IsNil() && ControlFlowGraph_IsEnteringNewCfgNode(n) {
 		return
@@ -875,7 +865,7 @@ func (cb *FlowSensitiveInlineVariables_GatherCandidatesCfgNodeCallback) walkCfgN
 		}
 		for child := n.GetFirstChild(); !child.IsNil(); {
 			next := child.GetNext()
-			cb.walkCfgNode(child, n, currentNode)
+			f.walkGatherCfgNode(child, n, currentNode)
 			child = next
 		}
 	case rhino.Token_FUNCTION:
@@ -883,22 +873,22 @@ func (cb *FlowSensitiveInlineVariables_GatherCandidatesCfgNodeCallback) walkCfgN
 		fnName := fn.NameNode().Node()
 		args := fn.Params().Node()
 		body := fn.Body().Node()
-		cb.walkCfgNode(fnName, n, currentNode)
-		cb.walkCfgNode(args, n, currentNode)
-		cb.walkCfgNode(body, n, currentNode)
+		f.walkGatherCfgNode(fnName, n, currentNode)
+		f.walkGatherCfgNode(args, n, currentNode)
+		f.walkGatherCfgNode(body, n, currentNode)
 	case rhino.Token_CLASS:
 		cls := ast.MustClass(n)
 		className := cls.NameNode()
 		extendsClause := cls.ExtendsNode()
 		body := cls.Body().Node()
-		cb.walkCfgNode(extendsClause, n, currentNode)
-		cb.walkCfgNode(className, n, currentNode)
-		cb.walkCfgNode(body, n, currentNode)
+		f.walkGatherCfgNode(extendsClause, n, currentNode)
+		f.walkGatherCfgNode(className, n, currentNode)
+		f.walkGatherCfgNode(body, n, currentNode)
 	case rhino.Token_CLASS_MEMBERS:
 		for child := n.GetFirstChild(); !child.IsNil(); {
 			next := child.GetNext()
 			if cm, ok := ast.AsComputedMember(child); ok {
-				cb.walkCfgNode(cm.Key().Node(), child, currentNode)
+				f.walkGatherCfgNode(cm.Key().Node(), child, currentNode)
 			}
 			child = next
 		}
@@ -908,14 +898,14 @@ func (cb *FlowSensitiveInlineVariables_GatherCandidatesCfgNodeCallback) walkCfgN
 				*currentNode = n
 				if !ControlFlowGraph_IsEnteringNewCfgNode(child) {
 					if val, hasVal := cm.Value(); hasVal {
-						cb.walkCfgNode(val.Node(), child, currentNode)
+						f.walkGatherCfgNode(val.Node(), child, currentNode)
 					}
 				}
 			} else {
 				switch child.GetToken() {
 				case rhino.Token_MEMBER_FIELD_DEF, rhino.Token_BLOCK, rhino.Token_MEMBER_FUNCTION_DEF,
 					rhino.Token_MEMBER_VARIABLE_DEF, rhino.Token_GETTER_DEF, rhino.Token_SETTER_DEF:
-					cb.walkCfgNode(child, n, currentNode)
+					f.walkGatherCfgNode(child, n, currentNode)
 				default:
 					panic(jutil.NewIllegalStateExceptionMsg("Invalid class member: " + child.GetToken().String()))
 				}
@@ -928,60 +918,46 @@ func (cb *FlowSensitiveInlineVariables_GatherCandidatesCfgNodeCallback) walkCfgN
 			if child.GetFirstChild().IsNil() {
 				if child.IsName() {
 					*currentNode = child
-					cb.visitName(child, n)
+					f.visitCandidateName(child, n)
 				} else if child.GetToken() == rhino.Token_SCRIPT && !ControlFlowGraph_IsEnteringNewCfgNode(child) {
 					if Platform_IsThreadInterrupted() {
 						panic(jutil.NewRuntimeExceptionWithCause(jutil.NewInterruptedException()))
 					}
 				}
 			} else {
-				cb.walkCfgNode(child, n, currentNode)
+				f.walkGatherCfgNode(child, n, currentNode)
 			}
 			child = next
 		}
 	}
 	if n.IsName() {
 		*currentNode = n
-		cb.visitName(n, parent)
+		f.visitCandidateName(n, parent)
 	}
 }
 
-// FlowSensitiveInlineVariables_GatherCandidates gathers a list of possible
-// candidates for inlining based only on information from
-// MustBeReachingVariableDef. The list will be stored in candidates and the
-// validity of each inlining Candidate should be later verified with
-// Candidate#canInline(Scope) when MaybeReachingVariableUse has been
-// performed.
-type FlowSensitiveInlineVariables_GatherCandidates struct {
-	outer *FlowSensitiveInlineVariables
-
-	gatherCb *FlowSensitiveInlineVariables_GatherCandidatesCfgNodeCallback
-}
-
-func (g *FlowSensitiveInlineVariables_GatherCandidates) visitNode(n rhino.Node, currentNode *rhino.Node) {
+func (f *FlowSensitiveInlineVariables) visitGatherNode(n rhino.Node, currentNode *rhino.Node) {
 	switch n.GetToken() {
 	case rhino.Token_BLOCK, rhino.Token_TRY, rhino.Token_SWITCH_BODY, rhino.Token_EMPTY:
 		return
 	}
-	graphNode := g.outer.cfg.Nodes.Get(n)
+	graphNode := f.cfg.Nodes.Get(n)
 	if graphNode == nil {
 		// Not a CFG node.
 		return
 	}
-	cfgNode := n
-
-	g.gatherCb.cfgNode = cfgNode
-	g.gatherCb.inState = g.outer.reachingDef.inStateAt(graphNode.Index)
-	g.gatherCb.walkCfgNode(cfgNode, rhino.NilNode, currentNode)
-	g.gatherCb.inState = nil
+	f.gatherCfgNode = n
+	f.gatherInState = f.reachingDef.inStateAt(graphNode.Index)
+	f.walkGatherCfgNode(n, rhino.NilNode, currentNode)
+	f.gatherInState = nil
 }
 
-func fsivTraverseGatherCandidates(compiler AbstractCompiler, root rhino.Node, cb *FlowSensitiveInlineVariables_GatherCandidates) {
-	jutil.CheckNotNull(compiler)
+func (f *FlowSensitiveInlineVariables) traverseGatherCandidates(root rhino.Node) {
+	jutil.CheckNotNull(f.compiler)
 	var currentNode rhino.Node
 	defer func() {
 		if r := recover(); r != nil {
-			t := &NodeTraversal{compiler: compiler}
+			t := &NodeTraversal{compiler: f.compiler}
 			t.InitTraversal(root)
 			t.currentNode = currentNode
 			t.ThrowUnexpectedException(jutil.AsThrowable(r))
@@ -994,10 +970,10 @@ func fsivTraverseGatherCandidates(compiler AbstractCompiler, root rhino.Node, cb
 		panic(jutil.NewRuntimeExceptionWithCause(jutil.NewInterruptedException()))
 	}
 	currentNode = root
-	fsivWalkGatherCandidates(root, rhino.NilNode, cb, &currentNode)
+	f.walkGatherCandidates(root, rhino.NilNode, &currentNode)
 }
 
-func fsivWalkGatherCandidates(n, parent rhino.Node, cb *FlowSensitiveInlineVariables_GatherCandidates, currentNode *rhino.Node) {
+func (f *FlowSensitiveInlineVariables) walkGatherCandidates(n, parent rhino.Node, currentNode *rhino.Node) {
 	*currentNode = n
 	if !parent.IsNil() && parent.IsFunction() && ast.RoleOf(n) != ast.RoleFunctionName {
 		return
@@ -1009,7 +985,7 @@ func fsivWalkGatherCandidates(n, parent rhino.Node, cb *FlowSensitiveInlineVaria
 		}
 		for child := n.GetFirstChild(); !child.IsNil(); {
 			next := child.GetNext()
-			fsivWalkGatherCandidates(child, n, cb, currentNode)
+			f.walkGatherCandidates(child, n, currentNode)
 			child = next
 		}
 	case rhino.Token_FUNCTION:
@@ -1019,26 +995,26 @@ func fsivWalkGatherCandidates(n, parent rhino.Node, cb *FlowSensitiveInlineVaria
 	case rhino.Token_BLOCK, rhino.Token_SWITCH_BODY, rhino.Token_TRY:
 		for child := n.GetFirstChild(); !child.IsNil(); {
 			next := child.GetNext()
-			fsivWalkGatherCandidates(child, n, cb, currentNode)
+			f.walkGatherCandidates(child, n, currentNode)
 			child = next
 		}
 	case rhino.Token_IF:
 		ifs := ast.MustIf(n)
 		els, hasElse := ifs.Else()
-		fsivWalkGatherCandidates(ifs.Then().Node(), n, cb, currentNode)
+		f.walkGatherCandidates(ifs.Then().Node(), n, currentNode)
 		if hasElse {
-			fsivWalkGatherCandidates(els.Node(), n, cb, currentNode)
+			f.walkGatherCandidates(els.Node(), n, currentNode)
 		}
 	case rhino.Token_WITH:
-		fsivWalkGatherCandidates(ast.MustWith(n).Body().Node(), n, cb, currentNode)
+		f.walkGatherCandidates(ast.MustWith(n).Body().Node(), n, currentNode)
 	case rhino.Token_SWITCH:
-		fsivWalkGatherCandidates(ast.MustSwitch(n).Body().Node(), n, cb, currentNode)
+		f.walkGatherCandidates(ast.MustSwitch(n).Body().Node(), n, currentNode)
 	case rhino.Token_CASE, rhino.Token_DEFAULT_CASE:
-		fsivWalkGatherCandidates(ast.MustSwitchCase(n).Body().Node(), n, cb, currentNode)
+		f.walkGatherCandidates(ast.MustSwitchCase(n).Body().Node(), n, currentNode)
 	case rhino.Token_CATCH:
-		fsivWalkGatherCandidates(ast.MustCatch(n).Body().Node(), n, cb, currentNode)
+		f.walkGatherCandidates(ast.MustCatch(n).Body().Node(), n, currentNode)
 	case rhino.Token_LABEL:
-		fsivWalkGatherCandidates(ast.MustLabel(n).Body().Node(), n, cb, currentNode)
+		f.walkGatherCandidates(ast.MustLabel(n).Body().Node(), n, currentNode)
 	case rhino.Token_WHILE, rhino.Token_DO, rhino.Token_FOR, rhino.Token_FOR_IN, rhino.Token_FOR_OF, rhino.Token_FOR_AWAIT_OF:
 		// Any use inside a loop node has NodeUtil_IsWithinLoop(use) == true,
 		// which CanInline always rejects. Skip loop subtrees entirely.
@@ -1051,10 +1027,10 @@ func fsivWalkGatherCandidates(n, parent rhino.Node, cb *FlowSensitiveInlineVaria
 	default:
 		for child := n.GetFirstChild(); !child.IsNil(); {
 			next := child.GetNext()
-			fsivWalkGatherCandidates(child, n, cb, currentNode)
+			f.walkGatherCandidates(child, n, currentNode)
 			child = next
 		}
 	}
 	*currentNode = n
-	cb.visitNode(n, currentNode)
+	f.visitGatherNode(n, currentNode)
 }

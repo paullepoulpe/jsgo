@@ -105,29 +105,30 @@ func (c *SerializeTypedAstPassTest) TestAst_constNumber() {
 
 	serializeTypedAstPassTest_assertAstNode(result.sourceNodes[0],
 		serializeTypedAstPassTest_BRITTLE_TYPE_FIELDS,
-		AstNode_NewBuilder().
-			SetKind(NodeKind_SOURCE_FILE).
-			SetRelativeLine(1).
-			AddChild(
-				AstNode_NewBuilder().
-					SetKind(NodeKind_CONST_DECLARATION).
-					AddChild(
-						AstNode_NewBuilder().
-							SetKind(NodeKind_IDENTIFIER).
-							SetStringValuePointer(result.findInStringPool("x")).
-							SetOriginalNamePointer(result.findInStringPool("x")).
-							SetRelativeColumn(6).
-							SetType(numberType).
-							AddChild(
-								AstNode_NewBuilder().
-									SetKind(NodeKind_NUMBER_LITERAL).
-									SetDoubleValue(5).
-									SetRelativeColumn(4).
-									SetType(numberType).
-									Build()).
-							Build()).
-					Build()).
-			Build())
+		&AstNode{
+			kind_:         NodeKind_SOURCE_FILE_VALUE,
+			relativeLine_: 1,
+			child_: []*AstNode{{
+				kind_: NodeKind_CONST_DECLARATION_VALUE,
+				child_: []*AstNode{{
+					kind_:                NodeKind_IDENTIFIER_VALUE,
+					stringValuePointer_:  result.findInStringPool("x"),
+					valueCase_:           AstNode_STRING_VALUE_POINTER_FIELD_NUMBER,
+					originalNamePointer_: result.findInStringPool("x"),
+					relativeColumn_:      6,
+					type_:                numberType,
+					bitField0_:           1,
+					child_: []*AstNode{{
+						kind_:           NodeKind_NUMBER_LITERAL_VALUE,
+						doubleValue_:    5,
+						valueCase_:      AstNode_DOUBLE_VALUE_FIELD_NUMBER,
+						relativeColumn_: 4,
+						type_:           numberType,
+						bitField0_:      1,
+					}},
+				}},
+			}},
+		})
 }
 
 // Java: SerializeTypedAstPassTest.testAst_externs()
@@ -164,7 +165,7 @@ goog.loadModule(function(exports) {
 		closureExterns, //
 		c.Srcs(mandatorySource))
 
-	AssertThat(typeSummaryResult.ast).IsEqualTo(emptyResult.ast)
+	AssertThat(typeSummaryResult.ast.String()).IsEqualTo(emptyResult.ast.String())
 }
 
 // Java: SerializeTypedAstPassTest.testAst_letString()
@@ -176,26 +177,27 @@ func (c *SerializeTypedAstPassTest) TestAst_letString() {
 	ignored.astRelativeLine = true
 	ignored.astRelativeColumn = true
 	serializeTypedAstPassTest_assertAstNode(result.sourceNodes[0], ignored,
-		AstNode_NewBuilder().
-			SetKind(NodeKind_SOURCE_FILE).
-			AddChild(
-				AstNode_NewBuilder().
-					SetKind(NodeKind_LET_DECLARATION).
-					AddChild(
-						AstNode_NewBuilder().
-							SetKind(NodeKind_IDENTIFIER).
-							SetStringValuePointer(result.findInStringPool("s")).
-							SetOriginalNamePointer(result.findInStringPool("s")).
-							SetType(stringType).
-							AddChild(
-								AstNode_NewBuilder().
-									SetKind(NodeKind_STRING_LITERAL).
-									SetStringValuePointer(result.findInStringPool("hello")).
-									SetType(stringType).
-									Build()).
-							Build()).
-					Build()).
-			Build())
+		&AstNode{
+			kind_: NodeKind_SOURCE_FILE_VALUE,
+			child_: []*AstNode{{
+				kind_: NodeKind_LET_DECLARATION_VALUE,
+				child_: []*AstNode{{
+					kind_:                NodeKind_IDENTIFIER_VALUE,
+					stringValuePointer_:  result.findInStringPool("s"),
+					valueCase_:           AstNode_STRING_VALUE_POINTER_FIELD_NUMBER,
+					originalNamePointer_: result.findInStringPool("s"),
+					type_:                stringType,
+					bitField0_:           1,
+					child_: []*AstNode{{
+						kind_:               NodeKind_STRING_LITERAL_VALUE,
+						stringValuePointer_: result.findInStringPool("hello"),
+						valueCase_:          AstNode_STRING_VALUE_POINTER_FIELD_NUMBER,
+						type_:               stringType,
+						bitField0_:          1,
+					}},
+				}},
+			}},
+		})
 }
 
 // Java: SerializeTypedAstPassTest.testAst_templateLit_illegalEscape()
@@ -208,37 +210,35 @@ func (c *SerializeTypedAstPassTest) TestAst_templateLit_illegalEscape() {
 	ignored.astRelativeColumn = true
 	ignored.astType = true
 	serializeTypedAstPassTest_assertAstNode(result.sourceNodes[0], ignored,
-		AstNode_NewBuilder().
-			SetKind(NodeKind_SOURCE_FILE).
-			AddChild(
-				AstNode_NewBuilder().
-					SetKind(NodeKind_EXPRESSION_STATEMENT).
-					AddChild(
-						AstNode_NewBuilder().
-							SetKind(NodeKind_TAGGED_TEMPLATELIT).
-							SetBooleanProperties(int64(1)<<rhino.NodeProperty_FREE_CALL.GetNumber()).
-							AddChild(
-								AstNode_NewBuilder().
-									SetKind(NodeKind_IDENTIFIER).
-									SetStringValuePointer(result.findInStringPool("latex")).
-									SetOriginalNamePointer(result.findInStringPool("latex")).
-									Build()).
-							AddChild(
-								AstNode_NewBuilder().
-									SetKind(NodeKind_TEMPLATELIT).
-									AddChildFromBuilder(
-										AstNode_NewBuilder().
-											SetKind(NodeKind_TEMPLATELIT_STRING).
-											SetTemplateStringValue(
-												TemplateStringValue_NewBuilder().
-													SetCookedStringPointer(-1).
-													SetRawStringPointer(
-														result.findInStringPool("\\unicode")).
-													Build())).
-									Build()).
-							Build()).
-					Build()).
-			Build())
+		&AstNode{
+			kind_: NodeKind_SOURCE_FILE_VALUE,
+			child_: []*AstNode{{
+				kind_: NodeKind_EXPRESSION_STATEMENT_VALUE,
+				child_: []*AstNode{{
+					kind_:              NodeKind_TAGGED_TEMPLATELIT_VALUE,
+					booleanProperties_: int64(1) << rhino.NodeProperty_FREE_CALL.GetNumber(),
+					child_: []*AstNode{
+						{
+							kind_:                NodeKind_IDENTIFIER_VALUE,
+							stringValuePointer_:  result.findInStringPool("latex"),
+							valueCase_:           AstNode_STRING_VALUE_POINTER_FIELD_NUMBER,
+							originalNamePointer_: result.findInStringPool("latex"),
+						},
+						{
+							kind_: NodeKind_TEMPLATELIT_VALUE,
+							child_: []*AstNode{{
+								kind_:      NodeKind_TEMPLATELIT_STRING_VALUE,
+								valueCase_: AstNode_TEMPLATE_STRING_VALUE_FIELD_NUMBER,
+								templateStringValue_: &TemplateStringValue{
+									cookedStringPointer_: -1,
+									rawStringPointer_:    result.findInStringPool("\\unicode"),
+								},
+							}},
+						},
+					},
+				}},
+			}},
+		})
 }
 
 // Java: SerializeTypedAstPassTest.testAst_numberInCast()
@@ -250,22 +250,21 @@ func (c *SerializeTypedAstPassTest) TestAst_numberInCast() {
 	ignored.astRelativeLine = true
 	ignored.astRelativeColumn = true
 	serializeTypedAstPassTest_assertAstNode(c.compileToAstNode("/** @type {?} */ (1);"), ignored,
-		AstNode_NewBuilder().
-			SetKind(NodeKind_SOURCE_FILE).
-			AddChild(
-				AstNode_NewBuilder().
-					SetKind(NodeKind_EXPRESSION_STATEMENT).
-					AddChild(
-						AstNode_NewBuilder().
-							SetKind(NodeKind_NUMBER_LITERAL).
-							SetBooleanProperties(
-								(int64(1)<<rhino.NodeProperty_IS_PARENTHESIZED.GetNumber())|
-									(int64(1)<<rhino.NodeProperty_COLOR_FROM_CAST.GetNumber())).
-							SetDoubleValue(1).
-							SetType(unknownType).
-							Build()).
-					Build()).
-			Build())
+		&AstNode{
+			kind_: NodeKind_SOURCE_FILE_VALUE,
+			child_: []*AstNode{{
+				kind_: NodeKind_EXPRESSION_STATEMENT_VALUE,
+				child_: []*AstNode{{
+					kind_: NodeKind_NUMBER_LITERAL_VALUE,
+					booleanProperties_: (int64(1) << rhino.NodeProperty_IS_PARENTHESIZED.GetNumber()) |
+						(int64(1) << rhino.NodeProperty_COLOR_FROM_CAST.GetNumber()),
+					doubleValue_: 1,
+					valueCase_:   AstNode_DOUBLE_VALUE_FIELD_NUMBER,
+					type_:        unknownType,
+					bitField0_:   1,
+				}},
+			}},
+		})
 }
 
 // Java: SerializeTypedAstPassTest.testAst_arrowFunction()
@@ -274,30 +273,29 @@ func (c *SerializeTypedAstPassTest) TestAst_arrowFunction() {
 
 	serializeTypedAstPassTest_assertAstNode(result.sourceNodes[0],
 		serializeTypedAstPassTest_protoFields{astRelativeLine: true, astType: true, astRelativeColumn: true},
-		AstNode_NewBuilder().
-			SetKind(NodeKind_SOURCE_FILE).
-			AddChild(
-				AstNode_NewBuilder().
-					SetKind(NodeKind_EXPRESSION_STATEMENT).
-					AddChild(
-						AstNode_NewBuilder().
-							SetKind(NodeKind_FUNCTION_LITERAL).
-							SetBooleanProperties(int64(1)<<rhino.NodeProperty_ARROW_FN.GetNumber()).
-							AddChild(
-								AstNode_NewBuilder().
-									SetKind(NodeKind_IDENTIFIER).
-									SetStringValuePointer(0).
-									Build()).
-							AddChild(
-								AstNode_NewBuilder().SetKind(NodeKind_PARAMETER_LIST).Build()).
-							AddChild(
-								AstNode_NewBuilder().
-									SetKind(NodeKind_STRING_LITERAL).
-									SetStringValuePointer(result.findInStringPool("hello")).
-									Build()).
-							Build()).
-					Build()).
-			Build())
+		&AstNode{
+			kind_: NodeKind_SOURCE_FILE_VALUE,
+			child_: []*AstNode{{
+				kind_: NodeKind_EXPRESSION_STATEMENT_VALUE,
+				child_: []*AstNode{{
+					kind_:              NodeKind_FUNCTION_LITERAL_VALUE,
+					booleanProperties_: int64(1) << rhino.NodeProperty_ARROW_FN.GetNumber(),
+					child_: []*AstNode{
+						{
+							kind_:               NodeKind_IDENTIFIER_VALUE,
+							stringValuePointer_: 0,
+							valueCase_:          AstNode_STRING_VALUE_POINTER_FIELD_NUMBER,
+						},
+						{kind_: NodeKind_PARAMETER_LIST_VALUE},
+						{
+							kind_:               NodeKind_STRING_LITERAL_VALUE,
+							stringValuePointer_: result.findInStringPool("hello"),
+							valueCase_:          AstNode_STRING_VALUE_POINTER_FIELD_NUMBER,
+						},
+					},
+				}},
+			}},
+		})
 }
 
 // Java: SerializeTypedAstPassTest.testRewrittenGoogModule_containsOriginalNames()
@@ -308,43 +306,47 @@ func (c *SerializeTypedAstPassTest) TestRewrittenGoogModule_containsOriginalName
 
 	serializeTypedAstPassTest_assertAstNode(result.sourceNodes[0],
 		serializeTypedAstPassTest_protoFields{astRelativeLine: true, astRelativeColumn: true, astType: true},
-		AstNode_NewBuilder().
-			SetKind(NodeKind_SOURCE_FILE).
-			SetBooleanProperties(int64(1)<<rhino.NodeProperty_GOOG_MODULE.GetNumber()).
-			// `/** @const */ var module$exports$a$b$c = {};`
-			AddChildFromBuilder(
-				AstNode_NewBuilder().
-					SetKind(NodeKind_VAR_DECLARATION).
-					SetBooleanProperties(int64(1)<<rhino.NodeProperty_IS_NAMESPACE.GetNumber()).
-					SetJsdocFromBuilder(OptimizationJsdoc_NewBuilder().AddKind(JsdocTag_JSDOC_CONST)).
-					AddChildFromBuilder(
-						AstNode_NewBuilder().
-							SetKind(NodeKind_IDENTIFIER).
-							SetStringValuePointer(
-								result.findInStringPool("module$exports$a$b$c")).
-							AddChildFromBuilder(AstNode_NewBuilder().SetKind(NodeKind_OBJECT_LITERAL)))).
-			// `function module$contents$a$b$c_f(x) {}`
-			AddChildFromBuilder(
-				AstNode_NewBuilder().
-					SetKind(NodeKind_FUNCTION_LITERAL).
-					SetOriginalNamePointer(result.findInStringPool("f")).
-					AddChildFromBuilder(
-						AstNode_NewBuilder().
-							SetKind(NodeKind_IDENTIFIER).
-							SetStringValuePointer(
-								result.findInStringPool("module$contents$a$b$c_f")).
-							SetOriginalNamePointer(result.findInStringPool("f"))).
-					AddChildFromBuilder(
-						AstNode_NewBuilder().
-							SetKind(NodeKind_PARAMETER_LIST).
-							AddChild(
-								AstNode_NewBuilder().
-									SetKind(NodeKind_IDENTIFIER).
-									SetStringValuePointer(result.findInStringPool("x")).
-									SetOriginalNamePointer(result.findInStringPool("x")).
-									Build())).
-					AddChildFromBuilder(AstNode_NewBuilder().SetKind(NodeKind_BLOCK))).
-			Build())
+		&AstNode{
+			kind_:              NodeKind_SOURCE_FILE_VALUE,
+			booleanProperties_: int64(1) << rhino.NodeProperty_GOOG_MODULE.GetNumber(),
+			child_: []*AstNode{
+				// `/** @const */ var module$exports$a$b$c = {};`
+				{
+					kind_:              NodeKind_VAR_DECLARATION_VALUE,
+					booleanProperties_: int64(1) << rhino.NodeProperty_IS_NAMESPACE.GetNumber(),
+					jsdoc_:             &OptimizationJsdoc{kind_: []int32{JsdocTag_JSDOC_CONST_VALUE}},
+					child_: []*AstNode{{
+						kind_:               NodeKind_IDENTIFIER_VALUE,
+						stringValuePointer_: result.findInStringPool("module$exports$a$b$c"),
+						valueCase_:          AstNode_STRING_VALUE_POINTER_FIELD_NUMBER,
+						child_:              []*AstNode{{kind_: NodeKind_OBJECT_LITERAL_VALUE}},
+					}},
+				},
+				// `function module$contents$a$b$c_f(x) {}`
+				{
+					kind_:                NodeKind_FUNCTION_LITERAL_VALUE,
+					originalNamePointer_: result.findInStringPool("f"),
+					child_: []*AstNode{
+						{
+							kind_:                NodeKind_IDENTIFIER_VALUE,
+							stringValuePointer_:  result.findInStringPool("module$contents$a$b$c_f"),
+							valueCase_:           AstNode_STRING_VALUE_POINTER_FIELD_NUMBER,
+							originalNamePointer_: result.findInStringPool("f"),
+						},
+						{
+							kind_: NodeKind_PARAMETER_LIST_VALUE,
+							child_: []*AstNode{{
+								kind_:                NodeKind_IDENTIFIER_VALUE,
+								stringValuePointer_:  result.findInStringPool("x"),
+								valueCase_:           AstNode_STRING_VALUE_POINTER_FIELD_NUMBER,
+								originalNamePointer_: result.findInStringPool("x"),
+							}},
+						},
+						{kind_: NodeKind_BLOCK_VALUE},
+					},
+				},
+			},
+		})
 }
 
 // Java: SerializeTypedAstPassTest.serializesExternsFile()
@@ -600,30 +602,34 @@ func serializeTypedAstPassTest_assertValidJson(src string) {
 // Go-only: language-adapter — ProtoTruth (see
 // serializeTypedAstPassTest_protoFields).
 func serializeTypedAstPassTest_assertAstNode(actual *AstNode, ignored serializeTypedAstPassTest_protoFields, expected *AstNode) {
-	AssertThat(serializeTypedAstPassTest_clearAstNode(actual, ignored)).
-		IsEqualTo(serializeTypedAstPassTest_clearAstNode(expected, ignored))
+	AssertThat(serializeTypedAstPassTest_clearAstNode(actual, ignored).String()).
+		IsEqualTo(serializeTypedAstPassTest_clearAstNode(expected, ignored).String())
 }
 
 // serializeTypedAstPassTest_clearAstNode returns node with the ignored
 // fields cleared at every level. (AstNode holds no ObjectTypeProto, so the
 // BRITTLE_TYPE_FIELDS do not apply to it.)
 func serializeTypedAstPassTest_clearAstNode(node *AstNode, ignored serializeTypedAstPassTest_protoFields) *AstNode {
-	builder := node.ToBuilder()
+	cp := *node
+	cp.cachedSize = 0
 	if ignored.astRelativeLine {
-		builder.ClearRelativeLine()
+		cp.relativeLine_ = 0
 	}
 	if ignored.astRelativeColumn {
-		builder.ClearRelativeColumn()
+		cp.relativeColumn_ = 0
 	}
 	if ignored.astType {
-		builder.ClearType()
+		cp.type_ = 0
+		cp.bitField0_ &^= 1
 	}
-	children := builder.GetChildList()
-	builder.ClearChild()
-	for _, child := range children {
-		builder.AddChild(serializeTypedAstPassTest_clearAstNode(child, ignored))
+	if len(node.child_) > 0 {
+		children := make([]*AstNode, len(node.child_))
+		for i, child := range node.child_ {
+			children[i] = serializeTypedAstPassTest_clearAstNode(child, ignored)
+		}
+		cp.child_ = children
 	}
-	return builder.Build()
+	return &cp
 }
 
 // serializeTypedAstPassTest_clearTypeProto returns type_ with the ignored
@@ -632,12 +638,16 @@ func serializeTypedAstPassTest_clearTypeProto(type_ *TypeProto, ignored serializ
 	if !type_.HasObject() {
 		return type_
 	}
-	object := type_.GetObject().ToBuilder()
+	obj := *type_.GetObject()
+	obj.cachedSize = 0
 	if ignored.objectUuid {
-		object.ClearUuid()
+		obj.uuid_ = nil
 	}
 	if ignored.objectOwnProperty {
-		object.ClearOwnProperty()
+		obj.ownProperty_ = nil
 	}
-	return type_.ToBuilder().SetObject(object.Build()).Build()
+	tp := *type_
+	tp.cachedSize = 0
+	tp.object_ = &obj
+	return &tp
 }

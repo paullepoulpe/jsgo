@@ -220,8 +220,8 @@ func publishPrebuiltInput(
 // calling goroutine. Unusual/shared SourceFiles keep the original sequential
 // path.
 func (p *PrebuildAst) prebuildParallel(inputs []*CompilerInput) bool {
-	compiler, ok := p.compiler.(*Compiler)
-	if !ok || compiler == nil || len(inputs) < 2 {
+	compiler := p.compiler
+	if compiler == nil || len(inputs) < 2 {
 		return false
 	}
 	seen := make(map[*SourceFile]bool, len(inputs))

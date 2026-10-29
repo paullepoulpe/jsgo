@@ -21,6 +21,7 @@ package jscomp
 import (
 	"github.com/paullepoulpe/jsgo/internal/ast"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
+	"github.com/paullepoulpe/jsgo/internal/strpool"
 )
 
 // Go-only: this pass uses the typed AST view (internal/ast): Visit hands
@@ -43,10 +44,10 @@ type strictModeMemberEntry struct {
 }
 
 var (
-	strictModeArgumentsID = rhino.IR_Name("arguments").GetStringID()
-	strictModeEvalID      = rhino.IR_Name("eval").GetStringID()
-	strictModeCalleeID    = rhino.IR_Name("callee").GetStringID()
-	strictModeCallerID    = rhino.IR_Name("caller").GetStringID()
+	strictModeArgumentsID = uint32(strpool.Intern("arguments"))
+	strictModeEvalID      = uint32(strpool.Intern("eval"))
+	strictModeCalleeID    = uint32(strpool.Intern("callee"))
+	strictModeCallerID    = uint32(strpool.Intern("caller"))
 )
 
 // StrictModeCheck checks that the code obeys the static restrictions of
@@ -133,57 +134,46 @@ func (c *StrictModeCheck) Process(externs rhino.Node, root rhino.Node) {
 	NodeTraversal_Traverse(c.compiler, root, NewStrictModeCheck_NonExternChecks(c))
 }
 
+type strictModeWorkerState struct {
+	pass1   *StrictModeCheck
+	pass2   *StrictModeCheck_NonExternChecks
+	pass2RC recordingCompiler
+}
+
 func (c *StrictModeCheck) processParallel(externs rhino.Node, root rhino.Node) bool {
-	scopeRoot, items, ok := collectExternAndRootScripts(externs, root)
+	var pass2EventsByItem [][]recordedCompilerEvent
+	ok := traverseScriptsParallel(c.compiler, root, parallelScriptOptions[*strictModeWorkerState]{
+		hasExterns:              true,
+		externs:                 externs,
+		useSharedGlobalScope:    true,
+		enableTypeRegistryReads: true,
+		prepare: func(_, itemCount int) bool {
+			pass2EventsByItem = make([][]recordedCompilerEvent, itemCount)
+			return true
+		},
+		initWorker: func(_ int, rc *Compiler) *strictModeWorkerState {
+			st := &strictModeWorkerState{}
+			initRecordingCompiler(&st.pass2RC, c.compiler)
+			st.pass1 = NewStrictModeCheck(rc, c.defaultLevel)
+			st.pass2 = NewStrictModeCheck_NonExternChecks(NewStrictModeCheck(&st.pass2RC, c.defaultLevel))
+			return st
+		},
+		callback: func(w *strictModeWorkerState, _ int, _, _ rhino.Node, _ *Compiler) NodeTraversal_Callback {
+			return w.pass1
+		},
+		afterScript: func(w *strictModeWorkerState, idx int, parent, script rhino.Node, _ *Compiler) {
+			if parent == root {
+				resetRecordingCompiler(&w.pass2RC, c.compiler)
+				t2 := acquireNodeTraversalDirect(&w.pass2RC, w.pass2, nil, false)
+				traverseScriptUnderRoot(t2, root, root, script, nil)
+				releaseNodeTraversal(t2)
+				pass2EventsByItem[idx] = w.pass2RC.takeEvents()
+			}
+		},
+	})
 	if !ok {
 		return false
 	}
-	numWorkers := parallelThreadCount(c.compiler, len(items))
-	if numWorkers <= 1 {
-		return false
-	}
-
-	prewarmCompilerForParallelReads(c.compiler)
-	restoreReg := enableParallelTypeRegistryReads(c.compiler)
-	defer restoreReg()
-	lazyGlobal := newLazyGlobalScope(c.compiler, scopeRoot)
-
-	pass2EventsByItem := make([][]recordedCompilerEvent, len(items))
-	runParallelWork(c.compiler, numWorkers, len(items), func(_ int) (func(int, *recordingCompiler), func()) {
-		var workerRC *recordingCompiler
-		var workerPass1 *StrictModeCheck
-		var workerPass2 *StrictModeCheck_NonExternChecks
-		var pass2RC recordingCompiler
-		var sc *SyntacticScopeCreator
-
-		runItem := func(idx int, rc *recordingCompiler) {
-			if workerPass1 == nil || workerRC != rc {
-				workerRC = rc
-				workerPass1 = NewStrictModeCheck(rc, c.defaultLevel)
-				workerPass2 = NewStrictModeCheck_NonExternChecks(NewStrictModeCheck(&pass2RC, c.defaultLevel))
-				sc = NewSyntacticScopeCreator(rc)
-			}
-			item := items[idx]
-			b1 := NodeTraversal_Builder{
-				compiler:     rc,
-				callback:     workerPass1,
-				scopeCreator: sc,
-			}
-			b1.traverseScriptUnderRoot(scopeRoot, item.parent, item.script, lazyGlobal)
-
-			if item.parent == root {
-				initRecordingCompiler(&pass2RC, c.compiler)
-				b2 := NodeTraversal_Builder{
-					compiler: &pass2RC,
-					callback: workerPass2,
-				}
-				b2.traverseScriptUnderRoot(root, root, item.script, nil)
-				pass2EventsByItem[idx] = pass2RC.takeEvents()
-			}
-		}
-		return runItem, nil
-	}, false)
-
 	for i := range pass2EventsByItem {
 		if len(pass2EventsByItem[i]) != 0 {
 			replayCompilerEvents(c.compiler, pass2EventsByItem[i])

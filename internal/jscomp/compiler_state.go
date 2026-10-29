@@ -51,11 +51,10 @@ func compiler_toVariableMapEntries(m *VariableMap) []*VariableMapEntryProto {
 	entries := []*VariableMapEntryProto{}
 	if m != nil {
 		for key, value := range m.GetOriginalNameToNewNameMap().All() {
-			entries = append(entries,
-				VariableMapEntryProto_NewBuilder().
-					SetOriginalName(key).
-					SetNewName(value).
-					Build())
+			entries = append(entries, &VariableMapEntryProto{
+				originalName_: key,
+				newName_:      value,
+			})
 		}
 	}
 	return entries
@@ -124,18 +123,23 @@ func (c *Compiler) GetCompilerStateProtoBuilder() *JSCompilerStateProto_Builder 
 	}
 
 	for _, chunk := range chunkList {
-		chunkBuilder := ChunkProto_NewBuilder()
-		chunkBuilder.SetName(chunk.GetName())
+		deps := make([]int32, 0, len(chunk.GetDependencies()))
 		for _, dep := range chunk.GetDependencies() {
 			depIdx, ok := chunkNameMap[dep.GetName()]
 			jutil.CheckStateMsg2(
 				ok, "Missing dependency %s for chunk %s", dep.GetName(), chunk.GetName())
-			chunkBuilder.AddDependencies(int32(depIdx))
+			deps = append(deps, int32(depIdx))
 		}
-		for _, input := range chunk.GetInputs() {
-			chunkBuilder.AddInputIds(input.GetInputId().GetIdName())
+		inputs := chunk.GetInputs()
+		inputIds := make([]string, len(inputs))
+		for i, input := range inputs {
+			inputIds[i] = input.GetInputId().GetIdName()
 		}
-		builder.AddChunks(chunkBuilder.Build())
+		builder.AddChunks(&ChunkProto{
+			name_:         chunk.GetName(),
+			dependencies_: deps,
+			inputIds_:     inputIds,
+		})
 	}
 
 	builder.

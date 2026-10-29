@@ -19,6 +19,7 @@
 package jscomp
 
 import (
+	"bytes"
 	"testing"
 
 	"github.com/paullepoulpe/jsgo/internal/jutil"
@@ -30,7 +31,9 @@ func TestStringPool_EmptyPool_fromBuilderOrConstant(t *testing.T) {
 }
 
 func TestStringPool_EmptyPool_serializesToDefaultProto(t *testing.T) {
-	jsaTrue(t, StringPool_Empty().ToProto().Equals(StringPoolProto_GetDefaultInstance()))
+	got := StringPool_Empty().ToProto()
+	jsaTrue(t, bytes.Equal(got.ToByteArray(), StringPoolProto_GetDefaultInstance().ToByteArray()))
+	jsaEq(t, got.String(), StringPoolProto_GetDefaultInstance().String())
 }
 
 func TestStringPool_EmptyPool_parsesFromDefaultProto(t *testing.T) {

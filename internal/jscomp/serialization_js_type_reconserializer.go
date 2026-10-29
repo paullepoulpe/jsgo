@@ -600,14 +600,10 @@ func (s *JSTypeReconserializer) reconcileUnionTypesInto(seen *JSTypeReconseriali
 	s.scratchInt32s = members
 	*up = UnionTypeProto{
 		unionMember_: s.allocInt32Slice(members),
-		frozen:       true,
-		memoizedSize: -1,
 	}
 	*tp = TypeProto{
-		union_:       up,
-		kindCase_:    TypeProto_UNION_FIELD_NUMBER,
-		frozen:       true,
-		memoizedSize: -1,
+		union_:    up,
+		kindCase_: TypeProto_UNION_FIELD_NUMBER,
 	}
 }
 
@@ -655,14 +651,10 @@ func (s *JSTypeReconserializer) reconcileObjectTypesInto(seen *JSTypeReconserial
 			markedConstructor_:          isConstructor,
 			propertiesKeepOriginalName_: propertiesKeepOriginalName,
 			uuid_:                       s.allocColorIdBytes(seen.colorId),
-			frozen:                      true,
-			memoizedSize:                -1,
 		}
 		*tp = TypeProto{
-			object_:      op,
-			kindCase_:    TypeProto_OBJECT_FIELD_NUMBER,
-			frozen:       true,
-			memoizedSize: -1,
+			object_:   op,
+			kindCase_: TypeProto_OBJECT_FIELD_NUMBER,
 		}
 		return
 	}
@@ -720,14 +712,10 @@ func (s *JSTypeReconserializer) reconcileObjectTypesInto(seen *JSTypeReconserial
 		markedConstructor_:          isConstructor,
 		propertiesKeepOriginalName_: propertiesKeepOriginalName,
 		uuid_:                       s.allocColorIdBytes(seen.colorId),
-		frozen:                      true,
-		memoizedSize:                -1,
 	}
 	*tp = TypeProto{
-		object_:      op,
-		kindCase_:    TypeProto_OBJECT_FIELD_NUMBER,
-		frozen:       true,
-		memoizedSize: -1,
+		object_:   op,
+		kindCase_: TypeProto_OBJECT_FIELD_NUMBER,
 	}
 }
 
@@ -833,19 +821,21 @@ func (s *JSTypeReconserializer) GenerateTypePool() *TypePool {
 
 	var debugInfoProto *TypePool_DebugInfo
 	if s.serializationMode.IncludeDebugInfo() {
-		debugInfo := TypePool_DebugInfo_NewBuilder()
+		var mismatches []*TypePool_DebugInfo_Mismatch
 		// Key by source ref to deduplicate the strings, which are pretty long.
 		for location, types := range s.invalidatingTypes.
 			GetMismatchLocations().
 			Inverse().
 			AsMap().
 			All() {
-			debugInfo.
-				AddMismatchBuilder().
-				SetSourceRef(location.GetLocation()).
-				AddAllInvolvedColor(s.collectSortedInvolvedPointers(types))
+			mismatches = append(mismatches, &TypePool_DebugInfo_Mismatch{
+				sourceRef_:     location.GetLocation(),
+				involvedColor_: s.collectSortedInvolvedPointers(types),
+			})
 		}
-		debugInfoProto = debugInfo.Build()
+		debugInfoProto = &TypePool_DebugInfo{
+			mismatch_: mismatches,
+		}
 	}
 
 	s.state = JSTypeReconserializer_State_GENERATING_POOL
@@ -910,10 +900,8 @@ func (s *JSTypeReconserializer) GenerateTypePool() *TypePool {
 			for _, sup := range s.disambiguateEdges[subtype] {
 				e := &edgeSlab[edgeIdx]
 				*e = SubtypingEdge{
-					subtype_:     subtype,
-					supertype_:   sup,
-					frozen:       true,
-					memoizedSize: -1,
+					subtype_:   subtype,
+					supertype_: sup,
 				}
 				disambiguationEdges[edgeIdx] = e
 				edgeIdx++
@@ -927,8 +915,6 @@ func (s *JSTypeReconserializer) GenerateTypePool() *TypePool {
 		type_:                types,
 		disambiguationEdges_: disambiguationEdges,
 		debugInfo_:           debugInfoProto,
-		frozen:               true,
-		memoizedSize:         -1,
 	}
 }
 

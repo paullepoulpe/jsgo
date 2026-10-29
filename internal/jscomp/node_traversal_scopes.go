@@ -327,13 +327,38 @@ func (t *NodeTraversal) resolveLookupScope(rootDepth int) *Scope {
 	return t.scopes[rootDepth].lookupScope
 }
 
+func untypedScopeOf(s AbstractScope) *Scope {
+	if u, ok := s.(*Scope); ok {
+		return u
+	}
+	panic(jutil.NewIllegalStateExceptionMsg("untyped() called, but not an untyped scope."))
+}
+
+func typedScopeOf(s AbstractScope) *TypedScope {
+	if ts, ok := s.(*TypedScope); ok {
+		return ts
+	}
+	panic(jutil.NewIllegalStateExceptionMsg("typed() called, but not a typed scope."))
+}
+
+func isGlobalOrModuleAbstractScope(s AbstractScope) bool {
+	switch sc := s.(type) {
+	case *Scope:
+		return sc.IsGlobal() || sc.IsModuleScope()
+	case *TypedScope:
+		return sc.IsGlobal() || sc.IsModuleScope()
+	default:
+		return false
+	}
+}
+
 func (t *NodeTraversal) getScopeSlow(rootDepth int) *Scope {
 	e := &t.scopes[rootDepth]
 	if e.untypedScope != nil {
 		return e.untypedScope
 	}
 	if e.scope != nil {
-		s := e.scope.Untyped()
+		s := untypedScopeOf(e.scope)
 		e.untypedScope = s
 		if e.lookupScope == nil {
 			e.lookupScope = s
@@ -352,13 +377,18 @@ func (t *NodeTraversal) getScopeSlow(rootDepth int) *Scope {
 		if rootDepth > 0 {
 			parentScope = t.getScopeSlow(rootDepth - 1)
 		}
-		s := t.syntacticScopeCreator.CreateScopeOfScope(e.node, parentScope)
+		var s *Scope
+		if t.memoizedScopeCreator != nil {
+			s = t.memoizedScopeCreator.createUntypedScope(e.node, parentScope)
+		} else {
+			s = t.syntacticScopeCreator.CreateScopeOfScope(e.node, parentScope)
+		}
 		t.scopes[rootDepth].scope = s
 		t.scopes[rootDepth].untypedScope = s
 		t.scopes[rootDepth].lookupScope = s
 		return s
 	}
-	s := t.GetAbstractScopeAt(rootDepth).Untyped()
+	s := untypedScopeOf(t.GetAbstractScopeAt(rootDepth))
 	t.scopes[rootDepth].untypedScope = s
 	if t.scopes[rootDepth].lookupScope == nil {
 		t.scopes[rootDepth].lookupScope = s
@@ -368,7 +398,7 @@ func (t *NodeTraversal) getScopeSlow(rootDepth int) *Scope {
 
 // Java: NodeTraversal.getTypedScope()
 func (t *NodeTraversal) GetTypedScope() *TypedScope {
-	return t.GetAbstractScope().Typed()
+	return typedScopeOf(t.GetAbstractScope())
 }
 
 // GetAbstractScope gets the current scope.
@@ -727,7 +757,7 @@ func (t *NodeTraversal) TraverseAtScope(s AbstractScope) {
 		}
 	default:
 		jutil.CheckStateMsg1(
-			s.IsGlobal() || s.IsModuleScope(), "Expected global or module scope. Got: (%s)", s)
+			isGlobalOrModuleAbstractScope(s), "Expected global or module scope. Got: (%s)", s)
 		t.TraverseWithScope(n, s)
 	}
 }
@@ -736,8 +766,9 @@ func (t *NodeTraversal) TraverseAtScope(s AbstractScope) {
 //
 // Java: NodeTraversal.traverseAtScope(AbstractCompiler, Callback, AbstractScope<?, ?>)
 func NodeTraversal_TraverseAtScope(compiler AbstractCompiler, cb NodeTraversal_Callback, scope AbstractScope) {
-	b := NodeTraversal_Builder{compiler: compiler, callback: cb}
-	b.TraverseAtScope(scope)
+	t := acquireNodeTraversalDirect(compiler, cb, nil, false)
+	t.TraverseAtScope(scope)
+	releaseNodeTraversal(t)
 }
 
 func traverseScriptUnderRoot(

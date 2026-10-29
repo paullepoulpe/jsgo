@@ -269,7 +269,7 @@ func abstractCommandLineRunner_maybeCreateDirsForPath(pathPrefix string) {
 }
 
 // Java: AbstractCommandLineRunner.createDefaultOutput()
-func (r *AbstractCommandLineRunnerBase) CreateDefaultOutput() AbstractCommandLineRunner_Writer {
+func (r *AbstractCommandLineRunnerBase) CreateDefaultOutput() *cliBufferedWriter {
 	if r.config.jsOutputFile != "" {
 		return r.FileNameToLegacyOutputWriter(r.config.jsOutputFile)
 	}
@@ -404,7 +404,7 @@ func (r *AbstractCommandLineRunnerBase) OutputChunkBinaryAndSourceMaps(
 	// If the source map path is in fact a pattern for each
 	// chunk, create a stream per-chunk. Otherwise, create
 	// a single source map.
-	var mapFileOut AbstractCommandLineRunner_Writer
+	var mapFileOut *cliBufferedWriter
 
 	// When the json_streams flag is specified, sourcemaps are always generated
 	// per chunk
@@ -511,7 +511,7 @@ func (r *AbstractCommandLineRunnerBase) outputChunksParallel(
 			}
 		},
 		WriteChunkWithMap: func(filename string, mapFilename string, sm *jscomp.SourceMap, code string, wrapper string) {
-			var mapFileOut AbstractCommandLineRunner_Writer
+			var mapFileOut *cliBufferedWriter
 			if mapFilename != "" {
 				mapFileOut = r.FileNameToOutputWriter2(mapFilename)
 				if mapFileOut != nil {

@@ -1620,9 +1620,5 @@ func (c *DevirtualizeMethodsTest) TestNoRewrite_definitionModule_afterUseModule(
 
 // Java: DevirtualizeMethodsTest.getProcessor(Compiler)
 func (c *DevirtualizeMethodsTest) GetProcessor(compiler *Compiler) CompilerPass {
-	return OptimizeCalls_Builder_().
-		SetCompiler(compiler).
-		SetConsiderExterns(false).
-		AddPass(NewDevirtualizeMethods(compiler)).
-		Build()
+	return NewOptimizeCalls(compiler, false, NewDevirtualizeMethods(compiler))
 }

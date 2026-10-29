@@ -48,7 +48,7 @@ func (iv *InlineVariables) processParallel(externs rhino.Node, root rhino.Node) 
 
 	statesByItem := make([]*rcParallelScriptState, len(items))
 	runParallelWork(iv.compiler, numWorkers, len(items), func(_ int) (func(int, *recordingCompiler), func()) {
-		var reusableBeh *InlineVariables_InliningBehavior
+		var reusableBeh *InlineVariables
 		var reusableCollector *ReferenceCollector
 		var reusableSC *SyntacticScopeCreator
 
@@ -56,11 +56,11 @@ func (iv *InlineVariables) processParallel(externs rhino.Node, root rhino.Node) 
 			if reusableSC == nil || reusableSC.compiler != rc {
 				reusableSC = NewSyntacticScopeCreator(rc)
 			}
-			var beh *InlineVariables_InliningBehavior
+			var beh *InlineVariables
 			var col *ReferenceCollector
 			if reusableBeh != nil && !reusableBeh.hasGlobalAliasRetries && len(reusableBeh.aliasRetryHandlers) == 0 {
 				beh = reusableBeh
-				beh.outer.compiler = rc
+				beh.compiler = rc
 				col = reusableCollector
 				col.compiler = rc
 				col.scopeCreator = reusableSC
@@ -70,8 +70,8 @@ func (iv *InlineVariables) processParallel(externs rhino.Node, root rhino.Node) 
 					clear(col.collectedHoistedFunctions)
 				}
 			} else {
-				workerIV := &InlineVariables{compiler: rc, mode: iv.mode}
-				beh = NewInlineVariables_InliningBehavior(workerIV)
+				beh = NewInlineVariables(rc, iv.mode)
+				beh.resetBehavior()
 				col = NewReferenceCollectorWithVarFilter(rc, beh, reusableSC, varFilter)
 				bRef := beh
 				cRef := col
@@ -136,8 +136,8 @@ func (iv *InlineVariables) processParallel(externs rhino.Node, root rhino.Node) 
 		}
 	}
 
-	mainBehavior := NewInlineVariables_InliningBehavior(iv)
-	globalCollector := NewReferenceCollectorWithVarFilter(iv.compiler, mainBehavior, mainSC, varFilter)
+	iv.resetBehavior()
+	globalCollector := NewReferenceCollectorWithVarFilter(iv.compiler, iv, mainSC, varFilter)
 	var collectedHoisted map[rhino.Node]struct{}
 	if len(hoistedByFn) > 0 {
 		collectedHoisted = make(map[rhino.Node]struct{}, len(hoistedByFn))
@@ -157,7 +157,7 @@ func (iv *InlineVariables) processParallel(externs rhino.Node, root rhino.Node) 
 				globalCollector.addGlobalReferenceDirect(op.v, op.node, op.block, op.scope, op.inputId)
 			case rcOpGlobalAliasRetry:
 				op.retry.outer.outer = iv
-				mainBehavior.putAliasRetryHandler(op.v, op.retry)
+				iv.putAliasRetryHandler(op.v, op.retry)
 			case rcOpJumpHoisted, rcOpDeclHoisted:
 				if _, done := collectedHoisted[op.node]; done {
 					continue
@@ -184,6 +184,6 @@ func (iv *InlineVariables) processParallel(externs rhino.Node, root rhino.Node) 
 	globalTraversal.InitTraversal(globalScope.GetRootNode())
 	globalTraversal.currentNode = globalScope.GetRootNode()
 	globalTraversal.PushScopeOfScopeWithQuietly(globalScope, true)
-	mainBehavior.AfterExitScope(globalTraversal, &globalCollector.referenceMapWrapper)
+	iv.AfterExitScope(globalTraversal, globalCollector)
 	return true
 }

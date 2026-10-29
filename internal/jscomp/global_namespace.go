@@ -731,19 +731,6 @@ func (g *GlobalNamespace) GetNameForest() []*GlobalNamespace_Name {
 	return g.NameForestSlice()
 }
 
-// GetNameIndex gets an index of all the global names, indexed by full
-// qualified name (as in "a", "a.b.c", etc.).
-//
-// Java: GlobalNamespace.getNameIndex()
-func (g *GlobalNamespace) GetNameIndex() *jutil.LinkedHashMap[string, *GlobalNamespace_Name] {
-	g.EnsureGenerated()
-	m := jutil.NewLinkedHashMapWithCapacity[string, *GlobalNamespace_Name](int(g.indexedGlobalCount))
-	for n := range g.AllNames() {
-		m.PutNew(n.GetFullName(), n)
-	}
-	return m
-}
-
 // GlobalNamespace_AstChange records a node added or modified in the AST so
 // GlobalNamespace can rescan it.
 type GlobalNamespace_AstChange struct {

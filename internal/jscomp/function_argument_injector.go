@@ -764,7 +764,7 @@ func (f *FunctionArgumentInjector) collectReferencedAfterSideEffectForBindings(
 	for _, b := range bindings {
 		collector.parameterIDs.add(b.nameID)
 	}
-	NodeUtil_VisitPostOrderWithPred(root, collector.Visit, collector.Apply)
+	collector.walk(root)
 }
 
 func (f *FunctionArgumentInjector) ensureCalleeSideEffects(summary *calleeSummary) (calleeSideEffectSummary, bool) {
@@ -787,7 +787,7 @@ func (f *FunctionArgumentInjector) ensureCalleeSideEffects(summary *calleeSummar
 
 	collector := &f.referencedAfter
 	collector.reset(f, summary, &f.scratchLocals)
-	NodeUtil_VisitPostOrderWithPred(root, collector.Visit, collector.Apply)
+	collector.walk(root)
 	collector.summary = nil
 
 	se := calleeSideEffectSummary{
@@ -876,6 +876,17 @@ func (r *FunctionArgumentInjector_ReferencedAfterSideEffect) hasParameterID(name
 		return r.summary.findParamByID(nameID) >= 0
 	}
 	return r.parameterIDs.contains(nameID)
+}
+
+func (r *FunctionArgumentInjector_ReferencedAfterSideEffect) walk(node rhino.Node) {
+	if r.Apply(node) {
+		for c := node.GetFirstChild(); !c.IsNil(); {
+			next := c.GetNext()
+			r.walk(c)
+			c = next
+		}
+	}
+	r.Visit(node)
 }
 
 // Java: FunctionArgumentInjector.ReferencedAfterSideEffect.apply(Node)

@@ -342,7 +342,7 @@ func (b *SourceMapTestCaseBase) CheckWithSupplier(
 		t.Fatalf("expected to have size: %d\nbut was: %d", len(originalTokens.byKey), len(resultTokens.byKey))
 	}
 
-	var reader sourcemap.SourceMapping
+	var reader *sourcemap.SourceMapConsumerV3
 	jutil.Try(func() {
 		reader = sourcemap.SourceMapConsumerFactory_ParseWithSupplier(sourceMapFileContent, supplier)
 	}, func(e sourcemap.ISourceMapParseException) {

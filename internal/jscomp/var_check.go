@@ -109,8 +109,9 @@ const varCheck_ARGUMENTS = "arguments"
 const varCheck_JSCOMP_CLOSURE_UNAWARE_CODE_SHADOW_HOST_NAME = "$jscomp_wrap_closure_unaware_code"
 
 var (
-	varCheckGoogID           = rhino.IR_Name("goog").GetStringID()
-	varCheckForwardDeclareID = rhino.IR_Name("forwardDeclare").GetStringID()
+	varCheckGoogID           = rhino.RhinoStringPool_InternID("goog")
+	varCheckForwardDeclareID = rhino.RhinoStringPool_InternID("forwardDeclare")
+	varCheckEmptyString      = ""
 )
 
 // Java: VarCheck(AbstractCompiler)
@@ -122,11 +123,10 @@ func NewVarCheck(compiler AbstractCompiler) *VarCheck {
 func NewVarCheckWithValidityCheck(compiler AbstractCompiler, validityCheck bool) *VarCheck {
 	v := &VarCheck{}
 	v.compiler = compiler
-	empty := ""
 	// getErrorLevel returns a nullable CheckLevel; CheckLevel.Ptr() pointers are canonical, so
 	// pointer identity is Java's enum identity.
 	v.strictExternCheck = compiler.GetErrorLevel(
-		JSError_MakeWithSourceLocation(&empty, 0, 0, VarCheck_UNDEFINED_EXTERN_VAR_ERROR)) == CheckLevel_ERROR.Ptr()
+		JSError_MakeWithSourceLocation(&varCheckEmptyString, 0, 0, VarCheck_UNDEFINED_EXTERN_VAR_ERROR)) == CheckLevel_ERROR.Ptr()
 	v.validityCheck = validityCheck
 	return v
 }

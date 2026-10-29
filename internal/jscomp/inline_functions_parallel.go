@@ -141,12 +141,12 @@ func (f *InlineFunctions) findCandidatesReferencesParallel(root rhino.Node) bool
 				}
 				argInj := NewFunctionArgumentInjector(f.compiler.GetAstAnalyzer())
 				argInj.readOnlySummaries = true
-				inj := NewFunctionInjector_Builder(rc).
-					SafeNameIdSupplier(localSafeSupplier).
-					AllowDecomposition(f.injector.allowDecomposition).
-					AssumeStrictThis(f.injector.assumeStrictThis).
-					FunctionArgumentInjector(argInj).
-					Build()
+				inj := NewFunctionInjector(rc, FunctionInjectorOptions{
+					SafeNameIdSupplier:       localSafeSupplier,
+					AllowDecomposition:       f.injector.allowDecomposition,
+					AssumeStrictThis:         f.injector.assumeStrictThis,
+					FunctionArgumentInjector: argInj,
+				})
 				inj.shareKnownConstantFunctionsFrom(f.injector)
 				cb.initParallel(f, inj)
 				sc = NewSyntacticScopeCreator(rc)

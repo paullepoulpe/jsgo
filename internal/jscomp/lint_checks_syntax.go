@@ -66,6 +66,10 @@ func NewCheckVar(compiler AbstractCompiler) *CheckVar {
 	return &CheckVar{compiler: compiler}
 }
 
+func (*CheckVar) cloneForParallel(c *Compiler) NodeTraversal_Callback {
+	return NewCheckVar(c)
+}
+
 // Java: CheckVar.process(Node, Node)
 func (c *CheckVar) Process(externs rhino.Node, root rhino.Node) {
 	NodeTraversal_Traverse(c.compiler, root, c)
@@ -108,6 +112,10 @@ var CheckEmptyStatements_USELESS_EMPTY_STATEMENT = DiagnosticType_Disabled(
 // Java: CheckEmptyStatements(AbstractCompiler)
 func NewCheckEmptyStatements(compiler AbstractCompiler) *CheckEmptyStatements {
 	return &CheckEmptyStatements{compiler: compiler}
+}
+
+func (*CheckEmptyStatements) cloneForParallel(c *Compiler) NodeTraversal_Callback {
+	return NewCheckEmptyStatements(c)
 }
 
 // Java: CheckEmptyStatements.process(Node, Node)
@@ -155,6 +163,10 @@ var CheckDuplicateCase_DUPLICATE_CASE = DiagnosticType_Warning("JSC_DUPLICATE_CA
 // Java: CheckDuplicateCase(AbstractCompiler)
 func NewCheckDuplicateCase(compiler AbstractCompiler) *CheckDuplicateCase {
 	return &CheckDuplicateCase{compiler: compiler}
+}
+
+func (*CheckDuplicateCase) cloneForParallel(c *Compiler) NodeTraversal_Callback {
+	return NewCheckDuplicateCase(c)
 }
 
 // Java: CheckDuplicateCase.process(Node, Node)
@@ -243,6 +255,10 @@ func NewCheckUnusedLabels(compiler AbstractCompiler) *CheckUnusedLabels {
 	return &CheckUnusedLabels{compiler: compiler}
 }
 
+func (*CheckUnusedLabels) cloneForParallel(c *Compiler) NodeTraversal_Callback {
+	return NewCheckUnusedLabels(c)
+}
+
 // Java: CheckUnusedLabels.process(Node, Node)
 func (c *CheckUnusedLabels) Process(externs rhino.Node, root rhino.Node) {
 	NodeTraversal_Traverse(c.compiler, root, c)
@@ -318,6 +334,10 @@ var CheckMissingSemicolon_MISSING_SEMICOLON = DiagnosticType_Disabled(
 // Java: CheckMissingSemicolon(AbstractCompiler)
 func NewCheckMissingSemicolon(compiler AbstractCompiler) *CheckMissingSemicolon {
 	return &CheckMissingSemicolon{compiler: compiler}
+}
+
+func (*CheckMissingSemicolon) cloneForParallel(c *Compiler) NodeTraversal_Callback {
+	return NewCheckMissingSemicolon(c)
 }
 
 // Java: CheckMissingSemicolon.process(Node, Node)
@@ -459,6 +479,10 @@ var CheckUselessBlocks_USELESS_BLOCK = DiagnosticType_Disabled(
 // Java: CheckUselessBlocks(AbstractCompiler)
 func NewCheckUselessBlocks(compiler AbstractCompiler) *CheckUselessBlocks {
 	return &CheckUselessBlocks{compiler: compiler}
+}
+
+func (*CheckUselessBlocks) cloneForParallel(c *Compiler) NodeTraversal_Callback {
+	return NewCheckUselessBlocks(c)
 }
 
 // Java: CheckUselessBlocks.process(Node, Node)

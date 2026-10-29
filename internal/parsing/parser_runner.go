@@ -254,14 +254,17 @@ func ParserRunner_ParseWithAllocator(
 	}()
 	file := parser.NewSourceFile(sourceName, sourceString)
 	keepGoing := config.RunMode() == Config_RunMode_KEEP_GOING
-	es6ErrorReporter := NewParserRunner_Es6ErrorReporter(errorReporter, keepGoing)
-	es6ErrorReporter.sourceName = sourceName
+	es6ErrorReporter := ParserRunner_Es6ErrorReporter{
+		reporter:        errorReporter,
+		reportAllErrors: keepGoing,
+		sourceName:      sourceName,
+	}
 	es6config := ParserRunner_NewParserConfig(config)
-	p := parser.NewParser(es6config, es6ErrorReporter, file)
+	p := parser.NewParser(es6config, &es6ErrorReporter, file)
 	tree := p.ParseProgram()
 	var root rhino.Node
-	comments := []parser.Comment{}
-	topLevelStatementRanges := []parser.SourceRange{}
+	var comments []parser.Comment
+	var topLevelStatementRanges []parser.SourceRange
 	features := p.GetFeatures()
 	if tree != nil && (!es6ErrorReporter.HadError() || keepGoing) {
 		factory := irFactoryTransformTree(
@@ -283,7 +286,7 @@ func ParserRunner_ParseWithAllocator(
 }
 
 // Java: ParserRunner.newParserConfig(Config)
-func ParserRunner_NewParserConfig(config *Config) *parser.Parser_Config {
+func ParserRunner_NewParserConfig(config *Config) parser.Parser_Config {
 	var mode parser.Parser_Config_Mode
 	switch config.LanguageMode() {
 	case Config_LanguageMode_ECMASCRIPT3:

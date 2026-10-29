@@ -47,7 +47,8 @@ type pfiFunctionStackEntry struct {
 	skiplistedNameNodes []rhino.Node
 	taintedVars         []*Var
 	pendingChecks       []pfiPendingCheck
-	activeBuf           [4]pfiSummaryID
+	active              []pfiSummaryID
+	activeBuf           [2]pfiSummaryID
 }
 
 func (e *pfiFunctionStackEntry) addSkiplistedVar(v *Var) {
@@ -90,6 +91,49 @@ func (e *pfiFunctionStackEntry) isLocalVar(v *Var, scope *Scope) bool {
 		!v.IsCatch()
 }
 
+var pfiBodyVisitTokens = makeVisitTokenSet(
+	rhino.Token_BLOCK,
+	rhino.Token_CALL,
+	rhino.Token_OPTCHAIN_CALL,
+	rhino.Token_NEW,
+	rhino.Token_TAGGED_TEMPLATELIT,
+	rhino.Token_ASSIGN,
+	rhino.Token_ASSIGN_BITOR,
+	rhino.Token_ASSIGN_BITXOR,
+	rhino.Token_ASSIGN_BITAND,
+	rhino.Token_ASSIGN_LSH,
+	rhino.Token_ASSIGN_RSH,
+	rhino.Token_ASSIGN_URSH,
+	rhino.Token_ASSIGN_ADD,
+	rhino.Token_ASSIGN_SUB,
+	rhino.Token_ASSIGN_MUL,
+	rhino.Token_ASSIGN_DIV,
+	rhino.Token_ASSIGN_MOD,
+	rhino.Token_ASSIGN_EXPONENT,
+	rhino.Token_ASSIGN_OR,
+	rhino.Token_ASSIGN_AND,
+	rhino.Token_ASSIGN_COALESCE,
+	rhino.Token_INC,
+	rhino.Token_DEC,
+	rhino.Token_DELPROP,
+	rhino.Token_FOR_AWAIT_OF,
+	rhino.Token_FOR_OF,
+	rhino.Token_FOR_IN,
+	rhino.Token_DESTRUCTURING_LHS,
+	rhino.Token_NAME,
+	rhino.Token_THROW,
+	rhino.Token_YIELD,
+	rhino.Token_AWAIT,
+	rhino.Token_OBJECT_REST,
+	rhino.Token_OBJECT_SPREAD,
+	rhino.Token_ITER_REST,
+	rhino.Token_ITER_SPREAD,
+	rhino.Token_STRING_KEY,
+	rhino.Token_OPTCHAIN_GETPROP,
+	rhino.Token_GETPROP,
+	rhino.Token_DYNAMIC_IMPORT,
+)
+
 // pfiFunctionBodyAnalyzer inspects function bodies for side effects, records
 // call sites once, and resolves local variable escaping at each function's ExitScope.
 type pfiFunctionBodyAnalyzer struct {
@@ -97,6 +141,13 @@ type pfiFunctionBodyAnalyzer struct {
 	stack    []pfiFunctionStackEntry
 	stackTop int
 }
+
+var (
+	_ NodeTraversal_ScopedCallback = (*pfiFunctionBodyAnalyzer)(nil)
+	_ nodeTraversal_visitTokens    = (*pfiFunctionBodyAnalyzer)(nil)
+)
+
+func (*pfiFunctionBodyAnalyzer) visitTokens() *ast.TokenSet { return &pfiBodyVisitTokens }
 
 func newPFIFunctionBodyAnalyzer(outer *PureFunctionIdentifier) *pfiFunctionBodyAnalyzer {
 	b := &pfiFunctionBodyAnalyzer{
@@ -114,9 +165,8 @@ func (b *pfiFunctionBodyAnalyzer) currentFunction() *pfiFunctionStackEntry {
 	return &b.stack[b.stackTop]
 }
 
-func (b *pfiFunctionBodyAnalyzer) activeSummaries(e *pfiFunctionStackEntry) []pfiSummaryID {
+func (b *pfiFunctionBodyAnalyzer) initActiveSummaries(e *pfiFunctionStackEntry, single pfiSummaryID, multi []pfiSummaryID) []pfiSummaryID {
 	p := b.outer
-	single, multi := p.getFunctionSummaries(e.root)
 	if single != 0 {
 		if p.summaries[single].bitmask&pfiMutatesGlobalState != 0 {
 			return nil
@@ -133,89 +183,100 @@ func (b *pfiFunctionBodyAnalyzer) activeSummaries(e *pfiFunctionStackEntry) []pf
 	return out
 }
 
-func (b *pfiFunctionBodyAnalyzer) setMutatesGlobalState(active []pfiSummaryID, reason rhino.Node) {
+func (b *pfiFunctionBodyAnalyzer) pruneActive(e *pfiFunctionStackEntry) {
 	p := b.outer
-	for _, sid := range active {
-		p.setSummaryMutatesGlobalState(sid, &p.summaries[sid], reason)
+	n := 0
+	for _, sid := range e.active {
+		if p.summaries[sid].bitmask&pfiMutatesGlobalState == 0 {
+			e.active[n] = sid
+			n++
+		}
 	}
+	e.active = e.active[:n]
 }
 
-func (b *pfiFunctionBodyAnalyzer) setMutatesThis(active []pfiSummaryID, reason rhino.Node) {
+func (b *pfiFunctionBodyAnalyzer) setMutatesGlobalState(e *pfiFunctionStackEntry, reason rhino.Node) {
 	p := b.outer
-	for _, sid := range active {
+	for _, sid := range e.active {
+		p.setSummaryMutatesGlobalState(sid, &p.summaries[sid], reason)
+	}
+	e.active = nil
+}
+
+func (b *pfiFunctionBodyAnalyzer) setMutatesThis(e *pfiFunctionStackEntry, reason rhino.Node) {
+	p := b.outer
+	for _, sid := range e.active {
 		p.setSummaryMutatesThis(sid, &p.summaries[sid], reason)
 	}
 }
 
-func (b *pfiFunctionBodyAnalyzer) recordThrowsBasedOnContext(e *pfiFunctionStackEntry, active []pfiSummaryID) {
+func (b *pfiFunctionBodyAnalyzer) recordThrowsBasedOnContext(e *pfiFunctionStackEntry) {
 	if e.catchDepth == 0 {
 		p := b.outer
-		for _, sid := range active {
+		for _, sid := range e.active {
 			p.setSummaryThrows(sid, &p.summaries[sid], e.root)
 		}
 	}
 }
 
-func (b *pfiFunctionBodyAnalyzer) checkIteratesImpureIterable(node rhino.Node, active []pfiSummaryID) {
+func (b *pfiFunctionBodyAnalyzer) checkIteratesImpureIterable(e *pfiFunctionStackEntry, node rhino.Node) {
 	if NodeUtil_IteratesImpureIterable(node) {
-		b.setMutatesGlobalState(active, node)
+		b.setMutatesGlobalState(e, node)
 	}
 }
 
 // Java: PureFunctionIdentifier.FunctionBodyAnalyzer.shouldTraverse(NodeTraversal, Node, Node)
 func (b *pfiFunctionBodyAnalyzer) ShouldTraverse(traversal *NodeTraversal, node rhino.Node, parent rhino.Node) bool {
-	b.addToCatchDepthIfTryBlock(node, 1)
+	if !parent.IsNil() && parent.IsTry() && node == parent.GetFirstChild() && node.GetNext().HasChildren() {
+		b.currentFunction().catchDepth++
+	}
 	return true
 }
 
 // Java: PureFunctionIdentifier.FunctionBodyAnalyzer.visit(NodeTraversal, Node, Node)
 func (b *pfiFunctionBodyAnalyzer) Visit(traversal *NodeTraversal, node rhino.Node, parent rhino.Node) {
-	b.addToCatchDepthIfTryBlock(node, -1)
+	if !parent.IsNil() && parent.IsTry() && node == parent.GetFirstChild() && node.GetNext().HasChildren() {
+		b.currentFunction().catchDepth--
+	}
 
 	if NodeUtil_IsInvocation(node) {
 		site := b.outer.recordCallSite(node)
 		e := b.currentFunction()
-		if e.root.IsNil() || e.isArtificiallyPure || site.flags&pfiCallSkipAnalyzer != 0 {
+		if len(e.active) == 0 || site.flags&pfiCallSkipAnalyzer != 0 {
 			return
 		}
-		active := b.activeSummaries(e)
-		if len(active) == 0 {
-			return
-		}
-		b.visitResolvedCall(e, active, traversal, node, site)
+		b.visitResolvedCall(e, traversal, node, site)
 		return
 	}
 
 	e := b.currentFunction()
-	if e.root.IsNil() || e.isArtificiallyPure {
+	if len(e.active) == 0 {
 		return
 	}
-	active := b.activeSummaries(e)
-	if len(active) == 0 {
-		return
-	}
-	b.updateSideEffectsForNonCallNode(e, active, traversal, node)
+	b.updateSideEffectsForNonCallNode(e, traversal, node)
 }
 
 func (b *pfiFunctionBodyAnalyzer) updateSideEffectsForNonCallNode(
-	e *pfiFunctionStackEntry, active []pfiSummaryID, traversal *NodeTraversal, node rhino.Node) {
+	e *pfiFunctionStackEntry, traversal *NodeTraversal, node rhino.Node) {
 	switch node.GetToken() {
+	case rhino.Token_BLOCK:
+		return
+
 	case rhino.Token_ASSIGN:
 		lhs := ast.MustAssign(node).Target()
 		if _, isPat := lhs.AsPattern(); isPat {
 			NodeUtil_VisitLhsNodesInNode(
 				node,
 				func(lhsNode rhino.Node) {
-					b.visitLhsNode(e, active, traversal, lhsNode, PureFunctionIdentifier_RHS_IS_NEVER_LOCAL)
+					b.visitLhsNode(e, traversal, lhsNode, PureFunctionIdentifier_RHS_IS_NEVER_LOCAL)
 				})
 		} else {
-			b.visitLhsNode(e, active, traversal, lhs.Node(), PureFunctionIdentifier_FIND_RHS_AND_CHECK_FOR_LOCAL_VALUE)
+			b.visitLhsNode(e, traversal, lhs.Node(), PureFunctionIdentifier_FIND_RHS_AND_CHECK_FOR_LOCAL_VALUE)
 		}
 
 	case rhino.Token_INC, rhino.Token_DEC:
 		b.visitLhsNode(
 			e,
-			active,
 			traversal,
 			ast.MustIncDec(node).Target().Node(),
 			PureFunctionIdentifier_RHS_IS_ALWAYS_LOCAL)
@@ -223,13 +284,12 @@ func (b *pfiFunctionBodyAnalyzer) updateSideEffectsForNonCallNode(
 	case rhino.Token_DELPROP:
 		b.visitLhsNode(
 			e,
-			active,
 			traversal,
 			ast.MustUnary(node).Operand().Node(),
 			PureFunctionIdentifier_RHS_IS_ALWAYS_LOCAL)
 
 	case rhino.Token_FOR_AWAIT_OF:
-		b.recordThrowsBasedOnContext(e, active)
+		b.recordThrowsBasedOnContext(e)
 		fallthrough
 	case rhino.Token_FOR_OF:
 		NodeUtil_VisitLhsNodesInNode(
@@ -237,12 +297,11 @@ func (b *pfiFunctionBodyAnalyzer) updateSideEffectsForNonCallNode(
 			func(lhsNode rhino.Node) {
 				b.visitLhsNode(
 					e,
-					active,
 					traversal,
 					lhsNode,
 					PureFunctionIdentifier_RHS_IS_NEVER_LOCAL)
 			})
-		b.checkIteratesImpureIterable(node, active)
+		b.checkIteratesImpureIterable(e, node)
 
 	case rhino.Token_FOR_IN:
 		NodeUtil_VisitLhsNodesInNode(
@@ -250,7 +309,6 @@ func (b *pfiFunctionBodyAnalyzer) updateSideEffectsForNonCallNode(
 			func(lhsNode rhino.Node) {
 				b.visitLhsNode(
 					e,
-					active,
 					traversal,
 					lhsNode,
 					PureFunctionIdentifier_RHS_IS_ALWAYS_LOCAL)
@@ -263,7 +321,7 @@ func (b *pfiFunctionBodyAnalyzer) updateSideEffectsForNonCallNode(
 		NodeUtil_VisitLhsNodesInNode(
 			node.GetParent(),
 			func(lhsNode rhino.Node) {
-				b.visitLhsNode(e, active, traversal, lhsNode, PureFunctionIdentifier_RHS_IS_NEVER_LOCAL)
+				b.visitLhsNode(e, traversal, lhsNode, PureFunctionIdentifier_RHS_IS_NEVER_LOCAL)
 			})
 
 	case rhino.Token_NAME:
@@ -274,43 +332,42 @@ func (b *pfiFunctionBodyAnalyzer) updateSideEffectsForNonCallNode(
 		}
 
 	case rhino.Token_THROW:
-		b.recordThrowsBasedOnContext(e, active)
+		b.recordThrowsBasedOnContext(e)
 
 	case rhino.Token_YIELD:
-		b.checkIteratesImpureIterable(node, active)
-		b.recordThrowsBasedOnContext(e, active)
+		b.checkIteratesImpureIterable(e, node)
+		b.recordThrowsBasedOnContext(e)
 
 	case rhino.Token_AWAIT:
-		b.recordThrowsBasedOnContext(e, active)
+		b.recordThrowsBasedOnContext(e)
 
 	case rhino.Token_OBJECT_REST, rhino.Token_OBJECT_SPREAD:
 		if !b.outer.assumeGettersArePure {
-			b.setMutatesGlobalState(active, node)
+			b.setMutatesGlobalState(e, node)
 		}
 
 	case rhino.Token_ITER_REST, rhino.Token_ITER_SPREAD:
-		b.checkIteratesImpureIterable(node, active)
+		b.checkIteratesImpureIterable(e, node)
 
 	case rhino.Token_STRING_KEY:
 		if _, ok := ast.AsObjectPattern(node.GetParent()); ok {
 			if b.outer.getPropertyKindByID(node.GetStringID()).HasGetter() {
-				b.setMutatesGlobalState(active, node)
+				b.setMutatesGlobalState(e, node)
 			}
 		}
 
 	case rhino.Token_OPTCHAIN_GETPROP, rhino.Token_GETPROP:
 		if b.outer.getPropertyKindByID(node.GetStringID()).HasGetterOrSetter() {
-			b.setMutatesGlobalState(active, node)
+			b.setMutatesGlobalState(e, node)
 		}
 
 	case rhino.Token_DYNAMIC_IMPORT:
-		b.setMutatesGlobalState(active, node)
+		b.setMutatesGlobalState(e, node)
 
 	default:
 		if NodeUtil_IsCompoundAssignmentOp(node) {
 			b.visitLhsNode(
 				e,
-				active,
 				traversal,
 				ast.MustAssignOp(node).Target().Node(),
 				PureFunctionIdentifier_RHS_IS_ALWAYS_LOCAL)
@@ -359,8 +416,13 @@ func (b *pfiFunctionBodyAnalyzer) EnterScope(t *NodeTraversal) {
 
 	single, multi := b.outer.getFunctionSummaries(function)
 	if single == 0 && len(multi) == 0 {
-		sid := b.outer.allocSummary(0, pfiNameAnonymous)
-		b.outer.putSummaryForFunctionNode(function, sid)
+		single = b.outer.allocSummary(0, pfiNameAnonymous)
+		b.outer.putSummaryForFunctionNode(function, single)
+	}
+	if isArtificiallyPure {
+		e.active = nil
+	} else {
+		e.active = b.initActiveSummaries(e, single, multi)
 	}
 }
 
@@ -416,16 +478,24 @@ func (b *pfiFunctionBodyAnalyzer) ExitScope(t *NodeTraversal) {
 	e.taintedVars = e.taintedVars[:0]
 	clear(e.pendingChecks)
 	e.pendingChecks = e.pendingChecks[:0]
+	e.active = nil
 	e.root = rhino.NilNode
 	b.stackTop--
+	if b.stackTop > 0 {
+		b.pruneActive(&b.stack[b.stackTop])
+	}
 }
 
 func (b *pfiFunctionBodyAnalyzer) resolveTaintedVarsInScope(e *pfiFunctionStackEntry, scope *Scope) {
+	if len(e.active) == 0 {
+		return
+	}
 	p := b.outer
-	active := b.activeSummaries(e)
-	for _, sid := range active {
+	mutated := false
+	for _, sid := range e.active {
 		s := &p.summaries[sid]
 		if s.bitmask&pfiMutatesGlobalState != 0 {
+			mutated = true
 			continue
 		}
 		for _, v := range scope.varList {
@@ -439,9 +509,13 @@ func (b *pfiFunctionBodyAnalyzer) resolveTaintedVarsInScope(e *pfiFunctionStackE
 			}
 			if !e.isLocalVar(v, scope) {
 				p.setSummaryMutatesGlobalState(sid, s, v.GetNode())
+				mutated = true
 				break
 			}
 		}
+	}
+	if mutated {
+		b.pruneActive(e)
 	}
 }
 
@@ -456,7 +530,6 @@ func PureFunctionIdentifier_FunctionBodyAnalyzer_IsVarDeclaredInSameContainerSco
 
 func (b *pfiFunctionBodyAnalyzer) visitLhsNode(
 	e *pfiFunctionStackEntry,
-	active []pfiSummaryID,
 	traversal *NodeTraversal,
 	lhs rhino.Node,
 	hasLocalRhs func(rhino.Node) bool) {
@@ -464,9 +537,9 @@ func (b *pfiFunctionBodyAnalyzer) visitLhsNode(
 		object := get.Object()
 		if _, isThis := object.AsThis(); isThis {
 			if e.isArrow {
-				b.setMutatesGlobalState(active, lhs)
+				b.setMutatesGlobalState(e, lhs)
 			} else {
-				b.setMutatesThis(active, lhs)
+				b.setMutatesThis(e, lhs)
 			}
 		} else if objName, isName := object.AsName(); isName {
 			scope := traversal.GetScope()
@@ -474,10 +547,10 @@ func (b *pfiFunctionBodyAnalyzer) visitLhsNode(
 			if PureFunctionIdentifier_FunctionBodyAnalyzer_IsVarDeclaredInSameContainerScope(var_, scope) {
 				e.addTaintedVar(var_)
 			} else {
-				b.setMutatesGlobalState(active, lhs)
+				b.setMutatesGlobalState(e, lhs)
 			}
 		} else {
-			b.setMutatesGlobalState(active, lhs)
+			b.setMutatesGlobalState(e, lhs)
 		}
 	} else {
 		jutil.CheckStateMsg1(lhs.IsName(), "%s", lhs)
@@ -488,7 +561,7 @@ func (b *pfiFunctionBodyAnalyzer) visitLhsNode(
 				e.addSkiplistedVar(var_)
 			}
 		} else {
-			b.setMutatesGlobalState(active, lhs)
+			b.setMutatesGlobalState(e, lhs)
 		}
 	}
 }
@@ -523,12 +596,11 @@ func (b *pfiFunctionBodyAnalyzer) classifyLocalExpr(
 
 func (b *pfiFunctionBodyAnalyzer) visitResolvedCall(
 	e *pfiFunctionStackEntry,
-	active []pfiSummaryID,
 	traversal *NodeTraversal,
 	invocation rhino.Node,
 	site pfiCallSite) {
 	if site.calleeCount == 0 {
-		b.setMutatesGlobalState(active, rhino.NilNode)
+		b.setMutatesGlobalState(e, rhino.NilNode)
 		return
 	}
 
@@ -605,13 +677,13 @@ func (b *pfiFunctionBodyAnalyzer) visitResolvedCall(
 	edgeStart := int32(len(p.edges))
 	if site.calleeCount == 1 {
 		calleeID := pfiSummaryID(site.firstCallee)
-		for _, callerID := range active {
+		for _, callerID := range e.active {
 			p.addEdge(calleeID, callerID, e.root, edgeFlags, nonLocalArgMask)
 		}
 	} else {
 		callees := p.multiCallees[site.firstCallee : site.firstCallee+site.calleeCount]
 		for _, calleeID := range callees {
-			for _, callerID := range active {
+			for _, callerID := range e.active {
 				p.addEdge(calleeID, callerID, e.root, edgeFlags, nonLocalArgMask)
 			}
 		}
@@ -655,17 +727,6 @@ func pfiCalleeAndCallerShareThis(invocation rhino.Node, isCallOrTagged bool, isV
 		return false
 	}
 	return thisArg.IsThis() || thisArg.IsSuper()
-}
-
-func (b *pfiFunctionBodyAnalyzer) addToCatchDepthIfTryBlock(n rhino.Node, delta int) {
-	parent := n.GetParent()
-	if ast.RoleIn(n, parent) != ast.RoleTryBody {
-		return
-	}
-	if _, hasCatch := ast.MustTry(parent).Catch(); !hasCatch {
-		return
-	}
-	b.currentFunction().catchDepth += delta
 }
 
 // Java: PureFunctionIdentifier.getParamIndex(Var)

@@ -49,27 +49,9 @@ func NewOptimizeReturns(compiler AbstractCompiler) *OptimizeReturns {
 
 // Process is CompilerPass.process.
 //
-// Go-only: language-adapter — the two Java overloads process(Node, Node)
-// (CompilerPass) and process(Node, Node, ReferenceMap)
-// (CallGraphCompilerPass) cannot share a Go name; the second one is
-// ProcessWithReferenceMap, and AsCallGraphCompilerPass adapts it.
-//
 // Java: OptimizeReturns.process(Node, Node)
 func (o *OptimizeReturns) Process(externs rhino.Node, root rhino.Node) {
-	OptimizeCalls_Builder_().
-		SetCompiler(o.compiler).
-		SetConsiderExterns(false).
-		AddPass(o.AsCallGraphCompilerPass()).
-		Build().
-		Process(externs, root)
-}
-
-// AsCallGraphCompilerPass returns this pass as an
-// OptimizeCalls.CallGraphCompilerPass (what Java does by passing `this`).
-//
-// Go-only: language-adapter — see Process.
-func (o *OptimizeReturns) AsCallGraphCompilerPass() OptimizeCalls_CallGraphCompilerPass {
-	return OptimizeCalls_CallGraphCompilerPassFunc(o.ProcessWithReferenceMap)
+	NewOptimizeCalls(o.compiler, false, o).Process(externs, root)
 }
 
 // Java: OptimizeReturns.process(Node, Node, ReferenceMap)

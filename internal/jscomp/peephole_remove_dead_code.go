@@ -71,9 +71,8 @@ var peepholeRemoveDeadCodeTokens = peepholeTokenSet(
 
 func (p *PeepholeRemoveDeadCode) peepholeConfig() peepholeOptConfig {
 	return peepholeOptConfig{
-		tokens:         peepholeRemoveDeadCodeTokens,
-		isStandard:     true,
-		tracksFeatures: true,
+		tokens:     peepholeRemoveDeadCodeTokens,
+		isStandard: true,
 	}
 }
 

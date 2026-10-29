@@ -204,15 +204,6 @@ func (c *CrossChunkReferenceCollector) GetReferences(v *Var) *ReferenceCollectio
 	return c.byKey[scopedVarKeyOf(v)]
 }
 
-// Java: CrossChunkReferenceCollector.getGlobalVariableNamesMap()
-func (c *CrossChunkReferenceCollector) GetGlobalVariableNamesMap() *jutil.LinkedHashMap[string, *Var] {
-	out := jutil.NewLinkedHashMapWithCapacity[string, *Var](len(c.vars))
-	for _, v := range c.vars {
-		out.Put(v.GetName(), v)
-	}
-	return out
-}
-
 func (c *CrossChunkReferenceCollector) getCurrentBlock() *BasicBlock {
 	if len(c.blockStack) == 0 {
 		panic(jutil.NewNoSuchElementException())

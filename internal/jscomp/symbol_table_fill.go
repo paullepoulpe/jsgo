@@ -361,9 +361,11 @@ func (t *SymbolTable) FillJSDocInfo(externs rhino.Node, root rhino.Node) {
 func (t *SymbolTable) FillSymbolVisibility(externs rhino.Node, root rhino.Node) {
 	collectPass := NewCollectFileOverviewVisibility(t.compiler)
 	collectPass.Process(externs, root)
-	visibilityMap := collectPass.GetFileOverviewVisibilityMap()
+	if collectPass.hasDuplicate {
+		panic(jutil.NewIllegalArgumentExceptionMsg("Multiple entries with same key"))
+	}
 
-	NodeTraversal_TraverseRoots(t.compiler, NewSymbolTable_VisibilityCollector(t, visibilityMap), externs, root)
+	NodeTraversal_TraverseRoots(t.compiler, NewSymbolTable_VisibilityCollector(t, collectPass.visibilities), externs, root)
 }
 
 // createPropertyScopeFor builds a property scope for the given symbol. Any
@@ -532,6 +534,19 @@ func (t *SymbolTable) FillSuperReferences(externs rhino.Node, root rhino.Node) {
 	NodeTraversal_TraverseRoots(t.compiler, collectSuper, externs, root)
 }
 
+var (
+	symbolTableSuperVisitTokens = func() ast.TokenSet {
+		var s ast.TokenSet
+		s.Add(rhino.Token_SUPER)
+		return s
+	}()
+	symbolTableCallVisitTokens = func() ast.TokenSet {
+		var s ast.TokenSet
+		s.Add(rhino.Token_CALL)
+		return s
+	}()
+)
+
 // symbolTable_superCollector is the anonymous AbstractPostOrderCallback of
 // fillSuperReferences.
 //
@@ -539,6 +554,10 @@ func (t *SymbolTable) FillSuperReferences(externs rhino.Node, root rhino.Node) {
 type symbolTable_superCollector struct {
 	NodeTraversal_AbstractPostOrderCallbackBase
 	outer *SymbolTable
+}
+
+func (*symbolTable_superCollector) visitTokens() *ast.TokenSet {
+	return &symbolTableSuperVisitTokens
 }
 
 // Java: SymbolTable.fillSuperReferences(...).new AbstractPostOrderCallback() {...}.visit(NodeTraversal, Node, Node)
@@ -749,6 +768,11 @@ type symbolTable_postOrderCallback struct {
 	visit func(t *NodeTraversal, n rhino.Node, parent rhino.Node)
 }
 
+func (*symbolTable_postOrderCallback) noVisitLeaves() {}
+func (*symbolTable_postOrderCallback) visitTokens() *ast.TokenSet {
+	return &symbolTableCallVisitTokens
+}
+
 // Java: SymbolTable.fillGoogProvideModuleRequires(...).new AbstractPostOrderCallback() {...}.visit(NodeTraversal, Node, Node)
 func (c *symbolTable_postOrderCallback) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	c.visit(t, n, parent)
@@ -839,7 +863,7 @@ func (t *SymbolTable) mergeExternSymbolsDuplicatedOnWindow() {
 	// table.
 	//
 	externSymbols := make(map[externSymbolPosKey]*SymbolTable_Symbol)
-	for _, symbol := range slices.Collect(t.symbols.Values()) {
+	for _, symbol := range t.symbols.ValueSlice() {
 		declNode := symbol.GetDeclarationNode()
 		if declNode.IsNil() {
 			continue
@@ -883,7 +907,7 @@ func (t *SymbolTable) mergeExternSymbolsDuplicatedOnWindow() {
 func (t *SymbolTable) RemoveGeneratedSymbols() {
 	// Need to iterate over copy of values list because removeSymbol() will change the map
 	// and we'll get ConcurrentModificationException
-	for _, symbol := range slices.Collect(t.symbols.Values()) {
+	for _, symbol := range t.symbols.ValueSlice() {
 		if t.isSymbolAQuotedObjectKey(symbol) {
 			// Quoted object keys are not considered symbols. Only unquoted keys and dot-access
 			// properties are considered symbols. Remove the quoted key.

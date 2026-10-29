@@ -21,6 +21,9 @@ package jscomp
 import (
 	"math/bits"
 
+	"github.com/paullepoulpe/jsgo/internal/ast"
+	"github.com/paullepoulpe/jsgo/internal/jutil"
+	"github.com/paullepoulpe/jsgo/internal/parser"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 	"github.com/paullepoulpe/jsgo/internal/strpool"
 )
@@ -56,13 +59,34 @@ type PeepholeOptimizationsPass struct {
 	// NOTE: Use a native array rather than a List to avoid creating iterators
 	// for every node in the AST.
 	peepholeOptimizations     []AbstractPeepholeOptimization
-	featureOptimBases         []*AbstractPeepholeOptimizationBase
+	pendingFeatures           *parser.FeatureSet
+	visitTokenSet             ast.TokenSet
 	activeMaskByToken         [256]uint16
 	useActiveMask             bool
 	standardOptimizationsOnly bool
 	hasJ2clCallPass           bool
 	hasOptimizeLetAndConst    bool
 	retraverseOnChange        bool
+}
+
+var (
+	_ NodeTraversal_Callback         = (*PeepholeOptimizationsPass)(nil)
+	_ nodeTraversal_noShouldTraverse = (*PeepholeOptimizationsPass)(nil)
+	_ nodeTraversal_visitTokens      = (*PeepholeOptimizationsPass)(nil)
+)
+
+func (*PeepholeOptimizationsPass) nodeTraversalNoShouldTraverse() {}
+
+func (p *PeepholeOptimizationsPass) visitTokens() *ast.TokenSet {
+	if p.useActiveMask {
+		return &p.visitTokenSet
+	}
+	return nil
+}
+
+// Java: PeepholeOptimizationsPass.PeepCallback.shouldTraverse(NodeTraversal, Node, Node)
+func (p *PeepholeOptimizationsPass) ShouldTraverse(t *NodeTraversal, n rhino.Node, parent rhino.Node) bool {
+	return true
 }
 
 // NewPeepholeOptimizationsPass creates a peephole optimization pass that
@@ -89,13 +113,9 @@ func NewPeepholeOptimizationsPassOfList(
 }
 
 func (p *PeepholeOptimizationsPass) initDispatchTable() {
-	p.featureOptimBases = p.featureOptimBases[:0]
 	if len(p.peepholeOptimizations) > 16 {
 		p.useActiveMask = false
 		p.standardOptimizationsOnly = false
-		for _, optim := range p.peepholeOptimizations {
-			p.featureOptimBases = append(p.featureOptimBases, optim.GetAbstractPeepholeOptimizationBase())
-		}
 		return
 	}
 	p.useActiveMask = true
@@ -107,9 +127,6 @@ func (p *PeepholeOptimizationsPass) initDispatchTable() {
 	for idx, optim := range p.peepholeOptimizations {
 		bit := uint16(1) << idx
 		cfg := optim.peepholeConfig()
-		if cfg.tracksFeatures {
-			p.featureOptimBases = append(p.featureOptimBases, optim.GetAbstractPeepholeOptimizationBase())
-		}
 		if !cfg.isStandard {
 			p.standardOptimizationsOnly = false
 			for tok := range p.activeMaskByToken {
@@ -131,6 +148,15 @@ func (p *PeepholeOptimizationsPass) initDispatchTable() {
 			}
 		}
 	}
+
+	p.visitTokenSet = ast.TokenSet{}
+	p.visitTokenSet.Add(rhino.Token_SCRIPT)
+	p.visitTokenSet.Add(rhino.Token_FUNCTION)
+	for tok, mask := range p.activeMaskByToken {
+		if mask != 0 {
+			p.visitTokenSet.Add(rhino.Token(tok))
+		}
+	}
 }
 
 // Java: PeepholeOptimizationsPass.setRetraverseOnChange(boolean)
@@ -148,24 +174,17 @@ func (p *PeepholeOptimizationsPass) Process(externs rhino.Node, root rhino.Node)
 	}
 
 	p.BeginTraversal()
-	var seqCb *peepholeOptimizationsPass_PeepCallback
 
 	// Repeat to an internal fixed point.
 	for changedScopeNodes := p.compiler.GetChangeTracker().GetChangedScopeNodesForPass(p.passName); changedScopeNodes == nil || len(changedScopeNodes) != 0; changedScopeNodes = p.compiler.GetChangeTracker().GetChangedScopeNodesForPass(p.passName) {
 		if changedScopeNodes == nil {
 			// changedScopeNodes is null if this is the first run of peepholeOptimizationsPass.
 			if !parallel || !p.processFullRootParallel(root) {
-				if seqCb == nil {
-					seqCb = newPeepholeOptimizationsPass_PeepCallback(p)
-				}
-				NodeTraversal_Traverse(p.compiler, root, seqCb)
+				NodeTraversal_Traverse(p.compiler, root, p)
 			}
 		} else if !parallel || !p.processChangedScopesParallel(changedScopeNodes) {
-			if seqCb == nil {
-				seqCb = newPeepholeOptimizationsPass_PeepCallback(p)
-			}
 			NodeTraversal_TraverseScopeRoots(
-				p.compiler, changedScopeNodes, seqCb, false /* traverseNested */)
+				p.compiler, changedScopeNodes, p, false /* traverseNested */)
 		}
 
 		// Cancel the fixed point if requested.
@@ -221,7 +240,6 @@ func (p *PeepholeOptimizationsPass) processFullRootParallel(root rhino.Node) boo
 	runParallelWork(p.compiler, numWorkers, len(scripts), func(_ int) (func(int, *recordingCompiler), func()) {
 		var workerRC *recordingCompiler
 		var workerPass *PeepholeOptimizationsPass
-		var workerCb *peepholeOptimizationsPass_PeepCallback
 
 		cleanup := func() {
 			if workerPass != nil {
@@ -233,11 +251,10 @@ func (p *PeepholeOptimizationsPass) processFullRootParallel(root rhino.Node) boo
 				workerRC = rc
 				workerPass = p.cloneForWorker(rc)
 				workerPass.BeginTraversal()
-				workerCb = newPeepholeOptimizationsPass_PeepCallback(workerPass)
 			}
 			b := NodeTraversal_Builder{
 				compiler: rc,
-				callback: workerCb,
+				callback: workerPass,
 			}
 			b.traverseScriptUnderRoot(root, root, scripts[idx], nil)
 		}
@@ -277,8 +294,6 @@ func (p *PeepholeOptimizationsPass) processChangedScopesParallel(changedScopeNod
 	runParallelWork(p.compiler, numWorkers, len(buckets), func(_ int) (func(int, *recordingCompiler), func()) {
 		var workerRC *recordingCompiler
 		var workerPass *PeepholeOptimizationsPass
-		var workerCb *peepholeOptimizationsPass_PeepCallback
-		var scopeCreator ScopeCreator
 
 		cleanup := func() {
 			if workerPass != nil {
@@ -290,21 +305,19 @@ func (p *PeepholeOptimizationsPass) processChangedScopesParallel(changedScopeNod
 				workerRC = rc
 				workerPass = p.cloneForWorker(rc)
 				workerPass.BeginTraversal()
-				workerCb = newPeepholeOptimizationsPass_PeepCallback(workerPass)
-				scopeCreator = NewMemoizedScopeCreator(NewSyntacticScopeCreator(rc))
 			}
 			for _, origIdx := range buckets[bIdx].origIndices {
-				initRecordingCompiler(rc, p.compiler)
+				resetRecordingCompiler(rc, p.compiler)
 				panicked := runParallelItemIndexed(rc, origIdx, panicsByOrigIdx, func(rc *recordingCompiler, itemIdx int) {
 					b := NodeTraversal_Builder{
-						compiler:     rc,
-						callback:     workerCb,
-						scopeCreator: scopeCreator,
+						compiler: rc,
+						callback: workerPass,
 					}
 					b.traverseScopedRoot(changedScopeNodes[itemIdx], false)
 				})
 				eventsByOrigIdx[origIdx] = rc.takeEvents()
 				if panicked {
+					workerPass.pendingFeatures = nil
 					return
 				}
 			}
@@ -326,19 +339,16 @@ func (p *PeepholeOptimizationsPass) processChangedScopesParallel(changedScopeNod
 	return true
 }
 
-// peepholeOptimizationsPass_PeepCallback is the inner class PeepCallback.
-type peepholeOptimizationsPass_PeepCallback struct {
-	NodeTraversal_AbstractScopedCallbackBase
-	this *PeepholeOptimizationsPass
-}
-
-func newPeepholeOptimizationsPass_PeepCallback(outer *PeepholeOptimizationsPass) *peepholeOptimizationsPass_PeepCallback {
-	return &peepholeOptimizationsPass_PeepCallback{this: outer}
-}
-
 // Java: PeepholeOptimizationsPass.PeepCallback.visit(NodeTraversal, Node, Node)
-func (c *peepholeOptimizationsPass_PeepCallback) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
-	p := c.this
+func (p *PeepholeOptimizationsPass) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
+	p.visitOptimize(n)
+	if p.pendingFeatures != nil && (n.IsScript() || n == t.scopeTraversalRoot) {
+		NodeUtil_AddFeaturesToScript(t.GetCurrentScript(), p.pendingFeatures, p.compiler)
+		p.pendingFeatures = nil
+	}
+}
+
+func (p *PeepholeOptimizationsPass) visitOptimize(n rhino.Node) {
 	if !p.useActiveMask {
 		currentNode := n
 		for _, optim := range p.peepholeOptimizations {
@@ -515,34 +525,14 @@ func (c *peepholeOptimizationsPass_PeepCallback) Visit(t *NodeTraversal, n rhino
 	}
 }
 
-// Java: PeepholeOptimizationsPass.PeepCallback.enterScope(NodeTraversal)
-func (c *peepholeOptimizationsPass_PeepCallback) EnterScope(t *NodeTraversal) {}
-
-// Java: PeepholeOptimizationsPass.PeepCallback.exitScope(NodeTraversal)
-func (c *peepholeOptimizationsPass_PeepCallback) ExitScope(t *NodeTraversal) {
-	// Call updateFeatures() here, instead of immediately after
-	// `optim.optimizeSubtree(currentNode)` in visit, to avoid repeating work for
-	// every AST node x every peephole optimization. In practice, profiling shows a small
-	// but measurable improvement for large projects. See comments on cl/856752797.
-	c.UpdateFeatures(t)
-}
-
-// Java: PeepholeOptimizationsPass.PeepCallback.updateFeatures(NodeTraversal)
-func (c *peepholeOptimizationsPass_PeepCallback) UpdateFeatures(t *NodeTraversal) {
-	for _, base := range c.this.featureOptimBases {
-		if base.newFeatures != nil && !base.newFeatures.IsEmpty() {
-			NodeUtil_AddFeaturesToScript(t.GetCurrentScript(), base.newFeatures, c.this.compiler)
-			base.ClearNewFeatures()
-		}
-	}
-}
-
 // BeginTraversal makes sure that all the optimizations have the current
 // compiler so they can report errors.
 //
 // Java: PeepholeOptimizationsPass.beginTraversal()
 func (p *PeepholeOptimizationsPass) BeginTraversal() {
+	p.pendingFeatures = nil
 	for _, optimization := range p.peepholeOptimizations {
+		optimization.bindPendingFeatures(&p.pendingFeatures)
 		optimization.BeginTraversal(p.compiler)
 	}
 	p.initDispatchTable()
@@ -552,7 +542,12 @@ func (p *PeepholeOptimizationsPass) BeginTraversal() {
 //
 // Java: PeepholeOptimizationsPass.endTraversal()
 func (p *PeepholeOptimizationsPass) EndTraversal() {
+	jutil.CheckStateMsg1(
+		p.pendingFeatures == nil || p.pendingFeatures.IsEmpty(),
+		"Expected getNewFeatures() to be empty in endTraversal() but found %s",
+		p.pendingFeatures)
 	for _, optimization := range p.peepholeOptimizations {
+		optimization.bindPendingFeatures(nil)
 		optimization.EndTraversal()
 	}
 }

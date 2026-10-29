@@ -84,7 +84,7 @@ func (*SourceMapConsumerV3_DefaultSourceMapSupplier) GetSourceMap(url string) *s
 //
 // Java: SourceMapConsumerV3.parse(String)
 func (c *SourceMapConsumerV3) Parse(contents string) {
-	if err := c.TryParse(contents); err != nil {
+	if err := c.tryParseThrowable(contents); err != nil {
 		panic(err)
 	}
 }
@@ -92,6 +92,17 @@ func (c *SourceMapConsumerV3) Parse(contents string) {
 // TryParse parses the given contents containing a source map, returning a
 // *SourceMapParseException instead of panicking on malformed source maps.
 func (c *SourceMapConsumerV3) TryParse(contents string) *SourceMapParseException {
+	err := c.tryParseThrowable(contents)
+	if err == nil {
+		return nil
+	}
+	if sm, ok := err.(*SourceMapParseException); ok {
+		return sm
+	}
+	return NewSourceMapParseException(err.GetMessage())
+}
+
+func (c *SourceMapConsumerV3) tryParseThrowable(contents string) jutil.Throwable {
 	sourceMapObject, err := parseSourceMapObject(contents)
 	if err != nil {
 		return err
@@ -109,7 +120,10 @@ func (c *SourceMapConsumerV3) ParseSourceMapObject(sourceMapObject *SourceMapObj
 	}
 }
 
-func (c *SourceMapConsumerV3) tryParseSourceMapObject(sourceMapObject *SourceMapObject, sectionSupplier SourceMapSupplier) *SourceMapParseException {
+func (c *SourceMapConsumerV3) tryParseSourceMapObject(sourceMapObject *SourceMapObject, sectionSupplier SourceMapSupplier) jutil.Throwable {
+	if sourceMapObject == nil {
+		return jutil.NewNullPointerException()
+	}
 	if sourceMapObject.version != 3 {
 		return NewSourceMapParseException("Unknown version: " + strconv.Itoa(sourceMapObject.version))
 	}
@@ -132,7 +146,7 @@ func (c *SourceMapConsumerV3) tryParseSourceMapObject(sourceMapObject *SourceMap
 
 	if c.sources == nil {
 		// sources.length
-		panic(jutil.NewNullPointerException())
+		return jutil.NewNullPointerException()
 	}
 	useCompactMappings :=
 		(len(c.sources) < 65535) && (c.names == nil || len(c.names) < 65535)
@@ -164,9 +178,12 @@ func (c *SourceMapConsumerV3) tryParseSourceMapObject(sourceMapObject *SourceMap
 	for _, ext := range sourceMapObject.extensions {
 		c.extensions = putExtension(c.extensions, ext.Key, ext.Value)
 	}
-	mappings, err := newMappingBuilder(
-		c, sourceMapObject.mappings, c.lineCount, useCompactMappings, estimatedEntries).
-		tryBuild()
+	mb, err := tryNewMappingBuilder(
+		c, sourceMapObject.mappings, c.lineCount, useCompactMappings, estimatedEntries)
+	if err != nil {
+		return err
+	}
+	mappings, err := mb.tryBuild()
 	if err != nil {
 		return err
 	}
@@ -184,7 +201,10 @@ func (c *SourceMapConsumerV3) ParseMetaMap(sourceMapObject *SourceMapObject, sec
 	}
 }
 
-func (c *SourceMapConsumerV3) tryParseMetaMap(sourceMapObject *SourceMapObject, sectionSupplier SourceMapSupplier) *SourceMapParseException {
+func (c *SourceMapConsumerV3) tryParseMetaMap(sourceMapObject *SourceMapObject, sectionSupplier SourceMapSupplier) jutil.Throwable {
+	if sourceMapObject == nil {
+		return jutil.NewNullPointerException()
+	}
 	if sectionSupplier == nil {
 		sectionSupplier = &SourceMapConsumerV3_DefaultSourceMapSupplier{}
 	}
@@ -201,11 +221,14 @@ func (c *SourceMapConsumerV3) tryParseMetaMap(sourceMapObject *SourceMapObject, 
 	// using this consumer.
 	generator := NewSourceMapGeneratorV3()
 	for _, section := range sourceMapObject.sections {
+		if section == nil {
+			return jutil.NewNullPointerException()
+		}
 		var mapText string
 		var hasMap bool
 		if section.type_ == SourceMapSection_SectionType_URL {
 			if !section.value.present {
-				panic(jutil.NewNullPointerException())
+				return jutil.NewNullPointerException()
 			}
 			supplied, supplierErr := callSupplierGetSourceMap(sectionSupplier, section.value.text)
 			if supplierErr != nil {
@@ -228,22 +251,42 @@ func (c *SourceMapConsumerV3) tryParseMetaMap(sourceMapObject *SourceMapObject, 
 		}
 		generator.SetStartingPosition(section.line, section.column)
 		sectionConsumer := NewSourceMapConsumerV3()
-		if err := sectionConsumer.TryParse(mapText); err != nil {
+		if err := sectionConsumer.tryParseThrowable(mapText); err != nil {
 			return err
 		}
-		sectionConsumer.VisitMappings(&SourceMapGeneratorV3_ConsumerEntryVisitor{outer: generator})
+		var visitErr jutil.Throwable
+		jutil.Try(func() {
+			sectionConsumer.VisitMappings(&SourceMapGeneratorV3_ConsumerEntryVisitor{outer: generator})
+		}, func(e jutil.Throwable) {
+			visitErr = e
+		})
+		if visitErr != nil {
+			return visitErr
+		}
 	}
 
 	var sb strings.Builder
-	generator.AppendTo(&sb, sourceMapObject.file.ptr())
-	return c.TryParse(sb.String())
+	var appendErr jutil.Throwable
+	jutil.Try(func() {
+		generator.AppendTo(&sb, sourceMapObject.file.ptr())
+	}, func(e jutil.Throwable) {
+		appendErr = e
+	})
+	if appendErr != nil {
+		return appendErr
+	}
+	return c.tryParseThrowable(sb.String())
 }
 
-func callSupplierGetSourceMap(supplier SourceMapSupplier, url string) (supplied *string, parseErr *SourceMapParseException) {
+func callSupplierGetSourceMap(supplier SourceMapSupplier, url string) (supplied *string, parseErr jutil.Throwable) {
 	defer func() {
 		if r := recover(); r != nil {
 			if ex, ok := r.(jutil.IIOException); ok {
 				parseErr = NewSourceMapParseException("IO exception: " + ex.Error())
+				return
+			}
+			if t, ok := r.(jutil.Throwable); ok {
+				parseErr = t
 				return
 			}
 			panic(r)
@@ -477,10 +520,11 @@ func (c *SourceMapConsumerV3) CreateReverseMapping() {
 			sourceLine := entry.srcLine
 			if sourceFileId != SourceMapConsumerV3_UNMAPPED && sourceLine != SourceMapConsumerV3_UNMAPPED {
 				key := sourceMapConsumerV3_keyOf(c.sources[sourceFileId], int(sourceLine))
-				mapping := Mapping_OriginalMapping_NewBuilder().
-					SetLineNumber(targetLine).
-					SetColumnPosition(int(entry.genCol)).
-					Build()
+				mapping := &Mapping_OriginalMapping{
+					bitField0_:      mapping_lineNumberBit | mapping_columnPositionBit,
+					lineNumber_:     targetLine,
+					columnPosition_: int(entry.genCol),
+				}
 				c.reverseSourceMapping[key] = append(c.reverseSourceMapping[key], mapping)
 			}
 		}

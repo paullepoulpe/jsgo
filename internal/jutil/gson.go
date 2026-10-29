@@ -415,16 +415,16 @@ func (g *Gson) ToJson(src any) string {
 		return g.ToJsonElement(JsonNull_INSTANCE)
 	}
 	var writer strings.Builder
-	g.toJsonWithWriter(src, g.NewJsonWriter(&writer))
+	g.ToJsonWriter(src, g.NewJsonWriter(&writer))
 	return writer.String()
 }
 
-// toJsonWithWriter writes the JSON representation of src to writer, with
+// ToJsonWriter writes the JSON representation of src to writer, with
 // the writer's lenient, htmlSafe and serializeNulls settings replaced by
 // this Gson's for the duration of the call.
 //
 // Java: Gson.toJson(Object, Type, JsonWriter)
-func (g *Gson) toJsonWithWriter(src any, writer *JsonWriter) {
+func (g *Gson) ToJsonWriter(src any, writer *JsonWriter) {
 	oldLenient := writer.IsLenient()
 	writer.SetLenient(true)
 	oldHtmlSafe := writer.isHtmlSafe()

@@ -54,9 +54,9 @@ func (c *InlineAliasesTest) GetProcessor(compiler *Compiler) CompilerPass {
 		CompilerTestCase_MakePassFactory(
 			"inlineAndCollapseProperties",
 			func(comp AbstractCompiler) CompilerPass {
-				return InlineAndCollapseProperties_Builder_(compiler).
-					SetPropertyCollapseLevel(CompilerOptions_PropertyCollapseLevel_NONE).
-					Build()
+				return NewInlineAndCollapseProperties(compiler, InlineAndCollapsePropertiesOptions{
+					PropertyCollapseLevel: CompilerOptions_PropertyCollapseLevel_NONE,
+				})
 			}))
 	return optimizer
 }

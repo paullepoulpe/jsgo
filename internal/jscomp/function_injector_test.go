@@ -2108,12 +2108,11 @@ func (c *FunctionInjectorTest) HelperCanInlineReferenceToFunction(
 	compiler.InitOptions(NewCompilerOptions())
 	functionArgumentInjector :=
 		NewFunctionArgumentInjector(compiler.GetAstAnalyzer())
-	injector :=
-		NewFunctionInjector_Builder(compiler).
-			AllowDecomposition(c.allowDecomposition).
-			AssumeStrictThis(c.assumeStrictThis).
-			FunctionArgumentInjector(functionArgumentInjector).
-			Build()
+	injector := NewFunctionInjector(compiler, FunctionInjectorOptions{
+		AllowDecomposition:       c.allowDecomposition,
+		AssumeStrictThis:         c.assumeStrictThis,
+		FunctionArgumentInjector: functionArgumentInjector,
+	})
 	tree := FunctionInjectorTest_Parse(compiler, code)
 
 	fnNode := FunctionInjectorTest_FindFunction(tree, fnName)
@@ -2167,12 +2166,11 @@ func (c *FunctionInjectorTest) HelperInlineReferenceToFunction(
 
 	functionArgumentInjector :=
 		NewFunctionArgumentInjector(compiler.GetAstAnalyzer())
-	injector :=
-		NewFunctionInjector_Builder(compiler).
-			AllowDecomposition(c.allowDecomposition).
-			AssumeStrictThis(c.assumeStrictThis).
-			FunctionArgumentInjector(functionArgumentInjector).
-			Build()
+	injector := NewFunctionInjector(compiler, FunctionInjectorOptions{
+		AllowDecomposition:       c.allowDecomposition,
+		AssumeStrictThis:         c.assumeStrictThis,
+		FunctionArgumentInjector: functionArgumentInjector,
+	})
 
 	parseRoot := compiler.ParseInputs()
 	externsRoot := parseRoot.GetFirstChild()
@@ -2252,11 +2250,10 @@ func (c *FunctionInjectorTest) HelperInlineReferenceToFunction(
 func (c *FunctionInjectorTest) DoesFunctionMeetMinimumRequirements(code string, fnName string) bool {
 	compiler := NewCompiler()
 	compiler.InitOptions(NewCompilerOptions())
-	injector :=
-		NewFunctionInjector_Builder(compiler).
-			AllowDecomposition(c.allowDecomposition).
-			AssumeStrictThis(c.assumeStrictThis).
-			Build()
+	injector := NewFunctionInjector(compiler, FunctionInjectorOptions{
+		AllowDecomposition: c.allowDecomposition,
+		AssumeStrictThis:   c.assumeStrictThis,
+	})
 	tree := FunctionInjectorTest_Parse(compiler, code)
 
 	fnNode := FunctionInjectorTest_FindFunction(tree, fnName)

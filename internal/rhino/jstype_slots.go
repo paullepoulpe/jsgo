@@ -310,16 +310,12 @@ type StaticTypedSlot interface {
 //
 // Go-only: language-adapter — getSymbol() (StaticTypedSlot in Java) keeps
 // StaticRef's signature; see StaticTypedScope.
-type StaticTypedRef interface {
-	StaticRef
-}
+type StaticTypedRef = StaticRef
 
 // SimpleSlot is the minimum implementation of StaticTypedSlot.
 //
 // Java: class SimpleSlot (subclassed by jscomp's SymbolTable.Symbol).
-type SimpleSlot interface {
-	StaticTypedSlot
-}
+type SimpleSlot = StaticTypedSlot
 
 // SimpleSlotBase holds SimpleSlot's fields and methods; plain slots are
 // *SimpleSlotBase values. The base methods make no virtual calls, so no self

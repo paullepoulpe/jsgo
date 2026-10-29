@@ -248,8 +248,8 @@ func (p *PrebuildDependencyInfo) prebuildParallel(inputs []*CompilerInput) bool 
 	if len(inputs) < 2 || inputs[0] == nil {
 		return false
 	}
-	compiler, ok := inputs[0].compiler.(*Compiler)
-	if !ok || compiler == nil || compiler.typedAstFilesystem != nil {
+	compiler := inputs[0].compiler
+	if compiler == nil || compiler.typedAstFilesystem != nil {
 		return false
 	}
 	seen := make(map[*SourceFile]bool, len(inputs))

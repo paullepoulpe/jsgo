@@ -89,12 +89,12 @@ func (c *CollapsePropertiesAndModuleRewritingTest) GetProcessor(compiler *Compil
 		factories.MaybeAdd(NewLoopablePassFactory(
 			PassNames_COLLAPSE_PROPERTIES,
 			func(x AbstractCompiler) CompilerPass {
-				return InlineAndCollapseProperties_Builder_(compiler).
-					SetPropertyCollapseLevel(c.collapseLevel).
-					SetChunkOutputType(c.chunkOutputType).
-					SetHaveModulesBeenRewritten(true).
-					SetModuleResolutionMode(options.GetModuleResolutionMode()).
-					Build()
+				return NewInlineAndCollapseProperties(compiler, InlineAndCollapsePropertiesOptions{
+					PropertyCollapseLevel:    c.collapseLevel,
+					ChunkOutputType:          c.chunkOutputType,
+					HaveModulesBeenRewritten: true,
+					ModuleResolutionMode:     options.GetModuleResolutionMode(),
+				})
 			},
 		))
 

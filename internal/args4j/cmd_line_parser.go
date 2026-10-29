@@ -62,6 +62,7 @@ type AnnotatedField struct {
 // Parameters provides lookahead over remaining command-line tokens to an OptionHandler.
 type Parameters interface {
 	GetParameter(idx int) string
+	TryGetParameter(idx int) (string, *CmdLineException)
 	PeekParameter(idx int) (string, bool)
 	Size() int
 }
@@ -88,7 +89,7 @@ func NewCmdLineParserWithProperties(bean any, parserProperties *ParserProperties
 		parsingOptions:   true,
 		parserProperties: parserProperties,
 	}
-	if jutil.IsNil(bean) {
+	if bean == nil {
 		return p
 	}
 	if b, ok := bean.(Bean); ok {
@@ -113,8 +114,12 @@ func (p *CmdLineParser) GetArguments() []*OptionHandler   { return p.arguments }
 func (p *CmdLineParser) GetOptions() []*OptionHandler     { return p.options }
 
 func (p *CmdLineParser) AddArgument(setter Setter, a *Argument) {
-	checkNonNull(setter, "Setter")
-	checkNonNull(a, "Argument")
+	if setter == nil {
+		panic(jutil.NewNullPointerExceptionMsg("Setter is null"))
+	}
+	if a == nil {
+		panic(jutil.NewNullPointerExceptionMsg("Argument is null"))
+	}
 
 	h := p.CreateOptionHandler(NewOptionDef(a, setter.IsMultiValued()), setter)
 	index := a.Index
@@ -128,8 +133,12 @@ func (p *CmdLineParser) AddArgument(setter Setter, a *Argument) {
 }
 
 func (p *CmdLineParser) AddOption(setter Setter, o *Option) {
-	checkNonNull(setter, "Setter")
-	checkNonNull(o, "Option")
+	if setter == nil {
+		panic(jutil.NewNullPointerExceptionMsg("Setter is null"))
+	}
+	if o == nil {
+		panic(jutil.NewNullPointerExceptionMsg("Option is null"))
+	}
 
 	p.checkOptionNotInMap(o.Name)
 	for _, alias := range o.Aliases {
@@ -159,15 +168,17 @@ func (p *CmdLineParser) CreateOptionHandler(o *OptionDef, setter Setter) *Option
 	return createOptionHandler(p, o, setter)
 }
 
-func (p *CmdLineParser) PrintExample(filter OptionHandlerFilter) string {
+func (p *CmdLineParser) PrintExample(filter OptionHandlerFilterFunc) string {
 	return p.PrintExampleWithResourceBundle(filter, nil)
 }
 
-func (p *CmdLineParser) PrintExampleWithResourceBundle(mode OptionHandlerFilter, rb ResourceBundle) string {
-	checkNonNull(mode, "mode")
+func (p *CmdLineParser) PrintExampleWithResourceBundle(mode OptionHandlerFilterFunc, rb ResourceBundle) string {
+	if mode == nil {
+		panic(jutil.NewNullPointerExceptionMsg("mode is null"))
+	}
 	var buf strings.Builder
 	for _, h := range p.options {
-		if len(h.Option.Usage()) == 0 || !mode.Select(h) {
+		if len(h.Option.Usage()) == 0 || !mode(h) {
 			continue
 		}
 		buf.WriteByte(' ')
@@ -184,8 +195,8 @@ func (p *CmdLineParser) PrintUsageToWriter(out jutil.Writer, rb ResourceBundle) 
 	p.PrintUsageToWriterWithFilter(out, rb, OptionHandlerFilter_PUBLIC)
 }
 
-func (p *CmdLineParser) PrintUsageToWriterWithFilter(out jutil.Writer, rb ResourceBundle, filter OptionHandlerFilter) {
-	if jutil.IsNil(out) {
+func (p *CmdLineParser) PrintUsageToWriterWithFilter(out jutil.Writer, rb ResourceBundle, filter OptionHandlerFilterFunc) {
+	if out == nil {
 		panic(jutil.NewNullPointerException())
 	}
 	prefixLen := 0
@@ -204,9 +215,15 @@ func (p *CmdLineParser) PrintUsageToWriterWithFilter(out jutil.Writer, rb Resour
 	_ = out.TryFlush()
 }
 
-func (p *CmdLineParser) PrintOption(out jutil.Writer, handler *OptionHandler, maxMetaLen int, rb ResourceBundle, filter OptionHandlerFilter) {
+func (p *CmdLineParser) PrintOption(out jutil.Writer, handler *OptionHandler, maxMetaLen int, rb ResourceBundle, filter OptionHandlerFilterFunc) {
 	option := handler.Option
-	if len(option.Usage()) == 0 || !filter.Select(handler) {
+	if len(option.Usage()) == 0 {
+		return
+	}
+	if filter == nil {
+		panic(jutil.NewNullPointerException())
+	}
+	if !filter(handler) {
 		return
 	}
 
@@ -315,7 +332,7 @@ func (c *cmdLineParams) proceed(n int)        { c.pos += n }
 func (c *cmdLineParams) Size() int            { return len(c.args) - c.pos }
 
 func (c *cmdLineParams) GetParameter(idx int) string {
-	val, err := c.tryGetParameter(idx)
+	val, err := c.TryGetParameter(idx)
 	if err != nil {
 		panic(err)
 	}
@@ -329,7 +346,7 @@ func (c *cmdLineParams) PeekParameter(idx int) (string, bool) {
 	return c.args[c.pos+idx], true
 }
 
-func (c *cmdLineParams) tryGetParameter(idx int) (string, ICmdLineException) {
+func (c *cmdLineParams) TryGetParameter(idx int) (string, *CmdLineException) {
 	if c.pos+idx >= len(c.args) || c.pos+idx < 0 {
 		optName := c.owner.currentOptionHandler.Option.String()
 		return "", newCmdLineException(c.owner, msgMissingOperand, optName)
@@ -357,21 +374,11 @@ func (p *CmdLineParser) ParseArgument(args ...string) {
 }
 
 // TryParseArgument parses command-line flags and positional arguments, returning
-// an ICmdLineException instead of panicking on user argument errors.
-func (p *CmdLineParser) TryParseArgument(args ...string) (retErr ICmdLineException) {
-	defer func() {
-		if r := recover(); r != nil {
-			if ex, ok := r.(ICmdLineException); ok {
-				retErr = ex
-				return
-			}
-			panic(r)
-		}
-	}()
-
+// a *CmdLineException instead of panicking on user argument errors.
+func (p *CmdLineParser) TryParseArgument(args ...string) *CmdLineException {
 	expandedArgs := args
 	if p.parserProperties.GetAtSyntax() {
-		var err ICmdLineException
+		var err *CmdLineException
 		expandedArgs, err = p.tryExpandAtFiles(args)
 		if err != nil {
 			return err
@@ -436,7 +443,7 @@ func (p *CmdLineParser) TryParseArgument(args ...string) (retErr ICmdLineExcepti
 	return p.tryCheckRequiredOptionsAndArguments(presentSet, presentOrder)
 }
 
-func (p *CmdLineParser) tryExpandAtFiles(args []string) ([]string, ICmdLineException) {
+func (p *CmdLineParser) tryExpandAtFiles(args []string) ([]string, *CmdLineException) {
 	var result []string
 	for _, arg := range args {
 		if strings.HasPrefix(arg, "@") {
@@ -456,7 +463,7 @@ func (p *CmdLineParser) tryExpandAtFiles(args []string) ([]string, ICmdLineExcep
 	return result, nil
 }
 
-func (p *CmdLineParser) tryCheckRequiredOptionsAndArguments(presentSet map[*OptionHandler]bool, presentOrder []*OptionHandler) ICmdLineException {
+func (p *CmdLineParser) tryCheckRequiredOptionsAndArguments(presentSet map[*OptionHandler]bool, presentOrder []*OptionHandler) *CmdLineException {
 	for _, handler := range p.options {
 		if handler.Option.Required() && !presentSet[handler] {
 			return newCmdLineException(p, msgRequiredOptionMissing, handler.Option.String())
@@ -537,12 +544,16 @@ func (p *CmdLineParser) StopOptionParsing() {
 }
 
 func (p *CmdLineParser) PrintSingleLineUsage(out io.Writer) {
-	checkNonNull(out, "OutputStream")
+	if out == nil {
+		panic(jutil.NewNullPointerExceptionMsg("OutputStream is null"))
+	}
 	p.PrintSingleLineUsageToWriter(jutil.NewOutputStreamWriter(outputStream(out)), nil)
 }
 
 func (p *CmdLineParser) PrintSingleLineUsageToWriter(w jutil.Writer, rb ResourceBundle) {
-	checkNonNull(w, "Writer")
+	if w == nil {
+		panic(jutil.NewNullPointerExceptionMsg("Writer is null"))
+	}
 	var buf strings.Builder
 	for _, h := range p.arguments {
 		p.printSingleLineOption(&buf, h, rb)
@@ -568,12 +579,6 @@ func (p *CmdLineParser) printSingleLineOption(buf *strings.Builder, h *OptionHan
 	}
 	if !option.Required() {
 		buf.WriteByte(']')
-	}
-}
-
-func checkNonNull(obj any, name string) {
-	if jutil.IsNil(obj) {
-		panic(jutil.NewNullPointerExceptionMsg(name + " is null"))
 	}
 }
 

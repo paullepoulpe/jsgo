@@ -317,6 +317,42 @@ type j2clGetterEntry struct {
 	def  ast.GetterDef
 }
 
+var (
+	j2clGathererVisitTokens = func() ast.TokenSet {
+		var s ast.TokenSet
+		s.Add(rhino.Token_CLASS)
+		s.Add(rhino.Token_CALL)
+		return s
+	}()
+	j2clDeterminerVisitTokens = func() ast.TokenSet {
+		var s ast.TokenSet
+		s.Add(rhino.Token_ASSIGN_BITOR)
+		s.Add(rhino.Token_ASSIGN_BITXOR)
+		s.Add(rhino.Token_ASSIGN_BITAND)
+		s.Add(rhino.Token_ASSIGN_LSH)
+		s.Add(rhino.Token_ASSIGN_RSH)
+		s.Add(rhino.Token_ASSIGN_URSH)
+		s.Add(rhino.Token_ASSIGN_ADD)
+		s.Add(rhino.Token_ASSIGN_SUB)
+		s.Add(rhino.Token_ASSIGN_MUL)
+		s.Add(rhino.Token_ASSIGN_DIV)
+		s.Add(rhino.Token_ASSIGN_MOD)
+		s.Add(rhino.Token_ASSIGN_EXPONENT)
+		s.Add(rhino.Token_ASSIGN_OR)
+		s.Add(rhino.Token_ASSIGN_AND)
+		s.Add(rhino.Token_ASSIGN_COALESCE)
+		s.Add(rhino.Token_INC)
+		s.Add(rhino.Token_DEC)
+		return s
+	}()
+	j2clInlinerVisitTokens = func() ast.TokenSet {
+		var s ast.TokenSet
+		s.Add(rhino.Token_GETPROP)
+		s.Add(rhino.Token_ASSIGN)
+		return s
+	}()
+)
+
 // j2clGatherer traverses the AST and gathers static J2CL getters and setters
 // from classes and Object.defineProperties calls.
 //
@@ -327,6 +363,11 @@ type j2clGatherer struct {
 	getters         []j2clGetterEntry
 	getterIdxByName map[string]int
 	setterDefByName map[string]ast.SetterDef
+}
+
+func (*j2clGatherer) noVisitLeaves() {}
+func (*j2clGatherer) visitTokens() *ast.TokenSet {
+	return &j2clGathererVisitTokens
 }
 
 // Java: J2clPropertyInlinerPass.StaticFieldGetterSetterInliner.GatherJ2CLClassGetterSetters.visit(NodeTraversal, Node, Node)
@@ -441,6 +482,11 @@ type j2clDeterminer struct {
 	outer *j2clStaticFieldInliner
 }
 
+func (*j2clDeterminer) noVisitLeaves() {}
+func (*j2clDeterminer) visitTokens() *ast.TokenSet {
+	return &j2clDeterminerVisitTokens
+}
+
 // Java: J2clPropertyInlinerPass.StaticFieldGetterSetterInliner.DetermineInlinableProperties.visit(NodeTraversal, Node, Node)
 func (d *j2clDeterminer) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	var target ast.Target
@@ -468,6 +514,11 @@ type j2clInliner struct {
 	NodeTraversal_AbstractPostOrderCallbackBase
 	outer    *j2clStaticFieldInliner
 	injector *FunctionInjector
+}
+
+func (*j2clInliner) noVisitLeaves() {}
+func (*j2clInliner) visitTokens() *ast.TokenSet {
+	return &j2clInlinerVisitTokens
 }
 
 func (i *j2clInliner) getInjector() *FunctionInjector {

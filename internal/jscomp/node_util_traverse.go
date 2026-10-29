@@ -22,6 +22,7 @@ import (
 	"iter"
 	"slices"
 
+	"github.com/paullepoulpe/jsgo/internal/ast"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 	"github.com/paullepoulpe/jsgo/internal/strpool"
@@ -476,18 +477,79 @@ func NodeUtil_CreateConstantJsDoc() *rhino.JSDocInfo {
 	return builder.Build()
 }
 
+var externVarNameVisitTokens = makeVisitTokenSet(rhino.Token_NAME, rhino.Token_IMPORT_STAR)
+
+type externVarNameCollector struct {
+	orderedSet  *jutil.LinkedHashSet[string]
+	externNames map[string]struct{}
+	reserved    stringMapSet
+}
+
+var (
+	_ NodeTraversal_Callback         = (*externVarNameCollector)(nil)
+	_ nodeTraversal_noShouldTraverse = (*externVarNameCollector)(nil)
+	_ nodeTraversal_visitTokens      = (*externVarNameCollector)(nil)
+)
+
+func (*externVarNameCollector) nodeTraversalNoShouldTraverse() {}
+func (*externVarNameCollector) visitTokens() *ast.TokenSet     { return &externVarNameVisitTokens }
+func (*externVarNameCollector) ShouldTraverse(*NodeTraversal, rhino.Node, rhino.Node) bool {
+	return true
+}
+
+func (c *externVarNameCollector) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
+	if !parent.IsNil() {
+		if pt := parent.GetToken(); (pt == rhino.Token_IMPORT_SPEC && n != parent.GetLastChild()) ||
+			(pt == rhino.Token_EXPORT_SPEC && n != parent.GetFirstChild()) {
+			return
+		}
+	}
+	id := n.GetStringID()
+	var v *Var
+	if id == implicitArgumentsID {
+		v = t.GetScope().GetVarByID(id)
+	} else {
+		v = t.LookupVarByID(id)
+	}
+	if v != nil && !v.IsParam() {
+		name := v.GetName()
+		if c.orderedSet != nil {
+			c.orderedSet.Add(name)
+		} else {
+			c.externNames[name] = struct{}{}
+			if c.reserved != nil {
+				c.reserved[name] = struct{}{}
+			}
+		}
+	}
+}
+
+func collectExternVariableNamesInto(
+	compiler AbstractCompiler,
+	externs rhino.Node,
+	externNames map[string]struct{},
+	reserved stringMapSet,
+) {
+	cb := externVarNameCollector{externNames: externNames, reserved: reserved}
+	b := NodeTraversal_Builder{
+		compiler: compiler,
+		callback: &cb,
+		obeyDestructuringAndDefaultValueExecutionOrder: true,
+	}
+	b.Traverse(externs)
+}
+
 // Java: NodeUtil.collectExternVariableNames(AbstractCompiler, Node)
 func NodeUtil_CollectExternVariableNames(
 	compiler AbstractCompiler, externs rhino.Node) *jutil.LinkedHashSet[string] {
-	externsRefs := NewReferenceCollector(
-		compiler, ReferenceCollector_DO_NOTHING_BEHAVIOR, NewSyntacticScopeCreator(compiler))
-	externsRefs.ProcessRoot(externs)
 	externsNames := jutil.NewLinkedHashSet[string]()
-	for v := range externsRefs.GetAllSymbols() {
-		if !v.IsParam() {
-			externsNames.Add(v.GetName())
-		}
+	cb := externVarNameCollector{orderedSet: externsNames}
+	b := NodeTraversal_Builder{
+		compiler: compiler,
+		callback: &cb,
+		obeyDestructuringAndDefaultValueExecutionOrder: true,
 	}
+	b.Traverse(externs)
 	return externsNames
 }
 
@@ -740,17 +802,16 @@ func (f *nodeUtil_getAllVarsDeclaredInFunction_finder) Visit(t *NodeTraversal, n
 type NodeUtil_AllVarsDeclaredInFunction struct {
 	table       fnVarTable
 	allVarsInFn *jutil.LinkedHashMap[string, *Var]
-	mapStorage  jutil.LinkedHashMap[string, *Var]
 }
 
 // Java: NodeUtil.AllVarsDeclaredInFunction.getAllVariables()
 func (a *NodeUtil_AllVarsDeclaredInFunction) GetAllVariables() *jutil.LinkedHashMap[string, *Var] {
 	if a.allVarsInFn == nil {
-		a.mapStorage.Clear()
+		m := jutil.NewLinkedHashMapWithCapacity[string, *Var](len(a.table.vars))
 		for _, v := range a.table.vars {
-			a.mapStorage.Put(v.GetName(), v)
+			m.Put(v.GetName(), v)
 		}
-		a.allVarsInFn = &a.mapStorage
+		a.allVarsInFn = m
 	}
 	return a.allVarsInFn
 }

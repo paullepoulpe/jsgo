@@ -180,6 +180,31 @@ type ConvertToTypedInterface_RemoveNonDeclarations struct {
 	_ byte // Go-only: language-adapter — distinct identity
 }
 
+var convertToTypedInterfaceRemoveVisitTokens = func() ast.TokenSet {
+	var s ast.TokenSet
+	s.Add(rhino.Token_TRY)
+	s.Add(rhino.Token_LABEL)
+	s.Add(rhino.Token_DEFAULT_CASE)
+	s.Add(rhino.Token_CASE)
+	s.Add(rhino.Token_DO)
+	s.Add(rhino.Token_WHILE)
+	s.Add(rhino.Token_FOR)
+	s.Add(rhino.Token_FOR_IN)
+	s.Add(rhino.Token_FOR_OF)
+	s.Add(rhino.Token_FOR_AWAIT_OF)
+	s.Add(rhino.Token_IF)
+	s.Add(rhino.Token_SWITCH)
+	s.Add(rhino.Token_VAR)
+	s.Add(rhino.Token_LET)
+	s.Add(rhino.Token_CONST)
+	s.Add(rhino.Token_BLOCK)
+	return s
+}()
+
+func (*ConvertToTypedInterface_RemoveNonDeclarations) visitTokens() *ast.TokenSet {
+	return &convertToTypedInterfaceRemoveVisitTokens
+}
+
 var convertToTypedInterface_RemoveNonDeclarations_GOOG_SCOPE = rhino.QualifiedName_Of("goog.scope")
 
 // Java: ConvertToTypedInterface.RemoveNonDeclarations()
@@ -404,6 +429,23 @@ type ConvertToTypedInterface_PropagateConstJsdoc struct {
 	currentFile *FileInfo
 }
 
+var convertToTypedInterfacePropagateVisitTokens = func() ast.TokenSet {
+	var s ast.TokenSet
+	s.Add(rhino.Token_CLASS)
+	s.Add(rhino.Token_MEMBER_FIELD_DEF)
+	s.Add(rhino.Token_FUNCTION)
+	s.Add(rhino.Token_EXPR_RESULT)
+	s.Add(rhino.Token_VAR)
+	s.Add(rhino.Token_CONST)
+	s.Add(rhino.Token_LET)
+	s.Add(rhino.Token_STRING_KEY)
+	return s
+}()
+
+func (*ConvertToTypedInterface_PropagateConstJsdoc) visitTokens() *ast.TokenSet {
+	return &convertToTypedInterfacePropagateVisitTokens
+}
+
 var processConstJsdocCallback_GOOG_DEFINE = rhino.QualifiedName_Of("goog.define")
 var processConstJsdocCallback_GOOG_PROVIDE = rhino.QualifiedName_Of("goog.provide")
 var processConstJsdocCallback_GOOG_REQUIRE = rhino.QualifiedName_Of("goog.require")
@@ -603,14 +645,18 @@ func NewConvertToTypedInterface_SimplifyDeclarations(compiler AbstractCompiler, 
 
 // Java: ConvertToTypedInterface.SimplifyDeclarations.removeDuplicateDeclarations()
 func (s *ConvertToTypedInterface_SimplifyDeclarations) RemoveDuplicateDeclarations() {
-	for name, declList := range s.currentFile.GetDeclarations().All() {
+	decls := s.currentFile.GetDeclarations()
+	entries := decls.Entries()
+	for i := range entries {
+		name := entries[i].Key
 		if strings.HasPrefix(name, "this.") {
 			continue
 		}
+		declList := entries[i].Value
 		slices.SortStableFunc(declList, ConvertToTypedInterface_SimplifyDeclarations_DECLARATIONS_FIRST)
 		if len(declList) > 1 {
 			// Don't remove the first declaration (at index 0)
-			s.currentFile.GetDeclarations().Put(name, declList[:1])
+			entries[i].Value = declList[:1]
 			for _, decl := range declList[1:] {
 				decl.Remove(s.compiler)
 			}
@@ -624,11 +670,12 @@ func (s *ConvertToTypedInterface_SimplifyDeclarations) SimplifyAll() {
 	s.RemoveDuplicateDeclarations()
 
 	// Simplify all names in the top-level scope.
-	seenNames := slices.Collect(s.currentFile.GetDeclarations().Keys())
+	decls := s.currentFile.GetDeclarations()
+	seenNames := decls.KeySlice()
 	slices.SortStableFunc(seenNames, ConvertToTypedInterface_SimplifyDeclarations_SHORT_TO_LONG)
 
 	for _, name := range seenNames {
-		for _, decl := range s.currentFile.GetDeclarations().Get(name) {
+		for _, decl := range decls.Get(name) {
 			s.ProcessDeclaration(name, decl)
 		}
 	}
@@ -815,22 +862,18 @@ func ConvertToTypedInterface_ShouldPreserveAssignment(expr rhino.Node, t *NodeTr
 // FileInfo is the class to keep track of what has been seen so far in a
 // given file.
 type FileInfo struct {
-	providedNamespaces *jutil.LinkedHashSet[string]
-	requiredLocalNames *jutil.LinkedHashSet[string]
+	providedNamespaces OrderedStringMap[struct{}]
+	requiredLocalNames OrderedStringMap[struct{}]
 	// MultimapBuilder.linkedHashKeys().arrayListValues().build()
-	declarations     *jutil.LinkedHashMap[string, []*PotentialDeclaration]
+	declarations     OrderedStringMap[[]*PotentialDeclaration]
 	isFromTypeScript bool
 }
 
 // Java: FileInfo(String)
 func NewFileInfo(sourceFileName string) *FileInfo {
-	f := &FileInfo{
-		providedNamespaces: jutil.NewLinkedHashSet[string](),
-		requiredLocalNames: jutil.NewLinkedHashSet[string](),
-		declarations:       jutil.NewLinkedHashMap[string, []*PotentialDeclaration](),
+	return &FileInfo{
+		isFromTypeScript: strings.HasSuffix(sourceFileName, ".closure.js"),
 	}
-	f.isFromTypeScript = strings.HasSuffix(sourceFileName, ".closure.js")
-	return f
 }
 
 // Java: FileInfo.isFromTypeScript()
@@ -869,8 +912,8 @@ func (f *FileInfo) RecordAliasDeclaration(nameNode rhino.Node) {
 }
 
 // Java: FileInfo.getDeclarations()
-func (f *FileInfo) GetDeclarations() *jutil.LinkedHashMap[string, []*PotentialDeclaration] {
-	return f.declarations
+func (f *FileInfo) GetDeclarations() *OrderedStringMap[[]*PotentialDeclaration] {
+	return &f.declarations
 }
 
 // Java: FileInfo.recordDeclaration(PotentialDeclaration)
@@ -881,7 +924,7 @@ func (f *FileInfo) RecordDeclaration(decl *PotentialDeclaration) {
 
 // Java: FileInfo.recordImport(String)
 func (f *FileInfo) RecordImport(localName string) {
-	f.requiredLocalNames.Add(localName)
+	f.requiredLocalNames.Put(localName, struct{}{})
 }
 
 // Java: FileInfo.isNameDeclared(String)
@@ -890,8 +933,9 @@ func (f *FileInfo) IsNameDeclared(fullyQualifiedName string) bool {
 }
 
 // Java: FileInfo.containsPrefix(String, Iterable<String>)
-func FileInfo_ContainsPrefix(fullyQualifiedName string, prefixNamespaces *jutil.LinkedHashSet[string]) bool {
-	for prefix := range prefixNamespaces.All() {
+func FileInfo_ContainsPrefix(fullyQualifiedName string, prefixNamespaces *OrderedStringMap[struct{}]) bool {
+	for _, entry := range prefixNamespaces.Entries() {
+		prefix := entry.Key
 		if fullyQualifiedName == prefix || strings.HasPrefix(fullyQualifiedName, prefix+".") {
 			return true
 		}
@@ -901,18 +945,18 @@ func FileInfo_ContainsPrefix(fullyQualifiedName string, prefixNamespaces *jutil.
 
 // Java: FileInfo.isPrefixProvided(String)
 func (f *FileInfo) IsPrefixProvided(fullyQualifiedName string) bool {
-	return FileInfo_ContainsPrefix(fullyQualifiedName, f.providedNamespaces)
+	return FileInfo_ContainsPrefix(fullyQualifiedName, &f.providedNamespaces)
 }
 
 // Java: FileInfo.isPrefixRequired(String)
 func (f *FileInfo) IsPrefixRequired(fullyQualifiedName string) bool {
-	return FileInfo_ContainsPrefix(fullyQualifiedName, f.requiredLocalNames)
+	return FileInfo_ContainsPrefix(fullyQualifiedName, &f.requiredLocalNames)
 }
 
 // Java: FileInfo.isStrictPrefixDeclared(String)
 func (f *FileInfo) IsStrictPrefixDeclared(fullyQualifiedName string) bool {
-	for prefix := range f.declarations.Keys() {
-		if strings.HasPrefix(fullyQualifiedName, prefix+".") {
+	for _, entry := range f.declarations.Entries() {
+		if strings.HasPrefix(fullyQualifiedName, entry.Key+".") {
 			return true
 		}
 	}
@@ -922,7 +966,7 @@ func (f *FileInfo) IsStrictPrefixDeclared(fullyQualifiedName string) bool {
 // Java: FileInfo.markProvided(String)
 func (f *FileInfo) MarkProvided(providedName string) {
 	// checkNotNull(providedName): a Go string cannot be null.
-	f.providedNamespaces.Add(providedName)
+	f.providedNamespaces.Put(providedName, struct{}{})
 }
 
 // ClassUtil holds static utility methods for dealing with classes. The

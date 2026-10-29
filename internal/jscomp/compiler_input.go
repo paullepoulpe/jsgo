@@ -820,14 +820,8 @@ func (a *CompilerInput_JsAst) GetAstRoot(compiler AbstractCompiler) rhino.Node {
 	}
 
 	sourceFile := a.outer.sourceFile
-	if c, ok := compiler.(*Compiler); ok {
-		if root, found := c.deserializeTypedAstRoot(sourceFile); found {
-			a.installDeserializedRoot(root)
-		} else {
-			a.parse(compiler)
-		}
-	} else if astRootSource := compiler.GetTypedAstDeserializer(sourceFile); astRootSource != nil {
-		a.installDeserializedRoot(astRootSource())
+	if root, found := compiler.deserializeTypedAstRoot(sourceFile); found {
+		a.installDeserializedRoot(root)
 	} else {
 		a.parse(compiler)
 	}

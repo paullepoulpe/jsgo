@@ -56,14 +56,6 @@ func (l *SourceMapJsonLexer) startsWith(prefix string, toffset int) bool {
 	return l.json[toffset:toffset+len(prefix)] == prefix
 }
 
-// substring slices json[beginIndex:endIndex] by byte offset.
-func (l *SourceMapJsonLexer) substring(beginIndex, endIndex int) string {
-	if beginIndex < 0 || endIndex > l.length || beginIndex > endIndex {
-		panic(jutil.NewStringIndexOutOfBoundsException(beginIndex, endIndex))
-	}
-	return l.json[beginIndex:endIndex]
-}
-
 // Java: SourceMapJsonLexer.skipWhitespace()
 func (l *SourceMapJsonLexer) SkipWhitespace() {
 	for l.pos < l.length {
@@ -95,13 +87,6 @@ func (l *SourceMapJsonLexer) beginObject() error {
 	return NewSourceMapParseException("Expected '{'")
 }
 
-// Java: SourceMapJsonLexer.beginObject()
-func (l *SourceMapJsonLexer) BeginObject() {
-	if err := l.beginObject(); err != nil {
-		panic(err)
-	}
-}
-
 func (l *SourceMapJsonLexer) endObject() error {
 	l.SkipWhitespace()
 	if l.pos < l.length && l.json[l.pos] == '}' {
@@ -109,13 +94,6 @@ func (l *SourceMapJsonLexer) endObject() error {
 		return nil
 	}
 	return NewSourceMapParseException("Expected '}'")
-}
-
-// Java: SourceMapJsonLexer.endObject()
-func (l *SourceMapJsonLexer) EndObject() {
-	if err := l.endObject(); err != nil {
-		panic(err)
-	}
 }
 
 func (l *SourceMapJsonLexer) beginArray() error {
@@ -127,13 +105,6 @@ func (l *SourceMapJsonLexer) beginArray() error {
 	return NewSourceMapParseException("Expected '['")
 }
 
-// Java: SourceMapJsonLexer.beginArray()
-func (l *SourceMapJsonLexer) BeginArray() {
-	if err := l.beginArray(); err != nil {
-		panic(err)
-	}
-}
-
 func (l *SourceMapJsonLexer) endArray() error {
 	l.SkipWhitespace()
 	if l.pos < l.length && l.json[l.pos] == ']' {
@@ -141,59 +112,6 @@ func (l *SourceMapJsonLexer) endArray() error {
 		return nil
 	}
 	return NewSourceMapParseException("Expected ']'")
-}
-
-// Java: SourceMapJsonLexer.endArray()
-func (l *SourceMapJsonLexer) EndArray() {
-	if err := l.endArray(); err != nil {
-		panic(err)
-	}
-}
-
-func (l *SourceMapJsonLexer) nextName() (string, error) {
-	name, err := l.nextString()
-	if err != nil {
-		return "", err
-	}
-	l.SkipWhitespace()
-	if l.pos < l.length && l.json[l.pos] == ':' {
-		l.pos++
-		return name, nil
-	}
-	return "", NewSourceMapParseException("Expected ':'")
-}
-
-// Java: SourceMapJsonLexer.nextName()
-func (l *SourceMapJsonLexer) NextName() string {
-	name, err := l.nextName()
-	if err != nil {
-		panic(err)
-	}
-	return name
-}
-
-func (l *SourceMapJsonLexer) nextStringOrNull() (optionalString, error) {
-	l.SkipWhitespace()
-	if l.pos < l.length && l.startsWith("null", l.pos) {
-		l.pos += 4
-		return optionalString{}, nil
-	}
-	s, err := l.nextString()
-	if err != nil {
-		return optionalString{}, err
-	}
-	return optionalString{text: s, present: true}, nil
-}
-
-// NextStringOrNull returns the next string, or nil for a null literal.
-//
-// Java: SourceMapJsonLexer.nextStringOrNull()
-func (l *SourceMapJsonLexer) NextStringOrNull() *string {
-	s, err := l.nextStringOrNull()
-	if err != nil {
-		panic(err)
-	}
-	return s.ptr()
 }
 
 func (l *SourceMapJsonLexer) nextString() (string, error) {
@@ -269,104 +187,6 @@ func (l *SourceMapJsonLexer) NextInt() int {
 	return v
 }
 
-func (l *SourceMapJsonLexer) nextRawValue() (string, error) {
-	l.SkipWhitespace()
-	start := l.pos
-	if err := l.skipValue(); err != nil {
-		return "", err
-	}
-	return l.json[start:l.pos], nil
-}
-
-// Java: SourceMapJsonLexer.nextRawValue()
-func (l *SourceMapJsonLexer) NextRawValue() string {
-	s, err := l.nextRawValue()
-	if err != nil {
-		panic(err)
-	}
-	return s
-}
-
-func (l *SourceMapJsonLexer) skipValue() error {
-	l.SkipWhitespace()
-	if l.pos >= l.length {
-		return NewSourceMapParseException("Unexpected end of input")
-	}
-	c := l.json[l.pos]
-	if c == '{' {
-		l.pos++
-		for l.HasNext() {
-			if _, err := l.nextName(); err != nil {
-				return err
-			}
-			if err := l.skipValue(); err != nil {
-				return err
-			}
-			if err := l.checkComma(); err != nil {
-				return err
-			}
-		}
-		return l.endObject()
-	} else if c == '[' {
-		l.pos++
-		for l.HasNext() {
-			if err := l.skipValue(); err != nil {
-				return err
-			}
-			if err := l.checkComma(); err != nil {
-				return err
-			}
-		}
-		return l.endArray()
-	} else if c == '"' {
-		_, err := l.nextString()
-		return err
-	} else if c == 't' && l.startsWith("true", l.pos) {
-		l.pos += 4
-		return nil
-	} else if c == 'f' && l.startsWith("false", l.pos) {
-		l.pos += 5
-		return nil
-	} else if c == 'n' && l.startsWith("null", l.pos) {
-		l.pos += 4
-		return nil
-	} else if c == '-' || (c >= '0' && c <= '9') {
-		if c == '-' {
-			l.pos++
-		}
-		for l.pos < l.length &&
-			((l.json[l.pos] >= '0' && l.json[l.pos] <= '9') ||
-				l.json[l.pos] == '.' ||
-				l.json[l.pos] == 'e' ||
-				l.json[l.pos] == 'E' ||
-				l.json[l.pos] == '+' ||
-				l.json[l.pos] == '-') {
-			l.pos++
-		}
-		return nil
-	}
-	return NewSourceMapParseException("Unexpected character: " + firstUTF16CharString(l.json[l.pos:]))
-}
-
-func firstUTF16CharString(s string) string {
-	if s[0] < 0x80 {
-		return s[:1]
-	}
-	r, _ := util_decodeWTF8(s)
-	if r >= 0x10000 {
-		hi, _ := utf16.EncodeRune(r)
-		return jutil.StringFromChar(uint16(hi))
-	}
-	return jutil.StringFromChar(uint16(r))
-}
-
-// Java: SourceMapJsonLexer.skipValue()
-func (l *SourceMapJsonLexer) SkipValue() {
-	if err := l.skipValue(); err != nil {
-		panic(err)
-	}
-}
-
 func (l *SourceMapJsonLexer) checkComma() error {
 	hasComma := l.TryConsumeComma()
 	if hasComma && !l.HasNext() {
@@ -376,13 +196,6 @@ func (l *SourceMapJsonLexer) checkComma() error {
 		return NewSourceMapParseException("Expected ','")
 	}
 	return nil
-}
-
-// Java: SourceMapJsonLexer.checkComma()
-func (l *SourceMapJsonLexer) CheckComma() {
-	if err := l.checkComma(); err != nil {
-		panic(err)
-	}
 }
 
 // Java: SourceMapJsonLexer.tryConsumeComma()
@@ -545,17 +358,6 @@ func sourceMapJsonLexer_unescapeUTF16(s []uint16) (string, error) {
 		}
 	}
 	return jutil.StringFromUTF16(sb), nil
-}
-
-// SourceMapJsonLexer_Unescape decodes the JSON escapes in s[start:end].
-//
-// Java: SourceMapJsonLexer.unescape(String, int, int)
-func SourceMapJsonLexer_Unescape(s string, start, end int) string {
-	out, err := sourceMapJsonLexer_unescape(s, start, end)
-	if err != nil {
-		panic(err)
-	}
-	return out
 }
 
 // sourceMapJsonLexer_parseInt is Integer.parseInt(CharSequence, int, int,

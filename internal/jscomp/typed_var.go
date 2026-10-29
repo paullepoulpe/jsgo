@@ -106,6 +106,11 @@ func (v *TypedVar) GetScope() rhino.StaticScope {
 	return v.scope
 }
 
+// Scope returns the concrete TypedScope where this variable is declared.
+func (v *TypedVar) Scope() *TypedScope {
+	return v.scope
+}
+
 func (v *TypedVar) getScopeS() *TypedScope {
 	return v.scope
 }

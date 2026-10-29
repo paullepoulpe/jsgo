@@ -70,6 +70,10 @@ func NewCheckEnums(compiler AbstractCompiler) *CheckEnums {
 	return &CheckEnums{compiler: compiler}
 }
 
+func (*CheckEnums) cloneForParallel(c *Compiler) NodeTraversal_Callback {
+	return NewCheckEnums(c)
+}
+
 // Java: CheckEnums.process(Node, Node)
 func (c *CheckEnums) Process(externs rhino.Node, root rhino.Node) {
 	NodeTraversal_Traverse(c.compiler, root, c)

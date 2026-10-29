@@ -21,6 +21,7 @@ package jscomp
 import (
 	"strings"
 
+	"github.com/paullepoulpe/jsgo/internal/ast"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
 
@@ -30,6 +31,20 @@ type J2clChecksPass struct {
 	NodeTraversal_AbstractPostOrderCallbackBase
 
 	compiler AbstractCompiler
+}
+
+var j2clChecksPassVisitTokens = func() ast.TokenSet {
+	var s ast.TokenSet
+	s.Add(rhino.Token_SHEQ)
+	s.Add(rhino.Token_EQ)
+	s.Add(rhino.Token_SHNE)
+	s.Add(rhino.Token_NE)
+	return s
+}()
+
+func (*J2clChecksPass) noVisitLeaves() {}
+func (*J2clChecksPass) visitTokens() *ast.TokenSet {
+	return &j2clChecksPassVisitTokens
 }
 
 // Java: J2clChecksPass.J2CL_REFERENCE_EQUALITY

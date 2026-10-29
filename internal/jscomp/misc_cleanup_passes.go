@@ -115,8 +115,8 @@ func (c *CheckDebuggerStatement) Process(externs rhino.Node, root rhino.Node) {
 }
 
 func (*CheckDebuggerStatement) visitTokens() *ast.TokenSet { return &checkDebuggerStatementVisitTokens }
-func (*CheckDebuggerStatement) combinedVisitTokens() ast.TokenSet {
-	return checkDebuggerStatementVisitTokens
+func (*CheckDebuggerStatement) cloneForParallel(c *Compiler) NodeTraversal_Callback {
+	return NewCheckDebuggerStatement(c)
 }
 
 // Java: CheckDebuggerStatement.visit(NodeTraversal, Node, Node)
@@ -173,8 +173,7 @@ func (g *GatherRawExports) Process(externs rhino.Node, root rhino.Node) {
 	NodeTraversal_Traverse(g.compiler, root, g)
 }
 
-func (*GatherRawExports) visitTokens() *ast.TokenSet        { return &gatherRawExportsVisitTokens }
-func (*GatherRawExports) combinedVisitTokens() ast.TokenSet { return gatherRawExportsVisitTokens }
+func (*GatherRawExports) visitTokens() *ast.TokenSet { return &gatherRawExportsVisitTokens }
 
 // Java: GatherRawExports.visit(NodeTraversal, Node, Node)
 func (g *GatherRawExports) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
@@ -227,35 +226,15 @@ func (r *RemoveCastNodes) Process(externs rhino.Node, root rhino.Node) {
 }
 
 func (r *RemoveCastNodes) processParallel(externs rhino.Node, root rhino.Node) bool {
-	scopeRoot, items, ok := collectExternAndRootScripts(externs, root)
-	if !ok {
-		return false
-	}
-	numWorkers := parallelThreadCount(r.compiler, len(items))
-	if numWorkers <= 1 {
-		return false
-	}
-	prewarmCompilerForParallelReads(r.compiler)
-	runParallelWork(r.compiler, numWorkers, len(items), func(_ int) (func(int, *recordingCompiler), func()) {
-		var workerRC *recordingCompiler
-		var workerCb *RemoveCastNodes_RemoveCastsCallback
-		runItem := func(idx int, rc *recordingCompiler) {
-			if workerCb == nil || workerRC != rc {
-				workerRC = rc
-				workerCb = &RemoveCastNodes_RemoveCastsCallback{
-					outer: &RemoveCastNodes{compiler: rc},
-				}
+	return traverseScriptsParallel(r.compiler, root, parallelScriptOptions[*RemoveCastNodes_RemoveCastsCallback]{
+		hasExterns: true,
+		externs:    externs,
+		initWorker: func(_ int, rc *Compiler) *RemoveCastNodes_RemoveCastsCallback {
+			return &RemoveCastNodes_RemoveCastsCallback{
+				outer: &RemoveCastNodes{compiler: rc},
 			}
-			item := items[idx]
-			b := NodeTraversal_Builder{
-				compiler: rc,
-				callback: workerCb,
-			}
-			b.traverseScriptUnderRoot(scopeRoot, item.parent, item.script, nil)
-		}
-		return runItem, nil
-	}, false)
-	return true
+		},
+	})
 }
 
 // RemoveCastNodes_RemoveCastsCallback is the inner class RemoveCastsCallback.
@@ -266,9 +245,6 @@ type RemoveCastNodes_RemoveCastsCallback struct {
 
 func (*RemoveCastNodes_RemoveCastsCallback) visitTokens() *ast.TokenSet {
 	return &removeCastNodesVisitTokens
-}
-func (*RemoveCastNodes_RemoveCastsCallback) combinedVisitTokens() ast.TokenSet {
-	return removeCastNodesVisitTokens
 }
 
 // Java: RemoveCastNodes.RemoveCastsCallback.visit(NodeTraversal, Node, Node)

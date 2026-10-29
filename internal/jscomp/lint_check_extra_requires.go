@@ -72,6 +72,10 @@ func NewCheckExtraRequires(
 	}
 }
 
+func (c *CheckExtraRequires) cloneForParallel(rc *Compiler) NodeTraversal_Callback {
+	return NewCheckExtraRequires(rc, c.requiresToRemove)
+}
+
 // Java: CheckExtraRequires.process(Node, Node)
 func (c *CheckExtraRequires) Process(externs rhino.Node, root rhino.Node) {
 	c.Reset()

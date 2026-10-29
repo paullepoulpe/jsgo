@@ -66,8 +66,8 @@ type sourceMapTest_lambdaMapping struct {
 	_ byte // Go-only: language-adapter — distinct identity
 }
 
-func (*sourceMapTest_lambdaMapping) Map(location string) *string {
-	return jutil.StringPtr("mapped/" + location)
+func (*sourceMapTest_lambdaMapping) Map(location string) (string, bool) {
+	return "mapped/" + location, true
 }
 
 // Java: SourceMapTest.testPrefixReplacement1()

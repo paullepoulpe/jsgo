@@ -95,13 +95,13 @@ const RemoveUnusedCodeClassPropertiesTest_EXTERNS = "/**\n" +
 
 // Java: RemoveUnusedCodeClassPropertiesTest.getProcessor(Compiler)
 func (c *RemoveUnusedCodeClassPropertiesTest) GetProcessor(compiler *Compiler) CompilerPass {
-	return NewRemoveUnusedCode_Builder(compiler).
-		RemoveLocalVars(!c.keepLocals).
-		RemoveGlobals(!c.keepGlobals).
-		RemoveUnusedPrototypeProperties(true).
-		RemoveUnusedThisProperties(true).
-		RemoveUnusedObjectDefinePropertiesDefinitions(true).
-		Build()
+	return NewRemoveUnusedCode(compiler, RemoveUnusedCodeOptions{
+		RemoveLocalVars:                               !c.keepLocals,
+		RemoveGlobals:                                 !c.keepGlobals,
+		RemoveUnusedPrototypeProperties:               true,
+		RemoveUnusedThisProperties:                    true,
+		RemoveUnusedObjectDefinePropertiesDefinitions: true,
+	})
 }
 
 // Java: RemoveUnusedCodeClassPropertiesTest.setUp()

@@ -57,6 +57,10 @@ func NewImplicitNullabilityCheck(compiler AbstractCompiler) *ImplicitNullability
 	return c
 }
 
+func (*ImplicitNullabilityCheck) cloneForParallel(c *Compiler) NodeTraversal_Callback {
+	return NewImplicitNullabilityCheck(c)
+}
+
 // Java: ImplicitNullabilityCheck.process(Node, Node)
 func (c *ImplicitNullabilityCheck) Process(externs rhino.Node, root rhino.Node) {
 	NodeTraversal_TraverseRoots(c.compiler, c, externs, root)

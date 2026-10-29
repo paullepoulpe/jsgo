@@ -161,15 +161,6 @@ var jsdocTag_numbers = [...]int32{
 	-1,
 }
 
-// JsdocTag_values is JsdocTag.values().
-func JsdocTag_values() []JsdocTag {
-	out := make([]JsdocTag, len(jsdocTag_names))
-	for i := range out {
-		out[i] = JsdocTag(i)
-	}
-	return out
-}
-
 // String is Enum.name().
 func (e JsdocTag) String() string { return jsdocTag_names[e] }
 
@@ -209,19 +200,6 @@ func JsdocTag_ForNumber(value int32) *JsdocTag {
 	return nil
 }
 
-// Java: JsdocTag.valueOf(int) (deprecated)
-func JsdocTag_ValueOf(value int32) *JsdocTag { return JsdocTag_ForNumber(value) }
-
-// JsdocTag_ValueOfName is Enum.valueOf(String).
-func JsdocTag_ValueOfName(name string) JsdocTag {
-	for i, n := range jsdocTag_names {
-		if n == name {
-			return JsdocTag(i)
-		}
-	}
-	panic(jutil.NewIllegalArgumentExceptionMsg("No enum constant com.google.javascript.jscomp.serialization.JsdocTag." + name))
-}
-
 func jsdocTag_fromNumber(value int32) JsdocTag {
 	if value >= 0 && int(value) < len(jsdocTag_byNumber) {
 		return jsdocTag_byNumber[value]
@@ -247,8 +225,7 @@ type OptimizationJsdoc struct {
 	alternateMessageIdPointer_ int32
 	closureUnawareModePointer_ int32
 	unknownFields              []byte
-	frozen                     bool
-	memoizedSize               int
+	cachedSize                 int
 }
 
 // Field numbers (OptimizationJsdoc.X_FIELD_NUMBER).
@@ -261,66 +238,20 @@ const (
 	OptimizationJsdoc_CLOSURE_UNAWARE_MODE_POINTER_FIELD_NUMBER = 6
 )
 
-var optimizationJsdoc_DEFAULT_INSTANCE = &OptimizationJsdoc{frozen: true, memoizedSize: -1}
+var optimizationJsdoc_DEFAULT_INSTANCE = &OptimizationJsdoc{cachedSize: 1}
 
 // Java: OptimizationJsdoc.getDefaultInstance()
 func OptimizationJsdoc_GetDefaultInstance() *OptimizationJsdoc {
 	return optimizationJsdoc_DEFAULT_INSTANCE
 }
 
-// Java: OptimizationJsdoc.newBuilder()
-func OptimizationJsdoc_NewBuilder() *OptimizationJsdoc_Builder {
-	return &OptimizationJsdoc_Builder{m: &OptimizationJsdoc{memoizedSize: -1}}
-}
-
-// Java: OptimizationJsdoc.newBuilder(OptimizationJsdoc)
-func OptimizationJsdoc_NewBuilderFrom(prototype *OptimizationJsdoc) *OptimizationJsdoc_Builder {
-	return prototype.ToBuilder()
-}
-
-// Java: OptimizationJsdoc.toBuilder()
-func (m *OptimizationJsdoc) ToBuilder() *OptimizationJsdoc_Builder {
-	return &OptimizationJsdoc_Builder{m: m.mutableCopy()}
-}
-
 // OptimizationJsdoc_ParseFrom panics with *InvalidProtocolBufferException on malformed input.
 //
 // Java: OptimizationJsdoc.parseFrom(byte[])
 func OptimizationJsdoc_ParseFrom(data []byte) *OptimizationJsdoc {
-	m := &OptimizationJsdoc{memoizedSize: -1}
+	m := &OptimizationJsdoc{}
 	m.mergeFromReader(&protoReader{b: data})
-	m.frozen = true
 	return m
-}
-
-// mutableCopy is a shallow copy that a builder may modify.
-func (m *OptimizationJsdoc) mutableCopy() *OptimizationJsdoc {
-	c := *m
-	c.frozen = false
-	c.memoizedSize = -1
-	c.kind_ = append([]int32(nil), m.kind_...)
-	return &c
-}
-
-// freeze returns an immutable copy (shared when m is already immutable).
-func (m *OptimizationJsdoc) freeze() *OptimizationJsdoc {
-	if m == nil || m.frozen {
-		return m
-	}
-	c := *m
-	c.frozen = true
-	c.memoizedSize = -1
-	c.kind_ = append([]int32(nil), m.kind_...)
-	return &c
-}
-
-// Java: OptimizationJsdoc.getKindList()
-func (m *OptimizationJsdoc) GetKindList() []JsdocTag {
-	out := make([]JsdocTag, len(m.kind_))
-	for i, v := range m.kind_ {
-		out[i] = jsdocTag_fromNumber(v)
-	}
-	return out
 }
 
 // Java: OptimizationJsdoc.getKind(int)
@@ -328,18 +259,6 @@ func (m *OptimizationJsdoc) GetKind(index int) JsdocTag {
 	protoCheckIndex(index, len(m.kind_))
 	return jsdocTag_fromNumber(m.kind_[index])
 }
-
-// Java: OptimizationJsdoc.getKindValueList()
-func (m *OptimizationJsdoc) GetKindValueList() []int32 { return m.kind_ }
-
-// Java: OptimizationJsdoc.getKindValue(int)
-func (m *OptimizationJsdoc) GetKindValue(index int) int32 {
-	protoCheckIndex(index, len(m.kind_))
-	return m.kind_[index]
-}
-
-// Java: OptimizationJsdoc.getKindCount()
-func (m *OptimizationJsdoc) GetKindCount() int { return len(m.kind_) }
 
 // Java: OptimizationJsdoc.getLicenseTextPointer()
 func (m *OptimizationJsdoc) GetLicenseTextPointer() int32 {
@@ -364,235 +283,6 @@ func (m *OptimizationJsdoc) GetAlternateMessageIdPointer() int32 {
 // Java: OptimizationJsdoc.getClosureUnawareModePointer()
 func (m *OptimizationJsdoc) GetClosureUnawareModePointer() int32 {
 	return m.closureUnawareModePointer_
-}
-
-// OptimizationJsdoc_Builder is OptimizationJsdoc.Builder.
-type OptimizationJsdoc_Builder struct{ m *OptimizationJsdoc }
-
-// Java: OptimizationJsdoc.Builder.build()
-func (b *OptimizationJsdoc_Builder) Build() *OptimizationJsdoc { return b.m.freeze() }
-
-// Java: OptimizationJsdoc.Builder.buildPartial()
-func (b *OptimizationJsdoc_Builder) BuildPartial() *OptimizationJsdoc { return b.m.freeze() }
-
-// Java: OptimizationJsdoc.Builder.clear()
-func (b *OptimizationJsdoc_Builder) Clear() *OptimizationJsdoc_Builder {
-	b.m = &OptimizationJsdoc{memoizedSize: -1}
-	return b
-}
-
-// Java: OptimizationJsdoc.Builder.mergeFrom(OptimizationJsdoc)
-func (b *OptimizationJsdoc_Builder) MergeFrom(other *OptimizationJsdoc) *OptimizationJsdoc_Builder {
-	b.m.mergeFrom(other)
-	return b
-}
-
-// Java: OptimizationJsdoc.Builder.getKindList()
-func (b *OptimizationJsdoc_Builder) GetKindList() []JsdocTag {
-	return append([]JsdocTag(nil), b.m.GetKindList()...)
-}
-
-// Java: OptimizationJsdoc.Builder.getKind(int)
-func (b *OptimizationJsdoc_Builder) GetKind(index int) JsdocTag { return b.m.GetKind(index) }
-
-// Java: OptimizationJsdoc.Builder.getKindCount()
-func (b *OptimizationJsdoc_Builder) GetKindCount() int { return b.m.GetKindCount() }
-
-// Java: OptimizationJsdoc.Builder.addKind(JsdocTag)
-func (b *OptimizationJsdoc_Builder) AddKind(v JsdocTag) *OptimizationJsdoc_Builder {
-	b.m.kind_ = append(b.m.kind_, v.GetNumber())
-	return b
-}
-
-// Java: OptimizationJsdoc.Builder.addAllKind(Iterable)
-func (b *OptimizationJsdoc_Builder) AddAllKind(values []JsdocTag) *OptimizationJsdoc_Builder {
-	for _, v := range values {
-		b.AddKind(v)
-	}
-	return b
-}
-
-// Java: OptimizationJsdoc.Builder.setKind(int, JsdocTag)
-func (b *OptimizationJsdoc_Builder) SetKindAtIndex(index int, v JsdocTag) *OptimizationJsdoc_Builder {
-	protoCheckIndex(index, len(b.m.kind_))
-	b.m.kind_[index] = v.GetNumber()
-	return b
-}
-
-// Java: OptimizationJsdoc.Builder.getKindValueList()
-func (b *OptimizationJsdoc_Builder) GetKindValueList() []int32 {
-	return append([]int32(nil), b.m.kind_...)
-}
-
-// Java: OptimizationJsdoc.Builder.addKindValue(int)
-func (b *OptimizationJsdoc_Builder) AddKindValue(v int32) *OptimizationJsdoc_Builder {
-	b.m.kind_ = append(b.m.kind_, v)
-	return b
-}
-
-// Java: OptimizationJsdoc.Builder.addAllKindValue(Iterable)
-func (b *OptimizationJsdoc_Builder) AddAllKindValue(values []int32) *OptimizationJsdoc_Builder {
-	b.m.kind_ = append(b.m.kind_, values...)
-	return b
-}
-
-// Java: OptimizationJsdoc.Builder.clearKind()
-func (b *OptimizationJsdoc_Builder) ClearKind() *OptimizationJsdoc_Builder {
-	b.m.kind_ = nil
-	return b
-}
-
-// Java: OptimizationJsdoc.Builder.getLicenseTextPointer()
-func (b *OptimizationJsdoc_Builder) GetLicenseTextPointer() int32 { return b.m.GetLicenseTextPointer() }
-
-// Java: OptimizationJsdoc.Builder.setLicenseTextPointer(int)
-func (b *OptimizationJsdoc_Builder) SetLicenseTextPointer(v int32) *OptimizationJsdoc_Builder {
-	b.m.licenseTextPointer_ = v
-	return b
-}
-
-// Java: OptimizationJsdoc.Builder.clearLicenseTextPointer()
-func (b *OptimizationJsdoc_Builder) ClearLicenseTextPointer() *OptimizationJsdoc_Builder {
-	b.m.licenseTextPointer_ = 0
-	return b
-}
-
-// Java: OptimizationJsdoc.Builder.getDescriptionPointer()
-func (b *OptimizationJsdoc_Builder) GetDescriptionPointer() int32 { return b.m.GetDescriptionPointer() }
-
-// Java: OptimizationJsdoc.Builder.setDescriptionPointer(int)
-func (b *OptimizationJsdoc_Builder) SetDescriptionPointer(v int32) *OptimizationJsdoc_Builder {
-	b.m.descriptionPointer_ = v
-	return b
-}
-
-// Java: OptimizationJsdoc.Builder.clearDescriptionPointer()
-func (b *OptimizationJsdoc_Builder) ClearDescriptionPointer() *OptimizationJsdoc_Builder {
-	b.m.descriptionPointer_ = 0
-	return b
-}
-
-// Java: OptimizationJsdoc.Builder.getMeaningPointer()
-func (b *OptimizationJsdoc_Builder) GetMeaningPointer() int32 { return b.m.GetMeaningPointer() }
-
-// Java: OptimizationJsdoc.Builder.setMeaningPointer(int)
-func (b *OptimizationJsdoc_Builder) SetMeaningPointer(v int32) *OptimizationJsdoc_Builder {
-	b.m.meaningPointer_ = v
-	return b
-}
-
-// Java: OptimizationJsdoc.Builder.clearMeaningPointer()
-func (b *OptimizationJsdoc_Builder) ClearMeaningPointer() *OptimizationJsdoc_Builder {
-	b.m.meaningPointer_ = 0
-	return b
-}
-
-// Java: OptimizationJsdoc.Builder.getAlternateMessageIdPointer()
-func (b *OptimizationJsdoc_Builder) GetAlternateMessageIdPointer() int32 {
-	return b.m.GetAlternateMessageIdPointer()
-}
-
-// Java: OptimizationJsdoc.Builder.setAlternateMessageIdPointer(int)
-func (b *OptimizationJsdoc_Builder) SetAlternateMessageIdPointer(v int32) *OptimizationJsdoc_Builder {
-	b.m.alternateMessageIdPointer_ = v
-	return b
-}
-
-// Java: OptimizationJsdoc.Builder.clearAlternateMessageIdPointer()
-func (b *OptimizationJsdoc_Builder) ClearAlternateMessageIdPointer() *OptimizationJsdoc_Builder {
-	b.m.alternateMessageIdPointer_ = 0
-	return b
-}
-
-// Java: OptimizationJsdoc.Builder.getClosureUnawareModePointer()
-func (b *OptimizationJsdoc_Builder) GetClosureUnawareModePointer() int32 {
-	return b.m.GetClosureUnawareModePointer()
-}
-
-// Java: OptimizationJsdoc.Builder.setClosureUnawareModePointer(int)
-func (b *OptimizationJsdoc_Builder) SetClosureUnawareModePointer(v int32) *OptimizationJsdoc_Builder {
-	b.m.closureUnawareModePointer_ = v
-	return b
-}
-
-// Java: OptimizationJsdoc.Builder.clearClosureUnawareModePointer()
-func (b *OptimizationJsdoc_Builder) ClearClosureUnawareModePointer() *OptimizationJsdoc_Builder {
-	b.m.closureUnawareModePointer_ = 0
-	return b
-}
-
-// mergeFrom is GeneratedMessage.Builder.mergeFrom(OptimizationJsdoc) on a mutable m.
-func (m *OptimizationJsdoc) mergeFrom(other *OptimizationJsdoc) {
-	if other == OptimizationJsdoc_GetDefaultInstance() {
-		return
-	}
-	m.kind_ = append(m.kind_, other.kind_...)
-	if other.licenseTextPointer_ != 0 {
-		m.licenseTextPointer_ = other.licenseTextPointer_
-	}
-	if other.descriptionPointer_ != 0 {
-		m.descriptionPointer_ = other.descriptionPointer_
-	}
-	if other.meaningPointer_ != 0 {
-		m.meaningPointer_ = other.meaningPointer_
-	}
-	if other.alternateMessageIdPointer_ != 0 {
-		m.alternateMessageIdPointer_ = other.alternateMessageIdPointer_
-	}
-	if other.closureUnawareModePointer_ != 0 {
-		m.closureUnawareModePointer_ = other.closureUnawareModePointer_
-	}
-	m.unknownFields = append(m.unknownFields, other.unknownFields...)
-}
-
-// Java: OptimizationJsdoc.equals(Object)
-func (m *OptimizationJsdoc) Equals(obj any) bool {
-	other, ok := obj.(*OptimizationJsdoc)
-	if !ok || other == nil {
-		return false
-	}
-	if m == other {
-		return true
-	}
-	if len(m.kind_) != len(other.kind_) {
-		return false
-	}
-	for i := range m.kind_ {
-		if !(m.kind_[i] == other.kind_[i]) {
-			return false
-		}
-	}
-	if !(m.licenseTextPointer_ == other.licenseTextPointer_) {
-		return false
-	}
-	if !(m.descriptionPointer_ == other.descriptionPointer_) {
-		return false
-	}
-	if !(m.meaningPointer_ == other.meaningPointer_) {
-		return false
-	}
-	if !(m.alternateMessageIdPointer_ == other.alternateMessageIdPointer_) {
-		return false
-	}
-	if !(m.closureUnawareModePointer_ == other.closureUnawareModePointer_) {
-		return false
-	}
-	return protoBytesEqual(protoCanonicalUnknownFields(m.unknownFields), protoCanonicalUnknownFields(other.unknownFields))
-}
-
-// HashCode is consistent with Equals. (Java's generated hashCode mixes in
-// the descriptor's identity hash, so its values are not reproducible.)
-func (m *OptimizationJsdoc) HashCode() int32 {
-	h := int32(41)
-	for _, x := range m.kind_ {
-		h = 31*h + x
-	}
-	h = 31*h + m.licenseTextPointer_
-	h = 31*h + m.descriptionPointer_
-	h = 31*h + m.meaningPointer_
-	h = 31*h + m.alternateMessageIdPointer_
-	h = 31*h + m.closureUnawareModePointer_
-	return h
 }
 
 // appendTo is OptimizationJsdoc.writeTo(CodedOutputStream): fields in number order, then unknown fields.
@@ -636,13 +326,11 @@ func (m *OptimizationJsdoc) appendTo(b []byte) []byte {
 
 // serializedSize is getSerializedSize() (memoized once immutable).
 func (m *OptimizationJsdoc) serializedSize() int {
-	if m.frozen && m.memoizedSize >= 0 {
-		return m.memoizedSize
+	if m.cachedSize > 0 {
+		return m.cachedSize - 1
 	}
 	size := m.scalarsSerializedSize()
-	if m.frozen {
-		m.memoizedSize = size
-	}
+	m.cachedSize = size + 1
 	return size
 }
 
@@ -676,55 +364,10 @@ func (m *OptimizationJsdoc) scalarsSerializedSize() int {
 	return size
 }
 
-// appendScalarsOnly encodes the non-message fields and unknown fields (for sizing).
-func (m *OptimizationJsdoc) appendScalarsOnly(b []byte) []byte {
-	if len(m.kind_) > 0 {
-		var packed []byte
-		for _, x := range m.kind_ {
-			packed = protoAppendInt32(packed, x)
-		}
-		b = protoAppendTag(b, 1, 2)
-		b = protoAppendBytes(b, packed)
-	}
-	if m.licenseTextPointer_ != 0 {
-		b = protoAppendTag(b, 2, 0)
-		b = protoAppendInt32(b, m.licenseTextPointer_)
-	}
-	if m.descriptionPointer_ != 0 {
-		b = protoAppendTag(b, 3, 0)
-		b = protoAppendInt32(b, m.descriptionPointer_)
-	}
-	if m.meaningPointer_ != 0 {
-		b = protoAppendTag(b, 4, 0)
-		b = protoAppendInt32(b, m.meaningPointer_)
-	}
-	if m.alternateMessageIdPointer_ != 0 {
-		b = protoAppendTag(b, 5, 0)
-		b = protoAppendInt32(b, m.alternateMessageIdPointer_)
-	}
-	if m.closureUnawareModePointer_ != 0 {
-		b = protoAppendTag(b, 6, 0)
-		b = protoAppendInt32(b, m.closureUnawareModePointer_)
-	}
-	if len(m.unknownFields) > 0 {
-		b = append(b, protoCanonicalUnknownFields(m.unknownFields)...)
-	}
-	return b
-}
-
-// Java: OptimizationJsdoc.getSerializedSize()
-func (m *OptimizationJsdoc) GetSerializedSize() int { return m.serializedSize() }
-
 // Java: OptimizationJsdoc.toByteArray()
 func (m *OptimizationJsdoc) ToByteArray() []byte {
 	return m.appendTo(make([]byte, 0, m.serializedSize()))
 }
-
-// Java: OptimizationJsdoc.toByteString()
-func (m *OptimizationJsdoc) ToByteString() []byte { return m.ToByteArray() }
-
-// Java: OptimizationJsdoc.isInitialized()
-func (m *OptimizationJsdoc) IsInitialized() bool { return true }
 
 // mergeFromReader is OptimizationJsdoc.Builder.mergeFrom(CodedInputStream) on a mutable m.
 func (m *OptimizationJsdoc) mergeFromReader(r *protoReader) {

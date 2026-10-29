@@ -61,12 +61,11 @@ var RemoveUnusedCodePrototypePropertiesTest_EXTERNS = CompilerTestCase_MINIMAL_E
 // Java: RemoveUnusedCodePrototypePropertiesTest.getProcessor(Compiler)
 func (c *RemoveUnusedCodePrototypePropertiesTest) GetProcessor(compiler *Compiler) CompilerPass {
 	return CompilerPassFunc(func(externs rhino.Node, root rhino.Node) {
-		NewRemoveUnusedCode_Builder(compiler).
-			RemoveLocalVars(!c.keepLocals).
-			RemoveGlobals(!c.keepGlobals).
-			RemoveUnusedPrototypeProperties(true).
-			Build().
-			Process(externs, root)
+		NewRemoveUnusedCode(compiler, RemoveUnusedCodeOptions{
+			RemoveLocalVars:                 !c.keepLocals,
+			RemoveGlobals:                   !c.keepGlobals,
+			RemoveUnusedPrototypeProperties: true,
+		}).Process(externs, root)
 	})
 }
 

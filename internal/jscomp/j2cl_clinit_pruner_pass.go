@@ -22,6 +22,7 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/paullepoulpe/jsgo/internal/ast"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 	"github.com/paullepoulpe/jsgo/internal/strpool"
@@ -140,9 +141,32 @@ func (p *J2clClinitPrunerPass) collectClinitReferences(root rhino.Node) map[strp
 	return refs
 }
 
+var (
+	j2clClinitCallVisitTokens = func() ast.TokenSet {
+		var s ast.TokenSet
+		s.Add(rhino.Token_CALL)
+		return s
+	}()
+	j2clClinitExprResultVisitTokens = func() ast.TokenSet {
+		var s ast.TokenSet
+		s.Add(rhino.Token_EXPR_RESULT)
+		return s
+	}()
+	j2clClinitFunctionVisitTokens = func() ast.TokenSet {
+		var s ast.TokenSet
+		s.Add(rhino.Token_FUNCTION)
+		return s
+	}()
+)
+
 type collectClinitRefsCallback struct {
 	NodeTraversal_AbstractPostOrderCallbackBase
 	refs map[strpool.ID][]rhino.Node
+}
+
+func (*collectClinitRefsCallback) noVisitLeaves() {}
+func (*collectClinitRefsCallback) visitTokens() *ast.TokenSet {
+	return &j2clClinitCallVisitTokens
 }
 
 func (c *collectClinitRefsCallback) Visit(t *NodeTraversal, node rhino.Node, parent rhino.Node) {
@@ -329,6 +353,11 @@ type lookAheadRedundantClinitPruner struct {
 	p *J2clClinitPrunerPass
 }
 
+func (*lookAheadRedundantClinitPruner) noVisitLeaves() {}
+func (*lookAheadRedundantClinitPruner) visitTokens() *ast.TokenSet {
+	return &j2clClinitExprResultVisitTokens
+}
+
 func (l *lookAheadRedundantClinitPruner) Visit(t *NodeTraversal, node rhino.Node, parent rhino.Node) {
 	if !node.IsExprResult() {
 		return
@@ -348,12 +377,12 @@ func (l *lookAheadRedundantClinitPruner) Visit(t *NodeTraversal, node rhino.Node
 	if enclosingFunction.IsNil() {
 		return
 	}
-	calleeName := callOrNewNode.GetFirstChild().GetString()
-	if nearest := NodeUtil_GetNearestFunctionName(enclosingFunction); nearest != nil && calleeName == *nearest {
+	calleeNode := callOrNewNode.GetFirstChild()
+	if nearest := NodeUtil_GetNearestFunctionName(enclosingFunction); nearest != nil && calleeNode.GetString() == *nearest {
 		return
 	}
 
-	var_ := t.GetScope().GetVar(calleeName)
+	var_ := t.GetScope().GetVarByID(calleeNode.GetStringID())
 	if var_ == nil || var_.GetInitialValue().IsNil() || !var_.GetInitialValue().IsFunction() {
 		return
 	}
@@ -412,6 +441,11 @@ func callsClinit(fnNode rhino.Node, clinitID strpool.ID) bool {
 type emptyClinitPruner struct {
 	NodeTraversal_AbstractPostOrderCallbackBase
 	p *J2clClinitPrunerPass
+}
+
+func (*emptyClinitPruner) noVisitLeaves() {}
+func (*emptyClinitPruner) visitTokens() *ast.TokenSet {
+	return &j2clClinitFunctionVisitTokens
 }
 
 func (e *emptyClinitPruner) Visit(t *NodeTraversal, node rhino.Node, parent rhino.Node) {

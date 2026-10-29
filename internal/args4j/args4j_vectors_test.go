@@ -104,8 +104,7 @@ type recording struct{ proxy Setter }
 func (r *recording) IsMultiValued() bool         { return r.proxy.IsMultiValued() }
 func (r *recording) GetType() *Class             { return r.proxy.GetType() }
 func (r *recording) AsFieldSetter() *FieldSetter { return r.proxy.AsFieldSetter() }
-func (r *recording) AddValue(v any) {
-	value := v.(string)
+func (r *recording) AddStringValue(value string) {
 	normalizedValue := value
 	n := jutil.StringLength(value)
 	if n > 0 {
@@ -114,8 +113,11 @@ func (r *recording) AddValue(v any) {
 			normalizedValue = jutil.StringSubstring(value, 1, n-1)
 		}
 	}
-	r.proxy.AddValue(normalizedValue)
+	r.proxy.AddStringValue(normalizedValue)
 	recorded = append(recorded, "JS:"+normalizedValue)
+}
+func (r *recording) AddValue(v any) {
+	r.AddStringValue(v.(string))
 }
 
 type beanA struct {
@@ -458,7 +460,7 @@ func runVector(header string) []string {
 			jutil.Try(func() {
 				parser.ParseArgument(args...)
 				out = append(out, "ok")
-			}, func(e ICmdLineException) {
+			}, func(e *CmdLineException) {
 				out = append(out, "error "+vectorEsc(e.Error()), "message "+vectorEsc(e.GetMessage()),
 					"parser "+strconv.FormatBool(e.GetParser() == parser))
 			})

@@ -78,7 +78,7 @@ type TypeCheck struct {
 	debugTypeLogger TypeCheck_DebugTypeLogger
 }
 
-var typeCheckPrototypeID = rhino.IR_Name("prototype").GetStringID()
+var typeCheckPrototypeID = rhino.RhinoStringPool_InternID("prototype")
 
 //
 // Internal errors

@@ -95,19 +95,19 @@ func inlineOracleNewPass(name string, c *Compiler) CompilerPass {
 			/* assumeStrictThis= */ false,
 			CompilerOptions_UNLIMITED_FUN_SIZE_AFTER_INLINING)
 	case "collapse-all":
-		return InlineAndCollapseProperties_Builder_(c).
-			SetPropertyCollapseLevel(CompilerOptions_PropertyCollapseLevel_ALL).
-			SetChunkOutputType(CompilerOptions_ChunkOutputType_GLOBAL_NAMESPACE).
-			SetHaveModulesBeenRewritten(false).
-			SetModuleResolutionMode(ModuleLoader_ResolutionMode_BROWSER).
-			Build()
+		return NewInlineAndCollapseProperties(c, InlineAndCollapsePropertiesOptions{
+			PropertyCollapseLevel:    CompilerOptions_PropertyCollapseLevel_ALL,
+			ChunkOutputType:          CompilerOptions_ChunkOutputType_GLOBAL_NAMESPACE,
+			HaveModulesBeenRewritten: false,
+			ModuleResolutionMode:     ModuleLoader_ResolutionMode_BROWSER,
+		})
 	case "collapse-none":
-		return InlineAndCollapseProperties_Builder_(c).
-			SetPropertyCollapseLevel(CompilerOptions_PropertyCollapseLevel_NONE).
-			SetChunkOutputType(CompilerOptions_ChunkOutputType_GLOBAL_NAMESPACE).
-			SetHaveModulesBeenRewritten(false).
-			SetModuleResolutionMode(ModuleLoader_ResolutionMode_BROWSER).
-			Build()
+		return NewInlineAndCollapseProperties(c, InlineAndCollapsePropertiesOptions{
+			PropertyCollapseLevel:    CompilerOptions_PropertyCollapseLevel_NONE,
+			ChunkOutputType:          CompilerOptions_ChunkOutputType_GLOBAL_NAMESPACE,
+			HaveModulesBeenRewritten: false,
+			ModuleResolutionMode:     ModuleLoader_ResolutionMode_BROWSER,
+		})
 	case "inline-simple-methods":
 		c.SetExternProperties(jutil.NewLinkedHashSet[string]())
 		return NewInlineSimpleMethods(c)
@@ -222,7 +222,7 @@ func (d *inlineOracleDumper) dumpFile(rel string, src string) {
 			}
 		}()
 		namespace := NewGlobalNamespaceWithRoots(c, c.GetExternsRoot(), c.GetJsRoot())
-		for name := range namespace.GetNameIndex().Values() {
+		for name := range globalNamespaceNameIndex(namespace).Values() {
 			count++
 			inlineOracleDumpName(&lines, name)
 		}
@@ -237,6 +237,15 @@ func (d *inlineOracleDumper) dumpFile(rel string, src string) {
 			d.sb.WriteString(l + "\n")
 		}
 	}
+}
+
+func globalNamespaceNameIndex(g *GlobalNamespace) *jutil.LinkedHashMap[string, *GlobalNamespace_Name] {
+	g.EnsureGenerated()
+	m := jutil.NewLinkedHashMapWithCapacity[string, *GlobalNamespace_Name](int(g.indexedGlobalCount))
+	for n := range g.AllNames() {
+		m.PutNew(n.GetFullName(), n)
+	}
+	return m
 }
 
 // inlineOracleAttempt is InlineDump.attempt: String.valueOf(f.call()), or

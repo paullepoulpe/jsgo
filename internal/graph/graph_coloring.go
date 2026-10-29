@@ -181,7 +181,6 @@ func (c *GreedyGraphColoring[N, E]) initSuperNodes(count int) {
 type undirectedColoringEntry[N, E comparable] struct {
 	node   *LinkedUndirectedGraphNode[N, E]
 	weight int
-	idx    int
 }
 
 func colorUndirectedGraph[N, E comparable](g *LinkedUndirectedGraph[N, E], tieBreaker func(a, b N) int) int {
@@ -204,10 +203,8 @@ func colorUndirectedGraph[N, E comparable](g *LinkedUndirectedGraph[N, E], tieBr
 		return 0
 	})
 
-	nodeIdx := make(map[*LinkedUndirectedGraphNode[N, E]]int, n)
 	for i := range worklist {
-		nodeIdx[worklist[i].node] = i
-		worklist[i].idx = i
+		worklist[i].node.colorIdx = int32(i)
 	}
 	forbidden := make([]int, n)
 	count := 0
@@ -216,13 +213,13 @@ func colorUndirectedGraph[N, E comparable](g *LinkedUndirectedGraph[N, E], tieBr
 		color := NewGraphColoring_Color(count)
 		kept := worklist[:0]
 		for _, entry := range worklist {
-			if forbidden[entry.idx] != epoch {
-				uNode := entry.node
+			uNode := entry.node
+			if forbidden[uNode.colorIdx] != epoch {
 				for _, edge := range uNode.NeighborEdges {
 					if edge.nodeA == uNode {
-						forbidden[nodeIdx[edge.nodeB]] = epoch
+						forbidden[edge.nodeB.colorIdx] = epoch
 					} else {
-						forbidden[nodeIdx[edge.nodeA]] = epoch
+						forbidden[edge.nodeA.colorIdx] = epoch
 					}
 				}
 				uNode.SetAnnotation(color)

@@ -90,7 +90,7 @@ type jsdocFileState struct {
 
 // testNewParserConfig mirrors ParserRunner.newParserConfig(Config) (ported
 // separately, with ParserRunner).
-func testNewParserConfig(config *Config) *parser.Parser_Config {
+func testNewParserConfig(config *Config) parser.Parser_Config {
 	isStrictMode := config.StrictMode().IsStrict()
 	var mode parser.Parser_Config_Mode
 	switch config.LanguageMode() {

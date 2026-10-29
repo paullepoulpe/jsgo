@@ -20,7 +20,6 @@ package jscomp
 
 import (
 	"encoding/base64"
-	"io"
 	"slices"
 	"strings"
 	"sync"
@@ -35,6 +34,9 @@ import (
 
 // Java: Compiler.getChangeTracker()
 func (c *Compiler) GetChangeTracker() *ChangeTracker {
+	if c.parallelRecorder != nil {
+		panic(jutil.NewUnsupportedOperationExceptionMsg("GetChangeTracker unsupported in parallel worker"))
+	}
 	return c.changeTracker
 }
 
@@ -58,11 +60,19 @@ func (c *Compiler) HasScopeChanged(n rhino.Node) bool {
 
 // Java: Compiler.reportChangeToChangeScope(Node)
 func (c *Compiler) ReportChangeToChangeScope(changeScopeRoot rhino.Node) {
+	if c.parallelRecorder != nil {
+		c.parallelRecorder.reportChangeToChangeScope(changeScopeRoot)
+		return
+	}
 	c.changeTracker.ReportChangeToChangeScope(changeScopeRoot)
 }
 
 // Java: Compiler.reportFunctionDeleted(Node)
 func (c *Compiler) ReportFunctionDeleted(n rhino.Node) {
+	if c.parallelRecorder != nil {
+		c.parallelRecorder.reportFunctionDeleted(n)
+		return
+	}
 	c.changeTracker.ReportFunctionDeleted(n)
 }
 
@@ -82,6 +92,10 @@ func (c *Compiler) ReportAmbiguatePropertiesSummary(summarySupplier func() strin
 
 // Java: Compiler.reportChangeToEnclosingScope(Node)
 func (c *Compiler) ReportChangeToEnclosingScope(n rhino.Node) {
+	if c.parallelRecorder != nil {
+		c.parallelRecorder.reportChangeToEnclosingScope(n)
+		return
+	}
 	c.changeTracker.ReportChangeToEnclosingScope(n)
 }
 
@@ -130,8 +144,9 @@ func (c *Compiler) getParserConfigLanguageMode(languageMode CompilerOptions_Lang
 func (c *Compiler) GetParserConfig(context AbstractCompiler_ConfigContext) *parsing.Config {
 	if c.parserConfig == nil || c.externsParserConfig == nil {
 		func() {
-			c.mu.Lock()
-			defer c.mu.Unlock()
+			s := c.ensureSync()
+			s.mu.Lock()
+			defer s.mu.Unlock()
 			if c.parserConfig == nil {
 				configLanguageMode := c.getParserConfigLanguageMode(c.options.GetLanguageIn())
 				strictMode := parsing.Config_StrictMode_SLOPPY
@@ -183,6 +198,10 @@ func (c *Compiler) GetDiagnosticGroups() *DiagnosticGroups {
 
 // Java: Compiler.report(JSError)
 func (c *Compiler) Report(error *JSError) {
+	if c.parallelRecorder != nil {
+		c.parallelRecorder.report(c, error)
+		return
+	}
 	level := error.DefaultLevel().Ptr()
 	if c.warningsGuard != nil {
 		newLevel := c.warningsGuard.Level(error)
@@ -218,6 +237,9 @@ func (c *Compiler) GetErrorLevel(error *JSError) *CheckLevel {
 //
 // Java: Compiler.throwInternalError(String, Throwable)
 func (c *Compiler) ThrowInternalError(message string, cause jutil.Throwable) {
+	if c.parallelRecorder != nil {
+		panic(parallelInternalError{msg: message, cause: cause})
+	}
 	panic(jutil.NewRuntimeExceptionWithMessageAndCause(
 		"INTERNAL COMPILER ERROR.\nPlease report this problem.\n\n"+message, cause))
 }
@@ -238,6 +260,9 @@ func (c *Compiler) GetWarningCount() int {
 
 // Java: Compiler.hasHaltingErrors()
 func (c *Compiler) HasHaltingErrors() bool {
+	if c.parallelRecorder != nil {
+		return c.parallelRecorder.baseHalted || c.parallelRecorder.halted
+	}
 	return !c.GetOptions().CanContinueAfterErrors() && c.errorManager.HasHaltingErrors()
 }
 
@@ -263,9 +288,10 @@ func (c *Compiler) GetSourceFileByName(sourceName string) *SourceFile {
 	}
 	// Alternatively, the sourceName might have been reverse-mapped by
 	// an input source-map, so let's look in our sourcemap original sources.
-	c.sourceMapMu.RLock()
+	s := c.ensureSync()
+	s.sourceMapMu.RLock()
 	sf := c.sourceMapOriginalSources.Get(sourceName)
-	c.sourceMapMu.RUnlock()
+	s.sourceMapMu.RUnlock()
 	return sf
 }
 
@@ -326,8 +352,9 @@ func (c *Compiler) GetBase64SourceMapContents(sourceFileName string) *string {
 // Java: Compiler.addSourceMapSourceFiles(SourceMapInput)
 func (c *Compiler) addSourceMapSourceFiles(inputSourceMap *SourceMapInput) {
 	// synchronized annotation guards concurrent access to sourceMap during parsing.
-	c.mu.Lock()
-	defer c.mu.Unlock()
+	s := c.ensureSync()
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	consumer := inputSourceMap.GetSourceMap(c.errorManager)
 	if consumer == nil {
 		return
@@ -418,7 +445,8 @@ func (c *Compiler) getSourceMappingValueCached(
 	if sourceMap.ready.Load() {
 		consumer = sourceMap.parsedSourceMap
 	} else {
-		consumer = sourceMap.GetSourceMap(compiler_lockedErrorManager{ErrorManager: c.errorManager, mu: &c.sourceMapMu})
+		s := c.ensureSync()
+		consumer = sourceMap.GetSourceMap(compiler_lockedErrorManager{ErrorManager: c.errorManager, mu: &s.sourceMapMu})
 	}
 	if consumer == nil {
 		return sourcemap.Mapping_OriginalMapping{}, nil, false, false
@@ -450,9 +478,10 @@ func (c *Compiler) getSourceMappingValueCached(
 			source = SourceMapResolver_GetRelativePath(
 				sourceMap.GetOriginalPath(), result.GetOriginalFile())
 			if source != nil {
-				c.sourceMapMu.Lock()
+				s := c.ensureSync()
+				s.sourceMapMu.Lock()
 				c.sourceMapOriginalSources.PutIfAbsent(relativePath, source)
-				c.sourceMapMu.Unlock()
+				s.sourceMapMu.Unlock()
 			}
 		}
 
@@ -684,6 +713,9 @@ func (c *Compiler) RunJ2clPasses() bool {
 
 // Java: Compiler.getSynthesizedExternsInput()
 func (c *Compiler) GetSynthesizedExternsInput() *CompilerInput {
+	if c.parallelRecorder != nil {
+		panic(jutil.NewUnsupportedOperationExceptionMsg("GetSynthesizedExternsInput unsupported in parallel worker"))
+	}
 	if c.syntheticExternsInput != nil {
 		return c.syntheticExternsInput
 	}
@@ -888,8 +920,9 @@ func (c *Compiler) GetModuleLoader() *ModuleLoader {
 // Java: Compiler.addFilesToSourceMap(Iterable<SourceFile>)
 func (c *Compiler) addFilesToSourceMap(files []*SourceFile) {
 	// synchronized annotation guards concurrent access to sourceMap during parsing.
-	c.mu.Lock()
-	defer c.mu.Unlock()
+	s := c.ensureSync()
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	if c.GetOptions().GetSourceMapIncludeSourcesContent() && c.GetSourceMap() != nil {
 		for _, file := range files {
 			code, err := file.getCode()
@@ -1066,65 +1099,4 @@ func (c *Compiler) maybeLogPruningAnalysis(result *JSChunkGraph_DependencyManage
 			jutil.ToJavaString(pruningResult.EntryPointDependencyCount()) +
 			"\n\nTop bottleneck dependencies:\n" +
 			jutil.ToJavaString(pruningResult.BottleneckBlame()))
-}
-
-// Compiler_NonClosingOutputStream is a FilterOutputStream whose close() only
-// flushes.
-//
-// Java: Compiler.NonClosingOutputStream
-type Compiler_NonClosingOutputStream struct {
-	out io.Writer
-}
-
-// Java: Compiler.NonClosingOutputStream(OutputStream)
-func NewCompiler_NonClosingOutputStream(out io.Writer) *Compiler_NonClosingOutputStream {
-	return &Compiler_NonClosingOutputStream{out: out}
-}
-
-// Write is FilterOutputStream.write(byte[], int, int).
-//
-// Go-only: language-adapter — io.Writer for OutputStream.
-func (s *Compiler_NonClosingOutputStream) Write(b []byte) (int, error) {
-	return s.out.Write(b)
-}
-
-// Flush is FilterOutputStream.flush(): it flushes out.
-//
-// Go-only: language-adapter — an io.Writer flushes if it has a Flush method.
-func (s *Compiler_NonClosingOutputStream) Flush() error {
-	if f, ok := s.out.(interface{ Flush() error }); ok {
-		return f.Flush()
-	}
-	return nil
-}
-
-// Java: Compiler.NonClosingOutputStream.close()
-func (s *Compiler_NonClosingOutputStream) Close() error {
-	return s.Flush()
-}
-
-// Compiler_NonClosingInputStream is a FilterInputStream whose close() does not
-// close the underlying stream.
-//
-// Java: Compiler.NonClosingInputStream
-type Compiler_NonClosingInputStream struct {
-	in io.Reader
-}
-
-// Java: Compiler.NonClosingInputStream(InputStream)
-func NewCompiler_NonClosingInputStream(in io.Reader) *Compiler_NonClosingInputStream {
-	return &Compiler_NonClosingInputStream{in: in}
-}
-
-// Read is FilterInputStream.read(byte[], int, int).
-//
-// Go-only: language-adapter — io.Reader for InputStream.
-func (s *Compiler_NonClosingInputStream) Read(b []byte) (int, error) {
-	return s.in.Read(b)
-}
-
-// Java: Compiler.NonClosingInputStream.close()
-func (s *Compiler_NonClosingInputStream) Close() error {
-	// Do not close the underlying stream
-	return nil
 }

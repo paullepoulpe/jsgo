@@ -46,6 +46,7 @@ type AliasStrings struct {
 	outputStringUsage bool
 
 	stringInfoMap map[string]*AliasStrings_StringInfo
+	infoSlab      jutil.Slab[AliasStrings_StringInfo]
 	sortedStrings []string
 	stringsSorted bool
 
@@ -196,7 +197,9 @@ func (a *AliasStrings) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) 
 func (a *AliasStrings) GetOrCreateStringInfo(string_ string) *AliasStrings_StringInfo {
 	info := a.stringInfoMap[string_]
 	if info == nil {
-		info = NewAliasStrings_StringInfo(a, len(a.stringInfoMap))
+		info = a.infoSlab.New()
+		info.outer = a
+		info.id = len(a.stringInfoMap)
 		a.stringInfoMap[string_] = info
 		a.sortedStrings = append(a.sortedStrings, string_)
 		a.stringsSorted = false
@@ -338,12 +341,7 @@ type AliasStrings_StringInfo struct {
 	parentForNewVarDecl          rhino.Node
 	siblingToInsertVarDeclBefore rhino.Node
 
-	aliasName *string
-}
-
-// Java: AliasStrings.StringInfo(int)
-func NewAliasStrings_StringInfo(outer *AliasStrings, id int) *AliasStrings_StringInfo {
-	return &AliasStrings_StringInfo{outer: outer, id: id}
+	aliasName string
 }
 
 // GetVariableName returns the JS variable name to be substituted for this
@@ -351,11 +349,10 @@ func NewAliasStrings_StringInfo(outer *AliasStrings, id int) *AliasStrings_Strin
 //
 // Java: AliasStrings.StringInfo.getVariableName(String)
 func (s *AliasStrings_StringInfo) GetVariableName(stringLiteral string) string {
-	if s.aliasName == nil {
-		aliasName := s.EncodeStringAsIdentifier(AliasStrings_STRING_ALIAS_PREFIX, stringLiteral)
-		s.aliasName = &aliasName
+	if s.aliasName == "" {
+		s.aliasName = s.EncodeStringAsIdentifier(AliasStrings_STRING_ALIAS_PREFIX, stringLiteral)
 	}
-	return *s.aliasName
+	return s.aliasName
 }
 
 // EncodeStringAsIdentifier returns a legal identifier that uniquely

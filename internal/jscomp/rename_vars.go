@@ -474,11 +474,8 @@ var RenameVars_ORDER_OF_OCCURRENCE_COMPARATOR = func(a1 *RenameVars_Assignment, 
 
 // Java: RenameVars.process(Node, Node)
 func (r *RenameVars) Process(externs rhino.Node, root rhino.Node) {
-	externSet := NodeUtil_CollectExternVariableNames(r.compiler, externs)
-	r.externNames = make(map[string]struct{}, externSet.Size())
-	for name := range externSet.All() {
-		r.externNames[name] = struct{}{}
-	}
+	r.externNames = make(map[string]struct{}, 64)
+	collectExternVariableNamesInto(r.compiler, externs, r.externNames, r.reservedNames)
 
 	r.globalRefChunks = nil
 	r.localRefChunks = nil
@@ -493,12 +490,6 @@ func (r *RenameVars) Process(externs rhino.Node, root rhino.Node) {
 	b.Traverse(root)
 	r.localBleedingFunctions = nil
 	r.localBleedingFunctionsPerScope = nil
-
-	// Make sure that new names don't overlap with extern names.
-	// order-independent: populates unordered reservedNames membership set
-	for name := range r.externNames {
-		r.reservedNames[name] = struct{}{}
-	}
 
 	// Rename vars, sorted by frequency of occurrence to minimize code size.
 	varsByFrequency := make([]*RenameVars_Assignment, len(r.assignmentList))
@@ -754,10 +745,10 @@ func (r *RenameVars) ShouldTemporarilyRenameLocalsInScope(s *Scope) bool {
 
 // RenamingMap is the interface used by to substitute names.
 type RenamingMap interface {
-	// Get returns the replacement for value, or nil (Java null).
+	// Get returns the replacement for value and true, or ("", false) when unmapped.
 	//
 	// Java: RenamingMap.get(String)
-	Get(value string) *string
+	Get(value string) (string, bool)
 }
 
 // RenamingToken is a marker object for the command line api to pass
@@ -782,8 +773,8 @@ func (r RenamingToken) String() string { return r.Name() }
 func (r RenamingToken) Ordinal() int { return int(r) }
 
 // Java: RenamingToken.get(String)
-func (r RenamingToken) Get(value string) *string {
-	return nil
+func (r RenamingToken) Get(value string) (string, bool) {
+	return "", false
 }
 
 // VariableRenamingPolicy holds the policies to determine which variables

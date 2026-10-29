@@ -81,7 +81,7 @@ func NewDevirtualizeMethods(compiler AbstractCompiler) *DevirtualizeMethods {
 }
 
 // Java: DevirtualizeMethods.process(Node, Node, ReferenceMap)
-func (d *DevirtualizeMethods) Process(externs rhino.Node, root rhino.Node, refMap *OptimizeCalls_ReferenceMap) {
+func (d *DevirtualizeMethods) ProcessWithReferenceMap(externs rhino.Node, root rhino.Node, refMap *OptimizeCalls_ReferenceMap) {
 	jutil.CheckStateMsg(d.refMap == nil, "`process` should only be called once.")
 
 	d.refMap = refMap

@@ -294,11 +294,12 @@ func (c *CheckAccessControls) Process(externs rhino.Node, root rhino.Node) {
 	b.Traverse(root)
 }
 
-func (c *CheckAccessControls) lookupVar(scope *Scope, name string) *Var {
-	if name == "" {
+func (c *CheckAccessControls) lookupVarNode(scope *Scope, n rhino.Node) *Var {
+	id := n.GetStringID()
+	if id == 0 || id == rhino.RhinoStringPool_EmptyID {
 		return nil
 	}
-	return scope.GetVar(name)
+	return scope.GetVarByID(id)
 }
 
 // Java: CheckAccessControls.enterAccessControlScope(Node)
@@ -470,19 +471,20 @@ func (c *CheckAccessControls) ShouldTraverse(traversal *NodeTraversal, node rhin
 func (c *CheckAccessControls) Visit(traversal *NodeTraversal, node rhino.Node, parent rhino.Node) {
 	tok := node.GetToken()
 	if !checkAccessControlsActiveToken[tok] {
-		if t := node.GetJSType(); t == nil || !t.IsFunctionType() {
+		if tb := node.GetJSTypeBase(); tb == nil || !tb.Self().IsFunctionType() {
 			if !parent.IsNil() && parent.IsClass() && parent.GetFirstChild().GetNext() == node {
 				c.ExitAccessControlScope(parent)
 			}
 			return
 		}
 	} else if tok == rhino.Token_NAME {
-		if t := node.GetJSType(); t == nil || !t.IsFunctionType() || !t.ToMaybeFunctionType().IsConstructor() {
-			if name := node.GetString(); name != "" {
+		if tb := node.GetJSTypeBase(); tb == nil || !tb.Self().IsFunctionType() || !tb.Self().ToMaybeFunctionType().IsConstructor() {
+			if id := node.GetStringID(); id != 0 && id != rhino.RhinoStringPool_EmptyID {
 				scope := traversal.GetScope()
-				if var_ := c.lookupVar(scope, name); var_ != nil {
+				if var_ := scope.GetVarByID(id); var_ != nil {
 					if docInfo := var_.GetJSDocInfo(); docInfo != nil && docInfo.IsDeprecated() {
 						if c.ShouldEmitDeprecationWarning(traversal, node) {
+							name := node.GetString()
 							if docInfo.GetDeprecationReason() != nil {
 								c.compiler.Report(
 									JSError_MakeWithNode(node, CheckAccessControls_DEPRECATED_NAME_REASON, name, *docInfo.GetDeprecationReason()))
@@ -599,7 +601,7 @@ func (c *CheckAccessControls) CheckNameDeprecation(t *NodeTraversal, n rhino.Nod
 		return
 	}
 
-	var_ := c.lookupVar(t.GetScope(), n.GetString())
+	var_ := c.lookupVarNode(t.GetScope(), n)
 	c.lastVarNode = n
 	c.lastVar = var_
 	if var_ == nil {
@@ -637,7 +639,7 @@ func (c *CheckAccessControls) CheckNameVisibility(scope *Scope, name rhino.Node)
 	if c.lastVarNode == name {
 		var_ = c.lastVar
 	} else {
-		var_ = c.lookupVar(scope, name.GetString())
+		var_ = c.lookupVarNode(scope, name)
 	}
 	if var_ == nil {
 		return
@@ -982,9 +984,7 @@ type CollectFileOverviewVisibility struct {
 
 // Java: CollectFileOverviewVisibility(AbstractCompiler)
 func NewCollectFileOverviewVisibility(compiler AbstractCompiler) *CollectFileOverviewVisibility {
-	return &CollectFileOverviewVisibility{
-		visibilities: make(map[rhino.StaticSourceFile]rhino.JSDocInfo_Visibility),
-	}
+	return &CollectFileOverviewVisibility{}
 }
 
 // Java: CollectFileOverviewVisibility.process(Node, Node)
@@ -1006,7 +1006,10 @@ func (c *CollectFileOverviewVisibility) Visit(scriptNode rhino.Node) {
 	// `if (v == null) return;` never fires and has no Go counterpart.
 	v := jsDocInfo.GetVisibility()
 	sf := jutil.CheckNotNull(scriptNode.GetStaticSourceFile())
-	if _, exists := c.visibilities[sf]; exists {
+	if c.visibilities == nil {
+		c.visibilities = make(map[rhino.StaticSourceFile]rhino.JSDocInfo_Visibility)
+		c.order = append(c.order, sf)
+	} else if _, exists := c.visibilities[sf]; exists {
 		c.hasDuplicate = true
 	} else {
 		c.order = append(c.order, sf)

@@ -7,8 +7,6 @@
 package jscomp
 
 import (
-	"io"
-
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 )
 
@@ -597,15 +595,6 @@ var nodeKind_numbers = [...]int32{
 	-1,
 }
 
-// NodeKind_values is NodeKind.values().
-func NodeKind_values() []NodeKind {
-	out := make([]NodeKind, len(nodeKind_names))
-	for i := range out {
-		out[i] = NodeKind(i)
-	}
-	return out
-}
-
 // String is Enum.name().
 func (e NodeKind) String() string { return nodeKind_names[e] }
 
@@ -645,19 +634,6 @@ func NodeKind_ForNumber(value int32) *NodeKind {
 	return nil
 }
 
-// Java: NodeKind.valueOf(int) (deprecated)
-func NodeKind_ValueOf(value int32) *NodeKind { return NodeKind_ForNumber(value) }
-
-// NodeKind_ValueOfName is Enum.valueOf(String).
-func NodeKind_ValueOfName(name string) NodeKind {
-	for i, n := range nodeKind_names {
-		if n == name {
-			return NodeKind(i)
-		}
-	}
-	panic(jutil.NewIllegalArgumentExceptionMsg("No enum constant com.google.javascript.jscomp.serialization.NodeKind." + name))
-}
-
 func nodeKind_fromNumber(value int32) NodeKind {
 	if value >= 0 && int(value) < len(nodeKind_byNumber) {
 		return nodeKind_byNumber[value]
@@ -684,8 +660,7 @@ type TypedAst struct {
 	externsSummary_         *ExternsSummary
 	runtimeLibraryToInject_ []string
 	unknownFields           []byte
-	frozen                  bool
-	memoizedSize            int
+	cachedSize              int
 }
 
 // Field numbers (TypedAst.X_FIELD_NUMBER).
@@ -699,70 +674,6 @@ const (
 	TypedAst_RUNTIME_LIBRARY_TO_INJECT_FIELD_NUMBER = 7
 )
 
-var typedAst_DEFAULT_INSTANCE = &TypedAst{frozen: true, memoizedSize: -1}
-
-// Java: TypedAst.getDefaultInstance()
-func TypedAst_GetDefaultInstance() *TypedAst { return typedAst_DEFAULT_INSTANCE }
-
-// Java: TypedAst.newBuilder()
-func TypedAst_NewBuilder() *TypedAst_Builder {
-	return &TypedAst_Builder{m: &TypedAst{memoizedSize: -1}}
-}
-
-// Java: TypedAst.newBuilder(TypedAst)
-func TypedAst_NewBuilderFrom(prototype *TypedAst) *TypedAst_Builder { return prototype.ToBuilder() }
-
-// Java: TypedAst.toBuilder()
-func (m *TypedAst) ToBuilder() *TypedAst_Builder { return &TypedAst_Builder{m: m.mutableCopy()} }
-
-// TypedAst_ParseFrom panics with *InvalidProtocolBufferException on malformed input.
-//
-// Java: TypedAst.parseFrom(byte[])
-func TypedAst_ParseFrom(data []byte) *TypedAst {
-	m := &TypedAst{memoizedSize: -1}
-	m.mergeFromReader(&protoReader{b: data})
-	m.frozen = true
-	return m
-}
-
-// mutableCopy is a shallow copy that a builder may modify.
-func (m *TypedAst) mutableCopy() *TypedAst {
-	c := *m
-	c.frozen = false
-	c.memoizedSize = -1
-	c.externAst_ = append([]*LazyAst(nil), m.externAst_...)
-	c.codeAst_ = append([]*LazyAst(nil), m.codeAst_...)
-	c.runtimeLibraryToInject_ = append([]string(nil), m.runtimeLibraryToInject_...)
-	return &c
-}
-
-// freeze returns an immutable copy (shared when m is already immutable).
-func (m *TypedAst) freeze() *TypedAst {
-	if m == nil || m.frozen {
-		return m
-	}
-	c := *m
-	c.frozen = true
-	c.memoizedSize = -1
-	c.typePool_ = m.typePool_.freeze()
-	c.stringPool_ = m.stringPool_.freeze()
-	c.externAst_ = make([]*LazyAst, len(m.externAst_))
-	for i, x := range m.externAst_ {
-		c.externAst_[i] = x.freeze()
-	}
-	c.codeAst_ = make([]*LazyAst, len(m.codeAst_))
-	for i, x := range m.codeAst_ {
-		c.codeAst_[i] = x.freeze()
-	}
-	c.sourceFilePool_ = m.sourceFilePool_.freeze()
-	c.externsSummary_ = m.externsSummary_.freeze()
-	c.runtimeLibraryToInject_ = append([]string(nil), m.runtimeLibraryToInject_...)
-	return &c
-}
-
-// Java: TypedAst.hasTypePool()
-func (m *TypedAst) HasTypePool() bool { return m.typePool_ != nil }
-
 // Java: TypedAst.getTypePool()
 func (m *TypedAst) GetTypePool() *TypePool {
 	if m.typePool_ != nil {
@@ -770,9 +681,6 @@ func (m *TypedAst) GetTypePool() *TypePool {
 	}
 	return TypePool_GetDefaultInstance()
 }
-
-// Java: TypedAst.hasStringPool()
-func (m *TypedAst) HasStringPool() bool { return m.stringPool_ != nil }
 
 // Java: TypedAst.getStringPool()
 func (m *TypedAst) GetStringPool() *StringPoolProto {
@@ -785,29 +693,8 @@ func (m *TypedAst) GetStringPool() *StringPoolProto {
 // Java: TypedAst.getExternAstList()
 func (m *TypedAst) GetExternAstList() []*LazyAst { return m.externAst_ }
 
-// Java: TypedAst.getExternAst(int)
-func (m *TypedAst) GetExternAst(index int) *LazyAst {
-	protoCheckIndexJDK(index, len(m.externAst_))
-	return m.externAst_[index]
-}
-
-// Java: TypedAst.getExternAstCount()
-func (m *TypedAst) GetExternAstCount() int { return len(m.externAst_) }
-
 // Java: TypedAst.getCodeAstList()
 func (m *TypedAst) GetCodeAstList() []*LazyAst { return m.codeAst_ }
-
-// Java: TypedAst.getCodeAst(int)
-func (m *TypedAst) GetCodeAst(index int) *LazyAst {
-	protoCheckIndexJDK(index, len(m.codeAst_))
-	return m.codeAst_[index]
-}
-
-// Java: TypedAst.getCodeAstCount()
-func (m *TypedAst) GetCodeAstCount() int { return len(m.codeAst_) }
-
-// Java: TypedAst.hasSourceFilePool()
-func (m *TypedAst) HasSourceFilePool() bool { return m.sourceFilePool_ != nil }
 
 // Java: TypedAst.getSourceFilePool()
 func (m *TypedAst) GetSourceFilePool() *SourceFilePool {
@@ -816,9 +703,6 @@ func (m *TypedAst) GetSourceFilePool() *SourceFilePool {
 	}
 	return SourceFilePool_GetDefaultInstance()
 }
-
-// Java: TypedAst.hasExternsSummary()
-func (m *TypedAst) HasExternsSummary() bool { return m.externsSummary_ != nil }
 
 // Java: TypedAst.getExternsSummary()
 func (m *TypedAst) GetExternsSummary() *ExternsSummary {
@@ -830,547 +714,6 @@ func (m *TypedAst) GetExternsSummary() *ExternsSummary {
 
 // Java: TypedAst.getRuntimeLibraryToInjectList()
 func (m *TypedAst) GetRuntimeLibraryToInjectList() []string { return m.runtimeLibraryToInject_ }
-
-// Java: TypedAst.getRuntimeLibraryToInject(int)
-func (m *TypedAst) GetRuntimeLibraryToInject(index int) string {
-	protoCheckIndexJDK(index, len(m.runtimeLibraryToInject_))
-	return m.runtimeLibraryToInject_[index]
-}
-
-// Java: TypedAst.getRuntimeLibraryToInjectCount()
-func (m *TypedAst) GetRuntimeLibraryToInjectCount() int { return len(m.runtimeLibraryToInject_) }
-
-// TypedAst_Builder is TypedAst.Builder.
-type TypedAst_Builder struct{ m *TypedAst }
-
-// Java: TypedAst.Builder.build()
-func (b *TypedAst_Builder) Build() *TypedAst { return b.m.freeze() }
-
-// Java: TypedAst.Builder.buildPartial()
-func (b *TypedAst_Builder) BuildPartial() *TypedAst { return b.m.freeze() }
-
-// Java: TypedAst.Builder.clear()
-func (b *TypedAst_Builder) Clear() *TypedAst_Builder {
-	b.m = &TypedAst{memoizedSize: -1}
-	return b
-}
-
-// Java: TypedAst.Builder.mergeFrom(TypedAst)
-func (b *TypedAst_Builder) MergeFrom(other *TypedAst) *TypedAst_Builder {
-	b.m.mergeFrom(other)
-	return b
-}
-
-// Java: TypedAst.Builder.hasTypePool()
-func (b *TypedAst_Builder) HasTypePool() bool { return b.m.HasTypePool() }
-
-// Java: TypedAst.Builder.getTypePool()
-func (b *TypedAst_Builder) GetTypePool() *TypePool { return b.m.GetTypePool().freeze() }
-
-// Java: TypedAst.Builder.setTypePool(TypePool)
-func (b *TypedAst_Builder) SetTypePool(v *TypePool) *TypedAst_Builder {
-	if v == nil {
-		panic(jutil.NewNullPointerException())
-	}
-	b.m.typePool_ = v
-	return b
-}
-
-// Java: TypedAst.Builder.setTypePool(TypePool.Builder)
-func (b *TypedAst_Builder) SetTypePoolFromBuilder(builderForValue *TypePool_Builder) *TypedAst_Builder {
-	return b.SetTypePool(builderForValue.Build())
-}
-
-// Java: TypedAst.Builder.mergeTypePool(TypePool)
-func (b *TypedAst_Builder) MergeTypePool(v *TypePool) *TypedAst_Builder {
-	if b.m.HasTypePool() && b.m.typePool_ != TypePool_GetDefaultInstance() {
-		x := b.m.typePool_.mutableCopy()
-		x.mergeFrom(v)
-		b.m.typePool_ = x
-	} else {
-		b.m.typePool_ = v
-	}
-	return b
-}
-
-// Java: TypedAst.Builder.getTypePoolBuilder()
-func (b *TypedAst_Builder) GetTypePoolBuilder() *TypePool_Builder {
-	if b.m.typePool_ == nil {
-		b.m.typePool_ = &TypePool{memoizedSize: -1}
-	} else if b.m.typePool_.frozen {
-		b.m.typePool_ = b.m.typePool_.mutableCopy()
-	}
-	return &TypePool_Builder{m: b.m.typePool_}
-}
-
-// Java: TypedAst.Builder.clearTypePool()
-func (b *TypedAst_Builder) ClearTypePool() *TypedAst_Builder {
-	b.m.typePool_ = nil
-	return b
-}
-
-// Java: TypedAst.Builder.hasStringPool()
-func (b *TypedAst_Builder) HasStringPool() bool { return b.m.HasStringPool() }
-
-// Java: TypedAst.Builder.getStringPool()
-func (b *TypedAst_Builder) GetStringPool() *StringPoolProto { return b.m.GetStringPool().freeze() }
-
-// Java: TypedAst.Builder.setStringPool(StringPoolProto)
-func (b *TypedAst_Builder) SetStringPool(v *StringPoolProto) *TypedAst_Builder {
-	if v == nil {
-		panic(jutil.NewNullPointerException())
-	}
-	b.m.stringPool_ = v
-	return b
-}
-
-// Java: TypedAst.Builder.setStringPool(StringPoolProto.Builder)
-func (b *TypedAst_Builder) SetStringPoolFromBuilder(builderForValue *StringPoolProto_Builder) *TypedAst_Builder {
-	return b.SetStringPool(builderForValue.Build())
-}
-
-// Java: TypedAst.Builder.mergeStringPool(StringPoolProto)
-func (b *TypedAst_Builder) MergeStringPool(v *StringPoolProto) *TypedAst_Builder {
-	if b.m.HasStringPool() && b.m.stringPool_ != StringPoolProto_GetDefaultInstance() {
-		x := b.m.stringPool_.mutableCopy()
-		x.mergeFrom(v)
-		b.m.stringPool_ = x
-	} else {
-		b.m.stringPool_ = v
-	}
-	return b
-}
-
-// Java: TypedAst.Builder.getStringPoolBuilder()
-func (b *TypedAst_Builder) GetStringPoolBuilder() *StringPoolProto_Builder {
-	if b.m.stringPool_ == nil {
-		b.m.stringPool_ = &StringPoolProto{memoizedSize: -1}
-	} else if b.m.stringPool_.frozen {
-		b.m.stringPool_ = b.m.stringPool_.mutableCopy()
-	}
-	return &StringPoolProto_Builder{m: b.m.stringPool_}
-}
-
-// Java: TypedAst.Builder.clearStringPool()
-func (b *TypedAst_Builder) ClearStringPool() *TypedAst_Builder {
-	b.m.stringPool_ = nil
-	return b
-}
-
-// Java: TypedAst.Builder.getExternAstList()
-func (b *TypedAst_Builder) GetExternAstList() []*LazyAst {
-	out := make([]*LazyAst, len(b.m.externAst_))
-	for i, x := range b.m.externAst_ {
-		out[i] = x.freeze()
-	}
-	return out
-}
-
-// Java: TypedAst.Builder.getExternAst(int)
-func (b *TypedAst_Builder) GetExternAst(index int) *LazyAst { return b.m.GetExternAst(index).freeze() }
-
-// Java: TypedAst.Builder.getExternAstCount()
-func (b *TypedAst_Builder) GetExternAstCount() int { return b.m.GetExternAstCount() }
-
-// Java: TypedAst.Builder.addExternAst(*LazyAst)
-func (b *TypedAst_Builder) AddExternAst(v *LazyAst) *TypedAst_Builder {
-	if v == nil {
-		panic(jutil.NewNullPointerException())
-	}
-	b.m.externAst_ = append(b.m.externAst_, v)
-	return b
-}
-
-// Java: TypedAst.Builder.addAllExternAst(Iterable)
-func (b *TypedAst_Builder) AddAllExternAst(values []*LazyAst) *TypedAst_Builder {
-	for _, v := range values {
-		b.AddExternAst(v)
-	}
-	return b
-}
-
-// Java: TypedAst.Builder.setExternAst(int, *LazyAst)
-func (b *TypedAst_Builder) SetExternAstAtIndex(index int, v *LazyAst) *TypedAst_Builder {
-	protoCheckIndexJDK(index, len(b.m.externAst_))
-	if v == nil {
-		panic(jutil.NewNullPointerException())
-	}
-	b.m.externAst_[index] = v
-	return b
-}
-
-// Java: TypedAst.Builder.addExternAst(LazyAst.Builder)
-func (b *TypedAst_Builder) AddExternAstFromBuilder(builderForValue *LazyAst_Builder) *TypedAst_Builder {
-	return b.AddExternAst(builderForValue.Build())
-}
-
-// Java: TypedAst.Builder.addExternAstBuilder()
-func (b *TypedAst_Builder) AddExternAstBuilder() *LazyAst_Builder {
-	x := &LazyAst{memoizedSize: -1}
-	b.m.externAst_ = append(b.m.externAst_, x)
-	return &LazyAst_Builder{m: x}
-}
-
-// Java: TypedAst.Builder.getExternAstBuilder(int)
-func (b *TypedAst_Builder) GetExternAstBuilder(index int) *LazyAst_Builder {
-	protoCheckIndexJDK(index, len(b.m.externAst_))
-	if b.m.externAst_[index].frozen {
-		b.m.externAst_[index] = b.m.externAst_[index].mutableCopy()
-	}
-	return &LazyAst_Builder{m: b.m.externAst_[index]}
-}
-
-// Java: TypedAst.Builder.clearExternAst()
-func (b *TypedAst_Builder) ClearExternAst() *TypedAst_Builder {
-	b.m.externAst_ = nil
-	return b
-}
-
-// Java: TypedAst.Builder.getCodeAstList()
-func (b *TypedAst_Builder) GetCodeAstList() []*LazyAst {
-	out := make([]*LazyAst, len(b.m.codeAst_))
-	for i, x := range b.m.codeAst_ {
-		out[i] = x.freeze()
-	}
-	return out
-}
-
-// Java: TypedAst.Builder.getCodeAst(int)
-func (b *TypedAst_Builder) GetCodeAst(index int) *LazyAst { return b.m.GetCodeAst(index).freeze() }
-
-// Java: TypedAst.Builder.getCodeAstCount()
-func (b *TypedAst_Builder) GetCodeAstCount() int { return b.m.GetCodeAstCount() }
-
-// Java: TypedAst.Builder.addCodeAst(*LazyAst)
-func (b *TypedAst_Builder) AddCodeAst(v *LazyAst) *TypedAst_Builder {
-	if v == nil {
-		panic(jutil.NewNullPointerException())
-	}
-	b.m.codeAst_ = append(b.m.codeAst_, v)
-	return b
-}
-
-// Java: TypedAst.Builder.addAllCodeAst(Iterable)
-func (b *TypedAst_Builder) AddAllCodeAst(values []*LazyAst) *TypedAst_Builder {
-	for _, v := range values {
-		b.AddCodeAst(v)
-	}
-	return b
-}
-
-// Java: TypedAst.Builder.setCodeAst(int, *LazyAst)
-func (b *TypedAst_Builder) SetCodeAstAtIndex(index int, v *LazyAst) *TypedAst_Builder {
-	protoCheckIndexJDK(index, len(b.m.codeAst_))
-	if v == nil {
-		panic(jutil.NewNullPointerException())
-	}
-	b.m.codeAst_[index] = v
-	return b
-}
-
-// Java: TypedAst.Builder.addCodeAst(LazyAst.Builder)
-func (b *TypedAst_Builder) AddCodeAstFromBuilder(builderForValue *LazyAst_Builder) *TypedAst_Builder {
-	return b.AddCodeAst(builderForValue.Build())
-}
-
-// Java: TypedAst.Builder.addCodeAstBuilder()
-func (b *TypedAst_Builder) AddCodeAstBuilder() *LazyAst_Builder {
-	x := &LazyAst{memoizedSize: -1}
-	b.m.codeAst_ = append(b.m.codeAst_, x)
-	return &LazyAst_Builder{m: x}
-}
-
-// Java: TypedAst.Builder.getCodeAstBuilder(int)
-func (b *TypedAst_Builder) GetCodeAstBuilder(index int) *LazyAst_Builder {
-	protoCheckIndexJDK(index, len(b.m.codeAst_))
-	if b.m.codeAst_[index].frozen {
-		b.m.codeAst_[index] = b.m.codeAst_[index].mutableCopy()
-	}
-	return &LazyAst_Builder{m: b.m.codeAst_[index]}
-}
-
-// Java: TypedAst.Builder.clearCodeAst()
-func (b *TypedAst_Builder) ClearCodeAst() *TypedAst_Builder {
-	b.m.codeAst_ = nil
-	return b
-}
-
-// Java: TypedAst.Builder.hasSourceFilePool()
-func (b *TypedAst_Builder) HasSourceFilePool() bool { return b.m.HasSourceFilePool() }
-
-// Java: TypedAst.Builder.getSourceFilePool()
-func (b *TypedAst_Builder) GetSourceFilePool() *SourceFilePool {
-	return b.m.GetSourceFilePool().freeze()
-}
-
-// Java: TypedAst.Builder.setSourceFilePool(SourceFilePool)
-func (b *TypedAst_Builder) SetSourceFilePool(v *SourceFilePool) *TypedAst_Builder {
-	if v == nil {
-		panic(jutil.NewNullPointerException())
-	}
-	b.m.sourceFilePool_ = v
-	return b
-}
-
-// Java: TypedAst.Builder.setSourceFilePool(SourceFilePool.Builder)
-func (b *TypedAst_Builder) SetSourceFilePoolFromBuilder(builderForValue *SourceFilePool_Builder) *TypedAst_Builder {
-	return b.SetSourceFilePool(builderForValue.Build())
-}
-
-// Java: TypedAst.Builder.mergeSourceFilePool(SourceFilePool)
-func (b *TypedAst_Builder) MergeSourceFilePool(v *SourceFilePool) *TypedAst_Builder {
-	if b.m.HasSourceFilePool() && b.m.sourceFilePool_ != SourceFilePool_GetDefaultInstance() {
-		x := b.m.sourceFilePool_.mutableCopy()
-		x.mergeFrom(v)
-		b.m.sourceFilePool_ = x
-	} else {
-		b.m.sourceFilePool_ = v
-	}
-	return b
-}
-
-// Java: TypedAst.Builder.getSourceFilePoolBuilder()
-func (b *TypedAst_Builder) GetSourceFilePoolBuilder() *SourceFilePool_Builder {
-	if b.m.sourceFilePool_ == nil {
-		b.m.sourceFilePool_ = &SourceFilePool{memoizedSize: -1}
-	} else if b.m.sourceFilePool_.frozen {
-		b.m.sourceFilePool_ = b.m.sourceFilePool_.mutableCopy()
-	}
-	return &SourceFilePool_Builder{m: b.m.sourceFilePool_}
-}
-
-// Java: TypedAst.Builder.clearSourceFilePool()
-func (b *TypedAst_Builder) ClearSourceFilePool() *TypedAst_Builder {
-	b.m.sourceFilePool_ = nil
-	return b
-}
-
-// Java: TypedAst.Builder.hasExternsSummary()
-func (b *TypedAst_Builder) HasExternsSummary() bool { return b.m.HasExternsSummary() }
-
-// Java: TypedAst.Builder.getExternsSummary()
-func (b *TypedAst_Builder) GetExternsSummary() *ExternsSummary {
-	return b.m.GetExternsSummary().freeze()
-}
-
-// Java: TypedAst.Builder.setExternsSummary(ExternsSummary)
-func (b *TypedAst_Builder) SetExternsSummary(v *ExternsSummary) *TypedAst_Builder {
-	if v == nil {
-		panic(jutil.NewNullPointerException())
-	}
-	b.m.externsSummary_ = v
-	return b
-}
-
-// Java: TypedAst.Builder.setExternsSummary(ExternsSummary.Builder)
-func (b *TypedAst_Builder) SetExternsSummaryFromBuilder(builderForValue *ExternsSummary_Builder) *TypedAst_Builder {
-	return b.SetExternsSummary(builderForValue.Build())
-}
-
-// Java: TypedAst.Builder.mergeExternsSummary(ExternsSummary)
-func (b *TypedAst_Builder) MergeExternsSummary(v *ExternsSummary) *TypedAst_Builder {
-	if b.m.HasExternsSummary() && b.m.externsSummary_ != ExternsSummary_GetDefaultInstance() {
-		x := b.m.externsSummary_.mutableCopy()
-		x.mergeFrom(v)
-		b.m.externsSummary_ = x
-	} else {
-		b.m.externsSummary_ = v
-	}
-	return b
-}
-
-// Java: TypedAst.Builder.getExternsSummaryBuilder()
-func (b *TypedAst_Builder) GetExternsSummaryBuilder() *ExternsSummary_Builder {
-	if b.m.externsSummary_ == nil {
-		b.m.externsSummary_ = &ExternsSummary{memoizedSize: -1}
-	} else if b.m.externsSummary_.frozen {
-		b.m.externsSummary_ = b.m.externsSummary_.mutableCopy()
-	}
-	return &ExternsSummary_Builder{m: b.m.externsSummary_}
-}
-
-// Java: TypedAst.Builder.clearExternsSummary()
-func (b *TypedAst_Builder) ClearExternsSummary() *TypedAst_Builder {
-	b.m.externsSummary_ = nil
-	return b
-}
-
-// Java: TypedAst.Builder.getRuntimeLibraryToInjectList()
-func (b *TypedAst_Builder) GetRuntimeLibraryToInjectList() []string {
-	return append([]string(nil), b.m.GetRuntimeLibraryToInjectList()...)
-}
-
-// Java: TypedAst.Builder.getRuntimeLibraryToInject(int)
-func (b *TypedAst_Builder) GetRuntimeLibraryToInject(index int) string {
-	return b.m.GetRuntimeLibraryToInject(index)
-}
-
-// Java: TypedAst.Builder.getRuntimeLibraryToInjectCount()
-func (b *TypedAst_Builder) GetRuntimeLibraryToInjectCount() int {
-	return b.m.GetRuntimeLibraryToInjectCount()
-}
-
-// Java: TypedAst.Builder.addRuntimeLibraryToInject(string)
-func (b *TypedAst_Builder) AddRuntimeLibraryToInject(v string) *TypedAst_Builder {
-	b.m.runtimeLibraryToInject_ = append(b.m.runtimeLibraryToInject_, v)
-	return b
-}
-
-// Java: TypedAst.Builder.addAllRuntimeLibraryToInject(Iterable)
-func (b *TypedAst_Builder) AddAllRuntimeLibraryToInject(values []string) *TypedAst_Builder {
-	for _, v := range values {
-		b.AddRuntimeLibraryToInject(v)
-	}
-	return b
-}
-
-// Java: TypedAst.Builder.setRuntimeLibraryToInject(int, string)
-func (b *TypedAst_Builder) SetRuntimeLibraryToInjectAtIndex(index int, v string) *TypedAst_Builder {
-	protoCheckIndexJDK(index, len(b.m.runtimeLibraryToInject_))
-	b.m.runtimeLibraryToInject_[index] = v
-	return b
-}
-
-// Java: TypedAst.Builder.clearRuntimeLibraryToInject()
-func (b *TypedAst_Builder) ClearRuntimeLibraryToInject() *TypedAst_Builder {
-	b.m.runtimeLibraryToInject_ = nil
-	return b
-}
-
-// mergeFrom is GeneratedMessage.Builder.mergeFrom(TypedAst) on a mutable m.
-func (m *TypedAst) mergeFrom(other *TypedAst) {
-	if other == TypedAst_GetDefaultInstance() {
-		return
-	}
-	if other.typePool_ != nil {
-		if m.typePool_ != nil {
-			x := m.typePool_.mutableCopy()
-			x.mergeFrom(other.typePool_)
-			m.typePool_ = x.freeze()
-		} else {
-			m.typePool_ = other.typePool_
-		}
-	}
-	if other.stringPool_ != nil {
-		if m.stringPool_ != nil {
-			x := m.stringPool_.mutableCopy()
-			x.mergeFrom(other.stringPool_)
-			m.stringPool_ = x.freeze()
-		} else {
-			m.stringPool_ = other.stringPool_
-		}
-	}
-	m.externAst_ = append(m.externAst_, other.externAst_...)
-	m.codeAst_ = append(m.codeAst_, other.codeAst_...)
-	if other.sourceFilePool_ != nil {
-		if m.sourceFilePool_ != nil {
-			x := m.sourceFilePool_.mutableCopy()
-			x.mergeFrom(other.sourceFilePool_)
-			m.sourceFilePool_ = x.freeze()
-		} else {
-			m.sourceFilePool_ = other.sourceFilePool_
-		}
-	}
-	if other.externsSummary_ != nil {
-		if m.externsSummary_ != nil {
-			x := m.externsSummary_.mutableCopy()
-			x.mergeFrom(other.externsSummary_)
-			m.externsSummary_ = x.freeze()
-		} else {
-			m.externsSummary_ = other.externsSummary_
-		}
-	}
-	m.runtimeLibraryToInject_ = append(m.runtimeLibraryToInject_, other.runtimeLibraryToInject_...)
-	m.unknownFields = append(m.unknownFields, other.unknownFields...)
-}
-
-// Java: TypedAst.equals(Object)
-func (m *TypedAst) Equals(obj any) bool {
-	other, ok := obj.(*TypedAst)
-	if !ok || other == nil {
-		return false
-	}
-	if m == other {
-		return true
-	}
-	if m.HasTypePool() != other.HasTypePool() {
-		return false
-	}
-	if m.HasTypePool() && !m.typePool_.Equals(other.typePool_) {
-		return false
-	}
-	if m.HasStringPool() != other.HasStringPool() {
-		return false
-	}
-	if m.HasStringPool() && !m.stringPool_.Equals(other.stringPool_) {
-		return false
-	}
-	if len(m.externAst_) != len(other.externAst_) {
-		return false
-	}
-	for i := range m.externAst_ {
-		if !(m.externAst_[i].Equals(other.externAst_[i])) {
-			return false
-		}
-	}
-	if len(m.codeAst_) != len(other.codeAst_) {
-		return false
-	}
-	for i := range m.codeAst_ {
-		if !(m.codeAst_[i].Equals(other.codeAst_[i])) {
-			return false
-		}
-	}
-	if m.HasSourceFilePool() != other.HasSourceFilePool() {
-		return false
-	}
-	if m.HasSourceFilePool() && !m.sourceFilePool_.Equals(other.sourceFilePool_) {
-		return false
-	}
-	if m.HasExternsSummary() != other.HasExternsSummary() {
-		return false
-	}
-	if m.HasExternsSummary() && !m.externsSummary_.Equals(other.externsSummary_) {
-		return false
-	}
-	if len(m.runtimeLibraryToInject_) != len(other.runtimeLibraryToInject_) {
-		return false
-	}
-	for i := range m.runtimeLibraryToInject_ {
-		if !(m.runtimeLibraryToInject_[i] == other.runtimeLibraryToInject_[i]) {
-			return false
-		}
-	}
-	return protoBytesEqual(protoCanonicalUnknownFields(m.unknownFields), protoCanonicalUnknownFields(other.unknownFields))
-}
-
-// HashCode is consistent with Equals. (Java's generated hashCode mixes in
-// the descriptor's identity hash, so its values are not reproducible.)
-func (m *TypedAst) HashCode() int32 {
-	h := int32(41)
-	if m.typePool_ != nil {
-		h = 31*h + m.typePool_.HashCode()
-	}
-	if m.stringPool_ != nil {
-		h = 31*h + m.stringPool_.HashCode()
-	}
-	for _, x := range m.externAst_ {
-		h = 31*h + x.HashCode()
-	}
-	for _, x := range m.codeAst_ {
-		h = 31*h + x.HashCode()
-	}
-	if m.sourceFilePool_ != nil {
-		h = 31*h + m.sourceFilePool_.HashCode()
-	}
-	if m.externsSummary_ != nil {
-		h = 31*h + m.externsSummary_.HashCode()
-	}
-	for _, x := range m.runtimeLibraryToInject_ {
-		h = protoHashString(h, x)
-	}
-	return h
-}
 
 // appendTo is TypedAst.writeTo(CodedOutputStream): fields in number order, then unknown fields.
 func (m *TypedAst) appendTo(b []byte) []byte {
@@ -1416,8 +759,8 @@ func (m *TypedAst) appendTo(b []byte) []byte {
 
 // serializedSize is getSerializedSize() (memoized once immutable).
 func (m *TypedAst) serializedSize() int {
-	if m.frozen && m.memoizedSize >= 0 {
-		return m.memoizedSize
+	if m.cachedSize > 0 {
+		return m.cachedSize - 1
 	}
 	size := 0
 	if m.typePool_ != nil {
@@ -1444,160 +787,18 @@ func (m *TypedAst) serializedSize() int {
 		s := m.externsSummary_.serializedSize()
 		size += 1 + protoVarintLen(uint64(s)) + s
 	}
-	size += len(m.appendScalarsOnly(nil))
-	if m.frozen {
-		m.memoizedSize = size
+	for _, x := range m.runtimeLibraryToInject_ {
+		size += protoStringSize(1, x)
 	}
+	if len(m.unknownFields) > 0 {
+		size += len(protoCanonicalUnknownFields(m.unknownFields))
+	}
+	m.cachedSize = size + 1
 	return size
 }
 
-// appendScalarsOnly encodes the non-message fields and unknown fields (for sizing).
-func (m *TypedAst) appendScalarsOnly(b []byte) []byte {
-	for _, x := range m.runtimeLibraryToInject_ {
-		b = protoAppendTag(b, 7, 2)
-		b = protoAppendString(b, x)
-	}
-	if len(m.unknownFields) > 0 {
-		b = append(b, protoCanonicalUnknownFields(m.unknownFields)...)
-	}
-	return b
-}
-
-// writeAsListItemTo streams a single TypedAst wrapped in a TypedAst.List item (field 1) to out
-// without allocating a contiguous byte slice for the entire TypedAst.
-func (m *TypedAst) writeAsListItemTo(out io.Writer) error {
-	buf := make([]byte, 0, 64*1024)
-	flush := func() error {
-		if len(buf) == 0 {
-			return nil
-		}
-		_, err := out.Write(buf)
-		buf = buf[:0]
-		return err
-	}
-	buf = protoAppendTag(buf, 1, 2)
-	buf = protoAppendVarint(buf, uint64(m.serializedSize()))
-	if m.typePool_ != nil {
-		buf = protoAppendTag(buf, 1, 2)
-		buf = protoAppendVarint(buf, uint64(m.typePool_.serializedSize()))
-		for _, x := range m.typePool_.type_ {
-			buf = protoAppendTag(buf, 1, 2)
-			buf = protoAppendVarint(buf, uint64(x.serializedSize()))
-			buf = x.appendTo(buf)
-			if len(buf) >= 64*1024 {
-				if err := flush(); err != nil {
-					return err
-				}
-			}
-		}
-		for _, x := range m.typePool_.disambiguationEdges_ {
-			buf = protoAppendTag(buf, 2, 2)
-			buf = protoAppendVarint(buf, uint64(x.serializedSize()))
-			buf = x.appendTo(buf)
-			if len(buf) >= 64*1024 {
-				if err := flush(); err != nil {
-					return err
-				}
-			}
-		}
-		if m.typePool_.debugInfo_ != nil {
-			buf = protoAppendTag(buf, 3, 2)
-			buf = protoAppendVarint(buf, uint64(m.typePool_.debugInfo_.serializedSize()))
-			buf = m.typePool_.debugInfo_.appendTo(buf)
-		}
-		if len(m.typePool_.unknownFields) > 0 {
-			buf = append(buf, protoCanonicalUnknownFields(m.typePool_.unknownFields)...)
-		}
-		if err := flush(); err != nil {
-			return err
-		}
-	}
-	if m.stringPool_ != nil {
-		buf = protoAppendTag(buf, 2, 2)
-		buf = protoAppendVarint(buf, uint64(m.stringPool_.serializedSize()))
-		for _, x := range m.stringPool_.strings_ {
-			buf = protoAppendTag(buf, 1, 2)
-			buf = protoAppendBytes(buf, x)
-			if len(buf) >= 64*1024 {
-				if err := flush(); err != nil {
-					return err
-				}
-			}
-		}
-		if m.stringPool_.maxLength_ != 0 {
-			buf = protoAppendTag(buf, 2, 0)
-			buf = protoAppendInt32(buf, m.stringPool_.maxLength_)
-		}
-		if len(m.stringPool_.unknownFields) > 0 {
-			buf = append(buf, protoCanonicalUnknownFields(m.stringPool_.unknownFields)...)
-		}
-		if err := flush(); err != nil {
-			return err
-		}
-	}
-	for _, x := range m.externAst_ {
-		buf = protoAppendTag(buf, 3, 2)
-		buf = protoAppendVarint(buf, uint64(x.serializedSize()))
-		buf = x.appendTo(buf)
-		if len(buf) >= 64*1024 {
-			if err := flush(); err != nil {
-				return err
-			}
-		}
-	}
-	for _, x := range m.codeAst_ {
-		buf = protoAppendTag(buf, 4, 2)
-		buf = protoAppendVarint(buf, uint64(x.serializedSize()))
-		buf = x.appendTo(buf)
-		if len(buf) >= 64*1024 {
-			if err := flush(); err != nil {
-				return err
-			}
-		}
-	}
-	if m.sourceFilePool_ != nil {
-		buf = protoAppendTag(buf, 5, 2)
-		buf = protoAppendVarint(buf, uint64(m.sourceFilePool_.serializedSize()))
-		for _, x := range m.sourceFilePool_.sourceFile_ {
-			buf = protoAppendTag(buf, 1, 2)
-			buf = protoAppendVarint(buf, uint64(x.serializedSize()))
-			buf = x.appendTo(buf)
-			if len(buf) >= 64*1024 {
-				if err := flush(); err != nil {
-					return err
-				}
-			}
-		}
-		if len(m.sourceFilePool_.unknownFields) > 0 {
-			buf = append(buf, protoCanonicalUnknownFields(m.sourceFilePool_.unknownFields)...)
-		}
-	}
-	if m.externsSummary_ != nil {
-		buf = protoAppendTag(buf, 6, 2)
-		buf = protoAppendVarint(buf, uint64(m.externsSummary_.serializedSize()))
-		buf = m.externsSummary_.appendTo(buf)
-	}
-	for _, x := range m.runtimeLibraryToInject_ {
-		buf = protoAppendTag(buf, 7, 2)
-		buf = protoAppendString(buf, x)
-	}
-	if len(m.unknownFields) > 0 {
-		buf = append(buf, protoCanonicalUnknownFields(m.unknownFields)...)
-	}
-	return flush()
-}
-
-// Java: TypedAst.getSerializedSize()
-func (m *TypedAst) GetSerializedSize() int { return m.serializedSize() }
-
 // Java: TypedAst.toByteArray()
 func (m *TypedAst) ToByteArray() []byte { return m.appendTo(make([]byte, 0, m.serializedSize())) }
-
-// Java: TypedAst.toByteString()
-func (m *TypedAst) ToByteString() []byte { return m.ToByteArray() }
-
-// Java: TypedAst.isInitialized()
-func (m *TypedAst) IsInitialized() bool { return true }
 
 // mergeFromReader is TypedAst.Builder.mergeFrom(CodedInputStream) on a mutable m.
 func (m *TypedAst) mergeFromReader(r *protoReader) {
@@ -1611,57 +812,55 @@ func (m *TypedAst) mergeFromReader(r *protoReader) {
 			data := r.readMessageBytes()
 			var x *TypePool
 			if m.typePool_ != nil {
-				x = m.typePool_.mutableCopy()
+				x = m.typePool_
+				x.cachedSize = 0
 			} else {
-				x = &TypePool{memoizedSize: -1}
+				x = &TypePool{}
 			}
 			x.mergeFromReader(r.sub(data))
-			x.frozen = true
 			m.typePool_ = x
 		case 18:
 			data := r.readMessageBytes()
 			var x *StringPoolProto
 			if m.stringPool_ != nil {
-				x = m.stringPool_.mutableCopy()
+				x = m.stringPool_
+				x.cachedSize = 0
 			} else {
-				x = &StringPoolProto{memoizedSize: -1}
+				x = &StringPoolProto{}
 			}
 			x.mergeFromReader(r.sub(data))
-			x.frozen = true
 			m.stringPool_ = x
 		case 26:
 			data := r.readMessageBytes()
-			x := &LazyAst{memoizedSize: -1}
+			x := &LazyAst{}
 			x.mergeFromReader(r.sub(data))
-			x.frozen = true
 			m.externAst_ = append(m.externAst_, x)
 		case 34:
 			data := r.readMessageBytes()
-			x := &LazyAst{memoizedSize: -1}
+			x := &LazyAst{}
 			x.mergeFromReader(r.sub(data))
-			x.frozen = true
 			m.codeAst_ = append(m.codeAst_, x)
 		case 42:
 			data := r.readMessageBytes()
 			var x *SourceFilePool
 			if m.sourceFilePool_ != nil {
-				x = m.sourceFilePool_.mutableCopy()
+				x = m.sourceFilePool_
+				x.cachedSize = 0
 			} else {
-				x = &SourceFilePool{memoizedSize: -1}
+				x = &SourceFilePool{}
 			}
 			x.mergeFromReader(r.sub(data))
-			x.frozen = true
 			m.sourceFilePool_ = x
 		case 50:
 			data := r.readMessageBytes()
 			var x *ExternsSummary
 			if m.externsSummary_ != nil {
-				x = m.externsSummary_.mutableCopy()
+				x = m.externsSummary_
+				x.cachedSize = 0
 			} else {
-				x = &ExternsSummary{memoizedSize: -1}
+				x = &ExternsSummary{}
 			}
 			x.mergeFromReader(r.sub(data))
-			x.frozen = true
 			m.externsSummary_ = x
 		case 58:
 			m.runtimeLibraryToInject_ = append(m.runtimeLibraryToInject_, r.readStringRequireUtf8())
@@ -1710,8 +909,7 @@ func (m *TypedAst) String() string {
 type TypedAst_List struct {
 	typedAsts_    []*TypedAst
 	unknownFields []byte
-	frozen        bool
-	memoizedSize  int
+	cachedSize    int
 }
 
 // Field numbers (TypedAst.List.X_FIELD_NUMBER).
@@ -1719,201 +917,19 @@ const (
 	TypedAst_List_TYPED_ASTS_FIELD_NUMBER = 1
 )
 
-var typedAst_List_DEFAULT_INSTANCE = &TypedAst_List{frozen: true, memoizedSize: -1}
-
-// Java: TypedAst.List.getDefaultInstance()
-func TypedAst_List_GetDefaultInstance() *TypedAst_List { return typedAst_List_DEFAULT_INSTANCE }
-
-// Java: TypedAst.List.newBuilder()
-func TypedAst_List_NewBuilder() *TypedAst_List_Builder {
-	return &TypedAst_List_Builder{m: &TypedAst_List{memoizedSize: -1}}
-}
-
-// Java: TypedAst.List.newBuilder(List)
-func TypedAst_List_NewBuilderFrom(prototype *TypedAst_List) *TypedAst_List_Builder {
-	return prototype.ToBuilder()
-}
-
-// Java: TypedAst.List.toBuilder()
-func (m *TypedAst_List) ToBuilder() *TypedAst_List_Builder {
-	return &TypedAst_List_Builder{m: m.mutableCopy()}
-}
-
 // TypedAst_List_ParseFrom panics with *InvalidProtocolBufferException on malformed input.
 //
 // Java: TypedAst.List.parseFrom(byte[])
 func TypedAst_List_ParseFrom(data []byte) *TypedAst_List {
-	m := &TypedAst_List{memoizedSize: -1}
+	m := &TypedAst_List{}
 	m.mergeFromReader(&protoReader{b: data})
-	m.frozen = true
 	return m
 }
-
-// mutableCopy is a shallow copy that a builder may modify.
-func (m *TypedAst_List) mutableCopy() *TypedAst_List {
-	c := *m
-	c.frozen = false
-	c.memoizedSize = -1
-	c.typedAsts_ = append([]*TypedAst(nil), m.typedAsts_...)
-	return &c
-}
-
-// freeze returns an immutable copy (shared when m is already immutable).
-func (m *TypedAst_List) freeze() *TypedAst_List {
-	if m == nil || m.frozen {
-		return m
-	}
-	c := *m
-	c.frozen = true
-	c.memoizedSize = -1
-	c.typedAsts_ = make([]*TypedAst, len(m.typedAsts_))
-	for i, x := range m.typedAsts_ {
-		c.typedAsts_[i] = x.freeze()
-	}
-	return &c
-}
-
-// Java: TypedAst.List.getTypedAstsList()
-func (m *TypedAst_List) GetTypedAstsList() []*TypedAst { return m.typedAsts_ }
 
 // Java: TypedAst.List.getTypedAsts(int)
 func (m *TypedAst_List) GetTypedAsts(index int) *TypedAst {
 	protoCheckIndexJDK(index, len(m.typedAsts_))
 	return m.typedAsts_[index]
-}
-
-// Java: TypedAst.List.getTypedAstsCount()
-func (m *TypedAst_List) GetTypedAstsCount() int { return len(m.typedAsts_) }
-
-// TypedAst_List_Builder is TypedAst.List.Builder.
-type TypedAst_List_Builder struct{ m *TypedAst_List }
-
-// Java: TypedAst.List.Builder.build()
-func (b *TypedAst_List_Builder) Build() *TypedAst_List { return b.m.freeze() }
-
-// Java: TypedAst.List.Builder.buildPartial()
-func (b *TypedAst_List_Builder) BuildPartial() *TypedAst_List { return b.m.freeze() }
-
-// Java: TypedAst.List.Builder.clear()
-func (b *TypedAst_List_Builder) Clear() *TypedAst_List_Builder {
-	b.m = &TypedAst_List{memoizedSize: -1}
-	return b
-}
-
-// Java: TypedAst.List.Builder.mergeFrom(List)
-func (b *TypedAst_List_Builder) MergeFrom(other *TypedAst_List) *TypedAst_List_Builder {
-	b.m.mergeFrom(other)
-	return b
-}
-
-// Java: TypedAst.List.Builder.getTypedAstsList()
-func (b *TypedAst_List_Builder) GetTypedAstsList() []*TypedAst {
-	out := make([]*TypedAst, len(b.m.typedAsts_))
-	for i, x := range b.m.typedAsts_ {
-		out[i] = x.freeze()
-	}
-	return out
-}
-
-// Java: TypedAst.List.Builder.getTypedAsts(int)
-func (b *TypedAst_List_Builder) GetTypedAsts(index int) *TypedAst {
-	return b.m.GetTypedAsts(index).freeze()
-}
-
-// Java: TypedAst.List.Builder.getTypedAstsCount()
-func (b *TypedAst_List_Builder) GetTypedAstsCount() int { return b.m.GetTypedAstsCount() }
-
-// Java: TypedAst.List.Builder.addTypedAsts(*TypedAst)
-func (b *TypedAst_List_Builder) AddTypedAsts(v *TypedAst) *TypedAst_List_Builder {
-	if v == nil {
-		panic(jutil.NewNullPointerException())
-	}
-	b.m.typedAsts_ = append(b.m.typedAsts_, v)
-	return b
-}
-
-// Java: TypedAst.List.Builder.addAllTypedAsts(Iterable)
-func (b *TypedAst_List_Builder) AddAllTypedAsts(values []*TypedAst) *TypedAst_List_Builder {
-	for _, v := range values {
-		b.AddTypedAsts(v)
-	}
-	return b
-}
-
-// Java: TypedAst.List.Builder.setTypedAsts(int, *TypedAst)
-func (b *TypedAst_List_Builder) SetTypedAstsAtIndex(index int, v *TypedAst) *TypedAst_List_Builder {
-	protoCheckIndexJDK(index, len(b.m.typedAsts_))
-	if v == nil {
-		panic(jutil.NewNullPointerException())
-	}
-	b.m.typedAsts_[index] = v
-	return b
-}
-
-// Java: TypedAst.List.Builder.addTypedAsts(TypedAst.Builder)
-func (b *TypedAst_List_Builder) AddTypedAstsFromBuilder(builderForValue *TypedAst_Builder) *TypedAst_List_Builder {
-	return b.AddTypedAsts(builderForValue.Build())
-}
-
-// Java: TypedAst.List.Builder.addTypedAstsBuilder()
-func (b *TypedAst_List_Builder) AddTypedAstsBuilder() *TypedAst_Builder {
-	x := &TypedAst{memoizedSize: -1}
-	b.m.typedAsts_ = append(b.m.typedAsts_, x)
-	return &TypedAst_Builder{m: x}
-}
-
-// Java: TypedAst.List.Builder.getTypedAstsBuilder(int)
-func (b *TypedAst_List_Builder) GetTypedAstsBuilder(index int) *TypedAst_Builder {
-	protoCheckIndexJDK(index, len(b.m.typedAsts_))
-	if b.m.typedAsts_[index].frozen {
-		b.m.typedAsts_[index] = b.m.typedAsts_[index].mutableCopy()
-	}
-	return &TypedAst_Builder{m: b.m.typedAsts_[index]}
-}
-
-// Java: TypedAst.List.Builder.clearTypedAsts()
-func (b *TypedAst_List_Builder) ClearTypedAsts() *TypedAst_List_Builder {
-	b.m.typedAsts_ = nil
-	return b
-}
-
-// mergeFrom is GeneratedMessage.Builder.mergeFrom(List) on a mutable m.
-func (m *TypedAst_List) mergeFrom(other *TypedAst_List) {
-	if other == TypedAst_List_GetDefaultInstance() {
-		return
-	}
-	m.typedAsts_ = append(m.typedAsts_, other.typedAsts_...)
-	m.unknownFields = append(m.unknownFields, other.unknownFields...)
-}
-
-// Java: List.equals(Object)
-func (m *TypedAst_List) Equals(obj any) bool {
-	other, ok := obj.(*TypedAst_List)
-	if !ok || other == nil {
-		return false
-	}
-	if m == other {
-		return true
-	}
-	if len(m.typedAsts_) != len(other.typedAsts_) {
-		return false
-	}
-	for i := range m.typedAsts_ {
-		if !(m.typedAsts_[i].Equals(other.typedAsts_[i])) {
-			return false
-		}
-	}
-	return protoBytesEqual(protoCanonicalUnknownFields(m.unknownFields), protoCanonicalUnknownFields(other.unknownFields))
-}
-
-// HashCode is consistent with Equals. (Java's generated hashCode mixes in
-// the descriptor's identity hash, so its values are not reproducible.)
-func (m *TypedAst_List) HashCode() int32 {
-	h := int32(41)
-	for _, x := range m.typedAsts_ {
-		h = 31*h + x.HashCode()
-	}
-	return h
 }
 
 // appendTo is List.writeTo(CodedOutputStream): fields in number order, then unknown fields.
@@ -1931,40 +947,23 @@ func (m *TypedAst_List) appendTo(b []byte) []byte {
 
 // serializedSize is getSerializedSize() (memoized once immutable).
 func (m *TypedAst_List) serializedSize() int {
-	if m.frozen && m.memoizedSize >= 0 {
-		return m.memoizedSize
+	if m.cachedSize > 0 {
+		return m.cachedSize - 1
 	}
 	size := 0
 	for _, x := range m.typedAsts_ {
 		s := x.serializedSize()
 		size += 1 + protoVarintLen(uint64(s)) + s
 	}
-	size += len(m.appendScalarsOnly(nil))
-	if m.frozen {
-		m.memoizedSize = size
+	if len(m.unknownFields) > 0 {
+		size += len(protoCanonicalUnknownFields(m.unknownFields))
 	}
+	m.cachedSize = size + 1
 	return size
 }
 
-// appendScalarsOnly encodes the non-message fields and unknown fields (for sizing).
-func (m *TypedAst_List) appendScalarsOnly(b []byte) []byte {
-	if len(m.unknownFields) > 0 {
-		b = append(b, protoCanonicalUnknownFields(m.unknownFields)...)
-	}
-	return b
-}
-
-// Java: List.getSerializedSize()
-func (m *TypedAst_List) GetSerializedSize() int { return m.serializedSize() }
-
 // Java: List.toByteArray()
 func (m *TypedAst_List) ToByteArray() []byte { return m.appendTo(make([]byte, 0, m.serializedSize())) }
-
-// Java: List.toByteString()
-func (m *TypedAst_List) ToByteString() []byte { return m.ToByteArray() }
-
-// Java: List.isInitialized()
-func (m *TypedAst_List) IsInitialized() bool { return true }
 
 // mergeFromReader is List.Builder.mergeFrom(CodedInputStream) on a mutable m.
 func (m *TypedAst_List) mergeFromReader(r *protoReader) {
@@ -1976,9 +975,8 @@ func (m *TypedAst_List) mergeFromReader(r *protoReader) {
 			return
 		case 10:
 			data := r.readMessageBytes()
-			x := &TypedAst{memoizedSize: -1}
+			x := &TypedAst{}
 			x.mergeFromReader(r.sub(data))
-			x.frozen = true
 			m.typedAsts_ = append(m.typedAsts_, x)
 		default:
 			r.skipField(tag)
@@ -2009,8 +1007,7 @@ type LazyAst struct {
 	sourceFile_       int32
 	sourceMappingUrl_ string
 	unknownFields     []byte
-	frozen            bool
-	memoizedSize      int
+	cachedSize        int
 }
 
 // Field numbers (LazyAst.X_FIELD_NUMBER).
@@ -2019,49 +1016,6 @@ const (
 	LazyAst_SOURCE_FILE_FIELD_NUMBER        = 2
 	LazyAst_SOURCE_MAPPING_URL_FIELD_NUMBER = 3
 )
-
-var lazyAst_DEFAULT_INSTANCE = &LazyAst{frozen: true, memoizedSize: -1}
-
-// Java: LazyAst.getDefaultInstance()
-func LazyAst_GetDefaultInstance() *LazyAst { return lazyAst_DEFAULT_INSTANCE }
-
-// Java: LazyAst.newBuilder()
-func LazyAst_NewBuilder() *LazyAst_Builder { return &LazyAst_Builder{m: &LazyAst{memoizedSize: -1}} }
-
-// Java: LazyAst.newBuilder(LazyAst)
-func LazyAst_NewBuilderFrom(prototype *LazyAst) *LazyAst_Builder { return prototype.ToBuilder() }
-
-// Java: LazyAst.toBuilder()
-func (m *LazyAst) ToBuilder() *LazyAst_Builder { return &LazyAst_Builder{m: m.mutableCopy()} }
-
-// LazyAst_ParseFrom panics with *InvalidProtocolBufferException on malformed input.
-//
-// Java: LazyAst.parseFrom(byte[])
-func LazyAst_ParseFrom(data []byte) *LazyAst {
-	m := &LazyAst{memoizedSize: -1}
-	m.mergeFromReader(&protoReader{b: data})
-	m.frozen = true
-	return m
-}
-
-// mutableCopy is a shallow copy that a builder may modify.
-func (m *LazyAst) mutableCopy() *LazyAst {
-	c := *m
-	c.frozen = false
-	c.memoizedSize = -1
-	return &c
-}
-
-// freeze returns an immutable copy (shared when m is already immutable).
-func (m *LazyAst) freeze() *LazyAst {
-	if m == nil || m.frozen {
-		return m
-	}
-	c := *m
-	c.frozen = true
-	c.memoizedSize = -1
-	return &c
-}
 
 // Java: LazyAst.getScript()
 func (m *LazyAst) GetScript() []byte {
@@ -2076,120 +1030,6 @@ func (m *LazyAst) GetSourceFile() int32 {
 // Java: LazyAst.getSourceMappingUrl()
 func (m *LazyAst) GetSourceMappingUrl() string {
 	return m.sourceMappingUrl_
-}
-
-// LazyAst_Builder is LazyAst.Builder.
-type LazyAst_Builder struct{ m *LazyAst }
-
-// Java: LazyAst.Builder.build()
-func (b *LazyAst_Builder) Build() *LazyAst { return b.m.freeze() }
-
-// Java: LazyAst.Builder.buildPartial()
-func (b *LazyAst_Builder) BuildPartial() *LazyAst { return b.m.freeze() }
-
-// Java: LazyAst.Builder.clear()
-func (b *LazyAst_Builder) Clear() *LazyAst_Builder {
-	b.m = &LazyAst{memoizedSize: -1}
-	return b
-}
-
-// Java: LazyAst.Builder.mergeFrom(LazyAst)
-func (b *LazyAst_Builder) MergeFrom(other *LazyAst) *LazyAst_Builder {
-	b.m.mergeFrom(other)
-	return b
-}
-
-// Java: LazyAst.Builder.getScript()
-func (b *LazyAst_Builder) GetScript() []byte { return b.m.GetScript() }
-
-// Java: LazyAst.Builder.setScript(ByteString)
-func (b *LazyAst_Builder) SetScript(v []byte) *LazyAst_Builder {
-	b.m.script_ = v
-	return b
-}
-
-// Java: LazyAst.Builder.clearScript()
-func (b *LazyAst_Builder) ClearScript() *LazyAst_Builder {
-	b.m.script_ = nil
-	return b
-}
-
-// Java: LazyAst.Builder.getSourceFile()
-func (b *LazyAst_Builder) GetSourceFile() int32 { return b.m.GetSourceFile() }
-
-// Java: LazyAst.Builder.setSourceFile(int)
-func (b *LazyAst_Builder) SetSourceFile(v int32) *LazyAst_Builder {
-	b.m.sourceFile_ = v
-	return b
-}
-
-// Java: LazyAst.Builder.clearSourceFile()
-func (b *LazyAst_Builder) ClearSourceFile() *LazyAst_Builder {
-	b.m.sourceFile_ = 0
-	return b
-}
-
-// Java: LazyAst.Builder.getSourceMappingUrl()
-func (b *LazyAst_Builder) GetSourceMappingUrl() string { return b.m.GetSourceMappingUrl() }
-
-// Java: LazyAst.Builder.setSourceMappingUrl(String)
-func (b *LazyAst_Builder) SetSourceMappingUrl(v string) *LazyAst_Builder {
-	b.m.sourceMappingUrl_ = v
-	return b
-}
-
-// Java: LazyAst.Builder.clearSourceMappingUrl()
-func (b *LazyAst_Builder) ClearSourceMappingUrl() *LazyAst_Builder {
-	b.m.sourceMappingUrl_ = ""
-	return b
-}
-
-// mergeFrom is GeneratedMessage.Builder.mergeFrom(LazyAst) on a mutable m.
-func (m *LazyAst) mergeFrom(other *LazyAst) {
-	if other == LazyAst_GetDefaultInstance() {
-		return
-	}
-	if len(other.script_) != 0 {
-		m.script_ = other.script_
-	}
-	if other.sourceFile_ != 0 {
-		m.sourceFile_ = other.sourceFile_
-	}
-	if other.sourceMappingUrl_ != "" {
-		m.sourceMappingUrl_ = other.sourceMappingUrl_
-	}
-	m.unknownFields = append(m.unknownFields, other.unknownFields...)
-}
-
-// Java: LazyAst.equals(Object)
-func (m *LazyAst) Equals(obj any) bool {
-	other, ok := obj.(*LazyAst)
-	if !ok || other == nil {
-		return false
-	}
-	if m == other {
-		return true
-	}
-	if !(protoBytesEqual(m.script_, other.script_)) {
-		return false
-	}
-	if !(m.sourceFile_ == other.sourceFile_) {
-		return false
-	}
-	if !(m.sourceMappingUrl_ == other.sourceMappingUrl_) {
-		return false
-	}
-	return protoBytesEqual(protoCanonicalUnknownFields(m.unknownFields), protoCanonicalUnknownFields(other.unknownFields))
-}
-
-// HashCode is consistent with Equals. (Java's generated hashCode mixes in
-// the descriptor's identity hash, so its values are not reproducible.)
-func (m *LazyAst) HashCode() int32 {
-	h := int32(41)
-	h = protoHashBytes(h, m.script_)
-	h = 31*h + m.sourceFile_
-	h = protoHashString(h, m.sourceMappingUrl_)
-	return h
 }
 
 // appendTo is LazyAst.writeTo(CodedOutputStream): fields in number order, then unknown fields.
@@ -2214,8 +1054,8 @@ func (m *LazyAst) appendTo(b []byte) []byte {
 
 // serializedSize is getSerializedSize() (memoized once immutable).
 func (m *LazyAst) serializedSize() int {
-	if m.frozen && m.memoizedSize >= 0 {
-		return m.memoizedSize
+	if m.cachedSize > 0 {
+		return m.cachedSize - 1
 	}
 	size := 0
 	if len(m.script_) != 0 {
@@ -2231,43 +1071,12 @@ func (m *LazyAst) serializedSize() int {
 	if len(m.unknownFields) > 0 {
 		size += len(protoCanonicalUnknownFields(m.unknownFields))
 	}
-	if m.frozen {
-		m.memoizedSize = size
-	}
+	m.cachedSize = size + 1
 	return size
 }
 
-// appendScalarsOnly encodes the non-message fields and unknown fields (for sizing).
-func (m *LazyAst) appendScalarsOnly(b []byte) []byte {
-	if len(m.script_) != 0 {
-		b = protoAppendTag(b, 1, 2)
-		b = protoAppendBytes(b, m.script_)
-	}
-	if m.sourceFile_ != 0 {
-		b = protoAppendTag(b, 2, 0)
-		b = protoAppendUint32(b, m.sourceFile_)
-	}
-	if m.sourceMappingUrl_ != "" {
-		b = protoAppendTag(b, 3, 2)
-		b = protoAppendString(b, m.sourceMappingUrl_)
-	}
-	if len(m.unknownFields) > 0 {
-		b = append(b, protoCanonicalUnknownFields(m.unknownFields)...)
-	}
-	return b
-}
-
-// Java: LazyAst.getSerializedSize()
-func (m *LazyAst) GetSerializedSize() int { return m.serializedSize() }
-
 // Java: LazyAst.toByteArray()
 func (m *LazyAst) ToByteArray() []byte { return m.appendTo(make([]byte, 0, m.serializedSize())) }
-
-// Java: LazyAst.toByteString()
-func (m *LazyAst) ToByteString() []byte { return m.ToByteArray() }
-
-// Java: LazyAst.isInitialized()
-func (m *LazyAst) IsInitialized() bool { return true }
 
 // mergeFromReader is LazyAst.Builder.mergeFrom(CodedInputStream) on a mutable m.
 func (m *LazyAst) mergeFromReader(r *protoReader) {
@@ -2310,1506 +1119,6 @@ func (m *LazyAst) String() string {
 	return p.sb.String()
 }
 
-// NonLazyTypedAst is the protobuf message jscomp.NonLazyTypedAst.
-//
-// Java: com.google.javascript.jscomp.serialization.NonLazyTypedAst
-type NonLazyTypedAst struct {
-	typePool_       *TypePool
-	stringPool_     *StringPoolProto
-	externAst_      []*NonLazyAst
-	codeAst_        []*NonLazyAst
-	sourceFilePool_ *SourceFilePool
-	externsSummary_ *ExternsSummary
-	unknownFields   []byte
-	frozen          bool
-	memoizedSize    int
-}
-
-// Field numbers (NonLazyTypedAst.X_FIELD_NUMBER).
-const (
-	NonLazyTypedAst_TYPE_POOL_FIELD_NUMBER        = 1
-	NonLazyTypedAst_STRING_POOL_FIELD_NUMBER      = 2
-	NonLazyTypedAst_EXTERN_AST_FIELD_NUMBER       = 3
-	NonLazyTypedAst_CODE_AST_FIELD_NUMBER         = 4
-	NonLazyTypedAst_SOURCE_FILE_POOL_FIELD_NUMBER = 5
-	NonLazyTypedAst_EXTERNS_SUMMARY_FIELD_NUMBER  = 6
-)
-
-var nonLazyTypedAst_DEFAULT_INSTANCE = &NonLazyTypedAst{frozen: true, memoizedSize: -1}
-
-// Java: NonLazyTypedAst.getDefaultInstance()
-func NonLazyTypedAst_GetDefaultInstance() *NonLazyTypedAst { return nonLazyTypedAst_DEFAULT_INSTANCE }
-
-// Java: NonLazyTypedAst.newBuilder()
-func NonLazyTypedAst_NewBuilder() *NonLazyTypedAst_Builder {
-	return &NonLazyTypedAst_Builder{m: &NonLazyTypedAst{memoizedSize: -1}}
-}
-
-// Java: NonLazyTypedAst.newBuilder(NonLazyTypedAst)
-func NonLazyTypedAst_NewBuilderFrom(prototype *NonLazyTypedAst) *NonLazyTypedAst_Builder {
-	return prototype.ToBuilder()
-}
-
-// Java: NonLazyTypedAst.toBuilder()
-func (m *NonLazyTypedAst) ToBuilder() *NonLazyTypedAst_Builder {
-	return &NonLazyTypedAst_Builder{m: m.mutableCopy()}
-}
-
-// NonLazyTypedAst_ParseFrom panics with *InvalidProtocolBufferException on malformed input.
-//
-// Java: NonLazyTypedAst.parseFrom(byte[])
-func NonLazyTypedAst_ParseFrom(data []byte) *NonLazyTypedAst {
-	m := &NonLazyTypedAst{memoizedSize: -1}
-	m.mergeFromReader(&protoReader{b: data})
-	m.frozen = true
-	return m
-}
-
-// mutableCopy is a shallow copy that a builder may modify.
-func (m *NonLazyTypedAst) mutableCopy() *NonLazyTypedAst {
-	c := *m
-	c.frozen = false
-	c.memoizedSize = -1
-	c.externAst_ = append([]*NonLazyAst(nil), m.externAst_...)
-	c.codeAst_ = append([]*NonLazyAst(nil), m.codeAst_...)
-	return &c
-}
-
-// freeze returns an immutable copy (shared when m is already immutable).
-func (m *NonLazyTypedAst) freeze() *NonLazyTypedAst {
-	if m == nil || m.frozen {
-		return m
-	}
-	c := *m
-	c.frozen = true
-	c.memoizedSize = -1
-	c.typePool_ = m.typePool_.freeze()
-	c.stringPool_ = m.stringPool_.freeze()
-	c.externAst_ = make([]*NonLazyAst, len(m.externAst_))
-	for i, x := range m.externAst_ {
-		c.externAst_[i] = x.freeze()
-	}
-	c.codeAst_ = make([]*NonLazyAst, len(m.codeAst_))
-	for i, x := range m.codeAst_ {
-		c.codeAst_[i] = x.freeze()
-	}
-	c.sourceFilePool_ = m.sourceFilePool_.freeze()
-	c.externsSummary_ = m.externsSummary_.freeze()
-	return &c
-}
-
-// Java: NonLazyTypedAst.hasTypePool()
-func (m *NonLazyTypedAst) HasTypePool() bool { return m.typePool_ != nil }
-
-// Java: NonLazyTypedAst.getTypePool()
-func (m *NonLazyTypedAst) GetTypePool() *TypePool {
-	if m.typePool_ != nil {
-		return m.typePool_
-	}
-	return TypePool_GetDefaultInstance()
-}
-
-// Java: NonLazyTypedAst.hasStringPool()
-func (m *NonLazyTypedAst) HasStringPool() bool { return m.stringPool_ != nil }
-
-// Java: NonLazyTypedAst.getStringPool()
-func (m *NonLazyTypedAst) GetStringPool() *StringPoolProto {
-	if m.stringPool_ != nil {
-		return m.stringPool_
-	}
-	return StringPoolProto_GetDefaultInstance()
-}
-
-// Java: NonLazyTypedAst.getExternAstList()
-func (m *NonLazyTypedAst) GetExternAstList() []*NonLazyAst { return m.externAst_ }
-
-// Java: NonLazyTypedAst.getExternAst(int)
-func (m *NonLazyTypedAst) GetExternAst(index int) *NonLazyAst {
-	protoCheckIndexJDK(index, len(m.externAst_))
-	return m.externAst_[index]
-}
-
-// Java: NonLazyTypedAst.getExternAstCount()
-func (m *NonLazyTypedAst) GetExternAstCount() int { return len(m.externAst_) }
-
-// Java: NonLazyTypedAst.getCodeAstList()
-func (m *NonLazyTypedAst) GetCodeAstList() []*NonLazyAst { return m.codeAst_ }
-
-// Java: NonLazyTypedAst.getCodeAst(int)
-func (m *NonLazyTypedAst) GetCodeAst(index int) *NonLazyAst {
-	protoCheckIndexJDK(index, len(m.codeAst_))
-	return m.codeAst_[index]
-}
-
-// Java: NonLazyTypedAst.getCodeAstCount()
-func (m *NonLazyTypedAst) GetCodeAstCount() int { return len(m.codeAst_) }
-
-// Java: NonLazyTypedAst.hasSourceFilePool()
-func (m *NonLazyTypedAst) HasSourceFilePool() bool { return m.sourceFilePool_ != nil }
-
-// Java: NonLazyTypedAst.getSourceFilePool()
-func (m *NonLazyTypedAst) GetSourceFilePool() *SourceFilePool {
-	if m.sourceFilePool_ != nil {
-		return m.sourceFilePool_
-	}
-	return SourceFilePool_GetDefaultInstance()
-}
-
-// Java: NonLazyTypedAst.hasExternsSummary()
-func (m *NonLazyTypedAst) HasExternsSummary() bool { return m.externsSummary_ != nil }
-
-// Java: NonLazyTypedAst.getExternsSummary()
-func (m *NonLazyTypedAst) GetExternsSummary() *ExternsSummary {
-	if m.externsSummary_ != nil {
-		return m.externsSummary_
-	}
-	return ExternsSummary_GetDefaultInstance()
-}
-
-// NonLazyTypedAst_Builder is NonLazyTypedAst.Builder.
-type NonLazyTypedAst_Builder struct{ m *NonLazyTypedAst }
-
-// Java: NonLazyTypedAst.Builder.build()
-func (b *NonLazyTypedAst_Builder) Build() *NonLazyTypedAst { return b.m.freeze() }
-
-// Java: NonLazyTypedAst.Builder.buildPartial()
-func (b *NonLazyTypedAst_Builder) BuildPartial() *NonLazyTypedAst { return b.m.freeze() }
-
-// Java: NonLazyTypedAst.Builder.clear()
-func (b *NonLazyTypedAst_Builder) Clear() *NonLazyTypedAst_Builder {
-	b.m = &NonLazyTypedAst{memoizedSize: -1}
-	return b
-}
-
-// Java: NonLazyTypedAst.Builder.mergeFrom(NonLazyTypedAst)
-func (b *NonLazyTypedAst_Builder) MergeFrom(other *NonLazyTypedAst) *NonLazyTypedAst_Builder {
-	b.m.mergeFrom(other)
-	return b
-}
-
-// Java: NonLazyTypedAst.Builder.hasTypePool()
-func (b *NonLazyTypedAst_Builder) HasTypePool() bool { return b.m.HasTypePool() }
-
-// Java: NonLazyTypedAst.Builder.getTypePool()
-func (b *NonLazyTypedAst_Builder) GetTypePool() *TypePool { return b.m.GetTypePool().freeze() }
-
-// Java: NonLazyTypedAst.Builder.setTypePool(TypePool)
-func (b *NonLazyTypedAst_Builder) SetTypePool(v *TypePool) *NonLazyTypedAst_Builder {
-	if v == nil {
-		panic(jutil.NewNullPointerException())
-	}
-	b.m.typePool_ = v
-	return b
-}
-
-// Java: NonLazyTypedAst.Builder.setTypePool(TypePool.Builder)
-func (b *NonLazyTypedAst_Builder) SetTypePoolFromBuilder(builderForValue *TypePool_Builder) *NonLazyTypedAst_Builder {
-	return b.SetTypePool(builderForValue.Build())
-}
-
-// Java: NonLazyTypedAst.Builder.mergeTypePool(TypePool)
-func (b *NonLazyTypedAst_Builder) MergeTypePool(v *TypePool) *NonLazyTypedAst_Builder {
-	if b.m.HasTypePool() && b.m.typePool_ != TypePool_GetDefaultInstance() {
-		x := b.m.typePool_.mutableCopy()
-		x.mergeFrom(v)
-		b.m.typePool_ = x
-	} else {
-		b.m.typePool_ = v
-	}
-	return b
-}
-
-// Java: NonLazyTypedAst.Builder.getTypePoolBuilder()
-func (b *NonLazyTypedAst_Builder) GetTypePoolBuilder() *TypePool_Builder {
-	if b.m.typePool_ == nil {
-		b.m.typePool_ = &TypePool{memoizedSize: -1}
-	} else if b.m.typePool_.frozen {
-		b.m.typePool_ = b.m.typePool_.mutableCopy()
-	}
-	return &TypePool_Builder{m: b.m.typePool_}
-}
-
-// Java: NonLazyTypedAst.Builder.clearTypePool()
-func (b *NonLazyTypedAst_Builder) ClearTypePool() *NonLazyTypedAst_Builder {
-	b.m.typePool_ = nil
-	return b
-}
-
-// Java: NonLazyTypedAst.Builder.hasStringPool()
-func (b *NonLazyTypedAst_Builder) HasStringPool() bool { return b.m.HasStringPool() }
-
-// Java: NonLazyTypedAst.Builder.getStringPool()
-func (b *NonLazyTypedAst_Builder) GetStringPool() *StringPoolProto {
-	return b.m.GetStringPool().freeze()
-}
-
-// Java: NonLazyTypedAst.Builder.setStringPool(StringPoolProto)
-func (b *NonLazyTypedAst_Builder) SetStringPool(v *StringPoolProto) *NonLazyTypedAst_Builder {
-	if v == nil {
-		panic(jutil.NewNullPointerException())
-	}
-	b.m.stringPool_ = v
-	return b
-}
-
-// Java: NonLazyTypedAst.Builder.setStringPool(StringPoolProto.Builder)
-func (b *NonLazyTypedAst_Builder) SetStringPoolFromBuilder(builderForValue *StringPoolProto_Builder) *NonLazyTypedAst_Builder {
-	return b.SetStringPool(builderForValue.Build())
-}
-
-// Java: NonLazyTypedAst.Builder.mergeStringPool(StringPoolProto)
-func (b *NonLazyTypedAst_Builder) MergeStringPool(v *StringPoolProto) *NonLazyTypedAst_Builder {
-	if b.m.HasStringPool() && b.m.stringPool_ != StringPoolProto_GetDefaultInstance() {
-		x := b.m.stringPool_.mutableCopy()
-		x.mergeFrom(v)
-		b.m.stringPool_ = x
-	} else {
-		b.m.stringPool_ = v
-	}
-	return b
-}
-
-// Java: NonLazyTypedAst.Builder.getStringPoolBuilder()
-func (b *NonLazyTypedAst_Builder) GetStringPoolBuilder() *StringPoolProto_Builder {
-	if b.m.stringPool_ == nil {
-		b.m.stringPool_ = &StringPoolProto{memoizedSize: -1}
-	} else if b.m.stringPool_.frozen {
-		b.m.stringPool_ = b.m.stringPool_.mutableCopy()
-	}
-	return &StringPoolProto_Builder{m: b.m.stringPool_}
-}
-
-// Java: NonLazyTypedAst.Builder.clearStringPool()
-func (b *NonLazyTypedAst_Builder) ClearStringPool() *NonLazyTypedAst_Builder {
-	b.m.stringPool_ = nil
-	return b
-}
-
-// Java: NonLazyTypedAst.Builder.getExternAstList()
-func (b *NonLazyTypedAst_Builder) GetExternAstList() []*NonLazyAst {
-	out := make([]*NonLazyAst, len(b.m.externAst_))
-	for i, x := range b.m.externAst_ {
-		out[i] = x.freeze()
-	}
-	return out
-}
-
-// Java: NonLazyTypedAst.Builder.getExternAst(int)
-func (b *NonLazyTypedAst_Builder) GetExternAst(index int) *NonLazyAst {
-	return b.m.GetExternAst(index).freeze()
-}
-
-// Java: NonLazyTypedAst.Builder.getExternAstCount()
-func (b *NonLazyTypedAst_Builder) GetExternAstCount() int { return b.m.GetExternAstCount() }
-
-// Java: NonLazyTypedAst.Builder.addExternAst(*NonLazyAst)
-func (b *NonLazyTypedAst_Builder) AddExternAst(v *NonLazyAst) *NonLazyTypedAst_Builder {
-	if v == nil {
-		panic(jutil.NewNullPointerException())
-	}
-	b.m.externAst_ = append(b.m.externAst_, v)
-	return b
-}
-
-// Java: NonLazyTypedAst.Builder.addAllExternAst(Iterable)
-func (b *NonLazyTypedAst_Builder) AddAllExternAst(values []*NonLazyAst) *NonLazyTypedAst_Builder {
-	for _, v := range values {
-		b.AddExternAst(v)
-	}
-	return b
-}
-
-// Java: NonLazyTypedAst.Builder.setExternAst(int, *NonLazyAst)
-func (b *NonLazyTypedAst_Builder) SetExternAstAtIndex(index int, v *NonLazyAst) *NonLazyTypedAst_Builder {
-	protoCheckIndexJDK(index, len(b.m.externAst_))
-	if v == nil {
-		panic(jutil.NewNullPointerException())
-	}
-	b.m.externAst_[index] = v
-	return b
-}
-
-// Java: NonLazyTypedAst.Builder.addExternAst(NonLazyAst.Builder)
-func (b *NonLazyTypedAst_Builder) AddExternAstFromBuilder(builderForValue *NonLazyAst_Builder) *NonLazyTypedAst_Builder {
-	return b.AddExternAst(builderForValue.Build())
-}
-
-// Java: NonLazyTypedAst.Builder.addExternAstBuilder()
-func (b *NonLazyTypedAst_Builder) AddExternAstBuilder() *NonLazyAst_Builder {
-	x := &NonLazyAst{memoizedSize: -1}
-	b.m.externAst_ = append(b.m.externAst_, x)
-	return &NonLazyAst_Builder{m: x}
-}
-
-// Java: NonLazyTypedAst.Builder.getExternAstBuilder(int)
-func (b *NonLazyTypedAst_Builder) GetExternAstBuilder(index int) *NonLazyAst_Builder {
-	protoCheckIndexJDK(index, len(b.m.externAst_))
-	if b.m.externAst_[index].frozen {
-		b.m.externAst_[index] = b.m.externAst_[index].mutableCopy()
-	}
-	return &NonLazyAst_Builder{m: b.m.externAst_[index]}
-}
-
-// Java: NonLazyTypedAst.Builder.clearExternAst()
-func (b *NonLazyTypedAst_Builder) ClearExternAst() *NonLazyTypedAst_Builder {
-	b.m.externAst_ = nil
-	return b
-}
-
-// Java: NonLazyTypedAst.Builder.getCodeAstList()
-func (b *NonLazyTypedAst_Builder) GetCodeAstList() []*NonLazyAst {
-	out := make([]*NonLazyAst, len(b.m.codeAst_))
-	for i, x := range b.m.codeAst_ {
-		out[i] = x.freeze()
-	}
-	return out
-}
-
-// Java: NonLazyTypedAst.Builder.getCodeAst(int)
-func (b *NonLazyTypedAst_Builder) GetCodeAst(index int) *NonLazyAst {
-	return b.m.GetCodeAst(index).freeze()
-}
-
-// Java: NonLazyTypedAst.Builder.getCodeAstCount()
-func (b *NonLazyTypedAst_Builder) GetCodeAstCount() int { return b.m.GetCodeAstCount() }
-
-// Java: NonLazyTypedAst.Builder.addCodeAst(*NonLazyAst)
-func (b *NonLazyTypedAst_Builder) AddCodeAst(v *NonLazyAst) *NonLazyTypedAst_Builder {
-	if v == nil {
-		panic(jutil.NewNullPointerException())
-	}
-	b.m.codeAst_ = append(b.m.codeAst_, v)
-	return b
-}
-
-// Java: NonLazyTypedAst.Builder.addAllCodeAst(Iterable)
-func (b *NonLazyTypedAst_Builder) AddAllCodeAst(values []*NonLazyAst) *NonLazyTypedAst_Builder {
-	for _, v := range values {
-		b.AddCodeAst(v)
-	}
-	return b
-}
-
-// Java: NonLazyTypedAst.Builder.setCodeAst(int, *NonLazyAst)
-func (b *NonLazyTypedAst_Builder) SetCodeAstAtIndex(index int, v *NonLazyAst) *NonLazyTypedAst_Builder {
-	protoCheckIndexJDK(index, len(b.m.codeAst_))
-	if v == nil {
-		panic(jutil.NewNullPointerException())
-	}
-	b.m.codeAst_[index] = v
-	return b
-}
-
-// Java: NonLazyTypedAst.Builder.addCodeAst(NonLazyAst.Builder)
-func (b *NonLazyTypedAst_Builder) AddCodeAstFromBuilder(builderForValue *NonLazyAst_Builder) *NonLazyTypedAst_Builder {
-	return b.AddCodeAst(builderForValue.Build())
-}
-
-// Java: NonLazyTypedAst.Builder.addCodeAstBuilder()
-func (b *NonLazyTypedAst_Builder) AddCodeAstBuilder() *NonLazyAst_Builder {
-	x := &NonLazyAst{memoizedSize: -1}
-	b.m.codeAst_ = append(b.m.codeAst_, x)
-	return &NonLazyAst_Builder{m: x}
-}
-
-// Java: NonLazyTypedAst.Builder.getCodeAstBuilder(int)
-func (b *NonLazyTypedAst_Builder) GetCodeAstBuilder(index int) *NonLazyAst_Builder {
-	protoCheckIndexJDK(index, len(b.m.codeAst_))
-	if b.m.codeAst_[index].frozen {
-		b.m.codeAst_[index] = b.m.codeAst_[index].mutableCopy()
-	}
-	return &NonLazyAst_Builder{m: b.m.codeAst_[index]}
-}
-
-// Java: NonLazyTypedAst.Builder.clearCodeAst()
-func (b *NonLazyTypedAst_Builder) ClearCodeAst() *NonLazyTypedAst_Builder {
-	b.m.codeAst_ = nil
-	return b
-}
-
-// Java: NonLazyTypedAst.Builder.hasSourceFilePool()
-func (b *NonLazyTypedAst_Builder) HasSourceFilePool() bool { return b.m.HasSourceFilePool() }
-
-// Java: NonLazyTypedAst.Builder.getSourceFilePool()
-func (b *NonLazyTypedAst_Builder) GetSourceFilePool() *SourceFilePool {
-	return b.m.GetSourceFilePool().freeze()
-}
-
-// Java: NonLazyTypedAst.Builder.setSourceFilePool(SourceFilePool)
-func (b *NonLazyTypedAst_Builder) SetSourceFilePool(v *SourceFilePool) *NonLazyTypedAst_Builder {
-	if v == nil {
-		panic(jutil.NewNullPointerException())
-	}
-	b.m.sourceFilePool_ = v
-	return b
-}
-
-// Java: NonLazyTypedAst.Builder.setSourceFilePool(SourceFilePool.Builder)
-func (b *NonLazyTypedAst_Builder) SetSourceFilePoolFromBuilder(builderForValue *SourceFilePool_Builder) *NonLazyTypedAst_Builder {
-	return b.SetSourceFilePool(builderForValue.Build())
-}
-
-// Java: NonLazyTypedAst.Builder.mergeSourceFilePool(SourceFilePool)
-func (b *NonLazyTypedAst_Builder) MergeSourceFilePool(v *SourceFilePool) *NonLazyTypedAst_Builder {
-	if b.m.HasSourceFilePool() && b.m.sourceFilePool_ != SourceFilePool_GetDefaultInstance() {
-		x := b.m.sourceFilePool_.mutableCopy()
-		x.mergeFrom(v)
-		b.m.sourceFilePool_ = x
-	} else {
-		b.m.sourceFilePool_ = v
-	}
-	return b
-}
-
-// Java: NonLazyTypedAst.Builder.getSourceFilePoolBuilder()
-func (b *NonLazyTypedAst_Builder) GetSourceFilePoolBuilder() *SourceFilePool_Builder {
-	if b.m.sourceFilePool_ == nil {
-		b.m.sourceFilePool_ = &SourceFilePool{memoizedSize: -1}
-	} else if b.m.sourceFilePool_.frozen {
-		b.m.sourceFilePool_ = b.m.sourceFilePool_.mutableCopy()
-	}
-	return &SourceFilePool_Builder{m: b.m.sourceFilePool_}
-}
-
-// Java: NonLazyTypedAst.Builder.clearSourceFilePool()
-func (b *NonLazyTypedAst_Builder) ClearSourceFilePool() *NonLazyTypedAst_Builder {
-	b.m.sourceFilePool_ = nil
-	return b
-}
-
-// Java: NonLazyTypedAst.Builder.hasExternsSummary()
-func (b *NonLazyTypedAst_Builder) HasExternsSummary() bool { return b.m.HasExternsSummary() }
-
-// Java: NonLazyTypedAst.Builder.getExternsSummary()
-func (b *NonLazyTypedAst_Builder) GetExternsSummary() *ExternsSummary {
-	return b.m.GetExternsSummary().freeze()
-}
-
-// Java: NonLazyTypedAst.Builder.setExternsSummary(ExternsSummary)
-func (b *NonLazyTypedAst_Builder) SetExternsSummary(v *ExternsSummary) *NonLazyTypedAst_Builder {
-	if v == nil {
-		panic(jutil.NewNullPointerException())
-	}
-	b.m.externsSummary_ = v
-	return b
-}
-
-// Java: NonLazyTypedAst.Builder.setExternsSummary(ExternsSummary.Builder)
-func (b *NonLazyTypedAst_Builder) SetExternsSummaryFromBuilder(builderForValue *ExternsSummary_Builder) *NonLazyTypedAst_Builder {
-	return b.SetExternsSummary(builderForValue.Build())
-}
-
-// Java: NonLazyTypedAst.Builder.mergeExternsSummary(ExternsSummary)
-func (b *NonLazyTypedAst_Builder) MergeExternsSummary(v *ExternsSummary) *NonLazyTypedAst_Builder {
-	if b.m.HasExternsSummary() && b.m.externsSummary_ != ExternsSummary_GetDefaultInstance() {
-		x := b.m.externsSummary_.mutableCopy()
-		x.mergeFrom(v)
-		b.m.externsSummary_ = x
-	} else {
-		b.m.externsSummary_ = v
-	}
-	return b
-}
-
-// Java: NonLazyTypedAst.Builder.getExternsSummaryBuilder()
-func (b *NonLazyTypedAst_Builder) GetExternsSummaryBuilder() *ExternsSummary_Builder {
-	if b.m.externsSummary_ == nil {
-		b.m.externsSummary_ = &ExternsSummary{memoizedSize: -1}
-	} else if b.m.externsSummary_.frozen {
-		b.m.externsSummary_ = b.m.externsSummary_.mutableCopy()
-	}
-	return &ExternsSummary_Builder{m: b.m.externsSummary_}
-}
-
-// Java: NonLazyTypedAst.Builder.clearExternsSummary()
-func (b *NonLazyTypedAst_Builder) ClearExternsSummary() *NonLazyTypedAst_Builder {
-	b.m.externsSummary_ = nil
-	return b
-}
-
-// mergeFrom is GeneratedMessage.Builder.mergeFrom(NonLazyTypedAst) on a mutable m.
-func (m *NonLazyTypedAst) mergeFrom(other *NonLazyTypedAst) {
-	if other == NonLazyTypedAst_GetDefaultInstance() {
-		return
-	}
-	if other.typePool_ != nil {
-		if m.typePool_ != nil {
-			x := m.typePool_.mutableCopy()
-			x.mergeFrom(other.typePool_)
-			m.typePool_ = x.freeze()
-		} else {
-			m.typePool_ = other.typePool_
-		}
-	}
-	if other.stringPool_ != nil {
-		if m.stringPool_ != nil {
-			x := m.stringPool_.mutableCopy()
-			x.mergeFrom(other.stringPool_)
-			m.stringPool_ = x.freeze()
-		} else {
-			m.stringPool_ = other.stringPool_
-		}
-	}
-	m.externAst_ = append(m.externAst_, other.externAst_...)
-	m.codeAst_ = append(m.codeAst_, other.codeAst_...)
-	if other.sourceFilePool_ != nil {
-		if m.sourceFilePool_ != nil {
-			x := m.sourceFilePool_.mutableCopy()
-			x.mergeFrom(other.sourceFilePool_)
-			m.sourceFilePool_ = x.freeze()
-		} else {
-			m.sourceFilePool_ = other.sourceFilePool_
-		}
-	}
-	if other.externsSummary_ != nil {
-		if m.externsSummary_ != nil {
-			x := m.externsSummary_.mutableCopy()
-			x.mergeFrom(other.externsSummary_)
-			m.externsSummary_ = x.freeze()
-		} else {
-			m.externsSummary_ = other.externsSummary_
-		}
-	}
-	m.unknownFields = append(m.unknownFields, other.unknownFields...)
-}
-
-// Java: NonLazyTypedAst.equals(Object)
-func (m *NonLazyTypedAst) Equals(obj any) bool {
-	other, ok := obj.(*NonLazyTypedAst)
-	if !ok || other == nil {
-		return false
-	}
-	if m == other {
-		return true
-	}
-	if m.HasTypePool() != other.HasTypePool() {
-		return false
-	}
-	if m.HasTypePool() && !m.typePool_.Equals(other.typePool_) {
-		return false
-	}
-	if m.HasStringPool() != other.HasStringPool() {
-		return false
-	}
-	if m.HasStringPool() && !m.stringPool_.Equals(other.stringPool_) {
-		return false
-	}
-	if len(m.externAst_) != len(other.externAst_) {
-		return false
-	}
-	for i := range m.externAst_ {
-		if !(m.externAst_[i].Equals(other.externAst_[i])) {
-			return false
-		}
-	}
-	if len(m.codeAst_) != len(other.codeAst_) {
-		return false
-	}
-	for i := range m.codeAst_ {
-		if !(m.codeAst_[i].Equals(other.codeAst_[i])) {
-			return false
-		}
-	}
-	if m.HasSourceFilePool() != other.HasSourceFilePool() {
-		return false
-	}
-	if m.HasSourceFilePool() && !m.sourceFilePool_.Equals(other.sourceFilePool_) {
-		return false
-	}
-	if m.HasExternsSummary() != other.HasExternsSummary() {
-		return false
-	}
-	if m.HasExternsSummary() && !m.externsSummary_.Equals(other.externsSummary_) {
-		return false
-	}
-	return protoBytesEqual(protoCanonicalUnknownFields(m.unknownFields), protoCanonicalUnknownFields(other.unknownFields))
-}
-
-// HashCode is consistent with Equals. (Java's generated hashCode mixes in
-// the descriptor's identity hash, so its values are not reproducible.)
-func (m *NonLazyTypedAst) HashCode() int32 {
-	h := int32(41)
-	if m.typePool_ != nil {
-		h = 31*h + m.typePool_.HashCode()
-	}
-	if m.stringPool_ != nil {
-		h = 31*h + m.stringPool_.HashCode()
-	}
-	for _, x := range m.externAst_ {
-		h = 31*h + x.HashCode()
-	}
-	for _, x := range m.codeAst_ {
-		h = 31*h + x.HashCode()
-	}
-	if m.sourceFilePool_ != nil {
-		h = 31*h + m.sourceFilePool_.HashCode()
-	}
-	if m.externsSummary_ != nil {
-		h = 31*h + m.externsSummary_.HashCode()
-	}
-	return h
-}
-
-// appendTo is NonLazyTypedAst.writeTo(CodedOutputStream): fields in number order, then unknown fields.
-func (m *NonLazyTypedAst) appendTo(b []byte) []byte {
-	if m.typePool_ != nil {
-		b = protoAppendTag(b, 1, 2)
-		b = protoAppendVarint(b, uint64(m.typePool_.serializedSize()))
-		b = m.typePool_.appendTo(b)
-	}
-	if m.stringPool_ != nil {
-		b = protoAppendTag(b, 2, 2)
-		b = protoAppendVarint(b, uint64(m.stringPool_.serializedSize()))
-		b = m.stringPool_.appendTo(b)
-	}
-	for _, x := range m.externAst_ {
-		b = protoAppendTag(b, 3, 2)
-		b = protoAppendVarint(b, uint64(x.serializedSize()))
-		b = x.appendTo(b)
-	}
-	for _, x := range m.codeAst_ {
-		b = protoAppendTag(b, 4, 2)
-		b = protoAppendVarint(b, uint64(x.serializedSize()))
-		b = x.appendTo(b)
-	}
-	if m.sourceFilePool_ != nil {
-		b = protoAppendTag(b, 5, 2)
-		b = protoAppendVarint(b, uint64(m.sourceFilePool_.serializedSize()))
-		b = m.sourceFilePool_.appendTo(b)
-	}
-	if m.externsSummary_ != nil {
-		b = protoAppendTag(b, 6, 2)
-		b = protoAppendVarint(b, uint64(m.externsSummary_.serializedSize()))
-		b = m.externsSummary_.appendTo(b)
-	}
-	if len(m.unknownFields) > 0 {
-		b = append(b, protoCanonicalUnknownFields(m.unknownFields)...)
-	}
-	return b
-}
-
-// serializedSize is getSerializedSize() (memoized once immutable).
-func (m *NonLazyTypedAst) serializedSize() int {
-	if m.frozen && m.memoizedSize >= 0 {
-		return m.memoizedSize
-	}
-	size := 0
-	if m.typePool_ != nil {
-		s := m.typePool_.serializedSize()
-		size += 1 + protoVarintLen(uint64(s)) + s
-	}
-	if m.stringPool_ != nil {
-		s := m.stringPool_.serializedSize()
-		size += 1 + protoVarintLen(uint64(s)) + s
-	}
-	for _, x := range m.externAst_ {
-		s := x.serializedSize()
-		size += 1 + protoVarintLen(uint64(s)) + s
-	}
-	for _, x := range m.codeAst_ {
-		s := x.serializedSize()
-		size += 1 + protoVarintLen(uint64(s)) + s
-	}
-	if m.sourceFilePool_ != nil {
-		s := m.sourceFilePool_.serializedSize()
-		size += 1 + protoVarintLen(uint64(s)) + s
-	}
-	if m.externsSummary_ != nil {
-		s := m.externsSummary_.serializedSize()
-		size += 1 + protoVarintLen(uint64(s)) + s
-	}
-	size += len(m.appendScalarsOnly(nil))
-	if m.frozen {
-		m.memoizedSize = size
-	}
-	return size
-}
-
-// appendScalarsOnly encodes the non-message fields and unknown fields (for sizing).
-func (m *NonLazyTypedAst) appendScalarsOnly(b []byte) []byte {
-	if len(m.unknownFields) > 0 {
-		b = append(b, protoCanonicalUnknownFields(m.unknownFields)...)
-	}
-	return b
-}
-
-// Java: NonLazyTypedAst.getSerializedSize()
-func (m *NonLazyTypedAst) GetSerializedSize() int { return m.serializedSize() }
-
-// Java: NonLazyTypedAst.toByteArray()
-func (m *NonLazyTypedAst) ToByteArray() []byte {
-	return m.appendTo(make([]byte, 0, m.serializedSize()))
-}
-
-// Java: NonLazyTypedAst.toByteString()
-func (m *NonLazyTypedAst) ToByteString() []byte { return m.ToByteArray() }
-
-// Java: NonLazyTypedAst.isInitialized()
-func (m *NonLazyTypedAst) IsInitialized() bool { return true }
-
-// mergeFromReader is NonLazyTypedAst.Builder.mergeFrom(CodedInputStream) on a mutable m.
-func (m *NonLazyTypedAst) mergeFromReader(r *protoReader) {
-	for {
-		start := r.pos
-		tag := r.readTag()
-		switch tag {
-		case 0:
-			return
-		case 10:
-			data := r.readMessageBytes()
-			var x *TypePool
-			if m.typePool_ != nil {
-				x = m.typePool_.mutableCopy()
-			} else {
-				x = &TypePool{memoizedSize: -1}
-			}
-			x.mergeFromReader(r.sub(data))
-			x.frozen = true
-			m.typePool_ = x
-		case 18:
-			data := r.readMessageBytes()
-			var x *StringPoolProto
-			if m.stringPool_ != nil {
-				x = m.stringPool_.mutableCopy()
-			} else {
-				x = &StringPoolProto{memoizedSize: -1}
-			}
-			x.mergeFromReader(r.sub(data))
-			x.frozen = true
-			m.stringPool_ = x
-		case 26:
-			data := r.readMessageBytes()
-			x := &NonLazyAst{memoizedSize: -1}
-			x.mergeFromReader(r.sub(data))
-			x.frozen = true
-			m.externAst_ = append(m.externAst_, x)
-		case 34:
-			data := r.readMessageBytes()
-			x := &NonLazyAst{memoizedSize: -1}
-			x.mergeFromReader(r.sub(data))
-			x.frozen = true
-			m.codeAst_ = append(m.codeAst_, x)
-		case 42:
-			data := r.readMessageBytes()
-			var x *SourceFilePool
-			if m.sourceFilePool_ != nil {
-				x = m.sourceFilePool_.mutableCopy()
-			} else {
-				x = &SourceFilePool{memoizedSize: -1}
-			}
-			x.mergeFromReader(r.sub(data))
-			x.frozen = true
-			m.sourceFilePool_ = x
-		case 50:
-			data := r.readMessageBytes()
-			var x *ExternsSummary
-			if m.externsSummary_ != nil {
-				x = m.externsSummary_.mutableCopy()
-			} else {
-				x = &ExternsSummary{memoizedSize: -1}
-			}
-			x.mergeFromReader(r.sub(data))
-			x.frozen = true
-			m.externsSummary_ = x
-		default:
-			r.skipField(tag)
-			m.unknownFields = append(m.unknownFields, r.b[start:r.pos]...)
-		}
-	}
-}
-
-func (m *NonLazyTypedAst) printText(p *protoTextPrinter) {
-	if m.typePool_ != nil {
-		p.message("type_pool", m.typePool_.printText)
-	}
-	if m.stringPool_ != nil {
-		p.message("string_pool", m.stringPool_.printText)
-	}
-	for _, x := range m.externAst_ {
-		p.message("extern_ast", x.printText)
-	}
-	for _, x := range m.codeAst_ {
-		p.message("code_ast", x.printText)
-	}
-	if m.sourceFilePool_ != nil {
-		p.message("source_file_pool", m.sourceFilePool_.printText)
-	}
-	if m.externsSummary_ != nil {
-		p.message("externs_summary", m.externsSummary_.printText)
-	}
-	p.unknownFields(m.unknownFields)
-}
-
-// String is NonLazyTypedAst.toString() (protobuf text format).
-func (m *NonLazyTypedAst) String() string {
-	p := &protoTextPrinter{}
-	m.printText(p)
-	return p.sb.String()
-}
-
-// NonLazyTypedAst_List is the protobuf message jscomp.NonLazyTypedAst.List.
-//
-// Java: com.google.javascript.jscomp.serialization.NonLazyTypedAst.List
-type NonLazyTypedAst_List struct {
-	typedAsts_    []*NonLazyTypedAst
-	unknownFields []byte
-	frozen        bool
-	memoizedSize  int
-}
-
-// Field numbers (NonLazyTypedAst.List.X_FIELD_NUMBER).
-const (
-	NonLazyTypedAst_List_TYPED_ASTS_FIELD_NUMBER = 1
-)
-
-var nonLazyTypedAst_List_DEFAULT_INSTANCE = &NonLazyTypedAst_List{frozen: true, memoizedSize: -1}
-
-// Java: NonLazyTypedAst.List.getDefaultInstance()
-func NonLazyTypedAst_List_GetDefaultInstance() *NonLazyTypedAst_List {
-	return nonLazyTypedAst_List_DEFAULT_INSTANCE
-}
-
-// Java: NonLazyTypedAst.List.newBuilder()
-func NonLazyTypedAst_List_NewBuilder() *NonLazyTypedAst_List_Builder {
-	return &NonLazyTypedAst_List_Builder{m: &NonLazyTypedAst_List{memoizedSize: -1}}
-}
-
-// Java: NonLazyTypedAst.List.newBuilder(List)
-func NonLazyTypedAst_List_NewBuilderFrom(prototype *NonLazyTypedAst_List) *NonLazyTypedAst_List_Builder {
-	return prototype.ToBuilder()
-}
-
-// Java: NonLazyTypedAst.List.toBuilder()
-func (m *NonLazyTypedAst_List) ToBuilder() *NonLazyTypedAst_List_Builder {
-	return &NonLazyTypedAst_List_Builder{m: m.mutableCopy()}
-}
-
-// NonLazyTypedAst_List_ParseFrom panics with *InvalidProtocolBufferException on malformed input.
-//
-// Java: NonLazyTypedAst.List.parseFrom(byte[])
-func NonLazyTypedAst_List_ParseFrom(data []byte) *NonLazyTypedAst_List {
-	m := &NonLazyTypedAst_List{memoizedSize: -1}
-	m.mergeFromReader(&protoReader{b: data})
-	m.frozen = true
-	return m
-}
-
-// mutableCopy is a shallow copy that a builder may modify.
-func (m *NonLazyTypedAst_List) mutableCopy() *NonLazyTypedAst_List {
-	c := *m
-	c.frozen = false
-	c.memoizedSize = -1
-	c.typedAsts_ = append([]*NonLazyTypedAst(nil), m.typedAsts_...)
-	return &c
-}
-
-// freeze returns an immutable copy (shared when m is already immutable).
-func (m *NonLazyTypedAst_List) freeze() *NonLazyTypedAst_List {
-	if m == nil || m.frozen {
-		return m
-	}
-	c := *m
-	c.frozen = true
-	c.memoizedSize = -1
-	c.typedAsts_ = make([]*NonLazyTypedAst, len(m.typedAsts_))
-	for i, x := range m.typedAsts_ {
-		c.typedAsts_[i] = x.freeze()
-	}
-	return &c
-}
-
-// Java: NonLazyTypedAst.List.getTypedAstsList()
-func (m *NonLazyTypedAst_List) GetTypedAstsList() []*NonLazyTypedAst { return m.typedAsts_ }
-
-// Java: NonLazyTypedAst.List.getTypedAsts(int)
-func (m *NonLazyTypedAst_List) GetTypedAsts(index int) *NonLazyTypedAst {
-	protoCheckIndexJDK(index, len(m.typedAsts_))
-	return m.typedAsts_[index]
-}
-
-// Java: NonLazyTypedAst.List.getTypedAstsCount()
-func (m *NonLazyTypedAst_List) GetTypedAstsCount() int { return len(m.typedAsts_) }
-
-// NonLazyTypedAst_List_Builder is NonLazyTypedAst.List.Builder.
-type NonLazyTypedAst_List_Builder struct{ m *NonLazyTypedAst_List }
-
-// Java: NonLazyTypedAst.List.Builder.build()
-func (b *NonLazyTypedAst_List_Builder) Build() *NonLazyTypedAst_List { return b.m.freeze() }
-
-// Java: NonLazyTypedAst.List.Builder.buildPartial()
-func (b *NonLazyTypedAst_List_Builder) BuildPartial() *NonLazyTypedAst_List { return b.m.freeze() }
-
-// Java: NonLazyTypedAst.List.Builder.clear()
-func (b *NonLazyTypedAst_List_Builder) Clear() *NonLazyTypedAst_List_Builder {
-	b.m = &NonLazyTypedAst_List{memoizedSize: -1}
-	return b
-}
-
-// Java: NonLazyTypedAst.List.Builder.mergeFrom(List)
-func (b *NonLazyTypedAst_List_Builder) MergeFrom(other *NonLazyTypedAst_List) *NonLazyTypedAst_List_Builder {
-	b.m.mergeFrom(other)
-	return b
-}
-
-// Java: NonLazyTypedAst.List.Builder.getTypedAstsList()
-func (b *NonLazyTypedAst_List_Builder) GetTypedAstsList() []*NonLazyTypedAst {
-	out := make([]*NonLazyTypedAst, len(b.m.typedAsts_))
-	for i, x := range b.m.typedAsts_ {
-		out[i] = x.freeze()
-	}
-	return out
-}
-
-// Java: NonLazyTypedAst.List.Builder.getTypedAsts(int)
-func (b *NonLazyTypedAst_List_Builder) GetTypedAsts(index int) *NonLazyTypedAst {
-	return b.m.GetTypedAsts(index).freeze()
-}
-
-// Java: NonLazyTypedAst.List.Builder.getTypedAstsCount()
-func (b *NonLazyTypedAst_List_Builder) GetTypedAstsCount() int { return b.m.GetTypedAstsCount() }
-
-// Java: NonLazyTypedAst.List.Builder.addTypedAsts(*NonLazyTypedAst)
-func (b *NonLazyTypedAst_List_Builder) AddTypedAsts(v *NonLazyTypedAst) *NonLazyTypedAst_List_Builder {
-	if v == nil {
-		panic(jutil.NewNullPointerException())
-	}
-	b.m.typedAsts_ = append(b.m.typedAsts_, v)
-	return b
-}
-
-// Java: NonLazyTypedAst.List.Builder.addAllTypedAsts(Iterable)
-func (b *NonLazyTypedAst_List_Builder) AddAllTypedAsts(values []*NonLazyTypedAst) *NonLazyTypedAst_List_Builder {
-	for _, v := range values {
-		b.AddTypedAsts(v)
-	}
-	return b
-}
-
-// Java: NonLazyTypedAst.List.Builder.setTypedAsts(int, *NonLazyTypedAst)
-func (b *NonLazyTypedAst_List_Builder) SetTypedAstsAtIndex(index int, v *NonLazyTypedAst) *NonLazyTypedAst_List_Builder {
-	protoCheckIndexJDK(index, len(b.m.typedAsts_))
-	if v == nil {
-		panic(jutil.NewNullPointerException())
-	}
-	b.m.typedAsts_[index] = v
-	return b
-}
-
-// Java: NonLazyTypedAst.List.Builder.addTypedAsts(NonLazyTypedAst.Builder)
-func (b *NonLazyTypedAst_List_Builder) AddTypedAstsFromBuilder(builderForValue *NonLazyTypedAst_Builder) *NonLazyTypedAst_List_Builder {
-	return b.AddTypedAsts(builderForValue.Build())
-}
-
-// Java: NonLazyTypedAst.List.Builder.addTypedAstsBuilder()
-func (b *NonLazyTypedAst_List_Builder) AddTypedAstsBuilder() *NonLazyTypedAst_Builder {
-	x := &NonLazyTypedAst{memoizedSize: -1}
-	b.m.typedAsts_ = append(b.m.typedAsts_, x)
-	return &NonLazyTypedAst_Builder{m: x}
-}
-
-// Java: NonLazyTypedAst.List.Builder.getTypedAstsBuilder(int)
-func (b *NonLazyTypedAst_List_Builder) GetTypedAstsBuilder(index int) *NonLazyTypedAst_Builder {
-	protoCheckIndexJDK(index, len(b.m.typedAsts_))
-	if b.m.typedAsts_[index].frozen {
-		b.m.typedAsts_[index] = b.m.typedAsts_[index].mutableCopy()
-	}
-	return &NonLazyTypedAst_Builder{m: b.m.typedAsts_[index]}
-}
-
-// Java: NonLazyTypedAst.List.Builder.clearTypedAsts()
-func (b *NonLazyTypedAst_List_Builder) ClearTypedAsts() *NonLazyTypedAst_List_Builder {
-	b.m.typedAsts_ = nil
-	return b
-}
-
-// mergeFrom is GeneratedMessage.Builder.mergeFrom(List) on a mutable m.
-func (m *NonLazyTypedAst_List) mergeFrom(other *NonLazyTypedAst_List) {
-	if other == NonLazyTypedAst_List_GetDefaultInstance() {
-		return
-	}
-	m.typedAsts_ = append(m.typedAsts_, other.typedAsts_...)
-	m.unknownFields = append(m.unknownFields, other.unknownFields...)
-}
-
-// Java: List.equals(Object)
-func (m *NonLazyTypedAst_List) Equals(obj any) bool {
-	other, ok := obj.(*NonLazyTypedAst_List)
-	if !ok || other == nil {
-		return false
-	}
-	if m == other {
-		return true
-	}
-	if len(m.typedAsts_) != len(other.typedAsts_) {
-		return false
-	}
-	for i := range m.typedAsts_ {
-		if !(m.typedAsts_[i].Equals(other.typedAsts_[i])) {
-			return false
-		}
-	}
-	return protoBytesEqual(protoCanonicalUnknownFields(m.unknownFields), protoCanonicalUnknownFields(other.unknownFields))
-}
-
-// HashCode is consistent with Equals. (Java's generated hashCode mixes in
-// the descriptor's identity hash, so its values are not reproducible.)
-func (m *NonLazyTypedAst_List) HashCode() int32 {
-	h := int32(41)
-	for _, x := range m.typedAsts_ {
-		h = 31*h + x.HashCode()
-	}
-	return h
-}
-
-// appendTo is List.writeTo(CodedOutputStream): fields in number order, then unknown fields.
-func (m *NonLazyTypedAst_List) appendTo(b []byte) []byte {
-	for _, x := range m.typedAsts_ {
-		b = protoAppendTag(b, 1, 2)
-		b = protoAppendVarint(b, uint64(x.serializedSize()))
-		b = x.appendTo(b)
-	}
-	if len(m.unknownFields) > 0 {
-		b = append(b, protoCanonicalUnknownFields(m.unknownFields)...)
-	}
-	return b
-}
-
-// serializedSize is getSerializedSize() (memoized once immutable).
-func (m *NonLazyTypedAst_List) serializedSize() int {
-	if m.frozen && m.memoizedSize >= 0 {
-		return m.memoizedSize
-	}
-	size := 0
-	for _, x := range m.typedAsts_ {
-		s := x.serializedSize()
-		size += 1 + protoVarintLen(uint64(s)) + s
-	}
-	size += len(m.appendScalarsOnly(nil))
-	if m.frozen {
-		m.memoizedSize = size
-	}
-	return size
-}
-
-// appendScalarsOnly encodes the non-message fields and unknown fields (for sizing).
-func (m *NonLazyTypedAst_List) appendScalarsOnly(b []byte) []byte {
-	if len(m.unknownFields) > 0 {
-		b = append(b, protoCanonicalUnknownFields(m.unknownFields)...)
-	}
-	return b
-}
-
-// Java: List.getSerializedSize()
-func (m *NonLazyTypedAst_List) GetSerializedSize() int { return m.serializedSize() }
-
-// Java: List.toByteArray()
-func (m *NonLazyTypedAst_List) ToByteArray() []byte {
-	return m.appendTo(make([]byte, 0, m.serializedSize()))
-}
-
-// Java: List.toByteString()
-func (m *NonLazyTypedAst_List) ToByteString() []byte { return m.ToByteArray() }
-
-// Java: List.isInitialized()
-func (m *NonLazyTypedAst_List) IsInitialized() bool { return true }
-
-// mergeFromReader is List.Builder.mergeFrom(CodedInputStream) on a mutable m.
-func (m *NonLazyTypedAst_List) mergeFromReader(r *protoReader) {
-	for {
-		start := r.pos
-		tag := r.readTag()
-		switch tag {
-		case 0:
-			return
-		case 10:
-			data := r.readMessageBytes()
-			x := &NonLazyTypedAst{memoizedSize: -1}
-			x.mergeFromReader(r.sub(data))
-			x.frozen = true
-			m.typedAsts_ = append(m.typedAsts_, x)
-		default:
-			r.skipField(tag)
-			m.unknownFields = append(m.unknownFields, r.b[start:r.pos]...)
-		}
-	}
-}
-
-func (m *NonLazyTypedAst_List) printText(p *protoTextPrinter) {
-	for _, x := range m.typedAsts_ {
-		p.message("typed_asts", x.printText)
-	}
-	p.unknownFields(m.unknownFields)
-}
-
-// String is List.toString() (protobuf text format).
-func (m *NonLazyTypedAst_List) String() string {
-	p := &protoTextPrinter{}
-	m.printText(p)
-	return p.sb.String()
-}
-
-// NonLazyAst is the protobuf message jscomp.NonLazyAst.
-//
-// Java: com.google.javascript.jscomp.serialization.NonLazyAst
-type NonLazyAst struct {
-	script_           *AstNode
-	sourceFile_       int32
-	sourceMappingUrl_ string
-	unknownFields     []byte
-	frozen            bool
-	memoizedSize      int
-}
-
-// Field numbers (NonLazyAst.X_FIELD_NUMBER).
-const (
-	NonLazyAst_SCRIPT_FIELD_NUMBER             = 1
-	NonLazyAst_SOURCE_FILE_FIELD_NUMBER        = 2
-	NonLazyAst_SOURCE_MAPPING_URL_FIELD_NUMBER = 3
-)
-
-var nonLazyAst_DEFAULT_INSTANCE = &NonLazyAst{frozen: true, memoizedSize: -1}
-
-// Java: NonLazyAst.getDefaultInstance()
-func NonLazyAst_GetDefaultInstance() *NonLazyAst { return nonLazyAst_DEFAULT_INSTANCE }
-
-// Java: NonLazyAst.newBuilder()
-func NonLazyAst_NewBuilder() *NonLazyAst_Builder {
-	return &NonLazyAst_Builder{m: &NonLazyAst{memoizedSize: -1}}
-}
-
-// Java: NonLazyAst.newBuilder(NonLazyAst)
-func NonLazyAst_NewBuilderFrom(prototype *NonLazyAst) *NonLazyAst_Builder {
-	return prototype.ToBuilder()
-}
-
-// Java: NonLazyAst.toBuilder()
-func (m *NonLazyAst) ToBuilder() *NonLazyAst_Builder { return &NonLazyAst_Builder{m: m.mutableCopy()} }
-
-// NonLazyAst_ParseFrom panics with *InvalidProtocolBufferException on malformed input.
-//
-// Java: NonLazyAst.parseFrom(byte[])
-func NonLazyAst_ParseFrom(data []byte) *NonLazyAst {
-	m := &NonLazyAst{memoizedSize: -1}
-	m.mergeFromReader(&protoReader{b: data})
-	m.frozen = true
-	return m
-}
-
-// mutableCopy is a shallow copy that a builder may modify.
-func (m *NonLazyAst) mutableCopy() *NonLazyAst {
-	c := *m
-	c.frozen = false
-	c.memoizedSize = -1
-	return &c
-}
-
-// freeze returns an immutable copy (shared when m is already immutable).
-func (m *NonLazyAst) freeze() *NonLazyAst {
-	if m == nil || m.frozen {
-		return m
-	}
-	c := *m
-	c.frozen = true
-	c.memoizedSize = -1
-	c.script_ = m.script_.freeze()
-	return &c
-}
-
-// Java: NonLazyAst.hasScript()
-func (m *NonLazyAst) HasScript() bool { return m.script_ != nil }
-
-// Java: NonLazyAst.getScript()
-func (m *NonLazyAst) GetScript() *AstNode {
-	if m.script_ != nil {
-		return m.script_
-	}
-	return AstNode_GetDefaultInstance()
-}
-
-// Java: NonLazyAst.getSourceFile()
-func (m *NonLazyAst) GetSourceFile() int32 {
-	return m.sourceFile_
-}
-
-// Java: NonLazyAst.getSourceMappingUrl()
-func (m *NonLazyAst) GetSourceMappingUrl() string {
-	return m.sourceMappingUrl_
-}
-
-// NonLazyAst_Builder is NonLazyAst.Builder.
-type NonLazyAst_Builder struct{ m *NonLazyAst }
-
-// Java: NonLazyAst.Builder.build()
-func (b *NonLazyAst_Builder) Build() *NonLazyAst { return b.m.freeze() }
-
-// Java: NonLazyAst.Builder.buildPartial()
-func (b *NonLazyAst_Builder) BuildPartial() *NonLazyAst { return b.m.freeze() }
-
-// Java: NonLazyAst.Builder.clear()
-func (b *NonLazyAst_Builder) Clear() *NonLazyAst_Builder {
-	b.m = &NonLazyAst{memoizedSize: -1}
-	return b
-}
-
-// Java: NonLazyAst.Builder.mergeFrom(NonLazyAst)
-func (b *NonLazyAst_Builder) MergeFrom(other *NonLazyAst) *NonLazyAst_Builder {
-	b.m.mergeFrom(other)
-	return b
-}
-
-// Java: NonLazyAst.Builder.hasScript()
-func (b *NonLazyAst_Builder) HasScript() bool { return b.m.HasScript() }
-
-// Java: NonLazyAst.Builder.getScript()
-func (b *NonLazyAst_Builder) GetScript() *AstNode { return b.m.GetScript().freeze() }
-
-// Java: NonLazyAst.Builder.setScript(AstNode)
-func (b *NonLazyAst_Builder) SetScript(v *AstNode) *NonLazyAst_Builder {
-	if v == nil {
-		panic(jutil.NewNullPointerException())
-	}
-	b.m.script_ = v
-	return b
-}
-
-// Java: NonLazyAst.Builder.setScript(AstNode.Builder)
-func (b *NonLazyAst_Builder) SetScriptFromBuilder(builderForValue *AstNode_Builder) *NonLazyAst_Builder {
-	return b.SetScript(builderForValue.Build())
-}
-
-// Java: NonLazyAst.Builder.mergeScript(AstNode)
-func (b *NonLazyAst_Builder) MergeScript(v *AstNode) *NonLazyAst_Builder {
-	if b.m.HasScript() && b.m.script_ != AstNode_GetDefaultInstance() {
-		x := b.m.script_.mutableCopy()
-		x.mergeFrom(v)
-		b.m.script_ = x
-	} else {
-		b.m.script_ = v
-	}
-	return b
-}
-
-// Java: NonLazyAst.Builder.getScriptBuilder()
-func (b *NonLazyAst_Builder) GetScriptBuilder() *AstNode_Builder {
-	if b.m.script_ == nil {
-		b.m.script_ = &AstNode{memoizedSize: -1}
-	} else if b.m.script_.frozen {
-		b.m.script_ = b.m.script_.mutableCopy()
-	}
-	return &AstNode_Builder{m: b.m.script_}
-}
-
-// Java: NonLazyAst.Builder.clearScript()
-func (b *NonLazyAst_Builder) ClearScript() *NonLazyAst_Builder {
-	b.m.script_ = nil
-	return b
-}
-
-// Java: NonLazyAst.Builder.getSourceFile()
-func (b *NonLazyAst_Builder) GetSourceFile() int32 { return b.m.GetSourceFile() }
-
-// Java: NonLazyAst.Builder.setSourceFile(int)
-func (b *NonLazyAst_Builder) SetSourceFile(v int32) *NonLazyAst_Builder {
-	b.m.sourceFile_ = v
-	return b
-}
-
-// Java: NonLazyAst.Builder.clearSourceFile()
-func (b *NonLazyAst_Builder) ClearSourceFile() *NonLazyAst_Builder {
-	b.m.sourceFile_ = 0
-	return b
-}
-
-// Java: NonLazyAst.Builder.getSourceMappingUrl()
-func (b *NonLazyAst_Builder) GetSourceMappingUrl() string { return b.m.GetSourceMappingUrl() }
-
-// Java: NonLazyAst.Builder.setSourceMappingUrl(String)
-func (b *NonLazyAst_Builder) SetSourceMappingUrl(v string) *NonLazyAst_Builder {
-	b.m.sourceMappingUrl_ = v
-	return b
-}
-
-// Java: NonLazyAst.Builder.clearSourceMappingUrl()
-func (b *NonLazyAst_Builder) ClearSourceMappingUrl() *NonLazyAst_Builder {
-	b.m.sourceMappingUrl_ = ""
-	return b
-}
-
-// mergeFrom is GeneratedMessage.Builder.mergeFrom(NonLazyAst) on a mutable m.
-func (m *NonLazyAst) mergeFrom(other *NonLazyAst) {
-	if other == NonLazyAst_GetDefaultInstance() {
-		return
-	}
-	if other.script_ != nil {
-		if m.script_ != nil {
-			x := m.script_.mutableCopy()
-			x.mergeFrom(other.script_)
-			m.script_ = x.freeze()
-		} else {
-			m.script_ = other.script_
-		}
-	}
-	if other.sourceFile_ != 0 {
-		m.sourceFile_ = other.sourceFile_
-	}
-	if other.sourceMappingUrl_ != "" {
-		m.sourceMappingUrl_ = other.sourceMappingUrl_
-	}
-	m.unknownFields = append(m.unknownFields, other.unknownFields...)
-}
-
-// Java: NonLazyAst.equals(Object)
-func (m *NonLazyAst) Equals(obj any) bool {
-	other, ok := obj.(*NonLazyAst)
-	if !ok || other == nil {
-		return false
-	}
-	if m == other {
-		return true
-	}
-	if m.HasScript() != other.HasScript() {
-		return false
-	}
-	if m.HasScript() && !m.script_.Equals(other.script_) {
-		return false
-	}
-	if !(m.sourceFile_ == other.sourceFile_) {
-		return false
-	}
-	if !(m.sourceMappingUrl_ == other.sourceMappingUrl_) {
-		return false
-	}
-	return protoBytesEqual(protoCanonicalUnknownFields(m.unknownFields), protoCanonicalUnknownFields(other.unknownFields))
-}
-
-// HashCode is consistent with Equals. (Java's generated hashCode mixes in
-// the descriptor's identity hash, so its values are not reproducible.)
-func (m *NonLazyAst) HashCode() int32 {
-	h := int32(41)
-	if m.script_ != nil {
-		h = 31*h + m.script_.HashCode()
-	}
-	h = 31*h + m.sourceFile_
-	h = protoHashString(h, m.sourceMappingUrl_)
-	return h
-}
-
-// appendTo is NonLazyAst.writeTo(CodedOutputStream): fields in number order, then unknown fields.
-func (m *NonLazyAst) appendTo(b []byte) []byte {
-	if m.script_ != nil {
-		b = protoAppendTag(b, 1, 2)
-		b = protoAppendVarint(b, uint64(m.script_.serializedSize()))
-		b = m.script_.appendTo(b)
-	}
-	if m.sourceFile_ != 0 {
-		b = protoAppendTag(b, 2, 0)
-		b = protoAppendUint32(b, m.sourceFile_)
-	}
-	if m.sourceMappingUrl_ != "" {
-		b = protoAppendTag(b, 3, 2)
-		b = protoAppendString(b, m.sourceMappingUrl_)
-	}
-	if len(m.unknownFields) > 0 {
-		b = append(b, protoCanonicalUnknownFields(m.unknownFields)...)
-	}
-	return b
-}
-
-// serializedSize is getSerializedSize() (memoized once immutable).
-func (m *NonLazyAst) serializedSize() int {
-	if m.frozen && m.memoizedSize >= 0 {
-		return m.memoizedSize
-	}
-	size := 0
-	if m.script_ != nil {
-		s := m.script_.serializedSize()
-		size += 1 + protoVarintLen(uint64(s)) + s
-	}
-	size += len(m.appendScalarsOnly(nil))
-	if m.frozen {
-		m.memoizedSize = size
-	}
-	return size
-}
-
-// appendScalarsOnly encodes the non-message fields and unknown fields (for sizing).
-func (m *NonLazyAst) appendScalarsOnly(b []byte) []byte {
-	if m.sourceFile_ != 0 {
-		b = protoAppendTag(b, 2, 0)
-		b = protoAppendUint32(b, m.sourceFile_)
-	}
-	if m.sourceMappingUrl_ != "" {
-		b = protoAppendTag(b, 3, 2)
-		b = protoAppendString(b, m.sourceMappingUrl_)
-	}
-	if len(m.unknownFields) > 0 {
-		b = append(b, protoCanonicalUnknownFields(m.unknownFields)...)
-	}
-	return b
-}
-
-// Java: NonLazyAst.getSerializedSize()
-func (m *NonLazyAst) GetSerializedSize() int { return m.serializedSize() }
-
-// Java: NonLazyAst.toByteArray()
-func (m *NonLazyAst) ToByteArray() []byte { return m.appendTo(make([]byte, 0, m.serializedSize())) }
-
-// Java: NonLazyAst.toByteString()
-func (m *NonLazyAst) ToByteString() []byte { return m.ToByteArray() }
-
-// Java: NonLazyAst.isInitialized()
-func (m *NonLazyAst) IsInitialized() bool { return true }
-
-// mergeFromReader is NonLazyAst.Builder.mergeFrom(CodedInputStream) on a mutable m.
-func (m *NonLazyAst) mergeFromReader(r *protoReader) {
-	for {
-		start := r.pos
-		tag := r.readTag()
-		switch tag {
-		case 0:
-			return
-		case 10:
-			data := r.readMessageBytes()
-			var x *AstNode
-			if m.script_ != nil {
-				x = m.script_.mutableCopy()
-			} else {
-				x = &AstNode{memoizedSize: -1}
-			}
-			x.mergeFromReader(r.sub(data))
-			x.frozen = true
-			m.script_ = x
-		case 16:
-			m.sourceFile_ = r.readUint32()
-		case 26:
-			m.sourceMappingUrl_ = r.readStringRequireUtf8()
-		default:
-			r.skipField(tag)
-			m.unknownFields = append(m.unknownFields, r.b[start:r.pos]...)
-		}
-	}
-}
-
-func (m *NonLazyAst) printText(p *protoTextPrinter) {
-	if m.script_ != nil {
-		p.message("script", m.script_.printText)
-	}
-	if m.sourceFile_ != 0 {
-		p.scalar("source_file", protoTextUint32(m.sourceFile_))
-	}
-	if m.sourceMappingUrl_ != "" {
-		p.scalar("source_mapping_url", protoTextString(m.sourceMappingUrl_))
-	}
-	p.unknownFields(m.unknownFields)
-}
-
-// String is NonLazyAst.toString() (protobuf text format).
-func (m *NonLazyAst) String() string {
-	p := &protoTextPrinter{}
-	m.printText(p)
-	return p.sb.String()
-}
-
 // StringPoolProto is the protobuf message jscomp.StringPoolProto.
 //
 // Java: com.google.javascript.jscomp.serialization.StringPoolProto
@@ -3817,8 +1126,7 @@ type StringPoolProto struct {
 	strings_      [][]byte
 	maxLength_    int32
 	unknownFields []byte
-	frozen        bool
-	memoizedSize  int
+	cachedSize    int
 }
 
 // Field numbers (StringPoolProto.X_FIELD_NUMBER).
@@ -3827,65 +1135,22 @@ const (
 	StringPoolProto_MAX_LENGTH_FIELD_NUMBER = 2
 )
 
-var stringPoolProto_DEFAULT_INSTANCE = &StringPoolProto{frozen: true, memoizedSize: -1}
+var stringPoolProto_DEFAULT_INSTANCE = &StringPoolProto{cachedSize: 1}
 
 // Java: StringPoolProto.getDefaultInstance()
 func StringPoolProto_GetDefaultInstance() *StringPoolProto { return stringPoolProto_DEFAULT_INSTANCE }
-
-// Java: StringPoolProto.newBuilder()
-func StringPoolProto_NewBuilder() *StringPoolProto_Builder {
-	return &StringPoolProto_Builder{m: &StringPoolProto{memoizedSize: -1}}
-}
-
-// Java: StringPoolProto.newBuilder(StringPoolProto)
-func StringPoolProto_NewBuilderFrom(prototype *StringPoolProto) *StringPoolProto_Builder {
-	return prototype.ToBuilder()
-}
-
-// Java: StringPoolProto.toBuilder()
-func (m *StringPoolProto) ToBuilder() *StringPoolProto_Builder {
-	return &StringPoolProto_Builder{m: m.mutableCopy()}
-}
 
 // StringPoolProto_ParseFrom panics with *InvalidProtocolBufferException on malformed input.
 //
 // Java: StringPoolProto.parseFrom(byte[])
 func StringPoolProto_ParseFrom(data []byte) *StringPoolProto {
-	m := &StringPoolProto{memoizedSize: -1}
+	m := &StringPoolProto{}
 	m.mergeFromReader(&protoReader{b: data})
-	m.frozen = true
 	return m
-}
-
-// mutableCopy is a shallow copy that a builder may modify.
-func (m *StringPoolProto) mutableCopy() *StringPoolProto {
-	c := *m
-	c.frozen = false
-	c.memoizedSize = -1
-	c.strings_ = append([][]byte(nil), m.strings_...)
-	return &c
-}
-
-// freeze returns an immutable copy (shared when m is already immutable).
-func (m *StringPoolProto) freeze() *StringPoolProto {
-	if m == nil || m.frozen {
-		return m
-	}
-	c := *m
-	c.frozen = true
-	c.memoizedSize = -1
-	c.strings_ = append([][]byte(nil), m.strings_...)
-	return &c
 }
 
 // Java: StringPoolProto.getStringsList()
 func (m *StringPoolProto) GetStringsList() [][]byte { return m.strings_ }
-
-// Java: StringPoolProto.getStrings(int)
-func (m *StringPoolProto) GetStrings(index int) []byte {
-	protoCheckIndexJDK(index, len(m.strings_))
-	return m.strings_[index]
-}
 
 // Java: StringPoolProto.getStringsCount()
 func (m *StringPoolProto) GetStringsCount() int { return len(m.strings_) }
@@ -3893,126 +1158,6 @@ func (m *StringPoolProto) GetStringsCount() int { return len(m.strings_) }
 // Java: StringPoolProto.getMaxLength()
 func (m *StringPoolProto) GetMaxLength() int32 {
 	return m.maxLength_
-}
-
-// StringPoolProto_Builder is StringPoolProto.Builder.
-type StringPoolProto_Builder struct{ m *StringPoolProto }
-
-// Java: StringPoolProto.Builder.build()
-func (b *StringPoolProto_Builder) Build() *StringPoolProto { return b.m.freeze() }
-
-// Java: StringPoolProto.Builder.buildPartial()
-func (b *StringPoolProto_Builder) BuildPartial() *StringPoolProto { return b.m.freeze() }
-
-// Java: StringPoolProto.Builder.clear()
-func (b *StringPoolProto_Builder) Clear() *StringPoolProto_Builder {
-	b.m = &StringPoolProto{memoizedSize: -1}
-	return b
-}
-
-// Java: StringPoolProto.Builder.mergeFrom(StringPoolProto)
-func (b *StringPoolProto_Builder) MergeFrom(other *StringPoolProto) *StringPoolProto_Builder {
-	b.m.mergeFrom(other)
-	return b
-}
-
-// Java: StringPoolProto.Builder.getStringsList()
-func (b *StringPoolProto_Builder) GetStringsList() [][]byte {
-	return append([][]byte(nil), b.m.GetStringsList()...)
-}
-
-// Java: StringPoolProto.Builder.getStrings(int)
-func (b *StringPoolProto_Builder) GetStrings(index int) []byte { return b.m.GetStrings(index) }
-
-// Java: StringPoolProto.Builder.getStringsCount()
-func (b *StringPoolProto_Builder) GetStringsCount() int { return b.m.GetStringsCount() }
-
-// Java: StringPoolProto.Builder.addStrings([]byte)
-func (b *StringPoolProto_Builder) AddStrings(v []byte) *StringPoolProto_Builder {
-	b.m.strings_ = append(b.m.strings_, v)
-	return b
-}
-
-// Java: StringPoolProto.Builder.addAllStrings(Iterable)
-func (b *StringPoolProto_Builder) AddAllStrings(values [][]byte) *StringPoolProto_Builder {
-	for _, v := range values {
-		b.AddStrings(v)
-	}
-	return b
-}
-
-// Java: StringPoolProto.Builder.setStrings(int, []byte)
-func (b *StringPoolProto_Builder) SetStringsAtIndex(index int, v []byte) *StringPoolProto_Builder {
-	protoCheckIndexJDK(index, len(b.m.strings_))
-	b.m.strings_[index] = v
-	return b
-}
-
-// Java: StringPoolProto.Builder.clearStrings()
-func (b *StringPoolProto_Builder) ClearStrings() *StringPoolProto_Builder {
-	b.m.strings_ = nil
-	return b
-}
-
-// Java: StringPoolProto.Builder.getMaxLength()
-func (b *StringPoolProto_Builder) GetMaxLength() int32 { return b.m.GetMaxLength() }
-
-// Java: StringPoolProto.Builder.setMaxLength(int)
-func (b *StringPoolProto_Builder) SetMaxLength(v int32) *StringPoolProto_Builder {
-	b.m.maxLength_ = v
-	return b
-}
-
-// Java: StringPoolProto.Builder.clearMaxLength()
-func (b *StringPoolProto_Builder) ClearMaxLength() *StringPoolProto_Builder {
-	b.m.maxLength_ = 0
-	return b
-}
-
-// mergeFrom is GeneratedMessage.Builder.mergeFrom(StringPoolProto) on a mutable m.
-func (m *StringPoolProto) mergeFrom(other *StringPoolProto) {
-	if other == StringPoolProto_GetDefaultInstance() {
-		return
-	}
-	m.strings_ = append(m.strings_, other.strings_...)
-	if other.maxLength_ != 0 {
-		m.maxLength_ = other.maxLength_
-	}
-	m.unknownFields = append(m.unknownFields, other.unknownFields...)
-}
-
-// Java: StringPoolProto.equals(Object)
-func (m *StringPoolProto) Equals(obj any) bool {
-	other, ok := obj.(*StringPoolProto)
-	if !ok || other == nil {
-		return false
-	}
-	if m == other {
-		return true
-	}
-	if len(m.strings_) != len(other.strings_) {
-		return false
-	}
-	for i := range m.strings_ {
-		if !(protoBytesEqual(m.strings_[i], other.strings_[i])) {
-			return false
-		}
-	}
-	if !(m.maxLength_ == other.maxLength_) {
-		return false
-	}
-	return protoBytesEqual(protoCanonicalUnknownFields(m.unknownFields), protoCanonicalUnknownFields(other.unknownFields))
-}
-
-// HashCode is consistent with Equals. (Java's generated hashCode mixes in
-// the descriptor's identity hash, so its values are not reproducible.)
-func (m *StringPoolProto) HashCode() int32 {
-	h := int32(41)
-	for _, x := range m.strings_ {
-		h = protoHashBytes(h, x)
-	}
-	h = 31*h + m.maxLength_
-	return h
 }
 
 // appendTo is StringPoolProto.writeTo(CodedOutputStream): fields in number order, then unknown fields.
@@ -4033,8 +1178,8 @@ func (m *StringPoolProto) appendTo(b []byte) []byte {
 
 // serializedSize is getSerializedSize() (memoized once immutable).
 func (m *StringPoolProto) serializedSize() int {
-	if m.frozen && m.memoizedSize >= 0 {
-		return m.memoizedSize
+	if m.cachedSize > 0 {
+		return m.cachedSize - 1
 	}
 	size := 0
 	for _, x := range m.strings_ {
@@ -4046,41 +1191,14 @@ func (m *StringPoolProto) serializedSize() int {
 	if len(m.unknownFields) > 0 {
 		size += len(protoCanonicalUnknownFields(m.unknownFields))
 	}
-	if m.frozen {
-		m.memoizedSize = size
-	}
+	m.cachedSize = size + 1
 	return size
 }
-
-// appendScalarsOnly encodes the non-message fields and unknown fields (for sizing).
-func (m *StringPoolProto) appendScalarsOnly(b []byte) []byte {
-	for _, x := range m.strings_ {
-		b = protoAppendTag(b, 1, 2)
-		b = protoAppendBytes(b, x)
-	}
-	if m.maxLength_ != 0 {
-		b = protoAppendTag(b, 2, 0)
-		b = protoAppendInt32(b, m.maxLength_)
-	}
-	if len(m.unknownFields) > 0 {
-		b = append(b, protoCanonicalUnknownFields(m.unknownFields)...)
-	}
-	return b
-}
-
-// Java: StringPoolProto.getSerializedSize()
-func (m *StringPoolProto) GetSerializedSize() int { return m.serializedSize() }
 
 // Java: StringPoolProto.toByteArray()
 func (m *StringPoolProto) ToByteArray() []byte {
 	return m.appendTo(make([]byte, 0, m.serializedSize()))
 }
-
-// Java: StringPoolProto.toByteString()
-func (m *StringPoolProto) ToByteString() []byte { return m.ToByteArray() }
-
-// Java: StringPoolProto.isInitialized()
-func (m *StringPoolProto) IsInitialized() bool { return true }
 
 // mergeFromReader is StringPoolProto.Builder.mergeFrom(CodedInputStream) on a mutable m.
 func (m *StringPoolProto) mergeFromReader(r *protoReader) {
@@ -4127,8 +1245,7 @@ func (m *StringPoolProto) String() string {
 type ExternsSummary struct {
 	propNamePtr_  []int32
 	unknownFields []byte
-	frozen        bool
-	memoizedSize  int
+	cachedSize    int
 }
 
 // Field numbers (ExternsSummary.X_FIELD_NUMBER).
@@ -4136,176 +1253,26 @@ const (
 	ExternsSummary_PROP_NAME_PTR_FIELD_NUMBER = 1
 )
 
-var externsSummary_DEFAULT_INSTANCE = &ExternsSummary{frozen: true, memoizedSize: -1}
+var externsSummary_DEFAULT_INSTANCE = &ExternsSummary{cachedSize: 1}
 
 // Java: ExternsSummary.getDefaultInstance()
 func ExternsSummary_GetDefaultInstance() *ExternsSummary { return externsSummary_DEFAULT_INSTANCE }
 
-// Java: ExternsSummary.newBuilder()
-func ExternsSummary_NewBuilder() *ExternsSummary_Builder {
-	return &ExternsSummary_Builder{m: &ExternsSummary{memoizedSize: -1}}
-}
-
-// Java: ExternsSummary.newBuilder(ExternsSummary)
-func ExternsSummary_NewBuilderFrom(prototype *ExternsSummary) *ExternsSummary_Builder {
-	return prototype.ToBuilder()
-}
-
-// Java: ExternsSummary.toBuilder()
-func (m *ExternsSummary) ToBuilder() *ExternsSummary_Builder {
-	return &ExternsSummary_Builder{m: m.mutableCopy()}
-}
-
-// ExternsSummary_ParseFrom panics with *InvalidProtocolBufferException on malformed input.
-//
-// Java: ExternsSummary.parseFrom(byte[])
-func ExternsSummary_ParseFrom(data []byte) *ExternsSummary {
-	m := &ExternsSummary{memoizedSize: -1}
-	m.mergeFromReader(&protoReader{b: data})
-	m.frozen = true
-	return m
-}
-
-// mutableCopy is a shallow copy that a builder may modify.
-func (m *ExternsSummary) mutableCopy() *ExternsSummary {
-	c := *m
-	c.frozen = false
-	c.memoizedSize = -1
-	c.propNamePtr_ = append([]int32(nil), m.propNamePtr_...)
-	return &c
-}
-
-// freeze returns an immutable copy (shared when m is already immutable).
-func (m *ExternsSummary) freeze() *ExternsSummary {
-	if m == nil || m.frozen {
-		return m
-	}
-	c := *m
-	c.frozen = true
-	c.memoizedSize = -1
-	c.propNamePtr_ = append([]int32(nil), m.propNamePtr_...)
-	return &c
-}
-
 // Java: ExternsSummary.getPropNamePtrList()
 func (m *ExternsSummary) GetPropNamePtrList() []int32 { return m.propNamePtr_ }
-
-// Java: ExternsSummary.getPropNamePtr(int)
-func (m *ExternsSummary) GetPropNamePtr(index int) int32 {
-	protoCheckIndex(index, len(m.propNamePtr_))
-	return m.propNamePtr_[index]
-}
-
-// Java: ExternsSummary.getPropNamePtrCount()
-func (m *ExternsSummary) GetPropNamePtrCount() int { return len(m.propNamePtr_) }
-
-// ExternsSummary_Builder is ExternsSummary.Builder.
-type ExternsSummary_Builder struct{ m *ExternsSummary }
-
-// Java: ExternsSummary.Builder.build()
-func (b *ExternsSummary_Builder) Build() *ExternsSummary { return b.m.freeze() }
-
-// Java: ExternsSummary.Builder.buildPartial()
-func (b *ExternsSummary_Builder) BuildPartial() *ExternsSummary { return b.m.freeze() }
-
-// Java: ExternsSummary.Builder.clear()
-func (b *ExternsSummary_Builder) Clear() *ExternsSummary_Builder {
-	b.m = &ExternsSummary{memoizedSize: -1}
-	return b
-}
-
-// Java: ExternsSummary.Builder.mergeFrom(ExternsSummary)
-func (b *ExternsSummary_Builder) MergeFrom(other *ExternsSummary) *ExternsSummary_Builder {
-	b.m.mergeFrom(other)
-	return b
-}
-
-// Java: ExternsSummary.Builder.getPropNamePtrList()
-func (b *ExternsSummary_Builder) GetPropNamePtrList() []int32 {
-	return append([]int32(nil), b.m.GetPropNamePtrList()...)
-}
-
-// Java: ExternsSummary.Builder.getPropNamePtr(int)
-func (b *ExternsSummary_Builder) GetPropNamePtr(index int) int32 { return b.m.GetPropNamePtr(index) }
-
-// Java: ExternsSummary.Builder.getPropNamePtrCount()
-func (b *ExternsSummary_Builder) GetPropNamePtrCount() int { return b.m.GetPropNamePtrCount() }
-
-// Java: ExternsSummary.Builder.addPropNamePtr(int32)
-func (b *ExternsSummary_Builder) AddPropNamePtr(v int32) *ExternsSummary_Builder {
-	b.m.propNamePtr_ = append(b.m.propNamePtr_, v)
-	return b
-}
-
-// Java: ExternsSummary.Builder.addAllPropNamePtr(Iterable)
-func (b *ExternsSummary_Builder) AddAllPropNamePtr(values []int32) *ExternsSummary_Builder {
-	for _, v := range values {
-		b.AddPropNamePtr(v)
-	}
-	return b
-}
-
-// Java: ExternsSummary.Builder.setPropNamePtr(int, int32)
-func (b *ExternsSummary_Builder) SetPropNamePtrAtIndex(index int, v int32) *ExternsSummary_Builder {
-	protoCheckIndex(index, len(b.m.propNamePtr_))
-	b.m.propNamePtr_[index] = v
-	return b
-}
-
-// Java: ExternsSummary.Builder.clearPropNamePtr()
-func (b *ExternsSummary_Builder) ClearPropNamePtr() *ExternsSummary_Builder {
-	b.m.propNamePtr_ = nil
-	return b
-}
-
-// mergeFrom is GeneratedMessage.Builder.mergeFrom(ExternsSummary) on a mutable m.
-func (m *ExternsSummary) mergeFrom(other *ExternsSummary) {
-	if other == ExternsSummary_GetDefaultInstance() {
-		return
-	}
-	m.propNamePtr_ = append(m.propNamePtr_, other.propNamePtr_...)
-	m.unknownFields = append(m.unknownFields, other.unknownFields...)
-}
-
-// Java: ExternsSummary.equals(Object)
-func (m *ExternsSummary) Equals(obj any) bool {
-	other, ok := obj.(*ExternsSummary)
-	if !ok || other == nil {
-		return false
-	}
-	if m == other {
-		return true
-	}
-	if len(m.propNamePtr_) != len(other.propNamePtr_) {
-		return false
-	}
-	for i := range m.propNamePtr_ {
-		if !(m.propNamePtr_[i] == other.propNamePtr_[i]) {
-			return false
-		}
-	}
-	return protoBytesEqual(protoCanonicalUnknownFields(m.unknownFields), protoCanonicalUnknownFields(other.unknownFields))
-}
-
-// HashCode is consistent with Equals. (Java's generated hashCode mixes in
-// the descriptor's identity hash, so its values are not reproducible.)
-func (m *ExternsSummary) HashCode() int32 {
-	h := int32(41)
-	for _, x := range m.propNamePtr_ {
-		h = 31*h + x
-	}
-	return h
-}
 
 // appendTo is ExternsSummary.writeTo(CodedOutputStream): fields in number order, then unknown fields.
 func (m *ExternsSummary) appendTo(b []byte) []byte {
 	if len(m.propNamePtr_) > 0 {
-		var packed []byte
+		packedLen := 0
 		for _, x := range m.propNamePtr_ {
-			packed = protoAppendInt32(packed, x)
+			packedLen += protoVarintLen(uint64(int64(x)))
 		}
 		b = protoAppendTag(b, 1, 2)
-		b = protoAppendBytes(b, packed)
+		b = protoAppendVarint(b, uint64(packedLen))
+		for _, x := range m.propNamePtr_ {
+			b = protoAppendInt32(b, x)
+		}
 	}
 	if len(m.unknownFields) > 0 {
 		b = append(b, protoCanonicalUnknownFields(m.unknownFields)...)
@@ -4315,44 +1282,26 @@ func (m *ExternsSummary) appendTo(b []byte) []byte {
 
 // serializedSize is getSerializedSize() (memoized once immutable).
 func (m *ExternsSummary) serializedSize() int {
-	if m.frozen && m.memoizedSize >= 0 {
-		return m.memoizedSize
+	if m.cachedSize > 0 {
+		return m.cachedSize - 1
 	}
 	size := 0
-	size += len(m.appendScalarsOnly(nil))
-	if m.frozen {
-		m.memoizedSize = size
+	if len(m.propNamePtr_) > 0 {
+		packedLen := 0
+		for _, x := range m.propNamePtr_ {
+			packedLen += protoVarintLen(uint64(int64(x)))
+		}
+		size += 1 + protoVarintLen(uint64(packedLen)) + packedLen
 	}
+	if len(m.unknownFields) > 0 {
+		size += len(protoCanonicalUnknownFields(m.unknownFields))
+	}
+	m.cachedSize = size + 1
 	return size
 }
 
-// appendScalarsOnly encodes the non-message fields and unknown fields (for sizing).
-func (m *ExternsSummary) appendScalarsOnly(b []byte) []byte {
-	if len(m.propNamePtr_) > 0 {
-		var packed []byte
-		for _, x := range m.propNamePtr_ {
-			packed = protoAppendInt32(packed, x)
-		}
-		b = protoAppendTag(b, 1, 2)
-		b = protoAppendBytes(b, packed)
-	}
-	if len(m.unknownFields) > 0 {
-		b = append(b, protoCanonicalUnknownFields(m.unknownFields)...)
-	}
-	return b
-}
-
-// Java: ExternsSummary.getSerializedSize()
-func (m *ExternsSummary) GetSerializedSize() int { return m.serializedSize() }
-
 // Java: ExternsSummary.toByteArray()
 func (m *ExternsSummary) ToByteArray() []byte { return m.appendTo(make([]byte, 0, m.serializedSize())) }
-
-// Java: ExternsSummary.toByteString()
-func (m *ExternsSummary) ToByteString() []byte { return m.ToByteArray() }
-
-// Java: ExternsSummary.isInitialized()
-func (m *ExternsSummary) IsInitialized() bool { return true }
 
 // mergeFromReader is ExternsSummary.Builder.mergeFrom(CodedInputStream) on a mutable m.
 func (m *ExternsSummary) mergeFromReader(r *protoReader) {
@@ -4447,8 +1396,7 @@ type AstNode struct {
 	bitField0_           uint64
 	valueCase_           int32
 	unknownFields        []byte
-	frozen               bool
-	memoizedSize         int
+	cachedSize           int
 }
 
 // Field numbers (AstNode.X_FIELD_NUMBER).
@@ -4467,68 +1415,19 @@ const (
 	AstNode_SOURCE_FILE_FIELD_NUMBER           = 16
 )
 
-var astNode_DEFAULT_INSTANCE = &AstNode{frozen: true, memoizedSize: -1}
-
-// Java: AstNode.getDefaultInstance()
-func AstNode_GetDefaultInstance() *AstNode { return astNode_DEFAULT_INSTANCE }
-
-// Java: AstNode.newBuilder()
-func AstNode_NewBuilder() *AstNode_Builder { return &AstNode_Builder{m: &AstNode{memoizedSize: -1}} }
-
-// Java: AstNode.newBuilder(AstNode)
-func AstNode_NewBuilderFrom(prototype *AstNode) *AstNode_Builder { return prototype.ToBuilder() }
-
-// Java: AstNode.toBuilder()
-func (m *AstNode) ToBuilder() *AstNode_Builder { return &AstNode_Builder{m: m.mutableCopy()} }
-
 // AstNode_ParseFrom panics with *InvalidProtocolBufferException on malformed input.
 //
 // Java: AstNode.parseFrom(byte[])
 func AstNode_ParseFrom(data []byte) *AstNode {
-	m := &AstNode{memoizedSize: -1}
+	m := &AstNode{}
 	m.mergeFromReader(&protoReader{b: data})
-	m.frozen = true
 	return m
-}
-
-// mutableCopy is a shallow copy that a builder may modify.
-func (m *AstNode) mutableCopy() *AstNode {
-	c := *m
-	c.frozen = false
-	c.memoizedSize = -1
-	c.child_ = append([]*AstNode(nil), m.child_...)
-	return &c
-}
-
-// freeze returns an immutable copy (shared when m is already immutable).
-func (m *AstNode) freeze() *AstNode {
-	if m == nil || m.frozen {
-		return m
-	}
-	c := *m
-	c.frozen = true
-	c.memoizedSize = -1
-	c.child_ = make([]*AstNode, len(m.child_))
-	for i, x := range m.child_ {
-		c.child_[i] = x.freeze()
-	}
-	c.templateStringValue_ = m.templateStringValue_.freeze()
-	c.jsdoc_ = m.jsdoc_.freeze()
-	return &c
 }
 
 // Java: AstNode.getKind()
 func (m *AstNode) GetKind() NodeKind {
 	return nodeKind_fromNumber(m.kind_)
 }
-
-// Java: AstNode.getKindValue()
-func (m *AstNode) GetKindValue() int32 {
-	return m.kind_
-}
-
-// Java: AstNode.getChildList()
-func (m *AstNode) GetChildList() []*AstNode { return m.child_ }
 
 // Java: AstNode.getChild(int)
 func (m *AstNode) GetChild(index int) *AstNode {
@@ -4538,72 +1437,6 @@ func (m *AstNode) GetChild(index int) *AstNode {
 
 // Java: AstNode.getChildCount()
 func (m *AstNode) GetChildCount() int { return len(m.child_) }
-
-// Java: AstNode.hasStringValuePointer()
-func (m *AstNode) HasStringValuePointer() bool { return m.valueCase_ == 3 }
-
-// Java: AstNode.getStringValuePointer()
-func (m *AstNode) GetStringValuePointer() int32 {
-	var v int32 = 0
-	if m.valueCase_ == 3 {
-		v = m.stringValuePointer_
-	}
-	return v
-}
-
-// Java: AstNode.hasDoubleValue()
-func (m *AstNode) HasDoubleValue() bool { return m.valueCase_ == 4 }
-
-// Java: AstNode.getDoubleValue()
-func (m *AstNode) GetDoubleValue() float64 {
-	var v float64 = 0
-	if m.valueCase_ == 4 {
-		v = m.doubleValue_
-	}
-	return v
-}
-
-// Java: AstNode.hasTemplateStringValue()
-func (m *AstNode) HasTemplateStringValue() bool { return m.valueCase_ == 8 }
-
-// Java: AstNode.getTemplateStringValue()
-func (m *AstNode) GetTemplateStringValue() *TemplateStringValue {
-	if m.valueCase_ == 8 {
-		return m.templateStringValue_
-	}
-	return TemplateStringValue_GetDefaultInstance()
-}
-
-// Java: AstNode.getRelativeLine()
-func (m *AstNode) GetRelativeLine() int32 {
-	return m.relativeLine_
-}
-
-// Java: AstNode.getRelativeColumn()
-func (m *AstNode) GetRelativeColumn() int32 {
-	return m.relativeColumn_
-}
-
-// Java: AstNode.hasJsdoc()
-func (m *AstNode) HasJsdoc() bool { return m.jsdoc_ != nil }
-
-// Java: AstNode.getJsdoc()
-func (m *AstNode) GetJsdoc() *OptimizationJsdoc {
-	if m.jsdoc_ != nil {
-		return m.jsdoc_
-	}
-	return OptimizationJsdoc_GetDefaultInstance()
-}
-
-// Java: AstNode.getOriginalNamePointer()
-func (m *AstNode) GetOriginalNamePointer() int32 {
-	return m.originalNamePointer_
-}
-
-// Java: AstNode.getBooleanProperties()
-func (m *AstNode) GetBooleanProperties() int64 {
-	return m.booleanProperties_
-}
 
 // Java: AstNode.hasType()
 func (m *AstNode) HasType() bool { return m.bitField0_&(1<<0) != 0 }
@@ -4616,546 +1449,6 @@ func (m *AstNode) GetType() int32 {
 // Java: AstNode.getSourceFile()
 func (m *AstNode) GetSourceFile() int32 {
 	return m.sourceFile_
-}
-
-// Java: AstNode.getValueCase()
-func (m *AstNode) GetValueCase() AstNode_ValueCase {
-	if c := AstNode_ValueCase_ForNumber(m.valueCase_); c != nil {
-		return *c
-	}
-	return AstNode_ValueCase_VALUE_NOT_SET
-}
-
-// AstNode_Builder is AstNode.Builder.
-type AstNode_Builder struct{ m *AstNode }
-
-// Java: AstNode.Builder.build()
-func (b *AstNode_Builder) Build() *AstNode { return b.m.freeze() }
-
-// Java: AstNode.Builder.buildPartial()
-func (b *AstNode_Builder) BuildPartial() *AstNode { return b.m.freeze() }
-
-// Java: AstNode.Builder.clear()
-func (b *AstNode_Builder) Clear() *AstNode_Builder {
-	b.m = &AstNode{memoizedSize: -1}
-	return b
-}
-
-// Java: AstNode.Builder.mergeFrom(AstNode)
-func (b *AstNode_Builder) MergeFrom(other *AstNode) *AstNode_Builder {
-	b.m.mergeFrom(other)
-	return b
-}
-
-// Java: AstNode.Builder.getKind()
-func (b *AstNode_Builder) GetKind() NodeKind { return b.m.GetKind() }
-
-// Java: AstNode.Builder.setKind(NodeKind)
-func (b *AstNode_Builder) SetKind(v NodeKind) *AstNode_Builder {
-	b.m.kind_ = v.GetNumber()
-	return b
-}
-
-// Java: AstNode.Builder.getKindValue()
-func (b *AstNode_Builder) GetKindValue() int32 { return b.m.GetKindValue() }
-
-// Java: AstNode.Builder.setKindValue(int)
-func (b *AstNode_Builder) SetKindValue(v int32) *AstNode_Builder {
-	b.m.kind_ = v
-	return b
-}
-
-// Java: AstNode.Builder.clearKind()
-func (b *AstNode_Builder) ClearKind() *AstNode_Builder {
-	b.m.kind_ = 0
-	return b
-}
-
-// Java: AstNode.Builder.getChildList()
-func (b *AstNode_Builder) GetChildList() []*AstNode {
-	out := make([]*AstNode, len(b.m.child_))
-	for i, x := range b.m.child_ {
-		out[i] = x.freeze()
-	}
-	return out
-}
-
-// Java: AstNode.Builder.getChild(int)
-func (b *AstNode_Builder) GetChild(index int) *AstNode { return b.m.GetChild(index).freeze() }
-
-// Java: AstNode.Builder.getChildCount()
-func (b *AstNode_Builder) GetChildCount() int { return b.m.GetChildCount() }
-
-// Java: AstNode.Builder.addChild(*AstNode)
-func (b *AstNode_Builder) AddChild(v *AstNode) *AstNode_Builder {
-	if v == nil {
-		panic(jutil.NewNullPointerException())
-	}
-	b.m.child_ = append(b.m.child_, v)
-	return b
-}
-
-// Java: AstNode.Builder.addAllChild(Iterable)
-func (b *AstNode_Builder) AddAllChild(values []*AstNode) *AstNode_Builder {
-	for _, v := range values {
-		b.AddChild(v)
-	}
-	return b
-}
-
-// Java: AstNode.Builder.setChild(int, *AstNode)
-func (b *AstNode_Builder) SetChildAtIndex(index int, v *AstNode) *AstNode_Builder {
-	protoCheckIndexJDK(index, len(b.m.child_))
-	if v == nil {
-		panic(jutil.NewNullPointerException())
-	}
-	b.m.child_[index] = v
-	return b
-}
-
-// Java: AstNode.Builder.addChild(AstNode.Builder)
-func (b *AstNode_Builder) AddChildFromBuilder(builderForValue *AstNode_Builder) *AstNode_Builder {
-	return b.AddChild(builderForValue.Build())
-}
-
-// Java: AstNode.Builder.addChildBuilder()
-func (b *AstNode_Builder) AddChildBuilder() *AstNode_Builder {
-	x := &AstNode{memoizedSize: -1}
-	b.m.child_ = append(b.m.child_, x)
-	return &AstNode_Builder{m: x}
-}
-
-// Java: AstNode.Builder.getChildBuilder(int)
-func (b *AstNode_Builder) GetChildBuilder(index int) *AstNode_Builder {
-	protoCheckIndexJDK(index, len(b.m.child_))
-	if b.m.child_[index].frozen {
-		b.m.child_[index] = b.m.child_[index].mutableCopy()
-	}
-	return &AstNode_Builder{m: b.m.child_[index]}
-}
-
-// Java: AstNode.Builder.clearChild()
-func (b *AstNode_Builder) ClearChild() *AstNode_Builder {
-	b.m.child_ = nil
-	return b
-}
-
-// Java: AstNode.Builder.hasStringValuePointer()
-func (b *AstNode_Builder) HasStringValuePointer() bool { return b.m.HasStringValuePointer() }
-
-// Java: AstNode.Builder.getStringValuePointer()
-func (b *AstNode_Builder) GetStringValuePointer() int32 { return b.m.GetStringValuePointer() }
-
-// Java: AstNode.Builder.setStringValuePointer(int)
-func (b *AstNode_Builder) SetStringValuePointer(v int32) *AstNode_Builder {
-	b.m.stringValuePointer_ = v
-	b.m.doubleValue_ = 0
-	b.m.templateStringValue_ = nil
-	b.m.valueCase_ = 3
-	return b
-}
-
-// Java: AstNode.Builder.clearStringValuePointer()
-func (b *AstNode_Builder) ClearStringValuePointer() *AstNode_Builder {
-	if b.m.valueCase_ == 3 {
-		b.m.valueCase_ = 0
-		b.m.stringValuePointer_ = 0
-	}
-	return b
-}
-
-// Java: AstNode.Builder.hasDoubleValue()
-func (b *AstNode_Builder) HasDoubleValue() bool { return b.m.HasDoubleValue() }
-
-// Java: AstNode.Builder.getDoubleValue()
-func (b *AstNode_Builder) GetDoubleValue() float64 { return b.m.GetDoubleValue() }
-
-// Java: AstNode.Builder.setDoubleValue(double)
-func (b *AstNode_Builder) SetDoubleValue(v float64) *AstNode_Builder {
-	b.m.doubleValue_ = v
-	b.m.stringValuePointer_ = 0
-	b.m.templateStringValue_ = nil
-	b.m.valueCase_ = 4
-	return b
-}
-
-// Java: AstNode.Builder.clearDoubleValue()
-func (b *AstNode_Builder) ClearDoubleValue() *AstNode_Builder {
-	if b.m.valueCase_ == 4 {
-		b.m.valueCase_ = 0
-		b.m.doubleValue_ = 0
-	}
-	return b
-}
-
-// Java: AstNode.Builder.hasTemplateStringValue()
-func (b *AstNode_Builder) HasTemplateStringValue() bool { return b.m.HasTemplateStringValue() }
-
-// Java: AstNode.Builder.getTemplateStringValue()
-func (b *AstNode_Builder) GetTemplateStringValue() *TemplateStringValue {
-	return b.m.GetTemplateStringValue().freeze()
-}
-
-// Java: AstNode.Builder.setTemplateStringValue(TemplateStringValue)
-func (b *AstNode_Builder) SetTemplateStringValue(v *TemplateStringValue) *AstNode_Builder {
-	if v == nil {
-		panic(jutil.NewNullPointerException())
-	}
-	b.m.templateStringValue_ = v
-	b.m.stringValuePointer_ = 0
-	b.m.doubleValue_ = 0
-	b.m.valueCase_ = 8
-	return b
-}
-
-// Java: AstNode.Builder.setTemplateStringValue(TemplateStringValue.Builder)
-func (b *AstNode_Builder) SetTemplateStringValueFromBuilder(builderForValue *TemplateStringValue_Builder) *AstNode_Builder {
-	return b.SetTemplateStringValue(builderForValue.Build())
-}
-
-// Java: AstNode.Builder.mergeTemplateStringValue(TemplateStringValue)
-func (b *AstNode_Builder) MergeTemplateStringValue(v *TemplateStringValue) *AstNode_Builder {
-	if b.m.HasTemplateStringValue() && b.m.templateStringValue_ != TemplateStringValue_GetDefaultInstance() {
-		x := b.m.templateStringValue_.mutableCopy()
-		x.mergeFrom(v)
-		b.m.templateStringValue_ = x
-	} else {
-		b.m.templateStringValue_ = v
-	}
-	b.m.stringValuePointer_ = 0
-	b.m.doubleValue_ = 0
-	b.m.valueCase_ = 8
-	return b
-}
-
-// Java: AstNode.Builder.getTemplateStringValueBuilder()
-func (b *AstNode_Builder) GetTemplateStringValueBuilder() *TemplateStringValue_Builder {
-	if b.m.valueCase_ != 8 || b.m.templateStringValue_ == nil {
-		b.m.templateStringValue_ = &TemplateStringValue{memoizedSize: -1}
-	} else if b.m.templateStringValue_.frozen {
-		b.m.templateStringValue_ = b.m.templateStringValue_.mutableCopy()
-	}
-	b.m.stringValuePointer_ = 0
-	b.m.doubleValue_ = 0
-	b.m.valueCase_ = 8
-	return &TemplateStringValue_Builder{m: b.m.templateStringValue_}
-}
-
-// Java: AstNode.Builder.clearTemplateStringValue()
-func (b *AstNode_Builder) ClearTemplateStringValue() *AstNode_Builder {
-	if b.m.valueCase_ == 8 {
-		b.m.valueCase_ = 0
-		b.m.templateStringValue_ = nil
-	}
-	return b
-}
-
-// Java: AstNode.Builder.getRelativeLine()
-func (b *AstNode_Builder) GetRelativeLine() int32 { return b.m.GetRelativeLine() }
-
-// Java: AstNode.Builder.setRelativeLine(int)
-func (b *AstNode_Builder) SetRelativeLine(v int32) *AstNode_Builder {
-	b.m.relativeLine_ = v
-	return b
-}
-
-// Java: AstNode.Builder.clearRelativeLine()
-func (b *AstNode_Builder) ClearRelativeLine() *AstNode_Builder {
-	b.m.relativeLine_ = 0
-	return b
-}
-
-// Java: AstNode.Builder.getRelativeColumn()
-func (b *AstNode_Builder) GetRelativeColumn() int32 { return b.m.GetRelativeColumn() }
-
-// Java: AstNode.Builder.setRelativeColumn(int)
-func (b *AstNode_Builder) SetRelativeColumn(v int32) *AstNode_Builder {
-	b.m.relativeColumn_ = v
-	return b
-}
-
-// Java: AstNode.Builder.clearRelativeColumn()
-func (b *AstNode_Builder) ClearRelativeColumn() *AstNode_Builder {
-	b.m.relativeColumn_ = 0
-	return b
-}
-
-// Java: AstNode.Builder.hasJsdoc()
-func (b *AstNode_Builder) HasJsdoc() bool { return b.m.HasJsdoc() }
-
-// Java: AstNode.Builder.getJsdoc()
-func (b *AstNode_Builder) GetJsdoc() *OptimizationJsdoc { return b.m.GetJsdoc().freeze() }
-
-// Java: AstNode.Builder.setJsdoc(OptimizationJsdoc)
-func (b *AstNode_Builder) SetJsdoc(v *OptimizationJsdoc) *AstNode_Builder {
-	if v == nil {
-		panic(jutil.NewNullPointerException())
-	}
-	b.m.jsdoc_ = v
-	return b
-}
-
-// Java: AstNode.Builder.setJsdoc(OptimizationJsdoc.Builder)
-func (b *AstNode_Builder) SetJsdocFromBuilder(builderForValue *OptimizationJsdoc_Builder) *AstNode_Builder {
-	return b.SetJsdoc(builderForValue.Build())
-}
-
-// Java: AstNode.Builder.mergeJsdoc(OptimizationJsdoc)
-func (b *AstNode_Builder) MergeJsdoc(v *OptimizationJsdoc) *AstNode_Builder {
-	if b.m.HasJsdoc() && b.m.jsdoc_ != OptimizationJsdoc_GetDefaultInstance() {
-		x := b.m.jsdoc_.mutableCopy()
-		x.mergeFrom(v)
-		b.m.jsdoc_ = x
-	} else {
-		b.m.jsdoc_ = v
-	}
-	return b
-}
-
-// Java: AstNode.Builder.getJsdocBuilder()
-func (b *AstNode_Builder) GetJsdocBuilder() *OptimizationJsdoc_Builder {
-	if b.m.jsdoc_ == nil {
-		b.m.jsdoc_ = &OptimizationJsdoc{memoizedSize: -1}
-	} else if b.m.jsdoc_.frozen {
-		b.m.jsdoc_ = b.m.jsdoc_.mutableCopy()
-	}
-	return &OptimizationJsdoc_Builder{m: b.m.jsdoc_}
-}
-
-// Java: AstNode.Builder.clearJsdoc()
-func (b *AstNode_Builder) ClearJsdoc() *AstNode_Builder {
-	b.m.jsdoc_ = nil
-	return b
-}
-
-// Java: AstNode.Builder.getOriginalNamePointer()
-func (b *AstNode_Builder) GetOriginalNamePointer() int32 { return b.m.GetOriginalNamePointer() }
-
-// Java: AstNode.Builder.setOriginalNamePointer(int)
-func (b *AstNode_Builder) SetOriginalNamePointer(v int32) *AstNode_Builder {
-	b.m.originalNamePointer_ = v
-	return b
-}
-
-// Java: AstNode.Builder.clearOriginalNamePointer()
-func (b *AstNode_Builder) ClearOriginalNamePointer() *AstNode_Builder {
-	b.m.originalNamePointer_ = 0
-	return b
-}
-
-// Java: AstNode.Builder.getBooleanProperties()
-func (b *AstNode_Builder) GetBooleanProperties() int64 { return b.m.GetBooleanProperties() }
-
-// Java: AstNode.Builder.setBooleanProperties(long)
-func (b *AstNode_Builder) SetBooleanProperties(v int64) *AstNode_Builder {
-	b.m.booleanProperties_ = v
-	return b
-}
-
-// Java: AstNode.Builder.clearBooleanProperties()
-func (b *AstNode_Builder) ClearBooleanProperties() *AstNode_Builder {
-	b.m.booleanProperties_ = 0
-	return b
-}
-
-// Java: AstNode.Builder.hasType()
-func (b *AstNode_Builder) HasType() bool { return b.m.HasType() }
-
-// Java: AstNode.Builder.getType()
-func (b *AstNode_Builder) GetType() int32 { return b.m.GetType() }
-
-// Java: AstNode.Builder.setType(int)
-func (b *AstNode_Builder) SetType(v int32) *AstNode_Builder {
-	b.m.type_ = v
-	b.m.bitField0_ |= 1 << 0
-	return b
-}
-
-// Java: AstNode.Builder.clearType()
-func (b *AstNode_Builder) ClearType() *AstNode_Builder {
-	b.m.type_ = 0
-	b.m.bitField0_ &^= 1 << 0
-	return b
-}
-
-// Java: AstNode.Builder.getSourceFile()
-func (b *AstNode_Builder) GetSourceFile() int32 { return b.m.GetSourceFile() }
-
-// Java: AstNode.Builder.setSourceFile(int)
-func (b *AstNode_Builder) SetSourceFile(v int32) *AstNode_Builder {
-	b.m.sourceFile_ = v
-	return b
-}
-
-// Java: AstNode.Builder.clearSourceFile()
-func (b *AstNode_Builder) ClearSourceFile() *AstNode_Builder {
-	b.m.sourceFile_ = 0
-	return b
-}
-
-// Java: AstNode.Builder.getValueCase()
-func (b *AstNode_Builder) GetValueCase() AstNode_ValueCase { return b.m.GetValueCase() }
-
-// Java: AstNode.Builder.clearValue()
-func (b *AstNode_Builder) ClearValue() *AstNode_Builder {
-	b.m.valueCase_ = 0
-	b.m.stringValuePointer_ = 0
-	b.m.doubleValue_ = 0
-	b.m.templateStringValue_ = nil
-	return b
-}
-
-// mergeFrom is GeneratedMessage.Builder.mergeFrom(AstNode) on a mutable m.
-func (m *AstNode) mergeFrom(other *AstNode) {
-	if other == AstNode_GetDefaultInstance() {
-		return
-	}
-	if other.kind_ != 0 {
-		m.kind_ = other.kind_
-	}
-	m.child_ = append(m.child_, other.child_...)
-	if other.relativeLine_ != 0 {
-		m.relativeLine_ = other.relativeLine_
-	}
-	if other.relativeColumn_ != 0 {
-		m.relativeColumn_ = other.relativeColumn_
-	}
-	if other.jsdoc_ != nil {
-		if m.jsdoc_ != nil {
-			x := m.jsdoc_.mutableCopy()
-			x.mergeFrom(other.jsdoc_)
-			m.jsdoc_ = x.freeze()
-		} else {
-			m.jsdoc_ = other.jsdoc_
-		}
-	}
-	if other.originalNamePointer_ != 0 {
-		m.originalNamePointer_ = other.originalNamePointer_
-	}
-	if other.booleanProperties_ != 0 {
-		m.booleanProperties_ = other.booleanProperties_
-	}
-	if other.bitField0_&(1<<0) != 0 {
-		m.type_ = other.type_
-		m.bitField0_ |= 1 << 0
-	}
-	if other.sourceFile_ != 0 {
-		m.sourceFile_ = other.sourceFile_
-	}
-	switch other.valueCase_ {
-	case 3:
-		m.stringValuePointer_ = other.stringValuePointer_
-		m.valueCase_ = 3
-	case 4:
-		m.doubleValue_ = other.doubleValue_
-		m.valueCase_ = 4
-	case 8:
-		if m.valueCase_ == 8 && m.templateStringValue_ != nil {
-			x := m.templateStringValue_.mutableCopy()
-			x.mergeFrom(other.templateStringValue_)
-			m.templateStringValue_ = x.freeze()
-		} else {
-			m.templateStringValue_ = other.templateStringValue_
-		}
-		m.valueCase_ = 8
-	}
-	m.unknownFields = append(m.unknownFields, other.unknownFields...)
-}
-
-// Java: AstNode.equals(Object)
-func (m *AstNode) Equals(obj any) bool {
-	other, ok := obj.(*AstNode)
-	if !ok || other == nil {
-		return false
-	}
-	if m == other {
-		return true
-	}
-	if !(m.kind_ == other.kind_) {
-		return false
-	}
-	if len(m.child_) != len(other.child_) {
-		return false
-	}
-	for i := range m.child_ {
-		if !(m.child_[i].Equals(other.child_[i])) {
-			return false
-		}
-	}
-	if !(m.relativeLine_ == other.relativeLine_) {
-		return false
-	}
-	if !(m.relativeColumn_ == other.relativeColumn_) {
-		return false
-	}
-	if m.HasJsdoc() != other.HasJsdoc() {
-		return false
-	}
-	if m.HasJsdoc() && !m.jsdoc_.Equals(other.jsdoc_) {
-		return false
-	}
-	if !(m.originalNamePointer_ == other.originalNamePointer_) {
-		return false
-	}
-	if !(m.booleanProperties_ == other.booleanProperties_) {
-		return false
-	}
-	if m.HasType() != other.HasType() {
-		return false
-	}
-	if m.HasType() && !(m.type_ == other.type_) {
-		return false
-	}
-	if !(m.sourceFile_ == other.sourceFile_) {
-		return false
-	}
-	if m.valueCase_ != other.valueCase_ {
-		return false
-	}
-	switch m.valueCase_ {
-	case 3:
-		if !(m.stringValuePointer_ == other.stringValuePointer_) {
-			return false
-		}
-	case 4:
-		if !(protoDoubleBits(m.doubleValue_) == protoDoubleBits(other.doubleValue_)) {
-			return false
-		}
-	case 8:
-		if !(m.templateStringValue_.Equals(other.templateStringValue_)) {
-			return false
-		}
-	}
-	return protoBytesEqual(protoCanonicalUnknownFields(m.unknownFields), protoCanonicalUnknownFields(other.unknownFields))
-}
-
-// HashCode is consistent with Equals. (Java's generated hashCode mixes in
-// the descriptor's identity hash, so its values are not reproducible.)
-func (m *AstNode) HashCode() int32 {
-	h := int32(41)
-	h = 31*h + m.kind_
-	for _, x := range m.child_ {
-		h = 31*h + x.HashCode()
-	}
-	if m.valueCase_ == 3 {
-		h = 31*h + m.stringValuePointer_
-	}
-	if m.valueCase_ == 4 {
-		h = protoHashInt64(h, protoDoubleBits(m.doubleValue_))
-	}
-	if m.valueCase_ == 8 {
-		h = 31*h + m.templateStringValue_.HashCode()
-	}
-	h = 31*h + m.relativeLine_
-	h = 31*h + m.relativeColumn_
-	if m.jsdoc_ != nil {
-		h = 31*h + m.jsdoc_.HashCode()
-	}
-	h = 31*h + m.originalNamePointer_
-	h = protoHashInt64(h, m.booleanProperties_)
-	h = 31*h + m.type_
-	h = 31*h + m.sourceFile_
-	return h
 }
 
 // appendTo is AstNode.writeTo(CodedOutputStream): fields in number order, then unknown fields.
@@ -5219,8 +1512,8 @@ func (m *AstNode) appendTo(b []byte) []byte {
 
 // serializedSize is getSerializedSize() (memoized once immutable).
 func (m *AstNode) serializedSize() int {
-	if m.frozen && m.memoizedSize >= 0 {
-		return m.memoizedSize
+	if m.cachedSize > 0 {
+		return m.cachedSize - 1
 	}
 	size := m.scalarsSerializedSize()
 	for _, x := range m.child_ {
@@ -5235,9 +1528,7 @@ func (m *AstNode) serializedSize() int {
 		s := m.templateStringValue_.serializedSize()
 		size += 1 + protoVarintLen(uint64(s)) + s
 	}
-	if m.frozen {
-		m.memoizedSize = size
-	}
+	m.cachedSize = size + 1
 	return size
 }
 
@@ -5276,61 +1567,8 @@ func (m *AstNode) scalarsSerializedSize() int {
 	return size
 }
 
-// appendScalarsOnly encodes the non-message fields and unknown fields (for sizing).
-func (m *AstNode) appendScalarsOnly(b []byte) []byte {
-	if m.kind_ != 0 {
-		b = protoAppendTag(b, 1, 0)
-		b = protoAppendInt32(b, m.kind_)
-	}
-	if m.valueCase_ == 3 {
-		b = protoAppendTag(b, 3, 0)
-		b = protoAppendUint32(b, m.stringValuePointer_)
-	}
-	if m.valueCase_ == 4 {
-		b = protoAppendTag(b, 4, 1)
-		b = protoAppendDouble(b, m.doubleValue_)
-	}
-	if m.relativeLine_ != 0 {
-		b = protoAppendTag(b, 5, 0)
-		b = protoAppendSint32(b, m.relativeLine_)
-	}
-	if m.relativeColumn_ != 0 {
-		b = protoAppendTag(b, 6, 0)
-		b = protoAppendSint32(b, m.relativeColumn_)
-	}
-	if m.originalNamePointer_ != 0 {
-		b = protoAppendTag(b, 9, 0)
-		b = protoAppendUint32(b, m.originalNamePointer_)
-	}
-	if m.booleanProperties_ != 0 {
-		b = protoAppendTag(b, 14, 0)
-		b = protoAppendVarint(b, uint64(m.booleanProperties_))
-	}
-	if m.bitField0_&(1<<0) != 0 {
-		b = protoAppendTag(b, 15, 0)
-		b = protoAppendInt32(b, m.type_)
-	}
-	if m.sourceFile_ != 0 {
-		b = protoAppendTag(b, 16, 0)
-		b = protoAppendUint32(b, m.sourceFile_)
-	}
-	if len(m.unknownFields) > 0 {
-		b = append(b, protoCanonicalUnknownFields(m.unknownFields)...)
-	}
-	return b
-}
-
-// Java: AstNode.getSerializedSize()
-func (m *AstNode) GetSerializedSize() int { return m.serializedSize() }
-
 // Java: AstNode.toByteArray()
 func (m *AstNode) ToByteArray() []byte { return m.appendTo(make([]byte, 0, m.serializedSize())) }
-
-// Java: AstNode.toByteString()
-func (m *AstNode) ToByteString() []byte { return m.ToByteArray() }
-
-// Java: AstNode.isInitialized()
-func (m *AstNode) IsInitialized() bool { return true }
 
 // mergeFromReader is AstNode.Builder.mergeFrom(CodedInputStream) on a mutable m.
 func (m *AstNode) mergeFromReader(r *protoReader) {
@@ -5344,9 +1582,8 @@ func (m *AstNode) mergeFromReader(r *protoReader) {
 			m.kind_ = r.readInt32()
 		case 18:
 			data := r.readMessageBytes()
-			x := &AstNode{memoizedSize: -1}
+			x := &AstNode{}
 			x.mergeFromReader(r.sub(data))
-			x.frozen = true
 			m.child_ = append(m.child_, x)
 		case 24:
 			m.stringValuePointer_ = r.readUint32()
@@ -5362,23 +1599,23 @@ func (m *AstNode) mergeFromReader(r *protoReader) {
 			data := r.readMessageBytes()
 			var x *OptimizationJsdoc
 			if m.jsdoc_ != nil {
-				x = m.jsdoc_.mutableCopy()
+				x = m.jsdoc_
+				x.cachedSize = 0
 			} else {
-				x = &OptimizationJsdoc{memoizedSize: -1}
+				x = &OptimizationJsdoc{}
 			}
 			x.mergeFromReader(r.sub(data))
-			x.frozen = true
 			m.jsdoc_ = x
 		case 66:
 			data := r.readMessageBytes()
 			var x *TemplateStringValue
 			if m.valueCase_ == 8 && m.templateStringValue_ != nil {
-				x = m.templateStringValue_.mutableCopy()
+				x = m.templateStringValue_
+				x.cachedSize = 0
 			} else {
-				x = &TemplateStringValue{memoizedSize: -1}
+				x = &TemplateStringValue{}
 			}
 			x.mergeFromReader(r.sub(data))
-			x.frozen = true
 			m.templateStringValue_ = x
 			m.valueCase_ = 8
 		case 72:
@@ -5451,8 +1688,7 @@ type TemplateStringValue struct {
 	rawStringPointer_    int32
 	cookedStringPointer_ int32
 	unknownFields        []byte
-	frozen               bool
-	memoizedSize         int
+	cachedSize           int
 }
 
 // Field numbers (TemplateStringValue.X_FIELD_NUMBER).
@@ -5460,161 +1696,6 @@ const (
 	TemplateStringValue_RAW_STRING_POINTER_FIELD_NUMBER    = 1
 	TemplateStringValue_COOKED_STRING_POINTER_FIELD_NUMBER = 2
 )
-
-var templateStringValue_DEFAULT_INSTANCE = &TemplateStringValue{frozen: true, memoizedSize: -1}
-
-// Java: TemplateStringValue.getDefaultInstance()
-func TemplateStringValue_GetDefaultInstance() *TemplateStringValue {
-	return templateStringValue_DEFAULT_INSTANCE
-}
-
-// Java: TemplateStringValue.newBuilder()
-func TemplateStringValue_NewBuilder() *TemplateStringValue_Builder {
-	return &TemplateStringValue_Builder{m: &TemplateStringValue{memoizedSize: -1}}
-}
-
-// Java: TemplateStringValue.newBuilder(TemplateStringValue)
-func TemplateStringValue_NewBuilderFrom(prototype *TemplateStringValue) *TemplateStringValue_Builder {
-	return prototype.ToBuilder()
-}
-
-// Java: TemplateStringValue.toBuilder()
-func (m *TemplateStringValue) ToBuilder() *TemplateStringValue_Builder {
-	return &TemplateStringValue_Builder{m: m.mutableCopy()}
-}
-
-// TemplateStringValue_ParseFrom panics with *InvalidProtocolBufferException on malformed input.
-//
-// Java: TemplateStringValue.parseFrom(byte[])
-func TemplateStringValue_ParseFrom(data []byte) *TemplateStringValue {
-	m := &TemplateStringValue{memoizedSize: -1}
-	m.mergeFromReader(&protoReader{b: data})
-	m.frozen = true
-	return m
-}
-
-// mutableCopy is a shallow copy that a builder may modify.
-func (m *TemplateStringValue) mutableCopy() *TemplateStringValue {
-	c := *m
-	c.frozen = false
-	c.memoizedSize = -1
-	return &c
-}
-
-// freeze returns an immutable copy (shared when m is already immutable).
-func (m *TemplateStringValue) freeze() *TemplateStringValue {
-	if m == nil || m.frozen {
-		return m
-	}
-	c := *m
-	c.frozen = true
-	c.memoizedSize = -1
-	return &c
-}
-
-// Java: TemplateStringValue.getRawStringPointer()
-func (m *TemplateStringValue) GetRawStringPointer() int32 {
-	return m.rawStringPointer_
-}
-
-// Java: TemplateStringValue.getCookedStringPointer()
-func (m *TemplateStringValue) GetCookedStringPointer() int32 {
-	return m.cookedStringPointer_
-}
-
-// TemplateStringValue_Builder is TemplateStringValue.Builder.
-type TemplateStringValue_Builder struct{ m *TemplateStringValue }
-
-// Java: TemplateStringValue.Builder.build()
-func (b *TemplateStringValue_Builder) Build() *TemplateStringValue { return b.m.freeze() }
-
-// Java: TemplateStringValue.Builder.buildPartial()
-func (b *TemplateStringValue_Builder) BuildPartial() *TemplateStringValue { return b.m.freeze() }
-
-// Java: TemplateStringValue.Builder.clear()
-func (b *TemplateStringValue_Builder) Clear() *TemplateStringValue_Builder {
-	b.m = &TemplateStringValue{memoizedSize: -1}
-	return b
-}
-
-// Java: TemplateStringValue.Builder.mergeFrom(TemplateStringValue)
-func (b *TemplateStringValue_Builder) MergeFrom(other *TemplateStringValue) *TemplateStringValue_Builder {
-	b.m.mergeFrom(other)
-	return b
-}
-
-// Java: TemplateStringValue.Builder.getRawStringPointer()
-func (b *TemplateStringValue_Builder) GetRawStringPointer() int32 { return b.m.GetRawStringPointer() }
-
-// Java: TemplateStringValue.Builder.setRawStringPointer(int)
-func (b *TemplateStringValue_Builder) SetRawStringPointer(v int32) *TemplateStringValue_Builder {
-	b.m.rawStringPointer_ = v
-	return b
-}
-
-// Java: TemplateStringValue.Builder.clearRawStringPointer()
-func (b *TemplateStringValue_Builder) ClearRawStringPointer() *TemplateStringValue_Builder {
-	b.m.rawStringPointer_ = 0
-	return b
-}
-
-// Java: TemplateStringValue.Builder.getCookedStringPointer()
-func (b *TemplateStringValue_Builder) GetCookedStringPointer() int32 {
-	return b.m.GetCookedStringPointer()
-}
-
-// Java: TemplateStringValue.Builder.setCookedStringPointer(int)
-func (b *TemplateStringValue_Builder) SetCookedStringPointer(v int32) *TemplateStringValue_Builder {
-	b.m.cookedStringPointer_ = v
-	return b
-}
-
-// Java: TemplateStringValue.Builder.clearCookedStringPointer()
-func (b *TemplateStringValue_Builder) ClearCookedStringPointer() *TemplateStringValue_Builder {
-	b.m.cookedStringPointer_ = 0
-	return b
-}
-
-// mergeFrom is GeneratedMessage.Builder.mergeFrom(TemplateStringValue) on a mutable m.
-func (m *TemplateStringValue) mergeFrom(other *TemplateStringValue) {
-	if other == TemplateStringValue_GetDefaultInstance() {
-		return
-	}
-	if other.rawStringPointer_ != 0 {
-		m.rawStringPointer_ = other.rawStringPointer_
-	}
-	if other.cookedStringPointer_ != 0 {
-		m.cookedStringPointer_ = other.cookedStringPointer_
-	}
-	m.unknownFields = append(m.unknownFields, other.unknownFields...)
-}
-
-// Java: TemplateStringValue.equals(Object)
-func (m *TemplateStringValue) Equals(obj any) bool {
-	other, ok := obj.(*TemplateStringValue)
-	if !ok || other == nil {
-		return false
-	}
-	if m == other {
-		return true
-	}
-	if !(m.rawStringPointer_ == other.rawStringPointer_) {
-		return false
-	}
-	if !(m.cookedStringPointer_ == other.cookedStringPointer_) {
-		return false
-	}
-	return protoBytesEqual(protoCanonicalUnknownFields(m.unknownFields), protoCanonicalUnknownFields(other.unknownFields))
-}
-
-// HashCode is consistent with Equals. (Java's generated hashCode mixes in
-// the descriptor's identity hash, so its values are not reproducible.)
-func (m *TemplateStringValue) HashCode() int32 {
-	h := int32(41)
-	h = 31*h + m.rawStringPointer_
-	h = 31*h + m.cookedStringPointer_
-	return h
-}
 
 // appendTo is TemplateStringValue.writeTo(CodedOutputStream): fields in number order, then unknown fields.
 func (m *TemplateStringValue) appendTo(b []byte) []byte {
@@ -5634,13 +1715,11 @@ func (m *TemplateStringValue) appendTo(b []byte) []byte {
 
 // serializedSize is getSerializedSize() (memoized once immutable).
 func (m *TemplateStringValue) serializedSize() int {
-	if m.frozen && m.memoizedSize >= 0 {
-		return m.memoizedSize
+	if m.cachedSize > 0 {
+		return m.cachedSize - 1
 	}
 	size := m.scalarsSerializedSize()
-	if m.frozen {
-		m.memoizedSize = size
-	}
+	m.cachedSize = size + 1
 	return size
 }
 
@@ -5658,35 +1737,10 @@ func (m *TemplateStringValue) scalarsSerializedSize() int {
 	return size
 }
 
-// appendScalarsOnly encodes the non-message fields and unknown fields (for sizing).
-func (m *TemplateStringValue) appendScalarsOnly(b []byte) []byte {
-	if m.rawStringPointer_ != 0 {
-		b = protoAppendTag(b, 1, 0)
-		b = protoAppendUint32(b, m.rawStringPointer_)
-	}
-	if m.cookedStringPointer_ != 0 {
-		b = protoAppendTag(b, 2, 0)
-		b = protoAppendInt32(b, m.cookedStringPointer_)
-	}
-	if len(m.unknownFields) > 0 {
-		b = append(b, protoCanonicalUnknownFields(m.unknownFields)...)
-	}
-	return b
-}
-
-// Java: TemplateStringValue.getSerializedSize()
-func (m *TemplateStringValue) GetSerializedSize() int { return m.serializedSize() }
-
 // Java: TemplateStringValue.toByteArray()
 func (m *TemplateStringValue) ToByteArray() []byte {
 	return m.appendTo(make([]byte, 0, m.serializedSize()))
 }
-
-// Java: TemplateStringValue.toByteString()
-func (m *TemplateStringValue) ToByteString() []byte { return m.ToByteArray() }
-
-// Java: TemplateStringValue.isInitialized()
-func (m *TemplateStringValue) IsInitialized() bool { return true }
 
 // mergeFromReader is TemplateStringValue.Builder.mergeFrom(CodedInputStream) on a mutable m.
 func (m *TemplateStringValue) mergeFromReader(r *protoReader) {

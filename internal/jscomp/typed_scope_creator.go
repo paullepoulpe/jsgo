@@ -241,9 +241,7 @@ func NewTypedScopeCreatorWithCodingConvention(compiler AbstractCompiler, codingC
 	if compiler.GetModuleMetadataMap() != nil {
 		c.metadataMap = compiler.GetModuleMetadataMap()
 	} else {
-		c.metadataMap = NewModuleMetadataMap(
-			jutil.NewLinkedHashMap[string, *ModuleMetadataMap_ModuleMetadata](),
-			jutil.NewLinkedHashMap[string, *ModuleMetadataMap_ModuleMetadata]())
+		c.metadataMap = ModuleMetadataMap_EmptyForTesting()
 	}
 	c.moduleMap = compiler.GetModuleMap()
 	c.moduleImportResolver = NewModuleImportResolver(c.moduleMap, c.GetNodeToScopeMapper(), c.typeRegistry)

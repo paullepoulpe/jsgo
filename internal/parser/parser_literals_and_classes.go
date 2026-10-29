@@ -264,9 +264,10 @@ func (p *Parser) ParseObjectLiteralPropertyAssignment() ParseTree {
 			value := p.ParseAssignmentExpression()
 			return NewComputedPropertyDefinitionTree(p.GetTreeLocation(start), name, value)
 		} else {
-			builder := FunctionDeclarationTree_NewBuilder(FunctionDeclarationTree_Kind_EXPRESSION)
-			p.ParseFunctionTail(builder, Parser_FunctionFlavor_NORMAL)
-			var value ParseTree = builder.Build(p.GetTreeLocation(start))
+			params, body := p.parseFunctionTail(Parser_FunctionFlavor_NORMAL)
+			var value ParseTree = p.newFunctionDeclarationTree(
+				p.GetTreeLocation(start), Token{}, params, body,
+				FunctionDeclarationTree_Kind_EXPRESSION, false, false, false, false)
 			return NewComputedPropertyMethodTree(p.GetTreeLocation(start), name, value)
 		}
 	default:
@@ -288,10 +289,10 @@ func (p *Parser) ParseObjectLiteralPropertyAssignmentGenerator() ParseTree {
 		p.Eat(TokenType_STAR)
 
 		name := p.ParseComputedPropertyName()
-		builder := FunctionDeclarationTree_NewBuilder(FunctionDeclarationTree_Kind_EXPRESSION)
-
-		p.ParseFunctionTail(builder, Parser_FunctionFlavor_GENERATOR)
-		var value ParseTree = builder.Build(p.GetTreeLocation(start))
+		params, body := p.parseFunctionTail(Parser_FunctionFlavor_GENERATOR)
+		var value ParseTree = p.newFunctionDeclarationTree(
+			p.GetTreeLocation(start), Token{}, params, body,
+			FunctionDeclarationTree_Kind_EXPRESSION, false, false, true, false)
 		return NewComputedPropertyMethodTree(p.GetTreeLocation(start), name, value)
 	}
 }
@@ -419,7 +420,7 @@ func (p *Parser) ParseCoverParenthesizedExpressionAndArrowParameterList() ParseT
 	if p.Peek(TokenType_CLOSE_PAREN) {
 		p.Eat(TokenType_CLOSE_PAREN)
 		if p.Peek(TokenType_ARROW) {
-			return NewFormalParameterListTree(
+			return p.newFormalParameterListTree(
 				p.GetTreeLocation(start),
 				[]ParseTree{},
 				/* hasTrailingComma= */ false,
@@ -435,7 +436,7 @@ func (p *Parser) ParseCoverParenthesizedExpressionAndArrowParameterList() ParseT
 		params := p.singleTreeList(param)
 		p.Eat(TokenType_CLOSE_PAREN)
 		if p.Peek(TokenType_ARROW) {
-			return NewFormalParameterListTree(
+			return p.newFormalParameterListTree(
 				p.GetTreeLocation(start),
 				params,
 				/* hasTrailingComma= */ false,
@@ -476,7 +477,7 @@ func (p *Parser) ParseCoverParenthesizedExpressionAndArrowParameterList() ParseT
 		}
 	}
 	p.Eat(TokenType_CLOSE_PAREN)
-	return NewParenExpressionTree(p.GetTreeLocation(start), result)
+	return p.newParenExpressionTree(p.GetTreeLocation(start), result)
 }
 
 // Java: Parser.isStartOfAsyncArrowFunction(ParseTree)
@@ -526,10 +527,9 @@ func (p *Parser) CompleteArrowFunctionParseAtArrow(leftOfArrow ParseTree, expres
 	p.Eat(TokenType_ARROW)
 	arrowFunctionBody := p.ParseArrowFunctionBody(expressionIn, Parser_FunctionFlavor_NORMAL)
 
-	builder := FunctionDeclarationTree_NewBuilder(FunctionDeclarationTree_Kind_ARROW).
-		SetFormalParameterList(arrowFormalParameters).
-		SetFunctionBody(arrowFunctionBody)
-	return builder.Build(p.GetTreeLocation(arrowFormalParameters.Location.Start))
+	return p.newFunctionDeclarationTree(
+		p.GetTreeLocation(arrowFormalParameters.Location.Start), Token{}, arrowFormalParameters, arrowFunctionBody,
+		FunctionDeclarationTree_Kind_ARROW, false, false, false, false)
 }
 
 // Java: Parser.transformToArrowFormalParameters(ParseTree)
@@ -540,7 +540,7 @@ func (p *Parser) TransformToArrowFormalParameters(leftOfArrow ParseTree) *Formal
 		arrowParameterList = leftOfArrow.(*FormalParameterListTree)
 	case ParseTreeType_IDENTIFIER_EXPRESSION:
 		// e.g. x => x + 1
-		arrowParameterList = NewFormalParameterListTree(
+		arrowParameterList = p.newFormalParameterListTree(
 			leftOfArrow.GetParseTreeBase().Location,
 			p.singleTreeList(leftOfArrow),
 			/* hasTrailingComma= */ false,
@@ -553,7 +553,11 @@ func (p *Parser) TransformToArrowFormalParameters(leftOfArrow ParseTree) *Formal
 		arrowParameterList = p.ParseFormalParameterList()
 	default:
 		p.ReportErrorAtTree(leftOfArrow, "invalid arrow function parameters")
-		arrowParameterList = Parser_NewEmptyFormalParameterList(leftOfArrow.GetParseTreeBase().Location)
+		arrowParameterList = p.newFormalParameterListTree(
+			leftOfArrow.GetParseTreeBase().Location,
+			[]ParseTree{},
+			/* hasTrailingComma= */ false,
+			[]SourcePosition{})
 	}
 	return arrowParameterList
 }
@@ -591,7 +595,7 @@ func (p *Parser) ParseAsyncArrowFunction(expressionIn Parser_Expression) ParseTr
 	} else {
 		// async arg =>
 		singleParameter := p.ParseIdentifierExpression()
-		arrowParameterList = NewFormalParameterListTree(
+		arrowParameterList = p.newFormalParameterListTree(
 			singleParameter.Location,
 			p.singleTreeList(singleParameter),
 			/* hasTrailingComma= */ false,
@@ -603,11 +607,9 @@ func (p *Parser) ParseAsyncArrowFunction(expressionIn Parser_Expression) ParseTr
 	p.Eat(TokenType_ARROW)
 	arrowFunctionBody := p.ParseArrowFunctionBody(expressionIn, Parser_FunctionFlavor_ASYNCHRONOUS)
 
-	builder := FunctionDeclarationTree_NewBuilder(FunctionDeclarationTree_Kind_ARROW).
-		SetAsync(true).
-		SetFormalParameterList(arrowParameterList).
-		SetFunctionBody(arrowFunctionBody)
-	return builder.Build(p.GetTreeLocation(start))
+	return p.newFunctionDeclarationTree(
+		p.GetTreeLocation(start), Token{}, arrowParameterList, arrowFunctionBody,
+		FunctionDeclarationTree_Kind_ARROW, false, false, false, true)
 }
 
 // Java: Parser.parseArrowFunctionBody(Expression, FunctionFlavor)
@@ -623,26 +625,18 @@ func (p *Parser) ParseArrowFunctionBody(expressionIn Parser_Expression, function
 	return arrowFunctionBody
 }
 
-// Java: Parser.newEmptyFormalParameterList(SourceRange)
-func Parser_NewEmptyFormalParameterList(location SourceRange) *FormalParameterListTree {
-	return NewFormalParameterListTree(
-		location,
-		[]ParseTree{},
-		/* hasTrailingComma= */ false,
-		[]SourcePosition{})
-}
-
 // Java: Parser.parseFunctionExpression()
 func (p *Parser) ParseFunctionExpression() ParseTree {
 	start := p.GetTreeStartLocation()
 	p.Eat(Keywords_FUNCTION.Type())
 	isGenerator := p.EatOpt(TokenType_STAR).IsPresent()
 
-	builder := FunctionDeclarationTree_NewBuilder(FunctionDeclarationTree_Kind_EXPRESSION).
-		SetName(p.EatIdOpt())
-	p.ParseFunctionTail(builder, functionFlavorOf(isGenerator, Parser_FunctionFlavor_GENERATOR, Parser_FunctionFlavor_NORMAL))
+	name := p.EatIdOpt()
+	params, body := p.parseFunctionTail(functionFlavorOf(isGenerator, Parser_FunctionFlavor_GENERATOR, Parser_FunctionFlavor_NORMAL))
 
-	return builder.Build(p.GetTreeLocation(start))
+	return p.newFunctionDeclarationTree(
+		p.GetTreeLocation(start), name, params, body,
+		FunctionDeclarationTree_Kind_EXPRESSION, false, false, isGenerator, false)
 }
 
 // Java: Parser.parseAsyncFunctionExpression()
@@ -655,13 +649,12 @@ func (p *Parser) ParseAsyncFunctionExpression() ParseTree {
 		p.Eat(TokenType_STAR)
 	}
 
-	builder := FunctionDeclarationTree_NewBuilder(FunctionDeclarationTree_Kind_EXPRESSION).
-		SetName(p.EatIdOpt()).
-		SetAsync(true)
-
-	p.ParseFunctionTail(
-		builder, functionFlavorOf(generator, Parser_FunctionFlavor_ASYNCHRONOUS_GENERATOR, Parser_FunctionFlavor_ASYNCHRONOUS))
-	return builder.Build(p.GetTreeLocation(start))
+	name := p.EatIdOpt()
+	params, body := p.parseFunctionTail(
+		functionFlavorOf(generator, Parser_FunctionFlavor_ASYNCHRONOUS_GENERATOR, Parser_FunctionFlavor_ASYNCHRONOUS))
+	return p.newFunctionDeclarationTree(
+		p.GetTreeLocation(start), name, params, body,
+		FunctionDeclarationTree_Kind_EXPRESSION, false, false, generator, true)
 }
 
 // Java: Parser.peekClassDeclaration()
@@ -832,15 +825,15 @@ func (p *Parser) ParseMethodDefinition(elementInfo *ClassOrObjectElementInfo, is
 		kind = FunctionDeclarationTree_Kind_MEMBER
 	}
 
-	builder := FunctionDeclarationTree_NewBuilder(kind).
-		SetIsClassMember(elementInfo.isClassMember).
-		SetStatic(elementInfo.isStatic)
+	var name Token
 	if elementInfo.HasName() {
-		builder.SetName(elementInfo.GetName())
+		name = elementInfo.GetName()
 	}
-	p.ParseFunctionTail(builder, functionFlavorOf(isGenerator, Parser_FunctionFlavor_GENERATOR, Parser_FunctionFlavor_NORMAL))
+	params, body := p.parseFunctionTail(functionFlavorOf(isGenerator, Parser_FunctionFlavor_GENERATOR, Parser_FunctionFlavor_NORMAL))
 
-	var function ParseTree = builder.Build(p.GetTreeLocation(elementInfo.start))
+	var function ParseTree = p.newFunctionDeclarationTree(
+		p.GetTreeLocation(elementInfo.start), name, params, body,
+		kind, elementInfo.isClassMember, elementInfo.isStatic, isGenerator, false)
 	if kind == FunctionDeclarationTree_Kind_MEMBER {
 		return function
 	} else {
@@ -888,47 +881,35 @@ func (p *Parser) ParseAsyncMethod(elementInfo *ClassOrObjectElementInfo) ParseTr
 	if p.PeekPropertyName(0) {
 		if p.PeekIdOrKeyword() {
 			name := p.EatIdOrKeywordAsId()
-			builder := FunctionDeclarationTree_NewBuilder(FunctionDeclarationTree_Kind_MEMBER).
-				SetAsync(true).
-				SetGenerator(generator).
-				SetIsClassMember(elementInfo.isClassMember).
-				SetStatic(elementInfo.isStatic).
-				SetName(name)
-			p.ParseFunctionTail(
-				builder,
+			params, body := p.parseFunctionTail(
 				functionFlavorOf(generator, Parser_FunctionFlavor_ASYNCHRONOUS_GENERATOR, Parser_FunctionFlavor_ASYNCHRONOUS))
 
-			return builder.Build(p.GetTreeLocation(name.GetStart()))
+			return p.newFunctionDeclarationTree(
+				p.GetTreeLocation(name.GetStart()), name, params, body,
+				FunctionDeclarationTree_Kind_MEMBER, elementInfo.isClassMember, elementInfo.isStatic, generator, true)
 		} else {
 			// { 'str'() {} }
 			// { 123() {} }
 			// Treat these as if they were computed properties.
 			var nameExpr ParseTree = p.ParseLiteralExpression()
-			builder := FunctionDeclarationTree_NewBuilder(FunctionDeclarationTree_Kind_EXPRESSION).
-				SetAsync(true).
-				SetGenerator(generator).
-				SetIsClassMember(elementInfo.isClassMember).
-				SetStatic(elementInfo.isStatic)
-			p.ParseFunctionTail(
-				builder,
+			params, body := p.parseFunctionTail(
 				functionFlavorOf(generator, Parser_FunctionFlavor_ASYNCHRONOUS_GENERATOR, Parser_FunctionFlavor_ASYNCHRONOUS))
 
-			var function ParseTree = builder.Build(p.GetTreeLocation(nameExpr.GetStart()))
+			var function ParseTree = p.newFunctionDeclarationTree(
+				p.GetTreeLocation(nameExpr.GetStart()), Token{}, params, body,
+				FunctionDeclarationTree_Kind_EXPRESSION, elementInfo.isClassMember, elementInfo.isStatic, generator, true)
 			return NewComputedPropertyMethodTree(
 				p.GetTreeLocation(nameExpr.GetStart()), nameExpr, function)
 		}
 	} else {
 		// expect '[' to start computed property name
 		nameExpr := p.ParseComputedPropertyName()
-		builder := FunctionDeclarationTree_NewBuilder(FunctionDeclarationTree_Kind_EXPRESSION).
-			SetAsync(true).
-			SetGenerator(generator).
-			SetIsClassMember(elementInfo.isClassMember).
-			SetStatic(elementInfo.isStatic)
-		p.ParseFunctionTail(
-			builder, functionFlavorOf(generator, Parser_FunctionFlavor_ASYNCHRONOUS_GENERATOR, Parser_FunctionFlavor_ASYNCHRONOUS))
+		params, body := p.parseFunctionTail(
+			functionFlavorOf(generator, Parser_FunctionFlavor_ASYNCHRONOUS_GENERATOR, Parser_FunctionFlavor_ASYNCHRONOUS))
 
-		var function ParseTree = builder.Build(p.GetTreeLocation(nameExpr.GetStart()))
+		var function ParseTree = p.newFunctionDeclarationTree(
+			p.GetTreeLocation(nameExpr.GetStart()), Token{}, params, body,
+			FunctionDeclarationTree_Kind_EXPRESSION, elementInfo.isClassMember, elementInfo.isStatic, generator, true)
 		return NewComputedPropertyMethodTree(
 			p.GetTreeLocation(nameExpr.GetStart()), nameExpr, function)
 	}

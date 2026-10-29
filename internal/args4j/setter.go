@@ -38,15 +38,10 @@ import (
 // Setter writes parsed option values into a Bean property.
 type Setter interface {
 	AddValue(value any)
+	AddStringValue(value string)
 	GetType() *Class
 	IsMultiValued() bool
 	AsFieldSetter() *FieldSetter
-}
-
-// StringSetter is an optional fast path implemented by Setters that accept
-// unboxed Go strings without interface boxing.
-type StringSetter interface {
-	AddStringValue(value string)
 }
 
 // Getter reads the current default value(s) of a Bean property for usage output.

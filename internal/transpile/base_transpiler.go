@@ -321,10 +321,10 @@ func hasPotentialURIScheme(s string) bool {
 }
 
 // Java: SourceMap.LocationMapping.map(String)
-func (baseTranspiler_absoluteLocationMapping) Map(location string) *string {
+func (baseTranspiler_absoluteLocationMapping) Map(location string) (string, bool) {
 	if hasPotentialURIScheme(location) {
 		if u, err := jutil.ParseURI(location); err == nil && u.IsAbsolute() {
-			return &location
+			return location, true
 		}
 	}
 	return baseTranspiler_prefixMapping.Map(location)

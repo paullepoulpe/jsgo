@@ -35,6 +35,7 @@ type NodeTraversal struct {
 	scopeCallback                                  NodeTraversal_ScopedCallback
 	scopeCreator                                   ScopeCreator
 	syntacticScopeCreator                          *SyntacticScopeCreator
+	memoizedScopeCreator                           *MemoizedScopeCreator
 	lazyGlobalScope                                *lazyGlobalScope
 	defaultScopeCreator                            SyntacticScopeCreator
 	obeyDestructuringAndDefaultValueExecutionOrder bool
@@ -90,16 +91,30 @@ var nodeTraversalPool = sync.Pool{
 	New: func() any { return &NodeTraversal{} },
 }
 
-func acquireNodeTraversal(builder *NodeTraversal_Builder) *NodeTraversal {
-	if builder.compiler == nil || builder.callback == nil {
+func acquireNodeTraversalDirect(
+	compiler AbstractCompiler,
+	cb NodeTraversal_Callback,
+	scopeCreator ScopeCreator,
+	obeyDestructuringAndDefaultValueExecutionOrder bool,
+) *NodeTraversal {
+	if compiler == nil || cb == nil {
 		failNodeTraversalNull()
 	}
 	t := nodeTraversalPool.Get().(*NodeTraversal)
 	if cap(t.scopes) == 0 {
 		t.scopes = t.scopesBuf[:0]
 	}
-	initNodeTraversalFromBuilder(t, builder)
+	initNodeTraversal(t, compiler, cb, scopeCreator, obeyDestructuringAndDefaultValueExecutionOrder)
 	return t
+}
+
+func acquireNodeTraversal(builder *NodeTraversal_Builder) *NodeTraversal {
+	return acquireNodeTraversalDirect(
+		builder.compiler,
+		builder.callback,
+		builder.scopeCreator,
+		builder.obeyDestructuringAndDefaultValueExecutionOrder,
+	)
 }
 
 func releaseNodeTraversal(t *NodeTraversal) {
@@ -121,13 +136,24 @@ func newNodeTraversal(builder *NodeTraversal_Builder) *NodeTraversal {
 	}
 	t := &NodeTraversal{}
 	t.scopes = t.scopesBuf[:0]
-	initNodeTraversalFromBuilder(t, builder)
+	initNodeTraversal(
+		t,
+		builder.compiler,
+		builder.callback,
+		builder.scopeCreator,
+		builder.obeyDestructuringAndDefaultValueExecutionOrder,
+	)
 	return t
 }
 
-func initNodeTraversalFromBuilder(t *NodeTraversal, builder *NodeTraversal_Builder) {
-	t.compiler = builder.compiler
-	cb := builder.callback
+func initNodeTraversal(
+	t *NodeTraversal,
+	compiler AbstractCompiler,
+	cb NodeTraversal_Callback,
+	scopeCreator ScopeCreator,
+	obeyDestructuringAndDefaultValueExecutionOrder bool,
+) {
+	t.compiler = compiler
 	t.stopAtNestedChangeScope = false
 	t.scopeTraversalRoot = rhino.NilNode
 	t.callback = cb
@@ -158,19 +184,23 @@ func initNodeTraversalFromBuilder(t *NodeTraversal, builder *NodeTraversal_Build
 	} else {
 		t.scopeCallback = nil
 	}
-	t.scopeCreator = builder.scopeCreator
-	if builder.scopeCreator == nil {
+	t.scopeCreator = scopeCreator
+	t.memoizedScopeCreator = nil
+	if scopeCreator == nil {
 		t.defaultScopeCreator = SyntacticScopeCreator{
-			compiler:             builder.compiler,
+			compiler:             compiler,
 			redeclarationHandler: SyntacticScopeCreator_DEFAULT_REDECLARATION_HANDLER,
 		}
 		t.syntacticScopeCreator = &t.defaultScopeCreator
-	} else if ssc, ok := builder.scopeCreator.(*SyntacticScopeCreator); ok {
+	} else if ssc, ok := scopeCreator.(*SyntacticScopeCreator); ok {
 		t.syntacticScopeCreator = ssc
+	} else if msc, ok := scopeCreator.(*MemoizedScopeCreator); ok && msc.syntacticDelegate != nil {
+		t.syntacticScopeCreator = msc.syntacticDelegate
+		t.memoizedScopeCreator = msc
 	} else {
 		t.syntacticScopeCreator = nil
 	}
-	t.obeyDestructuringAndDefaultValueExecutionOrder = builder.obeyDestructuringAndDefaultValueExecutionOrder
+	t.obeyDestructuringAndDefaultValueExecutionOrder = obeyDestructuringAndDefaultValueExecutionOrder
 	// TODO(johnlenz): refactor into compiler options helper.
 	options := t.compiler.GetOptions()
 	t.mayContainSyntheticBlocks =
@@ -346,8 +376,9 @@ func (t *NodeTraversal) Traverse(root rhino.Node) {
 //
 // Java: NodeTraversal.traverse(AbstractCompiler, Node, Callback)
 func NodeTraversal_Traverse(compiler AbstractCompiler, root rhino.Node, cb NodeTraversal_Callback) {
-	b := NodeTraversal_Builder{compiler: compiler, callback: cb}
-	b.Traverse(root)
+	t := acquireNodeTraversalDirect(compiler, cb, nil, false)
+	t.Traverse(root)
+	releaseNodeTraversal(t)
 }
 
 // Java: NodeTraversal.traverseRoots(Node, Node)
@@ -376,8 +407,9 @@ func (t *NodeTraversal) TraverseRoots(externs rhino.Node, root rhino.Node) {
 // Java: NodeTraversal.traverseRoots(AbstractCompiler, Callback, Node, Node)
 func NodeTraversal_TraverseRoots(
 	compiler AbstractCompiler, cb NodeTraversal_Callback, externs rhino.Node, root rhino.Node) {
-	b := NodeTraversal_Builder{compiler: compiler, callback: cb}
-	b.TraverseRoots(externs, root)
+	t := acquireNodeTraversalDirect(compiler, cb, nil, false)
+	t.TraverseRoots(externs, root)
+	releaseNodeTraversal(t)
 }
 
 const nodeTraversal_MISSING_SOURCE = "[source unknown]"
@@ -405,7 +437,7 @@ func (t *NodeTraversal) FormatNodePosition(n rhino.Node) string {
 //
 // Java: NodeTraversal.traverseWithScope(Node, AbstractScope<?, ?>)
 func (t *NodeTraversal) TraverseWithScope(root rhino.Node, s AbstractScope) {
-	jutil.CheckStateMsg1(s.IsGlobal() || s.IsModuleScope(), "%s", s)
+	jutil.CheckStateMsg1(isGlobalOrModuleAbstractScope(s), "%s", s)
 	defer func() {
 		if r := recover(); r != nil {
 			t.ThrowUnexpectedException(jutil.AsThrowable(r))

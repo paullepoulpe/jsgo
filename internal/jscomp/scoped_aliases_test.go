@@ -93,10 +93,10 @@ func (c *ScopedAliasesTest) testScopedError(code string, expectedError *Diagnost
 
 // Java: ScopedAliasesTest.getProcessor(Compiler)
 func (c *ScopedAliasesTest) GetProcessor(compiler *Compiler) CompilerPass {
-	return ScopedAliases_Builder_(compiler).
-		SetModuleMetadataMap(compiler.GetModuleMetadataMap()).
-		SetInvalidModuleGetHandling(c.invalidModuleGetHandling).
-		Build()
+	return NewScopedAliases(compiler, ScopedAliasesOptions{
+		ModuleMetadataMap:        compiler.GetModuleMetadataMap(),
+		InvalidModuleGetHandling: c.invalidModuleGetHandling,
+	})
 }
 
 // ScopedAliasesTest_TypeVerifyingPass is ScopedAliasesTest.TypeVerifyingPass.

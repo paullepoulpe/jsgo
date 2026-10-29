@@ -143,26 +143,19 @@ func (d *OptionDef) String() string {
 	return d.name
 }
 
-// OptionHandlerFilter selects which OptionHandlers are included in usage output.
-type OptionHandlerFilter interface {
-	Select(o *OptionHandler) bool
-}
-
-// OptionHandlerFilterFunc adapts a function to OptionHandlerFilter.
+// OptionHandlerFilterFunc selects which OptionHandlers are included in usage output.
 type OptionHandlerFilterFunc func(o *OptionHandler) bool
 
-func (f OptionHandlerFilterFunc) Select(o *OptionHandler) bool { return f(o) }
-
 var (
-	OptionHandlerFilter_ALL OptionHandlerFilter = OptionHandlerFilterFunc(func(*OptionHandler) bool {
+	OptionHandlerFilter_ALL OptionHandlerFilterFunc = func(*OptionHandler) bool {
 		return true
-	})
-	OptionHandlerFilter_PUBLIC OptionHandlerFilter = OptionHandlerFilterFunc(func(o *OptionHandler) bool {
+	}
+	OptionHandlerFilter_PUBLIC OptionHandlerFilterFunc = func(o *OptionHandler) bool {
 		return !o.Option.Hidden()
-	})
-	OptionHandlerFilter_REQUIRED OptionHandlerFilter = OptionHandlerFilterFunc(func(o *OptionHandler) bool {
+	}
+	OptionHandlerFilter_REQUIRED OptionHandlerFilterFunc = func(o *OptionHandler) bool {
 		return o.Option.Required()
-	})
+	}
 )
 
 const defaultUsageWidth = 80
@@ -237,16 +230,6 @@ const cmdLineExceptionClassName = "com.google.javascript.jscomp.jarjar.org.kohsu
 type CmdLineException struct {
 	jutil.JavaException
 	parser *CmdLineParser
-}
-
-func (*CmdLineException) cmdLineException() {}
-
-// ICmdLineException matches CmdLineException and its subclasses.
-type ICmdLineException interface {
-	jutil.IException
-	cmdLineException()
-	GetLocalizedMessage() string
-	GetParser() *CmdLineParser
 }
 
 func newCmdLineException(parser *CmdLineParser, msg messageTemplate, args ...string) *CmdLineException {

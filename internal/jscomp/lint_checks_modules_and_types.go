@@ -144,6 +144,10 @@ func NewCheckPrototypeProperties(compiler AbstractCompiler) *CheckPrototypePrope
 	return &CheckPrototypeProperties{compiler: compiler}
 }
 
+func (*CheckPrototypeProperties) cloneForParallel(c *Compiler) NodeTraversal_Callback {
+	return NewCheckPrototypeProperties(c)
+}
+
 // Java: CheckPrototypeProperties.process(Node, Node)
 func (c *CheckPrototypeProperties) Process(externs rhino.Node, root rhino.Node) {
 	NodeTraversal_Traverse(c.compiler, root, c)
@@ -223,6 +227,10 @@ func NewCheckEs6Modules(compiler AbstractCompiler) *CheckEs6Modules {
 	return &CheckEs6Modules{
 		compiler: compiler,
 	}
+}
+
+func (*CheckEs6Modules) cloneForParallel(c *Compiler) NodeTraversal_Callback {
+	return NewCheckEs6Modules(c)
 }
 
 var checkEs6ModulesVisitTokens = func() ast.TokenSet {
@@ -331,6 +339,10 @@ func checkPrimitiveAsObject_isPrimitiveObjectConstructor(name string) bool {
 // Java: CheckPrimitiveAsObject(AbstractCompiler)
 func NewCheckPrimitiveAsObject(compiler AbstractCompiler) *CheckPrimitiveAsObject {
 	return &CheckPrimitiveAsObject{compiler: compiler}
+}
+
+func (*CheckPrimitiveAsObject) cloneForParallel(c *Compiler) NodeTraversal_Callback {
+	return NewCheckPrimitiveAsObject(c)
 }
 
 // Java: CheckPrimitiveAsObject.process(Node, Node)
@@ -541,6 +553,10 @@ func NewCheckArrayWithGoogObject(compiler AbstractCompiler) *CheckArrayWithGoogO
 	return &CheckArrayWithGoogObject{compiler: compiler}
 }
 
+func (*CheckArrayWithGoogObject) cloneForParallel(c *Compiler) NodeTraversal_Callback {
+	return NewCheckArrayWithGoogObject(c)
+}
+
 func (c *CheckArrayWithGoogObject) googObjectArrayCallName(n rhino.Node) (string, bool) {
 	call, ok := ast.AsCall(n)
 	if !ok {
@@ -667,6 +683,10 @@ func NewCheckConstantCaseNames(compiler AbstractCompiler) *CheckConstantCaseName
 		compiler:   compiler,
 		convention: compiler.GetCodingConvention(),
 	}
+}
+
+func (*CheckConstantCaseNames) cloneForParallel(c *Compiler) NodeTraversal_Callback {
+	return NewCheckConstantCaseNames(c)
 }
 
 // Java: CheckConstantCaseNames.process(Node, Node)
@@ -799,6 +819,10 @@ func NewCheckNoMutatedEs6Exports(compiler AbstractCompiler) *CheckNoMutatedEs6Ex
 	return &CheckNoMutatedEs6Exports{
 		compiler: compiler,
 	}
+}
+
+func (*CheckNoMutatedEs6Exports) cloneForParallel(c *Compiler) NodeTraversal_Callback {
+	return NewCheckNoMutatedEs6Exports(c)
 }
 
 var checkNoMutatedEs6ExportsVisitTokens = func() ast.TokenSet {

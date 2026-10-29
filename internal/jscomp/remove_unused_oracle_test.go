@@ -61,43 +61,37 @@ type removeUnusedOraclePass struct {
 }
 
 // removeUnusedOracleRucSimple is RemoveUnusedDump.rucSimple.
-func removeUnusedOracleRucSimple(c *Compiler) *RemoveUnusedCode_Builder {
-	return NewRemoveUnusedCode_Builder(c).
-		RemoveUnusedPrototypeProperties(false).
-		RemoveLocalVars(true).
-		RemoveGlobals(false).
-		PreserveFunctionExpressionNames(false).
-		RemoveUnusedThisProperties(false).
-		RemoveUnusedObjectDefinePropertiesDefinitions(false).
-		AssumeGettersArePure(true).
-		RemoveUnusedPolyfills(false)
+func removeUnusedOracleRucSimple(c *Compiler) *RemoveUnusedCode {
+	return NewRemoveUnusedCode(c, RemoveUnusedCodeOptions{
+		RemoveLocalVars:      true,
+		AssumeGettersArePure: true,
+	})
 }
 
 // removeUnusedOracleRucAdvanced is RemoveUnusedDump.rucAdvanced.
-func removeUnusedOracleRucAdvanced(c *Compiler) *RemoveUnusedCode_Builder {
-	return NewRemoveUnusedCode_Builder(c).
-		RemoveUnusedPrototypeProperties(true).
-		RemoveLocalVars(true).
-		RemoveGlobals(true).
-		PreserveFunctionExpressionNames(false).
-		RemoveUnusedThisProperties(true).
-		RemoveUnusedObjectDefinePropertiesDefinitions(true).
-		AssumeGettersArePure(true).
-		RemoveUnusedPolyfills(false)
+func removeUnusedOracleRucAdvanced(c *Compiler) *RemoveUnusedCode {
+	return NewRemoveUnusedCode(c, RemoveUnusedCodeOptions{
+		RemoveUnusedPrototypeProperties:               true,
+		RemoveLocalVars:                               true,
+		RemoveGlobals:                                 true,
+		RemoveUnusedThisProperties:                    true,
+		RemoveUnusedObjectDefinePropertiesDefinitions: true,
+		AssumeGettersArePure:                          true,
+	})
 }
 
 // removeUnusedOraclePasses is RemoveUnusedDump.passes.
 func removeUnusedOraclePasses() []removeUnusedOraclePass {
 	return []removeUnusedOraclePass{
 		{"ruc-simple", func(c *Compiler, ext, js rhino.Node, extra *[]string) {
-			removeUnusedOracleRucSimple(c).Build().Process(ext, js)
+			removeUnusedOracleRucSimple(c).Process(ext, js)
 		}},
 		{"ruc-advanced", func(c *Compiler, ext, js rhino.Node, extra *[]string) {
-			removeUnusedOracleRucAdvanced(c).Build().Process(ext, js)
+			removeUnusedOracleRucAdvanced(c).Process(ext, js)
 		}},
 		{"pfi-ruc-advanced", func(c *Compiler, ext, js rhino.Node, extra *[]string) {
 			NewPureFunctionIdentifier_Driver(c).Process(ext, js)
-			removeUnusedOracleRucAdvanced(c).Build().Process(ext, js)
+			removeUnusedOracleRucAdvanced(c).Process(ext, js)
 		}},
 		{"pfi", func(c *Compiler, ext, js rhino.Node, extra *[]string) {
 			NewPureFunctionIdentifier_Driver(c).Process(ext, js)
@@ -126,12 +120,7 @@ func removeUnusedOraclePasses() []removeUnusedOraclePass {
 			NewOptimizeConstructors(c).Process(ext, js)
 		}},
 		{"devirtualize", func(c *Compiler, ext, js rhino.Node, extra *[]string) {
-			OptimizeCalls_Builder_().
-				SetCompiler(c).
-				SetConsiderExterns(false).
-				AddPass(NewDevirtualizeMethods(c)).
-				Build().
-				Process(ext, js)
+			NewOptimizeCalls(c, false, NewDevirtualizeMethods(c)).Process(ext, js)
 		}},
 		{"rewrite-functions", func(c *Compiler, ext, js rhino.Node, extra *[]string) {
 			NewFunctionRewriter(c).Process(ext, js)
@@ -163,7 +152,7 @@ func removeUnusedOracleChunkPasses() []removeUnusedOraclePass {
 				}
 				*extra = append(*extra, l.String())
 			}
-			for name, v := range collector.GetGlobalVariableNamesMap().All() {
+			for name, v := range crossChunkGlobalVariableNamesMap(collector).All() {
 				refs := collector.GetReferences(v)
 				var l strings.Builder
 				l.WriteString("var " + name)
@@ -243,7 +232,7 @@ func (l *removeUnusedOracleLva) ExitScopeWithCfg(t *NodeTraversal) {
 		*l.extra = append(*l.extra, "var "+strconv.Itoa(liveness.GetVarIndex(v.GetName()))+" "+v.GetName())
 	}
 	for _, cfgNode := range cfg.GetDiGraphNodes() {
-		state := dataFlowAnalysis_linearFlowStateOf[*LiveVariablesAnalysis_LiveVariableLattice](cfgNode)
+		state := liveness.FlowStateAt(cfgNode.Index)
 		n := cfgNode.GetValue()
 		where := "IMPLICIT_RETURN"
 		if !n.IsNil() {

@@ -128,13 +128,12 @@ func (c *ReplaceStringsTest) GetProcessor(compiler *Compiler) CompilerPass {
 			NodeTraversal_Traverse(compiler, js, &replaceStringsTest_Renamer{})
 		}
 		NewEs6NormalizeClasses(compiler).Process(externs, js)
-		InlineAndCollapseProperties_Builder_(compiler).
-			SetPropertyCollapseLevel(CompilerOptions_PropertyCollapseLevel_ALL).
-			SetChunkOutputType(CompilerOptions_ChunkOutputType_GLOBAL_NAMESPACE).
-			SetHaveModulesBeenRewritten(false).
-			SetModuleResolutionMode(ModuleLoader_ResolutionMode_BROWSER).
-			Build().
-			Process(externs, js)
+		NewInlineAndCollapseProperties(compiler, InlineAndCollapsePropertiesOptions{
+			PropertyCollapseLevel:    CompilerOptions_PropertyCollapseLevel_ALL,
+			ChunkOutputType:          CompilerOptions_ChunkOutputType_GLOBAL_NAMESPACE,
+			HaveModulesBeenRewritten: false,
+			ModuleResolutionMode:     ModuleLoader_ResolutionMode_BROWSER,
+		}).Process(externs, js)
 		if c.runDisambiguateProperties {
 			sia := SourceInformationAnnotator_Create()
 			NodeTraversal_Traverse(compiler, js, sia)

@@ -913,7 +913,7 @@ func (ti *TypeInference) IsUnflowable(v *TypedVar) bool {
 		v.IsLocal() &&
 		v.IsMarkedEscaped() &&
 		// It's OK to flow a variable in the scope where it's escaped.
-		v.GetScope().(*TypedScope).GetClosestContainerScope() == ti.containerScope
+		v.Scope().GetClosestContainerScope() == ti.containerScope
 }
 
 // GetJSType gets the JSType from the Node argument and verifies that it is

@@ -19,6 +19,7 @@
 package jscomp
 
 import (
+	"bytes"
 	"strings"
 	"testing"
 
@@ -28,7 +29,7 @@ import (
 
 func jsaCsAssertTypePool(t *testing.T, got, want *TypePool) {
 	t.Helper()
-	if !got.Equals(want) {
+	if got.String() != want.String() || !bytes.Equal(got.ToByteArray(), want.ToByteArray()) {
 		t.Errorf("TypePool\n got:\n%s\nwant:\n%s", got, want)
 	}
 }
@@ -40,10 +41,8 @@ func TestColorSerializer_GenerateEmptyTypePool(t *testing.T) {
 			Init().
 			// don't add anything
 			GenerateTypePool(t),
-		TypePool_NewBuilder().
-			// DebugInfo is present, but empty
-			SetDebugInfo(TypePool_DebugInfo_GetDefaultInstance()).
-			Build())
+		// DebugInfo is present, but empty
+		&TypePool{debugInfo_: &TypePool_DebugInfo{}})
 
 	jsaCsAssertTypePool(t,
 		newJsaCsTester().
@@ -70,27 +69,26 @@ func TestColorSerializer_OnlyAddAxiomaticColors(t *testing.T) {
 			// add all the axiomatic colors, but only those
 			AddColorsList(t, axiomaticTestColors).
 			GenerateTypePool(t),
-		TypePool_NewBuilder().
-			// No `type` values, because axiomatic colors are never serialized.
-			// DebugInfo is empty, but present.
-			SetDebugInfo(TypePool_DebugInfo_GetDefaultInstance()).
-			Build())
+		// No `type` values, because axiomatic colors are never serialized.
+		// DebugInfo is empty, but present.
+		&TypePool{debugInfo_: &TypePool_DebugInfo{}})
 }
 
 func TestColorSerializer_AddASuperTypeRelationship(t *testing.T) {
 	superTypeColor := newJsaCsTestObjectColorBuilder().SetColorId("sup_type").SetTrimmedPoolOffset(0).Build()
 	subTypeColor := newJsaCsTestObjectColorBuilder().SetColorId("sub_type").SetTrimmedPoolOffset(1).Build()
-	expectedTypePool := TypePool_NewBuilder().
-		AddType(superTypeColor.GetExpectedTypeProto()).
-		AddType(subTypeColor.GetExpectedTypeProto()).
-		AddDisambiguationEdges(
-			SubtypingEdge_NewBuilder().
-				SetSubtype(int32(subTypeColor.expectedTypePointer)).
-				SetSupertype(int32(superTypeColor.expectedTypePointer)).
-				Build()).
+	expectedTypePool := &TypePool{
+		type_: []*TypeProto{
+			superTypeColor.GetExpectedTypeProto(),
+			subTypeColor.GetExpectedTypeProto(),
+		},
+		disambiguationEdges_: []*SubtypingEdge{{
+			subtype_:   int32(subTypeColor.expectedTypePointer),
+			supertype_: int32(superTypeColor.expectedTypePointer),
+		}},
 		// empty DebugInfo
-		SetDebugInfo(TypePool_DebugInfo_GetDefaultInstance()).
-		Build()
+		debugInfo_: &TypePool_DebugInfo{},
+	}
 
 	jsaCsAssertTypePool(t,
 		newJsaCsTester().
@@ -114,17 +112,18 @@ func TestColorSerializer_ImplicitAdditionOfSuperType(t *testing.T) {
 		// by its relationship to the subtype.
 		SetTrimmedPoolOffset(1).
 		Build()
-	expectedTypePool := TypePool_NewBuilder().
-		AddType(subTypeColor.GetExpectedTypeProto()).
-		AddType(superTypeColor.GetExpectedTypeProto()).
-		AddDisambiguationEdges(
-			SubtypingEdge_NewBuilder().
-				SetSubtype(int32(subTypeColor.expectedTypePointer)).
-				SetSupertype(int32(superTypeColor.expectedTypePointer)).
-				Build()).
+	expectedTypePool := &TypePool{
+		type_: []*TypeProto{
+			subTypeColor.GetExpectedTypeProto(),
+			superTypeColor.GetExpectedTypeProto(),
+		},
+		disambiguationEdges_: []*SubtypingEdge{{
+			subtype_:   int32(subTypeColor.expectedTypePointer),
+			supertype_: int32(superTypeColor.expectedTypePointer),
+		}},
 		// DebugInfo is present but empty.
-		SetDebugInfo(TypePool_DebugInfo_GetDefaultInstance()).
-		Build()
+		debugInfo_: &TypePool_DebugInfo{},
+	}
 
 	jsaCsAssertTypePool(t,
 		newJsaCsTester().
@@ -212,31 +211,32 @@ func TestColorSerializer_SimulatedClasses(t *testing.T) {
 		AddOwnProperty(childStaticFieldPooledString).
 		Build()
 
-	expectedTypePool := TypePool_NewBuilder().
-		AddType(baseClassConstructorTestColor.GetExpectedTypeProto()).
-		AddType(childClassConstructorTestColor.GetExpectedTypeProto()).
-		AddType(baseClassInstanceTestColor.GetExpectedTypeProto()).
-		AddType(baseClassPrototypeTestColor.GetExpectedTypeProto()).
-		AddType(childClassInstanceTestColor.GetExpectedTypeProto()).
-		AddType(childClassPrototypeTestColor.GetExpectedTypeProto()).
-		AddDisambiguationEdges(
-			SubtypingEdge_NewBuilder().
-				SetSubtype(int32(childClassConstructorTestColor.expectedTypePointer)).
-				SetSupertype(int32(baseClassConstructorTestColor.expectedTypePointer)).
-				Build()).
-		AddDisambiguationEdges(
-			SubtypingEdge_NewBuilder().
-				SetSubtype(int32(childClassInstanceTestColor.expectedTypePointer)).
-				SetSupertype(int32(baseClassInstanceTestColor.expectedTypePointer)).
-				Build()).
-		AddDisambiguationEdges(
-			SubtypingEdge_NewBuilder().
-				SetSubtype(int32(childClassPrototypeTestColor.expectedTypePointer)).
-				SetSupertype(int32(baseClassPrototypeTestColor.expectedTypePointer)).
-				Build()).
+	expectedTypePool := &TypePool{
+		type_: []*TypeProto{
+			baseClassConstructorTestColor.GetExpectedTypeProto(),
+			childClassConstructorTestColor.GetExpectedTypeProto(),
+			baseClassInstanceTestColor.GetExpectedTypeProto(),
+			baseClassPrototypeTestColor.GetExpectedTypeProto(),
+			childClassInstanceTestColor.GetExpectedTypeProto(),
+			childClassPrototypeTestColor.GetExpectedTypeProto(),
+		},
+		disambiguationEdges_: []*SubtypingEdge{
+			{
+				subtype_:   int32(childClassConstructorTestColor.expectedTypePointer),
+				supertype_: int32(baseClassConstructorTestColor.expectedTypePointer),
+			},
+			{
+				subtype_:   int32(childClassInstanceTestColor.expectedTypePointer),
+				supertype_: int32(baseClassInstanceTestColor.expectedTypePointer),
+			},
+			{
+				subtype_:   int32(childClassPrototypeTestColor.expectedTypePointer),
+				supertype_: int32(baseClassPrototypeTestColor.expectedTypePointer),
+			},
+		},
 		// DebugInfo is present but empty.
-		SetDebugInfo(TypePool_DebugInfo_GetDefaultInstance()).
-		Build()
+		debugInfo_: &TypePool_DebugInfo{},
+	}
 
 	jsaCsAssertTypePool(t,
 		newJsaCsTester().
@@ -270,17 +270,20 @@ func TestColorSerializer_IncludeMismatches(t *testing.T) {
 	testColor4 := newJsaCsTestObjectColorBuilder().SetColorId("color004").SetTrimmedPoolOffset(3).Build()
 	testMismatch2 := jsaCsTestMismatch_Create("location2", testColor3, testColor4)
 
-	expectedTypePool := TypePool_NewBuilder().
-		AddType(testColor1.GetExpectedTypeProto()).
-		AddType(testColor2.GetExpectedTypeProto()).
-		AddType(testColor3.GetExpectedTypeProto()).
-		AddType(testColor4.GetExpectedTypeProto()).
-		SetDebugInfo(
-			TypePool_DebugInfo_NewBuilder().
-				AddMismatch(testMismatch1.GetExpectedMismatch()).
-				AddMismatch(testMismatch2.GetExpectedMismatch()).
-				Build()).
-		Build()
+	expectedTypePool := &TypePool{
+		type_: []*TypeProto{
+			testColor1.GetExpectedTypeProto(),
+			testColor2.GetExpectedTypeProto(),
+			testColor3.GetExpectedTypeProto(),
+			testColor4.GetExpectedTypeProto(),
+		},
+		debugInfo_: &TypePool_DebugInfo{
+			mismatch_: []*TypePool_DebugInfo_Mismatch{
+				testMismatch1.GetExpectedMismatch(),
+				testMismatch2.GetExpectedMismatch(),
+			},
+		},
+	}
 
 	jsaCsAssertTypePool(t,
 		newJsaCsTester().
@@ -301,13 +304,15 @@ func TestColorSerializer_SkipMismatches(t *testing.T) {
 	testColor4 := newJsaCsTestObjectColorBuilder().SetColorId("color004").SetTrimmedPoolOffset(3).Build()
 	testMismatch2 := jsaCsTestMismatch_Create("location2", testColor3, testColor4)
 
-	expectedTypePool := TypePool_NewBuilder().
-		AddType(testColor1.GetExpectedTypeProto()).
-		AddType(testColor2.GetExpectedTypeProto()).
-		AddType(testColor3.GetExpectedTypeProto()).
-		AddType(testColor4.GetExpectedTypeProto()).
+	expectedTypePool := &TypePool{
+		type_: []*TypeProto{
+			testColor1.GetExpectedTypeProto(),
+			testColor2.GetExpectedTypeProto(),
+			testColor3.GetExpectedTypeProto(),
+			testColor4.GetExpectedTypeProto(),
+		},
 		// No debug info
-		Build()
+	}
 
 	jsaCsAssertTypePool(t,
 		newJsaCsTester().
@@ -360,13 +365,15 @@ func TestColorSerializer_AddUnionImplicitlyAddsMembers(t *testing.T) {
 		AddTestColor(testColor2).
 		Build()
 
-	expectedTypePool := TypePool_NewBuilder().
-		AddType(unionTestColor.GetExpectedTypeProto()).
-		AddType(testColor1.GetExpectedTypeProto()).
-		AddType(testColor2.GetExpectedTypeProto()).
+	expectedTypePool := &TypePool{
+		type_: []*TypeProto{
+			unionTestColor.GetExpectedTypeProto(),
+			testColor1.GetExpectedTypeProto(),
+			testColor2.GetExpectedTypeProto(),
+		},
 		// empty DebugInfo
-		SetDebugInfo(TypePool_DebugInfo_GetDefaultInstance()).
-		Build()
+		debugInfo_: &TypePool_DebugInfo{},
+	}
 
 	jsaCsAssertTypePool(t,
 		newJsaCsTester().
@@ -396,14 +403,16 @@ func TestColorSerializer_AvoidAddingDuplicateUnions(t *testing.T) {
 		AddTestColor(testColor2).
 		Build()
 
-	expectedTypePool := TypePool_NewBuilder().
-		AddType(unionTestColor.GetExpectedTypeProto()).
-		// duplicate Union color should not be serialized
-		AddType(testColor1.GetExpectedTypeProto()).
-		AddType(testColor2.GetExpectedTypeProto()).
+	expectedTypePool := &TypePool{
+		type_: []*TypeProto{
+			unionTestColor.GetExpectedTypeProto(),
+			// duplicate Union color should not be serialized
+			testColor1.GetExpectedTypeProto(),
+			testColor2.GetExpectedTypeProto(),
+		},
 		// empty DebugInfo
-		SetDebugInfo(TypePool_DebugInfo_GetDefaultInstance()).
-		Build()
+		debugInfo_: &TypePool_DebugInfo{},
+	}
 
 	jsaCsAssertTypePool(t,
 		newJsaCsTester().
@@ -510,18 +519,17 @@ func (b *jsaCsTestObjectColorBuilder) Build() *jsaCsTestColor {
 		SetPrototypes(prototypes).
 		SetOwnProperties(ownProperties)
 	typePointer := TypePointers_UntrimOffset(b.trimmedPoolOffset)
-	typeProtoBuilder := TypeProto_NewBuilder()
-	objectTypeProtoBuilder := typeProtoBuilder.GetObjectBuilder()
-	objectTypeProtoBuilder.
-		SetUuid(b.colorId.AsByteString()).
-		SetIsInvalidating(isInvalidating).
-		SetPropertiesKeepOriginalName(propertiesKeepOriginalName).
-		SetMarkedConstructor(b.isConstructor).
-		SetClosureAssert(isClosureAssert).
-		AddAllInstanceType(instancePointers).
-		AddAllPrototype(prototypePointers).
-		AddAllOwnProperty(ownPropertyOffsets)
-	return jsaCsTestColor_Create(colorBuilder.Build(), typeProtoBuilder.Build(), typePointer)
+	typeProto := testObjectTypeProto(&ObjectTypeProto{
+		uuid_:                       b.colorId.AsByteString(),
+		isInvalidating_:             isInvalidating,
+		propertiesKeepOriginalName_: propertiesKeepOriginalName,
+		markedConstructor_:          b.isConstructor,
+		closureAssert_:              isClosureAssert,
+		instanceType_:               instancePointers,
+		prototype_:                  prototypePointers,
+		ownProperty_:                ownPropertyOffsets,
+	})
+	return jsaCsTestColor_Create(colorBuilder.Build(), typeProto, typePointer)
 }
 
 type jsaCsTestUnionColorBuilder struct {
@@ -555,10 +563,7 @@ func (b *jsaCsTestUnionColorBuilder) Build() *jsaCsTestColor {
 	color := colors.Color_CreateUnionSlice(memberColors)
 
 	typePointer := TypePointers_UntrimOffset(b.trimmedPoolOffset)
-
-	typeProtoBuilder := TypeProto_NewBuilder()
-	typeProtoBuilder.GetUnionBuilder().AddAllUnionMember(memberTypePointers)
-	typeProto := typeProtoBuilder.Build()
+	typeProto := testUnionTypeProto(memberTypePointers...)
 	return jsaCsTestColor_Create(color, typeProto, typePointer)
 }
 
@@ -607,11 +612,14 @@ func (m *jsaCsTestMismatch) GetColors() []*colors.Color {
 }
 
 func (m *jsaCsTestMismatch) GetExpectedMismatch() *TypePool_DebugInfo_Mismatch {
-	b := TypePool_DebugInfo_Mismatch_NewBuilder().SetSourceRef(m.locationString)
+	var involved []int32
 	for _, c := range m.testColors {
-		b.AddInvolvedColor(int32(c.expectedTypePointer))
+		involved = append(involved, int32(c.expectedTypePointer))
 	}
-	return b.Build()
+	return &TypePool_DebugInfo_Mismatch{
+		sourceRef_:     m.locationString,
+		involvedColor_: involved,
+	}
 }
 
 func jsaCsTestMismatch_Create(locationString string, testColors ...*jsaCsTestColor) *jsaCsTestMismatch {

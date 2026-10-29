@@ -27,17 +27,6 @@ import (
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
 
-// ReferenceMap maps Vars to their references.
-type ReferenceMap interface {
-	// GetReferences returns references to var.
-	//
-	// The code that generated this object determines which references to var
-	// are included.
-	//
-	// Java: ReferenceMap.getReferences(Var)
-	GetReferences(var_ *Var) *ReferenceCollection
-}
-
 type basicBlockEntry struct {
 	root  rhino.Node
 	block *BasicBlock
@@ -121,9 +110,6 @@ type ReferenceCollector struct {
 
 	// Only collect references for filtered variables.
 	varFilter func(*Var) bool
-
-	callback            ReferenceCollector_CollectorCallback
-	referenceMapWrapper ReferenceCollector_ReferenceMapWrapper
 
 	collectedHoistedFunctions map[rhino.Node]struct{}
 
@@ -214,15 +200,12 @@ func NewReferenceCollectorWithVarFilter(
 	behavior ReferenceCollector_Behavior,
 	creator ScopeCreator,
 	varFilter func(*Var) bool) *ReferenceCollector {
-	c := &ReferenceCollector{
+	return &ReferenceCollector{
 		compiler:     compiler,
 		behavior:     behavior,
 		scopeCreator: creator,
 		varFilter:    varFilter,
 	}
-	c.callback.c = c
-	c.referenceMapWrapper.c = c
-	return c
 }
 
 func (c *ReferenceCollector) enableLocalReclamation(canReclaim func() bool) {
@@ -333,7 +316,7 @@ func (c *ReferenceCollector) forgetVar(v *Var) {
 func (c *ReferenceCollector) builderVal() NodeTraversal_Builder {
 	return NodeTraversal_Builder{
 		compiler:     c.compiler,
-		callback:     &c.callback,
+		callback:     c,
 		scopeCreator: c.scopeCreator,
 		obeyDestructuringAndDefaultValueExecutionOrder: true,
 	}
@@ -374,18 +357,6 @@ func (c *ReferenceCollector) ProcessScope(scope *Scope) {
 		c.PopLastBlock(scope.GetRootNode())
 	}
 	c.narrowScope = nil
-}
-
-// CreateTraversalBuilder: same as process but only runs on a part of AST
-// associated to one script.
-//
-// Java: ReferenceCollector.createTraversalBuilder()
-func (c *ReferenceCollector) CreateTraversalBuilder() *NodeTraversal_Builder {
-	return NodeTraversal_Builder_().
-		SetCompiler(c.compiler).
-		SetCallback(&c.callback).
-		SetScopeCreator(c.scopeCreator).
-		SetObeyDestructuringAndDefaultValueExecutionOrder(true)
 }
 
 // GetAllSymbols gets the variables that were referenced in this callback.
@@ -559,16 +530,6 @@ func (c *ReferenceCollector) MaybeJumpToHoistedFunction(var_ *Var, t *NodeTraver
 	c.blockStack = oldBlockStack
 }
 
-// referenceCollector_getFirst is ArrayDeque.getFirst().
-//
-// Go-only: language-adapter — see ReferenceCollector.blockStack.
-func referenceCollector_getFirst(stack []*BasicBlock) *BasicBlock {
-	if len(stack) == 0 {
-		panic(jutil.NewNoSuchElementException())
-	}
-	return stack[0]
-}
-
 func (c *ReferenceCollector) getCurrentBlock() *BasicBlock {
 	idx := len(c.blockStack) - 1
 	if b := c.blockStack[idx].block; b != nil {
@@ -599,11 +560,6 @@ func makeVisitTokenSet(toks ...rhino.Token) ast.TokenSet {
 		s.Add(tok)
 	}
 	return s
-}
-
-// ReferenceCollector_CollectorCallback is the traversal callback.
-type ReferenceCollector_CollectorCallback struct {
-	c *ReferenceCollector
 }
 
 // refCollectorVisitTokens retains all tokens that can be NAME, IMPORT_STAR,
@@ -653,21 +609,24 @@ var refCollectorVisitTokens = func() ast.TokenSet {
 	return s
 }()
 
-var _ nodeTraversal_visitTokens = (*ReferenceCollector_CollectorCallback)(nil)
+var (
+	_ NodeTraversal_ScopedCallback = (*ReferenceCollector)(nil)
+	_ nodeTraversal_visitTokens    = (*ReferenceCollector)(nil)
+)
 
-func (*ReferenceCollector_CollectorCallback) visitTokens() *ast.TokenSet {
+func (*ReferenceCollector) visitTokens() *ast.TokenSet {
 	return &refCollectorVisitTokens
 }
 
 // ShouldTraverse updates block stack.
 //
 // Java: ReferenceCollector.CollectorCallback.shouldTraverse(NodeTraversal, Node, Node)
-func (cb *ReferenceCollector_CollectorCallback) ShouldTraverse(nodeTraversal *NodeTraversal, n rhino.Node, parent rhino.Node) bool {
+func (c *ReferenceCollector) ShouldTraverse(nodeTraversal *NodeTraversal, n rhino.Node, parent rhino.Node) bool {
 	if n.GetFirstChild().IsNil() {
 		switch n.GetToken() {
 		case rhino.Token_NAME, rhino.Token_IMPORT_STAR, rhino.Token_BLOCK, rhino.Token_SWITCH_BODY:
 			if referenceCollector_isBlockBoundary(n, parent) {
-				cb.c.PushNewBlock(n)
+				c.PushNewBlock(n)
 			}
 			return true
 		default:
@@ -681,7 +640,6 @@ func (cb *ReferenceCollector_CollectorCallback) ShouldTraverse(nodeTraversal *No
 	// TODO(nicksantos): Maybe generalize this to a continuation mechanism
 	// like in RemoveUnusedCode.
 	if n.IsFunction() && rcIsHoistedFunctionDeclaration(n) {
-		c := cb.c
 		if ps := c.parallelState; ps != nil && n != ps.inHoistedRoot && !parent.IsNil() {
 			if gv := ps.globalScope.lookupOwnVarByID(n.GetFirstChild().GetStringID()); gv != nil && gv.nameNode == n.GetFirstChild() {
 				ps.flushCompilerEvents()
@@ -731,7 +689,7 @@ func (cb *ReferenceCollector_CollectorCallback) ShouldTraverse(nodeTraversal *No
 
 	// If node is a new basic block, put on basic block stack
 	if referenceCollector_isBlockBoundary(n, parent) {
-		cb.c.PushNewBlock(n)
+		c.PushNewBlock(n)
 	}
 
 	return true
@@ -740,18 +698,18 @@ func (cb *ReferenceCollector_CollectorCallback) ShouldTraverse(nodeTraversal *No
 // EnterScope updates block stack and invokes any additional behavior.
 //
 // Java: ReferenceCollector.CollectorCallback.enterScope(NodeTraversal)
-func (cb *ReferenceCollector_CollectorCallback) EnterScope(t *NodeTraversal) {
+func (c *ReferenceCollector) EnterScope(t *NodeTraversal) {
 	inGlobal := t.InGlobalScope()
 	if !inGlobal {
-		cb.c.localScopeDepth++
+		c.localScopeDepth++
 	}
 	// Don't add all ES6 scope roots to blockStack, only those that are also scopes according to
 	// the ES5 scoping rules. Other nodes that ought to be considered the root of a BasicBlock
 	// are added in shouldTraverse() or processScope() and removed in visit().
 	if root := t.GetScopeRoot(); nodeTraversal_isHoistScopeRootNode(root) {
-		cb.c.PushNewBlock(root)
-		if inGlobal && cb.c.parallelState != nil {
-			cb.c.blockStack[len(cb.c.blockStack)-1].block = cb.c.parallelState.globalBlock
+		c.PushNewBlock(root)
+		if inGlobal && c.parallelState != nil {
+			c.blockStack[len(c.blockStack)-1].block = c.parallelState.globalBlock
 		}
 	}
 }
@@ -759,20 +717,22 @@ func (cb *ReferenceCollector_CollectorCallback) EnterScope(t *NodeTraversal) {
 // ExitScope updates block stack and invokes any additional behavior.
 //
 // Java: ReferenceCollector.CollectorCallback.exitScope(NodeTraversal)
-func (cb *ReferenceCollector_CollectorCallback) ExitScope(t *NodeTraversal) {
+func (c *ReferenceCollector) ExitScope(t *NodeTraversal) {
 	inGlobal := t.InGlobalScope()
 	if root := t.GetScopeRoot(); nodeTraversal_isHoistScopeRootNode(root) {
-		cb.c.PopLastBlock(root)
+		c.PopLastBlock(root)
 	}
-	if inGlobal && cb.c.parallelState != nil {
-		cb.c.parallelState.flushCompilerEvents()
+	if inGlobal && c.parallelState != nil {
+		c.parallelState.flushCompilerEvents()
 		return
 	}
-	cb.c.behavior.AfterExitScope(t, &cb.c.referenceMapWrapper)
+	if c.behavior != nil {
+		c.behavior.AfterExitScope(t, c)
+	}
 	if !inGlobal {
-		cb.c.localScopeDepth--
-		if cb.c.localScopeDepth == 0 && cb.c.reclaimLocals {
-			cb.c.maybeReclaimLocals()
+		c.localScopeDepth--
+		if c.localScopeDepth == 0 && c.reclaimLocals {
+			c.maybeReclaimLocals()
 		}
 	}
 }
@@ -781,7 +741,7 @@ func (cb *ReferenceCollector_CollectorCallback) ExitScope(t *NodeTraversal) {
 // appropriate.
 //
 // Java: ReferenceCollector.CollectorCallback.visit(NodeTraversal, Node, Node)
-func (cb *ReferenceCollector_CollectorCallback) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
+func (c *ReferenceCollector) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	if tok := n.GetToken(); tok == rhino.Token_NAME || tok == rhino.Token_IMPORT_STAR {
 		if !parent.IsNil() {
 			if pt := parent.GetToken(); (pt == rhino.Token_IMPORT_SPEC && n != parent.GetLastChild()) ||
@@ -802,9 +762,9 @@ func (cb *ReferenceCollector_CollectorCallback) Visit(t *NodeTraversal, n rhino.
 			v = t.LookupVarByID(id)
 		}
 		if v != nil {
-			cb.c.addReferenceWithScope(v, n, t, scope)
+			c.addReferenceWithScope(v, n, t, scope)
 			if v.nameNode != n {
-				if ps := cb.c.parallelState; ps != nil && v.IsGlobal() {
+				if ps := c.parallelState; ps != nil && v.IsGlobal() {
 					if !v.nameNode.IsNil() {
 						if fnNode := v.nameNode.GetParent(); !fnNode.IsNil() && fnNode.IsFunction() && rcIsHoistedFunctionDeclaration(fnNode) {
 							ps.flushCompilerEvents()
@@ -822,14 +782,14 @@ func (cb *ReferenceCollector_CollectorCallback) Visit(t *NodeTraversal, n rhino.
 						}
 					}
 				} else {
-					cb.c.MaybeJumpToHoistedFunction(v, t)
+					c.MaybeJumpToHoistedFunction(v, t)
 				}
 			}
 		}
 	}
 
 	if referenceCollector_isBlockBoundary(n, parent) {
-		cb.c.PopLastBlock(n)
+		c.PopLastBlock(n)
 	}
 }
 
@@ -946,45 +906,9 @@ func (c *ReferenceCollector) addReferenceWithScope(v *Var, n rhino.Node, t *Node
 	c.addToCollection(collection, r, k)
 }
 
-// ReferenceCollector_ReferenceMapWrapper is the ReferenceMap handed to
-// Behavior.afterExitScope.
-type ReferenceCollector_ReferenceMapWrapper struct {
-	c            *ReferenceCollector
-	referenceMap *jutil.ObjectLinkedHashMap[*Var, *ReferenceCollection]
-}
-
-// Java: ReferenceCollector.ReferenceMapWrapper(Map<Var, ReferenceCollection>)
-func NewReferenceCollector_ReferenceMapWrapper(
-	referenceMap *jutil.ObjectLinkedHashMap[*Var, *ReferenceCollection]) *ReferenceCollector_ReferenceMapWrapper {
-	return &ReferenceCollector_ReferenceMapWrapper{referenceMap: referenceMap}
-}
-
-// Java: ReferenceCollector.ReferenceMapWrapper.getReferences(Var)
-func (w *ReferenceCollector_ReferenceMapWrapper) GetReferences(var_ *Var) *ReferenceCollection {
-	if w.c != nil {
-		return w.c.GetReferences(var_)
-	}
-	return w.referenceMap.Get(var_)
-}
-
-// Java: ReferenceCollector.ReferenceMapWrapper.getRawReferenceMap()
-func (w *ReferenceCollector_ReferenceMapWrapper) GetRawReferenceMap() *jutil.ObjectLinkedHashMap[*Var, *ReferenceCollection] {
-	if w.c == nil {
-		return w.referenceMap
-	}
-	// Go-only: language-adapter — a copy, as the collector does not keep an
-	// ObjectLinkedHashMap.
-	m := jutil.NewObjectLinkedHashMap[*Var, *ReferenceCollection]()
-	for v := range w.c.GetAllSymbols() {
-		m.Put(v, w.c.refs[scopedVarKeyOf(v)])
-	}
-	return m
-}
-
-// Java: ReferenceCollector.ReferenceMapWrapper.toString()
-func (w *ReferenceCollector_ReferenceMapWrapper) String() string {
-	return w.GetRawReferenceMap().String()
-}
+// ReferenceMap aliases *ReferenceCollector directly so Behavior callbacks
+// invoke GetReferences without an interface or wrapper allocation.
+type ReferenceMap = *ReferenceCollector
 
 // ReferenceCollector_Behavior is the way for callers to add specific
 // behavior during traversal that utilizes the built-up reference
@@ -993,7 +917,7 @@ type ReferenceCollector_Behavior interface {
 	// AfterExitScope is called after we finish with a scope.
 	//
 	// Java: ReferenceCollector.Behavior.afterExitScope(NodeTraversal, ReferenceMap)
-	AfterExitScope(t *NodeTraversal, referenceMap ReferenceMap)
+	AfterExitScope(t *NodeTraversal, refs *ReferenceCollector)
 }
 
 // ReferenceCollector_BehaviorFunc is a Behavior given as a function (a Java
@@ -1001,21 +925,11 @@ type ReferenceCollector_Behavior interface {
 //
 // Go-only: language-adapter — the adapter for lambdas implementing the
 // single-method interface Behavior (PORTING.md §4).
-type ReferenceCollector_BehaviorFunc func(t *NodeTraversal, referenceMap ReferenceMap)
+type ReferenceCollector_BehaviorFunc func(t *NodeTraversal, refs *ReferenceCollector)
 
 // Java: ReferenceCollector.Behavior.afterExitScope(NodeTraversal, ReferenceMap)
-func (f ReferenceCollector_BehaviorFunc) AfterExitScope(t *NodeTraversal, referenceMap ReferenceMap) {
-	f(t, referenceMap)
+func (f ReferenceCollector_BehaviorFunc) AfterExitScope(t *NodeTraversal, refs *ReferenceCollector) {
+	f(t, refs)
 }
 
-var ReferenceCollector_DO_NOTHING_BEHAVIOR ReferenceCollector_Behavior = &referenceCollector_doNothingBehavior{}
-
-// referenceCollector_doNothingBehavior is the anonymous class of
-// DO_NOTHING_BEHAVIOR.
-type referenceCollector_doNothingBehavior struct {
-	_ byte // Go-only: language-adapter — distinct identity
-}
-
-// Java: ReferenceCollector.DO_NOTHING_BEHAVIOR.afterExitScope(NodeTraversal, ReferenceMap)
-func (*referenceCollector_doNothingBehavior) AfterExitScope(t *NodeTraversal, referenceMap ReferenceMap) {
-}
+var ReferenceCollector_DO_NOTHING_BEHAVIOR ReferenceCollector_Behavior = nil

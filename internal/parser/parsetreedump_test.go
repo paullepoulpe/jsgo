@@ -40,7 +40,7 @@ import (
 // ES_NEXT maps to Mode.ES8_OR_GREATER, and ECMASCRIPT_NEXT is default-strict
 // (CompilerOptions.expectStrictModeInput()). The "# config" line of every
 // dump checks that it agrees with what Java derives.
-func defaultParserConfig() *Parser_Config {
+func defaultParserConfig() Parser_Config {
 	return NewParser_ConfigWithMode(Parser_Config_Mode_ES8_OR_GREATER /* isStrictMode= */, true)
 }
 
@@ -70,7 +70,7 @@ func (r *recordingErrorReporter) HadError() bool {
 // of a Java dump shows (the Java side derives it from a --lang through
 // ParserRunner; the Go dump prints the fields of the config built here, so a
 // wrong reconstruction shows up as a diff on that line).
-func configFromDump(dump string) *Parser_Config {
+func configFromDump(dump string) Parser_Config {
 	first, _, _ := strings.Cut(dump, "\n")
 	if !strings.HasPrefix(first, "# config ") {
 		return defaultParserConfig()
@@ -93,12 +93,12 @@ func configFromDump(dump string) *Parser_Config {
 }
 
 // dumpParseTree parses src (named name) with config and returns the dump.
-func dumpParseTree(name, src string, config *Parser_Config) string {
+func dumpParseTree(name, src string, config Parser_Config) string {
 	var sb strings.Builder
 	file := NewSourceFile(name, src)
 	reporter := newRecordingErrorReporter()
 	sb.WriteString("# config")
-	cv := reflect.ValueOf(config).Elem()
+	cv := reflect.ValueOf(&config).Elem()
 	for _, f := range sortedStructFields(cv.Type()) {
 		sb.WriteString(" " + f.name + "=" + fmt.Sprint(cv.FieldByIndex(f.index).Bool()))
 	}

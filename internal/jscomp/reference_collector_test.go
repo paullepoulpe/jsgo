@@ -85,7 +85,7 @@ func (c *ReferenceCollectorTest) TestIterableRest_declaration() {
 	t := c.T()
 	c.testBehavior(
 		"let [x, ...arr] = [1, 2, 3]; [x, ...arr] = [4, 5, 6];",
-		ReferenceCollector_BehaviorFunc(func(nt *NodeTraversal, rm ReferenceMap) {
+		ReferenceCollector_BehaviorFunc(func(nt *NodeTraversal, rm *ReferenceCollector) {
 			arrReferenceCollection := rm.GetReferences(nt.GetScope().GetVar("arr"))
 			assertSliceEqual(t, "isDeclaration", referenceCollectorTest_isDeclarations(arrReferenceCollection),
 				[]bool{true, false})
@@ -96,7 +96,7 @@ func (c *ReferenceCollectorTest) TestObjectRest_declaration() {
 	t := c.T()
 	c.testBehavior(
 		"let {x, ...obj} = {x: 1, y: 2, z: 3}; ({x, ...obj} = {x: 4, q: 5, u: 6});",
-		ReferenceCollector_BehaviorFunc(func(nt *NodeTraversal, rm ReferenceMap) {
+		ReferenceCollector_BehaviorFunc(func(nt *NodeTraversal, rm *ReferenceCollector) {
 			objReferenceCollection := rm.GetReferences(nt.GetScope().GetVar("obj"))
 			assertSliceEqual(t, "isDeclaration", referenceCollectorTest_isDeclarations(objReferenceCollection),
 				[]bool{true, false})
@@ -108,7 +108,7 @@ func (c *ReferenceCollectorTest) TestClass() {
 	c.testBehavior(
 		`class Foo {}
 `,
-		ReferenceCollector_BehaviorFunc(func(nt *NodeTraversal, rm ReferenceMap) {
+		ReferenceCollector_BehaviorFunc(func(nt *NodeTraversal, rm *ReferenceCollector) {
 			if nt.GetScope().IsGlobal() {
 				x := rm.GetReferences(nt.GetScope().GetVar("Foo"))
 
@@ -125,7 +125,7 @@ func (c *ReferenceCollectorTest) TestClass_withInstantiation() {
 		`class Foo {}
 new Foo();
 `,
-		ReferenceCollector_BehaviorFunc(func(nt *NodeTraversal, rm ReferenceMap) {
+		ReferenceCollector_BehaviorFunc(func(nt *NodeTraversal, rm *ReferenceCollector) {
 			if nt.GetScope().IsGlobal() {
 				x := rm.GetReferences(nt.GetScope().GetVar("Foo"))
 
@@ -143,7 +143,7 @@ func (c *ReferenceCollectorTest) TestClassExpression_assignedToConst_andInstanti
 		`const Foo = class {};
 new Foo();
 `,
-		ReferenceCollector_BehaviorFunc(func(nt *NodeTraversal, rm ReferenceMap) {
+		ReferenceCollector_BehaviorFunc(func(nt *NodeTraversal, rm *ReferenceCollector) {
 			if nt.GetScope().IsGlobal() {
 				x := rm.GetReferences(nt.GetScope().GetVar("Foo"))
 
@@ -159,7 +159,7 @@ func (c *ReferenceCollectorTest) TestNamedClassExpression_assignedToConst_andIns
 		`const Foo = class Bar {};
 new Foo();
 `,
-		ReferenceCollector_BehaviorFunc(func(nt *NodeTraversal, rm ReferenceMap) {
+		ReferenceCollector_BehaviorFunc(func(nt *NodeTraversal, rm *ReferenceCollector) {
 			if nt.GetScope().IsGlobal() {
 				x := rm.GetReferences(nt.GetScope().GetVar("Foo"))
 
@@ -172,7 +172,7 @@ new Foo();
 // referenceCollectorTest_importBehavior is the behavior shared by the
 // testImport* tests.
 func referenceCollectorTest_importBehavior(t *testing.T) ReferenceCollector_Behavior {
-	return ReferenceCollector_BehaviorFunc(func(nt *NodeTraversal, rm ReferenceMap) {
+	return ReferenceCollector_BehaviorFunc(func(nt *NodeTraversal, rm *ReferenceCollector) {
 		if nt.GetScope().IsModuleScope() {
 			x := rm.GetReferences(nt.GetScope().GetVar("x"))
 
@@ -202,7 +202,7 @@ func (c *ReferenceCollectorTest) TestImport3() {
 	t := c.T()
 	c.testBehavior(
 		"import {y as x} from '/m';",
-		ReferenceCollector_BehaviorFunc(func(nt *NodeTraversal, rm ReferenceMap) {
+		ReferenceCollector_BehaviorFunc(func(nt *NodeTraversal, rm *ReferenceCollector) {
 			if nt.GetScope().IsModuleScope() {
 				if y := nt.GetScope().GetVar("y"); y != nil {
 					t.Errorf("getVar(y) = %v, want null", y)
@@ -220,7 +220,7 @@ func (c *ReferenceCollectorTest) TestImport4() {
 	t := c.T()
 	c.testBehavior(
 		"import * as x from '/m';",
-		ReferenceCollector_BehaviorFunc(func(nt *NodeTraversal, rm ReferenceMap) {
+		ReferenceCollector_BehaviorFunc(func(nt *NodeTraversal, rm *ReferenceCollector) {
 			if nt.GetScope().IsModuleScope() {
 				var_ := nt.GetScope().GetVar("x")
 				jutil.CheckNotNull(var_)
@@ -245,7 +245,7 @@ func (c *ReferenceCollectorTest) TestVarInBlock() {
   }
 }
 `,
-		ReferenceCollector_BehaviorFunc(func(nt *NodeTraversal, rm ReferenceMap) {
+		ReferenceCollector_BehaviorFunc(func(nt *NodeTraversal, rm *ReferenceCollector) {
 			if nt.GetScope().IsBlockScope() && nt.GetScope().GetParent().IsFunctionBlockScope() {
 				y := rm.GetReferences(nt.GetScope().GetVar("y"))
 				assertEqual(t, "isAssignedOnceInLifetime", y.IsAssignedOnceInLifetime(), true)
@@ -256,7 +256,7 @@ func (c *ReferenceCollectorTest) TestVarInBlock() {
 
 func (c *ReferenceCollectorTest) TestVarInLoopNotAssignedOnlyOnceInLifetime() {
 	t := c.T()
-	behavior := ReferenceCollector_BehaviorFunc(func(nt *NodeTraversal, rm ReferenceMap) {
+	behavior := ReferenceCollector_BehaviorFunc(func(nt *NodeTraversal, rm *ReferenceCollector) {
 		if nt.GetScope().IsBlockScope() {
 			x := rm.GetReferences(nt.GetScope().GetVar("x"))
 			assertEqual(t, "isAssignedOnceInLifetime", x.IsAssignedOnceInLifetime(), false)
@@ -267,7 +267,7 @@ func (c *ReferenceCollectorTest) TestVarInLoopNotAssignedOnlyOnceInLifetime() {
 
 func (c *ReferenceCollectorTest) TestLetInLoopAssignedOnceInLifetime() {
 	t := c.T()
-	behavior := ReferenceCollector_BehaviorFunc(func(nt *NodeTraversal, rm ReferenceMap) {
+	behavior := ReferenceCollector_BehaviorFunc(func(nt *NodeTraversal, rm *ReferenceCollector) {
 		if nt.GetScope().IsBlockScope() {
 			xVar := nt.GetScope().GetVar("x")
 			if xVar == nil {
@@ -287,7 +287,7 @@ func (c *ReferenceCollectorTest) TestLetInLoopAssignedOnceInLifetime() {
 // false.
 func (c *ReferenceCollectorTest) TestVarInFunctionNotAssignedOnlyOnceInLifetime() {
 	t := c.T()
-	behavior := ReferenceCollector_BehaviorFunc(func(nt *NodeTraversal, rm ReferenceMap) {
+	behavior := ReferenceCollector_BehaviorFunc(func(nt *NodeTraversal, rm *ReferenceCollector) {
 		if nt.GetScope().IsGlobal() {
 			x := rm.GetReferences(nt.GetScope().GetVar("x"))
 			assertEqual(t, "isAssignedOnceInLifetime", x.IsAssignedOnceInLifetime(), false)
@@ -301,7 +301,7 @@ func (c *ReferenceCollectorTest) TestParameterAssignedOnlyOnceInLifetime() {
 	t := c.T()
 	c.testBehavior(
 		"function f(x) { x; }",
-		ReferenceCollector_BehaviorFunc(func(nt *NodeTraversal, rm ReferenceMap) {
+		ReferenceCollector_BehaviorFunc(func(nt *NodeTraversal, rm *ReferenceCollector) {
 			if nt.GetScope().IsFunctionScope() {
 				x := rm.GetReferences(nt.GetScope().GetVar("x"))
 				assertEqual(t, "isAssignedOnceInLifetime", x.IsAssignedOnceInLifetime(), true)
@@ -313,7 +313,7 @@ func (c *ReferenceCollectorTest) TestModifiedParameterNotAssignedOnlyOnceInLifet
 	t := c.T()
 	c.testBehavior(
 		"function f(x) { x = 3; }",
-		ReferenceCollector_BehaviorFunc(func(nt *NodeTraversal, rm ReferenceMap) {
+		ReferenceCollector_BehaviorFunc(func(nt *NodeTraversal, rm *ReferenceCollector) {
 			if nt.GetScope().IsFunctionScope() {
 				x := rm.GetReferences(nt.GetScope().GetVar("x"))
 				assertEqual(t, "isAssignedOnceInLifetime", x.IsAssignedOnceInLifetime(), false)
@@ -323,7 +323,7 @@ func (c *ReferenceCollectorTest) TestModifiedParameterNotAssignedOnlyOnceInLifet
 
 func (c *ReferenceCollectorTest) TestVarAssignedOnceInLifetime1() {
 	t := c.T()
-	behavior := ReferenceCollector_BehaviorFunc(func(nt *NodeTraversal, rm ReferenceMap) {
+	behavior := ReferenceCollector_BehaviorFunc(func(nt *NodeTraversal, rm *ReferenceCollector) {
 		if nt.GetScope().IsFunctionBlockScope() {
 			x := rm.GetReferences(nt.GetScope().GetVar("x"))
 			assertEqual(t, "isAssignedOnceInLifetime", x.IsAssignedOnceInLifetime(), true)
@@ -337,7 +337,7 @@ func (c *ReferenceCollectorTest) TestVarAssignedOnceInLifetime2() {
 	t := c.T()
 	c.testBehavior(
 		"function f() { { let x = 0; } }",
-		ReferenceCollector_BehaviorFunc(func(nt *NodeTraversal, rm ReferenceMap) {
+		ReferenceCollector_BehaviorFunc(func(nt *NodeTraversal, rm *ReferenceCollector) {
 			if nt.GetScope().IsBlockScope() && !nt.GetScope().IsFunctionBlockScope() {
 				x := rm.GetReferences(nt.GetScope().GetVar("x"))
 				assertEqual(t, "isAssignedOnceInLifetime", x.IsAssignedOnceInLifetime(), true)
@@ -348,7 +348,7 @@ func (c *ReferenceCollectorTest) TestVarAssignedOnceInLifetime2() {
 // referenceCollectorTest_catchBehavior is the behavior of
 // testVarAssignedOnceInLifetime3 and testLetAssignedOnceInLifetime1/2.
 func referenceCollectorTest_catchBehavior(t *testing.T) ReferenceCollector_Behavior {
-	return ReferenceCollector_BehaviorFunc(func(nt *NodeTraversal, rm ReferenceMap) {
+	return ReferenceCollector_BehaviorFunc(func(nt *NodeTraversal, rm *ReferenceCollector) {
 		if nt.GetScope().IsCatchScope() {
 			e := rm.GetReferences(nt.GetScope().GetVar("e"))
 			assertEqual(t, "e.isAssignedOnceInLifetime", e.IsAssignedOnceInLifetime(), true)
@@ -429,7 +429,7 @@ switch (x) {
     x;
 }
 `,
-		ReferenceCollector_BehaviorFunc(func(nt *NodeTraversal, rm ReferenceMap) {
+		ReferenceCollector_BehaviorFunc(func(nt *NodeTraversal, rm *ReferenceCollector) {
 			if nt.GetScope().IsGlobal() {
 				x := rm.GetReferences(nt.GetScope().GetVar("x"))
 				referenceCollectorTest_assertBlockRoots(t, x, rhino.Token_ROOT, rhino.Token_ROOT, rhino.Token_CASE)
@@ -445,7 +445,7 @@ x || 3;
 3 || x;
 const [y = (x = 1)] = [];
 `,
-		ReferenceCollector_BehaviorFunc(func(nt *NodeTraversal, rm ReferenceMap) {
+		ReferenceCollector_BehaviorFunc(func(nt *NodeTraversal, rm *ReferenceCollector) {
 			if nt.GetScope().IsGlobal() {
 				x := rm.GetReferences(nt.GetScope().GetVar("x"))
 				// first child of || is not a boundary, but the second child is.
@@ -460,7 +460,7 @@ func (c *ReferenceCollectorTest) TestNullishCoalesce() {
 	t := c.T()
 	c.testBehavior(
 		"var x = 0; var y = x ?? (x = 1)",
-		ReferenceCollector_BehaviorFunc(func(nt *NodeTraversal, rm ReferenceMap) {
+		ReferenceCollector_BehaviorFunc(func(nt *NodeTraversal, rm *ReferenceCollector) {
 			if nt.GetScope().IsGlobal() {
 				x := rm.GetReferences(nt.GetScope().GetVar("x"))
 				// first child of ?? is not a boundary, but the second child is.
@@ -473,7 +473,7 @@ func (c *ReferenceCollectorTest) TestOptChain() {
 	t := c.T()
 	c.testBehavior(
 		"var x = 0; var y = x?.(x = 1)",
-		ReferenceCollector_BehaviorFunc(func(nt *NodeTraversal, rm ReferenceMap) {
+		ReferenceCollector_BehaviorFunc(func(nt *NodeTraversal, rm *ReferenceCollector) {
 			if nt.GetScope().IsGlobal() {
 				x := rm.GetReferences(nt.GetScope().GetVar("x"))
 				// first child of `?.` is not a boundary, but the second child is.
@@ -495,7 +495,7 @@ C.prototype.m = function m() {
   }
 };
 `,
-		ReferenceCollector_BehaviorFunc(func(nt *NodeTraversal, rm ReferenceMap) {
+		ReferenceCollector_BehaviorFunc(func(nt *NodeTraversal, rm *ReferenceCollector) {
 			if nt.GetScope().IsFunctionBlockScope() &&
 				nt.GetScopeRoot().GetParent().GetFirstChild().MatchesName("m") {
 				self := rm.GetReferences(nt.GetScope().GetVar("self"))
@@ -512,7 +512,7 @@ func (c *ReferenceCollectorTest) TestProcessScopeThatsNotABasicBlock() {
 	syntacticScopeCreator := NewSyntacticScopeCreator(compiler)
 	referenceCollectingCallback := NewReferenceCollector(
 		compiler,
-		ReferenceCollector_BehaviorFunc(func(nt *NodeTraversal, rm ReferenceMap) {
+		ReferenceCollector_BehaviorFunc(func(nt *NodeTraversal, rm *ReferenceCollector) {
 			y := rm.GetReferences(nt.GetScope().GetVar("y"))
 			assertEqual(t, "isWellDefined", y.IsWellDefined(), true)
 			firstBasicBlock := y.references[0].GetBasicBlock()

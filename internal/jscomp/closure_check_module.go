@@ -193,38 +193,12 @@ func (c *ClosureCheckModule) Process(externs rhino.Node, root rhino.Node) {
 }
 
 func (c *ClosureCheckModule) processParallel(root rhino.Node) bool {
-	scripts, ok := collectRootScripts(root)
-	if !ok {
-		return false
-	}
-	numWorkers := parallelThreadCount(c.compiler, len(scripts))
-	if numWorkers <= 1 {
-		return false
-	}
-	prewarmCompilerForParallelReads(c.compiler)
-	lazyGlobal := newLazyGlobalScope(c.compiler, root)
-
-	runParallelWork(c.compiler, numWorkers, len(scripts), func(_ int) (func(int, *recordingCompiler), func()) {
-		var workerRC *recordingCompiler
-		var workerPass *ClosureCheckModule
-		var sc *SyntacticScopeCreator
-
-		runItem := func(idx int, rc *recordingCompiler) {
-			if workerPass == nil || workerRC != rc {
-				workerRC = rc
-				workerPass = NewClosureCheckModule(rc, c.moduleMetadataMap)
-				sc = NewSyntacticScopeCreator(rc)
-			}
-			b := NodeTraversal_Builder{
-				compiler:     rc,
-				callback:     workerPass,
-				scopeCreator: sc,
-			}
-			b.traverseScriptUnderRoot(root, root, scripts[idx], lazyGlobal)
-		}
-		return runItem, nil
-	}, false)
-	return true
+	return traverseScriptsParallel(c.compiler, root, parallelScriptOptions[*ClosureCheckModule]{
+		useSharedGlobalScope: true,
+		initWorker: func(_ int, rc *Compiler) *ClosureCheckModule {
+			return NewClosureCheckModule(rc, c.moduleMetadataMap)
+		},
+	})
 }
 
 // Java: NodeTraversal.AbstractModuleCallback.shouldTraverse(NodeTraversal, Node, Node)

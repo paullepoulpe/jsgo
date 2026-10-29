@@ -64,13 +64,14 @@ func (c *AggressiveInlineAliasesTest) GetProcessor(compiler *Compiler) CompilerP
 		CompilerTestCase_MakePassFactory(
 			"inlineAndCollapseProperties",
 			func(comp AbstractCompiler) CompilerPass {
-				return InlineAndCollapseProperties_Builder_(compiler).
-					SetPropertyCollapseLevel(CompilerOptions_PropertyCollapseLevel_ALL).
-					SetChunkOutputType(CompilerOptions_ChunkOutputType_GLOBAL_NAMESPACE).
-					SetHaveModulesBeenRewritten(false).
-					SetModuleResolutionMode(ModuleLoader_ResolutionMode_BROWSER).
-					TestAggressiveInliningOnly(c.ValidateGlobalNamespace).
-					Build()
+				return NewInlineAndCollapseProperties(compiler, InlineAndCollapsePropertiesOptions{
+					PropertyCollapseLevel:         CompilerOptions_PropertyCollapseLevel_ALL,
+					ChunkOutputType:               CompilerOptions_ChunkOutputType_GLOBAL_NAMESPACE,
+					HaveModulesBeenRewritten:      false,
+					ModuleResolutionMode:          ModuleLoader_ResolutionMode_BROWSER,
+					TestAggressiveInliningOnly:    true,
+					OptionalGlobalNamespaceTester: c.ValidateGlobalNamespace,
+				})
 			}))
 	return optimizer
 }

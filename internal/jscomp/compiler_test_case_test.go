@@ -1348,7 +1348,7 @@ func (b *CompilerTestCaseBase) testInternalWithCompiler(
 			if b.rewriteClosureCode && i == 0 {
 				NewCheckClosureImports(compiler, compiler.GetModuleMetadataMap()).
 					Process(externsRoot, mainRoot)
-				ScopedAliases_Builder_(compiler).Build().Process(externsRoot, mainRoot)
+				NewScopedAliases(compiler, ScopedAliasesOptions{}).Process(externsRoot, mainRoot)
 				hasCodeChanged = hasCodeChanged || recentChange.HasCodeChanged()
 			}
 
@@ -1861,7 +1861,7 @@ func (b *CompilerTestCaseBase) parseExpectedJsList(inputs []*SourceFile) rhino.N
 
 	if b.rewriteClosureCode {
 		NewClosureRewriteModule(compiler, nil, nil).Process(externsRoot, mainRoot)
-		ScopedAliases_Builder_(compiler).Build().Process(externsRoot, mainRoot)
+		NewScopedAliases(compiler, ScopedAliasesOptions{}).Process(externsRoot, mainRoot)
 	}
 
 	if b.rewriteClosureProvides && b.closurePassEnabledForExpected && !compiler.HasErrors() {

@@ -49,7 +49,7 @@ func (r *AbstractCommandLineRunnerBase) ShouldGenerateMapPerChunk(options *jscom
 // exports are being generated.
 //
 // Java: AbstractCommandLineRunner.openExternExportsStream(B, String)
-func (r *AbstractCommandLineRunnerBase) OpenExternExportsStream(options *jscomp.CompilerOptions, path string) AbstractCommandLineRunner_Writer {
+func (r *AbstractCommandLineRunnerBase) OpenExternExportsStream(options *jscomp.CompilerOptions, path string) *cliBufferedWriter {
 	externExportsPath := options.GetExternExportsPath()
 	if externExportsPath == nil {
 		return nil
@@ -109,9 +109,9 @@ func (r *AbstractCommandLineRunnerBase) ExpandSourceMapPath(options *jscomp.Comp
 // account the output charset.
 //
 // Java: AbstractCommandLineRunner.fileNameToLegacyOutputWriter(String)
-func (r *AbstractCommandLineRunnerBase) FileNameToLegacyOutputWriter(fileName string) AbstractCommandLineRunner_Writer {
+func (r *AbstractCommandLineRunnerBase) FileNameToLegacyOutputWriter(fileName string) *cliBufferedWriter {
 	if r.self.IsInTestMode() {
-		return jutil.NewStringWriter()
+		return newCliBufferedWriter(io.Discard, nil, nil, jutil.StandardCharsets_UTF_8)
 	}
 
 	return r.StreamToLegacyOutputWriter(r.self.FilenameToOutputStream(fileName))
@@ -121,9 +121,9 @@ func (r *AbstractCommandLineRunnerBase) FileNameToLegacyOutputWriter(fileName st
 // account the output charset.
 //
 // Java: AbstractCommandLineRunner.fileNameToOutputWriter2(String)
-func (r *AbstractCommandLineRunnerBase) FileNameToOutputWriter2(fileName string) AbstractCommandLineRunner_Writer {
+func (r *AbstractCommandLineRunnerBase) FileNameToOutputWriter2(fileName string) *cliBufferedWriter {
 	if r.self.IsInTestMode() {
-		return jutil.NewStringWriter()
+		return newCliBufferedWriter(io.Discard, nil, nil, jutil.StandardCharsets_UTF_8)
 	}
 
 	return r.StreamToOutputWriter2(r.self.FilenameToOutputStream(fileName))
@@ -144,28 +144,28 @@ func (r *AbstractCommandLineRunnerBase) FilenameToOutputStream(fileName string) 
 // charset.
 //
 // Java: AbstractCommandLineRunner.streamToLegacyOutputWriter(OutputStream)
-func (r *AbstractCommandLineRunnerBase) StreamToLegacyOutputWriter(stream io.WriteCloser) AbstractCommandLineRunner_Writer {
+func (r *AbstractCommandLineRunnerBase) StreamToLegacyOutputWriter(stream io.WriteCloser) *cliBufferedWriter {
 	if r.legacyOutputCharset == nil {
-		return r.self.CreateWriter(stream, jutil.StandardCharsets_UTF_8)
+		return r.CreateWriter(stream, jutil.StandardCharsets_UTF_8)
 	}
-	return r.self.CreateWriter(stream, r.legacyOutputCharset)
+	return r.CreateWriter(stream, r.legacyOutputCharset)
 }
 
 // StreamToOutputWriter2 creates a writer with the newer output charset.
 //
 // Java: AbstractCommandLineRunner.streamToOutputWriter2(OutputStream)
-func (r *AbstractCommandLineRunnerBase) StreamToOutputWriter2(stream io.WriteCloser) AbstractCommandLineRunner_Writer {
+func (r *AbstractCommandLineRunnerBase) StreamToOutputWriter2(stream io.WriteCloser) *cliBufferedWriter {
 	if r.outputCharset2 == nil {
-		return r.self.CreateWriter(stream, jutil.StandardCharsets_UTF_8)
+		return r.CreateWriter(stream, jutil.StandardCharsets_UTF_8)
 	}
-	return r.self.CreateWriter(stream, r.outputCharset2)
+	return r.CreateWriter(stream, r.outputCharset2)
 }
 
 // CreateWriter creates a buffered Writer that writes to the given stream
 // using the given encoding.
 //
 // Java: AbstractCommandLineRunner.createWriter(OutputStream, Charset)
-func (r *AbstractCommandLineRunnerBase) CreateWriter(stream io.WriteCloser, charset *jutil.Charset) AbstractCommandLineRunner_Writer {
+func (r *AbstractCommandLineRunnerBase) CreateWriter(stream io.WriteCloser, charset *jutil.Charset) *cliBufferedWriter {
 	return newCliBufferedWriter(stream, stream, nil, charset)
 }
 
@@ -497,22 +497,11 @@ func (r *AbstractCommandLineRunnerBase) PrintBundleTo(chunk *jscomp.JSChunk, out
 	}
 }
 
-// AbstractCommandLineRunner_Writer is a java.io.Writer as this class uses
-// it: Writer.write/flush/close, the Appendable methods it is passed through,
-// and io.StringWriter for SourceMap.appendTo.
-//
-// Go-only: language-adapter — java.io.Writer implements Appendable.
-type AbstractCommandLineRunner_Writer interface {
-	jutil.Writer
-	jutil.Appendable
-	io.StringWriter
-}
-
 // abstractCommandLineRunner_closeWriter is the close() of a
 // try-with-resources statement, which skips a null resource.
 //
 // Go-only: language-adapter — try-with-resources.
-func abstractCommandLineRunner_closeWriter(w AbstractCommandLineRunner_Writer) {
+func abstractCommandLineRunner_closeWriter(w *cliBufferedWriter) {
 	if w != nil {
 		w.Close()
 	}

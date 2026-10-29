@@ -20,6 +20,7 @@
 package jscomp
 
 import (
+	"bytes"
 	"testing"
 
 	"github.com/paullepoulpe/jsgo/internal/jutil"
@@ -151,8 +152,8 @@ func (c *TypedAstSerializerTest) TestConsoleDotLogWithTypeChecking() {
 	c.EnableTypeCheck()
 
 	c.newTester().
-		expectType(ObjectTypeProto_NewBuilder()).                      // Console
-		expectTypeWithProperties(ObjectTypeProto_NewBuilder(), "log"). // Console.prototype
+		expectType(&ObjectTypeProto{}).                      // Console
+		expectTypeWithProperties(&ObjectTypeProto{}, "log"). // Console.prototype
 		test("console.log(1);")
 }
 
@@ -171,8 +172,8 @@ func (c *TypedAstSerializerTest) TestConsoleDotLogWithColorizedAst() {
 	c.ReplaceTypesWithColors()
 
 	c.newTester().
-		expectType(ObjectTypeProto_NewBuilder()).                      // Console
-		expectTypeWithProperties(ObjectTypeProto_NewBuilder(), "log"). // Console.prototype
+		expectType(&ObjectTypeProto{}).                      // Console
+		expectTypeWithProperties(&ObjectTypeProto{}, "log"). // Console.prototype
 		test("console.log(1);")
 }
 
@@ -220,25 +221,25 @@ func (c *TypedAstSerializerTest) TestIgnoresIjsFilesInCodeAst() {
 	AssertThat(codeNames).DoesNotContain("dep.i.js")
 }
 
+type typedAstSerializerTest_expectedType struct {
+	proto         *ObjectTypeProto
+	propertyNames []string
+}
+
 // Java: private class TypedAstSerializerTest.Tester
 type typedAstSerializerTest_Tester struct {
-	outer *TypedAstSerializerTest
-	// Go-only: language-adapter — the HashMap keyed by (identity-hashed)
-	// builders is only iterated into a list compared without order.
-	expectedTypeToPropertyNamesMap *jutil.LinkedHashMap[*ObjectTypeProto_Builder, []string]
+	outer         *TypedAstSerializerTest
+	expectedTypes []typedAstSerializerTest_expectedType
 }
 
 // Java: TypedAstSerializerTest.Tester()
 func (c *TypedAstSerializerTest) newTester() *typedAstSerializerTest_Tester {
-	return &typedAstSerializerTest_Tester{
-		outer:                          c,
-		expectedTypeToPropertyNamesMap: jutil.NewLinkedHashMap[*ObjectTypeProto_Builder, []string](),
-	}
+	return &typedAstSerializerTest_Tester{outer: c}
 }
 
 // Java: TypedAstSerializerTest.Tester.expectType(ObjectTypeProto.Builder)
-func (t *typedAstSerializerTest_Tester) expectType(type_ *ObjectTypeProto_Builder) *typedAstSerializerTest_Tester {
-	t.expectedTypeToPropertyNamesMap.Put(type_, []string{})
+func (t *typedAstSerializerTest_Tester) expectType(type_ *ObjectTypeProto) *typedAstSerializerTest_Tester {
+	t.expectedTypes = append(t.expectedTypes, typedAstSerializerTest_expectedType{proto: type_})
 	return t
 }
 
@@ -246,8 +247,11 @@ func (t *typedAstSerializerTest_Tester) expectType(type_ *ObjectTypeProto_Builde
 // to avoid needing to go through the StringPool
 //
 // Java: TypedAstSerializerTest.Tester.expectTypeWithProperties(ObjectTypeProto.Builder, String...)
-func (t *typedAstSerializerTest_Tester) expectTypeWithProperties(type_ *ObjectTypeProto_Builder, propertyNames ...string) *typedAstSerializerTest_Tester {
-	t.expectedTypeToPropertyNamesMap.Put(type_, propertyNames)
+func (t *typedAstSerializerTest_Tester) expectTypeWithProperties(type_ *ObjectTypeProto, propertyNames ...string) *typedAstSerializerTest_Tester {
+	t.expectedTypes = append(t.expectedTypes, typedAstSerializerTest_expectedType{
+		proto:         type_,
+		propertyNames: propertyNames,
+	})
 	return t
 }
 
@@ -262,24 +266,73 @@ func (t *typedAstSerializerTest_Tester) test(code string) {
 		stringPoolOffsets.Put(stringPool.Get(i), i)
 	}
 	var expectedTypes []*TypeProto
-	for ex, propertyNames := range t.expectedTypeToPropertyNamesMap.All() {
-		for _, propertyName := range propertyNames {
+	for _, entry := range t.expectedTypes {
+		cp := *entry.proto
+		for _, propertyName := range entry.propertyNames {
 			jutil.CheckStateMsg1(
 				stringPoolOffsets.ContainsKey(propertyName),
 				"Missing property '%s' in string pool",
 				propertyName)
-			ex.AddOwnProperty(int32(stringPoolOffsets.Get(propertyName)))
+			cp.ownProperty_ = append(cp.ownProperty_, int32(stringPoolOffsets.Get(propertyName)))
 		}
-		expectedTypes = append(expectedTypes, TypeProto_NewBuilder().SetObjectFromBuilder(ex).Build())
+		expectedTypes = append(expectedTypes, &TypeProto{
+			object_:   &cp,
+			kindCase_: TypeProto_OBJECT_FIELD_NUMBER,
+		})
 	}
 	actualTypes := c.testResult.GetTypePool().GetTypeList()
-	// assertThat(actualTypes).ignoringFieldDescriptors(BRITTLE_TYPE_FIELDS).containsExactlyElementsIn(expectedTypes)
-	var clearedActual, clearedExpected []*TypeProto
+	var clearedActual, clearedExpected []string
 	for _, type_ := range actualTypes {
-		clearedActual = append(clearedActual, serializeTypedAstPassTest_clearTypeProto(type_, typedAstSerializerTest_BRITTLE_TYPE_FIELDS))
+		clearedActual = append(clearedActual, serializeTypedAstPassTest_clearTypeProto(type_, typedAstSerializerTest_BRITTLE_TYPE_FIELDS).String())
 	}
 	for _, type_ := range expectedTypes {
-		clearedExpected = append(clearedExpected, serializeTypedAstPassTest_clearTypeProto(type_, typedAstSerializerTest_BRITTLE_TYPE_FIELDS))
+		clearedExpected = append(clearedExpected, serializeTypedAstPassTest_clearTypeProto(type_, typedAstSerializerTest_BRITTLE_TYPE_FIELDS).String())
 	}
 	AssertThat(clearedActual).ContainsExactlyElementsIn(clearedExpected)
+}
+
+func TestSerializeRoots_ParallelMatchesSingleThreadedByteForByte(t *testing.T) {
+	serializeWithThreads := func(numThreads int) ([]byte, []byte) {
+		opts := NewCompilerOptions()
+		opts.SetCheckTypes(true)
+		opts.SetNumParallelThreads(numThreads)
+		comp := NewCompiler()
+		externs := []*SourceFile{
+			SourceFile_FromCode("ext1.js", "/** @externs */\n/** @constructor */ function Ext() {}\nExt.prototype.ping = function() {};"),
+			SourceFile_FromCode("ext2.js", "/** @externs */\nvar /** !Ext */ globalExt;"),
+		}
+		srcs := []*SourceFile{
+			SourceFile_FromCode("s1.js", "/** @license MIT */\nclass A { constructor() { this.x = 42; } m() { return `hi ${this.x}`; } }"),
+			SourceFile_FromCode("s2.js", "const tag = (s) => s; const raw = tag`\\unicode`; const big = 99n;"),
+			SourceFile_FromCode("s3.js", "/** @noinline */ function f(/** !A */ a) { return a.m() + globalExt.ping(); }"),
+			SourceFile_FromCode("s4.js", "const re = /abc/gi; const obj = {keep: 1, 'quoted': 2, [f.name]: 3};"),
+			SourceFile_FromCode("s5.js", "const arr = [1, , 3.5, -0.0, true, null];"),
+		}
+		comp.Init(externs, srcs, opts)
+		comp.Parse()
+		serializationDump_typeCheck(comp, opts)
+		NewRemoveCastNodes(comp).Process(comp.GetExternsRoot(), comp.GetJsRoot())
+		NewConvertTypesToColors(comp, SerializationOptions_Builder_().SetIncludeDebugInfo(true).Build()).
+			Process(comp.GetExternsRoot(), comp.GetJsRoot())
+		comp.SetLifeCycleStage(AbstractCompiler_LifeCycleStage_COLORS_AND_SIMPLIFIED_JSDOC)
+
+		ser := NewTypedAstSerializer(
+			comp,
+			SerializationOptions_Builder_().SetIncludeDebugInfo(true).SetRunValidation(true).Build())
+		ast := ser.SerializeRoots(comp.GetExternsRoot(), comp.GetJsRoot())
+		var streamed bytes.Buffer
+		if err := writeTypedAstListItemTo(ast, &streamed); err != nil {
+			t.Fatal(err)
+		}
+		return ast.ToByteArray(), streamed.Bytes()
+	}
+
+	wire1, stream1 := serializeWithThreads(1)
+	wire4, stream4 := serializeWithThreads(4)
+	if !bytes.Equal(wire1, wire4) {
+		t.Fatalf("parallel ToByteArray mismatch: len(1)=%d len(4)=%d", len(wire1), len(wire4))
+	}
+	if !bytes.Equal(stream1, stream4) {
+		t.Fatalf("parallel stream mismatch: len(1)=%d len(4)=%d", len(stream1), len(stream4))
+	}
 }

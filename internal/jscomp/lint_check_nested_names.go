@@ -125,6 +125,10 @@ func NewCheckNestedNames(compiler AbstractCompiler) *CheckNestedNames {
 	return &CheckNestedNames{compiler: compiler}
 }
 
+func (*CheckNestedNames) cloneForParallel(c *Compiler) NodeTraversal_Callback {
+	return NewCheckNestedNames(c)
+}
+
 // Java: CheckNestedNames.process(Node, Node)
 func (c *CheckNestedNames) Process(externs rhino.Node, root rhino.Node) {
 	NodeTraversal_Traverse(c.compiler, root, c)

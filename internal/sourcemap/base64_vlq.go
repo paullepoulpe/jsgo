@@ -33,13 +33,13 @@ const Base64_BASE64_MAP = "ABCDEFGHIJKLMNOPQRSTUVWXYZ" +
 
 // Base64_BASE64_DECODE_MAP is a map used to convert base64 character into
 // integer values.
-var Base64_BASE64_DECODE_MAP = func() []int32 {
-	m := make([]int32, 256)
+var Base64_BASE64_DECODE_MAP = func() [256]int8 {
+	var m [256]int8
 	for i := range m {
 		m[i] = -1
 	}
 	for i := 0; i < len(Base64_BASE64_MAP); i++ {
-		m[Base64_BASE64_MAP[i]] = int32(i)
+		m[Base64_BASE64_MAP[i]] = int8(i)
 	}
 	return m
 }()
@@ -59,8 +59,7 @@ func Base64_ToBase64(value int32) uint16 {
 //
 // Java: Base64.fromBase64(char)
 func Base64_FromBase64(c uint16) int32 {
-	result := Base64_BASE64_DECODE_MAP[c]
-	return result
+	return int32(Base64_BASE64_DECODE_MAP[c])
 }
 
 // Base64_Base64EncodeInt returns the six digit long base64 encoded value of

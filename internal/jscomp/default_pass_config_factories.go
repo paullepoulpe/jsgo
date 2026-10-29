@@ -135,7 +135,7 @@ var (
 		return newReplaceMessagesForOptions(c).GetReplacementCompletionPass()
 	})
 	defaultPass_closureGoogScopeAliasesForIjs = makePassFactory("closureGoogScopeAliasesForIjs", func(c AbstractCompiler) CompilerPass {
-		return ScopedAliases_Builder_(c).Build()
+		return NewScopedAliases(c, ScopedAliasesOptions{})
 	})
 	defaultPass_injectRuntimeLibraries = makePassFactory("InjectRuntimeLibraries", func(c AbstractCompiler) CompilerPass {
 		return NewInjectRuntimeLibraries(c, jutil.NewLinkedHashSet(c.GetOptions().GetForceLibraryInjectionList()...))
@@ -305,11 +305,12 @@ var (
 	defaultPass_convertChunksToESModules    = passFactoryOf("convertChunksToESModules", NewConvertChunksToESModules)
 	defaultPass_inlineAndCollapseProperties = makeCheckedPassFactory("inlineAndCollapseProperties", inlineAndCollapsePrecondition, false, func(c AbstractCompiler) CompilerPass {
 		opts := c.GetOptions()
-		return InlineAndCollapseProperties_Builder_(c).
-			SetPropertyCollapseLevel(opts.GetPropertyCollapseLevel()).
-			SetChunkOutputType(opts.GetChunkOutputType()).
-			SetHaveModulesBeenRewritten(opts.GetProcessCommonJSModules()).
-			SetModuleResolutionMode(opts.GetModuleResolutionMode()).Build()
+		return NewInlineAndCollapseProperties(c, InlineAndCollapsePropertiesOptions{
+			PropertyCollapseLevel:    opts.GetPropertyCollapseLevel(),
+			ChunkOutputType:          opts.GetChunkOutputType(),
+			HaveModulesBeenRewritten: opts.GetProcessCommonJSModules(),
+			ModuleResolutionMode:     opts.GetModuleResolutionMode(),
+		})
 	})
 	defaultPass_collapseObjectLiterals = makeLoopPassFactory(PassNames_COLLAPSE_OBJECT_LITERALS, func(c AbstractCompiler) CompilerPass {
 		return NewInlineObjectLiterals(c, c.GetUniqueNameIdSupplier())
@@ -318,15 +319,13 @@ var (
 		return NewDisambiguateProperties(c, c.GetOptions().GetPropertiesThatMustDisambiguate())
 	})
 	defaultPass_devirtualizeMethods = makeCheckedPassFactory(PassNames_DEVIRTUALIZE_METHODS, defaultPassConfig_requirePropertiesAreStaticallyAnalyzable, false, func(c AbstractCompiler) CompilerPass {
-		return OptimizeCalls_Builder_().SetCompiler(c).SetConsiderExterns(false).AddPass(NewDevirtualizeMethods(c)).Build()
+		return NewOptimizeCalls(c, false, NewDevirtualizeMethods(c))
 	})
 	defaultPass_optimizeCalls = makeCheckedPassFactory(PassNames_OPTIMIZE_CALLS, defaultPassConfig_requirePropertiesAreStaticallyAnalyzable, true, func(c AbstractCompiler) CompilerPass {
-		return OptimizeCalls_Builder_().SetCompiler(c).SetConsiderExterns(false).
-			AddPass(NewOptimizeReturns(c).AsCallGraphCompilerPass()).
-			AddPass(NewOptimizeParameters(c).AsCallGraphCompilerPass()).Build()
+		return NewOptimizeCalls(c, false, NewOptimizeReturns(c), NewOptimizeParameters(c))
 	})
 	defaultPass_optimizeConstructors = makePassFactory("optimizeConstructors", func(c AbstractCompiler) CompilerPass {
-		return OptimizeCalls_Builder_().SetCompiler(c).SetConsiderExterns(false).AddPass(NewOptimizeConstructors(c).AsCallGraphCompilerPass()).Build()
+		return NewOptimizeConstructors(c)
 	})
 	defaultPass_markPureFunctions = checkedPassFactoryOf("markPureFunctions", defaultPassConfig_requirePropertiesAreStaticallyAnalyzable, false, NewPureFunctionIdentifier_Driver)
 	defaultPass_inlineVariables   = makeLoopPassFactory(PassNames_INLINE_VARIABLES, func(c AbstractCompiler) CompilerPass {
@@ -532,10 +531,11 @@ func (c *DefaultPassConfig) makeClosureProvidesRequires() *PassFactory {
 func (c *DefaultPassConfig) makeClosureGoogScopeAliases() *PassFactory {
 	return makePassFactory("closureGoogScopeAliases", func(compiler AbstractCompiler) CompilerPass {
 		c.preprocessorSymbolTableFactory.MaybeInitialize(compiler)
-		return ScopedAliases_Builder_(compiler).
-			SetPreprocessorSymbolTable(c.preprocessorSymbolTableFactory.GetInstanceOrNull()).
-			SetModuleMetadataMap(compiler.GetModuleMetadataMap()).
-			SetInvalidModuleGetHandling(ScopedAliases_InvalidModuleGetHandling_GIVE_UNIQUE_NAME).Build()
+		return NewScopedAliases(compiler, ScopedAliasesOptions{
+			PreprocessorSymbolTable:  c.preprocessorSymbolTableFactory.GetInstanceOrNull(),
+			ModuleMetadataMap:        compiler.GetModuleMetadataMap(),
+			InvalidModuleGetHandling: ScopedAliases_InvalidModuleGetHandling_GIVE_UNIQUE_NAME,
+		})
 	})
 }
 
@@ -548,13 +548,16 @@ func (c *DefaultPassConfig) makeClosureRewriteModule() *PassFactory {
 
 func createRemoveUnusedCodePass(c AbstractCompiler) CompilerPass {
 	opts := c.GetOptions()
-	return NewRemoveUnusedCode_Builder(c).
-		RemoveLocalVars(opts.ShouldRemoveUnusedLocalVariables()).RemoveGlobals(opts.ShouldRemoveUnusedVariables()).
-		PreserveFunctionExpressionNames(false).RemoveUnusedPrototypeProperties(opts.ShouldRemoveUnusedPrototypeProperties()).
-		RemoveUnusedThisProperties(opts.IsRemoveUnusedClassProperties()).
-		RemoveUnusedObjectDefinePropertiesDefinitions(opts.IsRemoveUnusedClassProperties()).
-		RemoveUnusedPolyfills(len(opts.GetForceLibraryInjectionList()) == 0 && opts.GetInjectPolyfillsNewerThan() == nil).
-		AssumeGettersArePure(opts.GetAssumeGettersArePure()).Build()
+	return NewRemoveUnusedCode(c, RemoveUnusedCodeOptions{
+		RemoveLocalVars:                               opts.ShouldRemoveUnusedLocalVariables(),
+		RemoveGlobals:                                 opts.ShouldRemoveUnusedVariables(),
+		PreserveFunctionExpressionNames:               false,
+		RemoveUnusedPrototypeProperties:               opts.ShouldRemoveUnusedPrototypeProperties(),
+		RemoveUnusedThisProperties:                    opts.IsRemoveUnusedClassProperties(),
+		RemoveUnusedObjectDefinePropertiesDefinitions: opts.IsRemoveUnusedClassProperties(),
+		RemoveUnusedPolyfills:                         len(opts.GetForceLibraryInjectionList()) == 0 && opts.GetInjectPolyfillsNewerThan() == nil,
+		AssumeGettersArePure:                          opts.GetAssumeGettersArePure(),
+	})
 }
 
 func inlineVariablesMode(options *CompilerOptions) InlineVariables_Mode {

@@ -19,7 +19,6 @@
 package cli
 
 import (
-	"slices"
 	"strconv"
 	"strings"
 
@@ -189,9 +188,9 @@ func (g *AllowlistWarningsGuard) FormatWarning(error *jscomp.JSError) string {
 //
 // Java: AllowlistWarningsGuard.formatWarning(JSError, boolean)
 func (g *AllowlistWarningsGuard) FormatWarningWithMetaData(error *jscomp.JSError, withMetaData bool) string {
-	sb := &strings.Builder{}
-	if norm := g.NormalizeSourceName(error.SourceName()); norm != nil {
-		sb.WriteString(*norm)
+	var sb strings.Builder
+	if src := error.SourceName(); src != nil {
+		sb.WriteString(normalizeSourceNameStr(*src))
 	} else {
 		sb.WriteString("null")
 	}
@@ -222,12 +221,41 @@ func (g *AllowlistWarningsGuard) FormatWarningWithMetaData(error *jscomp.JSError
 // Java: AllowlistWarningsGuard.normalizeSourceName(String)
 func (g *AllowlistWarningsGuard) NormalizeSourceName(sourceName *string) *string {
 	if sourceName != nil {
-		// e.g.
-		// "blaze-out/k8-fastbuild/genfiles/some/path/foo.js" -> "some/path/foo.js"
-		normalized := jutil.StringReplaceFirst(*sourceName, "blaze-out/[^/]*/(bin|genfiles)/", "")
+		normalized := normalizeSourceNameStr(*sourceName)
 		return &normalized
 	}
 	return sourceName
+}
+
+// normalizeSourceNameStr strips the first "blaze-out/[^/]*/(bin|genfiles)/" segment.
+// e.g. "blaze-out/k8-fastbuild/genfiles/some/path/foo.js" -> "some/path/foo.js"
+func normalizeSourceNameStr(s string) string {
+	const prefix = "blaze-out/"
+	offset := 0
+	for {
+		idx := strings.Index(s[offset:], prefix)
+		if idx < 0 {
+			return s
+		}
+		matchStart := offset + idx
+		rest := s[matchStart+len(prefix):]
+		slash := strings.IndexByte(rest, '/')
+		if slash >= 0 {
+			afterSlash := rest[slash:]
+			var tail string
+			var ok bool
+			if tail, ok = strings.CutPrefix(afterSlash, "/bin/"); ok {
+			} else if tail, ok = strings.CutPrefix(afterSlash, "/genfiles/"); ok {
+			}
+			if ok {
+				if matchStart == 0 {
+					return tail
+				}
+				return s[:matchStart] + tail
+			}
+		}
+		offset = matchStart + len(prefix)
+	}
 }
 
 // Java: AllowlistWarningsGuard.getFirstLine(String)
@@ -237,142 +265,4 @@ func AllowlistWarningsGuard_GetFirstLine(warning string) string {
 		warning = warning[:lineLength]
 	}
 	return warning
-}
-
-// AllowlistWarningsGuard_AllowlistBuilder is the allowlist builder.
-type AllowlistWarningsGuard_AllowlistBuilder struct {
-	outer *AllowlistWarningsGuard
-
-	warnings []*jscomp.JSError
-	// May be nil.
-	productName *string
-	// May be nil.
-	generatorTarget *string
-	// May be nil.
-	headerNote *string
-}
-
-// Java: AllowlistWarningsGuard.AllowlistBuilder()
-func NewAllowlistWarningsGuard_AllowlistBuilder(outer *AllowlistWarningsGuard) *AllowlistWarningsGuard_AllowlistBuilder {
-	return &AllowlistWarningsGuard_AllowlistBuilder{
-		outer: outer,
-	}
-}
-
-// SetProductName: fill in your product name to get a fun message!
-//
-// Java: AllowlistWarningsGuard.AllowlistBuilder.setProductName(String)
-func (b *AllowlistWarningsGuard_AllowlistBuilder) SetProductName(name *string) *AllowlistWarningsGuard_AllowlistBuilder {
-	b.productName = name
-	return b
-}
-
-// SetGeneratorTarget: fill in instructions on how to generate this
-// allowlist.
-//
-// Java: AllowlistWarningsGuard.AllowlistBuilder.setGeneratorTarget(String)
-func (b *AllowlistWarningsGuard_AllowlistBuilder) SetGeneratorTarget(name *string) *AllowlistWarningsGuard_AllowlistBuilder {
-	b.generatorTarget = name
-	return b
-}
-
-// SetNote: a note to include at the top of the allowlist file.
-//
-// Java: AllowlistWarningsGuard.AllowlistBuilder.setNote(String)
-func (b *AllowlistWarningsGuard_AllowlistBuilder) SetNote(note *string) *AllowlistWarningsGuard_AllowlistBuilder {
-	b.headerNote = note
-	return b
-}
-
-// Java: AllowlistWarningsGuard.AllowlistBuilder.report(CheckLevel, JSError)
-func (b *AllowlistWarningsGuard_AllowlistBuilder) Report(level *jscomp.CheckLevel, error *jscomp.JSError) {
-	if error.DefaultLevel() == jscomp.CheckLevel_ERROR {
-		// ERROR-level diagnostics are ignored by AllowlistWarningsGuard (c.f. above getLevel).
-		return
-	}
-	b.warnings = append(b.warnings, error)
-}
-
-// WriteAllowlist writes the warnings collected in a format that the
-// AllowlistWarningsGuard can read back later. It panics with an IOException
-// (FileNotFoundException) when the file cannot be written.
-//
-// Java: AllowlistWarningsGuard.AllowlistBuilder.writeAllowlist(File)
-func (b *AllowlistWarningsGuard_AllowlistBuilder) WriteAllowlist(out *jutil.File) {
-	stream := jutil.NewPrintStreamFromFile(out)
-	defer stream.Close()
-	b.AppendAllowlist(stream)
-}
-
-// AppendAllowlist writes the warnings collected in a format that the
-// AllowlistWarningsGuard can read back later.
-//
-// Java: AllowlistWarningsGuard.AllowlistBuilder.appendAllowlist(PrintStream)
-func (b *AllowlistWarningsGuard_AllowlistBuilder) AppendAllowlist(out *jutil.PrintStream) {
-	out.Append("# This is a list of legacy warnings that have yet to be fixed.\n")
-
-	if b.productName != nil && *b.productName != "" && len(b.warnings) > 0 {
-		out.Append(
-			"# Please find some time and fix at least one of them " +
-				"and it will be the happiest day for " +
-				*b.productName +
-				".\n")
-	}
-
-	if b.generatorTarget != nil && *b.generatorTarget != "" {
-		out.Append("# When you fix any of these warnings, run " + *b.generatorTarget + " task.\n")
-	}
-
-	if b.headerNote != nil {
-		out.Append("#" + strings.Join(strings.Split(*b.headerNote, "\n"), "\n# ") + "\n")
-	}
-
-	type allowlistTypeGroup struct {
-		diagType *jscomp.DiagnosticType
-		seen     map[string]struct{}
-		warnings []string
-	}
-	groupsByKey := make(map[string]*allowlistTypeGroup)
-	var groups []*allowlistTypeGroup
-	for _, warning := range b.warnings {
-		t := warning.Type()
-		key := t.Key()
-		grp, ok := groupsByKey[key]
-		if !ok {
-			grp = &allowlistTypeGroup{
-				diagType: t,
-				seen:     make(map[string]struct{}),
-			}
-			groupsByKey[key] = grp
-			groups = append(groups, grp)
-		}
-		formatted := b.outer.FormatWarningWithMetaData(warning, true /* withLineNumber */)
-		if _, exists := grp.seen[formatted]; !exists {
-			grp.seen[formatted] = struct{}{}
-			grp.warnings = append(grp.warnings, formatted)
-		}
-	}
-
-	slices.SortFunc(groups, func(a, c *allowlistTypeGroup) int {
-		return a.diagType.CompareTo(c.diagType)
-	})
-
-	for _, grp := range groups {
-		type_ := grp.diagType
-		if jscomp.DiagnosticGroups_DEPRECATED.MatchesType(type_) {
-			// Deprecation warnings are not raisable to error, so we don't need them in allowlists.
-			continue
-		}
-		firstPatternLine, _, _ := strings.Cut(type_.FormatPattern(), "\n")
-		out.Append("\n# Warning ").
-			Append(type_.Key()).
-			Append(": ").
-			Println(firstPatternLine)
-
-		slices.SortFunc(grp.warnings, jutil.StringCompareTo)
-		for _, warning := range grp.warnings {
-			out.Println(warning)
-		}
-	}
-	out.Flush()
 }

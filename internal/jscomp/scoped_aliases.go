@@ -161,53 +161,18 @@ func newScopedAliases(
 	}
 }
 
-// Java: ScopedAliases.builder(AbstractCompiler)
-func ScopedAliases_Builder_(compiler AbstractCompiler) *ScopedAliases_Builder {
-	return newScopedAliases_Builder(compiler)
+// ScopedAliasesOptions configures a ScopedAliases pass.
+type ScopedAliasesOptions struct {
+	PreprocessorSymbolTable  *PreprocessorSymbolTable
+	ModuleMetadataMap        *ModuleMetadataMap
+	InvalidModuleGetHandling ScopedAliases_InvalidModuleGetHandling
 }
 
-// ScopedAliases_Builder is ScopedAliases.Builder.
-type ScopedAliases_Builder struct {
-	compiler                 AbstractCompiler
-	preprocessorSymbolTable  *PreprocessorSymbolTable
-	moduleMetadataMap        *ModuleMetadataMap
-	invalidModuleGetHandling ScopedAliases_InvalidModuleGetHandling
-}
-
-// Java: ScopedAliases.Builder(AbstractCompiler)
-func newScopedAliases_Builder(compiler AbstractCompiler) *ScopedAliases_Builder {
-	return &ScopedAliases_Builder{
-		compiler:                 compiler,
-		invalidModuleGetHandling: ScopedAliases_InvalidModuleGetHandling_PRESERVE,
-	}
-}
-
-// Java: ScopedAliases.Builder.setPreprocessorSymbolTable(PreprocessorSymbolTable)
-func (b *ScopedAliases_Builder) SetPreprocessorSymbolTable(preprocessorSymbolTable *PreprocessorSymbolTable) *ScopedAliases_Builder {
-	b.preprocessorSymbolTable = preprocessorSymbolTable
-	return b
-}
-
-// Java: ScopedAliases.Builder.setModuleMetadataMap(ModuleMetadataMap)
-func (b *ScopedAliases_Builder) SetModuleMetadataMap(moduleMetadataMap *ModuleMetadataMap) *ScopedAliases_Builder {
-	b.moduleMetadataMap = moduleMetadataMap
-	return b
-}
-
-// SetInvalidModuleGetHandling configures whether to delete or preserve
-// invalid goog.module get calls that are top-level aliases in a goog.scope.
-//
-// Java: ScopedAliases.Builder.setInvalidModuleGetHandling(InvalidModuleGetHandling)
-func (b *ScopedAliases_Builder) SetInvalidModuleGetHandling(invalidModuleGetHandling ScopedAliases_InvalidModuleGetHandling) *ScopedAliases_Builder {
-	b.invalidModuleGetHandling = invalidModuleGetHandling
-	return b
-}
-
-// Java: ScopedAliases.Builder.build()
-func (b *ScopedAliases_Builder) Build() *ScopedAliases {
+// NewScopedAliases constructs a ScopedAliases pass.
+func NewScopedAliases(compiler AbstractCompiler, opts ScopedAliasesOptions) *ScopedAliases {
 	var closureNamespaces map[string]struct{}
-	if b.moduleMetadataMap != nil {
-		entries := b.moduleMetadataMap.ModulesByGoogNamespaceMap().Entries()
+	if opts.ModuleMetadataMap != nil {
+		entries := opts.ModuleMetadataMap.ModulesByGoogNamespaceMap().Entries()
 		if len(entries) > 0 {
 			closureNamespaces = make(map[string]struct{}, len(entries))
 			for _, e := range entries {
@@ -216,10 +181,10 @@ func (b *ScopedAliases_Builder) Build() *ScopedAliases {
 		}
 	}
 	return newScopedAliases(
-		b.compiler,
-		b.preprocessorSymbolTable,
+		compiler,
+		opts.PreprocessorSymbolTable,
 		closureNamespaces,
-		b.invalidModuleGetHandling)
+		opts.InvalidModuleGetHandling)
 }
 
 // Java: ScopedAliases.process(Node, Node)
@@ -490,6 +455,7 @@ func (v *ScopedAliases_Traversal) EnterScope(t *NodeTraversal) {
 		if v.forbiddenLocals == nil {
 			v.forbiddenLocals = map[strpool.ID]struct{}{scopedAliasesJscompID: {}}
 		}
+		v.outer.uniqueIdInput = t.GetInput()
 		v.FindAliases(t.GetScope())
 		if lastArg, ok := ast.MustCall(scopeMethodCall).LastArg(); ok {
 			if fn, ok := ast.AsFunction(lastArg.Node()); ok {
@@ -830,16 +796,16 @@ func (v *ScopedAliases_Traversal) ValidateScopeCall(t *NodeTraversal, n rhino.No
 
 // Java: ScopedAliases.Traversal.visit(NodeTraversal, Node, Node)
 func (v *ScopedAliases_Traversal) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
-	compiler := v.outer.compiler
-	// grab the source file path to generate the unique id
-	v.outer.uniqueIdInput = t.GetInput()
-	if v.IsCallToScopeMethod(n) {
+	if !v.InGoogScopeBody() && !n.IsCall() {
+		return
+	}
+	if n.IsCall() && v.IsCallToScopeMethod(n) {
 		v.ValidateScopeCall(t, n, n.GetParent())
 	}
-
 	if !v.InGoogScopeBody() {
 		return
 	}
+	compiler := v.outer.compiler
 
 	type_ := n.GetToken()
 	var aliasVar *Var

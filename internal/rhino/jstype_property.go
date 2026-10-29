@@ -278,7 +278,9 @@ func (p *Property_OwnedProperty) IsOwnedByInterface() bool {
 
 // Java: Property(String, JSType, boolean, Node)
 func NewProperty(name string, type_ JSType, inferred bool, propertyNode Node) *Property {
-	jutil.CheckNotNullMsg1(type_, "Null type specified for %s", name)
+	if type_ == nil {
+		panic(jutil.NewNullPointerExceptionMsg(jutil.LenientFormat("Null type specified for %s", name)))
+	}
 	p := &Property{}
 	p.nameID = rhinoStringPoolIntern(name)
 	p.type_ = type_.GetJSTypeBase()
@@ -289,8 +291,8 @@ func NewProperty(name string, type_ JSType, inferred bool, propertyNode Node) *P
 
 // Java: Property(Key, JSType, boolean, Node)
 func NewPropertyByKey(name Property_Key, type_ JSType, inferred bool, propertyNode Node) *Property {
-	if jutil.IsNil(type_) {
-		jutil.CheckNotNullMsg1(type_, "Null type specified for %s", name)
+	if type_ == nil {
+		panic(jutil.NewNullPointerExceptionMsg(jutil.LenientFormat("Null type specified for %s", name)))
 	}
 	p := &Property{}
 	if name.symbol == nil {
@@ -376,8 +378,8 @@ func (p *Property) IsFromExterns() bool {
 
 // Java: Property.setType(JSType)
 func (p *Property) SetType(type_ JSType) {
-	if jutil.IsNil(type_) {
-		jutil.CheckNotNullMsg1(type_, "Null type specified for property %s", jutil.ToJavaString(p.nameObject()))
+	if type_ == nil {
+		panic(jutil.NewNullPointerExceptionMsg(jutil.LenientFormat("Null type specified for property %s", jutil.ToJavaString(p.nameObject()))))
 	}
 	p.type_ = type_.GetJSTypeBase()
 }

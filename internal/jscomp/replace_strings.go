@@ -40,6 +40,7 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/paullepoulpe/jsgo/internal/ast"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
@@ -105,18 +106,6 @@ func newReplaceStringsConfig(name string, replacementParameters []int, excludedS
 		parameters:       replacementParameters,
 		excludedSuffixes: excludedSuffixes,
 	}
-}
-
-// Java: ReplaceStrings.Config(String, List<Integer>, ImmutableSet<String>)
-func NewReplaceStrings_Config(
-	name string,
-	replacementParameters []int,
-	excludedFilenameSuffixes *jutil.LinkedHashSet[string]) *ReplaceStrings_Config {
-	var suffixes []string
-	if excludedFilenameSuffixes != nil {
-		suffixes = excludedFilenameSuffixes.ToSlice()
-	}
-	return newReplaceStringsConfig(name, replacementParameters, suffixes)
 }
 
 // Java: ReplaceStrings.Config.isReplaceAll()
@@ -200,8 +189,25 @@ func (r *ReplaceStrings) GetStringMap() *VariableMap {
 	return newVariableMapFromEntries(entries)
 }
 
+var replaceStringsVisitTokens = makeVisitTokenSet(
+	rhino.Token_NEW,
+	rhino.Token_CALL,
+	rhino.Token_TAGGED_TEMPLATELIT,
+)
+
+var (
+	_ nodeTraversal_noVisitLeaves = (*ReplaceStrings)(nil)
+	_ nodeTraversal_visitTokens   = (*ReplaceStrings)(nil)
+)
+
+func (*ReplaceStrings) noVisitLeaves()             {}
+func (*ReplaceStrings) visitTokens() *ast.TokenSet { return &replaceStringsVisitTokens }
+
 // Java: ReplaceStrings.process(Node, Node)
 func (r *ReplaceStrings) Process(externs rhino.Node, root rhino.Node) {
+	if len(r.functions) == 0 {
+		return
+	}
 	NodeTraversal_Traverse(r.compiler, root, r)
 }
 

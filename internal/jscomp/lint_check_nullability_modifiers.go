@@ -90,6 +90,10 @@ func NewCheckNullabilityModifiers(compiler AbstractCompiler) *CheckNullabilityMo
 	}
 }
 
+func (*CheckNullabilityModifiers) cloneForParallel(c *Compiler) NodeTraversal_Callback {
+	return NewCheckNullabilityModifiers(c)
+}
+
 // Java: CheckNullabilityModifiers.process(Node, Node)
 func (c *CheckNullabilityModifiers) Process(externs rhino.Node, root rhino.Node) {
 	NodeTraversal_TraverseRoots(c.compiler, c, externs, root)

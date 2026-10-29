@@ -70,7 +70,7 @@ type PrototypeObjectTypeBase struct {
 	//
 	// Go-only: performance — the type's base (8 bytes) rather than an
 	// ObjectType interface (16).
-	implicitPrototypeFallback *JSTypeBase
+	implicitPrototypeFallback *ObjectTypeBase
 
 	// If this is a function prototype, then this is the owner. A
 	// PrototypeObjectType can only be the prototype of one function. If we
@@ -496,7 +496,7 @@ func (p *PrototypeObjectTypeBase) GetImplicitPrototype() ObjectType {
 // Java: PrototypeObjectType.setImplicitPrototype(ObjectType)
 func (p *PrototypeObjectTypeBase) SetImplicitPrototype(implicitPrototype ObjectType) {
 	jutil.CheckState(!p.selfObj().HasCachedValues())
-	p.implicitPrototypeFallback = jsTypeBase(implicitPrototype)
+	p.implicitPrototypeFallback = objTypeBase(implicitPrototype)
 	if p.GetRegistry() != nil {
 		p.GetRegistry().leastSupertypeGen++
 	}
@@ -577,7 +577,7 @@ func (p *PrototypeObjectTypeBase) GetCtorExtendedInterfaces() []ObjectType {
 func (p *PrototypeObjectTypeBase) ResolveInternal(reporter ErrorReporter) JSType {
 	implicitPrototype := p.selfObj().GetImplicitPrototype()
 	if implicitPrototype != nil {
-		p.implicitPrototypeFallback = implicitPrototype.Resolve(reporter).(ObjectType).GetJSTypeBase()
+		p.implicitPrototypeFallback = objTypeBase(implicitPrototype.Resolve(reporter).(ObjectType))
 	}
 	p.properties.ensureSorted()
 	for i := 0; i < len(p.properties.entries()); i++ {

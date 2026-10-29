@@ -19,8 +19,6 @@
 package jscomp
 
 import (
-	"iter"
-
 	"github.com/paullepoulpe/jsgo/internal/ast"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
@@ -28,23 +26,9 @@ import (
 
 // FlowSensitiveInlineVariables_SideEffectPredicate is a Predicate<Node>.
 type FlowSensitiveInlineVariables_SideEffectPredicate struct {
-	outer *FlowSensitiveInlineVariables
-
-	// Check if there are side effects affecting the value of any of these
-	// names (but not properties defined on that name)
-	namesToCheck *jutil.LinkedHashSet[string]
-	defDeps      *MustBeReachingVariableDef_Definition
-	checkDeps    bool
-}
-
-// Java: FlowSensitiveInlineVariables.SideEffectPredicate()
-func NewFlowSensitiveInlineVariables_SideEffectPredicate(outer *FlowSensitiveInlineVariables) *FlowSensitiveInlineVariables_SideEffectPredicate {
-	return &FlowSensitiveInlineVariables_SideEffectPredicate{outer: outer, namesToCheck: nil}
-}
-
-// Java: FlowSensitiveInlineVariables.SideEffectPredicate(Set<String>)
-func NewFlowSensitiveInlineVariables_SideEffectPredicateWithNames(outer *FlowSensitiveInlineVariables, names *jutil.LinkedHashSet[string]) *FlowSensitiveInlineVariables_SideEffectPredicate {
-	return &FlowSensitiveInlineVariables_SideEffectPredicate{outer: outer, namesToCheck: names}
+	outer     *FlowSensitiveInlineVariables
+	defDeps   *MustBeReachingVariableDef_Definition
+	checkDeps bool
 }
 
 // Java: FlowSensitiveInlineVariables.SideEffectPredicate.apply(Node)
@@ -55,10 +39,9 @@ func (p *FlowSensitiveInlineVariables_SideEffectPredicate) Apply(n rhino.Node) b
 		return false
 	}
 
-	if (p.checkDeps || p.namesToCheck != nil) &&
+	if p.checkDeps &&
 		n.IsName() &&
-		((p.checkDeps && p.outer.reachingDef.hasDependentNameID(p.defDeps, n.GetStringID())) ||
-			(p.namesToCheck != nil && p.namesToCheck.Contains(n.GetString()))) &&
+		p.outer.reachingDef.hasDependentNameID(p.defDeps, n.GetStringID()) &&
 		NodeUtil_IsLValue(n) {
 		// the name is being written to. this is a problem, unless it is part of a top-level assign
 		// chain and the write will take place after all CFG node subexpressions are evaluated
@@ -80,7 +63,7 @@ func (p *FlowSensitiveInlineVariables_SideEffectPredicate) Apply(n rhino.Node) b
 	}
 
 	if (n.IsGetProp() || n.IsGetElem()) && NodeUtil_IsLValue(n) {
-		return (!p.checkDeps && p.namesToCheck == nil) || !FlowSensitiveInlineVariables_IsTopLevelAssignTarget(n)
+		return !p.checkDeps || !FlowSensitiveInlineVariables_IsTopLevelAssignTarget(n)
 	}
 
 	for c := n.GetFirstChild(); !c.IsNil(); c = c.GetNext() {
@@ -124,24 +107,6 @@ type FlowSensitiveInlineVariables_Candidate struct {
 
 	// Go-only: marks candidates retired or invalidated during the value-slice drain loop.
 	removed bool
-}
-
-// Java: FlowSensitiveInlineVariables.Candidate(String, Definition, Node, Node)
-func NewFlowSensitiveInlineVariables_Candidate(
-	outer *FlowSensitiveInlineVariables,
-	varName string,
-	defMetadata *MustBeReachingVariableDef_Definition,
-	use rhino.Node,
-	useCfgNode rhino.Node,
-) *FlowSensitiveInlineVariables_Candidate {
-	jutil.CheckArgument(use.IsName())
-	return &FlowSensitiveInlineVariables_Candidate{
-		outer:       outer,
-		nameID:      rhino.RhinoStringPool_InternID(varName),
-		defMetadata: defMetadata,
-		use:         use,
-		useCfgNode:  useCfgNode,
-	}
 }
 
 // Java: FlowSensitiveInlineVariables.Candidate.getDefCfgNode()
@@ -209,7 +174,7 @@ func (c *FlowSensitiveInlineVariables_Candidate) CanInline(scope *Scope) bool {
 		return false
 	}
 
-	if !c.outer.getReachingUses().HasExactlyOneUse(rhino.RhinoStringPool_StringFromID(c.nameID), c.GetDefCfgNode()) {
+	if !c.outer.getReachingUses().HasExactlyOneUseByID(c.nameID, c.GetDefCfgNode()) {
 		return false
 	}
 
@@ -225,7 +190,7 @@ func (c *FlowSensitiveInlineVariables_Candidate) CanInline(scope *Scope) bool {
 			&cfg.LinkedDirectedGraph,
 			cfg.Nodes.Get(c.GetDefCfgNode()),
 			cfg.Nodes.Get(c.useCfgNode),
-			c.outer.sideEffectPredicateFn,
+			c.outer.sideEffectPredicateFunc(),
 			false)
 		if c.outer.pathChecker.SomePathsSatisfyPredicate() {
 			return false
@@ -233,18 +198,6 @@ func (c *FlowSensitiveInlineVariables_Candidate) CanInline(scope *Scope) bool {
 	}
 
 	return true
-}
-
-// Java: FlowSensitiveInlineVariables.Candidate.hasExactlyOne(Iterable<Node>)
-func (c *FlowSensitiveInlineVariables_Candidate) HasExactlyOne(iterable iter.Seq[rhino.Node]) bool {
-	count := 0
-	for range iterable {
-		count++
-		if count > 1 {
-			break
-		}
-	}
-	return count == 1
 }
 
 // InlineVariable performs the actual transformation.
@@ -495,52 +448,6 @@ func fsivCheckPreExpressions(
 		}
 		for cur := oldestSibling; cur != p; cur = cur.GetNext() {
 			if predicate.Apply(cur) {
-				return true
-			}
-		}
-	}
-	return false
-}
-
-// FlowSensitiveInlineVariables_CheckPostExpressions returns true, given an
-// expression by its root and sub-expression n, if the predicate is true for
-// some expression evaluated after n.
-//
-// Java: FlowSensitiveInlineVariables.checkPostExpressions(Node, Node, Predicate<Node>)
-func FlowSensitiveInlineVariables_CheckPostExpressions(
-	n rhino.Node, expressionRoot rhino.Node, predicate func(rhino.Node) bool,
-) bool {
-	for p := n; p != expressionRoot; p = p.GetParent() {
-		for cur := p.GetNext(); !cur.IsNil(); cur = cur.GetNext() {
-			if predicate(cur) {
-				return true
-			}
-		}
-	}
-	return false
-}
-
-// FlowSensitiveInlineVariables_CheckPreExpressions returns true, given an
-// expression by its root and sub-expression n, if the predicate is true for
-// some expression evaluated before n.
-//
-// Java: FlowSensitiveInlineVariables.checkPreExpressions(Node, Node, Predicate<Node>)
-func FlowSensitiveInlineVariables_CheckPreExpressions(
-	n rhino.Node, expressionRoot rhino.Node, predicate func(rhino.Node) bool,
-) bool {
-	for p := n; p != expressionRoot; p = p.GetParent() {
-		oldestSibling := p.GetParent().GetFirstChild()
-		// Evaluate a destructuring assignment right-to-left.
-		if oldestSibling.IsDestructuringPattern() {
-			if p.IsDestructuringPattern() {
-				if !p.GetNext().IsNil() && predicate(p.GetNext()) {
-					return true
-				}
-			}
-			continue
-		}
-		for cur := oldestSibling; cur != p; cur = cur.GetNext() {
-			if predicate(cur) {
 				return true
 			}
 		}

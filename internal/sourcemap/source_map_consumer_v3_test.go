@@ -399,3 +399,34 @@ func TestInvalidEntryValuesThrows(t *testing.T) {
 		t.Errorf("message = %q", expected.GetMessage())
 	}
 }
+
+func TestTryParseMalformedDoesNotPanic(t *testing.T) {
+	malformedInputs := []string{
+		`{}`,
+		`{"version":"not-an-int","sources":[],"mappings":""}`,
+		`{"version":{},"sources":[],"mappings":""}`,
+		`{"version":3,"mappings":""}`,
+		`{"version":3,"sources":"not-an-array","mappings":""}`,
+		`{"version":3,"sources":[{}],"mappings":""}`,
+		`{"version":3,"sources":[]}`,
+		`{"version":3,"sources":[],"mappings":null}`,
+		`{"version":3,"sources":[],"mappings":{}}`,
+		`{"version":3,"sources":[],"mappings":"!"}`,
+		`{"version":3,"sources":[],"mappings":"g"}`,
+		`{"version":3,"sources":[],"mappings":"AAAAAA"}`,
+		`{"version":3,"sources":[],"mappings":"AAAAA"}`,
+		`{"version":3,"sources":[],"file":{},"mappings":""}`,
+		`{"version":3,"sources":[],"lineCount":"bad","mappings":""}`,
+		`{"version":3,"sections":"not-an-array"}`,
+		`{"version":3,"sections":[123]}`,
+		`{"version":3,"sections":[{"offset":{"line":0,"column":0},"url":null}]}`,
+		`{"version":3,"sources":["\u+12f"],"mappings":""}`,
+	}
+	for _, input := range malformedInputs {
+		consumer := sourcemap.NewSourceMapConsumerV3()
+		err := consumer.TryParse(input)
+		if err == nil {
+			t.Errorf("TryParse(%s) = nil, expected *SourceMapParseException", input)
+		}
+	}
+}

@@ -115,9 +115,8 @@ func typedAstReadVarint64(br io.ByteReader, allowEOF bool) (uint64, bool, jutil.
 
 func typedAstDeserializer_decodeShardBytes(messageBytes []byte, buildStringPool func(*TypedAst) bool) (*TypedAst, *StringPool) {
 	rd := &protoReader{b: messageBytes, depth: 1, limit: math.MaxInt32}
-	m := &TypedAst{memoizedSize: -1}
-	m.mergeFromReader(rd)
-	typedAst := m.freeze()
+	typedAst := &TypedAst{}
+	typedAst.mergeFromReader(rd)
 	var stringShard *StringPool
 	if buildStringPool == nil || buildStringPool(typedAst) {
 		stringShard = StringPool_FromProto(typedAst.GetStringPool())
@@ -488,7 +487,7 @@ func typedAstDeserializer_streamLargeShard(
 		win:       make([]byte, 32768),
 		remaining: msgLen,
 	}
-	m := &TypedAst{memoizedSize: -1}
+	m := &TypedAst{}
 	typeProtoSlab := jutil.NewFixedSlab[TypeProto](512)
 	objectTypeSlab := jutil.NewFixedSlab[ObjectTypeProto](240)
 	unionTypeSlab := jutil.NewFixedSlab[UnionTypeProto](480)
@@ -573,9 +572,10 @@ func typedAstDeserializer_streamLargeShard(
 			endLeft := sr.totalLeft() - subLen
 			var x *TypePool
 			if m.typePool_ != nil {
-				x = m.typePool_.mutableCopy()
+				x = m.typePool_
+				x.cachedSize = 0
 			} else {
-				x = &TypePool{memoizedSize: -1}
+				x = &TypePool{}
 			}
 			for sr.totalLeft() > endLeft {
 				subTag := sr.readTag(endLeft)
@@ -583,7 +583,6 @@ func typedAstDeserializer_streamLargeShard(
 				case 10:
 					data := sr.readSliceView(sr.readLength(endLeft), endLeft)
 					tp := typeProtoSlab.New()
-					tp.memoizedSize = -1
 					pr := protoReader{b: data, depth: 2, limit: math.MaxInt32}
 					for {
 						tStart := pr.pos
@@ -602,8 +601,6 @@ func typedAstDeserializer_streamLargeShard(
 								ownScratch = append(ownScratch[:0], op.ownProperty_...)
 							} else {
 								op = objectTypeSlab.New()
-								op.memoizedSize = -1
-								op.frozen = true
 								instScratch = instScratch[:0]
 								protoScratch = protoScratch[:0]
 								ownScratch = ownScratch[:0]
@@ -651,13 +648,13 @@ func typedAstDeserializer_streamLargeShard(
 									dbgBytes := opr.readMessageBytes()
 									var dbg *ObjectTypeProto_DebugInfo
 									if op.debugInfo_ != nil {
-										dbg = op.debugInfo_.mutableCopy()
+										dbg = op.debugInfo_
+										dbg.cachedSize = 0
 									} else {
-										dbg = &ObjectTypeProto_DebugInfo{memoizedSize: -1}
+										dbg = &ObjectTypeProto_DebugInfo{}
 									}
 									dpr := protoReader{b: dbgBytes, depth: 4, limit: math.MaxInt32}
 									dbg.mergeFromReader(&dpr)
-									dbg.frozen = true
 									op.debugInfo_ = dbg
 								default:
 									opr.skipField(oTag)
@@ -678,8 +675,6 @@ func typedAstDeserializer_streamLargeShard(
 								unionScratch = append(unionScratch[:0], up.unionMember_...)
 							} else {
 								up = unionTypeSlab.New()
-								up.memoizedSize = -1
-								up.frozen = true
 								unionScratch = unionScratch[:0]
 							}
 							upr := protoReader{b: uBytes, depth: 3, limit: math.MaxInt32}
@@ -711,12 +706,10 @@ func typedAstDeserializer_streamLargeShard(
 							tp.unknownFields = append(tp.unknownFields, pr.b[tStart:pr.pos]...)
 						}
 					}
-					tp.frozen = true
 					x.type_ = append(x.type_, tp)
 				case 18:
 					data := sr.readSliceView(sr.readLength(endLeft), endLeft)
 					ed := edgeSlab.New()
-					ed.memoizedSize = -1
 					pr := protoReader{b: data, depth: 2, limit: math.MaxInt32}
 					for {
 						eStart := pr.pos
@@ -734,24 +727,22 @@ func typedAstDeserializer_streamLargeShard(
 							ed.unknownFields = append(ed.unknownFields, pr.b[eStart:pr.pos]...)
 						}
 					}
-					ed.frozen = true
 					x.disambiguationEdges_ = append(x.disambiguationEdges_, ed)
 				case 26:
 					data := sr.readSliceView(sr.readLength(endLeft), endLeft)
 					var dbg *TypePool_DebugInfo
 					if x.debugInfo_ != nil {
-						dbg = x.debugInfo_.mutableCopy()
+						dbg = x.debugInfo_
+						dbg.cachedSize = 0
 					} else {
-						dbg = &TypePool_DebugInfo{memoizedSize: -1}
+						dbg = &TypePool_DebugInfo{}
 					}
 					dbg.mergeFromReader(&protoReader{b: data, depth: 2, limit: math.MaxInt32})
-					dbg.frozen = true
 					x.debugInfo_ = dbg
 				default:
 					x.unknownFields = sr.appendUnknownField(x.unknownFields, subTag, endLeft)
 				}
 			}
-			x.frozen = true
 			m.typePool_ = x
 		case 18:
 			hasStringPool = true
@@ -785,7 +776,6 @@ func typedAstDeserializer_streamLargeShard(
 		case 26, 34:
 			data := sr.readSliceView(sr.readLength(0), 0)
 			la := lazyAstSlab.New()
-			la.memoizedSize = -1
 			pr := protoReader{b: data, depth: 2, limit: math.MaxInt32}
 			for {
 				lStart := pr.pos
@@ -806,7 +796,6 @@ func typedAstDeserializer_streamLargeShard(
 				}
 			}
 			la.script_ = allocScriptBytes(la.script_)
-			la.frozen = true
 			if tag == 26 {
 				m.externAst_ = append(m.externAst_, la)
 			} else {
@@ -817,9 +806,10 @@ func typedAstDeserializer_streamLargeShard(
 			endLeft := sr.totalLeft() - subLen
 			var x *SourceFilePool
 			if m.sourceFilePool_ != nil {
-				x = m.sourceFilePool_.mutableCopy()
+				x = m.sourceFilePool_
+				x.cachedSize = 0
 			} else {
-				x = &SourceFilePool{memoizedSize: -1}
+				x = &SourceFilePool{}
 			}
 			for sr.totalLeft() > endLeft {
 				subTag := sr.readTag(endLeft)
@@ -835,18 +825,17 @@ func typedAstDeserializer_streamLargeShard(
 					x.unknownFields = sr.appendUnknownField(x.unknownFields, subTag, endLeft)
 				}
 			}
-			x.frozen = true
 			m.sourceFilePool_ = x
 		case 50:
 			data := sr.readSliceView(sr.readLength(0), 0)
 			var x *ExternsSummary
 			if m.externsSummary_ != nil {
-				x = m.externsSummary_.mutableCopy()
+				x = m.externsSummary_
+				x.cachedSize = 0
 			} else {
-				x = &ExternsSummary{memoizedSize: -1}
+				x = &ExternsSummary{}
 			}
 			x.mergeFromReader(&protoReader{b: data, depth: 2, limit: math.MaxInt32})
-			x.frozen = true
 			m.externsSummary_ = x
 		case 58:
 			raw := sr.readSliceView(sr.readLength(0), 0)
@@ -858,7 +847,6 @@ func typedAstDeserializer_streamLargeShard(
 			m.unknownFields = sr.appendUnknownField(m.unknownFields, tag, 0)
 		}
 	}
-	m.frozen = true
 
 	var stringShard *StringPool
 	if buildStringPool == nil || buildStringPool(m) {

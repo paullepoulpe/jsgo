@@ -79,6 +79,10 @@ func NewCheckInterfaces(compiler AbstractCompiler) *CheckInterfaces {
 	return &CheckInterfaces{compiler: compiler}
 }
 
+func (*CheckInterfaces) cloneForParallel(c *Compiler) NodeTraversal_Callback {
+	return NewCheckInterfaces(c)
+}
+
 // Java: CheckInterfaces.process(Node, Node)
 func (c *CheckInterfaces) Process(externs rhino.Node, root rhino.Node) {
 	NodeTraversal_Traverse(c.compiler, root, c)

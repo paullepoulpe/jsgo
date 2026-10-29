@@ -83,17 +83,16 @@ type RemoveUnusedCodeNameAnalyzerTest_MarkNoSideEffectCallsAndRemoveUnusedCodeRu
 func NewRemoveUnusedCodeNameAnalyzerTest_MarkNoSideEffectCallsAndRemoveUnusedCodeRunner(compiler *Compiler) *RemoveUnusedCodeNameAnalyzerTest_MarkNoSideEffectCallsAndRemoveUnusedCodeRunner {
 	r := &RemoveUnusedCodeNameAnalyzerTest_MarkNoSideEffectCallsAndRemoveUnusedCodeRunner{}
 	r.pureFunctionIdentifier = NewPureFunctionIdentifier_Driver(compiler)
-	r.removeUnusedCode =
-		NewRemoveUnusedCode_Builder(compiler).
-			RemoveGlobals(true).
-			RemoveLocalVars(true).
-			RemoveUnusedPrototypeProperties(true).
-			RemoveUnusedThisProperties(true).
-			RemoveUnusedObjectDefinePropertiesDefinitions(true).
-			// Removal of function expression names isn't what these tests are about.
-			// It just adds noise to the tests when we can't use testSame() because of it.
-			PreserveFunctionExpressionNames(true).
-			Build()
+	r.removeUnusedCode = NewRemoveUnusedCode(compiler, RemoveUnusedCodeOptions{
+		RemoveGlobals:                                 true,
+		RemoveLocalVars:                               true,
+		RemoveUnusedPrototypeProperties:               true,
+		RemoveUnusedThisProperties:                    true,
+		RemoveUnusedObjectDefinePropertiesDefinitions: true,
+		// Removal of function expression names isn't what these tests are about.
+		// It just adds noise to the tests when we can't use testSame() because of it.
+		PreserveFunctionExpressionNames: true,
+	})
 	return r
 }
 

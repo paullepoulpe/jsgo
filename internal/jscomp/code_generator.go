@@ -58,15 +58,6 @@ type CodeGenerator struct {
 	scratchUnits []uint16
 }
 
-// NewCodeGenerator is the constructor used for cost estimation.
-//
-// Java: CodeGenerator(CodeConsumer)
-func NewCodeGenerator(consumer *CodeConsumer) *CodeGenerator {
-	g := &CodeGenerator{}
-	g.InitCodeGenerator(consumer)
-	return g
-}
-
 var (
 	codeGenerator_jsDocInfoPrinterFalse = &JSDocInfoPrinter{useOriginalName: false, printDesc: false}
 	codeGenerator_jsDocInfoPrinterTrue  = &JSDocInfoPrinter{useOriginalName: true, printDesc: false}
@@ -119,16 +110,6 @@ func (g *CodeGenerator) initWithOptions(options *CompilerOptions) {
 	g.registry = nil
 }
 
-// InitCodeGenerator is the CodeGenerator(CodeConsumer) constructor.
-//
-// Java: CodeGenerator(CodeConsumer)
-func (g *CodeGenerator) InitCodeGenerator(consumer *CodeConsumer) {
-	if consumer != nil {
-		g.cc = *consumer
-	}
-	g.initDefaults()
-}
-
 // Java: CodeGenerator(CodeConsumer, CompilerOptions)
 func NewCodeGeneratorWithOptions(consumer *CodeConsumer, options *CompilerOptions) *CodeGenerator {
 	g := &CodeGenerator{}
@@ -145,11 +126,6 @@ func (g *CodeGenerator) InitCodeGeneratorWithOptions(consumer *CodeConsumer, opt
 		g.cc = *consumer
 	}
 	g.initWithOptions(options)
-}
-
-// Java: CodeGenerator.forCostEstimation(CodeConsumer)
-func CodeGenerator_ForCostEstimation(consumer *CodeConsumer) *CodeGenerator {
-	return NewCodeGenerator(consumer)
 }
 
 // TagAsTypeSummary inserts a top-level identifying file as .i.js generated

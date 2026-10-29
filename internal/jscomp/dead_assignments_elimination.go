@@ -191,7 +191,7 @@ func (d *DeadAssignmentsElimination) Process(externs rhino.Node, root rhino.Node
 
 func (d *DeadAssignmentsElimination) tryRemoveDeadAssignments(cfg *ControlFlowGraph[rhino.Node]) {
 	for cfgNode := range cfg.Nodes.Values() {
-		state := dataFlowAnalysis_linearFlowStateOf[*LiveVariablesAnalysis_LiveVariableLattice](cfgNode)
+		state := d.liveness.FlowStateAt(cfgNode.Index)
 		n := cfgNode.Value
 		if n.IsNil() {
 			continue

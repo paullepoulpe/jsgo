@@ -644,7 +644,7 @@ func (f *InlineFunctions) decomposeExpressionsParallel(workRefs []*FunctionInjec
 			if exprRoot := ExpressionDecomposer_FindExpressionRoot(workRefs[refIdx].callNode); !exprRoot.IsNil() {
 				stmtBlock = expressionDecomposer_injectionPointFromRoot(exprRoot).GetParent()
 			}
-			initRecordingCompiler(rc, f.compiler)
+			resetRecordingCompiler(rc, f.compiler)
 			w.curRefIdx = refIdx
 			w.curSeq = 0
 			w.inj.MaybePrepareCall(workRefs[refIdx])

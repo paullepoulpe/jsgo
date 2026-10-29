@@ -89,79 +89,8 @@ import (
 type AbstractScope interface {
 	rhino.StaticScope
 
-	// GetDepth is the depth of the scope. The global scope has depth 0.
-	//
-	// Java: AbstractScope.getDepth()
-	GetDepth() int
-
-	// Java: AbstractScope.toString()
-	String() string
-
-	// Java: AbstractScope.untyped()
-	Untyped() *Scope
-
-	// Java: AbstractScope.typed()
-	Typed() *TypedScope
-
-	// Java: AbstractScope.clearVarsInternal()
-	ClearVarsInternal()
-
-	// HasOwnImplicitSlot returns true iff this scope implies a slot with the
-	// given name.
-	//
-	// Java: AbstractScope.hasOwnImplicitSlot(ImplicitVar)
-	HasOwnImplicitSlot(name *AbstractScope_ImplicitVar) bool
-
-	// Java: AbstractScope.hasOwnSlot(String)
-	HasOwnSlot(name string) bool
-
 	// Java: AbstractScope.hasSlot(String)
 	HasSlot(name string) bool
-
-	// Java: AbstractScope.canDeclare(String)
-	CanDeclare(name string) bool
-
-	// Java: AbstractScope.getVarCount()
-	GetVarCount() int
-
-	// Java: AbstractScope.isGlobal()
-	IsGlobal() bool
-
-	// Java: AbstractScope.isLocal()
-	IsLocal() bool
-
-	// Java: AbstractScope.isBlockScope()
-	IsBlockScope() bool
-
-	// Java: AbstractScope.isStaticBlockScope()
-	IsStaticBlockScope() bool
-
-	// Java: AbstractScope.isFunctionBlockScope()
-	IsFunctionBlockScope() bool
-
-	// Java: AbstractScope.isFunctionScope()
-	IsFunctionScope() bool
-
-	// Java: AbstractScope.isModuleScope()
-	IsModuleScope() bool
-
-	// Java: AbstractScope.isMemberFieldDefScope()
-	IsMemberFieldDefScope() bool
-
-	// Java: AbstractScope.isComputedFieldDefRhsScope()
-	IsComputedFieldDefRhsScope() bool
-
-	// Java: AbstractScope.isCatchScope()
-	IsCatchScope() bool
-
-	// Java: AbstractScope.isCfgRootScope()
-	IsCfgRootScope() bool
-
-	// Java: AbstractScope.isHoistScope()
-	IsHoistScope() bool
-
-	// Java: AbstractScope.checkRootScope()
-	CheckRootScope()
 }
 
 // scopeCommon holds the root node, depth, and state flags shared by Scope and

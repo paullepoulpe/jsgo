@@ -57,7 +57,6 @@ type CombinedCompilerPass struct {
 	useVisitTokenMask     bool
 	hasVisitTokenFilter   bool
 	compiler              AbstractCompiler
-	concreteCompiler      *Compiler
 	cachedErrorManager    ErrorManager
 	sortingErrorManager   *SortingErrorManager
 	continueAfterErrors   bool
@@ -140,11 +139,10 @@ func (p *CombinedCompilerPass) refreshErrorState() {
 	p.continueAfterErrors = false
 	p.cachedErrorManager = nil
 	p.sortingErrorManager = nil
-	c, ok := p.compiler.(*Compiler)
-	if !ok || c == nil {
+	c := p.compiler
+	if c == nil || c.isParallelWorker() {
 		return
 	}
-	p.concreteCompiler = c
 	if opts := c.GetOptions(); opts != nil && opts.CanContinueAfterErrors() {
 		p.continueAfterErrors = true
 		return
@@ -160,11 +158,11 @@ func (p *CombinedCompilerPass) refreshErrorState() {
 }
 
 func (p *CombinedCompilerPass) hasHaltingErrors() bool {
-	if p.concreteCompiler != nil {
+	if c := p.compiler; c != nil && !c.isParallelWorker() {
 		if p.continueAfterErrors {
 			return false
 		}
-		if p.sortingErrorManager != nil && p.concreteCompiler.errorManager == p.cachedErrorManager {
+		if p.sortingErrorManager != nil && c.errorManager == p.cachedErrorManager {
 			return p.sortingErrorManager.originalErrorCount != 0
 		}
 	}
@@ -271,122 +269,94 @@ func (p *CombinedCompilerPass) Process(externs rhino.Node, root rhino.Node) {
 	NodeTraversal_Traverse(p.compiler, root, p)
 }
 
+type parallelCloneableCallback interface {
+	cloneForParallel(c *Compiler) NodeTraversal_Callback
+}
+
+func (cb *CheckJSDoc) cloneForParallel(c *Compiler) NodeTraversal_Callback {
+	out := NewCheckJSDoc(c)
+	out.inExterns = cb.inExterns
+	return out
+}
+
+func (*CheckSuspiciousCode) cloneForParallel(*Compiler) NodeTraversal_Callback {
+	return NewCheckSuspiciousCode()
+}
+
+func (*CheckGlobalThis) cloneForParallel(c *Compiler) NodeTraversal_Callback {
+	return NewCheckGlobalThis(c)
+}
+
 func (p *CombinedCompilerPass) canCloneForParallel(root rhino.Node) (rootClean bool, ok bool) {
 	for i := range p.callbacks {
-		switch cb := p.callbacks[i].callback.(type) {
-		case *CheckJSDoc,
-			*Es6CheckModule,
-			*CheckMissingReturn,
-			*CheckSuspiciousCode,
-			*CheckDuplicateCase,
-			*CheckGlobalThis,
-			*CheckDebuggerStatement:
-		case *CheckUnreachableCode:
-			if !cb.hasNoUnreachableCodeFast(root) {
+		cb := p.callbacks[i].callback
+		if _, cloneable := cb.(parallelCloneableCallback); !cloneable {
+			return false, false
+		}
+		if uc, isUC := cb.(*CheckUnreachableCode); isUC {
+			if !uc.hasNoUnreachableCodeFast(root) {
 				return false, false
 			}
 			rootClean = true
-		default:
-			return false, false
 		}
 	}
 	return rootClean, true
 }
 
-func (p *CombinedCompilerPass) cloneForWorker(rc *recordingCompiler, rootClean bool) *CombinedCompilerPass {
+func (p *CombinedCompilerPass) cloneForWorker(rc *Compiler, rootClean bool) *CombinedCompilerPass {
 	cloned := make([]NodeTraversal_Callback, len(p.callbacks))
 	var origUC *CheckUnreachableCode
 	var clonedUC *CheckUnreachableCode
 
 	for i := range p.callbacks {
-		if uc, ok := p.callbacks[i].callback.(*CheckUnreachableCode); ok {
-			origUC = uc
-			c := NewCheckUnreachableCode(rc)
-			c.rootHasNoUnreachable = rootClean
-			cloned[i] = c
-			clonedUC = c
+		cb := p.callbacks[i].callback
+		c := cb.(parallelCloneableCallback).cloneForParallel(rc)
+		if uc, ok := c.(*CheckUnreachableCode); ok {
+			origUC = cb.(*CheckUnreachableCode)
+			uc.rootHasNoUnreachable = rootClean
+			clonedUC = uc
 		}
+		cloned[i] = c
 	}
-	for i := range p.callbacks {
-		switch cb := p.callbacks[i].callback.(type) {
-		case *CheckUnreachableCode:
-			// Already cloned above.
-		case *CheckJSDoc:
-			c := NewCheckJSDoc(rc)
-			c.inExterns = cb.inExterns
-			cloned[i] = c
-		case *Es6CheckModule:
-			cloned[i] = NewEs6CheckModule(rc)
-		case *CheckMissingReturn:
-			c := NewCheckMissingReturn(rc)
-			if cb.sharedCfgSource != nil && cb.sharedCfgSource == origUC {
-				c.sharedCfgSource = clonedUC
+	if origUC != nil {
+		for i := range p.callbacks {
+			if mr, ok := p.callbacks[i].callback.(*CheckMissingReturn); ok && mr.sharedCfgSource == origUC {
+				cloned[i].(*CheckMissingReturn).sharedCfgSource = clonedUC
 			}
-			cloned[i] = c
-		case *CheckSuspiciousCode:
-			cloned[i] = NewCheckSuspiciousCode()
-		case *CheckDuplicateCase:
-			cloned[i] = NewCheckDuplicateCase(rc)
-		case *CheckGlobalThis:
-			cloned[i] = NewCheckGlobalThis(rc)
-		case *CheckDebuggerStatement:
-			cloned[i] = NewCheckDebuggerStatement(rc)
 		}
 	}
 	return NewCombinedCompilerPassOfList(rc, cloned)
 }
 
 func (p *CombinedCompilerPass) processParallel(root rhino.Node) bool {
-	scripts, ok := collectRootScripts(root)
-	if !ok {
-		return false
-	}
-	numWorkers := parallelThreadCount(p.compiler, len(scripts))
-	if numWorkers <= 1 {
-		return false
-	}
-	if p.hasHaltingErrors() {
-		return true
-	}
-	rootClean, canClone := p.canCloneForParallel(root)
-	if !canClone {
-		return false
-	}
-
-	prewarmCompilerForParallelReads(p.compiler)
-	restoreReg := enableParallelTypeRegistryReads(p.compiler)
-	defer restoreReg()
-
-	lazyGlobal := newLazyGlobalScope(p.compiler, root)
-
-	stopOnHalting := !p.continueAfterErrors
-	runParallelWork(p.compiler, numWorkers, len(scripts), func(_ int) (func(int, *recordingCompiler), func()) {
-		var workerRC *recordingCompiler
-		var workerPass *CombinedCompilerPass
-		var sc *SyntacticScopeCreator
-
-		runItem := func(idx int, rc *recordingCompiler) {
-			if workerPass == nil || workerRC != rc {
-				workerRC = rc
-				workerPass = p.cloneForWorker(rc, rootClean)
-				sc = NewSyntacticScopeCreator(rc)
-			} else {
-				workerPass.inactiveCount = 0
-				workerPass.inactiveMask = 0
-				for i := range workerPass.callbacks {
-					workerPass.callbacks[i].waiting = rhino.NilNode
-				}
+	var rootClean bool
+	halted := false
+	ok := traverseScriptsParallel(p.compiler, root, parallelScriptOptions[*CombinedCompilerPass]{
+		useSharedGlobalScope:    true,
+		enableTypeRegistryReads: true,
+		stopOnHaltingError:      !p.continueAfterErrors,
+		prepare: func(_, _ int) bool {
+			if p.hasHaltingErrors() {
+				halted = true
+				return false
 			}
-			b := NodeTraversal_Builder{
-				compiler:     rc,
-				callback:     workerPass,
-				scopeCreator: sc,
+			var canClone bool
+			rootClean, canClone = p.canCloneForParallel(root)
+			return canClone
+		},
+		initWorker: func(_ int, rc *Compiler) *CombinedCompilerPass {
+			return p.cloneForWorker(rc, rootClean)
+		},
+		callback: func(wp *CombinedCompilerPass, _ int, _, _ rhino.Node, _ *Compiler) NodeTraversal_Callback {
+			wp.inactiveCount = 0
+			wp.inactiveMask = 0
+			for i := range wp.callbacks {
+				wp.callbacks[i].waiting = rhino.NilNode
 			}
-			b.traverseScriptUnderRoot(root, root, scripts[idx], lazyGlobal)
-		}
-		return runItem, nil
-	}, stopOnHalting)
-	return true
+			return wp
+		},
+	})
+	return ok || halted
 }
 
 // Java: CombinedCompilerPass.shouldTraverse(NodeTraversal, Node, Node)

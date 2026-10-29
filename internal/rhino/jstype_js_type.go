@@ -211,7 +211,6 @@ type JSType interface {
 	RestrictByNotNull() JSType
 	IsSubtypeWithoutStructuralTyping(supertype JSType) bool
 	IsSubtype(supertype JSType) bool
-	IsSubtypeWithMode(supertype JSType, mode JSType_SubtypingMode) bool
 	IsSubtypeOf(supertype JSType) bool
 	IsSubtypeOfWithMode(supertype JSType, mode JSType_SubtypingMode) bool
 	Resolve(reporter ErrorReporter) JSType

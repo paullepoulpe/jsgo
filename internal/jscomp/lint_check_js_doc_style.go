@@ -111,6 +111,10 @@ func NewCheckJSDocStyle(compiler AbstractCompiler) *CheckJSDocStyle {
 	return &CheckJSDocStyle{compiler: compiler}
 }
 
+func (*CheckJSDocStyle) cloneForParallel(c *Compiler) NodeTraversal_Callback {
+	return NewCheckJSDocStyle(c)
+}
+
 // Java: CheckJSDocStyle.process(Node, Node)
 func (c *CheckJSDocStyle) Process(externs rhino.Node, root rhino.Node) {
 	NodeTraversal_Traverse(c.compiler, root, c)

@@ -151,10 +151,9 @@ func (s *ColorSerializer) allocSubtypingEdge(subtype, supertype int32) *Subtypin
 		edgeSize += 1 + protoVarintLen(uint64(int64(supertype)))
 	}
 	*e = SubtypingEdge{
-		subtype_:     subtype,
-		supertype_:   supertype,
-		frozen:       true,
-		memoizedSize: edgeSize,
+		subtype_:   subtype,
+		supertype_: supertype,
+		cachedSize: edgeSize + 1,
 	}
 	return e
 }
@@ -246,7 +245,6 @@ func (s *ColorSerializer) GenerateTypePool(
 	var debugInfoProto *TypePool_DebugInfo
 	if s.serializationMode.IncludeDebugInfo() {
 		jutil.CheckNotNull(getMismatchSourceRefsFn)
-		debugInfoBuilder := TypePool_DebugInfo_NewBuilder()
 
 		// Construct a map from source reference string to type pointers,
 		// because that's the way the Mismatch protos work.
@@ -262,20 +260,21 @@ func (s *ColorSerializer) GenerateTypePool(
 
 		// Now use the map to build the Mismatch protos and put them into the
 		// debug info.
+		mismatches := make([]*TypePool_DebugInfo_Mismatch, 0, srcRefToTypePointerList.Size())
 		for key, value := range srcRefToTypePointerList.All() {
-			debugInfoBuilder.
-				AddMismatchBuilder().
-				SetSourceRef(key).
-				AddAllInvolvedColor(value)
+			mismatches = append(mismatches, &TypePool_DebugInfo_Mismatch{
+				sourceRef_:     key,
+				involvedColor_: value,
+			})
 		}
-		debugInfoProto = debugInfoBuilder.Build()
+		debugInfoProto = &TypePool_DebugInfo{
+			mismatch_: mismatches,
+		}
 	}
 	return &TypePool{
 		type_:                types,
 		disambiguationEdges_: disambiguationEdges,
 		debugInfo_:           debugInfoProto,
-		frozen:               true,
-		memoizedSize:         -1,
 	}
 }
 
@@ -291,14 +290,12 @@ func (s *ColorSerializer) GenerateTypeProto(color *colors.Color) *TypeProto {
 		}
 		*up = UnionTypeProto{
 			unionMember_: members,
-			frozen:       true,
-			memoizedSize: uSize,
+			cachedSize:   uSize + 1,
 		}
 		*tp = TypeProto{
-			union_:       up,
-			kindCase_:    TypeProto_UNION_FIELD_NUMBER,
-			frozen:       true,
-			memoizedSize: 1 + protoVarintLen(uint64(uSize)) + uSize,
+			union_:     up,
+			kindCase_:  TypeProto_UNION_FIELD_NUMBER,
+			cachedSize: 1 + protoVarintLen(uint64(uSize)) + uSize + 1,
 		}
 	} else {
 		op := s.allocObjectTypeProto()
@@ -347,14 +344,12 @@ func (s *ColorSerializer) GenerateTypeProto(color *colors.Color) *TypeProto {
 			markedConstructor_:          markedCtor,
 			propertiesKeepOriginalName_: keepOrig,
 			uuid_:                       uuid,
-			frozen:                      true,
-			memoizedSize:                oSize,
+			cachedSize:                  oSize + 1,
 		}
 		*tp = TypeProto{
-			object_:      op,
-			kindCase_:    TypeProto_OBJECT_FIELD_NUMBER,
-			frozen:       true,
-			memoizedSize: 1 + protoVarintLen(uint64(oSize)) + oSize,
+			object_:    op,
+			kindCase_:  TypeProto_OBJECT_FIELD_NUMBER,
+			cachedSize: 1 + protoVarintLen(uint64(oSize)) + oSize + 1,
 		}
 	}
 	return tp

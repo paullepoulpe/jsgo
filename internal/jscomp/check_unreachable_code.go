@@ -186,7 +186,9 @@ func (c *CheckUnreachableCode) hasNoUnreachableCodeFast(scopeRoot rhino.Node) bo
 	}
 }
 
-func (*CheckUnreachableCode) combinedVisitTokens() ast.TokenSet { return ast.TokenSet{} }
+func (*CheckUnreachableCode) cloneForParallel(c *Compiler) NodeTraversal_Callback {
+	return NewCheckUnreachableCode(c)
+}
 
 func (c *CheckUnreachableCode) EnterScope(t *NodeTraversal) {
 	c.pushScopeRoot(t.GetScopeRoot())

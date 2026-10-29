@@ -33,8 +33,8 @@ func appendPackedInt32Field(b []byte, tagByte byte, xs []int32) []byte {
 }
 
 func ensureTypePoolMemoizedSizes(tp *TypePool) int {
-	if tp.frozen && tp.memoizedSize >= 0 {
-		return tp.memoizedSize
+	if tp.cachedSize > 0 {
+		return tp.cachedSize - 1
 	}
 	tpSize := 0
 	for _, t := range tp.type_ {
@@ -52,15 +52,13 @@ func ensureTypePoolMemoizedSizes(tp *TypePool) int {
 	if len(tp.unknownFields) > 0 {
 		tpSize += len(protoCanonicalUnknownFields(tp.unknownFields))
 	}
-	if tp.frozen {
-		tp.memoizedSize = tpSize
-	}
+	tp.cachedSize = tpSize + 1
 	return tpSize
 }
 
 func fastObjectTypeProtoSerializedSize(m *ObjectTypeProto) int {
-	if m.frozen && m.memoizedSize >= 0 {
-		return m.memoizedSize
+	if m.cachedSize > 0 {
+		return m.cachedSize - 1
 	}
 	size := 0
 	if m.isInvalidating_ {
@@ -97,15 +95,13 @@ func fastObjectTypeProtoSerializedSize(m *ObjectTypeProto) int {
 	if len(m.unknownFields) > 0 {
 		size += len(protoCanonicalUnknownFields(m.unknownFields))
 	}
-	if m.frozen {
-		m.memoizedSize = size
-	}
+	m.cachedSize = size + 1
 	return size
 }
 
 func fastUnionTypeProtoSerializedSize(m *UnionTypeProto) int {
-	if m.frozen && m.memoizedSize >= 0 {
-		return m.memoizedSize
+	if m.cachedSize > 0 {
+		return m.cachedSize - 1
 	}
 	size := 0
 	if len(m.unionMember_) > 0 {
@@ -115,15 +111,13 @@ func fastUnionTypeProtoSerializedSize(m *UnionTypeProto) int {
 	if len(m.unknownFields) > 0 {
 		size += len(protoCanonicalUnknownFields(m.unknownFields))
 	}
-	if m.frozen {
-		m.memoizedSize = size
-	}
+	m.cachedSize = size + 1
 	return size
 }
 
 func fastTypeProtoSerializedSize(m *TypeProto) int {
-	if m.frozen && m.memoizedSize >= 0 {
-		return m.memoizedSize
+	if m.cachedSize > 0 {
+		return m.cachedSize - 1
 	}
 	size := 0
 	if m.kindCase_ == 2 {
@@ -137,15 +131,13 @@ func fastTypeProtoSerializedSize(m *TypeProto) int {
 	if len(m.unknownFields) > 0 {
 		size += len(protoCanonicalUnknownFields(m.unknownFields))
 	}
-	if m.frozen {
-		m.memoizedSize = size
-	}
+	m.cachedSize = size + 1
 	return size
 }
 
 func fastSubtypingEdgeSerializedSize(m *SubtypingEdge) int {
-	if m.frozen && m.memoizedSize >= 0 {
-		return m.memoizedSize
+	if m.cachedSize > 0 {
+		return m.cachedSize - 1
 	}
 	size := 0
 	if m.subtype_ != 0 {
@@ -157,9 +149,7 @@ func fastSubtypingEdgeSerializedSize(m *SubtypingEdge) int {
 	if len(m.unknownFields) > 0 {
 		size += len(protoCanonicalUnknownFields(m.unknownFields))
 	}
-	if m.frozen {
-		m.memoizedSize = size
-	}
+	m.cachedSize = size + 1
 	return size
 }
 
@@ -228,7 +218,7 @@ func writeTypedAstListItemTo(m *TypedAst, out io.Writer) error {
 	if m.typePool_ != nil {
 		ensureTypePoolMemoizedSizes(m.typePool_)
 	}
-	if m.stringPool_ != nil && m.stringPool_.frozen && m.stringPool_.memoizedSize < 0 {
+	if m.stringPool_ != nil && m.stringPool_.cachedSize == 0 {
 		spSize := 0
 		for _, x := range m.stringPool_.strings_ {
 			spSize += 1 + protoVarintLen(uint64(len(x))) + len(x)
@@ -239,10 +229,10 @@ func writeTypedAstListItemTo(m *TypedAst, out io.Writer) error {
 		if len(m.stringPool_.unknownFields) > 0 {
 			spSize += len(protoCanonicalUnknownFields(m.stringPool_.unknownFields))
 		}
-		m.stringPool_.memoizedSize = spSize
+		m.stringPool_.cachedSize = spSize + 1
 	}
 	for _, x := range m.externAst_ {
-		if x.frozen && x.memoizedSize < 0 {
+		if x.cachedSize == 0 {
 			if len(x.sourceMappingUrl_) == 0 && len(x.unknownFields) == 0 {
 				s := 0
 				if len(x.script_) != 0 {
@@ -251,14 +241,14 @@ func writeTypedAstListItemTo(m *TypedAst, out io.Writer) error {
 				if x.sourceFile_ != 0 {
 					s += 1 + protoVarintLen(uint64(uint32(x.sourceFile_)))
 				}
-				x.memoizedSize = s
+				x.cachedSize = s + 1
 			} else {
 				x.serializedSize()
 			}
 		}
 	}
 	for _, x := range m.codeAst_ {
-		if x.frozen && x.memoizedSize < 0 {
+		if x.cachedSize == 0 {
 			if len(x.sourceMappingUrl_) == 0 && len(x.unknownFields) == 0 {
 				s := 0
 				if len(x.script_) != 0 {
@@ -267,7 +257,7 @@ func writeTypedAstListItemTo(m *TypedAst, out io.Writer) error {
 				if x.sourceFile_ != 0 {
 					s += 1 + protoVarintLen(uint64(uint32(x.sourceFile_)))
 				}
-				x.memoizedSize = s
+				x.cachedSize = s + 1
 			} else {
 				x.serializedSize()
 			}

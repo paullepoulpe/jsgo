@@ -38,15 +38,6 @@ var conformanceConfig_LibraryLevelNonAllowlistedConformanceViolationsBehavior_nu
 	2,
 }
 
-// ConformanceConfig_LibraryLevelNonAllowlistedConformanceViolationsBehavior_values is LibraryLevelNonAllowlistedConformanceViolationsBehavior.values().
-func ConformanceConfig_LibraryLevelNonAllowlistedConformanceViolationsBehavior_values() []ConformanceConfig_LibraryLevelNonAllowlistedConformanceViolationsBehavior {
-	out := make([]ConformanceConfig_LibraryLevelNonAllowlistedConformanceViolationsBehavior, len(conformanceConfig_LibraryLevelNonAllowlistedConformanceViolationsBehavior_names))
-	for i := range out {
-		out[i] = ConformanceConfig_LibraryLevelNonAllowlistedConformanceViolationsBehavior(i)
-	}
-	return out
-}
-
 // String is Enum.name().
 func (e ConformanceConfig_LibraryLevelNonAllowlistedConformanceViolationsBehavior) String() string {
 	return conformanceConfig_LibraryLevelNonAllowlistedConformanceViolationsBehavior_names[e]
@@ -75,21 +66,6 @@ func ConformanceConfig_LibraryLevelNonAllowlistedConformanceViolationsBehavior_F
 	return nil
 }
 
-// Java: LibraryLevelNonAllowlistedConformanceViolationsBehavior.valueOf(int) (deprecated)
-func ConformanceConfig_LibraryLevelNonAllowlistedConformanceViolationsBehavior_ValueOf(value int32) *ConformanceConfig_LibraryLevelNonAllowlistedConformanceViolationsBehavior {
-	return ConformanceConfig_LibraryLevelNonAllowlistedConformanceViolationsBehavior_ForNumber(value)
-}
-
-// ConformanceConfig_LibraryLevelNonAllowlistedConformanceViolationsBehavior_ValueOfName is Enum.valueOf(String).
-func ConformanceConfig_LibraryLevelNonAllowlistedConformanceViolationsBehavior_ValueOfName(name string) ConformanceConfig_LibraryLevelNonAllowlistedConformanceViolationsBehavior {
-	for i, n := range conformanceConfig_LibraryLevelNonAllowlistedConformanceViolationsBehavior_names {
-		if n == name {
-			return ConformanceConfig_LibraryLevelNonAllowlistedConformanceViolationsBehavior(i)
-		}
-	}
-	panic(jutil.NewIllegalArgumentExceptionMsg("No enum constant com.google.javascript.jscomp.ConformanceConfig.LibraryLevelNonAllowlistedConformanceViolationsBehavior." + name))
-}
-
 func conformanceConfig_LibraryLevelNonAllowlistedConformanceViolationsBehavior_fromNumber(value int32) ConformanceConfig_LibraryLevelNonAllowlistedConformanceViolationsBehavior {
 	if e := ConformanceConfig_LibraryLevelNonAllowlistedConformanceViolationsBehavior_ForNumber(value); e != nil {
 		return *e
@@ -112,8 +88,7 @@ type ConformanceConfig struct {
 	libraryLevelNonAllowlistedConformanceViolationsBehavior_ int32
 	bitField0_                                               uint64
 	unknownFields                                            []byte
-	frozen                                                   bool
-	memoizedSize                                             int
+	cachedSize                                               int
 }
 
 // Field numbers (ConformanceConfig.X_FIELD_NUMBER).
@@ -122,73 +97,22 @@ const (
 	ConformanceConfig_LIBRARY_LEVEL_NON_ALLOWLISTED_CONFORMANCE_VIOLATIONS_BEHAVIOR_FIELD_NUMBER = 2
 )
 
-var conformanceConfig_DEFAULT_INSTANCE = &ConformanceConfig{frozen: true, memoizedSize: -1}
-
-// Java: ConformanceConfig.getDefaultInstance()
-func ConformanceConfig_GetDefaultInstance() *ConformanceConfig {
-	return conformanceConfig_DEFAULT_INSTANCE
-}
-
 // Java: ConformanceConfig.newBuilder()
 func ConformanceConfig_NewBuilder() *ConformanceConfig_Builder {
-	return &ConformanceConfig_Builder{m: &ConformanceConfig{memoizedSize: -1}}
-}
-
-// Java: ConformanceConfig.newBuilder(ConformanceConfig)
-func ConformanceConfig_NewBuilderFrom(prototype *ConformanceConfig) *ConformanceConfig_Builder {
-	return prototype.ToBuilder()
-}
-
-// Java: ConformanceConfig.toBuilder()
-func (m *ConformanceConfig) ToBuilder() *ConformanceConfig_Builder {
-	return &ConformanceConfig_Builder{m: m.mutableCopy()}
+	return &ConformanceConfig_Builder{m: &ConformanceConfig{}}
 }
 
 // ConformanceConfig_ParseFrom panics with *InvalidProtocolBufferException on malformed input.
 //
 // Java: ConformanceConfig.parseFrom(byte[])
 func ConformanceConfig_ParseFrom(data []byte) *ConformanceConfig {
-	m := &ConformanceConfig{memoizedSize: -1}
+	m := &ConformanceConfig{}
 	m.mergeFromReader(&protoReader{b: data})
-	m.frozen = true
 	return m
-}
-
-// mutableCopy is a shallow copy that a builder may modify.
-func (m *ConformanceConfig) mutableCopy() *ConformanceConfig {
-	c := *m
-	c.frozen = false
-	c.memoizedSize = -1
-	c.requirement_ = append([]*Requirement(nil), m.requirement_...)
-	return &c
-}
-
-// freeze returns an immutable copy (shared when m is already immutable).
-func (m *ConformanceConfig) freeze() *ConformanceConfig {
-	if m == nil || m.frozen {
-		return m
-	}
-	c := *m
-	c.frozen = true
-	c.memoizedSize = -1
-	c.requirement_ = make([]*Requirement, len(m.requirement_))
-	for i, x := range m.requirement_ {
-		c.requirement_[i] = x.freeze()
-	}
-	return &c
 }
 
 // Java: ConformanceConfig.getRequirementList()
 func (m *ConformanceConfig) GetRequirementList() []*Requirement { return m.requirement_ }
-
-// Java: ConformanceConfig.getRequirement(int)
-func (m *ConformanceConfig) GetRequirement(index int) *Requirement {
-	protoCheckIndexJDK(index, len(m.requirement_))
-	return m.requirement_[index]
-}
-
-// Java: ConformanceConfig.getRequirementCount()
-func (m *ConformanceConfig) GetRequirementCount() int { return len(m.requirement_) }
 
 // Java: ConformanceConfig.hasLibraryLevelNonAllowlistedConformanceViolationsBehavior()
 func (m *ConformanceConfig) HasLibraryLevelNonAllowlistedConformanceViolationsBehavior() bool {
@@ -208,20 +132,22 @@ func (m *ConformanceConfig) GetLibraryLevelNonAllowlistedConformanceViolationsBe
 type ConformanceConfig_Builder struct{ m *ConformanceConfig }
 
 // Java: ConformanceConfig.Builder.build()
-func (b *ConformanceConfig_Builder) Build() *ConformanceConfig { return b.m.freeze() }
+func (b *ConformanceConfig_Builder) Build() *ConformanceConfig {
+	c := *b.m
+	c.cachedSize = 0
+	return &c
+}
 
 // Java: ConformanceConfig.Builder.buildPartial()
-func (b *ConformanceConfig_Builder) BuildPartial() *ConformanceConfig { return b.m.freeze() }
+func (b *ConformanceConfig_Builder) BuildPartial() *ConformanceConfig {
+	c := *b.m
+	c.cachedSize = 0
+	return &c
+}
 
 // Java: ConformanceConfig.Builder.clear()
 func (b *ConformanceConfig_Builder) Clear() *ConformanceConfig_Builder {
-	b.m = &ConformanceConfig{memoizedSize: -1}
-	return b
-}
-
-// Java: ConformanceConfig.Builder.mergeFrom(ConformanceConfig)
-func (b *ConformanceConfig_Builder) MergeFrom(other *ConformanceConfig) *ConformanceConfig_Builder {
-	b.m.mergeFrom(other)
+	b.m = &ConformanceConfig{}
 	return b
 }
 
@@ -229,18 +155,10 @@ func (b *ConformanceConfig_Builder) MergeFrom(other *ConformanceConfig) *Conform
 func (b *ConformanceConfig_Builder) GetRequirementList() []*Requirement {
 	out := make([]*Requirement, len(b.m.requirement_))
 	for i, x := range b.m.requirement_ {
-		out[i] = x.freeze()
+		out[i] = x
 	}
 	return out
 }
-
-// Java: ConformanceConfig.Builder.getRequirement(int)
-func (b *ConformanceConfig_Builder) GetRequirement(index int) *Requirement {
-	return b.m.GetRequirement(index).freeze()
-}
-
-// Java: ConformanceConfig.Builder.getRequirementCount()
-func (b *ConformanceConfig_Builder) GetRequirementCount() int { return b.m.GetRequirementCount() }
 
 // Java: ConformanceConfig.Builder.addRequirement(*Requirement)
 func (b *ConformanceConfig_Builder) AddRequirement(v *Requirement) *ConformanceConfig_Builder {
@@ -251,49 +169,11 @@ func (b *ConformanceConfig_Builder) AddRequirement(v *Requirement) *ConformanceC
 	return b
 }
 
-// Java: ConformanceConfig.Builder.addAllRequirement(Iterable)
-func (b *ConformanceConfig_Builder) AddAllRequirement(values []*Requirement) *ConformanceConfig_Builder {
-	for _, v := range values {
-		b.AddRequirement(v)
-	}
-	return b
-}
-
-// Java: ConformanceConfig.Builder.setRequirement(int, *Requirement)
-func (b *ConformanceConfig_Builder) SetRequirementAtIndex(index int, v *Requirement) *ConformanceConfig_Builder {
-	protoCheckIndexJDK(index, len(b.m.requirement_))
-	if v == nil {
-		panic(jutil.NewNullPointerException())
-	}
-	b.m.requirement_[index] = v
-	return b
-}
-
-// Java: ConformanceConfig.Builder.addRequirement(Requirement.Builder)
-func (b *ConformanceConfig_Builder) AddRequirementFromBuilder(builderForValue *Requirement_Builder) *ConformanceConfig_Builder {
-	return b.AddRequirement(builderForValue.Build())
-}
-
 // Java: ConformanceConfig.Builder.addRequirementBuilder()
 func (b *ConformanceConfig_Builder) AddRequirementBuilder() *Requirement_Builder {
-	x := &Requirement{memoizedSize: -1}
-	b.m.requirement_ = append(b.m.requirement_, x)
-	return &Requirement_Builder{m: x}
-}
-
-// Java: ConformanceConfig.Builder.getRequirementBuilder(int)
-func (b *ConformanceConfig_Builder) GetRequirementBuilder(index int) *Requirement_Builder {
-	protoCheckIndexJDK(index, len(b.m.requirement_))
-	if b.m.requirement_[index].frozen {
-		b.m.requirement_[index] = b.m.requirement_[index].mutableCopy()
-	}
-	return &Requirement_Builder{m: b.m.requirement_[index]}
-}
-
-// Java: ConformanceConfig.Builder.clearRequirement()
-func (b *ConformanceConfig_Builder) ClearRequirement() *ConformanceConfig_Builder {
-	b.m.requirement_ = nil
-	return b
+	rb := Requirement_NewBuilder()
+	b.m.requirement_ = append(b.m.requirement_, rb.m)
+	return rb
 }
 
 // Java: ConformanceConfig.Builder.hasLibraryLevelNonAllowlistedConformanceViolationsBehavior()
@@ -311,63 +191,6 @@ func (b *ConformanceConfig_Builder) SetLibraryLevelNonAllowlistedConformanceViol
 	b.m.libraryLevelNonAllowlistedConformanceViolationsBehavior_ = v.GetNumber()
 	b.m.bitField0_ |= 1 << 0
 	return b
-}
-
-// Java: ConformanceConfig.Builder.clearLibraryLevelNonAllowlistedConformanceViolationsBehavior()
-func (b *ConformanceConfig_Builder) ClearLibraryLevelNonAllowlistedConformanceViolationsBehavior() *ConformanceConfig_Builder {
-	b.m.libraryLevelNonAllowlistedConformanceViolationsBehavior_ = 0
-	b.m.bitField0_ &^= 1 << 0
-	return b
-}
-
-// mergeFrom is GeneratedMessage.Builder.mergeFrom(ConformanceConfig) on a mutable m.
-func (m *ConformanceConfig) mergeFrom(other *ConformanceConfig) {
-	if other == ConformanceConfig_GetDefaultInstance() {
-		return
-	}
-	m.requirement_ = append(m.requirement_, other.requirement_...)
-	if other.bitField0_&(1<<0) != 0 {
-		m.libraryLevelNonAllowlistedConformanceViolationsBehavior_ = other.libraryLevelNonAllowlistedConformanceViolationsBehavior_
-		m.bitField0_ |= 1 << 0
-	}
-	m.unknownFields = append(m.unknownFields, other.unknownFields...)
-}
-
-// Java: ConformanceConfig.equals(Object)
-func (m *ConformanceConfig) Equals(obj any) bool {
-	other, ok := obj.(*ConformanceConfig)
-	if !ok || other == nil {
-		return false
-	}
-	if m == other {
-		return true
-	}
-	if len(m.requirement_) != len(other.requirement_) {
-		return false
-	}
-	for i := range m.requirement_ {
-		if !(m.requirement_[i].Equals(other.requirement_[i])) {
-			return false
-		}
-	}
-	if m.HasLibraryLevelNonAllowlistedConformanceViolationsBehavior() != other.HasLibraryLevelNonAllowlistedConformanceViolationsBehavior() {
-		return false
-	}
-	if m.HasLibraryLevelNonAllowlistedConformanceViolationsBehavior() && !(m.libraryLevelNonAllowlistedConformanceViolationsBehavior_ == other.libraryLevelNonAllowlistedConformanceViolationsBehavior_) {
-		return false
-	}
-	return protoBytesEqual(protoCanonicalUnknownFields(m.unknownFields), protoCanonicalUnknownFields(other.unknownFields))
-}
-
-// HashCode is consistent with Equals. (Java's generated hashCode mixes in
-// the descriptor's identity hash, so its values are not reproducible.)
-func (m *ConformanceConfig) HashCode() int32 {
-	h := int32(41)
-	for _, x := range m.requirement_ {
-		h = 31*h + x.HashCode()
-	}
-	h = 31*h + m.libraryLevelNonAllowlistedConformanceViolationsBehavior_
-	return h
 }
 
 // appendTo is ConformanceConfig.writeTo(CodedOutputStream): fields in number order, then unknown fields.
@@ -389,46 +212,28 @@ func (m *ConformanceConfig) appendTo(b []byte) []byte {
 
 // serializedSize is getSerializedSize() (memoized once immutable).
 func (m *ConformanceConfig) serializedSize() int {
-	if m.frozen && m.memoizedSize >= 0 {
-		return m.memoizedSize
+	if m.cachedSize > 0 {
+		return m.cachedSize - 1
 	}
 	size := 0
 	for _, x := range m.requirement_ {
 		s := x.serializedSize()
 		size += 1 + protoVarintLen(uint64(s)) + s
 	}
-	size += len(m.appendScalarsOnly(nil))
-	if m.frozen {
-		m.memoizedSize = size
-	}
-	return size
-}
-
-// appendScalarsOnly encodes the non-message fields and unknown fields (for sizing).
-func (m *ConformanceConfig) appendScalarsOnly(b []byte) []byte {
 	if m.bitField0_&(1<<0) != 0 {
-		b = protoAppendTag(b, 2, 0)
-		b = protoAppendInt32(b, m.libraryLevelNonAllowlistedConformanceViolationsBehavior_)
+		size += 1 + protoVarintLen(uint64(int64(m.libraryLevelNonAllowlistedConformanceViolationsBehavior_)))
 	}
 	if len(m.unknownFields) > 0 {
-		b = append(b, protoCanonicalUnknownFields(m.unknownFields)...)
+		size += len(protoCanonicalUnknownFields(m.unknownFields))
 	}
-	return b
+	m.cachedSize = size + 1
+	return size
 }
-
-// Java: ConformanceConfig.getSerializedSize()
-func (m *ConformanceConfig) GetSerializedSize() int { return m.serializedSize() }
 
 // Java: ConformanceConfig.toByteArray()
 func (m *ConformanceConfig) ToByteArray() []byte {
 	return m.appendTo(make([]byte, 0, m.serializedSize()))
 }
-
-// Java: ConformanceConfig.toByteString()
-func (m *ConformanceConfig) ToByteString() []byte { return m.ToByteArray() }
-
-// Java: ConformanceConfig.isInitialized()
-func (m *ConformanceConfig) IsInitialized() bool { return true }
 
 // mergeFromReader is ConformanceConfig.Builder.mergeFrom(CodedInputStream) on a mutable m.
 func (m *ConformanceConfig) mergeFromReader(r *protoReader) {
@@ -440,9 +245,8 @@ func (m *ConformanceConfig) mergeFromReader(r *protoReader) {
 			return
 		case 10:
 			data := r.readMessageBytes()
-			x := &Requirement{memoizedSize: -1}
+			x := &Requirement{}
 			x.mergeFromReader(r.sub(data))
-			x.frozen = true
 			m.requirement_ = append(m.requirement_, x)
 		case 16:
 			v := r.readInt32()
@@ -565,15 +369,6 @@ var requirement_Type_numbers = [...]int32{
 	18,
 }
 
-// Requirement_Type_values is Type.values().
-func Requirement_Type_values() []Requirement_Type {
-	out := make([]Requirement_Type, len(requirement_Type_names))
-	for i := range out {
-		out[i] = Requirement_Type(i)
-	}
-	return out
-}
-
 // String is Enum.name().
 func (e Requirement_Type) String() string { return requirement_Type_names[e] }
 
@@ -596,21 +391,6 @@ func Requirement_Type_ForNumber(value int32) *Requirement_Type {
 		}
 	}
 	return nil
-}
-
-// Java: Type.valueOf(int) (deprecated)
-func Requirement_Type_ValueOf(value int32) *Requirement_Type {
-	return Requirement_Type_ForNumber(value)
-}
-
-// Requirement_Type_ValueOfName is Enum.valueOf(String).
-func Requirement_Type_ValueOfName(name string) Requirement_Type {
-	for i, n := range requirement_Type_names {
-		if n == name {
-			return Requirement_Type(i)
-		}
-	}
-	panic(jutil.NewIllegalArgumentExceptionMsg("No enum constant com.google.javascript.jscomp.Requirement.Type." + name))
 }
 
 func requirement_Type_fromNumber(value int32) Requirement_Type {
@@ -663,15 +443,6 @@ var requirement_TypeMatchingStrategy_numbers = [...]int32{
 	4,
 }
 
-// Requirement_TypeMatchingStrategy_values is TypeMatchingStrategy.values().
-func Requirement_TypeMatchingStrategy_values() []Requirement_TypeMatchingStrategy {
-	out := make([]Requirement_TypeMatchingStrategy, len(requirement_TypeMatchingStrategy_names))
-	for i := range out {
-		out[i] = Requirement_TypeMatchingStrategy(i)
-	}
-	return out
-}
-
 // String is Enum.name().
 func (e Requirement_TypeMatchingStrategy) String() string {
 	return requirement_TypeMatchingStrategy_names[e]
@@ -696,21 +467,6 @@ func Requirement_TypeMatchingStrategy_ForNumber(value int32) *Requirement_TypeMa
 		}
 	}
 	return nil
-}
-
-// Java: TypeMatchingStrategy.valueOf(int) (deprecated)
-func Requirement_TypeMatchingStrategy_ValueOf(value int32) *Requirement_TypeMatchingStrategy {
-	return Requirement_TypeMatchingStrategy_ForNumber(value)
-}
-
-// Requirement_TypeMatchingStrategy_ValueOfName is Enum.valueOf(String).
-func Requirement_TypeMatchingStrategy_ValueOfName(name string) Requirement_TypeMatchingStrategy {
-	for i, n := range requirement_TypeMatchingStrategy_names {
-		if n == name {
-			return Requirement_TypeMatchingStrategy(i)
-		}
-	}
-	panic(jutil.NewIllegalArgumentExceptionMsg("No enum constant com.google.javascript.jscomp.Requirement.TypeMatchingStrategy." + name))
 }
 
 func requirement_TypeMatchingStrategy_fromNumber(value int32) Requirement_TypeMatchingStrategy {
@@ -755,15 +511,6 @@ var requirement_Severity_numbers = [...]int32{
 	2,
 }
 
-// Requirement_Severity_values is Severity.values().
-func Requirement_Severity_values() []Requirement_Severity {
-	out := make([]Requirement_Severity, len(requirement_Severity_names))
-	for i := range out {
-		out[i] = Requirement_Severity(i)
-	}
-	return out
-}
-
 // String is Enum.name().
 func (e Requirement_Severity) String() string { return requirement_Severity_names[e] }
 
@@ -786,21 +533,6 @@ func Requirement_Severity_ForNumber(value int32) *Requirement_Severity {
 		}
 	}
 	return nil
-}
-
-// Java: Severity.valueOf(int) (deprecated)
-func Requirement_Severity_ValueOf(value int32) *Requirement_Severity {
-	return Requirement_Severity_ForNumber(value)
-}
-
-// Requirement_Severity_ValueOfName is Enum.valueOf(String).
-func Requirement_Severity_ValueOfName(name string) Requirement_Severity {
-	for i, n := range requirement_Severity_names {
-		if n == name {
-			return Requirement_Severity(i)
-		}
-	}
-	panic(jutil.NewIllegalArgumentExceptionMsg("No enum constant com.google.javascript.jscomp.Requirement.Severity." + name))
 }
 
 func requirement_Severity_fromNumber(value int32) Requirement_Severity {
@@ -842,8 +574,7 @@ type Requirement struct {
 	configFile_                []string
 	bitField0_                 uint64
 	unknownFields              []byte
-	frozen                     bool
-	memoizedSize               int
+	cachedSize                 int
 }
 
 // Field numbers (Requirement.X_FIELD_NUMBER).
@@ -869,41 +600,15 @@ const (
 	Requirement_CONFIG_FILE_FIELD_NUMBER                  = 16
 )
 
-var requirement_DEFAULT_INSTANCE = &Requirement{frozen: true, memoizedSize: -1}
-
-// Java: Requirement.getDefaultInstance()
-func Requirement_GetDefaultInstance() *Requirement { return requirement_DEFAULT_INSTANCE }
-
 // Java: Requirement.newBuilder()
 func Requirement_NewBuilder() *Requirement_Builder {
-	return &Requirement_Builder{m: &Requirement{memoizedSize: -1}}
-}
-
-// Java: Requirement.newBuilder(Requirement)
-func Requirement_NewBuilderFrom(prototype *Requirement) *Requirement_Builder {
-	return prototype.ToBuilder()
+	return &Requirement_Builder{m: &Requirement{}}
 }
 
 // Java: Requirement.toBuilder()
 func (m *Requirement) ToBuilder() *Requirement_Builder {
-	return &Requirement_Builder{m: m.mutableCopy()}
-}
-
-// Requirement_ParseFrom panics with *InvalidProtocolBufferException on malformed input.
-//
-// Java: Requirement.parseFrom(byte[])
-func Requirement_ParseFrom(data []byte) *Requirement {
-	m := &Requirement{memoizedSize: -1}
-	m.mergeFromReader(&protoReader{b: data})
-	m.frozen = true
-	return m
-}
-
-// mutableCopy is a shallow copy that a builder may modify.
-func (m *Requirement) mutableCopy() *Requirement {
 	c := *m
-	c.frozen = false
-	c.memoizedSize = -1
+	c.cachedSize = 0
 	c.whitelist_ = append([]string(nil), m.whitelist_...)
 	c.whitelistRegexp_ = append([]string(nil), m.whitelistRegexp_...)
 	c.allowlist_ = append([]string(nil), m.allowlist_...)
@@ -914,34 +619,16 @@ func (m *Requirement) mutableCopy() *Requirement {
 	c.onlyApplyToRegexp_ = append([]string(nil), m.onlyApplyToRegexp_...)
 	c.value_ = append([]string(nil), m.value_...)
 	c.configFile_ = append([]string(nil), m.configFile_...)
-	return &c
+	return &Requirement_Builder{m: &c}
 }
 
-// freeze returns an immutable copy (shared when m is already immutable).
-func (m *Requirement) freeze() *Requirement {
-	if m == nil || m.frozen {
-		return m
-	}
-	c := *m
-	c.frozen = true
-	c.memoizedSize = -1
-	c.whitelist_ = append([]string(nil), m.whitelist_...)
-	c.whitelistRegexp_ = append([]string(nil), m.whitelistRegexp_...)
-	c.allowlist_ = append([]string(nil), m.allowlist_...)
-	c.allowlistRegexp_ = append([]string(nil), m.allowlistRegexp_...)
-	c.whitelistEntry_ = make([]*RequirementScopeEntry, len(m.whitelistEntry_))
-	for i, x := range m.whitelistEntry_ {
-		c.whitelistEntry_[i] = x.freeze()
-	}
-	c.allowlistEntry_ = make([]*RequirementScopeEntry, len(m.allowlistEntry_))
-	for i, x := range m.allowlistEntry_ {
-		c.allowlistEntry_[i] = x.freeze()
-	}
-	c.onlyApplyTo_ = append([]string(nil), m.onlyApplyTo_...)
-	c.onlyApplyToRegexp_ = append([]string(nil), m.onlyApplyToRegexp_...)
-	c.value_ = append([]string(nil), m.value_...)
-	c.configFile_ = append([]string(nil), m.configFile_...)
-	return &c
+// Requirement_ParseFrom panics with *InvalidProtocolBufferException on malformed input.
+//
+// Java: Requirement.parseFrom(byte[])
+func Requirement_ParseFrom(data []byte) *Requirement {
+	m := &Requirement{}
+	m.mergeFromReader(&protoReader{b: data})
+	return m
 }
 
 // Java: Requirement.hasErrorMessage()
@@ -955,23 +642,11 @@ func (m *Requirement) GetErrorMessage() string {
 // Java: Requirement.getWhitelistList()
 func (m *Requirement) GetWhitelistList() []string { return m.whitelist_ }
 
-// Java: Requirement.getWhitelist(int)
-func (m *Requirement) GetWhitelist(index int) string {
-	protoCheckIndexJDK(index, len(m.whitelist_))
-	return m.whitelist_[index]
-}
-
 // Java: Requirement.getWhitelistCount()
 func (m *Requirement) GetWhitelistCount() int { return len(m.whitelist_) }
 
 // Java: Requirement.getWhitelistRegexpList()
 func (m *Requirement) GetWhitelistRegexpList() []string { return m.whitelistRegexp_ }
-
-// Java: Requirement.getWhitelistRegexp(int)
-func (m *Requirement) GetWhitelistRegexp(index int) string {
-	protoCheckIndexJDK(index, len(m.whitelistRegexp_))
-	return m.whitelistRegexp_[index]
-}
 
 // Java: Requirement.getWhitelistRegexpCount()
 func (m *Requirement) GetWhitelistRegexpCount() int { return len(m.whitelistRegexp_) }
@@ -979,23 +654,11 @@ func (m *Requirement) GetWhitelistRegexpCount() int { return len(m.whitelistRege
 // Java: Requirement.getAllowlistList()
 func (m *Requirement) GetAllowlistList() []string { return m.allowlist_ }
 
-// Java: Requirement.getAllowlist(int)
-func (m *Requirement) GetAllowlist(index int) string {
-	protoCheckIndexJDK(index, len(m.allowlist_))
-	return m.allowlist_[index]
-}
-
 // Java: Requirement.getAllowlistCount()
 func (m *Requirement) GetAllowlistCount() int { return len(m.allowlist_) }
 
 // Java: Requirement.getAllowlistRegexpList()
 func (m *Requirement) GetAllowlistRegexpList() []string { return m.allowlistRegexp_ }
-
-// Java: Requirement.getAllowlistRegexp(int)
-func (m *Requirement) GetAllowlistRegexp(index int) string {
-	protoCheckIndexJDK(index, len(m.allowlistRegexp_))
-	return m.allowlistRegexp_[index]
-}
 
 // Java: Requirement.getAllowlistRegexpCount()
 func (m *Requirement) GetAllowlistRegexpCount() int { return len(m.allowlistRegexp_) }
@@ -1003,23 +666,11 @@ func (m *Requirement) GetAllowlistRegexpCount() int { return len(m.allowlistRege
 // Java: Requirement.getWhitelistEntryList()
 func (m *Requirement) GetWhitelistEntryList() []*RequirementScopeEntry { return m.whitelistEntry_ }
 
-// Java: Requirement.getWhitelistEntry(int)
-func (m *Requirement) GetWhitelistEntry(index int) *RequirementScopeEntry {
-	protoCheckIndexJDK(index, len(m.whitelistEntry_))
-	return m.whitelistEntry_[index]
-}
-
 // Java: Requirement.getWhitelistEntryCount()
 func (m *Requirement) GetWhitelistEntryCount() int { return len(m.whitelistEntry_) }
 
 // Java: Requirement.getAllowlistEntryList()
 func (m *Requirement) GetAllowlistEntryList() []*RequirementScopeEntry { return m.allowlistEntry_ }
-
-// Java: Requirement.getAllowlistEntry(int)
-func (m *Requirement) GetAllowlistEntry(index int) *RequirementScopeEntry {
-	protoCheckIndexJDK(index, len(m.allowlistEntry_))
-	return m.allowlistEntry_[index]
-}
 
 // Java: Requirement.getAllowlistEntryCount()
 func (m *Requirement) GetAllowlistEntryCount() int { return len(m.allowlistEntry_) }
@@ -1027,23 +678,11 @@ func (m *Requirement) GetAllowlistEntryCount() int { return len(m.allowlistEntry
 // Java: Requirement.getOnlyApplyToList()
 func (m *Requirement) GetOnlyApplyToList() []string { return m.onlyApplyTo_ }
 
-// Java: Requirement.getOnlyApplyTo(int)
-func (m *Requirement) GetOnlyApplyTo(index int) string {
-	protoCheckIndexJDK(index, len(m.onlyApplyTo_))
-	return m.onlyApplyTo_[index]
-}
-
 // Java: Requirement.getOnlyApplyToCount()
 func (m *Requirement) GetOnlyApplyToCount() int { return len(m.onlyApplyTo_) }
 
 // Java: Requirement.getOnlyApplyToRegexpList()
 func (m *Requirement) GetOnlyApplyToRegexpList() []string { return m.onlyApplyToRegexp_ }
-
-// Java: Requirement.getOnlyApplyToRegexp(int)
-func (m *Requirement) GetOnlyApplyToRegexp(index int) string {
-	protoCheckIndexJDK(index, len(m.onlyApplyToRegexp_))
-	return m.onlyApplyToRegexp_[index]
-}
 
 // Java: Requirement.getOnlyApplyToRegexpCount()
 func (m *Requirement) GetOnlyApplyToRegexpCount() int { return len(m.onlyApplyToRegexp_) }
@@ -1143,12 +782,6 @@ func (m *Requirement) GetSeverity() Requirement_Severity {
 // Java: Requirement.getConfigFileList()
 func (m *Requirement) GetConfigFileList() []string { return m.configFile_ }
 
-// Java: Requirement.getConfigFile(int)
-func (m *Requirement) GetConfigFile(index int) string {
-	protoCheckIndexJDK(index, len(m.configFile_))
-	return m.configFile_[index]
-}
-
 // Java: Requirement.getConfigFileCount()
 func (m *Requirement) GetConfigFileCount() int { return len(m.configFile_) }
 
@@ -1156,20 +789,22 @@ func (m *Requirement) GetConfigFileCount() int { return len(m.configFile_) }
 type Requirement_Builder struct{ m *Requirement }
 
 // Java: Requirement.Builder.build()
-func (b *Requirement_Builder) Build() *Requirement { return b.m.freeze() }
+func (b *Requirement_Builder) Build() *Requirement {
+	c := *b.m
+	c.cachedSize = 0
+	return &c
+}
 
 // Java: Requirement.Builder.buildPartial()
-func (b *Requirement_Builder) BuildPartial() *Requirement { return b.m.freeze() }
+func (b *Requirement_Builder) BuildPartial() *Requirement {
+	c := *b.m
+	c.cachedSize = 0
+	return &c
+}
 
 // Java: Requirement.Builder.clear()
 func (b *Requirement_Builder) Clear() *Requirement_Builder {
-	b.m = &Requirement{memoizedSize: -1}
-	return b
-}
-
-// Java: Requirement.Builder.mergeFrom(Requirement)
-func (b *Requirement_Builder) MergeFrom(other *Requirement) *Requirement_Builder {
-	b.m.mergeFrom(other)
+	b.m = &Requirement{}
 	return b
 }
 
@@ -1186,20 +821,10 @@ func (b *Requirement_Builder) SetErrorMessage(v string) *Requirement_Builder {
 	return b
 }
 
-// Java: Requirement.Builder.clearErrorMessage()
-func (b *Requirement_Builder) ClearErrorMessage() *Requirement_Builder {
-	b.m.errorMessage_ = ""
-	b.m.bitField0_ &^= 1 << 0
-	return b
-}
-
 // Java: Requirement.Builder.getWhitelistList()
 func (b *Requirement_Builder) GetWhitelistList() []string {
 	return append([]string(nil), b.m.GetWhitelistList()...)
 }
-
-// Java: Requirement.Builder.getWhitelist(int)
-func (b *Requirement_Builder) GetWhitelist(index int) string { return b.m.GetWhitelist(index) }
 
 // Java: Requirement.Builder.getWhitelistCount()
 func (b *Requirement_Builder) GetWhitelistCount() int { return b.m.GetWhitelistCount() }
@@ -1218,13 +843,6 @@ func (b *Requirement_Builder) AddAllWhitelist(values []string) *Requirement_Buil
 	return b
 }
 
-// Java: Requirement.Builder.setWhitelist(int, string)
-func (b *Requirement_Builder) SetWhitelistAtIndex(index int, v string) *Requirement_Builder {
-	protoCheckIndexJDK(index, len(b.m.whitelist_))
-	b.m.whitelist_[index] = v
-	return b
-}
-
 // Java: Requirement.Builder.clearWhitelist()
 func (b *Requirement_Builder) ClearWhitelist() *Requirement_Builder {
 	b.m.whitelist_ = nil
@@ -1234,11 +852,6 @@ func (b *Requirement_Builder) ClearWhitelist() *Requirement_Builder {
 // Java: Requirement.Builder.getWhitelistRegexpList()
 func (b *Requirement_Builder) GetWhitelistRegexpList() []string {
 	return append([]string(nil), b.m.GetWhitelistRegexpList()...)
-}
-
-// Java: Requirement.Builder.getWhitelistRegexp(int)
-func (b *Requirement_Builder) GetWhitelistRegexp(index int) string {
-	return b.m.GetWhitelistRegexp(index)
 }
 
 // Java: Requirement.Builder.getWhitelistRegexpCount()
@@ -1258,13 +871,6 @@ func (b *Requirement_Builder) AddAllWhitelistRegexp(values []string) *Requiremen
 	return b
 }
 
-// Java: Requirement.Builder.setWhitelistRegexp(int, string)
-func (b *Requirement_Builder) SetWhitelistRegexpAtIndex(index int, v string) *Requirement_Builder {
-	protoCheckIndexJDK(index, len(b.m.whitelistRegexp_))
-	b.m.whitelistRegexp_[index] = v
-	return b
-}
-
 // Java: Requirement.Builder.clearWhitelistRegexp()
 func (b *Requirement_Builder) ClearWhitelistRegexp() *Requirement_Builder {
 	b.m.whitelistRegexp_ = nil
@@ -1275,9 +881,6 @@ func (b *Requirement_Builder) ClearWhitelistRegexp() *Requirement_Builder {
 func (b *Requirement_Builder) GetAllowlistList() []string {
 	return append([]string(nil), b.m.GetAllowlistList()...)
 }
-
-// Java: Requirement.Builder.getAllowlist(int)
-func (b *Requirement_Builder) GetAllowlist(index int) string { return b.m.GetAllowlist(index) }
 
 // Java: Requirement.Builder.getAllowlistCount()
 func (b *Requirement_Builder) GetAllowlistCount() int { return b.m.GetAllowlistCount() }
@@ -1296,13 +899,6 @@ func (b *Requirement_Builder) AddAllAllowlist(values []string) *Requirement_Buil
 	return b
 }
 
-// Java: Requirement.Builder.setAllowlist(int, string)
-func (b *Requirement_Builder) SetAllowlistAtIndex(index int, v string) *Requirement_Builder {
-	protoCheckIndexJDK(index, len(b.m.allowlist_))
-	b.m.allowlist_[index] = v
-	return b
-}
-
 // Java: Requirement.Builder.clearAllowlist()
 func (b *Requirement_Builder) ClearAllowlist() *Requirement_Builder {
 	b.m.allowlist_ = nil
@@ -1312,11 +908,6 @@ func (b *Requirement_Builder) ClearAllowlist() *Requirement_Builder {
 // Java: Requirement.Builder.getAllowlistRegexpList()
 func (b *Requirement_Builder) GetAllowlistRegexpList() []string {
 	return append([]string(nil), b.m.GetAllowlistRegexpList()...)
-}
-
-// Java: Requirement.Builder.getAllowlistRegexp(int)
-func (b *Requirement_Builder) GetAllowlistRegexp(index int) string {
-	return b.m.GetAllowlistRegexp(index)
 }
 
 // Java: Requirement.Builder.getAllowlistRegexpCount()
@@ -1336,13 +927,6 @@ func (b *Requirement_Builder) AddAllAllowlistRegexp(values []string) *Requiremen
 	return b
 }
 
-// Java: Requirement.Builder.setAllowlistRegexp(int, string)
-func (b *Requirement_Builder) SetAllowlistRegexpAtIndex(index int, v string) *Requirement_Builder {
-	protoCheckIndexJDK(index, len(b.m.allowlistRegexp_))
-	b.m.allowlistRegexp_[index] = v
-	return b
-}
-
 // Java: Requirement.Builder.clearAllowlistRegexp()
 func (b *Requirement_Builder) ClearAllowlistRegexp() *Requirement_Builder {
 	b.m.allowlistRegexp_ = nil
@@ -1353,14 +937,9 @@ func (b *Requirement_Builder) ClearAllowlistRegexp() *Requirement_Builder {
 func (b *Requirement_Builder) GetWhitelistEntryList() []*RequirementScopeEntry {
 	out := make([]*RequirementScopeEntry, len(b.m.whitelistEntry_))
 	for i, x := range b.m.whitelistEntry_ {
-		out[i] = x.freeze()
+		out[i] = x
 	}
 	return out
-}
-
-// Java: Requirement.Builder.getWhitelistEntry(int)
-func (b *Requirement_Builder) GetWhitelistEntry(index int) *RequirementScopeEntry {
-	return b.m.GetWhitelistEntry(index).freeze()
 }
 
 // Java: Requirement.Builder.getWhitelistEntryCount()
@@ -1383,37 +962,6 @@ func (b *Requirement_Builder) AddAllWhitelistEntry(values []*RequirementScopeEnt
 	return b
 }
 
-// Java: Requirement.Builder.setWhitelistEntry(int, *RequirementScopeEntry)
-func (b *Requirement_Builder) SetWhitelistEntryAtIndex(index int, v *RequirementScopeEntry) *Requirement_Builder {
-	protoCheckIndexJDK(index, len(b.m.whitelistEntry_))
-	if v == nil {
-		panic(jutil.NewNullPointerException())
-	}
-	b.m.whitelistEntry_[index] = v
-	return b
-}
-
-// Java: Requirement.Builder.addWhitelistEntry(RequirementScopeEntry.Builder)
-func (b *Requirement_Builder) AddWhitelistEntryFromBuilder(builderForValue *RequirementScopeEntry_Builder) *Requirement_Builder {
-	return b.AddWhitelistEntry(builderForValue.Build())
-}
-
-// Java: Requirement.Builder.addWhitelistEntryBuilder()
-func (b *Requirement_Builder) AddWhitelistEntryBuilder() *RequirementScopeEntry_Builder {
-	x := &RequirementScopeEntry{memoizedSize: -1}
-	b.m.whitelistEntry_ = append(b.m.whitelistEntry_, x)
-	return &RequirementScopeEntry_Builder{m: x}
-}
-
-// Java: Requirement.Builder.getWhitelistEntryBuilder(int)
-func (b *Requirement_Builder) GetWhitelistEntryBuilder(index int) *RequirementScopeEntry_Builder {
-	protoCheckIndexJDK(index, len(b.m.whitelistEntry_))
-	if b.m.whitelistEntry_[index].frozen {
-		b.m.whitelistEntry_[index] = b.m.whitelistEntry_[index].mutableCopy()
-	}
-	return &RequirementScopeEntry_Builder{m: b.m.whitelistEntry_[index]}
-}
-
 // Java: Requirement.Builder.clearWhitelistEntry()
 func (b *Requirement_Builder) ClearWhitelistEntry() *Requirement_Builder {
 	b.m.whitelistEntry_ = nil
@@ -1424,14 +972,9 @@ func (b *Requirement_Builder) ClearWhitelistEntry() *Requirement_Builder {
 func (b *Requirement_Builder) GetAllowlistEntryList() []*RequirementScopeEntry {
 	out := make([]*RequirementScopeEntry, len(b.m.allowlistEntry_))
 	for i, x := range b.m.allowlistEntry_ {
-		out[i] = x.freeze()
+		out[i] = x
 	}
 	return out
-}
-
-// Java: Requirement.Builder.getAllowlistEntry(int)
-func (b *Requirement_Builder) GetAllowlistEntry(index int) *RequirementScopeEntry {
-	return b.m.GetAllowlistEntry(index).freeze()
 }
 
 // Java: Requirement.Builder.getAllowlistEntryCount()
@@ -1454,37 +997,6 @@ func (b *Requirement_Builder) AddAllAllowlistEntry(values []*RequirementScopeEnt
 	return b
 }
 
-// Java: Requirement.Builder.setAllowlistEntry(int, *RequirementScopeEntry)
-func (b *Requirement_Builder) SetAllowlistEntryAtIndex(index int, v *RequirementScopeEntry) *Requirement_Builder {
-	protoCheckIndexJDK(index, len(b.m.allowlistEntry_))
-	if v == nil {
-		panic(jutil.NewNullPointerException())
-	}
-	b.m.allowlistEntry_[index] = v
-	return b
-}
-
-// Java: Requirement.Builder.addAllowlistEntry(RequirementScopeEntry.Builder)
-func (b *Requirement_Builder) AddAllowlistEntryFromBuilder(builderForValue *RequirementScopeEntry_Builder) *Requirement_Builder {
-	return b.AddAllowlistEntry(builderForValue.Build())
-}
-
-// Java: Requirement.Builder.addAllowlistEntryBuilder()
-func (b *Requirement_Builder) AddAllowlistEntryBuilder() *RequirementScopeEntry_Builder {
-	x := &RequirementScopeEntry{memoizedSize: -1}
-	b.m.allowlistEntry_ = append(b.m.allowlistEntry_, x)
-	return &RequirementScopeEntry_Builder{m: x}
-}
-
-// Java: Requirement.Builder.getAllowlistEntryBuilder(int)
-func (b *Requirement_Builder) GetAllowlistEntryBuilder(index int) *RequirementScopeEntry_Builder {
-	protoCheckIndexJDK(index, len(b.m.allowlistEntry_))
-	if b.m.allowlistEntry_[index].frozen {
-		b.m.allowlistEntry_[index] = b.m.allowlistEntry_[index].mutableCopy()
-	}
-	return &RequirementScopeEntry_Builder{m: b.m.allowlistEntry_[index]}
-}
-
 // Java: Requirement.Builder.clearAllowlistEntry()
 func (b *Requirement_Builder) ClearAllowlistEntry() *Requirement_Builder {
 	b.m.allowlistEntry_ = nil
@@ -1495,9 +1007,6 @@ func (b *Requirement_Builder) ClearAllowlistEntry() *Requirement_Builder {
 func (b *Requirement_Builder) GetOnlyApplyToList() []string {
 	return append([]string(nil), b.m.GetOnlyApplyToList()...)
 }
-
-// Java: Requirement.Builder.getOnlyApplyTo(int)
-func (b *Requirement_Builder) GetOnlyApplyTo(index int) string { return b.m.GetOnlyApplyTo(index) }
 
 // Java: Requirement.Builder.getOnlyApplyToCount()
 func (b *Requirement_Builder) GetOnlyApplyToCount() int { return b.m.GetOnlyApplyToCount() }
@@ -1516,13 +1025,6 @@ func (b *Requirement_Builder) AddAllOnlyApplyTo(values []string) *Requirement_Bu
 	return b
 }
 
-// Java: Requirement.Builder.setOnlyApplyTo(int, string)
-func (b *Requirement_Builder) SetOnlyApplyToAtIndex(index int, v string) *Requirement_Builder {
-	protoCheckIndexJDK(index, len(b.m.onlyApplyTo_))
-	b.m.onlyApplyTo_[index] = v
-	return b
-}
-
 // Java: Requirement.Builder.clearOnlyApplyTo()
 func (b *Requirement_Builder) ClearOnlyApplyTo() *Requirement_Builder {
 	b.m.onlyApplyTo_ = nil
@@ -1532,11 +1034,6 @@ func (b *Requirement_Builder) ClearOnlyApplyTo() *Requirement_Builder {
 // Java: Requirement.Builder.getOnlyApplyToRegexpList()
 func (b *Requirement_Builder) GetOnlyApplyToRegexpList() []string {
 	return append([]string(nil), b.m.GetOnlyApplyToRegexpList()...)
-}
-
-// Java: Requirement.Builder.getOnlyApplyToRegexp(int)
-func (b *Requirement_Builder) GetOnlyApplyToRegexp(index int) string {
-	return b.m.GetOnlyApplyToRegexp(index)
 }
 
 // Java: Requirement.Builder.getOnlyApplyToRegexpCount()
@@ -1556,13 +1053,6 @@ func (b *Requirement_Builder) AddAllOnlyApplyToRegexp(values []string) *Requirem
 	return b
 }
 
-// Java: Requirement.Builder.setOnlyApplyToRegexp(int, string)
-func (b *Requirement_Builder) SetOnlyApplyToRegexpAtIndex(index int, v string) *Requirement_Builder {
-	protoCheckIndexJDK(index, len(b.m.onlyApplyToRegexp_))
-	b.m.onlyApplyToRegexp_[index] = v
-	return b
-}
-
 // Java: Requirement.Builder.clearOnlyApplyToRegexp()
 func (b *Requirement_Builder) ClearOnlyApplyToRegexp() *Requirement_Builder {
 	b.m.onlyApplyToRegexp_ = nil
@@ -1579,13 +1069,6 @@ func (b *Requirement_Builder) GetType() Requirement_Type { return b.m.GetType() 
 func (b *Requirement_Builder) SetType(v Requirement_Type) *Requirement_Builder {
 	b.m.type_ = v.GetNumber()
 	b.m.bitField0_ |= 1 << 1
-	return b
-}
-
-// Java: Requirement.Builder.clearType()
-func (b *Requirement_Builder) ClearType() *Requirement_Builder {
-	b.m.type_ = 0
-	b.m.bitField0_ &^= 1 << 1
 	return b
 }
 
@@ -1614,19 +1097,6 @@ func (b *Requirement_Builder) AddAllValue(values []string) *Requirement_Builder 
 	return b
 }
 
-// Java: Requirement.Builder.setValue(int, string)
-func (b *Requirement_Builder) SetValueAtIndex(index int, v string) *Requirement_Builder {
-	protoCheckIndexJDK(index, len(b.m.value_))
-	b.m.value_[index] = v
-	return b
-}
-
-// Java: Requirement.Builder.clearValue()
-func (b *Requirement_Builder) ClearValue() *Requirement_Builder {
-	b.m.value_ = nil
-	return b
-}
-
 // Java: Requirement.Builder.hasAllowExtendingValue()
 func (b *Requirement_Builder) HasAllowExtendingValue() bool { return b.m.HasAllowExtendingValue() }
 
@@ -1637,13 +1107,6 @@ func (b *Requirement_Builder) GetAllowExtendingValue() bool { return b.m.GetAllo
 func (b *Requirement_Builder) SetAllowExtendingValue(v bool) *Requirement_Builder {
 	b.m.allowExtendingValue_ = v
 	b.m.bitField0_ |= 1 << 2
-	return b
-}
-
-// Java: Requirement.Builder.clearAllowExtendingValue()
-func (b *Requirement_Builder) ClearAllowExtendingValue() *Requirement_Builder {
-	b.m.allowExtendingValue_ = false
-	b.m.bitField0_ &^= 1 << 2
 	return b
 }
 
@@ -1662,13 +1125,6 @@ func (b *Requirement_Builder) SetTypeMatchingStrategy(v Requirement_TypeMatching
 	return b
 }
 
-// Java: Requirement.Builder.clearTypeMatchingStrategy()
-func (b *Requirement_Builder) ClearTypeMatchingStrategy() *Requirement_Builder {
-	b.m.typeMatchingStrategy_ = 0
-	b.m.bitField0_ &^= 1 << 3
-	return b
-}
-
 // Java: Requirement.Builder.hasJavaClass()
 func (b *Requirement_Builder) HasJavaClass() bool { return b.m.HasJavaClass() }
 
@@ -1679,13 +1135,6 @@ func (b *Requirement_Builder) GetJavaClass() string { return b.m.GetJavaClass() 
 func (b *Requirement_Builder) SetJavaClass(v string) *Requirement_Builder {
 	b.m.javaClass_ = v
 	b.m.bitField0_ |= 1 << 4
-	return b
-}
-
-// Java: Requirement.Builder.clearJavaClass()
-func (b *Requirement_Builder) ClearJavaClass() *Requirement_Builder {
-	b.m.javaClass_ = ""
-	b.m.bitField0_ &^= 1 << 4
 	return b
 }
 
@@ -1702,13 +1151,6 @@ func (b *Requirement_Builder) SetRuleId(v string) *Requirement_Builder {
 	return b
 }
 
-// Java: Requirement.Builder.clearRuleId()
-func (b *Requirement_Builder) ClearRuleId() *Requirement_Builder {
-	b.m.ruleId_ = ""
-	b.m.bitField0_ &^= 1 << 5
-	return b
-}
-
 // Java: Requirement.Builder.hasExtends()
 func (b *Requirement_Builder) HasExtends() bool { return b.m.HasExtends() }
 
@@ -1719,13 +1161,6 @@ func (b *Requirement_Builder) GetExtends() string { return b.m.GetExtends() }
 func (b *Requirement_Builder) SetExtends(v string) *Requirement_Builder {
 	b.m.extends_ = v
 	b.m.bitField0_ |= 1 << 6
-	return b
-}
-
-// Java: Requirement.Builder.clearExtends()
-func (b *Requirement_Builder) ClearExtends() *Requirement_Builder {
-	b.m.extends_ = ""
-	b.m.bitField0_ &^= 1 << 6
 	return b
 }
 
@@ -1746,13 +1181,6 @@ func (b *Requirement_Builder) SetReportLooseTypeViolations(v bool) *Requirement_
 	return b
 }
 
-// Java: Requirement.Builder.clearReportLooseTypeViolations()
-func (b *Requirement_Builder) ClearReportLooseTypeViolations() *Requirement_Builder {
-	b.m.reportLooseTypeViolations_ = false
-	b.m.bitField0_ &^= 1 << 7
-	return b
-}
-
 // Java: Requirement.Builder.hasSeverity()
 func (b *Requirement_Builder) HasSeverity() bool { return b.m.HasSeverity() }
 
@@ -1766,20 +1194,10 @@ func (b *Requirement_Builder) SetSeverity(v Requirement_Severity) *Requirement_B
 	return b
 }
 
-// Java: Requirement.Builder.clearSeverity()
-func (b *Requirement_Builder) ClearSeverity() *Requirement_Builder {
-	b.m.severity_ = 0
-	b.m.bitField0_ &^= 1 << 8
-	return b
-}
-
 // Java: Requirement.Builder.getConfigFileList()
 func (b *Requirement_Builder) GetConfigFileList() []string {
 	return append([]string(nil), b.m.GetConfigFileList()...)
 }
-
-// Java: Requirement.Builder.getConfigFile(int)
-func (b *Requirement_Builder) GetConfigFile(index int) string { return b.m.GetConfigFile(index) }
 
 // Java: Requirement.Builder.getConfigFileCount()
 func (b *Requirement_Builder) GetConfigFileCount() int { return b.m.GetConfigFileCount() }
@@ -1796,73 +1214,6 @@ func (b *Requirement_Builder) AddAllConfigFile(values []string) *Requirement_Bui
 		b.AddConfigFile(v)
 	}
 	return b
-}
-
-// Java: Requirement.Builder.setConfigFile(int, string)
-func (b *Requirement_Builder) SetConfigFileAtIndex(index int, v string) *Requirement_Builder {
-	protoCheckIndexJDK(index, len(b.m.configFile_))
-	b.m.configFile_[index] = v
-	return b
-}
-
-// Java: Requirement.Builder.clearConfigFile()
-func (b *Requirement_Builder) ClearConfigFile() *Requirement_Builder {
-	b.m.configFile_ = nil
-	return b
-}
-
-// mergeFrom is GeneratedMessage.Builder.mergeFrom(Requirement) on a mutable m.
-func (m *Requirement) mergeFrom(other *Requirement) {
-	if other == Requirement_GetDefaultInstance() {
-		return
-	}
-	if other.bitField0_&(1<<0) != 0 {
-		m.errorMessage_ = other.errorMessage_
-		m.bitField0_ |= 1 << 0
-	}
-	m.whitelist_ = append(m.whitelist_, other.whitelist_...)
-	m.whitelistRegexp_ = append(m.whitelistRegexp_, other.whitelistRegexp_...)
-	m.allowlist_ = append(m.allowlist_, other.allowlist_...)
-	m.allowlistRegexp_ = append(m.allowlistRegexp_, other.allowlistRegexp_...)
-	m.whitelistEntry_ = append(m.whitelistEntry_, other.whitelistEntry_...)
-	m.allowlistEntry_ = append(m.allowlistEntry_, other.allowlistEntry_...)
-	m.onlyApplyTo_ = append(m.onlyApplyTo_, other.onlyApplyTo_...)
-	m.onlyApplyToRegexp_ = append(m.onlyApplyToRegexp_, other.onlyApplyToRegexp_...)
-	if other.bitField0_&(1<<1) != 0 {
-		m.type_ = other.type_
-		m.bitField0_ |= 1 << 1
-	}
-	m.value_ = append(m.value_, other.value_...)
-	if other.bitField0_&(1<<2) != 0 {
-		m.allowExtendingValue_ = other.allowExtendingValue_
-		m.bitField0_ |= 1 << 2
-	}
-	if other.bitField0_&(1<<3) != 0 {
-		m.typeMatchingStrategy_ = other.typeMatchingStrategy_
-		m.bitField0_ |= 1 << 3
-	}
-	if other.bitField0_&(1<<4) != 0 {
-		m.javaClass_ = other.javaClass_
-		m.bitField0_ |= 1 << 4
-	}
-	if other.bitField0_&(1<<5) != 0 {
-		m.ruleId_ = other.ruleId_
-		m.bitField0_ |= 1 << 5
-	}
-	if other.bitField0_&(1<<6) != 0 {
-		m.extends_ = other.extends_
-		m.bitField0_ |= 1 << 6
-	}
-	if other.bitField0_&(1<<7) != 0 {
-		m.reportLooseTypeViolations_ = other.reportLooseTypeViolations_
-		m.bitField0_ |= 1 << 7
-	}
-	if other.bitField0_&(1<<8) != 0 {
-		m.severity_ = other.severity_
-		m.bitField0_ |= 1 << 8
-	}
-	m.configFile_ = append(m.configFile_, other.configFile_...)
-	m.unknownFields = append(m.unknownFields, other.unknownFields...)
 }
 
 // Java: Requirement.equals(Object)
@@ -2145,8 +1496,8 @@ func (m *Requirement) appendTo(b []byte) []byte {
 
 // serializedSize is getSerializedSize() (memoized once immutable).
 func (m *Requirement) serializedSize() int {
-	if m.frozen && m.memoizedSize >= 0 {
-		return m.memoizedSize
+	if m.cachedSize > 0 {
+		return m.cachedSize - 1
 	}
 	size := 0
 	for _, x := range m.whitelistEntry_ {
@@ -2157,100 +1508,66 @@ func (m *Requirement) serializedSize() int {
 		s := x.serializedSize()
 		size += 2 + protoVarintLen(uint64(s)) + s
 	}
-	size += len(m.appendScalarsOnly(nil))
-	if m.frozen {
-		m.memoizedSize = size
+	if m.bitField0_&(1<<0) != 0 {
+		size += protoStringSize(1, m.errorMessage_)
 	}
+	for _, x := range m.whitelist_ {
+		size += protoStringSize(1, x)
+	}
+	for _, x := range m.whitelistRegexp_ {
+		size += protoStringSize(1, x)
+	}
+	for _, x := range m.onlyApplyTo_ {
+		size += protoStringSize(1, x)
+	}
+	for _, x := range m.onlyApplyToRegexp_ {
+		size += protoStringSize(1, x)
+	}
+	if m.bitField0_&(1<<1) != 0 {
+		size += 1 + protoVarintLen(uint64(int64(m.type_)))
+	}
+	for _, x := range m.value_ {
+		size += protoStringSize(1, x)
+	}
+	if m.bitField0_&(1<<4) != 0 {
+		size += protoStringSize(1, m.javaClass_)
+	}
+	if m.bitField0_&(1<<5) != 0 {
+		size += protoStringSize(1, m.ruleId_)
+	}
+	if m.bitField0_&(1<<6) != 0 {
+		size += protoStringSize(1, m.extends_)
+	}
+	if m.bitField0_&(1<<7) != 0 {
+		size += 2
+	}
+	if m.bitField0_&(1<<8) != 0 {
+		size += 1 + protoVarintLen(uint64(int64(m.severity_)))
+	}
+	if m.bitField0_&(1<<3) != 0 {
+		size += 1 + protoVarintLen(uint64(int64(m.typeMatchingStrategy_)))
+	}
+	if m.bitField0_&(1<<2) != 0 {
+		size += 2
+	}
+	for _, x := range m.configFile_ {
+		size += protoStringSize(2, x)
+	}
+	for _, x := range m.allowlist_ {
+		size += protoStringSize(2, x)
+	}
+	for _, x := range m.allowlistRegexp_ {
+		size += protoStringSize(2, x)
+	}
+	if len(m.unknownFields) > 0 {
+		size += len(protoCanonicalUnknownFields(m.unknownFields))
+	}
+	m.cachedSize = size + 1
 	return size
 }
 
-// appendScalarsOnly encodes the non-message fields and unknown fields (for sizing).
-func (m *Requirement) appendScalarsOnly(b []byte) []byte {
-	if m.bitField0_&(1<<0) != 0 {
-		b = protoAppendTag(b, 1, 2)
-		b = protoAppendString(b, m.errorMessage_)
-	}
-	for _, x := range m.whitelist_ {
-		b = protoAppendTag(b, 2, 2)
-		b = protoAppendString(b, x)
-	}
-	for _, x := range m.whitelistRegexp_ {
-		b = protoAppendTag(b, 3, 2)
-		b = protoAppendString(b, x)
-	}
-	for _, x := range m.onlyApplyTo_ {
-		b = protoAppendTag(b, 4, 2)
-		b = protoAppendString(b, x)
-	}
-	for _, x := range m.onlyApplyToRegexp_ {
-		b = protoAppendTag(b, 5, 2)
-		b = protoAppendString(b, x)
-	}
-	if m.bitField0_&(1<<1) != 0 {
-		b = protoAppendTag(b, 6, 0)
-		b = protoAppendInt32(b, m.type_)
-	}
-	for _, x := range m.value_ {
-		b = protoAppendTag(b, 7, 2)
-		b = protoAppendString(b, x)
-	}
-	if m.bitField0_&(1<<4) != 0 {
-		b = protoAppendTag(b, 8, 2)
-		b = protoAppendString(b, m.javaClass_)
-	}
-	if m.bitField0_&(1<<5) != 0 {
-		b = protoAppendTag(b, 9, 2)
-		b = protoAppendString(b, m.ruleId_)
-	}
-	if m.bitField0_&(1<<6) != 0 {
-		b = protoAppendTag(b, 10, 2)
-		b = protoAppendString(b, m.extends_)
-	}
-	if m.bitField0_&(1<<7) != 0 {
-		b = protoAppendTag(b, 11, 0)
-		b = protoAppendBool(b, m.reportLooseTypeViolations_)
-	}
-	if m.bitField0_&(1<<8) != 0 {
-		b = protoAppendTag(b, 12, 0)
-		b = protoAppendInt32(b, m.severity_)
-	}
-	if m.bitField0_&(1<<3) != 0 {
-		b = protoAppendTag(b, 13, 0)
-		b = protoAppendInt32(b, m.typeMatchingStrategy_)
-	}
-	if m.bitField0_&(1<<2) != 0 {
-		b = protoAppendTag(b, 15, 0)
-		b = protoAppendBool(b, m.allowExtendingValue_)
-	}
-	for _, x := range m.configFile_ {
-		b = protoAppendTag(b, 16, 2)
-		b = protoAppendString(b, x)
-	}
-	for _, x := range m.allowlist_ {
-		b = protoAppendTag(b, 17, 2)
-		b = protoAppendString(b, x)
-	}
-	for _, x := range m.allowlistRegexp_ {
-		b = protoAppendTag(b, 18, 2)
-		b = protoAppendString(b, x)
-	}
-	if len(m.unknownFields) > 0 {
-		b = append(b, protoCanonicalUnknownFields(m.unknownFields)...)
-	}
-	return b
-}
-
-// Java: Requirement.getSerializedSize()
-func (m *Requirement) GetSerializedSize() int { return m.serializedSize() }
-
 // Java: Requirement.toByteArray()
 func (m *Requirement) ToByteArray() []byte { return m.appendTo(make([]byte, 0, m.serializedSize())) }
-
-// Java: Requirement.toByteString()
-func (m *Requirement) ToByteString() []byte { return m.ToByteArray() }
-
-// Java: Requirement.isInitialized()
-func (m *Requirement) IsInitialized() bool { return true }
 
 // mergeFromReader is Requirement.Builder.mergeFrom(CodedInputStream) on a mutable m.
 func (m *Requirement) mergeFromReader(r *protoReader) {
@@ -2314,9 +1631,8 @@ func (m *Requirement) mergeFromReader(r *protoReader) {
 			}
 		case 114:
 			data := r.readMessageBytes()
-			x := &RequirementScopeEntry{memoizedSize: -1}
+			x := &RequirementScopeEntry{}
 			x.mergeFromReader(r.sub(data))
-			x.frozen = true
 			m.whitelistEntry_ = append(m.whitelistEntry_, x)
 		case 120:
 			m.allowExtendingValue_ = r.readBool()
@@ -2329,9 +1645,8 @@ func (m *Requirement) mergeFromReader(r *protoReader) {
 			m.allowlistRegexp_ = append(m.allowlistRegexp_, r.readStringProto2())
 		case 154:
 			data := r.readMessageBytes()
-			x := &RequirementScopeEntry{memoizedSize: -1}
+			x := &RequirementScopeEntry{}
 			x.mergeFromReader(r.sub(data))
-			x.frozen = true
 			m.allowlistEntry_ = append(m.allowlistEntry_, x)
 		default:
 			r.skipField(tag)
@@ -2440,15 +1755,6 @@ var requirementScopeEntry_Reason_numbers = [...]int32{
 	3,
 }
 
-// RequirementScopeEntry_Reason_values is Reason.values().
-func RequirementScopeEntry_Reason_values() []RequirementScopeEntry_Reason {
-	out := make([]RequirementScopeEntry_Reason, len(requirementScopeEntry_Reason_names))
-	for i := range out {
-		out[i] = RequirementScopeEntry_Reason(i)
-	}
-	return out
-}
-
 // String is Enum.name().
 func (e RequirementScopeEntry_Reason) String() string { return requirementScopeEntry_Reason_names[e] }
 
@@ -2471,21 +1777,6 @@ func RequirementScopeEntry_Reason_ForNumber(value int32) *RequirementScopeEntry_
 		}
 	}
 	return nil
-}
-
-// Java: Reason.valueOf(int) (deprecated)
-func RequirementScopeEntry_Reason_ValueOf(value int32) *RequirementScopeEntry_Reason {
-	return RequirementScopeEntry_Reason_ForNumber(value)
-}
-
-// RequirementScopeEntry_Reason_ValueOfName is Enum.valueOf(String).
-func RequirementScopeEntry_Reason_ValueOfName(name string) RequirementScopeEntry_Reason {
-	for i, n := range requirementScopeEntry_Reason_names {
-		if n == name {
-			return RequirementScopeEntry_Reason(i)
-		}
-	}
-	panic(jutil.NewIllegalArgumentExceptionMsg("No enum constant com.google.javascript.jscomp.RequirementScopeEntry.Reason." + name))
 }
 
 func requirementScopeEntry_Reason_fromNumber(value int32) RequirementScopeEntry_Reason {
@@ -2515,8 +1806,7 @@ type RequirementScopeEntry struct {
 	doNotRecordViolationsInSummaryBecauseThisIsGencodeAndAlwaysSafe_ bool
 	bitField0_                                                       uint64
 	unknownFields                                                    []byte
-	frozen                                                           bool
-	memoizedSize                                                     int
+	cachedSize                                                       int
 }
 
 // Field numbers (RequirementScopeEntry.X_FIELD_NUMBER).
@@ -2530,164 +1820,52 @@ const (
 	RequirementScopeEntry_DO_NOT_RECORD_VIOLATIONS_IN_SUMMARY_BECAUSE_THIS_IS_GENCODE_AND_ALWAYS_SAFE_FIELD_NUMBER = 7
 )
 
-var requirementScopeEntry_DEFAULT_INSTANCE = &RequirementScopeEntry{frozen: true, memoizedSize: -1}
-
-// Java: RequirementScopeEntry.getDefaultInstance()
-func RequirementScopeEntry_GetDefaultInstance() *RequirementScopeEntry {
-	return requirementScopeEntry_DEFAULT_INSTANCE
-}
-
 // Java: RequirementScopeEntry.newBuilder()
 func RequirementScopeEntry_NewBuilder() *RequirementScopeEntry_Builder {
-	return &RequirementScopeEntry_Builder{m: &RequirementScopeEntry{memoizedSize: -1}}
-}
-
-// Java: RequirementScopeEntry.newBuilder(RequirementScopeEntry)
-func RequirementScopeEntry_NewBuilderFrom(prototype *RequirementScopeEntry) *RequirementScopeEntry_Builder {
-	return prototype.ToBuilder()
-}
-
-// Java: RequirementScopeEntry.toBuilder()
-func (m *RequirementScopeEntry) ToBuilder() *RequirementScopeEntry_Builder {
-	return &RequirementScopeEntry_Builder{m: m.mutableCopy()}
-}
-
-// RequirementScopeEntry_ParseFrom panics with *InvalidProtocolBufferException on malformed input.
-//
-// Java: RequirementScopeEntry.parseFrom(byte[])
-func RequirementScopeEntry_ParseFrom(data []byte) *RequirementScopeEntry {
-	m := &RequirementScopeEntry{memoizedSize: -1}
-	m.mergeFromReader(&protoReader{b: data})
-	m.frozen = true
-	return m
-}
-
-// mutableCopy is a shallow copy that a builder may modify.
-func (m *RequirementScopeEntry) mutableCopy() *RequirementScopeEntry {
-	c := *m
-	c.frozen = false
-	c.memoizedSize = -1
-	c.prefix_ = append([]string(nil), m.prefix_...)
-	c.regexp_ = append([]string(nil), m.regexp_...)
-	c.comment_ = append([]string(nil), m.comment_...)
-	return &c
-}
-
-// freeze returns an immutable copy (shared when m is already immutable).
-func (m *RequirementScopeEntry) freeze() *RequirementScopeEntry {
-	if m == nil || m.frozen {
-		return m
-	}
-	c := *m
-	c.frozen = true
-	c.memoizedSize = -1
-	c.prefix_ = append([]string(nil), m.prefix_...)
-	c.regexp_ = append([]string(nil), m.regexp_...)
-	c.comment_ = append([]string(nil), m.comment_...)
-	return &c
+	return &RequirementScopeEntry_Builder{m: &RequirementScopeEntry{}}
 }
 
 // Java: RequirementScopeEntry.hasReason()
 func (m *RequirementScopeEntry) HasReason() bool { return m.bitField0_&(1<<0) != 0 }
 
-// Java: RequirementScopeEntry.getReason()
-func (m *RequirementScopeEntry) GetReason() RequirementScopeEntry_Reason {
-	v := int32(0)
-	if m.bitField0_&(1<<0) != 0 {
-		v = m.reason_
-	}
-	return requirementScopeEntry_Reason_fromNumber(v)
-}
-
 // Java: RequirementScopeEntry.getPrefixList()
 func (m *RequirementScopeEntry) GetPrefixList() []string { return m.prefix_ }
-
-// Java: RequirementScopeEntry.getPrefix(int)
-func (m *RequirementScopeEntry) GetPrefix(index int) string {
-	protoCheckIndexJDK(index, len(m.prefix_))
-	return m.prefix_[index]
-}
-
-// Java: RequirementScopeEntry.getPrefixCount()
-func (m *RequirementScopeEntry) GetPrefixCount() int { return len(m.prefix_) }
 
 // Java: RequirementScopeEntry.getRegexpList()
 func (m *RequirementScopeEntry) GetRegexpList() []string { return m.regexp_ }
 
-// Java: RequirementScopeEntry.getRegexp(int)
-func (m *RequirementScopeEntry) GetRegexp(index int) string {
-	protoCheckIndexJDK(index, len(m.regexp_))
-	return m.regexp_[index]
-}
-
-// Java: RequirementScopeEntry.getRegexpCount()
-func (m *RequirementScopeEntry) GetRegexpCount() int { return len(m.regexp_) }
-
 // Java: RequirementScopeEntry.hasExplanation()
 func (m *RequirementScopeEntry) HasExplanation() bool { return m.bitField0_&(1<<1) != 0 }
 
-// Java: RequirementScopeEntry.getExplanation()
-func (m *RequirementScopeEntry) GetExplanation() string {
-	return m.explanation_
-}
-
-// Java: RequirementScopeEntry.getCommentList()
-func (m *RequirementScopeEntry) GetCommentList() []string { return m.comment_ }
-
-// Java: RequirementScopeEntry.getComment(int)
-func (m *RequirementScopeEntry) GetComment(index int) string {
-	protoCheckIndexJDK(index, len(m.comment_))
-	return m.comment_[index]
-}
-
-// Java: RequirementScopeEntry.getCommentCount()
-func (m *RequirementScopeEntry) GetCommentCount() int { return len(m.comment_) }
-
 // Java: RequirementScopeEntry.hasAutomaticallyPrune()
 func (m *RequirementScopeEntry) HasAutomaticallyPrune() bool { return m.bitField0_&(1<<2) != 0 }
-
-// Java: RequirementScopeEntry.getAutomaticallyPrune()
-func (m *RequirementScopeEntry) GetAutomaticallyPrune() bool {
-	return m.automaticallyPrune_
-}
 
 // Java: RequirementScopeEntry.hasDoNotRecordViolationsInSummaryBecauseThisIsGencodeAndAlwaysSafe()
 func (m *RequirementScopeEntry) HasDoNotRecordViolationsInSummaryBecauseThisIsGencodeAndAlwaysSafe() bool {
 	return m.bitField0_&(1<<3) != 0
 }
 
-// Java: RequirementScopeEntry.getDoNotRecordViolationsInSummaryBecauseThisIsGencodeAndAlwaysSafe()
-func (m *RequirementScopeEntry) GetDoNotRecordViolationsInSummaryBecauseThisIsGencodeAndAlwaysSafe() bool {
-	return m.doNotRecordViolationsInSummaryBecauseThisIsGencodeAndAlwaysSafe_
-}
-
 // RequirementScopeEntry_Builder is RequirementScopeEntry.Builder.
 type RequirementScopeEntry_Builder struct{ m *RequirementScopeEntry }
 
 // Java: RequirementScopeEntry.Builder.build()
-func (b *RequirementScopeEntry_Builder) Build() *RequirementScopeEntry { return b.m.freeze() }
+func (b *RequirementScopeEntry_Builder) Build() *RequirementScopeEntry {
+	c := *b.m
+	c.cachedSize = 0
+	return &c
+}
 
 // Java: RequirementScopeEntry.Builder.buildPartial()
-func (b *RequirementScopeEntry_Builder) BuildPartial() *RequirementScopeEntry { return b.m.freeze() }
+func (b *RequirementScopeEntry_Builder) BuildPartial() *RequirementScopeEntry {
+	c := *b.m
+	c.cachedSize = 0
+	return &c
+}
 
 // Java: RequirementScopeEntry.Builder.clear()
 func (b *RequirementScopeEntry_Builder) Clear() *RequirementScopeEntry_Builder {
-	b.m = &RequirementScopeEntry{memoizedSize: -1}
+	b.m = &RequirementScopeEntry{}
 	return b
-}
-
-// Java: RequirementScopeEntry.Builder.mergeFrom(RequirementScopeEntry)
-func (b *RequirementScopeEntry_Builder) MergeFrom(other *RequirementScopeEntry) *RequirementScopeEntry_Builder {
-	b.m.mergeFrom(other)
-	return b
-}
-
-// Java: RequirementScopeEntry.Builder.hasReason()
-func (b *RequirementScopeEntry_Builder) HasReason() bool { return b.m.HasReason() }
-
-// Java: RequirementScopeEntry.Builder.getReason()
-func (b *RequirementScopeEntry_Builder) GetReason() RequirementScopeEntry_Reason {
-	return b.m.GetReason()
 }
 
 // Java: RequirementScopeEntry.Builder.setReason(Reason)
@@ -2697,48 +1875,14 @@ func (b *RequirementScopeEntry_Builder) SetReason(v RequirementScopeEntry_Reason
 	return b
 }
 
-// Java: RequirementScopeEntry.Builder.clearReason()
-func (b *RequirementScopeEntry_Builder) ClearReason() *RequirementScopeEntry_Builder {
-	b.m.reason_ = 0
-	b.m.bitField0_ &^= 1 << 0
-	return b
-}
-
 // Java: RequirementScopeEntry.Builder.getPrefixList()
 func (b *RequirementScopeEntry_Builder) GetPrefixList() []string {
 	return append([]string(nil), b.m.GetPrefixList()...)
 }
 
-// Java: RequirementScopeEntry.Builder.getPrefix(int)
-func (b *RequirementScopeEntry_Builder) GetPrefix(index int) string { return b.m.GetPrefix(index) }
-
-// Java: RequirementScopeEntry.Builder.getPrefixCount()
-func (b *RequirementScopeEntry_Builder) GetPrefixCount() int { return b.m.GetPrefixCount() }
-
 // Java: RequirementScopeEntry.Builder.addPrefix(string)
 func (b *RequirementScopeEntry_Builder) AddPrefix(v string) *RequirementScopeEntry_Builder {
 	b.m.prefix_ = append(b.m.prefix_, v)
-	return b
-}
-
-// Java: RequirementScopeEntry.Builder.addAllPrefix(Iterable)
-func (b *RequirementScopeEntry_Builder) AddAllPrefix(values []string) *RequirementScopeEntry_Builder {
-	for _, v := range values {
-		b.AddPrefix(v)
-	}
-	return b
-}
-
-// Java: RequirementScopeEntry.Builder.setPrefix(int, string)
-func (b *RequirementScopeEntry_Builder) SetPrefixAtIndex(index int, v string) *RequirementScopeEntry_Builder {
-	protoCheckIndexJDK(index, len(b.m.prefix_))
-	b.m.prefix_[index] = v
-	return b
-}
-
-// Java: RequirementScopeEntry.Builder.clearPrefix()
-func (b *RequirementScopeEntry_Builder) ClearPrefix() *RequirementScopeEntry_Builder {
-	b.m.prefix_ = nil
 	return b
 }
 
@@ -2747,44 +1891,11 @@ func (b *RequirementScopeEntry_Builder) GetRegexpList() []string {
 	return append([]string(nil), b.m.GetRegexpList()...)
 }
 
-// Java: RequirementScopeEntry.Builder.getRegexp(int)
-func (b *RequirementScopeEntry_Builder) GetRegexp(index int) string { return b.m.GetRegexp(index) }
-
-// Java: RequirementScopeEntry.Builder.getRegexpCount()
-func (b *RequirementScopeEntry_Builder) GetRegexpCount() int { return b.m.GetRegexpCount() }
-
 // Java: RequirementScopeEntry.Builder.addRegexp(string)
 func (b *RequirementScopeEntry_Builder) AddRegexp(v string) *RequirementScopeEntry_Builder {
 	b.m.regexp_ = append(b.m.regexp_, v)
 	return b
 }
-
-// Java: RequirementScopeEntry.Builder.addAllRegexp(Iterable)
-func (b *RequirementScopeEntry_Builder) AddAllRegexp(values []string) *RequirementScopeEntry_Builder {
-	for _, v := range values {
-		b.AddRegexp(v)
-	}
-	return b
-}
-
-// Java: RequirementScopeEntry.Builder.setRegexp(int, string)
-func (b *RequirementScopeEntry_Builder) SetRegexpAtIndex(index int, v string) *RequirementScopeEntry_Builder {
-	protoCheckIndexJDK(index, len(b.m.regexp_))
-	b.m.regexp_[index] = v
-	return b
-}
-
-// Java: RequirementScopeEntry.Builder.clearRegexp()
-func (b *RequirementScopeEntry_Builder) ClearRegexp() *RequirementScopeEntry_Builder {
-	b.m.regexp_ = nil
-	return b
-}
-
-// Java: RequirementScopeEntry.Builder.hasExplanation()
-func (b *RequirementScopeEntry_Builder) HasExplanation() bool { return b.m.HasExplanation() }
-
-// Java: RequirementScopeEntry.Builder.getExplanation()
-func (b *RequirementScopeEntry_Builder) GetExplanation() string { return b.m.GetExplanation() }
 
 // Java: RequirementScopeEntry.Builder.setExplanation(String)
 func (b *RequirementScopeEntry_Builder) SetExplanation(v string) *RequirementScopeEntry_Builder {
@@ -2793,59 +1904,10 @@ func (b *RequirementScopeEntry_Builder) SetExplanation(v string) *RequirementSco
 	return b
 }
 
-// Java: RequirementScopeEntry.Builder.clearExplanation()
-func (b *RequirementScopeEntry_Builder) ClearExplanation() *RequirementScopeEntry_Builder {
-	b.m.explanation_ = ""
-	b.m.bitField0_ &^= 1 << 1
-	return b
-}
-
-// Java: RequirementScopeEntry.Builder.getCommentList()
-func (b *RequirementScopeEntry_Builder) GetCommentList() []string {
-	return append([]string(nil), b.m.GetCommentList()...)
-}
-
-// Java: RequirementScopeEntry.Builder.getComment(int)
-func (b *RequirementScopeEntry_Builder) GetComment(index int) string { return b.m.GetComment(index) }
-
-// Java: RequirementScopeEntry.Builder.getCommentCount()
-func (b *RequirementScopeEntry_Builder) GetCommentCount() int { return b.m.GetCommentCount() }
-
 // Java: RequirementScopeEntry.Builder.addComment(string)
 func (b *RequirementScopeEntry_Builder) AddComment(v string) *RequirementScopeEntry_Builder {
 	b.m.comment_ = append(b.m.comment_, v)
 	return b
-}
-
-// Java: RequirementScopeEntry.Builder.addAllComment(Iterable)
-func (b *RequirementScopeEntry_Builder) AddAllComment(values []string) *RequirementScopeEntry_Builder {
-	for _, v := range values {
-		b.AddComment(v)
-	}
-	return b
-}
-
-// Java: RequirementScopeEntry.Builder.setComment(int, string)
-func (b *RequirementScopeEntry_Builder) SetCommentAtIndex(index int, v string) *RequirementScopeEntry_Builder {
-	protoCheckIndexJDK(index, len(b.m.comment_))
-	b.m.comment_[index] = v
-	return b
-}
-
-// Java: RequirementScopeEntry.Builder.clearComment()
-func (b *RequirementScopeEntry_Builder) ClearComment() *RequirementScopeEntry_Builder {
-	b.m.comment_ = nil
-	return b
-}
-
-// Java: RequirementScopeEntry.Builder.hasAutomaticallyPrune()
-func (b *RequirementScopeEntry_Builder) HasAutomaticallyPrune() bool {
-	return b.m.HasAutomaticallyPrune()
-}
-
-// Java: RequirementScopeEntry.Builder.getAutomaticallyPrune()
-func (b *RequirementScopeEntry_Builder) GetAutomaticallyPrune() bool {
-	return b.m.GetAutomaticallyPrune()
 }
 
 // Java: RequirementScopeEntry.Builder.setAutomaticallyPrune(boolean)
@@ -2855,62 +1917,11 @@ func (b *RequirementScopeEntry_Builder) SetAutomaticallyPrune(v bool) *Requireme
 	return b
 }
 
-// Java: RequirementScopeEntry.Builder.clearAutomaticallyPrune()
-func (b *RequirementScopeEntry_Builder) ClearAutomaticallyPrune() *RequirementScopeEntry_Builder {
-	b.m.automaticallyPrune_ = false
-	b.m.bitField0_ &^= 1 << 2
-	return b
-}
-
-// Java: RequirementScopeEntry.Builder.hasDoNotRecordViolationsInSummaryBecauseThisIsGencodeAndAlwaysSafe()
-func (b *RequirementScopeEntry_Builder) HasDoNotRecordViolationsInSummaryBecauseThisIsGencodeAndAlwaysSafe() bool {
-	return b.m.HasDoNotRecordViolationsInSummaryBecauseThisIsGencodeAndAlwaysSafe()
-}
-
-// Java: RequirementScopeEntry.Builder.getDoNotRecordViolationsInSummaryBecauseThisIsGencodeAndAlwaysSafe()
-func (b *RequirementScopeEntry_Builder) GetDoNotRecordViolationsInSummaryBecauseThisIsGencodeAndAlwaysSafe() bool {
-	return b.m.GetDoNotRecordViolationsInSummaryBecauseThisIsGencodeAndAlwaysSafe()
-}
-
 // Java: RequirementScopeEntry.Builder.setDoNotRecordViolationsInSummaryBecauseThisIsGencodeAndAlwaysSafe(boolean)
 func (b *RequirementScopeEntry_Builder) SetDoNotRecordViolationsInSummaryBecauseThisIsGencodeAndAlwaysSafe(v bool) *RequirementScopeEntry_Builder {
 	b.m.doNotRecordViolationsInSummaryBecauseThisIsGencodeAndAlwaysSafe_ = v
 	b.m.bitField0_ |= 1 << 3
 	return b
-}
-
-// Java: RequirementScopeEntry.Builder.clearDoNotRecordViolationsInSummaryBecauseThisIsGencodeAndAlwaysSafe()
-func (b *RequirementScopeEntry_Builder) ClearDoNotRecordViolationsInSummaryBecauseThisIsGencodeAndAlwaysSafe() *RequirementScopeEntry_Builder {
-	b.m.doNotRecordViolationsInSummaryBecauseThisIsGencodeAndAlwaysSafe_ = false
-	b.m.bitField0_ &^= 1 << 3
-	return b
-}
-
-// mergeFrom is GeneratedMessage.Builder.mergeFrom(RequirementScopeEntry) on a mutable m.
-func (m *RequirementScopeEntry) mergeFrom(other *RequirementScopeEntry) {
-	if other == RequirementScopeEntry_GetDefaultInstance() {
-		return
-	}
-	if other.bitField0_&(1<<0) != 0 {
-		m.reason_ = other.reason_
-		m.bitField0_ |= 1 << 0
-	}
-	m.prefix_ = append(m.prefix_, other.prefix_...)
-	m.regexp_ = append(m.regexp_, other.regexp_...)
-	if other.bitField0_&(1<<1) != 0 {
-		m.explanation_ = other.explanation_
-		m.bitField0_ |= 1 << 1
-	}
-	m.comment_ = append(m.comment_, other.comment_...)
-	if other.bitField0_&(1<<2) != 0 {
-		m.automaticallyPrune_ = other.automaticallyPrune_
-		m.bitField0_ |= 1 << 2
-	}
-	if other.bitField0_&(1<<3) != 0 {
-		m.doNotRecordViolationsInSummaryBecauseThisIsGencodeAndAlwaysSafe_ = other.doNotRecordViolationsInSummaryBecauseThisIsGencodeAndAlwaysSafe_
-		m.bitField0_ |= 1 << 3
-	}
-	m.unknownFields = append(m.unknownFields, other.unknownFields...)
 }
 
 // Java: RequirementScopeEntry.equals(Object)
@@ -3031,66 +2042,42 @@ func (m *RequirementScopeEntry) appendTo(b []byte) []byte {
 
 // serializedSize is getSerializedSize() (memoized once immutable).
 func (m *RequirementScopeEntry) serializedSize() int {
-	if m.frozen && m.memoizedSize >= 0 {
-		return m.memoizedSize
+	if m.cachedSize > 0 {
+		return m.cachedSize - 1
 	}
 	size := 0
-	size += len(m.appendScalarsOnly(nil))
-	if m.frozen {
-		m.memoizedSize = size
-	}
-	return size
-}
-
-// appendScalarsOnly encodes the non-message fields and unknown fields (for sizing).
-func (m *RequirementScopeEntry) appendScalarsOnly(b []byte) []byte {
 	if m.bitField0_&(1<<0) != 0 {
-		b = protoAppendTag(b, 1, 0)
-		b = protoAppendInt32(b, m.reason_)
+		size += 1 + protoVarintLen(uint64(int64(m.reason_)))
 	}
 	for _, x := range m.prefix_ {
-		b = protoAppendTag(b, 2, 2)
-		b = protoAppendString(b, x)
+		size += protoStringSize(1, x)
 	}
 	for _, x := range m.regexp_ {
-		b = protoAppendTag(b, 3, 2)
-		b = protoAppendString(b, x)
+		size += protoStringSize(1, x)
 	}
 	if m.bitField0_&(1<<1) != 0 {
-		b = protoAppendTag(b, 4, 2)
-		b = protoAppendString(b, m.explanation_)
+		size += protoStringSize(1, m.explanation_)
 	}
 	for _, x := range m.comment_ {
-		b = protoAppendTag(b, 5, 2)
-		b = protoAppendString(b, x)
+		size += protoStringSize(1, x)
 	}
 	if m.bitField0_&(1<<2) != 0 {
-		b = protoAppendTag(b, 6, 0)
-		b = protoAppendBool(b, m.automaticallyPrune_)
+		size += 2
 	}
 	if m.bitField0_&(1<<3) != 0 {
-		b = protoAppendTag(b, 7, 0)
-		b = protoAppendBool(b, m.doNotRecordViolationsInSummaryBecauseThisIsGencodeAndAlwaysSafe_)
+		size += 2
 	}
 	if len(m.unknownFields) > 0 {
-		b = append(b, protoCanonicalUnknownFields(m.unknownFields)...)
+		size += len(protoCanonicalUnknownFields(m.unknownFields))
 	}
-	return b
+	m.cachedSize = size + 1
+	return size
 }
-
-// Java: RequirementScopeEntry.getSerializedSize()
-func (m *RequirementScopeEntry) GetSerializedSize() int { return m.serializedSize() }
 
 // Java: RequirementScopeEntry.toByteArray()
 func (m *RequirementScopeEntry) ToByteArray() []byte {
 	return m.appendTo(make([]byte, 0, m.serializedSize()))
 }
-
-// Java: RequirementScopeEntry.toByteString()
-func (m *RequirementScopeEntry) ToByteString() []byte { return m.ToByteArray() }
-
-// Java: RequirementScopeEntry.isInitialized()
-func (m *RequirementScopeEntry) IsInitialized() bool { return true }
 
 // mergeFromReader is RequirementScopeEntry.Builder.mergeFrom(CodedInputStream) on a mutable m.
 func (m *RequirementScopeEntry) mergeFromReader(r *protoReader) {
@@ -3172,8 +2159,7 @@ type RequirementScope struct {
 	onlyApplyTo_  []*RequirementScopeEntry
 	bitField0_    uint64
 	unknownFields []byte
-	frozen        bool
-	memoizedSize  int
+	cachedSize    int
 }
 
 // Field numbers (RequirementScope.X_FIELD_NUMBER).
@@ -3183,65 +2169,9 @@ const (
 	RequirementScope_ONLY_APPLY_TO_FIELD_NUMBER = 3
 )
 
-var requirementScope_DEFAULT_INSTANCE = &RequirementScope{frozen: true, memoizedSize: -1}
-
-// Java: RequirementScope.getDefaultInstance()
-func RequirementScope_GetDefaultInstance() *RequirementScope {
-	return requirementScope_DEFAULT_INSTANCE
-}
-
 // Java: RequirementScope.newBuilder()
 func RequirementScope_NewBuilder() *RequirementScope_Builder {
-	return &RequirementScope_Builder{m: &RequirementScope{memoizedSize: -1}}
-}
-
-// Java: RequirementScope.newBuilder(RequirementScope)
-func RequirementScope_NewBuilderFrom(prototype *RequirementScope) *RequirementScope_Builder {
-	return prototype.ToBuilder()
-}
-
-// Java: RequirementScope.toBuilder()
-func (m *RequirementScope) ToBuilder() *RequirementScope_Builder {
-	return &RequirementScope_Builder{m: m.mutableCopy()}
-}
-
-// RequirementScope_ParseFrom panics with *InvalidProtocolBufferException on malformed input.
-//
-// Java: RequirementScope.parseFrom(byte[])
-func RequirementScope_ParseFrom(data []byte) *RequirementScope {
-	m := &RequirementScope{memoizedSize: -1}
-	m.mergeFromReader(&protoReader{b: data})
-	m.frozen = true
-	return m
-}
-
-// mutableCopy is a shallow copy that a builder may modify.
-func (m *RequirementScope) mutableCopy() *RequirementScope {
-	c := *m
-	c.frozen = false
-	c.memoizedSize = -1
-	c.allowlist_ = append([]*RequirementScopeEntry(nil), m.allowlist_...)
-	c.onlyApplyTo_ = append([]*RequirementScopeEntry(nil), m.onlyApplyTo_...)
-	return &c
-}
-
-// freeze returns an immutable copy (shared when m is already immutable).
-func (m *RequirementScope) freeze() *RequirementScope {
-	if m == nil || m.frozen {
-		return m
-	}
-	c := *m
-	c.frozen = true
-	c.memoizedSize = -1
-	c.allowlist_ = make([]*RequirementScopeEntry, len(m.allowlist_))
-	for i, x := range m.allowlist_ {
-		c.allowlist_[i] = x.freeze()
-	}
-	c.onlyApplyTo_ = make([]*RequirementScopeEntry, len(m.onlyApplyTo_))
-	for i, x := range m.onlyApplyTo_ {
-		c.onlyApplyTo_[i] = x.freeze()
-	}
-	return &c
+	return &RequirementScope_Builder{m: &RequirementScope{}}
 }
 
 // Java: RequirementScope.hasRuleId()
@@ -3255,23 +2185,11 @@ func (m *RequirementScope) GetRuleId() string {
 // Java: RequirementScope.getAllowlistList()
 func (m *RequirementScope) GetAllowlistList() []*RequirementScopeEntry { return m.allowlist_ }
 
-// Java: RequirementScope.getAllowlist(int)
-func (m *RequirementScope) GetAllowlist(index int) *RequirementScopeEntry {
-	protoCheckIndexJDK(index, len(m.allowlist_))
-	return m.allowlist_[index]
-}
-
 // Java: RequirementScope.getAllowlistCount()
 func (m *RequirementScope) GetAllowlistCount() int { return len(m.allowlist_) }
 
 // Java: RequirementScope.getOnlyApplyToList()
 func (m *RequirementScope) GetOnlyApplyToList() []*RequirementScopeEntry { return m.onlyApplyTo_ }
-
-// Java: RequirementScope.getOnlyApplyTo(int)
-func (m *RequirementScope) GetOnlyApplyTo(index int) *RequirementScopeEntry {
-	protoCheckIndexJDK(index, len(m.onlyApplyTo_))
-	return m.onlyApplyTo_[index]
-}
 
 // Java: RequirementScope.getOnlyApplyToCount()
 func (m *RequirementScope) GetOnlyApplyToCount() int { return len(m.onlyApplyTo_) }
@@ -3280,20 +2198,22 @@ func (m *RequirementScope) GetOnlyApplyToCount() int { return len(m.onlyApplyTo_
 type RequirementScope_Builder struct{ m *RequirementScope }
 
 // Java: RequirementScope.Builder.build()
-func (b *RequirementScope_Builder) Build() *RequirementScope { return b.m.freeze() }
+func (b *RequirementScope_Builder) Build() *RequirementScope {
+	c := *b.m
+	c.cachedSize = 0
+	return &c
+}
 
 // Java: RequirementScope.Builder.buildPartial()
-func (b *RequirementScope_Builder) BuildPartial() *RequirementScope { return b.m.freeze() }
+func (b *RequirementScope_Builder) BuildPartial() *RequirementScope {
+	c := *b.m
+	c.cachedSize = 0
+	return &c
+}
 
 // Java: RequirementScope.Builder.clear()
 func (b *RequirementScope_Builder) Clear() *RequirementScope_Builder {
-	b.m = &RequirementScope{memoizedSize: -1}
-	return b
-}
-
-// Java: RequirementScope.Builder.mergeFrom(RequirementScope)
-func (b *RequirementScope_Builder) MergeFrom(other *RequirementScope) *RequirementScope_Builder {
-	b.m.mergeFrom(other)
+	b.m = &RequirementScope{}
 	return b
 }
 
@@ -3310,25 +2230,13 @@ func (b *RequirementScope_Builder) SetRuleId(v string) *RequirementScope_Builder
 	return b
 }
 
-// Java: RequirementScope.Builder.clearRuleId()
-func (b *RequirementScope_Builder) ClearRuleId() *RequirementScope_Builder {
-	b.m.ruleId_ = ""
-	b.m.bitField0_ &^= 1 << 0
-	return b
-}
-
 // Java: RequirementScope.Builder.getAllowlistList()
 func (b *RequirementScope_Builder) GetAllowlistList() []*RequirementScopeEntry {
 	out := make([]*RequirementScopeEntry, len(b.m.allowlist_))
 	for i, x := range b.m.allowlist_ {
-		out[i] = x.freeze()
+		out[i] = x
 	}
 	return out
-}
-
-// Java: RequirementScope.Builder.getAllowlist(int)
-func (b *RequirementScope_Builder) GetAllowlist(index int) *RequirementScopeEntry {
-	return b.m.GetAllowlist(index).freeze()
 }
 
 // Java: RequirementScope.Builder.getAllowlistCount()
@@ -3351,37 +2259,6 @@ func (b *RequirementScope_Builder) AddAllAllowlist(values []*RequirementScopeEnt
 	return b
 }
 
-// Java: RequirementScope.Builder.setAllowlist(int, *RequirementScopeEntry)
-func (b *RequirementScope_Builder) SetAllowlistAtIndex(index int, v *RequirementScopeEntry) *RequirementScope_Builder {
-	protoCheckIndexJDK(index, len(b.m.allowlist_))
-	if v == nil {
-		panic(jutil.NewNullPointerException())
-	}
-	b.m.allowlist_[index] = v
-	return b
-}
-
-// Java: RequirementScope.Builder.addAllowlist(RequirementScopeEntry.Builder)
-func (b *RequirementScope_Builder) AddAllowlistFromBuilder(builderForValue *RequirementScopeEntry_Builder) *RequirementScope_Builder {
-	return b.AddAllowlist(builderForValue.Build())
-}
-
-// Java: RequirementScope.Builder.addAllowlistBuilder()
-func (b *RequirementScope_Builder) AddAllowlistBuilder() *RequirementScopeEntry_Builder {
-	x := &RequirementScopeEntry{memoizedSize: -1}
-	b.m.allowlist_ = append(b.m.allowlist_, x)
-	return &RequirementScopeEntry_Builder{m: x}
-}
-
-// Java: RequirementScope.Builder.getAllowlistBuilder(int)
-func (b *RequirementScope_Builder) GetAllowlistBuilder(index int) *RequirementScopeEntry_Builder {
-	protoCheckIndexJDK(index, len(b.m.allowlist_))
-	if b.m.allowlist_[index].frozen {
-		b.m.allowlist_[index] = b.m.allowlist_[index].mutableCopy()
-	}
-	return &RequirementScopeEntry_Builder{m: b.m.allowlist_[index]}
-}
-
 // Java: RequirementScope.Builder.clearAllowlist()
 func (b *RequirementScope_Builder) ClearAllowlist() *RequirementScope_Builder {
 	b.m.allowlist_ = nil
@@ -3392,14 +2269,9 @@ func (b *RequirementScope_Builder) ClearAllowlist() *RequirementScope_Builder {
 func (b *RequirementScope_Builder) GetOnlyApplyToList() []*RequirementScopeEntry {
 	out := make([]*RequirementScopeEntry, len(b.m.onlyApplyTo_))
 	for i, x := range b.m.onlyApplyTo_ {
-		out[i] = x.freeze()
+		out[i] = x
 	}
 	return out
-}
-
-// Java: RequirementScope.Builder.getOnlyApplyTo(int)
-func (b *RequirementScope_Builder) GetOnlyApplyTo(index int) *RequirementScopeEntry {
-	return b.m.GetOnlyApplyTo(index).freeze()
 }
 
 // Java: RequirementScope.Builder.getOnlyApplyToCount()
@@ -3422,103 +2294,10 @@ func (b *RequirementScope_Builder) AddAllOnlyApplyTo(values []*RequirementScopeE
 	return b
 }
 
-// Java: RequirementScope.Builder.setOnlyApplyTo(int, *RequirementScopeEntry)
-func (b *RequirementScope_Builder) SetOnlyApplyToAtIndex(index int, v *RequirementScopeEntry) *RequirementScope_Builder {
-	protoCheckIndexJDK(index, len(b.m.onlyApplyTo_))
-	if v == nil {
-		panic(jutil.NewNullPointerException())
-	}
-	b.m.onlyApplyTo_[index] = v
-	return b
-}
-
-// Java: RequirementScope.Builder.addOnlyApplyTo(RequirementScopeEntry.Builder)
-func (b *RequirementScope_Builder) AddOnlyApplyToFromBuilder(builderForValue *RequirementScopeEntry_Builder) *RequirementScope_Builder {
-	return b.AddOnlyApplyTo(builderForValue.Build())
-}
-
-// Java: RequirementScope.Builder.addOnlyApplyToBuilder()
-func (b *RequirementScope_Builder) AddOnlyApplyToBuilder() *RequirementScopeEntry_Builder {
-	x := &RequirementScopeEntry{memoizedSize: -1}
-	b.m.onlyApplyTo_ = append(b.m.onlyApplyTo_, x)
-	return &RequirementScopeEntry_Builder{m: x}
-}
-
-// Java: RequirementScope.Builder.getOnlyApplyToBuilder(int)
-func (b *RequirementScope_Builder) GetOnlyApplyToBuilder(index int) *RequirementScopeEntry_Builder {
-	protoCheckIndexJDK(index, len(b.m.onlyApplyTo_))
-	if b.m.onlyApplyTo_[index].frozen {
-		b.m.onlyApplyTo_[index] = b.m.onlyApplyTo_[index].mutableCopy()
-	}
-	return &RequirementScopeEntry_Builder{m: b.m.onlyApplyTo_[index]}
-}
-
 // Java: RequirementScope.Builder.clearOnlyApplyTo()
 func (b *RequirementScope_Builder) ClearOnlyApplyTo() *RequirementScope_Builder {
 	b.m.onlyApplyTo_ = nil
 	return b
-}
-
-// mergeFrom is GeneratedMessage.Builder.mergeFrom(RequirementScope) on a mutable m.
-func (m *RequirementScope) mergeFrom(other *RequirementScope) {
-	if other == RequirementScope_GetDefaultInstance() {
-		return
-	}
-	if other.bitField0_&(1<<0) != 0 {
-		m.ruleId_ = other.ruleId_
-		m.bitField0_ |= 1 << 0
-	}
-	m.allowlist_ = append(m.allowlist_, other.allowlist_...)
-	m.onlyApplyTo_ = append(m.onlyApplyTo_, other.onlyApplyTo_...)
-	m.unknownFields = append(m.unknownFields, other.unknownFields...)
-}
-
-// Java: RequirementScope.equals(Object)
-func (m *RequirementScope) Equals(obj any) bool {
-	other, ok := obj.(*RequirementScope)
-	if !ok || other == nil {
-		return false
-	}
-	if m == other {
-		return true
-	}
-	if m.HasRuleId() != other.HasRuleId() {
-		return false
-	}
-	if m.HasRuleId() && !(m.ruleId_ == other.ruleId_) {
-		return false
-	}
-	if len(m.allowlist_) != len(other.allowlist_) {
-		return false
-	}
-	for i := range m.allowlist_ {
-		if !(m.allowlist_[i].Equals(other.allowlist_[i])) {
-			return false
-		}
-	}
-	if len(m.onlyApplyTo_) != len(other.onlyApplyTo_) {
-		return false
-	}
-	for i := range m.onlyApplyTo_ {
-		if !(m.onlyApplyTo_[i].Equals(other.onlyApplyTo_[i])) {
-			return false
-		}
-	}
-	return protoBytesEqual(protoCanonicalUnknownFields(m.unknownFields), protoCanonicalUnknownFields(other.unknownFields))
-}
-
-// HashCode is consistent with Equals. (Java's generated hashCode mixes in
-// the descriptor's identity hash, so its values are not reproducible.)
-func (m *RequirementScope) HashCode() int32 {
-	h := int32(41)
-	h = protoHashString(h, m.ruleId_)
-	for _, x := range m.allowlist_ {
-		h = 31*h + x.HashCode()
-	}
-	for _, x := range m.onlyApplyTo_ {
-		h = 31*h + x.HashCode()
-	}
-	return h
 }
 
 // appendTo is RequirementScope.writeTo(CodedOutputStream): fields in number order, then unknown fields.
@@ -3545,8 +2324,8 @@ func (m *RequirementScope) appendTo(b []byte) []byte {
 
 // serializedSize is getSerializedSize() (memoized once immutable).
 func (m *RequirementScope) serializedSize() int {
-	if m.frozen && m.memoizedSize >= 0 {
-		return m.memoizedSize
+	if m.cachedSize > 0 {
+		return m.cachedSize - 1
 	}
 	size := 0
 	for _, x := range m.allowlist_ {
@@ -3557,38 +2336,20 @@ func (m *RequirementScope) serializedSize() int {
 		s := x.serializedSize()
 		size += 1 + protoVarintLen(uint64(s)) + s
 	}
-	size += len(m.appendScalarsOnly(nil))
-	if m.frozen {
-		m.memoizedSize = size
-	}
-	return size
-}
-
-// appendScalarsOnly encodes the non-message fields and unknown fields (for sizing).
-func (m *RequirementScope) appendScalarsOnly(b []byte) []byte {
 	if m.bitField0_&(1<<0) != 0 {
-		b = protoAppendTag(b, 1, 2)
-		b = protoAppendString(b, m.ruleId_)
+		size += protoStringSize(1, m.ruleId_)
 	}
 	if len(m.unknownFields) > 0 {
-		b = append(b, protoCanonicalUnknownFields(m.unknownFields)...)
+		size += len(protoCanonicalUnknownFields(m.unknownFields))
 	}
-	return b
+	m.cachedSize = size + 1
+	return size
 }
-
-// Java: RequirementScope.getSerializedSize()
-func (m *RequirementScope) GetSerializedSize() int { return m.serializedSize() }
 
 // Java: RequirementScope.toByteArray()
 func (m *RequirementScope) ToByteArray() []byte {
 	return m.appendTo(make([]byte, 0, m.serializedSize()))
 }
-
-// Java: RequirementScope.toByteString()
-func (m *RequirementScope) ToByteString() []byte { return m.ToByteArray() }
-
-// Java: RequirementScope.isInitialized()
-func (m *RequirementScope) IsInitialized() bool { return true }
 
 // mergeFromReader is RequirementScope.Builder.mergeFrom(CodedInputStream) on a mutable m.
 func (m *RequirementScope) mergeFromReader(r *protoReader) {
@@ -3603,15 +2364,13 @@ func (m *RequirementScope) mergeFromReader(r *protoReader) {
 			m.bitField0_ |= 1 << 0
 		case 18:
 			data := r.readMessageBytes()
-			x := &RequirementScopeEntry{memoizedSize: -1}
+			x := &RequirementScopeEntry{}
 			x.mergeFromReader(r.sub(data))
-			x.frozen = true
 			m.allowlist_ = append(m.allowlist_, x)
 		case 26:
 			data := r.readMessageBytes()
-			x := &RequirementScopeEntry{memoizedSize: -1}
+			x := &RequirementScopeEntry{}
 			x.mergeFromReader(r.sub(data))
-			x.frozen = true
 			m.onlyApplyTo_ = append(m.onlyApplyTo_, x)
 		default:
 			r.skipField(tag)

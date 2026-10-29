@@ -20,7 +20,6 @@ package jscomp
 
 import (
 	"iter"
-	"slices"
 
 	"github.com/paullepoulpe/jsgo/internal/ast"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
@@ -53,79 +52,21 @@ type OptimizeCalls struct {
 // Java: OptimizeCalls(AbstractCompiler, ImmutableList<CallGraphCompilerPass>, boolean)
 func NewOptimizeCalls(
 	compiler AbstractCompiler,
-	passes []OptimizeCalls_CallGraphCompilerPass,
-	considerExterns bool) *OptimizeCalls {
+	considerExterns bool,
+	passes ...OptimizeCalls_CallGraphCompilerPass,
+) *OptimizeCalls {
+	jutil.CheckNotNull(compiler)
+	for _, pass := range passes {
+		jutil.CheckNotNull(pass)
+	}
 	return &OptimizeCalls{compiler: compiler, passes: passes, considerExterns: considerExterns}
-}
-
-// OptimizeCalls_Builder_ is the static factory builder() (the trailing
-// underscore keeps it apart from the nested type Builder).
-//
-// Java: OptimizeCalls.builder()
-func OptimizeCalls_Builder_() *OptimizeCalls_Builder {
-	return NewOptimizeCalls_Builder()
 }
 
 // OptimizeCalls_CallGraphCompilerPass is the nested interface
 // CallGraphCompilerPass.
 type OptimizeCalls_CallGraphCompilerPass interface {
 	// Java: OptimizeCalls.CallGraphCompilerPass.process(Node, Node, ReferenceMap)
-	Process(externs rhino.Node, root rhino.Node, references *OptimizeCalls_ReferenceMap)
-}
-
-// OptimizeCalls_CallGraphCompilerPassFunc lets a closure (a Java lambda) be
-// used as a CallGraphCompilerPass.
-//
-// Go-only: language-adapter — Java lambdas implement the functional
-// interface directly.
-type OptimizeCalls_CallGraphCompilerPassFunc func(externs rhino.Node, root rhino.Node, references *OptimizeCalls_ReferenceMap)
-
-// Process calls f.
-func (f OptimizeCalls_CallGraphCompilerPassFunc) Process(externs rhino.Node, root rhino.Node, references *OptimizeCalls_ReferenceMap) {
-	f(externs, root, references)
-}
-
-// OptimizeCalls_Builder is the nested class Builder.
-type OptimizeCalls_Builder struct {
-	compiler           AbstractCompiler
-	passes             []OptimizeCalls_CallGraphCompilerPass
-	considerExterns    bool
-	considerExternsSet bool
-}
-
-// Java: OptimizeCalls.Builder.setCompiler(AbstractCompiler)
-func (b *OptimizeCalls_Builder) SetCompiler(compiler AbstractCompiler) *OptimizeCalls_Builder {
-	b.compiler = compiler
-	return b
-}
-
-// SetConsiderExterns sets whether or not to include references to extern
-// names and properties in the ReferenceMap being generated.
-//
-// Java: OptimizeCalls.Builder.setConsiderExterns(boolean)
-func (b *OptimizeCalls_Builder) SetConsiderExterns(v bool) *OptimizeCalls_Builder {
-	b.considerExterns = v
-	b.considerExternsSet = true
-	return b
-}
-
-// Java: OptimizeCalls.Builder.addPass(CallGraphCompilerPass)
-func (b *OptimizeCalls_Builder) AddPass(pass OptimizeCalls_CallGraphCompilerPass) *OptimizeCalls_Builder {
-	b.passes = append(b.passes, jutil.CheckNotNull(pass))
-	return b
-}
-
-// Java: OptimizeCalls.Builder.build()
-func (b *OptimizeCalls_Builder) Build() *OptimizeCalls {
-	jutil.CheckNotNull(b.compiler)
-	jutil.CheckState(b.considerExternsSet)
-
-	return NewOptimizeCalls(b.compiler, slices.Clone(b.passes), b.considerExterns)
-}
-
-// Java: OptimizeCalls.Builder()
-func NewOptimizeCalls_Builder() *OptimizeCalls_Builder {
-	return &OptimizeCalls_Builder{}
+	ProcessWithReferenceMap(externs rhino.Node, root rhino.Node, references *OptimizeCalls_ReferenceMap)
 }
 
 // Java: OptimizeCalls.process(Node, Node)
@@ -160,7 +101,7 @@ func (o *OptimizeCalls) Process(externs rhino.Node, root rhino.Node) {
 	o.eliminateAccessorsFrom(references)
 
 	for _, pass := range o.passes {
-		pass.Process(externs, root, references)
+		pass.ProcessWithReferenceMap(externs, root, references)
 	}
 }
 

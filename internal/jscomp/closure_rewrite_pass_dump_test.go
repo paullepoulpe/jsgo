@@ -278,17 +278,16 @@ func (d *closureRewriteDump) dump(header string, inputs []*SourceFile) {
 	d.pass(inputs, parseDiags, "closureGoogScopeAliases", func(compiler *Compiler, externs rhino.Node, js rhino.Node, extra *[]string) {
 		closureRewriteGatherModuleMetadata(compiler, externs, js)
 		closureRewriteCreateModuleMap(compiler, externs, js)
-		ScopedAliases_Builder_(compiler).
-			SetPreprocessorSymbolTable(nil).
-			SetModuleMetadataMap(compiler.GetModuleMetadataMap()).
-			SetInvalidModuleGetHandling(ScopedAliases_InvalidModuleGetHandling_GIVE_UNIQUE_NAME).
-			Build().
-			Process(externs, js)
+		NewScopedAliases(compiler, ScopedAliasesOptions{
+			PreprocessorSymbolTable:  nil,
+			ModuleMetadataMap:        compiler.GetModuleMetadataMap(),
+			InvalidModuleGetHandling: ScopedAliases_InvalidModuleGetHandling_GIVE_UNIQUE_NAME,
+		}).Process(externs, js)
 	})
 	d.pass(inputs, parseDiags, "closureGoogScopeAliasesForIjs", func(compiler *Compiler, externs rhino.Node, js rhino.Node, extra *[]string) {
 		closureRewriteGatherModuleMetadata(compiler, externs, js)
 		closureRewriteCreateModuleMap(compiler, externs, js)
-		ScopedAliases_Builder_(compiler).Build().Process(externs, js)
+		NewScopedAliases(compiler, ScopedAliasesOptions{}).Process(externs, js)
 	})
 	d.pass(inputs, parseDiags, "closureRewriteModule", func(compiler *Compiler, externs rhino.Node, js rhino.Node, extra *[]string) {
 		closureRewriteGatherModuleMetadata(compiler, externs, js)
@@ -298,11 +297,10 @@ func (d *closureRewriteDump) dump(header string, inputs []*SourceFile) {
 	d.pass(inputs, parseDiags, "closureGoogScopeAliases+closureRewriteModule", func(compiler *Compiler, externs rhino.Node, js rhino.Node, extra *[]string) {
 		closureRewriteGatherModuleMetadata(compiler, externs, js)
 		closureRewriteCreateModuleMap(compiler, externs, js)
-		ScopedAliases_Builder_(compiler).
-			SetModuleMetadataMap(compiler.GetModuleMetadataMap()).
-			SetInvalidModuleGetHandling(ScopedAliases_InvalidModuleGetHandling_GIVE_UNIQUE_NAME).
-			Build().
-			Process(externs, js)
+		NewScopedAliases(compiler, ScopedAliasesOptions{
+			ModuleMetadataMap:        compiler.GetModuleMetadataMap(),
+			InvalidModuleGetHandling: ScopedAliases_InvalidModuleGetHandling_GIVE_UNIQUE_NAME,
+		}).Process(externs, js)
 		NewClosureRewriteModule(compiler, nil, compiler.GetTopScope()).Process(externs, js)
 	})
 	for _, mode := range ProcessDefines_Mode_values() {

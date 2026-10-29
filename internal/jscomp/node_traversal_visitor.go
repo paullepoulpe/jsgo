@@ -390,12 +390,12 @@ func NodeTraversal_TraverseScopeRoots(
 		return
 	}
 
-	b := NodeTraversal_Builder{
-		compiler:     compiler,
-		callback:     cb,
-		scopeCreator: NewMemoizedScopeCreator(NewSyntacticScopeCreator(compiler)),
-	}
-	t := acquireNodeTraversal(&b)
+	t := acquireNodeTraversalDirect(
+		compiler,
+		cb,
+		NewMemoizedScopeCreator(NewSyntacticScopeCreator(compiler)),
+		false,
+	)
 	defer releaseNodeTraversal(t)
 	t.stopAtNestedChangeScope = !traverseNested
 	origNoShouldTraverse := t.noShouldTraverse

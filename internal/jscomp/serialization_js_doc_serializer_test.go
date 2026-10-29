@@ -74,6 +74,6 @@ func TestJSDocSerializer_SerializedFields(t *testing.T) {
 	jsaEq(t, *de.GetDescription(), "desc")
 	jsaTrue(t, JSDocSerializer_SerializeJsdoc(rhino.JSDocInfo_Builder_().Build(), pool) == nil)
 
-	bad := OptimizationJsdoc_NewBuilder().AddKindValue(500).Build()
+	bad := &OptimizationJsdoc{kind_: []int32{500}}
 	jsaThrows[IMalformedTypedAstException](t, func() { JSDocSerializer_DeserializeJsdoc(bad, pool.Build()) })
 }

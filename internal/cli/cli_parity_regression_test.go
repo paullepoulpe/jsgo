@@ -255,3 +255,29 @@ func TestPathMatcherGlobVectors(t *testing.T) {
 		}
 	}
 }
+
+func TestAllowlistNormalizeSourceName(t *testing.T) {
+	guard := NewAllowlistWarningsGuard()
+	if got := guard.NormalizeSourceName(nil); got != nil {
+		t.Fatalf("NormalizeSourceName(nil) = %v, want nil", got)
+	}
+	cases := []struct {
+		in, want string
+	}{
+		{"some/path/foo.js", "some/path/foo.js"},
+		{"blaze-out/k8-fastbuild/genfiles/some/path/foo.js", "some/path/foo.js"},
+		{"blaze-out/k8-opt/bin/some/path/foo.js", "some/path/foo.js"},
+		{"blaze-out//bin/foo.js", "foo.js"},
+		{"./blaze-out/darwin-fastbuild/bin/a/b.js", "./a/b.js"},
+		{"blaze-out/notbin/blaze-out/k8/genfiles/x.js", "blaze-out/notbin/x.js"},
+		{"blaze-out/k8-fastbuild/other/some/path/foo.js", "blaze-out/k8-fastbuild/other/some/path/foo.js"},
+		{"blaze-out/no-second-slash", "blaze-out/no-second-slash"},
+	}
+	for _, tc := range cases {
+		in := tc.in
+		got := guard.NormalizeSourceName(&in)
+		if got == nil || *got != tc.want {
+			t.Errorf("NormalizeSourceName(%q) = %v, want %q", tc.in, got, tc.want)
+		}
+	}
+}

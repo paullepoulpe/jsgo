@@ -5,6 +5,7 @@
 // Port of com/google/debugging/sourcemap/SourceMapGenerator.java @ closure-compiler v20261021
 // Port of com/google/debugging/sourcemap/SourceMapGeneratorFactory.java @ closure-compiler v20261021
 // Port of com/google/debugging/sourcemap/SourceMapParseException.java @ closure-compiler v20261021
+// Port of com/google/debugging/sourcemap/SourceMapSection.java @ closure-compiler v20261021
 // Port of com/google/debugging/sourcemap/SourceMapSupplier.java @ closure-compiler v20261021
 // Port of com/google/debugging/sourcemap/SourceMapping.java @ closure-compiler v20261021
 // Port of com/google/debugging/sourcemap/SourceMappingReversable.java @ closure-compiler v20261021
@@ -152,53 +153,8 @@ func (p *FilePosition) String() string {
 	return "FilePosition{line=" + strconv.Itoa(int(p.line)) + ", column=" + strconv.Itoa(int(p.column)) + "}"
 }
 
-// SourceMapping is an interface for provide a way of mapping (line, column)
-// positions back to positions in the original (uncompiled) source code.
-type SourceMapping interface {
-	// GetMappingForLine returns the original mapping for the line number and
-	// column position found in the source map. Returns null if none is
-	// found.
-	//
-	// lineNumber is the line number, with the first being '1'; columnIndex
-	// is the column index, with the first being '1'.
-	//
-	// Java: SourceMapping.getMappingForLine(int, int)
-	GetMappingForLine(lineNumber, columnIndex int) *Mapping_OriginalMapping
-}
-
-// SourceMappingReversable is a SourceMapping that can provide the reverse
-// (source → target) source mapping.
-type SourceMappingReversable interface {
-	SourceMapping
-
-	// GetOriginalSources returns the collection of original sources in this
-	// source mapping.
-	//
-	// Java: SourceMappingReversable.getOriginalSources()
-	GetOriginalSources() []*string
-
-	// GetReverseMapping returns, given a source file, line, and column, the
-	// reverse mapping (source → target). A collection is returned as in some
-	// cases (like a function being inlined), one source line may map to more
-	// then one target location. An empty collection is returned if there
-	// were no matches.
-	//
-	// Java: SourceMappingReversable.getReverseMapping(String, int, int)
-	GetReverseMapping(originalFile string, line, column int) []*Mapping_OriginalMapping
-}
-
-// SourceMapConsumer is a SourceMapping provide that can parse from a raw
-// string.
-type SourceMapConsumer interface {
-	SourceMapping
-
-	// Parse parses the given contents containing a source map to provide
-	// initialize a class providing SourceMapping. It panics with a
-	// *SourceMapParseException.
-	//
-	// Java: SourceMapConsumer.parse(String)
-	Parse(contents string)
-}
+// SourceMapConsumer is an alias for *SourceMapConsumerV3 (the sole consumer implementation).
+type SourceMapConsumer = *SourceMapConsumerV3
 
 // SourceMapSupplier is a class for mapping source map names to the actual
 // contents. Used when parsing index maps.
@@ -305,7 +261,7 @@ type SourceMapGenerator interface {
 // object for the given source map format.
 //
 // Java: SourceMapGeneratorFactory.getInstance(SourceMapFormat)
-func SourceMapGeneratorFactory_GetInstance(format SourceMapFormat) SourceMapGenerator {
+func SourceMapGeneratorFactory_GetInstance(format SourceMapFormat) *SourceMapGeneratorV3 {
 	switch format {
 	case SourceMapFormat_DEFAULT, SourceMapFormat_V3:
 		return NewSourceMapGeneratorV3()
@@ -319,7 +275,7 @@ func SourceMapGeneratorFactory_GetInstance(format SourceMapFormat) SourceMapGene
 // map file contents. It panics with a *SourceMapParseException.
 //
 // Java: SourceMapConsumerFactory.parse(String)
-func SourceMapConsumerFactory_Parse(contents string) SourceMapping {
+func SourceMapConsumerFactory_Parse(contents string) *SourceMapConsumerV3 {
 	return SourceMapConsumerFactory_ParseWithSupplier(contents, nil)
 }
 
@@ -328,7 +284,7 @@ func SourceMapConsumerFactory_Parse(contents string) SourceMapping {
 // referenced maps.
 //
 // Java: SourceMapConsumerFactory.parse(String, SourceMapSupplier)
-func SourceMapConsumerFactory_ParseWithSupplier(contents string, supplier SourceMapSupplier) SourceMapping {
+func SourceMapConsumerFactory_ParseWithSupplier(contents string, supplier SourceMapSupplier) *SourceMapConsumerV3 {
 	// Version 1, starts with a magic string
 	if strings.HasPrefix(contents, "/** Begin line maps. **/") {
 		panic(NewSourceMapParseException(
@@ -351,24 +307,6 @@ func SourceMapConsumerFactory_ParseWithSupplier(contents string, supplier Source
 	panic(NewSourceMapParseException("unable to detect source map format"))
 }
 
-// SourceMapConsumerFactory_ParseFast uses the fast parser to parse the
-// source map. This only supports version 3 source maps.
-//
-// Java: SourceMapConsumerFactory.parseFast(String)
-func SourceMapConsumerFactory_ParseFast(contents string) *SourceMapConsumerV3 {
-	if strings.HasPrefix(contents, "{") {
-		sourceMapObject := SourceMapObjectParser_ParseFast(contents)
-		jutil.CheckArgumentMsg1(
-			sourceMapObject.version == 3,
-			"Unknown source map version:%s",
-			sourceMapObject.version)
-		consumer := NewSourceMapConsumerV3()
-		consumer.ParseSourceMapObject(sourceMapObject, nil)
-		return consumer
-	}
-	panic(NewSourceMapParseException("unable to detect source map format"))
-}
-
 // SourceMapParseException is thrown if an invalid or unknown source map is
 // encountered. It is a checked exception (java.lang.Exception).
 type SourceMapParseException struct{ jutil.JavaException }
@@ -388,4 +326,145 @@ func NewSourceMapParseException(message string) *SourceMapParseException {
 	e := &SourceMapParseException{}
 	jutil.InitThrowable(e, "com.google.debugging.sourcemap.SourceMapParseException", &message, nil)
 	return e
+}
+
+// SourceMapSection is a class representing a partial source map (a Java
+// record).
+type SourceMapSection struct {
+	type_  SourceMapSection_SectionType
+	value  optionalString
+	line   int
+	column int
+}
+
+// SourceMapSection_SectionType is SourceMapSection.SectionType.
+type SourceMapSection_SectionType int32
+
+const (
+	SourceMapSection_SectionType_URL SourceMapSection_SectionType = iota
+	SourceMapSection_SectionType_MAP
+)
+
+var sourceMapSection_SectionType_names = [...]string{"URL", "MAP"}
+
+// String is Enum.name().
+func (t SourceMapSection_SectionType) String() string {
+	return sourceMapSection_SectionType_names[t]
+}
+
+// NewSourceMapSection is the record's canonical constructor.
+//
+// Java: SourceMapSection(SectionType, String, int, int)
+func NewSourceMapSection(type_ SourceMapSection_SectionType, value *string, line, column int) *SourceMapSection {
+	return &SourceMapSection{type_: type_, value: makeOptionalString(value), line: line, column: column}
+}
+
+// SourceMapSection_ForMap creates a section holding a source map.
+//
+// Java: SourceMapSection.forMap(String, int, int)
+func SourceMapSection_ForMap(value string, line, column int) *SourceMapSection {
+	return &SourceMapSection{
+		type_:  SourceMapSection_SectionType_MAP,
+		value:  optionalString{text: value, present: true},
+		line:   line,
+		column: column,
+	}
+}
+
+// SourceMapSection_ForURL creates a section referring to a source map by
+// URL.
+//
+// Java: SourceMapSection.forURL(String, int, int)
+func SourceMapSection_ForURL(value string, line, column int) *SourceMapSection {
+	return &SourceMapSection{
+		type_:  SourceMapSection_SectionType_URL,
+		value:  optionalString{text: value, present: true},
+		line:   line,
+		column: column,
+	}
+}
+
+// Type is the record accessor.
+//
+// Java: SourceMapSection.type()
+func (s *SourceMapSection) Type() SourceMapSection_SectionType {
+	return s.type_
+}
+
+// Value is the record accessor.
+//
+// Java: SourceMapSection.value()
+func (s *SourceMapSection) Value() *string {
+	return s.value.ptr()
+}
+
+// Line is the record accessor.
+//
+// Java: SourceMapSection.line()
+func (s *SourceMapSection) Line() int {
+	return s.line
+}
+
+// Column is the record accessor.
+//
+// Java: SourceMapSection.column()
+func (s *SourceMapSection) Column() int {
+	return s.column
+}
+
+// GetSectionType returns the section type.
+//
+// Java: SourceMapSection.getSectionType()
+func (s *SourceMapSection) GetSectionType() SourceMapSection_SectionType {
+	return s.type_
+}
+
+// GetSectionValue returns the value that represents the map for this
+// section. This is either a URL for a valid source map file that represents
+// a section of a generate source file such as when multiple files are
+// concatenated together, or a string representing a JSON object that is a
+// source map.
+//
+// Java: SourceMapSection.getSectionValue()
+func (s *SourceMapSection) GetSectionValue() *string {
+	return s.value.ptr()
+}
+
+// GetLine returns the starting line for this section.
+//
+// Java: SourceMapSection.getLine()
+func (s *SourceMapSection) GetLine() int {
+	return s.line
+}
+
+// GetColumn returns the starting column for this section.
+//
+// Java: SourceMapSection.getColumn()
+func (s *SourceMapSection) GetColumn() int {
+	return s.column
+}
+
+// Equals is the record's component-wise equals. (The record's hashCode is
+// not ported: it hashes the enum constant by identity, which is not
+// reproducible.)
+//
+// Java: SourceMapSection.equals(Object)
+func (s *SourceMapSection) Equals(o any) bool {
+	other, ok := o.(*SourceMapSection)
+	if !ok || other == nil {
+		return false
+	}
+	return *s == *other
+}
+
+// String is the record's toString.
+//
+// Java: SourceMapSection.toString()
+func (s *SourceMapSection) String() string {
+	val := "null"
+	if s.value.present {
+		val = s.value.text
+	}
+	return "SourceMapSection[type=" + s.type_.String() + ", value=" + val +
+		", line=" + strconv.Itoa(s.line) + ", column=" + strconv.Itoa(s.column) + "]"
 }

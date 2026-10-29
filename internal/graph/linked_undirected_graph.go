@@ -402,6 +402,7 @@ type LinkedUndirectedGraphNode[N, E comparable] struct {
 	neighborEdgeBuffer [2]*LinkedUndirectedGraphEdge[N, E]
 	Value              N
 
+	colorIdx   int32
 	annotated  bool
 	Annotation Annotation
 }

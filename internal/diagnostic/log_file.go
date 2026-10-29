@@ -344,10 +344,19 @@ func (*logsGson_ableTypeAdapter) Read(in *jutil.JsonReader) any {
 	panic(jutil.NewAssertionErrorNoMessage())
 }
 
+var logsGsonNullLiteral = "null"
+
+func writeNestedLogsGson(out *jutil.JsonWriter, v any) {
+	if _, ok := v.(*jutil.JsonNull); ok || jutil.IsNil(v) {
+		out.JsonValue(&logsGsonNullLiteral)
+		return
+	}
+	LogsGson_GSON.ToJsonWriter(v, out)
+}
+
 // Java: new TypeAdapter<Able>() {...}.write(JsonWriter, Able)
 func (*logsGson_ableTypeAdapter) Write(out *jutil.JsonWriter, value any) {
-	json := LogsGson_GSON.ToJson(value.(LogsGson_Able).ToLogsGson())
-	out.JsonValue(&json)
+	writeNestedLogsGson(out, value.(LogsGson_Able).ToLogsGson())
 }
 
 // logsGson_multimapTypeAdapter is the anonymous TypeAdapter<Multimap<?, ?>>.
@@ -360,6 +369,5 @@ func (*logsGson_multimapTypeAdapter) Read(in *jutil.JsonReader) any {
 
 // Java: new TypeAdapter<Multimap<?, ?>>() {...}.write(JsonWriter, Multimap<?, ?>)
 func (*logsGson_multimapTypeAdapter) Write(out *jutil.JsonWriter, value any) {
-	json := LogsGson_GSON.ToJson(value.(logsGsonMapBacked).AsMapObject())
-	out.JsonValue(&json)
+	writeNestedLogsGson(out, value.(logsGsonMapBacked).AsMapObject())
 }

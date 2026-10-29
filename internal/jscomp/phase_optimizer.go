@@ -133,7 +133,7 @@ func (p *PhaseOptimizer) Process(externs rhino.Node, root rhino.Node) {
 		if p.HasHaltingErrors() {
 			return
 		}
-		if c, ok := p.compiler.(*Compiler); ok {
+		if c := p.compiler; c != nil {
 			name := ""
 			if np, ok := pass.(*PhaseOptimizer_NamedPass); ok {
 				name = np.name
@@ -437,7 +437,7 @@ func (l *PhaseOptimizer_Loop) Process(externs rhino.Node, root rhino.Node) {
 				}
 			}
 		}
-		if c, ok := p.compiler.(*Compiler); ok {
+		if c := p.compiler; c != nil {
 			c.maybeCompactAST("loop iteration", &externs, &root, func(fwd func(rhino.Node) rhino.Node) {
 				if scriptSizes != nil {
 					sizes := make(map[rhino.Node]int, len(scriptSizes))

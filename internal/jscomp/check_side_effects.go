@@ -24,6 +24,7 @@ import (
 	"github.com/paullepoulpe/jsgo/internal/ast"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
+	"github.com/paullepoulpe/jsgo/internal/strpool"
 )
 
 // CheckSideEffects checks for non side effecting statements such as
@@ -70,8 +71,8 @@ const CheckSideEffects_PROTECTOR_FN = "JSCOMPILER_PRESERVE"
 const CheckSideEffects_J2CL_PROTECTOR_FN = "$J2CL_PRESERVE$"
 
 var (
-	checkSideEffectsProtectorID     = rhino.IR_Name(CheckSideEffects_PROTECTOR_FN).GetStringID()
-	checkSideEffectsJ2clProtectorID = rhino.IR_Name(CheckSideEffects_J2CL_PROTECTOR_FN).GetStringID()
+	checkSideEffectsProtectorID     = uint32(strpool.Intern(CheckSideEffects_PROTECTOR_FN))
+	checkSideEffectsJ2clProtectorID = uint32(strpool.Intern(CheckSideEffects_J2CL_PROTECTOR_FN))
 )
 
 // Java: CheckSideEffects(AbstractCompiler, boolean, boolean)
@@ -109,54 +110,38 @@ func (c *CheckSideEffects) Process(externs rhino.Node, root rhino.Node) {
 }
 
 func (c *CheckSideEffects) processRootParallel(root rhino.Node) bool {
-	scripts, ok := collectRootScripts(root)
+	var problemsByScript [][]rhino.Node
+	ok := traverseScriptsParallel(c.compiler, root, parallelScriptOptions[*CheckSideEffects]{
+		useSharedGlobalScope: true,
+		prepare: func(_, itemCount int) bool {
+			problemsByScript = make([][]rhino.Node, itemCount)
+			return true
+		},
+		initWorker: func(_ int, rc *Compiler) *CheckSideEffects {
+			return &CheckSideEffects{
+				report:                    c.report,
+				noSideEffectExterns:       c.noSideEffectExterns,
+				compiler:                  rc,
+				protectSideEffectFreeCode: c.protectSideEffectFreeCode,
+				preserveFunctionInjected:  c.preserveFunctionInjected,
+			}
+		},
+		callback: func(w *CheckSideEffects, _ int, _, _ rhino.Node, _ *Compiler) NodeTraversal_Callback {
+			w.problemNodes = w.problemNodes[:0]
+			return w
+		},
+		afterScript: func(w *CheckSideEffects, idx int, _, _ rhino.Node, _ *Compiler) {
+			if len(w.problemNodes) != 0 {
+				copied := make([]rhino.Node, len(w.problemNodes))
+				copy(copied, w.problemNodes)
+				problemsByScript[idx] = copied
+				w.problemNodes = w.problemNodes[:0]
+			}
+		},
+	})
 	if !ok {
 		return false
 	}
-	numWorkers := parallelThreadCount(c.compiler, len(scripts))
-	if numWorkers <= 1 {
-		return false
-	}
-
-	prewarmCompilerForParallelReads(c.compiler)
-	lazyGlobal := newLazyGlobalScope(c.compiler, root)
-
-	problemsByScript := make([][]rhino.Node, len(scripts))
-	runParallelWork(c.compiler, numWorkers, len(scripts), func(_ int) (func(int, *recordingCompiler), func()) {
-		var workerRC *recordingCompiler
-		var workerPass *CheckSideEffects
-		var sc *SyntacticScopeCreator
-
-		runItem := func(idx int, rc *recordingCompiler) {
-			if workerPass == nil || workerRC != rc {
-				workerRC = rc
-				workerPass = &CheckSideEffects{
-					report:                    c.report,
-					noSideEffectExterns:       c.noSideEffectExterns,
-					compiler:                  rc,
-					protectSideEffectFreeCode: c.protectSideEffectFreeCode,
-					preserveFunctionInjected:  c.preserveFunctionInjected,
-				}
-				sc = NewSyntacticScopeCreator(rc)
-			} else {
-				workerPass.problemNodes = workerPass.problemNodes[:0]
-			}
-			b := NodeTraversal_Builder{
-				compiler:     rc,
-				callback:     workerPass,
-				scopeCreator: sc,
-			}
-			b.traverseScriptUnderRoot(root, root, scripts[idx], lazyGlobal)
-			if len(workerPass.problemNodes) != 0 {
-				copied := make([]rhino.Node, len(workerPass.problemNodes))
-				copy(copied, workerPass.problemNodes)
-				problemsByScript[idx] = copied
-				workerPass.problemNodes = workerPass.problemNodes[:0]
-			}
-		}
-		return runItem, nil
-	}, false)
-
 	for _, probs := range problemsByScript {
 		if len(probs) != 0 {
 			c.problemNodes = append(c.problemNodes, probs...)
@@ -317,32 +302,11 @@ func (s *CheckSideEffects_StripProtection) Process(externs rhino.Node, root rhin
 }
 
 func (s *CheckSideEffects_StripProtection) processParallel(root rhino.Node) bool {
-	scripts, ok := collectRootScripts(root)
-	if !ok {
-		return false
-	}
-	numWorkers := parallelThreadCount(s.compiler, len(scripts))
-	if numWorkers <= 1 {
-		return false
-	}
-	prewarmCompilerForParallelReads(s.compiler)
-	runParallelWork(s.compiler, numWorkers, len(scripts), func(_ int) (func(int, *recordingCompiler), func()) {
-		var workerRC *recordingCompiler
-		var workerPass *CheckSideEffects_StripProtection
-		runItem := func(idx int, rc *recordingCompiler) {
-			if workerPass == nil || workerRC != rc {
-				workerRC = rc
-				workerPass = NewCheckSideEffects_StripProtection(rc)
-			}
-			b := NodeTraversal_Builder{
-				compiler: rc,
-				callback: workerPass,
-			}
-			b.traverseScriptUnderRoot(root, root, scripts[idx], nil)
-		}
-		return runItem, nil
-	}, false)
-	return true
+	return traverseScriptsParallel(s.compiler, root, parallelScriptOptions[*CheckSideEffects_StripProtection]{
+		initWorker: func(_ int, rc *Compiler) *CheckSideEffects_StripProtection {
+			return NewCheckSideEffects_StripProtection(rc)
+		},
+	})
 }
 
 var checkSideEffectsStripProtectionTokens = func() ast.TokenSet {

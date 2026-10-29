@@ -38,6 +38,24 @@ func TestStrictModeCheckTest(t *testing.T) {
 	RunJUnit4(t, func() JUnitTestCase { return NewStrictModeCheckTest() })
 }
 
+func TestStrictModeCheckParallelNonExternChecks(t *testing.T) {
+	compiler := NewCompiler()
+	opts := NewCompilerOptions()
+	opts.SetNumParallelThreads(4)
+	compiler.Compile(
+		[]*SourceFile{SourceFile_FromCode("ext.js", strictModeCheckTest_EXTERNS)},
+		[]*SourceFile{
+			SourceFile_FromCode("a.js", "var eval = 1;"),
+			SourceFile_FromCode("b.js", "function f() { return arguments.callee; }"),
+		},
+		opts,
+	)
+	errs := compiler.GetErrors()
+	if len(errs) != 2 {
+		t.Fatalf("got %d errors (%v), want 2", len(errs), errs)
+	}
+}
+
 // Java: StrictModeCheckTest.EXTERNS
 var strictModeCheckTest_EXTERNS = CompilerTestCase_DEFAULT_EXTERNS + "var arguments; function eval(str) {}"
 

@@ -67,29 +67,10 @@ func NewOptimizeParameters(compiler AbstractCompiler) *OptimizeParameters {
 
 // Process is CompilerPass.process.
 //
-// Go-only: language-adapter — the two Java overloads process(Node, Node)
-// (CompilerPass) and process(Node, Node, ReferenceMap)
-// (CallGraphCompilerPass) cannot share a Go name; the second one is
-// ProcessWithReferenceMap, and AsCallGraphCompilerPass adapts it.
-//
 // Java: OptimizeParameters.process(Node, Node)
 func (o *OptimizeParameters) Process(externs rhino.Node, root rhino.Node) {
 	jutil.CheckState(o.compiler.GetLifeCycleStage() == AbstractCompiler_LifeCycleStage_NORMALIZED)
-
-	OptimizeCalls_Builder_().
-		SetCompiler(o.compiler).
-		SetConsiderExterns(false).
-		AddPass(o.AsCallGraphCompilerPass()).
-		Build().
-		Process(externs, root)
-}
-
-// AsCallGraphCompilerPass returns this pass as an
-// OptimizeCalls.CallGraphCompilerPass (what Java does by passing `this`).
-//
-// Go-only: language-adapter — see Process.
-func (o *OptimizeParameters) AsCallGraphCompilerPass() OptimizeCalls_CallGraphCompilerPass {
-	return OptimizeCalls_CallGraphCompilerPassFunc(o.ProcessWithReferenceMap)
+	NewOptimizeCalls(o.compiler, false, o).Process(externs, root)
 }
 
 // Java: OptimizeParameters.process(Node, Node, ReferenceMap)

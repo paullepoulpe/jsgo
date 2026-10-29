@@ -221,24 +221,17 @@ FOO_PROTOTYPE: Foo.prototype;
 	jsTypeReconserializerTest_assertThat(typePool).
 		IgnoringFieldDescriptors(JSTypeReconserializerTest_OBJECT_UUID).
 		ContainsAtLeast(
-			TypeProto_NewBuilder().
-				SetObjectFromBuilder(
-					ObjectTypeProto_NewBuilder().
-						AddPrototype(c.pointerForLabel("FOO_PROTOTYPE")).
-						AddInstanceType(c.pointerForLabel("FOO")).
-						SetMarkedConstructor(true).
-						AddOwnProperty(c.findInStringPool("prototype"))).
-				Build(),
-			TypeProto_NewBuilder().SetObject(ObjectTypeProto_GetDefaultInstance()).Build(),
-			TypeProto_NewBuilder().
-				SetObjectFromBuilder(
-					ObjectTypeProto_NewBuilder().
-						AddOwnProperty(c.findInStringPool("constructor")).
-						AddOwnProperty(c.findInStringPool("m"))).
-				Build(),
-			TypeProto_NewBuilder().
-				SetObjectFromBuilder(ObjectTypeProto_NewBuilder().SetIsInvalidating(true)).
-				Build())
+			testObjectTypeProto(&ObjectTypeProto{
+				prototype_:         []int32{c.pointerForLabel("FOO_PROTOTYPE")},
+				instanceType_:      []int32{c.pointerForLabel("FOO")},
+				markedConstructor_: true,
+				ownProperty_:       []int32{c.findInStringPool("prototype")},
+			}),
+			testObjectTypeProto(&ObjectTypeProto{}),
+			testObjectTypeProto(&ObjectTypeProto{
+				ownProperty_: []int32{c.findInStringPool("constructor"), c.findInStringPool("m")},
+			}),
+			testObjectTypeProto(&ObjectTypeProto{isInvalidating_: true}))
 }
 
 // Java: JSTypeReconserializerTest.testObjectTypeSerializationFormat_canAvoidSerializingProperty()
@@ -259,13 +252,10 @@ new Foo().doNotSerializeMe();
 	jsTypeReconserializerTest_assertThat(typePool).
 		IgnoringFieldDescriptors(JSTypeReconserializerTest_OBJECT_UUID).
 		Contains(
-			TypeProto_NewBuilder().
-				SetObjectFromBuilder(
-					ObjectTypeProto_NewBuilder().
-						AddOwnProperty(c.findInStringPool("constructor")).
-						AddOwnProperty(c.findInStringPool("serializeMe"))).
-				// the "doNotSerializeMe" property is not present
-				Build())
+			// the "doNotSerializeMe" property is not present
+			testObjectTypeProto(&ObjectTypeProto{
+				ownProperty_: []int32{c.findInStringPool("constructor"), c.findInStringPool("serializeMe")},
+			}))
 }
 
 // Java: JSTypeReconserializerTest.testDisambiguationEdges_pointFromInstanceToPrototype()
@@ -274,7 +264,7 @@ func (c *JSTypeReconserializerTest) TestDisambiguationEdges_pointFromInstanceToP
 
 	jsTypeReconserializerTest_assertThat(c.getNonPrimitiveSupertypesFor(typePool, "FOO")).
 		IgnoringFieldDescriptors(JSTypeReconserializerTest_BRITTLE_TYPE_FIELDS...).
-		Contains(TypeProto_NewBuilder().SetObject(ObjectTypeProto_GetDefaultInstance()).Build())
+		Contains(testObjectTypeProto(&ObjectTypeProto{}))
 }
 
 // Java: JSTypeReconserializerTest.testDisambiguationEdges_pointFromInterfaceToPrototype()
@@ -288,7 +278,7 @@ IFOO: x;
 
 	jsTypeReconserializerTest_assertThat(c.getNonPrimitiveSupertypesFor(typePool, "IFOO")).
 		IgnoringFieldDescriptors(JSTypeReconserializerTest_BRITTLE_TYPE_FIELDS...).
-		Contains(TypeProto_NewBuilder().SetObject(ObjectTypeProto_GetDefaultInstance()).Build())
+		Contains(testObjectTypeProto(&ObjectTypeProto{}))
 }
 
 // Java: JSTypeReconserializerTest.testDisambiguationEdges_pointFromInstanceToInterface()
@@ -305,7 +295,7 @@ FOO: new Foo();
 		IgnoringFieldDescriptors(
 			jsTypeReconserializerTest_prototype,
 			jsTypeReconserializerTest_instanceType).
-		Contains(TypeProto_NewBuilder().SetObject(ObjectTypeProto_GetDefaultInstance()).Build())
+		Contains(testObjectTypeProto(&ObjectTypeProto{}))
 }
 
 // Java: JSTypeReconserializerTest.testDisambiguationEdges_pointFromSubctorToSuperctor()
@@ -317,10 +307,7 @@ func (c *JSTypeReconserializerTest) TestDisambiguationEdges_pointFromSubctorToSu
 		IgnoringFieldDescriptors(
 			jsTypeReconserializerTest_prototype,
 			jsTypeReconserializerTest_instanceType).
-		ContainsExactly(
-			TypeProto_NewBuilder().
-				SetObjectFromBuilder(ObjectTypeProto_NewBuilder().SetMarkedConstructor(true)).
-				Build())
+		ContainsExactly(testObjectTypeProto(&ObjectTypeProto{markedConstructor_: true}))
 }
 
 // Java: JSTypeReconserializerTest.testDisambiguationEdges_dont_pointFromPrototypeToInstance()
@@ -363,24 +350,20 @@ let /** symbol|!Bar|string */ x;
 	}
 	AssertThat(unionsContainingUnions).IsEmpty()
 
-	AssertThat(typePool).
+	jsTypeReconserializerTest_assertThat(typePool).
 		Contains(
-			TypeProto_NewBuilder().
-				SetUnion(
-					UnionTypeProto_NewBuilder().
-						AddUnionMember(PrimitiveType_BOOLEAN_TYPE.GetNumber()).
-						AddUnionMember(PrimitiveType_STRING_TYPE.GetNumber()).
-						AddUnionMember(PrimitiveType_NUMBER_TYPE.GetNumber()).
-						AddUnionMember(PrimitiveType_SYMBOL_TYPE.GetNumber()).
-						Build()).
-				Build())
+			testUnionTypeProto(
+				PrimitiveType_BOOLEAN_TYPE.GetNumber(),
+				PrimitiveType_STRING_TYPE.GetNumber(),
+				PrimitiveType_NUMBER_TYPE.GetNumber(),
+				PrimitiveType_SYMBOL_TYPE.GetNumber()))
 }
 
 // Java: JSTypeReconserializerTest.testSerializedInstanceTypeHasClassName()
 func (c *JSTypeReconserializerTest) TestSerializedInstanceTypeHasClassName() {
 	jsTypeReconserializerTest_assertThat(c.compileToTypes("/** @constructor */ function Foo() {} new Foo;")).
 		IgnoringFieldDescriptors(JSTypeReconserializerTest_BRITTLE_TYPE_FIELDS...).
-		Contains(TypeProto_NewBuilder().SetObject(ObjectTypeProto_GetDefaultInstance()).Build())
+		Contains(testObjectTypeProto(&ObjectTypeProto{}))
 }
 
 // Java: JSTypeReconserializerTest.testEnumElementSerializesToPrimitive()
@@ -388,10 +371,7 @@ func (c *JSTypeReconserializerTest) TestEnumElementSerializesToPrimitive() {
 	// Serialize E but treat E.A as a number
 	jsTypeReconserializerTest_assertThat(c.compileToTypes("/** @enum {number} */ const E = {A: 0, B: 1}; E.A;")).
 		IgnoringFieldDescriptors(JSTypeReconserializerTest_BRITTLE_TYPE_FIELDS...).
-		Contains(
-			TypeProto_NewBuilder().
-				SetObjectFromBuilder(ObjectTypeProto_NewBuilder().SetPropertiesKeepOriginalName(true)).
-				Build())
+		Contains(testObjectTypeProto(&ObjectTypeProto{propertiesKeepOriginalName_: true}))
 }
 
 // Java: JSTypeReconserializerTest.testBoxableScalarTypesKeepOriginalName()
@@ -399,10 +379,7 @@ func (c *JSTypeReconserializerTest) TestBoxableScalarTypesKeepOriginalName() {
 	// Serialize E but treat E.A as a number
 	jsTypeReconserializerTest_assertThat(c.compileToTypes("/** @enum {number} */ const E = {A: 0, B: 1}; E.A;")).
 		IgnoringFieldDescriptors(JSTypeReconserializerTest_BRITTLE_TYPE_FIELDS...).
-		Contains(
-			TypeProto_NewBuilder().
-				SetObjectFromBuilder(ObjectTypeProto_NewBuilder().SetPropertiesKeepOriginalName(true)).
-				Build())
+		Contains(testObjectTypeProto(&ObjectTypeProto{propertiesKeepOriginalName_: true}))
 }
 
 // Go-only: test-helper — renamed with the Test prefix that RunJUnit4 runs.
@@ -419,15 +396,9 @@ function fail() { throw new Error(); }
 `)).
 		IgnoringFieldDescriptors(JSTypeReconserializerTest_BRITTLE_TYPE_FIELDS...).
 		ContainsAtLeast(
-			TypeProto_NewBuilder().
-				SetObjectFromBuilder(
-					ObjectTypeProto_NewBuilder().SetClosureAssert(true).SetIsInvalidating(true)).
-				Build(),
-			TypeProto_NewBuilder().
-				SetObjectFromBuilder(
-					// ClosurePrimitive.ASSERTS_FAIL is not a removable Closure assertion
-					ObjectTypeProto_NewBuilder().SetClosureAssert(false).SetIsInvalidating(true)).
-				Build())
+			testObjectTypeProto(&ObjectTypeProto{closureAssert_: true, isInvalidating_: true}),
+			// ClosurePrimitive.ASSERTS_FAIL is not a removable Closure assertion
+			testObjectTypeProto(&ObjectTypeProto{closureAssert_: false, isInvalidating_: true}))
 }
 
 // Java: JSTypeReconserializerTest.testSerializeObjectLiteralTypesAsInvalidating()
@@ -436,12 +407,10 @@ func (c *JSTypeReconserializerTest) TestSerializeObjectLiteralTypesAsInvalidatin
 	jsTypeReconserializerTest_assertThat(typePool).
 		IgnoringFieldDescriptors(JSTypeReconserializerTest_OBJECT_UUID).
 		Contains(
-			TypeProto_NewBuilder().
-				SetObjectFromBuilder(
-					ObjectTypeProto_NewBuilder().
-						SetIsInvalidating(true).
-						AddOwnProperty(c.findInStringPool("x"))).
-				Build())
+			testObjectTypeProto(&ObjectTypeProto{
+				isInvalidating_: true,
+				ownProperty_:    []int32{c.findInStringPool("x")},
+			}))
 }
 
 // Go-only: test-helper — renamed with the Test prefix that RunJUnit4 runs.
@@ -463,14 +432,12 @@ FOO_PROTOTYPE: Foo.prototype;
 	jsTypeReconserializerTest_assertThat(typePool).
 		IgnoringFieldDescriptors(JSTypeReconserializerTest_BRITTLE_TYPE_FIELDS...).
 		ContainsAtLeast(
-			TypeProto_NewBuilder().
-				SetObjectFromBuilder(
-					ObjectTypeProto_NewBuilder().
-						AddPrototype(c.pointerForLabel("FOO_PROTOTYPE")).
-						AddInstanceType(c.pointerForLabel("FOO"))).
-				Build(),
-			TypeProto_NewBuilder().SetObject(ObjectTypeProto_GetDefaultInstance()).Build(),
-			TypeProto_NewBuilder().SetObject(ObjectTypeProto_GetDefaultInstance()).Build())
+			testObjectTypeProto(&ObjectTypeProto{
+				prototype_:    []int32{c.pointerForLabel("FOO_PROTOTYPE")},
+				instanceType_: []int32{c.pointerForLabel("FOO")},
+			}),
+			testObjectTypeProto(&ObjectTypeProto{}),
+			testObjectTypeProto(&ObjectTypeProto{}))
 	// Verify no additional objects were serialized to represent the template type: we only have
 	// the well-known types and the three TypeProtos tested for above.
 	AssertThat(typePool).HasSize(len(c.nativeObjects()) + 3)
@@ -499,12 +466,10 @@ ns.f.c = 2;
 		IgnoringFieldDescriptors(jsTypeReconserializerTest_prototype).
 		ContainsExactlyElementsIn(
 			append(append([]*TypeProto{}, c.nativeObjects()...),
-				TypeProto_NewBuilder().
-					SetObjectFromBuilder(
-						ObjectTypeProto_NewBuilder().
-							SetIsInvalidating(true).
-							AddOwnProperty(c.findInStringPool("f"))).
-					Build()))
+				testObjectTypeProto(&ObjectTypeProto{
+					isInvalidating_: true,
+					ownProperty_:    []int32{c.findInStringPool("f")},
+				})))
 }
 
 // Go-only: test-helper — renamed with the Test prefix that RunJUnit4 runs.
@@ -525,14 +490,12 @@ FOO_PROTOTYPE: Foo.prototype;
 	jsTypeReconserializerTest_assertThat(typePool).
 		IgnoringFieldDescriptors(JSTypeReconserializerTest_BRITTLE_TYPE_FIELDS...).
 		ContainsAtLeast(
-			TypeProto_NewBuilder().
-				SetObjectFromBuilder(
-					ObjectTypeProto_NewBuilder().
-						AddPrototype(c.pointerForLabel("FOO_PROTOTYPE")).
-						AddInstanceType(c.pointerForLabel("FOO"))).
-				Build(),
-			TypeProto_NewBuilder().SetObject(ObjectTypeProto_GetDefaultInstance()).Build(),
-			TypeProto_NewBuilder().SetObject(ObjectTypeProto_GetDefaultInstance()).Build())
+			testObjectTypeProto(&ObjectTypeProto{
+				prototype_:    []int32{c.pointerForLabel("FOO_PROTOTYPE")},
+				instanceType_: []int32{c.pointerForLabel("FOO")},
+			}),
+			testObjectTypeProto(&ObjectTypeProto{}),
+			testObjectTypeProto(&ObjectTypeProto{}))
 }
 
 // Go-only: test-helper — renamed with the Test prefix that RunJUnit4 runs.
@@ -548,15 +511,12 @@ func (c *JSTypeReconserializerTest) TestDoesntCrashOnFunctionWithNonObjectThisTy
 	jsTypeReconserializerTest_assertThat(typePool).
 		IgnoringFieldDescriptors(JSTypeReconserializerTest_BRITTLE_TYPE_FIELDS...).
 		Contains(
-			TypeProto_NewBuilder().
-				SetObject(
-					ObjectTypeProto_NewBuilder().
-						SetIsInvalidating(true).
-						AddPrototype(PrimitiveType_UNKNOWN_TYPE.GetNumber()).
-						AddInstanceType(PrimitiveType_UNKNOWN_TYPE.GetNumber()).
-						SetMarkedConstructor(true).
-						Build()).
-				Build())
+			testObjectTypeProto(&ObjectTypeProto{
+				isInvalidating_:    true,
+				prototype_:         []int32{PrimitiveType_UNKNOWN_TYPE.GetNumber()},
+				instanceType_:      []int32{PrimitiveType_UNKNOWN_TYPE.GetNumber()},
+				markedConstructor_: true,
+			}))
 }
 
 // Go-only: test-helper — renamed with the Test prefix that RunJUnit4 runs.
@@ -586,12 +546,10 @@ BAZ: baz;
 	jsTypeReconserializerTest_assertThat(c.getNonPrimitiveSupertypesFor(typePool, "BAZ")).
 		IgnoringFieldDescriptors(JSTypeReconserializerTest_BRITTLE_TYPE_FIELDS...).
 		ContainsExactly(
-			TypeProto_NewBuilder().
-				SetObjectFromBuilder(ObjectTypeProto_NewBuilder().SetIsInvalidating(true)).
-				Build(),
-			TypeProto_NewBuilder().SetObject(ObjectTypeProto_GetDefaultInstance()).Build(),
-			TypeProto_NewBuilder().SetObject(ObjectTypeProto_GetDefaultInstance()).Build(),
-			TypeProto_NewBuilder().SetObject(ObjectTypeProto_GetDefaultInstance()).Build())
+			testObjectTypeProto(&ObjectTypeProto{isInvalidating_: true}),
+			testObjectTypeProto(&ObjectTypeProto{}),
+			testObjectTypeProto(&ObjectTypeProto{}),
+			testObjectTypeProto(&ObjectTypeProto{}))
 }
 
 // Go-only: test-helper — renamed with the Test prefix that RunJUnit4 runs.
@@ -653,14 +611,11 @@ BAR: new Bar();
 		IgnoringFieldDescriptors(JSTypeReconserializerTest_BRITTLE_TYPE_FIELDS...).
 		IgnoringFieldDescriptors(JSTypeReconserializerTest_IS_INVALIDATING).
 		Contains(
-			TypeProto_NewBuilder().
-				SetObjectFromBuilder(
-					ObjectTypeProto_NewBuilder().
-						SetMarkedConstructor(true).
-						AddInstanceType(c.pointerForLabel("FOO")).
-						AddInstanceType(c.pointerForLabel("BAR")).
-						AddPrototype(PrimitiveType_UNKNOWN_TYPE.GetNumber())).
-				Build())
+			testObjectTypeProto(&ObjectTypeProto{
+				markedConstructor_: true,
+				instanceType_:      []int32{c.pointerForLabel("FOO"), c.pointerForLabel("BAR")},
+				prototype_:         []int32{PrimitiveType_UNKNOWN_TYPE.GetNumber()},
+			}))
 }
 
 // Go-only: test-helper — renamed with the Test prefix that RunJUnit4 runs.
@@ -685,13 +640,13 @@ Foo = class { b() { } }
 	jsTypeReconserializerTest_assertThat(typePool).
 		IgnoringFieldDescriptors(JSTypeReconserializerTest_OBJECT_UUID).
 		Contains(
-			TypeProto_NewBuilder().
-				SetObjectFromBuilder(
-					ObjectTypeProto_NewBuilder().
-						AddOwnProperty(c.findInStringPool("a")).
-						AddOwnProperty(c.findInStringPool("b")).
-						AddOwnProperty(c.findInStringPool("constructor"))).
-				Build())
+			testObjectTypeProto(&ObjectTypeProto{
+				ownProperty_: []int32{
+					c.findInStringPool("a"),
+					c.findInStringPool("b"),
+					c.findInStringPool("constructor"),
+				},
+			}))
 }
 
 // Go-only: test-helper — renamed with the Test prefix that RunJUnit4 runs.
@@ -715,10 +670,7 @@ assertFoo = function(/** ? */ a) { }
 	jsTypeReconserializerTest_assertThat(typePool).
 		IgnoringFieldDescriptors(JSTypeReconserializerTest_BRITTLE_TYPE_FIELDS...).
 		IgnoringFieldDescriptors(JSTypeReconserializerTest_IS_INVALIDATING).
-		Contains(
-			TypeProto_NewBuilder().
-				SetObjectFromBuilder(ObjectTypeProto_NewBuilder().SetClosureAssert(true)).
-				Build())
+		Contains(testObjectTypeProto(&ObjectTypeProto{closureAssert_: true}))
 }
 
 // Go-only: test-helper — renamed with the Test prefix that RunJUnit4 runs.
@@ -746,10 +698,7 @@ Foo = class { };
 	// Then
 	jsTypeReconserializerTest_assertThat(typePool).
 		IgnoringFieldDescriptors(JSTypeReconserializerTest_BRITTLE_TYPE_FIELDS...).
-		Contains(
-			TypeProto_NewBuilder().
-				SetObjectFromBuilder(ObjectTypeProto_NewBuilder().SetIsInvalidating(true)).
-				Build())
+		Contains(testObjectTypeProto(&ObjectTypeProto{isInvalidating_: true}))
 }
 
 // Go-only: test-helper — renamed with the Test prefix that RunJUnit4 runs.
@@ -788,20 +737,25 @@ C_CTOR: C;
 	cCtor :=
 		c.typePool.GetType(TypePointers_TrimOffset(int(c.pointerForLabel("C_CTOR")))).GetObject()
 
-	AssertThat(typePool.GetDebugInfo().GetMismatchList()).
-		Contains(
-			TypePool_DebugInfo_Mismatch_NewBuilder().
-				SetSourceRef("testcode:9:10").
-				AddInvolvedColor(c.pointerForLabel("A_CTOR")).
-				AddInvolvedColor(aCtor.GetInstanceTypeList()[0]).
-				AddInvolvedColor(aCtor.GetPrototypeList()[0]).
-				AddInvolvedColor(c.pointerForLabel("B_CTOR")).
-				AddInvolvedColor(bCtor.GetInstanceTypeList()[0]).
-				AddInvolvedColor(bCtor.GetPrototypeList()[0]).
-				AddInvolvedColor(c.pointerForLabel("C_CTOR")).
-				AddInvolvedColor(cCtor.GetInstanceTypeList()[0]).
-				AddInvolvedColor(cCtor.GetPrototypeList()[0]).
-				Build())
+	var mismatchStrs []string
+	for _, mm := range typePool.GetDebugInfo().GetMismatchList() {
+		mismatchStrs = append(mismatchStrs, mm.String())
+	}
+	wantMismatch := (&TypePool_DebugInfo_Mismatch{
+		sourceRef_: "testcode:9:10",
+		involvedColor_: []int32{
+			c.pointerForLabel("A_CTOR"),
+			aCtor.GetInstanceTypeList()[0],
+			aCtor.GetPrototypeList()[0],
+			c.pointerForLabel("B_CTOR"),
+			bCtor.GetInstanceTypeList()[0],
+			bCtor.GetPrototypeList()[0],
+			c.pointerForLabel("C_CTOR"),
+			cCtor.GetInstanceTypeList()[0],
+			cCtor.GetPrototypeList()[0],
+		},
+	}).String()
+	AssertThat(mismatchStrs).Contains(wantMismatch)
 }
 
 // Java: JSTypeReconserializerTest.compileToTypes(String)
@@ -885,10 +839,10 @@ func (s *jsTypeReconserializerTest_protoSubject) IgnoringFieldDescriptors(
 		actual: s.actual, ignored: append(append([]jsTypeReconserializerTest_field{}, s.ignored...), fields...)}
 }
 
-func (s *jsTypeReconserializerTest_protoSubject) clearAll(types []*TypeProto) []*TypeProto {
-	out := []*TypeProto{}
-	for _, t := range types {
-		out = append(out, s.clear(t))
+func (s *jsTypeReconserializerTest_protoSubject) clearAllStrings(types []*TypeProto) []string {
+	out := make([]string, len(types))
+	for i, t := range types {
+		out[i] = s.clear(t).String()
 	}
 	return out
 }
@@ -898,36 +852,40 @@ func (s *jsTypeReconserializerTest_protoSubject) clear(type_ *TypeProto) *TypePr
 	if !type_.HasObject() || len(s.ignored) == 0 {
 		return type_
 	}
-	object := type_.GetObject().ToBuilder()
+	obj := *type_.GetObject()
+	obj.cachedSize = 0
 	for _, f := range s.ignored {
 		switch f {
 		case jsTypeReconserializerTest_uuid:
-			object.ClearUuid()
+			obj.uuid_ = nil
 		case jsTypeReconserializerTest_ownProperty:
-			object.ClearOwnProperty()
+			obj.ownProperty_ = nil
 		case jsTypeReconserializerTest_isInvalidating:
-			object.ClearIsInvalidating()
+			obj.isInvalidating_ = false
 		case jsTypeReconserializerTest_prototype:
-			object.ClearPrototype()
+			obj.prototype_ = nil
 		case jsTypeReconserializerTest_instanceType:
-			object.ClearInstanceType()
+			obj.instanceType_ = nil
 		}
 	}
-	return type_.ToBuilder().SetObject(object.Build()).Build()
+	tp := *type_
+	tp.cachedSize = 0
+	tp.object_ = &obj
+	return &tp
 }
 
 func (s *jsTypeReconserializerTest_protoSubject) Contains(expected *TypeProto) {
-	AssertThat(s.clearAll(s.actual)).Contains(s.clear(expected))
+	AssertThat(s.clearAllStrings(s.actual)).Contains(s.clear(expected).String())
 }
 
 func (s *jsTypeReconserializerTest_protoSubject) ContainsAtLeast(expected ...*TypeProto) {
-	AssertThat(s.clearAll(s.actual)).ContainsAtLeastElementsIn(s.clearAll(expected))
+	AssertThat(s.clearAllStrings(s.actual)).ContainsAtLeastElementsIn(s.clearAllStrings(expected))
 }
 
 func (s *jsTypeReconserializerTest_protoSubject) ContainsExactly(expected ...*TypeProto) {
-	AssertThat(s.clearAll(s.actual)).ContainsExactlyElementsIn(s.clearAll(expected))
+	AssertThat(s.clearAllStrings(s.actual)).ContainsExactlyElementsIn(s.clearAllStrings(expected))
 }
 
 func (s *jsTypeReconserializerTest_protoSubject) ContainsExactlyElementsIn(expected []*TypeProto) {
-	AssertThat(s.clearAll(s.actual)).ContainsExactlyElementsIn(s.clearAll(expected))
+	AssertThat(s.clearAllStrings(s.actual)).ContainsExactlyElementsIn(s.clearAllStrings(expected))
 }

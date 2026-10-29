@@ -112,8 +112,10 @@ func (e *Es6CheckModule) ShouldTraverse(t *NodeTraversal, n rhino.Node, parent r
 	return true
 }
 
-func (*Es6CheckModule) visitTokens() *ast.TokenSet        { return &es6CheckModuleVisitTokens }
-func (*Es6CheckModule) combinedVisitTokens() ast.TokenSet { return es6CheckModuleVisitTokens }
+func (*Es6CheckModule) visitTokens() *ast.TokenSet { return &es6CheckModuleVisitTokens }
+func (*Es6CheckModule) cloneForParallel(c *Compiler) NodeTraversal_Callback {
+	return NewEs6CheckModule(c)
+}
 
 // Java: Es6CheckModule.visit(NodeTraversal, Node, Node)
 func (e *Es6CheckModule) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
@@ -237,9 +239,6 @@ func (c *CheckTypeImportCodeReferences) Process(externs rhino.Node, root rhino.N
 
 func (*CheckTypeImportCodeReferences) visitTokens() *ast.TokenSet {
 	return &checkTypeImportCodeReferencesVisitTokens
-}
-func (*CheckTypeImportCodeReferences) combinedVisitTokens() ast.TokenSet {
-	return checkTypeImportCodeReferencesVisitTokens
 }
 
 // Java: CheckTypeImportCodeReferences.visit(NodeTraversal, Node, Node)

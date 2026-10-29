@@ -64,14 +64,14 @@ func (c *InlinePropertiesTest) GetOptions() *CompilerOptions {
 func (c *InlinePropertiesTest) GetProcessor(compiler *Compiler) CompilerPass {
 	var pass CompilerPass = NewInlineProperties(compiler)
 	if c.runSmartNameRemoval {
-		removalPass := NewRemoveUnusedCode_Builder(compiler).
-			RemoveLocalVars(true).
-			RemoveGlobals(true).
-			PreserveFunctionExpressionNames(true).
-			RemoveUnusedPrototypeProperties(true).
-			RemoveUnusedThisProperties(true).
-			RemoveUnusedObjectDefinePropertiesDefinitions(true).
-			Build()
+		removalPass := NewRemoveUnusedCode(compiler, RemoveUnusedCodeOptions{
+			RemoveLocalVars:                               true,
+			RemoveGlobals:                                 true,
+			PreserveFunctionExpressionNames:               true,
+			RemoveUnusedPrototypeProperties:               true,
+			RemoveUnusedThisProperties:                    true,
+			RemoveUnusedObjectDefinePropertiesDefinitions: true,
+		})
 		return CompilerPassFunc(func(externs rhino.Node, root rhino.Node) {
 			removalPass.Process(externs, root)
 			pass.Process(externs, root)

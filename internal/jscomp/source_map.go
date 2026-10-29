@@ -147,15 +147,15 @@ func (l SourceMap_DetailLevel) Apply(node rhino.Node) bool {
 	panic(jutil.NewIllegalStateException())
 }
 
-// SourceMap_LocationMapping is a function that mape a "destination" location
-// to use within the source map. Should return nil if the value is not
+// SourceMap_LocationMapping is a function that maps a "destination" location
+// to use within the source map. Returns ("", false) if the value is not
 // mapped.
 type SourceMap_LocationMapping interface {
-	// Map: location is the location to transform; the result is the
-	// transformed location or nil if not transformed
+	// Map: location is the location to transform; returns the transformed
+	// location and true, or ("", false) if not transformed.
 	//
 	// Java: SourceMap.LocationMapping.map(String)
-	Map(location string) *string
+	Map(location string) (string, bool)
 }
 
 // SourceMap_PrefixLocationMapping is a simple LocationMapping that strips a
@@ -172,19 +172,12 @@ func NewSourceMap_PrefixLocationMapping(prefix string, replacement string) *Sour
 	return &SourceMap_PrefixLocationMapping{prefix: prefix, replacement: replacement}
 }
 
-func (m *SourceMap_PrefixLocationMapping) mapLocation(location string) (string, bool) {
+// Java: SourceMap.PrefixLocationMapping.map(String)
+func (m *SourceMap_PrefixLocationMapping) Map(location string) (string, bool) {
 	if strings.HasPrefix(location, m.prefix) {
 		return m.replacement + location[len(m.prefix):], true
 	}
 	return "", false
-}
-
-// Java: SourceMap.PrefixLocationMapping.map(String)
-func (m *SourceMap_PrefixLocationMapping) Map(location string) *string {
-	if s, ok := m.mapLocation(location); ok {
-		return &s
-	}
-	return nil
 }
 
 // Java: SourceMap.PrefixLocationMapping.toString()
@@ -387,15 +380,8 @@ func (s *SourceMap) fixupSourceLocation(sourceFile string) string {
 	// If none of the mappings match then use the original file path.
 	res := sourceFile
 	for _, mapping := range s.prefixMappings {
-		if pm, ok := mapping.(*SourceMap_PrefixLocationMapping); ok {
-			if s, matched := pm.mapLocation(sourceFile); matched {
-				res = s
-				break
-			}
-			continue
-		}
-		if fixed := mapping.Map(sourceFile); fixed != nil {
-			res = *fixed
+		if fixed, ok := mapping.Map(sourceFile); ok {
+			res = fixed
 			break
 		}
 	}

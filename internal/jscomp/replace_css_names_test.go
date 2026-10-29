@@ -108,11 +108,8 @@ type replaceCssNamesTest_partialMap struct {
 }
 
 // Java: ReplaceCssNamesTest.getPartialMap().new ByPart() {...}.get(String)
-func (m *replaceCssNamesTest_partialMap) Get(value string) *string {
-	if v, ok := m.outer.replacementMap.Lookup(value); ok {
-		return &v
-	}
-	return nil
+func (m *replaceCssNamesTest_partialMap) Get(value string) (string, bool) {
+	return m.outer.replacementMap.Lookup(value)
 }
 
 // Java: ReplaceCssNamesTest.getPartialMap()
@@ -128,11 +125,8 @@ type replaceCssNamesTest_fullMap struct {
 }
 
 // Java: ReplaceCssNamesTest.getFullMap().new ByWhole() {...}.get(String)
-func (m *replaceCssNamesTest_fullMap) Get(value string) *string {
-	if v, ok := m.outer.replacementMapFull.Lookup(value); ok {
-		return &v
-	}
-	return nil
+func (m *replaceCssNamesTest_fullMap) Get(value string) (string, bool) {
+	return m.outer.replacementMapFull.Lookup(value)
 }
 
 // Java: ReplaceCssNamesTest.getFullMap()

@@ -19,87 +19,180 @@
 package jscomp
 
 import (
+	"math"
+
 	"github.com/paullepoulpe/jsgo/internal/colors"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
 
-// Java: TypedAstSerializer.createWithPositionInfo(Node)
-func (s *TypedAstSerializer) CreateWithPositionInfo(n rhino.Node) *AstNode_Builder {
+// flatAstNode is a pointer-free (noscan) pre-order record of a single AstNode
+// used to compute exact bottom-up wire sizes and emit protobuf bytes directly
+// without materializing an intermediate *AstNode proto tree.
+type flatAstNode struct {
+	boolProps  uint64
+	valBits    uint64
+	endIdx     uint32
+	wireSize   uint32
+	relLine    int32
+	relCol     int32
+	origName   int32
+	typePtr    int32
+	sourceFile int32
+	jsdocIdx   int32
+	kind       uint16
+	valCase    uint8
+	hasType    bool
+}
+
+// flatJsdoc is a pointer-free (noscan) record of an OptimizationJsdoc message.
+type flatJsdoc struct {
+	kindOff    uint32
+	kindLen    uint32
+	licensePtr int32
+	descPtr    int32
+	meaningPtr int32
+	altMsgPtr  int32
+	cuModePtr  int32
+	wireSize   uint32
+}
+
+type fixupTarget uint8
+
+const (
+	fixupNodeStrVal fixupTarget = iota
+	fixupNodeStrValUsedProp
+	fixupNodeRawTmpl
+	fixupNodeCookedTmpl
+	fixupNodeOrigName
+	fixupNodeColor
+	fixupNodeSourceFile
+	fixupLazySourceFile
+	fixupJsdocLicense
+	fixupJsdocDesc
+	fixupJsdocAltMsg
+	fixupJsdocMeaning
+	fixupJsdocCuMode
+)
+
+// poolFixup is a 12-byte pointer-free (noscan) deferred pool registration.
+type poolFixup struct {
+	targetIdx uint32
+	refIdx    uint32
+	target    fixupTarget
+}
+
+type scriptWireEncoder struct {
+	nodes              []flatAstNode
+	jsdocs             []flatJsdoc
+	jsdocKinds         []int32
+	fixups             []poolFixup
+	colorRefs          []*colors.Color
+	sfRefs             []*SourceFile
+	subtreeSourceFiles []*SourceFile
+	previousLine       int
+	previousColumn     int
+	lazyAst            LazyAst
+}
+
+func (enc *scriptWireEncoder) reset() {
+	enc.nodes = enc.nodes[:0]
+	enc.jsdocs = enc.jsdocs[:0]
+	enc.jsdocKinds = enc.jsdocKinds[:0]
+	enc.fixups = enc.fixups[:0]
+	clear(enc.colorRefs)
+	enc.colorRefs = enc.colorRefs[:0]
+	clear(enc.sfRefs)
+	enc.sfRefs = enc.sfRefs[:0]
+	clear(enc.subtreeSourceFiles)
+	enc.subtreeSourceFiles = enc.subtreeSourceFiles[:0]
+	enc.previousLine = 0
+	enc.previousColumn = 0
+	enc.lazyAst = LazyAst{}
+}
+
+func (enc *scriptWireEncoder) peekLastSubtreeSourceFile() *SourceFile {
+	if len(enc.subtreeSourceFiles) == 0 {
+		return nil
+	}
+	return enc.subtreeSourceFiles[len(enc.subtreeSourceFiles)-1]
+}
+
+func (s *TypedAstSerializer) visitDirect(n rhino.Node) {
 	jutil.CheckState(n.GetLength() >= 0)
 	currentLine := n.GetLineno()
 	currentColumn := n.GetCharno()
-	builder := AstNode_NewBuilder().
-		SetRelativeLine(int32(currentLine - s.previousLine)).
-		SetRelativeColumn(int32(currentColumn - s.previousColumn))
-	s.previousLine = currentLine
-	s.previousColumn = currentColumn
-	return builder
-}
-
-// Java: TypedAstSerializer.visit(Node)
-func (s *TypedAstSerializer) Visit(n rhino.Node) *AstNode {
-	return s.visitArena(n)
-}
-
-func (s *TypedAstSerializer) visitArena(n rhino.Node) *AstNode {
-	jutil.CheckState(n.GetLength() >= 0)
-	currentLine := n.GetLineno()
-	currentColumn := n.GetCharno()
-	m := s.allocAstNode()
-	m.relativeLine_ = int32(currentLine - s.previousLine)
-	m.relativeColumn_ = int32(currentColumn - s.previousColumn)
+	fn := flatAstNode{
+		relLine:  int32(currentLine - s.previousLine),
+		relCol:   int32(currentColumn - s.previousColumn),
+		jsdocIdx: -1,
+	}
 	s.previousLine = currentLine
 	s.previousColumn = currentColumn
 
 	if s.colorTypeSerializer != nil {
 		if color := n.GetColor(); color != nil {
-			m.type_ = int32(s.colorTypeSerializer.colorSerializer.AddColor(color))
-			m.bitField0_ |= 1 << 0
+			fn.typePtr = int32(s.colorTypeSerializer.colorSerializer.AddColor(color))
+			fn.hasType = true
 		}
 	} else if s.jsTypeSerializer != nil {
-		s.jsTypeSerializer.addTypeToNode(n, m)
+		s.jsTypeSerializer.addTypeToFlatNode(n, &fn)
 	}
 
 	if jsdoc := n.GetJSDocInfo(); jsdoc != nil {
-		var doc OptimizationJsdoc
-		if s.jsdocKindScratch == nil {
-			s.jsdocKindScratch = make([]int32, 0, 8)
+		kindOff := len(s.scriptEnc.jsdocKinds)
+		s.scriptEnc.jsdocKinds = jsDocSerializer_fillJsdocTagsOnly(jsdoc, s.scriptEnc.jsdocKinds)
+		kindLen := len(s.scriptEnc.jsdocKinds) - kindOff
+		lic, desc, alt, mean, mode, hasMode := jsDocSerializer_stringFields(jsdoc)
+		var doc flatJsdoc
+		if lic != "" {
+			doc.licensePtr = int32(s.stringPool.Put(lic))
 		}
-		hasOptJsdoc := jsDocSerializer_fillJsdocProto(jsdoc, s.stringPool, &doc, s.jsdocKindScratch[:0])
-		s.jsdocKindScratch = doc.kind_[:0]
-		if hasOptJsdoc {
-			m.jsdoc_ = s.allocJsdoc(doc)
+		if desc != "" {
+			doc.descPtr = int32(s.stringPool.Put(desc))
+		}
+		if alt != "" {
+			doc.altMsgPtr = int32(s.stringPool.Put(alt))
+		}
+		if mean != "" {
+			doc.meaningPtr = int32(s.stringPool.Put(mean))
+		}
+		if hasMode {
+			doc.cuModePtr = int32(s.stringPool.Put(mode.String()))
+		}
+		if kindLen != 0 || doc.licensePtr != 0 || doc.descPtr != 0 || doc.meaningPtr != 0 || doc.altMsgPtr != 0 || doc.cuModePtr != 0 {
+			doc.kindOff = uint32(kindOff)
+			doc.kindLen = uint32(kindLen)
+			fn.jsdocIdx = int32(len(s.scriptEnc.jsdocs))
+			s.scriptEnc.jsdocs = append(s.scriptEnc.jsdocs, doc)
 		}
 	}
-	m.kind_ = s.KindTranslator(n).GetNumber()
-	s.valueTranslatorToNode(m, n)
-	m.booleanProperties_ = n.SerializeProperties()
-	sourceFile := s.GetSourceFilePointer(n)
-	m.sourceFile_ = int32(sourceFile)
 
-	firstChild := n.GetFirstChild()
-	shadowedCode := n.GetClosureUnawareShadow()
-	if !firstChild.IsNil() || !shadowedCode.IsNil() {
-		childrenStart := len(s.childStack)
-		for child := firstChild; !child.IsNil(); child = child.GetNext() {
-			s.childStack = append(s.childStack, s.visitArena(child))
-		}
-		if !shadowedCode.IsNil() {
-			// For Closure shadow hosts, the ASTNode will get a boolean property bit set
-			// (CLOSURE_UNAWARE_SHADOW) that indicates this child ASTNode is not a normal child, but is
-			// the contents of the shadow.
-			// Shadow roots are structured as
-			// ROOT -> SCRIPT -> EXPR_RESULT -> FUNCTION
-			// We avoid including the ROOT -> SCRIPT -> EXPR_RESULT structure in the serialization as it
-			// is all synthetic code that would unnecessarily bloat the TypedAST and is instead recreated
-			// upon deserialization.
-			// The child ASTNode is just the FUNCTION.
-			s.childStack = append(s.childStack, s.visitArena(shadowedCode.GetFirstFirstChild().GetFirstChild()))
-		}
-		m.child_ = s.allocChildren(s.childStack[childrenStart:])
-		s.childStack = s.childStack[:childrenStart]
+	fn.kind = uint16(s.KindTranslator(n).GetNumber())
+	s.translateValueDirect(&fn, n)
+	fn.boolProps = uint64(n.SerializeProperties())
+	sourceFile := s.GetSourceFilePointer(n)
+	fn.sourceFile = int32(sourceFile)
+
+	idx := len(s.scriptEnc.nodes)
+	s.scriptEnc.nodes = append(s.scriptEnc.nodes, fn)
+
+	for child := n.GetFirstChild(); !child.IsNil(); child = child.GetNext() {
+		s.visitDirect(child)
 	}
+	if shadowedCode := n.GetClosureUnawareShadow(); !shadowedCode.IsNil() {
+		// For Closure shadow hosts, the ASTNode will get a boolean property bit set
+		// (CLOSURE_UNAWARE_SHADOW) that indicates this child ASTNode is not a normal child, but is
+		// the contents of the shadow.
+		// Shadow roots are structured as
+		// ROOT -> SCRIPT -> EXPR_RESULT -> FUNCTION
+		// We avoid including the ROOT -> SCRIPT -> EXPR_RESULT structure in the serialization as it
+		// is all synthetic code that would unnecessarily bloat the TypedAST and is instead recreated
+		// upon deserialization.
+		// The child ASTNode is just the FUNCTION.
+		s.visitDirect(shadowedCode.GetFirstFirstChild().GetFirstChild())
+	}
+	s.scriptEnc.nodes[idx].endIdx = uint32(len(s.scriptEnc.nodes))
 
 	if sourceFile != 0 {
 		// ArrayDeque.removeLast() throws NoSuchElementException on an empty deque.
@@ -109,346 +202,11 @@ func (s *TypedAstSerializer) visitArena(n rhino.Node) *AstNode {
 		s.subtreeSourceFiles = s.subtreeSourceFiles[:len(s.subtreeSourceFiles)-1]
 	}
 	if origID := n.GetOriginalNameID(); origID != 0 {
-		m.originalNamePointer_ = int32(s.stringPool.PutID(origID))
-	}
-
-	size := m.scalarsSerializedSize()
-	for _, c := range m.child_ {
-		cs := c.memoizedSize
-		size += 1 + protoVarintLen(uint64(cs)) + cs
-	}
-	if m.jsdoc_ != nil {
-		js := m.jsdoc_.memoizedSize
-		size += 1 + protoVarintLen(uint64(js)) + js
-	}
-	if m.valueCase_ == 8 {
-		ts := m.templateStringValue_.memoizedSize
-		size += 1 + protoVarintLen(uint64(ts)) + ts
-	}
-	m.memoizedSize = size
-
-	return m
-}
-
-type serializerFixupKind uint8
-
-const (
-	fixupKindStringID serializerFixupKind = iota
-	fixupKindStringIDUsedProp
-	fixupKindColor
-	fixupKindSourceFile
-)
-
-type serializerFixup struct {
-	dst   *int32
-	color *colors.Color
-	sf    *SourceFile
-	strID uint32
-	kind  serializerFixupKind
-}
-
-type typedAstScriptArena struct {
-	TypedAstSerializer
-	rootProto      *AstNode
-	lazyAst        LazyAst
-	fixups         []serializerFixup
-	jsdocFixups    []*OptimizationJsdoc
-	templateFixups []*TemplateStringValue
-	postOrderNodes []*AstNode
-}
-
-func (a *typedAstScriptArena) resetForScript() {
-	a.previousColumn = 0
-	a.previousLine = 0
-	a.resetScriptSlabs()
-	a.subtreeSourceFiles = a.subtreeSourceFiles[:0]
-	a.rootProto = nil
-	a.lazyAst = LazyAst{frozen: true, memoizedSize: -1}
-	a.fixups = a.fixups[:0]
-	a.jsdocFixups = a.jsdocFixups[:0]
-	a.templateFixups = a.templateFixups[:0]
-	a.postOrderNodes = a.postOrderNodes[:0]
-}
-
-func (a *typedAstScriptArena) buildScriptPassA(script rhino.Node, parent *TypedAstSerializer) {
-	jutil.CheckState(script.IsScript())
-	a.resetForScript()
-
-	var scriptSF *SourceFile
-	if ssf := script.GetStaticSourceFile(); ssf != nil {
-		scriptSF = ssf.(*SourceFile)
-	}
-	if scriptSF == nil {
-		if !a.peekLastSubtreeSourceFile().IsExtern() {
-			jutil.CheckStateMsg2(
-				false,
-				"Unexpected null SourceFile for node %s with parent %s",
-				script.ToStringTree(),
-				script.GetParent())
-		}
-	} else {
-		a.subtreeSourceFiles = append(a.subtreeSourceFiles, scriptSF)
-		a.fixups = append(a.fixups, serializerFixup{
-			kind: fixupKindSourceFile,
-			sf:   scriptSF,
-			dst:  &a.lazyAst.sourceFile_,
-		})
-	}
-
-	a.rootProto = a.visitArenaParallel(script, parent)
-	a.subtreeSourceFiles = a.subtreeSourceFiles[:0]
-
-	if encodedSourceMap := parent.compiler.GetBase64SourceMapContents(*script.GetSourceFileName()); encodedSourceMap != nil {
-		a.lazyAst.sourceMappingUrl_ = *encodedSourceMap
+		s.scriptEnc.nodes[idx].origName = int32(s.stringPool.PutID(origID))
 	}
 }
 
-func (a *typedAstScriptArena) visitArenaParallel(n rhino.Node, parent *TypedAstSerializer) *AstNode {
-	jutil.CheckState(n.GetLength() >= 0)
-	currentLine := n.GetLineno()
-	currentColumn := n.GetCharno()
-	m := a.allocAstNode()
-	m.relativeLine_ = int32(currentLine - a.previousLine)
-	m.relativeColumn_ = int32(currentColumn - a.previousColumn)
-	a.previousLine = currentLine
-	a.previousColumn = currentColumn
-
-	if parent.colorTypeSerializer != nil {
-		if color := n.GetColor(); color != nil {
-			m.bitField0_ |= 1 << 0
-			a.fixups = append(a.fixups, serializerFixup{
-				kind:  fixupKindColor,
-				color: color,
-				dst:   &m.type_,
-			})
-		}
-	} else if parent.jsTypeSerializer != nil {
-		parent.jsTypeSerializer.addTypeToNode(n, m)
-	}
-
-	if jsdoc := n.GetJSDocInfo(); jsdoc != nil {
-		var doc OptimizationJsdoc
-		if a.jsdocKindScratch == nil {
-			a.jsdocKindScratch = make([]int32, 0, 8)
-		}
-		doc.kind_ = jsDocSerializer_fillJsdocTagsOnly(jsdoc, a.jsdocKindScratch[:0])
-		a.jsdocKindScratch = doc.kind_[:0]
-
-		lic, desc, alt, mean, mode, hasMode := jsDocSerializer_stringFields(jsdoc)
-		hasStr := lic != "" || desc != "" || alt != "" || mean != "" || hasMode
-		if len(doc.kind_) != 0 || hasStr {
-			allocatedDoc := a.allocJsdoc(doc)
-			m.jsdoc_ = allocatedDoc
-			if hasStr {
-				a.jsdocFixups = append(a.jsdocFixups, allocatedDoc)
-				if lic != "" {
-					a.fixups = append(a.fixups, serializerFixup{
-						kind:  fixupKindStringID,
-						strID: rhino.RhinoStringPool_InternID(lic),
-						dst:   &allocatedDoc.licenseTextPointer_,
-					})
-				}
-				if desc != "" {
-					a.fixups = append(a.fixups, serializerFixup{
-						kind:  fixupKindStringID,
-						strID: rhino.RhinoStringPool_InternID(desc),
-						dst:   &allocatedDoc.descriptionPointer_,
-					})
-				}
-				if alt != "" {
-					a.fixups = append(a.fixups, serializerFixup{
-						kind:  fixupKindStringID,
-						strID: rhino.RhinoStringPool_InternID(alt),
-						dst:   &allocatedDoc.alternateMessageIdPointer_,
-					})
-				}
-				if mean != "" {
-					a.fixups = append(a.fixups, serializerFixup{
-						kind:  fixupKindStringID,
-						strID: rhino.RhinoStringPool_InternID(mean),
-						dst:   &allocatedDoc.meaningPointer_,
-					})
-				}
-				if hasMode {
-					a.fixups = append(a.fixups, serializerFixup{
-						kind:  fixupKindStringID,
-						strID: rhino.RhinoStringPool_InternID(mode.String()),
-						dst:   &allocatedDoc.closureUnawareModePointer_,
-					})
-				}
-			}
-		}
-	}
-
-	m.kind_ = a.KindTranslator(n).GetNumber()
-	a.valueTranslatorParallel(m, n, parent.recordUsedProps)
-	m.booleanProperties_ = n.SerializeProperties()
-
-	pushedSF := false
-	var sf *SourceFile
-	if ssf := n.GetStaticSourceFile(); ssf != nil {
-		sf = ssf.(*SourceFile)
-	}
-	if sf == nil {
-		if !a.peekLastSubtreeSourceFile().IsExtern() {
-			jutil.CheckStateMsg2(
-				false,
-				"Unexpected null SourceFile for node %s with parent %s",
-				n.ToStringTree(),
-				n.GetParent())
-		}
-	} else if sf != a.peekLastSubtreeSourceFile() {
-		a.subtreeSourceFiles = append(a.subtreeSourceFiles, sf)
-		pushedSF = true
-		a.fixups = append(a.fixups, serializerFixup{
-			kind: fixupKindSourceFile,
-			sf:   sf,
-			dst:  &m.sourceFile_,
-		})
-	}
-
-	firstChild := n.GetFirstChild()
-	shadowedCode := n.GetClosureUnawareShadow()
-	if !firstChild.IsNil() || !shadowedCode.IsNil() {
-		childrenStart := len(a.childStack)
-		for child := firstChild; !child.IsNil(); child = child.GetNext() {
-			a.childStack = append(a.childStack, a.visitArenaParallel(child, parent))
-		}
-		if !shadowedCode.IsNil() {
-			a.childStack = append(a.childStack, a.visitArenaParallel(shadowedCode.GetFirstFirstChild().GetFirstChild(), parent))
-		}
-		m.child_ = a.allocChildren(a.childStack[childrenStart:])
-		a.childStack = a.childStack[:childrenStart]
-	}
-
-	if pushedSF {
-		if len(a.subtreeSourceFiles) == 0 {
-			panic(jutil.NewNoSuchElementException())
-		}
-		a.subtreeSourceFiles = a.subtreeSourceFiles[:len(a.subtreeSourceFiles)-1]
-	}
-	if origID := n.GetOriginalNameID(); origID != 0 {
-		a.fixups = append(a.fixups, serializerFixup{
-			kind:  fixupKindStringID,
-			strID: origID,
-			dst:   &m.originalNamePointer_,
-		})
-	}
-
-	a.postOrderNodes = append(a.postOrderNodes, m)
-	return m
-}
-
-func (a *typedAstScriptArena) valueTranslatorParallel(m *AstNode, n rhino.Node, recordUsedProps bool) {
-	switch n.GetToken() {
-	case rhino.Token_GETPROP,
-		rhino.Token_OPTCHAIN_GETPROP:
-		kind := fixupKindStringID
-		if recordUsedProps {
-			kind = fixupKindStringIDUsedProp
-		}
-		a.fixups = append(a.fixups, serializerFixup{
-			kind:  kind,
-			strID: n.GetStringID(),
-			dst:   &m.stringValuePointer_,
-		})
-		m.valueCase_ = 3
-	case rhino.Token_STRING_KEY,
-		rhino.Token_MEMBER_FUNCTION_DEF,
-		rhino.Token_MEMBER_FIELD_DEF,
-		rhino.Token_GETTER_DEF,
-		rhino.Token_SETTER_DEF:
-		kind := fixupKindStringID
-		if recordUsedProps && !n.IsQuotedStringKey() {
-			kind = fixupKindStringIDUsedProp
-		}
-		a.fixups = append(a.fixups, serializerFixup{
-			kind:  kind,
-			strID: n.GetStringID(),
-			dst:   &m.stringValuePointer_,
-		})
-		m.valueCase_ = 3
-	case rhino.Token_NAME,
-		rhino.Token_STRINGLIT,
-		rhino.Token_LABEL_NAME,
-		rhino.Token_IMPORT_STAR:
-		a.fixups = append(a.fixups, serializerFixup{
-			kind:  fixupKindStringID,
-			strID: n.GetStringID(),
-			dst:   &m.stringValuePointer_,
-		})
-		m.valueCase_ = 3
-	case rhino.Token_TEMPLATELIT_STRING:
-		tmpl := a.allocTemplateStringValue(0, -1)
-		m.templateStringValue_ = tmpl
-		m.valueCase_ = 8
-		a.templateFixups = append(a.templateFixups, tmpl)
-		a.fixups = append(a.fixups, serializerFixup{
-			kind:  fixupKindStringID,
-			strID: n.GetRawStringID(),
-			dst:   &tmpl.rawStringPointer_,
-		})
-		if cookedID := n.GetCookedStringID(); cookedID != 0 {
-			a.fixups = append(a.fixups, serializerFixup{
-				kind:  fixupKindStringID,
-				strID: cookedID,
-				dst:   &tmpl.cookedStringPointer_,
-			})
-		}
-	case rhino.Token_NUMBER:
-		m.doubleValue_ = n.GetDouble()
-		m.valueCase_ = 4
-	case rhino.Token_BIGINT:
-		a.fixups = append(a.fixups, serializerFixup{
-			kind:  fixupKindStringID,
-			strID: rhino.RhinoStringPool_InternID(n.GetBigInt().String()),
-			dst:   &m.stringValuePointer_,
-		})
-		m.valueCase_ = 3
-	}
-}
-
-func (a *typedAstScriptArena) marshalScriptPassC(byteSlab *[]byte) {
-	for _, doc := range a.jsdocFixups {
-		doc.memoizedSize = doc.scalarsSerializedSize()
-	}
-	for _, tmpl := range a.templateFixups {
-		tmpl.memoizedSize = tmpl.scalarsSerializedSize()
-	}
-	for _, m := range a.postOrderNodes {
-		size := m.scalarsSerializedSize()
-		for _, c := range m.child_ {
-			cs := c.memoizedSize
-			size += 1 + protoVarintLen(uint64(cs)) + cs
-		}
-		if m.jsdoc_ != nil {
-			js := m.jsdoc_.memoizedSize
-			size += 1 + protoVarintLen(uint64(js)) + js
-		}
-		if m.valueCase_ == 8 {
-			ts := m.templateStringValue_.memoizedSize
-			size += 1 + protoVarintLen(uint64(ts)) + ts
-		}
-		m.memoizedSize = size
-	}
-
-	scriptBytes := marshalProtoIntoByteSlab(a.rootProto, byteSlab)
-	a.lazyAst.script_ = scriptBytes
-	if len(a.lazyAst.sourceMappingUrl_) == 0 {
-		ls := 0
-		if len(scriptBytes) != 0 {
-			ls += 1 + protoVarintLen(uint64(len(scriptBytes))) + len(scriptBytes)
-		}
-		if a.lazyAst.sourceFile_ != 0 {
-			ls += 1 + protoVarintLen(uint64(uint32(a.lazyAst.sourceFile_)))
-		}
-		a.lazyAst.memoizedSize = ls
-	} else {
-		a.lazyAst.serializedSize()
-	}
-}
-
-func (s *TypedAstSerializer) valueTranslatorToNode(m *AstNode, n rhino.Node) {
+func (s *TypedAstSerializer) translateValueDirect(fn *flatAstNode, n rhino.Node) {
 	switch n.GetToken() {
 	case rhino.Token_GETPROP,
 		rhino.Token_OPTCHAIN_GETPROP:
@@ -456,9 +214,8 @@ func (s *TypedAstSerializer) valueTranslatorToNode(m *AstNode, n rhino.Node) {
 		if s.recordUsedProps {
 			s.markUsedProp(ptr)
 		}
-		m.stringValuePointer_ = int32(ptr)
-		m.valueCase_ = 3
-		return
+		fn.valBits = uint64(uint32(int32(ptr)))
+		fn.valCase = 3
 	case rhino.Token_STRING_KEY,
 		rhino.Token_MEMBER_FUNCTION_DEF,
 		rhino.Token_MEMBER_FIELD_DEF,
@@ -468,92 +225,497 @@ func (s *TypedAstSerializer) valueTranslatorToNode(m *AstNode, n rhino.Node) {
 		if s.recordUsedProps && !n.IsQuotedStringKey() {
 			s.markUsedProp(ptr)
 		}
-		m.stringValuePointer_ = int32(ptr)
-		m.valueCase_ = 3
-		return
+		fn.valBits = uint64(uint32(int32(ptr)))
+		fn.valCase = 3
 	case rhino.Token_NAME,
 		rhino.Token_STRINGLIT,
 		rhino.Token_LABEL_NAME,
 		rhino.Token_IMPORT_STAR:
-		m.stringValuePointer_ = int32(s.stringPool.PutID(n.GetStringID()))
-		m.valueCase_ = 3
-		return
+		fn.valBits = uint64(uint32(int32(s.stringPool.PutID(n.GetStringID()))))
+		fn.valCase = 3
 	case rhino.Token_TEMPLATELIT_STRING:
 		// The raw string is put in the pool before the cooked one (Java's
 		// evaluation order).
-		rawPtr := int32(s.stringPool.PutID(n.GetRawStringID()))
-		cookedPtr := int32(-1)
+		rawPtr := uint32(int32(s.stringPool.PutID(n.GetRawStringID())))
+		cookedPtr := uint32(0xFFFFFFFF) // int32(-1)
 		if cookedID := n.GetCookedStringID(); cookedID != 0 {
-			cookedPtr = int32(s.stringPool.PutID(cookedID))
+			cookedPtr = uint32(int32(s.stringPool.PutID(cookedID)))
 		}
-		m.templateStringValue_ = s.allocTemplateStringValue(rawPtr, cookedPtr)
-		m.valueCase_ = 8
-		return
+		fn.valBits = (uint64(rawPtr) << 32) | uint64(cookedPtr)
+		fn.valCase = 8
 	case rhino.Token_NUMBER:
-		m.doubleValue_ = n.GetDouble()
-		m.valueCase_ = 4
-		return
+		fn.valBits = math.Float64bits(n.GetDouble())
+		fn.valCase = 4
 	case rhino.Token_BIGINT:
-		m.stringValuePointer_ = int32(s.stringPool.Put(n.GetBigInt().String()))
-		m.valueCase_ = 3
-		return
-	default:
-		// No value
-		return
+		fn.valBits = uint64(uint32(int32(s.stringPool.Put(n.GetBigInt().String()))))
+		fn.valCase = 3
 	}
 }
 
-// Java: TypedAstSerializer.valueTranslator(AstNode.Builder, Node)
-func (s *TypedAstSerializer) ValueTranslator(builder *AstNode_Builder, n rhino.Node) {
+func (enc *scriptWireEncoder) buildScriptPassA(script rhino.Node, parent *TypedAstSerializer) {
+	jutil.CheckState(script.IsScript())
+	enc.reset()
+
+	var scriptSF *SourceFile
+	if ssf := script.GetStaticSourceFile(); ssf != nil {
+		scriptSF = ssf.(*SourceFile)
+	}
+	if scriptSF == nil {
+		if !enc.peekLastSubtreeSourceFile().IsExtern() {
+			jutil.CheckStateMsg2(
+				false,
+				"Unexpected null SourceFile for node %s with parent %s",
+				script.ToStringTree(),
+				script.GetParent())
+		}
+	} else {
+		enc.subtreeSourceFiles = append(enc.subtreeSourceFiles, scriptSF)
+		sfRef := uint32(len(enc.sfRefs))
+		enc.sfRefs = append(enc.sfRefs, scriptSF)
+		enc.fixups = append(enc.fixups, poolFixup{
+			refIdx: sfRef,
+			target: fixupLazySourceFile,
+		})
+	}
+
+	enc.visitParallel(script, parent)
+	clear(enc.subtreeSourceFiles)
+	enc.subtreeSourceFiles = enc.subtreeSourceFiles[:0]
+
+	if encodedSourceMap := parent.compiler.GetBase64SourceMapContents(*script.GetSourceFileName()); encodedSourceMap != nil {
+		enc.lazyAst.sourceMappingUrl_ = *encodedSourceMap
+	}
+}
+
+func (enc *scriptWireEncoder) visitParallel(n rhino.Node, parent *TypedAstSerializer) {
+	jutil.CheckState(n.GetLength() >= 0)
+	nodeIdx := uint32(len(enc.nodes))
+	currentLine := n.GetLineno()
+	currentColumn := n.GetCharno()
+	fn := flatAstNode{
+		relLine:  int32(currentLine - enc.previousLine),
+		relCol:   int32(currentColumn - enc.previousColumn),
+		jsdocIdx: -1,
+	}
+	enc.previousLine = currentLine
+	enc.previousColumn = currentColumn
+
+	if parent.colorTypeSerializer != nil {
+		if color := n.GetColor(); color != nil {
+			fn.hasType = true
+			cRef := uint32(len(enc.colorRefs))
+			enc.colorRefs = append(enc.colorRefs, color)
+			enc.fixups = append(enc.fixups, poolFixup{
+				targetIdx: nodeIdx,
+				refIdx:    cRef,
+				target:    fixupNodeColor,
+			})
+		}
+	} else if parent.jsTypeSerializer != nil {
+		parent.jsTypeSerializer.addTypeToFlatNode(n, &fn)
+	}
+
+	if jsdoc := n.GetJSDocInfo(); jsdoc != nil {
+		kindOff := len(enc.jsdocKinds)
+		enc.jsdocKinds = jsDocSerializer_fillJsdocTagsOnly(jsdoc, enc.jsdocKinds)
+		kindLen := len(enc.jsdocKinds) - kindOff
+
+		lic, desc, alt, mean, mode, hasMode := jsDocSerializer_stringFields(jsdoc)
+		hasStr := lic != "" || desc != "" || alt != "" || mean != "" || hasMode
+		if kindLen != 0 || hasStr {
+			jIdx := uint32(len(enc.jsdocs))
+			enc.jsdocs = append(enc.jsdocs, flatJsdoc{
+				kindOff: uint32(kindOff),
+				kindLen: uint32(kindLen),
+			})
+			fn.jsdocIdx = int32(jIdx)
+			if hasStr {
+				if lic != "" {
+					enc.fixups = append(enc.fixups, poolFixup{
+						targetIdx: jIdx,
+						refIdx:    rhino.RhinoStringPool_InternID(lic),
+						target:    fixupJsdocLicense,
+					})
+				}
+				if desc != "" {
+					enc.fixups = append(enc.fixups, poolFixup{
+						targetIdx: jIdx,
+						refIdx:    rhino.RhinoStringPool_InternID(desc),
+						target:    fixupJsdocDesc,
+					})
+				}
+				if alt != "" {
+					enc.fixups = append(enc.fixups, poolFixup{
+						targetIdx: jIdx,
+						refIdx:    rhino.RhinoStringPool_InternID(alt),
+						target:    fixupJsdocAltMsg,
+					})
+				}
+				if mean != "" {
+					enc.fixups = append(enc.fixups, poolFixup{
+						targetIdx: jIdx,
+						refIdx:    rhino.RhinoStringPool_InternID(mean),
+						target:    fixupJsdocMeaning,
+					})
+				}
+				if hasMode {
+					enc.fixups = append(enc.fixups, poolFixup{
+						targetIdx: jIdx,
+						refIdx:    rhino.RhinoStringPool_InternID(mode.String()),
+						target:    fixupJsdocCuMode,
+					})
+				}
+			}
+		}
+	}
+
+	fn.kind = uint16(parent.KindTranslator(n).GetNumber())
+	enc.translateValueParallel(&fn, nodeIdx, n, parent.recordUsedProps)
+	fn.boolProps = uint64(n.SerializeProperties())
+
+	pushedSF := false
+	var sf *SourceFile
+	if ssf := n.GetStaticSourceFile(); ssf != nil {
+		sf = ssf.(*SourceFile)
+	}
+	if sf == nil {
+		if !enc.peekLastSubtreeSourceFile().IsExtern() {
+			jutil.CheckStateMsg2(
+				false,
+				"Unexpected null SourceFile for node %s with parent %s",
+				n.ToStringTree(),
+				n.GetParent())
+		}
+	} else if sf != enc.peekLastSubtreeSourceFile() {
+		enc.subtreeSourceFiles = append(enc.subtreeSourceFiles, sf)
+		pushedSF = true
+		sfRef := uint32(len(enc.sfRefs))
+		enc.sfRefs = append(enc.sfRefs, sf)
+		enc.fixups = append(enc.fixups, poolFixup{
+			targetIdx: nodeIdx,
+			refIdx:    sfRef,
+			target:    fixupNodeSourceFile,
+		})
+	}
+
+	enc.nodes = append(enc.nodes, fn)
+
+	for child := n.GetFirstChild(); !child.IsNil(); child = child.GetNext() {
+		enc.visitParallel(child, parent)
+	}
+	if shadowedCode := n.GetClosureUnawareShadow(); !shadowedCode.IsNil() {
+		enc.visitParallel(shadowedCode.GetFirstFirstChild().GetFirstChild(), parent)
+	}
+	enc.nodes[nodeIdx].endIdx = uint32(len(enc.nodes))
+
+	if pushedSF {
+		if len(enc.subtreeSourceFiles) == 0 {
+			panic(jutil.NewNoSuchElementException())
+		}
+		enc.subtreeSourceFiles = enc.subtreeSourceFiles[:len(enc.subtreeSourceFiles)-1]
+	}
+	if origID := n.GetOriginalNameID(); origID != 0 {
+		enc.fixups = append(enc.fixups, poolFixup{
+			targetIdx: nodeIdx,
+			refIdx:    origID,
+			target:    fixupNodeOrigName,
+		})
+	}
+}
+
+func (enc *scriptWireEncoder) translateValueParallel(fn *flatAstNode, nodeIdx uint32, n rhino.Node, recordUsedProps bool) {
 	switch n.GetToken() {
 	case rhino.Token_GETPROP,
-		rhino.Token_OPTCHAIN_GETPROP,
+		rhino.Token_OPTCHAIN_GETPROP:
+		target := fixupNodeStrVal
+		if recordUsedProps {
+			target = fixupNodeStrValUsedProp
+		}
+		enc.fixups = append(enc.fixups, poolFixup{
+			targetIdx: nodeIdx,
+			refIdx:    n.GetStringID(),
+			target:    target,
+		})
+		fn.valCase = 3
+	case rhino.Token_STRING_KEY,
 		rhino.Token_MEMBER_FUNCTION_DEF,
 		rhino.Token_MEMBER_FIELD_DEF,
-		rhino.Token_NAME,
-		rhino.Token_STRINGLIT,
-		rhino.Token_STRING_KEY,
 		rhino.Token_GETTER_DEF,
-		rhino.Token_SETTER_DEF,
+		rhino.Token_SETTER_DEF:
+		target := fixupNodeStrVal
+		if recordUsedProps && !n.IsQuotedStringKey() {
+			target = fixupNodeStrValUsedProp
+		}
+		enc.fixups = append(enc.fixups, poolFixup{
+			targetIdx: nodeIdx,
+			refIdx:    n.GetStringID(),
+			target:    target,
+		})
+		fn.valCase = 3
+	case rhino.Token_NAME,
+		rhino.Token_STRINGLIT,
 		rhino.Token_LABEL_NAME,
 		rhino.Token_IMPORT_STAR:
-		builder.SetStringValuePointer(int32(s.stringPool.PutID(n.GetStringID())))
-		return
+		enc.fixups = append(enc.fixups, poolFixup{
+			targetIdx: nodeIdx,
+			refIdx:    n.GetStringID(),
+			target:    fixupNodeStrVal,
+		})
+		fn.valCase = 3
 	case rhino.Token_TEMPLATELIT_STRING:
-		// The raw string is put in the pool before the cooked one (Java's
-		// evaluation order).
-		templateStringValue := TemplateStringValue_NewBuilder().
-			SetRawStringPointer(int32(s.stringPool.PutID(n.GetRawStringID())))
-		cookedStringPointer := -1
+		fn.valBits = 0xFFFFFFFF // cooked = int32(-1) by default
+		fn.valCase = 8
+		enc.fixups = append(enc.fixups, poolFixup{
+			targetIdx: nodeIdx,
+			refIdx:    n.GetRawStringID(),
+			target:    fixupNodeRawTmpl,
+		})
 		if cookedID := n.GetCookedStringID(); cookedID != 0 {
-			cookedStringPointer = s.stringPool.PutID(cookedID)
+			enc.fixups = append(enc.fixups, poolFixup{
+				targetIdx: nodeIdx,
+				refIdx:    cookedID,
+				target:    fixupNodeCookedTmpl,
+			})
 		}
-		builder.SetTemplateStringValue(
-			templateStringValue.
-				SetCookedStringPointer(int32(cookedStringPointer)).
-				Build())
-		return
 	case rhino.Token_NUMBER:
-		builder.SetDoubleValue(n.GetDouble())
-		return
+		fn.valBits = math.Float64bits(n.GetDouble())
+		fn.valCase = 4
 	case rhino.Token_BIGINT:
-		builder.SetStringValuePointer(int32(s.stringPool.Put(n.GetBigInt().String())))
-		return
-	default:
-		// No value
-		return
+		enc.fixups = append(enc.fixups, poolFixup{
+			targetIdx: nodeIdx,
+			refIdx:    rhino.RhinoStringPool_InternID(n.GetBigInt().String()),
+			target:    fixupNodeStrVal,
+		})
+		fn.valCase = 3
 	}
 }
 
-// Java: TypedAstSerializer.setOriginalName(AstNode.Builder, Node)
-func (s *TypedAstSerializer) SetOriginalName(builder *AstNode_Builder, n rhino.Node) {
-	origID := n.GetOriginalNameID()
-	if origID == 0 {
-		builder.SetOriginalNamePointer(0) // equivalent to 'not set'
-		return
+func (enc *scriptWireEncoder) marshalScriptPassC(byteSlab *[]byte) {
+	scriptBytes := enc.encodeToByteSlab(byteSlab)
+	enc.lazyAst.script_ = scriptBytes
+	if len(enc.lazyAst.sourceMappingUrl_) == 0 {
+		enc.lazyAst.cachedSize = lazyAstFastSize(scriptBytes, enc.lazyAst.sourceFile_) + 1
+	} else {
+		enc.lazyAst.serializedSize()
 	}
+}
 
-	builder.SetOriginalNamePointer(int32(s.stringPool.PutID(origID)))
+func (enc *scriptWireEncoder) encodeToByteSlab(byteSlab *[]byte) []byte {
+	jsdocs := enc.jsdocs
+	for i := range jsdocs {
+		jsdocs[i].wireSize = enc.computeJsdocWireSize(&jsdocs[i])
+	}
+	nodes := enc.nodes
+	for i := len(nodes) - 1; i >= 0; i-- {
+		nodes[i].wireSize = enc.computeNodeWireSize(&nodes[i], i)
+	}
+	sz := int(nodes[0].wireSize)
+	if sz > 262144 {
+		out := enc.appendNode(make([]byte, 0, sz), 0)
+		if len(out) != sz {
+			panic("AstNode wire size mismatch")
+		}
+		return out
+	}
+	slab := *byteSlab
+	if len(slab) < sz {
+		slab = make([]byte, max(4*1024*1024, sz))
+	}
+	buf := slab[:0:sz]
+	*byteSlab = slab[sz:]
+	out := enc.appendNode(buf, 0)
+	if len(out) != sz {
+		panic("AstNode wire size mismatch")
+	}
+	return out
+}
+
+func (enc *scriptWireEncoder) computeJsdocWireSize(d *flatJsdoc) uint32 {
+	size := 0
+	if d.kindLen > 0 {
+		kinds := enc.jsdocKinds[d.kindOff : d.kindOff+d.kindLen]
+		packedLen := 0
+		for _, k := range kinds {
+			packedLen += protoVarintLen(uint64(int64(k)))
+		}
+		size += 1 + protoVarintLen(uint64(packedLen)) + packedLen
+	}
+	if d.licensePtr != 0 {
+		size += 1 + protoVarintLen(uint64(int64(d.licensePtr)))
+	}
+	if d.descPtr != 0 {
+		size += 1 + protoVarintLen(uint64(int64(d.descPtr)))
+	}
+	if d.meaningPtr != 0 {
+		size += 1 + protoVarintLen(uint64(int64(d.meaningPtr)))
+	}
+	if d.altMsgPtr != 0 {
+		size += 1 + protoVarintLen(uint64(int64(d.altMsgPtr)))
+	}
+	if d.cuModePtr != 0 {
+		size += 1 + protoVarintLen(uint64(int64(d.cuModePtr)))
+	}
+	return uint32(size)
+}
+
+func templateStringWireSize(valBits uint64) int {
+	rawPtr := int32(valBits >> 32)
+	cookedPtr := int32(valBits)
+	size := 0
+	if rawPtr != 0 {
+		size += 1 + protoVarintLen(uint64(uint32(rawPtr)))
+	}
+	if cookedPtr != 0 {
+		size += 1 + protoVarintLen(uint64(int64(cookedPtr)))
+	}
+	return size
+}
+
+func (enc *scriptWireEncoder) computeNodeWireSize(fn *flatAstNode, idx int) uint32 {
+	size := 0
+	if fn.kind != 0 {
+		size += 1 + protoVarintLen(uint64(fn.kind))
+	}
+	nodes := enc.nodes
+	for c := idx + 1; c < int(fn.endIdx); c = int(nodes[c].endIdx) {
+		cs := int(nodes[c].wireSize)
+		size += 1 + protoVarintLen(uint64(cs)) + cs
+	}
+	switch fn.valCase {
+	case 3:
+		size += 1 + protoVarintLen(fn.valBits)
+	case 4:
+		size += 9
+	case 8:
+		ts := templateStringWireSize(fn.valBits)
+		size += 1 + protoVarintLen(uint64(ts)) + ts
+	}
+	if fn.relLine != 0 {
+		size += 1 + protoVarintLen(uint64(uint32((fn.relLine<<1)^(fn.relLine>>31))))
+	}
+	if fn.relCol != 0 {
+		size += 1 + protoVarintLen(uint64(uint32((fn.relCol<<1)^(fn.relCol>>31))))
+	}
+	if fn.jsdocIdx >= 0 {
+		js := int(enc.jsdocs[fn.jsdocIdx].wireSize)
+		size += 1 + protoVarintLen(uint64(js)) + js
+	}
+	if fn.origName != 0 {
+		size += 1 + protoVarintLen(uint64(uint32(fn.origName)))
+	}
+	if fn.boolProps != 0 {
+		size += 1 + protoVarintLen(fn.boolProps)
+	}
+	if fn.hasType {
+		size += 1 + protoVarintLen(uint64(int64(fn.typePtr)))
+	}
+	if fn.sourceFile != 0 {
+		size += 2 + protoVarintLen(uint64(uint32(fn.sourceFile)))
+	}
+	return uint32(size)
+}
+
+func (enc *scriptWireEncoder) appendJsdoc(b []byte, d *flatJsdoc) []byte {
+	if d.kindLen > 0 {
+		kinds := enc.jsdocKinds[d.kindOff : d.kindOff+d.kindLen]
+		packedLen := 0
+		for _, k := range kinds {
+			packedLen += protoVarintLen(uint64(int64(k)))
+		}
+		b = append(b, 10)
+		b = protoAppendVarint(b, uint64(packedLen))
+		for _, k := range kinds {
+			b = protoAppendInt32(b, k)
+		}
+	}
+	if d.licensePtr != 0 {
+		b = append(b, 16)
+		b = protoAppendInt32(b, d.licensePtr)
+	}
+	if d.descPtr != 0 {
+		b = append(b, 24)
+		b = protoAppendInt32(b, d.descPtr)
+	}
+	if d.meaningPtr != 0 {
+		b = append(b, 32)
+		b = protoAppendInt32(b, d.meaningPtr)
+	}
+	if d.altMsgPtr != 0 {
+		b = append(b, 40)
+		b = protoAppendInt32(b, d.altMsgPtr)
+	}
+	if d.cuModePtr != 0 {
+		b = append(b, 48)
+		b = protoAppendInt32(b, d.cuModePtr)
+	}
+	return b
+}
+
+func (enc *scriptWireEncoder) appendNode(b []byte, idx int) []byte {
+	fn := enc.nodes[idx]
+	if fn.kind != 0 {
+		b = append(b, 8)
+		b = protoAppendVarint(b, uint64(fn.kind))
+	}
+	for c := idx + 1; c < int(fn.endIdx); c = int(enc.nodes[c].endIdx) {
+		b = append(b, 18)
+		b = protoAppendVarint(b, uint64(enc.nodes[c].wireSize))
+		b = enc.appendNode(b, c)
+	}
+	switch fn.valCase {
+	case 3:
+		b = append(b, 24)
+		b = protoAppendVarint(b, fn.valBits)
+	case 4:
+		b = append(b, 33)
+		b = protoAppendFixed64(b, fn.valBits)
+	}
+	if fn.relLine != 0 {
+		b = append(b, 40)
+		b = protoAppendSint32(b, fn.relLine)
+	}
+	if fn.relCol != 0 {
+		b = append(b, 48)
+		b = protoAppendSint32(b, fn.relCol)
+	}
+	if fn.jsdocIdx >= 0 {
+		d := &enc.jsdocs[fn.jsdocIdx]
+		b = append(b, 58)
+		b = protoAppendVarint(b, uint64(d.wireSize))
+		b = enc.appendJsdoc(b, d)
+	}
+	if fn.valCase == 8 {
+		rawPtr := int32(fn.valBits >> 32)
+		cookedPtr := int32(fn.valBits)
+		ts := templateStringWireSize(fn.valBits)
+		b = append(b, 66)
+		b = protoAppendVarint(b, uint64(ts))
+		if rawPtr != 0 {
+			b = append(b, 8)
+			b = protoAppendUint32(b, rawPtr)
+		}
+		if cookedPtr != 0 {
+			b = append(b, 16)
+			b = protoAppendInt32(b, cookedPtr)
+		}
+	}
+	if fn.origName != 0 {
+		b = append(b, 72)
+		b = protoAppendUint32(b, fn.origName)
+	}
+	if fn.boolProps != 0 {
+		b = append(b, 112)
+		b = protoAppendVarint(b, fn.boolProps)
+	}
+	if fn.hasType {
+		b = append(b, 120)
+		b = protoAppendInt32(b, fn.typePtr)
+	}
+	if fn.sourceFile != 0 {
+		b = append(b, 0x80, 0x01)
+		b = protoAppendUint32(b, fn.sourceFile)
+	}
+	return b
 }
 
 type nodeDeserMode uint8

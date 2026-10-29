@@ -59,13 +59,11 @@ type replaceIdGeneratorsTest_idTestMap struct {
 }
 
 // Java: ReplaceIdGeneratorsTest.getProcessor(Compiler).new RenamingMap() {...}.get(String)
-func (m *replaceIdGeneratorsTest_idTestMap) Get(value string) *string {
-	replacement, ok := m.map_.Lookup(value)
-	if ok {
-		return &replacement
+func (m *replaceIdGeneratorsTest_idTestMap) Get(value string) (string, bool) {
+	if replacement, ok := m.map_.Lookup(value); ok {
+		return replacement, true
 	}
-	r := "unknown:" + value
-	return &r
+	return "unknown:" + value, true
 }
 
 // Java: ReplaceIdGeneratorsTest.getProcessor(Compiler)

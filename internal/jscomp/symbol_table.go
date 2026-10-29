@@ -75,11 +75,11 @@ type symbolTableKey struct {
 type SymbolTable struct {
 	// All symbols in the program, uniquely identified by the node where
 	// they're declared and their name.
-	symbols *jutil.LinkedHashMap[symbolTableKey, *SymbolTable_Symbol]
+	symbols symbolOrderedMap[symbolTableKey, *SymbolTable_Symbol]
 
 	// All syntactic scopes in the program, uniquely identified by the node
 	// where they're declared.
-	scopes *jutil.LinkedHashMap[rhino.Node, *SymbolTable_SymbolScope]
+	scopes symbolOrderedMap[rhino.Node, *SymbolTable_SymbolScope]
 
 	// All Nodes with JSDocInfo in the program.
 	docInfos []rhino.Node
@@ -113,8 +113,6 @@ const SymbolTable_GLOBAL_THIS = "*global*"
 // Java: SymbolTable(AbstractCompiler, JSTypeRegistry)
 func NewSymbolTable(compiler AbstractCompiler, registry *rhino.JSTypeRegistry) *SymbolTable {
 	t := &SymbolTable{
-		symbols:                jutil.NewLinkedHashMap[symbolTableKey, *SymbolTable_Symbol](),
-		scopes:                 jutil.NewLinkedHashMap[rhino.Node, *SymbolTable_SymbolScope](),
 		symbolThatDeclaresType: make(map[rhino.JSType]*SymbolTable_Symbol),
 		compiler:               compiler,
 		registry:               registry,
@@ -135,7 +133,7 @@ func (t *SymbolTable) GetReferenceList(symbol *SymbolTable_Symbol) []*SymbolTabl
 
 // Java: SymbolTable.getAllSymbols()
 func (t *SymbolTable) GetAllSymbols() []*SymbolTable_Symbol {
-	return slices.Collect(t.symbols.Values())
+	return t.symbols.ValueSlice()
 }
 
 // GetAllSymbolsSorted gets the symbols in their natural ordering. Always
@@ -143,7 +141,7 @@ func (t *SymbolTable) GetAllSymbols() []*SymbolTable_Symbol {
 //
 // Java: SymbolTable.getAllSymbolsSorted()
 func (t *SymbolTable) GetAllSymbolsSorted() []*SymbolTable_Symbol {
-	result := slices.Collect(t.symbols.Values())
+	result := t.symbols.ValueSlice()
 	slices.SortStableFunc(result, t.GetNaturalSymbolOrdering())
 	return result
 }
@@ -368,18 +366,14 @@ func (t *SymbolTable) getSymbolForName(source rhino.Node, nameStr string) *Symbo
 		// symbol in module scope.
 		var metadata *ModuleMetadataMap_ModuleMetadata
 		if sourceFileName := scope.GetRootNode().GetSourceFileName(); sourceFileName != nil {
-			metadata = t.compiler.
-				GetModuleMetadataMap().
-				GetModulesByPath().
-				Get(*sourceFileName)
+			metadata = t.compiler.GetModuleMetadataMap().ModuleByPath(*sourceFileName)
 		}
 		if metadata == nil {
 			panic(jutil.NewNullPointerException())
 		}
 		first := "null"
-		for ns := range metadata.GoogNamespaces().All() {
-			first = ns
-			break
+		if entries := metadata.GoogNamespaces().Entries(); len(entries) > 0 {
+			first = entries[0].Key
 		}
 		moduleNameWithDot := first + "."
 		if strings.HasPrefix(nameStr, moduleNameWithDot) {
@@ -815,62 +809,6 @@ func symbolTable_findBestDeclToAdd[S rhino.StaticSlot, R rhino.StaticRef](
 	}
 
 	return nil
-}
-
-func isNilStaticRef(ref rhino.StaticRef) bool {
-	if ref == nil {
-		return true
-	}
-	switch r := ref.(type) {
-	case *SymbolTable_Reference:
-		return r == nil
-	case *TypedVar:
-		return r == nil
-	case *Var:
-		return r == nil
-	case *Reference:
-		return r == nil
-	case *GlobalNamespace_Ref:
-		return r == nil
-	case *PreprocessorSymbolTable_Reference:
-		return r == nil
-	case *rhino.Property:
-		return r == nil
-	default:
-		return false
-	}
-}
-
-func isNilSourceFile(sf rhino.StaticSourceFile) bool {
-	if sf == nil {
-		return true
-	}
-	switch f := sf.(type) {
-	case *SourceFile:
-		return f == nil
-	case *rhino.SimpleSourceFile:
-		return f == nil
-	default:
-		return false
-	}
-}
-
-func isNilStaticScope(s rhino.StaticScope) bool {
-	if s == nil {
-		return true
-	}
-	switch sc := s.(type) {
-	case *TypedScope:
-		return sc == nil
-	case *Scope:
-		return sc == nil
-	case *LinkedFlowScope:
-		return sc == nil
-	case *rhino.JSTypeRegistry_SyntheticTemplateScope:
-		return sc == nil
-	default:
-		return false
-	}
 }
 
 // isGoodRefToAdd is a helper for addSymbolsFrom, to determine whether a

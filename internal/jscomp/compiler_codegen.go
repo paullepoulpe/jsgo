@@ -706,8 +706,9 @@ func (t *Compiler_ChunkGraphAwareLicenseTracker) EmitLicenses() []string {
 }
 
 func (c *Compiler) acquirePrintScratch() (*codePrinterScratch, bool) {
-	if c.printScratchBusy.CompareAndSwap(false, true) {
-		return &c.printScratch, true
+	s := c.ensureSync()
+	if s.printScratchBusy.CompareAndSwap(false, true) {
+		return &s.printScratch, true
 	}
 	return nil, false
 }
@@ -716,7 +717,7 @@ func (c *Compiler) toSourceAndMappingsInto(
 	n rhino.Node, firstOutput bool, licenseTracker CodePrinter_LicenseTracker, sm *CodePrinter_SourceAndMappings) {
 	scratch, owned := c.acquirePrintScratch()
 	if owned {
-		defer c.printScratchBusy.Store(false)
+		defer c.sync.printScratchBusy.Store(false)
 	}
 	c.toSourceAndMappingsIntoWithScratch(n, firstOutput, licenseTracker, sm, scratch)
 }
@@ -750,7 +751,7 @@ func (c *Compiler) toSourceWithoutMappings(
 	n rhino.Node, firstOutput bool, licenseTracker CodePrinter_LicenseTracker) string {
 	scratch, owned := c.acquirePrintScratch()
 	if owned {
-		defer c.printScratchBusy.Store(false)
+		defer c.sync.printScratchBusy.Store(false)
 	}
 	return c.printRootWithScratch(n, firstOutput, false, licenseTracker, nil, scratch)
 }

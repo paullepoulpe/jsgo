@@ -179,10 +179,10 @@ func l11optRenameVars(c *Compiler, externs rhino.Node, js rhino.Node, extra *[]s
 
 func l11optOptimizeCalls(c *Compiler, externs rhino.Node, js rhino.Node, extra *[]string) {
 	for _, considerExterns := range []bool{false, true} {
-		OptimizeCalls_Builder_().
-			SetCompiler(c).
-			SetConsiderExterns(considerExterns).
-			AddPass(OptimizeCalls_CallGraphCompilerPassFunc(func(e rhino.Node, r rhino.Node, references *OptimizeCalls_ReferenceMap) {
+		NewOptimizeCalls(
+			c,
+			considerExterns,
+			callGraphPassFunc(func(e rhino.Node, r rhino.Node, references *OptimizeCalls_ReferenceMap) {
 				*extra = append(*extra, "references considerExterns="+strconv.FormatBool(considerExterns))
 				for k, refs := range references.GetNameReferences() {
 					*extra = append(*extra, "name "+k+l11optRefs(refs))
@@ -199,9 +199,8 @@ func l11optOptimizeCalls(c *Compiler, externs rhino.Node, js rhino.Node, extra *
 						}
 					}
 				}
-			})).
-			Build().
-			Process(externs, js)
+			}),
+		).Process(externs, js)
 	}
 }
 

@@ -377,18 +377,6 @@ type CrossChunkCodeMotion_GlobalSymbol struct {
 	isMoveDeclarationStatementsDone bool
 }
 
-// Java: CrossChunkCodeMotion.GlobalSymbol(Var)
-func NewCrossChunkCodeMotion_GlobalSymbol(outer *CrossChunkCodeMotion, var_ *Var) *CrossChunkCodeMotion_GlobalSymbol {
-	s := &CrossChunkCodeMotion_GlobalSymbol{
-		outer:          outer,
-		preorderNumber: -1,
-		var_:           var_,
-	}
-	s.dsgs = s.dsgBuf[:0]
-	s.referencingSlice = s.referencingBuf[:0]
-	return s
-}
-
 // Java: CrossChunkCodeMotion.GlobalSymbol.toString()
 func (s *CrossChunkCodeMotion_GlobalSymbol) String() string {
 	return s.var_.GetName()
@@ -449,15 +437,6 @@ type CrossChunkCodeMotion_GlobalSymbolCycle struct {
 	outer        *CrossChunkCodeMotion
 	symbolsSlice []*CrossChunkCodeMotion_GlobalSymbol
 	symbolsBuf   [1]*CrossChunkCodeMotion_GlobalSymbol
-}
-
-// Java: CrossChunkCodeMotion.GlobalSymbolCycle()
-func NewCrossChunkCodeMotion_GlobalSymbolCycle(outer *CrossChunkCodeMotion) *CrossChunkCodeMotion_GlobalSymbolCycle {
-	y := &CrossChunkCodeMotion_GlobalSymbolCycle{
-		outer: outer,
-	}
-	y.symbolsSlice = y.symbolsBuf[:0]
-	return y
 }
 
 // Java: CrossChunkCodeMotion.GlobalSymbolCycle.addSymbol(GlobalSymbol)
@@ -632,17 +611,6 @@ type CrossChunkCodeMotion_DeclarationStatementGroup struct {
 	// statements in the group in chronological push order (last element is latest)
 	statements []*CrossChunkReferenceCollector_TopLevelStatement
 	stmtBuf    [4]*CrossChunkReferenceCollector_TopLevelStatement
-}
-
-// Java: CrossChunkCodeMotion.DeclarationStatementGroup(GlobalSymbol, JSChunk)
-func NewCrossChunkCodeMotion_DeclarationStatementGroup(declaredGlobalSymbol *CrossChunkCodeMotion_GlobalSymbol, currentChunk *JSChunk) *CrossChunkCodeMotion_DeclarationStatementGroup {
-	g := &CrossChunkCodeMotion_DeclarationStatementGroup{
-		declaredGlobalSymbol: declaredGlobalSymbol,
-		currentChunk:         currentChunk,
-	}
-	g.statements = g.stmtBuf[:0]
-	g.referencedSlice = g.referencedBuf[:0]
-	return g
 }
 
 // Java: CrossChunkCodeMotion.DeclarationStatementGroup.allStatementsCanMove()

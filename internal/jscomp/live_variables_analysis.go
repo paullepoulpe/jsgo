@@ -85,29 +85,6 @@ type LiveVariablesAnalysis struct {
 	lattices     jutil.ReuseSlab[LiveVariablesAnalysis_LiveVariableLattice]
 }
 
-// LiveVariablesAnalysis_LiveVariableJoinOp is the inner class
-// LiveVariableJoinOp.
-type LiveVariablesAnalysis_LiveVariableJoinOp struct {
-	result *LiveVariablesAnalysis_LiveVariableLattice
-}
-
-// Java: LiveVariablesAnalysis.LiveVariableJoinOp()
-func NewLiveVariablesAnalysis_LiveVariableJoinOp(outer *LiveVariablesAnalysis) *LiveVariablesAnalysis_LiveVariableJoinOp {
-	return &LiveVariablesAnalysis_LiveVariableJoinOp{
-		result: NewLiveVariablesAnalysis_LiveVariableLattice(len(outer.orderedVars)),
-	}
-}
-
-// Java: LiveVariablesAnalysis.LiveVariableJoinOp.joinFlow(LiveVariableLattice)
-func (j *LiveVariablesAnalysis_LiveVariableJoinOp) JoinFlow(x *LiveVariablesAnalysis_LiveVariableLattice) {
-	j.result.liveSet.Or(&x.liveSet)
-}
-
-// Java: LiveVariablesAnalysis.LiveVariableJoinOp.finish()
-func (j *LiveVariablesAnalysis_LiveVariableJoinOp) Finish() *LiveVariablesAnalysis_LiveVariableLattice {
-	return j.result
-}
-
 // LiveVariablesAnalysis_LiveVariableLattice is the lattice that stores the
 // liveness of all local variables at a given point in the program. The whole
 // lattice is the power set of all local variables and a variable is live if
@@ -427,11 +404,6 @@ func (l *LiveVariablesAnalysis) GetEscapedLocals() *jutil.ObjectLinkedHashSet[*V
 	return &l.escapedSet
 }
 
-// Java: LiveVariablesAnalysis.getAllVariables()
-func (l *LiveVariablesAnalysis) GetAllVariables() *jutil.LinkedHashMap[string, *Var] {
-	return l.allVarsSrc.GetAllVariables()
-}
-
 // Java: LiveVariablesAnalysis.getAllVariablesInOrder()
 func (l *LiveVariablesAnalysis) GetAllVariablesInOrder() []*Var {
 	return l.orderedVars
@@ -519,7 +491,6 @@ func (l *LiveVariablesAnalysis) Analyze() {
 		state := &states[node.Index]
 		state.in = initLat
 		state.out = initLat
-		node.SetAnnotation(state)
 		if node != implicitReturn {
 			l.worklist.enqueue(node)
 		}

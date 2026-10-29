@@ -36,6 +36,7 @@
 package jscomp
 
 import (
+	"io"
 	"runtime"
 	"slices"
 	"weak"
@@ -158,16 +159,26 @@ func (c *Compiler) GetAllowableFeatures() *parser.FeatureSet {
 
 // Java: Compiler.setAllowableFeatures(FeatureSet)
 func (c *Compiler) SetAllowableFeatures(allowableFeatures *parser.FeatureSet) {
+	if c.parallelRecorder != nil {
+		c.setWorkerAllowableFeatures(allowableFeatures)
+		return
+	}
 	c.allowableFeatures = allowableFeatures
 }
 
 // Java: Compiler.markFeatureNotAllowed(Feature)
 func (c *Compiler) MarkFeatureNotAllowed(feature parser.FeatureSet_Feature) {
+	if c.parallelRecorder != nil {
+		panic(jutil.NewUnsupportedOperationExceptionMsg("MarkFeatureNotAllowed unsupported in parallel worker"))
+	}
 	c.allowableFeatures = c.allowableFeatures.WithoutFeatures(feature)
 }
 
 // Java: Compiler.markFeatureSetNotAllowed(FeatureSet)
 func (c *Compiler) MarkFeatureSetNotAllowed(featureSet *parser.FeatureSet) {
+	if c.parallelRecorder != nil {
+		panic(jutil.NewUnsupportedOperationExceptionMsg("MarkFeatureSetNotAllowed unsupported in parallel worker"))
+	}
 	c.allowableFeatures = c.allowableFeatures.Without(featureSet)
 }
 
@@ -195,6 +206,9 @@ func (c *Compiler) nextUniqueNameId() int {
 //
 // Java: Compiler.getUniqueNameIdSupplier()
 func (c *Compiler) GetUniqueNameIdSupplier() func() string {
+	if c.parallelRecorder != nil {
+		panic(jutil.NewUnsupportedOperationExceptionMsg("GetUniqueNameIdSupplier unsupported in parallel worker"))
+	}
 	if c.uniqueNameIdSupplier == nil {
 		c.uniqueNameIdSupplier = func() string { return nodeUtilFormatInt(c.nextUniqueNameId()) }
 	}
@@ -530,4 +544,65 @@ func Result_PruneResultForPartialCompilation(result *Result) *Result {
 		/* cssNames= */ nil,
 		/* idGeneratorMap= */ nil,
 		/* transpiledFiles= */ false)
+}
+
+// Compiler_NonClosingOutputStream is a FilterOutputStream whose close() only
+// flushes.
+//
+// Java: Compiler.NonClosingOutputStream
+type Compiler_NonClosingOutputStream struct {
+	out io.Writer
+}
+
+// Java: Compiler.NonClosingOutputStream(OutputStream)
+func NewCompiler_NonClosingOutputStream(out io.Writer) *Compiler_NonClosingOutputStream {
+	return &Compiler_NonClosingOutputStream{out: out}
+}
+
+// Write is FilterOutputStream.write(byte[], int, int).
+//
+// Go-only: language-adapter — io.Writer for OutputStream.
+func (s *Compiler_NonClosingOutputStream) Write(b []byte) (int, error) {
+	return s.out.Write(b)
+}
+
+// Flush is FilterOutputStream.flush(): it flushes out.
+//
+// Go-only: language-adapter — an io.Writer flushes if it has a Flush method.
+func (s *Compiler_NonClosingOutputStream) Flush() error {
+	if f, ok := s.out.(interface{ Flush() error }); ok {
+		return f.Flush()
+	}
+	return nil
+}
+
+// Java: Compiler.NonClosingOutputStream.close()
+func (s *Compiler_NonClosingOutputStream) Close() error {
+	return s.Flush()
+}
+
+// Compiler_NonClosingInputStream is a FilterInputStream whose close() does not
+// close the underlying stream.
+//
+// Java: Compiler.NonClosingInputStream
+type Compiler_NonClosingInputStream struct {
+	in io.Reader
+}
+
+// Java: Compiler.NonClosingInputStream(InputStream)
+func NewCompiler_NonClosingInputStream(in io.Reader) *Compiler_NonClosingInputStream {
+	return &Compiler_NonClosingInputStream{in: in}
+}
+
+// Read is FilterInputStream.read(byte[], int, int).
+//
+// Go-only: language-adapter — io.Reader for InputStream.
+func (s *Compiler_NonClosingInputStream) Read(b []byte) (int, error) {
+	return s.in.Read(b)
+}
+
+// Java: Compiler.NonClosingInputStream.close()
+func (s *Compiler_NonClosingInputStream) Close() error {
+	// Do not close the underlying stream
+	return nil
 }

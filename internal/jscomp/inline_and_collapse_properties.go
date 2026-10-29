@@ -87,80 +87,30 @@ var InlineAndCollapseProperties_UNSAFE_CTOR_ALIASING = DiagnosticType_Warning(
 // Java: InlineAndCollapseProperties.ALIAS_CYCLE
 var InlineAndCollapseProperties_ALIAS_CYCLE = DiagnosticType_Error("JSC_ALIAS_CYCLE", "Alias path contains a cycle: {0} to {1}")
 
+// InlineAndCollapsePropertiesOptions configures InlineAndCollapseProperties.
+type InlineAndCollapsePropertiesOptions struct {
+	PropertyCollapseLevel         CompilerOptions_PropertyCollapseLevel
+	ChunkOutputType               CompilerOptions_ChunkOutputType
+	HaveModulesBeenRewritten      bool
+	ModuleResolutionMode          ModuleLoader_ResolutionMode
+	TestAggressiveInliningOnly    bool
+	OptionalGlobalNamespaceTester func(*GlobalNamespace)
+}
+
 // Java: InlineAndCollapseProperties(Builder)
-func NewInlineAndCollapseProperties(builder *InlineAndCollapseProperties_Builder) *InlineAndCollapseProperties {
-	p := &InlineAndCollapseProperties{decisionsLog: diagnostic.LogFile{}}
-	p.compiler = builder.compiler
-	p.propertyCollapseLevel = builder.propertyCollapseLevel
-	p.chunkOutputType = builder.chunkOutputType
-	p.haveModulesBeenRewritten = builder.haveModulesBeenRewritten
-	p.moduleResolutionMode = builder.moduleResolutionMode
-	p.testAggressiveInliningOnly = builder.testAggressiveInliningOnly
-	p.optionalGlobalNamespaceTester = builder.optionalGlobalNamespaceTester
-	return p
-}
-
-// InlineAndCollapseProperties_Builder is InlineAndCollapseProperties.Builder.
-type InlineAndCollapseProperties_Builder struct {
-	compiler                      AbstractCompiler
-	propertyCollapseLevel         CompilerOptions_PropertyCollapseLevel
-	chunkOutputType               CompilerOptions_ChunkOutputType
-	haveModulesBeenRewritten      bool
-	moduleResolutionMode          ModuleLoader_ResolutionMode
-	testAggressiveInliningOnly    bool
-	optionalGlobalNamespaceTester func(*GlobalNamespace)
-}
-
-// Java: InlineAndCollapseProperties.Builder(AbstractCompiler)
-func NewInlineAndCollapseProperties_Builder(compiler AbstractCompiler) *InlineAndCollapseProperties_Builder {
-	return &InlineAndCollapseProperties_Builder{
-		compiler:                      compiler,
-		testAggressiveInliningOnly:    false,
-		optionalGlobalNamespaceTester: nil,
+func NewInlineAndCollapseProperties(compiler AbstractCompiler, opts InlineAndCollapsePropertiesOptions) *InlineAndCollapseProperties {
+	if opts.TestAggressiveInliningOnly {
+		jutil.CheckNotNull(opts.OptionalGlobalNamespaceTester)
 	}
-}
-
-// Java: InlineAndCollapseProperties.Builder.setPropertyCollapseLevel(PropertyCollapseLevel)
-func (b *InlineAndCollapseProperties_Builder) SetPropertyCollapseLevel(propertyCollapseLevel CompilerOptions_PropertyCollapseLevel) *InlineAndCollapseProperties_Builder {
-	b.propertyCollapseLevel = propertyCollapseLevel
-	return b
-}
-
-// Java: InlineAndCollapseProperties.Builder.setChunkOutputType(ChunkOutputType)
-func (b *InlineAndCollapseProperties_Builder) SetChunkOutputType(chunkOutputType CompilerOptions_ChunkOutputType) *InlineAndCollapseProperties_Builder {
-	b.chunkOutputType = chunkOutputType
-	return b
-}
-
-// Java: InlineAndCollapseProperties.Builder.setHaveModulesBeenRewritten(boolean)
-func (b *InlineAndCollapseProperties_Builder) SetHaveModulesBeenRewritten(haveModulesBeenRewritten bool) *InlineAndCollapseProperties_Builder {
-	b.haveModulesBeenRewritten = haveModulesBeenRewritten
-	return b
-}
-
-// Java: InlineAndCollapseProperties.Builder.setModuleResolutionMode(ResolutionMode)
-func (b *InlineAndCollapseProperties_Builder) SetModuleResolutionMode(moduleResolutionMode ModuleLoader_ResolutionMode) *InlineAndCollapseProperties_Builder {
-	b.moduleResolutionMode = moduleResolutionMode
-	return b
-}
-
-// Java: InlineAndCollapseProperties.Builder.testAggressiveInliningOnly(Consumer<GlobalNamespace>)
-func (b *InlineAndCollapseProperties_Builder) TestAggressiveInliningOnly(globalNamespaceTester func(*GlobalNamespace)) *InlineAndCollapseProperties_Builder {
-	b.testAggressiveInliningOnly = true
-	b.optionalGlobalNamespaceTester = jutil.CheckNotNull(globalNamespaceTester)
-	return b
-}
-
-// Java: InlineAndCollapseProperties.Builder.build()
-func (b *InlineAndCollapseProperties_Builder) Build() *InlineAndCollapseProperties {
-	return NewInlineAndCollapseProperties(b)
-}
-
-// InlineAndCollapseProperties_Builder_ is the static builder(compiler).
-//
-// Java: InlineAndCollapseProperties.builder(AbstractCompiler)
-func InlineAndCollapseProperties_Builder_(compiler AbstractCompiler) *InlineAndCollapseProperties_Builder {
-	return NewInlineAndCollapseProperties_Builder(compiler)
+	return &InlineAndCollapseProperties{
+		compiler:                      compiler,
+		propertyCollapseLevel:         opts.PropertyCollapseLevel,
+		chunkOutputType:               opts.ChunkOutputType,
+		haveModulesBeenRewritten:      opts.HaveModulesBeenRewritten,
+		moduleResolutionMode:          opts.ModuleResolutionMode,
+		testAggressiveInliningOnly:    opts.TestAggressiveInliningOnly,
+		optionalGlobalNamespaceTester: opts.OptionalGlobalNamespaceTester,
+	}
 }
 
 // Java: InlineAndCollapseProperties.process(Node, Node)

@@ -528,7 +528,7 @@ func (f *commandLineRunner_Flags) Parse(args []string) {
 	}
 }
 
-func (f *commandLineRunner_Flags) TryParse(args []string) args4j.ICmdLineException {
+func (f *commandLineRunner_Flags) TryParse(args []string) *args4j.CmdLineException {
 	if err := f.parser.TryParseArgument(slices.Clone(args)...); err != nil {
 		return err
 	}
@@ -869,7 +869,7 @@ func (f *commandLineRunner_Flags) GetMixedJsSources() []*AbstractCommandLineRunn
 	return res
 }
 
-func (f *commandLineRunner_Flags) tryGetMixedJsSources() ([]*AbstractCommandLineRunner_FlagEntry[AbstractCommandLineRunner_JsSourceType], args4j.ICmdLineException) {
+func (f *commandLineRunner_Flags) tryGetMixedJsSources() ([]*AbstractCommandLineRunner_FlagEntry[AbstractCommandLineRunner_JsSourceType], *args4j.CmdLineException) {
 	mixedSources := make([]*AbstractCommandLineRunner_FlagEntry[AbstractCommandLineRunner_JsSourceType], 0, len(f.mixedJsSources)+len(f.arguments))
 	var excludes map[string]struct{}
 	allocJsEntry := func(filename string) *AbstractCommandLineRunner_FlagEntry[AbstractCommandLineRunner_JsSourceType] {
@@ -939,7 +939,7 @@ func (f *commandLineRunner_Flags) GetSourceMapLocationMappings() []jscomp.Source
 	return res
 }
 
-func (f *commandLineRunner_Flags) tryGetSourceMapLocationMappings() ([]jscomp.SourceMap_LocationMapping, args4j.ICmdLineException) {
+func (f *commandLineRunner_Flags) tryGetSourceMapLocationMappings() ([]jscomp.SourceMap_LocationMapping, *args4j.CmdLineException) {
 	split, err := f.trySplitPipeParts(f.sourceMapLocationMapping, "--source_map_location_mapping")
 	if err != nil || len(split) == 0 {
 		return nil, err
@@ -960,7 +960,7 @@ func (f *commandLineRunner_Flags) GetSourceMapInputs() []PipeFlagEntry {
 	return res
 }
 
-func (f *commandLineRunner_Flags) tryGetSourceMapInputs() ([]PipeFlagEntry, args4j.ICmdLineException) {
+func (f *commandLineRunner_Flags) tryGetSourceMapInputs() ([]PipeFlagEntry, *args4j.CmdLineException) {
 	return f.trySplitPipeParts(f.sourceMapInputs, "--source_map_input")
 }
 
@@ -973,7 +973,7 @@ func (f *commandLineRunner_Flags) SplitPipeParts(input []string, flagName string
 	return res
 }
 
-func (f *commandLineRunner_Flags) trySplitPipeParts(input []string, flagName string) ([]PipeFlagEntry, args4j.ICmdLineException) {
+func (f *commandLineRunner_Flags) trySplitPipeParts(input []string, flagName string) ([]PipeFlagEntry, *args4j.CmdLineException) {
 	if len(input) == 0 {
 		return nil, nil
 	}
@@ -1099,7 +1099,7 @@ func (s *commandLineRunner_Flags_MultiFlagSetter[T]) GetType() *args4j.Class {
 	return s.proxy.GetType()
 }
 
-// AddStringValue implements args4j.StringSetter without interface boxing.
+// AddStringValue implements args4j.Setter without interface boxing.
 func (s *commandLineRunner_Flags_MultiFlagSetter[T]) AddStringValue(value string) {
 	normalizedValue := value
 	if len(value) >= 1 && (value[0] == '\'' || value[0] == '"') && value[len(value)-1] == value[0] {
@@ -1109,11 +1109,7 @@ func (s *commandLineRunner_Flags_MultiFlagSetter[T]) AddStringValue(value string
 			normalizedValue = value[1 : len(value)-1]
 		}
 	}
-	if ss, ok := s.proxy.(args4j.StringSetter); ok {
-		ss.AddStringValue(normalizedValue)
-	} else {
-		s.proxy.AddValue(normalizedValue)
-	}
+	s.proxy.AddStringValue(normalizedValue)
 	*s.entries = append(*s.entries, NewAbstractCommandLineRunner_FlagEntry(s.flag, normalizedValue))
 }
 

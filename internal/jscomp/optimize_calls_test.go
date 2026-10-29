@@ -56,15 +56,21 @@ func (c *OptimizeCallsTest) SetUp() {
 	c.EnableGatherExternProperties()
 }
 
+type callGraphPassFunc func(externs rhino.Node, root rhino.Node, references *OptimizeCalls_ReferenceMap)
+
+func (f callGraphPassFunc) ProcessWithReferenceMap(externs rhino.Node, root rhino.Node, references *OptimizeCalls_ReferenceMap) {
+	f(externs, root, references)
+}
+
 // Java: OptimizeCallsTest.getProcessor(Compiler)
 func (c *OptimizeCallsTest) GetProcessor(compiler *Compiler) CompilerPass {
-	return OptimizeCalls_Builder_().
-		SetCompiler(compiler).
-		SetConsiderExterns(*c.considerExterns). // Boolean unboxing: null throws.
-		AddPass(OptimizeCalls_CallGraphCompilerPassFunc(func(externs rhino.Node, root rhino.Node, references *OptimizeCalls_ReferenceMap) {
+	return NewOptimizeCalls(
+		compiler,
+		*c.considerExterns, // Boolean unboxing: null throws.
+		callGraphPassFunc(func(externs rhino.Node, root rhino.Node, references *OptimizeCalls_ReferenceMap) {
 			c.references = references
-		})).
-		Build()
+		}),
+	)
 }
 
 // setConsiderExterns is `considerExterns = b` (a

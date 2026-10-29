@@ -138,35 +138,16 @@ func (c *CheckSuper) Process(externs rhino.Node, root rhino.Node) {
 }
 
 func (c *CheckSuper) processParallel(root rhino.Node) bool {
-	scripts, ok := collectRootScripts(root)
-	if !ok {
-		return false
-	}
-	numWorkers := parallelThreadCount(c.compiler, len(scripts))
-	if numWorkers <= 1 {
-		return false
-	}
-	prewarmCompilerForParallelReads(c.compiler)
-	runParallelWork(c.compiler, numWorkers, len(scripts), func(_ int) (func(int, *recordingCompiler), func()) {
-		var workerRC *recordingCompiler
-		var workerPass *CheckSuper
-		runItem := func(idx int, rc *recordingCompiler) {
-			if workerPass == nil || workerRC != rc {
-				workerRC = rc
-				workerPass = NewCheckSuper(rc)
+	return traverseScriptsParallel(c.compiler, root, parallelScriptOptions[*CheckSuper]{
+		initWorker: func(_ int, rc *Compiler) *CheckSuper {
+			return NewCheckSuper(rc)
+		},
+		afterScript: func(w *CheckSuper, _ int, _, _ rhino.Node, _ *Compiler) {
+			if len(w.contextStack) != 0 {
+				jutil.CheckStateMsg1(false, "%s", "["+w.contextStackString()+"]")
 			}
-			b := NodeTraversal_Builder{
-				compiler: rc,
-				callback: workerPass,
-			}
-			b.traverseScriptUnderRoot(root, root, scripts[idx], nil)
-			if len(workerPass.contextStack) != 0 {
-				jutil.CheckStateMsg1(false, "%s", "["+workerPass.contextStackString()+"]")
-			}
-		}
-		return runItem, nil
-	}, false)
-	return true
+		},
+	})
 }
 
 func (c *CheckSuper) contextStackString() string {

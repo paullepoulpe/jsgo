@@ -274,7 +274,7 @@ func (p *Parser) ParseIfStatement() *IfStatementTree {
 		p.Eat(TokenType_ELSE)
 		elseClause = p.ParseStatement()
 	}
-	return NewIfStatementTree(p.GetTreeLocation(start), condition, ifClause, elseClause)
+	return p.newIfStatementTree(p.GetTreeLocation(start), condition, ifClause, elseClause)
 }
 
 // 12.6 Iteration Statements
@@ -543,7 +543,7 @@ func (p *Parser) ParseReturnStatement() ParseTree {
 		expression = p.ParseExpression()
 	}
 	p.EatPossiblyImplicitSemiColon()
-	return NewReturnStatementTree(p.GetTreeLocation(start), expression)
+	return p.newReturnStatementTree(p.GetTreeLocation(start), expression)
 }
 
 // 12.10 The with Statement

@@ -107,11 +107,12 @@ type SyntacticScopeCreator struct {
 	// scopes and varLists do the same for the scopes themselves and for the
 	// var lists of small scopes (carved from shared pointer chunks); a Var
 	// keeps its Scope alive anyway, so the scopes die with the vars.
-	vars       jutil.Slab[Var]
-	scopes     jutil.Slab[Scope]
-	varLists   []*Var
-	varScratch []*Var
-	scanning   bool
+	vars           jutil.Slab[Var]
+	scopes         jutil.Slab[Scope]
+	varLists       []*Var
+	varScratch     []*Var
+	scanning       bool
+	skipGlobalScan bool
 }
 
 // syntacticScopeCreator_varListChunk is the size of the pointer chunks var
@@ -187,6 +188,9 @@ func (c *SyntacticScopeCreator) CreateScopeOfScope(n rhino.Node, parent *Scope) 
 	var scope *Scope
 	if parent == nil {
 		scope = newScope(n)
+		if c.skipGlobalScan {
+			return scope
+		}
 	} else {
 		scope = initScopeWithParent(c.scopes.New(), parent, n)
 	}
@@ -1076,7 +1080,9 @@ func (h *SyntacticScopeCreator_DefaultRedeclarationHandler) OnRedeclaration(
 // doing. Scopes are memoized stupidly, so if the underlying tree changes, the
 // scope may be out of sync.
 type MemoizedScopeCreator struct {
+	untypedScopes     map[rhino.Node]*Scope
 	scopesByScopeRoot map[rhino.Node]AbstractScope
+	syntacticDelegate *SyntacticScopeCreator
 	delegate          ScopeCreator
 }
 
@@ -1084,14 +1090,38 @@ type MemoizedScopeCreator struct {
 //
 // Java: MemoizedScopeCreator(ScopeCreator)
 func NewMemoizedScopeCreator(delegate ScopeCreator) *MemoizedScopeCreator {
+	if ssc, ok := delegate.(*SyntacticScopeCreator); ok {
+		return &MemoizedScopeCreator{
+			untypedScopes:     make(map[rhino.Node]*Scope),
+			syntacticDelegate: ssc,
+			delegate:          delegate,
+		}
+	}
 	return &MemoizedScopeCreator{
 		scopesByScopeRoot: make(map[rhino.Node]AbstractScope),
 		delegate:          delegate,
 	}
 }
 
+func (m *MemoizedScopeCreator) createUntypedScope(n rhino.Node, parent *Scope) *Scope {
+	if scope := m.untypedScopes[n]; scope != nil {
+		jutil.CheckState(parent == scope.parent)
+		return scope
+	}
+	scope := m.syntacticDelegate.CreateScopeOfScope(n, parent)
+	m.untypedScopes[n] = scope
+	return scope
+}
+
 // Java: MemoizedScopeCreator.createScope(Node, AbstractScope<?, ?>)
 func (m *MemoizedScopeCreator) CreateScope(n rhino.Node, parent AbstractScope) AbstractScope {
+	if m.syntacticDelegate != nil {
+		var p *Scope
+		if parent != nil {
+			p = parent.(*Scope)
+		}
+		return m.createUntypedScope(n, p)
+	}
 	scope := m.scopesByScopeRoot[n]
 	if scope == nil {
 		scope = m.delegate.CreateScope(n, parent)

@@ -237,7 +237,7 @@ func (b *TypedScopeCreator_scopeBuilder) GetDeclaredRValueType(lValue rhino.Node
 	if call, ok := ast.AsCall(rValue); ok && call.Callee().Node().MatchesName("Symbol") {
 		// Type calls like `Symbol('foo')`
 		symbolVar := b.currentScope.GetVarByID(typedScopeSymbolID)
-		if symbolVar != nil && symbolVar.GetScope().(*TypedScope).IsGlobal() {
+		if symbolVar != nil && symbolVar.Scope().IsGlobal() {
 			return b.outer.typeRegistry.GetNativeType(rhino.JSTypeNative_SYMBOL_TYPE)
 		}
 	}
@@ -440,7 +440,7 @@ func (b *TypedScopeCreator_scopeBuilder) MaybeDeclareQualifiedName(
 				return
 			}
 
-			qVar.GetScope().(*TypedScope).Undeclare(qVar)
+			qVar.Scope().Undeclare(qVar)
 		}
 	}
 

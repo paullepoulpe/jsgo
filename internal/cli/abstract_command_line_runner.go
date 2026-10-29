@@ -162,8 +162,6 @@ type AbstractCommandLineRunner interface {
 	ExpandSourceMapPath(options *jscomp.CompilerOptions, forChunk *jscomp.JSChunk) string
 	// Java: AbstractCommandLineRunner.filenameToOutputStream(String)
 	FilenameToOutputStream(fileName string) io.WriteCloser
-	// Java: AbstractCommandLineRunner.createWriter(OutputStream, Charset)
-	CreateWriter(stream io.WriteCloser, charset *jutil.Charset) AbstractCommandLineRunner_Writer
 	// Java: AbstractCommandLineRunner.printChunkGraphJsonTo(Appendable)
 	PrintChunkGraphJsonTo(out jutil.Appendable)
 	// Java: AbstractCommandLineRunner.printChunkGraphManifestOrBundleTo(JSChunkGraph, Appendable, boolean)
@@ -640,6 +638,9 @@ func (r *AbstractCommandLineRunnerBase) DoRun() int {
 
 		if len(smEntries) > 0 {
 			for k, v := range options.GetInputSourceMaps().All() {
+				if v == nil {
+					panic(jutil.NewNullPointerExceptionMsg("null value in entry: " + k + "=null"))
+				}
 				smEntries = append(smEntries, kvEntry[*jscomp.SourceMapInput]{key: k, value: v})
 			}
 			options.SetInputSourceMaps(buildUniqueLinkedMap(smEntries))
@@ -971,11 +972,6 @@ func buildUniqueLinkedMap[V any](entries []kvEntry[V]) *jutil.LinkedHashMap[stri
 	out := jutil.NewLinkedHashMapWithCapacity[string, V](n)
 	if n == 0 {
 		return out
-	}
-	for _, e := range entries {
-		if jutil.IsNil(e.value) {
-			panic(jutil.NewNullPointerExceptionMsg("null value in entry: " + e.key + "=null"))
-		}
 	}
 	hasDup := false
 	if n > 8 {

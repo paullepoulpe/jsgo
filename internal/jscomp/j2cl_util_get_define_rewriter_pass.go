@@ -21,9 +21,16 @@ package jscomp
 import (
 	"strings"
 
+	"github.com/paullepoulpe/jsgo/internal/ast"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
+
+var j2clUtilGetDefineVisitTokens = func() ast.TokenSet {
+	var s ast.TokenSet
+	s.Add(rhino.Token_CALL)
+	return s
+}()
 
 // J2clUtilGetDefineRewriterPass is a normalization pass to re-write
 // Util.$getDefine calls to make them work in compiled mode.
@@ -33,6 +40,11 @@ type J2clUtilGetDefineRewriterPass struct {
 	NodeTraversal_AbstractPostOrderCallbackBase
 	compiler AbstractCompiler
 	defines  *jutil.LinkedHashSet[string]
+}
+
+func (*J2clUtilGetDefineRewriterPass) noVisitLeaves() {}
+func (*J2clUtilGetDefineRewriterPass) visitTokens() *ast.TokenSet {
+	return &j2clUtilGetDefineVisitTokens
 }
 
 // Java: J2clUtilGetDefineRewriterPass(AbstractCompiler)
@@ -125,17 +137,18 @@ var (
 type J2clUtilGetDefineRewriterPass_CheckGetDefineCalls struct {
 	NodeTraversal_AbstractPostOrderCallbackBase
 	outer                             *J2clUtilGetDefineRewriterPass
-	defineNameToAddSystemPropertyCall *jutil.LinkedHashMap[string, rhino.Node]
-	defineNameToGetDefineCall         *jutil.LinkedHashMap[string, rhino.Node]
+	defineNameToAddSystemPropertyCall OrderedStringMap[rhino.Node]
+	defineNameToGetDefineCall         OrderedStringMap[rhino.Node]
+}
+
+func (*J2clUtilGetDefineRewriterPass_CheckGetDefineCalls) noVisitLeaves() {}
+func (*J2clUtilGetDefineRewriterPass_CheckGetDefineCalls) visitTokens() *ast.TokenSet {
+	return &j2clUtilGetDefineVisitTokens
 }
 
 // Java: J2clUtilGetDefineRewriterPass.CheckGetDefineCalls()
 func (p *J2clUtilGetDefineRewriterPass) newCheckGetDefineCalls() *J2clUtilGetDefineRewriterPass_CheckGetDefineCalls {
-	return &J2clUtilGetDefineRewriterPass_CheckGetDefineCalls{
-		outer:                             p,
-		defineNameToAddSystemPropertyCall: jutil.NewLinkedHashMap[string, rhino.Node](),
-		defineNameToGetDefineCall:         jutil.NewLinkedHashMap[string, rhino.Node](),
-	}
+	return &J2clUtilGetDefineRewriterPass_CheckGetDefineCalls{outer: p}
 }
 
 // Java: J2clUtilGetDefineRewriterPass.CheckGetDefineCalls.visit(NodeTraversal, Node, Node)

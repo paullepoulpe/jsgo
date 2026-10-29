@@ -66,7 +66,31 @@ type InlineVariables struct {
 	compiler AbstractCompiler
 
 	mode InlineVariables_Mode
+
+	outer            *InlineVariables
+	codingConvention CodingConvention
+
+	// Records the analyses of variables that have already been handled in
+	// the current scope (indexed by scope.varList slot) so aliases of those
+	// variables can determine whether they may be inlined.
+	currentScope     *Scope
+	handledScopeVars []inlineVariables_handledVar
+
+	// Records alias variables that are waiting for the original variables to
+	// be handled.
+	aliasRetryHandlers    map[*Var][]*InlineVariables_InliningBehavior_AliasInlineRetryHandler
+	unpinnedRetries       int
+	hasGlobalAliasRetries bool
+	onGlobalAliasRetry    func(*Var, *InlineVariables_InliningBehavior_AliasInlineRetryHandler)
+
+	scratchExpert inlineVariables_standardVarExpert
+	motionScratch NodeIterators_LocalVarMotion
 }
+
+// InlineVariables_InliningBehavior builds up information about nodes in each
+// scope. When exiting the scope, inspects all variables in that scope, and
+// inlines any that we can.
+type InlineVariables_InliningBehavior = InlineVariables
 
 // InlineVariables_Mode is the enum InlineVariables.Mode.
 type InlineVariables_Mode int32
@@ -108,7 +132,25 @@ func (m InlineVariables_Mode) Ordinal() int { return int(m) }
 
 // Java: InlineVariables(AbstractCompiler, Mode)
 func NewInlineVariables(compiler AbstractCompiler, mode InlineVariables_Mode) *InlineVariables {
-	return &InlineVariables{compiler: compiler, mode: mode}
+	iv := &InlineVariables{compiler: compiler, mode: mode}
+	iv.outer = iv
+	return iv
+}
+
+func (iv *InlineVariables) resetBehavior() {
+	iv.outer = iv
+	if iv.compiler != nil {
+		iv.codingConvention = iv.compiler.GetCodingConvention()
+	}
+	iv.currentScope = nil
+	clear(iv.handledScopeVars)
+	iv.handledScopeVars = iv.handledScopeVars[:0]
+	if len(iv.aliasRetryHandlers) > 0 {
+		clear(iv.aliasRetryHandlers)
+	}
+	iv.unpinnedRetries = 0
+	iv.hasGlobalAliasRetries = false
+	iv.onGlobalAliasRetry = nil
 }
 
 // Java: InlineVariables.process(Node, Node)
@@ -116,22 +158,22 @@ func (iv *InlineVariables) Process(externs rhino.Node, root rhino.Node) {
 	if iv.processParallel(externs, root) {
 		return
 	}
-	behavior := NewInlineVariables_InliningBehavior(iv)
+	iv.resetBehavior()
 	callback := NewReferenceCollectorWithVarFilter(
 		iv.compiler,
-		behavior,
+		iv,
 		NewSyntacticScopeCreator(iv.compiler),
 		inlineVariables_Mode_varPredicate[iv.mode])
 	callback.enableLocalReclamation(func() bool {
-		if len(behavior.aliasRetryHandlers) == 0 {
-			behavior.unpinnedRetries = 0
+		if len(iv.aliasRetryHandlers) == 0 {
+			iv.unpinnedRetries = 0
 			callback.clearLocalBase()
 			return true
 		}
-		if behavior.unpinnedRetries == 0 {
+		if iv.unpinnedRetries == 0 {
 			return true
 		}
-		behavior.unpinnedRetries = 0
+		iv.unpinnedRetries = 0
 		return false
 	})
 	callback.Process(externs, root)
@@ -175,42 +217,6 @@ func (h *inlineVariables_handledVar) isSafeToInlineAliases() bool {
 		return false
 	default:
 		return false
-	}
-}
-
-// InlineVariables_InliningBehavior builds up information about nodes in each
-// scope. When exiting the scope, inspects all variables in that scope, and
-// inlines any that we can.
-type InlineVariables_InliningBehavior struct {
-	outer            *InlineVariables
-	codingConvention CodingConvention
-
-	// Records the analyses of variables that have already been handled in
-	// the current scope (indexed by scope.varList slot) so aliases of those
-	// variables can determine whether they may be inlined.
-	currentScope     *Scope
-	handledScopeVars []inlineVariables_handledVar
-
-	// Records alias variables that are waiting for the original variables to
-	// be handled.
-	aliasRetryHandlers    map[*Var][]*InlineVariables_InliningBehavior_AliasInlineRetryHandler
-	unpinnedRetries       int
-	hasGlobalAliasRetries bool
-	onGlobalAliasRetry    func(*Var, *InlineVariables_InliningBehavior_AliasInlineRetryHandler)
-
-	scratchExpert inlineVariables_standardVarExpert
-	motionScratch NodeIterators_LocalVarMotion
-}
-
-// Java: InlineVariables.InliningBehavior()
-func NewInlineVariables_InliningBehavior(outer *InlineVariables) *InlineVariables_InliningBehavior {
-	var cc CodingConvention
-	if outer != nil && outer.compiler != nil {
-		cc = outer.compiler.GetCodingConvention()
-	}
-	return &InlineVariables_InliningBehavior{
-		outer:            outer,
-		codingConvention: cc,
 	}
 }
 
@@ -301,7 +307,7 @@ func (b *InlineVariables_InliningBehavior) putAliasRetryHandler(
 }
 
 // Java: InlineVariables.InliningBehavior.afterExitScope(NodeTraversal, ReferenceMap)
-func (b *InlineVariables_InliningBehavior) AfterExitScope(t *NodeTraversal, referenceMap ReferenceMap) {
+func (b *InlineVariables_InliningBehavior) AfterExitScope(t *NodeTraversal, referenceMap *ReferenceCollector) {
 	b.DoInlinesForScope(t, referenceMap)
 }
 
@@ -309,7 +315,7 @@ func (b *InlineVariables_InliningBehavior) AfterExitScope(t *NodeTraversal, refe
 // used once. If it looks safe to do so, inline them.
 //
 // Java: InlineVariables.InliningBehavior.doInlinesForScope(NodeTraversal, ReferenceMap)
-func (b *InlineVariables_InliningBehavior) DoInlinesForScope(t *NodeTraversal, referenceMap ReferenceMap) {
+func (b *InlineVariables_InliningBehavior) DoInlinesForScope(t *NodeTraversal, referenceMap *ReferenceCollector) {
 	// Any variables we completed in an earlier scope are now out of scope,
 	// so we can clear this slice.
 	clear(b.handledScopeVars)
@@ -410,14 +416,9 @@ var inlineVariablesApplyID = rhino.RhinoStringPool_InternID("apply")
 //
 // Java: InlineVariables.InliningBehavior.varsInThisScopeMayBeModifiedUsingArguments(Scope, ReferenceMap)
 func (b *InlineVariables_InliningBehavior) VarsInThisScopeMayBeModifiedUsingArguments(
-	scope *Scope, referenceMap ReferenceMap) bool {
+	scope *Scope, referenceMap *ReferenceCollector) bool {
 	if scope.IsFunctionScope() && !scope.GetRootNode().IsArrowFunction() {
-		var refs *ReferenceCollection
-		if w, ok := referenceMap.(*ReferenceCollector_ReferenceMapWrapper); ok && w.c != nil {
-			refs = w.c.getReferencesByScopedNameID(scope.GetRootNode(), implicitArgumentsID)
-		} else {
-			refs = referenceMap.GetReferences(scope.GetArgumentsVar())
-		}
+		refs := referenceMap.getReferencesByScopedNameID(scope.GetRootNode(), implicitArgumentsID)
 		if refs != nil && len(refs.references) > 0 {
 			for _, ref := range refs.references {
 				if !b.IsSafeUseOfArguments(ref.GetNode()) {

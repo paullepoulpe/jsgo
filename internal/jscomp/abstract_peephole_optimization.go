@@ -100,10 +100,7 @@ type AbstractPeepholeOptimization interface {
 	// Java: AbstractPeepholeOptimization.endTraversal()
 	EndTraversal()
 
-	// GetAbstractPeepholeOptimizationBase gives access to the base fields
-	// through the interface (PORTING.md §4).
-	GetAbstractPeepholeOptimizationBase() *AbstractPeepholeOptimizationBase
-
+	bindPendingFeatures(dst **parser.FeatureSet)
 	peepholeConfig() peepholeOptConfig
 	cloneForWorker() AbstractPeepholeOptimization
 }
@@ -111,7 +108,6 @@ type AbstractPeepholeOptimization interface {
 type peepholeOptConfig struct {
 	tokens                ast.TokenSet
 	isStandard            bool
-	tracksFeatures        bool
 	isJ2clCallPass        bool
 	isOptimizeLetAndConst bool
 }
@@ -141,22 +137,20 @@ type AbstractPeepholeOptimizationBase struct {
 	// Intentionally not exposed to subclasses
 	astAnalyzer *AstAnalyzer
 
-	// newFeatures are new parser features added in some OptimizeSubtree call.
-	//
-	// PeepholeOptimizationsPass uses this to call
-	// NodeUtil#addFeaturesToScript in closer to O(1) time, as this class
-	// doesn't know what script node it's currently in, and would need to
-	// walk the AST.
-	newFeatures *parser.FeatureSet
+	// newFeatures are new parser features added in some OptimizeSubtree call
+	// when run standalone outside PeepholeOptimizationsPass; when bound by
+	// PeepholeOptimizationsPass, pendingFeaturesPtr points directly to the
+	// pass-level feature accumulator.
+	newFeatures        *parser.FeatureSet
+	pendingFeaturesPtr **parser.FeatureSet
 }
 
-// GetAbstractPeepholeOptimizationBase returns the embedded base.
-func (b *AbstractPeepholeOptimizationBase) GetAbstractPeepholeOptimizationBase() *AbstractPeepholeOptimizationBase {
-	return b
+func (b *AbstractPeepholeOptimizationBase) bindPendingFeatures(dst **parser.FeatureSet) {
+	b.pendingFeaturesPtr = dst
 }
 
 func (b *AbstractPeepholeOptimizationBase) peepholeConfig() peepholeOptConfig {
-	return peepholeOptConfig{tracksFeatures: true}
+	return peepholeOptConfig{}
 }
 
 func (b *AbstractPeepholeOptimizationBase) cloneForWorker() AbstractPeepholeOptimization {
@@ -396,6 +390,14 @@ func (b *AbstractPeepholeOptimizationBase) AddFeatureToEnclosingScript(feature p
 	// the  current implementation, we let PeepholeOptimizationsPass to find the script in what's
 	// usually O(1) time, or worst case it only calls getEnclosingScript() once per NodeTraversal
 	// and then caches the result.
+	if b.pendingFeaturesPtr != nil {
+		cur := *b.pendingFeaturesPtr
+		if cur == nil {
+			cur = parser.FeatureSet_BARE_MINIMUM
+		}
+		*b.pendingFeaturesPtr = cur.With(feature)
+		return
+	}
 	if b.newFeatures == nil {
 		b.newFeatures = parser.FeatureSet_BARE_MINIMUM
 	}
@@ -467,7 +469,6 @@ func (p *OptimizeLetAndConstPeephole) peepholeConfig() peepholeOptConfig {
 	return peepholeOptConfig{
 		tokens:                optimizeLetAndConstTokens,
 		isStandard:            true,
-		tracksFeatures:        true,
 		isOptimizeLetAndConst: true,
 	}
 }

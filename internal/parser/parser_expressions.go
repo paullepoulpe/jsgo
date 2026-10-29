@@ -551,7 +551,7 @@ func (p *Parser) ParseUnaryExpression() ParseTree {
 	if p.PeekUnaryOperator() {
 		operator := p.NextToken()
 		operand := p.ParseUnaryExpression()
-		return NewUnaryExpressionTree(p.GetTreeLocation(start), operator, operand)
+		return p.newUnaryExpressionTree(p.GetTreeLocation(start), operator, operand)
 	} else if p.PeekAwaitExpression() {
 		return p.ParseAwaitExpression()
 	} else {

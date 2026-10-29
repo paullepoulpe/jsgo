@@ -740,9 +740,9 @@ func (u *MaybeReachingVariableUse) computeMayUse(n rhino.Node, conditional bool)
 
 func mrvuEmptyUses(func(rhino.Node) bool) {}
 
-// HasExactlyOneUse reports whether defNode has exactly one upward-exposed
-// reaching use CFG node for name, without allocating an iterator closure.
-func (u *MaybeReachingVariableUse) HasExactlyOneUse(name string, defNode rhino.Node) bool {
+// HasExactlyOneUseByID reports whether defNode has exactly one upward-exposed
+// reaching use CFG node for nameID, without allocating an iterator closure.
+func (u *MaybeReachingVariableUse) HasExactlyOneUseByID(nameID uint32, defNode rhino.Node) bool {
 	n := u.cfg.Nodes.Get(defNode)
 	if n == nil {
 		panic(jutil.NewNullPointerException())
@@ -750,7 +750,7 @@ func (u *MaybeReachingVariableUse) HasExactlyOneUse(name string, defNode rhino.N
 	if u.totalUses == 0 {
 		return false
 	}
-	v := u.lookupVarIdxByName(name)
+	v := u.lookupVarIdxByID(nameID)
 	if v < 0 {
 		return false
 	}

@@ -120,10 +120,9 @@ func (p *StringPool) ToProtoWithThreads(numThreads int) *StringPoolProto {
 		spSize += 1 + protoVarintLen(uint64(int64(p.maxLength)))
 	}
 	return &StringPoolProto{
-		strings_:     strings,
-		maxLength_:   int32(p.maxLength),
-		frozen:       true,
-		memoizedSize: spSize,
+		strings_:   strings,
+		maxLength_: int32(p.maxLength),
+		cachedSize: spSize + 1,
 	}
 }
 

@@ -128,9 +128,7 @@ func jsDocSerializer_allocProto(
 	hasMode bool,
 	stringPool *StringPool_Builder,
 ) *OptimizationJsdoc {
-	m := &OptimizationJsdoc{
-		frozen: true,
-	}
+	m := &OptimizationJsdoc{}
 	if len(kinds) > 0 {
 		m.kind_ = slices.Clone(kinds)
 	}
@@ -149,7 +147,7 @@ func jsDocSerializer_allocProto(
 	if hasMode {
 		m.closureUnawareModePointer_ = int32(stringPool.Put(mode.String()))
 	}
-	m.memoizedSize = m.scalarsSerializedSize()
+	m.cachedSize = m.scalarsSerializedSize() + 1
 	return m
 }
 
@@ -268,37 +266,6 @@ func jsDocSerializer_fillJsdocTagsOnly(jsdoc *rhino.JSDocInfo, kindBuf []int32) 
 		kindBuf = append(kindBuf, JsdocTag_JSDOC_USED_VIA_DOT_CONSTRUCTOR_VALUE)
 	}
 	return kindBuf
-}
-
-func jsDocSerializer_fillJsdocProto(jsdoc *rhino.JSDocInfo, stringPool *StringPool_Builder, m *OptimizationJsdoc, kindBuf []int32) bool {
-	if jsdoc == nil {
-		return false
-	}
-
-	m.kind_ = jsDocSerializer_fillJsdocTagsOnly(jsdoc, kindBuf)
-	license, description, alternateMessageId, meaning, mode, hasMode := jsDocSerializer_stringFields(jsdoc)
-	if license != "" {
-		m.licenseTextPointer_ = int32(stringPool.Put(license))
-	}
-	if description != "" {
-		m.descriptionPointer_ = int32(stringPool.Put(description))
-	}
-	if alternateMessageId != "" {
-		m.alternateMessageIdPointer_ = int32(stringPool.Put(alternateMessageId))
-	}
-	if meaning != "" {
-		m.meaningPointer_ = int32(stringPool.Put(meaning))
-	}
-	if hasMode {
-		m.closureUnawareModePointer_ = int32(stringPool.Put(mode.String()))
-	}
-
-	return len(m.kind_) != 0 ||
-		m.licenseTextPointer_ != 0 ||
-		m.descriptionPointer_ != 0 ||
-		m.meaningPointer_ != 0 ||
-		m.alternateMessageIdPointer_ != 0 ||
-		m.closureUnawareModePointer_ != 0
 }
 
 // Java: JSDocSerializer.serializeIdGenerator(JSDocInfo)

@@ -131,7 +131,11 @@ func serializationDump_dumpVariant(sb *strings.Builder, variant string, externsF
 		typeCheckDump_line(sb, "typedast "+strconv.Itoa(len(data))+" "+hex.EncodeToString(sum[:])[:16])
 		var text []string
 		ast := TypedAst_List_ParseFrom(data).GetTypedAsts(0)
-		text = serializationDump_addLines(text, ast.ToBuilder().ClearExternAst().ClearCodeAst().Build().String())
+		headerAst := *ast
+		headerAst.cachedSize = 0
+		headerAst.externAst_ = nil
+		headerAst.codeAst_ = nil
+		text = serializationDump_addLines(text, headerAst.String())
 		for _, lazy := range ast.GetExternAstList() {
 			text = append(text, "extern_ast")
 			text = serializationDump_addLazyAst(text, lazy)
@@ -208,12 +212,14 @@ func serializationDump_typeCheck(compiler *Compiler, options *CompilerOptions) {
 }
 
 func serializationDump_addLazyAst(text []string, lazy *LazyAst) []string {
-	text = serializationDump_addLines(text, lazy.ToBuilder().ClearScript().Build().String())
+	lazyMeta := *lazy
+	lazyMeta.cachedSize = 0
+	lazyMeta.script_ = nil
+	text = serializationDump_addLines(text, lazyMeta.String())
 	// As ScriptNodeDeserializer reads the script: without protobuf's default
 	// nesting limit (100), which deep ASTs exceed.
-	script := &AstNode{memoizedSize: -1}
+	script := &AstNode{}
 	script.mergeFromReader(&protoReader{b: lazy.GetScript(), limit: math.MaxInt32})
-	script.frozen = true
 	return serializationDump_addLines(text, script.String())
 }
 

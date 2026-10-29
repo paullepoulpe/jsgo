@@ -269,15 +269,6 @@ var featureProto_numbers = [...]int32{
 	-1,
 }
 
-// FeatureProto_values is FeatureProto.values().
-func FeatureProto_values() []FeatureProto {
-	out := make([]FeatureProto, len(featureProto_names))
-	for i := range out {
-		out[i] = FeatureProto(i)
-	}
-	return out
-}
-
 // String is Enum.name().
 func (e FeatureProto) String() string { return featureProto_names[e] }
 
@@ -303,19 +294,6 @@ func FeatureProto_ForNumber(value int32) *FeatureProto {
 		}
 	}
 	return nil
-}
-
-// Java: FeatureProto.valueOf(int) (deprecated)
-func FeatureProto_ValueOf(value int32) *FeatureProto { return FeatureProto_ForNumber(value) }
-
-// FeatureProto_ValueOfName is Enum.valueOf(String).
-func FeatureProto_ValueOfName(name string) FeatureProto {
-	for i, n := range featureProto_names {
-		if n == name {
-			return FeatureProto(i)
-		}
-	}
-	panic(jutil.NewIllegalArgumentExceptionMsg("No enum constant com.google.javascript.jscomp.FeatureProto." + name))
 }
 
 func featureProto_fromNumber(value int32) FeatureProto {
@@ -371,15 +349,6 @@ var lifeCycleStageProto_numbers = [...]int32{
 	-1,
 }
 
-// LifeCycleStageProto_values is LifeCycleStageProto.values().
-func LifeCycleStageProto_values() []LifeCycleStageProto {
-	out := make([]LifeCycleStageProto, len(lifeCycleStageProto_names))
-	for i := range out {
-		out[i] = LifeCycleStageProto(i)
-	}
-	return out
-}
-
 // String is Enum.name().
 func (e LifeCycleStageProto) String() string { return lifeCycleStageProto_names[e] }
 
@@ -405,21 +374,6 @@ func LifeCycleStageProto_ForNumber(value int32) *LifeCycleStageProto {
 		}
 	}
 	return nil
-}
-
-// Java: LifeCycleStageProto.valueOf(int) (deprecated)
-func LifeCycleStageProto_ValueOf(value int32) *LifeCycleStageProto {
-	return LifeCycleStageProto_ForNumber(value)
-}
-
-// LifeCycleStageProto_ValueOfName is Enum.valueOf(String).
-func LifeCycleStageProto_ValueOfName(name string) LifeCycleStageProto {
-	for i, n := range lifeCycleStageProto_names {
-		if n == name {
-			return LifeCycleStageProto(i)
-		}
-	}
-	panic(jutil.NewIllegalArgumentExceptionMsg("No enum constant com.google.javascript.jscomp.LifeCycleStageProto." + name))
 }
 
 func lifeCycleStageProto_fromNumber(value int32) LifeCycleStageProto {
@@ -475,15 +429,6 @@ var propertyAccessKindProto_numbers = [...]int32{
 	-1,
 }
 
-// PropertyAccessKindProto_values is PropertyAccessKindProto.values().
-func PropertyAccessKindProto_values() []PropertyAccessKindProto {
-	out := make([]PropertyAccessKindProto, len(propertyAccessKindProto_names))
-	for i := range out {
-		out[i] = PropertyAccessKindProto(i)
-	}
-	return out
-}
-
 // String is Enum.name().
 func (e PropertyAccessKindProto) String() string { return propertyAccessKindProto_names[e] }
 
@@ -509,21 +454,6 @@ func PropertyAccessKindProto_ForNumber(value int32) *PropertyAccessKindProto {
 		}
 	}
 	return nil
-}
-
-// Java: PropertyAccessKindProto.valueOf(int) (deprecated)
-func PropertyAccessKindProto_ValueOf(value int32) *PropertyAccessKindProto {
-	return PropertyAccessKindProto_ForNumber(value)
-}
-
-// PropertyAccessKindProto_ValueOfName is Enum.valueOf(String).
-func PropertyAccessKindProto_ValueOfName(name string) PropertyAccessKindProto {
-	for i, n := range propertyAccessKindProto_names {
-		if n == name {
-			return PropertyAccessKindProto(i)
-		}
-	}
-	panic(jutil.NewIllegalArgumentExceptionMsg("No enum constant com.google.javascript.jscomp.PropertyAccessKindProto." + name))
 }
 
 func propertyAccessKindProto_fromNumber(value int32) PropertyAccessKindProto {
@@ -571,8 +501,7 @@ type JSCompilerStateProto struct {
 	unattributedConformanceViolations_     []*ViolationProto
 	bitField0_                             uint64
 	unknownFields                          []byte
-	frozen                                 bool
-	memoizedSize                           int
+	cachedSize                             int
 }
 
 // Field numbers (JSCompilerStateProto.X_FIELD_NUMBER).
@@ -604,43 +533,15 @@ const (
 	JSCompilerStateProto_UNATTRIBUTED_CONFORMANCE_VIOLATIONS_FIELD_NUMBER         = 25
 )
 
-var jSCompilerStateProto_DEFAULT_INSTANCE = &JSCompilerStateProto{frozen: true, memoizedSize: -1}
-
-// Java: JSCompilerStateProto.getDefaultInstance()
-func JSCompilerStateProto_GetDefaultInstance() *JSCompilerStateProto {
-	return jSCompilerStateProto_DEFAULT_INSTANCE
-}
-
 // Java: JSCompilerStateProto.newBuilder()
 func JSCompilerStateProto_NewBuilder() *JSCompilerStateProto_Builder {
-	return &JSCompilerStateProto_Builder{m: &JSCompilerStateProto{memoizedSize: -1}}
-}
-
-// Java: JSCompilerStateProto.newBuilder(JSCompilerStateProto)
-func JSCompilerStateProto_NewBuilderFrom(prototype *JSCompilerStateProto) *JSCompilerStateProto_Builder {
-	return prototype.ToBuilder()
+	return &JSCompilerStateProto_Builder{m: &JSCompilerStateProto{}}
 }
 
 // Java: JSCompilerStateProto.toBuilder()
 func (m *JSCompilerStateProto) ToBuilder() *JSCompilerStateProto_Builder {
-	return &JSCompilerStateProto_Builder{m: m.mutableCopy()}
-}
-
-// JSCompilerStateProto_ParseFrom panics with *InvalidProtocolBufferException on malformed input.
-//
-// Java: JSCompilerStateProto.parseFrom(byte[])
-func JSCompilerStateProto_ParseFrom(data []byte) *JSCompilerStateProto {
-	m := &JSCompilerStateProto{memoizedSize: -1}
-	m.mergeFromReader(&protoReader{b: data})
-	m.frozen = true
-	return m
-}
-
-// mutableCopy is a shallow copy that a builder may modify.
-func (m *JSCompilerStateProto) mutableCopy() *JSCompilerStateProto {
 	c := *m
-	c.frozen = false
-	c.memoizedSize = -1
+	c.cachedSize = 0
 	c.allowableFeatures_ = append([]int32(nil), m.allowableFeatures_...)
 	c.chunks_ = append([]*ChunkProto(nil), m.chunks_...)
 	c.uniqueIdSupplier_ = append([]*UniqueIdProto(nil), m.uniqueIdSupplier_...)
@@ -652,48 +553,16 @@ func (m *JSCompilerStateProto) mutableCopy() *JSCompilerStateProto {
 	c.instrumentationMapping_ = append([]*VariableMapEntryProto(nil), m.instrumentationMapping_...)
 	c.conformanceViolations_ = append([]*ConformanceViolationsProto(nil), m.conformanceViolations_...)
 	c.unattributedConformanceViolations_ = append([]*ViolationProto(nil), m.unattributedConformanceViolations_...)
-	return &c
+	return &JSCompilerStateProto_Builder{m: &c}
 }
 
-// freeze returns an immutable copy (shared when m is already immutable).
-func (m *JSCompilerStateProto) freeze() *JSCompilerStateProto {
-	if m == nil || m.frozen {
-		return m
-	}
-	c := *m
-	c.frozen = true
-	c.memoizedSize = -1
-	c.allowableFeatures_ = append([]int32(nil), m.allowableFeatures_...)
-	c.chunks_ = make([]*ChunkProto, len(m.chunks_))
-	for i, x := range m.chunks_ {
-		c.chunks_[i] = x.freeze()
-	}
-	c.uniqueIdSupplier_ = make([]*UniqueIdProto, len(m.uniqueIdSupplier_))
-	for i, x := range m.uniqueIdSupplier_ {
-		c.uniqueIdSupplier_[i] = x.freeze()
-	}
-	c.exportedNames_ = append([]string(nil), m.exportedNames_...)
-	c.cssNames_ = append([]string(nil), m.cssNames_...)
-	c.externs_ = append([]string(nil), m.externs_...)
-	c.injectedLibraries_ = append([]string(nil), m.injectedLibraries_...)
-	c.accessorSummary_ = m.accessorSummary_.freeze()
-	c.stringMap_ = make([]*VariableMapEntryProto, len(m.stringMap_))
-	for i, x := range m.stringMap_ {
-		c.stringMap_[i] = x.freeze()
-	}
-	c.instrumentationMapping_ = make([]*VariableMapEntryProto, len(m.instrumentationMapping_))
-	for i, x := range m.instrumentationMapping_ {
-		c.instrumentationMapping_[i] = x.freeze()
-	}
-	c.conformanceViolations_ = make([]*ConformanceViolationsProto, len(m.conformanceViolations_))
-	for i, x := range m.conformanceViolations_ {
-		c.conformanceViolations_[i] = x.freeze()
-	}
-	c.unattributedConformanceViolations_ = make([]*ViolationProto, len(m.unattributedConformanceViolations_))
-	for i, x := range m.unattributedConformanceViolations_ {
-		c.unattributedConformanceViolations_[i] = x.freeze()
-	}
-	return &c
+// JSCompilerStateProto_ParseFrom panics with *InvalidProtocolBufferException on malformed input.
+//
+// Java: JSCompilerStateProto.parseFrom(byte[])
+func JSCompilerStateProto_ParseFrom(data []byte) *JSCompilerStateProto {
+	m := &JSCompilerStateProto{}
+	m.mergeFromReader(&protoReader{b: data})
+	return m
 }
 
 // Java: JSCompilerStateProto.getAllowableFeaturesList()
@@ -711,18 +580,6 @@ func (m *JSCompilerStateProto) GetAllowableFeatures(index int) FeatureProto {
 	return featureProto_fromNumber(m.allowableFeatures_[index])
 }
 
-// Java: JSCompilerStateProto.getAllowableFeaturesValueList()
-func (m *JSCompilerStateProto) GetAllowableFeaturesValueList() []int32 { return m.allowableFeatures_ }
-
-// Java: JSCompilerStateProto.getAllowableFeaturesValue(int)
-func (m *JSCompilerStateProto) GetAllowableFeaturesValue(index int) int32 {
-	protoCheckIndex(index, len(m.allowableFeatures_))
-	return m.allowableFeatures_[index]
-}
-
-// Java: JSCompilerStateProto.getAllowableFeaturesCount()
-func (m *JSCompilerStateProto) GetAllowableFeaturesCount() int { return len(m.allowableFeatures_) }
-
 // Java: JSCompilerStateProto.getTypeCheckingHasRun()
 func (m *JSCompilerStateProto) GetTypeCheckingHasRun() bool {
 	return m.typeCheckingHasRun_
@@ -736,11 +593,6 @@ func (m *JSCompilerStateProto) GetHasRegExpGlobalReferences() bool {
 // Java: JSCompilerStateProto.getLifeCycleStage()
 func (m *JSCompilerStateProto) GetLifeCycleStage() LifeCycleStageProto {
 	return lifeCycleStageProto_fromNumber(m.lifeCycleStage_)
-}
-
-// Java: JSCompilerStateProto.getLifeCycleStageValue()
-func (m *JSCompilerStateProto) GetLifeCycleStageValue() int32 {
-	return m.lifeCycleStage_
 }
 
 // Java: JSCompilerStateProto.getMergedPrecompiledLibraries()
@@ -757,9 +609,6 @@ func (m *JSCompilerStateProto) GetChunks(index int) *ChunkProto {
 	return m.chunks_[index]
 }
 
-// Java: JSCompilerStateProto.getChunksCount()
-func (m *JSCompilerStateProto) GetChunksCount() int { return len(m.chunks_) }
-
 // Java: JSCompilerStateProto.getUniqueNameId()
 func (m *JSCompilerStateProto) GetUniqueNameId() int32 {
 	return m.uniqueNameId_
@@ -774,9 +623,6 @@ func (m *JSCompilerStateProto) GetUniqueIdSupplier(index int) *UniqueIdProto {
 	return m.uniqueIdSupplier_[index]
 }
 
-// Java: JSCompilerStateProto.getUniqueIdSupplierCount()
-func (m *JSCompilerStateProto) GetUniqueIdSupplierCount() int { return len(m.uniqueIdSupplier_) }
-
 // Java: JSCompilerStateProto.getExportedNamesList()
 func (m *JSCompilerStateProto) GetExportedNamesList() []string { return m.exportedNames_ }
 
@@ -786,9 +632,6 @@ func (m *JSCompilerStateProto) GetExportedNames(index int) string {
 	return m.exportedNames_[index]
 }
 
-// Java: JSCompilerStateProto.getExportedNamesCount()
-func (m *JSCompilerStateProto) GetExportedNamesCount() int { return len(m.exportedNames_) }
-
 // Java: JSCompilerStateProto.getHasCssNames()
 func (m *JSCompilerStateProto) GetHasCssNames() bool {
 	return m.hasCssNames_
@@ -796,15 +639,6 @@ func (m *JSCompilerStateProto) GetHasCssNames() bool {
 
 // Java: JSCompilerStateProto.getCssNamesList()
 func (m *JSCompilerStateProto) GetCssNamesList() []string { return m.cssNames_ }
-
-// Java: JSCompilerStateProto.getCssNames(int)
-func (m *JSCompilerStateProto) GetCssNames(index int) string {
-	protoCheckIndexJDK(index, len(m.cssNames_))
-	return m.cssNames_[index]
-}
-
-// Java: JSCompilerStateProto.getCssNamesCount()
-func (m *JSCompilerStateProto) GetCssNamesCount() int { return len(m.cssNames_) }
 
 // Java: JSCompilerStateProto.hasIdGeneratorMap()
 func (m *JSCompilerStateProto) HasIdGeneratorMap() bool { return m.bitField0_&(1<<0) != 0 }
@@ -832,15 +666,6 @@ func (m *JSCompilerStateProto) GetRunJ2ClPasses() bool {
 // Java: JSCompilerStateProto.getExternsList()
 func (m *JSCompilerStateProto) GetExternsList() []string { return m.externs_ }
 
-// Java: JSCompilerStateProto.getExterns(int)
-func (m *JSCompilerStateProto) GetExterns(index int) string {
-	protoCheckIndexJDK(index, len(m.externs_))
-	return m.externs_[index]
-}
-
-// Java: JSCompilerStateProto.getExternsCount()
-func (m *JSCompilerStateProto) GetExternsCount() int { return len(m.externs_) }
-
 // Java: JSCompilerStateProto.getInjectedLibrariesList()
 func (m *JSCompilerStateProto) GetInjectedLibrariesList() []string { return m.injectedLibraries_ }
 
@@ -849,9 +674,6 @@ func (m *JSCompilerStateProto) GetInjectedLibraries(index int) string {
 	protoCheckIndexJDK(index, len(m.injectedLibraries_))
 	return m.injectedLibraries_[index]
 }
-
-// Java: JSCompilerStateProto.getInjectedLibrariesCount()
-func (m *JSCompilerStateProto) GetInjectedLibrariesCount() int { return len(m.injectedLibraries_) }
 
 // Java: JSCompilerStateProto.getLastInjectedLibraryIndexInFirstScript()
 func (m *JSCompilerStateProto) GetLastInjectedLibraryIndexInFirstScript() int32 {
@@ -883,9 +705,6 @@ func (m *JSCompilerStateProto) GetStringMap(index int) *VariableMapEntryProto {
 	return m.stringMap_[index]
 }
 
-// Java: JSCompilerStateProto.getStringMapCount()
-func (m *JSCompilerStateProto) GetStringMapCount() int { return len(m.stringMap_) }
-
 // Java: JSCompilerStateProto.getHasInstrumentationMapping()
 func (m *JSCompilerStateProto) GetHasInstrumentationMapping() bool {
 	return m.hasInstrumentationMapping_
@@ -902,11 +721,6 @@ func (m *JSCompilerStateProto) GetInstrumentationMapping(index int) *VariableMap
 	return m.instrumentationMapping_[index]
 }
 
-// Java: JSCompilerStateProto.getInstrumentationMappingCount()
-func (m *JSCompilerStateProto) GetInstrumentationMappingCount() int {
-	return len(m.instrumentationMapping_)
-}
-
 // Java: JSCompilerStateProto.getConformanceViolationsList()
 func (m *JSCompilerStateProto) GetConformanceViolationsList() []*ConformanceViolationsProto {
 	return m.conformanceViolations_
@@ -916,11 +730,6 @@ func (m *JSCompilerStateProto) GetConformanceViolationsList() []*ConformanceViol
 func (m *JSCompilerStateProto) GetConformanceViolations(index int) *ConformanceViolationsProto {
 	protoCheckIndexJDK(index, len(m.conformanceViolations_))
 	return m.conformanceViolations_[index]
-}
-
-// Java: JSCompilerStateProto.getConformanceViolationsCount()
-func (m *JSCompilerStateProto) GetConformanceViolationsCount() int {
-	return len(m.conformanceViolations_)
 }
 
 // Java: JSCompilerStateProto.getUnattributedConformanceViolationsList()
@@ -934,29 +743,26 @@ func (m *JSCompilerStateProto) GetUnattributedConformanceViolations(index int) *
 	return m.unattributedConformanceViolations_[index]
 }
 
-// Java: JSCompilerStateProto.getUnattributedConformanceViolationsCount()
-func (m *JSCompilerStateProto) GetUnattributedConformanceViolationsCount() int {
-	return len(m.unattributedConformanceViolations_)
-}
-
 // JSCompilerStateProto_Builder is JSCompilerStateProto.Builder.
 type JSCompilerStateProto_Builder struct{ m *JSCompilerStateProto }
 
 // Java: JSCompilerStateProto.Builder.build()
-func (b *JSCompilerStateProto_Builder) Build() *JSCompilerStateProto { return b.m.freeze() }
+func (b *JSCompilerStateProto_Builder) Build() *JSCompilerStateProto {
+	c := *b.m
+	c.cachedSize = 0
+	return &c
+}
 
 // Java: JSCompilerStateProto.Builder.buildPartial()
-func (b *JSCompilerStateProto_Builder) BuildPartial() *JSCompilerStateProto { return b.m.freeze() }
+func (b *JSCompilerStateProto_Builder) BuildPartial() *JSCompilerStateProto {
+	c := *b.m
+	c.cachedSize = 0
+	return &c
+}
 
 // Java: JSCompilerStateProto.Builder.clear()
 func (b *JSCompilerStateProto_Builder) Clear() *JSCompilerStateProto_Builder {
-	b.m = &JSCompilerStateProto{memoizedSize: -1}
-	return b
-}
-
-// Java: JSCompilerStateProto.Builder.mergeFrom(JSCompilerStateProto)
-func (b *JSCompilerStateProto_Builder) MergeFrom(other *JSCompilerStateProto) *JSCompilerStateProto_Builder {
-	b.m.mergeFrom(other)
+	b.m = &JSCompilerStateProto{}
 	return b
 }
 
@@ -970,52 +776,9 @@ func (b *JSCompilerStateProto_Builder) GetAllowableFeatures(index int) FeaturePr
 	return b.m.GetAllowableFeatures(index)
 }
 
-// Java: JSCompilerStateProto.Builder.getAllowableFeaturesCount()
-func (b *JSCompilerStateProto_Builder) GetAllowableFeaturesCount() int {
-	return b.m.GetAllowableFeaturesCount()
-}
-
 // Java: JSCompilerStateProto.Builder.addAllowableFeatures(FeatureProto)
 func (b *JSCompilerStateProto_Builder) AddAllowableFeatures(v FeatureProto) *JSCompilerStateProto_Builder {
 	b.m.allowableFeatures_ = append(b.m.allowableFeatures_, v.GetNumber())
-	return b
-}
-
-// Java: JSCompilerStateProto.Builder.addAllAllowableFeatures(Iterable)
-func (b *JSCompilerStateProto_Builder) AddAllAllowableFeatures(values []FeatureProto) *JSCompilerStateProto_Builder {
-	for _, v := range values {
-		b.AddAllowableFeatures(v)
-	}
-	return b
-}
-
-// Java: JSCompilerStateProto.Builder.setAllowableFeatures(int, FeatureProto)
-func (b *JSCompilerStateProto_Builder) SetAllowableFeaturesAtIndex(index int, v FeatureProto) *JSCompilerStateProto_Builder {
-	protoCheckIndex(index, len(b.m.allowableFeatures_))
-	b.m.allowableFeatures_[index] = v.GetNumber()
-	return b
-}
-
-// Java: JSCompilerStateProto.Builder.getAllowableFeaturesValueList()
-func (b *JSCompilerStateProto_Builder) GetAllowableFeaturesValueList() []int32 {
-	return append([]int32(nil), b.m.allowableFeatures_...)
-}
-
-// Java: JSCompilerStateProto.Builder.addAllowableFeaturesValue(int)
-func (b *JSCompilerStateProto_Builder) AddAllowableFeaturesValue(v int32) *JSCompilerStateProto_Builder {
-	b.m.allowableFeatures_ = append(b.m.allowableFeatures_, v)
-	return b
-}
-
-// Java: JSCompilerStateProto.Builder.addAllAllowableFeaturesValue(Iterable)
-func (b *JSCompilerStateProto_Builder) AddAllAllowableFeaturesValue(values []int32) *JSCompilerStateProto_Builder {
-	b.m.allowableFeatures_ = append(b.m.allowableFeatures_, values...)
-	return b
-}
-
-// Java: JSCompilerStateProto.Builder.clearAllowableFeatures()
-func (b *JSCompilerStateProto_Builder) ClearAllowableFeatures() *JSCompilerStateProto_Builder {
-	b.m.allowableFeatures_ = nil
 	return b
 }
 
@@ -1030,12 +793,6 @@ func (b *JSCompilerStateProto_Builder) SetTypeCheckingHasRun(v bool) *JSCompiler
 	return b
 }
 
-// Java: JSCompilerStateProto.Builder.clearTypeCheckingHasRun()
-func (b *JSCompilerStateProto_Builder) ClearTypeCheckingHasRun() *JSCompilerStateProto_Builder {
-	b.m.typeCheckingHasRun_ = false
-	return b
-}
-
 // Java: JSCompilerStateProto.Builder.getHasRegExpGlobalReferences()
 func (b *JSCompilerStateProto_Builder) GetHasRegExpGlobalReferences() bool {
 	return b.m.GetHasRegExpGlobalReferences()
@@ -1044,12 +801,6 @@ func (b *JSCompilerStateProto_Builder) GetHasRegExpGlobalReferences() bool {
 // Java: JSCompilerStateProto.Builder.setHasRegExpGlobalReferences(boolean)
 func (b *JSCompilerStateProto_Builder) SetHasRegExpGlobalReferences(v bool) *JSCompilerStateProto_Builder {
 	b.m.hasRegExpGlobalReferences_ = v
-	return b
-}
-
-// Java: JSCompilerStateProto.Builder.clearHasRegExpGlobalReferences()
-func (b *JSCompilerStateProto_Builder) ClearHasRegExpGlobalReferences() *JSCompilerStateProto_Builder {
-	b.m.hasRegExpGlobalReferences_ = false
 	return b
 }
 
@@ -1064,23 +815,6 @@ func (b *JSCompilerStateProto_Builder) SetLifeCycleStage(v LifeCycleStageProto) 
 	return b
 }
 
-// Java: JSCompilerStateProto.Builder.getLifeCycleStageValue()
-func (b *JSCompilerStateProto_Builder) GetLifeCycleStageValue() int32 {
-	return b.m.GetLifeCycleStageValue()
-}
-
-// Java: JSCompilerStateProto.Builder.setLifeCycleStageValue(int)
-func (b *JSCompilerStateProto_Builder) SetLifeCycleStageValue(v int32) *JSCompilerStateProto_Builder {
-	b.m.lifeCycleStage_ = v
-	return b
-}
-
-// Java: JSCompilerStateProto.Builder.clearLifeCycleStage()
-func (b *JSCompilerStateProto_Builder) ClearLifeCycleStage() *JSCompilerStateProto_Builder {
-	b.m.lifeCycleStage_ = 0
-	return b
-}
-
 // Java: JSCompilerStateProto.Builder.getMergedPrecompiledLibraries()
 func (b *JSCompilerStateProto_Builder) GetMergedPrecompiledLibraries() bool {
 	return b.m.GetMergedPrecompiledLibraries()
@@ -1092,28 +826,19 @@ func (b *JSCompilerStateProto_Builder) SetMergedPrecompiledLibraries(v bool) *JS
 	return b
 }
 
-// Java: JSCompilerStateProto.Builder.clearMergedPrecompiledLibraries()
-func (b *JSCompilerStateProto_Builder) ClearMergedPrecompiledLibraries() *JSCompilerStateProto_Builder {
-	b.m.mergedPrecompiledLibraries_ = false
-	return b
-}
-
 // Java: JSCompilerStateProto.Builder.getChunksList()
 func (b *JSCompilerStateProto_Builder) GetChunksList() []*ChunkProto {
 	out := make([]*ChunkProto, len(b.m.chunks_))
 	for i, x := range b.m.chunks_ {
-		out[i] = x.freeze()
+		out[i] = x
 	}
 	return out
 }
 
 // Java: JSCompilerStateProto.Builder.getChunks(int)
 func (b *JSCompilerStateProto_Builder) GetChunks(index int) *ChunkProto {
-	return b.m.GetChunks(index).freeze()
+	return b.m.GetChunks(index)
 }
-
-// Java: JSCompilerStateProto.Builder.getChunksCount()
-func (b *JSCompilerStateProto_Builder) GetChunksCount() int { return b.m.GetChunksCount() }
 
 // Java: JSCompilerStateProto.Builder.addChunks(*ChunkProto)
 func (b *JSCompilerStateProto_Builder) AddChunks(v *ChunkProto) *JSCompilerStateProto_Builder {
@@ -1121,51 +846,6 @@ func (b *JSCompilerStateProto_Builder) AddChunks(v *ChunkProto) *JSCompilerState
 		panic(jutil.NewNullPointerException())
 	}
 	b.m.chunks_ = append(b.m.chunks_, v)
-	return b
-}
-
-// Java: JSCompilerStateProto.Builder.addAllChunks(Iterable)
-func (b *JSCompilerStateProto_Builder) AddAllChunks(values []*ChunkProto) *JSCompilerStateProto_Builder {
-	for _, v := range values {
-		b.AddChunks(v)
-	}
-	return b
-}
-
-// Java: JSCompilerStateProto.Builder.setChunks(int, *ChunkProto)
-func (b *JSCompilerStateProto_Builder) SetChunksAtIndex(index int, v *ChunkProto) *JSCompilerStateProto_Builder {
-	protoCheckIndexJDK(index, len(b.m.chunks_))
-	if v == nil {
-		panic(jutil.NewNullPointerException())
-	}
-	b.m.chunks_[index] = v
-	return b
-}
-
-// Java: JSCompilerStateProto.Builder.addChunks(ChunkProto.Builder)
-func (b *JSCompilerStateProto_Builder) AddChunksFromBuilder(builderForValue *ChunkProto_Builder) *JSCompilerStateProto_Builder {
-	return b.AddChunks(builderForValue.Build())
-}
-
-// Java: JSCompilerStateProto.Builder.addChunksBuilder()
-func (b *JSCompilerStateProto_Builder) AddChunksBuilder() *ChunkProto_Builder {
-	x := &ChunkProto{memoizedSize: -1}
-	b.m.chunks_ = append(b.m.chunks_, x)
-	return &ChunkProto_Builder{m: x}
-}
-
-// Java: JSCompilerStateProto.Builder.getChunksBuilder(int)
-func (b *JSCompilerStateProto_Builder) GetChunksBuilder(index int) *ChunkProto_Builder {
-	protoCheckIndexJDK(index, len(b.m.chunks_))
-	if b.m.chunks_[index].frozen {
-		b.m.chunks_[index] = b.m.chunks_[index].mutableCopy()
-	}
-	return &ChunkProto_Builder{m: b.m.chunks_[index]}
-}
-
-// Java: JSCompilerStateProto.Builder.clearChunks()
-func (b *JSCompilerStateProto_Builder) ClearChunks() *JSCompilerStateProto_Builder {
-	b.m.chunks_ = nil
 	return b
 }
 
@@ -1178,29 +858,18 @@ func (b *JSCompilerStateProto_Builder) SetUniqueNameId(v int32) *JSCompilerState
 	return b
 }
 
-// Java: JSCompilerStateProto.Builder.clearUniqueNameId()
-func (b *JSCompilerStateProto_Builder) ClearUniqueNameId() *JSCompilerStateProto_Builder {
-	b.m.uniqueNameId_ = 0
-	return b
-}
-
 // Java: JSCompilerStateProto.Builder.getUniqueIdSupplierList()
 func (b *JSCompilerStateProto_Builder) GetUniqueIdSupplierList() []*UniqueIdProto {
 	out := make([]*UniqueIdProto, len(b.m.uniqueIdSupplier_))
 	for i, x := range b.m.uniqueIdSupplier_ {
-		out[i] = x.freeze()
+		out[i] = x
 	}
 	return out
 }
 
 // Java: JSCompilerStateProto.Builder.getUniqueIdSupplier(int)
 func (b *JSCompilerStateProto_Builder) GetUniqueIdSupplier(index int) *UniqueIdProto {
-	return b.m.GetUniqueIdSupplier(index).freeze()
-}
-
-// Java: JSCompilerStateProto.Builder.getUniqueIdSupplierCount()
-func (b *JSCompilerStateProto_Builder) GetUniqueIdSupplierCount() int {
-	return b.m.GetUniqueIdSupplierCount()
+	return b.m.GetUniqueIdSupplier(index)
 }
 
 // Java: JSCompilerStateProto.Builder.addUniqueIdSupplier(*UniqueIdProto)
@@ -1220,43 +889,6 @@ func (b *JSCompilerStateProto_Builder) AddAllUniqueIdSupplier(values []*UniqueId
 	return b
 }
 
-// Java: JSCompilerStateProto.Builder.setUniqueIdSupplier(int, *UniqueIdProto)
-func (b *JSCompilerStateProto_Builder) SetUniqueIdSupplierAtIndex(index int, v *UniqueIdProto) *JSCompilerStateProto_Builder {
-	protoCheckIndexJDK(index, len(b.m.uniqueIdSupplier_))
-	if v == nil {
-		panic(jutil.NewNullPointerException())
-	}
-	b.m.uniqueIdSupplier_[index] = v
-	return b
-}
-
-// Java: JSCompilerStateProto.Builder.addUniqueIdSupplier(UniqueIdProto.Builder)
-func (b *JSCompilerStateProto_Builder) AddUniqueIdSupplierFromBuilder(builderForValue *UniqueIdProto_Builder) *JSCompilerStateProto_Builder {
-	return b.AddUniqueIdSupplier(builderForValue.Build())
-}
-
-// Java: JSCompilerStateProto.Builder.addUniqueIdSupplierBuilder()
-func (b *JSCompilerStateProto_Builder) AddUniqueIdSupplierBuilder() *UniqueIdProto_Builder {
-	x := &UniqueIdProto{memoizedSize: -1}
-	b.m.uniqueIdSupplier_ = append(b.m.uniqueIdSupplier_, x)
-	return &UniqueIdProto_Builder{m: x}
-}
-
-// Java: JSCompilerStateProto.Builder.getUniqueIdSupplierBuilder(int)
-func (b *JSCompilerStateProto_Builder) GetUniqueIdSupplierBuilder(index int) *UniqueIdProto_Builder {
-	protoCheckIndexJDK(index, len(b.m.uniqueIdSupplier_))
-	if b.m.uniqueIdSupplier_[index].frozen {
-		b.m.uniqueIdSupplier_[index] = b.m.uniqueIdSupplier_[index].mutableCopy()
-	}
-	return &UniqueIdProto_Builder{m: b.m.uniqueIdSupplier_[index]}
-}
-
-// Java: JSCompilerStateProto.Builder.clearUniqueIdSupplier()
-func (b *JSCompilerStateProto_Builder) ClearUniqueIdSupplier() *JSCompilerStateProto_Builder {
-	b.m.uniqueIdSupplier_ = nil
-	return b
-}
-
 // Java: JSCompilerStateProto.Builder.getExportedNamesList()
 func (b *JSCompilerStateProto_Builder) GetExportedNamesList() []string {
 	return append([]string(nil), b.m.GetExportedNamesList()...)
@@ -1265,11 +897,6 @@ func (b *JSCompilerStateProto_Builder) GetExportedNamesList() []string {
 // Java: JSCompilerStateProto.Builder.getExportedNames(int)
 func (b *JSCompilerStateProto_Builder) GetExportedNames(index int) string {
 	return b.m.GetExportedNames(index)
-}
-
-// Java: JSCompilerStateProto.Builder.getExportedNamesCount()
-func (b *JSCompilerStateProto_Builder) GetExportedNamesCount() int {
-	return b.m.GetExportedNamesCount()
 }
 
 // Java: JSCompilerStateProto.Builder.addExportedNames(string)
@@ -1286,19 +913,6 @@ func (b *JSCompilerStateProto_Builder) AddAllExportedNames(values []string) *JSC
 	return b
 }
 
-// Java: JSCompilerStateProto.Builder.setExportedNames(int, string)
-func (b *JSCompilerStateProto_Builder) SetExportedNamesAtIndex(index int, v string) *JSCompilerStateProto_Builder {
-	protoCheckIndexJDK(index, len(b.m.exportedNames_))
-	b.m.exportedNames_[index] = v
-	return b
-}
-
-// Java: JSCompilerStateProto.Builder.clearExportedNames()
-func (b *JSCompilerStateProto_Builder) ClearExportedNames() *JSCompilerStateProto_Builder {
-	b.m.exportedNames_ = nil
-	return b
-}
-
 // Java: JSCompilerStateProto.Builder.getHasCssNames()
 func (b *JSCompilerStateProto_Builder) GetHasCssNames() bool { return b.m.GetHasCssNames() }
 
@@ -1308,22 +922,10 @@ func (b *JSCompilerStateProto_Builder) SetHasCssNames(v bool) *JSCompilerStatePr
 	return b
 }
 
-// Java: JSCompilerStateProto.Builder.clearHasCssNames()
-func (b *JSCompilerStateProto_Builder) ClearHasCssNames() *JSCompilerStateProto_Builder {
-	b.m.hasCssNames_ = false
-	return b
-}
-
 // Java: JSCompilerStateProto.Builder.getCssNamesList()
 func (b *JSCompilerStateProto_Builder) GetCssNamesList() []string {
 	return append([]string(nil), b.m.GetCssNamesList()...)
 }
-
-// Java: JSCompilerStateProto.Builder.getCssNames(int)
-func (b *JSCompilerStateProto_Builder) GetCssNames(index int) string { return b.m.GetCssNames(index) }
-
-// Java: JSCompilerStateProto.Builder.getCssNamesCount()
-func (b *JSCompilerStateProto_Builder) GetCssNamesCount() int { return b.m.GetCssNamesCount() }
 
 // Java: JSCompilerStateProto.Builder.addCssNames(string)
 func (b *JSCompilerStateProto_Builder) AddCssNames(v string) *JSCompilerStateProto_Builder {
@@ -1336,19 +938,6 @@ func (b *JSCompilerStateProto_Builder) AddAllCssNames(values []string) *JSCompil
 	for _, v := range values {
 		b.AddCssNames(v)
 	}
-	return b
-}
-
-// Java: JSCompilerStateProto.Builder.setCssNames(int, string)
-func (b *JSCompilerStateProto_Builder) SetCssNamesAtIndex(index int, v string) *JSCompilerStateProto_Builder {
-	protoCheckIndexJDK(index, len(b.m.cssNames_))
-	b.m.cssNames_[index] = v
-	return b
-}
-
-// Java: JSCompilerStateProto.Builder.clearCssNames()
-func (b *JSCompilerStateProto_Builder) ClearCssNames() *JSCompilerStateProto_Builder {
-	b.m.cssNames_ = nil
 	return b
 }
 
@@ -1365,25 +954,12 @@ func (b *JSCompilerStateProto_Builder) SetIdGeneratorMap(v string) *JSCompilerSt
 	return b
 }
 
-// Java: JSCompilerStateProto.Builder.clearIdGeneratorMap()
-func (b *JSCompilerStateProto_Builder) ClearIdGeneratorMap() *JSCompilerStateProto_Builder {
-	b.m.idGeneratorMap_ = ""
-	b.m.bitField0_ &^= 1 << 0
-	return b
-}
-
 // Java: JSCompilerStateProto.Builder.getTranspiledFiles()
 func (b *JSCompilerStateProto_Builder) GetTranspiledFiles() bool { return b.m.GetTranspiledFiles() }
 
 // Java: JSCompilerStateProto.Builder.setTranspiledFiles(boolean)
 func (b *JSCompilerStateProto_Builder) SetTranspiledFiles(v bool) *JSCompilerStateProto_Builder {
 	b.m.transpiledFiles_ = v
-	return b
-}
-
-// Java: JSCompilerStateProto.Builder.clearTranspiledFiles()
-func (b *JSCompilerStateProto_Builder) ClearTranspiledFiles() *JSCompilerStateProto_Builder {
-	b.m.transpiledFiles_ = false
 	return b
 }
 
@@ -1398,12 +974,6 @@ func (b *JSCompilerStateProto_Builder) SetIdGeneratorCurrentId(v int32) *JSCompi
 	return b
 }
 
-// Java: JSCompilerStateProto.Builder.clearIdGeneratorCurrentId()
-func (b *JSCompilerStateProto_Builder) ClearIdGeneratorCurrentId() *JSCompilerStateProto_Builder {
-	b.m.idGeneratorCurrentId_ = 0
-	return b
-}
-
 // Java: JSCompilerStateProto.Builder.getRunJ2ClPasses()
 func (b *JSCompilerStateProto_Builder) GetRunJ2ClPasses() bool { return b.m.GetRunJ2ClPasses() }
 
@@ -1413,47 +983,14 @@ func (b *JSCompilerStateProto_Builder) SetRunJ2ClPasses(v bool) *JSCompilerState
 	return b
 }
 
-// Java: JSCompilerStateProto.Builder.clearRunJ2ClPasses()
-func (b *JSCompilerStateProto_Builder) ClearRunJ2ClPasses() *JSCompilerStateProto_Builder {
-	b.m.runJ2ClPasses_ = false
-	return b
-}
-
 // Java: JSCompilerStateProto.Builder.getExternsList()
 func (b *JSCompilerStateProto_Builder) GetExternsList() []string {
 	return append([]string(nil), b.m.GetExternsList()...)
 }
 
-// Java: JSCompilerStateProto.Builder.getExterns(int)
-func (b *JSCompilerStateProto_Builder) GetExterns(index int) string { return b.m.GetExterns(index) }
-
-// Java: JSCompilerStateProto.Builder.getExternsCount()
-func (b *JSCompilerStateProto_Builder) GetExternsCount() int { return b.m.GetExternsCount() }
-
 // Java: JSCompilerStateProto.Builder.addExterns(string)
 func (b *JSCompilerStateProto_Builder) AddExterns(v string) *JSCompilerStateProto_Builder {
 	b.m.externs_ = append(b.m.externs_, v)
-	return b
-}
-
-// Java: JSCompilerStateProto.Builder.addAllExterns(Iterable)
-func (b *JSCompilerStateProto_Builder) AddAllExterns(values []string) *JSCompilerStateProto_Builder {
-	for _, v := range values {
-		b.AddExterns(v)
-	}
-	return b
-}
-
-// Java: JSCompilerStateProto.Builder.setExterns(int, string)
-func (b *JSCompilerStateProto_Builder) SetExternsAtIndex(index int, v string) *JSCompilerStateProto_Builder {
-	protoCheckIndexJDK(index, len(b.m.externs_))
-	b.m.externs_[index] = v
-	return b
-}
-
-// Java: JSCompilerStateProto.Builder.clearExterns()
-func (b *JSCompilerStateProto_Builder) ClearExterns() *JSCompilerStateProto_Builder {
-	b.m.externs_ = nil
 	return b
 }
 
@@ -1465,11 +1002,6 @@ func (b *JSCompilerStateProto_Builder) GetInjectedLibrariesList() []string {
 // Java: JSCompilerStateProto.Builder.getInjectedLibraries(int)
 func (b *JSCompilerStateProto_Builder) GetInjectedLibraries(index int) string {
 	return b.m.GetInjectedLibraries(index)
-}
-
-// Java: JSCompilerStateProto.Builder.getInjectedLibrariesCount()
-func (b *JSCompilerStateProto_Builder) GetInjectedLibrariesCount() int {
-	return b.m.GetInjectedLibrariesCount()
 }
 
 // Java: JSCompilerStateProto.Builder.addInjectedLibraries(string)
@@ -1486,19 +1018,6 @@ func (b *JSCompilerStateProto_Builder) AddAllInjectedLibraries(values []string) 
 	return b
 }
 
-// Java: JSCompilerStateProto.Builder.setInjectedLibraries(int, string)
-func (b *JSCompilerStateProto_Builder) SetInjectedLibrariesAtIndex(index int, v string) *JSCompilerStateProto_Builder {
-	protoCheckIndexJDK(index, len(b.m.injectedLibraries_))
-	b.m.injectedLibraries_[index] = v
-	return b
-}
-
-// Java: JSCompilerStateProto.Builder.clearInjectedLibraries()
-func (b *JSCompilerStateProto_Builder) ClearInjectedLibraries() *JSCompilerStateProto_Builder {
-	b.m.injectedLibraries_ = nil
-	return b
-}
-
 // Java: JSCompilerStateProto.Builder.getLastInjectedLibraryIndexInFirstScript()
 func (b *JSCompilerStateProto_Builder) GetLastInjectedLibraryIndexInFirstScript() int32 {
 	return b.m.GetLastInjectedLibraryIndexInFirstScript()
@@ -1510,18 +1029,12 @@ func (b *JSCompilerStateProto_Builder) SetLastInjectedLibraryIndexInFirstScript(
 	return b
 }
 
-// Java: JSCompilerStateProto.Builder.clearLastInjectedLibraryIndexInFirstScript()
-func (b *JSCompilerStateProto_Builder) ClearLastInjectedLibraryIndexInFirstScript() *JSCompilerStateProto_Builder {
-	b.m.lastInjectedLibraryIndexInFirstScript_ = 0
-	return b
-}
-
 // Java: JSCompilerStateProto.Builder.hasAccessorSummary()
 func (b *JSCompilerStateProto_Builder) HasAccessorSummary() bool { return b.m.HasAccessorSummary() }
 
 // Java: JSCompilerStateProto.Builder.getAccessorSummary()
 func (b *JSCompilerStateProto_Builder) GetAccessorSummary() *AccessorSummaryProto {
-	return b.m.GetAccessorSummary().freeze()
+	return b.m.GetAccessorSummary()
 }
 
 // Java: JSCompilerStateProto.Builder.setAccessorSummary(AccessorSummaryProto)
@@ -1530,39 +1043,6 @@ func (b *JSCompilerStateProto_Builder) SetAccessorSummary(v *AccessorSummaryProt
 		panic(jutil.NewNullPointerException())
 	}
 	b.m.accessorSummary_ = v
-	return b
-}
-
-// Java: JSCompilerStateProto.Builder.setAccessorSummary(AccessorSummaryProto.Builder)
-func (b *JSCompilerStateProto_Builder) SetAccessorSummaryFromBuilder(builderForValue *AccessorSummaryProto_Builder) *JSCompilerStateProto_Builder {
-	return b.SetAccessorSummary(builderForValue.Build())
-}
-
-// Java: JSCompilerStateProto.Builder.mergeAccessorSummary(AccessorSummaryProto)
-func (b *JSCompilerStateProto_Builder) MergeAccessorSummary(v *AccessorSummaryProto) *JSCompilerStateProto_Builder {
-	if b.m.HasAccessorSummary() && b.m.accessorSummary_ != AccessorSummaryProto_GetDefaultInstance() {
-		x := b.m.accessorSummary_.mutableCopy()
-		x.mergeFrom(v)
-		b.m.accessorSummary_ = x
-	} else {
-		b.m.accessorSummary_ = v
-	}
-	return b
-}
-
-// Java: JSCompilerStateProto.Builder.getAccessorSummaryBuilder()
-func (b *JSCompilerStateProto_Builder) GetAccessorSummaryBuilder() *AccessorSummaryProto_Builder {
-	if b.m.accessorSummary_ == nil {
-		b.m.accessorSummary_ = &AccessorSummaryProto{memoizedSize: -1}
-	} else if b.m.accessorSummary_.frozen {
-		b.m.accessorSummary_ = b.m.accessorSummary_.mutableCopy()
-	}
-	return &AccessorSummaryProto_Builder{m: b.m.accessorSummary_}
-}
-
-// Java: JSCompilerStateProto.Builder.clearAccessorSummary()
-func (b *JSCompilerStateProto_Builder) ClearAccessorSummary() *JSCompilerStateProto_Builder {
-	b.m.accessorSummary_ = nil
 	return b
 }
 
@@ -1575,28 +1055,19 @@ func (b *JSCompilerStateProto_Builder) SetHasStringMap(v bool) *JSCompilerStateP
 	return b
 }
 
-// Java: JSCompilerStateProto.Builder.clearHasStringMap()
-func (b *JSCompilerStateProto_Builder) ClearHasStringMap() *JSCompilerStateProto_Builder {
-	b.m.hasStringMap_ = false
-	return b
-}
-
 // Java: JSCompilerStateProto.Builder.getStringMapList()
 func (b *JSCompilerStateProto_Builder) GetStringMapList() []*VariableMapEntryProto {
 	out := make([]*VariableMapEntryProto, len(b.m.stringMap_))
 	for i, x := range b.m.stringMap_ {
-		out[i] = x.freeze()
+		out[i] = x
 	}
 	return out
 }
 
 // Java: JSCompilerStateProto.Builder.getStringMap(int)
 func (b *JSCompilerStateProto_Builder) GetStringMap(index int) *VariableMapEntryProto {
-	return b.m.GetStringMap(index).freeze()
+	return b.m.GetStringMap(index)
 }
-
-// Java: JSCompilerStateProto.Builder.getStringMapCount()
-func (b *JSCompilerStateProto_Builder) GetStringMapCount() int { return b.m.GetStringMapCount() }
 
 // Java: JSCompilerStateProto.Builder.addStringMap(*VariableMapEntryProto)
 func (b *JSCompilerStateProto_Builder) AddStringMap(v *VariableMapEntryProto) *JSCompilerStateProto_Builder {
@@ -1615,43 +1086,6 @@ func (b *JSCompilerStateProto_Builder) AddAllStringMap(values []*VariableMapEntr
 	return b
 }
 
-// Java: JSCompilerStateProto.Builder.setStringMap(int, *VariableMapEntryProto)
-func (b *JSCompilerStateProto_Builder) SetStringMapAtIndex(index int, v *VariableMapEntryProto) *JSCompilerStateProto_Builder {
-	protoCheckIndexJDK(index, len(b.m.stringMap_))
-	if v == nil {
-		panic(jutil.NewNullPointerException())
-	}
-	b.m.stringMap_[index] = v
-	return b
-}
-
-// Java: JSCompilerStateProto.Builder.addStringMap(VariableMapEntryProto.Builder)
-func (b *JSCompilerStateProto_Builder) AddStringMapFromBuilder(builderForValue *VariableMapEntryProto_Builder) *JSCompilerStateProto_Builder {
-	return b.AddStringMap(builderForValue.Build())
-}
-
-// Java: JSCompilerStateProto.Builder.addStringMapBuilder()
-func (b *JSCompilerStateProto_Builder) AddStringMapBuilder() *VariableMapEntryProto_Builder {
-	x := &VariableMapEntryProto{memoizedSize: -1}
-	b.m.stringMap_ = append(b.m.stringMap_, x)
-	return &VariableMapEntryProto_Builder{m: x}
-}
-
-// Java: JSCompilerStateProto.Builder.getStringMapBuilder(int)
-func (b *JSCompilerStateProto_Builder) GetStringMapBuilder(index int) *VariableMapEntryProto_Builder {
-	protoCheckIndexJDK(index, len(b.m.stringMap_))
-	if b.m.stringMap_[index].frozen {
-		b.m.stringMap_[index] = b.m.stringMap_[index].mutableCopy()
-	}
-	return &VariableMapEntryProto_Builder{m: b.m.stringMap_[index]}
-}
-
-// Java: JSCompilerStateProto.Builder.clearStringMap()
-func (b *JSCompilerStateProto_Builder) ClearStringMap() *JSCompilerStateProto_Builder {
-	b.m.stringMap_ = nil
-	return b
-}
-
 // Java: JSCompilerStateProto.Builder.getHasInstrumentationMapping()
 func (b *JSCompilerStateProto_Builder) GetHasInstrumentationMapping() bool {
 	return b.m.GetHasInstrumentationMapping()
@@ -1663,29 +1097,18 @@ func (b *JSCompilerStateProto_Builder) SetHasInstrumentationMapping(v bool) *JSC
 	return b
 }
 
-// Java: JSCompilerStateProto.Builder.clearHasInstrumentationMapping()
-func (b *JSCompilerStateProto_Builder) ClearHasInstrumentationMapping() *JSCompilerStateProto_Builder {
-	b.m.hasInstrumentationMapping_ = false
-	return b
-}
-
 // Java: JSCompilerStateProto.Builder.getInstrumentationMappingList()
 func (b *JSCompilerStateProto_Builder) GetInstrumentationMappingList() []*VariableMapEntryProto {
 	out := make([]*VariableMapEntryProto, len(b.m.instrumentationMapping_))
 	for i, x := range b.m.instrumentationMapping_ {
-		out[i] = x.freeze()
+		out[i] = x
 	}
 	return out
 }
 
 // Java: JSCompilerStateProto.Builder.getInstrumentationMapping(int)
 func (b *JSCompilerStateProto_Builder) GetInstrumentationMapping(index int) *VariableMapEntryProto {
-	return b.m.GetInstrumentationMapping(index).freeze()
-}
-
-// Java: JSCompilerStateProto.Builder.getInstrumentationMappingCount()
-func (b *JSCompilerStateProto_Builder) GetInstrumentationMappingCount() int {
-	return b.m.GetInstrumentationMappingCount()
+	return b.m.GetInstrumentationMapping(index)
 }
 
 // Java: JSCompilerStateProto.Builder.addInstrumentationMapping(*VariableMapEntryProto)
@@ -1705,60 +1128,18 @@ func (b *JSCompilerStateProto_Builder) AddAllInstrumentationMapping(values []*Va
 	return b
 }
 
-// Java: JSCompilerStateProto.Builder.setInstrumentationMapping(int, *VariableMapEntryProto)
-func (b *JSCompilerStateProto_Builder) SetInstrumentationMappingAtIndex(index int, v *VariableMapEntryProto) *JSCompilerStateProto_Builder {
-	protoCheckIndexJDK(index, len(b.m.instrumentationMapping_))
-	if v == nil {
-		panic(jutil.NewNullPointerException())
-	}
-	b.m.instrumentationMapping_[index] = v
-	return b
-}
-
-// Java: JSCompilerStateProto.Builder.addInstrumentationMapping(VariableMapEntryProto.Builder)
-func (b *JSCompilerStateProto_Builder) AddInstrumentationMappingFromBuilder(builderForValue *VariableMapEntryProto_Builder) *JSCompilerStateProto_Builder {
-	return b.AddInstrumentationMapping(builderForValue.Build())
-}
-
-// Java: JSCompilerStateProto.Builder.addInstrumentationMappingBuilder()
-func (b *JSCompilerStateProto_Builder) AddInstrumentationMappingBuilder() *VariableMapEntryProto_Builder {
-	x := &VariableMapEntryProto{memoizedSize: -1}
-	b.m.instrumentationMapping_ = append(b.m.instrumentationMapping_, x)
-	return &VariableMapEntryProto_Builder{m: x}
-}
-
-// Java: JSCompilerStateProto.Builder.getInstrumentationMappingBuilder(int)
-func (b *JSCompilerStateProto_Builder) GetInstrumentationMappingBuilder(index int) *VariableMapEntryProto_Builder {
-	protoCheckIndexJDK(index, len(b.m.instrumentationMapping_))
-	if b.m.instrumentationMapping_[index].frozen {
-		b.m.instrumentationMapping_[index] = b.m.instrumentationMapping_[index].mutableCopy()
-	}
-	return &VariableMapEntryProto_Builder{m: b.m.instrumentationMapping_[index]}
-}
-
-// Java: JSCompilerStateProto.Builder.clearInstrumentationMapping()
-func (b *JSCompilerStateProto_Builder) ClearInstrumentationMapping() *JSCompilerStateProto_Builder {
-	b.m.instrumentationMapping_ = nil
-	return b
-}
-
 // Java: JSCompilerStateProto.Builder.getConformanceViolationsList()
 func (b *JSCompilerStateProto_Builder) GetConformanceViolationsList() []*ConformanceViolationsProto {
 	out := make([]*ConformanceViolationsProto, len(b.m.conformanceViolations_))
 	for i, x := range b.m.conformanceViolations_ {
-		out[i] = x.freeze()
+		out[i] = x
 	}
 	return out
 }
 
 // Java: JSCompilerStateProto.Builder.getConformanceViolations(int)
 func (b *JSCompilerStateProto_Builder) GetConformanceViolations(index int) *ConformanceViolationsProto {
-	return b.m.GetConformanceViolations(index).freeze()
-}
-
-// Java: JSCompilerStateProto.Builder.getConformanceViolationsCount()
-func (b *JSCompilerStateProto_Builder) GetConformanceViolationsCount() int {
-	return b.m.GetConformanceViolationsCount()
+	return b.m.GetConformanceViolations(index)
 }
 
 // Java: JSCompilerStateProto.Builder.addConformanceViolations(*ConformanceViolationsProto)
@@ -1778,60 +1159,18 @@ func (b *JSCompilerStateProto_Builder) AddAllConformanceViolations(values []*Con
 	return b
 }
 
-// Java: JSCompilerStateProto.Builder.setConformanceViolations(int, *ConformanceViolationsProto)
-func (b *JSCompilerStateProto_Builder) SetConformanceViolationsAtIndex(index int, v *ConformanceViolationsProto) *JSCompilerStateProto_Builder {
-	protoCheckIndexJDK(index, len(b.m.conformanceViolations_))
-	if v == nil {
-		panic(jutil.NewNullPointerException())
-	}
-	b.m.conformanceViolations_[index] = v
-	return b
-}
-
-// Java: JSCompilerStateProto.Builder.addConformanceViolations(ConformanceViolationsProto.Builder)
-func (b *JSCompilerStateProto_Builder) AddConformanceViolationsFromBuilder(builderForValue *ConformanceViolationsProto_Builder) *JSCompilerStateProto_Builder {
-	return b.AddConformanceViolations(builderForValue.Build())
-}
-
-// Java: JSCompilerStateProto.Builder.addConformanceViolationsBuilder()
-func (b *JSCompilerStateProto_Builder) AddConformanceViolationsBuilder() *ConformanceViolationsProto_Builder {
-	x := &ConformanceViolationsProto{memoizedSize: -1}
-	b.m.conformanceViolations_ = append(b.m.conformanceViolations_, x)
-	return &ConformanceViolationsProto_Builder{m: x}
-}
-
-// Java: JSCompilerStateProto.Builder.getConformanceViolationsBuilder(int)
-func (b *JSCompilerStateProto_Builder) GetConformanceViolationsBuilder(index int) *ConformanceViolationsProto_Builder {
-	protoCheckIndexJDK(index, len(b.m.conformanceViolations_))
-	if b.m.conformanceViolations_[index].frozen {
-		b.m.conformanceViolations_[index] = b.m.conformanceViolations_[index].mutableCopy()
-	}
-	return &ConformanceViolationsProto_Builder{m: b.m.conformanceViolations_[index]}
-}
-
-// Java: JSCompilerStateProto.Builder.clearConformanceViolations()
-func (b *JSCompilerStateProto_Builder) ClearConformanceViolations() *JSCompilerStateProto_Builder {
-	b.m.conformanceViolations_ = nil
-	return b
-}
-
 // Java: JSCompilerStateProto.Builder.getUnattributedConformanceViolationsList()
 func (b *JSCompilerStateProto_Builder) GetUnattributedConformanceViolationsList() []*ViolationProto {
 	out := make([]*ViolationProto, len(b.m.unattributedConformanceViolations_))
 	for i, x := range b.m.unattributedConformanceViolations_ {
-		out[i] = x.freeze()
+		out[i] = x
 	}
 	return out
 }
 
 // Java: JSCompilerStateProto.Builder.getUnattributedConformanceViolations(int)
 func (b *JSCompilerStateProto_Builder) GetUnattributedConformanceViolations(index int) *ViolationProto {
-	return b.m.GetUnattributedConformanceViolations(index).freeze()
-}
-
-// Java: JSCompilerStateProto.Builder.getUnattributedConformanceViolationsCount()
-func (b *JSCompilerStateProto_Builder) GetUnattributedConformanceViolationsCount() int {
-	return b.m.GetUnattributedConformanceViolationsCount()
+	return b.m.GetUnattributedConformanceViolations(index)
 }
 
 // Java: JSCompilerStateProto.Builder.addUnattributedConformanceViolations(*ViolationProto)
@@ -1851,324 +1190,18 @@ func (b *JSCompilerStateProto_Builder) AddAllUnattributedConformanceViolations(v
 	return b
 }
 
-// Java: JSCompilerStateProto.Builder.setUnattributedConformanceViolations(int, *ViolationProto)
-func (b *JSCompilerStateProto_Builder) SetUnattributedConformanceViolationsAtIndex(index int, v *ViolationProto) *JSCompilerStateProto_Builder {
-	protoCheckIndexJDK(index, len(b.m.unattributedConformanceViolations_))
-	if v == nil {
-		panic(jutil.NewNullPointerException())
-	}
-	b.m.unattributedConformanceViolations_[index] = v
-	return b
-}
-
-// Java: JSCompilerStateProto.Builder.addUnattributedConformanceViolations(ViolationProto.Builder)
-func (b *JSCompilerStateProto_Builder) AddUnattributedConformanceViolationsFromBuilder(builderForValue *ViolationProto_Builder) *JSCompilerStateProto_Builder {
-	return b.AddUnattributedConformanceViolations(builderForValue.Build())
-}
-
-// Java: JSCompilerStateProto.Builder.addUnattributedConformanceViolationsBuilder()
-func (b *JSCompilerStateProto_Builder) AddUnattributedConformanceViolationsBuilder() *ViolationProto_Builder {
-	x := &ViolationProto{memoizedSize: -1}
-	b.m.unattributedConformanceViolations_ = append(b.m.unattributedConformanceViolations_, x)
-	return &ViolationProto_Builder{m: x}
-}
-
-// Java: JSCompilerStateProto.Builder.getUnattributedConformanceViolationsBuilder(int)
-func (b *JSCompilerStateProto_Builder) GetUnattributedConformanceViolationsBuilder(index int) *ViolationProto_Builder {
-	protoCheckIndexJDK(index, len(b.m.unattributedConformanceViolations_))
-	if b.m.unattributedConformanceViolations_[index].frozen {
-		b.m.unattributedConformanceViolations_[index] = b.m.unattributedConformanceViolations_[index].mutableCopy()
-	}
-	return &ViolationProto_Builder{m: b.m.unattributedConformanceViolations_[index]}
-}
-
-// Java: JSCompilerStateProto.Builder.clearUnattributedConformanceViolations()
-func (b *JSCompilerStateProto_Builder) ClearUnattributedConformanceViolations() *JSCompilerStateProto_Builder {
-	b.m.unattributedConformanceViolations_ = nil
-	return b
-}
-
-// mergeFrom is GeneratedMessage.Builder.mergeFrom(JSCompilerStateProto) on a mutable m.
-func (m *JSCompilerStateProto) mergeFrom(other *JSCompilerStateProto) {
-	if other == JSCompilerStateProto_GetDefaultInstance() {
-		return
-	}
-	m.allowableFeatures_ = append(m.allowableFeatures_, other.allowableFeatures_...)
-	if other.typeCheckingHasRun_ {
-		m.typeCheckingHasRun_ = other.typeCheckingHasRun_
-	}
-	if other.hasRegExpGlobalReferences_ {
-		m.hasRegExpGlobalReferences_ = other.hasRegExpGlobalReferences_
-	}
-	if other.lifeCycleStage_ != 0 {
-		m.lifeCycleStage_ = other.lifeCycleStage_
-	}
-	if other.mergedPrecompiledLibraries_ {
-		m.mergedPrecompiledLibraries_ = other.mergedPrecompiledLibraries_
-	}
-	m.chunks_ = append(m.chunks_, other.chunks_...)
-	if other.uniqueNameId_ != 0 {
-		m.uniqueNameId_ = other.uniqueNameId_
-	}
-	m.uniqueIdSupplier_ = append(m.uniqueIdSupplier_, other.uniqueIdSupplier_...)
-	m.exportedNames_ = append(m.exportedNames_, other.exportedNames_...)
-	if other.hasCssNames_ {
-		m.hasCssNames_ = other.hasCssNames_
-	}
-	m.cssNames_ = append(m.cssNames_, other.cssNames_...)
-	if other.bitField0_&(1<<0) != 0 {
-		m.idGeneratorMap_ = other.idGeneratorMap_
-		m.bitField0_ |= 1 << 0
-	}
-	if other.transpiledFiles_ {
-		m.transpiledFiles_ = other.transpiledFiles_
-	}
-	if other.idGeneratorCurrentId_ != 0 {
-		m.idGeneratorCurrentId_ = other.idGeneratorCurrentId_
-	}
-	if other.runJ2ClPasses_ {
-		m.runJ2ClPasses_ = other.runJ2ClPasses_
-	}
-	m.externs_ = append(m.externs_, other.externs_...)
-	m.injectedLibraries_ = append(m.injectedLibraries_, other.injectedLibraries_...)
-	if other.lastInjectedLibraryIndexInFirstScript_ != 0 {
-		m.lastInjectedLibraryIndexInFirstScript_ = other.lastInjectedLibraryIndexInFirstScript_
-	}
-	if other.accessorSummary_ != nil {
-		if m.accessorSummary_ != nil {
-			x := m.accessorSummary_.mutableCopy()
-			x.mergeFrom(other.accessorSummary_)
-			m.accessorSummary_ = x.freeze()
-		} else {
-			m.accessorSummary_ = other.accessorSummary_
-		}
-	}
-	if other.hasStringMap_ {
-		m.hasStringMap_ = other.hasStringMap_
-	}
-	m.stringMap_ = append(m.stringMap_, other.stringMap_...)
-	if other.hasInstrumentationMapping_ {
-		m.hasInstrumentationMapping_ = other.hasInstrumentationMapping_
-	}
-	m.instrumentationMapping_ = append(m.instrumentationMapping_, other.instrumentationMapping_...)
-	m.conformanceViolations_ = append(m.conformanceViolations_, other.conformanceViolations_...)
-	m.unattributedConformanceViolations_ = append(m.unattributedConformanceViolations_, other.unattributedConformanceViolations_...)
-	m.unknownFields = append(m.unknownFields, other.unknownFields...)
-}
-
-// Java: JSCompilerStateProto.equals(Object)
-func (m *JSCompilerStateProto) Equals(obj any) bool {
-	other, ok := obj.(*JSCompilerStateProto)
-	if !ok || other == nil {
-		return false
-	}
-	if m == other {
-		return true
-	}
-	if len(m.allowableFeatures_) != len(other.allowableFeatures_) {
-		return false
-	}
-	for i := range m.allowableFeatures_ {
-		if !(m.allowableFeatures_[i] == other.allowableFeatures_[i]) {
-			return false
-		}
-	}
-	if !(m.typeCheckingHasRun_ == other.typeCheckingHasRun_) {
-		return false
-	}
-	if !(m.hasRegExpGlobalReferences_ == other.hasRegExpGlobalReferences_) {
-		return false
-	}
-	if !(m.lifeCycleStage_ == other.lifeCycleStage_) {
-		return false
-	}
-	if !(m.mergedPrecompiledLibraries_ == other.mergedPrecompiledLibraries_) {
-		return false
-	}
-	if len(m.chunks_) != len(other.chunks_) {
-		return false
-	}
-	for i := range m.chunks_ {
-		if !(m.chunks_[i].Equals(other.chunks_[i])) {
-			return false
-		}
-	}
-	if !(m.uniqueNameId_ == other.uniqueNameId_) {
-		return false
-	}
-	if len(m.uniqueIdSupplier_) != len(other.uniqueIdSupplier_) {
-		return false
-	}
-	for i := range m.uniqueIdSupplier_ {
-		if !(m.uniqueIdSupplier_[i].Equals(other.uniqueIdSupplier_[i])) {
-			return false
-		}
-	}
-	if len(m.exportedNames_) != len(other.exportedNames_) {
-		return false
-	}
-	for i := range m.exportedNames_ {
-		if !(m.exportedNames_[i] == other.exportedNames_[i]) {
-			return false
-		}
-	}
-	if !(m.hasCssNames_ == other.hasCssNames_) {
-		return false
-	}
-	if len(m.cssNames_) != len(other.cssNames_) {
-		return false
-	}
-	for i := range m.cssNames_ {
-		if !(m.cssNames_[i] == other.cssNames_[i]) {
-			return false
-		}
-	}
-	if m.HasIdGeneratorMap() != other.HasIdGeneratorMap() {
-		return false
-	}
-	if m.HasIdGeneratorMap() && !(m.idGeneratorMap_ == other.idGeneratorMap_) {
-		return false
-	}
-	if !(m.transpiledFiles_ == other.transpiledFiles_) {
-		return false
-	}
-	if !(m.idGeneratorCurrentId_ == other.idGeneratorCurrentId_) {
-		return false
-	}
-	if !(m.runJ2ClPasses_ == other.runJ2ClPasses_) {
-		return false
-	}
-	if len(m.externs_) != len(other.externs_) {
-		return false
-	}
-	for i := range m.externs_ {
-		if !(m.externs_[i] == other.externs_[i]) {
-			return false
-		}
-	}
-	if len(m.injectedLibraries_) != len(other.injectedLibraries_) {
-		return false
-	}
-	for i := range m.injectedLibraries_ {
-		if !(m.injectedLibraries_[i] == other.injectedLibraries_[i]) {
-			return false
-		}
-	}
-	if !(m.lastInjectedLibraryIndexInFirstScript_ == other.lastInjectedLibraryIndexInFirstScript_) {
-		return false
-	}
-	if m.HasAccessorSummary() != other.HasAccessorSummary() {
-		return false
-	}
-	if m.HasAccessorSummary() && !m.accessorSummary_.Equals(other.accessorSummary_) {
-		return false
-	}
-	if !(m.hasStringMap_ == other.hasStringMap_) {
-		return false
-	}
-	if len(m.stringMap_) != len(other.stringMap_) {
-		return false
-	}
-	for i := range m.stringMap_ {
-		if !(m.stringMap_[i].Equals(other.stringMap_[i])) {
-			return false
-		}
-	}
-	if !(m.hasInstrumentationMapping_ == other.hasInstrumentationMapping_) {
-		return false
-	}
-	if len(m.instrumentationMapping_) != len(other.instrumentationMapping_) {
-		return false
-	}
-	for i := range m.instrumentationMapping_ {
-		if !(m.instrumentationMapping_[i].Equals(other.instrumentationMapping_[i])) {
-			return false
-		}
-	}
-	if len(m.conformanceViolations_) != len(other.conformanceViolations_) {
-		return false
-	}
-	for i := range m.conformanceViolations_ {
-		if !(m.conformanceViolations_[i].Equals(other.conformanceViolations_[i])) {
-			return false
-		}
-	}
-	if len(m.unattributedConformanceViolations_) != len(other.unattributedConformanceViolations_) {
-		return false
-	}
-	for i := range m.unattributedConformanceViolations_ {
-		if !(m.unattributedConformanceViolations_[i].Equals(other.unattributedConformanceViolations_[i])) {
-			return false
-		}
-	}
-	return protoBytesEqual(protoCanonicalUnknownFields(m.unknownFields), protoCanonicalUnknownFields(other.unknownFields))
-}
-
-// HashCode is consistent with Equals. (Java's generated hashCode mixes in
-// the descriptor's identity hash, so its values are not reproducible.)
-func (m *JSCompilerStateProto) HashCode() int32 {
-	h := int32(41)
-	for _, x := range m.allowableFeatures_ {
-		h = 31*h + x
-	}
-	h = protoHashBool(h, m.typeCheckingHasRun_)
-	h = protoHashBool(h, m.hasRegExpGlobalReferences_)
-	h = 31*h + m.lifeCycleStage_
-	h = protoHashBool(h, m.mergedPrecompiledLibraries_)
-	for _, x := range m.chunks_ {
-		h = 31*h + x.HashCode()
-	}
-	h = 31*h + m.uniqueNameId_
-	for _, x := range m.uniqueIdSupplier_ {
-		h = 31*h + x.HashCode()
-	}
-	for _, x := range m.exportedNames_ {
-		h = protoHashString(h, x)
-	}
-	h = protoHashBool(h, m.hasCssNames_)
-	for _, x := range m.cssNames_ {
-		h = protoHashString(h, x)
-	}
-	h = protoHashString(h, m.idGeneratorMap_)
-	h = protoHashBool(h, m.transpiledFiles_)
-	h = 31*h + m.idGeneratorCurrentId_
-	h = protoHashBool(h, m.runJ2ClPasses_)
-	for _, x := range m.externs_ {
-		h = protoHashString(h, x)
-	}
-	for _, x := range m.injectedLibraries_ {
-		h = protoHashString(h, x)
-	}
-	h = 31*h + m.lastInjectedLibraryIndexInFirstScript_
-	if m.accessorSummary_ != nil {
-		h = 31*h + m.accessorSummary_.HashCode()
-	}
-	h = protoHashBool(h, m.hasStringMap_)
-	for _, x := range m.stringMap_ {
-		h = 31*h + x.HashCode()
-	}
-	h = protoHashBool(h, m.hasInstrumentationMapping_)
-	for _, x := range m.instrumentationMapping_ {
-		h = 31*h + x.HashCode()
-	}
-	for _, x := range m.conformanceViolations_ {
-		h = 31*h + x.HashCode()
-	}
-	for _, x := range m.unattributedConformanceViolations_ {
-		h = 31*h + x.HashCode()
-	}
-	return h
-}
-
 // appendTo is JSCompilerStateProto.writeTo(CodedOutputStream): fields in number order, then unknown fields.
 func (m *JSCompilerStateProto) appendTo(b []byte) []byte {
 	if len(m.allowableFeatures_) > 0 {
-		var packed []byte
+		packedLen := 0
 		for _, x := range m.allowableFeatures_ {
-			packed = protoAppendInt32(packed, x)
+			packedLen += protoVarintLen(uint64(int64(x)))
 		}
 		b = protoAppendTag(b, 1, 2)
-		b = protoAppendBytes(b, packed)
+		b = protoAppendVarint(b, uint64(packedLen))
+		for _, x := range m.allowableFeatures_ {
+			b = protoAppendInt32(b, x)
+		}
 	}
 	if m.typeCheckingHasRun_ {
 		b = protoAppendTag(b, 2, 0)
@@ -2281,8 +1314,8 @@ func (m *JSCompilerStateProto) appendTo(b []byte) []byte {
 
 // serializedSize is getSerializedSize() (memoized once immutable).
 func (m *JSCompilerStateProto) serializedSize() int {
-	if m.frozen && m.memoizedSize >= 0 {
-		return m.memoizedSize
+	if m.cachedSize > 0 {
+		return m.cachedSize - 1
 	}
 	size := 0
 	for _, x := range m.chunks_ {
@@ -2313,110 +1346,75 @@ func (m *JSCompilerStateProto) serializedSize() int {
 		s := x.serializedSize()
 		size += 2 + protoVarintLen(uint64(s)) + s
 	}
-	size += len(m.appendScalarsOnly(nil))
-	if m.frozen {
-		m.memoizedSize = size
-	}
-	return size
-}
-
-// appendScalarsOnly encodes the non-message fields and unknown fields (for sizing).
-func (m *JSCompilerStateProto) appendScalarsOnly(b []byte) []byte {
 	if len(m.allowableFeatures_) > 0 {
-		var packed []byte
+		packedLen := 0
 		for _, x := range m.allowableFeatures_ {
-			packed = protoAppendInt32(packed, x)
+			packedLen += protoVarintLen(uint64(int64(x)))
 		}
-		b = protoAppendTag(b, 1, 2)
-		b = protoAppendBytes(b, packed)
+		size += 1 + protoVarintLen(uint64(packedLen)) + packedLen
 	}
 	if m.typeCheckingHasRun_ {
-		b = protoAppendTag(b, 2, 0)
-		b = protoAppendBool(b, m.typeCheckingHasRun_)
+		size += 2
 	}
 	if m.hasRegExpGlobalReferences_ {
-		b = protoAppendTag(b, 3, 0)
-		b = protoAppendBool(b, m.hasRegExpGlobalReferences_)
+		size += 2
 	}
 	if m.lifeCycleStage_ != 0 {
-		b = protoAppendTag(b, 4, 0)
-		b = protoAppendInt32(b, m.lifeCycleStage_)
+		size += 1 + protoVarintLen(uint64(int64(m.lifeCycleStage_)))
 	}
 	if m.mergedPrecompiledLibraries_ {
-		b = protoAppendTag(b, 5, 0)
-		b = protoAppendBool(b, m.mergedPrecompiledLibraries_)
+		size += 2
 	}
 	if m.uniqueNameId_ != 0 {
-		b = protoAppendTag(b, 7, 0)
-		b = protoAppendInt32(b, m.uniqueNameId_)
+		size += 1 + protoVarintLen(uint64(int64(m.uniqueNameId_)))
 	}
 	for _, x := range m.exportedNames_ {
-		b = protoAppendTag(b, 9, 2)
-		b = protoAppendString(b, x)
+		size += protoStringSize(1, x)
 	}
 	if m.hasCssNames_ {
-		b = protoAppendTag(b, 10, 0)
-		b = protoAppendBool(b, m.hasCssNames_)
+		size += 2
 	}
 	for _, x := range m.cssNames_ {
-		b = protoAppendTag(b, 11, 2)
-		b = protoAppendString(b, x)
+		size += protoStringSize(1, x)
 	}
 	if m.bitField0_&(1<<0) != 0 {
-		b = protoAppendTag(b, 12, 2)
-		b = protoAppendString(b, m.idGeneratorMap_)
+		size += protoStringSize(1, m.idGeneratorMap_)
 	}
 	if m.transpiledFiles_ {
-		b = protoAppendTag(b, 13, 0)
-		b = protoAppendBool(b, m.transpiledFiles_)
+		size += 2
 	}
 	if m.idGeneratorCurrentId_ != 0 {
-		b = protoAppendTag(b, 14, 0)
-		b = protoAppendInt32(b, m.idGeneratorCurrentId_)
+		size += 1 + protoVarintLen(uint64(int64(m.idGeneratorCurrentId_)))
 	}
 	if m.runJ2ClPasses_ {
-		b = protoAppendTag(b, 15, 0)
-		b = protoAppendBool(b, m.runJ2ClPasses_)
+		size += 2
 	}
 	for _, x := range m.externs_ {
-		b = protoAppendTag(b, 16, 2)
-		b = protoAppendString(b, x)
+		size += protoStringSize(2, x)
 	}
 	for _, x := range m.injectedLibraries_ {
-		b = protoAppendTag(b, 17, 2)
-		b = protoAppendString(b, x)
+		size += protoStringSize(2, x)
 	}
 	if m.lastInjectedLibraryIndexInFirstScript_ != 0 {
-		b = protoAppendTag(b, 18, 0)
-		b = protoAppendInt32(b, m.lastInjectedLibraryIndexInFirstScript_)
+		size += 2 + protoVarintLen(uint64(int64(m.lastInjectedLibraryIndexInFirstScript_)))
 	}
 	if m.hasStringMap_ {
-		b = protoAppendTag(b, 20, 0)
-		b = protoAppendBool(b, m.hasStringMap_)
+		size += 3
 	}
 	if m.hasInstrumentationMapping_ {
-		b = protoAppendTag(b, 22, 0)
-		b = protoAppendBool(b, m.hasInstrumentationMapping_)
+		size += 3
 	}
 	if len(m.unknownFields) > 0 {
-		b = append(b, protoCanonicalUnknownFields(m.unknownFields)...)
+		size += len(protoCanonicalUnknownFields(m.unknownFields))
 	}
-	return b
+	m.cachedSize = size + 1
+	return size
 }
-
-// Java: JSCompilerStateProto.getSerializedSize()
-func (m *JSCompilerStateProto) GetSerializedSize() int { return m.serializedSize() }
 
 // Java: JSCompilerStateProto.toByteArray()
 func (m *JSCompilerStateProto) ToByteArray() []byte {
 	return m.appendTo(make([]byte, 0, m.serializedSize()))
 }
-
-// Java: JSCompilerStateProto.toByteString()
-func (m *JSCompilerStateProto) ToByteString() []byte { return m.ToByteArray() }
-
-// Java: JSCompilerStateProto.isInitialized()
-func (m *JSCompilerStateProto) IsInitialized() bool { return true }
 
 // mergeFromReader is JSCompilerStateProto.Builder.mergeFrom(CodedInputStream) on a mutable m.
 func (m *JSCompilerStateProto) mergeFromReader(r *protoReader) {
@@ -2440,17 +1438,15 @@ func (m *JSCompilerStateProto) mergeFromReader(r *protoReader) {
 			m.mergedPrecompiledLibraries_ = r.readBool()
 		case 50:
 			data := r.readMessageBytes()
-			x := &ChunkProto{memoizedSize: -1}
+			x := &ChunkProto{}
 			x.mergeFromReader(r.sub(data))
-			x.frozen = true
 			m.chunks_ = append(m.chunks_, x)
 		case 56:
 			m.uniqueNameId_ = r.readInt32()
 		case 66:
 			data := r.readMessageBytes()
-			x := &UniqueIdProto{memoizedSize: -1}
+			x := &UniqueIdProto{}
 			x.mergeFromReader(r.sub(data))
-			x.frozen = true
 			m.uniqueIdSupplier_ = append(m.uniqueIdSupplier_, x)
 		case 74:
 			m.exportedNames_ = append(m.exportedNames_, r.readStringRequireUtf8())
@@ -2477,40 +1473,36 @@ func (m *JSCompilerStateProto) mergeFromReader(r *protoReader) {
 			data := r.readMessageBytes()
 			var x *AccessorSummaryProto
 			if m.accessorSummary_ != nil {
-				x = m.accessorSummary_.mutableCopy()
+				x = m.accessorSummary_
+				x.cachedSize = 0
 			} else {
-				x = &AccessorSummaryProto{memoizedSize: -1}
+				x = &AccessorSummaryProto{}
 			}
 			x.mergeFromReader(r.sub(data))
-			x.frozen = true
 			m.accessorSummary_ = x
 		case 160:
 			m.hasStringMap_ = r.readBool()
 		case 170:
 			data := r.readMessageBytes()
-			x := &VariableMapEntryProto{memoizedSize: -1}
+			x := &VariableMapEntryProto{}
 			x.mergeFromReader(r.sub(data))
-			x.frozen = true
 			m.stringMap_ = append(m.stringMap_, x)
 		case 176:
 			m.hasInstrumentationMapping_ = r.readBool()
 		case 186:
 			data := r.readMessageBytes()
-			x := &VariableMapEntryProto{memoizedSize: -1}
+			x := &VariableMapEntryProto{}
 			x.mergeFromReader(r.sub(data))
-			x.frozen = true
 			m.instrumentationMapping_ = append(m.instrumentationMapping_, x)
 		case 194:
 			data := r.readMessageBytes()
-			x := &ConformanceViolationsProto{memoizedSize: -1}
+			x := &ConformanceViolationsProto{}
 			x.mergeFromReader(r.sub(data))
-			x.frozen = true
 			m.conformanceViolations_ = append(m.conformanceViolations_, x)
 		case 202:
 			data := r.readMessageBytes()
-			x := &ViolationProto{memoizedSize: -1}
+			x := &ViolationProto{}
 			x.mergeFromReader(r.sub(data))
-			x.frozen = true
 			m.unattributedConformanceViolations_ = append(m.unattributedConformanceViolations_, x)
 		default:
 			r.skipField(tag)
@@ -2613,8 +1605,7 @@ type ChunkProto struct {
 	dependencies_ []int32
 	inputIds_     []string
 	unknownFields []byte
-	frozen        bool
-	memoizedSize  int
+	cachedSize    int
 }
 
 // Field numbers (ChunkProto.X_FIELD_NUMBER).
@@ -2623,57 +1614,6 @@ const (
 	ChunkProto_DEPENDENCIES_FIELD_NUMBER = 2
 	ChunkProto_INPUT_IDS_FIELD_NUMBER    = 3
 )
-
-var chunkProto_DEFAULT_INSTANCE = &ChunkProto{frozen: true, memoizedSize: -1}
-
-// Java: ChunkProto.getDefaultInstance()
-func ChunkProto_GetDefaultInstance() *ChunkProto { return chunkProto_DEFAULT_INSTANCE }
-
-// Java: ChunkProto.newBuilder()
-func ChunkProto_NewBuilder() *ChunkProto_Builder {
-	return &ChunkProto_Builder{m: &ChunkProto{memoizedSize: -1}}
-}
-
-// Java: ChunkProto.newBuilder(ChunkProto)
-func ChunkProto_NewBuilderFrom(prototype *ChunkProto) *ChunkProto_Builder {
-	return prototype.ToBuilder()
-}
-
-// Java: ChunkProto.toBuilder()
-func (m *ChunkProto) ToBuilder() *ChunkProto_Builder { return &ChunkProto_Builder{m: m.mutableCopy()} }
-
-// ChunkProto_ParseFrom panics with *InvalidProtocolBufferException on malformed input.
-//
-// Java: ChunkProto.parseFrom(byte[])
-func ChunkProto_ParseFrom(data []byte) *ChunkProto {
-	m := &ChunkProto{memoizedSize: -1}
-	m.mergeFromReader(&protoReader{b: data})
-	m.frozen = true
-	return m
-}
-
-// mutableCopy is a shallow copy that a builder may modify.
-func (m *ChunkProto) mutableCopy() *ChunkProto {
-	c := *m
-	c.frozen = false
-	c.memoizedSize = -1
-	c.dependencies_ = append([]int32(nil), m.dependencies_...)
-	c.inputIds_ = append([]string(nil), m.inputIds_...)
-	return &c
-}
-
-// freeze returns an immutable copy (shared when m is already immutable).
-func (m *ChunkProto) freeze() *ChunkProto {
-	if m == nil || m.frozen {
-		return m
-	}
-	c := *m
-	c.frozen = true
-	c.memoizedSize = -1
-	c.dependencies_ = append([]int32(nil), m.dependencies_...)
-	c.inputIds_ = append([]string(nil), m.inputIds_...)
-	return &c
-}
 
 // Java: ChunkProto.getName()
 func (m *ChunkProto) GetName() string {
@@ -2689,190 +1629,8 @@ func (m *ChunkProto) GetDependencies(index int) int32 {
 	return m.dependencies_[index]
 }
 
-// Java: ChunkProto.getDependenciesCount()
-func (m *ChunkProto) GetDependenciesCount() int { return len(m.dependencies_) }
-
 // Java: ChunkProto.getInputIdsList()
 func (m *ChunkProto) GetInputIdsList() []string { return m.inputIds_ }
-
-// Java: ChunkProto.getInputIds(int)
-func (m *ChunkProto) GetInputIds(index int) string {
-	protoCheckIndexJDK(index, len(m.inputIds_))
-	return m.inputIds_[index]
-}
-
-// Java: ChunkProto.getInputIdsCount()
-func (m *ChunkProto) GetInputIdsCount() int { return len(m.inputIds_) }
-
-// ChunkProto_Builder is ChunkProto.Builder.
-type ChunkProto_Builder struct{ m *ChunkProto }
-
-// Java: ChunkProto.Builder.build()
-func (b *ChunkProto_Builder) Build() *ChunkProto { return b.m.freeze() }
-
-// Java: ChunkProto.Builder.buildPartial()
-func (b *ChunkProto_Builder) BuildPartial() *ChunkProto { return b.m.freeze() }
-
-// Java: ChunkProto.Builder.clear()
-func (b *ChunkProto_Builder) Clear() *ChunkProto_Builder {
-	b.m = &ChunkProto{memoizedSize: -1}
-	return b
-}
-
-// Java: ChunkProto.Builder.mergeFrom(ChunkProto)
-func (b *ChunkProto_Builder) MergeFrom(other *ChunkProto) *ChunkProto_Builder {
-	b.m.mergeFrom(other)
-	return b
-}
-
-// Java: ChunkProto.Builder.getName()
-func (b *ChunkProto_Builder) GetName() string { return b.m.GetName() }
-
-// Java: ChunkProto.Builder.setName(String)
-func (b *ChunkProto_Builder) SetName(v string) *ChunkProto_Builder {
-	b.m.name_ = v
-	return b
-}
-
-// Java: ChunkProto.Builder.clearName()
-func (b *ChunkProto_Builder) ClearName() *ChunkProto_Builder {
-	b.m.name_ = ""
-	return b
-}
-
-// Java: ChunkProto.Builder.getDependenciesList()
-func (b *ChunkProto_Builder) GetDependenciesList() []int32 {
-	return append([]int32(nil), b.m.GetDependenciesList()...)
-}
-
-// Java: ChunkProto.Builder.getDependencies(int)
-func (b *ChunkProto_Builder) GetDependencies(index int) int32 { return b.m.GetDependencies(index) }
-
-// Java: ChunkProto.Builder.getDependenciesCount()
-func (b *ChunkProto_Builder) GetDependenciesCount() int { return b.m.GetDependenciesCount() }
-
-// Java: ChunkProto.Builder.addDependencies(int32)
-func (b *ChunkProto_Builder) AddDependencies(v int32) *ChunkProto_Builder {
-	b.m.dependencies_ = append(b.m.dependencies_, v)
-	return b
-}
-
-// Java: ChunkProto.Builder.addAllDependencies(Iterable)
-func (b *ChunkProto_Builder) AddAllDependencies(values []int32) *ChunkProto_Builder {
-	for _, v := range values {
-		b.AddDependencies(v)
-	}
-	return b
-}
-
-// Java: ChunkProto.Builder.setDependencies(int, int32)
-func (b *ChunkProto_Builder) SetDependenciesAtIndex(index int, v int32) *ChunkProto_Builder {
-	protoCheckIndex(index, len(b.m.dependencies_))
-	b.m.dependencies_[index] = v
-	return b
-}
-
-// Java: ChunkProto.Builder.clearDependencies()
-func (b *ChunkProto_Builder) ClearDependencies() *ChunkProto_Builder {
-	b.m.dependencies_ = nil
-	return b
-}
-
-// Java: ChunkProto.Builder.getInputIdsList()
-func (b *ChunkProto_Builder) GetInputIdsList() []string {
-	return append([]string(nil), b.m.GetInputIdsList()...)
-}
-
-// Java: ChunkProto.Builder.getInputIds(int)
-func (b *ChunkProto_Builder) GetInputIds(index int) string { return b.m.GetInputIds(index) }
-
-// Java: ChunkProto.Builder.getInputIdsCount()
-func (b *ChunkProto_Builder) GetInputIdsCount() int { return b.m.GetInputIdsCount() }
-
-// Java: ChunkProto.Builder.addInputIds(string)
-func (b *ChunkProto_Builder) AddInputIds(v string) *ChunkProto_Builder {
-	b.m.inputIds_ = append(b.m.inputIds_, v)
-	return b
-}
-
-// Java: ChunkProto.Builder.addAllInputIds(Iterable)
-func (b *ChunkProto_Builder) AddAllInputIds(values []string) *ChunkProto_Builder {
-	for _, v := range values {
-		b.AddInputIds(v)
-	}
-	return b
-}
-
-// Java: ChunkProto.Builder.setInputIds(int, string)
-func (b *ChunkProto_Builder) SetInputIdsAtIndex(index int, v string) *ChunkProto_Builder {
-	protoCheckIndexJDK(index, len(b.m.inputIds_))
-	b.m.inputIds_[index] = v
-	return b
-}
-
-// Java: ChunkProto.Builder.clearInputIds()
-func (b *ChunkProto_Builder) ClearInputIds() *ChunkProto_Builder {
-	b.m.inputIds_ = nil
-	return b
-}
-
-// mergeFrom is GeneratedMessage.Builder.mergeFrom(ChunkProto) on a mutable m.
-func (m *ChunkProto) mergeFrom(other *ChunkProto) {
-	if other == ChunkProto_GetDefaultInstance() {
-		return
-	}
-	if other.name_ != "" {
-		m.name_ = other.name_
-	}
-	m.dependencies_ = append(m.dependencies_, other.dependencies_...)
-	m.inputIds_ = append(m.inputIds_, other.inputIds_...)
-	m.unknownFields = append(m.unknownFields, other.unknownFields...)
-}
-
-// Java: ChunkProto.equals(Object)
-func (m *ChunkProto) Equals(obj any) bool {
-	other, ok := obj.(*ChunkProto)
-	if !ok || other == nil {
-		return false
-	}
-	if m == other {
-		return true
-	}
-	if !(m.name_ == other.name_) {
-		return false
-	}
-	if len(m.dependencies_) != len(other.dependencies_) {
-		return false
-	}
-	for i := range m.dependencies_ {
-		if !(m.dependencies_[i] == other.dependencies_[i]) {
-			return false
-		}
-	}
-	if len(m.inputIds_) != len(other.inputIds_) {
-		return false
-	}
-	for i := range m.inputIds_ {
-		if !(m.inputIds_[i] == other.inputIds_[i]) {
-			return false
-		}
-	}
-	return protoBytesEqual(protoCanonicalUnknownFields(m.unknownFields), protoCanonicalUnknownFields(other.unknownFields))
-}
-
-// HashCode is consistent with Equals. (Java's generated hashCode mixes in
-// the descriptor's identity hash, so its values are not reproducible.)
-func (m *ChunkProto) HashCode() int32 {
-	h := int32(41)
-	h = protoHashString(h, m.name_)
-	for _, x := range m.dependencies_ {
-		h = 31*h + x
-	}
-	for _, x := range m.inputIds_ {
-		h = protoHashString(h, x)
-	}
-	return h
-}
 
 // appendTo is ChunkProto.writeTo(CodedOutputStream): fields in number order, then unknown fields.
 func (m *ChunkProto) appendTo(b []byte) []byte {
@@ -2881,12 +1639,15 @@ func (m *ChunkProto) appendTo(b []byte) []byte {
 		b = protoAppendString(b, m.name_)
 	}
 	if len(m.dependencies_) > 0 {
-		var packed []byte
+		packedLen := 0
 		for _, x := range m.dependencies_ {
-			packed = protoAppendInt32(packed, x)
+			packedLen += protoVarintLen(uint64(int64(x)))
 		}
 		b = protoAppendTag(b, 2, 2)
-		b = protoAppendBytes(b, packed)
+		b = protoAppendVarint(b, uint64(packedLen))
+		for _, x := range m.dependencies_ {
+			b = protoAppendInt32(b, x)
+		}
 	}
 	for _, x := range m.inputIds_ {
 		b = protoAppendTag(b, 3, 2)
@@ -2900,52 +1661,32 @@ func (m *ChunkProto) appendTo(b []byte) []byte {
 
 // serializedSize is getSerializedSize() (memoized once immutable).
 func (m *ChunkProto) serializedSize() int {
-	if m.frozen && m.memoizedSize >= 0 {
-		return m.memoizedSize
+	if m.cachedSize > 0 {
+		return m.cachedSize - 1
 	}
 	size := 0
-	size += len(m.appendScalarsOnly(nil))
-	if m.frozen {
-		m.memoizedSize = size
+	if m.name_ != "" {
+		size += protoStringSize(1, m.name_)
 	}
+	if len(m.dependencies_) > 0 {
+		packedLen := 0
+		for _, x := range m.dependencies_ {
+			packedLen += protoVarintLen(uint64(int64(x)))
+		}
+		size += 1 + protoVarintLen(uint64(packedLen)) + packedLen
+	}
+	for _, x := range m.inputIds_ {
+		size += protoStringSize(1, x)
+	}
+	if len(m.unknownFields) > 0 {
+		size += len(protoCanonicalUnknownFields(m.unknownFields))
+	}
+	m.cachedSize = size + 1
 	return size
 }
 
-// appendScalarsOnly encodes the non-message fields and unknown fields (for sizing).
-func (m *ChunkProto) appendScalarsOnly(b []byte) []byte {
-	if m.name_ != "" {
-		b = protoAppendTag(b, 1, 2)
-		b = protoAppendString(b, m.name_)
-	}
-	if len(m.dependencies_) > 0 {
-		var packed []byte
-		for _, x := range m.dependencies_ {
-			packed = protoAppendInt32(packed, x)
-		}
-		b = protoAppendTag(b, 2, 2)
-		b = protoAppendBytes(b, packed)
-	}
-	for _, x := range m.inputIds_ {
-		b = protoAppendTag(b, 3, 2)
-		b = protoAppendString(b, x)
-	}
-	if len(m.unknownFields) > 0 {
-		b = append(b, protoCanonicalUnknownFields(m.unknownFields)...)
-	}
-	return b
-}
-
-// Java: ChunkProto.getSerializedSize()
-func (m *ChunkProto) GetSerializedSize() int { return m.serializedSize() }
-
 // Java: ChunkProto.toByteArray()
 func (m *ChunkProto) ToByteArray() []byte { return m.appendTo(make([]byte, 0, m.serializedSize())) }
-
-// Java: ChunkProto.toByteString()
-func (m *ChunkProto) ToByteString() []byte { return m.ToByteArray() }
-
-// Java: ChunkProto.isInitialized()
-func (m *ChunkProto) IsInitialized() bool { return true }
 
 // mergeFromReader is ChunkProto.Builder.mergeFrom(CodedInputStream) on a mutable m.
 func (m *ChunkProto) mergeFromReader(r *protoReader) {
@@ -2997,8 +1738,7 @@ type UniqueIdProto struct {
 	hash_         int32
 	counter_      int32
 	unknownFields []byte
-	frozen        bool
-	memoizedSize  int
+	cachedSize    int
 }
 
 // Field numbers (UniqueIdProto.X_FIELD_NUMBER).
@@ -3007,53 +1747,9 @@ const (
 	UniqueIdProto_COUNTER_FIELD_NUMBER = 2
 )
 
-var uniqueIdProto_DEFAULT_INSTANCE = &UniqueIdProto{frozen: true, memoizedSize: -1}
-
-// Java: UniqueIdProto.getDefaultInstance()
-func UniqueIdProto_GetDefaultInstance() *UniqueIdProto { return uniqueIdProto_DEFAULT_INSTANCE }
-
 // Java: UniqueIdProto.newBuilder()
 func UniqueIdProto_NewBuilder() *UniqueIdProto_Builder {
-	return &UniqueIdProto_Builder{m: &UniqueIdProto{memoizedSize: -1}}
-}
-
-// Java: UniqueIdProto.newBuilder(UniqueIdProto)
-func UniqueIdProto_NewBuilderFrom(prototype *UniqueIdProto) *UniqueIdProto_Builder {
-	return prototype.ToBuilder()
-}
-
-// Java: UniqueIdProto.toBuilder()
-func (m *UniqueIdProto) ToBuilder() *UniqueIdProto_Builder {
-	return &UniqueIdProto_Builder{m: m.mutableCopy()}
-}
-
-// UniqueIdProto_ParseFrom panics with *InvalidProtocolBufferException on malformed input.
-//
-// Java: UniqueIdProto.parseFrom(byte[])
-func UniqueIdProto_ParseFrom(data []byte) *UniqueIdProto {
-	m := &UniqueIdProto{memoizedSize: -1}
-	m.mergeFromReader(&protoReader{b: data})
-	m.frozen = true
-	return m
-}
-
-// mutableCopy is a shallow copy that a builder may modify.
-func (m *UniqueIdProto) mutableCopy() *UniqueIdProto {
-	c := *m
-	c.frozen = false
-	c.memoizedSize = -1
-	return &c
-}
-
-// freeze returns an immutable copy (shared when m is already immutable).
-func (m *UniqueIdProto) freeze() *UniqueIdProto {
-	if m == nil || m.frozen {
-		return m
-	}
-	c := *m
-	c.frozen = true
-	c.memoizedSize = -1
-	return &c
+	return &UniqueIdProto_Builder{m: &UniqueIdProto{}}
 }
 
 // Java: UniqueIdProto.getHash()
@@ -3070,20 +1766,22 @@ func (m *UniqueIdProto) GetCounter() int32 {
 type UniqueIdProto_Builder struct{ m *UniqueIdProto }
 
 // Java: UniqueIdProto.Builder.build()
-func (b *UniqueIdProto_Builder) Build() *UniqueIdProto { return b.m.freeze() }
+func (b *UniqueIdProto_Builder) Build() *UniqueIdProto {
+	c := *b.m
+	c.cachedSize = 0
+	return &c
+}
 
 // Java: UniqueIdProto.Builder.buildPartial()
-func (b *UniqueIdProto_Builder) BuildPartial() *UniqueIdProto { return b.m.freeze() }
+func (b *UniqueIdProto_Builder) BuildPartial() *UniqueIdProto {
+	c := *b.m
+	c.cachedSize = 0
+	return &c
+}
 
 // Java: UniqueIdProto.Builder.clear()
 func (b *UniqueIdProto_Builder) Clear() *UniqueIdProto_Builder {
-	b.m = &UniqueIdProto{memoizedSize: -1}
-	return b
-}
-
-// Java: UniqueIdProto.Builder.mergeFrom(UniqueIdProto)
-func (b *UniqueIdProto_Builder) MergeFrom(other *UniqueIdProto) *UniqueIdProto_Builder {
-	b.m.mergeFrom(other)
+	b.m = &UniqueIdProto{}
 	return b
 }
 
@@ -3096,12 +1794,6 @@ func (b *UniqueIdProto_Builder) SetHash(v int32) *UniqueIdProto_Builder {
 	return b
 }
 
-// Java: UniqueIdProto.Builder.clearHash()
-func (b *UniqueIdProto_Builder) ClearHash() *UniqueIdProto_Builder {
-	b.m.hash_ = 0
-	return b
-}
-
 // Java: UniqueIdProto.Builder.getCounter()
 func (b *UniqueIdProto_Builder) GetCounter() int32 { return b.m.GetCounter() }
 
@@ -3109,26 +1801,6 @@ func (b *UniqueIdProto_Builder) GetCounter() int32 { return b.m.GetCounter() }
 func (b *UniqueIdProto_Builder) SetCounter(v int32) *UniqueIdProto_Builder {
 	b.m.counter_ = v
 	return b
-}
-
-// Java: UniqueIdProto.Builder.clearCounter()
-func (b *UniqueIdProto_Builder) ClearCounter() *UniqueIdProto_Builder {
-	b.m.counter_ = 0
-	return b
-}
-
-// mergeFrom is GeneratedMessage.Builder.mergeFrom(UniqueIdProto) on a mutable m.
-func (m *UniqueIdProto) mergeFrom(other *UniqueIdProto) {
-	if other == UniqueIdProto_GetDefaultInstance() {
-		return
-	}
-	if other.hash_ != 0 {
-		m.hash_ = other.hash_
-	}
-	if other.counter_ != 0 {
-		m.counter_ = other.counter_
-	}
-	m.unknownFields = append(m.unknownFields, other.unknownFields...)
 }
 
 // Java: UniqueIdProto.equals(Object)
@@ -3149,15 +1821,6 @@ func (m *UniqueIdProto) Equals(obj any) bool {
 	return protoBytesEqual(protoCanonicalUnknownFields(m.unknownFields), protoCanonicalUnknownFields(other.unknownFields))
 }
 
-// HashCode is consistent with Equals. (Java's generated hashCode mixes in
-// the descriptor's identity hash, so its values are not reproducible.)
-func (m *UniqueIdProto) HashCode() int32 {
-	h := int32(41)
-	h = 31*h + m.hash_
-	h = 31*h + m.counter_
-	return h
-}
-
 // appendTo is UniqueIdProto.writeTo(CodedOutputStream): fields in number order, then unknown fields.
 func (m *UniqueIdProto) appendTo(b []byte) []byte {
 	if m.hash_ != 0 {
@@ -3176,44 +1839,25 @@ func (m *UniqueIdProto) appendTo(b []byte) []byte {
 
 // serializedSize is getSerializedSize() (memoized once immutable).
 func (m *UniqueIdProto) serializedSize() int {
-	if m.frozen && m.memoizedSize >= 0 {
-		return m.memoizedSize
+	if m.cachedSize > 0 {
+		return m.cachedSize - 1
 	}
 	size := 0
-	size += len(m.appendScalarsOnly(nil))
-	if m.frozen {
-		m.memoizedSize = size
+	if m.hash_ != 0 {
+		size += 1 + protoVarintLen(uint64(int64(m.hash_)))
 	}
+	if m.counter_ != 0 {
+		size += 1 + protoVarintLen(uint64(int64(m.counter_)))
+	}
+	if len(m.unknownFields) > 0 {
+		size += len(protoCanonicalUnknownFields(m.unknownFields))
+	}
+	m.cachedSize = size + 1
 	return size
 }
 
-// appendScalarsOnly encodes the non-message fields and unknown fields (for sizing).
-func (m *UniqueIdProto) appendScalarsOnly(b []byte) []byte {
-	if m.hash_ != 0 {
-		b = protoAppendTag(b, 1, 0)
-		b = protoAppendInt32(b, m.hash_)
-	}
-	if m.counter_ != 0 {
-		b = protoAppendTag(b, 2, 0)
-		b = protoAppendInt32(b, m.counter_)
-	}
-	if len(m.unknownFields) > 0 {
-		b = append(b, protoCanonicalUnknownFields(m.unknownFields)...)
-	}
-	return b
-}
-
-// Java: UniqueIdProto.getSerializedSize()
-func (m *UniqueIdProto) GetSerializedSize() int { return m.serializedSize() }
-
 // Java: UniqueIdProto.toByteArray()
 func (m *UniqueIdProto) ToByteArray() []byte { return m.appendTo(make([]byte, 0, m.serializedSize())) }
-
-// Java: UniqueIdProto.toByteString()
-func (m *UniqueIdProto) ToByteString() []byte { return m.ToByteArray() }
-
-// Java: UniqueIdProto.isInitialized()
-func (m *UniqueIdProto) IsInitialized() bool { return true }
 
 // mergeFromReader is UniqueIdProto.Builder.mergeFrom(CodedInputStream) on a mutable m.
 func (m *UniqueIdProto) mergeFromReader(r *protoReader) {
@@ -3258,8 +1902,7 @@ type AccessorSummaryEntryProto struct {
 	name_         string
 	kind_         int32
 	unknownFields []byte
-	frozen        bool
-	memoizedSize  int
+	cachedSize    int
 }
 
 // Field numbers (AccessorSummaryEntryProto.X_FIELD_NUMBER).
@@ -3268,55 +1911,9 @@ const (
 	AccessorSummaryEntryProto_KIND_FIELD_NUMBER = 2
 )
 
-var accessorSummaryEntryProto_DEFAULT_INSTANCE = &AccessorSummaryEntryProto{frozen: true, memoizedSize: -1}
-
-// Java: AccessorSummaryEntryProto.getDefaultInstance()
-func AccessorSummaryEntryProto_GetDefaultInstance() *AccessorSummaryEntryProto {
-	return accessorSummaryEntryProto_DEFAULT_INSTANCE
-}
-
 // Java: AccessorSummaryEntryProto.newBuilder()
 func AccessorSummaryEntryProto_NewBuilder() *AccessorSummaryEntryProto_Builder {
-	return &AccessorSummaryEntryProto_Builder{m: &AccessorSummaryEntryProto{memoizedSize: -1}}
-}
-
-// Java: AccessorSummaryEntryProto.newBuilder(AccessorSummaryEntryProto)
-func AccessorSummaryEntryProto_NewBuilderFrom(prototype *AccessorSummaryEntryProto) *AccessorSummaryEntryProto_Builder {
-	return prototype.ToBuilder()
-}
-
-// Java: AccessorSummaryEntryProto.toBuilder()
-func (m *AccessorSummaryEntryProto) ToBuilder() *AccessorSummaryEntryProto_Builder {
-	return &AccessorSummaryEntryProto_Builder{m: m.mutableCopy()}
-}
-
-// AccessorSummaryEntryProto_ParseFrom panics with *InvalidProtocolBufferException on malformed input.
-//
-// Java: AccessorSummaryEntryProto.parseFrom(byte[])
-func AccessorSummaryEntryProto_ParseFrom(data []byte) *AccessorSummaryEntryProto {
-	m := &AccessorSummaryEntryProto{memoizedSize: -1}
-	m.mergeFromReader(&protoReader{b: data})
-	m.frozen = true
-	return m
-}
-
-// mutableCopy is a shallow copy that a builder may modify.
-func (m *AccessorSummaryEntryProto) mutableCopy() *AccessorSummaryEntryProto {
-	c := *m
-	c.frozen = false
-	c.memoizedSize = -1
-	return &c
-}
-
-// freeze returns an immutable copy (shared when m is already immutable).
-func (m *AccessorSummaryEntryProto) freeze() *AccessorSummaryEntryProto {
-	if m == nil || m.frozen {
-		return m
-	}
-	c := *m
-	c.frozen = true
-	c.memoizedSize = -1
-	return &c
+	return &AccessorSummaryEntryProto_Builder{m: &AccessorSummaryEntryProto{}}
 }
 
 // Java: AccessorSummaryEntryProto.getName()
@@ -3329,31 +1926,26 @@ func (m *AccessorSummaryEntryProto) GetKind() PropertyAccessKindProto {
 	return propertyAccessKindProto_fromNumber(m.kind_)
 }
 
-// Java: AccessorSummaryEntryProto.getKindValue()
-func (m *AccessorSummaryEntryProto) GetKindValue() int32 {
-	return m.kind_
-}
-
 // AccessorSummaryEntryProto_Builder is AccessorSummaryEntryProto.Builder.
 type AccessorSummaryEntryProto_Builder struct{ m *AccessorSummaryEntryProto }
 
 // Java: AccessorSummaryEntryProto.Builder.build()
-func (b *AccessorSummaryEntryProto_Builder) Build() *AccessorSummaryEntryProto { return b.m.freeze() }
+func (b *AccessorSummaryEntryProto_Builder) Build() *AccessorSummaryEntryProto {
+	c := *b.m
+	c.cachedSize = 0
+	return &c
+}
 
 // Java: AccessorSummaryEntryProto.Builder.buildPartial()
 func (b *AccessorSummaryEntryProto_Builder) BuildPartial() *AccessorSummaryEntryProto {
-	return b.m.freeze()
+	c := *b.m
+	c.cachedSize = 0
+	return &c
 }
 
 // Java: AccessorSummaryEntryProto.Builder.clear()
 func (b *AccessorSummaryEntryProto_Builder) Clear() *AccessorSummaryEntryProto_Builder {
-	b.m = &AccessorSummaryEntryProto{memoizedSize: -1}
-	return b
-}
-
-// Java: AccessorSummaryEntryProto.Builder.mergeFrom(AccessorSummaryEntryProto)
-func (b *AccessorSummaryEntryProto_Builder) MergeFrom(other *AccessorSummaryEntryProto) *AccessorSummaryEntryProto_Builder {
-	b.m.mergeFrom(other)
+	b.m = &AccessorSummaryEntryProto{}
 	return b
 }
 
@@ -3366,12 +1958,6 @@ func (b *AccessorSummaryEntryProto_Builder) SetName(v string) *AccessorSummaryEn
 	return b
 }
 
-// Java: AccessorSummaryEntryProto.Builder.clearName()
-func (b *AccessorSummaryEntryProto_Builder) ClearName() *AccessorSummaryEntryProto_Builder {
-	b.m.name_ = ""
-	return b
-}
-
 // Java: AccessorSummaryEntryProto.Builder.getKind()
 func (b *AccessorSummaryEntryProto_Builder) GetKind() PropertyAccessKindProto { return b.m.GetKind() }
 
@@ -3379,62 +1965,6 @@ func (b *AccessorSummaryEntryProto_Builder) GetKind() PropertyAccessKindProto { 
 func (b *AccessorSummaryEntryProto_Builder) SetKind(v PropertyAccessKindProto) *AccessorSummaryEntryProto_Builder {
 	b.m.kind_ = v.GetNumber()
 	return b
-}
-
-// Java: AccessorSummaryEntryProto.Builder.getKindValue()
-func (b *AccessorSummaryEntryProto_Builder) GetKindValue() int32 { return b.m.GetKindValue() }
-
-// Java: AccessorSummaryEntryProto.Builder.setKindValue(int)
-func (b *AccessorSummaryEntryProto_Builder) SetKindValue(v int32) *AccessorSummaryEntryProto_Builder {
-	b.m.kind_ = v
-	return b
-}
-
-// Java: AccessorSummaryEntryProto.Builder.clearKind()
-func (b *AccessorSummaryEntryProto_Builder) ClearKind() *AccessorSummaryEntryProto_Builder {
-	b.m.kind_ = 0
-	return b
-}
-
-// mergeFrom is GeneratedMessage.Builder.mergeFrom(AccessorSummaryEntryProto) on a mutable m.
-func (m *AccessorSummaryEntryProto) mergeFrom(other *AccessorSummaryEntryProto) {
-	if other == AccessorSummaryEntryProto_GetDefaultInstance() {
-		return
-	}
-	if other.name_ != "" {
-		m.name_ = other.name_
-	}
-	if other.kind_ != 0 {
-		m.kind_ = other.kind_
-	}
-	m.unknownFields = append(m.unknownFields, other.unknownFields...)
-}
-
-// Java: AccessorSummaryEntryProto.equals(Object)
-func (m *AccessorSummaryEntryProto) Equals(obj any) bool {
-	other, ok := obj.(*AccessorSummaryEntryProto)
-	if !ok || other == nil {
-		return false
-	}
-	if m == other {
-		return true
-	}
-	if !(m.name_ == other.name_) {
-		return false
-	}
-	if !(m.kind_ == other.kind_) {
-		return false
-	}
-	return protoBytesEqual(protoCanonicalUnknownFields(m.unknownFields), protoCanonicalUnknownFields(other.unknownFields))
-}
-
-// HashCode is consistent with Equals. (Java's generated hashCode mixes in
-// the descriptor's identity hash, so its values are not reproducible.)
-func (m *AccessorSummaryEntryProto) HashCode() int32 {
-	h := int32(41)
-	h = protoHashString(h, m.name_)
-	h = 31*h + m.kind_
-	return h
 }
 
 // appendTo is AccessorSummaryEntryProto.writeTo(CodedOutputStream): fields in number order, then unknown fields.
@@ -3455,46 +1985,27 @@ func (m *AccessorSummaryEntryProto) appendTo(b []byte) []byte {
 
 // serializedSize is getSerializedSize() (memoized once immutable).
 func (m *AccessorSummaryEntryProto) serializedSize() int {
-	if m.frozen && m.memoizedSize >= 0 {
-		return m.memoizedSize
+	if m.cachedSize > 0 {
+		return m.cachedSize - 1
 	}
 	size := 0
-	size += len(m.appendScalarsOnly(nil))
-	if m.frozen {
-		m.memoizedSize = size
-	}
-	return size
-}
-
-// appendScalarsOnly encodes the non-message fields and unknown fields (for sizing).
-func (m *AccessorSummaryEntryProto) appendScalarsOnly(b []byte) []byte {
 	if m.name_ != "" {
-		b = protoAppendTag(b, 1, 2)
-		b = protoAppendString(b, m.name_)
+		size += protoStringSize(1, m.name_)
 	}
 	if m.kind_ != 0 {
-		b = protoAppendTag(b, 2, 0)
-		b = protoAppendInt32(b, m.kind_)
+		size += 1 + protoVarintLen(uint64(int64(m.kind_)))
 	}
 	if len(m.unknownFields) > 0 {
-		b = append(b, protoCanonicalUnknownFields(m.unknownFields)...)
+		size += len(protoCanonicalUnknownFields(m.unknownFields))
 	}
-	return b
+	m.cachedSize = size + 1
+	return size
 }
-
-// Java: AccessorSummaryEntryProto.getSerializedSize()
-func (m *AccessorSummaryEntryProto) GetSerializedSize() int { return m.serializedSize() }
 
 // Java: AccessorSummaryEntryProto.toByteArray()
 func (m *AccessorSummaryEntryProto) ToByteArray() []byte {
 	return m.appendTo(make([]byte, 0, m.serializedSize()))
 }
-
-// Java: AccessorSummaryEntryProto.toByteString()
-func (m *AccessorSummaryEntryProto) ToByteString() []byte { return m.ToByteArray() }
-
-// Java: AccessorSummaryEntryProto.isInitialized()
-func (m *AccessorSummaryEntryProto) IsInitialized() bool { return true }
 
 // mergeFromReader is AccessorSummaryEntryProto.Builder.mergeFrom(CodedInputStream) on a mutable m.
 func (m *AccessorSummaryEntryProto) mergeFromReader(r *protoReader) {
@@ -3539,8 +2050,7 @@ type AccessorSummaryProto struct {
 	assumeAlwaysGetterAndSetter_ bool
 	accessors_                   []*AccessorSummaryEntryProto
 	unknownFields                []byte
-	frozen                       bool
-	memoizedSize                 int
+	cachedSize                   int
 }
 
 // Field numbers (AccessorSummaryProto.X_FIELD_NUMBER).
@@ -3549,7 +2059,7 @@ const (
 	AccessorSummaryProto_ACCESSORS_FIELD_NUMBER                       = 2
 )
 
-var accessorSummaryProto_DEFAULT_INSTANCE = &AccessorSummaryProto{frozen: true, memoizedSize: -1}
+var accessorSummaryProto_DEFAULT_INSTANCE = &AccessorSummaryProto{cachedSize: 1}
 
 // Java: AccessorSummaryProto.getDefaultInstance()
 func AccessorSummaryProto_GetDefaultInstance() *AccessorSummaryProto {
@@ -3558,51 +2068,7 @@ func AccessorSummaryProto_GetDefaultInstance() *AccessorSummaryProto {
 
 // Java: AccessorSummaryProto.newBuilder()
 func AccessorSummaryProto_NewBuilder() *AccessorSummaryProto_Builder {
-	return &AccessorSummaryProto_Builder{m: &AccessorSummaryProto{memoizedSize: -1}}
-}
-
-// Java: AccessorSummaryProto.newBuilder(AccessorSummaryProto)
-func AccessorSummaryProto_NewBuilderFrom(prototype *AccessorSummaryProto) *AccessorSummaryProto_Builder {
-	return prototype.ToBuilder()
-}
-
-// Java: AccessorSummaryProto.toBuilder()
-func (m *AccessorSummaryProto) ToBuilder() *AccessorSummaryProto_Builder {
-	return &AccessorSummaryProto_Builder{m: m.mutableCopy()}
-}
-
-// AccessorSummaryProto_ParseFrom panics with *InvalidProtocolBufferException on malformed input.
-//
-// Java: AccessorSummaryProto.parseFrom(byte[])
-func AccessorSummaryProto_ParseFrom(data []byte) *AccessorSummaryProto {
-	m := &AccessorSummaryProto{memoizedSize: -1}
-	m.mergeFromReader(&protoReader{b: data})
-	m.frozen = true
-	return m
-}
-
-// mutableCopy is a shallow copy that a builder may modify.
-func (m *AccessorSummaryProto) mutableCopy() *AccessorSummaryProto {
-	c := *m
-	c.frozen = false
-	c.memoizedSize = -1
-	c.accessors_ = append([]*AccessorSummaryEntryProto(nil), m.accessors_...)
-	return &c
-}
-
-// freeze returns an immutable copy (shared when m is already immutable).
-func (m *AccessorSummaryProto) freeze() *AccessorSummaryProto {
-	if m == nil || m.frozen {
-		return m
-	}
-	c := *m
-	c.frozen = true
-	c.memoizedSize = -1
-	c.accessors_ = make([]*AccessorSummaryEntryProto, len(m.accessors_))
-	for i, x := range m.accessors_ {
-		c.accessors_[i] = x.freeze()
-	}
-	return &c
+	return &AccessorSummaryProto_Builder{m: &AccessorSummaryProto{}}
 }
 
 // Java: AccessorSummaryProto.getAssumeAlwaysGetterAndSetter()
@@ -3619,27 +2085,26 @@ func (m *AccessorSummaryProto) GetAccessors(index int) *AccessorSummaryEntryProt
 	return m.accessors_[index]
 }
 
-// Java: AccessorSummaryProto.getAccessorsCount()
-func (m *AccessorSummaryProto) GetAccessorsCount() int { return len(m.accessors_) }
-
 // AccessorSummaryProto_Builder is AccessorSummaryProto.Builder.
 type AccessorSummaryProto_Builder struct{ m *AccessorSummaryProto }
 
 // Java: AccessorSummaryProto.Builder.build()
-func (b *AccessorSummaryProto_Builder) Build() *AccessorSummaryProto { return b.m.freeze() }
+func (b *AccessorSummaryProto_Builder) Build() *AccessorSummaryProto {
+	c := *b.m
+	c.cachedSize = 0
+	return &c
+}
 
 // Java: AccessorSummaryProto.Builder.buildPartial()
-func (b *AccessorSummaryProto_Builder) BuildPartial() *AccessorSummaryProto { return b.m.freeze() }
+func (b *AccessorSummaryProto_Builder) BuildPartial() *AccessorSummaryProto {
+	c := *b.m
+	c.cachedSize = 0
+	return &c
+}
 
 // Java: AccessorSummaryProto.Builder.clear()
 func (b *AccessorSummaryProto_Builder) Clear() *AccessorSummaryProto_Builder {
-	b.m = &AccessorSummaryProto{memoizedSize: -1}
-	return b
-}
-
-// Java: AccessorSummaryProto.Builder.mergeFrom(AccessorSummaryProto)
-func (b *AccessorSummaryProto_Builder) MergeFrom(other *AccessorSummaryProto) *AccessorSummaryProto_Builder {
-	b.m.mergeFrom(other)
+	b.m = &AccessorSummaryProto{}
 	return b
 }
 
@@ -3654,28 +2119,19 @@ func (b *AccessorSummaryProto_Builder) SetAssumeAlwaysGetterAndSetter(v bool) *A
 	return b
 }
 
-// Java: AccessorSummaryProto.Builder.clearAssumeAlwaysGetterAndSetter()
-func (b *AccessorSummaryProto_Builder) ClearAssumeAlwaysGetterAndSetter() *AccessorSummaryProto_Builder {
-	b.m.assumeAlwaysGetterAndSetter_ = false
-	return b
-}
-
 // Java: AccessorSummaryProto.Builder.getAccessorsList()
 func (b *AccessorSummaryProto_Builder) GetAccessorsList() []*AccessorSummaryEntryProto {
 	out := make([]*AccessorSummaryEntryProto, len(b.m.accessors_))
 	for i, x := range b.m.accessors_ {
-		out[i] = x.freeze()
+		out[i] = x
 	}
 	return out
 }
 
 // Java: AccessorSummaryProto.Builder.getAccessors(int)
 func (b *AccessorSummaryProto_Builder) GetAccessors(index int) *AccessorSummaryEntryProto {
-	return b.m.GetAccessors(index).freeze()
+	return b.m.GetAccessors(index)
 }
-
-// Java: AccessorSummaryProto.Builder.getAccessorsCount()
-func (b *AccessorSummaryProto_Builder) GetAccessorsCount() int { return b.m.GetAccessorsCount() }
 
 // Java: AccessorSummaryProto.Builder.addAccessors(*AccessorSummaryEntryProto)
 func (b *AccessorSummaryProto_Builder) AddAccessors(v *AccessorSummaryEntryProto) *AccessorSummaryProto_Builder {
@@ -3684,97 +2140,6 @@ func (b *AccessorSummaryProto_Builder) AddAccessors(v *AccessorSummaryEntryProto
 	}
 	b.m.accessors_ = append(b.m.accessors_, v)
 	return b
-}
-
-// Java: AccessorSummaryProto.Builder.addAllAccessors(Iterable)
-func (b *AccessorSummaryProto_Builder) AddAllAccessors(values []*AccessorSummaryEntryProto) *AccessorSummaryProto_Builder {
-	for _, v := range values {
-		b.AddAccessors(v)
-	}
-	return b
-}
-
-// Java: AccessorSummaryProto.Builder.setAccessors(int, *AccessorSummaryEntryProto)
-func (b *AccessorSummaryProto_Builder) SetAccessorsAtIndex(index int, v *AccessorSummaryEntryProto) *AccessorSummaryProto_Builder {
-	protoCheckIndexJDK(index, len(b.m.accessors_))
-	if v == nil {
-		panic(jutil.NewNullPointerException())
-	}
-	b.m.accessors_[index] = v
-	return b
-}
-
-// Java: AccessorSummaryProto.Builder.addAccessors(AccessorSummaryEntryProto.Builder)
-func (b *AccessorSummaryProto_Builder) AddAccessorsFromBuilder(builderForValue *AccessorSummaryEntryProto_Builder) *AccessorSummaryProto_Builder {
-	return b.AddAccessors(builderForValue.Build())
-}
-
-// Java: AccessorSummaryProto.Builder.addAccessorsBuilder()
-func (b *AccessorSummaryProto_Builder) AddAccessorsBuilder() *AccessorSummaryEntryProto_Builder {
-	x := &AccessorSummaryEntryProto{memoizedSize: -1}
-	b.m.accessors_ = append(b.m.accessors_, x)
-	return &AccessorSummaryEntryProto_Builder{m: x}
-}
-
-// Java: AccessorSummaryProto.Builder.getAccessorsBuilder(int)
-func (b *AccessorSummaryProto_Builder) GetAccessorsBuilder(index int) *AccessorSummaryEntryProto_Builder {
-	protoCheckIndexJDK(index, len(b.m.accessors_))
-	if b.m.accessors_[index].frozen {
-		b.m.accessors_[index] = b.m.accessors_[index].mutableCopy()
-	}
-	return &AccessorSummaryEntryProto_Builder{m: b.m.accessors_[index]}
-}
-
-// Java: AccessorSummaryProto.Builder.clearAccessors()
-func (b *AccessorSummaryProto_Builder) ClearAccessors() *AccessorSummaryProto_Builder {
-	b.m.accessors_ = nil
-	return b
-}
-
-// mergeFrom is GeneratedMessage.Builder.mergeFrom(AccessorSummaryProto) on a mutable m.
-func (m *AccessorSummaryProto) mergeFrom(other *AccessorSummaryProto) {
-	if other == AccessorSummaryProto_GetDefaultInstance() {
-		return
-	}
-	if other.assumeAlwaysGetterAndSetter_ {
-		m.assumeAlwaysGetterAndSetter_ = other.assumeAlwaysGetterAndSetter_
-	}
-	m.accessors_ = append(m.accessors_, other.accessors_...)
-	m.unknownFields = append(m.unknownFields, other.unknownFields...)
-}
-
-// Java: AccessorSummaryProto.equals(Object)
-func (m *AccessorSummaryProto) Equals(obj any) bool {
-	other, ok := obj.(*AccessorSummaryProto)
-	if !ok || other == nil {
-		return false
-	}
-	if m == other {
-		return true
-	}
-	if !(m.assumeAlwaysGetterAndSetter_ == other.assumeAlwaysGetterAndSetter_) {
-		return false
-	}
-	if len(m.accessors_) != len(other.accessors_) {
-		return false
-	}
-	for i := range m.accessors_ {
-		if !(m.accessors_[i].Equals(other.accessors_[i])) {
-			return false
-		}
-	}
-	return protoBytesEqual(protoCanonicalUnknownFields(m.unknownFields), protoCanonicalUnknownFields(other.unknownFields))
-}
-
-// HashCode is consistent with Equals. (Java's generated hashCode mixes in
-// the descriptor's identity hash, so its values are not reproducible.)
-func (m *AccessorSummaryProto) HashCode() int32 {
-	h := int32(41)
-	h = protoHashBool(h, m.assumeAlwaysGetterAndSetter_)
-	for _, x := range m.accessors_ {
-		h = 31*h + x.HashCode()
-	}
-	return h
 }
 
 // appendTo is AccessorSummaryProto.writeTo(CodedOutputStream): fields in number order, then unknown fields.
@@ -3796,46 +2161,28 @@ func (m *AccessorSummaryProto) appendTo(b []byte) []byte {
 
 // serializedSize is getSerializedSize() (memoized once immutable).
 func (m *AccessorSummaryProto) serializedSize() int {
-	if m.frozen && m.memoizedSize >= 0 {
-		return m.memoizedSize
+	if m.cachedSize > 0 {
+		return m.cachedSize - 1
 	}
 	size := 0
 	for _, x := range m.accessors_ {
 		s := x.serializedSize()
 		size += 1 + protoVarintLen(uint64(s)) + s
 	}
-	size += len(m.appendScalarsOnly(nil))
-	if m.frozen {
-		m.memoizedSize = size
-	}
-	return size
-}
-
-// appendScalarsOnly encodes the non-message fields and unknown fields (for sizing).
-func (m *AccessorSummaryProto) appendScalarsOnly(b []byte) []byte {
 	if m.assumeAlwaysGetterAndSetter_ {
-		b = protoAppendTag(b, 1, 0)
-		b = protoAppendBool(b, m.assumeAlwaysGetterAndSetter_)
+		size += 2
 	}
 	if len(m.unknownFields) > 0 {
-		b = append(b, protoCanonicalUnknownFields(m.unknownFields)...)
+		size += len(protoCanonicalUnknownFields(m.unknownFields))
 	}
-	return b
+	m.cachedSize = size + 1
+	return size
 }
-
-// Java: AccessorSummaryProto.getSerializedSize()
-func (m *AccessorSummaryProto) GetSerializedSize() int { return m.serializedSize() }
 
 // Java: AccessorSummaryProto.toByteArray()
 func (m *AccessorSummaryProto) ToByteArray() []byte {
 	return m.appendTo(make([]byte, 0, m.serializedSize()))
 }
-
-// Java: AccessorSummaryProto.toByteString()
-func (m *AccessorSummaryProto) ToByteString() []byte { return m.ToByteArray() }
-
-// Java: AccessorSummaryProto.isInitialized()
-func (m *AccessorSummaryProto) IsInitialized() bool { return true }
 
 // mergeFromReader is AccessorSummaryProto.Builder.mergeFrom(CodedInputStream) on a mutable m.
 func (m *AccessorSummaryProto) mergeFromReader(r *protoReader) {
@@ -3849,9 +2196,8 @@ func (m *AccessorSummaryProto) mergeFromReader(r *protoReader) {
 			m.assumeAlwaysGetterAndSetter_ = r.readBool()
 		case 18:
 			data := r.readMessageBytes()
-			x := &AccessorSummaryEntryProto{memoizedSize: -1}
+			x := &AccessorSummaryEntryProto{}
 			x.mergeFromReader(r.sub(data))
-			x.frozen = true
 			m.accessors_ = append(m.accessors_, x)
 		default:
 			r.skipField(tag)
@@ -3884,8 +2230,7 @@ type VariableMapEntryProto struct {
 	originalName_ string
 	newName_      string
 	unknownFields []byte
-	frozen        bool
-	memoizedSize  int
+	cachedSize    int
 }
 
 // Field numbers (VariableMapEntryProto.X_FIELD_NUMBER).
@@ -3893,57 +2238,6 @@ const (
 	VariableMapEntryProto_ORIGINAL_NAME_FIELD_NUMBER = 1
 	VariableMapEntryProto_NEW_NAME_FIELD_NUMBER      = 2
 )
-
-var variableMapEntryProto_DEFAULT_INSTANCE = &VariableMapEntryProto{frozen: true, memoizedSize: -1}
-
-// Java: VariableMapEntryProto.getDefaultInstance()
-func VariableMapEntryProto_GetDefaultInstance() *VariableMapEntryProto {
-	return variableMapEntryProto_DEFAULT_INSTANCE
-}
-
-// Java: VariableMapEntryProto.newBuilder()
-func VariableMapEntryProto_NewBuilder() *VariableMapEntryProto_Builder {
-	return &VariableMapEntryProto_Builder{m: &VariableMapEntryProto{memoizedSize: -1}}
-}
-
-// Java: VariableMapEntryProto.newBuilder(VariableMapEntryProto)
-func VariableMapEntryProto_NewBuilderFrom(prototype *VariableMapEntryProto) *VariableMapEntryProto_Builder {
-	return prototype.ToBuilder()
-}
-
-// Java: VariableMapEntryProto.toBuilder()
-func (m *VariableMapEntryProto) ToBuilder() *VariableMapEntryProto_Builder {
-	return &VariableMapEntryProto_Builder{m: m.mutableCopy()}
-}
-
-// VariableMapEntryProto_ParseFrom panics with *InvalidProtocolBufferException on malformed input.
-//
-// Java: VariableMapEntryProto.parseFrom(byte[])
-func VariableMapEntryProto_ParseFrom(data []byte) *VariableMapEntryProto {
-	m := &VariableMapEntryProto{memoizedSize: -1}
-	m.mergeFromReader(&protoReader{b: data})
-	m.frozen = true
-	return m
-}
-
-// mutableCopy is a shallow copy that a builder may modify.
-func (m *VariableMapEntryProto) mutableCopy() *VariableMapEntryProto {
-	c := *m
-	c.frozen = false
-	c.memoizedSize = -1
-	return &c
-}
-
-// freeze returns an immutable copy (shared when m is already immutable).
-func (m *VariableMapEntryProto) freeze() *VariableMapEntryProto {
-	if m == nil || m.frozen {
-		return m
-	}
-	c := *m
-	c.frozen = true
-	c.memoizedSize = -1
-	return &c
-}
 
 // Java: VariableMapEntryProto.getOriginalName()
 func (m *VariableMapEntryProto) GetOriginalName() string {
@@ -3953,98 +2247,6 @@ func (m *VariableMapEntryProto) GetOriginalName() string {
 // Java: VariableMapEntryProto.getNewName()
 func (m *VariableMapEntryProto) GetNewName() string {
 	return m.newName_
-}
-
-// VariableMapEntryProto_Builder is VariableMapEntryProto.Builder.
-type VariableMapEntryProto_Builder struct{ m *VariableMapEntryProto }
-
-// Java: VariableMapEntryProto.Builder.build()
-func (b *VariableMapEntryProto_Builder) Build() *VariableMapEntryProto { return b.m.freeze() }
-
-// Java: VariableMapEntryProto.Builder.buildPartial()
-func (b *VariableMapEntryProto_Builder) BuildPartial() *VariableMapEntryProto { return b.m.freeze() }
-
-// Java: VariableMapEntryProto.Builder.clear()
-func (b *VariableMapEntryProto_Builder) Clear() *VariableMapEntryProto_Builder {
-	b.m = &VariableMapEntryProto{memoizedSize: -1}
-	return b
-}
-
-// Java: VariableMapEntryProto.Builder.mergeFrom(VariableMapEntryProto)
-func (b *VariableMapEntryProto_Builder) MergeFrom(other *VariableMapEntryProto) *VariableMapEntryProto_Builder {
-	b.m.mergeFrom(other)
-	return b
-}
-
-// Java: VariableMapEntryProto.Builder.getOriginalName()
-func (b *VariableMapEntryProto_Builder) GetOriginalName() string { return b.m.GetOriginalName() }
-
-// Java: VariableMapEntryProto.Builder.setOriginalName(String)
-func (b *VariableMapEntryProto_Builder) SetOriginalName(v string) *VariableMapEntryProto_Builder {
-	b.m.originalName_ = v
-	return b
-}
-
-// Java: VariableMapEntryProto.Builder.clearOriginalName()
-func (b *VariableMapEntryProto_Builder) ClearOriginalName() *VariableMapEntryProto_Builder {
-	b.m.originalName_ = ""
-	return b
-}
-
-// Java: VariableMapEntryProto.Builder.getNewName()
-func (b *VariableMapEntryProto_Builder) GetNewName() string { return b.m.GetNewName() }
-
-// Java: VariableMapEntryProto.Builder.setNewName(String)
-func (b *VariableMapEntryProto_Builder) SetNewName(v string) *VariableMapEntryProto_Builder {
-	b.m.newName_ = v
-	return b
-}
-
-// Java: VariableMapEntryProto.Builder.clearNewName()
-func (b *VariableMapEntryProto_Builder) ClearNewName() *VariableMapEntryProto_Builder {
-	b.m.newName_ = ""
-	return b
-}
-
-// mergeFrom is GeneratedMessage.Builder.mergeFrom(VariableMapEntryProto) on a mutable m.
-func (m *VariableMapEntryProto) mergeFrom(other *VariableMapEntryProto) {
-	if other == VariableMapEntryProto_GetDefaultInstance() {
-		return
-	}
-	if other.originalName_ != "" {
-		m.originalName_ = other.originalName_
-	}
-	if other.newName_ != "" {
-		m.newName_ = other.newName_
-	}
-	m.unknownFields = append(m.unknownFields, other.unknownFields...)
-}
-
-// Java: VariableMapEntryProto.equals(Object)
-func (m *VariableMapEntryProto) Equals(obj any) bool {
-	other, ok := obj.(*VariableMapEntryProto)
-	if !ok || other == nil {
-		return false
-	}
-	if m == other {
-		return true
-	}
-	if !(m.originalName_ == other.originalName_) {
-		return false
-	}
-	if !(m.newName_ == other.newName_) {
-		return false
-	}
-	return protoBytesEqual(protoCanonicalUnknownFields(m.unknownFields), protoCanonicalUnknownFields(other.unknownFields))
-}
-
-// HashCode is consistent with Equals. (Java's generated hashCode mixes in
-// the descriptor's identity hash, so its values are not reproducible.)
-func (m *VariableMapEntryProto) HashCode() int32 {
-	h := int32(41)
-	h = protoHashString(h, m.originalName_)
-	h = protoHashString(h, m.newName_)
-	return h
 }
 
 // appendTo is VariableMapEntryProto.writeTo(CodedOutputStream): fields in number order, then unknown fields.
@@ -4065,46 +2267,27 @@ func (m *VariableMapEntryProto) appendTo(b []byte) []byte {
 
 // serializedSize is getSerializedSize() (memoized once immutable).
 func (m *VariableMapEntryProto) serializedSize() int {
-	if m.frozen && m.memoizedSize >= 0 {
-		return m.memoizedSize
+	if m.cachedSize > 0 {
+		return m.cachedSize - 1
 	}
 	size := 0
-	size += len(m.appendScalarsOnly(nil))
-	if m.frozen {
-		m.memoizedSize = size
-	}
-	return size
-}
-
-// appendScalarsOnly encodes the non-message fields and unknown fields (for sizing).
-func (m *VariableMapEntryProto) appendScalarsOnly(b []byte) []byte {
 	if m.originalName_ != "" {
-		b = protoAppendTag(b, 1, 2)
-		b = protoAppendString(b, m.originalName_)
+		size += protoStringSize(1, m.originalName_)
 	}
 	if m.newName_ != "" {
-		b = protoAppendTag(b, 2, 2)
-		b = protoAppendString(b, m.newName_)
+		size += protoStringSize(1, m.newName_)
 	}
 	if len(m.unknownFields) > 0 {
-		b = append(b, protoCanonicalUnknownFields(m.unknownFields)...)
+		size += len(protoCanonicalUnknownFields(m.unknownFields))
 	}
-	return b
+	m.cachedSize = size + 1
+	return size
 }
-
-// Java: VariableMapEntryProto.getSerializedSize()
-func (m *VariableMapEntryProto) GetSerializedSize() int { return m.serializedSize() }
 
 // Java: VariableMapEntryProto.toByteArray()
 func (m *VariableMapEntryProto) ToByteArray() []byte {
 	return m.appendTo(make([]byte, 0, m.serializedSize()))
 }
-
-// Java: VariableMapEntryProto.toByteString()
-func (m *VariableMapEntryProto) ToByteString() []byte { return m.ToByteArray() }
-
-// Java: VariableMapEntryProto.isInitialized()
-func (m *VariableMapEntryProto) IsInitialized() bool { return true }
 
 // mergeFromReader is VariableMapEntryProto.Builder.mergeFrom(CodedInputStream) on a mutable m.
 func (m *VariableMapEntryProto) mergeFromReader(r *protoReader) {
@@ -4149,8 +2332,7 @@ type ConformanceViolationsProto struct {
 	inputName_    string
 	violations_   []*ViolationProto
 	unknownFields []byte
-	frozen        bool
-	memoizedSize  int
+	cachedSize    int
 }
 
 // Field numbers (ConformanceViolationsProto.X_FIELD_NUMBER).
@@ -4159,69 +2341,15 @@ const (
 	ConformanceViolationsProto_VIOLATIONS_FIELD_NUMBER = 2
 )
 
-var conformanceViolationsProto_DEFAULT_INSTANCE = &ConformanceViolationsProto{frozen: true, memoizedSize: -1}
-
-// Java: ConformanceViolationsProto.getDefaultInstance()
-func ConformanceViolationsProto_GetDefaultInstance() *ConformanceViolationsProto {
-	return conformanceViolationsProto_DEFAULT_INSTANCE
-}
-
 // Java: ConformanceViolationsProto.newBuilder()
 func ConformanceViolationsProto_NewBuilder() *ConformanceViolationsProto_Builder {
-	return &ConformanceViolationsProto_Builder{m: &ConformanceViolationsProto{memoizedSize: -1}}
-}
-
-// Java: ConformanceViolationsProto.newBuilder(ConformanceViolationsProto)
-func ConformanceViolationsProto_NewBuilderFrom(prototype *ConformanceViolationsProto) *ConformanceViolationsProto_Builder {
-	return prototype.ToBuilder()
-}
-
-// Java: ConformanceViolationsProto.toBuilder()
-func (m *ConformanceViolationsProto) ToBuilder() *ConformanceViolationsProto_Builder {
-	return &ConformanceViolationsProto_Builder{m: m.mutableCopy()}
-}
-
-// ConformanceViolationsProto_ParseFrom panics with *InvalidProtocolBufferException on malformed input.
-//
-// Java: ConformanceViolationsProto.parseFrom(byte[])
-func ConformanceViolationsProto_ParseFrom(data []byte) *ConformanceViolationsProto {
-	m := &ConformanceViolationsProto{memoizedSize: -1}
-	m.mergeFromReader(&protoReader{b: data})
-	m.frozen = true
-	return m
-}
-
-// mutableCopy is a shallow copy that a builder may modify.
-func (m *ConformanceViolationsProto) mutableCopy() *ConformanceViolationsProto {
-	c := *m
-	c.frozen = false
-	c.memoizedSize = -1
-	c.violations_ = append([]*ViolationProto(nil), m.violations_...)
-	return &c
-}
-
-// freeze returns an immutable copy (shared when m is already immutable).
-func (m *ConformanceViolationsProto) freeze() *ConformanceViolationsProto {
-	if m == nil || m.frozen {
-		return m
-	}
-	c := *m
-	c.frozen = true
-	c.memoizedSize = -1
-	c.violations_ = make([]*ViolationProto, len(m.violations_))
-	for i, x := range m.violations_ {
-		c.violations_[i] = x.freeze()
-	}
-	return &c
+	return &ConformanceViolationsProto_Builder{m: &ConformanceViolationsProto{}}
 }
 
 // Java: ConformanceViolationsProto.getInputName()
 func (m *ConformanceViolationsProto) GetInputName() string {
 	return m.inputName_
 }
-
-// Java: ConformanceViolationsProto.getViolationsList()
-func (m *ConformanceViolationsProto) GetViolationsList() []*ViolationProto { return m.violations_ }
 
 // Java: ConformanceViolationsProto.getViolations(int)
 func (m *ConformanceViolationsProto) GetViolations(index int) *ViolationProto {
@@ -4236,52 +2364,31 @@ func (m *ConformanceViolationsProto) GetViolationsCount() int { return len(m.vio
 type ConformanceViolationsProto_Builder struct{ m *ConformanceViolationsProto }
 
 // Java: ConformanceViolationsProto.Builder.build()
-func (b *ConformanceViolationsProto_Builder) Build() *ConformanceViolationsProto { return b.m.freeze() }
+func (b *ConformanceViolationsProto_Builder) Build() *ConformanceViolationsProto {
+	c := *b.m
+	c.cachedSize = 0
+	return &c
+}
 
 // Java: ConformanceViolationsProto.Builder.buildPartial()
 func (b *ConformanceViolationsProto_Builder) BuildPartial() *ConformanceViolationsProto {
-	return b.m.freeze()
+	c := *b.m
+	c.cachedSize = 0
+	return &c
 }
 
 // Java: ConformanceViolationsProto.Builder.clear()
 func (b *ConformanceViolationsProto_Builder) Clear() *ConformanceViolationsProto_Builder {
-	b.m = &ConformanceViolationsProto{memoizedSize: -1}
-	return b
-}
-
-// Java: ConformanceViolationsProto.Builder.mergeFrom(ConformanceViolationsProto)
-func (b *ConformanceViolationsProto_Builder) MergeFrom(other *ConformanceViolationsProto) *ConformanceViolationsProto_Builder {
-	b.m.mergeFrom(other)
+	b.m = &ConformanceViolationsProto{}
 	return b
 }
 
 // Java: ConformanceViolationsProto.Builder.getInputName()
 func (b *ConformanceViolationsProto_Builder) GetInputName() string { return b.m.GetInputName() }
 
-// Java: ConformanceViolationsProto.Builder.setInputName(String)
-func (b *ConformanceViolationsProto_Builder) SetInputName(v string) *ConformanceViolationsProto_Builder {
-	b.m.inputName_ = v
-	return b
-}
-
-// Java: ConformanceViolationsProto.Builder.clearInputName()
-func (b *ConformanceViolationsProto_Builder) ClearInputName() *ConformanceViolationsProto_Builder {
-	b.m.inputName_ = ""
-	return b
-}
-
-// Java: ConformanceViolationsProto.Builder.getViolationsList()
-func (b *ConformanceViolationsProto_Builder) GetViolationsList() []*ViolationProto {
-	out := make([]*ViolationProto, len(b.m.violations_))
-	for i, x := range b.m.violations_ {
-		out[i] = x.freeze()
-	}
-	return out
-}
-
 // Java: ConformanceViolationsProto.Builder.getViolations(int)
 func (b *ConformanceViolationsProto_Builder) GetViolations(index int) *ViolationProto {
-	return b.m.GetViolations(index).freeze()
+	return b.m.GetViolations(index)
 }
 
 // Java: ConformanceViolationsProto.Builder.getViolationsCount()
@@ -4296,97 +2403,6 @@ func (b *ConformanceViolationsProto_Builder) AddViolations(v *ViolationProto) *C
 	}
 	b.m.violations_ = append(b.m.violations_, v)
 	return b
-}
-
-// Java: ConformanceViolationsProto.Builder.addAllViolations(Iterable)
-func (b *ConformanceViolationsProto_Builder) AddAllViolations(values []*ViolationProto) *ConformanceViolationsProto_Builder {
-	for _, v := range values {
-		b.AddViolations(v)
-	}
-	return b
-}
-
-// Java: ConformanceViolationsProto.Builder.setViolations(int, *ViolationProto)
-func (b *ConformanceViolationsProto_Builder) SetViolationsAtIndex(index int, v *ViolationProto) *ConformanceViolationsProto_Builder {
-	protoCheckIndexJDK(index, len(b.m.violations_))
-	if v == nil {
-		panic(jutil.NewNullPointerException())
-	}
-	b.m.violations_[index] = v
-	return b
-}
-
-// Java: ConformanceViolationsProto.Builder.addViolations(ViolationProto.Builder)
-func (b *ConformanceViolationsProto_Builder) AddViolationsFromBuilder(builderForValue *ViolationProto_Builder) *ConformanceViolationsProto_Builder {
-	return b.AddViolations(builderForValue.Build())
-}
-
-// Java: ConformanceViolationsProto.Builder.addViolationsBuilder()
-func (b *ConformanceViolationsProto_Builder) AddViolationsBuilder() *ViolationProto_Builder {
-	x := &ViolationProto{memoizedSize: -1}
-	b.m.violations_ = append(b.m.violations_, x)
-	return &ViolationProto_Builder{m: x}
-}
-
-// Java: ConformanceViolationsProto.Builder.getViolationsBuilder(int)
-func (b *ConformanceViolationsProto_Builder) GetViolationsBuilder(index int) *ViolationProto_Builder {
-	protoCheckIndexJDK(index, len(b.m.violations_))
-	if b.m.violations_[index].frozen {
-		b.m.violations_[index] = b.m.violations_[index].mutableCopy()
-	}
-	return &ViolationProto_Builder{m: b.m.violations_[index]}
-}
-
-// Java: ConformanceViolationsProto.Builder.clearViolations()
-func (b *ConformanceViolationsProto_Builder) ClearViolations() *ConformanceViolationsProto_Builder {
-	b.m.violations_ = nil
-	return b
-}
-
-// mergeFrom is GeneratedMessage.Builder.mergeFrom(ConformanceViolationsProto) on a mutable m.
-func (m *ConformanceViolationsProto) mergeFrom(other *ConformanceViolationsProto) {
-	if other == ConformanceViolationsProto_GetDefaultInstance() {
-		return
-	}
-	if other.inputName_ != "" {
-		m.inputName_ = other.inputName_
-	}
-	m.violations_ = append(m.violations_, other.violations_...)
-	m.unknownFields = append(m.unknownFields, other.unknownFields...)
-}
-
-// Java: ConformanceViolationsProto.equals(Object)
-func (m *ConformanceViolationsProto) Equals(obj any) bool {
-	other, ok := obj.(*ConformanceViolationsProto)
-	if !ok || other == nil {
-		return false
-	}
-	if m == other {
-		return true
-	}
-	if !(m.inputName_ == other.inputName_) {
-		return false
-	}
-	if len(m.violations_) != len(other.violations_) {
-		return false
-	}
-	for i := range m.violations_ {
-		if !(m.violations_[i].Equals(other.violations_[i])) {
-			return false
-		}
-	}
-	return protoBytesEqual(protoCanonicalUnknownFields(m.unknownFields), protoCanonicalUnknownFields(other.unknownFields))
-}
-
-// HashCode is consistent with Equals. (Java's generated hashCode mixes in
-// the descriptor's identity hash, so its values are not reproducible.)
-func (m *ConformanceViolationsProto) HashCode() int32 {
-	h := int32(41)
-	h = protoHashString(h, m.inputName_)
-	for _, x := range m.violations_ {
-		h = 31*h + x.HashCode()
-	}
-	return h
 }
 
 // appendTo is ConformanceViolationsProto.writeTo(CodedOutputStream): fields in number order, then unknown fields.
@@ -4408,46 +2424,28 @@ func (m *ConformanceViolationsProto) appendTo(b []byte) []byte {
 
 // serializedSize is getSerializedSize() (memoized once immutable).
 func (m *ConformanceViolationsProto) serializedSize() int {
-	if m.frozen && m.memoizedSize >= 0 {
-		return m.memoizedSize
+	if m.cachedSize > 0 {
+		return m.cachedSize - 1
 	}
 	size := 0
 	for _, x := range m.violations_ {
 		s := x.serializedSize()
 		size += 1 + protoVarintLen(uint64(s)) + s
 	}
-	size += len(m.appendScalarsOnly(nil))
-	if m.frozen {
-		m.memoizedSize = size
-	}
-	return size
-}
-
-// appendScalarsOnly encodes the non-message fields and unknown fields (for sizing).
-func (m *ConformanceViolationsProto) appendScalarsOnly(b []byte) []byte {
 	if m.inputName_ != "" {
-		b = protoAppendTag(b, 1, 2)
-		b = protoAppendString(b, m.inputName_)
+		size += protoStringSize(1, m.inputName_)
 	}
 	if len(m.unknownFields) > 0 {
-		b = append(b, protoCanonicalUnknownFields(m.unknownFields)...)
+		size += len(protoCanonicalUnknownFields(m.unknownFields))
 	}
-	return b
+	m.cachedSize = size + 1
+	return size
 }
-
-// Java: ConformanceViolationsProto.getSerializedSize()
-func (m *ConformanceViolationsProto) GetSerializedSize() int { return m.serializedSize() }
 
 // Java: ConformanceViolationsProto.toByteArray()
 func (m *ConformanceViolationsProto) ToByteArray() []byte {
 	return m.appendTo(make([]byte, 0, m.serializedSize()))
 }
-
-// Java: ConformanceViolationsProto.toByteString()
-func (m *ConformanceViolationsProto) ToByteString() []byte { return m.ToByteArray() }
-
-// Java: ConformanceViolationsProto.isInitialized()
-func (m *ConformanceViolationsProto) IsInitialized() bool { return true }
 
 // mergeFromReader is ConformanceViolationsProto.Builder.mergeFrom(CodedInputStream) on a mutable m.
 func (m *ConformanceViolationsProto) mergeFromReader(r *protoReader) {
@@ -4461,9 +2459,8 @@ func (m *ConformanceViolationsProto) mergeFromReader(r *protoReader) {
 			m.inputName_ = r.readStringRequireUtf8()
 		case 18:
 			data := r.readMessageBytes()
-			x := &ViolationProto{memoizedSize: -1}
+			x := &ViolationProto{}
 			x.mergeFromReader(r.sub(data))
-			x.frozen = true
 			m.violations_ = append(m.violations_, x)
 		default:
 			r.skipField(tag)
@@ -4501,8 +2498,7 @@ type ViolationProto struct {
 	shouldReportDuringLibraryDepsConformanceChecker_ bool
 	bitField0_                                       uint64
 	unknownFields                                    []byte
-	frozen                                           bool
-	memoizedSize                                     int
+	cachedSize                                       int
 }
 
 // Field numbers (ViolationProto.X_FIELD_NUMBER).
@@ -4515,81 +2511,10 @@ const (
 	ViolationProto_SHOULD_REPORT_DURING_LIBRARY_DEPS_CONFORMANCE_CHECKER_FIELD_NUMBER = 6
 )
 
-var violationProto_DEFAULT_INSTANCE = &ViolationProto{frozen: true, memoizedSize: -1}
-
-// Java: ViolationProto.getDefaultInstance()
-func ViolationProto_GetDefaultInstance() *ViolationProto { return violationProto_DEFAULT_INSTANCE }
-
 // Java: ViolationProto.newBuilder()
 func ViolationProto_NewBuilder() *ViolationProto_Builder {
-	return &ViolationProto_Builder{m: &ViolationProto{memoizedSize: -1}}
+	return &ViolationProto_Builder{m: &ViolationProto{}}
 }
-
-// Java: ViolationProto.newBuilder(ViolationProto)
-func ViolationProto_NewBuilderFrom(prototype *ViolationProto) *ViolationProto_Builder {
-	return prototype.ToBuilder()
-}
-
-// Java: ViolationProto.toBuilder()
-func (m *ViolationProto) ToBuilder() *ViolationProto_Builder {
-	return &ViolationProto_Builder{m: m.mutableCopy()}
-}
-
-// ViolationProto_ParseFrom panics with *InvalidProtocolBufferException on malformed input.
-//
-// Java: ViolationProto.parseFrom(byte[])
-func ViolationProto_ParseFrom(data []byte) *ViolationProto {
-	m := &ViolationProto{memoizedSize: -1}
-	m.mergeFromReader(&protoReader{b: data})
-	m.frozen = true
-	return m
-}
-
-// mutableCopy is a shallow copy that a builder may modify.
-func (m *ViolationProto) mutableCopy() *ViolationProto {
-	c := *m
-	c.frozen = false
-	c.memoizedSize = -1
-	return &c
-}
-
-// freeze returns an immutable copy (shared when m is already immutable).
-func (m *ViolationProto) freeze() *ViolationProto {
-	if m == nil || m.frozen {
-		return m
-	}
-	c := *m
-	c.frozen = true
-	c.memoizedSize = -1
-	c.requirement_ = m.requirement_.freeze()
-	c.allowlistEntry_ = m.allowlistEntry_.freeze()
-	return &c
-}
-
-// Java: ViolationProto.hasRequirement()
-func (m *ViolationProto) HasRequirement() bool { return m.requirement_ != nil }
-
-// Java: ViolationProto.getRequirement()
-func (m *ViolationProto) GetRequirement() *Requirement {
-	if m.requirement_ != nil {
-		return m.requirement_
-	}
-	return Requirement_GetDefaultInstance()
-}
-
-// Java: ViolationProto.hasAllowlistEntry()
-func (m *ViolationProto) HasAllowlistEntry() bool { return m.allowlistEntry_ != nil }
-
-// Java: ViolationProto.getAllowlistEntry()
-func (m *ViolationProto) GetAllowlistEntry() *RequirementScopeEntry {
-	if m.allowlistEntry_ != nil {
-		return m.allowlistEntry_
-	}
-	return RequirementScopeEntry_GetDefaultInstance()
-}
-
-// Java: ViolationProto.hasSourceName()
-func (m *ViolationProto) HasSourceName() bool { return m.bitField0_&(1<<0) != 0 }
 
 // Java: ViolationProto.getSourceName()
 func (m *ViolationProto) GetSourceName() string {
@@ -4601,127 +2526,27 @@ func (m *ViolationProto) GetLineNumber() int32 {
 	return m.lineNumber_
 }
 
-// Java: ViolationProto.getCharNumber()
-func (m *ViolationProto) GetCharNumber() int32 {
-	return m.charNumber_
-}
-
-// Java: ViolationProto.getShouldReportDuringLibraryDepsConformanceChecker()
-func (m *ViolationProto) GetShouldReportDuringLibraryDepsConformanceChecker() bool {
-	return m.shouldReportDuringLibraryDepsConformanceChecker_
-}
-
 // ViolationProto_Builder is ViolationProto.Builder.
 type ViolationProto_Builder struct{ m *ViolationProto }
 
 // Java: ViolationProto.Builder.build()
-func (b *ViolationProto_Builder) Build() *ViolationProto { return b.m.freeze() }
+func (b *ViolationProto_Builder) Build() *ViolationProto {
+	c := *b.m
+	c.cachedSize = 0
+	return &c
+}
 
 // Java: ViolationProto.Builder.buildPartial()
-func (b *ViolationProto_Builder) BuildPartial() *ViolationProto { return b.m.freeze() }
+func (b *ViolationProto_Builder) BuildPartial() *ViolationProto {
+	c := *b.m
+	c.cachedSize = 0
+	return &c
+}
 
 // Java: ViolationProto.Builder.clear()
 func (b *ViolationProto_Builder) Clear() *ViolationProto_Builder {
-	b.m = &ViolationProto{memoizedSize: -1}
+	b.m = &ViolationProto{}
 	return b
-}
-
-// Java: ViolationProto.Builder.mergeFrom(ViolationProto)
-func (b *ViolationProto_Builder) MergeFrom(other *ViolationProto) *ViolationProto_Builder {
-	b.m.mergeFrom(other)
-	return b
-}
-
-// Java: ViolationProto.Builder.hasRequirement()
-func (b *ViolationProto_Builder) HasRequirement() bool { return b.m.HasRequirement() }
-
-// Java: ViolationProto.Builder.getRequirement()
-func (b *ViolationProto_Builder) GetRequirement() *Requirement { return b.m.GetRequirement().freeze() }
-
-// Java: ViolationProto.Builder.setRequirement(Requirement)
-func (b *ViolationProto_Builder) SetRequirement(v *Requirement) *ViolationProto_Builder {
-	if v == nil {
-		panic(jutil.NewNullPointerException())
-	}
-	b.m.requirement_ = v
-	return b
-}
-
-// Java: ViolationProto.Builder.setRequirement(Requirement.Builder)
-func (b *ViolationProto_Builder) SetRequirementFromBuilder(builderForValue *Requirement_Builder) *ViolationProto_Builder {
-	return b.SetRequirement(builderForValue.Build())
-}
-
-// Java: ViolationProto.Builder.mergeRequirement(Requirement)
-func (b *ViolationProto_Builder) MergeRequirement(v *Requirement) *ViolationProto_Builder {
-	if b.m.HasRequirement() && b.m.requirement_ != Requirement_GetDefaultInstance() {
-		x := b.m.requirement_.mutableCopy()
-		x.mergeFrom(v)
-		b.m.requirement_ = x
-	} else {
-		b.m.requirement_ = v
-	}
-	return b
-}
-
-// Java: ViolationProto.Builder.getRequirementBuilder()
-func (b *ViolationProto_Builder) GetRequirementBuilder() *Requirement_Builder {
-	if b.m.requirement_ == nil {
-		b.m.requirement_ = &Requirement{memoizedSize: -1}
-	} else if b.m.requirement_.frozen {
-		b.m.requirement_ = b.m.requirement_.mutableCopy()
-	}
-	return &Requirement_Builder{m: b.m.requirement_}
-}
-
-// Java: ViolationProto.Builder.clearRequirement()
-func (b *ViolationProto_Builder) ClearRequirement() *ViolationProto_Builder {
-	b.m.requirement_ = nil
-	return b
-}
-
-// Java: ViolationProto.Builder.hasAllowlistEntry()
-func (b *ViolationProto_Builder) HasAllowlistEntry() bool { return b.m.HasAllowlistEntry() }
-
-// Java: ViolationProto.Builder.getAllowlistEntry()
-func (b *ViolationProto_Builder) GetAllowlistEntry() *RequirementScopeEntry {
-	return b.m.GetAllowlistEntry().freeze()
-}
-
-// Java: ViolationProto.Builder.setAllowlistEntry(RequirementScopeEntry)
-func (b *ViolationProto_Builder) SetAllowlistEntry(v *RequirementScopeEntry) *ViolationProto_Builder {
-	if v == nil {
-		panic(jutil.NewNullPointerException())
-	}
-	b.m.allowlistEntry_ = v
-	return b
-}
-
-// Java: ViolationProto.Builder.setAllowlistEntry(RequirementScopeEntry.Builder)
-func (b *ViolationProto_Builder) SetAllowlistEntryFromBuilder(builderForValue *RequirementScopeEntry_Builder) *ViolationProto_Builder {
-	return b.SetAllowlistEntry(builderForValue.Build())
-}
-
-// Java: ViolationProto.Builder.mergeAllowlistEntry(RequirementScopeEntry)
-func (b *ViolationProto_Builder) MergeAllowlistEntry(v *RequirementScopeEntry) *ViolationProto_Builder {
-	if b.m.HasAllowlistEntry() && b.m.allowlistEntry_ != RequirementScopeEntry_GetDefaultInstance() {
-		x := b.m.allowlistEntry_.mutableCopy()
-		x.mergeFrom(v)
-		b.m.allowlistEntry_ = x
-	} else {
-		b.m.allowlistEntry_ = v
-	}
-	return b
-}
-
-// Java: ViolationProto.Builder.getAllowlistEntryBuilder()
-func (b *ViolationProto_Builder) GetAllowlistEntryBuilder() *RequirementScopeEntry_Builder {
-	if b.m.allowlistEntry_ == nil {
-		b.m.allowlistEntry_ = &RequirementScopeEntry{memoizedSize: -1}
-	} else if b.m.allowlistEntry_.frozen {
-		b.m.allowlistEntry_ = b.m.allowlistEntry_.mutableCopy()
-	}
-	return &RequirementScopeEntry_Builder{m: b.m.allowlistEntry_}
 }
 
 // Java: ViolationProto.Builder.clearAllowlistEntry()
@@ -4730,9 +2555,6 @@ func (b *ViolationProto_Builder) ClearAllowlistEntry() *ViolationProto_Builder {
 	return b
 }
 
-// Java: ViolationProto.Builder.hasSourceName()
-func (b *ViolationProto_Builder) HasSourceName() bool { return b.m.HasSourceName() }
-
 // Java: ViolationProto.Builder.getSourceName()
 func (b *ViolationProto_Builder) GetSourceName() string { return b.m.GetSourceName() }
 
@@ -4740,13 +2562,6 @@ func (b *ViolationProto_Builder) GetSourceName() string { return b.m.GetSourceNa
 func (b *ViolationProto_Builder) SetSourceName(v string) *ViolationProto_Builder {
 	b.m.sourceName_ = v
 	b.m.bitField0_ |= 1 << 0
-	return b
-}
-
-// Java: ViolationProto.Builder.clearSourceName()
-func (b *ViolationProto_Builder) ClearSourceName() *ViolationProto_Builder {
-	b.m.sourceName_ = ""
-	b.m.bitField0_ &^= 1 << 0
 	return b
 }
 
@@ -4759,137 +2574,10 @@ func (b *ViolationProto_Builder) SetLineNumber(v int32) *ViolationProto_Builder 
 	return b
 }
 
-// Java: ViolationProto.Builder.clearLineNumber()
-func (b *ViolationProto_Builder) ClearLineNumber() *ViolationProto_Builder {
-	b.m.lineNumber_ = 0
-	return b
-}
-
-// Java: ViolationProto.Builder.getCharNumber()
-func (b *ViolationProto_Builder) GetCharNumber() int32 { return b.m.GetCharNumber() }
-
 // Java: ViolationProto.Builder.setCharNumber(int)
 func (b *ViolationProto_Builder) SetCharNumber(v int32) *ViolationProto_Builder {
 	b.m.charNumber_ = v
 	return b
-}
-
-// Java: ViolationProto.Builder.clearCharNumber()
-func (b *ViolationProto_Builder) ClearCharNumber() *ViolationProto_Builder {
-	b.m.charNumber_ = 0
-	return b
-}
-
-// Java: ViolationProto.Builder.getShouldReportDuringLibraryDepsConformanceChecker()
-func (b *ViolationProto_Builder) GetShouldReportDuringLibraryDepsConformanceChecker() bool {
-	return b.m.GetShouldReportDuringLibraryDepsConformanceChecker()
-}
-
-// Java: ViolationProto.Builder.setShouldReportDuringLibraryDepsConformanceChecker(boolean)
-func (b *ViolationProto_Builder) SetShouldReportDuringLibraryDepsConformanceChecker(v bool) *ViolationProto_Builder {
-	b.m.shouldReportDuringLibraryDepsConformanceChecker_ = v
-	return b
-}
-
-// Java: ViolationProto.Builder.clearShouldReportDuringLibraryDepsConformanceChecker()
-func (b *ViolationProto_Builder) ClearShouldReportDuringLibraryDepsConformanceChecker() *ViolationProto_Builder {
-	b.m.shouldReportDuringLibraryDepsConformanceChecker_ = false
-	return b
-}
-
-// mergeFrom is GeneratedMessage.Builder.mergeFrom(ViolationProto) on a mutable m.
-func (m *ViolationProto) mergeFrom(other *ViolationProto) {
-	if other == ViolationProto_GetDefaultInstance() {
-		return
-	}
-	if other.requirement_ != nil {
-		if m.requirement_ != nil {
-			x := m.requirement_.mutableCopy()
-			x.mergeFrom(other.requirement_)
-			m.requirement_ = x.freeze()
-		} else {
-			m.requirement_ = other.requirement_
-		}
-	}
-	if other.allowlistEntry_ != nil {
-		if m.allowlistEntry_ != nil {
-			x := m.allowlistEntry_.mutableCopy()
-			x.mergeFrom(other.allowlistEntry_)
-			m.allowlistEntry_ = x.freeze()
-		} else {
-			m.allowlistEntry_ = other.allowlistEntry_
-		}
-	}
-	if other.bitField0_&(1<<0) != 0 {
-		m.sourceName_ = other.sourceName_
-		m.bitField0_ |= 1 << 0
-	}
-	if other.lineNumber_ != 0 {
-		m.lineNumber_ = other.lineNumber_
-	}
-	if other.charNumber_ != 0 {
-		m.charNumber_ = other.charNumber_
-	}
-	if other.shouldReportDuringLibraryDepsConformanceChecker_ {
-		m.shouldReportDuringLibraryDepsConformanceChecker_ = other.shouldReportDuringLibraryDepsConformanceChecker_
-	}
-	m.unknownFields = append(m.unknownFields, other.unknownFields...)
-}
-
-// Java: ViolationProto.equals(Object)
-func (m *ViolationProto) Equals(obj any) bool {
-	other, ok := obj.(*ViolationProto)
-	if !ok || other == nil {
-		return false
-	}
-	if m == other {
-		return true
-	}
-	if m.HasRequirement() != other.HasRequirement() {
-		return false
-	}
-	if m.HasRequirement() && !m.requirement_.Equals(other.requirement_) {
-		return false
-	}
-	if m.HasAllowlistEntry() != other.HasAllowlistEntry() {
-		return false
-	}
-	if m.HasAllowlistEntry() && !m.allowlistEntry_.Equals(other.allowlistEntry_) {
-		return false
-	}
-	if m.HasSourceName() != other.HasSourceName() {
-		return false
-	}
-	if m.HasSourceName() && !(m.sourceName_ == other.sourceName_) {
-		return false
-	}
-	if !(m.lineNumber_ == other.lineNumber_) {
-		return false
-	}
-	if !(m.charNumber_ == other.charNumber_) {
-		return false
-	}
-	if !(m.shouldReportDuringLibraryDepsConformanceChecker_ == other.shouldReportDuringLibraryDepsConformanceChecker_) {
-		return false
-	}
-	return protoBytesEqual(protoCanonicalUnknownFields(m.unknownFields), protoCanonicalUnknownFields(other.unknownFields))
-}
-
-// HashCode is consistent with Equals. (Java's generated hashCode mixes in
-// the descriptor's identity hash, so its values are not reproducible.)
-func (m *ViolationProto) HashCode() int32 {
-	h := int32(41)
-	if m.requirement_ != nil {
-		h = 31*h + m.requirement_.HashCode()
-	}
-	if m.allowlistEntry_ != nil {
-		h = 31*h + m.allowlistEntry_.HashCode()
-	}
-	h = protoHashString(h, m.sourceName_)
-	h = 31*h + m.lineNumber_
-	h = 31*h + m.charNumber_
-	h = protoHashBool(h, m.shouldReportDuringLibraryDepsConformanceChecker_)
-	return h
 }
 
 // appendTo is ViolationProto.writeTo(CodedOutputStream): fields in number order, then unknown fields.
@@ -4928,8 +2616,8 @@ func (m *ViolationProto) appendTo(b []byte) []byte {
 
 // serializedSize is getSerializedSize() (memoized once immutable).
 func (m *ViolationProto) serializedSize() int {
-	if m.frozen && m.memoizedSize >= 0 {
-		return m.memoizedSize
+	if m.cachedSize > 0 {
+		return m.cachedSize - 1
 	}
 	size := 0
 	if m.requirement_ != nil {
@@ -4940,48 +2628,27 @@ func (m *ViolationProto) serializedSize() int {
 		s := m.allowlistEntry_.serializedSize()
 		size += 1 + protoVarintLen(uint64(s)) + s
 	}
-	size += len(m.appendScalarsOnly(nil))
-	if m.frozen {
-		m.memoizedSize = size
+	if m.bitField0_&(1<<0) != 0 {
+		size += protoStringSize(1, m.sourceName_)
 	}
+	if m.lineNumber_ != 0 {
+		size += 1 + protoVarintLen(uint64(int64(m.lineNumber_)))
+	}
+	if m.charNumber_ != 0 {
+		size += 1 + protoVarintLen(uint64(int64(m.charNumber_)))
+	}
+	if m.shouldReportDuringLibraryDepsConformanceChecker_ {
+		size += 2
+	}
+	if len(m.unknownFields) > 0 {
+		size += len(protoCanonicalUnknownFields(m.unknownFields))
+	}
+	m.cachedSize = size + 1
 	return size
 }
 
-// appendScalarsOnly encodes the non-message fields and unknown fields (for sizing).
-func (m *ViolationProto) appendScalarsOnly(b []byte) []byte {
-	if m.bitField0_&(1<<0) != 0 {
-		b = protoAppendTag(b, 3, 2)
-		b = protoAppendString(b, m.sourceName_)
-	}
-	if m.lineNumber_ != 0 {
-		b = protoAppendTag(b, 4, 0)
-		b = protoAppendInt32(b, m.lineNumber_)
-	}
-	if m.charNumber_ != 0 {
-		b = protoAppendTag(b, 5, 0)
-		b = protoAppendInt32(b, m.charNumber_)
-	}
-	if m.shouldReportDuringLibraryDepsConformanceChecker_ {
-		b = protoAppendTag(b, 6, 0)
-		b = protoAppendBool(b, m.shouldReportDuringLibraryDepsConformanceChecker_)
-	}
-	if len(m.unknownFields) > 0 {
-		b = append(b, protoCanonicalUnknownFields(m.unknownFields)...)
-	}
-	return b
-}
-
-// Java: ViolationProto.getSerializedSize()
-func (m *ViolationProto) GetSerializedSize() int { return m.serializedSize() }
-
 // Java: ViolationProto.toByteArray()
 func (m *ViolationProto) ToByteArray() []byte { return m.appendTo(make([]byte, 0, m.serializedSize())) }
-
-// Java: ViolationProto.toByteString()
-func (m *ViolationProto) ToByteString() []byte { return m.ToByteArray() }
-
-// Java: ViolationProto.isInitialized()
-func (m *ViolationProto) IsInitialized() bool { return true }
 
 // mergeFromReader is ViolationProto.Builder.mergeFrom(CodedInputStream) on a mutable m.
 func (m *ViolationProto) mergeFromReader(r *protoReader) {
@@ -4995,23 +2662,23 @@ func (m *ViolationProto) mergeFromReader(r *protoReader) {
 			data := r.readMessageBytes()
 			var x *Requirement
 			if m.requirement_ != nil {
-				x = m.requirement_.mutableCopy()
+				x = m.requirement_
+				x.cachedSize = 0
 			} else {
-				x = &Requirement{memoizedSize: -1}
+				x = &Requirement{}
 			}
 			x.mergeFromReader(r.sub(data))
-			x.frozen = true
 			m.requirement_ = x
 		case 18:
 			data := r.readMessageBytes()
 			var x *RequirementScopeEntry
 			if m.allowlistEntry_ != nil {
-				x = m.allowlistEntry_.mutableCopy()
+				x = m.allowlistEntry_
+				x.cachedSize = 0
 			} else {
-				x = &RequirementScopeEntry{memoizedSize: -1}
+				x = &RequirementScopeEntry{}
 			}
 			x.mergeFromReader(r.sub(data))
-			x.frozen = true
 			m.allowlistEntry_ = x
 		case 26:
 			m.sourceName_ = r.readStringRequireUtf8()

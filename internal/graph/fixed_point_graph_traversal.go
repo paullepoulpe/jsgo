@@ -67,8 +67,8 @@ const FixedPointGraphTraversal_NON_HALTING_ERROR_MSG = "Fixed point computation 
 //
 // Java: FixedPointGraphTraversal(EdgeCallback<N, E>, TraversalDirection)
 func newFixedPointGraphTraversal[N, E comparable](
-	callback FixedPointGraphTraversal_EdgeCallback[N, E], traversalDirection fixedPointGraphTraversal_TraversalDirection) *FixedPointGraphTraversal[N, E] {
-	return &FixedPointGraphTraversal[N, E]{
+	callback FixedPointGraphTraversal_EdgeCallback[N, E], traversalDirection fixedPointGraphTraversal_TraversalDirection) FixedPointGraphTraversal[N, E] {
+	return FixedPointGraphTraversal[N, E]{
 		callback:           callback,
 		traversalDirection: traversalDirection,
 	}
@@ -79,7 +79,7 @@ func newFixedPointGraphTraversal[N, E comparable](
 //
 // Java: FixedPointGraphTraversal.newTraversal(EdgeCallback<NodeT, EdgeT>)
 func FixedPointGraphTraversal_NewTraversal[NodeT, EdgeT comparable](
-	callback FixedPointGraphTraversal_EdgeCallback[NodeT, EdgeT]) *FixedPointGraphTraversal[NodeT, EdgeT] {
+	callback FixedPointGraphTraversal_EdgeCallback[NodeT, EdgeT]) FixedPointGraphTraversal[NodeT, EdgeT] {
 	return newFixedPointGraphTraversal(callback, fixedPointGraphTraversal_TraversalDirection_OUTWARDS)
 }
 
@@ -88,14 +88,14 @@ func FixedPointGraphTraversal_NewTraversal[NodeT, EdgeT comparable](
 //
 // Java: FixedPointGraphTraversal.newReverseTraversal(EdgeCallback<NodeT, EdgeT>)
 func FixedPointGraphTraversal_NewReverseTraversal[NodeT, EdgeT comparable](
-	callback FixedPointGraphTraversal_EdgeCallback[NodeT, EdgeT]) *FixedPointGraphTraversal[NodeT, EdgeT] {
+	callback FixedPointGraphTraversal_EdgeCallback[NodeT, EdgeT]) FixedPointGraphTraversal[NodeT, EdgeT] {
 	return newFixedPointGraphTraversal(callback, fixedPointGraphTraversal_TraversalDirection_INWARDS)
 }
 
 // ComputeFixedPoint computes a fixed point for the given graph.
 //
 // Java: FixedPointGraphTraversal.computeFixedPoint(DiGraph<N, E>)
-func (t *FixedPointGraphTraversal[N, E]) ComputeFixedPoint(graph DiGraph[N, E]) {
+func (t FixedPointGraphTraversal[N, E]) ComputeFixedPoint(graph DiGraph[N, E]) {
 	var zeroN N
 	t.computeFixedPointLinked(graph.AsLinkedDirectedGraph(), true, zeroN)
 }
@@ -105,7 +105,7 @@ func (t *FixedPointGraphTraversal[N, E]) ComputeFixedPoint(graph DiGraph[N, E]) 
 // from.
 //
 // Java: FixedPointGraphTraversal.computeFixedPoint(DiGraph<N, E>, N)
-func (t *FixedPointGraphTraversal[N, E]) ComputeFixedPointFrom(graph DiGraph[N, E], entry N) {
+func (t FixedPointGraphTraversal[N, E]) ComputeFixedPointFrom(graph DiGraph[N, E], entry N) {
 	t.computeFixedPointLinked(graph.AsLinkedDirectedGraph(), false, entry)
 }
 
@@ -118,7 +118,7 @@ func (t *FixedPointGraphTraversal[N, E]) ComputeFixedPointFrom(graph DiGraph[N, 
 // node count we use for calculation at the cube root of that number.
 var fixedPointGraphTraversal_MAX_NODE_COUNT_FOR_ITERATION_LIMIT = int64(math.Floor(math.Cbrt(60e9)))
 
-func (t *FixedPointGraphTraversal[N, E]) computeFixedPointLinked(
+func (t FixedPointGraphTraversal[N, E]) computeFixedPointLinked(
 	ldg *LinkedDirectedGraph[N, E], initAll bool, singleEntry N) {
 	nodes := ldg.Nodes.Slice()
 	nodeCountInt := len(nodes)

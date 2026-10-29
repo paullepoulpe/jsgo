@@ -103,44 +103,25 @@ func (c *CheckRegExp) Process(externs rhino.Node, root rhino.Node) {
 }
 
 func (c *CheckRegExp) processParallel(root rhino.Node) bool {
-	scripts, ok := collectRootScripts(root)
+	var usedByWorker []bool
+	ok := traverseScriptsParallel(c.compiler, root, parallelScriptOptions[*CheckRegExp]{
+		useSharedGlobalScope: true,
+		prepare: func(numWorkers, _ int) bool {
+			usedByWorker = make([]bool, numWorkers)
+			return true
+		},
+		initWorker: func(_ int, rc *Compiler) *CheckRegExp {
+			return NewCheckRegExp(rc, c.assumeAllGlobalRegexpUsagesVisible, c.reportErrors)
+		},
+		finishWorker: func(workerID int, w *CheckRegExp) {
+			if w.globalRegExpPropertiesUsed {
+				usedByWorker[workerID] = true
+			}
+		},
+	})
 	if !ok {
 		return false
 	}
-	numWorkers := parallelThreadCount(c.compiler, len(scripts))
-	if numWorkers <= 1 {
-		return false
-	}
-	prewarmCompilerForParallelReads(c.compiler)
-	lazyGlobal := newLazyGlobalScope(c.compiler, root)
-
-	usedByWorker := make([]bool, numWorkers)
-	runParallelWork(c.compiler, numWorkers, len(scripts), func(workerID int) (func(int, *recordingCompiler), func()) {
-		var workerRC *recordingCompiler
-		var workerPass *CheckRegExp
-		var sc *SyntacticScopeCreator
-
-		cleanup := func() {
-			if workerPass != nil && workerPass.globalRegExpPropertiesUsed {
-				usedByWorker[workerID] = true
-			}
-		}
-		runItem := func(idx int, rc *recordingCompiler) {
-			if workerPass == nil || workerRC != rc {
-				workerRC = rc
-				workerPass = NewCheckRegExp(rc, c.assumeAllGlobalRegexpUsagesVisible, c.reportErrors)
-				sc = NewSyntacticScopeCreator(rc)
-			}
-			b := NodeTraversal_Builder{
-				compiler:     rc,
-				callback:     workerPass,
-				scopeCreator: sc,
-			}
-			b.traverseScriptUnderRoot(root, root, scripts[idx], lazyGlobal)
-		}
-		return runItem, cleanup
-	}, false)
-
 	for _, used := range usedByWorker {
 		if used {
 			c.globalRegExpPropertiesUsed = true

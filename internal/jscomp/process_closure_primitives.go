@@ -684,13 +684,11 @@ type processClosurePrimitives_cssRenamingMap struct {
 }
 
 // Java: ProcessClosurePrimitives.processSetCssNameMapping(...).new CssRenamingMap() {...}.get(String)
-func (m *processClosurePrimitives_cssRenamingMap) Get(value string) *string {
-	if m.cssNames.ContainsKey(value) {
-		s := m.cssNames.Get(value)
-		return &s
-	} else {
-		return &value
+func (m *processClosurePrimitives_cssRenamingMap) Get(value string) (string, bool) {
+	if s, ok := m.cssNames.Lookup(value); ok {
+		return s, true
 	}
+	return value, true
 }
 
 // Java: ProcessClosurePrimitives.processSetCssNameMapping(...).new CssRenamingMap() {...}.getStyle()

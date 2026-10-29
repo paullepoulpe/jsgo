@@ -625,7 +625,7 @@ func (b *TypedScopeCreator_scopeBuilder) FinishConstructorDefinition(
 	// be declared. See TypedScopeCreatorTest#testBogusPrototypeInit.
 	// Fortunately, other warnings will complain if this happens.
 	prototypeVar := scopeToDeclareIn.GetVar(prototypeName)
-	if prototypeVar != nil && prototypeVar.GetScope() == rhino.StaticScope(scopeToDeclareIn) {
+	if prototypeVar != nil && prototypeVar.Scope() == scopeToDeclareIn {
 		scopeToDeclareIn.Undeclare(prototypeVar)
 	}
 
@@ -671,7 +671,7 @@ func (b *TypedScopeCreator_scopeBuilder) GetLValueRootScope(n rhino.Node) *Typed
 				}
 				var_ := b.currentScope.GetVarByID(root.GetStringID())
 				if var_ != nil {
-					return var_.GetScope().(*TypedScope)
+					return var_.Scope()
 				}
 			}
 		} else if root.IsThis() || root.IsSuper() {

@@ -81,6 +81,10 @@ func NewCheckEs6ModuleFileStructure(compiler AbstractCompiler) *CheckEs6ModuleFi
 	return &CheckEs6ModuleFileStructure{compiler: compiler}
 }
 
+func (*CheckEs6ModuleFileStructure) cloneForParallel(c *Compiler) NodeTraversal_Callback {
+	return NewCheckEs6ModuleFileStructure(c)
+}
+
 // Java: CheckEs6ModuleFileStructure.shouldTraverse(NodeTraversal, Node, Node)
 func (c *CheckEs6ModuleFileStructure) ShouldTraverse(t *NodeTraversal, n rhino.Node, parent rhino.Node) bool {
 	switch n.GetToken() {

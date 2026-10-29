@@ -19,12 +19,139 @@
 package jscomp
 
 import (
+	"iter"
 	"strings"
 
 	"github.com/paullepoulpe/jsgo/internal/ast"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
+
+type symbolOrderedMap[K comparable, V comparable] struct {
+	entries []V
+	index   map[K]int
+	live    int
+}
+
+func (m *symbolOrderedMap[K, V]) Get(k K) V {
+	var zero V
+	if idx, ok := m.index[k]; ok {
+		return m.entries[idx]
+	}
+	return zero
+}
+
+func (m *symbolOrderedMap[K, V]) Put(k K, v V) V {
+	var zero V
+	if m.index == nil {
+		m.index = make(map[K]int)
+	} else if idx, ok := m.index[k]; ok {
+		prev := m.entries[idx]
+		m.entries[idx] = v
+		return prev
+	}
+	m.index[k] = len(m.entries)
+	m.entries = append(m.entries, v)
+	m.live++
+	return zero
+}
+
+func (m *symbolOrderedMap[K, V]) Remove(k K) V {
+	var zero V
+	idx, ok := m.index[k]
+	if !ok {
+		return zero
+	}
+	prev := m.entries[idx]
+	m.entries[idx] = zero
+	delete(m.index, k)
+	m.live--
+	if m.live == 0 {
+		m.entries = m.entries[:0]
+	}
+	return prev
+}
+
+func (m *symbolOrderedMap[K, V]) Values() iter.Seq[V] {
+	return func(yield func(V) bool) {
+		var zero V
+		for _, v := range m.entries {
+			if v != zero && !yield(v) {
+				return
+			}
+		}
+	}
+}
+
+func (m *symbolOrderedMap[K, V]) ValueSlice() []V {
+	if m.live == 0 {
+		return nil
+	}
+	var zero V
+	out := make([]V, 0, m.live)
+	for _, v := range m.entries {
+		if v != zero {
+			out = append(out, v)
+		}
+	}
+	return out
+}
+
+func isNilStaticRef(ref rhino.StaticRef) bool {
+	if ref == nil {
+		return true
+	}
+	switch r := ref.(type) {
+	case *SymbolTable_Reference:
+		return r == nil
+	case *TypedVar:
+		return r == nil
+	case *Var:
+		return r == nil
+	case *Reference:
+		return r == nil
+	case *GlobalNamespace_Ref:
+		return r == nil
+	case *PreprocessorSymbolTable_Reference:
+		return r == nil
+	case *rhino.Property:
+		return r == nil
+	default:
+		return false
+	}
+}
+
+func isNilSourceFile(sf rhino.StaticSourceFile) bool {
+	if sf == nil {
+		return true
+	}
+	switch f := sf.(type) {
+	case *SourceFile:
+		return f == nil
+	case *rhino.SimpleSourceFile:
+		return f == nil
+	default:
+		return false
+	}
+}
+
+func isNilStaticScope(s rhino.StaticScope) bool {
+	if s == nil {
+		return true
+	}
+	switch sc := s.(type) {
+	case *TypedScope:
+		return sc == nil
+	case *Scope:
+		return sc == nil
+	case *LinkedFlowScope:
+		return sc == nil
+	case *rhino.JSTypeRegistry_SyntheticTemplateScope:
+		return sc == nil
+	default:
+		return false
+	}
+}
 
 // SymbolTable_PropertyRefCollector collects property references.
 //
@@ -461,7 +588,7 @@ func (c *SymbolTable_JSDocInfoCollector) lookupPossiblyDottedName(scope *SymbolT
 type SymbolTable_VisibilityCollector struct {
 	NodeTraversal_AbstractPostOrderCallbackBase
 	outer             *SymbolTable
-	fileVisibilityMap *jutil.LinkedHashMap[rhino.StaticSourceFile, rhino.JSDocInfo_Visibility]
+	fileVisibilityMap map[rhino.StaticSourceFile]rhino.JSDocInfo_Visibility
 }
 
 var symbolTableVisibilityVisitTokens = func() ast.TokenSet {
@@ -479,7 +606,7 @@ func (*SymbolTable_VisibilityCollector) visitTokens() *ast.TokenSet {
 
 // Java: SymbolTable.VisibilityCollector(ImmutableMap<StaticSourceFile, Visibility>)
 func NewSymbolTable_VisibilityCollector(
-	outer *SymbolTable, fileVisibilityMap *jutil.LinkedHashMap[rhino.StaticSourceFile, rhino.JSDocInfo_Visibility]) *SymbolTable_VisibilityCollector {
+	outer *SymbolTable, fileVisibilityMap map[rhino.StaticSourceFile]rhino.JSDocInfo_Visibility) *SymbolTable_VisibilityCollector {
 	return &SymbolTable_VisibilityCollector{outer: outer, fileVisibilityMap: fileVisibilityMap}
 }
 
@@ -508,9 +635,18 @@ func (c *SymbolTable_VisibilityCollector) visitName(t *NodeTraversal, nameNode a
 	if var_ == nil {
 		return
 	}
-	// Go-only: AccessControlUtils.getEffectiveNameVisibility never returns
-	// null here (see AccessControlUtils), so Java's null check is dropped.
-	v := AccessControlUtils_GetEffectiveNameVisibility(n, var_, c.fileVisibilityMap)
+	raw := rhino.JSDocInfo_Visibility_INHERITED
+	if jsDocInfo := var_.GetJSDocInfo(); jsDocInfo != nil {
+		raw = jsDocInfo.GetVisibility()
+	}
+	v := raw
+	if raw == rhino.JSDocInfo_Visibility_INHERITED && len(c.fileVisibilityMap) > 0 {
+		if defVis, ok := c.fileVisibilityMap[var_.GetSourceFile()]; ok {
+			if type_ := n.GetJSType(); type_ == nil || !type_.IsLiteralObject() {
+				v = defVis
+			}
+		}
+	}
 	symbol.SetVisibility(v)
 }
 
@@ -540,11 +676,14 @@ func (c *SymbolTable_VisibilityCollector) visitProperty(gp ast.NormalOrOptChainG
 		symbol.SetVisibility(rhino.JSDocInfo_Visibility_INHERITED)
 	} else {
 		referenceType := rhino.ObjectType_Cast(jsType.Dereference())
-		// Go-only: AccessControlUtils.getEffectivePropertyVisibility never
-		// returns null (see AccessControlUtils), so Java's null check is dropped.
-		v :=
-			AccessControlUtils_GetEffectivePropertyVisibility(
-				getprop, referenceType, c.fileVisibilityMap)
+		var fileOverviewVisibility *rhino.JSDocInfo_Visibility
+		if len(c.fileVisibilityMap) > 0 {
+			definingSource := AccessControlUtils_GetDefiningSource(getprop, referenceType, propertyName)
+			fileOverviewVisibility = checkAccessControls_visibilityFor(c.fileVisibilityMap, definingSource)
+		}
+		objectType := AccessControlUtils_GetObjectType(referenceType, false, propertyName)
+		v := AccessControlUtils_GetEffectiveVisibilityForNonOverriddenProperty(
+			getprop, objectType, fileOverviewVisibility)
 		symbol.SetVisibility(v)
 	}
 }

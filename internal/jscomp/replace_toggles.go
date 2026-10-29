@@ -21,6 +21,7 @@ package jscomp
 import (
 	"strconv"
 
+	"github.com/paullepoulpe/jsgo/internal/ast"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
@@ -29,6 +30,8 @@ import (
 //
 // Use this to get unique and short ids.
 type ReplaceToggles struct {
+	NodeTraversal_AbstractPostOrderCallbackBase
+
 	compiler   AbstractCompiler
 	astFactory *AstFactory
 
@@ -73,33 +76,40 @@ func NewReplaceToggles(compiler AbstractCompiler) *ReplaceToggles {
 
 // Java: ReplaceToggles.process(Node, Node)
 func (r *ReplaceToggles) Process(externs rhino.Node, root rhino.Node) {
-	NodeTraversal_Traverse(r.compiler, root, NewReplaceToggles_Traversal(r))
+	NodeTraversal_Traverse(r.compiler, root, r)
 }
 
 // Java: ReplaceToggles.ORDINAL_VAR_NAME
 const ReplaceToggles_ORDINAL_VAR_NAME = "CLOSURE_TOGGLE_ORDINALS"
 
-// Java: ReplaceToggles.readToggleFunctionName
-var ReplaceToggles_readToggleFunctionName = rhino.QualifiedName_Of("goog.readToggleInternalDoNotCallDirectly")
+var (
+	replaceTogglesOrdinalVarID = rhino.RhinoStringPool_InternID(ReplaceToggles_ORDINAL_VAR_NAME)
+	replaceTogglesVisitTokens  = makeVisitTokenSet(
+		rhino.Token_VAR,
+		rhino.Token_LET,
+		rhino.Token_CONST,
+		rhino.Token_CALL,
+	)
 
-// ReplaceToggles_Traversal is the inner class Traversal.
-type ReplaceToggles_Traversal struct {
-	NodeTraversal_AbstractPostOrderCallbackBase
-	this_ *ReplaceToggles // the enclosing instance
-}
+	// Java: ReplaceToggles.readToggleFunctionName
+	ReplaceToggles_readToggleFunctionName = rhino.QualifiedName_Of("goog.readToggleInternalDoNotCallDirectly")
 
-// Java: Traversal()
-func NewReplaceToggles_Traversal(outer *ReplaceToggles) *ReplaceToggles_Traversal {
-	return &ReplaceToggles_Traversal{this_: outer}
-}
+	_ nodeTraversal_noVisitLeaves = (*ReplaceToggles)(nil)
+	_ nodeTraversal_visitTokens   = (*ReplaceToggles)(nil)
+)
+
+func (*ReplaceToggles) noVisitLeaves()             {}
+func (*ReplaceToggles) visitTokens() *ast.TokenSet { return &replaceTogglesVisitTokens }
 
 // Java: Traversal.visit(NodeTraversal, Node, Node)
-func (v *ReplaceToggles_Traversal) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
-	r := v.this_
+func (r *ReplaceToggles) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	// Look for `var CLOSURE_TOGGLE_ORDINALS = {...};`, record the mapping, and then delete the
 	// declaration from the AST since we should no longer need it (and the optimizer won't
 	// delete it in case the global assignment was an intended side effect).
-	if NodeUtil_IsNameDeclaration(n) && n.GetFirstChild().MatchesName(ReplaceToggles_ORDINAL_VAR_NAME) {
+	if NodeUtil_IsNameDeclaration(n) {
+		if first := n.GetFirstChild(); !first.IsName() || first.GetStringID() != replaceTogglesOrdinalVarID {
+			return
+		}
 		rhs := n.GetFirstFirstChild()
 
 		if rhs.IsNil() && n.IsVar() {

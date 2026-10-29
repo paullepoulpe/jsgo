@@ -662,13 +662,6 @@ func (t *JSTypeBase) IsSubtype(supertype JSType) bool {
 	return t.IsSubtypeOf(supertype)
 }
 
-// IsSubtypeWithMode is deprecated: prefer isSubtype(JSType) instead.
-//
-// Java: JSType.isSubtype(JSType, SubtypingMode)
-func (t *JSTypeBase) IsSubtypeWithMode(supertype JSType, mode JSType_SubtypingMode) bool {
-	return t.IsSubtypeOfWithMode(supertype, mode)
-}
-
 // Java: JSType.isSubtypeOf(JSType)
 func (t *JSTypeBase) IsSubtypeOf(supertype JSType) bool {
 	supBase := jsTypeBase(supertype)

@@ -43,7 +43,7 @@ type Scanner struct {
 	lookahead           []Token
 	lookaheadBuf        [8]Token
 	index               int
-	commentRecorder     Scanner_CommentRecorder
+	commentRecorder     *Parser_CommentRecorder
 	typeParameterLevel  int
 	sawNumericSeparator bool
 
@@ -101,7 +101,7 @@ func (s *Scanner) sliceString(start, end int) string {
 // NewScanner constructs a Scanner.
 //
 // Java: Scanner(ErrorReporter, CommentRecorder, SourceFile, int)
-func NewScanner(errorReporter ErrorReporter, commentRecorder Scanner_CommentRecorder, file *SourceFile, offset int) *Scanner {
+func NewScanner(errorReporter ErrorReporter, commentRecorder *Parser_CommentRecorder, file *SourceFile, offset int) *Scanner {
 	s := &Scanner{}
 	s.lookahead = s.lookaheadBuf[:0]
 	s.errorReporter = errorReporter
@@ -116,12 +116,6 @@ func NewScanner(errorReporter ErrorReporter, commentRecorder Scanner_CommentReco
 	s.index = offset
 	s.typeParameterLevel = 0
 	return s
-}
-
-// Scanner_CommentRecorder is Scanner.CommentRecorder.
-type Scanner_CommentRecorder interface {
-	// Java: Scanner.CommentRecorder.recordComment(Comment.Type, SourceRange, String)
-	RecordComment(type_ Comment_Type, range_ LineRange, value string)
 }
 
 // GetFile returns the source file.

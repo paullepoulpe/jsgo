@@ -43,9 +43,14 @@ func TestColorPool_DeserializesTopObjectTypeFromEmptyTypePool(t *testing.T) {
 
 func TestColorPool_DeserializesNativeObjectTableIntoNativeColor(t *testing.T) {
 	stringPool := StringPool_Builder_()
-	typePool := TypePool_NewBuilder().AddType(TypeProto_NewBuilder().SetObjectFromBuilder(ObjectTypeProto_NewBuilder().SetUuid(colors.StandardColors_NUMBER_OBJECT_ID.AsByteString()).SetIsInvalidating(true)).Build()).AddType(TypeProto_NewBuilder().SetObjectFromBuilder(ObjectTypeProto_NewBuilder().SetUuid([]byte("Num.pro"))).Build()).AddDisambiguationEdgesFromBuilder(
+	typePool := &TypePool{
+		type_: []*TypeProto{
+			testObjectTypeProto(&ObjectTypeProto{uuid_: colors.StandardColors_NUMBER_OBJECT_ID.AsByteString(), isInvalidating_: true}),
+			testObjectTypeProto(&ObjectTypeProto{uuid_: []byte("Num.pro")}),
+		},
 		// Number is a subtype of Number.prototype
-		SubtypingEdge_NewBuilder().SetSubtype(jsaPoolPointer(0)).SetSupertype(jsaPoolPointer(1))).Build()
+		disambiguationEdges_: []*SubtypingEdge{{subtype_: jsaPoolPointer(0), supertype_: jsaPoolPointer(1)}},
+	}
 	colorPool := ColorPool_FromOnlyShardForTesting(typePool, stringPool.Build())
 	view := colorPool.GetOnlyShardForTesting()
 	numberObject := colorPool.GetColor(colors.StandardColors_NUMBER_OBJECT_ID)
@@ -63,44 +68,63 @@ func TestColorPool_TestSynthesizesMissingStandardColors(t *testing.T) {
 }
 
 func TestColorPool_DeserializesSimpleObject(t *testing.T) {
-	typePool := TypePool_NewBuilder().AddTypeFromBuilder(TypeProto_NewBuilder().SetObjectFromBuilder(ObjectTypeProto_NewBuilder().SetUuid([]byte("Foo")))).Build()
+	typePool := jsaSingleObjectPool(&ObjectTypeProto{uuid_: []byte("Foo")})
 	colorPool := ColorPool_FromOnlyShardForTesting(typePool, StringPool_Empty()).GetOnlyShardForTesting()
 	jsaJavaEq(t, colorPool.GetColor(jsaInt(jsaPoolPointer(0))), colors.Color_SingleBuilder().SetId(colors.ColorId_FromAscii("Foo")).Build())
 }
 
 func TestColorPool_DeserializesObjectWithPrototypeAndInstanceType(t *testing.T) {
-	typePool := TypePool_NewBuilder().AddTypeFromBuilder(TypeProto_NewBuilder().SetObjectFromBuilder(ObjectTypeProto_NewBuilder().SetUuid([]byte("Foo.pro")))).AddTypeFromBuilder(TypeProto_NewBuilder().SetObjectFromBuilder(ObjectTypeProto_NewBuilder().SetUuid([]byte("Foo.ins")))).AddTypeFromBuilder(TypeProto_NewBuilder().SetObjectFromBuilder(ObjectTypeProto_NewBuilder().SetUuid([]byte("Foo")).AddPrototype(jsaPoolPointer(0)).AddInstanceType(jsaPoolPointer(1)).SetMarkedConstructor(true))).Build()
+	typePool := &TypePool{
+		type_: []*TypeProto{
+			testObjectTypeProto(&ObjectTypeProto{uuid_: []byte("Foo.pro")}),
+			testObjectTypeProto(&ObjectTypeProto{uuid_: []byte("Foo.ins")}),
+			testObjectTypeProto(&ObjectTypeProto{
+				uuid_:              []byte("Foo"),
+				prototype_:         []int32{jsaPoolPointer(0)},
+				instanceType_:      []int32{jsaPoolPointer(1)},
+				markedConstructor_: true,
+			}),
+		},
+	}
 	colorPool := ColorPool_FromOnlyShardForTesting(typePool, StringPool_Empty()).GetOnlyShardForTesting()
 	jsaJavaEq(t, colorPool.GetColor(jsaInt(jsaPoolPointer(2))), jsaCreateObjectColorBuilder().SetId(colors.ColorId_FromAscii("Foo")).SetInstanceColor(jsaCreateObjectColorBuilder().SetId(colors.ColorId_FromAscii("Foo.ins")).Build()).SetPrototype(jsaCreateObjectColorBuilder().SetId(colors.ColorId_FromAscii("Foo.pro")).Build()).SetConstructor(true).Build())
 }
 
 func TestColorPool_DeserializesPropertiesFromStringPool(t *testing.T) {
-	typePool := TypePool_NewBuilder().AddTypeFromBuilder(TypeProto_NewBuilder().SetObjectFromBuilder(ObjectTypeProto_NewBuilder().SetUuid([]byte("Foo")).AddOwnProperty(1).AddOwnProperty(2))).Build()
+	typePool := jsaSingleObjectPool(&ObjectTypeProto{uuid_: []byte("Foo"), ownProperty_: []int32{1, 2}})
 	stringPool := StringPool_Builder_().PutAnd("x").PutAnd("y").Build()
 	colorPool := ColorPool_FromOnlyShardForTesting(typePool, stringPool).GetOnlyShardForTesting()
 	jsaJavaEq(t, colorPool.GetColor(jsaInt(jsaPoolPointer(0))), jsaCreateObjectColorBuilder().SetId(colors.ColorId_FromAscii("Foo")).SetOwnProperties([]string{"x", "y"}).Build())
 }
 
 func TestColorPool_MarksInvalidatingObject(t *testing.T) {
-	typePool := TypePool_NewBuilder().AddTypeFromBuilder(TypeProto_NewBuilder().SetObjectFromBuilder(ObjectTypeProto_NewBuilder().SetUuid([]byte("Foo")).SetIsInvalidating(true))).Build()
+	typePool := jsaSingleObjectPool(&ObjectTypeProto{uuid_: []byte("Foo"), isInvalidating_: true})
 	colorPool := ColorPool_FromOnlyShardForTesting(typePool, StringPool_Empty()).GetOnlyShardForTesting()
 	jsaTrue(t, colorPool.GetColor(jsaInt(jsaPoolPointer(0))).IsInvalidating())
 	jsaJavaEq(t, colorPool.GetColor(jsaInt(jsaPoolPointer(0))).GetId(), colors.ColorId_FromAscii("Foo"))
 }
 
 func TestColorPool_MarksClosureAssert(t *testing.T) {
-	typePool := TypePool_NewBuilder().AddTypeFromBuilder(TypeProto_NewBuilder().SetObjectFromBuilder(ObjectTypeProto_NewBuilder().SetUuid([]byte("Foo")).SetClosureAssert(true))).Build()
+	typePool := jsaSingleObjectPool(&ObjectTypeProto{uuid_: []byte("Foo"), closureAssert_: true})
 	colorPool := ColorPool_FromOnlyShardForTesting(typePool, StringPool_Empty()).GetOnlyShardForTesting()
 	jsaTrue(t, colorPool.GetColor(jsaInt(jsaPoolPointer(0))).IsClosureAssert())
 	jsaJavaEq(t, colorPool.GetColor(jsaInt(jsaPoolPointer(0))).GetId(), colors.ColorId_FromAscii("Foo"))
 }
 
 func TestColorPool_RecordsDisambiguationsSupertypes_multipleSupertypesPerSubtype(t *testing.T) {
-	typePool := TypePool_NewBuilder().AddTypeFromBuilder(TypeProto_NewBuilder().SetObjectFromBuilder(ObjectTypeProto_NewBuilder().SetUuid([]byte("Foo")))).AddTypeFromBuilder(TypeProto_NewBuilder().SetObjectFromBuilder(ObjectTypeProto_NewBuilder().SetUuid([]byte("Bar")))).AddTypeFromBuilder(TypeProto_NewBuilder().SetObjectFromBuilder(ObjectTypeProto_NewBuilder().SetUuid([]byte("Baz")))).
-		// Bar is a subtype of Foo
-		AddDisambiguationEdgesFromBuilder(SubtypingEdge_NewBuilder().SetSubtype(jsaPoolPointer(1)).SetSupertype(jsaPoolPointer(0))).
-		// Bar is also a subtype of Baz
-		AddDisambiguationEdgesFromBuilder(SubtypingEdge_NewBuilder().SetSubtype(jsaPoolPointer(1)).SetSupertype(jsaPoolPointer(2))).Build()
+	typePool := &TypePool{
+		type_: []*TypeProto{
+			testObjectTypeProto(&ObjectTypeProto{uuid_: []byte("Foo")}),
+			testObjectTypeProto(&ObjectTypeProto{uuid_: []byte("Bar")}),
+			testObjectTypeProto(&ObjectTypeProto{uuid_: []byte("Baz")}),
+		},
+		disambiguationEdges_: []*SubtypingEdge{
+			// Bar is a subtype of Foo
+			{subtype_: jsaPoolPointer(1), supertype_: jsaPoolPointer(0)},
+			// Bar is also a subtype of Baz
+			{subtype_: jsaPoolPointer(1), supertype_: jsaPoolPointer(2)},
+		},
+	}
 	// When
 	colorPoolBuilder := ColorPool_Builder_()
 	shard := colorPoolBuilder.AddShard(typePool, StringPool_Empty())
@@ -113,11 +137,18 @@ func TestColorPool_RecordsDisambiguationsSupertypes_multipleSupertypesPerSubtype
 }
 
 func TestColorPool_RecordsDisambiguationsSupertypes_cylceInSupertypeGraph(t *testing.T) {
-	typePool := TypePool_NewBuilder().AddTypeFromBuilder(TypeProto_NewBuilder().SetObjectFromBuilder(ObjectTypeProto_NewBuilder().SetUuid([]byte("Foo")))).AddTypeFromBuilder(TypeProto_NewBuilder().SetObjectFromBuilder(ObjectTypeProto_NewBuilder().SetUuid([]byte("Bar")))).
-		// Foo is a subtype of Bar
-		AddDisambiguationEdgesFromBuilder(SubtypingEdge_NewBuilder().SetSubtype(jsaPoolPointer(0)).SetSupertype(jsaPoolPointer(1))).
-		// Bar is also a subtype of Foo
-		AddDisambiguationEdgesFromBuilder(SubtypingEdge_NewBuilder().SetSubtype(jsaPoolPointer(1)).SetSupertype(jsaPoolPointer(0))).Build()
+	typePool := &TypePool{
+		type_: []*TypeProto{
+			testObjectTypeProto(&ObjectTypeProto{uuid_: []byte("Foo")}),
+			testObjectTypeProto(&ObjectTypeProto{uuid_: []byte("Bar")}),
+		},
+		disambiguationEdges_: []*SubtypingEdge{
+			// Foo is a subtype of Bar
+			{subtype_: jsaPoolPointer(0), supertype_: jsaPoolPointer(1)},
+			// Bar is also a subtype of Foo
+			{subtype_: jsaPoolPointer(1), supertype_: jsaPoolPointer(0)},
+		},
+	}
 	// When
 	colorPoolBuilder := ColorPool_Builder_()
 	shard := colorPoolBuilder.AddShard(typePool, StringPool_Empty())
@@ -130,12 +161,20 @@ func TestColorPool_RecordsDisambiguationsSupertypes_cylceInSupertypeGraph(t *tes
 }
 
 func TestColorPool_ThrowsErrorIfDisambiguationEdgesContainsInvalidOffset(t *testing.T) {
-	typePool := TypePool_NewBuilder().AddTypeFromBuilder(TypeProto_NewBuilder().SetObjectFromBuilder(ObjectTypeProto_NewBuilder().SetUuid([]byte("Foo")))).AddDisambiguationEdgesFromBuilder(SubtypingEdge_NewBuilder().SetSubtype(jsaPoolPointer(0)).SetSupertype(jsaPoolPointer(1))).Build()
+	typePool := &TypePool{
+		type_:                []*TypeProto{testObjectTypeProto(&ObjectTypeProto{uuid_: []byte("Foo")})},
+		disambiguationEdges_: []*SubtypingEdge{{subtype_: jsaPoolPointer(0), supertype_: jsaPoolPointer(1)}},
+	}
 	jsaThrows[IMalformedTypedAstException](t, func() { ColorPool_FromOnlyShardForTesting(typePool, StringPool_Empty()) })
 }
 
 func TestColorPool_DeserializesMultipleUnionsOfNativeTypes(t *testing.T) {
-	typePool := TypePool_NewBuilder().AddTypeFromBuilder(TypeProto_NewBuilder().SetUnionFromBuilder(UnionTypeProto_NewBuilder().AddUnionMember(jsaPrim(PrimitiveType_NUMBER_TYPE)).AddUnionMember(jsaPrim(PrimitiveType_STRING_TYPE)))).AddTypeFromBuilder(TypeProto_NewBuilder().SetUnionFromBuilder(UnionTypeProto_NewBuilder().AddUnionMember(jsaPrim(PrimitiveType_NUMBER_TYPE)).AddUnionMember(jsaPrim(PrimitiveType_BIGINT_TYPE)))).Build()
+	typePool := &TypePool{
+		type_: []*TypeProto{
+			testUnionTypeProto(jsaPrim(PrimitiveType_NUMBER_TYPE), jsaPrim(PrimitiveType_STRING_TYPE)),
+			testUnionTypeProto(jsaPrim(PrimitiveType_NUMBER_TYPE), jsaPrim(PrimitiveType_BIGINT_TYPE)),
+		},
+	}
 	colorPool := ColorPool_FromOnlyShardForTesting(typePool, StringPool_Empty())
 	view := colorPool.GetOnlyShardForTesting()
 	jsaHasAlternates(t, view.GetColor(jsaInt(jsaPoolPointer(0))), colors.StandardColors_STRING, colors.StandardColors_NUMBER)
@@ -143,11 +182,14 @@ func TestColorPool_DeserializesMultipleUnionsOfNativeTypes(t *testing.T) {
 }
 
 func TestColorPool_DeserializesUnionReferencingOtherUnion(t *testing.T) {
-	typePool := TypePool_NewBuilder().
-		// U0 := (number, string)
-		AddTypeFromBuilder(TypeProto_NewBuilder().SetUnionFromBuilder(UnionTypeProto_NewBuilder().AddUnionMember(jsaPrim(PrimitiveType_NUMBER_TYPE)).AddUnionMember(jsaPrim(PrimitiveType_STRING_TYPE)))).
-		// U1 := (U0, bigint)
-		AddTypeFromBuilder(TypeProto_NewBuilder().SetUnionFromBuilder(UnionTypeProto_NewBuilder().AddUnionMember(jsaPoolPointer(0)).AddUnionMember(jsaPrim(PrimitiveType_BIGINT_TYPE)))).Build()
+	typePool := &TypePool{
+		type_: []*TypeProto{
+			// U0 := (number, string)
+			testUnionTypeProto(jsaPrim(PrimitiveType_NUMBER_TYPE), jsaPrim(PrimitiveType_STRING_TYPE)),
+			// U1 := (U0, bigint)
+			testUnionTypeProto(jsaPoolPointer(0), jsaPrim(PrimitiveType_BIGINT_TYPE)),
+		},
+	}
 	jsaThrows[IMalformedTypedAstException](t, func() { ColorPool_FromOnlyShardForTesting(typePool, StringPool_Empty()) })
 }
 
@@ -155,7 +197,12 @@ func TestColorPool_DeserializingUnionsInCycleThrowsErrors(t *testing.T) {
 	// Create two union types U0 and U1. U0 := (U1 | NUMBER), U1 := (U0 | number)
 	// These cycles are at least possible to construct in the Closure type system.
 	// (Note - cycles are much more likely in object types)
-	typePool := TypePool_NewBuilder().AddTypeFromBuilder(TypeProto_NewBuilder().SetUnionFromBuilder(UnionTypeProto_NewBuilder().AddUnionMember(jsaPrim(PrimitiveType_NUMBER_TYPE)).AddUnionMember(jsaPoolPointer(1)))).AddTypeFromBuilder(TypeProto_NewBuilder().SetUnionFromBuilder(UnionTypeProto_NewBuilder().AddUnionMember(jsaPrim(PrimitiveType_NUMBER_TYPE)).AddUnionMember(jsaPoolPointer(0)))).Build()
+	typePool := &TypePool{
+		type_: []*TypeProto{
+			testUnionTypeProto(jsaPrim(PrimitiveType_NUMBER_TYPE), jsaPoolPointer(1)),
+			testUnionTypeProto(jsaPrim(PrimitiveType_NUMBER_TYPE), jsaPoolPointer(0)),
+		},
+	}
 	// Eventually we may need to support this case, but for now throwing an explicit exception is
 	// better than infinite recursion.
 
@@ -165,26 +212,26 @@ func TestColorPool_DeserializingUnionsInCycleThrowsErrors(t *testing.T) {
 }
 
 func TestColorPool_ThrowsException_onTypeWithoutKindCase(t *testing.T) {
-	typePool := TypePool_NewBuilder().AddType(TypeProto_GetDefaultInstance()).Build()
+	typePool := &TypePool{type_: []*TypeProto{{}}}
 	jsaThrows[IMalformedTypedAstException](t, func() {
 		ColorPool_FromOnlyShardForTesting(typePool, StringPool_Empty()).GetOnlyShardForTesting().GetColor(jsaInt(jsaPoolPointer(0)))
 	})
 }
 
 func TestColorPool_ThrowsException_onSerializedUnionOfSingleElement(t *testing.T) {
-	typePool := TypePool_NewBuilder().AddTypeFromBuilder(TypeProto_NewBuilder().SetUnionFromBuilder(UnionTypeProto_NewBuilder().AddUnionMember(jsaPrim(PrimitiveType_NUMBER_TYPE)))).Build()
+	typePool := &TypePool{type_: []*TypeProto{testUnionTypeProto(jsaPrim(PrimitiveType_NUMBER_TYPE))}}
 	jsaThrows[IMalformedTypedAstException](t, func() {
 		ColorPool_FromOnlyShardForTesting(typePool, StringPool_Empty()).GetOnlyShardForTesting().GetColor(jsaInt(jsaPoolPointer(0)))
 	})
 }
 
 func TestColorPool_ThrowsException_onOutOfBoundsStringPoolOffset(t *testing.T) {
-	typePool := TypePool_NewBuilder().AddTypeFromBuilder(TypeProto_NewBuilder().SetObjectFromBuilder(ObjectTypeProto_NewBuilder().SetUuid([]byte("Foo")).AddOwnProperty(1001))).Build()
+	typePool := jsaSingleObjectPool(&ObjectTypeProto{uuid_: []byte("Foo"), ownProperty_: []int32{1001}})
 	jsaThrows[jutil.IIndexOutOfBoundsException](t, func() { ColorPool_FromOnlyShardForTesting(typePool, StringPool_Empty()) })
 }
 
 func TestColorPool_ThrowsException_onIdenticalPools(t *testing.T) {
-	typePool := TypePool_NewBuilder().AddTypeFromBuilder(TypeProto_NewBuilder().SetObjectFromBuilder(ObjectTypeProto_NewBuilder().SetUuid([]byte("Foo")))).Build()
+	typePool := jsaSingleObjectPool(&ObjectTypeProto{uuid_: []byte("Foo")})
 	builder := ColorPool_Builder_().AddShardAnd(typePool, StringPool_Empty())
 	jsaThrows[jutil.Throwable](t, func() { builder.AddShard(typePool, StringPool_Empty()) })
 }
@@ -201,14 +248,19 @@ func TestColorPool_ThrowsException_onIdenticalPools_exceptDefaultInstance(t *tes
 
 func TestColorPool_ThrowsException_onDuplicateIdsInSinglePool(t *testing.T) {
 	// Given
-	typePool := TypePool_NewBuilder().AddTypeFromBuilder(TypeProto_NewBuilder().SetObject(ObjectTypeProto_NewBuilder().SetUuid(jsaTEST_ID.AsByteString()).Build())).AddTypeFromBuilder(TypeProto_NewBuilder().SetObject(ObjectTypeProto_NewBuilder().SetUuid(jsaTEST_ID.AsByteString()).Build())).Build()
+	typePool := &TypePool{
+		type_: []*TypeProto{
+			testObjectTypeProto(&ObjectTypeProto{uuid_: jsaTEST_ID.AsByteString()}),
+			testObjectTypeProto(&ObjectTypeProto{uuid_: jsaTEST_ID.AsByteString()}),
+		},
+	}
 	// When & Then
 	jsaThrows[IMalformedTypedAstException](t, func() { ColorPool_FromOnlyShardForTesting(typePool, StringPool_Empty()) })
 }
 
 func TestColorPool_Uuid_mustBeSet(t *testing.T) {
 	// Given
-	typePool := jsaSingleObjectPool(ObjectTypeProto_NewBuilder())
+	typePool := jsaSingleObjectPool(&ObjectTypeProto{})
 	// When & Then
 	jsaThrows[IMalformedTypedAstException](t, func() { ColorPool_Builder_().AddShardAnd(typePool, StringPool_Empty()).Build() })
 }
@@ -217,7 +269,7 @@ func TestColorPool_Uuid_mustNotBeAxiomatic(t *testing.T) {
 	for _, c := range TypePointers_OFFSET_TO_AXIOMATIC_COLOR {
 		id := c.GetId()
 		// Given
-		typePool := jsaSingleObjectPool(ObjectTypeProto_NewBuilder().SetUuid(id.AsByteString()))
+		typePool := jsaSingleObjectPool(&ObjectTypeProto{uuid_: id.AsByteString()})
 		// When & Then
 		jsaThrows[IMalformedTypedAstException](t, func() { ColorPool_Builder_().AddShardAnd(typePool, StringPool_Empty()).Build() })
 	}
@@ -225,7 +277,7 @@ func TestColorPool_Uuid_mustNotBeAxiomatic(t *testing.T) {
 
 func TestColorPool_Reconcile_defaultValues(t *testing.T) {
 	// Given
-	typePool := jsaSingleObjectPool(ObjectTypeProto_NewBuilder().SetUuid(jsaTEST_ID.AsByteString()))
+	typePool := jsaSingleObjectPool(&ObjectTypeProto{uuid_: jsaTEST_ID.AsByteString()})
 	// When
 	colorPool := ColorPool_Builder_().AddShardAnd(typePool, StringPool_Empty()).Build()
 	// Then
@@ -241,8 +293,14 @@ func TestColorPool_Reconcile_defaultValues(t *testing.T) {
 
 func TestColorPool_Reconcile_setDisambiguationSupertypes(t *testing.T) {
 	// Given
-	typePool0 := TypePool_NewBuilder().AddTypeFromBuilder(TypeProto_NewBuilder().SetObject(ObjectTypeProto_NewBuilder().SetUuid(jsaTEST_ID.AsByteString()).Build())).AddDisambiguationEdges(SubtypingEdge_NewBuilder().SetSubtype(jsaPoolPointer(0)).SetSupertype(jsaPrim(PrimitiveType_NUMBER_TYPE)).Build()).Build()
-	typePool1 := TypePool_NewBuilder().AddTypeFromBuilder(TypeProto_NewBuilder().SetObject(ObjectTypeProto_NewBuilder().SetUuid(jsaTEST_ID.AsByteString()).Build())).AddDisambiguationEdges(SubtypingEdge_NewBuilder().SetSubtype(jsaPoolPointer(0)).SetSupertype(jsaPrim(PrimitiveType_STRING_TYPE)).Build()).Build()
+	typePool0 := &TypePool{
+		type_:                []*TypeProto{testObjectTypeProto(&ObjectTypeProto{uuid_: jsaTEST_ID.AsByteString()})},
+		disambiguationEdges_: []*SubtypingEdge{{subtype_: jsaPoolPointer(0), supertype_: jsaPrim(PrimitiveType_NUMBER_TYPE)}},
+	}
+	typePool1 := &TypePool{
+		type_:                []*TypeProto{testObjectTypeProto(&ObjectTypeProto{uuid_: jsaTEST_ID.AsByteString()})},
+		disambiguationEdges_: []*SubtypingEdge{{subtype_: jsaPoolPointer(0), supertype_: jsaPrim(PrimitiveType_STRING_TYPE)}},
+	}
 	// When
 	colorPool := ColorPool_Builder_().AddShardAnd(typePool0, StringPool_Empty()).AddShardAnd(typePool1, StringPool_Empty()).Build()
 	// Then
@@ -251,8 +309,8 @@ func TestColorPool_Reconcile_setDisambiguationSupertypes(t *testing.T) {
 
 func TestColorPool_Reconcile_setInstanceColors(t *testing.T) {
 	// Given
-	typePool0 := jsaSingleObjectPool(ObjectTypeProto_NewBuilder().SetUuid(jsaTEST_ID.AsByteString()).AddInstanceType(jsaPrim(PrimitiveType_NUMBER_TYPE)))
-	typePool1 := jsaSingleObjectPool(ObjectTypeProto_NewBuilder().SetUuid(jsaTEST_ID.AsByteString()).AddInstanceType(jsaPrim(PrimitiveType_STRING_TYPE)))
+	typePool0 := jsaSingleObjectPool(&ObjectTypeProto{uuid_: jsaTEST_ID.AsByteString(), instanceType_: []int32{jsaPrim(PrimitiveType_NUMBER_TYPE)}})
+	typePool1 := jsaSingleObjectPool(&ObjectTypeProto{uuid_: jsaTEST_ID.AsByteString(), instanceType_: []int32{jsaPrim(PrimitiveType_STRING_TYPE)}})
 	// When
 	colorPool := ColorPool_Builder_().AddShardAnd(typePool0, StringPool_Empty()).AddShardAnd(typePool1, StringPool_Empty()).Build()
 	// Then
@@ -261,8 +319,8 @@ func TestColorPool_Reconcile_setInstanceColors(t *testing.T) {
 
 func TestColorPool_Reconcile_addPrototypes(t *testing.T) {
 	// Given
-	typePool0 := jsaSingleObjectPool(ObjectTypeProto_NewBuilder().SetUuid(jsaTEST_ID.AsByteString()).AddPrototype(jsaPrim(PrimitiveType_NUMBER_TYPE)))
-	typePool1 := jsaSingleObjectPool(ObjectTypeProto_NewBuilder().SetUuid(jsaTEST_ID.AsByteString()).AddPrototype(jsaPrim(PrimitiveType_STRING_TYPE)))
+	typePool0 := jsaSingleObjectPool(&ObjectTypeProto{uuid_: jsaTEST_ID.AsByteString(), prototype_: []int32{jsaPrim(PrimitiveType_NUMBER_TYPE)}})
+	typePool1 := jsaSingleObjectPool(&ObjectTypeProto{uuid_: jsaTEST_ID.AsByteString(), prototype_: []int32{jsaPrim(PrimitiveType_STRING_TYPE)}})
 	// When
 	colorPool := ColorPool_Builder_().AddShardAnd(typePool0, StringPool_Empty()).AddShardAnd(typePool1, StringPool_Empty()).Build()
 	// Then
@@ -272,9 +330,9 @@ func TestColorPool_Reconcile_addPrototypes(t *testing.T) {
 func TestColorPool_Reconcile_setOwnProperties(t *testing.T) {
 	// Given
 	stringPool0 := StringPool_Builder_().PutAnd("hello").Build()
-	typePool0 := jsaSingleObjectPool(ObjectTypeProto_NewBuilder().SetUuid(jsaTEST_ID.AsByteString()).AddOwnProperty(1))
+	typePool0 := jsaSingleObjectPool(&ObjectTypeProto{uuid_: jsaTEST_ID.AsByteString(), ownProperty_: []int32{1}})
 	stringPool1 := StringPool_Builder_().PutAnd("world").Build()
-	typePool1 := jsaSingleObjectPool(ObjectTypeProto_NewBuilder().SetUuid(jsaTEST_ID.AsByteString()).AddOwnProperty(1))
+	typePool1 := jsaSingleObjectPool(&ObjectTypeProto{uuid_: jsaTEST_ID.AsByteString(), ownProperty_: []int32{1}})
 	// When
 	colorPool := ColorPool_Builder_().AddShardAnd(typePool0, stringPool0).AddShardAnd(typePool1, stringPool1).Build()
 	// Then
@@ -283,8 +341,8 @@ func TestColorPool_Reconcile_setOwnProperties(t *testing.T) {
 
 func TestColorPool_Reconcile_setClosureAssert_true(t *testing.T) {
 	// Given
-	typePool0 := jsaSingleObjectPool(ObjectTypeProto_NewBuilder().SetUuid(jsaTEST_ID.AsByteString()).SetClosureAssert(true))
-	typePool1 := jsaSingleObjectPool(ObjectTypeProto_NewBuilder().SetUuid(jsaTEST_ID.AsByteString()).SetClosureAssert(true))
+	typePool0 := jsaSingleObjectPool(&ObjectTypeProto{uuid_: jsaTEST_ID.AsByteString(), closureAssert_: true})
+	typePool1 := jsaSingleObjectPool(&ObjectTypeProto{uuid_: jsaTEST_ID.AsByteString(), closureAssert_: true})
 	// When
 	colorPool := ColorPool_Builder_().AddShardAnd(typePool0, StringPool_Empty()).AddShardAnd(typePool1, StringPool_Empty()).Build()
 	// Then
@@ -293,8 +351,8 @@ func TestColorPool_Reconcile_setClosureAssert_true(t *testing.T) {
 
 func TestColorPool_Reconcile_setClosureAssert_false(t *testing.T) {
 	// Given
-	typePool0 := jsaSingleObjectPool(ObjectTypeProto_NewBuilder().SetUuid(jsaTEST_ID.AsByteString()).SetClosureAssert(false))
-	typePool1 := jsaSingleObjectPool(ObjectTypeProto_NewBuilder().SetUuid(jsaTEST_ID.AsByteString()).SetClosureAssert(false))
+	typePool0 := jsaSingleObjectPool(&ObjectTypeProto{uuid_: jsaTEST_ID.AsByteString(), closureAssert_: false})
+	typePool1 := jsaSingleObjectPool(&ObjectTypeProto{uuid_: jsaTEST_ID.AsByteString(), closureAssert_: false})
 	// When
 	colorPool := ColorPool_Builder_().AddShardAnd(typePool0, StringPool_Empty()).AddShardAnd(typePool1, StringPool_Empty()).Build()
 	// Then
@@ -303,8 +361,8 @@ func TestColorPool_Reconcile_setClosureAssert_false(t *testing.T) {
 
 func TestColorPool_Reconcile_setClosureAssert_mixed(t *testing.T) {
 	// Given
-	typePool0 := jsaSingleObjectPool(ObjectTypeProto_NewBuilder().SetUuid(jsaTEST_ID.AsByteString()).SetClosureAssert(true))
-	typePool1 := jsaSingleObjectPool(ObjectTypeProto_NewBuilder().SetUuid(jsaTEST_ID.AsByteString()).SetClosureAssert(false))
+	typePool0 := jsaSingleObjectPool(&ObjectTypeProto{uuid_: jsaTEST_ID.AsByteString(), closureAssert_: true})
+	typePool1 := jsaSingleObjectPool(&ObjectTypeProto{uuid_: jsaTEST_ID.AsByteString(), closureAssert_: false})
 	// When & Then
 	jsaThrows[IMalformedTypedAstException](t, func() {
 		ColorPool_Builder_().AddShardAnd(typePool0, StringPool_Empty()).AddShardAnd(typePool1, StringPool_Empty()).Build()
@@ -313,8 +371,8 @@ func TestColorPool_Reconcile_setClosureAssert_mixed(t *testing.T) {
 
 func TestColorPool_Reconcile_setConstructor(t *testing.T) {
 	// Given
-	typePool0 := jsaSingleObjectPool(ObjectTypeProto_NewBuilder().SetUuid(jsaTEST_ID.AsByteString()).SetMarkedConstructor(false))
-	typePool1 := jsaSingleObjectPool(ObjectTypeProto_NewBuilder().SetUuid(jsaTEST_ID.AsByteString()).SetMarkedConstructor(true))
+	typePool0 := jsaSingleObjectPool(&ObjectTypeProto{uuid_: jsaTEST_ID.AsByteString(), markedConstructor_: false})
+	typePool1 := jsaSingleObjectPool(&ObjectTypeProto{uuid_: jsaTEST_ID.AsByteString(), markedConstructor_: true})
 	// When
 	colorPool := ColorPool_Builder_().AddShardAnd(typePool0, StringPool_Empty()).AddShardAnd(typePool1, StringPool_Empty()).Build()
 	// Then
@@ -323,8 +381,8 @@ func TestColorPool_Reconcile_setConstructor(t *testing.T) {
 
 func TestColorPool_Reconcile_setInvalidating(t *testing.T) {
 	// Given
-	typePool0 := jsaSingleObjectPool(ObjectTypeProto_NewBuilder().SetUuid(jsaTEST_ID.AsByteString()).SetIsInvalidating(false))
-	typePool1 := jsaSingleObjectPool(ObjectTypeProto_NewBuilder().SetUuid(jsaTEST_ID.AsByteString()).SetIsInvalidating(true))
+	typePool0 := jsaSingleObjectPool(&ObjectTypeProto{uuid_: jsaTEST_ID.AsByteString(), isInvalidating_: false})
+	typePool1 := jsaSingleObjectPool(&ObjectTypeProto{uuid_: jsaTEST_ID.AsByteString(), isInvalidating_: true})
 	// When
 	colorPool := ColorPool_Builder_().AddShardAnd(typePool0, StringPool_Empty()).AddShardAnd(typePool1, StringPool_Empty()).Build()
 	// Then
@@ -333,8 +391,8 @@ func TestColorPool_Reconcile_setInvalidating(t *testing.T) {
 
 func TestColorPool_Reconcile_setPropertiesKeepOriginalName(t *testing.T) {
 	// Given
-	typePool0 := jsaSingleObjectPool(ObjectTypeProto_NewBuilder().SetUuid(jsaTEST_ID.AsByteString()).SetPropertiesKeepOriginalName(false))
-	typePool1 := jsaSingleObjectPool(ObjectTypeProto_NewBuilder().SetUuid(jsaTEST_ID.AsByteString()).SetPropertiesKeepOriginalName(true))
+	typePool0 := jsaSingleObjectPool(&ObjectTypeProto{uuid_: jsaTEST_ID.AsByteString(), propertiesKeepOriginalName_: false})
+	typePool1 := jsaSingleObjectPool(&ObjectTypeProto{uuid_: jsaTEST_ID.AsByteString(), propertiesKeepOriginalName_: true})
 	// When
 	colorPool := ColorPool_Builder_().AddShardAnd(typePool0, StringPool_Empty()).AddShardAnd(typePool1, StringPool_Empty()).Build()
 	// Then
@@ -343,8 +401,22 @@ func TestColorPool_Reconcile_setPropertiesKeepOriginalName(t *testing.T) {
 
 func TestColorPool_Reconcile_debugInfo_mismatches(t *testing.T) {
 	// Given
-	typePool0 := TypePool_NewBuilder().SetDebugInfoFromBuilder(TypePool_DebugInfo_NewBuilder().AddMismatch(TypePool_DebugInfo_Mismatch_NewBuilder().SetSourceRef("location_0").AddInvolvedColor(jsaPrim(PrimitiveType_SYMBOL_TYPE)).AddInvolvedColor(jsaPrim(PrimitiveType_STRING_TYPE)).Build()).AddMismatch(TypePool_DebugInfo_Mismatch_NewBuilder().SetSourceRef("location_1").AddInvolvedColor(jsaPrim(PrimitiveType_NUMBER_TYPE)).Build())).Build()
-	typePool1 := TypePool_NewBuilder().SetDebugInfoFromBuilder(TypePool_DebugInfo_NewBuilder().AddMismatch(TypePool_DebugInfo_Mismatch_NewBuilder().SetSourceRef("location_0").AddInvolvedColor(jsaPrim(PrimitiveType_SYMBOL_TYPE)).AddInvolvedColor(jsaPrim(PrimitiveType_BOOLEAN_TYPE)).Build()).AddMismatch(TypePool_DebugInfo_Mismatch_NewBuilder().SetSourceRef("location_2").AddInvolvedColor(jsaPrim(PrimitiveType_BIGINT_TYPE)).Build())).Build()
+	typePool0 := &TypePool{
+		debugInfo_: &TypePool_DebugInfo{
+			mismatch_: []*TypePool_DebugInfo_Mismatch{
+				{sourceRef_: "location_0", involvedColor_: []int32{jsaPrim(PrimitiveType_SYMBOL_TYPE), jsaPrim(PrimitiveType_STRING_TYPE)}},
+				{sourceRef_: "location_1", involvedColor_: []int32{jsaPrim(PrimitiveType_NUMBER_TYPE)}},
+			},
+		},
+	}
+	typePool1 := &TypePool{
+		debugInfo_: &TypePool_DebugInfo{
+			mismatch_: []*TypePool_DebugInfo_Mismatch{
+				{sourceRef_: "location_0", involvedColor_: []int32{jsaPrim(PrimitiveType_SYMBOL_TYPE), jsaPrim(PrimitiveType_BOOLEAN_TYPE)}},
+				{sourceRef_: "location_2", involvedColor_: []int32{jsaPrim(PrimitiveType_BIGINT_TYPE)}},
+			},
+		},
+	}
 	// When
 	colorPool := ColorPool_Builder_().AddShardAnd(typePool0, StringPool_Empty()).AddShardAnd(typePool1, StringPool_Empty()).Build()
 	// Then
@@ -360,8 +432,18 @@ func TestColorPool_Reconcile_debugInfo_mismatches(t *testing.T) {
 func TestColorPool_Reconcile_shards_preserveOriginalOffsets(t *testing.T) {
 	// Given
 	otherId := colors.ColorId_FromAscii("other")
-	typePool0 := TypePool_NewBuilder().AddTypeFromBuilder(TypeProto_NewBuilder().SetObject(ObjectTypeProto_NewBuilder().SetUuid(otherId.AsByteString()).Build())).AddTypeFromBuilder(TypeProto_NewBuilder().SetObject(ObjectTypeProto_NewBuilder().SetUuid(jsaTEST_ID.AsByteString()).Build())).Build()
-	typePool1 := TypePool_NewBuilder().AddTypeFromBuilder(TypeProto_NewBuilder().SetObject(ObjectTypeProto_NewBuilder().SetUuid(jsaTEST_ID.AsByteString()).Build())).AddTypeFromBuilder(TypeProto_NewBuilder().SetObject(ObjectTypeProto_NewBuilder().SetUuid(otherId.AsByteString()).Build())).Build()
+	typePool0 := &TypePool{
+		type_: []*TypeProto{
+			testObjectTypeProto(&ObjectTypeProto{uuid_: otherId.AsByteString()}),
+			testObjectTypeProto(&ObjectTypeProto{uuid_: jsaTEST_ID.AsByteString()}),
+		},
+	}
+	typePool1 := &TypePool{
+		type_: []*TypeProto{
+			testObjectTypeProto(&ObjectTypeProto{uuid_: jsaTEST_ID.AsByteString()}),
+			testObjectTypeProto(&ObjectTypeProto{uuid_: otherId.AsByteString()}),
+		},
+	}
 	// When
 	colorPoolBuilder := ColorPool_Builder_()
 	shard0 := colorPoolBuilder.AddShard(typePool0, StringPool_Empty())
@@ -378,8 +460,16 @@ func jsaCreateObjectColorBuilder() *colors.Color_Builder {
 	return colors.Color_SingleBuilder().SetId(colors.ColorId_FromAscii(""))
 }
 
-func jsaSingleObjectPool(builder *ObjectTypeProto_Builder) *TypePool {
-	return TypePool_NewBuilder().AddTypeFromBuilder(TypeProto_NewBuilder().SetObject(builder.Build())).Build()
+func testObjectTypeProto(obj *ObjectTypeProto) *TypeProto {
+	return &TypeProto{object_: obj, kindCase_: TypeProto_OBJECT_FIELD_NUMBER}
+}
+
+func testUnionTypeProto(members ...int32) *TypeProto {
+	return &TypeProto{union_: &UnionTypeProto{unionMember_: members}, kindCase_: TypeProto_UNION_FIELD_NUMBER}
+}
+
+func jsaSingleObjectPool(obj *ObjectTypeProto) *TypePool {
+	return &TypePool{type_: []*TypeProto{testObjectTypeProto(obj)}}
 }
 
 func jsaPoolPointer(offset int) int32 {

@@ -332,19 +332,6 @@ func (*MakeDeclaredNamesUnique_ContextualRenameInverter) visitTokens() *ast.Toke
 	return &renameInverterVisitTokens
 }
 
-type renameInverterScopeCreator struct {
-	sc *SyntacticScopeCreator
-}
-
-func (r *renameInverterScopeCreator) CreateScope(n rhino.Node, parent AbstractScope) AbstractScope {
-	if parent == nil {
-		// ContextualRenameInverter never reads global variable declarations;
-		// avoid scanning the global AST when instantiating a local scope.
-		return newScope(n)
-	}
-	return r.sc.CreateScopeOfScope(n, parent.(*Scope))
-}
-
 // Java: MakeDeclaredNamesUnique.ContextualRenameInverter(AbstractCompiler)
 func NewMakeDeclaredNamesUnique_ContextualRenameInverter(
 	compiler AbstractCompiler,
@@ -357,13 +344,11 @@ func NewMakeDeclaredNamesUnique_ContextualRenameInverter(
 
 // Java: MakeDeclaredNamesUnique.ContextualRenameInverter.process(Node, Node)
 func (c *MakeDeclaredNamesUnique_ContextualRenameInverter) Process(externs rhino.Node, js rhino.Node) {
-	sc := &renameInverterScopeCreator{sc: NewSyntacticScopeCreator(c.compiler)}
-	b := NodeTraversal_Builder{
-		compiler:     c.compiler,
-		callback:     c,
-		scopeCreator: sc,
-	}
-	b.Traverse(js)
+	sc := NewSyntacticScopeCreator(c.compiler)
+	sc.skipGlobalScan = true
+	t := acquireNodeTraversalDirect(c.compiler, c, sc, false)
+	t.Traverse(js)
+	releaseNodeTraversal(t)
 }
 
 // Java: MakeDeclaredNamesUnique.ContextualRenameInverter.getOriginalName(String)

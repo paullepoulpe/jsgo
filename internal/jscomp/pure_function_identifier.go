@@ -113,7 +113,7 @@ func NewPureFunctionIdentifier(
 }
 
 // Java: PureFunctionIdentifier.process(Node, Node, ReferenceMap)
-func (p *PureFunctionIdentifier) Process(externs rhino.Node, root rhino.Node, references *OptimizeCalls_ReferenceMap) {
+func (p *PureFunctionIdentifier) ProcessWithReferenceMap(externs rhino.Node, root rhino.Node, references *OptimizeCalls_ReferenceMap) {
 	jutil.CheckState(p.compiler.GetLifeCycleStage().IsNormalized())
 	jutil.CheckStateMsg(
 		!p.hasProcessed, "PureFunctionIdentifier::process may only be called once per instance.")
@@ -790,14 +790,12 @@ func (d *PureFunctionIdentifier_Driver) Process(externs rhino.Node, root rhino.N
 			GetOptions().
 			GetWarningsGuard().
 			Level(JSError_Make(PureFunctionIdentifier_UNUSED_ARTIFICIAL_PURE_ANNOTATION, "", ""))
-	OptimizeCalls_Builder_().
-		SetCompiler(d.compiler).
-		SetConsiderExterns(true).
-		AddPass(
-			NewPureFunctionIdentifier(
-				d.compiler,
-				d.compiler.GetOptions().GetAssumeGettersArePure(),
-				shouldValidate == nil || *shouldValidate != CheckLevel_OFF)).
-		Build().
-		Process(externs, root)
+	NewOptimizeCalls(
+		d.compiler,
+		true,
+		NewPureFunctionIdentifier(
+			d.compiler,
+			d.compiler.GetOptions().GetAssumeGettersArePure(),
+			shouldValidate == nil || *shouldValidate != CheckLevel_OFF),
+	).Process(externs, root)
 }

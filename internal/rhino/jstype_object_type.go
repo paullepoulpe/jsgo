@@ -36,8 +36,6 @@
 package rhino
 
 import (
-	"iter"
-
 	"github.com/paullepoulpe/jsgo/internal/base"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 )
@@ -74,7 +72,6 @@ type ObjectType interface {
 	GetPropertyMap() *PropertyMap
 	// Java: ObjectType.getSlot(Property.Key)
 	GetSlotByKey(name Property_Key) *Property
-	GetSlotByID(id uint32) *Property
 	// Java: ObjectType.getSlot(String)
 	GetSlot(name string) *Property
 	// Java: ObjectType.getOwnSlot(String)
@@ -94,10 +91,8 @@ type ObjectType interface {
 	GetConstructor() FunctionType
 	GetSuperClassConstructor() FunctionType
 	GetClosestDefiningType(propertyName string) ObjectType
-	FindClosestDefinition(propertyName string) *Property_OwnedProperty
 	FindClosestDefinitionByKey(propertyName Property_Key) *Property_OwnedProperty
 	GetImplicitPrototype() ObjectType
-	GetImplicitPrototypeChain() iter.Seq[ObjectType]
 	DefineDeclaredProperty(propertyName string, type_ JSType, propertyNode Node) bool
 	DefineDeclaredPropertyByKey(propertyName Property_Key, type_ JSType, propertyNode Node) bool
 	DefineSynthesizedProperty(propertyName string, type_ JSType, propertyNode Node) bool
@@ -117,15 +112,12 @@ type ObjectType interface {
 	GetOwnPropertyDefSiteByKey(propertyName Property_Key) Node
 	SetPropertyJSDocInfo(propertyName string, info *JSDocInfo)
 	SetPropertyJSDocInfoByKey(propertyName Property_Key, info *JSDocInfo)
-	SetPropertyNode(propertyName string, defSite Node)
 	SetPropertyNodeByKey(propertyName Property_Key, defSite Node)
 	GetPropertyType(propertyName string) JSType
 	GetPropertyTypeByKey(propertyName Property_Key) JSType
-	GetOwnPropertyKind(propertyName string) JSType_HasPropertyKind
 	GetOwnPropertyKindByKey(propertyName Property_Key) JSType_HasPropertyKind
 	HasOwnProperty(propertyName string) bool
 	HasOwnPropertyByKey(propertyName Property_Key) bool
-	HasOwnPropertyByID(id uint32) bool
 	GetOwnPropertyKnownSymbols() []*KnownSymbolType
 	GetOwnPropertyNames() []string
 	ForEachOwnPropertyName(fn func(string))
@@ -171,7 +163,7 @@ func objTypeBase(x ObjectType) *ObjectTypeBase {
 }
 
 // objectTypeOf returns the ObjectType whose base is b, or nil for nil.
-func objectTypeOf(b *JSTypeBase) ObjectType {
+func objectTypeOf(b *ObjectTypeBase) ObjectType {
 	if b == nil {
 		return nil
 	}
@@ -414,31 +406,6 @@ func (o *ObjectTypeBase) GetSuperClassConstructor() FunctionType {
 		return nil
 	}
 	return iproto.GetConstructor()
-}
-
-// GetImplicitPrototypeChain returns a lazy, dynamic Iterable for the types
-// forming the implicit prototype chain of this type.
-//
-// The chain is iterated bottom to top; from the nearest ancestor to the most
-// distant. Iteration stops when the next ancestor would be a null reference.
-//
-// The created Iterators will not reflect changes to the prototype chain of
-// elements it has already iterated past, but will reflect those of upcoming
-// elements. Neither the Iterable nor its Iterator support mutation.
-//
-// Java: ObjectType.getImplicitPrototypeChain()
-func (o *ObjectTypeBase) GetImplicitPrototypeChain() iter.Seq[ObjectType] {
-	self := o.selfObj()
-
-	return func(yield func(ObjectType) bool) {
-		next := self // We increment past this type before first access.
-		for {
-			next = next.GetImplicitPrototype()
-			if next == nil || !yield(next) {
-				return
-			}
-		}
-	}
 }
 
 // Java: ObjectType.isStructuralType()

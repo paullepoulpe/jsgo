@@ -65,9 +65,32 @@ var FunctionInjector_NO_FUNCTIONS = rhino.NewNode(rhino.Token_FUNCTION)
 // functions.
 var FunctionInjector_MULTIPLE_FUNCTIONS = rhino.NewNode(rhino.Token_FUNCTION)
 
+// FunctionInjectorOptions configures a FunctionInjector.
+type FunctionInjectorOptions struct {
+	SafeNameIdSupplier       func() string
+	AssumeStrictThis         bool
+	AllowDecomposition       bool
+	FunctionArgumentInjector *FunctionArgumentInjector
+}
+
 // Java: FunctionInjector(Builder)
-func NewFunctionInjector(builder *FunctionInjector_Builder) *FunctionInjector {
-	f := &FunctionInjector{}
+func NewFunctionInjector(compiler AbstractCompiler, opts FunctionInjectorOptions) *FunctionInjector {
+	compiler = jutil.CheckNotNull(compiler)
+	safeNameIdSupplier := opts.SafeNameIdSupplier
+	if safeNameIdSupplier == nil {
+		safeNameIdSupplier = jutil.CheckNotNull(compiler.GetUniqueNameIdSupplier())
+	}
+	argInjector := opts.FunctionArgumentInjector
+	if argInjector == nil {
+		argInjector = NewFunctionArgumentInjector(jutil.CheckNotNull(compiler.GetAstAnalyzer()))
+	}
+	f := &FunctionInjector{
+		compiler:                 compiler,
+		safeNameIdSupplier:       safeNameIdSupplier,
+		assumeStrictThis:         opts.AssumeStrictThis,
+		allowDecomposition:       opts.AllowDecomposition,
+		functionArgumentInjector: argInjector,
+	}
 	// The anonymous Supplier<String> throwawayNameSupplier, with its nextId
 	// field.
 	nextId := 0
@@ -76,11 +99,6 @@ func NewFunctionInjector(builder *FunctionInjector_Builder) *FunctionInjector {
 		nextId++
 		return strconv.Itoa(id)
 	}
-	f.compiler = jutil.CheckNotNull(builder.compiler)
-	f.safeNameIdSupplier = jutil.CheckNotNull(builder.safeNameIdSupplier)
-	f.assumeStrictThis = builder.assumeStrictThis
-	f.allowDecomposition = builder.allowDecomposition
-	f.functionArgumentInjector = jutil.CheckNotNull(builder.functionArgumentInjector)
 	f.mutator = FunctionToBlockMutator{
 		compiler:                 f.compiler,
 		safeNameIdSupplier:       f.safeNameIdSupplier,
@@ -89,75 +107,49 @@ func NewFunctionInjector(builder *FunctionInjector_Builder) *FunctionInjector {
 	return f
 }
 
-// FunctionInjector_Builder is FunctionInjector.Builder.
-type FunctionInjector_Builder struct {
-	compiler                 AbstractCompiler
-	safeNameIdSupplier       func() string
-	assumeStrictThis         bool
-	allowDecomposition       bool
-	functionArgumentInjector *FunctionArgumentInjector
+type functionInjectorBuilder struct {
+	compiler AbstractCompiler
+	opts     FunctionInjectorOptions
 }
 
 // Java: FunctionInjector.Builder(AbstractCompiler)
-func NewFunctionInjector_Builder(compiler AbstractCompiler) *FunctionInjector_Builder {
-	b := &FunctionInjector_Builder{
-		safeNameIdSupplier:       nil,
-		assumeStrictThis:         true,
-		allowDecomposition:       true,
-		functionArgumentInjector: nil,
+func NewFunctionInjector_Builder(compiler AbstractCompiler) functionInjectorBuilder {
+	return functionInjectorBuilder{
+		compiler: jutil.CheckNotNull(compiler),
+		opts: FunctionInjectorOptions{
+			AssumeStrictThis:   true,
+			AllowDecomposition: true,
+		},
 	}
-	b.compiler = jutil.CheckNotNull(compiler)
-	return b
 }
 
-// SafeNameIdSupplier provides the name supplier to use for injection.
-//
-// If this method is not called, `compiler.getUniqueNameIdSupplier()` will be
-// used.
-//
 // Java: FunctionInjector.Builder.safeNameIdSupplier(Supplier<String>)
-func (b *FunctionInjector_Builder) SafeNameIdSupplier(safeNameIdSupplier func() string) *FunctionInjector_Builder {
-	b.safeNameIdSupplier = jutil.CheckNotNull(safeNameIdSupplier)
+func (b functionInjectorBuilder) SafeNameIdSupplier(safeNameIdSupplier func() string) functionInjectorBuilder {
+	b.opts.SafeNameIdSupplier = jutil.CheckNotNull(safeNameIdSupplier)
 	return b
 }
 
-// AllowDecomposition allows decomposition of expressions.
-//
-// Default is `true`.
-//
 // Java: FunctionInjector.Builder.allowDecomposition(boolean)
-func (b *FunctionInjector_Builder) AllowDecomposition(allowDecomposition bool) *FunctionInjector_Builder {
-	b.allowDecomposition = allowDecomposition
+func (b functionInjectorBuilder) AllowDecomposition(allowDecomposition bool) functionInjectorBuilder {
+	b.opts.AllowDecomposition = allowDecomposition
 	return b
 }
 
 // Java: FunctionInjector.Builder.assumeStrictThis(boolean)
-func (b *FunctionInjector_Builder) AssumeStrictThis(assumeStrictThis bool) *FunctionInjector_Builder {
-	b.assumeStrictThis = assumeStrictThis
+func (b functionInjectorBuilder) AssumeStrictThis(assumeStrictThis bool) functionInjectorBuilder {
+	b.opts.AssumeStrictThis = assumeStrictThis
 	return b
 }
 
-// FunctionArgumentInjector specifies the `FunctionArgumentInjector` to be
-// used.
-//
-// Default is for the builder to create this. This method exists for testing
-// purposes.
-//
 // Java: FunctionInjector.Builder.functionArgumentInjector(FunctionArgumentInjector)
-func (b *FunctionInjector_Builder) FunctionArgumentInjector(functionArgumentInjector *FunctionArgumentInjector) *FunctionInjector_Builder {
-	b.functionArgumentInjector = jutil.CheckNotNull(functionArgumentInjector)
+func (b functionInjectorBuilder) FunctionArgumentInjector(functionArgumentInjector *FunctionArgumentInjector) functionInjectorBuilder {
+	b.opts.FunctionArgumentInjector = jutil.CheckNotNull(functionArgumentInjector)
 	return b
 }
 
 // Java: FunctionInjector.Builder.build()
-func (b *FunctionInjector_Builder) Build() *FunctionInjector {
-	if b.safeNameIdSupplier == nil {
-		b.safeNameIdSupplier = b.compiler.GetUniqueNameIdSupplier()
-	}
-	if b.functionArgumentInjector == nil {
-		b.functionArgumentInjector = NewFunctionArgumentInjector(jutil.CheckNotNull(b.compiler.GetAstAnalyzer()))
-	}
-	return NewFunctionInjector(b)
+func (b functionInjectorBuilder) Build() *FunctionInjector {
+	return NewFunctionInjector(b.compiler, b.opts)
 }
 
 // FunctionInjector_InliningMode is the type of inlining to perform.

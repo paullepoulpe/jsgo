@@ -205,10 +205,24 @@ func (r *ReplaceCssNames) Process(externs rhino.Node, root rhino.Node) {
 	}
 }
 
+var (
+	replaceCssNamesCallVisitTokens          = makeVisitTokenSet(rhino.Token_CALL)
+	replaceCssNamesQualifiedNameVisitTokens = makeVisitTokenSet(
+		rhino.Token_NAME, rhino.Token_GETPROP, rhino.Token_THIS, rhino.Token_SUPER)
+)
+
 type findSetCssNameTraversal struct {
 	NodeTraversal_AbstractPostOrderCallbackBase
 	r *ReplaceCssNames
 }
+
+var (
+	_ nodeTraversal_noVisitLeaves = (*findSetCssNameTraversal)(nil)
+	_ nodeTraversal_visitTokens   = (*findSetCssNameTraversal)(nil)
+)
+
+func (*findSetCssNameTraversal) noVisitLeaves()             {}
+func (*findSetCssNameTraversal) visitTokens() *ast.TokenSet { return &replaceCssNamesCallVisitTokens }
 
 func (f *findSetCssNameTraversal) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	call, ok := ast.AsCall(n)
@@ -226,6 +240,14 @@ type gatherCssNamesTraversal struct {
 	inSassGeneratedCssTsScript bool
 	classesQualifiedName       string
 }
+
+var (
+	_ nodeTraversal_noVisitLeaves = (*gatherCssNamesTraversal)(nil)
+	_ nodeTraversal_visitTokens   = (*gatherCssNamesTraversal)(nil)
+)
+
+func (*gatherCssNamesTraversal) noVisitLeaves()             {}
+func (*gatherCssNamesTraversal) visitTokens() *ast.TokenSet { return &replaceCssNamesCallVisitTokens }
 
 func (g *gatherCssNamesTraversal) ShouldTraverse(t *NodeTraversal, n rhino.Node, parent rhino.Node) bool {
 	jsdoc := n.GetJSDocInfo()
@@ -391,20 +413,20 @@ func (r *ReplaceCssNames) processStringNode(n rhino.Node) {
 	var replacement string
 	if strings.HasPrefix(name, "--") || r.symbolMap.GetStyle() == CssRenamingMap_Style_BY_WHOLE {
 		// Force BY_WHOLE style for CSS variables.
-		mapped := r.symbolMap.Get(name)
-		if mapped == nil {
+		mapped, ok := r.symbolMap.Get(name)
+		if !ok {
 			r.compiler.Report(JSError_MakeWithNode(n, ReplaceCssNames_UNKNOWN_SYMBOL_WARNING, name, name))
 			return
 		}
-		replacement = *mapped
+		replacement = mapped
 	} else if r.symbolMap.GetStyle() == CssRenamingMap_Style_BY_PART {
 		if strings.IndexByte(name, '-') < 0 {
-			part := r.symbolMap.Get(name)
-			if part == nil {
+			part, ok := r.symbolMap.Get(name)
+			if !ok {
 				r.compiler.Report(JSError_MakeWithNode(n, ReplaceCssNames_UNKNOWN_SYMBOL_WARNING, name, name))
 				return
 			}
-			replacement = *part
+			replacement = part
 		} else {
 			trimmed := strings.TrimRight(name, "-")
 			if trimmed != "" {
@@ -418,13 +440,13 @@ func (r *ReplaceCssNames) processStringNode(n rhino.Node) {
 					} else {
 						p = rest[:dash]
 					}
-					part := r.symbolMap.Get(p)
-					if part == nil {
+					part, ok := r.symbolMap.Get(p)
+					if !ok {
 						// If we can't encode all parts, don't encode any of it.
 						r.compiler.Report(JSError_MakeWithNode(n, ReplaceCssNames_UNKNOWN_SYMBOL_WARNING, p, name))
 						return
 					}
-					sb.WriteString(*part)
+					sb.WriteString(part)
 					if dash < 0 {
 						break
 					}
@@ -441,6 +463,17 @@ func (r *ReplaceCssNames) processStringNode(n rhino.Node) {
 type countCssNamesBySymbol struct {
 	r *ReplaceCssNames
 }
+
+var (
+	_ nodeTraversal_visitTokens                         = (*countCssNamesBySymbol)(nil)
+	_ nodeTraversal_onlyScriptAndFunctionShouldTraverse = (*countCssNamesBySymbol)(nil)
+)
+
+func (*countCssNamesBySymbol) visitTokens() *ast.TokenSet {
+	return &replaceCssNamesQualifiedNameVisitTokens
+}
+
+func (*countCssNamesBySymbol) shouldTraverseOnlyScriptAndFunction() bool { return true }
 
 func (c *countCssNamesBySymbol) ShouldTraverse(t *NodeTraversal, n rhino.Node, parent rhino.Node) bool {
 	if n.IsScript() {

@@ -109,6 +109,11 @@ func (v *Var) GetScope() rhino.StaticScope {
 	return v.scope
 }
 
+// Scope returns the concrete syntactic Scope where this variable is declared.
+func (v *Var) Scope() *Scope {
+	return v.scope
+}
+
 func (v *Var) getScopeS() *Scope {
 	return v.scope
 }

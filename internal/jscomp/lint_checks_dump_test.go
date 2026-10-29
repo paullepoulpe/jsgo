@@ -96,19 +96,21 @@ var lintChecksDumpChecks = []lintChecksDumpCheck{
 	lintChecksDumpPass("CheckVar", func(c AbstractCompiler) CompilerPass { return NewCheckVar(c) }),
 }
 
-// lintChecksDumpCompiler is the Java tool's anonymous Compiler subclass: it
-// records every JSError reported while a check runs.
-type lintChecksDumpCompiler struct {
-	*Compiler
+// lintChecksDumpGuard records every JSError reported while a check runs at top
+// priority before any level filtering or sorting.
+type lintChecksDumpGuard struct {
+	WarningsGuardBase
 	phase string
 	diags *[]string
 }
 
-func (c *lintChecksDumpCompiler) Report(error *JSError) {
-	if c.phase != "" {
-		*c.diags = append(*c.diags, c.phase+" "+lintChecksDumpFormat(error))
+func (*lintChecksDumpGuard) GetPriority() int { return -1000 }
+
+func (g *lintChecksDumpGuard) Level(error *JSError) *CheckLevel {
+	if g.phase != "" {
+		*g.diags = append(*g.diags, g.phase+" "+lintChecksDumpFormat(error))
 	}
-	c.Compiler.Report(error)
+	return nil
 }
 
 // lintChecksDumpOptions is LintChecksDump.options().
@@ -138,11 +140,14 @@ func lintChecksDumpOptions(t testing.TB, convention string) *CompilerOptions {
 func lintChecksDumpOne(t testing.TB, sb *strings.Builder, convention string, name string, src string) {
 	lintChecksDumpLine(sb, "# file "+name)
 	var diags []string
-	compiler := &lintChecksDumpCompiler{Compiler: NewCompiler(), diags: &diags}
+	guard := &lintChecksDumpGuard{diags: &diags}
+	options := lintChecksDumpOptions(t, convention)
+	options.AddWarningsGuard(guard)
+	compiler := NewCompiler()
 	compiler.Init(
 		[]*SourceFile{SourceFile_FromCode("externs", "")},
 		[]*SourceFile{SourceFile_FromCode(name, src)},
-		lintChecksDumpOptions(t, convention))
+		options)
 	var root rhino.Node
 	jutil.Try(func() {
 		root = compiler.ParseInputs()
@@ -159,7 +164,7 @@ func lintChecksDumpOne(t testing.TB, sb *strings.Builder, convention string, nam
 	}
 	externsRoot, mainRoot := root.GetFirstChild(), root.GetSecondChild()
 	for _, check := range lintChecksDumpChecks {
-		compiler.phase = check.name
+		guard.phase = check.name
 		start := len(diags)
 		jutil.Try(func() {
 			check.run(compiler, externsRoot, mainRoot)
@@ -174,7 +179,7 @@ func lintChecksDumpOne(t testing.TB, sb *strings.Builder, convention string, nam
 			slices.SortStableFunc(diags[start:], jutil.StringCompareTo)
 		}
 	}
-	compiler.phase = ""
+	guard.phase = ""
 	for _, d := range diags {
 		lintChecksDumpLine(sb, d)
 	}

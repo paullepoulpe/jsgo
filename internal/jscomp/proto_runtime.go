@@ -168,6 +168,14 @@ func protoAppendString(b []byte, v string) []byte {
 	return protoAppendBytes(b, jutil.StringGetBytesUTF8(v))
 }
 
+func protoStringSize(tagLen int, v string) int {
+	n := len(v)
+	if !utf8.ValidString(v) {
+		n = len(jutil.StringGetBytesUTF8(v))
+	}
+	return tagLen + protoVarintLen(uint64(n)) + n
+}
+
 // ---------------------------------------------------------------------------
 // Decoding
 
@@ -775,13 +783,6 @@ func protoBytesEqual(a, b []byte) bool {
 	return true
 }
 
-func protoHashBytes(h int32, b []byte) int32 {
-	for _, c := range b {
-		h = 31*h + int32(int8(c))
-	}
-	return h
-}
-
 func protoHashString(h int32, s string) int32 { return 31*h + jutil.StringHashCode(s) }
 
 func protoHashBool(h int32, v bool) int32 {
@@ -790,10 +791,6 @@ func protoHashBool(h int32, v bool) int32 {
 	}
 	return 31*h + 1237
 }
-
-func protoHashInt64(h int32, v int64) int32 { return 31*h + int32(v^int64(uint64(v)>>32)) }
-
-func protoDoubleBits(v float64) int64 { return jutil.DoubleToLongBits(v) }
 
 func protoVarintLen(v uint64) int {
 	return int(9*uint32(bits.Len64(v))+64) >> 6

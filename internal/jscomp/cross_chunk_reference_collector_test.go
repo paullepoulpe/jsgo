@@ -20,10 +20,20 @@
 package jscomp
 
 import (
-	"github.com/paullepoulpe/jsgo/internal/rhino"
 	"slices"
 	"testing"
+
+	"github.com/paullepoulpe/jsgo/internal/jutil"
+	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
+
+func crossChunkGlobalVariableNamesMap(c *CrossChunkReferenceCollector) *jutil.LinkedHashMap[string, *Var] {
+	out := jutil.NewLinkedHashMapWithCapacity[string, *Var](len(c.vars))
+	for _, v := range c.vars {
+		out.Put(v.GetName(), v)
+	}
+	return out
+}
 
 type CrossChunkReferenceCollectorTest struct {
 	CompilerTestCaseBase
@@ -68,7 +78,7 @@ func (c *CrossChunkReferenceCollectorTest) TestVarInBlock() {
 			"    y;\n" +
 			"    y;\n" +
 			"  }\n")
-	globalVariableNamesMap := c.testedCollector.GetGlobalVariableNamesMap()
+	globalVariableNamesMap := crossChunkGlobalVariableNamesMap(c.testedCollector)
 	AssertThat(globalVariableNamesMap).ContainsKey("y")
 	yVar := globalVariableNamesMap.Get("y")
 	yRefs := c.testedCollector.GetReferences(yVar)
@@ -79,14 +89,14 @@ func (c *CrossChunkReferenceCollectorTest) TestVarInBlock() {
 // Java: CrossChunkReferenceCollectorTest.testVarInLoopNotAssignedOnlyOnceInLifetime()
 func (c *CrossChunkReferenceCollectorTest) TestVarInLoopNotAssignedOnlyOnceInLifetime() {
 	c.TestSame("var x; for (; true;) { x = 0; }")
-	globalVariableNamesMap := c.testedCollector.GetGlobalVariableNamesMap()
+	globalVariableNamesMap := crossChunkGlobalVariableNamesMap(c.testedCollector)
 	xVar := globalVariableNamesMap.Get("x")
 	AssertThat(globalVariableNamesMap).ContainsKey("x")
 	xRefs := c.testedCollector.GetReferences(xVar)
 	AssertThat(xRefs.IsAssignedOnceInLifetime()).IsFalse()
 
 	c.TestSame("let x; for (; true;) { x = 0; }")
-	globalVariableNamesMap = c.testedCollector.GetGlobalVariableNamesMap()
+	globalVariableNamesMap = crossChunkGlobalVariableNamesMap(c.testedCollector)
 	xVar = globalVariableNamesMap.Get("x")
 	AssertThat(globalVariableNamesMap).ContainsKey("x")
 	xRefs = c.testedCollector.GetReferences(xVar)
@@ -100,14 +110,14 @@ func (c *CrossChunkReferenceCollectorTest) TestVarInLoopNotAssignedOnlyOnceInLif
 // Java: CrossChunkReferenceCollectorTest.testVarInFunctionNotAssignedOnlyOnceInLifetime()
 func (c *CrossChunkReferenceCollectorTest) TestVarInFunctionNotAssignedOnlyOnceInLifetime() {
 	c.TestSame("var x; function f() { x = 0; }")
-	globalVariableNamesMap := c.testedCollector.GetGlobalVariableNamesMap()
+	globalVariableNamesMap := crossChunkGlobalVariableNamesMap(c.testedCollector)
 	xVar := globalVariableNamesMap.Get("x")
 	AssertThat(globalVariableNamesMap).ContainsKey("x")
 	xRefs := c.testedCollector.GetReferences(xVar)
 	AssertThat(xRefs.IsAssignedOnceInLifetime()).IsFalse()
 
 	c.TestSame("let x; function f() { x = 0; }")
-	globalVariableNamesMap = c.testedCollector.GetGlobalVariableNamesMap()
+	globalVariableNamesMap = crossChunkGlobalVariableNamesMap(c.testedCollector)
 	xVar = globalVariableNamesMap.Get("x")
 	AssertThat(globalVariableNamesMap).ContainsKey("x")
 	xRefs = c.testedCollector.GetReferences(xVar)
@@ -117,14 +127,14 @@ func (c *CrossChunkReferenceCollectorTest) TestVarInFunctionNotAssignedOnlyOnceI
 // Java: CrossChunkReferenceCollectorTest.testVarAssignedOnceInLifetime1()
 func (c *CrossChunkReferenceCollectorTest) TestVarAssignedOnceInLifetime1() {
 	c.TestSame("var x = 0;")
-	globalVariableNamesMap := c.testedCollector.GetGlobalVariableNamesMap()
+	globalVariableNamesMap := crossChunkGlobalVariableNamesMap(c.testedCollector)
 	xVar := globalVariableNamesMap.Get("x")
 	AssertThat(globalVariableNamesMap).ContainsKey("x")
 	xRefs := c.testedCollector.GetReferences(xVar)
 	AssertThat(xRefs.IsAssignedOnceInLifetime()).IsTrue()
 
 	c.TestSame("let x = 0;")
-	globalVariableNamesMap = c.testedCollector.GetGlobalVariableNamesMap()
+	globalVariableNamesMap = crossChunkGlobalVariableNamesMap(c.testedCollector)
 	xVar = globalVariableNamesMap.Get("x")
 	AssertThat(globalVariableNamesMap).ContainsKey("x")
 	xRefs = c.testedCollector.GetReferences(xVar)
@@ -134,7 +144,7 @@ func (c *CrossChunkReferenceCollectorTest) TestVarAssignedOnceInLifetime1() {
 // Java: CrossChunkReferenceCollectorTest.testVarAssignedOnceInLifetime2()
 func (c *CrossChunkReferenceCollectorTest) TestVarAssignedOnceInLifetime2() {
 	c.TestSame("{ var x = 0; }")
-	globalVariableNamesMap := c.testedCollector.GetGlobalVariableNamesMap()
+	globalVariableNamesMap := crossChunkGlobalVariableNamesMap(c.testedCollector)
 	xVar := globalVariableNamesMap.Get("x")
 	AssertThat(globalVariableNamesMap).ContainsKey("x")
 	xRefs := c.testedCollector.GetReferences(xVar)
@@ -149,7 +159,7 @@ func (c *CrossChunkReferenceCollectorTest) TestBasicBlocks() {
 			"  case 0:\n" +
 			"    x;\n" +
 			"}\n")
-	globalVariableNamesMap := c.testedCollector.GetGlobalVariableNamesMap()
+	globalVariableNamesMap := crossChunkGlobalVariableNamesMap(c.testedCollector)
 	xVar := globalVariableNamesMap.Get("x")
 	AssertThat(globalVariableNamesMap).ContainsKey("x")
 	xRefs := c.testedCollector.GetReferences(xVar)
@@ -170,7 +180,7 @@ func (c *CrossChunkReferenceCollectorTest) TestClassStaticBlock() {
 			"  }\n" +
 			"}\n")
 
-	globalVariableNamesMap := c.testedCollector.GetGlobalVariableNamesMap()
+	globalVariableNamesMap := crossChunkGlobalVariableNamesMap(c.testedCollector)
 	AssertThat(globalVariableNamesMap).ContainsKey("x")
 	xVar := globalVariableNamesMap.Get("x")
 	xRefs := c.testedCollector.GetReferences(xVar)
@@ -184,7 +194,7 @@ func (c *CrossChunkReferenceCollectorTest) TestClassStaticBlock() {
 // Java: CrossChunkReferenceCollectorTest.nullishCoalesce()
 func (c *CrossChunkReferenceCollectorTest) TestNullishCoalesce() {
 	c.TestSame("var x = 0; var y = x ?? (x = 1)")
-	globalVariableNamesMap := c.testedCollector.GetGlobalVariableNamesMap()
+	globalVariableNamesMap := crossChunkGlobalVariableNamesMap(c.testedCollector)
 	xVar := globalVariableNamesMap.Get("x")
 	AssertThat(globalVariableNamesMap).ContainsKey("x")
 	xRefs := c.testedCollector.GetReferences(xVar)
@@ -208,7 +218,7 @@ func (c *CrossChunkReferenceCollectorTest) TestTopLevelStatements() {
 			"}\n")
 
 	// Pull out all the references for comparison.
-	globalVariableNamesMap := c.testedCollector.GetGlobalVariableNamesMap()
+	globalVariableNamesMap := crossChunkGlobalVariableNamesMap(c.testedCollector)
 	xReferences :=
 		slices.Collect(c.testedCollector.GetReferences(globalVariableNamesMap.Get("x")).All())
 	yReferences :=
@@ -557,7 +567,7 @@ func (c *CrossChunkReferenceCollectorTest) TestPureOrBreakMyCodeAnnotatedStaticC
 //
 // Java: CrossChunkReferenceCollectorTest.getReferencesForName(String, CrossChunkReferenceCollector)
 func (c *CrossChunkReferenceCollectorTest) GetReferencesForName(name string, collector *CrossChunkReferenceCollector) *ReferenceCollection {
-	v := collector.GetGlobalVariableNamesMap().Get(name)
+	v := crossChunkGlobalVariableNamesMap(collector).Get(name)
 	AssertThat(v).IsNotNull()
 	return collector.GetReferences(v)
 }

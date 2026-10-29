@@ -103,7 +103,7 @@ func hamtIsNull[V any](v V) bool {
 	if jt, ok := any(&v).(*JSType); ok {
 		return *jt == nil
 	}
-	return jutil.IsNil(any(v))
+	return jutil.IsNilOf(v)
 }
 
 const debugHamtPMap = false
@@ -777,11 +777,21 @@ func HamtPMap_Hash[K any](key K) int32 {
 	if n, ok := any(&key).(*Node); ok {
 		return int32(bits.Reverse32(uint32(CheckNotNull(*n).IdentityHashCode())))
 	}
-	return int32(bits.Reverse32(uint32(jutil.ObjectHashCode(jutil.CheckNotNull(any(key))))))
+	jutil.CheckNotNull(key)
+	if h, ok := any(key).(interface{ HashCode() int32 }); ok {
+		return int32(bits.Reverse32(uint32(h.HashCode())))
+	}
+	return int32(bits.Reverse32(uint32(jutil.ObjectHashCode(any(key)))))
 }
 
 // hamtEquals is jutil.ObjectsEqualsOf, without boxing value/interface types.
 func hamtEquals[T any](a, b T) bool {
+	if sa, ok := any(&a).(*string); ok {
+		return *sa == *any(&b).(*string)
+	}
+	if ia, ok := any(&a).(*int); ok {
+		return *ia == *any(&b).(*int)
+	}
 	if ida, ok := any(&a).(*strpool.ID); ok {
 		return *ida == *any(&b).(*strpool.ID)
 	}
@@ -807,7 +817,7 @@ func hamtCheckNotNull[T any](v T) {
 		CheckNotNull(*n)
 		return
 	}
-	jutil.CheckNotNull(any(v))
+	jutil.CheckNotNull(v)
 }
 
 // HamtPMap_Bucket returns the current bucket index from the hash.

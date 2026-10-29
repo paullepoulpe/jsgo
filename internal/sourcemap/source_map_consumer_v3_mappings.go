@@ -65,13 +65,17 @@ const SourceMapConsumerV3_MappingBuilder_MAX_ENTRY_VALUES = 5
 // Java: SourceMapConsumerV3.MappingBuilder(String, int, boolean, int)
 func NewSourceMapConsumerV3_MappingBuilder(
 	outer *SourceMapConsumerV3, lineMap *string, lineCount int, useCompactMappings bool, estimatedEntries int32) *SourceMapConsumerV3_MappingBuilder {
-	return newMappingBuilder(outer, makeOptionalString(lineMap), lineCount, useCompactMappings, estimatedEntries)
+	b, err := tryNewMappingBuilder(outer, makeOptionalString(lineMap), lineCount, useCompactMappings, estimatedEntries)
+	if err != nil {
+		panic(err)
+	}
+	return b
 }
 
-func newMappingBuilder(
-	outer *SourceMapConsumerV3, lineMap optionalString, lineCount int, useCompactMappings bool, estimatedEntries int32) *SourceMapConsumerV3_MappingBuilder {
+func tryNewMappingBuilder(
+	outer *SourceMapConsumerV3, lineMap optionalString, lineCount int, useCompactMappings bool, estimatedEntries int32) (*SourceMapConsumerV3_MappingBuilder, jutil.Throwable) {
 	if !lineMap.present {
-		panic(jutil.NewNullPointerException())
+		return nil, jutil.NewNullPointerException()
 	}
 	b := &SourceMapConsumerV3_MappingBuilder{outer: outer}
 	b.content = NewSourceMapConsumerV3_StringCharIterator(lineMap.text)
@@ -90,7 +94,7 @@ func newMappingBuilder(
 		estimatedLines = lineCount
 	}
 	b.lineStart = make([]uint32, 0, jutil.IntAdd(estimatedLines, 1))
-	return b
+	return b, nil
 }
 
 // Java: SourceMapConsumerV3.MappingBuilder.build()
@@ -102,7 +106,7 @@ func (b *SourceMapConsumerV3_MappingBuilder) Build() *SourceMapConsumerV3_Mappin
 	return m
 }
 
-func (b *SourceMapConsumerV3_MappingBuilder) tryBuild() (*SourceMapConsumerV3_Mappings, *SourceMapParseException) {
+func (b *SourceMapConsumerV3_MappingBuilder) tryBuild() (*SourceMapConsumerV3_Mappings, jutil.Throwable) {
 	var temp [SourceMapConsumerV3_MappingBuilder_MAX_ENTRY_VALUES]int32
 
 	entriesCount := 0
@@ -123,7 +127,15 @@ func (b *SourceMapConsumerV3_MappingBuilder) tryBuild() (*SourceMapConsumerV3_Ma
 			// grab the next entry for the current line.
 			entryValues := 0
 			for !b.EntryComplete() {
-				temp[entryValues] = b.NextValue()
+				v, err := b.tryNextValue()
+				if err != nil {
+					return nil, err
+				}
+				if entryValues >= SourceMapConsumerV3_MappingBuilder_MAX_ENTRY_VALUES {
+					return nil, jutil.NewArrayIndexOutOfBoundsExceptionForLength(
+						entryValues, SourceMapConsumerV3_MappingBuilder_MAX_ENTRY_VALUES)
+				}
+				temp[entryValues] = v
 				entryValues++
 			}
 
@@ -131,7 +143,9 @@ func (b *SourceMapConsumerV3_MappingBuilder) tryBuild() (*SourceMapConsumerV3_Ma
 			if err != nil {
 				return nil, err
 			}
-			b.validateEntry(e, b.line)
+			if err := b.tryValidateEntry(e, b.line); err != nil {
+				return nil, err
+			}
 
 			b.previousCol = e.genCol
 			if entryValues >= 4 {
@@ -213,11 +227,11 @@ func maskCompactId(id int32) int32 {
 
 // tryDecodeEntry resolves the VLQ deltas in vals against the builder's running
 // state, applying compact 16-bit ID masking when entrySize == 4.
-func (b *SourceMapConsumerV3_MappingBuilder) tryDecodeEntry(vals []int32, entryValues int) (sourceMapConsumerV3_entry, *SourceMapParseException) {
+func (b *SourceMapConsumerV3_MappingBuilder) tryDecodeEntry(vals []int32, entryValues int) (sourceMapConsumerV3_entry, jutil.Throwable) {
 	if b.entrySize > b.flatLength {
 		b.flatLength *= 2
 		if b.entrySize > b.flatLength {
-			panic(jutil.NewArrayIndexOutOfBoundsExceptionForLength(0, b.flatLength))
+			return sourceMapConsumerV3_entry{}, jutil.NewArrayIndexOutOfBoundsExceptionForLength(0, b.flatLength)
 		}
 	}
 	e := sourceMapConsumerV3_entry{
@@ -255,15 +269,21 @@ func (b *SourceMapConsumerV3_MappingBuilder) tryDecodeEntry(vals []int32, entryV
 }
 
 // Java: SourceMapConsumerV3.MappingBuilder.validateEntry(int, int)
-func (b *SourceMapConsumerV3_MappingBuilder) validateEntry(e sourceMapConsumerV3_entry, line int) {
-	jutil.CheckStateMsg2(
-		b.lineCount < 0 || line < b.lineCount, "line=%s, lineCount=%s", line, b.lineCount)
-	jutil.CheckState(e.srcId == SourceMapConsumerV3_UNMAPPED || int(e.srcId) < len(b.outer.sources))
+func (b *SourceMapConsumerV3_MappingBuilder) tryValidateEntry(e sourceMapConsumerV3_entry, line int) jutil.Throwable {
+	if !(b.lineCount < 0 || line < b.lineCount) {
+		return jutil.NewIllegalStateExceptionMsg(jutil.LenientFormat("line=%s, lineCount=%s", line, b.lineCount))
+	}
+	if !(e.srcId == SourceMapConsumerV3_UNMAPPED || int(e.srcId) < len(b.outer.sources)) {
+		return jutil.NewIllegalStateException()
+	}
 	if e.nameId != SourceMapConsumerV3_UNMAPPED && b.outer.names == nil {
 		// names.length
-		panic(jutil.NewNullPointerException())
+		return jutil.NewNullPointerException()
 	}
-	jutil.CheckState(e.nameId == SourceMapConsumerV3_UNMAPPED || int(e.nameId) < len(b.outer.names))
+	if !(e.nameId == SourceMapConsumerV3_UNMAPPED || int(e.nameId) < len(b.outer.names)) {
+		return jutil.NewIllegalStateException()
+	}
+	return nil
 }
 
 // Java: SourceMapConsumerV3.MappingBuilder.trim(int, int)
@@ -304,12 +324,26 @@ func (b *SourceMapConsumerV3_MappingBuilder) EntryComplete() bool {
 
 // Java: SourceMapConsumerV3.MappingBuilder.nextValue()
 func (b *SourceMapConsumerV3_MappingBuilder) NextValue() int32 {
+	v, err := b.tryNextValue()
+	if err != nil {
+		panic(err)
+	}
+	return v
+}
+
+func (b *SourceMapConsumerV3_MappingBuilder) tryNextValue() (int32, jutil.Throwable) {
 	var result int32
 	var shift int32
 	in := b.content
 	for {
+		if in.current >= in.length {
+			return 0, jutil.NewStringIndexOutOfBoundsExceptionForIndex(in.current, in.length)
+		}
 		c := in.Next()
-		digit := Base64_FromBase64(c)
+		if c >= 256 {
+			return 0, jutil.NewArrayIndexOutOfBoundsExceptionForLength(int(c), 256)
+		}
+		digit := int32(Base64_BASE64_DECODE_MAP[c])
 		continuation := (digit & Base64VLQ_VLQ_CONTINUATION_BIT) != 0
 		digit &= Base64VLQ_VLQ_BASE_MASK
 		result = result + jutil.Shl32(digit, int64(shift))
@@ -318,7 +352,7 @@ func (b *SourceMapConsumerV3_MappingBuilder) NextValue() int32 {
 			break
 		}
 	}
-	return Base64VLQ_FromVLQSigned(result)
+	return Base64VLQ_FromVLQSigned(result), nil
 }
 
 // sourceMapConsumerV3_search performs a binary search on the line's

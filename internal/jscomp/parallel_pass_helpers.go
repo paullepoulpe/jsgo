@@ -27,34 +27,22 @@ func parallelThreadCount(compiler AbstractCompiler, workCount int) int {
 	return n
 }
 
-func prewarmCompilerForParallelReads(compiler AbstractCompiler) {
+func prewarmCompilerForParallelReads(compiler *Compiler) {
 	if compiler == nil {
 		return
 	}
+	_ = compiler.ensureSync()
 	_ = compiler.GetAstAnalyzer()
 	_ = compiler.GetCodingConvention()
-	if c, ok := compiler.(*Compiler); ok && c != nil {
-		c.InitCompilerOptionsIfTesting()
-	}
+	compiler.InitCompilerOptionsIfTesting()
 }
 
-func enableParallelTypeRegistryReads(compiler AbstractCompiler) func() {
-	if c, ok := compiler.(*Compiler); ok {
-		if c == nil || c.typeRegistry == nil {
-			return func() {}
-		}
-		prev := c.typeRegistry.SetParallelReadOnly(true)
-		return func() { c.typeRegistry.SetParallelReadOnly(prev) }
-	}
-	if compiler == nil || compiler.HasOptimizationColors() {
+func enableParallelTypeRegistryReads(compiler *Compiler) func() {
+	if compiler == nil || compiler.typeRegistry == nil {
 		return func() {}
 	}
-	reg := compiler.GetTypeRegistry()
-	if reg == nil {
-		return func() {}
-	}
-	prev := reg.SetParallelReadOnly(true)
-	return func() { reg.SetParallelReadOnly(prev) }
+	prev := compiler.typeRegistry.SetParallelReadOnly(true)
+	return func() { compiler.typeRegistry.SetParallelReadOnly(prev) }
 }
 
 func freezeGlobalScopeForParallelReads(gs *Scope) {
@@ -182,91 +170,101 @@ func parallelChangeScopeForNode(n rhino.Node) rhino.Node {
 	return enclosing
 }
 
-type recordingCompiler struct {
-	AbstractCompiler
+type recordingCompiler = Compiler
 
+type parallelRecorder struct {
 	events              []recordedCompilerEvent
 	continueAfterErrors bool
 	baseHalted          bool
 	halted              bool
-	allowModulesAdded   bool
+	errHandler          compiler_errorHandler
 }
 
-func initRecordingCompiler(rc *recordingCompiler, base AbstractCompiler) {
-	rc.AbstractCompiler = base
-	rc.events = rc.events[:0]
-	opts := base.GetOptions()
-	rc.continueAfterErrors = opts != nil && opts.CanContinueAfterErrors()
-	rc.baseHalted = !rc.continueAfterErrors && base.HasHaltingErrors()
-	rc.halted = false
-	rc.allowModulesAdded = false
+func newRecordingCompiler(base *Compiler) *Compiler {
+	var rc Compiler
+	initRecordingCompiler(&rc, base)
+	return &rc
 }
 
-func (rc *recordingCompiler) takeEvents() []recordedCompilerEvent {
-	if len(rc.events) == 0 {
+func initRecordingCompiler(rc *Compiler, base *Compiler) {
+	rec := rc.parallelRecorder
+	if rec == nil {
+		rec = &parallelRecorder{}
+	}
+	_ = base.ensureSync()
+	*rc = *base
+	rec.events = rec.events[:0]
+	opts := base.options
+	rec.continueAfterErrors = opts != nil && opts.CanContinueAfterErrors()
+	rec.baseHalted = !rec.continueAfterErrors && base.HasHaltingErrors()
+	rec.halted = false
+	rec.errHandler.c = rc
+	rc.parallelRecorder = rec
+	rc.asErrorHandler = &rec.errHandler
+	rc.runtimeJsLibManager = nil
+}
+
+func resetRecordingCompiler(rc *Compiler, base *Compiler) {
+	rec := rc.parallelRecorder
+	rec.events = rec.events[:0]
+	rec.halted = false
+	rc.allowableFeatures = base.allowableFeatures
+	rc.runtimeJsLibManager = nil
+}
+
+func (c *Compiler) takeEvents() []recordedCompilerEvent {
+	r := c.parallelRecorder
+	if r == nil || len(r.events) == 0 {
 		return nil
 	}
-	out := make([]recordedCompilerEvent, len(rc.events))
-	copy(out, rc.events)
-	rc.events = rc.events[:0]
+	out := make([]recordedCompilerEvent, len(r.events))
+	copy(out, r.events)
+	r.events = r.events[:0]
 	return out
 }
 
-func (rc *recordingCompiler) Report(err *JSError) {
-	rc.events = append(rc.events, recordedCompilerEvent{
+func (r *parallelRecorder) report(c *Compiler, err *JSError) {
+	r.events = append(r.events, recordedCompilerEvent{
 		kind: recordedEventReport,
 		err:  err,
 	})
-	if !rc.continueAfterErrors && !rc.halted {
-		if lvl := rc.AbstractCompiler.GetErrorLevel(err); lvl != nil && *lvl == CheckLevel_ERROR {
-			rc.halted = true
+	if !r.continueAfterErrors && !r.halted {
+		if lvl := c.GetErrorLevel(err); lvl != nil && *lvl == CheckLevel_ERROR {
+			r.halted = true
 		}
 	}
 }
 
-func (rc *recordingCompiler) HasHaltingErrors() bool {
-	return rc.baseHalted || rc.halted
-}
-
-func (rc *recordingCompiler) ReportChangeToEnclosingScope(n rhino.Node) {
+func (r *parallelRecorder) reportChangeToEnclosingScope(n rhino.Node) {
 	scope := parallelChangeScopeForNode(n)
-	rc.events = append(rc.events, recordedCompilerEvent{
+	r.events = append(r.events, recordedCompilerEvent{
 		kind: recordedEventChangeScope,
 		node: scope,
 	})
 }
 
-func (rc *recordingCompiler) ReportChangeToChangeScope(changeScopeRoot rhino.Node) {
+func (r *parallelRecorder) reportChangeToChangeScope(changeScopeRoot rhino.Node) {
 	jutil.CheckState(changeScopeRoot.IsScript() || changeScopeRoot.IsFunction())
-	rc.events = append(rc.events, recordedCompilerEvent{
+	r.events = append(r.events, recordedCompilerEvent{
 		kind: recordedEventChangeScope,
 		node: changeScopeRoot,
 	})
 }
 
-func (rc *recordingCompiler) ReportFunctionDeleted(node rhino.Node) {
+func (r *parallelRecorder) reportFunctionDeleted(node rhino.Node) {
 	jutil.CheckState(node.IsFunction())
-	rc.events = append(rc.events, recordedCompilerEvent{
+	r.events = append(r.events, recordedCompilerEvent{
 		kind: recordedEventFunctionDeleted,
 		node: node,
 	})
 }
 
-func (rc *recordingCompiler) GetAllowableFeatures() *parser.FeatureSet {
-	base := rc.AbstractCompiler.GetAllowableFeatures()
-	if rc.allowModulesAdded {
-		return base.With(parser.FeatureSet_Feature_MODULES)
-	}
-	return base
-}
-
-func (rc *recordingCompiler) SetAllowableFeatures(featureSet *parser.FeatureSet) {
-	base := rc.AbstractCompiler.GetAllowableFeatures()
+func (c *Compiler) setWorkerAllowableFeatures(featureSet *parser.FeatureSet) {
 	if featureSet.ContainsFeature(parser.FeatureSet_Feature_MODULES) &&
 		featureSet.WithoutFeatures(parser.FeatureSet_Feature_MODULES).Equals(
-			base.WithoutFeatures(parser.FeatureSet_Feature_MODULES)) {
-		rc.allowModulesAdded = true
-		rc.events = append(rc.events, recordedCompilerEvent{
+			c.allowableFeatures.WithoutFeatures(parser.FeatureSet_Feature_MODULES)) {
+		c.allowableFeatures = c.allowableFeatures.With(parser.FeatureSet_Feature_MODULES)
+		c.parallelRecorder.events = append(c.parallelRecorder.events, recordedCompilerEvent{
 			kind: recordedEventAllowModules,
 		})
 		return
@@ -274,52 +272,15 @@ func (rc *recordingCompiler) SetAllowableFeatures(featureSet *parser.FeatureSet)
 	panic(jutil.NewUnsupportedOperationExceptionMsg("SetAllowableFeatures unsupported in parallel worker"))
 }
 
-func (rc *recordingCompiler) ThrowInternalError(msg string, cause jutil.Throwable) {
-	panic(parallelInternalError{msg: msg, cause: cause})
+func (r *parallelRecorder) replayOnto(base *Compiler) {
+	if r == nil || len(r.events) == 0 {
+		return
+	}
+	replayCompilerEvents(base, r.events)
+	r.events = r.events[:0]
 }
 
-func (rc *recordingCompiler) GetChangeTracker() *ChangeTracker {
-	panic(jutil.NewUnsupportedOperationExceptionMsg("GetChangeTracker unsupported in parallel worker"))
-}
-
-func (rc *recordingCompiler) EnsureLibraryInjected(resourceName string, force bool) rhino.Node {
-	panic(jutil.NewUnsupportedOperationExceptionMsg("EnsureLibraryInjected unsupported in parallel worker"))
-}
-
-func (rc *recordingCompiler) GetUniqueNameIdSupplier() func() string {
-	panic(jutil.NewUnsupportedOperationExceptionMsg("GetUniqueNameIdSupplier unsupported in parallel worker"))
-}
-
-func (rc *recordingCompiler) SynthesizeExternsInput(name string) *CompilerInput {
-	panic(jutil.NewUnsupportedOperationExceptionMsg("SynthesizeExternsInput unsupported in parallel worker"))
-}
-
-func (rc *recordingCompiler) MarkFeatureNotAllowed(feature parser.FeatureSet_Feature) {
-	panic(jutil.NewUnsupportedOperationExceptionMsg("MarkFeatureNotAllowed unsupported in parallel worker"))
-}
-
-func (rc *recordingCompiler) MarkFeatureSetNotAllowed(featureSet *parser.FeatureSet) {
-	panic(jutil.NewUnsupportedOperationExceptionMsg("MarkFeatureSetNotAllowed unsupported in parallel worker"))
-}
-
-func (rc *recordingCompiler) CreateExpressionDecomposer(
-	uniqueNameIdSupplier func() string,
-	knownConstantFunctions map[string]bool,
-	scope *Scope,
-) *ExpressionDecomposer {
-	brokenIE11LocationAssign := parser.FeatureSet_ES5.Contains(rc.GetOptions().GetOutputFeatureSet())
-	return NewExpressionDecomposer(
-		rc, uniqueNameIdSupplier, knownConstantFunctions, scope, brokenIE11LocationAssign)
-}
-
-func (rc *recordingCompiler) CreateDefaultExpressionDecomposer() *ExpressionDecomposer {
-	return rc.CreateExpressionDecomposer(
-		rc.GetUniqueNameIdSupplier(),
-		nil,
-		Scope_CreateGlobalScope(rhino.NewNode(rhino.Token_SCRIPT)))
-}
-
-func replayCompilerEvents(base AbstractCompiler, events []recordedCompilerEvent) {
+func replayCompilerEvents(base *Compiler, events []recordedCompilerEvent) {
 	for i := range events {
 		ev := &events[i]
 		switch ev.kind {
@@ -357,12 +318,13 @@ func runParallelWork(
 				defer cleanup()
 			}
 			var rc recordingCompiler
+			initRecordingCompiler(&rc, base)
 			for {
 				idx := int(nextIdx.Add(1) - 1)
 				if idx >= workCount {
 					return
 				}
-				initRecordingCompiler(&rc, base)
+				resetRecordingCompiler(&rc, base)
 				func() {
 					defer func() {
 						if r := recover(); r != nil {
@@ -391,6 +353,112 @@ func runParallelWork(
 			panic(p)
 		}
 	}
+}
+
+type parallelScriptOptions[S any] struct {
+	hasExterns              bool
+	externs                 rhino.Node
+	useSharedGlobalScope    bool
+	enableTypeRegistryReads bool
+	stopOnHaltingError      bool
+	prepare                 func(numWorkers, itemCount int) bool
+	initWorker              func(workerID int, rc *Compiler) S
+	callback                func(state S, idx int, parent rhino.Node, script rhino.Node, rc *Compiler) NodeTraversal_Callback
+	afterScript             func(state S, idx int, parent rhino.Node, script rhino.Node, rc *Compiler)
+	finishWorker            func(workerID int, state S)
+}
+
+func traverseScriptsParallel[S any](
+	compiler *Compiler,
+	root rhino.Node,
+	opts parallelScriptOptions[S],
+) bool {
+	var scopeRoot rhino.Node
+	var scripts []rhino.Node
+	var items []scriptWithParent
+	var itemCount int
+	if opts.hasExterns {
+		var ok bool
+		scopeRoot, items, ok = collectExternAndRootScripts(opts.externs, root)
+		if !ok {
+			return false
+		}
+		itemCount = len(items)
+	} else {
+		var ok bool
+		scripts, ok = collectRootScripts(root)
+		if !ok {
+			return false
+		}
+		scopeRoot = root
+		itemCount = len(scripts)
+	}
+	numWorkers := parallelThreadCount(compiler, itemCount)
+	if numWorkers <= 1 {
+		return false
+	}
+	if opts.prepare != nil && !opts.prepare(numWorkers, itemCount) {
+		return false
+	}
+
+	prewarmCompilerForParallelReads(compiler)
+	if opts.enableTypeRegistryReads {
+		restore := enableParallelTypeRegistryReads(compiler)
+		defer restore()
+	}
+	var lazyGlobal *lazyGlobalScope
+	if opts.useSharedGlobalScope {
+		lazyGlobal = newLazyGlobalScope(compiler, scopeRoot)
+	}
+
+	runParallelWork(compiler, numWorkers, itemCount, func(workerID int) (func(int, *recordingCompiler), func()) {
+		var workerRC *recordingCompiler
+		var state S
+		var sc *SyntacticScopeCreator
+		initialized := false
+
+		var cleanup func()
+		if opts.finishWorker != nil {
+			cleanup = func() {
+				if initialized {
+					opts.finishWorker(workerID, state)
+				}
+			}
+		}
+
+		runItem := func(idx int, rc *recordingCompiler) {
+			if !initialized || workerRC != rc {
+				workerRC = rc
+				state = opts.initWorker(workerID, rc)
+				initialized = true
+				if opts.useSharedGlobalScope {
+					sc = NewSyntacticScopeCreator(rc)
+				}
+			}
+			parent := root
+			var script rhino.Node
+			if opts.hasExterns {
+				parent = items[idx].parent
+				script = items[idx].script
+			} else {
+				script = scripts[idx]
+			}
+			var cb NodeTraversal_Callback
+			if opts.callback != nil {
+				cb = opts.callback(state, idx, parent, script, rc)
+			} else {
+				cb = any(state).(NodeTraversal_Callback)
+			}
+			t := acquireNodeTraversalDirect(rc, cb, sc, false)
+			traverseScriptUnderRoot(t, scopeRoot, parent, script, lazyGlobal)
+			releaseNodeTraversal(t)
+			if opts.afterScript != nil {
+				opts.afterScript(state, idx, parent, script, rc)
+			}
+		}
+		return runItem, cleanup
+	}, opts.stopOnHaltingError)
+	return true
 }
 
 func runParallelItemIndexed[W any](w *W, idx int, panicsByItem []any, runItem func(w *W, itemIdx int)) (panicked bool) {

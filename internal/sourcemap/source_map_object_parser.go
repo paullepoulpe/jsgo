@@ -41,7 +41,7 @@ func SourceMapObjectParser_Parse(contents string) *SourceMapObject {
 	return obj
 }
 
-func parseSourceMapObject(contents string) (*SourceMapObject, *SourceMapParseException) {
+func parseSourceMapObject(contents string) (*SourceMapObject, jutil.Throwable) {
 	if obj, ok := tryParseStrictFast(contents); ok {
 		return obj, nil
 	}
@@ -669,187 +669,98 @@ func strictSkipValue(l *SourceMapJsonLexer) bool {
 	}
 }
 
-func parseSourceMapObjectGson(contents string) (*SourceMapObject, *SourceMapParseException) {
-	sourceMapRoot, parseEx := sourceMapObjectParser_gson.TryFromJsonObject(contents)
+func parseSourceMapObjectGson(contents string) (*SourceMapObject, jutil.Throwable) {
+	var sourceMapRoot *jutil.JsonObject
+	var parseEx jutil.IJsonParseException
+	var gsonThrow jutil.Throwable
+	jutil.Try(func() {
+		sourceMapRoot, parseEx = sourceMapObjectParser_gson.TryFromJsonObject(contents)
+	}, func(t jutil.Throwable) {
+		gsonThrow = t
+	})
+	if gsonThrow != nil {
+		return nil, gsonThrow
+	}
 	if parseEx != nil {
 		return nil, NewSourceMapParseException("JSON parse exception: " + parseEx.Error())
 	}
 
+	verElem, err := sourceMapObjectParser_nonNullErr(sourceMapRoot.Get("version"), "getAsInt()")
+	if err != nil {
+		return nil, err
+	}
+	ver, err := verElem.TryGetAsInt()
+	if err != nil {
+		return nil, err
+	}
+	file, err := tryGetOptionalString(sourceMapRoot, "file")
+	if err != nil {
+		return nil, err
+	}
 	obj := &SourceMapObject{
-		version:   int(sourceMapRoot.Get("version").GetAsInt()),
-		file:      getOptionalString(sourceMapRoot, "file"),
+		version:   int(ver),
+		file:      file,
 		lineCount: -1,
 	}
 	if sourceMapRoot.Has("lineCount") {
-		obj.lineCount = int(sourceMapRoot.Get("lineCount").GetAsInt())
+		lc, err := sourceMapRoot.Get("lineCount").TryGetAsInt()
+		if err != nil {
+			return nil, err
+		}
+		obj.lineCount = int(lc)
 	}
-	obj.mappings = getOptionalString(sourceMapRoot, "mappings")
-	obj.sourceRoot = getOptionalString(sourceMapRoot, "sourceRoot")
+	mappings, err := tryGetOptionalString(sourceMapRoot, "mappings")
+	if err != nil {
+		return nil, err
+	}
+	obj.mappings = mappings
+	sourceRoot, err := tryGetOptionalString(sourceMapRoot, "sourceRoot")
+	if err != nil {
+		return nil, err
+	}
+	obj.sourceRoot = sourceRoot
 
 	if sourceMapRoot.Has("sections") {
-		sectionsArray := sourceMapRoot.Get("sections").GetAsJsonArray()
+		secElem := sourceMapRoot.Get("sections")
+		if !secElem.IsJsonArray() {
+			return nil, jutil.NewIllegalStateExceptionMsg("Not a JSON Array: " + secElem.String())
+		}
+		sectionsArray := secElem.GetAsJsonArray()
 		listBuilder := make([]*SourceMapSection, 0, sectionsArray.Size())
 		for each := range sectionsArray.All() {
+			if !each.IsJsonObject() {
+				return nil, jutil.NewIllegalStateExceptionMsg("Not a JSON Object: " + each.String())
+			}
 			sec, err := buildSection(each.GetAsJsonObject())
 			if err != nil {
-				if smErr, ok := err.(*SourceMapParseException); ok {
-					return nil, smErr
-				}
-				panic(err)
+				return nil, err
 			}
 			listBuilder = append(listBuilder, sec)
 		}
 		obj.sections = listBuilder
 	}
 
-	obj.sources = getOptionalStringArray(sourceMapRoot.Get("sources"))
-	obj.sourcesContent = getOptionalStringArray(sourceMapRoot.Get("sourcesContent"))
-	obj.names = getOptionalStringArray(sourceMapRoot.Get("names"))
+	sources, err := tryGetOptionalStringArray(sourceMapRoot.Get("sources"))
+	if err != nil {
+		return nil, err
+	}
+	obj.sources = sources
+	sourcesContent, err := tryGetOptionalStringArray(sourceMapRoot.Get("sourcesContent"))
+	if err != nil {
+		return nil, err
+	}
+	obj.sourcesContent = sourcesContent
+	names, err := tryGetOptionalStringArray(sourceMapRoot.Get("names"))
+	if err != nil {
+		return nil, err
+	}
+	obj.names = names
 
 	var extensions []SourceMapExtension
 	for key, value := range sourceMapRoot.EntrySet().All() {
 		if strings.HasPrefix(key, "x_") {
 			extensions = putExtension(extensions, key, value)
 		}
-	}
-	obj.extensions = extensions
-
-	return obj, nil
-}
-
-// SourceMapObjectParser_ParseFast parses a source map with
-// SourceMapJsonLexer. It panics with a *SourceMapParseException.
-//
-// Java: SourceMapObjectParser.parseFast(String)
-func SourceMapObjectParser_ParseFast(contents string) *SourceMapObject {
-	obj, err := parseFast(contents)
-	if err != nil {
-		panic(err)
-	}
-	return obj
-}
-
-func wrapFastParseErr(err error) *SourceMapParseException {
-	return NewSourceMapParseException("Parse exception: " + err.Error())
-}
-
-func parseFast(contents string) (*SourceMapObject, *SourceMapParseException) {
-	obj := &SourceMapObject{lineCount: -1}
-
-	lexer := NewSourceMapJsonLexer(contents)
-	if err := lexer.beginObject(); err != nil {
-		return nil, wrapFastParseErr(err)
-	}
-	var extensions []SourceMapExtension
-
-	for lexer.HasNext() {
-		name, err := lexer.nextName()
-		if err != nil {
-			return nil, wrapFastParseErr(err)
-		}
-		switch name {
-		case "version":
-			v, err := lexer.nextInt()
-			if err != nil {
-				return nil, wrapFastParseErr(err)
-			}
-			obj.version = v
-		case "file":
-			s, err := lexer.nextStringOrNull()
-			if err != nil {
-				return nil, wrapFastParseErr(err)
-			}
-			obj.file = s
-		case "lineCount":
-			lc, err := lexer.nextInt()
-			if err != nil {
-				return nil, wrapFastParseErr(err)
-			}
-			obj.lineCount = lc
-		case "mappings":
-			m, err := lexer.nextStringOrNull()
-			if err != nil {
-				return nil, wrapFastParseErr(err)
-			}
-			obj.mappings = m
-		case "sourceRoot":
-			sr, err := lexer.nextStringOrNull()
-			if err != nil {
-				return nil, wrapFastParseErr(err)
-			}
-			obj.sourceRoot = sr
-		case "sections":
-			savedPos := lexer.pos
-			if secs, ok := strictReadSections(lexer); ok {
-				obj.sections = secs
-			} else {
-				lexer.pos = savedPos
-				rawSections, err := lexer.nextRawValue()
-				if err != nil {
-					return nil, wrapFastParseErr(err)
-				}
-				sectionsArray, parseEx := sourceMapObjectParser_gson.TryFromJsonArray(rawSections)
-				if parseEx != nil {
-					return nil, wrapFastParseErr(parseEx)
-				}
-				listBuilder := make([]*SourceMapSection, 0, sectionsArray.Size())
-				for each := range sectionsArray.All() {
-					if !each.IsJsonObject() {
-						return nil, wrapFastParseErr(jutil.NewIllegalStateExceptionMsg("Not a JSON Object: " + each.String()))
-					}
-					sec, err := buildSection(each.GetAsJsonObject())
-					if err != nil {
-						return nil, wrapFastParseErr(err)
-					}
-					listBuilder = append(listBuilder, sec)
-				}
-				obj.sections = listBuilder
-			}
-		case "sources":
-			arr, err := readOptionalStringArray(lexer)
-			if err != nil {
-				return nil, wrapFastParseErr(err)
-			}
-			obj.sources = arr
-		case "sourcesContent":
-			arr, err := readOptionalStringArray(lexer)
-			if err != nil {
-				return nil, wrapFastParseErr(err)
-			}
-			obj.sourcesContent = arr
-		case "names":
-			arr, err := readOptionalStringArray(lexer)
-			if err != nil {
-				return nil, wrapFastParseErr(err)
-			}
-			obj.names = arr
-		default:
-			if strings.HasPrefix(name, "x_") {
-				rawVal, err := lexer.nextRawValue()
-				if err != nil {
-					return nil, wrapFastParseErr(err)
-				}
-				elem, parseEx := sourceMapObjectParser_gson.TryFromJsonElement(rawVal)
-				if parseEx != nil {
-					return nil, wrapFastParseErr(parseEx)
-				}
-				extensions = putExtension(extensions, name, elem)
-			} else {
-				if err := lexer.skipValue(); err != nil {
-					return nil, wrapFastParseErr(err)
-				}
-			}
-		}
-		if err := lexer.checkComma(); err != nil {
-			return nil, wrapFastParseErr(err)
-		}
-	}
-	if err := lexer.endObject(); err != nil {
-		return nil, wrapFastParseErr(err)
-	}
-	lexer.SkipWhitespace()
-	if lexer.pos < lexer.length {
-		return nil, wrapFastParseErr(NewSourceMapParseException("Unexpected trailing characters"))
 	}
 	obj.extensions = extensions
 
@@ -918,16 +829,23 @@ func sourceMapObjectParser_nonNullErr(e jutil.JsonElement, method string) (jutil
 	return e, nil
 }
 
-func getOptionalString(object *jutil.JsonObject, key string) optionalString {
+func tryGetOptionalString(object *jutil.JsonObject, key string) (optionalString, jutil.Throwable) {
 	if elem := object.Get(key); elem != nil && !elem.IsJsonNull() {
-		return optionalString{text: elem.GetAsString(), present: true}
+		s, err := elem.TryGetAsString()
+		if err != nil {
+			return optionalString{}, err
+		}
+		return optionalString{text: s, present: true}, nil
 	}
-	return optionalString{}
+	return optionalString{}, nil
 }
 
-func getOptionalStringArray(element jutil.JsonElement) []optionalString {
+func tryGetOptionalStringArray(element jutil.JsonElement) ([]optionalString, jutil.Throwable) {
 	if element == nil || element.IsJsonNull() {
-		return nil
+		return nil, nil
+	}
+	if !element.IsJsonArray() {
+		return nil, jutil.NewIllegalStateExceptionMsg("Not a JSON Array: " + element.String())
 	}
 	array := element.GetAsJsonArray()
 	length := array.Size()
@@ -935,34 +853,12 @@ func getOptionalStringArray(element jutil.JsonElement) []optionalString {
 	for i := 0; i < length; i++ {
 		item := array.Get(i)
 		if !item.IsJsonNull() {
-			result[i] = optionalString{text: item.GetAsString(), present: true}
+			s, err := item.TryGetAsString()
+			if err != nil {
+				return nil, err
+			}
+			result[i] = optionalString{text: s, present: true}
 		}
 	}
-	return result
-}
-
-func readOptionalStringArray(lexer *SourceMapJsonLexer) ([]optionalString, error) {
-	lexer.SkipWhitespace()
-	if lexer.pos < lexer.length && lexer.startsWith("null", lexer.pos) {
-		lexer.pos += 4
-		return nil, nil
-	}
-	list := []optionalString{}
-	if err := lexer.beginArray(); err != nil {
-		return nil, err
-	}
-	for lexer.HasNext() {
-		s, err := lexer.nextStringOrNull()
-		if err != nil {
-			return nil, err
-		}
-		list = append(list, s)
-		if err := lexer.checkComma(); err != nil {
-			return nil, err
-		}
-	}
-	if err := lexer.endArray(); err != nil {
-		return nil, err
-	}
-	return list, nil
+	return result, nil
 }
