@@ -1,5 +1,10 @@
 package jutil
 
+import (
+	"strconv"
+	"strings"
+)
+
 // Go-only: language-adapter — java.net.URI as the URI(String) constructor
 // builds it: a URI reference parsed by the grammar of RFC 2396 (Appendix A)
 // with the deviations listed in the Javadoc of java.net.URI (an empty
@@ -111,6 +116,54 @@ func (u *URI) IsOpaque() bool { return u.path == nil }
 
 // GetRawPath is URI.getRawPath().
 func (u *URI) GetRawPath() *string { return u.path }
+
+// GetPath is URI.getPath(): the decoded path component, nil if the path is
+// undefined.
+func (u *URI) GetPath() *string {
+	raw := u.GetRawPath()
+	if raw == nil {
+		return nil
+	}
+	s := uriDecodeEscapedOctets(*raw)
+	return &s
+}
+
+// uriDecodeEscapedOctets replaces each maximal run of escaped octets
+// ("%XX%YY...") in s by the UTF-8 decoding of those octets. A URI that
+// parsed only contains well-formed escapes.
+func uriDecodeEscapedOctets(s string) string {
+	if !strings.Contains(s, "%") {
+		return s
+	}
+	units := StringToUTF16(s)
+	out := make([]uint16, 0, len(units))
+	for i := 0; i < len(units); {
+		if units[i] != '%' {
+			out = append(out, units[i])
+			i++
+			continue
+		}
+		var octets []byte
+		for i+2 < len(units) && units[i] == '%' {
+			octets = append(octets, byte(uriGetPathHexValue(units[i+1])<<4|uriGetPathHexValue(units[i+2])))
+			i += 3
+		}
+		out = append(out, StringToUTF16(StandardCharsets_UTF_8.Decode(octets))...)
+	}
+	return StringFromUTF16(out)
+}
+
+// uriGetPathHexValue is the value of the hexadecimal digit c.
+func uriGetPathHexValue(c uint16) int {
+	switch {
+	case c >= '0' && c <= '9':
+		return int(c - '0')
+	case c >= 'a' && c <= 'f':
+		return int(c-'a') + 10
+	default:
+		return int(c-'A') + 10
+	}
+}
 
 // GetRawQuery is URI.getRawQuery().
 func (u *URI) GetRawQuery() *string { return u.query }
@@ -754,3 +807,41 @@ func (p *uriParser) parseIPv6(from, to int) {
 		p.fail("Malformed IPv6 address", from)
 	}
 }
+
+// URISyntaxException is java.net.URISyntaxException, a checked exception.
+type URISyntaxException struct {
+	JavaException
+	input  string
+	reason string
+	index  int
+}
+
+func (*URISyntaxException) uriSyntaxException() {}
+
+// IURISyntaxException matches URISyntaxException.
+type IURISyntaxException interface {
+	IException
+	uriSyntaxException()
+}
+
+// NewURISyntaxException is new URISyntaxException(input, reason, index);
+// index -1 means unknown.
+func NewURISyntaxException(input, reason string, index int) *URISyntaxException {
+	e := &URISyntaxException{input: input, reason: reason, index: index}
+	msg := reason
+	if index > -1 {
+		msg += " at index " + strconv.Itoa(index)
+	}
+	msg += ": " + input
+	InitThrowable(e, "java.net.URISyntaxException", &msg, nil)
+	return e
+}
+
+// GetInput is URISyntaxException.getInput().
+func (e *URISyntaxException) GetInput() string { return e.input }
+
+// GetReason is URISyntaxException.getReason().
+func (e *URISyntaxException) GetReason() string { return e.reason }
+
+// GetIndex is URISyntaxException.getIndex().
+func (e *URISyntaxException) GetIndex() int { return e.index }

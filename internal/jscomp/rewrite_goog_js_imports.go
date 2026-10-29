@@ -22,6 +22,7 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/paullepoulpe/jsgo/internal/ast"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
@@ -57,12 +58,11 @@ import (
 // `import 'path/to/closure/goog.js'; const myNamespace =
 // goog.require('my.namespace');`
 type RewriteGoogJsImports struct {
-	mode       RewriteGoogJsImports_Mode
-	moduleMap  *ModuleMap
-	compiler   AbstractCompiler
-	googModule *Module
-	// Module has value equality (AutoValue), hence the Object-keyed map.
-	moduleReplacements *jutil.ObjectLinkedHashMap[*Module, *Module]
+	mode               RewriteGoogJsImports_Mode
+	moduleMap          *ModuleMap
+	compiler           AbstractCompiler
+	googModule         *Module
+	moduleReplacements map[*Module]*Module
 }
 
 var _ CompilerPass = (*RewriteGoogJsImports)(nil)
@@ -108,18 +108,16 @@ const rewriteGoogJsImports_EXPECTED_BASE_PROVIDE = "goog"
 // Java: RewriteGoogJsImports(AbstractCompiler, Mode, ModuleMap)
 func NewRewriteGoogJsImports(compiler AbstractCompiler, mode RewriteGoogJsImports_Mode, moduleMap *ModuleMap) *RewriteGoogJsImports {
 	jutil.CheckNotNull(moduleMap)
-	r := &RewriteGoogJsImports{moduleReplacements: jutil.NewObjectLinkedHashMap[*Module, *Module]()}
-	r.compiler = compiler
-	r.mode = mode
-	r.moduleMap = moduleMap
-	return r
+	return &RewriteGoogJsImports{
+		mode:               mode,
+		moduleMap:          moduleMap,
+		compiler:           compiler,
+		moduleReplacements: make(map[*Module]*Module),
+	}
 }
 
-// rewriteGoogJsImports_getOrDefault is Map.getOrDefault(Object, V).
-//
-// Go-only: language-adapter — jutil.ObjectLinkedHashMap has Lookup.
 func (r *RewriteGoogJsImports) replacementOrDefault(m *Module) *Module {
-	if v, ok := r.moduleReplacements.Lookup(m); ok {
+	if v, ok := r.moduleReplacements[m]; ok {
 		return v
 	}
 	return m
@@ -131,19 +129,15 @@ func (r *RewriteGoogJsImports) ChangeModules() {
 	closureModules := jutil.NewLinkedHashMap[string, *Module]()
 
 	for k, v := range r.moduleMap.GetModulesByPath().All() {
-		newModule := r.replacementOrDefault(v)
-		resolvedModules.Put(k, newModule)
+		resolvedModules.Put(k, r.replacementOrDefault(v))
 	}
 
 	for k, v := range r.moduleMap.GetModulesByClosureNamespace().All() {
-		newModule := r.replacementOrDefault(v)
-		closureModules.Put(k, newModule)
+		closureModules.Put(k, r.replacementOrDefault(v))
 	}
 
 	r.compiler.SetModuleMap(NewModuleMap(resolvedModules, closureModules))
-	// Go-only: language-adapter — moduleReplacements.clear():
-	// jutil.ObjectLinkedHashMap has no Clear, and the map is private.
-	r.moduleReplacements = jutil.NewObjectLinkedHashMap[*Module, *Module]()
+	clear(r.moduleReplacements)
 }
 
 // RewriteGoogJsImports_ReferenceReplacer determines if a script imports the
@@ -162,37 +156,44 @@ type RewriteGoogJsImports_ReferenceReplacer struct {
 // Java: RewriteGoogJsImports.ReferenceReplacer(Node, Node, Module, boolean)
 func (r *RewriteGoogJsImports) NewReferenceReplacer(
 	script rhino.Node, googImportNode rhino.Node, module *Module, globalizeAllReferences bool) *RewriteGoogJsImports_ReferenceReplacer {
-	p := &RewriteGoogJsImports_ReferenceReplacer{outer: r}
-	p.googImportNode = googImportNode
-	p.globalizeAllReferences = globalizeAllReferences
+	p := &RewriteGoogJsImports_ReferenceReplacer{
+		outer:                  r,
+		googImportNode:         googImportNode,
+		globalizeAllReferences: globalizeAllReferences,
+	}
 	NodeTraversal_Traverse(r.compiler, script, p)
 
-	if googImportNode.GetSecondChild().IsImportStar() {
-		newBindings := jutil.NewLinkedHashMapFrom(module.BoundNames())
-		newBindings.Remove("goog")
-		if p.hasBadExport {
-			// We might be able to get rid of this case now. Originally this was
-			// to cause a type error later in compilation. But now the
-			// ModuleMapCreator should log an error for the bad export. However if
-			// we're still running we might be in some tool that expects us to be
-			// fault tolerant and still rewrite modules. So assume this is needed
-			// in those tools.
-			googImportNode.GetSecondChild().SetOriginalName(jutil.StringPtr("goog"))
-			googImportNode.GetSecondChild().SetString("$goog")
-			newBindings.Put("$goog", module.BoundNames().Get("goog"))
-		} else {
-			googImportNode.GetSecondChild().ReplaceWith(rhino.IR_Empty())
+	imp := ast.MustImport(googImportNode)
+	if bindings, ok := imp.Bindings(); ok {
+		if star, ok := bindings.AsImportStar(); ok {
+			starNode := star.Node()
+			newBindings := jutil.NewLinkedHashMapFrom(module.BoundNames())
+			newBindings.Remove("goog")
+			if p.hasBadExport {
+				// We might be able to get rid of this case now. Originally this was
+				// to cause a type error later in compilation. But now the
+				// ModuleMapCreator should log an error for the bad export. However if
+				// we're still running we might be in some tool that expects us to be
+				// fault tolerant and still rewrite modules. So assume this is needed
+				// in those tools.
+				starNode.SetOriginalName(jutil.StringPtr("goog"))
+				starNode.SetString("$goog")
+				newBindings.Put("$goog", module.BoundNames().Get("goog"))
+			} else {
+				starNode.ReplaceWith(rhino.IR_Empty())
+			}
+			newModule := module.WithBoundNames(closureModuleProcessor_immutableMapCopyOf(newBindings))
+			r.moduleReplacements[module] = newModule
+			r.compiler.ReportChangeToEnclosingScope(googImportNode)
 		}
-		newModule := module.ToBuilder().BoundNames(closureModuleProcessor_immutableMapCopyOf(newBindings)).Build()
-		r.moduleReplacements.Put(module, newModule)
-		r.compiler.ReportChangeToEnclosingScope(googImportNode)
 	}
 	return p
 }
 
 // Java: RewriteGoogJsImports.ReferenceReplacer.maybeRewriteBadGoogJsImportRef(NodeTraversal, Node, Node)
 func (p *RewriteGoogJsImports_ReferenceReplacer) MaybeRewriteBadGoogJsImportRef(t *NodeTraversal, nameNode rhino.Node, parent rhino.Node) {
-	if !parent.IsGetProp() || nameNode.GetString() != "goog" {
+	gp, ok := ast.AsGetProp(parent)
+	if !ok || nameNode.GetString() != "goog" {
 		return
 	}
 
@@ -204,7 +205,7 @@ func (p *RewriteGoogJsImports_ReferenceReplacer) MaybeRewriteBadGoogJsImportRef(
 		return
 	}
 
-	if p.globalizeAllReferences || p.outer.googModule.Namespace().ContainsKey(parent.GetString()) {
+	if p.globalizeAllReferences || p.outer.googModule.Namespace().ContainsKey(gp.Property()) {
 		return
 	}
 
@@ -214,7 +215,6 @@ func (p *RewriteGoogJsImports_ReferenceReplacer) MaybeRewriteBadGoogJsImportRef(
 	nameNode.SetOriginalName(jutil.StringPtr("goog"))
 	nameNode.SetString("$goog")
 	t.ReportCodeChange()
-
 }
 
 // Java: RewriteGoogJsImports.ReferenceReplacer.visit(NodeTraversal, Node, Node)
@@ -243,7 +243,7 @@ func NewRewriteGoogJsImports_FindReexports(hasGoogImport bool) *RewriteGoogJsImp
 
 // Java: RewriteGoogJsImports.FindReexports.checkIfForwardingExport(NodeTraversal, Node)
 func (f *RewriteGoogJsImports_FindReexports) CheckIfForwardingExport(t *NodeTraversal, export rhino.Node) {
-	if export.HasTwoChildren() && strings.HasSuffix(export.GetLastChild().GetString(), "/goog.js") {
+	if source, ok := ast.MustExport(export).Source(); ok && strings.HasSuffix(source.Value(), "/goog.js") {
 		t.Report(export, RewriteGoogJsImports_GOOG_JS_REEXPORTED)
 	}
 }
@@ -251,7 +251,7 @@ func (f *RewriteGoogJsImports_FindReexports) CheckIfForwardingExport(t *NodeTrav
 // Java: RewriteGoogJsImports.FindReexports.checkIfNameFowardedExport(NodeTraversal, Node, Node)
 func (f *RewriteGoogJsImports_FindReexports) CheckIfNameFowardedExport(t *NodeTraversal, nameNode rhino.Node, parent rhino.Node) {
 	if f.hasGoogImport && nameNode.GetString() == "goog" {
-		if (parent.IsExportSpec() && parent.GetFirstChild() == nameNode) || parent.IsExport() {
+		if spec, ok := ast.AsExportSpec(parent); (ok && spec.Local().Is(nameNode)) || parent.IsExport() {
 			t.Report(nameNode, RewriteGoogJsImports_GOOG_JS_REEXPORTED)
 		}
 	}
@@ -283,10 +283,16 @@ func (r *RewriteGoogJsImports) FindGoogImportNode(scriptRoot rhino.Node) rhino.N
 	var googImportNode rhino.Node
 
 	for child := scriptRoot.GetFirstFirstChild(); !child.IsNil(); child = child.GetNext() {
-		if child.IsImport() && strings.HasSuffix(child.GetLastChild().GetString(), "/goog.js") {
-			if child.GetFirstChild().IsEmpty() &&
-				child.GetSecondChild().IsImportStar() &&
-				child.GetSecondChild().GetString() == "goog" {
+		if imp, ok := ast.AsImport(child); ok && strings.HasSuffix(imp.Source().Value(), "/goog.js") {
+			isGoogStar := false
+			if _, hasDefault := imp.Default(); !hasDefault {
+				if bindings, hasBindings := imp.Bindings(); hasBindings {
+					if star, isStar := bindings.AsImportStar(); isStar && star.Ident() == "goog" {
+						isGoogStar = true
+					}
+				}
+			}
+			if isGoogStar {
 				googImportNode = child
 			} else {
 				valid = false

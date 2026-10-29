@@ -78,21 +78,22 @@ func (t productionCoverageInstrumentationCallback_Type) Name() string {
 // Java: ProductionCoverageInstrumentationCallback(AbstractCompiler, String)
 func NewProductionCoverageInstrumentationCallback(
 	compiler AbstractCompiler, instrumentationArrayName string) *ProductionCoverageInstrumentationCallback {
-	c := &ProductionCoverageInstrumentationCallback{}
-	c.compiler = compiler
-	c.parameterMapping = newProductionCoverageInstrumentationCallback_ParameterMapping()
-
-	c.instrumentationArrayName = instrumentationArrayName
-	return c
+	return &ProductionCoverageInstrumentationCallback{
+		compiler:                 compiler,
+		parameterMapping:         newProductionCoverageInstrumentationCallback_ParameterMapping(),
+		instrumentationArrayName: instrumentationArrayName,
+	}
 }
 
-// functionNamePeek is ArrayDeque.peek(): the top of the stack, or null.
-func (c *ProductionCoverageInstrumentationCallback) functionNamePeek() *string {
+// functionNamePeek is ArrayDeque.peek(): the top of the stack, or a null key,
+// returned unboxed by value without escaping to the heap.
+func (c *ProductionCoverageInstrumentationCallback) functionNamePeek() productionCoverageInstrumentationCallback_nullableString {
 	if len(c.functionNameStack) == 0 {
-		return nil
+		return productionCoverageInstrumentationCallback_nullableString{isNull: true}
 	}
-	top := c.functionNameStack[len(c.functionNameStack)-1]
-	return &top
+	return productionCoverageInstrumentationCallback_nullableString{
+		s: c.functionNameStack[len(c.functionNameStack)-1],
+	}
 }
 
 // Java: ProductionCoverageInstrumentationCallback.shouldTraverse(NodeTraversal, Node, Node)
@@ -124,30 +125,32 @@ func (c *ProductionCoverageInstrumentationCallback) ShouldTraverse(t *NodeTraver
 
 // productionCoverageInstrumentationCallback_stringsEqual is
 // Objects.equals(String, String).
-func productionCoverageInstrumentationCallback_stringsEqual(a *string, b *string) bool {
+func productionCoverageInstrumentationCallback_stringsEqual(a, b *string) bool {
+	if a == b {
+		return true
+	}
 	if a == nil || b == nil {
-		return a == nil && b == nil
+		return false
 	}
 	return *a == *b
 }
 
 // Java: ProductionCoverageInstrumentationCallback.visit(NodeTraversal, Node, Node)
 func (c *ProductionCoverageInstrumentationCallback) Visit(traversal *NodeTraversal, node rhino.Node, parent rhino.Node) {
-	fileName := traversal.GetSourceName()
-	sourceFileName := node.GetSourceFileName()
-
-	functionName := c.functionNamePeek()
-
 	switch node.GetToken() {
 	case rhino.Token_FUNCTION:
+		functionName := c.functionNamePeek()
 		// If the function node has been visited by visit() then we can be assured that all its
 		// children nodes have been visited and properly instrumented.
 		if len(c.functionNameStack) == 0 {
 			panic(jutil.NewNoSuchElementException()) // ArrayDeque.pop() on an empty deque
 		}
 		c.functionNameStack = c.functionNameStack[:len(c.functionNameStack)-1]
+		fileName := productionCoverageInstrumentationCallback_keyOf(traversal.GetSourceName())
 		c.instrumentBlockNode(node.GetLastChild(), fileName, functionName, productionCoverageInstrumentationCallback_Type_FUNCTION)
 	case rhino.Token_IF:
+		sourceFileName := productionCoverageInstrumentationCallback_keyOf(node.GetSourceFileName())
+		functionName := c.functionNamePeek()
 		ifTrueNode := node.GetSecondChild()
 		c.instrumentBlockNode(ifTrueNode, sourceFileName, functionName, productionCoverageInstrumentationCallback_Type_BRANCH)
 		if node.GetChildCount() == 2 {
@@ -164,6 +167,8 @@ func (c *ProductionCoverageInstrumentationCallback) Visit(traversal *NodeTravers
 			c.instrumentBlockNode(ifFalseNode, sourceFileName, functionName, productionCoverageInstrumentationCallback_Type_BRANCH_DEFAULT)
 		}
 	case rhino.Token_SWITCH:
+		sourceFileName := productionCoverageInstrumentationCallback_keyOf(node.GetSourceFileName())
+		functionName := c.functionNamePeek()
 		hasDefaultCase := false
 		switchBody := node.GetSecondChild()
 		for ch := switchBody.GetFirstChild(); !ch.IsNil(); ch = ch.GetNext() {
@@ -183,6 +188,8 @@ func (c *ProductionCoverageInstrumentationCallback) Visit(traversal *NodeTravers
 			c.instrumentBlockNode(defaultBlock, sourceFileName, functionName, productionCoverageInstrumentationCallback_Type_BRANCH_DEFAULT)
 		}
 	case rhino.Token_HOOK:
+		sourceFileName := productionCoverageInstrumentationCallback_keyOf(node.GetSourceFileName())
+		functionName := c.functionNamePeek()
 		ifTernaryIsTrueExpression := node.GetSecondChild()
 		ifTernaryIsFalseExpression := node.GetLastChild()
 
@@ -193,6 +200,8 @@ func (c *ProductionCoverageInstrumentationCallback) Visit(traversal *NodeTravers
 
 		c.compiler.ReportChangeToEnclosingScope(node)
 	case rhino.Token_OR, rhino.Token_AND, rhino.Token_COALESCE:
+		sourceFileName := productionCoverageInstrumentationCallback_keyOf(node.GetSourceFileName())
+		functionName := c.functionNamePeek()
 		// Only instrument the second child of the binary operation because the first child will
 		// always execute, or the first child is part of a chain of binary operations and would have
 		// already been instrumented.
@@ -203,6 +212,8 @@ func (c *ProductionCoverageInstrumentationCallback) Visit(traversal *NodeTravers
 		c.compiler.ReportChangeToEnclosingScope(node)
 	default:
 		if NodeUtil_IsLoopStructure(node) {
+			sourceFileName := productionCoverageInstrumentationCallback_keyOf(node.GetSourceFileName())
+			functionName := c.functionNamePeek()
 			blockNode := NodeUtil_GetLoopCodeBlock(node)
 			rhino.CheckNotNull(blockNode)
 			c.instrumentBlockNode(blockNode, sourceFileName, functionName, productionCoverageInstrumentationCallback_Type_BRANCH)
@@ -216,7 +227,10 @@ func (c *ProductionCoverageInstrumentationCallback) Visit(traversal *NodeTravers
 //
 // Java: ProductionCoverageInstrumentationCallback.addInstrumentationNodeWithComma(Node, String, String, Type)
 func (c *ProductionCoverageInstrumentationCallback) addInstrumentationNodeWithComma(
-	originalNode rhino.Node, fileName *string, functionName *string, type_ productionCoverageInstrumentationCallback_Type) {
+	originalNode rhino.Node,
+	fileName productionCoverageInstrumentationCallback_nullableString,
+	functionName productionCoverageInstrumentationCallback_nullableString,
+	type_ productionCoverageInstrumentationCallback_Type) {
 	cloneOfOriginal := originalNode.CloneTree()
 	newInstrumentationNode :=
 		c.newInstrumentationNode(cloneOfOriginal, fileName, functionName, type_)
@@ -234,7 +248,11 @@ func (c *ProductionCoverageInstrumentationCallback) addInstrumentationNodeWithCo
 // instrumented; type_ the type of the node being instrumented.
 //
 // Java: ProductionCoverageInstrumentationCallback.instrumentBlockNode(Node, String, String, Type)
-func (c *ProductionCoverageInstrumentationCallback) instrumentBlockNode(block rhino.Node, fileName *string, fnName *string, type_ productionCoverageInstrumentationCallback_Type) {
+func (c *ProductionCoverageInstrumentationCallback) instrumentBlockNode(
+	block rhino.Node,
+	fileName productionCoverageInstrumentationCallback_nullableString,
+	fnName productionCoverageInstrumentationCallback_nullableString,
+	type_ productionCoverageInstrumentationCallback_Type) {
 	block.AddChildToFront(c.newInstrumentationNode(block, fileName, fnName, type_))
 	c.compiler.ReportChangeToEnclosingScope(block)
 }
@@ -251,7 +269,11 @@ func (c *ProductionCoverageInstrumentationCallback) instrumentBlockNode(block rh
 // newly constructed function call node.
 //
 // Java: ProductionCoverageInstrumentationCallback.newInstrumentationNode(Node, String, String, Type)
-func (c *ProductionCoverageInstrumentationCallback) newInstrumentationNode(node rhino.Node, fileName *string, fnName *string, type_ productionCoverageInstrumentationCallback_Type) rhino.Node {
+func (c *ProductionCoverageInstrumentationCallback) newInstrumentationNode(
+	node rhino.Node,
+	fileName productionCoverageInstrumentationCallback_nullableString,
+	fnName productionCoverageInstrumentationCallback_nullableString,
+	type_ productionCoverageInstrumentationCallback_Type) rhino.Node {
 
 	lineNo := node.GetLineno()
 	columnNo := node.GetCharno()
@@ -287,7 +309,7 @@ func (c *ProductionCoverageInstrumentationCallback) GetInstrumentationMapping() 
 }
 
 // productionCoverageInstrumentationCallback_nullableString is a Java String
-// that may be null, as a map key.
+// that may be null, passed unboxed by value and used as a map key.
 //
 // Go-only: language-adapter — the file and function name maps are keyed by
 // nullable Java Strings (NodeTraversal.getSourceName() and
@@ -304,12 +326,11 @@ func productionCoverageInstrumentationCallback_keyOf(s *string) productionCovera
 	return productionCoverageInstrumentationCallback_nullableString{s: *s}
 }
 
-// productionCoverageInstrumentationCallback_ParameterMapping is a class the
-// maintains a mapping of unique identifiers to parameter values. It also
-// generates unique identifiers by creating a counter starting form 0 and
-// increments this value when assigning a new unique identifier. It converts
-// the mapping to a VariableMap as well so that it can later be saved as a
-// file.
+// productionCoverageInstrumentationCallback_ParameterMapping maintains a
+// mapping of unique identifiers to parameter values. It also generates unique
+// identifiers by creating a counter starting from 0 and increments this value
+// when assigning a new unique identifier. It converts the mapping to a
+// VariableMap as well so that it can later be saved as a file.
 //
 // Java: private static final class ProductionCoverageInstrumentationCallback.ParameterMapping
 type productionCoverageInstrumentationCallback_ParameterMapping struct {
@@ -318,72 +339,95 @@ type productionCoverageInstrumentationCallback_ParameterMapping struct {
 	// defined so that we do not create a duplicate. (Ex. Key: ACA (Base64 VLQ encoding of [0,1,0]),
 	// Value: C (Base64 VLQ encoding of the uniqueIdentifier). This map will later be inversed so
 	// that it is printed in the following form: C:ACA.
-	paramValueEncodings *jutil.LinkedHashMap[string, string]
+	paramEncodings map[string]string
+	paramOrder     []string
 
-	// Values are stored as a mapping of String to Integers so that we can lookup the index of the
-	// encoded (file|function|type) name and also check if it is present in constant time. These
-	// mappings are added to the VariableMap once instrumentation is complete.
-	fileNameToIndex     *jutil.LinkedHashMap[productionCoverageInstrumentationCallback_nullableString, int32]
-	functionNameToIndex *jutil.LinkedHashMap[productionCoverageInstrumentationCallback_nullableString, int32]
-	typeToIndex         *jutil.LinkedHashMap[string, int32]
+	// Insertion-ordered index tables for file names, function names, and types.
+	fileNameToIndex map[productionCoverageInstrumentationCallback_nullableString]int32
+	fileNames       []productionCoverageInstrumentationCallback_nullableString
+
+	functionNameToIndex map[productionCoverageInstrumentationCallback_nullableString]int32
+	functionNames       []productionCoverageInstrumentationCallback_nullableString
+
+	typeToIndex map[string]int32
+	typeNames   []string
 
 	nextUniqueIdentifier int64
+	sb                   strings.Builder
 }
 
 // Java: ProductionCoverageInstrumentationCallback.ParameterMapping()
 func newProductionCoverageInstrumentationCallback_ParameterMapping() *productionCoverageInstrumentationCallback_ParameterMapping {
-	m := &productionCoverageInstrumentationCallback_ParameterMapping{}
-	m.nextUniqueIdentifier = 0
-
-	m.paramValueEncodings = jutil.NewLinkedHashMap[string, string]()
-
-	// A LinkedHashMap is used so that when keys are printed, keySet() will obtain them in the
-	// insertion order which corroborates to the index. This helps to avoid the need of sorting
-	// by the Integer value and is more convenient.
-	m.fileNameToIndex = jutil.NewLinkedHashMap[productionCoverageInstrumentationCallback_nullableString, int32]()
-	m.functionNameToIndex = jutil.NewLinkedHashMap[productionCoverageInstrumentationCallback_nullableString, int32]()
-	m.typeToIndex = jutil.NewLinkedHashMap[string, int32]()
-	return m
+	return &productionCoverageInstrumentationCallback_ParameterMapping{
+		paramEncodings:      make(map[string]string),
+		fileNameToIndex:     make(map[productionCoverageInstrumentationCallback_nullableString]int32),
+		functionNameToIndex: make(map[productionCoverageInstrumentationCallback_nullableString]int32),
+		typeToIndex:         make(map[string]int32, 3),
+		typeNames:           []string{},
+	}
 }
 
 // Java: ProductionCoverageInstrumentationCallback.ParameterMapping.getEncodedParam(String, String, Type, int, int)
 func (m *productionCoverageInstrumentationCallback_ParameterMapping) getEncodedParam(
-	fileName *string, functionName *string, type_ productionCoverageInstrumentationCallback_Type, lineNo int, colNo int) string {
+	fileKey productionCoverageInstrumentationCallback_nullableString,
+	functionKey productionCoverageInstrumentationCallback_nullableString,
+	type_ productionCoverageInstrumentationCallback_Type,
+	lineNo int,
+	colNo int) string {
 
-	fileKey := productionCoverageInstrumentationCallback_keyOf(fileName)
-	functionKey := productionCoverageInstrumentationCallback_keyOf(functionName)
-	m.fileNameToIndex.PutIfAbsent(fileKey, int32(m.fileNameToIndex.Size()))
-	m.functionNameToIndex.PutIfAbsent(functionKey, int32(m.functionNameToIndex.Size()))
-	m.typeToIndex.PutIfAbsent(type_.Name(), int32(m.typeToIndex.Size()))
+	fileIdx, ok := m.fileNameToIndex[fileKey]
+	if !ok {
+		fileIdx = int32(len(m.fileNames))
+		m.fileNameToIndex[fileKey] = fileIdx
+		m.fileNames = append(m.fileNames, fileKey)
+	}
 
-	sb := &strings.Builder{}
+	functionIdx, ok := m.functionNameToIndex[functionKey]
+	if !ok {
+		functionIdx = int32(len(m.functionNames))
+		m.functionNameToIndex[functionKey] = functionIdx
+		m.functionNames = append(m.functionNames, functionKey)
+	}
+
+	typeName := type_.Name()
+	typeIdx, ok := m.typeToIndex[typeName]
+	if !ok {
+		typeIdx = int32(len(m.typeNames))
+		m.typeToIndex[typeName] = typeIdx
+		m.typeNames = append(m.typeNames, typeName)
+	}
+
+	m.sb.Reset()
 
 	// The IOException that Java turns into an AssertionError cannot happen
 	// when appending to a StringBuilder.
-	sourcemap.Base64VLQ_Encode(sb, m.fileNameToIndex.Get(fileKey))
-	sourcemap.Base64VLQ_Encode(sb, m.functionNameToIndex.Get(functionKey))
-	sourcemap.Base64VLQ_Encode(sb, m.typeToIndex.Get(type_.Name()))
-	sourcemap.Base64VLQ_Encode(sb, int32(lineNo))
-	sourcemap.Base64VLQ_Encode(sb, int32(colNo))
+	sourcemap.Base64VLQ_Encode(&m.sb, fileIdx)
+	sourcemap.Base64VLQ_Encode(&m.sb, functionIdx)
+	sourcemap.Base64VLQ_Encode(&m.sb, typeIdx)
+	sourcemap.Base64VLQ_Encode(&m.sb, int32(lineNo))
+	sourcemap.Base64VLQ_Encode(&m.sb, int32(colNo))
 
-	encodedParam := sb.String()
+	encodedParam := m.sb.String()
 
-	if !m.paramValueEncodings.ContainsKey(encodedParam) {
-		uniqueIdentifier := m.generateUniqueIdentifier()
-		if uniqueIdentifier > math.MaxInt32 {
-			panic(jutil.NewArithmeticException(
-				"Unique Identifier exceeds value of Integer.MAX_VALUE, could not encode with Base 64" +
-					" VLQ"))
-		}
-
-		sb = &strings.Builder{}
-
-		sourcemap.Base64VLQ_Encode(sb, int32(uniqueIdentifier))
-
-		m.paramValueEncodings.Put(encodedParam, sb.String())
+	if existing, ok := m.paramEncodings[encodedParam]; ok {
+		return existing
 	}
 
-	return m.paramValueEncodings.Get(encodedParam)
+	uniqueIdentifier := m.generateUniqueIdentifier()
+	if uniqueIdentifier > math.MaxInt32 {
+		panic(jutil.NewArithmeticException(
+			"Unique Identifier exceeds value of Integer.MAX_VALUE, could not encode with Base 64" +
+				" VLQ"))
+	}
+
+	m.sb.Reset()
+	sourcemap.Base64VLQ_Encode(&m.sb, int32(uniqueIdentifier))
+	encodedId := m.sb.String()
+
+	m.paramEncodings[encodedParam] = encodedId
+	m.paramOrder = append(m.paramOrder, encodedParam)
+
+	return encodedId
 }
 
 // Java: ProductionCoverageInstrumentationCallback.ParameterMapping.generateUniqueIdentifier()
@@ -392,34 +436,36 @@ func (m *productionCoverageInstrumentationCallback_ParameterMapping) generateUni
 	return m.nextUniqueIdentifier
 }
 
-// productionCoverageInstrumentationCallback_keySetForJson is a map's
-// keySet() of nullable Strings as Gson serializes it.
-func productionCoverageInstrumentationCallback_keySetForJson(
-	m *jutil.LinkedHashMap[productionCoverageInstrumentationCallback_nullableString, int32]) []*string {
-	keys := []*string{}
-	for k := range m.Keys() {
-		if k.isNull {
-			keys = append(keys, nil)
-		} else {
-			s := k.s
-			keys = append(keys, &s)
+// productionCoverageInstrumentationCallback_keysForJson converts nullable
+// strings into the slice representation expected by Gson.
+func productionCoverageInstrumentationCallback_keysForJson(
+	keys []productionCoverageInstrumentationCallback_nullableString) []*string {
+	out := make([]*string, len(keys))
+	for i := range keys {
+		if !keys[i].isNull {
+			out[i] = &keys[i].s
 		}
 	}
-	return keys
+	return out
 }
 
 // Java: ProductionCoverageInstrumentationCallback.ParameterMapping.getParamMappingAsVariableMap()
 func (m *productionCoverageInstrumentationCallback_ParameterMapping) getParamMappingAsVariableMap() *VariableMap {
 	gson := jutil.NewGsonBuilder().DisableHtmlEscaping().Create()
 
+	preMap := jutil.NewLinkedHashMapWithCapacity[string, string](len(m.paramOrder) + 3)
+	for _, k := range m.paramOrder {
+		preMap.Put(k, m.paramEncodings[k])
+	}
+
 	// Array names are given a " " (space) prefix since when writing to file, VariableMap.java
 	// sorts the map by key values. This space will place the arrays at the top of the file.
 	// The key and value entry are put in this order because the map will be inversed.
-	m.paramValueEncodings.Put(gson.ToJson(productionCoverageInstrumentationCallback_keySetForJson(m.fileNameToIndex)), " FileNames")
-	m.paramValueEncodings.Put(gson.ToJson(productionCoverageInstrumentationCallback_keySetForJson(m.functionNameToIndex)), " FunctionNames")
-	m.paramValueEncodings.Put(gson.ToJson(jutil.NewLinkedHashSet(m.typeToIndex.KeySlice()...)), " Types")
+	preMap.Put(gson.ToJson(productionCoverageInstrumentationCallback_keysForJson(m.fileNames)), " FileNames")
+	preMap.Put(gson.ToJson(productionCoverageInstrumentationCallback_keysForJson(m.functionNames)), " FunctionNames")
+	preMap.Put(gson.ToJson(m.typeNames), " Types")
 
-	preInversedMap := NewVariableMap(m.paramValueEncodings)
+	preInversedMap := NewVariableMap(preMap)
 	inversedMap := preInversedMap.GetNewNameToOriginalNameMap()
 	return NewVariableMap(inversedMap)
 }

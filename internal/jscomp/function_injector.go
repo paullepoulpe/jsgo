@@ -44,7 +44,7 @@ type FunctionInjector struct {
 
 	functionArgumentInjector *FunctionArgumentInjector
 	mutator                  FunctionToBlockMutator
-	paramReplacementsScratch *jutil.LinkedHashMap[string, rhino.Node]
+	paramReplacements        inlineIDNodeMap
 	decomposer               *ExpressionDecomposer
 
 	// Combined cache of function node to whether it deeply contains an `eval`
@@ -66,9 +66,7 @@ var FunctionInjector_MULTIPLE_FUNCTIONS = rhino.NewNode(rhino.Token_FUNCTION)
 
 // Java: FunctionInjector(Builder)
 func NewFunctionInjector(builder *FunctionInjector_Builder) *FunctionInjector {
-	f := &FunctionInjector{
-		paramReplacementsScratch: jutil.NewLinkedHashMap[string, rhino.Node](),
-	}
+	f := &FunctionInjector{}
 	// The anonymous Supplier<String> throwawayNameSupplier, with its nextId
 	// field.
 	nextId := 0
@@ -274,14 +272,14 @@ const FunctionInjector_COMMA_COST = 1
 // The cost of the parentheses needed to make a call.
 const FunctionInjector_PAREN_COST = 2
 
-func functionInjector_blocksMinimumRequirements(n rhino.Node, fnName, fnRecursionName string, checkArguments bool) bool {
+func functionInjector_blocksMinimumRequirements(n rhino.Node, fnNameID, fnRecursionNameID uint32, checkArguments bool) bool {
 	switch n.GetToken() {
 	case rhino.Token_NAME:
-		s := n.GetString()
-		if (checkArguments && s == "arguments") ||
-			s == "eval" ||
-			(fnName != "" && s == fnName) ||
-			(fnRecursionName != "" && s == fnRecursionName) {
+		nameID := n.GetStringID()
+		if (checkArguments && nameID == calleeArgumentsIdentID) ||
+			nameID == calleeEvalIdentID ||
+			(fnNameID != 0 && nameID == fnNameID) ||
+			(fnRecursionNameID != 0 && nameID == fnRecursionNameID) {
 			return true
 		}
 	case rhino.Token_SUPER, rhino.Token_NEW_TARGET:
@@ -295,11 +293,11 @@ func functionInjector_blocksMinimumRequirements(n rhino.Node, fnName, fnRecursio
 		if c.GetFirstChild().IsNil() {
 			switch c.GetToken() {
 			case rhino.Token_NAME:
-				s := c.GetString()
-				if (checkArguments && s == "arguments") ||
-					s == "eval" ||
-					(fnName != "" && s == fnName) ||
-					(fnRecursionName != "" && s == fnRecursionName) {
+				nameID := c.GetStringID()
+				if (checkArguments && nameID == calleeArgumentsIdentID) ||
+					nameID == calleeEvalIdentID ||
+					(fnNameID != 0 && nameID == fnNameID) ||
+					(fnRecursionNameID != 0 && nameID == fnRecursionNameID) {
 					return true
 				}
 			case rhino.Token_SUPER, rhino.Token_NEW_TARGET:
@@ -307,7 +305,7 @@ func functionInjector_blocksMinimumRequirements(n rhino.Node, fnName, fnRecursio
 			}
 			continue
 		}
-		if functionInjector_blocksMinimumRequirements(c, fnName, fnRecursionName, checkArguments) {
+		if functionInjector_blocksMinimumRequirements(c, fnNameID, fnRecursionNameID, checkArguments) {
 			return true
 		}
 	}
@@ -332,13 +330,26 @@ func (f *FunctionInjector) DoesFunctionMeetMinimumRequirements(fnName string, fn
 	// 3) It references "eval". Inline a function containing eval can have
 	//    large performance implications.
 
+	var fnNameID uint32
+	if fnName != "" {
+		fnNameID = rhino.RhinoStringPool_LookupID(fnName)
+	}
 	// The name of an anonymous function is "": no recursion through it.
-	fnRecursionName := ""
-	if name, ok := fn.Name(); ok && name.Ident() != fnName {
-		fnRecursionName = name.Ident()
+	var fnRecursionNameID uint32
+	if name, ok := fn.Name(); ok {
+		if recID := name.Node().GetStringID(); recID != fnNameID {
+			fnRecursionNameID = recID
+		}
 	}
 
-	return !functionInjector_blocksMinimumRequirements(block, fnName, fnRecursionName, true)
+	return !functionInjector_blocksMinimumRequirements(block, fnNameID, fnRecursionNameID, true)
+}
+
+func linkedHashSetSize(s *jutil.LinkedHashSet[string]) int {
+	if s == nil {
+		return 0
+	}
+	return s.Size()
 }
 
 // CanInlineReferenceToFunction: fnNode is the function to evaluate for
@@ -356,13 +367,13 @@ func (f *FunctionInjector) CanInlineReferenceToFunction(
 	referencesThis bool,
 	containsClosures bool) FunctionInjector_CanInlineResult {
 	return f.canInlineReferenceWithSummary(
-		ref, fnNode, needAliases, referencesThis, containsClosures, nil)
+		ref, fnNode, linkedHashSetSize(needAliases), referencesThis, containsClosures, nil)
 }
 
 func (f *FunctionInjector) canInlineReferenceWithSummary(
 	ref *FunctionInjector_Reference,
 	fnNode rhino.Node,
-	needAliases *jutil.LinkedHashSet[string],
+	aliasCount int,
 	referencesThis bool,
 	containsClosures bool,
 	summary *calleeSummary) FunctionInjector_CanInlineResult {
@@ -402,9 +413,9 @@ func (f *FunctionInjector) canInlineReferenceWithSummary(
 	}
 
 	if ref.mode == FunctionInjector_InliningMode_DIRECT {
-		return f.canInlineReferenceDirectlyWithSummary(ref, fnNode, needAliases, summary)
+		return f.canInlineReferenceDirectlyWithSummary(ref, fnNode, aliasCount, summary)
 	} else {
-		return f.canInlineReferenceAsStatementBlockWithSummary(ref, fnNode, needAliases, summary)
+		return f.canInlineReferenceAsStatementBlockWithSummary(ref, fnNode, aliasCount, summary)
 	}
 }
 
@@ -499,8 +510,8 @@ func (f *FunctionInjector) InlineReturnValue(ref *FunctionInjector_Reference, fn
 	// no need to check for conflicts.
 
 	// Create an paramName -> argument value map, checking for side effects.
-	paramReplacements := f.paramReplacementsScratch
-	f.functionArgumentInjector.FillFunctionCallParameterNodeMap(
+	paramReplacements := &f.paramReplacements
+	f.functionArgumentInjector.fillCallParamNodeMap(
 		fnNode, callNode, f.safeNameIdSupplier, paramReplacements)
 
 	var newExpression rhino.Node
@@ -515,7 +526,7 @@ func (f *FunctionInjector) InlineReturnValue(ref *FunctionInjector_Reference, fn
 
 		// Clone the return node first.
 		safeReturnNode := ast.MustReturn(returnNode.Node().CloneTree())
-		inlineResult := f.functionArgumentInjector.Inject(nil, safeReturnNode.Node(), rhino.NilNode, paramReplacements)
+		inlineResult := f.functionArgumentInjector.injectByID(nil, safeReturnNode.Node(), rhino.NilNode, paramReplacements, true)
 		jutil.CheckArgument(safeReturnNode.Is(inlineResult))
 		value, ok := safeReturnNode.Value()
 		jutil.CheckState(ok) // canInlineReferenceDirectly: the return has a value
@@ -878,13 +889,13 @@ func (r FunctionInjector_CanInlineResult) Ordinal() int { return int(r) }
 // Java: FunctionInjector.canInlineReferenceAsStatementBlock(Reference, Node, ImmutableSet<String>)
 func (f *FunctionInjector) CanInlineReferenceAsStatementBlock(
 	ref *FunctionInjector_Reference, fnNode rhino.Node, namesToAlias *jutil.LinkedHashSet[string]) FunctionInjector_CanInlineResult {
-	return f.canInlineReferenceAsStatementBlockWithSummary(ref, fnNode, namesToAlias, nil)
+	return f.canInlineReferenceAsStatementBlockWithSummary(ref, fnNode, linkedHashSetSize(namesToAlias), nil)
 }
 
 func (f *FunctionInjector) canInlineReferenceAsStatementBlockWithSummary(
 	ref *FunctionInjector_Reference,
 	fnNode rhino.Node,
-	namesToAlias *jutil.LinkedHashSet[string],
+	aliasCount int,
 	summary *calleeSummary) FunctionInjector_CanInlineResult {
 	callSiteType := f.classifyCallSite(ref, f.allowDecomposition)
 	if callSiteType == FunctionInjector_CallSiteType_UNSUPPORTED {
@@ -897,7 +908,7 @@ func (f *FunctionInjector) canInlineReferenceAsStatementBlockWithSummary(
 		return FunctionInjector_CanInlineResult_NO
 	}
 
-	if !f.callMeetsBlockInliningRequirementsWithSummary(ref, fnNode, namesToAlias, summary) {
+	if !f.callMeetsBlockInliningRequirementsWithSummary(ref, fnNode, aliasCount, summary) {
 		return FunctionInjector_CanInlineResult_NO
 	}
 
@@ -910,7 +921,7 @@ func (f *FunctionInjector) canInlineReferenceAsStatementBlockWithSummary(
 }
 
 func functionInjector_isEvalName(n rhino.Node) bool {
-	return n.IsName() && n.GetString() == "eval"
+	return n.IsName() && n.GetStringID() == calleeEvalIdentID
 }
 
 func functionInjector_isShallowStatement(n rhino.Node) bool {
@@ -945,7 +956,7 @@ func functionInjector_countShallowReturns(n rhino.Node) int {
 }
 
 func functionInjector_referencesEval(n rhino.Node, rootFn rhino.Node) bool {
-	if n.IsName() && n.GetString() == "eval" {
+	if n.IsName() && n.GetStringID() == calleeEvalIdentID {
 		return true
 	}
 	if n.IsFunction() && n != rootFn {
@@ -953,7 +964,7 @@ func functionInjector_referencesEval(n rhino.Node, rootFn rhino.Node) bool {
 	}
 	for c := n.GetFirstChild(); !c.IsNil(); c = c.GetNext() {
 		if c.GetFirstChild().IsNil() {
-			if c.IsName() && c.GetString() == "eval" {
+			if c.IsName() && c.GetStringID() == calleeEvalIdentID {
 				return true
 			}
 			continue
@@ -1071,13 +1082,13 @@ func (f *FunctionInjector) InnerFunctionOf(containerFn rhino.Node) rhino.Node {
 // Java: FunctionInjector.callMeetsBlockInliningRequirements(Reference, Node, ImmutableSet<String>)
 func (f *FunctionInjector) CallMeetsBlockInliningRequirements(
 	callRef *FunctionInjector_Reference, calleeFn rhino.Node, namesToAlias *jutil.LinkedHashSet[string]) bool {
-	return f.callMeetsBlockInliningRequirementsWithSummary(callRef, calleeFn, namesToAlias, nil)
+	return f.callMeetsBlockInliningRequirementsWithSummary(callRef, calleeFn, linkedHashSetSize(namesToAlias), nil)
 }
 
 func (f *FunctionInjector) callMeetsBlockInliningRequirementsWithSummary(
 	callRef *FunctionInjector_Reference,
 	calleeFn rhino.Node,
-	namesToAlias *jutil.LinkedHashSet[string],
+	aliasCount int,
 	summary *calleeSummary) bool {
 	// Note: functions that contain function definitions are filtered out
 	// in isCandidateFunction.
@@ -1107,7 +1118,7 @@ func (f *FunctionInjector) callMeetsBlockInliningRequirementsWithSummary(
 	// If the caller contains functions or evals, verify we aren't adding any
 	// additional VAR declarations because aliasing is needed.
 	if forbidTemps {
-		if !namesToAlias.IsEmpty() {
+		if aliasCount > 0 {
 			return false
 		}
 
@@ -1124,12 +1135,11 @@ func (f *FunctionInjector) callMeetsBlockInliningRequirementsWithSummary(
 			return false
 		}
 
-		args := f.functionArgumentInjector.GetFunctionCallParameterMapScratch(
+		bindings := f.functionArgumentInjector.getCallParamBindingsScratch(
 			calleeFn, callRef.callNode, f.safeNameIdSupplier)
-		hasArgs := !args.IsEmpty()
-		if hasArgs {
-			if f.functionArgumentInjector.hasCallArgumentsNeedingTempsWithSummary(
-				f.compiler, calleeFn, args, namesToAlias, f.compiler.GetCodingConvention(), summary) {
+		if len(bindings) > 0 {
+			if f.functionArgumentInjector.hasCallArgumentsNeedingTempsForBindings(
+				f.compiler, calleeFn, bindings, nil, f.compiler.GetCodingConvention(), summary) {
 				return false
 			}
 		}
@@ -1151,13 +1161,13 @@ func (f *FunctionInjector) callMeetsBlockInliningRequirementsWithSummary(
 // Java: FunctionInjector.canInlineReferenceDirectly(Reference, Node, ImmutableSet<String>)
 func (f *FunctionInjector) CanInlineReferenceDirectly(
 	ref *FunctionInjector_Reference, fnNode rhino.Node, namesToAlias *jutil.LinkedHashSet[string]) FunctionInjector_CanInlineResult {
-	return f.canInlineReferenceDirectlyWithSummary(ref, fnNode, namesToAlias, nil)
+	return f.canInlineReferenceDirectlyWithSummary(ref, fnNode, linkedHashSetSize(namesToAlias), nil)
 }
 
 func (f *FunctionInjector) canInlineReferenceDirectlyWithSummary(
 	ref *FunctionInjector_Reference,
 	fnNode rhino.Node,
-	namesToAlias *jutil.LinkedHashSet[string],
+	aliasCount int,
 	summary *calleeSummary) FunctionInjector_CanInlineResult {
 	if !FunctionInjector_IsDirectCallNodeReplacementPossible(fnNode) {
 		return FunctionInjector_CanInlineResult_NO
@@ -1183,16 +1193,15 @@ func (f *FunctionInjector) canInlineReferenceDirectlyWithSummary(
 		}
 	}
 
-	if !namesToAlias.IsEmpty() {
+	if aliasCount > 0 {
 		return FunctionInjector_CanInlineResult_NO
 	}
 
-	args := f.functionArgumentInjector.GetFunctionCallParameterMapScratch(
+	bindings := f.functionArgumentInjector.getCallParamBindingsScratch(
 		fnNode, callNode, f.throwawayNameSupplier)
-	hasArgs := !args.IsEmpty()
-	if hasArgs {
-		if f.functionArgumentInjector.hasCallArgumentsNeedingTempsWithSummary(
-			f.compiler, fnNode, args, namesToAlias, f.compiler.GetCodingConvention(), summary) {
+	if len(bindings) > 0 {
+		if f.functionArgumentInjector.hasCallArgumentsNeedingTempsForBindings(
+			f.compiler, fnNode, bindings, nil, f.compiler.GetCodingConvention(), summary) {
 			return FunctionInjector_CanInlineResult_NO
 		}
 	}
@@ -1212,14 +1221,14 @@ func (f *FunctionInjector) InliningLowersCost(
 	isRemovable bool,
 	referencesThis bool) bool {
 	return f.inliningLowersCostWithSummary(
-		fnChunk, fnNode, refs, namesToAlias, isRemovable, referencesThis, nil)
+		fnChunk, fnNode, refs, linkedHashSetSize(namesToAlias), isRemovable, referencesThis, nil)
 }
 
 func (f *FunctionInjector) inliningLowersCostWithSummary(
 	fnChunk *JSChunk,
 	fnNode rhino.Node,
 	refs []*FunctionInjector_Reference,
-	namesToAlias *jutil.LinkedHashSet[string],
+	aliasCount int,
 	isRemovable bool,
 	referencesThis bool,
 	summary *calleeSummary) bool {
@@ -1264,8 +1273,8 @@ func (f *FunctionInjector) inliningLowersCostWithSummary(
 	callCost := FunctionInjector_EstimateCallCost(fnNode, referencesThis)
 	overallCallCost := callCost * referenceCount
 
-	costDeltaDirect := functionInjector_inlineCostDeltaWithSummary(fnNode, namesToAlias, FunctionInjector_InliningMode_DIRECT, summary)
-	costDeltaBlock := functionInjector_inlineCostDeltaWithSummary(fnNode, namesToAlias, FunctionInjector_InliningMode_BLOCK, summary)
+	costDeltaDirect := functionInjector_inlineCostDeltaWithSummary(fnNode, aliasCount, FunctionInjector_InliningMode_DIRECT, summary)
+	costDeltaBlock := functionInjector_inlineCostDeltaWithSummary(fnNode, aliasCount, FunctionInjector_InliningMode_BLOCK, summary)
 
 	return FunctionInjector_DoesLowerCost(
 		fnNode,
@@ -1342,12 +1351,12 @@ func FunctionInjector_EstimateCallCost(fnNode rhino.Node, referencesThis bool) i
 //
 // Java: FunctionInjector.inlineCostDelta(Node, Set<String>, InliningMode)
 func FunctionInjector_InlineCostDelta(fnNode rhino.Node, namesToAlias *jutil.LinkedHashSet[string], mode FunctionInjector_InliningMode) int {
-	return functionInjector_inlineCostDeltaWithSummary(fnNode, namesToAlias, mode, nil)
+	return functionInjector_inlineCostDeltaWithSummary(fnNode, linkedHashSetSize(namesToAlias), mode, nil)
 }
 
 func functionInjector_inlineCostDeltaWithSummary(
 	fnNode rhino.Node,
-	namesToAlias *jutil.LinkedHashSet[string],
+	aliasCount int,
 	mode FunctionInjector_InliningMode,
 	summary *calleeSummary) int {
 	// The part of the function that is never inlined:
@@ -1372,8 +1381,6 @@ func functionInjector_inlineCostDeltaWithSummary(
 		//    "return " (7)
 		return -(costDeltaFunctionOverhead + 7)
 	} else {
-		aliasCount := namesToAlias.Size()
-
 		// Originally, we estimated purely base on the function code size, relying
 		// on later optimizations. But that did not produce good results, so here
 		// we try to estimate the something closer to the actual inlined coded.

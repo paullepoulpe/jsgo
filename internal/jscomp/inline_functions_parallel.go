@@ -61,6 +61,8 @@ type ifPhase1Worker struct {
 	lastCheckedBlockHasLetOrConst bool
 	cands                         []ifPhase1Candidate
 	scratchSummary                calleeSummary
+	scratchParamIDs               inlineIDSet
+	scratchModifiedIDs            inlineIDSet
 }
 
 func (w *ifPhase1Worker) blockHasLetOrConst(block rhino.Node) bool {
@@ -131,13 +133,7 @@ func (w *ifPhase1Worker) buildNamedOrVarCandidate(kind ifCandKind, node rhino.No
 			return cand
 		}
 		if s.numModified > 0 {
-			namesToAlias := jutil.NewLinkedHashSet[string]()
-			params := s.params()
-			for _, idx := range s.modifiedParamIndices() {
-				namesToAlias.Add(params[idx].nameStr())
-			}
 			cand.inlineDirectly = false
-			cand.namesToAlias = namesToAlias
 		}
 		cand.referencesThis = s.referencesThis
 		if s.hasInnerClosures {
@@ -155,12 +151,13 @@ func (w *ifPhase1Worker) buildNamedOrVarCandidate(kind ifCandKind, node rhino.No
 			return cand
 		}
 		body := fn.Body().Node()
-		paramSet := FunctionArgumentInjector_GetFunctionParameterSet(fnNode)
-		if !paramSet.IsEmpty() {
-			namesToAlias := FunctionArgumentInjector_FindModifiedParametersIn(body, paramSet, false)
-			if !namesToAlias.IsEmpty() {
+		collectFunctionParameterIDs(fnNode, &w.scratchParamIDs)
+		if !w.scratchParamIDs.isEmpty() {
+			w.scratchModifiedIDs.clear()
+			collectModifiedParameterIDs(body, &w.scratchParamIDs, false, &w.scratchModifiedIDs)
+			if !w.scratchModifiedIDs.isEmpty() {
 				cand.inlineDirectly = false
-				cand.namesToAlias = namesToAlias
+				cand.namesToAlias = w.scratchModifiedIDs.toLinkedHashSet()
 			}
 		}
 		cand.referencesThis = NodeUtil_ReferencesEnclosingReceiver(body)
@@ -318,7 +315,7 @@ func (f *InlineFunctions) findCandidateFunctionsParallel(root rhino.Node) bool {
 				target := newExprFnTarget(cand.fnNode, callsSeen)
 				callsSeen++
 				f.MaybeAddFunction(target, cand.chunk)
-				f.anonFns.Put(cand.fnNode, target.name)
+				f.putAnonFn(cand.fnNode, target.name)
 				continue
 			}
 			fs := f.GetOrCreateFunctionState(cand.name)
@@ -494,13 +491,14 @@ func (r *ifPhase2RefCallback) tryMode(
 	}
 	r.scratchRef.init(callNode, nil, chunk, mode, false)
 	r.scratchRef.t = t
+	summary := functionState.readOnlySummary()
 	result := r.injector.canInlineReferenceWithSummary(
 		&r.scratchRef,
 		functionState.functionNode(),
-		functionState.GetNamesToAlias(),
+		functionStateAliasCount(functionState),
 		functionState.GetReferencesThis(),
 		functionState.HasInnerClosures(),
-		functionState.readOnlySummary())
+		summary)
 	if result != FunctionInjector_CanInlineResult_NO {
 		var scope *Scope
 		if result == FunctionInjector_CanInlineResult_AFTER_PREPARATION {
@@ -516,14 +514,13 @@ func (r *ifPhase2RefCallback) tryMode(
 func (r *ifPhase2RefCallback) checkNameUsage(n rhino.Node, parent rhino.Node) {
 	jutil.CheckStateMsg1(n.IsName(), "%s", n)
 
-	name := n.GetString()
-	if name == "" {
+	if n.GetStringID() == rhino.RhinoStringPool_EmptyID {
 		return
 	}
 	if InlineFunctions_IsCandidateUsage(n) {
 		return
 	}
-	functionState := r.visitor.functionMap.Get(name)
+	functionState := r.visitor.functionMap.Get(n.GetString())
 	if functionState == nil {
 		return
 	}
@@ -794,14 +791,15 @@ func (f *InlineFunctions) InliningLowersCost(functionState *InlineFunctions_Func
 			p.refsScratch = append(p.refsScratch, ref)
 		}
 	}
+	summary := functionState.ensureSummary()
 	return f.injector.inliningLowersCostWithSummary(
 		functionState.GetChunk(),
 		functionState.functionNode(),
 		p.refsScratch,
-		functionState.GetNamesToAlias(),
+		functionStateAliasCount(functionState),
 		functionState.CanRemove(),
 		functionState.GetReferencesThis(),
-		functionState.ensureSummary())
+		summary)
 }
 
 // ResolveInlineConflicts: size base inlining calculations are thrown off
@@ -849,12 +847,12 @@ type ifConflictScanResult struct {
 
 func inlineFunctions_collectAnonInlinableStates(
 	node rhino.Node,
-	anonFns *jutil.LinkedHashMap[rhino.Node, string],
+	anonFns map[rhino.Node]string,
 	fns *jutil.LinkedHashMap[string, *InlineFunctions_FunctionState],
 	out *[]*InlineFunctions_FunctionState,
 ) {
 	if node.IsFunction() {
-		if anonName, ok := anonFns.Lookup(node); ok {
+		if anonName, ok := anonFns[node]; ok {
 			if fs := fns.Get(anonName); fs != nil && fs.CanInline() {
 				*out = append(*out, fs)
 			}
@@ -871,12 +869,9 @@ func (f *InlineFunctions) resolveInlineConflictsParallel(
 	cands []*InlineFunctions_FunctionState,
 	numWorkers int,
 ) {
-	hasAnon := f.anonFns != nil && !f.anonFns.IsEmpty()
-	// Ensure LinkedHashMap lookup tables are materialized before concurrent reads.
+	hasAnon := len(f.anonFns) > 0
+	// Ensure LinkedHashMap lookup table is materialized before concurrent reads.
 	_ = f.fns.Get("")
-	if hasAnon {
-		_, _ = f.anonFns.Lookup(rhino.NilNode)
-	}
 
 	scanResults := make([]ifConflictScanResult, len(cands))
 	var nextIdx atomic.Uint32
@@ -885,7 +880,7 @@ func (f *InlineFunctions) resolveInlineConflictsParallel(
 	for w := 0; w < numWorkers; w++ {
 		go func() {
 			defer wg.Done()
-			names := jutil.NewLinkedHashSet[string]()
+			var calledIDs inlineIDSet
 			for {
 				idx := int(nextIdx.Add(1) - 1)
 				if idx >= len(cands) {
@@ -894,9 +889,9 @@ func (f *InlineFunctions) resolveInlineConflictsParallel(
 				fs := cands[idx]
 				fnNode := fs.functionNode()
 				body := ast.MustFunction(fnNode).Body().Node()
-				names.Clear()
-				inlineFunctions_findCalledFunctions(body, names)
-				if names.IsEmpty() {
+				calledIDs.clear()
+				inlineFunctions_collectCalledFunctionIDs(body, &calledIDs)
+				if calledIDs.isEmpty() {
 					continue
 				}
 				var res ifConflictScanResult
@@ -905,8 +900,8 @@ func (f *InlineFunctions) resolveInlineConflictsParallel(
 					inlineFunctions_collectAnonInlinableStates(body, f.anonFns, f.fns, &res.anonStates)
 				}
 				res.structuralNeedsClone = !inlineFunctions_isIsolatedStmtFn(fnNode) || inlineFunctions_hasParamWithChildren(fnNode)
-				for name := range names.All() {
-					if fsCalled := f.fns.Get(name); fsCalled != nil {
+				for _, id := range calledIDs.items {
+					if fsCalled := f.fns.Get(rhino.RhinoStringPool_StringFromID(id)); fsCalled != nil {
 						res.calledStates = append(res.calledStates, fsCalled)
 					}
 				}
@@ -1019,15 +1014,15 @@ func (f *InlineFunctions) ResolveInlineConflictsForFunction(functionState *Inlin
 
 	fnNode := functionState.functionNode()
 	p := f.ensureRunState()
-	names := p.calledNames
-	names.Clear()
+	calledIDs := &p.calledIDs
+	calledIDs.clear()
 	hasAnonInlinable := inlineFunctions_findCalledFunctionsAndAnon(
-		ast.MustFunction(fnNode).Body().Node(), names, f.anonFns, f.fns)
-	if !names.IsEmpty() {
+		ast.MustFunction(fnNode).Body().Node(), calledIDs, f.anonFns, f.fns)
+	if !calledIDs.isEmpty() {
 		needsSafeClone := hasAnonInlinable || !inlineFunctions_isIsolatedStmtFn(fnNode) || inlineFunctions_hasParamWithChildren(fnNode)
 		// Prevent the removal of the referenced functions unless they will be immediately inlined.
-		for name := range names.All() {
-			fsCalled := f.fns.Get(name)
+		for _, id := range calledIDs.items {
+			fsCalled := f.fns.Get(rhino.RhinoStringPool_StringFromID(id))
 			if fsCalled != nil {
 				if fsCalled.CanRemove() {
 					fsCalled.SetRemove(
@@ -1091,9 +1086,9 @@ func inlineFunctions_isIsolatedStmtFn(fnNode rhino.Node) bool {
 //
 // Java: InlineFunctions.findCalledFunctions(Node)
 func (f *InlineFunctions) FindCalledFunctions(node rhino.Node) *jutil.LinkedHashSet[string] {
-	changed := jutil.NewLinkedHashSet[string]()
-	inlineFunctions_findCalledFunctions(ast.MustFunction(node).Body().Node(), changed)
-	return changed
+	var calledIDs inlineIDSet
+	inlineFunctions_collectCalledFunctionIDs(ast.MustFunction(node).Body().Node(), &calledIDs)
+	return calledIDs.toLinkedHashSet()
 }
 
 // InlineFunctions_FindCalledFunctionsInto: see findCalledFunctions(Node).
@@ -1101,33 +1096,37 @@ func (f *InlineFunctions) FindCalledFunctions(node rhino.Node) *jutil.LinkedHash
 // Java: InlineFunctions.findCalledFunctions(Node, Set<String>)
 func InlineFunctions_FindCalledFunctionsInto(node rhino.Node, changed *jutil.LinkedHashSet[string]) {
 	jutil.CheckArgument(changed != nil)
-	inlineFunctions_findCalledFunctions(node, changed)
+	var calledIDs inlineIDSet
+	inlineFunctions_collectCalledFunctionIDs(node, &calledIDs)
+	for _, id := range calledIDs.items {
+		changed.Add(rhino.RhinoStringPool_StringFromID(id))
+	}
 }
 
-func inlineFunctions_findCalledFunctions(node rhino.Node, changed *jutil.LinkedHashSet[string]) {
+func inlineFunctions_collectCalledFunctionIDs(node rhino.Node, changed *inlineIDSet) {
 	if node.IsName() && InlineFunctions_IsCandidateUsage(node) {
-		changed.Add(node.GetString())
+		changed.add(node.GetStringID())
 	}
 
 	for c := node.GetFirstChild(); !c.IsNil(); c = c.GetNext() {
 		if c.GetFirstChild().IsNil() {
 			if c.IsName() && InlineFunctions_IsCandidateUsage(c) {
-				changed.Add(c.GetString())
+				changed.add(c.GetStringID())
 			}
 			continue
 		}
-		inlineFunctions_findCalledFunctions(c, changed)
+		inlineFunctions_collectCalledFunctionIDs(c, changed)
 	}
 }
 
 func inlineFunctions_findCalledFunctionsAndAnon(
 	node rhino.Node,
-	changed *jutil.LinkedHashSet[string],
-	anonFns *jutil.LinkedHashMap[rhino.Node, string],
+	changed *inlineIDSet,
+	anonFns map[rhino.Node]string,
 	fns *jutil.LinkedHashMap[string, *InlineFunctions_FunctionState],
 ) bool {
-	if anonFns == nil || anonFns.IsEmpty() {
-		inlineFunctions_findCalledFunctions(node, changed)
+	if len(anonFns) == 0 {
+		inlineFunctions_collectCalledFunctionIDs(node, changed)
 		return false
 	}
 	return inlineFunctions_findCalledFunctionsWithAnon(node, changed, anonFns, fns)
@@ -1135,15 +1134,15 @@ func inlineFunctions_findCalledFunctionsAndAnon(
 
 func inlineFunctions_findCalledFunctionsWithAnon(
 	node rhino.Node,
-	changed *jutil.LinkedHashSet[string],
-	anonFns *jutil.LinkedHashMap[rhino.Node, string],
+	changed *inlineIDSet,
+	anonFns map[rhino.Node]string,
 	fns *jutil.LinkedHashMap[string, *InlineFunctions_FunctionState],
 ) bool {
 	hasAnon := false
 	if node.IsName() && InlineFunctions_IsCandidateUsage(node) {
-		changed.Add(node.GetString())
+		changed.add(node.GetStringID())
 	} else if node.IsFunction() {
-		if anonName, ok := anonFns.Lookup(node); ok {
+		if anonName, ok := anonFns[node]; ok {
 			if fs := fns.Get(anonName); fs != nil && fs.CanInline() {
 				hasAnon = true
 			}
@@ -1153,7 +1152,7 @@ func inlineFunctions_findCalledFunctionsWithAnon(
 	for c := node.GetFirstChild(); !c.IsNil(); c = c.GetNext() {
 		if c.GetFirstChild().IsNil() {
 			if c.IsName() && InlineFunctions_IsCandidateUsage(c) {
-				changed.Add(c.GetString())
+				changed.add(c.GetStringID())
 			}
 			continue
 		}

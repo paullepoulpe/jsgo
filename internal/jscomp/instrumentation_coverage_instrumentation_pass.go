@@ -28,10 +28,11 @@ import (
 //
 // Java: public class CoverageInstrumentationPass implements CompilerPass
 type CoverageInstrumentationPass struct {
-	compiler            AbstractCompiler
-	instrumentationData *jutil.LinkedHashMap[string, *FileInstrumentationData]
-	reach               CoverageInstrumentationPass_CoverageReach
-	instrumentOption    CompilerOptions_InstrumentOption
+	compiler                  AbstractCompiler
+	lineInstrumentationData   map[string]*FileInstrumentationData
+	branchInstrumentationData *jutil.LinkedHashMap[string, *FileInstrumentationData]
+	reach                     CoverageInstrumentationPass_CoverageReach
+	instrumentOption          CompilerOptions_InstrumentOption
 
 	productionInstrumentationArrayName string
 }
@@ -50,7 +51,7 @@ const (
 	CoverageInstrumentationPass_CoverageReach_CONDITIONAL                                                  // Do not instrument global statements.
 )
 
-var coverageInstrumentationPass_CoverageReach_names = []string{"ALL", "CONDITIONAL"}
+var coverageInstrumentationPass_CoverageReach_names = [...]string{"ALL", "CONDITIONAL"}
 
 // Java: CoverageInstrumentationPass.CoverageReach.name()
 func (r CoverageInstrumentationPass_CoverageReach) String() string {
@@ -69,13 +70,12 @@ func NewCoverageInstrumentationPassWithInstrumentOption(
 	reach CoverageInstrumentationPass_CoverageReach,
 	instrumentOption CompilerOptions_InstrumentOption,
 	productionInstrumentationArrayName string) *CoverageInstrumentationPass {
-	p := &CoverageInstrumentationPass{}
-	p.compiler = compiler
-	p.reach = reach
-	p.instrumentOption = instrumentOption
-	p.productionInstrumentationArrayName = productionInstrumentationArrayName
-	p.instrumentationData = jutil.NewLinkedHashMap[string, *FileInstrumentationData]()
-	return p
+	return &CoverageInstrumentationPass{
+		compiler:                           compiler,
+		reach:                              reach,
+		instrumentOption:                   instrumentOption,
+		productionInstrumentationArrayName: productionInstrumentationArrayName,
+	}
 }
 
 // Deprecated: use NewCoverageInstrumentationPassWithInstrumentOption(compiler,
@@ -124,13 +124,16 @@ func (p *CoverageInstrumentationPass) CheckIfArrayNameExternDeclared(externsNode
 // Java: CoverageInstrumentationPass.process(Node, Node)
 func (p *CoverageInstrumentationPass) Process(externsNode rhino.Node, rootNode rhino.Node) {
 	if rootNode.HasChildren() {
-		if p.instrumentOption == CompilerOptions_InstrumentOption_BRANCH_ONLY {
+		switch p.instrumentOption {
+		case CompilerOptions_InstrumentOption_BRANCH_ONLY:
+			if p.branchInstrumentationData == nil {
+				p.branchInstrumentationData = jutil.NewLinkedHashMap[string, *FileInstrumentationData]()
+			}
 			NodeTraversal_Traverse(
 				p.compiler,
 				rootNode,
-				NewBranchCoverageInstrumentationCallback(p.compiler, p.instrumentationData))
-		} else if p.instrumentOption == CompilerOptions_InstrumentOption_PRODUCTION {
-
+				NewBranchCoverageInstrumentationCallback(p.compiler, p.branchInstrumentationData))
+		case CompilerOptions_InstrumentOption_PRODUCTION:
 			productionCoverageInstrumentationCallback := NewProductionCoverageInstrumentationCallback(
 				p.compiler, p.productionInstrumentationArrayName)
 
@@ -140,10 +143,12 @@ func (p *CoverageInstrumentationPass) Process(externsNode rhino.Node, rootNode r
 
 			instrumentationMapping := productionCoverageInstrumentationCallback.GetInstrumentationMapping()
 			p.compiler.SetInstrumentationMapping(instrumentationMapping)
-
-		} else {
+		default:
+			if p.lineInstrumentationData == nil {
+				p.lineInstrumentationData = make(map[string]*FileInstrumentationData)
+			}
 			NodeTraversal_Traverse(
-				p.compiler, rootNode, NewCoverageInstrumentationCallback(p.instrumentationData, p.reach))
+				p.compiler, rootNode, NewCoverageInstrumentationCallback(p.lineInstrumentationData, p.reach))
 		}
 		firstScript := rootNode.GetFirstChild()
 		jutil.CheckState(firstScript.IsScript())

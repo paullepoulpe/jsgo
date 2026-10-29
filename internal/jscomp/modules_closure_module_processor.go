@@ -54,7 +54,8 @@ func (m *unresolvedGoogModule) ResolveExport(
 
 func (m *unresolvedGoogModule) ResolveExportWithTraces(
 	moduleRequestResolver ModuleRequestResolver,
-	moduleSpecifier *string,
+	moduleSpecifier string,
+	hasModuleSpecifier bool,
 	exportName string,
 	resolveSet *jutil.LinkedHashSet[ExportTrace],
 	exportStarSet *jutil.LinkedHashSet[UnresolvedModule]) *ResolveExportResult {
@@ -78,7 +79,7 @@ func closureModuleProcessor_onlyNamespace(metadata *ModuleMetadataMap_ModuleMeta
 }
 
 func (m *unresolvedGoogModule) ResolveWithModuleSpecifier(
-	moduleRequestResolver ModuleRequestResolver, moduleSpecifier *string) *Module {
+	moduleRequestResolver ModuleRequestResolver, moduleSpecifier string, hasModuleSpecifier bool) *Module {
 	if m.resolved == nil {
 		boundNames := m.getAllResolvedImports(moduleRequestResolver)
 		closureNamespace := closureModuleProcessor_onlyNamespace(m.metadata)
@@ -88,7 +89,8 @@ func (m *unresolvedGoogModule) ResolveWithModuleSpecifier(
 			m.namespace,
 			boundNames,
 			nonEsEmptyExportMap,
-			&closureNamespace,
+			closureNamespace,
+			true,
 		)
 	}
 	return m.resolved
@@ -131,13 +133,14 @@ func (m *unresolvedGoogModule) resolveImport(
 			Binding_FromClosureImport(
 				requested.Metadata(),
 				importRecord.NameNode(),
-				&moduleRequest,
+				moduleRequest,
 				require.CreatedBy()))
 	}
 
 	result := requested.ResolveExportWithTraces(
 		moduleRequestResolver,
-		&moduleRequest,
+		moduleRequest,
+		true,
 		importRecord.ImportName(),
 		jutil.NewLinkedHashSet[ExportTrace](),
 		jutil.NewLinkedHashSet[UnresolvedModule]())
@@ -317,16 +320,14 @@ func (c *closureModuleProcessingCallback) maybeInitializeExportsStub(getProp ast
 }
 
 func (c *closureModuleProcessingCallback) markExportsAssignmentInNamespace(exportsNode rhino.Node) {
-	exportName := Export_NAMESPACE
-	closureNamespace := c.closureNamespace
 	c.namespace.Put(
 		Export_NAMESPACE,
 		Binding_From(
 			Export_Builder_().
-				ExportName(&exportName).
+				ExportName(Export_NAMESPACE).
 				ExportNode(exportsNode).
 				ModuleMetadata(c.metadata).
-				ClosureNamespace(&closureNamespace).
+				ClosureNamespace(c.closureNamespace).
 				ModulePath(c.metadata.Path()).
 				Build(),
 			exportsNode))
@@ -336,15 +337,14 @@ func (c *closureModuleProcessingCallback) addPropertyExport(exportedId string, p
 	if c.seenExportsAssignment || c.namespace.ContainsKey(exportedId) {
 		return
 	}
-	closureNamespace := c.closureNamespace
 	c.namespace.Put(
 		exportedId,
 		Binding_From(
 			Export_Builder_().
-				ExportName(&exportedId).
+				ExportName(exportedId).
 				ExportNode(propNode).
 				ModuleMetadata(c.metadata).
-				ClosureNamespace(&closureNamespace).
+				ClosureNamespace(c.closureNamespace).
 				ModulePath(c.metadata.Path()).
 				Build(),
 			propNode))

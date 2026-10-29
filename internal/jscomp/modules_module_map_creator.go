@@ -3,6 +3,9 @@
 // Port of com/google/javascript/jscomp/modules/ModuleRequestResolver.java @ closure-compiler v20261021
 // Port of com/google/javascript/jscomp/modules/GoogEsImports.java @ closure-compiler v20261021
 // Port of com/google/javascript/jscomp/modules/ExportTrace.java @ closure-compiler v20261021
+// Port of com/google/javascript/jscomp/modules/NonEsModuleProcessor.java @ closure-compiler v20261021
+// Port of com/google/javascript/jscomp/modules/ResolveExportResult.java @ closure-compiler v20261021
+// Port of com/google/javascript/jscomp/modules/UnresolvedModule.java @ closure-compiler v20261021
 
 /*
  * Copyright 2018 The Closure Compiler Authors.
@@ -102,13 +105,10 @@ type fallbackMissingNonClosureModule struct {
 }
 
 func newFallbackMissingNonClosureModule(path *ModuleLoader_ModulePath) UnresolvedModule {
-	metadata := ModuleMetadataMap_ModuleMetadata_Builder_().
-		RootNode(rhino.NilNode).
-		Path(path).
-		ModuleType(ModuleMetadataMap_ModuleType_ES6_MODULE).
-		IsTestOnly(false).
-		UsesClosure(false).
-		Build()
+	metadata := &ModuleMetadataMap_ModuleMetadata{
+		path:       path,
+		moduleType: ModuleMetadataMap_ModuleType_ES6_MODULE,
+	}
 	m := &fallbackMissingNonClosureModule{path: path, metadata: metadata}
 	m.InitUnresolvedModuleBase(m)
 	return m
@@ -117,8 +117,8 @@ func newFallbackMissingNonClosureModule(path *ModuleLoader_ModulePath) Unresolve
 func (m *fallbackMissingNonClosureModule) Reset() {}
 
 func (m *fallbackMissingNonClosureModule) ResolveWithModuleSpecifier(
-	moduleRequestResolver ModuleRequestResolver, moduleSpecifier *string) *Module {
-	return NewModule(m.metadata, m.path, nonEsEmptyBindingMap, nonEsEmptyBindingMap, nonEsEmptyExportMap, nil)
+	moduleRequestResolver ModuleRequestResolver, moduleSpecifier string, hasModuleSpecifier bool) *Module {
+	return NewModule(m.metadata, m.path, nonEsEmptyBindingMap, nonEsEmptyBindingMap, nonEsEmptyExportMap, "", false)
 }
 
 func (m *fallbackMissingNonClosureModule) Metadata() *ModuleMetadataMap_ModuleMetadata {
@@ -136,33 +136,28 @@ func (m *fallbackMissingNonClosureModule) GetExportedNamesWithVisited(
 
 func (m *fallbackMissingNonClosureModule) ResolveExportWithTraces(
 	moduleRequestResolver ModuleRequestResolver,
-	moduleSpecifier *string,
+	moduleSpecifier string,
+	hasModuleSpecifier bool,
 	exportName string,
 	resolveSet *jutil.LinkedHashSet[ExportTrace],
 	exportStarSet *jutil.LinkedHashSet[UnresolvedModule]) *ResolveExportResult {
 	return ResolveExportResult_Of(
 		Binding_From(
 			Export_Builder_().
-				LocalName(&exportName).
+				LocalName(exportName).
 				ModuleMetadata(m.metadata).
 				ModulePath(m.path).
-				ClosureNamespace(nil).
 				Build(),
 			rhino.NilNode))
 }
 
 func (r *moduleRequestResolverImpl) fallbackForMissingClosureModule(namespace string) UnresolvedModule {
-	return r.outer.nonEsModuleProcessor.Process(
-		ModuleMetadataMap_ModuleMetadata_Builder_().
-			AddGoogNamespace(namespace).
-			IsTestOnly(false).
-			ModuleType(ModuleMetadataMap_ModuleType_GOOG_PROVIDE).
-			Path(nil).
-			RootNode(rhino.NilNode).
-			UsesClosure(true).
-			Build(),
-		nil,
-		rhino.NilNode)
+	md := &ModuleMetadataMap_ModuleMetadata{
+		moduleType:  ModuleMetadataMap_ModuleType_GOOG_PROVIDE,
+		usesClosure: true,
+	}
+	md.googNamespaces.Add(namespace)
+	return r.outer.nonEsModuleProcessor.Process(md, nil, rhino.NilNode)
 }
 
 func (r *moduleRequestResolverImpl) Resolve(i *Import) UnresolvedModule {
@@ -173,7 +168,7 @@ func (r *moduleRequestResolverImpl) Resolve(i *Import) UnresolvedModule {
 }
 
 func (r *moduleRequestResolverImpl) ResolveWithExport(e *Export) UnresolvedModule {
-	return r.resolveWithModulePath(*e.ModuleRequest(), e.ModulePath(), e.ExportNode())
+	return r.resolveWithModulePath(e.ModuleRequest(), e.ModulePath(), e.ExportNode())
 }
 
 func (r *moduleRequestResolverImpl) resolveForClosure(namespace string) UnresolvedModule {
@@ -387,15 +382,283 @@ func ExportTrace_Create(module UnresolvedModule, exportName string) ExportTrace 
 	return NewExportTrace(module, exportName)
 }
 
-func (t ExportTrace) Equals(o any) bool {
-	other, ok := o.(ExportTrace)
-	return ok && other == t
+// UnresolvedModule is a module which has had some of its imports and
+// exports statements scanned but has yet to resolve anything transitively.
+//
+// Reference equality is expected in ExportTrace, so implementations must be
+// pointer types (Go interface equality is then identity).
+type UnresolvedModule interface {
+	// Reset clears any caching so that Resolve(ModuleRequestResolver) will
+	// create a new Module.
+	//
+	// Java: UnresolvedModule.reset()
+	Reset()
+
+	// Java: UnresolvedModule.resolve(ModuleRequestResolver)
+	Resolve(moduleRequestResolver ModuleRequestResolver) *Module
+
+	// ResolveWithModuleSpecifier resolves all imports and exports and
+	// returns a resolved module. moduleSpecifier is the module specifier
+	// that was used to import this module, if resolving an import.
+	//
+	// Java: UnresolvedModule.resolve(ModuleRequestResolver, String)
+	ResolveWithModuleSpecifier(moduleRequestResolver ModuleRequestResolver, moduleSpecifier string, hasModuleSpecifier bool) *Module
+
+	// Metadata returns the metadata corresponding to this module.
+	//
+	// Java: UnresolvedModule.metadata()
+	Metadata() *ModuleMetadataMap_ModuleMetadata
+
+	// GetExportedNames returns all names in this module's namespace, sorted
+	// per Java's string ordering.
+	//
+	// Java: UnresolvedModule.getExportedNames(ModuleRequestResolver)
+	GetExportedNames(moduleRequestResolver ModuleRequestResolver) *jutil.LinkedHashSet[string]
+
+	// GetExportedNamesWithVisited returns all names in this module's
+	// namespace, sorted per Java's string ordering. visited is the set used
+	// to detect export * cycles.
+	//
+	// Java: UnresolvedModule.getExportedNames(ModuleRequestResolver, Set<UnresolvedModule>)
+	GetExportedNamesWithVisited(moduleRequestResolver ModuleRequestResolver, visited *jutil.LinkedHashSet[UnresolvedModule]) *jutil.LinkedHashSet[string]
+
+	// Java: UnresolvedModule.resolveExport(ModuleRequestResolver, String)
+	ResolveExport(moduleRequestResolver ModuleRequestResolver, exportName string) *ResolveExportResult
+
+	// ResolveExportWithTraces resolves exportName (the name of the export to
+	// resolve).
+	//
+	// Java: UnresolvedModule.resolveExport(ModuleRequestResolver, String, String, Set<ExportTrace>, Set<UnresolvedModule>)
+	ResolveExportWithTraces(
+		moduleRequestResolver ModuleRequestResolver,
+		moduleSpecifier string,
+		hasModuleSpecifier bool,
+		exportName string,
+		resolveSet *jutil.LinkedHashSet[ExportTrace],
+		exportStarSet *jutil.LinkedHashSet[UnresolvedModule]) *ResolveExportResult
 }
 
-func (t ExportTrace) HashCode() int32 {
-	return 31*t.module.HashCode() + jutil.StringHashCode(t.exportName)
+// UnresolvedModuleBase holds the base implementations of UnresolvedModule;
+// subclasses embed it and call InitUnresolvedModuleBase.
+type UnresolvedModuleBase struct {
+	self UnresolvedModule
 }
 
-func (t ExportTrace) String() string {
-	return "ExportTrace[module=" + jutil.ToJavaString(t.module) + ", exportName=" + t.exportName + "]"
+// InitUnresolvedModuleBase is the Go form of super(); self is the object
+// being constructed.
+func (m *UnresolvedModuleBase) InitUnresolvedModuleBase(self UnresolvedModule) {
+	m.self = self
+}
+
+// Java: UnresolvedModule.resolve(ModuleRequestResolver)
+func (m *UnresolvedModuleBase) Resolve(moduleRequestResolver ModuleRequestResolver) *Module {
+	return m.self.ResolveWithModuleSpecifier(moduleRequestResolver, "", false)
+}
+
+// ResolveExport resolves exportName; see ResolveExportWithTraces.
+//
+// Java: UnresolvedModule.resolveExport(ModuleRequestResolver, String)
+func (m *UnresolvedModuleBase) ResolveExport(
+	moduleRequestResolver ModuleRequestResolver, exportName string) *ResolveExportResult {
+	return m.self.ResolveExportWithTraces(
+		moduleRequestResolver,
+		"",
+		false,
+		exportName,
+		jutil.NewLinkedHashSet[ExportTrace](),
+		jutil.NewLinkedHashSet[UnresolvedModule]())
+}
+
+// ResolveExportResult is the result of resolving an export, which can be a
+// valid binding, ambiguous, not found, or an error.
+type ResolveExportResult struct {
+	binding *Binding
+	state   resolveExportResult_State
+}
+
+// Java: ResolveExportResult.State
+type resolveExportResult_State int32
+
+const (
+	resolveExportResult_State_RESOLVED resolveExportResult_State = iota
+	resolveExportResult_State_AMBIGUOUS
+	resolveExportResult_State_NOT_FOUND
+	resolveExportResult_State_ERROR
+)
+
+// Java: ResolveExportResult(Binding, State)
+func newResolveExportResult(binding *Binding, state resolveExportResult_State) *ResolveExportResult {
+	return &ResolveExportResult{binding: binding, state: state}
+}
+
+// Copy creates a new result that has the given node for the source of the
+// binding and given type of binding.
+//
+// Java: ResolveExportResult.copy(Node, Binding.CreatedBy)
+func (r *ResolveExportResult) Copy(sourceNode rhino.Node, createdBy Binding_CreatedBy) *ResolveExportResult {
+	rhino.CheckNotNull(sourceNode)
+	if r.binding == nil {
+		return r
+	}
+	return newResolveExportResult(r.binding.Copy(sourceNode, createdBy), r.state)
+}
+
+// HadError is true if there was an error resolving the export, false
+// otherwise.
+//
+// Java: ResolveExportResult.hadError()
+func (r *ResolveExportResult) HadError() bool {
+	return r.state == resolveExportResult_State_ERROR
+}
+
+// IsAmbiguous is true if the export is ambiguous, false otherwise.
+//
+// Java: ResolveExportResult.isAmbiguous()
+func (r *ResolveExportResult) IsAmbiguous() bool {
+	return r.state == resolveExportResult_State_AMBIGUOUS
+}
+
+// Resolved is true if the export was successfully resolved, false
+// otherwise.
+//
+// Java: ResolveExportResult.resolved()
+func (r *ResolveExportResult) Resolved() bool {
+	return r.state == resolveExportResult_State_RESOLVED
+}
+
+// Found is true if the export key exists on the given module, even if it is
+// ambiguous or had an error.
+//
+// Java: ResolveExportResult.found()
+func (r *ResolveExportResult) Found() bool {
+	return r.state != resolveExportResult_State_NOT_FOUND
+}
+
+// GetBinding may return nil.
+//
+// Java: ResolveExportResult.getBinding()
+func (r *ResolveExportResult) GetBinding() *Binding {
+	return r.binding
+}
+
+// ResolveExportResult_AMBIGUOUS: the result of resolving the export was
+// ambiguous.
+var ResolveExportResult_AMBIGUOUS = newResolveExportResult(nil, resolveExportResult_State_AMBIGUOUS)
+
+// ResolveExportResult_NOT_FOUND: the export was not found because the
+// module never exported the key.
+var ResolveExportResult_NOT_FOUND = newResolveExportResult(nil, resolveExportResult_State_NOT_FOUND)
+
+// ResolveExportResult_ERROR: there was an error resolving the export.
+var ResolveExportResult_ERROR = newResolveExportResult(nil, resolveExportResult_State_ERROR)
+
+// Java: ResolveExportResult.of(Binding)
+func ResolveExportResult_Of(binding *Binding) *ResolveExportResult {
+	jutil.CheckNotNull(binding)
+	return newResolveExportResult(binding, resolveExportResult_State_RESOLVED)
+}
+
+var (
+	nonEsEmptyBindingMap  = jutil.NewLinkedHashMap[string, *Binding]()
+	nonEsEmptyExportMap   = jutil.NewLinkedHashMap[string, *Export]()
+	nonEsEmptyExportedSet = jutil.NewLinkedHashSet[string]()
+)
+
+// NonEsModuleProcessor is the catch-all module processor for non-ES and
+// non-goog modules (including goog.provide'd names and CommonJS modules).
+type NonEsModuleProcessor struct{}
+
+var _ moduleProcessor = (*NonEsModuleProcessor)(nil)
+
+// Java: NonEsModuleProcessor()
+func NewNonEsModuleProcessor() *NonEsModuleProcessor {
+	return &NonEsModuleProcessor{}
+}
+
+type nonEsModule struct {
+	UnresolvedModuleBase
+
+	metadata   *ModuleMetadataMap_ModuleMetadata
+	path       *ModuleLoader_ModulePath
+	scriptNode rhino.Node
+}
+
+func (m *nonEsModule) ResolveExport(
+	moduleRequestResolver ModuleRequestResolver, exportName string) *ResolveExportResult {
+	panic(jutil.NewUnsupportedOperationException())
+}
+
+func (m *nonEsModule) ResolveExportWithTraces(
+	moduleRequestResolver ModuleRequestResolver,
+	moduleSpecifier string,
+	hasModuleSpecifier bool,
+	exportName string,
+	resolveSet *jutil.LinkedHashSet[ExportTrace],
+	exportStarSet *jutil.LinkedHashSet[UnresolvedModule]) *ResolveExportResult {
+	var namespace string
+	hasNamespace := false
+	if hasModuleSpecifier && GoogEsImports_IsGoogImportSpecifier(moduleSpecifier) {
+		namespace = GoogEsImports_GetClosureIdFromGoogImportSpecifier(moduleSpecifier)
+		hasNamespace = true
+	} else if m.metadata.IsGoogProvide() && hasModuleSpecifier {
+		namespace = moduleSpecifier
+		hasNamespace = true
+	}
+	if m.metadata.IsCommonJs() && exportName != "default" {
+		return ResolveExportResult_NOT_FOUND
+	}
+	b := Export_Builder_().
+		ExportName(exportName).
+		ModuleMetadata(m.metadata).
+		ModulePath(m.path)
+	if hasNamespace {
+		b = b.ClosureNamespace(namespace)
+	}
+	return ResolveExportResult_Of(Binding_From(b.Build(), m.scriptNode))
+}
+
+func (m *nonEsModule) Reset() {}
+
+func (m *nonEsModule) ResolveWithModuleSpecifier(
+	moduleRequestResolver ModuleRequestResolver, moduleSpecifier string, hasModuleSpecifier bool) *Module {
+	var namespace string
+	hasNamespace := false
+	if hasModuleSpecifier && GoogEsImports_IsGoogImportSpecifier(moduleSpecifier) {
+		namespace = GoogEsImports_GetClosureIdFromGoogImportSpecifier(moduleSpecifier)
+		hasNamespace = true
+	}
+	jutil.CheckNotNullMsg(m.metadata, "Null metadata")
+	return NewModule(
+		m.metadata,
+		m.path,
+		nonEsEmptyBindingMap,
+		nonEsEmptyBindingMap,
+		nonEsEmptyExportMap,
+		namespace,
+		hasNamespace)
+}
+
+func (m *nonEsModule) Metadata() *ModuleMetadataMap_ModuleMetadata {
+	return m.metadata
+}
+
+func (m *nonEsModule) GetExportedNames(moduleRequestResolver ModuleRequestResolver) *jutil.LinkedHashSet[string] {
+	panic(jutil.NewUnsupportedOperationException())
+}
+
+func (m *nonEsModule) GetExportedNamesWithVisited(
+	moduleRequestResolver ModuleRequestResolver, visited *jutil.LinkedHashSet[UnresolvedModule]) *jutil.LinkedHashSet[string] {
+	panic(jutil.NewUnsupportedOperationException())
+}
+
+// Java: NonEsModuleProcessor.process(ModuleMetadata, ModulePath, Node)
+func (p *NonEsModuleProcessor) Process(
+	metadata *ModuleMetadataMap_ModuleMetadata, path *ModuleLoader_ModulePath, script rhino.Node) UnresolvedModule {
+	m := &nonEsModule{
+		metadata:   metadata,
+		path:       path,
+		scriptNode: script,
+	}
+	m.InitUnresolvedModuleBase(m)
+	return m
 }

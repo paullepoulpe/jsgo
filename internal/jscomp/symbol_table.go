@@ -190,8 +190,8 @@ func (t *SymbolTable) GetEnclosingScope(n rhino.Node) *SymbolTable_SymbolScope {
 	}
 
 	for ; !current.IsNil(); current = current.GetParent() {
-		if t.scopes.ContainsKey(current) {
-			return t.scopes.Get(current)
+		if scope := t.scopes.Get(current); scope != nil {
+			return scope
 		}
 	}
 	return nil
@@ -346,10 +346,16 @@ func (t *SymbolTable) GetSymbolForInstancesOfFunction(fn rhino.FunctionType) *Sy
 
 // Java: SymbolTable.getSymbolForName(Node, String)
 func (t *SymbolTable) GetSymbolForName(source rhino.Node, name *string) *SymbolTable_Symbol {
-	if name == nil || t.globalScope == nil {
+	if name == nil {
 		return nil
 	}
-	nameStr := *name
+	return t.getSymbolForName(source, *name)
+}
+
+func (t *SymbolTable) getSymbolForName(source rhino.Node, nameStr string) *SymbolTable_Symbol {
+	if t.globalScope == nil {
+		return nil
+	}
 
 	var scope *SymbolTable_SymbolScope
 	if source.IsNil() {
@@ -386,7 +392,7 @@ func (t *SymbolTable) GetSymbolForName(source rhino.Node, name *string) *SymbolT
 		}
 		moduleNameWithDot := first + "."
 		if strings.HasPrefix(nameStr, moduleNameWithDot) {
-			nameStr = jutil.StringSubstringFrom(nameStr, jutil.StringLength(moduleNameWithDot))
+			nameStr = nameStr[len(moduleNameWithDot):]
 		}
 	}
 
@@ -480,10 +486,10 @@ func (t *SymbolTable) GetSymbolForTypeHelper(type_ rhino.JSType, linkToCtor bool
 func (t *SymbolTable) ToDebugStringTree() string {
 	// We are recursively going through scopes from global to nested and need to build parent =>
 	// children map as it doesn't exist at the moment.
-	childrenScopes := jutil.NewLinkedHashMap[*SymbolTable_SymbolScope, []*SymbolTable_SymbolScope]()
+	childrenScopes := make(map[*SymbolTable_SymbolScope][]*SymbolTable_SymbolScope)
 	for scope := range t.GetAllScopes() {
-		if scope.GetParentScope() != nil {
-			childrenScopes.Put(scope.GetParentScope(), append(childrenScopes.Get(scope.GetParentScope()), scope))
+		if parent := scope.GetParentScope(); parent != nil {
+			childrenScopes[parent] = append(childrenScopes[parent], scope)
 		}
 	}
 	var builder strings.Builder
@@ -496,15 +502,18 @@ func (t *SymbolTable) ToDebugStringTree() string {
 
 	// All objects/classes have property scopes. They usually don't have parents. These scopes
 	// confusingly are not included in "getAllScopes()" pass above.
-	visitedScopes := jutil.NewLinkedHashSet[*SymbolTable_SymbolScope]()
+	visitedScopes := make(map[*SymbolTable_SymbolScope]struct{})
 	for scope := range t.GetAllScopes() {
-		visitedScopes.Add(scope)
+		visitedScopes[scope] = struct{}{}
 	}
 	for _, symbol := range t.GetAllSymbols() {
-		if symbol.propertyScope == nil || visitedScopes.Contains(symbol.propertyScope) {
+		if symbol.propertyScope == nil {
 			continue
 		}
-		visitedScopes.Add(symbol.GetPropertyScope())
+		if _, visited := visitedScopes[symbol.propertyScope]; visited {
+			continue
+		}
+		visitedScopes[symbol.GetPropertyScope()] = struct{}{}
 		t.toDebugStringTree(&builder, "", symbol.propertyScope, childrenScopes)
 	}
 	return builder.String()
@@ -515,7 +524,7 @@ func (t *SymbolTable) toDebugStringTree(
 	builder *strings.Builder,
 	prefix string,
 	scope *SymbolTable_SymbolScope,
-	childrenScopes *jutil.LinkedHashMap[*SymbolTable_SymbolScope, []*SymbolTable_SymbolScope]) {
+	childrenScopes map[*SymbolTable_SymbolScope][]*SymbolTable_SymbolScope) {
 	builder.WriteString(prefix)
 	builder.WriteString(scope.String())
 	childrenPrefix := prefix + "    "
@@ -527,10 +536,10 @@ func (t *SymbolTable) toDebugStringTree(
 			t.toDebugString(builder, childrenPrefix, symbol /* printScope= */, false)
 		}
 	}
-	if childrenScopes.ContainsKey(scope) {
+	if children := childrenScopes[scope]; len(children) > 0 {
 		printedSomething = true
 		builder.WriteString("\n" + prefix + "  Scopes:\n")
-		for _, childScope := range childrenScopes.Get(scope) {
+		for _, childScope := range children {
 			t.toDebugStringTree(builder, childrenPrefix, childScope, childrenScopes)
 		}
 	}
@@ -629,14 +638,18 @@ func (t *SymbolTable) GetAllScopes() iter.Seq[*SymbolTable_SymbolScope] {
 //
 // Java: SymbolTable.addAnonymousFunctions()
 func (t *SymbolTable) AddAnonymousFunctions() {
-	scopes := jutil.NewTreeSet[*SymbolTable_SymbolScope](t.lexicalScopeOrdering)
+	var scopes []*SymbolTable_SymbolScope
 	for scope := range t.GetAllScopes() {
 		if scope.IsLexicalScope() {
-			scopes.Add(scope)
+			scopes = append(scopes, scope)
 		}
 	}
+	slices.SortFunc(scopes, t.lexicalScopeOrdering)
+	scopes = slices.CompactFunc(scopes, func(a, b *SymbolTable_SymbolScope) bool {
+		return t.lexicalScopeOrdering(a, b) == 0
+	})
 
-	for scope := range scopes.All() {
+	for _, scope := range scopes {
 		t.addAnonymousFunctionsInScope(scope)
 	}
 }
@@ -907,11 +920,11 @@ func (t *SymbolTable) mergeSymbol(from *SymbolTable_Symbol, to *SymbolTable_Symb
 // Java: SymbolTable.removeSymbol(Symbol)
 func (t *SymbolTable) removeSymbol(s *SymbolTable_Symbol) {
 	scope := t.GetScope(s)
-	if !s.Equals(scope.ownSymbols.Remove(s.GetName())) {
+	if scope.ownSymbols.Remove(s.GetName()) != s {
 		panic(jutil.NewIllegalStateExceptionMsg("Symbol not found in scope " + s.String()))
 	}
 	removed := t.symbols.Remove(symbolTableKey{declNode: s.GetDeclaration().GetNode(), name: s.GetName()})
-	if !s.Equals(removed) {
+	if removed != s {
 		panic(jutil.NewIllegalStateExceptionMsg("Symbol not found in table " + s.String()))
 	}
 	// If s declares a property scope then all child symbols should be removed as well.
@@ -919,7 +932,7 @@ func (t *SymbolTable) removeSymbol(s *SymbolTable_Symbol) {
 	// let foo = {a: 1, b: 2};
 	// foo declares property scope with a and b as its children. When removing foo we should also
 	// remove a and b.
-	if s.propertyScope != nil && s.Equals(s.propertyScope.GetSymbolForScope()) {
+	if s.propertyScope != nil && s.propertyScope.GetSymbolForScope() == s {
 		// Need to iterate over copy of values list because removeSymbol() will change the map
 		// and we'll get ConcurrentModificationException
 		for _, childSymbol := range slices.Collect(s.propertyScope.ownSymbols.Values()) {
@@ -979,11 +992,10 @@ func (t *SymbolTable) FillNamespaceReferences() {
 			for gp, ok := ast.AsGetProp(currentNode); ok; gp, ok = ast.AsGetProp(currentNode) {
 				currentNode = gp.Object().Node()
 
-				namePtr := currentNode.GetQualifiedName()
-				if namePtr == nil {
+				name, hasName := currentNode.GetQualifiedNameString()
+				if !hasName {
 					continue
 				}
-				name := *namePtr
 				namespace := t.isAnySymbolDeclared(name, currentNode, root.scope)
 				if namespace == nil {
 					namespace = root.scope.GetQualifiedSlot(name)
@@ -1083,7 +1095,7 @@ func (t *SymbolTable) FillPropertyScopes() {
 		if (type_.IsNominalConstructorOrInterface() ||
 			type_.IsFunctionPrototypeType() ||
 			type_.IsEnumType()) &&
-			!s.Equals(symbolForType) {
+			s != symbolForType {
 			// Some cases can't be handled by sorting. For example
 			//
 			// goog.module('some.Foo');
@@ -1106,7 +1118,7 @@ func (t *SymbolTable) FillPropertyScopes() {
 		type_ := t.getType(s)
 
 		// Create property scopes only based on "root" symbols for each type to handle aliases.
-		if type_ == nil || s.Equals(t.symbolThatDeclaresType[type_]) {
+		if type_ == nil || s == t.symbolThatDeclaresType[type_] {
 			t.createPropertyScopeFor(s)
 		}
 	}
@@ -1482,7 +1494,7 @@ func (c *symbolTable_superCollector) Visit(t *NodeTraversal, n rhino.Node, paren
 // pointing to the `class Foo` in `some.Foo` module.
 //
 // Java: SymbolTable.addRefsInGoogRequireStatement(Node, Map<String, SymbolScope>)
-func (t *SymbolTable) addRefsInGoogRequireStatement(n rhino.Node, googModuleScopes *jutil.LinkedHashMap[string, *SymbolTable_SymbolScope]) {
+func (t *SymbolTable) addRefsInGoogRequireStatement(n rhino.Node, googModuleScopes map[string]*SymbolTable_SymbolScope) {
 	if t.compiler.GetOptions().ShouldRewriteModules() {
 		// When modules are rewritten - there is no need to connect imported names back to definitions
 		// as that was done with the help of Preprocessor tables in ClosureRewriteModule pass.
@@ -1494,12 +1506,12 @@ func (t *SymbolTable) addRefsInGoogRequireStatement(n rhino.Node, googModuleScop
 	module := t.compiler.GetModuleMap().GetClosureModule(moduleName)
 	// Go-only: language-adapter — a null ModuleType (no module) makes the
 	// Java switch statements below throw a NullPointerException.
-	var moduleType *ModuleMetadataMap_ModuleType
-	if module != nil {
-		mt := module.Metadata().ModuleType()
-		moduleType = &mt
+	var moduleType ModuleMetadataMap_ModuleType
+	hasModuleType := module != nil
+	if hasModuleType {
+		moduleType = module.Metadata().ModuleType()
 	}
-	moduleScope := googModuleScopes.Get(moduleName)
+	moduleScope := googModuleScopes[moduleName]
 	if n.IsName() {
 		// This is `const Foo = goog.require('some.Foo');` case.
 		// The type of Foo is either a class/interface in which case we can find its symbol that
@@ -1510,10 +1522,10 @@ func (t *SymbolTable) addRefsInGoogRequireStatement(n rhino.Node, googModuleScop
 		}
 		// This import might be for a constant like `const constant = goog.require('some.constant');`.
 		// Try to find it in the corresponding definition in module.
-		if moduleType == nil {
+		if !hasModuleType {
 			panic(jutil.NewNullPointerException())
 		}
-		switch *moduleType {
+		switch moduleType {
 		case ModuleMetadataMap_ModuleType_GOOG_MODULE, ModuleMetadataMap_ModuleType_LEGACY_GOOG_MODULE:
 			// For goog.module search for 'exports' node and use that it as declaration. It would be
 			// better to use right-handside of exports: `exports = constant;` but it's difficult to
@@ -1524,7 +1536,7 @@ func (t *SymbolTable) addRefsInGoogRequireStatement(n rhino.Node, googModuleScop
 			declaration = moduleScope.GetOwnSlot("exports")
 		case ModuleMetadataMap_ModuleType_GOOG_PROVIDE:
 			// For goog.provide `some.constant` should be defined in global namespace.
-			declaration = t.GetSymbolForName(rhino.NilNode, &moduleName)
+			declaration = t.getSymbolForName(rhino.NilNode, moduleName)
 		default:
 			// skip
 		}
@@ -1545,18 +1557,17 @@ func (t *SymbolTable) addRefsInGoogRequireStatement(n rhino.Node, googModuleScop
 			var varDeclaration *SymbolTable_Symbol
 			// AST of goog.module and goog.provide differs significantly so we need to lookup variables
 			// differently.
-			if moduleType == nil {
+			if !hasModuleType {
 				panic(jutil.NewNullPointerException())
 			}
-			switch *moduleType {
+			switch moduleType {
 			case ModuleMetadataMap_ModuleType_GOOG_MODULE, ModuleMetadataMap_ModuleType_LEGACY_GOOG_MODULE:
 				if moduleScope == nil {
 					panic(jutil.NewNullPointerException())
 				}
 				varDeclaration = moduleScope.GetOwnSlot(varName)
 			case ModuleMetadataMap_ModuleType_GOOG_PROVIDE:
-				qname := moduleName + "." + varName
-				varDeclaration = t.GetSymbolForName(rhino.NilNode, &qname)
+				varDeclaration = t.getSymbolForName(rhino.NilNode, moduleName+"."+varName)
 			default:
 				// skip
 			}
@@ -1575,10 +1586,10 @@ func (t *SymbolTable) addRefsInGoogRequireStatement(n rhino.Node, googModuleScop
 func (t *SymbolTable) FillGoogProvideModuleRequires(externs rhino.Node, root rhino.Node) {
 	// small optimization to keep symbols created within this function for fast access instead of
 	// going through SymbolTable.getSymbolForName() every time.
-	declaredNamespaces := jutil.NewLinkedHashMap[string, *SymbolTable_Symbol]()
-	// Map containind goog.module names to Scope object representing them. For goog.provide
+	declaredNamespaces := make(map[string]*SymbolTable_Symbol)
+	// Map containing goog.module names to Scope object representing them. For goog.provide
 	// namespaces there is no scope as elements of goog.provide are global.
-	moduleScopes := jutil.NewLinkedHashMap[string, *SymbolTable_SymbolScope]()
+	moduleScopes := make(map[string]*SymbolTable_SymbolScope)
 	parseGoogCall := func(n rhino.Node) (method string, arg ast.StringLit, ok bool) {
 		call, ok := ast.AsCall(n)
 		if !ok {
@@ -1624,9 +1635,9 @@ func (t *SymbolTable) FillGoogProvideModuleRequires(externs rhino.Node, root rhi
 						t.GetGlobalScope(),
 						arg.Node(),
 						/* info= */ nil)
-				declaredNamespaces.Put(namespaceName, ns)
+				declaredNamespaces[namespaceName] = ns
 				if gp := parent.GetParent(); gp.IsModuleBody() {
-					moduleScopes.Put(modName, t.scopes.Get(gp))
+					moduleScopes[modName] = t.scopes.Get(gp)
 				}
 			default:
 				// do nothing. Some other goog.xyz call.
@@ -1642,7 +1653,7 @@ func (t *SymbolTable) FillGoogProvideModuleRequires(externs rhino.Node, root rhi
 			switch method {
 			case "require", "requireType", "forwardDeclare":
 				t.addRefsInGoogRequireStatement(parent, moduleScopes)
-				symbol := declaredNamespaces.Get(namespaceName)
+				symbol := declaredNamespaces[namespaceName]
 				// We expect that namespace was already processed by that point, but in some broken
 				// code it might be missing. In which case just skip it.
 				if symbol != nil {

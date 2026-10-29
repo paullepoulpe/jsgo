@@ -12,12 +12,12 @@ type embeddedLinkedGraph[N comparable, E any] struct {
 
 func newEmbeddedLinkedGraph[N comparable, E any]() *embeddedLinkedGraph[N, E] {
 	g := &embeddedLinkedGraph[N, E]{}
-	g.InitLinkedDirectedGraph(g, true, true)
+	g.Init(true, true)
 	return g
 }
 
 func TestFixedPointGraphTraversal_EmbeddedLinkedGraph(t *testing.T) {
-	var g DiGraph[string, string] = newEmbeddedLinkedGraph[string, string]()
+	g := newEmbeddedLinkedGraph[string, string]()
 	g.CreateNode("a")
 	g.CreateNode("b")
 	g.CreateNode("c")
@@ -39,7 +39,7 @@ func TestFixedPointGraphTraversal_EmbeddedLinkedGraph(t *testing.T) {
 }
 
 func TestFixedPointGraphTraversal_ReverseAndNilEntryHandling(t *testing.T) {
-	var g DiGraph[string, string] = newEmbeddedLinkedGraph[string, string]()
+	g := newEmbeddedLinkedGraph[string, string]()
 	g.CreateNode("a")
 	g.CreateNode("b")
 	g.Connect("a", "->", "b")

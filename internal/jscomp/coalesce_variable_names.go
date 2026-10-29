@@ -506,7 +506,7 @@ func (c *CoalesceVariableNames) IsNameInsideDestructuringAssignment(n rhino.Node
 // candidate variables in orderedVariables (guaranteed < MAX_VARIABLES_TO_ANALYZE = 100)
 // and greedily colors them with exact LinkedUndirectedGraph degree + tie-break order.
 func (c *CoalesceVariableNames) computeAndColorScope(
-	cfg ControlFlowGraph[rhino.Node],
+	cfg *ControlFlowGraph[rhino.Node],
 	escaped *jutil.ObjectLinkedHashSet[*Var],
 	state *coalesceScopeState,
 ) {
@@ -565,9 +565,8 @@ func (c *CoalesceVariableNames) computeAndColorScope(
 		lrc.isReadFromList = c.readFromBuf[:0]
 	}
 
-	cfgBase := cfg.GetControlFlowGraphBase()
-	implicitReturn, _ := cfgBase.implicitReturn.(*graph.LinkedDirectedGraph_LinkedDiGraphNode[rhino.Node, ControlFlowGraph_Branch])
-	for cfgNode := range cfgBase.Nodes.Values() {
+	implicitReturn := cfg.implicitReturn
+	for cfgNode := range cfg.Nodes.Values() {
 		if cfgNode != implicitReturn {
 			c.processCfgNodeBits128(cfgNode, interferenceBits)
 		}
@@ -643,7 +642,7 @@ func (c *CoalesceVariableNames) computeAndColorScope(
 }
 
 func (c *CoalesceVariableNames) processCfgNodeBits128(
-	cfgNode *graph.LinkedDirectedGraph_LinkedDiGraphNode[rhino.Node, ControlFlowGraph_Branch],
+	cfgNode *graph.LinkedDiGraphNode[rhino.Node, ControlFlowGraph_Branch],
 	interferenceBits [][2]uint64,
 ) {
 	state := c.liveness.FlowStateAt(cfgNode.Index)
@@ -809,7 +808,7 @@ func (c *CoalesceVariableNames) IsUninitializedLetNameInLoopBodyAndLive(nameNode
 	}
 	jutil.CheckState(c.liveness != nil)
 	letNode := nameNode.GetParent()
-	cfgNode := jutil.CheckNotNull(c.liveness.GetCfg().GetControlFlowGraphBase().Nodes.Get(letNode))
+	cfgNode := jutil.CheckNotNull(c.liveness.GetCfg().Nodes.Get(letNode))
 	state := c.liveness.FlowStateAt(cfgNode.Index)
 	varIndex := c.liveness.GetVarIndex(originalVar.GetName())
 	return varIndex >= 0 && state.GetOut().IsLive(varIndex)

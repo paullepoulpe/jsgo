@@ -66,10 +66,10 @@ func Base64_FromBase64(c uint16) int32 {
 //
 // Java: Base64.base64EncodeInt(int)
 func Base64_Base64EncodeInt(value int32) string {
-	c := make([]uint16, 6)
+	var c [6]byte
 	for i := 0; i < 5; i++ {
-		c[i] = Base64_ToBase64(jutil.Shr32(value, int64(26-i*6)) & 0x3f)
+		c[i] = byte(Base64_ToBase64(jutil.Shr32(value, int64(26-i*6)) & 0x3f))
 	}
-	c[5] = Base64_ToBase64(jutil.Shl32(value, 4) & 0x3f)
-	return jutil.StringFromUTF16(c)
+	c[5] = byte(Base64_ToBase64(jutil.Shl32(value, 4) & 0x3f))
+	return string(c[:])
 }

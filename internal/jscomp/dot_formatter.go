@@ -55,7 +55,7 @@ type DotFormatter struct {
 	// the builder used to generate the dot diagram
 	builder jutil.Appendable
 
-	cfg ControlFlowGraph[rhino.Node] // nil is null
+	cfg *ControlFlowGraph[rhino.Node] // nil is null
 
 	printAnnotations bool
 }
@@ -72,7 +72,7 @@ func NewDotFormatter() *DotFormatter {
 
 // Java: DotFormatter(Node, ControlFlowGraph<Node>, Appendable, boolean)
 func NewDotFormatterWithGraph(
-	n rhino.Node, cfg ControlFlowGraph[rhino.Node], builder jutil.Appendable, printAnnotations bool) *DotFormatter {
+	n rhino.Node, cfg *ControlFlowGraph[rhino.Node], builder jutil.Appendable, printAnnotations bool) *DotFormatter {
 	f := &DotFormatter{
 		assignments:      make(map[rhino.Node]int),
 		cfg:              cfg,
@@ -102,7 +102,7 @@ func DotFormatter_ToDot(n rhino.Node) string {
 // the Control Flow Graph. Returns the dot representation of the AST.
 //
 // Java: DotFormatter.toDot(Node, ControlFlowGraph<Node>)
-func DotFormatter_ToDotWithCfg(n rhino.Node, inCFG ControlFlowGraph[rhino.Node]) string {
+func DotFormatter_ToDotWithCfg(n rhino.Node, inCFG *ControlFlowGraph[rhino.Node]) string {
 	builder := jutil.NewStringBuilder()
 	_ = NewDotFormatterWithGraph(n, inCFG, builder, false)
 	return builder.String()
@@ -191,7 +191,7 @@ func DotFormatter_ToDotOfGraphvizGraph(gvGraph graph.GraphvizGraph) string {
 // the Control Flow Graph; builder is a place to dump the graph.
 //
 // Java: DotFormatter.appendDot(Node, ControlFlowGraph<Node>, Appendable)
-func DotFormatter_AppendDot(n rhino.Node, inCFG ControlFlowGraph[rhino.Node], builder jutil.Appendable) {
+func DotFormatter_AppendDot(n rhino.Node, inCFG *ControlFlowGraph[rhino.Node], builder jutil.Appendable) {
 	_ = NewDotFormatterWithGraph(n, inCFG, builder, false)
 }
 

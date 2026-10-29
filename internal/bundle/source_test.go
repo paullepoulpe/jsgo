@@ -64,8 +64,7 @@ func jsaGroup[T jsaHashable](xs ...T) []jsaHashable {
 
 func TestSource_Equals(t *testing.T) {
 	foo := Source_Builder_().SetCode("foo").Build()
-	flags := jutil.NewLinkedHashMap[string, string]()
-	flags.Put("x", "y")
+	flags := map[string]string{"x": "y"}
 	jsaEqualsTester(t,
 		jsaGroup(Source_Builder_().Build(), Source_Builder_().Build()),
 		jsaGroup(
@@ -85,7 +84,7 @@ func TestSource_Equals(t *testing.T) {
 		jsaGroup(foo.ToBuilder().SetSourceMappingUrl("foo").Build()),
 		jsaGroup(foo.ToBuilder().SetEstimatedSize(12).Build()),
 		jsaGroup(foo.ToBuilder().SetLoadFlags(flags).Build()),
-		jsaGroup(foo.ToBuilder().SetRuntimes(jutil.NewLinkedHashSet("x")).Build()))
+		jsaGroup(foo.ToBuilder().SetRuntimes([]string{"x"}).Build()))
 }
 
 func TestSource_Code(t *testing.T) {
@@ -107,8 +106,8 @@ func TestSource_Original(t *testing.T) {
 
 func TestSource_Runtimes(t *testing.T) {
 	foo := Source_Builder_().AddRuntime("foo").Build()
-	jsaDeepEq(t, foo.Runtimes().ToSlice(), []string{"foo"})
-	jsaDeepEq(t, foo.ToBuilder().AddRuntime("bar").Build().Runtimes().ToSlice(), []string{"foo", "bar"})
-	jsaDeepEq(t, foo.ToBuilder().AddRuntime("bar").AddRuntime("baz").Build().Runtimes().ToSlice(), []string{"foo", "bar", "baz"})
-	jsaDeepEq(t, foo.ToBuilder().AddRuntime("bar").AddRuntime("foo").Build().Runtimes().ToSlice(), []string{"foo", "bar"})
+	jsaDeepEq(t, foo.Runtimes(), []string{"foo"})
+	jsaDeepEq(t, foo.ToBuilder().AddRuntime("bar").Build().Runtimes(), []string{"foo", "bar"})
+	jsaDeepEq(t, foo.ToBuilder().AddRuntime("bar").AddRuntime("baz").Build().Runtimes(), []string{"foo", "bar", "baz"})
+	jsaDeepEq(t, foo.ToBuilder().AddRuntime("bar").AddRuntime("foo").Build().Runtimes(), []string{"foo", "bar"})
 }

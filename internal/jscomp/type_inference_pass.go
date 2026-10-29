@@ -246,7 +246,7 @@ func (c *TypeInferencePass_SecondScopeBuildingCallback) Visit(t *NodeTraversal, 
 }
 
 // Java: TypeInferencePass.computeCfg(Node)
-func (p *TypeInferencePass) ComputeCfg(n rhino.Node) ControlFlowGraph[rhino.Node] {
+func (p *TypeInferencePass) ComputeCfg(n rhino.Node) *ControlFlowGraph[rhino.Node] {
 	return p.reusableCfg.Compute(
 		p.compiler,
 		n,

@@ -126,7 +126,7 @@ func (r *ReachingUseDefTester) computeFunctionBlockScope(script rhino.Node, fn r
 }
 
 // Java: ReachingUseDefTester.computeCfg(Node)
-func (r *ReachingUseDefTester) computeCfg(fn rhino.Node) ControlFlowGraph[rhino.Node] {
+func (r *ReachingUseDefTester) computeCfg(fn rhino.Node) *ControlFlowGraph[rhino.Node] {
 	return ControlFlowAnalysis_Builder_().
 		SetCompiler(r.compiler).
 		SetCfgRoot(fn).

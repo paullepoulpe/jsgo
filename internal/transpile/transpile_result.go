@@ -18,7 +18,13 @@
 
 package transpile
 
-import "github.com/paullepoulpe/jsgo/internal/jutil"
+import (
+	"encoding/base64"
+	"strings"
+	"unicode/utf8"
+
+	"github.com/paullepoulpe/jsgo/internal/jutil"
+)
 
 // TranspileResult is the result of transpiling a single file. Includes
 // transpiled and original source, and an optional source map.
@@ -67,16 +73,75 @@ func (r *TranspileResult) EmbedSourcemapUrl(url string) *TranspileResult {
 	return NewTranspileResult(r.path, r.original, embedded, r.sourceMap)
 }
 
-// sourcemaps must escape :, and cannot escape space as +, so we need a
-// custom escaper.
-var transpileResult_ESCAPER jutil.Escaper = jutil.NewPercentEscaper("-_.*" /* plusForSpace= */, false)
+const sourceMapPercentHex = "0123456789ABCDEF"
+
+func isSafeSourceMapPercentByte(b byte) bool {
+	return (b >= 'a' && b <= 'z') ||
+		(b >= 'A' && b <= 'Z') ||
+		(b >= '0' && b <= '9') ||
+		b == '-' || b == '_' || b == '.' || b == '*'
+}
+
+// percentEscapeSourceMap implements PercentEscaper("-_.*", false): ASCII
+// alphanumerics and "-_.*" are left unescaped; all other code points (including
+// ':' and ' ') are UTF-8 percent-encoded with uppercase hex digits.
+func percentEscapeSourceMap(s string) string {
+	firstUnsafe := -1
+	for i := 0; i < len(s); i++ {
+		if !isSafeSourceMapPercentByte(s[i]) {
+			firstUnsafe = i
+			break
+		}
+	}
+	if firstUnsafe < 0 {
+		return s
+	}
+
+	var sb strings.Builder
+	sb.Grow(len(s) + (len(s)-firstUnsafe)*2)
+	sb.WriteString(s[:firstUnsafe])
+
+	for i := firstUnsafe; i < len(s); {
+		b := s[i]
+		if isSafeSourceMapPercentByte(b) {
+			start := i
+			i++
+			for i < len(s) && isSafeSourceMapPercentByte(s[i]) {
+				i++
+			}
+			sb.WriteString(s[start:i])
+			continue
+		}
+		if b < 0x80 {
+			sb.WriteByte('%')
+			sb.WriteByte(sourceMapPercentHex[b>>4])
+			sb.WriteByte(sourceMapPercentHex[b&0x0F])
+			i++
+			continue
+		}
+		// Reject unpaired WTF-8 surrogates (0xED 0xA0..0xBF 0x80..0xBF) to match
+		// Guava UnicodeEscaper.codePointAt.
+		if b == 0xED && i+2 < len(s) && s[i+1] >= 0xA0 && s[i+1] <= 0xBF && s[i+2] >= 0x80 && s[i+2] <= 0xBF {
+			panic(jutil.NewIllegalArgumentExceptionMsg("Unpaired surrogate in percent-escaped string"))
+		}
+		_, width := utf8.DecodeRuneInString(s[i:])
+		for k := 0; k < width; k++ {
+			oct := s[i+k]
+			sb.WriteByte('%')
+			sb.WriteByte(sourceMapPercentHex[oct>>4])
+			sb.WriteByte(sourceMapPercentHex[oct&0x0F])
+		}
+		i += width
+	}
+	return sb.String()
+}
 
 // Java: TranspileResult.embedSourcemap()
 func (r *TranspileResult) EmbedSourcemap() *TranspileResult {
 	if r.sourceMap == "" {
 		return r
 	}
-	embedded := r.transpiled + "\n//# sourceMappingURL=data:," + transpileResult_ESCAPER.Escape(r.sourceMap) + "\n"
+	embedded := r.transpiled + "\n//# sourceMappingURL=data:," + percentEscapeSourceMap(r.sourceMap) + "\n"
 	return NewTranspileResult(r.path, r.original, embedded, "")
 }
 
@@ -87,7 +152,7 @@ func (r *TranspileResult) EmbedSourcemapBase64() *TranspileResult {
 	}
 	embedded := r.transpiled +
 		"\n//# sourceMappingURL=data:application/json;base64," +
-		jutil.BaseEncoding_Base64().Encode(jutil.StringGetBytesUTF8(r.sourceMap)) +
+		base64.StdEncoding.EncodeToString(jutil.StringGetBytesUTF8(r.sourceMap)) +
 		"\n"
 	return NewTranspileResult(r.path, r.original, embedded, "")
 }

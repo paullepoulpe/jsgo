@@ -30,7 +30,7 @@ import (
 // `any` here so that null is representable (nil).
 
 func TestGraphColoring_NoEdge(t *testing.T) {
-	var graph Graph[string, any] = LinkedUndirectedGraph_Create[string, any]()
+	graph := LinkedUndirectedGraph_Create[string, any]()
 	for i := 0; i < 5; i++ {
 		graph.CreateNode("Node " + strconv.Itoa(i))
 		// All node with same color.
@@ -44,7 +44,7 @@ func TestGraphColoring_NoEdge(t *testing.T) {
 }
 
 func TestGraphColoring_TwoNodesConnected(t *testing.T) {
-	var graph Graph[string, any] = LinkedUndirectedGraph_Create[string, any]()
+	graph := LinkedUndirectedGraph_Create[string, any]()
 	graph.CreateNode("A")
 	graph.CreateNode("B")
 	graph.Connect("A", "--", "B")
@@ -56,7 +56,7 @@ func TestGraphColoring_TwoNodesConnected(t *testing.T) {
 }
 
 func TestGraphColoring_Greedy(t *testing.T) {
-	var graph Graph[string, any] = LinkedUndirectedGraph_Create[string, any]()
+	graph := LinkedUndirectedGraph_Create[string, any]()
 	graph.CreateNode("A")
 	graph.CreateNode("B")
 	graph.CreateNode("C")
@@ -74,7 +74,7 @@ func TestGraphColoring_Greedy(t *testing.T) {
 
 func TestGraphColoring_FullyConnected(t *testing.T) {
 	const count = 100
-	var graph Graph[string, any] = LinkedUndirectedGraph_Create[string, any]()
+	graph := LinkedUndirectedGraph_Create[string, any]()
 	for i := 0; i < count; i++ {
 		graph.CreateNode("Node " + strconv.Itoa(i))
 		for j := 0; j < count; j++ {
@@ -94,7 +94,7 @@ func TestGraphColoring_FullyConnected(t *testing.T) {
 
 func TestGraphColoring_AllConnectedToOneNode(t *testing.T) {
 	const count = 10
-	var graph Graph[string, any] = LinkedUndirectedGraph_Create[string, any]()
+	graph := LinkedUndirectedGraph_Create[string, any]()
 	graph.CreateNode("Center")
 	for i := 0; i < count; i++ {
 		graph.CreateNode("Node " + strconv.Itoa(i))
@@ -112,7 +112,7 @@ func TestGraphColoring_AllConnectedToOneNode(t *testing.T) {
 func TestGraphColoring_TwoFullyConnected(t *testing.T) {
 	const count = 100
 	// A graph with two disconnected disjunct cliques.
-	var graph Graph[string, any] = LinkedUndirectedGraph_Create[string, any]()
+	graph := LinkedUndirectedGraph_Create[string, any]()
 	for i := 0; i < count; i++ {
 		graph.CreateNode("Node Left " + strconv.Itoa(i))
 		graph.CreateNode("Node Right " + strconv.Itoa(i))
@@ -142,7 +142,7 @@ func TestGraphColoring_TwoFullyConnected(t *testing.T) {
 
 func TestGraphColoring_Deterministic(t *testing.T) {
 	// A pentagon.
-	var graph Graph[string, any] = LinkedUndirectedGraph_Create[string, any]()
+	graph := LinkedUndirectedGraph_Create[string, any]()
 	graph.CreateNode("A")
 	graph.CreateNode("B")
 	graph.CreateNode("C")
@@ -173,7 +173,7 @@ func TestGraphColoring_Deterministic(t *testing.T) {
 
 // graphColoringTest_validateColoring validates that each node has been
 // colored and connected nodes have different coloring.
-func graphColoringTest_validateColoring[N, E any](t *testing.T, graph Graph[N, E]) {
+func graphColoringTest_validateColoring[N comparable, E any](t *testing.T, graph *LinkedUndirectedGraph[N, E]) {
 	t.Helper()
 	for _, node := range graph.GetNodes() {
 		if node.GetAnnotation() == nil {

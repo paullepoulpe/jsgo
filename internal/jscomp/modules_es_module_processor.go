@@ -80,7 +80,7 @@ func newEsFindMutableExports(exports []*Export) *esFindMutableExports {
 	if len(exports) > 0 {
 		f.exportsByLocalName = make(map[string][]*Export, len(exports))
 		for _, e := range exports {
-			name := *e.LocalName()
+			name := e.LocalName()
 			f.exportsByLocalName[name] = append(f.exportsByLocalName[name], e)
 		}
 	}
@@ -104,7 +104,7 @@ func (f *esFindMutableExports) Visit(t *NodeTraversal, n rhino.Node, parent rhin
 		return
 	}
 	for idx, e := range exports {
-		i := slices.IndexFunc(f.exports, func(x *Export) bool { return e.Equals(x) })
+		i := slices.Index(f.exports, e)
 		mutated := e.MutatedCopy()
 		f.exports[i] = mutated
 		exports[idx] = mutated
@@ -140,11 +140,11 @@ func (b *esUnresolvedModuleBuilder) addImport(i *Import) {
 }
 
 func (b *esUnresolvedModuleBuilder) addExport(e *Export) bool {
-	if e.ExportName() == nil {
+	if !e.HasExportName() {
 		b.exports = append(b.exports, e)
 		return true
 	}
-	name := *e.ExportName()
+	name := e.ExportName()
 	if _, ok := b.exportedNames[name]; ok {
 		return false
 	}
@@ -159,15 +159,15 @@ func (b *esUnresolvedModuleBuilder) build() UnresolvedModule {
 	var starExports []*Export
 
 	for _, ee := range b.exports {
-		if ee.ModuleRequest() == nil {
-			if ee.LocalName() != nil {
-				if _, isImport := b.importsByLocalName[*ee.LocalName()]; isImport {
+		if !ee.HasModuleRequest() {
+			if ee.HasLocalName() {
+				if _, isImport := b.importsByLocalName[ee.LocalName()]; isImport {
 					indirectExports = append(indirectExports, ee)
 					continue
 				}
 			}
 			localExports = append(localExports, ee)
-		} else if ee.ImportName() != nil && *ee.ImportName() == "*" {
+		} else if ee.HasImportName() && ee.ImportName() == "*" {
 			starExports = append(starExports, ee)
 		} else {
 			indirectExports = append(indirectExports, ee)
@@ -217,16 +217,16 @@ func (m *unresolvedEsModule) Reset() {
 }
 
 func (m *unresolvedEsModule) ResolveWithModuleSpecifier(
-	moduleRequestResolver ModuleRequestResolver, moduleSpecifier *string) *Module {
+	moduleRequestResolver ModuleRequestResolver, moduleSpecifier string, hasModuleSpecifier bool) *Module {
 	if m.resolved == nil {
 		boundNames := m.getAllResolvedImports(moduleRequestResolver)
 		localNameToLocalExport := jutil.NewLinkedHashMap[string, *Export]()
 
 		for _, e := range m.localExports {
-			localName := *e.LocalName()
+			localName := e.LocalName()
 			localNameToLocalExport.Put(localName, e)
 			if localName != Export_DEFAULT_EXPORT_NAME {
-				b := m.ResolveExport(moduleRequestResolver, *e.ExportName())
+				b := m.ResolveExport(moduleRequestResolver, e.ExportName())
 				jutil.CheckStateMsg(b.Resolved(), "Cannot have invalid missing own export!")
 				if !b.IsAmbiguous() {
 					boundNames.Put(localName, jutil.CheckNotNull(b.GetBinding()))
@@ -235,7 +235,7 @@ func (m *unresolvedEsModule) ResolveWithModuleSpecifier(
 		}
 
 		namespace := m.getAllResolvedExports(moduleRequestResolver)
-		m.resolved = NewModule(m.metadata, m.path, namespace, boundNames, localNameToLocalExport, nil)
+		m.resolved = NewModule(m.metadata, m.path, namespace, boundNames, localNameToLocalExport, "", false)
 	}
 	return m.resolved
 }
@@ -314,18 +314,17 @@ func (m *unresolvedEsModule) resolveImportImpl(
 					i.ModuleRequest()))
 			return ResolveExportResult_ERROR
 		}
-		var closureNamespace *string
+		var closureNamespace string
 		if isGoogSpec {
-			ns := GoogEsImports_GetClosureIdFromGoogImportSpecifier(i.ModuleRequest())
-			closureNamespace = &ns
+			closureNamespace = GoogEsImports_GetClosureIdFromGoogImportSpecifier(i.ModuleRequest())
 		}
-		return ResolveExportResult_Of(Binding_FromImportStar(reqMeta, closureNamespace, i.NameNode()))
+		return ResolveExportResult_Of(Binding_FromImportStar(reqMeta, closureNamespace, isGoogSpec, i.NameNode()))
 	}
 
-	moduleRequest := i.ModuleRequest()
 	result := requested.ResolveExportWithTraces(
 		moduleRequestResolver,
-		&moduleRequest,
+		i.ModuleRequest(),
+		true,
 		i.ImportName(),
 		resolveSet,
 		exportStarSet)
@@ -382,10 +381,10 @@ func (m *unresolvedEsModule) GetExportedNamesWithVisited(
 	}
 
 	for _, e := range m.localExports {
-		addName(*e.ExportName())
+		addName(e.ExportName())
 	}
 	for _, e := range m.indirectExports {
-		addName(*e.ExportName())
+		addName(e.ExportName())
 	}
 	for _, e := range m.starExports {
 		requested := moduleRequestResolver.ResolveWithExport(e)
@@ -444,7 +443,7 @@ func (m *unresolvedEsModule) resolveExportWithSets(
 	}
 
 	for _, e := range m.localExports {
-		if e.ExportName() != nil && exportName == *e.ExportName() {
+		if e.HasExportName() && exportName == e.ExportName() {
 			forSourceInfo := e.ExportNode()
 			if !e.NameNode().IsNil() {
 				forSourceInfo = e.NameNode()
@@ -454,10 +453,10 @@ func (m *unresolvedEsModule) resolveExportWithSets(
 	}
 
 	for _, e := range m.indirectExports {
-		if e.ExportName() != nil && exportName == *e.ExportName() {
-			if e.LocalName() != nil {
-				if _, isImport := m.importsByLocalName[*e.LocalName()]; isImport {
-					return m.resolveImportWithSets(moduleRequestResolver, *e.LocalName(), resolveSet, exportStarSet).
+		if e.HasExportName() && exportName == e.ExportName() {
+			if e.HasLocalName() {
+				if _, isImport := m.importsByLocalName[e.LocalName()]; isImport {
+					return m.resolveImportWithSets(moduleRequestResolver, e.LocalName(), resolveSet, exportStarSet).
 						Copy(e.NameNode(), Binding_CreatedBy_EXPORT)
 				}
 			}
@@ -468,7 +467,8 @@ func (m *unresolvedEsModule) resolveExportWithSets(
 			result := requested.ResolveExportWithTraces(
 				moduleRequestResolver,
 				e.ModuleRequest(),
-				*e.ImportName(),
+				e.HasModuleRequest(),
+				e.ImportName(),
 				resolveSet,
 				exportStarSet)
 			if !result.Found() && !result.HadError() {
@@ -479,7 +479,7 @@ func (m *unresolvedEsModule) resolveExportWithSets(
 						e.ExportNode().GetLineno(),
 						e.ExportNode().GetCharno(),
 						ModuleMapCreator_DOES_NOT_HAVE_EXPORT,
-						*e.ImportName()))
+						e.ImportName()))
 				return ResolveExportResult_ERROR
 			} else if result.IsAmbiguous() {
 				srcName := m.path.String()
@@ -489,7 +489,7 @@ func (m *unresolvedEsModule) resolveExportWithSets(
 						e.ExportNode().GetLineno(),
 						e.ExportNode().GetCharno(),
 						EsModuleProcessor_IMPORTED_AMBIGUOUS_EXPORT,
-						*e.ImportName()))
+						e.ImportName()))
 			}
 			return result.Copy(e.NameNode(), Binding_CreatedBy_EXPORT)
 		}
@@ -513,7 +513,7 @@ func (m *unresolvedEsModule) resolveExportWithSets(
 		}
 		if requested.GetExportedNames(moduleRequestResolver).Contains(exportName) {
 			resolution := requested.ResolveExportWithTraces(
-				moduleRequestResolver, e.ModuleRequest(), exportName, resolveSet, exportStarSet)
+				moduleRequestResolver, e.ModuleRequest(), e.HasModuleRequest(), exportName, resolveSet, exportStarSet)
 			if resolution.HadError() || resolution.IsAmbiguous() {
 				return resolution
 			}
@@ -533,7 +533,8 @@ func (m *unresolvedEsModule) resolveExportWithSets(
 
 func (m *unresolvedEsModule) ResolveExportWithTraces(
 	moduleRequestResolver ModuleRequestResolver,
-	moduleSpecifier *string,
+	moduleSpecifier string,
+	hasModuleSpecifier bool,
 	exportName string,
 	resolveSet *jutil.LinkedHashSet[ExportTrace],
 	exportStarSet *jutil.LinkedHashSet[UnresolvedModule]) *ResolveExportResult {
@@ -585,14 +586,10 @@ func (p *EsModuleProcessor) Visit(t *NodeTraversal, n rhino.Node, parent rhino.N
 func (p *EsModuleProcessor) visitExportAllFrom(t *NodeTraversal, export ast.Export) {
 	source, ok := export.Source()
 	jutil.CheckState(ok)
-	moduleRequest := source.Value()
-	importName := "*"
 	p.currentModuleBuilder.addExport(
 		Export_Builder_().
-			ExportName(nil).
-			ModuleRequest(&moduleRequest).
-			ImportName(&importName).
-			LocalName(nil).
+			ModuleRequest(source.Value()).
+			ImportName("*").
 			ModulePath(t.GetInput().GetPath()).
 			ExportNode(export.Node()).
 			ModuleMetadata(p.metadata).
@@ -612,13 +609,10 @@ func (p *EsModuleProcessor) visitExportDefault(t *NodeTraversal, export ast.Expo
 		}
 	}
 
-	exportName := Export_DEFAULT
 	if !p.currentModuleBuilder.addExport(
 		Export_Builder_().
-			ExportName(&exportName).
-			ModuleRequest(nil).
-			ImportName(nil).
-			LocalName(&name).
+			ExportName(Export_DEFAULT).
+			LocalName(name).
 			ModulePath(t.GetInput().GetPath()).
 			ExportNode(export.Node()).
 			ModuleMetadata(p.metadata).
@@ -629,15 +623,12 @@ func (p *EsModuleProcessor) visitExportDefault(t *NodeTraversal, export ast.Expo
 
 func (p *EsModuleProcessor) visitExportFrom(t *NodeTraversal, export ast.Export, specs ast.ExportSpecs, moduleRequest string) {
 	for spec := range specs.Specs() {
-		importName := spec.Local().Ident()
 		exportedName := spec.Exported().Ident()
-		req := moduleRequest
 		if !p.currentModuleBuilder.addExport(
 			Export_Builder_().
-				ExportName(&exportedName).
-				ModuleRequest(&req).
-				ImportName(&importName).
-				LocalName(nil).
+				ExportName(exportedName).
+				ModuleRequest(moduleRequest).
+				ImportName(spec.Local().Ident()).
 				ModulePath(t.GetInput().GetPath()).
 				ExportNode(export.Node()).
 				NameNode(spec.Local().Node()).
@@ -650,14 +641,11 @@ func (p *EsModuleProcessor) visitExportFrom(t *NodeTraversal, export ast.Export,
 
 func (p *EsModuleProcessor) visitExportSpecs(t *NodeTraversal, export ast.Export, specs ast.ExportSpecs) {
 	for spec := range specs.Specs() {
-		localName := spec.Local().Ident()
 		exportedName := spec.Exported().Ident()
 		if !p.currentModuleBuilder.addExport(
 			Export_Builder_().
-				ExportName(&exportedName).
-				ModuleRequest(nil).
-				ImportName(nil).
-				LocalName(&localName).
+				ExportName(exportedName).
+				LocalName(spec.Local().Ident()).
 				ModulePath(t.GetInput().GetPath()).
 				ExportNode(export.Node()).
 				NameNode(spec.Local().Node()).
@@ -671,10 +659,8 @@ func (p *EsModuleProcessor) visitExportSpecs(t *NodeTraversal, export ast.Export
 func (p *EsModuleProcessor) addLocalDeclExport(t *NodeTraversal, name string, nameNode rhino.Node, exportNode rhino.Node) {
 	if !p.currentModuleBuilder.addExport(
 		Export_Builder_().
-			ExportName(&name).
-			ModuleRequest(nil).
-			ImportName(nil).
-			LocalName(&name).
+			ExportName(name).
+			LocalName(name).
 			ModulePath(t.GetInput().GetPath()).
 			ExportNode(exportNode).
 			NameNode(nameNode).
@@ -720,39 +706,18 @@ func (p *EsModuleProcessor) visitImport(t *NodeTraversal, importNode rhino.Node)
 
 	if defaultName, ok := imp.Default(); ok {
 		p.currentModuleBuilder.addImport(
-			Import_Builder_().
-				ModuleRequest(moduleRequest).
-				ImportName(Export_DEFAULT).
-				LocalName(defaultName.Ident()).
-				ModulePath(modulePath).
-				ImportNode(importNode).
-				NameNode(defaultName.Node()).
-				Build())
+			NewImport(moduleRequest, Export_DEFAULT, defaultName.Ident(), modulePath, importNode, defaultName.Node()))
 	}
 
 	if bindings, ok := imp.Bindings(); ok {
 		if specs, ok := bindings.AsImportSpecs(); ok {
 			for spec := range specs.Specs() {
 				p.currentModuleBuilder.addImport(
-					Import_Builder_().
-						ModuleRequest(moduleRequest).
-						ImportName(spec.Imported().Ident()).
-						LocalName(spec.Local().Ident()).
-						ModulePath(modulePath).
-						ImportNode(importNode).
-						NameNode(spec.Local().Node()).
-						Build())
+					NewImport(moduleRequest, spec.Imported().Ident(), spec.Local().Ident(), modulePath, importNode, spec.Local().Node()))
 			}
 		} else if star, ok := bindings.AsImportStar(); ok {
 			p.currentModuleBuilder.addImport(
-				Import_Builder_().
-					ModuleRequest(moduleRequest).
-					ImportName("*").
-					LocalName(star.Ident()).
-					ImportNode(importNode).
-					ModulePath(modulePath).
-					NameNode(star.Node()).
-					Build())
+				NewImport(moduleRequest, "*", star.Ident(), modulePath, importNode, star.Node()))
 		}
 	}
 }

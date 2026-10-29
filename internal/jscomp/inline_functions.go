@@ -34,9 +34,9 @@ import (
 // dropped when the run ends.
 type inlineFunctionsRunState struct {
 	fns         *jutil.LinkedHashMap[string, *InlineFunctions_FunctionState]
-	anonFns     *jutil.LinkedHashMap[rhino.Node, string]
+	anonFns     map[rhino.Node]string
 	fnNames     map[string]bool
-	calledNames *jutil.LinkedHashSet[string]
+	calledIDs   inlineIDSet
 	refsScratch []*FunctionInjector_Reference
 	movedArgs   map[rhino.Node]struct{}
 	references  jutil.Slab[FunctionInjector_Reference] // one run's references die together
@@ -61,7 +61,7 @@ type InlineFunctions struct {
 	// to ensure that this doesn't produce invalid code. But in the long run,
 	// this needs a major refactor.
 	fns     *jutil.LinkedHashMap[string, *InlineFunctions_FunctionState]
-	anonFns *jutil.LinkedHashMap[rhino.Node, string]
+	anonFns map[rhino.Node]string
 
 	compiler AbstractCompiler
 
@@ -133,15 +133,32 @@ func NewInlineFunctions(
 func (f *InlineFunctions) ensureRunState() *inlineFunctionsRunState {
 	if f.runState == nil {
 		p := &inlineFunctionsRunState{
-			fns:         jutil.NewLinkedHashMap[string, *InlineFunctions_FunctionState](),
-			anonFns:     jutil.NewLinkedHashMap[rhino.Node, string](),
-			calledNames: jutil.NewLinkedHashSet[string](),
+			fns: jutil.NewLinkedHashMap[string, *InlineFunctions_FunctionState](),
 		}
 		f.runState = p
 		f.fns = p.fns
-		f.anonFns = p.anonFns
+		f.anonFns = nil
 	}
 	return f.runState
+}
+
+func (f *InlineFunctions) putAnonFn(fnNode rhino.Node, name string) {
+	p := f.ensureRunState()
+	if p.anonFns == nil {
+		p.anonFns = make(map[rhino.Node]string, 8)
+		f.anonFns = p.anonFns
+	}
+	p.anonFns[fnNode] = name
+}
+
+func functionStateAliasCount(fs *InlineFunctions_FunctionState) int {
+	if fs.summary != nil {
+		return int(fs.summary.numModified)
+	}
+	if fs.namesToAlias != nil {
+		return fs.namesToAlias.Size()
+	}
+	return 0
 }
 
 func (f *InlineFunctions) allocReference(callNode rhino.Node, scope *Scope, chunk *JSChunk, mode FunctionInjector_InliningMode) *FunctionInjector_Reference {
@@ -468,7 +485,7 @@ func (c *InlineFunctions_FindCandidateFunctions) findFunctionExpressionsWithChun
 			c.callsSeen++
 			target := newExprFnTarget(fnNode, callsSeen)
 			c.outer.MaybeAddFunction(target, chunk)
-			c.outer.anonFns.Put(fnNode, target.name)
+			c.outer.putAnonFn(fnNode, target.name)
 		}
 	default:
 	}
@@ -602,13 +619,7 @@ func (f *InlineFunctions) applyBodyAnalysis(fnNode rhino.Node, functionState *In
 	if summaryValid {
 		s := &f.scratchSummary
 		if s.numModified > 0 {
-			namesToAlias := jutil.NewLinkedHashSet[string]()
-			params := s.params()
-			for _, idx := range s.modifiedParamIndices() {
-				namesToAlias.Add(params[idx].nameStr())
-			}
 			functionState.InlineDirectly(false)
-			functionState.SetNamesToAlias(namesToAlias)
 		}
 		if s.referencesThis {
 			functionState.SetReferencesThis(true)
@@ -630,10 +641,11 @@ func (f *InlineFunctions) applyBodyAnalysis(fnNode rhino.Node, functionState *In
 		return
 	}
 
-	namesToAlias := f.functionArgumentInjector.FindModifiedParameters(fnNode)
-	if namesToAlias != nil && !namesToAlias.IsEmpty() {
+	var paramIDs, modifiedIDs inlineIDSet
+	f.functionArgumentInjector.findModifiedParametersByIDInto(fnNode, &paramIDs, &modifiedIDs)
+	if !modifiedIDs.isEmpty() {
 		functionState.InlineDirectly(false)
-		functionState.SetNamesToAlias(namesToAlias)
+		functionState.SetNamesToAlias(modifiedIDs.toLinkedHashSet())
 	}
 	body := ast.MustFunction(fnNode).Body().Node()
 	if NodeUtil_ReferencesEnclosingReceiver(body) {
@@ -704,7 +716,7 @@ func (f *InlineFunctions) checkCandidateAndScanSummary(target inlineFnTarget, ds
 // without interface or base-struct wrapper ceremony.
 type inlineCallVisitor struct {
 	functionMap     *jutil.LinkedHashMap[string, *InlineFunctions_FunctionState]
-	anonFunctionMap *jutil.LinkedHashMap[rhino.Node, string]
+	anonFunctionMap map[rhino.Node]string
 	onCallSite      func(t *NodeTraversal, callNode rhino.Node, fs *InlineFunctions_FunctionState)
 	onName          func(n, parent rhino.Node)
 }
@@ -771,13 +783,13 @@ func (v *inlineCallVisitor) visitCallNode(t *NodeTraversal, n rhino.Node) {
 	if callee, ok := child.AsName(); ok {
 		name, hasName = callee.Ident(), true
 	} else if child.Token() == rhino.Token_FUNCTION {
-		name, hasName = v.anonFunctionMap.Lookup(child.Node())
+		name, hasName = v.anonFunctionMap[child.Node()]
 	} else if NodeUtil_IsFunctionObjectCall(n) {
 		fnIdentifyingNode := child.MustNormalOrOptChainGet().Object()
 		if fnName, ok := fnIdentifyingNode.AsName(); ok {
 			name, hasName = fnName.Ident(), true
 		} else if fnIdentifyingNode.Token() == rhino.Token_FUNCTION {
-			name, hasName = v.anonFunctionMap.Lookup(fnIdentifyingNode.Node())
+			name, hasName = v.anonFunctionMap[fnIdentifyingNode.Node()]
 		}
 	}
 
@@ -902,13 +914,14 @@ func (r *inlineRefFinder) maybeAddReferenceUsingMode(
 
 	r.scratchRef.init(callNode, nil, chunk, mode, false)
 	r.scratchRef.t = t
+	summary := functionState.ensureSummary()
 	result := r.outer.injector.canInlineReferenceWithSummary(
 		&r.scratchRef,
 		functionState.functionNode(),
-		functionState.GetNamesToAlias(),
+		functionStateAliasCount(functionState),
 		functionState.GetReferencesThis(),
 		functionState.HasInnerClosures(),
-		functionState.ensureSummary())
+		summary)
 	if result != FunctionInjector_CanInlineResult_NO {
 		// Yeah!
 		var scope *Scope
@@ -929,8 +942,7 @@ func (r *inlineRefFinder) maybeAddReferenceUsingMode(
 func (r *inlineRefFinder) checkNameUsage(n rhino.Node, parent rhino.Node) {
 	jutil.CheckStateMsg1(n.IsName(), "%s", n)
 
-	name := n.GetString()
-	if name == "" {
+	if n.GetStringID() == rhino.RhinoStringPool_EmptyID {
 		return
 	}
 
@@ -939,7 +951,7 @@ func (r *inlineRefFinder) checkNameUsage(n rhino.Node, parent rhino.Node) {
 	}
 
 	// Other refs to a function name remove its candidacy for inlining
-	functionState := r.outer.fns.Get(name)
+	functionState := r.outer.fns.Get(n.GetString())
 	if functionState == nil {
 		return
 	}
@@ -1005,7 +1017,7 @@ func (f *InlineFunctions) invalidateEnclosingSummaries(node rhino.Node) {
 	if f.fns == nil || f.fns.IsEmpty() {
 		return
 	}
-	hasAnon := f.anonFns != nil && !f.anonFns.IsEmpty()
+	hasAnon := len(f.anonFns) > 0
 	for anc := node.GetParent(); !anc.IsNil(); anc = anc.GetParent() {
 		if !anc.IsFunction() {
 			continue
@@ -1021,7 +1033,7 @@ func (f *InlineFunctions) invalidateEnclosingSummaries(node rhino.Node) {
 			}
 		}
 		if hasAnon {
-			if anonName, ok := f.anonFns.Lookup(anc); ok {
+			if anonName, ok := f.anonFns[anc]; ok {
 				if fs := f.fns.Get(anonName); fs != nil && fs.GetSafeFnNode() == anc {
 					fs.summaryValid = false
 				}

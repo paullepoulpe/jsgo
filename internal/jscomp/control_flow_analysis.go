@@ -19,8 +19,6 @@
 package jscomp
 
 import (
-	"cmp"
-
 	"github.com/paullepoulpe/jsgo/internal/ast"
 	"github.com/paullepoulpe/jsgo/internal/graph"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
@@ -56,7 +54,7 @@ type ControlFlowAnalysis struct {
 	// At the moment, we are not performing any inter-procedural analysis.
 	compiler AbstractCompiler
 
-	cfg *ControlFlowAnalysis_AstControlFlowGraph
+	cfg *ControlFlowGraph[rhino.Node]
 
 	// Go-only: language-adapter — the LinkedIdentityHashMap is a Go map: it is
 	// only looked up, never iterated.
@@ -137,7 +135,7 @@ const cfaReuseMaxSize = 1024
 // graph storage of the previous function avoids allocating them again.
 type ReusableCfg struct {
 	cfa ControlFlowAnalysis
-	cfg ControlFlowAnalysis_AstControlFlowGraph
+	cfg ControlFlowGraph[rhino.Node]
 }
 
 // Compute is ControlFlowAnalysis.builder() with these settings followed by
@@ -147,7 +145,7 @@ func (rc *ReusableCfg) Compute(
 	cfgRoot rhino.Node,
 	shouldTraverseFunctions bool,
 	edgeAnnotations bool,
-) ControlFlowGraph[rhino.Node] {
+) *ControlFlowGraph[rhino.Node] {
 	jutil.CheckNotNullMsg(compiler, "Need to call setCompiler()")
 	rhino.CheckNotNullMsg(cfgRoot, "Need to call setCfgRoot()")
 	rc.cfa.init(compiler, shouldTraverseFunctions, edgeAnnotations)
@@ -248,7 +246,7 @@ func (b *ControlFlowAnalysis_Builder) SetIncludeEdgeAnnotations(includeEdgeAnnot
 }
 
 // Java: ControlFlowAnalysis.Builder.computeCfg()
-func (b *ControlFlowAnalysis_Builder) ComputeCfg() ControlFlowGraph[rhino.Node] {
+func (b *ControlFlowAnalysis_Builder) ComputeCfg() *ControlFlowGraph[rhino.Node] {
 	jutil.CheckNotNullMsg(b.compiler, "Need to call setCompiler()")
 	rhino.CheckNotNullMsg(b.cfgRoot, "Need to call setCfgRoot()")
 	cfa := newControlFlowAnalysis(b.compiler, b.shouldTraverseFunctions, b.edgeAnnotations)
@@ -262,7 +260,7 @@ func ControlFlowAnalysis_Builder_() *ControlFlowAnalysis_Builder {
 }
 
 // Java: ControlFlowAnalysis.getCfg()
-func (c *ControlFlowAnalysis) GetCfg() ControlFlowGraph[rhino.Node] {
+func (c *ControlFlowAnalysis) GetCfg() *ControlFlowGraph[rhino.Node] {
 	return c.cfg
 }
 
@@ -270,7 +268,7 @@ func (c *ControlFlowAnalysis) GetCfg() ControlFlowGraph[rhino.Node] {
 // new graph when storage is nil.
 //
 // Java: ControlFlowAnalysis.computeCfg(Node)
-func (c *ControlFlowAnalysis) computeCfg(root rhino.Node, storage *ControlFlowAnalysis_AstControlFlowGraph) {
+func (c *ControlFlowAnalysis) computeCfg(root rhino.Node, storage *ControlFlowGraph[rhino.Node]) {
 	jutil.CheckArgumentMsg1(
 		NodeUtil_IsValidCfgRoot(root), "Unexpected control flow graph root %s", root)
 	c.root = root
@@ -280,10 +278,10 @@ func (c *ControlFlowAnalysis) computeCfg(root rhino.Node, storage *ControlFlowAn
 	c.astPositionCounter = 0
 	entry := ControlFlowAnalysis_ComputeFallThrough(root)
 	if storage != nil {
-		storage.reinit(entry, c.edgeAnnotations)
+		storage.reinitAst(entry, c.edgeAnnotations)
 		c.cfg = storage
 	} else {
-		c.cfg = newControlFlowAnalysis_AstControlFlowGraph(entry, c.edgeAnnotations)
+		c.cfg = newAstControlFlowGraph(entry, c.edgeAnnotations)
 	}
 
 	// Traverse the graph.
@@ -296,7 +294,7 @@ func (c *ControlFlowAnalysis) computeCfg(root rhino.Node, storage *ControlFlowAn
 	// Now, generate the priority of nodes by doing a depth-first
 	// search on the CFG.
 	c.priorityCounter = 0
-	c.prioritizeFromEntryNode(c.cfg.entry.(*graph.LinkedDirectedGraph_LinkedDiGraphNode[rhino.Node, ControlFlowGraph_Branch]))
+	c.prioritizeFromEntryNode(c.cfg.entry)
 
 	cfgNodes := &c.cfg.Nodes
 	if c.shouldTraverseFunctions {
@@ -333,7 +331,7 @@ func (c *ControlFlowAnalysis) computeCfg(root rhino.Node, storage *ControlFlowAn
 
 	// Again, the implicit return node is always last.
 	c.priorityCounter++
-	c.cfg.GetImplicitReturn().SetPriority(c.priorityCounter)
+	c.cfg.implicitReturn.SetPriority(c.priorityCounter)
 }
 
 func (c *ControlFlowAnalysis) traverse(root rhino.Node) {
@@ -1290,21 +1288,21 @@ func ControlFlowAnalysis_ComputeFallThrough(n rhino.Node) rhino.Node {
 }
 
 func cfaHasEdgeInDirection(
-	source *graph.LinkedDirectedGraph_LinkedDiGraphNode[rhino.Node, ControlFlowGraph_Branch],
+	source *graph.LinkedDiGraphNode[rhino.Node, ControlFlowGraph_Branch],
 	branch ControlFlowGraph_Branch,
-	dest *graph.LinkedDirectedGraph_LinkedDiGraphNode[rhino.Node, ControlFlowGraph_Branch],
+	dest *graph.LinkedDiGraphNode[rhino.Node, ControlFlowGraph_Branch],
 ) bool {
 	outEdges := source.OutEdgeList.Slice()
 	inEdges := dest.InEdgeList.Slice()
 	if len(outEdges) < len(inEdges) {
 		for _, outEdge := range outEdges {
-			if outEdge.GetDestination() == graph.DiGraph_DiGraphNode[rhino.Node, ControlFlowGraph_Branch](dest) && outEdge.GetValue() == branch {
+			if outEdge.DestNode == dest && outEdge.Value == branch {
 				return true
 			}
 		}
 	} else {
 		for _, inEdge := range inEdges {
-			if inEdge.GetSource() == graph.DiGraph_DiGraphNode[rhino.Node, ControlFlowGraph_Branch](source) && inEdge.GetValue() == branch {
+			if inEdge.SourceNode == source && inEdge.Value == branch {
 				return true
 			}
 		}
@@ -1318,11 +1316,10 @@ func cfaHasEdgeInDirection(
 //
 // Java: ControlFlowAnalysis.createEdge(Node, ControlFlowGraph.Branch, Node)
 func (c *ControlFlowAnalysis) createEdge(fromNode rhino.Node, branch ControlFlowGraph_Branch, toNode rhino.Node) {
-	base := &c.cfg.GetControlFlowGraphBase().LinkedDirectedGraph
-	from := base.CreateLinkedDiGraphNode(fromNode)
-	to := base.CreateLinkedDiGraphNode(toNode)
+	from := c.cfg.CreateLinkedDiGraphNode(fromNode)
+	to := c.cfg.CreateLinkedDiGraphNode(toNode)
 	if !cfaHasEdgeInDirection(from, branch, to) && !cfaHasEdgeInDirection(to, branch, from) {
-		base.ConnectLinkedNodes(from, branch, to)
+		c.cfg.ConnectLinkedNodes(from, branch, to)
 	}
 }
 
@@ -1511,56 +1508,6 @@ func ControlFlowAnalysis_GetCatchHandlerForBlock(block rhino.Node) rhino.Node {
 	return rhino.NilNode
 }
 
-// ControlFlowAnalysis_AstControlFlowGraph is a ControlFlowGraph which
-// provides a node comparator based on the pre-order traversal of the AST.
-type ControlFlowAnalysis_AstControlFlowGraph struct {
-	ControlFlowGraphBase[rhino.Node]
-}
-
-// newControlFlowAnalysis_AstControlFlowGraph constructs this graph.
-//
-// entry is the entry node; edgeAnnotations is the annotation.
-//
-// Java: ControlFlowAnalysis.AstControlFlowGraph(Node, boolean)
-func newControlFlowAnalysis_AstControlFlowGraph(entry rhino.Node, edgeAnnotations bool) *ControlFlowAnalysis_AstControlFlowGraph {
-	g := &ControlFlowAnalysis_AstControlFlowGraph{}
-	g.InitControlFlowGraphBase(g, entry /* nodeAnnotations= */, true, edgeAnnotations)
-	return g
-}
-
-// reinit makes g a new AstControlFlowGraph(entry, edgeAnnotations), reusing
-// its storage.
-//
-// Go-only: performance — see ReusableCfg.
-func (g *ControlFlowAnalysis_AstControlFlowGraph) reinit(entry rhino.Node, edgeAnnotations bool) {
-	g.ClearForReuse()
-	g.InitControlFlowGraphBase(g, entry /* nodeAnnotations= */, true, edgeAnnotations)
-}
-
-func cfaForwardNodeComparator(a, b graph.DiGraph_DiGraphNode[rhino.Node, ControlFlowGraph_Branch]) int {
-	return cmp.Compare(a.GetPriority(), b.GetPriority())
-}
-
-func cfaBackwardNodeComparator(a, b graph.DiGraph_DiGraphNode[rhino.Node, ControlFlowGraph_Branch]) int {
-	return cmp.Compare(b.GetPriority(), a.GetPriority())
-}
-
-// GetOptionalNodeComparator returns a node comparator based on the
-// pre-order traversal of the AST.
-//
-// isForward: x 'before' y in the pre-order traversal implies x 'less than'
-// y (if true) and x 'greater than' y (if false).
-//
-// Java: ControlFlowAnalysis.AstControlFlowGraph.getOptionalNodeComparator(boolean)
-func (g *ControlFlowAnalysis_AstControlFlowGraph) GetOptionalNodeComparator(isForward bool) func(a, b graph.DiGraph_DiGraphNode[rhino.Node, ControlFlowGraph_Branch]) int {
-	if isForward {
-		return cfaForwardNodeComparator
-	}
-	// Comparator.reversed()
-	return cfaBackwardNodeComparator
-}
-
 var (
-	_ NodeTraversal_Callback       = (*ControlFlowAnalysis)(nil)
-	_ ControlFlowGraph[rhino.Node] = (*ControlFlowAnalysis_AstControlFlowGraph)(nil)
+	_ NodeTraversal_Callback = (*ControlFlowAnalysis)(nil)
 )

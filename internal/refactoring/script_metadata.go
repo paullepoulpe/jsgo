@@ -88,6 +88,11 @@ func (m *ScriptMetadata) UsesName(name string) bool {
 	return ok
 }
 
+func (m *ScriptMetadata) lookupAlias(namespace string) (string, bool) {
+	alias, ok := m.requireAliases[namespace]
+	return alias, ok
+}
+
 // GetAlias returns the local alias for `namespace`, or nil if not required or
 // unaliased.
 //

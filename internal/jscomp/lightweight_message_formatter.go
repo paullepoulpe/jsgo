@@ -94,10 +94,40 @@ func (f *LightweightMessageFormatter) FormatWarning(warning *JSError) string {
 	return f.Format(warning, true)
 }
 
+func (f *LightweightMessageFormatter) appendHeaderLine(
+	b *strings.Builder,
+	error *JSError,
+	warning bool,
+	sourceName string,
+	hasSource bool,
+	lineNumber int,
+	charno int,
+) {
+	if f.includeLocation && hasSource {
+		lightweightMessageFormatter_appendPosition(b, sourceName, lineNumber, charno)
+	}
+	if f.includeLevel {
+		level := CheckLevel_ERROR
+		if warning {
+			level = CheckLevel_WARNING
+		}
+		b.WriteString(f.GetLevelName(level))
+		b.WriteString(" - [")
+		b.WriteString(error.Type().key)
+		b.WriteString("] ")
+	}
+	b.WriteString(error.Description())
+}
+
 // Java: LightweightMessageFormatter.format(JSError, boolean)
 func (f *LightweightMessageFormatter) Format(error *JSError, warning bool) string {
 	source := f.GetSource()
-	sourceName := error.SourceName()
+	sourceNamePtr := error.SourceName()
+	var sourceName string
+	hasSource := sourceNamePtr != nil
+	if hasSource {
+		sourceName = *sourceNamePtr
+	}
 	lineNumber := error.GetLineNumber()
 	charno := error.Charno()
 
@@ -107,15 +137,19 @@ func (f *LightweightMessageFormatter) Format(error *JSError, warning bool) strin
 
 	var mapping *sourcemap.Mapping_OriginalMapping
 	if source != nil {
-		mapping = source.GetSourceMapping(error.SourceName(), error.GetLineNumber(), error.Charno())
+		mapping = source.GetSourceMapping(sourceNamePtr, lineNumber, charno)
 	}
 
 	// Check if we can reverse-map the source.
 	if f.includeLocation && mapping != nil {
-		lightweightMessageFormatter_appendPosition(&b, sourceName, lineNumber, charno)
+		if hasSource {
+			lightweightMessageFormatter_appendPosition(&b, sourceName, lineNumber, charno)
+		}
 
 		originalFile := mapping.GetOriginalFile()
-		sourceName = &originalFile
+		sourceName = originalFile
+		hasSource = true
+		sourceNamePtr = &originalFile
 		lineNumber = mapping.GetLineNumber()
 		charno = mapping.GetColumnPosition()
 
@@ -123,36 +157,10 @@ func (f *LightweightMessageFormatter) Format(error *JSError, warning bool) strin
 	}
 
 	if !f.colorize {
-		if f.includeLocation {
-			lightweightMessageFormatter_appendPosition(&b, sourceName, lineNumber, charno)
-		}
-		if f.includeLevel {
-			level := CheckLevel_ERROR
-			if warning {
-				level = CheckLevel_WARNING
-			}
-			b.WriteString(f.GetLevelName(level))
-			b.WriteString(" - [")
-			b.WriteString(error.Type().key)
-			b.WriteString("] ")
-		}
-		b.WriteString(error.Description())
+		f.appendHeaderLine(&b, error, warning, sourceName, hasSource, lineNumber, charno)
 	} else {
 		var boldLine strings.Builder
-		if f.includeLocation {
-			lightweightMessageFormatter_appendPosition(&boldLine, sourceName, lineNumber, charno)
-		}
-		if f.includeLevel {
-			level := CheckLevel_ERROR
-			if warning {
-				level = CheckLevel_WARNING
-			}
-			boldLine.WriteString(f.GetLevelName(level))
-			boldLine.WriteString(" - [")
-			boldLine.WriteString(error.Type().key)
-			boldLine.WriteString("] ")
-		}
-		boldLine.WriteString(error.Description())
+		f.appendHeaderLine(&boldLine, error, warning, sourceName, hasSource, lineNumber, charno)
 		b.WriteString(f.MaybeEmbolden(boldLine.String()))
 	}
 	b.WriteByte('\n')
@@ -164,7 +172,7 @@ func (f *LightweightMessageFormatter) Format(error *JSError, warning bool) strin
 		format = SourceExcerptProvider_SourceExcerpt_LINE
 	}
 	f.appendExcerptWithPositionAndFormat(
-		&b, error, sourceName, lineNumber, charno, format)
+		&b, error, sourceNamePtr, lineNumber, charno, format)
 
 	return b.String()
 }
@@ -220,16 +228,15 @@ func (f *LightweightMessageFormatter) appendExcerptWithPositionAndLength(
 	length int,
 	format SourceExcerptProvider_SourceExcerpt) {
 	source := f.GetSource()
+	if source == nil {
+		return
+	}
 	cookedLength := -1
 	if charno >= 0 && length >= 0 {
 		cookedLength = charno + length
 	}
 
-	var sourceExcerpt *string
-	if source != nil {
-		sourceExcerpt = format.GetWithLength(source, sourceName, lineNumber, cookedLength, lightweightMessageFormatter_excerptFormatter)
-	}
-
+	sourceExcerpt := format.GetWithLength(source, sourceName, lineNumber, cookedLength, lightweightMessageFormatter_excerptFormatter)
 	if sourceExcerpt == nil {
 		return
 	}
@@ -276,19 +283,17 @@ func (f *LightweightMessageFormatter) PadSourceExcerpt(
 
 // Java: LightweightMessageFormatter.appendPosition(StringBuilder, String, int, int)
 func lightweightMessageFormatter_appendPosition(
-	b *strings.Builder, sourceName *string, lineNumber int, charno int) {
-	if sourceName != nil {
-		b.WriteString(*sourceName)
-		if lineNumber > 0 {
+	b *strings.Builder, sourceName string, lineNumber int, charno int) {
+	b.WriteString(sourceName)
+	if lineNumber > 0 {
+		b.WriteByte(':')
+		b.WriteString(strconv.Itoa(lineNumber))
+		if charno >= 0 {
 			b.WriteByte(':')
-			b.WriteString(strconv.Itoa(lineNumber))
-			if charno >= 0 {
-				b.WriteByte(':')
-				b.WriteString(strconv.Itoa(charno))
-			}
+			b.WriteString(strconv.Itoa(charno))
 		}
-		b.WriteString(": ")
 	}
+	b.WriteString(": ")
 }
 
 // PadLine appends the given excerpt, attempting to add "^^^^" highlighting

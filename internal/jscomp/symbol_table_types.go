@@ -45,8 +45,9 @@ type SymbolTable_Symbol struct {
 	docInfo *rhino.JSDocInfo
 
 	// Stored separately from docInfo, because the visibility stored in
-	// JSDocInfo is not
-	visibility *rhino.JSDocInfo_Visibility
+	// JSDocInfo is not inherited/fileoverview-resolved.
+	visibility    rhino.JSDocInfo_Visibility
+	hasVisibility bool
 
 	// A scope for symbols that are only documented in JSDoc.
 	docScope *SymbolTable_SymbolScope
@@ -60,34 +61,6 @@ func NewSymbolTable_Symbol(name string, type_ rhino.JSType, inferred bool, scope
 	}
 	s.InitSimpleSlotBase(name, type_, inferred)
 	return s
-}
-
-func jsTypeEquals(a, b rhino.JSType) bool {
-	if a == b {
-		return true
-	}
-	if a == nil || b == nil {
-		return false
-	}
-	return a.Equals(b)
-}
-
-// Java: SymbolTable.Symbol.equals(Object)
-func (s *SymbolTable_Symbol) Equals(o any) bool {
-	other, ok := o.(*SymbolTable_Symbol)
-	if !ok || other == nil {
-		return false
-	}
-
-	return s.IsTypeInferred() == other.IsTypeInferred() &&
-		s.GetName() == other.GetName() &&
-		jsTypeEquals(s.GetType(), other.GetType()) &&
-		s.scope == other.scope
-}
-
-// Java: SymbolTable.Symbol.hashCode()
-func (s *SymbolTable_Symbol) HashCode() int32 {
-	return jutil.ObjectsHash(s.IsTypeInferred(), s.GetName(), s.GetType(), jutil.IdentityHashCode(s.scope))
 }
 
 // GetDeclaration returns the declaration reference (a *SymbolTable_Reference,
@@ -160,13 +133,19 @@ func (s *SymbolTable_Symbol) SetJSDocInfo(info *rhino.JSDocInfo) {
 }
 
 // Java: SymbolTable.Symbol.getVisibility()
-func (s *SymbolTable_Symbol) GetVisibility() *rhino.JSDocInfo_Visibility {
+func (s *SymbolTable_Symbol) GetVisibility() rhino.JSDocInfo_Visibility {
 	return s.visibility
+}
+
+// HasVisibility reports whether a visibility has been recorded on this symbol.
+func (s *SymbolTable_Symbol) HasVisibility() bool {
+	return s.hasVisibility
 }
 
 // Java: SymbolTable.Symbol.setVisibility(Visibility)
 func (s *SymbolTable_Symbol) SetVisibility(v rhino.JSDocInfo_Visibility) {
-	s.visibility = &v
+	s.visibility = v
+	s.hasVisibility = true
 }
 
 // IsProperty reports whether this is a property of another variable.
@@ -275,10 +254,12 @@ func (s *SymbolTable_SymbolScope) SetSymbolForScope(sym *SymbolTable_Symbol) {
 //
 // Java: SymbolTable.SymbolScope.getIndexOfSymbol(Symbol)
 func (s *SymbolTable_SymbolScope) GetIndexOfSymbol(sym *SymbolTable_Symbol) int {
+	if sym == nil {
+		return -1
+	}
 	i := 0
 	for own := range s.ownSymbols.Values() {
-		// Predicates.equalTo(sym): sym.equals(own), false for a null sym.
-		if sym != nil && sym.Equals(own) {
+		if sym == own {
 			return i
 		}
 		i++

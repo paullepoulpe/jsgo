@@ -38,34 +38,34 @@ var sourceMapObjectParser_gson = jutil.NewGson()
 //
 // Java: SourceMapObjectParser.parse(String)
 func SourceMapObjectParser_Parse(contents string) *SourceMapObject {
-	builder := SourceMapObject_Builder_()
-
 	sourceMapRoot, parseEx := sourceMapObjectParser_gson.TryFromJsonObject(contents)
 	if parseEx != nil {
 		panic(NewSourceMapParseException("JSON parse exception: " + parseEx.Error()))
 	}
 
-	builder.SetVersion(int(sourceMapRoot.Get("version").GetAsInt()))
-	builder.SetFile(SourceMapObjectParser_GetStringOrNull(sourceMapRoot, "file"))
-	if sourceMapRoot.Has("lineCount") {
-		builder.SetLineCount(int(sourceMapRoot.Get("lineCount").GetAsInt()))
-	} else {
-		builder.SetLineCount(-1)
+	obj := &SourceMapObject{
+		version:   int(sourceMapRoot.Get("version").GetAsInt()),
+		file:      getOptionalString(sourceMapRoot, "file"),
+		lineCount: -1,
 	}
-	builder.SetMappings(SourceMapObjectParser_GetStringOrNull(sourceMapRoot, "mappings"))
-	builder.SetSourceRoot(SourceMapObjectParser_GetStringOrNull(sourceMapRoot, "sourceRoot"))
+	if sourceMapRoot.Has("lineCount") {
+		obj.lineCount = int(sourceMapRoot.Get("lineCount").GetAsInt())
+	}
+	obj.mappings = getOptionalString(sourceMapRoot, "mappings")
+	obj.sourceRoot = getOptionalString(sourceMapRoot, "sourceRoot")
 
 	if sourceMapRoot.Has("sections") {
-		listBuilder := []*SourceMapSection{}
-		for each := range sourceMapRoot.Get("sections").GetAsJsonArray().All() {
+		sectionsArray := sourceMapRoot.Get("sections").GetAsJsonArray()
+		listBuilder := make([]*SourceMapSection, 0, sectionsArray.Size())
+		for each := range sectionsArray.All() {
 			listBuilder = append(listBuilder, SourceMapObjectParser_BuildSection(each.GetAsJsonObject()))
 		}
-		builder.SetSections(listBuilder)
+		obj.sections = listBuilder
 	}
 
-	builder.SetSources(SourceMapObjectParser_GetJavaStringArray(sourceMapRoot.Get("sources")))
-	builder.SetSourcesContent(SourceMapObjectParser_GetJavaStringArray(sourceMapRoot.Get("sourcesContent")))
-	builder.SetNames(SourceMapObjectParser_GetJavaStringArray(sourceMapRoot.Get("names")))
+	obj.sources = getOptionalStringArray(sourceMapRoot.Get("sources"))
+	obj.sourcesContent = getOptionalStringArray(sourceMapRoot.Get("sourcesContent"))
+	obj.names = getOptionalStringArray(sourceMapRoot.Get("names"))
 
 	extensions := jutil.NewLinkedHashMap[string, any]()
 	for key, value := range sourceMapRoot.EntrySet().All() {
@@ -73,9 +73,9 @@ func SourceMapObjectParser_Parse(contents string) *SourceMapObject {
 			extensions.Put(key, value)
 		}
 	}
-	builder.SetExtensions(extensions)
+	obj.extensions = extensions
 
-	return builder.Build()
+	return obj
 }
 
 // SourceMapObjectParser_ParseFast parses a source map with
@@ -95,8 +95,7 @@ func wrapFastParseErr(err error) *SourceMapParseException {
 }
 
 func parseFast(contents string) (*SourceMapObject, *SourceMapParseException) {
-	builder := SourceMapObject_Builder_()
-	builder.SetLineCount(-1)
+	obj := &SourceMapObject{lineCount: -1}
 
 	lexer := NewSourceMapJsonLexer(contents)
 	if err := lexer.beginObject(); err != nil {
@@ -115,31 +114,31 @@ func parseFast(contents string) (*SourceMapObject, *SourceMapParseException) {
 			if err != nil {
 				return nil, wrapFastParseErr(err)
 			}
-			builder.SetVersion(v)
+			obj.version = v
 		case "file":
 			s, err := lexer.nextStringOrNull()
 			if err != nil {
 				return nil, wrapFastParseErr(err)
 			}
-			builder.SetFile(s)
+			obj.file = s
 		case "lineCount":
 			lc, err := lexer.nextInt()
 			if err != nil {
 				return nil, wrapFastParseErr(err)
 			}
-			builder.SetLineCount(lc)
+			obj.lineCount = lc
 		case "mappings":
 			m, err := lexer.nextStringOrNull()
 			if err != nil {
 				return nil, wrapFastParseErr(err)
 			}
-			builder.SetMappings(m)
+			obj.mappings = m
 		case "sourceRoot":
 			sr, err := lexer.nextStringOrNull()
 			if err != nil {
 				return nil, wrapFastParseErr(err)
 			}
-			builder.SetSourceRoot(sr)
+			obj.sourceRoot = sr
 		case "sections":
 			rawSections, err := lexer.nextRawValue()
 			if err != nil {
@@ -160,25 +159,25 @@ func parseFast(contents string) (*SourceMapObject, *SourceMapParseException) {
 				}
 				listBuilder = append(listBuilder, sec)
 			}
-			builder.SetSections(listBuilder)
+			obj.sections = listBuilder
 		case "sources":
-			arr, err := readStringArray(lexer)
+			arr, err := readOptionalStringArray(lexer)
 			if err != nil {
 				return nil, wrapFastParseErr(err)
 			}
-			builder.SetSources(arr)
+			obj.sources = arr
 		case "sourcesContent":
-			arr, err := readStringArray(lexer)
+			arr, err := readOptionalStringArray(lexer)
 			if err != nil {
 				return nil, wrapFastParseErr(err)
 			}
-			builder.SetSourcesContent(arr)
+			obj.sourcesContent = arr
 		case "names":
-			arr, err := readStringArray(lexer)
+			arr, err := readOptionalStringArray(lexer)
 			if err != nil {
 				return nil, wrapFastParseErr(err)
 			}
-			builder.SetNames(arr)
+			obj.names = arr
 		default:
 			if strings.HasPrefix(name, "x_") {
 				rawVal, err := lexer.nextRawValue()
@@ -207,9 +206,9 @@ func parseFast(contents string) (*SourceMapObject, *SourceMapParseException) {
 	if lexer.pos < lexer.length {
 		return nil, wrapFastParseErr(NewSourceMapParseException("Unexpected trailing characters"))
 	}
-	builder.SetExtensions(extensions)
+	obj.extensions = extensions
 
-	return builder.Build(), nil
+	return obj, nil
 }
 
 // Java: SourceMapObjectParser.buildSection(JsonObject)
@@ -283,13 +282,33 @@ func sourceMapObjectParser_nonNullErr(e jutil.JsonElement, method string) (jutil
 	return e, nil
 }
 
+func getOptionalString(object *jutil.JsonObject, key string) optionalString {
+	if elem := object.Get(key); elem != nil && !elem.IsJsonNull() {
+		return optionalString{text: elem.GetAsString(), present: true}
+	}
+	return optionalString{}
+}
+
 // Java: SourceMapObjectParser.getStringOrNull(JsonObject, String)
 func SourceMapObjectParser_GetStringOrNull(object *jutil.JsonObject, key string) *string {
-	if elem := object.Get(key); elem != nil && !elem.IsJsonNull() {
-		s := elem.GetAsString()
-		return &s
+	s := getOptionalString(object, key)
+	return s.ptr()
+}
+
+func getOptionalStringArray(element jutil.JsonElement) []optionalString {
+	if element == nil || element.IsJsonNull() {
+		return nil
 	}
-	return nil
+	array := element.GetAsJsonArray()
+	length := array.Size()
+	result := make([]optionalString, length)
+	for i := 0; i < length; i++ {
+		item := array.Get(i)
+		if !item.IsJsonNull() {
+			result[i] = optionalString{text: item.GetAsString(), present: true}
+		}
+	}
+	return result
 }
 
 // SourceMapObjectParser_GetJavaStringArray returns the array's strings (nil
@@ -297,29 +316,16 @@ func SourceMapObjectParser_GetStringOrNull(object *jutil.JsonObject, key string)
 //
 // Java: SourceMapObjectParser.getJavaStringArray(JsonElement)
 func SourceMapObjectParser_GetJavaStringArray(element jutil.JsonElement) []*string {
-	if element == nil || element.IsJsonNull() {
-		return nil
-	}
-	array := element.GetAsJsonArray()
-	length := array.Size()
-	result := make([]*string, length)
-	for i := 0; i < length; i++ {
-		item := array.Get(i)
-		if !item.IsJsonNull() {
-			s := item.GetAsString()
-			result[i] = &s
-		}
-	}
-	return result
+	return optionalStringsToPtrs(getOptionalStringArray(element))
 }
 
-func readStringArray(lexer *SourceMapJsonLexer) ([]*string, error) {
+func readOptionalStringArray(lexer *SourceMapJsonLexer) ([]optionalString, error) {
 	lexer.SkipWhitespace()
 	if lexer.pos < lexer.length && lexer.startsWith("null", lexer.pos) {
 		lexer.pos += 4
 		return nil, nil
 	}
-	list := []*string{}
+	list := []optionalString{}
 	if err := lexer.beginArray(); err != nil {
 		return nil, err
 	}
@@ -341,9 +347,9 @@ func readStringArray(lexer *SourceMapJsonLexer) ([]*string, error) {
 
 // Java: SourceMapObjectParser.readStringArray(SourceMapJsonLexer)
 func SourceMapObjectParser_ReadStringArray(lexer *SourceMapJsonLexer) []*string {
-	list, err := readStringArray(lexer)
+	list, err := readOptionalStringArray(lexer)
 	if err != nil {
 		panic(err)
 	}
-	return list
+	return optionalStringsToPtrs(list)
 }

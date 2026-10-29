@@ -55,7 +55,7 @@ func dominatorTreeTest_assertSizes(t *testing.T, tree *DominatorTree[string], kv
 
 func TestDominatorTree_SimpleChain(t *testing.T) {
 	// A -> B -> C
-	var graph DiGraph[string, string] = LinkedDirectedGraph_Create[string, string]()
+	graph := LinkedDirectedGraph_Create[string, string]()
 	graph.CreateNode("A")
 	graph.CreateNode("B")
 	graph.CreateNode("C")
@@ -77,7 +77,7 @@ func TestDominatorTree_SimpleChain(t *testing.T) {
 
 func TestDominatorTree_Diamond(t *testing.T) {
 	// A -> {B, C} -> D
-	var graph DiGraph[string, string] = LinkedDirectedGraph_Create[string, string]()
+	graph := LinkedDirectedGraph_Create[string, string]()
 	graph.CreateNode("A")
 	graph.CreateNode("B")
 	graph.CreateNode("C")
@@ -108,7 +108,7 @@ func TestDominatorTree_Cycle(t *testing.T) {
 	// goog.requireType cycles.
 	// So this result is not entirely precise, but is still useful for
 	// practical purposes.
-	var graph DiGraph[string, string] = LinkedDirectedGraph_Create[string, string]()
+	graph := LinkedDirectedGraph_Create[string, string]()
 	graph.CreateNode("A")
 	graph.CreateNode("B")
 	graph.CreateNode("C")
@@ -128,7 +128,7 @@ func TestDominatorTree_Cycle(t *testing.T) {
 
 func TestDominatorTree_Bottleneck(t *testing.T) {
 	// Entry -> A -> B -> {C, D, E}
-	var graph DiGraph[string, string] = LinkedDirectedGraph_Create[string, string]()
+	graph := LinkedDirectedGraph_Create[string, string]()
 	graph.CreateNode("Entry")
 	graph.CreateNode("A")
 	graph.CreateNode("B")
@@ -153,7 +153,7 @@ func TestDominatorTree_SharedBottleneck(t *testing.T) {
 	// R1 -> B
 	// R2 -> B
 	// B -> {C, D}
-	var graph DiGraph[string, string] = LinkedDirectedGraph_Create[string, string]()
+	graph := LinkedDirectedGraph_Create[string, string]()
 	graph.CreateNode("Entry")
 	graph.CreateNode("R1")
 	graph.CreateNode("R2")
@@ -180,7 +180,7 @@ func TestDominatorTree_SharedBottleneck(t *testing.T) {
 func TestDominatorTree_NodeNotReachableFromEntryPoint_doesNotCountAsDominator(t *testing.T) {
 	// A -> B
 	// OTHER -> B
-	var graph DiGraph[string, string] = LinkedDirectedGraph_Create[string, string]()
+	graph := LinkedDirectedGraph_Create[string, string]()
 	graph.CreateNode("A")
 	graph.CreateNode("B")
 	graph.CreateNode("OTHER")
@@ -199,7 +199,7 @@ func TestDominatorTree_NodeNotReachableFromEntryPoint_doesNotCountAsDominator(t 
 }
 
 func TestDominatorTree_GetImmediateDominator_nonExistentElement_returnsNull(t *testing.T) {
-	var graph DiGraph[string, string] = LinkedDirectedGraph_Create[string, string]()
+	graph := LinkedDirectedGraph_Create[string, string]()
 	graph.CreateNode("A")
 
 	tree := DominatorTree_Compute(graph, "A")
@@ -208,7 +208,7 @@ func TestDominatorTree_GetImmediateDominator_nonExistentElement_returnsNull(t *t
 }
 
 func TestDominatorTree_GetSubtreeSize_nonExistentElement_defaultsToZero(t *testing.T) {
-	var graph DiGraph[string, string] = LinkedDirectedGraph_Create[string, string]()
+	graph := LinkedDirectedGraph_Create[string, string]()
 	graph.CreateNode("A")
 
 	tree := DominatorTree_Compute(graph, "A")

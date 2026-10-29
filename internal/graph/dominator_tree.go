@@ -64,11 +64,12 @@ func newDominatorTree[N comparable](idoms map[N]N, subtreeSizes *jutil.LinkedHas
 //
 // Java: DominatorTree.compute(DiGraph<N, ?>, N)
 func DominatorTree_Compute[N comparable, E any](graph DiGraph[N, E], entry N) *DominatorTree[N] {
-	jutil.CheckNotNullMsg(graph.GetDiGraphNode(entry), "Entry node not in graph")
+	ldg := graph.AsLinkedDirectedGraph()
+	jutil.CheckNotNullMsg(ldg.GetNode(entry), "Entry node not in graph")
 
 	// 1. Post-order traversal to assign indexes to nodes.
 	var postOrder []N
-	dominatorTree_buildPostOrder(graph, entry, &postOrder, make(map[N]bool))
+	dominatorTree_buildPostOrder(ldg, entry, &postOrder, make(map[N]bool))
 
 	numNodes := len(postOrder)
 	reversePostOrder := dominatorTree_toReversedArray(postOrder)
@@ -99,10 +100,12 @@ func DominatorTree_Compute[N comparable, E any](graph DiGraph[N, E], entry N) *D
 
 			nodeIdx := postOrderIndex[node]
 			newIdomIdx := -1
+			gNode := jutil.CheckNotNull(ldg.GetNode(node))
+			inEdges := gNode.InEdgeList.Slice()
 
 			// Pick first processed predecessor.
-			for _, pred := range graph.GetDirectedPredNodesOfValue(node) {
-				predValue := pred.GetValue()
+			for _, edge := range inEdges {
+				predValue := edge.SourceNode.Value
 				predIdx, ok := postOrderIndex[predValue]
 				// predIdx can be null if `predValue` is not in the graph. This
 				// is normal - it just means the `predValue` isn't reachable from
@@ -115,8 +118,8 @@ func DominatorTree_Compute[N comparable, E any](graph DiGraph[N, E], entry N) *D
 
 			if newIdomIdx != -1 {
 				// Intersect with all other processed predecessors.
-				for _, pred := range graph.GetDirectedPredNodesOfValue(node) {
-					predValue := pred.GetValue()
+				for _, edge := range inEdges {
+					predValue := edge.SourceNode.Value
 					predIdx, ok := postOrderIndex[predValue]
 					// predIdx can be null if `predValue` is not in the graph.
 					// This is normal - it just means the `predValue` isn't
@@ -171,12 +174,13 @@ func dominatorTree_intersect(idomIndexes []int, i int, j int) int {
 
 // Java: DominatorTree.buildPostOrder(DiGraph<N, ?>, N, List<N>, Map<N, Boolean>)
 func dominatorTree_buildPostOrder[N comparable, E any](
-	graph DiGraph[N, E], node N, postOrder *[]N, visited map[N]bool) {
+	ldg *LinkedDirectedGraph[N, E], node N, postOrder *[]N, visited map[N]bool) {
 	visited[node] = true
-	for _, succ := range graph.GetDirectedSuccNodesOfValue(node) {
-		succValue := succ.GetValue()
+	gNode := jutil.CheckNotNull(ldg.GetNode(node))
+	for _, edge := range gNode.OutEdgeList.Slice() {
+		succValue := edge.DestNode.Value
 		if !visited[succValue] {
-			dominatorTree_buildPostOrder(graph, succValue, postOrder, visited)
+			dominatorTree_buildPostOrder(ldg, succValue, postOrder, visited)
 		}
 	}
 	*postOrder = append(*postOrder, node)

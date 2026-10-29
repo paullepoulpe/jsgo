@@ -71,28 +71,6 @@ func ClosureRequireProcessor_Require_Create(localName string, importRecord *Impo
 	return NewClosureRequireProcessor_Require(localName, importRecord, createdBy)
 }
 
-// Equals is the record's component-wise equals.
-//
-// Java: ClosureRequireProcessor.Require.equals(Object)
-func (r *ClosureRequireProcessor_Require) Equals(o any) bool {
-	that, ok := o.(*ClosureRequireProcessor_Require)
-	if !ok || that == nil {
-		return false
-	}
-	return r.localName == that.localName &&
-		r.importRecord.Equals(that.importRecord) &&
-		r.createdBy == that.createdBy
-}
-
-// String is the record's toString.
-//
-// Java: ClosureRequireProcessor.Require.toString()
-func (r *ClosureRequireProcessor_Require) String() string {
-	return "Require[localName=" + r.localName +
-		", importRecord=" + r.importRecord.String() +
-		", createdBy=" + r.createdBy.String() + "]"
-}
-
 // Java: ClosureRequireProcessor(Node, CreatedBy)
 func newClosureRequireProcessor(nameDeclaration rhino.Node, requireKind Binding_CreatedBy) *ClosureRequireProcessor {
 	p := &ClosureRequireProcessor{}
@@ -125,51 +103,46 @@ func ClosureRequireProcessor_GetAllRequires(nameDeclaration rhino.Node) []*Closu
 		}
 	}
 	// This may be a require, requireType, or forwardDeclare.
-	requireKind := ClosureRequireProcessor_GetModuleDependencyTypeFromRhs(rhs)
-	if requireKind == nil {
+	requireKind, ok := ClosureRequireProcessor_GetModuleDependencyTypeFromRhs(rhs)
+	if !ok {
 		return []*ClosureRequireProcessor_Require{}
 	}
 
-	return newClosureRequireProcessor(nameDeclaration, *requireKind).GetAllRequiresInDeclaration()
+	return newClosureRequireProcessor(nameDeclaration, requireKind).GetAllRequiresInDeclaration()
 }
 
 // ClosureRequireProcessor_GetModuleDependencyTypeFromRhs checks if the given
 // rvalue is a goog.require(Type) or goog.forwardDeclare call, and if so
 // returns which one.
 //
-// Returns a Closure require (where CreatedBy#isClosureImport() is true) or
-// null.
-//
 // Java: ClosureRequireProcessor.getModuleDependencyTypeFromRhs(Node)
-func ClosureRequireProcessor_GetModuleDependencyTypeFromRhs(value rhino.Node) *Binding_CreatedBy {
+func ClosureRequireProcessor_GetModuleDependencyTypeFromRhs(value rhino.Node) (Binding_CreatedBy, bool) {
 	call, ok := ast.AsCall(value)
 	if !ok {
-		return nil
+		return 0, false
 	}
 	arg, ok := call.OnlyArg()
 	if !ok || !arg.Node().IsStringLit() {
-		return nil
+		return 0, false
 	}
 	callee, ok := call.Callee().AsGetProp()
 	if !ok {
-		return nil
+		return 0, false
 	}
 	owner, ok := callee.Object().AsName()
 	if !ok || owner.Ident() != "goog" {
-		return nil
+		return 0, false
 	}
-	var createdBy Binding_CreatedBy
 	switch callee.Property() {
 	case "require":
-		createdBy = Binding_CreatedBy_GOOG_REQUIRE
+		return Binding_CreatedBy_GOOG_REQUIRE, true
 	case "requireType":
-		createdBy = Binding_CreatedBy_GOOG_REQUIRE_TYPE
+		return Binding_CreatedBy_GOOG_REQUIRE_TYPE, true
 	case "forwardDeclare":
-		createdBy = Binding_CreatedBy_GOOG_FORWARD_DECLARE
+		return Binding_CreatedBy_GOOG_FORWARD_DECLARE, true
 	default:
-		return nil
+		return 0, false
 	}
-	return &createdBy
 }
 
 // GetAllRequiresInDeclaration returns a new list of all required names in
@@ -194,24 +167,17 @@ func (p *ClosureRequireProcessor) GetAllRequiresInDeclaration() []*ClosureRequir
 		return []*ClosureRequireProcessor_Require{
 			ClosureRequireProcessor_Require_Create(
 				lhs.Ident(),
-				Import_Builder_().
-					ModuleRequest(namespace).
-					LocalName(lhs.Ident()).
-					ImportName(Export_NAMESPACE).
-					ImportNode(p.nameDeclaration).
-					NameNode(lhs.Node()).
-					Build(),
+				NewImport(namespace, Export_NAMESPACE, lhs.Ident(), nil, p.nameDeclaration, lhs.Node()),
 				p.requireKind),
 		}
-	} else {
-		// const {x, y} = goog.require('modA');
-		objectPattern := first.MustDestructuringLhs().Pattern().Node()
-		if !objectPattern.IsObjectPattern() {
-			// bad JS, ignore
-			return []*ClosureRequireProcessor_Require{}
-		}
-		return p.GetAllRequiresFromDestructuring(objectPattern, namespace)
 	}
+	// const {x, y} = goog.require('modA');
+	objectPattern := first.MustDestructuringLhs().Pattern().Node()
+	if !objectPattern.IsObjectPattern() {
+		// bad JS, ignore
+		return []*ClosureRequireProcessor_Require{}
+	}
+	return p.GetAllRequiresFromDestructuring(objectPattern, namespace)
 }
 
 // GetAllRequiresFromDestructuring returns all requires from destructruring,
@@ -236,13 +202,7 @@ func (p *ClosureRequireProcessor) GetAllRequiresFromDestructuring(
 		requires = append(requires,
 			ClosureRequireProcessor_Require_Create(
 				lhs.Ident(),
-				Import_Builder_().
-					ModuleRequest(namespace).
-					LocalName(lhs.Ident()).
-					ImportName(key.Key()).
-					ImportNode(p.nameDeclaration).
-					NameNode(lhs.Node()).
-					Build(),
+				NewImport(namespace, key.Key(), lhs.Ident(), nil, p.nameDeclaration, lhs.Node()),
 				p.requireKind))
 	}
 	return requires

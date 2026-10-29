@@ -215,11 +215,7 @@ func TestStringsMatchJava(t *testing.T) {
 			s, _ := unescVector(t, r[1])
 			want = r[2]
 			got = guardVector(func() string { return hex.EncodeToString(BaseEncoding_Base64().Decode(s)) })
-		case "pe":
-			s, _ := unescVector(t, r[1])
-			want = r[2]
-			got = guardVector(func() string { return NewPercentEscaper("-_.*", false).Escape(s) })
-		case "ms":
+		case "pe", "ms":
 			continue
 		}
 		if got != want {

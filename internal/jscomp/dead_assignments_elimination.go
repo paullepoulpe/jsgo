@@ -359,12 +359,12 @@ func (d *DeadAssignmentsElimination) IsRemovableAssign(n rhino.Node) bool {
 //
 // Java: DeadAssignmentsElimination.tryRemoveDeadAssignments(NodeTraversal, ControlFlowGraph<Node>, Map<String, Var>)
 func (d *DeadAssignmentsElimination) TryRemoveDeadAssignments(t *NodeTraversal,
-	cfg ControlFlowGraph[rhino.Node],
+	cfg *ControlFlowGraph[rhino.Node],
 	allVarsInFn *jutil.LinkedHashMap[string, *Var]) {
 
-	for cfgNode := range cfg.GetControlFlowGraphBase().Nodes.Values() {
+	for cfgNode := range cfg.Nodes.Values() {
 		state := dataFlowAnalysis_linearFlowStateOf[*LiveVariablesAnalysis_LiveVariableLattice](cfgNode)
-		n := cfgNode.GetValue()
+		n := cfgNode.Value
 		if n.IsNil() {
 			continue
 		}

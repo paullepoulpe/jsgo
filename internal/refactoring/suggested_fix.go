@@ -19,6 +19,7 @@
 package refactoring
 
 import (
+	"iter"
 	"slices"
 	"strings"
 
@@ -29,14 +30,111 @@ import (
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
 
+type fileReplacementGroup struct {
+	filename     string
+	replacements []*CodeReplacement
+}
+
+// FileReplacements holds deduplicated per-file CodeReplacements in insertion order
+// without map or multimap heap allocations.
+type FileReplacements struct {
+	files []fileReplacementGroup
+	total int
+}
+
+// Put adds rep under filename if an equal CodeReplacement is not already present.
+func (r *FileReplacements) Put(filename string, rep *CodeReplacement) bool {
+	for i := range r.files {
+		if r.files[i].filename == filename {
+			for _, existing := range r.files[i].replacements {
+				if existing.Equals(rep) {
+					return false
+				}
+			}
+			r.files[i].replacements = append(r.files[i].replacements, rep)
+			r.total++
+			return true
+		}
+	}
+	r.files = append(r.files, fileReplacementGroup{
+		filename:     filename,
+		replacements: []*CodeReplacement{rep},
+	})
+	r.total++
+	return true
+}
+
+func (r FileReplacements) clone() FileReplacements {
+	if len(r.files) == 0 {
+		return FileReplacements{}
+	}
+	files := make([]fileReplacementGroup, len(r.files))
+	for i, g := range r.files {
+		files[i] = fileReplacementGroup{
+			filename:     g.filename,
+			replacements: slices.Clone(g.replacements),
+		}
+	}
+	return FileReplacements{files: files, total: r.total}
+}
+
+// IsEmpty reports whether no replacements are recorded.
+func (r FileReplacements) IsEmpty() bool { return r.total == 0 }
+
+// Size returns the total number of replacements across all files.
+func (r FileReplacements) Size() int { return r.total }
+
+// KeySet yields the filenames in insertion order.
+func (r FileReplacements) KeySet() iter.Seq[string] {
+	return func(yield func(string) bool) {
+		for _, g := range r.files {
+			if !yield(g.filename) {
+				return
+			}
+		}
+	}
+}
+
+// Entries yields (filename, replacement) pairs in insertion order.
+func (r FileReplacements) Entries() iter.Seq2[string, *CodeReplacement] {
+	return func(yield func(string, *CodeReplacement) bool) {
+		for _, g := range r.files {
+			for _, rep := range g.replacements {
+				if !yield(g.filename, rep) {
+					return
+				}
+			}
+		}
+	}
+}
+
+// GetSlice returns the replacements for filename.
+func (r FileReplacements) GetSlice(filename string) []*CodeReplacement {
+	for _, g := range r.files {
+		if g.filename == filename {
+			return g.replacements
+		}
+	}
+	return nil
+}
+
+// Get returns the replacements for filename as an ObjectLinkedHashSet.
+func (r FileReplacements) Get(filename string) *jutil.ObjectLinkedHashSet[*CodeReplacement] {
+	set := jutil.NewObjectLinkedHashSet[*CodeReplacement]()
+	for _, rep := range r.GetSlice(filename) {
+		set.Add(rep)
+	}
+	return set
+}
+
 // SuggestedFix represents the fixes to apply to source code to create a
 // refactoring CL.
 type SuggestedFix struct {
 	matchedNodeInfo *SuggestedFix_MatchedNodeInfo
-	// Multimap of filename to a modification to that file.
-	replacements *jutil.SetMultimap[string, *CodeReplacement]
-	description  *string
-	alternatives []*SuggestedFix
+	replacements    FileReplacements
+	description     string
+	hasDescription  bool
+	alternatives    []*SuggestedFix
 }
 
 // SuggestedFix_ImportType is the kind of import a fix adds.
@@ -63,13 +161,15 @@ func (t SuggestedFix_ImportType) Ordinal() int { return int(t) }
 // Java: SuggestedFix(MatchedNodeInfo, SetMultimap<String, CodeReplacement>, String, ImmutableList<SuggestedFix>)
 func newSuggestedFix(
 	matchedNodeInfo *SuggestedFix_MatchedNodeInfo,
-	replacements *jutil.SetMultimap[string, *CodeReplacement],
-	description *string,
+	replacements FileReplacements,
+	description string,
+	hasDescription bool,
 	alternatives []*SuggestedFix) *SuggestedFix {
 	f := &SuggestedFix{
 		matchedNodeInfo: matchedNodeInfo,
 		replacements:    replacements,
 		description:     description,
+		hasDescription:  hasDescription,
 	}
 	all := make([]*SuggestedFix, 0, 1+len(alternatives))
 	all = append(all, f)
@@ -84,13 +184,17 @@ func (f *SuggestedFix) GetMatchedNodeInfo() *SuggestedFix_MatchedNodeInfo {
 }
 
 // Java: SuggestedFix.getReplacements()
-func (f *SuggestedFix) GetReplacements() *jutil.SetMultimap[string, *CodeReplacement] {
+func (f *SuggestedFix) GetReplacements() FileReplacements {
 	return f.replacements
 }
 
 // Java: SuggestedFix.getDescription()
 func (f *SuggestedFix) GetDescription() *string {
-	return f.description
+	if !f.hasDescription {
+		return nil
+	}
+	s := f.description
+	return &s
 }
 
 // Java: SuggestedFix.getAlternatives()
@@ -114,16 +218,14 @@ func (f *SuggestedFix) String() string {
 		return "<no-op SuggestedFix>"
 	}
 	var sb strings.Builder
-	for key, values := range f.replacements.AsMap().All() {
+	for _, g := range f.replacements.files {
 		sb.WriteString("Replacements for file: ")
-		sb.WriteString(key)
-		sb.WriteString("\n")
-		first := true
-		for replacement := range values.All() {
-			if !first {
+		sb.WriteString(g.filename)
+		sb.WriteByte('\n')
+		for i, replacement := range g.replacements {
+			if i > 0 {
 				sb.WriteString("\n\n")
 			}
-			first = false
 			sb.WriteString(replacement.String())
 		}
 	}
@@ -134,16 +236,15 @@ func (f *SuggestedFix) String() string {
 // helpers.
 type SuggestedFix_Builder struct {
 	matchedNodeInfo *SuggestedFix_MatchedNodeInfo
-	replacements    *jutil.SetMultimap[string, *CodeReplacement]
+	replacements    FileReplacements
 	alternatives    []*SuggestedFix
-	description     *string
+	description     string
+	hasDescription  bool
 }
 
 // Java: SuggestedFix.Builder()
 func NewSuggestedFix_Builder() *SuggestedFix_Builder {
-	return &SuggestedFix_Builder{
-		replacements: jutil.NewSetMultimap[string, *CodeReplacement](),
-	}
+	return &SuggestedFix_Builder{}
 }
 
 // Java: SuggestedFix.Builder.attachMatchedNodeInfo(Node, AbstractCompiler)
@@ -515,9 +616,7 @@ func (b *SuggestedFix_Builder) DeleteArgument(n rhino.Node, position int) *Sugge
 	return b
 }
 
-// Java: SuggestedFix.Builder.createImportNode(ImportType, String, String)
-func SuggestedFix_Builder_CreateImportNode(
-	importType SuggestedFix_ImportType, alias *string, namespace string) rhino.Node {
+func createImportNode(importType SuggestedFix_ImportType, alias string, hasAlias bool, namespace string) rhino.Node {
 	var requireFlavor string
 	switch importType {
 	case SuggestedFix_ImportType_REQUIRE:
@@ -527,10 +626,19 @@ func SuggestedFix_Builder_CreateImportNode(
 	}
 
 	callNode := rhino.IR_Call(rhino.IR_Getprop(rhino.IR_Name("goog"), requireFlavor), rhino.IR_String(namespace))
-	if alias != nil {
-		return rhino.IR_ConstNode(rhino.IR_Name(*alias), callNode)
+	if hasAlias {
+		return rhino.IR_ConstNode(rhino.IR_Name(alias), callNode)
 	}
 	return rhino.IR_ExprResult(callNode)
+}
+
+// Java: SuggestedFix.Builder.createImportNode(ImportType, String, String)
+func SuggestedFix_Builder_CreateImportNode(
+	importType SuggestedFix_ImportType, alias *string, namespace string) rhino.Node {
+	if alias != nil {
+		return createImportNode(importType, *alias, true, namespace)
+	}
+	return createImportNode(importType, "", false, namespace)
 }
 
 // Java: SuggestedFix.Builder.addGoogRequire(Match, String, ScriptMetadata)
@@ -546,40 +654,40 @@ func (b *SuggestedFix_Builder) AddGoogRequireType(m *Match, namespace string, sc
 // Java: SuggestedFix.Builder.addImport(Match, String, ImportType, ScriptMetadata)
 func (b *SuggestedFix_Builder) AddImport(
 	m *Match, namespace string, importType SuggestedFix_ImportType, scriptMetadata *ScriptMetadata) *SuggestedFix_Builder {
-	var alias *string
+	alias, hasAlias := "", false
 	if scriptMetadata.SupportsRequireAliases() {
-		if existingAlias := scriptMetadata.GetAlias(namespace); existingAlias != nil {
-			alias = existingAlias
+		if existingAlias, ok := scriptMetadata.lookupAlias(namespace); ok {
+			alias, hasAlias = existingAlias, true
 		} else if strings.IndexByte(namespace, '.') == -1 {
-			alias = &namespace
+			alias, hasAlias = namespace, true
 		} else {
 			for a := range RequireAliasGenerator_Over(namespace).All() {
 				if !scriptMetadata.UsesName(a) {
-					alias = &a
+					alias, hasAlias = a, true
 					break
 				}
 			}
-			if alias == nil {
+			if !hasAlias {
 				panic(jutil.NewAssertionErrorNoMessage())
 			}
 		}
-		scriptMetadata.AddAlias(namespace, *alias)
+		scriptMetadata.AddAlias(namespace, alias)
 	}
 
 	metadata := m.GetMetadata()
 	existingNode := SuggestedFix_Builder_FindGoogRequireNode(m.GetNode(), metadata, namespace)
 
 	if !existingNode.IsNil() {
-		if exprStmt, ok := ast.AsExprStmt(existingNode); ok && alias != nil {
+		if exprStmt, ok := ast.AsExprStmt(existingNode); ok && hasAlias {
 			expr := exprStmt.Expr().Node()
 			var newNode rhino.Node
 			if jscomp.NodeUtil_IsCallTo(expr, "goog.forwardDeclare") {
-				newNode = SuggestedFix_Builder_CreateImportNode(importType, alias, namespace)
+				newNode = createImportNode(importType, alias, true, namespace)
 			} else {
-				newNode = rhino.IR_ConstNode(rhino.IR_Name(*alias), expr.CloneTree())
+				newNode = rhino.IR_ConstNode(rhino.IR_Name(alias), expr.CloneTree())
 			}
 			b.Replace(existingNode, newNode, metadata.GetCompiler())
-			scriptMetadata.AddAlias(namespace, *alias)
+			scriptMetadata.AddAlias(namespace, alias)
 		}
 		return b
 	}
@@ -626,7 +734,10 @@ func (b *SuggestedFix_Builder) AddImport(
 						if originalName := declName.Node().GetOriginalName(); originalName != nil {
 							requireName = *originalName
 						}
-						if jutil.StringCompareTo(*alias, requireName) < 0 {
+						if !hasAlias {
+							panic(jutil.NewNullPointerException())
+						}
+						if jutil.StringCompareTo(alias, requireName) < 0 {
 							nodeToInsertBefore = child
 							break
 						}
@@ -636,7 +747,7 @@ func (b *SuggestedFix_Builder) AddImport(
 		}
 	}
 
-	newImportNode := SuggestedFix_Builder_CreateImportNode(importType, alias, namespace)
+	newImportNode := createImportNode(importType, alias, hasAlias, namespace)
 	if nodeToInsertBefore.IsNil() {
 		if !lastModuleOrProvideNode.IsNil() || !lastGoogRequireNode.IsNil() {
 			nodeToInsertAfter := lastModuleOrProvideNode
@@ -747,14 +858,19 @@ func (b *SuggestedFix_Builder) GenerateCode(compiler jscomp.AbstractCompiler, no
 
 // Java: SuggestedFix.Builder.setDescription(String)
 func (b *SuggestedFix_Builder) SetDescription(description string) *SuggestedFix_Builder {
-	b.description = &description
+	b.description = description
+	b.hasDescription = true
 	return b
 }
 
 // Java: SuggestedFix.Builder.build()
 func (b *SuggestedFix_Builder) Build() *SuggestedFix {
 	return newSuggestedFix(
-		b.matchedNodeInfo, jutil.SetMultimapCopyOf(b.replacements), b.description, slices.Clone(b.alternatives))
+		b.matchedNodeInfo,
+		b.replacements.clone(),
+		b.description,
+		b.hasDescription,
+		slices.Clone(b.alternatives))
 }
 
 // SuggestedFix_MatchedNodeInfo holds source location metadata for the matched node.

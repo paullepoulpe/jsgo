@@ -113,11 +113,11 @@ func (c *CheckMissingReturn) EnterScopeWithCfg(t *NodeTraversal) {
 		return
 	}
 
-	var cfg ControlFlowGraph[rhino.Node]
+	var cfg *ControlFlowGraph[rhino.Node]
 	if c.sharedCfgSource != nil {
 		if shared := c.sharedCfgSource.PeekCurrentScopeCfg(); shared != nil &&
-			shared.GetEntry() != nil &&
-			shared.GetEntry().GetValue() == ControlFlowAnalysis_ComputeFallThrough(n) {
+			shared.entry != nil &&
+			shared.entry.Value == ControlFlowAnalysis_ComputeFallThrough(n) {
 			cfg = shared
 		}
 	}
@@ -130,8 +130,8 @@ func (c *CheckMissingReturn) EnterScopeWithCfg(t *NodeTraversal) {
 
 	test := graph.NewCheckPathsBetweenNodesInclusiveValue[rhino.Node, ControlFlowGraph_Branch](
 		cfg,
-		cfg.GetEntry(),
-		cfg.GetImplicitReturn(),
+		cfg.entry,
+		cfg.implicitReturn,
 		checkMissingReturn_isReturn,
 		CheckMissingReturn_GoesThroughTrueCondition,
 	)
@@ -149,9 +149,9 @@ func (c *CheckMissingReturn) EnterScopeWithCfg(t *NodeTraversal) {
 // Returns true if all paths return, converse not necessarily true.
 //
 // Java: CheckMissingReturn.fastAllPathsReturnCheck(ControlFlowGraph<Node>)
-func (c *CheckMissingReturn) FastAllPathsReturnCheck(cfg ControlFlowGraph[rhino.Node]) bool {
-	for _, s := range cfg.GetImplicitReturn().GetInEdges() {
-		n := s.GetSource().GetValue()
+func (c *CheckMissingReturn) FastAllPathsReturnCheck(cfg *ControlFlowGraph[rhino.Node]) bool {
+	for _, s := range cfg.implicitReturn.InEdgeList.Slice() {
+		n := s.SourceNode.Value
 		// NOTE(dimvar): it is possible to change ControlFlowAnalysis.java, so
 		// that the calls that always throw are treated in the same way as THROW
 		// in the CFG. Then, we would not need to use the coding convention here.

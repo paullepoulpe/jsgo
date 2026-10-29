@@ -80,19 +80,6 @@ func FileInstrumentationData_BranchIndexPair_Of(line int, branch int) FileInstru
 	return NewFileInstrumentationData_BranchIndexPair(line, branch)
 }
 
-// Java: FileInstrumentationData.BranchIndexPair.hashCode()
-func (p FileInstrumentationData_BranchIndexPair) HashCode() int32 {
-	return 31*int32(p.line) + int32(p.branch)
-}
-
-// Java: FileInstrumentationData.BranchIndexPair.equals(Object)
-func (p FileInstrumentationData_BranchIndexPair) Equals(object any) bool {
-	if that, ok := object.(FileInstrumentationData_BranchIndexPair); ok {
-		return p.GetLine() == that.GetLine() && p.GetBranch() == that.GetBranch()
-	}
-	return false
-}
-
 // Java: FileInstrumentationData(String, String)
 func NewFileInstrumentationData(fileName string, arrayName string) *FileInstrumentationData {
 	return &FileInstrumentationData{

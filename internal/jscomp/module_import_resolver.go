@@ -19,6 +19,7 @@
 package jscomp
 
 import (
+	"github.com/paullepoulpe/jsgo/internal/ast"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
@@ -35,19 +36,25 @@ type ModuleImportResolver struct {
 
 const moduleImportResolver_GOOG = "goog"
 
-var moduleImportResolver_GOOG_DEPENDENCY_CALLS = jutil.NewLinkedHashSet(
-	"require", "requireType", "forwardDeclare", "requireDynamic")
+func moduleImportResolver_isGoogDependencyProp(prop string) bool {
+	switch prop {
+	case "require", "requireType", "forwardDeclare", "requireDynamic":
+		return true
+	default:
+		return false
+	}
+}
 
 var moduleImportResolver_GOOG_MODULE_GET = rhino.QualifiedName_Of("goog.module.get")
 
 // Java: ModuleImportResolver(ModuleMap, Function<Node, TypedScope>, JSTypeRegistry)
 func NewModuleImportResolver(
 	moduleMap *ModuleMap, nodeToScopeMapper func(rhino.Node) *TypedScope, registry *rhino.JSTypeRegistry) *ModuleImportResolver {
-	r := &ModuleImportResolver{}
-	r.moduleMap = moduleMap
-	r.nodeToScopeMapper = nodeToScopeMapper
-	r.registry = registry
-	return r
+	return &ModuleImportResolver{
+		moduleMap:         moduleMap,
+		nodeToScopeMapper: nodeToScopeMapper,
+		registry:          registry,
+	}
 }
 
 // ModuleImportResolver_IsGoogModuleDependencyCall returns whether this is a
@@ -60,21 +67,24 @@ func NewModuleImportResolver(
 //
 // Java: ModuleImportResolver.isGoogModuleDependencyCall(Node)
 func ModuleImportResolver_IsGoogModuleDependencyCall(value rhino.Node) bool {
-	if value.IsNil() ||
-		!value.IsCall() ||
-		!value.HasTwoChildren() ||
-		!value.GetSecondChild().IsStringLit() {
+	call, ok := ast.AsCall(value)
+	if !ok {
 		return false
 	}
-	callee := value.GetFirstChild()
-	if !callee.IsGetProp() {
+	arg, ok := call.OnlyArg()
+	if !ok || !arg.Node().IsStringLit() {
 		return false
 	}
-	owner := callee.GetFirstChild()
-	return (owner.IsName() &&
-		owner.GetString() == moduleImportResolver_GOOG &&
-		moduleImportResolver_GOOG_DEPENDENCY_CALLS.Contains(callee.GetString())) ||
-		moduleImportResolver_GOOG_MODULE_GET.Matches(callee)
+	callee, ok := call.Callee().AsGetProp()
+	if !ok {
+		return false
+	}
+	if owner, ok := callee.Object().AsName(); ok &&
+		owner.Ident() == moduleImportResolver_GOOG &&
+		moduleImportResolver_isGoogDependencyProp(callee.Property()) {
+		return true
+	}
+	return moduleImportResolver_GOOG_MODULE_GET.Matches(callee.Node())
 }
 
 // GetClosureNamespaceTypeFromCall attempts to look up the type of a Closure
@@ -93,7 +103,7 @@ func (r *ModuleImportResolver) GetClosureNamespaceTypeFromCall(googRequire rhino
 		// TODO(b/124919359): make sure all tests have generated a ModuleMap
 		return nil
 	}
-	moduleId := googRequire.GetSecondChild().GetString()
+	moduleId := ast.MustCall(googRequire).MustFirstArg().MustStringLit().Value()
 	return r.GetScopedNameForClosureNamespace(moduleId)
 }
 
@@ -156,11 +166,11 @@ func (r *ModuleImportResolver) GetGoogModuleScopeRoot(module *Module) rhino.Node
 		// The map is keyed off a MODULE_BODY node for a goog.module,
 		// which is the only child of our SCRIPT node.
 		return scriptNode.GetOnlyChild()
-	} else if scriptNode.IsCall() {
+	} else if call, ok := ast.AsCall(scriptNode); ok {
 		// This is a goog.loadModule call, and the scope is keyed off the FUNCTION node's BLOCK in:
 		//   goog.loadModule(function(exports)
-		functionLiteral := scriptNode.GetSecondChild()
-		return NodeUtil_GetFunctionBody(functionLiteral)
+		functionLiteral, _ := call.FirstArg()
+		return NodeUtil_GetFunctionBody(functionLiteral.Node())
 	}
 	// TODO(b/124919359): this case should not happen, but is triggering on goog.require calls in
 	// rewritten modules with preserveClosurePrimitives enabled.
@@ -293,9 +303,9 @@ func (r *ModuleImportResolver) UpdateAstForExport(
 	bindingSourceNode rhino.Node, exportType rhino.JSType, typedefType rhino.JSType) {
 	bindingSourceNode.SetJSType(exportType)
 	bindingSourceNode.SetTypedefTypeProp(typedefType)
-	if bindingSourceNode.GetParent().IsExportSpec() {
-		// given  `export {x as y} from './a/b'` update the y NAME node
-		bindingSourceNode.GetNext().SetJSType(exportType)
+	if exportSpec, ok := ast.AsExportSpec(bindingSourceNode.GetParent()); ok {
+		// given `export {x as y} from './a/b'` update the y NAME node
+		exportSpec.Exported().Node().SetJSType(exportType)
 	}
 }
 
@@ -307,15 +317,14 @@ func (r *ModuleImportResolver) GetScopedNameFromEsBinding(binding *Binding) Scop
 	// NB: If the original export was an `export default` then the local name is *default*.
 	// We've already declared a dummy variable named `*default*` in the scope.
 	//
-	// Go-only: language-adapter — Java's String name is null when the originating export has no
-	// local name (a goog.module export, or a name "exported" by a script); see
-	// moduleImportResolver_scopedNameOf.
-	var name *string
+	// Go-only: language-adapter — ScopedName's name is a Go string, and Java passes a null name
+	// when the originating export has no local name (a goog.module export, or a name "exported" by
+	// a script); nothing reads the name when the scope is missing, so absent local name maps to "".
+	var name string
 	if binding.IsModuleNamespace() {
-		namespace := Export_NAMESPACE
-		name = &namespace
+		name = Export_NAMESPACE
 	} else {
-		name = binding.BoundName()
+		name, _ = binding.BoundName()
 	}
 	var originalMetadata *ModuleMetadataMap_ModuleMetadata
 	if binding.IsModuleNamespace() {
@@ -333,46 +342,35 @@ func (r *ModuleImportResolver) GetScopedNameFromEsBinding(binding *Binding) Scop
 		if !scriptNode.IsNil() {
 			scopeRoot = scriptNode.GetOnlyChild()
 		}
-		return moduleImportResolver_scopedNameOf(name, scopeRoot)
+		return ScopedName_Of(name, scopeRoot)
 	case ModuleMetadataMap_ModuleType_GOOG_MODULE, ModuleMetadataMap_ModuleType_GOOG_PROVIDE, ModuleMetadataMap_ModuleType_LEGACY_GOOG_MODULE:
-		closureModuleObject :=
-			r.GetScopedNameForClosureNamespace(*binding.ClosureNamespace())
+		if !binding.HasClosureNamespace() {
+			panic(jutil.NewNullPointerException())
+		}
+		closureNs := binding.ClosureNamespace()
+		closureModuleObject := r.GetScopedNameForClosureNamespace(closureNs)
 		if closureModuleObject == nil {
 			// This is an error, but one that should be reported elsewhere. assume the module is
 			// a goog.provide for legacy compatibility.
-			return ScopedName_Of(*binding.ClosureNamespace(), rhino.NilNode)
+			return ScopedName_Of(closureNs, rhino.NilNode)
 		}
 		if binding.IsModuleNamespace() {
 			return closureModuleObject
 		}
+		origExport := binding.OriginatingExport()
 		return ScopedName_Of(
-			closureModuleObject.GetName()+"."+modules_nullableString(binding.OriginatingExport().ExportName()),
+			closureModuleObject.GetName()+"."+modules_optString(origExport.ExportName(), origExport.HasExportName()),
 			closureModuleObject.GetScopeRoot())
 	case ModuleMetadataMap_ModuleType_SCRIPT:
 		// Importing SCRIPTs should not allow you to look up names in scope.
 		// we also don't really support CommonJs.
-		return moduleImportResolver_scopedNameOf(name, rhino.NilNode)
+		return ScopedName_Of(name, rhino.NilNode)
 	case ModuleMetadataMap_ModuleType_COMMON_JS:
 		panic(jutil.NewIllegalStateExceptionMsg("Typechecking CommonJS modules is not supported"))
 	}
 	// Go-only: language-adapter — an exhaustive Java switch expression
 	// throws MatchException for an enum constant it does not know.
 	panic(jutil.NewIllegalStateException())
-}
-
-// moduleImportResolver_scopedNameOf is ScopedName.of(name, scopeRoot) for
-// getScopedNameFromEsBinding's nullable name.
-//
-// Go-only: language-adapter — ScopedName's name is a Go string, and Java
-// passes a null name here for a name imported from a script (the Export that
-// NonEsModuleProcessor resolves has no local name). The scope root is then
-// null as well, and nothing reads the name of such a ScopedName (its scope is
-// looked up first and is missing), so the null name becomes "".
-func moduleImportResolver_scopedNameOf(name *string, scopeRoot rhino.Node) ScopedName {
-	if name == nil {
-		return ScopedName_Of("", scopeRoot)
-	}
-	return ScopedName_Of(*name, scopeRoot)
 }
 
 // ModuleImportResolver_GetModuleFromScopeRoot returns the Module
@@ -382,8 +380,8 @@ func moduleImportResolver_scopedNameOf(name *string, scopeRoot rhino.Node) Scope
 func ModuleImportResolver_GetModuleFromScopeRoot(
 	moduleMap *ModuleMap, inputProvider CompilerInputProvider, moduleBody rhino.Node) *Module {
 	if ModuleImportResolver_IsGoogModuleBody(moduleBody) {
-		googModuleCall := moduleBody.GetFirstChild()
-		namespace := googModuleCall.GetFirstChild().GetSecondChild().GetString()
+		googModuleCall := ast.MustExprStmt(moduleBody.GetFirstChild()).Expr().MustCall()
+		namespace := googModuleCall.MustFirstArg().MustStringLit().Value()
 		return moduleMap.GetClosureModule(namespace)
 	} else if moduleBody.IsModuleBody() {
 		scriptNode := moduleBody.GetParent()

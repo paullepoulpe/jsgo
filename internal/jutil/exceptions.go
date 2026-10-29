@@ -450,3 +450,164 @@ func NewIOExceptionWithCause(cause Throwable) *IOException {
 	InitThrowable(e, "java.io.IOException", nil, cause)
 	return e
 }
+
+// NewStringIndexOutOfBoundsExceptionForIndex is the exception thrown by
+// String.charAt(int) and StringBuilder.charAt(int) / setCharAt(int, char):
+// "Index 3 out of bounds for length 3".
+func NewStringIndexOutOfBoundsExceptionForIndex(index, length int) *StringIndexOutOfBoundsException {
+	e := &StringIndexOutOfBoundsException{}
+	InitThrowable(e, "java.lang.StringIndexOutOfBoundsException",
+		msgPtr(fmt.Sprintf("Index %d out of bounds for length %d", index, length)), nil)
+	return e
+}
+
+// NewStringIndexOutOfBoundsExceptionForRange is the exception thrown by
+// String.substring(int, int) and String.substring(int):
+// "Range [2, 1) out of bounds for length 3".
+func NewStringIndexOutOfBoundsExceptionForRange(begin, end, length int) *StringIndexOutOfBoundsException {
+	e := &StringIndexOutOfBoundsException{}
+	InitThrowable(e, "java.lang.StringIndexOutOfBoundsException",
+		msgPtr(fmt.Sprintf("Range [%d, %d) out of bounds for length %d", begin, end, length)), nil)
+	return e
+}
+
+// NewIndexOutOfBoundsExceptionNoMessage is new IndexOutOfBoundsException().
+func NewIndexOutOfBoundsExceptionNoMessage() *IndexOutOfBoundsException {
+	e := &IndexOutOfBoundsException{}
+	InitThrowable(e, "java.lang.IndexOutOfBoundsException", nil, nil)
+	return e
+}
+
+// NewIndexOutOfBoundsExceptionForRange is the exception thrown by
+// Preconditions.checkFromToIndex with the IOOBE formatter, e.g. by
+// StringBuilder.append(CharSequence, int, int):
+// "Range [2, 5) out of bounds for length 3".
+func NewIndexOutOfBoundsExceptionForRange(from, to, length int) *IndexOutOfBoundsException {
+	e := &IndexOutOfBoundsException{}
+	InitThrowable(e, "java.lang.IndexOutOfBoundsException",
+		msgPtr(fmt.Sprintf("Range [%d, %d) out of bounds for length %d", from, to, length)), nil)
+	return e
+}
+
+// NewRuntimeExceptionWithMessageAndCause is new RuntimeException(String
+// message, Throwable cause).
+func NewRuntimeExceptionWithMessageAndCause(message string, cause Throwable) *RuntimeException {
+	e := &RuntimeException{}
+	InitThrowable(e, "java.lang.RuntimeException", &message, cause)
+	return e
+}
+
+// NewAssertionErrorWithCause is new AssertionError(Object detailMessage)
+// with a Throwable: the message is the cause's toString() and the cause is
+// set.
+func NewAssertionErrorWithCause(cause Throwable) *AssertionError {
+	e := &AssertionError{}
+	InitThrowable(e, "java.lang.AssertionError", msgPtr(cause.Error()), cause)
+	return e
+}
+
+// NewIllegalStateExceptionWithMessageAndCause is new
+// IllegalStateException(String message, Throwable cause).
+func NewIllegalStateExceptionWithMessageAndCause(message string, cause Throwable) *IllegalStateException {
+	e := &IllegalStateException{}
+	InitThrowable(e, "java.lang.IllegalStateException", &message, cause)
+	return e
+}
+
+// JavaLangError is java.lang.Error (named so that embedding it does not
+// shadow the Go error interface's Error method).
+type JavaLangError struct{ ThrowableBase }
+
+func (*JavaLangError) javaLangError() {}
+
+// IError matches java.lang.Error and all its subclasses.
+type IError interface {
+	Throwable
+	javaLangError()
+}
+
+// NewJavaLangError is new Error(String message).
+func NewJavaLangError(message string) *JavaLangError {
+	e := &JavaLangError{}
+	InitThrowable(e, "java.lang.Error", msgPtr(message), nil)
+	return e
+}
+
+// AssertionError is java.lang.AssertionError.
+type AssertionError struct{ JavaLangError }
+
+// NewAssertionError is new AssertionError(Object detailMessage) with a
+// string message.
+func NewAssertionError(message string) *AssertionError {
+	e := &AssertionError{}
+	InitThrowable(e, "java.lang.AssertionError", msgPtr(message), nil)
+	return e
+}
+
+// NewAssertionErrorNoMessage is new AssertionError().
+func NewAssertionErrorNoMessage() *AssertionError {
+	e := &AssertionError{}
+	InitThrowable(e, "java.lang.AssertionError", nil, nil)
+	return e
+}
+
+// ConcurrentModificationException is
+// java.util.ConcurrentModificationException: thrown by fail-fast iterators
+// (JavaHashMap, JavaHashSet) when the collection is structurally modified
+// other than through the iterator itself.
+type ConcurrentModificationException struct{ RuntimeException }
+
+func (*ConcurrentModificationException) concurrentModificationException() {}
+
+type IConcurrentModificationException interface {
+	IRuntimeException
+	concurrentModificationException()
+}
+
+// NewConcurrentModificationException is new
+// ConcurrentModificationException().
+func NewConcurrentModificationException() *ConcurrentModificationException {
+	e := &ConcurrentModificationException{}
+	InitThrowable(e, "java.util.ConcurrentModificationException", nil, nil)
+	return e
+}
+
+// ExecutionException is java.util.concurrent.ExecutionException: the
+// checked exception thrown when retrieving the result of a task that
+// aborted by throwing an exception.
+type ExecutionException struct{ JavaException }
+
+func (*ExecutionException) executionException() {}
+
+// IExecutionException matches ExecutionException and its subclasses.
+type IExecutionException interface {
+	IException
+	executionException()
+}
+
+// NewExecutionException is new ExecutionException(Throwable cause): the
+// message is cause.toString().
+func NewExecutionException(cause Throwable) *ExecutionException {
+	e := &ExecutionException{}
+	InitThrowable(e, "java.util.concurrent.ExecutionException", nil, cause)
+	return e
+}
+
+// InterruptedException is java.lang.InterruptedException (a checked
+// exception).
+type InterruptedException struct{ JavaException }
+
+func (*InterruptedException) interruptedException() {}
+
+// IInterruptedException matches InterruptedException.
+type IInterruptedException interface {
+	IException
+	interruptedException()
+}
+
+// NewInterruptedException is new InterruptedException().
+func NewInterruptedException() *InterruptedException {
+	e := &InterruptedException{}
+	InitThrowable(e, "java.lang.InterruptedException", nil, nil)
+	return e
+}

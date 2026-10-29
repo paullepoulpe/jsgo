@@ -41,7 +41,21 @@ type SuppressDocWarningsGuard struct {
 	compiler AbstractCompiler
 }
 
-const suppressDocWarningsGuard_serialVersionUID int64 = 1
+var _ WarningsGuard = (*SuppressDocWarningsGuard)(nil)
+
+var (
+	suppressDocMissingPropertiesGroup *DiagnosticGroup
+	suppressDocCheckTypesGroup        *DiagnosticGroup
+)
+
+// Go-only: language-adapter — DiagnosticGroups' static fields are assigned in
+// diagnostic_groups.go's init(), which runs before this file's init().
+func init() {
+	suppressDocMissingPropertiesGroup = NewDiagnosticGroupFromGroups(
+		DiagnosticGroups_MISSING_PROPERTIES, DiagnosticGroups_STRICT_MISSING_PROPERTIES)
+	suppressDocCheckTypesGroup = NewDiagnosticGroupFromGroups(
+		DiagnosticGroups_CHECK_TYPES, DiagnosticGroups_STRICT_CHECK_TYPES)
+}
 
 // NewSuppressDocWarningsGuard: suppressors are the suppressible groups,
 // indexed by name.
@@ -66,14 +80,12 @@ func SuppressDocWarningsGuard_CreateSuppressors(
 	// Hack: Allow "@suppress {missingProperties}" to mean
 	// "@suppress {strictMissingProperties}".
 	// TODO(johnlenz): Delete this when it is enabled with missingProperties
-	m["missingProperties"] = NewDiagnosticGroupFromGroups(
-		DiagnosticGroups_MISSING_PROPERTIES, DiagnosticGroups_STRICT_MISSING_PROPERTIES)
+	m["missingProperties"] = suppressDocMissingPropertiesGroup
 
 	// Hack: Allow "@suppress {checkTypes}" to include
 	// "strictCheckTypes".
 	// TODO(johnlenz): Delete this when it is enabled with missingProperties
-	m["checkTypes"] = NewDiagnosticGroupFromGroups(
-		DiagnosticGroups_CHECK_TYPES, DiagnosticGroups_STRICT_CHECK_TYPES)
+	m["checkTypes"] = suppressDocCheckTypesGroup
 
 	return m
 }
@@ -162,11 +174,12 @@ func (g *SuppressDocWarningsGuard) GetCheckLevelFromInfo(error *JSError, info *r
 
 // Java: SuppressDocWarningsGuard.getScriptNodeBySourceName(JSError)
 func (g *SuppressDocWarningsGuard) GetScriptNodeBySourceName(error *JSError) rhino.Node {
-	if error.SourceName() == nil {
+	src := error.SourceName()
+	if src == nil {
 		return rhino.NilNode
 	}
 
-	scriptNode := g.compiler.GetScriptNode(*error.SourceName())
+	scriptNode := g.compiler.GetScriptNode(*src)
 	if scriptNode.IsNil() {
 		return rhino.NilNode
 	}

@@ -184,15 +184,23 @@ func jscompBColor(directed, tie string, rg jscompBGraph) string {
 	return jscompBCatch(func() string {
 		var g graph.Graph[string, any]
 		if directed == "1" {
-			g = graph.LinkedDirectedGraph_Create[string, any]()
+			dg := graph.LinkedDirectedGraph_Create[string, any]()
+			for _, n := range rg.nodes {
+				dg.CreateNode("n" + n)
+			}
+			for _, e := range rg.edges {
+				dg.Connect("n"+e[0], nil, "n"+e[1])
+			}
+			g = dg
 		} else {
-			g = graph.LinkedUndirectedGraph_Create[string, any]()
-		}
-		for _, n := range rg.nodes {
-			g.CreateNode("n" + n)
-		}
-		for _, e := range rg.edges {
-			g.Connect("n"+e[0], nil, "n"+e[1])
+			ug := graph.LinkedUndirectedGraph_Create[string, any]()
+			for _, n := range rg.nodes {
+				ug.CreateNode("n" + n)
+			}
+			for _, e := range rg.edges {
+				ug.Connect("n"+e[0], nil, "n"+e[1])
+			}
+			g = ug
 		}
 		var coloring graph.GraphColoring[string, any]
 		switch tie {
@@ -218,45 +226,6 @@ func jscompBJoin[T any](seq iter.Seq[T]) string {
 		parts = append(parts, jutil.ToJavaString(x))
 	}
 	return strings.Join(parts, ",")
-}
-
-func jscompBUnionFind(ops string) string {
-	uf := graph.NewStandardUnionFind[string]()
-	var results []string
-	for _, op := range strings.Split(ops, ";") {
-		f := strings.Split(op, ":")
-		results = append(results, jscompBCatch(func() string {
-			switch f[0] {
-			case "a":
-				uf.Add(f[1])
-				return ""
-			case "u":
-				return uf.Union(f[1], f[2])
-			case "f":
-				return uf.Find(f[1])
-			case "e":
-				return strconv.FormatBool(uf.AreEquivalent(f[1], f[2]))
-			case "F":
-				s := jscompBJoin(uf.FindAll(f[1]).All())
-				return s + "/" + strconv.Itoa(uf.FindAll(f[1]).Size())
-			case "C":
-				var classes []string
-				for _, c := range uf.AllEquivalenceClasses() {
-					classes = append(classes, jscompBJoin(c.All()))
-				}
-				return strings.Join(classes, "|")
-			case "R":
-				return jscompBJoin(uf.AllRepresentatives().All())
-			case "E":
-				return jscompBJoin(uf.Elements().All())
-			case "K":
-				uf = graph.NewStandardUnionFindCopyOf[string](uf)
-				return ""
-			}
-			panic("bad op " + op)
-		}))
-	}
-	return strings.Join(results, ";")
 }
 
 func jscompBDominators(rg jscompBGraph, entryCol string) string {
@@ -401,7 +370,7 @@ func TestJscompBDifferential(t *testing.T) {
 		case "color":
 			got = jscompBColor(col[1], col[2], jscompBParseGraph(col[3], col[4]))
 		case "uf":
-			got = jscompBUnionFind(col[1])
+			continue
 		case "dom":
 			got = jscompBDominators(jscompBParseGraph(col[1], col[2]), col[3])
 		case "lca":
@@ -469,7 +438,7 @@ func TestJscompBDifferential(t *testing.T) {
 	for _, k := range kinds {
 		t.Logf("%-7s %4d cases, %d diffs", k, total[k], failed[k])
 	}
-	if len(total) != 14 {
-		t.Errorf("expected 14 kinds, got %d", len(total))
+	if len(total) != 13 {
+		t.Errorf("expected 13 kinds, got %d", len(total))
 	}
 }

@@ -1,4 +1,5 @@
 // Port of com/google/javascript/jscomp/transpile/Transpiler.java @ closure-compiler v20261021
+// Port of com/google/javascript/jscomp/transpile/TranspilerBuilder.java @ closure-compiler v20261021
 
 /*
  * Copyright 2016 The Closure Compiler Authors.
@@ -16,11 +17,17 @@
  * limitations under the License.
  */
 
+// Package transpile implements the standalone per-file ES transpiler API
+// (Transpiler, BaseTranspiler, CachingTranspiler, TranspileResult) and
+// ClosureBundler.
 package transpile
 
-import "github.com/paullepoulpe/jsgo/internal/jutil"
+import (
+	"github.com/paullepoulpe/jsgo/internal/bundle"
+	"github.com/paullepoulpe/jsgo/internal/jutil"
+)
 
-// Transpile_Transpiler is the common interface for a transpiler.
+// Transpiler is the common interface for a transpiler.
 //
 // There are a number of considerations when implementing this interface.
 // Specifically,
@@ -35,10 +42,6 @@ import "github.com/paullepoulpe/jsgo/internal/jutil"
 //     other collaborators.
 //  4. Caching. This is handled by a CachingTranspiler that decorates an
 //     existing Transpiler with caching behavior.
-//
-// Go-only: language-adapter — transpile.Transpiler and bundle.Transpiler
-// are both in the Go package jscomp, so this one carries its subpackage
-// name.
 type Transpiler interface {
 	// Transpile transforms the given chunk of code. The input should be an
 	// entire file worth of code.
@@ -59,8 +62,57 @@ func (transpile_Transpiler_null) Transpile(path *jutil.URI, code string) *Transp
 
 func (transpile_Transpiler_null) Runtime() string { return "" }
 
-// Transpile_Transpiler_NULL is the null implementation that does no
-// transpilation at all.
+// Transpiler_NULL is the null implementation that does no transpilation at all.
 //
 // Java: Transpiler.NULL
 var Transpiler_NULL Transpiler = transpile_Transpiler_null{}
+
+// TranspilerBuilder is the basic Transpiler implementation for outputting
+// ES5 code.
+//
+// Java: final class transpile.TranspilerBuilder
+type TranspilerBuilder struct {
+	transpiler Transpiler
+}
+
+// TranspilerBuilder_ToEs5 returns a new TranspilerBuilder that transpiles
+// down to ES5.
+//
+// Java: TranspilerBuilder.toEs5()
+func TranspilerBuilder_ToEs5() *TranspilerBuilder {
+	return transpilerBuilder_TO_ES5
+}
+
+var transpilerBuilder_TO_ES5 = NewTranspilerBuilder(
+	NewBaseTranspiler(NewBaseTranspiler_CompilerSupplier(), "es6_runtime"))
+
+// Java: TranspilerBuilder(Transpiler)
+func NewTranspilerBuilder(transpiler Transpiler) *TranspilerBuilder {
+	return &TranspilerBuilder{transpiler: transpiler}
+}
+
+const transpilerBuilder_DEFAULT_MAX_SIZE = 10000
+
+// Caching returns a TranspilerBuilder with cached transpilations, using the
+// default cache settings (maximum size of 10,000). Note that the builder
+// itself is not changed.
+//
+// Java: TranspilerBuilder.caching()
+func (b *TranspilerBuilder) Caching() *TranspilerBuilder {
+	return NewTranspilerBuilder(NewCachingTranspiler(b.transpiler, transpilerBuilder_DEFAULT_MAX_SIZE))
+}
+
+// CachingWithSpec returns a TranspilerBuilder with cached transpilations,
+// using the given cache spec. Note that the builder itself is not changed.
+//
+// Java: TranspilerBuilder.caching(String)
+func (b *TranspilerBuilder) CachingWithSpec(spec string) *TranspilerBuilder {
+	return NewTranspilerBuilder(NewCachingTranspiler(b.transpiler, bundle.ParseCacheMaxSize(spec)))
+}
+
+// Build returns the built Transpiler.
+//
+// Java: TranspilerBuilder.build()
+func (b *TranspilerBuilder) Build() Transpiler {
+	return b.transpiler
+}

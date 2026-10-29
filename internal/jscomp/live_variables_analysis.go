@@ -173,7 +173,7 @@ func (l *LiveVariablesAnalysis_LiveVariableLattice) HashCode() int32 {
 //
 // Java: LiveVariablesAnalysis(ControlFlowGraph<Node>, Scope, Scope, AbstractCompiler, ScopeCreator, AllVarsDeclaredInFunction)
 func NewLiveVariablesAnalysis(
-	cfg ControlFlowGraph[rhino.Node],
+	cfg *ControlFlowGraph[rhino.Node],
 	jsScope *Scope,
 	jsScopeChild *Scope,
 	compiler AbstractCompiler,
@@ -187,7 +187,7 @@ func NewLiveVariablesAnalysis(
 // Reset resets l for reuse on a new function scope while retaining slab,
 // queue, set, and map capacities.
 func (l *LiveVariablesAnalysis) Reset(
-	cfg ControlFlowGraph[rhino.Node],
+	cfg *ControlFlowGraph[rhino.Node],
 	jsScope *Scope,
 	jsScopeChild *Scope,
 	compiler AbstractCompiler,
@@ -388,11 +388,9 @@ func (l *LiveVariablesAnalysis) FlowThrough(node rhino.Node, input *LiveVariable
 
 	// Make kills conditional if the node can end abruptly by an exception.
 	conditional := false
-	var edgeList []*graph.LinkedDirectedGraph_LinkedDiGraphEdge[rhino.Node, ControlFlowGraph_Branch]
+	var edgeList []*graph.LinkedDiGraphEdge[rhino.Node, ControlFlowGraph_Branch]
 	if l.curLinkedNode != nil && l.curLinkedNode.Value == node {
 		edgeList = l.curLinkedNode.OutEdgeList.Slice()
-	} else if l.curDiGraphNode != nil && l.curDiGraphNode.GetValue() == node {
-		edgeList = l.curDiGraphNode.GetOutEdges()
 	} else {
 		edgeList = l.GetCfg().GetOutEdges(node)
 	}

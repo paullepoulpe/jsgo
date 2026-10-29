@@ -69,7 +69,7 @@ func (t *CachingTranspiler) Transpile(path *jutil.URI, code string) *TranspileRe
 	if t.maxSize == 0 {
 		value := t.delegate.Transpile(path, code)
 		if value == nil {
-			panic(jutil.NewCacheLoader_InvalidCacheLoadException("CacheLoader returned null."))
+			panic(jutil.NewRuntimeException("CacheLoader returned null."))
 		}
 		return value
 	}
@@ -86,7 +86,7 @@ func (t *CachingTranspiler) Transpile(path *jutil.URI, code string) *TranspileRe
 
 	value := t.delegate.Transpile(path, code)
 	if value == nil {
-		panic(jutil.NewCacheLoader_InvalidCacheLoadException("CacheLoader returned null."))
+		panic(jutil.NewRuntimeException("CacheLoader returned null."))
 	}
 
 	t.mu.Lock()

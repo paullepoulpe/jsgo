@@ -41,7 +41,7 @@ const ModuleRenaming_DEFAULT_EXPORT_VAR_PREFIX = "$jscompDefaultExport"
 func ModuleRenaming_GetGlobalNameOfEsModuleLocalVariable(
 	moduleMetadata *ModuleMetadataMap_ModuleMetadata, variableName string) rhino.QualifiedName {
 	return rhino.QualifiedName_Of(
-		variableName + "$$" + ModuleRenaming_GetGlobalNameWithModuleMetadata(moduleMetadata /* googNamespace= */, nil).Join())
+		variableName + "$$" + moduleRenaming_getGlobalNameWithModuleMetadata(moduleMetadata, "", false).Join())
 }
 
 // ModuleRenaming_GetGlobalNameOfAnonymousDefaultExport returns the global
@@ -50,6 +50,11 @@ func ModuleRenaming_GetGlobalNameOfEsModuleLocalVariable(
 // Java: ModuleRenaming.getGlobalNameOfAnonymousDefaultExport(ModuleMetadata)
 func ModuleRenaming_GetGlobalNameOfAnonymousDefaultExport(moduleMetadata *ModuleMetadataMap_ModuleMetadata) rhino.QualifiedName {
 	return ModuleRenaming_GetGlobalNameOfEsModuleLocalVariable(moduleMetadata, ModuleRenaming_DEFAULT_EXPORT_VAR_PREFIX)
+}
+
+func moduleRenaming_getGlobalNameWithModuleMetadata(
+	moduleMetadata *ModuleMetadataMap_ModuleMetadata, googNamespace string, hasGoogNamespace bool) rhino.QualifiedName {
+	return moduleRenaming_createGlobalizedModuleName(moduleMetadata, googNamespace, hasGoogNamespace, nil).AliasName()
 }
 
 // ModuleRenaming_GetGlobalNameWithModuleMetadata: moduleMetadata is the
@@ -70,13 +75,14 @@ func ModuleRenaming_GetGlobalNameWithModuleMetadata(
 // Java: ModuleRenaming.getGlobalName(Export)
 func ModuleRenaming_GetGlobalName(export *Export) rhino.QualifiedName {
 	if export.ModuleMetadata().IsEs6Module() {
-		if *export.LocalName() == Export_DEFAULT_EXPORT_NAME {
+		if export.LocalName() == Export_DEFAULT_EXPORT_NAME {
 			return ModuleRenaming_GetGlobalNameOfAnonymousDefaultExport(export.ModuleMetadata())
 		}
-		return ModuleRenaming_GetGlobalNameOfEsModuleLocalVariable(export.ModuleMetadata(), *export.LocalName())
+		return ModuleRenaming_GetGlobalNameOfEsModuleLocalVariable(export.ModuleMetadata(), export.LocalName())
 	}
-	return ModuleRenaming_GetGlobalNameWithModuleMetadata(export.ModuleMetadata(), export.ClosureNamespace()).
-		Getprop(*export.ExportName())
+	return moduleRenaming_getGlobalNameWithModuleMetadata(
+		export.ModuleMetadata(), export.ClosureNamespace(), export.HasClosureNamespace(),
+	).Getprop(export.ExportName())
 }
 
 // ModuleRenaming_GetGlobalNameWithBinding returns the post-transpilation,
@@ -85,7 +91,8 @@ func ModuleRenaming_GetGlobalName(export *Export) rhino.QualifiedName {
 // Java: ModuleRenaming.getGlobalName(Binding)
 func ModuleRenaming_GetGlobalNameWithBinding(binding *Binding) rhino.QualifiedName {
 	if binding.IsModuleNamespace() {
-		return ModuleRenaming_GetGlobalNameWithModuleMetadata(binding.Metadata(), binding.ClosureNamespace())
+		return moduleRenaming_getGlobalNameWithModuleMetadata(
+			binding.Metadata(), binding.ClosureNamespace(), binding.HasClosureNamespace())
 	}
 	return ModuleRenaming_GetGlobalName(binding.OriginatingExport())
 }
@@ -234,17 +241,34 @@ func ModuleRenaming_GlobalizedModuleName_CreateWithModuleMetadata(
 	moduleMetadata *ModuleMetadataMap_ModuleMetadata,
 	googNamespace *string,
 	globalTypedScope *TypedScope) *ModuleRenaming_GlobalizedModuleName {
-	jutil.CheckState(googNamespace == nil || moduleMetadata.GoogNamespaces().Contains(*googNamespace))
+	if googNamespace == nil {
+		return moduleRenaming_createGlobalizedModuleName(moduleMetadata, "", false, globalTypedScope)
+	}
+	return moduleRenaming_createGlobalizedModuleName(moduleMetadata, *googNamespace, true, globalTypedScope)
+}
+
+func moduleRenaming_createGlobalizedModuleName(
+	moduleMetadata *ModuleMetadataMap_ModuleMetadata,
+	googNamespace string,
+	hasGoogNamespace bool,
+	globalTypedScope *TypedScope) *ModuleRenaming_GlobalizedModuleName {
+	jutil.CheckState(!hasGoogNamespace || moduleMetadata.GoogNamespaces().Contains(googNamespace))
 	switch moduleMetadata.ModuleType() {
 	case ModuleMetadataMap_ModuleType_GOOG_MODULE:
+		if !hasGoogNamespace {
+			panic(jutil.NewNullPointerException())
+		}
 		// The exported type is stored on the MODULE_BODY node.
 		moduleBody := moduleMetadata.RootNode().GetFirstChild()
 		return NewModuleRenaming_GlobalizedModuleName(
-			rhino.QualifiedName_Of(ClosureRewriteModule_GetBinaryModuleNamespace(*googNamespace)),
+			rhino.QualifiedName_Of(ClosureRewriteModule_GetBinaryModuleNamespace(googNamespace)),
 			moduleBody.GetJSType())
 	case ModuleMetadataMap_ModuleType_GOOG_PROVIDE, ModuleMetadataMap_ModuleType_LEGACY_GOOG_MODULE:
+		if !hasGoogNamespace {
+			panic(jutil.NewNullPointerException())
+		}
 		return NewModuleRenaming_GlobalizedModuleName(
-			rhino.QualifiedName_Of(*googNamespace), ModuleRenaming_GetNameRootType(*googNamespace, globalTypedScope))
+			rhino.QualifiedName_Of(googNamespace), ModuleRenaming_GetNameRootType(googNamespace, globalTypedScope))
 	case ModuleMetadataMap_ModuleType_ES6_MODULE, ModuleMetadataMap_ModuleType_COMMON_JS:
 		return NewModuleRenaming_GlobalizedModuleName(
 			rhino.QualifiedName_Of(moduleMetadata.Path().ToModuleName()),

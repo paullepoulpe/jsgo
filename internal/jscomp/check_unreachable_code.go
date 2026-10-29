@@ -51,18 +51,8 @@ func NewCheckUnreachableCode(compiler AbstractCompiler) *CheckUnreachableCode {
 	return c
 }
 
-func hasUnreachableCfgNode(cfg ControlFlowGraph[rhino.Node]) bool {
-	if base := cfg.GetControlFlowGraphBase(); base != nil {
-		for n, gNode := range base.Nodes.All() {
-			if !n.IsNil() && gNode.GetAnnotation() != graph.GraphReachability_REACHABLE &&
-				n.GetLineno() != -1 && !n.IsEmpty() && !n.IsBreak() {
-				return true
-			}
-		}
-		return false
-	}
-	for _, gNode := range cfg.GetNodes() {
-		n := gNode.GetValue()
+func hasUnreachableCfgNode(cfg *ControlFlowGraph[rhino.Node]) bool {
+	for n, gNode := range cfg.Nodes.All() {
 		if !n.IsNil() && gNode.GetAnnotation() != graph.GraphReachability_REACHABLE &&
 			n.GetLineno() != -1 && !n.IsEmpty() && !n.IsBreak() {
 			return true
@@ -269,10 +259,10 @@ func (c *CheckUnreachableCode) ShouldTraverse(t *NodeTraversal, n rhino.Node, pa
 }
 
 // Java: CheckUnreachableCode.initScope(ControlFlowGraph<Node>)
-func (c *CheckUnreachableCode) InitScope(controlFlowGraph ControlFlowGraph[rhino.Node]) {
+func (c *CheckUnreachableCode) InitScope(controlFlowGraph *ControlFlowGraph[rhino.Node]) {
 	c.reachability.Graph = controlFlowGraph
 	c.reachability.EdgePredicate = CheckUnreachableCode_IsReachable
-	c.reachability.Compute(controlFlowGraph.GetEntry().GetValue())
+	c.reachability.Compute(controlFlowGraph.entry.Value)
 }
 
 // Java: CheckUnreachableCode.isReachable(EdgeTuple<Node, Branch>)

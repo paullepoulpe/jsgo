@@ -58,30 +58,26 @@ func ParseCacheMaxSize(spec string) int {
 	}
 	initialCapacity := int64(-1)
 	concurrencyLevel := int64(-1)
-	for _, keyValuePair := range strings.Split(spec, ",") {
+	for rest := spec; rest != ""; {
+		var keyValuePair string
+		keyValuePair, rest, _ = strings.Cut(rest, ",")
 		keyValuePair = strings.TrimSpace(keyValuePair)
 		if keyValuePair == "" {
 			continue
 		}
-		kv := strings.Split(keyValuePair, "=")
-		for i := range kv {
-			kv[i] = strings.TrimSpace(kv[i])
-		}
-		if len(kv) > 2 {
+		rawKey, rawVal, hasEq := strings.Cut(keyValuePair, "=")
+		if hasEq && strings.ContainsRune(rawVal, '=') {
 			panic(jutil.NewIllegalArgumentExceptionMsg("key-value pair " + keyValuePair + " with more than one equals sign"))
 		}
-		key := kv[0]
-		var value *string
-		if len(kv) == 2 {
-			value = &kv[1]
-		}
+		key := strings.TrimSpace(rawKey)
+		value := strings.TrimSpace(rawVal)
 		parseLong := func() int64 {
-			if value == nil || *value == "" {
+			if !hasEq || value == "" {
 				panic(jutil.NewIllegalArgumentExceptionMsg("value of key " + key + " omitted"))
 			}
-			v, err := strconv.ParseInt(*value, 10, 64)
+			v, err := strconv.ParseInt(value, 10, 64)
 			if err != nil {
-				panic(jutil.NewIllegalArgumentExceptionMsg("key " + key + " value set to " + *value + ", must be integer"))
+				panic(jutil.NewIllegalArgumentExceptionMsg("key " + key + " value set to " + value + ", must be integer"))
 			}
 			return v
 		}
@@ -141,7 +137,7 @@ func (t *CachedTransformer) Transform(input *Source) *Source {
 	if t.maxSize == 0 {
 		value := t.delegate.Transform(input)
 		if value == nil {
-			panic(jutil.NewCacheLoader_InvalidCacheLoadException("CacheLoader returned null."))
+			panic(jutil.NewRuntimeException("CacheLoader returned null."))
 		}
 		return value
 	}
@@ -158,7 +154,7 @@ func (t *CachedTransformer) Transform(input *Source) *Source {
 
 	value := t.delegate.Transform(input)
 	if value == nil {
-		panic(jutil.NewCacheLoader_InvalidCacheLoadException("CacheLoader returned null."))
+		panic(jutil.NewRuntimeException("CacheLoader returned null."))
 	}
 
 	t.mu.Lock()

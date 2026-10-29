@@ -19,6 +19,8 @@
 package jscomp
 
 import (
+	"slices"
+
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 )
 
@@ -34,12 +36,42 @@ type SortingErrorManager interface {
 	GetSortingErrorManagerBase() *SortingErrorManagerBase
 }
 
+type sortingErrorKey struct {
+	level       CheckLevel
+	hasLevel    bool
+	hasSource   bool
+	source      string
+	lineno      int
+	charno      int
+	description string
+}
+
+func makeSortingErrorKey(err *JSError, level *CheckLevel) sortingErrorKey {
+	var k sortingErrorKey
+	if level != nil {
+		k.level = *level
+		k.hasLevel = true
+	}
+	if src := err.SourceName(); src != nil {
+		k.source = *src
+		k.hasSource = true
+	}
+	k.lineno = err.GetLineNumber()
+	k.charno = err.Charno()
+	k.description = err.Description()
+	return k
+}
+
 // SortingErrorManagerBase holds the fields and base implementations of
 // SortingErrorManager; subclasses embed it.
 type SortingErrorManagerBase struct {
 	self SortingErrorManager
 
-	messages           *jutil.TreeSet[*SortingErrorManager_ErrorWithLevel]
+	messages           []*SortingErrorManager_ErrorWithLevel
+	seen               map[sortingErrorKey]struct{}
+	sorted             bool
+	hasNilLevel        bool
+	hasNonNilLevel     bool
 	originalErrorCount int
 	promotedErrorCount int
 	warningCount       int
@@ -67,14 +99,15 @@ func NewSortingErrorManager(errorReportGenerators []SortingErrorManager_ErrorRep
 func (m *SortingErrorManagerBase) InitSortingErrorManagerBase(
 	self SortingErrorManager, errorReportGenerators []SortingErrorManager_ErrorReportGenerator) {
 	m.self = self
-	m.messages = jutil.NewTreeSet(NewSortingErrorManager_LeveledJSErrorComparator().Compare)
+	m.seen = make(map[sortingErrorKey]struct{})
+	m.sorted = true
 	m.errorReportGenerators = sortingErrorManager_immutableSetCopyOf(errorReportGenerators)
 }
 
 // sortingErrorManager_immutableSetCopyOf is ImmutableSet.copyOf for the
 // generators, which compare by identity.
 func sortingErrorManager_immutableSetCopyOf(generators []SortingErrorManager_ErrorReportGenerator) []SortingErrorManager_ErrorReportGenerator {
-	out := []SortingErrorManager_ErrorReportGenerator{}
+	out := make([]SortingErrorManager_ErrorReportGenerator, 0, len(generators))
 	for _, g := range generators {
 		jutil.CheckNotNull(g)
 		dup := false
@@ -96,17 +129,39 @@ func (m *SortingErrorManagerBase) GetSortingErrorManagerBase() *SortingErrorMana
 
 // Java: SortingErrorManager.report(CheckLevel, JSError)
 func (m *SortingErrorManagerBase) Report(level *CheckLevel, error *JSError) {
-	e := NewSortingErrorManager_ErrorWithLevel(error, level)
-	if m.messages.Add(e) {
-		if level != nil && *level == CheckLevel_ERROR {
-			if error.Type().level == CheckLevel_ERROR {
-				m.originalErrorCount++
-			} else {
-				m.promotedErrorCount++
-			}
-		} else if level != nil && *level == CheckLevel_WARNING {
-			m.warningCount++
+	if (level == nil && m.hasNonNilLevel) || (level != nil && m.hasNilLevel) {
+		panic(jutil.NewNullPointerException())
+	}
+	key := makeSortingErrorKey(error, level)
+	if m.seen == nil {
+		m.seen = make(map[sortingErrorKey]struct{})
+	}
+	if _, exists := m.seen[key]; exists {
+		return
+	}
+	m.seen[key] = struct{}{}
+	if level == nil {
+		m.hasNilLevel = true
+	} else {
+		m.hasNonNilLevel = true
+	}
+	m.messages = append(m.messages, NewSortingErrorManager_ErrorWithLevel(error, level))
+	m.sorted = false
+	if level != nil && *level == CheckLevel_ERROR {
+		if error.Type().level == CheckLevel_ERROR {
+			m.originalErrorCount++
+		} else {
+			m.promotedErrorCount++
 		}
+	} else if level != nil && *level == CheckLevel_WARNING {
+		m.warningCount++
+	}
+}
+
+func (m *SortingErrorManagerBase) ensureSorted() {
+	if !m.sorted {
+		slices.SortFunc(m.messages, sortingErrorManagerCompare)
+		m.sorted = true
 	}
 }
 
@@ -139,7 +194,10 @@ func (m *SortingErrorManagerBase) GetWarnings() []*JSError {
 func (m *SortingErrorManagerBase) GetSortedDiagnostics() []*SortingErrorManager_ErrorWithLevel {
 	// TODO(b/114762232): It should be possible to remove the copying here and switch to an
 	// unmodifiable collection once we get rid of usages that add warnings during generateReport.
-	return m.messages.ToSlice()
+	m.ensureSorted()
+	out := make([]*SortingErrorManager_ErrorWithLevel, len(m.messages))
+	copy(out, m.messages)
+	return out
 }
 
 // Java: SortingErrorManager.setTypedPercent(double)
@@ -154,8 +212,9 @@ func (m *SortingErrorManagerBase) GetTypedPercent() float64 {
 
 // Java: SortingErrorManager.filterToListOf(CheckLevel)
 func (m *SortingErrorManagerBase) FilterToListOf(level CheckLevel) []*JSError {
+	m.ensureSorted()
 	out := []*JSError{}
-	for e := range m.messages.All() {
+	for _, e := range m.messages {
 		if e.Level != nil && *e.Level == level {
 			out = append(out, e.Error)
 		}
@@ -208,15 +267,13 @@ func NewSortingErrorManager_LeveledJSErrorComparator() *SortingErrorManager_Leve
 	return &SortingErrorManager_LeveledJSErrorComparator{}
 }
 
-// Java: SortingErrorManager.LeveledJSErrorComparator.compare(ErrorWithLevel, ErrorWithLevel)
-func (c *SortingErrorManager_LeveledJSErrorComparator) Compare(p1, p2 *SortingErrorManager_ErrorWithLevel) int {
+func sortingErrorManagerCompare(p1, p2 *SortingErrorManager_ErrorWithLevel) int {
 	// null is the smallest value
 	if p2 == nil {
 		if p1 == nil {
 			return 0
-		} else {
-			return sortingErrorManager_LeveledJSErrorComparator_P1_GT_P2
 		}
+		return sortingErrorManager_LeveledJSErrorComparator_P1_GT_P2
 	}
 
 	// check level
@@ -247,10 +304,6 @@ func (c *SortingErrorManager_LeveledJSErrorComparator) Compare(p1, p2 *SortingEr
 	lineno2 := p2.Error.GetLineNumber()
 	if lineno1 != lineno2 {
 		return lineno1 - lineno2
-	} else if lineno1 < 0 && 0 <= lineno2 {
-		return sortingErrorManager_LeveledJSErrorComparator_P1_LT_P2
-	} else if 0 <= lineno1 && lineno2 < 0 {
-		return sortingErrorManager_LeveledJSErrorComparator_P1_GT_P2
 	}
 
 	// charno comparison
@@ -258,14 +311,15 @@ func (c *SortingErrorManager_LeveledJSErrorComparator) Compare(p1, p2 *SortingEr
 	charno2 := p2.Error.Charno()
 	if charno1 != charno2 {
 		return charno1 - charno2
-	} else if charno1 < 0 && 0 <= charno2 {
-		return sortingErrorManager_LeveledJSErrorComparator_P1_LT_P2
-	} else if 0 <= charno1 && charno2 < 0 {
-		return sortingErrorManager_LeveledJSErrorComparator_P1_GT_P2
 	}
 
 	// description
 	return jutil.StringCompareTo(p1.Error.Description(), p2.Error.Description())
+}
+
+// Java: SortingErrorManager.LeveledJSErrorComparator.compare(ErrorWithLevel, ErrorWithLevel)
+func (c *SortingErrorManager_LeveledJSErrorComparator) Compare(p1, p2 *SortingErrorManager_ErrorWithLevel) int {
+	return sortingErrorManagerCompare(p1, p2)
 }
 
 // SortingErrorManager_ErrorWithLevel is a JSError with its reported level

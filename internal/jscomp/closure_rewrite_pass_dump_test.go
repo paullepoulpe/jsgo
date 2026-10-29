@@ -95,6 +95,8 @@ func closureRewriteKeys[V any](m *jutil.LinkedHashMap[string, V]) string {
 
 func closureRewriteStr(s *string) string { return jutil.ToJavaString(s) }
 
+func closureRewriteOptStr(s string, ok bool) string { return modules_optString(s, ok) }
+
 func closureRewritePath(p *ModuleLoader_ModulePath) string {
 	if p == nil {
 		return "null"
@@ -121,7 +123,8 @@ func closureRewriteModule(m *Module) string {
 func closureRewriteBinding(b *Binding) string {
 	boundName, mutated := "-", "-"
 	if !b.IsModuleNamespace() {
-		boundName = closureRewriteStr(b.BoundName())
+		name, ok := b.BoundName()
+		boundName = closureRewriteOptStr(name, ok)
 		mutated = strconv.FormatBool(b.IsMutated())
 	}
 	export := "null"
@@ -131,7 +134,7 @@ func closureRewriteBinding(b *Binding) string {
 	return "{" + closureRewriteMetadata(b.Metadata()) +
 		" source=" + closureModulesNodeRef(b.SourceNode()) +
 		" nsObj=" + strconv.FormatBool(b.IsModuleNamespace()) +
-		" closureNs=" + closureRewriteStr(b.ClosureNamespace()) +
+		" closureNs=" + closureRewriteOptStr(b.ClosureNamespace(), b.HasClosureNamespace()) +
 		" createdBy=" + b.CreatedBy().String() +
 		" boundName=" + boundName +
 		" mutated=" + mutated +
@@ -139,14 +142,14 @@ func closureRewriteBinding(b *Binding) string {
 }
 
 func closureRewriteExport(x *Export) string {
-	return "[" + closureRewriteStr(x.ExportName()) +
-		" req=" + closureRewriteStr(x.ModuleRequest()) +
-		" import=" + closureRewriteStr(x.ImportName()) +
-		" local=" + closureRewriteStr(x.LocalName()) +
+	return "[" + closureRewriteOptStr(x.ExportName(), x.HasExportName()) +
+		" req=" + closureRewriteOptStr(x.ModuleRequest(), x.HasModuleRequest()) +
+		" import=" + closureRewriteOptStr(x.ImportName(), x.HasImportName()) +
+		" local=" + closureRewriteOptStr(x.LocalName(), x.HasLocalName()) +
 		" path=" + closureRewritePath(x.ModulePath()) +
 		" exportNode=" + closureModulesNodeRef(x.ExportNode()) +
 		" nameNode=" + closureModulesNodeRef(x.NameNode()) +
-		" closureNs=" + closureRewriteStr(x.ClosureNamespace()) +
+		" closureNs=" + closureRewriteOptStr(x.ClosureNamespace(), x.HasClosureNamespace()) +
 		" mutated=" + strconv.FormatBool(x.Mutated()) + "]"
 }
 

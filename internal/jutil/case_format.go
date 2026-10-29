@@ -19,94 +19,84 @@ package jutil
 import "strings"
 
 // Go-only: language-adapter — Guava's com.google.common.base.CaseFormat
-// conversions not covered by CaseFormat_UpperUnderscoreToLowerCamel.
+// conversions not covered by CaseFormat_UpperUnderscoreToLowerCamel. Both
+// conversions only inspect ASCII boundaries and ASCII letter case, so they
+// operate on UTF-8/WTF-8 bytes directly in a single pass.
 
 // CaseFormat_LowerCamelToUpperUnderscore is Guava's
-// CaseFormat.LOWER_CAMEL.to(CaseFormat.UPPER_UNDERSCORE, s): words start at
-// each ASCII uppercase letter and are upper-cased (Ascii.toUpperCase) and
-// joined with '_'. This is Guava's CaseFormat.convert, step for step.
+// CaseFormat.LOWER_CAMEL.to(CaseFormat.UPPER_UNDERSCORE, s): words split at
+// each ASCII uppercase letter after index 0, are upper-cased
+// (Ascii.toUpperCase), and are joined with '_'.
 func CaseFormat_LowerCamelToUpperUnderscore(s string) string {
-	units := StringToUTF16(s)
-	isBoundary := func(c uint16) bool { return c >= 'A' && c <= 'Z' }
-	indexIn := func(from int) int {
-		for k := from; k < len(units); k++ {
-			if isBoundary(units[k]) {
-				return k
-			}
+	extra := 0
+	needsChange := false
+	for i := 0; i < len(s); i++ {
+		c := s[i]
+		if c >= 'a' && c <= 'z' {
+			needsChange = true
+		} else if i > 0 && c >= 'A' && c <= 'Z' {
+			extra++
+			needsChange = true
 		}
-		return -1
 	}
-	upper := func(word []uint16) string {
-		out := make([]uint16, len(word))
-		for k, c := range word {
-			if c >= 'a' && c <= 'z' {
-				c -= 'a' - 'A'
-			}
-			out[k] = c
-		}
-		return StringFromUTF16(out)
+	if !needsChange {
+		return s
 	}
-	var out *StringBuilder
-	i := 0
-	j := -1
-	for {
-		j++
-		j = indexIn(j)
-		if j == -1 {
-			break
-		}
-		if i == 0 {
-			// include some extra space for separators
-			out = NewStringBuilder()
-			out.Append(upper(units[i:j]))
+	var sb strings.Builder
+	sb.Grow(len(s) + extra)
+	for i := 0; i < len(s); i++ {
+		c := s[i]
+		if c >= 'a' && c <= 'z' {
+			sb.WriteByte(c - ('a' - 'A'))
+		} else if i > 0 && c >= 'A' && c <= 'Z' {
+			sb.WriteByte('_')
+			sb.WriteByte(c)
 		} else {
-			out.Append(upper(units[i:j]))
+			sb.WriteByte(c)
 		}
-		out.Append("_")
-		i = j // + wordSeparator.length() == 0 for LOWER_CAMEL
 	}
-	if i == 0 {
-		return upper(units)
-	}
-	return out.Append(upper(units[i:])).String()
+	return sb.String()
 }
 
 // CaseFormat_LowerHyphenToUpperCamel is Guava's
 // CaseFormat.LOWER_HYPHEN.to(CaseFormat.UPPER_CAMEL, s): words end at each
 // '-', each is normalized by UPPER_CAMEL (first char Ascii.toUpperCase, the
-// rest Ascii.toLowerCase) and they are joined without a separator. This is
-// Guava's CaseFormat.convert, step for step. Its boundaries and case changes
-// touch ASCII only, so it works on the WTF-8 bytes directly.
+// rest Ascii.toLowerCase), and they are joined without a separator.
 func CaseFormat_LowerHyphenToUpperCamel(s string) string {
-	firstCharOnlyToUpper := func(word string) string {
-		if word == "" {
-			return word
+	hyphens := 0
+	needsChange := false
+	for i := 0; i < len(s); i++ {
+		c := s[i]
+		if c == '-' {
+			hyphens++
+			needsChange = true
+		} else if i == 0 && c >= 'a' && c <= 'z' {
+			needsChange = true
+		} else if i > 0 && c >= 'A' && c <= 'Z' {
+			needsChange = true
 		}
-		b := []byte(StringToLowerCaseASCII(word))
-		if c := word[0]; c >= 'a' && c <= 'z' {
-			b[0] = c - ('a' - 'A')
-		} else {
-			b[0] = c
+	}
+	if !needsChange {
+		return s
+	}
+	var sb strings.Builder
+	sb.Grow(len(s) - hyphens)
+	atWordStart := true
+	for i := 0; i < len(s); i++ {
+		c := s[i]
+		if c == '-' {
+			atWordStart = true
+			continue
 		}
-		return string(b)
-	}
-	var out []byte
-	i := 0
-	j := -1
-	for {
-		j++
-		k := strings.IndexByte(s[j:], '-')
-		if k == -1 {
-			break
+		if atWordStart {
+			atWordStart = false
+			if c >= 'a' && c <= 'z' {
+				c -= 'a' - 'A'
+			}
+		} else if c >= 'A' && c <= 'Z' {
+			c += 'a' - 'A'
 		}
-		j += k
-		// i == 0: the first word (normalizeFirstWord is normalizeWord for UPPER_CAMEL).
-		out = append(out, firstCharOnlyToUpper(s[i:j])...)
-		// UPPER_CAMEL's wordSeparator is "".
-		i = j + 1 // + LOWER_HYPHEN's wordSeparator.length()
+		sb.WriteByte(c)
 	}
-	if i == 0 {
-		return firstCharOnlyToUpper(s)
-	}
-	return string(append(out, firstCharOnlyToUpper(s[i:])...))
+	return sb.String()
 }

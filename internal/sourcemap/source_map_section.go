@@ -18,13 +18,13 @@
 
 package sourcemap
 
-import "github.com/paullepoulpe/jsgo/internal/jutil"
+import "strconv"
 
 // SourceMapSection is a class representing a partial source map (a Java
 // record).
 type SourceMapSection struct {
 	type_  SourceMapSection_SectionType
-	value  *string
+	value  optionalString
 	line   int
 	column int
 }
@@ -48,14 +48,19 @@ func (t SourceMapSection_SectionType) String() string {
 //
 // Java: SourceMapSection(SectionType, String, int, int)
 func NewSourceMapSection(type_ SourceMapSection_SectionType, value *string, line, column int) *SourceMapSection {
-	return &SourceMapSection{type_: type_, value: value, line: line, column: column}
+	return &SourceMapSection{type_: type_, value: makeOptionalString(value), line: line, column: column}
 }
 
 // SourceMapSection_ForMap creates a section holding a source map.
 //
 // Java: SourceMapSection.forMap(String, int, int)
 func SourceMapSection_ForMap(value string, line, column int) *SourceMapSection {
-	return NewSourceMapSection(SourceMapSection_SectionType_MAP, &value, line, column)
+	return &SourceMapSection{
+		type_:  SourceMapSection_SectionType_MAP,
+		value:  optionalString{text: value, present: true},
+		line:   line,
+		column: column,
+	}
 }
 
 // SourceMapSection_ForURL creates a section referring to a source map by
@@ -63,7 +68,12 @@ func SourceMapSection_ForMap(value string, line, column int) *SourceMapSection {
 //
 // Java: SourceMapSection.forURL(String, int, int)
 func SourceMapSection_ForURL(value string, line, column int) *SourceMapSection {
-	return NewSourceMapSection(SourceMapSection_SectionType_URL, &value, line, column)
+	return &SourceMapSection{
+		type_:  SourceMapSection_SectionType_URL,
+		value:  optionalString{text: value, present: true},
+		line:   line,
+		column: column,
+	}
 }
 
 // Type is the record accessor.
@@ -77,7 +87,7 @@ func (s *SourceMapSection) Type() SourceMapSection_SectionType {
 //
 // Java: SourceMapSection.value()
 func (s *SourceMapSection) Value() *string {
-	return s.value
+	return s.value.ptr()
 }
 
 // Line is the record accessor.
@@ -109,7 +119,7 @@ func (s *SourceMapSection) GetSectionType() SourceMapSection_SectionType {
 //
 // Java: SourceMapSection.getSectionValue()
 func (s *SourceMapSection) GetSectionValue() *string {
-	return s.value
+	return s.value.ptr()
 }
 
 // GetLine returns the starting line for this section.
@@ -136,22 +146,17 @@ func (s *SourceMapSection) Equals(o any) bool {
 	if !ok || other == nil {
 		return false
 	}
-	return s.type_ == other.type_ && stringsEqual(s.value, other.value) &&
-		s.line == other.line && s.column == other.column
-}
-
-// Go-only: language-adapter — Objects.equals on nullable Strings.
-func stringsEqual(a, b *string) bool {
-	if a == nil || b == nil {
-		return a == b
-	}
-	return *a == *b
+	return *s == *other
 }
 
 // String is the record's toString.
 //
 // Java: SourceMapSection.toString()
 func (s *SourceMapSection) String() string {
-	return "SourceMapSection[type=" + s.type_.String() + ", value=" + jutil.ToJavaString(s.value) +
-		", line=" + jutil.ToJavaString(s.line) + ", column=" + jutil.ToJavaString(s.column) + "]"
+	val := "null"
+	if s.value.present {
+		val = s.value.text
+	}
+	return "SourceMapSection[type=" + s.type_.String() + ", value=" + val +
+		", line=" + strconv.Itoa(s.line) + ", column=" + strconv.Itoa(s.column) + "]"
 }

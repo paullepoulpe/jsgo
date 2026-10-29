@@ -56,8 +56,7 @@ import (
 // by variable, and solves the backward fixed-point over flat uint64 bitvectors
 // (single uint64 per node when total uses <= 64, []uint64 when > 64).
 type MaybeReachingVariableUse struct {
-	cfg         ControlFlowGraph[rhino.Node]
-	cfgBase     *ControlFlowGraphBase[rhino.Node]
+	cfg         *ControlFlowGraph[rhino.Node]
 	hasPriority bool
 
 	numVars       int
@@ -113,7 +112,7 @@ const mrvuReuseMaxCap = 4096
 
 // Java: MaybeReachingVariableUse(ControlFlowGraph<Node>, Set<Var>, Map<String, Var>)
 func NewMaybeReachingVariableUse(
-	cfg ControlFlowGraph[rhino.Node],
+	cfg *ControlFlowGraph[rhino.Node],
 	escaped *jutil.ObjectLinkedHashSet[*Var],
 	allVarsInFn *jutil.LinkedHashMap[string, *Var],
 ) *MaybeReachingVariableUse {
@@ -125,14 +124,13 @@ func NewMaybeReachingVariableUse(
 // Reset resets u for reuse on a new function scope while retaining its
 // storage.
 func (u *MaybeReachingVariableUse) Reset(
-	cfg ControlFlowGraph[rhino.Node],
+	cfg *ControlFlowGraph[rhino.Node],
 	escaped *jutil.ObjectLinkedHashSet[*Var],
 	allVarsInFn *jutil.LinkedHashMap[string, *Var],
 ) {
 	u.releaseLargeStorage()
 	u.cfg = cfg
-	u.cfgBase = cfg.GetControlFlowGraphBase()
-	u.hasPriority = cfg.GetOptionalNodeComparator(false) != nil
+	u.hasPriority = cfg.hasNodePriorities
 	u.totalUses = 0
 	u.useWords = 0
 
@@ -198,7 +196,7 @@ func (u *MaybeReachingVariableUse) releaseLargeStorage() {
 // GetCfg returns the control flow graph that this analysis was performed on.
 //
 // Java: DataFlowAnalysis.getCfg()
-func (u *MaybeReachingVariableUse) GetCfg() ControlFlowGraph[rhino.Node] {
+func (u *MaybeReachingVariableUse) GetCfg() *ControlFlowGraph[rhino.Node] {
 	return u.cfg
 }
 
@@ -256,9 +254,9 @@ func (u *MaybeReachingVariableUse) Analyze() {
 		return
 	}
 
-	cfgBase := u.cfgBase
-	implicitReturn, _ := cfgBase.implicitReturn.(*graph.LinkedDirectedGraph_LinkedDiGraphNode[rhino.Node, ControlFlowGraph_Branch])
-	nodeCap := cfgBase.NodeIndexCap()
+	cfg := u.cfg
+	implicitReturn := cfg.implicitReturn
+	nodeCap := cfg.NodeIndexCap()
 
 	clear(u.rawUses)
 	u.rawUses = u.rawUses[:0]
@@ -267,7 +265,7 @@ func (u *MaybeReachingVariableUse) Analyze() {
 	varWords := (numVars + 63) >> 6
 	if numVars <= 64 {
 		u.blockKillVars64 = mrvuResetZeroSlice(u.blockKillVars64, nodeCap)
-		for node := range cfgBase.Nodes.Values() {
+		for node := range cfg.Nodes.Values() {
 			if node == implicitReturn {
 				continue
 			}
@@ -296,7 +294,7 @@ func (u *MaybeReachingVariableUse) Analyze() {
 		u.blockKillVarWords = mrvuResetZeroSlice(u.blockKillVarWords, nodeCap*varWords)
 		u.curGenVarWords = mrvuResetZeroSlice(u.curGenVarWords, varWords)
 		u.curKillVarWords = mrvuResetZeroSlice(u.curKillVarWords, varWords)
-		for node := range cfgBase.Nodes.Values() {
+		for node := range cfg.Nodes.Values() {
 			if node == implicitReturn {
 				continue
 			}
@@ -366,7 +364,7 @@ func (u *MaybeReachingVariableUse) Analyze() {
 			u.gen64[ru.cfgIdx] |= uint64(1) << uint(bit)
 		}
 		if numVars <= 64 {
-			for node := range cfgBase.Nodes.Values() {
+			for node := range cfg.Nodes.Values() {
 				if node == implicitReturn {
 					continue
 				}
@@ -378,7 +376,7 @@ func (u *MaybeReachingVariableUse) Analyze() {
 				u.kill64[node.Index] = k
 			}
 		} else {
-			for node := range cfgBase.Nodes.Values() {
+			for node := range cfg.Nodes.Values() {
 				if node == implicitReturn {
 					continue
 				}
@@ -393,7 +391,7 @@ func (u *MaybeReachingVariableUse) Analyze() {
 				u.kill64[node.Index] = k
 			}
 		}
-		u.solve64(cfgBase, implicitReturn)
+		u.solve64(cfg, implicitReturn)
 		return
 	}
 
@@ -412,7 +410,7 @@ func (u *MaybeReachingVariableUse) Analyze() {
 		u.genWords[int(ru.cfgIdx)*words+(bit>>6)] |= uint64(1) << uint(bit&63)
 	}
 	if numVars <= 64 {
-		for node := range cfgBase.Nodes.Values() {
+		for node := range cfg.Nodes.Values() {
 			if node == implicitReturn {
 				continue
 			}
@@ -423,7 +421,7 @@ func (u *MaybeReachingVariableUse) Analyze() {
 			}
 		}
 	} else {
-		for node := range cfgBase.Nodes.Values() {
+		for node := range cfg.Nodes.Values() {
 			if node == implicitReturn {
 				continue
 			}
@@ -437,21 +435,21 @@ func (u *MaybeReachingVariableUse) Analyze() {
 			}
 		}
 	}
-	u.solveWords(cfgBase, implicitReturn, words)
+	u.solveWords(cfg, implicitReturn, words)
 }
 
 func (u *MaybeReachingVariableUse) initQueue(
-	cfgBase *ControlFlowGraphBase[rhino.Node],
-	implicitReturn *graph.LinkedDirectedGraph_LinkedDiGraphNode[rhino.Node, ControlFlowGraph_Branch],
+	cfg *ControlFlowGraph[rhino.Node],
+	implicitReturn *graph.LinkedDiGraphNode[rhino.Node, ControlFlowGraph_Branch],
 ) {
 	clear(u.queue)
 	u.queue = u.queue[:0]
 	u.queueHead = 0
-	numNodes := cfgBase.Nodes.Size()
+	numNodes := cfg.Nodes.Size()
 	if cap(u.queue) < numNodes {
-		u.queue = make([]*graph.LinkedDirectedGraph_LinkedDiGraphNode[rhino.Node, ControlFlowGraph_Branch], 0, numNodes)
+		u.queue = make([]*graph.LinkedDiGraphNode[rhino.Node, ControlFlowGraph_Branch], 0, numNodes)
 	}
-	for node := range cfgBase.Nodes.Values() {
+	for node := range cfg.Nodes.Values() {
 		node.DfaInQueue = false
 		if node != implicitReturn {
 			u.enqueue(node)
@@ -530,10 +528,10 @@ func (u *MaybeReachingVariableUse) dequeue() *graph.LinkedDirectedGraph_LinkedDi
 }
 
 func (u *MaybeReachingVariableUse) solve64(
-	cfgBase *ControlFlowGraphBase[rhino.Node],
-	implicitReturn *graph.LinkedDirectedGraph_LinkedDiGraphNode[rhino.Node, ControlFlowGraph_Branch],
+	cfg *ControlFlowGraph[rhino.Node],
+	implicitReturn *graph.LinkedDiGraphNode[rhino.Node, ControlFlowGraph_Branch],
 ) {
-	u.initQueue(cfgBase, implicitReturn)
+	u.initQueue(cfg, implicitReturn)
 	for len(u.queue) > u.queueHead {
 		curNode := u.dequeue()
 		idx := curNode.Index
@@ -569,11 +567,11 @@ func (u *MaybeReachingVariableUse) solve64(
 }
 
 func (u *MaybeReachingVariableUse) solveWords(
-	cfgBase *ControlFlowGraphBase[rhino.Node],
-	implicitReturn *graph.LinkedDirectedGraph_LinkedDiGraphNode[rhino.Node, ControlFlowGraph_Branch],
+	cfg *ControlFlowGraph[rhino.Node],
+	implicitReturn *graph.LinkedDiGraphNode[rhino.Node, ControlFlowGraph_Branch],
 	words int,
 ) {
-	u.initQueue(cfgBase, implicitReturn)
+	u.initQueue(cfg, implicitReturn)
 	for len(u.queue) > u.queueHead {
 		curNode := u.dequeue()
 		idx := int(curNode.Index)
@@ -811,7 +809,7 @@ func mrvuEmptyUses(func(rhino.Node) bool) {}
 // HasExactlyOneUse reports whether defNode has exactly one upward-exposed
 // reaching use CFG node for name, without allocating an iterator closure.
 func (u *MaybeReachingVariableUse) HasExactlyOneUse(name string, defNode rhino.Node) bool {
-	n := u.cfgBase.Nodes.Get(defNode)
+	n := u.cfg.Nodes.Get(defNode)
 	if n == nil {
 		panic(jutil.NewNullPointerException())
 	}
@@ -873,7 +871,7 @@ func (u *MaybeReachingVariableUse) HasExactlyOneUse(name string, defNode rhino.N
 //
 // Java: MaybeReachingVariableUse.getUses(String, Node)
 func (u *MaybeReachingVariableUse) GetUses(name string, defNode rhino.Node) iter.Seq[rhino.Node] {
-	n := u.cfgBase.Nodes.Get(defNode)
+	n := u.cfg.Nodes.Get(defNode)
 	if n == nil {
 		panic(jutil.NewNullPointerException())
 	}

@@ -35,6 +35,27 @@ type CoverageUtil struct{}
 //
 // Java: CoverageUtil.createIdentifierFromText(String)
 func CoverageUtil_CreateIdentifierFromText(inputText string) string {
+	// Fast path for ASCII filenames (single allocation, no UTF-16 round-trip).
+	ascii := true
+	for i := 0; i < len(inputText); i++ {
+		if inputText[i] >= 0x80 {
+			ascii = false
+			break
+		}
+	}
+	if ascii {
+		out := make([]byte, len(inputText))
+		for i := 0; i < len(inputText); i++ {
+			c := inputText[i]
+			if (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') {
+				out[i] = c
+			} else {
+				out[i] = '_'
+			}
+		}
+		return string(out)
+	}
+
 	// Java: inputText.replaceAll("[^\\p{Alnum}]", "_"). \p{Alnum} is ASCII
 	// [a-zA-Z0-9]; the regex matches each code point, so a surrogate pair
 	// is replaced by one '_' and a lone surrogate by one '_'.
@@ -59,7 +80,7 @@ func CoverageUtil_CreateIdentifierFromText(inputText string) string {
 //
 // Java: class CoverageInstrumentationCallback implements NodeTraversal.Callback
 type CoverageInstrumentationCallback struct {
-	instrumentationData *jutil.LinkedHashMap[string, *FileInstrumentationData]
+	instrumentationData map[string]*FileInstrumentationData
 	reach               CoverageInstrumentationPass_CoverageReach
 }
 
@@ -68,12 +89,12 @@ const CoverageInstrumentationCallback_ARRAY_NAME_PREFIX = "JSCompiler_lcov_data_
 
 // Java: CoverageInstrumentationCallback(Map<String, FileInstrumentationData>, CoverageInstrumentationPass.CoverageReach)
 func NewCoverageInstrumentationCallback(
-	instrumentationData *jutil.LinkedHashMap[string, *FileInstrumentationData],
+	instrumentationData map[string]*FileInstrumentationData,
 	reach CoverageInstrumentationPass_CoverageReach) *CoverageInstrumentationCallback {
-	c := &CoverageInstrumentationCallback{}
-	c.instrumentationData = instrumentationData
-	c.reach = reach
-	return c
+	return &CoverageInstrumentationCallback{
+		instrumentationData: instrumentationData,
+		reach:               reach,
+	}
 }
 
 // CoverageInstrumentationCallback_GetFileName returns the name of the source
@@ -113,19 +134,23 @@ func (c *CoverageInstrumentationCallback) CreateArrayName(traversal *NodeTravers
 // Java: CoverageInstrumentationCallback.newInstrumentationNode(NodeTraversal, Node)
 func (c *CoverageInstrumentationCallback) NewInstrumentationNode(traversal *NodeTraversal, node rhino.Node) rhino.Node {
 	lineNumber := node.GetLineno()
-	arrayName := c.CreateArrayName(traversal)
+	fileName := CoverageInstrumentationCallback_GetFileName(traversal)
+	data, ok := c.instrumentationData[fileName]
+	if !ok {
+		arrayName := CoverageInstrumentationCallback_ARRAY_NAME_PREFIX +
+			CoverageUtil_CreateIdentifierFromText(fileName)
+		data = NewFileInstrumentationData(fileName, arrayName)
+		c.instrumentationData[fileName] = data
+	}
 
 	// Create instrumentation Node
 	getElemNode := rhino.IR_Getelem(
-		rhino.IR_Name(arrayName),
+		rhino.IR_Name(data.GetArrayName()),
 		rhino.IR_Number(float64(lineNumber-1))) // Make line number 0-based
 	exprNode := rhino.IR_ExprResult(rhino.IR_Assign(getElemNode, rhino.IR_TrueNode()))
 
 	// Note line as instrumented
-	fileName := CoverageInstrumentationCallback_GetFileName(traversal)
-	c.instrumentationData.ComputeIfAbsent(
-		fileName, func(k string) *FileInstrumentationData { return NewFileInstrumentationData(k, arrayName) })
-	c.instrumentationData.Get(fileName).SetLineAsInstrumented(lineNumber)
+	data.SetLineAsInstrumented(lineNumber)
 
 	return exprNode.SrcrefTreeIfMissing(node)
 }
@@ -146,9 +171,9 @@ func (c *CoverageInstrumentationCallback) NewArrayDeclarationNode(traversal *Nod
 // Java: CoverageInstrumentationCallback.newHeaderNode(NodeTraversal, Node)
 func (c *CoverageInstrumentationCallback) NewHeaderNode(traversal *NodeTraversal, srcref rhino.Node) rhino.Node {
 	fileName := CoverageInstrumentationCallback_GetFileName(traversal)
-	arrayName := c.CreateArrayName(traversal)
-	data := c.instrumentationData.Get(fileName)
+	data := c.instrumentationData[fileName]
 	jutil.CheckNotNull(data)
+	arrayName := data.GetArrayName()
 
 	objName := CoverageInstrumentationPass_JS_INSTRUMENTATION_OBJECT_NAME
 
@@ -157,7 +182,7 @@ func (c *CoverageInstrumentationCallback) NewHeaderNode(traversal *NodeTraversal
 	// __jscov['instrumentedLines'].push(hex-data);
 	// __jscov['fileNames'].push(filename);
 	return rhino.IR_BlockOfNodes(
-		c.NewArrayDeclarationNode(traversal),
+		rhino.IR_VarWithValue(rhino.IR_Name(arrayName), rhino.IR_Arraylit()),
 		rhino.IR_ExprResult(
 			rhino.IR_Call(
 				rhino.IR_Getprop(rhino.IR_Getelem(rhino.IR_Name(objName), rhino.IR_String("executedLines")), "push"),
@@ -192,7 +217,7 @@ func (c *CoverageInstrumentationCallback) Visit(traversal *NodeTraversal, node r
 	if node.IsScript() {
 		// Go-only: language-adapter — the null source name (see GetFileName)
 		// is only looked up here, where Java's map.get(null) is null.
-		if name := traversal.GetSourceName(); name != nil && c.instrumentationData.Get(*name) != nil {
+		if name := traversal.GetSourceName(); name != nil && c.instrumentationData[*name] != nil {
 			if node.HasChildren() && node.GetFirstChild().IsModuleBody() {
 				node = node.GetFirstChild()
 			}

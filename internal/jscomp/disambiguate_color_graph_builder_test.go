@@ -41,7 +41,7 @@ type ColorGraphBuilderTest struct {
 	graphNodeFactory *ColorGraphNodeFactory
 
 	processor CompilerPass // @Nullable
-	result    graph.DiGraph[*ColorGraphNode, ColorGraphBuilder_EdgeReason]
+	result    *graph.LinkedDirectedGraph[*ColorGraphNode, ColorGraphBuilder_EdgeReason]
 	labelToId *jutil.LinkedHashMap[string, colors.ColorId]
 }
 
@@ -630,9 +630,7 @@ func (s *colorGraphBuilderTest_TableSubject) ContainsCell(
 //
 // Java: ColorGraphBuilderTest.StubLcaFinder
 type colorGraphBuilderTest_StubLcaFinder struct {
-	graph.LowestCommonAncestorFinderBase[*ColorGraphNode, ColorGraphBuilder_EdgeReason]
-
-	graph graph.DiGraph[*ColorGraphNode, ColorGraphBuilder_EdgeReason]
+	graph *graph.LinkedDirectedGraph[*ColorGraphNode, ColorGraphBuilder_EdgeReason]
 	// Go-only: language-adapter — a LinkedHashMap keyed by ImmutableSet
 	// equality, as an insertion-ordered list of entries.
 	stubs         []colorGraphBuilderTest_stub
@@ -650,14 +648,12 @@ type colorGraphBuilderTest_precondition struct {
 
 // Java: ColorGraphBuilderTest.StubLcaFinder()
 func newColorGraphBuilderTest_StubLcaFinder() *colorGraphBuilderTest_StubLcaFinder {
-	f := &colorGraphBuilderTest_StubLcaFinder{}
-	f.InitLowestCommonAncestorFinderBase(nil) // super(null)
-	return f
+	return &colorGraphBuilderTest_StubLcaFinder{}
 }
 
 // Java: ColorGraphBuilderTest.StubLcaFinder.setGraph(DiGraph<ColorGraphNode, Object>)
 func (f *colorGraphBuilderTest_StubLcaFinder) setGraph(g graph.DiGraph[*ColorGraphNode, ColorGraphBuilder_EdgeReason]) *colorGraphBuilderTest_StubLcaFinder {
-	f.graph = g
+	f.graph = g.AsLinkedDirectedGraph()
 	return f
 }
 

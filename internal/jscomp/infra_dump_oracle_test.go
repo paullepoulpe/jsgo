@@ -508,7 +508,7 @@ type infraWrittenNames struct {
 	branched bool
 }
 
-func newInfraWrittenNames(cfg ControlFlowGraph[rhino.Node], branched bool) *infraWrittenNames {
+func newInfraWrittenNames(cfg *ControlFlowGraph[rhino.Node], branched bool) *infraWrittenNames {
 	a := &infraWrittenNames{branched: branched}
 	a.InitDataFlowAnalysisBase(a, cfg)
 	return a
@@ -542,7 +542,7 @@ type infraReadNames struct {
 	DataFlowAnalysisBase[rhino.Node, *infraNameSet]
 }
 
-func newInfraReadNames(cfg ControlFlowGraph[rhino.Node]) *infraReadNames {
+func newInfraReadNames(cfg *ControlFlowGraph[rhino.Node]) *infraReadNames {
 	a := &infraReadNames{}
 	a.InitDataFlowAnalysisBase(a, cfg)
 	return a
@@ -568,7 +568,7 @@ func (d *infraDumper) dataflow(script rhino.Node, nodes []rhino.Node) {
 		}
 	}
 	for _, root := range roots {
-		var cfg ControlFlowGraph[rhino.Node]
+		var cfg *ControlFlowGraph[rhino.Node]
 		if e := infraTry(func() {
 			cfg = ControlFlowAnalysis_Builder_().
 				SetCompiler(d.compiler).
@@ -585,7 +585,7 @@ func (d *infraDumper) dataflow(script rhino.Node, nodes []rhino.Node) {
 	}
 }
 
-func (d *infraDumper) runAnalysis(header string, cfg ControlFlowGraph[rhino.Node], a DataFlowAnalysis[rhino.Node, *infraNameSet], edges bool) {
+func (d *infraDumper) runAnalysis(header string, cfg *ControlFlowGraph[rhino.Node], a DataFlowAnalysis[rhino.Node, *infraNameSet], edges bool) {
 	if e := infraTry(func() { a.GetDataFlowAnalysisBase().Analyze() }); e != nil {
 		d.line(header + " X " + infraExc(e))
 		return

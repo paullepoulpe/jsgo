@@ -108,6 +108,18 @@ func (f *File) GetParentFile() *File {
 	return NewFile(*p)
 }
 
+// Exists is File.exists(): whether the file or directory that the abstract
+// pathname denotes exists (a relative pathname is resolved against the
+// current directory). A pathname the system cannot examine, such as the
+// empty pathname, does not exist.
+func (f *File) Exists() bool {
+	if f.path == "" {
+		return false
+	}
+	_, err := os.Stat(f.path)
+	return err == nil
+}
+
 // IsDirectory is File.isDirectory(): whether the file exists and is a
 // directory (following symbolic links).
 func (f *File) IsDirectory() bool {

@@ -138,12 +138,12 @@ func (t *FixedPointGraphTraversal[N, E]) computeFixedPointLinked(
 	for ringCap <= nodeCountInt+1 {
 		ringCap <<= 1
 	}
-	var ringBuf [64]*LinkedDirectedGraph_LinkedDiGraphNode[N, E]
-	var ring []*LinkedDirectedGraph_LinkedDiGraphNode[N, E]
+	var ringBuf [64]*LinkedDiGraphNode[N, E]
+	var ring []*LinkedDiGraphNode[N, E]
 	if ringCap <= len(ringBuf) {
 		ring = ringBuf[:ringCap]
 	} else {
-		ring = make([]*LinkedDirectedGraph_LinkedDiGraphNode[N, E], ringCap)
+		ring = make([]*LinkedDiGraphNode[N, E], ringCap)
 	}
 	var head, tail uint32
 	mask := uint32(ringCap - 1)

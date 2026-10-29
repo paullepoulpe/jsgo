@@ -19,6 +19,8 @@
 package jscomp
 
 import (
+	"cmp"
+
 	"github.com/paullepoulpe/jsgo/internal/ast"
 	"github.com/paullepoulpe/jsgo/internal/graph"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
@@ -28,58 +30,17 @@ import (
 // ControlFlowGraph is the control flow graph.
 //
 // N is the instruction type of the control flow graph.
-//
-// ControlFlowGraph has a subclass (ControlFlowAnalysis.AstControlFlowGraph),
-// so it is an interface (PORTING.md §4); ControlFlowGraphBase holds its
-// fields and implementations, and is also what the constructor returns. The
-// interface declares, besides ControlFlowGraph's own methods, the public
-// methods inherited from LinkedDirectedGraph.
-type ControlFlowGraph[N comparable] interface {
-	graph.DiGraph[N, ControlFlowGraph_Branch]
-	graph.GraphvizGraph
-
-	// Java: LinkedDirectedGraph.newSubGraph()
-	NewSubGraph() graph.SubGraph[N, ControlFlowGraph_Branch]
-	// Java: LinkedDirectedGraph.connect(DiGraphNode<N, E>, E, DiGraphNode<N, E>)
-	ConnectNodes(src graph.DiGraph_DiGraphNode[N, ControlFlowGraph_Branch], edgeValue ControlFlowGraph_Branch, dest graph.DiGraph_DiGraphNode[N, ControlFlowGraph_Branch])
-	// Java: LinkedDirectedGraph.connectIfNotConnectedInDirection(N, E, N)
-	ConnectIfNotConnectedInDirection(srcValue N, edgeValue ControlFlowGraph_Branch, destValue N)
-	// Java: LinkedDirectedGraph.getNodes() (Collection<LinkedDiGraphNode<N, E>>)
-	GetLinkedDiGraphNodes() []*graph.LinkedDirectedGraph_LinkedDiGraphNode[N, ControlFlowGraph_Branch]
-	// Java: LinkedDirectedGraph.getNode(N) (LinkedDiGraphNode<N, E>)
-	GetLinkedDiGraphNode(nodeValue N) *graph.LinkedDirectedGraph_LinkedDiGraphNode[N, ControlFlowGraph_Branch]
-	// Java: LinkedDirectedGraph.createNode(N) (LinkedDiGraphNode<N, E>)
-	CreateLinkedDiGraphNode(nodeValue N) *graph.LinkedDirectedGraph_LinkedDiGraphNode[N, ControlFlowGraph_Branch]
-	// Java: LinkedDirectedGraph.isConnectedInDirection(LinkedDiGraphNode<N, E>, Predicate<E>, LinkedDiGraphNode<N, E>)
-	IsConnectedInDirectionOfNodes(
-		source *graph.LinkedDirectedGraph_LinkedDiGraphNode[N, ControlFlowGraph_Branch], edgeFilter func(ControlFlowGraph_Branch) bool, dest *graph.LinkedDirectedGraph_LinkedDiGraphNode[N, ControlFlowGraph_Branch]) bool
-
-	// Java: ControlFlowGraph.getImplicitReturn()
-	GetImplicitReturn() graph.DiGraph_DiGraphNode[N, ControlFlowGraph_Branch]
-	// Java: ControlFlowGraph.getEntry()
-	GetEntry() graph.DiGraph_DiGraphNode[N, ControlFlowGraph_Branch]
-	// Java: ControlFlowGraph.isImplicitReturn(DiGraphNode<N, Branch>)
-	IsImplicitReturn(node graph.DiGraph_DiGraphNode[N, ControlFlowGraph_Branch]) bool
-	// Java: ControlFlowGraph.getOptionalNodeComparator(boolean)
-	GetOptionalNodeComparator(isForward bool) func(a, b graph.DiGraph_DiGraphNode[N, ControlFlowGraph_Branch]) int
-	// Java: ControlFlowGraph.toString()
-	String() string
-
-	GetControlFlowGraphBase() *ControlFlowGraphBase[N]
-}
-
-// ControlFlowGraphBase holds ControlFlowGraph's fields and implementations.
-type ControlFlowGraphBase[N comparable] struct {
+type ControlFlowGraph[N comparable] struct {
 	graph.LinkedDirectedGraph[N, ControlFlowGraph_Branch]
-
-	self ControlFlowGraph[N]
 
 	// A special node marked by the node value key null to a singleton
 	// "return" when control is transferred outside of the current control
 	// flow graph.
-	implicitReturn graph.DiGraph_DiGraphNode[N, ControlFlowGraph_Branch]
+	implicitReturn *graph.LinkedDiGraphNode[N, ControlFlowGraph_Branch]
 
-	entry graph.DiGraph_DiGraphNode[N, ControlFlowGraph_Branch]
+	entry *graph.LinkedDiGraphNode[N, ControlFlowGraph_Branch]
+
+	hasNodePriorities bool
 }
 
 // NewControlFlowGraph is the constructor.
@@ -89,34 +50,43 @@ type ControlFlowGraphBase[N comparable] struct {
 // instantiated with).
 //
 // Java: ControlFlowGraph(N, boolean, boolean)
-func NewControlFlowGraph[N comparable](entry N, nodeAnnotations bool, edgeAnnotations bool) *ControlFlowGraphBase[N] {
-	c := &ControlFlowGraphBase[N]{}
-	c.InitControlFlowGraphBase(c, entry, nodeAnnotations, edgeAnnotations)
+func NewControlFlowGraph[N comparable](entry N, nodeAnnotations bool, edgeAnnotations bool) *ControlFlowGraph[N] {
+	c := &ControlFlowGraph[N]{}
+	c.init(entry, nodeAnnotations, edgeAnnotations, false)
 	return c
 }
 
-// InitControlFlowGraphBase runs the ControlFlowGraph(N, boolean, boolean)
-// constructor on c (for subclasses, which embed ControlFlowGraphBase); self
-// is the object being constructed.
+// newAstControlFlowGraph constructs a ControlFlowGraph which provides a node
+// comparator based on the pre-order traversal of the AST.
 //
-// Java: ControlFlowGraph(N, boolean, boolean)
-func (c *ControlFlowGraphBase[N]) InitControlFlowGraphBase(self ControlFlowGraph[N], entry N, nodeAnnotations bool, edgeAnnotations bool) {
-	c.self = self
-	c.InitLinkedDirectedGraph(self, nodeAnnotations, edgeAnnotations)
-	var null N
-	c.implicitReturn = self.CreateDiGraphNode(null)
-	c.entry = self.CreateDiGraphNode(entry)
+// Java: ControlFlowAnalysis.AstControlFlowGraph(Node, boolean)
+func newAstControlFlowGraph(entry rhino.Node, edgeAnnotations bool) *ControlFlowGraph[rhino.Node] {
+	c := &ControlFlowGraph[rhino.Node]{}
+	c.init(entry /* nodeAnnotations= */, true, edgeAnnotations, true)
+	return c
 }
 
-// GetControlFlowGraphBase gives access to the base through the interface.
-func (c *ControlFlowGraphBase[N]) GetControlFlowGraphBase() *ControlFlowGraphBase[N] { return c }
+// reinitAst resets c as a new AST ControlFlowGraph(entry, edgeAnnotations),
+// reusing its underlying slab and node-map storage.
+func (c *ControlFlowGraph[N]) reinitAst(entry N, edgeAnnotations bool) {
+	c.ClearForReuse()
+	c.init(entry /* nodeAnnotations= */, true, edgeAnnotations, true)
+}
+
+func (c *ControlFlowGraph[N]) init(entry N, nodeAnnotations bool, edgeAnnotations bool, hasNodePriorities bool) {
+	c.Init(nodeAnnotations, edgeAnnotations)
+	c.hasNodePriorities = hasNodePriorities
+	var null N
+	c.implicitReturn = c.CreateLinkedDiGraphNode(null)
+	c.entry = c.CreateLinkedDiGraphNode(entry)
+}
 
 // GetImplicitReturn gets the implicit return node.
 //
 // Returns the return node.
 //
 // Java: ControlFlowGraph.getImplicitReturn()
-func (c *ControlFlowGraphBase[N]) GetImplicitReturn() graph.DiGraph_DiGraphNode[N, ControlFlowGraph_Branch] {
+func (c *ControlFlowGraph[N]) GetImplicitReturn() *graph.LinkedDiGraphNode[N, ControlFlowGraph_Branch] {
 	return c.implicitReturn
 }
 
@@ -126,7 +96,7 @@ func (c *ControlFlowGraphBase[N]) GetImplicitReturn() graph.DiGraph_DiGraphNode[
 // Returns the entry point.
 //
 // Java: ControlFlowGraph.getEntry()
-func (c *ControlFlowGraphBase[N]) GetEntry() graph.DiGraph_DiGraphNode[N, ControlFlowGraph_Branch] {
+func (c *ControlFlowGraph[N]) GetEntry() *graph.LinkedDiGraphNode[N, ControlFlowGraph_Branch] {
 	return c.entry
 }
 
@@ -135,20 +105,34 @@ func (c *ControlFlowGraphBase[N]) GetEntry() graph.DiGraph_DiGraphNode[N, Contro
 // node is the node; returns true if the node is the implicit return.
 //
 // Java: ControlFlowGraph.isImplicitReturn(DiGraphNode<N, Branch>)
-func (c *ControlFlowGraphBase[N]) IsImplicitReturn(node graph.DiGraph_DiGraphNode[N, ControlFlowGraph_Branch]) bool {
+func (c *ControlFlowGraph[N]) IsImplicitReturn(node *graph.LinkedDiGraphNode[N, ControlFlowGraph_Branch]) bool {
 	return node == c.implicitReturn
 }
 
+func cfgForwardNodeComparator[N comparable](a, b *graph.LinkedDiGraphNode[N, ControlFlowGraph_Branch]) int {
+	return cmp.Compare(a.GetPriority(), b.GetPriority())
+}
+
+func cfgBackwardNodeComparator[N comparable](a, b *graph.LinkedDiGraphNode[N, ControlFlowGraph_Branch]) int {
+	return cmp.Compare(b.GetPriority(), a.GetPriority())
+}
+
 // GetOptionalNodeComparator gets a comparator for the nodes. The default
-// implementation returns null. See
-// ControlFlowGraph#getOptionalNodeComparator.
+// implementation returns nil unless node priorities were computed by
+// ControlFlowAnalysis.
 //
 // isForward is whether the comparator sorts the nodes in the direction of
-// the flow; returns a comparator or null (in particular, if not overridden).
+// the flow; returns a comparator or nil.
 //
 // Java: ControlFlowGraph.getOptionalNodeComparator(boolean)
-func (c *ControlFlowGraphBase[N]) GetOptionalNodeComparator(isForward bool) func(a, b graph.DiGraph_DiGraphNode[N, ControlFlowGraph_Branch]) int {
-	return nil
+func (c *ControlFlowGraph[N]) GetOptionalNodeComparator(isForward bool) func(a, b *graph.LinkedDiGraphNode[N, ControlFlowGraph_Branch]) int {
+	if !c.hasNodePriorities {
+		return nil
+	}
+	if isForward {
+		return cfgForwardNodeComparator[N]
+	}
+	return cfgBackwardNodeComparator[N]
 }
 
 // ControlFlowGraph_Branch is the edge object for the control flow graph.
@@ -275,9 +259,9 @@ func ControlFlowGraph_IsEnteringNewCfgNode(n rhino.Node) bool {
 }
 
 // Java: ControlFlowGraph.toString()
-func (c *ControlFlowGraphBase[N]) String() string {
+func (c *ControlFlowGraph[N]) String() string {
 	s := "CFG:\n"
-	for _, e := range c.self.GetGraphvizEdges() {
+	for _, e := range c.GetGraphvizEdges() {
 		s += jutil.ToJavaString(e) + "\n"
 	}
 	return s
@@ -386,5 +370,6 @@ func walkCfgNodeBranch[T ControlFlowGraph_AbstractCfgNodeTraversalCallback](n, p
 }
 
 var (
-	_ ControlFlowGraph[rhino.Node] = (*ControlFlowGraphBase[rhino.Node])(nil)
+	_ graph.DiGraph[rhino.Node, ControlFlowGraph_Branch] = (*ControlFlowGraph[rhino.Node])(nil)
+	_ graph.GraphvizGraph                                = (*ControlFlowGraph[rhino.Node])(nil)
 )

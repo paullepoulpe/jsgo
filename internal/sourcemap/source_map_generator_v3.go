@@ -37,7 +37,7 @@ type SourceMapGeneratorV3 struct {
 	parallelWorkers int
 
 	// A map of source names to source file contents
-	sourceFileContentMap map[string]*string
+	sourceFileContentMap map[string]optionalString
 
 	// The mappings, in the order they were added.
 	//
@@ -61,7 +61,7 @@ type SourceMapGeneratorV3 struct {
 
 	// The source root path for relocating source fails or avoid duplicate
 	// values on the source entry.
-	sourceRootPath *string
+	sourceRootPath string
 
 	addedSourceFiles       []string
 	addedSourceFileIndex   map[string]int32
@@ -411,9 +411,9 @@ func internSourceMapString(
 // Java: SourceMapGeneratorV3.addSourcesContent(String, String)
 func (g *SourceMapGeneratorV3) AddSourcesContent(source string, content *string) {
 	if g.sourceFileContentMap == nil {
-		g.sourceFileContentMap = make(map[string]*string)
+		g.sourceFileContentMap = make(map[string]optionalString)
 	}
-	g.sourceFileContentMap[source] = content
+	g.sourceFileContentMap[source] = makeOptionalString(content)
 }
 
 // ShareConfigFrom shares read-only configuration (sourcesContent map,
@@ -526,8 +526,8 @@ func (g *SourceMapGeneratorV3) AppendTo(out io.StringWriter, name *string) {
 	SourceMapGeneratorV3_AppendField(out, "lineCount", strconv.Itoa(maxLine))
 
 	//optional source root
-	if g.sourceRootPath != nil && *g.sourceRootPath != "" {
-		SourceMapGeneratorV3_AppendField(out, "sourceRoot", SourceMapGeneratorV3_EscapeString(*g.sourceRootPath))
+	if g.sourceRootPath != "" {
+		SourceMapGeneratorV3_AppendField(out, "sourceRoot", SourceMapGeneratorV3_EscapeString(g.sourceRootPath))
 	}
 
 	// Add the mappings themselves.
@@ -601,7 +601,7 @@ func sourceMapGeneratorV3_asJavaString(objValue any) (string, bool) {
 //
 // Java: SourceMapGeneratorV3.setSourceRoot(String)
 func (g *SourceMapGeneratorV3) SetSourceRoot(path string) {
-	g.sourceRootPath = &path
+	g.sourceRootPath = path
 }
 
 // AddExtension adds field extensions to the json source map. The value is
@@ -657,29 +657,22 @@ func (g *SourceMapGeneratorV3) AddSourcesContentMap(out io.StringWriter) {
 		return
 	}
 	found := false
-	size := len(g.orderedSourceFiles)
-	contents := make([]string, size)
-
-	for index, key := range g.orderedSourceFiles {
-		jutil.CheckState(index < size)
-		content := g.sourceFileContentMap[key]
-		if content != nil {
-			contents[index] = *content
+	for _, key := range g.orderedSourceFiles {
+		if g.sourceFileContentMap[key].present {
 			found = true
+			break
 		}
 	}
-
 	if !found {
 		return
 	}
 	SourceMapGeneratorV3_AppendFieldStart(out, "sourcesContent")
 	appendString(out, "[")
-	for i := 0; i < size; i++ {
+	for i, key := range g.orderedSourceFiles {
 		if i != 0 {
 			appendString(out, ",")
 		}
-		sourceContent := contents[i]
-		appendString(out, SourceMapGeneratorV3_EscapeString(sourceContent))
+		appendString(out, SourceMapGeneratorV3_EscapeString(g.sourceFileContentMap[key].text))
 	}
 	appendString(out, "]")
 	SourceMapGeneratorV3_AppendFieldEnd(out)
@@ -1017,12 +1010,19 @@ func (g *SourceMapGeneratorV3) AppendIndexMapTo(out io.StringWriter, name string
 		}
 		appendString(out, "{\n")
 		SourceMapGeneratorV3_AppendFieldStartWithFirst(out, "offset", true)
-		SourceMapGeneratorV3_AppendOffsetValue(out, section.GetLine(), section.GetColumn())
-		if section.GetSectionType() == SourceMapSection_SectionType_URL {
-			SourceMapGeneratorV3_AppendField(out, "url", SourceMapGeneratorV3_EscapeString(*section.GetSectionValue()))
-		} else if section.GetSectionType() == SourceMapSection_SectionType_MAP {
+		SourceMapGeneratorV3_AppendOffsetValue(out, section.line, section.column)
+		if section.type_ == SourceMapSection_SectionType_URL {
+			if !section.value.present {
+				panic(jutil.NewNullPointerException())
+			}
+			SourceMapGeneratorV3_AppendField(out, "url", SourceMapGeneratorV3_EscapeString(section.value.text))
+		} else if section.type_ == SourceMapSection_SectionType_MAP {
 			// Appendable.append(null) appends "null".
-			SourceMapGeneratorV3_AppendField(out, "map", jutil.ToJavaString(section.GetSectionValue()))
+			mapVal := "null"
+			if section.value.present {
+				mapVal = section.value.text
+			}
+			SourceMapGeneratorV3_AppendField(out, "map", mapVal)
 		} else {
 			panic(jutil.NewIOException("Unexpected section type"))
 		}

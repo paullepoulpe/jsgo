@@ -36,7 +36,7 @@ type JSChunkGraph struct {
 
 	// selfPlusTransitiveDeps[i] = indices of all chunks that chunks[i]
 	// depends on, including itself.
-	selfPlusTransitiveDeps []*jutil.BitSet
+	selfPlusTransitiveDeps []jutil.BitSet
 
 	// subtreeSize[i] = Number of chunks that transitively depend on
 	// chunks[i], including itself.
@@ -46,16 +46,9 @@ type JSChunkGraph struct {
 	// chunks at depth 3, for example.
 	chunksByDepth [][]*JSChunk
 
-	// dependencyMap is a cache of dependencies that makes the dependsOn
-	// function faster. Each map entry associates a starting JSChunk with the
-	// set of JSChunks that are transitively dependent on the starting chunk.
-	//
-	// If the cache returns null, then the entry hasn't been filled in for
-	// that chunk.
-	//
-	// NOTE: JSChunk has identity semantics so this map implementation is
-	// safe.
-	dependencyMap map[*JSChunk]*jutil.LinkedHashSet[*JSChunk]
+	// transitiveDeps[i] caches the deepest-first transitive dependencies of
+	// chunks[i] (excluding chunks[i] itself). A nil entry means not yet cached.
+	transitiveDeps [][]*JSChunk
 
 	// Go-only: reusable candidate BitSet for GetSmallestCoveringSubtree.
 	scratchCandidates jutil.BitSet
@@ -163,12 +156,24 @@ func (g *JSChunkGraph) makeWeakChunk(chunksInDepOrder []*JSChunk) []*JSChunk {
 	for _, chunk := range chunksInDepOrder {
 		if chunk.GetName() == JSChunk_WEAK_CHUNK_NAME {
 			hasWeakChunk = true
-			allOtherChunks := jutil.NewLinkedHashSet(chunksInDepOrder...)
-			allOtherChunks.Remove(chunk)
-			allDeps := chunk.GetAllDependencies()
+			weakDeps := make(map[*JSChunk]struct{}, len(chunksInDepOrder))
+			stack := slices.Clone(chunk.GetDependencies())
+			for len(stack) > 0 {
+				dep := stack[len(stack)-1]
+				stack = stack[:len(stack)-1]
+				if _, seen := weakDeps[dep]; !seen {
+					weakDeps[dep] = struct{}{}
+					stack = append(stack, dep.GetDependencies()...)
+				}
+			}
+			otherChunks := make(map[*JSChunk]struct{}, len(chunksInDepOrder))
 			containsAll := true
-			for other := range allOtherChunks.All() {
-				if !allDeps.Contains(other) {
+			for _, other := range chunksInDepOrder {
+				if other == chunk {
+					continue
+				}
+				otherChunks[other] = struct{}{}
+				if _, ok := weakDeps[other]; !ok {
 					containsAll = false
 					break
 				}
@@ -177,7 +182,7 @@ func (g *JSChunkGraph) makeWeakChunk(chunksInDepOrder []*JSChunk) []*JSChunk {
 				containsAll,
 				"A weak chunk already exists but it does not depend on every other chunk.")
 			jutil.CheckStateMsg(
-				chunk.GetAllDependencies().Size() == allOtherChunks.Size(),
+				len(weakDeps) == len(otherChunks),
 				"The weak chunk cannot have extra dependencies.")
 			break
 		}
@@ -221,18 +226,17 @@ func (g *JSChunkGraph) makeWeakChunk(chunksInDepOrder []*JSChunk) []*JSChunk {
 }
 
 // Java: JSChunkGraph.initTransitiveDepsBitSets()
-func (g *JSChunkGraph) initTransitiveDepsBitSets() []*jutil.BitSet {
-	array := make([]*jutil.BitSet, len(g.chunks))
+func (g *JSChunkGraph) initTransitiveDepsBitSets() []jutil.BitSet {
+	array := make([]jutil.BitSet, len(g.chunks))
 	for chunkIndex := 0; chunkIndex < len(g.chunks); chunkIndex++ {
 		chunk := g.chunks[chunkIndex]
-		selfPlusTransitiveDeps := jutil.NewBitSet()
-		array[chunkIndex] = selfPlusTransitiveDeps
+		selfPlusTransitiveDeps := &array[chunkIndex]
 		selfPlusTransitiveDeps.Set(chunkIndex)
 		// O(chunkIndex * log64(chunkIndex))
 		for _, dep := range chunk.GetDependencies() {
 			// Add this dependency and all of its dependencies to the current chunk.
 			// O(log64(chunkIndex))
-			selfPlusTransitiveDeps.Or(array[dep.GetIndex()])
+			selfPlusTransitiveDeps.Or(&array[dep.GetIndex()])
 		}
 	}
 	return array
@@ -242,7 +246,7 @@ func (g *JSChunkGraph) initTransitiveDepsBitSets() []*jutil.BitSet {
 func (g *JSChunkGraph) initSubtreeSize() []int {
 	subtreeSize := make([]int, len(g.chunks))
 	for dependentIndex := 0; dependentIndex < len(g.chunks); dependentIndex++ {
-		dependencies := g.selfPlusTransitiveDeps[dependentIndex]
+		dependencies := &g.selfPlusTransitiveDeps[dependentIndex]
 		// Iterating backward through the bitset is slightly more efficient, since it avoids
 		// considering later chunks, which this one cannot depend on.
 		for requiredIndex := dependentIndex; requiredIndex >= 0; requiredIndex = dependencies.PreviousSetBit(requiredIndex - 1) {
@@ -348,7 +352,7 @@ func (g *JSChunkGraph) ToJson() *jutil.JsonArray {
 		}
 		transitiveDeps := jutil.NewJsonArray()
 		node.Add("transitive-dependencies", transitiveDeps)
-		for _, m := range g.GetTransitiveDepsDeepestFirst(chunk) {
+		for _, m := range g.getTransitiveDepsDeepestFirstCached(chunk) {
 			transitiveDeps.Add(jutil.NewJsonPrimitiveString(m.GetName()))
 		}
 		inputs := jutil.NewJsonArray()
@@ -402,9 +406,9 @@ func (g *JSChunkGraph) GetSmallestCoveringSubtree(parentTree *JSChunk, dependent
 	}
 
 	candidates := &g.scratchCandidates
-	candidates.CopyFrom(g.selfPlusTransitiveDeps[minDependentChunkIndex])
+	candidates.CopyFrom(&g.selfPlusTransitiveDeps[minDependentChunkIndex])
 	for dependentIndex := nextDependent; dependentIndex >= 0; dependentIndex = dependentChunks.NextSetBit(dependentIndex + 1) {
-		candidates.And(g.selfPlusTransitiveDeps[dependentIndex])
+		candidates.And(&g.selfPlusTransitiveDeps[dependentIndex])
 	}
 	jutil.CheckStateMsg1(!candidates.IsEmpty(), "No common dependency found for %s", dependentChunks)
 
@@ -417,7 +421,7 @@ func (g *JSChunkGraph) GetSmallestCoveringSubtree(parentTree *JSChunk, dependent
 	bestCandidateIndex := parentTreeIndex
 	for candidateIndex := candidates.PreviousSetBit(minDependentChunkIndex); candidateIndex >= 0; candidateIndex = candidates.PreviousSetBit(candidateIndex - 1) {
 
-		candidatePlusTransitiveDeps := g.selfPlusTransitiveDeps[candidateIndex]
+		candidatePlusTransitiveDeps := &g.selfPlusTransitiveDeps[candidateIndex]
 		if candidatePlusTransitiveDeps.Get(parentTreeIndex) {
 			// candidate is a subtree of parentTree
 			candidates.AndNot(candidatePlusTransitiveDeps)
@@ -497,23 +501,48 @@ func (g *JSChunkGraph) GetDeepestCommonDependencyInclusiveOfCollection(chunks []
 //
 // Java: JSChunkGraph.getTransitiveDepsDeepestFirst(JSChunk)
 func (g *JSChunkGraph) GetTransitiveDepsDeepestFirst(m *JSChunk) []*JSChunk {
-	sorted := g.getTransitiveDeps(m).ToSlice()
-	slices.SortStableFunc(sorted, JSChunkGraph_InverseDepthComparator_INSTANCE.Compare)
-	return sorted
+	return slices.Clone(g.getTransitiveDepsDeepestFirstCached(m))
 }
 
-// getTransitiveDeps returns the transitive dependencies of the chunk.
-//
-// Java: JSChunkGraph.getTransitiveDeps(JSChunk)
-func (g *JSChunkGraph) getTransitiveDeps(m *JSChunk) *jutil.LinkedHashSet[*JSChunk] {
-	if deps := g.dependencyMap[m]; deps != nil {
+// getTransitiveDepsDeepestFirstCached returns the cached deepest-first
+// transitive dependencies of chunk m. Callers must not mutate the returned slice.
+func (g *JSChunkGraph) getTransitiveDepsDeepestFirstCached(m *JSChunk) []*JSChunk {
+	idx := m.GetIndex()
+	if idx >= 0 && idx < len(g.chunks) && g.chunks[idx] == m {
+		if g.transitiveDeps == nil {
+			g.transitiveDeps = make([][]*JSChunk, len(g.chunks))
+		}
+		if cached := g.transitiveDeps[idx]; cached != nil {
+			return cached
+		}
+		bits := &g.selfPlusTransitiveDeps[idx]
+		deps := []*JSChunk{}
+		for i := bits.NextSetBit(0); i >= 0; i = bits.NextSetBit(i + 1) {
+			if i != idx {
+				deps = append(deps, g.chunks[i])
+			}
+		}
+		slices.SortStableFunc(deps, JSChunkGraph_InverseDepthComparator_INSTANCE.Compare)
+		g.transitiveDeps[idx] = deps
 		return deps
 	}
-	if g.dependencyMap == nil {
-		g.dependencyMap = make(map[*JSChunk]*jutil.LinkedHashSet[*JSChunk])
+
+	// Fallback if m is not indexed in this graph.
+	seen := make(map[*JSChunk]struct{})
+	seen[m] = struct{}{}
+	deps := []*JSChunk{}
+	var visit func(cur *JSChunk)
+	visit = func(cur *JSChunk) {
+		for _, dep := range cur.GetDependencies() {
+			if _, ok := seen[dep]; !ok {
+				seen[dep] = struct{}{}
+				deps = append(deps, dep)
+				visit(dep)
+			}
+		}
 	}
-	deps := m.GetAllDependencies()
-	g.dependencyMap[m] = deps
+	visit(m)
+	slices.SortStableFunc(deps, JSChunkGraph_InverseDepthComparator_INSTANCE.Compare)
 	return deps
 }
 
@@ -556,25 +585,32 @@ func (g *JSChunkGraph) ManageDependencies(
 	// Make a copy since we're going to mutate the graph below.
 	originalInputs := g.GetAllInputs()
 
+	inputIndex := make(map[*CompilerInput]int, len(originalInputs))
+	for _, input := range originalInputs {
+		if _, exists := inputIndex[input]; !exists {
+			inputIndex[input] = len(inputIndex)
+		}
+	}
+	numOriginalInputs := len(inputIndex)
+
 	sorter := NewSortedDependencies[*CompilerInput](originalInputs)
 
-	entryPointInputs := g.createEntryPointInputs(compiler, dependencyOptions, g.GetAllInputs(), sorter)
+	entryPointInputs := g.createEntryPointInputs(compiler, dependencyOptions, originalInputs, sorter, inputIndex)
 
 	// Build a map of symbols to their source file(s). While having multiple source files is invalid
 	// we leave that up to typechecking so that we avoid arbitrarily picking a file.
-	inputsByProvide := jutil.NewLinkedHashMap[string, *jutil.LinkedHashSet[*CompilerInput]]()
+	inputsByProvide := make(map[string][]*CompilerInput, len(originalInputs)*2)
+	addProvide := func(symbol string, input *CompilerInput) {
+		existing := inputsByProvide[symbol]
+		if !slices.Contains(existing, input) {
+			inputsByProvide[symbol] = append(existing, input)
+		}
+	}
 	for _, input := range originalInputs {
 		for _, provide := range input.GetKnownProvides() {
-			inputsByProvide.ComputeIfAbsent(provide, func(k string) *jutil.LinkedHashSet[*CompilerInput] {
-				return jutil.NewLinkedHashSet[*CompilerInput]()
-			})
-			inputsByProvide.Get(provide).Add(input)
+			addProvide(provide, input)
 		}
-		chunkName := input.GetPath().ToModuleName()
-		inputsByProvide.ComputeIfAbsent(chunkName, func(k string) *jutil.LinkedHashSet[*CompilerInput] {
-			return jutil.NewLinkedHashSet[*CompilerInput]()
-		})
-		inputsByProvide.Get(chunkName).Add(input)
+		addProvide(input.GetPath().ToModuleName(), input)
 	}
 
 	// Dynamically imported files must be added to the chunk graph, but
@@ -582,18 +618,14 @@ func (g *JSChunkGraph) ManageDependencies(
 	// We add them as entry points to ensure they get included.
 	for _, input := range originalInputs {
 		for _, require := range input.GetDynamicRequires() {
-			if inputsByProvide.ContainsKey(require) {
-				entryPointInputs.AddAll(inputsByProvide.Get(require).ToSlice()...)
-			}
+			entryPointInputs.addAll(inputsByProvide[require])
 		}
 	}
 
 	// For goog.requireDynamic() imported files.
 	for _, input := range originalInputs {
 		for _, require := range input.GetRequireDynamicImports() {
-			if inputsByProvide.ContainsKey(require) {
-				entryPointInputs.AddAll(inputsByProvide.Get(require).ToSlice()...)
-			}
+			entryPointInputs.addAll(inputsByProvide[require])
 		}
 	}
 
@@ -601,14 +633,13 @@ func (g *JSChunkGraph) ManageDependencies(
 	absoluteOrder := sorter.GetStrongDependenciesOf(originalInputs, dependencyOptions.ShouldSort())
 
 	// Figure out which sources *must* be in each chunk.
-	// Go-only: language-adapter — the LinkedListMultimap is a LinkedHashMap
-	// from chunk to its list of entry points (keys in first-insertion order,
-	// values in insertion order).
-	entryPointInputsPerChunk := jutil.NewLinkedHashMap[*JSChunk, []*CompilerInput]()
-	for input := range entryPointInputs.All() {
+	entryPointInputsPerChunk := make([][]*CompilerInput, len(g.chunks))
+	for _, input := range entryPointInputs.items {
 		chunk := input.GetChunk()
 		jutil.CheckNotNull(chunk)
-		entryPointInputsPerChunk.Put(chunk, append(entryPointInputsPerChunk.Get(chunk), input))
+		chunkIdx := chunk.GetIndex()
+		jutil.CheckState(chunkIdx >= 0 && chunkIdx < len(g.chunks) && g.chunks[chunkIdx] == chunk)
+		entryPointInputsPerChunk[chunkIdx] = append(entryPointInputsPerChunk[chunkIdx], input)
 	}
 
 	// Clear the chunks of their inputs. This also nulls out the input's reference to its chunk.
@@ -619,31 +650,46 @@ func (g *JSChunkGraph) ManageDependencies(
 	// Figure out which sources *must* be in each chunk, or in one
 	// of that chunk's dependencies.
 	orderedInputs := []*CompilerInput{}
-	reachedInputs := jutil.NewLinkedHashSet[*CompilerInput]()
+	sortAndPrune := dependencyOptions.ShouldSort() && dependencyOptions.ShouldPrune()
+	var reachedInputs []bool
+	var unreachedInputs []bool
+	var scratchClosure []*CompilerInput
+	if sortAndPrune {
+		reachedInputs = make([]bool, len(inputIndex))
+		unreachedInputs = make([]bool, len(inputIndex))
+	}
 
-	for _, chunk := range g.chunks {
+	for chunkIdx, chunk := range g.chunks {
 		var transitiveClosure []*CompilerInput
 		// Prefer a depth first ordering of dependencies from entry points.
 		// Always orders in a deterministic fashion regardless of the order of provided inputs
 		// given the same entry points in the same order.
-		if dependencyOptions.ShouldSort() && dependencyOptions.ShouldPrune() {
-			transitiveClosure = []*CompilerInput{}
-			// We need the ful set of dependencies for each chunk, so start with the full input set
-			inputsNotYetReached := jutil.NewLinkedHashSet(originalInputs...)
-			for _, entryPoint := range entryPointInputsPerChunk.Get(chunk) {
-				transitiveClosure = append(transitiveClosure,
-					g.getDepthFirstDependenciesOf(entryPoint, inputsNotYetReached, inputsByProvide)...)
-			}
-			// For any input we have not yet reached, add them to the ordered list
-			for _, orderedInput := range transitiveClosure {
-				if reachedInputs.Add(orderedInput) {
-					orderedInputs = append(orderedInputs, orderedInput)
+		if sortAndPrune {
+			transitiveClosure = scratchClosure[:0]
+			chunkEntryPoints := entryPointInputsPerChunk[chunkIdx]
+			if len(chunkEntryPoints) > 0 {
+				// We need the full set of dependencies for each chunk, so start with the full input set
+				for i := range unreachedInputs {
+					unreachedInputs[i] = i < numOriginalInputs
+				}
+				for _, entryPoint := range chunkEntryPoints {
+					transitiveClosure = g.appendDepthFirstDependenciesOf(
+						transitiveClosure, entryPoint, unreachedInputs, inputIndex, inputsByProvide)
+				}
+				scratchClosure = transitiveClosure
+				// For any input we have not yet reached, add them to the ordered list
+				for _, orderedInput := range transitiveClosure {
+					idx := inputIndex[orderedInput]
+					if !reachedInputs[idx] {
+						reachedInputs[idx] = true
+						orderedInputs = append(orderedInputs, orderedInput)
+					}
 				}
 			}
 		} else {
 			// Simply order inputs so that any required namespace comes before it's usage.
 			// Ordered result varies based on the original order of inputs.
-			chunkEntryPoints := entryPointInputsPerChunk.Get(chunk)
+			chunkEntryPoints := entryPointInputsPerChunk[chunkIdx]
 			if chunkEntryPoints == nil {
 				chunkEntryPoints = []*CompilerInput{}
 			}
@@ -653,7 +699,7 @@ func (g *JSChunkGraph) ManageDependencies(
 		for _, input := range transitiveClosure {
 			if dependencyOptions.ShouldPrune() &&
 				input.GetSourceFile().IsWeak() &&
-				!entryPointInputs.Contains(input) {
+				!entryPointInputs.contains(input) {
 				compiler.Report(
 					JSError_Make(
 						JSChunkGraph_WEAK_FILE_REACHABLE_FROM_ENTRY_POINT_ERROR, input.GetSourceFile().GetName()))
@@ -667,8 +713,7 @@ func (g *JSChunkGraph) ManageDependencies(
 			}
 		}
 	}
-	if !(dependencyOptions.ShouldSort() && dependencyOptions.ShouldPrune()) ||
-		entryPointInputsPerChunk.IsEmpty() {
+	if !sortAndPrune || len(entryPointInputs.items) == 0 {
 		orderedInputs = absoluteOrder
 	}
 
@@ -700,7 +745,7 @@ func (g *JSChunkGraph) ManageDependencies(
 	}
 
 	return NewJSChunkGraph_DependencyManagementResult(
-		slices.Clone(orderedInputs), sorter, jutil.NewLinkedHashSet(entryPointInputs.ToSlice()...))
+		slices.Clone(orderedInputs), sorter, jutil.NewLinkedHashSet(entryPointInputs.items...))
 }
 
 // JSChunkGraph_DependencyManagementResult is the result of
@@ -740,33 +785,68 @@ func (r *JSChunkGraph_DependencyManagementResult) EntryPointInputs() *jutil.Link
 	return r.entryPointInputs
 }
 
-// getDepthFirstDependenciesOf: given an input and set of unprocessed
-// inputs, return the input and it's strong dependencies by performing a
-// recursive, depth-first traversal.
+// appendDepthFirstDependenciesOf appends rootInput and its unreached strong
+// dependencies in post-order depth-first traversal order onto dst.
 //
 // Java: JSChunkGraph.getDepthFirstDependenciesOf(CompilerInput, Set<CompilerInput>, Map<String, Set<CompilerInput>>)
-func (g *JSChunkGraph) getDepthFirstDependenciesOf(
+func (g *JSChunkGraph) appendDepthFirstDependenciesOf(
+	dst []*CompilerInput,
 	rootInput *CompilerInput,
-	unreachedInputs *jutil.LinkedHashSet[*CompilerInput],
-	inputsByProvide *jutil.LinkedHashMap[string, *jutil.LinkedHashSet[*CompilerInput]]) []*CompilerInput {
-	orderedInputs := []*CompilerInput{}
-	if !unreachedInputs.Remove(rootInput) {
-		return orderedInputs
+	unreachedInputs []bool,
+	inputIndex map[*CompilerInput]int,
+	inputsByProvide map[string][]*CompilerInput) []*CompilerInput {
+	rootIdx, ok := inputIndex[rootInput]
+	if !ok || !unreachedInputs[rootIdx] {
+		return dst
 	}
+	unreachedInputs[rootIdx] = false
 
 	for _, importedNamespace := range rootInput.GetRequiredSymbols() {
-		if inputsByProvide.ContainsKey(importedNamespace) {
-			for input := range inputsByProvide.Get(importedNamespace).All() {
-				if unreachedInputs.Contains(input) {
-					orderedInputs = append(orderedInputs,
-						g.getDepthFirstDependenciesOf(input, unreachedInputs, inputsByProvide)...)
-				}
+		for _, input := range inputsByProvide[importedNamespace] {
+			if idx, ok := inputIndex[input]; ok && unreachedInputs[idx] {
+				dst = g.appendDepthFirstDependenciesOf(dst, input, unreachedInputs, inputIndex, inputsByProvide)
 			}
 		}
 	}
 
-	orderedInputs = append(orderedInputs, rootInput)
-	return orderedInputs
+	return append(dst, rootInput)
+}
+
+type entryPointInputSet struct {
+	inputIndex map[*CompilerInput]int
+	present    []bool
+	items      []*CompilerInput
+}
+
+func newEntryPointInputSet(inputIndex map[*CompilerInput]int) *entryPointInputSet {
+	return &entryPointInputSet{
+		inputIndex: inputIndex,
+		present:    make([]bool, len(inputIndex)),
+	}
+}
+
+func (s *entryPointInputSet) add(input *CompilerInput) {
+	idx, ok := s.inputIndex[input]
+	if !ok {
+		idx = len(s.inputIndex)
+		s.inputIndex[input] = idx
+		s.present = append(s.present, false)
+	}
+	if !s.present[idx] {
+		s.present[idx] = true
+		s.items = append(s.items, input)
+	}
+}
+
+func (s *entryPointInputSet) addAll(inputs []*CompilerInput) {
+	for _, input := range inputs {
+		s.add(input)
+	}
+}
+
+func (s *entryPointInputSet) contains(input *CompilerInput) bool {
+	idx, ok := s.inputIndex[input]
+	return ok && idx < len(s.present) && s.present[idx]
 }
 
 // Java: JSChunkGraph.createEntryPointInputs(AbstractCompiler, DependencyOptions, Iterable<CompilerInput>, SortedDependencies<CompilerInput>)
@@ -774,15 +854,15 @@ func (g *JSChunkGraph) createEntryPointInputs(
 	compiler AbstractCompiler,
 	dependencyOptions *DependencyOptions,
 	inputs []*CompilerInput,
-	sorter *SortedDependencies[*CompilerInput]) *jutil.LinkedHashSet[*CompilerInput] {
-	entryPointInputs := jutil.NewLinkedHashSet[*CompilerInput]()
-	chunksByName := g.GetChunksByName()
+	sorter *SortedDependencies[*CompilerInput],
+	inputIndex map[*CompilerInput]int) *entryPointInputSet {
+	entryPointInputs := newEntryPointInputSet(inputIndex)
 	if dependencyOptions.ShouldPrune() {
 		// Some files implicitly depend on base.js without actually requiring anything.
 		// So we always treat it as the first entry point to ensure it's ordered correctly.
 		baseJs := sorter.MaybeGetInputProviding("goog")
 		if baseJs != nil {
-			entryPointInputs.Add(baseJs)
+			entryPointInputs.add(baseJs)
 		}
 
 		if !dependencyOptions.ShouldDropMoochers() {
@@ -792,11 +872,12 @@ func (g *JSChunkGraph) createEntryPointInputs(
 						JSError_Make(
 							JSChunkGraph_IMPLICIT_WEAK_ENTRY_POINT_ERROR, entryPointInput.GetSourceFile().GetName()))
 				} else {
-					entryPointInputs.Add(entryPointInput)
+					entryPointInputs.add(entryPointInput)
 				}
 			}
 		}
 
+		var chunksByName map[string]*JSChunk
 		for _, entryPoint := range dependencyOptions.EntryPoints() {
 			var entryPointInput *CompilerInput
 			jutil.Try(func() {
@@ -808,7 +889,13 @@ func (g *JSChunkGraph) createEntryPointInputs(
 						entryPointInput = sorter.GetInputProviding(entryPoint.Name())
 					}
 				} else {
-					chunk := chunksByName.Get(entryPoint.ModuleName())
+					if chunksByName == nil {
+						chunksByName = make(map[string]*JSChunk, len(g.chunks))
+						for _, m := range g.chunks {
+							chunksByName[m.GetName()] = m
+						}
+					}
+					chunk := chunksByName[entryPoint.ModuleName()]
 					if chunk == nil {
 						panic(NewJSChunkGraph_MissingChunkException(entryPoint.ModuleName()))
 					} else {
@@ -825,11 +912,11 @@ func (g *JSChunkGraph) createEntryPointInputs(
 					JSError_Make(
 						JSChunkGraph_EXPLICIT_WEAK_ENTRY_POINT_ERROR, entryPointInput.GetSourceFile().GetName()))
 			} else {
-				entryPointInputs.Add(entryPointInput)
+				entryPointInputs.add(entryPointInput)
 			}
 		}
 	} else {
-		entryPointInputs.AddAll(inputs...)
+		entryPointInputs.addAll(inputs)
 	}
 	return entryPointInputs
 }

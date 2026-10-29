@@ -1,4 +1,5 @@
 // Port of com/google/javascript/jscomp/graph/GraphTest.java @ closure-compiler v20261021
+// Port of com/google/javascript/jscomp/graph/StandardUnionFindTest.java @ closure-compiler v20261021
 
 /*
  * Copyright 2008 The Closure Compiler Authors.
@@ -39,7 +40,7 @@ func assertFalse(t *testing.T, what string, b bool) {
 }
 
 func TestGraph_DirectedSimple(t *testing.T) {
-	var graph DiGraph[string, string] = LinkedDirectedGraph_Create[string, string]()
+	graph := LinkedDirectedGraph_Create[string, string]()
 	graph.CreateNode("a")
 	graph.CreateNode("b")
 	graph.CreateNode("c")
@@ -87,7 +88,7 @@ func TestGraph_DirectedSimple(t *testing.T) {
 }
 
 func TestGraph_UndirectedSimple(t *testing.T) {
-	var graph UndiGraph[string, string] = LinkedUndirectedGraph_Create[string, string]()
+	graph := LinkedUndirectedGraph_Create[string, string]()
 	graph.CreateNode("a")
 	graph.CreateNode("b")
 	graph.CreateNode("c")
@@ -113,7 +114,7 @@ func TestGraph_UndirectedSimple(t *testing.T) {
 }
 
 func TestGraph_DirectedSelfLoop(t *testing.T) {
-	var graph DiGraph[string, string] = LinkedDirectedGraph_Create[string, string]()
+	graph := LinkedDirectedGraph_Create[string, string]()
 	graph.CreateNode("a")
 	graph.CreateNode("b")
 	graph.Connect("a", "->", "a")
@@ -141,7 +142,7 @@ func TestGraph_DirectedSelfLoop(t *testing.T) {
 }
 
 func TestGraph_UndirectedSelfLoop(t *testing.T) {
-	var graph UndiGraph[string, string] = LinkedUndirectedGraph_Create[string, string]()
+	graph := LinkedUndirectedGraph_Create[string, string]()
 	graph.CreateNode("a")
 	graph.CreateNode("b")
 	graph.Connect("a", "--", "a")
@@ -155,7 +156,7 @@ func TestGraph_UndirectedSelfLoop(t *testing.T) {
 }
 
 func TestGraph_DirectedInAndOutEdges(t *testing.T) {
-	var graph DiGraph[string, string] = LinkedDirectedGraph_Create[string, string]()
+	graph := LinkedDirectedGraph_Create[string, string]()
 	graph.CreateNode("a")
 	graph.CreateNode("b")
 	graph.CreateNode("c")
@@ -176,7 +177,7 @@ func TestGraph_DirectedInAndOutEdges(t *testing.T) {
 }
 
 func TestGraph_UndirectedNeighbors(t *testing.T) {
-	var graph UndiGraph[string, string] = LinkedUndirectedGraph_Create[string, string]()
+	graph := LinkedUndirectedGraph_Create[string, string]()
 	graph.CreateNode("a")
 	graph.CreateNode("b")
 	graph.CreateNode("c")
@@ -197,7 +198,7 @@ func TestGraph_UndirectedNeighbors(t *testing.T) {
 }
 
 func TestGraph_DirectedGetFirstEdge(t *testing.T) {
-	var graph DiGraph[string, string] = LinkedDirectedGraph_Create[string, string]()
+	graph := LinkedDirectedGraph_Create[string, string]()
 	graph.CreateNode("a")
 	graph.CreateNode("b")
 	graph.CreateNode("c")
@@ -208,7 +209,7 @@ func TestGraph_DirectedGetFirstEdge(t *testing.T) {
 }
 
 func TestGraph_UndirectedGetFirstEdge(t *testing.T) {
-	var graph UndiGraph[string, string] = LinkedUndirectedGraph_Create[string, string]()
+	graph := LinkedUndirectedGraph_Create[string, string]()
 	graph.CreateNode("a")
 	graph.CreateNode("b")
 	graph.CreateNode("c")
@@ -219,14 +220,14 @@ func TestGraph_UndirectedGetFirstEdge(t *testing.T) {
 }
 
 func TestGraph_NodeAnnotations(t *testing.T) {
-	var graph Graph[string, string] = LinkedUndirectedGraph_Create[string, string]()
+	graph := LinkedUndirectedGraph_Create[string, string]()
 	a := graph.CreateNode("a")
 	b := graph.CreateNode("b")
 	graphTest_checkAnnotations(t, graph, a, b)
 }
 
 func TestGraph_EdgeAnnotations(t *testing.T) {
-	var graph Graph[string, string] = LinkedUndirectedGraph_Create[string, string]()
+	graph := LinkedUndirectedGraph_Create[string, string]()
 	graph.CreateNode("1")
 	graph.CreateNode("2")
 	graph.CreateNode("3")
@@ -289,16 +290,18 @@ func graphTest_checkAnnotations(t *testing.T, graph Graph[string, string], a Ann
 }
 
 func TestGraph_Degree(t *testing.T) {
-	graphTest_testDirectedDegree(t, LinkedDirectedGraph_Create[string, string]())
-	graphTest_testDirectedDegree(t, LinkedUndirectedGraph_Create[string, string]())
+	dg := LinkedDirectedGraph_Create[string, string]()
+	graphTest_testDirectedDegree(t, dg, func(v string) { dg.CreateNode(v) })
+	ug := LinkedUndirectedGraph_Create[string, string]()
+	graphTest_testDirectedDegree(t, ug, func(v string) { ug.CreateNode(v) })
 }
 
-func graphTest_testDirectedDegree(t *testing.T, graph Graph[string, string]) {
+func graphTest_testDirectedDegree(t *testing.T, graph Graph[string, string], createNode func(string)) {
 	t.Helper()
-	graph.CreateNode("a")
-	graph.CreateNode("b")
-	graph.CreateNode("c")
-	graph.CreateNode("d")
+	createNode("a")
+	createNode("b")
+	createNode("c")
+	createNode("d")
 	assertEqual(t, "degree", graph.GetNodeDegree("a"), 0)
 	graph.Connect("a", "-", "b")
 	assertEqual(t, "degree", graph.GetNodeDegree("a"), 1)
@@ -312,14 +315,16 @@ func graphTest_testDirectedDegree(t *testing.T, graph Graph[string, string]) {
 
 func TestGraph_DirectedConnectIfNotFound(t *testing.T) {
 	// E is `any` so that the Java null edge value is representable (nil).
-	graphTest_testDirectedConnectIfNotFound(t, LinkedDirectedGraph_Create[string, any]())
-	graphTest_testDirectedConnectIfNotFound(t, LinkedUndirectedGraph_Create[string, any]())
+	dg := LinkedDirectedGraph_Create[string, any]()
+	graphTest_testDirectedConnectIfNotFound(t, dg, func(v string) { dg.CreateNode(v) })
+	ug := LinkedUndirectedGraph_Create[string, any]()
+	graphTest_testDirectedConnectIfNotFound(t, ug, func(v string) { ug.CreateNode(v) })
 }
 
-func graphTest_testDirectedConnectIfNotFound(t *testing.T, graph Graph[string, any]) {
+func graphTest_testDirectedConnectIfNotFound(t *testing.T, graph Graph[string, any], createNode func(string)) {
 	t.Helper()
-	graph.CreateNode("a")
-	graph.CreateNode("b")
+	createNode("a")
+	createNode("b")
 	graph.ConnectIfNotFound("a", "-", "b")
 	assertEqual(t, "degree", graph.GetNodeDegree("a"), 1)
 	graph.ConnectIfNotFound("a", "-", "b")
@@ -331,7 +336,7 @@ func graphTest_testDirectedConnectIfNotFound(t *testing.T, graph Graph[string, a
 }
 
 func TestGraph_SimpleSubGraph(t *testing.T) {
-	var graph UndiGraph[string, string] = LinkedUndirectedGraph_Create[string, string]()
+	graph := LinkedUndirectedGraph_Create[string, string]()
 	graph.CreateNode("a")
 	graph.CreateNode("b")
 	graph.CreateNode("c")

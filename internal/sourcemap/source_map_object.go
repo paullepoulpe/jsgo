@@ -24,12 +24,12 @@ import "github.com/paullepoulpe/jsgo/internal/jutil"
 type SourceMapObject struct {
 	version        int
 	lineCount      int
-	sourceRoot     *string
-	file           *string
-	mappings       *string
-	sources        []*string
-	sourcesContent []*string
-	names          []*string
+	sourceRoot     optionalString
+	file           optionalString
+	mappings       optionalString
+	sources        []optionalString
+	sourcesContent []optionalString
+	names          []optionalString
 	sections       []*SourceMapSection
 	extensions     *jutil.LinkedHashMap[string, any]
 }
@@ -49,18 +49,18 @@ func NewSourceMapObject(
 	names []*string,
 	sections []*SourceMapSection,
 	extensions *jutil.LinkedHashMap[string, any]) *SourceMapObject {
-	o := &SourceMapObject{}
-	o.version = version
-	o.lineCount = lineCount
-	o.sourceRoot = sourceRoot
-	o.file = file
-	o.mappings = mappings
-	o.sources = sources
-	o.sourcesContent = sourcesContent
-	o.names = names
-	o.sections = sections
-	o.extensions = extensions
-	return o
+	return &SourceMapObject{
+		version:        version,
+		lineCount:      lineCount,
+		sourceRoot:     makeOptionalString(sourceRoot),
+		file:           makeOptionalString(file),
+		mappings:       makeOptionalString(mappings),
+		sources:        optionalStringsFromPtrs(sources),
+		sourcesContent: optionalStringsFromPtrs(sourcesContent),
+		names:          optionalStringsFromPtrs(names),
+		sections:       sections,
+		extensions:     extensions,
+	}
 }
 
 // Java: SourceMapObject.getVersion()
@@ -75,34 +75,34 @@ func (o *SourceMapObject) GetLineCount() int {
 
 // Java: SourceMapObject.getSourceRoot()
 func (o *SourceMapObject) GetSourceRoot() *string {
-	return o.sourceRoot
+	return o.sourceRoot.ptr()
 }
 
 // Java: SourceMapObject.getFile()
 func (o *SourceMapObject) GetFile() *string {
-	return o.file
+	return o.file.ptr()
 }
 
 // Java: SourceMapObject.getMappings()
 func (o *SourceMapObject) GetMappings() *string {
-	return o.mappings
+	return o.mappings.ptr()
 }
 
 // GetSources returns the sources (nil for Java null; elements may be nil).
 //
 // Java: SourceMapObject.getSources()
 func (o *SourceMapObject) GetSources() []*string {
-	return o.sources
+	return optionalStringsToPtrs(o.sources)
 }
 
 // Java: SourceMapObject.getSourcesContent()
 func (o *SourceMapObject) GetSourcesContent() []*string {
-	return o.sourcesContent
+	return optionalStringsToPtrs(o.sourcesContent)
 }
 
 // Java: SourceMapObject.getNames()
 func (o *SourceMapObject) GetNames() []*string {
-	return o.names
+	return optionalStringsToPtrs(o.names)
 }
 
 // GetSections returns the index map sections (nil for Java null).
@@ -129,16 +129,7 @@ func SourceMapObject_Builder_() *SourceMapObject_Builder {
 
 // SourceMapObject_Builder is SourceMapObject.Builder.
 type SourceMapObject_Builder struct {
-	version        int
-	lineCount      int
-	sourceRoot     *string
-	file           *string
-	mappings       *string
-	sources        []*string
-	sourcesContent []*string
-	names          []*string
-	sections       []*SourceMapSection
-	extensions     *jutil.LinkedHashMap[string, any]
+	obj SourceMapObject
 }
 
 // NewSourceMapObject_Builder constructs an empty builder.
@@ -150,75 +141,66 @@ func NewSourceMapObject_Builder() *SourceMapObject_Builder {
 
 // Java: SourceMapObject.Builder.setVersion(int)
 func (b *SourceMapObject_Builder) SetVersion(version int) *SourceMapObject_Builder {
-	b.version = version
+	b.obj.version = version
 	return b
 }
 
 // Java: SourceMapObject.Builder.setLineCount(int)
 func (b *SourceMapObject_Builder) SetLineCount(lineCount int) *SourceMapObject_Builder {
-	b.lineCount = lineCount
+	b.obj.lineCount = lineCount
 	return b
 }
 
 // Java: SourceMapObject.Builder.setSourceRoot(String)
 func (b *SourceMapObject_Builder) SetSourceRoot(sourceRoot *string) *SourceMapObject_Builder {
-	b.sourceRoot = sourceRoot
+	b.obj.sourceRoot = makeOptionalString(sourceRoot)
 	return b
 }
 
 // Java: SourceMapObject.Builder.setFile(String)
 func (b *SourceMapObject_Builder) SetFile(file *string) *SourceMapObject_Builder {
-	b.file = file
+	b.obj.file = makeOptionalString(file)
 	return b
 }
 
 // Java: SourceMapObject.Builder.setMappings(String)
 func (b *SourceMapObject_Builder) SetMappings(mappings *string) *SourceMapObject_Builder {
-	b.mappings = mappings
+	b.obj.mappings = makeOptionalString(mappings)
 	return b
 }
 
 // Java: SourceMapObject.Builder.setSources(String[])
 func (b *SourceMapObject_Builder) SetSources(sources []*string) *SourceMapObject_Builder {
-	b.sources = sources
+	b.obj.sources = optionalStringsFromPtrs(sources)
 	return b
 }
 
 // Java: SourceMapObject.Builder.setSourcesContent(String[])
 func (b *SourceMapObject_Builder) SetSourcesContent(sourcesContent []*string) *SourceMapObject_Builder {
-	b.sourcesContent = sourcesContent
+	b.obj.sourcesContent = optionalStringsFromPtrs(sourcesContent)
 	return b
 }
 
 // Java: SourceMapObject.Builder.setNames(String[])
 func (b *SourceMapObject_Builder) SetNames(names []*string) *SourceMapObject_Builder {
-	b.names = names
+	b.obj.names = optionalStringsFromPtrs(names)
 	return b
 }
 
 // Java: SourceMapObject.Builder.setSections(List)
 func (b *SourceMapObject_Builder) SetSections(sections []*SourceMapSection) *SourceMapObject_Builder {
-	b.sections = sections
+	b.obj.sections = sections
 	return b
 }
 
 // Java: SourceMapObject.Builder.setExtensions(Map)
 func (b *SourceMapObject_Builder) SetExtensions(extensions *jutil.LinkedHashMap[string, any]) *SourceMapObject_Builder {
-	b.extensions = extensions
+	b.obj.extensions = extensions
 	return b
 }
 
 // Java: SourceMapObject.Builder.build()
 func (b *SourceMapObject_Builder) Build() *SourceMapObject {
-	return NewSourceMapObject(
-		b.version,
-		b.lineCount,
-		b.sourceRoot,
-		b.file,
-		b.mappings,
-		b.sources,
-		b.sourcesContent,
-		b.names,
-		b.sections,
-		b.extensions)
+	out := b.obj
+	return &out
 }

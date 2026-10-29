@@ -88,7 +88,7 @@ const TypeInference_GOOG_REQUIREDYNAMIC_NAME = "goog.requireDynamic"
 // Java: TypeInference(AbstractCompiler, ControlFlowGraph<Node>, ReverseAbstractInterpreter, TypedScope, TypedScopeCreator, AssertionFunctionLookup)
 func NewTypeInference(
 	compiler AbstractCompiler,
-	cfg ControlFlowGraph[rhino.Node],
+	cfg *ControlFlowGraph[rhino.Node],
 	reverseInterpreter ReverseAbstractInterpreter,
 	syntacticScope *TypedScope,
 	scopeCreator *TypedScopeCreator,
@@ -105,7 +105,7 @@ func (ti *TypeInference) ReleaseLargeBuffers() {
 
 func (ti *TypeInference) initTypeInference(
 	compiler AbstractCompiler,
-	cfg ControlFlowGraph[rhino.Node],
+	cfg *ControlFlowGraph[rhino.Node],
 	reverseInterpreter ReverseAbstractInterpreter,
 	syntacticScope *TypedScope,
 	scopeCreator *TypedScopeCreator,

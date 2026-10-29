@@ -22,6 +22,7 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/paullepoulpe/jsgo/internal/ast"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
@@ -255,22 +256,6 @@ func (b *CheckRequiresSorted_DestructuringBinding) Equals(o any) bool {
 		b.isShorthandProperty == other.isShorthandProperty
 }
 
-// HashCode is the record's component-wise hashCode.
-//
-// Go-only: language-adapter — the exact value of a Java record's hashCode is
-// unspecified; it is only used for hashing (Stream.distinct) and never
-// observed.
-func (b *CheckRequiresSorted_DestructuringBinding) HashCode() int32 {
-	h := jutil.StringHashCode(b.exportedName)
-	h = 31*h + jutil.StringHashCode(b.localName)
-	if b.isShorthandProperty {
-		h = 31*h + 1231
-	} else {
-		h = 31*h + 1237
-	}
-	return h
-}
-
 // CheckRequiresSorted_ImportStatement is an import statement, which may have
 // been merged from several import statements for the same namespace in the
 // original code.
@@ -285,20 +270,17 @@ func (b *CheckRequiresSorted_DestructuringBinding) HashCode() int32 {
 //
 // nodes: the nodes this import statement was merged from, in source order.
 // primitive: the import primitive being called. namespace: the namespace
-// being imported. alias: the alias for an aliasing import, or null if the
-// import isn't aliasing. destructures: the destructures for a destructuring
-// import in source order, or null if the import isn't destructuring. If the
-// import is destructuring but the pattern is empty, the value is non-null but
-// empty.
-//
-// Go-only: language-adapter — a null destructures list is a nil slice; a
-// non-null empty list is a non-nil empty slice.
+// being imported. alias: the alias for an aliasing import (when hasAlias is
+// true). destructures: the destructures for a destructuring import in source
+// order, or nil if the import isn't destructuring. If the import is
+// destructuring but the pattern is empty, the value is non-nil but empty.
 type CheckRequiresSorted_ImportStatement struct {
 	nodes        []rhino.Node
-	primitive    CheckRequiresSorted_ImportPrimitive
 	namespace    string
-	alias        *string
+	alias        string
 	destructures []*CheckRequiresSorted_DestructuringBinding
+	primitive    CheckRequiresSorted_ImportPrimitive
+	hasAlias     bool
 }
 
 // newCheckRequiresSorted_ImportStatement is the record's canonical
@@ -309,21 +291,21 @@ func newCheckRequiresSorted_ImportStatement(
 	nodes []rhino.Node,
 	primitive CheckRequiresSorted_ImportPrimitive,
 	namespace string,
-	alias *string,
+	alias string,
+	hasAlias bool,
 	destructures []*CheckRequiresSorted_DestructuringBinding) *CheckRequiresSorted_ImportStatement {
 	if nodes == nil {
 		panic(jutil.NewNullPointerExceptionMsg("nodes"))
 	}
-	// Go-only: language-adapter — requireNonNull(primitive/namespace): Go
-	// enums and strings cannot be null.
 	jutil.CheckArgumentMsg(
-		alias == nil || destructures == nil,
+		!hasAlias || destructures == nil,
 		"Import statement cannot be simultaneously aliasing and destructuring")
 	return &CheckRequiresSorted_ImportStatement{
 		nodes:        nodes,
 		primitive:    primitive,
 		namespace:    namespace,
 		alias:        alias,
+		hasAlias:     hasAlias,
 		destructures: destructures,
 	}
 }
@@ -335,9 +317,10 @@ func CheckRequiresSorted_ImportStatement_Of(
 	nodes []rhino.Node,
 	primitive CheckRequiresSorted_ImportPrimitive,
 	namespace string,
-	alias *string,
+	alias string,
+	hasAlias bool,
 	destructures []*CheckRequiresSorted_DestructuringBinding) *CheckRequiresSorted_ImportStatement {
-	return newCheckRequiresSorted_ImportStatement(nodes, primitive, namespace, alias, destructures)
+	return newCheckRequiresSorted_ImportStatement(nodes, primitive, namespace, alias, hasAlias, destructures)
 }
 
 // Nodes is the record accessor nodes().
@@ -352,7 +335,7 @@ func (s *CheckRequiresSorted_ImportStatement) Primitive() CheckRequiresSorted_Im
 func (s *CheckRequiresSorted_ImportStatement) Namespace() string { return s.namespace }
 
 // Alias is the record accessor alias().
-func (s *CheckRequiresSorted_ImportStatement) Alias() *string { return s.alias }
+func (s *CheckRequiresSorted_ImportStatement) Alias() string { return s.alias }
 
 // Destructures is the record accessor destructures().
 func (s *CheckRequiresSorted_ImportStatement) Destructures() []*CheckRequiresSorted_DestructuringBinding {
@@ -370,14 +353,14 @@ func (s *CheckRequiresSorted_ImportStatement) IsStandalone() bool {
 //
 // Java: CheckRequiresSorted.ImportStatement.isAliasing()
 func (s *CheckRequiresSorted_ImportStatement) IsAliasing() bool {
-	return s.Alias() != nil
+	return s.hasAlias
 }
 
 // IsDestructuring returns whether the import is destructuring.
 //
 // Java: CheckRequiresSorted.ImportStatement.isDestructuring()
 func (s *CheckRequiresSorted_ImportStatement) IsDestructuring() bool {
-	return s.Destructures() != nil
+	return s.destructures != nil
 }
 
 // Upgrade returns an import statement identical to the current one, except
@@ -386,7 +369,7 @@ func (s *CheckRequiresSorted_ImportStatement) IsDestructuring() bool {
 // Java: CheckRequiresSorted.ImportStatement.upgrade(ImportPrimitive)
 func (s *CheckRequiresSorted_ImportStatement) Upgrade(otherPrimitive CheckRequiresSorted_ImportPrimitive) *CheckRequiresSorted_ImportStatement {
 	if CheckRequiresSorted_ImportPrimitive_Stronger(s.Primitive(), otherPrimitive) != s.Primitive() {
-		return newCheckRequiresSorted_ImportStatement(s.Nodes(), otherPrimitive, s.Namespace(), s.Alias(), s.Destructures())
+		return newCheckRequiresSorted_ImportStatement(s.nodes, otherPrimitive, s.namespace, s.alias, s.hasAlias, s.destructures)
 	}
 	return s
 }
@@ -398,13 +381,13 @@ func (s *CheckRequiresSorted_ImportStatement) FormatWithoutDoc() string {
 	if !s.IsStandalone() {
 		sb.WriteString("const ")
 	}
-	if s.Alias() != nil {
-		sb.WriteString(*s.Alias())
+	if s.hasAlias {
+		sb.WriteString(s.alias)
 	}
-	if s.Destructures() != nil {
+	if s.destructures != nil {
 		sb.WriteString("{")
 		first := true
-		for _, binding := range s.Destructures() {
+		for _, binding := range s.destructures {
 			exportedName := binding.ExportedName()
 			localName := binding.LocalName()
 			if first {
@@ -440,7 +423,7 @@ func (s *CheckRequiresSorted_ImportStatement) Format() string {
 	for _, node := range s.Nodes() {
 		comment := node.GetNonJSDocCommentString()
 		if comment != "" {
-			sb.WriteString(node.GetNonJSDocCommentString())
+			sb.WriteString(comment)
 			sb.WriteString("\n")
 		}
 		jsDoc := NodeUtil_GetBestJSDocInfo(node)
@@ -477,39 +460,14 @@ func (s *CheckRequiresSorted_ImportStatement) Equals(o any) bool {
 	}
 	if !slices.Equal(s.nodes, other.nodes) ||
 		s.primitive != other.primitive ||
-		s.namespace != other.namespace {
-		return false
-	}
-	if (s.alias == nil) != (other.alias == nil) || (s.alias != nil && *s.alias != *other.alias) {
-		return false
-	}
-	if (s.destructures == nil) != (other.destructures == nil) {
+		s.namespace != other.namespace ||
+		s.hasAlias != other.hasAlias ||
+		s.alias != other.alias ||
+		(s.destructures == nil) != (other.destructures == nil) {
 		return false
 	}
 	return slices.EqualFunc(s.destructures, other.destructures,
 		func(a, b *CheckRequiresSorted_DestructuringBinding) bool { return a.Equals(b) })
-}
-
-// HashCode is the record's component-wise hashCode.
-//
-// Go-only: language-adapter — the exact value of a Java record's hashCode is
-// unspecified and never observed here.
-func (s *CheckRequiresSorted_ImportStatement) HashCode() int32 {
-	h := int32(1)
-	for _, n := range s.nodes {
-		h = 31*h + jutil.ObjectHashCode(n)
-	}
-	h = 31*h + int32(s.primitive)
-	h = 31*h + jutil.StringHashCode(s.namespace)
-	if s.alias != nil {
-		h = 31*h + jutil.StringHashCode(*s.alias)
-	} else {
-		h = 31 * h
-	}
-	for _, d := range s.destructures {
-		h = 31*h + d.HashCode()
-	}
-	return h
 }
 
 var checkRequiresSorted_GOOG_REQUIRE = rhino.QualifiedName_Of("goog.require")
@@ -578,10 +536,12 @@ func (c *CheckRequiresSorted) Visit(t *NodeTraversal, n rhino.Node, parent rhino
 	}
 
 	var callNode rhino.Node
-	if n.IsExprResult() {
-		callNode = n.GetFirstChild()
-	} else if NodeUtil_IsNameDeclaration(n) {
-		callNode = n.GetFirstChild().GetLastChild()
+	if exprStmt, ok := ast.AsExprStmt(n); ok {
+		callNode = exprStmt.Expr().Node()
+	} else if decl, ok := ast.AsNameDeclaration(n); ok {
+		if first, ok := decl.FirstDeclarator(); ok {
+			callNode = first.Node().GetLastChild()
+		}
 	}
 	if !callNode.IsNil() && CheckRequiresSorted_IsValidImportCall(callNode) {
 		stmt := CheckRequiresSorted_ParseImport(callNode)
@@ -601,18 +561,24 @@ func (c *CheckRequiresSorted) Visit(t *NodeTraversal, n rhino.Node, parent rhino
 
 // Java: CheckRequiresSorted.isValidImportCall(Node)
 func CheckRequiresSorted_IsValidImportCall(n rhino.Node) bool {
-	return n.IsCall() &&
-		n.HasTwoChildren() &&
-		(checkRequiresSorted_GOOG_REQUIRE.Matches(n.GetFirstChild()) ||
-			checkRequiresSorted_GOOG_REQUIRETYPE.Matches(n.GetFirstChild()) ||
-			checkRequiresSorted_GOOG_FORWARDDECLARE.Matches(n.GetFirstChild())) &&
-		n.GetSecondChild().IsStringLit()
+	call, ok := ast.AsCall(n)
+	if !ok || !n.HasTwoChildren() {
+		return false
+	}
+	callee := call.Callee().Node()
+	firstArg, ok := call.FirstArg()
+	return ok &&
+		firstArg.Token() == rhino.Token_STRINGLIT &&
+		(checkRequiresSorted_GOOG_REQUIRE.Matches(callee) ||
+			checkRequiresSorted_GOOG_REQUIRETYPE.Matches(callee) ||
+			checkRequiresSorted_GOOG_FORWARDDECLARE.Matches(callee))
 }
 
 // Java: CheckRequiresSorted.parseImport(Node)
 func CheckRequiresSorted_ParseImport(callNode rhino.Node) *CheckRequiresSorted_ImportStatement {
-	primitive := CheckRequiresSorted_ImportPrimitive_FromName(*callNode.GetFirstChild().GetQualifiedName())
-	namespace := callNode.GetSecondChild().GetString()
+	call := ast.MustCall(callNode)
+	primitive := CheckRequiresSorted_ImportPrimitive_FromName(*call.Callee().Node().GetQualifiedName())
+	namespace := ast.MustStringLit(call.MustFirstArg().Node()).Value()
 
 	parent := callNode.GetParent()
 	if parent.IsExprResult() {
@@ -621,25 +587,52 @@ func CheckRequiresSorted_ParseImport(callNode rhino.Node) *CheckRequiresSorted_I
 			[]rhino.Node{parent},
 			primitive,
 			namespace,
-			/* alias= */ nil,
+			"",
+			false,
 			/* destructures= */ nil)
 	}
 
 	grandparent := parent.GetParent()
-	if parent.IsName() {
+	if name, ok := ast.AsName(parent); ok {
 		// const a = goog.require('a');
-		alias := parent.GetString()
 		return CheckRequiresSorted_ImportStatement_Of(
-			[]rhino.Node{grandparent}, primitive, namespace, &alias /* destructures= */, nil)
+			[]rhino.Node{grandparent}, primitive, namespace, name.Ident(), true /* destructures= */, nil)
 	}
 	// const {a: b, c} = goog.require('a');
 	// ImmutableList.builder(): non-null even when empty.
 	destructures := []*CheckRequiresSorted_DestructuringBinding{}
+	if lhs, ok := ast.AsDestructuringLhs(parent); ok {
+		if objPattern, ok := lhs.Pattern().AsObjectPattern(); ok {
+			for prop := range objPattern.Props() {
+				if key, ok := prop.AsStringKey(); ok {
+					if local, ok := key.Value().AsName(); ok {
+						// {a: a} and {a: b} both yield false
+						// {a} yields true
+						destructures = append(
+							destructures,
+							CheckRequiresSorted_DestructuringBinding_Of(
+								key.Key(), local.Ident(), key.Node().IsShorthandProperty()))
+						continue
+					}
+				}
+				name := prop.Node()
+				destructures = append(
+					destructures,
+					CheckRequiresSorted_DestructuringBinding_Of(
+						name.GetString(), name.GetFirstChild().GetString(), name.IsShorthandProperty()))
+			}
+			return CheckRequiresSorted_ImportStatement_Of(
+				[]rhino.Node{grandparent},
+				primitive,
+				namespace,
+				"",
+				false,
+				destructures)
+		}
+	}
 	for name := parent.GetFirstFirstChild(); !name.IsNil(); name = name.GetNext() {
 		exportedName := name.GetString()
 		localName := name.GetFirstChild().GetString()
-		// {a: a} and {a: b} both yield false
-		// {a} yields true
 		isShorthandProperty := name.IsShorthandProperty()
 		destructures = append(destructures, CheckRequiresSorted_DestructuringBinding_Of(exportedName, localName, isShorthandProperty))
 	}
@@ -647,7 +640,8 @@ func CheckRequiresSorted_ParseImport(callNode rhino.Node) *CheckRequiresSorted_I
 		[]rhino.Node{grandparent},
 		primitive,
 		namespace,
-		/* alias= */ nil,
+		"",
+		false,
 		destructures)
 }
 
@@ -733,7 +727,8 @@ func CheckRequiresSorted_CanonicalizeImports(
 					destructuringNodes,
 					strongestPrimitive,
 					namespace,
-					/* alias= */ nil,
+					"",
+					false,
 					destructures))
 			hasDestructuring = true
 		}
@@ -751,7 +746,8 @@ func CheckRequiresSorted_CanonicalizeImports(
 					standaloneNodes,
 					strongestPrimitive,
 					namespace,
-					/* alias= */ nil,
+					"",
+					false,
 					/* destructures= */ nil))
 		}
 	}

@@ -1,4 +1,8 @@
 // Port of com/google/javascript/jscomp/ErrorManager.java @ closure-compiler v20261021
+// Port of com/google/javascript/jscomp/BasicErrorManager.java @ closure-compiler v20261021
+// Port of com/google/javascript/jscomp/LoggerErrorManager.java @ closure-compiler v20261021
+// Port of com/google/javascript/jscomp/PrintStreamErrorManager.java @ closure-compiler v20261021
+// Port of com/google/javascript/jscomp/PrintStreamErrorReportGenerator.java @ closure-compiler v20261021
 
 /*
  * Copyright 2007 The Closure Compiler Authors.
@@ -19,6 +23,7 @@
 package jscomp
 
 import (
+	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
 
@@ -187,4 +192,245 @@ func NewErrorPassWithJSError(compiler AbstractCompiler, error_ *JSError) *ErrorP
 // Java: ErrorPass.process(Node, Node)
 func (p *ErrorPass) Process(externs rhino.Node, root rhino.Node) {
 	p.compiler.Report(p.error_)
+}
+
+// BasicErrorManager is an error manager that generates a sorted report when
+// the GenerateReport method is called.
+//
+// This error manager does not produce any output, but subclasses can
+// override the Println(CheckLevel, JSError) method to generate custom
+// output. Consider using the SortingErrorManager with a custom
+// SortingErrorManager.ErrorReportGenerator instead.
+//
+// Deprecated: as in Java.
+type BasicErrorManager interface {
+	SortingErrorManager
+
+	// Println prints a message with a trailing new line. This method is
+	// called by the GenerateReport method when generating messages.
+	//
+	// Java: BasicErrorManager.println(CheckLevel, JSError)
+	Println(level *CheckLevel, error *JSError)
+
+	// PrintSummary prints the summary of the compilation - number of errors
+	// and warnings.
+	//
+	// Java: BasicErrorManager.printSummary()
+	PrintSummary()
+
+	GetBasicErrorManagerBase() *BasicErrorManagerBase
+}
+
+// BasicErrorManagerBase holds the base implementations of
+// BasicErrorManager; subclasses embed it and implement Println and
+// PrintSummary.
+type BasicErrorManagerBase struct {
+	SortingErrorManagerBase
+	basicSelf BasicErrorManager
+}
+
+// InitBasicErrorManagerBase is the Go form of super(); self is the object
+// being constructed.
+//
+// Java: BasicErrorManager()
+func (m *BasicErrorManagerBase) InitBasicErrorManagerBase(self BasicErrorManager) {
+	m.InitSortingErrorManagerBase(self, nil)
+	m.basicSelf = self
+}
+
+// GetBasicErrorManagerBase gives access to the base fields.
+func (m *BasicErrorManagerBase) GetBasicErrorManagerBase() *BasicErrorManagerBase { return m }
+
+// Java: BasicErrorManager.generateReport()
+func (m *BasicErrorManagerBase) GenerateReport() {
+	for _, message := range m.SortingErrorManagerBase.GetSortedDiagnostics() {
+		m.basicSelf.Println(message.Level, message.Error)
+	}
+	m.basicSelf.PrintSummary()
+}
+
+// LoggerErrorManager is an error manager that logs errors and warnings using
+// a logger in addition to collecting them in memory. Errors are logged at
+// the SEVERE level and warnings are logged at the WARNING level.
+type LoggerErrorManager struct {
+	BasicErrorManagerBase
+	formatter MessageFormatter
+	logger    *jutil.Logger
+}
+
+var _ BasicErrorManager = (*LoggerErrorManager)(nil)
+
+// NewLoggerErrorManagerWithFormatter creates an instance.
+//
+// Java: LoggerErrorManager(MessageFormatter, Logger)
+func NewLoggerErrorManagerWithFormatter(formatter MessageFormatter, logger *jutil.Logger) *LoggerErrorManager {
+	m := &LoggerErrorManager{}
+	m.InitBasicErrorManagerBase(m)
+	m.formatter = formatter
+	m.logger = logger
+	return m
+}
+
+// NewLoggerErrorManager creates an instance with a source-less error
+// formatter.
+//
+// Java: LoggerErrorManager(Logger)
+func NewLoggerErrorManager(logger *jutil.Logger) *LoggerErrorManager {
+	return NewLoggerErrorManagerWithFormatter(LightweightMessageFormatter_WithoutSource(), logger)
+}
+
+// Java: LoggerErrorManager.println(CheckLevel, JSError)
+func (m *LoggerErrorManager) Println(level *CheckLevel, error *JSError) {
+	if level == nil {
+		panic(jutil.NewNullPointerException()) // switch on a null enum
+	}
+	switch *level {
+	case CheckLevel_ERROR:
+		m.logger.Severe(*error.Format(*level, m.formatter))
+	case CheckLevel_WARNING:
+		m.logger.Warning(*error.Format(*level, m.formatter))
+	case CheckLevel_OFF:
+	}
+}
+
+// Java: LoggerErrorManager.printSummary()
+func (m *LoggerErrorManager) PrintSummary() {
+	errCount := m.GetErrorCount()
+	warnCount := m.GetWarningCount()
+	level := jutil.Level_WARNING
+	if errCount+warnCount == 0 {
+		level = jutil.Level_INFO
+	}
+	if m.GetTypedPercent() > 0.0 {
+		m.logger.Log(
+			level,
+			jutil.StringFormat(
+				"%d error(s), %d warning(s), %s%% typed",
+				errCount, warnCount, jutil.Formatter_FormatDecimalFloat(m.GetTypedPercent(), 1)))
+	} else if errCount+warnCount > 0 {
+		m.logger.Log(
+			level, jutil.StringFormat("%d error(s), %d warning(s)", errCount, warnCount))
+	}
+}
+
+func printStreamPrintln(stream *jutil.PrintStream, formatter MessageFormatter, level *CheckLevel, error *JSError) {
+	if level == nil {
+		panic(jutil.NewNullPointerException()) // switch on a null CheckLevel in JSError.format
+	}
+	stream.PrintlnNullable(error.Format(*level, formatter))
+}
+
+func printStreamPrintSummary(stream *jutil.PrintStream, summaryDetailLevel int, manager ErrorManager) {
+	errCount := manager.GetErrorCount()
+	warnCount := manager.GetWarningCount()
+	typedPercent := manager.GetTypedPercent()
+	if summaryDetailLevel >= 3 ||
+		(summaryDetailLevel >= 1 && errCount+warnCount > 0) ||
+		(summaryDetailLevel >= 2 && typedPercent > 0.0) {
+		if typedPercent > 0.0 {
+			stream.Printf(
+				"%d error(s), %d warning(s), %s%% typed%n",
+				errCount, warnCount, jutil.Formatter_FormatDecimalFloat(typedPercent, 1))
+		} else {
+			stream.Printf("%d error(s), %d warning(s)%n", errCount, warnCount)
+		}
+	}
+}
+
+// PrintStreamErrorManager is an error manager that prints errors and
+// warnings to the print stream provided in addition to the functionality of
+// the BasicErrorManager.
+//
+// It collaborates with a SourceExcerptProvider via a MessageFormatter to
+// display error messages with source context.
+//
+// Deprecated: Please use the SortingErrorManager with a
+// PrintStreamErrorReportGenerator instead.
+type PrintStreamErrorManager struct {
+	BasicErrorManagerBase
+	formatter          MessageFormatter
+	stream             *jutil.PrintStream
+	summaryDetailLevel int
+}
+
+var _ BasicErrorManager = (*PrintStreamErrorManager)(nil)
+
+// NewPrintStreamErrorManagerWithFormatter creates an error manager.
+// formatter is the message formatter used to format the messages; stream is
+// the stream on which the errors and warnings should be printed (this class
+// does not close the stream).
+//
+// Java: PrintStreamErrorManager(MessageFormatter, PrintStream)
+func NewPrintStreamErrorManagerWithFormatter(formatter MessageFormatter,
+	stream *jutil.PrintStream) *PrintStreamErrorManager {
+	m := &PrintStreamErrorManager{summaryDetailLevel: 1}
+	m.InitBasicErrorManagerBase(m)
+	m.formatter = formatter
+	m.stream = stream
+	return m
+}
+
+// NewPrintStreamErrorManager creates an instance with a source-less error
+// formatter.
+//
+// Java: PrintStreamErrorManager(PrintStream)
+func NewPrintStreamErrorManager(stream *jutil.PrintStream) *PrintStreamErrorManager {
+	return NewPrintStreamErrorManagerWithFormatter(ErrorFormat_SOURCELESS.ToFormatter(nil, false), stream)
+}
+
+// Java: PrintStreamErrorManager.println(CheckLevel, JSError)
+func (m *PrintStreamErrorManager) Println(level *CheckLevel, error *JSError) {
+	printStreamPrintln(m.stream, m.formatter, level, error)
+}
+
+// Java: PrintStreamErrorManager.setSummaryDetailLevel(int)
+func (m *PrintStreamErrorManager) SetSummaryDetailLevel(summaryDetailLevel int) {
+	m.summaryDetailLevel = summaryDetailLevel
+}
+
+// Java: PrintStreamErrorManager.printSummary()
+func (m *PrintStreamErrorManager) PrintSummary() {
+	printStreamPrintSummary(m.stream, m.summaryDetailLevel, m)
+}
+
+// PrintStreamErrorReportGenerator is an error report generator that prints
+// errors and warnings to the print stream provided.
+//
+// It collaborates with a SourceExcerptProvider via a MessageFormatter to
+// display error messages with source context.
+type PrintStreamErrorReportGenerator struct {
+	formatter          MessageFormatter
+	stream             *jutil.PrintStream
+	summaryDetailLevel int
+}
+
+var _ SortingErrorManager_ErrorReportGenerator = (*PrintStreamErrorReportGenerator)(nil)
+
+// NewPrintStreamErrorReportGenerator creates an error report generator.
+// formatter is the message formatter used to format the messages; stream
+// is the stream on which the errors and warnings should be printed (this
+// class does not close the stream).
+//
+// Java: PrintStreamErrorReportGenerator(MessageFormatter, PrintStream, int)
+func NewPrintStreamErrorReportGenerator(
+	formatter MessageFormatter, stream *jutil.PrintStream, summaryDetailLevel int) *PrintStreamErrorReportGenerator {
+	return &PrintStreamErrorReportGenerator{formatter: formatter, stream: stream, summaryDetailLevel: summaryDetailLevel}
+}
+
+// Java: PrintStreamErrorReportGenerator.generateReport(SortingErrorManager)
+func (g *PrintStreamErrorReportGenerator) GenerateReport(manager SortingErrorManager) {
+	for _, e := range manager.GetSortedDiagnostics() {
+		g.Println(e.Level, e.Error)
+	}
+	g.PrintSummary(manager)
+}
+
+// Java: PrintStreamErrorReportGenerator.println(CheckLevel, JSError)
+func (g *PrintStreamErrorReportGenerator) Println(level *CheckLevel, error *JSError) {
+	printStreamPrintln(g.stream, g.formatter, level, error)
+}
+
+// Java: PrintStreamErrorReportGenerator.printSummary(ErrorManager)
+func (g *PrintStreamErrorReportGenerator) PrintSummary(manager ErrorManager) {
+	printStreamPrintSummary(g.stream, g.summaryDetailLevel, manager)
 }

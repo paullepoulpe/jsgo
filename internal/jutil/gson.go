@@ -1,11 +1,12 @@
 // Port of com/google/gson/Gson.java (Gson 2.9.1): fromJson, with
 // TypeAdapters.JSON_ELEMENT of com/google/gson/internal/bind/TypeAdapters.java
 // and Streams.write of com/google/gson/internal/Streams.java
+// Port of com/google/gson/TypeAdapter.java (Gson 2.9.1)
 
 /*
  * Copyright (C) 2008 Google Inc. (Gson.java)
  * Copyright (C) 2010 Google Inc. (Streams.java)
- * Copyright (C) 2011 Google Inc. (TypeAdapters.java)
+ * Copyright (C) 2011 Google Inc. (TypeAdapters.java, TypeAdapter.java)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -368,4 +369,19 @@ func TypeAdapters_JSON_ELEMENT_Write(out *JsonWriter, value JsonElement) {
 // Java: Streams.write(JsonElement, JsonWriter)
 func Streams_Write(element JsonElement, writer *JsonWriter) {
 	TypeAdapters_JSON_ELEMENT_Write(writer, element)
+}
+
+// TypeAdapter is com.google.gson.TypeAdapter: converts Java objects to and
+// from JSON.
+type TypeAdapter interface {
+	// Write writes one JSON value (an array, object, string, number,
+	// boolean or null) for value.
+	//
+	// Java: TypeAdapter.write(JsonWriter, T)
+	Write(out *JsonWriter, value any)
+
+	// Read reads one JSON value and converts it to a Java object.
+	//
+	// Java: TypeAdapter.read(JsonReader)
+	Read(in *JsonReader) any
 }

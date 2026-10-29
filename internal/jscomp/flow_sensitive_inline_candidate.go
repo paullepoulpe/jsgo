@@ -220,11 +220,11 @@ func (c *FlowSensitiveInlineVariables_Candidate) CanInline(scope *Scope) bool {
 		// Similar side effect check as above but this time the side effect is
 		// elsewhere along the path.
 		// x = readProp(b); while(modifyProp(b)) {}; print(x);
-		cfgBase := c.outer.cfg.GetControlFlowGraphBase()
+		cfg := c.outer.cfg
 		c.outer.pathChecker.ResetLinkedAllEdges(
-			&cfgBase.LinkedDirectedGraph,
-			cfgBase.Nodes.Get(c.GetDefCfgNode()),
-			cfgBase.Nodes.Get(c.useCfgNode),
+			&cfg.LinkedDirectedGraph,
+			cfg.Nodes.Get(c.GetDefCfgNode()),
+			cfg.Nodes.Get(c.useCfgNode),
 			c.outer.sideEffectPredicateFn,
 			false)
 		if c.outer.pathChecker.SomePathsSatisfyPredicate() {

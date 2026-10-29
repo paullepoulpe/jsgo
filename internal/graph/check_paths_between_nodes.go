@@ -29,13 +29,13 @@ package graph
 // and traversal walks concrete LinkedDiGraphNodes directly.
 type CheckPathsBetweenNodes[N comparable, E any] struct {
 	nodePredicate func(N) bool
-	edgePredicate func(DiGraph_DiGraphEdge[N, E]) bool
+	edgePredicate func(*LinkedDiGraphEdge[N, E]) bool
 	allEdges      bool
 	inclusive     bool
 
 	linkedGraph *LinkedDirectedGraph[N, E]
-	linkedStart *LinkedDirectedGraph_LinkedDiGraphNode[N, E]
-	linkedEnd   *LinkedDirectedGraph_LinkedDiGraphNode[N, E]
+	linkedStart *LinkedDiGraphNode[N, E]
+	linkedEnd   *LinkedDiGraphNode[N, E]
 
 	epoch     uint32
 	edgeState []uint32
@@ -61,10 +61,10 @@ const checkPathsReuseMaxEdges = 4096
 // Java: CheckPathsBetweenNodes(DiGraph<N, E>, DiGraphNode<N, E>, DiGraphNode<N, E>, Predicate<N>, Predicate<DiGraphEdge<N, E>>, boolean)
 func NewCheckPathsBetweenNodes[N comparable, E any](
 	graph DiGraph[N, E],
-	a DiGraph_DiGraphNode[N, E],
-	b DiGraph_DiGraphNode[N, E],
+	a *LinkedDiGraphNode[N, E],
+	b *LinkedDiGraphNode[N, E],
 	nodePredicate func(N) bool,
-	edgePredicate func(DiGraph_DiGraphEdge[N, E]) bool,
+	edgePredicate func(*LinkedDiGraphEdge[N, E]) bool,
 	inclusive bool,
 ) *CheckPathsBetweenNodes[N, E] {
 	c := &CheckPathsBetweenNodes[N, E]{}
@@ -77,10 +77,10 @@ func NewCheckPathsBetweenNodes[N comparable, E any](
 // Java: CheckPathsBetweenNodes(DiGraph<N, E>, DiGraphNode<N, E>, DiGraphNode<N, E>, Predicate<N>, Predicate<DiGraphEdge<N, E>>)
 func NewCheckPathsBetweenNodesInclusive[N comparable, E any](
 	graph DiGraph[N, E],
-	a DiGraph_DiGraphNode[N, E],
-	b DiGraph_DiGraphNode[N, E],
+	a *LinkedDiGraphNode[N, E],
+	b *LinkedDiGraphNode[N, E],
 	nodePredicate func(N) bool,
-	edgePredicate func(DiGraph_DiGraphEdge[N, E]) bool,
+	edgePredicate func(*LinkedDiGraphEdge[N, E]) bool,
 ) *CheckPathsBetweenNodes[N, E] {
 	return NewCheckPathsBetweenNodes(graph, a, b, nodePredicate, edgePredicate, true)
 }
@@ -88,10 +88,10 @@ func NewCheckPathsBetweenNodesInclusive[N comparable, E any](
 // NewCheckPathsBetweenNodesInclusiveValue returns a stack-allocatable CheckPathsBetweenNodes value.
 func NewCheckPathsBetweenNodesInclusiveValue[N comparable, E any](
 	graph DiGraph[N, E],
-	a DiGraph_DiGraphNode[N, E],
-	b DiGraph_DiGraphNode[N, E],
+	a *LinkedDiGraphNode[N, E],
+	b *LinkedDiGraphNode[N, E],
 	nodePredicate func(N) bool,
-	edgePredicate func(DiGraph_DiGraphEdge[N, E]) bool,
+	edgePredicate func(*LinkedDiGraphEdge[N, E]) bool,
 ) CheckPathsBetweenNodes[N, E] {
 	var c CheckPathsBetweenNodes[N, E]
 	c.Reset(graph, a, b, nodePredicate, edgePredicate, true)
@@ -101,15 +101,15 @@ func NewCheckPathsBetweenNodesInclusiveValue[N comparable, E any](
 // Reset configures c for a new query while reusing its edge-visited state buffer.
 func (c *CheckPathsBetweenNodes[N, E]) Reset(
 	graph DiGraph[N, E],
-	a DiGraph_DiGraphNode[N, E],
-	b DiGraph_DiGraphNode[N, E],
+	a *LinkedDiGraphNode[N, E],
+	b *LinkedDiGraphNode[N, E],
 	nodePredicate func(N) bool,
-	edgePredicate func(DiGraph_DiGraphEdge[N, E]) bool,
+	edgePredicate func(*LinkedDiGraphEdge[N, E]) bool,
 	inclusive bool,
 ) {
 	c.linkedGraph = graph.AsLinkedDirectedGraph()
-	c.linkedStart = a.(*LinkedDirectedGraph_LinkedDiGraphNode[N, E])
-	c.linkedEnd = b.(*LinkedDirectedGraph_LinkedDiGraphNode[N, E])
+	c.linkedStart = a
+	c.linkedEnd = b
 	c.nodePredicate = nodePredicate
 	c.edgePredicate = edgePredicate
 	c.allEdges = false
@@ -120,8 +120,8 @@ func (c *CheckPathsBetweenNodes[N, E]) Reset(
 // where all edges are traversed without calling an edge predicate.
 func (c *CheckPathsBetweenNodes[N, E]) ResetLinkedAllEdges(
 	graph *LinkedDirectedGraph[N, E],
-	a *LinkedDirectedGraph_LinkedDiGraphNode[N, E],
-	b *LinkedDirectedGraph_LinkedDiGraphNode[N, E],
+	a *LinkedDiGraphNode[N, E],
+	b *LinkedDiGraphNode[N, E],
 	nodePredicate func(N) bool,
 	inclusive bool,
 ) {
@@ -178,8 +178,8 @@ func (c *CheckPathsBetweenNodes[N, E]) SomePathsSatisfyPredicate() bool {
 }
 
 func (c *CheckPathsBetweenNodes[N, E]) checkAllPaths(
-	a *LinkedDirectedGraph_LinkedDiGraphNode[N, E],
-	b *LinkedDirectedGraph_LinkedDiGraphNode[N, E],
+	a *LinkedDiGraphNode[N, E],
+	b *LinkedDiGraphNode[N, E],
 	epoch uint32,
 ) bool {
 	if (c.inclusive || (a != c.linkedStart && a != c.linkedEnd)) && c.nodePredicate(a.Value) {
@@ -204,8 +204,8 @@ func (c *CheckPathsBetweenNodes[N, E]) checkAllPaths(
 }
 
 func (c *CheckPathsBetweenNodes[N, E]) checkSomePaths(
-	a *LinkedDirectedGraph_LinkedDiGraphNode[N, E],
-	b *LinkedDirectedGraph_LinkedDiGraphNode[N, E],
+	a *LinkedDiGraphNode[N, E],
+	b *LinkedDiGraphNode[N, E],
 	epoch uint32,
 ) bool {
 	if (c.inclusive || (a != c.linkedStart && a != c.linkedEnd)) && c.nodePredicate(a.Value) {

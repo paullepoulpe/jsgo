@@ -1,4 +1,7 @@
 // Port of com/google/javascript/refactoring/RefactoringDriver.java @ closure-compiler v20261021
+// Port of com/google/javascript/refactoring/Scanner.java @ closure-compiler v20261021
+// Port of com/google/javascript/refactoring/JsFlumeCallback.java @ closure-compiler v20261021
+// Port of com/google/javascript/refactoring/RefactoringUtils.java @ closure-compiler v20261021
 
 /*
  * Copyright 2014 The Closure Compiler Authors.
@@ -16,16 +19,170 @@
  * limitations under the License.
  */
 
+/*
+ * Copyright 2018 The Closure Compiler Authors.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+// Package refactoring implements AST pattern matching, refactoring drivers,
+// and automated source-code suggested fixes (SuggestedFix, ErrorToFixMapper,
+// FixingErrorManager, and ApplySuggestedFixes).
 package refactoring
 
 import (
 	"slices"
 
+	"github.com/paullepoulpe/jsgo/internal/ast"
 	"github.com/paullepoulpe/jsgo/internal/jscomp"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/parsing"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
+
+// Scanner is the class that developers should implement to perform a JsFlume
+// refactoring.
+//
+// Java: public abstract class Scanner implements Serializable
+type Scanner interface {
+	// Matches returns true if the given node and node traversal should match
+	// for this particular scanner. Typically this function uses the Matcher
+	// class or predefined matchers from Matchers to match against the Node and
+	// NodeMetadata.
+	//
+	// If this function returns true, a Match for this node will be passed to
+	// ProcessMatch and all matches will be passed to ProcessAllMatches at the
+	// end of the traversal.
+	//
+	// Java: Scanner.matches(Node, NodeMetadata)
+	Matches(node rhino.Node, t *NodeMetadata) bool
+
+	// Java: Scanner.processMatch(Match)
+	ProcessMatch(match *Match) []*SuggestedFix
+
+	// Java: Scanner.processAllMatches(Collection<Match>)
+	ProcessAllMatches(matches []*Match) []*SuggestedFix
+}
+
+// ScannerBase holds Scanner's method bodies; subclasses embed it and define
+// Matches.
+type ScannerBase struct{}
+
+// ProcessMatch processes one Match at a time. There is no order guaranteed for
+// when this function will be called with the Match.
+//
+// Java: Scanner.processMatch(Match)
+func (s *ScannerBase) ProcessMatch(match *Match) []*SuggestedFix {
+	return []*SuggestedFix{}
+}
+
+// ProcessAllMatches processes every given match at one time. This function
+// can be used when the refactoring needs the information from the entire run
+// to perform the refactoring, such as moving functions around.
+//
+// Java: Scanner.processAllMatches(Collection<Match>)
+func (s *ScannerBase) ProcessAllMatches(matches []*Match) []*SuggestedFix {
+	return []*SuggestedFix{}
+}
+
+// JsFlumeCallback is a compiler node traversal callback that invokes matchers
+// against every node and keeps track of any suggested fixes from the
+// refactoring.
+//
+// Java: final class JsFlumeCallback implements NodeTraversal.Callback
+type JsFlumeCallback struct {
+	scanner            Scanner
+	includeFilePattern *jutil.Pattern // may be nil
+	matches            []*Match
+	fixes              []*SuggestedFix
+}
+
+// Java: JsFlumeCallback(Scanner, Pattern)
+func NewJsFlumeCallback(scanner Scanner, includeFilePattern *jutil.Pattern) *JsFlumeCallback {
+	return &JsFlumeCallback{
+		scanner:            scanner,
+		includeFilePattern: includeFilePattern,
+	}
+}
+
+// Java: JsFlumeCallback.getMatches()
+func (c *JsFlumeCallback) GetMatches() []*Match {
+	return c.matches
+}
+
+// Java: JsFlumeCallback.getFixes()
+func (c *JsFlumeCallback) GetFixes() []*SuggestedFix {
+	return c.fixes
+}
+
+// Java: JsFlumeCallback.shouldTraverse(NodeTraversal, Node, Node)
+func (c *JsFlumeCallback) ShouldTraverse(nodeTraversal *jscomp.NodeTraversal, n rhino.Node, parent rhino.Node) bool {
+	if n.IsFromExterns() {
+		return false
+	}
+	if n.IsScript() {
+		filename := n.GetSourceFileName()
+		if c.includeFilePattern != nil &&
+			c.includeFilePattern.Pattern() != "" &&
+			filename != nil && *filename != "" {
+			return c.includeFilePattern.Matcher(*filename).Find()
+		}
+	}
+	return true
+}
+
+// Java: JsFlumeCallback.visit(NodeTraversal, Node, Node)
+func (c *JsFlumeCallback) Visit(t *jscomp.NodeTraversal, n rhino.Node, parent rhino.Node) {
+	metadata := NodeMetadata_FromTraversal(t)
+	if c.scanner.Matches(n, metadata) {
+		match := NewMatch(n, metadata)
+		c.fixes = append(c.fixes, c.scanner.ProcessMatch(match)...)
+		c.matches = append(c.matches, match)
+	}
+}
+
+// RefactoringUtils holds utility methods for refactoring code.
+type RefactoringUtils struct{}
+
+// Java: RefactoringUtils()
+func NewRefactoringUtils() *RefactoringUtils {
+	return &RefactoringUtils{}
+}
+
+// RefactoringUtils_IsInClosurizedFile looks for a goog.require(),
+// goog.provide() or goog.module() call in the node's file.
+//
+// Java: RefactoringUtils.isInClosurizedFile(Node, NodeMetadata)
+func RefactoringUtils_IsInClosurizedFile(node rhino.Node, metadata *NodeMetadata) bool {
+	script := jscomp.NodeUtil_GetEnclosingScript(node)
+	if script.IsNil() {
+		return false
+	}
+
+	reqMatcher := Matchers_GoogRequire()
+	modOrProvideMatcher := Matchers_GoogModuleOrProvide()
+	for child := script.GetFirstChild(); !child.IsNil(); child = child.GetNext() {
+		if exprStmt, ok := ast.AsExprStmt(child); ok {
+			expr := exprStmt.Expr().Node()
+			if expr.IsCall() && (reqMatcher.Matches(expr, metadata) || modOrProvideMatcher.Matches(expr, metadata)) {
+				return true
+			}
+		} else if child.IsVar() && child.GetBooleanProp(rhino.Node_IS_NAMESPACE) {
+			return true
+		}
+	}
+	return false
+}
 
 // RefactoringDriver is the primary driver of a refactoring. This class
 // collects the inputs, runs the refactoring over the compiled input, and
@@ -42,10 +199,11 @@ func newRefactoringDriver(
 	inputs []*jscomp.SourceFile,
 	externs []*jscomp.SourceFile,
 	compilerOptions *jscomp.CompilerOptions) *RefactoringDriver {
-	d := &RefactoringDriver{}
-	d.compiler = refactoringDriver_createCompiler(inputs, externs, compilerOptions)
-	d.rootNode = d.compiler.GetRoot()
-	return d
+	compiler := refactoringDriver_createCompiler(inputs, externs, compilerOptions)
+	return &RefactoringDriver{
+		compiler: compiler,
+		rootNode: compiler.GetRoot(),
+	}
 }
 
 // DriveWithIncludeFilePattern runs a refactoring and returns any suggested

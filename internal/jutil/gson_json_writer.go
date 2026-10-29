@@ -18,13 +18,16 @@
 
 package jutil
 
-import "io"
+import (
+	"io"
+	"strconv"
+)
 
 // Go-only: language-adapter — Gson is a library dependency of Closure; it is
 // ported here as Java-semantics runtime. The Java Writer is an
 // io.StringWriter; a write error becomes the IOException Writer.write
-// throws. The value(double/float/long/Boolean) overloads are represented by
-// ValueBoolean and ValueNumber; flush() is not ported.
+// throws. The value(...) overloads are represented by ValueBoolean,
+// ValueLong, and ValueNumber.
 
 var (
 	jsonWriter_REPLACEMENT_CHARS           [128]*string
@@ -398,6 +401,29 @@ func (w *JsonWriter) ValueNumber(value JavaNumber) *JsonWriter {
 	w.beforeValue()
 	w.write(s)
 	return w
+}
+
+// ValueLong encodes value.
+//
+// Java: JsonWriter.value(long)
+func (w *JsonWriter) ValueLong(value int64) *JsonWriter {
+	w.writeDeferredName()
+	w.beforeValue()
+	w.write(strconv.FormatInt(value, 10))
+	return w
+}
+
+// Flush ensures all buffered data is written to the underlying Writer (when
+// it has a Flush method) and flushes that writer.
+//
+// Java: JsonWriter.flush()
+func (w *JsonWriter) Flush() {
+	if w.stackSize == 0 {
+		panic(NewIllegalStateExceptionMsg("JsonWriter is closed."))
+	}
+	if f, ok := w.out.(interface{ Flush() }); ok {
+		f.Flush()
+	}
 }
 
 // Close flushes and closes this writer and the underlying Writer.

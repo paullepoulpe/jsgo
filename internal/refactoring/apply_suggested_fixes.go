@@ -1,4 +1,6 @@
 // Port of com/google/javascript/refactoring/ApplySuggestedFixes.java @ closure-compiler v20261021
+// Port of com/google/javascript/refactoring/CodeReplacement.java (with the AutoValue-generated
+// AutoValue_CodeReplacement.java) @ closure-compiler v20261021
 
 /*
  * Copyright 2014 The Closure Compiler Authors.
@@ -19,7 +21,9 @@
 package refactoring
 
 import (
+	"cmp"
 	"iter"
+	"os"
 	"slices"
 	"strings"
 
@@ -55,23 +59,25 @@ func applySuggestedFixes_DOUBLE_LINE_JOINER_Join(parts []*CodeReplacement) strin
 //
 // Java: ApplySuggestedFixes.applySuggestedFixesToFiles(Iterable<SuggestedFix>)
 func ApplySuggestedFixes_ApplySuggestedFixesToFiles(fixes iter.Seq[*SuggestedFix]) {
-	filenames := jutil.NewLinkedHashSet[string]()
+	var filenames []string
 	for fix := range fixes {
 		for filename := range fix.GetReplacements().KeySet() {
-			filenames.Add(filename)
+			if !slices.Contains(filenames, filename) {
+				filenames = append(filenames, filename)
+			}
 		}
 	}
 
-	// Go-only: language-adapter — a HashMap that is only looked up
-	// (PORTING.md §6).
 	filenameToCodeMap := jutil.NewLinkedHashMap[string, string]()
-	for filename := range filenames.All() {
+	for _, filename := range filenames {
 		filenameToCodeMap.Put(filename, jutil.Files_AsCharSource(jutil.NewFile(filename), jutil.StandardCharsets_UTF_8).Read())
 	}
 
 	newCode := ApplySuggestedFixes_ApplySuggestedFixesToCode(fixes, filenameToCodeMap)
 	for key, value := range newCode.All() {
-		jutil.Files_AsCharSink(jutil.NewFile(key), jutil.StandardCharsets_UTF_8).Write(value)
+		if err := os.WriteFile(key, jutil.StringGetBytesUTF8(value), 0o666); err != nil {
+			panic(jutil.FileNotFoundExceptionFromError(err, key))
+		}
 	}
 }
 
@@ -88,7 +94,6 @@ func ApplySuggestedFixes_ApplySuggestedFixesToFiles(fixes iter.Seq[*SuggestedFix
 // Java: ApplySuggestedFixes.applyAllSuggestedFixChoicesToCode(Iterable<SuggestedFix>, Map<String, String>)
 func ApplySuggestedFixes_ApplyAllSuggestedFixChoicesToCode(
 	fixChoices iter.Seq[*SuggestedFix], fileNameToCodeMap *jutil.LinkedHashMap[string, string]) []*jutil.LinkedHashMap[string, string] {
-	// Iterables.isEmpty(fixChoices), Iterables.getFirst(fixChoices, null)
 	var first *SuggestedFix
 	isEmpty := true
 	for f := range fixChoices {
@@ -100,8 +105,6 @@ func ApplySuggestedFixes_ApplyAllSuggestedFixChoicesToCode(
 		return []*jutil.LinkedHashMap[string, string]{jutil.NewImmutableMapBuilder[string, string]().BuildOrThrow()}
 	}
 	alternativeCount := len(first.GetAlternatives())
-	// stream(fixChoices).map(f -> f.getAlternatives().size())
-	//     .allMatch(Predicate.isEqual(alternativeCount))
 	allMatch := true
 	for f := range fixChoices {
 		if len(f.GetAlternatives()) != alternativeCount {
@@ -125,7 +128,7 @@ func ApplySuggestedFixes_ApplySuggestedFixChoicesToCode(
 	fixChoices iter.Seq[*SuggestedFix],
 	choiceIndex int,
 	fileNameToCodeMap *jutil.LinkedHashMap[string, string]) *jutil.LinkedHashMap[string, string] {
-	chosenFixes := []*SuggestedFix{}
+	var chosenFixes []*SuggestedFix
 	for choices := range fixChoices {
 		chosenFixes = append(chosenFixes, choices.GetAlternatives()[choiceIndex])
 	}
@@ -171,6 +174,29 @@ func ApplySuggestedFixes_ApplyCodeReplacements(
 			false,
 			"Found overlap between code replacements:\n%s",
 			applySuggestedFixes_DOUBLE_LINE_JOINER_Join(sortedReplacements))
+	}
+
+	if jutil.IsASCII(code) {
+		var sb strings.Builder
+		sb.Grow(len(code))
+		lastIndex := 0
+		for _, replacement := range sortedReplacements {
+			start := replacement.GetStartPosition()
+			end := replacement.GetEndPosition()
+			if lastIndex < 0 || start < lastIndex || start > len(code) {
+				panic(jutil.NewIndexOutOfBoundsException("Index out of bounds"))
+			}
+			sb.WriteString(code[lastIndex:start])
+			sb.WriteString(replacement.GetNewContent())
+			lastIndex = end
+		}
+		if lastIndex <= len(code) {
+			if lastIndex < 0 {
+				panic(jutil.NewIndexOutOfBoundsException("Index out of bounds"))
+			}
+			sb.WriteString(code[lastIndex:])
+		}
+		return sb.String()
 	}
 
 	codeUnits := applySuggestedFixes_CharSequence(jutil.StringToUTF16(code))
@@ -253,9 +279,13 @@ func (r *ApplySuggestedFixes_ReplacementMap) PutIfNoOverlap(fix *SuggestedFix) {
 
 // Java: ApplySuggestedFixes.ReplacementMap.canPut(SuggestedFix)
 func (r *ApplySuggestedFixes_ReplacementMap) CanPut(fix *SuggestedFix) bool {
-	for filename := range fix.GetReplacements().KeySet() {
-		combined := slices.Clone(r.map_.Get(filename))
-		combined = append(combined, fix.GetReplacements().Get(filename).ToSlice()...)
+	reps := fix.GetReplacements()
+	for filename := range reps.KeySet() {
+		existing := r.map_.Get(filename)
+		incoming := reps.GetSlice(filename)
+		combined := make([]*CodeReplacement, 0, len(existing)+len(incoming))
+		combined = append(combined, existing...)
+		combined = append(combined, incoming...)
 		replacements := applySuggestedFixes_ImmutableSortedSetCopyOf(combined)
 		if ApplySuggestedFixes_ContainsOverlaps(replacements) {
 			return false
@@ -272,4 +302,91 @@ func (r *ApplySuggestedFixes_ReplacementMap) EntrySet() iter.Seq2[string, []*Cod
 // Java: ApplySuggestedFixes()
 func newApplySuggestedFixes() *ApplySuggestedFixes {
 	return &ApplySuggestedFixes{}
+}
+
+// CodeReplacement represents a set of changes to make to the code.
+type CodeReplacement struct {
+	startPosition int
+	length        int
+	newContent    string
+	sortKey       string
+}
+
+// Java: CodeReplacement.create(int, int, String)
+func CodeReplacement_Create(startPosition int, length int, newContent string) *CodeReplacement {
+	return CodeReplacement_CreateWithSortKey(startPosition, length, newContent, "")
+}
+
+// Java: CodeReplacement.create(int, int, String, String)
+func CodeReplacement_CreateWithSortKey(startPosition int, length int, newContent string, sortKey string) *CodeReplacement {
+	return &CodeReplacement{
+		startPosition: startPosition,
+		length:        length,
+		newContent:    newContent,
+		sortKey:       sortKey,
+	}
+}
+
+// Java: CodeReplacement.getStartPosition()
+func (r *CodeReplacement) GetStartPosition() int { return r.startPosition }
+
+// Java: CodeReplacement.getLength()
+func (r *CodeReplacement) GetLength() int { return r.length }
+
+// Java: CodeReplacement.getEndPosition()
+func (r *CodeReplacement) GetEndPosition() int { return r.startPosition + r.length }
+
+// Java: CodeReplacement.getNewContent()
+func (r *CodeReplacement) GetNewContent() string { return r.newContent }
+
+// Java: CodeReplacement.getSortKey()
+func (r *CodeReplacement) GetSortKey() string { return r.sortKey }
+
+// Java: CodeReplacement.compareTo(CodeReplacement)
+func (r *CodeReplacement) CompareTo(x *CodeReplacement) int {
+	if c := cmp.Compare(r.startPosition, x.startPosition); c != 0 {
+		return c
+	}
+	if c := cmp.Compare(r.length, x.length); c != 0 {
+		return c
+	}
+	if c := jutil.StringCompareTo(r.sortKey, x.sortKey); c != 0 {
+		return c
+	}
+	return jutil.StringCompareTo(r.newContent, x.newContent)
+}
+
+// Java: AutoValue_CodeReplacement.toString()
+func (r *CodeReplacement) String() string {
+	return "CodeReplacement{" +
+		"startPosition=" + jutil.ToJavaString(r.startPosition) + ", " +
+		"length=" + jutil.ToJavaString(r.length) + ", " +
+		"newContent=" + r.newContent + ", " +
+		"sortKey=" + r.sortKey +
+		"}"
+}
+
+// Java: AutoValue_CodeReplacement.equals(Object)
+func (r *CodeReplacement) Equals(o any) bool {
+	that, ok := o.(*CodeReplacement)
+	if !ok || that == nil {
+		return false
+	}
+	if that == r {
+		return true
+	}
+	return r.startPosition == that.startPosition &&
+		r.length == that.length &&
+		r.newContent == that.newContent &&
+		r.sortKey == that.sortKey
+}
+
+// Java: AutoValue_CodeReplacement.hashCode()
+func (r *CodeReplacement) HashCode() int32 {
+	var h int32 = 1
+	h = h*1000003 ^ int32(r.startPosition)
+	h = h*1000003 ^ int32(r.length)
+	h = h*1000003 ^ jutil.StringHashCode(r.newContent)
+	h = h*1000003 ^ jutil.StringHashCode(r.sortKey)
+	return h
 }

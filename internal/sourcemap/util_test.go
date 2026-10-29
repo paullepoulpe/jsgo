@@ -22,6 +22,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/sourcemap"
 )
 
@@ -39,4 +40,33 @@ func TestAppendHexJavaScriptRepresentation(t *testing.T) {
 	utilTestAppendHexJavaScriptRepresentation(t, 'z', "\\u007a")
 	utilTestAppendHexJavaScriptRepresentation(t, 0, "\\u0000")
 	utilTestAppendHexJavaScriptRepresentation(t, 0xa1, "\\u00a1")
+
+	var sb strings.Builder
+	sourcemap.Util_AppendHexJavaScriptRepresentationToAppendable(0x1f600, &sb)
+	if sb.String() != `\ud83d\ude00` {
+		t.Errorf("supplementary append = %q, want %q", sb.String(), `\ud83d\ude00`)
+	}
+}
+
+func TestEscapeStringDirectUTF8(t *testing.T) {
+	loneHigh := jutil.StringFromUTF16([]uint16{'a', 0xd800, 'b'})
+	loneLow := jutil.StringFromUTF16([]uint16{0xdfff})
+	cases := []struct {
+		in   string
+		want string
+	}{
+		{"plain ascii 'ok'", `"plain ascii 'ok'"`},
+		{"a\nb\rc\td\\e\"f\x00\x1f\x7f", `"a\nb\rc\td\\e\"f\u0000\u001f` + "\x7f" + `"`},
+		{"a > b && c-->d && e]]>f", `"a > b && c--\u003ed && e]]\u003ef"`},
+		{"</script> </ScRiPt> <!-- <div", `"\u003c/script> \u003c/ScRiPt> \u003c!-- <div"`},
+		{"</\u017fcript>", `"\u003c/\u017fcript>"`},
+		{"α😀Ω", `"\u03b1\ud83d\ude00\u03a9"`},
+		{loneHigh, `"a\ud800b"`},
+		{loneLow, `"\udfff"`},
+	}
+	for _, tc := range cases {
+		if got := sourcemap.Util_EscapeString(tc.in); got != tc.want {
+			t.Errorf("Util_EscapeString(%q) = %q, want %q", tc.in, got, tc.want)
+		}
+	}
 }

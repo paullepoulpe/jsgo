@@ -19,6 +19,8 @@
 package jscomp
 
 import (
+	"strconv"
+
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
@@ -180,9 +182,9 @@ func (c *ValidityCheck_VerifyConstants) Visit(t *NodeTraversal, n rhino.Node, pa
 				"The name " +
 					name +
 					" is not consistently annotated as constant. Current constness: " +
-					jutil.ToJavaString(isConst) +
+					strconv.FormatBool(isConst) +
 					", previous constness: " +
-					jutil.ToJavaString(value) +
+					strconv.FormatBool(value) +
 					"\n\nAt node: " +
 					n.String()))
 		}

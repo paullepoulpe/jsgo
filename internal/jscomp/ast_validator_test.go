@@ -37,7 +37,7 @@ import (
 type AstValidatorTest struct {
 	CompilerTestCaseBase
 
-	lastCheckViolationMessages *jutil.ArrayList[string]
+	lastCheckViolationMessages []string
 	typeInfoValidationMode     AstValidator_TypeInfoValidation
 }
 
@@ -67,23 +67,14 @@ func (c *AstValidatorTest) GetOptions() *CompilerOptions {
 	return options
 }
 
-// astValidatorTest_handler is the anonymous ViolationHandler of
-// createValidator.
-type astValidatorTest_handler struct {
-	messages *jutil.ArrayList[string]
-}
-
-// Java: AstValidatorTest.createValidator(Compiler).new ViolationHandler() {...}.handleViolation(String, Node)
-func (h *astValidatorTest_handler) HandleViolation(message string, n rhino.Node) {
-	h.messages.Add(message)
-}
-
 // Java: AstValidatorTest.createValidator(Compiler)
 func (c *AstValidatorTest) createValidator(compiler *Compiler) *AstValidator {
-	c.lastCheckViolationMessages = jutil.NewArrayList[string]()
-	astValidator := NewAstValidatorWithHandler(
+	c.lastCheckViolationMessages = []string{}
+	astValidator := NewAstValidatorWithViolationFunc(
 		compiler,
-		&astValidatorTest_handler{messages: c.lastCheckViolationMessages},
+		func(message string, n rhino.Node) {
+			c.lastCheckViolationMessages = append(c.lastCheckViolationMessages, message)
+		},
 		/* validateScriptFeatures= */ true,
 		/* shouldValidateRequiredInlinings= */ true)
 	astValidator.SetTypeValidationMode(c.typeInfoValidationMode)
@@ -1884,7 +1875,7 @@ const (
 // violations.
 //
 // Java: AstValidatorTest.doCheck(Node, Check)
-func (c *AstValidatorTest) doCheck(n rhino.Node, level astValidatorTest_Check) *jutil.ArrayList[string] {
+func (c *AstValidatorTest) doCheck(n rhino.Node, level astValidatorTest_Check) []string {
 	compiler := c.CreateCompiler()
 	compiler.InitOptions(c.GetOptions())
 	validator := c.createValidator(compiler)

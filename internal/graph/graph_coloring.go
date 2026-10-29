@@ -32,21 +32,11 @@ var preallocatedColors = func() [256]GraphColoring_Color {
 	return arr
 }()
 
-// GraphColoring annotates the graph with a color in a way that no
-// connected node will have the same color. Nodes of the same color can then
-// be partitioned together and be represented by a super node. This type
-// annotates the nodes with a color using GraphNode.SetAnnotation and provides
-// a node to super node mapping with GetPartitionSuperNode. The given graph
-// itself will not be modified.
-//
-// This algorithm is NOT deterministic by default. Passes that require
-// deterministic output should provide a comparator in the constructor as a
-// tie-breaker. This tie-break will be used when deciding which node should
-// be colored first when multiple nodes have the same degree.
-//
-// N is the value type that the graph node stores; E is the value type that
-// the graph edge stores.
-type GraphColoring[N, E any] = *GraphColoring_GreedyGraphColoring[N, E]
+// GraphColoring aliases *GreedyGraphColoring, the sole graph coloring implementation.
+type (
+	GraphColoring[N comparable, E any]                     = *GreedyGraphColoring[N, E]
+	GraphColoring_GreedyGraphColoring[N comparable, E any] = GreedyGraphColoring[N, E]
+)
 
 // GraphColoring_ColorOf is the unchecked cast (Color) annotation.
 func GraphColoring_ColorOf(a Annotation) *GraphColoring_Color {
@@ -84,10 +74,12 @@ func (c *GraphColoring_Color) HashCode() int32 {
 	return int32(c.Value)
 }
 
-// GraphColoring_GreedyGraphColoring greedily assigns nodes with high degree
-// unique colors.
-type GraphColoring_GreedyGraphColoring[N, E any] struct {
-	graph         AdjacencyGraph[N, E]
+// GreedyGraphColoring greedily assigns nodes with high degree unique colors
+// such that no connected nodes share a color. Nodes of the same color can be
+// partitioned together and represented by a super node via GetPartitionSuperNode.
+// The given graph itself is not modified beyond node annotations.
+type GreedyGraphColoring[N comparable, E any] struct {
+	graph         Graph[N, E]
 	TieBreaker    func(a, b N) int
 	superNodes    []N
 	hasSuperNodes []bool
@@ -95,33 +87,61 @@ type GraphColoring_GreedyGraphColoring[N, E any] struct {
 }
 
 // Java: GraphColoring.GreedyGraphColoring(AdjacencyGraph<N, E>)
-func NewGraphColoring_GreedyGraphColoring[N, E any](graph AdjacencyGraph[N, E]) *GraphColoring_GreedyGraphColoring[N, E] {
-	return NewGraphColoring_GreedyGraphColoringWithTieBreaker[N, E](graph, nil)
+func NewGreedyGraphColoring[N comparable, E any](graph Graph[N, E]) *GreedyGraphColoring[N, E] {
+	return NewGreedyGraphColoringWithTieBreaker[N, E](graph, nil)
 }
 
-// NewGraphColoring_GreedyGraphColoringWithTieBreaker: in case of a tie
-// between two nodes of the same degree, tieBreaker (a Comparator, may be
-// nil) will determine which node should be colored first.
+// NewGraphColoring_GreedyGraphColoring preserves the legacy constructor name.
+func NewGraphColoring_GreedyGraphColoring[N comparable, E any](graph Graph[N, E]) *GreedyGraphColoring[N, E] {
+	return NewGreedyGraphColoringWithTieBreaker[N, E](graph, nil)
+}
+
+// NewGreedyGraphColoringWithTieBreaker constructs a greedy graph coloring with
+// an optional tie-breaking comparator for equal-degree nodes.
 //
 // Java: GraphColoring.GreedyGraphColoring(AdjacencyGraph<N, E>, Comparator<N>)
-func NewGraphColoring_GreedyGraphColoringWithTieBreaker[N, E any](
-	graph AdjacencyGraph[N, E], tieBreaker func(a, b N) int) *GraphColoring_GreedyGraphColoring[N, E] {
-	return &GraphColoring_GreedyGraphColoring[N, E]{
+func NewGreedyGraphColoringWithTieBreaker[N comparable, E any](
+	graph Graph[N, E], tieBreaker func(a, b N) int) *GreedyGraphColoring[N, E] {
+	return &GreedyGraphColoring[N, E]{
 		graph:      graph,
 		TieBreaker: tieBreaker,
 	}
 }
 
-// GetPartitionSuperNode: using the coloring as partitions, finds the node
-// that represents that partition as the super node. The first to retrieve
-// its partition will become the super node.
+// NewGraphColoring_GreedyGraphColoringWithTieBreaker preserves the legacy constructor name.
+func NewGraphColoring_GreedyGraphColoringWithTieBreaker[N comparable, E any](
+	graph Graph[N, E], tieBreaker func(a, b N) int) *GreedyGraphColoring[N, E] {
+	return NewGreedyGraphColoringWithTieBreaker[N, E](graph, tieBreaker)
+}
+
+func (c *GreedyGraphColoring[N, E]) nodeAnnotation(node N) Annotation {
+	switch g := c.graph.(type) {
+	case *LinkedUndirectedGraph[N, E]:
+		uNode := g.Nodes.Get(node)
+		if uNode == nil {
+			panic(jutil.NewNullPointerException())
+		}
+		return uNode.GetAnnotation()
+	case DiGraph[N, E]:
+		dNode := g.AsLinkedDirectedGraph().Nodes.Get(node)
+		if dNode == nil {
+			panic(jutil.NewNullPointerException())
+		}
+		return dNode.GetAnnotation()
+	default:
+		panic(jutil.NewUnsupportedOperationExceptionMsg("unsupported graph implementation"))
+	}
+}
+
+// GetPartitionSuperNode finds the representative super node for node's color
+// partition. The first node queried in a partition becomes its super node.
 //
 // Java: GraphColoring.getPartitionSuperNode(N)
-func (c *GraphColoring_GreedyGraphColoring[N, E]) GetPartitionSuperNode(node N) N {
+func (c *GreedyGraphColoring[N, E]) GetPartitionSuperNode(node N) N {
 	if !c.colored {
 		panic(jutil.NewNullPointerExceptionMsg("No coloring founded. color() should be called first."))
 	}
-	color := GraphColoring_ColorOf(c.graph.GetNode(node).GetAnnotation())
+	color := GraphColoring_ColorOf(c.nodeAnnotation(node))
 	idx := color.Value
 	if !c.hasSuperNodes[idx] {
 		c.superNodes[idx] = node
@@ -131,107 +151,51 @@ func (c *GraphColoring_GreedyGraphColoring[N, E]) GetPartitionSuperNode(node N) 
 	return c.superNodes[idx]
 }
 
-// HaveSameColor: using the coloring as partitions, checks whether two given
-// nodes have the same color.
+// HaveSameColor reports whether first and second were assigned the same color.
 //
 // Java: GraphColoring.haveSameColor(N, N)
-func (c *GraphColoring_GreedyGraphColoring[N, E]) HaveSameColor(first N, second N) bool {
+func (c *GreedyGraphColoring[N, E]) HaveSameColor(first N, second N) bool {
 	if !c.colored {
 		panic(jutil.NewNullPointerExceptionMsg("No coloring founded. color() should be called first."))
 	}
-	colorFirst := GraphColoring_ColorOf(c.graph.GetNode(first).GetAnnotation())
-	colorSecond := GraphColoring_ColorOf(c.graph.GetNode(second).GetAnnotation())
+	colorFirst := GraphColoring_ColorOf(c.nodeAnnotation(first))
+	colorSecond := GraphColoring_ColorOf(c.nodeAnnotation(second))
 	jutil.CheckNotNull(colorFirst)
 	jutil.CheckNotNull(colorSecond)
 	return colorFirst.Value == colorSecond.Value
 }
 
 // Java: GraphColoring.getGraph()
-func (c *GraphColoring_GreedyGraphColoring[N, E]) GetGraph() AdjacencyGraph[N, E] {
+func (c *GreedyGraphColoring[N, E]) GetGraph() Graph[N, E] {
 	return c.graph
 }
 
-type coloringEntry[N, E any] struct {
-	node   GraphNode[N, E]
-	value  N
-	weight int
-	idx    int
-}
-
-// Color annotates the graph with Color objects using GraphNode.SetAnnotation
-// and returns the number of unique colors needed.
+// Color annotates the graph nodes with Color objects and returns the number of
+// unique colors needed.
 //
 // Java: GraphColoring.GreedyGraphColoring.color()
-func (c *GraphColoring_GreedyGraphColoring[N, E]) Color() int {
-	nodes := c.graph.GetNodes()
-	n := len(nodes)
+func (c *GreedyGraphColoring[N, E]) Color() int {
+	n := c.graph.GetNodeCount()
 	if n == 0 {
 		c.initSuperNodes(1)
 		return 1
 	}
 
-	entries := make([]coloringEntry[N, E], n)
-	switch nodes[0].(type) {
-	case *LinkedUndirectedGraph_LinkedUndirectedGraphNode[N, E]:
-		for i, node := range nodes {
-			uNode := node.(*LinkedUndirectedGraph_LinkedUndirectedGraphNode[N, E])
-			entries[i] = coloringEntry[N, E]{
-				node:   node,
-				value:  uNode.Value,
-				weight: len(uNode.NeighborEdges),
-				idx:    i,
-			}
-		}
-	case *LinkedDirectedGraph_LinkedDiGraphNode[N, E]:
-		for i, node := range nodes {
-			dNode := node.(*LinkedDirectedGraph_LinkedDiGraphNode[N, E])
-			entries[i] = coloringEntry[N, E]{
-				node:   node,
-				value:  dNode.Value,
-				weight: dNode.InEdgeList.Size() + dNode.OutEdgeList.Size(),
-				idx:    int(dNode.Index),
-			}
-		}
-	default:
-		for i, node := range nodes {
-			val := node.GetValue()
-			entries[i] = coloringEntry[N, E]{
-				node:   node,
-				value:  val,
-				weight: c.graph.GetWeight(val),
-				idx:    i,
-			}
-		}
-	}
-
-	// Sort nodes by descending weight (degree), breaking ties deterministically
-	// when TieBreaker is provided, and stably otherwise.
-	tieBreaker := c.TieBreaker
-	slices.SortStableFunc(entries, func(left, right coloringEntry[N, E]) int {
-		if result := right.weight - left.weight; result != 0 {
-			return result
-		}
-		if tieBreaker != nil {
-			return tieBreaker(left.value, right.value)
-		}
-		return 0
-	})
-
 	var count int
-	switch entries[0].node.(type) {
-	case *LinkedUndirectedGraph_LinkedUndirectedGraphNode[N, E]:
-		count = colorUndirectedEntries(entries)
-	case *LinkedDirectedGraph_LinkedDiGraphNode[N, E]:
-		count = colorDirectedEntries(entries)
+	switch g := c.graph.(type) {
+	case *LinkedUndirectedGraph[N, E]:
+		count = colorUndirectedGraph(g, c.TieBreaker)
+	case DiGraph[N, E]:
+		count = colorDirectedGraph(g.AsLinkedDirectedGraph(), c.TieBreaker)
 	default:
-		count = c.colorSubGraphEntries(entries)
+		panic(jutil.NewUnsupportedOperationExceptionMsg("unsupported graph implementation"))
 	}
 
 	c.initSuperNodes(count)
 	return count
 }
 
-func (c *GraphColoring_GreedyGraphColoring[N, E]) initSuperNodes(count int) {
+func (c *GreedyGraphColoring[N, E]) initSuperNodes(count int) {
 	if cap(c.superNodes) >= count {
 		clear(c.superNodes[:count])
 		c.superNodes = c.superNodes[:count]
@@ -247,17 +211,36 @@ func (c *GraphColoring_GreedyGraphColoring[N, E]) initSuperNodes(count int) {
 	c.colored = true
 }
 
-func colorUndirectedEntries[N, E any](worklist []coloringEntry[N, E]) int {
-	n := len(worklist)
-	nodeIdx := make(map[*LinkedUndirectedGraph_LinkedUndirectedGraphNode[N, E]]int, n)
+type undirectedColoringEntry[N, E any] struct {
+	node   *LinkedUndirectedGraphNode[N, E]
+	weight int
+	idx    int
+}
+
+func colorUndirectedGraph[N comparable, E any](g *LinkedUndirectedGraph[N, E], tieBreaker func(a, b N) int) int {
+	n := g.Nodes.Size()
+	worklist := make([]undirectedColoringEntry[N, E], 0, n)
+	for uNode := range g.Nodes.Values() {
+		worklist = append(worklist, undirectedColoringEntry[N, E]{
+			node:   uNode,
+			weight: len(uNode.NeighborEdges),
+		})
+	}
+	slices.SortStableFunc(worklist, func(left, right undirectedColoringEntry[N, E]) int {
+		if result := right.weight - left.weight; result != 0 {
+			return result
+		}
+		if tieBreaker != nil {
+			return tieBreaker(left.node.Value, right.node.Value)
+		}
+		return 0
+	})
+
+	nodeIdx := make(map[*LinkedUndirectedGraphNode[N, E]]int, n)
 	for i := range worklist {
-		uNode := worklist[i].node.(*LinkedUndirectedGraph_LinkedUndirectedGraphNode[N, E])
-		nodeIdx[uNode] = i
+		nodeIdx[worklist[i].node] = i
 		worklist[i].idx = i
 	}
-	// forbidden[i] == epoch means worklist node i is adjacent to a node already
-	// assigned color (epoch - 1). Epochs start at 1 so zero-initialized slots are
-	// never forbidden and require no clearing between color iterations.
 	forbidden := make([]int, n)
 	count := 0
 	for len(worklist) > 0 {
@@ -266,14 +249,12 @@ func colorUndirectedEntries[N, E any](worklist []coloringEntry[N, E]) int {
 		kept := worklist[:0]
 		for _, entry := range worklist {
 			if forbidden[entry.idx] != epoch {
-				uNode := entry.node.(*LinkedUndirectedGraph_LinkedUndirectedGraphNode[N, E])
+				uNode := entry.node
 				for _, edge := range uNode.NeighborEdges {
-					a := edge.GetNodeA().(*LinkedUndirectedGraph_LinkedUndirectedGraphNode[N, E])
-					if a == uNode {
-						b := edge.GetNodeB().(*LinkedUndirectedGraph_LinkedUndirectedGraphNode[N, E])
-						forbidden[nodeIdx[b]] = epoch
+					if edge.nodeA == uNode {
+						forbidden[nodeIdx[edge.nodeB]] = epoch
 					} else {
-						forbidden[nodeIdx[a]] = epoch
+						forbidden[nodeIdx[edge.nodeA]] = epoch
 					}
 				}
 				uNode.SetAnnotation(color)
@@ -288,22 +269,43 @@ func colorUndirectedEntries[N, E any](worklist []coloringEntry[N, E]) int {
 	return count
 }
 
-func colorDirectedEntries[N, E any](worklist []coloringEntry[N, E]) int {
-	maxIdx := 0
-	for i := range worklist {
-		if worklist[i].idx > maxIdx {
-			maxIdx = worklist[i].idx
+type directedColoringEntry[N, E any] struct {
+	node   *LinkedDiGraphNode[N, E]
+	weight int
+}
+
+func colorDirectedGraph[N comparable, E any](g *LinkedDirectedGraph[N, E], tieBreaker func(a, b N) int) int {
+	n := g.Nodes.Size()
+	worklist := make([]directedColoringEntry[N, E], 0, n)
+	maxIdx := uint32(0)
+	for dNode := range g.Nodes.Values() {
+		if dNode.Index > maxIdx {
+			maxIdx = dNode.Index
 		}
+		worklist = append(worklist, directedColoringEntry[N, E]{
+			node:   dNode,
+			weight: dNode.InEdgeList.Size() + dNode.OutEdgeList.Size(),
+		})
 	}
-	forbidden := make([]int, maxIdx+1)
+	slices.SortStableFunc(worklist, func(left, right directedColoringEntry[N, E]) int {
+		if result := right.weight - left.weight; result != 0 {
+			return result
+		}
+		if tieBreaker != nil {
+			return tieBreaker(left.node.Value, right.node.Value)
+		}
+		return 0
+	})
+
+	forbidden := make([]int, int(maxIdx)+1)
 	count := 0
 	for len(worklist) > 0 {
 		epoch := count + 1
 		color := NewGraphColoring_Color(count)
 		kept := worklist[:0]
 		for _, entry := range worklist {
-			if forbidden[entry.idx] != epoch {
-				dNode := entry.node.(*LinkedDirectedGraph_LinkedDiGraphNode[N, E])
+			dNode := entry.node
+			if forbidden[dNode.Index] != epoch {
 				for _, edge := range dNode.InEdgeList.Slice() {
 					forbidden[edge.SourceNode.Index] = epoch
 				}
@@ -311,27 +313,6 @@ func colorDirectedEntries[N, E any](worklist []coloringEntry[N, E]) int {
 					forbidden[edge.DestNode.Index] = epoch
 				}
 				dNode.SetAnnotation(color)
-			} else {
-				kept = append(kept, entry)
-			}
-		}
-		clear(worklist[len(kept):])
-		worklist = kept
-		count++
-	}
-	return count
-}
-
-func (c *GraphColoring_GreedyGraphColoring[N, E]) colorSubGraphEntries(worklist []coloringEntry[N, E]) int {
-	count := 0
-	for len(worklist) > 0 {
-		color := NewGraphColoring_Color(count)
-		subgraph := c.graph.NewSubGraph()
-		kept := worklist[:0]
-		for _, entry := range worklist {
-			if subgraph.IsIndependentOf(entry.value) {
-				subgraph.AddNode(entry.value)
-				entry.node.SetAnnotation(color)
 			} else {
 				kept = append(kept, entry)
 			}

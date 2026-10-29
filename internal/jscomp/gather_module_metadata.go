@@ -112,20 +112,21 @@ func NewGatherModuleMetadata(
 // GatherModuleMetadata.ModuleMetadataBuilder.
 type GatherModuleMetadata_ModuleMetadataBuilder struct {
 	outer                   *GatherModuleMetadata
-	ambiguous               bool
-	hasModuleBody           bool
+	metadata                *ModuleMetadataMap_ModuleMetadata
 	declaredModuleId        rhino.Node
 	declaresLegacyNamespace rhino.Node
-	metadataBuilder         *ModuleMetadataMap_ModuleMetadata_Builder
+	ambiguous               bool
+	hasModuleBody           bool
 }
 
 func (b *GatherModuleMetadata_ModuleMetadataBuilder) reset(outer *GatherModuleMetadata, rootNode rhino.Node, path *ModuleLoader_ModulePath) {
 	*b = GatherModuleMetadata_ModuleMetadataBuilder{
 		outer: outer,
-		metadataBuilder: ModuleMetadataMap_ModuleMetadata_Builder_().
-			Path(path).
-			RootNode(rootNode).
-			ModuleType(ModuleMetadataMap_ModuleType_SCRIPT),
+		metadata: &ModuleMetadataMap_ModuleMetadata{
+			path:       path,
+			rootNode:   rootNode,
+			moduleType: ModuleMetadataMap_ModuleType_SCRIPT,
+		},
 	}
 }
 
@@ -138,15 +139,15 @@ func NewGatherModuleMetadata_ModuleMetadataBuilder(outer *GatherModuleMetadata, 
 
 // Java: GatherModuleMetadata.ModuleMetadataBuilder.moduleType(ModuleType, NodeTraversal, Node)
 func (b *GatherModuleMetadata_ModuleMetadataBuilder) ModuleType(type_ ModuleMetadataMap_ModuleType, t *NodeTraversal, n rhino.Node) {
-	if b.metadataBuilder.GetModuleType() == type_ {
+	if b.metadata.moduleType == type_ {
 		return
 	}
-	if b.metadataBuilder.GetModuleType() == ModuleMetadataMap_ModuleType_SCRIPT {
-		b.metadataBuilder.ModuleType(type_)
+	if b.metadata.moduleType == ModuleMetadataMap_ModuleType_SCRIPT {
+		b.metadata.moduleType = type_
 		return
 	}
 	b.ambiguous = true
-	t.Report(n, GatherModuleMetadata_MIXED_MODULE_TYPE, b.metadataBuilder.GetModuleType().Description(), type_.Description())
+	t.Report(n, GatherModuleMetadata_MIXED_MODULE_TYPE, b.metadata.moduleType.Description(), type_.Description())
 }
 
 // Java: GatherModuleMetadata.ModuleMetadataBuilder.recordDeclareModuleId(Node)
@@ -161,24 +162,24 @@ func (b *GatherModuleMetadata_ModuleMetadataBuilder) RecordDeclareLegacyNamespac
 
 // Java: GatherModuleMetadata.ModuleMetadataBuilder.isScript()
 func (b *GatherModuleMetadata_ModuleMetadataBuilder) IsScript() bool {
-	return b.metadataBuilder.GetModuleType() == ModuleMetadataMap_ModuleType_SCRIPT
+	return b.metadata.moduleType == ModuleMetadataMap_ModuleType_SCRIPT
 }
 
 // Java: GatherModuleMetadata.ModuleMetadataBuilder.build()
 func (b *GatherModuleMetadata_ModuleMetadataBuilder) Build() *ModuleMetadataMap_ModuleMetadata {
 	if !b.ambiguous {
-		if b.hasModuleBody && b.metadataBuilder.GetModuleType() == ModuleMetadataMap_ModuleType_SCRIPT {
+		if b.hasModuleBody && b.metadata.moduleType == ModuleMetadataMap_ModuleType_SCRIPT {
 			// A script with no imports or exports, but has a module body, must be an ES module.
-			b.metadataBuilder.ModuleType(ModuleMetadataMap_ModuleType_ES6_MODULE)
+			b.metadata.moduleType = ModuleMetadataMap_ModuleType_ES6_MODULE
 		}
 
-		if !b.declaredModuleId.IsNil() && b.metadataBuilder.GetModuleType() != ModuleMetadataMap_ModuleType_ES6_MODULE {
+		if !b.declaredModuleId.IsNil() && b.metadata.moduleType != ModuleMetadataMap_ModuleType_ES6_MODULE {
 			b.outer.compiler.Report(JSError_MakeWithNode(b.declaredModuleId, GatherModuleMetadata_DECLARE_MODULE_ID_OUTSIDE_ES6_MODULE))
 		}
 
 		if !b.declaresLegacyNamespace.IsNil() {
-			if b.metadataBuilder.GetModuleType() == ModuleMetadataMap_ModuleType_GOOG_MODULE {
-				b.metadataBuilder.ModuleType(ModuleMetadataMap_ModuleType_LEGACY_GOOG_MODULE)
+			if b.metadata.moduleType == ModuleMetadataMap_ModuleType_GOOG_MODULE {
+				b.metadata.moduleType = ModuleMetadataMap_ModuleType_LEGACY_GOOG_MODULE
 			} else {
 				b.outer.compiler.Report(
 					JSError_MakeWithNode(b.declaresLegacyNamespace, ClosureCheckModule_DECLARE_LEGACY_NAMESPACE_IN_NON_MODULE))
@@ -186,7 +187,7 @@ func (b *GatherModuleMetadata_ModuleMetadataBuilder) Build() *ModuleMetadataMap_
 		}
 	}
 
-	return b.metadataBuilder.Build()
+	return b.metadata
 }
 
 // GatherModuleMetadata_Finder traverses the AST and builds ModuleMetadatas.
@@ -241,14 +242,14 @@ func (f *GatherModuleMetadata_Finder) VisitImportOrExport(t *NodeTraversal, impo
 		source, hasSource = exp.Source() // export ... from
 	}
 	if hasSource {
-		f.outer.currentModule.metadataBuilder.Es6ImportSpecifiersBuilder().Add(source.Value())
+		f.outer.currentModule.metadata.es6ImportSpecifiers.Add(source.Value())
 	}
 }
 
 // Java: GatherModuleMetadata.Finder.visitDynamicImport(Node)
 func (f *GatherModuleMetadata_Finder) VisitDynamicImport(dynamicImport ast.DynamicImport) {
 	if specifier, ok := dynamicImport.Specifier().AsStringLit(); ok {
-		f.outer.currentModule.metadataBuilder.Es6ImportSpecifiersBuilder().Add(specifier.Value())
+		f.outer.currentModule.metadata.es6ImportSpecifiers.Add(specifier.Value())
 	}
 }
 
@@ -284,7 +285,7 @@ func (f *GatherModuleMetadata_Finder) LeaveModule() {
 		g.modulesByGoogNamespace.Put(namespace, module)
 	}
 	if g.parentModule != nil {
-		g.parentModule.metadataBuilder.AddNestedModule(module)
+		g.parentModule.metadata.nestedModules = append(g.parentModule.metadata.nestedModules, module)
 	}
 	*g.currentModule = GatherModuleMetadata_ModuleMetadataBuilder{}
 	g.currentModule = g.parentModule
@@ -320,14 +321,17 @@ func (f *GatherModuleMetadata_Finder) Visit(t *NodeTraversal, n rhino.Node, pare
 
 // Java: GatherModuleMetadata.Finder.isFromGoogImport(Var)
 func (f *GatherModuleMetadata_Finder) IsFromGoogImport(goog *Var) bool {
-	nameNode := goog.GetNameNode()
-
 	// Because other tools are regex based we force importing this file as "import * as goog".
-	return !nameNode.IsNil() &&
-		nameNode.IsImportStar() &&
-		nameNode.GetString() == "goog" &&
-		nameNode.GetParent().GetFirstChild().IsEmpty() &&
-		strings.HasSuffix(nameNode.GetParent().GetLastChild().GetString(), "/goog.js")
+	star, ok := ast.AsImportStar(goog.GetNameNode())
+	if !ok || star.Ident() != "goog" {
+		return false
+	}
+	imp, ok := ast.AsImport(star.Node().GetParent())
+	if !ok {
+		return false
+	}
+	_, hasDefault := imp.Default()
+	return !hasDefault && strings.HasSuffix(imp.Source().Value(), "/goog.js")
 }
 
 // Java: GatherModuleMetadata.Finder.visitName(NodeTraversal, Node)
@@ -338,8 +342,8 @@ func (f *GatherModuleMetadata_Finder) VisitName(t *NodeTraversal, n rhino.Node) 
 			nameVar := t.GetScope().GetVar(name)
 			if _, ok := f.toggleModules[nameVar]; ok {
 				parent := n.GetParent()
-				if parent.IsGetProp() {
-					f.AddToggle(t, n, parent.GetString())
+				if gp, ok := ast.AsGetProp(parent); ok {
+					f.AddToggle(t, n, gp.Property())
 				} else if !NodeUtil_IsNameDeclaration(parent) {
 					t.Report(
 						n,
@@ -358,7 +362,7 @@ func (f *GatherModuleMetadata_Finder) VisitName(t *NodeTraversal, n rhino.Node) 
 		return
 	}
 
-	f.outer.currentModule.metadataBuilder.UsesClosure(true)
+	f.outer.currentModule.metadata.usesClosure = true
 }
 
 // Java: GatherModuleMetadata.Finder.visitGoogCall(NodeTraversal, Node)
@@ -404,7 +408,7 @@ func (f *GatherModuleMetadata_Finder) VisitGoogCall(t *NodeTraversal, call ast.C
 	// base.js in it, then it doesn't need base.js again.
 	if root == nil ||
 		NodeUtil_GetEnclosingScript(root.GetNameNode()) != NodeUtil_GetEnclosingScript(n) {
-		f.outer.currentModule.metadataBuilder.UsesClosure(true)
+		f.outer.currentModule.metadata.usesClosure = true
 	}
 
 	switch {
@@ -416,7 +420,7 @@ func (f *GatherModuleMetadata_Finder) VisitGoogCall(t *NodeTraversal, call ast.C
 				f.AddNamespace(f.outer.currentModule, ModuleMetadataMap_ModuleType_GOOG_PROVIDE, namespace, t, n)
 			} else {
 				t.Report(n, ClosureRewriteModule_INVALID_PROVIDE_NAMESPACE)
-				f.outer.currentModule.metadataBuilder.UsesClosure(false)
+				f.outer.currentModule.metadata.usesClosure = false
 			}
 		case "module":
 			f.outer.currentModule.ModuleType(ModuleMetadataMap_ModuleType_GOOG_MODULE, t, n)
@@ -424,13 +428,13 @@ func (f *GatherModuleMetadata_Finder) VisitGoogCall(t *NodeTraversal, call ast.C
 				f.AddNamespace(f.outer.currentModule, ModuleMetadataMap_ModuleType_GOOG_MODULE, namespace, t, n)
 			} else {
 				t.Report(n, ClosureRewriteModule_INVALID_MODULE_ID_ARG)
-				f.outer.currentModule.metadataBuilder.UsesClosure(false)
+				f.outer.currentModule.metadata.usesClosure = false
 			}
 		case "declareModuleId":
 			f.visitDeclareModuleId(t, call, n)
 		case "require":
 			if namespace, ok := gatherModuleMetadata_onlyStringArg(call); ok {
-				f.outer.currentModule.metadataBuilder.StronglyRequiredGoogNamespacesBuilder().Add(namespace)
+				f.outer.currentModule.metadata.stronglyRequiredGoogNamespaces.Add(namespace)
 				if strings.HasSuffix(namespace, "$2etoggles") {
 					f.recordToggleRequire(t, n)
 				}
@@ -439,25 +443,25 @@ func (f *GatherModuleMetadata_Finder) VisitGoogCall(t *NodeTraversal, call ast.C
 			}
 		case "requireType":
 			if namespace, ok := gatherModuleMetadata_onlyStringArg(call); ok {
-				f.outer.currentModule.metadataBuilder.WeaklyRequiredGoogNamespacesBuilder().Add(namespace)
+				f.outer.currentModule.metadata.weaklyRequiredGoogNamespaces.Add(namespace)
 			} else {
 				t.Report(n, GatherModuleMetadata_INVALID_REQUIRE_TYPE)
 			}
 		case "maybeRequireFrameworkInternalOnlyDoNotCallOrElse":
 			if namespace, ok := gatherModuleMetadata_onlyStringArg(call); ok {
-				f.outer.currentModule.metadataBuilder.MaybeRequiredGoogNamespacesBuilder().Add(namespace)
+				f.outer.currentModule.metadata.maybeRequiredGoogNamespaces.Add(namespace)
 			} else {
 				t.Report(n, GatherModuleMetadata_INVALID_MAYBE_REQUIRE)
 			}
 		case "setTestOnly":
 			if _, isString := gatherModuleMetadata_onlyStringArg(call); !call.HasArgs() || isString {
-				f.outer.currentModule.metadataBuilder.IsTestOnly(true)
+				f.outer.currentModule.metadata.isTestOnly = true
 			} else {
 				t.Report(n, GatherModuleMetadata_INVALID_SET_TEST_ONLY)
 			}
 		case "requireDynamic":
 			if namespace, ok := gatherModuleMetadata_onlyStringArg(call); ok {
-				f.outer.currentModule.metadataBuilder.DynamicallyRequiredGoogNamespacesBuilder().Add(namespace)
+				f.outer.currentModule.metadata.dynamicallyRequiredGoogNamespaces.Add(namespace)
 			} else {
 				t.Report(n, GatherModuleMetadata_INVALID_REQUIRE_DYNAMIC)
 			}
@@ -469,15 +473,15 @@ func (f *GatherModuleMetadata_Finder) VisitGoogCall(t *NodeTraversal, call ast.C
 			if namespace, ok := gatherModuleMetadata_onlyStringArg(call); !ok || !strings.HasSuffix(namespace, "$2etoggles") {
 				return
 			}
-			parent := n.GetParent()
-			if !parent.IsGetProp() {
+			gp, ok := ast.AsGetProp(n.GetParent())
+			if !ok {
 				t.Report(
 					n,
 					GatherModuleMetadata_INVALID_TOGGLE_USAGE,
 					"goog.module.get of toggles module must immediately look up a single toggle")
 				return
 			}
-			f.AddToggle(t, parent, parent.GetString())
+			f.AddToggle(t, gp.Node(), gp.Property())
 		case "declareLegacyNamespace":
 			f.outer.currentModule.RecordDeclareLegacyNamespace(n)
 		case "declareNamespace":
@@ -502,19 +506,18 @@ func (f *GatherModuleMetadata_Finder) visitDeclareModuleId(t *NodeTraversal, cal
 func (f *GatherModuleMetadata_Finder) recordToggleRequire(t *NodeTraversal, n rhino.Node) {
 	// Track imports of *.toggles.ts, which are rewritten to $2etoggles.
 	callParent := n.GetParent()
-	lhs := callParent.GetFirstChild()
-	if callParent.IsDestructuringLhs() {
+	if dlhs, ok := ast.AsDestructuringLhs(callParent); ok {
 		// const {TOGGLE_foo} = goog.require('foo$2etoggles');
-		for key := range lhs.Children() {
-			if key.IsStringKey() {
-				f.AddToggle(t, n, key.GetString())
+		for prop := range dlhs.Pattern().Node().Children() {
+			if key, ok := ast.AsStringKey(prop); ok {
+				f.AddToggle(t, n, key.Key())
 			} else {
 				t.Report(n, GatherModuleMetadata_INVALID_TOGGLE_USAGE, "must be destructured with string keys")
 			}
 		}
-	} else if callParent.IsName() {
+	} else if nameNode, ok := ast.AsName(callParent); ok {
 		// const fooToggles = goog.require('foo$2etoggles');
-		name := callParent.GetString()
+		name := nameNode.Ident()
 		nameVar := t.GetScope().GetVar(name)
 		if f.toggleModules == nil {
 			f.toggleModules = make(map[*Var]struct{})
@@ -522,7 +525,7 @@ func (f *GatherModuleMetadata_Finder) recordToggleRequire(t *NodeTraversal, n rh
 		}
 		f.toggleModules[nameVar] = struct{}{}
 		f.toggleModuleNames[name] = struct{}{}
-	} else if f.outer.currentModule.metadataBuilder.GetModuleType() != ModuleMetadataMap_ModuleType_GOOG_PROVIDE {
+	} else if f.outer.currentModule.metadata.moduleType != ModuleMetadataMap_ModuleType_GOOG_PROVIDE {
 		// Side-effect toggle-module imports are not allowed, since they don't actually do
 		// anything. We allow it in `goog.provide()` files because there's no other way to
 		// import, and since toggle modules don't declare a legacy namespace, it's unusable
@@ -554,7 +557,7 @@ func gatherModuleMetadata_onlyStringArg(call ast.Call) (string, bool) {
 func (f *GatherModuleMetadata_Finder) AddToggle(t *NodeTraversal, n rhino.Node, name string) {
 	if strings.HasPrefix(name, gatherModuleMetadata_TOGGLE_NAME_PREFIX) {
 		toggleName := name[len(gatherModuleMetadata_TOGGLE_NAME_PREFIX):]
-		f.outer.currentModule.metadataBuilder.ReadTogglesBuilder().Add(toggleName)
+		f.outer.currentModule.metadata.readToggles.Add(toggleName)
 	} else {
 		t.Report(n, GatherModuleMetadata_INVALID_TOGGLE_USAGE, "all toggle names must start with `TOGGLE_`")
 	}
@@ -588,8 +591,8 @@ func (f *GatherModuleMetadata_Finder) AddNamespace(
 	var existingType ModuleMetadataMap_ModuleType
 	hasExistingType := false
 	var existingFileSource *string
-	if module.metadataBuilder.HasGoogNamespace(namespace) {
-		existingType = module.metadataBuilder.GetModuleType()
+	if module.metadata.googNamespaces.Contains(namespace) {
+		existingType = module.metadata.moduleType
 		hasExistingType = true
 		existingFileSource = t.GetSourceName()
 	} else if existingModule := f.outer.modulesByGoogNamespace.Get(namespace); existingModule != nil {
@@ -597,7 +600,7 @@ func (f *GatherModuleMetadata_Finder) AddNamespace(
 		hasExistingType = true
 		existingFileSource = existingModule.RootNode().GetSourceFileName()
 	}
-	f.outer.currentModule.metadataBuilder.GoogNamespacesBuilder().Add(namespace)
+	f.outer.currentModule.metadata.googNamespaces.Add(namespace)
 	if hasExistingType {
 		switch existingType {
 		case ModuleMetadataMap_ModuleType_ES6_MODULE, ModuleMetadataMap_ModuleType_GOOG_MODULE, ModuleMetadataMap_ModuleType_LEGACY_GOOG_MODULE:

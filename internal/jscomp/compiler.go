@@ -1983,7 +1983,7 @@ var compiler_emptyLicenseSet = jutil.NewLinkedHashSet[string]()
 // ComputeCFG is Control Flow Analysis.
 //
 // Java: Compiler.computeCFG()
-func (c *Compiler) ComputeCFG() ControlFlowGraph[rhino.Node] {
+func (c *Compiler) ComputeCFG() *ControlFlowGraph[rhino.Node] {
 	Compiler_logger.Fine("Computing Control Flow Graph")
 	tracer := c.NewTracer("computeCFG")
 	cfg := ControlFlowAnalysis_Builder_().

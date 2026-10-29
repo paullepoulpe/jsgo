@@ -78,13 +78,11 @@ func (c *SymbolTable_PropertyRefCollector) maybeDefineReference(n rhino.Node, pr
 // qualified name.
 //
 // Java: SymbolTable.PropertyRefCollector.tryDefineLexicalQualifiedNameRef(String, Node)
-func (c *SymbolTable_PropertyRefCollector) tryDefineLexicalQualifiedNameRef(name *string, n rhino.Node) bool {
-	if name != nil {
-		lexicalSym := c.outer.GetEnclosingScope(n).GetQualifiedSlot(*name)
-		if lexicalSym != nil {
-			lexicalSym.DefineReferenceAt(n)
-			return true
-		}
+func (c *SymbolTable_PropertyRefCollector) tryDefineLexicalQualifiedNameRef(name string, n rhino.Node) bool {
+	lexicalSym := c.outer.GetEnclosingScope(n).GetQualifiedSlot(name)
+	if lexicalSym != nil {
+		lexicalSym.DefineReferenceAt(n)
+		return true
 	}
 	return false
 }
@@ -93,14 +91,12 @@ func (c *SymbolTable_PropertyRefCollector) tryDefineLexicalQualifiedNameRef(name
 // qualified name. If the symbol has no references left, remove it completely.
 //
 // Java: SymbolTable.PropertyRefCollector.tryRemoveLexicalQualifiedNameRef(String, Node)
-func (c *SymbolTable_PropertyRefCollector) tryRemoveLexicalQualifiedNameRef(name *string, n rhino.Node) {
-	if name != nil {
-		lexicalSym := c.outer.GetEnclosingScope(n).GetQualifiedSlot(*name)
-		if lexicalSym != nil &&
-			lexicalSym.IsLexicalVariable() &&
-			lexicalSym.GetDeclaration().GetNode() == n {
-			c.outer.removeSymbol(lexicalSym)
-		}
+func (c *SymbolTable_PropertyRefCollector) tryRemoveLexicalQualifiedNameRef(name string, n rhino.Node) {
+	lexicalSym := c.outer.GetEnclosingScope(n).GetQualifiedSlot(name)
+	if lexicalSym != nil &&
+		lexicalSym.IsLexicalVariable() &&
+		lexicalSym.GetDeclaration().GetNode() == n {
+		c.outer.removeSymbol(lexicalSym)
 	}
 }
 
@@ -149,12 +145,14 @@ func (c *SymbolTable_PropertyRefCollector) maybeDefineTypedReference(n rhino.Nod
 		// property node => namespace node => namespace symbol => property symbol.
 		if gp, ok := ast.AsNormalOrOptChainGetProp(propNodeDecl); ok {
 			namespace := gp.Object().Node()
-			namespaceSym := t.GetSymbolForName(namespace, namespace.GetQualifiedName())
-			if namespaceSym != nil && namespaceSym.GetPropertyScope() != nil {
-				propSym := namespaceSym.GetPropertyScope().GetSlot(propName)
-				if propSym != nil && propSym.GetDeclarationNode() != n {
-					propSym.DefineReferenceAt(n)
-					return true
+			if qname, hasQname := namespace.GetQualifiedNameString(); hasQname {
+				namespaceSym := t.getSymbolForName(namespace, qname)
+				if namespaceSym != nil && namespaceSym.GetPropertyScope() != nil {
+					propSym := namespaceSym.GetPropertyScope().GetSlot(propName)
+					if propSym != nil && propSym.GetDeclarationNode() != n {
+						propSym.DefineReferenceAt(n)
+						return true
+					}
 				}
 			}
 		}
@@ -174,7 +172,7 @@ func (c *SymbolTable_PropertyRefCollector) maybeDefineTypedReference(n rhino.Nod
 		if propNodeDeclScope == nil || !propNodeDeclScope.IsModuleScope() {
 			return false
 		}
-		symbol := t.GetSymbolForName(propNodeDecl, &propName)
+		symbol := t.getSymbolForName(propNodeDecl, propName)
 		if symbol != nil && symbol.GetDeclarationNode() != n {
 			symbol.DefineReferenceAt(n)
 			return true
@@ -195,27 +193,31 @@ func (c *SymbolTable_PropertyRefCollector) Visit(t *NodeTraversal, n rhino.Node,
 	if gp, ok := ast.AsNormalOrOptChainGetProp(n); ok {
 		owner := gp.Object().Node().GetJSType()
 		if owner != nil {
-			defined := c.maybeDefineTypedReference(n, gp.Property(), owner)
-
-			if defined {
-				c.tryRemoveLexicalQualifiedNameRef(n.GetQualifiedName(), n)
+			if c.maybeDefineTypedReference(n, gp.Property(), owner) {
+				if qname, hasQname := n.GetQualifiedNameString(); hasQname {
+					c.tryRemoveLexicalQualifiedNameRef(qname, n)
+				}
 				return
 			}
 		}
 
-		c.tryDefineLexicalQualifiedNameRef(n.GetQualifiedName(), n)
+		if qname, hasQname := n.GetQualifiedNameString(); hasQname {
+			c.tryDefineLexicalQualifiedNameRef(qname, n)
+		}
 	} else if sk, ok := ast.AsStringKey(n); ok {
 		owner := parent.GetJSType()
 		if owner != nil {
-			defined := c.maybeDefineTypedReference(n, sk.Key(), owner)
-
-			if defined {
-				c.tryRemoveLexicalQualifiedNameRef(NodeUtil_GetBestLValueName(n), n)
+			if c.maybeDefineTypedReference(n, sk.Key(), owner) {
+				if lvalName := NodeUtil_GetBestLValueName(n); lvalName != nil {
+					c.tryRemoveLexicalQualifiedNameRef(*lvalName, n)
+				}
 				return
 			}
 		}
 
-		c.tryDefineLexicalQualifiedNameRef(NodeUtil_GetBestLValueName(n), n)
+		if lvalName := NodeUtil_GetBestLValueName(n); lvalName != nil {
+			c.tryDefineLexicalQualifiedNameRef(*lvalName, n)
+		}
 	}
 }
 
@@ -464,7 +466,7 @@ func (c *SymbolTable_VisibilityCollector) visitName(t *NodeTraversal, nameNode a
 		return
 	}
 	// Visibility already set.
-	if symbol.GetVisibility() != nil {
+	if symbol.HasVisibility() {
 		return
 	}
 	var_ := t.GetScope().GetVar(ident)
@@ -486,7 +488,7 @@ func (c *SymbolTable_VisibilityCollector) visitProperty(gp ast.NormalOrOptChainG
 		return
 	}
 	// Visibility already set.
-	if symbol.GetVisibility() != nil {
+	if symbol.HasVisibility() {
 		return
 	}
 	jsType := gp.Object().Node().GetJSType()

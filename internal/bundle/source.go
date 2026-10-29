@@ -20,24 +20,30 @@
 package bundle
 
 import (
+	"slices"
 	"strings"
 
 	"github.com/paullepoulpe/jsgo/internal/jscomp"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 )
 
+type sourceLoadFlag struct {
+	key   string
+	value string
+}
+
 // Source is an abstract representation of a source file.
 //
 // Go-only: language-adapter — Source is an @AutoValue: the abstract class
 // and the generated AutoValue_Source (fields, equals, hashCode, toString,
-// Builder) are one struct here (PORTING.md §4).
+// Builder) are flattened into plain value fields here (PORTING.md §4).
 type Source struct {
 	path                 *jutil.Path
 	sourceMap            string
 	sourceUrl            string
 	sourceMappingUrl     string
-	runtimes             *jutil.LinkedHashSet[string]
-	loadFlags            *jutil.LinkedHashMap[string, string]
+	runtimes             []string
+	loadFlags            []sourceLoadFlag
 	estimatedSize        int
 	codeSupplier         *Source_Lazy[string]
 	originalCodeSupplier *Source_Lazy[string]
@@ -71,12 +77,23 @@ func (s *Source) SourceMappingUrl() string { return s.sourceMappingUrl }
 // correctly).
 //
 // Java: Source.runtimes()
-func (s *Source) Runtimes() *jutil.LinkedHashSet[string] { return s.runtimes }
+func (s *Source) Runtimes() []string {
+	if len(s.runtimes) == 0 {
+		return []string{}
+	}
+	return slices.Clone(s.runtimes)
+}
 
 // LoadFlags are the load flags, specifying module type and language level.
 //
 // Java: Source.loadFlags()
-func (s *Source) LoadFlags() *jutil.LinkedHashMap[string, string] { return s.loadFlags }
+func (s *Source) LoadFlags() map[string]string {
+	m := make(map[string]string, len(s.loadFlags))
+	for _, f := range s.loadFlags {
+		m[f.key] = f.value
+	}
+	return m
+}
 
 // EstimatedSize is a best estimate of the size of this source (in case the
 // source itself is not yet loaded.
@@ -87,12 +104,12 @@ func (s *Source) EstimatedSize() int { return s.estimatedSize }
 // Code is the actual code in this source file.
 //
 // Java: Source.code()
-func (s *Source) Code() string { return s.CodeSupplier().Get() }
+func (s *Source) Code() string { return s.codeSupplier.Get() }
 
 // OriginalCode is the untransformed code from the original source file.
 //
 // Java: Source.originalCode()
-func (s *Source) OriginalCode() string { return s.OriginalCodeSupplier().Get() }
+func (s *Source) OriginalCode() string { return s.originalCodeSupplier.Get() }
 
 // ToBuilder copies the data from this source to a new builder.
 //
@@ -100,15 +117,14 @@ func (s *Source) OriginalCode() string { return s.OriginalCodeSupplier().Get() }
 func (s *Source) ToBuilder() *Source_Builder {
 	return &Source_Builder{
 		path:                 s.path,
-		sourceMap:            &s.sourceMap,
-		sourceUrl:            &s.sourceUrl,
-		sourceMappingUrl:     &s.sourceMappingUrl,
+		sourceMap:            s.sourceMap,
+		sourceUrl:            s.sourceUrl,
+		sourceMappingUrl:     s.sourceMappingUrl,
 		runtimes:             s.runtimes,
 		loadFlags:            s.loadFlags,
 		estimatedSize:        s.estimatedSize,
 		codeSupplier:         s.codeSupplier,
 		originalCodeSupplier: s.originalCodeSupplier,
-		set0:                 1,
 	}
 }
 
@@ -117,19 +133,13 @@ func (s *Source) ToBuilder() *Source_Builder {
 // Go-only: language-adapter — the trailing underscore keeps the mechanical
 // name Source_Builder for the nested Builder type.
 func Source_Builder_() *Source_Builder {
-	return NewSource_Builder().
-		SetPath(source_DEV_NULL).
-		SetCode("").
-		SetOriginalCodeSupplier(nil).
-		SetSourceMap("").
-		SetSourceUrl("").
-		SetSourceMappingUrl("").
-		SetRuntimes(jutil.NewLinkedHashSet[string]()).
-		SetLoadFlags(jutil.NewLinkedHashMap[string, string]()).
-		SetEstimatedSize(0)
+	return NewSource_Builder()
 }
 
-var source_DEV_NULL = jutil.Path_Of("/dev/null")
+var (
+	source_DEV_NULL = jutil.Path_Of("/dev/null")
+	sourceEmptyCode = Source_Lazy_OfInstance("")
+)
 
 // Internal-only properties: the code suppliers are necessary for lazy
 // bundling, but we cannot use an ordinary supplier since we need guarantees
@@ -144,17 +154,39 @@ func (s *Source) OriginalCodeSupplier() *Source_Lazy[string] { return s.original
 
 // Java: AutoValue_Source.toString()
 func (s *Source) String() string {
-	return "Source{" +
-		"path=" + s.path.String() + ", " +
-		"sourceMap=" + s.sourceMap + ", " +
-		"sourceUrl=" + s.sourceUrl + ", " +
-		"sourceMappingUrl=" + s.sourceMappingUrl + ", " +
-		"runtimes=" + s.runtimes.String() + ", " +
-		"loadFlags=" + s.loadFlags.String() + ", " +
-		"estimatedSize=" + jutil.ToJavaString(s.estimatedSize) + ", " +
-		"codeSupplier=" + s.codeSupplier.String() + ", " +
-		"originalCodeSupplier=" + jutil.ToJavaString(s.originalCodeSupplier) +
-		"}"
+	var sb strings.Builder
+	sb.WriteString("Source{path=")
+	sb.WriteString(s.path.String())
+	sb.WriteString(", sourceMap=")
+	sb.WriteString(s.sourceMap)
+	sb.WriteString(", sourceUrl=")
+	sb.WriteString(s.sourceUrl)
+	sb.WriteString(", sourceMappingUrl=")
+	sb.WriteString(s.sourceMappingUrl)
+	sb.WriteString(", runtimes=[")
+	for i, r := range s.runtimes {
+		if i > 0 {
+			sb.WriteString(", ")
+		}
+		sb.WriteString(r)
+	}
+	sb.WriteString("], loadFlags={")
+	for i, f := range s.loadFlags {
+		if i > 0 {
+			sb.WriteString(", ")
+		}
+		sb.WriteString(f.key)
+		sb.WriteByte('=')
+		sb.WriteString(f.value)
+	}
+	sb.WriteString("}, estimatedSize=")
+	sb.WriteString(jutil.ToJavaString(s.estimatedSize))
+	sb.WriteString(", codeSupplier=")
+	sb.WriteString(s.codeSupplier.String())
+	sb.WriteString(", originalCodeSupplier=")
+	sb.WriteString(jutil.ToJavaString(s.originalCodeSupplier))
+	sb.WriteByte('}')
+	return sb.String()
 }
 
 // Java: AutoValue_Source.equals(Object)
@@ -166,20 +198,50 @@ func (s *Source) Equals(o any) bool {
 	if that == s {
 		return true
 	}
-	return s.path.Equals(that.Path()) &&
-		s.sourceMap == that.SourceMap() &&
-		s.sourceUrl == that.SourceUrl() &&
-		s.sourceMappingUrl == that.SourceMappingUrl() &&
-		s.runtimes.Equals(that.Runtimes()) &&
-		s.loadFlags.Equals(that.LoadFlags()) &&
-		s.estimatedSize == that.EstimatedSize() &&
-		s.codeSupplier.Equals(that.CodeSupplier()) &&
-		(func() bool {
-			if s.originalCodeSupplier == nil {
-				return that.OriginalCodeSupplier() == nil
+	return s.estimatedSize == that.estimatedSize &&
+		s.path.Equals(that.path) &&
+		s.sourceMap == that.sourceMap &&
+		s.sourceUrl == that.sourceUrl &&
+		s.sourceMappingUrl == that.sourceMappingUrl &&
+		slices.Equal(s.runtimes, that.runtimes) &&
+		sourceLoadFlagsEqual(s.loadFlags, that.loadFlags) &&
+		s.codeSupplier.equalLazy(that.codeSupplier) &&
+		s.originalCodeSupplier.equalLazy(that.originalCodeSupplier)
+}
+
+func sourceLoadFlagsEqual(a, b []sourceLoadFlag) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for _, fa := range a {
+		found := false
+		for _, fb := range b {
+			if fa.key == fb.key {
+				found = fa.value == fb.value
+				break
 			}
-			return s.originalCodeSupplier.Equals(that.OriginalCodeSupplier())
-		})()
+		}
+		if !found {
+			return false
+		}
+	}
+	return true
+}
+
+func sourceRuntimesHashCode(runtimes []string) int32 {
+	var h int32
+	for _, r := range runtimes {
+		h += jutil.StringHashCode(r)
+	}
+	return h
+}
+
+func sourceLoadFlagsHashCode(flags []sourceLoadFlag) int32 {
+	var h int32
+	for _, f := range flags {
+		h += jutil.StringHashCode(f.key) ^ jutil.StringHashCode(f.value)
+	}
+	return h
 }
 
 // Java: AutoValue_Source.hashCode()
@@ -194,37 +256,40 @@ func (s *Source) HashCode() int32 {
 	h *= 1000003
 	h ^= jutil.StringHashCode(s.sourceMappingUrl)
 	h *= 1000003
-	h ^= s.runtimes.HashCode()
+	h ^= sourceRuntimesHashCode(s.runtimes)
 	h *= 1000003
-	h ^= s.loadFlags.HashCode()
+	h ^= sourceLoadFlagsHashCode(s.loadFlags)
 	h *= 1000003
 	h ^= int32(s.estimatedSize)
 	h *= 1000003
-	h ^= s.codeSupplier.HashCode()
+	h ^= jutil.StringHashCode(s.codeSupplier.Get())
 	h *= 1000003
 	if s.originalCodeSupplier != nil {
-		h ^= s.originalCodeSupplier.HashCode()
+		h ^= jutil.StringHashCode(s.originalCodeSupplier.Get())
 	}
 	return h
 }
 
-// Source_Builder is the builder for Source instances
-// (AutoValue_Source.Builder).
+// Source_Builder is the builder for Source instances.
 type Source_Builder struct {
 	path                 *jutil.Path
-	sourceMap            *string
-	sourceUrl            *string
-	sourceMappingUrl     *string
-	runtimes             *jutil.LinkedHashSet[string]
-	loadFlags            *jutil.LinkedHashMap[string, string]
+	sourceMap            string
+	sourceUrl            string
+	sourceMappingUrl     string
+	runtimes             []string
+	loadFlags            []sourceLoadFlag
 	estimatedSize        int
 	codeSupplier         *Source_Lazy[string]
 	originalCodeSupplier *Source_Lazy[string]
-	set0                 byte
 }
 
 // Java: AutoValue_Source.Builder()
-func NewSource_Builder() *Source_Builder { return &Source_Builder{} }
+func NewSource_Builder() *Source_Builder {
+	return &Source_Builder{
+		path:         source_DEV_NULL,
+		codeSupplier: sourceEmptyCode,
+	}
+}
 
 // Java: Source.Builder.setPath(Path)
 func (b *Source_Builder) SetPath(path *jutil.Path) *Source_Builder {
@@ -237,44 +302,67 @@ func (b *Source_Builder) SetPath(path *jutil.Path) *Source_Builder {
 
 // Java: Source.Builder.setSourceMap(String)
 func (b *Source_Builder) SetSourceMap(sourceMap string) *Source_Builder {
-	b.sourceMap = &sourceMap
+	b.sourceMap = sourceMap
 	return b
 }
 
 // Java: Source.Builder.setSourceUrl(String)
 func (b *Source_Builder) SetSourceUrl(sourceUrl string) *Source_Builder {
-	b.sourceUrl = &sourceUrl
+	b.sourceUrl = sourceUrl
 	return b
 }
 
 // Java: Source.Builder.setSourceMappingUrl(String)
 func (b *Source_Builder) SetSourceMappingUrl(sourceMappingUrl string) *Source_Builder {
-	b.sourceMappingUrl = &sourceMappingUrl
+	b.sourceMappingUrl = sourceMappingUrl
 	return b
 }
 
+func appendUniqueRuntimes(dst []string, runtimes ...string) []string {
+	for _, r := range runtimes {
+		if !slices.Contains(dst, r) {
+			dst = append(dst, r)
+		}
+	}
+	return dst
+}
+
 // Java: Source.Builder.setRuntimes(ImmutableSet<String>)
-func (b *Source_Builder) SetRuntimes(runtimes *jutil.LinkedHashSet[string]) *Source_Builder {
+func (b *Source_Builder) SetRuntimes(runtimes []string) *Source_Builder {
 	if runtimes == nil {
 		panic(jutil.NewNullPointerExceptionMsg("Null runtimes"))
 	}
-	b.runtimes = runtimes
+	if len(runtimes) == 0 {
+		b.runtimes = nil
+		return b
+	}
+	b.runtimes = appendUniqueRuntimes(make([]string, 0, len(runtimes)), runtimes...)
 	return b
 }
 
 // Java: Source.Builder.setLoadFlags(ImmutableMap<String, String>)
-func (b *Source_Builder) SetLoadFlags(flags *jutil.LinkedHashMap[string, string]) *Source_Builder {
+func (b *Source_Builder) SetLoadFlags(flags map[string]string) *Source_Builder {
 	if flags == nil {
 		panic(jutil.NewNullPointerExceptionMsg("Null loadFlags"))
 	}
-	b.loadFlags = flags
+	if len(flags) == 0 {
+		b.loadFlags = nil
+		return b
+	}
+	entries := make([]sourceLoadFlag, 0, len(flags))
+	for k, v := range flags { // order-independent: entries are sorted by key immediately below
+		entries = append(entries, sourceLoadFlag{key: k, value: v})
+	}
+	slices.SortFunc(entries, func(a, c sourceLoadFlag) int {
+		return strings.Compare(a.key, c.key)
+	})
+	b.loadFlags = entries
 	return b
 }
 
 // Java: Source.Builder.setEstimatedSize(int)
 func (b *Source_Builder) SetEstimatedSize(estimatedSize int) *Source_Builder {
 	b.estimatedSize = estimatedSize
-	b.set0 |= 1
 	return b
 }
 
@@ -295,24 +383,38 @@ func (b *Source_Builder) SetOriginalCode(code string) *Source_Builder {
 
 // Java: Source.Builder.addRuntime(String...)
 func (b *Source_Builder) AddRuntime(runtimes ...string) *Source_Builder {
-	set := jutil.NewLinkedHashSet[string]()
-	for r := range b.Runtimes().All() {
-		set.Add(r)
+	if len(runtimes) == 0 {
+		return b
 	}
-	set.AddAll(runtimes...)
-	return b.SetRuntimes(set)
+	next := make([]string, len(b.runtimes), len(b.runtimes)+len(runtimes))
+	copy(next, b.runtimes)
+	b.runtimes = appendUniqueRuntimes(next, runtimes...)
+	return b
 }
 
 // Java: Source.Builder.setDependencyInfo(DependencyInfo)
 func (b *Source_Builder) SetDependencyInfo(info jscomp.DependencyInfo) *Source_Builder {
 	// TODO(sdh): consider whether to set path.
-	return b.SetLoadFlags(info.GetLoadFlags())
+	lf := info.GetLoadFlags()
+	if lf == nil {
+		panic(jutil.NewNullPointerExceptionMsg("Null loadFlags"))
+	}
+	if lf.Size() == 0 {
+		b.loadFlags = nil
+		return b
+	}
+	entries := make([]sourceLoadFlag, 0, lf.Size())
+	for k, v := range lf.All() {
+		entries = append(entries, sourceLoadFlag{key: k, value: v})
+	}
+	b.loadFlags = entries
+	return b
 }
 
 // Java: Source.Builder.build()
 func (b *Source_Builder) Build() *Source {
-	if b.OriginalCodeSupplier() == nil {
-		b.SetOriginalCodeSupplier(b.CodeSupplier())
+	if b.originalCodeSupplier == nil {
+		b.originalCodeSupplier = b.CodeSupplier()
 	}
 	return b.AutoBuild()
 }
@@ -333,11 +435,11 @@ func (b *Source_Builder) SetOriginalCodeSupplier(originalCodeSupplier *Source_La
 }
 
 // Java: Source.Builder.runtimes()
-func (b *Source_Builder) Runtimes() *jutil.LinkedHashSet[string] {
-	if b.runtimes == nil {
-		panic(jutil.NewIllegalStateExceptionMsg("Property \"runtimes\" has not been set"))
+func (b *Source_Builder) Runtimes() []string {
+	if len(b.runtimes) == 0 {
+		return []string{}
 	}
-	return b.runtimes
+	return slices.Clone(b.runtimes)
 }
 
 // Java: Source.Builder.codeSupplier()
@@ -353,29 +455,10 @@ func (b *Source_Builder) OriginalCodeSupplier() *Source_Lazy[string] { return b.
 
 // Java: Source.Builder.autoBuild()
 func (b *Source_Builder) AutoBuild() *Source {
-	if b.set0 != 1 || b.path == nil || b.sourceMap == nil || b.sourceUrl == nil || b.sourceMappingUrl == nil ||
-		b.runtimes == nil || b.loadFlags == nil || b.codeSupplier == nil {
+	if b.path == nil || b.codeSupplier == nil {
 		var missing strings.Builder
 		if b.path == nil {
 			missing.WriteString(" path")
-		}
-		if b.sourceMap == nil {
-			missing.WriteString(" sourceMap")
-		}
-		if b.sourceUrl == nil {
-			missing.WriteString(" sourceUrl")
-		}
-		if b.sourceMappingUrl == nil {
-			missing.WriteString(" sourceMappingUrl")
-		}
-		if b.runtimes == nil {
-			missing.WriteString(" runtimes")
-		}
-		if b.loadFlags == nil {
-			missing.WriteString(" loadFlags")
-		}
-		if b.set0&1 == 0 {
-			missing.WriteString(" estimatedSize")
 		}
 		if b.codeSupplier == nil {
 			missing.WriteString(" codeSupplier")
@@ -384,9 +467,9 @@ func (b *Source_Builder) AutoBuild() *Source {
 	}
 	return &Source{
 		path:                 b.path,
-		sourceMap:            *b.sourceMap,
-		sourceUrl:            *b.sourceUrl,
-		sourceMappingUrl:     *b.sourceMappingUrl,
+		sourceMap:            b.sourceMap,
+		sourceUrl:            b.sourceUrl,
+		sourceMappingUrl:     b.sourceMappingUrl,
 		runtimes:             b.runtimes,
 		loadFlags:            b.loadFlags,
 		estimatedSize:        b.estimatedSize,
@@ -445,20 +528,38 @@ func Source_Transformer_Compose(t Source_Transformer, before Source_Transformer)
 	return Source_TransformerFunc(func(x *Source) *Source { return after.Transform(before.Transform(x)) })
 }
 
-// Source_Lazy is essentially the same as Supplier, but wraps equals and
-// hashCode.
-type Source_Lazy[T any] struct {
-	get       func() T
-	className string
+// Source_Lazy is essentially the same as Supplier, but supports value-based
+// equals and hashCode without closure allocation for immediate instances.
+type Source_Lazy[T comparable] struct {
+	value    T
+	supplier func() T
+	memoized bool
 }
 
 // Get is Supplier.get().
-func (l *Source_Lazy[T]) Get() T { return l.get() }
+func (l *Source_Lazy[T]) Get() T {
+	if l.supplier != nil {
+		v := l.supplier()
+		l.value = v
+		l.supplier = nil
+	}
+	return l.value
+}
+
+func (l *Source_Lazy[T]) equalLazy(o *Source_Lazy[T]) bool {
+	if l == o {
+		return true
+	}
+	if l == nil || o == nil {
+		return false
+	}
+	return l.Get() == o.Get()
+}
 
 // Java: Source.Lazy.equals(Object)
 func (l *Source_Lazy[T]) Equals(other any) bool {
 	o, ok := other.(*Source_Lazy[T])
-	return ok && o != nil && jutil.ObjectsEquals(l.Get(), o.Get())
+	return ok && l.equalLazy(o)
 }
 
 // Java: Source.Lazy.hashCode()
@@ -468,28 +569,29 @@ func (l *Source_Lazy[T]) HashCode() int32 {
 
 // String is Object.toString() of the anonymous Lazy subclass.
 func (l *Source_Lazy[T]) String() string {
-	return jutil.ObjectToString(l.className, l)
+	className := "com.google.javascript.jscomp.bundle.Source$Lazy$1"
+	if l.memoized {
+		className = "com.google.javascript.jscomp.bundle.Source$Lazy$2"
+	}
+	return jutil.ObjectToString(className, l)
 }
 
 // Source_Lazy_OfInstance returns a Lazy that always returns the same
 // instance.
 //
 // Java: Source.Lazy.ofInstance(T)
-func Source_Lazy_OfInstance[T any](instance T) *Source_Lazy[T] {
-	return &Source_Lazy[T]{
-		get:       func() T { return instance },
-		className: "com.google.javascript.jscomp.bundle.Source$Lazy$1",
-	}
+func Source_Lazy_OfInstance[T comparable](instance T) *Source_Lazy[T] {
+	return &Source_Lazy[T]{value: instance}
 }
 
 // Source_Lazy_Memoize returns a Lazy from a memoized supplier.
 //
 // Java: Source.Lazy.memoize(Supplier<T>)
-func Source_Lazy_Memoize[T any](supplier func() T) *Source_Lazy[T] {
-	memoized := Source_Suppliers_Memoize(supplier)
+func Source_Lazy_Memoize[T comparable](supplier func() T) *Source_Lazy[T] {
+	jutil.CheckNotNull(supplier)
 	return &Source_Lazy[T]{
-		get:       memoized,
-		className: "com.google.javascript.jscomp.bundle.Source$Lazy$2",
+		supplier: supplier,
+		memoized: true,
 	}
 }
 

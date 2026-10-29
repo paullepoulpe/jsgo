@@ -42,11 +42,11 @@ type FunctionToBlockMutator struct {
 	onMovedArg               func(rhino.Node)
 	errorNodes               map[rhino.Node]struct{}
 	lastDiagCount            int
-	paramNamesScratch        jutil.LinkedHashSet[string]
-	modifiedParamsScratch    jutil.LinkedHashSet[string]
-	argsScratch              jutil.LinkedHashMap[string, FunctionArgumentInjector_ParamArgPair]
-	allNamesToAliasScratch   jutil.LinkedHashSet[string]
-	paramReplacementsScratch jutil.LinkedHashMap[string, rhino.Node]
+	paramNamesScratch        inlineIDSet
+	modifiedParamsScratch    inlineIDSet
+	argsScratch              []callParamBinding
+	allNamesToAliasScratch   inlineIDSet
+	paramReplacementsScratch inlineIDNodeMap
 	newAliasesToAddScratch   []rhino.Node
 }
 
@@ -64,7 +64,7 @@ func NewFunctionToBlockMutator(compiler AbstractCompiler, safeNameIdSupplier fun
 //
 // fnName is the name to use when preparing human readable names; fnNode the
 // function to prepare; callNode the call node that will be replaced;
-// resultName the name function results should be assigned to (nil: Java
+// resultName the name function results should be assigned to (empty: Java
 // null); needsDefaultResult whether the result value must be set;
 // isCallInLoop whether the function body must be prepared to be injected
 // into the body of a loop.
@@ -197,37 +197,36 @@ func (m *FunctionToBlockMutator) mutateInternalWithSummary(
 		}
 	}
 
-	args := &m.argsScratch
-	m.functionArgumentInjector.FillFunctionCallParameterPairMap(
-		newFnNode, callNode, m.safeNameIdSupplier, args)
+	m.argsScratch = m.functionArgumentInjector.fillCallParamBindings(
+		m.argsScratch[:0], newFnNode, callNode, m.safeNameIdSupplier)
 
 	// TODO(johnlenz): Mark NAME nodes constant for parameters that are not modified.
 	modifiedParameters := &m.modifiedParamsScratch
 	if summary != nil && summary.canReuseAfterRename(renameLocals) {
-		modifiedParameters.Clear()
+		modifiedParameters.clear()
 		if summary.numModified > 0 {
-			bindings := m.functionArgumentInjector.paramBindings
+			bindings := m.argsScratch
 			for _, paramIdx := range summary.modifiedParamIndices() {
 				if int(paramIdx)+1 < len(bindings) {
-					modifiedParameters.Add(bindings[int(paramIdx)+1].name)
+					modifiedParameters.add(bindings[int(paramIdx)+1].nameID)
 				}
 			}
 		}
 	} else {
-		m.functionArgumentInjector.FindModifiedParametersInto(newFnNode, &m.paramNamesScratch, modifiedParameters)
+		m.functionArgumentInjector.findModifiedParametersByIDInto(newFnNode, &m.paramNamesScratch, modifiedParameters)
 	}
 
-	hasArgs := !args.IsEmpty()
+	hasArgs := len(m.argsScratch) > 0
 	allNamesToAlias := &m.allNamesToAliasScratch
-	allNamesToAlias.Clear()
+	allNamesToAlias.clear()
 	if hasArgs {
-		m.functionArgumentInjector.gatherCallArgumentsNeedingTempsIntoWithSummary(
-			m.compiler, newFnNode, args, modifiedParameters, m.compiler.GetCodingConvention(), summary, renameLocals, allNamesToAlias)
+		m.functionArgumentInjector.gatherCallArgumentsNeedingTempsByID(
+			m.compiler, newFnNode, m.argsScratch, modifiedParameters, m.compiler.GetCodingConvention(), summary, renameLocals, allNamesToAlias)
 	}
 
 	mayHaveInjectedDecls := false
 	if isCallInLoop && summary != nil && !summary.hasVarOrLetDecls && !(renameLocals && summary.hasInnerFunctionDecls) {
-		for _, b := range m.functionArgumentInjector.paramBindings {
+		for _, b := range m.argsScratch {
 			if b.argNode.HasChildren() && functionToBlockMutator_hasVarOrLetOutsideFn(b.argNode) {
 				mayHaveInjectedDecls = true
 				break
@@ -238,8 +237,8 @@ func (m *FunctionToBlockMutator) mutateInternalWithSummary(
 	newBlock := newFn.Body().MustBlock().Detach().Node()
 
 	if hasArgs {
-		inlineResult := m.aliasAndInlineArguments(
-			newBlock, args, allNamesToAlias, summary != nil, summary != nil && summary.referencesThis)
+		inlineResult := m.aliasAndInlineArgumentsByID(
+			newBlock, m.argsScratch, allNamesToAlias, summary != nil, summary != nil && summary.referencesThis)
 		jutil.CheckState(newBlock == inlineResult)
 	}
 
@@ -604,93 +603,90 @@ func (m *FunctionToBlockMutator) AliasAndInlineArguments(
 	fnTemplateRoot rhino.Node,
 	paramToArgMap *jutil.LinkedHashMap[string, FunctionArgumentInjector_ParamArgPair],
 	namesToAlias *jutil.LinkedHashSet[string]) rhino.Node {
-	return m.aliasAndInlineArguments(fnTemplateRoot, paramToArgMap, namesToAlias, false, false)
+	m.argsScratch = bindingsFromArgMap(m.argsScratch[:0], paramToArgMap)
+	m.allNamesToAliasScratch.fromLinkedHashSet(namesToAlias, true)
+	return m.aliasAndInlineArgumentsByID(fnTemplateRoot, m.argsScratch, &m.allNamesToAliasScratch, false, false)
 }
 
-func (m *FunctionToBlockMutator) aliasAndInlineArguments(
+func (m *FunctionToBlockMutator) aliasAndInlineArgumentsByID(
 	fnTemplateRoot rhino.Node,
-	paramToArgMap *jutil.LinkedHashMap[string, FunctionArgumentInjector_ParamArgPair],
-	namesToAlias *jutil.LinkedHashSet[string],
+	bindings []callParamBinding,
+	namesToAlias *inlineIDSet,
 	hasSummary bool,
 	knownReferencesThis bool,
 ) rhino.Node {
-	if namesToAlias == nil || namesToAlias.IsEmpty() {
+	paramReplacements := &m.paramReplacementsScratch
+	paramReplacements.clear()
+	if namesToAlias.isEmpty() {
 		// There are no names to alias. Just inline the arguments directly.
-		replacements := &m.paramReplacementsScratch
-		replacements.Clear()
-		for key, value := range paramToArgMap.All() {
-			replacements.Put(key, value.Arg())
+		for _, b := range bindings {
+			paramReplacements.put(b.nameID, b.argNode)
 		}
-		result := m.functionArgumentInjector.Inject(m.compiler, fnTemplateRoot, rhino.NilNode, replacements)
+		result := m.functionArgumentInjector.injectByID(m.compiler, fnTemplateRoot, rhino.NilNode, paramReplacements, true)
 		jutil.CheckState(result == fnTemplateRoot)
-		return result
-	} else {
-		// Create local alias of names that can not be safely used directly.
-
-		// A map from function parameter to the value it should be replaced with post-inlining.
-		// This is a subset of paramToArg: we exclude parameters for which we create
-		// an explicit alias.
-		paramReplacements := &m.paramReplacementsScratch
-		paramReplacements.Clear()
-
-		// Declare the aliases in the same order as the arguments are defined.
-		newAliasesToAdd := m.newAliasesToAddScratch[:0]
-		// NOTE: paramToArgMap is a linked map so we get the parameters in the order that they were
-		// declared.
-		for name, arg := range paramToArgMap.All() {
-			if !namesToAlias.Contains(name) {
-				// Replace references to the parameter with the argument directly.
-				paramReplacements.Put(name, arg.Arg())
-				continue
-			}
-			if name == FunctionArgumentInjector_THIS_MARKER {
-				// Update "this". We only need to create an alias if "this" is referenced
-				// and the value of "this" is not Token.THIS, or the value of "this" has side effects.
-				originalValue := arg.Arg()
-				replacement := originalValue
-				if !originalValue.IsThis() {
-					referencesThis := knownReferencesThis
-					if !hasSummary {
-						referencesThis = NodeUtil_ReferencesEnclosingReceiver(fnTemplateRoot)
-					}
-					if referencesThis || m.compiler.GetAstAnalyzer().MayHaveSideEffects(originalValue) {
-						newName := m.GetUniqueThisName()
-						newValue := m.takeOrCloneCallArg(originalValue)
-						newNode := NodeUtil_NewVarNode(newName, newValue).SrcrefTreeIfMissing(newValue)
-						newAliasesToAdd = append(newAliasesToAdd, newNode)
-						replacement = rhino.IR_Name(newName).SrcrefTree(newValue)
-					}
-				}
-				paramReplacements.Put(FunctionArgumentInjector_THIS_MARKER, replacement)
-			} else {
-				// Add an alias for a given parameter/argument. For example, if inlining this function:
-				//
-				//  function f(x) { use(x, x); } f(computeValue());
-				//
-				// This code defines
-				//    var x = computeValue();
-				// (as use(computeValue(), computeValue()) would compute the value twice).
-				newName := arg.ParamNode().CloneNode()
-				newValue := m.takeOrCloneCallArg(arg.Arg())
-				newName.Srcref(newValue) // source information should point to the argument.
-				newNode := rhino.IR_VarWithValue(newName, newValue).SrcrefTreeIfMissing(newValue)
-				newAliasesToAdd = append(newAliasesToAdd, newNode)
-			}
-		}
-		m.newAliasesToAddScratch = newAliasesToAdd[:0]
-
-		// Inline the arguments.
-		result := m.functionArgumentInjector.Inject(m.compiler, fnTemplateRoot, rhino.NilNode, paramReplacements)
-		jutil.CheckState(result == fnTemplateRoot)
-
-		// Now that the names have been replaced, add the new aliases for
-		// the old names.
-		for i := len(newAliasesToAdd) - 1; i >= 0; i-- {
-			fnTemplateRoot.AddChildToFront(newAliasesToAdd[i])
-		}
-
 		return result
 	}
+
+	// Create local alias of names that can not be safely used directly.
+	//
+	// A map from function parameter to the value it should be replaced with post-inlining.
+	// This is a subset of bindings: we exclude parameters for which we create
+	// an explicit alias.
+	// Declare the aliases in the same order as the arguments are defined.
+	newAliasesToAdd := m.newAliasesToAddScratch[:0]
+	for _, b := range bindings {
+		if !namesToAlias.contains(b.nameID) {
+			// Replace references to the parameter with the argument directly.
+			paramReplacements.put(b.nameID, b.argNode)
+			continue
+		}
+		if b.nameID == calleeThisMarkerID {
+			// Update "this". We only need to create an alias if "this" is referenced
+			// and the value of "this" is not Token.THIS, or the value of "this" has side effects.
+			originalValue := b.argNode
+			replacement := originalValue
+			if !originalValue.IsThis() {
+				referencesThis := knownReferencesThis
+				if !hasSummary {
+					referencesThis = NodeUtil_ReferencesEnclosingReceiver(fnTemplateRoot)
+				}
+				if referencesThis || m.compiler.GetAstAnalyzer().MayHaveSideEffects(originalValue) {
+					newName := m.GetUniqueThisName()
+					newValue := m.takeOrCloneCallArg(originalValue)
+					newNode := NodeUtil_NewVarNode(newName, newValue).SrcrefTreeIfMissing(newValue)
+					newAliasesToAdd = append(newAliasesToAdd, newNode)
+					replacement = rhino.IR_Name(newName).SrcrefTree(newValue)
+				}
+			}
+			paramReplacements.put(calleeThisMarkerID, replacement)
+		} else {
+			// Add an alias for a given parameter/argument. For example, if inlining this function:
+			//
+			//  function f(x) { use(x, x); } f(computeValue());
+			//
+			// This code defines
+			//    var x = computeValue();
+			// (as use(computeValue(), computeValue()) would compute the value twice).
+			newName := b.paramNode.CloneNode()
+			newValue := m.takeOrCloneCallArg(b.argNode)
+			newName.Srcref(newValue) // source information should point to the argument.
+			newNode := rhino.IR_VarWithValue(newName, newValue).SrcrefTreeIfMissing(newValue)
+			newAliasesToAdd = append(newAliasesToAdd, newNode)
+		}
+	}
+	m.newAliasesToAddScratch = newAliasesToAdd[:0]
+
+	// Inline the arguments.
+	result := m.functionArgumentInjector.injectByID(m.compiler, fnTemplateRoot, rhino.NilNode, paramReplacements, true)
+	jutil.CheckState(result == fnTemplateRoot)
+
+	// Now that the names have been replaced, add the new aliases for
+	// the old names.
+	for i := len(newAliasesToAdd) - 1; i >= 0; i-- {
+		fnTemplateRoot.AddChildToFront(newAliasesToAdd[i])
+	}
+
+	return result
 }
 
 // FunctionToBlockMutator_ReplaceReturns converts returns to assignments and

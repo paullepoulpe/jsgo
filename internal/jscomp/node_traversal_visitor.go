@@ -228,7 +228,7 @@ func (b *NodeTraversal_AbstractScopedCallbackBase) ExitScope(t *NodeTraversal) {
 
 type cfgStackEntry struct {
 	root rhino.Node
-	cfg  ControlFlowGraph[rhino.Node]
+	cfg  *ControlFlowGraph[rhino.Node]
 }
 
 // cfgScopeStack tracks and lazily computes ControlFlowGraphs for enclosing CFG
@@ -286,7 +286,7 @@ func (s *cfgScopeStack) popScopeRoot(scopeRoot rhino.Node) {
 
 // PeekCurrentScopeCfg returns the already-computed ControlFlowGraph for the
 // current scope if one has been materialized, or nil otherwise.
-func (s *cfgScopeStack) PeekCurrentScopeCfg() ControlFlowGraph[rhino.Node] {
+func (s *cfgScopeStack) PeekCurrentScopeCfg() *ControlFlowGraph[rhino.Node] {
 	idx := len(s.cfgs) - 1
 	if idx < 0 {
 		return nil
@@ -297,7 +297,7 @@ func (s *cfgScopeStack) PeekCurrentScopeCfg() ControlFlowGraph[rhino.Node] {
 // GetControlFlowGraph gets the control flow graph for the current JS scope.
 //
 // Java: NodeTraversal.AbstractCfgCallback.getControlFlowGraph(AbstractCompiler)
-func (s *cfgScopeStack) GetControlFlowGraph(compiler AbstractCompiler) ControlFlowGraph[rhino.Node] {
+func (s *cfgScopeStack) GetControlFlowGraph(compiler AbstractCompiler) *ControlFlowGraph[rhino.Node] {
 	idx := len(s.cfgs) - 1
 	jutil.CheckState(idx >= 0)
 	if cfg := s.cfgs[idx].cfg; cfg != nil {
@@ -322,7 +322,7 @@ type NodeTraversal_AbstractCfgCallback interface {
 	NodeTraversal_ScopedCallback
 
 	// Java: NodeTraversal.AbstractCfgCallback.getControlFlowGraph(AbstractCompiler)
-	GetControlFlowGraph(compiler AbstractCompiler) ControlFlowGraph[rhino.Node]
+	GetControlFlowGraph(compiler AbstractCompiler) *ControlFlowGraph[rhino.Node]
 
 	// Java: NodeTraversal.AbstractCfgCallback.enterScopeWithCfg(NodeTraversal)
 	EnterScopeWithCfg(t *NodeTraversal)

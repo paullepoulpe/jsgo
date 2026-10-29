@@ -62,4 +62,10 @@ func TestTranspileResult_EmbedSourceMap(t *testing.T) {
 		NewTranspileResult(jutil.NewURI("a"), "b", "c\n//# sourceMappingURL=data:,%7B%22version%22%3A%203%7D\n", ""))
 	jsaJavaEq(t, result.EmbedSourcemapUrl("foo.js.map"),
 		NewTranspileResult(jutil.NewURI("a"), "b", "c\n//# sourceMappingURL=foo.js.map\n", "{\"version\": 3}"))
+	jsaJavaEq(t, result.EmbedSourcemapBase64(),
+		NewTranspileResult(jutil.NewURI("a"), "b", "c\n//# sourceMappingURL=data:application/json;base64,eyJ2ZXJzaW9uIjogM30=\n", ""))
+
+	safeAndUnicode := NewTranspileResult(jutil.NewURI("a"), "b", "c", "aZ09-_.* é😀")
+	jsaJavaEq(t, safeAndUnicode.EmbedSourcemap(),
+		NewTranspileResult(jutil.NewURI("a"), "b", "c\n//# sourceMappingURL=data:,aZ09-_.*%20%C3%A9%F0%9F%98%80\n", ""))
 }

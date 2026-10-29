@@ -1,4 +1,8 @@
 // Port of com/google/javascript/refactoring/Matchers.java @ closure-compiler v20261021
+// Port of com/google/javascript/refactoring/Matcher.java @ closure-compiler v20261021
+// Port of com/google/javascript/refactoring/Match.java @ closure-compiler v20261021
+// Port of com/google/javascript/refactoring/NodeMetadata.java @ closure-compiler v20261021
+// Port of com/google/javascript/refactoring/JsSourceMatcher.java @ closure-compiler v20261021
 
 /*
  * Copyright 2014 The Closure Compiler Authors.
@@ -27,6 +31,111 @@ import (
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
+
+// Matcher is a function that knows how to match a Node for a specific
+// pattern. For example of Matchers, see Matchers.
+//
+// Go-only: language-adapter — Java's @FunctionalInterface Matcher is a func
+// type so closures convert directly without an adapter wrapper.
+type Matcher func(n rhino.Node, metadata *NodeMetadata) bool
+
+// Matches returns true if the specified Node and NodeMetadata match the
+// given pattern.
+//
+// Java: Matcher.matches(Node, NodeMetadata)
+func (m Matcher) Matches(n rhino.Node, metadata *NodeMetadata) bool {
+	return m(n, metadata)
+}
+
+// Match is an object that contains the information for a given match.
+type Match struct {
+	node     rhino.Node
+	metadata *NodeMetadata
+}
+
+// Java: Match(Node, NodeMetadata)
+func NewMatch(node rhino.Node, metadata *NodeMetadata) *Match {
+	return &Match{node: node, metadata: metadata}
+}
+
+// GetNode returns the node that matched the given conditions.
+//
+// Java: Match.getNode()
+func (m *Match) GetNode() rhino.Node {
+	return m.node
+}
+
+// GetMetadata returns the metadata for this match.
+//
+// Java: Match.getMetadata()
+func (m *Match) GetMetadata() *NodeMetadata {
+	return m.metadata
+}
+
+// NodeMetadata is the class that holds metadata (or meta objects) for use by
+// JsFlume that aren't contained within the Node itself.
+type NodeMetadata struct {
+	compiler  jscomp.AbstractCompiler
+	traversal *jscomp.NodeTraversal
+}
+
+// Java: NodeMetadata(AbstractCompiler)
+func NewNodeMetadata(compiler jscomp.AbstractCompiler) *NodeMetadata {
+	return newNodeMetadataWithTraversal(compiler, nil)
+}
+
+// Java: NodeMetadata(AbstractCompiler, NodeTraversal)
+func newNodeMetadataWithTraversal(compiler jscomp.AbstractCompiler, traversal *jscomp.NodeTraversal) *NodeMetadata {
+	return &NodeMetadata{compiler: compiler, traversal: traversal}
+}
+
+// Java: NodeMetadata.fromTraversal(NodeTraversal)
+func NodeMetadata_FromTraversal(traversal *jscomp.NodeTraversal) *NodeMetadata {
+	return newNodeMetadataWithTraversal(traversal.GetCompiler(), traversal)
+}
+
+// Java: NodeMetadata.getCompiler()
+func (m *NodeMetadata) GetCompiler() jscomp.AbstractCompiler {
+	return m.compiler
+}
+
+// Java: NodeMetadata.getTraversal()
+func (m *NodeMetadata) GetTraversal() *jscomp.NodeTraversal {
+	return m.traversal
+}
+
+// JsSourceMatcher is a Matcher that can take arbitrary JS source code and use
+// it as a template to find matches in other source code.
+//
+// Java: public final class JsSourceMatcher implements Matcher
+type JsSourceMatcher struct {
+	matcher *jscomp.TemplateAstMatcher
+}
+
+// NewJsSourceMatcher constructs this matcher with a Function node that serves
+// as the template to match all other nodes against. The body of the function
+// will be used to match against.
+//
+// Java: JsSourceMatcher(AbstractCompiler, Node, TypeMatchingStrategy)
+func NewJsSourceMatcher(
+	compiler jscomp.AbstractCompiler, templateNode rhino.Node, typeMatchingStrategy jscomp.TypeMatchingStrategy) *JsSourceMatcher {
+	return &JsSourceMatcher{
+		matcher: jscomp.NewTemplateAstMatcher(compiler, templateNode, typeMatchingStrategy),
+	}
+}
+
+// Java: JsSourceMatcher.matches(Node, NodeMetadata)
+func (m *JsSourceMatcher) Matches(n rhino.Node, metadata *NodeMetadata) bool {
+	return m.matcher.Matches(n)
+}
+
+// GetTemplateNodeToMatchMap returns a map from named template node strings to
+// Nodes that were the equivalent matches from the last matched template.
+//
+// Java: JsSourceMatcher.getTemplateNodeToMatchMap()
+func (m *JsSourceMatcher) GetTemplateNodeToMatchMap() *jutil.LinkedHashMap[string, rhino.Node] {
+	return m.matcher.GetTemplateNodeToMatchMap()
+}
 
 // Matchers contains common Matchers useful for JsFlume refactorings.
 

@@ -253,8 +253,13 @@ func (m *ClosureRewriteModule) updateGoogRequire(t *NodeTraversal, require ast.C
 	namespaceId := namespaceIdNode.GetString()
 
 	targetIsNonLegacyGoogModule := m.rewriteState.containsModule(namespaceId) && !m.rewriteState.isLegacyModule(namespaceId)
-	importHasAlias := NodeUtil_IsNameDeclaration(statementNode)
-	isDestructuring := statementNode.GetFirstChild().IsDestructuringLhs()
+	decl, importHasAlias := ast.AsNameDeclaration(statementNode)
+	isDestructuring := false
+	if importHasAlias {
+		if first, ok := decl.FirstDeclarator(); ok {
+			_, isDestructuring = first.AsDestructuringLhs()
+		}
+	}
 
 	currentScriptIsAModule := m.currentScript.isModule
 	requireDirectlyStoredInAlias := NodeUtil_IsNameDeclaration(call.GetGrandparent())
@@ -266,10 +271,10 @@ func (m *ClosureRewriteModule) updateGoogRequire(t *NodeTraversal, require ast.C
 		if !hasExportedNamespace {
 			// Missing provide/module will be reported elsewhere.
 		} else if _, ok := ast.AsName(lhs); ok {
-			aliasNode := statementNode.GetFirstChild()
-			aliasName := aliasNode.GetString()
+			aliasNameNode := decl.MustFirstDeclarator().MustName()
+			aliasName := aliasNameNode.Ident()
 			m.recordNameToInline(aliasName, exportedNamespace, namespaceId, true)
-			m.maybeAddAliasToSymbolTable(aliasNode, m.currentScript.namespaceIdOrNull())
+			m.maybeAddAliasToSymbolTable(aliasNameNode.Node(), m.currentScript.namespaceIdOrNull())
 		} else if pattern, ok := closureRewriteModule_destructuringImport(lhs); ok {
 			m.maybeWarnForInvalidDestructuring(t, lhs.GetParent(), namespaceId)
 			moduleNs := m.currentScript.namespaceIdOrNull()
@@ -277,8 +282,15 @@ func (m *ClosureRewriteModule) updateGoogRequire(t *NodeTraversal, require ast.C
 			for prop := range pattern.Props() {
 				importSpec := prop.Node()
 				jutil.CheckStateMsg1(importSpec.HasChildren(), "%s", importSpec)
-				importedProperty := importSpec.GetString()
-				aliasNode := importSpec.GetFirstChild()
+				var importedProperty string
+				var aliasNode rhino.Node
+				if key, ok := prop.AsStringKey(); ok {
+					importedProperty = key.Key()
+					aliasNode = key.Value().Node()
+				} else {
+					importedProperty = importSpec.GetString()
+					aliasNode = importSpec.GetFirstChild()
+				}
 				aliasName := aliasNode.GetString()
 				fullName := exportedNamespace + "." + importedProperty
 				m.recordNameToInline(aliasName, fullName, "", false)
@@ -599,10 +611,12 @@ func (m *ClosureRewriteModule) maybeUpdateTopLevelName(t *NodeTraversal, nameNod
 	if var_.GetNameNode() == nameNode &&
 		nameNode.GetParent().IsStringKey() &&
 		nameNode.GetGrandparent().IsObjectPattern() {
-		destructuringLhsNode := nameNode.GetGrandparent().GetParent()
-		if NodeUtil_IsCallToNode(destructuringLhsNode.GetLastChild(), closureRewriteModule_GOOG_REQUIRE) ||
-			NodeUtil_IsCallToNode(destructuringLhsNode.GetLastChild(), closureRewriteModule_GOOG_REQUIRETYPE) {
-			return
+		if dlhs, ok := ast.AsDestructuringLhs(nameNode.GetGrandparent().GetParent()); ok {
+			if init, hasInit := dlhs.Init(); hasInit &&
+				(NodeUtil_IsCallToNode(init.Node(), closureRewriteModule_GOOG_REQUIRE) ||
+					NodeUtil_IsCallToNode(init.Node(), closureRewriteModule_GOOG_REQUIRETYPE)) {
+				return
+			}
 		}
 	}
 
@@ -992,7 +1006,7 @@ func closureRewriteModule_safeSetStringIfDeclaration(
 		nameParent.ReplaceWith(placeholder)
 		newDeclaration := NodeUtil_GetDeclarationFromName(newQualifiedName, nameParent, rhino.Token_VAR, jsdoc)
 		if NodeUtil_IsExprAssign(newDeclaration) {
-			assign := newDeclaration.GetOnlyChild()
+			assign := ast.MustExprStmt(newDeclaration).Expr().Node()
 			assign.SetJSType(nameNode.GetJSType())
 			closureRewriteModule_updateSourceInfoForExportedTopLevelVariable(assign, nameNode)
 		}
@@ -1011,7 +1025,7 @@ func closureRewriteModule_safeSetStringIfDeclaration(
 		}
 		newStatement := NodeUtil_GetDeclarationFromName(newQualifiedName, rhs, rhino.Token_VAR, jsdoc)
 		if NodeUtil_IsExprAssign(newStatement) {
-			assign := newStatement.GetOnlyChild()
+			assign := ast.MustExprStmt(newStatement).Expr().Node()
 			assign.SetJSType(nameNode.GetJSType())
 			closureRewriteModule_updateSourceInfoForExportedTopLevelVariable(assign, nameNode)
 			if nameParent.IsConst() {
@@ -1093,8 +1107,8 @@ func closureRewriteModule_assignToTarget(n rhino.Node) (ast.Assign, bool) {
 }
 
 func closureRewriteModule_isTypedefTarget(n rhino.Node) bool {
-	parent := n.GetParent()
-	return parent.IsExprResult() && parent.GetFirstChild() == n
+	stmt, ok := ast.AsExprStmt(n.GetParent())
+	return ok && stmt.Expr().Is(n)
 }
 
 func (m *ClosureRewriteModule) maybeAddAliasToSymbolTable(n rhino.Node, moduleOrNull string) {

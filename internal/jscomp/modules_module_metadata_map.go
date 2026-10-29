@@ -21,7 +21,6 @@ package jscomp
 
 import (
 	"iter"
-	"slices"
 	"strconv"
 	"strings"
 
@@ -194,23 +193,6 @@ func (sc *StringCounts) String() string {
 	return sb.String()
 }
 
-func (sc *StringCounts) clone() StringCounts {
-	if len(sc.entries) == 0 {
-		return StringCounts{}
-	}
-	cp := StringCounts{
-		entries: slices.Clone(sc.entries),
-		size:    sc.size,
-	}
-	if sc.index != nil {
-		cp.index = make(map[string]int, len(sc.entries))
-		for i, e := range cp.entries {
-			cp.index[e.Key] = i
-		}
-	}
-	return cp
-}
-
 // StringCountsElements is a zero-allocation view over the distinct strings in a StringCounts.
 type StringCountsElements struct {
 	sc *StringCounts
@@ -376,10 +358,8 @@ func moduleMetadataMap_immutableMapCopyOf(
 // AutoValue_ModuleMetadataMap_ModuleMetadata is folded into this struct,
 // and the seven string multisets are inline zero-alloc StringCounts values.
 type ModuleMetadataMap_ModuleMetadata struct {
-	moduleType                        ModuleMetadataMap_ModuleType
 	rootNode                          rhino.Node
-	usesClosure                       bool
-	isTestOnly                        bool
+	path                              *ModuleLoader_ModulePath
 	googNamespaces                    StringCounts
 	stronglyRequiredGoogNamespaces    StringCounts
 	dynamicallyRequiredGoogNamespaces StringCounts
@@ -388,7 +368,9 @@ type ModuleMetadataMap_ModuleMetadata struct {
 	es6ImportSpecifiers               StringCounts
 	nestedModules                     []*ModuleMetadataMap_ModuleMetadata
 	readToggles                       StringCounts
-	path                              *ModuleLoader_ModulePath
+	moduleType                        ModuleMetadataMap_ModuleType
+	usesClosure                       bool
+	isTestOnly                        bool
 }
 
 // Java: ModuleMetadataMap.ModuleMetadata.moduleType()
@@ -568,26 +550,6 @@ func (m *ModuleMetadataMap_ModuleMetadata) Path() *ModuleLoader_ModulePath {
 	return m.path
 }
 
-// Java: ModuleMetadataMap.ModuleMetadata.builder()
-func ModuleMetadataMap_ModuleMetadata_Builder_() *ModuleMetadataMap_ModuleMetadata_Builder {
-	return &ModuleMetadataMap_ModuleMetadata_Builder{}
-}
-
-// Equals is reference equality.
-//
-// Java: ModuleMetadataMap.ModuleMetadata.equals(Object)
-func (m *ModuleMetadataMap_ModuleMetadata) Equals(other any) bool {
-	o, ok := other.(*ModuleMetadataMap_ModuleMetadata)
-	return ok && o == m
-}
-
-// HashCode is the identity hash code.
-//
-// Java: ModuleMetadataMap.ModuleMetadata.hashCode()
-func (m *ModuleMetadataMap_ModuleMetadata) HashCode() int32 {
-	return jutil.IdentityHashCodeOfPointer(m)
-}
-
 // Java: AutoValue_ModuleMetadataMap_ModuleMetadata.toString()
 func (m *ModuleMetadataMap_ModuleMetadata) String() string {
 	rootNode := "null"
@@ -597,6 +559,19 @@ func (m *ModuleMetadataMap_ModuleMetadata) String() string {
 	path := "null"
 	if m.path != nil {
 		path = m.path.String()
+	}
+	nested := "[]"
+	if len(m.nestedModules) > 0 {
+		var sb strings.Builder
+		sb.WriteByte('[')
+		for i, nm := range m.nestedModules {
+			if i > 0 {
+				sb.WriteString(", ")
+			}
+			sb.WriteString(nm.String())
+		}
+		sb.WriteByte(']')
+		nested = sb.String()
 	}
 	return "ModuleMetadata{" +
 		"moduleType=" + m.moduleType.String() + ", " +
@@ -609,27 +584,31 @@ func (m *ModuleMetadataMap_ModuleMetadata) String() string {
 		"maybeRequiredGoogNamespaces=" + m.maybeRequiredGoogNamespaces.String() + ", " +
 		"weaklyRequiredGoogNamespaces=" + m.weaklyRequiredGoogNamespaces.String() + ", " +
 		"es6ImportSpecifiers=" + m.es6ImportSpecifiers.String() + ", " +
-		"nestedModules=" + jutil.CollectionToString(m.nestedModules) + ", " +
+		"nestedModules=" + nested + ", " +
 		"readToggles=" + m.readToggles.String() + ", " +
 		"path=" + path +
 		"}"
 }
 
-// ModuleMetadataMap_ModuleMetadata_Builder is the builder for
+// ModuleMetadataMap_ModuleMetadata_Builder is a 1-word value builder for
 // ModuleMetadata (AutoValue_ModuleMetadataMap_ModuleMetadata.Builder).
 type ModuleMetadataMap_ModuleMetadata_Builder struct {
-	m     ModuleMetadataMap_ModuleMetadata
-	built bool
+	m *ModuleMetadataMap_ModuleMetadata
+}
+
+// Java: ModuleMetadataMap.ModuleMetadata.builder()
+func ModuleMetadataMap_ModuleMetadata_Builder_() ModuleMetadataMap_ModuleMetadata_Builder {
+	return ModuleMetadataMap_ModuleMetadata_Builder{m: &ModuleMetadataMap_ModuleMetadata{}}
 }
 
 // Java: ModuleMetadataMap.ModuleMetadata.Builder.addGoogNamespace(String)
-func (b *ModuleMetadataMap_ModuleMetadata_Builder) AddGoogNamespace(namespace string) *ModuleMetadataMap_ModuleMetadata_Builder {
+func (b ModuleMetadataMap_ModuleMetadata_Builder) AddGoogNamespace(namespace string) ModuleMetadataMap_ModuleMetadata_Builder {
 	b.m.googNamespaces.Add(namespace)
 	return b
 }
 
 // Java: AutoValue_ModuleMetadataMap_ModuleMetadata.Builder.moduleType(ModuleType)
-func (b *ModuleMetadataMap_ModuleMetadata_Builder) ModuleType(moduleType ModuleMetadataMap_ModuleType) *ModuleMetadataMap_ModuleMetadata_Builder {
+func (b ModuleMetadataMap_ModuleMetadata_Builder) ModuleType(moduleType ModuleMetadataMap_ModuleType) ModuleMetadataMap_ModuleMetadata_Builder {
 	b.m.moduleType = moduleType
 	return b
 }
@@ -637,99 +616,86 @@ func (b *ModuleMetadataMap_ModuleMetadata_Builder) ModuleType(moduleType ModuleM
 // GetModuleType is the getter overload moduleType().
 //
 // Java: AutoValue_ModuleMetadataMap_ModuleMetadata.Builder.moduleType()
-func (b *ModuleMetadataMap_ModuleMetadata_Builder) GetModuleType() ModuleMetadataMap_ModuleType {
+func (b ModuleMetadataMap_ModuleMetadata_Builder) GetModuleType() ModuleMetadataMap_ModuleType {
 	return b.m.moduleType
 }
 
 // RootNode takes a possibly-nil root.
 //
 // Java: AutoValue_ModuleMetadataMap_ModuleMetadata.Builder.rootNode(Node)
-func (b *ModuleMetadataMap_ModuleMetadata_Builder) RootNode(rootNode rhino.Node) *ModuleMetadataMap_ModuleMetadata_Builder {
+func (b ModuleMetadataMap_ModuleMetadata_Builder) RootNode(rootNode rhino.Node) ModuleMetadataMap_ModuleMetadata_Builder {
 	b.m.rootNode = rootNode
 	return b
 }
 
 // Java: AutoValue_ModuleMetadataMap_ModuleMetadata.Builder.usesClosure(boolean)
-func (b *ModuleMetadataMap_ModuleMetadata_Builder) UsesClosure(usesClosure bool) *ModuleMetadataMap_ModuleMetadata_Builder {
+func (b ModuleMetadataMap_ModuleMetadata_Builder) UsesClosure(usesClosure bool) ModuleMetadataMap_ModuleMetadata_Builder {
 	b.m.usesClosure = usesClosure
 	return b
 }
 
 // Java: AutoValue_ModuleMetadataMap_ModuleMetadata.Builder.isTestOnly(boolean)
-func (b *ModuleMetadataMap_ModuleMetadata_Builder) IsTestOnly(isTestOnly bool) *ModuleMetadataMap_ModuleMetadata_Builder {
+func (b ModuleMetadataMap_ModuleMetadata_Builder) IsTestOnly(isTestOnly bool) ModuleMetadataMap_ModuleMetadata_Builder {
 	b.m.isTestOnly = isTestOnly
 	return b
 }
 
 // Java: AutoValue_ModuleMetadataMap_ModuleMetadata.Builder.googNamespacesBuilder()
-func (b *ModuleMetadataMap_ModuleMetadata_Builder) GoogNamespacesBuilder() *StringCounts {
+func (b ModuleMetadataMap_ModuleMetadata_Builder) GoogNamespacesBuilder() *StringCounts {
 	return &b.m.googNamespaces
 }
 
 // HasGoogNamespace reports whether namespace has been added to googNamespacesBuilder.
-func (b *ModuleMetadataMap_ModuleMetadata_Builder) HasGoogNamespace(namespace string) bool {
+func (b ModuleMetadataMap_ModuleMetadata_Builder) HasGoogNamespace(namespace string) bool {
 	return b.m.googNamespaces.Contains(namespace)
 }
 
 // Java: AutoValue_ModuleMetadataMap_ModuleMetadata.Builder.stronglyRequiredGoogNamespacesBuilder()
-func (b *ModuleMetadataMap_ModuleMetadata_Builder) StronglyRequiredGoogNamespacesBuilder() *StringCounts {
+func (b ModuleMetadataMap_ModuleMetadata_Builder) StronglyRequiredGoogNamespacesBuilder() *StringCounts {
 	return &b.m.stronglyRequiredGoogNamespaces
 }
 
 // Java: AutoValue_ModuleMetadataMap_ModuleMetadata.Builder.dynamicallyRequiredGoogNamespacesBuilder()
-func (b *ModuleMetadataMap_ModuleMetadata_Builder) DynamicallyRequiredGoogNamespacesBuilder() *StringCounts {
+func (b ModuleMetadataMap_ModuleMetadata_Builder) DynamicallyRequiredGoogNamespacesBuilder() *StringCounts {
 	return &b.m.dynamicallyRequiredGoogNamespaces
 }
 
 // Java: AutoValue_ModuleMetadataMap_ModuleMetadata.Builder.maybeRequiredGoogNamespacesBuilder()
-func (b *ModuleMetadataMap_ModuleMetadata_Builder) MaybeRequiredGoogNamespacesBuilder() *StringCounts {
+func (b ModuleMetadataMap_ModuleMetadata_Builder) MaybeRequiredGoogNamespacesBuilder() *StringCounts {
 	return &b.m.maybeRequiredGoogNamespaces
 }
 
 // Java: AutoValue_ModuleMetadataMap_ModuleMetadata.Builder.weaklyRequiredGoogNamespacesBuilder()
-func (b *ModuleMetadataMap_ModuleMetadata_Builder) WeaklyRequiredGoogNamespacesBuilder() *StringCounts {
+func (b ModuleMetadataMap_ModuleMetadata_Builder) WeaklyRequiredGoogNamespacesBuilder() *StringCounts {
 	return &b.m.weaklyRequiredGoogNamespaces
 }
 
 // Java: AutoValue_ModuleMetadataMap_ModuleMetadata.Builder.es6ImportSpecifiersBuilder()
-func (b *ModuleMetadataMap_ModuleMetadata_Builder) Es6ImportSpecifiersBuilder() *StringCounts {
+func (b ModuleMetadataMap_ModuleMetadata_Builder) Es6ImportSpecifiersBuilder() *StringCounts {
 	return &b.m.es6ImportSpecifiers
 }
 
 // AddNestedModule appends module to the nestedModules builder list.
-func (b *ModuleMetadataMap_ModuleMetadata_Builder) AddNestedModule(module *ModuleMetadataMap_ModuleMetadata) {
+func (b ModuleMetadataMap_ModuleMetadata_Builder) AddNestedModule(module *ModuleMetadataMap_ModuleMetadata) {
 	b.m.nestedModules = append(b.m.nestedModules, jutil.CheckNotNull(module))
 }
 
 // Java: AutoValue_ModuleMetadataMap_ModuleMetadata.Builder.readTogglesBuilder()
-func (b *ModuleMetadataMap_ModuleMetadata_Builder) ReadTogglesBuilder() *StringCounts {
+func (b ModuleMetadataMap_ModuleMetadata_Builder) ReadTogglesBuilder() *StringCounts {
 	return &b.m.readToggles
 }
 
 // Path takes a possibly-nil path.
 //
 // Java: AutoValue_ModuleMetadataMap_ModuleMetadata.Builder.path(ModulePath)
-func (b *ModuleMetadataMap_ModuleMetadata_Builder) Path(path *ModuleLoader_ModulePath) *ModuleMetadataMap_ModuleMetadata_Builder {
+func (b ModuleMetadataMap_ModuleMetadata_Builder) Path(path *ModuleLoader_ModulePath) ModuleMetadataMap_ModuleMetadata_Builder {
 	b.m.path = path
 	return b
 }
 
 // Java: AutoValue_ModuleMetadataMap_ModuleMetadata.Builder.build()
-func (b *ModuleMetadataMap_ModuleMetadata_Builder) Build() *ModuleMetadataMap_ModuleMetadata {
-	if !b.built {
-		b.built = true
-		return &b.m
-	}
-	cp := b.m
-	cp.googNamespaces = b.m.googNamespaces.clone()
-	cp.stronglyRequiredGoogNamespaces = b.m.stronglyRequiredGoogNamespaces.clone()
-	cp.dynamicallyRequiredGoogNamespaces = b.m.dynamicallyRequiredGoogNamespaces.clone()
-	cp.maybeRequiredGoogNamespaces = b.m.maybeRequiredGoogNamespaces.clone()
-	cp.weaklyRequiredGoogNamespaces = b.m.weaklyRequiredGoogNamespaces.clone()
-	cp.es6ImportSpecifiers = b.m.es6ImportSpecifiers.clone()
-	cp.nestedModules = slices.Clone(b.m.nestedModules)
-	cp.readToggles = b.m.readToggles.clone()
-	return &cp
+func (b ModuleMetadataMap_ModuleMetadata_Builder) Build() *ModuleMetadataMap_ModuleMetadata {
+	return b.m
 }
 
 // GetModulesByPath returns the map from module path to module. These

@@ -631,7 +631,7 @@ func (c *LiveVariablesAnalysisTest) GetFlowStateAtX(src string, async bool) *Dat
 }
 
 // Java: LiveVariablesAnalysisTest.getFlowStateAtX(Node, ControlFlowGraph<Node>)
-func (c *LiveVariablesAnalysisTest) GetFlowStateAtXOfNode(node rhino.Node, cfg ControlFlowGraph[rhino.Node]) *DataFlowAnalysis_LinearFlowState[*LiveVariablesAnalysis_LiveVariableLattice] {
+func (c *LiveVariablesAnalysisTest) GetFlowStateAtXOfNode(node rhino.Node, cfg *ControlFlowGraph[rhino.Node]) *DataFlowAnalysis_LinearFlowState[*LiveVariablesAnalysis_LiveVariableLattice] {
 	if node.IsLabel() {
 		if node.GetFirstChild().GetString() == "X" {
 			return dataFlowAnalysis_linearFlowStateOf[*LiveVariablesAnalysis_LiveVariableLattice](cfg.GetLinkedDiGraphNode(node.GetLastChild()))
@@ -657,7 +657,7 @@ func (c *LiveVariablesAnalysisTest) GetFlowStateAtDeclaration(src string, name s
 // syntax.
 //
 // Java: LiveVariablesAnalysisTest.getFlowStateAtDeclaration(Node, ControlFlowGraph<Node>, String)
-func (c *LiveVariablesAnalysisTest) GetFlowStateAtDeclarationOfNode(node rhino.Node, cfg ControlFlowGraph[rhino.Node], name string) *DataFlowAnalysis_LinearFlowState[*LiveVariablesAnalysis_LiveVariableLattice] {
+func (c *LiveVariablesAnalysisTest) GetFlowStateAtDeclarationOfNode(node rhino.Node, cfg *ControlFlowGraph[rhino.Node], name string) *DataFlowAnalysis_LinearFlowState[*LiveVariablesAnalysis_LiveVariableLattice] {
 	if NodeUtil_IsNameDeclaration(node) {
 		if node.GetFirstChild().GetString() == name {
 			return dataFlowAnalysis_linearFlowStateOf[*LiveVariablesAnalysis_LiveVariableLattice](cfg.GetLinkedDiGraphNode(node))

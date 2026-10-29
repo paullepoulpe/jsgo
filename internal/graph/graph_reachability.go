@@ -31,13 +31,11 @@ import (
 //
 // See GraphNode.GetAnnotation.
 type GraphReachability[N comparable, E any] struct {
-	// TODO(user): This should work for undirected graphs when
-	// FixedPointGraphTraversal accepts them.
 	Graph DiGraph[N, E]
 
 	EdgePredicate func(*GraphReachability_EdgeTuple[N, E]) bool
 	edgeTuple     GraphReachability_EdgeTuple[N, E]
-	queue         []DiGraph_DiGraphNode[N, E]
+	queue         []*LinkedDiGraphNode[N, E]
 }
 
 // Java: GraphReachability(DiGraph<N, E>)
@@ -60,20 +58,20 @@ func NewGraphReachabilityWithPredicate[N comparable, E any](
 
 // getNode is graph.getNode(value), dereferenced: a missing value is a
 // NullPointerException at the Java call sites.
-func (r *GraphReachability[N, E]) getNode(value N) DiGraph_DiGraphNode[N, E] {
-	n := r.Graph.GetDiGraphNode(value)
+func (r *GraphReachability[N, E]) getNode(value N) *LinkedDiGraphNode[N, E] {
+	n := r.Graph.AsLinkedDirectedGraph().GetNode(value)
 	if n == nil {
 		panic(jutil.NewNullPointerException())
 	}
 	return n
 }
 
-func (r *GraphReachability[N, E]) propagateFrom(startNode DiGraph_DiGraphNode[N, E]) {
-	var queue []DiGraph_DiGraphNode[N, E]
+func (r *GraphReachability[N, E]) propagateFrom(startNode *LinkedDiGraphNode[N, E]) {
+	var queue []*LinkedDiGraphNode[N, E]
 	if cap(r.queue) > 0 {
 		queue = append(r.queue[:0], startNode)
 	} else {
-		queue = make([]DiGraph_DiGraphNode[N, E], 1, 32)
+		queue = make([]*LinkedDiGraphNode[N, E], 1, 32)
 		queue[0] = startNode
 	}
 	pred := r.EdgePredicate
@@ -81,16 +79,16 @@ func (r *GraphReachability[N, E]) propagateFrom(startNode DiGraph_DiGraphNode[N,
 		node := queue[head]
 		var sourceValue N
 		if pred != nil {
-			sourceValue = node.GetValue()
+			sourceValue = node.Value
 		}
-		for _, edge := range node.GetOutEdges() {
-			destNode := edge.GetDestination()
+		for _, edge := range node.OutEdgeList.Slice() {
+			destNode := edge.DestNode
 			if destNode.GetAnnotation() == GraphReachability_REACHABLE {
 				continue
 			}
 			if pred != nil {
 				r.edgeTuple.SourceNode = sourceValue
-				r.edgeTuple.Edge = edge.GetValue()
+				r.edgeTuple.Edge = edge.Value
 				if !pred(&r.edgeTuple) {
 					continue
 				}
@@ -109,7 +107,7 @@ func (r *GraphReachability[N, E]) propagateFrom(startNode DiGraph_DiGraphNode[N,
 
 // Java: GraphReachability.compute(N)
 func (r *GraphReachability[N, E]) Compute(entry N) {
-	r.Graph.ClearNodeAnnotations()
+	r.Graph.AsLinkedDirectedGraph().ClearNodeAnnotations()
 	entryNode := r.getNode(entry)
 	entryNode.SetAnnotation(GraphReachability_REACHABLE)
 	r.propagateFrom(entryNode)

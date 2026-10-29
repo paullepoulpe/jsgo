@@ -41,7 +41,7 @@ var (
 
 // Tests straight-line graphs.
 func TestCheckPathsBetweenNodes_Simple(t *testing.T) {
-	var g DiGraph[string, string] = LinkedDirectedGraph_Create[string, string]()
+	g := LinkedDirectedGraph_Create[string, string]()
 	g.CreateNode("a")
 	g.CreateNode("b")
 	g.CreateNode("c")
@@ -69,7 +69,7 @@ func TestCheckPathsBetweenNodes_Simple(t *testing.T) {
 // Tests a graph where some paths between the nodes are valid and others are
 // invalid.
 func TestCheckPathsBetweenNodes_SomeValidPaths(t *testing.T) {
-	var g DiGraph[string, string] = LinkedDirectedGraph_Create[string, string]()
+	g := LinkedDirectedGraph_Create[string, string]()
 	g.CreateNode("a")
 	g.CreateNode("b")
 	g.CreateNode("c")
@@ -88,7 +88,7 @@ func TestCheckPathsBetweenNodes_SomeValidPaths(t *testing.T) {
 
 // Tests a graph with many valid paths.
 func TestCheckPathsBetweenNodes_ManyValidPaths(t *testing.T) {
-	var g DiGraph[string, string] = LinkedDirectedGraph_Create[string, string]()
+	g := LinkedDirectedGraph_Create[string, string]()
 	g.CreateNode("a")
 	g.CreateNode("b")
 	g.CreateNode("c1")
@@ -109,7 +109,7 @@ func TestCheckPathsBetweenNodes_ManyValidPaths(t *testing.T) {
 
 // Tests a graph with some cycles.
 func TestCheckPathsBetweenNodes_Cycles1(t *testing.T) {
-	var g DiGraph[string, string] = LinkedDirectedGraph_Create[string, string]()
+	g := LinkedDirectedGraph_Create[string, string]()
 	g.CreateNode("a")
 	g.CreateNode("b")
 	g.CreateNode("c")
@@ -135,7 +135,7 @@ func TestCheckPathsBetweenNodes_Cycles1(t *testing.T) {
 // by a control flow graph that was being incorrectly analyzed by an early
 // version of CheckPathsBetweenNodes.
 func TestCheckPathsBetweenNodes_Cycles2(t *testing.T) {
-	var g DiGraph[string, string] = LinkedDirectedGraph_Create[string, string]()
+	g := LinkedDirectedGraph_Create[string, string]()
 	g.CreateNode("a")
 	g.CreateNode("b")
 	g.CreateNode("c")
@@ -154,7 +154,7 @@ func TestCheckPathsBetweenNodes_Cycles2(t *testing.T) {
 // by a control flow graph that was being incorrectly analyzed by an early
 // version of CheckPathsBetweenNodes.
 func TestCheckPathsBetweenNodes_Cycles3(t *testing.T) {
-	var g DiGraph[string, string] = LinkedDirectedGraph_Create[string, string]()
+	g := LinkedDirectedGraph_Create[string, string]()
 	g.CreateNode("a")
 	g.CreateNode("b")
 	g.CreateNode("c")
@@ -173,7 +173,7 @@ func TestCheckPathsBetweenNodes_Cycles3(t *testing.T) {
 // Much of the tests are done by testing all paths. We quickly verified that
 // some paths are indeed correct for the some path case.
 func TestCheckPathsBetweenNodes_SomePath1(t *testing.T) {
-	var g DiGraph[string, string] = LinkedDirectedGraph_Create[string, string]()
+	g := LinkedDirectedGraph_Create[string, string]()
 	g.CreateNode("a")
 	g.CreateNode("b")
 	g.CreateNode("c")
@@ -193,7 +193,7 @@ func TestCheckPathsBetweenNodes_SomePath1(t *testing.T) {
 
 func TestCheckPathsBetweenNodes_SomePath2(t *testing.T) {
 	// No Paths between nodes, by definition, always false.
-	var g DiGraph[string, string] = LinkedDirectedGraph_Create[string, string]()
+	g := LinkedDirectedGraph_Create[string, string]()
 	g.CreateNode("a")
 	g.CreateNode("b")
 
@@ -203,7 +203,7 @@ func TestCheckPathsBetweenNodes_SomePath2(t *testing.T) {
 }
 
 func TestCheckPathsBetweenNodes_SomePathRevisiting(t *testing.T) {
-	var g DiGraph[string, string] = LinkedDirectedGraph_Create[string, string]()
+	g := LinkedDirectedGraph_Create[string, string]()
 	g.CreateNode("1")
 	g.CreateNode("2a")
 	g.CreateNode("2b")
@@ -236,7 +236,7 @@ func TestCheckPathsBetweenNodes_SomePathRevisiting(t *testing.T) {
 
 func TestCheckPathsBetweenNodes_NonInclusive(t *testing.T) {
 	// No Paths between nodes, by definition, always false.
-	var g DiGraph[string, string] = LinkedDirectedGraph_Create[string, string]()
+	g := LinkedDirectedGraph_Create[string, string]()
 	g.CreateNode("a")
 	g.CreateNode("b")
 	g.CreateNode("c")
@@ -337,25 +337,25 @@ func checkPathsTest_assertBad[N comparable, E any](t *testing.T, test *CheckPath
 }
 
 func checkPathsTest_createTest(
-	graph DiGraph[string, string],
+	graph *LinkedDirectedGraph[string, string],
 	entry string,
 	exit string,
 	nodePredicate func(string) bool,
-	edgePredicate func(DiGraph_DiGraphEdge[string, string]) bool) *CheckPathsBetweenNodes[string, string] {
+	edgePredicate func(*LinkedDiGraphEdge[string, string]) bool) *CheckPathsBetweenNodes[string, string] {
 	return NewCheckPathsBetweenNodesInclusive(
 		graph, graph.GetDiGraphNode(entry), graph.GetDiGraphNode(exit), nodePredicate, edgePredicate)
 }
 
 func checkPathsTest_createNonInclusiveTest(
-	graph DiGraph[string, string],
+	graph *LinkedDirectedGraph[string, string],
 	entry string,
 	exit string,
 	nodePredicate func(string) bool,
-	edgePredicate func(DiGraph_DiGraphEdge[string, string]) bool) *CheckPathsBetweenNodes[string, string] {
+	edgePredicate func(*LinkedDiGraphEdge[string, string]) bool) *CheckPathsBetweenNodes[string, string] {
 	return NewCheckPathsBetweenNodes(
 		graph, graph.GetDiGraphNode(entry), graph.GetDiGraphNode(exit), nodePredicate, edgePredicate, false)
 }
 
-func checkPathsTest_edgeIs(val string) func(DiGraph_DiGraphEdge[string, string]) bool {
-	return func(input DiGraph_DiGraphEdge[string, string]) bool { return input.GetValue() == val }
+func checkPathsTest_edgeIs(val string) func(*LinkedDiGraphEdge[string, string]) bool {
+	return func(input *LinkedDiGraphEdge[string, string]) bool { return input.GetValue() == val }
 }

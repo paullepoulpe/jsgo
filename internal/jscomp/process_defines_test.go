@@ -27,12 +27,25 @@ import (
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
 
+type processDefinesTest_override struct {
+	name  string
+	value rhino.Node
+}
+
+type processDefinesTest_overrides []processDefinesTest_override
+
+func (o *processDefinesTest_overrides) Put(name string, value rhino.Node) {
+	*o = append(*o, processDefinesTest_override{name: name, value: value})
+}
+
+func (o *processDefinesTest_overrides) Clear() {
+	*o = (*o)[:0]
+}
+
 type ProcessDefinesTest struct {
 	CompilerTestCaseBase
 
-	// Go-only: test-helper — a Java HashMap with String keys that
-	// putReplacements iterates, hence Java's hash order.
-	overrides               *jutil.JavaHashMap[string, rhino.Node]
+	overrides               processDefinesTest_overrides
 	namespace               *GlobalNamespace
 	mode                    ProcessDefines_Mode
 	recognizeClosureDefines bool
@@ -46,7 +59,6 @@ type ProcessDefinesTest struct {
 // Java: ProcessDefinesTest()
 func NewProcessDefinesTest() *ProcessDefinesTest {
 	c := &ProcessDefinesTest{
-		overrides:               jutil.NewJavaHashMap[string, rhino.Node](),
 		recognizeClosureDefines: true,
 		enableJ2clPasses:        false,
 		outputFeatureSet:        parser.FeatureSet_ES2017,
@@ -118,8 +130,11 @@ func (c *ProcessDefinesTest) NewProcessDefinesWithInjectedNamespace(compiler *Co
 func (p *ProcessDefinesTest_ProcessDefinesWithInjectedNamespace) Process(externs rhino.Node, js rhino.Node) {
 	c := p.outer
 	c.namespace = NewGlobalNamespaceWithRoots(p.compiler, externs, js)
-	NewProcessDefines_Builder(p.compiler).
-		PutReplacements(c.overrides).
+	builder := NewProcessDefines_Builder(p.compiler)
+	for _, ov := range c.overrides {
+		builder.PutReplacement(ov.name, ov.value)
+	}
+	builder.
 		SetMode(c.mode).
 		InjectNamespace(func() *GlobalNamespace { return c.namespace }).
 		SetRecognizeClosureDefines(c.recognizeClosureDefines).

@@ -25,7 +25,7 @@ import (
 type graphReachabilityTest struct {
 	t            *testing.T
 	reachability *GraphReachability[string, string]
-	graph        DiGraph[string, string]
+	graph        *LinkedDirectedGraph[string, string]
 }
 
 func TestGraphReachability_Simple(t *testing.T) {

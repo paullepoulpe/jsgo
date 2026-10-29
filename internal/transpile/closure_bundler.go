@@ -35,7 +35,8 @@ type ClosureBundler struct {
 	es6ModuleTranspiler Transpiler
 
 	mode           closureBundler_EvalMode
-	sourceUrl      *string
+	sourceUrl      string
+	hasSourceUrl   bool
 	path           string
 	embedSourcemap bool
 
@@ -109,7 +110,8 @@ func (b *ClosureBundler) UseEval(useEval bool) *ClosureBundler {
 // Java: ClosureBundler.withSourceUrl(String)
 func (b *ClosureBundler) WithSourceUrl(newSourceUrl string) *ClosureBundler {
 	cp := *b
-	cp.sourceUrl = &newSourceUrl
+	cp.sourceUrl = newSourceUrl
+	cp.hasSourceUrl = true
 	return &cp
 }
 
@@ -141,15 +143,15 @@ func ClosureBundler_AppendInput(out jutil.Appendable, info jscomp.DependencyInfo
 // Java: ClosureBundler.appendTo(Appendable, DependencyInfo, String)
 func (b *ClosureBundler) AppendTo(out jutil.Appendable, info jscomp.DependencyInfo, code string) {
 	if info.IsGoogModule() {
-		b.mode.appendGoogModule(b.transpile(code), out, b.sourceUrl)
+		b.mode.appendGoogModule(b.transpile(code), out, b.sourceUrl, b.hasSourceUrl)
 	} else if info.IsEs6Module() && b.transpiler == Transpiler_NULL {
 		// TODO(johnplaisted): Make the default transpiler the
 		// ES_MODULE_TO_CJS_TRANSPILER. Currently some code is passing in
 		// unicode identifiers in non-ES6 modules the compiler fails to parse.
 		// Once this compiler bug is fixed we can always transpile.
-		b.mode.appendTraditional(b.transpileEs6Module(code), out, b.sourceUrl)
+		b.mode.appendTraditional(b.transpileEs6Module(code), out, b.sourceUrl, b.hasSourceUrl)
 	} else {
-		b.mode.appendTraditional(b.transpile(code), out, b.sourceUrl)
+		b.mode.appendTraditional(b.transpile(code), out, b.sourceUrl, b.hasSourceUrl)
 	}
 }
 
@@ -175,29 +177,29 @@ func (b *ClosureBundler) AppendToFromCharSource(out jutil.Appendable, info jscom
 func (b *ClosureBundler) AppendRuntimeTo(out jutil.Appendable) {
 	runtime := b.transpiler.Runtime()
 	if runtime != "" {
-		b.mode.appendTraditional(runtime, out, nil)
+		b.mode.appendTraditional(runtime, out, "", false)
 	}
 	if b.transpiler == Transpiler_NULL {
-		b.mode.appendTraditional(b.es6ModuleTranspiler.Runtime(), out, nil)
+		b.mode.appendTraditional(b.es6ModuleTranspiler.Runtime(), out, "", false)
 	}
-	b.mode.appendTraditional("this.CLOSURE_EVAL_PREFILTER = function(s) { return s; };", out, nil)
-	b.mode.appendTraditional("(function(thisValue){", out, nil)
+	b.mode.appendTraditional("this.CLOSURE_EVAL_PREFILTER = function(s) { return s; };", out, "", false)
+	b.mode.appendTraditional("(function(thisValue){", out, "", false)
 	// Check for Chrome <87 which does not eval properly in workers.
 	b.mode.appendTraditional(
 		"var isChrome87 = false; try {isChrome87 =  eval(trustedTypes.emptyScript) !=="+
 			" trustedTypes.emptyScript } catch (e) {} if (typeof trustedTypes !=="+
 			" 'undefined' && trustedTypes.createPolicy &&isChrome87 ) {",
 		out,
-		nil)
+		"", false)
 	b.mode.appendTraditional(
 		"  var policy = trustedTypes.createPolicy('goog#devserver',{ createScript: function(s){"+
 			" return s; }});",
 		out,
-		nil)
+		"", false)
 	b.mode.appendTraditional(
-		"  thisValue.CLOSURE_EVAL_PREFILTER = policy.createScript.bind(policy);", out, nil)
-	b.mode.appendTraditional("}", out, nil)
-	b.mode.appendTraditional("})(this);", out, nil)
+		"  thisValue.CLOSURE_EVAL_PREFILTER = policy.createScript.bind(policy);", out, "", false)
+	b.mode.appendTraditional("}", out, "", false)
+	b.mode.appendTraditional("})(this);", out, "", false)
 }
 
 // GetSourceMap: subclasses that need to provide a source map for any
@@ -250,26 +252,26 @@ func (m closureBundler_EvalMode) String() string {
 }
 
 // Java: EvalMode.appendTraditional(String, Appendable, String)
-func (m closureBundler_EvalMode) appendTraditional(s string, out jutil.Appendable, sourceUrl *string) {
+func (m closureBundler_EvalMode) appendTraditional(s string, out jutil.Appendable, sourceUrl string, hasSourceUrl bool) {
 	switch m {
 	case closureBundler_EvalMode_EVAL:
 		out.AppendCharSequence("eval(this.CLOSURE_EVAL_PREFILTER(\"")
 		closureBundler_EscapeMode_ESCAPED.append(s, out)
-		closureBundler_appendSourceUrl(out, closureBundler_EscapeMode_ESCAPED, sourceUrl)
+		closureBundler_appendSourceUrl(out, closureBundler_EscapeMode_ESCAPED, sourceUrl, hasSourceUrl)
 		out.AppendCharSequence("\"));\n")
 	default: // NORMAL
 		closureBundler_EscapeMode_NORMAL.append(s, out)
-		closureBundler_appendSourceUrl(out, closureBundler_EscapeMode_NORMAL, sourceUrl)
+		closureBundler_appendSourceUrl(out, closureBundler_EscapeMode_NORMAL, sourceUrl, hasSourceUrl)
 	}
 }
 
 // Java: EvalMode.appendGoogModule(String, Appendable, String)
-func (m closureBundler_EvalMode) appendGoogModule(s string, out jutil.Appendable, sourceUrl *string) {
+func (m closureBundler_EvalMode) appendGoogModule(s string, out jutil.Appendable, sourceUrl string, hasSourceUrl bool) {
 	switch m {
 	case closureBundler_EvalMode_EVAL:
 		out.AppendCharSequence("goog.loadModule(\"")
 		closureBundler_EscapeMode_ESCAPED.append(s, out)
-		closureBundler_appendSourceUrl(out, closureBundler_EscapeMode_ESCAPED, sourceUrl)
+		closureBundler_appendSourceUrl(out, closureBundler_EscapeMode_ESCAPED, sourceUrl, hasSourceUrl)
 		out.AppendCharSequence("\");\n")
 	default: // NORMAL
 		// add the prefix on the first line so the line numbers aren't
@@ -280,7 +282,7 @@ func (m closureBundler_EvalMode) appendGoogModule(s string, out jutil.Appendable
 			"\n" + // terminate any trailing single line comment.
 				";" + // terminate any trailing expression.
 				"return exports;});\n")
-		closureBundler_appendSourceUrl(out, closureBundler_EscapeMode_NORMAL, sourceUrl)
+		closureBundler_appendSourceUrl(out, closureBundler_EscapeMode_NORMAL, sourceUrl, hasSourceUrl)
 	}
 }
 
@@ -308,11 +310,11 @@ func (m closureBundler_EscapeMode) append(s string, out jutil.Appendable) {
 }
 
 // Java: ClosureBundler.appendSourceUrl(Appendable, EscapeMode, String)
-func closureBundler_appendSourceUrl(out jutil.Appendable, mode closureBundler_EscapeMode, sourceUrl *string) {
-	if sourceUrl == nil {
+func closureBundler_appendSourceUrl(out jutil.Appendable, mode closureBundler_EscapeMode, sourceUrl string, hasSourceUrl bool) {
+	if !hasSourceUrl {
 		return
 	}
-	toAppend := "\n//# sourceURL=" + *sourceUrl + "\n"
+	toAppend := "\n//# sourceURL=" + sourceUrl + "\n"
 	// Don't go through #append. That method relies on #transformInput,
 	// but source URLs generally aren't valid JS inputs.
 	mode.append(toAppend, out)

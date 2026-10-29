@@ -129,11 +129,10 @@ func (c *lowestCommonAncestorFinder_Color) HashCode() int32 {
 // LowestCommonAncestorFinderBase holds LowestCommonAncestorFinder's fields
 // and implementation.
 type LowestCommonAncestorFinderBase[N comparable, E any] struct {
-	graph DiGraph[N, E]
+	graph *LinkedDirectedGraph[N, E]
 
-	searchColoring *jutil.LinkedHashMap[DiGraph_DiGraphNode[N, E], *lowestCommonAncestorFinder_Color]
-	// ArrayDeque<DiGraphNode<N, E>> used as a FIFO queue.
-	searchQueue []DiGraph_DiGraphNode[N, E]
+	searchColoring *jutil.LinkedHashMap[*LinkedDiGraphNode[N, E], *lowestCommonAncestorFinder_Color]
+	searchQueue    []*LinkedDiGraphNode[N, E]
 }
 
 // Java: LowestCommonAncestorFinder(DiGraph<N, E>)
@@ -143,11 +142,12 @@ func NewLowestCommonAncestorFinder[N comparable, E any](graph DiGraph[N, E]) *Lo
 	return f
 }
 
-// InitLowestCommonAncestorFinderBase runs the constructor on f (for
-// subclasses, which embed LowestCommonAncestorFinderBase).
+// InitLowestCommonAncestorFinderBase runs the constructor on f.
 func (f *LowestCommonAncestorFinderBase[N, E]) InitLowestCommonAncestorFinderBase(graph DiGraph[N, E]) {
-	f.graph = graph
-	f.searchColoring = jutil.NewLinkedHashMap[DiGraph_DiGraphNode[N, E], *lowestCommonAncestorFinder_Color]()
+	if graph != nil {
+		f.graph = graph.AsLinkedDirectedGraph()
+	}
+	f.searchColoring = jutil.NewLinkedHashMap[*LinkedDiGraphNode[N, E], *lowestCommonAncestorFinder_Color]()
 }
 
 // Java: LowestCommonAncestorFinder.findAll(Set<N>)
@@ -165,7 +165,7 @@ func (f *LowestCommonAncestorFinderBase[N, E]) FindAll(roots jutil.Set[N]) *juti
 	// `allColor`.
 	bitForRoot := int32(1)
 	for root := range roots.All() {
-		rootNode := f.graph.GetDiGraphNode(root)
+		rootNode := f.graph.GetNode(root)
 		jutil.CheckNotNullMsg1(rootNode, "Root not present in graph: %s", root)
 
 		color := lowestCommonAncestorFinder_Color_create(bitForRoot)
@@ -195,12 +195,11 @@ func (f *LowestCommonAncestorFinderBase[N, E]) FindAll(roots jutil.Set[N]) *juti
 	results := jutil.NewLinkedHashSet[N]() // ImmutableSet.builder()
 	for node, color := range f.searchColoring.All() {
 		if color.Equals(allColor) {
-			results.Add(node.GetValue())
+			results.Add(node.Value)
 		}
 	}
 
 	f.searchColoring.Clear()
-	f.searchQueue = nil
 	return results
 }
 
@@ -210,18 +209,15 @@ func (f *LowestCommonAncestorFinderBase[N, E]) FindAll(roots jutil.Set[N]) *juti
 // all existing colors on ancestor nodes.
 //
 // Java: LowestCommonAncestorFinder.paintAncestors(DiGraphNode<N, E>, Color)
-func (f *LowestCommonAncestorFinderBase[N, E]) paintAncestors(root DiGraph_DiGraphNode[N, E], color *lowestCommonAncestorFinder_Color) {
+func (f *LowestCommonAncestorFinderBase[N, E]) paintAncestors(root *LinkedDiGraphNode[N, E], color *lowestCommonAncestorFinder_Color) {
 	jutil.CheckState(len(f.searchQueue) == 0)
 
 	f.searchQueue = append(f.searchQueue, root)
 
-	for len(f.searchQueue) != 0 {
-		curr := f.searchQueue[0]
-		f.searchQueue = f.searchQueue[1:]
-		parentEdges := curr.GetInEdges()
-
-		for _, parentEdge := range parentEdges {
-			parent := parentEdge.GetSource()
+	for head := 0; head < len(f.searchQueue); head++ {
+		curr := f.searchQueue[head]
+		for _, parentEdge := range curr.InEdgeList.Slice() {
+			parent := parentEdge.SourceNode
 			if parent == root {
 				continue // Don't paint `root`.
 			}
@@ -234,6 +230,8 @@ func (f *LowestCommonAncestorFinderBase[N, E]) paintAncestors(root DiGraph_DiGra
 			}
 		}
 	}
+	clear(f.searchQueue)
+	f.searchQueue = f.searchQueue[:0]
 }
 
 var _ LowestCommonAncestorFinder[string, string] = (*LowestCommonAncestorFinderBase[string, string])(nil)

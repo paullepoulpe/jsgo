@@ -482,7 +482,7 @@ type dataFlowAnalysisTest_DummyConstPropagation struct {
 // Flow Graph.
 //
 // Java: DataFlowAnalysisTest.DummyConstPropagation(ControlFlowGraph<Instruction>)
-func newDataFlowAnalysisTest_DummyConstPropagation(targetCfg ControlFlowGraph[dataFlowAnalysisTest_Instruction]) *dataFlowAnalysisTest_DummyConstPropagation {
+func newDataFlowAnalysisTest_DummyConstPropagation(targetCfg *ControlFlowGraph[dataFlowAnalysisTest_Instruction]) *dataFlowAnalysisTest_DummyConstPropagation {
 	a := &dataFlowAnalysisTest_DummyConstPropagation{}
 	a.InitDataFlowAnalysisBase(a, targetCfg)
 	return a
@@ -692,7 +692,7 @@ type dataFlowAnalysisTest_BranchedDummyConstPropagation struct {
 }
 
 // Java: DataFlowAnalysisTest.BranchedDummyConstPropagation(ControlFlowGraph<Instruction>)
-func newDataFlowAnalysisTest_BranchedDummyConstPropagation(targetCfg ControlFlowGraph[dataFlowAnalysisTest_Instruction]) *dataFlowAnalysisTest_BranchedDummyConstPropagation {
+func newDataFlowAnalysisTest_BranchedDummyConstPropagation(targetCfg *ControlFlowGraph[dataFlowAnalysisTest_Instruction]) *dataFlowAnalysisTest_BranchedDummyConstPropagation {
 	a := &dataFlowAnalysisTest_BranchedDummyConstPropagation{}
 	a.InitDataFlowAnalysisBase(a, targetCfg)
 	return a
@@ -831,7 +831,7 @@ type dataFlowAnalysisTest_DivergentAnalysis struct {
 // Graph.
 //
 // Java: DataFlowAnalysisTest.DivergentAnalysis(ControlFlowGraph<Counter>)
-func newDataFlowAnalysisTest_DivergentAnalysis(targetCfg ControlFlowGraph[*dataFlowAnalysisTest_DivergentAnalysis_Counter]) *dataFlowAnalysisTest_DivergentAnalysis {
+func newDataFlowAnalysisTest_DivergentAnalysis(targetCfg *ControlFlowGraph[*dataFlowAnalysisTest_DivergentAnalysis_Counter]) *dataFlowAnalysisTest_DivergentAnalysis {
 	a := &dataFlowAnalysisTest_DivergentAnalysis{}
 	a.InitDataFlowAnalysisBase(a, targetCfg)
 	return a

@@ -179,17 +179,17 @@ func (l *SourceMapJsonLexer) NextName() string {
 	return name
 }
 
-func (l *SourceMapJsonLexer) nextStringOrNull() (*string, error) {
+func (l *SourceMapJsonLexer) nextStringOrNull() (optionalString, error) {
 	l.SkipWhitespace()
 	if l.pos < l.length && l.startsWith("null", l.pos) {
 		l.pos += 4
-		return nil, nil
+		return optionalString{}, nil
 	}
 	s, err := l.nextString()
 	if err != nil {
-		return nil, err
+		return optionalString{}, err
 	}
-	return &s, nil
+	return optionalString{text: s, present: true}, nil
 }
 
 // NextStringOrNull returns the next string, or nil for a null literal.
@@ -200,7 +200,7 @@ func (l *SourceMapJsonLexer) NextStringOrNull() *string {
 	if err != nil {
 		panic(err)
 	}
-	return s
+	return s.ptr()
 }
 
 func (l *SourceMapJsonLexer) nextString() (string, error) {

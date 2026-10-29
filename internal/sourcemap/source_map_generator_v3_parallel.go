@@ -274,8 +274,8 @@ func (g *SourceMapGeneratorV3) appendToParallel(out io.StringWriter, name *strin
 		SourceMapGeneratorV3_AppendField(out, "file", SourceMapGeneratorV3_EscapeString(*name))
 	}
 	SourceMapGeneratorV3_AppendField(out, "lineCount", strconv.Itoa(maxLine))
-	if g.sourceRootPath != nil && *g.sourceRootPath != "" {
-		SourceMapGeneratorV3_AppendField(out, "sourceRoot", SourceMapGeneratorV3_EscapeString(*g.sourceRootPath))
+	if g.sourceRootPath != "" {
+		SourceMapGeneratorV3_AppendField(out, "sourceRoot", SourceMapGeneratorV3_EscapeString(g.sourceRootPath))
 	}
 	SourceMapGeneratorV3_AppendFieldStart(out, "mappings")
 	g.appendLineMappingsParallel(out, maxLine, cps)

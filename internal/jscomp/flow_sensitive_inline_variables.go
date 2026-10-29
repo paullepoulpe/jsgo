@@ -80,7 +80,7 @@ type FlowSensitiveInlineVariables struct {
 	sideEffectPredicate   FlowSensitiveInlineVariables_SideEffectPredicate
 	sideEffectPredicateFn func(rhino.Node) bool
 
-	cfg          ControlFlowGraph[rhino.Node]
+	cfg          *ControlFlowGraph[rhino.Node]
 	candidates   []FlowSensitiveInlineVariables_Candidate
 	reachingDef  *MustBeReachingVariableDef
 	reachingUses *MaybeReachingVariableUse
@@ -1010,7 +1010,7 @@ func (g *FlowSensitiveInlineVariables_GatherCandidates) Visit(t *NodeTraversal, 
 	case rhino.Token_BLOCK, rhino.Token_TRY, rhino.Token_SWITCH_BODY, rhino.Token_EMPTY:
 		return
 	}
-	graphNode := g.outer.cfg.GetControlFlowGraphBase().Nodes.Get(n)
+	graphNode := g.outer.cfg.Nodes.Get(n)
 	if graphNode == nil {
 		// Not a CFG node.
 		return

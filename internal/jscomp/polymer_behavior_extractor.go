@@ -138,8 +138,10 @@ func (e *PolymerBehaviorExtractor) ExtractBehaviors(
 		var resolveResult *PolymerBehaviorExtractor_ResolveBehaviorNameResult
 		if polymerBehaviorExtractor_isGoogModuleGetCall(behaviorName) {
 			resolveResult = e.resolveGoogModuleGet(ast.MustCall(behaviorName).MustOnlyArg().MustStringLit().Value())
+		} else if qname, ok := polymerBehaviorExtractor_getQualifiedNameThroughCast(behaviorName); ok {
+			resolveResult = e.resolveBehaviorName(qname, moduleMetadata)
 		} else {
-			resolveResult = e.resolveBehaviorName(polymerBehaviorExtractor_getQualifiedNameThroughCast(behaviorName), moduleMetadata)
+			resolveResult = polymerBehaviorExtractor_FAILED_RESOLVE_RESULT
 		}
 		if resolveResult == polymerBehaviorExtractor_FAILED_RESOLVE_RESULT {
 			e.compiler.Report(JSError_MakeWithNode(behaviorName, PolymerPassErrors_POLYMER_UNQUALIFIED_BEHAVIOR))
@@ -209,14 +211,11 @@ var polymerBehaviorExtractor_FAILED_RESOLVE_RESULT = NewPolymerBehaviorExtractor
 //
 // Java: PolymerBehaviorExtractor.resolveBehaviorName(String, ModuleMetadata)
 func (e *PolymerBehaviorExtractor) resolveBehaviorName(
-	name *string, moduleMetadata *ModuleMetadataMap_ModuleMetadata) *PolymerBehaviorExtractor_ResolveBehaviorNameResult {
-	if name == nil {
-		return polymerBehaviorExtractor_FAILED_RESOLVE_RESULT
-	}
-	key := polymerResolveKey{name: *name, moduleMetadata: moduleMetadata}
+	name string, moduleMetadata *ModuleMetadataMap_ModuleMetadata) *PolymerBehaviorExtractor_ResolveBehaviorNameResult {
+	key := polymerResolveKey{name: name, moduleMetadata: moduleMetadata}
 	memoized := e.resolveMemoized[key]
 	if memoized == nil {
-		memoized = jutil.CheckNotNull(e.resolveBehaviorNameInternal(*name, moduleMetadata))
+		memoized = jutil.CheckNotNull(e.resolveBehaviorNameInternal(name, moduleMetadata))
 		e.resolveMemoized[key] = memoized
 	}
 	return memoized
@@ -283,6 +282,10 @@ func (e *PolymerBehaviorExtractor) resolveBehaviorNameInternal(
 
 	if rValue.IsQualifiedName() {
 		// Another identifier; recurse.
+		qname, ok := polymerBehaviorExtractor_getQualifiedNameThroughCast(rValue)
+		if !ok {
+			return polymerBehaviorExtractor_FAILED_RESOLVE_RESULT
+		}
 		declarationScope := declarationRef.scope.GetClosestHoistScope()
 		m := ModuleImportResolver_GetModuleFromScopeRoot(
 			e.compiler.GetModuleMap(), e.compiler, declarationScope.GetRootNode())
@@ -290,7 +293,7 @@ func (e *PolymerBehaviorExtractor) resolveBehaviorNameInternal(
 		if m != nil {
 			mMetadata = m.Metadata()
 		}
-		return e.resolveBehaviorName(polymerBehaviorExtractor_getQualifiedNameThroughCast(rValue), mMetadata)
+		return e.resolveBehaviorName(qname, mMetadata)
 	}
 
 	behaviorInfo := NodeUtil_GetBestJSDocInfo(declarationNode)
@@ -331,8 +334,7 @@ func (e *PolymerBehaviorExtractor) resolveReferenceToLegacyGoogModule(name strin
 		if dot != len(name) {
 			rest = name[dot:]
 		}
-		exportsName := polymerBehaviorExtractor_GOOG_MODULE_EXPORTS + rest
-		result := e.resolveBehaviorName(&exportsName, metadata)
+		result := e.resolveBehaviorName(polymerBehaviorExtractor_GOOG_MODULE_EXPORTS+rest, metadata)
 		// TODO(lharker): Remove this check and just fail to resolve once we have moved module
 		// rewriting unconditionally after the PolymerPass.
 		if result == polymerBehaviorExtractor_FAILED_RESOLVE_RESULT {
@@ -362,11 +364,10 @@ func (e *PolymerBehaviorExtractor) resolveGoogModuleGet(moduleNamespace string) 
 		// Invalid goog.module.get() call.
 		return polymerBehaviorExtractor_FAILED_RESOLVE_RESULT
 	} else if closureModule.IsGoogProvide() {
-		return e.resolveBehaviorName(&moduleNamespace, nil)
+		return e.resolveBehaviorName(moduleNamespace, nil)
 	}
 	jutil.CheckStateMsg1(closureModule.IsGoogModule(), "%s", closureModule)
-	exportsName := polymerBehaviorExtractor_GOOG_MODULE_EXPORTS
-	return e.resolveBehaviorName(&exportsName, closureModule)
+	return e.resolveBehaviorName(polymerBehaviorExtractor_GOOG_MODULE_EXPORTS, closureModule)
 }
 
 // getNameIfModuleImport handles resolving behaviors whose root is imported
@@ -411,20 +412,23 @@ func (e *PolymerBehaviorExtractor) getNameIfModuleImport(
 		// `import * as x from '';` or `const ns = goog.require('...`
 		return e.resolveModuleNamespaceBinding(b, rest)
 	}
-	importMetadata := b.OriginatingExport().ModuleMetadata()
+	origExport := b.OriginatingExport()
+	importMetadata := origExport.ModuleMetadata()
 	var originatingName string // The name in the module being imported
 	if importMetadata.IsEs6Module() {
 		// import {exportName} from './mod';
-		originatingName = jutil.ToJavaString(b.OriginatingExport().LocalName()) + rest
+		originatingName = modules_optString(origExport.LocalName(), origExport.HasLocalName()) + rest
 	} else if importMetadata.IsGoogModule() {
 		// `const {exportName: localName} = goog.require('some.module');`
-		originatingName = polymerBehaviorExtractor_GOOG_MODULE_EXPORTS + "." + jutil.ToJavaString(b.OriginatingExport().ExportName()) + rest
+		originatingName = polymerBehaviorExtractor_GOOG_MODULE_EXPORTS + "." +
+			modules_optString(origExport.ExportName(), origExport.HasExportName()) + rest
 	} else {
 		// `const {exportName: localName} = goog.require('some.provide');`
 		jutil.CheckStateMsg1(importMetadata.IsGoogProvide(), "%s", importMetadata)
-		originatingName = jutil.ToJavaString(b.ClosureNamespace()) + "." + jutil.ToJavaString(b.OriginatingExport().ExportName()) + rest
+		originatingName = modules_optString(b.ClosureNamespace(), b.HasClosureNamespace()) + "." +
+			modules_optString(origExport.ExportName(), origExport.HasExportName()) + rest
 	}
-	return e.resolveBehaviorName(&originatingName, importMetadata)
+	return e.resolveBehaviorName(originatingName, importMetadata)
 }
 
 // polymerBehaviorExtractor_firstGoogNamespace is
@@ -442,11 +446,10 @@ func polymerBehaviorExtractor_firstGoogNamespace(metadata *ModuleMetadataMap_Mod
 // Java: PolymerBehaviorExtractor.resolveModuleNamespaceBinding(Binding, String)
 func (e *PolymerBehaviorExtractor) resolveModuleNamespaceBinding(b *Binding, rest string) *PolymerBehaviorExtractor_ResolveBehaviorNameResult {
 	if b.Metadata().IsGoogModule() {
-		exportsName := polymerBehaviorExtractor_GOOG_MODULE_EXPORTS + rest
-		return e.resolveBehaviorName(&exportsName, b.Metadata())
+		return e.resolveBehaviorName(polymerBehaviorExtractor_GOOG_MODULE_EXPORTS+rest, b.Metadata())
 	} else if b.Metadata().IsGoogProvide() {
-		providedName := jutil.ToJavaString(b.ClosureNamespace()) + rest
-		return e.resolveBehaviorName(&providedName, b.Metadata())
+		providedName := modules_optString(b.ClosureNamespace(), b.HasClosureNamespace()) + rest
+		return e.resolveBehaviorName(providedName, b.Metadata())
 	}
 
 	// ES module import *.
@@ -477,8 +480,9 @@ func (e *PolymerBehaviorExtractor) resolveModuleNamespaceBinding(b *Binding, res
 	if dot != -1 {
 		tail = rest[dot:]
 	}
-	resolvedName := jutil.ToJavaString(exportBinding.OriginatingExport().LocalName()) + tail
-	return e.resolveBehaviorName(&resolvedName, b.Metadata())
+	origExport := exportBinding.OriginatingExport()
+	resolvedName := modules_optString(origExport.LocalName(), origExport.HasLocalName()) + tail
+	return e.resolveBehaviorName(resolvedName, b.Metadata())
 }
 
 // polymerBehaviorExtractor_getBehaviorFunctionsToCopy returns a list of
@@ -513,24 +517,23 @@ func polymerBehaviorExtractor_getBehaviorFunctionsToCopy(behaviorObjLit rhino.No
 // Polymer-specific context.
 //
 // Java: PolymerBehaviorExtractor.getQualifiedNameThroughCast(Node)
-func polymerBehaviorExtractor_getQualifiedNameThroughCast(node rhino.Node) *string {
+func polymerBehaviorExtractor_getQualifiedNameThroughCast(node rhino.Node) (string, bool) {
 	if nameNode, ok := ast.AsName(node); ok {
 		name := nameNode.Ident()
 		if name == "" {
-			return nil
+			return "", false
 		}
-		return &name
+		return name, true
 	} else if gp, ok := ast.AsGetProp(node); ok {
-		left := polymerBehaviorExtractor_getQualifiedNameThroughCast(gp.Object().Node())
-		if left == nil {
-			return nil
+		left, ok := polymerBehaviorExtractor_getQualifiedNameThroughCast(gp.Object().Node())
+		if !ok {
+			return "", false
 		}
-		qname := *left + "." + gp.Property()
-		return &qname
+		return left + "." + gp.Property(), true
 	} else if cast, ok := ast.AsCast(node); ok {
 		return polymerBehaviorExtractor_getQualifiedNameThroughCast(cast.Expr().Node())
 	}
-	return nil
+	return "", false
 }
 
 // polymerBehaviorExtractor_getNonPropertyMembersToCopy returns a list of

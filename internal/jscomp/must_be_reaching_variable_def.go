@@ -175,7 +175,7 @@ type MustBeReachingVariableDef struct {
 
 // Java: MustBeReachingVariableDef(ControlFlowGraph<Node>, AbstractCompiler, Set<Var>, Map<String, Var>)
 func NewMustBeReachingVariableDef(
-	cfg ControlFlowGraph[rhino.Node],
+	cfg *ControlFlowGraph[rhino.Node],
 	compiler AbstractCompiler,
 	escaped *jutil.ObjectLinkedHashSet[*Var],
 	allVarsInFn *jutil.LinkedHashMap[string, *Var]) *MustBeReachingVariableDef {
@@ -187,7 +187,7 @@ func NewMustBeReachingVariableDef(
 // Reset resets d for reuse on a new function scope while retaining slab and
 // variable table capacities.
 func (d *MustBeReachingVariableDef) Reset(
-	cfg ControlFlowGraph[rhino.Node],
+	cfg *ControlFlowGraph[rhino.Node],
 	compiler AbstractCompiler,
 	escaped *jutil.ObjectLinkedHashSet[*Var],
 	allVarsInFn *jutil.LinkedHashMap[string, *Var]) {
@@ -992,7 +992,7 @@ func (d *MustBeReachingVariableDef) getDefFromMustDef(name string, inState *Must
 //
 // Java: MustBeReachingVariableDef.getDef(String, Node)
 func (d *MustBeReachingVariableDef) GetDef(name string, useNode rhino.Node) *MustBeReachingVariableDef_Definition {
-	n := d.GetCfg().GetControlFlowGraphBase().Nodes.Get(useNode)
+	n := d.GetCfg().Nodes.Get(useNode)
 	jutil.CheckArgument(n != nil)
 	return d.getDefFromMustDef(name, d.FlowStateAt(n.Index).GetIn())
 }

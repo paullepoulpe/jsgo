@@ -21,7 +21,6 @@ package jscomp
 import (
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
-	"sync/atomic"
 )
 
 // Binding represents a variable bound by an import or export statement, or
@@ -44,13 +43,13 @@ import (
 // link). isModuleNamespace is true if this represents a module namespace,
 // e.g. created by import *.
 type Binding struct {
-	metadata          *ModuleMetadataMap_ModuleMetadata
-	sourceNode        rhino.Node
-	originatingExport *Export
-	isModuleNamespace bool
-	closureNamespace  *string
-	createdBy         Binding_CreatedBy
-	hash              int32
+	metadata            *ModuleMetadataMap_ModuleMetadata
+	sourceNode          rhino.Node
+	originatingExport   *Export
+	closureNamespace    string
+	createdBy           Binding_CreatedBy
+	isModuleNamespace   bool
+	hasClosureNamespace bool
 }
 
 // Java: Binding(ModuleMetadata, Node, Export, boolean, String, CreatedBy)
@@ -59,16 +58,18 @@ func NewBinding(
 	sourceNode rhino.Node,
 	originatingExport *Export,
 	isModuleNamespace bool,
-	closureNamespace *string,
+	closureNamespace string,
+	hasClosureNamespace bool,
 	createdBy Binding_CreatedBy) *Binding {
 	jutil.CheckNotNullMsg(metadata, "metadata")
 	return &Binding{
-		metadata:          metadata,
-		sourceNode:        sourceNode,
-		originatingExport: originatingExport,
-		isModuleNamespace: isModuleNamespace,
-		closureNamespace:  closureNamespace,
-		createdBy:         createdBy,
+		metadata:            metadata,
+		sourceNode:          sourceNode,
+		originatingExport:   originatingExport,
+		closureNamespace:    closureNamespace,
+		createdBy:           createdBy,
+		isModuleNamespace:   isModuleNamespace,
+		hasClosureNamespace: hasClosureNamespace,
 	}
 }
 
@@ -88,75 +89,14 @@ func (b *Binding) OriginatingExport() *Export { return b.originatingExport }
 // Java: Binding.isModuleNamespace()
 func (b *Binding) IsModuleNamespace() bool { return b.isModuleNamespace }
 
-// ClosureNamespace may return nil.
-//
 // Java: Binding.closureNamespace()
-func (b *Binding) ClosureNamespace() *string { return b.closureNamespace }
+func (b *Binding) ClosureNamespace() string { return b.closureNamespace }
+
+// HasClosureNamespace reports whether closureNamespace was set.
+func (b *Binding) HasClosureNamespace() bool { return b.hasClosureNamespace }
 
 // Java: Binding.createdBy()
 func (b *Binding) CreatedBy() Binding_CreatedBy { return b.createdBy }
-
-// Equals is the record's componentwise equals (ModuleMetadata and Node
-// compare by identity, Export by value).
-func (b *Binding) Equals(o any) bool {
-	other, ok := o.(*Binding)
-	if !ok || other == nil {
-		return false
-	}
-	if b == other {
-		return true
-	}
-	exportsEqual := b.originatingExport == other.originatingExport ||
-		(b.originatingExport != nil && b.originatingExport.Equals(other.originatingExport))
-	return b.metadata == other.metadata &&
-		b.sourceNode == other.sourceNode &&
-		exportsEqual &&
-		b.isModuleNamespace == other.isModuleNamespace &&
-		modules_nullableStringEquals(b.closureNamespace, other.closureNamespace) &&
-		b.createdBy == other.createdBy
-}
-
-// HashCode is the record's hashCode.
-//
-// Go-only: language-adapter — identity hashes are jutil.IdentityHashCode;
-// the enum's identity hash is its ordinal.
-func (b *Binding) HashCode() int32 {
-	if h := atomic.LoadInt32(&b.hash); h != 0 {
-		return h
-	}
-	return b.computeHashCode()
-}
-
-//go:noinline
-func (b *Binding) computeHashCode() int32 {
-	h := int32(0)
-	h = 31*h + jutil.IdentityHashCodeOfPointer(b.metadata)
-	h = 31*h + b.sourceNode.IdentityHashCode()
-	if b.originatingExport != nil {
-		h = 31*h + b.originatingExport.HashCode()
-	} else {
-		h = 31 * h
-	}
-	if b.isModuleNamespace {
-		h = 31*h + 1231
-	} else {
-		h = 31*h + 1237
-	}
-	h = 31*h + modules_nullableStringHash(b.closureNamespace)
-	h = 31*h + int32(b.createdBy)
-	atomic.StoreInt32(&b.hash, h)
-	return h
-}
-
-// String is the record's toString.
-func (b *Binding) String() string {
-	return "Binding[metadata=" + b.metadata.String() +
-		", sourceNode=" + jutil.ToJavaString(b.sourceNode) +
-		", originatingExport=" + jutil.ToJavaString(b.originatingExport) +
-		", isModuleNamespace=" + jutil.ToJavaString(b.isModuleNamespace) +
-		", closureNamespace=" + modules_nullableString(b.closureNamespace) +
-		", createdBy=" + b.createdBy.String() + "]"
-}
 
 // Binding_CreatedBy lists the different ways that Bindings can be created.
 //
@@ -225,7 +165,8 @@ func Binding_From(boundExport *Export, sourceNode rhino.Node) *Binding {
 		sourceNode,
 		boundExport,
 		/* isModuleNamespace= */ false,
-		/* closureNamespace= */ boundExport.ClosureNamespace(),
+		boundExport.ClosureNamespace(),
+		boundExport.HasClosureNamespace(),
 		Binding_CreatedBy_EXPORT)
 }
 
@@ -234,7 +175,7 @@ func Binding_From(boundExport *Export, sourceNode rhino.Node) *Binding {
 //
 // Java: Binding.from(ModuleMetadata, Node, String, CreatedBy)
 func Binding_FromClosureImport(
-	metadata *ModuleMetadataMap_ModuleMetadata, sourceNode rhino.Node, closureNamespace *string, createdBy Binding_CreatedBy) *Binding {
+	metadata *ModuleMetadataMap_ModuleMetadata, sourceNode rhino.Node, closureNamespace string, createdBy Binding_CreatedBy) *Binding {
 	jutil.CheckArgumentMsg1(
 		createdBy.IsClosureImport(),
 		"Expected goog.require(Type) or goog.forwardDeclare, got %s",
@@ -245,21 +186,26 @@ func Binding_FromClosureImport(
 		/* originatingExport= */ nil,
 		/* isModuleNamespace= */ true,
 		closureNamespace,
+		true,
 		createdBy)
 }
 
 // Binding_FromImportStar is the binding for an entire module namespace
-// created by an import *. closureNamespace may be nil.
+// created by an import *.
 //
 // Java: Binding.from(ModuleMetadata, String, Node)
 func Binding_FromImportStar(
-	metadataOfBoundModule *ModuleMetadataMap_ModuleMetadata, closureNamespace *string, sourceNode rhino.Node) *Binding {
+	metadataOfBoundModule *ModuleMetadataMap_ModuleMetadata,
+	closureNamespace string,
+	hasClosureNamespace bool,
+	sourceNode rhino.Node) *Binding {
 	return NewBinding(
 		metadataOfBoundModule,
 		sourceNode,
 		/* originatingExport= */ nil,
 		/* isModuleNamespace= */ true,
 		closureNamespace,
+		hasClosureNamespace,
 		Binding_CreatedBy_IMPORT)
 }
 
@@ -268,23 +214,19 @@ func Binding_FromImportStar(
 // Java: Binding.copy(Node, CreatedBy)
 func (b *Binding) Copy(sourceNode rhino.Node, createdBy Binding_CreatedBy) *Binding {
 	rhino.CheckNotNull(sourceNode)
-
-	return NewBinding(
-		b.Metadata(),
-		sourceNode,
-		b.OriginatingExport(),
-		b.IsModuleNamespace(),
-		b.ClosureNamespace(),
-		createdBy)
+	cp := *b
+	cp.sourceNode = sourceNode
+	cp.createdBy = createdBy
+	return &cp
 }
 
-// BoundName is the name of the variable this export is bound to, assuming
-// it is not a binding of a module namespace. It may be nil.
+// BoundName returns the name of the variable this export is bound to, assuming
+// it is not a binding of a module namespace, and whether it is present.
 //
 // Java: Binding.boundName()
-func (b *Binding) BoundName() *string {
+func (b *Binding) BoundName() (string, bool) {
 	jutil.CheckState(!b.IsModuleNamespace())
-	return b.OriginatingExport().LocalName()
+	return b.OriginatingExport().LocalName(), b.OriginatingExport().HasLocalName()
 }
 
 // IsMutated returns whether or not this export is potentially mutated after
