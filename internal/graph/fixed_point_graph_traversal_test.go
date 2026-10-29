@@ -38,44 +38,23 @@ func TestFixedPointGraphTraversal_EmbeddedLinkedGraph(t *testing.T) {
 	assertTrue(t, "c reached", reached["c"])
 }
 
-func TestFixedPointGraphTraversal_ReverseAndNilEntryHandling(t *testing.T) {
+func TestFixedPointGraphTraversal_ReverseAndMissingEntryHandling(t *testing.T) {
 	g := newEmbeddedLinkedGraph[string, string]()
 	g.CreateNode("a")
 	g.CreateNode("b")
 	g.Connect("a", "->", "b")
 
-	// Nil entrySet throws NullPointerException.
+	// Missing entry throws NullPointerException.
 	tr := FixedPointGraphTraversal_NewReverseTraversal[string, string](
 		FixedPointGraphTraversal_EdgeCallbackFunc[string, string](func(src, _, dst string) bool {
 			return false
 		}))
 	assertThrows[jutil.INullPointerException](t, func() {
-		tr.ComputeFixedPointFromSet(g, nil)
-	})
-	var typedNil *jutil.LinkedHashSet[string]
-	assertThrows[jutil.INullPointerException](t, func() {
-		tr.ComputeFixedPointFromSet(g, typedNil)
+		tr.ComputeFixedPointFrom(g, "missing")
 	})
 
-	// Missing entry after valid entry visits valid entry first, then throws NullPointerException,
-	// leaving inWorkSet flags clean for subsequent traversals.
+	// Subsequent traversal on the same graph still works cleanly.
 	var visited []string
-	trVisit := FixedPointGraphTraversal_NewTraversal[string, string](
-		FixedPointGraphTraversal_EdgeCallbackFunc[string, string](func(src, _, dst string) bool {
-			visited = append(visited, src+"->"+dst)
-			return true
-		}))
-	entries := jutil.NewLinkedHashSet[string]()
-	entries.Add("a")
-	entries.Add("missing1")
-	entries.Add("missing2")
-	assertThrows[jutil.INullPointerException](t, func() {
-		trVisit.ComputeFixedPointFromSet(g, entries)
-	})
-	assertSliceEqual(t, "visited before missing entry NPE", visited, []string{"a->b"})
-
-	// Subsequent traversal on the same graph still works cleanly (defer cleaned inWorkSet on "b").
-	visited = nil
 	trOnce := FixedPointGraphTraversal_NewReverseTraversal[string, string](
 		FixedPointGraphTraversal_EdgeCallbackFunc[string, string](func(src, _, dst string) bool {
 			if len(visited) == 0 {

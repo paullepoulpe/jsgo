@@ -29,7 +29,7 @@ import (
 
 type IsolatePolyfillsTest struct {
 	CompilerTestCaseBase
-	polyfillTable            *jutil.ArrayList[string]
+	polyfillTable            []string
 	polyfillsToInject        *jutil.LinkedHashSet[string]
 	enablePropertyFlattening bool
 }
@@ -37,7 +37,6 @@ type IsolatePolyfillsTest struct {
 // Java: IsolatePolyfillsTest()
 func NewIsolatePolyfillsTest() *IsolatePolyfillsTest {
 	c := &IsolatePolyfillsTest{}
-	c.polyfillTable = jutil.NewArrayList[string]()
 	c.polyfillsToInject = jutil.NewLinkedHashSet[string]()
 	c.InitCompilerTestCaseBase(c)
 	return c
@@ -67,14 +66,14 @@ func (c *IsolatePolyfillsTest) AddLibrary(name string, from string, to string, l
 	if library != nil {
 		nullToEmpty = *library
 	}
-	c.polyfillTable.Add(name + " " + from + " " + to + " " + nullToEmpty)
+	c.polyfillTable = append(c.polyfillTable, name+" "+from+" "+to+" "+nullToEmpty)
 	c.polyfillsToInject.Add(name)
 }
 
 // Java: IsolatePolyfillsTest.setUp()
 func (c *IsolatePolyfillsTest) SetUp() {
 	c.CompilerTestCaseBase.SetUp()
-	c.polyfillTable.Clear()
+	c.polyfillTable = c.polyfillTable[:0]
 	c.polyfillsToInject.Clear()
 	c.AllowExternsChanges()
 	c.SetLanguageOut(CompilerOptions_LanguageMode_ECMASCRIPT5)
@@ -88,7 +87,7 @@ func (c *IsolatePolyfillsTest) GetProcessor(compiler *Compiler) CompilerPass {
 			GetSynthesizedExternsInput().
 			GetAstRoot(compiler).
 			AddChildToBack(rhino.IR_Var(rhino.IR_Name("$jscomp$lookupPolyfilledValue")))
-		NewIsolatePolyfillsWithPolyfills(compiler, PolyfillUsageFinder_Polyfills_FromTable(strings.Join(c.polyfillTable.ToSlice(), "\n"))).
+		NewIsolatePolyfillsWithPolyfills(compiler, PolyfillUsageFinder_Polyfills_FromTable(strings.Join(c.polyfillTable, "\n"))).
 			Process(externs, root)
 	})
 }
@@ -519,7 +518,7 @@ func (c *IsolatePolyfillsTest) TestPolyfilTemp_multipleFiles_insertedInFirstFile
 	// Regression test for failure to report code change when adding "var $jscomp$polyfillTmp;"
 	// Don't call addLibrary() for this test: it reports a code change regardless & make the
 	// test incorrectly pass.
-	c.polyfillTable.Add("String.prototype.endsWith es6 es5 es6/string/endswith")
+	c.polyfillTable = append(c.polyfillTable, "String.prototype.endsWith es6 es5 es6/string/endswith")
 	c.SetLanguage(isolatePolyfillsTest_ES6, isolatePolyfillsTest_ES5)
 
 	c.Test(

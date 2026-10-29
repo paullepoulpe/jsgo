@@ -86,8 +86,15 @@ func NewProcessClosureProvidesAndRequires(
 }
 
 func (p *ProcessClosureProvidesAndRequires) putProvidedName(ns string, pn *ProcessClosureProvidesAndRequires_ProvidedName) {
-	if _, exists := p.providedNames[ns]; !exists {
+	if prev, exists := p.providedNames[ns]; !exists {
 		p.providedOrder = append(p.providedOrder, pn)
+	} else {
+		for i, existing := range p.providedOrder {
+			if existing == prev {
+				p.providedOrder[i] = pn
+				break
+			}
+		}
 	}
 	p.providedNames[ns] = pn
 	leaf := ns
@@ -155,8 +162,16 @@ func (p *ProcessClosureProvidesAndRequires) collectProvidedNamesInternal(externs
 		p.putProvidedName(
 			processClosureProvidesAndRequires_GOOG,
 			p.newProvidedName(processClosureProvidesAndRequires_GOOG, rhino.NilNode, nil, false, false, false))
-		NodeTraversal_TraverseRoots(p.compiler, &closureProvideCollector{outer: p}, externs, root)
+		collector := closureProvideCollector{outer: p}
+		NodeTraversal_TraverseRoots(p.compiler, &collector, externs, root)
 	}
+}
+
+// CollectProvidedNamesSlice collects all `goog.provide`s in deterministic
+// insertion order without allocating a LinkedHashMap wrapper.
+func (p *ProcessClosureProvidesAndRequires) CollectProvidedNamesSlice(externs rhino.Node, root rhino.Node) []*ProcessClosureProvidesAndRequires_ProvidedName {
+	p.collectProvidedNamesInternal(externs, root)
+	return p.providedOrder
 }
 
 // CollectProvidedNames collects all `goog.provide`s in the given namespace
@@ -194,8 +209,21 @@ func (p *ProcessClosureProvidesAndRequires) RewriteProvidesAndRequires(externs r
 	}
 }
 
+var closureProvideCollectorVisitTokens = func() ast.TokenSet {
+	var s ast.TokenSet
+	s.Add(rhino.Token_CALL)
+	s.Add(rhino.Token_ASSIGN)
+	s.Add(rhino.Token_NAME)
+	s.Add(rhino.Token_EXPR_RESULT)
+	return s
+}()
+
 type closureProvideCollector struct {
 	outer *ProcessClosureProvidesAndRequires
+}
+
+func (*closureProvideCollector) visitTokens() *ast.TokenSet {
+	return &closureProvideCollectorVisitTokens
 }
 
 func (c *closureProvideCollector) ShouldTraverse(t *NodeTraversal, n rhino.Node, parent rhino.Node) bool {

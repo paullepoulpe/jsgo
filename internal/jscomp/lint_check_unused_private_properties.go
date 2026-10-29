@@ -19,9 +19,29 @@
 package jscomp
 
 import (
+	"github.com/paullepoulpe/jsgo/internal/ast"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
+
+var checkUnusedPrivatePropertiesVisitTokens = func() ast.TokenSet {
+	var s ast.TokenSet
+	s.Add(rhino.Token_SCRIPT)
+	s.Add(rhino.Token_GETPROP)
+	s.Add(rhino.Token_MEMBER_FUNCTION_DEF)
+	s.Add(rhino.Token_OBJECTLIT)
+	s.Add(rhino.Token_CALL)
+	s.Add(rhino.Token_FUNCTION)
+	s.Add(rhino.Token_CLASS)
+	return s
+}()
+
+func (*CheckUnusedPrivateProperties) visitTokens() *ast.TokenSet {
+	return &checkUnusedPrivatePropertiesVisitTokens
+}
+func (*CheckUnusedPrivateProperties) combinedVisitTokens() ast.TokenSet {
+	return checkUnusedPrivatePropertiesVisitTokens
+}
 
 // CheckUnusedPrivateProperties looks for properties that are never read.
 // These can be properties created using "this", or static properties of

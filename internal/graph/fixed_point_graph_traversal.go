@@ -97,7 +97,7 @@ func FixedPointGraphTraversal_NewReverseTraversal[NodeT comparable, EdgeT any](
 // Java: FixedPointGraphTraversal.computeFixedPoint(DiGraph<N, E>)
 func (t *FixedPointGraphTraversal[N, E]) ComputeFixedPoint(graph DiGraph[N, E]) {
 	var zeroN N
-	t.computeFixedPointLinked(graph.AsLinkedDirectedGraph(), true, zeroN, nil)
+	t.computeFixedPointLinked(graph.AsLinkedDirectedGraph(), true, zeroN)
 }
 
 // ComputeFixedPointFrom computes a fixed point for the given graph,
@@ -106,7 +106,7 @@ func (t *FixedPointGraphTraversal[N, E]) ComputeFixedPoint(graph DiGraph[N, E]) 
 //
 // Java: FixedPointGraphTraversal.computeFixedPoint(DiGraph<N, E>, N)
 func (t *FixedPointGraphTraversal[N, E]) ComputeFixedPointFrom(graph DiGraph[N, E], entry N) {
-	t.computeFixedPointLinked(graph.AsLinkedDirectedGraph(), false, entry, nil)
+	t.computeFixedPointLinked(graph.AsLinkedDirectedGraph(), false, entry)
 }
 
 // We cube the number of nodes to estimate the largest number of iterations
@@ -118,22 +118,10 @@ func (t *FixedPointGraphTraversal[N, E]) ComputeFixedPointFrom(graph DiGraph[N, 
 // node count we use for calculation at the cube root of that number.
 var fixedPointGraphTraversal_MAX_NODE_COUNT_FOR_ITERATION_LIMIT = int64(math.Floor(math.Cbrt(60e9)))
 
-// ComputeFixedPointFromSet computes a fixed point for the given graph,
-// entering from the given nodes. entrySet is the nodes to begin traversing
-// from.
-//
-// Java: FixedPointGraphTraversal.computeFixedPoint(DiGraph<N, E>, Set<N>)
-func (t *FixedPointGraphTraversal[N, E]) ComputeFixedPointFromSet(graph DiGraph[N, E], entrySet *jutil.LinkedHashSet[N]) {
-	if entrySet == nil {
-		panic(jutil.NewNullPointerException())
-	}
-	var zeroN N
-	t.computeFixedPointLinked(graph.AsLinkedDirectedGraph(), false, zeroN, entrySet)
-}
-
 func (t *FixedPointGraphTraversal[N, E]) computeFixedPointLinked(
-	ldg *LinkedDirectedGraph[N, E], initAll bool, singleEntry N, entrySet *jutil.LinkedHashSet[N]) {
-	nodeCountInt := ldg.Nodes.Size()
+	ldg *LinkedDirectedGraph[N, E], initAll bool, singleEntry N) {
+	nodes := ldg.Nodes.Slice()
+	nodeCountInt := len(nodes)
 	ringCap := 16
 	for ringCap <= nodeCountInt+1 {
 		ringCap <<= 1
@@ -156,26 +144,8 @@ func (t *FixedPointGraphTraversal[N, E]) computeFixedPointLinked(
 		}
 	}()
 
-	var nilInWorkSet bool
 	if initAll {
-		for node := range ldg.Nodes.Values() {
-			if !node.inWorkSet {
-				node.inWorkSet = true
-				ring[tail&mask] = node
-				tail++
-			}
-		}
-	} else if entrySet != nil {
-		for v := range entrySet.All() {
-			node := ldg.GetLinkedDiGraphNode(v)
-			if node == nil {
-				if !nilInWorkSet {
-					nilInWorkSet = true
-					ring[tail&mask] = nil
-					tail++
-				}
-				continue
-			}
+		for _, node := range nodes {
 			if !node.inWorkSet {
 				node.inWorkSet = true
 				ring[tail&mask] = node

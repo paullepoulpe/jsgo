@@ -3,6 +3,7 @@ package cli
 import (
 	"bytes"
 	"compress/gzip"
+	"encoding/base64"
 	"fmt"
 	"io"
 	"os"
@@ -158,7 +159,7 @@ func TestParallelPasses_SaveAndRestoreStateWithInlineSourceMapsParity(t *testing
 				fmt.Sprintf("// Café résumé λ %d:%d\nexport function fn_%d_%d(v: number) { return v + %d; }\n", c, f, c, f, c*10+f),
 				c, f,
 			)
-			b64 := jutil.BaseEncoding_Base64().Encode([]byte(inlineJSON))
+			b64 := base64.StdEncoding.EncodeToString([]byte(inlineJSON))
 			var code string
 			if c == 0 && f == 0 {
 				code = fmt.Sprintf(

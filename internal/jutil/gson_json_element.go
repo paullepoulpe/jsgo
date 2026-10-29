@@ -28,6 +28,7 @@ package jutil
 
 import (
 	"iter"
+	"slices"
 	"strings"
 )
 
@@ -290,7 +291,7 @@ func (o *JsonObject) HashCode() int32 {
 
 // JsonArray is com.google.gson.JsonArray.
 type JsonArray struct {
-	elements *ArrayList[JsonElement]
+	elements []JsonElement
 }
 
 func (*JsonArray) isJsonElement() {}
@@ -299,7 +300,7 @@ func (*JsonArray) isJsonElement() {}
 //
 // Java: JsonArray()
 func NewJsonArray() *JsonArray {
-	return &JsonArray{elements: NewArrayList[JsonElement]()}
+	return &JsonArray{}
 }
 
 func (*JsonArray) IsJsonArray() bool     { return true }
@@ -322,11 +323,14 @@ func (a *JsonArray) String() string { return jsonElementToString(a) }
 
 // Java: JsonArray.deepCopy()
 func (a *JsonArray) DeepCopy() JsonElement {
-	result := NewJsonArray()
-	for e := range a.elements.All() {
-		result.Add(e.DeepCopy())
+	if len(a.elements) == 0 {
+		return NewJsonArray()
 	}
-	return result
+	elems := make([]JsonElement, len(a.elements))
+	for i, e := range a.elements {
+		elems[i] = e.DeepCopy()
+	}
+	return &JsonArray{elements: elems}
 }
 
 // Add appends an element; nil is stored as JsonNull.INSTANCE.
@@ -336,7 +340,7 @@ func (a *JsonArray) Add(element JsonElement) {
 	if element == nil {
 		element = JsonNull_INSTANCE
 	}
-	a.elements.Add(element)
+	a.elements = append(a.elements, element)
 }
 
 // AddString appends a string element.
@@ -344,9 +348,9 @@ func (a *JsonArray) Add(element JsonElement) {
 // Java: JsonArray.add(String)
 func (a *JsonArray) AddString(s *string) {
 	if s == nil {
-		a.elements.Add(JsonNull_INSTANCE)
+		a.elements = append(a.elements, JsonNull_INSTANCE)
 	} else {
-		a.elements.Add(NewJsonPrimitiveString(*s))
+		a.elements = append(a.elements, NewJsonPrimitiveString(*s))
 	}
 }
 
@@ -354,80 +358,83 @@ func (a *JsonArray) AddString(s *string) {
 //
 // Java: JsonArray.size()
 func (a *JsonArray) Size() int {
-	return a.elements.Size()
+	return len(a.elements)
 }
 
 // IsEmpty reports whether there are no elements.
 //
 // Java: JsonArray.isEmpty()
 func (a *JsonArray) IsEmpty() bool {
-	return a.elements.IsEmpty()
+	return len(a.elements) == 0
 }
 
 // All iterates the elements in order.
 //
 // Java: JsonArray.iterator()
 func (a *JsonArray) All() iter.Seq[JsonElement] {
-	return a.elements.All()
+	return slices.Values(a.elements)
 }
 
 // Get returns the i-th element.
 //
 // Java: JsonArray.get(int)
 func (a *JsonArray) Get(i int) JsonElement {
-	return a.elements.Get(i)
+	if uint(i) >= uint(len(a.elements)) {
+		panic(NewIndexOutOfBoundsException(LenientFormat("Index %s out of bounds for length %s", i, len(a.elements))))
+	}
+	return a.elements[i]
 }
 
 // Java: JsonArray.getAsNumber()
 func (a *JsonArray) GetAsNumber() JavaNumber {
-	if a.elements.Size() == 1 {
-		return a.elements.Get(0).GetAsNumber()
+	if len(a.elements) == 1 {
+		return a.elements[0].GetAsNumber()
 	}
 	panic(NewIllegalStateException())
 }
 
 // Java: JsonArray.getAsString()
 func (a *JsonArray) GetAsString() string {
-	if a.elements.Size() == 1 {
-		return a.elements.Get(0).GetAsString()
+	if len(a.elements) == 1 {
+		return a.elements[0].GetAsString()
 	}
 	panic(NewIllegalStateException())
 }
 
 func (a *JsonArray) TryGetAsString() (string, Throwable) {
-	if a.elements.Size() == 1 {
-		return a.elements.Get(0).TryGetAsString()
+	if len(a.elements) == 1 {
+		return a.elements[0].TryGetAsString()
 	}
 	return "", NewIllegalStateException()
 }
 
 // Java: JsonArray.getAsLong()
 func (a *JsonArray) GetAsLong() int64 {
-	if a.elements.Size() == 1 {
-		return a.elements.Get(0).GetAsLong()
+	if len(a.elements) == 1 {
+		return a.elements[0].GetAsLong()
 	}
 	panic(NewIllegalStateException())
 }
 
 // Java: JsonArray.getAsInt()
 func (a *JsonArray) GetAsInt() int32 {
-	if a.elements.Size() == 1 {
-		return a.elements.Get(0).GetAsInt()
+	if len(a.elements) == 1 {
+		return a.elements[0].GetAsInt()
 	}
 	panic(NewIllegalStateException())
 }
 
 func (a *JsonArray) TryGetAsInt() (int32, Throwable) {
-	if a.elements.Size() == 1 {
-		return a.elements.Get(0).TryGetAsInt()
+	if len(a.elements) == 1 {
+		return a.elements[0].TryGetAsInt()
 	}
 	return 0, NewIllegalStateException()
 }
 
 // Java: JsonArray.getAsBoolean()
 func (a *JsonArray) GetAsBoolean() bool {
-	if a.elements.Size() == 1 {
-		return a.elements.Get(0).GetAsBoolean()
+	if len(a.elements) == 1 {
+		return a.elements[0].GetAsBoolean()
 	}
 	panic(NewIllegalStateException())
 }
@@ -441,11 +448,11 @@ func (a *JsonArray) Equals(o any) bool {
 		return true
 	}
 	x, ok := o.(*JsonArray)
-	if !ok || x == nil || x.elements.Size() != a.elements.Size() {
+	if !ok || x == nil || len(x.elements) != len(a.elements) {
 		return false
 	}
-	for i := 0; i < a.elements.Size(); i++ {
-		if !x.elements.Get(i).Equals(a.elements.Get(i)) {
+	for i, e := range a.elements {
+		if !x.elements[i].Equals(e) {
 			return false
 		}
 	}
@@ -457,7 +464,7 @@ func (a *JsonArray) Equals(o any) bool {
 // Java: JsonArray.hashCode()
 func (a *JsonArray) HashCode() int32 {
 	h := int32(1)
-	for e := range a.elements.All() {
+	for _, e := range a.elements {
 		h = 31*h + e.HashCode()
 	}
 	return h

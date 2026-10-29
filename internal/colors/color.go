@@ -132,9 +132,8 @@ func (c *Color) IsClosureAssert() bool { return c.closureAssert }
 func (c *Color) GetUnionElements() []*Color { return c.unionElements }
 
 var (
-	colorEmptyColorSet = jutil.NewObjectLinkedHashSet[*Color]()
-	emptyColorSlice    = []*Color{}
-	emptyStringSlice   = []string{}
+	emptyColorSlice  = []*Color{}
+	emptyStringSlice = []string{}
 )
 
 // EmptyColorSlice returns the shared non-nil empty []*Color sentinel.
@@ -156,27 +155,7 @@ func Color_SingleBuilder() *Color_Builder {
 
 // Java: Color.createUnion(Set<Color>)
 func Color_CreateUnion(elements *jutil.ObjectLinkedHashSet[*Color]) *Color {
-	n := elements.Size()
-	switch n {
-	case 0:
-		panic(jutil.NewIllegalStateException())
-	case 1:
-		for e := range elements.All() {
-			return e
-		}
-	}
-	var stackBuf [8]*Color
-	var slice []*Color
-	if n <= len(stackBuf) {
-		slice = stackBuf[:0]
-		for e := range elements.All() {
-			slice = append(slice, e)
-		}
-	} else {
-		slice = elements.ToSlice()
-	}
-	var builder Color_Builder
-	return Color_CreateUnionSliceWithBuilder(slice, &builder, nil, nil)
+	return Color_CreateUnionSlice(elements.ToSlice())
 }
 
 // Color_CreateUnionSlice builds a union Color from a slice of Colors.
@@ -1148,7 +1127,7 @@ func (b *Color_Builder) Build() *Color {
 	result := b.BuildInternal()
 	jutil.CheckStateMsg1(len(result.unionElements) == 0, "%s", result)
 	jutil.CheckStateMsg1(!result.hasBoxId, "%s", result)
-	jutil.CheckStateMsg1(!StandardColors_AXIOMATIC_COLORS.ContainsKey(result.GetId()), "%s", result)
+	jutil.CheckStateMsg1(StandardColors_AXIOMATIC_COLORS[result.GetId()] == nil, "%s", result)
 	return result
 }
 

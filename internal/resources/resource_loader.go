@@ -52,18 +52,13 @@ var resourceLoader_runtimeLibsTypedAst []byte
 
 const resourceLoader_runtimeLibsTypedAstName = "runtime_libs.typedast"
 
-// ResourceLoader loads text resources from the classpath.
-//
-// Java: public final class ResourceLoader (only static members).
-//
-// Go-only: language-adapter — a Java Class<?> argument is the class's binary
-// name (e.g. "com.google.javascript.jscomp.RemoveUnusedCode"); like
-// Class.getResource, a relative path is resolved against its package.
-type ResourceLoader struct{}
-
 // ResourceLoader_LoadTextResource returns the UTF-8 text of the resource
 // path relative to clazz, throwing RuntimeException("No such resource: ...")
 // if there is none.
+//
+// A Java Class<?> argument is the class's binary name (e.g.
+// "com.google.javascript.jscomp.RemoveUnusedCode"); like Class.getResource,
+// a relative path is resolved against its package.
 //
 // Java: ResourceLoader.loadTextResource(Class<?>, String)
 func ResourceLoader_LoadTextResource(clazz string, path string) string {
@@ -74,14 +69,6 @@ func ResourceLoader_LoadTextResource(clazz string, path string) string {
 	return string(data)
 }
 
-// ResourceLoader_LoadPropertiesMap parses the resource resourceName relative
-// to clazz with PropertiesParser.
-//
-// Java: ResourceLoader.loadPropertiesMap(Class<?>, String)
-func ResourceLoader_LoadPropertiesMap(clazz string, resourceName string) *jutil.LinkedHashMap[string, string] {
-	return PropertiesParser_Parse(ResourceLoader_LoadTextResource(clazz, resourceName))
-}
-
 // ResourceLoader_ResourceExists reports whether the resource path relative
 // to clazz exists.
 //
@@ -89,13 +76,6 @@ func ResourceLoader_LoadPropertiesMap(clazz string, resourceName string) *jutil.
 func ResourceLoader_ResourceExists(clazz string, path string) bool {
 	_, ok := resourceLoader_getResource(resourceLoader_resolveName(clazz, path))
 	return ok
-}
-
-// NewResourceLoader is the private constructor.
-//
-// Java: ResourceLoader()
-func NewResourceLoader() *ResourceLoader {
-	return &ResourceLoader{}
 }
 
 // resourceLoader_resolveName is Class.resolveName(String): a relative name is

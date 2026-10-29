@@ -152,7 +152,7 @@ func PolymerClassDefinition_ExtractFromCallNode(
 		} else {
 			elNameStringBase = elName.GetString()
 		}
-		elNameString := jutil.CaseFormat_LowerHyphenToUpperCamel(elNameStringBase) + "Element"
+		elNameString := caseFormatLowerHyphenToUpperCamel(elNameStringBase) + "Element"
 		target = rhino.IR_Name(elNameString)
 		hasGeneratedLhs = true
 	}

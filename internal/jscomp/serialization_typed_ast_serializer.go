@@ -729,7 +729,7 @@ func (s *TypedAstSerializer_ColorTypeSerializer) AddTypeForNode(node rhino.Node,
 func (s *TypedAstSerializer_ColorTypeSerializer) GenerateTypePool() *TypePool {
 	mismatchLocationsForDebugging := s.colorRegistry.GetMismatchLocationsForDebugging()
 	return s.colorSerializer.GenerateTypePool(
-		s.colorRegistry.GetDisambiguationSupertypes,
+		s.colorRegistry.GetDisambiguationSupertypesSlice,
 		func(color *colors.Color) *jutil.LinkedHashSet[string] {
 			// Go-only: language-adapter — the ColorSerializer port takes the
 			// ImmutableSet<String> as a LinkedHashSet, the SetMultimap port

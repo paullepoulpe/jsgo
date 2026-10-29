@@ -19,7 +19,14 @@
 package jscomp
 
 import (
+	"encoding/binary"
+	"encoding/hex"
+	"fmt"
+	"math"
+	"os"
+	"path/filepath"
 	"slices"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -43,7 +50,7 @@ func stringSet(names []string) map[string]bool {
 }
 
 func TestRandomNameGenerator_ConstructorInvalidPrefixes(t *testing.T) {
-	random := jutil.NewRandomWithSeed(0)
+	random := NewJavaRandomWithSeed(0)
 
 	ex := assertThrows[jutil.IIllegalArgumentException](t, func() {
 		NewRandomNameGeneratorWithReserved(jutil.NewLinkedHashSet[string](), "123abc", noChars(), random)
@@ -65,7 +72,7 @@ func TestRandomNameGenerator_Generate(t *testing.T) {
 	// Since there's a hash function involved, there's not much point in
 	// mocking Random to get nicer values. Instead, let's just try to verify
 	// the sanity of the results.
-	random := jutil.NewRandomWithSeed(0)
+	random := NewJavaRandomWithSeed(0)
 	reservedNames := jutil.NewLinkedHashSet[string]()
 	prefix := "prefix"
 	prefixLen := len(prefix)
@@ -127,7 +134,7 @@ func TestRandomNameGenerator_Generate(t *testing.T) {
 }
 
 func TestRandomNameGenerator_FirstCharAlphabet(t *testing.T) {
-	random := jutil.NewRandomWithSeed(0)
+	random := NewJavaRandomWithSeed(0)
 	reservedNames := jutil.NewLinkedHashSet[string]()
 	ng := NewRandomNameGeneratorWithReserved(reservedNames, "", noChars(), random)
 	// Generate all 1- and 2-character names.
@@ -159,7 +166,7 @@ func TestRandomNameGenerator_FirstCharAlphabet(t *testing.T) {
 }
 
 func TestRandomNameGenerator_Prefix(t *testing.T) {
-	random := jutil.NewRandomWithSeed(0)
+	random := NewJavaRandomWithSeed(0)
 	reservedNames := jutil.NewLinkedHashSet[string]()
 	prefix := "prefix"
 	ng := NewRandomNameGeneratorWithReserved(reservedNames, prefix, noChars(), random)
@@ -178,8 +185,8 @@ func TestRandomNameGenerator_Prefix(t *testing.T) {
 
 func TestRandomNameGenerator_Seeds(t *testing.T) {
 	// Using different seeds should return different names.
-	random0 := jutil.NewRandomWithSeed(0)
-	random1 := jutil.NewRandomWithSeed(1)
+	random0 := NewJavaRandomWithSeed(0)
+	random1 := NewJavaRandomWithSeed(1)
 	reservedNames := jutil.NewLinkedHashSet[string]()
 	ng0 := NewRandomNameGeneratorWithReserved(reservedNames, "", noChars(), random0)
 	ng1 := NewRandomNameGeneratorWithReserved(reservedNames, "", noChars(), random1)
@@ -201,7 +208,7 @@ func TestRandomNameGenerator_Seeds(t *testing.T) {
 }
 
 func TestRandomNameGenerator_ReservedNames(t *testing.T) {
-	random := jutil.NewRandomWithSeed(0)
+	random := NewJavaRandomWithSeed(0)
 	reservedNames := jutil.NewLinkedHashSet("x", "ba")
 	ng := NewRandomNameGeneratorWithReserved(reservedNames, "", noChars(), random)
 	// Generate all 1- and 2-character names (and a couple 3-character
@@ -218,7 +225,7 @@ func TestRandomNameGenerator_ReservedNames(t *testing.T) {
 }
 
 func TestRandomNameGenerator_ReservedCharacters(t *testing.T) {
-	random := jutil.NewRandomWithSeed(0)
+	random := NewJavaRandomWithSeed(0)
 	reservedNames := jutil.NewLinkedHashSet[string]()
 	ng := NewRandomNameGeneratorWithReserved(reservedNames, "", noChars('a', 'b'), random)
 	// Generate all 1- and 2-character names (and also many 3-character
@@ -239,7 +246,7 @@ func TestRandomNameGenerator_ReservedCharacters(t *testing.T) {
 }
 
 func TestRandomNameGenerator_ES6KeywordsNotGenerated(t *testing.T) {
-	random := jutil.NewRandomWithSeed(0)
+	random := NewJavaRandomWithSeed(0)
 	reservedNames := jutil.NewLinkedHashSet[string]()
 
 	ng := NewRandomNameGeneratorWithReserved(reservedNames, "le", noChars('$'), random)
@@ -249,4 +256,114 @@ func TestRandomNameGenerator_ES6KeywordsNotGenerated(t *testing.T) {
 	ng = NewRandomNameGeneratorWithReserved(reservedNames, "awai", noChars('$'), random)
 	result = generateRandomNames(ng, 106)
 	assertEqual(t, "await", slices.Contains(result, "await"), false)
+}
+
+func rngReadTSV(t *testing.T, name string) [][]string {
+	t.Helper()
+	b, err := os.ReadFile(filepath.Join("testdata", name))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var rows [][]string
+	for _, line := range strings.Split(strings.TrimSuffix(string(b), "\n"), "\n") {
+		if line != "" {
+			rows = append(rows, strings.Split(line, "\t"))
+		}
+	}
+	return rows
+}
+
+func rngDecodeUnits(t *testing.T, s string) []uint16 {
+	t.Helper()
+	s = strings.TrimPrefix(s, "u")
+	out := make([]uint16, len(s)/4)
+	for i := range out {
+		v, err := strconv.ParseUint(s[4*i:4*i+4], 16, 16)
+		if err != nil {
+			t.Fatal(err)
+		}
+		out[i] = uint16(v)
+	}
+	return out
+}
+
+func rngEncodeUnits(u []uint16) string {
+	var sb strings.Builder
+	sb.WriteByte('u')
+	for _, c := range u {
+		fmt.Fprintf(&sb, "%04x", c)
+	}
+	return sb.String()
+}
+
+func TestRandomNameGenerator_JavaRandomAndMurmur3Vectors(t *testing.T) {
+	bounds := []int32{1, 2, 3, 7, 16, 52, 64, 100, 1000, 1 << 30, 2147483647, 0x40000001}
+	for _, r := range rngReadTSV(t, "random.tsv") {
+		seed, _ := strconv.ParseInt(r[0], 10, 64)
+		x := NewJavaRandomWithSeed(seed)
+		var parts []string
+		for i := 0; i < 5; i++ {
+			parts = append(parts, strconv.Itoa(int(x.NextInt())))
+		}
+		for _, b := range bounds {
+			parts = append(parts, strconv.Itoa(int(x.NextIntBound(b))))
+		}
+		for i := 0; i < 3; i++ {
+			parts = append(parts, strconv.FormatInt(x.NextLong(), 10))
+		}
+		parts = append(parts, strconv.FormatBool(x.NextBoolean()))
+		parts = append(parts, strconv.FormatInt(int64(math.Float64bits(x.NextDouble())), 10))
+		parts = append(parts, strconv.Itoa(int(int32(math.Float32bits(x.NextFloat())))))
+		if got := strings.Join(parts, ","); got != r[1] {
+			t.Errorf("seed %d:\n got %s\nwant %s", seed, got, r[1])
+		}
+		list := make([]int, 64)
+		for i := range list {
+			list[i] = i
+		}
+		shuffleSlice(list, x)
+		if got := strings.ReplaceAll(jutil.CollectionToString(list), " ", ""); got != r[2] {
+			t.Errorf("seed %d shuffle:\n got %s\nwant %s", seed, got, r[2])
+		}
+	}
+
+	for _, r := range rngReadTSV(t, "murmur3.tsv") {
+		switch r[0] {
+		case "B":
+			raw, err := hex.DecodeString(strings.TrimPrefix(r[1], "x"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			h1, h2 := murmur3x64_128(raw, 0)
+			var out [16]byte
+			binary.LittleEndian.PutUint64(out[0:8], h1)
+			binary.LittleEndian.PutUint64(out[8:16], h2)
+			if got := hex.EncodeToString(out[:]); got != r[2] {
+				t.Errorf("murmur3(%s) = %s, Guava %s", r[1], got, r[2])
+			}
+		case "C":
+			comma := strings.IndexByte(r[1], ',')
+			n, _ := strconv.Atoi(r[1][:comma])
+			units := rngDecodeUnits(t, r[1][comma+1:])
+			got := rngMurmur3HashLengthAndChars(int32(n), units)
+			if strconv.Itoa(int(got)) != r[2] {
+				t.Errorf("murmur3(%s) = %d, Guava %s", r[1], got, r[2])
+			}
+		}
+	}
+}
+
+func TestPolymerCaseFormatMatchesGuava(t *testing.T) {
+	for _, r := range rngReadTSV(t, "caseformat.tsv") {
+		in := jutil.StringFromUTF16(rngDecodeUnits(t, r[0]))
+		if got := rngEncodeUnits(jutil.StringToUTF16(caseFormatLowerCamelToUpperUnderscore(in))); got != r[1] {
+			t.Errorf("LOWER_CAMEL.to(UPPER_UNDERSCORE, %s) = %s, Guava %s", r[0], got, r[1])
+		}
+	}
+	for _, r := range rngReadTSV(t, "caseformat_hyphen.tsv") {
+		in := jutil.StringFromUTF16(rngDecodeUnits(t, r[0]))
+		if got := rngEncodeUnits(jutil.StringToUTF16(caseFormatLowerHyphenToUpperCamel(in))); got != r[1] {
+			t.Errorf("LOWER_HYPHEN.to(UPPER_CAMEL, %s) = %s, Guava %s", r[0], got, r[1])
+		}
+	}
 }

@@ -112,10 +112,8 @@ func TestObjectsEquals(t *testing.T) {
 	if ObjectsEquals(int32(1), int64(1)) || !ObjectsEquals("x", "x") {
 		t.Fatal("boxed equality")
 	}
-	l1 := NewArrayListFrom([]string{"a", "b"})
-	l2 := NewArrayListFrom([]string{"a", "b"})
-	if !ObjectsEquals(l1, l2) || l1.HashCode() != l2.HashCode() {
-		t.Fatal("List.equals")
+	if ListHashCode([]string{"a", "b"}) != ListHashCode([]string{"a", "b"}) {
+		t.Fatal("List.hashCode")
 	}
 	s1 := NewLinkedHashSet("a", "b")
 	s2 := NewLinkedHashSet("b", "a")

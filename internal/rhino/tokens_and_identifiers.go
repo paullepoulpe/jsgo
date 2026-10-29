@@ -117,14 +117,6 @@ import (
 
 // TokenStream implements the JavaScript scanner.
 //
-// It is based on the C source files jsscan.c and jsscan.h in the jsref
-// package.
-//
-// IMPORTANT: As of 2018-03-09 it is still not possible to use Java 8
-// features in this file due to limitations on some internal Google projects
-// that depend on it.
-type TokenStream struct{}
-
 // TokenStream_IsKeyword reports whether the string is an ES3 keyword.
 //
 // Keywords for versions of JavaScript after ES3 are not included, because
@@ -154,12 +146,6 @@ func TokenStream_IsKeyword(name string) bool {
 func TokenStream_IsJSIdentifier(s string) bool {
 	return JSIdentifier_IsJSIdentifier(s)
 }
-
-// Java: TokenStream()
-func NewTokenStream() *TokenStream { return &TokenStream{} }
-
-// TokenUtil holds helper methods for parsing JavaScript.
-type TokenUtil struct{}
 
 // TokenUtil_IsJSSpace is as defined in ECMA. jsscan.c uses C isspace()
 // (which allows \v, I think.) note that code in getChar() implicitly accepts
@@ -209,16 +195,6 @@ func TokenUtil_IsStrWhiteSpaceChar(c int) base.Tri {
 		return base.Tri_FALSE
 	}
 }
-
-// Java: TokenUtil()
-func NewTokenUtil() *TokenUtil { return &TokenUtil{} }
-
-// JSIdentifier is a utility class to hold isJSIdentifier.
-//
-// IMPORTANT: As of 2018-03-09 it is still not possible to use Java 8
-// features in this file due to limitations on some internal Google projects
-// that depend on it.
-type JSIdentifier struct{}
 
 var asciiIdentStart = [128]uint8{
 	'$': 1,
@@ -281,9 +257,6 @@ func isJSIdentifierUTF16(s string) bool {
 	return true
 }
 
-// Java: JSIdentifier()
-func NewJSIdentifier() *JSIdentifier { return &JSIdentifier{} }
-
 // ClosurePrimitive enumerates the primitive functions that the compiler
 // recognizes.
 //
@@ -314,20 +287,6 @@ var closurePrimitive_values = [...]ClosurePrimitive{
 
 // String is Enum.name().
 func (p ClosurePrimitive) String() string { return closurePrimitive_names[p] }
-
-// ClosurePrimitive_ID_TO_ENUM maps human-readable ids to enum members.
-//
-// The expected mapping (although not enforced) of keys -> values is that
-// the enum member maps to a lowercase string with "_" replaced with "."
-//
-// Java: ClosurePrimitive.ID_TO_ENUM
-var ClosurePrimitive_ID_TO_ENUM = func() *jutil.LinkedHashMap[string, ClosurePrimitive] {
-	m := jutil.NewLinkedHashMap[string, ClosurePrimitive]()
-	m.Put("asserts.fail", ClosurePrimitive_ASSERTS_FAIL)
-	m.Put("asserts.truthy", ClosurePrimitive_ASSERTS_TRUTHY)
-	m.Put("asserts.matchesReturn", ClosurePrimitive_ASSERTS_MATCHES_RETURN)
-	return m
-}()
 
 // ClosurePrimitive_FromStringId returns the ClosurePrimitive corresponding to
 // the given string id.

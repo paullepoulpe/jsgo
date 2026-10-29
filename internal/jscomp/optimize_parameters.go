@@ -112,14 +112,14 @@ func (o *OptimizeParameters) ProcessWithReferenceMap(externs rhino.Node, root rh
 
 	var toOptimize [][]rhino.Node
 
-	for key, refs := range refMap.GetNameReferences() {
-		if o.analyzeCandidate("name", key, refs) {
+	for id, refs := range refMap.GetNameReferencesByID() {
+		if o.analyzeCandidateByID("name", id, refs) {
 			toOptimize = append(toOptimize, refs)
 		}
 	}
 
-	for key, refs := range refMap.GetPropReferences() {
-		if o.analyzeCandidate("property", key, refs) {
+	for id, refs := range refMap.GetPropReferencesByID() {
+		if o.analyzeCandidateByID("property", id, refs) {
 			toOptimize = append(toOptimize, refs)
 		}
 	}
@@ -366,14 +366,14 @@ func optimizeParameters_alreadyRemoved(n rhino.Node) bool {
 	return !n.IsRoot()
 }
 
-// analyzeCandidate reports whether a symbol's references are safe for parameter
+// analyzeCandidateByID reports whether a symbol's references are safe for parameter
 // optimization (converting any eligible tagged template literals to normal calls).
 //
 // Java: OptimizeParameters.analyzeCandidate(String, String, ArrayList<Node>)
-func (o *OptimizeParameters) analyzeCandidate(refKind string, key string, refs []rhino.Node) bool {
-	if !OptimizeCalls_MayBeOptimizableName(o.compiler, key) {
+func (o *OptimizeParameters) analyzeCandidateByID(refKind string, keyID uint32, refs []rhino.Node) bool {
+	if !OptimizeCalls_MayBeOptimizableNameByID(o.compiler, keyID) {
 		if o.decisionsLog.IsLogging() {
-			o.decisionsLog.LogFormat("%s\t%s\tnot an optimizable name", refKind, key)
+			o.decisionsLog.LogFormat("%s\t%s\tnot an optimizable name", refKind, rhino.RhinoStringPool_StringFromID(keyID))
 		}
 		return false
 	}
@@ -390,7 +390,7 @@ func (o *OptimizeParameters) analyzeCandidate(refKind string, key string, refs [
 			definitions = append(definitions, n)
 		} else if !OptimizeCalls_IsAllowedReference(n) {
 			if o.decisionsLog.IsLogging() {
-				o.decisionsLog.LogFormat("%s\t%s\tnot an allowed reference: %s", refKind, key, n.GetLocation())
+				o.decisionsLog.LogFormat("%s\t%s\tnot an allowed reference: %s", refKind, rhino.RhinoStringPool_StringFromID(keyID), n.GetLocation())
 			}
 			o.defNodes = definitions
 			o.ttlList = ttls
@@ -402,7 +402,7 @@ func (o *OptimizeParameters) analyzeCandidate(refKind string, key string, refs [
 
 	if len(definitions) == 0 {
 		if o.decisionsLog.IsLogging() {
-			o.decisionsLog.LogFormat("%s\t%s\tno definition found", refKind, key)
+			o.decisionsLog.LogFormat("%s\t%s\tno definition found", refKind, rhino.RhinoStringPool_StringFromID(keyID))
 		}
 		return false
 	}
@@ -415,7 +415,7 @@ func (o *OptimizeParameters) analyzeCandidate(refKind string, key string, refs [
 			if firstParam, ok := ast.MustFunction(functionNode).Params().FirstParam(); ok && !firstParam.IsUnused() {
 				if o.decisionsLog.IsLogging() {
 					o.decisionsLog.LogFormat(
-						"%s\t%s\twill not optimize parameters for tagged template literals", refKind, key)
+						"%s\t%s\twill not optimize parameters for tagged template literals", refKind, rhino.RhinoStringPool_StringFromID(keyID))
 				}
 				return false
 			}
@@ -424,7 +424,7 @@ func (o *OptimizeParameters) analyzeCandidate(refKind string, key string, refs [
 			o.decisionsLog.LogFormat(
 				"%s\t%s\t%s",
 				refKind,
-				key,
+				rhino.RhinoStringPool_StringFromID(keyID),
 				"first param is unused, so we will convert tagged template literals to normal calls")
 		}
 		seenCandidateUse = true
@@ -432,7 +432,7 @@ func (o *OptimizeParameters) analyzeCandidate(refKind string, key string, refs [
 
 	if !seenCandidateUse {
 		if o.decisionsLog.IsLogging() {
-			o.decisionsLog.LogFormat("%s\t%s\tno usage found", refKind, key)
+			o.decisionsLog.LogFormat("%s\t%s\tno usage found", refKind, rhino.RhinoStringPool_StringFromID(keyID))
 		}
 		return false
 	}

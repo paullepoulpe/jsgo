@@ -534,17 +534,12 @@ func (m *TemplateTypeMap) copyWithExtensionInternal(
 	return initTemplateTypeMap(out, m.registry, extendedKeys, extendedValues, 0, extendedsubMapStarts)
 }
 
-// CopyWithoutKeys creates a new map in which keys contained in removals are
-// eliminated.
+// CopyWithoutKeySlice creates a new map in which keys contained in removals
+// are eliminated.
 //
 // The keys in removals will only be removed if they are unfilled.
-//
-// Java: TemplateTypeMap.copyWithoutKeys(Set<TemplateType>)
-func (m *TemplateTypeMap) CopyWithoutKeys(removals *jutil.LinkedHashSet[*TemplateType]) *TemplateTypeMap {
-	if removals == nil || removals.IsEmpty() {
-		return m
-	}
-	return m.copyWithoutKeysWhere(removals.Contains)
+func (m *TemplateTypeMap) CopyWithoutKeySlice(removals []*TemplateType) *TemplateTypeMap {
+	return m.copyWithoutKeySlice(removals)
 }
 
 func (m *TemplateTypeMap) copyWithoutKeySlice(removals []*TemplateType) *TemplateTypeMap {

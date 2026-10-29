@@ -47,7 +47,7 @@ type OptionHandler struct {
 	Owner               *CmdLineParser
 	parse               func(h *OptionHandler, params Parameters) int
 	parseErr            func(h *OptionHandler, params Parameters) (int, ICmdLineException)
-	defaultMetaVar      *string
+	defaultMetaVar      string
 	ignoreOptionMetaVar bool
 }
 
@@ -56,7 +56,7 @@ func NewOptionHandler(
 	parser *CmdLineParser,
 	option *OptionDef,
 	setter Setter,
-	defaultMetaVar *string,
+	defaultMetaVar string,
 	parse func(h *OptionHandler, params Parameters) int,
 ) *OptionHandler {
 	return &OptionHandler{
@@ -72,7 +72,7 @@ func newBuiltinOptionHandler(
 	parser *CmdLineParser,
 	option *OptionDef,
 	setter Setter,
-	defaultMetaVar *string,
+	defaultMetaVar string,
 	parseErr func(h *OptionHandler, params Parameters) (int, ICmdLineException),
 ) *OptionHandler {
 	return &OptionHandler{
@@ -109,27 +109,25 @@ func tryGetParameter(params Parameters, idx int) (string, ICmdLineException) {
 	return params.GetParameter(idx), nil
 }
 
-func (h *OptionHandler) GetDefaultMetaVariable() *string {
+func (h *OptionHandler) GetDefaultMetaVariable() string {
 	return h.defaultMetaVar
 }
 
-func (h *OptionHandler) GetMetaVariable(rb ResourceBundle) *string {
+func (h *OptionHandler) GetMetaVariable(rb ResourceBundle) string {
 	if h.ignoreOptionMetaVar {
 		return h.defaultMetaVar
 	}
 	token := h.Option.MetaVar()
-	tokenOrNull := &token
 	if len(token) == 0 {
-		tokenOrNull = h.defaultMetaVar
+		token = h.defaultMetaVar
 	}
-	if tokenOrNull == nil {
-		return nil
+	if len(token) == 0 {
+		return ""
 	}
 	if rb != nil {
-		localized := rb.GetString(*tokenOrNull)
-		tokenOrNull = &localized
+		return rb.GetString(token)
 	}
-	return tokenOrNull
+	return token
 }
 
 func (h *OptionHandler) GetNameAndMeta(rb ResourceBundle) string {
@@ -141,11 +139,11 @@ func (h *OptionHandler) GetNameAndMetaWithProperties(rb ResourceBundle, properti
 	if !h.Option.IsArgument() {
 		str = h.Option.String()
 	}
-	if meta := h.GetMetaVariable(rb); meta != nil {
+	if meta := h.GetMetaVariable(rb); len(meta) > 0 {
 		if len(str) > 0 {
 			str += properties.GetOptionValueDelimiter()
 		}
-		str += *meta
+		str += meta
 	}
 	return str
 }
@@ -154,18 +152,17 @@ func (h *OptionHandler) Print(v any) string {
 	return jutil.ToJavaString(v)
 }
 
-func (h *OptionHandler) PrintDefaultValue() *string {
+func (h *OptionHandler) PrintDefaultValue() (string, bool) {
 	getter, ok := h.Setter.(Getter)
 	if !ok {
-		return nil
+		return "", false
 	}
 	defaultValues := getter.GetValueList()
 	if len(defaultValues) == 0 {
-		return nil
+		return "", false
 	}
 	if len(defaultValues) == 1 {
-		s := h.Print(defaultValues[0])
-		return &s
+		return h.Print(defaultValues[0]), true
 	}
 	var buf strings.Builder
 	buf.WriteByte('[')
@@ -176,8 +173,7 @@ func (h *OptionHandler) PrintDefaultValue() *string {
 		buf.WriteString(h.Print(v))
 	}
 	buf.WriteByte(']')
-	s := buf.String()
-	return &s
+	return buf.String(), true
 }
 
 var defaultOptionHandlers = map[*Class]OptionHandlerClass{
@@ -214,7 +210,7 @@ var (
 
 // NewBooleanOptionHandler parses boolean flags and positional boolean arguments.
 func NewBooleanOptionHandler(parser *CmdLineParser, option *OptionDef, setter Setter) *OptionHandler {
-	return newBuiltinOptionHandler(parser, option, setter, nil, func(h *OptionHandler, params Parameters) (int, ICmdLineException) {
+	return newBuiltinOptionHandler(parser, option, setter, "", func(h *OptionHandler, params Parameters) (int, ICmdLineException) {
 		if !h.Option.IsArgument() {
 			h.Setter.AddValue(true)
 			return 0, nil
@@ -238,8 +234,7 @@ func NewBooleanOptionHandler(parser *CmdLineParser, option *OptionDef, setter Se
 
 // NewStringOptionHandler parses a single string operand.
 func NewStringOptionHandler(parser *CmdLineParser, option *OptionDef, setter Setter) *OptionHandler {
-	meta := defaultMetaString
-	return newBuiltinOptionHandler(parser, option, setter, &meta, func(h *OptionHandler, params Parameters) (int, ICmdLineException) {
+	return newBuiltinOptionHandler(parser, option, setter, defaultMetaString, func(h *OptionHandler, params Parameters) (int, ICmdLineException) {
 		v, err := tryGetParameter(params, 0)
 		if err != nil {
 			return 0, err
@@ -255,8 +250,7 @@ func NewStringOptionHandler(parser *CmdLineParser, option *OptionDef, setter Set
 
 // NewIntOptionHandler parses a single base-10 32-bit integer operand.
 func NewIntOptionHandler(parser *CmdLineParser, option *OptionDef, setter Setter) *OptionHandler {
-	meta := "N"
-	return newBuiltinOptionHandler(parser, option, setter, &meta, func(h *OptionHandler, params Parameters) (int, ICmdLineException) {
+	return newBuiltinOptionHandler(parser, option, setter, "N", func(h *OptionHandler, params Parameters) (int, ICmdLineException) {
 		token, err := tryGetParameter(params, 0)
 		if err != nil {
 			return 0, err
@@ -288,7 +282,7 @@ func NewEnumOptionHandler(parser *CmdLineParser, option *OptionDef, setter Sette
 	buf.WriteByte(']')
 	meta := buf.String()
 
-	h := newBuiltinOptionHandler(parser, option, setter, &meta, func(h *OptionHandler, params Parameters) (int, ICmdLineException) {
+	h := newBuiltinOptionHandler(parser, option, setter, meta, func(h *OptionHandler, params Parameters) (int, ICmdLineException) {
 		raw, err := tryGetParameter(params, 0)
 		if err != nil {
 			return 0, err
@@ -296,7 +290,7 @@ func NewEnumOptionHandler(parser *CmdLineParser, option *OptionDef, setter Sette
 		s := strings.ReplaceAll(raw, "-", "_")
 		var value any
 		for _, o := range enumType.constants {
-			if equalsIgnoreCaseUTF16(enumName(o), s) {
+			if strings.EqualFold(enumName(o), s) {
 				value = o
 				break
 			}
@@ -321,17 +315,12 @@ func NewEnumOptionHandler(parser *CmdLineParser, option *OptionDef, setter Sette
 	return h
 }
 
-func equalsIgnoreCaseUTF16(a, b string) bool {
-	ua, ub := jutil.StringToUTF16(a), jutil.StringToUTF16(b)
-	return len(ua) == len(ub) && jutil.UTF16RegionMatches(true, ua, 0, ub, 0, len(ua))
-}
-
 // NewMapOptionHandler parses "key=value" operands into a Map field.
 func NewMapOptionHandler(parser *CmdLineParser, option *OptionDef, setter Setter) *OptionHandler {
 	if setter.AsFieldSetter() == nil {
 		panic(jutil.NewIllegalArgumentExceptionMsg("MapOptionHandler can only work with fields"))
 	}
-	return newBuiltinOptionHandler(parser, option, setter, nil, func(h *OptionHandler, params Parameters) (int, ICmdLineException) {
+	return newBuiltinOptionHandler(parser, option, setter, "", func(h *OptionHandler, params Parameters) (int, ICmdLineException) {
 		fs := h.Setter.AsFieldSetter()
 		var m Map
 		if o := fs.GetValue(); o != nil {
@@ -364,8 +353,7 @@ func NewMapOptionHandler(parser *CmdLineParser, option *OptionDef, setter Setter
 // NewStringArrayOptionHandler greedily consumes non-option tokens (splitting each
 // on literal spaces) into a multi-valued String setter.
 func NewStringArrayOptionHandler(parser *CmdLineParser, option *OptionDef, setter Setter) *OptionHandler {
-	meta := defaultMetaStringArray
-	return newBuiltinOptionHandler(parser, option, setter, &meta, func(h *OptionHandler, params Parameters) (int, ICmdLineException) {
+	return newBuiltinOptionHandler(parser, option, setter, defaultMetaStringArray, func(h *OptionHandler, params Parameters) (int, ICmdLineException) {
 		counter := 0
 		for ; counter < params.Size(); counter++ {
 			param, err := tryGetParameter(params, counter)

@@ -1271,7 +1271,7 @@ func newInlineBase64SourceFile(fileName string, rawBase64 string, canonicalUTF8 
 }
 
 func (l *sourceFile_CodeLoader_InlineBase64) LoadUncachedCode() string {
-	return jutil.NewStringFromUTF8Bytes(jutil.BaseEncoding_Base64().Decode(l.rawBase64))
+	return jutil.NewStringFromUTF8Bytes(decodeInlineBase64(l.rawBase64))
 }
 
 func (*sourceFile_CodeLoader_InlineBase64) OpenUncachedReader() jutil.JavaReader {

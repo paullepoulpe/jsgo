@@ -27,12 +27,6 @@ import (
 
 // JSChunk is a JavaScript chunk: it has a unique name, consists of a list of
 // compiler inputs, and can depend on other chunks.
-//
-// Go-only: language-adapter — readObject(ObjectInputStream), the
-// java.io.Serializable hook that re-creates the transient input map after
-// deserialization, is ReadObject(). JSChunk still declares it, but nothing
-// deserializes a JSChunk any more: since v20261015 Compiler saves the chunk
-// graph of its state as ChunkProto messages and rebuilds the chunks.
 type JSChunk struct {
 	// Chunk name
 	name string
@@ -392,17 +386,4 @@ func (c *JSChunk) SetIndex(index int) {
 // Java: JSChunk.getIndex()
 func (c *JSChunk) GetIndex() int {
 	return c.index
-}
-
-// ReadObject is the deserialization hook: after defaultReadObject, the
-// transient input map is a new empty one (CompilerInputs must be explicitly
-// added to the JSChunk again after deserialization).
-//
-// Go-only: language-adapter — there is no ObjectInputStream; see the type
-// comment.
-//
-// Java: JSChunk.readObject(ObjectInputStream)
-func (c *JSChunk) ReadObject() {
-	c.inputs = jutil.NewLinkedHashMap[string, *CompilerInput]()
-	c.cachedInputs = nil
 }

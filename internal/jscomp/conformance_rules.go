@@ -19,6 +19,8 @@
 package jscomp
 
 import (
+	"regexp"
+	"regexp/syntax"
 	"slices"
 	"strings"
 
@@ -120,17 +122,93 @@ func (l ConformanceRules_ConformanceLevel) String() string {
 // Ordinal is Enum.ordinal().
 func (l ConformanceRules_ConformanceLevel) Ordinal() int { return int(l) }
 
-func compileConformancePattern(regex string) (p *jutil.Pattern, synErr *jutil.PatternSyntaxException) {
-	defer func() {
-		if r := recover(); r != nil {
-			if e, ok := r.(*jutil.PatternSyntaxException); ok {
-				synErr = e
-				return
+func conformanceRules_isValidPattern(regex string) bool {
+	var sb strings.Builder
+	rs := []rune(regex)
+	n := len(rs)
+	inClass := false
+	classStart := 0
+	for i := 0; i < n; i++ {
+		c := rs[i]
+		switch {
+		case c == '\\':
+			if i+1 >= n {
+				return false
 			}
-			panic(r)
+			i++
+			e := rs[i]
+			switch {
+			case e == 'Q':
+				end := -1
+				for j := i + 1; j+1 < n; j++ {
+					if rs[j] == '\\' && rs[j+1] == 'E' {
+						end = j
+						break
+					}
+				}
+				var lit string
+				if end == -1 {
+					lit = string(rs[i+1:])
+					i = n
+				} else {
+					lit = string(rs[i+1 : end])
+					i = end + 1
+				}
+				if inClass {
+					for _, r := range lit {
+						sb.WriteString(regexp.QuoteMeta(string(r)))
+					}
+				} else {
+					sb.WriteString(regexp.QuoteMeta(lit))
+				}
+			case e == 'E':
+			case e == 's', e == 'S', e == 'v', e == 'h', e == 'V', e == 'H',
+				e == 'e', e == 'a',
+				e == '0', e >= '1' && e <= '9', e == 'k',
+				e == 'b', e == 'B', e == 'z', e == 'Z', e == 'G', e == 'A', e == 'R', e == 'X',
+				e == 'p', e == 'P', e == 'x', e == 'u', e == 'c', e == 'N':
+				sb.WriteByte('a')
+			case e == 'd', e == 'D', e == 'w', e == 'W', e == 't', e == 'n', e == 'r', e == 'f':
+				sb.WriteByte('\\')
+				sb.WriteRune(e)
+			case (e >= 'a' && e <= 'z') || (e >= 'A' && e <= 'Z'):
+				return false
+			default:
+				sb.WriteString(regexp.QuoteMeta(string(e)))
+			}
+		case inClass:
+			if c == ']' {
+				if i == classStart || (i == classStart+1 && rs[classStart] == '^') {
+					sb.WriteString(`\]`)
+				} else {
+					inClass = false
+					sb.WriteByte(']')
+				}
+			} else {
+				sb.WriteRune(c)
+			}
+		case c == '[':
+			inClass = true
+			classStart = i + 1
+			sb.WriteByte('[')
+		default:
+			sb.WriteRune(c)
 		}
-	}()
-	return jutil.Pattern_Compile(regex), nil
+	}
+	if inClass {
+		return false
+	}
+	if _, err := syntax.Parse(sb.String(), syntax.Perl); err != nil {
+		if se, ok := err.(*syntax.Error); ok {
+			switch se.Code {
+			case syntax.ErrInvalidRepeatSize, syntax.ErrInvalidRepeatOp, syntax.ErrLarge,
+				syntax.ErrNestingDepth, syntax.ErrInternalError:
+				return true
+			}
+		}
+		return false
+	}
+	return true
 }
 
 // Java: ConformanceRules.buildPattern(List<String>)
@@ -141,17 +219,15 @@ func conformanceRules_buildPattern(reqPatterns []string) (*jutil.Pattern, error)
 
 	// validate the patterns
 	for _, reqPattern := range reqPatterns {
-		if _, err := compileConformancePattern(reqPattern); err != nil {
+		if !conformanceRules_isValidPattern(reqPattern) {
 			return nil, errInvalidRequirementSpec("invalid regex pattern")
 		}
 	}
 
-	jointRegExp := "(" + strings.Join(reqPatterns, "|") + ")"
-	pattern, err := compileConformancePattern(jointRegExp)
-	if err != nil {
-		panic(jutil.NewRuntimeExceptionWithMessageAndCause("bad joined regexp", err))
+	if len(reqPatterns) == 1 {
+		return jutil.Pattern_Compile(reqPatterns[0]), nil
 	}
-	return pattern, nil
+	return jutil.Pattern_Compile("(" + strings.Join(reqPatterns, "|") + ")"), nil
 }
 
 // Java: ConformanceRules.AllowList
@@ -212,7 +288,7 @@ func (a *ConformanceRules_AllowList) Matches(path string) bool {
 	}
 
 	return a.regexp != nil &&
-		(a.regexp.Matcher(path).Find() || (hasTsPath && a.regexp.Matcher(tsPath).Find()))
+		(a.regexp.Find(path) || (hasTsPath && a.regexp.Find(tsPath)))
 }
 
 // ConformanceRules_AbstractRule holds the common rule fields and helpers shared
@@ -522,589 +598,6 @@ func (b *ConformanceRules_AbstractRule) IsUsed(n rhino.Node) bool {
 	return NodeUtil_IsExpressionResultUsed(n)
 }
 
-// ConformanceRules_NoOp is a no-op rule that never reports any violations.
-type ConformanceRules_NoOp struct {
-	ConformanceRules_AbstractRule
-}
-
-// Java: ConformanceRules.NoOp(AbstractCompiler, Requirement)
-func newConformanceRules_NoOp(compiler AbstractCompiler, requirement *Requirement) (*ConformanceRules_NoOp, error) {
-	r := &ConformanceRules_NoOp{}
-	if err := r.initAbstractRule(compiler, requirement, false); err != nil {
-		return nil, err
-	}
-	return r, nil
-}
-
-func (r *ConformanceRules_NoOp) Check(
-	t *NodeTraversal, n rhino.Node, behavior ConformanceConfig_LibraryLevelNonAllowlistedConformanceViolationsBehavior) {
-	if result := r.CheckConformance(t, n); result.level != ConformanceRules_ConformanceLevel_CONFORMANCE {
-		r.Report(n, result, behavior)
-	}
-}
-
-// Java: ConformanceRules.NoOp.checkConformance(NodeTraversal, Node)
-func (r *ConformanceRules_NoOp) CheckConformance(t *NodeTraversal, n rhino.Node) *ConformanceRules_ConformanceResult {
-	return ConformanceRules_ConformanceResult_CONFORMANCE
-}
-
-// ConformanceRules_InferredConstCheck checks that variables annotated as
-// @const have an inferred type, if there is no type given explicitly.
-type ConformanceRules_InferredConstCheck struct {
-	ConformanceRules_AbstractRule
-}
-
-// Java: ConformanceRules.InferredConstCheck(AbstractCompiler, Requirement)
-func newConformanceRules_InferredConstCheck(compiler AbstractCompiler, requirement *Requirement) (*ConformanceRules_InferredConstCheck, error) {
-	r := &ConformanceRules_InferredConstCheck{}
-	if err := r.initAbstractRule(compiler, requirement, false); err != nil {
-		return nil, err
-	}
-	return r, nil
-}
-
-func (r *ConformanceRules_InferredConstCheck) Check(
-	t *NodeTraversal, n rhino.Node, behavior ConformanceConfig_LibraryLevelNonAllowlistedConformanceViolationsBehavior) {
-	if result := r.CheckConformance(t, n); result.level != ConformanceRules_ConformanceLevel_CONFORMANCE {
-		r.Report(n, result, behavior)
-	}
-}
-
-// Java: ConformanceRules.InferredConstCheck.checkConformance(NodeTraversal, Node)
-func (r *ConformanceRules_InferredConstCheck) CheckConformance(t *NodeTraversal, n rhino.Node) *ConformanceRules_ConformanceResult {
-	jsDoc := n.GetJSDocInfo()
-	if jsDoc != nil && jsDoc.HasConstAnnotation() && jsDoc.GetType() == nil {
-		if asgn, ok := ast.AsAssign(n); ok {
-			n = asgn.Target().Node()
-		}
-		type_ := n.GetJSType()
-		if type_ != nil && type_.IsUnknownType() && !NodeUtil_IsNamespaceDecl(n) {
-			return ConformanceRules_ConformanceResult_VIOLATION
-		}
-	}
-	return ConformanceRules_ConformanceResult_CONFORMANCE
-}
-
-// ConformanceRules_BannedDependency is the banned dependency rule.
-type ConformanceRules_BannedDependency struct {
-	ConformanceRules_AbstractRule
-
-	paths []string
-}
-
-// Java: ConformanceRules.BannedDependency(AbstractCompiler, Requirement)
-func newConformanceRules_BannedDependency(compiler AbstractCompiler, requirement *Requirement) (*ConformanceRules_BannedDependency, error) {
-	r := &ConformanceRules_BannedDependency{}
-	if err := r.initAbstractRule(compiler, requirement, false); err != nil {
-		return nil, err
-	}
-	r.paths = requirement.GetValueList()
-	if len(r.paths) == 0 {
-		return nil, errInvalidRequirementSpec("missing value")
-	}
-	return r, nil
-}
-
-func (r *ConformanceRules_BannedDependency) Check(
-	t *NodeTraversal, n rhino.Node, behavior ConformanceConfig_LibraryLevelNonAllowlistedConformanceViolationsBehavior) {
-	if result := r.CheckConformance(t, n); result.level != ConformanceRules_ConformanceLevel_CONFORMANCE {
-		r.Report(n, result, behavior)
-	}
-}
-
-// Java: ConformanceRules.BannedDependency.checkConformance(NodeTraversal, Node)
-func (r *ConformanceRules_BannedDependency) CheckConformance(t *NodeTraversal, n rhino.Node) *ConformanceRules_ConformanceResult {
-	if n.IsScript() {
-		srcFile := *n.GetSourceFileName()
-		for i := 0; i < len(r.paths); i++ {
-			if strings.HasPrefix(srcFile, r.paths[i]) {
-				return ConformanceRules_ConformanceResult_VIOLATION
-			}
-		}
-	}
-	return ConformanceRules_ConformanceResult_CONFORMANCE
-}
-
-// ConformanceRules_BannedDependencyRegex is the banned dependency via regex
-// rule.
-type ConformanceRules_BannedDependencyRegex struct {
-	ConformanceRules_AbstractRule
-
-	pathRegexp *jutil.Pattern
-}
-
-// Java: ConformanceRules.BannedDependencyRegex(AbstractCompiler, Requirement)
-func newConformanceRules_BannedDependencyRegex(compiler AbstractCompiler, requirement *Requirement) (*ConformanceRules_BannedDependencyRegex, error) {
-	r := &ConformanceRules_BannedDependencyRegex{}
-	if err := r.initAbstractRule(compiler, requirement, false); err != nil {
-		return nil, err
-	}
-	pathRegexpList := requirement.GetValueList()
-	if len(pathRegexpList) == 0 {
-		return nil, errInvalidRequirementSpec("missing value (no banned dependency regexps)")
-	}
-	pathRegexp, err := conformanceRules_buildPattern(pathRegexpList)
-	if err != nil {
-		return nil, err
-	}
-	r.pathRegexp = pathRegexp
-	return r, nil
-}
-
-func (r *ConformanceRules_BannedDependencyRegex) Check(
-	t *NodeTraversal, n rhino.Node, behavior ConformanceConfig_LibraryLevelNonAllowlistedConformanceViolationsBehavior) {
-	if result := r.CheckConformance(t, n); result.level != ConformanceRules_ConformanceLevel_CONFORMANCE {
-		r.Report(n, result, behavior)
-	}
-}
-
-// Java: ConformanceRules.BannedDependencyRegex.checkConformance(NodeTraversal, Node)
-func (r *ConformanceRules_BannedDependencyRegex) CheckConformance(t *NodeTraversal, n rhino.Node) *ConformanceRules_ConformanceResult {
-	if n.IsScript() {
-		srcFile := *n.GetSourceFileName()
-		if r.pathRegexp != nil && r.pathRegexp.Matcher(srcFile).Find() {
-			return ConformanceRules_ConformanceResult_VIOLATION
-		}
-	}
-	return ConformanceRules_ConformanceResult_CONFORMANCE
-}
-
-// ConformanceRules_BannedName is the banned name rule.
-type ConformanceRules_BannedName struct {
-	ConformanceRules_AbstractRule
-
-	// LINT.ThenChange(//depot/google3/javascript/typescript/compiler/conformance/rules/ban_third_party_script.ts)
-	requirementType Requirement_Type
-	qualifiedNames  []rhino.Node
-	shortNames      map[uint32]struct{}
-}
-
-// Java: ConformanceRules.BannedName(AbstractCompiler, Requirement)
-func newConformanceRules_BannedName(compiler AbstractCompiler, requirement *Requirement) (*ConformanceRules_BannedName, error) {
-	r := &ConformanceRules_BannedName{}
-	if err := r.initAbstractRule(compiler, requirement, false); err != nil {
-		return nil, err
-	}
-	values := requirement.GetValueList()
-	if len(values) == 0 {
-		return nil, errInvalidRequirementSpec("missing value")
-	}
-	r.requirementType = requirement.GetType()
-
-	qualifiedBuilder := make([]rhino.Node, 0, len(values))
-	shortBuilder := make(map[uint32]struct{}, len(values))
-	for _, name := range values {
-		qualifiedName := NodeUtil_NewQName(compiler, name)
-		qualifiedBuilder = append(qualifiedBuilder, qualifiedName)
-		shortBuilder[qualifiedName.GetStringID()] = struct{}{}
-	}
-	r.qualifiedNames = qualifiedBuilder
-	r.shortNames = shortBuilder
-	return r, nil
-}
-
-// Java: ConformanceRules.BannedName.getPrecondition()
-func (r *ConformanceRules_BannedName) GetPrecondition() CheckConformance_Precondition {
-	return checkConformance_PreconditionBannedNameCandidate
-}
-
-func (r *ConformanceRules_BannedName) Check(
-	t *NodeTraversal, n rhino.Node, behavior ConformanceConfig_LibraryLevelNonAllowlistedConformanceViolationsBehavior) {
-	if result := r.CheckConformance(t, n); result.level != ConformanceRules_ConformanceLevel_CONFORMANCE {
-		r.Report(n, result, behavior)
-	}
-}
-
-// Java: ConformanceRules.BannedName.checkConformance(NodeTraversal, Node)
-func (r *ConformanceRules_BannedName) CheckConformance(t *NodeTraversal, n rhino.Node) *ConformanceRules_ConformanceResult {
-	if r.requirementType == Requirement_Type_BANNED_NAME_CALL &&
-		!ConformanceRules_ConformanceUtil_IsCallTarget(n) {
-		return ConformanceRules_ConformanceResult_CONFORMANCE
-	}
-
-	/*
-	 * Efficiently filter out nearly all candidates.
-	 *
-	 * <p>Ideally we could use a hashset containing the qualified names, but it turns out that
-	 * creating wrapper a object for every Node is more expensive than the loop below.
-	 */
-	if _, ok := r.shortNames[n.GetStringID()]; !ok {
-		return ConformanceRules_ConformanceResult_CONFORMANCE
-	}
-
-	/*
-	 * Defer expensive infrequent checks.
-	 *
-	 * <p>These could be a precondition, but they don't usually need to be checked. Since they're
-	 * kind of expensive, it's cheaper overall to defer them.
-	 */
-	if NodeUtil_IsInSyntheticScript(n) || !ConformanceRules_BannedName_IsRootOfQualifiedNameGlobal(t, n) {
-		return ConformanceRules_ConformanceResult_CONFORMANCE
-	}
-
-	for i := len(r.qualifiedNames) - 1; i >= 0; i-- {
-		if n.MatchesQualifiedNameNode(r.qualifiedNames[i]) {
-			return ConformanceRules_ConformanceResult_VIOLATION
-		}
-	}
-
-	return ConformanceRules_ConformanceResult_CONFORMANCE
-}
-
-// Java: ConformanceRules.BannedName.isRootOfQualifiedNameGlobal(NodeTraversal, Node)
-func ConformanceRules_BannedName_IsRootOfQualifiedNameGlobal(t *NodeTraversal, n rhino.Node) bool {
-	rootNode := NodeUtil_GetRootOfQualifiedName(n)
-	var v *Var
-	if rootNode.IsName() {
-		v = t.GetScope().GetVarByID(rootNode.GetStringID())
-	} else {
-		rootName := rootNode.GetQualifiedName()
-		v = t.GetScope().GetVar(*rootName)
-	}
-	return v != nil && v.IsGlobal()
-}
-
-// ConformanceRules_BannedProperty is the banned property rule.
-type ConformanceRules_BannedProperty struct {
-	ConformanceRules_AbstractRule
-
-	registry                *rhino.JSTypeRegistry
-	props                   map[string][]rhino.JSType
-	requirementPrecondition ConformanceRules_BannedProperty_RequirementPrecondition
-}
-
-// ConformanceRules_BannedProperty_RequirementPrecondition is the enum
-// BannedProperty.RequirementPrecondition (a Precondition).
-type ConformanceRules_BannedProperty_RequirementPrecondition int32
-
-const (
-	ConformanceRules_BannedProperty_RequirementPrecondition_BANNED_PROPERTY ConformanceRules_BannedProperty_RequirementPrecondition = iota
-	ConformanceRules_BannedProperty_RequirementPrecondition_BANNED_PROPERTY_WRITE
-	ConformanceRules_BannedProperty_RequirementPrecondition_BANNED_PROPERTY_NON_CONSTANT_WRITE
-	ConformanceRules_BannedProperty_RequirementPrecondition_BANNED_PROPERTY_READ
-	ConformanceRules_BannedProperty_RequirementPrecondition_BANNED_PROPERTY_CALL
-)
-
-var conformanceRules_BannedProperty_RequirementPrecondition_names = [...]string{
-	"BANNED_PROPERTY",
-	"BANNED_PROPERTY_WRITE",
-	"BANNED_PROPERTY_NON_CONSTANT_WRITE",
-	"BANNED_PROPERTY_READ",
-	"BANNED_PROPERTY_CALL",
-}
-
-// String is Enum.name().
-func (p ConformanceRules_BannedProperty_RequirementPrecondition) String() string {
-	return conformanceRules_BannedProperty_RequirementPrecondition_names[p]
-}
-
-// Ordinal is Enum.ordinal().
-func (p ConformanceRules_BannedProperty_RequirementPrecondition) Ordinal() int { return int(p) }
-
-// ShouldCheck is the per-constant body of shouldCheck.
-//
-// Java: ConformanceRules.BannedProperty.RequirementPrecondition.shouldCheck(Node)
-func (p ConformanceRules_BannedProperty_RequirementPrecondition) ShouldCheck(n rhino.Node) bool {
-	switch p {
-	case ConformanceRules_BannedProperty_RequirementPrecondition_BANNED_PROPERTY:
-		switch n.GetToken() {
-		case rhino.Token_STRING_KEY, rhino.Token_GETPROP, rhino.Token_GETELEM, rhino.Token_COMPUTED_PROP:
-			return true
-		default:
-			return false
-		}
-	case ConformanceRules_BannedProperty_RequirementPrecondition_BANNED_PROPERTY_WRITE:
-		return NodeUtil_IsLValue(n)
-	case ConformanceRules_BannedProperty_RequirementPrecondition_BANNED_PROPERTY_NON_CONSTANT_WRITE:
-		if !NodeUtil_IsLValue(n) {
-			return false
-		}
-		if asgn, ok := ast.AsAssign(n.GetParent()); ok && asgn.Target().Node() == n {
-			rhs := asgn.Value().Node()
-			if NodeUtil_IsLiteralValue(rhs, false) || NodeUtil_IsSomeCompileTimeConstStringValue(rhs) {
-				return false
-			}
-		}
-		return true
-	case ConformanceRules_BannedProperty_RequirementPrecondition_BANNED_PROPERTY_READ:
-		return !NodeUtil_IsLValue(n) && NodeUtil_IsExpressionResultUsed(n)
-	case ConformanceRules_BannedProperty_RequirementPrecondition_BANNED_PROPERTY_CALL:
-		return ConformanceRules_ConformanceUtil_IsCallTarget(n)
-	}
-	panic(jutil.NewIllegalStateException())
-}
-
-// Java: ConformanceRules.BannedProperty(AbstractCompiler, Requirement)
-func newConformanceRules_BannedProperty(compiler AbstractCompiler, requirement *Requirement) (*ConformanceRules_BannedProperty, error) {
-	r := &ConformanceRules_BannedProperty{}
-	if err := r.initAbstractRule(compiler, requirement, false); err != nil {
-		return nil, err
-	}
-
-	if requirement.GetValueCount() == 0 {
-		return nil, errInvalidRequirementSpec("missing value")
-	}
-
-	switch requirement.GetType() {
-	case Requirement_Type_BANNED_PROPERTY:
-		r.requirementPrecondition = ConformanceRules_BannedProperty_RequirementPrecondition_BANNED_PROPERTY
-	case Requirement_Type_BANNED_PROPERTY_READ:
-		r.requirementPrecondition = ConformanceRules_BannedProperty_RequirementPrecondition_BANNED_PROPERTY_READ
-	case Requirement_Type_BANNED_PROPERTY_WRITE:
-		r.requirementPrecondition = ConformanceRules_BannedProperty_RequirementPrecondition_BANNED_PROPERTY_WRITE
-	case Requirement_Type_BANNED_PROPERTY_NON_CONSTANT_WRITE:
-		r.requirementPrecondition =
-			ConformanceRules_BannedProperty_RequirementPrecondition_BANNED_PROPERTY_NON_CONSTANT_WRITE
-	case Requirement_Type_BANNED_PROPERTY_CALL:
-		r.requirementPrecondition = ConformanceRules_BannedProperty_RequirementPrecondition_BANNED_PROPERTY_CALL
-	default:
-		panic(jutil.NewAssertionError(requirement.GetType().String()))
-	}
-
-	r.registry = compiler.GetTypeRegistry()
-
-	typeSets := make(map[string]*jutil.ObjectLinkedHashSet[rhino.JSType])
-	var propOrder []string
-	for _, value := range requirement.GetValueList() {
-		typename, property, ok := conformanceRules_splitClassAndProperty(value)
-		if !ok {
-			return nil, errInvalidRequirementSpec("bad prop value")
-		}
-
-		type_ := r.registry.GetGlobalType(typename)
-		if type_ == nil {
-			type_ = r.registry.ResolveViaClosureNamespace(typename)
-		}
-
-		// If type doesn't exist in the compilation, it can't be a violation. Also, bottom types
-		// match everything, which is almost surely not what the check is intended to check against.
-		if type_ == nil || type_.IsUnknownType() || type_.IsEmptyType() {
-			continue
-		}
-
-		types, exists := typeSets[property]
-		if !exists {
-			types = jutil.NewObjectLinkedHashSet[rhino.JSType]()
-			typeSets[property] = types
-			propOrder = append(propOrder, property)
-		}
-		types.Add(type_)
-	}
-	props := make(map[string][]rhino.JSType, len(propOrder))
-	for _, prop := range propOrder {
-		props[prop] = typeSets[prop].ToSlice()
-	}
-	r.props = props
-	return r, nil
-}
-
-// Java: ConformanceRules.BannedProperty.getPrecondition()
-func (r *ConformanceRules_BannedProperty) GetPrecondition() CheckConformance_Precondition {
-	return r.requirementPrecondition
-}
-
-func (r *ConformanceRules_BannedProperty) Check(
-	t *NodeTraversal, n rhino.Node, behavior ConformanceConfig_LibraryLevelNonAllowlistedConformanceViolationsBehavior) {
-	if result := r.CheckConformance(t, n); result.level != ConformanceRules_ConformanceLevel_CONFORMANCE {
-		r.Report(n, result, behavior)
-	}
-}
-
-// Java: ConformanceRules.BannedProperty.checkConformance(NodeTraversal, Node)
-func (r *ConformanceRules_BannedProperty) CheckConformance(t *NodeTraversal, n rhino.Node) *ConformanceRules_ConformanceResult {
-	name, ok := r.ExtractName(n)
-	if !ok {
-		return ConformanceRules_ConformanceResult_CONFORMANCE
-	}
-	checkTypes := r.props[name]
-	if len(checkTypes) == 0 {
-		return ConformanceRules_ConformanceResult_CONFORMANCE
-	}
-
-	/*
-	 * Avoid type operations when possible.
-	 *
-	 * <p>checkTypes is almost always empty, and operations on unions can be expensive.
-	 */
-	foundType := r.ExtractType(n)
-	if foundType == nil {
-		return ConformanceRules_ConformanceResult_CONFORMANCE
-	}
-	foundType = foundType.RestrictByNotNullOrUndefined()
-
-	for _, checkType := range checkTypes {
-		result := r.MatchTypes(foundType, checkType)
-		if result.level != ConformanceRules_ConformanceLevel_CONFORMANCE {
-			return result
-		}
-	}
-
-	return ConformanceRules_ConformanceResult_CONFORMANCE
-}
-
-// Java: ConformanceRules.BannedProperty.matchTypes(JSType, JSType)
-func (r *ConformanceRules_BannedProperty) MatchTypes(foundType rhino.JSType, checkType rhino.JSType) *ConformanceRules_ConformanceResult {
-	foundObj := foundType.ToMaybeObjectType()
-	if foundObj != nil {
-		if foundObj.IsFunctionPrototypeType() {
-			ownerFun := foundObj.GetOwnerFunction()
-			if ownerFun.IsConstructor() {
-				foundType = ownerFun.GetInstanceType()
-			}
-		} else if foundObj.IsTemplatizedType() {
-			foundType = foundObj.GetRawType()
-		}
-	}
-
-	if foundType.IsUnknownType() ||
-		foundType.IsTemplateType() ||
-		foundType.IsEmptyType() ||
-		foundType.IsAllType() ||
-		ConformanceRules_IsLooseObject(foundType, r.registry) {
-		if r.reportLooseTypeViolations {
-			return conformanceRules_ConformanceResult_POSSIBLE_VIOLATION_DUE_TO_LOOSE_TYPES
-		}
-	} else if foundType.IsSubtypeOf(checkType) {
-		return ConformanceRules_ConformanceResult_VIOLATION
-	} else if checkType.IsSubtypeWithoutStructuralTyping(foundType) {
-		if r.MatchesPrototype(checkType, foundType) {
-			return ConformanceRules_ConformanceResult_VIOLATION
-		} else if r.reportLooseTypeViolations {
-			// Access of a banned property through a super class may be a violation
-			return conformanceRules_ConformanceResult_POSSIBLE_VIOLATION_DUE_TO_LOOSE_TYPES
-		}
-	}
-
-	return ConformanceRules_ConformanceResult_CONFORMANCE
-}
-
-// Java: ConformanceRules.BannedProperty.matchesPrototype(JSType, JSType)
-func (r *ConformanceRules_BannedProperty) MatchesPrototype(type_ rhino.JSType, maybePrototype rhino.JSType) bool {
-	methodClassObjectType := type_.ToMaybeObjectType()
-	if methodClassObjectType != nil {
-		if methodClassObjectType.GetImplicitPrototype().Equals(maybePrototype) {
-			return true
-		}
-	}
-	return false
-}
-
-// Java: ConformanceRules.BannedProperty.extractType(Node)
-func (r *ConformanceRules_BannedProperty) ExtractType(n rhino.Node) rhino.JSType {
-	if get, ok := ast.AsNormalGet(n); ok {
-		return get.Object().Node().GetJSType()
-	}
-	switch n.GetToken() {
-	case rhino.Token_STRING_KEY, rhino.Token_COMPUTED_PROP:
-		parent := n.GetParent()
-		switch parent.GetToken() {
-		case rhino.Token_OBJECT_PATTERN, rhino.Token_OBJECTLIT:
-			return parent.GetJSType()
-		case rhino.Token_CLASS_MEMBERS:
-			return nil
-		default:
-			panic(jutil.NewAssertionError("null"))
-		}
-	default:
-		return nil
-	}
-}
-
-// Java: ConformanceRules.BannedProperty.extractName(Node)
-func (r *ConformanceRules_BannedProperty) ExtractName(n rhino.Node) (string, bool) {
-	if get, ok := ast.AsNormalGet(n); ok {
-		return get.StaticPropertyName()
-	}
-	if sk, ok := ast.AsStringKey(n); ok {
-		return sk.Key(), true
-	}
-	if cp, ok := ast.AsComputedProp(n); ok {
-		if s, ok := ast.AsStringLit(cp.Key().Node()); ok {
-			return s.Value(), true
-		}
-		return "", false
-	}
-	return "", false
-}
-
-// ConformanceRules_BannedStringRegex is the banned string rule.
-type ConformanceRules_BannedStringRegex struct {
-	ConformanceRules_AbstractRule
-
-	stringPattern *jutil.Pattern
-}
-
-// Java: ConformanceRules.BannedStringRegex(AbstractCompiler, Requirement)
-func newConformanceRules_BannedStringRegex(compiler AbstractCompiler, requirement *Requirement) (*ConformanceRules_BannedStringRegex, error) {
-	r := &ConformanceRules_BannedStringRegex{}
-	if err := r.initAbstractRule(compiler, requirement, false); err != nil {
-		return nil, err
-	}
-
-	values := requirement.GetValueList()
-	if len(values) == 0 {
-		return nil, errInvalidRequirementSpec("missing value")
-	}
-
-	for _, value := range values {
-		if jutil.StringTrim(value) == "" {
-			return nil, errInvalidRequirementSpec("empty strings or whitespace are not allowed")
-		}
-	}
-
-	stringRegex, err := conformanceRules_buildPattern(values)
-	if err != nil {
-		return nil, err
-	}
-	r.stringPattern = stringRegex
-	return r, nil
-}
-
-func (r *ConformanceRules_BannedStringRegex) Check(
-	t *NodeTraversal, n rhino.Node, behavior ConformanceConfig_LibraryLevelNonAllowlistedConformanceViolationsBehavior) {
-	if result := r.CheckConformance(t, n); result.level != ConformanceRules_ConformanceLevel_CONFORMANCE {
-		r.Report(n, result, behavior)
-	}
-}
-
-// Java: ConformanceRules.BannedStringRegex.checkConformance(NodeTraversal, Node)
-func (r *ConformanceRules_BannedStringRegex) CheckConformance(traversal *NodeTraversal, node rhino.Node) *ConformanceRules_ConformanceResult {
-	if node.IsNil() {
-		return ConformanceRules_ConformanceResult_CONFORMANCE
-	}
-	if s, ok := ast.AsStringLit(node); ok {
-		if r.stringPattern.Matcher(s.Value()).Matches() {
-			return ConformanceRules_ConformanceResult_VIOLATION
-		}
-	} else if tls, ok := ast.AsTemplateLitString(node); ok {
-		if cookedString, ok := tls.Cooked(); ok {
-			if r.stringPattern.Matcher(cookedString).Matches() {
-				return ConformanceRules_ConformanceResult_VIOLATION
-			}
-		} else {
-			rawString := tls.Raw()
-			jutil.CheckStateMsg1(
-				ConformanceRules_IsTaggedTemplateLitString(node),
-				"Found untagged template literal with invalid (uncookable) escape sequence: %s",
-				rawString)
-			if r.stringPattern.Matcher(rawString).Matches() {
-				return ConformanceRules_ConformanceResult_VIOLATION
-			}
-		}
-	}
-	return ConformanceRules_ConformanceResult_CONFORMANCE
-}
-
-// ConformanceRules_IsTaggedTemplateLitString: is this template literal string
-// a tagged template literal string?
-//
-// Java: ConformanceRules.isTaggedTemplateLitString(Node)
-func ConformanceRules_IsTaggedTemplateLitString(node rhino.Node) bool {
-	jutil.CheckState(node.IsTemplateLitString())
-	gp := node.GetGrandparent()
-	return !gp.IsNil() && gp.IsTaggedTemplateLit()
-}
-
 // ConformanceRules_ConformanceUtil holds the static helpers of the private
 // class ConformanceUtil.
 type ConformanceRules_ConformanceUtil struct{}
@@ -1322,13 +815,6 @@ func ConformanceRules_ConformanceUtil_IsXid(type_ rhino.JSType) bool {
 // Java: ConformanceRules.ConformanceUtil.isEventHandlerAttrName(String)
 func ConformanceRules_ConformanceUtil_IsEventHandlerAttrName(attr string) bool {
 	return attr != "on" && strings.HasPrefix(attr, "on")
-}
-
-// ConformanceRules_RestrictedNameCall is the restricted name call rule.
-type ConformanceRules_RestrictedNameCall struct {
-	ConformanceRules_AbstractRule
-
-	restrictions []ConformanceRules_RestrictedNameCall_Restriction
 }
 
 // Java: ConformanceRules.isLooseObject(JSType, JSTypeRegistry)

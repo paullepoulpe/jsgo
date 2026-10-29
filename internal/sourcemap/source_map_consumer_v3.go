@@ -44,7 +44,7 @@ type SourceMapConsumerV3 struct {
 	// (originalFile path, original line) ==> target mappings
 	reverseSourceMapping map[sourceMapConsumerV3_lineKey][]*Mapping_OriginalMapping
 	sourceRoot           optionalString
-	extensions           *jutil.LinkedHashMap[string, any]
+	extensions           []SourceMapExtension
 }
 
 // sourceMapConsumerV3_lineKey is a (nullable Java String, line) map key.
@@ -69,7 +69,7 @@ func sourceMapConsumerV3_keyOf(s optionalString, line int) sourceMapConsumerV3_l
 //
 // Java: SourceMapConsumerV3()
 func NewSourceMapConsumerV3() *SourceMapConsumerV3 {
-	return &SourceMapConsumerV3{extensions: jutil.NewLinkedHashMap[string, any]()}
+	return &SourceMapConsumerV3{}
 }
 
 // SourceMapConsumerV3_DefaultSourceMapSupplier supplies no maps.
@@ -93,59 +93,11 @@ func (c *SourceMapConsumerV3) Parse(contents string) {
 // TryParse parses the given contents containing a source map, returning a
 // *SourceMapParseException instead of panicking on malformed source maps.
 func (c *SourceMapConsumerV3) TryParse(contents string) *SourceMapParseException {
-	sourceMapObject, err := tryParseSourceMapObjectFromJSON(contents)
+	sourceMapObject, err := parseSourceMapObject(contents)
 	if err != nil {
 		return err
 	}
 	return c.tryParseSourceMapObject(sourceMapObject, nil)
-}
-
-func tryParseSourceMapObjectFromJSON(contents string) (*SourceMapObject, *SourceMapParseException) {
-	sourceMapRoot, parseEx := sourceMapObjectParser_gson.TryFromJsonObject(contents)
-	if parseEx != nil {
-		return nil, NewSourceMapParseException("JSON parse exception: " + parseEx.Error())
-	}
-
-	obj := &SourceMapObject{
-		version:   int(sourceMapRoot.Get("version").GetAsInt()),
-		file:      getOptionalString(sourceMapRoot, "file"),
-		lineCount: -1,
-	}
-	if sourceMapRoot.Has("lineCount") {
-		obj.lineCount = int(sourceMapRoot.Get("lineCount").GetAsInt())
-	}
-	obj.mappings = getOptionalString(sourceMapRoot, "mappings")
-	obj.sourceRoot = getOptionalString(sourceMapRoot, "sourceRoot")
-
-	if sourceMapRoot.Has("sections") {
-		sectionsArray := sourceMapRoot.Get("sections").GetAsJsonArray()
-		listBuilder := make([]*SourceMapSection, 0, sectionsArray.Size())
-		for each := range sectionsArray.All() {
-			sec, err := buildSection(each.GetAsJsonObject())
-			if err != nil {
-				if smErr, ok := err.(*SourceMapParseException); ok {
-					return nil, smErr
-				}
-				panic(err)
-			}
-			listBuilder = append(listBuilder, sec)
-		}
-		obj.sections = listBuilder
-	}
-
-	obj.sources = getOptionalStringArray(sourceMapRoot.Get("sources"))
-	obj.sourcesContent = getOptionalStringArray(sourceMapRoot.Get("sourcesContent"))
-	obj.names = getOptionalStringArray(sourceMapRoot.Get("names"))
-
-	extensions := jutil.NewLinkedHashMap[string, any]()
-	for key, value := range sourceMapRoot.EntrySet().All() {
-		if strings.HasPrefix(key, "x_") {
-			extensions.Put(key, value)
-		}
-	}
-	obj.extensions = extensions
-
-	return obj, nil
 }
 
 // ParseSourceMapObject parses the given contents containing a source map.
@@ -210,12 +162,8 @@ func (c *SourceMapConsumerV3) tryParseSourceMapObject(sourceMapObject *SourceMap
 
 	// The value type of each extension is the native JSON type (e.g.
 	// JsonObject, or JSONObject when compiled with GWT).
-	if sourceMapObject.extensions == nil {
-		// extensions.putAll(null)
-		panic(jutil.NewNullPointerException())
-	}
-	for k, v := range sourceMapObject.extensions.All() {
-		c.extensions.Put(k, v)
+	for _, ext := range sourceMapObject.extensions {
+		c.extensions = putExtension(c.extensions, ext.Key, ext.Value)
 	}
 	mappings, err := newMappingBuilder(
 		c, sourceMapObject.mappings, c.lineCount, useCompactMappings, estimatedEntries).
@@ -429,10 +377,10 @@ func (c *SourceMapConsumerV3) GetSourceRoot() *string {
 }
 
 // GetExtensions returns all extensions and their values (which can be any
-// json value) in a Map object.
+// json value) in insertion order.
 //
 // Java: SourceMapConsumerV3.getExtensions()
-func (c *SourceMapConsumerV3) GetExtensions() *jutil.LinkedHashMap[string, any] {
+func (c *SourceMapConsumerV3) GetExtensions() []SourceMapExtension {
 	return c.extensions
 }
 

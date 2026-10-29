@@ -68,6 +68,7 @@ type Parser struct {
 	commentRecorder      *Parser_CommentRecorder
 	functionContextStack []Parser_FunctionFlavor
 	functionContextBuf   [8]Parser_FunctionFlavor
+	featureBits          uint64
 	features             *FeatureSet
 	lastSourcePosition   SourcePosition
 	// Go-only: language-adapter — nil is Java null.
@@ -309,7 +310,6 @@ func NewParser(config *Parser_Config, errorReporter ErrorReporter, source *Sourc
 	p := &Parser{}
 	p.commentRecorder = NewParser_CommentRecorder(p)
 	p.functionContextStack = p.functionContextBuf[:0]
-	p.features = FeatureSet_BARE_MINIMUM
 	p.config = config
 	p.errorReporter = errorReporter
 	p.scanner = NewScanner(errorReporter, p.commentRecorder, source, 0)
@@ -440,6 +440,12 @@ func (p *Parser) GetComments() []Comment {
 //
 // Java: Parser.getFeatures()
 func (p *Parser) GetFeatures() *FeatureSet {
+	if p.featureBits == 0 {
+		return FeatureSet_BARE_MINIMUM
+	}
+	if p.features == nil || p.features.bits != p.featureBits {
+		p.features = &FeatureSet{bits: p.featureBits}
+	}
 	return p.features
 }
 

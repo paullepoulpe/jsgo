@@ -346,6 +346,10 @@ Foo.prototype.setFoo = (f) => { this.foo = f; };
 `)
 }
 
+func (c *CheckGlobalThisTest) TestArrowFunctionAssignRhsNoWarning() {
+	c.TestSame("a.b = () => this; f();")
+}
+
 // Java: CheckGlobalThisTest.testInnerFunctionInClassMethod1()
 func (c *CheckGlobalThisTest) TestInnerFunctionInClassMethod1() {
 	// TODO(user): It would be nice to warn for using 'this' here

@@ -1,7 +1,24 @@
 // Port of com/google/javascript/jscomp/Es6RewriteModules.java @ closure-compiler v20261021
+// Port of com/google/javascript/jscomp/Es6RelativizeImportPaths.java @ closure-compiler v20261021
 
 /*
  * Copyright 2014 The Closure Compiler Authors.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+/*
+ * Copyright 2018 The Closure Compiler Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -46,9 +63,28 @@ type Es6RewriteModules struct {
 	globalTypedScope  *TypedScope
 	chunkOutputType   CompilerOptions_ChunkOutputType
 
-	requireRewriter  es6RewriteRequiresForEs6Modules
-	globalVarRenamer es6RenameGlobalVars
+	requireRewriter       es6RewriteRequiresForEs6Modules
+	moduleRequireRewriter es6RewriteModuleRequiresCallback
+	globalVarRenamer      es6RenameGlobalVars
 }
+
+var (
+	es6RewriteCallVisitTokens = func() ast.TokenSet {
+		var s ast.TokenSet
+		s.Add(rhino.Token_CALL)
+		return s
+	}()
+
+	es6RewriteModulesVisitTokens = func() ast.TokenSet {
+		var s ast.TokenSet
+		s.Add(rhino.Token_IMPORT)
+		s.Add(rhino.Token_EXPORT)
+		s.Add(rhino.Token_SCRIPT)
+		s.Add(rhino.Token_CALL)
+		s.Add(rhino.Token_IMPORT_META)
+		return s
+	}()
+)
 
 var Es6RewriteModules_LHS_OF_GOOG_REQUIRE_MUST_BE_CONST = DiagnosticType_Error(
 	"JSC_LHS_OF_GOOG_REQUIRE_MUST_BE_CONST",
@@ -109,6 +145,7 @@ func NewEs6RewriteModulesWithChunkOutputType(
 		chunkOutputType:         chunkOutputType,
 	}
 	e.requireRewriter.pass = e
+	e.moduleRequireRewriter.pass = e
 	e.globalVarRenamer.pass = e
 	return e
 }
@@ -169,6 +206,11 @@ type es6RewriteRequiresForEs6Modules struct {
 
 	pass        *Es6RewriteModules
 	renameTable map[Es6ScopeRenameKey]string
+}
+
+func (*es6RewriteRequiresForEs6Modules) noVisitLeaves() {}
+func (*es6RewriteRequiresForEs6Modules) visitTokens() *ast.TokenSet {
+	return &es6RewriteCallVisitTokens
 }
 
 func (r *es6RewriteRequiresForEs6Modules) rewrite(scriptNode rhino.Node) {
@@ -312,6 +354,8 @@ func (r *es6RewriteRequiresForEs6Modules) Visit(t *NodeTraversal, n rhino.Node, 
 		t.ReportCodeChange()
 	}
 }
+
+func (*Es6RewriteModules) visitTokens() *ast.TokenSet { return &es6RewriteModulesVisitTokens }
 
 // Java: Es6RewriteModules.shouldTraverse(NodeTraversal, Node, Node)
 func (e *Es6RewriteModules) ShouldTraverse(nodeTraversal *NodeTraversal, n rhino.Node, parent rhino.Node) bool {
@@ -570,21 +614,31 @@ func (e *Es6RewriteModules) addGetterExport(
 	e.compiler.ReportChangeToEnclosingScope(getter)
 }
 
+type es6RewriteModuleRequiresCallback struct {
+	NodeTraversal_AbstractPostOrderCallbackBase
+
+	pass *Es6RewriteModules
+}
+
+func (*es6RewriteModuleRequiresCallback) noVisitLeaves() {}
+func (*es6RewriteModuleRequiresCallback) visitTokens() *ast.TokenSet {
+	return &es6RewriteCallVisitTokens
+}
+
+func (r *es6RewriteModuleRequiresCallback) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
+	if call, ok := ast.AsCall(n); ok {
+		e := r.pass
+		fn := call.Callee().Node()
+		if es6RewriteModules_GOOG_REQUIRE.Matches(fn) || es6RewriteModules_GOOG_REQUIRETYPE.Matches(fn) {
+			e.visitRequireOrGet(t, n, parent /* isRequire= */, true)
+		} else if es6RewriteModules_GOOG_MODULE_GET.Matches(fn) {
+			e.visitGoogModuleGet(t, n, parent)
+		}
+	}
+}
+
 func (e *Es6RewriteModules) rewriteRequires(script rhino.Node) {
-	NodeTraversal_Builder_().
-		SetCompiler(e.compiler).
-		SetCallbackFunc(
-			func(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
-				if call, ok := ast.AsCall(n); ok {
-					fn := call.Callee().Node()
-					if es6RewriteModules_GOOG_REQUIRE.Matches(fn) || es6RewriteModules_GOOG_REQUIRETYPE.Matches(fn) {
-						e.visitRequireOrGet(t, n, parent /* isRequire= */, true)
-					} else if es6RewriteModules_GOOG_MODULE_GET.Matches(fn) {
-						e.visitGoogModuleGet(t, n, parent)
-					}
-				}
-			}).
-		Traverse(script)
+	NodeTraversal_Traverse(e.compiler, script, &e.moduleRequireRewriter)
 	if len(e.namesToInlineByAlias) == 0 {
 		return
 	}
@@ -901,5 +955,109 @@ func (e *Es6RewriteModules) declareGlobalVariable(n rhino.Node, t *NodeTraversal
 	} else {
 		type_ := jutil.CheckNotNull(n.GetJSType())
 		e.globalTypedScope.Declare(name, n, type_, t.GetInput(), false)
+	}
+}
+
+// Es6RelativizeImportPaths rewrites ES6 import paths to be relative after
+// resolving according to the compiler's module resolver.
+//
+// Useful for servers that wish to preserve ES6 modules, meaning their paths
+// need to be valid in the browser.
+type Es6RelativizeImportPaths struct {
+	compiler AbstractCompiler
+}
+
+// Java: Es6RelativizeImportPaths(AbstractCompiler)
+func NewEs6RelativizeImportPaths(compiler AbstractCompiler) *Es6RelativizeImportPaths {
+	return &Es6RelativizeImportPaths{compiler: compiler}
+}
+
+// Java: Es6RelativizeImportPaths.process(Node, Node)
+func (e *Es6RelativizeImportPaths) Process(externs rhino.Node, root rhino.Node) {
+	var rewriter Es6RelativizeImportPaths_Rewriter
+	for script := root.GetFirstChild(); !script.IsNil(); script = script.GetNext() {
+		if Es6RewriteModules_IsEs6ModuleRoot(script) {
+			NodeTraversal_Traverse(e.compiler, script, &rewriter)
+		}
+	}
+}
+
+// Es6RelativizeImportPaths_Rewriter is the private static nested class
+// Es6RelativizeImportPaths.Rewriter.
+type Es6RelativizeImportPaths_Rewriter struct {
+	NodeTraversal_AbstractPreOrderCallbackBase
+}
+
+// Java: Es6RelativizeImportPaths.Rewriter()
+func NewEs6RelativizeImportPaths_Rewriter() *Es6RelativizeImportPaths_Rewriter {
+	return &Es6RelativizeImportPaths_Rewriter{}
+}
+
+// Java: Es6RelativizeImportPaths.Rewriter.shouldTraverse(NodeTraversal, Node, Node)
+func (r *Es6RelativizeImportPaths_Rewriter) ShouldTraverse(nodeTraversal *NodeTraversal, n rhino.Node, parent rhino.Node) bool {
+	switch n.GetToken() {
+	case rhino.Token_ROOT, rhino.Token_MODULE_BODY, rhino.Token_SCRIPT:
+		return true
+	case rhino.Token_IMPORT:
+		r.VisitImport(nodeTraversal, n)
+		return false
+	case rhino.Token_EXPORT:
+		r.VisitExport(nodeTraversal, n)
+		return false
+	default:
+		return false
+	}
+}
+
+// Java: Es6RelativizeImportPaths.Rewriter.visitImport(NodeTraversal, Node)
+func (r *Es6RelativizeImportPaths_Rewriter) VisitImport(t *NodeTraversal, importDecl rhino.Node) {
+	specifierNode := importDecl.GetLastChild()
+	specifier := specifierNode.GetString()
+
+	// Leave relative and truly absolute paths (those with a scheme) alone. Only transform
+	// absolute paths without a scheme (starting with "/") and ambiguous paths.
+	if ModuleLoader_IsRelativeIdentifier(specifier) {
+		return
+	}
+	specifierURI, err := jutil.ParseURI(specifier)
+	if err != nil || specifierURI.IsAbsolute() {
+		return
+	}
+
+	scriptPath := t.GetInput().GetPath().String()
+
+	// If the script path has a scheme / host / port then just use the path part.
+	scriptURI, err := jutil.ParseURI(scriptPath)
+	if err != nil {
+		return
+	}
+	scriptPath = *scriptURI.GetPath()
+
+	newSpecifier := t.GetInput().GetPath().ResolveModuleAsPath(specifier).String()
+
+	// If a module root is stripped then this won't start with "/" when it probably should.
+	if !strings.HasPrefix(newSpecifier, "/") {
+		newSpecifier = "/" + newSpecifier
+	}
+
+	newSpecifier = jutil.Path_Of(scriptPath).GetParent().Relativize(jutil.Path_Of(newSpecifier)).String()
+
+	// Relativizing two paths with the same directory yields an ambiguous path rather than one
+	// starting with "./".
+	if ModuleLoader_IsAmbiguousIdentifier(newSpecifier) {
+		newSpecifier = "./" + newSpecifier
+	}
+
+	if newSpecifier != specifier {
+		specifierNode.SetString(newSpecifier)
+		t.ReportCodeChangeWithNode(specifierNode)
+	}
+}
+
+// Java: Es6RelativizeImportPaths.visitExport(NodeTraversal, Node)
+func (r *Es6RelativizeImportPaths_Rewriter) VisitExport(t *NodeTraversal, export rhino.Node) {
+	if export.HasTwoChildren() {
+		// export from
+		r.VisitImport(t, export)
 	}
 }

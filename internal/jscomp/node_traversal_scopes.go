@@ -634,7 +634,7 @@ func (t *NodeTraversal) TraverseAtScope(s AbstractScope) {
 
 	switch n.GetToken() {
 	case rhino.Token_FUNCTION:
-		if t.callback.ShouldTraverse(t, n, rhino.NilNode) {
+		if t.shouldTraverseScriptOrFunction(n, rhino.NilNode) {
 			t.PushScopeOfScope(s)
 
 			fnName := n.GetFirstChild()
@@ -648,10 +648,10 @@ func (t *NodeTraversal) TraverseAtScope(s AbstractScope) {
 			t.TraverseBranch(body, n)
 
 			t.PopScope()
-			t.callback.Visit(t, n, rhino.NilNode)
+			t.visitNode(n, rhino.NilNode)
 		}
 	case rhino.Token_CLASS:
-		if t.callback.ShouldTraverse(t, n, rhino.NilNode) {
+		if t.shouldTraverse(n, rhino.NilNode) {
 			t.PushScopeOfScope(s)
 
 			className := n.GetFirstChild()
@@ -666,39 +666,39 @@ func (t *NodeTraversal) TraverseAtScope(s AbstractScope) {
 			t.TraverseBranch(body, n)
 
 			t.PopScope()
-			t.callback.Visit(t, n, rhino.NilNode)
+			t.visitNode(n, rhino.NilNode)
 		}
 	case rhino.Token_BLOCK, rhino.Token_SWITCH_BODY:
-		if t.callback.ShouldTraverse(t, n, rhino.NilNode) {
+		if t.shouldTraverse(n, rhino.NilNode) {
 			t.PushScopeOfScope(s)
 
 			// traverseBranch is not called here to avoid re-creating the block scope.
 			t.TraverseChildren(n)
 
 			t.PopScope()
-			t.callback.Visit(t, n, rhino.NilNode)
+			t.visitNode(n, rhino.NilNode)
 		}
 	case rhino.Token_MEMBER_FIELD_DEF:
 		t.PushScopeOfScope(s)
-		if t.callback.ShouldTraverse(t, n, rhino.NilNode) {
+		if t.shouldTraverse(n, rhino.NilNode) {
 
 			// traverseBranch is not called here to avoid re-creating the MemberFieldDef scope.
 			t.TraverseChildren(n)
 
-			t.callback.Visit(t, n, rhino.NilNode)
+			t.visitNode(n, rhino.NilNode)
 		}
 		t.PopScope()
 	case rhino.Token_COMPUTED_FIELD_DEF:
 		t.PushScopeOfScope(s)
-		if t.callback.ShouldTraverse(t, n, rhino.NilNode) {
+		if t.shouldTraverse(n, rhino.NilNode) {
 
 			t.TraverseBranch(n.GetLastChild(), n)
 
-			t.callback.Visit(t, n, rhino.NilNode)
+			t.visitNode(n, rhino.NilNode)
 		}
 		t.PopScope()
 	case rhino.Token_FOR_IN, rhino.Token_FOR_OF, rhino.Token_FOR_AWAIT_OF, rhino.Token_FOR:
-		if t.callback.ShouldTraverse(t, n, rhino.NilNode) {
+		if t.shouldTraverse(n, rhino.NilNode) {
 			t.PushScopeOfScope(s)
 
 			forAssignmentParam := n.GetFirstChild()
@@ -709,7 +709,7 @@ func (t *NodeTraversal) TraverseAtScope(s AbstractScope) {
 			t.TraverseBranch(forBodyScope, n)
 
 			t.PopScope()
-			t.callback.Visit(t, n, rhino.NilNode)
+			t.visitNode(n, rhino.NilNode)
 		}
 	default:
 		jutil.CheckStateMsg1(
@@ -742,22 +742,18 @@ func traverseScriptUnderRoot(
 	t.InitTraversal(scopeRoot)
 	t.currentNode = scopeRoot
 	t.PushScope(scopeRoot)
-	if t.noShouldTraverse || t.callback.ShouldTraverse(t, scopeRoot, rhino.NilNode) {
+	if t.shouldTraverse(scopeRoot, rhino.NilNode) {
 		if scriptParent != scopeRoot {
-			if t.noShouldTraverse || t.callback.ShouldTraverse(t, scriptParent, scopeRoot) {
+			if t.shouldTraverse(scriptParent, scopeRoot) {
 				t.TraverseBranch(script, scriptParent)
-				if !t.noVisit {
-					t.currentNode = scriptParent
-					t.callback.Visit(t, scriptParent, scopeRoot)
-				}
+				t.currentNode = scriptParent
+				t.visitNode(scriptParent, scopeRoot)
 			}
 		} else {
 			t.TraverseBranch(script, scriptParent)
 		}
-		if !t.noVisit {
-			t.currentNode = scopeRoot
-			t.callback.Visit(t, scopeRoot, rhino.NilNode)
-		}
+		t.currentNode = scopeRoot
+		t.visitNode(scopeRoot, rhino.NilNode)
 	}
 	t.PopScope()
 }

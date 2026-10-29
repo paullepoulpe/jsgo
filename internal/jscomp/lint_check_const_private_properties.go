@@ -19,8 +19,27 @@
 package jscomp
 
 import (
+	"github.com/paullepoulpe/jsgo/internal/ast"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
+
+var checkConstPrivatePropertiesVisitTokens = func() ast.TokenSet {
+	var s ast.TokenSet
+	s.Add(rhino.Token_SCRIPT)
+	s.Add(rhino.Token_GETELEM)
+	s.Add(rhino.Token_GETPROP)
+	s.Add(rhino.Token_FUNCTION)
+	s.Add(rhino.Token_CLASS)
+	return s
+}()
+
+func (*CheckConstPrivateProperties) noVisitLeaves() {}
+func (*CheckConstPrivateProperties) visitTokens() *ast.TokenSet {
+	return &checkConstPrivatePropertiesVisitTokens
+}
+func (*CheckConstPrivateProperties) combinedVisitTokens() ast.TokenSet {
+	return checkConstPrivatePropertiesVisitTokens
+}
 
 // CheckConstPrivateProperties looks for properties that are not modified and
 // ensures they use the @const annotation.

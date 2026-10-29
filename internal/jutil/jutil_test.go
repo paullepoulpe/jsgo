@@ -136,8 +136,8 @@ func TestTryCatchesSubclasses(t *testing.T) {
 func TestTryWrapsRuntimeErrors(t *testing.T) {
 	caught := false
 	Try(func() {
-		var p *ArrayList[int]
-		_ = p.elems // nil dereference, Java NullPointerException
+		var p *int
+		_ = *p // nil dereference, Java NullPointerException
 	}, func(e IRuntimeException) { caught = true })
 	if !caught {
 		t.Fatal("runtime error not caught as RuntimeException")

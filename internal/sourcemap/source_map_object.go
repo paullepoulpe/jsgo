@@ -18,7 +18,41 @@
 
 package sourcemap
 
-import "github.com/paullepoulpe/jsgo/internal/jutil"
+import "slices"
+
+// SourceMapExtension is a custom "x_..." extension property on a V3 source map.
+type SourceMapExtension struct {
+	Key   string
+	Value any
+}
+
+func putExtension(exts []SourceMapExtension, key string, val any) []SourceMapExtension {
+	for i := range exts {
+		if exts[i].Key == key {
+			exts[i].Value = val
+			return exts
+		}
+	}
+	return append(exts, SourceMapExtension{Key: key, Value: val})
+}
+
+func lookupExtension(exts []SourceMapExtension, key string) (any, bool) {
+	for i := range exts {
+		if exts[i].Key == key {
+			return exts[i].Value, true
+		}
+	}
+	return nil, false
+}
+
+func removeExtension(exts []SourceMapExtension, key string) []SourceMapExtension {
+	for i := range exts {
+		if exts[i].Key == key {
+			return slices.Delete(exts, i, i+1)
+		}
+	}
+	return exts
+}
 
 // SourceMapObject wraps a JsonObject to provide a V3 source map.
 type SourceMapObject struct {
@@ -31,7 +65,7 @@ type SourceMapObject struct {
 	sourcesContent []optionalString
 	names          []optionalString
 	sections       []*SourceMapSection
-	extensions     *jutil.LinkedHashMap[string, any]
+	extensions     []SourceMapExtension
 }
 
 // NewSourceMapObject constructs a SourceMapObject (private in Java; use
@@ -48,7 +82,7 @@ func NewSourceMapObject(
 	sourcesContent []*string,
 	names []*string,
 	sections []*SourceMapSection,
-	extensions *jutil.LinkedHashMap[string, any]) *SourceMapObject {
+	extensions []SourceMapExtension) *SourceMapObject {
 	return &SourceMapObject{
 		version:        version,
 		lineCount:      lineCount,
@@ -113,7 +147,7 @@ func (o *SourceMapObject) GetSections() []*SourceMapSection {
 }
 
 // Java: SourceMapObject.getExtensions()
-func (o *SourceMapObject) GetExtensions() *jutil.LinkedHashMap[string, any] {
+func (o *SourceMapObject) GetExtensions() []SourceMapExtension {
 	return o.extensions
 }
 
@@ -190,12 +224,6 @@ func (b *SourceMapObject_Builder) SetNames(names []*string) *SourceMapObject_Bui
 // Java: SourceMapObject.Builder.setSections(List)
 func (b *SourceMapObject_Builder) SetSections(sections []*SourceMapSection) *SourceMapObject_Builder {
 	b.obj.sections = sections
-	return b
-}
-
-// Java: SourceMapObject.Builder.setExtensions(Map)
-func (b *SourceMapObject_Builder) SetExtensions(extensions *jutil.LinkedHashMap[string, any]) *SourceMapObject_Builder {
-	b.obj.extensions = extensions
 	return b
 }
 

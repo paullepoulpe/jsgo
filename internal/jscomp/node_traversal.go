@@ -40,6 +40,7 @@ type NodeTraversal struct {
 	obeyDestructuringAndDefaultValueExecutionOrder bool
 	mayContainSyntheticBlocks                      bool
 	noShouldTraverse                               bool
+	noBranchShouldTraverse                         bool
 	noVisit                                        bool
 	noVisitLeaves                                  bool
 	onlyNameLeaves                                 bool
@@ -128,10 +129,11 @@ func initNodeTraversalFromBuilder(t *NodeTraversal, builder *NodeTraversal_Build
 	_, t.noShouldTraverse = cb.(nodeTraversal_noShouldTraverse)
 	if !t.noShouldTraverse {
 		_, t.noShouldTraverse = cb.(NodeTraversal_AbstractPostOrderCallbackInterface)
-		if !t.noShouldTraverse {
-			if tc, ok := cb.(*TypeCheck); ok && !tc.debugTypeLogger.isLogging {
-				t.noShouldTraverse = true
-			}
+	}
+	t.noBranchShouldTraverse = t.noShouldTraverse
+	if !t.noBranchShouldTraverse {
+		if sf, ok := cb.(nodeTraversal_onlyScriptAndFunctionShouldTraverse); ok {
+			t.noBranchShouldTraverse = sf.shouldTraverseOnlyScriptAndFunction()
 		}
 	}
 	_, t.noVisit = cb.(nodeTraversal_noVisit)
@@ -457,6 +459,20 @@ func (t *NodeTraversal) GetCurrentNode() rhino.Node {
 	return t.currentNode
 }
 
+func (t *NodeTraversal) shouldTraverseScriptOrFunction(n, parent rhino.Node) bool {
+	return t.noShouldTraverse || t.callback.ShouldTraverse(t, n, parent)
+}
+
+func (t *NodeTraversal) shouldTraverse(n, parent rhino.Node) bool {
+	return t.noBranchShouldTraverse || t.callback.ShouldTraverse(t, n, parent)
+}
+
+func (t *NodeTraversal) visitNode(n, parent rhino.Node) {
+	if !t.noVisit && (t.visitTokens == nil || t.visitTokens.Has(n.GetToken())) {
+		t.callback.Visit(t, n, parent)
+	}
+}
+
 // Java: NodeTraversal.handleScript(Node, Node)
 func (t *NodeTraversal) HandleScript(n rhino.Node, parent rhino.Node) {
 	if Platform_IsThreadInterrupted() {
@@ -467,10 +483,10 @@ func (t *NodeTraversal) HandleScript(n rhino.Node, parent rhino.Node) {
 	t.currentNode = n
 	t.currentScript = n
 	t.ClearScriptState()
-	if t.callback.ShouldTraverse(t, n, parent) {
+	if t.shouldTraverseScriptOrFunction(n, parent) {
 		t.TraverseChildren(n)
 		t.currentNode = n
-		t.callback.Visit(t, n, parent)
+		t.visitNode(n, parent)
 	}
 	t.SetChangeScope(rhino.NilNode)
 }
@@ -480,10 +496,10 @@ func (t *NodeTraversal) HandleFunction(n rhino.Node, parent rhino.Node) {
 	changeScope := t.currentChangeScope
 	t.SetChangeScope(n)
 	t.currentNode = n
-	if t.callback.ShouldTraverse(t, n, parent) {
+	if t.shouldTraverseScriptOrFunction(n, parent) {
 		t.TraverseFunction(n, parent)
 		t.currentNode = n
-		t.callback.Visit(t, n, parent)
+		t.visitNode(n, parent)
 	}
 	t.SetChangeScope(changeScope)
 }
@@ -495,10 +511,10 @@ func (t *NodeTraversal) HandleModule(n rhino.Node, parent rhino.Node) {
 	t.currentHoistScopeRoot = n
 	t.PushScope(n)
 	t.currentNode = n
-	if t.callback.ShouldTraverse(t, n, parent) {
+	if t.shouldTraverse(n, parent) {
 		t.TraverseChildren(n)
 		t.currentNode = n
-		t.callback.Visit(t, n, parent)
+		t.visitNode(n, parent)
 	}
 	t.PopScope()
 	// Module bodies don't nest
@@ -508,7 +524,7 @@ func (t *NodeTraversal) HandleModule(n rhino.Node, parent rhino.Node) {
 // Java: NodeTraversal.handleDestructuringOrDefaultValue(Node, Node)
 func (t *NodeTraversal) HandleDestructuringOrDefaultValue(n rhino.Node, parent rhino.Node) {
 	t.currentNode = n
-	if t.callback.ShouldTraverse(t, n, parent) {
+	if t.shouldTraverse(n, parent) {
 		first := n.GetFirstChild()
 		second := first.GetNext()
 
@@ -519,7 +535,7 @@ func (t *NodeTraversal) HandleDestructuringOrDefaultValue(n rhino.Node, parent r
 		t.TraverseBranch(first, n)
 
 		t.currentNode = n
-		t.callback.Visit(t, n, parent)
+		t.visitNode(n, parent)
 	}
 }
 
@@ -585,7 +601,7 @@ func (t *NodeTraversal) TraverseBranch(n rhino.Node, parent rhino.Node) {
 
 	cb := t.callback
 	t.currentNode = n
-	if !t.noShouldTraverse && !cb.ShouldTraverse(t, n, parent) {
+	if !t.noBranchShouldTraverse && !cb.ShouldTraverse(t, n, parent) {
 		return
 	}
 
@@ -614,7 +630,7 @@ func (t *NodeTraversal) TraverseBranch(n rhino.Node, parent rhino.Node) {
 		if child.GetFirstChild().IsNil() {
 			ctok := child.GetToken()
 			if nodeTraversalTokenKind[uint8(ctok)] == 0 {
-				if !t.noShouldTraverse {
+				if !t.noBranchShouldTraverse {
 					t.currentNode = child
 					if !cb.ShouldTraverse(t, child, n) {
 						child = next
@@ -711,7 +727,7 @@ func (t *NodeTraversal) TraverseFunction(n rhino.Node, parent rhino.Node) {
 // Java: NodeTraversal.handleClass(Node, Node)
 func (t *NodeTraversal) HandleClass(n rhino.Node, parent rhino.Node) {
 	t.currentNode = n
-	if !t.callback.ShouldTraverse(t, n, parent) {
+	if !t.shouldTraverse(n, parent) {
 		return
 	}
 
@@ -743,7 +759,7 @@ func (t *NodeTraversal) HandleClass(n rhino.Node, parent rhino.Node) {
 	t.PopScope()
 
 	t.currentNode = n
-	t.callback.Visit(t, n, parent)
+	t.visitNode(n, parent)
 }
 
 // HandleClassMembers traverses class members, excluding keys of computed
@@ -752,7 +768,7 @@ func (t *NodeTraversal) HandleClass(n rhino.Node, parent rhino.Node) {
 // Java: NodeTraversal.handleClassMembers(Node, Node)
 func (t *NodeTraversal) HandleClassMembers(n rhino.Node, parent rhino.Node) {
 	t.currentNode = n
-	if !t.callback.ShouldTraverse(t, n, parent) {
+	if !t.shouldTraverse(n, parent) {
 		return
 	}
 
@@ -771,10 +787,10 @@ func (t *NodeTraversal) HandleClassMembers(n rhino.Node, parent rhino.Node) {
 		case rhino.Token_COMPUTED_PROP:
 			t.currentNode = n
 
-			if t.callback.ShouldTraverse(t, child, n) {
+			if t.shouldTraverse(child, n) {
 				t.TraverseBranch(child.GetLastChild(), child)
 				t.currentNode = n
-				t.callback.Visit(t, child, n)
+				t.visitNode(child, n)
 			}
 		case rhino.Token_COMPUTED_FIELD_DEF:
 			t.currentNode = n
@@ -783,12 +799,12 @@ func (t *NodeTraversal) HandleClassMembers(n rhino.Node, parent rhino.Node) {
 			t.currentHoistScopeRoot = n
 			t.PushScope(child)
 
-			if t.callback.ShouldTraverse(t, child, n) {
+			if t.shouldTraverse(child, n) {
 				if child.HasTwoChildren() { // No RHS to traverse in `[x];` computed field case
 					t.TraverseBranch(child.GetLastChild(), child)
 				}
 				t.currentNode = n
-				t.callback.Visit(t, child, n)
+				t.visitNode(child, n)
 			}
 
 			t.PopScope()
@@ -805,7 +821,7 @@ func (t *NodeTraversal) HandleClassMembers(n rhino.Node, parent rhino.Node) {
 	}
 
 	t.currentNode = n
-	t.callback.Visit(t, n, parent)
+	t.visitNode(n, parent)
 }
 
 // Java: NodeTraversal.handleMemberFieldDef(Node, Node)
@@ -830,7 +846,7 @@ func (t *NodeTraversal) TraverseChildren(n rhino.Node) {
 		if child.GetFirstChild().IsNil() {
 			ctok := child.GetToken()
 			if nodeTraversalTokenKind[uint8(ctok)] == 0 {
-				if !t.noShouldTraverse {
+				if !t.noBranchShouldTraverse {
 					t.currentNode = child
 					if !cb.ShouldTraverse(t, child, n) {
 						child = next

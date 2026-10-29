@@ -118,15 +118,6 @@ func (r FileReplacements) GetSlice(filename string) []*CodeReplacement {
 	return nil
 }
 
-// Get returns the replacements for filename as an ObjectLinkedHashSet.
-func (r FileReplacements) Get(filename string) *jutil.ObjectLinkedHashSet[*CodeReplacement] {
-	set := jutil.NewObjectLinkedHashSet[*CodeReplacement]()
-	for _, rep := range r.GetSlice(filename) {
-		set.Add(rep)
-	}
-	return set
-}
-
 // SuggestedFix represents the fixes to apply to source code to create a
 // refactoring CL.
 type SuggestedFix struct {

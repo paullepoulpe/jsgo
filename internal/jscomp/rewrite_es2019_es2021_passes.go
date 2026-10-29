@@ -157,6 +157,19 @@ type RewriteLogicalAssignmentOperatorsPass struct {
 	rewriteLogicalAssignmentOperatorsHelper *RewriteLogicalAssignmentOperatorsHelper
 }
 
+var rewriteLogicalAssignmentVisitTokens = func() ast.TokenSet {
+	var s ast.TokenSet
+	s.Add(rhino.Token_ASSIGN_OR)
+	s.Add(rhino.Token_ASSIGN_AND)
+	s.Add(rhino.Token_ASSIGN_COALESCE)
+	return s
+}()
+
+func (*RewriteLogicalAssignmentOperatorsPass) noVisitLeaves() {}
+func (*RewriteLogicalAssignmentOperatorsPass) visitTokens() *ast.TokenSet {
+	return &rewriteLogicalAssignmentVisitTokens
+}
+
 // Java: RewriteLogicalAssignmentOperatorsPass(AbstractCompiler)
 func NewRewriteLogicalAssignmentOperatorsPass(compiler AbstractCompiler) *RewriteLogicalAssignmentOperatorsPass {
 	r := &RewriteLogicalAssignmentOperatorsPass{}
@@ -265,6 +278,17 @@ type RewriteNullishCoalesceOperator struct {
 
 // Java: RewriteNullishCoalesceOperator.TEMP_VAR_NAME_PREFIX
 const RewriteNullishCoalesceOperator_TEMP_VAR_NAME_PREFIX = "$jscomp$nullish$tmp"
+
+var rewriteNullishCoalesceVisitTokens = func() ast.TokenSet {
+	var s ast.TokenSet
+	s.Add(rhino.Token_COALESCE)
+	return s
+}()
+
+func (*RewriteNullishCoalesceOperator) noVisitLeaves() {}
+func (*RewriteNullishCoalesceOperator) visitTokens() *ast.TokenSet {
+	return &rewriteNullishCoalesceVisitTokens
+}
 
 // Java: RewriteNullishCoalesceOperator(AbstractCompiler)
 func NewRewriteNullishCoalesceOperator(compiler AbstractCompiler) *RewriteNullishCoalesceOperator {

@@ -87,6 +87,15 @@ type dpaeFunctionVisitor struct {
 	traversal dpaeTraversal
 }
 
+var (
+	_ nodeTraversal_noVisit       = (*dpaeFunctionVisitor)(nil)
+	_ nodeTraversal_noVisitLeaves = (*dpaeFunctionVisitor)(nil)
+)
+
+func (*dpaeFunctionVisitor) nodeTraversalNoVisit() {}
+
+func (*dpaeFunctionVisitor) noVisitLeaves() {}
+
 func (v *dpaeFunctionVisitor) ShouldTraverse(t *NodeTraversal, n rhino.Node, parent rhino.Node) bool {
 	if ChangeTracker_IsChangeScopeRoot(n) && t.GetCompiler().HasScopeChanged(n) {
 		v.EnterChangedScopeRoot(t.GetCompiler(), n)

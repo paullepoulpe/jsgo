@@ -40,7 +40,7 @@ type CheckProvidesSorted struct {
 	lastNode  rhino.Node
 	finished  bool
 
-	replacement *string
+	replacement string
 	needsFix    bool
 }
 
@@ -77,12 +77,9 @@ func (m CheckProvidesSorted_Mode) Ordinal() int { return int(m) }
 // Java: CheckProvidesSorted(CheckProvidesSorted.Mode)
 func NewCheckProvidesSorted(mode CheckProvidesSorted_Mode) *CheckProvidesSorted {
 	return &CheckProvidesSorted{
-		firstNode:   rhino.NilNode,
-		lastNode:    rhino.NilNode,
-		finished:    false,
-		replacement: nil,
-		needsFix:    false,
-		mode:        mode,
+		firstNode: rhino.NilNode,
+		lastNode:  rhino.NilNode,
+		mode:      mode,
 	}
 }
 
@@ -105,7 +102,10 @@ func (c *CheckProvidesSorted) GetLastNode() rhino.Node {
 //
 // Java: CheckProvidesSorted.getReplacement()
 func (c *CheckProvidesSorted) GetReplacement() *string {
-	return c.replacement
+	if !c.needsFix {
+		return nil
+	}
+	return &c.replacement
 }
 
 // NeedsFix returns whether the provides need to be fixed, i.e., whether they
@@ -179,9 +179,9 @@ func (c *CheckProvidesSorted) CheckCanonical(t *NodeTraversal) {
 		for i, p := range canonicalProvides {
 			formatted[i] = CheckProvidesSorted_FormatProvide(p)
 		}
-		c.replacement = jutil.StringPtr(strings.Join(formatted, "\n"))
+		c.replacement = strings.Join(formatted, "\n")
 		if c.mode == CheckProvidesSorted_Mode_COLLECT_AND_REPORT {
-			t.Report(c.firstNode, CheckProvidesSorted_PROVIDES_NOT_SORTED, *c.replacement)
+			t.Report(c.firstNode, CheckProvidesSorted_PROVIDES_NOT_SORTED, c.replacement)
 		}
 	}
 }

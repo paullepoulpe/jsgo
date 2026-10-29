@@ -1,4 +1,4 @@
-package jutil
+package xtbxml
 
 // Go-only: language-adapter — the javax.xml.parsers / org.xml.sax API that
 // XtbMessageBundle uses (SAXParserFactory, SAXParser, XMLReader,
@@ -15,6 +15,8 @@ package jutil
 import (
 	"io"
 	"strconv"
+
+	"github.com/paullepoulpe/jsgo/internal/jutil"
 )
 
 // XMLConstants_FEATURE_SECURE_PROCESSING is
@@ -28,13 +30,13 @@ const (
 )
 
 // SAXException is org.xml.sax.SAXException.
-type SAXException struct{ JavaException }
+type SAXException struct{ jutil.JavaException }
 
 func (*SAXException) saxException() {}
 
 // ISAXException matches SAXException and its subclasses.
 type ISAXException interface {
-	IException
+	jutil.IException
 	saxException()
 }
 
@@ -56,7 +58,7 @@ func NewSAXParseException(message string) *SAXParseException {
 
 func newSAXParseExceptionAt(message string, line, column int) *SAXParseException {
 	e := &SAXParseException{lineNumber: line, columnNumber: column}
-	InitThrowable(e, "org.xml.sax.SAXParseException", &message, nil)
+	jutil.InitThrowable(e, "org.xml.sax.SAXParseException", &message, nil)
 	return e
 }
 
@@ -78,15 +80,15 @@ func (e *SAXParseException) Error() string {
 	if e.columnNumber != -1 {
 		s += "; columnNumber: " + strconv.Itoa(e.columnNumber)
 	}
-	if e.hasMsg {
-		s += "; " + e.message
+	if e.HasMessage() {
+		s += "; " + e.GetMessage()
 	}
 	return s
 }
 
 // ParserConfigurationException is
 // javax.xml.parsers.ParserConfigurationException.
-type ParserConfigurationException struct{ JavaException }
+type ParserConfigurationException struct{ jutil.JavaException }
 
 func (*ParserConfigurationException) parserConfigurationException() {}
 
@@ -173,7 +175,7 @@ func (f *SAXParserFactory) SetXIncludeAware(state bool) { f.xIncludeAware = stat
 // SetFeature is SAXParserFactory.setFeature(String, boolean).
 func (f *SAXParserFactory) SetFeature(name string, value bool) {
 	if _, ok := f.features[name]; !ok {
-		panic(NewUnsupportedOperationExceptionMsg("SAX feature not emulated: " + name))
+		panic(jutil.NewUnsupportedOperationExceptionMsg("SAX feature not emulated: " + name))
 	}
 	f.features[name] = value
 }
@@ -184,7 +186,7 @@ func (f *SAXParserFactory) NewSAXParser() *SAXParser {
 		f.features[saxFeatureExternalGeneralEntities] ||
 		f.features[saxFeatureExternalParameterEntities] ||
 		f.features[saxFeatureLoadExternalDtd] {
-		panic(NewUnsupportedOperationExceptionMsg(
+		panic(jutil.NewUnsupportedOperationExceptionMsg(
 			"SAXParser emulated only without validation, XInclude, external entities and external DTD loading"))
 	}
 	return &SAXParser{reader: &XMLReader{}}

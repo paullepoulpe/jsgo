@@ -727,11 +727,11 @@ func (s *jsaCsTester) AddColorsList(t *testing.T, testColorList []*jsaCsTestColo
 func (s *jsaCsTester) GenerateTypePool(t *testing.T) *TypePool {
 	jutil.CheckNotNullMsg(s.colorSerializer, "call init() first")
 	return s.colorSerializer.GenerateTypePool(
-		func(subtypeColor *colors.Color) *jutil.ObjectLinkedHashSet[*colors.Color] {
+		func(subtypeColor *colors.Color) []*colors.Color {
 			if set, ok := s.subColorToSuperColorsMap.Lookup(subtypeColor); ok {
-				return set
+				return set.ToSlice()
 			}
-			return jutil.NewObjectLinkedHashSet[*colors.Color]()
+			return nil
 		},
 		func(color *colors.Color) *jutil.LinkedHashSet[string] {
 			if set, ok := s.colorToMismatchLocationStringsMap.Lookup(color); ok {

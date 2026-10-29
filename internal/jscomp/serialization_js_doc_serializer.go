@@ -225,7 +225,7 @@ func jsDocSerializer_fillJsdocTagsOnly(jsdoc *rhino.JSDocInfo, kindBuf []int32) 
 		kindBuf = append(kindBuf, JsdocTag_JSDOC_NO_SIDE_EFFECTS_VALUE)
 	}
 	if jsdoc.HasModifies() {
-		for modifies := range jsdoc.GetModifies().All() {
+		for _, modifies := range jsdoc.GetModifiesSlice() {
 			if modifies == "this" {
 				kindBuf = append(kindBuf, JsdocTag_JSDOC_MODIFIES_THIS_VALUE)
 			} else {

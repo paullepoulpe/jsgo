@@ -124,7 +124,7 @@ func (d *DeadAssignmentsElimination) eliminateFunction(fn rhino.Node, dummyGloba
 	}
 
 	allVarsDeclaredInFunction := d.varsFinder.collect(d.compiler, scopeCreator, functionScope)
-	if allVarsDeclaredInFunction.GetAllVariables().IsEmpty() {
+	if allVarsDeclaredInFunction.table.isEmpty() {
 		return
 	}
 	d.pushCfgRoot(fn)
@@ -138,7 +138,7 @@ func (d *DeadAssignmentsElimination) eliminateFunction(fn rhino.Node, dummyGloba
 		return
 	}
 	d.liveness.Analyze()
-	d.TryRemoveDeadAssignments(nil, cfg, d.liveness.GetAllVariables())
+	d.TryRemoveDeadAssignments(nil, cfg, nil)
 }
 
 func (d *DeadAssignmentsElimination) reportChange(n rhino.Node) {
@@ -315,7 +315,7 @@ func (d *DeadAssignmentsElimination) EliminateDeadAssignments(t *NodeTraversal) 
 	}
 	scopeCreator := d.scopeCreator
 	allVarsDeclaredInFunction := d.varsFinder.collect(d.compiler, scopeCreator, functionScope)
-	if allVarsDeclaredInFunction.GetAllVariables().IsEmpty() {
+	if allVarsDeclaredInFunction.table.isEmpty() {
 		return
 	}
 	cfg := d.GetControlFlowGraph(d.compiler)
@@ -326,7 +326,7 @@ func (d *DeadAssignmentsElimination) EliminateDeadAssignments(t *NodeTraversal) 
 		return
 	}
 	d.liveness.Analyze()
-	d.TryRemoveDeadAssignments(t, cfg, d.liveness.GetAllVariables())
+	d.TryRemoveDeadAssignments(t, cfg, nil)
 }
 
 // IsRemovableAssign matches all assignment operators and increment/decrement
@@ -460,7 +460,7 @@ func (d *DeadAssignmentsElimination) TryRemoveAssignmentWithExprRoot(
 		}
 		lhsID := lhs.GetStringID()
 		var index int
-		if allVarsInFn == d.liveness.allVarsInFn {
+		if allVarsInFn == nil || (d.liveness.allVarsSrc != nil && d.liveness.allVarsSrc.allVarsInFn != nil && allVarsInFn == d.liveness.allVarsSrc.allVarsInFn) {
 			var ok bool
 			index, ok = d.liveness.lookupVarIndexByID(lhsID)
 			if !ok || d.liveness.isEscapedIndex(index) {

@@ -238,11 +238,15 @@ func (b *TypedScopeCreator_scopeBuilder) GetCtorForGoogModuleGet(extendsNode rhi
 		call = gp.Object().Node()
 	}
 	extendsCall := b.outer.moduleImportResolver.GetClosureNamespaceTypeFromCall(call)
-	if extendsCall == nil || !b.outer.memoized.ContainsKey(extendsCall.GetScopeRoot()) {
+	if extendsCall == nil {
 		// Handle invalid goog.module.get calls
 		return nil
 	}
-	moduleScope := b.outer.memoized.Get(extendsCall.GetScopeRoot())
+	moduleScope, ok := b.outer.memoized[extendsCall.GetScopeRoot()]
+	if !ok {
+		// Handle invalid goog.module.get calls
+		return nil
+	}
 	properties = slices.Insert(properties, 0, extendsCall.GetName())
 	return rhino.StaticTypedScope_LookupQualifiedNameString(moduleScope, strings.Join(properties, "."))
 }

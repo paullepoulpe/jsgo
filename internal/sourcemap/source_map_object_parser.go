@@ -38,9 +38,17 @@ var sourceMapObjectParser_gson = jutil.NewGson()
 //
 // Java: SourceMapObjectParser.parse(String)
 func SourceMapObjectParser_Parse(contents string) *SourceMapObject {
+	obj, err := parseSourceMapObject(contents)
+	if err != nil {
+		panic(err)
+	}
+	return obj
+}
+
+func parseSourceMapObject(contents string) (*SourceMapObject, *SourceMapParseException) {
 	sourceMapRoot, parseEx := sourceMapObjectParser_gson.TryFromJsonObject(contents)
 	if parseEx != nil {
-		panic(NewSourceMapParseException("JSON parse exception: " + parseEx.Error()))
+		return nil, NewSourceMapParseException("JSON parse exception: " + parseEx.Error())
 	}
 
 	obj := &SourceMapObject{
@@ -58,7 +66,14 @@ func SourceMapObjectParser_Parse(contents string) *SourceMapObject {
 		sectionsArray := sourceMapRoot.Get("sections").GetAsJsonArray()
 		listBuilder := make([]*SourceMapSection, 0, sectionsArray.Size())
 		for each := range sectionsArray.All() {
-			listBuilder = append(listBuilder, SourceMapObjectParser_BuildSection(each.GetAsJsonObject()))
+			sec, err := buildSection(each.GetAsJsonObject())
+			if err != nil {
+				if smErr, ok := err.(*SourceMapParseException); ok {
+					return nil, smErr
+				}
+				panic(err)
+			}
+			listBuilder = append(listBuilder, sec)
 		}
 		obj.sections = listBuilder
 	}
@@ -67,15 +82,15 @@ func SourceMapObjectParser_Parse(contents string) *SourceMapObject {
 	obj.sourcesContent = getOptionalStringArray(sourceMapRoot.Get("sourcesContent"))
 	obj.names = getOptionalStringArray(sourceMapRoot.Get("names"))
 
-	extensions := jutil.NewLinkedHashMap[string, any]()
+	var extensions []SourceMapExtension
 	for key, value := range sourceMapRoot.EntrySet().All() {
 		if strings.HasPrefix(key, "x_") {
-			extensions.Put(key, value)
+			extensions = putExtension(extensions, key, value)
 		}
 	}
 	obj.extensions = extensions
 
-	return obj
+	return obj, nil
 }
 
 // SourceMapObjectParser_ParseFast parses a source map with
@@ -101,7 +116,7 @@ func parseFast(contents string) (*SourceMapObject, *SourceMapParseException) {
 	if err := lexer.beginObject(); err != nil {
 		return nil, wrapFastParseErr(err)
 	}
-	extensions := jutil.NewLinkedHashMap[string, any]()
+	var extensions []SourceMapExtension
 
 	for lexer.HasNext() {
 		name, err := lexer.nextName()
@@ -188,7 +203,7 @@ func parseFast(contents string) (*SourceMapObject, *SourceMapParseException) {
 				if parseEx != nil {
 					return nil, wrapFastParseErr(parseEx)
 				}
-				extensions.Put(name, elem)
+				extensions = putExtension(extensions, name, elem)
 			} else {
 				if err := lexer.skipValue(); err != nil {
 					return nil, wrapFastParseErr(err)

@@ -22,6 +22,7 @@ import (
 	"bufio"
 	"io"
 	"slices"
+	"strings"
 
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/parser"
@@ -65,11 +66,11 @@ func compiler_fromProto(protos []FeatureProto) *parser.FeatureSet {
 	fs := parser.FeatureSet_BARE_MINIMUM
 	for _, p := range protos {
 		if p != FeatureProto_FEATURE_UNKNOWN {
-			jutil.Try(func() {
-				fs = fs.With(parser.FeatureSet_Feature_ValueOf(p.String()[len("FEATURE_"):]))
-			}, func(e jutil.IIllegalArgumentException) {
-				// ignore
-			})
+			if name, ok := strings.CutPrefix(p.String(), "FEATURE_"); ok {
+				if feat, ok := parser.FeatureSet_Feature_Lookup(name); ok {
+					fs = fs.With(feat)
+				}
+			}
 		}
 	}
 	return fs
@@ -117,16 +118,16 @@ func (c *Compiler) GetCompilerStateProtoBuilder() *JSCompilerStateProto_Builder 
 		SetMergedPrecompiledLibraries(c.options.GetMergedPrecompiledLibraries())
 
 	chunkList := c.chunkGraph.GetIntegralChunkArrayForSerialization()
-	chunkNameMap := jutil.NewLinkedHashMap[string, int]()
-	for i := 0; i < len(chunkList); i++ {
-		chunkNameMap.Put(chunkList[i].GetName(), i)
+	chunkNameMap := make(map[string]int, len(chunkList))
+	for i, chunk := range chunkList {
+		chunkNameMap[chunk.GetName()] = i
 	}
 
 	for _, chunk := range chunkList {
 		chunkBuilder := ChunkProto_NewBuilder()
 		chunkBuilder.SetName(chunk.GetName())
 		for _, dep := range chunk.GetDependencies() {
-			depIdx, ok := chunkNameMap.Lookup(dep.GetName())
+			depIdx, ok := chunkNameMap[dep.GetName()]
 			jutil.CheckStateMsg2(
 				ok, "Missing dependency %s for chunk %s", dep.GetName(), chunk.GetName())
 			chunkBuilder.AddDependencies(int32(depIdx))

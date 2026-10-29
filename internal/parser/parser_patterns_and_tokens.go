@@ -652,7 +652,7 @@ func (p *Parser) ReportTemplateErrorIfPresent(templateToken Token) {
 
 // Java: Parser.recordFeatureUsed(Feature)
 func (p *Parser) RecordFeatureUsed(feature FeatureSet_Feature) *Parser {
-	p.features = p.features.With(feature)
+	p.featureBits |= featureSetBit(feature)
 	return p
 }
 

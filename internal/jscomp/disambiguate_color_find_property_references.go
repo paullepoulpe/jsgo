@@ -19,10 +19,24 @@
 package jscomp
 
 import (
+	"github.com/paullepoulpe/jsgo/internal/ast"
 	"github.com/paullepoulpe/jsgo/internal/colors"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
+
+var colorFindPropRefsVisitTokens = func() ast.TokenSet {
+	var s ast.TokenSet
+	s.Add(rhino.Token_GETPROP)
+	s.Add(rhino.Token_OPTCHAIN_GETPROP)
+	s.Add(rhino.Token_OBJECTLIT)
+	s.Add(rhino.Token_CALL)
+	s.Add(rhino.Token_CLASS)
+	s.Add(rhino.Token_OBJECT_PATTERN)
+	s.Add(rhino.Token_FUNCTION)
+	s.Add(rhino.Token_OBJECT_SPREAD)
+	return s
+}()
 
 // ColorFindPropertyReferences traverses the AST, collecting connections
 // between JSTypes, property accesses, and their accociated Nodes.
@@ -87,6 +101,17 @@ func (r *ColorFindPropertyReferences) GetPropertyIndex() *propertyClusteringInde
 	tmp := r.propIndex
 	r.propIndex = nil
 	return tmp
+}
+
+var (
+	_ nodeTraversal_noVisitLeaves = (*ColorFindPropertyReferences)(nil)
+	_ nodeTraversal_visitTokens   = (*ColorFindPropertyReferences)(nil)
+)
+
+func (*ColorFindPropertyReferences) noVisitLeaves() {}
+
+func (*ColorFindPropertyReferences) visitTokens() *ast.TokenSet {
+	return &colorFindPropRefsVisitTokens
 }
 
 // Java: ColorFindPropertyReferences.visit(NodeTraversal, Node, Node)

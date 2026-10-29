@@ -655,14 +655,6 @@ type gson_map interface {
 	gsonEntries() (keys []any, values []any)
 }
 
-func (l *ArrayList[T]) gsonElements() []any {
-	out := make([]any, 0, l.Size())
-	for e := range l.All() {
-		out = append(out, e)
-	}
-	return out
-}
-
 func (s *LinkedHashSet[T]) gsonElements() []any {
 	out := make([]any, 0, s.Size())
 	for e := range s.All() {

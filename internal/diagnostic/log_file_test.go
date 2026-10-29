@@ -71,7 +71,7 @@ func TestLogFileMatchesJava(t *testing.T) {
 	s.step("createOrReopen", func() any { log = LogFile_CreateOrReopen(jutil.Path_Of(f1)); return log })
 	s.step("isLogging", func() any { return log.IsLogging() })
 	s.step("log(String)", func() any { return log.LogString("plain <&> \u00e9 \U0001F600") })
-	s.step("log(Object)", func() any { return log.Log(jutil.NewArrayListFrom([]any{int32(1), "x"})) })
+	s.step("log(Object)", func() any { return log.Log([]any{int32(1), "x"}) })
 	s.step("log(Object null)", func() any { return log.Log(nil) })
 	s.step("log(Supplier)", func() any { return log.LogSupplier(func() string { return "supplied" }) })
 	s.step("log(template)", func() any { return log.LogFormat("%s-%d-%s", "x", int32(3), nil) })

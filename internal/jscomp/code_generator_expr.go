@@ -570,11 +570,13 @@ func CodeGenerator_GetSimpleNumber(s string) float64 {
 	return math.NaN()
 }
 
+var codeGenIDEval = rhino.RhinoStringPool_InternID("eval")
+
 // CodeGenerator_IsIndirectEval returns whether the name is an indirect eval.
 //
 // Java: CodeGenerator.isIndirectEval(Node)
 func CodeGenerator_IsIndirectEval(n rhino.Node) bool {
-	return n.IsName() && n.GetString() == "eval" && !n.GetBooleanProp(rhino.Node_DIRECT_EVAL)
+	return n.IsName() && n.GetStringID() == codeGenIDEval && !n.GetBooleanProp(rhino.Node_DIRECT_EVAL)
 }
 
 // Java: CodeGenerator.addList(Node)

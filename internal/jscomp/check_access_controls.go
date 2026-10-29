@@ -208,15 +208,10 @@ func NewCheckAccessControls(compiler AbstractCompiler) *CheckAccessControls {
 func (c *CheckAccessControls) Process(externs rhino.Node, root rhino.Node) {
 	collectPass := NewCollectFileOverviewVisibility(c.compiler)
 	collectPass.Process(externs, root)
-	visMap := collectPass.GetFileOverviewVisibilityMap()
-	if visMap.IsEmpty() {
-		c.defaultVisibilityForFiles = nil
-	} else {
-		c.defaultVisibilityForFiles = make(map[rhino.StaticSourceFile]rhino.JSDocInfo_Visibility, visMap.Size())
-		for k, v := range visMap.All() {
-			c.defaultVisibilityForFiles[k] = v
-		}
+	if collectPass.hasDuplicate {
+		panic(jutil.NewIllegalArgumentExceptionMsg("Multiple entries with same key"))
 	}
+	c.defaultVisibilityForFiles = collectPass.visibilities
 
 	sc := NewSyntacticScopeCreator(c.compiler)
 	defer func() {
@@ -920,13 +915,15 @@ func CheckAccessControls_IdentifierBehaviour_Select(target rhino.Node) CheckAcce
 // visibility annotations in @fileoverview blocks. Used by
 // CheckAccessControls.
 type CollectFileOverviewVisibility struct {
-	builder *jutil.ImmutableMapBuilder[rhino.StaticSourceFile, rhino.JSDocInfo_Visibility]
+	visibilities map[rhino.StaticSourceFile]rhino.JSDocInfo_Visibility
+	order        []rhino.StaticSourceFile
+	hasDuplicate bool
 }
 
 // Java: CollectFileOverviewVisibility(AbstractCompiler)
 func NewCollectFileOverviewVisibility(compiler AbstractCompiler) *CollectFileOverviewVisibility {
 	return &CollectFileOverviewVisibility{
-		builder: jutil.NewImmutableMapBuilder[rhino.StaticSourceFile, rhino.JSDocInfo_Visibility](),
+		visibilities: make(map[rhino.StaticSourceFile]rhino.JSDocInfo_Visibility),
 	}
 }
 
@@ -948,10 +945,23 @@ func (c *CollectFileOverviewVisibility) Visit(scriptNode rhino.Node) {
 	// null in Java either (it defaults to INHERITED), so Java's
 	// `if (v == null) return;` never fires and has no Go counterpart.
 	v := jsDocInfo.GetVisibility()
-	c.builder.Put(scriptNode.GetStaticSourceFile(), v)
+	sf := jutil.CheckNotNull(scriptNode.GetStaticSourceFile())
+	if _, exists := c.visibilities[sf]; exists {
+		c.hasDuplicate = true
+	} else {
+		c.order = append(c.order, sf)
+	}
+	c.visibilities[sf] = v
 }
 
 // Java: CollectFileOverviewVisibility.getFileOverviewVisibilityMap()
 func (c *CollectFileOverviewVisibility) GetFileOverviewVisibilityMap() *jutil.LinkedHashMap[rhino.StaticSourceFile, rhino.JSDocInfo_Visibility] {
-	return c.builder.BuildOrThrow()
+	if c.hasDuplicate {
+		panic(jutil.NewIllegalArgumentExceptionMsg("Multiple entries with same key"))
+	}
+	m := jutil.NewLinkedHashMapWithCapacity[rhino.StaticSourceFile, rhino.JSDocInfo_Visibility](len(c.order))
+	for _, sf := range c.order {
+		m.Put(sf, c.visibilities[sf])
+	}
+	return m
 }

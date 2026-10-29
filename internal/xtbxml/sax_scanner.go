@@ -1,4 +1,4 @@
-package jutil
+package xtbxml
 
 // Go-only: language-adapter — the XML scanner behind XMLReader.Parse
 // (sax_parser.go): a non-validating, namespace-unaware XML 1.0 processor
@@ -43,6 +43,8 @@ package jutil
 import (
 	"strconv"
 	"strings"
+
+	"github.com/paullepoulpe/jsgo/internal/jutil"
 )
 
 const (
@@ -169,7 +171,7 @@ func (s *saxScanner) fatal(msg string) {
 // ErrorHandler (XMLReader has none here), the JDK also prints the error on
 // System.err; observed behaviour (black-box): "[Fatal Error] :L:C: msg".
 func (s *saxScanner) fatalAt(msg string, line, column int) {
-	System_Err().Println("[Fatal Error] :" + strconv.Itoa(line) + ":" + strconv.Itoa(column) + ": " + msg)
+	jutil.System_Err().Println("[Fatal Error] :" + strconv.Itoa(line) + ":" + strconv.Itoa(column) + ": " + msg)
 	panic(newSAXParseExceptionAt(msg, line, column))
 }
 
@@ -193,7 +195,7 @@ func (s *saxScanner) eofMessage() string {
 }
 
 func saxUnsupported(what string) {
-	panic(NewUnsupportedOperationExceptionMsg("SAX parser: " + what + " not emulated"))
+	panic(jutil.NewUnsupportedOperationExceptionMsg("SAX parser: " + what + " not emulated"))
 }
 
 func saxHex(c int) string {
@@ -624,7 +626,7 @@ func (s *saxScanner) xmlDecl() {
 				padded = true
 			}
 		}
-		v := StringFromUTF16(value)
+		v := jutil.StringFromUTF16(value)
 		switch {
 		case seen == 0 && which != "version":
 			s.fatal("The version is required in the XML declaration.")
@@ -676,7 +678,7 @@ func (s *saxScanner) xmlDecl() {
 			// java.io.UnsupportedEncodingException for an encoding it does
 			// not know.
 			e := &saxUnsupportedEncodingException{}
-			InitThrowable(e, "java.io.UnsupportedEncodingException", &encoding, nil)
+			jutil.InitThrowable(e, "java.io.UnsupportedEncodingException", &encoding, nil)
 			panic(e)
 		}
 		s.in.setEncoding(enc, encoding)
@@ -798,7 +800,7 @@ func (s *saxScanner) element() {
 // pushed on s.open.
 func (s *saxScanner) startTag() bool {
 	nameUnits := s.scanName()
-	name := StringFromUTF16(nameUnits)
+	name := jutil.StringFromUTF16(nameUnits)
 	s.attrs.names = s.attrs.names[:0]
 	s.attrs.values = s.attrs.values[:0]
 	empty := false
@@ -823,7 +825,7 @@ func (s *saxScanner) startTag() bool {
 		if !sawSpace || !saxIsNameStart(c) {
 			s.fatal("Element type \"" + name + "\" must be followed by either attribute specifications, \">\" or \"/>\".")
 		}
-		attr := StringFromUTF16(s.scanName())
+		attr := jutil.StringFromUTF16(s.scanName())
 		s.skipSpaces()
 		if !s.skipChar('=') {
 			s.fatalOrEOF("Attribute name \"" + attr + "\" associated with an element type \"" + name + "\" must be followed by the ' = ' character.")
@@ -861,7 +863,7 @@ func (s *saxScanner) startTag() bool {
 // endTag scans an end tag after "</" and reports it.
 func (s *saxScanner) endTag() {
 	nameUnits := s.open[len(s.open)-1]
-	name := StringFromUTF16(nameUnits)
+	name := jutil.StringFromUTF16(nameUnits)
 	if !s.skipUnits(nameUnits) {
 		s.fatal("The element type \"" + name + "\" must be terminated by the matching end-tag \"</" + name + ">\".")
 	}
@@ -1105,7 +1107,7 @@ func (s *saxScanner) markup() {
 				// internal-state SAXException (not a SAXParseException).
 				e := &SAXException{}
 				msg := "Scanner State 24 not Recognized "
-				InitThrowable(e, "org.xml.sax.SAXException", &msg, nil)
+				jutil.InitThrowable(e, "org.xml.sax.SAXException", &msg, nil)
 				panic(e)
 			}
 			s.fatalOrEOF("The content of elements must consist of well-formed character data or markup.")

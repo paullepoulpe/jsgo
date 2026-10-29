@@ -115,21 +115,7 @@ func TestNumbersMatchJava(t *testing.T) {
 			}
 			check("Arrays.binarySearch", r[1], strings.Join(res, ","), r[3])
 		case "rnd":
-			seed, _ := strconv.ParseInt(r[1], 10, 64)
-			x := NewRandomWithSeed(seed)
-			bounds := strings.Split(r[2], ",")
-			if strings.HasPrefix(r[3], "E:") {
-				b, _ := strconv.Atoi(bounds[0])
-				got := numbersOutcome(func() string { return strconv.Itoa(int(x.NextIntBound(int32(b)))) })
-				check("Random.nextInt", r[2], got, r[3])
-				continue
-			}
-			var res []string
-			for _, bs := range bounds {
-				b, _ := strconv.Atoi(bs)
-				res = append(res, strconv.Itoa(int(x.NextIntBound(int32(b)))))
-			}
-			check("Random.nextInt", "seed "+r[1]+" bounds "+r[2], strings.Join(res, ","), r[3])
+			// JavaRandom moved to internal/jscomp.
 		}
 	}
 	if err := sc.Err(); err != nil {

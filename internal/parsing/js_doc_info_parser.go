@@ -131,12 +131,8 @@ func (p *JsDocInfoParser) SetLicenseTextMonotonic(x string) {
 }
 
 // Java: JsDocInfoParser.getLicenseText()
-func (p *JsDocInfoParser) GetLicenseText() *string {
-	if !p.hasLicenseText {
-		return nil
-	}
-	s := p.licenseText
-	return &s
+func (p *JsDocInfoParser) GetLicenseText() (string, bool) {
+	return p.licenseText, p.hasLicenseText
 }
 
 // SetFileOverviewJSDocInfo sets the file overview JSDocInfo, in order to warn

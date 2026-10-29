@@ -20,21 +20,20 @@ package sourcemap
 
 import (
 	"math"
+	"strings"
+	"unicode/utf16"
 
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 )
 
 // SourceMapJsonLexer is a JSON lexer optimized for large string extraction.
-// By using String.substring() on the source contents, it avoids the massive
-// GC churn caused by JsonReader's internal StringBuilder resizing when
-// parsing large Base64 VLQ mapping strings.
+// By slicing the UTF-8 source contents directly, it avoids allocating UTF-16
+// buffers or copying unescaped Base64 VLQ mapping strings.
 //
 // Internal callers use the (..., error) methods directly; exported methods
 // preserve the SourceMapParseException panic contract at the public boundary.
 type SourceMapJsonLexer struct {
-	// Go-only: language-adapter — the Java String json as UTF-16 code units,
-	// so that charAt is O(1) and pos is a Java char index.
-	json   []uint16
+	json   string
 	pos    int
 	length int
 }
@@ -43,10 +42,9 @@ type SourceMapJsonLexer struct {
 //
 // Java: SourceMapJsonLexer(String)
 func NewSourceMapJsonLexer(json string) *SourceMapJsonLexer {
-	units := jutil.StringToUTF16(json)
 	return &SourceMapJsonLexer{
-		json:   units,
-		length: len(units),
+		json:   json,
+		length: len(json),
 	}
 }
 
@@ -55,20 +53,15 @@ func (l *SourceMapJsonLexer) startsWith(prefix string, toffset int) bool {
 	if toffset < 0 || toffset > l.length-len(prefix) {
 		return false
 	}
-	for i := 0; i < len(prefix); i++ {
-		if l.json[toffset+i] != uint16(prefix[i]) {
-			return false
-		}
-	}
-	return true
+	return l.json[toffset:toffset+len(prefix)] == prefix
 }
 
-// substring is json.substring(beginIndex, endIndex).
+// substring slices json[beginIndex:endIndex] by byte offset.
 func (l *SourceMapJsonLexer) substring(beginIndex, endIndex int) string {
 	if beginIndex < 0 || endIndex > l.length || beginIndex > endIndex {
 		panic(jutil.NewStringIndexOutOfBoundsException(beginIndex, endIndex))
 	}
-	return jutil.StringFromUTF16(l.json[beginIndex:endIndex])
+	return l.json[beginIndex:endIndex]
 }
 
 // Java: SourceMapJsonLexer.skipWhitespace()
@@ -227,7 +220,7 @@ func (l *SourceMapJsonLexer) nextString() (string, error) {
 	}
 	var result string
 	if !hasEscape {
-		result = l.substring(start, l.pos)
+		result = l.json[start:l.pos]
 	} else {
 		var err error
 		result, err = sourceMapJsonLexer_unescape(l.json, start, l.pos)
@@ -262,7 +255,7 @@ func (l *SourceMapJsonLexer) nextInt() (int, error) {
 	}
 	result, ok := sourceMapJsonLexer_parseInt(l.json, start, l.pos, 10)
 	if !ok {
-		return 0, NewSourceMapParseException("Invalid integer: " + l.substring(start, l.pos))
+		return 0, NewSourceMapParseException("Invalid integer: " + l.json[start:l.pos])
 	}
 	return int(result), nil
 }
@@ -282,7 +275,7 @@ func (l *SourceMapJsonLexer) nextRawValue() (string, error) {
 	if err := l.skipValue(); err != nil {
 		return "", err
 	}
-	return l.substring(start, l.pos), nil
+	return l.json[start:l.pos], nil
 }
 
 // Java: SourceMapJsonLexer.nextRawValue()
@@ -352,7 +345,19 @@ func (l *SourceMapJsonLexer) skipValue() error {
 		}
 		return nil
 	}
-	return NewSourceMapParseException("Unexpected character: " + jutil.StringFromChar(c))
+	return NewSourceMapParseException("Unexpected character: " + firstUTF16CharString(l.json[l.pos:]))
+}
+
+func firstUTF16CharString(s string) string {
+	if s[0] < 0x80 {
+		return s[:1]
+	}
+	r, _ := util_decodeWTF8(s)
+	if r >= 0x10000 {
+		hi, _ := utf16.EncodeRune(r)
+		return jutil.StringFromChar(uint16(hi))
+	}
+	return jutil.StringFromChar(uint16(r))
 }
 
 // Java: SourceMapJsonLexer.skipValue()
@@ -390,9 +395,116 @@ func (l *SourceMapJsonLexer) TryConsumeComma() bool {
 	return false
 }
 
-func sourceMapJsonLexer_unescape(s []uint16, start, end int) (string, error) {
-	sb := make([]uint16, 0, end-start)
-	for i := start; i < end; i++ {
+func parseHex4ASCII(s string) (uint16, bool) {
+	if len(s) < 4 {
+		return 0, false
+	}
+	var v uint16
+	for i := 0; i < 4; i++ {
+		c := s[i]
+		var d uint16
+		switch {
+		case c >= '0' && c <= '9':
+			d = uint16(c - '0')
+		case c >= 'a' && c <= 'f':
+			d = uint16(c - 'a' + 10)
+		case c >= 'A' && c <= 'F':
+			d = uint16(c - 'A' + 10)
+		default:
+			return 0, false
+		}
+		v = (v << 4) | d
+	}
+	return v, true
+}
+
+func sourceMapJsonLexer_unescape(s string, start, end int) (string, error) {
+	raw := s[start:end]
+	var sb strings.Builder
+	sb.Grow(len(raw))
+	segStart := 0
+	for i := 0; i < len(raw); {
+		c := raw[i]
+		if c == 0xED && i+2 < len(raw) && raw[i+1] >= 0xA0 && raw[i+1] <= 0xBF {
+			return sourceMapJsonLexer_unescapeUTF16(jutil.StringToUTF16(raw))
+		}
+		if c != '\\' {
+			i++
+			continue
+		}
+		if i+1 >= len(raw) {
+			i++
+			continue
+		}
+		next := raw[i+1]
+		if next >= 0x80 {
+			return sourceMapJsonLexer_unescapeUTF16(jutil.StringToUTF16(raw))
+		}
+		if segStart < i {
+			sb.WriteString(raw[segStart:i])
+		}
+		switch next {
+		case '"':
+			sb.WriteByte('"')
+			i += 2
+		case '\\':
+			sb.WriteByte('\\')
+			i += 2
+		case '/':
+			sb.WriteByte('/')
+			i += 2
+		case 'b':
+			sb.WriteByte('\b')
+			i += 2
+		case 'f':
+			sb.WriteByte('\f')
+			i += 2
+		case 'n':
+			sb.WriteByte('\n')
+			i += 2
+		case 'r':
+			sb.WriteByte('\r')
+			i += 2
+		case 't':
+			sb.WriteByte('\t')
+			i += 2
+		case 'u':
+			if i+6 > len(raw) {
+				return sourceMapJsonLexer_unescapeUTF16(jutil.StringToUTF16(raw))
+			}
+			v, ok := parseHex4ASCII(raw[i+2 : i+6])
+			if !ok {
+				return sourceMapJsonLexer_unescapeUTF16(jutil.StringToUTF16(raw))
+			}
+			if v < 0xD800 || v > 0xDFFF {
+				sb.WriteRune(rune(v))
+				i += 6
+			} else if v <= 0xDBFF && i+12 <= len(raw) && raw[i+6] == '\\' && raw[i+7] == 'u' {
+				lo, okLo := parseHex4ASCII(raw[i+8 : i+12])
+				if !okLo || lo < 0xDC00 || lo > 0xDFFF {
+					return sourceMapJsonLexer_unescapeUTF16(jutil.StringToUTF16(raw))
+				}
+				sb.WriteRune(utf16.DecodeRune(rune(v), rune(lo)))
+				i += 12
+			} else {
+				return sourceMapJsonLexer_unescapeUTF16(jutil.StringToUTF16(raw))
+			}
+		default:
+			sb.WriteByte(next)
+			i += 2
+		}
+		segStart = i
+	}
+	if segStart < len(raw) {
+		sb.WriteString(raw[segStart:])
+	}
+	return sb.String(), nil
+}
+
+func sourceMapJsonLexer_unescapeUTF16(s []uint16) (string, error) {
+	end := len(s)
+	sb := make([]uint16, 0, end)
+	for i := 0; i < end; i++ {
 		c := s[i]
 		if c == '\\' && i+1 < end {
 			i++
@@ -418,10 +530,10 @@ func sourceMapJsonLexer_unescape(s []uint16, start, end int) (string, error) {
 				if i+4 >= end {
 					return "", NewSourceMapParseException("Invalid unicode escape sequence")
 				}
-				v, ok := sourceMapJsonLexer_parseInt(s, i+1, i+5, 16)
+				esc := jutil.StringFromUTF16(s[i+1 : i+5])
+				v, ok := sourceMapJsonLexer_parseInt(esc, 0, len(esc), 16)
 				if !ok {
-					return "", NewSourceMapParseException(
-						"Invalid unicode escape: " + jutil.StringFromUTF16(s[i+1:i+5]))
+					return "", NewSourceMapParseException("Invalid unicode escape: " + esc)
 				}
 				sb = append(sb, uint16(v))
 				i += 4
@@ -438,7 +550,7 @@ func sourceMapJsonLexer_unescape(s []uint16, start, end int) (string, error) {
 // SourceMapJsonLexer_Unescape decodes the JSON escapes in s[start:end].
 //
 // Java: SourceMapJsonLexer.unescape(String, int, int)
-func SourceMapJsonLexer_Unescape(s []uint16, start, end int) string {
+func SourceMapJsonLexer_Unescape(s string, start, end int) string {
 	out, err := sourceMapJsonLexer_unescape(s, start, end)
 	if err != nil {
 		panic(err)
@@ -449,7 +561,7 @@ func SourceMapJsonLexer_Unescape(s []uint16, start, end int) string {
 // sourceMapJsonLexer_parseInt is Integer.parseInt(CharSequence, int, int,
 // int) on s[beginIndex:endIndex] (for radix 10 or 16); ok is false where Java
 // throws NumberFormatException.
-func sourceMapJsonLexer_parseInt(s []uint16, beginIndex, endIndex, radix int) (int32, bool) {
+func sourceMapJsonLexer_parseInt(s string, beginIndex, endIndex, radix int) (int32, bool) {
 	i := beginIndex
 	neg := false
 	if i < endIndex && (s[i] == '-' || s[i] == '+') {
@@ -465,22 +577,30 @@ func sourceMapJsonLexer_parseInt(s []uint16, beginIndex, endIndex, radix int) (i
 	}
 	base := uint64(radix)
 	var mag uint64
-	for ; i < endIndex; i++ {
+	for i < endIndex {
 		c := s[i]
 		var d int
 		if c >= '0' && c <= '9' {
 			d = int(c - '0')
+			i++
 		} else if radix == 16 && c >= 'a' && c <= 'f' {
 			d = int(c - 'a' + 10)
+			i++
 		} else if radix == 16 && c >= 'A' && c <= 'F' {
 			d = int(c - 'A' + 10)
+			i++
 		} else if c < 0x80 {
 			return 0, false
 		} else {
-			d = jutil.CharacterDigit(c, radix)
+			r, width := util_decodeWTF8(s[i:endIndex])
+			if r >= 0x10000 {
+				return 0, false
+			}
+			d = jutil.CharacterDigit(uint16(r), radix)
 			if d < 0 {
 				return 0, false
 			}
+			i += width
 		}
 		if mag > (limit-uint64(d))/base {
 			return 0, false

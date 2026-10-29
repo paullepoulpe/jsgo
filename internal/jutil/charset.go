@@ -315,14 +315,24 @@ func (c *Charset) Decode(b []byte) string {
 // with MalformedInputException, or at the first unmappable one with
 // UnmappableCharacterException (CodingErrorAction.REPORT).
 func (c *Charset) DecodeStrict(b []byte) string {
+	s, err := c.TryDecodeStrict(b)
+	if err != nil {
+		panic(err)
+	}
+	return s
+}
+
+// TryDecodeStrict decodes b and returns MalformedInputException or
+// UnmappableCharacterException instead of panicking on invalid input.
+func (c *Charset) TryDecodeStrict(b []byte) (string, IIOException) {
 	s, e := c.impl().decode(b, true)
 	switch {
 	case e.length == 0:
-		return s
+		return s, nil
 	case e.unmappable:
-		panic(NewUnmappableCharacterException(e.length))
+		return "", NewUnmappableCharacterException(e.length)
 	default:
-		panic(NewMalformedInputException(e.length))
+		return "", NewMalformedInputException(e.length)
 	}
 }
 

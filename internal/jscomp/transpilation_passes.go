@@ -30,25 +30,24 @@ import (
 // Go-only: language-adapter — the Java class only has static members (and a
 // private constructor), which are package-level functions and variables here.
 
+func makeTranspilationPass(name string, fn func(AbstractCompiler) CompilerPass) *PassFactory {
+	return PassFactory_Builder_().SetName(name).SetInternalFactory(fn).Build()
+}
+
 // Java: TranspilationPasses.addEs6ModulePass(PassListBuilder, PreprocessorSymbolTable.CachedInstanceFactory)
 func TranspilationPasses_AddEs6ModulePass(
 	passes *PassListBuilder,
 	preprocessorTableFactory *PreprocessorSymbolTable_CachedInstanceFactory) {
-	passes.MaybeAdd(
-		PassFactory_Builder_().
-			SetName("es6RewriteModule").
-			SetInternalFactory(
-				func(compiler AbstractCompiler) CompilerPass {
-					preprocessorTableFactory.MaybeInitialize(compiler)
-					return NewEs6RewriteModulesWithChunkOutputType(
-						compiler,
-						compiler.GetModuleMetadataMap(),
-						compiler.GetModuleMap(),
-						preprocessorTableFactory.GetInstanceOrNull(),
-						compiler.GetTopScope(),
-						compiler.GetOptions().GetChunkOutputType())
-				}).
-			Build())
+	passes.MaybeAdd(makeTranspilationPass("es6RewriteModule", func(compiler AbstractCompiler) CompilerPass {
+		preprocessorTableFactory.MaybeInitialize(compiler)
+		return NewEs6RewriteModulesWithChunkOutputType(
+			compiler,
+			compiler.GetModuleMetadataMap(),
+			compiler.GetModuleMap(),
+			preprocessorTableFactory.GetInstanceOrNull(),
+			compiler.GetTopScope(),
+			compiler.GetOptions().GetChunkOutputType())
+	}))
 }
 
 // Java: TranspilationPasses.addTranspilationRuntimeLibraries(PassListBuilder)
@@ -192,30 +191,26 @@ func TranspilationPasses_AddTranspilationPasses(passes *PassListBuilder, options
 }
 
 // Java: TranspilationPasses.peepholeTranspilationsPasses
-var TranspilationPasses_peepholeTranspilationsPasses = PassFactory_Builder_().
-	SetName("peepholeTranspilationsPasses").
-	SetInternalFactory(
-		func(compiler AbstractCompiler) CompilerPass {
-			peepholeTranspilations := []AbstractPeepholeTranspilation{}
-			peepholeTranspilations = append(peepholeTranspilations,
-				NewReportUntranspilableFeatures(
-					compiler,
-					compiler.GetOptions().GetBrowserFeaturesetYearObject(),
-					compiler.GetOptions().GetOutputFeatureSet()))
-			if compiler.GetOptions().NeedsTranspilationOf(parser.FeatureSet_Feature_OPTIONAL_CATCH_BINDING) {
-				peepholeTranspilations = append(peepholeTranspilations, NewRewriteCatchWithNoBinding(compiler))
-			}
-			if compiler.
-				GetOptions().
-				NeedsTranspilationOf(parser.FeatureSet_Feature_SHORTHAND_OBJECT_PROPERTIES) {
-				peepholeTranspilations = append(peepholeTranspilations, NewEs6NormalizeShorthandProperties(compiler))
-			}
-			if compiler.GetOptions().NeedsTranspilationOf(parser.FeatureSet_Feature_NEW_TARGET) {
-				peepholeTranspilations = append(peepholeTranspilations, NewRewriteNewDotTarget(compiler))
-			}
-			return PeepholeTranspilationsPass_Create(compiler, peepholeTranspilations)
-		}).
-	Build()
+var TranspilationPasses_peepholeTranspilationsPasses = makeTranspilationPass(
+	"peepholeTranspilationsPasses",
+	func(compiler AbstractCompiler) CompilerPass {
+		peepholeTranspilations := []AbstractPeepholeTranspilation{
+			NewReportUntranspilableFeatures(
+				compiler,
+				compiler.GetOptions().GetBrowserFeaturesetYearObject(),
+				compiler.GetOptions().GetOutputFeatureSet()),
+		}
+		if compiler.GetOptions().NeedsTranspilationOf(parser.FeatureSet_Feature_OPTIONAL_CATCH_BINDING) {
+			peepholeTranspilations = append(peepholeTranspilations, NewRewriteCatchWithNoBinding(compiler))
+		}
+		if compiler.GetOptions().NeedsTranspilationOf(parser.FeatureSet_Feature_SHORTHAND_OBJECT_PROPERTIES) {
+			peepholeTranspilations = append(peepholeTranspilations, NewEs6NormalizeShorthandProperties(compiler))
+		}
+		if compiler.GetOptions().NeedsTranspilationOf(parser.FeatureSet_Feature_NEW_TARGET) {
+			peepholeTranspilations = append(peepholeTranspilations, NewRewriteNewDotTarget(compiler))
+		}
+		return PeepholeTranspilationsPass_Create(compiler, peepholeTranspilations)
+	})
 
 // TranspilationPasses_AddRewritePolyfillPass adds the pass to inject ES2015
 // polyfills, which goes after the late ES2015 passes.
@@ -228,223 +223,192 @@ func TranspilationPasses_AddRewritePolyfillPass(passes *PassListBuilder) {
 // Rewrites ES6 modules
 //
 // Java: TranspilationPasses.es6RewriteModuleToCjs
-var TranspilationPasses_es6RewriteModuleToCjs = PassFactory_Builder_().
-	SetName("es6RewriteModuleToCjs").
-	SetInternalFactory(func(compiler AbstractCompiler) CompilerPass {
+var TranspilationPasses_es6RewriteModuleToCjs = makeTranspilationPass(
+	"es6RewriteModuleToCjs",
+	func(compiler AbstractCompiler) CompilerPass {
 		return NewEs6RewriteModulesToCommonJsModules(compiler)
-	}).
-	Build()
+	})
 
 // Rewrites ES6 modules import paths to be browser compliant
 //
 // Java: TranspilationPasses.es6RelativizeImportPaths
-var TranspilationPasses_es6RelativizeImportPaths = PassFactory_Builder_().
-	SetName("es6RelativizeImportPaths").
-	SetInternalFactory(func(compiler AbstractCompiler) CompilerPass {
+var TranspilationPasses_es6RelativizeImportPaths = makeTranspilationPass(
+	"es6RelativizeImportPaths",
+	func(compiler AbstractCompiler) CompilerPass {
 		return NewEs6RelativizeImportPaths(compiler)
-	}).
-	Build()
+	})
 
 // Java: TranspilationPasses.rewriteAsyncFunctions
-var TranspilationPasses_rewriteAsyncFunctions = PassFactory_Builder_().
-	SetName("rewriteAsyncFunctions").
-	SetInternalFactory(func(compiler AbstractCompiler) CompilerPass {
+var TranspilationPasses_rewriteAsyncFunctions = makeTranspilationPass(
+	"rewriteAsyncFunctions",
+	func(compiler AbstractCompiler) CompilerPass {
 		return RewriteAsyncFunctions_Create(compiler)
-	}).
-	Build()
+	})
 
 // Java: TranspilationPasses.rewriteAsyncIteration
-var TranspilationPasses_rewriteAsyncIteration = PassFactory_Builder_().
-	SetName("rewriteAsyncIteration").
-	SetInternalFactory(func(compiler AbstractCompiler) CompilerPass {
+var TranspilationPasses_rewriteAsyncIteration = makeTranspilationPass(
+	"rewriteAsyncIteration",
+	func(compiler AbstractCompiler) CompilerPass {
 		return RewriteAsyncIteration_Create(compiler)
-	}).
-	Build()
+	})
 
 // Java: TranspilationPasses.rewriteObjectSpread
-var TranspilationPasses_rewriteObjectSpread = PassFactory_Builder_().
-	SetName("rewriteObjectSpread").
-	SetInternalFactory(func(compiler AbstractCompiler) CompilerPass {
+var TranspilationPasses_rewriteObjectSpread = makeTranspilationPass(
+	"rewriteObjectSpread",
+	func(compiler AbstractCompiler) CompilerPass {
 		return NewRewriteObjectSpread(compiler)
-	}).
-	Build()
+	})
 
 // Java: TranspilationPasses.rewriteExponentialOperator
-var TranspilationPasses_rewriteExponentialOperator = PassFactory_Builder_().
-	SetName("rewriteExponentialOperator").
-	SetInternalFactory(func(compiler AbstractCompiler) CompilerPass {
+var TranspilationPasses_rewriteExponentialOperator = makeTranspilationPass(
+	"rewriteExponentialOperator",
+	func(compiler AbstractCompiler) CompilerPass {
 		return NewEs7RewriteExponentialOperator(compiler)
-	}).
-	Build()
+	})
 
 // Java: TranspilationPasses.es6NormalizeClasses
-var TranspilationPasses_es6NormalizeClasses = PassFactory_Builder_().
-	SetName(PassNames_ES6_NORMALIZE_CLASSES).
-	SetInternalFactory(func(compiler AbstractCompiler) CompilerPass {
+var TranspilationPasses_es6NormalizeClasses = makeTranspilationPass(
+	PassNames_ES6_NORMALIZE_CLASSES,
+	func(compiler AbstractCompiler) CompilerPass {
 		return NewEs6NormalizeClasses(compiler)
-	}).
-	Build()
+	})
 
 // Java: TranspilationPasses.es6RewriteClass
-var TranspilationPasses_es6RewriteClass = PassFactory_Builder_().
-	SetName("Es6RewriteClass").
-	SetInternalFactory(
-		func(compiler AbstractCompiler) CompilerPass {
-			return NewEs6RewriteClass(
-				compiler, compiler.GetOptions().GetEs6SubclassTranspilation())
-		}).
-	Build()
+var TranspilationPasses_es6RewriteClass = makeTranspilationPass(
+	"Es6RewriteClass",
+	func(compiler AbstractCompiler) CompilerPass {
+		return NewEs6RewriteClass(compiler, compiler.GetOptions().GetEs6SubclassTranspilation())
+	})
 
 // Java: TranspilationPasses.getEs6RewriteDestructuring(ObjectDestructuringRewriteMode)
 func TranspilationPasses_GetEs6RewriteDestructuring(rewriteMode Es6RewriteDestructuring_ObjectDestructuringRewriteMode) *PassFactory {
-	return PassFactory_Builder_().
-		SetName("Es6RewriteDestructuring").
-		SetInternalFactory(
-			func(compiler AbstractCompiler) CompilerPass {
-				return NewEs6RewriteDestructuring_Builder(compiler).
-					SetDestructuringRewriteMode(rewriteMode).
-					Build()
-			}).
-		Build()
+	return makeTranspilationPass("Es6RewriteDestructuring", func(compiler AbstractCompiler) CompilerPass {
+		return NewEs6RewriteDestructuring_Builder(compiler).
+			SetDestructuringRewriteMode(rewriteMode).
+			Build()
+	})
 }
 
 // Java: TranspilationPasses.es6RewriteArrowFunction
-var TranspilationPasses_es6RewriteArrowFunction = PassFactory_Builder_().
-	SetName("Es6RewriteArrowFunction").
-	SetInternalFactory(func(compiler AbstractCompiler) CompilerPass {
+var TranspilationPasses_es6RewriteArrowFunction = makeTranspilationPass(
+	"Es6RewriteArrowFunction",
+	func(compiler AbstractCompiler) CompilerPass {
 		return NewEs6RewriteArrowFunction(compiler)
-	}).
-	Build()
+	})
 
 // Java: TranspilationPasses.rewritePolyfills
-var TranspilationPasses_rewritePolyfills = PassFactory_Builder_().
-	SetName("RewritePolyfills").
-	SetInternalFactory(
-		func(compiler AbstractCompiler) CompilerPass {
-			return NewRewritePolyfills(
-				compiler,
-				compiler.GetOptions().GetRewritePolyfills(),
-				compiler.GetOptions().GetIsolatePolyfills(),
-				compiler.GetOptions().GetInjectPolyfillsNewerThan())
-		}).
-	Build()
+var TranspilationPasses_rewritePolyfills = makeTranspilationPass(
+	"RewritePolyfills",
+	func(compiler AbstractCompiler) CompilerPass {
+		return NewRewritePolyfills(
+			compiler,
+			compiler.GetOptions().GetRewritePolyfills(),
+			compiler.GetOptions().GetIsolatePolyfills(),
+			compiler.GetOptions().GetInjectPolyfillsNewerThan())
+	})
 
 // Java: TranspilationPasses.instrumentAsyncContext
-var TranspilationPasses_instrumentAsyncContext = PassFactory_Builder_().
-	SetName("instrumentAsyncContext").
-	SetInternalFactory(
-		func(compiler AbstractCompiler) CompilerPass {
-			return NewInstrumentAsyncContext(
-				compiler,
-				compiler.
-					GetOptions().
-					GetOutputFeatureSet().
-					ContainsFeature(parser.FeatureSet_Feature_ASYNC_FUNCTIONS))
-		}).
-	Build()
+var TranspilationPasses_instrumentAsyncContext = makeTranspilationPass(
+	"instrumentAsyncContext",
+	func(compiler AbstractCompiler) CompilerPass {
+		return NewInstrumentAsyncContext(
+			compiler,
+			compiler.GetOptions().GetOutputFeatureSet().ContainsFeature(parser.FeatureSet_Feature_ASYNC_FUNCTIONS))
+	})
 
 // Java: TranspilationPasses.es6ConvertSuper
-var TranspilationPasses_es6ConvertSuper = PassFactory_Builder_().
-	SetName("es6ConvertSuper").
-	SetInternalFactory(func(compiler AbstractCompiler) CompilerPass {
+var TranspilationPasses_es6ConvertSuper = makeTranspilationPass(
+	"es6ConvertSuper",
+	func(compiler AbstractCompiler) CompilerPass {
 		return NewEs6ConvertSuper(compiler)
-	}).
-	Build()
+	})
 
 // Injects runtime library code needed for transpiled ES2015+ code.
 //
 // Java: TranspilationPasses.injectTranspilationRuntimeLibraries
-var TranspilationPasses_injectTranspilationRuntimeLibraries = PassFactory_Builder_().
-	SetName("es6InjectRuntimeLibraries").
-	SetInternalFactory(func(compiler AbstractCompiler) CompilerPass {
+var TranspilationPasses_injectTranspilationRuntimeLibraries = makeTranspilationPass(
+	"es6InjectRuntimeLibraries",
+	func(compiler AbstractCompiler) CompilerPass {
 		return NewInjectTranspilationRuntimeLibraries(compiler)
-	}).
-	Build()
+	})
 
 // Transpiles REST parameters.
 //
 // Java: TranspilationPasses.es6RewriteRestParameters
-var TranspilationPasses_es6RewriteRestParameters = PassFactory_Builder_().
-	SetName("es6RewriteRestParameters").
-	SetInternalFactory(func(compiler AbstractCompiler) CompilerPass {
+var TranspilationPasses_es6RewriteRestParameters = makeTranspilationPass(
+	"es6RewriteRestParameters",
+	func(compiler AbstractCompiler) CompilerPass {
 		return NewEs6RewriteRestParameters(compiler)
-	}).
-	Build()
+	})
 
 // Transpiles SPREAD in both array literals, new and function calls.
 //
 // Java: TranspilationPasses.es6RewriteSpreadExpressions
-var TranspilationPasses_es6RewriteSpreadExpressions = PassFactory_Builder_().
-	SetName("es6RewriteSpreadExpressions").
-	SetInternalFactory(func(compiler AbstractCompiler) CompilerPass {
+var TranspilationPasses_es6RewriteSpreadExpressions = makeTranspilationPass(
+	"es6RewriteSpreadExpressions",
+	func(compiler AbstractCompiler) CompilerPass {
 		return NewEs6RewriteSpreadExpressions(compiler)
-	}).
-	Build()
+	})
 
 // Does the main ES2015 to ES3 conversion. There are a few other passes which
 // run before this one, to convert constructs which are not converted by this
 // pass.
 //
 // Java: TranspilationPasses.lateConvertEs6ToEs3
-var TranspilationPasses_lateConvertEs6ToEs3 = PassFactory_Builder_().
-	SetName("lateConvertEs6").
-	SetInternalFactory(func(compiler AbstractCompiler) CompilerPass {
+var TranspilationPasses_lateConvertEs6ToEs3 = makeTranspilationPass(
+	"lateConvertEs6",
+	func(compiler AbstractCompiler) CompilerPass {
 		return NewLateEs6ToEs3Converter(compiler)
-	}).
-	Build()
+	})
 
 // Java: TranspilationPasses.es6ForOf
-var TranspilationPasses_es6ForOf = PassFactory_Builder_().SetName("es6ForOf").SetInternalFactory(func(compiler AbstractCompiler) CompilerPass {
-	return NewEs6ForOfConverter(compiler)
-}).Build()
+var TranspilationPasses_es6ForOf = makeTranspilationPass(
+	"es6ForOf",
+	func(compiler AbstractCompiler) CompilerPass {
+		return NewEs6ForOfConverter(compiler)
+	})
 
 // Java: TranspilationPasses.rewriteBlockScopedFunctionDeclaration
-var TranspilationPasses_rewriteBlockScopedFunctionDeclaration = PassFactory_Builder_().
-	SetName("Es6RewriteBlockScopedFunctionDeclaration").
-	SetInternalFactory(func(compiler AbstractCompiler) CompilerPass {
+var TranspilationPasses_rewriteBlockScopedFunctionDeclaration = makeTranspilationPass(
+	"Es6RewriteBlockScopedFunctionDeclaration",
+	func(compiler AbstractCompiler) CompilerPass {
 		return NewEs6RewriteBlockScopedFunctionDeclaration(compiler)
-	}).
-	Build()
+	})
 
 // Java: TranspilationPasses.rewriteBlockScopedDeclaration
-var TranspilationPasses_rewriteBlockScopedDeclaration = PassFactory_Builder_().
-	SetName("Es6RewriteBlockScopedDeclaration").
-	SetInternalFactory(func(compiler AbstractCompiler) CompilerPass {
+var TranspilationPasses_rewriteBlockScopedDeclaration = makeTranspilationPass(
+	"Es6RewriteBlockScopedDeclaration",
+	func(compiler AbstractCompiler) CompilerPass {
 		return NewEs6RewriteBlockScopedDeclaration(compiler)
-	}).
-	Build()
+	})
 
 // Java: TranspilationPasses.rewriteGenerators
-var TranspilationPasses_rewriteGenerators = PassFactory_Builder_().
-	SetName("rewriteGenerators").
-	SetInternalFactory(func(compiler AbstractCompiler) CompilerPass {
+var TranspilationPasses_rewriteGenerators = makeTranspilationPass(
+	"rewriteGenerators",
+	func(compiler AbstractCompiler) CompilerPass {
 		return NewEs6RewriteGenerators(compiler)
-	}).
-	Build()
+	})
 
 // Java: TranspilationPasses.rewriteLogicalAssignmentOperatorsPass
-var TranspilationPasses_rewriteLogicalAssignmentOperatorsPass = PassFactory_Builder_().
-	SetName("rewriteLogicalAssignmentOperatorsPass").
-	SetInternalFactory(func(compiler AbstractCompiler) CompilerPass {
+var TranspilationPasses_rewriteLogicalAssignmentOperatorsPass = makeTranspilationPass(
+	"rewriteLogicalAssignmentOperatorsPass",
+	func(compiler AbstractCompiler) CompilerPass {
 		return NewRewriteLogicalAssignmentOperatorsPass(compiler)
-	}).
-	Build()
+	})
 
 // Java: TranspilationPasses.rewriteOptionalChainingOperator
-var TranspilationPasses_rewriteOptionalChainingOperator = PassFactory_Builder_().
-	SetName("rewriteOptionalChainingOperator").
-	SetInternalFactory(func(compiler AbstractCompiler) CompilerPass {
+var TranspilationPasses_rewriteOptionalChainingOperator = makeTranspilationPass(
+	"rewriteOptionalChainingOperator",
+	func(compiler AbstractCompiler) CompilerPass {
 		return NewRewriteOptionalChainingOperator(compiler)
-	}).
-	Build()
+	})
 
 // Java: TranspilationPasses.rewriteNullishCoalesceOperator
-var TranspilationPasses_rewriteNullishCoalesceOperator = PassFactory_Builder_().
-	SetName("rewriteNullishCoalesceOperator").
-	SetInternalFactory(func(compiler AbstractCompiler) CompilerPass {
+var TranspilationPasses_rewriteNullishCoalesceOperator = makeTranspilationPass(
+	"rewriteNullishCoalesceOperator",
+	func(compiler AbstractCompiler) CompilerPass {
 		return NewRewriteNullishCoalesceOperator(compiler)
-	}).
-	Build()
+	})
 
 // TranspilationPasses_DoesScriptHaveAnyOfTheseFeatures returns true if the
 // script's featureSet contains any feature from the given featureSet.
@@ -562,15 +526,11 @@ func TranspilationPasses_PostTranspileCheckUnsupportedFeaturesRemoved(compiler A
 // Java: TranspilationPasses.createFeatureRemovalPass(String, FeatureSet)
 func TranspilationPasses_CreateFeatureRemovalPass(
 	passName string, featuresToRemove *parser.FeatureSet) *PassFactory {
-	return PassFactory_Builder_().
-		SetName(passName).
-		SetInternalFactory(
-			func(compiler AbstractCompiler) CompilerPass {
-				return CompilerPassFunc(func(externs rhino.Node, root rhino.Node) {
-					TranspilationPasses_MaybeMarkFeaturesAsTranspiledAway(compiler, root, featuresToRemove)
-				})
-			}).
-		Build()
+	return makeTranspilationPass(passName, func(compiler AbstractCompiler) CompilerPass {
+		return CompilerPassFunc(func(externs rhino.Node, root rhino.Node) {
+			TranspilationPasses_MaybeMarkFeaturesAsTranspiledAway(compiler, root, featuresToRemove)
+		})
+	})
 }
 
 // TranspilationPasses_CreatePostTranspileUnsupportedFeaturesRemovedCheck
@@ -579,15 +539,11 @@ func TranspilationPasses_CreateFeatureRemovalPass(
 //
 // Java: TranspilationPasses.createPostTranspileUnsupportedFeaturesRemovedCheck(String)
 func TranspilationPasses_CreatePostTranspileUnsupportedFeaturesRemovedCheck(passName string) *PassFactory {
-	return PassFactory_Builder_().
-		SetName(passName).
-		SetInternalFactory(
-			func(compiler AbstractCompiler) CompilerPass {
-				return CompilerPassFunc(func(externs rhino.Node, root rhino.Node) {
-					TranspilationPasses_PostTranspileCheckUnsupportedFeaturesRemoved(compiler)
-				})
-			}).
-		Build()
+	return makeTranspilationPass(passName, func(compiler AbstractCompiler) CompilerPass {
+		return CompilerPassFunc(func(externs rhino.Node, root rhino.Node) {
+			TranspilationPasses_PostTranspileCheckUnsupportedFeaturesRemoved(compiler)
+		})
+	})
 }
 
 // TranspilationPasses_CreateUnifiedFeatureRemovalPass creates a single pass

@@ -196,6 +196,10 @@ func ToJavaString(v any) string {
 		return strconv.FormatInt(int64(x), 10)
 	case int8:
 		return strconv.FormatInt(int64(x), 10)
+	case []any:
+		return CollectionToString(x)
+	case []string:
+		return CollectionToString(x)
 	case fmt.Stringer:
 		return x.String()
 	case error:
@@ -225,12 +229,6 @@ func DoubleCompare(a, b float64) int {
 
 // DoubleToLongBits is Double.doubleToLongBits(double).
 func DoubleToLongBits(d float64) int64 { return int64(doubleBits(d)) }
-
-// DoubleToRawLongBits is Double.doubleToRawLongBits(double).
-func DoubleToRawLongBits(d float64) int64 { return int64(math.Float64bits(d)) }
-
-// LongBitsToDouble is Double.longBitsToDouble(long).
-func LongBitsToDouble(bits int64) float64 { return math.Float64frombits(uint64(bits)) }
 
 // IntAdd is Java's a + b on ints (wrapping at 32 bits).
 func IntAdd(a, b int) int { return int(int32(a) + int32(b)) }

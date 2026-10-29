@@ -20,7 +20,6 @@ package jscomp
 
 import (
 	"math/bits"
-	"slices"
 	"strconv"
 
 	"github.com/paullepoulpe/jsgo/internal/ast"
@@ -36,120 +35,6 @@ const (
 	LiveVariablesAnalysis_MAX_VARIABLES_TO_ANALYZE = 100
 	lvaInlineVarCap                                = 16
 )
-
-type lvaBitSet struct {
-	w0    uint64
-	w1    uint64
-	extra []uint64
-}
-
-func (b *lvaBitSet) clear() {
-	b.w0 = 0
-	b.w1 = 0
-	if cap(b.extra) > 16 {
-		b.extra = nil
-	} else if len(b.extra) > 0 {
-		clear(b.extra)
-		b.extra = b.extra[:0]
-	}
-}
-
-func (b *lvaBitSet) set(idx int) {
-	if idx < 64 {
-		b.w0 |= uint64(1) << uint(idx)
-		return
-	}
-	if idx < 128 {
-		b.w1 |= uint64(1) << uint(idx-64)
-		return
-	}
-	wi := (idx - 128) >> 6
-	if wi >= len(b.extra) {
-		if cap(b.extra) > wi {
-			oldLen := len(b.extra)
-			b.extra = b.extra[:wi+1]
-			clear(b.extra[oldLen:])
-		} else {
-			extra := make([]uint64, wi+1, max(wi+1, 4))
-			copy(extra, b.extra)
-			b.extra = extra
-		}
-	}
-	b.extra[wi] |= uint64(1) << uint((idx-128)&63)
-}
-
-func (b *lvaBitSet) has(idx int) bool {
-	if idx < 64 {
-		return (b.w0 & (uint64(1) << uint(idx))) != 0
-	}
-	if idx < 128 {
-		return (b.w1 & (uint64(1) << uint(idx-64))) != 0
-	}
-	wi := (idx - 128) >> 6
-	return wi < len(b.extra) && (b.extra[wi]&(uint64(1)<<uint((idx-128)&63))) != 0
-}
-
-func (b *lvaBitSet) isEmpty() bool {
-	if (b.w0 | b.w1) != 0 {
-		return false
-	}
-	for _, w := range b.extra {
-		if w != 0 {
-			return false
-		}
-	}
-	return true
-}
-
-func (b *lvaBitSet) equals(o *lvaBitSet) bool {
-	if b.w0 != o.w0 || b.w1 != o.w1 {
-		return false
-	}
-	if len(b.extra) == 0 && len(o.extra) == 0 {
-		return true
-	}
-	n := min(len(b.extra), len(o.extra))
-	for i := 0; i < n; i++ {
-		if b.extra[i] != o.extra[i] {
-			return false
-		}
-	}
-	for _, w := range b.extra[n:] {
-		if w != 0 {
-			return false
-		}
-	}
-	for _, w := range o.extra[n:] {
-		if w != 0 {
-			return false
-		}
-	}
-	return true
-}
-
-func (b *lvaBitSet) orWith(o *lvaBitSet) {
-	b.w0 |= o.w0
-	b.w1 |= o.w1
-	if len(o.extra) == 0 {
-		return
-	}
-	if len(b.extra) < len(o.extra) {
-		grown := make([]uint64, len(o.extra))
-		copy(grown, b.extra)
-		b.extra = grown
-	}
-	for i, w := range o.extra {
-		b.extra[i] |= w
-	}
-}
-
-func (b *lvaBitSet) clone() lvaBitSet {
-	out := lvaBitSet{w0: b.w0, w1: b.w1}
-	if len(b.extra) > 0 {
-		out.extra = slices.Clone(b.extra)
-	}
-	return out
-}
 
 // LiveVariablesAnalysis computes the "liveness" of all local variables. A
 // variable is "live" at a point of a program if the value it is currently
@@ -167,7 +52,7 @@ func (b *lvaBitSet) clone() lvaBitSet {
 // global and they can be retrieved with GetEscapedLocals().
 type LiveVariablesAnalysis struct {
 	cfg      *ControlFlowGraph[rhino.Node]
-	worklist backwardCfgWorklist
+	worklist cfgWorklist
 	states   []DataFlowAnalysis_LinearFlowState[*LiveVariablesAnalysis_LiveVariableLattice]
 
 	// The scope of the function that we are analyzing.
@@ -176,23 +61,26 @@ type LiveVariablesAnalysis struct {
 	// The scope of the body of the function that we are analyzing.
 	jsScopeChild *Scope
 
-	// escaped marks indices in orderedVars that are in escapedSet.
-	escaped lvaBitSet
+	// escaped marks indices in orderedVars that are escaped.
+	escaped dfaBitSet
 	// untracked marks indices in orderedVars that are !local || escaped.
-	untracked           lvaBitSet
+	untracked           dfaBitSet
 	escapedSet          jutil.ObjectLinkedHashSet[*Var]
+	escapedSetInit      bool
 	paramsMarkedEscaped bool
 
 	// varIDs holds interned variable strpool IDs inline when numVars <= 16;
 	// idToIndex is reused across Reset calls when numVars > 16.
-	varIDs    [lvaInlineVarCap]uint32
-	idToIndex map[uint32]int
-	numVars   int
+	varIDs            [lvaInlineVarCap]uint32
+	idToIndex         map[uint32]int
+	numVars           int
+	uniqueVarCount    int
+	hasDuplicateNames bool
 
 	// obtain variables in the order in which they appear in the code
 	orderedVars []*Var
 
-	allVarsInFn *jutil.LinkedHashMap[string, *Var]
+	allVarsSrc *NodeUtil_AllVarsDeclaredInFunction
 
 	emptyLattice LiveVariablesAnalysis_LiveVariableLattice
 	lattices     jutil.ReuseSlab[LiveVariablesAnalysis_LiveVariableLattice]
@@ -226,7 +114,7 @@ func (j *LiveVariablesAnalysis_LiveVariableJoinOp) Finish() *LiveVariablesAnalys
 // lattice is the power set of all local variables and a variable is live if
 // it is in the set.
 type LiveVariablesAnalysis_LiveVariableLattice struct {
-	liveSet lvaBitSet
+	liveSet dfaBitSet
 }
 
 // numVars is the number of all local variables.
@@ -298,34 +186,7 @@ func (l *LiveVariablesAnalysis_LiveVariableLattice) NextSetBit(fromIndex int) in
 	if fromIndex < 0 {
 		panic(jutil.NewIndexOutOfBoundsException("fromIndex < 0: " + strconv.Itoa(fromIndex)))
 	}
-	if fromIndex < 64 {
-		if w0 := l.liveSet.w0 & (^uint64(0) << uint(fromIndex)); w0 != 0 {
-			return bits.TrailingZeros64(w0)
-		}
-		fromIndex = 64
-	}
-	if fromIndex < 128 {
-		if w1 := l.liveSet.w1 & (^uint64(0) << uint(fromIndex-64)); w1 != 0 {
-			return 64 + bits.TrailingZeros64(w1)
-		}
-		fromIndex = 128
-	}
-	if len(l.liveSet.extra) == 0 {
-		return -1
-	}
-	wi := (fromIndex - 128) >> 6
-	if wi >= len(l.liveSet.extra) {
-		return -1
-	}
-	if w := l.liveSet.extra[wi] & (^uint64(0) << uint((fromIndex-128)&63)); w != 0 {
-		return 128 + wi*64 + bits.TrailingZeros64(w)
-	}
-	for wi++; wi < len(l.liveSet.extra); wi++ {
-		if w := l.liveSet.extra[wi]; w != 0 {
-			return 128 + wi*64 + bits.TrailingZeros64(w)
-		}
-	}
-	return -1
+	return l.liveSet.nextSetBit(fromIndex)
 }
 
 // Java: LiveVariablesAnalysis.LiveVariableLattice.hashCode()
@@ -377,25 +238,30 @@ func (l *LiveVariablesAnalysis) Reset(
 	scopeCreator ScopeCreator,
 	allVarsDeclaredInFunction *NodeUtil_AllVarsDeclaredInFunction) {
 	l.cfg = cfg
-	l.worklist.releaseLarge()
+	l.worklist.releaseLarge(dfaReuseMaxNodes)
 	if cap(l.states) > dfaReuseMaxNodes {
 		l.states = nil
 	}
 	jutil.CheckStateMsg1(jsScope.IsFunctionScope(), "%s", jsScope)
 
+	table := &allVarsDeclaredInFunction.table
+	releaseLarge := len(table.vars) <= 256
+	table.escaped.clear(releaseLarge)
+	computeEscapedInTable(jsScope, table, compiler, scopeCreator)
+
 	l.jsScope = jsScope
 	l.jsScopeChild = jsScopeChild
-	l.escaped.clear()
-	l.untracked.clear()
+	l.escaped.copyFrom(&table.escaped)
+	l.untracked.clear(releaseLarge)
 	l.paramsMarkedEscaped = false
-	l.escapedSet.Clear()
-	l.orderedVars = allVarsDeclaredInFunction.GetAllVariablesInOrder()
-	l.numVars = len(l.orderedVars)
-	l.allVarsInFn = allVarsDeclaredInFunction.GetAllVariables()
+	l.escapedSetInit = false
+	l.allVarsSrc = allVarsDeclaredInFunction
+	l.orderedVars = table.vars
+	l.numVars = len(table.vars)
+	l.uniqueVarCount = table.uniqueCount
+	l.hasDuplicateNames = table.hasDuplicateNames
 	l.emptyLattice = LiveVariablesAnalysis_LiveVariableLattice{}
 	l.lattices.Reset(nil)
-
-	DataFlowAnalysis_ComputeEscaped(jsScope, &l.escapedSet, compiler, scopeCreator, l.allVarsInFn)
 
 	l.AddScopeVariables()
 }
@@ -431,10 +297,8 @@ func (f *lvaAllVarsFinder) collectWithLimit(
 	if maxVars > 0 && scope.GetVarCount() >= maxVars {
 		return nil
 	}
-	f.finder.result.mapStorage.Clear()
-	f.finder.result.allVarsInFn = &f.finder.result.mapStorage
-	clear(f.finder.result.orderedVars)
-	f.finder.result.orderedVars = f.finder.result.orderedVars[:0]
+	f.finder.result.allVarsInFn = nil
+	f.finder.result.table.reset()
 	f.finder.scope = scope
 
 	fn := ast.MustFunction(scope.GetRootNode())
@@ -450,7 +314,8 @@ func (f *lvaAllVarsFinder) collectWithLimit(
 		if bodyScope != nil {
 			f.finder.appendScopeVars(bodyScope)
 		}
-		jutil.CheckState(f.finder.result.allVarsInFn.IsEmpty() == (len(f.finder.result.orderedVars) == 0))
+		f.finder.result.table.finalize()
+		jutil.CheckState((f.finder.result.table.uniqueCount == 0) == (len(f.finder.result.table.vars) == 0))
 		return &f.finder.result
 	}
 
@@ -461,10 +326,11 @@ func (f *lvaAllVarsFinder) collectWithLimit(
 	}
 	b.TraverseAtScope(scope)
 
-	if maxVars > 0 && len(f.finder.result.orderedVars) >= maxVars {
+	if maxVars > 0 && len(f.finder.result.table.vars) >= maxVars {
 		return nil
 	}
-	jutil.CheckState(f.finder.result.allVarsInFn.IsEmpty() == (len(f.finder.result.orderedVars) == 0))
+	f.finder.result.table.finalize()
+	jutil.CheckState((f.finder.result.table.uniqueCount == 0) == (len(f.finder.result.table.vars) == 0))
 	return &f.finder.result
 }
 
@@ -482,7 +348,10 @@ func (l *LiveVariablesAnalysis) allocLattice() *LiveVariablesAnalysis_LiveVariab
 func (l *LiveVariablesAnalysis) AddScopeVariables() {
 	l.numVars = len(l.orderedVars)
 	useInline := l.numVars <= lvaInlineVarCap
-	if !useInline {
+	reuseTableMap := !useInline && l.allVarsSrc != nil && l.allVarsSrc.table.idToIndex != nil
+	if reuseTableMap {
+		l.idToIndex = l.allVarsSrc.table.idToIndex
+	} else if !useInline {
 		if l.idToIndex == nil {
 			l.idToIndex = make(map[uint32]int, l.numVars)
 		} else {
@@ -493,7 +362,7 @@ func (l *LiveVariablesAnalysis) AddScopeVariables() {
 		id := v.nameID
 		if useInline {
 			l.varIDs[num] = id
-		} else {
+		} else if !reuseTableMap {
 			l.idToIndex[id] = num
 		}
 		localScope, _ := v.GetScope().(*Scope)
@@ -505,11 +374,7 @@ func (l *LiveVariablesAnalysis) AddScopeVariables() {
 		} else {
 			local = localScope.hasOwnSlotByID(id)
 		}
-		isEsc := l.escapedSet.Contains(v)
-		if isEsc {
-			l.escaped.set(num)
-		}
-		if !local || isEsc {
+		if !local || l.escaped.has(num) {
 			l.untracked.set(num)
 		}
 	}
@@ -552,27 +417,14 @@ func (l *LiveVariablesAnalysis) isEscapedIndex(idx int) bool {
 }
 
 func (l *LiveVariablesAnalysis) allInFnVarsEscaped() bool {
-	total := l.allVarsInFn.Size()
-	if l.escapedSet.Size() < total {
+	if l.escaped.count() < l.uniqueVarCount {
 		return false
 	}
-	if l.numVars == total && l.numVars > 0 && l.numVars <= 128 {
-		var mask0, mask1 uint64
-		if l.numVars < 64 {
-			mask0 = (uint64(1) << uint(l.numVars)) - 1
-		} else if l.numVars == 64 {
-			mask0 = ^uint64(0)
-		} else if l.numVars < 128 {
-			mask0 = ^uint64(0)
-			mask1 = (uint64(1) << uint(l.numVars-64)) - 1
-		} else {
-			mask0 = ^uint64(0)
-			mask1 = ^uint64(0)
-		}
-		return (l.escaped.w0&mask0) == mask0 && (l.escaped.w1&mask1) == mask1
+	if !l.hasDuplicateNames {
+		return true
 	}
-	for v := range l.allVarsInFn.Values() {
-		if !l.escapedSet.Contains(v) {
+	for i, v := range l.orderedVars {
+		if canonIdx, _ := l.lookupVarIndexByID(v.nameID); canonIdx == i && !l.escaped.has(i) {
 			return false
 		}
 	}
@@ -581,12 +433,31 @@ func (l *LiveVariablesAnalysis) allInFnVarsEscaped() bool {
 
 // Java: LiveVariablesAnalysis.getEscapedLocals()
 func (l *LiveVariablesAnalysis) GetEscapedLocals() *jutil.ObjectLinkedHashSet[*Var] {
+	if !l.escapedSetInit {
+		l.escapedSet.Clear()
+		l.escaped.forEach(func(idx int) {
+			if idx < len(l.orderedVars) {
+				l.escapedSet.Add(l.orderedVars[idx])
+			}
+		})
+		if l.paramsMarkedEscaped {
+			params := ast.MustFunction(l.jsScope.GetRootNode()).Params()
+			for param, ok := params.FirstParam(); ok; param, ok = param.Next() {
+				if param.Token() == rhino.Token_NAME {
+					if pv := l.jsScope.GetVarByID(param.Node().GetStringID()); pv != nil {
+						l.escapedSet.Add(pv)
+					}
+				}
+			}
+		}
+		l.escapedSetInit = true
+	}
 	return &l.escapedSet
 }
 
 // Java: LiveVariablesAnalysis.getAllVariables()
 func (l *LiveVariablesAnalysis) GetAllVariables() *jutil.LinkedHashMap[string, *Var] {
-	return l.allVarsInFn
+	return l.allVarsSrc.GetAllVariables()
 }
 
 // Java: LiveVariablesAnalysis.getAllVariablesInOrder()
@@ -661,7 +532,7 @@ func (l *LiveVariablesAnalysis) Analyze() {
 	numNodes := cfgNodes.Size()
 	nodeCap := cfg.NodeIndexCap()
 
-	l.worklist.reset(cfg, numNodes)
+	l.worklist.reset(cfg, numNodes, false)
 	if cap(l.states) < nodeCap {
 		l.states = make([]DataFlowAnalysis_LinearFlowState[*LiveVariablesAnalysis_LiveVariableLattice], nodeCap)
 	} else {
@@ -800,7 +671,7 @@ func (l *LiveVariablesAnalysis) flowThroughEdges(
 	input *LiveVariablesAnalysis_LiveVariableLattice,
 	prevIn *LiveVariablesAnalysis_LiveVariableLattice,
 ) *LiveVariablesAnalysis_LiveVariableLattice {
-	var gen, kill lvaBitSet
+	var gen, kill dfaBitSet
 
 	// Make kills conditional if the node can end abruptly by an exception.
 	conditional := false
@@ -875,7 +746,7 @@ func (l *LiveVariablesAnalysis) flowThroughEdges(
 	return result
 }
 
-func lvaOrIntoBitSet(dst *jutil.BitSet, src *lvaBitSet) {
+func lvaOrIntoBitSet(dst *jutil.BitSet, src *dfaBitSet) {
 	for w := src.w0; w != 0; w &= w - 1 {
 		dst.Set(bits.TrailingZeros64(w))
 	}
@@ -900,13 +771,13 @@ func lvaOrIntoBitSet(dst *jutil.BitSet, src *lvaBitSet) {
 //
 // Java: LiveVariablesAnalysis.computeGenKill(Node, BitSet, BitSet, boolean)
 func (l *LiveVariablesAnalysis) ComputeGenKill(n rhino.Node, gen *jutil.BitSet, kill *jutil.BitSet, conditional bool) {
-	var genBits, killBits lvaBitSet
+	var genBits, killBits dfaBitSet
 	l.computeGenKillBits(n, &genBits, &killBits, conditional)
 	lvaOrIntoBitSet(gen, &genBits)
 	lvaOrIntoBitSet(kill, &killBits)
 }
 
-func (l *LiveVariablesAnalysis) computeGenKillBits(n rhino.Node, gen *lvaBitSet, kill *lvaBitSet, conditional bool) {
+func (l *LiveVariablesAnalysis) computeGenKillBits(n rhino.Node, gen *dfaBitSet, kill *dfaBitSet, conditional bool) {
 	switch n.GetToken() {
 	case rhino.Token_SCRIPT, rhino.Token_ROOT, rhino.Token_FUNCTION, rhino.Token_BLOCK:
 		return
@@ -1035,7 +906,7 @@ func (l *LiveVariablesAnalysis) computeGenKillBits(n rhino.Node, gen *lvaBitSet,
 	}
 }
 
-func (l *LiveVariablesAnalysis) addToSetIfLocalBits(node rhino.Node, set *lvaBitSet) {
+func (l *LiveVariablesAnalysis) addToSetIfLocalBits(node rhino.Node, set *dfaBitSet) {
 	jutil.CheckStateMsg1(node.IsName(), "%s", node)
 	idx, found := l.lookupVarIndexByID(node.GetStringID())
 	if !found || l.untracked.has(idx) {
@@ -1094,10 +965,22 @@ func (l *LiveVariablesAnalysis) MarkAllParametersEscaped() {
 	for param, ok := params.FirstParam(); ok; param, ok = param.Next() {
 		if param.Token() == rhino.Token_NAME {
 			id := param.Node().GetStringID()
-			l.escapedSet.Add(l.jsScope.GetVarByID(id))
+			paramVar := l.jsScope.GetVarByID(id)
+			if l.escapedSetInit && paramVar != nil {
+				l.escapedSet.Add(paramVar)
+			}
 			if idx, ok := l.lookupVarIndexByID(id); ok {
-				l.escaped.set(idx)
-				l.untracked.set(idx)
+				if paramVar == nil || l.orderedVars[idx] == paramVar || l.orderedVars[idx].Equals(paramVar) {
+					l.escaped.set(idx)
+					l.untracked.set(idx)
+				} else {
+					for i, cand := range l.orderedVars {
+						if cand == paramVar || cand.Equals(paramVar) {
+							l.escaped.set(i)
+							break
+						}
+					}
+				}
 			}
 		}
 	}

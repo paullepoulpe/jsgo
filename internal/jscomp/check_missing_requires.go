@@ -19,9 +19,21 @@
 package jscomp
 
 import (
+	"github.com/paullepoulpe/jsgo/internal/ast"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
+
+var checkMissingRequiresVisitTokens = func() ast.TokenSet {
+	var s ast.TokenSet
+	s.Add(rhino.Token_BLOCK)
+	s.Add(rhino.Token_CALL)
+	s.Add(rhino.Token_FUNCTION)
+	s.Add(rhino.Token_SCRIPT)
+	s.Add(rhino.Token_MODULE_BODY)
+	s.Add(rhino.Token_ROOT)
+	return s
+}()
 
 // CheckMissingRequires is a pass to detect references to fully qualified
 // Closure namespaces.
@@ -31,14 +43,17 @@ type CheckMissingRequires struct {
 	// The set of template parameter names found so far in the file currently being checked.
 	templateParamNames map[string]struct{}
 
-	// The mapping from Closure namespace into the module that provides it.
-	moduleByNamespace *jutil.LinkedHashMap[string, *ModuleMetadataMap_ModuleMetadata]
-
 	// Tracks how many "control flow scopes" we've entered, starting at 0
 	//
 	// Where a "control flow scope" is here defined as any scope /except/ for either the global
 	// control flow scope, or an IIFE or goog.scope body within the global control flow scope.
 	controlFlowScopeDepth int
+}
+
+func (*CheckMissingRequires) noVisitLeaves() {}
+
+func (*CheckMissingRequires) visitTokens() *ast.TokenSet {
+	return &checkMissingRequiresVisitTokens
 }
 
 // NOTE: "references a .*namespace" is recognized by tooling.
@@ -119,7 +134,6 @@ var CheckMissingRequires_MISSING_REQUIRE_FOR_GOOG_MODULE_GET = DiagnosticType_Wa
 func NewCheckMissingRequires(compiler AbstractCompiler, moduleMetadataMap *ModuleMetadataMap) *CheckMissingRequires {
 	c := &CheckMissingRequires{
 		templateParamNames: make(map[string]struct{}),
-		moduleByNamespace:  moduleMetadataMap.GetModulesByGoogNamespace(),
 	}
 	c.initModuleTraversal(compiler, moduleMetadataMap)
 	return c
@@ -310,7 +324,7 @@ func (c *CheckMissingRequires) VisitMaybeGoogModuleGet(
 		return
 	}
 	importedNamespace := googModuleGet.GetSecondChild().GetString()
-	requiredFile := c.moduleByNamespace.Get(importedNamespace)
+	requiredFile := c.moduleMetadataMap.ModuleByGoogNamespace(importedNamespace)
 	if requiredFile == nil {
 		// goog.module.get of a non-existing namespace is an error in another pass.
 		return
@@ -358,7 +372,7 @@ func (c *CheckMissingRequires) VisitMaybeDeclaration(t *NodeTraversal, n rhino.N
 			return
 		}
 
-		requiredFile := c.moduleByNamespace.Get(require.Namespace())
+		requiredFile := c.moduleMetadataMap.ModuleByGoogNamespace(require.Namespace())
 		if requiredFile == nil || !requiredFile.HasLegacyGoogNamespaces() {
 			// If we are importing from a non-legacy namespace than any property reference is valid,
 			// as it is assumed that the property reference is exported intentionally.
@@ -376,7 +390,7 @@ func (c *CheckMissingRequires) VisitMaybeDeclaration(t *NodeTraversal, n rhino.N
 		if !currentFile.GoogNamespaces().Contains(reference) {
 			// Try to find an alternate file to import from if, if we construct a namespace using
 			// the destructured property name.
-			alternateFile := c.moduleByNamespace.Get(reference)
+			alternateFile := c.moduleMetadataMap.ModuleByGoogNamespace(reference)
 
 			if alternateFile != nil && alternateFile != requiredFile {
 				// TODO: report on the node that needs to be removed, include the namespace that needs
@@ -514,7 +528,7 @@ func (c *CheckMissingRequires) CheckMissingRequireThroughShortNameInGoogScope(
 		// Find longest prefix match that is actually a provide/legacy namespace, if any.
 		var originalImport *ModuleMetadataMap_ModuleMetadata = nil
 		for subName := aliasedName; subName != nil; subName = subName.GetOwner() {
-			imported := c.moduleByNamespace.Get(subName.Join())
+			imported := c.moduleMetadataMap.ModuleByGoogNamespace(subName.Join())
 			if imported != nil {
 				originalImport = imported
 				break
@@ -539,7 +553,7 @@ func (c *CheckMissingRequires) CheckMissingRequireThroughShortNameInGoogScope(
 		return
 	}
 	importedNamespace := initialValue.GetSecondChild().GetString()
-	originalImport := c.moduleByNamespace.Get(importedNamespace)
+	originalImport := c.moduleMetadataMap.ModuleByGoogNamespace(importedNamespace)
 	if originalImport != nil && !originalImport.HasLegacyGoogNamespaces() {
 		// We trust the import from a non-legacy module, as they should not overlap.
 		return
@@ -576,7 +590,7 @@ func (c *CheckMissingRequires) CheckMissingRequireThroughShortNameInModule(
 		return
 	}
 
-	originalRequiredFile := c.moduleByNamespace.Get(require.Namespace())
+	originalRequiredFile := c.moduleMetadataMap.ModuleByGoogNamespace(require.Namespace())
 	if originalRequiredFile == nil || !originalRequiredFile.HasLegacyGoogNamespaces() {
 		// We trust the import from a non-legacy module, as they should not overlap.
 		return
@@ -619,7 +633,7 @@ func (c *CheckMissingRequires) CheckNormalizedShortNameImport(
 			return
 		}
 
-		requiredFile := c.moduleByNamespace.Get(namespace)
+		requiredFile := c.moduleMetadataMap.ModuleByGoogNamespace(namespace)
 		if requiredFile == nil {
 			// Not a known namespace check the parent
 			continue
@@ -715,7 +729,7 @@ func (c *CheckMissingRequires) CheckMissingRequireThroughFullyQualifiedName(
 			return
 		}
 
-		requiredFile := c.moduleByNamespace.Get(namespace)
+		requiredFile := c.moduleMetadataMap.ModuleByGoogNamespace(namespace)
 		if requiredFile == nil {
 			// Not a known namespace check the parent
 			continue

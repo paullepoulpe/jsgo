@@ -146,10 +146,6 @@ func (e TemplateTokenError) ErrorMessagePtr() *string {
 	return &msg
 }
 
-// Standalone template diagnostic table for NewTemplateLiteralToken in tests
-// (never used by Scanner, which stores diagnostics in Scanner.templateErrors).
-var standaloneTemplateErrors []TemplateTokenError
-
 // NewToken constructs a plain Token.
 //
 // Java: Token(TokenType, SourceRange)
@@ -216,48 +212,6 @@ func NewStringLiteralToken(value string, location SourceRange, hasUnescapedUnico
 		Location: location,
 		identID:  strpool.Intern(value),
 		rawType:  uint8(TokenType_STRING) + 1,
-		flags:    flags,
-	}
-}
-
-// NewTemplateLiteralToken constructs a standalone TemplateLiteralToken.
-//
-// Java: TemplateLiteralToken(TokenType, String, String, ErrorLevel, SourcePosition, SourceRange)
-func NewTemplateLiteralToken(
-	type_ TokenType,
-	value string,
-	errorMsg *string,
-	errorLevel *TemplateLiteralToken_ErrorLevel,
-	position SourcePosition,
-	location SourceRange,
-) Token {
-	var flags uint8
-	if errorLevel != nil && *errorLevel == TemplateLiteralToken_ErrorLevel_ERROR {
-		flags |= tokenFlagTemplateHasError
-	}
-	var aux uint16
-	if errorMsg != nil || errorLevel != nil || position != location.Start {
-		var msg string
-		if errorMsg != nil {
-			msg = *errorMsg
-		}
-		var lvl uint8
-		if errorLevel != nil {
-			lvl = uint8(*errorLevel) + 1
-		}
-		standaloneTemplateErrors = append(standaloneTemplateErrors, TemplateTokenError{
-			Message:  msg,
-			Position: position,
-			HasMsg:   errorMsg != nil,
-			Level:    lvl,
-		})
-		aux = uint16(len(standaloneTemplateErrors))
-	}
-	return Token{
-		Location: location,
-		identID:  strpool.Intern(value),
-		aux:      aux,
-		rawType:  uint8(type_) + 1,
 		flags:    flags,
 	}
 }

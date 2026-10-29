@@ -19,6 +19,7 @@
 package jscomp
 
 import (
+	"bufio"
 	"bytes"
 	"compress/flate"
 	"hash/crc32"
@@ -31,13 +32,18 @@ import (
 // FastGzipOutputStream is a GZIPOutputStream that uses BEST_SPEED
 // compression level and a reasonable buffer size.
 //
-// Go-only: language-adapter — on jutil's GZIPOutputStream (Go's
-// compress/flate): the same content as Java's, possibly different
-// compressed bytes (PORTING.md §7).
+// Go-only: language-adapter — uses Go's compress/flate at BestSpeed: the same
+// content as Java's, possibly different compressed bytes (PORTING.md §7).
 //
 // Java: public final class FastGzipOutputStream extends GZIPOutputStream
 type FastGzipOutputStream struct {
-	jutil.GZIPOutputStream
+	out      io.Writer
+	bw       *bufio.Writer
+	fw       *flate.Writer
+	crc      uint32
+	written  uint32
+	finished bool
+	closed   bool
 }
 
 // Java: FastGzipOutputStream.DEFAULT_BUFFER_SIZE
@@ -50,10 +56,99 @@ func NewFastGzipOutputStream(out io.Writer) *FastGzipOutputStream {
 
 // Java: FastGzipOutputStream(OutputStream, int)
 func NewFastGzipOutputStreamWithSize(out io.Writer, size int) *FastGzipOutputStream {
-	f := &FastGzipOutputStream{}
-	f.InitGZIPOutputStream(out, size, false)
-	f.Def.SetLevel(jutil.Deflater_BEST_SPEED)
-	return f
+	if out == nil {
+		panic(jutil.NewNullPointerException())
+	}
+	if size <= 0 {
+		panic(jutil.NewIllegalArgumentExceptionMsg("buffer size <= 0"))
+	}
+	if _, err := out.Write(parallelGzipMemberHeader[:]); err != nil {
+		panic(jutil.NewIOException(err.Error()))
+	}
+	bw := bufio.NewWriterSize(out, size)
+	fw, err := flate.NewWriter(bw, flate.BestSpeed)
+	if err != nil {
+		panic(jutil.NewIllegalStateExceptionMsg(err.Error()))
+	}
+	return &FastGzipOutputStream{
+		out: out,
+		bw:  bw,
+		fw:  fw,
+	}
+}
+
+func (f *FastGzipOutputStream) WriteByte(b byte) error {
+	_, err := f.Write([]byte{b})
+	return err
+}
+
+func (f *FastGzipOutputStream) Write(b []byte) (int, error) {
+	if f.finished || f.closed {
+		panic(jutil.NewIOException("write beyond end of stream"))
+	}
+	if len(b) == 0 {
+		return 0, nil
+	}
+	if _, err := f.fw.Write(b); err != nil {
+		panic(jutil.NewIOException(err.Error()))
+	}
+	f.crc = crc32.Update(f.crc, crc32.IEEETable, b)
+	f.written += uint32(len(b))
+	return len(b), nil
+}
+
+func (f *FastGzipOutputStream) Finish() {
+	if f.finished {
+		return
+	}
+	f.finished = true
+	if err := f.fw.Close(); err != nil {
+		panic(jutil.NewIOException(err.Error()))
+	}
+	var trailer [8]byte
+	trailer[0] = byte(f.crc)
+	trailer[1] = byte(f.crc >> 8)
+	trailer[2] = byte(f.crc >> 16)
+	trailer[3] = byte(f.crc >> 24)
+	trailer[4] = byte(f.written)
+	trailer[5] = byte(f.written >> 8)
+	trailer[6] = byte(f.written >> 16)
+	trailer[7] = byte(f.written >> 24)
+	if _, err := f.bw.Write(trailer[:]); err != nil {
+		panic(jutil.NewIOException(err.Error()))
+	}
+	if err := f.bw.Flush(); err != nil {
+		panic(jutil.NewIOException(err.Error()))
+	}
+}
+
+func (f *FastGzipOutputStream) Flush() {
+	if err := f.bw.Flush(); err != nil {
+		panic(jutil.NewIOException(err.Error()))
+	}
+	if flusher, ok := f.out.(interface{ Flush() error }); ok {
+		if err := flusher.Flush(); err != nil {
+			panic(jutil.NewIOException(err.Error()))
+		}
+	}
+}
+
+func (f *FastGzipOutputStream) Close() error {
+	if f.closed {
+		return nil
+	}
+	f.closed = true
+	finished := false
+	defer func() {
+		if c, ok := f.out.(io.Closer); ok {
+			if err := c.Close(); err != nil && finished {
+				panic(jutil.NewIOException(err.Error()))
+			}
+		}
+	}()
+	f.Finish()
+	finished = true
+	return nil
 }
 
 const parallelGzipChunkSize = 512 * 1024

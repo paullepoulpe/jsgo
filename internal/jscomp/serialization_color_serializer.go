@@ -219,7 +219,7 @@ func (s *ColorSerializer) ownPropertyInt32s(color *colors.Color) []int32 {
 //
 // Java: ColorSerializer.generateTypePool(Function<Color, ImmutableSet<Color>>, Function<Color, ImmutableSet<String>>)
 func (s *ColorSerializer) GenerateTypePool(
-	getDisambiguationSupertypesFn func(*colors.Color) *jutil.ObjectLinkedHashSet[*colors.Color],
+	getDisambiguationSupertypesFn func(*colors.Color) []*colors.Color,
 	getMismatchSourceRefsFn func(*colors.Color) *jutil.LinkedHashSet[string]) *TypePool {
 	startIdx := TypePointers_UntrimOffset(0)
 	initialCap := max(0, len(s.colorsInSerializedOrder)-startIdx)
@@ -238,7 +238,7 @@ func (s *ColorSerializer) GenerateTypePool(
 		color := s.colorsInSerializedOrder[i]
 		typePointer := int32(i)
 		types = append(types, s.GenerateTypeProto(color))
-		for supertype := range getDisambiguationSupertypesFn(color).All() {
+		for _, supertype := range getDisambiguationSupertypesFn(color) {
 			disambiguationEdges = append(disambiguationEdges, s.allocSubtypingEdge(typePointer, int32(s.AddColor(supertype))))
 		}
 	}

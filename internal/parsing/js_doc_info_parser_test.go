@@ -58,12 +58,15 @@ func newJsDocInfoParserTest(t *testing.T) *jsDocInfoParserTest {
 	// Go-only: language-adapter — new HashSet<>(...): the sets are only
 	// queried and passed to Config.Builder, so insertion order stands in for
 	// HashSet order.
-	jt.extraAnnotations = jutil.NewLinkedHashSet(
-		ParserRunner_CreateConfig(Config_LanguageMode_ECMASCRIPT3, nil, Config_StrictMode_SLOPPY).
-			AnnotationNames()...)
-	jt.extraSuppressions = jutil.NewLinkedHashSet(
-		ParserRunner_CreateConfig(Config_LanguageMode_ECMASCRIPT3, nil, Config_StrictMode_SLOPPY).
-			SuppressionOrder()...)
+	defaultCfg := ParserRunner_CreateConfigWithModes(
+		Config_LanguageMode_ECMASCRIPT3,
+		Config_JsDocParsing_TYPES_ONLY,
+		Config_RunMode_STOP_AFTER_ERROR,
+		nil,
+		true,
+		Config_StrictMode_SLOPPY)
+	jt.extraAnnotations = jutil.NewLinkedHashSet(defaultCfg.AnnotationNames()...)
+	jt.extraSuppressions = jutil.NewLinkedHashSet(defaultCfg.SuppressionOrder()...)
 
 	jt.extraSuppressions.Add("x")
 	jt.extraSuppressions.Add("y")
@@ -335,7 +338,11 @@ func (jt *jsDocInfoParserTest) parseWith(
 		jt.stream(comment), comment, 0, templateNode, config, jt.jsDocSourceKind, errorReporter)
 
 	jsdocParser.Parse()
-	jt.prevLicense = jsdocParser.GetLicenseText()
+	if lic, ok := jsdocParser.GetLicenseText(); ok {
+		jt.prevLicense = &lic
+	} else {
+		jt.prevLicense = nil
+	}
 
 	errorReporter.verifyHasEncounteredAllWarningsAndErrors(t)
 

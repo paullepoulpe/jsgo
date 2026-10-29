@@ -49,7 +49,7 @@ type RequireAliasGenerator struct {
 var requireAliasGenerator_SKIPLISTED_ALIASES = requireAliasGenerator_createSkiplistedAliases()
 
 // Java: RequireAliasGenerator.createSkiplistedAliases()
-func requireAliasGenerator_createSkiplistedAliases() *jutil.LinkedHashSet[string] {
+func requireAliasGenerator_createSkiplistedAliases() map[string]struct{} {
 	seeds := []string{
 		"", //
 		"array",
@@ -63,10 +63,10 @@ func requireAliasGenerator_createSkiplistedAliases() *jutil.LinkedHashSet[string
 		"thenable",
 	}
 
-	builder := jutil.NewLinkedHashSet[string]()
+	builder := make(map[string]struct{}, len(seeds)*2)
 	for _, seed := range seeds {
-		builder.Add(requireAliasGenerator_captializeFirstChar(seed))
-		builder.Add(jutil.StringToLowerCaseASCII(seed))
+		builder[requireAliasGenerator_captializeFirstChar(seed)] = struct{}{}
+		builder[jutil.StringToLowerCaseASCII(seed)] = struct{}{}
 	}
 	return builder
 }
@@ -142,7 +142,7 @@ func (it *RequireAliasGenerator_NameIterator) computeNext() string {
 	var next string
 	for {
 		next = it.computeNextWithoutFiltering()
-		if !requireAliasGenerator_SKIPLISTED_ALIASES.Contains(next) {
+		if _, skipped := requireAliasGenerator_SKIPLISTED_ALIASES[next]; !skipped {
 			break
 		}
 	}

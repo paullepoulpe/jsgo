@@ -133,11 +133,10 @@ var StandardColors_GBIGINT = Color_SingleBuilder().
 // still be null, as during Java's static initialization) while the
 // axiomatic colors above are built, which a Go initializer would reject as
 // an initialization cycle.
-var StandardColors_AXIOMATIC_COLORS *jutil.LinkedHashMap[ColorId, *Color]
+var StandardColors_AXIOMATIC_COLORS map[ColorId]*Color
 
 func init() {
-	m := jutil.NewLinkedHashMap[ColorId, *Color]()
-	for _, c := range []*Color{
+	axiomatic := [...]*Color{
 		StandardColors_BIGINT,
 		StandardColors_BOOLEAN,
 		StandardColors_NULL_OR_VOID,
@@ -148,19 +147,16 @@ func init() {
 		StandardColors_UNKNOWN,
 		StandardColors_GBIGINT,
 		StandardColors_TOP_FUNCTION,
-	} {
-		immutableMapBuilderPut(m, c.GetId(), c)
+	}
+	m := make(map[ColorId]*Color, len(axiomatic))
+	for _, c := range axiomatic {
+		k := c.GetId()
+		if _, dup := m[k]; dup {
+			panic(jutil.NewIllegalArgumentExceptionMsg("Multiple entries with same key: " + k.String()))
+		}
+		m[k] = c
 	}
 	StandardColors_AXIOMATIC_COLORS = m
-}
-
-// immutableMapBuilderPut is ImmutableMap.Builder.put followed by
-// buildOrThrow's duplicate-key check.
-func immutableMapBuilderPut(m *jutil.LinkedHashMap[ColorId, *Color], k ColorId, v *Color) {
-	if m.ContainsKey(k) {
-		panic(jutil.NewIllegalArgumentExceptionMsg("Multiple entries with same key: " + k.String()))
-	}
-	m.Put(k, v)
 }
 
 func isPrimitiveColorId(id ColorId) bool {
@@ -177,23 +173,3 @@ func isPrimitiveColorId(id ColorId) bool {
 		return false
 	}
 }
-
-// StandardColors_STANDARD_OBJECT_IDS is the set of ColorIds for object
-// Colors that need to be referenced in optimizations.
-//
-// The exact definition of each box Color may be altered by JS code.
-var StandardColors_STANDARD_OBJECT_IDS = jutil.NewLinkedHashSet(
-	StandardColors_BIGINT_OBJECT_ID,
-	StandardColors_BOOLEAN_OBJECT_ID,
-	StandardColors_NUMBER_OBJECT_ID,
-	StandardColors_STRING_OBJECT_ID,
-	StandardColors_SYMBOL_OBJECT_ID,
-	StandardColors_ARRAY_ID,
-	StandardColors_READONLY_ARRAY_ID,
-	StandardColors_ARGUMENTS_ID,
-	StandardColors_ASYNC_ITERATOR_ITERABLE_ID,
-	StandardColors_GENERATOR_ID,
-	StandardColors_I_TEMPLATE_ARRAY_ID,
-	StandardColors_ITERATOR_ID,
-	StandardColors_PROMISE_ID,
-)

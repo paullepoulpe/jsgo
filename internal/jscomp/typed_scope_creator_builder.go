@@ -925,7 +925,7 @@ func (b *TypedScopeCreator_scopeBuilder) DefineModuleImport(
 	//     an associated scope yet.
 	var exportScope *TypedScope
 	if !exportedName.GetScopeRoot().IsNil() {
-		exportScope = b.outer.memoized.Get(exportedName.GetScopeRoot())
+		exportScope = b.outer.memoized[exportedName.GetScopeRoot()]
 	}
 
 	// The scope is null for modules that were not visited yet.

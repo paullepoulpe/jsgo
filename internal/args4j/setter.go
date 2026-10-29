@@ -108,7 +108,8 @@ func (s *FieldSetter) AddValue(value any) {
 	}
 	o := s.f.Get()
 	if o == nil {
-		o = jutil.NewArrayList[any]()
+		var backing []any
+		o = &sliceList[any]{p: &backing}
 		s.f.Set(o)
 	}
 	l, ok := o.(List)

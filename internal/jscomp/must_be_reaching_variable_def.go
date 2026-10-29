@@ -19,8 +19,6 @@
 package jscomp
 
 import (
-	"math/bits"
-
 	"github.com/paullepoulpe/jsgo/internal/ast"
 	"github.com/paullepoulpe/jsgo/internal/graph"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
@@ -32,112 +30,6 @@ var argumentsStringID = rhino.RhinoStringPool_InternID(Var_ARGUMENTS)
 // mustDefBottom is the sentinel for BOTTOM in MustBeReachingVariableDef_MustDef.defs
 // (multiple or conditional reaching definitions). A nil entry represents TOP.
 var mustDefBottom MustBeReachingVariableDef_Definition
-
-// mustDefBitSet is a compact bitset indexed by dense local variable ID.
-// Functions with <= 128 variables stay strictly in w0/w1 with zero heap allocation.
-type mustDefBitSet struct {
-	w0    uint64
-	w1    uint64
-	extra []uint64
-}
-
-func (b *mustDefBitSet) clear(releaseLarge bool) {
-	b.w0 = 0
-	b.w1 = 0
-	if releaseLarge && cap(b.extra) > 16 {
-		b.extra = nil
-	} else if len(b.extra) > 0 {
-		clear(b.extra)
-		b.extra = b.extra[:0]
-	}
-}
-
-func (b *mustDefBitSet) set(id int) {
-	if id < 64 {
-		b.w0 |= uint64(1) << id
-		return
-	}
-	if id < 128 {
-		b.w1 |= uint64(1) << (id - 64)
-		return
-	}
-	wi := (id - 128) >> 6
-	if wi >= len(b.extra) {
-		if cap(b.extra) > wi {
-			oldLen := len(b.extra)
-			b.extra = b.extra[:wi+1]
-			clear(b.extra[oldLen:])
-		} else {
-			extra := make([]uint64, wi+1, max(wi+1, 4))
-			copy(extra, b.extra)
-			b.extra = extra
-		}
-	}
-	b.extra[wi] |= uint64(1) << ((id - 128) & 63)
-}
-
-func (b *mustDefBitSet) has(id int) bool {
-	if id < 64 {
-		return b.w0&(uint64(1)<<id) != 0
-	}
-	if id < 128 {
-		return b.w1&(uint64(1)<<(id-64)) != 0
-	}
-	wi := (id - 128) >> 6
-	return wi < len(b.extra) && b.extra[wi]&(uint64(1)<<((id-128)&63)) != 0
-}
-
-func (b *mustDefBitSet) isEmpty() bool {
-	if (b.w0 | b.w1) != 0 {
-		return false
-	}
-	for _, w := range b.extra {
-		if w != 0 {
-			return false
-		}
-	}
-	return true
-}
-
-func (b *mustDefBitSet) intersects(other *mustDefBitSet) bool {
-	if (b.w0&other.w0)|(b.w1&other.w1) != 0 {
-		return true
-	}
-	n := min(len(b.extra), len(other.extra))
-	for i := 0; i < n; i++ {
-		if b.extra[i]&other.extra[i] != 0 {
-			return true
-		}
-	}
-	return false
-}
-
-func (b *mustDefBitSet) containsAll(other *mustDefBitSet) bool {
-	if (other.w0&^b.w0)|(other.w1&^b.w1) != 0 {
-		return false
-	}
-	for wi, ow := range other.extra {
-		if ow != 0 && (wi >= len(b.extra) || ow&^b.extra[wi] != 0) {
-			return false
-		}
-	}
-	return true
-}
-
-func (b *mustDefBitSet) forEach(fn func(id int)) {
-	for w := b.w0; w != 0; w &= w - 1 {
-		fn(bits.TrailingZeros64(w))
-	}
-	for w := b.w1; w != 0; w &= w - 1 {
-		fn(64 + bits.TrailingZeros64(w))
-	}
-	for wi, word := range b.extra {
-		base := 128 + wi*64
-		for w := word; w != 0; w &= w - 1 {
-			fn(base + bits.TrailingZeros64(w))
-		}
-	}
-}
 
 type mustDefNodeState struct {
 	in        *MustBeReachingVariableDef_MustDef
@@ -157,15 +49,15 @@ type mustDefNodeState struct {
 // before that use).
 type MustBeReachingVariableDef struct {
 	cfg        *ControlFlowGraph[rhino.Node]
-	worklist   forwardCfgWorklist
+	worklist   cfgWorklist
 	nodeStates []mustDefNodeState
 
 	compiler     AbstractCompiler
 	vars         []*Var
 	idByNameID   map[uint32]int
-	escapedBits  mustDefBitSet
-	paramBits    mustDefBitSet
-	catchBits    mustDefBitSet
+	escapedBits  dfaBitSet
+	paramBits    dfaBitSet
+	catchBits    dfaBitSet
 	hasParams    bool
 	hasCatchVars bool
 
@@ -205,10 +97,31 @@ func (d *MustBeReachingVariableDef) Reset(
 		clear(d.nodeStates)
 		d.nodeStates = d.nodeStates[:0]
 	}
-	d.worklist.releaseLarge()
+	d.worklist.releaseLarge(dfaReuseMaxNodes)
 	d.cfg = cfg
 	d.compiler = compiler
 	d.initVars(allVarsInFn, escaped)
+	d.flowInput = nil
+	d.flowOutput = nil
+	d.mustDefs.Rewind()
+	d.defs.Rewind()
+}
+
+func (d *MustBeReachingVariableDef) resetWithTable(
+	cfg *ControlFlowGraph[rhino.Node],
+	compiler AbstractCompiler,
+	table *fnVarTable,
+) {
+	if cap(d.nodeStates) > dfaReuseMaxNodes {
+		d.nodeStates = nil
+	} else {
+		clear(d.nodeStates)
+		d.nodeStates = d.nodeStates[:0]
+	}
+	d.worklist.releaseLarge(dfaReuseMaxNodes)
+	d.cfg = cfg
+	d.compiler = compiler
+	d.initVarsFromTable(table)
 	d.flowInput = nil
 	d.flowOutput = nil
 	d.mustDefs.Rewind()
@@ -245,7 +158,7 @@ func (d *MustBeReachingVariableDef) Analyze() {
 	implicitReturn := cfg.implicitReturn
 	cfgNodes := &cfg.Nodes
 
-	d.worklist.reset(cfg, cfgNodes.Size())
+	d.worklist.reset(cfg, cfgNodes.Size(), true)
 	nodeCap := cfg.NodeIndexCap()
 	if cap(d.nodeStates) < nodeCap {
 		d.nodeStates = make([]mustDefNodeState, nodeCap)
@@ -315,13 +228,7 @@ func (d *MustBeReachingVariableDef) joinNodeInputs(
 	}
 }
 
-func (d *MustBeReachingVariableDef) initVars(
-	vars *jutil.LinkedHashMap[string, *Var],
-	escaped *jutil.ObjectLinkedHashSet[*Var]) {
-	n := 0
-	if vars != nil {
-		n = vars.Size()
-	}
+func (d *MustBeReachingVariableDef) resetVarStorage(n int) bool {
 	releaseLarge := n <= 256
 	d.escapedBits.clear(releaseLarge)
 	d.paramBits.clear(releaseLarge)
@@ -341,7 +248,7 @@ func (d *MustBeReachingVariableDef) initVars(
 		} else if len(d.idByNameID) > 0 {
 			clear(d.idByNameID)
 		}
-		return
+		return false
 	}
 	if cap(d.vars) < n || (cap(d.vars) > 1024 && releaseLarge) {
 		d.vars = make([]*Var, 0, max(n, 16))
@@ -356,23 +263,78 @@ func (d *MustBeReachingVariableDef) initVars(
 			clear(d.idByNameID)
 		}
 	}
+	return useMap
+}
+
+func (d *MustBeReachingVariableDef) appendInitVar(v *Var, isEscaped bool, useMap bool) {
+	id := len(d.vars)
+	d.vars = append(d.vars, v)
+	if useMap {
+		d.idByNameID[v.nameID] = id
+	}
+	if isEscaped {
+		d.escapedBits.set(id)
+	}
+	if v.IsParam() {
+		d.paramBits.set(id)
+		d.hasParams = true
+	}
+	if sc, ok := v.GetScope().(*Scope); ok && sc != nil && sc.IsCatchScope() {
+		d.catchBits.set(id)
+		d.hasCatchVars = true
+	}
+}
+
+func (d *MustBeReachingVariableDef) initVars(
+	vars *jutil.LinkedHashMap[string, *Var],
+	escaped *jutil.ObjectLinkedHashSet[*Var]) {
+	n := 0
+	if vars != nil {
+		n = vars.Size()
+	}
+	useMap := d.resetVarStorage(n)
+	if n == 0 {
+		return
+	}
 	for v := range vars.Values() {
-		id := len(d.vars)
-		d.vars = append(d.vars, v)
+		d.appendInitVar(v, escaped != nil && escaped.Contains(v), useMap)
+	}
+}
+
+func (d *MustBeReachingVariableDef) initVarsFromTable(table *fnVarTable) {
+	n := 0
+	if table != nil {
+		n = table.uniqueCount
+	}
+	useMap := d.resetVarStorage(n)
+	if n == 0 {
+		return
+	}
+	if !table.hasDuplicateNames {
+		for i, v := range table.vars {
+			d.appendInitVar(v, table.escaped.has(i), useMap)
+		}
+		return
+	}
+	for _, v := range table.vars {
 		if useMap {
-			d.idByNameID[v.nameID] = id
+			if _, dup := d.idByNameID[v.nameID]; dup {
+				continue
+			}
+		} else {
+			dup := false
+			for _, prev := range d.vars {
+				if prev.nameID == v.nameID {
+					dup = true
+					break
+				}
+			}
+			if dup {
+				continue
+			}
 		}
-		if escaped != nil && escaped.Contains(v) {
-			d.escapedBits.set(id)
-		}
-		if v.IsParam() {
-			d.paramBits.set(id)
-			d.hasParams = true
-		}
-		if sc, ok := v.GetScope().(*Scope); ok && sc != nil && sc.IsCatchScope() {
-			d.catchBits.set(id)
-			d.hasCatchVars = true
-		}
+		canonIdx, _ := table.lookupIndexByID(v.nameID)
+		d.appendInitVar(table.vars[canonIdx], table.escaped.has(canonIdx), useMap)
 	}
 }
 
@@ -516,7 +478,7 @@ func (d *MustBeReachingVariableDef) ensureMutableDefs(def *MustBeReachingVariabl
 // depending set would be {b,c}.
 type MustBeReachingVariableDef_Definition struct {
 	node                rhino.Node
-	deps                mustDefBitSet
+	deps                dfaBitSet
 	unknownDependencies bool
 }
 
@@ -1054,11 +1016,11 @@ func (d *MustBeReachingVariableDef) ComputeDependence(def *MustBeReachingVariabl
 	d.computeDependenceWalk(def, rValue, rhino.NilNode)
 }
 
-func (d *MustBeReachingVariableDef) getDefFromMustDef(name string, inState *MustBeReachingVariableDef_MustDef) *MustBeReachingVariableDef_Definition {
+func (d *MustBeReachingVariableDef) getDefFromMustDefByID(nameID uint32, inState *MustBeReachingVariableDef_MustDef) *MustBeReachingVariableDef_Definition {
 	if inState == nil || len(inState.defs) == 0 {
 		return nil
 	}
-	id, ok := d.lookupVarID(name)
+	id, ok := d.lookupVarIDByStringID(nameID)
 	if !ok {
 		return nil
 	}
@@ -1067,6 +1029,10 @@ func (d *MustBeReachingVariableDef) getDefFromMustDef(name string, inState *Must
 		return nil
 	}
 	return def
+}
+
+func (d *MustBeReachingVariableDef) getDefFromMustDef(name string, inState *MustBeReachingVariableDef_MustDef) *MustBeReachingVariableDef_Definition {
+	return d.getDefFromMustDefByID(rhino.RhinoStringPool_LookupID(name), inState)
 }
 
 // GetDef gets the must-be-reaching definition of a given use node.

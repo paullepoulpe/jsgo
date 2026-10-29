@@ -248,11 +248,11 @@ func dumpJsDoc(name, src string, config *Config) string {
 			flush(reporter)
 			line("info " + jsdocRender(info))
 			jsdocMarkers(line, info)
-			license := jsdocParser.GetLicenseText()
-			if license == nil {
+			license, hasLicense := jsdocParser.GetLicenseText()
+			if !hasLicense {
 				line("license null")
 			} else {
-				line("license " + jsdocQuote(*license))
+				line("license " + jsdocQuote(license))
 			}
 			if isFileOverview {
 				line("fileoverview " + jsdocRender(state.firstFileoverview))
@@ -336,8 +336,8 @@ func testCreateJsDocInfoParser(
 // testHandlePossibleFileOverviewJsDoc mirrors
 // IRFactory.handlePossibleFileOverviewJsDoc(JsDocInfoParser).
 func testHandlePossibleFileOverviewJsDoc(jsDocParser *JsDocInfoParser, state *jsdocFileState) bool {
-	if jsDocParser.GetLicenseText() != nil {
-		state.licenseBuilder.Add(*jsDocParser.GetLicenseText())
+	if lic, ok := jsDocParser.GetLicenseText(); ok {
+		state.licenseBuilder.Add(lic)
 	}
 
 	newFileoverview := jsDocParser.GetFileOverviewJSDocInfo()

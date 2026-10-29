@@ -168,8 +168,6 @@ func NewCommandLineRunnerWithStreams(args []string, in io.Reader, out *jutil.Pri
 	return r
 }
 
-var commandLineRunner_quotesPattern = jutil.Pattern_Compile("^['\"](.*)['\"]$")
-
 // Java: CommandLineRunner.processArgs(String[])
 func commandLineRunner_processArgs(args []string) []string {
 	// Args4j has a different format that the old command-line parser.
@@ -181,11 +179,12 @@ func commandLineRunner_processArgs(args []string) []string {
 		if name, value, ok := commandLineRunner_matchArgPattern(arg); ok {
 			processedArgs = append(processedArgs, name)
 
-			if len(value) >= 2 && (value[0] == '\'' || value[0] == '"') {
-				if quotesMatcher := commandLineRunner_quotesPattern.Matcher(value); quotesMatcher.Matches() {
-					processedArgs = append(processedArgs, *quotesMatcher.Group(1))
-					continue
-				}
+			if len(value) >= 2 &&
+				(value[0] == '\'' || value[0] == '"') &&
+				(value[len(value)-1] == '\'' || value[len(value)-1] == '"') &&
+				!containsJavaLineTerminator(value[1:len(value)-1]) {
+				processedArgs = append(processedArgs, value[1:len(value)-1])
+				continue
 			}
 			processedArgs = append(processedArgs, value)
 		} else {
@@ -194,6 +193,24 @@ func commandLineRunner_processArgs(args []string) []string {
 	}
 
 	return processedArgs
+}
+
+func containsJavaLineTerminator(s string) bool {
+	for i := 0; i < len(s); i++ {
+		switch s[i] {
+		case '\n', '\r':
+			return true
+		case 0xC2:
+			if i+1 < len(s) && s[i+1] == 0x85 {
+				return true
+			}
+		case 0xE2:
+			if i+2 < len(s) && s[i+1] == 0x80 && (s[i+2] == 0xA8 || s[i+2] == 0xA9) {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 // commandLineRunner_matchArgPattern is
@@ -234,21 +251,42 @@ func (r *CommandLineRunner) ReportError(message string) {
 
 // Java: CommandLineRunner.processFlagFiles()
 func (r *CommandLineRunner) ProcessFlagFiles() {
-	for _, flagFile := range r.flags.flagFiles {
-		jutil.Try(func() {
-			r.ProcessFlagFile(flagFile)
-		}, func(ioErr jutil.IIOException) {
-			r.ReportError("ERROR - " + flagFile + " read error.")
-		})
+	if cmdErr := r.tryProcessFlagFiles(); cmdErr != nil {
+		panic(cmdErr)
 	}
+}
+
+func (r *CommandLineRunner) tryProcessFlagFiles() args4j.ICmdLineException {
+	for _, flagFile := range r.flags.flagFiles {
+		cmdErr, ioErr := r.tryProcessFlagFile(flagFile)
+		if ioErr != nil {
+			r.ReportError("ERROR - " + flagFile + " read error.")
+			continue
+		}
+		if cmdErr != nil {
+			return cmdErr
+		}
+	}
+	return nil
 }
 
 // Java: CommandLineRunner.processFlagFile(String)
 func (r *CommandLineRunner) ProcessFlagFile(flagFileString string) {
-	content := strings.TrimPrefix(
-		jutil.Files_ReadStringUTF8(jutil.Path_Of(flagFileString)),
-		"\uFEFF",
-	)
+	cmdErr, ioErr := r.tryProcessFlagFile(flagFileString)
+	if ioErr != nil {
+		panic(ioErr)
+	}
+	if cmdErr != nil {
+		panic(cmdErr)
+	}
+}
+
+func (r *CommandLineRunner) tryProcessFlagFile(flagFileString string) (args4j.ICmdLineException, jutil.IIOException) {
+	rawContent, ioErr := jutil.TryFiles_ReadStringUTF8(jutil.Path_Of(flagFileString))
+	if ioErr != nil {
+		return nil, ioErr
+	}
+	content := strings.TrimPrefix(rawContent, "\uFEFF")
 
 	var tokens []string
 	var token []byte
@@ -295,7 +333,9 @@ func (r *CommandLineRunner) ProcessFlagFile(flagFileString string) {
 	previousMixedJsSources := slices.Clone(r.flags.mixedJsSources)
 	r.flags.guardLevels = r.flags.guardLevels[:0]
 	r.flags.mixedJsSources = r.flags.mixedJsSources[:0]
-	r.flags.Parse(tokens)
+	if cmdErr := r.flags.TryParse(tokens); cmdErr != nil {
+		return cmdErr, nil
+	}
 	r.flags.guardLevels = append(r.flags.guardLevels, previousGuardLevels...)
 	r.flags.mixedJsSources = append(r.flags.mixedJsSources, previousMixedJsSources...)
 
@@ -303,6 +343,7 @@ func (r *CommandLineRunner) ProcessFlagFile(flagFileString string) {
 	if len(r.flags.flagFiles) != 0 {
 		r.ReportError("ERROR - Arguments in the file cannot contain " + "--flagfile option.")
 	}
+	return nil, nil
 }
 
 // Java: CommandLineRunner.getVersionText()
@@ -329,26 +370,25 @@ func (r *CommandLineRunner) InitConfigFromFlags(args []string, out *jutil.PrintS
 	var sourceMapInputs []PipeFlagEntry
 	parseInlineSourceMaps := false
 	applyInputSourceMaps := false
-	jutil.Try(func() {
-		flags.Parse(processedArgs)
-
-		r.ProcessFlagFiles()
-
-		mixedSources = flags.GetMixedJsSources()
-		mappings = flags.GetSourceMapLocationMappings()
-		sourceMapInputs = flags.GetSourceMapInputs()
+	var cmdErr args4j.ICmdLineException
+	if cmdErr = flags.TryParse(processedArgs); cmdErr == nil {
+		cmdErr = r.tryProcessFlagFiles()
+	}
+	if cmdErr == nil {
+		mixedSources, cmdErr = flags.tryGetMixedJsSources()
+	}
+	if cmdErr == nil {
+		mappings, cmdErr = flags.tryGetSourceMapLocationMappings()
+	}
+	if cmdErr == nil {
+		sourceMapInputs, cmdErr = flags.tryGetSourceMapInputs()
+	}
+	if cmdErr != nil {
+		r.ReportError(cmdErr.GetMessage())
+	} else {
 		parseInlineSourceMaps = flags.parseInlineSourceMaps
 		applyInputSourceMaps = flags.applyInputSourceMaps
-	}, func(t jutil.Throwable) {
-		switch e := t.(type) {
-		case args4j.ICmdLineException:
-			r.ReportError(e.GetMessage())
-		case jutil.IIOException:
-			r.ReportError("ERROR - ioException: " + e.Error())
-		default:
-			panic(t)
-		}
-	})
+	}
 
 	if flags.processCommonJsModules {
 		flags.processClosurePrimitives = true
@@ -363,11 +403,11 @@ func (r *CommandLineRunner) InitConfigFromFlags(args []string, out *jutil.PrintS
 	// field is a non-null String here.
 
 	if flags.outputWrapperFile != "" {
-		jutil.Try(func() {
-			flags.outputWrapper = jutil.Files_AsCharSource(jutil.NewFile(flags.outputWrapperFile), jutil.StandardCharsets_UTF_8).Read()
-		}, func(e jutil.IException) {
+		if wrapper, ioErr := jutil.Files_AsCharSource(jutil.NewFile(flags.outputWrapperFile), jutil.StandardCharsets_UTF_8).TryRead(); ioErr != nil {
 			r.ReportError("ERROR - invalid output_wrapper_file specified.")
-		})
+		} else {
+			flags.outputWrapper = wrapper
+		}
 	}
 
 	if flags.outputWrapper != "" &&
@@ -610,13 +650,12 @@ func (r *CommandLineRunner) CreateOptions() *jscomp.CompilerOptions {
 	options.SetChromePass(flags.chromePass)
 
 	if flags.j2clPassMode != "" {
-		jutil.Try(func() {
-			j2clPassMode := commandLineRunner_j2clPassModeValueOf(asciiUpper(flags.j2clPassMode))
-			options.SetJ2clPass(j2clPassMode)
-		}, func(ex jutil.IIllegalArgumentException) {
+		j2clPassMode, ok := commandLineRunner_j2clPassModeValueOf(asciiUpper(flags.j2clPassMode))
+		if !ok {
 			panic(jscomp.NewFlagUsageException(
 				"Unknown J2clPassMode `" + flags.j2clPassMode + "' specified."))
-		})
+		}
+		options.SetJ2clPass(j2clPassMode)
 	}
 
 	options.SetRemoveJ2clAsserts(flags.removeJ2cLAsserts)
@@ -639,10 +678,12 @@ func (r *CommandLineRunner) CreateOptions() *jscomp.CompilerOptions {
 	options.SetIsolatePolyfills(flags.isolatePolyfills)
 
 	if flags.translationsFile != "" {
+		stream, ioErr := jutil.TryNewFileInputStream(flags.translationsFile)
+		if ioErr != nil {
+			panic(jutil.NewRuntimeExceptionWithMessageAndCause("Reading XTB file", ioErr))
+		}
 		jutil.Try(func() {
-			options.SetMessageBundle(
-				jscomp.NewXtbMessageBundle(
-					jutil.NewFileInputStream(flags.translationsFile), flags.translationsProject))
+			options.SetMessageBundle(jscomp.NewXtbMessageBundle(stream, flags.translationsProject))
 		}, func(e jutil.IIOException) {
 			panic(jutil.NewRuntimeExceptionWithMessageAndCause("Reading XTB file", e))
 		})
@@ -671,12 +712,7 @@ func (r *CommandLineRunner) CreateOptions() *jscomp.CompilerOptions {
 		commandLineRunner_immutableMapCopyOf(flags.browserResolverPrefixReplacements))
 
 	if flags.packageJsonEntryNames != nil {
-		jutil.Try(func() {
-			packageJsonEntryNames := flags.GetPackageJsonEntryNames()
-			options.SetPackageJsonEntryNames(packageJsonEntryNames)
-		}, func(e args4j.ICmdLineException) {
-			r.ReportError("ERROR - invalid package_json_entry_names format specified.")
-		})
+		options.SetPackageJsonEntryNames(flags.GetPackageJsonEntryNames())
 	}
 
 	if !flags.renaming {
@@ -736,18 +772,15 @@ func (r *CommandLineRunner) CreateOptions() *jscomp.CompilerOptions {
 	return options
 }
 
-// commandLineRunner_j2clPassModeValueOf is J2clPassMode.valueOf(String):
-// the constant of that name, or IllegalArgumentException.
-//
-// Go-only: language-adapter — Enum.valueOf.
-func commandLineRunner_j2clPassModeValueOf(name string) jscomp.CompilerOptions_J2clPassMode {
+// commandLineRunner_j2clPassModeValueOf looks up the J2clPassMode constant
+// with the given name.
+func commandLineRunner_j2clPassModeValueOf(name string) (jscomp.CompilerOptions_J2clPassMode, bool) {
 	for _, m := range jscomp.CompilerOptions_J2clPassMode_values() {
 		if m.String() == name {
-			return m
+			return m, true
 		}
 	}
-	panic(jutil.NewIllegalArgumentExceptionMsg(
-		"No enum constant com.google.javascript.jscomp.CompilerOptions.J2clPassMode." + name))
+	return 0, false
 }
 
 // commandLineRunner_immutableMapCopyOf is ImmutableMap.copyOf(Map) of a
@@ -756,14 +789,14 @@ func commandLineRunner_j2clPassModeValueOf(name string) jscomp.CompilerOptions_J
 // Go-only: language-adapter — args4j's MapOptionHandler stores String
 // values boxed (*string).
 func commandLineRunner_immutableMapCopyOf(m *jutil.LinkedHashMap[string, *string]) *jutil.LinkedHashMap[string, string] {
-	result := jutil.NewImmutableMapBuilder[string, string]()
+	result := jutil.NewLinkedHashMapWithCapacity[string, string](m.Size())
 	for k, v := range m.All() {
 		if v == nil {
 			panic(jutil.NewNullPointerExceptionMsg("null value in entry: " + k + "=null"))
 		}
 		result.Put(k, *v)
 	}
-	return result.BuildOrThrow()
+	return result
 }
 
 // Java: CommandLineRunner.createCompiler()
@@ -785,6 +818,7 @@ func (r *CommandLineRunner) GetBundler() *transpile.ClosureBundler {
 	}
 
 	options := r.CreateOptions()
+	prefixReplacements := options.GetBrowserResolverPrefixReplacements()
 	r.bundler = transpile.NewClosureBundlerWithEs6ModuleTranspiler(
 		transpile.Transpiler_NULL,
 		transpile.NewBaseTranspiler(
@@ -792,7 +826,9 @@ func (r *CommandLineRunner) GetBundler() *transpile.ClosureBundler {
 				jscomp.CompilerOptions_LanguageMode_ECMASCRIPT_NEXT.ToFeatureSet().WithoutFeatures(parser.FeatureSet_Feature_MODULES),
 				options.GetModuleResolutionMode(),
 				moduleRoots,
-				options.GetBrowserResolverPrefixReplacements()),
+				func(opts *jscomp.CompilerOptions) {
+					opts.SetBrowserResolverPrefixReplacements(prefixReplacements)
+				}),
 			/* runtimeLibraryName= */ ""))
 	return r.bundler
 }
@@ -820,22 +856,25 @@ func (r *CommandLineRunner) CreateExterns(options *jscomp.CompilerOptions) []*js
 
 // Java: CommandLineRunner.loadConformanceConfigs(List<String>)
 func commandLineRunner_loadConformanceConfigs(configPaths []string) []*jscomp.ConformanceConfig {
-	configs := []*jscomp.ConformanceConfig{}
+	configs := make([]*jscomp.ConformanceConfig, 0, len(configPaths))
 
 	for _, configPath := range configPaths {
-		jutil.Try(func() {
-			configs = append(configs, commandLineRunner_loadConformanceConfig(configPath))
-		}, func(e jutil.IIOException) {
-			panic(jutil.NewRuntimeExceptionWithMessageAndCause("Error loading conformance config", e))
-		})
+		cfg, ioErr := commandLineRunner_loadConformanceConfig(configPath)
+		if ioErr != nil {
+			panic(jutil.NewRuntimeExceptionWithMessageAndCause("Error loading conformance config", ioErr))
+		}
+		configs = append(configs, cfg)
 	}
 
 	return configs
 }
 
 // Java: CommandLineRunner.loadConformanceConfig(String)
-func commandLineRunner_loadConformanceConfig(configFile string) *jscomp.ConformanceConfig {
-	textProto := jutil.Files_AsCharSource(jutil.NewFile(configFile), jutil.StandardCharsets_UTF_8).Read()
+func commandLineRunner_loadConformanceConfig(configFile string) (*jscomp.ConformanceConfig, jutil.IIOException) {
+	textProto, ioErr := jutil.Files_AsCharSource(jutil.NewFile(configFile), jutil.StandardCharsets_UTF_8).TryRead()
+	if ioErr != nil {
+		return nil, ioErr
+	}
 
 	builder := jscomp.ConformanceConfig_NewBuilder()
 
@@ -847,7 +886,7 @@ func commandLineRunner_loadConformanceConfig(configFile string) *jscomp.Conforma
 	}, func(e jutil.IException) {
 		panic(jutil.NewRuntimeExceptionWithCause(e))
 	})
-	return builder.Build()
+	return builder.Build(), nil
 }
 
 // Deprecated: use AbstractCommandLineRunner_GetBuiltinExterns(

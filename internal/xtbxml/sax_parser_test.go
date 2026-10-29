@@ -1,4 +1,4 @@
-package jutil
+package xtbxml
 
 import (
 	"bufio"
@@ -12,6 +12,8 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+
+	"github.com/paullepoulpe/jsgo/internal/jutil"
 )
 
 type saxVectorHandler struct {
@@ -38,10 +40,10 @@ func (h *saxVectorHandler) EndElement(uri string, localName string, qName string
 	h.out.WriteString("end " + saxVectorEscape(uri) + "|" + saxVectorEscape(localName) + "|" + saxVectorEscape(qName) + "\n")
 }
 func (h *saxVectorHandler) Characters(ch []uint16, start int, length int) {
-	h.out.WriteString("chars " + saxVectorEscape(StringFromUTF16(ch[start:start+length])) + "\n")
+	h.out.WriteString("chars " + saxVectorEscape(jutil.StringFromUTF16(ch[start:start+length])) + "\n")
 }
 func (h *saxVectorHandler) IgnorableWhitespace(ch []uint16, start int, length int) {
-	h.out.WriteString("ws " + saxVectorEscape(StringFromUTF16(ch[start:start+length])) + "\n")
+	h.out.WriteString("ws " + saxVectorEscape(jutil.StringFromUTF16(ch[start:start+length])) + "\n")
 }
 func (h *saxVectorHandler) ProcessingInstruction(target string, data string) {
 	h.out.WriteString("pi " + saxVectorEscape(target) + "|" + saxVectorEscape(data) + "\n")
@@ -52,6 +54,30 @@ func (h *saxVectorHandler) SkippedEntity(name string) {
 
 func saxVectorEscape(s string) string {
 	return matcherVectorEscape(&s)
+}
+
+func matcherVectorEscape(s *string) string {
+	if s == nil {
+		return "<null>"
+	}
+	var sb strings.Builder
+	for _, c := range jutil.StringToUTF16(*s) {
+		switch {
+		case c == '\\':
+			sb.WriteString(`\\`)
+		case c == '\t':
+			sb.WriteString(`\t`)
+		case c == '\n':
+			sb.WriteString(`\n`)
+		case c == '\r':
+			sb.WriteString(`\r`)
+		case c < 0x20 || c > 0x7e:
+			fmt.Fprintf(&sb, `\u%04x`, c)
+		default:
+			sb.WriteByte(byte(c))
+		}
+	}
+	return sb.String()
 }
 
 // newXtbStyleReader returns an XMLReader configured as XtbMessageBundle
@@ -85,9 +111,9 @@ func TestSAXParserMatchesJava(t *testing.T) {
 	if len(files) == 0 {
 		t.Fatal("no documents")
 	}
-	saved := System_Err()
-	System_SetErr(NewPrintStream(io.Discard))
-	defer System_SetErr(saved)
+	saved := jutil.System_Err()
+	jutil.System_SetErr(jutil.NewPrintStream(io.Discard))
+	defer jutil.System_SetErr(saved)
 	for _, f := range files {
 		name := filepath.Base(f)
 		data, err := os.ReadFile(f)
@@ -95,7 +121,7 @@ func TestSAXParserMatchesJava(t *testing.T) {
 			t.Fatal(err)
 		}
 		out := &strings.Builder{}
-		Try(func() {
+		jutil.Try(func() {
 			reader := newXtbStyleReader()
 			reader.SetEntityResolver(saxEmptyResolver{})
 			reader.SetContentHandler(&saxVectorHandler{out: out})
@@ -167,10 +193,10 @@ func (h *saxPositionHandler) EndElement(uri string, localName string, qName stri
 	h.out.WriteString("end " + saxVectorEscape(uri) + "|" + saxVectorEscape(localName) + "|" + saxVectorEscape(qName) + h.pos() + "\n")
 }
 func (h *saxPositionHandler) Characters(ch []uint16, start int, length int) {
-	h.out.WriteString("chars " + saxVectorEscape(StringFromUTF16(ch[start:start+length])) + h.pos() + "\n")
+	h.out.WriteString("chars " + saxVectorEscape(jutil.StringFromUTF16(ch[start:start+length])) + h.pos() + "\n")
 }
 func (h *saxPositionHandler) IgnorableWhitespace(ch []uint16, start int, length int) {
-	h.out.WriteString("ws " + saxVectorEscape(StringFromUTF16(ch[start:start+length])) + h.pos() + "\n")
+	h.out.WriteString("ws " + saxVectorEscape(jutil.StringFromUTF16(ch[start:start+length])) + h.pos() + "\n")
 }
 func (h *saxPositionHandler) ProcessingInstruction(target string, data string) {
 	h.out.WriteString("pi " + saxVectorEscape(target) + "|" + saxVectorEscape(data) + h.pos() + "\n")
@@ -190,16 +216,16 @@ func (r saxRecordingResolver) ResolveEntity(publicId *string, systemId *string) 
 func saxRunFull(doc []byte) string {
 	out := &strings.Builder{}
 	errBuf := &bytes.Buffer{}
-	saved := System_Err()
-	System_SetErr(NewPrintStream(errBuf))
-	defer System_SetErr(saved)
+	saved := jutil.System_Err()
+	jutil.System_SetErr(jutil.NewPrintStream(errBuf))
+	defer jutil.System_SetErr(saved)
 	h := &saxPositionHandler{out: out}
-	Try(func() {
+	jutil.Try(func() {
 		reader := newXtbStyleReader()
 		reader.SetEntityResolver(saxRecordingResolver{h})
 		reader.SetContentHandler(h)
 		reader.Parse(NewInputSource(bytes.NewReader(doc)))
-	}, func(e Throwable) {
+	}, func(e jutil.Throwable) {
 		switch e := e.(type) {
 		case *SAXParseException:
 			fmt.Fprintf(out, "error org.xml.sax.SAXParseException %d:%d <null>|<null> %s\n",

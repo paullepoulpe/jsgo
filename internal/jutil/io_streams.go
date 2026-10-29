@@ -3,7 +3,6 @@ package jutil
 import (
 	"bufio"
 	"compress/gzip"
-	"hash/crc32"
 	"io"
 	"os"
 	"strings"
@@ -203,31 +202,38 @@ func (c *CharSource) Read() string {
 	return CharStreams_ToString(r)
 }
 
-// TryReadLines reads and splits the lines of the source like
-// CharStreams.readLines(openStream()), returning an IIOException instead of
-// panicking if opening or reading the file fails.
-func (c *CharSource) TryReadLines() ([]string, IIOException) {
+// TryRead reads the whole content of the source as a string, returning an
+// IIOException instead of panicking if opening or reading the file fails.
+func (c *CharSource) TryRead() (string, IIOException) {
 	f, err := os.Open(c.file.GetPath())
 	if err == nil {
 		var st os.FileInfo
 		if st, err = f.Stat(); err == nil && st.IsDir() {
 			f.Close()
-			return nil, NewFileNotFoundException(c.file.GetPath() + " (Is a directory)")
+			return "", NewFileNotFoundException(c.file.GetPath() + " (Is a directory)")
 		}
 	}
 	if err != nil {
-		return nil, FileNotFoundExceptionFromError(err, c.file.GetPath())
+		return "", FileNotFoundExceptionFromError(err, c.file.GetPath())
 	}
 	defer f.Close()
 	b, err := io.ReadAll(f)
 	if err != nil {
-		return nil, IOExceptionFromError(err, "").(IIOException)
+		return "", IOExceptionFromError(err, "").(IIOException)
 	}
-	var s string
 	if (c.charset == nil || c.charset == StandardCharsets_UTF_8) && utf8.Valid(b) {
-		s = string(b)
-	} else {
-		s = charStreamsRoundTrip(c.charset.Decode(b))
+		return string(b), nil
+	}
+	return charStreamsRoundTrip(c.charset.Decode(b)), nil
+}
+
+// TryReadLines reads and splits the lines of the source like
+// CharStreams.readLines(openStream()), returning an IIOException instead of
+// panicking if opening or reading the file fails.
+func (c *CharSource) TryReadLines() ([]string, IIOException) {
+	s, ex := c.TryRead()
+	if ex != nil {
+		return nil, ex
 	}
 	return splitLinesUTF16(StringToUTF16(s)), nil
 }
@@ -269,15 +275,25 @@ func splitLinesUTF16(units []uint16) []string {
 // FileNotFoundException("<name> (<reason>)") when the file does not exist,
 // is a directory, or cannot be opened for reading.
 func NewFileInputStream(name string) io.ReadCloser {
+	f, err := TryNewFileInputStream(name)
+	if err != nil {
+		panic(err)
+	}
+	return f
+}
+
+// TryNewFileInputStream opens name like NewFileInputStream, returning an
+// IIOException instead of panicking on failure.
+func TryNewFileInputStream(name string) (io.ReadCloser, IIOException) {
 	f, err := os.Open(name)
 	if err == nil {
 		if st, serr := f.Stat(); serr == nil && st.IsDir() {
 			f.Close()
-			panic(NewFileNotFoundException(name + " (Is a directory)"))
+			return nil, NewFileNotFoundException(name + " (Is a directory)")
 		}
-		return f
+		return f, nil
 	}
-	panic(FileNotFoundExceptionFromError(err, name))
+	return nil, FileNotFoundExceptionFromError(err, name)
 }
 
 // Go-only: language-adapter — java.io.FileOutputStream as a Go
@@ -288,11 +304,21 @@ func NewFileInputStream(name string) io.ReadCloser {
 // when the file cannot be opened for writing. A write error is thrown as
 // IOException by the writers that wrap it.
 func NewFileOutputStream(name string) io.WriteCloser {
-	f, err := os.OpenFile(name, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o666)
+	f, err := TryNewFileOutputStream(name)
 	if err != nil {
-		panic(FileNotFoundExceptionFromError(err, name))
+		panic(err)
 	}
 	return f
+}
+
+// TryNewFileOutputStream opens name for writing like NewFileOutputStream,
+// returning an IIOException instead of panicking on failure.
+func TryNewFileOutputStream(name string) (io.WriteCloser, IIOException) {
+	f, err := os.OpenFile(name, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o666)
+	if err != nil {
+		return nil, FileNotFoundExceptionFromError(err, name)
+	}
+	return f, nil
 }
 
 // Go-only: language-adapter — the reading methods of java.nio.file.Files
@@ -307,14 +333,24 @@ func Files_ReadString(path *Path, cs *Charset) string {
 
 // Files_ReadStringRaw is Files_ReadString for a pre-normalized path string.
 func Files_ReadStringRaw(pathStr string, cs *Charset) string {
+	s, err := TryFiles_ReadStringRaw(pathStr, cs)
+	if err != nil {
+		panic(err)
+	}
+	return s
+}
+
+// TryFiles_ReadStringRaw reads pathStr like Files_ReadStringRaw, returning an
+// IIOException instead of panicking on I/O or charset decoding failure.
+func TryFiles_ReadStringRaw(pathStr string, cs *Charset) (string, IIOException) {
 	b, err := os.ReadFile(pathStr)
 	if err != nil {
-		panic(IOExceptionFromError(err, pathStr))
+		return "", IOExceptionFromError(err, pathStr).(IIOException)
 	}
 	if (cs == nil || cs == StandardCharsets_UTF_8) && utf8.Valid(b) {
-		return string(b)
+		return string(b), nil
 	}
-	return cs.DecodeStrict(b)
+	return cs.TryDecodeStrict(b)
 }
 
 // Files_NewBufferedReader is Files.newBufferedReader(Path, Charset): the
@@ -340,6 +376,12 @@ func Files_ReadStringUTF8(path *Path) string {
 	return Files_ReadString(path, StandardCharsets_UTF_8)
 }
 
+// TryFiles_ReadStringUTF8 reads path with UTF-8 like Files_ReadStringUTF8,
+// returning an IIOException instead of panicking on failure.
+func TryFiles_ReadStringUTF8(path *Path) (string, IIOException) {
+	return TryFiles_ReadStringRaw(path.String(), StandardCharsets_UTF_8)
+}
+
 // Go-only: language-adapter — java.util.zip.GZIPInputStream over Go's
 // compress/gzip, as an io.ReadCloser. A malformed header is thrown as
 // ZipException("Not in GZIP format"), as the Javadoc specifies for the
@@ -354,20 +396,30 @@ type gzipInputStream struct {
 // it reads and checks the GZIP header immediately. The buffer size only
 // affects performance.
 func NewGZIPInputStreamWithSize(in io.ReadCloser, size int) io.ReadCloser {
+	r, err := TryNewGZIPInputStreamWithSize(in, size)
+	if err != nil {
+		panic(err)
+	}
+	return r
+}
+
+// TryNewGZIPInputStreamWithSize wraps in like NewGZIPInputStreamWithSize,
+// returning an IIOException instead of panicking on header/EOF failure.
+func TryNewGZIPInputStreamWithSize(in io.ReadCloser, size int) (io.ReadCloser, IIOException) {
 	zr, err := gzip.NewReader(bufio.NewReaderSize(in, size))
 	if err != nil {
 		if err == gzip.ErrHeader {
-			panic(NewZipException("Not in GZIP format"))
+			return nil, NewZipException("Not in GZIP format")
 		}
 		if err == io.EOF || err == io.ErrUnexpectedEOF {
 			// Java: new EOFException(), with a null message.
 			e := &EOFException{}
 			InitThrowable(e, "java.io.EOFException", nil, nil)
-			panic(e)
+			return nil, e
 		}
-		panic(NewIOException(err.Error()))
+		return nil, NewIOException(err.Error())
 	}
-	return &gzipInputStream{in: in, zr: zr}
+	return &gzipInputStream{in: in, zr: zr}, nil
 }
 
 func (g *gzipInputStream) Read(b []byte) (int, error) {
@@ -379,90 +431,121 @@ func (g *gzipInputStream) Close() error {
 	return g.in.Close()
 }
 
-// Go-only: language-adapter — java.util.zip.GZIPOutputStream, written from
-// its Javadoc ("This class implements a stream filter for writing
-// compressed data in the GZIP file format") and RFC 1952, over a Go
-// io.Writer. The compressed data is a raw deflate stream from a Deflater
-// with the default compression level and nowrap (no zlib header and
-// checksum); the protected field def is DeflaterOutputStream.Def. Like
-// Deflater's, the compressed bytes can differ from Java's; the member
-// decompresses to exactly the data written.
-//
-// Observed behaviour (black-box, JDK 21, JutilDeflaterVectors.java):
-//   - the constructor writes the 10-byte member header at once: ID1 0x1f,
-//     ID2 0x8b, CM 8 (deflate), FLG 0, MTIME 0, XFL 0 and OS 0xff
-//     (unknown), whatever the compression level set later;
-//   - finish writes the rest of the deflate stream, then the trailer: the
-//     CRC-32 of the uncompressed data and its length modulo 2^32, both
-//     little-endian. A second finish writes nothing.
+// Go-only: language-adapter — java.io.InputStreamReader as a JavaReader.
+// The whole stream is read and decoded on the first read (Java decodes
+// incrementally; the characters are the same). Malformed input is replaced
+// (InputStreamReader's decoder uses CodingErrorAction.REPLACE), unless the
+// reader was created for Files.newBufferedReader, which reports it.
 
-// gzipOutputStreamHeader is the member header that GZIPOutputStream
-// writes.
-var gzipOutputStreamHeader = []byte{0x1f, 0x8b, 8, 0, 0, 0, 0, 0, 0, 0xff}
-
-// GZIPOutputStream is java.util.zip.GZIPOutputStream.
-type GZIPOutputStream struct {
-	DeflaterOutputStream
-	// crc is the protected field crc: the CRC-32 of the uncompressed data.
-	crc     uint32
-	written uint32 // uncompressed length modulo 2^32
+// InputStreamReader is java.io.InputStreamReader.
+type InputStreamReader struct {
+	in     io.Reader
+	cs     *Charset
+	strict bool
+	text   *StringReader
+	closed bool
 }
 
-// NewGZIPOutputStream is new GZIPOutputStream(OutputStream out), with the
-// default buffer size of 512 bytes.
-func NewGZIPOutputStream(out io.Writer) *GZIPOutputStream {
-	return NewGZIPOutputStreamWithSizeAndSyncFlush(out, 512, false)
+// NewInputStreamReader is new InputStreamReader(in, charset).
+func NewInputStreamReader(in io.Reader, cs *Charset) *InputStreamReader {
+	return &InputStreamReader{in: in, cs: CheckNotNull(cs)}
 }
 
-// NewGZIPOutputStreamWithSize is new GZIPOutputStream(OutputStream out,
-// int size).
-func NewGZIPOutputStreamWithSize(out io.Writer, size int) *GZIPOutputStream {
-	return NewGZIPOutputStreamWithSizeAndSyncFlush(out, size, false)
-}
-
-// NewGZIPOutputStreamWithSizeAndSyncFlush is new GZIPOutputStream(
-// OutputStream out, int size, boolean syncFlush).
-func NewGZIPOutputStreamWithSizeAndSyncFlush(out io.Writer, size int, syncFlush bool) *GZIPOutputStream {
-	g := &GZIPOutputStream{}
-	g.InitGZIPOutputStream(out, size, syncFlush)
-	return g
-}
-
-// InitGZIPOutputStream is the constructor body, for subclasses.
-func (g *GZIPOutputStream) InitGZIPOutputStream(out io.Writer, size int, syncFlush bool) {
-	g.InitDeflaterOutputStream(
-		out, NewDeflaterWithLevelAndNowrap(Deflater_DEFAULT_COMPRESSION, true), size, syncFlush)
-	g.finishSelf = g.Finish
-	g.writeOut(gzipOutputStreamHeader)
-	g.crc = 0
-	g.written = 0
-}
-
-// WriteByte is write(int b).
-func (g *GZIPOutputStream) WriteByte(b byte) error {
-	_, err := g.Write([]byte{b})
-	return err
-}
-
-// Write is write(byte[] buf, int off, int len) for the slice b: writes an
-// array of bytes to the compressed output stream.
-func (g *GZIPOutputStream) Write(b []byte) (int, error) {
-	g.DeflaterOutputStream.writeBytes(b)
-	g.crc = crc32.Update(g.crc, crc32.IEEETable, b)
-	g.written += uint32(len(b))
-	return len(b), nil
-}
-
-// Finish is finish(): finishes writing compressed data to the output
-// stream without closing the underlying stream.
-func (g *GZIPOutputStream) Finish() {
-	if g.Def.Finished() {
+func (r *InputStreamReader) load() {
+	if r.text != nil {
 		return
 	}
-	g.DeflaterOutputStream.finishDeflater()
-	trailer := []byte{
-		byte(g.crc), byte(g.crc >> 8), byte(g.crc >> 16), byte(g.crc >> 24),
-		byte(g.written), byte(g.written >> 8), byte(g.written >> 16), byte(g.written >> 24),
+	r.text = NewStringReader(r.decodeAll())
+}
+
+// decodeAll reads and decodes the whole stream.
+func (r *InputStreamReader) decodeAll() string {
+	b, err := io.ReadAll(r.in)
+	if err != nil {
+		panic(IOExceptionFromError(err, ""))
 	}
-	g.writeOut(trailer)
+	if (r.cs == nil || r.cs == StandardCharsets_UTF_8) && utf8.Valid(b) {
+		return string(b)
+	}
+	if r.strict {
+		return r.cs.DecodeStrict(b)
+	}
+	return r.cs.Decode(b)
+}
+
+// Read is Reader.read(char[], int, int).
+func (r *InputStreamReader) Read(cbuf []uint16, off, length int) int {
+	if r.closed {
+		panic(NewIOException("Stream closed"))
+	}
+	r.load()
+	return r.text.Read(cbuf, off, length)
+}
+
+// Close is Reader.close().
+func (r *InputStreamReader) Close() {
+	r.closed = true
+	if c, ok := r.in.(io.Closer); ok {
+		c.Close()
+	}
+}
+
+// CharStreams_ToString is Guava CharStreams.toString(Readable): reads all
+// characters from r (it does not close it).
+func CharStreams_ToString(r JavaReader) string {
+	// Go-only: performance — an open InputStreamReader that nothing has read
+	// yet decodes its whole stream at once, and that text is the result:
+	// return it without the round trip through UTF-16 chunks (valid UTF-8
+	// comes back from that round trip unchanged), and leave the reader at
+	// its end, as reading it through would.
+	// The same goes for a StringReader nothing has read yet.
+	if isr, ok := r.(*InputStreamReader); ok && !isr.closed && isr.text == nil {
+		s := isr.decodeAll()
+		isr.text = &StringReader{converted: true}
+		return charStreamsRoundTrip(s)
+	}
+	if sr, ok := r.(*StringReader); ok && !sr.converted {
+		s := sr.s
+		*sr = StringReader{converted: true}
+		return charStreamsRoundTrip(s)
+	}
+	var units []uint16
+	buf := make([]uint16, 2048)
+	for {
+		n := r.Read(buf, 0, len(buf))
+		if n == -1 {
+			break
+		}
+		units = append(units, buf[:n]...)
+	}
+	return StringFromUTF16(units)
+}
+
+// charStreamsRoundTrip is StringFromUTF16(StringToUTF16(s)), which is s
+// itself when s is valid UTF-8.
+func charStreamsRoundTrip(s string) string {
+	if utf8.ValidString(s) {
+		return s
+	}
+	return StringFromUTF16(StringToUTF16(s))
+}
+
+// IOExceptionFromError is the IOException the JDK throws for a failed file
+// operation on path: NoSuchFileException / AccessDeniedException (message:
+// the path) or an IOException with the system's message.
+func IOExceptionFromError(err error, path string) Throwable {
+	e := &IOException{}
+	msg := err.Error()
+	switch {
+	case path != "" && strings.Contains(msg, "no such file or directory"):
+		InitThrowable(e, "java.nio.file.NoSuchFileException", &path, nil)
+	case path != "" && strings.Contains(msg, "permission denied"):
+		InitThrowable(e, "java.nio.file.AccessDeniedException", &path, nil)
+	case strings.Contains(msg, "is a directory"):
+		m := "Is a directory"
+		InitThrowable(e, "java.io.IOException", &m, nil)
+	default:
+		InitThrowable(e, "java.io.IOException", &msg, nil)
+	}
+	return e
 }

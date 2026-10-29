@@ -163,6 +163,24 @@ func NewProcessClosurePrimitives(compiler AbstractCompiler) *ProcessClosurePrimi
 	return p
 }
 
+var processClosurePrimitivesVisitTokens = func() ast.TokenSet {
+	var s ast.TokenSet
+	s.Add(rhino.Token_CALL)
+	s.Add(rhino.Token_FUNCTION)
+	s.Add(rhino.Token_CLASS)
+	s.Add(rhino.Token_EXPR_RESULT)
+	s.Add(rhino.Token_VAR)
+	s.Add(rhino.Token_CONST)
+	s.Add(rhino.Token_LET)
+	return s
+}()
+
+func (*ProcessClosurePrimitives) noVisitLeaves() {}
+
+func (*ProcessClosurePrimitives) visitTokens() *ast.TokenSet {
+	return &processClosurePrimitivesVisitTokens
+}
+
 // Java: ProcessClosurePrimitives.process(Node, Node)
 func (p *ProcessClosurePrimitives) Process(externs rhino.Node, root rhino.Node) {
 	// Replace and validate other Closure primitives

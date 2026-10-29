@@ -99,12 +99,12 @@ func (c *PeepholeOptimizationsPassTest) TestOptimizationOrder() {
 	// right order (i.e. we need to make sure we're not traversing the entire
 	// AST for the first optimization and then a second time for the second).
 
-	visitationLog := jutil.NewArrayList[string]()
+	var visitationLog []string
 
 	note1Applied :=
 		newPeepholeOptimizationsPassTest_anonymous(func(self *peepholeOptimizationsPassTest_anonymous, node rhino.Node) rhino.Node {
 			if node.IsName() {
-				visitationLog.Add(node.GetString() + "1")
+				visitationLog = append(visitationLog, node.GetString()+"1")
 			}
 
 			return node
@@ -113,7 +113,7 @@ func (c *PeepholeOptimizationsPassTest) TestOptimizationOrder() {
 	note2Applied :=
 		newPeepholeOptimizationsPassTest_anonymous(func(self *peepholeOptimizationsPassTest_anonymous, node rhino.Node) rhino.Node {
 			if node.IsName() {
-				visitationLog.Add(node.GetString() + "2")
+				visitationLog = append(visitationLog, node.GetString()+"2")
 			}
 
 			return node

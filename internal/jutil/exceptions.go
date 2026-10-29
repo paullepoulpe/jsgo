@@ -45,6 +45,9 @@ func (t *ThrowableBase) throwable() *ThrowableBase { return t }
 // GetMessage is Throwable.getMessage(); "" stands in for Java null.
 func (t *ThrowableBase) GetMessage() string { return t.message }
 
+// HasMessage reports whether an explicit message (possibly "") was set.
+func (t *ThrowableBase) HasMessage() bool { return t.hasMsg }
+
 // GetCause is Throwable.getCause().
 func (t *ThrowableBase) GetCause() Throwable { return t.cause }
 

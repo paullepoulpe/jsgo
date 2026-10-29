@@ -21,8 +21,18 @@ package jscomp
 import (
 	"strings"
 
+	"github.com/paullepoulpe/jsgo/internal/ast"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
+
+var checkGlobalThisVisitTokens = func() ast.TokenSet {
+	var s ast.TokenSet
+	s.Add(rhino.Token_THIS)
+	return s
+}()
+
+func (*CheckGlobalThis) visitTokens() *ast.TokenSet        { return &checkGlobalThisVisitTokens }
+func (*CheckGlobalThis) combinedVisitTokens() ast.TokenSet { return checkGlobalThisVisitTokens }
 
 // CheckGlobalThis checks for certain uses of the {@code this} keyword that are
 // considered unsafe because they are likely to reference the global
@@ -55,11 +65,6 @@ import (
 // which would get flagged.
 type CheckGlobalThis struct {
 	compiler AbstractCompiler
-
-	// If assignLhsChild != null, then the node being traversed is a
-	// descendant of the first child of an ASSIGN node. assignLhsChild's parent
-	// is this ASSIGN node.
-	assignLhsChild rhino.Node
 }
 
 // Java: CheckGlobalThis.GLOBAL_THIS
@@ -68,10 +73,7 @@ var CheckGlobalThis_GLOBAL_THIS = DiagnosticType_Warning(
 
 // Java: CheckGlobalThis(AbstractCompiler)
 func NewCheckGlobalThis(compiler AbstractCompiler) *CheckGlobalThis {
-	c := &CheckGlobalThis{}
-	c.assignLhsChild = rhino.NilNode
-	c.compiler = compiler
-	return c
+	return &CheckGlobalThis{compiler: compiler}
 }
 
 // ShouldTraverse: since this pass reports errors only when a global
@@ -159,15 +161,7 @@ func (c *CheckGlobalThis) ShouldTraverse(t *NodeTraversal, n rhino.Node, parent 
 
 	if !parent.IsNil() && parent.IsAssign() {
 		lhs := parent.GetFirstChild()
-
-		if n == lhs {
-			// Always traverse the left side of the assignment. To handle
-			// nested assignments properly (e.g., (a = this).property = c;),
-			// assignLhsChild should not be overridden.
-			if c.assignLhsChild.IsNil() {
-				c.assignLhsChild = lhs
-			}
-		} else {
+		if n != lhs {
 			// Only traverse the right side if it's not an assignment to a prototype
 			// property or subproperty.
 			if NodeUtil_IsNormalGet(lhs) {
@@ -190,19 +184,20 @@ func (c *CheckGlobalThis) Visit(unused *NodeTraversal, n rhino.Node, parent rhin
 	if n.IsThis() && c.ShouldReportThis(n) {
 		c.compiler.Report(JSError_MakeWithNode(n, CheckGlobalThis_GLOBAL_THIS))
 	}
-	if n == c.assignLhsChild {
-		c.assignLhsChild = rhino.NilNode
-	}
 }
 
 // Java: CheckGlobalThis.shouldReportThis(Node)
 func (c *CheckGlobalThis) ShouldReportThis(n rhino.Node) bool {
 	parent := n.GetParent()
-	if !c.assignLhsChild.IsNil() {
-		// Always report a THIS on the left side of an assign.
+	if !parent.IsNil() && NodeUtil_IsNormalGet(parent) {
+		// Report a THIS with a property access.
 		return true
 	}
-
-	// Also report a THIS with a property access.
-	return !parent.IsNil() && NodeUtil_IsNormalGet(parent)
+	// Always report a THIS on the left side of an assign.
+	for cur, p := n, parent; !p.IsNil() && !p.IsScript(); cur, p = p, p.GetParent() {
+		if p.IsAssign() && p.GetFirstChild() == cur {
+			return true
+		}
+	}
+	return false
 }

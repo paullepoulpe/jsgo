@@ -406,7 +406,7 @@ func (m *PropertyMap) GetOwnKnownSymbols() []*KnownSymbolType {
 // Java: PropertyMap.getAllKeys()
 func (m *PropertyMap) GetAllKeys() *PropertyMap_AllKeys {
 	var ancestorsBuf [8]*PropertyMap
-	ancestors := m.collectAllAncestorsSlice(ancestorsBuf[:0])
+	ancestors := m.CollectAllAncestors(ancestorsBuf[:0])
 
 	var maxAncestorCounter int32 = 0
 	for _, ancestor := range ancestors {
@@ -531,39 +531,21 @@ func propertyMap_setsEqual[T any](a, b []T) bool {
 	return true
 }
 
-func (m *PropertyMap) collectAllAncestorsSlice(ancestors []*PropertyMap) []*PropertyMap {
+// Java: PropertyMap.collectAllAncestors(Set<PropertyMap>)
+func (m *PropertyMap) CollectAllAncestors(ancestors []*PropertyMap) []*PropertyMap {
 	if slices.Contains(ancestors, m) {
 		return ancestors
 	}
 	ancestors = append(ancestors, m)
 	if primaryParent := m.GetPrimaryParent(); primaryParent != nil {
-		ancestors = primaryParent.collectAllAncestorsSlice(ancestors)
+		ancestors = primaryParent.CollectAllAncestors(ancestors)
 	}
 	for _, parentType := range m.GetSecondaryParentObjects() {
 		if parentMap := parentType.GetPropertyMap(); parentMap != nil {
-			ancestors = parentMap.collectAllAncestorsSlice(ancestors)
+			ancestors = parentMap.CollectAllAncestors(ancestors)
 		}
 	}
 	return ancestors
-}
-
-// Java: PropertyMap.CollectAllAncestors(LinkedHashSet<PropertyMap>)
-func (m *PropertyMap) CollectAllAncestors(ancestors *jutil.LinkedHashSet[*PropertyMap]) {
-	if !ancestors.Add(m) {
-		return
-	}
-
-	primaryParent := m.GetPrimaryParent()
-	if primaryParent != nil {
-		primaryParent.CollectAllAncestors(ancestors)
-	}
-
-	for _, parentType := range m.GetSecondaryParentObjects() {
-		parentMap := parentType.GetPropertyMap()
-		if parentMap != nil {
-			parentMap.CollectAllAncestors(ancestors)
-		}
-	}
 }
 
 // Java: PropertyMap.putProperty(String, Property)

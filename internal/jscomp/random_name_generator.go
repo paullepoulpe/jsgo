@@ -16,11 +16,23 @@
  * limitations under the License.
  */
 
+// Derived from com/google/common/hash/Murmur3_128HashFunction.java
+// (Guava 33.4.6-jre): murmur3x64_128 and its helpers follow Guava's
+// Murmur3_128Hasher (mixK1, mixK2, fmix64, and processRemaining's mixing of
+// both halves of a partial block). MurmurHash3 itself was written by Austin
+// Appleby, who placed it in the public domain.
+//
+// Copyright (C) 2011 The Guava Authors
+// Licensed under the Apache License, Version 2.0; see LICENSES/Apache-2.0.txt.
+
 package jscomp
 
 import (
 	"encoding/binary"
+	"math/bits"
 	"strings"
+	"sync/atomic"
+	"time"
 
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
@@ -64,7 +76,7 @@ type RandomNameGenerator struct {
 	nonFirstAllowed [128]bool
 
 	// Source of randomness
-	random *jutil.Random
+	random *JavaRandom
 
 	// Set of reserved names; these are not returned by generateNextName
 	reservedNames map[string]struct{}
@@ -104,7 +116,7 @@ var RandomNameGenerator_NONFIRST_CHAR = randomNameGenerator_asSet(DefaultNameGen
 const randomNameGenerator_NUM_SHUFFLES = 16
 
 // Java: RandomNameGenerator(Random)
-func NewRandomNameGenerator(random *jutil.Random) *RandomNameGenerator {
+func NewRandomNameGenerator(random *JavaRandom) *RandomNameGenerator {
 	g := &RandomNameGenerator{random: random}
 	g.Reset(nil, "", nil)
 	return g
@@ -112,7 +124,7 @@ func NewRandomNameGenerator(random *jutil.Random) *RandomNameGenerator {
 
 // Java: RandomNameGenerator(Set<String>, String, Set<Character>, Random)
 func NewRandomNameGeneratorWithReserved(
-	reservedNames jutil.Set[string], prefix string, reservedCharacters jutil.Set[uint16], random *jutil.Random) *RandomNameGenerator {
+	reservedNames jutil.Set[string], prefix string, reservedCharacters jutil.Set[uint16], random *JavaRandom) *RandomNameGenerator {
 	g := &RandomNameGenerator{random: random}
 	g.ResetWithFirstAndNonFirstChars(reservedNames, prefix, reservedCharacters, reservedCharacters)
 	return g
@@ -137,7 +149,7 @@ func NewRandomNameGeneratorWithFirstAndNonFirstChars(
 	prefix string,
 	reservedFirstCharacters jutil.Set[uint16],
 	reservedNonFirstCharacters jutil.Set[uint16],
-	random *jutil.Random) *RandomNameGenerator {
+	random *JavaRandom) *RandomNameGenerator {
 	g := &RandomNameGenerator{random: random}
 	g.ResetWithFirstAndNonFirstChars(reservedNames, prefix, reservedFirstCharacters, reservedNonFirstCharacters)
 	return g
@@ -265,13 +277,13 @@ func (g *RandomNameGenerator) checkPrefix(prefix string) {
 func (g *RandomNameGenerator) shuffleAlphabets() {
 	first := g.shuffledFirstBuf[:len(g.firstChars)]
 	copy(first, g.firstChars)
-	jutil.Collections_Shuffle(first, g.random)
+	shuffleSlice(first, g.random)
 	g.shuffledFirst = first
 
 	for i := 0; i < randomNameGenerator_NUM_SHUFFLES; i++ {
 		nonFirst := g.shuffledNonFirstBuf[i][:len(g.nonFirstChars)]
 		copy(nonFirst, g.nonFirstChars)
-		jutil.Collections_Shuffle(nonFirst, g.random)
+		shuffleSlice(nonFirst, g.random)
 		g.shuffledNonFirst[i] = nonFirst
 	}
 }
@@ -318,7 +330,7 @@ func rngMurmur3HashLengthAndChars(length int32, chars []uint16) int32 {
 	for idx, c := range chars {
 		binary.LittleEndian.PutUint16(data[4+2*idx:], c)
 	}
-	return jutil.Hashing_Murmur3_128BytesAsInt(data)
+	return murmur3_128BytesAsInt(data)
 }
 
 func (g *RandomNameGenerator) isReserved(cand string) bool {
@@ -396,5 +408,150 @@ func (g *RandomNameGenerator) GenerateNextName() string {
 		}
 
 		return name
+	}
+}
+
+const (
+	murmur3C1 uint64 = 0x87c37b91114253d5
+	murmur3C2 uint64 = 0x4cf5ad432745937f
+)
+
+func murmur3MixK1(k1 uint64) uint64 {
+	k1 *= murmur3C1
+	k1 = bits.RotateLeft64(k1, 31)
+	k1 *= murmur3C2
+	return k1
+}
+
+func murmur3MixK2(k2 uint64) uint64 {
+	k2 *= murmur3C2
+	k2 = bits.RotateLeft64(k2, 33)
+	k2 *= murmur3C1
+	return k2
+}
+
+func murmur3Fmix64(k uint64) uint64 {
+	k ^= k >> 33
+	k *= 0xff51afd7ed558ccd
+	k ^= k >> 33
+	k *= 0xc4ceb9fe1a85ec53
+	k ^= k >> 33
+	return k
+}
+
+func murmur3x64_128(data []byte, seed uint32) (uint64, uint64) {
+	h1, h2 := uint64(seed), uint64(seed)
+	n := len(data)
+	i := 0
+	for ; i+16 <= n; i += 16 {
+		k1 := binary.LittleEndian.Uint64(data[i:])
+		k2 := binary.LittleEndian.Uint64(data[i+8:])
+		h1 ^= murmur3MixK1(k1)
+		h1 = bits.RotateLeft64(h1, 27)
+		h1 += h2
+		h1 = h1*5 + 0x52dce729
+		h2 ^= murmur3MixK2(k2)
+		h2 = bits.RotateLeft64(h2, 31)
+		h2 += h1
+		h2 = h2*5 + 0x38495ab5
+	}
+	if rem := n - i; rem > 0 {
+		var k1, k2 uint64
+		tail := data[i:]
+		for j := rem - 1; j >= 8; j-- {
+			k2 ^= uint64(tail[j]) << (8 * uint(j-8))
+		}
+		for j := min(rem, 8) - 1; j >= 0; j-- {
+			k1 ^= uint64(tail[j]) << (8 * uint(j))
+		}
+		h1 ^= murmur3MixK1(k1)
+		h2 ^= murmur3MixK2(k2)
+	}
+	h1 ^= uint64(n)
+	h2 ^= uint64(n)
+	h1 += h2
+	h2 += h1
+	h1 = murmur3Fmix64(h1)
+	h2 = murmur3Fmix64(h2)
+	h1 += h2
+	h2 += h1
+	return h1, h2
+}
+
+func murmur3_128BytesAsInt(data []byte) int32 {
+	h1, _ := murmur3x64_128(data, 0)
+	return int32(uint32(h1))
+}
+
+const (
+	javaRandomMultiplier int64 = 0x5DEECE66D
+	javaRandomAddend     int64 = 0xB
+	javaRandomMask       int64 = (1 << 48) - 1
+)
+
+// JavaRandom emulates java.util.Random (the 48-bit linear congruential generator).
+type JavaRandom struct {
+	seed int64
+}
+
+var javaRandomInstances atomic.Int64
+
+func NewJavaRandom() *JavaRandom {
+	return NewJavaRandomWithSeed(time.Now().UnixNano() + javaRandomInstances.Add(1)*1_000_003)
+}
+
+func NewJavaRandomWithSeed(seed int64) *JavaRandom {
+	return &JavaRandom{seed: (seed ^ javaRandomMultiplier) & javaRandomMask}
+}
+
+func (r *JavaRandom) SetSeed(seed int64) {
+	r.seed = (seed ^ javaRandomMultiplier) & javaRandomMask
+}
+
+func (r *JavaRandom) Next(nbits int) int32 {
+	r.seed = (r.seed*javaRandomMultiplier + javaRandomAddend) & javaRandomMask
+	return int32(uint64(r.seed) >> uint(48-nbits))
+}
+
+func (r *JavaRandom) NextInt() int32 { return r.Next(32) }
+
+func (r *JavaRandom) NextIntBound(bound int32) int32 {
+	if bound <= 0 {
+		panic(jutil.NewIllegalArgumentExceptionMsg("bound must be positive"))
+	}
+	if bound&-bound == bound {
+		return int32((int64(bound) * int64(r.Next(31))) >> 31)
+	}
+	for {
+		sample := r.Next(31)
+		v := sample % bound
+		if int64(sample)-int64(v)+int64(bound-1) <= 0x7FFFFFFF {
+			return v
+		}
+	}
+}
+
+func (r *JavaRandom) NextLong() int64 {
+	hi := int64(r.Next(32))
+	lo := int64(r.Next(32))
+	return (hi << 32) + lo
+}
+
+func (r *JavaRandom) NextBoolean() bool { return r.Next(1) != 0 }
+
+func (r *JavaRandom) NextDouble() float64 {
+	hi := int64(r.Next(26))
+	lo := int64(r.Next(27))
+	return float64((hi<<27)+lo) * (1.0 / float64(int64(1)<<53))
+}
+
+func (r *JavaRandom) NextFloat() float32 {
+	return float32(r.Next(24)) / float32(1<<24)
+}
+
+func shuffleSlice[T any](list []T, rnd *JavaRandom) {
+	for i := len(list); i > 1; i-- {
+		j := rnd.NextIntBound(int32(i))
+		list[i-1], list[j] = list[j], list[i-1]
 	}
 }

@@ -39,17 +39,36 @@ type RewriteAsyncIteration struct {
 	actionEnumYield       RuntimeJsLibManager_JsLibField
 	actionEnumYieldStar   RuntimeJsLibManager_JsLibField
 
-	nextForAwaitId int
-	compiler       AbstractCompiler
-	contextStack   []asyncIterContext
-	astFactory     *AstFactory
-	namespace      rhino.StaticScope
+	nextForAwaitId  int
+	compiler        AbstractCompiler
+	contextStack    []asyncIterContext
+	contextStackBuf [8]asyncIterContext
+	astFactory      *AstFactory
+	namespace       rhino.StaticScope
 }
 
 var rewriteAsyncIterationTranspiledFeatures = parser.FeatureSet_BARE_MINIMUM.WithFeatures(
 	parser.FeatureSet_Feature_ASYNC_GENERATORS,
 	parser.FeatureSet_Feature_FOR_AWAIT_OF,
 )
+
+var rewriteAsyncIterationVisitTokens = func() ast.TokenSet {
+	var s ast.TokenSet
+	s.Add(rhino.Token_PARAM_LIST)
+	s.Add(rhino.Token_FUNCTION)
+	s.Add(rhino.Token_AWAIT)
+	s.Add(rhino.Token_YIELD)
+	s.Add(rhino.Token_RETURN)
+	s.Add(rhino.Token_FOR_AWAIT_OF)
+	s.Add(rhino.Token_THIS)
+	s.Add(rhino.Token_NAME)
+	s.Add(rhino.Token_SUPER)
+	return s
+}()
+
+func (*RewriteAsyncIteration) visitTokens() *ast.TokenSet {
+	return &rewriteAsyncIterationVisitTokens
+}
 
 var RewriteAsyncIteration_CANNOT_CONVERT_ASYNCGEN = DiagnosticType_Error(
 	"JSC_CANNOT_CONVERT_ASYNCGEN", "Cannot convert async generator. {0}")
@@ -91,7 +110,7 @@ type asyncIterScopeState struct {
 func RewriteAsyncIteration_Create(compiler AbstractCompiler) *RewriteAsyncIteration {
 	jutil.CheckNotNull(compiler)
 	runtimeLibManager := compiler.GetRuntimeJsLibManager()
-	return &RewriteAsyncIteration{
+	r := &RewriteAsyncIteration{
 		compiler:              compiler,
 		astFactory:            jutil.CheckNotNull(compiler.CreateAstFactory()),
 		namespace:             jutil.CheckNotNull(compiler.GetTranspilationNamespace()),
@@ -101,6 +120,8 @@ func RewriteAsyncIteration_Create(compiler AbstractCompiler) *RewriteAsyncIterat
 		actionEnumYield:       runtimeLibManager.GetJsLibField("$jscomp.AsyncGeneratorWrapper$ActionEnum.YIELD_VALUE"),
 		actionEnumYieldStar:   runtimeLibManager.GetJsLibField("$jscomp.AsyncGeneratorWrapper$ActionEnum.YIELD_STAR"),
 	}
+	r.contextStack = r.contextStackBuf[:0]
+	return r
 }
 
 func (r *RewriteAsyncIteration) contextTop() asyncIterContext {
@@ -111,13 +132,21 @@ func (r *RewriteAsyncIteration) contextTop() asyncIterContext {
 }
 
 func (r *RewriteAsyncIteration) popContext() asyncIterContext {
-	top := r.contextTop()
-	r.contextStack = r.contextStack[:len(r.contextStack)-1]
+	if len(r.contextStack) == 0 {
+		panic(jutil.NewNoSuchElementException())
+	}
+	idx := len(r.contextStack) - 1
+	top := r.contextStack[idx]
+	r.contextStack[idx] = asyncIterContext{}
+	r.contextStack = r.contextStack[:idx]
 	return top
 }
 
 func (r *RewriteAsyncIteration) Process(externs rhino.Node, root rhino.Node) {
 	jutil.CheckState(len(r.contextStack) == 0)
+	if r.contextStack == nil {
+		r.contextStack = r.contextStackBuf[:0]
+	}
 	r.contextStack = append(r.contextStack, asyncIterContext{contextRoot: rhino.CheckNotNull(root)})
 	TranspilationPasses_ProcessTranspile(r.compiler, root, rewriteAsyncIterationTranspiledFeatures, r)
 	TranspilationPasses_MaybeMarkFeaturesAsTranspiledAway(r.compiler, root, rewriteAsyncIterationTranspiledFeatures)

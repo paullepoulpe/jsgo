@@ -442,6 +442,13 @@ func (o *InlineObjectLiterals) Process(externs rhino.Node, root rhino.Node) {
 	o.newFilteredCollector(sc, behavior, varFilter).Process(externs, root)
 }
 
+type iolPropSlot struct {
+	propID   uint32
+	varName  string
+	initVal  rhino.Node
+	assigned bool
+}
+
 // InlineObjectLiterals_InliningBehavior builds up information about nodes in
 // each scope. When exiting the scope, inspects all variables in that scope,
 // and inlines any that we can.
@@ -451,7 +458,13 @@ type InlineObjectLiterals_InliningBehavior struct {
 	// Variables whose reference information is out of sync with the AST.
 	staleVars map[*Var]struct{}
 
-	validProperties jutil.LinkedHashSet[string]
+	validPropInline [8]uint32
+	validPropLen    int
+	validPropMap    map[uint32]struct{}
+
+	propSlots   []iolPropSlot
+	propIndex   map[uint32]int
+	assignNodes []rhino.Node
 
 	scanner      *iolCandidateScanner
 	idSupplier   func() string
@@ -535,13 +548,89 @@ func (b *InlineObjectLiterals_InliningBehavior) isVarInlineForbidden(var_ *Var) 
 		stale
 }
 
+func (b *InlineObjectLiterals_InliningBehavior) clearValidProps() {
+	b.validPropLen = 0
+	if len(b.validPropMap) > 0 {
+		clear(b.validPropMap)
+	}
+}
+
+func (b *InlineObjectLiterals_InliningBehavior) hasValidProp(id uint32) bool {
+	if b.validPropLen <= len(b.validPropInline) {
+		for i := 0; i < b.validPropLen; i++ {
+			if b.validPropInline[i] == id {
+				return true
+			}
+		}
+		return false
+	}
+	_, ok := b.validPropMap[id]
+	return ok
+}
+
+func (b *InlineObjectLiterals_InliningBehavior) addValidProp(id uint32) {
+	if b.hasValidProp(id) {
+		return
+	}
+	if b.validPropLen < len(b.validPropInline) {
+		b.validPropInline[b.validPropLen] = id
+		b.validPropLen++
+		return
+	}
+	if b.validPropLen == len(b.validPropInline) {
+		if b.validPropMap == nil {
+			b.validPropMap = make(map[uint32]struct{}, 16)
+		}
+		for _, existing := range b.validPropInline {
+			b.validPropMap[existing] = struct{}{}
+		}
+	}
+	b.validPropMap[id] = struct{}{}
+	b.validPropLen++
+}
+
+func (b *InlineObjectLiterals_InliningBehavior) resetPropSlots() {
+	clear(b.propSlots)
+	b.propSlots = b.propSlots[:0]
+	if len(b.propIndex) > 0 {
+		clear(b.propIndex)
+	}
+}
+
+func (b *InlineObjectLiterals_InliningBehavior) findPropSlot(propID uint32) int {
+	if len(b.propSlots) <= 8 {
+		for i := range b.propSlots {
+			if b.propSlots[i].propID == propID {
+				return i
+			}
+		}
+		return -1
+	}
+	if idx, ok := b.propIndex[propID]; ok {
+		return idx
+	}
+	return -1
+}
+
+func (b *InlineObjectLiterals_InliningBehavior) addPropSlot(propID uint32, varName string) {
+	idx := len(b.propSlots)
+	b.propSlots = append(b.propSlots, iolPropSlot{propID: propID, varName: varName})
+	if len(b.propSlots) == 9 {
+		if b.propIndex == nil {
+			b.propIndex = make(map[uint32]int, 16)
+		}
+		for i := range b.propSlots {
+			b.propIndex[b.propSlots[i].propID] = i
+		}
+	} else if len(b.propSlots) > 9 {
+		b.propIndex[propID] = idx
+	}
+}
+
 // Java: InlineObjectLiterals.InliningBehavior.isInlinableObject(List<Reference>)
 func (b *InlineObjectLiterals_InliningBehavior) isInlinableObject(refs []*Reference) bool {
 	ret := false
-	validProperties := &b.validProperties
-	if !validProperties.IsEmpty() {
-		validProperties.Clear()
-	}
+	b.clearValidProps()
 	for _, ref := range refs {
 		name := ref.GetNode()
 		parent := ref.GetParent()
@@ -558,10 +647,10 @@ func (b *InlineObjectLiterals_InliningBehavior) isInlinableObject(refs []*Refere
 				return false
 			}
 
-			propName := gp.Property()
-			if !validProperties.Contains(propName) {
+			propID := parent.GetStringID()
+			if !b.hasValidProp(propID) {
 				if NodeUtil_IsNameDeclOrSimpleAssignLhs(parent, grandparent) {
-					validProperties.Add(propName)
+					b.addValidProp(propID)
 				} else {
 					return false
 				}
@@ -601,7 +690,7 @@ func (b *InlineObjectLiterals_InliningBehavior) isInlinableObject(refs []*Refere
 			}
 
 			pkm := ast.MustPlainKeyMember(member.Node())
-			validProperties.Add(pkm.Key())
+			b.addValidProp(member.Node().GetStringID())
 
 			childVal := pkm.Value().Node()
 			for _, t := range refs {
@@ -629,67 +718,72 @@ func iolIsVarOrAssignExprLhs(n rhino.Node) bool {
 }
 
 // Java: InlineObjectLiterals.InliningBehavior.computeVarList(ReferenceCollection)
-func (b *InlineObjectLiterals_InliningBehavior) computeVarList(referenceInfo *ReferenceCollection) *jutil.LinkedHashMap[string, string] {
-	varmap := jutil.NewLinkedHashMap[string, string]()
+func (b *InlineObjectLiterals_InliningBehavior) computeVarList(referenceInfo *ReferenceCollection) {
+	b.resetPropSlots()
 
 	for _, ref := range referenceInfo.references {
 		if ref.IsLvalue() || ref.IsInitializingDeclaration() {
 			val := ref.GetAssignedValue()
 			if !val.IsNil() {
 				for member := range ast.MustObjectLit(val).Members() {
-					varname := member.Node().GetString()
-					if varmap.ContainsKey(varname) {
+					propID := member.Node().GetStringID()
+					if b.findPropSlot(propID) >= 0 {
 						continue
 					}
+					varname := rhino.RhinoStringPool_StringFromID(propID)
 					varIdent := varname
 					if !rhino.TokenStream_IsJSIdentifier(varname) {
 						varIdent = InlineObjectLiterals_STRING_KEY_IDENTIFIER
 					}
-					varmap.Put(varname, InlineObjectLiterals_VAR_PREFIX+varIdent+"_"+b.idSupplier())
+					b.addPropSlot(propID, InlineObjectLiterals_VAR_PREFIX+varIdent+"_"+b.idSupplier())
 				}
 			}
 		} else if NodeUtil_IsNameDeclaration(ref.GetParent()) {
 			// Uninitialized declaration; no property keys to register.
 		} else {
 			gp := ast.MustNormalOrOptChainGetProp(ref.GetParent())
-			varname := gp.Property()
-			if !varmap.ContainsKey(varname) {
-				varmap.Put(varname, InlineObjectLiterals_VAR_PREFIX+varname+"_"+b.idSupplier())
+			propID := gp.Node().GetStringID()
+			if b.findPropSlot(propID) < 0 {
+				varname := rhino.RhinoStringPool_StringFromID(propID)
+				b.addPropSlot(propID, InlineObjectLiterals_VAR_PREFIX+varname+"_"+b.idSupplier())
 			}
 		}
 	}
-
-	return varmap
 }
 
 // Java: InlineObjectLiterals.InliningBehavior.fillInitialValues(Reference, Map<String, Node>)
-func (b *InlineObjectLiterals_InliningBehavior) fillInitialValues(init *Reference, initvals *jutil.LinkedHashMap[string, rhino.Node]) {
+func (b *InlineObjectLiterals_InliningBehavior) fillInitialValues(init *Reference) {
 	objLit := ast.MustObjectLit(init.GetAssignedValue())
 	for member := range objLit.Members() {
 		key := member.Node()
-		initvals.Put(key.GetString(), key.RemoveFirstChild())
+		idx := b.findPropSlot(key.GetStringID())
+		b.propSlots[idx].initVal = key.RemoveFirstChild()
 	}
 }
 
 // replaceAssignmentExpression replaces `x = {...}` with `t1=a, t2=b, true`.
 //
 // Java: InlineObjectLiterals.InliningBehavior.replaceAssignmentExpression(Var, Reference, Map<String, String>)
-func (b *InlineObjectLiterals_InliningBehavior) replaceAssignmentExpression(v *Var, ref *Reference, varmap *jutil.LinkedHashMap[string, string]) {
-	var nodes []rhino.Node
+func (b *InlineObjectLiterals_InliningBehavior) replaceAssignmentExpression(v *Var, ref *Reference) {
+	nodes := b.assignNodes[:0]
 	val := ref.GetAssignedValue()
 	b.recordStaleVarReferencesInTree(val, v.GetScope().(*Scope))
 	objLit := ast.MustObjectLit(val)
-	all := jutil.NewLinkedHashSet(varmap.KeySlice()...)
+	for i := range b.propSlots {
+		b.propSlots[i].assigned = false
+	}
 	for member := range objLit.Members() {
 		keyNode := member.Node()
-		propName := keyNode.GetString()
+		idx := b.findPropSlot(keyNode.GetStringID())
 		value := keyNode.RemoveFirstChild()
-		nodes = append(nodes, rhino.IR_Assign(rhino.IR_Name(varmap.Get(propName)), value))
-		all.Remove(propName)
+		nodes = append(nodes, rhino.IR_Assign(rhino.IR_Name(b.propSlots[idx].varName), value))
+		b.propSlots[idx].assigned = true
 	}
 
-	for propName := range all.All() {
-		nodes = append(nodes, rhino.IR_Assign(rhino.IR_Name(varmap.Get(propName)), NodeUtil_NewUndefinedNode(rhino.NilNode)))
+	for i := range b.propSlots {
+		if !b.propSlots[i].assigned {
+			nodes = append(nodes, rhino.IR_Assign(rhino.IR_Name(b.propSlots[i].varName), NodeUtil_NewUndefinedNode(rhino.NilNode)))
+		}
 	}
 
 	var replacement rhino.Node
@@ -704,6 +798,8 @@ func (b *InlineObjectLiterals_InliningBehavior) replaceAssignmentExpression(v *V
 			replacement = rhino.IR_Comma(replacement, next)
 		}
 	}
+	clear(nodes)
+	b.assignNodes = nodes[:0]
 
 	replace := ref.GetParent()
 	replacement.SrcrefTreeIfMissing(replace)
@@ -717,14 +813,13 @@ func (b *InlineObjectLiterals_InliningBehavior) replaceAssignmentExpression(v *V
 
 // Java: InlineObjectLiterals.InliningBehavior.splitObject(Var, Reference, ReferenceCollection)
 func (b *InlineObjectLiterals_InliningBehavior) splitObject(v *Var, init *Reference, referenceInfo *ReferenceCollection) {
-	varmap := b.computeVarList(referenceInfo)
+	b.computeVarList(referenceInfo)
 
-	initvals := jutil.NewLinkedHashMap[string, rhino.Node]()
 	var vnode rhino.Node
 	defined := referenceInfo.IsWellDefined() && NodeUtil_IsNameDeclaration(init.GetParent())
 	if defined {
 		vnode = init.GetParent()
-		b.fillInitialValues(init, initvals)
+		b.fillInitialValues(init)
 	} else if v.GetParentNode().IsLet() || v.GetParentNode().IsConst() {
 		scopeRoot := v.GetScope().(*Scope).GetRootNode()
 		vnode = scopeRoot.GetFirstChild()
@@ -739,9 +834,10 @@ func (b *InlineObjectLiterals_InliningBehavior) splitObject(v *Var, init *Refere
 
 	jutil.CheckStateMsg1(NodeUtil_IsStatement(vnode), "%s", vnode)
 
-	for key, value := range varmap.All() {
-		val := initvals.Get(key)
-		newVarNode := NodeUtil_NewVarNode(value, val)
+	for i := range b.propSlots {
+		slot := &b.propSlots[i]
+		val := slot.initVal
+		newVarNode := NodeUtil_NewVarNode(slot.varName, val)
 		if val.IsNil() {
 			newVarNode.SrcrefTreeIfMissing(vnode)
 		} else {
@@ -763,16 +859,16 @@ func (b *InlineObjectLiterals_InliningBehavior) splitObject(v *Var, init *Refere
 		b.reportChange(ref.GetNode())
 
 		if ref.IsLvalue() {
-			b.replaceAssignmentExpression(v, ref, varmap)
+			b.replaceAssignmentExpression(v, ref)
 		} else if NodeUtil_IsNameDeclaration(ref.GetParent()) {
 			ref.GetParent().Detach()
 		} else {
-			gp := ast.MustNormalOrOptChainGetProp(ref.GetParent())
-			propName := gp.Property()
-			jutil.CheckState(varmap.ContainsKey(propName))
+			gpNode := ref.GetParent()
+			idx := b.findPropSlot(gpNode.GetStringID())
+			jutil.CheckState(idx >= 0)
 
-			replacement := rhino.IR_Name(varmap.Get(propName)).SrcrefIfMissing(gp.Node())
-			gp.Node().ReplaceWith(replacement)
+			replacement := rhino.IR_Name(b.propSlots[idx].varName).SrcrefIfMissing(gpNode)
+			gpNode.ReplaceWith(replacement)
 		}
 	}
 }

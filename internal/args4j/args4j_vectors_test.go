@@ -72,13 +72,8 @@ var (
 
 // newClosureBool is CommandLineRunner.Flags.BooleanOptionHandler.
 func newClosureBool(parser *CmdLineParser, option *OptionDef, setter Setter) *OptionHandler {
-	return NewOptionHandler(parser, option, setter, nil, func(h *OptionHandler, params Parameters) int {
-		var param string
-		hasParam := false
-		jutil.Try(func() {
-			param = params.GetParameter(0)
-			hasParam = true
-		}, func(e ICmdLineException) {})
+	return NewOptionHandler(parser, option, setter, "", func(h *OptionHandler, params Parameters) int {
+		param, hasParam := params.PeekParameter(0)
 		if !hasParam {
 			h.Setter.AddValue(true)
 			return 0

@@ -239,7 +239,13 @@ func (b *TypedScopeCreator_scopeBuilder) DeclareTemplatesInFunctionBody(function
 	// scope. (they were already registered as types by FunctionTypeBuilder, but they need to be
 	// in a TypedScope to let JSTypeRegistry correctly handle scoping).
 	info := NodeUtil_GetBestJSDocInfo(functionNode)
-	var templateNames *jutil.LinkedHashSet[string]
+	var templateNamesBuf [4]string
+	templateNames := templateNamesBuf[:0]
+	addTemplateName := func(name string) {
+		if !slices.Contains(templateNames, name) {
+			templateNames = append(templateNames, name)
+		}
+	}
 
 	isPossiblePrototypeMethod :=
 		!functionType.HasInstanceType() && (info == nil || !info.HasThisType())
@@ -254,11 +260,8 @@ func (b *TypedScopeCreator_scopeBuilder) DeclareTemplatesInFunctionBody(function
 		ownerNode := NodeUtil_GetBestLValue(functionNode)
 		if !ownerNode.IsNil() {
 			ownerKeys := b.FindOwnerTypeKeys(ownerNode)
-			if len(ownerKeys) > 0 {
-				templateNames = jutil.NewLinkedHashSet[string]()
-				for _, templateKey := range ownerKeys {
-					templateNames.Add(*templateKey.GetReferenceName())
-				}
+			for _, templateKey := range ownerKeys {
+				addTemplateName(*templateKey.GetReferenceName())
 			}
 		}
 	}
@@ -267,26 +270,17 @@ func (b *TypedScopeCreator_scopeBuilder) DeclareTemplatesInFunctionBody(function
 		//   /** @template U */
 		//   function foo() {}
 		// This declares 'U'.
-		infoTemplateNames := info.GetTemplateTypeEntries()
-		if len(infoTemplateNames) > 0 {
-			if templateNames == nil {
-				templateNames = jutil.NewLinkedHashSet[string]()
-			}
-			for _, entry := range infoTemplateNames {
-				templateNames.Add(entry.Name)
-			}
+		for _, entry := range info.GetTemplateTypeEntries() {
+			addTemplateName(entry.Name)
 		}
 		typeTransformations := jsDocTypeTransformations(info)
 		if typeTransformations != nil && !typeTransformations.IsEmpty() {
-			if templateNames == nil {
-				templateNames = jutil.NewLinkedHashSet[string]()
-			}
 			for name := range typeTransformations.Keys() {
-				templateNames.Add(name)
+				addTemplateName(name)
 			}
 		}
 	}
-	if templateNames == nil || templateNames.IsEmpty() {
+	if len(templateNames) == 0 {
 		return
 	}
 	input := b.GetCompilerInput()
@@ -295,7 +289,7 @@ func (b *TypedScopeCreator_scopeBuilder) DeclareTemplatesInFunctionBody(function
 	// an outer variable FOO with a @template FOO and refers to FOO inside the method, we
 	// will treat it as undefined, rather than the correct type, which could lead to weird
 	// errors. Ideally we'd have a "don't use me" type that gives an error at use.
-	for name := range templateNames.All() {
+	for _, name := range templateNames {
 		if !b.currentScope.CanDeclare(name) {
 			b.outer.validator.ExpectUndeclaredVariable(
 				typedScopeCreator_sourceNameArg(NodeUtil_GetSourceName(functionNode)),
@@ -728,7 +722,10 @@ const (
 // Java: TypedScopeCreator.FirstOrderFunctionAnalyzer.visit(NodeTraversal, Node, Node)
 func (a *TypedScopeCreator_FirstOrderFunctionAnalyzer) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	if a.identifyEnumsAndTypedefs.registry != nil {
-		a.identifyEnumsAndTypedefs.Visit(t, n, parent)
+		switch n.GetToken() {
+		case rhino.Token_LET, rhino.Token_CONST, rhino.Token_VAR, rhino.Token_EXPR_RESULT:
+			a.identifyEnumsAndTypedefs.Visit(t, n, parent)
+		}
 	}
 	if t.InGlobalScope() {
 		switch n.GetToken() {

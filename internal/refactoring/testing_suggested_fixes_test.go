@@ -22,7 +22,6 @@ package refactoring
 import (
 	"slices"
 
-	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/testjunit"
 )
 
@@ -40,18 +39,18 @@ func newSuggestedFixes() *SuggestedFixes {
 
 // Java: SuggestedFixes.assertReplacement(SuggestedFix, CodeReplacement)
 func SuggestedFixes_AssertReplacement(fix *SuggestedFix, expectedReplacement *CodeReplacement) {
-	SuggestedFixes_AssertReplacements(fix, jutil.NewObjectLinkedHashSet(expectedReplacement))
+	SuggestedFixes_AssertReplacements(fix, []*CodeReplacement{expectedReplacement})
 }
 
 // Java: SuggestedFixes.assertReplacements(SuggestedFix, Set<CodeReplacement>)
 func SuggestedFixes_AssertReplacements(
-	fix *SuggestedFix, expectedReplacements *jutil.ObjectLinkedHashSet[*CodeReplacement]) {
+	fix *SuggestedFix, expectedReplacements []*CodeReplacement) {
 	replacementMap := fix.GetReplacements()
 	// MultimapSubject.hasSize(1): Multimap.size(), the number of entries.
 	testjunit.AssertThat(replacementMap.Size()).IsEqualTo(1)
-	replacements := replacementMap.Get("test")
-	testjunit.AssertThat(replacements).HasSize(expectedReplacements.Size())
-	testjunit.AssertThat(replacements).IsEqualTo(expectedReplacements)
+	replacements := replacementMap.GetSlice("test")
+	testjunit.AssertThat(replacements).HasSize(len(expectedReplacements))
+	testjunit.AssertThat(replacements).ContainsExactlyElementsIn(expectedReplacements)
 }
 
 // Java: SuggestedFixes.assertChanges(SuggestedFix, String, String, String)
@@ -64,9 +63,11 @@ func SuggestedFixes_AssertChanges(
 func SuggestedFixes_AssertChangesOfList(
 	fixes []*SuggestedFix, externs string, originalCode string, expectedCode string) {
 	testjunit.AssertThat(fixes).IsNotEmpty()
-	codeMap := jutil.NewImmutableMapBuilder[string, string]().Put("test", originalCode).BuildOrThrow()
-	newCode :=
-		ApplySuggestedFixes_ApplySuggestedFixesToCode(slices.Values(fixes), codeMap).
-			Get("test")
+	codeMap := map[string]string{"test": originalCode}
+	res := ApplySuggestedFixes_ApplySuggestedFixesToCode(slices.Values(fixes), codeMap)
+	var newCode any
+	if v, ok := res["test"]; ok {
+		newCode = v
+	}
 	testjunit.AssertThat(newCode).IsEqualTo(expectedCode)
 }

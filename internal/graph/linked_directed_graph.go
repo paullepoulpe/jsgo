@@ -31,7 +31,7 @@ import (
 // N is the value type that the graph node stores; E is the value type that
 // the graph edge stores.
 type LinkedDirectedGraph[N comparable, E any] struct {
-	Nodes jutil.LinkedHashMap[N, *LinkedDiGraphNode[N, E]]
+	Nodes GraphNodeMap[N, *LinkedDiGraphNode[N, E]]
 
 	// Go-only: performance — see jutil.ReuseSlab.
 	nodeSlab jutil.ReuseSlab[LinkedDiGraphNode[N, E]]
@@ -250,11 +250,11 @@ func (g *LinkedDirectedGraph[N, E]) DisconnectInDirection(srcValue N, destValue 
 
 // Java: LinkedDirectedGraph.getNodes()
 func (g *LinkedDirectedGraph[N, E]) GetNodes() []*LinkedDiGraphNode[N, E] {
-	out := make([]*LinkedDiGraphNode[N, E], 0, g.Nodes.Size())
-	for n := range g.Nodes.Values() {
-		out = append(out, n)
+	order := g.Nodes.Slice()
+	if len(order) == 0 {
+		return []*LinkedDiGraphNode[N, E]{}
 	}
-	return out
+	return slices.Clone(order)
 }
 
 // Java: LinkedDirectedGraph.getNodes() (as DiGraph.getNodes())
@@ -339,7 +339,7 @@ func (g *LinkedDirectedGraph[N, E]) GetDiGraphEdgesBetween(n1 N, n2 N) []*Linked
 // Java: LinkedDirectedGraph.getEdges()
 func (g *LinkedDirectedGraph[N, E]) GetEdges() []*LinkedDiGraphEdge[N, E] {
 	result := []*LinkedDiGraphEdge[N, E]{}
-	for node := range g.Nodes.Values() {
+	for _, node := range g.Nodes.Slice() {
 		result = append(result, node.OutEdgeList.Slice()...)
 	}
 	return result
@@ -482,14 +482,14 @@ func (g *LinkedDirectedGraph[N, E]) IsConnectedInDirectionOfNodes(
 
 // Java: Graph.clearNodeAnnotations()
 func (g *LinkedDirectedGraph[N, E]) ClearNodeAnnotations() {
-	for n := range g.Nodes.Values() {
+	for _, n := range g.Nodes.Slice() {
 		n.SetAnnotation(nil)
 	}
 }
 
 // Java: Graph.clearEdgeAnnotations()
 func (g *LinkedDirectedGraph[N, E]) ClearEdgeAnnotations() {
-	for node := range g.Nodes.Values() {
+	for _, node := range g.Nodes.Slice() {
 		for _, e := range node.OutEdgeList.Slice() {
 			e.SetAnnotation(nil)
 		}
@@ -501,8 +501,9 @@ func (g *LinkedDirectedGraph[N, E]) PushNodeAnnotations() {
 	if g.nodeAnnotationStack == nil {
 		g.nodeAnnotationStack = &annotationStack{}
 	}
-	top := pushAnnotationFrame(g.nodeAnnotationStack, g.Nodes.Size())
-	for n := range g.Nodes.Values() {
+	nodes := g.Nodes.Slice()
+	top := pushAnnotationFrame(g.nodeAnnotationStack, len(nodes))
+	for _, n := range nodes {
 		*top = append(*top, annotationState{first: n, second: n.GetAnnotation()})
 		n.SetAnnotation(nil)
 	}
@@ -521,8 +522,9 @@ func (g *LinkedDirectedGraph[N, E]) PushEdgeAnnotations() {
 	if g.edgeAnnotationStack == nil {
 		g.edgeAnnotationStack = &annotationStack{}
 	}
-	top := pushAnnotationFrame(g.edgeAnnotationStack, g.Nodes.Size())
-	for node := range g.Nodes.Values() {
+	nodes := g.Nodes.Slice()
+	top := pushAnnotationFrame(g.edgeAnnotationStack, len(nodes))
+	for _, node := range nodes {
 		for _, e := range node.OutEdgeList.Slice() {
 			*top = append(*top, annotationState{first: e, second: e.GetAnnotation()})
 			e.SetAnnotation(nil)
@@ -573,7 +575,7 @@ func (g *LinkedDirectedGraph[N, E]) GetDirectedSuccNodes(dNode *LinkedDiGraphNod
 // Java: LinkedDirectedGraph.getGraphvizEdges()
 func (g *LinkedDirectedGraph[N, E]) GetGraphvizEdges() []GraphvizGraph_GraphvizEdge {
 	edgeList := []GraphvizGraph_GraphvizEdge{}
-	for node := range g.Nodes.Values() {
+	for _, node := range g.Nodes.Slice() {
 		for _, edge := range node.OutEdgeList.Slice() {
 			edgeList = append(edgeList, edge)
 		}
@@ -583,9 +585,10 @@ func (g *LinkedDirectedGraph[N, E]) GetGraphvizEdges() []GraphvizGraph_GraphvizE
 
 // Java: LinkedDirectedGraph.getGraphvizNodes()
 func (g *LinkedDirectedGraph[N, E]) GetGraphvizNodes() []GraphvizGraph_GraphvizNode {
-	nodeList := make([]GraphvizGraph_GraphvizNode, 0, g.Nodes.Size())
-	for node := range g.Nodes.Values() {
-		nodeList = append(nodeList, node)
+	nodes := g.Nodes.Slice()
+	nodeList := make([]GraphvizGraph_GraphvizNode, len(nodes))
+	for i, node := range nodes {
+		nodeList[i] = node
 	}
 	return nodeList
 }

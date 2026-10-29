@@ -1,4 +1,6 @@
 // Port of com/google/javascript/jscomp/transpile/BaseTranspiler.java @ closure-compiler v20261021
+// Port of com/google/javascript/jscomp/transpile/Transpiler.java @ closure-compiler v20261021
+// Port of com/google/javascript/jscomp/transpile/TranspilerBuilder.java @ closure-compiler v20261021
 
 /*
  * Copyright 2016 The Closure Compiler Authors.
@@ -16,6 +18,9 @@
  * limitations under the License.
  */
 
+// Package transpile implements the standalone per-file ES transpiler API
+// (Transpiler, BaseTranspiler, CachingTranspiler, TranspileResult) and
+// ClosureBundler.
 package transpile
 
 import (
@@ -26,6 +31,96 @@ import (
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/parser"
 )
+
+// Transpiler is the common interface for a transpiler.
+//
+// There are a number of considerations when implementing this interface.
+// Specifically,
+//  1. Which compiler and options to use, including language mode and any
+//     specific Compiler subclass. This is handled by BaseTranspiler
+//     accepting a CompilerSupplier.
+//  2. Whether or not to generate external or embedded source maps. This is
+//     handled by returning a TranspileResult, which is able to return any
+//     combination of embedded or external source map.
+//  3. Specification of a sourceURL, handling of goog.module, or other
+//     postprocessing, such as wrapping the script in eval. This is left to
+//     other collaborators.
+//  4. Caching. This is handled by a CachingTranspiler that decorates an
+//     existing Transpiler with caching behavior.
+type Transpiler interface {
+	// Transpile transforms the given chunk of code. The input should be an
+	// entire file worth of code.
+	Transpile(path *jutil.URI, code string) *TranspileResult
+
+	// Runtime returns any necessary runtime code as a string. This should
+	// include everything that could possibly be required at runtime,
+	// regardless of whether it's actually used by any of the code that will
+	// be transpiled.
+	Runtime() string
+}
+
+type transpile_Transpiler_null struct{}
+
+func (transpile_Transpiler_null) Transpile(path *jutil.URI, code string) *TranspileResult {
+	return NewTranspileResult(path, code, code, "")
+}
+
+func (transpile_Transpiler_null) Runtime() string { return "" }
+
+// Transpiler_NULL is the null implementation that does no transpilation at all.
+//
+// Java: Transpiler.NULL
+var Transpiler_NULL Transpiler = transpile_Transpiler_null{}
+
+// TranspilerBuilder is the basic Transpiler implementation for outputting
+// ES5 code.
+//
+// Java: final class transpile.TranspilerBuilder
+type TranspilerBuilder struct {
+	transpiler Transpiler
+}
+
+// TranspilerBuilder_ToEs5 returns a new TranspilerBuilder that transpiles
+// down to ES5.
+//
+// Java: TranspilerBuilder.toEs5()
+func TranspilerBuilder_ToEs5() *TranspilerBuilder {
+	return transpilerBuilder_TO_ES5
+}
+
+var transpilerBuilder_TO_ES5 = NewTranspilerBuilder(
+	NewBaseTranspiler(NewBaseTranspiler_CompilerSupplier(), "es6_runtime"))
+
+// Java: TranspilerBuilder(Transpiler)
+func NewTranspilerBuilder(transpiler Transpiler) *TranspilerBuilder {
+	return &TranspilerBuilder{transpiler: transpiler}
+}
+
+const transpilerBuilder_DEFAULT_MAX_SIZE = 10000
+
+// Caching returns a TranspilerBuilder with cached transpilations, using the
+// default cache settings (maximum size of 10,000). Note that the builder
+// itself is not changed.
+//
+// Java: TranspilerBuilder.caching()
+func (b *TranspilerBuilder) Caching() *TranspilerBuilder {
+	return NewTranspilerBuilder(NewCachingTranspiler(b.transpiler, transpilerBuilder_DEFAULT_MAX_SIZE))
+}
+
+// CachingWithSpec returns a TranspilerBuilder with cached transpilations,
+// using the given cache spec. Note that the builder itself is not changed.
+//
+// Java: TranspilerBuilder.caching(String)
+func (b *TranspilerBuilder) CachingWithSpec(spec string) *TranspilerBuilder {
+	return NewTranspilerBuilder(NewCachingTranspiler(b.transpiler, bundle.ParseCacheMaxSize(spec)))
+}
+
+// Build returns the built Transpiler.
+//
+// Java: TranspilerBuilder.build()
+func (b *TranspilerBuilder) Build() Transpiler {
+	return b.transpiler
+}
 
 // BaseTranspiler is the basic Transpiler implementation for outputting ES5
 // code.
@@ -97,18 +192,15 @@ type BaseTranspiler_CompilerSupplier interface {
 
 // BaseTranspiler_DefaultCompilerSupplier is the concrete CompilerSupplier implementation.
 type BaseTranspiler_DefaultCompilerSupplier struct {
-	moduleResolution   jscomp.ModuleLoader_ResolutionMode
-	moduleRoots        []string
-	prefixReplacements *jutil.LinkedHashMap[string, string]
-	outputFeatureSet   *parser.FeatureSet
+	moduleResolution jscomp.ModuleLoader_ResolutionMode
+	moduleRoots      []string
+	configureOptions func(*jscomp.CompilerOptions)
+	outputFeatureSet *parser.FeatureSet
 }
 
 var _ BaseTranspiler_CompilerSupplier = (*BaseTranspiler_DefaultCompilerSupplier)(nil)
 
-var (
-	baseTranspilerEmptyPrefixReplacements = jutil.NewLinkedHashMap[string, string]()
-	baseTranspilerDefaultResolutionMode   = jscomp.NewCompilerOptions().GetModuleResolutionMode()
-)
+var baseTranspilerDefaultResolutionMode = jscomp.NewCompilerOptions().GetModuleResolutionMode()
 
 // Java: CompilerSupplier()
 func NewBaseTranspiler_CompilerSupplier() *BaseTranspiler_DefaultCompilerSupplier {
@@ -122,27 +214,21 @@ func NewBaseTranspiler_CompilerSupplierWithOutputFeatureSet(outputFeatureSet *pa
 		outputFeatureSet,
 		baseTranspilerDefaultResolutionMode,
 		nil,
-		baseTranspilerEmptyPrefixReplacements)
+		nil)
 }
 
 // NewBaseTranspiler_CompilerSupplierWithModuleResolution accepts commonly
 // overridden options for ES6 modules to avoid needing to subclass.
-//
-// moduleResolution: module resolution for resolving import paths;
-// prefixReplacements: prefix replacements for when moduleResolution is
-// ModuleLoader.ResolutionMode.BROWSER_WITH_TRANSFORMED_PREFIXES.
-//
-// Java: CompilerSupplier(FeatureSet, ResolutionMode, ImmutableList<String>, ImmutableMap<String, String>)
 func NewBaseTranspiler_CompilerSupplierWithModuleResolution(
 	outputFeatureSet *parser.FeatureSet,
 	moduleResolution jscomp.ModuleLoader_ResolutionMode,
 	moduleRoots []string,
-	prefixReplacements *jutil.LinkedHashMap[string, string]) *BaseTranspiler_DefaultCompilerSupplier {
+	configureOptions func(*jscomp.CompilerOptions)) *BaseTranspiler_DefaultCompilerSupplier {
 	return &BaseTranspiler_DefaultCompilerSupplier{
-		outputFeatureSet:   outputFeatureSet,
-		moduleResolution:   moduleResolution,
-		moduleRoots:        moduleRoots,
-		prefixReplacements: prefixReplacements,
+		outputFeatureSet: outputFeatureSet,
+		moduleResolution: moduleResolution,
+		moduleRoots:      moduleRoots,
+		configureOptions: configureOptions,
 	}
 }
 
@@ -209,7 +295,9 @@ func (s *BaseTranspiler_DefaultCompilerSupplier) SetOptions(options *jscomp.Comp
 	options.SetEs6ModuleTranspilation(jscomp.CompilerOptions_Es6ModuleTranspilation_TO_COMMON_JS_LIKE_MODULES)
 	options.SetModuleResolutionMode(s.moduleResolution)
 	options.SetModuleRoots(s.moduleRoots)
-	options.SetBrowserResolverPrefixReplacements(s.prefixReplacements)
+	if s.configureOptions != nil {
+		s.configureOptions(options)
+	}
 
 	// Transpiler often used in isolation, so references to other files will
 	// never exist.

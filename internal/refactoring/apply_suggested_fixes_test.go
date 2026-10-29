@@ -53,12 +53,12 @@ func TestApplySuggestedFixesTest(t *testing.T) {
 // applySuggestedFixesTest_mapOf is ImmutableMap.of(k1, v1, ...).
 //
 // Go-only: test-helper.
-func applySuggestedFixesTest_mapOf(kvs ...string) *jutil.LinkedHashMap[string, string] {
-	b := jutil.NewImmutableMapBuilder[string, string]()
+func applySuggestedFixesTest_mapOf(kvs ...string) map[string]string {
+	m := make(map[string]string, len(kvs)/2)
 	for i := 0; i < len(kvs); i += 2 {
-		b.Put(kvs[i], kvs[i+1])
+		m[kvs[i]] = kvs[i+1]
 	}
-	return b.BuildOrThrow()
+	return m
 }
 
 // Java: ApplySuggestedFixesTest.testApplyCodeReplacements_overlapsAreErrors()

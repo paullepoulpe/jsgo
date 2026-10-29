@@ -156,16 +156,20 @@ func TestExtensions(t *testing.T) {
 
 	exts := consumer.GetExtensions()
 
-	if exts.Size() != 2 {
-		t.Fatalf("extensions = %s", exts)
+	if len(exts) != 2 {
+		t.Fatalf("extensions = %v", exts)
 	}
-	if exts.ContainsKey("org_int") {
+	extByKey := make(map[string]any, len(exts))
+	for _, ext := range exts {
+		extByKey[ext.Key] = ext.Value
+	}
+	if _, ok := extByKey["org_int"]; ok {
 		t.Errorf("unexpected key org_int")
 	}
-	if got := exts.Get("x_org_int").(jutil.JsonElement).GetAsInt(); got != 2 {
+	if got := extByKey["x_org_int"].(jutil.JsonElement).GetAsInt(); got != 2 {
 		t.Errorf("x_org_int = %d", got)
 	}
-	if !exts.Get("x_org_array").(*jutil.JsonArray).IsEmpty() {
+	if !extByKey["x_org_array"].(*jutil.JsonArray).IsEmpty() {
 		t.Errorf("x_org_array not empty")
 	}
 }

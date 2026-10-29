@@ -634,6 +634,23 @@ type RemovePropertyRenamingCalls_RemoveCompilerPropertyRenamingCallback struct {
 	outer *RemovePropertyRenamingCalls
 }
 
+var removePropRenamingCallsVisitTokens = func() ast.TokenSet {
+	var s ast.TokenSet
+	s.Add(rhino.Token_CALL)
+	return s
+}()
+
+var (
+	_ nodeTraversal_noVisitLeaves = (*RemovePropertyRenamingCalls_RemoveCompilerPropertyRenamingCallback)(nil)
+	_ nodeTraversal_visitTokens   = (*RemovePropertyRenamingCalls_RemoveCompilerPropertyRenamingCallback)(nil)
+)
+
+func (*RemovePropertyRenamingCalls_RemoveCompilerPropertyRenamingCallback) noVisitLeaves() {}
+
+func (*RemovePropertyRenamingCalls_RemoveCompilerPropertyRenamingCallback) visitTokens() *ast.TokenSet {
+	return &removePropRenamingCallsVisitTokens
+}
+
 // Java: RemovePropertyRenamingCalls.RemoveCompilerPropertyRenamingCallback.visit(NodeTraversal, Node, Node)
 func (c *RemovePropertyRenamingCalls_RemoveCompilerPropertyRenamingCallback) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	if call, ok := ast.AsCall(n); ok {

@@ -35,10 +35,6 @@
 
 package rhino
 
-import (
-	"github.com/paullepoulpe/jsgo/internal/jutil"
-)
-
 type optBool uint8
 
 const (
@@ -83,9 +79,6 @@ type SubtypeChecker struct {
 	subtypingMode         optSubtypingMode
 	hasRun                bool
 }
-
-// Java: SubtypeChecker.BIVARIANT_TYPES
-var SubtypeChecker_BIVARIANT_TYPES = jutil.NewLinkedHashSet("Object", "IArrayLike", "Array")
 
 // SubtypeChecker_POTENTIALLY_CYCLIC_RECURSION_DEPTH is an arbitrary depth at
 // which to start checking for cyclic recursion.

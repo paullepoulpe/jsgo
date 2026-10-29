@@ -199,7 +199,8 @@ func (p *AngularPass) Visit(unused *NodeTraversal, n rhino.Node, parent rhino.No
 func (p *AngularPass) addNode(n rhino.Node) {
 	var injectAfter rhino.Node
 	var fn rhino.Node
-	var name *string
+	var name string
+	var hasName bool
 
 	switch n.GetToken() {
 	case rhino.Token_ASSIGN:
@@ -210,7 +211,7 @@ func (p *AngularPass) addNode(n rhino.Node) {
 			p.compiler.Report(JSError_MakeWithNode(n, AngularPass_INJECTED_FUNCTION_ON_NON_QNAME))
 			return
 		}
-		name = n.GetFirstChild().GetQualifiedName()
+		name, hasName = n.GetFirstChild().GetQualifiedNameString()
 		// last node of chained assignment.
 		fn = n
 		for fn.IsAssign() {
@@ -220,7 +221,9 @@ func (p *AngularPass) addNode(n rhino.Node) {
 	case rhino.Token_FUNCTION:
 		// handles function case:
 		// function fnName() {}
-		name = NodeUtil_GetName(n)
+		if namePtr := NodeUtil_GetName(n); namePtr != nil {
+			name, hasName = *namePtr, true
+		}
 		fn = n
 		injectAfter = n
 		if n.GetParent().IsAssign() && n.GetParent().GetJSDocInfo().IsNgInject() {
@@ -233,7 +236,7 @@ func (p *AngularPass) addNode(n rhino.Node) {
 		// handles var declaration cases like:
 		// var a = function() {}
 		// var a = b = function() {}
-		name = jutil.StringPtr(n.GetFirstChild().GetString())
+		name, hasName = n.GetFirstChild().GetString(), true
 		// looks for a function node.
 		fn = angularPass_getDeclarationRValue(n)
 		injectAfter = n
@@ -246,13 +249,16 @@ func (p *AngularPass) addNode(n rhino.Node) {
 		parent := n.GetParent()
 		if parent.IsClassMembers() {
 			classNode := parent.GetParent()
-			midPart := ".prototype."
-			if n.IsStaticMember() {
-				midPart = "."
-			}
-			name = jutil.StringPtr(jutil.ToJavaString(NodeUtil_GetName(classNode)) + midPart + n.GetString())
 			if NodeUtil_IsEs6ConstructorMemberFunctionDef(n) {
-				name = NodeUtil_GetName(classNode)
+				if namePtr := NodeUtil_GetName(classNode); namePtr != nil {
+					name, hasName = *namePtr, true
+				}
+			} else {
+				midPart := ".prototype."
+				if n.IsStaticMember() {
+					midPart = "."
+				}
+				name, hasName = jutil.ToJavaString(NodeUtil_GetName(classNode))+midPart+n.GetString(), true
 			}
 			fn = n.GetFirstChild()
 			injectAfter = NodeUtil_GetEnclosingStatement(classNode)
@@ -277,10 +283,12 @@ func (p *AngularPass) addNode(n rhino.Node) {
 	// checks that name is present, which must always be the case unless the
 	// compiler allowed a syntax error or a dangling anonymous function
 	// expression.
-	jutil.CheckNotNull(name)
+	if !hasName {
+		panic(jutil.NewNullPointerException())
+	}
 	// registers the node.
 	p.injectables = append(p.injectables, AngularPass_NodeContext{
-		name:         *name,
+		name:         name,
 		node:         n,
 		functionNode: fn,
 		target:       injectAfter,

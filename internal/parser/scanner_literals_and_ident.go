@@ -19,7 +19,8 @@
 package parser
 
 import (
-	"slices"
+	"strings"
+	"unicode/utf8"
 
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/strpool"
@@ -496,66 +497,100 @@ func (s *Scanner) ScanIdentifierOrKeyword(beginToken int, ch uint16) Token {
 	return newIdentifierTokenFromID(s.GetTokenRange(beginToken), s.internIdent(value), flags)
 }
 
-// Scanner_ProcessUnicodeEscapes converts unicode escapes in the given
-// string to the equivalent unicode character. If there are no escapes,
-// returns the input unchanged. If there is an invalid escape sequence,
-// returns nil (Java null).
-//
-// Java: Scanner.processUnicodeEscapes(String)
-func Scanner_ProcessUnicodeEscapes(valueString string) *string {
-	result, ok := scanner_processUnicodeEscapes(valueString)
-	if !ok {
-		return nil
+func scannerNextHexDigit(s string, pos int) (uint32, int, bool) {
+	if pos >= len(s) {
+		return 0, pos, false
 	}
-	return &result
+	b := s[pos]
+	if b < 0x80 {
+		switch {
+		case b >= '0' && b <= '9':
+			return uint32(b - '0'), pos + 1, true
+		case b >= 'a' && b <= 'f':
+			return uint32(b - 'a' + 10), pos + 1, true
+		case b >= 'A' && b <= 'F':
+			return uint32(b - 'A' + 10), pos + 1, true
+		default:
+			return 0, pos, false
+		}
+	}
+	r, width := utf8.DecodeRuneInString(s[pos:])
+	if (r == utf8.RuneError && width == 1) || r > 0xFFFF {
+		return 0, pos, false
+	}
+	d := jutil.CharacterDigit(uint16(r), 16)
+	if d < 0 {
+		return 0, pos, false
+	}
+	return uint32(d), pos + width, true
 }
 
 func scanner_processUnicodeEscapes(valueString string) (string, bool) {
-	// Go-only: language-adapter — the Java String is handled as UTF-16 code
-	// units so that indices are char indices.
-	value := jutil.StringToUTF16(valueString)
+	firstSlash := strings.IndexByte(valueString, '\\')
+	if firstSlash < 0 {
+		return valueString, true
+	}
+
+	var sb strings.Builder
+	sb.Grow(len(valueString))
+	pos := 0
+	slash := firstSlash
 	for {
-		escapeStart := slices.Index(value, '\\')
-		if escapeStart < 0 {
-			break
-		}
-		if escapeStart+2 >= len(value) || value[escapeStart+1] != 'u' {
+		sb.WriteString(valueString[pos : pos+slash])
+		i := pos + slash
+		if i+2 >= len(valueString) || valueString[i+1] != 'u' {
 			return "", false
 		}
 
-		var hexDigits []uint16
-		var escapeEnd int
-		if value[escapeStart+2] != '{' {
-			// Simple escape with exactly four hex digits: \\uXXXX
-			escapeEnd = escapeStart + 6
-			if escapeEnd > len(value) {
-				return "", false
+		var codePoint uint32
+		if valueString[i+2] != '{' {
+			// Simple escape with exactly four hex digits: \uXXXX
+			j := i + 2
+			for k := 0; k < 4; k++ {
+				nib, nextPos, ok := scannerNextHexDigit(valueString, j)
+				if !ok {
+					return "", false
+				}
+				codePoint = (codePoint << 4) | nib
+				j = nextPos
 			}
-			hexDigits = value[escapeStart+2 : escapeEnd]
+			pos = j
 		} else {
-			// Escape with braces can have any number of hex digits: \\u{XXXXXXX}
-			escapeEnd = escapeStart + 3
-			for escapeEnd < len(value) && Scanner_IsHexDigit(value[escapeEnd]) {
-				escapeEnd++
+			// Escape with braces can have any number of hex digits: \u{XXXXXXX}
+			j := i + 3
+			for j < len(valueString) {
+				nib, nextPos, ok := scannerNextHexDigit(valueString, j)
+				if !ok {
+					break
+				}
+				if codePoint <= 0xFFFF {
+					codePoint = (codePoint << 4) | nib
+				}
+				j = nextPos
 			}
-			if escapeEnd >= len(value) || value[escapeEnd] != '}' {
+			if j == i+3 || j >= len(valueString) || valueString[j] != '}' || codePoint > 0xFFFF {
 				return "", false
 			}
-			hexDigits = value[escapeStart+3 : escapeEnd]
-			escapeEnd++
+			pos = j + 1
 		}
-		codePoint, ok := jutil.TryIntegerParseInt(jutil.StringFromUTF16(hexDigits), 0x10)
-		if !ok || codePoint > 0xFFFF {
-			return "", false
-		}
+
 		ch := uint16(codePoint)
 		if !Identifiers_IsIdentifierPart(ch) {
 			return "", false
 		}
-		value[escapeStart] = ch
-		value = slices.Delete(value, escapeStart+1, escapeEnd)
+		if ch < 0x80 {
+			sb.WriteByte(byte(ch))
+		} else {
+			sb.WriteRune(rune(ch))
+		}
+
+		slash = strings.IndexByte(valueString[pos:], '\\')
+		if slash < 0 {
+			sb.WriteString(valueString[pos:])
+			break
+		}
 	}
-	return jutil.StringFromUTF16(value), true
+	return sb.String(), true
 }
 
 // Java: Scanner.scanStringLiteral(int, char)

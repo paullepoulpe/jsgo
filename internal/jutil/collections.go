@@ -12,15 +12,6 @@ import (
 // iteration-order semantics. Ported code uses these (never a ranged Go map)
 // wherever Java iteration order is observable.
 
-// Collection is the part of java.util.Collection<T> that bulk operations
-// read: the size, membership, and the elements in iteration order.
-// *ArrayList, *LinkedHashSet, and *ObjectLinkedHashSet implement it.
-type Collection[T any] interface {
-	Size() int
-	Contains(e T) bool
-	All() iter.Seq[T]
-}
-
 // MapSource is the part of java.util.Map<K, V> that copy constructors and
 // putAll read: the size and the entries in iteration order. *LinkedHashMap
 // and *ObjectLinkedHashMap implement it.
@@ -30,9 +21,6 @@ type MapSource[K any, V any] interface {
 }
 
 var (
-	_ Collection[string]     = (*ArrayList[string])(nil)
-	_ Collection[string]     = (*LinkedHashSet[string])(nil)
-	_ Collection[string]     = (*ObjectLinkedHashSet[string])(nil)
 	_ MapSource[string, int] = (*LinkedHashMap[string, int])(nil)
 	_ MapSource[string, int] = (*ObjectLinkedHashMap[string, int])(nil)
 )
@@ -53,154 +41,10 @@ type JavaMap interface {
 	javaMap()
 }
 
-func (*ArrayList[T]) javaCollection()           {}
 func (*LinkedHashSet[T]) javaCollection()       {}
 func (*LinkedHashMap[K, V]) javaMap()           {}
 func (*ObjectLinkedHashSet[T]) javaCollection() {}
 func (*ObjectLinkedHashMap[K, V]) javaMap()     {}
-
-// ---------------------------------------------------------------------------
-// ArrayList
-
-// ArrayList is java.util.ArrayList: a growable list with reference
-// semantics (mutations through any alias are visible to all holders, unlike
-// a bare Go slice). Use plain []T for Java ImmutableList / List.of values
-// that are never mutated after construction.
-type ArrayList[T any] struct {
-	elems []T
-}
-
-// NewArrayList returns an empty list.
-func NewArrayList[T any]() *ArrayList[T] { return &ArrayList[T]{} }
-
-// NewArrayListWithCapacity is new ArrayList<>(capacity).
-func NewArrayListWithCapacity[T any](capacity int) *ArrayList[T] {
-	return &ArrayList[T]{elems: make([]T, 0, capacity)}
-}
-
-// NewArrayListFrom is new ArrayList<>(collection) / Lists.newArrayList(...).
-func NewArrayListFrom[T any](elems []T) *ArrayList[T] {
-	return &ArrayList[T]{elems: slices.Clone(elems)}
-}
-
-func (l *ArrayList[T]) Size() int     { return len(l.elems) }
-func (l *ArrayList[T]) IsEmpty() bool { return len(l.elems) == 0 }
-
-// Add appends e; always returns true like Collection.add.
-func (l *ArrayList[T]) Add(e T) bool {
-	l.elems = append(l.elems, e)
-	return true
-}
-
-// AddAt is List.add(int, E).
-func (l *ArrayList[T]) AddAt(index int, e T) {
-	if index < 0 || index > len(l.elems) {
-		panic(NewIndexOutOfBoundsException(LenientFormat("Index: %s, Size: %s", index, len(l.elems))))
-	}
-	l.elems = slices.Insert(l.elems, index, e)
-}
-
-// AddAll appends all elements.
-func (l *ArrayList[T]) AddAll(es ...T) bool {
-	l.elems = append(l.elems, es...)
-	return len(es) > 0
-}
-
-func (l *ArrayList[T]) checkIndex(index int) {
-	if uint(index) >= uint(len(l.elems)) {
-		l.indexOutOfBounds(index)
-	}
-}
-
-// indexOutOfBounds is kept out of line so that the checks above inline.
-//
-//go:noinline
-func (l *ArrayList[T]) indexOutOfBounds(index int) {
-	panic(NewIndexOutOfBoundsException(LenientFormat("Index %s out of bounds for length %s", index, len(l.elems))))
-}
-
-// Get is List.get(int).
-func (l *ArrayList[T]) Get(index int) T {
-	if uint(index) >= uint(len(l.elems)) {
-		l.indexOutOfBounds(index)
-	}
-	return l.elems[index]
-}
-
-// Set is List.set(int, E); returns the previous element.
-func (l *ArrayList[T]) Set(index int, e T) T {
-	l.checkIndex(index)
-	old := l.elems[index]
-	l.elems[index] = e
-	return old
-}
-
-// RemoveAt is List.remove(int); returns the removed element.
-func (l *ArrayList[T]) RemoveAt(index int) T {
-	l.checkIndex(index)
-	old := l.elems[index]
-	l.elems = slices.Delete(l.elems, index, index+1)
-	return old
-}
-
-// Clear is List.clear().
-func (l *ArrayList[T]) Clear() { clear(l.elems); l.elems = l.elems[:0] }
-
-// IndexOf is List.indexOf(Object) using Go == on the dynamic values
-// (identity for pointers, value equality for strings and numbers).
-func (l *ArrayList[T]) IndexOf(e T) int {
-	for i, x := range l.elems {
-		if any(x) == any(e) {
-			return i
-		}
-	}
-	return -1
-}
-
-// Contains is List.contains(Object) with the same equality as IndexOf.
-func (l *ArrayList[T]) Contains(e T) bool { return l.IndexOf(e) >= 0 }
-
-// Remove is List.remove(Object): removes the first equal element.
-func (l *ArrayList[T]) Remove(e T) bool {
-	if i := l.IndexOf(e); i >= 0 {
-		l.elems = slices.Delete(l.elems, i, i+1)
-		return true
-	}
-	return false
-}
-
-// GetFirst / GetLast are List.getFirst()/getLast() (Java 21).
-func (l *ArrayList[T]) GetFirst() T { l.checkIndex(0); return l.elems[0] }
-func (l *ArrayList[T]) GetLast() T  { l.checkIndex(len(l.elems) - 1); return l.elems[len(l.elems)-1] }
-
-// RemoveLast is List.removeLast() (Java 21).
-func (l *ArrayList[T]) RemoveLast() T { return l.RemoveAt(len(l.elems) - 1) }
-
-// Slice returns the backing slice. Callers must not retain it across
-// mutations of the list.
-func (l *ArrayList[T]) Slice() []T {
-	if l == nil {
-		return nil
-	}
-	return l.elems
-}
-
-// ToSlice returns a copy (Java: ImmutableList.copyOf(list)).
-func (l *ArrayList[T]) ToSlice() []T { return slices.Clone(l.elems) }
-
-// All iterates in index order (Java: for (T e : list)).
-func (l *ArrayList[T]) All() iter.Seq[T] {
-	return func(yield func(T) bool) {
-		for _, e := range l.elems {
-			if !yield(e) {
-				return
-			}
-		}
-	}
-}
-
-// String renders like AbstractCollection.toString(): "[a, b]".
-func (l *ArrayList[T]) String() string { return CollectionToString(l.elems) }
 
 // CollectionToString renders elements like Java's AbstractCollection.toString.
 func CollectionToString[T any](elems []T) string {
@@ -221,50 +65,6 @@ func ListHashCode[T any](elems []T) int32 {
 	var h int32 = 1
 	for _, e := range elems {
 		h = 31*h + ObjectHashCode(e)
-	}
-	return h
-}
-
-// javaList is implemented by list types so that List.equals can compare
-// across implementations.
-type javaList interface {
-	javaListElems() []any
-}
-
-func (l *ArrayList[T]) javaListElems() []any {
-	out := make([]any, len(l.elems))
-	for i, e := range l.elems {
-		out[i] = e
-	}
-	return out
-}
-
-// Equals is List.equals(Object): same size and pairwise Objects.equals.
-func (l *ArrayList[T]) Equals(o any) bool {
-	if any(l) == o {
-		return true
-	}
-	other, ok := o.(javaList)
-	if !ok || IsNil(o) {
-		return false
-	}
-	oe := other.javaListElems()
-	if len(oe) != len(l.elems) {
-		return false
-	}
-	for i, e := range l.elems {
-		if !ObjectsEquals(e, oe[i]) {
-			return false
-		}
-	}
-	return true
-}
-
-// HashCode is List.hashCode().
-func (l *ArrayList[T]) HashCode() int32 {
-	var h int32 = 1
-	for _, e := range l.elems {
-		h = 31*h + ObjectHashCodeOf(e)
 	}
 	return h
 }

@@ -59,14 +59,10 @@ type Scanner struct {
 // TemplateError returns the diagnostic / error-position record for a
 // TemplateLiteralToken.
 func (s *Scanner) TemplateError(tok Token) TemplateTokenError {
-	if tok.aux == 0 {
+	if tok.aux == 0 || s == nil {
 		return TemplateTokenError{Position: tok.Location.Start}
 	}
-	idx := int(tok.aux - 1)
-	if s != nil && idx < len(s.templateErrors) {
-		return s.templateErrors[idx]
-	}
-	return standaloneTemplateErrors[idx]
+	return s.templateErrors[tok.aux-1]
 }
 
 func (s *Scanner) newStringLiteralToken(location SourceRange, hasUnescapedUnicodeLineOrParagraphSeparator bool) Token {

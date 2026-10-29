@@ -581,7 +581,6 @@ func NodeUtil_GetAllVarsDeclaredInFunction(
 	finder := &nodeUtil_getAllVarsDeclaredInFunction_finder{
 		scope: scope,
 	}
-	finder.result.allVarsInFn = &finder.result.mapStorage
 
 	b := NodeTraversal_Builder{
 		compiler:     compiler,
@@ -590,7 +589,8 @@ func NodeUtil_GetAllVarsDeclaredInFunction(
 	}
 	b.TraverseAtScope(scope)
 
-	jutil.CheckState(finder.result.allVarsInFn.IsEmpty() == (len(finder.result.orderedVars) == 0))
+	finder.result.table.finalize()
+	jutil.CheckState((finder.result.table.uniqueCount == 0) == (len(finder.result.table.vars) == 0))
 	return &finder.result
 }
 
@@ -688,23 +688,7 @@ func nodeUtilScopeRootMayDeclareVars(root, fnRoot rhino.Node) bool {
 }
 
 func (f *nodeUtil_getAllVarsDeclaredInFunction_finder) appendScopeVars(currentScope *Scope) {
-	n := currentScope.GetVarCount()
-	if n == 0 {
-		return
-	}
-	if need := len(f.result.orderedVars) + n; need > cap(f.result.orderedVars) {
-		newCap := max(need, 2*cap(f.result.orderedVars))
-		buf := make([]*Var, len(f.result.orderedVars), newCap)
-		copy(buf, f.result.orderedVars)
-		f.result.orderedVars = buf
-	}
-	for _, v := range currentScope.varList {
-		if v == nil {
-			continue
-		}
-		f.result.mapStorage.Put(v.GetName(), v)
-		f.result.orderedVars = append(f.result.orderedVars, v)
-	}
+	f.result.table.appendScopeVars(currentScope)
 }
 
 // Java: NodeUtil.getAllVarsDeclaredInFunction(...).finder.enterScope(NodeTraversal)
@@ -769,17 +753,24 @@ func (f *nodeUtil_getAllVarsDeclaredInFunction_finder) Visit(t *NodeTraversal, n
 //
 // Java: NodeUtil.AllVarsDeclaredInFunction
 type NodeUtil_AllVarsDeclaredInFunction struct {
+	table       fnVarTable
 	allVarsInFn *jutil.LinkedHashMap[string, *Var]
-	orderedVars []*Var
 	mapStorage  jutil.LinkedHashMap[string, *Var]
 }
 
 // Java: NodeUtil.AllVarsDeclaredInFunction.getAllVariables()
 func (a *NodeUtil_AllVarsDeclaredInFunction) GetAllVariables() *jutil.LinkedHashMap[string, *Var] {
+	if a.allVarsInFn == nil {
+		a.mapStorage.Clear()
+		for _, v := range a.table.vars {
+			a.mapStorage.Put(v.GetName(), v)
+		}
+		a.allVarsInFn = &a.mapStorage
+	}
 	return a.allVarsInFn
 }
 
 // Java: NodeUtil.AllVarsDeclaredInFunction.getAllVariablesInOrder()
 func (a *NodeUtil_AllVarsDeclaredInFunction) GetAllVariablesInOrder() []*Var {
-	return a.orderedVars
+	return a.table.vars
 }

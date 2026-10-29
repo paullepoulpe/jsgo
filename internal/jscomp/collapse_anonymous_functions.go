@@ -19,12 +19,22 @@
 package jscomp
 
 import (
+	"github.com/paullepoulpe/jsgo/internal/ast"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 	"github.com/paullepoulpe/jsgo/internal/strpool"
 )
 
-var cafEmptyStringID = uint32(strpool.Intern(""))
+var (
+	cafEmptyStringID = uint32(strpool.Intern(""))
+	cafVisitTokens   = func() ast.TokenSet {
+		var s ast.TokenSet
+		s.Add(rhino.Token_LET)
+		s.Add(rhino.Token_CONST)
+		s.Add(rhino.Token_VAR)
+		return s
+	}()
+)
 
 // CollapseAnonymousFunctions collapses anonymous function expressions into
 // named function declarations, i.e. the following:
@@ -55,6 +65,17 @@ func NewCollapseAnonymousFunctions(compiler AbstractCompiler) *CollapseAnonymous
 // Java: CollapseAnonymousFunctions.process(Node, Node)
 func (c *CollapseAnonymousFunctions) Process(externs rhino.Node, root rhino.Node) {
 	NodeTraversal_Traverse(c.compiler, root, c)
+}
+
+var (
+	_ nodeTraversal_noVisitLeaves = (*CollapseAnonymousFunctions)(nil)
+	_ nodeTraversal_visitTokens   = (*CollapseAnonymousFunctions)(nil)
+)
+
+func (*CollapseAnonymousFunctions) noVisitLeaves() {}
+
+func (*CollapseAnonymousFunctions) visitTokens() *ast.TokenSet {
+	return &cafVisitTokens
 }
 
 // Java: CollapseAnonymousFunctions.visit(NodeTraversal, Node, Node)

@@ -555,16 +555,24 @@ func NodeUtil_GetEnclosingType(n rhino.Node, type_ rhino.Token) rhino.Node {
 	return rhino.NilNode
 }
 
-var nodeUtil_opToStrTable = func() []*string {
-	values := rhino.Token_values()
-	table := make([]*string, len(values))
-	for _, t := range values {
+var (
+	nodeUtil_opToStrValues [256]string
+	nodeUtil_opToStrTable  [256]*string
+)
+
+func init() {
+	for _, t := range rhino.Token_values() {
 		if s, ok := nodeUtil_opToStrSwitch(t); ok {
-			table[t] = jutil.StringPtr(s)
+			nodeUtil_opToStrValues[t] = s
+			nodeUtil_opToStrTable[t] = &nodeUtil_opToStrValues[t]
 		}
 	}
-	return table
-}()
+}
+
+func nodeUtil_opToStr(operator rhino.Token) (string, bool) {
+	s := nodeUtil_opToStrValues[operator]
+	return s, s != ""
+}
 
 // nodeUtil_opToStrSwitch is the switch of NodeUtil.opToStr(Token); ok is
 // false where Java returns null.
@@ -673,11 +681,11 @@ func nodeUtil_opToStrSwitch(operator rhino.Token) (string, bool) {
 //
 // Java: NodeUtil.opToStrNoFail(Token)
 func NodeUtil_OpToStrNoFail(operator rhino.Token) string {
-	res := NodeUtil_OpToStr(operator)
-	if res == nil {
+	res, ok := nodeUtil_opToStr(operator)
+	if !ok {
 		panic(jutil.NewJavaLangError("Unknown op " + operator.String()))
 	}
-	return *res
+	return res
 }
 
 // NodeUtil_RedeclareVarsInsideBranch: given a node tree, finds all the VAR

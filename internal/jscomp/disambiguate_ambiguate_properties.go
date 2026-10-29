@@ -22,6 +22,7 @@ import (
 	"slices"
 	"strconv"
 
+	"github.com/paullepoulpe/jsgo/internal/ast"
 	"github.com/paullepoulpe/jsgo/internal/colors"
 	"github.com/paullepoulpe/jsgo/internal/graph"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
@@ -68,11 +69,10 @@ type AmbiguateProperties struct {
 	propIndexByID map[uint32]uint32
 
 	// Property names that don't get renamed
-	externedNames *jutil.LinkedHashSet[string]
-	externedIDs   inlineBitSet
+	externedIDs inlineBitSet
 
 	// Names to which properties shouldn't be renamed, to avoid name conflicts
-	quotedNames *jutil.LinkedHashSet[string]
+	quotedIDs inlineBitSet
 
 	colorRegistry *colors.ColorRegistry
 
@@ -105,11 +105,8 @@ func NewAmbiguateProperties(
 	jutil.CheckState(compiler.GetLifeCycleStage().IsNormalized())
 	// ImmutableSet.<String>builder().add("prototype").addAll(externProperties).build()
 	var externedIDs inlineBitSet
-	externedNames := jutil.NewLinkedHashSetWithCapacity[string](externProperties.Size() + 1)
-	externedNames.Add("prototype")
 	externedIDs.Set(int(rhino.RhinoStringPool_InternID("prototype")))
 	for name := range externProperties.All() {
-		externedNames.Add(name)
 		externedIDs.Set(int(rhino.RhinoStringPool_InternID(name)))
 	}
 	return &AmbiguateProperties{
@@ -118,9 +115,7 @@ func NewAmbiguateProperties(
 		reservedNonFirstCharacters: reservedNonFirstCharacters,
 		properties:                 make([]AmbiguateProperties_Property, 0, 2048),
 		propIndexByID:              make(map[uint32]uint32, 2048),
-		externedNames:              externedNames,
 		externedIDs:                externedIDs,
-		quotedNames:                jutil.NewLinkedHashSetWithCapacity[string](256),
 		colorRegistry:              compiler.GetColorRegistry(),
 	}
 }
@@ -243,23 +238,22 @@ func (a *AmbiguateProperties) Process(externs rhino.Node, root rhino.Node) {
 
 	// ImmutableSet.<String>builder().addAll(externedNames).addAll(quotedNames)
 	numProperties := len(a.properties)
-	reservedNames := jutil.NewLinkedHashSetWithCapacity[string](a.externedNames.Size() + a.quotedNames.Size() + numProperties + 256)
-	for name := range a.externedNames.All() {
-		reservedNames.Add(name)
+	reservedNames := make(stringMapSet, a.externedIDs.Cardinality()+a.quotedIDs.Cardinality()+256)
+	for id := a.externedIDs.NextSetBit(0); id >= 0; id = a.externedIDs.NextSetBit(id + 1) {
+		reservedNames[rhino.RhinoStringPool_StringFromID(uint32(id))] = struct{}{}
 	}
-	for name := range a.quotedNames.All() {
-		reservedNames.Add(name)
+	for id := a.quotedIDs.NextSetBit(0); id >= 0; id = a.quotedIDs.NextSetBit(id + 1) {
+		reservedNames[rhino.RhinoStringPool_StringFromID(uint32(id))] = struct{}{}
 	}
-	a.externedNames = nil
 	a.externedIDs = inlineBitSet{}
-	a.quotedNames = nil
+	a.quotedIDs = inlineBitSet{}
 	numSkippedPropertyNames := 0
 	props := make([]*AmbiguateProperties_Property, 0, numProperties)
 	for i := range a.properties {
 		prop := &a.properties[i]
 		if prop.skipAmbiguating {
 			numSkippedPropertyNames++
-			reservedNames.Add(prop.oldName)
+			reservedNames[prop.oldName] = struct{}{}
 		} else {
 			props = append(props, prop)
 		}
@@ -369,7 +363,29 @@ type AmbiguateProperties_ProcessPropertiesAndConstructors struct {
 	outer *AmbiguateProperties
 }
 
+var ambiguatePropertiesVisitTokens = func() ast.TokenSet {
+	var s ast.TokenSet
+	s.Add(rhino.Token_GETPROP)
+	s.Add(rhino.Token_OPTCHAIN_GETPROP)
+	s.Add(rhino.Token_CALL)
+	s.Add(rhino.Token_NAME)
+	s.Add(rhino.Token_OBJECTLIT)
+	s.Add(rhino.Token_OBJECT_PATTERN)
+	s.Add(rhino.Token_GETELEM)
+	s.Add(rhino.Token_CLASS)
+	return s
+}()
+
+var (
+	_ nodeTraversal_onlyNameLeaves = (*AmbiguateProperties_ProcessPropertiesAndConstructors)(nil)
+	_ nodeTraversal_visitTokens    = (*AmbiguateProperties_ProcessPropertiesAndConstructors)(nil)
+)
+
 func (*AmbiguateProperties_ProcessPropertiesAndConstructors) onlyNameLeaves() {}
+
+func (*AmbiguateProperties_ProcessPropertiesAndConstructors) visitTokens() *ast.TokenSet {
+	return &ambiguatePropertiesVisitTokens
+}
 
 // Java: AmbiguateProperties.ProcessPropertiesAndConstructors.visit(NodeTraversal, Node, Node)
 func (p *AmbiguateProperties_ProcessPropertiesAndConstructors) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
@@ -457,13 +473,13 @@ func (p *AmbiguateProperties_ProcessPropertiesAndConstructors) ProcessObjectProp
 			//
 			// This is largely because we store quoted member functions as computed properties and
 			// want to be consistent with how other quoted properties invalidate property names.
-			a.quotedNames.Add(key.GetFirstChild().GetString())
+			a.quotedIDs.Set(int(key.GetFirstChild().GetStringID()))
 		}
 	case rhino.Token_MEMBER_FUNCTION_DEF, rhino.Token_GETTER_DEF, rhino.Token_SETTER_DEF, rhino.Token_STRING_KEY:
 		if key.IsQuotedStringKey() {
 			// If this quoted prop name is statically determinable, ensure we don't rename some
 			// other property in a way that could conflict with it
-			a.quotedNames.Add(key.GetString())
+			a.quotedIDs.Set(int(key.GetStringID()))
 		} else {
 			p.MaybeMarkCandidate(key, type_)
 		}
@@ -500,7 +516,7 @@ func (p *AmbiguateProperties_ProcessPropertiesAndConstructors) ProcessGetElem(n 
 	// could conflict with this quoted name.
 	child := n.GetLastChild()
 	if child.IsStringLit() {
-		p.outer.quotedNames.Add(child.GetString())
+		p.outer.quotedIDs.Set(int(child.GetStringID()))
 	}
 }
 
@@ -524,13 +540,13 @@ func (p *AmbiguateProperties_ProcessPropertiesAndConstructors) ProcessClass(clas
 			// ignore get 'foo'() {} and prevent property name collisions
 			// Note that only getters/setters are represented as quoted strings, not 'foo'() {}
 			// see https://github.com/google/closure-compiler/issues/3071
-			a.quotedNames.Add(member.GetString())
+			a.quotedIDs.Set(int(member.GetStringID()))
 			continue
 		} else if member.IsComputedProp() || member.IsComputedFieldDef() {
 			// ignore ['foo']() {}
 			// for simple cases, we also prevent renaming collisions
 			if member.GetFirstChild().IsStringLit() {
-				a.quotedNames.Add(member.GetFirstChild().GetString())
+				a.quotedIDs.Set(int(member.GetFirstChild().GetStringID()))
 			}
 			continue
 		} else if NodeUtil_IsEs6ConstructorMemberFunctionDef(member) {

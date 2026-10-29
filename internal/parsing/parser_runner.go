@@ -58,6 +58,8 @@ import (
 	"slices"
 	"strings"
 	"sync"
+	"unicode/utf16"
+	"unicode/utf8"
 
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/parser"
@@ -85,18 +87,6 @@ var (
 		return jutil.NewLinkedHashSet(parserRunner_suppressionOrder...)
 	})
 )
-
-// Java: ParserRunner.createConfig(LanguageMode, Set<String>, StrictMode)
-func ParserRunner_CreateConfig(
-	languageMode Config_LanguageMode, extraAnnotationNames *jutil.LinkedHashSet[string], strictMode Config_StrictMode) *Config {
-	return ParserRunner_CreateConfigWithModes(
-		languageMode,
-		Config_JsDocParsing_TYPES_ONLY,
-		Config_RunMode_STOP_AFTER_ERROR,
-		extraAnnotationNames,
-		true,
-		strictMode)
-}
 
 // Java: ParserRunner.createConfig(LanguageMode, JsDocParsing, RunMode, Set<String>, boolean, StrictMode)
 func ParserRunner_CreateConfigWithModes(
@@ -393,47 +383,52 @@ func ParserConfiguration_GetString(name string) string {
 }
 
 func propertiesLoad(text string) map[string]string {
-	in := jutil.StringToUTF16(text)
 	result := make(map[string]string)
 	pos := 0
 lines:
-	for pos < len(in) {
-		start, end, next := propertiesNaturalLine(in, pos)
+	for pos < len(text) {
+		start, end, next := propertiesNaturalLine(text, pos)
 		pos = next
-		i := propertiesSkipSpace(in, start, end)
-		if i == end || in[i] == '#' || in[i] == '!' {
+		i := propertiesSkipSpace(text, start, end)
+		if i == end || text[i] == '#' || text[i] == '!' {
 			continue
 		}
-		var logical []uint16
-		for {
-			if !propertiesContinues(in, i, end) {
-				logical = append(logical, in[i:end]...)
-				break
-			}
-			logical = append(logical, in[i:end-1]...)
-			if pos >= len(in) {
-				if len(logical) == 0 && next-end == 2 {
+		var logical string
+		if !propertiesContinues(text, i, end) {
+			logical = text[i:end]
+		} else {
+			var sb strings.Builder
+			for {
+				if !propertiesContinues(text, i, end) {
+					sb.WriteString(text[i:end])
+					break
+				}
+				sb.WriteString(text[i : end-1])
+				if pos >= len(text) {
+					if sb.Len() == 0 && next-end == 2 {
+						continue lines
+					}
+					break
+				}
+				if sb.Len() == 0 {
 					continue lines
 				}
-				break
+				start, end, next = propertiesNaturalLine(text, pos)
+				pos = next
+				i = propertiesSkipSpace(text, start, end)
+				if i == end {
+					break
+				}
 			}
-			if len(logical) == 0 {
-				continue lines
-			}
-			start, end, next = propertiesNaturalLine(in, pos)
-			pos = next
-			i = propertiesSkipSpace(in, start, end)
-			if i == end {
-				break
-			}
+			logical = sb.String()
 		}
 		key, value := propertiesSplitLine(logical)
-		result[jutil.StringFromUTF16(propertiesUnescape(key))] = jutil.StringFromUTF16(propertiesUnescape(value))
+		result[propertiesUnescape(key)] = propertiesUnescape(value)
 	}
 	return result
 }
 
-func propertiesNaturalLine(in []uint16, pos int) (start, end, next int) {
+func propertiesNaturalLine(in string, pos int) (start, end, next int) {
 	end = pos
 	for end < len(in) && in[end] != '\n' && in[end] != '\r' {
 		end++
@@ -448,16 +443,16 @@ func propertiesNaturalLine(in []uint16, pos int) (start, end, next int) {
 	return pos, end, next
 }
 
-func propertiesIsSpace(c uint16) bool { return c == ' ' || c == '\t' || c == '\f' }
+func propertiesIsSpace(c byte) bool { return c == ' ' || c == '\t' || c == '\f' }
 
-func propertiesSkipSpace(in []uint16, i, end int) int {
+func propertiesSkipSpace(in string, i, end int) int {
 	for i < end && propertiesIsSpace(in[i]) {
 		i++
 	}
 	return i
 }
 
-func propertiesContinues(in []uint16, i, end int) bool {
+func propertiesContinues(in string, i, end int) bool {
 	n := 0
 	for j := end - 1; j >= i && in[j] == '\\'; j-- {
 		n++
@@ -465,12 +460,16 @@ func propertiesContinues(in []uint16, i, end int) bool {
 	return n%2 == 1
 }
 
-func propertiesSplitLine(line []uint16) (key, value []uint16) {
+func propertiesSplitLine(line string) (key, value string) {
 	k := 0
 	for k < len(line) {
 		c := line[k]
 		if c == '\\' {
-			k += 2
+			k++
+			if k < len(line) {
+				_, w := utf8.DecodeRuneInString(line[k:])
+				k += w
+			}
 			continue
 		}
 		if c == '=' || c == ':' || propertiesIsSpace(c) {
@@ -488,12 +487,16 @@ func propertiesSplitLine(line []uint16) (key, value []uint16) {
 	return line[:k], line[v:]
 }
 
-func propertiesUnescape(s []uint16) []uint16 {
-	out := make([]uint16, 0, len(s))
+func propertiesUnescape(s string) string {
+	if strings.IndexByte(s, '\\') < 0 {
+		return s
+	}
+	var out strings.Builder
+	out.Grow(len(s))
 	for i := 0; i < len(s); i++ {
 		c := s[i]
 		if c != '\\' {
-			out = append(out, c)
+			out.WriteByte(c)
 			continue
 		}
 		i++
@@ -502,35 +505,58 @@ func propertiesUnescape(s []uint16) []uint16 {
 		}
 		switch c = s[i]; c {
 		case 't':
-			out = append(out, '\t')
+			out.WriteByte('\t')
 		case 'n':
-			out = append(out, '\n')
+			out.WriteByte('\n')
 		case 'r':
-			out = append(out, '\r')
+			out.WriteByte('\r')
 		case 'f':
-			out = append(out, '\f')
+			out.WriteByte('\f')
 		case 'u':
-			var v uint16
-			for k := 1; k <= 4; k++ {
-				d := -1
-				if i+k < len(s) {
-					d = propertiesHexDigit(s[i+k])
-				}
-				if d < 0 {
-					panic(jutil.NewIllegalArgumentExceptionMsg(`Malformed \uxxxx encoding.`))
-				}
-				v = v<<4 | uint16(d)
-			}
-			out = append(out, v)
+			v := propertiesParseHex4(s, i+1)
 			i += 4
+			if v >= 0xD800 && v <= 0xDBFF && i+6 < len(s) && s[i+1] == '\\' && s[i+2] == 'u' {
+				v2 := propertiesParseHex4(s, i+3)
+				if v2 >= 0xDC00 && v2 <= 0xDFFF {
+					out.WriteRune(utf16.DecodeRune(rune(v), rune(v2)))
+					i += 6
+					continue
+				}
+			}
+			if v >= 0xD800 && v <= 0xDFFF {
+				out.WriteRune(utf8.RuneError)
+			} else {
+				out.WriteRune(rune(v))
+			}
 		default:
-			out = append(out, c)
+			if c < 0x80 {
+				out.WriteByte(c)
+			} else {
+				r, w := utf8.DecodeRuneInString(s[i:])
+				out.WriteRune(r)
+				i += w - 1
+			}
 		}
 	}
-	return out
+	return out.String()
 }
 
-func propertiesHexDigit(c uint16) int {
+func propertiesParseHex4(s string, pos int) uint16 {
+	var v uint16
+	for k := 0; k < 4; k++ {
+		d := -1
+		if pos+k < len(s) {
+			d = propertiesHexDigit(s[pos+k])
+		}
+		if d < 0 {
+			panic(jutil.NewIllegalArgumentExceptionMsg(`Malformed \uxxxx encoding.`))
+		}
+		v = v<<4 | uint16(d)
+	}
+	return v
+}
+
+func propertiesHexDigit(c byte) int {
 	switch {
 	case c >= '0' && c <= '9':
 		return int(c - '0')

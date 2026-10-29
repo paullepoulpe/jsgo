@@ -1,4 +1,4 @@
-package jutil
+package xtbxml
 
 // Go-only: language-adapter — the input side of the SAX parser in
 // sax_parser.go: encoding detection, decoding, and the character buffer the
@@ -37,6 +37,8 @@ import (
 	"strconv"
 	"strings"
 	"unicode/utf8"
+
+	"github.com/paullepoulpe/jsgo/internal/jutil"
 )
 
 const (
@@ -150,7 +152,7 @@ func (in *saxInput) detectEncoding() {
 		in.enc = saxEncUTF16LE
 	case len(b) >= 4 && ((b[0] == 0 && b[1] == 0) || (b[2] == 0 && b[3] == 0) ||
 		(b[0] == 0x4C && b[1] == 0x6F && b[2] == 0xA7 && b[3] == 0x94)):
-		panic(NewUnsupportedOperationExceptionMsg("SAX parser: UCS-4 and EBCDIC input are not emulated"))
+		panic(jutil.NewUnsupportedOperationExceptionMsg("SAX parser: UCS-4 and EBCDIC input are not emulated"))
 	default:
 		in.enc = saxEncUTF8
 	}
@@ -176,7 +178,7 @@ func (in *saxInput) readRaw(n int) []byte {
 		if err == io.EOF {
 			in.srcEOF = true
 		} else if err != nil {
-			panic(NewIOException(err.Error()))
+			panic(jutil.NewIOException(err.Error()))
 		}
 	}
 	// Return a copy the caller may keep while readRaw is called again for
@@ -664,7 +666,7 @@ func saxEncodingByName(name string) (saxEncoding, bool) {
 }
 
 // saxUnsupportedEncodingException is java.io.UnsupportedEncodingException.
-type saxUnsupportedEncodingException struct{ IOException }
+type saxUnsupportedEncodingException struct{ jutil.IOException }
 
 // saxKnownEncoding reports whether name is a common encoding (IANA name)
 // that the JDK supports but this parser does not emulate; any other name

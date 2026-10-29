@@ -960,7 +960,9 @@ func (p *JsDocInfoParser) ParseRecordType(token JsDocToken) rhino.Node {
 func (p *JsDocInfoParser) ParseFieldTypeList(token JsDocToken) rhino.Node {
 	fieldTypeList := p.NewNode(rhino.Token_LB)
 
-	names := jutil.NewLinkedHashSet[string]()
+	var small [8]string
+	nSmall := 0
+	var namesMap map[string]struct{}
 
 	for {
 		fieldType := p.ParseFieldType(token)
@@ -975,7 +977,33 @@ func (p *JsDocInfoParser) ParseFieldTypeList(token JsDocToken) rhino.Node {
 		} else {
 			name = fieldType.GetFirstChild().GetString()
 		}
-		if names.Add(name) {
+		var dup bool
+		if namesMap != nil {
+			_, dup = namesMap[name]
+			if !dup {
+				namesMap[name] = struct{}{}
+			}
+		} else {
+			for i := 0; i < nSmall; i++ {
+				if small[i] == name {
+					dup = true
+					break
+				}
+			}
+			if !dup {
+				if nSmall < len(small) {
+					small[nSmall] = name
+					nSmall++
+				} else {
+					namesMap = make(map[string]struct{}, 16)
+					for i := 0; i < nSmall; i++ {
+						namesMap[small[i]] = struct{}{}
+					}
+					namesMap[name] = struct{}{}
+				}
+			}
+		}
+		if !dup {
 			fieldTypeList.AddChildToBack(fieldType)
 		} else {
 			p.AddTypeWarningWithArg(rhino.Msg_JSDOC_TYPE_RECORD_DUPLICATE, name)

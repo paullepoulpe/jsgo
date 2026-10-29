@@ -82,7 +82,6 @@ func (c *CrossChunkCodeMotion) allocGlobalSymbol(var_ *Var) *CrossChunkCodeMotio
 	s := c.symbolSlab.New()
 	s.outer = c
 	s.preorderNumber = -1
-	s.singleImmovableChunk = -1
 	s.var_ = var_
 	s.dsgs = s.dsgBuf[:0]
 	s.referencingSlice = s.referencingBuf[:0]
@@ -359,7 +358,6 @@ type CrossChunkCodeMotion_GlobalSymbol struct {
 	dsgBuf [2]*CrossChunkCodeMotion_DeclarationStatementGroup
 
 	chunksWithImmovableReferences inlineBitSet
-	singleImmovableChunk          int32
 
 	// Symbols whose declaration statements refer to this symbol.
 	//
@@ -382,10 +380,9 @@ type CrossChunkCodeMotion_GlobalSymbol struct {
 // Java: CrossChunkCodeMotion.GlobalSymbol(Var)
 func NewCrossChunkCodeMotion_GlobalSymbol(outer *CrossChunkCodeMotion, var_ *Var) *CrossChunkCodeMotion_GlobalSymbol {
 	s := &CrossChunkCodeMotion_GlobalSymbol{
-		outer:                outer,
-		preorderNumber:       -1,
-		singleImmovableChunk: -1,
-		var_:                 var_,
+		outer:          outer,
+		preorderNumber: -1,
+		var_:           var_,
 	}
 	s.dsgs = s.dsgBuf[:0]
 	s.referencingSlice = s.referencingBuf[:0]
@@ -399,27 +396,11 @@ func (s *CrossChunkCodeMotion_GlobalSymbol) String() string {
 
 // Java: CrossChunkCodeMotion.GlobalSymbol.addImmovableReference(JSChunk)
 func (s *CrossChunkCodeMotion_GlobalSymbol) AddImmovableReference(chunk *JSChunk) {
-	idx := int32(chunk.GetIndex())
-	if s.singleImmovableChunk == -1 {
-		s.singleImmovableChunk = idx
-		return
-	}
-	if s.singleImmovableChunk == idx {
-		return
-	}
-	if s.singleImmovableChunk >= 0 {
-		s.chunksWithImmovableReferences.Set(int(s.singleImmovableChunk))
-		s.singleImmovableChunk = -2
-	}
-	s.chunksWithImmovableReferences.Set(int(idx))
+	s.chunksWithImmovableReferences.Set(chunk.GetIndex())
 }
 
 func (s *CrossChunkCodeMotion_GlobalSymbol) orImmovableChunksInto(dst *inlineBitSet) {
-	if s.singleImmovableChunk >= 0 {
-		dst.Set(int(s.singleImmovableChunk))
-	} else if s.singleImmovableChunk == -2 {
-		dst.Or(&s.chunksWithImmovableReferences)
-	}
+	dst.Or(&s.chunksWithImmovableReferences)
 }
 
 // AddDeclarationStatement adds the statement to the appropriate
@@ -496,14 +477,15 @@ func (y *CrossChunkCodeMotion_GlobalSymbolCycle) MoveDeclarationStatements() {
 			dsgCycle.currentChunk = dsg.currentChunk
 			dsgCycle.dsgsSlice = dsgCycle.dsgsBuf[:1]
 			dsgCycle.dsgsSlice[0] = dsg
-			if symbol.singleImmovableChunk == -1 {
+			if symbol.chunksWithImmovableReferences.IsEmpty() {
 				dsg.MakeReferencesImmovable()
-			} else if symbol.singleImmovableChunk >= 0 {
+			} else if symbol.chunksWithImmovableReferences.Cardinality() == 1 {
 				var preferredChunk *JSChunk
 				if !dsg.AllStatementsCanMove() {
 					preferredChunk = dsg.currentChunk
 				} else {
-					targetChunk := y.outer.graph.chunks[symbol.singleImmovableChunk]
+					chunkIdx := symbol.chunksWithImmovableReferences.NextSetBit(0)
+					targetChunk := y.outer.graph.chunks[chunkIdx]
 					if targetChunk == dsg.currentChunk || y.outer.graph.DependsOn(targetChunk, dsg.currentChunk) {
 						preferredChunk = targetChunk
 					} else {

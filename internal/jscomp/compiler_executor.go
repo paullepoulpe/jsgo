@@ -58,49 +58,6 @@ func NewCompilerExecutor() *CompilerExecutor {
 	return &CompilerExecutor{useThreads: true}
 }
 
-// CompilerExecutor_ExecutorService is the single-thread ExecutorService of
-// the Java code.
-//
-// Go-only: language-adapter — tasks run inline (see CompilerExecutor);
-// only the executor's lifecycle remains.
-type CompilerExecutor_ExecutorService struct {
-	threadName string
-	stackSize  int64
-	daemon     bool
-	shutdown   bool
-}
-
-// Shutdown is ExecutorService.shutdown().
-func (s *CompilerExecutor_ExecutorService) Shutdown() { s.shutdown = true }
-
-// IsShutdown is ExecutorService.isShutdown().
-func (s *CompilerExecutor_ExecutorService) IsShutdown() bool { return s.shutdown }
-
-// GetExecutorService: under JRE 1.6, the JS Compiler overflows the stack
-// when running on some large or complex JS code. When threads are
-// available, we run all compile jobs on a separate thread with a larger
-// stack.
-//
-// That way, we don't have to increase the stack size for *every* thread
-// (which is what -Xss does).
-//
-// Java: CompilerExecutor.getExecutorService()
-func (e *CompilerExecutor) GetExecutorService() *CompilerExecutor_ExecutorService {
-	return CompilerExecutor_GetDefaultExecutorService()
-}
-
-// Java: CompilerExecutor.getDefaultExecutorService()
-func CompilerExecutor_GetDefaultExecutorService() *CompilerExecutor_ExecutorService {
-	// Executors.newSingleThreadExecutor with a ThreadFactory making
-	// new Thread(null, r, "jscompiler", COMPILER_STACK_SIZE), setDaemon(true)
-	// (Do not prevent the JVM from exiting.)
-	return &CompilerExecutor_ExecutorService{
-		threadName: "jscompiler",
-		stackSize:  CompilerExecutor_COMPILER_STACK_SIZE,
-		daemon:     true,
-	}
-}
-
 // Java: CompilerExecutor.disableThreads()
 func (e *CompilerExecutor) DisableThreads() {
 	e.useThreads = false
@@ -122,55 +79,35 @@ func (e *CompilerExecutor) SetDebugMessage(debugMessage *string) {
 // Callable<T> is a func() T.
 //
 // Java: CompilerExecutor.runInCompilerThread(Callable<T>, boolean)
-func CompilerExecutor_RunInCompilerThread[T any](e *CompilerExecutor, callable func() T, dumpTraceReport bool) T {
-	executor := e.GetExecutorService()
-	var result T
-	var exception jutil.Throwable
-
+func CompilerExecutor_RunInCompilerThread[T any](e *CompilerExecutor, callable func() T, dumpTraceReport bool) (result T) {
 	if !(e.compilerThread == nil || e.compilerThread == jutil.Thread_CurrentThread()) {
 		// checkState(boolean, Object errorMessage)
 		panic(jutil.NewIllegalStateExceptionMsg("Please do not share the Compiler across threads"))
 	}
 
-	// If the compiler thread is available, use it.
-	if e.useThreads && e.compilerThread == nil {
-		func() {
-			defer executor.Shutdown()
-			// The bootCompilerThread callable, run inline.
-			result = func() (r T) {
-				defer func() {
-					e.compilerThread = nil
-					if dumpTraceReport {
-						Tracer_LogCurrentThreadTrace()
-					}
-					Tracer_ClearCurrentThreadTrace()
-				}()
-				jutil.Try(func() {
-					e.compilerThread = jutil.Thread_CurrentThread()
-					if dumpTraceReport {
-						Tracer_InitCurrentThreadTrace()
-					}
-					r = callable()
-				}, func(t jutil.Throwable) {
-					exception = t
-				})
-				return r
-			}()
-		}()
-	} else {
-		jutil.Try(func() {
-			result = callable()
-		}, func(t jutil.Throwable) {
-			// Java catches Exception: an Error propagates.
-			if _, isError := t.(jutil.IError); isError {
-				panic(t)
+	bootThread := e.useThreads && e.compilerThread == nil
+	defer func() {
+		r := recover()
+		if bootThread {
+			e.compilerThread = nil
+			if dumpTraceReport {
+				Tracer_LogCurrentThreadTrace()
 			}
-			exception = t
-		})
-	}
-
-	// Pass on any exception caught by the runnable object.
-	if exception != nil {
+			Tracer_ClearCurrentThreadTrace()
+		}
+		if r == nil {
+			return
+		}
+		exception, ok := r.(jutil.Throwable)
+		if !ok {
+			exception = jutil.AsThrowable(r)
+		}
+		if !bootThread {
+			// Java catches Exception: an Error propagates.
+			if _, isError := exception.(jutil.IError); isError {
+				panic(exception)
+			}
+		}
 		if e.debugMessage != nil {
 			panic(jutil.NewRuntimeExceptionWithMessageAndCause("Exception during compilation: "+*e.debugMessage, exception))
 		}
@@ -180,6 +117,13 @@ func CompilerExecutor_RunInCompilerThread[T any](e *CompilerExecutor, callable f
 			panic(exception)
 		}
 		panic(jutil.NewRuntimeExceptionWithCause(exception))
+	}()
+
+	if bootThread {
+		e.compilerThread = jutil.Thread_CurrentThread()
+		if dumpTraceReport {
+			Tracer_InitCurrentThreadTrace()
+		}
 	}
-	return result
+	return callable()
 }

@@ -19,10 +19,20 @@
 package jscomp
 
 import (
+	"slices"
+	"strconv"
+
 	"github.com/paullepoulpe/jsgo/internal/ast"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
+
+var inlineFnCallPropID = rhino.RhinoStringPool_InternID("call")
+
+type inlineFnKey struct {
+	nameID   uint32
+	anonNode rhino.Node
+}
 
 // Go-only: the shapes this pass reads (a var holding a function, the
 // function a call calls, how a name is used, the params and body of a
@@ -33,9 +43,9 @@ import (
 // inlineFunctionsRunState is the state of one run of InlineFunctions.Process,
 // dropped when the run ends.
 type inlineFunctionsRunState struct {
-	fns         *jutil.LinkedHashMap[string, *InlineFunctions_FunctionState]
-	anonFns     map[rhino.Node]string
-	fnNames     map[string]bool
+	fnKeys      []inlineFnKey
+	anonOrder   []rhino.Node
+	constFnIDs  []uint32
 	calledIDs   inlineIDSet
 	refsScratch []*FunctionInjector_Reference
 	movedArgs   map[rhino.Node]struct{}
@@ -60,8 +70,9 @@ type InlineFunctions struct {
 	// uniquely named variables. There's currently a stopgap scope-check
 	// to ensure that this doesn't produce invalid code. But in the long run,
 	// this needs a major refactor.
-	fns     *jutil.LinkedHashMap[string, *InlineFunctions_FunctionState]
-	anonFns map[rhino.Node]string
+	fns      []*InlineFunctions_FunctionState
+	namedFns map[uint32]*InlineFunctions_FunctionState
+	anonFns  map[rhino.Node]*InlineFunctions_FunctionState
 
 	compiler AbstractCompiler
 
@@ -132,23 +143,29 @@ func NewInlineFunctions(
 
 func (f *InlineFunctions) ensureRunState() *inlineFunctionsRunState {
 	if f.runState == nil {
-		p := &inlineFunctionsRunState{
-			fns: jutil.NewLinkedHashMap[string, *InlineFunctions_FunctionState](),
-		}
-		f.runState = p
-		f.fns = p.fns
-		f.anonFns = nil
+		f.runState = &inlineFunctionsRunState{}
 	}
 	return f.runState
 }
 
-func (f *InlineFunctions) putAnonFn(fnNode rhino.Node, name string) {
-	p := f.ensureRunState()
-	if p.anonFns == nil {
-		p.anonFns = make(map[rhino.Node]string, 8)
-		f.anonFns = p.anonFns
+func (f *InlineFunctions) removeKey(k inlineFnKey) {
+	if !k.anonNode.IsNil() {
+		delete(f.anonFns, k.anonNode)
+	} else {
+		delete(f.namedFns, k.nameID)
 	}
-	p.anonFns[fnNode] = name
+}
+
+func (f *InlineFunctions) functionStateName(fs *InlineFunctions_FunctionState) string {
+	if fs.target.name != "" {
+		return fs.target.name
+	}
+	if fs.target.kind == fnKindExpr && f.runState != nil {
+		if idx := slices.Index(f.runState.anonOrder, fs.target.fnNode); idx >= 0 {
+			return strconv.Itoa(idx)
+		}
+	}
+	return ""
 }
 
 func functionStateAliasCount(fs *InlineFunctions_FunctionState) int {
@@ -164,15 +181,39 @@ func (f *InlineFunctions) allocReference(callNode rhino.Node, scope *Scope, chun
 	return r
 }
 
-// Java: InlineFunctions.getOrCreateFunctionState(String)
-func (f *InlineFunctions) GetOrCreateFunctionState(fnName string) *InlineFunctions_FunctionState {
-	f.ensureRunState()
-	if fs := f.fns.Get(fnName); fs != nil {
+func (f *InlineFunctions) getOrCreateNamedFunctionState(nameID uint32) *InlineFunctions_FunctionState {
+	p := f.ensureRunState()
+	if fs := f.namedFns[nameID]; fs != nil {
 		return fs
 	}
+	if f.namedFns == nil {
+		f.namedFns = make(map[uint32]*InlineFunctions_FunctionState, 64)
+	}
 	fs := &InlineFunctions_FunctionState{inline: true, remove: true}
-	f.fns.PutNew(fnName, fs)
+	f.namedFns[nameID] = fs
+	f.fns = append(f.fns, fs)
+	p.fnKeys = append(p.fnKeys, inlineFnKey{nameID: nameID})
 	return fs
+}
+
+func (f *InlineFunctions) addAnonFunction(fnNode rhino.Node, chunk *JSChunk) {
+	p := f.ensureRunState()
+	p.anonOrder = append(p.anonOrder, fnNode)
+	if f.anonFns == nil {
+		f.anonFns = make(map[rhino.Node]*InlineFunctions_FunctionState, 8)
+	}
+	fs := &InlineFunctions_FunctionState{inline: true, remove: true}
+	f.anonFns[fnNode] = fs
+	f.fns = append(f.fns, fs)
+	p.fnKeys = append(p.fnKeys, inlineFnKey{anonNode: fnNode})
+	target := inlineFnTarget{kind: fnKindExpr, fnNode: fnNode}
+	f.UpdateFunctionStateForInlining(target, chunk, fs)
+	jutil.CheckState(!(InlineFunctions_HasRequireInliningAnnotation(fnNode) && !fs.CanInline()))
+}
+
+// Java: InlineFunctions.getOrCreateFunctionState(String)
+func (f *InlineFunctions) GetOrCreateFunctionState(fnName string) *InlineFunctions_FunctionState {
+	return f.getOrCreateNamedFunctionState(rhino.RhinoStringPool_InternID(fnName))
 }
 
 func inlineFunctions_traverseWithScopeCreator(compiler AbstractCompiler, root rhino.Node, cb NodeTraversal_Callback, sc ScopeCreator) {
@@ -191,6 +232,7 @@ func (f *InlineFunctions) Process(externs rhino.Node, root rhino.Node) {
 		f.functionArgumentInjector.sideEffectCache = nil
 		f.runState = nil
 		f.fns = nil
+		f.namedFns = nil
 		f.anonFns = nil
 		f.lastCheckedBlock = rhino.NilNode
 		f.lastContainingFn = rhino.NilNode
@@ -202,23 +244,23 @@ func (f *InlineFunctions) Process(externs rhino.Node, root rhino.Node) {
 			findCandidates.walk(root, rhino.NilNode, nil, false)
 		}
 	}
-	if f.fns.IsEmpty() {
+	if len(f.fns) == 0 {
 		return // Nothing left to do.
 	}
 	if !f.findCandidatesReferencesParallel(root) {
 		sc := NewSyntacticScopeCreator(f.compiler)
 		finder := inlineRefFinder{outer: f}
 		visitor := inlineCallVisitor{
-			functionMap:     f.fns,
-			anonFunctionMap: f.anonFns,
-			onCallSite:      finder.visitCallSite,
-			onName:          finder.checkNameUsage,
+			namedFns:   f.namedFns,
+			anonFns:    f.anonFns,
+			onCallSite: finder.visitCallSite,
+			onName:     finder.checkNameUsage,
 		}
 		inlineFunctions_traverseWithScopeCreator(f.compiler, root, &visitor, sc)
 	}
 	f.lastContainingFn = rhino.NilNode
 	f.TrimCandidatesNotMeetingMinimumRequirements()
-	if f.fns.IsEmpty() {
+	if len(f.fns) == 0 {
 		return // Nothing left to do.
 	}
 
@@ -229,25 +271,24 @@ func (f *InlineFunctions) Process(externs rhino.Node, root rhino.Node) {
 	//
 	// This pass already assumes these are constants, so this is safe for anyone
 	// using function inlining.
-	//
-	fnNames := make(map[string]bool, f.fns.Size())
-	for k := range f.fns.Keys() {
-		fnNames[k] = true
+	p.constFnIDs = make([]uint32, 0, len(f.namedFns))
+	for _, k := range p.fnKeys {
+		if k.anonNode.IsNil() {
+			p.constFnIDs = append(p.constFnIDs, k.nameID)
+		}
 	}
-	p.fnNames = fnNames
-	f.injector.SetKnownConstantFunctions(fnNames)
 
 	f.TrimCandidatesUsingOnCost()
-	if f.fns.IsEmpty() {
+	if len(f.fns) == 0 {
 		return // Nothing left to do.
 	}
 	f.ResolveInlineConflicts()
 	f.DecomposeExpressions()
 	if !root.IsNil() {
 		callVisitor := inlineCallVisitor{
-			functionMap:     f.fns,
-			anonFunctionMap: f.anonFns,
-			onCallSite:      f.inlineCallSite,
+			namedFns:   f.namedFns,
+			anonFns:    f.anonFns,
+			onCallSite: f.inlineCallSite,
 		}
 		callVisitor.inlineWalk(root, rhino.NilNode)
 	}
@@ -477,12 +518,8 @@ func (c *InlineFunctions_FindCandidateFunctions) findFunctionExpressionsWithChun
 		//   (function(){})();
 		// If an interesting function was discovered, add it.
 		if fn, ok := inlineFunctions_calledFunction(ast.MustNormalOrOptChainCall(n)); ok {
-			fnNode := fn.Node()
-			callsSeen := c.callsSeen
 			c.callsSeen++
-			target := newExprFnTarget(fnNode, callsSeen)
-			c.outer.MaybeAddFunction(target, chunk)
-			c.outer.putAnonFn(fnNode, target.name)
+			c.outer.addAnonFunction(fn.Node(), chunk)
 		}
 	default:
 	}
@@ -494,7 +531,17 @@ func (c *InlineFunctions_FindCandidateFunctions) findFunctionExpressionsWithChun
 //
 // Java: InlineFunctions.maybeAddFunction(Function, JSChunk)
 func (f *InlineFunctions) MaybeAddFunction(target inlineFnTarget, chunk *JSChunk) {
-	functionState := f.GetOrCreateFunctionState(target.name)
+	if target.kind == fnKindExpr && target.name == "" {
+		f.addAnonFunction(target.fnNode, chunk)
+		return
+	}
+	var nameID uint32
+	if !target.nameNode.IsNil() {
+		nameID = target.nameNode.GetStringID()
+	} else {
+		nameID = rhino.RhinoStringPool_InternID(target.name)
+	}
+	functionState := f.getOrCreateNamedFunctionState(nameID)
 	f.UpdateFunctionStateForInlining(target, chunk, functionState)
 	jutil.CheckState(!(InlineFunctions_HasRequireInliningAnnotation(target.fnNode) && !functionState.CanInline()))
 }
@@ -699,9 +746,11 @@ func InlineFunctions_HasLocalNames(fnNode rhino.Node) bool {
 // checkCandidateAndScanSummary checks if target meets minimum candidate
 // requirements while populating dst in a single body pass when possible.
 func (f *InlineFunctions) checkCandidateAndScanSummary(target inlineFnTarget, dst *calleeSummary) (bool, bool) {
-	conv := f.compiler.GetCodingConvention()
-	if conv.IsExported(target.name) || (!target.nameNode.IsNil() && conv.IsPropertyRenameFunction(target.nameNode)) {
-		return false, false
+	if target.kind != fnKindExpr {
+		conv := f.compiler.GetCodingConvention()
+		if conv.IsExported(target.name) || (!target.nameNode.IsNil() && conv.IsPropertyRenameFunction(target.nameNode)) {
+			return false, false
+		}
 	}
 	if scanCalleeSummary(target.name, target.fnNode, dst) {
 		return !dst.blocksMinReqs, true
@@ -712,10 +761,10 @@ func (f *InlineFunctions) checkCandidateAndScanSummary(target inlineFnTarget, ds
 // inlineCallVisitor visits candidate call sites (and optionally NAME nodes)
 // without interface or base-struct wrapper ceremony.
 type inlineCallVisitor struct {
-	functionMap     *jutil.LinkedHashMap[string, *InlineFunctions_FunctionState]
-	anonFunctionMap map[rhino.Node]string
-	onCallSite      func(t *NodeTraversal, callNode rhino.Node, fs *InlineFunctions_FunctionState)
-	onName          func(n, parent rhino.Node)
+	namedFns   map[uint32]*InlineFunctions_FunctionState
+	anonFns    map[rhino.Node]*InlineFunctions_FunctionState
+	onCallSite func(t *NodeTraversal, callNode rhino.Node, fs *InlineFunctions_FunctionState)
+	onName     func(n, parent rhino.Node)
 }
 
 func (*inlineCallVisitor) ShouldTraverse(*NodeTraversal, rhino.Node, rhino.Node) bool { return true }
@@ -774,26 +823,23 @@ func (v *inlineCallVisitor) Visit(t *NodeTraversal, n rhino.Node, parent rhino.N
 
 func (v *inlineCallVisitor) visitCallNode(t *NodeTraversal, n rhino.Node) {
 	child := ast.MustNormalOrOptChainCall(n).Callee()
-	var name string
-	var hasName bool
+	var functionState *InlineFunctions_FunctionState
 	// NOTE: The normalization pass ensures that local names do not collide with global names.
 	if callee, ok := child.AsName(); ok {
-		name, hasName = callee.Ident(), true
+		functionState = v.namedFns[callee.Node().GetStringID()]
 	} else if child.Token() == rhino.Token_FUNCTION {
-		name, hasName = v.anonFunctionMap[child.Node()]
+		functionState = v.anonFns[child.Node()]
 	} else if NodeUtil_IsFunctionObjectCall(n) {
 		fnIdentifyingNode := child.MustNormalOrOptChainGet().Object()
 		if fnName, ok := fnIdentifyingNode.AsName(); ok {
-			name, hasName = fnName.Ident(), true
+			functionState = v.namedFns[fnName.Node().GetStringID()]
 		} else if fnIdentifyingNode.Token() == rhino.Token_FUNCTION {
-			name, hasName = v.anonFunctionMap[fnIdentifyingNode.Node()]
+			functionState = v.anonFns[fnIdentifyingNode.Node()]
 		}
 	}
 
-	if hasName {
-		if functionState := v.functionMap.Get(name); functionState != nil {
-			v.onCallSite(t, n, functionState)
-		}
+	if functionState != nil {
+		v.onCallSite(t, n, functionState)
 	}
 }
 
@@ -823,11 +869,11 @@ func InlineFunctions_IsCandidateUsage(name rhino.Node) bool {
 		//     Function-parameter-1
 		//     ...
 		index, ok := ast.MustGetElem(name.GetParent()).Index().AsStringLit()
-		if !ok || index.Value() != "call" {
+		if !ok || index.Node().GetStringID() != inlineFnCallPropID {
 			return false
 		}
 	case ast.RoleGetPropObject:
-		if ast.MustGetProp(name.GetParent()).Property() != "call" {
+		if name.GetParent().GetStringID() != inlineFnCallPropID {
 			return false
 		}
 	default:
@@ -939,17 +985,14 @@ func (r *inlineRefFinder) maybeAddReferenceUsingMode(
 func (r *inlineRefFinder) checkNameUsage(n rhino.Node, parent rhino.Node) {
 	jutil.CheckStateMsg1(n.IsName(), "%s", n)
 
-	if n.GetStringID() == rhino.RhinoStringPool_EmptyID {
-		return
-	}
-
-	if InlineFunctions_IsCandidateUsage(n) {
+	id := n.GetStringID()
+	if id == rhino.RhinoStringPool_EmptyID {
 		return
 	}
 
 	// Other refs to a function name remove its candidacy for inlining
-	functionState := r.outer.fns.Get(n.GetString())
-	if functionState == nil {
+	functionState := r.outer.namedFns[id]
+	if functionState == nil || InlineFunctions_IsCandidateUsage(n) {
 		return
 	}
 
@@ -995,6 +1038,9 @@ func (f *InlineFunctions) inlineCallSite(t *NodeTraversal, callNode rhino.Node, 
 		return
 	}
 	fnName := functionState.functionName()
+	if fnName == "" && functionState.target.kind == fnKindExpr && ref.mode == FunctionInjector_InliningMode_BLOCK {
+		fnName = f.functionStateName(functionState)
+	}
 	fnNode := functionState.GetSafeFnNode()
 	newExpr := f.injector.inlineWithSummary(ref, fnName, fnNode, functionState.ensureSummary())
 	if newExpr != ref.callNode {
@@ -1011,7 +1057,7 @@ func (f *InlineFunctions) inlineCallSite(t *NodeTraversal, callNode rhino.Node, 
 }
 
 func (f *InlineFunctions) invalidateEnclosingSummaries(node rhino.Node) {
-	if f.fns == nil || f.fns.IsEmpty() {
+	if len(f.fns) == 0 {
 		return
 	}
 	hasAnon := len(f.anonFns) > 0
@@ -1020,20 +1066,18 @@ func (f *InlineFunctions) invalidateEnclosingSummaries(node rhino.Node) {
 			continue
 		}
 		if name, ok := ast.MustFunction(anc).Name(); ok {
-			if fs := f.fns.Get(name.Ident()); fs != nil && fs.GetSafeFnNode() == anc {
+			if fs := f.namedFns[name.Node().GetStringID()]; fs != nil && fs.GetSafeFnNode() == anc {
 				fs.summaryValid = false
 			}
 		}
 		if p := anc.GetParent(); p.IsName() {
-			if fs := f.fns.Get(p.GetString()); fs != nil && fs.GetSafeFnNode() == anc {
+			if fs := f.namedFns[p.GetStringID()]; fs != nil && fs.GetSafeFnNode() == anc {
 				fs.summaryValid = false
 			}
 		}
 		if hasAnon {
-			if anonName, ok := f.anonFns[anc]; ok {
-				if fs := f.fns.Get(anonName); fs != nil && fs.GetSafeFnNode() == anc {
-					fs.summaryValid = false
-				}
+			if fs := f.anonFns[anc]; fs != nil && fs.GetSafeFnNode() == anc {
+				fs.summaryValid = false
 			}
 		}
 	}

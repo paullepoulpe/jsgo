@@ -84,27 +84,6 @@ func TestEmbeddedResourcesAreValidUTF8(t *testing.T) {
 	}
 }
 
-func TestLoadPropertiesMapMatchesJava(t *testing.T) {
-	// PropertiesParser_Parse of the jar's js/polyfills.txt is in the oracle;
-	// loadPropertiesMap must read the same text and give the same map.
-	text := ResourceLoader_LoadTextResource("com.google.javascript.jscomp.RemoveUnusedCode", "js/polyfills.txt")
-	for _, r := range readPropertiesOracle(t) {
-		if r.input != text {
-			continue
-		}
-		var sb []byte
-		for k, v := range ResourceLoader_LoadPropertiesMap("com.google.javascript.jscomp.RemoveUnusedCode", "js/polyfills.txt").All() {
-			sb = append(sb, escape(k+"="+v)...)
-			sb = append(sb, '\n')
-		}
-		if string(sb) != r.want {
-			t.Errorf("loadPropertiesMap(polyfills.txt):\n--- java\n%s--- go\n%s", r.want, sb)
-		}
-		return
-	}
-	t.Fatal("polyfills.txt not in the oracle")
-}
-
 // runtime_libs.typedast is the pinned jar's entry, byte for byte
 // (unzip -p closure-compiler.jar runtime_libs.typedast | sha256sum).
 func TestEmbeddedRuntimeLibsTypedAst(t *testing.T) {

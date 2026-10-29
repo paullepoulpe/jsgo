@@ -132,7 +132,7 @@ func coreG3Fmt(v any) string {
 			parts[i] = coreG3Fmt(k.Interface()) + "=" + coreG3Fmt(get.Call([]reflect.Value{k})[0].Interface())
 		}
 		return "{" + strings.Join(parts, ", ") + "}"
-	case strings.HasPrefix(typeName, "*jutil.LinkedHashSet["), strings.HasPrefix(typeName, "*jutil.ArrayList["):
+	case strings.HasPrefix(typeName, "*jutil.LinkedHashSet["):
 		return coreG3FmtSlice(rv.MethodByName("ToSlice").Call(nil)[0])
 	case rv.Kind() == reflect.Slice:
 		return coreG3FmtSlice(rv)
@@ -609,7 +609,7 @@ func (o *coreG3Out) options(seed int64, n int) {
 	getters := coreG3Getters()
 	for i := 0; i < n; i++ {
 		o.line("## options " + strconv.Itoa(i))
-		rnd := jutil.NewRandomWithSeed(seed + int64(i))
+		rnd := NewJavaRandomWithSeed(seed + int64(i))
 		opts := NewCompilerOptions()
 		count := 0
 		if i != 0 {
@@ -833,7 +833,7 @@ var coreG3GenBad = []string{
 }
 
 // coreG3GenCode is CoreG3Dump.genCode.
-func coreG3GenCode(rnd *jutil.Random) string {
+func coreG3GenCode(rnd *JavaRandom) string {
 	n := int(rnd.NextIntBound(12))
 	var sb strings.Builder
 	eol := "\n"
@@ -856,7 +856,7 @@ func coreG3GenCode(rnd *jutil.Random) string {
 }
 
 func (o *coreG3Out) depsgen(seed int64, n int) {
-	rnd := jutil.NewRandomWithSeed(seed)
+	rnd := NewJavaRandomWithSeed(seed)
 	for i := 0; i < n; i++ {
 		rel := "gen" + strconv.Itoa(i) + ".js"
 		code := coreG3GenCode(rnd)
@@ -870,7 +870,7 @@ func (o *coreG3Out) depsgen(seed int64, n int) {
 
 func (o *coreG3Out) strings(seed int64, n int) {
 	p := NewJsFileRegexParser(newCoreG3Collector())
-	rnd := jutil.NewRandomWithSeed(seed)
+	rnd := NewJavaRandomWithSeed(seed)
 	alphabet := []rune{'\'', '"', '\\', ',', ':', '[', ']', '{', '}', 'a', 'b', ' ', '\t', '\u00e9'}
 	fixed := []string{
 		"'a'", "\"a\"", " 'a' ", "'a\\'b'", "'a\\\\'", "'a\\', 'b'", "['a', 'b']", "[]", "[ ]",
@@ -941,7 +941,7 @@ type coreG3GraphSpec struct {
 }
 
 // coreG3RandomGraph is CoreG3Dump.randomGraph.
-func coreG3RandomGraph(rnd *jutil.Random) *coreG3GraphSpec {
+func coreG3RandomGraph(rnd *JavaRandom) *coreG3GraphSpec {
 	nChunks := 1 + int(rnd.NextIntBound(7))
 	deps := [][]int{}
 	for c := 0; c < nChunks; c++ {
@@ -1115,7 +1115,7 @@ func coreG3ChunkName(c *JSChunk) string {
 }
 
 func (o *coreG3Out) chunks(seed int64, n int) {
-	rnd := jutil.NewRandomWithSeed(seed)
+	rnd := NewJavaRandomWithSeed(seed)
 	for gi := 0; gi < n; gi++ {
 		g := coreG3RandomGraph(rnd)
 		o.line("## graph " + strconv.Itoa(gi))

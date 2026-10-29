@@ -24,6 +24,7 @@ import (
 	"github.com/paullepoulpe/jsgo/internal/ast"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
+	"github.com/paullepoulpe/jsgo/internal/strpool"
 )
 
 // Go-only: this pass uses the typed AST view (internal/ast). NormalizeStatements
@@ -263,8 +264,8 @@ func (p *Normalize_PropagateConstantPropertyOverVars) Visit(t *NodeTraversal, n 
 }
 
 type normalizeRenameUndo struct {
-	name    string
-	oldRepl string
+	name    strpool.ID
+	oldRepl strpool.ID
 	hadOld  bool
 }
 
@@ -338,8 +339,8 @@ type Normalize_NormalizeStatements struct {
 
 	useFastContextualRenamer bool
 	hasJscompVar             bool
-	nameUsage                map[string]int
-	activeReplacements       map[string]string
+	nameUsage                map[strpool.ID]int
+	activeReplacements       map[strpool.ID]strpool.ID
 	undoStack                []normalizeRenameUndo
 	scopeUndoOffsets         []int
 	undoStackBuf             [8]normalizeRenameUndo
@@ -403,8 +404,8 @@ func normalizeHasJscompSeparator(s string) bool {
 	return s[i-len(sep):i] == sep
 }
 
-func (s *Normalize_NormalizeStatements) formatUniqueName(name string, id int) string {
-	return name + MakeDeclaredNamesUnique_ContextualRenamer_UNIQUE_ID_SEPARATOR + strconv.Itoa(id)
+func (s *Normalize_NormalizeStatements) formatUniqueNameID(name string, id int) strpool.ID {
+	return strpool.Intern(name + MakeDeclaredNamesUnique_ContextualRenamer_UNIQUE_ID_SEPARATOR + strconv.Itoa(id))
 }
 
 func (s *Normalize_NormalizeStatements) enableJscompVarMode() {
@@ -416,19 +417,20 @@ func (s *Normalize_NormalizeStatements) enableJscompVarMode() {
 		return
 	}
 	type pending struct {
-		name  string
-		count int
+		nameID strpool.ID
+		count  int
 	}
 	var toBackfill []pending
-	// order-independent: backfills one entry per (name, i), and only absent ones, so the resulting map is the same in any order
-	for origName, count := range s.nameUsage {
+	// order-independent: backfills one entry per (nameID, i), and only absent ones, so the resulting map is the same in any order
+	for origID, count := range s.nameUsage {
 		if count > 1 {
-			toBackfill = append(toBackfill, pending{name: origName, count: count})
+			toBackfill = append(toBackfill, pending{nameID: origID, count: count})
 		}
 	}
 	for _, p := range toBackfill {
+		origName := strpool.String(p.nameID)
 		for i := 1; i < p.count; i++ {
-			u := s.formatUniqueName(p.name, i)
+			u := s.formatUniqueNameID(origName, i)
 			if _, exists := s.nameUsage[u]; !exists {
 				s.nameUsage[u] = 1
 			}
@@ -497,19 +499,17 @@ func (s *Normalize_NormalizeStatements) fastEnterScope(t *NodeTraversal) {
 		s.scopeUndoOffsets = append(s.scopeUndoOffsets, 0)
 		scope := t.GetScope()
 		if s.nameUsage == nil {
-			s.nameUsage = make(map[string]int, max(64, len(scope.varList)+len(scope.varList)/2))
+			s.nameUsage = make(map[strpool.ID]int, max(64, len(scope.varList)+len(scope.varList)/2))
 		}
 		for _, v := range scope.varList {
-			if v == nil {
+			if v == nil || v.nameID == implicitArgumentsID {
 				continue
 			}
-			name := v.GetName()
-			if name != MakeDeclaredNamesUnique_ARGUMENTS {
-				if !s.hasJscompVar && normalizeHasJscompSeparator(name) {
-					s.enableJscompVarMode()
-				}
-				s.nameUsage[name] = 1
+			nameID := strpool.ID(v.nameID)
+			if !s.hasJscompVar && normalizeHasJscompSeparator(strpool.String(nameID)) {
+				s.enableJscompVarMode()
 			}
+			s.nameUsage[nameID] = 1
 		}
 		return
 	}
@@ -519,21 +519,19 @@ func (s *Normalize_NormalizeStatements) fastEnterScope(t *NodeTraversal) {
 		return
 	}
 	for _, v := range t.GetScope().varList {
-		if v == nil {
+		if v == nil || v.nameID == implicitArgumentsID {
 			continue
 		}
-		name := v.GetName()
-		if name == MakeDeclaredNamesUnique_ARGUMENTS {
-			continue
-		}
-		id := s.nameUsage[name]
-		if id == 0 && !s.hasJscompVar && normalizeHasJscompSeparator(name) {
+		nameID := strpool.ID(v.nameID)
+		id := s.nameUsage[nameID]
+		if id == 0 && !s.hasJscompVar && normalizeHasJscompSeparator(strpool.String(nameID)) {
 			s.enableJscompVarMode()
-			id = s.nameUsage[name]
+			id = s.nameUsage[nameID]
 		}
-		s.nameUsage[name] = id + 1
+		s.nameUsage[nameID] = id + 1
 		if id != 0 {
-			unique := s.formatUniqueName(name, id)
+			origName := strpool.String(nameID)
+			unique := s.formatUniqueNameID(origName, id)
 			if s.hasJscompVar {
 				for {
 					uid, exists := s.nameUsage[unique]
@@ -541,22 +539,22 @@ func (s *Normalize_NormalizeStatements) fastEnterScope(t *NodeTraversal) {
 						break
 					}
 					s.nameUsage[unique] = uid + 1
-					unique = s.formatUniqueName(name, uid)
+					unique = s.formatUniqueNameID(origName, uid)
 				}
 				if _, exists := s.nameUsage[unique]; !exists {
 					s.nameUsage[unique] = 1
 				}
 			}
-			oldRepl, hadOld := s.activeReplacements[name]
+			oldRepl, hadOld := s.activeReplacements[nameID]
 			s.undoStack = append(s.undoStack, normalizeRenameUndo{
-				name:    name,
+				name:    nameID,
 				oldRepl: oldRepl,
 				hadOld:  hadOld,
 			})
 			if s.activeReplacements == nil {
-				s.activeReplacements = make(map[string]string, 16)
+				s.activeReplacements = make(map[strpool.ID]strpool.ID, 16)
 			}
-			s.activeReplacements[name] = unique
+			s.activeReplacements[nameID] = unique
 		}
 	}
 }
@@ -584,15 +582,15 @@ func (s *Normalize_NormalizeStatements) fastVisitNameOrImportStar(t *NodeTravers
 	if n.IsName() && NodeUtil_IsNonlocalModuleExportName(n) {
 		return
 	}
-	newName, ok := s.activeReplacements[n.GetString()]
+	newID, ok := s.activeReplacements[strpool.ID(n.GetStringID())]
 	if !ok {
 		return
 	}
 	if s.assertOnChange {
 		panic(jutil.NewIllegalStateExceptionMsg(
-			"Unexpected renaming in MakeDeclaredNamesUnique. new name: " + newName + " for " + n.String()))
+			"Unexpected renaming in MakeDeclaredNamesUnique. new name: " + strpool.String(newID) + " for " + n.String()))
 	}
-	n.SetString(newName)
+	setNodeStringID(n, newID)
 	t.ReportCodeChange()
 	if parent := n.GetParent(); parent.IsFunction() && NodeUtil_IsFunctionDeclaration(parent) {
 		s.compiler.ReportChangeToEnclosingScope(parent)

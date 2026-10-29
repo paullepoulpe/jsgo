@@ -61,6 +61,7 @@ type AnnotatedField struct {
 // Parameters provides lookahead over remaining command-line tokens to an OptionHandler.
 type Parameters interface {
 	GetParameter(idx int) string
+	PeekParameter(idx int) (string, bool)
 	Size() int
 }
 
@@ -240,8 +241,8 @@ func (p *CmdLineParser) PrintOption(out jutil.Writer, handler *OptionHandler, ma
 
 func (p *CmdLineParser) createDefaultValuePart(handler *OptionHandler) string {
 	if _, isGetter := handler.Setter.(Getter); p.parserProperties.GetShowDefaults() && !handler.Option.Required() && isGetter {
-		if v := handler.PrintDefaultValue(); v != nil {
-			return " " + msgDefaultValue.format(*v)
+		if v, ok := handler.PrintDefaultValue(); ok {
+			return " " + msgDefaultValue.format(v)
 		}
 	}
 	return ""
@@ -296,6 +297,13 @@ func (c *cmdLineParams) GetParameter(idx int) string {
 		panic(err)
 	}
 	return val
+}
+
+func (c *cmdLineParams) PeekParameter(idx int) (string, bool) {
+	if c.pos+idx >= len(c.args) || c.pos+idx < 0 {
+		return "", false
+	}
+	return c.args[c.pos+idx], true
 }
 
 func (c *cmdLineParams) tryGetParameter(idx int) (string, ICmdLineException) {

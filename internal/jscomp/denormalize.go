@@ -129,10 +129,10 @@ func (*denormalizeVarInliner) ShouldTraverse(t *NodeTraversal, n rhino.Node, par
 	return true
 }
 
-func (*denormalizeVarInliner) nodeTraversalNoShouldTraverse()  {}
-func (*denormalizeVarInliner) onlyNameLeaves()                 {}
-func (*denormalizeVarInliner) visitTokens() *ast.TokenSet      { return &denormalizeVarInlinerVisitTokens }
-func (*denormalizeVarInliner) EnterScope(t *NodeTraversal)     {}
+func (*denormalizeVarInliner) nodeTraversalNoShouldTraverse() {}
+func (*denormalizeVarInliner) onlyNameLeaves()                {}
+func (*denormalizeVarInliner) visitTokens() *ast.TokenSet     { return &denormalizeVarInlinerVisitTokens }
+func (*denormalizeVarInliner) EnterScope(t *NodeTraversal)    {}
 
 func (inliner *denormalizeVarInliner) ExitScope(t *NodeTraversal) {
 	if len(inliner.scopesWithDecls) == 0 {

@@ -22,8 +22,6 @@ import (
 	"math"
 	"regexp"
 	"testing"
-
-	"github.com/paullepoulpe/jsgo/internal/jutil"
 )
 
 // TestXid_Uniqueness verifies that Xid#toString generates unique strings
@@ -55,7 +53,7 @@ func TestXid_Length(t *testing.T) {
 	xidHelpTestLength(t, math.MinInt32)
 	xidHelpTestLength(t, math.MaxInt32)
 
-	r := jutil.NewRandom()
+	r := NewJavaRandom()
 	for i := 0; i <= 10000; i++ {
 		n := r.NextInt()
 		xidHelpTestLength(t, n)

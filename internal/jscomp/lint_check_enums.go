@@ -19,9 +19,19 @@
 package jscomp
 
 import (
+	"github.com/paullepoulpe/jsgo/internal/ast"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
+
+var checkEnumsVisitTokens = func() ast.TokenSet {
+	var s ast.TokenSet
+	s.Add(rhino.Token_OBJECTLIT)
+	return s
+}()
+
+func (*CheckEnums) visitTokens() *ast.TokenSet        { return &checkEnumsVisitTokens }
+func (*CheckEnums) combinedVisitTokens() ast.TokenSet { return checkEnumsVisitTokens }
 
 // CheckEnums checks the following:
 //

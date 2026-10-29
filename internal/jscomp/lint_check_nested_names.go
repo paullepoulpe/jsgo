@@ -19,9 +19,20 @@
 package jscomp
 
 import (
+	"github.com/paullepoulpe/jsgo/internal/ast"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
+
+var checkNestedNamesVisitTokens = func() ast.TokenSet {
+	var s ast.TokenSet
+	s.Add(rhino.Token_GETPROP)
+	return s
+}()
+
+func (*CheckNestedNames) noVisitLeaves()                    {}
+func (*CheckNestedNames) visitTokens() *ast.TokenSet        { return &checkNestedNamesVisitTokens }
+func (*CheckNestedNames) combinedVisitTokens() ast.TokenSet { return checkNestedNamesVisitTokens }
 
 // CheckNestedNames checks if code has a module-level static property
 // assignment (`X.Y`) inside a `goog.module`. If yes, reports a linter warning
@@ -91,22 +102,6 @@ func (k CheckNestedNames_DeclarationKind) String() string { return k.Name() }
 // Ordinal is Enum.ordinal().
 func (k CheckNestedNames_DeclarationKind) Ordinal() int { return int(k) }
 
-// Go-only: language-adapter — a Java DeclarationKind reference may be null
-// (getNestedDeclarationKind returns null); such values are
-// *CheckNestedNames_DeclarationKind here, and Ptr returns the canonical
-// pointer to a constant.
-var checkNestedNames_DeclarationKind_ptrs = [...]CheckNestedNames_DeclarationKind{
-	CheckNestedNames_DeclarationKind_CLASS,
-	CheckNestedNames_DeclarationKind_ENUM,
-	CheckNestedNames_DeclarationKind_TYPEDEF,
-	CheckNestedNames_DeclarationKind_INTERFACE,
-}
-
-// Ptr returns the canonical non-null *CheckNestedNames_DeclarationKind for k.
-func (k CheckNestedNames_DeclarationKind) Ptr() *CheckNestedNames_DeclarationKind {
-	return &checkNestedNames_DeclarationKind_ptrs[k]
-}
-
 func checkNestedNames_kindToReport(k CheckNestedNames_DeclarationKind) (string, bool) {
 	switch k {
 	case CheckNestedNames_DeclarationKind_CLASS:
@@ -159,9 +154,8 @@ func (c *CheckNestedNames) Visit(t *NodeTraversal, n rhino.Node, parent rhino.No
 			return //  For example `this` or `super` or `exports.SomeEnum = {}`
 		}
 		ownerName := owner.GetString()
-		declarationKind := c.GetNestedDeclarationKind(n, parent)
-		if declarationKind != nil {
-			if nestedKind, ok := checkNestedNames_kindToReport(*declarationKind); ok {
+		if declarationKind, ok := c.GetNestedDeclarationKind(n, parent); ok {
+			if nestedKind, ok := checkNestedNames_kindToReport(declarationKind); ok {
 				// Found a nested name that created an inner class, interface, typedef or enum.
 				t.Report(targetGetProp, CheckNestedNames_NESTED_NAME_IN_GOOG_MODULE, nestedKind, ownerName)
 			}
@@ -188,24 +182,24 @@ func CheckNestedNames_IsDotPrototype(getProp rhino.Node) bool {
 }
 
 // Java: CheckNestedNames.getNestedDeclarationKind(Node, Node)
-func (c *CheckNestedNames) GetNestedDeclarationKind(lhs rhino.Node, parent rhino.Node) *CheckNestedNames_DeclarationKind {
+func (c *CheckNestedNames) GetNestedDeclarationKind(lhs rhino.Node, parent rhino.Node) (CheckNestedNames_DeclarationKind, bool) {
 	jutil.CheckArgumentMsg1(lhs.IsFirstChildOf(parent), "%s", lhs)
 	// Handle `/** @typedef {...} */` X.Y` or `/** @const */ X.Y = SomeTypeDefName`
 	if lhs.GetTypedefTypeProp() != nil {
-		return CheckNestedNames_DeclarationKind_TYPEDEF.Ptr()
+		return CheckNestedNames_DeclarationKind_TYPEDEF, true
 	}
 
 	type_ := lhs.GetJSType()
 	if type_ != nil {
 		// check whether it's an enum, interface or typedef first.
 		if type_.IsEnumType() {
-			return CheckNestedNames_DeclarationKind_ENUM.Ptr()
+			return CheckNestedNames_DeclarationKind_ENUM, true
 		} else if type_.IsInterface() {
-			return CheckNestedNames_DeclarationKind_INTERFACE.Ptr()
+			return CheckNestedNames_DeclarationKind_INTERFACE, true
 		} else if type_.IsConstructor() {
-			return CheckNestedNames_DeclarationKind_CLASS.Ptr()
+			return CheckNestedNames_DeclarationKind_CLASS, true
 		}
 	}
 
-	return nil
+	return 0, false
 }

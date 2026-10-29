@@ -570,15 +570,24 @@ func FeatureSet_Feature_values() []FeatureSet_Feature {
 // Java: FeatureSet.Feature.name()
 func (f FeatureSet_Feature) Name() string { return featureSet_Feature_names[f] }
 
+// FeatureSet_Feature_Lookup looks up the FeatureSet_Feature constant with the
+// given enum name without panicking when absent.
+func FeatureSet_Feature_Lookup(name string) (FeatureSet_Feature, bool) {
+	for i, n := range featureSet_Feature_names {
+		if n == name {
+			return FeatureSet_Feature(i), true
+		}
+	}
+	return 0, false
+}
+
 // FeatureSet_Feature_ValueOf is Enum.valueOf(String): the constant named
 // name, or IllegalArgumentException.
 //
 // Java: FeatureSet.Feature.valueOf(String)
 func FeatureSet_Feature_ValueOf(name string) FeatureSet_Feature {
-	for i, n := range featureSet_Feature_names {
-		if n == name {
-			return FeatureSet_Feature(i)
-		}
+	if f, ok := FeatureSet_Feature_Lookup(name); ok {
+		return f
 	}
 	panic(jutil.NewIllegalArgumentExceptionMsg(
 		"No enum constant com.google.javascript.jscomp.parsing.parser.FeatureSet.Feature." + name))

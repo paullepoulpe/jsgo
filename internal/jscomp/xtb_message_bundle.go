@@ -24,6 +24,7 @@ import (
 	"strings"
 
 	"github.com/paullepoulpe/jsgo/internal/jutil"
+	"github.com/paullepoulpe/jsgo/internal/xtbxml"
 )
 
 // XtbMessageBundle is a MessageBundle that parses messages from an XML
@@ -61,11 +62,11 @@ func NewXtbMessageBundle(xtb io.Reader, projectId *string) *XtbMessageBundle {
 	defer func() {
 		if r := recover(); r != nil {
 			switch e := r.(type) {
-			case *jutil.ParserConfigurationException:
+			case *xtbxml.ParserConfigurationException:
 				panic(jutil.NewRuntimeExceptionWithCause(e))
 			case jutil.IIOException:
 				panic(jutil.NewRuntimeExceptionWithCause(e))
-			case jutil.ISAXException:
+			case xtbxml.ISAXException:
 				panic(jutil.NewRuntimeExceptionWithCause(e))
 			default:
 				panic(r)
@@ -78,15 +79,15 @@ func NewXtbMessageBundle(xtb io.Reader, projectId *string) *XtbMessageBundle {
 	reader := parser.GetXMLReader()
 	contentHandler := &xtbMessageBundle_Handler{outer: b}
 	reader.SetContentHandler(contentHandler)
-	reader.Parse(jutil.NewInputSource(xtb))
+	reader.Parse(xtbxml.NewInputSource(xtb))
 	return b
 }
 
 // xtbMessageBundle_createSAXParser is inlined from guava-internal.
 //
 // Java: XtbMessageBundle.createSAXParser()
-func xtbMessageBundle_createSAXParser() *jutil.SAXParser {
-	factory := jutil.SAXParserFactory_NewInstance()
+func xtbMessageBundle_createSAXParser() *xtbxml.SAXParser {
+	factory := xtbxml.SAXParserFactory_NewInstance()
 	factory.SetValidating(false)
 	factory.SetXIncludeAware(false)
 	factory.SetFeature(
@@ -96,7 +97,7 @@ func xtbMessageBundle_createSAXParser() *jutil.SAXParser {
 	factory.SetFeature(
 		"http://apache.org/xml/features/nonvalidating/load-external-dtd",
 		false)
-	factory.SetFeature(jutil.XMLConstants_FEATURE_SECURE_PROCESSING, true)
+	factory.SetFeature(xtbxml.XMLConstants_FEATURE_SECURE_PROCESSING, true)
 
 	parser := factory.NewSAXParser()
 	xmlReader := parser.GetXMLReader()
@@ -195,7 +196,7 @@ func (h *xtbMessageBundle_Handler) requireGenderCase() JsMessage_GrammaticalGend
 }
 
 // Java: XtbMessageBundle.Handler.setDocumentLocator(Locator)
-func (h *xtbMessageBundle_Handler) SetDocumentLocator(locator jutil.Locator) {}
+func (h *xtbMessageBundle_Handler) SetDocumentLocator(locator xtbxml.Locator) {}
 
 // Java: XtbMessageBundle.Handler.startDocument()
 func (h *xtbMessageBundle_Handler) StartDocument() {}
@@ -211,7 +212,7 @@ func (h *xtbMessageBundle_Handler) EndPrefixMapping(prefix string) {}
 
 // Java: XtbMessageBundle.Handler.startElement(String, String, String, Attributes)
 func (h *xtbMessageBundle_Handler) StartElement(uri string, localName string, qName string,
-	atts jutil.Attributes) {
+	atts xtbxml.Attributes) {
 	switch qName {
 	case xtbMessageBundle_Handler_BUNDLE_ELEM_NAME:
 		jutil.CheckState(!h.hasLang)
@@ -307,6 +308,6 @@ type xtbMessageBundle_SecureEntityResolver struct {
 }
 
 // Java: XtbMessageBundle.SecureEntityResolver.resolveEntity(String, String)
-func (r *xtbMessageBundle_SecureEntityResolver) ResolveEntity(publicId *string, systemId *string) *jutil.InputSource {
-	return jutil.NewInputSourceOfCharacterStream(strings.NewReader(""))
+func (r *xtbMessageBundle_SecureEntityResolver) ResolveEntity(publicId *string, systemId *string) *xtbxml.InputSource {
+	return xtbxml.NewInputSourceOfCharacterStream(strings.NewReader(""))
 }

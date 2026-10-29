@@ -375,13 +375,41 @@ func (f *IRFactory) ValidateParameters(n rhino.Node) {
 }
 
 func (f *IRFactory) validateParametersSlow(n rhino.Node) {
-	seenNames := jutil.NewLinkedHashSet[string]()
+	var small [8]string
+	nSmall := 0
+	var seenMap map[string]struct{}
 	for c := n.GetFirstChild(); !c.IsNil(); c = c.GetNext() {
 		ParsingUtil_GetParamOrPatternNames(
 			c,
 			func(param rhino.Node) {
 				paramName := param.GetString()
-				if !seenNames.Add(paramName) {
+				var dup bool
+				if seenMap != nil {
+					_, dup = seenMap[paramName]
+					if !dup {
+						seenMap[paramName] = struct{}{}
+					}
+				} else {
+					for i := 0; i < nSmall; i++ {
+						if small[i] == paramName {
+							dup = true
+							break
+						}
+					}
+					if !dup {
+						if nSmall < len(small) {
+							small[nSmall] = paramName
+							nSmall++
+						} else {
+							seenMap = make(map[string]struct{}, 16)
+							for i := 0; i < nSmall; i++ {
+								seenMap[small[i]] = struct{}{}
+							}
+							seenMap[paramName] = struct{}{}
+						}
+					}
+				}
+				if dup {
 					f.errorReporter.Warning(
 						jutil.StringFormat(IRFactory_DUPLICATE_PARAMETER, paramName),
 						f.sourceName,

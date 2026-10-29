@@ -19,6 +19,7 @@
 package parsing
 
 import (
+	"slices"
 	"strings"
 
 	"github.com/paullepoulpe/jsgo/internal/jutil"
@@ -820,7 +821,8 @@ func (p *JsDocInfoParser) ParseClosurePrimitiveTag(token JsDocToken) JsDocToken 
 // Java: JsDocInfoParser.parseModifiesTag(JsDocToken)
 func (p *JsDocInfoParser) ParseModifiesTag(token JsDocToken) JsDocToken {
 	if token == JsDocToken_LEFT_CURLY {
-		modifies := jutil.NewLinkedHashSet[string]()
+		var modifiesBuf [4]string
+		modifies := modifiesBuf[:0]
 		for {
 			if p.Match(JsDocToken_STRING) {
 				name := p.stream.GetString()
@@ -828,7 +830,9 @@ func (p *JsDocInfoParser) ParseModifiesTag(token JsDocToken) JsDocToken {
 					p.AddParserWarningWithArg(rhino.Msg_JSDOC_MODIFIES_UNKNOWN, name)
 				}
 
-				modifies.Add(name)
+				if !slices.Contains(modifies, name) {
+					modifies = append(modifies, name)
+				}
 				token = p.Next()
 			} else {
 				p.AddParserWarning(rhino.Msg_JSDOC_MODIFIES)
@@ -848,7 +852,7 @@ func (p *JsDocInfoParser) ParseModifiesTag(token JsDocToken) JsDocToken {
 			token = p.Next()
 			if p.jsdocBuilder.IsNoSideEffectsRecorded() {
 				p.AddParserWarning(rhino.Msg_JSDOC_NOSIDEEFFECTS_WITH_MODIFIES)
-			} else if !p.jsdocBuilder.RecordModifies(modifies) {
+			} else if !p.jsdocBuilder.RecordModifiesSlice(modifies) {
 				p.AddParserWarning(rhino.Msg_JSDOC_MODIFIES_DUPLICATE)
 			}
 		}

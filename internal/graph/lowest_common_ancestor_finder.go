@@ -119,38 +119,7 @@ func (f *lowestCommonAncestorFinder[N, E]) FindAll(roots *jutil.LinkedHashSet[N]
 	if roots == nil {
 		panic(jutil.NewNullPointerException())
 	}
-	// We reserved the MSB of each Color for bookkeeping.
-	jutil.CheckArgumentMsg(roots.Size() <= 32-1, "Too many roots.")
-	jutil.CheckState(len(f.touched) == 0)
-
-	results := jutil.NewLinkedHashSet[N]()
-	if roots.IsEmpty() {
-		return results
-	}
-
-	f.ensureColorCapacity()
-	allColor := (int32(1) << roots.Size()) - 1
-	bitForRoot := int32(1)
-	for root := range roots.All() {
-		f.paintRoot(root, bitForRoot)
-		bitForRoot <<= 1
-	}
-
-	for i := 0; i < len(f.touched); i++ {
-		node := f.touched[i]
-		if f.colors[node.Index] == allColor {
-			f.paintAncestors(node, lcaColorNotLowest)
-		}
-	}
-	for i, node := range f.touched {
-		if f.colors[node.Index] == allColor {
-			results.Add(node.Value)
-		}
-		f.colors[node.Index] = 0
-		f.touched[i] = nil
-	}
-	f.touched = f.touched[:0]
-	return results
+	return jutil.NewLinkedHashSet(f.FindAllSlice(roots.ToSlice(), nil)...)
 }
 
 func (f *lowestCommonAncestorFinder[N, E]) FindAllSlice(roots []N, dst []N) []N {

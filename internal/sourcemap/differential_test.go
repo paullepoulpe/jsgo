@@ -306,14 +306,14 @@ func (d *diffState) run(op []*string) {
 		d.c.Parse(d.resolve(op[1]))
 		d.result("ok")
 	case "cfactory":
-		maps := jutil.NewLinkedHashMap[string, string]()
+		maps := make(map[string]string, len(op)-2)
 		for _, kv := range op[2:] {
 			eq := strings.IndexByte(*kv, '=')
 			v := (*kv)[eq+1:]
-			maps.Put((*kv)[:eq], d.resolve(&v))
+			maps[(*kv)[:eq]] = d.resolve(&v)
 		}
 		m := sourcemap.SourceMapConsumerFactory_ParseWithSupplier(d.resolve(op[1]), mapSupplierFunc(func(url string) *string {
-			v, ok := maps.Lookup(url)
+			v, ok := maps[url]
 			if !ok {
 				return nil
 			}
@@ -492,8 +492,8 @@ func (d *diffState) dumpObject(o *sourcemap.SourceMapObject) {
 				strconv.Itoa(s.GetColumn()) + " " + diffStr(s.GetSectionValue()))
 		}
 	}
-	for k, v := range o.GetExtensions().All() {
-		d.result("ext " + k + "=" + diffDescribe(v))
+	for _, ext := range o.GetExtensions() {
+		d.result("ext " + ext.Key + "=" + diffDescribe(ext.Value))
 	}
 }
 
@@ -507,8 +507,8 @@ func (d *diffState) dumpConsumer() {
 	d.guarded(func() { d.result("sourcesContent=" + diffStrs(c.GetOriginalSourcesContent())) })
 	d.guarded(func() { d.result("names=" + diffStrs(c.GetOriginalNames())) })
 	d.guarded(func() {
-		for k, v := range c.GetExtensions().All() {
-			d.result("ext " + k + "=" + diffDescribe(v))
+		for _, ext := range c.GetExtensions() {
+			d.result("ext " + ext.Key + "=" + diffDescribe(ext.Value))
 		}
 	})
 	max0, max1, max2 := 0, 0, 0 // line, column, source line
@@ -560,14 +560,21 @@ func (d *diffState) dumpConsumer() {
 		})
 	}
 	d.guarded(func() {
-		files := jutil.NewLinkedHashSet[string]()
-		for _, s := range c.GetOriginalSources() {
-			if s != nil {
-				files.Add(*s)
+		var files []string
+		seen := make(map[string]bool)
+		addFile := func(s string) {
+			if !seen[s] {
+				seen[s] = true
+				files = append(files, s)
 			}
 		}
-		files.Add("not-a-source.js")
-		for f := range files.All() {
+		for _, s := range c.GetOriginalSources() {
+			if s != nil {
+				addFile(*s)
+			}
+		}
+		addFile("not-a-source.js")
+		for _, f := range files {
 			for line := -1; line <= min(jutil.IntAdd(max2, 1), 200); line++ {
 				rs := c.GetReverseMapping(f, line, 0)
 				if len(rs) > 0 {

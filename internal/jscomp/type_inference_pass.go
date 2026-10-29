@@ -19,7 +19,6 @@
 package jscomp
 
 import (
-	"slices"
 	"sort"
 
 	"github.com/paullepoulpe/jsgo/internal/jutil"
@@ -38,12 +37,7 @@ type TypeInferencePass struct {
 	reusableCfg             ReusableCfg
 
 	// (stepCount, Token) -> populationCount
-	//
-	// Go-only: language-adapter — HashMultiset<Token> is a LinkedHashMap from
-	// each token to its count (insertion order). Java's HashMultiset iterates
-	// enum keys in identity-hash order, which is not deterministic in Java
-	// either; the only consumer, the debug histogram, sorts by count.
-	stepCountHistogram *jutil.LinkedHashMap[int, *jutil.LinkedHashMap[rhino.Token, int]]
+	stepCountHistogram map[int]*[256]int
 }
 
 // Java: TypeInferencePass(AbstractCompiler, ReverseAbstractInterpreter, TypedScopeCreator)
@@ -59,7 +53,7 @@ func NewTypeInferencePass(
 	p.assertionFunctionLookup =
 		CodingConvention_AssertionFunctionLookup_Of(compiler.GetCodingConvention().GetAssertionFunctions())
 	if compiler.IsDebugLoggingEnabled() {
-		p.stepCountHistogram = jutil.NewLinkedHashMap[int, *jutil.LinkedHashMap[rhino.Token, int]]()
+		p.stepCountHistogram = make(map[int]*[256]int)
 	}
 	return p
 }
@@ -140,7 +134,10 @@ func (p *TypeInferencePass) InferAllScopes(inferenceRoot rhino.Node) *TypedScope
 			histogram.LogString("step_count token population")
 
 			totals := []int{0, 0}
-			stepCounts := slices.Collect(p.stepCountHistogram.Keys())
+			stepCounts := make([]int, 0, len(p.stepCountHistogram))
+			for stepCount := range p.stepCountHistogram { // order-independent: stepCounts is sorted immediately below
+				stepCounts = append(stepCounts, stepCount)
+			}
 			// Comparator.<Integer>naturalOrder().reversed()
 			sort.SliceStable(stepCounts, func(i, j int) bool { return stepCounts[i] > stepCounts[j] })
 			for _, stepCount := range stepCounts {
@@ -149,8 +146,11 @@ func (p *TypeInferencePass) InferAllScopes(inferenceRoot rhino.Node) *TypedScope
 					count   int
 				}
 				var entries []entry
-				for element, count := range p.stepCountHistogram.Get(stepCount).All() {
-					entries = append(entries, entry{element, count})
+				counts := p.stepCountHistogram[stepCount]
+				for tok, count := range counts {
+					if count > 0 {
+						entries = append(entries, entry{rhino.Token(tok), count})
+					}
 				}
 				// comparingInt(Multiset.Entry::getCount)
 				sort.SliceStable(entries, func(i, j int) bool { return entries[i].count < entries[j].count })
@@ -182,12 +182,12 @@ func (p *TypeInferencePass) InferScope(n rhino.Node, scope *TypedScope) {
 			}
 
 			stepCount := typeInference.stepCountAt(node.Index)
-			p.stepCountHistogram.
-				ComputeIfAbsent(stepCount, func(int) *jutil.LinkedHashMap[rhino.Token, int] {
-					return jutil.NewLinkedHashMap[rhino.Token, int]()
-				})
-			counts := p.stepCountHistogram.Get(stepCount)
-			counts.Put(node.GetValue().GetToken(), counts.GetOrDefault(node.GetValue().GetToken(), 0)+1)
+			counts := p.stepCountHistogram[stepCount]
+			if counts == nil {
+				counts = new([256]int)
+				p.stepCountHistogram[stepCount] = counts
+			}
+			counts[node.GetValue().GetToken()]++
 		}
 	}
 	if n.IsRoot() {
@@ -201,6 +201,8 @@ func (p *TypeInferencePass) InferScope(n rhino.Node, scope *TypedScope) {
 type TypeInferencePass_FirstScopeBuildingCallback struct {
 	NodeTraversal_AbstractScopedCallbackBase
 }
+
+func (*TypeInferencePass_FirstScopeBuildingCallback) nodeTraversalNoVisit() {}
 
 func newTypeInferencePass_FirstScopeBuildingCallback() *TypeInferencePass_FirstScopeBuildingCallback {
 	return &TypeInferencePass_FirstScopeBuildingCallback{}
@@ -222,6 +224,8 @@ type TypeInferencePass_SecondScopeBuildingCallback struct {
 	NodeTraversal_AbstractScopedCallbackBase
 	outer *TypeInferencePass
 }
+
+func (*TypeInferencePass_SecondScopeBuildingCallback) nodeTraversalNoVisit() {}
 
 func newTypeInferencePass_SecondScopeBuildingCallback(outer *TypeInferencePass) *TypeInferencePass_SecondScopeBuildingCallback {
 	return &TypeInferencePass_SecondScopeBuildingCallback{outer: outer}

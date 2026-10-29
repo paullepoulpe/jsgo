@@ -1,6 +1,10 @@
-package jutil
+package xtbxml
 
-import "strings"
+import (
+	"strings"
+
+	"github.com/paullepoulpe/jsgo/internal/jutil"
+)
 
 // reference scans a reference in content after '&' and reports it.
 func (s *saxScanner) reference() {
@@ -14,7 +18,7 @@ func (s *saxScanner) reference() {
 	if nameUnits == nil {
 		s.fatalOrEOF("The entity name must immediately follow the '&' in the entity reference.")
 	}
-	name := StringFromUTF16(nameUnits)
+	name := jutil.StringFromUTF16(nameUnits)
 	if !s.skipChar(';') {
 		s.fatalOrEOF("The reference to entity \"" + name + "\" must end with the ';' delimiter.")
 	}
@@ -109,7 +113,7 @@ func (s *saxScanner) charRef(out []uint16) []uint16 {
 		if hex {
 			prefix = "&#x"
 		}
-		s.fatal("Character reference \"" + prefix + StringFromUTF16(digits) + "\" is an invalid XML character.")
+		s.fatal("Character reference \"" + prefix + jutil.StringFromUTF16(digits) + "\" is an invalid XML character.")
 	}
 	if value >= 0x10000 {
 		v := value - 0x10000
@@ -146,7 +150,7 @@ func (s *saxScanner) attributeValue(quote int, elem, attr string) string {
 			c = int(in.buf[in.pos])
 			if c == quote {
 				in.advance(1)
-				return StringFromUTF16(s.val)
+				return jutil.StringFromUTF16(s.val)
 			}
 			if c == '\t' {
 				s.val = append(s.val, ' ')
@@ -199,7 +203,7 @@ func (s *saxScanner) attributeReference(elem, attr string) {
 	if nameUnits == nil {
 		s.fatalOrEOF("The entity name must immediately follow the '&' in the entity reference.")
 	}
-	name := StringFromUTF16(nameUnits)
+	name := jutil.StringFromUTF16(nameUnits)
 	if !s.skipChar(';') {
 		s.fatalOrEOF("The reference to entity \"" + name + "\" must end with the ';' delimiter.")
 	}
@@ -250,7 +254,7 @@ func (s *saxScanner) processingInstruction(report bool) {
 	if targetUnits == nil {
 		s.fatalOrEOF("The processing instruction must begin with the name of the target.")
 	}
-	target := StringFromUTF16(targetUnits)
+	target := jutil.StringFromUTF16(targetUnits)
 	if len(targetUnits) == 3 && strings.EqualFold(target, "xml") {
 		s.fatal("The processing instruction target matching \"[xX][mM][lL]\" is not allowed.")
 	}
@@ -259,7 +263,7 @@ func (s *saxScanner) processingInstruction(report bool) {
 		if !s.skipSpaces() {
 			s.fatalOrEOF("White space is required between the processing instruction target and data.")
 		}
-		data = StringFromUTF16(s.scanUntil("?>", "processing instruction", nil))
+		data = jutil.StringFromUTF16(s.scanUntil("?>", "processing instruction", nil))
 	}
 	if report {
 		s.handler.ProcessingInstruction(target, data)
@@ -368,7 +372,7 @@ func (s *saxScanner) doctype() {
 	if rootUnits == nil {
 		s.fatalOrEOF("The root element type must appear after \"<!DOCTYPE\" in the document type declaration.")
 	}
-	root := StringFromUTF16(rootUnits)
+	root := jutil.StringFromUTF16(rootUnits)
 	if s.skipSpaces() {
 		if s.skipASCII("SYSTEM") {
 			if !s.skipSpaces() {
@@ -590,7 +594,7 @@ func (s *saxScanner) elementDecl() {
 	if nameUnits == nil {
 		s.fatalOrEOF("The element type is required in the element type declaration.")
 	}
-	name := StringFromUTF16(nameUnits)
+	name := jutil.StringFromUTF16(nameUnits)
 	if !s.skipSpaces() {
 		s.fatalOrEOF("White space is required after the element type \"" + name + "\" in the element type declaration.")
 	}
@@ -714,7 +718,7 @@ func (s *saxScanner) entityDecl() {
 	if nameUnits == nil {
 		s.fatalOrEOF("The name of the entity is required in the entity declaration.")
 	}
-	name := StringFromUTF16(nameUnits)
+	name := jutil.StringFromUTF16(nameUnits)
 	if !s.skipSpaces() {
 		s.fatalOrEOF("White space is required between the entity name \"" + name + "\" and the definition in the entity declaration.")
 	}
@@ -852,7 +856,7 @@ func (s *saxScanner) entityValue(quote int) {
 					s.fatalOrEOF("The entity name must immediately follow the '&' in the entity reference.")
 				}
 				if !s.skipChar(';') {
-					s.fatalOrEOF("The reference to entity \"" + StringFromUTF16(nameUnits) + "\" must end with the ';' delimiter.")
+					s.fatalOrEOF("The reference to entity \"" + jutil.StringFromUTF16(nameUnits) + "\" must end with the ';' delimiter.")
 				}
 				break step
 			case saxIsHighSurrogate(c) && saxIsLowSurrogate(s.peekSecond()):
@@ -878,7 +882,7 @@ func (s *saxScanner) peReference(inValue bool) string {
 	if nameUnits == nil {
 		s.fatalOrEOF("The entity name must immediately follow the '%' in the parameter entity reference.")
 	}
-	name := StringFromUTF16(nameUnits)
+	name := jutil.StringFromUTF16(nameUnits)
 	if !s.skipChar(';') {
 		s.fatalOrEOF("The parameter entity reference \"%" + name + ";\" must end with the ';' delimiter.")
 	}
@@ -897,7 +901,7 @@ func (s *saxScanner) notationDecl() {
 	if nameUnits == nil {
 		s.fatalOrEOF("The name of the notation is required in the notation declaration.")
 	}
-	name := StringFromUTF16(nameUnits)
+	name := jutil.StringFromUTF16(nameUnits)
 	if !s.skipSpaces() {
 		s.fatalOrEOF("White space is required after the notation name \"" + name + "\" in the notation declaration.")
 	}

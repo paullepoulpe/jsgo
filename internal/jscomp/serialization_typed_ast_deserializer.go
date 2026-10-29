@@ -589,7 +589,7 @@ func typedAstDeserializer_addInputSourceMap(
 
 	if sourceMappingURL != "" && resolveSourceMapAnnotations {
 		if parseInlineSourceMaps {
-			canonicalUTF8 := jutil.BaseEncoding_Base64().ValidateAndCheckCanonicalUTF8(sourceMappingURL)
+			canonicalUTF8 := validateAndCheckCanonicalBase64UTF8(sourceMappingURL)
 			sourceMapSourceFile := newInlineBase64SourceFile(
 				sourceFile.GetName()+".inline.map", sourceMappingURL, canonicalUTF8)
 			compiler.AddInputSourceMap(sourceFile.GetName(), NewSourceMapInput(sourceMapSourceFile))

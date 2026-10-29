@@ -93,12 +93,12 @@ func jscompBChars(s string) *jutil.LinkedHashSet[uint16] {
 	return set
 }
 
-func jscompBSeed(s string) *jutil.Random {
+func jscompBSeed(s string) *JavaRandom {
 	seed, err := strconv.ParseInt(s, 10, 64)
 	if err != nil {
 		panic(err)
 	}
-	return jutil.NewRandomWithSeed(seed)
+	return NewJavaRandomWithSeed(seed)
 }
 
 func jscompBRunNameOps(ops string) string {

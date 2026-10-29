@@ -21,6 +21,7 @@ package sourcemap
 import (
 	"encoding/binary"
 	"io"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -57,7 +58,7 @@ type SourceMapGeneratorV3 struct {
 	// A list of extensions to be added to sourcemap. The value is a object to
 	// permit single values, like strings or numbers, and JsonObject or
 	// JsonArray objects.
-	extensions *jutil.LinkedHashMap[string, any]
+	extensions []SourceMapExtension
 
 	// The source root path for relocating source fails or avoid duplicate
 	// values on the source entry.
@@ -191,7 +192,6 @@ func NewSourceMapGeneratorV3() *SourceMapGeneratorV3 {
 	g.lastAddedSymbolNameIdx = -1
 	g.offsetPosition = MakeFilePosition(0, 0)
 	g.prefixPosition = MakeFilePosition(0, 0)
-	g.extensions = jutil.NewLinkedHashMap[string, any]()
 	return g
 }
 
@@ -420,8 +420,8 @@ func (g *SourceMapGeneratorV3) ShareConfigFrom(other *SourceMapGeneratorV3) {
 	}
 	g.sourceFileContentMap = other.sourceFileContentMap
 	g.sourceRootPath = other.sourceRootPath
-	if other.extensions != nil && !other.extensions.IsEmpty() {
-		g.extensions = jutil.NewLinkedHashMapFrom(other.extensions)
+	if len(other.extensions) > 0 {
+		g.extensions = slices.Clone(other.extensions)
 	}
 }
 
@@ -464,14 +464,12 @@ func (g *SourceMapGeneratorV3) MergeMapSectionWithMergeAction(
 	section := NewSourceMapConsumerV3()
 	section.Parse(mapSectionContents)
 	section.VisitMappings(&SourceMapGeneratorV3_ConsumerEntryVisitor{outer: g})
-	for extensionKey, value := range section.GetExtensions().All() {
-		if g.extensions.ContainsKey(extensionKey) {
-			g.extensions.Put(extensionKey,
-				mergeAction.Merge(extensionKey,
-					g.extensions.Get(extensionKey),
-					value))
+	for _, ext := range section.GetExtensions() {
+		if cur, ok := lookupExtension(g.extensions, ext.Key); ok {
+			g.extensions = putExtension(g.extensions, ext.Key,
+				mergeAction.Merge(ext.Key, cur, ext.Value))
 		} else {
-			g.extensions.Put(extensionKey, value)
+			g.extensions = putExtension(g.extensions, ext.Key, ext.Value)
 		}
 	}
 }
@@ -555,8 +553,8 @@ func (g *SourceMapGeneratorV3) appendToTail(out io.StringWriter) {
 	SourceMapGeneratorV3_AppendFieldEnd(out)
 
 	// Extensions, only if there is any
-	for key := range g.extensions.Keys() {
-		objValue := g.extensions.Get(key)
+	for _, ext := range g.extensions {
+		objValue := ext.Value
 		var value string
 		if s, ok := sourceMapGeneratorV3_asJavaString(objValue); ok {
 			value = SourceMapGeneratorV3_EscapeString(s) // escapes native String
@@ -567,7 +565,7 @@ func (g *SourceMapGeneratorV3) appendToTail(out io.StringWriter) {
 			}
 			value = jutil.ToJavaString(objValue)
 		}
-		SourceMapGeneratorV3_AppendField(out, key, value)
+		SourceMapGeneratorV3_AppendField(out, ext.Key, value)
 	}
 
 	appendString(out, "\n}\n")
@@ -630,23 +628,22 @@ func (g *SourceMapGeneratorV3) AddExtension(name string, object any) {
 		panic(NewSourceMapParseException("Extension '" + name +
 			"' must start with 'x_'"))
 	}
-	g.extensions.Put(name, object)
+	g.extensions = putExtension(g.extensions, name, object)
 }
 
 // RemoveExtension removes an extension by name if present.
 //
 // Java: SourceMapGeneratorV3.removeExtension(String)
 func (g *SourceMapGeneratorV3) RemoveExtension(name string) {
-	if g.extensions.ContainsKey(name) {
-		g.extensions.Remove(name)
-	}
+	g.extensions = removeExtension(g.extensions, name)
 }
 
 // HasExtension checks whether or not the sourcemap has an extension.
 //
 // Java: SourceMapGeneratorV3.hasExtension(String)
 func (g *SourceMapGeneratorV3) HasExtension(name string) bool {
-	return g.extensions.ContainsKey(name)
+	_, ok := lookupExtension(g.extensions, name)
+	return ok
 }
 
 // GetExtension returns the value mapped by the specified extension or nil
@@ -654,7 +651,8 @@ func (g *SourceMapGeneratorV3) HasExtension(name string) bool {
 //
 // Java: SourceMapGeneratorV3.getExtension(String)
 func (g *SourceMapGeneratorV3) GetExtension(name string) any {
-	return g.extensions.Get(name)
+	v, _ := lookupExtension(g.extensions, name)
+	return v
 }
 
 // AddSourceNameMap writes the source name map to 'out'.

@@ -195,15 +195,37 @@ func (b *SourceMapTestCaseBase) GetSourceMap(result *SourceMapTestCase_RunResult
 	return sb.String()
 }
 
+// SourceMapTestInput is a named JS input file for Check/CheckWithSupplier.
+type SourceMapTestInput struct {
+	Name string
+	Code string
+}
+
+type sourceMapTokenMap struct {
+	order []string
+	byKey map[string]*SourceMapTestCase_Token
+}
+
+func newSourceMapTokenMap() *sourceMapTokenMap {
+	return &sourceMapTokenMap{byKey: make(map[string]*SourceMapTestCase_Token)}
+}
+
+func (m *sourceMapTokenMap) put(k string, v *SourceMapTestCase_Token) {
+	if _, ok := m.byKey[k]; !ok {
+		m.order = append(m.order, k)
+	}
+	m.byKey[k] = v
+}
+
 // sourceMapTestCase_findTokensInInputs finds the all the __XX__ tokens in
 // the given JavaScript string.
 //
 // Java: SourceMapTestCase.findTokens(Map<String, String>)
-func sourceMapTestCase_findTokensInInputs(inputs *jutil.LinkedHashMap[string, string]) *jutil.LinkedHashMap[string, *SourceMapTestCase_Token] {
-	tokens := jutil.NewLinkedHashMap[string, *SourceMapTestCase_Token]()
+func sourceMapTestCase_findTokensInInputs(inputs []SourceMapTestInput) *sourceMapTokenMap {
+	tokens := newSourceMapTokenMap()
 
-	for k, v := range inputs.All() {
-		sourceMapTestCase_findTokensInto(tokens, k, v)
+	for _, in := range inputs {
+		sourceMapTestCase_findTokensInto(tokens, in.Name, in.Code)
 	}
 
 	return tokens
@@ -213,8 +235,8 @@ func sourceMapTestCase_findTokensInInputs(inputs *jutil.LinkedHashMap[string, st
 // JavaScript string.
 //
 // Java: SourceMapTestCase.findTokens(String)
-func sourceMapTestCase_findTokens(src string) *jutil.LinkedHashMap[string, *SourceMapTestCase_Token] {
-	tokens := jutil.NewLinkedHashMap[string, *SourceMapTestCase_Token]()
+func sourceMapTestCase_findTokens(src string) *sourceMapTokenMap {
+	tokens := newSourceMapTokenMap()
 
 	sourceMapTestCase_findTokensInto(tokens, "", src)
 
@@ -226,7 +248,7 @@ func sourceMapTestCase_findTokens(src string) *jutil.LinkedHashMap[string, *Sour
 //
 // Java: SourceMapTestCase.findTokens(Map<String, Token>, String, String)
 func sourceMapTestCase_findTokensInto(
-	tokens *jutil.LinkedHashMap[string, *SourceMapTestCase_Token], inputName string, jsString string) *jutil.LinkedHashMap[string, *SourceMapTestCase_Token] {
+	tokens *sourceMapTokenMap, inputName string, jsString string) *sourceMapTokenMap {
 
 	js := jutil.StringToUTF16(jsString)
 	currentLine := 0
@@ -264,7 +286,7 @@ func sourceMapTestCase_findTokensInto(
 				token :=
 					newSourceMapTestCase_Token(
 						jutil.StringFromUTF16(tokenName), inputName, sourcemap.NewFilePosition(currentLine, currentPosition))
-				tokens.Put(token.tokenName, token)
+				tokens.put(token.tokenName, token)
 			}
 
 			i = j
@@ -285,21 +307,19 @@ func (b *SourceMapTestCaseBase) CompileAndCheck(js string) {
 // Java: SourceMapTestCase.check(String, String, String, String)
 func (b *SourceMapTestCaseBase) CheckOfInput(inputName string, input string, output string, sourceMapFileContent string) {
 	b.t.Helper()
-	inputMap := jutil.NewLinkedHashMap[string, string]()
-	inputMap.Put(inputName, input)
-	b.Check(inputMap, output, sourceMapFileContent)
+	b.Check([]SourceMapTestInput{{Name: inputName, Code: input}}, output, sourceMapFileContent)
 }
 
 // Java: SourceMapTestCase.check(Map<String, String>, String, String)
 func (b *SourceMapTestCaseBase) Check(
-	originalInputs *jutil.LinkedHashMap[string, string], generatedSource string, sourceMapFileContent string) {
+	originalInputs []SourceMapTestInput, generatedSource string, sourceMapFileContent string) {
 	b.t.Helper()
 	b.CheckWithSupplier(originalInputs, generatedSource, sourceMapFileContent, nil)
 }
 
 // Java: SourceMapTestCase.check(Map<String, String>, String, String, SourceMapSupplier)
 func (b *SourceMapTestCaseBase) CheckWithSupplier(
-	originalInputs *jutil.LinkedHashMap[string, string],
+	originalInputs []SourceMapTestInput,
 	generatedSource string,
 	sourceMapFileContent string,
 	supplier sourcemap.SourceMapSupplier) {
@@ -317,8 +337,8 @@ func (b *SourceMapTestCaseBase) CheckWithSupplier(
 	// to the original source code.
 
 	// Ensure the token counts match.
-	if resultTokens.Size() != originalTokens.Size() {
-		t.Fatalf("expected to have size: %d\nbut was: %d", originalTokens.Size(), resultTokens.Size())
+	if len(resultTokens.byKey) != len(originalTokens.byKey) {
+		t.Fatalf("expected to have size: %d\nbut was: %d", len(originalTokens.byKey), len(resultTokens.byKey))
 	}
 
 	var reader sourcemap.SourceMapping
@@ -330,7 +350,8 @@ func (b *SourceMapTestCaseBase) CheckWithSupplier(
 
 	// Map the tokens from the generated source back to the
 	// input source and ensure that the map is correct.
-	for token := range resultTokens.Values() {
+	for _, tokenKey := range resultTokens.order {
+		token := resultTokens.byKey[tokenKey]
 		mapping := reader.GetMappingForLine(token.position.GetLine()+1, token.position.GetColumn()+1)
 
 		if mapping == nil {
@@ -338,7 +359,7 @@ func (b *SourceMapTestCaseBase) CheckWithSupplier(
 		}
 
 		// Find the associated token in the input source.
-		inputToken := originalTokens.Get(token.tokenName)
+		inputToken := originalTokens.byKey[token.tokenName]
 		if inputToken == nil {
 			t.Fatalf("expected not to be null (input token %s)", token.tokenName)
 		}

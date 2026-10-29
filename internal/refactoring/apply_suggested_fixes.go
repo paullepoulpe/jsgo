@@ -69,15 +69,17 @@ func ApplySuggestedFixes_ApplySuggestedFixesToFiles(fixes iter.Seq[*SuggestedFix
 		}
 	}
 
-	filenameToCodeMap := jutil.NewLinkedHashMap[string, string]()
+	filenameToCodeMap := make(map[string]string, len(filenames))
 	for _, filename := range filenames {
-		filenameToCodeMap.Put(filename, jutil.Files_AsCharSource(jutil.NewFile(filename), jutil.StandardCharsets_UTF_8).Read())
+		filenameToCodeMap[filename] = jutil.Files_AsCharSource(jutil.NewFile(filename), jutil.StandardCharsets_UTF_8).Read()
 	}
 
 	newCode := ApplySuggestedFixes_ApplySuggestedFixesToCode(fixes, filenameToCodeMap)
-	for key, value := range newCode.All() {
-		if err := os.WriteFile(key, jutil.StringGetBytesUTF8(value), 0o666); err != nil {
-			panic(jutil.FileNotFoundExceptionFromError(err, key))
+	for _, filename := range filenames {
+		if value, ok := newCode[filename]; ok {
+			if err := os.WriteFile(filename, jutil.StringGetBytesUTF8(value), 0o666); err != nil {
+				panic(jutil.FileNotFoundExceptionFromError(err, filename))
+			}
 		}
 	}
 }
@@ -94,7 +96,7 @@ func ApplySuggestedFixes_ApplySuggestedFixesToFiles(fixes iter.Seq[*SuggestedFix
 //
 // Java: ApplySuggestedFixes.applyAllSuggestedFixChoicesToCode(Iterable<SuggestedFix>, Map<String, String>)
 func ApplySuggestedFixes_ApplyAllSuggestedFixChoicesToCode(
-	fixChoices iter.Seq[*SuggestedFix], fileNameToCodeMap *jutil.LinkedHashMap[string, string]) []*jutil.LinkedHashMap[string, string] {
+	fixChoices iter.Seq[*SuggestedFix], fileNameToCodeMap map[string]string) []map[string]string {
 	var first *SuggestedFix
 	isEmpty := true
 	for f := range fixChoices {
@@ -103,7 +105,7 @@ func ApplySuggestedFixes_ApplyAllSuggestedFixChoicesToCode(
 		break
 	}
 	if isEmpty {
-		return []*jutil.LinkedHashMap[string, string]{jutil.NewImmutableMapBuilder[string, string]().BuildOrThrow()}
+		return []map[string]string{{}}
 	}
 	alternativeCount := len(first.GetAlternatives())
 	allMatch := true
@@ -117,7 +119,7 @@ func ApplySuggestedFixes_ApplyAllSuggestedFixChoicesToCode(
 		allMatch,
 		"All SuggestedFixAlternatives must offer an equal number of choices for this "+
 			"utility to make sense")
-	result := make([]*jutil.LinkedHashMap[string, string], 0, alternativeCount)
+	result := make([]map[string]string, 0, alternativeCount)
 	for i := 0; i < alternativeCount; i++ {
 		result = append(result, ApplySuggestedFixes_ApplySuggestedFixChoicesToCode(fixChoices, i, fileNameToCodeMap))
 	}
@@ -128,7 +130,7 @@ func ApplySuggestedFixes_ApplyAllSuggestedFixChoicesToCode(
 func ApplySuggestedFixes_ApplySuggestedFixChoicesToCode(
 	fixChoices iter.Seq[*SuggestedFix],
 	choiceIndex int,
-	fileNameToCodeMap *jutil.LinkedHashMap[string, string]) *jutil.LinkedHashMap[string, string] {
+	fileNameToCodeMap map[string]string) map[string]string {
 	var chosenFixes []*SuggestedFix
 	for choices := range fixChoices {
 		chosenFixes = append(chosenFixes, choices.GetAlternatives()[choiceIndex])
@@ -145,20 +147,23 @@ func ApplySuggestedFixes_ApplySuggestedFixChoicesToCode(
 //
 // Java: ApplySuggestedFixes.applySuggestedFixesToCode(Iterable<SuggestedFix>, Map<String, String>)
 func ApplySuggestedFixes_ApplySuggestedFixesToCode(
-	fixes iter.Seq[*SuggestedFix], filenameToCodeMap *jutil.LinkedHashMap[string, string]) *jutil.LinkedHashMap[string, string] {
+	fixes iter.Seq[*SuggestedFix], filenameToCodeMap map[string]string) map[string]string {
 	map_ := NewApplySuggestedFixes_ReplacementMap()
 	for fix := range fixes {
 		map_.PutIfNoOverlap(fix)
 	}
-	newCodeMap := jutil.NewImmutableMapBuilder[string, string]()
+	newCodeMap := make(map[string]string, len(map_.keys))
 	for filename, replacements := range map_.EntrySet() {
-		if !filenameToCodeMap.ContainsKey(filename) {
+		code, ok := filenameToCodeMap[filename]
+		if !ok {
 			panic(jutil.NewIllegalArgumentExceptionMsg("filenameToCodeMap missing code for file: " + filename))
 		}
-		newCode := ApplySuggestedFixes_ApplyCodeReplacements(replacements, filenameToCodeMap.Get(filename))
-		newCodeMap.Put(filename, newCode)
+		if _, dup := newCodeMap[filename]; dup {
+			panic(jutil.NewIllegalArgumentExceptionMsg("Multiple entries with same key: " + filename))
+		}
+		newCodeMap[filename] = ApplySuggestedFixes_ApplyCodeReplacements(replacements, code)
 	}
-	return newCodeMap.BuildOrThrow()
+	return newCodeMap
 }
 
 // ApplySuggestedFixes_ApplyCodeReplacements applies the provided set of

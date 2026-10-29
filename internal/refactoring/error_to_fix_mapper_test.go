@@ -2545,15 +2545,13 @@ func (c *ErrorToFixMapperTest) UseInType(names ...string) string {
 
 // Java: ErrorToFixMapperTest.compileExpectingAtLeastOneWarningOrError(String)
 func (c *ErrorToFixMapperTest) CompileExpectingAtLeastOneWarningOrError(originalCode string) {
-	c.CompileExpectingAtLeastOneWarningOrErrorOfMap(c.GetInputMap(originalCode))
+	c.CompileExpectingAtLeastOneWarningOrErrorOfInputs([]*jscomp.SourceFile{
+		jscomp.SourceFile_FromCode("preexistingCode", c.preexistingCode),
+		jscomp.SourceFile_FromCode("test", originalCode),
+	})
 }
 
-// Java: ErrorToFixMapperTest.compileExpectingAtLeastOneWarningOrError(ImmutableMap<String, String>)
-func (c *ErrorToFixMapperTest) CompileExpectingAtLeastOneWarningOrErrorOfMap(inputMap *jutil.LinkedHashMap[string, string]) {
-	inputs := []*jscomp.SourceFile{}
-	for k, v := range inputMap.All() {
-		inputs = append(inputs, jscomp.SourceFile_FromCode(k, v))
-	}
+func (c *ErrorToFixMapperTest) CompileExpectingAtLeastOneWarningOrErrorOfInputs(inputs []*jscomp.SourceFile) {
 	c.compiler.Compile(
 		[]*jscomp.SourceFile{}, // Externs
 		inputs,
@@ -2627,18 +2625,18 @@ func (c *ErrorToFixMapperTest) AssertNoChanges(originalCode string) {
 }
 
 // Java: ErrorToFixMapperTest.getInputMap(String)
-func (c *ErrorToFixMapperTest) GetInputMap(originalCode string) *jutil.LinkedHashMap[string, string] {
-	return jutil.NewImmutableMapBuilder[string, string]().
-		Put("preexistingCode", c.preexistingCode).
-		Put("test", originalCode).
-		BuildOrThrow()
+func (c *ErrorToFixMapperTest) GetInputMap(originalCode string) map[string]string {
+	return map[string]string{
+		"preexistingCode": c.preexistingCode,
+		"test":            originalCode,
+	}
 }
 
 // errorToFixMapperTest_get is ImmutableMap.get(key): nil when absent.
 //
 // Go-only: test-helper.
-func errorToFixMapperTest_get(m *jutil.LinkedHashMap[string, string], key string) any {
-	if v, ok := m.Lookup(key); ok {
+func errorToFixMapperTest_get(m map[string]string, key string) any {
+	if v, ok := m[key]; ok {
 		return v
 	}
 	return nil

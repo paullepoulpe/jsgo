@@ -22,6 +22,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/paullepoulpe/jsgo/internal/ast"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
@@ -90,21 +91,41 @@ func (r *RewriteCallerCodeLocation) Process(externs rhino.Node, root rhino.Node)
 	// the root node as well as the externs because the function that contains `goog.callerLocation`
 	// parameter could be an
 	// .i.js file in the externs node subtree
-	NodeTraversal_Traverse(r.compiler, r.compiler.GetRoot(), NewRewriteCallerCodeLocation_FindCallerLocationFunctions(r))
+	find := RewriteCallerCodeLocation_FindCallerLocationFunctions{this_: r}
+	NodeTraversal_Traverse(r.compiler, r.compiler.GetRoot(), &find)
 	if len(r.callerLocationFunctionNames) > 0 {
 		// Rewrite call-sites of functions that have goog.callerLocation as a default parameter. We
 		// want to traverse the root node as well as the externs to ensure the scope of the call-site
 		// is the same scope as the function with the `goog.callerLocation` parameter.
+		rewrite := RewriteCallerCodeLocation_RewriteCallerLocationFunctionCalls{this_: r}
 		NodeTraversal_Traverse(
-			r.compiler, r.compiler.GetRoot(), NewRewriteCallerCodeLocation_RewriteCallerLocationFunctionCalls(r))
+			r.compiler, r.compiler.GetRoot(), &rewrite)
 	}
 }
+
+var (
+	findCallerLocationFunctionsVisitTokens = func() ast.TokenSet {
+		var s ast.TokenSet
+		s.Add(rhino.Token_GETPROP)
+		s.Add(rhino.Token_PARAM_LIST)
+		return s
+	}()
+	rewriteCallerLocationFunctionCallsVisitTokens = func() ast.TokenSet {
+		var s ast.TokenSet
+		s.Add(rhino.Token_CALL)
+		return s
+	}()
+)
 
 // RewriteCallerCodeLocation_FindCallerLocationFunctions is the inner class
 // FindCallerLocationFunctions.
 type RewriteCallerCodeLocation_FindCallerLocationFunctions struct {
 	NodeTraversal_AbstractPostOrderCallbackBase
 	this_ *RewriteCallerCodeLocation // the enclosing instance
+}
+
+func (*RewriteCallerCodeLocation_FindCallerLocationFunctions) visitTokens() *ast.TokenSet {
+	return &findCallerLocationFunctionsVisitTokens
 }
 
 // Java: FindCallerLocationFunctions()
@@ -228,6 +249,12 @@ func (f *RewriteCallerCodeLocation_FindCallerLocationFunctions) VisitParamListAn
 type RewriteCallerCodeLocation_RewriteCallerLocationFunctionCalls struct {
 	NodeTraversal_AbstractPostOrderCallbackBase
 	this_ *RewriteCallerCodeLocation // the enclosing instance
+}
+
+func (*RewriteCallerCodeLocation_RewriteCallerLocationFunctionCalls) noVisitLeaves() {}
+
+func (*RewriteCallerCodeLocation_RewriteCallerLocationFunctionCalls) visitTokens() *ast.TokenSet {
+	return &rewriteCallerLocationFunctionCallsVisitTokens
 }
 
 // Java: RewriteCallerLocationFunctionCalls()

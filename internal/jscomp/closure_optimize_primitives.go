@@ -19,6 +19,7 @@
 package jscomp
 
 import (
+	"github.com/paullepoulpe/jsgo/internal/ast"
 	"github.com/paullepoulpe/jsgo/internal/dtoa"
 	"github.com/paullepoulpe/jsgo/internal/parser"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
@@ -48,12 +49,24 @@ var ClosureOptimizePrimitives_DUPLICATE_SET_MEMBER = DiagnosticType_Warning("JSC
 var closureOptimizePrimitives_GOOG_OBJECT_CREATE = rhino.QualifiedName_Of("goog.object.create")
 var closureOptimizePrimitives_GOOG_OBJECT_CREATESET = rhino.QualifiedName_Of("goog.object.createSet")
 
+var closureOptimizePrimitivesVisitTokens = func() ast.TokenSet {
+	var s ast.TokenSet
+	s.Add(rhino.Token_CALL)
+	return s
+}()
+
 // ClosureOptimizePrimitives_FindPrimitives identifies all calls to closure
 // primitive functions
 type ClosureOptimizePrimitives_FindPrimitives struct {
 	NodeTraversal_AbstractPostOrderCallbackBase
 
 	outer *ClosureOptimizePrimitives
+}
+
+func (*ClosureOptimizePrimitives_FindPrimitives) noVisitLeaves() {}
+
+func (*ClosureOptimizePrimitives_FindPrimitives) visitTokens() *ast.TokenSet {
+	return &closureOptimizePrimitivesVisitTokens
 }
 
 // Java: ClosureOptimizePrimitives.FindPrimitives()
@@ -93,8 +106,8 @@ func NewClosureOptimizePrimitives(compiler AbstractCompiler, canUseEs6Syntax boo
 
 // Java: ClosureOptimizePrimitives.process(Node, Node)
 func (c *ClosureOptimizePrimitives) Process(externs rhino.Node, root rhino.Node) {
-	pass := newClosureOptimizePrimitives_FindPrimitives(c)
-	NodeTraversal_Traverse(c.compiler, root, pass)
+	pass := ClosureOptimizePrimitives_FindPrimitives{outer: c}
+	NodeTraversal_Traverse(c.compiler, root, &pass)
 }
 
 // ProcessObjectCreateCall converts all of the given call nodes to object

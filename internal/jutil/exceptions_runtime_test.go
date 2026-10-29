@@ -3,12 +3,12 @@ package jutil
 import "testing"
 
 func TestGoRuntimeFaultsMapToJavaExceptions(t *testing.T) {
-	var nilList *ArrayList[int]
+	var nilPtr *int
 	cases := []struct {
 		name, class, msg string
 		body             func()
 	}{
-		{"nil deref", "java.lang.NullPointerException", "", func() { _ = nilList.elems }},
+		{"nil deref", "java.lang.NullPointerException", "", func() { _ = *nilPtr }},
 		{"index", "java.lang.ArrayIndexOutOfBoundsException", "Index 5 out of bounds for length 3", func() {
 			s := []int{1, 2, 3}
 			i := 5
@@ -38,7 +38,7 @@ func TestGoRuntimeFaultsMapToJavaExceptions(t *testing.T) {
 	}
 	// A nil dereference is catchable as NullPointerException specifically.
 	caught := false
-	Try(func() { _ = nilList.elems }, func(e INullPointerException) { caught = true })
+	Try(func() { _ = *nilPtr }, func(e INullPointerException) { caught = true })
 	if !caught {
 		t.Fatal("nil dereference not caught as NullPointerException")
 	}

@@ -448,17 +448,19 @@ func TestParseSourceMetaMap(t *testing.T) {
 	tc := newSourceMapGeneratorV3Test(t)
 	const INPUT1 = "file1"
 	const INPUT2 = "file2"
-	inputs := jutil.NewLinkedHashMap[string, string]()
-	inputs.Put(INPUT1, "var __FOO__ = 1;")
-	inputs.Put(INPUT2, "var __BAR__ = 2;")
-	result1 := tc.Compile(inputs.Get(INPUT1), INPUT1)
-	result2 := tc.Compile(inputs.Get(INPUT2), INPUT2)
+	inputs := []sourcemaptesting.SourceMapTestInput{
+		{Name: INPUT1, Code: "var __FOO__ = 1;"},
+		{Name: INPUT2, Code: "var __BAR__ = 2;"},
+	}
+	result1 := tc.Compile(inputs[0].Code, INPUT1)
+	result2 := tc.Compile(inputs[1].Code, INPUT2)
 
 	const MAP1 = "map1"
 	const MAP2 = "map2"
-	maps := jutil.NewLinkedHashMap[string, string]()
-	maps.Put(MAP1, result1.SourceMapFileContent)
-	maps.Put(MAP2, result2.SourceMapFileContent)
+	maps := map[string]string{
+		MAP1: result1.SourceMapFileContent,
+		MAP2: result2.SourceMapFileContent,
+	}
 
 	var sections []*sourcemap.SourceMapSection
 
@@ -477,7 +479,7 @@ func TestParseSourceMetaMap(t *testing.T) {
 		output.String(),
 		mapContents.String(),
 		mapSupplierFunc(func(url string) *string {
-			if v, ok := maps.Lookup(url); ok {
+			if v, ok := maps[url]; ok {
 				return &v
 			}
 			return nil
@@ -492,11 +494,12 @@ func TestSourceMapMerging(t *testing.T) {
 	tc := newSourceMapGeneratorV3Test(t)
 	const INPUT1 = "file1"
 	const INPUT2 = "file2"
-	inputs := jutil.NewLinkedHashMap[string, string]()
-	inputs.Put(INPUT1, "var __FOO__ = 1;")
-	inputs.Put(INPUT2, "var __BAR__ = 2;")
-	result1 := tc.Compile(inputs.Get(INPUT1), INPUT1)
-	result2 := tc.Compile(inputs.Get(INPUT2), INPUT2)
+	inputs := []sourcemaptesting.SourceMapTestInput{
+		{Name: INPUT1, Code: "var __FOO__ = 1;"},
+		{Name: INPUT2, Code: "var __BAR__ = 2;"},
+	}
+	result1 := tc.Compile(inputs[0].Code, INPUT1)
+	result2 := tc.Compile(inputs[1].Code, INPUT2)
 
 	var output strings.Builder
 	offset := appendAndCount(&output, result1.GeneratedSource)

@@ -19,9 +19,21 @@
 package jscomp
 
 import (
+	"github.com/paullepoulpe/jsgo/internal/ast"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
+
+var checkInterfacesVisitTokens = func() ast.TokenSet {
+	var s ast.TokenSet
+	s.Add(rhino.Token_FUNCTION)
+	s.Add(rhino.Token_CLASS)
+	return s
+}()
+
+func (*CheckInterfaces) noVisitLeaves()                    {}
+func (*CheckInterfaces) visitTokens() *ast.TokenSet        { return &checkInterfacesVisitTokens }
+func (*CheckInterfaces) combinedVisitTokens() ast.TokenSet { return checkInterfacesVisitTokens }
 
 // CheckInterfaces checks for errors related to interfaces.
 type CheckInterfaces struct {
@@ -129,12 +141,12 @@ func CheckInterfaces_CheckClassMethods(t *NodeTraversal, classNode rhino.Node, c
 		}
 		if memberFuncDef.IsStaticMember() {
 			// `static foo() {...}`
-			className := NodeUtil_GetName(classNode)
-			if className == nil {
-				className = jutil.StringPtr(checkInterfaces_ANONYMOUS_CLASSNAME)
+			name := checkInterfaces_ANONYMOUS_CLASSNAME
+			if className := NodeUtil_GetName(classNode); className != nil {
+				name = *className
 			}
 			funcName := memberFuncDef.GetString()
-			t.Report(memberFuncDef, CheckInterfaces_STATIC_MEMBER_FUNCTION_IN_INTERFACE_CLASS, *className, funcName)
+			t.Report(memberFuncDef, CheckInterfaces_STATIC_MEMBER_FUNCTION_IN_INTERFACE_CLASS, name, funcName)
 		} else {
 			block := memberFuncDef.GetLastChild().GetLastChild()
 			if block.HasChildren() {

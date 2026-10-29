@@ -47,11 +47,11 @@ import (
 //
 // Java: InlineFunctions.resolveInlineConflicts()
 func (f *InlineFunctions) ResolveInlineConflicts() {
-	if f.fns == nil || f.fns.IsEmpty() {
+	if len(f.fns) == 0 {
 		return
 	}
-	cands := make([]*InlineFunctions_FunctionState, 0, f.fns.Size())
-	for functionState := range f.fns.Values() {
+	cands := make([]*InlineFunctions_FunctionState, 0, len(f.fns))
+	for _, functionState := range f.fns {
 		if functionState.HasReferences() && functionState.CanInline() {
 			cands = append(cands, functionState)
 		}
@@ -75,20 +75,17 @@ type ifConflictScanResult struct {
 
 func inlineFunctions_collectAnonInlinableStates(
 	node rhino.Node,
-	anonFns map[rhino.Node]string,
-	fns *jutil.LinkedHashMap[string, *InlineFunctions_FunctionState],
+	anonFns map[rhino.Node]*InlineFunctions_FunctionState,
 	out *[]*InlineFunctions_FunctionState,
 ) {
 	if node.IsFunction() {
-		if anonName, ok := anonFns[node]; ok {
-			if fs := fns.Get(anonName); fs != nil && fs.CanInline() {
-				*out = append(*out, fs)
-			}
+		if fs := anonFns[node]; fs != nil && fs.CanInline() {
+			*out = append(*out, fs)
 		}
 	}
 	for c := node.GetFirstChild(); !c.IsNil(); c = c.GetNext() {
 		if !c.GetFirstChild().IsNil() {
-			inlineFunctions_collectAnonInlinableStates(c, anonFns, fns, out)
+			inlineFunctions_collectAnonInlinableStates(c, anonFns, out)
 		}
 	}
 }
@@ -98,16 +95,7 @@ func (f *InlineFunctions) resolveInlineConflictsParallel(
 	numWorkers int,
 ) {
 	hasAnon := len(f.anonFns) > 0
-	if hasAnon {
-		// Ensure LinkedHashMap lookup table is materialized before concurrent reads.
-		_ = f.fns.Get("")
-	}
-	fnByID := make(map[uint32]*InlineFunctions_FunctionState, f.fns.Size())
-	for name, fs := range f.fns.All() {
-		if id := rhino.RhinoStringPool_LookupID(name); id != 0 {
-			fnByID[id] = fs
-		}
-	}
+	fnByID := f.namedFns
 
 	scanResults := make([]ifConflictScanResult, len(cands))
 	var nextIdx atomic.Uint32
@@ -133,7 +121,7 @@ func (f *InlineFunctions) resolveInlineConflictsParallel(
 				var res ifConflictScanResult
 				res.hasCalledNames = true
 				if hasAnon {
-					inlineFunctions_collectAnonInlinableStates(body, f.anonFns, f.fns, &res.anonStates)
+					inlineFunctions_collectAnonInlinableStates(body, f.anonFns, &res.anonStates)
 				}
 				res.structuralNeedsClone = !inlineFunctions_isIsolatedStmtFn(fnNode) || inlineFunctions_hasParamWithChildren(fnNode)
 				for _, id := range calledIDs.items {
@@ -253,12 +241,12 @@ func (f *InlineFunctions) ResolveInlineConflictsForFunction(functionState *Inlin
 	calledIDs := &p.calledIDs
 	calledIDs.clear()
 	hasAnonInlinable := inlineFunctions_findCalledFunctionsAndAnon(
-		ast.MustFunction(fnNode).Body().Node(), calledIDs, f.anonFns, f.fns)
+		ast.MustFunction(fnNode).Body().Node(), calledIDs, f.anonFns)
 	if !calledIDs.isEmpty() {
 		needsSafeClone := hasAnonInlinable || !inlineFunctions_isIsolatedStmtFn(fnNode) || inlineFunctions_hasParamWithChildren(fnNode)
 		// Prevent the removal of the referenced functions unless they will be immediately inlined.
 		for _, id := range calledIDs.items {
-			fsCalled := f.fns.Get(rhino.RhinoStringPool_StringFromID(id))
+			fsCalled := f.namedFns[id]
 			if fsCalled != nil {
 				if fsCalled.CanRemove() {
 					fsCalled.SetRemove(
@@ -358,30 +346,26 @@ func inlineFunctions_collectCalledFunctionIDs(node rhino.Node, changed *inlineID
 func inlineFunctions_findCalledFunctionsAndAnon(
 	node rhino.Node,
 	changed *inlineIDSet,
-	anonFns map[rhino.Node]string,
-	fns *jutil.LinkedHashMap[string, *InlineFunctions_FunctionState],
+	anonFns map[rhino.Node]*InlineFunctions_FunctionState,
 ) bool {
 	if len(anonFns) == 0 {
 		inlineFunctions_collectCalledFunctionIDs(node, changed)
 		return false
 	}
-	return inlineFunctions_findCalledFunctionsWithAnon(node, changed, anonFns, fns)
+	return inlineFunctions_findCalledFunctionsWithAnon(node, changed, anonFns)
 }
 
 func inlineFunctions_findCalledFunctionsWithAnon(
 	node rhino.Node,
 	changed *inlineIDSet,
-	anonFns map[rhino.Node]string,
-	fns *jutil.LinkedHashMap[string, *InlineFunctions_FunctionState],
+	anonFns map[rhino.Node]*InlineFunctions_FunctionState,
 ) bool {
 	hasAnon := false
 	if node.IsName() && InlineFunctions_IsCandidateUsage(node) {
 		changed.add(node.GetStringID())
 	} else if node.IsFunction() {
-		if anonName, ok := anonFns[node]; ok {
-			if fs := fns.Get(anonName); fs != nil && fs.CanInline() {
-				hasAnon = true
-			}
+		if fs := anonFns[node]; fs != nil && fs.CanInline() {
+			hasAnon = true
 		}
 	}
 
@@ -392,7 +376,7 @@ func inlineFunctions_findCalledFunctionsWithAnon(
 			}
 			continue
 		}
-		if inlineFunctions_findCalledFunctionsWithAnon(c, changed, anonFns, fns) {
+		if inlineFunctions_findCalledFunctionsWithAnon(c, changed, anonFns) {
 			hasAnon = true
 		}
 	}
@@ -404,11 +388,11 @@ func inlineFunctions_findCalledFunctionsWithAnon(
 //
 // Java: InlineFunctions.decomposeExpressions()
 func (f *InlineFunctions) DecomposeExpressions() {
-	if f.fns == nil || f.fns.IsEmpty() {
+	if len(f.fns) == 0 {
 		return
 	}
 	var workRefs []*FunctionInjector_Reference
-	for functionState := range f.fns.Values() {
+	for _, functionState := range f.fns {
 		if functionState.CanInline() {
 			for _, ref := range functionState.refs {
 				if ref.requiresDecomposition {
@@ -419,6 +403,13 @@ func (f *InlineFunctions) DecomposeExpressions() {
 	}
 	if len(workRefs) == 0 {
 		return
+	}
+	if f.runState != nil && len(f.injector.knownConstantFunctions) == 0 && len(f.runState.constFnIDs) > 0 {
+		fnNames := make(map[string]bool, len(f.runState.constFnIDs))
+		for _, id := range f.runState.constFnIDs {
+			fnNames[rhino.RhinoStringPool_StringFromID(id)] = true
+		}
+		f.injector.SetKnownConstantFunctions(fnNames)
 	}
 	for _, ref := range workRefs {
 		f.invalidateEnclosingSummaries(ref.callNode)
@@ -685,7 +676,7 @@ func (f *InlineFunctions) decomposeExpressionsParallel(workRefs []*FunctionInjec
 //
 // Java: InlineFunctions.removeInlinedFunctions()
 func (f *InlineFunctions) RemoveInlinedFunctions() {
-	for name, functionState := range f.fns.All() {
+	for _, functionState := range f.fns {
 		if functionState.CanRemove() {
 			target := functionState.target
 			jutil.CheckState(functionState.CanInline())
@@ -699,16 +690,25 @@ func (f *InlineFunctions) RemoveInlinedFunctions() {
 					}
 				}
 				if inMovedArg {
-					f.VerifyAllReferencesInlined(name, functionState)
+					f.verifyAllReferencesInlined(functionState)
 					if target.kind != fnKindExpr {
 						f.compiler.GetChangeTracker().notifyChangeHandlers()
 					}
 					continue
 				}
 			}
-			f.VerifyAllReferencesInlined(name, functionState)
+			f.verifyAllReferencesInlined(functionState)
 			target.remove(f.compiler)
 			NodeUtil_MarkFunctionsDeleted(target.fnNode, f.compiler)
+		}
+	}
+}
+
+func (f *InlineFunctions) verifyAllReferencesInlined(functionState *InlineFunctions_FunctionState) {
+	for _, ref := range functionState.refs {
+		if !ref.inlined {
+			f.VerifyAllReferencesInlined(f.functionStateName(functionState), functionState)
+			return
 		}
 	}
 }

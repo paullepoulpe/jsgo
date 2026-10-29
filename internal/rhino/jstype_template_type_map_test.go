@@ -215,7 +215,7 @@ func TestTemplateTypeMap_CopyWithout_canRemoveUnfilledKeys(t *testing.T) {
 		s.createMap([]*TemplateType{keyA, keyB, keyC}, []JSType{s.NUMBER_TYPE})
 
 	// When
-	result := existing.CopyWithoutKeys(jutil.NewLinkedHashSet(keyB))
+	result := existing.CopyWithoutKeySlice([]*TemplateType{keyB})
 
 	// Then
 	s.assertThatMap(result).
@@ -237,7 +237,7 @@ func TestTemplateTypeMap_CopyWithout_preservesSubmapBoundary(t *testing.T) {
 		existing.CopyWithExtensionOfKeys([]*TemplateType{keyC, keyD, keyE}, []JSType{})
 
 	// When
-	result := extension.CopyWithoutKeys(jutil.NewLinkedHashSet(keyC, keyE))
+	result := extension.CopyWithoutKeySlice([]*TemplateType{keyC, keyE})
 
 	// Then
 	s.assertThatMap(result).
@@ -256,7 +256,7 @@ func TestTemplateTypeMap_CopyWithout_retainFilledKeys(t *testing.T) {
 		s.createMap([]*TemplateType{keyA, keyB, keyC}, []JSType{s.NUMBER_TYPE})
 
 	// When
-	result := existing.CopyWithoutKeys(jutil.NewLinkedHashSet(keyA))
+	result := existing.CopyWithoutKeySlice([]*TemplateType{keyA})
 
 	// Then
 	s.assertThatMap(result).
@@ -274,7 +274,7 @@ func TestTemplateTypeMap_CopyWithout_ifNothingRemoved_returnsSelf(t *testing.T) 
 		s.createMap([]*TemplateType{keyA, keyB, keyC}, []JSType{s.NUMBER_TYPE})
 
 	// When
-	result := existing.CopyWithoutKeys(jutil.NewLinkedHashSet(keyA))
+	result := existing.CopyWithoutKeySlice([]*TemplateType{keyA})
 
 	// Then
 	s.AssertThat(result).IsSameInstanceAs(existing)

@@ -80,6 +80,10 @@ type nodeTraversal_noShouldTraverse interface {
 	nodeTraversalNoShouldTraverse()
 }
 
+type nodeTraversal_onlyScriptAndFunctionShouldTraverse interface {
+	shouldTraverseOnlyScriptAndFunction() bool
+}
+
 type nodeTraversal_noVisit interface {
 	nodeTraversalNoVisit()
 }
@@ -326,7 +330,7 @@ func failNodeTraversalNull() {
 func (m *moduleTraversal) enterNode(t *NodeTraversal, n rhino.Node) bool {
 	switch n.GetToken() {
 	case rhino.Token_SCRIPT:
-		m.currentModule = m.moduleMetadataMap.GetModulesByPath().Get(t.GetInput().GetPath().String())
+		m.currentModule = m.moduleMetadataMap.ModuleByPath(t.GetInput().GetPath().String())
 		if m.currentModule == nil {
 			failNodeTraversalNull()
 		}
@@ -343,7 +347,7 @@ func (m *moduleTraversal) enterNode(t *NodeTraversal, n rhino.Node) bool {
 		}
 	case rhino.Token_CALL:
 		if m.inLoadModule && nodeTraversal_AbstractModuleCallback_GOOG_MODULE.Matches(n.GetFirstChild()) {
-			newModule := m.moduleMetadataMap.GetModulesByGoogNamespace().Get(n.GetLastChild().GetString())
+			newModule := m.moduleMetadataMap.ModuleByGoogNamespace(n.GetLastChild().GetString())
 			if newModule == nil {
 				failNodeTraversalNull()
 			}
@@ -378,7 +382,7 @@ func (m *moduleTraversal) exitNode(t *NodeTraversal, n rhino.Node) (exitedModule
 			exitedModule, exitedScopeRoot = m.currentModule, m.scopeRoot
 			m.scopeRoot = n.GetGrandparent().GetGrandparent()
 			m.inLoadModule = false
-			m.currentModule = m.moduleMetadataMap.GetModulesByPath().Get(t.GetInput().GetPath().String())
+			m.currentModule = m.moduleMetadataMap.ModuleByPath(t.GetInput().GetPath().String())
 			if m.currentModule == nil {
 				failNodeTraversalNull()
 			}

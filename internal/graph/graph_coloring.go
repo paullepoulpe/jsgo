@@ -218,13 +218,14 @@ type undirectedColoringEntry[N, E any] struct {
 }
 
 func colorUndirectedGraph[N comparable, E any](g *LinkedUndirectedGraph[N, E], tieBreaker func(a, b N) int) int {
-	n := g.Nodes.Size()
-	worklist := make([]undirectedColoringEntry[N, E], 0, n)
-	for uNode := range g.Nodes.Values() {
-		worklist = append(worklist, undirectedColoringEntry[N, E]{
+	uNodes := g.Nodes.Slice()
+	n := len(uNodes)
+	worklist := make([]undirectedColoringEntry[N, E], n)
+	for i, uNode := range uNodes {
+		worklist[i] = undirectedColoringEntry[N, E]{
 			node:   uNode,
 			weight: len(uNode.NeighborEdges),
-		})
+		}
 	}
 	slices.SortStableFunc(worklist, func(left, right undirectedColoringEntry[N, E]) int {
 		if result := right.weight - left.weight; result != 0 {
@@ -275,17 +276,17 @@ type directedColoringEntry[N, E any] struct {
 }
 
 func colorDirectedGraph[N comparable, E any](g *LinkedDirectedGraph[N, E], tieBreaker func(a, b N) int) int {
-	n := g.Nodes.Size()
-	worklist := make([]directedColoringEntry[N, E], 0, n)
+	dNodes := g.Nodes.Slice()
+	worklist := make([]directedColoringEntry[N, E], len(dNodes))
 	maxIdx := uint32(0)
-	for dNode := range g.Nodes.Values() {
+	for i, dNode := range dNodes {
 		if dNode.Index > maxIdx {
 			maxIdx = dNode.Index
 		}
-		worklist = append(worklist, directedColoringEntry[N, E]{
+		worklist[i] = directedColoringEntry[N, E]{
 			node:   dNode,
 			weight: dNode.InEdgeList.Size() + dNode.OutEdgeList.Size(),
-		})
+		}
 	}
 	slices.SortStableFunc(worklist, func(left, right directedColoringEntry[N, E]) int {
 		if result := right.weight - left.weight; result != 0 {

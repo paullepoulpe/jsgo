@@ -58,8 +58,10 @@
 package dtoa
 
 import (
+	"encoding/binary"
 	"math"
 	"math/big"
+	"math/bits"
 	"strconv"
 
 	"github.com/paullepoulpe/jsgo/internal/jutil"
@@ -108,45 +110,14 @@ var DToA_tens = []float64{
 // Java: DToA.bigtens
 var DToA_bigtens = []float64{1e16, 1e32, 1e64, 1e128, 1e256}
 
+var (
+	bigFive = big.NewInt(5)
+	bigTen  = big.NewInt(10)
+)
+
 // Java: DToA.lo0bits(int)
 func DToA_Lo0bits(y int32) int32 {
-	var k int32
-	x := y
-
-	if (x & 7) != 0 {
-		if (x & 1) != 0 {
-			return 0
-		}
-		if (x & 2) != 0 {
-			return 1
-		}
-		return 2
-	}
-	k = 0
-	if (x & 0xffff) == 0 {
-		k = 16
-		x = jutil.Ushr32(x, 16)
-	}
-	if (x & 0xff) == 0 {
-		k += 8
-		x = jutil.Ushr32(x, 8)
-	}
-	if (x & 0xf) == 0 {
-		k += 4
-		x = jutil.Ushr32(x, 4)
-	}
-	if (x & 0x3) == 0 {
-		k += 2
-		x = jutil.Ushr32(x, 2)
-	}
-	if (x & 1) == 0 {
-		k++
-		x = jutil.Ushr32(x, 1)
-		if (x & 1) == 0 {
-			return 32
-		}
-	}
-	return k
+	return int32(bits.TrailingZeros32(uint32(y)))
 }
 
 // DToA_Hi0bits returns the number (0 through 32) of most significant zero
@@ -154,39 +125,12 @@ func DToA_Lo0bits(y int32) int32 {
 //
 // Java: DToA.hi0bits(int)
 func DToA_Hi0bits(x int32) int32 {
-	var k int32 = 0
-
-	if uint32(x)&0xffff0000 == 0 {
-		k = 16
-		x <<= 16
-	}
-	if uint32(x)&0xff000000 == 0 {
-		k += 8
-		x <<= 8
-	}
-	if uint32(x)&0xf0000000 == 0 {
-		k += 4
-		x <<= 4
-	}
-	if uint32(x)&0xc0000000 == 0 {
-		k += 2
-		x <<= 2
-	}
-	if uint32(x)&0x80000000 == 0 {
-		k++
-		if (x & 0x40000000) == 0 {
-			return 32
-		}
-	}
-	return k
+	return int32(bits.LeadingZeros32(uint32(x)))
 }
 
 // Java: DToA.stuffBits(byte[], int, int)
-func DToA_StuffBits(bits []byte, offset int, val int32) {
-	bits[offset] = byte(val >> 24)
-	bits[offset+1] = byte(val >> 16)
-	bits[offset+2] = byte(val >> 8)
-	bits[offset+3] = byte(val)
+func DToA_StuffBits(b []byte, offset int, val int32) {
+	binary.BigEndian.PutUint32(b[offset:], uint32(val))
 }
 
 func dtoaD2b(d float64, e *int32, bits *int32) *big.Int {
@@ -293,7 +237,7 @@ func DToA_Word0(d float64) int32 {
 func DToA_SetWord0(d float64, i int32) float64 {
 	dBits := jutil.DoubleToLongBits(d)
 	dBits = (int64(i) << 32) | (dBits & 0x0FFFFFFFF)
-	return jutil.LongBitsToDouble(dBits)
+	return math.Float64frombits(uint64(dBits))
 }
 
 // Java: DToA.word1(double)
@@ -306,8 +250,7 @@ func DToA_Word1(d float64) int32 {
 //
 // Java: DToA.pow5mult(BigInteger, int)
 func DToA_Pow5mult(b *big.Int, k int32) *big.Int {
-	// XXXX the C version built a cache of these
-	return jutil.BigIntegerMultiply(b, jutil.BigIntegerPow(big.NewInt(5), k))
+	return jutil.BigIntegerMultiply(b, jutil.BigIntegerPow(bigFive, k))
 }
 
 func dtoaRoundOff(buf []byte) ([]byte, bool) {
@@ -337,7 +280,7 @@ func bigShiftLeft(x *big.Int, n int32) *big.Int {
 
 // bigMul10 is x.multiply(BigInteger.valueOf(10)).
 func bigMul10(x *big.Int) *big.Int {
-	return jutil.BigIntegerMultiply(x, big.NewInt(10))
+	return jutil.BigIntegerMultiply(x, bigTen)
 }
 
 // dtoaBumpUp is the inlined Java `bump_up` sequence: strip trailing '9's, then
@@ -392,7 +335,7 @@ func dtoaJSdtoa(d float64, mode int32, biasUp bool, ndigits int32, sign *bool, b
 	var dig byte
 	var L int64
 	var x int64
-	var b, b1, delta, mlo, mhi, S *big.Int
+	var b, b1, mlo, mhi, S *big.Int
 	var be, bbits int32
 	var d2, ds, eps float64
 	var spec_case, denorm, k_check, try_quick, leftright bool
@@ -822,7 +765,7 @@ func dtoaJSdtoa(d float64, mode int32, biasUp bool, ndigits int32, sign *bool, b
 		Output either zero or the minimum nonzero output depending on which is closer to d. */
 		noDigits := ilim < 0
 		if !noDigits {
-			S = jutil.BigIntegerMultiply(S, big.NewInt(5))
+			S.Mul(S, bigFive)
 			i = int32(b.Cmp(S))
 			noDigits = i < 0 || (i == 0 && !biasUp)
 		}
@@ -836,6 +779,7 @@ func dtoaJSdtoa(d float64, mode int32, biasUp bool, ndigits int32, sign *bool, b
 		k++
 		return buf, k + 1
 	}
+	var q, rem, delta big.Int
 	if leftright {
 		if m2 > 0 {
 			mhi = bigShiftLeft(mhi, m2)
@@ -853,19 +797,19 @@ func dtoaJSdtoa(d float64, mode int32, biasUp bool, ndigits int32, sign *bool, b
 		/* mhi/S = maximum acceptable error, divided by 10^k, if the output is greater than d. */
 
 		for i = 1; ; i++ {
-			q, r := new(big.Int).QuoRem(b, S, new(big.Int))
-			b = r
-			dig = byte(jutil.BigIntegerIntValue(q) + '0')
+			q.QuoRem(b, S, &rem)
+			b.Set(&rem)
+			dig = byte(q.Int64() + '0')
 			/* Do we yet have the shortest decimal string
 			 * that will round to d?
 			 */
 			j = int32(b.Cmp(mlo))
 			/* j is b/S compared with mlo/S. */
-			delta = new(big.Int).Sub(S, mhi)
+			delta.Sub(S, mhi)
 			if delta.Sign() <= 0 {
 				j1 = 1
 			} else {
-				j1 = int32(b.Cmp(delta))
+				j1 = int32(b.Cmp(&delta))
 			}
 			/* j1 is b/S compared with 1 - mhi/S. */
 			if (j1 == 0) && (mode == 0) && ((DToA_Word1(d) & 1) == 0) {
@@ -889,7 +833,7 @@ func dtoaJSdtoa(d float64, mode int32, biasUp bool, ndigits int32, sign *bool, b
 				if j1 > 0 {
 					/* Either dig or dig+1 would work here as the least significant decimal digit.
 					Use whichever would produce a decimal value closer to d. */
-					b = bigShiftLeft(b, 1)
+					b.Lsh(b, 1)
 					j1 = int32(b.Cmp(S))
 					if (j1 > 0) || (j1 == 0 && (((dig & 1) == 1) || biasUp)) {
 						oldDig := dig
@@ -928,31 +872,30 @@ func dtoaJSdtoa(d float64, mode int32, biasUp bool, ndigits int32, sign *bool, b
 			if i == ilim {
 				break
 			}
-			b = bigMul10(b)
+			b.Mul(b, bigTen)
 			if mlo == mhi {
-				mhi = bigMul10(mhi)
-				mlo = mhi
+				mhi.Mul(mhi, bigTen)
 			} else {
-				mlo = bigMul10(mlo)
-				mhi = bigMul10(mhi)
+				mlo.Mul(mlo, bigTen)
+				mhi.Mul(mhi, bigTen)
 			}
 		}
 	} else {
 		for i = 1; ; i++ {
-			q, r := new(big.Int).QuoRem(b, S, new(big.Int))
-			b = r
-			dig = byte(jutil.BigIntegerIntValue(q) + '0')
+			q.QuoRem(b, S, &rem)
+			b.Set(&rem)
+			dig = byte(q.Int64() + '0')
 			buf = append(buf, dig)
 			if i >= ilim {
 				break
 			}
-			b = bigMul10(b)
+			b.Mul(b, bigTen)
 		}
 	}
 
 	/* Round off last digit */
 
-	b = bigShiftLeft(b, 1)
+	b.Lsh(b, 1)
 	j = int32(b.Cmp(S))
 	if (j > 0) || (j == 0 && (((dig & 1) == 1) || biasUp)) {
 		var carry bool

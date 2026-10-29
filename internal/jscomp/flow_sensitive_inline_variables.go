@@ -37,6 +37,7 @@ import (
 // structure that ControlFlowAnalysis builds a graph for.
 
 type fsivCandidateDef struct {
+	nameID  uint32
 	varName string
 	rhs     ast.Expr
 	hasRead bool
@@ -80,20 +81,19 @@ type FlowSensitiveInlineVariables struct {
 	sideEffectPredicate   FlowSensitiveInlineVariables_SideEffectPredicate
 	sideEffectPredicateFn func(rhino.Node) bool
 
-	cfg          *ControlFlowGraph[rhino.Node]
-	candidates   []FlowSensitiveInlineVariables_Candidate
-	reachingDef  *MustBeReachingVariableDef
-	reachingUses *MaybeReachingVariableUse
-	escaped      *jutil.ObjectLinkedHashSet[*Var]
-	allVarsInFn  *jutil.LinkedHashMap[string, *Var]
+	cfg            *ControlFlowGraph[rhino.Node]
+	candidates     []FlowSensitiveInlineVariables_Candidate
+	reachingDef    *MustBeReachingVariableDef
+	reachingUses   *MaybeReachingVariableUse
+	activeVarTable *fnVarTable
 
 	reusableCfg         ReusableCfg
 	reachingDefStorage  MustBeReachingVariableDef
 	reachingUsesStorage MaybeReachingVariableUse
-	allVarsMap          jutil.LinkedHashMap[string, *Var]
-	candidateVarsMap    jutil.LinkedHashMap[string, *Var]
+	varTable            fnVarTable
+	candVarSeen         dfaBitSet
+	candVarIDs          []uint32
 	namesToCheckSet     jutil.LinkedHashSet[string]
-	escapedSet          jutil.ObjectLinkedHashSet[*Var]
 	gatherCandidates    FlowSensitiveInlineVariables_GatherCandidates
 	gatherCb            FlowSensitiveInlineVariables_GatherCandidatesCfgNodeCallback
 	pathChecker         graph.CheckPathsBetweenNodes[rhino.Node, ControlFlowGraph_Branch]
@@ -145,17 +145,24 @@ func (f *FlowSensitiveInlineVariables) reportChange(n rhino.Node) {
 
 func (f *FlowSensitiveInlineVariables) getReachingUses() *MaybeReachingVariableUse {
 	if f.reachingUses == nil {
-		f.candidateVarsMap.Clear()
+		table := f.activeVarTable
+		f.candVarSeen.clear(len(table.vars) <= 256)
+		f.candVarIDs = f.candVarIDs[:0]
 		for i := range f.candidates {
 			cand := &f.candidates[i]
 			if cand.removed {
 				continue
 			}
-			if v := f.allVarsInFn.Get(cand.varName); v != nil {
-				f.candidateVarsMap.Put(cand.varName, v)
+			idx, ok := table.lookupIndexByID(rhino.RhinoStringPool_LookupID(cand.varName))
+			if !ok || f.candVarSeen.has(idx) {
+				continue
+			}
+			f.candVarSeen.set(idx)
+			if !table.escaped.has(idx) {
+				f.candVarIDs = append(f.candVarIDs, table.vars[idx].nameID)
 			}
 		}
-		f.reachingUsesStorage.Reset(f.cfg, f.escaped, &f.candidateVarsMap)
+		f.reachingUsesStorage.resetWithVarIDs(f.cfg, f.candVarIDs)
 		f.reachingUses = &f.reachingUsesStorage
 		f.reachingUses.Analyze()
 	}
@@ -275,28 +282,30 @@ func fsivIsReadName(n, parent rhino.Node) bool {
 	return !NodeUtil_IsLhsByDestructuring(n)
 }
 
-func fsivRhsDependsOnOuterOrCatchVars(n, parent rhino.Node, allVarsInFn *jutil.LinkedHashMap[string, *Var]) bool {
+func fsivRhsDependsOnOuterOrCatchVars(n, parent rhino.Node, table *fnVarTable) bool {
 	if !parent.IsNil() && ControlFlowGraph_IsEnteringNewCfgNode(n) {
 		return false
 	}
 	if n.IsName() {
-		v := allVarsInFn.Get(n.GetString())
+		v := table.lookupVarByID(n.GetStringID())
 		if v == nil || v.GetScope().(*Scope).IsCatchScope() {
 			return true
 		}
 	}
 	for c := n.GetFirstChild(); !c.IsNil(); c = c.GetNext() {
-		if fsivRhsDependsOnOuterOrCatchVars(c, n, allVarsInFn) {
+		if fsivRhsDependsOnOuterOrCatchVars(c, n, table) {
 			return true
 		}
 	}
 	return false
 }
 
-func (f *FlowSensitiveInlineVariables) maybeAddCandidateDef(varName string, rhs ast.Expr) {
-	if varName == "" {
+func (f *FlowSensitiveInlineVariables) maybeAddCandidateDef(name ast.Name, rhs ast.Expr) {
+	nameID := name.Node().GetStringID()
+	if nameID <= rhino.RhinoStringPool_EmptyID {
 		return
 	}
+	varName := name.Ident()
 	unsafe, hasFunc := fsivInspectRhs(rhs.Node())
 	if unsafe {
 		return
@@ -308,6 +317,7 @@ func (f *FlowSensitiveInlineVariables) maybeAddCandidateDef(varName string, rhs 
 		return
 	}
 	f.inlinableDefs = append(f.inlinableDefs, fsivCandidateDef{
+		nameID:  nameID,
 		varName: varName,
 		rhs:     rhs,
 		hasFunc: hasFunc,
@@ -356,14 +366,14 @@ func (f *FlowSensitiveInlineVariables) scanStatementsForCandidateDefs(n rhino.No
 		for d := range ast.MustNameDeclaration(n).Declarators() {
 			if name, ok := d.AsName(); ok {
 				if value, ok := name.Init(); ok {
-					f.maybeAddCandidateDef(name.Ident(), value)
+					f.maybeAddCandidateDef(name, value)
 				}
 			}
 		}
 	case rhino.Token_EXPR_RESULT:
 		if assign, ok := ast.MustExprStmt(n).Expr().AsAssign(); ok {
 			if lhs, ok := assign.Target().AsName(); ok {
-				f.maybeAddCandidateDef(lhs.Ident(), assign.Value())
+				f.maybeAddCandidateDef(lhs, assign.Value())
 			}
 		}
 	case rhino.Token_FUNCTION, rhino.Token_RETURN, rhino.Token_THROW,
@@ -387,9 +397,9 @@ func (f *FlowSensitiveInlineVariables) markReadsOutsideLoop(n rhino.Node) {
 	}
 	for c := n.GetFirstChild(); !c.IsNil(); c = c.GetNext() {
 		if c.IsName() && fsivIsReadName(c, n) {
-			name := c.GetString()
+			nameID := c.GetStringID()
 			for i := range f.inlinableDefs {
-				if f.inlinableDefs[i].varName == name && !f.inlinableDefs[i].hasRead {
+				if f.inlinableDefs[i].nameID == nameID && !f.inlinableDefs[i].hasRead {
 					f.inlinableDefs[i].hasRead = true
 					f.unreadDefCount--
 				}
@@ -429,12 +439,12 @@ func (f *FlowSensitiveInlineVariables) collectInlinableDefsWithReads(fnBody ast.
 	return nDefs > 0, hasFuncRhs
 }
 
-func (f *FlowSensitiveInlineVariables) isInlinableDefVar(name string) bool {
+func (f *FlowSensitiveInlineVariables) isInlinableDefVarID(nameID uint32) bool {
 	if len(f.inlinableDefs) == 0 {
 		return true
 	}
 	for i := range f.inlinableDefs {
-		if f.inlinableDefs[i].varName == name {
+		if f.inlinableDefs[i].nameID == nameID {
 			return true
 		}
 	}
@@ -489,31 +499,24 @@ func (f *FlowSensitiveInlineVariables) processFunction(fn ast.Function, body ast
 		return
 	}
 
-	var allVarsInFn *jutil.LinkedHashMap[string, *Var]
+	var table *fnVarTable
 	if !fsivHasNestedBlockScopeDecls(fn, body) {
-		f.allVarsMap.Clear()
-		for _, v := range fnScope.varList {
-			if v != nil {
-				f.allVarsMap.Put(v.GetName(), v)
-			}
-		}
-		for _, v := range scope.varList {
-			if v != nil {
-				f.allVarsMap.Put(v.GetName(), v)
-			}
-		}
-		allVarsInFn = &f.allVarsMap
+		f.varTable.reset()
+		f.varTable.appendScopeVars(fnScope)
+		f.varTable.appendScopeVars(scope)
+		f.varTable.finalize()
+		table = &f.varTable
 	} else {
 		allVarsDeclaredInFunction := f.varsFinder.collect(f.compiler, scopeCreator, fnScope)
-		allVarsInFn = allVarsDeclaredInFunction.GetAllVariables()
+		table = &allVarsDeclaredInFunction.table
 	}
-	if allVarsInFn.IsEmpty() {
+	if table.isEmpty() {
 		return
 	}
 
 	nDefs := 0
 	for _, d := range f.inlinableDefs {
-		if allVarsInFn.Get(d.varName) != nil && !fsivRhsDependsOnOuterOrCatchVars(d.rhs.Node(), rhino.NilNode, allVarsInFn) {
+		if table.lookupVarByID(d.nameID) != nil && !fsivRhsDependsOnOuterOrCatchVars(d.rhs.Node(), rhino.NilNode, table) {
 			f.inlinableDefs[nDefs] = d
 			nDefs++
 		}
@@ -523,13 +526,11 @@ func (f *FlowSensitiveInlineVariables) processFunction(fn ast.Function, body ast
 		return
 	}
 
-	f.escapedSet.Clear()
-	escaped := &f.escapedSet
-	DataFlowAnalysis_ComputeEscaped(
-		fnScope, escaped, f.compiler, scopeCreator, allVarsInFn)
+	table.escaped.clear(len(table.vars) <= 256)
+	computeEscapedInTable(fnScope, table, f.compiler, scopeCreator)
 	nDefs = 0
 	for _, d := range f.inlinableDefs {
-		if v := allVarsInFn.Get(d.varName); v != nil && !escaped.Contains(v) {
+		if idx, ok := table.lookupIndexByID(d.nameID); ok && !table.escaped.has(idx) {
 			f.inlinableDefs[nDefs] = d
 			nDefs++
 		}
@@ -547,6 +548,7 @@ func (f *FlowSensitiveInlineVariables) processFunction(fn ast.Function, body ast
 		f.candidates = f.candidates[:0]
 		f.curFn = rhino.NilNode
 		f.curFnEnclosingScope = nil
+		f.activeVarTable = nil
 		f.cfg = nil
 		f.reusableCfg.release()
 	}()
@@ -558,7 +560,7 @@ func (f *FlowSensitiveInlineVariables) processFunction(fn ast.Function, body ast
 		/* shouldTraverseFunctions= */ false,
 		/* edgeAnnotations= */ true)
 
-	f.reachingDefStorage.Reset(f.cfg, f.compiler, escaped, allVarsInFn)
+	f.reachingDefStorage.resetWithTable(f.cfg, f.compiler, table)
 	f.reachingDef = &f.reachingDefStorage
 	f.reachingDef.Analyze()
 	f.candidates = f.candidates[:0]
@@ -574,14 +576,13 @@ func (f *FlowSensitiveInlineVariables) processFunction(fn ast.Function, body ast
 	// Lazily compute the backward reaching use only if a candidate passes the
 	// syntactic and side-effect checks in Candidate.CanInline.
 	f.reachingUses = nil
-	f.escaped = escaped
-	f.allVarsInFn = allVarsInFn
+	f.activeVarTable = table
 	for i := range f.candidates {
 		c := &f.candidates[i]
 		if c.removed {
 			continue
 		}
-		candidateVar := jutil.CheckNotNull(allVarsInFn.Get(c.varName))
+		candidateVar := jutil.CheckNotNull(table.lookupVar(c.varName))
 		if c.CanInline(candidateVar.GetScope().(*Scope)) {
 			c.InlineVariable()
 			c.removed = true
@@ -759,7 +760,6 @@ func (f *FlowSensitiveInlineVariables) Process(externs rhino.Node, root rhino.No
 		f.scopeCreator = nil
 		f.dummyGlobalScope = nil
 		f.globalRoot = rhino.NilNode
-		f.escapedSet.Clear()
 	}()
 
 	const parallelThreshold = 8
@@ -839,7 +839,6 @@ func (f *FlowSensitiveInlineVariables) Process(externs rhino.Node, root rhino.No
 				worker.scopeCreator = wsc
 				defer func() {
 					worker.scopeCreator = nil
-					worker.escapedSet.Clear()
 				}()
 
 				for {
@@ -958,27 +957,29 @@ func (cb *FlowSensitiveInlineVariables_GatherCandidatesCfgNodeCallback) Visit(t 
 			return
 		}
 
-		name := n.GetString()
-		if len(cb.outer.inlinableDefs) > 0 && !cb.outer.isInlinableDefVar(name) {
+		nameID := n.GetStringID()
+		if len(cb.outer.inlinableDefs) > 0 && !cb.outer.isInlinableDefVarID(nameID) {
 			return
 		}
 
 		var def *MustBeReachingVariableDef_Definition
 		if cb.inState != nil {
-			def = cb.outer.reachingDef.getDefFromMustDef(name, cb.inState)
+			def = cb.outer.reachingDef.getDefFromMustDefByID(nameID, cb.inState)
 		} else {
-			def = cb.outer.reachingDef.GetDef(name, cb.cfgNode)
+			def = cb.outer.reachingDef.GetDef(n.GetString(), cb.cfgNode)
 		}
 		if def != nil && !def.node.IsFunction() && !def.node.IsBlock() &&
-			!cb.outer.getCodingConvention().IsExportedWithLocal(name /* local= */, true) &&
 			!cb.outer.reachingDef.DependsOnOuterScopeVars(def) {
-			cb.outer.candidates = append(cb.outer.candidates, FlowSensitiveInlineVariables_Candidate{
-				outer:       cb.outer,
-				varName:     name,
-				defMetadata: def,
-				use:         n,
-				useCfgNode:  cb.cfgNode,
-			})
+			name := n.GetString()
+			if !cb.outer.getCodingConvention().IsExportedWithLocal(name /* local= */, true) {
+				cb.outer.candidates = append(cb.outer.candidates, FlowSensitiveInlineVariables_Candidate{
+					outer:       cb.outer,
+					varName:     name,
+					defMetadata: def,
+					use:         n,
+					useCfgNode:  cb.cfgNode,
+				})
+			}
 		}
 	}
 }

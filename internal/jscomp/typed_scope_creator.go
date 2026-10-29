@@ -57,7 +57,8 @@ type TypedScopeCreator struct {
 	metadataMap              *ModuleMetadataMap
 	moduleImportResolver     *ModuleImportResolver
 	processClosurePrimitives bool
-	memoized                 *jutil.LinkedHashMap[rhino.Node, *TypedScope]
+	memoized                 map[rhino.Node]*TypedScope
+	memoizedOrder            []*TypedScope
 
 	// Maps from scope root to declared variable names. Populated by FirstOrderFunctionAnalyzer to
 	// reserve names before the TypedScope is populated.
@@ -172,7 +173,7 @@ func NewTypedScopeCreator_WeakModuleImport(outer *TypedScopeCreator, moduleLocal
 // Java: TypedScopeCreator.WeakModuleImport.resolve()
 func (w *TypedScopeCreator_WeakModuleImport) Resolve() {
 	// resolvedScope may be null if this is importing a nonexistent module
-	resolvedScope := w.outer.memoized.Get(w.scopedImport.GetScopeRoot())
+	resolvedScope := w.outer.memoized[w.scopedImport.GetScopeRoot()]
 	var requiredVar *TypedVar
 	if resolvedScope != nil {
 		requiredVar, _ = resolvedScope.GetSlot(w.scopedImport.GetName()).(*TypedVar)
@@ -229,7 +230,7 @@ func NewTypedScopeCreator(compiler AbstractCompiler) *TypedScopeCreator {
 // Java: TypedScopeCreator(AbstractCompiler, CodingConvention)
 func NewTypedScopeCreatorWithCodingConvention(compiler AbstractCompiler, codingConvention CodingConvention) *TypedScopeCreator {
 	c := &TypedScopeCreator{}
-	c.memoized = jutil.NewLinkedHashMap[rhino.Node, *TypedScope]()
+	c.memoized = make(map[rhino.Node]*TypedScope)
 	c.stage = TypedScopeCreator_Stage_BUILDING
 	c.compiler = compiler
 	c.validator = compiler.GetTypeValidator()
@@ -246,11 +247,29 @@ func NewTypedScopeCreatorWithCodingConvention(compiler AbstractCompiler, codingC
 	}
 	c.moduleMap = compiler.GetModuleMap()
 	c.moduleImportResolver = NewModuleImportResolver(c.moduleMap, c.GetNodeToScopeMapper(), c.typeRegistry)
-	c.processClosurePrimitives = !c.metadataMap.GetModulesByGoogNamespace().IsEmpty()
+	c.processClosurePrimitives = c.metadataMap.ModulesByGoogNamespaceMap().Size() > 0
 
 	// Reset state to empty collections.
 	c.ClearCommonState()
 	return c
+}
+
+func (c *TypedScopeCreator) putMemoized(root rhino.Node, scope *TypedScope) {
+	if prev, exists := c.memoized[root]; !exists {
+		c.memoizedOrder = append(c.memoizedOrder, scope)
+	} else {
+		for i, existing := range c.memoizedOrder {
+			if existing == prev {
+				c.memoizedOrder[i] = scope
+				break
+			}
+		}
+	}
+	c.memoized[root] = scope
+}
+
+func (c *TypedScopeCreator) getMemoizedScope(n rhino.Node) *TypedScope {
+	return c.memoized[n]
 }
 
 // Java: TypedScopeCreator.report(JSError)
@@ -271,7 +290,7 @@ func (c *TypedScopeCreator) GetScope(var_ *TypedVar) rhino.StaticScope {
 // Java: TypedScopeCreator.getAllSymbols()
 func (c *TypedScopeCreator) GetAllSymbols() iter.Seq[*TypedVar] {
 	return func(yield func(*TypedVar) bool) {
-		for s := range c.memoized.Values() {
+		for _, s := range c.memoizedOrder {
 			for v := range s.GetAllSymbols() {
 				if !yield(v) {
 					return
@@ -289,14 +308,14 @@ func (c *TypedScopeCreator) GetAllSymbols() iter.Seq[*TypedVar] {
 //
 // Java: TypedScopeCreator.getNodeToScopeMapper()
 func (c *TypedScopeCreator) GetNodeToScopeMapper() func(rhino.Node) *TypedScope {
-	return c.memoized.Get
+	return c.getMemoizedScope
 }
 
 // Java: TypedScopeCreator.getAllMemoizedScopes()
 func (c *TypedScopeCreator) GetAllMemoizedScopes() []*TypedScope {
 	// Return scopes in reverse order of creation so that IIFEs will
 	// come before the global scope.
-	scopes := slices.Collect(c.memoized.Values())
+	scopes := slices.Clone(c.memoizedOrder)
 	slices.Reverse(scopes)
 	return scopes
 }
@@ -309,7 +328,7 @@ func (c *TypedScopeCreator) GetAllMemoizedScopes() []*TypedScope {
 //
 // Java: TypedScopeCreator.createScope(Node)
 func (c *TypedScopeCreator) CreateScopeOfNode(n rhino.Node) *TypedScope {
-	s := c.memoized.Get(n)
+	s := c.memoized[n]
 	if s != nil {
 		return s
 	}
@@ -328,12 +347,12 @@ func (c *TypedScopeCreator) CreateScope(root rhino.Node, parent AbstractScope) A
 		typedParent = parent.(*TypedScope)
 	}
 
-	scope := c.memoized.Get(root)
+	scope := c.memoized[root]
 	if scope != nil {
 		jutil.CheckState(typedParent == scope.GetParent())
 	} else {
 		scope = c.CreateScopeInternal(root, typedParent)
-		c.memoized.Put(root, scope)
+		c.putMemoized(root, scope)
 	}
 	return scope
 }
@@ -512,9 +531,9 @@ func (c *TypedScopeCreator) GatherAllProvides(root rhino.Node) {
 	js := root.GetSecondChild()
 	providedNames :=
 		NewProcessClosureProvidesAndRequires(c.compiler /* preserveGoogProvidesAndRequires= */, true).
-			CollectProvidedNames(externs, js)
+			CollectProvidedNamesSlice(externs, js)
 
-	for name := range providedNames.Values() {
+	for _, name := range providedNames {
 		if name.HasImplicitInitialization() {
 			continue
 		}
@@ -591,10 +610,11 @@ func (c *TypedScopeCreator) CreateInitialScope(root rhino.Node) *TypedScope {
 	// Memoize the global scope so that module scope creation can access it. See
 	// AbstractScopeBuilder#shouldTraverse - modules are traversed early, as if they were always
 	// executed when control flow reaches the module body.
-	if c.memoized.IsEmpty() && c.scopeCount > 8 {
-		*c.memoized = *jutil.NewLinkedHashMapWithCapacity[rhino.Node, *TypedScope](c.scopeCount + 16)
+	if len(c.memoized) == 0 && c.scopeCount > 8 {
+		c.memoized = make(map[rhino.Node]*TypedScope, c.scopeCount+16)
+		c.memoizedOrder = make([]*TypedScope, 0, c.scopeCount+16)
 	}
-	c.memoized.Put(root, s)
+	c.putMemoized(root, s)
 
 	return s
 }

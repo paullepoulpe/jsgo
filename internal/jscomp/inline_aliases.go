@@ -19,8 +19,26 @@
 package jscomp
 
 import (
+	"github.com/paullepoulpe/jsgo/internal/ast"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
+)
+
+var (
+	inlineAliasesCollectorVisitTokens = func() ast.TokenSet {
+		var s ast.TokenSet
+		s.Add(rhino.Token_VAR)
+		s.Add(rhino.Token_CONST)
+		s.Add(rhino.Token_LET)
+		s.Add(rhino.Token_ASSIGN)
+		return s
+	}()
+	inlineAliasesInlinerVisitTokens = func() ast.TokenSet {
+		var s ast.TokenSet
+		s.Add(rhino.Token_NAME)
+		s.Add(rhino.Token_GETPROP)
+		return s
+	}()
 )
 
 // InlineAndCollapseProperties_InlineAliases inlines constant aliases
@@ -78,6 +96,19 @@ type InlineAndCollapseProperties_InlineAliases_AliasesCollector struct {
 // Java: InlineAndCollapseProperties.InlineAliases.AliasesCollector()
 func NewInlineAndCollapseProperties_InlineAliases_AliasesCollector(outer *InlineAndCollapseProperties_InlineAliases) *InlineAndCollapseProperties_InlineAliases_AliasesCollector {
 	return &InlineAndCollapseProperties_InlineAliases_AliasesCollector{outer: outer}
+}
+
+var (
+	_ nodeTraversal_noVisitLeaves  = (*InlineAndCollapseProperties_InlineAliases_AliasesCollector)(nil)
+	_ nodeTraversal_visitTokens    = (*InlineAndCollapseProperties_InlineAliases_AliasesCollector)(nil)
+	_ nodeTraversal_onlyNameLeaves = (*InlineAndCollapseProperties_InlineAliases_AliasesInliner)(nil)
+	_ nodeTraversal_visitTokens    = (*InlineAndCollapseProperties_InlineAliases_AliasesInliner)(nil)
+)
+
+func (*InlineAndCollapseProperties_InlineAliases_AliasesCollector) noVisitLeaves() {}
+
+func (*InlineAndCollapseProperties_InlineAliases_AliasesCollector) visitTokens() *ast.TokenSet {
+	return &inlineAliasesCollectorVisitTokens
 }
 
 // Java: InlineAndCollapseProperties.InlineAliases.AliasesCollector.visit(NodeTraversal, Node, Node)
@@ -138,6 +169,12 @@ type InlineAndCollapseProperties_InlineAliases_AliasesInliner struct {
 // Java: InlineAndCollapseProperties.InlineAliases.AliasesInliner()
 func NewInlineAndCollapseProperties_InlineAliases_AliasesInliner(outer *InlineAndCollapseProperties_InlineAliases) *InlineAndCollapseProperties_InlineAliases_AliasesInliner {
 	return &InlineAndCollapseProperties_InlineAliases_AliasesInliner{outer: outer}
+}
+
+func (*InlineAndCollapseProperties_InlineAliases_AliasesInliner) onlyNameLeaves() {}
+
+func (*InlineAndCollapseProperties_InlineAliases_AliasesInliner) visitTokens() *ast.TokenSet {
+	return &inlineAliasesInlinerVisitTokens
 }
 
 // Java: InlineAndCollapseProperties.InlineAliases.AliasesInliner.visit(NodeTraversal, Node, Node)

@@ -149,7 +149,7 @@ func testCases() map[string]any {
 		"nested":          []any{inner},
 		"treeMap":         tm,
 		"linkedHashSet":   jutil.NewLinkedHashSet("b", "a"),
-		"arrayList":       jutil.NewArrayListFrom([]int32{3, 1}),
+		"arrayList":       []int32{3, 1},
 		"multimap":        multimap,
 		"holderMultimap":  &testHolder{Value: multimap2},
 	}

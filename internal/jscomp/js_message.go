@@ -758,7 +758,7 @@ func (p JsMessage_Part) GetCanonicalPlaceholderName() string {
 	if p.canonical {
 		return p.str
 	}
-	return jutil.CaseFormat_LowerCamelToUpperUnderscore(p.str)
+	return caseFormatLowerCamelToUpperUnderscore(p.str)
 }
 
 // Equals compares two JsMessage_Part values.

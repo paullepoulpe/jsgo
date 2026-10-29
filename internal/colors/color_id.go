@@ -87,7 +87,7 @@ func ColorId_FromByteArray(bytes []byte) ColorId {
 
 // Java: ColorId.fromAscii(String)
 func ColorId_FromAscii(str string) ColorId {
-	return ColorId_FromBytesAt(str, jutil.StringLength(str), ColorId_ASCII_AT)
+	return ColorId_FromBytesAt(str, len(str), ColorId_ASCII_AT)
 }
 
 // Java: ColorId.fromBytesAt(T, int, ByteAt<T>)
@@ -124,64 +124,50 @@ func ColorId_FromBytesAt[T any](source T, length int, byteAt ColorId_ByteAt[T]) 
 //
 // Java: ColorId.union(Set<ColorId>)
 func ColorId_Union(ids *jutil.LinkedHashSet[ColorId]) ColorId {
-	n := ids.Size()
-	if n <= 1 {
-		return iterablesGetOnlyElement(ids)
-	}
-	if n == 2 {
-		c0, c1, _ := ids.FirstTwo()
-		a, b := c0.rightAligned, c1.rightAligned
-		if a > b {
-			a, b = b, a
-		}
-		var buf [16]byte
-		binary.LittleEndian.PutUint64(buf[0:8], uint64(a))
-		binary.LittleEndian.PutUint64(buf[8:16], uint64(b))
-		return NewColorId(int64(jutil.FarmHashFingerprint64(buf[:])))
-	}
+	return ColorId_UnionSlice(ids.ToSlice())
+}
 
-	var stackCIDs [32]ColorId
+// ColorId_UnionSlice combines a slice of ColorIds into a union ColorId.
+func ColorId_UnionSlice(ids []ColorId) ColorId {
+	if len(ids) == 0 {
+		panic(jutil.NewNoSuchElementException())
+	}
+	if len(ids) == 1 {
+		return ids[0]
+	}
 	var stackBuf [32]int64
-	var stackBytes [256]byte
 	var sorted []int64
-	var raw []byte
-	if n <= len(stackBuf) {
-		ids.CopyTo(stackCIDs[:n])
-		sorted = stackBuf[:n]
-		for i := 0; i < n; i++ {
-			sorted[i] = stackCIDs[i].rightAligned
-		}
-		raw = stackBytes[:n*8]
+	if len(ids) <= len(stackBuf) {
+		sorted = stackBuf[:len(ids)]
 	} else {
-		cids := make([]ColorId, n)
-		ids.CopyTo(cids)
-		sorted = make([]int64, n)
-		for i := 0; i < n; i++ {
-			sorted[i] = cids[i].rightAligned
-		}
-		raw = make([]byte, n*8)
+		sorted = make([]int64, len(ids))
+	}
+	for i, c := range ids {
+		sorted[i] = c.rightAligned
 	}
 	slices.Sort(sorted)
-
+	sorted = slices.Compact(sorted)
+	n := len(sorted)
+	if n == 1 {
+		return NewColorId(sorted[0])
+	}
+	if n == 2 {
+		var buf [16]byte
+		binary.LittleEndian.PutUint64(buf[0:8], uint64(sorted[0]))
+		binary.LittleEndian.PutUint64(buf[8:16], uint64(sorted[1]))
+		return NewColorId(int64(jutil.FarmHashFingerprint64(buf[:])))
+	}
+	var stackBytes [256]byte
+	var raw []byte
+	if n*8 <= len(stackBytes) {
+		raw = stackBytes[:n*8]
+	} else {
+		raw = make([]byte, n*8)
+	}
 	for i := 0; i < n; i++ {
 		binary.LittleEndian.PutUint64(raw[i*8:], uint64(sorted[i]))
 	}
-
 	return NewColorId(int64(jutil.FarmHashFingerprint64(raw)))
-}
-
-// iterablesGetOnlyElement is Guava's Iterables.getOnlyElement(Iterable).
-func iterablesGetOnlyElement[T comparable](s *jutil.LinkedHashSet[T]) T {
-	if s.Size() == 0 {
-		panic(jutil.NewNoSuchElementException())
-	}
-	if s.Size() > 1 {
-		panic(jutil.NewIllegalArgumentExceptionMsg("expected one element but was: " + s.String()))
-	}
-	if e, ok := s.First(); ok {
-		return e
-	}
-	panic(jutil.NewNoSuchElementException())
 }
 
 // Java: ColorId(long)
@@ -248,8 +234,11 @@ var ColorId_FARM_64 = jutil.Hashing_FarmHashFingerprint64NewHasher
 type ColorId_ByteAt[T any] func(source T, index int) int8
 
 // Java: ColorId.ASCII_AT
-var ColorId_ASCII_AT ColorId_ByteAt[string] = func(s string, i int) int8 {
-	c := jutil.StringCodePointAt(s, i)
-	jutil.CheckStateMsg1(0 <= c && c < 128, "%s", c)
+var ColorId_ASCII_AT ColorId_ByteAt[string] = func(s string, pos int) int8 {
+	if pos < 0 || pos >= len(s) {
+		panic(jutil.NewStringIndexOutOfBoundsException(pos, len(s)))
+	}
+	c := int(s[pos])
+	jutil.CheckStateMsg1(c < 128, "%s", c)
 	return int8(c)
 }

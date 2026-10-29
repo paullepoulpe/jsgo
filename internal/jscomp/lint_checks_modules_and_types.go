@@ -1,5 +1,6 @@
 // Port of com/google/javascript/jscomp/lint/CheckPrototypeProperties.java @ closure-compiler v20261021
 // Port of com/google/javascript/jscomp/lint/CheckEs6Modules.java @ closure-compiler v20261021
+// Port of com/google/javascript/jscomp/lint/CheckNoMutatedEs6Exports.java @ closure-compiler v20261021
 // Port of com/google/javascript/jscomp/lint/CheckPrimitiveAsObject.java @ closure-compiler v20261021
 // Port of com/google/javascript/jscomp/lint/CheckGoogModuleTypeScriptName.java @ closure-compiler v20261021
 // Port of com/google/javascript/jscomp/lint/CheckArrayWithGoogObject.java @ closure-compiler v20261021
@@ -104,12 +105,14 @@
 package jscomp
 
 import (
+	"slices"
 	"strconv"
 	"strings"
 
 	"github.com/paullepoulpe/jsgo/internal/ast"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
+	"github.com/paullepoulpe/jsgo/internal/strpool"
 )
 
 // ---------------------------------------------------------------------------
@@ -742,4 +745,140 @@ func (c *CheckConstantCaseNames) ReportWarningsAndClear() {
 	clear(c.invalidNamesPerModule)
 	c.invalidNamesOrder = c.invalidNamesOrder[:0]
 	clear(c.reassignedNames)
+}
+
+// ---------------------------------------------------------------------------
+// CheckNoMutatedEs6Exports
+// ---------------------------------------------------------------------------
+
+// CheckNoMutatedEs6Exports checks that exports of ES6 modules are not mutated
+// outside of module initialization.
+type CheckNoMutatedEs6Exports struct {
+	compiler           AbstractCompiler
+	mutatedNames       map[string][]rhino.Node
+	mutatedOrder       []string
+	exportedLocalNames map[uint32]struct{}
+}
+
+var CheckNoMutatedEs6Exports_MUTATED_EXPORT = DiagnosticType_Warning(
+	"JSC_MUTATED_EXPORT",
+	"The name \"{0}\" is exported and should not be mutated outside of module "+
+		"initialization. Mutable exports are generally difficult to reason about. You "+
+		"can work around this by exporting getter/setter functions, or an object with "+
+		"mutable properties instead.")
+
+func NewCheckNoMutatedEs6Exports(compiler AbstractCompiler) *CheckNoMutatedEs6Exports {
+	return &CheckNoMutatedEs6Exports{
+		compiler:           compiler,
+		mutatedNames:       make(map[string][]rhino.Node),
+		exportedLocalNames: make(map[uint32]struct{}),
+	}
+}
+
+var checkNoMutatedEs6ExportsVisitTokens = func() ast.TokenSet {
+	var s ast.TokenSet
+	s.Add(rhino.Token_MODULE_BODY)
+	return s
+}()
+
+func (*CheckNoMutatedEs6Exports) noVisitLeaves() {}
+func (*CheckNoMutatedEs6Exports) visitTokens() *ast.TokenSet {
+	return &checkNoMutatedEs6ExportsVisitTokens
+}
+func (*CheckNoMutatedEs6Exports) combinedVisitTokens() ast.TokenSet {
+	return checkNoMutatedEs6ExportsVisitTokens
+}
+
+func (c *CheckNoMutatedEs6Exports) CheckNoMutations() {
+	for _, mutatedExport := range c.mutatedOrder {
+		if _, ok := c.exportedLocalNames[uint32(strpool.Lookup(mutatedExport))]; !ok {
+			continue
+		}
+		for _, mutation := range c.mutatedNames[mutatedExport] {
+			c.compiler.Report(JSError_MakeWithNode(mutation, CheckNoMutatedEs6Exports_MUTATED_EXPORT, mutatedExport))
+		}
+	}
+
+	clear(c.mutatedNames)
+	c.mutatedOrder = c.mutatedOrder[:0]
+	clear(c.exportedLocalNames)
+}
+
+func (c *CheckNoMutatedEs6Exports) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
+	if n.IsModuleBody() {
+		c.CheckNoMutations()
+	}
+}
+
+func (c *CheckNoMutatedEs6Exports) ShouldTraverse(t *NodeTraversal, n rhino.Node, parent rhino.Node) bool {
+	switch n.GetToken() {
+	case rhino.Token_SCRIPT:
+		return n.GetBooleanProp(rhino.Node_ES6_MODULE)
+	case rhino.Token_EXPORT:
+		c.VisitExport(n)
+	case rhino.Token_NAME:
+		c.VisitName(t, n)
+	}
+	return true
+}
+
+func (c *CheckNoMutatedEs6Exports) VisitExport(export rhino.Node) {
+	if !export.HasOneChild() {
+		return
+	}
+	first := export.GetFirstChild()
+	if first.IsExportSpecs() {
+		for exportSpec := first.GetFirstChild(); !exportSpec.IsNil(); exportSpec = exportSpec.GetNext() {
+			jutil.CheckState(exportSpec.HasTwoChildren())
+			c.exportedLocalNames[exportSpec.GetFirstChild().GetStringID()] = struct{}{}
+		}
+		return
+	}
+	if export.GetBooleanProp(rhino.Node_EXPORT_ALL_FROM) {
+		return
+	}
+	if NodeUtil_IsNameDeclaration(first) {
+		NodeUtil_VisitLhsNodesInNode(first, func(lhs rhino.Node) {
+			jutil.CheckState(lhs.IsName())
+			c.exportedLocalNames[lhs.GetStringID()] = struct{}{}
+		})
+	} else if export.GetBooleanProp(rhino.Node_EXPORT_DEFAULT) {
+		if !first.IsClass() && !first.IsFunction() {
+			return
+		}
+		nameNode := first.GetFirstChild()
+		if !nameNode.IsEmpty() && nameNode.GetString() != "" {
+			c.exportedLocalNames[nameNode.GetStringID()] = struct{}{}
+		}
+	} else {
+		jutil.CheckState(first.IsClass() || first.IsFunction())
+		c.exportedLocalNames[first.GetFirstChild().GetStringID()] = struct{}{}
+	}
+}
+
+func (c *CheckNoMutatedEs6Exports) VisitName(t *NodeTraversal, name rhino.Node) {
+	if !NodeUtil_IsLValue(name) {
+		return
+	}
+	scope := t.GetScope()
+	if scope.GetClosestHoistScope().IsModuleScope() {
+		return
+	}
+	id := name.GetStringID()
+	var_ := scope.GetVarByID(id)
+	if var_ == nil || !var_.GetScope().(*Scope).IsModuleScope() {
+		return
+	}
+	key := name.GetString()
+	nodes, exists := c.mutatedNames[key]
+	if !exists {
+		c.mutatedOrder = append(c.mutatedOrder, key)
+	}
+	if !slices.Contains(nodes, name) {
+		c.mutatedNames[key] = append(nodes, name)
+	}
+}
+
+func (c *CheckNoMutatedEs6Exports) Process(externs rhino.Node, root rhino.Node) {
+	NodeTraversal_Traverse(c.compiler, root, c)
 }

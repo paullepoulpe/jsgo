@@ -90,8 +90,8 @@ func refactoringFixesDump_round(sb *strings.Builder, name string, code *string) 
 	}
 	// ApplySuggestedFixes.applySuggestedFixesToFiles writes only the files
 	// that have replacements.
-	codeMap := jutil.NewImmutableMapBuilder[string, string]().Put(name, *code).BuildOrThrow()
-	if newCode, ok := refactoring.ApplySuggestedFixes_ApplySuggestedFixesToCode(slices.Values(fixes), codeMap).Lookup(name); ok {
+	codeMap := map[string]string{name: *code}
+	if newCode, ok := refactoring.ApplySuggestedFixes_ApplySuggestedFixesToCode(slices.Values(fixes), codeMap)[name]; ok {
 		*code = newCode
 	}
 	checksDumpLine(sb, "## code "+refactoringFixesDump_digest(*code))

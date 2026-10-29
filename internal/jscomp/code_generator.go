@@ -358,7 +358,7 @@ func (g *CodeGenerator) AddNodeWithContextAndComments(node rhino.Node, context C
 	cc.TrackLicenses(node)
 
 	type_ := node.GetToken()
-	opstr := NodeUtil_OpToStr(type_)
+	opstr, hasOpStr := nodeUtil_opToStr(type_)
 	first := node.GetFirstChild()
 	last := node.GetLastChild()
 	childCount := 0
@@ -377,12 +377,12 @@ func (g *CodeGenerator) AddNodeWithContextAndComments(node rhino.Node, context C
 	}
 
 	// Handle all binary operators
-	if opstr != nil && first != last {
+	if hasOpStr && first != last {
 		if childCount != 2 {
 			jutil.CheckStateMsg2(
 				false,
 				"Bad binary operator \"%s\": expected 2 arguments but got %s",
-				*opstr,
+				opstr,
 				node.GetChildCount())
 		}
 		p := g.Precedence(node)
@@ -401,10 +401,10 @@ func (g *CodeGenerator) AddNodeWithContextAndComments(node rhino.Node, context C
 			// Assignment operators and '**' are the only right-associative
 			// binary operators
 			g.AddExpr(first, p+1, context)
-			cc.AddOp(*opstr, true)
+			cc.AddOp(opstr, true)
 			g.AddExpr(last, p, rhsContext)
 		} else {
-			g.UnrollBinaryOperator(node, type_, *opstr, context, rhsContext, p, p+1)
+			g.UnrollBinaryOperator(node, type_, opstr, context, rhsContext, p, p+1)
 		}
 
 		if node.IsAssign() && needsParens {

@@ -19,6 +19,7 @@
 package graph
 
 import (
+	"slices"
 	"strconv"
 	"testing"
 
@@ -228,11 +229,14 @@ func TestLowestCommonAncestorFinder_FindAll_rejectsTooManyRoots(t *testing.T) {
 }
 
 type lcaCaseBuilder struct {
-	t        *testing.T
-	graph    *LinkedDirectedGraph[int, any]
-	roots_   *jutil.LinkedHashSet[int]
-	expected *jutil.LinkedHashSet[int]
-	actual   *jutil.LinkedHashSet[int]
+	t           *testing.T
+	graph       *LinkedDirectedGraph[int, any]
+	roots_      []int
+	expected    []int
+	actual      []int
+	hasRoots    bool
+	hasExpected bool
+	hasActual   bool
 }
 
 func newLcaCaseBuilder(t *testing.T) *lcaCaseBuilder {
@@ -257,30 +261,39 @@ func (b *lcaCaseBuilder) copyGraph(src *LinkedDirectedGraph[int, any]) *lcaCaseB
 }
 
 func (b *lcaCaseBuilder) roots(roots ...int) *lcaCaseBuilder {
-	jutil.CheckState(b.roots_ == nil)
-	b.roots_ = jutil.NewLinkedHashSet[int]()
-	b.roots_.AddAll(roots...)
+	jutil.CheckState(!b.hasRoots)
+	b.hasRoots = true
+	for _, r := range roots {
+		if !slices.Contains(b.roots_, r) {
+			b.roots_ = append(b.roots_, r)
+		}
+	}
 	return b
 }
 
 func (b *lcaCaseBuilder) expect(expected ...int) *lcaCaseBuilder {
-	jutil.CheckState(b.expected == nil)
-	b.expected = jutil.NewLinkedHashSet[int]()
-	b.expected.AddAll(expected...)
+	jutil.CheckState(!b.hasExpected)
+	b.hasExpected = true
+	for _, e := range expected {
+		if !slices.Contains(b.expected, e) {
+			b.expected = append(b.expected, e)
+		}
+	}
 	return b
 }
 
 func (b *lcaCaseBuilder) testAndRenderGraph() {
 	b.t.Helper()
-	jutil.CheckState(b.actual == nil)
+	jutil.CheckState(!b.hasActual)
+	b.hasActual = true
 	var finder LowestCommonAncestorFinder[int, any] = NewLowestCommonAncestorFinder[int, any](b.graph)
-	b.actual = finder.FindAll(b.roots_)
+	b.actual = finder.FindAllSlice(b.roots_, nil)
 
 	message := ""
 	if b.renderGraph() {
 		message = "Look for an SVG of the test graph in the test artifacts"
 	}
-	assertSameElements(b.t, "findAll "+message, b.actual.ToSlice(), b.expected.ToSlice())
+	assertSameElements(b.t, "findAll "+message, b.actual, b.expected)
 }
 
 func (b *lcaCaseBuilder) renderGraph() bool {
@@ -290,13 +303,13 @@ func (b *lcaCaseBuilder) renderGraph() bool {
 
 	for _, node := range b.graph.GetDiGraphNodes() {
 		purpose := lcaTest_NodePurpose_NONE
-		if b.roots_.Contains(node.GetValue()) {
+		if slices.Contains(b.roots_, node.GetValue()) {
 			purpose = purpose.mix(lcaTest_NodePurpose_ROOT)
 		}
-		if b.expected.Contains(node.GetValue()) {
+		if slices.Contains(b.expected, node.GetValue()) {
 			purpose = purpose.mix(lcaTest_NodePurpose_EXPECTED)
 		}
-		if b.actual.Contains(node.GetValue()) {
+		if slices.Contains(b.actual, node.GetValue()) {
 			purpose = purpose.mix(lcaTest_NodePurpose_ACTUAL)
 		}
 		node.SetAnnotation(purpose)

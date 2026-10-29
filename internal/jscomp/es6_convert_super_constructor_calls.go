@@ -35,12 +35,34 @@ type Es6ConvertSuperConstructorCalls struct {
 
 	compiler                 AbstractCompiler
 	constructorDataStack     []es6ConstructorData
+	constructorDataBuf       [8]es6ConstructorData
 	astFactory               *AstFactory
 	globalNamespace          *GlobalNamespace
 	transpilationNamespace   rhino.StaticScope
 	uniqueIdSupplier         *UniqueIdSupplier
 	es6SubclassTranspilation CompilerOptions_Es6SubclassTranspilation
 }
+
+var (
+	es6ConvertSuperConstructorCallsVisitTokens = func() ast.TokenSet {
+		var s ast.TokenSet
+		s.Add(rhino.Token_FUNCTION)
+		return s
+	}()
+
+	es6UndefinedReturnCheckVisitTokens = func() ast.TokenSet {
+		var s ast.TokenSet
+		s.Add(rhino.Token_RETURN)
+		return s
+	}()
+
+	es6ReplaceThisWithSuperThisVisitTokens = func() ast.TokenSet {
+		var s ast.TokenSet
+		s.Add(rhino.Token_THIS)
+		s.Add(rhino.Token_RETURN)
+		return s
+	}()
+)
 
 const (
 	es6SuperConstructorTmpError  = "$jscomp$tmp$error"
@@ -56,7 +78,7 @@ type es6ConstructorData struct {
 func NewEs6ConvertSuperConstructorCalls(
 	compiler AbstractCompiler, es6SubclassTranspilation CompilerOptions_Es6SubclassTranspilation) *Es6ConvertSuperConstructorCalls {
 	runtimeJsLibManager := compiler.GetRuntimeJsLibManager()
-	return &Es6ConvertSuperConstructorCalls{
+	e := &Es6ConvertSuperConstructorCalls{
 		compiler:                 compiler,
 		astFactory:               compiler.CreateAstFactory(),
 		transpilationNamespace:   compiler.GetTranspilationNamespace(),
@@ -65,6 +87,13 @@ func NewEs6ConvertSuperConstructorCalls(
 		jscompConstruct:          runtimeJsLibManager.GetJsLibField("$jscomp.construct"),
 		es6SubclassTranspilation: es6SubclassTranspilation,
 	}
+	e.constructorDataStack = e.constructorDataBuf[:0]
+	return e
+}
+
+func (*Es6ConvertSuperConstructorCalls) noVisitLeaves() {}
+func (*Es6ConvertSuperConstructorCalls) visitTokens() *ast.TokenSet {
+	return &es6ConvertSuperConstructorCallsVisitTokens
 }
 
 func (e *Es6ConvertSuperConstructorCalls) peekConstructorData() *es6ConstructorData {
@@ -80,6 +109,9 @@ func (e *Es6ConvertSuperConstructorCalls) ShouldTraverse(t *NodeTraversal, n rhi
 		return false
 	}
 	if _, ok := ast.AsFunction(n); ok {
+		if e.constructorDataStack == nil {
+			e.constructorDataStack = e.constructorDataBuf[:0]
+		}
 		e.constructorDataStack = append(e.constructorDataStack, es6ConstructorData{constructor: n})
 	} else if n.IsSuper() {
 		jutil.CheckStateMsg1(n.IsFirstChildOf(parent), "%s", parent)
@@ -381,6 +413,10 @@ type es6UndefinedReturnCheck struct {
 	foundNonEmptyReturn bool
 }
 
+func (*es6UndefinedReturnCheck) visitTokens() *ast.TokenSet {
+	return &es6UndefinedReturnCheckVisitTokens
+}
+
 func (c *es6UndefinedReturnCheck) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	if !c.foundNonEmptyReturn {
 		if ret, ok := ast.AsReturn(n); ok {
@@ -593,13 +629,13 @@ func (e *Es6ConvertSuperConstructorCalls) updateThisToSuperThis(
 	superCalls []rhino.Node,
 	uniqueSuperThisName string,
 ) {
-	replacer := &es6ReplaceThisWithSuperThis{
+	replacer := es6ReplaceThisWithSuperThis{
 		pass:                e,
 		typeOfThis:          typeOfThis,
 		superCalls:          superCalls,
 		uniqueSuperThisName: uniqueSuperThisName,
 	}
-	NodeTraversal_Traverse(e.compiler, constructorBody, replacer)
+	NodeTraversal_Traverse(e.compiler, constructorBody, &replacer)
 }
 
 type es6ReplaceThisWithSuperThis struct {
@@ -607,6 +643,10 @@ type es6ReplaceThisWithSuperThis struct {
 	typeOfThis          AstFactory_Type
 	superCalls          []rhino.Node
 	uniqueSuperThisName string
+}
+
+func (*es6ReplaceThisWithSuperThis) visitTokens() *ast.TokenSet {
+	return &es6ReplaceThisWithSuperThisVisitTokens
 }
 
 func (c *es6ReplaceThisWithSuperThis) ShouldTraverse(nodeTraversal *NodeTraversal, n rhino.Node, parent rhino.Node) bool {

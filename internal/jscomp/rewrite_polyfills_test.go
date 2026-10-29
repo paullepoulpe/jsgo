@@ -31,7 +31,7 @@ type RewritePolyfillsTest struct {
 	CompilerTestCaseBase
 	injectableLibraries      *jutil.LinkedHashMap[string, string]
 	injectBeforePass         *jutil.LinkedHashSet[string]
-	polyfillTable            *jutil.ArrayList[string]
+	polyfillTable            []string
 	isolatePolyfills         bool
 	injectPolyfills          bool
 	injectPolyfillsNewerThan *CompilerOptions_LanguageMode
@@ -42,7 +42,6 @@ func NewRewritePolyfillsTest() *RewritePolyfillsTest {
 	c := &RewritePolyfillsTest{}
 	c.injectableLibraries = jutil.NewLinkedHashMap[string, string]()
 	c.injectBeforePass = jutil.NewLinkedHashSet[string]()
-	c.polyfillTable = jutil.NewArrayList[string]()
 	c.isolatePolyfills = false
 	c.injectPolyfills = true
 	c.InitCompilerTestCaseBase(c)
@@ -78,7 +77,7 @@ func (c *RewritePolyfillsTest) AddLibrary(name string, from string, to string, l
 	if library != nil {
 		nullToEmpty = *library
 	}
-	c.polyfillTable.Add(name + " " + from + " " + to + " " + nullToEmpty)
+	c.polyfillTable = append(c.polyfillTable, name+" "+from+" "+to+" "+nullToEmpty)
 }
 
 // Java: RewritePolyfillsTest.setUp()
@@ -86,7 +85,7 @@ func (c *RewritePolyfillsTest) SetUp() {
 	c.CompilerTestCaseBase.SetUp()
 	c.injectableLibraries.Clear()
 	c.injectBeforePass.Clear()
-	c.polyfillTable.Clear()
+	c.polyfillTable = c.polyfillTable[:0]
 	c.injectPolyfillsNewerThan = nil
 	c.SetLanguageOut(CompilerOptions_LanguageMode_ECMASCRIPT5)
 }
@@ -96,7 +95,7 @@ func (c *RewritePolyfillsTest) GetProcessor(compiler *Compiler) CompilerPass {
 	return NewRewritePolyfillsWithRuntimeJsLibManager(
 		compiler,
 		c.CreateRuntimeJsLibManager(compiler),
-		PolyfillUsageFinder_Polyfills_FromTable(strings.Join(c.polyfillTable.ToSlice(), "\n")),
+		PolyfillUsageFinder_Polyfills_FromTable(strings.Join(c.polyfillTable, "\n")),
 		c.injectPolyfills,
 		c.isolatePolyfills,
 		c.injectPolyfillsNewerThan)
@@ -523,7 +522,7 @@ func (c *RewritePolyfillsTest) TestCleansUpUnnecessaryPolyfills() {
 		`$jscomp.polyfill('Set', function() {}, 'es6', 'es3');
 $jscomp.polyfill('Map', function() {}, 'es5', 'es3');
 `)
-	c.polyfillTable.Add("Set es6 es3 es6/set")
+	c.polyfillTable = append(c.polyfillTable, "Set es6 es3 es6/set")
 
 	c.SetLanguage(rewritePolyfillsTest_ES6, rewritePolyfillsTest_ES5)
 	c.Test(
@@ -579,7 +578,7 @@ func (c *RewritePolyfillsTest) TestCleansUpUnnecessaryPreviouslyInjectedPolyfill
 // pretend Map isn't needed for rewritePolyfillsTest_ES5
 $jscomp.polyfill('Map', function() {}, 'es5', 'es3');
 `)
-	c.polyfillTable.Add("Set es6 es3 es6/set")
+	c.polyfillTable = append(c.polyfillTable, "Set es6 es3 es6/set")
 
 	// simulate injection of Map by a prior-run pass
 	c.injectBeforePass.Add("es6/set")

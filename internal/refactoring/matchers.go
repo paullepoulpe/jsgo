@@ -28,7 +28,6 @@ import (
 
 	"github.com/paullepoulpe/jsgo/internal/ast"
 	"github.com/paullepoulpe/jsgo/internal/jscomp"
-	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
 
@@ -133,8 +132,16 @@ func (m *JsSourceMatcher) Matches(n rhino.Node, metadata *NodeMetadata) bool {
 // Nodes that were the equivalent matches from the last matched template.
 //
 // Java: JsSourceMatcher.getTemplateNodeToMatchMap()
-func (m *JsSourceMatcher) GetTemplateNodeToMatchMap() *jutil.LinkedHashMap[string, rhino.Node] {
-	return m.matcher.GetTemplateNodeToMatchMap()
+func (m *JsSourceMatcher) GetTemplateNodeToMatchMap() map[string]rhino.Node {
+	src := m.matcher.GetTemplateNodeToMatchMap()
+	if src == nil {
+		return nil
+	}
+	out := make(map[string]rhino.Node, src.Size())
+	for k, v := range src.All() {
+		out[k] = v
+	}
+	return out
 }
 
 // Matchers contains common Matchers useful for JsFlume refactorings.

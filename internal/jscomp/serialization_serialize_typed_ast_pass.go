@@ -39,9 +39,6 @@ package jscomp
 import (
 	"io"
 	"os"
-	"slices"
-	"strconv"
-	"strings"
 
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
@@ -69,11 +66,11 @@ func NewSerializeTypedAstPass(
 	compiler AbstractCompiler,
 	astConsumer func(*TypedAst),
 	serializationOptions *SerializationOptions) *SerializeTypedAstPass {
-	p := &SerializeTypedAstPass{}
-	p.compiler = compiler
-	p.consumer = astConsumer
-	p.serializationOptions = serializationOptions
-	return p
+	return &SerializeTypedAstPass{
+		compiler:             compiler,
+		consumer:             astConsumer,
+		serializationOptions: serializationOptions,
+	}
 }
 
 // SerializeTypedAstPass_CreateFromOutputStream serializes a TypedAst to the
@@ -87,7 +84,6 @@ func NewSerializeTypedAstPass(
 func SerializeTypedAstPass_CreateFromOutputStream(
 	c AbstractCompiler, out io.Writer, serializationOptions *SerializationOptions) *SerializeTypedAstPass {
 	toOutputStream := func(ast *TypedAst) {
-		// TypedAst.List.newBuilder().addTypedAsts(ast).build().writeTo(out)
 		if err := writeTypedAstListItemTo(ast, out); err != nil {
 			panic(jutil.NewIllegalArgumentExceptionWithMessageAndCause(
 				"Cannot write to stream", jutil.NewIOException(err.Error())))
@@ -107,25 +103,25 @@ func SerializeTypedAstPass_CreateFromOutputStream(
 func SerializeTypedAstPass_CreateFromPath(
 	compiler AbstractCompiler, outputPath *jutil.Path, serializationOptions *SerializationOptions) *SerializeTypedAstPass {
 	toPath := func(ast *TypedAst) {
-		jutil.Try(func() {
-			// try (OutputStream out = new FastGzipOutputStream(Files.newOutputStream(outputPath)))
-			file, err := os.Create(outputPath.String())
-			if err != nil {
-				panic(jutil.NewIOException(err.Error()))
-			}
-			numThreads := 1
-			if opts := compiler.GetOptions(); opts != nil {
-				numThreads = opts.GetNumParallelThreads()
-			}
-			out := newSaveStateGzipOutputStream(file, numThreads)
-			defer out.Close()
-			if err := writeTypedAstListItemTo(ast, out); err != nil {
-				panic(jutil.NewIOException(err.Error()))
-			}
-		}, func(e jutil.IIOException) {
+		file, err := os.Create(outputPath.String())
+		if err != nil {
 			panic(jutil.NewIllegalArgumentExceptionWithMessageAndCause(
-				"Cannot create TypedAst output file", e))
-		})
+				"Cannot create TypedAst output file", jutil.NewIOException(err.Error())))
+		}
+		numThreads := 1
+		if opts := compiler.GetOptions(); opts != nil {
+			numThreads = opts.GetNumParallelThreads()
+		}
+		out := newSaveStateGzipOutputStream(file, numThreads)
+		writeErr := writeTypedAstListItemTo(ast, out)
+		closeErr := out.Close()
+		if writeErr == nil {
+			writeErr = closeErr
+		}
+		if writeErr != nil {
+			panic(jutil.NewIllegalArgumentExceptionWithMessageAndCause(
+				"Cannot create TypedAst output file", jutil.NewIOException(writeErr.Error())))
+		}
 	}
 	return NewSerializeTypedAstPass(compiler, toPath, serializationOptions)
 }
@@ -137,6 +133,8 @@ func (p *SerializeTypedAstPass) Process(externs rhino.Node, root rhino.Node) {
 	ast := serializer.SerializeRoots(externs, root)
 	p.consumer(ast)
 }
+
+var emptyRuntimeLibraries = []string{}
 
 // SerializationOptions holds configuration options for serialization time.
 type SerializationOptions struct {
@@ -150,7 +148,11 @@ func NewSerializationOptions(includeDebugInfo bool, runValidation bool, runtimeL
 	if runtimeLibraries == nil {
 		panic(jutil.NewNullPointerExceptionMsg("runtimeLibraries"))
 	}
-	return &SerializationOptions{includeDebugInfo: includeDebugInfo, runValidation: runValidation, runtimeLibraries: runtimeLibraries}
+	return &SerializationOptions{
+		includeDebugInfo: includeDebugInfo,
+		runValidation:    runValidation,
+		runtimeLibraries: runtimeLibraries,
+	}
 }
 
 // Java: SerializationOptions.includeDebugInfo()
@@ -163,88 +165,31 @@ func (o *SerializationOptions) RunValidation() bool { return o.runValidation }
 func (o *SerializationOptions) RuntimeLibraries() []string { return o.runtimeLibraries }
 
 // SerializationOptions_Builder_ is SerializationOptions.builder().
-//
-// Go-only: language-adapter — the trailing underscore keeps the mechanical
-// name SerializationOptions_Builder for the nested Builder type.
 func SerializationOptions_Builder_() *SerializationOptions_Builder {
-	return NewSerializationOptions_Builder().
-		SetRunValidation(false).
-		SetIncludeDebugInfo(false).
-		SetRuntimeLibraries([]string{})
-}
-
-// Java: SerializationOptions.equals(Object) (record)
-func (o *SerializationOptions) Equals(obj any) bool {
-	that, ok := obj.(*SerializationOptions)
-	if !ok || that == nil {
-		return false
+	return &SerializationOptions_Builder{
+		opts: SerializationOptions{runtimeLibraries: emptyRuntimeLibraries},
 	}
-	return o.includeDebugInfo == that.includeDebugInfo && o.runValidation == that.runValidation &&
-		slices.Equal(o.runtimeLibraries, that.runtimeLibraries)
 }
 
-func serializationBoolHashCode(b bool) int32 {
-	if b {
-		return 1231
-	}
-	return 1237
-}
-
-// Java: SerializationOptions.hashCode() (record: 31 * h + hash(component))
-func (o *SerializationOptions) HashCode() int32 {
-	lh := int32(1)
-	for _, lib := range o.runtimeLibraries {
-		lh = 31*lh + jutil.StringHashCode(lib)
-	}
-	var h int32
-	h = 31*h + serializationBoolHashCode(o.includeDebugInfo)
-	h = 31*h + serializationBoolHashCode(o.runValidation)
-	h = 31*h + lh
-	return h
-}
-
-// Java: SerializationOptions.toString() (record)
-func (o *SerializationOptions) String() string {
-	return "SerializationOptions[includeDebugInfo=" + strconv.FormatBool(o.includeDebugInfo) +
-		", runValidation=" + strconv.FormatBool(o.runValidation) +
-		", runtimeLibraries=[" + strings.Join(o.runtimeLibraries, ", ") + "]]"
-}
-
-// SerializationOptions_Builder is SerializationOptions.Builder (the
-// AutoBuilder-generated AutoBuilder_SerializationOptions_Builder).
+// SerializationOptions_Builder is SerializationOptions.Builder.
 type SerializationOptions_Builder struct {
-	includeDebugInfo bool
-	runValidation    bool
-	runtimeLibraries []string
-	set0             byte
+	opts SerializationOptions
 }
 
 // Java: AutoBuilder_SerializationOptions_Builder()
 func NewSerializationOptions_Builder() *SerializationOptions_Builder {
-	return &SerializationOptions_Builder{}
-}
-
-// Java: AutoBuilder_SerializationOptions_Builder(SerializationOptions)
-func NewSerializationOptions_BuilderFrom(source *SerializationOptions) *SerializationOptions_Builder {
-	return &SerializationOptions_Builder{
-		includeDebugInfo: source.IncludeDebugInfo(),
-		runValidation:    source.RunValidation(),
-		runtimeLibraries: source.RuntimeLibraries(),
-		set0:             3,
-	}
+	return SerializationOptions_Builder_()
 }
 
 // Java: SerializationOptions.Builder.setIncludeDebugInfo(boolean)
 func (b *SerializationOptions_Builder) SetIncludeDebugInfo(includeDebugInfo bool) *SerializationOptions_Builder {
-	b.includeDebugInfo = includeDebugInfo
-	b.set0 |= 1
+	b.opts.includeDebugInfo = includeDebugInfo
 	return b
 }
 
 // Java: SerializationOptions.Builder.setRunValidation(boolean)
 func (b *SerializationOptions_Builder) SetRunValidation(runValidation bool) *SerializationOptions_Builder {
-	b.runValidation = runValidation
-	b.set0 |= 2
+	b.opts.runValidation = runValidation
 	return b
 }
 
@@ -253,24 +198,12 @@ func (b *SerializationOptions_Builder) SetRuntimeLibraries(runtimeLibraries []st
 	if runtimeLibraries == nil {
 		panic(jutil.NewNullPointerExceptionMsg("Null runtimeLibraries"))
 	}
-	b.runtimeLibraries = runtimeLibraries
+	b.opts.runtimeLibraries = runtimeLibraries
 	return b
 }
 
 // Java: SerializationOptions.Builder.build()
 func (b *SerializationOptions_Builder) Build() *SerializationOptions {
-	if b.set0 != 3 || b.runtimeLibraries == nil {
-		var missing strings.Builder
-		if b.set0&1 == 0 {
-			missing.WriteString(" includeDebugInfo")
-		}
-		if b.set0&2 == 0 {
-			missing.WriteString(" runValidation")
-		}
-		if b.runtimeLibraries == nil {
-			missing.WriteString(" runtimeLibraries")
-		}
-		panic(jutil.NewIllegalStateExceptionMsg("Missing required properties:" + missing.String()))
-	}
-	return NewSerializationOptions(b.includeDebugInfo, b.runValidation, b.runtimeLibraries)
+	o := b.opts
+	return &o
 }

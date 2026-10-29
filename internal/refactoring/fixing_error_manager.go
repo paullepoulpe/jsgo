@@ -20,8 +20,17 @@ package refactoring
 
 import (
 	"github.com/paullepoulpe/jsgo/internal/jscomp"
-	"github.com/paullepoulpe/jsgo/internal/jutil"
 )
+
+type fixingSureEntry struct {
+	err *jscomp.JSError
+	fix *SuggestedFix
+}
+
+type fixingMultiEntry struct {
+	err   *jscomp.JSError
+	fixes []*SuggestedFix
+}
 
 // FixingErrorManager is an error manager that finds a SuggestedFix for all
 // errors if possible.
@@ -30,17 +39,11 @@ import (
 type FixingErrorManager struct {
 	jscomp.BasicErrorManagerBase
 
-	fixer *ErrorToFixMapper
-	// Go-only: language-adapter — a HashMap keyed by the JSError record,
-	// whose hash mixes the identity hash of its Node (so Java's order is not
-	// deterministic and only lookups and an any-match scan use it): an
-	// insertion-ordered map with JSError.equals/hashCode (PORTING.md §6).
-	sureFixes  *jutil.ObjectLinkedHashMap[*jscomp.JSError, *SuggestedFix]
-	multiFixes *jutil.ObjectLinkedHashMap[*jscomp.JSError, []*SuggestedFix]
-	// Go-only: language-adapter — an ImmutableSet of DiagnosticTypes, which
-	// compare by key (DiagnosticType.equals): ObjectLinkedHashSet, as
-	// DiagnosticGroup's types (PORTING.md §6).
-	unfixableErrors *jutil.ObjectLinkedHashSet[*jscomp.DiagnosticType]
+	fixer                                 *ErrorToFixMapper
+	sureFixes                             map[int32][]fixingSureEntry
+	multiFixes                            map[int32][]fixingMultiEntry
+	unfixableErrorKeys                    map[string]struct{}
+	containsFixableShorthandModuleWarning bool
 }
 
 // FixingErrorManager_FixTypes selects the fixes getFixes collects.
@@ -66,16 +69,23 @@ func (t FixingErrorManager_FixTypes) Ordinal() int { return int(t) }
 
 // Java: FixingErrorManager()
 func NewFixingErrorManager() *FixingErrorManager {
-	return NewFixingErrorManagerWithUnfixableErrors(jutil.NewObjectLinkedHashSet[*jscomp.DiagnosticType]())
+	return NewFixingErrorManagerWithUnfixableErrors(nil)
 }
 
 // Java: FixingErrorManager(ImmutableSet<DiagnosticType>)
-func NewFixingErrorManagerWithUnfixableErrors(unfixableErrors *jutil.ObjectLinkedHashSet[*jscomp.DiagnosticType]) *FixingErrorManager {
+func NewFixingErrorManagerWithUnfixableErrors(unfixableErrors []*jscomp.DiagnosticType) *FixingErrorManager {
 	m := &FixingErrorManager{}
 	m.InitBasicErrorManagerBase(m)
-	m.sureFixes = jutil.NewObjectLinkedHashMap[*jscomp.JSError, *SuggestedFix]()
-	m.multiFixes = jutil.NewObjectLinkedHashMap[*jscomp.JSError, []*SuggestedFix]()
-	m.unfixableErrors = unfixableErrors
+	m.sureFixes = make(map[int32][]fixingSureEntry)
+	m.multiFixes = make(map[int32][]fixingMultiEntry)
+	if len(unfixableErrors) > 0 {
+		m.unfixableErrorKeys = make(map[string]struct{}, len(unfixableErrors))
+		for _, dt := range unfixableErrors {
+			if dt != nil {
+				m.unfixableErrorKeys[dt.Key()] = struct{}{}
+			}
+		}
+	}
 	return m
 }
 
@@ -84,41 +94,94 @@ func (m *FixingErrorManager) SetCompiler(compiler jscomp.AbstractCompiler) {
 	m.fixer = NewErrorToFixMapper(compiler)
 }
 
+func (m *FixingErrorManager) isUnfixable(dt *jscomp.DiagnosticType) bool {
+	if dt == nil || len(m.unfixableErrorKeys) == 0 {
+		return false
+	}
+	_, ok := m.unfixableErrorKeys[dt.Key()]
+	return ok
+}
+
+func (m *FixingErrorManager) putSureFix(err *jscomp.JSError, fix *SuggestedFix) {
+	if err.Type().Equals(jscomp.ClosureCheckModule_REFERENCE_TO_SHORT_IMPORT_BY_LONG_NAME_INCLUDING_SHORT_NAME) {
+		m.containsFixableShorthandModuleWarning = true
+	}
+	h := err.HashCode()
+	bucket := m.sureFixes[h]
+	for i := range bucket {
+		if bucket[i].err == err || bucket[i].err.Equals(err) {
+			bucket[i].fix = fix
+			return
+		}
+	}
+	m.sureFixes[h] = append(bucket, fixingSureEntry{err: err, fix: fix})
+}
+
+func (m *FixingErrorManager) lookupSureFix(err *jscomp.JSError) (*SuggestedFix, bool) {
+	if err == nil {
+		return nil, false
+	}
+	for _, entry := range m.sureFixes[err.HashCode()] {
+		if entry.err == err || entry.err.Equals(err) {
+			return entry.fix, true
+		}
+	}
+	return nil, false
+}
+
+func (m *FixingErrorManager) appendMultiFixes(err *jscomp.JSError, fixes []*SuggestedFix) {
+	if err.Type().Equals(jscomp.ClosureCheckModule_REFERENCE_TO_SHORT_IMPORT_BY_LONG_NAME_INCLUDING_SHORT_NAME) {
+		m.containsFixableShorthandModuleWarning = true
+	}
+	h := err.HashCode()
+	bucket := m.multiFixes[h]
+	for i := range bucket {
+		if bucket[i].err == err || bucket[i].err.Equals(err) {
+			bucket[i].fixes = append(bucket[i].fixes, fixes...)
+			return
+		}
+	}
+	cloned := make([]*SuggestedFix, len(fixes))
+	copy(cloned, fixes)
+	m.multiFixes[h] = append(bucket, fixingMultiEntry{err: err, fixes: cloned})
+}
+
+func (m *FixingErrorManager) getMultiFixes(err *jscomp.JSError) []*SuggestedFix {
+	if err == nil {
+		return nil
+	}
+	for _, entry := range m.multiFixes[err.HashCode()] {
+		if entry.err == err || entry.err.Equals(err) {
+			return entry.fixes
+		}
+	}
+	return nil
+}
+
 // Java: FixingErrorManager.report(CheckLevel, JSError)
 func (m *FixingErrorManager) Report(level *jscomp.CheckLevel, error *jscomp.JSError) {
 	m.BasicErrorManagerBase.Report(level, error)
-	if !m.unfixableErrors.Contains(error.Type()) {
+	if !m.isUnfixable(error.Type()) {
 		fixes := m.fixer.GetFixesForJsError(error)
 		if len(fixes) == 1 {
-			m.sureFixes.Put(error, fixes[0])
+			m.putSureFix(error, fixes[0])
 		} else if len(fixes) > 0 {
-			m.multiFixes.Put(error, append(m.multiFixes.Get(error), fixes...))
+			m.appendMultiFixes(error, fixes)
 		}
 	}
 }
 
 // Java: FixingErrorManager.containsFixableShorthandModuleWarning()
 func (m *FixingErrorManager) ContainsFixableShorthandModuleWarning() bool {
-	for error := range m.sureFixes.Keys() {
-		if error.Type().Equals(jscomp.ClosureCheckModule_REFERENCE_TO_SHORT_IMPORT_BY_LONG_NAME_INCLUDING_SHORT_NAME) {
-			return true
-		}
-	}
-	for error := range m.multiFixes.Keys() {
-		if error.Type().Equals(jscomp.ClosureCheckModule_REFERENCE_TO_SHORT_IMPORT_BY_LONG_NAME_INCLUDING_SHORT_NAME) {
-			return true
-		}
-	}
-	return false
+	return m.containsFixableShorthandModuleWarning
 }
 
 // Java: FixingErrorManager.getFixesForJsError(JSError)
 func (m *FixingErrorManager) GetFixesForJsError(error *jscomp.JSError) []*SuggestedFix {
-	if m.sureFixes.ContainsKey(error) {
-		return []*SuggestedFix{m.sureFixes.Get(error)}
-	} else {
-		return m.multiFixes.Get(error)
+	if fix, ok := m.lookupSureFix(error); ok {
+		return []*SuggestedFix{fix}
 	}
+	return m.getMultiFixes(error)
 }
 
 // Java: FixingErrorManager.getFixes(FixTypes)
@@ -132,8 +195,10 @@ func (m *FixingErrorManager) GetFixes(fixTypes FixingErrorManager_FixTypes) []*S
 		if containsFixableShorthandModuleWarning && error.Type().Equals(jscomp.CheckExtraRequires_EXTRA_REQUIRE_WARNING) {
 			// Don't apply this fix.
 		} else {
-			if fixTypes == FixingErrorManager_FixTypes_ONE_FIX && m.sureFixes.ContainsKey(error) {
-				fixes = append(fixes, m.sureFixes.Get(error))
+			if fixTypes == FixingErrorManager_FixTypes_ONE_FIX {
+				if fix, ok := m.lookupSureFix(error); ok {
+					fixes = append(fixes, fix)
+				}
 			} else if fixTypes == FixingErrorManager_FixTypes_ONE_FIX_AND_MULTI_FIXES {
 				fixes = append(fixes, m.GetFixesForJsError(error)...)
 			}
@@ -143,8 +208,10 @@ func (m *FixingErrorManager) GetFixes(fixTypes FixingErrorManager_FixTypes) []*S
 		if warning.Type().Equals(jscomp.CheckExtraRequires_EXTRA_REQUIRE_WARNING) && containsFixableShorthandModuleWarning {
 			// As above, don't apply the extra-require fix.
 		} else {
-			if fixTypes == FixingErrorManager_FixTypes_ONE_FIX && m.sureFixes.ContainsKey(warning) {
-				fixes = append(fixes, m.sureFixes.Get(warning))
+			if fixTypes == FixingErrorManager_FixTypes_ONE_FIX {
+				if fix, ok := m.lookupSureFix(warning); ok {
+					fixes = append(fixes, fix)
+				}
 			} else if fixTypes == FixingErrorManager_FixTypes_ONE_FIX_AND_MULTI_FIXES {
 				fixes = append(fixes, m.GetFixesForJsError(warning)...)
 			}

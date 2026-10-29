@@ -485,6 +485,10 @@ func (tc *TypeCheck) Report(n rhino.Node, diagnosticType *DiagnosticType, argume
 	tc.compiler.Report(JSError_MakeWithNode(n, diagnosticType, arguments...))
 }
 
+func (tc *TypeCheck) shouldTraverseOnlyScriptAndFunction() bool {
+	return !tc.debugTypeLogger.isLogging
+}
+
 // Java: TypeCheck.shouldTraverse(NodeTraversal, Node, Node)
 func (tc *TypeCheck) ShouldTraverse(t *NodeTraversal, n rhino.Node, parent rhino.Node) bool {
 	// Start logging types if we're in debug mode and this node was annotated.

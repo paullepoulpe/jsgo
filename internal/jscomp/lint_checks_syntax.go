@@ -301,7 +301,9 @@ type CheckMissingSemicolon struct {
 	// which is quadratic when done for every statement of a file. These
 	// cache the UTF-16 code units of the last code string read (the same
 	// string, so the same chars as code.charAt).
+	lastFile      *SourceFile
 	lastCode      string
+	lastOK        bool
 	lastCodeUnits []uint16
 }
 
@@ -318,7 +320,44 @@ func NewCheckMissingSemicolon(compiler AbstractCompiler) *CheckMissingSemicolon 
 
 // Java: CheckMissingSemicolon.process(Node, Node)
 func (c *CheckMissingSemicolon) Process(externs rhino.Node, root rhino.Node) {
+	c.lastFile = nil
 	NodeTraversal_Traverse(c.compiler, root, c)
+}
+
+var checkMissingSemicolonVisitTokens = func() ast.TokenSet {
+	var s ast.TokenSet
+	s.Add(rhino.Token_EXPR_RESULT)
+	s.Add(rhino.Token_VAR)
+	s.Add(rhino.Token_LET)
+	s.Add(rhino.Token_CONST)
+	s.Add(rhino.Token_RETURN)
+	s.Add(rhino.Token_THROW)
+	s.Add(rhino.Token_BREAK)
+	s.Add(rhino.Token_CONTINUE)
+	s.Add(rhino.Token_DO)
+	s.Add(rhino.Token_EMPTY)
+	s.Add(rhino.Token_DEBUGGER)
+	s.Add(rhino.Token_IMPORT)
+	s.Add(rhino.Token_EXPORT)
+	s.Add(rhino.Token_INTERFACE)
+	s.Add(rhino.Token_ENUM)
+	s.Add(rhino.Token_TYPE_ALIAS)
+	s.Add(rhino.Token_DECLARE)
+	s.Add(rhino.Token_NAMESPACE)
+	s.Add(rhino.Token_MEMBER_VARIABLE_DEF)
+	s.Add(rhino.Token_MEMBER_FUNCTION_DEF)
+	s.Add(rhino.Token_INDEX_SIGNATURE)
+	s.Add(rhino.Token_CALL_SIGNATURE)
+	s.Add(rhino.Token_GETTER_DEF)
+	s.Add(rhino.Token_SETTER_DEF)
+	return s
+}()
+
+func (*CheckMissingSemicolon) visitTokens() *ast.TokenSet {
+	return &checkMissingSemicolonVisitTokens
+}
+func (*CheckMissingSemicolon) combinedVisitTokens() ast.TokenSet {
+	return checkMissingSemicolonVisitTokens
 }
 
 // Java: CheckMissingSemicolon.visit(NodeTraversal, Node, Node)
@@ -348,15 +387,15 @@ func (c *CheckMissingSemicolon) ShouldHaveSemicolon(statement rhino.Node) bool {
 func (c *CheckMissingSemicolon) CheckSemicolon(t *NodeTraversal, n rhino.Node) {
 	staticSourceFile := n.GetStaticSourceFile()
 	if sourceFile, ok := staticSourceFile.(*SourceFile); ok {
-		var code string
-		failed := false
-		jutil.Try(func() {
-			code = sourceFile.GetCode()
-		}, func(e jutil.IIOException) {
+		if sourceFile != c.lastFile {
+			code, err := sourceFile.getCode()
+			c.lastFile = sourceFile
+			c.lastCode = code
+			c.lastOK = err == nil
+			c.lastCodeUnits = nil
+		}
+		if !c.lastOK {
 			// We can't read the original source file. Just skip this check.
-			failed = true
-		})
-		if failed {
 			return
 		}
 
@@ -367,7 +406,7 @@ func (c *CheckMissingSemicolon) CheckSemicolon(t *NodeTraversal, n rhino.Node) {
 			return
 		}
 		position := n.GetSourceOffset() + length - 1
-		if c.codeCharAt(code, position) != ';' {
+		if c.codeCharAt(c.lastCode, position) != ';' {
 			t.Report(n, CheckMissingSemicolon_MISSING_SEMICOLON)
 		}
 	}

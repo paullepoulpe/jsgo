@@ -19,6 +19,7 @@
 package jscomp
 
 import (
+	"encoding/base64"
 	"io"
 	"slices"
 	"strings"
@@ -325,7 +326,7 @@ func (c *Compiler) GetBase64SourceMapContents(sourceFileName string) *string {
 			}
 		}
 		unencoded := sourceMapInput.GetRawSourceMapContents() // This is the sourcemap.
-		encoded := jutil.BaseEncoding_Base64().Encode([]byte(*unencoded))
+		encoded := base64.StdEncoding.EncodeToString([]byte(*unencoded))
 		return &encoded
 	}
 	return nil

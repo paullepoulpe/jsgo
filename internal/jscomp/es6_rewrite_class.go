@@ -52,6 +52,15 @@ var es6RewriteClass_noCollapseJSDoc = func() *rhino.JSDocInfo {
 var es6RewriteClass_features = parser.FeatureSet_BARE_MINIMUM.WithFeatures(
 	parser.FeatureSet_Feature_CLASSES, parser.FeatureSet_Feature_CLASS_GETTER_SETTER, parser.FeatureSet_Feature_NEW_TARGET, parser.FeatureSet_Feature_SUPER)
 
+var es6RewriteClassVisitTokens = func() ast.TokenSet {
+	var s ast.TokenSet
+	s.Add(rhino.Token_CLASS)
+	return s
+}()
+
+func (*Es6RewriteClass) noVisitLeaves()             {}
+func (*Es6RewriteClass) visitTokens() *ast.TokenSet { return &es6RewriteClassVisitTokens }
+
 // Java: Es6RewriteClass.CONSTRUCTOR_PRIMITIVE_RETURN
 var Es6RewriteClass_CONSTRUCTOR_PRIMITIVE_RETURN = DiagnosticType_Error(
 	"JSC_CONSTRUCTOR_PRIMITIVE_RETURN",
@@ -431,9 +440,8 @@ func (e *Es6RewriteClass) visitNonMethodMember(member rhino.Node, metadata *es6R
 		return
 	}
 	// Add stub declarations of static properties so that they are not broken by property collapsing
-	membersToDeclare := metadata.membersToDeclare()
 	memberName := member.GetString()
-	membersToDeclare.Put(memberName, es6RewriteClassProperty{
+	metadata.putMemberToDeclare(es6RewriteClassProperty{
 		propertyKey:  memberName,
 		quoted:       member.IsQuotedStringKey(),
 		jsDocInfo:    es6RewriteClass_noCollapseJSDoc,
@@ -484,10 +492,7 @@ func (e *Es6RewriteClass) visitMethod(member rhino.Node, metadata *es6RewriteCla
 //
 // Java: Es6RewriteClass.addTypeDeclarations(ClassDeclarationMetadata, Node)
 func (e *Es6RewriteClass) addTypeDeclarations(metadata *es6RewriteClassMetadata, insertionPoint rhino.Node) {
-	if metadata.classMembersToDeclare == nil {
-		return
-	}
-	for property := range metadata.classMembersToDeclare.Values() {
+	for _, property := range metadata.classMembersToDeclare {
 		declaration := property.declaration(e.astFactory, metadata.fullClassNameNode.CloneTree())
 		declaration.SrcrefTreeIfMissing(metadata.classNameNode)
 		declaration.InsertAfter(insertionPoint)
@@ -570,7 +575,7 @@ type es6RewriteClassMetadata struct {
 	astFactory                      *AstFactory
 	definePropertiesObjForPrototype rhino.Node
 	definePropertiesObjForClass     rhino.Node
-	classMembersToDeclare           *jutil.LinkedHashMap[string, es6RewriteClassProperty]
+	classMembersToDeclare           []es6RewriteClassProperty
 	fullClassNameNode               rhino.Node
 	classPrototypeNode              rhino.Node
 	anonymous                       bool
@@ -594,11 +599,14 @@ func (m *es6RewriteClassMetadata) definePropertiesForClass() rhino.Node {
 	return m.definePropertiesObjForClass
 }
 
-func (m *es6RewriteClassMetadata) membersToDeclare() *jutil.LinkedHashMap[string, es6RewriteClassProperty] {
-	if m.classMembersToDeclare == nil {
-		m.classMembersToDeclare = jutil.NewLinkedHashMap[string, es6RewriteClassProperty]()
+func (m *es6RewriteClassMetadata) putMemberToDeclare(prop es6RewriteClassProperty) {
+	for i := range m.classMembersToDeclare {
+		if m.classMembersToDeclare[i].propertyKey == prop.propertyKey {
+			m.classMembersToDeclare[i] = prop
+			return
+		}
 	}
-	return m.classMembersToDeclare
+	m.classMembersToDeclare = append(m.classMembersToDeclare, prop)
 }
 
 func (m *es6RewriteClassMetadata) insertNodeAndAdvance(newNode rhino.Node) {
@@ -658,7 +666,8 @@ func es6RewriteClassCreateMetadata(
 	m.astFactory = astFactory
 	m.definePropertiesObjForPrototype = rhino.NilNode
 	m.definePropertiesObjForClass = rhino.NilNode
-	m.classMembersToDeclare = nil
+	clear(m.classMembersToDeclare)
+	m.classMembersToDeclare = m.classMembersToDeclare[:0]
 	m.fullClassNameNode = fullClassNameNode
 	m.classPrototypeNode = astFactory.CreatePrototypeAccess(fullClassNameNode.CloneTree())
 	m.anonymous = anonymous

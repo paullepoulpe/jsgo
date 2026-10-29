@@ -19,6 +19,7 @@
 package jscomp
 
 import (
+	"github.com/paullepoulpe/jsgo/internal/ast"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 	"github.com/paullepoulpe/jsgo/internal/strpool"
 )
@@ -26,6 +27,18 @@ import (
 var (
 	ccrGoogID           = uint32(strpool.Intern("goog"))
 	ccrAbstractMethodID = uint32(strpool.Intern("abstractMethod"))
+
+	closureCodeRemovalAbstractVisitTokens = func() ast.TokenSet {
+		var s ast.TokenSet
+		s.Add(rhino.Token_ASSIGN)
+		s.Add(rhino.Token_MEMBER_FUNCTION_DEF)
+		return s
+	}()
+	closureCodeRemovalAssertVisitTokens = func() ast.TokenSet {
+		var s ast.TokenSet
+		s.Add(rhino.Token_CALL)
+		return s
+	}()
 )
 
 // ClosureCodeRemoval is a compiler pass that removes Closure-specific code
@@ -137,6 +150,16 @@ type ClosureCodeRemoval_FindAbstractMethods struct {
 	outer *ClosureCodeRemoval
 }
 
+func (*ClosureCodeRemoval_FindAbstractMethods) noVisitLeaves() {}
+
+func (*ClosureCodeRemoval_FindAbstractMethods) visitTokens() *ast.TokenSet {
+	return &closureCodeRemovalAbstractVisitTokens
+}
+
+func (*ClosureCodeRemoval_FindAbstractMethods) combinedVisitTokens() ast.TokenSet {
+	return closureCodeRemovalAbstractVisitTokens
+}
+
 // Java: ClosureCodeRemoval.FindAbstractMethods.visit(NodeTraversal, Node, Node)
 func (f *ClosureCodeRemoval_FindAbstractMethods) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	c := f.outer
@@ -171,6 +194,16 @@ type ClosureCodeRemoval_FindAssertionCalls struct {
 	NodeTraversal_AbstractPostOrderCallbackBase
 	outer          *ClosureCodeRemoval
 	assertionNames *CodingConvention_AssertionFunctionLookup
+}
+
+func (*ClosureCodeRemoval_FindAssertionCalls) noVisitLeaves() {}
+
+func (*ClosureCodeRemoval_FindAssertionCalls) visitTokens() *ast.TokenSet {
+	return &closureCodeRemovalAssertVisitTokens
+}
+
+func (*ClosureCodeRemoval_FindAssertionCalls) combinedVisitTokens() ast.TokenSet {
+	return closureCodeRemovalAssertVisitTokens
 }
 
 // Java: ClosureCodeRemoval.FindAssertionCalls()

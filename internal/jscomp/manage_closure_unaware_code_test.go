@@ -82,8 +82,7 @@ func (c *ManageClosureUnawareCodeTest) GetOptions() *CompilerOptions {
 // Java: ManageClosureUnawareCodeTest.getProcessor(Compiler)
 func (c *ManageClosureUnawareCodeTest) GetProcessor(compiler *Compiler) CompilerPass {
 	phaseopt := NewPhaseOptimizer(compiler, nil)
-	passes := jutil.NewArrayList[*PassFactory]()
-	passes.Add(
+	passes := []*PassFactory{
 		PassFactory_Builder_().
 			SetName("gatherShadowNodes").
 			SetInternalFactory(
@@ -102,16 +101,17 @@ func (c *ManageClosureUnawareCodeTest) GetProcessor(compiler *Compiler) Compiler
 							}))
 					})
 				}).
-			Build())
+			Build(),
+	}
 
 	if c.runUnwrapPass {
-		passes.Add(
+		passes = append(passes,
 			PassFactory_Builder_().
 				SetName("unwrapClosureUnawareCode").
 				SetInternalFactory(func(x AbstractCompiler) CompilerPass { return ManageClosureUnawareCode_Unwrap(x) }).
 				Build())
 	}
-	phaseopt.Consume(passes.Slice())
+	phaseopt.Consume(passes)
 	return phaseopt
 }
 

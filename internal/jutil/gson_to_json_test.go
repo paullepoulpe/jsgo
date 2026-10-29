@@ -144,7 +144,7 @@ func gsonTestCases() map[string]any {
 		"nested":          []any{inner},
 		"treeMap":         tm,
 		"linkedHashSet":   NewLinkedHashSet("b", "a"),
-		"arrayList":       NewArrayListFrom([]int32{3, 1}),
+		"arrayList":       []int32{3, 1},
 	}
 }
 

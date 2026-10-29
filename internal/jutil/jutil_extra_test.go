@@ -47,60 +47,6 @@ func decodeHexBytes(t *testing.T, s string) []byte {
 	return b
 }
 
-func TestRandomMatchesJava(t *testing.T) {
-	rows := readTSV(t, "random.tsv")
-	bounds := []int32{1, 2, 3, 7, 16, 52, 64, 100, 1000, 1 << 30, 2147483647, 0x40000001}
-	for _, r := range rows {
-		seed, _ := strconv.ParseInt(r[0], 10, 64)
-		x := NewRandomWithSeed(seed)
-		var parts []string
-		for i := 0; i < 5; i++ {
-			parts = append(parts, strconv.Itoa(int(x.NextInt())))
-		}
-		for _, b := range bounds {
-			parts = append(parts, strconv.Itoa(int(x.NextIntBound(b))))
-		}
-		for i := 0; i < 3; i++ {
-			parts = append(parts, strconv.FormatInt(x.NextLong(), 10))
-		}
-		parts = append(parts, strconv.FormatBool(x.NextBoolean()))
-		parts = append(parts, strconv.FormatInt(DoubleToRawLongBits(x.NextDouble()), 10))
-		parts = append(parts, strconv.Itoa(int(int32(floatBits(x.NextFloat())))))
-		if got := strings.Join(parts, ","); got != r[1] {
-			t.Errorf("seed %d:\n got %s\nwant %s", seed, got, r[1])
-		}
-		list := make([]int, 64)
-		for i := range list {
-			list[i] = i
-		}
-		Collections_Shuffle(list, x)
-		if got := strings.ReplaceAll(CollectionToString(list), " ", ""); got != r[2] {
-			t.Errorf("seed %d shuffle:\n got %s\nwant %s", seed, got, r[2])
-		}
-	}
-}
-
-func TestMurmur3MatchesGuava(t *testing.T) {
-	rows := readTSV(t, "murmur3.tsv")
-	for _, r := range rows {
-		switch r[0] {
-		case "B":
-			got := Hashing_Murmur3_128NewHasher().PutBytes(decodeHexBytes(t, r[1])).Hash().String()
-			if got != r[2] {
-				t.Errorf("murmur3(%s) = %s, Guava %s", r[1], got, r[2])
-			}
-		case "C":
-			comma := strings.IndexByte(r[1], ',')
-			n, _ := strconv.Atoi(r[1][:comma])
-			s := StringFromUTF16(decodeUnits(t, r[1][comma+1:]))
-			got := Hashing_Murmur3_128NewHasher().PutInt(int32(n)).PutUnencodedChars(s).Hash().AsInt()
-			if strconv.Itoa(int(got)) != r[2] {
-				t.Errorf("murmur3(%s) = %d, Guava %s", r[1], got, r[2])
-			}
-		}
-	}
-}
-
 func TestUTF8MatchesJava(t *testing.T) {
 	rows := readTSV(t, "utf8.tsv")
 	for _, r := range rows {
@@ -115,15 +61,6 @@ func TestUTF8MatchesJava(t *testing.T) {
 			if got != r[2] {
 				t.Errorf("new String(%s) = %s, Java %s", r[1], got, r[2])
 			}
-		}
-	}
-}
-
-func TestCaseFormatLowerCamelToUpperUnderscoreMatchesGuava(t *testing.T) {
-	for _, r := range readTSV(t, "caseformat.tsv") {
-		in := StringFromUTF16(decodeUnits(t, r[0]))
-		if got := encodeUnits(StringToUTF16(CaseFormat_LowerCamelToUpperUnderscore(in))); got != r[1] {
-			t.Errorf("LOWER_CAMEL.to(UPPER_UNDERSCORE, %s) = %s, Guava %s", r[0], got, r[1])
 		}
 	}
 }

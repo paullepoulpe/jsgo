@@ -3,8 +3,6 @@ package sourcemap
 import (
 	"math"
 	"testing"
-
-	"github.com/paullepoulpe/jsgo/internal/jutil"
 )
 
 func TestSourceMapJsonLexer_ParseIntAndUnescape(t *testing.T) {
@@ -33,8 +31,7 @@ func TestSourceMapJsonLexer_ParseIntAndUnescape(t *testing.T) {
 		{"12g4", 16, 0, false},
 	}
 	for _, tc := range cases {
-		u := jutil.StringToUTF16(tc.in)
-		got, ok := sourceMapJsonLexer_parseInt(u, 0, len(u), tc.radix)
+		got, ok := sourceMapJsonLexer_parseInt(tc.in, 0, len(tc.in), tc.radix)
 		if ok != tc.ok || got != tc.want {
 			t.Errorf("parseInt(%q, %d) = (%d, %v), want (%d, %v)", tc.in, tc.radix, got, ok, tc.want, tc.ok)
 		}
@@ -65,9 +62,9 @@ func TestSourceMapJsonLexer_ParseIntAndUnescape(t *testing.T) {
 	assertParseException(func() { NewSourceMapJsonLexer("2147483648").NextInt() })
 	assertParseException(func() { NewSourceMapJsonLexer("-2147483649").NextInt() })
 
-	strLex := NewSourceMapJsonLexer(`"hello\n\u0041\u03b1"`)
-	if got := strLex.NextString(); got != "hello\nA\u03b1" {
-		t.Fatalf("NextString() = %q, want %q", got, "hello\nA\u03b1")
+	strLex := NewSourceMapJsonLexer(`"hello\n\u0041\u03b1\ud83d\ude00"`)
+	if got := strLex.NextString(); got != "hello\nA\u03b1\U0001f600" {
+		t.Fatalf("NextString() = %q, want %q", got, "hello\nA\u03b1\U0001f600")
 	}
 	assertParseException(func() { NewSourceMapJsonLexer(`"\u12g4"`).NextString() })
 	assertParseException(func() { NewSourceMapJsonLexer(`"\u12"`).NextString() })

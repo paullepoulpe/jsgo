@@ -94,13 +94,13 @@ func (d *DevirtualizeMethods) Process(externs rhino.Node, root rhino.Node, refMa
 		d.callSites = d.callSites[:0]
 	}()
 
-	for key, value := range refMap.GetPropReferences() {
-		d.processReferenceList(key, value)
+	for id, value := range refMap.GetPropReferencesByID() {
+		d.processReferenceListByID(id, value)
 	}
 }
 
 // Java: DevirtualizeMethods.processReferenceList(String, List<Node>)
-func (d *DevirtualizeMethods) processReferenceList(name string, sites []rhino.Node) {
+func (d *DevirtualizeMethods) processReferenceListByID(nameID uint32, sites []rhino.Node) {
 	defSites := d.defSites[:0]
 	defFunctions := d.defFunctions[:0]
 	callSites := d.callSites[:0]
@@ -128,8 +128,10 @@ func (d *DevirtualizeMethods) processReferenceList(name string, sites []rhino.No
 	canonicalDefinitionSite := defSites[0]
 
 	// Check that this method is safe for devirtualization in increasing order of cost.
+	name := rhino.RhinoStringPool_StringFromID(nameID)
+	isExported := d.compiler.GetCodingConvention().IsExportedWithLocal(name /* local= */, false)
 	for _, s := range defSites {
-		if !d.isEligibleDefinitionSite(name, s) {
+		if !d.isEligibleDefinitionSite(s, isExported) {
 			return
 		}
 	}
@@ -261,14 +263,14 @@ func (d *DevirtualizeMethods) isDefinitelyCtorOrInterface(receiver rhino.Node) b
 }
 
 // Java: DevirtualizeMethods.isEligibleDefinitionSite(String, Node)
-func (d *DevirtualizeMethods) isEligibleDefinitionSite(name string, definitionSite rhino.Node) bool {
+func (d *DevirtualizeMethods) isEligibleDefinitionSite(definitionSite rhino.Node, isExported bool) bool {
 	switch definitionSite.GetToken() {
 	case rhino.Token_GETPROP, rhino.Token_MEMBER_FUNCTION_DEF, rhino.Token_STRING_KEY, rhino.Token_MEMBER_FIELD_DEF:
 	default:
 		panic(jutil.NewIllegalArgumentExceptionMsg(definitionSite.String()))
 	}
 
-	if d.compiler.GetCodingConvention().IsExportedWithLocal(name /* local= */, false) {
+	if isExported {
 		return false
 	}
 	return d.isPrototypeOrStaticMethodDefinition(definitionSite)

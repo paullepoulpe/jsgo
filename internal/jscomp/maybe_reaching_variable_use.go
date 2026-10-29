@@ -56,8 +56,7 @@ import (
 // by variable, and solves the backward fixed-point over flat uint64 bitvectors
 // (single uint64 per node when total uses <= 64, []uint64 when > 64).
 type MaybeReachingVariableUse struct {
-	cfg         *ControlFlowGraph[rhino.Node]
-	hasPriority bool
+	cfg *ControlFlowGraph[rhino.Node]
 
 	numVars       int
 	varNameIDs    []uint32
@@ -96,10 +95,8 @@ type MaybeReachingVariableUse struct {
 	inWords   []uint64
 	outWords  []uint64
 
-	// Worklist (max-heap on Priority when hasPriority, else FIFO).
-	queue     []*graph.LinkedDirectedGraph_LinkedDiGraphNode[rhino.Node, ControlFlowGraph_Branch]
-	queueHead int
-	steps     []int
+	worklist cfgWorklist
+	steps    []int
 }
 
 type mrvuRawUse struct {
@@ -130,12 +127,10 @@ func (u *MaybeReachingVariableUse) Reset(
 ) {
 	u.releaseLargeStorage()
 	u.cfg = cfg
-	u.hasPriority = cfg.hasNodePriorities
 	u.totalUses = 0
 	u.useWords = 0
 
 	u.varNameIDs = u.varNameIDsBuf[:0]
-	u.useVarMap = false
 	if allVarsInFn != nil {
 		for v := range allVarsInFn.Values() {
 			if escaped == nil || !escaped.Contains(v) {
@@ -146,16 +141,34 @@ func (u *MaybeReachingVariableUse) Reset(
 				u.varNameIDs = append(u.varNameIDs, id)
 			}
 		}
-		if len(u.varNameIDs) > len(u.varNameIDsBuf) {
-			u.useVarMap = true
-			if u.varIdxByID == nil {
-				u.varIdxByID = make(map[uint32]int, max(len(u.varNameIDs), 32))
-			} else {
-				clear(u.varIdxByID)
-			}
-			for i, id := range u.varNameIDs {
-				u.varIdxByID[id] = i + 1
-			}
+	}
+	u.finishInitVarMap()
+}
+
+func (u *MaybeReachingVariableUse) resetWithVarIDs(
+	cfg *ControlFlowGraph[rhino.Node],
+	varIDs []uint32,
+) {
+	u.releaseLargeStorage()
+	u.cfg = cfg
+	u.totalUses = 0
+	u.useWords = 0
+
+	u.varNameIDs = append(u.varNameIDsBuf[:0], varIDs...)
+	u.finishInitVarMap()
+}
+
+func (u *MaybeReachingVariableUse) finishInitVarMap() {
+	u.useVarMap = false
+	if len(u.varNameIDs) > len(u.varNameIDsBuf) {
+		u.useVarMap = true
+		if u.varIdxByID == nil {
+			u.varIdxByID = make(map[uint32]int, max(len(u.varNameIDs), 32))
+		} else {
+			clear(u.varIdxByID)
+		}
+		for i, id := range u.varNameIDs {
+			u.varIdxByID[id] = i + 1
 		}
 	}
 	u.numVars = len(u.varNameIDs)
@@ -187,10 +200,7 @@ func (u *MaybeReachingVariableUse) releaseLargeStorage() {
 		u.inWords = nil
 		u.outWords = nil
 	}
-	if cap(u.queue) > mrvuReuseMaxCap {
-		u.queue = nil
-		u.queueHead = 0
-	}
+	u.worklist.releaseLarge(mrvuReuseMaxCap)
 }
 
 // GetCfg returns the control flow graph that this analysis was performed on.
@@ -442,89 +452,13 @@ func (u *MaybeReachingVariableUse) initQueue(
 	cfg *ControlFlowGraph[rhino.Node],
 	implicitReturn *graph.LinkedDiGraphNode[rhino.Node, ControlFlowGraph_Branch],
 ) {
-	clear(u.queue)
-	u.queue = u.queue[:0]
-	u.queueHead = 0
-	numNodes := cfg.Nodes.Size()
-	if cap(u.queue) < numNodes {
-		u.queue = make([]*graph.LinkedDiGraphNode[rhino.Node, ControlFlowGraph_Branch], 0, numNodes)
-	}
+	u.worklist.reset(cfg, cfg.Nodes.Size(), false)
 	for node := range cfg.Nodes.Values() {
 		node.DfaInQueue = false
 		if node != implicitReturn {
-			u.enqueue(node)
+			u.worklist.enqueue(node)
 		}
 	}
-}
-
-func (u *MaybeReachingVariableUse) enqueue(node *graph.LinkedDirectedGraph_LinkedDiGraphNode[rhino.Node, ControlFlowGraph_Branch]) {
-	node.DfaInQueue = true
-	u.queue = append(u.queue, node)
-	if u.hasPriority {
-		i := len(u.queue) - 1
-		xPrio := node.Priority
-		if xPrio < 0 {
-			panic(jutil.NewIllegalStateExceptionMsg("priority not set"))
-		}
-		for i > 0 {
-			parent := (i - 1) / 2
-			p := u.queue[parent]
-			if xPrio <= p.Priority {
-				break
-			}
-			u.queue[i] = p
-			i = parent
-		}
-		u.queue[i] = node
-	}
-}
-
-func (u *MaybeReachingVariableUse) dequeue() *graph.LinkedDirectedGraph_LinkedDiGraphNode[rhino.Node, ControlFlowGraph_Branch] {
-	var cur *graph.LinkedDirectedGraph_LinkedDiGraphNode[rhino.Node, ControlFlowGraph_Branch]
-	if u.hasPriority {
-		n := len(u.queue)
-		cur = u.queue[0]
-		last := u.queue[n-1]
-		u.queue[n-1] = nil
-		u.queue = u.queue[:n-1]
-		if n > 1 {
-			i := 0
-			m := n - 1
-			xPrio := last.Priority
-			for {
-				pick := 2*i + 1
-				if pick >= m {
-					break
-				}
-				larger := u.queue[pick]
-				largerPrio := larger.Priority
-				if sibling := pick + 1; sibling < m {
-					sib := u.queue[sibling]
-					if sibPrio := sib.Priority; largerPrio < sibPrio {
-						pick = sibling
-						larger = sib
-						largerPrio = sibPrio
-					}
-				}
-				if xPrio >= largerPrio {
-					break
-				}
-				u.queue[i] = larger
-				i = pick
-			}
-			u.queue[i] = last
-		}
-	} else {
-		cur = u.queue[u.queueHead]
-		u.queue[u.queueHead] = nil
-		u.queueHead++
-		if u.queueHead == len(u.queue) {
-			u.queue = u.queue[:0]
-			u.queueHead = 0
-		}
-	}
-	cur.DfaInQueue = false
-	return cur
 }
 
 func (u *MaybeReachingVariableUse) solve64(
@@ -532,8 +466,8 @@ func (u *MaybeReachingVariableUse) solve64(
 	implicitReturn *graph.LinkedDiGraphNode[rhino.Node, ControlFlowGraph_Branch],
 ) {
 	u.initQueue(cfg, implicitReturn)
-	for len(u.queue) > u.queueHead {
-		curNode := u.dequeue()
+	for u.worklist.notEmpty() {
+		curNode := u.worklist.dequeue()
 		idx := curNode.Index
 		stepCount := u.steps[idx]
 		u.steps[idx] = stepCount + 1
@@ -559,7 +493,7 @@ func (u *MaybeReachingVariableUse) solve64(
 			for _, edge := range curNode.InEdgeList.Slice() {
 				prev := edge.SourceNode
 				if !prev.DfaInQueue && prev != implicitReturn {
-					u.enqueue(prev)
+					u.worklist.enqueue(prev)
 				}
 			}
 		}
@@ -572,8 +506,8 @@ func (u *MaybeReachingVariableUse) solveWords(
 	words int,
 ) {
 	u.initQueue(cfg, implicitReturn)
-	for len(u.queue) > u.queueHead {
-		curNode := u.dequeue()
+	for u.worklist.notEmpty() {
+		curNode := u.worklist.dequeue()
 		idx := int(curNode.Index)
 		stepCount := u.steps[idx]
 		u.steps[idx] = stepCount + 1
@@ -613,7 +547,7 @@ func (u *MaybeReachingVariableUse) solveWords(
 			for _, edge := range curNode.InEdgeList.Slice() {
 				prev := edge.SourceNode
 				if !prev.DfaInQueue && prev != implicitReturn {
-					u.enqueue(prev)
+					u.worklist.enqueue(prev)
 				}
 			}
 		}

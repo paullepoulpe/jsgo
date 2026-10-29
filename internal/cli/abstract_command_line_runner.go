@@ -424,12 +424,16 @@ func (r *AbstractCommandLineRunnerBase) SetRunOptions(options *jscomp.CompilerOp
 	options.SetParseInlineSourceMaps(config.parseInlineSourceMaps)
 	options.SetApplyInputSourceMaps(config.applyInputSourceMaps)
 
-	inputSourceMaps := jutil.NewImmutableMapBuilder[string, *jscomp.SourceMapInput]()
-	for _, entry := range config.sourceMapInputFiles {
-		sourceMap := jscomp.SourceFile_Builder_().WithKind(rhino.StaticSourceFile_SourceKind_NON_CODE).WithPath(entry.Value).Build()
-		inputSourceMaps.Put(entry.Key, jscomp.NewSourceMapInput(sourceMap))
+	if len(config.sourceMapInputFiles) == 0 {
+		options.SetInputSourceMaps(jutil.NewLinkedHashMap[string, *jscomp.SourceMapInput]())
+	} else {
+		entries := make([]kvEntry[*jscomp.SourceMapInput], len(config.sourceMapInputFiles))
+		for i, entry := range config.sourceMapInputFiles {
+			sourceMap := jscomp.SourceFile_Builder_().WithKind(rhino.StaticSourceFile_SourceKind_NON_CODE).WithPath(entry.Value).Build()
+			entries[i] = kvEntry[*jscomp.SourceMapInput]{key: entry.Key, value: jscomp.NewSourceMapInput(sourceMap)}
+		}
+		options.SetInputSourceMaps(buildUniqueLinkedMap(entries))
 	}
-	options.SetInputSourceMaps(inputSourceMaps.BuildOrThrow())
 
 	if config.variableMapInputFile != "" {
 		options.SetInputVariableMap(jscomp.VariableMap_Load(config.variableMapInputFile))
@@ -576,10 +580,9 @@ func (r *AbstractCommandLineRunnerBase) DoRun() int {
 			jsonFiles = []*AbstractCommandLineRunner_JsonFileSpec{}
 		}
 
-		inputSourceMaps := jutil.NewImmutableMapBuilder[string, *jscomp.SourceMapInput]()
-		inputPathByWebpackId := jutil.NewImmutableMapBuilder[string, string]()
+		var smEntries []kvEntry[*jscomp.SourceMapInput]
+		var webpackEntries []kvEntry[string]
 
-		foundJsonInputSourceMap := false
 		for _, jsonFile := range jsonFiles {
 			if sm := jsonFile.GetSourceMap(); sm != nil && *sm != "" {
 				pathStr := "null"
@@ -588,20 +591,27 @@ func (r *AbstractCommandLineRunnerBase) DoRun() int {
 				}
 				sourceMapPath := pathStr + ".map"
 				sourceMap := jscomp.SourceFile_FromCode(sourceMapPath, *sm)
-				inputSourceMaps.Put(*jsonFile.GetPath(), jscomp.NewSourceMapInput(sourceMap))
-				foundJsonInputSourceMap = true
+				smEntries = append(smEntries, kvEntry[*jscomp.SourceMapInput]{
+					key:   *jsonFile.GetPath(),
+					value: jscomp.NewSourceMapInput(sourceMap),
+				})
 			}
 			if wid := jsonFile.GetWebpackId(); wid != nil {
-				inputPathByWebpackId.Put(*wid, *jsonFile.GetPath())
+				webpackEntries = append(webpackEntries, kvEntry[string]{
+					key:   *wid,
+					value: *jsonFile.GetPath(),
+				})
 			}
 		}
 
-		if foundJsonInputSourceMap {
-			inputSourceMaps.PutAll(options.GetInputSourceMaps())
-			options.SetInputSourceMaps(inputSourceMaps.BuildOrThrow())
+		if len(smEntries) > 0 {
+			for k, v := range options.GetInputSourceMaps().All() {
+				smEntries = append(smEntries, kvEntry[*jscomp.SourceMapInput]{key: k, value: v})
+			}
+			options.SetInputSourceMaps(buildUniqueLinkedMap(smEntries))
 		}
 
-		r.compiler.InitWebpackMap(inputPathByWebpackId.BuildOrThrow())
+		r.compiler.InitWebpackMap(buildUniqueLinkedMap(webpackEntries))
 	} else {
 		emptyMap := jutil.NewLinkedHashMap[string, string]()
 		r.compiler.InitWebpackMap(emptyMap)
@@ -915,4 +925,51 @@ func (r *AbstractCommandLineRunnerBase) ProcessResults(result *jscomp.Result, ch
 func abstractCommandLineRunner_getExitStatusForResult(result *jscomp.Result) int {
 	// return 0 if no errors, the error count otherwise
 	return min(len(result.Errors), 0x7f)
+}
+
+type kvEntry[V any] struct {
+	key   string
+	value V
+}
+
+func buildUniqueLinkedMap[V any](entries []kvEntry[V]) *jutil.LinkedHashMap[string, V] {
+	n := len(entries)
+	out := jutil.NewLinkedHashMapWithCapacity[string, V](n)
+	if n == 0 {
+		return out
+	}
+	for _, e := range entries {
+		if jutil.IsNil(e.value) {
+			panic(jutil.NewNullPointerExceptionMsg("null value in entry: " + e.key + "=null"))
+		}
+	}
+	hasDup := false
+	if n > 8 {
+		seen := make(map[string]struct{}, n)
+		for _, e := range entries {
+			if _, ok := seen[e.key]; ok {
+				hasDup = true
+				break
+			}
+			seen[e.key] = struct{}{}
+		}
+	} else {
+		hasDup = true
+	}
+	if hasDup {
+		for i := n - 1; i >= 0; i-- {
+			k := entries[i].key
+			for j := i + 1; j < n; j++ {
+				if entries[j].key == k {
+					panic(jutil.NewIllegalArgumentExceptionMsg("Multiple entries with same key: " +
+						k + "=" + jutil.ToJavaString(entries[j].value) + " and " +
+						k + "=" + jutil.ToJavaString(entries[i].value)))
+				}
+			}
+		}
+	}
+	for _, e := range entries {
+		out.Put(e.key, e.value)
+	}
+	return out
 }

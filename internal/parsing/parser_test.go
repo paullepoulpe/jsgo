@@ -10248,7 +10248,8 @@ func (pt *parserTest) createConfig() *Config {
 		return ParserRunner_CreateConfigWithModes(
 			pt.mode, pt.parsingMode, Config_RunMode_KEEP_GOING, nil, true, pt.strictMode)
 	} else {
-		return ParserRunner_CreateConfig(pt.mode, nil, pt.strictMode)
+		return ParserRunner_CreateConfigWithModes(
+			pt.mode, Config_JsDocParsing_TYPES_ONLY, Config_RunMode_STOP_AFTER_ERROR, nil, true, pt.strictMode)
 	}
 }
 

@@ -112,11 +112,7 @@ func (r *ColorRegistry) GetDisambiguationSupertypesSlice(x *Color) []*Color {
 //
 // Java: ColorRegistry.getDisambiguationSupertypes(Color)
 func (r *ColorRegistry) GetDisambiguationSupertypes(x *Color) *jutil.ObjectLinkedHashSet[*Color] {
-	jutil.CheckNotNull(x)
-	sups := r.disambiguationSupertypes[x]
-	if len(sups) == 0 {
-		return colorEmptyColorSet
-	}
+	sups := r.GetDisambiguationSupertypesSlice(x)
 	out := jutil.NewObjectLinkedHashSet[*Color]()
 	for _, s := range sups {
 		out.Add(s)
@@ -384,5 +380,31 @@ func (b *ColorRegistry_Builder) Build() *ColorRegistry {
 	return NewColorRegistry(b)
 }
 
+// ColorIdSet is an immutable insertion-ordered set of ColorIds.
+type ColorIdSet []ColorId
+
+// Contains reports whether id is in s.
+func (s ColorIdSet) Contains(id ColorId) bool { return slices.Contains(s, id) }
+
+// Size returns the number of ColorIds in s.
+func (s ColorIdSet) Size() int { return len(s) }
+
+// All iterates ColorIds in insertion order.
+func (s ColorIdSet) All() iter.Seq[ColorId] { return slices.Values([]ColorId(s)) }
+
 // Java: ColorRegistry.REQUIRED_IDS
-var ColorRegistry_REQUIRED_IDS = StandardColors_STANDARD_OBJECT_IDS
+var ColorRegistry_REQUIRED_IDS = ColorIdSet{
+	StandardColors_BIGINT_OBJECT_ID,
+	StandardColors_BOOLEAN_OBJECT_ID,
+	StandardColors_NUMBER_OBJECT_ID,
+	StandardColors_STRING_OBJECT_ID,
+	StandardColors_SYMBOL_OBJECT_ID,
+	StandardColors_ARRAY_ID,
+	StandardColors_READONLY_ARRAY_ID,
+	StandardColors_ARGUMENTS_ID,
+	StandardColors_ASYNC_ITERATOR_ITERABLE_ID,
+	StandardColors_GENERATOR_ID,
+	StandardColors_I_TEMPLATE_ARRAY_ID,
+	StandardColors_ITERATOR_ID,
+	StandardColors_PROMISE_ID,
+}

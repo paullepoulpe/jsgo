@@ -148,13 +148,12 @@ func AllowlistWarningsGuard_LoadAllowlistedJsWarnings(file *jutil.File) []string
 //
 // Java: AllowlistWarningsGuard.loadAllowlistedJsWarnings(CharSource)
 func AllowlistWarningsGuard_LoadAllowlistedJsWarningsFromCharSource(supplier *jutil.CharSource) []string {
-	var result []string
-	jutil.Try(func() {
-		result = AllowlistWarningsGuard_LoadAllowlistedJsWarningsFromReader(supplier.OpenStream())
-	}, func(e jutil.IIOException) {
-		panic(jutil.NewRuntimeExceptionWithCause(e))
-	})
-	return result
+	jutil.CheckNotNull(supplier)
+	lines, err := supplier.TryReadLines()
+	if err != nil {
+		panic(jutil.NewRuntimeExceptionWithCause(err))
+	}
+	return deduplicateLines(lines)
 }
 
 // AllowlistWarningsGuard_LoadAllowlistedJsWarningsFromReader loads legacy
@@ -167,7 +166,10 @@ func AllowlistWarningsGuard_LoadAllowlistedJsWarningsFromCharSource(supplier *ju
 func AllowlistWarningsGuard_LoadAllowlistedJsWarningsFromReader(reader jutil.JavaReader) []string {
 	// TODO(nicksantos): This is a weird API.
 	jutil.CheckNotNull(reader)
-	lines := jutil.CharStreams_ReadLines(reader)
+	return deduplicateLines(jutil.CharStreams_ReadLines(reader))
+}
+
+func deduplicateLines(lines []string) []string {
 	seen := make(map[string]struct{}, len(lines))
 	result := make([]string, 0, len(lines))
 	for _, line := range lines {

@@ -55,9 +55,19 @@ package jscomp
 import (
 	"strings"
 
+	"github.com/paullepoulpe/jsgo/internal/ast"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/parser"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
+)
+
+var (
+	rewriteDynamicImportsVisitTokens = func() ast.TokenSet {
+		var s ast.TokenSet
+		s.Add(rhino.Token_DYNAMIC_IMPORT)
+		return s
+	}()
+	rewriteDynamicImportsOriginalName = "import"
 )
 
 // RewriteDynamicImports rewrites dynamic import expressions to account for
@@ -95,8 +105,6 @@ import (
 // TODO: b/291319705 For the above reason, the pass should be better named as
 // MaybeRewriteDynamicImports.
 type RewriteDynamicImports struct {
-	NodeTraversal_AbstractPostOrderCallbackBase
-
 	compiler                         AbstractCompiler
 	astFactory                       *AstFactory
 	alias                            *string
@@ -104,6 +112,12 @@ type RewriteDynamicImports struct {
 	shouldWrapDynamicImportCallbacks bool
 	dynamicImportsRemoved            bool
 	wrappedDynamicImportCallback     bool
+}
+
+func (*RewriteDynamicImports) noVisitLeaves() {}
+
+func (*RewriteDynamicImports) visitTokens() *ast.TokenSet {
+	return &rewriteDynamicImportsVisitTokens
 }
 
 var RewriteDynamicImports_DYNAMIC_IMPORT_ALIASING_REQUIRED = DiagnosticType_Warning(
@@ -165,6 +179,15 @@ func (r *RewriteDynamicImports) Process(externs rhino.Node, root rhino.Node) {
 	}
 }
 
+// ShouldTraverse skips scripts that do not contain dynamic imports.
+func (r *RewriteDynamicImports) ShouldTraverse(t *NodeTraversal, n rhino.Node, parent rhino.Node) bool {
+	if n.IsScript() {
+		fs := NodeUtil_GetFeatureSetOfScript(n)
+		return fs == nil || fs.ContainsFeature(parser.FeatureSet_Feature_DYNAMIC_IMPORT)
+	}
+	return true
+}
+
 // Java: RewriteDynamicImports.visit(NodeTraversal, Node, Node)
 func (r *RewriteDynamicImports) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	if n.GetToken() != rhino.Token_DYNAMIC_IMPORT {
@@ -185,14 +208,10 @@ func (r *RewriteDynamicImports) Visit(t *NodeTraversal, n rhino.Node, parent rhi
 			module = moduleMap.GetModuleByPath(targetPath)
 		}
 
-		var targetModuleVarName *string
-		if module != nil {
-			targetModuleVarName =
-				jutil.StringPtr(ModuleRenaming_GlobalizedModuleName_CreateWithModuleMetadata(module.Metadata(), nil, nil).AliasName().Join())
-		}
 		var targetModuleNS *Var
-		if targetModuleVarName != nil {
-			targetModuleNS = t.GetScope().GetVar(*targetModuleVarName)
+		if module != nil {
+			targetModuleVarName := ModuleRenaming_GlobalizedModuleName_CreateWithModuleMetadata(module.Metadata(), nil, nil).AliasName().Join()
+			targetModuleNS = t.GetScope().GetVar(targetModuleVarName)
 		}
 
 		if targetModuleNS != nil {
@@ -424,7 +443,7 @@ func (r *RewriteDynamicImports) AddChainedThen(t *NodeTraversal, dynamicImport r
 func (r *RewriteDynamicImports) AliasDynamicImport(t *NodeTraversal, dynamicImport rhino.Node) {
 	jutil.CheckNotNull(r.alias)
 	aliasNode := r.astFactory.CreateQNameWithUnknownType(*r.alias)
-	aliasNode.SetOriginalName(jutil.StringPtr("import"))
+	aliasNode.SetOriginalName(&rewriteDynamicImportsOriginalName)
 	moduleSpecifier := dynamicImport.RemoveFirstChild()
 	importAliasCall :=
 		r.astFactory.
@@ -616,6 +635,12 @@ func (e *Es6RewriteScriptsToModules) ShouldTraverse(nodeTraversal *NodeTraversal
 // that they are unable to be transpiled.
 type ForbidDynamicImportUsage struct {
 	compiler AbstractCompiler
+}
+
+func (*ForbidDynamicImportUsage) noVisitLeaves() {}
+
+func (*ForbidDynamicImportUsage) visitTokens() *ast.TokenSet {
+	return &rewriteDynamicImportsVisitTokens
 }
 
 // Java: ForbidDynamicImportUsage.DYNAMIC_IMPORT_USAGE

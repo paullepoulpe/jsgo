@@ -451,6 +451,11 @@ func (b *JSDocInfo_Builder) RecordSuppressionSliceWithDescription(rawNames []str
 	b.recordSuppressionWarnings(warnings, description)
 }
 
+// RecordSuppressionsSlice records a slice of suppressed warnings without allocating a LinkedHashSet.
+func (b *JSDocInfo_Builder) RecordSuppressionsSlice(rawNames []string) {
+	b.RecordSuppressionSliceWithDescription(rawNames, "")
+}
+
 // Java: JSDocInfo.Builder.recordSuppressions(ImmutableSet<String>, String)
 func (b *JSDocInfo_Builder) RecordSuppressionsWithDescription(suppressions *jutil.LinkedHashSet[string], description string) {
 	warnings := make([]string, 0, suppressions.Size())

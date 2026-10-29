@@ -136,6 +136,10 @@ func TestClosureBundler_Transpilation(t *testing.T) {
 	closureBundlerTest_assertEquals(t, sb.String(), want)
 }
 
+type closureBundlerTestEs6Module struct{ jscomp.DependencyInfo }
+
+func (closureBundlerTestEs6Module) IsEs6Module() bool { return true }
+
 func TestClosureBundler_Es6Module(t *testing.T) {
 	input := "import {x} from './other.js';\n" +
 		"export {x as y};\n" +
@@ -144,11 +148,9 @@ func TestClosureBundler_Es6Module(t *testing.T) {
 	bundler := NewClosureBundlerWithTranspiler(BaseTranspiler_LATEST_TRANSPILER).WithPath("nested/path/foo.js")
 	sb := jutil.NewStringWriter()
 	bundler.AppendRuntimeTo(sb)
-	flags := jutil.NewLinkedHashMap[string, string]()
-	flags.Put("module", "es6")
 	bundler.AppendTo(
 		sb,
-		jscomp.SimpleDependencyInfo_Builder_("", "").SetLoadFlags(flags).Build(),
+		closureBundlerTestEs6Module{closureBundlerTest_TRADITIONAL},
 		input)
 	result := sb.String()
 	// ES6 module runtime should be injected.

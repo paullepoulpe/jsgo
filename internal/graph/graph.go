@@ -58,11 +58,88 @@ package graph
 
 import (
 	"fmt"
+	"iter"
 	"reflect"
+	"slices"
 	"strconv"
 
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 )
+
+// GraphNodeMap stores graph nodes keyed by value N in deterministic insertion order.
+type GraphNodeMap[N comparable, NodePtr interface {
+	comparable
+	GetValue() N
+}] struct {
+	nodes     map[N]NodePtr
+	nodeOrder []NodePtr
+}
+
+// Get returns the node for k, or the zero NodePtr (nil) if absent.
+func (m *GraphNodeMap[N, NodePtr]) Get(k N) NodePtr {
+	return m.nodes[k]
+}
+
+// Size returns the number of nodes in m.
+func (m *GraphNodeMap[N, NodePtr]) Size() int {
+	return len(m.nodeOrder)
+}
+
+// Slice returns the nodes in deterministic insertion order, aliasing m's backing slice.
+func (m *GraphNodeMap[N, NodePtr]) Slice() []NodePtr {
+	return m.nodeOrder
+}
+
+// PutNew inserts node for absent key k, appending it to nodeOrder.
+func (m *GraphNodeMap[N, NodePtr]) PutNew(k N, node NodePtr) {
+	if m.nodes == nil {
+		m.nodes = make(map[N]NodePtr, 16)
+	}
+	m.nodes[k] = node
+	m.nodeOrder = append(m.nodeOrder, node)
+}
+
+// Remove deletes k if present while preserving exact insertion order of remaining nodes.
+func (m *GraphNodeMap[N, NodePtr]) Remove(k N) bool {
+	node, ok := m.nodes[k]
+	if !ok {
+		return false
+	}
+	delete(m.nodes, k)
+	if i := slices.Index(m.nodeOrder, node); i >= 0 {
+		m.nodeOrder = slices.Delete(m.nodeOrder, i, i+1)
+	}
+	return true
+}
+
+// Clear removes all entries while keeping backing storage for reuse.
+func (m *GraphNodeMap[N, NodePtr]) Clear() {
+	clear(m.nodes)
+	clear(m.nodeOrder)
+	m.nodeOrder = m.nodeOrder[:0]
+}
+
+// Reset drops backing storage when a graph grew too large to retain for reuse.
+func (m *GraphNodeMap[N, NodePtr]) Reset() {
+	m.nodes = nil
+	m.nodeOrder = nil
+}
+
+// Values iterates nodes in deterministic insertion order.
+func (m *GraphNodeMap[N, NodePtr]) Values() iter.Seq[NodePtr] {
+	return slices.Values(m.nodeOrder)
+}
+
+// All iterates (value, node) pairs in deterministic insertion order.
+func (m *GraphNodeMap[N, NodePtr]) All() iter.Seq2[N, NodePtr] {
+	return func(yield func(N, NodePtr) bool) {
+		for _, node := range m.nodeOrder {
+			if !yield(node.GetValue(), node) {
+				return
+			}
+		}
+	}
+}
 
 // Annotation is information that can be annotated to a graph node or edge.
 type Annotation interface{}

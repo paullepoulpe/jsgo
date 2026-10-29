@@ -124,83 +124,10 @@ func TypeDeclarationsIR_NamedTypeOfSegments(segments []string) Node {
 	return NewNodeWithChild(Token_NAMED_TYPE, node)
 }
 
-// TypeDeclarationsIR_RecordType represents a structural type. Closure calls
-// this a Record Type and accepts the syntax {myNum: number, myObject}
-//
-// Example:
-//
-//	RECORD_TYPE
-//	  STRING_KEY myNum
-//	    NUMBER_TYPE
-//	  STRING_KEY myObject
-//
-// properties: a map from property name to property type. Returns a new node
-// representing the record type
-//
-// Java: TypeDeclarationsIR.recordType(LinkedHashMap<String, Node>)
-func TypeDeclarationsIR_RecordType(properties *jutil.LinkedHashMap[string, Node]) Node {
-	node := NewNode(Token_RECORD_TYPE)
-	for key, value := range properties.All() {
-		stringKey := IR_StringKey(key)
-		node.AddChildToBack(stringKey)
-		if !value.IsNil() {
-			stringKey.AddChildToFront(value)
-		}
-	}
-	return node
-}
-
 // Java: TypeDeclarationsIR.maybeAddType(Node, Node)
 func TypeDeclarationsIR_MaybeAddType(node Node, type_ Node) Node {
 	if !type_.IsNil() {
 		node.SetDeclaredTypeExpression(type_)
-	}
-	return node
-}
-
-// TypeDeclarationsIR_FunctionType represents a function type. Closure has
-// syntax like {function(string, boolean):number} Closure doesn't include
-// parameter names. If the parameter types are unnamed, arbitrary names can
-// be substituted, eg. p1, p2, etc.
-//
-// Example:
-//
-//	FUNCTION_TYPE
-//	  NUMBER_TYPE
-//	  STRING_KEY p1 [declared_type_expr: STRING_TYPE]
-//	  STRING_KEY p2 [declared_type_expr: BOOLEAN_TYPE]
-//
-// returnType: the type returned by the function, possibly ANY_TYPE.
-// requiredParams: the names and types of the required parameters.
-// optionalParams: the names and types of the optional parameters. restName:
-// the name of the rest parameter, if any. restType: the type of the rest
-// parameter, if any.
-//
-// Java: TypeDeclarationsIR.functionType(Node, LinkedHashMap<String, Node>, LinkedHashMap<String, Node>, String, Node)
-func TypeDeclarationsIR_FunctionType(
-	returnType Node,
-	requiredParams *jutil.LinkedHashMap[string, Node],
-	optionalParams *jutil.LinkedHashMap[string, Node],
-	restName *string,
-	restType Node) Node {
-	node := NewNodeWithChild(Token_FUNCTION_TYPE, returnType)
-	jutil.CheckNotNull(requiredParams)
-	jutil.CheckNotNull(optionalParams)
-
-	for key, value := range requiredParams.All() {
-		name := IR_Name(key)
-		node.AddChildToBack(TypeDeclarationsIR_MaybeAddType(name, value))
-	}
-
-	for key, value := range optionalParams.All() {
-		name := IR_Name(key)
-		name.PutBooleanProp(Node_OPT_ES6_TYPED, true)
-		node.AddChildToBack(TypeDeclarationsIR_MaybeAddType(name, value))
-	}
-
-	if restName != nil {
-		rest := NewNodeWithChild(Token_ITER_REST, IR_Name(*restName))
-		node.AddChildToBack(TypeDeclarationsIR_MaybeAddType(rest, restType))
 	}
 	return node
 }

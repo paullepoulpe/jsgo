@@ -19,8 +19,43 @@
 package graph
 
 import (
+	"iter"
+
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 )
+
+// DominatorSubtreeSizes stores dominated subtree sizes in deterministic post-order.
+type DominatorSubtreeSizes[N comparable] struct {
+	sizes map[N]int
+	order []N
+}
+
+// Size returns the number of entries.
+func (s *DominatorSubtreeSizes[N]) Size() int { return len(s.order) }
+
+// Lookup returns the subtree size for k and whether k is present.
+func (s *DominatorSubtreeSizes[N]) Lookup(k N) (int, bool) {
+	v, ok := s.sizes[k]
+	return v, ok
+}
+
+// All iterates (node, subtreeSize) pairs in insertion order.
+func (s *DominatorSubtreeSizes[N]) All() iter.Seq2[N, int] {
+	return func(yield func(N, int) bool) {
+		for _, k := range s.order {
+			if !yield(k, s.sizes[k]) {
+				return
+			}
+		}
+	}
+}
+
+func (s *DominatorSubtreeSizes[N]) put(k N, size int) {
+	if _, exists := s.sizes[k]; !exists {
+		s.order = append(s.order, k)
+	}
+	s.sizes[k] = size
+}
 
 // DominatorTree computes the dominator tree of a directed graph.
 //
@@ -45,11 +80,11 @@ type DominatorTree[N comparable] struct {
 
 	// Mapping from node value to the number of nodes it dominates
 	// (including itself).
-	subtreeSizes *jutil.LinkedHashMap[N, int]
+	subtreeSizes DominatorSubtreeSizes[N]
 }
 
 // Java: DominatorTree(Map<N, N>, Map<N, Integer>)
-func newDominatorTree[N comparable](idoms map[N]N, subtreeSizes *jutil.LinkedHashMap[N, int]) *DominatorTree[N] {
+func newDominatorTree[N comparable](idoms map[N]N, subtreeSizes DominatorSubtreeSizes[N]) *DominatorTree[N] {
 	return &DominatorTree[N]{
 		idoms:        idoms,
 		subtreeSizes: subtreeSizes,
@@ -151,8 +186,11 @@ func DominatorTree_Compute[N comparable, E any](graph DiGraph[N, E], entry N) *D
 		}
 	}
 
-	sizesMap := jutil.NewLinkedHashMap[N, int]()
-	dominatorTree_computeSubtreeSizes(entry, children, sizesMap)
+	sizesMap := DominatorSubtreeSizes[N]{
+		sizes: make(map[N]int, numNodes),
+		order: make([]N, 0, numNodes),
+	}
+	dominatorTree_computeSubtreeSizes(entry, children, &sizesMap)
 
 	return newDominatorTree(idomsMap, sizesMap)
 }
@@ -188,12 +226,12 @@ func dominatorTree_buildPostOrder[N comparable, E any](
 
 // Java: DominatorTree.computeSubtreeSizes(N, ListMultimap<N, N>, Map<N, Integer>)
 func dominatorTree_computeSubtreeSizes[N comparable](
-	node N, children map[N][]N, sizes *jutil.LinkedHashMap[N, int]) int {
+	node N, children map[N][]N, sizes *DominatorSubtreeSizes[N]) int {
 	size := 1
 	for _, child := range children[node] {
 		size += dominatorTree_computeSubtreeSizes(child, children, sizes)
 	}
-	sizes.Put(node, size)
+	sizes.put(node, size)
 	return size
 }
 
@@ -210,15 +248,15 @@ func (t *DominatorTree[N]) GetImmediateDominator(node N) (idom N, ok bool) {
 
 // Java: DominatorTree.getDominatedSubtreeSize(N)
 func (t *DominatorTree[N]) GetDominatedSubtreeSize(node N) int {
-	return t.subtreeSizes.GetOrDefault(node, 0)
+	return t.subtreeSizes.sizes[node]
 }
 
 // GetAllSubtreeSizes returns the subtree sizes in Java ImmutableMap order.
 // Callers must not mutate the map (Java: ImmutableMap).
 //
 // Java: DominatorTree.getAllSubtreeSizes()
-func (t *DominatorTree[N]) GetAllSubtreeSizes() *jutil.LinkedHashMap[N, int] {
-	return t.subtreeSizes
+func (t *DominatorTree[N]) GetAllSubtreeSizes() *DominatorSubtreeSizes[N] {
+	return &t.subtreeSizes
 }
 
 // Java: DominatorTree.toReversedArray(List<N>)

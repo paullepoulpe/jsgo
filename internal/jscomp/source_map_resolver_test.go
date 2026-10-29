@@ -19,6 +19,7 @@
 package jscomp
 
 import (
+	"encoding/base64"
 	"testing"
 
 	"github.com/paullepoulpe/jsgo/internal/jutil"
@@ -26,7 +27,7 @@ import (
 
 func TestSourceMapResolver_ResolveBase64Inline(t *testing.T) {
 	sourceMap := "{map: 'asdfasdf'}"
-	encoded := jutil.BaseEncoding_Base64().Encode([]byte(sourceMap))
+	encoded := base64.StdEncoding.EncodeToString([]byte(sourceMap))
 	url := "data:application/json;base64," + encoded
 	code := "console.log('asdf')\n//# sourceMappingURL=" + url
 	s := SourceMapResolver_ExtractSourceMap(SourceFile_FromCode("somePath/hello.js", code), url, true)
@@ -40,7 +41,7 @@ func TestSourceMapResolver_ResolveBase64Inline(t *testing.T) {
 
 func TestSourceMapResolver_ResolveBase64WithCharsetInline(t *testing.T) {
 	sourceMap := "{map: 'asdfasdf'}"
-	encoded := jutil.BaseEncoding_Base64().Encode([]byte(sourceMap))
+	encoded := base64.StdEncoding.EncodeToString([]byte(sourceMap))
 	url := "data:application/json;charset=utf-8;base64," + encoded
 	code := "console.log('asdf')\n//# sourceMappingURL=" + url
 	s := SourceMapResolver_ExtractSourceMap(SourceFile_FromCode("somePath/hello.js", code), url, true)

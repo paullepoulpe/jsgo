@@ -65,12 +65,15 @@ type CollapseVariableDeclarations struct {
 	// startNode of each Collapse), in a reused buffer.
 	collapseNodes []ast.NameDeclaration
 	collapseBuf   [32]ast.NameDeclaration
-
-	// Nodes we've already looked at for collapsing, so that we don't look at
-	// them again (we look ahead when examining what nodes can be collapsed,
-	// and the node traversal may give them to us again)
-	collapsedSet map[rhino.Node]struct{}
 }
+
+var collapseVarDeclsVisitTokens = func() ast.TokenSet {
+	var s ast.TokenSet
+	s.Add(rhino.Token_VAR)
+	s.Add(rhino.Token_LET)
+	s.Add(rhino.Token_CONST)
+	return s
+}()
 
 // Java: CollapseVariableDeclarations(AbstractCompiler)
 func NewCollapseVariableDeclarations(compiler AbstractCompiler) *CollapseVariableDeclarations {
@@ -85,7 +88,6 @@ func NewCollapseVariableDeclarations(compiler AbstractCompiler) *CollapseVariabl
 // Java: CollapseVariableDeclarations.process(Node, Node)
 func (c *CollapseVariableDeclarations) Process(externs rhino.Node, root rhino.Node) {
 	c.collapseNodes = c.collapseNodes[:0]
-	clear(c.collapsedSet)
 
 	NodeTraversal_Traverse(c.compiler, root, &CollapseVariableDeclarations_GatherCollapses{outer: c})
 
@@ -104,45 +106,41 @@ type CollapseVariableDeclarations_GatherCollapses struct {
 	outer *CollapseVariableDeclarations
 }
 
+var (
+	_ nodeTraversal_noVisitLeaves = (*CollapseVariableDeclarations_GatherCollapses)(nil)
+	_ nodeTraversal_visitTokens   = (*CollapseVariableDeclarations_GatherCollapses)(nil)
+)
+
+func (*CollapseVariableDeclarations_GatherCollapses) noVisitLeaves() {}
+
+func (*CollapseVariableDeclarations_GatherCollapses) visitTokens() *ast.TokenSet {
+	return &collapseVarDeclsVisitTokens
+}
+
 // Java: CollapseVariableDeclarations.GatherCollapses.visit(NodeTraversal, Node, Node)
 func (g *CollapseVariableDeclarations_GatherCollapses) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
-	// Go-only: this runs on every node, so the kind is tested on the token
-	// (three comparisons are a little cheaper than the token-set lookup of
-	// ast.AsNameDeclaration, and a typed visitor costs more still).
-	if tok := n.GetToken(); tok != rhino.Token_VAR && tok != rhino.Token_LET && tok != rhino.Token_CONST {
+	tok := n.GetToken()
+	if tok != rhino.Token_VAR && tok != rhino.Token_LET && tok != rhino.Token_CONST {
 		return
 	}
-	decl := ast.MustNameDeclaration(n)
 
 	// Adjacent VAR children of an IF node are the if and else parts and can't
 	// be collapsed
 	// Go-only: the branches of an if are blocks (grammar.txt), so a
 	// declaration is never a child of an IF; the check is kept from Java.
-	if parent.IsIf() {
+	if parent.IsNil() || parent.IsIf() {
 		return
 	}
 
-	outer := g.outer
-	// If we've already looked at this node, skip it
-	if len(outer.collapsedSet) > 0 {
-		if _, ok := outer.collapsedSet[n]; ok {
-			return
-		}
-	}
-
-	next, ok := collapseVariableDeclarations_nextOfSameKind(decl)
-	if !ok {
+	if prev := n.GetPrevious(); !prev.IsNil() && prev.GetToken() == tok {
 		return
 	}
 
-	if outer.collapsedSet == nil {
-		outer.collapsedSet = make(map[rhino.Node]struct{}, 32)
+	decl := ast.MustNameDeclaration(n)
+	if _, ok := collapseVariableDeclarations_nextOfSameKind(decl); !ok {
+		return
 	}
-	for ok {
-		outer.collapsedSet[next.Node()] = struct{}{}
-		next, ok = collapseVariableDeclarations_nextOfSameKind(next)
-	}
-	outer.collapseNodes = append(outer.collapseNodes, decl)
+	g.outer.collapseNodes = append(g.outer.collapseNodes, decl)
 }
 
 // collapseVariableDeclarations_nextOfSameKind returns the statement after

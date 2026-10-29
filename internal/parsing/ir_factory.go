@@ -536,8 +536,8 @@ func (f *IRFactory) TransformBlock(node parser.ParseTree) rhino.Node {
 //
 // Java: IRFactory.handlePossibleFileOverviewJsDoc(JsDocInfoParser)
 func (f *IRFactory) HandlePossibleFileOverviewJsDoc(jsDocParser *JsDocInfoParser) bool {
-	if lic := jsDocParser.GetLicenseText(); lic != nil && !slices.Contains(f.licenses, *lic) {
-		f.licenses = append(f.licenses, *lic)
+	if lic, ok := jsDocParser.GetLicenseText(); ok && !slices.Contains(f.licenses, lic) {
+		f.licenses = append(f.licenses, lic)
 	}
 
 	newFileoverview := jsDocParser.GetFileOverviewJSDocInfo()
@@ -551,7 +551,15 @@ func (f *IRFactory) HandlePossibleFileOverviewJsDoc(jsDocParser *JsDocInfoParser
 	} else {
 		merged := f.firstFileoverview.ToBuilder()
 		if newFileoverview.HasAnySuppressions() {
-			merged.RecordSuppressions(newFileoverview.GetSuppressions())
+			var supBuf [8]string
+			suppressions := supBuf[:0]
+			newFileoverview.ForEachSuppression(func(name string) bool {
+				if !slices.Contains(suppressions, name) {
+					suppressions = append(suppressions, name)
+				}
+				return true
+			})
+			merged.RecordSuppressionsSlice(suppressions)
 		}
 		if newFileoverview.IsExterns() {
 			f.currentFileIsExterns = true

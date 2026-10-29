@@ -523,23 +523,32 @@ func (f *commandLineRunner_Flags) Args4jFields() []args4j.AnnotatedField {
 //
 // Java: CommandLineRunner.Flags.parse(List<String>)
 func (f *commandLineRunner_Flags) Parse(args []string) {
-	f.parser.ParseArgumentCollection(args)
+	if err := f.TryParse(args); err != nil {
+		panic(err)
+	}
+}
+
+func (f *commandLineRunner_Flags) TryParse(args []string) args4j.ICmdLineException {
+	if err := f.parser.TryParseArgument(slices.Clone(args)...); err != nil {
+		return err
+	}
 
 	compilationLevel := asciiUpper(f.compilationLevel)
 	f.compilationLevelParsed = jscomp.CompilationLevel_FromString(&compilationLevel)
 	if f.compilationLevelParsed == nil {
-		panic(args4j.NewCmdLineExceptionWithParser(
-			f.parser, "Bad value for --compilation_level: "+f.compilationLevel))
+		return args4j.NewCmdLineExceptionWithParser(
+			f.parser, "Bad value for --compilation_level: "+f.compilationLevel)
 	}
 
 	instrumentForCoverageOption := asciiUpper(f.instrumentForCoverageOption)
 	instrumentCodeParsed := jscomp.CompilerOptions_InstrumentOption_FromString(&instrumentForCoverageOption)
 	if instrumentCodeParsed == nil {
-		panic(args4j.NewCmdLineExceptionWithParser(
+		return args4j.NewCmdLineExceptionWithParser(
 			f.parser,
-			"Bad value for --instrument_for_coverage_option: "+f.instrumentForCoverageOption))
+			"Bad value for --instrument_for_coverage_option: "+f.instrumentForCoverageOption)
 	}
 	f.instrumentCodeParsed = *instrumentCodeParsed
+	return nil
 }
 
 // commandLineRunner_Flags_categories is an ImmutableMultimap: its keys, in
@@ -691,82 +700,135 @@ func (f *commandLineRunner_Flags) PrintCategoryUsage(
 	prefix string,
 	suffix string) {
 
-	jutil.Try(func() {
-		f.PrintStringLineWrapped(prefix, outputStream)
-
-		if f.helpMarkdown {
-			outputStream.Write("# " + categoryName + "\n")
-
-			for _, optionName := range options {
-				stringWriter := jutil.NewStringWriter()
-				f.parser.PrintUsageToWriterWithFilter(
-					stringWriter,
-					nil,
-					args4j.OptionHandlerFilterFunc(func(optionHandler *args4j.OptionHandler) bool {
-						if name, ok := commandLineRunner_Flags_optionName(optionHandler); ok {
-							return !optionHandler.Option.Hidden() && optionName == name
-						}
-						return false
-					}))
-				stringWriter.Flush()
-				rawOptionUsage := stringWriter.String()
-				delimiterIndex := strings.Index(rawOptionUsage, " : ")
-				if delimiterIndex > 0 {
-					outputStream.Write(
-						"\n**" + jutil.StringTrim(rawOptionUsage[:delimiterIndex]) + "**  \n")
-
-					optionDescription := jutil.StringTrim(jutil.StringReplaceAll(
-						rawOptionUsage[delimiterIndex+3:],
-						commandLineRunner_Flags_MARKDOWN_CHARS_TO_ESCAPE, "\\\\$0"))
-					outputStream.Write(optionDescription + "\n")
-				} else {
-					outputStream.Write(jutil.StringReplaceAll(rawOptionUsage, commandLineRunner_Flags_MARKDOWN_CHARS_TO_ESCAPE, "\\\\$0"))
-				}
-				outputStream.Flush()
-			}
-		} else {
-			outputStream.Write(commandLineRunner_Flags_BOLD_PREFIX + categoryName + ":\n" + commandLineRunner_Flags_NORMAL_PREFIX)
-			f.parser.PrintUsageToWriterWithFilter(
-				outputStream,
-				nil,
-				args4j.OptionHandlerFilterFunc(func(optionHandler *args4j.OptionHandler) bool {
-					if name, ok := commandLineRunner_Flags_optionName(optionHandler); ok {
-						return !optionHandler.Option.Hidden() && slices.Contains(options, name)
-					}
-					return false
-				}))
-		}
-
-		f.PrintStringLineWrapped(suffix, outputStream)
-	}, func(e jutil.IIOException) {
-		// Ignore.
-	})
-}
-
-// Java: CommandLineRunner.Flags.WHITESPACE_PATTERN
-var commandLineRunner_Flags_WHITESPACE_PATTERN = jutil.Pattern_Compile("\\s")
-
-// Java: CommandLineRunner.Flags.printStringLineWrapped(String, OutputStreamWriter)
-func (f *commandLineRunner_Flags) PrintStringLineWrapped(input string, outputStream jutil.Writer) {
-	if jutil.StringLength(input) < f.maxLineLength {
-		outputStream.Write(input)
+	if f.tryPrintStringLineWrapped(prefix, outputStream) != nil {
 		return
 	}
 
-	endIndex := f.maxLineLength
-	subString := jutil.StringSubstring(input, 0, f.maxLineLength)
-	whitespaceMatcher := commandLineRunner_Flags_WHITESPACE_PATTERN.Matcher(subString)
-	foundMatch := false
-	for whitespaceMatcher.Find() {
-		endIndex = whitespaceMatcher.Start()
-		foundMatch = true
+	if f.helpMarkdown {
+		if outputStream.TryWrite("# "+categoryName+"\n") != nil {
+			return
+		}
+
+		for _, optionName := range options {
+			stringWriter := jutil.NewStringWriter()
+			f.parser.PrintUsageToWriterWithFilter(
+				stringWriter,
+				nil,
+				args4j.OptionHandlerFilterFunc(func(optionHandler *args4j.OptionHandler) bool {
+					if name, ok := commandLineRunner_Flags_optionName(optionHandler); ok {
+						return !optionHandler.Option.Hidden() && optionName == name
+					}
+					return false
+				}))
+			stringWriter.Flush()
+			rawOptionUsage := stringWriter.String()
+			delimiterIndex := strings.Index(rawOptionUsage, " : ")
+			if delimiterIndex > 0 {
+				if outputStream.TryWrite("\n**"+jutil.StringTrim(rawOptionUsage[:delimiterIndex])+"**  \n") != nil {
+					return
+				}
+
+				optionDescription := jutil.StringTrim(jutil.StringReplaceAll(
+					rawOptionUsage[delimiterIndex+3:],
+					commandLineRunner_Flags_MARKDOWN_CHARS_TO_ESCAPE, "\\\\$0"))
+				if outputStream.TryWrite(optionDescription+"\n") != nil {
+					return
+				}
+			} else {
+				if outputStream.TryWrite(jutil.StringReplaceAll(rawOptionUsage, commandLineRunner_Flags_MARKDOWN_CHARS_TO_ESCAPE, "\\\\$0")) != nil {
+					return
+				}
+			}
+			if outputStream.TryFlush() != nil {
+				return
+			}
+		}
+	} else {
+		if outputStream.TryWrite(commandLineRunner_Flags_BOLD_PREFIX+categoryName+":\n"+commandLineRunner_Flags_NORMAL_PREFIX) != nil {
+			return
+		}
+		f.parser.PrintUsageToWriterWithFilter(
+			outputStream,
+			nil,
+			args4j.OptionHandlerFilterFunc(func(optionHandler *args4j.OptionHandler) bool {
+				if name, ok := commandLineRunner_Flags_optionName(optionHandler); ok {
+					return !optionHandler.Option.Hidden() && slices.Contains(options, name)
+				}
+				return false
+			}))
 	}
-	outputStream.Write(jutil.StringSubstring(input, 0, endIndex) + "\n")
-	rest := endIndex
-	if foundMatch {
-		rest = endIndex + 1
+
+	_ = f.tryPrintStringLineWrapped(suffix, outputStream)
+}
+
+// Java: CommandLineRunner.Flags.printStringLineWrapped(String, OutputStreamWriter)
+func (f *commandLineRunner_Flags) PrintStringLineWrapped(input string, outputStream jutil.Writer) {
+	if err := f.tryPrintStringLineWrapped(input, outputStream); err != nil {
+		panic(err)
 	}
-	f.PrintStringLineWrapped("    "+jutil.StringSubstringFrom(input, rest), outputStream)
+}
+
+func (f *commandLineRunner_Flags) tryPrintStringLineWrapped(input string, outputStream jutil.Writer) jutil.IIOException {
+	maxLen := f.maxLineLength
+	for {
+		utf16Count := 0
+		lastWSByte := -1
+		asciiPrefix := true
+		i := 0
+		for i < len(input) {
+			if utf16Count == maxLen {
+				break
+			}
+			b := input[i]
+			if b >= 0x80 {
+				asciiPrefix = false
+				break
+			}
+			if b == ' ' || (b >= '\t' && b <= '\r') {
+				lastWSByte = i
+			}
+			i++
+			utf16Count++
+		}
+		if asciiPrefix {
+			if utf16Count < maxLen {
+				return outputStream.TryWrite(input)
+			}
+			cut := i
+			rest := i
+			if lastWSByte >= 0 {
+				cut = lastWSByte
+				rest = lastWSByte + 1
+			}
+			if err := outputStream.TryWrite(input[:cut] + "\n"); err != nil {
+				return err
+			}
+			input = "    " + input[rest:]
+			continue
+		}
+
+		units := jutil.StringToUTF16(input)
+		if len(units) < maxLen {
+			return outputStream.TryWrite(input)
+		}
+		endIndex := maxLen
+		foundMatch := false
+		for j := 0; j < maxLen; j++ {
+			u := units[j]
+			if u == ' ' || (u >= '\t' && u <= '\r') {
+				endIndex = j
+				foundMatch = true
+			}
+		}
+		if err := outputStream.TryWrite(jutil.StringFromUTF16(units[:endIndex]) + "\n"); err != nil {
+			return err
+		}
+		rest := endIndex
+		if foundMatch {
+			rest = endIndex + 1
+		}
+		input = "    " + jutil.StringFromUTF16(units[rest:])
+	}
 }
 
 // Java: CommandLineRunner.Flags.printShortUsageAfterErrors(PrintStream)
@@ -800,6 +862,14 @@ func commandLineRunner_Flags_printShortUsageAfterErrors(ps *jutil.PrintStream) {
 //
 // Java: CommandLineRunner.Flags.getMixedJsSources()
 func (f *commandLineRunner_Flags) GetMixedJsSources() []*AbstractCommandLineRunner_FlagEntry[AbstractCommandLineRunner_JsSourceType] {
+	res, err := f.tryGetMixedJsSources()
+	if err != nil {
+		panic(err)
+	}
+	return res
+}
+
+func (f *commandLineRunner_Flags) tryGetMixedJsSources() ([]*AbstractCommandLineRunner_FlagEntry[AbstractCommandLineRunner_JsSourceType], args4j.ICmdLineException) {
 	mixedSources := make([]*AbstractCommandLineRunner_FlagEntry[AbstractCommandLineRunner_JsSourceType], 0, len(f.mixedJsSources)+len(f.arguments))
 	var excludes map[string]struct{}
 	allocJsEntry := func(filename string) *AbstractCommandLineRunner_FlagEntry[AbstractCommandLineRunner_JsSourceType] {
@@ -846,33 +916,57 @@ func (f *commandLineRunner_Flags) GetMixedJsSources() []*AbstractCommandLineRunn
 		}
 	}
 	if len(f.mixedJsSources) != 0 && len(f.arguments) != 0 && len(mixedSources) == 0 {
-		panic(args4j.NewCmdLineExceptionWithParser(f.parser, "No inputs matched"))
+		return nil, args4j.NewCmdLineExceptionWithParser(f.parser, "No inputs matched")
 	}
-	return mixedSources
+	return mixedSources, nil
 }
 
 // Java: CommandLineRunner.Flags.getSourceMapLocationMappings()
 func (f *commandLineRunner_Flags) GetSourceMapLocationMappings() []jscomp.SourceMap_LocationMapping {
-	split := f.SplitPipeParts(f.sourceMapLocationMapping, "--source_map_location_mapping")
-	if len(split) == 0 {
-		return nil
+	res, err := f.tryGetSourceMapLocationMappings()
+	if err != nil {
+		panic(err)
+	}
+	return res
+}
+
+func (f *commandLineRunner_Flags) tryGetSourceMapLocationMappings() ([]jscomp.SourceMap_LocationMapping, args4j.ICmdLineException) {
+	split, err := f.trySplitPipeParts(f.sourceMapLocationMapping, "--source_map_location_mapping")
+	if err != nil || len(split) == 0 {
+		return nil, err
 	}
 	locationMappings := make([]jscomp.SourceMap_LocationMapping, len(split))
 	for i, entry := range split {
 		locationMappings[i] = jscomp.NewSourceMap_PrefixLocationMapping(entry.Key, entry.Value)
 	}
-	return locationMappings
+	return locationMappings, nil
 }
 
 // Java: CommandLineRunner.Flags.getSourceMapInputs()
 func (f *commandLineRunner_Flags) GetSourceMapInputs() []PipeFlagEntry {
-	return f.SplitPipeParts(f.sourceMapInputs, "--source_map_input")
+	res, err := f.tryGetSourceMapInputs()
+	if err != nil {
+		panic(err)
+	}
+	return res
+}
+
+func (f *commandLineRunner_Flags) tryGetSourceMapInputs() ([]PipeFlagEntry, args4j.ICmdLineException) {
+	return f.trySplitPipeParts(f.sourceMapInputs, "--source_map_input")
 }
 
 // Java: CommandLineRunner.Flags.splitPipeParts(Iterable<String>, String)
 func (f *commandLineRunner_Flags) SplitPipeParts(input []string, flagName string) []PipeFlagEntry {
+	res, err := f.trySplitPipeParts(input, flagName)
+	if err != nil {
+		panic(err)
+	}
+	return res
+}
+
+func (f *commandLineRunner_Flags) trySplitPipeParts(input []string, flagName string) ([]PipeFlagEntry, args4j.ICmdLineException) {
 	if len(input) == 0 {
-		return nil
+		return nil, nil
 	}
 	entries := make([]PipeFlagEntry, 0, len(input))
 
@@ -881,14 +975,14 @@ func (f *commandLineRunner_Flags) SplitPipeParts(input []string, flagName string
 	for _, inputSourceMap := range input {
 		parts := strings.SplitN(inputSourceMap, "|", 2)
 		if len(parts) != 2 {
-			panic(args4j.NewCmdLineExceptionWithParser(
-				f.parser, "Bad value for "+flagName+" (duplicate key): "+jutil.CollectionToString(input)))
+			return nil, args4j.NewCmdLineExceptionWithParser(
+				f.parser, "Bad value for "+flagName+" (duplicate key): "+jutil.CollectionToString(input))
 		}
 		entries = append(entries, PipeFlagEntry{Key: parts[0], Value: parts[1]})
 	}
 
 	checkNoDuplicatePipeFlagKeys(entries)
-	return entries
+	return entries, nil
 }
 
 // Java: CommandLineRunner.Flags.getPackageJsonEntryNames()
@@ -905,14 +999,8 @@ func (f *commandLineRunner_Flags) GetPackageJsonEntryNames() []string {
 // Java: CommandLineRunner.Flags.BooleanOptionHandler(CmdLineParser, OptionDef, Setter<? super Boolean>)
 func newCommandLineRunner_Flags_BooleanOptionHandler(
 	parser *args4j.CmdLineParser, option *args4j.OptionDef, setter args4j.Setter) *args4j.OptionHandler {
-	return args4j.NewOptionHandler(parser, option, setter, nil, func(h *args4j.OptionHandler, params args4j.Parameters) int {
-		var param string
-		hasParam := false
-		jutil.Try(func() {
-			param = params.GetParameter(0)
-			hasParam = true
-		}, func(e args4j.ICmdLineException) {})
-
+	return args4j.NewOptionHandler(parser, option, setter, "", func(h *args4j.OptionHandler, params args4j.Parameters) int {
+		param, hasParam := params.PeekParameter(0)
 		if !hasParam {
 			h.Setter.AddValue(true)
 			return 0

@@ -28,7 +28,13 @@ import (
 	"github.com/paullepoulpe/jsgo/internal/strpool"
 )
 
-var optimizeCallsCallStringID = rhino.RhinoStringPool_InternID("call")
+var (
+	optimizeCallsCallStringID     = rhino.RhinoStringPool_InternID("call")
+	optimizeCallsPropNameFnID     = rhino.RhinoStringPool_InternID(NodeUtil_JSC_PROPERTY_NAME_FN)
+	optimizeCallsInheritsID       = rhino.RhinoStringPool_InternID("inherits")
+	optimizeCallsJscompInheritsID = rhino.RhinoStringPool_InternID("$jscomp$inherits")
+	optimizeCallsGoogInheritsID   = rhino.RhinoStringPool_InternID("goog$inherits")
+)
 
 // OptimizeCalls is a root pass that is a container for other passes that
 // should run on with a single call graph.
@@ -710,6 +716,14 @@ func OptimizeCalls_MayBeOptimizableName(compiler AbstractCompiler, name string) 
 	default:
 		return true
 	}
+}
+
+func OptimizeCalls_MayBeOptimizableNameByID(compiler AbstractCompiler, id uint32) bool {
+	switch id {
+	case optimizeCallsPropNameFnID, optimizeCallsInheritsID, optimizeCallsJscompInheritsID, optimizeCallsGoogInheritsID:
+		return false
+	}
+	return !compiler.GetCodingConvention().IsExported(rhino.RhinoStringPool_StringFromID(id))
 }
 
 // OptimizeCalls_IsAllowedReference returns whether the reference is a known

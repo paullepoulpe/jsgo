@@ -41,6 +41,7 @@ type ifPhase1Candidate struct {
 	kind                ifCandKind
 	node                rhino.Node
 	fnNode              rhino.Node
+	nameID              uint32
 	name                string
 	chunk               *JSChunk
 	disallowReason      InlineFunctions_DisallowInliningReason
@@ -76,11 +77,13 @@ func (w *ifPhase1Worker) blockHasLetOrConst(block rhino.Node) bool {
 
 func (w *ifPhase1Worker) buildNamedOrVarCandidate(kind ifCandKind, node rhino.Node, nameNode rhino.Node, fnNode rhino.Node, chunk *JSChunk) ifPhase1Candidate {
 	f := w.outer
-	name := nameNode.GetString()
+	nameID := nameNode.GetStringID()
+	name := rhino.RhinoStringPool_StringFromID(nameID)
 	cand := ifPhase1Candidate{
 		kind:   kind,
 		node:   node,
 		fnNode: fnNode,
+		nameID: nameID,
 		name:   name,
 		chunk:  chunk,
 	}
@@ -303,7 +306,6 @@ func (f *InlineFunctions) findCandidateFunctionsParallel(root rhino.Node) bool {
 	}
 	wg.Wait()
 
-	callsSeen := 0
 	for idx := range scripts {
 		if p := panicsByScript[idx]; p != nil {
 			panic(p)
@@ -311,13 +313,10 @@ func (f *InlineFunctions) findCandidateFunctionsParallel(root rhino.Node) bool {
 		for i := range candsByScript[idx] {
 			cand := &candsByScript[idx][i]
 			if cand.kind == ifCandAnonExpr {
-				target := newExprFnTarget(cand.fnNode, callsSeen)
-				callsSeen++
-				f.MaybeAddFunction(target, cand.chunk)
-				f.putAnonFn(cand.fnNode, target.name)
+				f.addAnonFunction(cand.fnNode, cand.chunk)
 				continue
 			}
-			fs := f.GetOrCreateFunctionState(cand.name)
+			fs := f.getOrCreateNamedFunctionState(cand.nameID)
 			if fs.HasExistingFunctionDefinition() {
 				fs.DisallowInlining(f.compiler, InlineFunctions_DisallowInliningReason_MULTIPLE_FUNCTION_DEFINITIONS)
 			} else if fs.CanInline() {
@@ -556,15 +555,13 @@ func (f *InlineFunctions) findCandidatesReferencesParallel(root rhino.Node) bool
 	}
 
 	prewarmCompilerForParallelReads(f.compiler)
-	fnByID := make(map[uint32]*InlineFunctions_FunctionState, f.fns.Size())
-	for name, fs := range f.fns.All() {
-		if id := rhino.RhinoStringPool_LookupID(name); id != 0 {
-			fnByID[id] = fs
-		}
-		if f.enforceMaxSizeAfterInlining && fs.CanInline() && fs.bodyAstSize == 0 {
-			fnNode := fs.functionNode()
-			if !InlineFunctions_IsAlwaysInlinable(fnNode) {
-				fs.bodyAstSize = int32(NodeUtil_CountAstSizeUpToLimit(ast.MustFunction(fnNode).Body().Node(), f.maxSizeAfterInlining))
+	if f.enforceMaxSizeAfterInlining {
+		for _, fs := range f.fns {
+			if fs.CanInline() && fs.bodyAstSize == 0 {
+				fnNode := fs.functionNode()
+				if !InlineFunctions_IsAlwaysInlinable(fnNode) {
+					fs.bodyAstSize = int32(NodeUtil_CountAstSizeUpToLimit(ast.MustFunction(fnNode).Body().Node(), f.maxSizeAfterInlining))
+				}
 			}
 		}
 	}
@@ -592,11 +589,11 @@ func (f *InlineFunctions) findCandidatesReferencesParallel(root rhino.Node) bool
 		runItem := func(idx int, rc *recordingCompiler) {
 			if cb == nil || workerRC != rc {
 				workerRC = rc
-				cb = &ifPhase2RefCallback{outer: f, fnByID: fnByID}
+				cb = &ifPhase2RefCallback{outer: f, fnByID: f.namedFns}
 				cb.visitor = inlineCallVisitor{
-					functionMap:     f.fns,
-					anonFunctionMap: f.anonFns,
-					onCallSite:      cb.VisitCallSite,
+					namedFns:   f.namedFns,
+					anonFns:    f.anonFns,
+					onCallSite: cb.VisitCallSite,
 				}
 				localSafeSupplier := func() string {
 					id := cb.safeIdsCounter
@@ -722,11 +719,21 @@ func (f *InlineFunctions) findCandidatesReferencesParallel(root rhino.Node) bool
 //
 // Java: InlineFunctions.trimCandidatesNotMeetingMinimumRequirements()
 func (f *InlineFunctions) TrimCandidatesNotMeetingMinimumRequirements() {
-	for key, functionState := range f.fns.All() {
+	p := f.runState
+	w := 0
+	for i, functionState := range f.fns {
+		k := p.fnKeys[i]
 		if !functionState.HasExistingFunctionDefinition() || !functionState.CanInline() {
-			f.fns.Remove(key)
+			f.removeKey(k)
+			continue
 		}
+		f.fns[w] = functionState
+		p.fnKeys[w] = k
+		w++
 	}
+	clear(f.fns[w:])
+	f.fns = f.fns[:w]
+	p.fnKeys = p.fnKeys[:w]
 }
 
 // TrimCandidatesUsingOnCost removes entries from the list of candidates that
@@ -734,20 +741,31 @@ func (f *InlineFunctions) TrimCandidatesNotMeetingMinimumRequirements() {
 //
 // Java: InlineFunctions.trimCandidatesUsingOnCost()
 func (f *InlineFunctions) TrimCandidatesUsingOnCost() {
-	for key, functionState := range f.fns.All() {
+	p := f.runState
+	w := 0
+	for i, functionState := range f.fns {
+		k := p.fnKeys[i]
 		if functionState.HasReferences() {
 			// Only inline function if it decreases the code size.
 			lowersCost := f.MinimizeCost(functionState)
 			if !lowersCost {
 				// It shouldn't be inlined; remove it from the list.
-				f.fns.Remove(key)
+				f.removeKey(k)
+				continue
 			}
 		} else if !functionState.CanRemove() {
 			// Don't bother tracking functions without references that can't be
 			// removed.
-			f.fns.Remove(key)
+			f.removeKey(k)
+			continue
 		}
+		f.fns[w] = functionState
+		p.fnKeys[w] = k
+		w++
 	}
+	clear(f.fns[w:])
+	f.fns = f.fns[:w]
+	p.fnKeys = p.fnKeys[:w]
 }
 
 // MinimizeCost determines if the function is worth inlining and potentially

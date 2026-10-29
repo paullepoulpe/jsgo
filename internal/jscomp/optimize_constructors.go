@@ -107,8 +107,8 @@ func (o *OptimizeConstructors) ProcessWithReferenceMap(externs rhino.Node, root 
 		o.removableConstructors = o.removableConstructors[:0]
 	}()
 
-	for key, value := range refMap.GetNameReferences() {
-		o.addConstructorsToBeRemoved(key, value)
+	for id, value := range refMap.GetNameReferencesByID() {
+		o.addConstructorsToBeRemovedByID(id, value)
 	}
 
 	// NOTE: Normally, the ReferenceMap must be kept in a consistent state (removing references
@@ -120,8 +120,8 @@ func (o *OptimizeConstructors) ProcessWithReferenceMap(externs rhino.Node, root 
 }
 
 // Java: OptimizeConstructors.addConstructorsToBeRemoved(String, ArrayList<Node>)
-func (o *OptimizeConstructors) addConstructorsToBeRemoved(name string, refs []rhino.Node) {
-	if !OptimizeCalls_MayBeOptimizableName(o.compiler, name) {
+func (o *OptimizeConstructors) addConstructorsToBeRemovedByID(nameID uint32, refs []rhino.Node) {
+	if !OptimizeCalls_MayBeOptimizableNameByID(o.compiler, nameID) {
 		return
 	}
 
