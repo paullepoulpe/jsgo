@@ -1,0 +1,829 @@
+// Port of com/google/javascript/jscomp/serialization/TypedAstDeserializer.java @ closure-compiler v20261021
+
+/*
+ * Copyright 2021 The Closure Compiler Authors.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package jscomp
+
+import (
+	"bytes"
+	"encoding/binary"
+	"io"
+	"math"
+	"strconv"
+
+	"github.com/paullepoulpe/jsgo/internal/jutil"
+	"github.com/paullepoulpe/jsgo/internal/rhino"
+)
+
+// typedAstDeserializer_WIRETYPE_LENGTH_DELIMITED is
+// WireFormat.WIRETYPE_LENGTH_DELIMITED.
+const typedAstDeserializer_WIRETYPE_LENGTH_DELIMITED = 2
+
+func typedAstDeserializer_decodeShardBytes(messageBytes []byte, buildStringPool func(*TypedAst) bool) (*TypedAst, *StringPool) {
+	rd := &protoReader{b: messageBytes, depth: 1, limit: math.MaxInt32}
+	m := &TypedAst{memoizedSize: -1}
+	m.mergeFromReader(rd)
+	typedAst := m.freeze()
+	var stringShard *StringPool
+	if buildStringPool == nil || buildStringPool(typedAst) {
+		stringShard = StringPool_FromProto(typedAst.GetStringPool())
+	}
+	return typedAst, stringShard
+}
+
+func typedAstDeserializer_scanTypedAstStream(
+	typedAstsStream io.Reader,
+	processShardBatch func([][]byte),
+	processLargeShard func(int),
+) {
+	if br, ok := typedAstsStream.(*bytes.Reader); ok {
+		data := make([]byte, br.Len())
+		if _, err := io.ReadFull(br, data); err != nil {
+			panic(jutil.NewIOException(err.Error()))
+		}
+		codedInput := &protoReader{b: data, limit: math.MaxInt32}
+		readNextFromCoded := func() ([]byte, bool) {
+			if codedInput.atEnd() {
+				return nil, false
+			}
+			tag := codedInput.readTag()
+			if jutil.Ushr32(int32(tag), 3) != TypedAst_List_TYPED_ASTS_FIELD_NUMBER ||
+				tag&7 != typedAstDeserializer_WIRETYPE_LENGTH_DELIMITED {
+				panic(NewInvalidProtocolBufferException(
+					"Unexpected field number " +
+						strconv.Itoa(int(jutil.Ushr32(int32(tag), 3))) +
+						" or wire type " +
+						strconv.Itoa(tag&7)))
+			}
+			return codedInput.readMessageBytes(), true
+		}
+		firstMsg, ok := readNextFromCoded()
+		if !ok {
+			return
+		}
+		if codedInput.atEnd() {
+			processShardBatch([][]byte{firstMsg})
+			return
+		}
+		const batchSize = 32
+		batch := make([][]byte, 0, batchSize)
+		batch = append(batch, firstMsg)
+		for {
+			var readErr jutil.Throwable
+			for len(batch) < batchSize {
+				var msg []byte
+				var hasMore bool
+				jutil.Try(func() {
+					msg, hasMore = readNextFromCoded()
+				}, func(t jutil.Throwable) {
+					readErr = t
+				})
+				if readErr != nil || !hasMore {
+					break
+				}
+				batch = append(batch, msg)
+			}
+			if len(batch) > 0 {
+				processShardBatch(batch)
+				batch = batch[:0]
+			}
+			if readErr != nil {
+				panic(readErr)
+			}
+			if codedInput.atEnd() {
+				break
+			}
+		}
+		return
+	}
+
+	var oneByte [1]byte
+	readByte := func(allowEOF bool) (byte, bool) {
+		for {
+			n, err := typedAstsStream.Read(oneByte[:])
+			if n == 1 {
+				return oneByte[0], true
+			}
+			if err == io.EOF {
+				if allowEOF {
+					return 0, false
+				}
+				panic(protoTruncatedMessage())
+			}
+			if err != nil {
+				panic(jutil.NewIOException(err.Error()))
+			}
+		}
+	}
+	readVarint64 := func(firstByte byte) uint64 {
+		x := uint64(firstByte & 0x7f)
+		if firstByte < 0x80 {
+			return x
+		}
+		for shift := uint(7); shift < 64; shift += 7 {
+			b, _ := readByte(false)
+			x |= uint64(b&0x7f) << shift
+			if b < 0x80 {
+				return x
+			}
+		}
+		panic(NewInvalidProtocolBufferException("CodedInputStream encountered a malformed varint."))
+	}
+	const (
+		probeSize          = 32 * 1024
+		streamLargeShardAt = 1 << 20
+	)
+	var probe [probeSize]byte
+	readNextTagAndLen := func() (int, bool) {
+		first, ok := readByte(true)
+		if !ok {
+			return 0, false
+		}
+		uTag := readVarint64(first)
+		if uTag>>3 == 0 || uTag > math.MaxUint32 {
+			panic(NewInvalidProtocolBufferException("Protocol message contained an invalid tag (zero)."))
+		}
+		tag := int(int32(uTag))
+		if jutil.Ushr32(int32(tag), 3) != TypedAst_List_TYPED_ASTS_FIELD_NUMBER ||
+			tag&7 != typedAstDeserializer_WIRETYPE_LENGTH_DELIMITED {
+			panic(NewInvalidProtocolBufferException(
+				"Unexpected field number " +
+					strconv.Itoa(int(jutil.Ushr32(int32(tag), 3))) +
+					" or wire type " +
+					strconv.Itoa(tag&7)))
+		}
+		lenFirst, _ := readByte(false)
+		msgLen := int(int32(readVarint64(lenFirst)))
+		if msgLen < 0 {
+			panic(protoNegativeSize())
+		}
+		return msgLen, true
+	}
+	readBodyBytes := func(msgLen int) []byte {
+		// Do not pool messageBytes buffers because LazyAst.script uses zero-copy readBytesView().
+		var messageBytes []byte
+		if msgLen <= probeSize {
+			messageBytes = make([]byte, msgLen)
+			if _, err := io.ReadFull(typedAstsStream, messageBytes); err != nil {
+				if err == io.EOF || err == io.ErrUnexpectedEOF {
+					panic(protoTruncatedMessage())
+				}
+				panic(jutil.NewIOException(err.Error()))
+			}
+		} else {
+			if _, err := io.ReadFull(typedAstsStream, probe[:]); err != nil {
+				if err == io.EOF || err == io.ErrUnexpectedEOF {
+					panic(protoTruncatedMessage())
+				}
+				panic(jutil.NewIOException(err.Error()))
+			}
+			messageBytes = make([]byte, msgLen)
+			copy(messageBytes, probe[:])
+			if _, err := io.ReadFull(typedAstsStream, messageBytes[probeSize:]); err != nil {
+				if err == io.EOF || err == io.ErrUnexpectedEOF {
+					panic(protoTruncatedMessage())
+				}
+				panic(jutil.NewIOException(err.Error()))
+			}
+		}
+		return messageBytes
+	}
+
+	const batchSize = 32
+	batch := make([][]byte, 0, batchSize)
+	for {
+		var readErr jutil.Throwable
+		var reachedEOF bool
+		var largeMsgLen int
+		hasLarge := false
+		for len(batch) < batchSize {
+			var msgLen int
+			var hasMore bool
+			var msg []byte
+			jutil.Try(func() {
+				msgLen, hasMore = readNextTagAndLen()
+				if hasMore && msgLen <= streamLargeShardAt {
+					msg = readBodyBytes(msgLen)
+				}
+			}, func(t jutil.Throwable) {
+				readErr = t
+			})
+			if readErr != nil {
+				break
+			}
+			if !hasMore {
+				reachedEOF = true
+				break
+			}
+			if msgLen > streamLargeShardAt {
+				largeMsgLen = msgLen
+				hasLarge = true
+				break
+			}
+			batch = append(batch, msg)
+		}
+		if len(batch) > 0 {
+			processShardBatch(batch)
+			batch = batch[:0]
+		}
+		if readErr != nil {
+			panic(readErr)
+		}
+		if hasLarge {
+			processLargeShard(largeMsgLen)
+		}
+		if reachedEOF {
+			break
+		}
+	}
+}
+
+type typedAstStreamReader struct {
+	r         io.Reader
+	win       []byte
+	rpos      int
+	wpos      int
+	remaining int
+	scratch   []byte
+}
+
+func (s *typedAstStreamReader) totalLeft() int {
+	return (s.wpos - s.rpos) + s.remaining
+}
+
+func (s *typedAstStreamReader) fill(need int) {
+	if s.rpos > 0 {
+		copy(s.win, s.win[s.rpos:s.wpos])
+		s.wpos -= s.rpos
+		s.rpos = 0
+	}
+	for s.wpos < need {
+		toRead := min(len(s.win)-s.wpos, s.remaining)
+		if toRead <= 0 {
+			panic(protoTruncatedMessage())
+		}
+		n, err := s.r.Read(s.win[s.wpos : s.wpos+toRead])
+		s.wpos += n
+		s.remaining -= n
+		if n == 0 && err != nil {
+			if err == io.EOF || err == io.ErrUnexpectedEOF {
+				panic(protoTruncatedMessage())
+			}
+			panic(jutil.NewIOException(err.Error()))
+		}
+	}
+}
+
+func (s *typedAstStreamReader) readByte(minLeft int) byte {
+	if s.totalLeft() <= minLeft {
+		panic(protoTruncatedMessage())
+	}
+	if s.rpos == s.wpos {
+		s.fill(1)
+	}
+	b := s.win[s.rpos]
+	s.rpos++
+	return b
+}
+
+func (s *typedAstStreamReader) readVarint64(minLeft int) uint64 {
+	b := s.readByte(minLeft)
+	x := uint64(b & 0x7f)
+	if b < 0x80 {
+		return x
+	}
+	for shift := uint(7); shift < 64; shift += 7 {
+		b = s.readByte(minLeft)
+		x |= uint64(b&0x7f) << shift
+		if b < 0x80 {
+			return x
+		}
+	}
+	panic(NewInvalidProtocolBufferException("CodedInputStream encountered a malformed varint."))
+}
+
+func (s *typedAstStreamReader) readTag(minLeft int) int {
+	if s.totalLeft() <= minLeft {
+		return 0
+	}
+	tag := int32(s.readVarint64(minLeft))
+	if uint32(tag)>>3 == 0 {
+		panic(protoInvalidTag())
+	}
+	return int(tag)
+}
+
+func (s *typedAstStreamReader) readLength(minLeft int) int {
+	n := int(int32(s.readVarint64(minLeft)))
+	if n < 0 {
+		panic(protoNegativeSize())
+	}
+	if s.totalLeft()-n < minLeft {
+		panic(protoTruncatedMessage())
+	}
+	return n
+}
+
+func (s *typedAstStreamReader) readSliceView(n int, minLeft int) []byte {
+	if s.totalLeft()-n < minLeft {
+		panic(protoTruncatedMessage())
+	}
+	if n == 0 {
+		return nil
+	}
+	if n <= s.wpos-s.rpos {
+		v := s.win[s.rpos : s.rpos+n : s.rpos+n]
+		s.rpos += n
+		return v
+	}
+	if n <= len(s.win) {
+		s.fill(n)
+		v := s.win[0:n:n]
+		s.rpos = n
+		return v
+	}
+	if cap(s.scratch) < n {
+		s.scratch = make([]byte, n)
+	} else {
+		s.scratch = s.scratch[:n]
+	}
+	avail := s.wpos - s.rpos
+	if avail > 0 {
+		copy(s.scratch[:avail], s.win[s.rpos:s.wpos])
+		s.rpos = 0
+		s.wpos = 0
+	}
+	need := n - avail
+	if _, err := io.ReadFull(s.r, s.scratch[avail:n]); err != nil {
+		if err == io.EOF || err == io.ErrUnexpectedEOF {
+			panic(protoTruncatedMessage())
+		}
+		panic(jutil.NewIOException(err.Error()))
+	}
+	s.remaining -= need
+	return s.scratch[:n:n]
+}
+
+func (s *typedAstStreamReader) appendUnknownField(dst []byte, tag int, minLeft int) []byte {
+	dst = protoAppendVarint(dst, uint64(uint32(tag)))
+	switch tag & 7 {
+	case protoWireVarint:
+		dst = protoAppendVarint(dst, s.readVarint64(minLeft))
+	case protoWireFixed64:
+		raw := s.readSliceView(8, minLeft)
+		var tmp [8]byte
+		copy(tmp[:], raw)
+		dst = binary.LittleEndian.AppendUint64(dst, binary.LittleEndian.Uint64(tmp[:]))
+	case protoWireBytes:
+		raw := s.readSliceView(s.readLength(minLeft), minLeft)
+		dst = protoAppendBytes(dst, raw)
+	case protoWireStartGroup:
+		groupNum := tag >> 3
+		for {
+			gt := s.readTag(minLeft)
+			if gt == 0 {
+				panic(protoTruncatedMessage())
+			}
+			if gt&7 == protoWireEndGroup {
+				if gt>>3 != groupNum {
+					panic(protoInvalidEndTag())
+				}
+				dst = protoAppendVarint(dst, uint64(uint32(gt)))
+				break
+			}
+			dst = s.appendUnknownField(dst, gt, minLeft)
+		}
+	case protoWireEndGroup:
+		panic(protoInvalidEndTag())
+	case protoWireFixed32:
+		raw := s.readSliceView(4, minLeft)
+		var tmp [4]byte
+		copy(tmp[:], raw)
+		dst = binary.LittleEndian.AppendUint32(dst, binary.LittleEndian.Uint32(tmp[:]))
+	default:
+		panic(protoInvalidWireType())
+	}
+	return dst
+}
+
+func typedAstDeserializer_streamLargeShard(
+	r io.Reader,
+	msgLen int,
+	buildStringPool func(*TypedAst) bool,
+) (*TypedAst, *StringPool) {
+	sr := typedAstStreamReader{
+		r:         r,
+		win:       make([]byte, 32768),
+		remaining: msgLen,
+	}
+	m := &TypedAst{memoizedSize: -1}
+	typeProtoSlab := jutil.NewFixedSlab[TypeProto](512)
+	objectTypeSlab := jutil.NewFixedSlab[ObjectTypeProto](240)
+	unionTypeSlab := jutil.NewFixedSlab[UnionTypeProto](480)
+	edgeSlab := jutil.NewFixedSlab[SubtypingEdge](512)
+	lazyAstSlab := jutil.NewFixedSlab[LazyAst](256)
+	sourceFileSlab := jutil.NewFixedSlab[SourceFileProto](256)
+
+	var int32Slab []int32
+	allocInt32Slice := func(src []int32) []int32 {
+		n := len(src)
+		if n == 0 {
+			return nil
+		}
+		if n > 4096 {
+			return append([]int32(nil), src...)
+		}
+		if len(int32Slab) < n {
+			int32Slab = make([]int32, 4096) // 16 KiB noscan
+		}
+		dst := int32Slab[:n:n]
+		int32Slab = int32Slab[n:]
+		copy(dst, src)
+		return dst
+	}
+
+	var uuidSlab []byte
+	allocUuidBytes := func(src []byte) []byte {
+		n := len(src)
+		if n == 0 {
+			return nil
+		}
+		if n > 16384 {
+			return bytes.Clone(src)
+		}
+		if len(uuidSlab) < n {
+			uuidSlab = make([]byte, 16384) // 16 KiB noscan
+		}
+		dst := uuidSlab[:n:n]
+		uuidSlab = uuidSlab[n:]
+		copy(dst, src)
+		return dst
+	}
+
+	var instScratch, protoScratch, ownScratch, unionScratch []int32
+
+	var scriptSlab []byte
+	allocScriptBytes := func(src []byte) []byte {
+		n := len(src)
+		if n == 0 {
+			return nil
+		}
+		if n > 32760 {
+			return bytes.Clone(src)
+		}
+		if len(scriptSlab) < n {
+			scriptSlab = make([]byte, 32760)
+		}
+		dst := scriptSlab[:n:n]
+		scriptSlab = scriptSlab[n:]
+		copy(dst, src)
+		return dst
+	}
+
+	type deferredWtf8 struct {
+		idx  int
+		data []byte
+	}
+	var (
+		hasStringPool bool
+		stringIDs     []uint32
+		maxAsciiLen   int
+		maxLength     int32
+		deferred      []deferredWtf8
+	)
+
+	for sr.totalLeft() > 0 {
+		tag := sr.readTag(0)
+		switch tag {
+		case 0:
+		case 10:
+			subLen := sr.readLength(0)
+			endLeft := sr.totalLeft() - subLen
+			var x *TypePool
+			if m.typePool_ != nil {
+				x = m.typePool_.mutableCopy()
+			} else {
+				x = &TypePool{memoizedSize: -1}
+			}
+			for sr.totalLeft() > endLeft {
+				subTag := sr.readTag(endLeft)
+				switch subTag {
+				case 10:
+					data := sr.readSliceView(sr.readLength(endLeft), endLeft)
+					tp := typeProtoSlab.New()
+					tp.memoizedSize = -1
+					pr := protoReader{b: data, depth: 2, limit: math.MaxInt32}
+					for {
+						tStart := pr.pos
+						tTag := pr.readTag()
+						if tTag == 0 {
+							break
+						}
+						switch tTag {
+						case 18:
+							objBytes := pr.readMessageBytes()
+							var op *ObjectTypeProto
+							if tp.kindCase_ == 2 && tp.object_ != nil {
+								op = tp.object_
+								instScratch = append(instScratch[:0], op.instanceType_...)
+								protoScratch = append(protoScratch[:0], op.prototype_...)
+								ownScratch = append(ownScratch[:0], op.ownProperty_...)
+							} else {
+								op = objectTypeSlab.New()
+								op.memoizedSize = -1
+								op.frozen = true
+								instScratch = instScratch[:0]
+								protoScratch = protoScratch[:0]
+								ownScratch = ownScratch[:0]
+							}
+							opr := protoReader{b: objBytes, depth: 3, limit: math.MaxInt32}
+							for {
+								oStart := opr.pos
+								oTag := opr.readTag()
+								if oTag == 0 {
+									break
+								}
+								switch oTag {
+								case 16:
+									op.isInvalidating_ = opr.readBool()
+								case 26:
+									op.uuid_ = allocUuidBytes(opr.readBytesView())
+								case 32:
+									op.propertiesKeepOriginalName_ = opr.readBool()
+								case 40:
+									instScratch = append(instScratch, opr.readInt32())
+								case 42:
+									sub := protoReader{b: opr.readBytesView()}
+									for !sub.atEnd() {
+										instScratch = append(instScratch, sub.readInt32())
+									}
+								case 48:
+									protoScratch = append(protoScratch, opr.readInt32())
+								case 50:
+									sub := protoReader{b: opr.readBytesView()}
+									for !sub.atEnd() {
+										protoScratch = append(protoScratch, sub.readInt32())
+									}
+								case 56:
+									op.markedConstructor_ = opr.readBool()
+								case 64:
+									ownScratch = append(ownScratch, opr.readInt32())
+								case 66:
+									sub := protoReader{b: opr.readBytesView()}
+									for !sub.atEnd() {
+										ownScratch = append(ownScratch, sub.readInt32())
+									}
+								case 72:
+									op.closureAssert_ = opr.readBool()
+								case 122:
+									dbgBytes := opr.readMessageBytes()
+									var dbg *ObjectTypeProto_DebugInfo
+									if op.debugInfo_ != nil {
+										dbg = op.debugInfo_.mutableCopy()
+									} else {
+										dbg = &ObjectTypeProto_DebugInfo{memoizedSize: -1}
+									}
+									dpr := protoReader{b: dbgBytes, depth: 4, limit: math.MaxInt32}
+									dbg.mergeFromReader(&dpr)
+									dbg.frozen = true
+									op.debugInfo_ = dbg
+								default:
+									opr.skipField(oTag)
+									op.unknownFields = append(op.unknownFields, opr.b[oStart:opr.pos]...)
+								}
+							}
+							op.instanceType_ = allocInt32Slice(instScratch)
+							op.prototype_ = allocInt32Slice(protoScratch)
+							op.ownProperty_ = allocInt32Slice(ownScratch)
+							tp.object_ = op
+							tp.union_ = nil
+							tp.kindCase_ = 2
+						case 34:
+							uBytes := pr.readMessageBytes()
+							var up *UnionTypeProto
+							if tp.kindCase_ == 4 && tp.union_ != nil {
+								up = tp.union_
+								unionScratch = append(unionScratch[:0], up.unionMember_...)
+							} else {
+								up = unionTypeSlab.New()
+								up.memoizedSize = -1
+								up.frozen = true
+								unionScratch = unionScratch[:0]
+							}
+							upr := protoReader{b: uBytes, depth: 3, limit: math.MaxInt32}
+							for {
+								uStart := upr.pos
+								uTag := upr.readTag()
+								if uTag == 0 {
+									break
+								}
+								switch uTag {
+								case 8:
+									unionScratch = append(unionScratch, upr.readInt32())
+								case 10:
+									sub := protoReader{b: upr.readBytesView()}
+									for !sub.atEnd() {
+										unionScratch = append(unionScratch, sub.readInt32())
+									}
+								default:
+									upr.skipField(uTag)
+									up.unknownFields = append(up.unknownFields, upr.b[uStart:upr.pos]...)
+								}
+							}
+							up.unionMember_ = allocInt32Slice(unionScratch)
+							tp.union_ = up
+							tp.object_ = nil
+							tp.kindCase_ = 4
+						default:
+							pr.skipField(tTag)
+							tp.unknownFields = append(tp.unknownFields, pr.b[tStart:pr.pos]...)
+						}
+					}
+					tp.frozen = true
+					x.type_ = append(x.type_, tp)
+				case 18:
+					data := sr.readSliceView(sr.readLength(endLeft), endLeft)
+					ed := edgeSlab.New()
+					ed.memoizedSize = -1
+					pr := protoReader{b: data, depth: 2, limit: math.MaxInt32}
+					for {
+						eStart := pr.pos
+						eTag := pr.readTag()
+						if eTag == 0 {
+							break
+						}
+						switch eTag {
+						case 8:
+							ed.subtype_ = pr.readInt32()
+						case 16:
+							ed.supertype_ = pr.readInt32()
+						default:
+							pr.skipField(eTag)
+							ed.unknownFields = append(ed.unknownFields, pr.b[eStart:pr.pos]...)
+						}
+					}
+					ed.frozen = true
+					x.disambiguationEdges_ = append(x.disambiguationEdges_, ed)
+				case 26:
+					data := sr.readSliceView(sr.readLength(endLeft), endLeft)
+					var dbg *TypePool_DebugInfo
+					if x.debugInfo_ != nil {
+						dbg = x.debugInfo_.mutableCopy()
+					} else {
+						dbg = &TypePool_DebugInfo{memoizedSize: -1}
+					}
+					dbg.mergeFromReader(&protoReader{b: data, depth: 2, limit: math.MaxInt32})
+					dbg.frozen = true
+					x.debugInfo_ = dbg
+				default:
+					x.unknownFields = sr.appendUnknownField(x.unknownFields, subTag, endLeft)
+				}
+			}
+			x.frozen = true
+			m.typePool_ = x
+		case 18:
+			hasStringPool = true
+			subLen := sr.readLength(0)
+			endLeft := sr.totalLeft() - subLen
+			if stringIDs == nil {
+				stringIDs = make([]uint32, 1, min(subLen/12+2, 4_000_000))
+				stringIDs[0] = rhino.RhinoStringPool_InternID("")
+			}
+			var spUnknown []byte
+			for sr.totalLeft() > endLeft {
+				subTag := sr.readTag(endLeft)
+				switch subTag {
+				case 10:
+					raw := sr.readSliceView(sr.readLength(endLeft), endLeft)
+					if wtf8_isASCIIBytes(raw) {
+						if len(raw) > maxAsciiLen {
+							maxAsciiLen = len(raw)
+						}
+						stringIDs = append(stringIDs, rhino.RhinoStringPool_InternBytesID(raw))
+					} else {
+						stringIDs = append(stringIDs, 0)
+						deferred = append(deferred, deferredWtf8{idx: len(stringIDs) - 1, data: bytes.Clone(raw)})
+					}
+				case 16:
+					maxLength = int32(sr.readVarint64(endLeft))
+				default:
+					spUnknown = sr.appendUnknownField(spUnknown, subTag, endLeft)
+				}
+			}
+		case 26, 34:
+			data := sr.readSliceView(sr.readLength(0), 0)
+			la := lazyAstSlab.New()
+			la.memoizedSize = -1
+			pr := protoReader{b: data, depth: 2, limit: math.MaxInt32}
+			for {
+				lStart := pr.pos
+				lTag := pr.readTag()
+				if lTag == 0 {
+					break
+				}
+				switch lTag {
+				case 10:
+					la.script_ = pr.readBytesView()
+				case 16:
+					la.sourceFile_ = pr.readUint32()
+				case 26:
+					la.sourceMappingUrl_ = pr.readStringRequireUtf8()
+				default:
+					pr.skipField(lTag)
+					la.unknownFields = append(la.unknownFields, pr.b[lStart:pr.pos]...)
+				}
+			}
+			la.script_ = allocScriptBytes(la.script_)
+			la.frozen = true
+			if tag == 26 {
+				m.externAst_ = append(m.externAst_, la)
+			} else {
+				m.codeAst_ = append(m.codeAst_, la)
+			}
+		case 42:
+			subLen := sr.readLength(0)
+			endLeft := sr.totalLeft() - subLen
+			var x *SourceFilePool
+			if m.sourceFilePool_ != nil {
+				x = m.sourceFilePool_.mutableCopy()
+			} else {
+				x = &SourceFilePool{memoizedSize: -1}
+			}
+			for sr.totalLeft() > endLeft {
+				subTag := sr.readTag(endLeft)
+				switch subTag {
+				case 10:
+					data := sr.readSliceView(sr.readLength(endLeft), endLeft)
+					sf := sourceFileSlab.New()
+					sf.memoizedSize = -1
+					sf.mergeFromReader(&protoReader{b: data, depth: 2, limit: math.MaxInt32})
+					sf.frozen = true
+					x.sourceFile_ = append(x.sourceFile_, sf)
+				default:
+					x.unknownFields = sr.appendUnknownField(x.unknownFields, subTag, endLeft)
+				}
+			}
+			x.frozen = true
+			m.sourceFilePool_ = x
+		case 50:
+			data := sr.readSliceView(sr.readLength(0), 0)
+			var x *ExternsSummary
+			if m.externsSummary_ != nil {
+				x = m.externsSummary_.mutableCopy()
+			} else {
+				x = &ExternsSummary{memoizedSize: -1}
+			}
+			x.mergeFromReader(&protoReader{b: data, depth: 2, limit: math.MaxInt32})
+			x.frozen = true
+			m.externsSummary_ = x
+		case 58:
+			raw := sr.readSliceView(sr.readLength(0), 0)
+			if !utf8Valid(raw) {
+				panic(protoInvalidUtf8())
+			}
+			m.runtimeLibraryToInject_ = append(m.runtimeLibraryToInject_, string(raw))
+		default:
+			m.unknownFields = sr.appendUnknownField(m.unknownFields, tag, 0)
+		}
+	}
+	m.frozen = true
+
+	var stringShard *StringPool
+	if buildStringPool == nil || buildStringPool(m) {
+		if !hasStringPool {
+			stringShard = StringPool_FromProto(m.GetStringPool())
+		} else {
+			if maxLength < 0 {
+				_ = Wtf8_Decoder_(int(maxLength))
+			}
+			if maxAsciiLen > int(maxLength) {
+				panic(jutil.NewArrayIndexOutOfBoundsExceptionForLength(int(maxLength), int(maxLength)))
+			}
+			if len(deferred) > 0 {
+				decoder := Wtf8_Decoder_(int(maxLength))
+				for _, d := range deferred {
+					stringIDs[d.idx] = decoder.DecodeInternID(d.data)
+				}
+			}
+			stringShard = &StringPool{
+				maxLength: int(maxLength),
+				pool:      rhino.NewRhinoStringPool_LazyInternedStringListFromIDs(stringIDs),
+			}
+		}
+	}
+	return m, stringShard
+}

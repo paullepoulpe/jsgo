@@ -19,14 +19,146 @@
 package parsing
 
 import (
+	"math"
 	"math/big"
 	"strings"
+	"unicode/utf16"
+	"unicode/utf8"
 
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/parser"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 	"github.com/paullepoulpe/jsgo/internal/strpool"
 )
+
+func (f *IRFactory) resetLitUnitsBuf(need int) []uint16 {
+	if cap(f.litUnitsBuf) == 0 {
+		f.litUnitsBuf = f.litUnitsScratch[:0]
+	}
+	if cap(f.litUnitsBuf) < need {
+		f.litUnitsBuf = make([]uint16, 0, max(need, cap(f.litUnitsBuf)*2))
+	}
+	return f.litUnitsBuf[:0]
+}
+
+func (f *IRFactory) resetLitUTF16Buf(need int) []uint16 {
+	if cap(f.litUTF16Buf) == 0 {
+		f.litUTF16Buf = f.litUTF16Scratch[:0]
+	}
+	if cap(f.litUTF16Buf) < need {
+		f.litUTF16Buf = make([]uint16, 0, max(need, cap(f.litUTF16Buf)*2))
+	}
+	return f.litUTF16Buf[:0]
+}
+
+func (f *IRFactory) resetLitByteBuf(need int) []byte {
+	if cap(f.litByteBuf) == 0 {
+		f.litByteBuf = f.litByteScratch[:0]
+	}
+	if cap(f.litByteBuf) < need {
+		f.litByteBuf = make([]byte, 0, max(need, cap(f.litByteBuf)*2))
+	}
+	return f.litByteBuf[:0]
+}
+
+func (f *IRFactory) encodeUTF16ToWTF8(units []uint16) []byte {
+	b := f.resetLitByteBuf(len(units))
+	b = appendUTF16ToWTF8(b, units)
+	f.litByteBuf = b
+	return b
+}
+
+func (f *IRFactory) scrubASCIICR(s string) []byte {
+	b := f.resetLitByteBuf(len(s))
+	for i := 0; i < len(s); i++ {
+		c := s[i]
+		if c == '\r' {
+			if i+1 < len(s) && s[i+1] == '\n' {
+				i++
+			}
+			c = '\n'
+		}
+		b = append(b, c)
+	}
+	f.litByteBuf = b
+	return b
+}
+
+func (f *IRFactory) loadASCIIUnitsNormCR(s string) ([]uint16, int) {
+	dst := f.resetLitUnitsBuf(len(s))
+	firstBackslash := -1
+	for i := 0; i < len(s); i++ {
+		c := s[i]
+		if c == '\r' {
+			if i+1 < len(s) && s[i+1] == '\n' {
+				i++
+			}
+			c = '\n'
+		} else if c == '\\' && firstBackslash < 0 {
+			firstBackslash = len(dst)
+		}
+		dst = append(dst, uint16(c))
+	}
+	f.litUnitsBuf = dst
+	return dst, firstBackslash
+}
+
+func (f *IRFactory) loadUTF16UnitsNormCR(src []uint16) ([]uint16, int) {
+	dst := f.resetLitUnitsBuf(len(src))
+	firstBackslash := -1
+	for i := 0; i < len(src); i++ {
+		u := src[i]
+		if u == '\r' {
+			if i+1 < len(src) && src[i+1] == '\n' {
+				i++
+			}
+			u = '\n'
+		} else if u == '\\' && firstBackslash < 0 {
+			firstBackslash = len(dst)
+		}
+		dst = append(dst, u)
+	}
+	f.litUnitsBuf = dst
+	return dst, firstBackslash
+}
+
+func (f *IRFactory) loadWTF8UnitsNormCR(s string) ([]uint16, int) {
+	dst := f.resetLitUnitsBuf(len(s))
+	firstBackslash := -1
+	for i := 0; i < len(s); {
+		c := s[i]
+		if c < 0x80 {
+			i++
+			if c == '\r' {
+				if i < len(s) && s[i] == '\n' {
+					i++
+				}
+				c = '\n'
+			} else if c == '\\' && firstBackslash < 0 {
+				firstBackslash = len(dst)
+			}
+			dst = append(dst, uint16(c))
+			continue
+		}
+		var r rune
+		var n int
+		if c == 0xED && i+3 <= len(s) && s[i+1] >= 0xA0 && s[i+1] <= 0xBF && s[i+2]&0xC0 == 0x80 {
+			r = rune(c&0x0F)<<12 | rune(s[i+1]&0x3F)<<6 | rune(s[i+2]&0x3F)
+			n = 3
+		} else {
+			r, n = utf8.DecodeRuneInString(s[i:])
+		}
+		i += n
+		if r >= 0x10000 {
+			hi, lo := utf16.EncodeRune(r)
+			dst = append(dst, uint16(hi), uint16(lo))
+		} else {
+			dst = append(dst, uint16(r))
+		}
+	}
+	f.litUnitsBuf = dst
+	return dst, firstBackslash
+}
 
 // irFactory_substring is String.substring(begin, end) on a string given as
 // its UTF-16 code units.
@@ -66,6 +198,22 @@ func irFactory_indexOf(units []uint16, ch uint16, fromIndex int) int {
 	return -1
 }
 
+func isSignificantRegexEscape(c uint16) bool {
+	switch c {
+	// Characters for which the backslash is semantically important.
+	case '^', '$', '\\', '/', '.', '*', '+', '?', '(', ')', '[', ']', '{', '}', '|', '-',
+		'b', 'B', 'c', 'd', 'D', 'f', 'n',
+		'k', // 2018 named backreferences
+		'p', // 2018 unicode property escapes
+		'P', // 2018 unicode property escapes
+		'r', 's', 'S', 't', 'u', 'v', 'w', 'W', 'x',
+		'0', '1', '2', '3', '4', '5', '6', '7', '8', '9':
+		return true
+	default:
+		return false
+	}
+}
+
 func (f *IRFactory) rawTokenValue(token parser.Token) string {
 	checkTokenNotNull(token)
 	if id := token.MaybePrivateValueID(); id != 0 {
@@ -81,7 +229,8 @@ func (f *IRFactory) rawTokenValue(token parser.Token) string {
 // Java: IRFactory.normalizeRegex(LiteralToken)
 func (f *IRFactory) NormalizeRegex(token parser.Token) string {
 	value := f.rawTokenValue(token)
-	if strings.IndexByte(value, '\\') == -1 {
+	firstBackslashByte := strings.IndexByte(value, '\\')
+	if firstBackslashByte == -1 {
 		// Go-only: language-adapter — the delimiting '/' are ASCII, so their
 		// byte indices delimit the same substring as Java's UTF-16 indices.
 		lastSlash := strings.LastIndexByte(value, '/')
@@ -90,9 +239,38 @@ func (f *IRFactory) NormalizeRegex(token parser.Token) string {
 		}
 		return value[1:lastSlash]
 	}
+	if jutil.IsASCII(value) {
+		lastSlash := strings.LastIndexByte(value, '/')
+		allSignificant := true
+		start := 1
+		for cur := firstBackslashByte; cur != -1; {
+			cur++
+			if cur >= len(value) {
+				panic(jutil.NewStringIndexOutOfBoundsException(cur, len(value)))
+			}
+			if !isSignificantRegexEscape(uint16(value[cur])) {
+				allSignificant = false
+				break
+			}
+			start = cur + 1
+			rel := strings.IndexByte(value[start:], '\\')
+			if rel < 0 {
+				cur = -1
+			} else {
+				cur = start + rel
+			}
+		}
+		if allSignificant {
+			if start > lastSlash {
+				panic(jutil.NewStringIndexOutOfBoundsException(start, lastSlash))
+			}
+			return value[1:lastSlash]
+		}
+	}
 	// Go-only: language-adapter — the String and StringBuilder operations of
 	// the escape path work on the UTF-16 code units of the value.
-	units := jutil.StringToUTF16(value)
+	units := appendWTF8ToUTF16(f.resetLitUnitsBuf(len(value)), value)
+	f.litUnitsBuf = units
 	lastSlash := -1
 	for i := len(units) - 1; i >= 0; i-- {
 		if units[i] == '/' {
@@ -102,29 +280,19 @@ func (f *IRFactory) NormalizeRegex(token parser.Token) string {
 	}
 	cur := irFactory_indexOf(units, '\\', 0)
 
-	result := make([]uint16, 0, len(units))
+	result := f.resetLitUTF16Buf(len(units))
 	start := 1
 	for cur != -1 {
 		result = append(result, units[start:cur]...)
 
 		cur++ // skip the escape char.
 		c := irFactory_charAt(units, cur)
-		switch c {
-		// Characters for which the backslash is semantically important.
-		case '^', '$', '\\', '/', '.', '*', '+', '?', '(', ')', '[', ']', '{', '}', '|', '-',
-			'b', 'B', 'c', 'd', 'D', 'f', 'n',
-			'k', // 2018 named backreferences
-			'p', // 2018 unicode property escapes
-			'P', // 2018 unicode property escapes
-			'r', 's', 'S', 't', 'u', 'v', 'w', 'W', 'x',
-			'0', '1', '2', '3', '4', '5', '6', '7', '8', '9':
+		if isSignificantRegexEscape(c) {
 			result = append(result, '\\')
-			fallthrough
-		default:
-			// For all other characters, the backslash has no effect, so just
-			// append the next char.
-			result = append(result, c)
 		}
+		// For all other characters, the backslash has no effect, so just
+		// append the next char.
+		result = append(result, c)
 
 		start = cur + 1
 		cur = irFactory_indexOf(units, '\\', start)
@@ -133,49 +301,59 @@ func (f *IRFactory) NormalizeRegex(token parser.Token) string {
 		panic(jutil.NewStringIndexOutOfBoundsException(start, lastSlash))
 	}
 	result = append(result, units[start:lastSlash]...)
-	return jutil.StringFromUTF16(result)
+	f.litUTF16Buf = result
+	b := f.encodeUTF16ToWTF8(result)
+	if len(b) == 0 {
+		return ""
+	}
+	return string(b)
 }
 
 func (f *IRFactory) normalizeStringToID(token parser.Token) strpool.ID {
-	checkTokenNotNull(token)
-	if token.MaybePrivateValueID() == 0 {
-		start, end := token.ValueRange()
-		if s, ok := f.fileWithContent.ASCIISlice(start, end); ok {
-			if strings.IndexByte(s, '\\') == -1 && strings.IndexByte(s, '\r') == -1 {
-				return f.internString(s[1 : len(s)-1])
-			}
-		} else if units, ok := f.fileWithContent.UTF16Slice(start, end); ok && len(units) >= 2 {
-			inner := units[1 : len(units)-1]
-			if len(inner) <= 64 {
-				var buf [64]byte
-				simpleASCII := true
-				for i, u := range inner {
-					if u >= 0x80 || u == '\\' || u == '\r' {
-						simpleASCII = false
-						break
-					}
-					buf[i] = byte(u)
-				}
-				if simpleASCII {
-					return f.internStringBytes(buf[:len(inner)])
-				}
-			}
-		}
+	b, directStr, isDirect := f.normalizeStringCore(token, false)
+	if isDirect {
+		return f.internString(directStr)
 	}
-	return f.internString(f.NormalizeString(token, false))
+	return f.internStringBytes(b)
 }
 
 // Java: IRFactory.normalizeString(LiteralToken, boolean)
 func (f *IRFactory) NormalizeString(token parser.Token, templateLiteral bool) string {
+	b, directStr, isDirect := f.normalizeStringCore(token, templateLiteral)
+	if isDirect {
+		return directStr
+	}
+	if len(b) == 0 {
+		return ""
+	}
+	return string(b)
+}
+
+func (f *IRFactory) normalizeStringCore(token parser.Token, templateLiteral bool) ([]byte, string, bool) {
 	checkTokenNotNull(token)
 	if token.MaybePrivateValueID() == 0 {
 		startOff, endOff := token.ValueRange()
 		if s, ok := f.fileWithContent.ASCIISlice(startOff, endOff); ok {
-			if strings.IndexByte(s, '\r') == -1 && strings.IndexByte(s, '\\') == -1 {
-				if templateLiteral {
-					return s
+			if strings.IndexByte(s, '\\') == -1 {
+				if strings.IndexByte(s, '\r') == -1 {
+					if templateLiteral {
+						return nil, s, true
+					}
+					if len(s) >= 2 {
+						return nil, s[1 : len(s)-1], true
+					}
+					return nil, irFactory_substringWithoutQuotes(s), true
 				}
-				return s[1 : len(s)-1]
+				if templateLiteral {
+					return f.scrubASCIICR(s), "", false
+				}
+				if len(s) >= 2 {
+					return f.scrubASCIICR(s[1 : len(s)-1]), "", false
+				}
+			} else {
+				units, firstBackslash := f.loadASCIIUnitsNormCR(s)
+				result := f.normalizeStringEscapesInto(units, firstBackslash, token, templateLiteral)
+				return f.encodeUTF16ToWTF8(result), "", false
 			}
 		} else if units, ok := f.fileWithContent.UTF16Slice(startOff, endOff); ok {
 			hasCR := false
@@ -192,12 +370,28 @@ func (f *IRFactory) NormalizeString(token parser.Token, templateLiteral bool) st
 			if !hasCR {
 				if firstBackslash < 0 {
 					if templateLiteral {
-						return jutil.StringFromUTF16(units)
+						return f.encodeUTF16ToWTF8(units), "", false
 					}
-					return jutil.StringFromUTF16(units[1 : len(units)-1])
+					if len(units) >= 2 {
+						return f.encodeUTF16ToWTF8(units[1 : len(units)-1]), "", false
+					}
+					return nil, irFactory_substring(units, 1, len(units)-1), true
 				}
-				return f.normalizeStringEscapes(units, firstBackslash, token, templateLiteral)
+				result := f.normalizeStringEscapesInto(units, firstBackslash, token, templateLiteral)
+				return f.encodeUTF16ToWTF8(result), "", false
 			}
+			normUnits, normBackslash := f.loadUTF16UnitsNormCR(units)
+			if normBackslash < 0 {
+				if templateLiteral {
+					return f.encodeUTF16ToWTF8(normUnits), "", false
+				}
+				if len(normUnits) >= 2 {
+					return f.encodeUTF16ToWTF8(normUnits[1 : len(normUnits)-1]), "", false
+				}
+				return nil, irFactory_substring(normUnits, 1, len(normUnits)-1), true
+			}
+			result := f.normalizeStringEscapesInto(normUnits, normBackslash, token, templateLiteral)
+			return f.encodeUTF16ToWTF8(result), "", false
 		}
 	}
 
@@ -205,31 +399,72 @@ func (f *IRFactory) NormalizeString(token parser.Token, templateLiteral bool) st
 	// <CR><LF> and <CR> are normalized as <LF>. For raw template literal
 	// string values: this is the spec behaviour. For regular string literals:
 	// they can only be part of a line continuation, which we want to scrub.
-	if strings.IndexByte(value, '\r') >= 0 {
-		// Go-only: language-adapter — value.replaceAll("\r\n?", "\n"); the
-		// pattern has no regex features beyond the optional '\n'.
-		value = strings.ReplaceAll(strings.ReplaceAll(value, "\r\n", "\n"), "\r", "\n")
-	}
-
-	if strings.IndexByte(value, '\\') == -1 {
+	if strings.IndexByte(value, '\r') == -1 && strings.IndexByte(value, '\\') == -1 {
 		// short circuit no escapes.
 		if templateLiteral {
-			return value
+			return nil, value, true
 		}
-		return irFactory_substringWithoutQuotes(value)
+		return nil, irFactory_substringWithoutQuotes(value), true
 	}
+
 	// Go-only: language-adapter — the String and StringBuilder operations of
 	// the escape path work on the UTF-16 code units of the value.
-	units := jutil.StringToUTF16(value)
-	return f.normalizeStringEscapes(units, irFactory_indexOf(units, '\\', 0), token, templateLiteral)
+	units, firstBackslash := f.loadWTF8UnitsNormCR(value)
+	if firstBackslash == -1 {
+		if templateLiteral {
+			return f.encodeUTF16ToWTF8(units), "", false
+		}
+		if len(units) >= 2 {
+			return f.encodeUTF16ToWTF8(units[1 : len(units)-1]), "", false
+		}
+		return nil, irFactory_substring(units, 1, len(units)-1), true
+	}
+	result := f.normalizeStringEscapesInto(units, firstBackslash, token, templateLiteral)
+	return f.encodeUTF16ToWTF8(result), "", false
 }
 
-func (f *IRFactory) normalizeStringEscapes(units []uint16, cur int, token parser.Token, templateLiteral bool) string {
+func parseUTF16HexCodePoint(units []uint16, begin, end int) int32 {
+	if begin < 0 || end > len(units) || begin > end {
+		panic(jutil.NewStringIndexOutOfBoundsException(begin, end))
+	}
+	hexSlice := units[begin:end]
+	if len(hexSlice) == 0 {
+		return jutil.IntegerParseInt("", 0x10)
+	}
+	var acc uint64
+	for _, u := range hexSlice {
+		var d int
+		if u < 0x80 {
+			switch {
+			case u >= '0' && u <= '9':
+				d = int(u - '0')
+			case u >= 'a' && u <= 'f':
+				d = int(u - 'a' + 10)
+			case u >= 'A' && u <= 'F':
+				d = int(u - 'A' + 10)
+			default:
+				return jutil.IntegerParseInt(irFactory_substring(units, begin, end), 0x10)
+			}
+		} else {
+			d = jutil.CharacterDigit(u, 0x10)
+			if d < 0 {
+				return jutil.IntegerParseInt(irFactory_substring(units, begin, end), 0x10)
+			}
+		}
+		acc = acc*16 + uint64(d)
+		if acc > math.MaxInt32 {
+			return jutil.IntegerParseInt(irFactory_substring(units, begin, end), 0x10)
+		}
+	}
+	return int32(acc)
+}
+
+func (f *IRFactory) normalizeStringEscapesInto(units []uint16, cur int, token parser.Token, templateLiteral bool) []uint16 {
 	start := 1 // skip the leading quote
 	if templateLiteral {
 		start = 0
 	}
-	result := make([]uint16, 0, len(units))
+	result := f.resetLitUTF16Buf(len(units))
 	tokenStart := token.Location.Start
 	for cur != -1 {
 		result = append(result, units[start:cur]...)
@@ -287,30 +522,45 @@ func (f *IRFactory) normalizeStringEscapes(units []uint16, cur int, token parser
 				}
 			}
 
-			result = append(result, uint16(jutil.IntegerParseInt(irFactory_substring(units, cur, cur+numDigits), 8)))
+			octVal := uint16(c - '0')
+			if numDigits >= 2 {
+				octVal = octVal*8 + (units[cur+1] - '0')
+				if numDigits == 3 {
+					octVal = octVal*8 + (units[cur+2] - '0')
+				}
+			}
+			result = append(result, octVal)
 			cur += numDigits - 1
 		case 'x':
 			result = append(result,
 				uint16(IRFactory_Hexdigit(irFactory_charAt(units, cur+1))*0x10+IRFactory_Hexdigit(irFactory_charAt(units, cur+2))))
 			cur += 2
 		case 'u':
-			var escapeEnd int
-			var hexDigits string
+			var hexStart, hexEnd, escapeEnd int
 			if irFactory_charAt(units, cur+1) != '{' {
 				// Simple escape with exactly four hex digits: \\uXXXX
-				escapeEnd = cur + 5
-				hexDigits = irFactory_substring(units, cur+1, escapeEnd)
+				hexStart = cur + 1
+				hexEnd = cur + 5
+				escapeEnd = hexEnd
 			} else {
 				// Escape with braces can have any number of hex digits:
 				// \\u{XXXXXXX}
-				escapeEnd = cur + 2
-				for jutil.CharacterDigit(irFactory_charAt(units, escapeEnd), 0x10) >= 0 {
-					escapeEnd++
+				hexStart = cur + 2
+				hexEnd = hexStart
+				for {
+					ch := irFactory_charAt(units, hexEnd)
+					if ch < 0x80 {
+						if !((ch >= '0' && ch <= '9') || ((ch|0x20)-'a' < 6)) {
+							break
+						}
+					} else if jutil.CharacterDigit(ch, 0x10) < 0 {
+						break
+					}
+					hexEnd++
 				}
-				hexDigits = irFactory_substring(units, cur+2, escapeEnd)
-				escapeEnd++
+				escapeEnd = hexEnd + 1
 			}
-			codePointValue := jutil.IntegerParseInt(hexDigits, 0x10)
+			codePointValue := parseUTF16HexCodePoint(units, hexStart, hexEnd)
 			if codePointValue > 0x10ffff {
 				f.errorReporter.Error(
 					"Undefined Unicode code-point",
@@ -322,7 +572,7 @@ func (f *IRFactory) normalizeStringEscapes(units []uint16, cur int, token parser
 				// find more errors. These appends are just to have a
 				// placeholder for the errored normalization.
 				result = append(result, '\\', 'u', '{')
-				result = append(result, jutil.StringToUTF16(hexDigits)...)
+				result = append(result, units[hexStart:hexEnd]...)
 				result = append(result, '}')
 			} else {
 				result = irFactory_appendCodePoint(result, codePointValue)
@@ -345,8 +595,8 @@ func (f *IRFactory) normalizeStringEscapes(units []uint16, cur int, token parser
 		panic(jutil.NewStringIndexOutOfBoundsException(start, end))
 	}
 	result = append(result, units[start:end]...)
-
-	return jutil.StringFromUTF16(result)
+	f.litUTF16Buf = result
+	return result
 }
 
 // irFactory_substringWithoutQuotes is value.substring(1, value.length() - 1).
@@ -565,7 +815,17 @@ func (f *IRFactory) NormalizeBigInt(token parser.Token) *big.Int {
 // Java: IRFactory.removeNumericSeparators(String, LiteralToken)
 func (f *IRFactory) RemoveNumericSeparators(value string, token parser.Token) string {
 	f.MaybeWarnForFeatureToken(token, parser.FeatureSet_Feature_NUMERIC_SEPARATOR)
-	return jutil.StringReplace(value, "_", "")
+	if strings.IndexByte(value, '_') == -1 {
+		return value
+	}
+	b := f.resetLitByteBuf(len(value))
+	for i := 0; i < len(value); i++ {
+		if value[i] != '_' {
+			b = append(b, value[i])
+		}
+	}
+	f.litByteBuf = b
+	return string(b)
 }
 
 // Java: IRFactory.binarydigit(char)

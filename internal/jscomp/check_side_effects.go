@@ -21,6 +21,7 @@ package jscomp
 import (
 	"strings"
 
+	"github.com/paullepoulpe/jsgo/internal/ast"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
@@ -342,6 +343,20 @@ func (s *CheckSideEffects_StripProtection) processParallel(root rhino.Node) bool
 	return true
 }
 
+var checkSideEffectsStripProtectionTokens = func() ast.TokenSet {
+	var s ast.TokenSet
+	s.Add(rhino.Token_CALL)
+	return s
+}()
+
+func (*CheckSideEffects_StripProtection) visitTokens() *ast.TokenSet {
+	return &checkSideEffectsStripProtectionTokens
+}
+
+func (*CheckSideEffects_StripProtection) combinedVisitTokens() ast.TokenSet {
+	return checkSideEffectsStripProtectionTokens
+}
+
 // Java: CheckSideEffects.StripProtection.visit(NodeTraversal, Node, Node)
 func (s *CheckSideEffects_StripProtection) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	if n.IsCall() {
@@ -378,6 +393,21 @@ type CheckSideEffects_GetNoSideEffectExterns struct {
 	NodeTraversal_AbstractPostOrderCallbackBase
 
 	c *CheckSideEffects
+}
+
+var checkSideEffectsNoSideEffectExternsTokens = func() ast.TokenSet {
+	var s ast.TokenSet
+	s.Add(rhino.Token_FUNCTION)
+	s.Add(rhino.Token_NAME)
+	return s
+}()
+
+func (*CheckSideEffects_GetNoSideEffectExterns) visitTokens() *ast.TokenSet {
+	return &checkSideEffectsNoSideEffectExternsTokens
+}
+
+func (*CheckSideEffects_GetNoSideEffectExterns) combinedVisitTokens() ast.TokenSet {
+	return checkSideEffectsNoSideEffectExternsTokens
 }
 
 // Java: CheckSideEffects.GetNoSideEffectExterns.visit(NodeTraversal, Node, Node)

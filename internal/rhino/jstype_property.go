@@ -392,7 +392,7 @@ func (p *Property) HashCode() int32 {
 	if !p.isSymbol {
 		return 31*(31+jutil.StringHashCode(rhinoStringFromID(p.nameID))) + jutil.ObjectHashCode(p.type_.self())
 	}
-	return jutil.ObjectsHash(p.symbol(), p.type_.self())
+	return 31*(31+jutil.ObjectHashCode(p.symbol())) + jutil.ObjectHashCode(p.type_.self())
 }
 
 // Equals is Object.equals (Property does not override it): identity.

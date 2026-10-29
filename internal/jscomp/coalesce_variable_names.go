@@ -262,13 +262,11 @@ func CoalesceVariableNames_ShouldOptimizeScope(t *NodeTraversal) *NodeUtil_AllVa
 	return nil
 }
 
-// Java: NodeTraversal.AbstractCfgCallback.enterScope(NodeTraversal)
 func (c *CoalesceVariableNames) EnterScope(t *NodeTraversal) {
 	c.pushScopeRoot(t.GetScopeRoot())
 	c.EnterScopeWithCfg(t)
 }
 
-// Java: NodeTraversal.AbstractCfgCallback.exitScope(NodeTraversal)
 func (c *CoalesceVariableNames) ExitScope(t *NodeTraversal) {
 	c.ExitScopeWithCfg(t)
 	c.popScopeRoot(t.GetScopeRoot())
@@ -649,8 +647,8 @@ func (c *CoalesceVariableNames) processCfgNodeBits128(
 ) {
 	state := c.liveness.FlowStateAt(cfgNode.Index)
 
-	inSet := state.GetIn().liveSet
-	inW0, inW1 := inSet[0], inSet[1]
+	inSet := &state.GetIn().liveSet
+	inW0, inW1 := inSet.w0, inSet.w1
 	for w := inW0; w != 0; w &= w - 1 {
 		i := bits.TrailingZeros64(w)
 		interferenceBits[i][0] |= inW0
@@ -662,8 +660,8 @@ func (c *CoalesceVariableNames) processCfgNodeBits128(
 		interferenceBits[i][1] |= inW1
 	}
 
-	outSet := state.GetOut().liveSet
-	outW0, outW1 := outSet[0], outSet[1]
+	outSet := &state.GetOut().liveSet
+	outW0, outW1 := outSet.w0, outSet.w1
 	for w := outW0; w != 0; w &= w - 1 {
 		i := bits.TrailingZeros64(w)
 		interferenceBits[i][0] |= outW0

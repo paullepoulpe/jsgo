@@ -19,6 +19,8 @@
 package cli
 
 import (
+	"bufio"
+	"errors"
 	"io"
 	"slices"
 	"strings"
@@ -291,7 +293,7 @@ func abstractCommandLineRunner_closeAppendable(output jutil.Appendable) {
 
 // Java: AbstractCommandLineRunner.getJavascriptEscaper()
 func (r *AbstractCommandLineRunnerBase) GetJavascriptEscaper() func(string) string {
-	return jutil.Escaper_AsFunction(jscomp.SourceCodeEscapers_JavascriptEscaper())
+	return jscomp.SourceCodeEscapers_JavascriptEscaper().Escape
 }
 
 // Java: AbstractCommandLineRunner.outputSingleBinary(B)
@@ -363,8 +365,8 @@ func (r *AbstractCommandLineRunnerBase) CreateJsonFile(options *jscomp.CompilerO
 
 // Java: AbstractCommandLineRunner.outputJsonStream()
 func (r *AbstractCommandLineRunnerBase) OutputJsonStream() {
-	jsonWriter := jutil.NewJsonWriter(jutil.NewBufferedWriter(jutil.NewOutputStreamWriterWithCharset(
-		abstractCommandLineRunner_printStreamAsOutputStream{r.defaultJsOutput}, jutil.StandardCharsets_UTF_8)))
+	jsonWriter := jutil.NewJsonWriter(newAbstractCommandLineRunnerBufferedWriter(
+		abstractCommandLineRunner_printStreamAsOutputStream{r.defaultJsOutput}, jutil.StandardCharsets_UTF_8))
 	defer jsonWriter.Close()
 	jsonWriter.SetLenient(true)
 	jsonWriter.SetHtmlSafe(false)
@@ -700,7 +702,7 @@ func (r *AbstractCommandLineRunnerBase) StreamToOutputWriter2(stream io.WriteClo
 //
 // Java: AbstractCommandLineRunner.createWriter(OutputStream, Charset)
 func (r *AbstractCommandLineRunnerBase) CreateWriter(stream io.WriteCloser, charset *jutil.Charset) AbstractCommandLineRunner_Writer {
-	return jutil.NewBufferedWriter(jutil.NewOutputStreamWriterWithCharset(stream, charset))
+	return newAbstractCommandLineRunnerBufferedWriter(stream, charset)
 }
 
 // OutputSourceMap outputs the source map found in the compiler to the
@@ -1068,4 +1070,89 @@ func (s abstractCommandLineRunner_printStreamAsOutputStream) Write(b []byte) (in
 func (s abstractCommandLineRunner_printStreamAsOutputStream) Close() error {
 	s.ps.Close()
 	return nil
+}
+
+type abstractCommandLineRunner_bufferedOutputStream struct {
+	bw     *bufio.Writer
+	out    io.WriteCloser
+	closed bool
+}
+
+func (s *abstractCommandLineRunner_bufferedOutputStream) Write(p []byte) (int, error) {
+	return s.bw.Write(p)
+}
+
+func (s *abstractCommandLineRunner_bufferedOutputStream) Close() error {
+	if s.closed {
+		return nil
+	}
+	s.closed = true
+	flushErr := s.bw.Flush()
+	closeErr := s.out.Close()
+	if flushErr != nil {
+		return flushErr
+	}
+	return closeErr
+}
+
+type abstractCommandLineRunner_bufferedWriter struct {
+	stream *abstractCommandLineRunner_bufferedOutputStream
+	w      jutil.Writer
+}
+
+func newAbstractCommandLineRunnerBufferedWriter(stream io.WriteCloser, charset *jutil.Charset) AbstractCommandLineRunner_Writer {
+	if stream == nil || charset == nil {
+		panic(jutil.NewNullPointerException())
+	}
+	bs := &abstractCommandLineRunner_bufferedOutputStream{
+		bw:  bufio.NewWriterSize(stream, 8192),
+		out: stream,
+	}
+	return &abstractCommandLineRunner_bufferedWriter{
+		stream: bs,
+		w:      jutil.NewOutputStreamWriterWithCharset(bs, charset),
+	}
+}
+
+func (b *abstractCommandLineRunner_bufferedWriter) Write(s string) {
+	b.w.Write(s)
+}
+
+func (b *abstractCommandLineRunner_bufferedWriter) AppendCharSequence(csq string) {
+	b.w.Write(csq)
+}
+
+func (b *abstractCommandLineRunner_bufferedWriter) AppendCharacter(c uint16) {
+	b.w.Write(jutil.StringFromChar(c))
+}
+
+func (b *abstractCommandLineRunner_bufferedWriter) WriteString(s string) (n int, err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			e, ok := r.(jutil.IIOException)
+			if !ok {
+				panic(r)
+			}
+			n, err = 0, errors.New(e.GetMessage())
+		}
+	}()
+	b.w.Write(s)
+	return len(s), nil
+}
+
+func (b *abstractCommandLineRunner_bufferedWriter) Flush() {
+	b.w.Flush()
+	if err := b.stream.bw.Flush(); err != nil {
+		panic(jutil.NewIOException(err.Error()))
+	}
+}
+
+func (b *abstractCommandLineRunner_bufferedWriter) Close() {
+	defer func() {
+		if r := recover(); r != nil {
+			_ = b.stream.Close()
+			panic(r)
+		}
+	}()
+	b.w.Close()
 }

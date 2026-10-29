@@ -19,6 +19,7 @@
 package jscomp
 
 import (
+	"iter"
 	"maps"
 	"slices"
 
@@ -88,15 +89,68 @@ func (it *InvalidatingTypes) IsInvalidating(type_ rhino.JSType) bool {
 	return false
 }
 
+// MismatchLocations maps invalidating JSTypes to their mismatch AST nodes in insertion order.
+type MismatchLocations struct {
+	m *jutil.ObjectLinkedHashMap[rhino.JSType, *jutil.ObjectLinkedHashSet[rhino.Node]]
+}
+
+func (ml *MismatchLocations) put(typ rhino.JSType, loc rhino.Node) {
+	s, ok := ml.m.Lookup(typ)
+	if !ok {
+		s = jutil.NewObjectLinkedHashSet[rhino.Node]()
+		ml.m.Put(typ, s)
+	}
+	s.Add(loc)
+}
+
+// KeySet iterates the invalidating JSTypes in insertion order.
+func (ml *MismatchLocations) KeySet() iter.Seq[rhino.JSType] { return ml.m.Keys() }
+
+// Get returns the mismatch AST nodes for typ (empty when absent).
+func (ml *MismatchLocations) Get(typ rhino.JSType) *jutil.ObjectLinkedHashSet[rhino.Node] {
+	if s, ok := ml.m.Lookup(typ); ok {
+		return s
+	}
+	return jutil.NewObjectLinkedHashSet[rhino.Node]()
+}
+
+// InverseMismatchLocations maps mismatch AST nodes to their involved invalidating JSTypes.
+type InverseMismatchLocations struct {
+	m *jutil.ObjectLinkedHashMap[rhino.Node, *jutil.ObjectLinkedHashSet[rhino.JSType]]
+}
+
+// AsMap returns the underlying node-to-types map.
+func (iml *InverseMismatchLocations) AsMap() *jutil.ObjectLinkedHashMap[rhino.Node, *jutil.ObjectLinkedHashSet[rhino.JSType]] {
+	return iml.m
+}
+
+// Inverse returns a node-to-types view preserving insertion order.
+func (ml *MismatchLocations) Inverse() *InverseMismatchLocations {
+	inv := jutil.NewObjectLinkedHashMap[rhino.Node, *jutil.ObjectLinkedHashSet[rhino.JSType]]()
+	for typ, locs := range ml.m.All() {
+		for loc := range locs.All() {
+			s, ok := inv.Lookup(loc)
+			if !ok {
+				s = jutil.NewObjectLinkedHashSet[rhino.JSType]()
+				inv.Put(loc, s)
+			}
+			s.Add(typ)
+		}
+	}
+	return &InverseMismatchLocations{m: inv}
+}
+
 // Java: InvalidatingTypes.getMismatchLocations()
-func (it *InvalidatingTypes) GetMismatchLocations() *jutil.SetMultimap[rhino.JSType, rhino.Node] {
-	out := jutil.NewSetMultimap[rhino.JSType, rhino.Node]()
+func (it *InvalidatingTypes) GetMismatchLocations() *MismatchLocations {
+	out := &MismatchLocations{
+		m: jutil.NewObjectLinkedHashMap[rhino.JSType, *jutil.ObjectLinkedHashSet[rhino.Node]](),
+	}
 	for i := range it.entries {
 		e := &it.entries[i]
 		if e.hasFirstLoc {
-			out.Put(e.typ, e.firstLoc)
+			out.put(e.typ, e.firstLoc)
 			for _, loc := range e.extraLocs {
-				out.Put(e.typ, loc)
+				out.put(e.typ, loc)
 			}
 		}
 	}

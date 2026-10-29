@@ -71,6 +71,15 @@ func (c *CheckVar) Process(externs rhino.Node, root rhino.Node) {
 	NodeTraversal_Traverse(c.compiler, root, c)
 }
 
+var checkVarVisitTokens = func() ast.TokenSet {
+	var s ast.TokenSet
+	s.Add(rhino.Token_VAR)
+	return s
+}()
+
+func (*CheckVar) visitTokens() *ast.TokenSet        { return &checkVarVisitTokens }
+func (*CheckVar) combinedVisitTokens() ast.TokenSet { return checkVarVisitTokens }
+
 // Java: CheckVar.visit(NodeTraversal, Node, Node)
 func (c *CheckVar) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	if n.IsVar() {
@@ -103,6 +112,17 @@ func NewCheckEmptyStatements(compiler AbstractCompiler) *CheckEmptyStatements {
 // Java: CheckEmptyStatements.process(Node, Node)
 func (c *CheckEmptyStatements) Process(externs rhino.Node, root rhino.Node) {
 	NodeTraversal_Traverse(c.compiler, root, c)
+}
+
+var checkEmptyStatementsVisitTokens = func() ast.TokenSet {
+	var s ast.TokenSet
+	s.Add(rhino.Token_EMPTY)
+	return s
+}()
+
+func (*CheckEmptyStatements) visitTokens() *ast.TokenSet { return &checkEmptyStatementsVisitTokens }
+func (*CheckEmptyStatements) combinedVisitTokens() ast.TokenSet {
+	return checkEmptyStatementsVisitTokens
 }
 
 // Java: CheckEmptyStatements.visit(NodeTraversal, Node, Node)
@@ -141,6 +161,15 @@ func NewCheckDuplicateCase(compiler AbstractCompiler) *CheckDuplicateCase {
 func (c *CheckDuplicateCase) Process(externs rhino.Node, root rhino.Node) {
 	NodeTraversal_Traverse(c.compiler, root, c)
 }
+
+var checkDuplicateCaseVisitTokens = func() ast.TokenSet {
+	var s ast.TokenSet
+	s.Add(rhino.Token_SWITCH)
+	return s
+}()
+
+func (*CheckDuplicateCase) visitTokens() *ast.TokenSet        { return &checkDuplicateCaseVisitTokens }
+func (*CheckDuplicateCase) combinedVisitTokens() ast.TokenSet { return checkDuplicateCaseVisitTokens }
 
 // Java: CheckDuplicateCase.visit(NodeTraversal, Node, Node)
 func (c *CheckDuplicateCase) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
@@ -237,6 +266,15 @@ func (c *CheckUnusedLabels) ShouldTraverse(t *NodeTraversal, n rhino.Node, paren
 	}
 	return true
 }
+
+var checkUnusedLabelsVisitTokens = func() ast.TokenSet {
+	var s ast.TokenSet
+	s.Add(rhino.Token_LABEL)
+	return s
+}()
+
+func (*CheckUnusedLabels) visitTokens() *ast.TokenSet        { return &checkUnusedLabelsVisitTokens }
+func (*CheckUnusedLabels) combinedVisitTokens() ast.TokenSet { return checkUnusedLabelsVisitTokens }
 
 // Java: CheckUnusedLabels.visit(NodeTraversal, Node, Node)
 func (c *CheckUnusedLabels) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
@@ -444,6 +482,15 @@ func (c *CheckUselessBlocks) ShouldTraverse(t *NodeTraversal, n rhino.Node, pare
 	}
 	return true
 }
+
+var checkUselessBlocksVisitTokens = func() ast.TokenSet {
+	var s ast.TokenSet
+	s.Add(rhino.Token_BLOCK)
+	return s
+}()
+
+func (*CheckUselessBlocks) visitTokens() *ast.TokenSet        { return &checkUselessBlocksVisitTokens }
+func (*CheckUselessBlocks) combinedVisitTokens() ast.TokenSet { return checkUselessBlocksVisitTokens }
 
 // Java: CheckUselessBlocks.visit(NodeTraversal, Node, Node)
 func (c *CheckUselessBlocks) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {

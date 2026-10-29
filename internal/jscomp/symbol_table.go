@@ -858,7 +858,7 @@ func isNilStaticScope(s rhino.StaticScope) bool {
 		return sc == nil
 	case *Scope:
 		return sc == nil
-	case *sraiTrackingFlowScope:
+	case *LinkedFlowScope:
 		return sc == nil
 	case *rhino.JSTypeRegistry_SyntheticTemplateScope:
 		return sc == nil

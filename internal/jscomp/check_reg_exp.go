@@ -19,9 +19,20 @@
 package jscomp
 
 import (
+	"github.com/paullepoulpe/jsgo/internal/ast"
 	"github.com/paullepoulpe/jsgo/internal/regex"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
+
+var checkRegExpVisitTokens = func() ast.TokenSet {
+	var s ast.TokenSet
+	s.Add(rhino.Token_NAME)
+	s.Add(rhino.Token_REGEXP)
+	return s
+}()
+
+func (*CheckRegExp) visitTokens() *ast.TokenSet        { return &checkRegExpVisitTokens }
+func (*CheckRegExp) combinedVisitTokens() ast.TokenSet { return checkRegExpVisitTokens }
 
 // CheckRegExp looks for references to the global RegExp object that would
 // cause regular expressions to be unoptimizable, and checks that regular

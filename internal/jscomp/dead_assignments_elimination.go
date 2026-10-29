@@ -250,13 +250,11 @@ func (d *DeadAssignmentsElimination) Visit(t *NodeTraversal, n rhino.Node, paren
 	}
 }
 
-// Java: NodeTraversal.AbstractCfgCallback.enterScope(NodeTraversal)
 func (d *DeadAssignmentsElimination) EnterScope(t *NodeTraversal) {
 	d.pushScopeRoot(t.GetScopeRoot())
 	d.EnterScopeWithCfg(t)
 }
 
-// Java: NodeTraversal.AbstractCfgCallback.exitScope(NodeTraversal)
 func (d *DeadAssignmentsElimination) ExitScope(t *NodeTraversal) {
 	d.ExitScopeWithCfg(t)
 	d.popScopeRoot(t.GetScopeRoot())

@@ -181,12 +181,12 @@ func (p *TypeInferencePass) InferScope(n rhino.Node, scope *TypedScope) {
 				continue
 			}
 
-			state := node.GetAnnotation().(*DataFlowAnalysis_LinearFlowState[FlowScope])
+			stepCount := typeInference.stepCountAt(node.Index)
 			p.stepCountHistogram.
-				ComputeIfAbsent(state.GetStepCount(), func(int) *jutil.LinkedHashMap[rhino.Token, int] {
+				ComputeIfAbsent(stepCount, func(int) *jutil.LinkedHashMap[rhino.Token, int] {
 					return jutil.NewLinkedHashMap[rhino.Token, int]()
 				})
-			counts := p.stepCountHistogram.Get(state.GetStepCount())
+			counts := p.stepCountHistogram.Get(stepCount)
 			counts.Put(node.GetValue().GetToken(), counts.GetOrDefault(node.GetValue().GetToken(), 0)+1)
 		}
 	}

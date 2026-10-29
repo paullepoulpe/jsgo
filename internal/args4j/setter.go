@@ -374,21 +374,8 @@ func (l *sliceList[E]) Add(e any) bool {
 func (l *sliceList[E]) Size() int         { return len(*l.p) }
 func (l *sliceList[E]) Get(index int) any { return (*l.p)[index] }
 
-func StringMapField(declaringClass, name string, p **jutil.JavaHashMap[string, *string]) *Field {
-	return NewField(declaringClass, name, Class_Map, Class_String, false,
-		func() any {
-			if *p == nil {
-				return nil
-			}
-			return *p
-		},
-		func(v any) {
-			if v == nil {
-				*p = nil
-				return
-			}
-			*p = v.(*jutil.JavaHashMap[string, *string])
-		})
+func StringMapField(declaringClass, name string, p **jutil.LinkedHashMap[string, *string]) *Field {
+	return LinkedStringMapField(declaringClass, name, p)
 }
 
 func LinkedStringMapField(declaringClass, name string, p **jutil.LinkedHashMap[string, *string]) *Field {

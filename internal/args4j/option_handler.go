@@ -276,7 +276,7 @@ func NewMapOptionHandler(parser *CmdLineParser, option *OptionDef, setter Setter
 			m = o.(Map)
 		}
 		if m == nil {
-			m = jutil.NewJavaHashMap[string, *string]()
+			m = jutil.NewLinkedHashMap[string, *string]()
 			fs.AddValue(m)
 		}
 		mapKey, value, ok := strings.Cut(params.GetParameter(0), "=")

@@ -208,6 +208,111 @@ func (b *DataFlowAnalysisBase[N, L]) releaseLargeStorage() {
 	}
 }
 
+// forwardCfgWorklist is a reusable, non-generic forward worklist over AST CFG
+// nodes (min-heap on Priority when the CFG assigns node priorities, else FIFO).
+type forwardCfgWorklist struct {
+	queue       []*graph.LinkedDiGraphNode[rhino.Node, ControlFlowGraph_Branch]
+	queueHead   int
+	usePriority bool
+}
+
+func (w *forwardCfgWorklist) reset(cfg *ControlFlowGraph[rhino.Node], numNodes int) {
+	clear(w.queue)
+	w.queue = w.queue[:0]
+	w.queueHead = 0
+	w.usePriority = cfg.hasNodePriorities
+	if cap(w.queue) < numNodes {
+		w.queue = make([]*graph.LinkedDiGraphNode[rhino.Node, ControlFlowGraph_Branch], 0, numNodes)
+	}
+}
+
+func (w *forwardCfgWorklist) releaseLarge() {
+	if cap(w.queue) > dfaReuseMaxNodes {
+		w.queue = nil
+		w.queueHead = 0
+	}
+}
+
+func (w *forwardCfgWorklist) notEmpty() bool {
+	return len(w.queue) > w.queueHead
+}
+
+func (w *forwardCfgWorklist) enqueue(node *graph.LinkedDiGraphNode[rhino.Node, ControlFlowGraph_Branch]) {
+	if node == nil {
+		panic(jutil.NewNullPointerException())
+	}
+	if node.DfaInQueue {
+		return
+	}
+	node.DfaInQueue = true
+	w.queue = append(w.queue, node)
+	if w.usePriority {
+		i := len(w.queue) - 1
+		xPrio := node.Priority
+		if xPrio < 0 {
+			panic(jutil.NewIllegalStateExceptionMsg("priority not set"))
+		}
+		for i > 0 {
+			parent := (i - 1) / 2
+			p := w.queue[parent]
+			if xPrio >= p.Priority {
+				break
+			}
+			w.queue[i] = p
+			i = parent
+		}
+		w.queue[i] = node
+	}
+}
+
+func (w *forwardCfgWorklist) dequeue() *graph.LinkedDiGraphNode[rhino.Node, ControlFlowGraph_Branch] {
+	var curNode *graph.LinkedDiGraphNode[rhino.Node, ControlFlowGraph_Branch]
+	if w.usePriority {
+		n := len(w.queue)
+		curNode = w.queue[0]
+		last := w.queue[n-1]
+		w.queue[n-1] = nil
+		w.queue = w.queue[:n-1]
+		if n > 1 {
+			m := n - 1
+			xPrio := last.Priority
+			i := 0
+			for {
+				pick := 2*i + 1
+				if pick >= m {
+					break
+				}
+				smaller := w.queue[pick]
+				smallerPrio := smaller.Priority
+				if sibling := pick + 1; sibling < m {
+					sib := w.queue[sibling]
+					if sibPrio := sib.Priority; smallerPrio > sibPrio {
+						pick = sibling
+						smaller = sib
+						smallerPrio = sibPrio
+					}
+				}
+				if xPrio <= smallerPrio {
+					break
+				}
+				w.queue[i] = smaller
+				i = pick
+			}
+			w.queue[i] = last
+		}
+	} else {
+		curNode = w.queue[w.queueHead]
+		w.queue[w.queueHead] = nil
+		w.queueHead++
+		if w.queueHead == len(w.queue) {
+			w.queue = w.queue[:0]
+			w.queueHead = 0
+		}
+	}
+	curNode.DfaInQueue = false
+	return curNode
+}
+
 // FlowStateAt returns the LinearFlowState for the node with the given dense Index.
 func (b *DataFlowAnalysisBase[N, L]) FlowStateAt(index uint32) *DataFlowAnalysis_LinearFlowState[L] {
 	return &b.flowStates[index]

@@ -163,28 +163,6 @@ func TestPathTextVectors(t *testing.T) {
 	}
 }
 
-func TestPropertiesTextVectors(t *testing.T) {
-	for _, r := range readTextVectors(t, "text_properties.tsv", 2000) {
-		text, _ := unescVector(t, r[1])
-		got := textGuard(func() string {
-			p := PropertiesLoad(text)
-			keys := p.KeySlice()
-			sortJavaStrings(keys)
-			var sb strings.Builder
-			for i, k := range keys {
-				if i > 0 {
-					sb.WriteString("\x01")
-				}
-				sb.WriteString(k + "\x02" + p.Get(k))
-			}
-			return sb.String()
-		})
-		if got != r[2] {
-			t.Errorf("%v:\n got %s\nwant %s", r, got, r[2])
-		}
-	}
-}
-
 func TestCaseTextVectors(t *testing.T) {
 	for _, r := range readTextVectors(t, "text_case.tsv", 3500) {
 		switch r[0] {
@@ -232,44 +210,6 @@ func TestUTF16TextVectors(t *testing.T) {
 		}
 		if strict != r[3] {
 			t.Errorf("strict decode of %s as %s = %q, want %q", r[1], r[0], strict, r[3])
-		}
-	}
-}
-
-// logWriter records what reaches the writer under a BufferedWriter.
-type logWriter struct{ log strings.Builder }
-
-func (w *logWriter) Write(s string) { w.log.WriteString(" w" + strconv.Itoa(StringLength(s))) }
-func (w *logWriter) Flush()         { w.log.WriteString(" f") }
-func (w *logWriter) Close()         { w.log.WriteString(" c") }
-
-func TestBufferedWriterTextVectors(t *testing.T) {
-	for _, r := range readTextVectors(t, "text_bufferedwriter.tsv", 400) {
-		out := &logWriter{}
-		w := NewBufferedWriter(out)
-		func() {
-			defer func() {
-				if x := recover(); x != nil {
-					out.log.WriteString(" !" + AsThrowable(x).GetMessage())
-				}
-			}()
-			for _, op := range strings.Fields(r[1]) {
-				switch op[0] {
-				case 'w':
-					n, _ := strconv.Atoi(op[1:])
-					w.Write(strings.Repeat("x", n))
-				case 'a':
-					w.AppendChar('y')
-				case 'f':
-					w.Flush()
-				case 'c':
-					w.Close()
-				}
-			}
-			out.log.WriteString(" .")
-		}()
-		if got := strings.TrimSpace(out.log.String()); got != r[2] {
-			t.Errorf("%s: got %s, want %s", r[1], got, r[2])
 		}
 	}
 }

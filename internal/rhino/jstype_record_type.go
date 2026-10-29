@@ -59,50 +59,6 @@ type RecordType struct {
 // Java: RecordType.TYPE_CLASS
 const RecordType_TYPE_CLASS = JSTypeClass_RECORD
 
-// NewRecordType creates a record type.
-//
-// registry: the type registry under which this type lives. properties: a
-// map of all the properties of this record type. declared: whether this is a
-// declared or synthesized type. A synthesized record type is just used for
-// bookkeeping in the type system. A declared record type was actually used
-// in the user's program.
-//
-// Throws IllegalStateException if the RecordProperty associated with a
-// property is null.
-//
-// Java: RecordType(JSTypeRegistry, Map<String, RecordProperty>, boolean)
-func NewRecordType(registry *JSTypeRegistry, properties *jutil.TreeMap[string, *RecordTypeBuilder_RecordProperty], declared bool) *RecordType {
-	t := &RecordType{}
-	t.objFlags = objKindRecord
-	builder := PrototypeObjectType_Builder{
-		registry:        registry,
-		templateTypeMap: registry.GetEmptyTemplateTypeMap(),
-	}
-	t.InitPrototypeObjectTypeBase(t, &builder)
-	t.SetPrettyPrint(true)
-	if declared {
-		t.protoFlags |= protoFlagRecordDeclared
-	}
-
-	for property := range properties.Keys() {
-		prop := properties.Get(property)
-		if prop == nil {
-			panic(jutil.NewIllegalStateExceptionMsg(
-				"RecordProperty associated with a property should not be null!"))
-		}
-		if declared {
-			t.DefineDeclaredProperty(property, prop.GetType(), prop.GetPropertyNode())
-		} else {
-			t.DefineSynthesizedProperty(property, prop.GetType(), prop.GetPropertyNode())
-		}
-	}
-	// Freeze the record type.
-	t.protoFlags |= protoFlagRecordFrozen
-
-	registry.GetResolver().ResolveIfClosed(t, RecordType_TYPE_CLASS)
-	return t
-}
-
 func newRecordTypeFromProps(registry *JSTypeRegistry, props []recordProp, declared bool) *RecordType {
 	t := &RecordType{}
 	t.objFlags = objKindRecord

@@ -54,8 +54,30 @@
 package jscomp
 
 import (
+	"github.com/paullepoulpe/jsgo/internal/ast"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
+)
+
+var (
+	checkDebuggerStatementVisitTokens = func() ast.TokenSet {
+		var s ast.TokenSet
+		s.Add(rhino.Token_DEBUGGER)
+		return s
+	}()
+	gatherRawExportsVisitTokens = func() ast.TokenSet {
+		var s ast.TokenSet
+		s.Add(rhino.Token_GETPROP)
+		s.Add(rhino.Token_GETELEM)
+		s.Add(rhino.Token_OPTCHAIN_GETPROP)
+		s.Add(rhino.Token_OPTCHAIN_GETELEM)
+		return s
+	}()
+	removeCastNodesVisitTokens = func() ast.TokenSet {
+		var s ast.TokenSet
+		s.Add(rhino.Token_CAST)
+		return s
+	}()
 )
 
 // CheckDebuggerStatement checks for the presence of the "debugger" statement
@@ -90,6 +112,11 @@ func NewCheckDebuggerStatement(compiler AbstractCompiler) *CheckDebuggerStatemen
 // Java: CheckDebuggerStatement.process(Node, Node)
 func (c *CheckDebuggerStatement) Process(externs rhino.Node, root rhino.Node) {
 	NodeTraversal_Traverse(c.compiler, root, c)
+}
+
+func (*CheckDebuggerStatement) visitTokens() *ast.TokenSet { return &checkDebuggerStatementVisitTokens }
+func (*CheckDebuggerStatement) combinedVisitTokens() ast.TokenSet {
+	return checkDebuggerStatementVisitTokens
 }
 
 // Java: CheckDebuggerStatement.visit(NodeTraversal, Node, Node)
@@ -145,6 +172,9 @@ func (g *GatherRawExports) Process(externs rhino.Node, root rhino.Node) {
 	jutil.CheckState(g.compiler.GetLifeCycleStage().IsNormalized())
 	NodeTraversal_Traverse(g.compiler, root, g)
 }
+
+func (*GatherRawExports) visitTokens() *ast.TokenSet        { return &gatherRawExportsVisitTokens }
+func (*GatherRawExports) combinedVisitTokens() ast.TokenSet { return gatherRawExportsVisitTokens }
 
 // Java: GatherRawExports.visit(NodeTraversal, Node, Node)
 func (g *GatherRawExports) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
@@ -232,6 +262,13 @@ func (r *RemoveCastNodes) processParallel(externs rhino.Node, root rhino.Node) b
 type RemoveCastNodes_RemoveCastsCallback struct {
 	NodeTraversal_AbstractPostOrderCallbackBase
 	outer *RemoveCastNodes
+}
+
+func (*RemoveCastNodes_RemoveCastsCallback) visitTokens() *ast.TokenSet {
+	return &removeCastNodesVisitTokens
+}
+func (*RemoveCastNodes_RemoveCastsCallback) combinedVisitTokens() ast.TokenSet {
+	return removeCastNodesVisitTokens
 }
 
 // Java: RemoveCastNodes.RemoveCastsCallback.visit(NodeTraversal, Node, Node)

@@ -36,6 +36,8 @@
 package rhino
 
 import (
+	"slices"
+
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 )
 
@@ -396,33 +398,37 @@ func (p *PrototypeObjectTypeBase) AppendTo(sb *TypeStringBuilder) {
 	// Don't pretty print recursively. It would cause infinite recursion.
 	p.protoFlags &^= protoFlagPrettyPrint
 
-	// Use a tree set so that the properties are sorted.
-	properties := jutil.NewTreeSet[PrototypeObjectType_PropertyForPrettyPrinting](PrototypeObjectType_PROP_COMPARATOR)
+	// Sort and deduplicate properties across the prototype chain (subtype wins).
+	var properties []PrototypeObjectType_PropertyForPrettyPrinting
+	propEq := func(a, b PrototypeObjectType_PropertyForPrettyPrinting) bool {
+		return PrototypeObjectType_PROP_COMPARATOR(a, b) == 0
+	}
 	for current := self; current != nil; current = current.GetImplicitPrototype() {
-		if current.IsNativeObjectType() || properties.Size() > PrototypeObjectType_MAX_PRETTY_PRINTED_PROPERTIES {
+		if current.IsNativeObjectType() || len(properties) > PrototypeObjectType_MAX_PRETTY_PRINTED_PROPERTIES {
 			break
 		}
 
 		for _, stringKey := range current.GetOwnPropertyNames() {
 			key := NewProperty_StringKey(stringKey)
-			properties.Add(PrototypeObjectType_PropertyForPrettyPrinting{key, current.GetPropertyTypeByKey(key)})
+			properties = append(properties, PrototypeObjectType_PropertyForPrettyPrinting{key, current.GetPropertyTypeByKey(key)})
 		}
 		for _, symbolKey := range current.GetOwnPropertyKnownSymbols() {
 			key := NewProperty_SymbolKey(symbolKey)
-			properties.Add(PrototypeObjectType_PropertyForPrettyPrinting{key, current.GetPropertyTypeByKey(key)})
+			properties = append(properties, PrototypeObjectType_PropertyForPrettyPrinting{key, current.GetPropertyTypeByKey(key)})
 		}
+		slices.SortStableFunc(properties, PrototypeObjectType_PROP_COMPARATOR)
+		properties = slices.CompactFunc(properties, propEq)
 	}
 
-	multiline := !sb.IsForAnnotations() && properties.Size() > 1
+	multiline := !sb.IsForAnnotations() && len(properties) > 1
 	sb.Append("{").
 		Indent(func() {
 			if multiline {
 				sb.BreakLineAndIndent()
 			}
 
-			i := 0
-			for property := range properties.All() {
-				i++
+			for idx, property := range properties {
+				i := idx + 1
 
 				if !sb.IsForAnnotations() && i > PrototypeObjectType_MAX_PRETTY_PRINTED_PROPERTIES {
 					sb.Append("...")
@@ -430,7 +436,7 @@ func (p *PrototypeObjectTypeBase) AppendTo(sb *TypeStringBuilder) {
 				}
 
 				property.AppendTo(sb)
-				if i < properties.Size() {
+				if i < len(properties) {
 					sb.Append(",")
 					if multiline {
 						sb.BreakLineAndIndent()

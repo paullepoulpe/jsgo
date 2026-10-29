@@ -76,40 +76,6 @@ func TestNewBigIntegerFromStringRadixMatchesJava(t *testing.T) {
 	}
 }
 
-func TestPropertiesLoadMatchesJava(t *testing.T) {
-	rows := readTSV(t, "properties.tsv")
-	if len(rows) < 30 {
-		t.Fatalf("only %d vectors", len(rows))
-	}
-	for _, r := range rows {
-		in := StringFromUTF16(decodeHexUTF16(r[0]))
-		got := catchOutcome(func() string {
-			p := PropertiesLoad(in)
-			keys := p.KeySlice()
-			sortJavaStrings(keys)
-			var sb strings.Builder
-			for i, k := range keys {
-				if i > 0 {
-					sb.WriteByte(',')
-				}
-				sb.WriteString(hexUTF16(k) + "=" + hexUTF16(p.Get(k)))
-			}
-			return "M:" + sb.String()
-		})
-		if got != r[1] {
-			t.Errorf("Properties.load(%q) = %s, Java %s", in, got, r[1])
-		}
-	}
-}
-
-func sortJavaStrings(s []string) {
-	for i := 1; i < len(s); i++ {
-		for j := i; j > 0 && StringCompareTo(s[j-1], s[j]) > 0; j-- {
-			s[j-1], s[j] = s[j], s[j-1]
-		}
-	}
-}
-
 func TestCharMatcherWhitespace(t *testing.T) {
 	want := map[uint16]bool{}
 	for _, u := range StringToUTF16(charMatcherWhitespaceTable) {
@@ -125,48 +91,10 @@ func TestCharMatcherWhitespace(t *testing.T) {
 	}
 }
 
-func TestSplitterOnCharTrimResults(t *testing.T) {
-	for _, tc := range []struct {
-		in   string
-		want []string
-	}{
-		{"", []string{""}},
-		{"a", []string{"a"}},
-		{"a,b", []string{"a", "b"}},
-		{" a , b ,", []string{"a", "b", ""}},
-		{",,", []string{"", "", ""}},
-		{" x　,\u0001y", []string{"x", "\u0001y"}},
-	} {
-		got := Splitter_OnCharTrimResults(tc.in, ',')
-		if strings.Join(got, "|") != strings.Join(tc.want, "|") || len(got) != len(tc.want) {
-			t.Errorf("split(%q) = %q, want %q", tc.in, got, tc.want)
-		}
-	}
-}
-
 func TestRuntimeExceptionWithMessageAndCause(t *testing.T) {
 	cause := NewIllegalStateExceptionMsg("inner")
 	e := NewRuntimeExceptionWithMessageAndCause("outer", cause)
 	if e.Error() != "java.lang.RuntimeException: outer" || e.GetMessage() != "outer" || e.GetCause() != Throwable(cause) {
 		t.Errorf("got %q %q %v", e.Error(), e.GetMessage(), e.GetCause())
-	}
-}
-
-func TestTreeSet(t *testing.T) {
-	s := NewTreeSet(StringCompareTo)
-	if !s.IsEmpty() || !s.Add("b") || !s.Add("a") || s.Add("b") || !s.Add("\U0001F600") || !s.Add("￿") {
-		t.Fatal("add")
-	}
-	if got := s.String(); got != "[a, b, \U0001F600, ￿]" {
-		t.Errorf("order %q (UTF-16 order puts the surrogate pair before U+FFFF)", got)
-	}
-	o := NewTreeSet(StringCompareTo)
-	o.Add("c")
-	o.Add("a")
-	if !s.AddAll(o.All()) || s.AddAll(o.All()) || s.Size() != 5 || !s.Contains("c") || s.Contains("d") {
-		t.Errorf("addAll/contains: %v", s)
-	}
-	if !s.Remove("a") || s.Remove("a") || s.Size() != 4 {
-		t.Errorf("remove: %v", s)
 	}
 }

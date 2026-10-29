@@ -20,8 +20,10 @@
 package jscomp
 
 import (
-	"github.com/paullepoulpe/jsgo/internal/rhino"
+	"fmt"
 	"testing"
+
+	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
 
 type DeadAssignmentsEliminationTest struct {
@@ -1357,4 +1359,15 @@ func (c *DeadAssignmentsEliminationTest) InAsyncFunctionWithExpected(src string,
 	c.Test(
 		"async function FUNC(param1, param2){"+src+"}",
 		"async function FUNC(param1, param2){"+expected+"}")
+}
+
+func (c *DeadAssignmentsEliminationTest) TestManyBlockScopedVariables() {
+	c.EnableNormalizeExpectedOutput()
+	var blocks string
+	for i := 0; i < 300; i++ {
+		blocks += fmt.Sprintf("{ let b%d = extern(); extern(b%d); }\n", i, i)
+	}
+	c.InFunctionWithExpected(
+		blocks+"let dead; dead = 1;",
+		blocks+"let dead; 1;")
 }

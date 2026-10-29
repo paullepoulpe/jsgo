@@ -19,6 +19,7 @@
 package colors
 
 import (
+	"iter"
 	"maps"
 	"slices"
 
@@ -122,6 +123,83 @@ func (r *ColorRegistry) GetDisambiguationSupertypes(x *Color) *jutil.ObjectLinke
 	return out
 }
 
+// ColorMismatchLocations maps ColorIds to mismatch location sourceref strings in insertion order.
+type ColorMismatchLocations struct {
+	m    *jutil.ObjectLinkedHashMap[ColorId, *jutil.LinkedHashSet[string]]
+	size int
+}
+
+// NewColorMismatchLocations returns an empty ColorMismatchLocations.
+func NewColorMismatchLocations() *ColorMismatchLocations {
+	return &ColorMismatchLocations{
+		m: jutil.NewObjectLinkedHashMap[ColorId, *jutil.LinkedHashSet[string]](),
+	}
+}
+
+// Put adds (id, loc) if not already present.
+func (cml *ColorMismatchLocations) Put(id ColorId, loc string) bool {
+	s, ok := cml.m.Lookup(id)
+	if !ok {
+		s = jutil.NewLinkedHashSet[string]()
+		cml.m.Put(id, s)
+	}
+	if s.Add(loc) {
+		cml.size++
+		return true
+	}
+	return false
+}
+
+// Get returns the mismatch location strings for id (empty set when absent).
+func (cml *ColorMismatchLocations) Get(id ColorId) *jutil.LinkedHashSet[string] {
+	if s, ok := cml.m.Lookup(id); ok {
+		return s
+	}
+	return jutil.NewLinkedHashSet[string]()
+}
+
+// Size returns the total number of (ColorId, location) pairs.
+func (cml *ColorMismatchLocations) Size() int { return cml.size }
+
+// Entries iterates (ColorId, location) pairs in insertion order.
+func (cml *ColorMismatchLocations) Entries() iter.Seq2[ColorId, string] {
+	return func(yield func(ColorId, string) bool) {
+		for id, locs := range cml.m.All() {
+			for loc := range locs.All() {
+				if !yield(id, loc) {
+					return
+				}
+			}
+		}
+	}
+}
+
+func (cml *ColorMismatchLocations) String() string { return cml.m.String() }
+
+// InverseColorMismatchLocations maps mismatch location strings to involved ColorIds.
+type InverseColorMismatchLocations struct {
+	m *jutil.ObjectLinkedHashMap[string, *jutil.ObjectLinkedHashSet[ColorId]]
+}
+
+// AsMapObject exposes the underlying map for LogsGson serialization.
+func (inv *InverseColorMismatchLocations) AsMapObject() any { return inv.m }
+
+// Inverse returns a location-to-ColorIds index preserving insertion order.
+func (cml *ColorMismatchLocations) Inverse() *InverseColorMismatchLocations {
+	inv := jutil.NewObjectLinkedHashMap[string, *jutil.ObjectLinkedHashSet[ColorId]]()
+	for id, locs := range cml.m.All() {
+		for loc := range locs.All() {
+			s, ok := inv.Lookup(loc)
+			if !ok {
+				s = jutil.NewObjectLinkedHashSet[ColorId]()
+				inv.Put(loc, s)
+			}
+			s.Add(id)
+		}
+	}
+	return &InverseColorMismatchLocations{m: inv}
+}
+
 // GetMismatchLocationsForDebugging returns an index (mismatch sourceref
 // string) => (involved color ids).
 //
@@ -129,8 +207,8 @@ func (r *ColorRegistry) GetDisambiguationSupertypes(x *Color) *jutil.ObjectLinke
 // during production compilations.
 //
 // Java: ColorRegistry.getMismatchLocationsForDebugging()
-func (r *ColorRegistry) GetMismatchLocationsForDebugging() *jutil.SetMultimap[ColorId, string] {
-	out := jutil.NewSetMultimap[ColorId, string]()
+func (r *ColorRegistry) GetMismatchLocationsForDebugging() *ColorMismatchLocations {
+	out := NewColorMismatchLocations()
 	for _, id := range r.mismatchOrder {
 		for _, loc := range r.mismatchLocations[id] {
 			out.Put(id, loc)

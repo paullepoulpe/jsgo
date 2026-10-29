@@ -693,11 +693,3 @@ func (h *ObjectLinkedHashMap[K, V]) gsonEntries() (keys []any, values []any) {
 	}
 	return keys, values
 }
-
-func (m *TreeMap[K, V]) gsonEntries() (keys []any, values []any) {
-	for k, v := range m.All() {
-		keys = append(keys, k)
-		values = append(values, v)
-	}
-	return keys, values
-}

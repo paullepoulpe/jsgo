@@ -19,6 +19,7 @@
 package jscomp
 
 import (
+	"github.com/paullepoulpe/jsgo/internal/ast"
 	"github.com/paullepoulpe/jsgo/internal/base"
 	"github.com/paullepoulpe/jsgo/internal/graph"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
@@ -80,13 +81,13 @@ func NewCheckMissingReturn(compiler AbstractCompiler) *CheckMissingReturn {
 	return c
 }
 
-// Java: NodeTraversal.AbstractCfgCallback.enterScope(NodeTraversal)
+func (*CheckMissingReturn) combinedVisitTokens() ast.TokenSet { return ast.TokenSet{} }
+
 func (c *CheckMissingReturn) EnterScope(t *NodeTraversal) {
 	c.pushScopeRoot(t.GetScopeRoot())
 	c.EnterScopeWithCfg(t)
 }
 
-// Java: NodeTraversal.AbstractCfgCallback.exitScope(NodeTraversal)
 func (c *CheckMissingReturn) ExitScope(t *NodeTraversal) {
 	c.popScopeRoot(t.GetScopeRoot())
 }

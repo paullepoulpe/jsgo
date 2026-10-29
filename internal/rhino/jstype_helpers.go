@@ -4,6 +4,8 @@
 // Port of com/google/javascript/rhino/jstype/JSTypeIterations.java @ closure-compiler v20261021
 // Port of com/google/javascript/rhino/NominalTypeBuilder.java @ closure-compiler v20261021
 // Port of com/google/javascript/rhino/jstype/TypeStringBuilder.java @ closure-compiler v20261021
+// Port of com/google/javascript/rhino/jstype/ContainsUpperBoundSuperTypeVisitor.java @ closure-compiler v20261021
+// Port of com/google/javascript/rhino/jstype/CanCastToVisitor.java @ closure-compiler v20261021
 
 /*
  *
@@ -104,9 +106,44 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+/*
+ *
+ * ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is Rhino code, released
+ * May 6, 1999.
+ *
+ * The Initial Developer of the Original Code is
+ * Netscape Communications Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 1997-1999
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   John Lenz
+ *   Google Inc.
+ *
+ * This Go translation is distributed under the MPL 1.1 only, as the
+ * original's dual licence allows; the other licence it offers is not
+ * used.
+ *
+ * ***** END LICENSE BLOCK ***** */
+
 package rhino
 
 import (
+	"slices"
+	"strconv"
 	"strings"
 
 	"github.com/paullepoulpe/jsgo/internal/base"
@@ -239,7 +276,7 @@ func (s BooleanLiteralSet) FromOrdinal(ordinal int) BooleanLiteralSet {
 	case 3:
 		return BooleanLiteralSet_BOTH
 	}
-	panic(jutil.NewIllegalArgumentExceptionMsg("Ordinal: " + jutil.ToJavaString(ordinal)))
+	panic(jutil.NewIllegalArgumentExceptionMsg("Ordinal: " + strconv.Itoa(ordinal)))
 }
 
 // Intersection computes the intersection of this set and that.
@@ -270,7 +307,7 @@ func (s BooleanLiteralSet) Contains(literalValue bool) bool {
 	case 3:
 		return true
 	}
-	panic(jutil.NewIndexOutOfBoundsException("Ordinal: " + jutil.ToJavaString(s.Ordinal())))
+	panic(jutil.NewIndexOutOfBoundsException("Ordinal: " + strconv.Itoa(s.Ordinal())))
 }
 
 // BooleanLiteralSet_Get returns the singleton set {literalValue}.
@@ -312,8 +349,8 @@ type JSTypeIterations struct{}
 //
 // Java: JSTypeIterations.anyTypeMatches(Predicate<? super JSType>, ImmutableList<? extends JSType>)
 func JSTypeIterations_AnyTypeMatches[S JSType](predicate func(JSType) bool, types []S) bool {
-	for i := 0; i < len(types); i++ {
-		if predicate(types[i]) {
+	for _, t := range types {
+		if predicate(t) {
 			return true
 		}
 	}
@@ -333,8 +370,8 @@ func JSTypeIterations_AnyTypeMatchesInUnion(predicate func(JSType) bool, union *
 //
 // Java: JSTypeIterations.allTypesMatch(Predicate<? super JSType>, ImmutableList<? extends JSType>)
 func JSTypeIterations_AllTypesMatch[S JSType](predicate func(JSType) bool, types []S) bool {
-	for i := 0; i < len(types); i++ {
-		if !predicate(types[i]) {
+	for _, t := range types {
+		if !predicate(t) {
 			return false
 		}
 	}
@@ -355,8 +392,8 @@ func JSTypeIterations_AllTypesMatchInUnion(predicate func(JSType) bool, union *U
 // Java: JSTypeIterations.mapTypes(Function<? super JSType, T>, ImmutableList<? extends JSType>)
 func JSTypeIterations_MapTypes[S JSType, T any](mapper func(S) T, types []S) []T {
 	builder := make([]T, 0, len(types))
-	for i := 0; i < len(types); i++ {
-		builder = append(builder, mapper(types[i]))
+	for _, t := range types {
+		builder = append(builder, mapper(t))
 	}
 	return builder
 }
@@ -556,4 +593,232 @@ func (b *TypeStringBuilder) CloneWithConfig() *TypeStringBuilder {
 	clone := NewTypeStringBuilder(b.isForAnnotations)
 	clone.indentation = b.indentation
 	return clone
+}
+
+// containsUpperBoundSuperTypePresent reports whether target appears in the
+// reference chain of forwarding types reachable from type_.
+//
+// Java: new ContainsUpperBoundSuperTypeVisitor(target) == Result.PRESENT
+func containsUpperBoundSuperTypePresent(type_ JSType, target JSType) bool {
+	return containsUpperBoundSuperType(type_, target) == ContainsUpperBoundSuperTypeVisitor_Result_PRESENT
+}
+
+// containsUpperBoundSuperTypeCycle reports whether the reference chain of
+// forwarding types reachable from type_ contains a cycle.
+//
+// Java: new ContainsUpperBoundSuperTypeVisitor(null) == Result.CYCLE
+func containsUpperBoundSuperTypeCycle(type_ JSType) bool {
+	return containsUpperBoundSuperType(type_, nil) == ContainsUpperBoundSuperTypeVisitor_Result_CYCLE
+}
+
+func containsUpperBoundSuperType(type_ JSType, target JSType) ContainsUpperBoundSuperTypeVisitor_Result {
+	var seenBuf [8]JSType
+	seen := seenBuf[:0]
+	return containsUpperBoundSuperTypeRec(type_, target, &seen)
+}
+
+func containsUpperBoundSuperTypeRec(type_ JSType, target JSType, seen *[]JSType) ContainsUpperBoundSuperTypeVisitor_Result {
+	switch x := type_.(type) {
+	case *TemplateType:
+		return containsUpperBoundForwarding(x, x.GetBound(), target, seen)
+	case *NamedType:
+		return containsUpperBoundForwarding(x, x.GetReferencedType(), target, seen)
+	case *TemplatizedType:
+		return containsUpperBoundForwarding(x, x.GetReferencedType(), target, seen)
+	case *UnionType:
+		if JSType(x) == target {
+			return ContainsUpperBoundSuperTypeVisitor_Result_PRESENT
+		}
+		for _, alt := range x.GetAlternates() {
+			foundInAlt := containsUpperBoundSuperTypeRec(alt, target, seen)
+			if foundInAlt != ContainsUpperBoundSuperTypeVisitor_Result_ABSENT {
+				return foundInAlt
+			}
+		}
+		return ContainsUpperBoundSuperTypeVisitor_Result_ABSENT
+	case *AllType, *BooleanType, *NoObjectTypeBase, *UnknownType, *NullType,
+		*NumberType, *BigIntType, *StringType, *VoidType:
+		// Visitor.WithDefaultCase passes nil for zero-arg cases, so CaseDefault
+		// always returns ABSENT for these types.
+		return ContainsUpperBoundSuperTypeVisitor_Result_ABSENT
+	case *NoType, *EnumElementType, *FunctionTypeBase,
+		*InstanceObjectType, *PrototypeObjectTypeBase, *RecordType, *EnumType, *NoResolvedType,
+		*ProxyObjectTypeBase, *SymbolTypeBase, *KnownSymbolType:
+		if target != nil && type_ == target {
+			return ContainsUpperBoundSuperTypeVisitor_Result_PRESENT
+		}
+		return ContainsUpperBoundSuperTypeVisitor_Result_ABSENT
+	default:
+		if _, ok := type_.(NoObjectType); ok {
+			return ContainsUpperBoundSuperTypeVisitor_Result_ABSENT
+		}
+		switch type_.(type) {
+		case FunctionType, ProxyObjectType, ObjectType, SymbolType:
+			if target != nil && type_ == target {
+				return ContainsUpperBoundSuperTypeVisitor_Result_PRESENT
+			}
+			return ContainsUpperBoundSuperTypeVisitor_Result_ABSENT
+		}
+		panic(jutil.NewUnsupportedOperationException())
+	}
+}
+
+// Java: ContainsUpperBoundSuperTypeVisitor.caseForwardingType(JSType, JSType)
+func containsUpperBoundForwarding(type_ JSType, reference JSType, target JSType, seen *[]JSType) ContainsUpperBoundSuperTypeVisitor_Result {
+	if type_ == target {
+		return ContainsUpperBoundSuperTypeVisitor_Result_PRESENT
+	} else if slices.Contains(*seen, type_) {
+		return ContainsUpperBoundSuperTypeVisitor_Result_CYCLE
+	} else {
+		*seen = append(*seen, type_)
+		return containsUpperBoundSuperTypeRec(reference, target, seen)
+	}
+}
+
+// ContainsUpperBoundSuperTypeVisitor_Result represents the outcome of a
+// visitation of the ContainsUpperBoundSuperTypeVisitor.
+type ContainsUpperBoundSuperTypeVisitor_Result int32
+
+const (
+	ContainsUpperBoundSuperTypeVisitor_Result_PRESENT ContainsUpperBoundSuperTypeVisitor_Result = iota
+	ContainsUpperBoundSuperTypeVisitor_Result_ABSENT
+	// Containment is undecidable due to a reference cycle.
+	ContainsUpperBoundSuperTypeVisitor_Result_CYCLE
+)
+
+var containsUpperBoundSuperTypeVisitor_Result_names = [...]string{"PRESENT", "ABSENT", "CYCLE"}
+
+// String is Enum.name().
+func (r ContainsUpperBoundSuperTypeVisitor_Result) String() string {
+	return containsUpperBoundSuperTypeVisitor_Result_names[r]
+}
+
+// canCastTo reports whether values of thisType can be cast to thatType.
+//
+// Java: CanCastToVisitor + JSType.visit(RelationshipVisitor, JSType)
+func canCastTo(thisType JSType, thatType JSType) bool {
+	switch x := thisType.(type) {
+	case *UnknownType, *NoType, *NoObjectTypeBase, *AllType, *TemplateType:
+		return true
+	case *BigIntType, *BooleanType, *NullType, *NumberType, *StringType,
+		*SymbolTypeBase, *KnownSymbolType, *VoidType,
+		*FunctionTypeBase,
+		*InstanceObjectType, *PrototypeObjectTypeBase, *RecordType, *EnumType, *NoResolvedType:
+		return canCastToHelper(thisType, thatType)
+	case *UnionType:
+		return canCastUnionFrom(x, thatType)
+	case *TemplatizedType:
+		// TODO(johnlenz): once the templated type work is finished, restrict the
+		// type parameters.
+		return canCastTo(x.GetReferencedTypeInternal(), thatType)
+	case *EnumElementType:
+		return canCastTo(x.GetPrimitiveType(), thatType)
+	case *NamedType:
+		return canCastTo(x.referencedType, thatType)
+	case *ProxyObjectTypeBase:
+		return canCastTo(x.referencedType, thatType)
+	default:
+		if _, ok := thisType.(NoObjectType); ok {
+			return true // TODO(johnlenz): restrict to objects
+		}
+		if fn, ok := thisType.(FunctionType); ok {
+			return canCastToHelper(fn, thatType)
+		}
+		if proxy, ok := thisType.(ProxyObjectType); ok {
+			return canCastTo(proxy.GetReferencedTypeInternal(), thatType)
+		}
+		if obj, ok := thisType.(ObjectType); ok {
+			return canCastToHelper(obj, thatType)
+		}
+		if val, ok := thisType.(ValueType); ok {
+			return canCastToHelper(val, thatType)
+		}
+		panic(jutil.NewUnsupportedOperationException())
+	}
+}
+
+// Java: CanCastToVisitor.canCastToUnion(JSType, UnionType)
+func canCastToUnion(thisType JSType, unionType *UnionType) bool {
+	for _, type_ := range unionType.GetAlternates() {
+		if canCastTo(thisType, type_) {
+			return true
+		}
+	}
+	return false
+}
+
+// Java: CanCastToVisitor.canCastToFunction(JSType, FunctionType)
+func canCastToFunction(thisType JSType, functionType FunctionType) bool {
+	if thisType.IsFunctionType() {
+		// TODO(johnlenz): visit function parts
+		return true
+	}
+	return thisType.IsSubtypeOf(functionType) ||
+		functionType.IsSubtype(thisType)
+}
+
+// Java: CanCastToVisitor.isInterface(JSType)
+func canCastIsInterface(type_ JSType) bool {
+	objType := type_.ToObjectType()
+	if objType != nil {
+		constructor := objType.GetConstructor()
+		return constructor != nil && constructor.IsInterface()
+	}
+	return false
+}
+
+// Java: CanCastToVisitor.castCastToHelper(JSType, JSType)
+func canCastToHelper(thisType JSType, thatType JSType) bool {
+	if thisType.IsNoResolvedType() {
+		return true
+	} else if thatType.IsUnknownType() ||
+		thatType.IsAllType() ||
+		thatType.IsNoObjectType() || // TODO(johnlenz): restrict to objects
+		thatType.IsNoResolvedType() ||
+		thatType.IsNoType() {
+		return true
+	} else if thisType.IsRecordType() || thatType.IsRecordType() {
+		return true // TODO(johnlenz): are there any misuses we can catch?
+	} else if canCastIsInterface(thisType) || canCastIsInterface(thatType) {
+		return true // TODO(johnlenz): are there any misuses we can catch?
+	} else if thatType.IsEnumElementType() {
+		return canCastTo(thisType, thatType.ToMaybeEnumElementType().GetPrimitiveType())
+	} else if thatType.IsUnionType() {
+		return canCastToUnion(thisType, thatType.ToMaybeUnionType())
+	} else if thatType.IsFunctionType() {
+		return canCastToFunction(thisType, thatType.ToMaybeFunctionType())
+	} else if thatType.IsTemplatizedType() {
+		// TODO(johnlenz): once the templated type work is finished, restrict
+		// the type parameters.
+		return canCastTo(thisType, thatType.ToMaybeTemplatizedType().GetReferencedTypeInternal())
+	}
+
+	return thisType.IsSubtypeOf(thatType) || thatType.IsSubtypeOf(thisType)
+}
+
+// Java: CanCastToVisitor.caseUnionType(UnionType, JSType)
+func canCastUnionFrom(thisType *UnionType, thatType JSType) bool {
+	visited := false
+	for _, type_ := range thisType.GetAlternates() {
+		if type_.IsVoidType() || type_.IsNullType() {
+			// Don't allow if the only match between the types is null or void,
+			// otherwise any nullable type would be castable to any other nullable
+			// type and we don't want that.
+		} else {
+			visited = true
+			if canCastTo(type_, thatType) {
+				return true
+			}
+		}
+	}
+
+	// Special case the "null|undefined" union and allow it to be cast to any
+	// type allowing either null|undefined.
+	if !visited {
+		nullType := thisType.GetNativeType(JSTypeNative_NULL_TYPE)
+		voidType := thisType.GetNativeType(JSTypeNative_VOID_TYPE)
+		return canCastTo(nullType, thatType) || canCastTo(voidType, thatType)
+	}
+
+	return false
 }

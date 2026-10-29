@@ -429,7 +429,7 @@ func (m *PropertyMap) GetAllKeys() *PropertyMap_AllKeys {
 	// and the cache must be rebuilt.
 	ext := m.ensureExt()
 	if maxAncestorCounter != m.cachedKeySetCounter || ext.cachedKeySet == nil {
-		keys := jutil.NewTreeSet[string](jutil.StringCompareTo)
+		var keys []string
 		knownSymbolsKeys := jutil.NewObjectLinkedHashSet[*KnownSymbolType]()
 		for ancestor := range ancestors.All() {
 			// Update the counters in all ancestors.
@@ -445,7 +445,7 @@ func (m *PropertyMap) GetAllKeys() *PropertyMap_AllKeys {
 
 			ancestor.ensureSorted()
 			for _, p := range ancestor.entries() {
-				keys.Add(rhinoStringFromID(p.nameID))
+				keys = append(keys, rhinoStringFromID(p.nameID))
 			}
 			if ancestor.ext != nil {
 				for _, kv := range ancestor.ext.knownSymbols {
@@ -453,10 +453,11 @@ func (m *PropertyMap) GetAllKeys() *PropertyMap_AllKeys {
 				}
 			}
 		}
-		if keys.IsEmpty() {
+		if len(keys) == 0 {
 			ext.cachedKeySet = []string{}
 		} else {
-			ext.cachedKeySet = keys.ToSlice()
+			slices.SortFunc(keys, jutil.StringCompareTo)
+			ext.cachedKeySet = slices.Compact(keys)
 		}
 		ext.cachedKnownSymbolsKeySet = knownSymbolsKeys.ToSlice()
 	}

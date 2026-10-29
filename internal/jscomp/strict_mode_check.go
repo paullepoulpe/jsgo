@@ -192,6 +192,27 @@ func (c *StrictModeCheck) processParallel(externs rhino.Node, root rhino.Node) b
 	return true
 }
 
+var (
+	strictModeCheckVisitTokens = func() ast.TokenSet {
+		var s ast.TokenSet
+		s.Add(rhino.Token_ASSIGN)
+		s.Add(rhino.Token_DELPROP)
+		s.Add(rhino.Token_OBJECTLIT)
+		s.Add(rhino.Token_CLASS)
+		s.Add(rhino.Token_WITH)
+		return s
+	}()
+	strictModeNonExternVisitTokens = func() ast.TokenSet {
+		var s ast.TokenSet
+		s.Add(rhino.Token_NAME)
+		s.Add(rhino.Token_GETPROP)
+		return s
+	}()
+)
+
+func (*StrictModeCheck) visitTokens() *ast.TokenSet        { return &strictModeCheckVisitTokens }
+func (*StrictModeCheck) combinedVisitTokens() ast.TokenSet { return strictModeCheckVisitTokens }
+
 // Java: StrictModeCheck.visit(NodeTraversal, Node, Node)
 func (c *StrictModeCheck) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	switch n.GetToken() {
@@ -371,6 +392,13 @@ type StrictModeCheck_NonExternChecks struct {
 // Java: StrictModeCheck.NonExternChecks()
 func NewStrictModeCheck_NonExternChecks(outer *StrictModeCheck) *StrictModeCheck_NonExternChecks {
 	return &StrictModeCheck_NonExternChecks{outer: outer}
+}
+
+func (*StrictModeCheck_NonExternChecks) visitTokens() *ast.TokenSet {
+	return &strictModeNonExternVisitTokens
+}
+func (*StrictModeCheck_NonExternChecks) combinedVisitTokens() ast.TokenSet {
+	return strictModeNonExternVisitTokens
 }
 
 // Java: StrictModeCheck.NonExternChecks.visit(NodeTraversal, Node, Node)

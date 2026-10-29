@@ -20,6 +20,9 @@
 package parsing
 
 import (
+	"unicode/utf16"
+	"unicode/utf8"
+
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
@@ -35,9 +38,9 @@ type JsDocTokenStream struct {
 	string_ string
 
 	stringBuffer    []uint16
-	stringBufferBuf [128]uint16
+	stringScratch   [128]uint16
 	asciiBuffer     []byte
-	asciiBufferBuf  [128]byte
+	asciiScratch    [128]byte
 	stringBufferTop int
 
 	// Room to backtrace from to < on failed match of the last - in <!--
@@ -54,9 +57,11 @@ type JsDocTokenStream struct {
 	// Go-only: language-adapter — the Java String sourceString, which is
 	// only read through charAt, held as its UTF-16 code units when non-ASCII
 	// or directly as rawSource when pure ASCII.
-	sourceString []uint16
-	rawSource    string
-	sourceEnd    int
+	sourceString  []uint16
+	sourceBuf     []uint16
+	sourceScratch [128]uint16
+	rawSource     string
+	sourceEnd     int
 
 	// sourceCursor is an index into a small buffer that keeps a
 	// sliding window of the source stream.
@@ -104,12 +109,20 @@ func (s *JsDocTokenStream) Init(sourceString string, lineno int, initCharno int)
 		s.rawSource = sourceString
 		s.sourceString = nil
 		s.sourceEnd = len(sourceString)
-		s.asciiBuffer = s.asciiBufferBuf[:]
+		if len(s.asciiBuffer) == 0 {
+			s.asciiBuffer = s.asciiScratch[:]
+		}
 	} else {
 		s.rawSource = ""
-		s.sourceString = jutil.StringToUTF16(sourceString)
+		if cap(s.sourceBuf) == 0 {
+			s.sourceBuf = s.sourceScratch[:0]
+		}
+		s.sourceBuf = appendWTF8ToUTF16(s.sourceBuf[:0], sourceString)
+		s.sourceString = s.sourceBuf
 		s.sourceEnd = len(s.sourceString)
-		s.stringBuffer = s.stringBufferBuf[:]
+		if len(s.stringBuffer) == 0 {
+			s.stringBuffer = s.stringScratch[:]
+		}
 	}
 	s.cursor = 0
 	s.sourceCursor = 0
@@ -410,7 +423,83 @@ func (s *JsDocTokenStream) GetStringFromBuffer() string {
 		}
 		return string(s.asciiBuffer[:n])
 	}
-	return jutil.StringFromUTF16(s.stringBuffer[0:n])
+	var stack [256]byte
+	return string(appendUTF16ToWTF8(stack[:0], s.stringBuffer[:n]))
+}
+
+// appendWTF8ToUTF16 appends the UTF-16 code units of WTF-8 string s into dst,
+// preserving lone surrogates identically to jutil.StringToUTF16.
+func appendWTF8ToUTF16(dst []uint16, s string) []uint16 {
+	prefix := jutil.ASCIIPrefixLen(s)
+	if cap(dst)-len(dst) < len(s) {
+		grown := make([]uint16, len(dst)+prefix, len(dst)+len(s))
+		copy(grown, dst)
+		dst = grown
+	} else {
+		base := len(dst)
+		dst = dst[:base+prefix]
+		for i := 0; i < prefix; i++ {
+			dst[base+i] = uint16(s[i])
+		}
+		goto decodeTail
+	}
+	for i := 0; i < prefix; i++ {
+		dst[len(dst)-prefix+i] = uint16(s[i])
+	}
+decodeTail:
+	for i := prefix; i < len(s); {
+		c := s[i]
+		if c < 0x80 {
+			dst = append(dst, uint16(c))
+			i++
+			continue
+		}
+		var r rune
+		var n int
+		if c == 0xED && i+3 <= len(s) && s[i+1] >= 0xA0 && s[i+1] <= 0xBF && s[i+2]&0xC0 == 0x80 {
+			r = rune(c&0x0F)<<12 | rune(s[i+1]&0x3F)<<6 | rune(s[i+2]&0x3F)
+			n = 3
+		} else {
+			r, n = utf8.DecodeRuneInString(s[i:])
+		}
+		i += n
+		if r >= 0x10000 {
+			hi, lo := utf16.EncodeRune(r)
+			dst = append(dst, uint16(hi), uint16(lo))
+		} else {
+			dst = append(dst, uint16(r))
+		}
+	}
+	return dst
+}
+
+// appendUTF16ToWTF8 encodes UTF-16 code units into WTF-8 bytes in dst,
+// preserving surrogate pairs as 4-byte UTF-8 and lone surrogates as 3-byte
+// generalized UTF-8 identically to jutil.StringFromUTF16.
+func appendUTF16ToWTF8(dst []byte, units []uint16) []byte {
+	for i := 0; i < len(units); i++ {
+		u := units[i]
+		if u < 0x80 {
+			dst = append(dst, byte(u))
+			continue
+		}
+		if u < 0x800 {
+			dst = append(dst, byte(0xC0|(u>>6)), byte(0x80|(u&0x3F)))
+			continue
+		}
+		if u >= 0xD800 && u < 0xDC00 && i+1 < len(units) {
+			if lo := units[i+1]; lo >= 0xDC00 && lo <= 0xDFFF {
+				dst = utf8.AppendRune(dst, utf16.DecodeRune(rune(u), rune(lo)))
+				i++
+				continue
+			}
+		}
+		dst = append(dst,
+			byte(0xE0|(u>>12)),
+			byte(0x80|((u>>6)&0x3F)),
+			byte(0x80|(u&0x3F)))
+	}
+	return dst
 }
 
 // Java: JsDocTokenStream.AddToString(int)

@@ -25,8 +25,6 @@ import (
 
 // BranchCoverageInstrumentationCallback instruments branch coverage for
 // javascript.
-//
-// Java: public class BranchCoverageInstrumentationCallback extends NodeTraversal.AbstractCfgCallback
 type BranchCoverageInstrumentationCallback struct {
 	NodeTraversal_AbstractPostOrderCallbackBase
 	cfgScopeStack
@@ -58,12 +56,10 @@ func NewBranchCoverageInstrumentationCallback(
 	return c
 }
 
-// Java: NodeTraversal.AbstractCfgCallback.enterScope(NodeTraversal)
 func (c *BranchCoverageInstrumentationCallback) EnterScope(t *NodeTraversal) {
 	c.pushScopeRoot(t.GetScopeRoot())
 }
 
-// Java: NodeTraversal.AbstractCfgCallback.exitScope(NodeTraversal)
 func (c *BranchCoverageInstrumentationCallback) ExitScope(t *NodeTraversal) {
 	c.popScopeRoot(t.GetScopeRoot())
 }

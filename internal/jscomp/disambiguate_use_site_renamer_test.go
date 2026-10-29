@@ -33,7 +33,7 @@ type useSiteRenamerTest struct {
 	t                 *testing.T
 	reportedMutations *jutil.LinkedHashSet[rhino.Node]
 	prop              *PropertyClustering
-	renamingIndex     *jutil.SetMultimap[string, string]
+	renamingIndex     *UseSiteRenamingIndex
 }
 
 func newUseSiteRenamerTest(t *testing.T) *useSiteRenamerTest {

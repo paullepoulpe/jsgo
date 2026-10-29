@@ -79,13 +79,19 @@ func (d *DeadPropertyAssignmentElimination) Process(externs rhino.Node, root rhi
 			propertyMap: make(map[uint32]*deadProp, 32),
 		},
 	}
-	visitor.InitNodeTraversal_AbstractChangedScopeCallbackBase(visitor)
 	NodeTraversal_Traverse(d.compiler, d.compiler.GetJsRoot(), visitor)
 }
 
 type dpaeFunctionVisitor struct {
-	NodeTraversal_AbstractChangedScopeCallbackBase
+	NodeTraversal_AbstractPreOrderCallbackBase
 	traversal dpaeTraversal
+}
+
+func (v *dpaeFunctionVisitor) ShouldTraverse(t *NodeTraversal, n rhino.Node, parent rhino.Node) bool {
+	if ChangeTracker_IsChangeScopeRoot(n) && t.GetCompiler().HasScopeChanged(n) {
+		v.EnterChangedScopeRoot(t.GetCompiler(), n)
+	}
+	return true
 }
 
 // Java: DeadPropertyAssignmentElimination.FunctionVisitor.enterChangedScopeRoot(AbstractCompiler, Node)

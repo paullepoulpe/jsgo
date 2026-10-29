@@ -270,8 +270,10 @@ func (c *ClosureCheckModule) VisitWithModule(
 	n rhino.Node,
 	currentModule *ModuleMetadataMap_ModuleMetadata,
 	moduleScopeRoot rhino.Node) {
-	parent := n.GetParent()
 	if c.currentModuleInfo == nil {
+		if !n.IsCall() && !n.IsExprResult() {
+			return
+		}
 		if NodeUtil_IsCallToQualifiedName(n, closureCheckModule_GOOG_MODULE) {
 			t.Report(n, ClosureCheckModule_GOOG_MODULE_IN_NON_MODULE)
 		} else if NodeUtil_IsGoogModuleDeclareLegacyNamespaceCall(n) {
@@ -284,6 +286,7 @@ func (c *ClosureCheckModule) VisitWithModule(
 		}
 		return
 	}
+	parent := n.GetParent()
 	jsDoc := n.GetJSDocInfo()
 	if jsDoc != nil {
 		c.CheckJSDoc(t, jsDoc)

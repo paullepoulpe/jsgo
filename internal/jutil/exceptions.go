@@ -1,11 +1,15 @@
 package jutil
 
 import (
+	"errors"
 	"fmt"
+	"io/fs"
 	"regexp"
+	"regexp/syntax"
 	"runtime"
 	"strconv"
 	"strings"
+	"syscall"
 )
 
 // Go-only: language-adapter — Java exceptions as Go panics.
@@ -553,8 +557,8 @@ func NewAssertionErrorNoMessage() *AssertionError {
 
 // ConcurrentModificationException is
 // java.util.ConcurrentModificationException: thrown by fail-fast iterators
-// (JavaHashMap, JavaHashSet) when the collection is structurally modified
-// other than through the iterator itself.
+// when a collection is structurally modified other than through the iterator
+// itself.
 type ConcurrentModificationException struct{ RuntimeException }
 
 func (*ConcurrentModificationException) concurrentModificationException() {}
@@ -610,4 +614,269 @@ func NewInterruptedException() *InterruptedException {
 	e := &InterruptedException{}
 	InitThrowable(e, "java.lang.InterruptedException", nil, nil)
 	return e
+}
+
+// GetMessageOrNull is Throwable.getMessage() with Java null as nil:
+// GetMessage returns "" for both a null and an empty message, which is not
+// enough where Java concatenates the message ("null" + ...).
+func GetMessageOrNull(t Throwable) *string {
+	msg := t.GetMessage()
+	if msg == "" && !t.throwable().hasMsg {
+		return nil
+	}
+	return &msg
+}
+
+// Throwable_PrintStackTrace is Throwable.printStackTrace(PrintStream): the
+// throwable's toString(), then "Caused by: " and the toString() of each
+// cause in turn.
+//
+// Go-only: language-adapter — a Go panic carries no Java stack frames, so
+// the "\tat ..." and "\t... n more" lines that Java prints after each of
+// these lines are absent.
+func Throwable_PrintStackTrace(t Throwable, s *PrintStream) {
+	s.Println(t.Error())
+	seen := map[Throwable]bool{t: true}
+	for cause := t.GetCause(); cause != nil; cause = cause.GetCause() {
+		if seen[cause] {
+			s.Println("\t[CIRCULAR REFERENCE: " + cause.Error() + "]")
+			break
+		}
+		seen[cause] = true
+		s.Println("Caused by: " + cause.Error())
+	}
+}
+
+// The JVM's "helpful" NullPointerException messages (JEP 358), written from
+// the JEP and checked black-box against the pinned compiler's output on
+// JDK 21 (tools/clie2e).
+//
+// When the JVM itself throws a NullPointerException (a method call, a field
+// or array access on null), getMessage() describes the bytecode that failed,
+// for example `Cannot invoke "com.google.javascript.rhino.Node.getSecondChild()"
+// because "clazz" is null`. With -XX:-ShowCodeDetailsInExceptionMessages it
+// is null instead. The option is on by default since JDK 15, so
+// `java -jar closure-compiler.jar` prints the message wherever one reaches
+// its output, as in an INTERNAL COMPILER ERROR report.
+//
+// A Go nil dereference carries no message (AsThrowable): the JVM derives
+// it from bytecode. So a port spells the message out, with
+// NewHelpfulNullPointerException, at each site where Java's output shows
+// it. The oracle dumps made with the option off (or that replace these
+// messages by "null") turn it off with SetShowCodeDetailsInExceptionMessages.
+
+// showCodeDetailsInExceptionMessages is -XX:[+-]ShowCodeDetailsInExceptionMessages.
+var showCodeDetailsInExceptionMessages = true
+
+// SetShowCodeDetailsInExceptionMessages sets what
+// -XX:+ShowCodeDetailsInExceptionMessages (on) or
+// -XX:-ShowCodeDetailsInExceptionMessages (off) sets on the JVM, and returns
+// the previous setting. It is on by default, as on JDK 21.
+func SetShowCodeDetailsInExceptionMessages(on bool) (was bool) {
+	was = showCodeDetailsInExceptionMessages
+	showCodeDetailsInExceptionMessages = on
+	return was
+}
+
+// NewHelpfulNullPointerException is the NullPointerException that the JVM
+// throws on a null dereference whose helpful message is detail: its message
+// is detail, or null when the option is off.
+func NewHelpfulNullPointerException(detail string) *NullPointerException {
+	if !showCodeDetailsInExceptionMessages {
+		return NewNullPointerException()
+	}
+	return NewNullPointerExceptionMsg(detail)
+}
+
+// Go-only: language-adapter — java.nio.charset.CharacterCodingException and
+// its subclasses MalformedInputException and UnmappableCharacterException
+// (all IOExceptions).
+
+// CharacterCodingException is java.nio.charset.CharacterCodingException.
+type CharacterCodingException struct{ IOException }
+
+func (*CharacterCodingException) characterCodingException() {}
+
+// ICharacterCodingException matches CharacterCodingException and its
+// subclasses.
+type ICharacterCodingException interface {
+	IIOException
+	characterCodingException()
+}
+
+// MalformedInputException is java.nio.charset.MalformedInputException.
+type MalformedInputException struct {
+	CharacterCodingException
+	inputLength int
+}
+
+// NewMalformedInputException is new MalformedInputException(inputLength);
+// its message is "Input length = <inputLength>".
+func NewMalformedInputException(inputLength int) *MalformedInputException {
+	e := &MalformedInputException{inputLength: inputLength}
+	msg := "Input length = " + strconv.Itoa(inputLength)
+	InitThrowable(e, "java.nio.charset.MalformedInputException", &msg, nil)
+	return e
+}
+
+// GetInputLength is MalformedInputException.getInputLength().
+func (e *MalformedInputException) GetInputLength() int { return e.inputLength }
+
+// UnmappableCharacterException is
+// java.nio.charset.UnmappableCharacterException.
+type UnmappableCharacterException struct {
+	CharacterCodingException
+	inputLength int
+}
+
+// NewUnmappableCharacterException is new
+// UnmappableCharacterException(inputLength); its message is
+// "Input length = <inputLength>".
+func NewUnmappableCharacterException(inputLength int) *UnmappableCharacterException {
+	e := &UnmappableCharacterException{inputLength: inputLength}
+	msg := "Input length = " + strconv.Itoa(inputLength)
+	InitThrowable(e, "java.nio.charset.UnmappableCharacterException", &msg, nil)
+	return e
+}
+
+// GetInputLength is UnmappableCharacterException.getInputLength().
+func (e *UnmappableCharacterException) GetInputLength() int { return e.inputLength }
+
+// FileNotFoundException is java.io.FileNotFoundException.
+type FileNotFoundException struct{ IOException }
+
+func (*FileNotFoundException) fileNotFoundException() {}
+
+// IFileNotFoundException is the catch marker for FileNotFoundException.
+type IFileNotFoundException interface {
+	IIOException
+	fileNotFoundException()
+}
+
+// NewFileNotFoundException is new FileNotFoundException(String).
+func NewFileNotFoundException(message string) *FileNotFoundException {
+	e := &FileNotFoundException{}
+	InitThrowable(e, "java.io.FileNotFoundException", &message, nil)
+	return e
+}
+
+// FileNotFoundExceptionFromError is the exception java.io's
+// FileInputStream/FileOutputStream constructors throw when opening path
+// fails: FileNotFoundException("<path> (<reason>)"), the reason being the
+// C library's strerror text (e.g. "No such file or directory", "Is a
+// directory").
+func FileNotFoundExceptionFromError(err error, path string) *FileNotFoundException {
+	reason := err.Error()
+	var errno syscall.Errno
+	if errors.As(err, &errno) {
+		reason = errno.Error()
+	} else if pe := (*fs.PathError)(nil); errors.As(err, &pe) {
+		reason = pe.Err.Error()
+	}
+	// Go's errno strings are strerror's, lowercased in the first letter.
+	if reason != "" {
+		reason = strings.ToUpper(reason[:1]) + reason[1:]
+	}
+	return NewFileNotFoundException(path + " (" + reason + ")")
+}
+
+// ZipException is java.util.zip.ZipException: an I/O error reading a ZIP
+// archive.
+type ZipException struct{ IOException }
+
+func (*ZipException) zipException() {}
+
+// IZipException is the catch marker for ZipException.
+type IZipException interface {
+	IIOException
+	zipException()
+}
+
+// NewZipException is new ZipException(String).
+func NewZipException(message string) *ZipException {
+	e := &ZipException{}
+	InitThrowable(e, "java.util.zip.ZipException", &message, nil)
+	return e
+}
+
+// Go-only: language-adapter — java.util.regex.PatternSyntaxException,
+// written from its Javadoc ("Unchecked exception thrown to indicate a syntax
+// error in a regular-expression pattern"; constructor (desc, regex, index),
+// with index -1 if the index is not known; getDescription, getIndex,
+// getPattern, and getMessage: "a multi-line string containing the
+// description of the syntax error and its index, the erroneous
+// regular-expression pattern, and a visual indication of the error index
+// within the pattern"). The exact layout of that message was checked
+// black-box against JDK 21 (testdata/pattern_syntax.tsv, from
+// tools/oracle/java/JutilPatternSyntaxVectors.java).
+
+// PatternSyntaxException is java.util.regex.PatternSyntaxException (an
+// IllegalArgumentException).
+type PatternSyntaxException struct {
+	IllegalArgumentException
+	desc    string
+	pattern string
+	index   int
+}
+
+func (*PatternSyntaxException) patternSyntaxException() {}
+
+// IPatternSyntaxException matches PatternSyntaxException.
+type IPatternSyntaxException interface {
+	IIllegalArgumentException
+	patternSyntaxException()
+}
+
+// NewPatternSyntaxException is new PatternSyntaxException(desc, regex,
+// index); index is -1 if it is not known.
+func NewPatternSyntaxException(desc string, regex string, index int) *PatternSyntaxException {
+	e := &PatternSyntaxException{desc: desc, pattern: regex, index: index}
+	var sb strings.Builder
+	sb.WriteString(desc)
+	if index >= 0 {
+		sb.WriteString(" near index ")
+		sb.WriteString(strconv.Itoa(index))
+	}
+	sb.WriteString("\n")
+	sb.WriteString(regex)
+	if index >= 0 && index < StringLength(regex) {
+		sb.WriteString("\n")
+		sb.WriteString(strings.Repeat(" ", index))
+		sb.WriteString("^")
+	}
+	InitThrowable(e, "java.util.regex.PatternSyntaxException", msgPtr(sb.String()), nil)
+	return e
+}
+
+// GetDescription is PatternSyntaxException.getDescription().
+func (e *PatternSyntaxException) GetDescription() string { return e.desc }
+
+// GetIndex is PatternSyntaxException.getIndex() (-1 if not known).
+func (e *PatternSyntaxException) GetIndex() int { return e.index }
+
+// GetPattern is PatternSyntaxException.getPattern().
+func (e *PatternSyntaxException) GetPattern() string { return e.pattern }
+
+// compileTranslatedJavaRegex compiles translated, the RE2 form of the Java
+// regex regex. A syntax error that RE2 reports is a Java syntax error too
+// (the translation keeps the shared constructs' syntax), so it becomes a
+// PatternSyntaxException, except for RE2's own limits and its stricter
+// rules on repeated repetitions (Java accepts x{2}{3}, a{1001}): those are
+// constructs this adapter cannot express (UnsupportedOperationException).
+// RE2 does not report Java's index or description, so the exception has
+// RE2's description and index -1.
+func compileTranslatedJavaRegex(regex string, translated string) *regexp.Regexp {
+	re, err := regexp.Compile(translated)
+	if err == nil {
+		return re
+	}
+	if se, ok := err.(*syntax.Error); ok {
+		switch se.Code {
+		case syntax.ErrInvalidRepeatSize, syntax.ErrInvalidRepeatOp, syntax.ErrLarge,
+			syntax.ErrNestingDepth, syntax.ErrInternalError:
+			unsupportedJavaRegex(regex, "RE2: "+se.Code.String())
+		}
+		panic(NewPatternSyntaxException(se.Code.String(), regex, -1))
+	}
+	panic(err)
 }

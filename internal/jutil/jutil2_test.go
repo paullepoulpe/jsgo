@@ -137,23 +137,6 @@ func TestObjectsEquals(t *testing.T) {
 	}
 }
 
-func TestTreeMap(t *testing.T) {
-	m := NewTreeMap[int, string](func(a, b int) int { return a - b })
-	for _, k := range []int{5, 1, 3} {
-		m.Put(k, strconv.Itoa(k))
-	}
-	if m.PutIfAbsent(3, "x") != "3" || m.PutIfAbsent(2, "2") != "" {
-		t.Fatal("putIfAbsent")
-	}
-	if m.String() != "{1=1, 2=2, 3=3, 5=5}" {
-		t.Fatalf("String() = %s", m.String())
-	}
-	m.Remove(1)
-	if m.Size() != 3 || m.ContainsKey(1) {
-		t.Fatal("remove")
-	}
-}
-
 func TestToStringHelper(t *testing.T) {
 	got := MoreObjects_ToStringHelper("JSDocInfo").Add("bitset", nil).AddBool("bit:const", true).
 		Add("type", "x").OmitNullValues().String()

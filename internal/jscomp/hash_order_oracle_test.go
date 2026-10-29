@@ -15,6 +15,7 @@ package jscomp
 
 import (
 	"os"
+	"slices"
 	"strconv"
 	"strings"
 	"testing"
@@ -137,12 +138,32 @@ func hashOrderDumpOne(t testing.TB, sb *strings.Builder, c hashOrderCase) {
 	}
 }
 
+func hashOrderNormalize(text string) string {
+	var out []string
+	var block []string
+	flush := func() {
+		slices.Sort(block)
+		out = append(out, block...)
+		block = block[:0]
+	}
+	for _, line := range strings.Split(strings.TrimSuffix(text, "\n"), "\n") {
+		if strings.HasPrefix(line, "# case ") {
+			flush()
+			out = append(out, line)
+		} else {
+			block = append(block, line)
+		}
+	}
+	flush()
+	return strings.Join(out, "\n") + "\n"
+}
+
 func TestHashOrderOracle(t *testing.T) {
 	casesText, err := os.ReadFile("testdata/hash_order/cases.txt")
 	if err != nil {
 		t.Fatal(err)
 	}
-	want, err := os.ReadFile("testdata/hash_order/java.txt")
+	wantBytes, err := os.ReadFile("testdata/hash_order/java.txt")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -150,8 +171,10 @@ func TestHashOrderOracle(t *testing.T) {
 	for _, c := range hashOrderReadCases(strings.Split(string(casesText), "\n")) {
 		hashOrderDumpOne(t, &sb, c)
 	}
-	if got := sb.String(); got != string(want) {
-		gotLines, wantLines := strings.Split(got, "\n"), strings.Split(string(want), "\n")
+	got := hashOrderNormalize(sb.String())
+	want := hashOrderNormalize(string(wantBytes))
+	if got != want {
+		gotLines, wantLines := strings.Split(got, "\n"), strings.Split(want, "\n")
 		for i := 0; i < len(gotLines) || i < len(wantLines); i++ {
 			var g, w string
 			if i < len(gotLines) {

@@ -105,7 +105,7 @@ func TypeInference_GetBigIntPresence(type_ rhino.JSType) TypeInference_BigIntPre
 // TraverseUnaryPlus checks for BigInt with a unary plus.
 //
 // Java: TypeInference.traverseUnaryPlus(Node, FlowScope)
-func (ti *TypeInference) TraverseUnaryPlus(n rhino.Node, scope FlowScope) FlowScope {
+func (ti *TypeInference) TraverseUnaryPlus(n rhino.Node, scope *LinkedFlowScope) *LinkedFlowScope {
 	scope = ti.TraverseChildren(n, scope) // Find types.
 	bigintPresenceInOperand := TypeInference_GetBigIntPresence(ti.GetJSType(ast.MustUnary(n).Operand().Node()))
 	if bigintPresenceInOperand != TypeInference_BigIntPresence_NO_BIGINT {
@@ -121,7 +121,7 @@ func (ti *TypeInference) TraverseUnaryPlus(n rhino.Node, scope FlowScope) FlowSc
 // increment, and decrement.
 //
 // Java: TypeInference.traverseBigIntCompatibleUnaryOperator(Node, FlowScope)
-func (ti *TypeInference) TraverseBigIntCompatibleUnaryOperator(n rhino.Node, scope FlowScope) FlowScope {
+func (ti *TypeInference) TraverseBigIntCompatibleUnaryOperator(n rhino.Node, scope *LinkedFlowScope) *LinkedFlowScope {
 	scope = ti.TraverseChildren(n, scope) // Find types.
 	switch TypeInference_GetBigIntPresence(ti.GetJSType(n.GetFirstChild())) {
 	case TypeInference_BigIntPresence_ALL_BIGINT:
@@ -139,7 +139,7 @@ func (ti *TypeInference) TraverseBigIntCompatibleUnaryOperator(n rhino.Node, sco
 // operations (except for URSH and string concatenation with ADD).
 //
 // Java: TypeInference.traverseBigIntCompatibleBinaryOperator(Node, FlowScope)
-func (ti *TypeInference) TraverseBigIntCompatibleBinaryOperator(n rhino.Node, scope FlowScope) FlowScope {
+func (ti *TypeInference) TraverseBigIntCompatibleBinaryOperator(n rhino.Node, scope *LinkedFlowScope) *LinkedFlowScope {
 	scope = ti.TraverseChildren(n, scope) // Find types.
 	leftBigIntPresence := TypeInference_GetBigIntPresence(ti.GetJSType(n.GetFirstChild()))
 	rightBigIntPresence := TypeInference_GetBigIntPresence(ti.GetJSType(n.GetLastChild()))
@@ -166,7 +166,7 @@ func (ti *TypeInference) TraverseBigIntCompatibleBinaryOperator(n rhino.Node, sc
 }
 
 // Java: TypeInference.traverseClass(Node, FlowScope)
-func (ti *TypeInference) TraverseClass(n rhino.Node, scope FlowScope) FlowScope {
+func (ti *TypeInference) TraverseClass(n rhino.Node, scope *LinkedFlowScope) *LinkedFlowScope {
 	// The name already has a type applied (from TypedScopeCreator) if it's non-empty, and the
 	// members are traversed in the class scope (and in their own function scopes).  But the extends
 	// clause and computed property keys are in the outer scope and must be traversed here.
@@ -186,17 +186,14 @@ func (ti *TypeInference) TraverseClass(n rhino.Node, scope FlowScope) FlowScope 
 }
 
 // Java: TypeInference.traverseClassMemberRhs(Node, FlowScope)
-func (ti *TypeInference) TraverseClassMemberRhs(member rhino.Node, scope FlowScope) FlowScope {
+func (ti *TypeInference) TraverseClassMemberRhs(member rhino.Node, scope *LinkedFlowScope) *LinkedFlowScope {
 	switch member.GetToken() {
 	case rhino.Token_MEMBER_FIELD_DEF, rhino.Token_COMPUTED_FIELD_DEF:
 		rhs := TypeInference_GetRhsOfField(member)
 		if !rhs.IsNil() {
 			computedFieldDefTypedScope := ti.scopeCreator.CreateScopeOfNode(member)
-			computedFieldDefFlowScope :=
-				scope.WithSyntacticScope(computedFieldDefTypedScope)
-			rhsScope :=
-				ti.Traverse(rhs, computedFieldDefFlowScope).
-					WithSyntacticScope(scope.GetDeclarationScope())
+			computedFieldDefFlowScope := scope.withTypedScope(computedFieldDefTypedScope)
+			rhsScope := ti.Traverse(rhs, computedFieldDefFlowScope).withTypedScope(scope.syntacticScope)
 			if member.IsStaticMember() {
 				return rhsScope
 			}
@@ -219,7 +216,7 @@ func TypeInference_GetRhsOfField(fieldNode rhino.Node) rhino.Node {
 // TraverseArrayLiteral traverses each element of the array.
 //
 // Java: TypeInference.traverseArrayLiteral(Node, FlowScope)
-func (ti *TypeInference) TraverseArrayLiteral(n rhino.Node, scope FlowScope) FlowScope {
+func (ti *TypeInference) TraverseArrayLiteral(n rhino.Node, scope *LinkedFlowScope) *LinkedFlowScope {
 	scope = ti.TraverseChildren(n, scope)
 	if ti.arrayOfUnknownType == nil {
 		ti.arrayOfUnknownType = ti.registry.CreateTemplatizedType(
@@ -230,7 +227,7 @@ func (ti *TypeInference) TraverseArrayLiteral(n rhino.Node, scope FlowScope) Flo
 }
 
 // Java: TypeInference.traverseObjectLiteral(Node, FlowScope)
-func (ti *TypeInference) TraverseObjectLiteral(n rhino.Node, scope FlowScope) FlowScope {
+func (ti *TypeInference) TraverseObjectLiteral(n rhino.Node, scope *LinkedFlowScope) *LinkedFlowScope {
 	type_ := n.GetJSType()
 	jutil.CheckNotNull(type_)
 
@@ -316,7 +313,7 @@ func (ti *TypeInference) TraverseObjectLiteral(n rhino.Node, scope FlowScope) Fl
 }
 
 // Java: TypeInference.traverseAdd(Node, FlowScope)
-func (ti *TypeInference) TraverseAdd(n rhino.Node, scope FlowScope) FlowScope {
+func (ti *TypeInference) TraverseAdd(n rhino.Node, scope *LinkedFlowScope) *LinkedFlowScope {
 	left := n.GetFirstChild()
 	right := left.GetNext()
 	scope = ti.TraverseChildren(n, scope)
@@ -358,7 +355,7 @@ func (ti *TypeInference) IsAddedAsNumber(type_ rhino.JSType) bool {
 }
 
 // Java: TypeInference.traverseHook(Node, FlowScope)
-func (ti *TypeInference) TraverseHook(n rhino.Node, scope FlowScope) FlowScope {
+func (ti *TypeInference) TraverseHook(n rhino.Node, scope *LinkedFlowScope) *LinkedFlowScope {
 	hook := ast.MustHook(n)
 	condition := hook.Cond().Node()
 	trueNode := hook.Then().Node()
@@ -392,7 +389,7 @@ func (ti *TypeInference) TraverseHook(n rhino.Node, scope FlowScope) FlowScope {
 }
 
 // Java: TypeInference.traverseNullishCoalesce(Node, FlowScope)
-func (ti *TypeInference) TraverseNullishCoalesce(n rhino.Node, scope FlowScope) FlowScope {
+func (ti *TypeInference) TraverseNullishCoalesce(n rhino.Node, scope *LinkedFlowScope) *LinkedFlowScope {
 	jutil.CheckArgument(n.IsNullishCoalesce() || n.IsAssignNullishCoalesce())
 	left := n.GetFirstChild()
 	right := n.GetLastChild()
@@ -425,14 +422,14 @@ func (ti *TypeInference) TraverseNullishCoalesce(n rhino.Node, scope FlowScope) 
 }
 
 // Java: TypeInference.traverseAnd(Node, FlowScope)
-func (ti *TypeInference) TraverseAnd(n rhino.Node, scope FlowScope) *TypeInference_BooleanOutcomePair {
+func (ti *TypeInference) TraverseAnd(n rhino.Node, scope *LinkedFlowScope) *TypeInference_BooleanOutcomePair {
 	left := ast.MustBinary(n).Left().Node()
 	leftOutcome := ti.TraverseWithinShortCircuitingBinOp(left, scope)
 	return ti.TraverseShortCircuitingBinOp(n, left, leftOutcome)
 }
 
 // Java: TypeInference.traverseChildren(Node, FlowScope)
-func (ti *TypeInference) TraverseChildren(n rhino.Node, scope FlowScope) FlowScope {
+func (ti *TypeInference) TraverseChildren(n rhino.Node, scope *LinkedFlowScope) *LinkedFlowScope {
 	for el := n.GetFirstChild(); !el.IsNil(); el = el.GetNext() {
 		scope = ti.Traverse(el, scope)
 	}
@@ -440,7 +437,7 @@ func (ti *TypeInference) TraverseChildren(n rhino.Node, scope FlowScope) FlowSco
 }
 
 // Java: TypeInference.traverseGetElem(Node, FlowScope)
-func (ti *TypeInference) TraverseGetElem(n rhino.Node, originalScope FlowScope) FlowScope {
+func (ti *TypeInference) TraverseGetElem(n rhino.Node, originalScope *LinkedFlowScope) *LinkedFlowScope {
 	executedScope := ti.TraverseChildren(n, originalScope)
 	return ti.SetGetElemNodeTypeAfterChildrenTraversed(n, executedScope)
 }
@@ -452,7 +449,7 @@ func (ti *TypeInference) TraverseGetElem(n rhino.Node, originalScope FlowScope) 
 // scope after children are traversed.
 //
 // Java: TypeInference.setGetElemNodeTypeAfterChildrenTraversed(Node, FlowScope)
-func (ti *TypeInference) SetGetElemNodeTypeAfterChildrenTraversed(n rhino.Node, scopeAfterChildren FlowScope) FlowScope {
+func (ti *TypeInference) SetGetElemNodeTypeAfterChildrenTraversed(n rhino.Node, scopeAfterChildren *LinkedFlowScope) *LinkedFlowScope {
 	elem := ast.MustNormalOrOptChainGetElem(n)
 	ti.InferGetElemType(n)
 	scopeAfterChildren = ti.TightenTypeAfterDereference(elem.Object().Node(), scopeAfterChildren)
@@ -570,7 +567,7 @@ func (ti *TypeInference) DereferenceIndexSignature(obj rhino.JSType) rhino.JSTyp
 }
 
 // Java: TypeInference.traverseGetProp(Node, FlowScope)
-func (ti *TypeInference) TraverseGetProp(n rhino.Node, scope FlowScope) FlowScope {
+func (ti *TypeInference) TraverseGetProp(n rhino.Node, scope *LinkedFlowScope) *LinkedFlowScope {
 	scope = ti.TraverseChildren(n, scope)
 	return ti.SetGetPropNodeTypeAfterChildrenTraversed(n, scope)
 }
@@ -579,7 +576,7 @@ func (ti *TypeInference) TraverseGetProp(n rhino.Node, scope FlowScope) FlowScop
 // GETPROP node `n` after its children have been traversed.
 //
 // Java: TypeInference.setGetPropNodeTypeAfterChildrenTraversed(Node, FlowScope)
-func (ti *TypeInference) SetGetPropNodeTypeAfterChildrenTraversed(n rhino.Node, scopeAfterChildren FlowScope) FlowScope {
+func (ti *TypeInference) SetGetPropNodeTypeAfterChildrenTraversed(n rhino.Node, scopeAfterChildren *LinkedFlowScope) *LinkedFlowScope {
 	gp := ast.MustNormalOrOptChainGetProp(n)
 	objNode := gp.Object().Node()
 	n.SetJSType(ti.GetPropertyType(objNode.GetJSType(), gp.Property(), n, scopeAfterChildren))
@@ -591,7 +588,7 @@ func (ti *TypeInference) SetGetPropNodeTypeAfterChildrenTraversed(n rhino.Node, 
 //
 // Java: TypeInference.setOptChainNodeTypeAfterChildrenTraversed(Node, FlowScope)
 func (ti *TypeInference) SetOptChainNodeTypeAfterChildrenTraversed(
-	n rhino.Node, scopeAfterChildren FlowScope) FlowScope {
+	n rhino.Node, scopeAfterChildren *LinkedFlowScope) *LinkedFlowScope {
 	switch n.GetToken() {
 	case rhino.Token_OPTCHAIN_GETPROP:
 		return ti.SetGetPropNodeTypeAfterChildrenTraversed(n, scopeAfterChildren)
@@ -609,7 +606,7 @@ func (ti *TypeInference) SetOptChainNodeTypeAfterChildrenTraversed(
 type TypeInference_OptChainInfo struct {
 	endOfChain         rhino.Node
 	startOfChain       rhino.Node
-	unconditionalScope FlowScope
+	unconditionalScope *LinkedFlowScope
 }
 
 // Java: TypeInference.OptChainInfo(Node, Node)
@@ -626,7 +623,7 @@ func NewTypeInference_OptChainInfo(endOfChain rhino.Node, startOfChain rhino.Nod
 // `?.`), and using the startType to determine the resulting scope.
 //
 // Java: TypeInference.traverseOptChain(Node, FlowScope)
-func (ti *TypeInference) TraverseOptChain(n rhino.Node, scope FlowScope) FlowScope {
+func (ti *TypeInference) TraverseOptChain(n rhino.Node, scope *LinkedFlowScope) *LinkedFlowScope {
 	jutil.CheckArgument(NodeUtil_IsOptChainNode(n))
 
 	if NodeUtil_IsEndOfOptChainSegment(n) {
@@ -715,7 +712,7 @@ func (ti *TypeInference) optChainArrayDequeRemoveFirst() *TypeInference_OptChain
 //
 // Java: TypeInference.updateTypeWhenEndOfOptChain(Node, Node, OptChainInfo, FlowScope)
 func (ti *TypeInference) UpdateTypeWhenEndOfOptChain(
-	optChain rhino.Node, startNode rhino.Node, currentChain *TypeInference_OptChainInfo, executedScope FlowScope) FlowScope {
+	optChain rhino.Node, startNode rhino.Node, currentChain *TypeInference_OptChainInfo, executedScope *LinkedFlowScope) *LinkedFlowScope {
 
 	startType := ti.GetJSType(startNode)
 	if startType.IsUnknownType() {
@@ -766,7 +763,7 @@ func TypeInference_InferPropertyTypesToMatchConstraint(type_ rhino.JSType, const
 // symbol is not null or undefined.
 //
 // Java: TypeInference.tightenTypeAfterDereference(Node, FlowScope)
-func (ti *TypeInference) TightenTypeAfterDereference(n rhino.Node, scope FlowScope) FlowScope {
+func (ti *TypeInference) TightenTypeAfterDereference(n rhino.Node, scope *LinkedFlowScope) *LinkedFlowScope {
 	switch n.GetToken() {
 	case rhino.Token_NAME:
 		if n.GetString() == "" {
@@ -814,7 +811,7 @@ func (ti *TypeInference) getBestLValueNameString(lValue rhino.Node) (string, boo
 }
 
 // Java: TypeInference.getPropertyType(JSType, String, Node, FlowScope)
-func (ti *TypeInference) GetPropertyType(objType rhino.JSType, propName string, n rhino.Node, scope FlowScope) rhino.JSType {
+func (ti *TypeInference) GetPropertyType(objType rhino.JSType, propName string, n rhino.Node, scope *LinkedFlowScope) rhino.JSType {
 	// We often have a couple of different types to choose from for the
 	// property. Ordered by accuracy, we have
 	// 1) A locally inferred qualified name (which is in the FlowScope)
@@ -826,19 +823,13 @@ func (ti *TypeInference) GetPropertyType(objType rhino.JSType, propName string, 
 
 	// Scopes sometimes contain inferred type info about qualified names.
 	qualifiedName, hasQName := n.GetQualifiedNameString()
-	var var_ rhino.StaticTypedSlot
 	if hasQName {
-		var_, _ = scope.GetSlot(qualifiedName).(rhino.StaticTypedSlot)
-	}
-	if var_ != nil {
-		varType := var_.GetType()
-		if varType != nil {
-			isDeclared := !var_.IsTypeInferred()
+		if declaredVar, slotVar, varType, isInferred, ok := scope.LookupSlotType(qualifiedName); ok && varType != nil {
+			isDeclared := !isInferred
 			if !isDeclared || varType.Equals(ti.unknownType) {
-				declaredVar := TypeInference_GetDeclaredVar(scope, qualifiedName)
 				// Go-only: language-adapter — Java's `var != getDeclaredVar(...)` is an
 				// identity comparison; a null declared var differs from var.
-				isLocallyInferred = declaredVar == nil || var_ != rhino.StaticTypedSlot(declaredVar)
+				isLocallyInferred = declaredVar == nil || slotVar != declaredVar
 			}
 			if isDeclared || isLocallyInferred {
 				propertyType = varType
@@ -879,14 +870,14 @@ func (ti *TypeInference) GetPropertyType(objType rhino.JSType, propName string, 
 }
 
 // Java: TypeInference.traverseOr(Node, FlowScope)
-func (ti *TypeInference) TraverseOr(n rhino.Node, scope FlowScope) *TypeInference_BooleanOutcomePair {
+func (ti *TypeInference) TraverseOr(n rhino.Node, scope *LinkedFlowScope) *TypeInference_BooleanOutcomePair {
 	left := ast.MustBinary(n).Left().Node()
 	leftOutcome := ti.TraverseWithinShortCircuitingBinOp(left, scope)
 	return ti.TraverseShortCircuitingBinOp(n, left, leftOutcome)
 }
 
 // Java: TypeInference.traverseShortCircuitingBinOpAssignment(Node, FlowScope)
-func (ti *TypeInference) TraverseShortCircuitingBinOpAssignment(n rhino.Node, scope FlowScope) FlowScope {
+func (ti *TypeInference) TraverseShortCircuitingBinOpAssignment(n rhino.Node, scope *LinkedFlowScope) *LinkedFlowScope {
 	left := ast.MustAssignOp(n).Target().Node()
 	nIsAnd := n.IsAssignAnd()
 	leftOutcome := ti.TraverseWithinShortCircuitingBinOp(left, scope)
@@ -972,7 +963,7 @@ func (ti *TypeInference) TraverseShortCircuitingBinOp(
 }
 
 // Java: TypeInference.traverseWithinShortCircuitingBinOp(Node, FlowScope)
-func (ti *TypeInference) TraverseWithinShortCircuitingBinOp(n rhino.Node, scope FlowScope) *TypeInference_BooleanOutcomePair {
+func (ti *TypeInference) TraverseWithinShortCircuitingBinOp(n rhino.Node, scope *LinkedFlowScope) *TypeInference_BooleanOutcomePair {
 	switch n.GetToken() {
 	case rhino.Token_AND:
 		return ti.TraverseAnd(n, scope)
@@ -985,7 +976,7 @@ func (ti *TypeInference) TraverseWithinShortCircuitingBinOp(n rhino.Node, scope 
 }
 
 // Java: TypeInference.traverseAwait(Node, FlowScope)
-func (ti *TypeInference) TraverseAwait(await rhino.Node, scope FlowScope) FlowScope {
+func (ti *TypeInference) TraverseAwait(await rhino.Node, scope *LinkedFlowScope) *LinkedFlowScope {
 	scope = ti.TraverseChildren(await, scope)
 
 	expr := ast.MustAwait(await).Value().Node()
@@ -996,7 +987,7 @@ func (ti *TypeInference) TraverseAwait(await rhino.Node, scope FlowScope) FlowSc
 }
 
 // Java: TypeInference.traverseDynamicImport(Node, FlowScope)
-func (ti *TypeInference) TraverseDynamicImport(dynamicImport rhino.Node, scope FlowScope) FlowScope {
+func (ti *TypeInference) TraverseDynamicImport(dynamicImport rhino.Node, scope *LinkedFlowScope) *LinkedFlowScope {
 	templateType := ti.registry.GetNativeType(rhino.JSTypeNative_UNKNOWN_TYPE)
 
 	// If the module specifier is a string, attempt to resolve the module
@@ -1050,6 +1041,42 @@ func (ti *TypeInference) TraverseDynamicImport(dynamicImport rhino.Node, scope F
 	return ti.TraverseChildren(dynamicImport, scope)
 }
 
+// Java: TypeInference.traverseUnsignedRightShift(Node, FlowScope)
+func (ti *TypeInference) TraverseUnsignedRightShift(n rhino.Node, scope *LinkedFlowScope) *LinkedFlowScope {
+	scope = ti.TraverseChildren(n, scope)
+	var left, right rhino.Node
+	if bin, ok := ast.AsBinary(n); ok {
+		left = bin.Left().Node()
+		right = bin.Right().Node()
+	} else {
+		aop := ast.MustAssignOp(n)
+		left = aop.Target().Node()
+		right = aop.Value().Node()
+	}
+	if TypeInference_GetBigIntPresence(ti.GetJSType(left)) != TypeInference_BigIntPresence_NO_BIGINT ||
+		TypeInference_GetBigIntPresence(ti.GetJSType(right)) != TypeInference_BigIntPresence_NO_BIGINT {
+		// The spec does not allow for BigInts in an unsigned right shift, so we will report an error
+		n.SetJSType(ti.GetNativeType(rhino.JSTypeNative_NO_TYPE))
+	} else {
+		n.SetJSType(ti.GetNativeType(rhino.JSTypeNative_NUMBER_TYPE))
+	}
+	return scope
+}
+
+// Java: TypeInference.traverseYieldAll(Node, FlowScope)
+func (ti *TypeInference) TraverseYieldAll(n rhino.Node, scope *LinkedFlowScope) *LinkedFlowScope {
+	// A yield* expression will first yield all the elements of the given iterable, and then
+	// evaluate to whatever the iterable returns when done.
+	// The yielded type and done return type are not necessarily the same. Here, we look for the
+	// done type - TReturn in Iterable<T, TReturn, TNext>.
+	scope = ti.TraverseChildren(n, scope)
+	val, _ := ast.MustYield(n).Value()
+	innerType := ti.GetJSType(val.Node())
+	yieldAllResult := JsIterables_GetReturnElementType(innerType, ti.registry)
+	n.SetJSType(yieldAllResult)
+	return scope
+}
+
 // Java: TypeInference.joinBooleanOutcomes(boolean, BooleanLiteralSet, BooleanLiteralSet)
 func TypeInference_JoinBooleanOutcomes(
 	isAnd bool, left rhino.BooleanLiteralSet, right rhino.BooleanLiteralSet) rhino.BooleanLiteralSet {
@@ -1070,13 +1097,13 @@ type TypeInference_BooleanOutcomePair struct {
 	booleanValues     rhino.BooleanLiteralSet
 
 	// The scope if only half of the expression executed, when applicable.
-	leftScope FlowScope
+	leftScope *LinkedFlowScope
 
 	// The scope when the whole expression executed.
-	rightScope FlowScope
+	rightScope *LinkedFlowScope
 
 	// The scope when we don't know how much of the expression is executed.
-	joinedScope FlowScope
+	joinedScope *LinkedFlowScope
 }
 
 // Java: TypeInference.BooleanOutcomePair(BooleanLiteralSet, BooleanLiteralSet, FlowScope, FlowScope)
@@ -1084,8 +1111,8 @@ func NewTypeInference_BooleanOutcomePair(
 	outer *TypeInference,
 	toBooleanOutcomes rhino.BooleanLiteralSet,
 	booleanValues rhino.BooleanLiteralSet,
-	leftScope FlowScope,
-	rightScope FlowScope) *TypeInference_BooleanOutcomePair {
+	leftScope *LinkedFlowScope,
+	rightScope *LinkedFlowScope) *TypeInference_BooleanOutcomePair {
 	return &TypeInference_BooleanOutcomePair{
 		outer:             outer,
 		toBooleanOutcomes: toBooleanOutcomes,
@@ -1099,7 +1126,7 @@ func NewTypeInference_BooleanOutcomePair(
 // the subexpressions will be evaluated.
 //
 // Java: TypeInference.BooleanOutcomePair.getJoinedFlowScope()
-func (p *TypeInference_BooleanOutcomePair) GetJoinedFlowScope() FlowScope {
+func (p *TypeInference_BooleanOutcomePair) GetJoinedFlowScope() *LinkedFlowScope {
 	if p.joinedScope == nil {
 		if p.leftScope == p.rightScope {
 			p.joinedScope = p.rightScope
@@ -1114,7 +1141,7 @@ func (p *TypeInference_BooleanOutcomePair) GetJoinedFlowScope() FlowScope {
 // the entire expression.
 //
 // Java: TypeInference.BooleanOutcomePair.getOutcomeFlowScope(Token, boolean)
-func (p *TypeInference_BooleanOutcomePair) GetOutcomeFlowScope(nodeType rhino.Token, outcome bool) FlowScope {
+func (p *TypeInference_BooleanOutcomePair) GetOutcomeFlowScope(nodeType rhino.Token, outcome bool) *LinkedFlowScope {
 	if (nodeType == rhino.Token_AND && outcome) || (nodeType == rhino.Token_OR && !outcome) {
 		// We know that the whole expression must have executed.
 		return p.rightScope
@@ -1124,7 +1151,7 @@ func (p *TypeInference_BooleanOutcomePair) GetOutcomeFlowScope(nodeType rhino.To
 }
 
 // Java: TypeInference.newBooleanOutcomePair(JSType, FlowScope)
-func (ti *TypeInference) NewBooleanOutcomePair(jsType rhino.JSType, flowScope FlowScope) *TypeInference_BooleanOutcomePair {
+func (ti *TypeInference) NewBooleanOutcomePair(jsType rhino.JSType, flowScope *LinkedFlowScope) *TypeInference_BooleanOutcomePair {
 	if jsType == nil {
 		return NewTypeInference_BooleanOutcomePair(
 			ti, rhino.BooleanLiteralSet_BOTH, rhino.BooleanLiteralSet_BOTH, flowScope, flowScope)

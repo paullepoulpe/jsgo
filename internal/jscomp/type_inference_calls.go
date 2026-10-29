@@ -25,7 +25,7 @@ import (
 )
 
 // Java: TypeInference.traverseCall(Node, FlowScope)
-func (ti *TypeInference) TraverseCall(callNode rhino.Node, originalScope FlowScope) FlowScope {
+func (ti *TypeInference) TraverseCall(callNode rhino.Node, originalScope *LinkedFlowScope) *LinkedFlowScope {
 	jutil.CheckArgumentMsg1(callNode.IsCall() || callNode.IsOptChainCall(), "%s", callNode)
 	scopeAfterChildren := ti.TraverseChildren(callNode, originalScope)
 	scopeAfterExecution :=
@@ -35,7 +35,7 @@ func (ti *TypeInference) TraverseCall(callNode rhino.Node, originalScope FlowSco
 }
 
 // Java: TypeInference.traverseTaggedTemplateLit(Node, FlowScope)
-func (ti *TypeInference) TraverseTaggedTemplateLit(tagTempLitNode rhino.Node, originalScope FlowScope) FlowScope {
+func (ti *TypeInference) TraverseTaggedTemplateLit(tagTempLitNode rhino.Node, originalScope *LinkedFlowScope) *LinkedFlowScope {
 	jutil.CheckArgumentMsg1(tagTempLitNode.IsTaggedTemplateLit(), "%s", tagTempLitNode)
 	scopeAfterChildren := ti.TraverseChildren(tagTempLitNode, originalScope)
 	// A tagged template literal is really a special kind of function call.
@@ -51,7 +51,7 @@ func (ti *TypeInference) TraverseTaggedTemplateLit(tagTempLitNode rhino.Node, or
 // invocation, i.e. CALL or TAGGED_TEMPLATELIT.
 //
 // Java: TypeInference.setCallNodeTypeAfterChildrenTraversed(Node, FlowScope)
-func (ti *TypeInference) SetCallNodeTypeAfterChildrenTraversed(n rhino.Node, scopeAfterChildren FlowScope) FlowScope {
+func (ti *TypeInference) SetCallNodeTypeAfterChildrenTraversed(n rhino.Node, scopeAfterChildren *LinkedFlowScope) *LinkedFlowScope {
 	inv := ast.MustInvocation(n)
 	left := inv.Callee().Node()
 	// Resolve goog.{require,requireType,requireDynamic,forwardDeclare,module.get} calls separately,
@@ -102,7 +102,7 @@ func (ti *TypeInference) GetGoogModuleDependencyCallResultType(callNode rhino.No
 		otherModuleScope := ti.scopeCreator.GetNodeToScopeMapper()(name.GetScopeRoot())
 		var otherVar *TypedVar
 		if otherModuleScope != nil {
-			otherVar, _ = otherModuleScope.GetSlot(name.GetName()).(*TypedVar)
+			otherVar = otherModuleScope.GetVar(name.GetName())
 		}
 		if otherVar != nil {
 			if otherVar.GetType() != nil {
@@ -125,7 +125,7 @@ func (ti *TypeInference) GetGoogModuleDependencyCallResultType(callNode rhino.No
 }
 
 // Java: TypeInference.tightenTypesAfterAssertions(FlowScope, Node)
-func (ti *TypeInference) TightenTypesAfterAssertions(scope FlowScope, callNode rhino.Node) FlowScope {
+func (ti *TypeInference) TightenTypesAfterAssertions(scope *LinkedFlowScope, callNode rhino.Node) *LinkedFlowScope {
 	call := ast.MustNormalOrOptChainCall(callNode)
 	left := call.Callee().Node()
 	firstParamExpr, ok := call.FirstArg()
@@ -182,7 +182,7 @@ func (ti *TypeInference) TightenTypesAfterAssertions(scope FlowScope, callNode r
 }
 
 // Java: TypeInference.narrowScope(FlowScope, Node, JSType)
-func (ti *TypeInference) NarrowScope(scope FlowScope, node rhino.Node, narrowed rhino.JSType) FlowScope {
+func (ti *TypeInference) NarrowScope(scope *LinkedFlowScope, node rhino.Node, narrowed rhino.JSType) *LinkedFlowScope {
 	if node.IsThis() {
 		// "this" references don't need to be modeled in the control flow graph.
 		return scope
@@ -221,7 +221,7 @@ func (ti *TypeInference) NarrowScope(scope FlowScope, node rhino.Node, narrowed 
 // Those cases are enumerated here.
 //
 // Java: TypeInference.backwardsInferenceFromCallSite(Node, FunctionType, FlowScope)
-func (ti *TypeInference) BackwardsInferenceFromCallSite(n rhino.Node, fnType rhino.FunctionType, scope FlowScope) {
+func (ti *TypeInference) BackwardsInferenceFromCallSite(n rhino.Node, fnType rhino.FunctionType, scope *LinkedFlowScope) {
 	updatedFnType := ti.InferTemplatedTypesForCall(n, fnType, scope)
 	if updatedFnType {
 		fnType = ast.MustInvocation(n).Callee().Node().GetJSType().ToMaybeFunctionType()
@@ -406,7 +406,7 @@ func (ti *TypeInference) MatchFunction(
 func (ti *TypeInference) evaluateTypeTransformations(
 	templateTypes []*rhino.TemplateType,
 	inferredTypes *jutil.LinkedHashMap[*rhino.TemplateType, rhino.JSType],
-	scope FlowScope) {
+	scope *LinkedFlowScope) {
 	var typeVarBuf [8]ttlTypeVar
 	typeVars := typeVarBuf[:0]
 	var ttlObj TypeTransformation
@@ -474,7 +474,7 @@ func (ti *TypeInference) matchInvocationTemplateTypes(
 // of any function literal parameters based on these inferred types.
 //
 // Java: TypeInference.inferTemplatedTypesForCall(Node, FunctionType, FlowScope)
-func (ti *TypeInference) InferTemplatedTypesForCall(n rhino.Node, fnType rhino.FunctionType, scope FlowScope) bool {
+func (ti *TypeInference) InferTemplatedTypesForCall(n rhino.Node, fnType rhino.FunctionType, scope *LinkedFlowScope) bool {
 	keys := fnType.GetTemplateTypeMap().GetTemplateKeys()
 	if len(keys) == 0 {
 		return false
@@ -511,7 +511,7 @@ func (ti *TypeInference) InferTemplatedTypesForCall(n rhino.Node, fnType rhino.F
 }
 
 // Java: TypeInference.traverseNew(Node, FlowScope)
-func (ti *TypeInference) TraverseNew(n rhino.Node, scope FlowScope) FlowScope {
+func (ti *TypeInference) TraverseNew(n rhino.Node, scope *LinkedFlowScope) *LinkedFlowScope {
 	scope = ti.TraverseChildren(n, scope)
 	constructor := ast.MustNew(n).Callee().Node()
 	constructorType := constructor.GetJSType()
@@ -519,7 +519,7 @@ func (ti *TypeInference) TraverseNew(n rhino.Node, scope FlowScope) FlowScope {
 }
 
 // Java: TypeInference.traverseInstantiation(Node, JSType, FlowScope)
-func (ti *TypeInference) TraverseInstantiation(n rhino.Node, ctorType rhino.JSType, scope FlowScope) FlowScope {
+func (ti *TypeInference) TraverseInstantiation(n rhino.Node, ctorType rhino.JSType, scope *LinkedFlowScope) *LinkedFlowScope {
 	if ctorType == nil || ctorType.IsUnknownType() {
 		n.SetJSType(ti.unknownType)
 		return scope
@@ -563,4 +563,88 @@ func (ti *TypeInference) TraverseInstantiation(n rhino.Node, ctorType rhino.JSTy
 		n.SetJSType(ti.unknownType)
 	}
 	return scope
+}
+
+// Java: TypeInference.traverseSuper(Node, FlowScope)
+func (ti *TypeInference) TraverseSuper(superNode rhino.Node, currentScope *LinkedFlowScope) {
+	var superNodeType rhino.ObjectType
+
+	switch superNode.GetParent().GetToken() {
+	case rhino.Token_CALL:
+		// Find the closest non-arrow function (TODO(sdh): this could be an AbstractScope method).
+		scope := ti.containerScope
+		for scope != nil && !NodeUtil_IsNonArrowFunction(scope.GetRootNode()) {
+			scope = scope.GetParent()
+		}
+		if scope == nil {
+			superNode.SetJSType(ti.unknownType)
+			return
+		}
+		enclosingFunctionType :=
+			rhino.JSType_ToMaybeFunctionType(scope.GetRootNode().GetJSType())
+		// Inside a constructor, `super` may have two different types. Calls to `super()` use the
+		// super-ctor type, while property accesses use the super-instance type. `Scopes` are only
+		// aware of the latter case.
+		if enclosingFunctionType != nil && enclosingFunctionType.IsConstructor() {
+			superNodeType = enclosingFunctionType.GetSuperClassConstructor()
+		}
+	case rhino.Token_GETELEM, rhino.Token_GETPROP:
+		currentSyntacticScope := currentScope.GetDeclarationScope()
+		// Go-only: language-adapter — StaticTypedScope.getSlot returns a StaticTypedSlot in Java
+		// (a covariant return, not a cast), so a missing slot stays null and getType() on it
+		// throws the NullPointerException (`super.a` outside a class); a Go type assertion on
+		// the nil StaticSlot would throw a ClassCastException instead.
+		var superSlot rhino.StaticTypedSlot
+		if slot := currentSyntacticScope.GetSlot("super"); slot != nil {
+			superSlot = slot.(rhino.StaticTypedSlot)
+		}
+		superNodeType = rhino.ObjectType_Cast(superSlot.GetType())
+	default:
+		panic(jutil.NewIllegalStateExceptionMsg(
+			"Unexpected parent of SUPER: " + superNode.GetParent().ToStringTree()))
+	}
+
+	if superNodeType != nil {
+		superNode.SetJSType(superNodeType)
+	} else {
+		superNode.SetJSType(ti.unknownType)
+	}
+}
+
+// Java: TypeInference.traverseNewTarget(Node)
+func (ti *TypeInference) TraverseNewTarget(newTargetNode rhino.Node) {
+	// new.target is (undefined|!Function) within a vanilla function and !Function within an ES6
+	// constructor.
+	// Find the closest non-arrow function (TODO(sdh): this could be an AbstractScope method).
+	scope := ti.containerScope
+	for scope != nil && !NodeUtil_IsNonArrowFunction(scope.GetRootNode()) {
+		scope = scope.GetParent()
+	}
+	if scope == nil {
+		// `new.target` is not inside any non-arrow function. The loop above skips arrow functions
+		// because they use the `new.target` of the code around them, so this also covers arrow
+		// functions with no non-arrow function around them, e.g. a top-level `() => new.target`.
+		// IRFactory already reports a parse error for all of these, so just use the unknown type.
+		newTargetNode.SetJSType(ti.unknownType)
+		return
+	}
+	root := scope.GetRootNode()
+	parent := root.GetParent()
+	if parent.GetGrandparent().IsClass() {
+		// In an ES6 constuctor, new.target may not be undefined.  In any other method, it must be
+		// undefined, since methods are not constructable.
+		var type_ rhino.JSTypeNative
+		if NodeUtil_IsEs6ConstructorMemberFunctionDef(parent) {
+			type_ = rhino.JSTypeNative_FUNCTION_TYPE
+		} else {
+			type_ = rhino.JSTypeNative_VOID_TYPE
+		}
+		newTargetNode.SetJSType(ti.registry.GetNativeType(type_))
+	} else {
+		// Other functions also include undefined, in case they are not called with 'new'.
+		newTargetNode.SetJSType(
+			ti.registry.CreateUnionType(
+				ti.registry.GetNativeType(rhino.JSTypeNative_FUNCTION_TYPE),
+				ti.registry.GetNativeType(rhino.JSTypeNative_VOID_TYPE)))
+	}
 }

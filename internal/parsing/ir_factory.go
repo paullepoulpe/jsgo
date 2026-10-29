@@ -91,12 +91,18 @@ type IRFactory struct {
 	privateIdLhsOfInScopeVal IRFactory_TransformDispatcher_ScopeTracker
 
 	// Go-only: performance — single-threaded line table + cursor, fast-path
-	// flags, and L1 string intern cache.
+	// flags, L1 string intern cache, and reusable literal scratch buffers.
 	lineStarts         []int32
 	lastLine           int
 	includeAllComments bool
 	reservedMode       uint8 // 0 = ES3 (nil), 1 = ES5, 2 = ES5_STRICT
 	strCache           [128]strpool.ID
+	litUnitsBuf        []uint16
+	litUnitsScratch    [128]uint16
+	litUTF16Buf        []uint16
+	litUTF16Scratch    [128]uint16
+	litByteBuf         []byte
+	litByteScratch     [128]byte
 }
 
 const IRFactory_GETTER_ERROR_MESSAGE = "getters are not supported in older versions of JavaScript. " +

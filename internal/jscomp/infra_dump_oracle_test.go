@@ -31,6 +31,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 	"testing"
@@ -434,28 +435,28 @@ func (d *infraDumper) match(tag string, matcher *TemplateAstMatcher, n rhino.Nod
 
 // infraNameSet is InfraDump.NameSet: a set of names, compared by value.
 type infraNameSet struct {
-	names *jutil.TreeSet[string]
+	names map[string]struct{}
 }
 
 func newInfraNameSet() *infraNameSet {
-	return &infraNameSet{names: jutil.NewTreeSet(jutil.StringCompareTo)}
+	return &infraNameSet{names: make(map[string]struct{})}
 }
 
 func newInfraNameSetCopy(other *infraNameSet) *infraNameSet {
-	s := newInfraNameSet()
-	for n := range other.names.All() {
-		s.names.Add(n)
+	s := &infraNameSet{names: make(map[string]struct{}, len(other.names))}
+	for n := range other.names {
+		s.names[n] = struct{}{}
 	}
 	return s
 }
 
 func (s *infraNameSet) Equals(o any) bool {
 	other, ok := o.(*infraNameSet)
-	if !ok || other == nil || other.names.Size() != s.names.Size() {
+	if !ok || other == nil || len(other.names) != len(s.names) {
 		return false
 	}
-	for n := range s.names.All() {
-		if !other.names.Contains(n) {
+	for n := range s.names {
+		if _, ok := other.names[n]; !ok {
 			return false
 		}
 	}
@@ -464,33 +465,40 @@ func (s *infraNameSet) Equals(o any) bool {
 
 func (s *infraNameSet) HashCode() int32 {
 	var h int32
-	for n := range s.names.All() {
+	for n := range s.names {
 		h += jutil.StringHashCode(n)
 	}
 	return h
 }
 
-func (s *infraNameSet) String() string { return s.names.String() }
+func (s *infraNameSet) String() string {
+	sorted := make([]string, 0, len(s.names))
+	for n := range s.names {
+		sorted = append(sorted, n)
+	}
+	slices.SortFunc(sorted, jutil.StringCompareTo)
+	return "[" + strings.Join(sorted, ", ") + "]"
+}
 
 // infraUnionJoiner is InfraDump.UnionJoiner.
 type infraUnionJoiner struct{ result *infraNameSet }
 
 func (j *infraUnionJoiner) JoinFlow(input *infraNameSet) {
-	for n := range input.names.All() {
-		j.result.names.Add(n)
+	for n := range input.names {
+		j.result.names[n] = struct{}{}
 	}
 }
 
 func (j *infraUnionJoiner) Finish() *infraNameSet { return j.result }
 
 // infraNames is InfraDump.names(Node, boolean, Set<String>).
-func infraNames(n rhino.Node, writes bool, out *jutil.TreeSet[string]) {
+func infraNames(n rhino.Node, writes bool, out map[string]struct{}) {
 	if n.IsName() {
 		parent := n.GetParent()
 		isWrite := !parent.IsNil() &&
 			(NodeUtil_IsNameDeclaration(parent) || (parent.IsAssign() && parent.GetFirstChild() == n))
 		if isWrite == writes {
-			out.Add(n.GetString())
+			out[n.GetString()] = struct{}{}
 		}
 	}
 	for c := n.GetFirstChild(); !c.IsNil(); c = c.GetNext() {
@@ -530,7 +538,7 @@ func (a *infraWrittenNames) CreateFlowBrancher(node rhino.Node, output *infraNam
 			return output
 		}
 		result := newInfraNameSetCopy(output)
-		result.names.Add("@" + branch.String())
+		result.names["@"+branch.String()] = struct{}{}
 		return result
 	}
 }
@@ -626,11 +634,13 @@ func (f *infraEscapedFinder) EnterScope(t *NodeTraversal) {
 		escaped := jutil.NewObjectLinkedHashSet[*Var]()
 		all := NodeUtil_GetAllVarsDeclaredInFunction(f.d.compiler, f.scopeCreator, scope)
 		DataFlowAnalysis_ComputeEscaped(scope, escaped, f.d.compiler, f.scopeCreator, all.GetAllVariables())
-		names := jutil.NewTreeSet(jutil.StringCompareTo)
+		var names []string
 		for v := range escaped.All() {
-			names.Add(v.GetName() + "@" + f.d.id(v.GetNameNode()))
+			names = append(names, v.GetName()+"@"+f.d.id(v.GetNameNode()))
 		}
-		result = names.String()
+		slices.SortFunc(names, jutil.StringCompareTo)
+		names = slices.Compact(names)
+		result = "[" + strings.Join(names, ", ") + "]"
 	}); e != nil {
 		result = "X " + infraExc(e)
 	}

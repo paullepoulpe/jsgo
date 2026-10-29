@@ -92,9 +92,9 @@ func gsonTestCases() map[string]any {
 	o.Add("c", NewJsonPrimitiveString("<x>"))
 	inner := NewLinkedHashMap[string, any]()
 	inner.Put("x", []any{NewLinkedHashMap[string, any]()})
-	tm := NewTreeMap[string, int32](StringCompareTo)
-	tm.Put("b", 1)
+	tm := NewLinkedHashMap[string, int32]()
 	tm.Put("a", 2)
+	tm.Put("b", 1)
 	return map[string]any{
 		"null":            nil,
 		"string":          "a<b>&'=\"\\  \u0001\t\n\b\f\r/é\U0001F600",

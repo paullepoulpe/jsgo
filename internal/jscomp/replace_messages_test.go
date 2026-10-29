@@ -36,7 +36,7 @@ type ReplaceMessagesTest struct {
 	CompilerTestCaseBase
 
 	// Messages returned from fake bundle, keyed by `JsMessage.id`.
-	messages *jutil.JavaHashMap[string, *JsMessage]
+	messages *jutil.LinkedHashMap[string, *JsMessage]
 	// If `true` report errors for messages that are not found in the bundle.
 	strictReplacement bool
 	// If `true` pass TEST_ID_GENERATOR in to ReplaceMessages via the fake bundle, so it will be
@@ -222,7 +222,7 @@ func (c *ReplaceMessagesTest) MultiPhaseTestPostLookupErrorWithDescription(origi
 // Java: ReplaceMessagesTest.setUp()
 func (c *ReplaceMessagesTest) SetUp() {
 	c.CompilerTestCaseBase.SetUp()
-	c.messages = jutil.NewJavaHashMap[string, *JsMessage]()
+	c.messages = jutil.NewLinkedHashMap[string, *JsMessage]()
 	c.strictReplacement = false
 	c.useTestIdGenerator = false
 	c.EnableTypeCheck()

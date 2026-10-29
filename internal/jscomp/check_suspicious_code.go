@@ -87,6 +87,26 @@ func NewCheckSuspiciousCode() *CheckSuspiciousCode {
 	return &CheckSuspiciousCode{}
 }
 
+var checkSuspiciousCodeVisitTokens = func() ast.TokenSet {
+	var s ast.TokenSet
+	for _, t := range [...]rhino.Token{
+		rhino.Token_IF,
+		rhino.Token_WHILE, rhino.Token_FOR, rhino.Token_FOR_IN, rhino.Token_FOR_OF, rhino.Token_FOR_AWAIT_OF,
+		rhino.Token_EQ, rhino.Token_GE, rhino.Token_GT, rhino.Token_LE, rhino.Token_LT, rhino.Token_NE,
+		rhino.Token_SHEQ, rhino.Token_SHNE,
+		rhino.Token_IN,
+		rhino.Token_INSTANCEOF,
+		rhino.Token_OR, rhino.Token_AND,
+		rhino.Token_OPTCHAIN_GETPROP, rhino.Token_OPTCHAIN_GETELEM, rhino.Token_OPTCHAIN_CALL,
+	} {
+		s.Add(t)
+	}
+	return s
+}()
+
+func (*CheckSuspiciousCode) visitTokens() *ast.TokenSet        { return &checkSuspiciousCodeVisitTokens }
+func (*CheckSuspiciousCode) combinedVisitTokens() ast.TokenSet { return checkSuspiciousCodeVisitTokens }
+
 // Java: CheckSuspiciousCode.visit(NodeTraversal, Node, Node)
 //
 // Go-only: Visit switches on the token once and hands each check the kind

@@ -56,6 +56,7 @@ import (
 	_ "embed"
 	"maps"
 	"slices"
+	"strings"
 	"sync"
 
 	"github.com/paullepoulpe/jsgo/internal/jutil"
@@ -187,7 +188,19 @@ func ParserRunner_InitResourceConfig() {
 
 // Java: ParserRunner.extractList(String)
 func ParserRunner_ExtractList(configProp string) *jutil.LinkedHashSet[string] {
-	return jutil.NewLinkedHashSet(jutil.Splitter_OnCharTrimResults(configProp, ',')...)
+	parts := strings.Split(configProp, ",")
+	for i, part := range parts {
+		u := jutil.StringToUTF16(part)
+		first, last := 0, len(u)-1
+		for first < len(u) && jutil.CharMatcher_Whitespace_Matches(u[first]) {
+			first++
+		}
+		for last > first && jutil.CharMatcher_Whitespace_Matches(u[last]) {
+			last--
+		}
+		parts[i] = jutil.StringFromUTF16(u[first : last+1])
+	}
+	return jutil.NewLinkedHashSet(parts...)
 }
 
 // Java: ParserRunner.parse(StaticSourceFile, String, Config, ErrorReporter)
@@ -328,19 +341,169 @@ var parserConfiguration_properties string
 
 var (
 	parserConfiguration_bundleOnce sync.Once
-	parserConfiguration_bundle     *jutil.LinkedHashMap[string, string]
+	parserConfiguration_bundle     map[string]string
 )
 
 // ParserConfiguration_GetString reads a key from ParserConfig.properties.
 func ParserConfiguration_GetString(name string) string {
 	parserConfiguration_bundleOnce.Do(func() {
-		parserConfiguration_bundle = jutil.PropertiesLoad(parserConfiguration_properties)
+		parserConfiguration_bundle = propertiesLoad(parserConfiguration_properties)
 	})
-	value, ok := parserConfiguration_bundle.Lookup(name)
+	value, ok := parserConfiguration_bundle[name]
 	if !ok {
 		panic(jutil.NewIllegalStateExceptionMsg("missing ParserConfig.properties resource: " + name))
 	}
 	return value
+}
+
+func propertiesLoad(text string) map[string]string {
+	in := jutil.StringToUTF16(text)
+	result := make(map[string]string)
+	pos := 0
+lines:
+	for pos < len(in) {
+		start, end, next := propertiesNaturalLine(in, pos)
+		pos = next
+		i := propertiesSkipSpace(in, start, end)
+		if i == end || in[i] == '#' || in[i] == '!' {
+			continue
+		}
+		var logical []uint16
+		for {
+			if !propertiesContinues(in, i, end) {
+				logical = append(logical, in[i:end]...)
+				break
+			}
+			logical = append(logical, in[i:end-1]...)
+			if pos >= len(in) {
+				if len(logical) == 0 && next-end == 2 {
+					continue lines
+				}
+				break
+			}
+			if len(logical) == 0 {
+				continue lines
+			}
+			start, end, next = propertiesNaturalLine(in, pos)
+			pos = next
+			i = propertiesSkipSpace(in, start, end)
+			if i == end {
+				break
+			}
+		}
+		key, value := propertiesSplitLine(logical)
+		result[jutil.StringFromUTF16(propertiesUnescape(key))] = jutil.StringFromUTF16(propertiesUnescape(value))
+	}
+	return result
+}
+
+func propertiesNaturalLine(in []uint16, pos int) (start, end, next int) {
+	end = pos
+	for end < len(in) && in[end] != '\n' && in[end] != '\r' {
+		end++
+	}
+	next = end
+	if next < len(in) {
+		if in[next] == '\r' && next+1 < len(in) && in[next+1] == '\n' {
+			next++
+		}
+		next++
+	}
+	return pos, end, next
+}
+
+func propertiesIsSpace(c uint16) bool { return c == ' ' || c == '\t' || c == '\f' }
+
+func propertiesSkipSpace(in []uint16, i, end int) int {
+	for i < end && propertiesIsSpace(in[i]) {
+		i++
+	}
+	return i
+}
+
+func propertiesContinues(in []uint16, i, end int) bool {
+	n := 0
+	for j := end - 1; j >= i && in[j] == '\\'; j-- {
+		n++
+	}
+	return n%2 == 1
+}
+
+func propertiesSplitLine(line []uint16) (key, value []uint16) {
+	k := 0
+	for k < len(line) {
+		c := line[k]
+		if c == '\\' {
+			k += 2
+			continue
+		}
+		if c == '=' || c == ':' || propertiesIsSpace(c) {
+			break
+		}
+		k++
+	}
+	if k > len(line) {
+		k = len(line)
+	}
+	v := propertiesSkipSpace(line, k, len(line))
+	if v < len(line) && (line[v] == '=' || line[v] == ':') {
+		v = propertiesSkipSpace(line, v+1, len(line))
+	}
+	return line[:k], line[v:]
+}
+
+func propertiesUnescape(s []uint16) []uint16 {
+	out := make([]uint16, 0, len(s))
+	for i := 0; i < len(s); i++ {
+		c := s[i]
+		if c != '\\' {
+			out = append(out, c)
+			continue
+		}
+		i++
+		if i == len(s) {
+			break
+		}
+		switch c = s[i]; c {
+		case 't':
+			out = append(out, '\t')
+		case 'n':
+			out = append(out, '\n')
+		case 'r':
+			out = append(out, '\r')
+		case 'f':
+			out = append(out, '\f')
+		case 'u':
+			var v uint16
+			for k := 1; k <= 4; k++ {
+				d := -1
+				if i+k < len(s) {
+					d = propertiesHexDigit(s[i+k])
+				}
+				if d < 0 {
+					panic(jutil.NewIllegalArgumentExceptionMsg(`Malformed \uxxxx encoding.`))
+				}
+				v = v<<4 | uint16(d)
+			}
+			out = append(out, v)
+			i += 4
+		default:
+			out = append(out, c)
+		}
+	}
+	return out
+}
+
+func propertiesHexDigit(c uint16) int {
+	switch {
+	case c >= '0' && c <= '9':
+		return int(c - '0')
+	case c >= 'a' && c <= 'f':
+		return int(c-'a') + 10
+	case c >= 'A' && c <= 'F':
+		return int(c-'A') + 10
+	}
+	return -1
 }
 
 // ParsingUtil_GetParamOrPatternNames calls cb with all NAMEs declared in a

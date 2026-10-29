@@ -59,15 +59,44 @@ type TemplateTypeMap struct {
 	// determining the equivalence of two TemplateTypeMap instances.
 	resolvedTemplateValues []JSType
 	registry               *JSTypeRegistry
-	// Overflow bitset used only when len(templateKeys) > 64 (or when an external
-	// caller passes a BitSet with bits >= 64). Nil in the common <= 64 key case.
-	subMapStarts *jutil.BitSet
+	// Overflow bitset words used only when len(templateKeys) > 64.
+	// Nil in the common <= 64 key case.
+	subMapStarts []uint64
 	// Inline 64-bit submap-start bitset for maps with <= 64 template keys.
 	subMapStartsBits uint64
 }
 
 var emptyJSTypeSlice = []JSType{}
 var emptyTemplateTypeSlice = []*TemplateType{}
+
+func subMapBitWords(nBits int) []uint64 {
+	if nBits <= 0 {
+		return nil
+	}
+	return make([]uint64, (nBits+63)>>6)
+}
+
+func subMapBitGet(words []uint64, i int) bool {
+	w := i >> 6
+	return i >= 0 && w < len(words) && (words[w]&(uint64(1)<<uint(i&63))) != 0
+}
+
+func subMapBitSetTo(words []uint64, i int, v bool) {
+	if v {
+		words[i>>6] |= uint64(1) << uint(i&63)
+	} else {
+		words[i>>6] &^= uint64(1) << uint(i&63)
+	}
+}
+
+func subMapBitLength(words []uint64) int {
+	for w := len(words) - 1; w >= 0; w-- {
+		if words[w] != 0 {
+			return (w+1)*64 - bits.LeadingZeros64(words[w])
+		}
+	}
+	return 0
+}
 
 // Java: TemplateTypeMap.createEmpty(JSTypeRegistry)
 func TemplateTypeMap_CreateEmpty(registry *JSTypeRegistry) *TemplateTypeMap {
@@ -77,15 +106,12 @@ func TemplateTypeMap_CreateEmpty(registry *JSTypeRegistry) *TemplateTypeMap {
 	return initTemplateTypeMap(&TemplateTypeMap{}, registry, emptyTemplateTypeSlice, emptyJSTypeSlice, 0, nil)
 }
 
-func bitSetToInline(bs *jutil.BitSet, nKeys int) (uint64, *jutil.BitSet) {
-	jutil.CheckArgument(nKeys <= bs.Size())
-	if bs.Length() <= 64 && nKeys <= 64 {
+func bitSetToInline(bs []uint64, nKeys int) (uint64, []uint64) {
+	jutil.CheckArgument(nKeys <= len(bs)*64)
+	if subMapBitLength(bs) <= 64 && nKeys <= 64 {
 		var mask uint64
-		limit := bs.Length()
-		for i := 0; i < limit; i++ {
-			if bs.Get(i) {
-				mask |= uint64(1) << uint(i)
-			}
+		if len(bs) > 0 {
+			mask = bs[0]
 		}
 		return mask, nil
 	}
@@ -97,7 +123,7 @@ func NewTemplateTypeMap(
 	registry *JSTypeRegistry,
 	templateKeys []*TemplateType,
 	templateValues []JSType,
-	subMapStarts *jutil.BitSet) *TemplateTypeMap {
+	subMapStarts []uint64) *TemplateTypeMap {
 	jutil.CheckNotNull(templateKeys)
 	jutil.CheckNotNull(templateValues)
 	bits64, overflow := bitSetToInline(subMapStarts, len(templateKeys))
@@ -110,12 +136,12 @@ func initTemplateTypeMap(
 	templateKeys []*TemplateType,
 	templateValues []JSType,
 	subMapStartsBits uint64,
-	subMapStarts *jutil.BitSet) *TemplateTypeMap {
+	subMapStarts []uint64) *TemplateTypeMap {
 	jutil.CheckNotNull(templateKeys)
 	jutil.CheckNotNull(templateValues)
 	jutil.CheckArgument(len(templateValues) <= len(templateKeys))
 	if subMapStarts != nil {
-		jutil.CheckArgument(len(templateKeys) <= subMapStarts.Size())
+		jutil.CheckArgument(len(templateKeys) <= len(subMapStarts)*64)
 	} else {
 		jutil.CheckArgument(len(templateKeys) <= 64)
 	}
@@ -246,7 +272,7 @@ func resolveSimpleTemplateValue(t JSType, registry *JSTypeRegistry) (JSType, boo
 
 func (m *TemplateTypeMap) subMapStartAt(i int) bool {
 	if m.subMapStarts != nil {
-		return m.subMapStarts.Get(i)
+		return subMapBitGet(m.subMapStarts, i)
 	}
 	if uint(i) >= 64 {
 		return false
@@ -274,7 +300,7 @@ func (m *TemplateTypeMap) NextSubMapStart(index int) int {
 		}
 		return min(index+bits.TrailingZeros64(masked), n)
 	}
-	for index < n && !m.subMapStarts.Get(index) {
+	for index < n && !subMapBitGet(m.subMapStarts, index) {
 		index++
 	}
 	return index
@@ -396,10 +422,9 @@ func (m *TemplateTypeMap) CopyWithExtensionOfKeys(keys []*TemplateType, values [
 	if len(keys) <= 64 {
 		return m.copyWithExtensionInternal(keys, values, 1, nil)
 	}
-	var subMapStarts jutil.BitSet
-	subMapStarts.InitWithSize(len(keys))
-	subMapStarts.Set(0)
-	return m.copyWithExtensionInternal(keys, values, 0, &subMapStarts)
+	subMapStarts := subMapBitWords(len(keys))
+	subMapStarts[0] = 1
+	return m.copyWithExtensionInternal(keys, values, 0, subMapStarts)
 }
 
 // CopyWithExtensionOfKeysWithSubMapStarts creates a new map in which the
@@ -410,14 +435,11 @@ func (m *TemplateTypeMap) CopyWithExtensionOfKeys(keys []*TemplateType, values [
 //
 // Java: TemplateTypeMap.copyWithExtension(ImmutableList<TemplateType>, ImmutableList<JSType>, BitSet)
 func (m *TemplateTypeMap) CopyWithExtensionOfKeysWithSubMapStarts(
-	keys []*TemplateType, values []JSType, newsubMapStarts *jutil.BitSet) *TemplateTypeMap {
-	if newsubMapStarts.Length() <= 64 && len(keys) <= 64 {
+	keys []*TemplateType, values []JSType, newsubMapStarts []uint64) *TemplateTypeMap {
+	if subMapBitLength(newsubMapStarts) <= 64 && len(keys) <= 64 {
 		var mask uint64
-		limit := newsubMapStarts.Length()
-		for i := 0; i < limit; i++ {
-			if newsubMapStarts.Get(i) {
-				mask |= uint64(1) << uint(i)
-			}
+		if len(newsubMapStarts) > 0 {
+			mask = newsubMapStarts[0]
 		}
 		return m.copyWithExtensionInternal(keys, values, mask, nil)
 	}
@@ -425,7 +447,7 @@ func (m *TemplateTypeMap) CopyWithExtensionOfKeysWithSubMapStarts(
 }
 
 func (m *TemplateTypeMap) copyWithExtensionInternal(
-	keys []*TemplateType, values []JSType, newBits uint64, newOverflow *jutil.BitSet) *TemplateTypeMap {
+	keys []*TemplateType, values []JSType, newBits uint64, newOverflow []uint64) *TemplateTypeMap {
 	extendedUnfilledCount := len(keys) - len(values)
 	jutil.CheckArgumentMsg1(extendedUnfilledCount >= 0, "%s", extendedUnfilledCount)
 
@@ -493,20 +515,20 @@ func (m *TemplateTypeMap) copyWithExtensionInternal(
 		return initTemplateTypeMap(out, m.registry, extendedKeys, extendedValues, mask|extMask, nil)
 	}
 
-	extendedsubMapStarts := jutil.NewBitSetWithSize(nNewKeys + nOldKeys)
+	extendedsubMapStarts := subMapBitWords(nNewKeys + nOldKeys)
 	for i := 0; i < nOldKeys; i++ {
 		if m.subMapStartAt(i) {
-			extendedsubMapStarts.Set(i)
+			subMapBitSetTo(extendedsubMapStarts, i, true)
 		}
 	}
 	for i := 0; i < nNewKeys; i++ {
 		var bit bool
 		if newOverflow != nil {
-			bit = newOverflow.Get(i)
+			bit = subMapBitGet(newOverflow, i)
 		} else if i < 64 {
 			bit = (newBits & (uint64(1) << uint(i))) != 0
 		}
-		extendedsubMapStarts.SetTo(i+nOldKeys, bit)
+		subMapBitSetTo(extendedsubMapStarts, i+nOldKeys, bit)
 	}
 
 	return initTemplateTypeMap(out, m.registry, extendedKeys, extendedValues, 0, extendedsubMapStarts)
@@ -572,9 +594,9 @@ func (m *TemplateTypeMap) copyWithoutKeysWhere(contains func(*TemplateType) bool
 		return initTemplateTypeMap(&TemplateTypeMap{}, m.registry, keys, m.templateValues, newBits, nil)
 	}
 
-	newsubMapStarts := jutil.NewBitSetWithSize(max(64, len(m.templateKeys)))
+	newsubMapStarts := subMapBitWords(max(64, len(m.templateKeys)))
 	for i := 0; i < nFilled; i++ {
-		newsubMapStarts.SetTo(i, m.subMapStartAt(i))
+		subMapBitSetTo(newsubMapStarts, i, m.subMapStartAt(i))
 	}
 	newKeysSize := 0
 	inNewSubmap := false
@@ -583,7 +605,7 @@ func (m *TemplateTypeMap) copyWithoutKeysWhere(contains func(*TemplateType) bool
 		inNewSubmap = inNewSubmap || m.subMapStartAt(i)
 		if !contains(key) {
 			keys = append(keys, key)
-			newsubMapStarts.SetTo(nFilled+newKeysSize, inNewSubmap)
+			subMapBitSetTo(newsubMapStarts, nFilled+newKeysSize, inNewSubmap)
 			newKeysSize++
 			inNewSubmap = false
 		}
@@ -794,9 +816,11 @@ func (m *TemplateTypeMap) GetIndicesOfSubmapsForTesting() []int {
 		}
 		return indices
 	}
-	for i := 0; i < m.subMapStarts.Length(); i++ {
-		if m.subMapStarts.Get(i) {
-			indices = append(indices, i)
+	for w, word := range m.subMapStarts {
+		for word != 0 {
+			tz := bits.TrailingZeros64(word)
+			indices = append(indices, w*64+tz)
+			word &= word - 1
 		}
 	}
 	return indices

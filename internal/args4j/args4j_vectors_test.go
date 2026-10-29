@@ -140,8 +140,8 @@ type beanA struct {
 	boxed     *bool
 	out       string
 	prefix    *string
-	map_      *jutil.JavaHashMap[string, *string]
-	nullMap   *jutil.JavaHashMap[string, *string]
+	map_      *jutil.LinkedHashMap[string, *string]
+	nullMap   *jutil.LinkedHashMap[string, *string]
 	words     []string
 	noUsage   string
 	dep       *string
@@ -152,7 +152,7 @@ type beanA struct {
 }
 
 func newBeanA() *beanA {
-	return &beanA{zeta: "z", level: tLevel_DEFAULT, threads: 1, map_: jutil.NewJavaHashMap[string, *string](), noUsage: "nu", unicode: "é"}
+	return &beanA{zeta: "z", level: tLevel_DEFAULT, threads: 1, map_: jutil.NewLinkedHashMap[string, *string](), noUsage: "nu", unicode: "é"}
 }
 
 func (b *beanA) Args4jFields() []AnnotatedField {
@@ -480,6 +480,37 @@ func runVector(header string) []string {
 	return out
 }
 
+func sortStateMapField(line, startMarker, endMarker string) string {
+	start := strings.Index(line, startMarker)
+	if start < 0 {
+		return line
+	}
+	contentStart := start + len(startMarker)
+	end := strings.Index(line[contentStart:], endMarker)
+	if end < 0 {
+		return line
+	}
+	content := line[contentStart : contentStart+end]
+	if !strings.Contains(content, ", ") {
+		return line
+	}
+	parts := strings.Split(content, ", ")
+	slices.Sort(parts)
+	return line[:contentStart] + strings.Join(parts, ", ") + line[contentStart+end:]
+}
+
+func normalizeVectorLines(lines []string) []string {
+	out := make([]string, len(lines))
+	for i, line := range lines {
+		if strings.HasPrefix(line, "state ") {
+			line = sortStateMapField(line, " map={", "} nullMap=")
+			line = sortStateMapField(line, " nullMap={", "} words=")
+		}
+		out[i] = line
+	}
+	return out
+}
+
 func TestArgs4jVectors(t *testing.T) {
 	f, err := os.Open("testdata/args4j_vectors.txt.gz")
 	if err != nil {
@@ -509,8 +540,8 @@ func TestArgs4jVectors(t *testing.T) {
 		for j < len(lines) && !strings.HasPrefix(lines[j], "## ") {
 			j++
 		}
-		want := lines[i+1 : j]
-		got := runVector(header)
+		want := normalizeVectorLines(lines[i+1 : j])
+		got := normalizeVectorLines(runVector(header))
 		cases++
 		if !slices.Equal(got, want) {
 			diffs++

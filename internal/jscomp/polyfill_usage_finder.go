@@ -59,36 +59,21 @@ var (
 
 type pufIDSet struct {
 	bits []uint64
-	high map[uint32]struct{}
 }
 
 func (s *pufIDSet) add(id uint32) {
-	if id < 131072 {
-		word := int(id >> 6)
-		if word >= len(s.bits) {
-			grown := make([]uint64, max(word+1, len(s.bits)*2))
-			copy(grown, s.bits)
-			s.bits = grown
-		}
-		s.bits[word] |= uint64(1) << (id & 63)
-		return
+	word := int(id >> 6)
+	if word >= len(s.bits) {
+		grown := make([]uint64, max(word+1, len(s.bits)*2))
+		copy(grown, s.bits)
+		s.bits = grown
 	}
-	if s.high == nil {
-		s.high = make(map[uint32]struct{})
-	}
-	s.high[id] = struct{}{}
+	s.bits[word] |= uint64(1) << (id & 63)
 }
 
 func (s *pufIDSet) has(id uint32) bool {
 	word := int(id >> 6)
-	if word < len(s.bits) {
-		return (s.bits[word] & (uint64(1) << (id & 63))) != 0
-	}
-	if s.high == nil {
-		return false
-	}
-	_, ok := s.high[id]
-	return ok
+	return word < len(s.bits) && (s.bits[word]&(uint64(1)<<(id&63))) != 0
 }
 
 type pufMethodEntry struct {

@@ -184,45 +184,6 @@ func TestStringsMatchJava(t *testing.T) {
 	}
 }
 
-func TestTreeSetMatchesJava(t *testing.T) {
-	for _, r := range readTSV(t, "jscompa_treeset.tsv") {
-		var prio []int
-		for _, p := range strings.Split(strings.TrimSuffix(r[0], ","), ",") {
-			v, _ := strconv.Atoi(p)
-			prio = append(prio, v)
-		}
-		order := map[int]int{}
-		set := NewTreeSet(func(a, b int) int {
-			if d := prio[a] - prio[b]; d != 0 {
-				return d
-			}
-			return order[b] - order[a]
-		})
-		adds := 0
-		for _, op := range strings.Fields(r[1]) {
-			g, _ := strconv.Atoi(op[1:])
-			if op[0] == 'r' {
-				set.Remove(g)
-			} else {
-				adds++
-				order[g] = adds
-				set.Remove(g)
-				set.Add(g)
-			}
-		}
-		var asc, desc strings.Builder
-		for x := range set.All() {
-			asc.WriteString(strconv.Itoa(x) + ",")
-		}
-		for x := range set.Descending() {
-			desc.WriteString(strconv.Itoa(x) + ",")
-		}
-		if asc.String() != r[2] || desc.String() != r[3] || strconv.Itoa(set.Size()) != r[4] {
-			t.Errorf("%v: got %s %s %d", r, asc.String(), desc.String(), set.Size())
-		}
-	}
-}
-
 func TestPatternTranslation(t *testing.T) {
 	cases := []struct {
 		re, s string

@@ -191,15 +191,31 @@ func removeUnusedOracleChunkPasses() []removeUnusedOraclePass {
 // removeUnusedOracleLva is RemoveUnusedDump.Lva: LiveVariablesAnalysis for
 // every function, as DeadAssignmentsElimination computes it.
 type removeUnusedOracleLva struct {
-	NodeTraversal_AbstractCfgCallbackBase
+	NodeTraversal_AbstractPreOrderCallbackBase
+	cfgScopeStack
 	compiler *Compiler
 	extra    *[]string
 }
 
 func newRemoveUnusedOracleLva(compiler *Compiler, extra *[]string) *removeUnusedOracleLva {
 	l := &removeUnusedOracleLva{compiler: compiler, extra: extra}
-	l.InitNodeTraversal_AbstractCfgCallbackBase(l)
+	l.cfgs = l.cfgsBuf[:0]
 	return l
+}
+
+func (*removeUnusedOracleLva) nodeTraversalNoShouldTraverse() {}
+
+func (*removeUnusedOracleLva) ShouldTraverse(*NodeTraversal, rhino.Node, rhino.Node) bool {
+	return true
+}
+
+func (l *removeUnusedOracleLva) EnterScope(t *NodeTraversal) {
+	l.pushScopeRoot(t.GetScopeRoot())
+}
+
+func (l *removeUnusedOracleLva) ExitScope(t *NodeTraversal) {
+	l.ExitScopeWithCfg(t)
+	l.popScopeRoot(t.GetScopeRoot())
 }
 
 func (l *removeUnusedOracleLva) ExitScopeWithCfg(t *NodeTraversal) {

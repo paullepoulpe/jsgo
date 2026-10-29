@@ -49,7 +49,7 @@ var sourceCodeEscapers_JAVASCRIPT_ESCAPER = newSourceCodeEscapers_JavaScriptEsca
 // use GSON or other high-level APIs when possible.
 //
 // Java: SourceCodeEscapers.javascriptEscaper()
-func SourceCodeEscapers_JavascriptEscaper() jutil.Escaper {
+func SourceCodeEscapers_JavascriptEscaper() *SourceCodeEscapers_JavaScriptEscaper {
 	return sourceCodeEscapers_JAVASCRIPT_ESCAPER
 }
 

@@ -20,7 +20,10 @@
 package jscomp
 
 import (
+	"strconv"
 	"testing"
+
+	"github.com/paullepoulpe/jsgo/internal/strpool"
 )
 
 // InlineSimpleMethodsTest is the unit test of InlineSimpleMethods.
@@ -818,4 +821,24 @@ var x = f.record();
 var f = new Foo();
 var x = void 0;
 `)
+}
+
+func (c *InlineSimpleMethodsTest) TestExternPropertyWithHighStrpoolIDNotInlined() {
+	var lowExtern string
+	for i := 0; ; i++ {
+		s := "ism_pad_prop_" + strconv.Itoa(i)
+		id := uint32(strpool.Intern(s))
+		if lowExtern == "" && id >= 70000 && id < 131072 {
+			lowExtern = s
+		}
+		if id >= 140000 {
+			break
+		}
+	}
+	highExtern := "ism_high_extern_method"
+	_ = strpool.Intern(highExtern)
+
+	externs := "/** @externs */\nvar Ext = {};\nExt." + lowExtern + " = function() {};\nExt." + highExtern + " = function() {};\n"
+	js := "var impl = {" + highExtern + ": function() {}};\nvar res = unknownObj." + highExtern + "();\n"
+	c.TestSame(c.Externs(externs), c.Srcs(js))
 }

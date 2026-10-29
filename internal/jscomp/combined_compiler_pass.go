@@ -19,12 +19,20 @@
 package jscomp
 
 import (
+	"math/bits"
 	"slices"
 	"strconv"
 
+	"github.com/paullepoulpe/jsgo/internal/ast"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
+
+// combinedVisitTokenFilter may be implemented by a NodeTraversal_Callback whose
+// Visit method inspects a closed set of AST token kinds.
+type combinedVisitTokenFilter interface {
+	combinedVisitTokens() ast.TokenSet
+}
 
 // CombinedCompilerPass is a compiler pass combining multiple Callback and
 // ScopedCallback objects. This pass can be used to separate logically
@@ -49,6 +57,11 @@ type CombinedCompilerPass struct {
 	shouldTraverseIndices []int
 	visitCallbacks        []NodeTraversal_Callback
 	scopedIndices         []int
+	visitTokenMask        [256]uint32
+	unionVisitTokens      ast.TokenSet
+	inactiveMask          uint32
+	useVisitTokenMask     bool
+	hasVisitTokenFilter   bool
 	compiler              AbstractCompiler
 	concreteCompiler      *Compiler
 	cachedErrorManager    ErrorManager
@@ -56,6 +69,13 @@ type CombinedCompilerPass struct {
 	continueAfterErrors   bool
 	allNoVisit            bool
 	inactiveCount         int
+}
+
+func (p *CombinedCompilerPass) visitTokens() *ast.TokenSet {
+	if p.hasVisitTokenFilter && p.inactiveCount == 0 {
+		return &p.unionVisitTokens
+	}
+	return nil
 }
 
 // NewCombinedCompilerPass creates a combined compiler pass.
@@ -73,8 +93,13 @@ func NewCombinedCompilerPass(compiler AbstractCompiler, callbacks ...NodeTravers
 
 // Java: CombinedCompilerPass(AbstractCompiler, List<NodeTraversal.Callback>)
 func NewCombinedCompilerPassOfList(compiler AbstractCompiler, callbacks []NodeTraversal_Callback) *CombinedCompilerPass {
-	p := &CombinedCompilerPass{compiler: compiler, allNoVisit: true}
+	p := &CombinedCompilerPass{
+		compiler:          compiler,
+		allNoVisit:        true,
+		useVisitTokenMask: len(callbacks) <= 32,
+	}
 	p.callbacks = make([]combinedCompilerPass_CallbackWrapper, len(callbacks))
+	hasUnfilteredVisit := false
 	for i := 0; i < len(callbacks); i++ {
 		w := initCombinedCompilerPass_CallbackWrapper(callbacks[i])
 		if !w.noShouldTraverse {
@@ -83,12 +108,31 @@ func NewCombinedCompilerPassOfList(compiler AbstractCompiler, callbacks []NodeTr
 		if !w.noVisit {
 			p.allNoVisit = false
 			p.visitCallbacks = append(p.visitCallbacks, w.callback)
+			if p.useVisitTokenMask {
+				bit := uint32(1) << i
+				if f, ok := w.callback.(combinedVisitTokenFilter); ok {
+					ts := f.combinedVisitTokens()
+					for wordIdx := 0; wordIdx < 4; wordIdx++ {
+						for word := ts[wordIdx]; word != 0; word &= word - 1 {
+							tok := wordIdx*64 + bits.TrailingZeros64(word)
+							p.visitTokenMask[tok] |= bit
+						}
+						p.unionVisitTokens[wordIdx] |= ts[wordIdx]
+					}
+				} else {
+					hasUnfilteredVisit = true
+					for tok := 0; tok < 256; tok++ {
+						p.visitTokenMask[tok] |= bit
+					}
+				}
+			}
 		}
 		if w.scopedCallback != nil {
 			p.scopedIndices = append(p.scopedIndices, i)
 		}
 		p.callbacks[i] = w
 	}
+	p.hasVisitTokenFilter = p.useVisitTokenMask && !hasUnfilteredVisit && !p.allNoVisit
 	p.refreshErrorState()
 	return p
 }
@@ -217,6 +261,10 @@ func (w *combinedCompilerPass_CallbackWrapper) IsActive() bool {
 // Java: CombinedCompilerPass.process(Node, Node)
 func (p *CombinedCompilerPass) Process(externs rhino.Node, root rhino.Node) {
 	p.inactiveCount = 0
+	p.inactiveMask = 0
+	for i := range p.callbacks {
+		p.callbacks[i].waiting = rhino.NilNode
+	}
 	p.refreshErrorState()
 	if p.processParallel(root) {
 		return
@@ -325,6 +373,7 @@ func (p *CombinedCompilerPass) processParallel(root rhino.Node) bool {
 				sc = NewSyntacticScopeCreator(rc)
 			} else {
 				workerPass.inactiveCount = 0
+				workerPass.inactiveMask = 0
 				for i := range workerPass.callbacks {
 					workerPass.callbacks[i].waiting = rhino.NilNode
 				}
@@ -353,6 +402,9 @@ func (p *CombinedCompilerPass) ShouldTraverse(t *NodeTraversal, n rhino.Node, pa
 			if !w.callback.ShouldTraverse(t, n, parent) {
 				w.waiting = n
 				p.inactiveCount++
+				if p.useVisitTokenMask {
+					p.inactiveMask |= uint32(1) << idx
+				}
 			}
 		}
 	} else {
@@ -361,11 +413,22 @@ func (p *CombinedCompilerPass) ShouldTraverse(t *NodeTraversal, n rhino.Node, pa
 			if w.waiting.IsNil() && !w.callback.ShouldTraverse(t, n, parent) {
 				w.waiting = n
 				p.inactiveCount++
+				if p.useVisitTokenMask {
+					p.inactiveMask |= uint32(1) << idx
+				}
 			}
 		}
 	}
-	if p.allNoVisit && t != nil {
-		t.noVisit = p.inactiveCount == 0
+	if t != nil {
+		if p.allNoVisit {
+			t.noVisit = p.inactiveCount == 0
+		} else if p.hasVisitTokenFilter {
+			if p.inactiveCount == 0 {
+				t.visitTokens = &p.unionVisitTokens
+			} else {
+				t.visitTokens = nil
+			}
+		}
 	}
 	// Note that this method could return false if all callbacks are
 	// inactive. This apparent optimization would make this method more
@@ -378,33 +441,64 @@ func (p *CombinedCompilerPass) ShouldTraverse(t *NodeTraversal, n rhino.Node, pa
 
 // Java: CombinedCompilerPass.visit(NodeTraversal, Node, Node)
 func (p *CombinedCompilerPass) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
-	if p.allNoVisit && p.inactiveCount == 0 {
-		return
-	}
-	if p.hasHaltingErrors() {
-		return
-	}
-
 	if p.inactiveCount == 0 {
+		if p.allNoVisit {
+			return
+		}
+		if p.useVisitTokenMask {
+			mask := p.visitTokenMask[byte(n.GetToken())]
+			if mask == 0 || p.hasHaltingErrors() {
+				return
+			}
+			for ; mask != 0; mask &= mask - 1 {
+				idx := bits.TrailingZeros32(mask)
+				p.callbacks[idx].callback.Visit(t, n, parent)
+			}
+			return
+		}
+		if p.hasHaltingErrors() {
+			return
+		}
 		for _, cb := range p.visitCallbacks {
 			cb.Visit(t, n, parent)
 		}
 		return
 	}
 
-	for i := range p.callbacks {
-		callback := &p.callbacks[i]
-		if callback.waiting.IsNil() {
-			if !callback.noVisit {
+	if p.hasHaltingErrors() {
+		return
+	}
+	if p.useVisitTokenMask {
+		for mask := p.visitTokenMask[byte(n.GetToken())] | p.inactiveMask; mask != 0; mask &= mask - 1 {
+			idx := bits.TrailingZeros32(mask)
+			callback := &p.callbacks[idx]
+			if callback.waiting.IsNil() {
 				callback.callback.Visit(t, n, parent)
+			} else if callback.waiting == n {
+				callback.waiting = rhino.NilNode
+				p.inactiveMask &^= uint32(1) << idx
+				p.inactiveCount--
 			}
-		} else if callback.waiting == n {
-			callback.waiting = rhino.NilNode
-			p.inactiveCount--
+		}
+	} else {
+		for i := range p.callbacks {
+			callback := &p.callbacks[i]
+			if callback.waiting.IsNil() {
+				if !callback.noVisit {
+					callback.callback.Visit(t, n, parent)
+				}
+			} else if callback.waiting == n {
+				callback.waiting = rhino.NilNode
+				p.inactiveCount--
+			}
 		}
 	}
-	if p.allNoVisit && t != nil {
-		t.noVisit = p.inactiveCount == 0
+	if t != nil {
+		if p.allNoVisit {
+			t.noVisit = p.inactiveCount == 0
+		} else if p.hasVisitTokenFilter && p.inactiveCount == 0 {
+			t.visitTokens = &p.unionVisitTokens
+		}
 	}
 }
 

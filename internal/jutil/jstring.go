@@ -558,3 +558,88 @@ func StringLastIndexOfFrom(s, sub string, fromIndex int) int {
 	}
 	return -1
 }
+
+// charMatcherWhitespaceTable is CharMatcher.Whitespace.TABLE: the characters
+// CharMatcher.whitespace() matches (Unicode White_Space, per Guava; this is
+// not the set that String.trim() strips).
+const charMatcherWhitespaceTable = " 　\r\u0085   　" +
+	" \u000B　   　 " +
+	"\u0009     \u000C " +
+	"　 　　 \n 　"
+
+var charMatcherWhitespaceUnits = StringToUTF16(charMatcherWhitespaceTable)
+
+// CharMatcher_Whitespace_Matches is CharMatcher.whitespace().matches(c).
+func CharMatcher_Whitespace_Matches(c uint16) bool {
+	// Guava: TABLE.charAt((MULTIPLIER * c) >>> SHIFT) == c, where SHIFT is
+	// Integer.numberOfLeadingZeros(TABLE.length() - 1) = 27.
+	const multiplier = 1682554634
+	idx := uint32(int32(multiplier)*int32(c)) >> 27
+	return charMatcherWhitespaceUnits[idx] == c
+}
+
+// StringReplaceFirst is String.replaceFirst(String regex, String
+// replacement).
+func StringReplaceFirst(s string, regex string, replacement string) string {
+	return Pattern_Compile(regex).Matcher(s).ReplaceFirst(replacement)
+}
+
+// StringReplaceAll is String.replaceAll(String regex, String replacement).
+func StringReplaceAll(s string, regex string, replacement string) string {
+	return Pattern_Compile(regex).Matcher(s).ReplaceAll(replacement)
+}
+
+// StringTrim is Java's String.trim(): strips leading and trailing chars
+// <= U+0020. Those are all ASCII, so trimming bytes of the WTF-8 form is
+// exact (no multi-byte sequence contains a byte <= 0x20).
+func StringTrim(s string) string {
+	start, end := 0, len(s)
+	for start < end && s[start] <= ' ' {
+		start++
+	}
+	for start < end && s[end-1] <= ' ' {
+		end--
+	}
+	return s[start:end]
+}
+
+// Go-only: language-adapter — String.split(String regex) (limit 0) for a
+// regex that matches only the literal, non-empty string sep (e.g. "/" or
+// "/node_modules/"): the input is cut at each non-overlapping occurrence,
+// the input itself is returned when there is no occurrence, and trailing
+// empty strings are removed (so the result may be empty).
+
+// StringSplitLiteral is s.split(regex) where regex matches exactly sep.
+func StringSplitLiteral(s, sep string) []string {
+	if sep == "" {
+		panic(NewIllegalArgumentExceptionMsg("StringSplitLiteral: empty separator"))
+	}
+	if !strings.Contains(s, sep) {
+		return []string{s}
+	}
+	parts := strings.Split(s, sep)
+	n := len(parts)
+	for n > 0 && parts[n-1] == "" {
+		n--
+	}
+	return parts[:n]
+}
+
+// StringSplitLiteralLimit is s.split(regex, limit) where regex matches
+// exactly the non-empty literal sep. With limit > 0 there are at most limit
+// parts, the last holding the rest of the input, and trailing empty strings
+// are kept; with limit == 0 it is StringSplitLiteral; with limit < 0 every
+// part is returned, trailing empty strings included. Without an occurrence
+// of sep the result is s itself.
+func StringSplitLiteralLimit(s, sep string, limit int) []string {
+	if limit == 0 {
+		return StringSplitLiteral(s, sep)
+	}
+	if sep == "" {
+		panic(NewIllegalArgumentExceptionMsg("StringSplitLiteralLimit: empty separator"))
+	}
+	if limit < 0 {
+		return strings.Split(s, sep)
+	}
+	return strings.SplitN(s, sep, limit)
+}

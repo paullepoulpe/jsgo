@@ -63,21 +63,22 @@ func NewTranspileAndOptimizeClosureUnaware(original AbstractCompiler, mode Neste
 func (p *TranspileAndOptimizeClosureUnaware) Process(externs rhino.Node, root rhino.Node) {
 	collector := newTranspileAndOptimizeClosureUnaware_CollectShadowAsts()
 	NodeTraversal_Traverse(p.original, root, collector)
-	if collector.shadowAsts.IsEmpty() {
+	if collector.isEmpty() {
 		return
 	}
 
-	p.setScriptFeaturesets(collector.shadowAsts.Values())
+	allValues := collector.values()
+	p.setScriptFeaturesets(allValues)
 	shadowOptions := ClosureUnawareOptions_Convert(p.original.GetOptions())
 	shadowPassConfig :=
 		newTranspileAndOptimizeClosureUnaware_RuntimeLibInjectionPassConfig(
-			shadowOptions, p.createInjectRuntimeLibrariesPass(collector.shadowAsts.Values()))
+			shadowOptions, p.createInjectRuntimeLibrariesPass(allValues))
 	shadowCompiler :=
 		NestedCompilerRunner_Create(p.original, shadowOptions, p.mode, shadowPassConfig)
 
-	p.initShadowInputs(shadowCompiler, collector.shadowAsts)
+	p.initShadowInputs(shadowCompiler, collector.groups)
 	shadowCompiler.Compile()
-	p.reattachShadowNodes(collector.shadowAsts)
+	p.reattachShadowNodes(allValues)
 }
 
 // transpileAndOptimizeClosureUnaware_ShadowAst is the record
@@ -136,21 +137,53 @@ func (a *transpileAndOptimizeClosureUnaware_ShadowAst) String() string {
 		", script=" + jutil.ToJavaString(a.script) + "]"
 }
 
+type shadowFileGroup struct {
+	file *SourceFile
+	asts []*transpileAndOptimizeClosureUnaware_ShadowAst
+}
+
 // transpileAndOptimizeClosureUnaware_CollectShadowAsts traverses all
 // closure unaware SCRIPTs to collect shadow ASTs.
 type transpileAndOptimizeClosureUnaware_CollectShadowAsts struct {
-	// Go-only: language-adapter — LinkedHashMultimap<SourceFile, ShadowAst>.
-	// SetMultimap iterates entries grouped by key, LinkedHashMultimap in
-	// insertion order; they agree here because the traversal visits the
-	// shadow ASTs of each file contiguously.
-	shadowAsts *jutil.SetMultimap[*SourceFile, *transpileAndOptimizeClosureUnaware_ShadowAst]
+	groups    []shadowFileGroup
+	fileIndex map[*SourceFile]int
 }
 
 // Java: TranspileAndOptimizeClosureUnaware.CollectShadowAsts()
 func newTranspileAndOptimizeClosureUnaware_CollectShadowAsts() *transpileAndOptimizeClosureUnaware_CollectShadowAsts {
 	return &transpileAndOptimizeClosureUnaware_CollectShadowAsts{
-		shadowAsts: jutil.NewSetMultimap[*SourceFile, *transpileAndOptimizeClosureUnaware_ShadowAst](),
+		fileIndex: make(map[*SourceFile]int),
 	}
+}
+
+func (c *transpileAndOptimizeClosureUnaware_CollectShadowAsts) add(
+	file *SourceFile, ast *transpileAndOptimizeClosureUnaware_ShadowAst) {
+	if idx, ok := c.fileIndex[file]; ok {
+		for _, existing := range c.groups[idx].asts {
+			if jutil.ObjectsEquals(existing, ast) {
+				return
+			}
+		}
+		c.groups[idx].asts = append(c.groups[idx].asts, ast)
+		return
+	}
+	c.fileIndex[file] = len(c.groups)
+	c.groups = append(c.groups, shadowFileGroup{
+		file: file,
+		asts: []*transpileAndOptimizeClosureUnaware_ShadowAst{ast},
+	})
+}
+
+func (c *transpileAndOptimizeClosureUnaware_CollectShadowAsts) isEmpty() bool {
+	return len(c.groups) == 0
+}
+
+func (c *transpileAndOptimizeClosureUnaware_CollectShadowAsts) values() []*transpileAndOptimizeClosureUnaware_ShadowAst {
+	var out []*transpileAndOptimizeClosureUnaware_ShadowAst
+	for _, g := range c.groups {
+		out = append(out, g.asts...)
+	}
+	return out
 }
 
 // Java: TranspileAndOptimizeClosureUnaware.CollectShadowAsts.shouldTraverse(NodeTraversal, Node, Node)
@@ -204,19 +237,17 @@ func (c *transpileAndOptimizeClosureUnaware_CollectShadowAsts) Visit(t *NodeTrav
 		callNode = n.GetGrandparent()
 	}
 	jutil.CheckStateMsg1(callNode.IsCall(), "%s", callNode)
-	c.shadowAsts.Put(
+	c.add(
 		t.GetInput().GetSourceFile(), newTranspileAndOptimizeClosureUnaware_ShadowAst(shadow, callNode, shadow.GetOnlyChild()))
 }
 
 // Java: TranspileAndOptimizeClosureUnaware.initShadowInputs(NestedCompilerRunner, LinkedHashMultimap<SourceFile, ShadowAst>)
 func (p *TranspileAndOptimizeClosureUnaware) initShadowInputs(
 	shadowCompiler *NestedCompilerRunner,
-	perFileInputs *jutil.SetMultimap[*SourceFile, *transpileAndOptimizeClosureUnaware_ShadowAst]) {
-	for sourceFile := range perFileInputs.KeySet() {
-		indexInFile := 0
-		for shadowAst := range perFileInputs.Get(sourceFile).All() {
-			uniqueName := sourceFile.GetName() + ".shadow" + strconv.Itoa(indexInFile)
-			indexInFile++
+	groups []shadowFileGroup) {
+	for _, g := range groups {
+		for indexInFile, shadowAst := range g.asts {
+			uniqueName := g.file.GetName() + ".shadow" + strconv.Itoa(indexInFile)
 			shadowCompiler.AddScript(shadowAst.Script().Detach(), uniqueName)
 		}
 	}
@@ -228,8 +259,8 @@ func (p *TranspileAndOptimizeClosureUnaware) initShadowInputs(
 //
 // Java: TranspileAndOptimizeClosureUnaware.reattachShadowNodes(LinkedHashMultimap<SourceFile, ShadowAst>)
 func (p *TranspileAndOptimizeClosureUnaware) reattachShadowNodes(
-	inputs *jutil.SetMultimap[*SourceFile, *transpileAndOptimizeClosureUnaware_ShadowAst]) {
-	for _, shadowAst := range inputs.Values() {
+	inputs []*transpileAndOptimizeClosureUnaware_ShadowAst) {
+	for _, shadowAst := range inputs {
 		script := shadowAst.Script()
 		jutil.CheckStateMsg1(script.HasOneChild(), "%s", script.ToStringTree())
 		shadowAst.OriginalRoot().AddChildToFront(script.Detach())

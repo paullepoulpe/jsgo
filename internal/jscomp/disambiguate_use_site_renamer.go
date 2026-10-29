@@ -19,6 +19,8 @@
 package jscomp
 
 import (
+	"iter"
+	"maps"
 	"slices"
 	"strconv"
 
@@ -153,17 +155,57 @@ func (r UseSiteRenamer_RenameUsesResult) String() string { return r.Name() }
 // Ordinal is Enum.ordinal().
 func (r UseSiteRenamer_RenameUsesResult) Ordinal() int { return int(r) }
 
+// UseSiteNameSlice holds the renamed cluster names for a single property.
+type UseSiteNameSlice []string
+
+// ToSlice returns a copy of the renamed cluster names.
+func (s UseSiteNameSlice) ToSlice() []string { return slices.Clone(s) }
+
+// UseSiteRenamingIndex maps property names to their renamed cluster names in insertion order.
+type UseSiteRenamingIndex struct {
+	entries map[string][]string
+	order   []string
+}
+
+// Get returns the renamed cluster names for name (empty when absent).
+func (idx *UseSiteRenamingIndex) Get(name string) UseSiteNameSlice {
+	if idx == nil {
+		return nil
+	}
+	return idx.entries[name]
+}
+
+// Entries iterates (propertyName, renamedName) pairs in insertion order.
+func (idx *UseSiteRenamingIndex) Entries() iter.Seq2[string, string] {
+	return func(yield func(string, string) bool) {
+		if idx == nil {
+			return
+		}
+		for _, k := range idx.order {
+			for _, v := range idx.entries[k] {
+				if !yield(k, v) {
+					return
+				}
+			}
+		}
+	}
+}
+
 // GetRenamingIndex is renamingIndex.build().
 //
 // Java: UseSiteRenamer.getRenamingIndex()
-func (r *UseSiteRenamer) GetRenamingIndex() *jutil.SetMultimap[string, string] {
-	out := jutil.NewSetMultimap[string, string]()
-	for _, k := range r.renamingOrder {
-		for _, v := range r.renamingEntries[k] {
-			out.Put(k, v)
-		}
+func (r *UseSiteRenamer) GetRenamingIndex() *UseSiteRenamingIndex {
+	if len(r.renamingOrder) == 0 {
+		return &UseSiteRenamingIndex{}
 	}
-	return out
+	entries := maps.Clone(r.renamingEntries)
+	for _, k := range r.renamingOrder {
+		entries[k] = slices.Clone(entries[k])
+	}
+	return &UseSiteRenamingIndex{
+		entries: entries,
+		order:   slices.Clone(r.renamingOrder),
+	}
 }
 
 // useSiteRenamer_createAllClusterNames creates a unique name for each

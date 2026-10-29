@@ -3,12 +3,11 @@ package jutil
 import (
 	"bytes"
 	"fmt"
-	"strings"
 	"testing"
 )
 
-// Expected bytes come from the JDK 21 runtime (OutputStreamWriter and
-// BufferedWriter over a ByteArrayOutputStream, UTF_8).
+// Expected bytes come from the JDK 21 runtime (OutputStreamWriter over a
+// ByteArrayOutputStream, UTF_8).
 
 type nopCloseBuffer struct{ bytes.Buffer }
 
@@ -28,23 +27,4 @@ func TestOutputStreamWriterSurrogatesMatchJava(t *testing.T) {
 		t.Errorf("write after close: %s", got)
 	}
 	w.Close() // no effect
-}
-
-func TestBufferedWriterMatchesJava(t *testing.T) {
-	var out nopCloseBuffer
-	bw := NewBufferedWriter(NewOutputStreamWriter(&out))
-	// The 8192-char buffer fills between the two halves of the pair.
-	bw.Write(strings.Repeat("a", 8191) + "\U0001F600z")
-	bw.Close()
-	b := out.Bytes()
-	if got := fmt.Sprintf("%d %x", len(b), b[8189:]); got != "8196 6161f09f98807a" {
-		t.Errorf("got %s", got)
-	}
-	if got := throwableString(func() { bw.Write("x") }); got != "java.io.IOException: Stream closed" {
-		t.Errorf("write after close: %s", got)
-	}
-	if _, err := bw.WriteString("x"); err == nil || err.Error() != "Stream closed" {
-		t.Errorf("WriteString after close: %v", err)
-	}
-	bw.Close() // no effect
 }

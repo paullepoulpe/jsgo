@@ -31,6 +31,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"reflect"
 	"strconv"
 	"strings"
 	"testing"
@@ -120,55 +121,6 @@ func (s *raiTestScope) GetTopmostScopeOfEventualDeclaration(name string) rhino.S
 	return rhino.StaticScope_GetTopmostScopeOfEventualDeclaration(s, name)
 }
 func (s *raiTestScope) LookupQualifiedName(qname rhino.QualifiedName) rhino.JSType {
-	return rhino.StaticTypedScope_LookupQualifiedName(s, qname)
-}
-
-// raiFlowScope is a flow scope whose updates copy the slot map
-// (insertion-ordered).
-type raiFlowScope struct {
-	slots *jutil.LinkedHashMap[string, rhino.StaticTypedSlot]
-}
-
-func raiCopySlots(m *jutil.LinkedHashMap[string, rhino.StaticTypedSlot]) *jutil.LinkedHashMap[string, rhino.StaticTypedSlot] {
-	c := jutil.NewLinkedHashMap[string, rhino.StaticTypedSlot]()
-	for k, v := range m.All() {
-		c.Put(k, v)
-	}
-	return c
-}
-
-func (s *raiFlowScope) WithSyntacticScope(scope rhino.StaticTypedScope) FlowScope {
-	panic(jutil.NewUnsupportedOperationException())
-}
-
-func (s *raiFlowScope) InferSlotType(symbol string, type_ rhino.JSType) FlowScope {
-	c := raiCopySlots(s.slots)
-	c.Put(symbol, rhino.NewSimpleSlot(symbol, type_, true))
-	return &raiFlowScope{slots: c}
-}
-
-func (s *raiFlowScope) InferQualifiedSlot(
-	node rhino.Node, symbol string, bottomType rhino.JSType, inferredType rhino.JSType, declare bool) FlowScope {
-	c := raiCopySlots(s.slots)
-	c.Put(symbol, rhino.NewSimpleSlot(symbol, inferredType, true))
-	return &raiFlowScope{slots: c}
-}
-
-func (s *raiFlowScope) GetDeclarationScope() rhino.StaticTypedScope { return nil }
-func (s *raiFlowScope) GetRootNode() rhino.Node                     { return rhino.NilNode }
-func (s *raiFlowScope) GetParentScope() rhino.StaticScope           { return nil }
-func (s *raiFlowScope) GetSlot(name string) rhino.StaticSlot {
-	if slot, ok := s.slots.Lookup(name); ok {
-		return slot
-	}
-	return nil
-}
-func (s *raiFlowScope) GetOwnSlot(name string) rhino.StaticSlot { return s.GetSlot(name) }
-func (s *raiFlowScope) GetTypeOfThis() rhino.JSType             { return nil }
-func (s *raiFlowScope) GetTopmostScopeOfEventualDeclaration(name string) rhino.StaticScope {
-	return rhino.StaticScope_GetTopmostScopeOfEventualDeclaration(s, name)
-}
-func (s *raiFlowScope) LookupQualifiedName(qname rhino.QualifiedName) rhino.JSType {
 	return rhino.StaticTypedScope_LookupQualifiedName(s, qname)
 }
 
@@ -720,18 +672,18 @@ func raiSexp(n rhino.Node, sb *strings.Builder) {
 }
 
 // raiDiff prints how result differs from blind.
-func raiDiff(blind *raiFlowScope, result FlowScope) string {
-	if r, ok := result.(*raiFlowScope); ok && r == blind {
+func raiDiff(blind *LinkedFlowScope, result *LinkedFlowScope) string {
+	if result == blind {
 		return "="
 	}
-	r, ok := result.(*raiFlowScope)
-	if !ok {
+	if result == nil {
 		return "W"
 	}
+	blindSlots := blind.blindSlots()
 	var sb strings.Builder
 	sb.WriteString("~")
-	for name, slot := range r.slots.All() {
-		old, present := blind.slots.Lookup(name)
+	for name, slot := range result.blindSlots().All() {
+		old, present := blindSlots.Lookup(name)
 		t := slot.GetType()
 		if !present {
 			sb.WriteString(" +" + raiEsc(name) + ":" + raiStr(t))
@@ -751,7 +703,7 @@ func (d *raiDump) runCase(kind string, c *raiCase, cond rhino.Node) {
 	}
 	raiSexp(shown, &sb)
 	d.line("case\t" + kind + "\t" + sb.String() + "\t" + c.decls.String())
-	blind := &raiFlowScope{slots: c.slots}
+	blind := newBlindLinkedFlowScope(c.slots)
 	for i, chain := range d.chains {
 		var r strings.Builder
 		r.WriteString(d.chainNames[i])
@@ -1095,4 +1047,54 @@ func TestReverseInterpreterOracle(t *testing.T) {
 	got := d.out.String()
 	raiWriteOut(t, "RAI_ORACLE_OUT", got)
 	raiCompare(t, want, got, "case\t")
+}
+
+func TestLinkedFlowScopeSizeAndMonomorphicInference(t *testing.T) {
+	if got := reflect.TypeFor[LinkedFlowScope]().Size(); got != 48 {
+		t.Fatalf("sizeof(LinkedFlowScope) = %d, want 48", got)
+	}
+	compiler := NewCompiler()
+	compiler.InitOptions(NewCompilerOptions())
+	registry := compiler.GetTypeRegistry()
+	script := compiler.ParseTestCode("var x = 1; if (x) { x = 's'; }")
+	root := rhino.IR_Root(rhino.IR_Root(), rhino.IR_Root(script))
+	scopeCreator := NewTypedScopeCreator(compiler)
+	var globalScope *TypedScope
+	func() {
+		closer := registry.GetResolver().OpenForDefinition()
+		defer closer.Close()
+		globalScope = scopeCreator.CreateScope(root, nil).(*TypedScope)
+		scopeCreator.ResolveWeakImportsPreResolution()
+	}()
+	scopeCreator.FinishAndFreeze()
+	cfg := ControlFlowAnalysis_Builder_().
+		SetCompiler(compiler).
+		SetCfgRoot(root).
+		SetTraverseFunctions(true).
+		SetIncludeEdgeAnnotations(true).
+		ComputeCfg()
+	dfa := NewTypeInference(
+		compiler,
+		cfg,
+		compiler.GetReverseAbstractInterpreter(),
+		globalScope,
+		scopeCreator,
+		TypeInferenceTest_ASSERTION_FUNCTION_MAP,
+	)
+	dfa.Analyze()
+	ret := dfa.GetImplicitReturnScope()
+	if ret == nil || !ret.HasSlot("x") {
+		t.Fatalf("GetImplicitReturnScope missing slot x: %v", ret)
+	}
+	_, _, typ, inferred, found := ret.LookupSlotType("x")
+	if !found || !inferred || typ == nil {
+		t.Fatalf("LookupSlotType(\"x\") = (%v, %v, %v), want non-nil inferred type", typ, inferred, found)
+	}
+	wantUnion := registry.CreateUnionType(
+		registry.GetNativeType(rhino.JSTypeNative_NUMBER_TYPE),
+		registry.GetNativeType(rhino.JSTypeNative_STRING_TYPE),
+	)
+	if !typ.Equals(wantUnion) {
+		t.Fatalf("LookupSlotType(\"x\") = %v, want %v", typ, wantUnion)
+	}
 }

@@ -186,13 +186,13 @@ func (c *CheckUnreachableCode) hasNoUnreachableCodeFast(scopeRoot rhino.Node) bo
 	}
 }
 
-// Java: NodeTraversal.AbstractCfgCallback.enterScope(NodeTraversal)
+func (*CheckUnreachableCode) combinedVisitTokens() ast.TokenSet { return ast.TokenSet{} }
+
 func (c *CheckUnreachableCode) EnterScope(t *NodeTraversal) {
 	c.pushScopeRoot(t.GetScopeRoot())
 	c.EnterScopeWithCfg(t)
 }
 
-// Java: NodeTraversal.AbstractCfgCallback.exitScope(NodeTraversal)
 func (c *CheckUnreachableCode) ExitScope(t *NodeTraversal) {
 	c.ExitScopeWithCfg(t)
 	c.popScopeRoot(t.GetScopeRoot())

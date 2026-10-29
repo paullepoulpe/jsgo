@@ -577,6 +577,28 @@ func (c *LiveVariablesAnalysisTest) TestLattice128AndVarTableThresholds() {
 	AssertThat(inLat.Equals(copyLat)).IsTrue()
 	AssertThat(inLat.HashCode()).IsEqualTo(copyLat.HashCode())
 	AssertThat(inLat.String()).IsEqualTo(copyLat.String())
+
+	// > 256 block-scoped variables exercises multi-word extra []uint64 and int var indices,
+	// including through DeadAssignmentsElimination (where function+body var count <= 100).
+	var blockSrc string
+	for i := 0; i < 300; i++ {
+		blockSrc += fmt.Sprintf("{ let bv%d = %d; if (cond) use(bv%d); } ", i, i, i)
+	}
+	blockSrc += "{ let tailLive = 1, tailDead = 2; X: f(); use(tailLive); }"
+	overState := c.GetFlowStateAtX(blockSrc, false)
+	AssertThat(overState).IsNotNull()
+	overIn := overState.GetIn()
+	liveIdx := c.liveness.GetVarIndex("tailLive")
+	deadIdx := c.liveness.GetVarIndex("tailDead")
+	AssertThat(liveIdx >= 300).IsTrue()
+	AssertThat(overIn.IsLive(liveIdx)).IsTrue()
+	AssertThat(overIn.IsLive(deadIdx)).IsFalse()
+	AssertThat(overIn.NextSetBit(liveIdx)).IsEqualTo(liveIdx)
+	AssertThat(overIn.NextSetBit(liveIdx + 1)).IsEqualTo(-1)
+	overCopy := NewLiveVariablesAnalysis_LiveVariableLatticeOf(overIn)
+	AssertThat(overIn.Equals(overCopy)).IsTrue()
+	AssertThat(overIn.HashCode()).IsEqualTo(overCopy.HashCode())
+	AssertThat(overIn.String()).IsEqualTo(overCopy.String())
 }
 
 // Java: LiveVariablesAnalysisTest.assertLiveBeforeX(String, String)

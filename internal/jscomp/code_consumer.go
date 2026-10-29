@@ -23,6 +23,7 @@ import (
 	"math/big"
 	"strconv"
 	"strings"
+	"unicode/utf16"
 	"unicode/utf8"
 
 	"github.com/paullepoulpe/jsgo/internal/base"
@@ -65,14 +66,15 @@ type CodeConsumer struct {
 	templateLitSubDepth int
 
 	// Printer buffer and line state (sinkCompact, sinkPretty).
-	codeASCII              []byte
-	codeUTF16              *jutil.StringBuilder
-	lineLengthThreshold    int
-	lineLength             int
-	lineIndex              int
-	lineStartPosition      int // sinkCompact
-	preferredBreakPosition int // sinkCompact
-	indent                 int // sinkPretty
+	code                []byte
+	hasNonASCII         bool
+	lineLengthThreshold int
+	lineLength          int
+	lineIndex           int
+	lineStartByte       int // sinkCompact
+	preferredBreakByte  int // sinkCompact
+	preferredBreakCol   int // sinkCompact
+	indent              int // sinkPretty
 
 	// Cost / size counters (sinkCost, sinkSize).
 	cost    int
@@ -182,33 +184,55 @@ func (c *CodeConsumer) maybeIndent() {
 	}
 }
 
-func (c *CodeConsumer) promoteToUTF16(extra int) {
-	c.codeUTF16 = jutil.NewStringBuilderWithCapacity(max(len(c.codeASCII)+extra, 1024))
-	for _, b := range c.codeASCII {
-		c.codeUTF16.AppendChar(uint16(b))
-	}
-	c.codeASCII = c.codeASCII[:0]
-}
-
 func (c *CodeConsumer) codeAppend(str string) int {
 	if len(str) == 0 {
 		return 0
 	}
-	if c.codeUTF16 == nil {
-		if jutil.IsASCII(str) {
-			c.codeASCII = append(c.codeASCII, str...)
-			c.lastChar = uint16(str[len(str)-1])
-			return len(str)
+	if jutil.IsASCII(str) {
+		c.code = append(c.code, str...)
+		c.lastChar = uint16(str[len(str)-1])
+		return len(str)
+	}
+	c.hasNonASCII = true
+	if c.lastChar >= 0xD800 && c.lastChar <= 0xDBFF &&
+		len(c.code) >= 3 &&
+		len(str) >= 3 && str[0] == 0xED && str[1] >= 0xB0 && str[1] <= 0xBF && str[2]&0xC0 == 0x80 &&
+		c.preferredBreakByte != len(c.code) {
+		lo := rune(0xED&0x0F)<<12 | rune(str[1]&0x3F)<<6 | rune(str[2]&0x3F)
+		cp := utf16.DecodeRune(rune(c.lastChar), lo)
+		c.code = utf8.AppendRune(c.code[:len(c.code)-3], cp)
+		c.code = append(c.code, str[3:]...)
+	} else {
+		c.code = append(c.code, str...)
+	}
+	units := 0
+	var last uint16
+	for i := 0; i < len(str); {
+		b0 := str[i]
+		if b0 < 0x80 {
+			last = uint16(b0)
+			units++
+			i++
+			continue
 		}
-		c.promoteToUTF16(len(str))
+		if b0 == 0xED && i+3 <= len(str) && str[i+1] >= 0xA0 && str[i+1] <= 0xBF && str[i+2]&0xC0 == 0x80 {
+			last = uint16(b0&0x0F)<<12 | uint16(str[i+1]&0x3F)<<6 | uint16(str[i+2]&0x3F)
+			units++
+			i += 3
+			continue
+		}
+		r, sz := utf8.DecodeRuneInString(str[i:])
+		i += sz
+		if r >= 0x10000 {
+			last = uint16(0xDC00 + ((r - 0x10000) & 0x3FF))
+			units += 2
+		} else {
+			last = uint16(r)
+			units++
+		}
 	}
-	before := c.codeUTF16.Length()
-	c.codeUTF16.Append(str)
-	after := c.codeUTF16.Length()
-	if after > before {
-		c.lastChar = c.codeUTF16.CharAt(after - 1)
-	}
-	return after - before
+	c.lastChar = last
+	return units
 }
 
 func (c *CodeConsumer) codeAppendASCII(str string) {
@@ -216,59 +240,25 @@ func (c *CodeConsumer) codeAppendASCII(str string) {
 		return
 	}
 	c.lastChar = uint16(str[len(str)-1])
-	if c.codeUTF16 == nil {
-		c.codeASCII = append(c.codeASCII, str...)
-		return
-	}
-	for i := 0; i < len(str); i++ {
-		c.codeUTF16.AppendChar(uint16(str[i]))
-	}
+	c.code = append(c.code, str...)
 }
 
 func (c *CodeConsumer) codeAppendByte(b byte) {
 	c.lastChar = uint16(b)
-	if c.codeUTF16 == nil {
-		c.codeASCII = append(c.codeASCII, b)
-		return
-	}
-	c.codeUTF16.AppendChar(uint16(b))
-}
-
-func (c *CodeConsumer) codeLength() int {
-	if c.codeUTF16 == nil {
-		return len(c.codeASCII)
-	}
-	return c.codeUTF16.Length()
-}
-
-func (c *CodeConsumer) codeCharAt(i int) uint16 {
-	if c.codeUTF16 == nil {
-		if i < 0 || i >= len(c.codeASCII) {
-			panic(jutil.NewStringIndexOutOfBoundsException(i, len(c.codeASCII)))
-		}
-		return uint16(c.codeASCII[i])
-	}
-	return c.codeUTF16.CharAt(i)
+	c.code = append(c.code, b)
 }
 
 func (c *CodeConsumer) codeInsertByte(offset int, b byte) {
-	if c.codeUTF16 == nil {
-		if offset < 0 || offset > len(c.codeASCII) {
-			panic(jutil.NewStringIndexOutOfBoundsException(offset, len(c.codeASCII)))
-		}
-		n := len(c.codeASCII)
-		if offset == n {
-			c.lastChar = uint16(b)
-		}
-		c.codeASCII = append(c.codeASCII, 0)
-		copy(c.codeASCII[offset+1:], c.codeASCII[offset:n])
-		c.codeASCII[offset] = b
-		return
+	n := len(c.code)
+	if offset < 0 || offset > n {
+		panic(jutil.NewStringIndexOutOfBoundsException(offset, n))
 	}
-	if offset == c.codeUTF16.Length() {
+	if offset == n {
 		c.lastChar = uint16(b)
 	}
-	c.codeUTF16.InsertChar(offset, uint16(b))
+	c.code = append(c.code, 0)
+	copy(c.code[offset+1:], c.code[offset:n])
+	c.code[offset] = b
 }
 
 // Append appends a string to the consumer's output.
@@ -332,13 +322,7 @@ func (c *CodeConsumer) appendASCIIBytes(b []byte) {
 	case sinkCompact:
 		c.lastChar = uint16(b[len(b)-1])
 		c.lineLength += len(b)
-		if c.codeUTF16 == nil {
-			c.codeASCII = append(c.codeASCII, b...)
-		} else {
-			for _, ch := range b {
-				c.codeUTF16.AppendChar(uint16(ch))
-			}
-		}
+		c.code = append(c.code, b...)
 	case sinkCost:
 		c.lastChar = uint16(b[len(b)-1])
 		c.cost += len(b)
@@ -382,13 +366,7 @@ func (c *CodeConsumer) appendContinuationChunk(b []byte, isASCII bool) {
 		case sinkCompact, sinkPretty:
 			c.lastChar = uint16(b[len(b)-1])
 			c.lineLength += len(b)
-			if c.codeUTF16 == nil {
-				c.codeASCII = append(c.codeASCII, b...)
-			} else {
-				for _, ch := range b {
-					c.codeUTF16.AppendChar(uint16(ch))
-				}
-			}
+			c.code = append(c.code, b...)
 		case sinkCost:
 			c.lastChar = uint16(b[len(b)-1])
 			c.cost += len(b)
@@ -411,19 +389,11 @@ func (c *CodeConsumer) appendContinuationChunk(b []byte, isASCII bool) {
 	// Non-ASCII BMP UTF-8 chunk: every rune is 1 UTF-16 code unit.
 	switch c.mode {
 	case sinkCompact, sinkPretty:
-		if c.codeUTF16 == nil {
-			c.promoteToUTF16(len(b))
-		}
-		unitsAdded := 0
-		var last rune
-		for i := 0; i < len(b); {
-			r, sz := utf8.DecodeRune(b[i:])
-			c.codeUTF16.AppendChar(uint16(r))
-			last = r
-			unitsAdded++
-			i += sz
-		}
-		c.lastChar = uint16(last)
+		c.hasNonASCII = true
+		c.code = append(c.code, b...)
+		unitsAdded := utf8.RuneCount(b)
+		r, _ := utf8.DecodeLastRune(b)
+		c.lastChar = uint16(r)
 		c.lineLength += unitsAdded
 	case sinkCost:
 		unitsAdded := utf8.RuneCount(b)
@@ -455,17 +425,9 @@ func (c *CodeConsumer) addPlainQuotedASCII(quote byte, s string) {
 	case sinkCompact, sinkPretty:
 		c.lastChar = uint16(quote)
 		c.lineLength += len(s) + 2
-		if c.codeUTF16 == nil {
-			c.codeASCII = append(c.codeASCII, quote)
-			c.codeASCII = append(c.codeASCII, s...)
-			c.codeASCII = append(c.codeASCII, quote)
-		} else {
-			c.codeUTF16.AppendChar(uint16(quote))
-			for i := 0; i < len(s); i++ {
-				c.codeUTF16.AppendChar(uint16(s[i]))
-			}
-			c.codeUTF16.AppendChar(uint16(quote))
-		}
+		c.code = append(c.code, quote)
+		c.code = append(c.code, s...)
+		c.code = append(c.code, quote)
 	case sinkCost:
 		c.lastChar = uint16(quote)
 		c.cost += len(s) + 2
@@ -599,7 +561,7 @@ func (c *CodeConsumer) StartNewLine() {
 	c.codeAppendByte('\n')
 	c.lineLength = 0
 	c.lineIndex++
-	c.lineStartPosition = c.codeLength()
+	c.lineStartByte = len(c.code)
 }
 
 // Java: CodeConsumer.maybeLineBreak()
@@ -610,9 +572,10 @@ func (c *CodeConsumer) MaybeLineBreak() {
 			c.StartNewLine()
 			c.sawFunction = false
 		}
-		len_ := c.codeLength()
-		if c.preferredBreakPosition == len_-1 && c.codeCharAt(len_-1) == ';' {
-			c.preferredBreakPosition = len_
+		len_ := len(c.code)
+		if c.preferredBreakByte >= c.lineStartByte && c.preferredBreakByte == len_-1 && c.code[len_-1] == ';' {
+			c.preferredBreakByte = len_
+			c.preferredBreakCol++
 		}
 		if c.lineLength > c.lineLengthThreshold {
 			c.MaybeCutLine()
@@ -629,13 +592,14 @@ func (c *CodeConsumer) MaybeCutLine() {
 		if c.lineLength <= c.lineLengthThreshold {
 			return
 		}
-		if c.preferredBreakPosition > c.lineStartPosition &&
-			c.preferredBreakPosition < c.lineStartPosition+c.lineLength {
-			c.codeInsertByte(c.preferredBreakPosition, '\n')
-			c.ReportLineCut(c.lineIndex, c.preferredBreakPosition-c.lineStartPosition)
+		if c.preferredBreakByte > c.lineStartByte &&
+			c.preferredBreakCol < c.lineLength &&
+			c.preferredBreakByte < len(c.code) {
+			c.codeInsertByte(c.preferredBreakByte, '\n')
+			c.ReportLineCut(c.lineIndex, c.preferredBreakCol)
 			c.lineIndex++
-			c.lineLength -= (c.preferredBreakPosition - c.lineStartPosition)
-			c.lineStartPosition = c.preferredBreakPosition + 1
+			c.lineLength -= c.preferredBreakCol
+			c.lineStartByte = c.preferredBreakByte + 1
 		} else {
 			c.StartNewLine()
 		}
@@ -656,7 +620,8 @@ func (c *CodeConsumer) EndLine() {
 // Java: CodeConsumer.notePreferredLineBreak()
 func (c *CodeConsumer) NotePreferredLineBreak() {
 	if c.mode == sinkCompact {
-		c.preferredBreakPosition = c.codeLength()
+		c.preferredBreakByte = len(c.code)
+		c.preferredBreakCol = c.lineLength
 	}
 }
 

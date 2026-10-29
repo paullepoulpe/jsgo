@@ -59,11 +59,9 @@ type ClosureReverseAbstractInterpreter = SemanticReverseAbstractInterpreter
 // interpreter supporting semantic JS narrowing, Closure-specific narrowing
 // (goog.isObject), and chained combinations of both without dynamic dispatch.
 type SemanticReverseAbstractInterpreter struct {
-	typeRegistry *rhino.JSTypeRegistry
-	mode         raiChainMode
-	trackingUsed []*sraiTrackingFlowScope
-	trackingFree []*sraiTrackingFlowScope
-	trackingSlab jutil.Slab[sraiTrackingFlowScope]
+	typeRegistry   *rhino.JSTypeRegistry
+	mode           raiChainMode
+	activeTrackers []*sraiRefinementTracker
 }
 
 // NewSemanticReverseAbstractInterpreter creates a semantic reverse abstract
@@ -124,7 +122,7 @@ func (s *SemanticReverseAbstractInterpreter) GetFirst() ChainableReverseAbstract
 //
 // Java: ReverseAbstractInterpreter.getPreciserScopeKnowingConditionOutcome(Node, FlowScope, Outcome)
 func (s *SemanticReverseAbstractInterpreter) GetPreciserScopeKnowingConditionOutcome(
-	condition rhino.Node, blindScope FlowScope, outcome rhino.Outcome) FlowScope {
+	condition rhino.Node, blindScope *LinkedFlowScope, outcome rhino.Outcome) *LinkedFlowScope {
 	switch s.mode {
 	case raiModeSemantic:
 		scope, _ := s.semanticPreciserScope(condition, blindScope, outcome)
@@ -154,7 +152,7 @@ func (s *SemanticReverseAbstractInterpreter) GetPreciserScopeKnowingConditionOut
 //
 // Java: ClosureReverseAbstractInterpreter.getPreciserScopeKnowingConditionOutcome(Node, FlowScope, Outcome)
 func (s *SemanticReverseAbstractInterpreter) closurePreciserScope(
-	condition rhino.Node, blindScope FlowScope, outcome rhino.Outcome) (FlowScope, bool) {
+	condition rhino.Node, blindScope *LinkedFlowScope, outcome rhino.Outcome) (*LinkedFlowScope, bool) {
 	if call, ok := ast.AsCall(condition); ok {
 		if param, ok := call.OnlyArg(); ok {
 			if callee, ok := call.Callee().AsGetProp(); ok && callee.Node().GetStringID() == raiIsObjectID {
@@ -172,8 +170,8 @@ func (s *SemanticReverseAbstractInterpreter) closurePreciserScope(
 func (s *SemanticReverseAbstractInterpreter) restrictIsObject(
 	parameter rhino.Node,
 	type_ rhino.JSType,
-	blindScope FlowScope,
-	outcome bool) FlowScope {
+	blindScope *LinkedFlowScope,
+	outcome bool) *LinkedFlowScope {
 	if type_ == nil {
 		if outcome {
 			type_ = s.GetNativeType(rhino.JSTypeNative_OBJECT_TYPE)
@@ -328,12 +326,10 @@ func (s *SemanticReverseAbstractInterpreter) restrictToNotObject(t rhino.JSType)
 // Returns the current type of the node if it can be refined, null otherwise.
 //
 // Java: ChainableReverseAbstractInterpreter.getTypeIfRefinable(Node, FlowScope)
-func (s *SemanticReverseAbstractInterpreter) GetTypeIfRefinable(node rhino.Node, scope FlowScope) rhino.JSType {
+func (s *SemanticReverseAbstractInterpreter) GetTypeIfRefinable(node rhino.Node, scope *LinkedFlowScope) rhino.JSType {
 	switch node.GetToken() {
 	case rhino.Token_NAME:
-		nameVar, _ := scope.GetSlot(node.GetString()).(rhino.StaticTypedSlot)
-		if nameVar != nil {
-			nameVarType := nameVar.GetType()
+		if _, _, nameVarType, _, ok := scope.LookupSlotType(node.GetString()); ok {
 			if nameVarType == nil {
 				nameVarType = node.GetJSType()
 			}
@@ -345,11 +341,7 @@ func (s *SemanticReverseAbstractInterpreter) GetTypeIfRefinable(node rhino.Node,
 		if !ok {
 			return nil
 		}
-		propVar, _ := scope.GetSlot(qualifiedName).(rhino.StaticTypedSlot)
-		var propVarType rhino.JSType
-		if propVar != nil {
-			propVarType = propVar.GetType()
-		}
+		_, _, propVarType, _, _ := scope.LookupSlotType(qualifiedName)
 		if propVarType == nil {
 			propVarType = node.GetJSType()
 		}
@@ -370,10 +362,12 @@ func (s *SemanticReverseAbstractInterpreter) GetTypeIfRefinable(node rhino.Node,
 //
 // Java: ChainableReverseAbstractInterpreter.declareNameInScope(FlowScope, Node, JSType)
 func (s *SemanticReverseAbstractInterpreter) DeclareNameInScope(
-	scope FlowScope, node rhino.Node, type_ rhino.JSType) FlowScope {
+	scope *LinkedFlowScope, node rhino.Node, type_ rhino.JSType) *LinkedFlowScope {
 	switch node.GetToken() {
 	case rhino.Token_NAME:
-		return scope.InferSlotType(node.GetString(), type_)
+		name := node.GetString()
+		s.recordRefinement(name)
+		return scope.InferSlotType(name, type_)
 	case rhino.Token_GETPROP:
 		qualifiedName, ok := node.GetQualifiedNameString()
 		if !ok {
@@ -384,6 +378,7 @@ func (s *SemanticReverseAbstractInterpreter) DeclareNameInScope(
 		if origType == nil {
 			origType = s.GetNativeType(rhino.JSTypeNative_UNKNOWN_TYPE)
 		}
+		s.recordRefinement(qualifiedName)
 		return scope.InferQualifiedSlot(node, qualifiedName, origType, type_, false)
 	case rhino.Token_THIS:
 		// "this" references aren't currently modeled in the CFG.

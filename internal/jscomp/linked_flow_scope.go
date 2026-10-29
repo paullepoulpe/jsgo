@@ -93,6 +93,37 @@ func (a *linkedFlowScopeArena) trimLargeChunks() {
 	a.slotMapArena.TrimLargeChunks()
 }
 
+// FlowScope aliases *LinkedFlowScope, the sole flow-sensitive type scope
+// implementation, avoiding interface dispatch on hot type-inference paths.
+type FlowScope = *LinkedFlowScope
+
+// linkedFlowBlindStore backs a blind copy-on-write LinkedFlowScope
+// (syntacticScope == nil) for the reverse abstract interpreter oracle without
+// increasing sizeof(LinkedFlowScope).
+type linkedFlowBlindStore struct {
+	slots *jutil.LinkedHashMap[string, rhino.StaticTypedSlot]
+}
+
+func (*linkedFlowBlindStore) GetInput(*rhino.InputId) *CompilerInput { return nil }
+
+func newBlindLinkedFlowScope(slots *jutil.LinkedHashMap[string, rhino.StaticTypedSlot]) *LinkedFlowScope {
+	return &LinkedFlowScope{
+		inputProvider: &linkedFlowBlindStore{slots: slots},
+	}
+}
+
+func (l *LinkedFlowScope) blindSlots() *jutil.LinkedHashMap[string, rhino.StaticTypedSlot] {
+	return l.inputProvider.(*linkedFlowBlindStore).slots
+}
+
+func copyBlindSlots(m *jutil.LinkedHashMap[string, rhino.StaticTypedSlot]) *jutil.LinkedHashMap[string, rhino.StaticTypedSlot] {
+	c := jutil.NewLinkedHashMap[string, rhino.StaticTypedSlot]()
+	for k, v := range m.All() {
+		c.Put(k, v)
+	}
+	return c
+}
+
 // LinkedFlowScope is a flow scope that tries to store as little symbol
 // information as possible, instead delegating to its parents. Optimized for
 // low memory use.
@@ -200,7 +231,12 @@ func LinkedFlowScope_CreateEntryLattice(
 }
 
 // Java: LinkedFlowScope.inferSlotType(String, JSType)
-func (l *LinkedFlowScope) InferSlotType(symbol string, type_ rhino.JSType) FlowScope {
+func (l *LinkedFlowScope) InferSlotType(symbol string, type_ rhino.JSType) *LinkedFlowScope {
+	if l.syntacticScope == nil {
+		c := copyBlindSlots(l.blindSlots())
+		c.Put(symbol, rhino.NewSimpleSlot(symbol, type_, true))
+		return newBlindLinkedFlowScope(c)
+	}
 	scope := l.GetOverlayScopeForName(symbol, true)
 	newScope := scope.Infer(symbol, type_)
 	if newScope == scope && !newScope.slots.IsEmpty() {
@@ -221,7 +257,13 @@ func (l *LinkedFlowScope) InferSlotType(symbol string, type_ rhino.JSType) FlowS
 
 // Java: LinkedFlowScope.inferQualifiedSlot(Node, String, JSType, JSType, boolean)
 func (l *LinkedFlowScope) InferQualifiedSlot(
-	node rhino.Node, symbol string, bottomType rhino.JSType, inferredType rhino.JSType, declared bool) FlowScope {
+	node rhino.Node, symbol string, bottomType rhino.JSType, inferredType rhino.JSType, declared bool) *LinkedFlowScope {
+	syn := l.syntacticScope
+	if syn == nil {
+		c := copyBlindSlots(l.blindSlots())
+		c.Put(symbol, rhino.NewSimpleSlot(symbol, inferredType, true))
+		return newBlindLinkedFlowScope(c)
+	}
 	if l.functionScope.IsGlobal() {
 		// Do not infer qualified names on the global scope.  Ideally these would be
 		// added to the scope by TypedScopeCreator, but if they are not, adding them
@@ -229,7 +271,7 @@ func (l *LinkedFlowScope) InferQualifiedSlot(
 		// undeclared qualified names in the global scope) with no real benefit.
 		return l
 	}
-	v := l.syntacticScope.GetVar(symbol)
+	v := syn.GetVar(symbol)
 	if v == nil && !l.functionScope.IsBottom() {
 		// NOTE(sdh): Qualified names are declared on scopes lazily via this method.
 		// The difficulty is that it's not always clear which scope they need to be
@@ -239,12 +281,12 @@ func (l *LinkedFlowScope) InferQualifiedSlot(
 		// declared in multiple different blocks.  Instead, the qualified name is declared
 		// on the scope that owns the root, when possible. When the root is undeclared, the qualified
 		// name is declared in the global scope, as only global variables can be undeclared.
-		rootVar := l.syntacticScope.lookupRootVar(LinkedFlowScope_GetRootOfQualifiedName(symbol))
+		rootVar := syn.lookupRootVar(LinkedFlowScope_GetRootOfQualifiedName(symbol))
 		var rootScope *TypedScope
 		if rootVar != nil {
 			rootScope = rootVar.getScopeS()
 		} else {
-			rootScope = l.syntacticScope.GetGlobalScope()
+			rootScope = syn.GetGlobalScope()
 		}
 		v =
 			rootScope.Declare(
@@ -280,24 +322,85 @@ func (l *LinkedFlowScope) InferQualifiedSlot(
 
 // Java: LinkedFlowScope.getTypeOfThis()
 func (l *LinkedFlowScope) GetTypeOfThis() rhino.JSType {
+	if l.syntacticScope == nil {
+		return nil
+	}
 	return l.syntacticScope.GetTypeOfThis()
 }
 
 // Java: LinkedFlowScope.getRootNode()
 func (l *LinkedFlowScope) GetRootNode() rhino.Node {
+	if l.syntacticScope == nil {
+		return rhino.NilNode
+	}
 	return l.syntacticScope.GetRootNode()
 }
 
 // Java: LinkedFlowScope.getParentScope()
 func (l *LinkedFlowScope) GetParentScope() rhino.StaticScope {
+	if l.syntacticScope == nil {
+		return nil
+	}
 	panic(jutil.NewUnsupportedOperationException())
+}
+
+// LookupSlotType resolves name's narrowed type and backing *TypedVar without
+// heap-allocating a transient linkedFlowSlot wrapper:
+//   - declaredVar is the syntactic scope's *TypedVar for name (or nil).
+//   - slotVar is the backing *TypedVar when unrefined, or nil when an overlay
+//     refinement overrides the slot.
+func (l *LinkedFlowScope) LookupSlotType(name string) (declaredVar *TypedVar, slotVar *TypedVar, flowType rhino.JSType, isInferred bool, ok bool) {
+	syn := l.syntacticScope
+	if syn == nil {
+		if slot, found := l.blindSlots().Lookup(name); found {
+			return nil, nil, slot.GetType(), slot.IsTypeInferred(), true
+		}
+		return nil, nil, nil, false, false
+	}
+	var_ := syn.GetVar(name)
+	var scope *LinkedFlowScope_OverlayScope
+	if var_ == nil {
+		scope = l.GetOverlayScopeForName(name, false)
+	} else {
+		scope = l.GetOverlayScopeForScope(var_.getScopeS(), false)
+	}
+
+	if scope != nil {
+		if t := scope.slots.Get(name); t != nil {
+			return var_, nil, unwrapOverlayType(t), true, true
+		}
+		if var_ != nil {
+			return var_, var_, var_.GetType(), var_.IsTypeInferred(), true
+		}
+		if s := scope.scope.GetVar(name); s != nil {
+			return nil, s, s.GetType(), s.IsTypeInferred(), true
+		}
+		return nil, nil, nil, false, false
+	}
+	if var_ != nil {
+		return var_, var_, var_.GetType(), var_.IsTypeInferred(), true
+	}
+	return nil, nil, nil, false, false
+}
+
+// HasSlot reports whether name resolves to a slot in l without allocating.
+func (l *LinkedFlowScope) HasSlot(name string) bool {
+	_, _, _, _, ok := l.LookupSlotType(name)
+	return ok
 }
 
 // GetSlot gets the slot for the given symbol (a StaticTypedSlot, or nil).
 //
 // Java: LinkedFlowScope.getSlot(String)
 func (l *LinkedFlowScope) GetSlot(name string) rhino.StaticSlot {
-	var_ := l.syntacticScope.GetVar(name)
+	syn := l.syntacticScope
+	if syn == nil {
+		if slot, ok := l.blindSlots().Lookup(name); ok {
+			return slot
+		}
+		return nil
+	}
+	var_ := syn.GetVar(name)
 	var scope *LinkedFlowScope_OverlayScope
 	if var_ == nil {
 		scope = l.GetOverlayScopeForName(name, false)
@@ -370,6 +473,9 @@ func (l *LinkedFlowScope) GetOverlayScopeForScope(scope *TypedScope, create bool
 
 // Java: LinkedFlowScope.getOwnSlot(String)
 func (l *LinkedFlowScope) GetOwnSlot(name string) rhino.StaticSlot {
+	if l.syntacticScope == nil {
+		return l.GetSlot(name)
+	}
 	panic(jutil.NewUnsupportedOperationException())
 }
 
@@ -390,8 +496,14 @@ func (l *LinkedFlowScope) LookupQualifiedName(qname rhino.QualifiedName) rhino.J
 }
 
 // Java: LinkedFlowScope.withSyntacticScope(StaticTypedScope)
-func (l *LinkedFlowScope) WithSyntacticScope(scope rhino.StaticTypedScope) FlowScope {
-	typedScope := scope.(*TypedScope)
+func (l *LinkedFlowScope) WithSyntacticScope(scope rhino.StaticTypedScope) *LinkedFlowScope {
+	if l.syntacticScope == nil {
+		panic(jutil.NewUnsupportedOperationException())
+	}
+	return l.withTypedScope(scope.(*TypedScope))
+}
+
+func (l *LinkedFlowScope) withTypedScope(typedScope *TypedScope) *LinkedFlowScope {
 	if typedScope != l.syntacticScope {
 		return newLinkedFlowScopeWithArena(l.arena, l.inputProvider, l.trimScopesMap(typedScope), typedScope, l.functionScope)
 	}
@@ -435,9 +547,8 @@ func NewLinkedFlowScope_FlowScopeJoinOp(inputProvider CompilerInputProvider) *Li
 // simply propagating either input's scope is perfectly fine.
 //
 // Java: LinkedFlowScope.FlowScopeJoinOp.joinFlow(FlowScope)
-func (j *LinkedFlowScope_FlowScopeJoinOp) JoinFlow(input FlowScope) {
+func (j *LinkedFlowScope_FlowScopeJoinOp) JoinFlow(linkedInput *LinkedFlowScope) {
 	// To join the two scopes, we have to
-	linkedInput := input.(*LinkedFlowScope)
 	if j.result == nil {
 		j.result = linkedInput
 		return
@@ -498,10 +609,7 @@ func (j *LinkedFlowScope_FlowScopeJoinOp) JoinFlow(input FlowScope) {
 }
 
 // Java: LinkedFlowScope.FlowScopeJoinOp.finish()
-func (j *LinkedFlowScope_FlowScopeJoinOp) Finish() FlowScope {
-	if j.result == nil {
-		return nil
-	}
+func (j *LinkedFlowScope_FlowScopeJoinOp) Finish() *LinkedFlowScope {
 	return j.result
 }
 
@@ -515,14 +623,14 @@ func LinkedFlowScope_GetCommonParentDeclarationScope(left *LinkedFlowScope, righ
 	return left.syntacticScope.GetCommonParent(right.syntacticScope)
 }
 
-// Java: LinkedFlowScope.equals(Object)
-func (l *LinkedFlowScope) Equals(other any) bool {
-	that, ok := other.(*LinkedFlowScope)
-	if !ok || that == nil {
-		return false
-	}
+// EqualScope reports whether l and that represent equivalent flow scopes
+// without boxing into any.
+func (l *LinkedFlowScope) EqualScope(that *LinkedFlowScope) bool {
 	if l == that {
 		return true
+	}
+	if l == nil || that == nil {
+		return false
 	}
 
 	// If two flow scopes are in the same function, then they could have
@@ -535,6 +643,12 @@ func (l *LinkedFlowScope) Equals(other any) bool {
 	// really needs to. Everything will still come out ok.
 	return l.functionScope == that.functionScope &&
 		l.scopes.Equivalent(that.scopes, LinkedFlowScope_EqualScopes)
+}
+
+// Java: LinkedFlowScope.equals(Object)
+func (l *LinkedFlowScope) Equals(other any) bool {
+	that, ok := other.(*LinkedFlowScope)
+	return ok && l.EqualScope(that)
 }
 
 // Java: LinkedFlowScope.equalScopes(OverlayScope, OverlayScope)

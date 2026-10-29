@@ -29,8 +29,6 @@ import (
 
 func jsaStr(s string) *string { return &s }
 
-func jsaTreeMapString(m *jutil.TreeMap[string, string]) string { return m.String() }
-
 func TestDiagnosticToSuppressionMapper_CreateSuppressionMap_asJson_skipsNonParseableSuppressions(t *testing.T) {
 	testError1 := DiagnosticType_Error("JSC_TEST_ERROR_1", "testing")
 	testError2 := DiagnosticType_Error("JSC_TEST_ERROR_2", "testing")

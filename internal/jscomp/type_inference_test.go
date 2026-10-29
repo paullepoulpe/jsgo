@@ -48,14 +48,14 @@ type TypeInferenceTest struct {
 	compiler        *Compiler
 	registry        *rhino.JSTypeRegistry
 	closer          *rhino.JSTypeResolver_Closer
-	assumptions     *jutil.JavaHashMap[string, rhino.JSType]
+	assumptions     *jutil.LinkedHashMap[string, rhino.JSType]
 	assumedThisType rhino.JSType
 	returnScope     FlowScope
 
 	// Maps a label name to information about the labeled statement.
 	//
 	// This map is recreated each time parseAndRunTypeInference() is executed.
-	labeledStatementMap *jutil.JavaHashMap[string, *TypeInferenceTest_LabeledStatement]
+	labeledStatementMap *jutil.LinkedHashMap[string, *TypeInferenceTest_LabeledStatement]
 }
 
 // Java: TypeInferenceTest()
@@ -95,7 +95,7 @@ func (c *TypeInferenceTest) SetUp() {
 	options.SetLanguageIn(CompilerOptions_LanguageMode_UNSUPPORTED)
 	c.compiler.InitOptions(options)
 	c.registry = c.compiler.GetTypeRegistry()
-	c.assumptions = jutil.NewJavaHashMap[string, rhino.JSType]()
+	c.assumptions = jutil.NewLinkedHashMap[string, rhino.JSType]()
 	c.returnScope = nil
 	c.closer = c.registry.GetResolver().OpenForDefinition()
 }
@@ -237,7 +237,7 @@ func (c *TypeInferenceTest) ParseAndRunTypeInferenceOfNode(root rhino.Node, cfgR
 		defer closer.Close()
 		// Create the scope with the assumptions.
 		// Also populate a map allowing us to look up labeled statements later.
-		c.labeledStatementMap = jutil.NewJavaHashMap[string, *TypeInferenceTest_LabeledStatement]()
+		c.labeledStatementMap = jutil.NewLinkedHashMap[string, *TypeInferenceTest_LabeledStatement]()
 		NodeTraversal_Builder_().
 			SetCompiler(c.compiler).
 			SetCallback(&typeInferenceTest_labelCollector{outer: c}).
@@ -265,16 +265,16 @@ func (c *TypeInferenceTest) ParseAndRunTypeInferenceOfNode(root rhino.Node, cfgR
 		NewTypeInference(c.compiler, cfg, rai, assumedScope, scopeCreator, TypeInferenceTest_ASSERTION_FUNCTION_MAP)
 	dfa.Analyze()
 	// Get the scope of the implicit return.
-	rtnState := cfg.GetImplicitReturn().GetAnnotation().(*DataFlowAnalysis_LinearFlowState[FlowScope])
+	rtnIn := dfa.GetImplicitReturnScope()
 	if cfgRoot.IsFunction() {
 		// Reset the flow scope's syntactic scope to the function block, rather than the function
 		// node
 		// itself.  This allows pulling out local vars from the function by name to verify their
 		// types.
 		c.returnScope =
-			rtnState.GetIn().WithSyntacticScope(scopeCreator.CreateScopeOfNode(cfgRoot.GetLastChild()))
+			rtnIn.WithSyntacticScope(scopeCreator.CreateScopeOfNode(cfgRoot.GetLastChild()))
 	} else {
-		c.returnScope = rtnState.GetIn()
+		c.returnScope = rtnIn
 	}
 
 	c.closer = c.registry.GetResolver().OpenForDefinition()

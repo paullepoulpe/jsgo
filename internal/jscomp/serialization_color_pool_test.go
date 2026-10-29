@@ -348,13 +348,13 @@ func TestColorPool_Reconcile_debugInfo_mismatches(t *testing.T) {
 	// When
 	colorPool := ColorPool_Builder_().AddShardAnd(typePool0, StringPool_Empty()).AddShardAnd(typePool1, StringPool_Empty()).Build()
 	// Then
-	expected := jutil.NewSetMultimap[colors.ColorId, string]()
+	expected := colors.NewColorMismatchLocations()
 	expected.Put(colors.StandardColors_BOOLEAN.GetId(), "location_0")
 	expected.Put(colors.StandardColors_STRING.GetId(), "location_0")
 	expected.Put(colors.StandardColors_SYMBOL.GetId(), "location_0")
 	expected.Put(colors.StandardColors_NUMBER.GetId(), "location_1")
 	expected.Put(colors.StandardColors_BIGINT.GetId(), "location_2")
-	jsaMultimapEq(t, colorPool.GetRegistry().GetMismatchLocationsForDebugging(), expected)
+	jsaColorMismatchEq(t, colorPool.GetRegistry().GetMismatchLocationsForDebugging(), expected)
 }
 
 func TestColorPool_Reconcile_shards_preserveOriginalOffsets(t *testing.T) {
@@ -445,7 +445,7 @@ func jsaStringsExactly(t *testing.T, got []string, expected ...string) {
 	}
 }
 
-func jsaMultimapEq[K any, V any](t *testing.T, got, want *jutil.SetMultimap[K, V]) {
+func jsaColorMismatchEq(t *testing.T, got, want *colors.ColorMismatchLocations) {
 	t.Helper()
 	ok := got.Size() == want.Size()
 	for k, v := range want.Entries() {

@@ -1099,7 +1099,7 @@ func (g *FlowSensitiveInlineVariables_GatherCandidates) visitNode(n rhino.Node, 
 	cfgNode := n
 
 	g.gatherCb.cfgNode = cfgNode
-	g.gatherCb.inState = g.outer.reachingDef.FlowStateAt(graphNode.Index).GetIn()
+	g.gatherCb.inState = g.outer.reachingDef.inStateAt(graphNode.Index)
 	g.gatherCb.walkCfgNode(cfgNode, rhino.NilNode, currentNode)
 	g.gatherCb.inState = nil
 }

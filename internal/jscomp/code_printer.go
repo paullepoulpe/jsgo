@@ -46,10 +46,12 @@ type prettyNumberSource struct {
 	units []uint16
 }
 
+const initialBufferCap = 512
+
 type codePrinterInstance struct {
 	cg                  CodeGenerator
 	prettySrc           prettyNumberSource
-	codeASCIIBuf        [256]byte
+	codeBuf             [initialBufferCap]byte
 	openMappingsBuf     [64]int
 	completeMappingsBuf [16]int
 }
@@ -65,16 +67,16 @@ func (c *CodeConsumer) initPrinter(
 	createSrcMap bool,
 	sourceMapDetailLevel SourceMap_DetailLevel,
 	licenseTracker CodePrinter_LicenseTracker,
-	asciiBuf []byte,
+	codeBuf []byte,
 	openBuf []int,
 	completeBuf []int,
 	prettySrc *prettyNumberSource,
 ) {
-	keepASCII := c.codeASCII
-	if cap(keepASCII) == 0 {
-		keepASCII = asciiBuf
+	keepCode := c.code
+	if cap(keepCode) == 0 {
+		keepCode = codeBuf
 	} else {
-		keepASCII = keepASCII[:0]
+		keepCode = keepCode[:0]
 	}
 	thresh := lineLengthThreshold
 	if thresh <= 0 {
@@ -90,7 +92,7 @@ func (c *CodeConsumer) initPrinter(
 		continueProcessing:   true,
 		lineBreak:            lineBreak,
 		createSrcMap:         createSrcMap,
-		codeASCII:            keepASCII,
+		code:                 keepCode,
 		lineLengthThreshold:  thresh,
 		sourceMapDetailLevel: sourceMapDetailLevel,
 		licenseTracker:       licenseTracker,
@@ -101,16 +103,16 @@ func (c *CodeConsumer) initPrinter(
 }
 
 func (inst *codePrinterInstance) resetAfterPrint() {
-	var keepASCII []byte
-	if cap(inst.cg.cc.codeASCII) <= 1<<20 {
-		keepASCII = inst.cg.cc.codeASCII[:0]
+	var keepCode []byte
+	if cap(inst.cg.cc.code) <= 1<<20 {
+		keepCode = inst.cg.cc.code[:0]
 	}
 	var keepScratch []uint16
 	if cap(inst.cg.scratchUnits) <= 65536 {
 		keepScratch = inst.cg.scratchUnits[:0]
 	}
 	inst.cg = CodeGenerator{
-		cc:           CodeConsumer{codeASCII: keepASCII},
+		cc:           CodeConsumer{code: keepCode},
 		scratchUnits: keepScratch,
 	}
 	inst.prettySrc = prettyNumberSource{}
@@ -133,7 +135,7 @@ func NewCodePrinter_PrettyCodePrinter(
 		createSourceMap,
 		sourceMapDetailLevel,
 		licenseTracker,
-		inst.codeASCIIBuf[:0:len(inst.codeASCIIBuf)],
+		inst.codeBuf[:0:len(inst.codeBuf)],
 		inst.openMappingsBuf[:0:len(inst.openMappingsBuf)],
 		inst.completeMappingsBuf[:0:len(inst.completeMappingsBuf)],
 		&inst.prettySrc,
@@ -159,7 +161,7 @@ func NewCodePrinter_CompactCodePrinter(
 		createSrcMap,
 		sourceMapDetailLevel,
 		licenseTracker,
-		inst.codeASCIIBuf[:0:len(inst.codeASCIIBuf)],
+		inst.codeBuf[:0:len(inst.codeBuf)],
 		inst.openMappingsBuf[:0:len(inst.openMappingsBuf)],
 		inst.completeMappingsBuf[:0:len(inst.completeMappingsBuf)],
 		nil,
@@ -182,7 +184,7 @@ func (c *CodeConsumer) adjustSourceMappings(code string) {
 	} else {
 		lineLengths = stackBuf[:0]
 	}
-	asciiKnown := c.codeUTF16 == nil && len(code) == len(c.codeASCII)
+	asciiKnown := !c.hasNonASCII && len(code) == len(c.code)
 	lineStartPos := 0
 	for lineEndPos > -1 {
 		if asciiKnown {
@@ -268,13 +270,10 @@ func CodePrinter_MappedCodePrinter_ConvertPositionAfterLineCut(
 
 // Java: CodePrinter.MappedCodePrinter.getCode()
 func (c *CodeConsumer) GetCode() string {
-	if c.codeUTF16 != nil {
-		return c.codeUTF16.String()
-	}
-	if len(c.codeASCII) == 0 {
+	if len(c.code) == 0 {
 		return ""
 	}
-	return string(c.codeASCII)
+	return string(c.code)
 }
 
 // Java: CodePrinter.MappedCodePrinter.getCurrentCharIndex()
@@ -628,7 +627,7 @@ func (b *CodePrinter_Builder) buildSourceAndMappingsWithFormatInto(
 		gatherSourceMap,
 		options.GetSourceMapDetailLevel(),
 		b.licenseTracker,
-		inst.codeASCIIBuf[:0:len(inst.codeASCIIBuf)],
+		inst.codeBuf[:0:len(inst.codeBuf)],
 		inst.openMappingsBuf[:0:len(inst.openMappingsBuf)],
 		inst.completeMappingsBuf[:0:len(inst.completeMappingsBuf)],
 		prettySrc,

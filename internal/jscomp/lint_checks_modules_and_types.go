@@ -147,6 +147,19 @@ func (c *CheckPrototypeProperties) Process(externs rhino.Node, root rhino.Node) 
 	NodeTraversal_Traverse(c.compiler, root, c)
 }
 
+var checkPrototypePropertiesVisitTokens = func() ast.TokenSet {
+	var s ast.TokenSet
+	s.Add(rhino.Token_EXPR_RESULT)
+	return s
+}()
+
+func (*CheckPrototypeProperties) visitTokens() *ast.TokenSet {
+	return &checkPrototypePropertiesVisitTokens
+}
+func (*CheckPrototypeProperties) combinedVisitTokens() ast.TokenSet {
+	return checkPrototypePropertiesVisitTokens
+}
+
 // Java: CheckPrototypeProperties.visit(NodeTraversal, Node, Node)
 func (c *CheckPrototypeProperties) Visit(unused *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	if !NodeUtil_IsPrototypePropertyDeclaration(n) {
@@ -207,6 +220,15 @@ func NewCheckEs6Modules(compiler AbstractCompiler) *CheckEs6Modules {
 		importSpecifiers: make(map[string]rhino.Node),
 	}
 }
+
+var checkEs6ModulesVisitTokens = func() ast.TokenSet {
+	var s ast.TokenSet
+	s.Add(rhino.Token_MODULE_BODY)
+	return s
+}()
+
+func (*CheckEs6Modules) visitTokens() *ast.TokenSet        { return &checkEs6ModulesVisitTokens }
+func (*CheckEs6Modules) combinedVisitTokens() ast.TokenSet { return checkEs6ModulesVisitTokens }
 
 // Java: CheckEs6Modules.visit(NodeTraversal, Node, Node)
 func (c *CheckEs6Modules) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
@@ -305,8 +327,12 @@ func (c *CheckPrimitiveAsObject) Process(externs rhino.Node, root rhino.Node) {
 
 // Java: CheckPrimitiveAsObject.visit(NodeTraversal, Node, Node)
 func (c *CheckPrimitiveAsObject) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
-	c.CheckForPrimitiveObjectConstructor(t, n)
-	c.CheckForPrimitiveObjectDeclaration(t, n)
+	if n.IsNew() {
+		c.CheckForPrimitiveObjectConstructor(t, n)
+	}
+	if n.GetJSDocInfo() != nil {
+		c.CheckForPrimitiveObjectDeclaration(t, n)
+	}
 }
 
 // Java: CheckPrimitiveAsObject.checkForPrimitiveObjectDeclaration(NodeTraversal, Node)
@@ -389,6 +415,19 @@ func (c *CheckGoogModuleTypeScriptName) ShouldTraverse(t *NodeTraversal, n rhino
 	// Traverse top-level statements until a `goog.module` statement is found.
 	return !c.finished &&
 		(parent.IsNil() || parent.IsRoot() || parent.IsScript() || parent.IsModuleBody())
+}
+
+var checkGoogModuleTypeScriptNameVisitTokens = func() ast.TokenSet {
+	var s ast.TokenSet
+	s.Add(rhino.Token_EXPR_RESULT)
+	return s
+}()
+
+func (*CheckGoogModuleTypeScriptName) visitTokens() *ast.TokenSet {
+	return &checkGoogModuleTypeScriptNameVisitTokens
+}
+func (*CheckGoogModuleTypeScriptName) combinedVisitTokens() ast.TokenSet {
+	return checkGoogModuleTypeScriptNameVisitTokens
 }
 
 // Java: CheckGoogModuleTypeScriptName.visit(NodeTraversal, Node, Node)
@@ -539,6 +578,19 @@ func (c *CheckArrayWithGoogObject) ContainsArray(type_ rhino.JSType) bool {
 	return false
 }
 
+var checkArrayWithGoogObjectVisitTokens = func() ast.TokenSet {
+	var s ast.TokenSet
+	s.Add(rhino.Token_CALL)
+	return s
+}()
+
+func (*CheckArrayWithGoogObject) visitTokens() *ast.TokenSet {
+	return &checkArrayWithGoogObjectVisitTokens
+}
+func (*CheckArrayWithGoogObject) combinedVisitTokens() ast.TokenSet {
+	return checkArrayWithGoogObjectVisitTokens
+}
+
 // Java: CheckArrayWithGoogObject.visit(NodeTraversal, Node, Node)
 func (c *CheckArrayWithGoogObject) Visit(unused *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	if name, ok := c.googObjectArrayCallName(n); ok {
@@ -617,6 +669,20 @@ func (c *CheckConstantCaseNames) ShouldTraverse(t *NodeTraversal, n rhino.Node, 
 		return isModule
 	}
 	return true
+}
+
+var checkConstantCaseNamesVisitTokens = func() ast.TokenSet {
+	var s ast.TokenSet
+	s.Add(rhino.Token_MODULE_BODY)
+	s.Add(rhino.Token_VAR)
+	s.Add(rhino.Token_LET)
+	s.Add(rhino.Token_NAME)
+	return s
+}()
+
+func (*CheckConstantCaseNames) visitTokens() *ast.TokenSet { return &checkConstantCaseNamesVisitTokens }
+func (*CheckConstantCaseNames) combinedVisitTokens() ast.TokenSet {
+	return checkConstantCaseNamesVisitTokens
 }
 
 // Java: CheckConstantCaseNames.visit(NodeTraversal, Node, Node)

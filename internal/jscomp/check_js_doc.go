@@ -150,10 +150,23 @@ func (c *CheckJSDoc) CheckJsDocInBlockComments(script rhino.Node) {
 
 // Java: CheckJSDoc.visit(NodeTraversal, Node, Node)
 func (c *CheckJSDoc) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
+	info := n.GetJSDocInfo()
+	if info == nil {
+		switch n.GetToken() {
+		case rhino.Token_SCRIPT:
+			c.CheckJsDocInBlockComments(n)
+		case rhino.Token_FUNCTION:
+			c.ValidateArrowFunction(n)
+		case rhino.Token_ITER_REST, rhino.Token_OBJECT_REST:
+			c.ValidateRestParameter(n)
+		case rhino.Token_DEFAULT_VALUE:
+			c.ValidateDefaultValue(n)
+		}
+		return
+	}
 	if n.IsScript() {
 		c.CheckJsDocInBlockComments(n)
 	}
-	info := n.GetJSDocInfo()
 	c.ValidateTypeAnnotations(n, info)
 	c.ValidateFunctionJsDoc(n, info)
 	c.ValidateMsgJsDoc(n, info)

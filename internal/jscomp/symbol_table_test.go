@@ -1887,13 +1887,13 @@ window.foo = 1;
 `
 	table := c.CreateSymbolTableWithExterns(mainCode, externs)
 
-	refsPerFile := jutil.NewJavaHashMap[string, int]()
+	refsPerFile := make(map[string]int)
 	for _, reference := range table.GetReferenceList(c.GetGlobalVar(table, "foo")) {
 		if !reference.GetNode().IsIndexable() {
 			continue
 		}
 		file := reference.GetSourceFile().GetName()
-		refsPerFile.Put(file, refsPerFile.GetOrDefault(file, 0)+1)
+		refsPerFile[file]++
 	}
 	AssertThat(refsPerFile).ContainsExactlyEntriesIn(symbolTableTest_mapOf("in1", 2, "externs1", 1))
 }
@@ -1916,10 +1916,10 @@ window.foo = 1;
 `
 	table := c.CreateSymbolTableWithExterns(mainCode, externs)
 
-	refsPerFile := jutil.NewJavaHashMap[string, int]()
+	refsPerFile := make(map[string]int)
 	for _, reference := range table.GetReferenceList(c.GetGlobalVar(table, "foo")) {
 		file := reference.GetSourceFile().GetName()
-		refsPerFile.Put(file, refsPerFile.GetOrDefault(file, 0)+1)
+		refsPerFile[file]++
 	}
 	AssertThat(refsPerFile).ContainsExactlyEntriesIn(symbolTableTest_mapOf("in1", 2, "externs1", 1))
 }

@@ -269,6 +269,26 @@ func (c *CheckSuper) pushFunctionContextIfNeeded(fn rhino.Node) {
 	c.pushContext(superContext{kind: superCtxNotAllowed, contextNode: fn})
 }
 
+var checkSuperVisitTokens = func() ast.TokenSet {
+	var s ast.TokenSet
+	for _, t := range [...]rhino.Token{
+		rhino.Token_SUPER,
+		rhino.Token_CALL,
+		rhino.Token_THIS,
+		rhino.Token_RETURN,
+		rhino.Token_ROOT,
+		rhino.Token_FUNCTION,
+		rhino.Token_MEMBER_FIELD_DEF,
+		rhino.Token_BLOCK,
+	} {
+		s.Add(t)
+	}
+	return s
+}()
+
+func (*CheckSuper) visitTokens() *ast.TokenSet        { return &checkSuperVisitTokens }
+func (*CheckSuper) combinedVisitTokens() ast.TokenSet { return checkSuperVisitTokens }
+
 // Java: CheckSuper.visit(NodeTraversal, Node, Node)
 func (c *CheckSuper) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	if len(c.contextStack) == 0 {

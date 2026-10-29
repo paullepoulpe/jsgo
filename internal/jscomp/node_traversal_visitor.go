@@ -24,6 +24,58 @@ import (
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
 
+// Porting compiler passes against NodeTraversal (read this first).
+//
+// Callbacks. NodeTraversal.Callback is the Go interface
+// NodeTraversal_Callback (ShouldTraverse + Visit); ScopedCallback is
+// NodeTraversal_ScopedCallback (adds EnterScope + ExitScope). As in Java, a
+// traversal fires enterScope/exitScope only if its callback is a
+// NodeTraversal_ScopedCallback, which in Go means "has EnterScope and
+// ExitScope methods".
+//
+// Abstract callback bases. A pass that extends a stateless abstract callback
+// embeds its base struct and defines the abstract methods:
+//
+//	// Java: final class MyPass extends NodeTraversal.AbstractPostOrderCallback
+//	type MyPass struct {
+//		NodeTraversal_AbstractPostOrderCallbackBase
+//		compiler AbstractCompiler
+//	}
+//	func (p *MyPass) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) { ... }
+//
+//	NodeTraversal_Traverse(compiler, root, p) // p is a NodeTraversal_Callback
+//
+// The bases are:
+//
+//	AbstractPostOrderCallback        ShouldTraverse returns true; define Visit.
+//	ExternsSkippingCallback          ShouldTraverse skips extern SCRIPTs; define Visit.
+//	AbstractPreOrderCallback         Visit is empty; define ShouldTraverse.
+//	AbstractScopedCallback           ShouldTraverse true, empty EnterScope/ExitScope
+//	                                 (overridable); define Visit.
+//	AbstractShallowCallback          ShouldTraverse stops at function params/bodies; define Visit.
+//	AbstractShallowStatementCallback ShouldTraverse stops below statements; define Visit.
+//
+// Passes needing lazy per-scope CFGs embed cfgScopeStack directly; passes
+// tracking modules embed moduleTraversal directly. Java's final methods (e.g.
+// ShouldTraverse of AbstractPostOrderCallback) must not be redefined by the
+// subclass: Go cannot forbid it, and a redefinition would silently change the
+// traversal.
+//
+// A lambda for NodeTraversal.AbstractPostOrderCallbackInterface is a Go func
+// of type NodeTraversal_AbstractPostOrderCallbackInterface, passed to
+// Builder.SetCallbackFunc (Java: setCallback(AbstractPostOrderCallbackInterface)).
+//
+// Names. NodeTraversal.builder() is NodeTraversal_Builder_() (the type is
+// NodeTraversal_Builder); the static traverse(compiler, root, cb),
+// traverseRoots(compiler, cb, externs, root) and traverseScopeRoots(...) are
+// NodeTraversal_Traverse, NodeTraversal_TraverseRoots and
+// NodeTraversal_TraverseScopeRoots. report(Node, Node, DiagnosticType,
+// String...) is ReportWithNodeRange (cf. JSError_MakeWithNodeRange);
+// reportCodeChange(Node) is ReportCodeChangeWithNode. getSourceName()
+// returns a *string (a Java String that may be null). getScope() is a
+// *Scope, getTypedScope() a *TypedScope, getAbstractScope() the wildcard
+// AbstractScope.
+
 type nodeTraversal_noShouldTraverse interface {
 	nodeTraversalNoShouldTraverse()
 }
@@ -165,6 +217,20 @@ func (f NodeTraversal_AbstractPostOrderCallbackInterface) Visit(t *NodeTraversal
 	f(t, n, parent)
 }
 
+var nodeTraversal_nilPostOrderCallback NodeTraversal_Callback = &nodeTraversal_Builder_postOrderCallback{}
+
+// nodeTraversal_Builder_postOrderCallback is the anonymous
+// AbstractPostOrderCallback of setCallback(AbstractPostOrderCallbackInterface).
+type nodeTraversal_Builder_postOrderCallback struct {
+	NodeTraversal_AbstractPostOrderCallbackBase
+	x NodeTraversal_AbstractPostOrderCallbackInterface
+}
+
+// Java: NodeTraversal.Builder.setCallback(AbstractPostOrderCallbackInterface) (anonymous AbstractPostOrderCallback).visit(NodeTraversal, Node, Node)
+func (c *nodeTraversal_Builder_postOrderCallback) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
+	c.x(t, n, parent)
+}
+
 // NodeTraversal_AbstractPreOrderCallbackBase holds the methods of
 // AbstractPreOrderCallback; subclasses embed it and define ShouldTraverse.
 type NodeTraversal_AbstractPreOrderCallbackBase struct {
@@ -200,158 +266,6 @@ func (b *NodeTraversal_AbstractScopedCallbackBase) EnterScope(t *NodeTraversal) 
 
 // Java: NodeTraversal.AbstractScopedCallback.exitScope(NodeTraversal)
 func (b *NodeTraversal_AbstractScopedCallbackBase) ExitScope(t *NodeTraversal) {}
-
-type cfgStackEntry struct {
-	root rhino.Node
-	cfg  *ControlFlowGraph[rhino.Node]
-}
-
-// cfgScopeStack tracks and lazily computes ControlFlowGraphs for enclosing CFG
-// root scopes during a traversal without virtual self-dispatch.
-type cfgScopeStack struct {
-	cfgs    []cfgStackEntry
-	cfgsBuf [8]cfgStackEntry
-
-	// Go-only: performance — the graph of cfgs[i] is computed into
-	// cfgStorage[i], which is released when cfgs[i] is popped and reused for
-	// the next CFG root at the same depth.
-	cfgStorage []*ReusableCfg
-}
-
-func (s *cfgScopeStack) resetCfgStack() {
-	for i := range s.cfgs {
-		if s.cfgs[i].cfg != nil {
-			s.cfgStorage[i].release()
-		}
-	}
-	clear(s.cfgs)
-	s.cfgs = s.cfgsBuf[:0]
-}
-
-func (s *cfgScopeStack) pushCfgRoot(root rhino.Node) {
-	if s.cfgs == nil {
-		s.cfgs = s.cfgsBuf[:0]
-	}
-	s.cfgs = append(s.cfgs, cfgStackEntry{root: root})
-}
-
-func (s *cfgScopeStack) pushScopeRoot(scopeRoot rhino.Node) {
-	if NodeUtil_IsValidCfgRoot(scopeRoot) {
-		s.pushCfgRoot(scopeRoot)
-	}
-}
-
-func (s *cfgScopeStack) popCfgRoot() {
-	if len(s.cfgs) == 0 {
-		panic(jutil.NewNoSuchElementException()) // ArrayDeque.pop()
-	}
-	idx := len(s.cfgs) - 1
-	if s.cfgs[idx].cfg != nil {
-		s.cfgStorage[idx].release()
-	}
-	s.cfgs[idx] = cfgStackEntry{}
-	s.cfgs = s.cfgs[:idx]
-}
-
-func (s *cfgScopeStack) popScopeRoot(scopeRoot rhino.Node) {
-	if NodeUtil_IsValidCfgRoot(scopeRoot) {
-		s.popCfgRoot()
-	}
-}
-
-// PeekCurrentScopeCfg returns the already-computed ControlFlowGraph for the
-// current scope if one has been materialized, or nil otherwise.
-func (s *cfgScopeStack) PeekCurrentScopeCfg() *ControlFlowGraph[rhino.Node] {
-	idx := len(s.cfgs) - 1
-	if idx < 0 {
-		return nil
-	}
-	return s.cfgs[idx].cfg
-}
-
-// GetControlFlowGraph gets the control flow graph for the current JS scope.
-//
-// Java: NodeTraversal.AbstractCfgCallback.getControlFlowGraph(AbstractCompiler)
-func (s *cfgScopeStack) GetControlFlowGraph(compiler AbstractCompiler) *ControlFlowGraph[rhino.Node] {
-	idx := len(s.cfgs) - 1
-	jutil.CheckState(idx >= 0)
-	if cfg := s.cfgs[idx].cfg; cfg != nil {
-		return cfg
-	}
-	for len(s.cfgStorage) <= idx {
-		s.cfgStorage = append(s.cfgStorage, &ReusableCfg{})
-	}
-	result := s.cfgStorage[idx].Compute(
-		compiler,
-		s.cfgs[idx].root,
-		/* shouldTraverseFunctions= */ false,
-		/* edgeAnnotations= */ true)
-	s.cfgs[idx].cfg = result
-	return result
-}
-
-// NodeTraversal_AbstractCfgCallback is a traversal base class that tracks
-// and caches the ControlFlowGraph (CFG) during the traversal. The CFGs are
-// constructed lazily.
-type NodeTraversal_AbstractCfgCallback interface {
-	NodeTraversal_ScopedCallback
-
-	// Java: NodeTraversal.AbstractCfgCallback.getControlFlowGraph(AbstractCompiler)
-	GetControlFlowGraph(compiler AbstractCompiler) *ControlFlowGraph[rhino.Node]
-
-	// Java: NodeTraversal.AbstractCfgCallback.enterScopeWithCfg(NodeTraversal)
-	EnterScopeWithCfg(t *NodeTraversal)
-
-	// Java: NodeTraversal.AbstractCfgCallback.exitScopeWithCfg(NodeTraversal)
-	ExitScopeWithCfg(t *NodeTraversal)
-
-	GetNodeTraversal_AbstractCfgCallbackBase() *NodeTraversal_AbstractCfgCallbackBase
-}
-
-// NodeTraversal_AbstractCfgCallbackBase holds the fields and methods of
-// AbstractCfgCallback for external/test callbacks; production passes embed
-// cfgScopeStack directly.
-type NodeTraversal_AbstractCfgCallbackBase struct {
-	cfgScopeStack
-	self NodeTraversal_AbstractCfgCallback
-}
-
-// Java: NodeTraversal.AbstractCfgCallback()
-func (b *NodeTraversal_AbstractCfgCallbackBase) InitNodeTraversal_AbstractCfgCallbackBase(self NodeTraversal_AbstractCfgCallback) {
-	b.self = self
-	b.cfgs = b.cfgsBuf[:0]
-}
-
-func (b *NodeTraversal_AbstractCfgCallbackBase) GetNodeTraversal_AbstractCfgCallbackBase() *NodeTraversal_AbstractCfgCallbackBase {
-	return b
-}
-
-// Java: NodeTraversal.AbstractCfgCallback.enterScope(NodeTraversal)
-func (b *NodeTraversal_AbstractCfgCallbackBase) EnterScope(t *NodeTraversal) {
-	b.pushScopeRoot(t.GetScopeRoot())
-	b.self.EnterScopeWithCfg(t)
-}
-
-// Java: NodeTraversal.AbstractCfgCallback.exitScope(NodeTraversal)
-func (b *NodeTraversal_AbstractCfgCallbackBase) ExitScope(t *NodeTraversal) {
-	b.self.ExitScopeWithCfg(t)
-	b.popScopeRoot(t.GetScopeRoot())
-}
-
-// Java: NodeTraversal.AbstractCfgCallback.enterScopeWithCfg(NodeTraversal)
-func (b *NodeTraversal_AbstractCfgCallbackBase) EnterScopeWithCfg(t *NodeTraversal) {}
-
-// Java: NodeTraversal.AbstractCfgCallback.exitScopeWithCfg(NodeTraversal)
-func (b *NodeTraversal_AbstractCfgCallbackBase) ExitScopeWithCfg(t *NodeTraversal) {}
-
-// Java: NodeTraversal.AbstractCfgCallback.shouldTraverse(NodeTraversal, Node, Node)
-func (b *NodeTraversal_AbstractCfgCallbackBase) ShouldTraverse(t *NodeTraversal, n rhino.Node, parent rhino.Node) bool {
-	return true
-}
-
-// Java: NodeTraversal.AbstractCfgCallback.visit(NodeTraversal, Node, Node)
-func (b *NodeTraversal_AbstractCfgCallbackBase) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
-}
 
 // NodeTraversal_AbstractShallowCallbackBase holds the methods of
 // AbstractShallowCallback (visits all nodes without traversing into function
@@ -474,161 +388,76 @@ func (m *moduleTraversal) exitNode(t *NodeTraversal, n rhino.Node) (exitedModule
 	return exitedModule, exitedScopeRoot
 }
 
-// NodeTraversal_AbstractChangedScopeCallback is the callback that fires on
-// changed scopes.
-type NodeTraversal_AbstractChangedScopeCallback interface {
-	NodeTraversal_Callback
-
-	// Java: NodeTraversal.AbstractChangedScopeCallback.enterChangedScopeRoot(AbstractCompiler, Node)
-	EnterChangedScopeRoot(compiler AbstractCompiler, root rhino.Node)
-}
-
-// NodeTraversal_AbstractChangedScopeCallbackBase holds the methods of
-// AbstractChangedScopeCallback (which extends AbstractPreOrderCallback);
-// subclasses embed it, call InitNodeTraversal_AbstractChangedScopeCallbackBase
-// with themselves and define EnterChangedScopeRoot.
-type NodeTraversal_AbstractChangedScopeCallbackBase struct {
-	NodeTraversal_AbstractPreOrderCallbackBase
-
-	self NodeTraversal_AbstractChangedScopeCallback
-}
-
-// InitNodeTraversal_AbstractChangedScopeCallbackBase is the implicit
-// AbstractChangedScopeCallback() constructor; self is the subclass.
+// NodeTraversal_TraverseScopeRoots traverses *just* the contents of provided
+// scope nodes (and optionally scopes nested within them)
 //
-// Java: NodeTraversal.AbstractChangedScopeCallback()
-func (b *NodeTraversal_AbstractChangedScopeCallbackBase) InitNodeTraversal_AbstractChangedScopeCallbackBase(
-	self NodeTraversal_AbstractChangedScopeCallback) {
-	b.self = self
-}
-
-// ShouldTraverse is final in Java.
-//
-// Java: NodeTraversal.AbstractChangedScopeCallback.shouldTraverse(NodeTraversal, Node, Node)
-func (b *NodeTraversal_AbstractChangedScopeCallbackBase) ShouldTraverse(t *NodeTraversal, n rhino.Node, parent rhino.Node) bool {
-	if ChangeTracker_IsChangeScopeRoot(n) && t.GetCompiler().HasScopeChanged(n) {
-		b.self.EnterChangedScopeRoot(t.GetCompiler(), n)
+// Java: NodeTraversal.traverseScopeRoots(AbstractCompiler, List<Node>, Callback, boolean)
+func NodeTraversal_TraverseScopeRoots(
+	compiler AbstractCompiler, scopeNodes []rhino.Node, cb NodeTraversal_Callback, traverseNested bool) {
+	if len(scopeNodes) == 0 {
+		return
 	}
-	return true
-}
 
-// Java: NodeTraversal.builder()
-func NodeTraversal_Builder_() *NodeTraversal_Builder {
-	return newNodeTraversal_Builder()
-}
-
-// NodeTraversal_Builder is the builder.
-type NodeTraversal_Builder struct {
-	callback                                       NodeTraversal_Callback
-	compiler                                       AbstractCompiler
-	scopeCreator                                   ScopeCreator
-	obeyDestructuringAndDefaultValueExecutionOrder bool
-}
-
-// Java: NodeTraversal.Builder()
-func newNodeTraversal_Builder() *NodeTraversal_Builder {
-	return &NodeTraversal_Builder{obeyDestructuringAndDefaultValueExecutionOrder: false}
-}
-
-// Java: NodeTraversal.Builder.setCallback(Callback)
-func (b *NodeTraversal_Builder) SetCallback(x NodeTraversal_Callback) *NodeTraversal_Builder {
-	b.callback = x
-	return b
-}
-
-var nodeTraversal_nilPostOrderCallback NodeTraversal_Callback = &nodeTraversal_Builder_postOrderCallback{}
-
-// SetCallbackFunc sets a post-order callback given as a function (a Java
-// lambda for AbstractPostOrderCallbackInterface).
-//
-// Java: NodeTraversal.Builder.setCallback(AbstractPostOrderCallbackInterface)
-func (b *NodeTraversal_Builder) SetCallbackFunc(x NodeTraversal_AbstractPostOrderCallbackInterface) *NodeTraversal_Builder {
-	if x != nil {
-		b.callback = x
-	} else {
-		b.callback = nodeTraversal_nilPostOrderCallback
+	scopedCb, _ := cb.(NodeTraversal_ScopedCallback)
+	scb := &nodeTraversal_TraverseScopeRootsCallback{
+		cb:             cb,
+		scopedCb:       scopedCb,
+		traverseNested: traverseNested,
 	}
-	return b
+	scopeCreator := NewMemoizedScopeCreator(NewSyntacticScopeCreator(compiler))
+
+	for _, scopeNode := range scopeNodes {
+		scb.scopeNode = scopeNode
+		b := NodeTraversal_Builder{
+			compiler:     compiler,
+			callback:     scb,
+			scopeCreator: scopeCreator,
+		}
+		b.TraverseScopeRoot(scopeNode)
+	}
 }
 
-// nodeTraversal_Builder_postOrderCallback is the anonymous
-// AbstractPostOrderCallback of setCallback(AbstractPostOrderCallbackInterface).
-type nodeTraversal_Builder_postOrderCallback struct {
-	NodeTraversal_AbstractPostOrderCallbackBase
-	x NodeTraversal_AbstractPostOrderCallbackInterface
+// nodeTraversal_TraverseScopeRootsCallback is the local class
+// TraverseScopeRootsCallback of traverseScopeRoots (cb and traverseNested
+// are its captured variables).
+type nodeTraversal_TraverseScopeRootsCallback struct {
+	insideScopeNode bool
+	scopeNode       rhino.Node
+
+	cb             NodeTraversal_Callback
+	scopedCb       NodeTraversal_ScopedCallback
+	traverseNested bool
 }
 
-// Java: NodeTraversal.Builder.setCallback(AbstractPostOrderCallbackInterface) (anonymous AbstractPostOrderCallback).visit(NodeTraversal, Node, Node)
-func (c *nodeTraversal_Builder_postOrderCallback) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
-	c.x(t, n, parent)
+// Java: NodeTraversal.traverseScopeRoots.TraverseScopeRootsCallback.shouldTraverse(NodeTraversal, Node, Node)
+func (c *nodeTraversal_TraverseScopeRootsCallback) ShouldTraverse(t *NodeTraversal, n rhino.Node, parent rhino.Node) bool {
+	if c.scopeNode == n {
+		c.insideScopeNode = true
+	}
+	return (c.traverseNested || c.scopeNode == n || !ChangeTracker_IsChangeScopeRoot(n)) &&
+		c.cb.ShouldTraverse(t, n, parent)
 }
 
-// Java: NodeTraversal.Builder.setCompiler(AbstractCompiler)
-func (b *NodeTraversal_Builder) SetCompiler(x AbstractCompiler) *NodeTraversal_Builder {
-	b.compiler = x
-	return b
+// Java: NodeTraversal.traverseScopeRoots.TraverseScopeRootsCallback.visit(NodeTraversal, Node, Node)
+func (c *nodeTraversal_TraverseScopeRootsCallback) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
+	if c.scopeNode == n {
+		c.insideScopeNode = false
+	}
+	c.cb.Visit(t, n, parent)
 }
 
-// Java: NodeTraversal.Builder.setScopeCreator(ScopeCreator)
-func (b *NodeTraversal_Builder) SetScopeCreator(x ScopeCreator) *NodeTraversal_Builder {
-	b.scopeCreator = x
-	return b
+// Java: NodeTraversal.traverseScopeRoots.TraverseScopeRootsCallback.enterScope(NodeTraversal)
+func (c *nodeTraversal_TraverseScopeRootsCallback) EnterScope(t *NodeTraversal) {
+	if c.insideScopeNode && c.scopedCb != nil {
+		c.scopedCb.EnterScope(t)
+	}
 }
 
-// Java: NodeTraversal.Builder.setObeyDestructuringAndDefaultValueExecutionOrder(boolean)
-func (b *NodeTraversal_Builder) SetObeyDestructuringAndDefaultValueExecutionOrder(x bool) *NodeTraversal_Builder {
-	b.obeyDestructuringAndDefaultValueExecutionOrder = x
-	return b
-}
-
-// Java: NodeTraversal.Builder.build()
-func (b *NodeTraversal_Builder) Build() *NodeTraversal {
-	return newNodeTraversal(b)
-}
-
-// Java: NodeTraversal.Builder.traverse(Node)
-func (b *NodeTraversal_Builder) Traverse(root rhino.Node) {
-	t := acquireNodeTraversal(b)
-	t.Traverse(root)
-	releaseNodeTraversal(t)
-}
-
-// Java: NodeTraversal.Builder.traverseAtScope(AbstractScope<?, ?>)
-func (b *NodeTraversal_Builder) TraverseAtScope(scope AbstractScope) {
-	t := acquireNodeTraversal(b)
-	t.TraverseAtScope(scope)
-	releaseNodeTraversal(t)
-}
-
-// Java: NodeTraversal.Builder.traverseRoots(Node, Node)
-func (b *NodeTraversal_Builder) TraverseRoots(externs rhino.Node, root rhino.Node) {
-	t := acquireNodeTraversal(b)
-	t.TraverseRoots(externs, root)
-	releaseNodeTraversal(t)
-}
-
-// Java: NodeTraversal.Builder.traverseWithScope(Node, AbstractScope<?, ?>)
-func (b *NodeTraversal_Builder) TraverseWithScope(root rhino.Node, s AbstractScope) {
-	t := acquireNodeTraversal(b)
-	t.TraverseWithScope(root, s)
-	releaseNodeTraversal(t)
-}
-
-func (b *NodeTraversal_Builder) TraverseScopeRoot(scopeNode rhino.Node) {
-	t := acquireNodeTraversal(b)
-	t.TraverseScopeRoot(scopeNode)
-	releaseNodeTraversal(t)
-}
-
-func (b *NodeTraversal_Builder) traverseScriptUnderRoot(
-	scopeRoot rhino.Node,
-	scriptParent rhino.Node,
-	script rhino.Node,
-	lazyGlobal *lazyGlobalScope,
-) {
-	t := acquireNodeTraversal(b)
-	traverseScriptUnderRoot(t, scopeRoot, scriptParent, script, lazyGlobal)
-	releaseNodeTraversal(t)
+// Java: NodeTraversal.traverseScopeRoots.TraverseScopeRootsCallback.exitScope(NodeTraversal)
+func (c *nodeTraversal_TraverseScopeRootsCallback) ExitScope(t *NodeTraversal) {
+	if c.insideScopeNode && c.scopedCb != nil {
+		c.scopedCb.ExitScope(t)
+	}
 }
 
 // Go-only: traversal with a typed visitor (internal/ast).

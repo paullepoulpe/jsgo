@@ -29,11 +29,9 @@ import (
 // CheckNoMutatedEs6Exports checks that exports of ES6 modules are not mutated
 // outside of module initialization.
 type CheckNoMutatedEs6Exports struct {
-	compiler AbstractCompiler
-	// Java's MultimapBuilder.hashKeys().hashSetValues().build() sizes a
-	// java.util.HashMap for 8 expected keys (initial capacity 11 -> 16),
-	// whose bucket order determines MUTATED_EXPORT report order.
-	mutatedNames       *jutil.JavaHashMap[string, []rhino.Node]
+	compiler           AbstractCompiler
+	mutatedNames       map[string][]rhino.Node
+	mutatedOrder       []string
 	exportedLocalNames map[uint32]struct{}
 }
 
@@ -47,22 +45,23 @@ var CheckNoMutatedEs6Exports_MUTATED_EXPORT = DiagnosticType_Warning(
 func NewCheckNoMutatedEs6Exports(compiler AbstractCompiler) *CheckNoMutatedEs6Exports {
 	return &CheckNoMutatedEs6Exports{
 		compiler:           compiler,
-		mutatedNames:       jutil.NewJavaHashMapWithCapacity[string, []rhino.Node](11),
+		mutatedNames:       make(map[string][]rhino.Node),
 		exportedLocalNames: make(map[uint32]struct{}),
 	}
 }
 
 func (c *CheckNoMutatedEs6Exports) CheckNoMutations() {
-	for mutatedExport, mutations := range c.mutatedNames.All() {
+	for _, mutatedExport := range c.mutatedOrder {
 		if _, ok := c.exportedLocalNames[uint32(strpool.Lookup(mutatedExport))]; !ok {
 			continue
 		}
-		for _, mutation := range mutations {
+		for _, mutation := range c.mutatedNames[mutatedExport] {
 			c.compiler.Report(JSError_MakeWithNode(mutation, CheckNoMutatedEs6Exports_MUTATED_EXPORT, mutatedExport))
 		}
 	}
 
-	c.mutatedNames.Clear()
+	clear(c.mutatedNames)
+	c.mutatedOrder = c.mutatedOrder[:0]
 	clear(c.exportedLocalNames)
 }
 
@@ -132,9 +131,12 @@ func (c *CheckNoMutatedEs6Exports) VisitName(t *NodeTraversal, name rhino.Node) 
 		return
 	}
 	key := name.GetString()
-	nodes, _ := c.mutatedNames.Lookup(key)
+	nodes, exists := c.mutatedNames[key]
+	if !exists {
+		c.mutatedOrder = append(c.mutatedOrder, key)
+	}
 	if !slices.Contains(nodes, name) {
-		c.mutatedNames.Put(key, append(nodes, name))
+		c.mutatedNames[key] = append(nodes, name)
 	}
 }
 

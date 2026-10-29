@@ -61,7 +61,6 @@ type ismPropSlot struct {
 type InlineSimpleMethods struct {
 	externPropsRaw  *jutil.LinkedHashSet[string]
 	externPropBits  []uint64
-	externPropHigh  map[uint32]struct{}
 	externPropsInit bool
 	props           map[uint32]ismPropSlot
 	hasDefs         bool
@@ -97,33 +96,18 @@ func (m *InlineSimpleMethods) hasExternProp(id uint32) bool {
 				if pid == 0 {
 					continue
 				}
-				if pid < 131072 {
-					word := int(pid >> 6)
-					if word >= len(m.externPropBits) {
-						newLen := max(word+1, len(m.externPropBits)*2)
-						grown := make([]uint64, newLen)
-						copy(grown, m.externPropBits)
-						m.externPropBits = grown
-					}
-					m.externPropBits[word] |= uint64(1) << (pid & 63)
-				} else {
-					if m.externPropHigh == nil {
-						m.externPropHigh = make(map[uint32]struct{})
-					}
-					m.externPropHigh[pid] = struct{}{}
+				word := int(pid >> 6)
+				if word >= len(m.externPropBits) {
+					grown := make([]uint64, max(word+1, len(m.externPropBits)*2))
+					copy(grown, m.externPropBits)
+					m.externPropBits = grown
 				}
+				m.externPropBits[word] |= uint64(1) << (pid & 63)
 			}
 		}
 	}
 	word := int(id >> 6)
-	if word < len(m.externPropBits) {
-		return (m.externPropBits[word] & (uint64(1) << (id & 63))) != 0
-	}
-	if m.externPropHigh == nil {
-		return false
-	}
-	_, ok := m.externPropHigh[id]
-	return ok
+	return word < len(m.externPropBits) && (m.externPropBits[word]&(uint64(1)<<(id&63))) != 0
 }
 
 func (m *InlineSimpleMethods) markNonInlineable(propID uint32) {
@@ -146,6 +130,8 @@ func (m *InlineSimpleMethods) Process(externs rhino.Node, root rhino.Node) {
 	m.ensureProps()
 	defer func() {
 		m.props = nil
+		m.externPropBits = nil
+		m.externPropsInit = false
 		m.hasDefs = false
 	}()
 

@@ -91,14 +91,14 @@ func testCases() map[string]any {
 	o.Add("c", jutil.NewJsonPrimitiveString("<x>"))
 	inner := jutil.NewLinkedHashMap[string, any]()
 	inner.Put("x", []any{jutil.NewLinkedHashMap[string, any]()})
-	tm := jutil.NewTreeMap[string, int32](jutil.StringCompareTo)
-	tm.Put("b", 1)
+	tm := jutil.NewLinkedHashMap[string, int32]()
 	tm.Put("a", 2)
-	multimap := jutil.NewSetMultimap[any, any]()
+	tm.Put("b", 1)
+	multimap := newTestMultimap()
 	multimap.Put("foo", int32(0))
 	multimap.Put("foo", int32(1))
 	multimap.Put("bar", int32(2))
-	multimap2 := jutil.NewSetMultimap[any, any]()
+	multimap2 := newTestMultimap()
 	multimap2.Put("<", "&")
 	return map[string]any{
 		"null":            nil,

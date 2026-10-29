@@ -60,6 +60,7 @@ package dtoa
 import (
 	"math"
 	"math/big"
+	"strconv"
 
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 )
@@ -188,12 +189,8 @@ func DToA_StuffBits(bits []byte, offset int, val int32) {
 	bits[offset+3] = byte(val)
 }
 
-// DToA_D2b converts d into the form b*2^e, where b is an odd integer. b is
-// the returned Bigint and e is the returned binary exponent. Return the
-// number of significant bits in b in bits. d must be finite and nonzero.
-//
-// Java: DToA.d2b(double, int[], int[])
-func DToA_D2b(d float64, e []int32, bits []int32) *big.Int {
+func dtoaD2b(d float64, e *int32, bits *int32) *big.Int {
+	var dblBuf [8]byte
 	var dbl_bits []byte
 	var i, k, y, z, de int32
 	dBits := jutil.DoubleToLongBits(d)
@@ -210,7 +207,7 @@ func DToA_D2b(d float64, e []int32, bits []int32) *big.Int {
 
 	y = d1
 	if y != 0 {
-		dbl_bits = make([]byte, 8)
+		dbl_bits = dblBuf[:8]
 		k = DToA_Lo0bits(y)
 		y = jutil.Ushr32(y, int64(k))
 		if k != 0 {
@@ -226,8 +223,7 @@ func DToA_D2b(d float64, e []int32, bits []int32) *big.Int {
 			i = 1
 		}
 	} else {
-		//        JS_ASSERT(z);
-		dbl_bits = make([]byte, 4)
+		dbl_bits = dblBuf[:4]
 		k = DToA_Lo0bits(z)
 		z = jutil.Ushr32(z, int64(k))
 		DToA_StuffBits(dbl_bits, 0, z)
@@ -235,13 +231,22 @@ func DToA_D2b(d float64, e []int32, bits []int32) *big.Int {
 		i = 1
 	}
 	if de != 0 {
-		e[0] = de - DToA_Bias - (DToA_P - 1) + k
-		bits[0] = DToA_P - k
+		*e = de - DToA_Bias - (DToA_P - 1) + k
+		*bits = DToA_P - k
 	} else {
-		e[0] = de - DToA_Bias - (DToA_P - 1) + 1 + k
-		bits[0] = 32*i - DToA_Hi0bits(z)
+		*e = de - DToA_Bias - (DToA_P - 1) + 1 + k
+		*bits = 32*i - DToA_Hi0bits(z)
 	}
 	return jutil.NewBigIntegerFromBytes(dbl_bits)
+}
+
+// DToA_D2b converts d into the form b*2^e, where b is an odd integer. b is
+// the returned Bigint and e is the returned binary exponent. Return the
+// number of significant bits in b in bits. d must be finite and nonzero.
+//
+// Java: DToA.d2b(double, int[], int[])
+func DToA_D2b(d float64, e []int32, bits []int32) *big.Int {
+	return dtoaD2b(d, &e[0], &bits[0])
 }
 
 /* dtoa for IEEE arithmetic (dmg): convert double to ASCII string.
@@ -305,6 +310,19 @@ func DToA_Pow5mult(b *big.Int, k int32) *big.Int {
 	return jutil.BigIntegerMultiply(b, jutil.BigIntegerPow(big.NewInt(5), k))
 }
 
+func dtoaRoundOff(buf []byte) ([]byte, bool) {
+	i := len(buf)
+	for i != 0 {
+		i--
+		c := buf[i]
+		if c != '9' {
+			buf[i] = c + 1
+			return buf[:i+1], false
+		}
+	}
+	return buf[:0], true
+}
+
 // Java: DToA.roundOff(StringBuilder)
 func DToA_RoundOff(buf *jutil.StringBuilder) bool {
 	i := buf.Length()
@@ -331,23 +349,30 @@ func bigMul10(x *big.Int) *big.Int {
 	return jutil.BigIntegerMultiply(x, big.NewInt(10))
 }
 
-// bumpUp is the inlined Java `bump_up` sequence: strip trailing '9's, then
+// dtoaBumpUp is the inlined Java `bump_up` sequence: strip trailing '9's, then
 // increment the last digit (or emit "1" and bump k when all were '9').
-func bumpUp(buf *jutil.StringBuilder, k *int32) {
-	var lastCh uint16
+func dtoaBumpUp(buf []byte, k *int32) []byte {
+	var lastCh byte
 	for {
-		lastCh = buf.CharAt(buf.Length() - 1)
-		buf.SetLength(buf.Length() - 1)
+		lastCh = buf[len(buf)-1]
+		buf = buf[:len(buf)-1]
 		if lastCh != '9' {
 			break
 		}
-		if buf.Length() == 0 {
+		if len(buf) == 0 {
 			*k++
 			lastCh = '0'
 			break
 		}
 	}
-	buf.AppendChar(lastCh + 1)
+	return append(buf, lastCh+1)
+}
+
+func dtoaInsertByte(buf []byte, pos int, ch byte) []byte {
+	buf = append(buf, 0)
+	copy(buf[pos+1:], buf[pos:])
+	buf[pos] = ch
+	return buf
 }
 
 // DToA_JS_dtoa always emits at least one digit.
@@ -361,117 +386,71 @@ func bumpUp(buf *jutil.StringBuilder, k *int32) {
 // expected.
 //
 // Go-only: language-adapter — the three inlined copies of the Java
-// `bump_up` loop are the shared helper bumpUp.
+// `bump_up` loop are the shared helper dtoaBumpUp; digits accumulate in a
+// stack-backed ASCII []byte buffer without StringBuilder heap allocations.
 //
 // Java: DToA.JS_dtoa(double, int, boolean, int, boolean[], StringBuilder)
 func DToA_JS_dtoa(d float64, mode int32, biasUp bool, ndigits int32, sign []bool, buf *jutil.StringBuilder) int32 {
-	/*  Arguments ndigits, decpt, sign are similar to those
-	    of ecvt and fcvt; trailing zeros are suppressed from
-	    the returned string.  If not null, *rve is set to point
-	    to the end of the return value.  If d is +-Infinity or NaN,
-	    then *decpt is set to 9999.
+	var scratch [64]byte
+	b := scratch[:0]
+	for i := 0; i < buf.Length(); i++ {
+		b = append(b, byte(buf.CharAt(i)))
+	}
+	out, decPt := dtoaJSdtoa(d, mode, biasUp, ndigits, &sign[0], b)
+	buf.SetLength(0)
+	for _, c := range out {
+		buf.AppendChar(uint16(c))
+	}
+	return decPt
+}
 
-	    mode:
-	    0 ==> shortest string that yields d when read in
-	    and rounded to nearest.
-	    1 ==> like 0, but with Steele & White stopping rule;
-	    e.g. with IEEE P754 arithmetic , mode 0 gives
-	    1e23 whereas mode 1 gives 9.999999999999999e22.
-	    2 ==> max(1,ndigits) significant digits.  This gives a
-	    return value similar to that of ecvt, except
-	    that trailing zeros are suppressed.
-	    3 ==> through ndigits past the decimal point.  This
-	    gives a return value similar to that from fcvt,
-	    except that trailing zeros are suppressed, and
-	    ndigits can be negative.
-	    4-9 should give the same return values as 2-3, i.e.,
-	    4 <= mode <= 9 ==> same return as mode
-	    2 + (mode & 1).  These modes are mainly for
-	    debugging; often they run slower but sometimes
-	    faster than modes 2-3.
-	    4,5,8,9 ==> left-to-right digit generation.
-	    6-9 ==> don't try fast floating-point estimate
-	    (if applicable).
-
-	    Values of mode other than 0-9 are treated as mode 0.
-
-	    Sufficient space is allocated to the return value
-	    to hold the suppressed trailing zeros.
-	*/
-
+func dtoaJSdtoa(d float64, mode int32, biasUp bool, ndigits int32, sign *bool, buf []byte) ([]byte, int32) {
 	var b2, b5, i, ieps, ilim, ilim0, ilim1, j, j1, k, k0, m2, m5, s2, s5 int32
-	var dig uint16
+	var dig byte
 	var L int64
 	var x int64
 	var b, b1, delta, mlo, mhi, S *big.Int
-	be := make([]int32, 1)
-	bbits := make([]int32, 1)
+	var be, bbits int32
 	var d2, ds, eps float64
 	var spec_case, denorm, k_check, try_quick, leftright bool
 	_ = b1
 
 	if (DToA_Word0(d) & DToA_Sign_bit) != 0 {
 		/* set sign for everything, including 0's and NaNs */
-		sign[0] = true
-		// word0(d) &= ~Sign_bit;  /* clear sign bit */
+		*sign = true
 		d = DToA_SetWord0(d, DToA_Word0(d)&^DToA_Sign_bit)
 	} else {
-		sign[0] = false
+		*sign = false
 	}
 
 	if (DToA_Word0(d) & DToA_Exp_mask) == DToA_Exp_mask {
 		/* Infinity or NaN */
 		if (DToA_Word1(d) == 0) && ((DToA_Word0(d) & DToA_Frac_mask) == 0) {
-			buf.Append("Infinity")
+			buf = append(buf, "Infinity"...)
 		} else {
-			buf.Append("NaN")
+			buf = append(buf, "NaN"...)
 		}
-		return 9999
+		return buf, 9999
 	}
 	if d == 0 {
-		//          no_digits:
-		buf.SetLength(0)
-		buf.AppendChar('0') /* copy "0" to buffer */
-		return 1
+		buf = append(buf[:0], '0') /* copy "0" to buffer */
+		return buf, 1
 	}
 
-	b = DToA_D2b(d, be, bbits)
+	b = dtoaD2b(d, &be, &bbits)
 	i = jutil.Ushr32(DToA_Word0(d), int64(DToA_Exp_shift1)) & (DToA_Exp_mask >> DToA_Exp_shift1)
 	if i != 0 {
 		d2 = DToA_SetWord0(d, (DToA_Word0(d)&DToA_Frac_mask1)|DToA_Exp_11)
-		/* log(x)   ~=~ log(1.5) + (x-1.5)/1.5
-		 * log10(x)  =  log(x) / log(10)
-		 *      ~=~ log(1.5)/log(10) + (x-1.5)/(1.5*log(10))
-		 * log10(d) = (i-Bias)*log(2)/log(10) + log10(d2)
-		 *
-		 * This suggests computing an approximation k to log10(d) by
-		 *
-		 * k = (i - Bias)*0.301029995663981
-		 *  + ( (d2-1.5)*0.289529654602168 + 0.176091259055681 );
-		 *
-		 * We want k to be too large rather than too small.
-		 * The error in the first-order Taylor series approximation
-		 * is in our favor, so we just round up the constant enough
-		 * to compensate for any error in the multiplication of
-		 * (i - Bias) by 0.301029995663981; since |i - Bias| <= 1077,
-		 * and 1077 * 0.30103 * 2^-52 ~=~ 7.2e-14,
-		 * adding 1e-13 to the constant term more than suffices.
-		 * Hence we adjust the constant term to 0.1760912590558.
-		 * (We could get a more accurate k by invoking log10,
-		 *  but this is probably not worthwhile.)
-		 */
 		i -= DToA_Bias
 		denorm = false
 	} else {
 		/* d is denormalized */
-		i = bbits[0] + be[0] + (DToA_Bias + (DToA_P - 1) - 1)
+		i = bbits + be + (DToA_Bias + (DToA_P - 1) - 1)
 		if i > 32 {
 			x = jutil.Shl64(int64(DToA_Word0(d)), int64(64-i)) | int64(jutil.Ushr32(DToA_Word1(d), int64(i-32)))
 		} else {
 			x = jutil.Shl64(int64(DToA_Word1(d)), int64(32-i))
 		}
-		//            d2 = x;
-		//            word0(d2) -= 31*Exp_msk1; /* adjust exponent */
 		// Go-only: language-adapter — Java widens the long x to double when
 		// passing it to word0/setWord0(double, ...).
 		xd := float64(x)
@@ -494,7 +473,7 @@ func DToA_JS_dtoa(d float64, mode int32, biasUp bool, ndigits int32, sign []bool
 	}
 	/* At this point floor(log10(d)) <= k <= floor(log10(d))+1.
 	If k_check is zero, we're guaranteed that k = floor(log10(d)). */
-	j = bbits[0] - i - 1
+	j = bbits - i - 1
 	/* At this point d = b/2^j, where b is an odd integer. */
 	if j >= 0 {
 		b2 = 0
@@ -607,8 +586,6 @@ func DToA_JS_dtoa(d float64, mode int32, biasUp bool, ndigits int32, sign []bool
 			}
 		}
 		/* eps bounds the cumulative error. */
-		//            eps = ieps*d + 7.0;
-		//            word0(eps) -= (P-1)*Exp_msk1;
 		eps = float64(ieps)*d + 7.0
 		eps = DToA_SetWord0(eps, DToA_Word0(eps)-(DToA_P-1)*DToA_Exp_msk1)
 		if ilim == 0 {
@@ -616,14 +593,13 @@ func DToA_JS_dtoa(d float64, mode int32, biasUp bool, ndigits int32, sign []bool
 			mhi = nil
 			d -= 5.0
 			if d > eps {
-				buf.AppendChar('1')
+				buf = append(buf, '1')
 				k++
-				return k + 1
+				return buf, k + 1
 			}
 			if d < -eps {
-				buf.SetLength(0)
-				buf.AppendChar('0') /* copy "0" to buffer */
-				return 1
+				buf = append(buf[:0], '0') /* copy "0" to buffer */
+				return buf, 1
 			}
 			fast_failed = true
 		}
@@ -637,14 +613,13 @@ func DToA_JS_dtoa(d float64, mode int32, biasUp bool, ndigits int32, sign []bool
 				for i = 0; ; {
 					L = jutil.D2L(d)
 					d -= float64(L)
-					buf.AppendChar(uint16('0' + L))
+					buf = append(buf, byte('0'+L))
 					if d < eps {
-						return k + 1
+						return buf, k + 1
 					}
 					if 1.0-d < eps {
-						//                            goto bump_up;
-						bumpUp(buf, &k)
-						return k + 1
+						buf = dtoaBumpUp(buf, &k)
+						return buf, k + 1
 					}
 					i++
 					if i >= ilim {
@@ -659,17 +634,14 @@ func DToA_JS_dtoa(d float64, mode int32, biasUp bool, ndigits int32, sign []bool
 				for i = 1; ; i, d = i+1, d*10.0 {
 					L = jutil.D2L(d)
 					d -= float64(L)
-					buf.AppendChar(uint16('0' + L))
+					buf = append(buf, byte('0'+L))
 					if i == ilim {
 						if d > 0.5+eps {
-							//                                goto bump_up;
-							bumpUp(buf, &k)
-							return k + 1
+							buf = dtoaBumpUp(buf, &k)
+							return buf, k + 1
 						} else if d < 0.5-eps {
-							DToA_StripTrailingZeroes(buf)
-							//                                    while(*--s == '0') ;
-							//                                    s++;
-							return k + 1
+							buf = dtoaStripTrailingZeroes(buf)
+							return buf, k + 1
 						}
 						break
 					}
@@ -677,7 +649,7 @@ func DToA_JS_dtoa(d float64, mode int32, biasUp bool, ndigits int32, sign []bool
 			}
 		}
 		if fast_failed {
-			buf.SetLength(0)
+			buf = buf[:0]
 			d = d2
 			k = k0
 			ilim = ilim0
@@ -686,37 +658,28 @@ func DToA_JS_dtoa(d float64, mode int32, biasUp bool, ndigits int32, sign []bool
 
 	/* Do we have a "small" integer? */
 
-	if be[0] >= 0 && k <= DToA_Int_max {
+	if be >= 0 && k <= DToA_Int_max {
 		/* Yes. */
 		ds = DToA_tens[k]
 		if ndigits < 0 && ilim <= 0 {
 			S = nil
 			mhi = nil
 			if ilim < 0 || d < 5*ds || (!biasUp && d == 5*ds) {
-				buf.SetLength(0)
-				buf.AppendChar('0') /* copy "0" to buffer */
-				return 1
+				buf = append(buf[:0], '0') /* copy "0" to buffer */
+				return buf, 1
 			}
-			buf.AppendChar('1')
+			buf = append(buf, '1')
 			k++
-			return k + 1
+			return buf, k + 1
 		}
 		for i = 1; ; i++ {
 			L = jutil.D2L(d / ds)
 			d -= float64(L) * ds
-			buf.AppendChar(uint16('0' + L))
+			buf = append(buf, byte('0'+L))
 			if i == ilim {
 				d += d
 				if (d > ds) || (d == ds && (((L & 1) != 0) || biasUp)) {
-					//                    bump_up:
-					//                        while(*--s == '9')
-					//                            if (s == buf) {
-					//                                k++;
-					//                                *s = '0';
-					//                                break;
-					//                            }
-					//                        ++*s++;
-					bumpUp(buf, &k)
+					buf = dtoaBumpUp(buf, &k)
 				}
 				break
 			}
@@ -725,7 +688,7 @@ func DToA_JS_dtoa(d float64, mode int32, biasUp bool, ndigits int32, sign []bool
 				break
 			}
 		}
-		return k + 1
+		return buf, k + 1
 	}
 
 	m2 = b2
@@ -735,9 +698,9 @@ func DToA_JS_dtoa(d float64, mode int32, biasUp bool, ndigits int32, sign []bool
 	if leftright {
 		if mode < 2 {
 			if denorm {
-				i = be[0] + (DToA_Bias + (DToA_P - 1) - 1 + 1)
+				i = be + (DToA_Bias + (DToA_P - 1) - 1 + 1)
 			} else {
-				i = 1 + DToA_P - bbits[0]
+				i = 1 + DToA_P - bbits
 			}
 			/* i is 1 plus the number of trailing zero bits in d's significand. Thus,
 			(2^m2 * 5^m5) / (2^(s2+i) * 5^s5) = (1/2 lsb of d)/10^k. */
@@ -819,10 +782,6 @@ func DToA_JS_dtoa(d float64, mode int32, biasUp bool, ndigits int32, sign []bool
 
 	/* Arrange for convenient computation of quotients:
 	 * shift left if necessary so divisor has 4 leading 0 bits.
-	 *
-	 * Perhaps we should just compute leading 28 bits of S once
-	 * and for all and pass them and a shift to quorem, so it
-	 * can do shifts and ors to compute the numerator for q.
 	 */
 	S_bytes := jutil.BigIntegerToByteArray(S)
 	var S_hiWord int32 = 0
@@ -887,18 +846,12 @@ func DToA_JS_dtoa(d float64, mode int32, biasUp bool, ndigits int32, sign []bool
 		if noDigits {
 			/* Always emit at least one digit.  If the number appears to be zero
 			using the current mode, then emit one '0' digit and set decpt to 1. */
-			/*no_digits:
-			k = -1 - ndigits;
-			goto ret; */
-			buf.SetLength(0)
-			buf.AppendChar('0') /* copy "0" to buffer */
-			return 1
-			//                goto no_digits;
+			buf = append(buf[:0], '0') /* copy "0" to buffer */
+			return buf, 1
 		}
-		//        one_digit:
-		buf.AppendChar('1')
+		buf = append(buf, '1')
 		k++
-		return k + 1
+		return buf, k + 1
 	}
 	if leftright {
 		if m2 > 0 {
@@ -908,7 +861,6 @@ func DToA_JS_dtoa(d float64, mode int32, biasUp bool, ndigits int32, sign []bool
 		/* Compute mlo -- check for special case
 		 * that d is a normalized power of 2.
 		 */
-
 		mlo = mhi
 		if spec_case {
 			mhi = mlo
@@ -920,7 +872,7 @@ func DToA_JS_dtoa(d float64, mode int32, biasUp bool, ndigits int32, sign []bool
 		for i = 1; ; i++ {
 			q, r := new(big.Int).QuoRem(b, S, new(big.Int))
 			b = r
-			dig = uint16(jutil.BigIntegerIntValue(q) + '0')
+			dig = byte(jutil.BigIntegerIntValue(q) + '0')
 			/* Do we yet have the shortest decimal string
 			 * that will round to d?
 			 */
@@ -935,19 +887,20 @@ func DToA_JS_dtoa(d float64, mode int32, biasUp bool, ndigits int32, sign []bool
 			/* j1 is b/S compared with 1 - mhi/S. */
 			if (j1 == 0) && (mode == 0) && ((DToA_Word1(d) & 1) == 0) {
 				if dig == '9' {
-					buf.AppendChar('9')
-					if DToA_RoundOff(buf) {
+					buf = append(buf, '9')
+					var carry bool
+					buf, carry = dtoaRoundOff(buf)
+					if carry {
 						k++
-						buf.AppendChar('1')
+						buf = append(buf, '1')
 					}
-					return k + 1
-					//                        goto round_9_up;
+					return buf, k + 1
 				}
 				if j > 0 {
 					dig++
 				}
-				buf.AppendChar(dig)
-				return k + 1
+				buf = append(buf, dig)
+				return buf, k + 1
 			}
 			if (j < 0) || ((j == 0) && (mode == 0) && ((DToA_Word1(d) & 1) == 0)) {
 				if j1 > 0 {
@@ -959,36 +912,36 @@ func DToA_JS_dtoa(d float64, mode int32, biasUp bool, ndigits int32, sign []bool
 						oldDig := dig
 						dig++
 						if oldDig == '9' {
-							buf.AppendChar('9')
-							if DToA_RoundOff(buf) {
+							buf = append(buf, '9')
+							var carry bool
+							buf, carry = dtoaRoundOff(buf)
+							if carry {
 								k++
-								buf.AppendChar('1')
+								buf = append(buf, '1')
 							}
-							return k + 1
-							//                                goto round_9_up;
+							return buf, k + 1
 						}
 					}
 				}
-				buf.AppendChar(dig)
-				return k + 1
+				buf = append(buf, dig)
+				return buf, k + 1
 			}
 			if j1 > 0 {
 				if dig == '9' {
 					/* possible if i == 1 */
-					//                    round_9_up:
-					//                        *s++ = '9';
-					//                        goto roundoff;
-					buf.AppendChar('9')
-					if DToA_RoundOff(buf) {
+					buf = append(buf, '9')
+					var carry bool
+					buf, carry = dtoaRoundOff(buf)
+					if carry {
 						k++
-						buf.AppendChar('1')
+						buf = append(buf, '1')
 					}
-					return k + 1
+					return buf, k + 1
 				}
-				buf.AppendChar(dig + 1)
-				return k + 1
+				buf = append(buf, dig+1)
+				return buf, k + 1
 			}
-			buf.AppendChar(dig)
+			buf = append(buf, dig)
 			if i == ilim {
 				break
 			}
@@ -1003,11 +956,10 @@ func DToA_JS_dtoa(d float64, mode int32, biasUp bool, ndigits int32, sign []bool
 		}
 	} else {
 		for i = 1; ; i++ {
-			//                (char)(dig = quorem(b,S) + '0');
 			q, r := new(big.Int).QuoRem(b, S, new(big.Int))
 			b = r
-			dig = uint16(jutil.BigIntegerIntValue(q) + '0')
-			buf.AppendChar(dig)
+			dig = byte(jutil.BigIntegerIntValue(q) + '0')
+			buf = append(buf, dig)
 			if i >= ilim {
 				break
 			}
@@ -1020,48 +972,38 @@ func DToA_JS_dtoa(d float64, mode int32, biasUp bool, ndigits int32, sign []bool
 	b = bigShiftLeft(b, 1)
 	j = int32(b.Cmp(S))
 	if (j > 0) || (j == 0 && (((dig & 1) == 1) || biasUp)) {
-		//        roundoff:
-		//            while(*--s == '9')
-		//                if (s == buf) {
-		//                    k++;
-		//                    *s++ = '1';
-		//                    goto ret;
-		//                }
-		//            ++*s++;
-		if DToA_RoundOff(buf) {
+		var carry bool
+		buf, carry = dtoaRoundOff(buf)
+		if carry {
 			k++
-			buf.AppendChar('1')
-			return k + 1
+			buf = append(buf, '1')
+			return buf, k + 1
 		}
 	} else {
-		DToA_StripTrailingZeroes(buf)
-		//            while(*--s == '0') ;
-		//            s++;
+		buf = dtoaStripTrailingZeroes(buf)
 	}
-	//      ret:
-	//        Bfree(S);
-	//        if (mhi) {
-	//            if (mlo && mlo != mhi)
-	//                Bfree(mlo);
-	//            Bfree(mhi);
-	//        }
-	//      ret1:
-	//        Bfree(b);
-	//        JS_ASSERT(s < buf + bufsize);
-	return k + 1
+	return buf, k + 1
+}
+
+func dtoaStripTrailingZeroes(buf []byte) []byte {
+	bl := len(buf)
+	for {
+		bl--
+		if !(bl >= 0 && buf[bl] == '0') {
+			break
+		}
+	}
+	return buf[:bl+1]
 }
 
 // Java: DToA.stripTrailingZeroes(StringBuilder)
 func DToA_StripTrailingZeroes(buf *jutil.StringBuilder) {
-	//      while(*--s == '0') ;
-	//      s++;
 	bl := buf.Length()
 	for {
 		bl--
 		if !(bl >= 0 && buf.CharAt(bl) == '0') {
 			break
 		}
-		// empty
 	}
 	buf.SetLength(bl + 1)
 }
@@ -1074,21 +1016,23 @@ var DToA_dtoaModes = []int32{
 	2,
 } /* DTOSTR_PRECISION */
 
-// Java: DToA.JS_dtostr(StringBuilder, int, int, double)
-func DToA_JS_dtostr(buffer *jutil.StringBuilder, mode int32, precision int32, d float64) {
-	var decPt int32         /* Position of decimal point relative to first digit returned by JS_dtoa */
-	sign := make([]bool, 1) /* true if the sign bit was set in d */
-	var nDigits int32       /* Number of significand digits returned by JS_dtoa */
+func dtoaJSdtostr(buf []byte, mode int32, precision int32, d float64) []byte {
+	if mode == DToA_DTOSTR_STANDARD && precision == 0 && d != 0 && d >= -9007199254740991 && d <= 9007199254740991 {
+		if iv := int64(d); float64(iv) == d {
+			return strconv.AppendInt(buf, iv, 10)
+		}
+	}
 
-	//        JS_ASSERT(bufferSize >= (size_t)(mode <= DTOSTR_STANDARD_EXPONENTIAL ? DTOSTR_STANDARD_BUFFER_SIZE :
-	//                DTOSTR_VARIABLE_BUFFER_SIZE(precision)));
+	var decPt int32   /* Position of decimal point relative to first digit returned by JS_dtoa */
+	var sign bool     /* true if the sign bit was set in d */
+	var nDigits int32 /* Number of significand digits returned by JS_dtoa */
 
 	if mode == DToA_DTOSTR_FIXED && (d >= 1e21 || d <= -1e21) {
 		mode = DToA_DTOSTR_STANDARD /* Change mode here rather than below because the buffer may not be large enough to hold a large integer. */
 	}
 
-	decPt = DToA_JS_dtoa(d, DToA_dtoaModes[mode], mode >= DToA_DTOSTR_FIXED, precision, sign, buffer)
-	nDigits = int32(buffer.Length())
+	buf, decPt = dtoaJSdtoa(d, DToA_dtoaModes[mode], mode >= DToA_DTOSTR_FIXED, precision, &sign, buf)
+	nDigits = int32(len(buf))
 
 	/* If Infinity, -Infinity, or NaN, return the string regardless of the mode. */
 	if decPt != 9999 {
@@ -1112,15 +1056,12 @@ func DToA_JS_dtostr(buffer *jutil.StringBuilder, mode int32, precision int32, d 
 			}
 
 		case DToA_DTOSTR_EXPONENTIAL:
-			//                    JS_ASSERT(precision > 0);
 			minNDigits = precision
-			/* Fall through */
 			fallthrough
 		case DToA_DTOSTR_STANDARD_EXPONENTIAL:
 			exponentialNotation = true
 
 		case DToA_DTOSTR_PRECISION:
-			//                    JS_ASSERT(precision > 0);
 			minNDigits = precision
 			if decPt < -5 || decPt > precision {
 				exponentialNotation = true
@@ -1132,8 +1073,8 @@ func DToA_JS_dtostr(buffer *jutil.StringBuilder, mode int32, precision int32, d 
 			p = minNDigits
 			nDigits = minNDigits
 			for {
-				buffer.AppendChar('0')
-				if int32(buffer.Length()) == p {
+				buf = append(buf, '0')
+				if int32(len(buf)) == p {
 					break
 				}
 			}
@@ -1142,36 +1083,56 @@ func DToA_JS_dtostr(buffer *jutil.StringBuilder, mode int32, precision int32, d 
 		if exponentialNotation {
 			/* Insert a decimal point if more than one significand digit */
 			if nDigits != 1 {
-				buffer.InsertChar(1, '.')
+				buf = dtoaInsertByte(buf, 1, '.')
 			}
-			buffer.AppendChar('e')
+			buf = append(buf, 'e')
 			if (decPt - 1) >= 0 {
-				buffer.AppendChar('+')
+				buf = append(buf, '+')
 			}
-			buffer.AppendInt(int64(decPt - 1))
-			//                JS_snprintf(numEnd, bufferSize - (numEnd - buffer), "e%+d", decPt-1);
+			buf = strconv.AppendInt(buf, int64(decPt-1), 10)
 		} else if decPt != nDigits {
 			/* Some kind of a fraction in fixed notation */
-			//                JS_ASSERT(decPt <= nDigits);
 			if decPt > 0 {
 				/* dd...dd . dd...dd */
-				buffer.InsertChar(int(decPt), '.')
+				buf = dtoaInsertByte(buf, int(decPt), '.')
 			} else {
 				/* 0 . 00...00dd...dd */
-				for i := int32(0); i < 1-decPt; i++ {
-					buffer.InsertChar(0, '0')
+				nZeros := int(1 - decPt)
+				oldLen := len(buf)
+				for i := 0; i < nZeros+1; i++ {
+					buf = append(buf, 0)
 				}
-				buffer.InsertChar(1, '.')
+				copy(buf[nZeros+1:], buf[:oldLen])
+				buf[0] = '0'
+				buf[1] = '.'
+				for i := 2; i < nZeros+1; i++ {
+					buf[i] = '0'
+				}
 			}
 		}
 	}
 
 	/* If negative and neither -0.0 nor NaN, output a leading '-'. */
-	if sign[0] &&
+	if sign &&
 		!(DToA_Word0(d) == DToA_Sign_bit && DToA_Word1(d) == 0) &&
 		!((DToA_Word0(d)&DToA_Exp_mask) == DToA_Exp_mask &&
 			((DToA_Word1(d) != 0) || ((DToA_Word0(d) & DToA_Frac_mask) != 0))) {
-		buffer.InsertChar(0, '-')
+		buf = dtoaInsertByte(buf, 0, '-')
+	}
+	return buf
+}
+
+// Java: DToA.JS_dtostr(StringBuilder, int, int, double)
+func DToA_JS_dtostr(buffer *jutil.StringBuilder, mode int32, precision int32, d float64) {
+	var scratch [64]byte
+	buf := scratch[:0]
+	for i := 0; i < buffer.Length(); i++ {
+		buf = append(buf, byte(buffer.CharAt(i)))
+	}
+	out := dtoaJSdtostr(buf, mode, precision, d)
+	buffer.SetLength(0)
+	for _, b := range out {
+		buffer.AppendChar(uint16(b))
 	}
 }
 
@@ -1179,22 +1140,26 @@ func DToA_JS_dtostr(buffer *jutil.StringBuilder, mode int32, precision int32, d 
 //
 // Java: DToA.numberToString(double)
 func DToA_NumberToString(value float64) string {
-	if math.IsNaN(value) {
-		return "NaN"
-	}
 	if value == 0.0 {
 		return "0"
 	}
-	if value < 0 {
-		return "-" + DToA_NumberToString(-value)
+	if value >= -9007199254740991 && value <= 9007199254740991 {
+		if iv := int64(value); float64(iv) == value {
+			return strconv.FormatInt(iv, 10)
+		}
 	}
-	if math.IsInf(value, 0) {
+	if math.IsNaN(value) {
+		return "NaN"
+	}
+	if math.IsInf(value, 1) {
 		return "Infinity"
 	}
+	if math.IsInf(value, -1) {
+		return "-Infinity"
+	}
 
-	buffer := jutil.NewStringBuilder()
-	DToA_JS_dtostr(buffer, DToA_DTOSTR_STANDARD, 0, value)
-	return buffer.String()
+	var scratch [64]byte
+	return string(dtoaJSdtostr(scratch[:0], DToA_DTOSTR_STANDARD, 0, value))
 }
 
 // NewDToA is the private constructor.

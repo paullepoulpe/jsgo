@@ -34,12 +34,29 @@ func (*TestLogsGsonable) ToLogsGson() any {
 	return []int32{0} // Java: ImmutableList.of(0)
 }
 
+type testMultimap struct {
+	m *jutil.ObjectLinkedHashMap[any, *jutil.ObjectLinkedHashSet[any]]
+}
+
+func newTestMultimap() *testMultimap {
+	return &testMultimap{m: jutil.NewObjectLinkedHashMap[any, *jutil.ObjectLinkedHashSet[any]]()}
+}
+
+func (mm *testMultimap) Put(k, v any) {
+	s, ok := mm.m.Lookup(k)
+	if !ok {
+		s = jutil.NewObjectLinkedHashSet[any]()
+		mm.m.Put(k, s)
+	}
+	s.Add(v)
+}
+
+func (mm *testMultimap) AsMapObject() any { return mm.m }
+
 func TestAdapter_write_multimap(t *testing.T) {
 	// Given
 	// Java: ImmutableMultimap.builder().put("foo", 0).put("foo", 1).put("bar", 2).build();
-	// Go-only: language-adapter — jutil models Guava multimaps with
-	// SetMultimap (no duplicate values here, so it is the same multimap).
-	value := jutil.NewSetMultimap[any, any]()
+	value := newTestMultimap()
 	value.Put("foo", int32(0))
 	value.Put("foo", int32(1))
 	value.Put("bar", int32(2))
