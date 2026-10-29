@@ -72,11 +72,11 @@ type JsonElement interface {
 	// Java: JsonElement.getAsBoolean()
 	GetAsBoolean() bool
 	// Java: JsonElement.getAsNumber()
-	GetAsNumber() JavaNumber
+	getAsNumber() JavaNumber
 	// Java: JsonElement.getAsString()
 	GetAsString() string
 	// Java: JsonElement.getAsLong()
-	GetAsLong() int64
+	getAsLong() int64
 	// Java: JsonElement.getAsInt()
 	GetAsInt() int32
 	// Go-only: non-panicking accessors for callers that propagate errors.
@@ -154,9 +154,9 @@ func (o *JsonObject) GetAsJsonPrimitive() *JsonPrimitive {
 }
 
 func (*JsonObject) GetAsBoolean() bool      { panic(NewUnsupportedOperationExceptionMsg("JsonObject")) }
-func (*JsonObject) GetAsNumber() JavaNumber { panic(NewUnsupportedOperationExceptionMsg("JsonObject")) }
+func (*JsonObject) getAsNumber() JavaNumber { panic(NewUnsupportedOperationExceptionMsg("JsonObject")) }
 func (*JsonObject) GetAsString() string     { panic(NewUnsupportedOperationExceptionMsg("JsonObject")) }
-func (*JsonObject) GetAsLong() int64        { panic(NewUnsupportedOperationExceptionMsg("JsonObject")) }
+func (*JsonObject) getAsLong() int64        { panic(NewUnsupportedOperationExceptionMsg("JsonObject")) }
 func (*JsonObject) GetAsInt() int32         { panic(NewUnsupportedOperationExceptionMsg("JsonObject")) }
 
 func (*JsonObject) TryGetAsInt() (int32, Throwable) {
@@ -371,9 +371,9 @@ func (a *JsonArray) Get(i int) JsonElement {
 }
 
 // Java: JsonArray.getAsNumber()
-func (a *JsonArray) GetAsNumber() JavaNumber {
+func (a *JsonArray) getAsNumber() JavaNumber {
 	if len(a.elements) == 1 {
-		return a.elements[0].GetAsNumber()
+		return a.elements[0].getAsNumber()
 	}
 	panic(NewIllegalStateException())
 }
@@ -394,9 +394,9 @@ func (a *JsonArray) TryGetAsString() (string, Throwable) {
 }
 
 // Java: JsonArray.getAsLong()
-func (a *JsonArray) GetAsLong() int64 {
+func (a *JsonArray) getAsLong() int64 {
 	if len(a.elements) == 1 {
-		return a.elements[0].GetAsLong()
+		return a.elements[0].getAsLong()
 	}
 	panic(NewIllegalStateException())
 }
@@ -537,7 +537,7 @@ func (p *JsonPrimitive) IsNumber() bool {
 }
 
 // Java: JsonPrimitive.getAsNumber()
-func (p *JsonPrimitive) GetAsNumber() JavaNumber {
+func (p *JsonPrimitive) getAsNumber() JavaNumber {
 	if s, ok := p.value.(string); ok {
 		return NewLazilyParsedNumber(s)
 	}
@@ -568,11 +568,11 @@ func (p *JsonPrimitive) TryGetAsString() (string, Throwable) {
 }
 
 // Java: JsonPrimitive.getAsLong()
-func (p *JsonPrimitive) GetAsLong() int64 {
+func (p *JsonPrimitive) getAsLong() int64 {
 	if num, ok := p.value.(JavaNumber); ok {
 		return num.LongValue()
 	}
-	return LongParseLong(p.GetAsString(), 10)
+	return longParseLong(p.GetAsString(), 10)
 }
 
 // Java: JsonPrimitive.getAsInt()
@@ -604,11 +604,11 @@ func (p *JsonPrimitive) HashCode() int32 {
 	}
 	// Using recommended hashing algorithm from Effective Java for longs and doubles
 	if jsonPrimitive_isIntegral(p) {
-		value := p.GetAsNumber().LongValue()
+		value := p.getAsNumber().LongValue()
 		return int32(value ^ Ushr64(value, 32))
 	}
 	if _, ok := p.value.(JavaNumber); ok {
-		value := DoubleToLongBits(p.GetAsNumber().DoubleValue())
+		value := DoubleToLongBits(p.getAsNumber().DoubleValue())
 		return int32(value ^ Ushr64(value, 32))
 	}
 	return ObjectHashCode(p.value)
@@ -627,15 +627,15 @@ func (p *JsonPrimitive) Equals(obj any) bool {
 		return other.value == nil
 	}
 	if jsonPrimitive_isIntegral(p) && jsonPrimitive_isIntegral(other) {
-		return p.GetAsNumber().LongValue() == other.GetAsNumber().LongValue()
+		return p.getAsNumber().LongValue() == other.getAsNumber().LongValue()
 	}
 	_, numberA := p.value.(JavaNumber)
 	_, numberB := other.value.(JavaNumber)
 	if numberA && numberB {
-		a := p.GetAsNumber().DoubleValue()
+		a := p.getAsNumber().DoubleValue()
 		// Java standard types other than double return true for two NaN. So, need
 		// special handling for double.
-		b := other.GetAsNumber().DoubleValue()
+		b := other.getAsNumber().DoubleValue()
 		return a == b || (a != a && b != b)
 	}
 	// value.equals(other.value): a String, a Boolean, or a Number that is
@@ -685,9 +685,9 @@ func (n *JsonNull) GetAsJsonPrimitive() *JsonPrimitive {
 }
 
 func (*JsonNull) GetAsBoolean() bool      { panic(NewUnsupportedOperationExceptionMsg("JsonNull")) }
-func (*JsonNull) GetAsNumber() JavaNumber { panic(NewUnsupportedOperationExceptionMsg("JsonNull")) }
+func (*JsonNull) getAsNumber() JavaNumber { panic(NewUnsupportedOperationExceptionMsg("JsonNull")) }
 func (*JsonNull) GetAsString() string     { panic(NewUnsupportedOperationExceptionMsg("JsonNull")) }
-func (*JsonNull) GetAsLong() int64        { panic(NewUnsupportedOperationExceptionMsg("JsonNull")) }
+func (*JsonNull) getAsLong() int64        { panic(NewUnsupportedOperationExceptionMsg("JsonNull")) }
 func (*JsonNull) GetAsInt() int32         { panic(NewUnsupportedOperationExceptionMsg("JsonNull")) }
 
 func (*JsonNull) TryGetAsInt() (int32, Throwable) {
@@ -751,7 +751,7 @@ func (n *LazilyParsedNumber) IntValue() int32 {
 	if v, ok := TryParseLong(n.value, 10); ok {
 		return int32(v)
 	}
-	return NewBigDecimalFromString(n.value).IntValue()
+	return newBigDecimalFromString(n.value).IntValue()
 }
 
 func (n *LazilyParsedNumber) tryIntValue() (result int32, err Throwable) {
@@ -762,7 +762,7 @@ func (n *LazilyParsedNumber) tryIntValue() (result int32, err Throwable) {
 		return int32(v), nil
 	}
 	Try(func() {
-		result = NewBigDecimalFromString(n.value).IntValue()
+		result = newBigDecimalFromString(n.value).IntValue()
 	}, func(nfe INumberFormatException) {
 		err = nfe
 	})
@@ -774,7 +774,7 @@ func (n *LazilyParsedNumber) LongValue() int64 {
 	if v, ok := TryParseLong(n.value, 10); ok {
 		return v
 	}
-	return NewBigDecimalFromString(n.value).LongValue()
+	return newBigDecimalFromString(n.value).LongValue()
 }
 
 // Java: LazilyParsedNumber.doubleValue()

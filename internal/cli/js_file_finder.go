@@ -40,31 +40,39 @@ func CommandLineRunner_FindJsFiles(patterns []string) []string {
 	return commandLineRunner_findJsFilesSorted(patterns, false)
 }
 
+type jsInputEntry struct {
+	orig     string
+	orderIdx int
+}
+
 // jsInputsCollector tracks normalized-absolute-path -> original-path entries
 // while preserving insertion order (or sorting keys alphabetically on output).
 type jsInputsCollector struct {
-	byAbs map[string]string
+	byAbs map[string]jsInputEntry
 	order []string
 }
 
 func (c *jsInputsCollector) put(absPath, origPath string) {
 	if c.byAbs == nil {
-		c.byAbs = make(map[string]string)
+		c.byAbs = make(map[string]jsInputEntry)
 	}
-	if _, exists := c.byAbs[absPath]; !exists {
-		c.order = append(c.order, absPath)
+	if e, exists := c.byAbs[absPath]; exists {
+		e.orig = origPath
+		c.byAbs[absPath] = e
+		return
 	}
-	c.byAbs[absPath] = origPath
+	idx := len(c.order)
+	c.order = append(c.order, absPath)
+	c.byAbs[absPath] = jsInputEntry{orig: origPath, orderIdx: idx}
 }
 
 func (c *jsInputsCollector) remove(absPath string) {
-	if _, exists := c.byAbs[absPath]; !exists {
+	e, exists := c.byAbs[absPath]
+	if !exists {
 		return
 	}
 	delete(c.byAbs, absPath)
-	if i := slices.Index(c.order, absPath); i >= 0 {
-		c.order = slices.Delete(c.order, i, i+1)
-	}
+	c.order[e.orderIdx] = ""
 }
 
 // commandLineRunner_findJsFilesSorted returns all the JavaScript files from
@@ -102,15 +110,18 @@ func commandLineRunner_findJsFilesSorted(patterns []string, sortAlphabetically b
 		}
 	}
 
-	if len(allJsInputs.order) == 0 {
+	if len(allJsInputs.byAbs) == 0 {
 		return nil
+	}
+	if len(allJsInputs.order) != len(allJsInputs.byAbs) {
+		allJsInputs.order = slices.DeleteFunc(allJsInputs.order, func(s string) bool { return s == "" })
 	}
 	if sortAlphabetically {
 		slices.SortFunc(allJsInputs.order, jutil.StringCompareTo)
 	}
 	result := make([]string, len(allJsInputs.order))
 	for i, absPath := range allJsInputs.order {
-		result[i] = allJsInputs.byAbs[absPath]
+		result[i] = allJsInputs.byAbs[absPath].orig
 	}
 	return result
 }

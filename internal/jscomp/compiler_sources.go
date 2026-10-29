@@ -280,20 +280,6 @@ func (c *Compiler) getSourceFileByNullableName(sourceName *string) *SourceFile {
 	return nil
 }
 
-// Java: Compiler.getSourceFileContentByName(String)
-func (c *Compiler) GetSourceFileContentByName(sourceName string) *string {
-	file := c.GetSourceFileByName(sourceName)
-	if file.IsStubSourceFileForAlreadyProvidedInput() {
-		return nil
-	}
-	jutil.CheckNotNull(file)
-	code, err := file.getCode()
-	if err != nil {
-		return nil
-	}
-	return &code
-}
-
 // Java: Compiler.addInputSourceMap(String, SourceMapInput)
 func (c *Compiler) AddInputSourceMap(sourceFileName string, inputSourceMap *SourceMapInput) {
 	c.putInputSourceMap(sourceFileName, inputSourceMap)
@@ -398,7 +384,7 @@ func (c *Compiler) newWorkerSourceMap() *SourceMap {
 	sm := c.options.GetSourceMapFormat().GetInstance()
 	sm.SetPrefixMappings(c.options.GetSourceMapLocationMappings())
 	if c.sourceMap != nil {
-		sm.SetSourceFileMapping(c.sourceMap.mapping)
+		sm.SetCompilerSourceMapping(c.sourceMap.compilerMapping)
 		if sm.generatorV3 != nil && c.sourceMap.generatorV3 != nil {
 			sm.generatorV3.ShareConfigFrom(c.sourceMap.generatorV3)
 		}
@@ -598,11 +584,6 @@ func (c *Compiler) GetCrossChunkIdGenerator() *IdGenerator {
 	return c.crossChunkIdGenerator
 }
 
-// Java: Compiler.setAnonymousFunctionNameMap(VariableMap)
-func (c *Compiler) SetAnonymousFunctionNameMap(functionMap *VariableMap) {
-	// NOTE: remove this method
-}
-
 // Java: Compiler.getStringMap()
 func (c *Compiler) GetStringMap() *VariableMap {
 	return c.stringMap
@@ -651,23 +632,6 @@ func Compiler_SetLoggingLevel(level *jutil.Level) {
 	Compiler_logger.SetLevel(level)
 }
 
-// GetAstDotGraph gets the DOT graph of the AST generated at the end of
-// compilation.
-//
-// Java: Compiler.getAstDotGraph()
-func (c *Compiler) GetAstDotGraph() string {
-	if !c.jsRoot.IsNil() {
-		cfg := ControlFlowAnalysis_Builder_().
-			SetCompiler(c).
-			SetCfgRoot(c.jsRoot).
-			SetTraverseFunctions(true).
-			ComputeCfg()
-		return DotFormatter_ToDotWithCfg(c.jsRoot, cfg)
-	} else {
-		return ""
-	}
-}
-
 // Java: Compiler.getErrorManager()
 func (c *Compiler) GetErrorManager() ErrorManager {
 	if c.options == nil {
@@ -679,33 +643,6 @@ func (c *Compiler) GetErrorManager() ErrorManager {
 // Java: Compiler.getInputsInOrder()
 func (c *Compiler) GetInputsInOrder() []*CompilerInput {
 	return c.chunkGraph.GetAllInputs()
-}
-
-// Java: Compiler.getNumberOfInputs()
-func (c *Compiler) GetNumberOfInputs() int {
-	// In some testing cases inputs will be null, but obviously there must be at least one input.
-	// The intended use of this method is to allow passes to estimate how much memory they will
-	// need for data structures, so it's not necessary that the returned value be exactly right
-	// in the corner cases where inputs ends up being null.
-	if c.chunkGraph != nil {
-		return c.chunkGraph.GetInputCount()
-	}
-	return 1
-}
-
-// GetInputsById returns the compiler inputs indexed by id name.
-//
-// Java: Compiler.getInputsById()
-func (c *Compiler) GetInputsById() map[string]*CompilerInput {
-	return c.inputsById
-}
-
-// GetExternsInOrder gets the externs in the order in which they are being
-// processed.
-//
-// Java: Compiler.getExternsInOrder()
-func (c *Compiler) GetExternsInOrder() []*CompilerInput {
-	return c.externs
 }
 
 // Java: Compiler.getInputsForTesting()
@@ -816,7 +753,7 @@ func (c *Compiler) InitializeSyntheticCodeInput() {
 	ast.SetChunk(firstChunk)
 	c.putCompilerInput(ast)
 
-	c.commentsPerFile.Put(synIdName, []parser.Comment{})
+	c.commentsPerFile[synIdName] = []parser.Comment{}
 	c.ReportChangeToChangeScope(ast.GetAstRoot(c))
 }
 
@@ -863,11 +800,6 @@ func (c *Compiler) removeSyntheticCodeInputMerging(mergeContentIntoFirstInput bo
 
 	input.GetChunk().Remove(input)
 	delete(c.inputsById, input.GetInputId().GetIdName())
-}
-
-// Java: Compiler.getLastPassName()
-func (c *Compiler) GetLastPassName() *string {
-	return c.lastPassName
 }
 
 // Java: Compiler.setExternProperties(ImmutableSet<String>)
@@ -937,7 +869,7 @@ func (c *Compiler) AddComments(filename string, comments []parser.Comment) {
 	if !c.GetOptions().PreservesDetailedSourceInfo() {
 		panic(jutil.NewUnsupportedOperationExceptionMsg("addComments may only be called in IDE mode."))
 	}
-	c.commentsPerFile.Put(filename, comments)
+	c.commentsPerFile[filename] = comments
 }
 
 // Java: Compiler.getComments(String)
@@ -945,7 +877,7 @@ func (c *Compiler) GetComments(filename string) []parser.Comment {
 	if !c.GetOptions().PreservesDetailedSourceInfo() {
 		panic(jutil.NewUnsupportedOperationExceptionMsg("getComments may only be called in IDE mode."))
 	}
-	return c.commentsPerFile.Get(filename)
+	return c.commentsPerFile[filename]
 }
 
 // Java: Compiler.getModuleLoader()
@@ -995,11 +927,6 @@ func (c *Compiler) SetDebugMessage(debugMessage *string) {
 // Java: Compiler.createCompilerExecutor()
 func (c *Compiler) CreateCompilerExecutor() *CompilerExecutor {
 	return NewCompilerExecutor()
-}
-
-// Java: Compiler.getCompilerExecutor()
-func (c *Compiler) GetCompilerExecutor() *CompilerExecutor {
-	return c.compilerExecutor
 }
 
 // Serializable state of the compiler specific to multistage binary builds

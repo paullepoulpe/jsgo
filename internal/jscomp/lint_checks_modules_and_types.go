@@ -112,7 +112,6 @@ import (
 	"github.com/paullepoulpe/jsgo/internal/ast"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
-	"github.com/paullepoulpe/jsgo/internal/strpool"
 )
 
 // ---------------------------------------------------------------------------
@@ -156,8 +155,12 @@ var checkPrototypePropertiesVisitTokens = func() ast.TokenSet {
 	return s
 }()
 
-var _ nodeTraversal_visitTokens = (*CheckPrototypeProperties)(nil)
+var (
+	_ nodeTraversal_visitTokens   = (*CheckPrototypeProperties)(nil)
+	_ nodeTraversal_noVisitLeaves = (*CheckPrototypeProperties)(nil)
+)
 
+func (*CheckPrototypeProperties) noVisitLeaves() {}
 func (*CheckPrototypeProperties) visitTokens() *ast.TokenSet {
 	return &checkPrototypePropertiesVisitTokens
 }
@@ -202,7 +205,7 @@ func (c *CheckPrototypeProperties) ShouldTraverse(nodeTraversal *NodeTraversal, 
 // CheckEs6Modules: miscellaneous checks for style in ES6 modules.
 type CheckEs6Modules struct {
 	compiler         AbstractCompiler
-	importSpecifiers map[string]rhino.Node
+	importSpecifiers map[uint32]rhino.Node
 }
 
 var CheckEs6Modules_DUPLICATE_IMPORT = DiagnosticType_Warning(
@@ -218,8 +221,7 @@ var CheckEs6Modules_NO_DEFAULT_EXPORT = DiagnosticType_Warning(
 // Java: CheckEs6Modules(AbstractCompiler)
 func NewCheckEs6Modules(compiler AbstractCompiler) *CheckEs6Modules {
 	return &CheckEs6Modules{
-		compiler:         compiler,
-		importSpecifiers: make(map[string]rhino.Node),
+		compiler: compiler,
 	}
 }
 
@@ -229,8 +231,12 @@ var checkEs6ModulesVisitTokens = func() ast.TokenSet {
 	return s
 }()
 
-var _ nodeTraversal_visitTokens = (*CheckEs6Modules)(nil)
+var (
+	_ nodeTraversal_visitTokens   = (*CheckEs6Modules)(nil)
+	_ nodeTraversal_noVisitLeaves = (*CheckEs6Modules)(nil)
+)
 
+func (*CheckEs6Modules) noVisitLeaves()             {}
 func (*CheckEs6Modules) visitTokens() *ast.TokenSet { return &checkEs6ModulesVisitTokens }
 
 // Java: CheckEs6Modules.visit(NodeTraversal, Node, Node)
@@ -260,16 +266,20 @@ func (c *CheckEs6Modules) ShouldTraverse(t *NodeTraversal, n rhino.Node, parent 
 
 // Java: CheckEs6Modules.visitImport(NodeTraversal, Node)
 func (c *CheckEs6Modules) VisitImport(t *NodeTraversal, importNode rhino.Node) {
-	specifier := ast.MustImport(importNode).Source().Value()
-	if duplicateImport, ok := c.importSpecifiers[specifier]; ok {
+	src := ast.MustImport(importNode).Source()
+	specifierID := src.Node().GetStringID()
+	if duplicateImport, ok := c.importSpecifiers[specifierID]; ok {
 		t.Report(
 			importNode,
 			CheckEs6Modules_DUPLICATE_IMPORT,
-			specifier,
+			src.Value(),
 			strconv.Itoa(duplicateImport.GetLineno()),
 			strconv.Itoa(duplicateImport.GetCharno()))
 	} else {
-		c.importSpecifiers[specifier] = importNode
+		if c.importSpecifiers == nil {
+			c.importSpecifiers = make(map[uint32]rhino.Node)
+		}
+		c.importSpecifiers[specifierID] = importNode
 	}
 }
 
@@ -352,14 +362,14 @@ func (c *CheckPrimitiveAsObject) CheckForPrimitiveObjectDeclaration(t *NodeTrave
 func (c *CheckPrimitiveAsObject) CheckTypeNodeForPrimitiveObjectDeclaration(t *NodeTraversal, typeRoot rhino.Node) {
 	NodeUtil_VisitPreOrder(
 		typeRoot,
-		NodeUtil_VisitorFunc(func(node rhino.Node) {
+		func(node rhino.Node) {
 			if strLit, ok := ast.AsStringLit(node); ok {
 				typeName := strLit.Value()
 				if checkPrimitiveAsObject_isPrimitiveObjectConstructor(typeName) {
 					t.Report(node, CheckPrimitiveAsObject_PRIMITIVE_OBJECT_DECLARATION, typeName)
 				}
 			}
-		}))
+		})
 }
 
 // Java: CheckPrimitiveAsObject.checkForPrimitiveObjectConstructor(NodeTraversal, Node)
@@ -426,8 +436,12 @@ var checkGoogModuleTypeScriptNameVisitTokens = func() ast.TokenSet {
 	return s
 }()
 
-var _ nodeTraversal_visitTokens = (*CheckGoogModuleTypeScriptName)(nil)
+var (
+	_ nodeTraversal_visitTokens   = (*CheckGoogModuleTypeScriptName)(nil)
+	_ nodeTraversal_noVisitLeaves = (*CheckGoogModuleTypeScriptName)(nil)
+)
 
+func (*CheckGoogModuleTypeScriptName) noVisitLeaves() {}
 func (*CheckGoogModuleTypeScriptName) visitTokens() *ast.TokenSet {
 	return &checkGoogModuleTypeScriptNameVisitTokens
 }
@@ -586,8 +600,12 @@ var checkArrayWithGoogObjectVisitTokens = func() ast.TokenSet {
 	return s
 }()
 
-var _ nodeTraversal_visitTokens = (*CheckArrayWithGoogObject)(nil)
+var (
+	_ nodeTraversal_visitTokens   = (*CheckArrayWithGoogObject)(nil)
+	_ nodeTraversal_noVisitLeaves = (*CheckArrayWithGoogObject)(nil)
+)
 
+func (*CheckArrayWithGoogObject) noVisitLeaves() {}
 func (*CheckArrayWithGoogObject) visitTokens() *ast.TokenSet {
 	return &checkArrayWithGoogObjectVisitTokens
 }
@@ -623,12 +641,12 @@ func (c *CheckArrayWithGoogObject) Process(externs rhino.Node, root rhino.Node) 
 type CheckConstantCaseNames struct {
 	compiler   AbstractCompiler
 	convention CodingConvention
-	// Maps CONSTANT_CASE module-level names to their initializing NAME node,
+	// Maps CONSTANT_CASE module-level name IDs to their initializing NAME node,
 	// accompanied by invalidNamesOrder to preserve declaration order.
-	invalidNamesPerModule map[string]rhino.Node
-	invalidNamesOrder     []string
+	invalidNamesPerModule map[uint32]rhino.Node
+	invalidNamesOrder     []uint32
 	// Subset of variables in `invalidNamesPerModule` that are mutated post-declaration.
-	reassignedNames map[string]bool
+	reassignedNames map[uint32]bool
 }
 
 var CheckConstantCaseNames_MISSING_CONST_PROPERTY = DiagnosticType_Disabled(
@@ -646,10 +664,8 @@ var CheckConstantCaseNames_REASSIGNED_CONSTANT_CASE_NAME = DiagnosticType_Disabl
 // Java: CheckConstantCaseNames(AbstractCompiler)
 func NewCheckConstantCaseNames(compiler AbstractCompiler) *CheckConstantCaseNames {
 	return &CheckConstantCaseNames{
-		compiler:              compiler,
-		convention:            compiler.GetCodingConvention(),
-		invalidNamesPerModule: make(map[string]rhino.Node),
-		reassignedNames:       make(map[string]bool),
+		compiler:   compiler,
+		convention: compiler.GetCodingConvention(),
 	}
 }
 
@@ -681,8 +697,12 @@ var checkConstantCaseNamesVisitTokens = func() ast.TokenSet {
 	return s
 }()
 
-var _ nodeTraversal_visitTokens = (*CheckConstantCaseNames)(nil)
+var (
+	_ nodeTraversal_visitTokens    = (*CheckConstantCaseNames)(nil)
+	_ nodeTraversal_onlyNameLeaves = (*CheckConstantCaseNames)(nil)
+)
 
+func (*CheckConstantCaseNames) onlyNameLeaves()            {}
 func (*CheckConstantCaseNames) visitTokens() *ast.TokenSet { return &checkConstantCaseNamesVisitTokens }
 
 // Java: CheckConstantCaseNames.visit(NodeTraversal, Node, Node)
@@ -706,24 +726,34 @@ func (c *CheckConstantCaseNames) Visit(t *NodeTraversal, n rhino.Node, parent rh
 			func(name rhino.Node) {
 				ident := name.GetString()
 				if c.convention.IsConstant(ident) {
-					if _, exists := c.invalidNamesPerModule[ident]; !exists {
-						c.invalidNamesOrder = append(c.invalidNamesOrder, ident)
+					id := name.GetStringID()
+					if c.invalidNamesPerModule == nil {
+						c.invalidNamesPerModule = make(map[uint32]rhino.Node)
 					}
-					c.invalidNamesPerModule[ident] = name
+					if _, exists := c.invalidNamesPerModule[id]; !exists {
+						c.invalidNamesOrder = append(c.invalidNamesOrder, id)
+					}
+					c.invalidNamesPerModule[id] = name
 				}
 			})
 	case rhino.Token_NAME:
-		ident := n.GetString()
-		if _, exists := c.invalidNamesPerModule[ident]; !exists {
+		if len(c.invalidNamesPerModule) == 0 {
+			return
+		}
+		id := n.GetStringID()
+		if _, exists := c.invalidNamesPerModule[id]; !exists {
 			return
 		}
 		if !NodeUtil_IsLValue(n) {
 			return
 		}
 		// Verify this name is referring to the actual module-level var and not a local shadow.
-		v := t.GetScope().GetVar(ident)
+		v := t.GetScope().GetVarByID(id)
 		if v.GetScopeRoot().IsModuleBody() {
-			c.reassignedNames[ident] = true
+			if c.reassignedNames == nil {
+				c.reassignedNames = make(map[uint32]bool)
+			}
+			c.reassignedNames[id] = true
 		}
 	default:
 	}
@@ -731,9 +761,10 @@ func (c *CheckConstantCaseNames) Visit(t *NodeTraversal, n rhino.Node, parent rh
 
 // Java: CheckConstantCaseNames.reportWarningsAndClear()
 func (c *CheckConstantCaseNames) ReportWarningsAndClear() {
-	for _, name := range c.invalidNamesOrder {
-		nameNode := c.invalidNamesPerModule[name]
-		if c.reassignedNames[name] {
+	for _, id := range c.invalidNamesOrder {
+		nameNode := c.invalidNamesPerModule[id]
+		name := rhino.RhinoStringPool_StringFromID(id)
+		if c.reassignedNames[id] {
 			c.compiler.Report(JSError_MakeWithNode(nameNode, CheckConstantCaseNames_REASSIGNED_CONSTANT_CASE_NAME, name))
 		} else {
 			c.compiler.Report(JSError_MakeWithNode(nameNode, CheckConstantCaseNames_MISSING_CONST_PROPERTY, name))
@@ -752,8 +783,8 @@ func (c *CheckConstantCaseNames) ReportWarningsAndClear() {
 // outside of module initialization.
 type CheckNoMutatedEs6Exports struct {
 	compiler           AbstractCompiler
-	mutatedNames       map[string][]rhino.Node
-	mutatedOrder       []string
+	mutatedNames       map[uint32][]rhino.Node
+	mutatedOrder       []uint32
 	exportedLocalNames map[uint32]struct{}
 }
 
@@ -766,9 +797,7 @@ var CheckNoMutatedEs6Exports_MUTATED_EXPORT = DiagnosticType_Warning(
 
 func NewCheckNoMutatedEs6Exports(compiler AbstractCompiler) *CheckNoMutatedEs6Exports {
 	return &CheckNoMutatedEs6Exports{
-		compiler:           compiler,
-		mutatedNames:       make(map[string][]rhino.Node),
-		exportedLocalNames: make(map[uint32]struct{}),
+		compiler: compiler,
 	}
 }
 
@@ -778,7 +807,10 @@ var checkNoMutatedEs6ExportsVisitTokens = func() ast.TokenSet {
 	return s
 }()
 
-var _ nodeTraversal_visitTokens = (*CheckNoMutatedEs6Exports)(nil)
+var (
+	_ nodeTraversal_visitTokens   = (*CheckNoMutatedEs6Exports)(nil)
+	_ nodeTraversal_noVisitLeaves = (*CheckNoMutatedEs6Exports)(nil)
+)
 
 func (*CheckNoMutatedEs6Exports) noVisitLeaves() {}
 func (*CheckNoMutatedEs6Exports) visitTokens() *ast.TokenSet {
@@ -786,11 +818,12 @@ func (*CheckNoMutatedEs6Exports) visitTokens() *ast.TokenSet {
 }
 
 func (c *CheckNoMutatedEs6Exports) CheckNoMutations() {
-	for _, mutatedExport := range c.mutatedOrder {
-		if _, ok := c.exportedLocalNames[uint32(strpool.Lookup(mutatedExport))]; !ok {
+	for _, mutatedID := range c.mutatedOrder {
+		if _, ok := c.exportedLocalNames[mutatedID]; !ok {
 			continue
 		}
-		for _, mutation := range c.mutatedNames[mutatedExport] {
+		mutatedExport := rhino.RhinoStringPool_StringFromID(mutatedID)
+		for _, mutation := range c.mutatedNames[mutatedID] {
 			c.compiler.Report(JSError_MakeWithNode(mutation, CheckNoMutatedEs6Exports_MUTATED_EXPORT, mutatedExport))
 		}
 	}
@@ -818,6 +851,13 @@ func (c *CheckNoMutatedEs6Exports) ShouldTraverse(t *NodeTraversal, n rhino.Node
 	return true
 }
 
+func (c *CheckNoMutatedEs6Exports) addExportedLocalName(id uint32) {
+	if c.exportedLocalNames == nil {
+		c.exportedLocalNames = make(map[uint32]struct{})
+	}
+	c.exportedLocalNames[id] = struct{}{}
+}
+
 func (c *CheckNoMutatedEs6Exports) VisitExport(export rhino.Node) {
 	if !export.HasOneChild() {
 		return
@@ -826,7 +866,7 @@ func (c *CheckNoMutatedEs6Exports) VisitExport(export rhino.Node) {
 	if first.IsExportSpecs() {
 		for exportSpec := first.GetFirstChild(); !exportSpec.IsNil(); exportSpec = exportSpec.GetNext() {
 			jutil.CheckState(exportSpec.HasTwoChildren())
-			c.exportedLocalNames[exportSpec.GetFirstChild().GetStringID()] = struct{}{}
+			c.addExportedLocalName(exportSpec.GetFirstChild().GetStringID())
 		}
 		return
 	}
@@ -836,19 +876,19 @@ func (c *CheckNoMutatedEs6Exports) VisitExport(export rhino.Node) {
 	if NodeUtil_IsNameDeclaration(first) {
 		NodeUtil_VisitLhsNodesInNode(first, func(lhs rhino.Node) {
 			jutil.CheckState(lhs.IsName())
-			c.exportedLocalNames[lhs.GetStringID()] = struct{}{}
+			c.addExportedLocalName(lhs.GetStringID())
 		})
 	} else if export.GetBooleanProp(rhino.Node_EXPORT_DEFAULT) {
 		if !first.IsClass() && !first.IsFunction() {
 			return
 		}
 		nameNode := first.GetFirstChild()
-		if !nameNode.IsEmpty() && nameNode.GetString() != "" {
-			c.exportedLocalNames[nameNode.GetStringID()] = struct{}{}
+		if !nameNode.IsEmpty() && nameNode.GetStringID() > rhino.RhinoStringPool_EmptyID {
+			c.addExportedLocalName(nameNode.GetStringID())
 		}
 	} else {
 		jutil.CheckState(first.IsClass() || first.IsFunction())
-		c.exportedLocalNames[first.GetFirstChild().GetStringID()] = struct{}{}
+		c.addExportedLocalName(first.GetFirstChild().GetStringID())
 	}
 }
 
@@ -862,16 +902,18 @@ func (c *CheckNoMutatedEs6Exports) VisitName(t *NodeTraversal, name rhino.Node) 
 	}
 	id := name.GetStringID()
 	var_ := scope.GetVarByID(id)
-	if var_ == nil || !var_.GetScope().(*Scope).IsModuleScope() {
+	if var_ == nil || !var_.scope.IsModuleScope() {
 		return
 	}
-	key := name.GetString()
-	nodes, exists := c.mutatedNames[key]
+	if c.mutatedNames == nil {
+		c.mutatedNames = make(map[uint32][]rhino.Node)
+	}
+	nodes, exists := c.mutatedNames[id]
 	if !exists {
-		c.mutatedOrder = append(c.mutatedOrder, key)
+		c.mutatedOrder = append(c.mutatedOrder, id)
 	}
 	if !slices.Contains(nodes, name) {
-		c.mutatedNames[key] = append(nodes, name)
+		c.mutatedNames[id] = append(nodes, name)
 	}
 }
 

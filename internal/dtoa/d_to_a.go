@@ -67,9 +67,6 @@ import (
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 )
 
-// DToA converts doubles to strings the way JavaScript does.
-type DToA struct{}
-
 const (
 	DToA_DTOSTR_STANDARD             = 0 /* Either fixed or exponential format; round-trip */
 	DToA_DTOSTR_STANDARD_EXPONENTIAL = 1 /* Always exponential format; round-trip */
@@ -264,13 +261,6 @@ func dtoaRoundOff(buf []byte) ([]byte, bool) {
 		}
 	}
 	return buf[:0], true
-}
-
-// Java: DToA.roundOff(StringBuilder)
-func DToA_RoundOff(buf *[]byte) bool {
-	var carry bool
-	*buf, carry = dtoaRoundOff(*buf)
-	return carry
 }
 
 // bigShiftLeft is BigInteger.shiftLeft(n).
@@ -922,11 +912,6 @@ func dtoaStripTrailingZeroes(buf []byte) []byte {
 	return buf[:bl+1]
 }
 
-// Java: DToA.stripTrailingZeroes(StringBuilder)
-func DToA_StripTrailingZeroes(buf *[]byte) {
-	*buf = dtoaStripTrailingZeroes(*buf)
-}
-
 // DToA_dtoaModes maps JSDToStrMode -> JS_dtoa mode.
 //
 // Java: DToA.dtoaModes
@@ -1041,11 +1026,6 @@ func dtoaJSdtostr(buf []byte, mode int32, precision int32, d float64) []byte {
 	return buf
 }
 
-// Java: DToA.JS_dtostr(StringBuilder, int, int, double)
-func DToA_JS_dtostr(buffer *[]byte, mode int32, precision int32, d float64) {
-	*buffer = dtoaJSdtostr(*buffer, mode, precision, d)
-}
-
 // DToA_NumberToString is JavaScript's Number.prototype.toString().
 //
 // Java: DToA.numberToString(double)
@@ -1071,8 +1051,3 @@ func DToA_NumberToString(value float64) string {
 	var scratch [64]byte
 	return string(dtoaJSdtostr(scratch[:0], DToA_DTOSTR_STANDARD, 0, value))
 }
-
-// NewDToA is the private constructor.
-//
-// Java: DToA()
-func NewDToA() *DToA { return &DToA{} }

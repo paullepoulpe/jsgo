@@ -135,8 +135,8 @@ func TestPathTextVectors(t *testing.T) {
 				}
 				return strconv.FormatBool(Path_Of(p).StartsWith(Path_Of(q))) + "|" +
 					strconv.FormatBool(Path_Of(p).EndsWith(Path_Of(q))) + "|" +
-					strconv.FormatBool(Path_Of(p).StartsWithString(q)) + "|" +
-					strconv.FormatBool(Path_Of(p).EndsWithString(q)) + "|" +
+					strconv.FormatBool(Path_Of(p).startsWithString(q)) + "|" +
+					strconv.FormatBool(Path_Of(p).endsWithString(q)) + "|" +
 					strconv.Itoa(Path_Of(p).CompareTo(Path_Of(q))) + "|" +
 					strconv.FormatBool(Path_Of(p).Equals(Path_Of(q)))
 			})
@@ -144,7 +144,7 @@ func TestPathTextVectors(t *testing.T) {
 			b, _ := strconv.Atoi(r[2])
 			e, _ := strconv.Atoi(r[3])
 			want = r[4] + "\t" + r[5]
-			got = textGuard(func() string { return Path_Of(p).Subpath(b, e).String() }) + "\t" +
+			got = textGuard(func() string { return Path_Of(p).subpath(b, e).String() }) + "\t" +
 				textGuard(func() string { return Path_Of(p).GetName(b).String() })
 		}
 		if got != want {

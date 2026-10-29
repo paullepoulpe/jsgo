@@ -22,7 +22,10 @@ import (
 	"github.com/paullepoulpe/jsgo/internal/ast"
 	"github.com/paullepoulpe/jsgo/internal/regex"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
+	"github.com/paullepoulpe/jsgo/internal/strpool"
 )
+
+var checkRegExpID = uint32(strpool.Intern("RegExp"))
 
 var checkRegExpVisitTokens = func() ast.TokenSet {
 	var s ast.TokenSet
@@ -150,8 +153,7 @@ func (c *CheckRegExp) processParallel(root rhino.Node) bool {
 // Java: CheckRegExp.visit(NodeTraversal, Node, Node)
 func (c *CheckRegExp) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	if NodeUtil_IsReferenceName(n) {
-		name := n.GetString()
-		if name == "RegExp" && t.GetScope().GetVar(name) == nil {
+		if n.GetStringID() == checkRegExpID && t.GetScope().GetVarByID(checkRegExpID) == nil {
 			parentType := parent.GetToken()
 			first := n == parent.GetFirstChild()
 			if !((parentType == rhino.Token_NEW && first) ||

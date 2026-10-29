@@ -880,17 +880,26 @@ func (f *commandLineRunner_Flags) tryGetMixedJsSources() ([]*AbstractCommandLine
 		if strings.HasSuffix(val, ".zip") {
 			mixedSources = append(mixedSources, source)
 		} else if strings.HasPrefix(val, "!") {
-			if excludes == nil {
-				excludes = make(map[string]struct{})
-			}
-			for _, filename := range CommandLineRunner_FindJsFiles([]string{val[1:]}) {
-				excludes[filename] = struct{}{}
-				// Java: List.remove(Object) removes the first equal element.
-				if i := slices.IndexFunc(mixedSources, func(e *AbstractCommandLineRunner_FlagEntry[AbstractCommandLineRunner_JsSourceType]) bool {
-					return e != nil && e.flag == AbstractCommandLineRunner_JsSourceType_JS && e.value == filename
-				}); i >= 0 {
-					mixedSources = slices.Delete(mixedSources, i, i+1)
+			found := CommandLineRunner_FindJsFiles([]string{val[1:]})
+			if len(found) > 0 {
+				if excludes == nil {
+					excludes = make(map[string]struct{}, len(found))
 				}
+				toRemove := make(map[string]struct{}, len(found))
+				for _, filename := range found {
+					excludes[filename] = struct{}{}
+					toRemove[filename] = struct{}{}
+				}
+				// Java: List.remove(Object) removes the first equal element.
+				mixedSources = slices.DeleteFunc(mixedSources, func(e *AbstractCommandLineRunner_FlagEntry[AbstractCommandLineRunner_JsSourceType]) bool {
+					if e != nil && e.flag == AbstractCommandLineRunner_JsSourceType_JS {
+						if _, ok := toRemove[e.value]; ok {
+							delete(toRemove, e.value)
+							return true
+						}
+					}
+					return false
+				})
 			}
 		} else if !strings.Contains(val, "*") && !jutil.File_IsDirectoryPath(val) {
 			filename := jutil.Path_NormalizeString(val)

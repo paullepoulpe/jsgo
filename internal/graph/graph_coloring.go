@@ -33,7 +33,7 @@ var preallocatedColors = func() [256]GraphColoring_Color {
 }()
 
 // GraphColoring aliases *GreedyGraphColoring, the sole graph coloring implementation.
-type GraphColoring[N comparable, E any] = *GreedyGraphColoring[N, E]
+type GraphColoring[N, E comparable] = *GreedyGraphColoring[N, E]
 
 // GraphColoring_ColorOf is the unchecked cast (Color) annotation.
 func GraphColoring_ColorOf(a Annotation) *GraphColoring_Color {
@@ -75,7 +75,7 @@ func (c *GraphColoring_Color) HashCode() int32 {
 // such that no connected nodes share a color. Nodes of the same color can be
 // partitioned together and represented by a super node via GetPartitionSuperNode.
 // The given graph itself is not modified beyond node annotations.
-type GreedyGraphColoring[N comparable, E any] struct {
+type GreedyGraphColoring[N, E comparable] struct {
 	graph         Graph[N, E]
 	TieBreaker    func(a, b N) int
 	superNodes    []N
@@ -84,7 +84,7 @@ type GreedyGraphColoring[N comparable, E any] struct {
 }
 
 // Java: GraphColoring.GreedyGraphColoring(AdjacencyGraph<N, E>)
-func NewGraphColoring_GreedyGraphColoring[N comparable, E any](graph Graph[N, E]) *GreedyGraphColoring[N, E] {
+func NewGraphColoring_GreedyGraphColoring[N, E comparable](graph Graph[N, E]) *GreedyGraphColoring[N, E] {
 	return NewGraphColoring_GreedyGraphColoringWithTieBreaker[N, E](graph, nil)
 }
 
@@ -92,7 +92,7 @@ func NewGraphColoring_GreedyGraphColoring[N comparable, E any](graph Graph[N, E]
 // coloring with an optional tie-breaking comparator for equal-degree nodes.
 //
 // Java: GraphColoring.GreedyGraphColoring(AdjacencyGraph<N, E>, Comparator<N>)
-func NewGraphColoring_GreedyGraphColoringWithTieBreaker[N comparable, E any](
+func NewGraphColoring_GreedyGraphColoringWithTieBreaker[N, E comparable](
 	graph Graph[N, E], tieBreaker func(a, b N) int) *GreedyGraphColoring[N, E] {
 	return &GreedyGraphColoring[N, E]{
 		graph:      graph,
@@ -178,13 +178,13 @@ func (c *GreedyGraphColoring[N, E]) initSuperNodes(count int) {
 	c.colored = true
 }
 
-type undirectedColoringEntry[N, E any] struct {
+type undirectedColoringEntry[N, E comparable] struct {
 	node   *LinkedUndirectedGraphNode[N, E]
 	weight int
 	idx    int
 }
 
-func colorUndirectedGraph[N comparable, E any](g *LinkedUndirectedGraph[N, E], tieBreaker func(a, b N) int) int {
+func colorUndirectedGraph[N, E comparable](g *LinkedUndirectedGraph[N, E], tieBreaker func(a, b N) int) int {
 	uNodes := g.Nodes.Slice()
 	n := len(uNodes)
 	worklist := make([]undirectedColoringEntry[N, E], n)
@@ -237,12 +237,12 @@ func colorUndirectedGraph[N comparable, E any](g *LinkedUndirectedGraph[N, E], t
 	return count
 }
 
-type directedColoringEntry[N, E any] struct {
+type directedColoringEntry[N, E comparable] struct {
 	node   *LinkedDiGraphNode[N, E]
 	weight int
 }
 
-func colorDirectedGraph[N comparable, E any](g *LinkedDirectedGraph[N, E], tieBreaker func(a, b N) int) int {
+func colorDirectedGraph[N, E comparable](g *LinkedDirectedGraph[N, E], tieBreaker func(a, b N) int) int {
 	dNodes := g.Nodes.Slice()
 	worklist := make([]directedColoringEntry[N, E], len(dNodes))
 	maxIdx := uint32(0)

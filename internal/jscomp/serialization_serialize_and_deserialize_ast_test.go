@@ -937,13 +937,9 @@ func (c *SerializeAndDeserializeAstTest) run(externs *CompilerTestCase_Externs, 
 	//    For example, both serializing and deserializing currently need to call
 	//    `compiler.initRuntimeLibraryTypedAsts()`, which may only be called once.
 	deserializingCompiler := c.CreateAndInitializeCompiler(externs, code)
-	requiredInputFiles := jutil.NewLinkedHashSet[*SourceFile]()
-	for _, f := range externFiles {
-		requiredInputFiles.Add(f)
-	}
-	for _, f := range codeFiles {
-		requiredInputFiles.Add(f)
-	}
+	requiredInputFiles := make([]*SourceFile, 0, len(externFiles)+len(codeFiles))
+	requiredInputFiles = append(requiredInputFiles, externFiles...)
+	requiredInputFiles = append(requiredInputFiles, codeFiles...)
 	ast :=
 		TypedAstDeserializer_DeserializeFullAst(
 			deserializingCompiler,
@@ -964,13 +960,13 @@ func (c *SerializeAndDeserializeAstTest) run(externs *CompilerTestCase_Externs, 
 	// actual file names.
 	for oldExtern := serializingCompiler.GetRoot().GetFirstFirstChild(); !oldExtern.IsNil(); oldExtern = oldExtern.GetNext() {
 		extern := oldExtern.GetStaticSourceFile().(*SourceFile)
-		script := ast.GetFilesystem().Get(extern)()
+		script := ast.filesystem[extern].DeserializeNew()
 		script.SetInputId(rhino.NewInputId(extern.GetName()))
 		newExternsRoot.AddChildToBack(script)
 	}
 	for oldSource := serializingCompiler.GetRoot().GetSecondChild().GetFirstChild(); !oldSource.IsNil(); oldSource = oldSource.GetNext() {
 		source := oldSource.GetStaticSourceFile().(*SourceFile)
-		script := ast.GetFilesystem().Get(source)()
+		script := ast.filesystem[source].DeserializeNew()
 		script.SetInputId(rhino.NewInputId(source.GetName()))
 		newSourceRoot.AddChildToBack(script)
 	}

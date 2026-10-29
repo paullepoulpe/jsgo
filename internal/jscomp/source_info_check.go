@@ -124,7 +124,7 @@ func (s *SourceInfoCheck) CheckJSDoc(info *rhino.JSDocInfo) {
 				JSError_MakeWithNode(
 					expression.GetRoot(), sourceInfoCheck_MISSING_SOURCE_NAME, "JSTypeExpression "+expression.String()))
 		} else {
-			NodeUtil_VisitPreOrder(expression.GetRoot(), NodeUtil_VisitorFunc(s.CheckSourceFile))
+			NodeUtil_VisitPreOrder(expression.GetRoot(), s.CheckSourceFile)
 		}
 	}
 }

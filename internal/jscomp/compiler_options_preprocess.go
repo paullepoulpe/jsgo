@@ -194,15 +194,6 @@ type CompilerOptionsPreprocessor_InvalidOptionsException struct {
 	jutil.RuntimeException
 }
 
-func (*CompilerOptionsPreprocessor_InvalidOptionsException) invalidOptionsException() {}
-
-// ICompilerOptionsPreprocessor_InvalidOptionsException matches
-// CompilerOptionsPreprocessor.InvalidOptionsException and its subclasses.
-type ICompilerOptionsPreprocessor_InvalidOptionsException interface {
-	jutil.IRuntimeException
-	invalidOptionsException()
-}
-
 // Java: CompilerOptionsPreprocessor.InvalidOptionsException(String)
 func newCompilerOptionsPreprocessor_InvalidOptionsException(message string) *CompilerOptionsPreprocessor_InvalidOptionsException {
 	e := &CompilerOptionsPreprocessor_InvalidOptionsException{}

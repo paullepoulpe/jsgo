@@ -27,7 +27,7 @@ package graph
 // PushNodeAnnotations/PushEdgeAnnotations on every query, visited edges are
 // tracked in an epoch-stamped uint32 array indexed by LinkedDiGraphEdge.Index,
 // and traversal walks concrete LinkedDiGraphNodes directly.
-type CheckPathsBetweenNodes[N comparable, E any] struct {
+type CheckPathsBetweenNodes[N, E comparable] struct {
 	nodePredicate func(N) bool
 	edgePredicate func(*LinkedDiGraphEdge[N, E]) bool
 	allEdges      bool
@@ -57,7 +57,7 @@ type CheckPathsBetweenNodes[N comparable, E any] struct {
 // test for the node predicate.
 //
 // Java: CheckPathsBetweenNodes(DiGraph<N, E>, DiGraphNode<N, E>, DiGraphNode<N, E>, Predicate<N>, Predicate<DiGraphEdge<N, E>>, boolean)
-func NewCheckPathsBetweenNodes[N comparable, E any](
+func NewCheckPathsBetweenNodes[N, E comparable](
 	graph DiGraph[N, E],
 	a *LinkedDiGraphNode[N, E],
 	b *LinkedDiGraphNode[N, E],
@@ -73,7 +73,7 @@ func NewCheckPathsBetweenNodes[N comparable, E any](
 // NewCheckPathsBetweenNodesInclusive is the inclusive check.
 //
 // Java: CheckPathsBetweenNodes(DiGraph<N, E>, DiGraphNode<N, E>, DiGraphNode<N, E>, Predicate<N>, Predicate<DiGraphEdge<N, E>>)
-func NewCheckPathsBetweenNodesInclusive[N comparable, E any](
+func NewCheckPathsBetweenNodesInclusive[N, E comparable](
 	graph DiGraph[N, E],
 	a *LinkedDiGraphNode[N, E],
 	b *LinkedDiGraphNode[N, E],
@@ -84,7 +84,7 @@ func NewCheckPathsBetweenNodesInclusive[N comparable, E any](
 }
 
 // NewCheckPathsBetweenNodesInclusiveValue returns a stack-allocatable CheckPathsBetweenNodes value.
-func NewCheckPathsBetweenNodesInclusiveValue[N comparable, E any](
+func NewCheckPathsBetweenNodesInclusiveValue[N, E comparable](
 	graph DiGraph[N, E],
 	a *LinkedDiGraphNode[N, E],
 	b *LinkedDiGraphNode[N, E],

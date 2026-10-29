@@ -81,12 +81,12 @@ func TestRhinoStringPool_MultipleCallsReturnSameInstance(t *testing.T) {
 
 func TestRhinoStringPool_LazyInternedStringList_OutOfBounds_ThrowsException(t *testing.T) {
 	list := NewRhinoStringPool_LazyInternedStringList([]string{"foo"})
-	assertThrows[jutil.IArrayIndexOutOfBoundsException](t, func() { list.Get(100) })
+	assertThrows[*jutil.ArrayIndexOutOfBoundsException](t, func() { list.Get(100) })
 }
 
 func TestRhinoStringPool_LazyInternedStringList_NegativeIndex_ThrowsException(t *testing.T) {
 	list := NewRhinoStringPool_LazyInternedStringList([]string{})
-	assertThrows[jutil.IArrayIndexOutOfBoundsException](t, func() { list.Get(-1) })
+	assertThrows[*jutil.ArrayIndexOutOfBoundsException](t, func() { list.Get(-1) })
 }
 
 func TestRhinoStringPool_LazyInternedStringList_GetsEqualValuesAsInputList(t *testing.T) {

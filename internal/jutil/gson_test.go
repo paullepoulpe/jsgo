@@ -80,7 +80,7 @@ func gsonAccessors(e JsonElement) string {
 	var sb strings.Builder
 	sb.WriteString(gsonRun(func() any { return e.GetAsInt() }))
 	sb.WriteString(" | ")
-	sb.WriteString(gsonRun(func() any { return e.GetAsLong() }))
+	sb.WriteString(gsonRun(func() any { return e.getAsLong() }))
 	sb.WriteString(" | ")
 	sb.WriteString(gsonRun(func() any { return e.GetAsString() }))
 	sb.WriteString(" | ")

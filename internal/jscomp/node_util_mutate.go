@@ -674,11 +674,25 @@ func NodeUtil_MarkFunctionsDeleted(node rhino.Node, compiler AbstractCompiler) {
 //
 // Java: NodeUtil.getParentChangeScopeNodes(List<Node>)
 func NodeUtil_GetParentChangeScopeNodes(scopeNodes []rhino.Node) []rhino.Node {
-	parentScopeNodes := jutil.NewLinkedHashSet(scopeNodes...)
-	for _, scopeNode := range scopeNodes {
-		parentScopeNodes.Add(ChangeTracker_GetEnclosingChangeScopeRoot(scopeNode))
+	if len(scopeNodes) == 0 {
+		return []rhino.Node{}
 	}
-	return nodeUtil_newArrayList(parentScopeNodes)
+	seen := make(map[rhino.Node]struct{}, len(scopeNodes)*2)
+	out := make([]rhino.Node, 0, len(scopeNodes)*2)
+	for _, scopeNode := range scopeNodes {
+		if _, ok := seen[scopeNode]; !ok {
+			seen[scopeNode] = struct{}{}
+			out = append(out, scopeNode)
+		}
+	}
+	for _, scopeNode := range scopeNodes {
+		parent := ChangeTracker_GetEnclosingChangeScopeRoot(scopeNode)
+		if _, ok := seen[parent]; !ok {
+			seen[parent] = struct{}{}
+			out = append(out, parent)
+		}
+	}
+	return out
 }
 
 // NodeUtil_RemoveNestedChangeScopeNodes removes any scope nodes from the
@@ -687,27 +701,33 @@ func NodeUtil_GetParentChangeScopeNodes(scopeNodes []rhino.Node) []rhino.Node {
 //
 // Java: NodeUtil.removeNestedChangeScopeNodes(List<Node>)
 func NodeUtil_RemoveNestedChangeScopeNodes(scopeNodes []rhino.Node) []rhino.Node {
-	uniqueScopeNodes := jutil.NewLinkedHashSet(scopeNodes...)
+	if len(scopeNodes) == 0 {
+		return []rhino.Node{}
+	}
+	seen := make(map[rhino.Node]struct{}, len(scopeNodes))
+	out := make([]rhino.Node, 0, len(scopeNodes))
 	for _, scopeNode := range scopeNodes {
-		for ancestor := scopeNode.GetParent(); !ancestor.IsNil(); ancestor = ancestor.GetParent() {
-			if ChangeTracker_IsChangeScopeRoot(ancestor) && uniqueScopeNodes.Contains(ancestor) {
-				uniqueScopeNodes.Remove(scopeNode)
-				break
-			}
+		if _, ok := seen[scopeNode]; !ok {
+			seen[scopeNode] = struct{}{}
+			out = append(out, scopeNode)
 		}
 	}
-	return nodeUtil_newArrayList(uniqueScopeNodes)
-}
-
-// nodeUtil_newArrayList is new ArrayList<>(set).
-//
-// Go-only: language-adapter — the new list is never null, also when it is
-// empty, and a nil slice is Java null to the callers (J2clClinitPrunerPass
-// reads a null list of changed scopes as "traverse everything").
-func nodeUtil_newArrayList(set *jutil.LinkedHashSet[rhino.Node]) []rhino.Node {
-	list := make([]rhino.Node, 0, set.Size())
-	for n := range set.All() {
-		list = append(list, n)
+	n := 0
+	for _, scopeNode := range out {
+		nested := false
+		for ancestor := scopeNode.GetParent(); !ancestor.IsNil(); ancestor = ancestor.GetParent() {
+			if ChangeTracker_IsChangeScopeRoot(ancestor) {
+				if _, ok := seen[ancestor]; ok {
+					nested = true
+					break
+				}
+			}
+		}
+		if !nested {
+			out[n] = scopeNode
+			n++
+		}
 	}
-	return list
+	clear(out[n:])
+	return out[:n]
 }

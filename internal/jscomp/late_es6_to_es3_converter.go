@@ -72,6 +72,26 @@ var LateEs6ToEs3Converter_transpiledFeatures = parser.FeatureSet_BARE_MINIMUM.Wi
 // Java: LateEs6ToEs3Converter.FRESH_COMP_PROP_VAR
 const LateEs6ToEs3Converter_FRESH_COMP_PROP_VAR = "$jscomp$compprop"
 
+var lateEs6CreateTemplateTagFirstArgWithRaw = rhino.QualifiedName_Of("$jscomp.createTemplateTagFirstArgWithRaw")
+
+var lateEs6ToEs3VisitTokens = func() ast.TokenSet {
+	var s ast.TokenSet
+	s.Add(rhino.Token_ASSIGN)
+	s.Add(rhino.Token_OBJECTLIT)
+	s.Add(rhino.Token_MEMBER_FUNCTION_DEF)
+	s.Add(rhino.Token_TAGGED_TEMPLATELIT)
+	s.Add(rhino.Token_TEMPLATELIT)
+	return s
+}()
+
+var (
+	_ nodeTraversal_visitTokens   = (*LateEs6ToEs3Converter)(nil)
+	_ nodeTraversal_noVisitLeaves = (*LateEs6ToEs3Converter)(nil)
+)
+
+func (*LateEs6ToEs3Converter) noVisitLeaves()             {}
+func (*LateEs6ToEs3Converter) visitTokens() *ast.TokenSet { return &lateEs6ToEs3VisitTokens }
+
 // Java: LateEs6ToEs3Converter(AbstractCompiler)
 func NewLateEs6ToEs3Converter(compiler AbstractCompiler) *LateEs6ToEs3Converter {
 	l := &LateEs6ToEs3Converter{}
@@ -119,8 +139,7 @@ func (l *LateEs6ToEs3Converter) Visit(t *NodeTraversal, n rhino.Node, parent rhi
 		// function(..) {..}` node. If yes, update the templateLitInsertionPoint.
 		lhs, isGetProp := assign.Target().AsGetProp()
 		if isGetProp && assign.Value().Token() == rhino.Token_FUNCTION && lhs.Object().Token() == rhino.Token_NAME {
-			qName := rhino.QualifiedName_Of("$jscomp.createTemplateTagFirstArgWithRaw")
-			if qName.Matches(lhs.Node()) {
+			if lateEs6CreateTemplateTagFirstArgWithRaw.Matches(lhs.Node()) {
 				exprStmt, ok := ast.AsExprStmt(n.GetParent())
 				jutil.CheckStateMsg1(ok, "%s", n)
 				l.templateLitInsertionPoint = exprStmt.Node().GetNext()
@@ -211,7 +230,7 @@ func (l *LateEs6ToEs3Converter) VisitObjectWithComputedProperty(t *NodeTraversal
 		}
 	}
 
-	objName := LateEs6ToEs3Converter_FRESH_COMP_PROP_VAR + l.compiler.GetUniqueIdSupplier().GetUniqueId(t.GetInput())
+	objName := l.compiler.GetUniqueIdSupplier().UniqueVarName(LateEs6ToEs3Converter_FRESH_COMP_PROP_VAR, t.GetInput())
 
 	slices.Reverse(props) // Lists.reverse(props)
 	result := l.astFactory.CreateName(objName, objectType)

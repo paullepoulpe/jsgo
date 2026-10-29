@@ -49,24 +49,6 @@ import (
 	"github.com/paullepoulpe/jsgo/internal/sourcemap"
 )
 
-// SourceFileMapping maps a source file, line, and column into an
-// OriginalMapping.
-//
-// See com.google.debugging.sourcemap.SourceMapping.
-type SourceFileMapping interface {
-	// GetSourceMapping returns the original mapping for the file name, line
-	// number and column position found in the source map. Returns null if
-	// the source file does not have a input map, and returns
-	// OriginalMapping.getDefaultInstance() if the input map does not map
-	// the location.
-	//
-	// lineNo is the line number, 1-based; columnNo the column index,
-	// 1-based.
-	//
-	// Java: SourceFileMapping.getSourceMapping(String, int, int)
-	GetSourceMapping(fileName string, lineNo int, columnNo int) *sourcemap.Mapping_OriginalMapping
-}
-
 // SourceMap collects information mapping the generated (compiled) source
 // back to its original source for debugging purposes.
 //
@@ -83,7 +65,6 @@ type SourceMap struct {
 	// that inputs to this compilation job have been generated from, and used
 	// to create a source map that maps all the way back to original inputs.
 	// nil if no such mapping is wanted.
-	mapping           SourceFileMapping
 	compilerMapping   *Compiler
 	resolvedSourceMap compiler_ResolvedSourceMap
 	lineCache         sourcemap.SourceMapLineCache
@@ -245,11 +226,6 @@ type SourceMap_Mapping struct {
 	end   sourcemap.FilePosition
 }
 
-// Java: SourceMap.Mapping()
-func NewSourceMap_Mapping() *SourceMap_Mapping {
-	return &SourceMap_Mapping{}
-}
-
 // Java: SourceMap.Mapping.toString()
 func (m *SourceMap_Mapping) String() string {
 	// This toString() representation is used for debugging purposes only.
@@ -262,12 +238,6 @@ func (m *SourceMap_Mapping) String() string {
 // Java: SourceMap.addMapping(Mapping)
 func (s *SourceMap) AddMapping(mapping *SourceMap_Mapping) {
 	s.AddMappingOfNodePositions(mapping.node, mapping.start, mapping.end)
-}
-
-// Java: SourceMap.addMapping(Node, FilePosition, FilePosition)
-func (s *SourceMap) AddMappingOfNode(
-	node rhino.Node, outputStartPosition *sourcemap.FilePosition, outputEndPosition *sourcemap.FilePosition) {
-	s.AddMappingOfNodePositions(node, *outputStartPosition, *outputEndPosition)
 }
 
 // sourceMap_resolvedMapping is a mapping whose node has been resolved to
@@ -305,7 +275,7 @@ func (s *SourceMap) resolveMappingOfNodePositions(
 	originalName := sourceMap_getOriginalName(node)
 
 	var sourceFileName string
-	if s.mapping == nil {
+	if s.compilerMapping == nil {
 		if sourceFile == s.lastSourceFile {
 			sourceFileName = s.lastFixedSourceFileName
 		} else {
@@ -313,7 +283,7 @@ func (s *SourceMap) resolveMappingOfNodePositions(
 			s.lastSourceFile = sourceFile
 			s.lastFixedSourceFileName = sourceFileName
 		}
-	} else if s.compilerMapping != nil {
+	} else {
 		sourceFileName = sourceFile.GetName()
 		sourceMapping, identifierPtr, hasInputMap, isDefaultEmpty := s.compilerMapping.getSourceMappingValueCached(
 			sourceFileName, lineNo, charNo, &s.resolvedSourceMap, &s.lineCache)
@@ -333,30 +303,6 @@ func (s *SourceMap) resolveMappingOfNodePositions(
 			charNo = sourceMapping.GetColumnPosition()
 			if identifierPtr != nil {
 				originalName = identifierPtr
-			}
-		}
-		sourceFileName = s.fixupSourceLocation(sourceFileName)
-	} else {
-		sourceFileName = sourceFile.GetName()
-		sourceMapping := s.mapping.GetSourceMapping(sourceFileName, lineNo, charNo)
-		if sourceMapping == nil {
-			// The source file does not have a input map. We consider this to be an
-			// original source range and include it in the output map.
-		} else if sourceMapping.Equals(sourcemap.Mapping_OriginalMapping_GetDefaultInstance()) {
-			// The source file does have an input map, but it does not map the
-			// location. We consider this to be a synthetic code range and do not
-			// include it in the output map.
-			// TODO b/452676030 - Report the sourceless mapping.
-			return r, false
-		} else {
-			// The source file mapped our code range to its original source location.
-			sourceFileName = sourceMapping.GetOriginalFile()
-			lineNo = sourceMapping.GetLineNumber()
-			charNo = sourceMapping.GetColumnPosition()
-			if sourceMapping.HasIdentifier() {
-				if identifier := sourceMapping.GetIdentifier(); identifier != "" {
-					originalName = &identifier
-				}
 			}
 		}
 		sourceFileName = s.fixupSourceLocation(sourceFileName)
@@ -510,14 +456,9 @@ func (s *SourceMap) SetPrefixMappings(sourceMapLocationMappings []SourceMap_Loca
 	s.lastFixedSourceFileName = ""
 }
 
-// Java: SourceMap.setSourceFileMapping(SourceFileMapping)
-func (s *SourceMap) SetSourceFileMapping(mapping SourceFileMapping) {
-	s.mapping = mapping
-	if cm, ok := mapping.(*compiler_sourceFileMapping); ok {
-		s.compilerMapping = cm.c
-	} else {
-		s.compilerMapping = nil
-	}
+// SetCompilerSourceMapping sets the Compiler used to resolve input source maps.
+func (s *SourceMap) SetCompilerSourceMapping(c *Compiler) {
+	s.compilerMapping = c
 }
 
 // SourceMapInput is a lazy-loaded SourceMapConsumerV3 instance.

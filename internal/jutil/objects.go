@@ -10,10 +10,10 @@ import (
 // Go-only: language-adapter — java.lang.Object equality/hashing,
 // java.util.Objects and Guava MoreObjects.
 
-// Hashable is implemented by ported classes that override Java's
+// hashable is implemented by ported classes that override Java's
 // Object.equals(Object) and Object.hashCode(). Code that compares or hashes
 // arbitrary values (collections, Objects.equals) dispatches to it.
-type Hashable interface {
+type hashable interface {
 	Equals(o any) bool
 	HashCode() int32
 }
@@ -235,10 +235,10 @@ func ObjectsEqualsOf[T any](a, b T) bool {
 	return ObjectsEquals(a, b)
 }
 
-// ObjectHashCodeOf is ObjectHashCode for a value of a type parameter.
+// objectHashCodeOf is ObjectHashCode for a value of a type parameter.
 //
 // Go-only: performance — see ObjectsEqualsOf.
-func ObjectHashCodeOf[T any](v T) int32 {
+func objectHashCodeOf[T any](v T) int32 {
 	if reflect.TypeFor[T]().Kind() == reflect.Pointer {
 		var zero T
 		if any(v) == any(zero) {
@@ -247,7 +247,7 @@ func ObjectHashCodeOf[T any](v T) int32 {
 		if s, ok := any(v).(*string); ok {
 			return StringHashCode(*s)
 		}
-		if h, ok := any(v).(Hashable); ok {
+		if h, ok := any(v).(hashable); ok {
 			return h.HashCode()
 		}
 		p := uint64(reflect.ValueOf(v).Pointer())
@@ -296,7 +296,7 @@ func ObjectHashCodeOf[T any](v T) int32 {
 	}
 	switch reflect.TypeFor[T]().Kind() {
 	case reflect.Struct:
-		if h, ok := any(v).(Hashable); ok {
+		if h, ok := any(v).(hashable); ok {
 			return h.HashCode()
 		}
 		return 0
@@ -307,7 +307,7 @@ func ObjectHashCodeOf[T any](v T) int32 {
 				return 0
 			}
 		}
-		if h, ok := any(v).(Hashable); ok {
+		if h, ok := any(v).(hashable); ok {
 			return h.HashCode()
 		}
 		return int32(reflect.ValueOf(v).Uint())
@@ -381,7 +381,7 @@ func ObjectHashCode(v any) int32 {
 	if IsNil(v) {
 		return 0
 	}
-	if h, ok := v.(Hashable); ok {
+	if h, ok := v.(hashable); ok {
 		return h.HashCode()
 	}
 	return identityHashCodeNonNil(v)

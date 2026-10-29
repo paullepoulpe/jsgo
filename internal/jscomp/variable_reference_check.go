@@ -21,6 +21,7 @@ package jscomp
 import (
 	"slices"
 
+	"github.com/paullepoulpe/jsgo/internal/ast"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
 
@@ -195,6 +196,12 @@ func (b *VariableReferenceCheck_ReferenceCheckingBehavior) CheckDefaultParam(
 		&variableReferenceCheck_defaultParamCallback{b: b, scope: scope, varsInFunctionBody: varsInFunctionBody})
 }
 
+var variableReferenceCheckDefaultParamVisitTokens = func() ast.TokenSet {
+	var s ast.TokenSet
+	s.Add(rhino.Token_NAME)
+	return s
+}()
+
 // variableReferenceCheck_defaultParamCallback is the anonymous
 // AbstractShallowCallback of checkDefaultParam.
 type variableReferenceCheck_defaultParamCallback struct {
@@ -203,6 +210,12 @@ type variableReferenceCheck_defaultParamCallback struct {
 	b                  *VariableReferenceCheck_ReferenceCheckingBehavior
 	scope              *Scope
 	varsInFunctionBody map[string]struct{}
+}
+
+var _ nodeTraversal_visitTokens = (*variableReferenceCheck_defaultParamCallback)(nil)
+
+func (*variableReferenceCheck_defaultParamCallback) visitTokens() *ast.TokenSet {
+	return &variableReferenceCheckDefaultParamVisitTokens
 }
 
 // Java: VariableReferenceCheck.ReferenceCheckingBehavior.checkDefaultParam(...).new AbstractShallowCallback() {...}.visit(NodeTraversal, Node, Node)

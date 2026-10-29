@@ -144,7 +144,7 @@ func serializationDump_dumpVariant(sb *strings.Builder, variant string, externsF
 
 		stage = "deserialize"
 		d := newSerializationDump_setup(externsFile, inputFile)
-		requiredInputFiles := jutil.NewLinkedHashSet[*SourceFile](externsFile, inputFile)
+		requiredInputFiles := []*SourceFile{externsFile, inputFile}
 		deserialized := TypedAstDeserializer_DeserializeFullAst(
 			d.compiler,
 			SourceFile_FromCodeWithKind("syntheticExterns", "", rhino.StaticSourceFile_SourceKind_EXTERN),
@@ -155,14 +155,14 @@ func serializationDump_dumpVariant(sb *strings.Builder, variant string, externsF
 			d.options.GetParseInlineSourceMaps())
 		var tree []string
 		colorsSeen := jutil.NewLinkedHashMap[colors.ColorId, *colors.Color]()
-		for _, f := range []*SourceFile{externsFile, inputFile} {
-			supplier := deserialized.GetFilesystem().Get(f)
-			if supplier == nil {
+		for _, f := range requiredInputFiles {
+			entry, ok := deserialized.filesystem[f]
+			if !ok {
 				tree = append(tree, "script "+f.GetName()+" absent")
 				continue
 			}
 			tree = append(tree, "script "+f.GetName())
-			tree = serializationDump_dumpTree(tree, colorsSeen, supplier(), 0)
+			tree = serializationDump_dumpTree(tree, colorsSeen, entry.DeserializeNew(), 0)
 		}
 		for c := range colorsSeen.Values() {
 			tree = append(tree, serializationDump_colorLine(c))

@@ -213,59 +213,63 @@ func (r *AbstractCommandLineRunnerBase) ParseJsonFilesFromInputStream() []*Abstr
 	defer reader.Close()
 	reader.BeginArray()
 	for reader.HasNext() {
-		jsonFiles = append(jsonFiles, parseJsonFileSpec(reader))
+		spec, err := tryParseJsonFileSpec(reader)
+		if err != nil {
+			panic(err)
+		}
+		jsonFiles = append(jsonFiles, spec)
 	}
 	reader.EndArray()
 	return jsonFiles
 }
 
-func parseJsonFileSpec(reader *jutil.JsonReader) (result *AbstractCommandLineRunner_JsonFileSpec) {
+func tryParseJsonFileSpec(reader *jutil.JsonReader) (result *AbstractCommandLineRunner_JsonFileSpec, parseErr jutil.IJsonParseException) {
 	isEmpty := true
 	oldLenient := reader.IsLenient()
 	reader.SetLenient(true)
 	defer reader.SetLenient(oldLenient)
-	jutil.Try(func() {
-		tok := reader.Peek()
-		isEmpty = false
-		if tok == jutil.JsonToken_NULL {
-			reader.NextNull()
-			return
-		}
-		spec := newAbstractCommandLineRunner_JsonFileSpecDefault()
-		reader.BeginObject()
-		for reader.HasNext() {
-			switch reader.NextName() {
-			case "src":
-				spec.Src = readJsonNullableString(reader)
-			case "path":
-				spec.Path = readJsonNullableString(reader)
-			case "source_map", "sourceMap":
-				spec.SourceMap = readJsonNullableString(reader)
-			case "webpack_id", "webpackId":
-				spec.WebpackId = readJsonNullableString(reader)
+	defer func() {
+		if rec := recover(); rec != nil {
+			switch e := rec.(type) {
+			case jutil.IEOFException:
+				if isEmpty {
+					result = nil
+					return
+				}
+				parseErr = jutil.NewJsonSyntaxExceptionWithCause(e)
+			case jutil.IIllegalStateException:
+				parseErr = jutil.NewJsonSyntaxExceptionWithCause(e)
+			case jutil.IIOException:
+				parseErr = jutil.NewJsonSyntaxExceptionWithCause(e)
 			default:
-				reader.SkipValue()
+				panic(rec)
 			}
 		}
-		reader.EndObject()
-		result = spec
-	}, func(t jutil.Throwable) {
-		switch e := t.(type) {
-		case jutil.IEOFException:
-			if isEmpty {
-				result = nil
-				return
-			}
-			panic(jutil.NewJsonSyntaxExceptionWithCause(e))
-		case jutil.IIllegalStateException:
-			panic(jutil.NewJsonSyntaxExceptionWithCause(e))
-		case jutil.IIOException:
-			panic(jutil.NewJsonSyntaxExceptionWithCause(e))
+	}()
+	tok := reader.Peek()
+	isEmpty = false
+	if tok == jutil.JsonToken_NULL {
+		reader.NextNull()
+		return nil, nil
+	}
+	spec := newAbstractCommandLineRunner_JsonFileSpecDefault()
+	reader.BeginObject()
+	for reader.HasNext() {
+		switch reader.NextName() {
+		case "src":
+			spec.Src = readJsonNullableString(reader)
+		case "path":
+			spec.Path = readJsonNullableString(reader)
+		case "source_map", "sourceMap":
+			spec.SourceMap = readJsonNullableString(reader)
+		case "webpack_id", "webpackId":
+			spec.WebpackId = readJsonNullableString(reader)
 		default:
-			panic(t)
+			reader.SkipValue()
 		}
-	})
-	return result
+	}
+	reader.EndObject()
+	return spec, nil
 }
 
 func readJsonNullableString(reader *jutil.JsonReader) *string {
@@ -699,6 +703,20 @@ func openGzipFileForReading(filename string) (io.ReadCloser, error) {
 	return &gzipFileReader{file: f, zr: zr}, nil
 }
 
+func runCompilerIO(fn func()) (ioErr jutil.IIOException) {
+	defer func() {
+		if rec := recover(); rec != nil {
+			if e, ok := rec.(jutil.IIOException); ok {
+				ioErr = e
+				return
+			}
+			panic(rec)
+		}
+	}()
+	fn()
+	return nil
+}
+
 // Java: AbstractCommandLineRunner.initWithTypedAstFilesystem(List<SourceFile>, List<SourceFile>, CompilerOptions, String)
 func (r *AbstractCommandLineRunnerBase) InitWithTypedAstFilesystem(
 	externs []*jscomp.SourceFile,
@@ -711,11 +729,11 @@ func (r *AbstractCommandLineRunnerBase) InitWithTypedAstFilesystem(
 		return
 	}
 	defer typedAstListStream.Close()
-	jutil.Try(func() {
+	if err := runCompilerIO(func() {
 		r.compiler.InitWithTypedAstFilesystem(externs, sources, options, typedAstListStream)
-	}, func(e jutil.IIOException) {
+	}); err != nil {
 		r.compiler.Report(jscomp.JSError_Make(AbstractCommandLineRunner_COULD_NOT_DESERIALIZE_AST, filename))
-	})
+	}
 }
 
 // Java: AbstractCommandLineRunner.initChunksWithTypedAstFilesystem(List<SourceFile>, List<JSChunk>, CompilerOptions, String)
@@ -727,11 +745,11 @@ func (r *AbstractCommandLineRunnerBase) InitChunksWithTypedAstFilesystem(
 		return
 	}
 	defer typedAstListStream.Close()
-	jutil.Try(func() {
+	if err := runCompilerIO(func() {
 		r.compiler.InitChunksWithTypedAstFilesystem(externs, chunks, options, typedAstListStream)
-	}, func(e jutil.IIOException) {
+	}); err != nil {
 		r.compiler.Report(jscomp.JSError_Make(AbstractCommandLineRunner_COULD_NOT_DESERIALIZE_AST, filename))
-	})
+	}
 }
 
 // Java: AbstractCommandLineRunner.restoreState(String)
@@ -742,11 +760,11 @@ func (r *AbstractCommandLineRunnerBase) RestoreState(filename string) {
 		return
 	}
 	defer serializedInputStream.Close()
-	jutil.Try(func() {
+	if err := runCompilerIO(func() {
 		r.compiler.RestoreState(serializedInputStream)
-	}, func(e jutil.IIOException) {
+	}); err != nil {
 		r.compiler.Report(jscomp.JSError_Make(AbstractCommandLineRunner_COULD_NOT_DESERIALIZE_AST, filename))
-	})
+	}
 }
 
 // SaveState is called at the end of compilation to save the compiler state
@@ -765,11 +783,11 @@ func (r *AbstractCommandLineRunnerBase) SaveState() {
 		return
 	}
 	defer serializedOutputStream.Close()
-	jutil.Try(func() {
+	if err := runCompilerIO(func() {
 		r.compiler.SaveState(serializedOutputStream)
-	}, func(e jutil.IIOException) {
+	}); err != nil {
 		r.compiler.Report(jscomp.JSError_Make(AbstractCommandLineRunner_COULD_NOT_SERIALIZE_AST, filename))
-	})
+	}
 }
 
 // GetInputCharset queries the flag for the input charset, and returns a

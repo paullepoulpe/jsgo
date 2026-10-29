@@ -165,7 +165,7 @@ func ConvertToTypedInterface_FindNameDeclaration(scope *Scope, rhs rhino.Node) *
 	if !rhs.IsName() {
 		return nil
 	}
-	return scope.GetVar(rhs.GetString())
+	return scope.GetVarByNode(rhs)
 }
 
 // ConvertToTypedInterface_RemoveNonDeclarations is the private static nested

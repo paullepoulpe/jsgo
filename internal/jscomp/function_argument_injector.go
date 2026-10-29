@@ -764,7 +764,7 @@ func (f *FunctionArgumentInjector) collectReferencedAfterSideEffectForBindings(
 	for _, b := range bindings {
 		collector.parameterIDs.add(b.nameID)
 	}
-	NodeUtil_VisitPostOrderWithPred(root, collector, collector.Apply)
+	NodeUtil_VisitPostOrderWithPred(root, collector.Visit, collector.Apply)
 }
 
 func (f *FunctionArgumentInjector) ensureCalleeSideEffects(summary *calleeSummary) (calleeSideEffectSummary, bool) {
@@ -787,7 +787,7 @@ func (f *FunctionArgumentInjector) ensureCalleeSideEffects(summary *calleeSummar
 
 	collector := &f.referencedAfter
 	collector.reset(f, summary, &f.scratchLocals)
-	NodeUtil_VisitPostOrderWithPred(root, collector, collector.Apply)
+	NodeUtil_VisitPostOrderWithPred(root, collector.Visit, collector.Apply)
 	collector.summary = nil
 
 	se := calleeSideEffectSummary{

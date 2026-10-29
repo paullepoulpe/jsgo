@@ -36,12 +36,8 @@ package rhino
 
 import "github.com/paullepoulpe/jsgo/internal/jutil"
 
-// PropTranslator is a translator for converting between Rhino node properties
-// and TypedAST proto node properties used by the Rhino Node class.
-type PropTranslator struct{}
-
 // Java: PropTranslator.protoToRhinoProp
-var PropTranslator_protoToRhinoProp = make([]*Node_Prop, len(NodeProperty_values()))
+var PropTranslator_protoToRhinoProp = make([]*Node_Prop, len(nodeProperty_names))
 
 // Java: PropTranslator.rhinoToProtoProp
 var PropTranslator_rhinoToProtoProp = make([]*NodeProperty, len(Node_Prop_values()))
@@ -54,11 +50,6 @@ func PropTranslator_Serialize(x Node_Prop) *NodeProperty {
 // Java: PropTranslator.deserialize(NodeProperty)
 func PropTranslator_Deserialize(x NodeProperty) *Node_Prop {
 	return PropTranslator_protoToRhinoProp[x.Ordinal()]
-}
-
-// Java: PropTranslator()
-func NewPropTranslator() *PropTranslator {
-	panic(jutil.NewAssertionErrorNoMessage())
 }
 
 // Java: PropTranslator static initializer
@@ -190,7 +181,8 @@ func PropTranslator_SerializeProp(prop Node_Prop) *NodeProperty {
 
 // Java: PropTranslator.checkUnexpectedNullProtoProps()
 func PropTranslator_CheckUnexpectedNullProtoProps() {
-	for _, protoProp := range NodeProperty_values() {
+	for i := range nodeProperty_names {
+		protoProp := NodeProperty(i)
 		switch protoProp {
 		case NodeProperty_NODE_PROPERTY_UNSPECIFIED:
 			// this is the "no properties are set" value

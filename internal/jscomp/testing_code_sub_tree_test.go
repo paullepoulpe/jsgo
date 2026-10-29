@@ -110,11 +110,11 @@ func CodeSubTree_FindNodesAllowEmpty(rootNode rhino.Node, predicate func(rhino.N
 	listBuilder := []rhino.Node{}
 	NodeUtil_VisitPreOrder(
 		rootNode,
-		NodeUtil_VisitorFunc(func(node rhino.Node) {
+		func(node rhino.Node) {
 			if predicate(node) {
 				listBuilder = append(listBuilder, node)
 			}
-		}))
+		})
 	return listBuilder
 }
 

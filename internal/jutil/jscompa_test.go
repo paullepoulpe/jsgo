@@ -232,8 +232,8 @@ func TestCharsetDecodeMatchesJava(t *testing.T) {
 		func() {
 			defer func() {
 				if x := recover(); x != nil {
-					if m, ok := x.(*MalformedInputException); ok {
-						strict = "MALFORMED:" + strconv.Itoa(m.GetInputLength())
+					if m, ok := x.(*malformedInputException); ok {
+						strict = "MALFORMED:" + strconv.Itoa(m.getInputLength())
 						return
 					}
 					panic(x)

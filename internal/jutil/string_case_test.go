@@ -80,13 +80,13 @@ func TestCharacterToLowerCaseCodePointMatchesJava(t *testing.T) {
 		if !ok {
 			want = cp
 		}
-		if got := CharacterToLowerCaseCodePoint(cp); got != want {
+		if got := characterToLowerCaseCodePoint(cp); got != want {
 			t.Errorf("Character.toLowerCase(%X) = %X, want %X", cp, got, want)
 		}
 	}
 	for cp, want := range v.lower {
 		if cp < 0 || cp > unicode.MaxRune {
-			if got := CharacterToLowerCaseCodePoint(cp); got != want {
+			if got := characterToLowerCaseCodePoint(cp); got != want {
 				t.Errorf("Character.toLowerCase(%X) = %X, want %X", cp, got, want)
 			}
 		}
@@ -103,7 +103,7 @@ func TestStringToLowerCaseRootSingleCodePointsMatchJava(t *testing.T) {
 	for cp := rune(0); cp <= unicode.MaxRune; cp++ {
 		want, ok := v.single[cp]
 		if !ok {
-			want = appendUTF16CodePoint(nil, rune(CharacterToLowerCaseCodePoint(int(cp))))
+			want = appendUTF16CodePoint(nil, rune(characterToLowerCaseCodePoint(int(cp))))
 		}
 		if got := StringToUTF16(StringToLowerCaseRoot(codePointString(cp))); !slices.Equal(got, want) {
 			t.Errorf("toLowerCase(U+%04X) = %04x, want %04x", cp, got, want)
@@ -278,7 +278,7 @@ func TestStringToLowerCaseRootRandomMatchesJava(t *testing.T) {
 				case 0x130:
 					o += 2
 				default:
-					o += len(appendUTF16CodePoint(nil, rune(CharacterToLowerCaseCodePoint(int(cp)))))
+					o += len(appendUTF16CodePoint(nil, rune(characterToLowerCaseCodePoint(int(cp)))))
 				}
 				i += n
 			}

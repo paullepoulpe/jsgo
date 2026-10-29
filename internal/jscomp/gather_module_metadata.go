@@ -193,13 +193,38 @@ func (b *GatherModuleMetadata_ModuleMetadataBuilder) Build() *ModuleMetadataMap_
 	return b.metadata
 }
 
+var (
+	gatherMetaVisitTokens = func() ast.TokenSet {
+		var s ast.TokenSet
+		s.Add(rhino.Token_SCRIPT)
+		s.Add(rhino.Token_NAME)
+		s.Add(rhino.Token_CALL)
+		return s
+	}()
+	gatherMetaCommonJsVisitTokens = func() ast.TokenSet {
+		s := gatherMetaVisitTokens
+		s.Add(rhino.Token_GETPROP)
+		s.Add(rhino.Token_GETELEM)
+		return s
+	}()
+)
+
 // GatherModuleMetadata_Finder traverses the AST and builds ModuleMetadatas.
 type GatherModuleMetadata_Finder struct {
 	outer *GatherModuleMetadata
 
 	// Lazily allocated only if a $2etoggles goog.require is encountered.
-	toggleModuleNames map[string]struct{}
-	toggleModules     map[*Var]struct{}
+	toggleModuleIDs map[uint32]struct{}
+	toggleModules   map[*Var]struct{}
+}
+
+var _ nodeTraversal_visitTokens = (*GatherModuleMetadata_Finder)(nil)
+
+func (f *GatherModuleMetadata_Finder) visitTokens() *ast.TokenSet {
+	if f.outer != nil && f.outer.processCommonJsModules {
+		return &gatherMetaCommonJsVisitTokens
+	}
+	return &gatherMetaVisitTokens
 }
 
 // Java: GatherModuleMetadata.Finder()
@@ -340,10 +365,9 @@ func (f *GatherModuleMetadata_Finder) IsFromGoogImport(goog *Var) bool {
 // Java: GatherModuleMetadata.Finder.visitName(NodeTraversal, Node)
 func (f *GatherModuleMetadata_Finder) VisitName(t *NodeTraversal, n rhino.Node) {
 	id := n.GetStringID()
-	if f.toggleModuleNames != nil {
-		name := rhino.RhinoStringPool_StringFromID(id)
-		if _, ok := f.toggleModuleNames[name]; ok {
-			nameVar := t.GetScope().GetVar(name)
+	if f.toggleModuleIDs != nil {
+		if _, ok := f.toggleModuleIDs[id]; ok {
+			nameVar := t.GetScope().GetVarByID(id)
 			if _, ok := f.toggleModules[nameVar]; ok {
 				parent := n.GetParent()
 				if gp, ok := ast.AsGetProp(parent); ok {
@@ -361,7 +385,7 @@ func (f *GatherModuleMetadata_Finder) VisitName(t *NodeTraversal, n rhino.Node) 
 		return
 	}
 
-	root := t.GetScope().GetVar("goog")
+	root := t.GetScope().GetVarByID(gatherMetaGoogID)
 	if root != nil && !f.IsFromGoogImport(root) {
 		return
 	}
@@ -401,7 +425,7 @@ func (f *GatherModuleMetadata_Finder) VisitGoogCall(t *NodeTraversal, call ast.C
 	}
 
 	n := call.Node()
-	root := t.GetScope().GetVar("goog")
+	root := t.GetScope().GetVarByID(gatherMetaGoogID)
 	if root != nil {
 		scope := root.GetScope().(*Scope)
 		if scope.IsModuleScope() {
@@ -526,14 +550,14 @@ func (f *GatherModuleMetadata_Finder) recordToggleRequire(t *NodeTraversal, n rh
 		}
 	} else if nameNode, ok := ast.AsName(callParent); ok {
 		// const fooToggles = goog.require('foo$2etoggles');
-		name := nameNode.Ident()
-		nameVar := t.GetScope().GetVar(name)
+		nameID := nameNode.Node().GetStringID()
+		nameVar := t.GetScope().GetVarByID(nameID)
 		if f.toggleModules == nil {
 			f.toggleModules = make(map[*Var]struct{})
-			f.toggleModuleNames = make(map[string]struct{})
+			f.toggleModuleIDs = make(map[uint32]struct{})
 		}
 		f.toggleModules[nameVar] = struct{}{}
-		f.toggleModuleNames[name] = struct{}{}
+		f.toggleModuleIDs[nameID] = struct{}{}
 	} else if f.outer.currentModule.metadata.moduleType != ModuleMetadataMap_ModuleType_GOOG_PROVIDE {
 		// Side-effect toggle-module imports are not allowed, since they don't actually do
 		// anything. We allow it in `goog.provide()` files because there's no other way to

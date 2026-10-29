@@ -262,8 +262,8 @@ func (n Integer) Equals(obj any) bool {
 	return ok && other == n
 }
 
-// LongParseLong is Long.parseLong(String s, int radix).
-func LongParseLong(s string, radix int) int64 {
+// longParseLong is Long.parseLong(String s, int radix).
+func longParseLong(s string, radix int) int64 {
 	checkParseRadix(radix)
 	v, ok := parseRadixInteger(s, radix, math.MaxInt64)
 	if !ok {
@@ -338,18 +338,18 @@ func parseRadixInteger(s string, radix int, maxPositive uint64) (int64, bool) {
 	return int64(magnitude), true
 }
 
-// BigDecimal is the part of java.math.BigDecimal that ported code uses: an
+// bigDecimal is the part of java.math.BigDecimal that ported code uses: an
 // immutable unscaled integer and a 32-bit scale, standing for
 // unscaled × 10^-scale.
-type BigDecimal struct {
+type bigDecimal struct {
 	unscaled *big.Int
 	scale    int32
 }
 
 const bigDecimalLongFormLength = 18
 
-// NewBigDecimalFromString is new BigDecimal(String).
-func NewBigDecimalFromString(s string) *BigDecimal {
+// newBigDecimalFromString is new BigDecimal(String).
+func newBigDecimalFromString(s string) *bigDecimal {
 	units := StringToUTF16(s)
 	n := len(units)
 	if n == 0 {
@@ -404,7 +404,7 @@ scan:
 	if negative {
 		unscaled.Neg(unscaled)
 	}
-	return &BigDecimal{unscaled: unscaled, scale: int32(scale)}
+	return &bigDecimal{unscaled: unscaled, scale: int32(scale)}
 }
 
 func parseBigDecimalExponent(units []uint16) int64 {
@@ -446,18 +446,18 @@ func newNumberFormatExceptionWithoutMessage() *NumberFormatException {
 }
 
 // Signum is BigDecimal.signum(): -1, 0 or 1.
-func (d *BigDecimal) Signum() int {
+func (d *bigDecimal) Signum() int {
 	return d.unscaled.Sign()
 }
 
 // Scale is BigDecimal.scale().
-func (d *BigDecimal) Scale() int32 {
+func (d *bigDecimal) Scale() int32 {
 	return d.scale
 }
 
 // Precision is BigDecimal.precision(): the number of decimal digits of the
 // unscaled value (1 for zero).
-func (d *BigDecimal) Precision() int {
+func (d *bigDecimal) Precision() int {
 	if d.unscaled.Sign() == 0 {
 		return 1
 	}
@@ -466,7 +466,7 @@ func (d *BigDecimal) Precision() int {
 
 // ToBigInteger is BigDecimal.toBigInteger(): the value with any fractional
 // part discarded (truncation toward zero).
-func (d *BigDecimal) ToBigInteger() *big.Int {
+func (d *bigDecimal) ToBigInteger() *big.Int {
 	switch {
 	case d.unscaled.Sign() == 0:
 		return big.NewInt(0)
@@ -486,17 +486,17 @@ func (d *BigDecimal) ToBigInteger() *big.Int {
 
 // LongValue is BigDecimal.longValue(): the low-order 64 bits of the value
 // with its fractional part discarded.
-func (d *BigDecimal) LongValue() int64 {
+func (d *bigDecimal) LongValue() int64 {
 	return int64(d.truncatedLow64())
 }
 
 // IntValue is BigDecimal.intValue(): the low-order 32 bits of the value with
 // its fractional part discarded.
-func (d *BigDecimal) IntValue() int32 {
+func (d *bigDecimal) IntValue() int32 {
 	return int32(uint32(d.truncatedLow64()))
 }
 
-func (d *BigDecimal) truncatedLow64() uint64 {
+func (d *bigDecimal) truncatedLow64() uint64 {
 	if d.unscaled.Sign() == 0 {
 		return 0
 	}

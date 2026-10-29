@@ -24,12 +24,6 @@ import (
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 )
 
-// Deprecated. Please use setWarningLevel(DiagnosticGroups.GLOBAL_THIS, level) instead.
-//
-// Java: CompilerOptions.setCheckGlobalThisLevel(CheckLevel)
-func (o *CompilerOptions) SetCheckGlobalThisLevel(level CheckLevel) {
-}
-
 // Whether the warnings guard in this Options object enables the given group of warnings.
 //
 // Java: CompilerOptions.enables(DiagnosticGroup)
@@ -160,23 +154,9 @@ func (o *CompilerOptions) ShouldGenerateTypedExterns() bool {
 	return o.incrementalCheckMode == CompilerOptions_IncrementalCheckMode_GENERATE_IJS
 }
 
-// TODO(tbreisacher): Remove this method after ctemplate issues are solved.
-//
-// Java: CompilerOptions.setInferConst(boolean)
-func (o *CompilerOptions) SetInferConst(value bool) {
-	o.inferConsts = value
-}
-
 // Java: CompilerOptions.shouldInferConsts()
 func (o *CompilerOptions) ShouldInferConsts() bool {
 	return o.inferConsts
-}
-
-// If true, enables type inference. If checkTypes is enabled, this flag has no effect.
-//
-// Java: CompilerOptions.setInferTypes(boolean)
-func (o *CompilerOptions) SetInferTypes(enable bool) {
-	o.inferTypes = enable
 }
 
 // Gets the inferTypes flag. Note that if checkTypes is enabled, this flag is ignored when
@@ -185,12 +165,6 @@ func (o *CompilerOptions) SetInferTypes(enable bool) {
 // Java: CompilerOptions.getInferTypes()
 func (o *CompilerOptions) GetInferTypes() bool {
 	return o.inferTypes
-}
-
-// @deprecated This is a no-op.
-//
-// Java: CompilerOptions.setNewTypeInference(boolean)
-func (o *CompilerOptions) SetNewTypeInference(enable bool) {
 }
 
 // @return true if either typechecker is ON.
@@ -232,14 +206,6 @@ func (o *CompilerOptions) AssumeStrictThis() bool {
 // Java: CompilerOptions.setAssumeStrictThis(boolean)
 func (o *CompilerOptions) SetAssumeStrictThis(enable bool) {
 	o.assumeStrictThis = enable
-}
-
-// If true, considers all missing types to be forward declared (useful for partial
-// compilation).
-//
-// Java: CompilerOptions.setAssumeForwardDeclaredForMissingTypes(boolean)
-func (o *CompilerOptions) SetAssumeForwardDeclaredForMissingTypes(assumeForwardDeclaredForMissingTypes bool) {
-	o.assumeForwardDeclaredForMissingTypes = assumeForwardDeclaredForMissingTypes
 }
 
 // Java: CompilerOptions.assumeForwardDeclaredForMissingTypes()

@@ -137,7 +137,7 @@ func ImplicitNullabilityCheck_FindImplicitNullabilityResults(
 		typeRoot := it.Node()
 		NodeUtil_VisitPreOrderWithPred(
 			typeRoot,
-			NodeUtil_VisitorFunc(func(node rhino.Node) {
+			func(node rhino.Node) {
 				if !node.IsStringLit() {
 					return
 				}
@@ -181,7 +181,7 @@ func ImplicitNullabilityCheck_FindImplicitNullabilityResults(
 					nullability = ImplicitNullabilityCheck_Nullability_NONNULL
 				}
 				builder = append(builder, ImplicitNullabilityCheck_Result_Create(node, nullability))
-			}),
+			},
 			func(rhino.Node) bool { return true })
 	}
 	return builder

@@ -448,6 +448,94 @@ func (tc *TypeCheck) CouldBeAConstructor(type_ rhino.JSType) bool {
 	return type_.IsConstructor() || type_.IsEmptyType() || type_.IsUnknownType()
 }
 
+type propertyKeyEntry struct {
+	key rhino.Property_Key
+	val rhino.ObjectType
+}
+
+type propertyKeyMap struct {
+	inline     [8]propertyKeyEntry
+	entries    []propertyKeyEntry
+	byKey      map[rhino.Property_Key]int
+	hasSymbols bool
+}
+
+func (m *propertyKeyMap) findIndex(k rhino.Property_Key) int {
+	if m.byKey != nil {
+		if idx, ok := m.byKey[k]; ok {
+			return idx
+		}
+		if !m.hasSymbols || !k.IsSymbol() {
+			return -1
+		}
+		sym := k.Symbol()
+		for i := range m.entries {
+			if ek := m.entries[i].key; ek.IsSymbol() && ek.Symbol().Equals(sym) {
+				return i
+			}
+		}
+		return -1
+	}
+	if m.hasSymbols && k.IsSymbol() {
+		sym := k.Symbol()
+		for i := range m.entries {
+			if ek := m.entries[i].key; ek == k || (ek.IsSymbol() && ek.Symbol().Equals(sym)) {
+				return i
+			}
+		}
+		return -1
+	}
+	for i := range m.entries {
+		if m.entries[i].key == k {
+			return i
+		}
+	}
+	return -1
+}
+
+func (m *propertyKeyMap) get(k rhino.Property_Key) rhino.ObjectType {
+	if idx := m.findIndex(k); idx >= 0 {
+		return m.entries[idx].val
+	}
+	return nil
+}
+
+func (m *propertyKeyMap) containsKey(k rhino.Property_Key) bool {
+	return m.findIndex(k) >= 0
+}
+
+func (m *propertyKeyMap) put(k rhino.Property_Key, val rhino.ObjectType) {
+	if m.entries == nil {
+		m.entries = m.inline[:0]
+	}
+	if idx := m.findIndex(k); idx >= 0 {
+		m.entries[idx].val = val
+		return
+	}
+	if k.IsSymbol() {
+		m.hasSymbols = true
+	}
+	idx := len(m.entries)
+	m.entries = append(m.entries, propertyKeyEntry{key: k, val: val})
+	if m.byKey != nil {
+		m.byKey[k] = idx
+	} else if len(m.entries) > len(m.inline) {
+		m.byKey = make(map[rhino.Property_Key]int, 16)
+		for i := range m.entries {
+			m.byKey[m.entries[i].key] = i
+		}
+	}
+}
+
+func (m *propertyKeyMap) clear() {
+	clear(m.entries)
+	m.entries = m.inline[:0]
+	if m.byKey != nil {
+		clear(m.byKey)
+	}
+	m.hasSymbols = false
+}
+
 // CheckInterfaceConflictProperties checks whether there's any property
 // conflict for a particular super interface.
 //
@@ -460,8 +548,8 @@ func (tc *TypeCheck) CouldBeAConstructor(type_ rhino.JSType) bool {
 func (tc *TypeCheck) CheckInterfaceConflictProperties(
 	n rhino.Node,
 	functionName string,
-	properties *jutil.ObjectLinkedHashMap[rhino.Property_Key, rhino.ObjectType],
-	currentProperties *jutil.ObjectLinkedHashMap[rhino.Property_Key, rhino.ObjectType],
+	properties *propertyKeyMap,
+	currentProperties *propertyKeyMap,
 	interfaceType rhino.ObjectType) {
 	implicitProto := interfaceType.GetImplicitPrototype()
 	var currentPropertyNames []rhino.Property_Key
@@ -473,8 +561,8 @@ func (tc *TypeCheck) CheckInterfaceConflictProperties(
 		currentPropertyNames = implicitProto.GetOwnPropertyKeys()
 	}
 	for _, name := range currentPropertyNames {
-		oType := properties.Get(name)
-		currentProperties.Put(name, interfaceType)
+		oType := properties.get(name)
+		currentProperties.put(name, interfaceType)
 		if oType != nil {
 			thisPropType := interfaceType.GetPropertyTypeByKey(name)
 			oPropType := oType.GetPropertyTypeByKey(name)
@@ -686,14 +774,14 @@ func (tc *TypeCheck) CheckInterface(n rhino.Node, functionType rhino.FunctionTyp
 	// Check whether the extended interfaces have any conflicts
 	if functionType.GetExtendedInterfacesCount() > 1 {
 		// Only check when extending more than one interfaces
-		properties := jutil.NewObjectLinkedHashMap[rhino.Property_Key, rhino.ObjectType]()
-		currentProperties := jutil.NewObjectLinkedHashMap[rhino.Property_Key, rhino.ObjectType]()
+		var properties, currentProperties propertyKeyMap
+		fnName := tc.GetBestFunctionName(n)
 		for _, interfaceType := range functionType.GetExtendedInterfaces() {
-			currentProperties.Clear()
+			currentProperties.clear()
 			tc.CheckInterfaceConflictProperties(
-				n, tc.GetBestFunctionName(n), properties, currentProperties, interfaceType)
-			for k, v := range currentProperties.All() {
-				properties.Put(k, v)
+				n, fnName, &properties, &currentProperties, interfaceType)
+			for _, e := range currentProperties.entries {
+				properties.put(e.key, e.val)
 			}
 		}
 	}

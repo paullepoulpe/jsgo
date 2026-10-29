@@ -155,7 +155,7 @@ func System_NativeCharset() *Charset {
 	case "utf8":
 		cs = StandardCharsets_UTF_8
 	case "iso88591":
-		cs = StandardCharsets_ISO_8859_1
+		cs = standardCharsets_ISO_8859_1
 	default:
 		return StandardCharsets_US_ASCII
 	}

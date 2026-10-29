@@ -655,7 +655,7 @@ func (e *Es6RewriteModules) rewriteRequires(script rhino.Node) {
 				if nm, ok := ast.AsName(n); ok {
 					ident := nm.Ident()
 					if replacementName, found := e.namesToInlineByAlias[ident]; found {
-						v := t.GetScope().GetVar(ident)
+						v := t.GetScope().GetVarByNode(n)
 						if v == nil || v.GetNameNode() != n {
 							replacement := replacementName.ToQname(e.astFactory).SrcrefTree(n)
 							n.ReplaceWith(replacement)
@@ -797,9 +797,9 @@ func (r *es6RenameGlobalVars) Visit(t *NodeTraversal, n rhino.Node, parent rhino
 	if !ok {
 		return
 	}
-	name := nm.Ident()
-	v := t.GetScope().GetVar(name)
+	v := t.GetScope().GetVarByNode(n)
 	if v != nil && v.IsGlobal() {
+		name := nm.Ident()
 		newName := ModuleRenaming_GetGlobalNameOfEsModuleLocalVariable(r.thisModule.Metadata(), name).Join()
 		nm.SetIdent(newName)
 		n.SetOriginalName(&name)
@@ -808,6 +808,7 @@ func (r *es6RenameGlobalVars) Visit(t *NodeTraversal, n rhino.Node, parent rhino
 			r.pass.declareGlobalVariable(n, t)
 		}
 	} else if v == nil {
+		name := nm.Ident()
 		if binding := r.thisModule.BoundNamesMap().Get(name); binding != nil {
 			if r.pass.preprocessorSymbolTable != nil {
 				r.pass.maybeAddAliasToSymbolTable(n, es6NullableStringOrNull(t.GetSourceName()))

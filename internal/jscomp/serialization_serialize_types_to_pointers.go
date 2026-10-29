@@ -223,8 +223,8 @@ func (s *SerializeTypesToPointers) logSerializationDebugInfo(serializer *JSTypeR
 //
 // Java: SerializeTypesToPointers.logTypeMismatches(Iterable<TypeMismatch>, JSTypeReconserializer, TypePool)
 func (s *SerializeTypesToPointers) logTypeMismatches(
-	typeMismatches []TypeMismatch, serializer *JSTypeReconserializer) []*serializeTypesToPointers_TypeMismatchJson {
-	result := make([]*serializeTypesToPointers_TypeMismatchJson, 0, len(typeMismatches))
+	typeMismatches []TypeMismatch, serializer *JSTypeReconserializer) serializeTypesToPointers_TypeMismatchJsonList {
+	result := make(serializeTypesToPointers_TypeMismatchJsonList, 0, len(typeMismatches))
 	for _, mismatch := range typeMismatches {
 		result = append(result, serializeTypesToPointers_TypeMismatchJson_Create(mismatch, serializer))
 	}
@@ -270,11 +270,40 @@ func (p *serializeTypesToPointers_StreamObjectUuidsJson) WriteJson(jsonWriter *j
 	jsonWriter.EndObject()
 }
 
+type serializeTypesToPointers_TypeMismatchJsonList []*serializeTypesToPointers_TypeMismatchJson
+
+func (l serializeTypesToPointers_TypeMismatchJsonList) WriteGson(out *jutil.JsonWriter) {
+	if l == nil {
+		out.NullValue()
+		return
+	}
+	out.BeginArray()
+	for _, item := range l {
+		item.WriteGson(out)
+	}
+	out.EndArray()
+}
+
 // Java: private static final class SerializeTypesToPointers.TypeMismatchJson implements Comparable<TypeMismatchJson>
 type serializeTypesToPointers_TypeMismatchJson struct {
-	Location        string `gson:"location"`
-	FoundColorId    string `gson:"foundColorId"`
-	RequiredColorId string `gson:"requiredColorId"`
+	Location        string
+	FoundColorId    string
+	RequiredColorId string
+}
+
+func (j *serializeTypesToPointers_TypeMismatchJson) WriteGson(out *jutil.JsonWriter) {
+	if j == nil {
+		out.NullValue()
+		return
+	}
+	out.BeginObject()
+	out.Name("location")
+	out.ValueString(&j.Location)
+	out.Name("foundColorId")
+	out.ValueString(&j.FoundColorId)
+	out.Name("requiredColorId")
+	out.ValueString(&j.RequiredColorId)
+	out.EndObject()
 }
 
 // Java: SerializeTypesToPointers.TypeMismatchJson(TypeMismatch, ColorId, ColorId)

@@ -326,12 +326,12 @@ func TestCheckPathsBetweenNodes_LargeGraphReuse(t *testing.T) {
 	assertFalse(t, "chain missing somePaths", checker.SomePathsSatisfyPredicate())
 }
 
-func checkPathsTest_assertGood[N comparable, E any](t *testing.T, test *CheckPathsBetweenNodes[N, E]) {
+func checkPathsTest_assertGood[N, E comparable](t *testing.T, test *CheckPathsBetweenNodes[N, E]) {
 	t.Helper()
 	assertTrue(t, "allPathsSatisfyPredicate", test.AllPathsSatisfyPredicate())
 }
 
-func checkPathsTest_assertBad[N comparable, E any](t *testing.T, test *CheckPathsBetweenNodes[N, E]) {
+func checkPathsTest_assertBad[N, E comparable](t *testing.T, test *CheckPathsBetweenNodes[N, E]) {
 	t.Helper()
 	assertFalse(t, "allPathsSatisfyPredicate", test.AllPathsSatisfyPredicate())
 }

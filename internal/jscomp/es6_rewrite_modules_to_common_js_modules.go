@@ -187,7 +187,7 @@ func (r *es6CommonJsModuleRewriter) nameOfImportedValue(nameNode rhino.Node) str
 }
 
 func (r *es6CommonJsModuleRewriter) maybeGetNameOfImportedValue(s *Scope, nameNode ast.Name) (string, bool) {
-	v := s.GetVar(nameNode.Ident())
+	v := s.GetVarByNode(nameNode.Node())
 	if v != nil &&
 		!v.GetNameNode().IsNil() &&
 		NodeUtil_IsImportedName(v.GetNameNode()) &&
@@ -403,7 +403,7 @@ func (r *es6CommonJsModuleRewriter) visitExportSpecs(t *NodeTraversal, export as
 	for exportSpec := range specs.Specs() {
 		localNode := exportSpec.Local()
 		localName := localNode.Ident()
-		v := t.GetScope().GetVar(localName)
+		v := t.GetScope().GetVarByNode(localNode.Node())
 		if v != nil && NodeUtil_IsImportedName(v.GetNameNode()) {
 			importedQName, ok := r.maybeGetNameOfImportedValue(t.GetScope(), localNode)
 			if !ok {

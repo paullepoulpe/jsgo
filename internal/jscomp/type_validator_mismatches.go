@@ -243,9 +243,7 @@ func (v *TypeValidator) ExpectAbstractMethodsImplemented(n rhino.Node, ctorType 
 		return
 	}
 
-	// Go-only: language-adapter — an ObjectLinkedHashMap, since Property.Key
-	// compares with equals()/hashCode() (a SymbolKey through its symbol type).
-	abstractMethodSuperTypeMap := jutil.NewObjectLinkedHashMap[rhino.Property_Key, rhino.ObjectType]()
+	var abstractMethodSuperTypeMap propertyKeyMap
 
 	for currSuperCtor != nil && currSuperCtor.IsAbstract() {
 		superType := currSuperCtor.GetInstanceType()
@@ -253,15 +251,16 @@ func (v *TypeValidator) ExpectAbstractMethodsImplemented(n rhino.Node, ctorType 
 			maybeAbstractMethod := superType.FindPropertyTypeByKey(prop).ToMaybeFunctionType()
 			if maybeAbstractMethod != nil &&
 				maybeAbstractMethod.IsAbstract() &&
-				!abstractMethodSuperTypeMap.ContainsKey(prop) {
-				abstractMethodSuperTypeMap.Put(prop, superType)
+				!abstractMethodSuperTypeMap.containsKey(prop) {
+				abstractMethodSuperTypeMap.put(prop, superType)
 			}
 		}
 		currSuperCtor = currSuperCtor.GetSuperClassConstructor()
 	}
 
 	instance := ctorType.GetInstanceType()
-	for method, superType := range abstractMethodSuperTypeMap.All() {
+	for _, entry := range abstractMethodSuperTypeMap.entries {
+		method, superType := entry.key, entry.val
 		abstractMethod := instance.FindPropertyTypeByKey(method).ToMaybeFunctionType()
 		if abstractMethod == nil || abstractMethod.IsAbstract() {
 			v.RegisterMismatchAndReport(

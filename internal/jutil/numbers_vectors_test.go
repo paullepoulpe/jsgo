@@ -66,13 +66,13 @@ func TestNumbersMatchJava(t *testing.T) {
 				if r[0] == "int" {
 					return strconv.FormatInt(int64(IntegerParseInt(s, radix)), 10)
 				}
-				return strconv.FormatInt(LongParseLong(s, radix), 10)
+				return strconv.FormatInt(longParseLong(s, radix), 10)
 			})
 			check(r[0], strconv.Quote(s)+" radix "+r[2], got, r[3])
 		case "bd":
 			s := StringFromUTF16(decodeHexUTF16(r[1]))
 			got := numbersOutcome(func() string {
-				d := NewBigDecimalFromString(s)
+				d := newBigDecimalFromString(s)
 				tbi := "-"
 				if scale := d.Scale(); (scale >= -2000 && scale <= 2000) || scale >= 536870920 || scale <= -536870920 {
 					tbi = numbersOutcome(func() string { return d.ToBigInteger().String() })

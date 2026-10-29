@@ -418,6 +418,26 @@ func (p *ProcessDefines) handleClosureDefinesAssign(assign ast.Assign) {
 	}
 }
 
+var processDefinesClosureDefinesVisitTokens = func() ast.TokenSet {
+	var s ast.TokenSet
+	s.Add(rhino.Token_SCRIPT)
+	s.Add(rhino.Token_VAR)
+	s.Add(rhino.Token_LET)
+	s.Add(rhino.Token_CONST)
+	s.Add(rhino.Token_ASSIGN)
+	return s
+}()
+
+var (
+	_ nodeTraversal_visitTokens   = (*ProcessDefines_ClosureDefinesCollector)(nil)
+	_ nodeTraversal_noVisitLeaves = (*ProcessDefines_ClosureDefinesCollector)(nil)
+)
+
+func (*ProcessDefines_ClosureDefinesCollector) noVisitLeaves() {}
+func (*ProcessDefines_ClosureDefinesCollector) visitTokens() *ast.TokenSet {
+	return &processDefinesClosureDefinesVisitTokens
+}
+
 // Java: ProcessDefines.ClosureDefinesCollector.shouldTraverse(NodeTraversal, Node, Node)
 func (c *ProcessDefines_ClosureDefinesCollector) ShouldTraverse(t *NodeTraversal, n rhino.Node, parent rhino.Node) bool {
 	// In particular, don't traverse into modules or functions - only script

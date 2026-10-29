@@ -95,13 +95,16 @@ func (e Es6RewriteDestructuring_ObjectDestructuringRewriteMode) Ordinal() int { 
 // Java: Es6RewriteDestructuring.DESTRUCTURING_TEMP_VAR
 const Es6RewriteDestructuring_DESTRUCTURING_TEMP_VAR = "$jscomp$destructuring$var"
 
-// Java: Es6RewriteDestructuring(Builder)
-func newEs6RewriteDestructuring(builder *Es6RewriteDestructuring_Builder) *Es6RewriteDestructuring {
+// NewEs6RewriteDestructuring constructs an Es6RewriteDestructuring pass.
+func NewEs6RewriteDestructuring(
+	compiler AbstractCompiler,
+	rewriteMode Es6RewriteDestructuring_ObjectDestructuringRewriteMode,
+) *Es6RewriteDestructuring {
 	e := &Es6RewriteDestructuring{}
 	e.patternNestingStack = e.stackBuf[:0]
 	e.destructuringVarCounter = 0
-	e.compiler = builder.compiler
-	e.rewriteMode = builder.rewriteMode
+	e.compiler = compiler
+	e.rewriteMode = rewriteMode
 	e.astFactory = e.compiler.CreateAstFactory()
 	e.namespace = e.compiler.GetTranspilationNamespace()
 
@@ -130,31 +133,6 @@ func newEs6RewriteDestructuring(builder *Es6RewriteDestructuring_Builder) *Es6Re
 				e.rewriteMode.String()))
 	}
 	return e
-}
-
-// Es6RewriteDestructuring_Builder is Es6RewriteDestructuring.Builder.
-type Es6RewriteDestructuring_Builder struct {
-	compiler    AbstractCompiler
-	rewriteMode Es6RewriteDestructuring_ObjectDestructuringRewriteMode
-}
-
-// Java: Es6RewriteDestructuring.Builder(AbstractCompiler)
-func NewEs6RewriteDestructuring_Builder(compiler AbstractCompiler) *Es6RewriteDestructuring_Builder {
-	b := &Es6RewriteDestructuring_Builder{}
-	b.rewriteMode = Es6RewriteDestructuring_ObjectDestructuringRewriteMode_REWRITE_ALL_OBJECT_PATTERNS
-	b.compiler = compiler
-	return b
-}
-
-// Java: Es6RewriteDestructuring.Builder.setDestructuringRewriteMode(ObjectDestructuringRewriteMode)
-func (b *Es6RewriteDestructuring_Builder) SetDestructuringRewriteMode(rewriteMode Es6RewriteDestructuring_ObjectDestructuringRewriteMode) *Es6RewriteDestructuring_Builder {
-	b.rewriteMode = rewriteMode
-	return b
-}
-
-// Java: Es6RewriteDestructuring.Builder.build()
-func (b *Es6RewriteDestructuring_Builder) Build() *Es6RewriteDestructuring {
-	return newEs6RewriteDestructuring(b)
 }
 
 type patternNestingLevel struct {

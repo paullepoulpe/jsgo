@@ -153,7 +153,7 @@ func gsonTestConfigs() map[string]*Gson {
 		"default":        NewGson(),
 		"builder":        NewGsonBuilder().Create(),
 		"noHtmlPretty":   NewGsonBuilder().DisableHtmlEscaping().SetPrettyPrinting().Create(),
-		"serializeNulls": NewGsonBuilder().SerializeNulls().Create(),
+		"serializeNulls": NewGsonBuilder().serializeNulls().Create(),
 	}
 }
 

@@ -20,7 +20,6 @@ package jscomp
 
 import (
 	"sync"
-	"sync/atomic"
 
 	"github.com/paullepoulpe/jsgo/internal/ast"
 	"github.com/paullepoulpe/jsgo/internal/graph"
@@ -110,12 +109,9 @@ type FlowSensitiveInlineVariables struct {
 	scopeCreator        *SyntacticScopeCreator
 	curFn               rhino.Node
 	curFnEnclosingScope *Scope
-	curTraversal        *NodeTraversal
 	parallelMode        bool
 	parallelChanges     []rhino.Node
 }
-
-func (*FlowSensitiveInlineVariables) nodeTraversalNoVisit() {}
 
 func (f *FlowSensitiveInlineVariables) getAstAnalyzer() *AstAnalyzer {
 	if f.astAnalyzer == nil {
@@ -190,11 +186,6 @@ func newFlowSensitiveInlineVariablesWorker(parent *FlowSensitiveInlineVariables,
 	f.sharedParent = parent
 	f.parallelMode = true
 	return f
-}
-
-// Java: FlowSensitiveInlineVariables.shouldTraverse(NodeTraversal, Node, Node)
-func (f *FlowSensitiveInlineVariables) ShouldTraverse(t *NodeTraversal, n rhino.Node, parent rhino.Node) bool {
-	return !n.IsScript() || !t.GetInput().IsExtern()
 }
 
 func fsivSubtreeHasBlockScopeDecls(n rhino.Node) bool {
@@ -447,28 +438,6 @@ func (f *FlowSensitiveInlineVariables) isInlinableDefVarID(nameID uint32) bool {
 	return false
 }
 
-// Java: FlowSensitiveInlineVariables.enterScope(NodeTraversal)
-func (f *FlowSensitiveInlineVariables) EnterScope(t *NodeTraversal) {
-	if len(t.scopes) <= 1 {
-		return // Don't even bother. All global variables are likely escaped.
-	}
-	fnBody, ok := ast.AsBlock(t.GetScopeRoot())
-	if !ok {
-		return
-	}
-	functionScopeRoot, ok := ast.AsFunction(fnBody.Node().GetParent())
-	if !ok {
-		return // Only want to do the following if it's a function block scope.
-	}
-
-	f.curTraversal = t
-	defer func() {
-		f.curTraversal = nil
-	}()
-	scopeCreator := t.GetScopeCreator().(*SyntacticScopeCreator)
-	f.processFunction(functionScopeRoot, fnBody, scopeCreator)
-}
-
 func (f *FlowSensitiveInlineVariables) processFunction(fn ast.Function, body ast.Block, scopeCreator *SyntacticScopeCreator) {
 	if ok, _ := f.collectInlinableDefsWithReads(body); !ok {
 		return
@@ -479,9 +448,6 @@ func (f *FlowSensitiveInlineVariables) processFunction(fn ast.Function, body ast
 	if f.dummyGlobalScope != nil {
 		fnScope = scopeCreator.CreateScopeOfScope(functionScopeRoot, f.dummyGlobalScope)
 		scope = scopeCreator.CreateScopeOfScope(fnBody, fnScope)
-	} else if f.curTraversal != nil {
-		scope = f.curTraversal.GetScope()
-		fnScope = scope.GetParent()
 	} else {
 		root := functionScopeRoot
 		for !root.GetParent().IsNil() {
@@ -606,51 +572,6 @@ func (f *FlowSensitiveInlineVariables) processFunction(fn ast.Function, body ast
 		}
 	}
 }
-
-// Java: FlowSensitiveInlineVariables.isCandidateFunction(Node)
-func (f *FlowSensitiveInlineVariables) IsCandidateFunction(fn rhino.Node) bool {
-	fnBody := ast.MustFunction(fn).Body()
-	return FlowSensitiveInlineVariables_ContainsCandidateExpressions(fnBody.Node())
-}
-
-// Java: FlowSensitiveInlineVariables.containsCandidateExpressions(Node)
-func FlowSensitiveInlineVariables_ContainsCandidateExpressions(n rhino.Node) bool {
-	if n.IsFunction() {
-		// don't recurse into inner functions or into expressions that can't contain declarations.
-		return false
-	}
-
-	if decl, ok := ast.AsNameDeclaration(n); ok {
-		if first, ok := decl.FirstDeclarator(); ok && first.Token() == rhino.Token_NAME {
-			return true
-		}
-	} else if FlowSensitiveInlineVariables_IsAssignmentToName(n) {
-		return true
-	}
-
-	for c := n.GetFirstChild(); !c.IsNil(); c = c.GetNext() {
-		if FlowSensitiveInlineVariables_ContainsCandidateExpressions(c) {
-			return true
-		}
-	}
-	return false
-}
-
-// Java: FlowSensitiveInlineVariables.isAssignmentToName(Node)
-func FlowSensitiveInlineVariables_IsAssignmentToName(n rhino.Node) bool {
-	var target ast.Target
-	if assign, ok := ast.AsAssignment(n); ok {
-		target = assign.Target()
-	} else if incDec, ok := ast.AsIncDec(n); ok {
-		target = incDec.Target()
-	} else {
-		return false
-	}
-	return target.Token() == rhino.Token_NAME
-}
-
-// Java: FlowSensitiveInlineVariables.exitScope(NodeTraversal)
-func (f *FlowSensitiveInlineVariables) ExitScope(t *NodeTraversal) {}
 
 // collectCandidateFuncs collects the functions under n that have a
 // definition the pass could inline, with their nesting depth among such
@@ -808,55 +729,35 @@ func (f *FlowSensitiveInlineVariables) Process(externs rhino.Node, root rhino.No
 			}
 		}
 
-		workers := numWorkers
-		if workers > len(parFuncs) {
-			workers = len(parFuncs)
+		type fsivWorkerState struct {
+			worker *FlowSensitiveInlineVariables
+			sc     *SyntacticScopeCreator
 		}
 		changedByFunc := make([][]rhino.Node, len(parFuncs))
-		var nextIdx atomic.Int64
-		var wg sync.WaitGroup
-		var panicVal any
-		var panicOnce sync.Once
-
-		wg.Add(workers)
-		for w := 0; w < workers; w++ {
-			go func() {
-				defer wg.Done()
-				defer func() {
-					if r := recover(); r != nil {
-						panicOnce.Do(func() {
-							panicVal = r
-						})
-					}
-				}()
+		runParallelWorkersIndexed(
+			len(parFuncs),
+			numWorkers,
+			func(_ int) fsivWorkerState {
 				worker := newFlowSensitiveInlineVariablesWorker(
 					f, f.compiler, astAnalyzer, codingConvention, f.dummyGlobalScope, f.globalRoot)
 				wsc := NewSyntacticScopeCreator(f.compiler)
 				worker.scopeCreator = wsc
-				defer func() {
-					worker.scopeCreator = nil
-				}()
-
-				for {
-					idx := int(nextIdx.Add(1) - 1)
-					if idx >= len(parFuncs) {
-						break
-					}
-					worker.parallelChanges = worker.parallelChanges[:0]
-					cf := parFuncs[idx]
-					worker.processFunction(cf.fn, cf.body, wsc)
-					if len(worker.parallelChanges) > 0 {
-						nodes := make([]rhino.Node, len(worker.parallelChanges))
-						copy(nodes, worker.parallelChanges)
-						changedByFunc[idx] = nodes
-					}
+				return fsivWorkerState{worker: worker, sc: wsc}
+			},
+			func(ws *fsivWorkerState, idx int) {
+				ws.worker.parallelChanges = ws.worker.parallelChanges[:0]
+				cf := parFuncs[idx]
+				ws.worker.processFunction(cf.fn, cf.body, ws.sc)
+				if len(ws.worker.parallelChanges) > 0 {
+					nodes := make([]rhino.Node, len(ws.worker.parallelChanges))
+					copy(nodes, ws.worker.parallelChanges)
+					changedByFunc[idx] = nodes
 				}
-			}()
-		}
-		wg.Wait()
-		if panicVal != nil {
-			panic(panicVal)
-		}
+			},
+			func(_ int, ws *fsivWorkerState) {
+				ws.worker.scopeCreator = nil
+			},
+		)
 		for _, nodes := range changedByFunc {
 			for _, n := range nodes {
 				f.compiler.ReportChangeToChangeScope(n)
@@ -864,9 +765,6 @@ func (f *FlowSensitiveInlineVariables) Process(externs rhino.Node, root rhino.No
 		}
 	}
 }
-
-// Java: FlowSensitiveInlineVariables.visit(NodeTraversal, Node, Node)
-func (f *FlowSensitiveInlineVariables) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {}
 
 func (f *FlowSensitiveInlineVariables) getRealGlobalScope(root rhino.Node) *Scope {
 	if f.sharedParent != nil {
@@ -924,8 +822,6 @@ func (f *FlowSensitiveInlineVariables) hasEnclosingSlotByID(nameID uint32) bool 
 	return f.curFnEnclosingScope != nil && f.curFnEnclosingScope.GetVarByID(nameID) != nil
 }
 
-var fsivGatherCandidatesCfgTokens = makeVisitTokenSet(rhino.Token_NAME)
-
 // FlowSensitiveInlineVariables_GatherCandidatesCfgNodeCallback visits a
 // control flow graph node without entering subtrees represented by other CFG
 // nodes.
@@ -936,62 +832,33 @@ type FlowSensitiveInlineVariables_GatherCandidatesCfgNodeCallback struct {
 	inState *MustBeReachingVariableDef_MustDef
 }
 
-var (
-	_ nodeTraversal_visitTokens    = (*FlowSensitiveInlineVariables_GatherCandidatesCfgNodeCallback)(nil)
-	_ nodeTraversal_onlyNameLeaves = (*FlowSensitiveInlineVariables_GatherCandidatesCfgNodeCallback)(nil)
-)
+func (cb *FlowSensitiveInlineVariables_GatherCandidatesCfgNodeCallback) visitName(n rhino.Node, parent rhino.Node) {
+	// Make sure that the name node is purely a read.
+	if !fsivIsReadName(n, parent) {
+		return
+	}
 
-func (*FlowSensitiveInlineVariables_GatherCandidatesCfgNodeCallback) visitTokens() *ast.TokenSet {
-	return &fsivGatherCandidatesCfgTokens
-}
+	nameID := n.GetStringID()
+	if len(cb.outer.inlinableDefs) > 0 && !cb.outer.isInlinableDefVarID(nameID) {
+		return
+	}
 
-func (*FlowSensitiveInlineVariables_GatherCandidatesCfgNodeCallback) onlyNameLeaves() {}
-
-func (*FlowSensitiveInlineVariables_GatherCandidatesCfgNodeCallback) ShouldTraverse(t *NodeTraversal, n rhino.Node, parent rhino.Node) bool {
-	return parent.IsNil() || !ControlFlowGraph_IsEnteringNewCfgNode(n)
-}
-
-// Java: FlowSensitiveInlineVariables.GatherCandidatesCfgNodeCallback()
-func NewFlowSensitiveInlineVariables_GatherCandidatesCfgNodeCallback(outer *FlowSensitiveInlineVariables) *FlowSensitiveInlineVariables_GatherCandidatesCfgNodeCallback {
-	return &FlowSensitiveInlineVariables_GatherCandidatesCfgNodeCallback{outer: outer, cfgNode: rhino.NilNode}
-}
-
-// Java: FlowSensitiveInlineVariables.GatherCandidatesCfgNodeCallback.setCfgNode(Node)
-func (cb *FlowSensitiveInlineVariables_GatherCandidatesCfgNodeCallback) SetCfgNode(cfgNode rhino.Node) {
-	cb.cfgNode = cfgNode
-	cb.inState = nil
-}
-
-// Java: FlowSensitiveInlineVariables.GatherCandidatesCfgNodeCallback.visit(NodeTraversal, Node, Node)
-func (cb *FlowSensitiveInlineVariables_GatherCandidatesCfgNodeCallback) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
-	if n.IsName() {
-		// Make sure that the name node is purely a read.
-		if !fsivIsReadName(n, parent) {
-			return
-		}
-
-		nameID := n.GetStringID()
-		if len(cb.outer.inlinableDefs) > 0 && !cb.outer.isInlinableDefVarID(nameID) {
-			return
-		}
-
-		var def *MustBeReachingVariableDef_Definition
-		if cb.inState != nil {
-			def = cb.outer.reachingDef.getDefFromMustDefByID(nameID, cb.inState)
-		} else {
-			def = cb.outer.reachingDef.getDefByID(nameID, cb.cfgNode)
-		}
-		if def != nil && !def.node.IsFunction() && !def.node.IsBlock() &&
-			!cb.outer.reachingDef.DependsOnOuterScopeVars(def) {
-			if !cb.outer.getCodingConvention().IsExportedWithLocal(rhino.RhinoStringPool_StringFromID(nameID) /* local= */, true) {
-				cb.outer.candidates = append(cb.outer.candidates, FlowSensitiveInlineVariables_Candidate{
-					outer:       cb.outer,
-					nameID:      nameID,
-					defMetadata: def,
-					use:         n,
-					useCfgNode:  cb.cfgNode,
-				})
-			}
+	var def *MustBeReachingVariableDef_Definition
+	if cb.inState != nil {
+		def = cb.outer.reachingDef.getDefFromMustDefByID(nameID, cb.inState)
+	} else {
+		def = cb.outer.reachingDef.getDefByID(nameID, cb.cfgNode)
+	}
+	if def != nil && !def.node.IsFunction() && !def.node.IsBlock() &&
+		!cb.outer.reachingDef.DependsOnOuterScopeVars(def) {
+		if !cb.outer.getCodingConvention().IsExportedWithLocal(rhino.RhinoStringPool_StringFromID(nameID) /* local= */, true) {
+			cb.outer.candidates = append(cb.outer.candidates, FlowSensitiveInlineVariables_Candidate{
+				outer:       cb.outer,
+				nameID:      nameID,
+				defMetadata: def,
+				use:         n,
+				useCfgNode:  cb.cfgNode,
+			})
 		}
 	}
 }
@@ -1013,9 +880,6 @@ func (cb *FlowSensitiveInlineVariables_GatherCandidatesCfgNodeCallback) walkCfgN
 		}
 	case rhino.Token_FUNCTION:
 		fn := ast.MustFunction(n)
-		if !parent.IsNil() {
-			_ = NodeUtil_IsFunctionDeclaration(n)
-		}
 		fnName := fn.NameNode().Node()
 		args := fn.Params().Node()
 		body := fn.Body().Node()
@@ -1027,7 +891,6 @@ func (cb *FlowSensitiveInlineVariables_GatherCandidatesCfgNodeCallback) walkCfgN
 		className := cls.NameNode()
 		extendsClause := cls.ExtendsNode()
 		body := cls.Body().Node()
-		_ = NodeUtil_IsClassExpression(n)
 		cb.walkCfgNode(extendsClause, n, currentNode)
 		cb.walkCfgNode(className, n, currentNode)
 		cb.walkCfgNode(body, n, currentNode)
@@ -1065,7 +928,7 @@ func (cb *FlowSensitiveInlineVariables_GatherCandidatesCfgNodeCallback) walkCfgN
 			if child.GetFirstChild().IsNil() {
 				if child.IsName() {
 					*currentNode = child
-					cb.Visit(nil, child, n)
+					cb.visitName(child, n)
 				} else if child.GetToken() == rhino.Token_SCRIPT && !ControlFlowGraph_IsEnteringNewCfgNode(child) {
 					if Platform_IsThreadInterrupted() {
 						panic(jutil.NewRuntimeExceptionWithCause(jutil.NewInterruptedException()))
@@ -1079,7 +942,7 @@ func (cb *FlowSensitiveInlineVariables_GatherCandidatesCfgNodeCallback) walkCfgN
 	}
 	if n.IsName() {
 		*currentNode = n
-		cb.Visit(nil, n, parent)
+		cb.visitName(n, parent)
 	}
 }
 
@@ -1090,24 +953,9 @@ func (cb *FlowSensitiveInlineVariables_GatherCandidatesCfgNodeCallback) walkCfgN
 // Candidate#canInline(Scope) when MaybeReachingVariableUse has been
 // performed.
 type FlowSensitiveInlineVariables_GatherCandidates struct {
-	NodeTraversal_AbstractShallowCallbackBase
 	outer *FlowSensitiveInlineVariables
 
 	gatherCb *FlowSensitiveInlineVariables_GatherCandidatesCfgNodeCallback
-}
-
-// Java: FlowSensitiveInlineVariables.GatherCandidates()
-func NewFlowSensitiveInlineVariables_GatherCandidates(outer *FlowSensitiveInlineVariables) *FlowSensitiveInlineVariables_GatherCandidates {
-	return &FlowSensitiveInlineVariables_GatherCandidates{
-		outer:    outer,
-		gatherCb: NewFlowSensitiveInlineVariables_GatherCandidatesCfgNodeCallback(outer),
-	}
-}
-
-// Java: FlowSensitiveInlineVariables.GatherCandidates.visit(NodeTraversal, Node, Node)
-func (g *FlowSensitiveInlineVariables_GatherCandidates) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
-	var currentNode rhino.Node
-	g.visitNode(n, &currentNode)
 }
 
 func (g *FlowSensitiveInlineVariables_GatherCandidates) visitNode(n rhino.Node, currentNode *rhino.Node) {
@@ -1130,20 +978,18 @@ func (g *FlowSensitiveInlineVariables_GatherCandidates) visitNode(n rhino.Node, 
 
 func fsivTraverseGatherCandidates(compiler AbstractCompiler, root rhino.Node, cb *FlowSensitiveInlineVariables_GatherCandidates) {
 	jutil.CheckNotNull(compiler)
-	if root.IsNil() {
-		NodeTraversal_Traverse(compiler, root, cb)
-		return
-	}
 	var currentNode rhino.Node
 	defer func() {
 		if r := recover(); r != nil {
-			b := NodeTraversal_Builder{compiler: compiler, callback: cb}
-			t := newNodeTraversal(&b)
+			t := &NodeTraversal{compiler: compiler}
 			t.InitTraversal(root)
 			t.currentNode = currentNode
 			t.ThrowUnexpectedException(jutil.AsThrowable(r))
 		}
 	}()
+	if root.IsNil() {
+		failNodeTraversalNull()
+	}
 	if Platform_IsThreadInterrupted() {
 		panic(jutil.NewRuntimeExceptionWithCause(jutil.NewInterruptedException()))
 	}

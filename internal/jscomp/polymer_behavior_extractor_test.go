@@ -687,11 +687,11 @@ func (c *PolymerBehaviorExtractorTest) parseAndInitializeExtractor(code ...strin
 
 	NodeUtil_VisitPostOrder(
 		root,
-		NodeUtil_VisitorFunc(func(node rhino.Node) {
+		func(node rhino.Node) {
 			if c.isBehaviorArrayDeclaration(node) {
 				c.behaviorArray = node
 			}
-		}))
+		})
 
 	AssertThat(c.behaviorArray).IsNotNull()
 }

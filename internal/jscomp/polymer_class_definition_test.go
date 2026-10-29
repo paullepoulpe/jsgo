@@ -217,11 +217,11 @@ func (c *PolymerClassDefinitionTest) parseAndExtractClassDefFromCall(code string
 
 	NodeUtil_VisitPostOrder(
 		rootNode,
-		NodeUtil_VisitorFunc(func(node rhino.Node) {
+		func(node rhino.Node) {
 			if PolymerPassStaticUtils_IsPolymerCall(node) {
 				c.polymerCall = node
 			}
-		}))
+		})
 
 	AssertThat(c.polymerCall).IsNotNull()
 	return PolymerClassDefinition_ExtractFromCallNode(
@@ -241,11 +241,11 @@ func (c *PolymerClassDefinitionTest) parseAndExtractClassDefFromClass(code strin
 
 	NodeUtil_VisitPostOrder(
 		rootNode,
-		NodeUtil_VisitorFunc(func(node rhino.Node) {
+		func(node rhino.Node) {
 			if PolymerPassStaticUtils_IsPolymerClass(node) {
 				c.polymerCall = node
 			}
-		}))
+		})
 
 	AssertThat(c.polymerCall).IsNotNull()
 	return PolymerClassDefinition_ExtractFromClassNode(c.polymerCall, c.compiler)

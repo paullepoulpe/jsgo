@@ -229,9 +229,9 @@ func (p *Path) GetName(index int) *Path {
 	return newPathFromString(p.element(index))
 }
 
-// Subpath is Path.subpath(int, int): the elements beginIndex (inclusive)
+// subpath is Path.subpath(int, int): the elements beginIndex (inclusive)
 // to endIndex (exclusive), as a relative path.
-func (p *Path) Subpath(beginIndex, endIndex int) *Path {
+func (p *Path) subpath(beginIndex, endIndex int) *Path {
 	n := p.GetNameCount()
 	if beginIndex < 0 || beginIndex >= n || endIndex > n || beginIndex >= endIndex {
 		panic(NewIllegalArgumentException())
@@ -411,8 +411,8 @@ func (p *Path) StartsWith(other *Path) bool {
 	return p.s[len(other.s)] == '/' && p.s[:len(other.s)] == other.s
 }
 
-// StartsWithString is Path.startsWith(String).
-func (p *Path) StartsWithString(other string) bool { return p.StartsWith(parsePath(other)) }
+// startsWithString is Path.startsWith(String).
+func (p *Path) startsWithString(other string) bool { return p.StartsWith(parsePath(other)) }
 
 // EndsWith is Path.endsWith(Path): the same trailing name elements; an
 // absolute other must be equal to this path.
@@ -433,8 +433,8 @@ func (p *Path) EndsWith(other *Path) bool {
 	return p.s[off-1] == '/' && p.s[off:] == other.s
 }
 
-// EndsWithString is Path.endsWith(String).
-func (p *Path) EndsWithString(other string) bool { return p.EndsWith(parsePath(other)) }
+// endsWithString is Path.endsWith(String).
+func (p *Path) endsWithString(other string) bool { return p.EndsWith(parsePath(other)) }
 
 // CompareTo is Path.compareTo(Path): the unsigned bytes, lexicographically.
 func (p *Path) CompareTo(other *Path) int {
@@ -513,13 +513,13 @@ func (p *Path) ToAbsolutePathWithWd(wd *Path) *Path {
 	return wd.Resolve(p)
 }
 
-// InvalidPathException is java.nio.file.InvalidPathException.
-type InvalidPathException struct {
+// invalidPathException is java.nio.file.InvalidPathException.
+type invalidPathException struct {
 	IllegalArgumentException
 }
 
-func newInvalidPathException(input, reason string) *InvalidPathException {
-	e := &InvalidPathException{}
+func newInvalidPathException(input, reason string) *invalidPathException {
+	e := &invalidPathException{}
 	msg := reason + ": " + input
 	InitThrowable(e, "java.nio.file.InvalidPathException", &msg, nil)
 	return e

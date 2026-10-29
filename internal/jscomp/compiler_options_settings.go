@@ -36,24 +36,6 @@ type customPassMap struct {
 	groups []customPassGroup
 }
 
-func (m *customPassMap) add(time CustomPassExecutionTime, pass CompilerPass) {
-	for i := range m.groups {
-		if m.groups[i].time == time {
-			for _, existing := range m.groups[i].passes {
-				if jutil.ObjectsEquals(existing, pass) {
-					return
-				}
-			}
-			m.groups[i].passes = append(m.groups[i].passes, pass)
-			return
-		}
-	}
-	m.groups = append(m.groups, customPassGroup{
-		time:   time,
-		passes: []CompilerPass{pass},
-	})
-}
-
 func (m *customPassMap) get(time CustomPassExecutionTime) []CompilerPass {
 	if m == nil {
 		return []CompilerPass{}
@@ -179,11 +161,6 @@ func (o *CompilerOptions) GetDevMode() CompilerOptions_DevMode {
 	return o.devMode
 }
 
-// Java: CompilerOptions.setCheckDeterminism(boolean)
-func (o *CompilerOptions) SetCheckDeterminism(checkDeterminism bool) {
-	o.checkDeterminism = checkDeterminism
-}
-
 // Java: CompilerOptions.getCheckDeterminism()
 func (o *CompilerOptions) GetCheckDeterminism() bool {
 	return o.checkDeterminism
@@ -290,11 +267,6 @@ func (o *CompilerOptions) GetCrossChunkCodeMotionNoStubMethods() bool {
 	return o.crossChunkCodeMotionNoStubMethods
 }
 
-// Java: CompilerOptions.setParentChunkCanSeeSymbolsDeclaredInChildren(boolean)
-func (o *CompilerOptions) SetParentChunkCanSeeSymbolsDeclaredInChildren(parentChunkCanSeeSymbolsDeclaredInChildren bool) {
-	o.parentChunkCanSeeSymbolsDeclaredInChildren = parentChunkCanSeeSymbolsDeclaredInChildren
-}
-
 // Java: CompilerOptions.getParentChunkCanSeeSymbolsDeclaredInChildren()
 func (o *CompilerOptions) GetParentChunkCanSeeSymbolsDeclaredInChildren() bool {
 	return o.parentChunkCanSeeSymbolsDeclaredInChildren
@@ -303,11 +275,6 @@ func (o *CompilerOptions) GetParentChunkCanSeeSymbolsDeclaredInChildren() bool {
 // Java: CompilerOptions.setCrossChunkMethodMotion(boolean)
 func (o *CompilerOptions) SetCrossChunkMethodMotion(crossChunkMethodMotion bool) {
 	o.crossChunkMethodMotion = crossChunkMethodMotion
-}
-
-// Java: CompilerOptions.getCrossChunkMethodMotion()
-func (o *CompilerOptions) GetCrossChunkMethodMotion() bool {
-	return o.crossChunkMethodMotion
 }
 
 // Java: CompilerOptions.setCoalesceVariableNames(boolean)
@@ -348,16 +315,6 @@ func (o *CompilerOptions) SetInlineLocalVariables(inlineLocalVariables bool) {
 // Java: CompilerOptions.shouldInlineLocalVariables()
 func (o *CompilerOptions) ShouldInlineLocalVariables() bool {
 	return o.inlineLocalVariables
-}
-
-// Java: CompilerOptions.setFlowSensitiveInlineVariables(boolean)
-func (o *CompilerOptions) SetFlowSensitiveInlineVariables(enabled bool) {
-	o.flowSensitiveInlineVariables = enabled
-}
-
-// Java: CompilerOptions.getFlowSensitiveInlineVariables()
-func (o *CompilerOptions) GetFlowSensitiveInlineVariables() bool {
-	return o.flowSensitiveInlineVariables
 }
 
 // Java: CompilerOptions.setSmartNameRemoval(boolean)
@@ -445,11 +402,6 @@ func (o *CompilerOptions) SetAliasStringsMode(aliasStringsMode CompilerOptions_A
 // Java: CompilerOptions.getAliasStringsMode()
 func (o *CompilerOptions) GetAliasStringsMode() CompilerOptions_AliasStringsMode {
 	return o.aliasStringsMode
-}
-
-// Java: CompilerOptions.setOutputJsStringUsage(boolean)
-func (o *CompilerOptions) SetOutputJsStringUsage(outputJsStringUsage bool) {
-	o.outputJsStringUsage = outputJsStringUsage
 }
 
 // Java: CompilerOptions.shouldOutputJsStringUsage()
@@ -590,11 +542,6 @@ func (o *CompilerOptions) ShouldGeneratePseudoNames() bool {
 	return o.generatePseudoNames
 }
 
-// Java: CompilerOptions.setPropertyRenamingOnlyCompilationMode(boolean)
-func (o *CompilerOptions) SetPropertyRenamingOnlyCompilationMode(propertyRenamingOnlyCompilationMode bool) {
-	o.propertyRenamingOnlyCompilationMode = propertyRenamingOnlyCompilationMode
-}
-
 // Java: CompilerOptions.isPropertyRenamingOnlyCompilationMode()
 func (o *CompilerOptions) IsPropertyRenamingOnlyCompilationMode() bool {
 	return o.propertyRenamingOnlyCompilationMode
@@ -632,11 +579,6 @@ func (o *CompilerOptions) SetCollapseProperties(fullyCollapse bool) {
 	} else {
 		o.collapsePropertiesLevel = CompilerOptions_PropertyCollapseLevel_NONE
 	}
-}
-
-// Java: CompilerOptions.getCollapsePropertiesLevel()
-func (o *CompilerOptions) GetCollapsePropertiesLevel() CompilerOptions_PropertyCollapseLevel {
-	return o.collapsePropertiesLevel
 }
 
 // Java: CompilerOptions.setDevirtualizeMethods(boolean)
@@ -699,11 +641,6 @@ func (o *CompilerOptions) GetInputPropertyMap() *VariableMap {
 	return o.inputPropertyMap
 }
 
-// Java: CompilerOptions.setExportTestFunctions(boolean)
-func (o *CompilerOptions) SetExportTestFunctions(exportTestFunctions bool) {
-	o.exportTestFunctions = exportTestFunctions
-}
-
 // Java: CompilerOptions.shouldExportTestFunctions()
 func (o *CompilerOptions) ShouldExportTestFunctions() bool {
 	return o.exportTestFunctions
@@ -712,11 +649,6 @@ func (o *CompilerOptions) ShouldExportTestFunctions() bool {
 // Java: CompilerOptions.setSyntheticBlockStartMarker(String)
 func (o *CompilerOptions) SetSyntheticBlockStartMarker(syntheticBlockStartMarker *string) {
 	o.syntheticBlockStartMarker = syntheticBlockStartMarker
-}
-
-// Java: CompilerOptions.setSyntheticBlockEndMarker(String)
-func (o *CompilerOptions) SetSyntheticBlockEndMarker(syntheticBlockEndMarker *string) {
-	o.syntheticBlockEndMarker = syntheticBlockEndMarker
 }
 
 // Java: CompilerOptions.getSyntheticBlockStartMarker()
@@ -870,14 +802,6 @@ func (o *CompilerOptions) GetStripNamePrefixes() *jutil.LinkedHashSet[string] {
 	return o.stripNamePrefixes
 }
 
-// Java: CompilerOptions.addCustomPass(CustomPassExecutionTime, CompilerPass)
-func (o *CompilerOptions) AddCustomPass(time CustomPassExecutionTime, customPass CompilerPass) {
-	if o.customPasses == nil {
-		o.customPasses = &customPassMap{}
-	}
-	o.customPasses.add(time, customPass)
-}
-
 // Java: CompilerOptions.getCustomPassesAt(CustomPassExecutionTime)
 func (o *CompilerOptions) GetCustomPassesAt(executionTime CustomPassExecutionTime) []CompilerPass {
 	return o.customPasses.get(executionTime)
@@ -913,11 +837,6 @@ func (o *CompilerOptions) ShouldRewriteGlobalDeclarationsForTryCatchWrapping() b
 	return o.rewriteGlobalDeclarationsForTryCatchWrapping
 }
 
-// Java: CompilerOptions.setCssRenamingMap(CssRenamingMap)
-func (o *CompilerOptions) SetCssRenamingMap(cssRenamingMap CssRenamingMap) {
-	o.cssRenamingMap = cssRenamingMap
-}
-
 // Java: CompilerOptions.getCssRenamingMap()
 func (o *CompilerOptions) GetCssRenamingMap() CssRenamingMap {
 	return o.cssRenamingMap
@@ -933,19 +852,9 @@ func (o *CompilerOptions) GetCssRenamingSkiplist() *jutil.LinkedHashSet[string] 
 	return o.cssRenamingSkiplist
 }
 
-// Java: CompilerOptions.setReplaceStringsFunctionDescriptions(List<String>)
-func (o *CompilerOptions) SetReplaceStringsFunctionDescriptions(replaceStringsFunctionDescriptions []string) {
-	o.replaceStringsFunctionDescriptions = append([]string{}, replaceStringsFunctionDescriptions...)
-}
-
 // Java: CompilerOptions.getReplaceStringsFunctionDescriptions()
 func (o *CompilerOptions) GetReplaceStringsFunctionDescriptions() []string {
 	return o.replaceStringsFunctionDescriptions
-}
-
-// Java: CompilerOptions.setReplaceStringsPlaceholderToken(String)
-func (o *CompilerOptions) SetReplaceStringsPlaceholderToken(replaceStringsPlaceholderToken string) {
-	o.replaceStringsPlaceholderToken = replaceStringsPlaceholderToken
 }
 
 // Java: CompilerOptions.getReplaceStringsPlaceholderToken()

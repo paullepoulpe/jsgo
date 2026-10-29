@@ -333,8 +333,7 @@ func InlineAndCollapseProperties_MayBeGlobalAlias(alias *GlobalNamespace_Ref) bo
 		// Only handle assignments to simple names, not qualified names or GETPROPs.
 		return true
 	}
-	aliasVarName := aliasLhsNode.GetString()
-	aliasVar := alias.scope.GetVar(aliasVarName)
+	aliasVar := alias.scope.GetVarByNode(aliasLhsNode)
 	if aliasVar != nil {
 		return aliasVar.IsGlobal()
 	}

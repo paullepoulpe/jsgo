@@ -244,13 +244,15 @@ func (d *DevirtualizeMethods) isDefinitelyCtorOrInterface(receiver rhino.Node) b
 		}
 		var_ = d.refMap.GetGlobalScope().GetVarByID(id)
 	} else {
-		qname := receiver.GetQualifiedName()
-		if qname == nil {
+		qname, ok := receiver.GetQualifiedNameString()
+		if !ok {
 			return false
 		}
 		// It's safe to rely on the global scope because normalization has made all names unique. No
 		// local will shadow a global name, and we're ok with missing some statics.
-		var_ = d.refMap.GetGlobalScope().GetVar(*qname)
+		if id := rhino.RhinoStringPool_LookupID(qname); id != 0 {
+			var_ = d.refMap.GetGlobalScope().GetVarByID(id)
+		}
 	}
 	if var_ == nil {
 		return false

@@ -19,11 +19,29 @@
 package jscomp
 
 import (
+	"github.com/paullepoulpe/jsgo/internal/ast"
 	"github.com/paullepoulpe/jsgo/internal/colors"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/parser"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
+
+var es7RewriteExponentialVisitTokens = func() ast.TokenSet {
+	var s ast.TokenSet
+	s.Add(rhino.Token_EXPONENT)
+	s.Add(rhino.Token_ASSIGN_EXPONENT)
+	return s
+}()
+
+var (
+	_ nodeTraversal_visitTokens   = (*Es7RewriteExponentialOperator)(nil)
+	_ nodeTraversal_noVisitLeaves = (*Es7RewriteExponentialOperator)(nil)
+)
+
+func (*Es7RewriteExponentialOperator) noVisitLeaves() {}
+func (*Es7RewriteExponentialOperator) visitTokens() *ast.TokenSet {
+	return &es7RewriteExponentialVisitTokens
+}
 
 // Es7RewriteExponentialOperator replaces the ES7 `**` and `**=` operators to
 // calls to `Math.pow`.

@@ -30,7 +30,7 @@ import (
 //
 // N is the value type that the graph node stores; E is the value type that
 // the graph edge stores.
-type LinkedDirectedGraph[N comparable, E any] struct {
+type LinkedDirectedGraph[N, E comparable] struct {
 	Nodes GraphNodeMap[N, *LinkedDiGraphNode[N, E]]
 
 	// Go-only: performance — see jutil.ReuseSlab.
@@ -48,12 +48,12 @@ type LinkedDirectedGraph[N comparable, E any] struct {
 
 // Type aliases preserving callers that spell out the nested Java names.
 type (
-	LinkedDirectedGraph_LinkedDiGraphNode[N, E any] = LinkedDiGraphNode[N, E]
-	DiGraph_DiGraphNode[N, E any]                   = *LinkedDiGraphNode[N, E]
-	DiGraph_DiGraphEdge[N, E any]                   = *LinkedDiGraphEdge[N, E]
+	LinkedDirectedGraph_LinkedDiGraphNode[N, E comparable] = LinkedDiGraphNode[N, E]
+	DiGraph_DiGraphNode[N, E comparable]                   = *LinkedDiGraphNode[N, E]
+	DiGraph_DiGraphEdge[N, E comparable]                   = *LinkedDiGraphEdge[N, E]
 )
 
-type linkedDirectedSubGraph[N comparable, E any] struct {
+type linkedDirectedSubGraph[N, E comparable] struct {
 	graph *LinkedDirectedGraph[N, E]
 	nodes []*LinkedDiGraphNode[N, E]
 	buf   [8]*LinkedDiGraphNode[N, E]
@@ -85,19 +85,19 @@ func (s *linkedDirectedSubGraph[N, E]) AddNode(value N) {
 }
 
 // Java: LinkedDirectedGraph.createWithoutAnnotations()
-func LinkedDirectedGraph_CreateWithoutAnnotations[N comparable, E any]() *LinkedDirectedGraph[N, E] {
+func LinkedDirectedGraph_CreateWithoutAnnotations[N, E comparable]() *LinkedDirectedGraph[N, E] {
 	return NewLinkedDirectedGraph[N, E](false, false)
 }
 
 // Java: LinkedDirectedGraph.create()
-func LinkedDirectedGraph_Create[N comparable, E any]() *LinkedDirectedGraph[N, E] {
+func LinkedDirectedGraph_Create[N, E comparable]() *LinkedDirectedGraph[N, E] {
 	return NewLinkedDirectedGraph[N, E](true, true)
 }
 
 // NewLinkedDirectedGraph constructs a LinkedDirectedGraph.
 //
 // Java: LinkedDirectedGraph(boolean, boolean)
-func NewLinkedDirectedGraph[N comparable, E any](useNodeAnnotations bool, useEdgeAnnotations bool) *LinkedDirectedGraph[N, E] {
+func NewLinkedDirectedGraph[N, E comparable](useNodeAnnotations bool, useEdgeAnnotations bool) *LinkedDirectedGraph[N, E] {
 	g := &LinkedDirectedGraph[N, E]{}
 	g.Init(useNodeAnnotations, useEdgeAnnotations)
 	return g
@@ -411,13 +411,13 @@ func (g *LinkedDirectedGraph[N, E]) isConnectedInDirectionOfNodesWithEdge(
 	inEdges := dest.InEdgeList.Slice()
 	if len(outEdges) < len(inEdges) {
 		for _, outEdge := range outEdges {
-			if outEdge.DestNode == dest && jutil.ObjectsEqualsOf(edgeValue, outEdge.Value) {
+			if outEdge.DestNode == dest && edgeValue == outEdge.Value {
 				return true
 			}
 		}
 	} else {
 		for _, inEdge := range inEdges {
-			if inEdge.SourceNode == source && jutil.ObjectsEqualsOf(edgeValue, inEdge.Value) {
+			if inEdge.SourceNode == source && edgeValue == inEdge.Value {
 				return true
 			}
 		}
@@ -576,7 +576,7 @@ func (g *LinkedDirectedGraph[N, E]) GetNodeDegree(value N) int {
 
 // LinkedDiGraphNode is a directed graph node storing incoming and outgoing
 // edges inline when at most two per direction.
-type LinkedDiGraphNode[N, E any] struct {
+type LinkedDiGraphNode[N, E comparable] struct {
 	InEdgeList, OutEdgeList LinkedEdgeList[N, E]
 
 	Annotation Annotation
@@ -601,7 +601,7 @@ func (n *LinkedDiGraphNode[N, E]) recycle() {
 //
 // Go-only: performance — most CFG nodes have at most two edges in each
 // direction, so up to two are stored inline without a separate slice header.
-type LinkedEdgeList[N, E any] struct {
+type LinkedEdgeList[N, E comparable] struct {
 	two  [2]*LinkedDiGraphEdge[N, E]
 	more *[]*LinkedDiGraphEdge[N, E]
 }
@@ -743,7 +743,7 @@ func (n *LinkedDiGraphNode[N, E]) SetPriority(priority int) {
 
 // LinkedDiGraphEdge is a directed graph edge storing concrete source and
 // destination node pointers.
-type LinkedDiGraphEdge[N, E any] struct {
+type LinkedDiGraphEdge[N, E comparable] struct {
 	SourceNode *LinkedDiGraphNode[N, E]
 	DestNode   *LinkedDiGraphNode[N, E]
 	Value      E

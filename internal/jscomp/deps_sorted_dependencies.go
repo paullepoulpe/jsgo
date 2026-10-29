@@ -461,15 +461,6 @@ func (d *SortedDependencies[InputT]) ProcessInputs() {
 // SortedDependencies.MissingProvideException, a checked exception.
 type SortedDependencies_MissingProvideException struct{ jutil.JavaException }
 
-func (*SortedDependencies_MissingProvideException) missingProvideException() {}
-
-// ISortedDependencies_MissingProvideException matches
-// SortedDependencies_MissingProvideException.
-type ISortedDependencies_MissingProvideException interface {
-	jutil.IException
-	missingProvideException()
-}
-
 // Java: SortedDependencies.MissingProvideException(String)
 func NewSortedDependencies_MissingProvideException(provide string) *SortedDependencies_MissingProvideException {
 	e := &SortedDependencies_MissingProvideException{}

@@ -109,57 +109,6 @@ func (inst *codePrinterInstance) resetAfterPrint() {
 	inst.prettySrc = prettyNumberSource{}
 }
 
-// NewCodePrinter_PrettyCodePrinter returns a pretty-printing CodeConsumer.
-//
-// Java: CodePrinter.PrettyCodePrinter(int, boolean, SourceMap.DetailLevel, LicenseTracker)
-func NewCodePrinter_PrettyCodePrinter(
-	lineLengthThreshold int,
-	createSourceMap bool,
-	sourceMapDetailLevel SourceMap_DetailLevel,
-	licenseTracker CodePrinter_LicenseTracker,
-) *CodeConsumer {
-	inst := &codePrinterInstance{}
-	inst.cg.cc.initPrinter(
-		sinkPretty,
-		false,
-		lineLengthThreshold,
-		createSourceMap,
-		sourceMapDetailLevel,
-		licenseTracker,
-		inst.codeBuf[:0:len(inst.codeBuf)],
-		inst.openMappingsBuf[:0:len(inst.openMappingsBuf)],
-		inst.completeMappingsBuf[:0:len(inst.completeMappingsBuf)],
-		&inst.prettySrc,
-	)
-	return &inst.cg.cc
-}
-
-// NewCodePrinter_CompactCodePrinter returns a compact-printing CodeConsumer.
-//
-// Java: CodePrinter.CompactCodePrinter(boolean, int, boolean, SourceMap.DetailLevel, LicenseTracker)
-func NewCodePrinter_CompactCodePrinter(
-	lineBreak bool,
-	lineLengthThreshold int,
-	createSrcMap bool,
-	sourceMapDetailLevel SourceMap_DetailLevel,
-	licenseTracker CodePrinter_LicenseTracker,
-) *CodeConsumer {
-	inst := &codePrinterInstance{}
-	inst.cg.cc.initPrinter(
-		sinkCompact,
-		lineBreak,
-		lineLengthThreshold,
-		createSrcMap,
-		sourceMapDetailLevel,
-		licenseTracker,
-		inst.codeBuf[:0:len(inst.codeBuf)],
-		inst.openMappingsBuf[:0:len(inst.openMappingsBuf)],
-		inst.completeMappingsBuf[:0:len(inst.completeMappingsBuf)],
-		nil,
-	)
-	return &inst.cg.cc
-}
-
 func (c *CodeConsumer) adjustSourceMappings(code string) {
 	if !c.createSrcMap || len(c.allMappings) == 0 || code == "" {
 		return
@@ -192,22 +141,6 @@ func (c *CodeConsumer) adjustSourceMappings(code string) {
 	for i := range c.allMappings {
 		c.allMappings[i].end = codePrinter_MappedCodePrinter_adjustEndPositionVal(lineLengths, c.allMappings[i].end)
 	}
-}
-
-// GetSourceMappings returns a list of sourcemap mappings that were
-// generated while printing this code.
-//
-// Java: CodePrinter.MappedCodePrinter.getSourceMappings(String)
-func (c *CodeConsumer) GetSourceMappings(code string) []*SourceMap_Mapping {
-	if !c.createSrcMap {
-		return nil
-	}
-	c.adjustSourceMappings(code)
-	out := make([]*SourceMap_Mapping, len(c.allMappings))
-	for i := range c.allMappings {
-		out[i] = &c.allMappings[i]
-	}
-	return out
 }
 
 // ReportLineCut reports to the code consumer that the given line has been
@@ -244,21 +177,6 @@ func codePrinter_MappedCodePrinter_convertPositionAfterLineCutVal(
 	return position
 }
 
-// CodePrinter_MappedCodePrinter_ConvertPositionAfterLineCut converts the
-// given position by normalizing it against the insertion at the given line
-// and character position.
-//
-// Java: CodePrinter.MappedCodePrinter.convertPositionAfterLineCut(FilePosition, int, int)
-func CodePrinter_MappedCodePrinter_ConvertPositionAfterLineCut(
-	position *sourcemap.FilePosition, lineIndex int, characterPosition int) *sourcemap.FilePosition {
-	originalLine := position.GetLine()
-	originalChar := position.GetColumn()
-	if originalLine == lineIndex && originalChar >= characterPosition {
-		return sourcemap.NewFilePosition(originalLine+1, originalChar-characterPosition)
-	}
-	return position
-}
-
 // Java: CodePrinter.MappedCodePrinter.getCode()
 func (c *CodeConsumer) GetCode() string {
 	if len(c.code) == 0 {
@@ -275,25 +193,6 @@ func (c *CodeConsumer) GetCurrentCharIndex() int {
 // Java: CodePrinter.MappedCodePrinter.getCurrentLineIndex()
 func (c *CodeConsumer) GetCurrentLineIndex() int {
 	return c.lineIndex
-}
-
-// CodePrinter_MappedCodePrinter_ComputeLineLengths calculates length of each
-// line in compiled code.
-//
-// Java: CodePrinter.MappedCodePrinter.computeLineLengths(String)
-func CodePrinter_MappedCodePrinter_ComputeLineLengths(code string) []int {
-	var builder []int
-	lineStartPos := 0
-	lineEndPos := strings.IndexByte(code, '\n')
-	for lineEndPos > -1 {
-		builder = append(builder, jutil.StringLength(code[lineStartPos:lineEndPos]))
-		lineStartPos = lineEndPos + 1
-		lineEndPos = strings.IndexByte(code[lineStartPos:], '\n')
-		if lineEndPos > -1 {
-			lineEndPos += lineStartPos
-		}
-	}
-	return builder
 }
 
 func codePrinter_MappedCodePrinter_adjustEndPositionVal(
@@ -319,29 +218,6 @@ func codePrinter_panicBadEndPosition(endPosition sourcemap.FilePosition, lineLen
 		"End position %s points to a column larger than line length %s",
 		&endPosition,
 		lineLen)
-}
-
-// CodePrinter_MappedCodePrinter_AdjustEndPosition adjusts end position of a
-// mapping.
-//
-// Java: CodePrinter.MappedCodePrinter.adjustEndPosition(List<Integer>, FilePosition)
-func CodePrinter_MappedCodePrinter_AdjustEndPosition(
-	lineLengths []int, endPosition *sourcemap.FilePosition) *sourcemap.FilePosition {
-	line := endPosition.GetLine()
-	if line >= len(lineLengths) {
-		return endPosition
-	}
-
-	jutil.CheckStateMsg2(
-		endPosition.GetColumn() <= lineLengths[line],
-		"End position %s points to a column larger than line length %s",
-		endPosition,
-		lineLengths[line])
-
-	if endPosition.GetColumn() == lineLengths[line] {
-		return sourcemap.NewFilePosition(line+1, 0)
-	}
-	return endPosition
 }
 
 // CodePrinter_PrettyCodePrinter_GetTryForCatch returns the TRY node for the

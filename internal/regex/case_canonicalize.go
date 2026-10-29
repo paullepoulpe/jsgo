@@ -41,17 +41,6 @@ import (
 //	  - If ch's code unit value is greater than or equal to decimal 128 and
 //	    cu's code unit value is less than decimal 128, then return ch.
 //	  - Return cu.
-//
-// Java: final class CaseCanonicalize (uninstantiable; only static members).
-type CaseCanonicalize struct{}
-
-// NewCaseCanonicalize is the private constructor.
-//
-// Java: CaseCanonicalize()
-func NewCaseCanonicalize() *CaseCanonicalize {
-	// Uninstantiable.
-	return &CaseCanonicalize{}
-}
 
 // Below are tables that implement the Canonicalize operation.
 // We cannot use java.lang.Character.toUpperCase since that is based on

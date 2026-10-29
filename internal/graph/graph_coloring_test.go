@@ -173,7 +173,7 @@ func TestGraphColoring_Deterministic(t *testing.T) {
 
 // graphColoringTest_validateColoring validates that each node has been
 // colored and connected nodes have different coloring.
-func graphColoringTest_validateColoring[N comparable, E any](t *testing.T, graph *LinkedUndirectedGraph[N, E]) {
+func graphColoringTest_validateColoring[N, E comparable](t *testing.T, graph *LinkedUndirectedGraph[N, E]) {
 	t.Helper()
 	for _, node := range graph.GetNodes() {
 		if node.GetAnnotation() == nil {

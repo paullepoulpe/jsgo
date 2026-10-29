@@ -26,7 +26,10 @@ import (
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/parser"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
+	"github.com/paullepoulpe/jsgo/internal/strpool"
 )
+
+var polymerElementID = uint32(strpool.Intern("PolymerElement"))
 
 const (
 	polymerClassRewriter_VIRTUAL_FILE                = "<PolymerClassRewriter.java>"
@@ -189,7 +192,7 @@ func (r *PolymerClassRewriter) RewritePolymerCall(cls *PolymerClassDefinition, t
 
 	// Check for a conflicting definition of PolymerElement.
 	if !traversal.InGlobalScope() {
-		polymerElement := traversal.GetScope().GetVar("PolymerElement")
+		polymerElement := traversal.GetScope().GetVarByID(polymerElementID)
 		if polymerElement != nil && !polymerElement.GetScope().(*Scope).IsGlobal() {
 			nameNode := polymerElement.GetNameNode()
 			r.compiler.Report(

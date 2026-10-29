@@ -105,14 +105,6 @@ type AbstractCompiler interface {
 	// Java: AbstractCompiler.getInputsInOrder()
 	GetInputsInOrder() []*CompilerInput
 
-	// GetNumberOfInputs gets the total number of inputs.
-	//
-	// This can be useful as a guide for the initial allocated size for data
-	// structures.
-	//
-	// Java: AbstractCompiler.getNumberOfInputs()
-	GetNumberOfInputs() int
-
 	//
 	// Intermediate state and results produced and needed by particular passes.
 	// TODO(rluble): move these into the general structure for keeping state between pass runs.
@@ -177,12 +169,6 @@ type AbstractCompiler interface {
 	//
 	// Java: AbstractCompiler.getCrossChunkIdGenerator()
 	GetCrossChunkIdGenerator() *IdGenerator
-
-	// SetAnonymousFunctionNameMap sets the naming map for anonymous
-	// functions
-	//
-	// Java: AbstractCompiler.setAnonymousFunctionNameMap(VariableMap)
-	SetAnonymousFunctionNameMap(functionMap *VariableMap)
 
 	//
 	// End of intermediate state needed by passes.
@@ -561,12 +547,6 @@ type AbstractCompiler interface {
 	//
 	// Java: AbstractCompiler.getSynthesizedTypeSummaryInput()
 	GetSynthesizedTypeSummaryInput() *CompilerInput
-
-	// GetLastPassName gets the last pass name set by setProgress (nil when
-	// there is none).
-	//
-	// Java: AbstractCompiler.getLastPassName()
-	GetLastPassName() *string
 
 	// GetRuntimeJsLibManager returns a class responsible for managing
 	// injection of runtime libraries under the js/ subdirectory.

@@ -184,11 +184,8 @@ func (k Property_Key) Equals(o any) bool {
 	if k == other {
 		return true
 	}
-	if (k.symbol == nil) != (other.symbol == nil) {
+	if k.symbol == nil || other.symbol == nil {
 		return false
-	}
-	if k.symbol == nil {
-		return rhinoStringFromID(k.stringID) == rhinoStringFromID(other.stringID)
 	}
 	return k.symbol.Equals(other.symbol)
 }

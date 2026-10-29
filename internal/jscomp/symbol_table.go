@@ -19,7 +19,6 @@
 package jscomp
 
 import (
-	"fmt"
 	"iter"
 	"slices"
 	"strconv"
@@ -567,14 +566,19 @@ func (t *SymbolTable) toDebugString(
 			indexable = ""
 		}
 		builder.WriteString(prefix)
-		builder.WriteString(fmt.Sprintf(
-			"  Ref %d: %s line: %d col: %d len: %d %s\n",
-			refCount,
-			symbolTable_nullableString(node.GetSourceFileName()),
-			node.GetLineno(),
-			node.GetCharno(),
-			node.GetLength(),
-			indexable))
+		builder.WriteString("  Ref ")
+		builder.WriteString(strconv.Itoa(refCount))
+		builder.WriteString(": ")
+		builder.WriteString(symbolTable_nullableString(node.GetSourceFileName()))
+		builder.WriteString(" line: ")
+		builder.WriteString(strconv.Itoa(node.GetLineno()))
+		builder.WriteString(" col: ")
+		builder.WriteString(strconv.Itoa(node.GetCharno()))
+		builder.WriteString(" len: ")
+		builder.WriteString(strconv.Itoa(node.GetLength()))
+		builder.WriteByte(' ')
+		builder.WriteString(indexable)
+		builder.WriteByte('\n')
 		refCount++
 	}
 }

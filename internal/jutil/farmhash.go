@@ -56,8 +56,8 @@ func (h *FarmHashFingerprint64Hasher) Reset() {
 	}
 }
 
-// PutLong is Hasher.putLong(long): eight little-endian bytes.
-func (h *FarmHashFingerprint64Hasher) PutLong(v int64) *FarmHashFingerprint64Hasher {
+// putLong is Hasher.putLong(long): eight little-endian bytes.
+func (h *FarmHashFingerprint64Hasher) putLong(v int64) *FarmHashFingerprint64Hasher {
 	h.buf = binary.LittleEndian.AppendUint64(h.buf, uint64(v))
 	return h
 }
@@ -75,8 +75,8 @@ func (h *FarmHashFingerprint64Hasher) PutStringUTF8(s string) *FarmHashFingerpri
 	return h
 }
 
-// PutBytes is Hasher.putBytes(byte[]).
-func (h *FarmHashFingerprint64Hasher) PutBytes(b []byte) *FarmHashFingerprint64Hasher {
+// putBytes is Hasher.putBytes(byte[]).
+func (h *FarmHashFingerprint64Hasher) putBytes(b []byte) *FarmHashFingerprint64Hasher {
 	h.buf = append(h.buf, b...)
 	return h
 }

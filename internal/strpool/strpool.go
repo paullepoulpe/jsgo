@@ -70,7 +70,7 @@ type shard struct {
 
 var (
 	shards      [numShards]shard
-	cleared     bool
+	cleared     atomic.Bool
 	emptyString = ""
 	seed        = maphash.MakeSeed()
 )
@@ -203,7 +203,7 @@ func StringPtr(id ID) *string {
 }
 
 func ClearForTest() {
-	cleared = true
+	cleared.Store(true)
 	for i := range shards {
 		s := &shards[i]
 		s.mu.Lock()
@@ -266,4 +266,4 @@ func InternBytes(b []byte) ID {
 }
 
 // WasClearedForTest reports whether ClearForTest has been called.
-func WasClearedForTest() bool { return cleared }
+func WasClearedForTest() bool { return cleared.Load() }

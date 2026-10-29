@@ -303,7 +303,7 @@ func NewGZIPInputStreamWithSize(in io.ReadCloser, size int) io.ReadCloser {
 		}
 		if err == io.EOF || err == io.ErrUnexpectedEOF {
 			// Java: new EOFException(), with a null message.
-			e := &EOFException{}
+			e := &eofException{}
 			InitThrowable(e, "java.io.EOFException", nil, nil)
 			panic(e)
 		}

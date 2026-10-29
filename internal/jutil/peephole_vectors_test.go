@@ -49,7 +49,7 @@ func hexDouble(t *testing.T, s string) float64 {
 func catchArithmetic(f func() string) (res string) {
 	defer func() {
 		if r := recover(); r != nil {
-			if e, ok := r.(IArithmeticException); ok {
+			if e, ok := r.(*ArithmeticException); ok {
 				res = "AE:" + e.GetMessage()
 				return
 			}
@@ -78,14 +78,8 @@ func TestJavaMathMatchesJava(t *testing.T) {
 			if math.Float64bits(got) != math.Float64bits(want) {
 				t.Errorf("rem(%v, %v) = %v (%x), Java %v (%x)", x, y, got, math.Float64bits(got), want, math.Float64bits(want))
 			}
-		case "pow", "max", "min", "round", "signum":
-			// Math* moved to internal/base.
-		case "intValueExact":
-			a := NewBigIntegerFromString(r[1])
-			got := catchArithmetic(func() string { return strconv.Itoa(int(BigIntegerIntValueExact(a))) })
-			if got != r[3] {
-				t.Errorf("intValueExact(%s) = %s, Java %s", r[1], got, r[3])
-			}
+		case "pow", "max", "min", "round", "signum", "intValueExact":
+			// Math* moved to internal/base; BigIntegerIntValueExact removed.
 		case "mod":
 			a, m := NewBigIntegerFromString(r[1]), NewBigIntegerFromString(r[2])
 			got := catchArithmetic(func() string { return BigIntegerMod(a, m).String() })

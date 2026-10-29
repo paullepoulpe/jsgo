@@ -378,7 +378,7 @@ func isParameter(t *NodeTraversal, n rhino.Node) bool {
 	if !n.IsName() {
 		return false
 	}
-	return t.GetScope().GetVar(n.GetString()).GetParentNode().IsParamList()
+	return t.GetScope().GetVarByNode(n).GetParentNode().IsParamList()
 }
 
 func getCallOrNewNode(n rhino.Node) rhino.Node {

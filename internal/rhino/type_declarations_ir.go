@@ -38,9 +38,6 @@ import (
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 )
 
-// TypeDeclarationsIR is an AST construction helper class for Node.
-type TypeDeclarationsIR struct{}
-
 // TypeDeclarationsIR_StringType returns a new node representing the string
 // built-in type.
 //
@@ -207,9 +204,4 @@ func TypeDeclarationsIR_UnionTypeOfNodes(options ...Node) Node {
 // Java: TypeDeclarationsIR.optionalParameter(Node)
 func TypeDeclarationsIR_OptionalParameter(parameterType Node) Node {
 	return NewNodeWithChild(Token_OPTIONAL_PARAMETER, parameterType)
-}
-
-// Java: TypeDeclarationsIR()
-func NewTypeDeclarationsIR() *TypeDeclarationsIR {
-	return &TypeDeclarationsIR{}
 }

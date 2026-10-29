@@ -2478,7 +2478,7 @@ A.prototype.doSomethingFun;
 				// that line number is preserved when it's copied into the Polymer() call.
 				root := compiler.GetRoot()
 				visitor := newPolymerPassTest_DoSomethingFunFinder()
-				NodeUtil_VisitPreOrder(root, visitor)
+				NodeUtil_VisitPreOrder(root, visitor.Visit)
 				AssertThat(visitor.found).IsTrue()
 			}))
 }

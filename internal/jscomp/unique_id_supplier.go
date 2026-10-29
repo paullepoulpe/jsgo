@@ -41,6 +41,11 @@ import (
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 )
 
+type uniqueIdInputEntry struct {
+	hash   int32
+	prefix string // "<fileHashString>$"
+}
+
 // UniqueIdSupplier generates unique String Ids when requested via a compiler
 // instance.
 //
@@ -50,13 +55,66 @@ import (
 //
 // Java: UniqueIdSupplier
 type UniqueIdSupplier struct {
-	counts map[int32]int
-	order  []int32
+	counts     map[int32]int
+	order      []int32
+	lastInput  *CompilerInput
+	lastEntry  uniqueIdInputEntry
+	inputCache map[*CompilerInput]uniqueIdInputEntry
 }
 
 // Java: UniqueIdSupplier()
 func NewUniqueIdSupplier() *UniqueIdSupplier {
 	return &UniqueIdSupplier{}
+}
+
+func (s *UniqueIdSupplier) inputEntry(input *CompilerInput) uniqueIdInputEntry {
+	if input != nil && s.lastInput == input {
+		return s.lastEntry
+	}
+	if input != nil && s.inputCache != nil {
+		if entry, ok := s.inputCache[input]; ok {
+			s.lastInput = input
+			s.lastEntry = entry
+			return entry
+		}
+	}
+	filePath := input.GetSourceFile().GetName()
+	fileHashCode := jutil.StringHashCode(filePath)
+	var hashBuf [16]byte
+	b := hashBuf[:0]
+	if fileHashCode < 0 {
+		b = append(b, 'm')
+		b = strconv.AppendInt(b, int64(-fileHashCode), 10)
+	} else {
+		b = strconv.AppendInt(b, int64(fileHashCode), 10)
+	}
+	b = append(b, '$')
+	entry := uniqueIdInputEntry{
+		hash:   fileHashCode,
+		prefix: string(b),
+	}
+	if input != nil {
+		if s.inputCache == nil {
+			s.inputCache = make(map[*CompilerInput]uniqueIdInputEntry)
+		}
+		s.inputCache[input] = entry
+		s.lastInput = input
+		s.lastEntry = entry
+	}
+	return entry
+}
+
+// UniqueVarName formats prefix + GetUniqueId(input) into a single string
+// allocation using a stack buffer.
+func (s *UniqueIdSupplier) UniqueVarName(prefix string, input *CompilerInput) string {
+	entry := s.inputEntry(input)
+	id := s.addToCounter(entry.hash, 1)
+	var stackBuf [64]byte
+	b := stackBuf[:0]
+	b = append(b, prefix...)
+	b = append(b, entry.prefix...)
+	b = strconv.AppendInt(b, int64(id), 10)
+	return string(b)
 }
 
 // GetUniqueId creates and returns a unique Id across all compiler input
@@ -67,16 +125,7 @@ func NewUniqueIdSupplier() *UniqueIdSupplier {
 //
 // Java: UniqueIdSupplier.getUniqueId(CompilerInput)
 func (s *UniqueIdSupplier) GetUniqueId(input *CompilerInput) string {
-	filePath := input.GetSourceFile().GetName()
-	fileHashCode := jutil.StringHashCode(filePath)
-	id := s.addToCounter(fileHashCode, 1)
-	var fileHashString string
-	if fileHashCode < 0 {
-		fileHashString = "m" + strconv.Itoa(int(-fileHashCode))
-	} else {
-		fileHashString = strconv.Itoa(int(fileHashCode))
-	}
-	return fileHashString + "$" + strconv.Itoa(id)
+	return s.UniqueVarName("", input)
 }
 
 // Java: UniqueIdSupplier.toProto()

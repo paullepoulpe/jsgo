@@ -154,7 +154,7 @@ func (i *InjectClosureUnawareRuntimeLibraries) InjectAll(
 func InjectClosureUnawareRuntimeLibraries_GatherRuntimeFields(
 	root rhino.Node, allKnownFields *jutil.LinkedHashMap[string, RuntimeJsLibManager_ExternedField]) *jutil.LinkedHashSet[RuntimeJsLibManager_ExternedField] {
 	seen := jutil.NewLinkedHashSet[RuntimeJsLibManager_ExternedField]()
-	visitor := NodeUtil_VisitorFunc(func(n rhino.Node) {
+	NodeUtil_VisitPreOrder(root, func(n rhino.Node) {
 		if !n.IsName() {
 			return
 		}
@@ -163,6 +163,5 @@ func InjectClosureUnawareRuntimeLibraries_GatherRuntimeFields(
 			seen.Add(field)
 		}
 	})
-	NodeUtil_VisitPreOrder(root, visitor)
 	return seen
 }

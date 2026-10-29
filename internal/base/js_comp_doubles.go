@@ -28,9 +28,6 @@ import (
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 )
 
-// JSCompDoubles holds basic double functions used by JSComp.
-type JSCompDoubles struct{}
-
 // JSCompDoubles_IsExactInt32 reports whether a 32 bit int can exactly
 // represent `x`.
 //
@@ -188,13 +185,6 @@ var JSCompDoubles_POW_2_32 = math.Pow(2, 32)
 
 // Java: JSCompDoubles.POW_2_53
 var JSCompDoubles_POW_2_53 = math.Pow(2, 53)
-
-// NewJSCompDoubles is the private constructor, which always throws.
-//
-// Java: JSCompDoubles()
-func NewJSCompDoubles() *JSCompDoubles {
-	panic(jutil.NewAssertionErrorNoMessage())
-}
 
 // Go-only: language-adapter — java.lang.Math methods whose Go counterparts
 // differ from Java (special cases of max/min/pow, round's rounding, signum).

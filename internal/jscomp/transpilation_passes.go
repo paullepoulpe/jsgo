@@ -283,9 +283,7 @@ var TranspilationPasses_es6RewriteClass = makeTranspilationPass(
 // Java: TranspilationPasses.getEs6RewriteDestructuring(ObjectDestructuringRewriteMode)
 func TranspilationPasses_GetEs6RewriteDestructuring(rewriteMode Es6RewriteDestructuring_ObjectDestructuringRewriteMode) *PassFactory {
 	return makeTranspilationPass("Es6RewriteDestructuring", func(compiler AbstractCompiler) CompilerPass {
-		return NewEs6RewriteDestructuring_Builder(compiler).
-			SetDestructuringRewriteMode(rewriteMode).
-			Build()
+		return NewEs6RewriteDestructuring(compiler, rewriteMode)
 	})
 }
 

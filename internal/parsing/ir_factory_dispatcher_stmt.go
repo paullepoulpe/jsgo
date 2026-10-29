@@ -110,16 +110,6 @@ func (a *irFactory_TransformDispatcher_ScopeTracker_autoDecrement) Close() {
 	a.closed = true
 }
 
-// IRFactory_TransformDispatcher_AutoDecrement is a variant of AutoCloseable
-// that does not throw.
-//
-// Java: private interface IRFactory.TransformDispatcher.AutoDecrement extends AutoCloseable
-type IRFactory_TransformDispatcher_AutoDecrement interface {
-	Close()
-}
-
-var _ IRFactory_TransformDispatcher_AutoDecrement = (*irFactory_TransformDispatcher_ScopeTracker_autoDecrement)(nil)
-
 // IRFactory_TransformDispatcher_IdentifierType indicates the valid values
 // usages for an identifier.
 //

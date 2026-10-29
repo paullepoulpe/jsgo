@@ -26,14 +26,10 @@ import (
 
 // JSTypeColorIdHasher computes the ColorId of an ObjectType.
 type JSTypeColorIdHasher struct {
-	registry *rhino.JSTypeRegistry
-	// Go-only: language-adapter — an ImmutableMap keyed by ObjectType, whose
-	// equals/hashCode are JSType.equals/hashCode, so it is an
-	// ObjectLinkedHashMap rather than a Go-== keyed map.
-	standardColorObjectIds *jutil.ObjectLinkedHashMap[rhino.ObjectType, colors.ColorId]
-	standardColorByPtr     map[*rhino.JSTypeBase]colors.ColorId
-	hasher                 jutil.FarmHashFingerprint64Hasher
-	hashOwnPropFn          func(string)
+	registry           *rhino.JSTypeRegistry
+	standardColorByPtr map[*rhino.JSTypeBase]colors.ColorId
+	hasher             jutil.FarmHashFingerprint64Hasher
+	hashOwnPropFn      func(string)
 }
 
 func (h *JSTypeColorIdHasher) onOwnProp(prop string) {
@@ -57,19 +53,6 @@ func (h *JSTypeColorIdHasher) initStandardColorByPtr() {
 	h.standardColorByPtr = standardColorByPtr
 }
 
-func (h *JSTypeColorIdHasher) initStandardColorObjectIds() {
-	standardColorObjectIds := jutil.NewObjectLinkedHashMap[rhino.ObjectType, colors.ColorId]()
-	for _, entry := range jsTypeColorIdHasherNativeEntries {
-		k := h.registry.GetNativeObjectType(entry.native)
-		if old, ok := standardColorObjectIds.Lookup(k); ok {
-			panic(jutil.NewIllegalArgumentExceptionMsg("Multiple entries with same key: " +
-				k.String() + "=" + entry.id.String() + " and " + k.String() + "=" + old.String()))
-		}
-		standardColorObjectIds.Put(k, entry.id)
-	}
-	h.standardColorObjectIds = standardColorObjectIds
-}
-
 // Java: JSTypeColorIdHasher.hashObjectType(ObjectType)
 func (h *JSTypeColorIdHasher) HashObjectType(type_ rhino.ObjectType) colors.ColorId {
 	jutil.CheckStateMsg1(
@@ -90,11 +73,19 @@ func (h *JSTypeColorIdHasher) HashObjectType(type_ rhino.ObjectType) colors.Colo
 			return boxId
 		}
 		if type_.IsNamedType() {
-			if h.standardColorObjectIds == nil {
-				h.initStandardColorObjectIds()
+			cur := rhino.JSType(type_)
+			for cur != nil && cur.IsNamedType() {
+				cur = cur.ToMaybeNamedType().GetReferencedType()
 			}
-			if boxId, ok := h.standardColorObjectIds.Lookup(type_); ok {
-				return boxId
+			if cur != nil {
+				if boxId, ok := h.standardColorByPtr[cur.GetJSTypeBase()]; ok {
+					return boxId
+				}
+			}
+			for _, entry := range jsTypeColorIdHasherNativeEntries {
+				if h.registry.GetNativeObjectType(entry.native).Equals(type_) {
+					return entry.id
+				}
 			}
 		}
 	}

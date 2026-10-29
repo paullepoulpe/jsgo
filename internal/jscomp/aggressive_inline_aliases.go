@@ -682,15 +682,14 @@ func (a *InlineAndCollapseProperties_AggressiveInlineAliases) InlineGlobalAliasI
 		} else {
 			lvalue = aliasParent.GetFirstChild()
 		}
-		lvalueName, ok := lvalue.GetQualifiedNameString()
-		if !ok {
+		if lvalue.IsNil() || !lvalue.IsQualifiedName() {
 			return
 		}
 		if lvalue.IsName() &&
-			a.outer.compiler.GetCodingConvention().IsExportedWithLocal(lvalueName /* local= */, false) {
+			a.outer.compiler.GetCodingConvention().IsExportedWithLocal(lvalue.GetString() /* local= */, false) {
 			return
 		}
-		aliasingName, _ := namespace.GetSlot(lvalueName).(*GlobalNamespace_Name)
+		aliasingName, _ := namespace.lookupGlobalNode(lvalue)
 
 		if aliasingName == nil {
 			// this is true for names in externs or properties on extern names

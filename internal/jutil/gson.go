@@ -35,6 +35,7 @@ import (
 	"reflect"
 	"strconv"
 	"strings"
+	"sync"
 )
 
 // Go-only: language-adapter — the parts of com.google.gson.Gson (2.9.1, as
@@ -49,8 +50,8 @@ import (
 // accepted, exactly as in Java. Only the trailing-data check
 // (assertFullConsumption) runs in strict mode.
 
-// GsonBuildConfig_VERSION is GsonBuildConfig.VERSION of the shaded Gson.
-const GsonBuildConfig_VERSION = "2.9.1"
+// gsonBuildConfig_VERSION is GsonBuildConfig.VERSION of the shaded Gson.
+const gsonBuildConfig_VERSION = "2.9.1"
 
 // Gson is com.google.gson.Gson with its default configuration, or the
 // configuration of a GsonBuilder (gson_to_json.go).
@@ -194,14 +195,14 @@ func gson_assertFullConsumptionErr(obj JsonElement, reader *JsonReader) (parseEr
 	}
 	Try(func() {
 		if reader.Peek() != JsonToken_END_DOCUMENT {
-			parseErr = NewJsonSyntaxException("JSON document was not fully consumed.")
+			parseErr = newJsonSyntaxException("JSON document was not fully consumed.")
 		}
 	}, func(t Throwable) {
 		switch e := t.(type) {
-		case IMalformedJsonException:
+		case *malformedJsonException:
 			parseErr = NewJsonSyntaxExceptionWithCause(e)
 		case IIOException:
-			parseErr = NewJsonIOExceptionWithCause(e)
+			parseErr = newJsonIOExceptionWithCause(e)
 		default:
 			panic(t)
 		}
@@ -233,7 +234,7 @@ func (g *Gson) fromJsonReaderErr(reader *JsonReader, typeOfT gsonRequestedType) 
 		case IIOException:
 			parseErr = NewJsonSyntaxExceptionWithCause(e)
 		case *AssertionError:
-			error_ := NewAssertionError("AssertionError (GSON " + GsonBuildConfig_VERSION + "): " + javaMessageOrNull(e))
+			error_ := NewAssertionError("AssertionError (GSON " + gsonBuildConfig_VERSION + "): " + javaMessageOrNull(e))
 			error_.InitCause(e)
 			panic(error_)
 		default:
@@ -244,10 +245,10 @@ func (g *Gson) fromJsonReaderErr(reader *JsonReader, typeOfT gsonRequestedType) 
 }
 
 func gson_typeHierarchyAdapterReadErr(in *JsonReader, requestedType gsonRequestedType) (JsonElement, IJsonParseException) {
-	result := TypeAdapters_JSON_ELEMENT_Read(in)
+	result := typeAdapters_JSON_ELEMENT_Read(in)
 	if result != nil && !requestedType.isInstance(result) {
-		return nil, NewJsonSyntaxException("Expected a " + requestedType.getName() +
-			" but was " + jsonElementClassName(result) + "; at path " + in.GetPreviousPath())
+		return nil, newJsonSyntaxException("Expected a " + requestedType.getName() +
+			" but was " + jsonElementClassName(result) + "; at path " + in.getPreviousPath())
 	}
 	return result, nil
 }
@@ -287,11 +288,11 @@ func typeAdapters_readTerminal(in *JsonReader, peeked JsonToken) JsonElement {
 	}
 }
 
-// TypeAdapters_JSON_ELEMENT_Read is TypeAdapters.JSON_ELEMENT.read: reads a
+// typeAdapters_JSON_ELEMENT_Read is TypeAdapters.JSON_ELEMENT.read: reads a
 // whole JSON value into a tree, iteratively.
 //
 // Java: TypeAdapters.JSON_ELEMENT.read(JsonReader)
-func TypeAdapters_JSON_ELEMENT_Read(in *JsonReader) JsonElement {
+func typeAdapters_JSON_ELEMENT_Read(in *JsonReader) JsonElement {
 	peeked := in.Peek()
 	current := typeAdapters_tryBeginNesting(in, peeked)
 	if current == nil {
@@ -340,10 +341,10 @@ func TypeAdapters_JSON_ELEMENT_Read(in *JsonReader) JsonElement {
 	}
 }
 
-// TypeAdapters_JSON_ELEMENT_Write is TypeAdapters.JSON_ELEMENT.write.
+// typeAdapters_JSON_ELEMENT_Write is TypeAdapters.JSON_ELEMENT.write.
 //
 // Java: TypeAdapters.JSON_ELEMENT.write(JsonWriter, JsonElement)
-func TypeAdapters_JSON_ELEMENT_Write(out *JsonWriter, value JsonElement) {
+func typeAdapters_JSON_ELEMENT_Write(out *JsonWriter, value JsonElement) {
 	if value == nil {
 		out.NullValue()
 		return
@@ -353,7 +354,7 @@ func TypeAdapters_JSON_ELEMENT_Write(out *JsonWriter, value JsonElement) {
 		out.NullValue()
 	case *JsonPrimitive:
 		if v.IsNumber() {
-			out.ValueNumber(v.GetAsNumber())
+			out.ValueNumber(v.getAsNumber())
 		} else if v.IsBoolean() {
 			out.ValueBoolean(v.GetAsBoolean())
 		} else {
@@ -363,14 +364,14 @@ func TypeAdapters_JSON_ELEMENT_Write(out *JsonWriter, value JsonElement) {
 	case *JsonArray:
 		out.BeginArray()
 		for e := range v.All() {
-			TypeAdapters_JSON_ELEMENT_Write(out, e)
+			typeAdapters_JSON_ELEMENT_Write(out, e)
 		}
 		out.EndArray()
 	case *JsonObject:
 		out.BeginObject()
 		for k, elem := range v.EntrySet().All() {
 			out.Name(k)
-			TypeAdapters_JSON_ELEMENT_Write(out, elem)
+			typeAdapters_JSON_ELEMENT_Write(out, elem)
 		}
 		out.EndObject()
 	default:
@@ -382,7 +383,13 @@ func TypeAdapters_JSON_ELEMENT_Write(out *JsonWriter, value JsonElement) {
 //
 // Java: Streams.write(JsonElement, JsonWriter)
 func Streams_Write(element JsonElement, writer *JsonWriter) {
-	TypeAdapters_JSON_ELEMENT_Write(writer, element)
+	typeAdapters_JSON_ELEMENT_Write(writer, element)
+}
+
+// GsonWritable is implemented by Go types that stream their own JSON
+// representation directly to JsonWriter without reflection.
+type GsonWritable interface {
+	WriteGson(out *JsonWriter)
 }
 
 // TypeAdapter is com.google.gson.TypeAdapter: converts Java objects to and
@@ -404,25 +411,25 @@ type TypeAdapter interface {
 //
 // Java: Gson.toJson(Object)
 func (g *Gson) ToJson(src any) string {
-	if IsNil(src) {
+	if src == nil {
 		return g.ToJsonElement(JsonNull_INSTANCE)
 	}
 	var writer strings.Builder
-	g.ToJsonWithWriter(src, g.NewJsonWriter(&writer))
+	g.toJsonWithWriter(src, g.NewJsonWriter(&writer))
 	return writer.String()
 }
 
-// ToJsonWithWriter writes the JSON representation of src to writer, with
+// toJsonWithWriter writes the JSON representation of src to writer, with
 // the writer's lenient, htmlSafe and serializeNulls settings replaced by
 // this Gson's for the duration of the call.
 //
 // Java: Gson.toJson(Object, Type, JsonWriter)
-func (g *Gson) ToJsonWithWriter(src any, writer *JsonWriter) {
+func (g *Gson) toJsonWithWriter(src any, writer *JsonWriter) {
 	oldLenient := writer.IsLenient()
 	writer.SetLenient(true)
-	oldHtmlSafe := writer.IsHtmlSafe()
+	oldHtmlSafe := writer.isHtmlSafe()
 	writer.SetHtmlSafe(g.htmlSafe)
-	oldSerializeNulls := writer.GetSerializeNulls()
+	oldSerializeNulls := writer.getSerializeNulls()
 	writer.SetSerializeNulls(g.serializeNulls)
 	defer func() {
 		writer.SetLenient(oldLenient)
@@ -440,9 +447,9 @@ func (g *Gson) ToJsonElement(jsonElement JsonElement) string {
 	jsonWriter := g.NewJsonWriter(&writer)
 	oldLenient := jsonWriter.IsLenient()
 	jsonWriter.SetLenient(true)
-	oldHtmlSafe := jsonWriter.IsHtmlSafe()
+	oldHtmlSafe := jsonWriter.isHtmlSafe()
 	jsonWriter.SetHtmlSafe(g.htmlSafe)
-	oldSerializeNulls := jsonWriter.GetSerializeNulls()
+	oldSerializeNulls := jsonWriter.getSerializeNulls()
 	jsonWriter.SetSerializeNulls(g.serializeNulls)
 	defer func() {
 		jsonWriter.SetLenient(oldLenient)
@@ -456,10 +463,10 @@ func (g *Gson) ToJsonElement(jsonElement JsonElement) string {
 func gson_wrapWriteExceptions(write func()) {
 	Try(func() {
 		Try(write, func(e IIOException) {
-			panic(NewJsonIOExceptionWithCause(e))
+			panic(newJsonIOExceptionWithCause(e))
 		})
 	}, func(e *AssertionError) {
-		err := NewAssertionError("AssertionError (GSON " + GsonBuildConfig_VERSION + "): " + javaMessageOrNull(e))
+		err := NewAssertionError("AssertionError (GSON " + gsonBuildConfig_VERSION + "): " + javaMessageOrNull(e))
 		err.InitCause(e)
 		panic(err)
 	})
@@ -471,7 +478,7 @@ func gson_wrapWriteExceptions(write func()) {
 func (g *Gson) NewJsonWriter(writer io.StringWriter) *JsonWriter {
 	jsonWriter := NewJsonWriter(writer)
 	if g.prettyPrinting {
-		jsonWriter.SetIndent("  ")
+		jsonWriter.setIndent("  ")
 	}
 	jsonWriter.SetHtmlSafe(g.htmlSafe)
 	jsonWriter.SetLenient(g.lenient)
@@ -480,36 +487,140 @@ func (g *Gson) NewJsonWriter(writer io.StringWriter) *JsonWriter {
 }
 
 func (g *Gson) writeValue(out *JsonWriter, value any) {
-	if IsNil(value) {
+	if value == nil {
 		out.NullValue()
 		return
 	}
+	if len(g.factoriesToBeAdded) == 0 {
+		if w, ok := value.(GsonWritable); ok {
+			w.WriteGson(out)
+			return
+		}
+	}
 	if e, ok := value.(JsonElement); ok {
-		TypeAdapters_JSON_ELEMENT_Write(out, e)
+		if IsNil(e) {
+			out.NullValue()
+			return
+		}
+		typeAdapters_JSON_ELEMENT_Write(out, e)
 		return
 	}
-	for _, f := range g.factoriesToBeAdded {
-		if f.baseType(value) {
-			f.typeAdapter.Write(out, value)
+	if len(g.factoriesToBeAdded) > 0 {
+		if IsNil(value) {
+			out.NullValue()
+			return
+		}
+		for _, f := range g.factoriesToBeAdded {
+			if f.baseType(value) {
+				f.typeAdapter.Write(out, value)
+				return
+			}
+		}
+		if w, ok := value.(GsonWritable); ok {
+			w.WriteGson(out)
 			return
 		}
 	}
 	switch v := value.(type) {
-	case gson_collection:
+	case string:
+		out.ValueString(&v)
+		return
+	case *string:
+		out.ValueString(v)
+		return
+	case bool:
+		out.ValueBoolean(v)
+		return
+	case int:
+		out.ValueNumber(gson_javaInteger(v))
+		return
+	case int32:
+		out.ValueNumber(gson_javaInteger(v))
+		return
+	case int64:
+		out.ValueNumber(gson_javaInteger(v))
+		return
+	case int16:
+		out.ValueNumber(gson_javaInteger(v))
+		return
+	case int8:
+		out.ValueNumber(gson_javaInteger(v))
+		return
+	case uint16:
+		s := StringFromChar(v)
+		out.ValueString(&s)
+		return
+	case float64:
+		gson_checkValidFloatingPoint(v)
+		out.ValueNumber(gson_javaDouble(v))
+		return
+	case []any:
+		if v == nil {
+			out.NullValue()
+			return
+		}
 		out.BeginArray()
-		for _, element := range v.gsonElements() {
+		for _, element := range v {
 			g.writeValue(out, element)
 		}
 		out.EndArray()
 		return
-	case gson_map:
-		out.BeginObject()
-		keys, values := v.gsonEntries()
-		for i, key := range keys {
-			out.Name(ToJavaString(key))
-			g.writeValue(out, values[i])
+	case []string:
+		if v == nil {
+			out.NullValue()
+			return
 		}
-		out.EndObject()
+		out.BeginArray()
+		for i := range v {
+			if len(g.factoriesToBeAdded) == 0 {
+				out.ValueString(&v[i])
+			} else {
+				g.writeValue(out, v[i])
+			}
+		}
+		out.EndArray()
+		return
+	case []*string:
+		if v == nil {
+			out.NullValue()
+			return
+		}
+		out.BeginArray()
+		for _, element := range v {
+			if element == nil {
+				out.NullValue()
+			} else if len(g.factoriesToBeAdded) == 0 {
+				out.ValueString(element)
+			} else {
+				g.writeValue(out, *element)
+			}
+		}
+		out.EndArray()
+		return
+	case []int32:
+		if v == nil {
+			out.NullValue()
+			return
+		}
+		out.BeginArray()
+		for _, element := range v {
+			if len(g.factoriesToBeAdded) == 0 {
+				out.ValueNumber(gson_javaInteger(element))
+			} else {
+				g.writeValue(out, element)
+			}
+		}
+		out.EndArray()
+		return
+	case gson_collection:
+		v.writeGsonCollection(g, out)
+		return
+	case gson_map:
+		v.writeGsonMap(g, out)
+		return
+	}
+	if IsNil(value) {
+		out.NullValue()
 		return
 	}
 	g.writeReflectValue(out, reflect.ValueOf(value))
@@ -592,7 +703,12 @@ type gson_boundField struct {
 	index []int
 }
 
+var gsonBoundFieldsCache sync.Map // map[reflect.Type][]gson_boundField
+
 func gson_boundFields(t reflect.Type) []gson_boundField {
+	if cached, ok := gsonBoundFieldsCache.Load(t); ok {
+		return cached.([]gson_boundField)
+	}
 	var fields []gson_boundField
 	seen := map[string]bool{}
 	var collect func(t reflect.Type, prefix []int)
@@ -625,6 +741,7 @@ func gson_boundFields(t reflect.Type) []gson_boundField {
 		}
 	}
 	collect(t, nil)
+	gsonBoundFieldsCache.Store(t, fields)
 	return fields
 }
 
@@ -651,43 +768,61 @@ func (n gson_javaDouble) DoubleValue() float64 { return float64(n) }
 func (n gson_javaDouble) String() string       { return DoubleToString(float64(n)) }
 
 type gson_collection interface {
-	gsonElements() []any
+	writeGsonCollection(g *Gson, out *JsonWriter)
 }
 
 type gson_map interface {
-	gsonEntries() (keys []any, values []any)
+	writeGsonMap(g *Gson, out *JsonWriter)
 }
 
-func (s *LinkedHashSet[T]) gsonElements() []any {
-	out := make([]any, 0, s.Size())
+func (s *LinkedHashSet[T]) writeGsonCollection(g *Gson, out *JsonWriter) {
+	if s == nil {
+		out.NullValue()
+		return
+	}
+	out.BeginArray()
 	for e := range s.All() {
-		out = append(out, e)
+		g.writeValue(out, e)
 	}
-	return out
+	out.EndArray()
 }
 
-func (s *ObjectLinkedHashSet[T]) gsonElements() []any {
-	var out []any
+func (s *ObjectLinkedHashSet[T]) writeGsonCollection(g *Gson, out *JsonWriter) {
+	if s == nil {
+		out.NullValue()
+		return
+	}
+	out.BeginArray()
 	for e := range s.All() {
-		out = append(out, e)
+		g.writeValue(out, e)
 	}
-	return out
+	out.EndArray()
 }
 
-func (h *LinkedHashMap[K, V]) gsonEntries() (keys []any, values []any) {
-	for k, v := range h.All() {
-		keys = append(keys, k)
-		values = append(values, v)
+func (h *LinkedHashMap[K, V]) writeGsonMap(g *Gson, out *JsonWriter) {
+	if h == nil {
+		out.NullValue()
+		return
 	}
-	return keys, values
+	out.BeginObject()
+	for k, v := range h.All() {
+		out.Name(ToJavaString(k))
+		g.writeValue(out, v)
+	}
+	out.EndObject()
 }
 
-func (h *ObjectLinkedHashMap[K, V]) gsonEntries() (keys []any, values []any) {
-	for k, v := range h.All() {
-		keys = append(keys, k)
-		values = append(values, v)
+func (h *ObjectLinkedHashMap[K, V]) writeGsonMap(g *Gson, out *JsonWriter) {
+	if h == nil {
+		out.NullValue()
+		return
 	}
-	return keys, values
+	out.BeginObject()
+	for k, v := range h.All() {
+		out.Name(ToJavaString(k))
+		g.writeValue(out, v)
+	}
+	out.EndObject()
 }
 
 // Go-only: language-adapter — com.google.gson.GsonBuilder (Gson 2.9.1, as
@@ -705,7 +840,7 @@ type gson_typeHierarchyFactory struct {
 // GsonBuilder is com.google.gson.GsonBuilder (the settings toJson uses).
 type GsonBuilder struct {
 	hierarchyFactories []*gson_typeHierarchyFactory
-	serializeNulls     bool
+	serializeNullsFlag bool
 	prettyPrinting     bool
 	escapeHtmlChars    bool
 }
@@ -717,11 +852,11 @@ func NewGsonBuilder() *GsonBuilder {
 	return &GsonBuilder{escapeHtmlChars: true}
 }
 
-// SerializeNulls makes Gson serialize null fields and map values.
+// serializeNulls makes Gson serialize null fields and map values.
 //
 // Java: GsonBuilder.serializeNulls()
-func (b *GsonBuilder) SerializeNulls() *GsonBuilder {
-	b.serializeNulls = true
+func (b *GsonBuilder) serializeNulls() *GsonBuilder {
+	b.serializeNullsFlag = true
 	return b
 }
 
@@ -764,7 +899,7 @@ func (b *GsonBuilder) Create() *Gson {
 	}
 	return &Gson{
 		lenient:            false,
-		serializeNulls:     b.serializeNulls,
+		serializeNulls:     b.serializeNullsFlag,
 		htmlSafe:           b.escapeHtmlChars,
 		prettyPrinting:     b.prettyPrinting,
 		factoriesToBeAdded: factories,
@@ -778,78 +913,70 @@ func (b *GsonBuilder) Create() *Gson {
 // closure-compiler.jar.
 const GsonPackage = "com.google.javascript.jscomp.jarjar.com.google.gson"
 
-// EOFException is java.io.EOFException.
-type EOFException struct{ IOException }
+// eofException is java.io.EOFException.
+type eofException struct{ IOException }
 
-func (*EOFException) eofException() {}
+func (*eofException) isEOFException() {}
 
 // IEOFException matches EOFException.
 type IEOFException interface {
 	IIOException
-	eofException()
+	isEOFException()
 }
 
-// NewEOFException is new EOFException(String).
-func NewEOFException(message string) *EOFException {
-	e := &EOFException{}
+// newEOFException is new EOFException(String).
+func newEOFException(message string) *eofException {
+	e := &eofException{}
 	InitThrowable(e, "java.io.EOFException", msgPtr(message), nil)
 	return e
 }
 
-// MalformedJsonException is com.google.gson.stream.MalformedJsonException
+// malformedJsonException is com.google.gson.stream.MalformedJsonException
 // (an IOException).
-type MalformedJsonException struct{ IOException }
+type malformedJsonException struct{ IOException }
 
-func (*MalformedJsonException) malformedJsonException() {}
-
-// IMalformedJsonException matches MalformedJsonException.
-type IMalformedJsonException interface {
-	IIOException
-	malformedJsonException()
-}
-
-// NewMalformedJsonException is new MalformedJsonException(String).
-func NewMalformedJsonException(msg string) *MalformedJsonException {
-	e := &MalformedJsonException{}
+// newMalformedJsonException is new MalformedJsonException(String).
+func newMalformedJsonException(msg string) *malformedJsonException {
+	e := &malformedJsonException{}
 	InitThrowable(e, GsonPackage+".stream.MalformedJsonException", msgPtr(msg), nil)
 	return e
 }
 
-// JsonParseException is com.google.gson.JsonParseException (a
+// jsonParseException is com.google.gson.JsonParseException (a
 // RuntimeException).
-type JsonParseException struct{ RuntimeException }
+type jsonParseException struct{ RuntimeException }
 
-func (*JsonParseException) jsonParseException() {}
+func (*jsonParseException) isJsonParseException() {}
 
 // IJsonParseException matches JsonParseException and its subclasses.
 type IJsonParseException interface {
 	IRuntimeException
-	jsonParseException()
+	isJsonParseException()
 }
 
-// JsonSyntaxException is com.google.gson.JsonSyntaxException.
-type JsonSyntaxException struct{ JsonParseException }
+// jsonSyntaxException is com.google.gson.JsonSyntaxException.
+type jsonSyntaxException struct{ jsonParseException }
 
-// NewJsonSyntaxException is new JsonSyntaxException(String).
-func NewJsonSyntaxException(msg string) *JsonSyntaxException {
-	e := &JsonSyntaxException{}
+// newJsonSyntaxException is new JsonSyntaxException(String).
+func newJsonSyntaxException(msg string) *jsonSyntaxException {
+	e := &jsonSyntaxException{}
 	InitThrowable(e, GsonPackage+".JsonSyntaxException", msgPtr(msg), nil)
 	return e
 }
 
 // NewJsonSyntaxExceptionWithCause is new JsonSyntaxException(Throwable).
-func NewJsonSyntaxExceptionWithCause(cause Throwable) *JsonSyntaxException {
-	e := &JsonSyntaxException{}
+func NewJsonSyntaxExceptionWithCause(cause Throwable) IJsonParseException {
+	e := &jsonSyntaxException{}
 	InitThrowable(e, GsonPackage+".JsonSyntaxException", nil, cause)
 	return e
 }
 
-// JsonIOException is com.google.gson.JsonIOException.
-type JsonIOException struct{ JsonParseException }
+// jsonIOException is com.google.gson.JsonIOException.
+type jsonIOException struct{ jsonParseException }
 
-// NewJsonIOExceptionWithCause is new JsonIOException(Throwable).
-func NewJsonIOExceptionWithCause(cause Throwable) *JsonIOException {
-	e := &JsonIOException{}
+// newJsonIOExceptionWithCause is new JsonIOException(Throwable).
+func newJsonIOExceptionWithCause(cause Throwable) *jsonIOException {
+	e := &jsonIOException{}
 	InitThrowable(e, GsonPackage+".JsonIOException", nil, cause)
 	return e
 }

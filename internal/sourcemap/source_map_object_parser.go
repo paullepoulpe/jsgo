@@ -42,6 +42,337 @@ func SourceMapObjectParser_Parse(contents string) *SourceMapObject {
 }
 
 func parseSourceMapObject(contents string) (*SourceMapObject, *SourceMapParseException) {
+	if obj, ok := tryParseStrictFast(contents); ok {
+		return obj, nil
+	}
+	return parseSourceMapObjectGson(contents)
+}
+
+// tryParseStrictFast parses standard strict-JSON V3 source maps directly via
+// SourceMapJsonLexer without allocating a Gson DOM. It returns (_, false) on
+// index maps ("sections"), missing "version", or non-strict / malformed JSON
+// so parseSourceMapObjectGson preserves exact Gson diagnostics and coercions.
+func tryParseStrictFast(contents string) (*SourceMapObject, bool) {
+	obj := &SourceMapObject{lineCount: -1}
+	lexer := NewSourceMapJsonLexer(contents)
+	if err := lexer.beginObject(); err != nil {
+		return nil, false
+	}
+	var extensions []SourceMapExtension
+	hasVersion := false
+
+	for lexer.HasNext() {
+		name, ok := strictNextName(lexer)
+		if !ok {
+			return nil, false
+		}
+		switch name {
+		case "version":
+			v, ok := strictNextInt(lexer)
+			if !ok {
+				return nil, false
+			}
+			obj.version = v
+			hasVersion = true
+		case "file":
+			s, ok := strictNextStringOrNull(lexer)
+			if !ok {
+				return nil, false
+			}
+			obj.file = s
+		case "lineCount":
+			lc, ok := strictNextInt(lexer)
+			if !ok {
+				return nil, false
+			}
+			obj.lineCount = lc
+		case "mappings":
+			m, ok := strictNextStringOrNull(lexer)
+			if !ok {
+				return nil, false
+			}
+			obj.mappings = m
+		case "sourceRoot":
+			sr, ok := strictNextStringOrNull(lexer)
+			if !ok {
+				return nil, false
+			}
+			obj.sourceRoot = sr
+		case "sections":
+			return nil, false
+		case "sources":
+			arr, ok := strictReadOptionalStringArray(lexer)
+			if !ok {
+				return nil, false
+			}
+			obj.sources = arr
+		case "sourcesContent":
+			arr, ok := strictReadOptionalStringArray(lexer)
+			if !ok {
+				return nil, false
+			}
+			obj.sourcesContent = arr
+		case "names":
+			arr, ok := strictReadOptionalStringArray(lexer)
+			if !ok {
+				return nil, false
+			}
+			obj.names = arr
+		default:
+			if strings.HasPrefix(name, "x_") {
+				lexer.SkipWhitespace()
+				start := lexer.pos
+				if !strictSkipValue(lexer) {
+					return nil, false
+				}
+				elem, parseEx := sourceMapObjectParser_gson.TryFromJsonElement(lexer.json[start:lexer.pos])
+				if parseEx != nil {
+					return nil, false
+				}
+				extensions = putExtension(extensions, name, elem)
+			} else if !strictSkipValue(lexer) {
+				return nil, false
+			}
+		}
+		if err := lexer.checkComma(); err != nil {
+			return nil, false
+		}
+	}
+	if !hasVersion || lexer.endObject() != nil {
+		return nil, false
+	}
+	lexer.SkipWhitespace()
+	if lexer.pos != lexer.length {
+		return nil, false
+	}
+	obj.extensions = extensions
+	return obj, true
+}
+
+func strictNextString(l *SourceMapJsonLexer) (string, bool) {
+	l.SkipWhitespace()
+	if l.pos >= l.length || l.json[l.pos] != '"' {
+		return "", false
+	}
+	start := l.pos + 1
+	pos := start
+	hasEscape := false
+	for pos < l.length {
+		c := l.json[pos]
+		if c < 0x20 {
+			return "", false
+		}
+		if c == '"' {
+			break
+		}
+		if c == '\\' {
+			hasEscape = true
+			if pos+1 >= l.length {
+				return "", false
+			}
+			switch l.json[pos+1] {
+			case '"', '\\', '/', 'b', 'f', 'n', 'r', 't':
+				pos += 2
+			case 'u':
+				if pos+6 > l.length {
+					return "", false
+				}
+				if _, ok := parseHex4ASCII(l.json[pos+2 : pos+6]); !ok {
+					return "", false
+				}
+				pos += 6
+			default:
+				return "", false
+			}
+			continue
+		}
+		pos++
+	}
+	if pos >= l.length {
+		return "", false
+	}
+	var res string
+	if !hasEscape {
+		res = l.json[start:pos]
+	} else {
+		var err error
+		res, err = sourceMapJsonLexer_unescape(l.json, start, pos)
+		if err != nil {
+			return "", false
+		}
+	}
+	l.pos = pos + 1
+	return res, true
+}
+
+func strictNextName(l *SourceMapJsonLexer) (string, bool) {
+	name, ok := strictNextString(l)
+	if !ok {
+		return "", false
+	}
+	l.SkipWhitespace()
+	if l.pos >= l.length || l.json[l.pos] != ':' {
+		return "", false
+	}
+	l.pos++
+	return name, true
+}
+
+func strictNextStringOrNull(l *SourceMapJsonLexer) (optionalString, bool) {
+	l.SkipWhitespace()
+	if l.startsWith("null", l.pos) {
+		l.pos += 4
+		return optionalString{}, true
+	}
+	s, ok := strictNextString(l)
+	if !ok {
+		return optionalString{}, false
+	}
+	return optionalString{text: s, present: true}, true
+}
+
+func strictNextInt(l *SourceMapJsonLexer) (int, bool) {
+	l.SkipWhitespace()
+	start := l.pos
+	if l.pos < l.length && l.json[l.pos] == '-' {
+		l.pos++
+	}
+	if l.pos >= l.length || l.json[l.pos] < '0' || l.json[l.pos] > '9' {
+		return 0, false
+	}
+	if l.json[l.pos] == '0' {
+		l.pos++
+	} else {
+		for l.pos < l.length && l.json[l.pos] >= '0' && l.json[l.pos] <= '9' {
+			l.pos++
+		}
+	}
+	if l.pos < l.length {
+		c := l.json[l.pos]
+		if c == '.' || c == 'e' || c == 'E' || (c >= '0' && c <= '9') {
+			return 0, false
+		}
+	}
+	v, ok := sourceMapJsonLexer_parseInt(l.json, start, l.pos, 10)
+	if !ok {
+		return 0, false
+	}
+	return int(v), true
+}
+
+func strictReadOptionalStringArray(l *SourceMapJsonLexer) ([]optionalString, bool) {
+	l.SkipWhitespace()
+	if l.startsWith("null", l.pos) {
+		l.pos += 4
+		return nil, true
+	}
+	if l.beginArray() != nil {
+		return nil, false
+	}
+	list := []optionalString{}
+	for l.HasNext() {
+		s, ok := strictNextStringOrNull(l)
+		if !ok {
+			return nil, false
+		}
+		list = append(list, s)
+		if l.checkComma() != nil {
+			return nil, false
+		}
+	}
+	if l.endArray() != nil {
+		return nil, false
+	}
+	return list, true
+}
+
+func strictSkipValue(l *SourceMapJsonLexer) bool {
+	l.SkipWhitespace()
+	if l.pos >= l.length {
+		return false
+	}
+	switch c := l.json[l.pos]; {
+	case c == '{':
+		l.pos++
+		for l.HasNext() {
+			if _, ok := strictNextName(l); !ok {
+				return false
+			}
+			if !strictSkipValue(l) || l.checkComma() != nil {
+				return false
+			}
+		}
+		return l.endObject() == nil
+	case c == '[':
+		l.pos++
+		for l.HasNext() {
+			if !strictSkipValue(l) || l.checkComma() != nil {
+				return false
+			}
+		}
+		return l.endArray() == nil
+	case c == '"':
+		_, ok := strictNextString(l)
+		return ok
+	case c == 't' && l.startsWith("true", l.pos):
+		l.pos += 4
+		return true
+	case c == 'f' && l.startsWith("false", l.pos):
+		l.pos += 5
+		return true
+	case c == 'n' && l.startsWith("null", l.pos):
+		l.pos += 4
+		return true
+	case c == '-' || (c >= '0' && c <= '9'):
+		start := l.pos
+		if c == '-' {
+			l.pos++
+		}
+		if l.pos >= l.length || l.json[l.pos] < '0' || l.json[l.pos] > '9' {
+			return false
+		}
+		if l.json[l.pos] == '0' {
+			l.pos++
+			if l.pos < l.length && l.json[l.pos] >= '0' && l.json[l.pos] <= '9' {
+				return false
+			}
+		} else {
+			for l.pos < l.length && l.json[l.pos] >= '0' && l.json[l.pos] <= '9' {
+				l.pos++
+			}
+		}
+		if l.pos < l.length && l.json[l.pos] == '.' {
+			l.pos++
+			if l.pos >= l.length || l.json[l.pos] < '0' || l.json[l.pos] > '9' {
+				return false
+			}
+			for l.pos < l.length && l.json[l.pos] >= '0' && l.json[l.pos] <= '9' {
+				l.pos++
+			}
+		}
+		if l.pos < l.length && (l.json[l.pos] == 'e' || l.json[l.pos] == 'E') {
+			l.pos++
+			if l.pos < l.length && (l.json[l.pos] == '+' || l.json[l.pos] == '-') {
+				l.pos++
+			}
+			if l.pos >= l.length || l.json[l.pos] < '0' || l.json[l.pos] > '9' {
+				return false
+			}
+			expStart := l.pos
+			for l.pos < l.length && l.json[l.pos] >= '0' && l.json[l.pos] <= '9' {
+				l.pos++
+			}
+			if l.pos-expStart > 3 {
+				return false
+			}
+		}
+		return l.pos-start <= 32
+	default:
+		return false
+	}
+}
+
+func parseSourceMapObjectGson(contents string) (*SourceMapObject, *SourceMapParseException) {
 	sourceMapRoot, parseEx := sourceMapObjectParser_gson.TryFromJsonObject(contents)
 	if parseEx != nil {
 		return nil, NewSourceMapParseException("JSON parse exception: " + parseEx.Error())

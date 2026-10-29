@@ -228,10 +228,10 @@ func (v *VarCheck) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 //
 // Java: VarCheck.checkName(NodeTraversal, Node, Node)
 func (v *VarCheck) CheckName(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
-	varName := n.GetString()
+	id := n.GetStringID()
 
 	// Only a function can have an empty name.
-	if varName == "" {
+	if id == rhino.RhinoStringPool_EmptyID {
 		// Name is optional for function expressions
 		// x = function() {...}
 		// Arrow functions are also expressions and cannot have a name
@@ -244,7 +244,7 @@ func (v *VarCheck) CheckName(t *NodeTraversal, n rhino.Node, parent rhino.Node) 
 		return
 	}
 
-	var_ := t.LookupVar(varName)
+	var_ := t.LookupVarByID(id)
 
 	// Check that the var has been declared.
 	if var_ == nil {
@@ -262,7 +262,7 @@ func (v *VarCheck) CheckName(t *NodeTraversal, n rhino.Node, parent rhino.Node) 
 		}
 
 		v.HandleUndeclaredVariableRef(t, n)
-		t.GetScope().GetGlobalScope().Declare(varName, n, v.compiler.GetSynthesizedExternsInput())
+		t.GetScope().GetGlobalScope().Declare(n.GetString(), n, v.compiler.GetSynthesizedExternsInput())
 
 		return
 	}
@@ -294,6 +294,7 @@ func (v *VarCheck) CheckName(t *NodeTraversal, n rhino.Node, parent rhino.Node) 
 		if chunkGraph.DependsOn(currChunk, varChunk) {
 			// The chunk dependency was properly declared.
 		} else {
+			varName := n.GetString()
 			if t.InGlobalScope() {
 				if chunkGraph.DependsOn(varChunk, currChunk) {
 					// The variable reference violates a declared chunk dependency.
@@ -485,12 +486,10 @@ func (c *VarCheck_NameRefInExternsCheck) Visit(t *NodeTraversal, n rhino.Node, p
 					// of goog.
 					return
 				}
-				nameStr := n.GetString()
-				scope := t.GetScope()
-				var_ := scope.GetVar(nameStr)
-				if var_ != nil {
+				if t.GetScope().GetVarByNode(n) != nil {
 					return
 				}
+				nameStr := n.GetString()
 				t.Report(n, VarCheck_UNDEFINED_EXTERN_VAR_ERROR, nameStr)
 				c.outer.addUndefinedNameFromExterns(nameStr)
 			}
@@ -519,9 +518,7 @@ func (c *VarCheck_NameRefInExternsCheck) Visit(t *NodeTraversal, n rhino.Node, p
 		}
 		nameStr := n.GetString()
 		t.Report(n, VarCheck_NAME_REFERENCE_IN_EXTERNS_ERROR, nameStr)
-		scope := t.GetScope()
-		var_ := scope.GetVar(nameStr)
-		if var_ == nil {
+		if t.GetScope().GetVarByNode(n) == nil {
 			c.outer.addUndefinedNameFromExterns(nameStr)
 		}
 	}

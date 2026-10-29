@@ -380,39 +380,29 @@ func (c *ClosureCheckModule) CheckJSDoc(t *NodeTraversal, jsDoc *rhino.JSDocInfo
 	}
 }
 
-// closureCheckModule_checkTypeExpressionVisitor is the anonymous
-// NodeUtil.Visitor of checkTypeExpression.
-type closureCheckModule_checkTypeExpressionVisitor struct {
-	outer *ClosureCheckModule
-	t     *NodeTraversal
-}
-
-// Java: ClosureCheckModule.checkTypeExpression(NodeTraversal, Node).new Visitor() {...}.visit(Node)
-func (v *closureCheckModule_checkTypeExpressionVisitor) Visit(node rhino.Node) {
-	if !node.IsStringLit() {
-		return
-	}
-
-	qname := node.GetString()
-	var nextQnamePart string
-	hasNextQnamePart := false
-
-	for v.outer.CheckImproperReferenceToImport(v.t, node, qname, nextQnamePart, hasNextQnamePart) {
-		lastDot := jutil.StringLastIndexOf(qname, ".")
-		if lastDot < 0 {
-			return
-		}
-		nextQnamePart = jutil.StringSubstringFrom(qname, lastDot+1)
-		hasNextQnamePart = true
-		qname = jutil.StringSubstring(qname, 0, lastDot)
-	}
-}
-
 // Java: ClosureCheckModule.checkTypeExpression(NodeTraversal, Node)
 func (c *ClosureCheckModule) CheckTypeExpression(t *NodeTraversal, typeNode rhino.Node) {
 	NodeUtil_VisitPreOrder(
 		typeNode,
-		&closureCheckModule_checkTypeExpressionVisitor{outer: c, t: t})
+		func(node rhino.Node) {
+			if !node.IsStringLit() {
+				return
+			}
+
+			qname := node.GetString()
+			var nextQnamePart string
+			hasNextQnamePart := false
+
+			for c.CheckImproperReferenceToImport(t, node, qname, nextQnamePart, hasNextQnamePart) {
+				lastDot := jutil.StringLastIndexOf(qname, ".")
+				if lastDot < 0 {
+					return
+				}
+				nextQnamePart = jutil.StringSubstringFrom(qname, lastDot+1)
+				hasNextQnamePart = true
+				qname = jutil.StringSubstring(qname, 0, lastDot)
+			}
+		})
 }
 
 // Java: ClosureCheckModule.isLocalVar(Var)

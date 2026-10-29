@@ -71,7 +71,7 @@ func (i *InjectTranspilationRuntimeLibraries) Process(externs rhino.Node, root r
 	// Check for references to class `extends` clauses
 	if !outputFeatures.Contains(used) {
 		NodeUtil_VisitPostOrderWithPred(
-			root, NodeUtil_VisitorFunc(i.CheckForClassExtends), func(unused rhino.Node) bool { return !i.injectedClassExtendsLibraries })
+			root, i.CheckForClassExtends, func(unused rhino.Node) bool { return !i.injectedClassExtendsLibraries })
 	}
 
 	mustBeCompiledAway := used.Without(outputFeatures)

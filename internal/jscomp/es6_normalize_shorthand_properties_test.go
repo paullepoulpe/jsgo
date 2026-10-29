@@ -74,7 +74,7 @@ func (c *Es6NormalizeShorthandPropertiesTest) TestNormalizationInSource() {
 			func(compiler *Compiler) {
 				NodeUtil_VisitPreOrder(
 					compiler.GetRoot(),
-					NodeUtil_VisitorFunc(Es6NormalizeShorthandPropertiesTest_AssertNotShorthandProperty))
+					Es6NormalizeShorthandPropertiesTest_AssertNotShorthandProperty)
 			}))
 }
 

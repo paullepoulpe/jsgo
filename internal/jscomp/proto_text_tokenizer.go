@@ -11,16 +11,9 @@
 
 // Go-only: language-adapter — protobuf is a leaf package (PORTING.md §2) and
 // its messages are reconstructed (proto_runtime.go, which already prints the
-// text format). This file translates the parsing half of
-// com.google.protobuf.TextFormat (the version shaded into the pinned
-// closure-compiler.jar): Tokenizer, ParseException,
-// InvalidEscapeSequenceException, Parser (merge, the skipping of unknown
-// fields) and unescapeBytes / parseInteger, over the generated builders'
-// MessageReflection.MergeTarget (proto_descriptors.go). The reconstructed
-// messages have no extensions, no google.protobuf.Any and no groups, and no
-// caller asks for a parse-info tree, so those branches are not translated;
-// an extension name always resolves to "unknown", as with an empty
-// ExtensionRegistry.
+// text format). This file translates Tokenizer, ParseException, and
+// unescapeBytes from com.google.protobuf.TextFormat (the version shaded into
+// the pinned closure-compiler.jar).
 
 package jscomp
 
@@ -90,12 +83,6 @@ func (t *TextFormat_Tokenizer) GetPreviousLine() int { return t.previousLine }
 
 // Java: TextFormat.Tokenizer.getPreviousColumn()
 func (t *TextFormat_Tokenizer) GetPreviousColumn() int { return t.previousColumn }
-
-// Java: TextFormat.Tokenizer.getLine()
-func (t *TextFormat_Tokenizer) GetLine() int { return t.line }
-
-// Java: TextFormat.Tokenizer.getColumn()
-func (t *TextFormat_Tokenizer) GetColumn() int { return t.column }
 
 // AtEnd: are we at the end of the input?
 //
@@ -357,7 +344,7 @@ func (t *TextFormat_Tokenizer) TryConsumeIdentifier() bool {
 func (t *TextFormat_Tokenizer) ConsumeInt32() int32 {
 	result, errMsg, ok := textFormat_parseInteger(t.currentToken, true, false)
 	if !ok {
-		panic(t.IntegerParseException(jutil.NewNumberFormatException(errMsg)))
+		panic(t.ParseException("Couldn't parse integer: " + errMsg))
 	}
 	t.NextToken()
 	return int32(result)
@@ -370,7 +357,7 @@ func (t *TextFormat_Tokenizer) ConsumeInt32() int32 {
 func (t *TextFormat_Tokenizer) ConsumeUInt32() int32 {
 	result, errMsg, ok := textFormat_parseInteger(t.currentToken, false, false)
 	if !ok {
-		panic(t.IntegerParseException(jutil.NewNumberFormatException(errMsg)))
+		panic(t.ParseException("Couldn't parse integer: " + errMsg))
 	}
 	t.NextToken()
 	return int32(result)
@@ -383,7 +370,7 @@ func (t *TextFormat_Tokenizer) ConsumeUInt32() int32 {
 func (t *TextFormat_Tokenizer) ConsumeInt64() int64 {
 	result, errMsg, ok := textFormat_parseInteger(t.currentToken, true, true)
 	if !ok {
-		panic(t.IntegerParseException(jutil.NewNumberFormatException(errMsg)))
+		panic(t.ParseException("Couldn't parse integer: " + errMsg))
 	}
 	t.NextToken()
 	return result
@@ -408,7 +395,7 @@ func (t *TextFormat_Tokenizer) TryConsumeInt64() bool {
 func (t *TextFormat_Tokenizer) ConsumeUInt64() int64 {
 	result, errMsg, ok := textFormat_parseInteger(t.currentToken, false, true)
 	if !ok {
-		panic(t.IntegerParseException(jutil.NewNumberFormatException(errMsg)))
+		panic(t.ParseException("Couldn't parse integer: " + errMsg))
 	}
 	t.NextToken()
 	return result
@@ -447,7 +434,7 @@ func (t *TextFormat_Tokenizer) parseDoubleToken() (float64, string, bool) {
 func (t *TextFormat_Tokenizer) ConsumeDouble() float64 {
 	result, errMsg, ok := t.parseDoubleToken()
 	if !ok {
-		panic(t.FloatParseException(jutil.NewNumberFormatException(errMsg)))
+		panic(t.ParseException("Couldn't parse number: " + errMsg))
 	}
 	t.NextToken()
 	return result
@@ -495,7 +482,7 @@ func (t *TextFormat_Tokenizer) parseFloatToken() (float32, string, bool) {
 func (t *TextFormat_Tokenizer) ConsumeFloat() float32 {
 	result, errMsg, ok := t.parseFloatToken()
 	if !ok {
-		panic(t.FloatParseException(jutil.NewNumberFormatException(errMsg)))
+		panic(t.ParseException("Couldn't parse number: " + errMsg))
 	}
 	t.NextToken()
 	return result
@@ -610,6 +597,156 @@ func (t *TextFormat_Tokenizer) parseByteStringToken() ([]byte, string, bool) {
 	return textFormat_unescapeBytes(escaped)
 }
 
+func textFormat_unescapeBytes(charString string) ([]byte, string, bool) {
+	input := jutil.StringGetBytesUTF8(charString)
+	result := make([]byte, 0, len(input))
+	for i := 0; i < len(input); i++ {
+		c := input[i]
+		if c == '\\' {
+			if i+1 < len(input) {
+				i++
+				c = input[i]
+				if textFormat_isOctal(c) {
+					code := textFormat_digitValue(c)
+					if i+1 < len(input) && textFormat_isOctal(input[i+1]) {
+						i++
+						code = code*8 + textFormat_digitValue(input[i])
+					}
+					if i+1 < len(input) && textFormat_isOctal(input[i+1]) {
+						i++
+						code = code*8 + textFormat_digitValue(input[i])
+					}
+					result = append(result, byte(code))
+				} else {
+					switch c {
+					case 'a':
+						result = append(result, 0x07)
+					case 'b':
+						result = append(result, '\b')
+					case 'f':
+						result = append(result, '\f')
+					case 'n':
+						result = append(result, '\n')
+					case 'r':
+						result = append(result, '\r')
+					case 't':
+						result = append(result, '\t')
+					case 'v':
+						result = append(result, 0x0b)
+					case '\\':
+						result = append(result, '\\')
+					case '\'':
+						result = append(result, '\'')
+					case '"':
+						result = append(result, '"')
+					case '?':
+						result = append(result, '?')
+
+					case 'x':
+						code := 0
+						if i+1 < len(input) && textFormat_isHex(input[i+1]) {
+							i++
+							code = textFormat_digitValue(input[i])
+						} else {
+							return nil, "Invalid escape sequence: '\\x' with no digits", false
+						}
+						if i+1 < len(input) && textFormat_isHex(input[i+1]) {
+							i++
+							code = code*16 + textFormat_digitValue(input[i])
+						}
+						result = append(result, byte(code))
+
+					case 'u':
+						i++
+						if i+3 < len(input) &&
+							textFormat_isHex(input[i]) &&
+							textFormat_isHex(input[i+1]) &&
+							textFormat_isHex(input[i+2]) &&
+							textFormat_isHex(input[i+3]) {
+							ch := uint16(textFormat_digitValue(input[i])<<12 |
+								textFormat_digitValue(input[i+1])<<8 |
+								textFormat_digitValue(input[i+2])<<4 |
+								textFormat_digitValue(input[i+3]))
+
+							if ch >= 0xD800 && ch <= 0xDFFF {
+								return nil, "Invalid escape sequence: '\\u' refers to a surrogate", false
+							}
+							result = append(result, jutil.StringGetBytesUTF8(jutil.StringFromUTF16([]uint16{ch}))...)
+							i += 3
+						} else {
+							return nil, "Invalid escape sequence: '\\u' with too few hex chars", false
+						}
+
+					case 'U':
+						i++
+						if i+7 >= len(input) {
+							return nil, "Invalid escape sequence: '\\U' with too few hex chars", false
+						}
+						codepoint := 0
+						for offset := i; offset < i+8; offset++ {
+							b := input[offset]
+							if !textFormat_isHex(b) {
+								return nil, "Invalid escape sequence: '\\U' with too few hex chars", false
+							}
+							codepoint = (codepoint << 4) | textFormat_digitValue(b)
+						}
+						// Character.isValidCodePoint; the hex digits make it non-negative
+						// as an int only below 0x80000000.
+						if int32(codepoint) < 0 || codepoint > 0x10FFFF {
+							return nil, "Invalid escape sequence: '\\U" +
+								jutil.NewStringFromUTF8Bytes(input[i:i+8]) +
+								"' is not a valid code point value", false
+						}
+						// Character.UnicodeBlock LOW_SURROGATES, HIGH_SURROGATES,
+						// HIGH_PRIVATE_USE_SURROGATES: U+D800..U+DFFF.
+						if codepoint >= 0xD800 && codepoint <= 0xDFFF {
+							return nil, "Invalid escape sequence: '\\U" +
+								jutil.NewStringFromUTF8Bytes(input[i:i+8]) +
+								"' refers to a surrogate code unit", false
+						}
+						result = append(result, []byte(string(rune(codepoint)))...)
+						i += 7
+
+					default:
+						return nil, "Invalid escape sequence: '\\" + string(rune(c)) + "'", false
+					}
+				}
+			} else {
+				return nil, "Invalid escape sequence: '\\' at end of string.", false
+			}
+		} else {
+			result = append(result, c)
+		}
+	}
+
+	return result, "", true
+}
+
+// Java: TextFormat.isOctal(byte)
+func textFormat_isOctal(c byte) bool {
+	return '0' <= c && c <= '7'
+}
+
+// Java: TextFormat.isHex(byte)
+func textFormat_isHex(c byte) bool {
+	return ('0' <= c && c <= '9') || ('a' <= c && c <= 'f') || ('A' <= c && c <= 'F')
+}
+
+// textFormat_digitValue interprets a character as a digit (in any base up to
+// 36) and returns the numeric value. This is like Character.digit() but we
+// don't accept non-ASCII digits.
+//
+// Java: TextFormat.digitValue(byte)
+func textFormat_digitValue(c byte) int {
+	if '0' <= c && c <= '9' {
+		return int(c - '0')
+	} else if 'a' <= c && c <= 'z' {
+		return int(c-'a') + 10
+	} else {
+		return int(c-'A') + 10
+	}
+}
+
 // ParseException returns a ParseException with the current line and column
 // numbers in the description, suitable for throwing.
 //
@@ -629,37 +766,10 @@ func (t *TextFormat_Tokenizer) ParseExceptionPreviousToken(description string) *
 	return NewTextFormat_ParseExceptionAt(t.previousLine+1, t.previousColumn+1, description)
 }
 
-// IntegerParseException constructs an appropriate ParseException for the
-// given NumberFormatException when trying to parse an integer.
-//
-// Java: TextFormat.Tokenizer.integerParseException(NumberFormatException)
-func (t *TextFormat_Tokenizer) IntegerParseException(e jutil.INumberFormatException) *TextFormat_ParseException {
-	return t.ParseException("Couldn't parse integer: " + e.GetMessage())
-}
-
-// FloatParseException constructs an appropriate ParseException for the given
-// NumberFormatException when trying to parse a float or double.
-//
-// Java: TextFormat.Tokenizer.floatParseException(NumberFormatException)
-func (t *TextFormat_Tokenizer) FloatParseException(e jutil.INumberFormatException) *TextFormat_ParseException {
-	return t.ParseException("Couldn't parse number: " + e.GetMessage())
-}
-
 // TextFormat_ParseException is thrown when parsing an invalid text format
 // message (a java.io.IOException).
 type TextFormat_ParseException struct {
 	jutil.IOException
-
-	line   int
-	column int
-}
-
-// NewTextFormat_ParseException creates a new instance, with -1 as the line
-// and column numbers.
-//
-// Java: TextFormat.ParseException(String)
-func NewTextFormat_ParseException(message string) *TextFormat_ParseException {
-	return NewTextFormat_ParseExceptionAt(-1, -1, message)
 }
 
 // NewTextFormat_ParseExceptionAt creates a new instance; line is the line
@@ -671,21 +781,5 @@ func NewTextFormat_ParseExceptionAt(line int, column int, message string) *TextF
 	e := &TextFormat_ParseException{}
 	jutil.InitThrowable(e, "com.google.javascript.jscomp.jarjar.com.google.protobuf.TextFormat$ParseException",
 		jutil.StringPtr(strconv.Itoa(line)+":"+strconv.Itoa(column)+": "+message), nil)
-	e.line = line
-	e.column = column
 	return e
 }
-
-// GetLine returns the line where the parse exception occurred, or -1 when
-// none is provided. The value is specified as 1-offset, so the first line is
-// line 1.
-//
-// Java: TextFormat.ParseException.getLine()
-func (e *TextFormat_ParseException) GetLine() int { return e.line }
-
-// GetColumn returns the column where the parse exception occurred, or -1
-// when none is provided. The value is specified as 1-offset, so the first
-// line is line 1.
-//
-// Java: TextFormat.ParseException.getColumn()
-func (e *TextFormat_ParseException) GetColumn() int { return e.column }

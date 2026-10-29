@@ -360,6 +360,38 @@ func (f *dpaeTraversal) markChildrenRead(p *deadProp) {
 	f.bfsQueue = queue[:0]
 }
 
+var dpaeVisitTokens = func() ast.TokenSet {
+	var s ast.TokenSet
+	s.Add(rhino.Token_ASSIGN)
+	s.Add(rhino.Token_ASSIGN_BITOR)
+	s.Add(rhino.Token_ASSIGN_BITXOR)
+	s.Add(rhino.Token_ASSIGN_BITAND)
+	s.Add(rhino.Token_ASSIGN_LSH)
+	s.Add(rhino.Token_ASSIGN_RSH)
+	s.Add(rhino.Token_ASSIGN_URSH)
+	s.Add(rhino.Token_ASSIGN_ADD)
+	s.Add(rhino.Token_ASSIGN_SUB)
+	s.Add(rhino.Token_ASSIGN_MUL)
+	s.Add(rhino.Token_ASSIGN_DIV)
+	s.Add(rhino.Token_ASSIGN_MOD)
+	s.Add(rhino.Token_ASSIGN_EXPONENT)
+	s.Add(rhino.Token_ASSIGN_OR)
+	s.Add(rhino.Token_ASSIGN_AND)
+	s.Add(rhino.Token_ASSIGN_COALESCE)
+	s.Add(rhino.Token_TAGGED_TEMPLATELIT)
+	s.Add(rhino.Token_CALL)
+	s.Add(rhino.Token_OPTCHAIN_CALL)
+	s.Add(rhino.Token_NEW)
+	s.Add(rhino.Token_YIELD)
+	s.Add(rhino.Token_AWAIT)
+	s.Add(rhino.Token_BLOCK)
+	return s
+}()
+
+var _ nodeTraversal_visitTokens = (*dpaeTraversal)(nil)
+
+func (*dpaeTraversal) visitTokens() *ast.TokenSet { return &dpaeVisitTokens }
+
 // Java: DeadPropertyAssignmentElimination.FindCandidateAssignmentTraversal.shouldTraverse(NodeTraversal, Node, Node)
 func (f *dpaeTraversal) ShouldTraverse(t *NodeTraversal, n rhino.Node, parent rhino.Node) bool {
 	return f.visitNode(n, parent)

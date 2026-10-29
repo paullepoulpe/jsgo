@@ -68,9 +68,7 @@ func (c *Es6RewriteDestructuringTest) GetProcessor(compiler *Compiler) CompilerP
 		CompilerTestCase_MakePassFactory(
 			"es6RewriteDestructuring",
 			func(abstractCompiler AbstractCompiler) CompilerPass {
-				return NewEs6RewriteDestructuring_Builder(abstractCompiler).
-					SetDestructuringRewriteMode(c.destructuringRewriteMode).
-					Build()
+				return NewEs6RewriteDestructuring(abstractCompiler, c.destructuringRewriteMode)
 			}))
 	return optimizer
 }

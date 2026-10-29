@@ -450,9 +450,9 @@ func (p *PerformanceTracker) PopulateAstManifest() {
 		return
 	}
 	p.astManifestPopulated = true
-	NodeUtil_VisitPreOrder(p.jsRoot, NodeUtil_VisitorFunc(func(n rhino.Node) {
+	NodeUtil_VisitPreOrder(p.jsRoot, func(n rhino.Node) {
 		p.astManifest[n.GetToken()]++
-	}))
+	})
 }
 
 // Java: PerformanceTracker.setPruningAnalysisSummary(String)

@@ -28,10 +28,10 @@ func TestFarmHashFingerprint64HasherMatchesGuava(t *testing.T) {
 				h.PutInt(int32(v))
 			case 'L':
 				v, _ := strconv.ParseInt(arg, 10, 64)
-				h.PutLong(v)
+				h.putLong(v)
 			case 'B':
 				b, _ := hex.DecodeString(arg)
-				h.PutBytes(b)
+				h.putBytes(b)
 			case 'S':
 				units := make([]uint16, len(arg)/4)
 				for i := range units {

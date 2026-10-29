@@ -38,6 +38,7 @@ package cli
 import (
 	"io"
 	"slices"
+	"strconv"
 
 	"github.com/paullepoulpe/jsgo/internal/jscomp"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
@@ -384,11 +385,9 @@ func (r *AbstractCommandLineRunnerBase) SetRunOptions(options *jscomp.CompilerOp
 
 	define := append([]string{}, config.define...)
 	if config.browserFeaturesetYear != 0 {
-		jutil.Try(func() {
-			options.SetBrowserFeaturesetYear(config.browserFeaturesetYear)
-		}, func(e jutil.IIllegalStateException) {
-			panic(jscomp.NewFlagUsageException(e.GetMessage()))
-		})
+		if err := setBrowserFeaturesetYear(options, config.browserFeaturesetYear); err != nil {
+			panic(err)
+		}
 	}
 
 	AbstractCommandLineRunner_CreateDefineReplacements(define, options)
@@ -506,6 +505,15 @@ func (r *AbstractCommandLineRunnerBase) SetRunOptions(options *jscomp.CompilerOp
 	}
 }
 
+func setBrowserFeaturesetYear(options *jscomp.CompilerOptions, year int) *jscomp.FlagUsageException {
+	if year != 2012 && (year < 2018 || year > 2026) {
+		return jscomp.NewFlagUsageException(
+			"Illegal browser_featureset_year=" + strconv.Itoa(year) + ". We support values 2012, or 2018..2026 only")
+	}
+	options.SetBrowserFeaturesetYear(year)
+	return nil
+}
+
 // Java: AbstractCommandLineRunner.getCompiler()
 func (r *AbstractCommandLineRunnerBase) GetCompiler() *jscomp.Compiler {
 	return r.compiler
@@ -516,20 +524,27 @@ func (r *AbstractCommandLineRunnerBase) GetCompiler() *jscomp.Compiler {
 //
 // Java: AbstractCommandLineRunner.run()
 func (r *AbstractCommandLineRunnerBase) Run() {
-	var result int
-	jutil.Try(func() {
-		result = r.self.DoRun()
-	}, func(t jutil.Throwable) {
-		if e, ok := t.(jscomp.IFlagUsageException); ok {
+	result, err := r.tryDoRun()
+	if err != nil {
+		if e, ok := err.(jscomp.IFlagUsageException); ok {
 			r.err.Println(e.GetMessage())
 			result = -1
-			return
+		} else {
+			jutil.Throwable_PrintStackTrace(err, r.err)
+			result = -2
 		}
-		jutil.Throwable_PrintStackTrace(t, r.err)
-		result = -2
-	})
+	}
 
 	r.exitCodeReceiver(result)
+}
+
+func (r *AbstractCommandLineRunnerBase) tryDoRun() (result int, thrown jutil.Throwable) {
+	defer func() {
+		if rec := recover(); rec != nil {
+			thrown = jutil.AsThrowable(rec)
+		}
+	}()
+	return r.self.DoRun(), nil
 }
 
 // GetErrorPrintStream returns the PrintStream for writing errors associated

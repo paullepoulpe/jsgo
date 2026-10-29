@@ -453,6 +453,7 @@ func (c *TypedScopeCreator) CreateScopeInternal(root rhino.Node, typedParent *Ty
 		c.moduleImportResolver.UpdateEsModuleNamespaceType(namespaceType, module, newScope)
 	}
 
+	newScope.scanDone = true
 	return newScope
 }
 
@@ -758,6 +759,26 @@ func NewTypedScopeCreator_IdentifyEnumsAndTypedefsAsNonNullable(registry *rhino.
 	v := &TypedScopeCreator_IdentifyEnumsAndTypedefsAsNonNullable{}
 	v.registry = registry
 	return v
+}
+
+var identifyEnumsAndTypedefsVisitTokens = func() ast.TokenSet {
+	var s ast.TokenSet
+	s.Add(rhino.Token_LET)
+	s.Add(rhino.Token_CONST)
+	s.Add(rhino.Token_VAR)
+	s.Add(rhino.Token_EXPR_RESULT)
+	return s
+}()
+
+var (
+	_ nodeTraversal_noVisitLeaves = (*TypedScopeCreator_IdentifyEnumsAndTypedefsAsNonNullable)(nil)
+	_ nodeTraversal_visitTokens   = (*TypedScopeCreator_IdentifyEnumsAndTypedefsAsNonNullable)(nil)
+)
+
+func (*TypedScopeCreator_IdentifyEnumsAndTypedefsAsNonNullable) noVisitLeaves() {}
+
+func (*TypedScopeCreator_IdentifyEnumsAndTypedefsAsNonNullable) visitTokens() *ast.TokenSet {
+	return &identifyEnumsAndTypedefsVisitTokens
 }
 
 // Java: TypedScopeCreator.IdentifyEnumsAndTypedefsAsNonNullable.visit(NodeTraversal, Node, Node)

@@ -24,6 +24,30 @@ import (
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
 
+var generatorArgumentsID = rhino.RhinoStringPool_InternID("arguments")
+
+var generatorUnmarkedVisitTokens = func() ast.TokenSet {
+	var s ast.TokenSet
+	s.Add(rhino.Token_FOR)
+	s.Add(rhino.Token_FOR_IN)
+	s.Add(rhino.Token_FOR_OF)
+	s.Add(rhino.Token_FOR_AWAIT_OF)
+	s.Add(rhino.Token_WHILE)
+	s.Add(rhino.Token_DO)
+	s.Add(rhino.Token_SWITCH)
+	s.Add(rhino.Token_THIS)
+	s.Add(rhino.Token_RETURN)
+	s.Add(rhino.Token_NAME)
+	s.Add(rhino.Token_VAR)
+	return s
+}()
+
+var _ nodeTraversal_visitTokens = (*generatorUnmarkedNodeTranspiler)(nil)
+
+func (*generatorUnmarkedNodeTranspiler) visitTokens() *ast.TokenSet {
+	return &generatorUnmarkedVisitTokens
+}
+
 // generatorUnmarkedNodeTranspiler adjusts YIELD-free nodes to run correctly
 // inside a generator state-machine program:
 //   - moving `var` declarations into the outer hoist scope;
@@ -88,7 +112,7 @@ func (u *generatorUnmarkedNodeTranspiler) Visit(t *NodeTraversal, n rhino.Node, 
 		u.visitThis(n)
 	} else if n.IsReturn() {
 		u.visitReturn(n)
-	} else if nm, ok := ast.AsName(n); ok && nm.Ident() == "arguments" {
+	} else if n.IsName() && n.GetStringID() == generatorArgumentsID {
 		u.visitArguments(n)
 	} else if n.IsVar() {
 		if parent.IsVanillaFor() {

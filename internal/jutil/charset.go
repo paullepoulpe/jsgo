@@ -27,12 +27,12 @@ func (c *Charset) impl() charsetCoder {
 	return c.coder
 }
 
-// UnsupportedCharsetException is java.nio.charset.UnsupportedCharsetException.
-type UnsupportedCharsetException struct{ IllegalArgumentException }
+// unsupportedCharsetException is java.nio.charset.UnsupportedCharsetException.
+type unsupportedCharsetException struct{ IllegalArgumentException }
 
-// NewUnsupportedCharsetException is new UnsupportedCharsetException(name).
-func NewUnsupportedCharsetException(charsetName string) *UnsupportedCharsetException {
-	e := &UnsupportedCharsetException{}
+// newUnsupportedCharsetException is new UnsupportedCharsetException(name).
+func newUnsupportedCharsetException(charsetName string) *unsupportedCharsetException {
+	e := &unsupportedCharsetException{}
 	InitThrowable(e, "java.nio.charset.UnsupportedCharsetException", msgPtr(charsetName), nil)
 	return e
 }
@@ -69,7 +69,7 @@ func Charset_ForName(charsetName string) *Charset {
 	if c := charsetLookup(charsetName); c != nil {
 		return c
 	}
-	panic(NewUnsupportedCharsetException(charsetName))
+	panic(newUnsupportedCharsetException(charsetName))
 }
 
 // Name is Charset.name().
@@ -330,9 +330,9 @@ func (c *Charset) TryDecodeStrict(b []byte) (string, IIOException) {
 	case e.length == 0:
 		return s, nil
 	case e.unmappable:
-		return "", NewUnmappableCharacterException(e.length)
+		return "", newUnmappableCharacterException(e.length)
 	default:
-		return "", NewMalformedInputException(e.length)
+		return "", newMalformedInputException(e.length)
 	}
 }
 
@@ -561,16 +561,16 @@ func (e *utf32Encoder) encodeRune(dst []byte, r rune) []byte { return e.unit(dst
 func (e *utf32Encoder) encodeMalformed(dst []byte) []byte    { return e.unit(dst, 0xFFFD) }
 func (e *utf32Encoder) finish(dst []byte) []byte             { return dst }
 
-// IllegalCharsetNameException is
+// illegalCharsetNameException is
 // java.nio.charset.IllegalCharsetNameException: thrown when a string that
 // is not a legal charset name is used as such. Its message is the name.
-type IllegalCharsetNameException struct {
+type illegalCharsetNameException struct {
 	IllegalArgumentException
 }
 
-// NewIllegalCharsetNameException is new IllegalCharsetNameException(String).
-func NewIllegalCharsetNameException(charsetName string) *IllegalCharsetNameException {
-	e := &IllegalCharsetNameException{}
+// newIllegalCharsetNameException is new IllegalCharsetNameException(String).
+func newIllegalCharsetNameException(charsetName string) *illegalCharsetNameException {
+	e := &illegalCharsetNameException{}
 	InitThrowable(e, "java.nio.charset.IllegalCharsetNameException", &charsetName, nil)
 	return e
 }
@@ -580,7 +580,7 @@ func NewIllegalCharsetNameException(charsetName string) *IllegalCharsetNameExcep
 // '.', ':' and '_', and beginning with a letter or a digit.
 func requireLegalCharsetName(name string) {
 	if name == "" {
-		panic(NewIllegalCharsetNameException(name))
+		panic(newIllegalCharsetNameException(name))
 	}
 	for i := 0; i < len(name); i++ {
 		c := name[i]
@@ -591,7 +591,7 @@ func requireLegalCharsetName(name string) {
 		if i > 0 && (c == '-' || c == '+' || c == '.' || c == ':' || c == '_') {
 			continue
 		}
-		panic(NewIllegalCharsetNameException(name))
+		panic(newIllegalCharsetNameException(name))
 	}
 }
 
@@ -614,11 +614,11 @@ func Charset_IsSupported(charsetName string) bool {
 
 var (
 	StandardCharsets_US_ASCII   = newCharset("US-ASCII", newUSASCII, "646", "ANSI_X3.4-1968", "ANSI_X3.4-1986", "ASCII", "IBM367", "ISO646-US", "ISO_646.irv:1991", "ascii7", "cp367", "csASCII", "iso-ir-6", "iso_646.irv:1983", "us")
-	StandardCharsets_ISO_8859_1 = newCharset("ISO-8859-1", newSBCS(charmap.ISO8859_1, false), "819", "8859_1", "IBM-819", "IBM819", "ISO8859-1", "ISO8859_1", "ISO_8859-1", "ISO_8859-1:1987", "ISO_8859_1", "cp819", "csISOLatin1", "iso-ir-100", "l1", "latin1")
+	standardCharsets_ISO_8859_1 = newCharset("ISO-8859-1", newSBCS(charmap.ISO8859_1, false), "819", "8859_1", "IBM-819", "IBM819", "ISO8859-1", "ISO8859_1", "ISO_8859-1", "ISO_8859-1:1987", "ISO_8859_1", "cp819", "csISOLatin1", "iso-ir-100", "l1", "latin1")
 	StandardCharsets_UTF_8      = newCharset("UTF-8", func() charsetCoder { return utf8Coder{} }, "UTF8", "unicode-1-1-utf-8")
 	StandardCharsets_UTF_16     = newCharset("UTF-16", func() charsetCoder { return utf16Coder{bigEndian: true, marked: true} }, "UTF_16", "UnicodeBig", "unicode", "utf16")
-	StandardCharsets_UTF_16BE   = newCharset("UTF-16BE", func() charsetCoder { return utf16Coder{bigEndian: true} }, "ISO-10646-UCS-2", "UTF_16BE", "UnicodeBigUnmarked", "X-UTF-16BE")
-	StandardCharsets_UTF_16LE   = newCharset("UTF-16LE", func() charsetCoder { return utf16Coder{} }, "UTF_16LE", "UnicodeLittleUnmarked", "X-UTF-16LE")
+	standardCharsets_UTF_16BE   = newCharset("UTF-16BE", func() charsetCoder { return utf16Coder{bigEndian: true} }, "ISO-10646-UCS-2", "UTF_16BE", "UnicodeBigUnmarked", "X-UTF-16BE")
+	standardCharsets_UTF_16LE   = newCharset("UTF-16LE", func() charsetCoder { return utf16Coder{} }, "UTF_16LE", "UnicodeLittleUnmarked", "X-UTF-16LE")
 )
 
 func newCharset(name string, build func() charsetCoder, aliases ...string) *Charset {
@@ -627,8 +627,8 @@ func newCharset(name string, build func() charsetCoder, aliases ...string) *Char
 
 // supportedCharsets are the charsets Charset.forName finds.
 var supportedCharsets = []*Charset{
-	StandardCharsets_US_ASCII, StandardCharsets_ISO_8859_1, StandardCharsets_UTF_8,
-	StandardCharsets_UTF_16, StandardCharsets_UTF_16BE, StandardCharsets_UTF_16LE,
+	StandardCharsets_US_ASCII, standardCharsets_ISO_8859_1, StandardCharsets_UTF_8,
+	StandardCharsets_UTF_16, standardCharsets_UTF_16BE, standardCharsets_UTF_16LE,
 
 	newCharset("UTF-32", func() charsetCoder { return utf32Coder{bigEndian: true, detect: true} }, "UTF32", "UTF_32"),
 	newCharset("UTF-32BE", func() charsetCoder { return utf32Coder{bigEndian: true} }, "UTF_32BE", "X-UTF-32BE"),

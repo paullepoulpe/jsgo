@@ -340,20 +340,21 @@ func (b *varCommon) IsImplicitGoogNamespace() bool {
 	return b.indexAndFlags&varImplicitStrengthMask != 0
 }
 
-func (b *varCommon) addImplicitGoogNamespaceDefinition(self any, definition rhino.Node) {
+func (b *varCommon) addImplicitGoogNamespaceDefinition(definition rhino.Node) bool {
 	if !b.IsImplicitGoogNamespace() {
-		failNotImplicitGoogNamespace(self)
+		return false
 	}
 	cur := rhino.StaticSourceFile_SourceKind(((b.indexAndFlags & varImplicitStrengthMask) >> varImplicitStrengthShift) - 1)
 	strength := abstractVar_strongerOf(cur, abstractVar_strengthOf(definition))
 	b.indexAndFlags = (b.indexAndFlags &^ varImplicitStrengthMask) | ((uint32(strength) + 1) << varImplicitStrengthShift)
+	return true
 }
 
-func (b *varCommon) getImplicitGoogNamespaceStrength(self any) rhino.StaticSourceFile_SourceKind {
+func (b *varCommon) getImplicitGoogNamespaceStrength() (rhino.StaticSourceFile_SourceKind, bool) {
 	if !b.IsImplicitGoogNamespace() {
-		failNotImplicitGoogNamespace(self)
+		return 0, false
 	}
-	return rhino.StaticSourceFile_SourceKind(((b.indexAndFlags & varImplicitStrengthMask) >> varImplicitStrengthShift) - 1)
+	return rhino.StaticSourceFile_SourceKind(((b.indexAndFlags & varImplicitStrengthMask) >> varImplicitStrengthShift) - 1), true
 }
 
 // Java: AbstractVar.strengthOf(Node)

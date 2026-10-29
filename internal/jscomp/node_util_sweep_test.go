@@ -708,10 +708,10 @@ func (s *nodeUtilSweeper) sweepNode(sb *strings.Builder, i int, n rhino.Node) {
 			pre = append(pre, x)
 		}
 		var post []rhino.Node
-		NodeUtil_VisitPostOrderWithPred(n, NodeUtil_VisitorFunc(func(x rhino.Node) { post = append(post, x) }),
+		NodeUtil_VisitPostOrderWithPred(n, func(x rhino.Node) { post = append(post, x) },
 			NodeUtil_MATCH_NOT_FUNCTION)
 		var pre2 []rhino.Node
-		NodeUtil_VisitPreOrder(n, NodeUtil_VisitorFunc(func(x rhino.Node) { pre2 = append(pre2, x) }))
+		NodeUtil_VisitPreOrder(n, func(x rhino.Node) { pre2 = append(pre2, x) })
 		var h int64
 		for _, x := range pre {
 			h = h*31 + int64(s.indexOrMinusOne(x))
@@ -813,7 +813,7 @@ func (s *nodeUtilSweeper) sweepScript(sb *strings.Builder, script rhino.Node) {
 	})
 	field(true, func() string {
 		count := 0
-		NodeUtil_VisitPostOrder(script, NodeUtil_VisitorFunc(func(rhino.Node) { count++ }))
+		NodeUtil_VisitPostOrder(script, func(rhino.Node) { count++ })
 		return strconv.Itoa(count)
 	})
 	field(true, func() string { return strconv.Itoa(NodeUtil_CountAstSize(script)) })

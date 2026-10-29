@@ -114,22 +114,21 @@ func (s *propTypeSet) addWithHash(tb *JSTypeBase, hash int32) bool {
 		s.overflow = o
 		return true
 	}
-	s.overflow.add(tb, hash)
-	return false
+	return s.overflow.add(tb, hash)
 }
 
-func (o *propTypeOverflow) add(tb *JSTypeBase, hash int32) {
+func (o *propTypeOverflow) add(tb *JSTypeBase, hash int32) bool {
 	if o.table == nil {
 		for i := range o.slots {
 			if o.slots[i].hash == hash && propTypeBasesEqual(o.slots[i].t, tb) {
-				return
+				return false
 			}
 		}
 		o.slots = append(o.slots, propTypeSlot{t: tb, hash: hash})
 		if len(o.slots) > 8 {
 			o.rebuildTable(32)
 		}
-		return
+		return true
 	}
 	mask := uint(len(o.table) - 1)
 	b := propTypeHashMix(hash) & mask
@@ -142,11 +141,11 @@ func (o *propTypeOverflow) add(tb *JSTypeBase, hash int32) {
 			} else {
 				o.table[b] = uint32(len(o.slots))
 			}
-			return
+			return true
 		}
 		slot := o.slots[e-1]
 		if slot.hash == hash && propTypeBasesEqual(slot.t, tb) {
-			return
+			return false
 		}
 		b = (b + 1) & mask
 	}

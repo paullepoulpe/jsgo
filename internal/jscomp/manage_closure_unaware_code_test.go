@@ -87,7 +87,7 @@ func (c *ManageClosureUnawareCodeTest) GetProcessor(compiler *Compiler) Compiler
 			return CompilerPassFunc(func(externs rhino.Node, root rhino.Node) {
 				NodeUtil_VisitPreOrder(
 					root,
-					NodeUtil_VisitorFunc(func(node rhino.Node) {
+					func(node rhino.Node) {
 						shadow := node.GetClosureUnawareShadow()
 						if !shadow.IsNil() {
 							if !c.runUnwrapPass {
@@ -95,7 +95,7 @@ func (c *ManageClosureUnawareCodeTest) GetProcessor(compiler *Compiler) Compiler
 							}
 							c.gatheredShadowNodeRoot.AddChildToBack(shadow.CloneTree())
 						}
-					}))
+					})
 			})
 		}),
 	}

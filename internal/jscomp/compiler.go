@@ -49,7 +49,6 @@ import (
 	"github.com/paullepoulpe/jsgo/internal/parser"
 	"github.com/paullepoulpe/jsgo/internal/parsing"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
-	"github.com/paullepoulpe/jsgo/internal/sourcemap"
 )
 
 // Compiler (and the other classes in this package) does the following:
@@ -64,12 +63,58 @@ import (
 // file may include definitions for global javascript/browser objects such
 // as window, document.
 //
-// Go-only: language-adapter — Java's Compiler implements ErrorHandler and
-// SourceFileMapping, whose methods collide in Go with AbstractCompiler's
-// report(JSError) and SourceExcerptProvider's getSourceMapping(String, int,
-// int) (a *string parameter there): the Compiler seen as one of those
-// interfaces is AsErrorHandler() / AsSourceFileMapping().
+// Go-only: language-adapter — Java's Compiler implements ErrorHandler,
+// whose method collides in Go with AbstractCompiler's report(JSError):
+// the Compiler seen as ErrorHandler is AsErrorHandler().
 //
+// compilerMap is a native Go map with thin method helpers matching the
+// lookup/update operations used across Compiler files.
+type compilerMap[K comparable, V any] map[K]V
+
+func (m compilerMap[K, V]) Get(k K) V {
+	return m[k]
+}
+
+func (m compilerMap[K, V]) Lookup(k K) (V, bool) {
+	v, ok := m[k]
+	return v, ok
+}
+
+func (m compilerMap[K, V]) Put(k K, v V) {
+	m[k] = v
+}
+
+func (m compilerMap[K, V]) PutIfAbsent(k K, v V) {
+	if _, ok := m[k]; !ok {
+		m[k] = v
+	}
+}
+
+func (m compilerMap[K, V]) Clear() {
+	clear(m)
+}
+
+func (m compilerMap[K, V]) KeySlice() []K {
+	if len(m) == 0 {
+		return nil
+	}
+	keys := make([]K, 0, len(m))
+	for k := range m { // order-independent: callers only update each independent map key in place
+		keys = append(keys, k)
+	}
+	return keys
+}
+
+func (m compilerMap[K, V]) Values() iter.Seq[V] {
+	return func(yield func(V) bool) {
+		for _, v := range m { // order-independent: callers only clear independent cached state on each value
+			if !yield(v) {
+				return
+			}
+		}
+	}
+}
+
 // TODO(tbreisacher): Rename Compiler to JsCompiler and remove this suppression.
 type Compiler struct {
 	options *CompilerOptions
@@ -86,7 +131,7 @@ type Compiler struct {
 	moduleLoader *ModuleLoader
 
 	// Map of module names to module types - used for module rewriting
-	moduleTypesByName *jutil.LinkedHashMap[string, CompilerInput_ModuleType]
+	moduleTypesByName compilerMap[string, CompilerInput_ModuleType]
 
 	// error manager to which error management is delegated
 	errorManager ErrorManager
@@ -109,7 +154,7 @@ type Compiler struct {
 	// Keyed by InputId.GetIdName() (InputId equality is id-name string equality).
 	inputsById map[string]*CompilerInput
 
-	scriptNodeByFilename *jutil.LinkedHashMap[string, rhino.Node]
+	scriptNodeByFilename compilerMap[string, rhino.Node]
 
 	// Go-only: AST compaction state (compiler_compact.go).
 	astCompact astCompaction
@@ -121,7 +166,7 @@ type Compiler struct {
 	runtimeJsLibManager *RuntimeJsLibManager
 
 	// Original sources referenced by the source maps.
-	sourceMapOriginalSources *jutil.LinkedHashMap[string, *SourceFile]
+	sourceMapOriginalSources compilerMap[string, *SourceFile]
 
 	// Configured SourceMapInputs, plus any source maps discovered in source
 	// files, with deterministic insertion-order tracking.
@@ -129,7 +174,7 @@ type Compiler struct {
 	inputSourceMapOrder []string
 
 	// Map from filenames to lists of all the comments in each file.
-	commentsPerFile *jutil.LinkedHashMap[string, []parser.Comment]
+	commentsPerFile map[string][]parser.Comment
 
 	// The source code map
 	sourceMap *SourceMap
@@ -190,8 +235,6 @@ type Compiler struct {
 
 	outStream *jutil.PrintStream
 
-	lastPassName *string
-
 	externProperties *jutil.LinkedHashSet[string]
 	accessorSummary  *AccessorSummary
 
@@ -202,8 +245,7 @@ type Compiler struct {
 	resolvedSourceMap compiler_ResolvedSourceMap
 	sourceMapMu       sync.RWMutex
 
-	typedAstFilesystem          typedAstFilesystemMap
-	typedAstScriptDeserializers map[*SourceFile]*ScriptNodeDeserializer
+	typedAstFilesystem typedAstFilesystemMap
 
 	validityCheck *PassFactory
 
@@ -269,14 +311,13 @@ type Compiler struct {
 
 	moduleMap *ModuleMap
 
-	// Go-only: language-adapter — the Compiler as an ErrorHandler and as a
-	// SourceFileMapping (see the type comment); one instance each, so that
-	// the same object is handed out every time, as `this` is in Java.
-	asErrorHandler      *compiler_errorHandler
-	asSourceFileMapping *compiler_sourceFileMapping
-	cachedAstAnalyzer   *AstAnalyzer
-	printScratch        codePrinterScratch
-	printScratchBusy    atomic.Bool
+	// Go-only: language-adapter — the Compiler as an ErrorHandler (see the
+	// type comment); one instance so that the same object is handed out every
+	// time, as `this` is in Java.
+	asErrorHandler    *compiler_errorHandler
+	cachedAstAnalyzer *AstAnalyzer
+	printScratch      codePrinterScratch
+	printScratchBusy  atomic.Bool
 
 	// Go-only: language-adapter — the object's monitor, which its
 	// synchronized methods and blocks hold.
@@ -423,11 +464,11 @@ var compiler_validityCheck = &PassFactory{
 func (c *Compiler) initFields() {
 	c.externs = nil
 	c.inputsById = make(map[string]*CompilerInput)
-	c.scriptNodeByFilename = jutil.NewLinkedHashMap[string, rhino.Node]()
-	c.sourceMapOriginalSources = jutil.NewLinkedHashMap[string, *SourceFile]()
+	c.scriptNodeByFilename = make(compilerMap[string, rhino.Node])
+	c.sourceMapOriginalSources = make(compilerMap[string, *SourceFile])
 	c.inputSourceMaps = make(map[string]*SourceMapInput)
 	c.inputSourceMapOrder = nil
-	c.commentsPerFile = jutil.NewLinkedHashMap[string, []parser.Comment]()
+	c.commentsPerFile = make(map[string][]parser.Comment)
 	c.uniqueIdSupplier = NewUniqueIdSupplier()
 	c.uniqueNameId = 0
 	c.hasRegExpGlobalReferences = true
@@ -436,7 +477,6 @@ func (c *Compiler) initFields() {
 	c.forwardDeclaredTypes = compilerForwardDeclaredSet{}
 	c.typeCheckingHasRun = false
 	c.asErrorHandler = &compiler_errorHandler{c: c}
-	c.asSourceFileMapping = &compiler_sourceFileMapping{c: c}
 	c.oldErrorReporter = RhinoErrorReporter_ForOldRhino(c.asErrorHandler)
 	c.compilerExecutor = c.CreateCompilerExecutor()
 	c.changeTracker = NewChangeTracker()
@@ -471,7 +511,7 @@ func NewCompilerWithOutStream(outStream *jutil.PrintStream) *Compiler {
 	c.initFields()
 	c.changeTracker.AddChangeHandler(c.changeTracker.GetRecentChange())
 	c.outStream = outStream
-	c.moduleTypesByName = jutil.NewLinkedHashMap[string, CompilerInput_ModuleType]()
+	c.moduleTypesByName = make(compilerMap[string, CompilerInput_ModuleType])
 	return c
 }
 
@@ -495,22 +535,8 @@ func (h *compiler_errorHandler) Report(level *CheckLevel, error *JSError) {
 	h.c.ReportWithLevel(level, error)
 }
 
-// compiler_sourceFileMapping is the Compiler as a SourceFileMapping.
-type compiler_sourceFileMapping struct {
-	c *Compiler
-}
-
-// GetSourceMapping is Compiler.getSourceMapping(String, int, int).
-func (m *compiler_sourceFileMapping) GetSourceMapping(fileName string, lineNo int, columnNo int) *sourcemap.Mapping_OriginalMapping {
-	return m.c.GetSourceMapping(&fileName, lineNo, columnNo)
-}
-
 // AsErrorHandler is the Compiler as an ErrorHandler (Java's `this`).
 func (c *Compiler) AsErrorHandler() ErrorHandler { return c.asErrorHandler }
-
-// AsSourceFileMapping is the Compiler as a SourceFileMapping (Java's
-// `this`).
-func (c *Compiler) AsSourceFileMapping() SourceFileMapping { return c.asSourceFileMapping }
 
 // SetErrorManager sets the error manager.
 //

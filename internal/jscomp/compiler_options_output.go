@@ -73,11 +73,6 @@ func (o *CompilerOptions) GetOutputJs() CompilerOptions_OutputJs {
 	return o.outputJs
 }
 
-// Java: CompilerOptions.setPrintExterns(boolean)
-func (o *CompilerOptions) SetPrintExterns(printExterns bool) {
-	o.printExterns = printExterns
-}
-
 // Java: CompilerOptions.shouldPrintExterns()
 func (o *CompilerOptions) ShouldPrintExterns() bool {
 	return o.printExterns || o.incrementalCheckMode == CompilerOptions_IncrementalCheckMode_GENERATE_IJS
@@ -235,21 +230,9 @@ func (o *CompilerOptions) SetRenamingPolicy(newVariablePolicy VariableRenamingPo
 	o.propertyRenaming = newPropertyPolicy
 }
 
-// Java: CompilerOptions.setNameGenerator(NameGenerator)
-func (o *CompilerOptions) SetNameGenerator(nameGenerator NameGenerator) {
-	o.nameGenerator = nameGenerator
-}
-
 // Java: CompilerOptions.getNameGenerator()
 func (o *CompilerOptions) GetNameGenerator() NameGenerator {
 	return o.nameGenerator
-}
-
-// Useful for tests to avoid having to declare two chunks
-//
-// Java: CompilerOptions.setRenamePrefixNamespaceAssumeCrossChunkNames(boolean)
-func (o *CompilerOptions) SetRenamePrefixNamespaceAssumeCrossChunkNames(assume bool) {
-	o.renamePrefixNamespaceAssumeCrossChunkNames = assume
 }
 
 // Java: CompilerOptions.assumeCrossChunkNamesForRenamePrefixNamespace()
@@ -293,24 +276,9 @@ func (o *CompilerOptions) SetIdGenerators(idGenerators *jutil.LinkedHashSet[stri
 	o.idGenerators = builder
 }
 
-// Sets the id generators to replace.
-//
-// Java: CompilerOptions.setIdGenerators(Map<String, RenamingMap>)
-func (o *CompilerOptions) SetIdGeneratorsOfMap(idGenerators *jutil.LinkedHashMap[string, RenamingMap]) {
-	o.idGenerators = jutil.NewLinkedHashMapFrom(idGenerators)
-}
-
 // Java: CompilerOptions.getIdGenerators()
 func (o *CompilerOptions) GetIdGenerators() *jutil.LinkedHashMap[string, RenamingMap] {
 	return o.idGenerators
-}
-
-// A previous map of ids (serialized to a string by a previous compile). This will be used as a
-// hint during the ReplaceIdGenerators pass, which will attempt to reuse the same ids.
-//
-// Java: CompilerOptions.setIdGeneratorsMap(String)
-func (o *CompilerOptions) SetIdGeneratorsMap(previousMappings *string) {
-	o.idGeneratorsMapSerialized = previousMappings
 }
 
 // Java: CompilerOptions.getIdGeneratorsMapSerialized()
@@ -318,23 +286,9 @@ func (o *CompilerOptions) GetIdGeneratorsMapSerialized() *string {
 	return o.idGeneratorsMapSerialized
 }
 
-// Sets the hash function to use for Xid
-//
-// Java: CompilerOptions.setXidHashFunction(Xid.HashFunction)
-func (o *CompilerOptions) SetXidHashFunction(xidHashFunction Xid_HashFunction) {
-	o.xidHashFunction = xidHashFunction
-}
-
 // Java: CompilerOptions.getXidHashFunction()
 func (o *CompilerOptions) GetXidHashFunction() Xid_HashFunction {
 	return o.xidHashFunction
-}
-
-// Sets the hash function to use for chunk ID generation
-//
-// Java: CompilerOptions.setChunkIdHashFunction(Xid.HashFunction)
-func (o *CompilerOptions) SetChunkIdHashFunction(chunkIdHashFunction Xid_HashFunction) {
-	o.chunkIdHashFunction = chunkIdHashFunction
 }
 
 // Java: CompilerOptions.getChunkIdHashFunction()
@@ -437,26 +391,6 @@ func (o *CompilerOptions) GetJ2clPass() CompilerOptions_J2clPassMode {
 	return o.j2clPassMode
 }
 
-// Java: CompilerOptions.setJ2clMinifierEnabled(boolean)
-func (o *CompilerOptions) SetJ2clMinifierEnabled(enabled bool) {
-	o.j2clMinifierEnabled = enabled
-}
-
-// Java: CompilerOptions.isJ2clMinifierEnabled()
-func (o *CompilerOptions) IsJ2clMinifierEnabled() bool {
-	return o.j2clMinifierEnabled
-}
-
-// Java: CompilerOptions.setJ2clMinifierPruningManifest(String)
-func (o *CompilerOptions) SetJ2clMinifierPruningManifest(j2clMinifierPruningManifest *string) {
-	o.j2clMinifierPruningManifest = j2clMinifierPruningManifest
-}
-
-// Java: CompilerOptions.getJ2clMinifierPruningManifest()
-func (o *CompilerOptions) GetJ2clMinifierPruningManifest() *string {
-	return o.j2clMinifierPruningManifest
-}
-
 // Java: CompilerOptions.setPrintSourceAfterEachPass(boolean)
 func (o *CompilerOptions) SetPrintSourceAfterEachPass(printSource bool) {
 	o.printSourceAfterEachPass = printSource
@@ -517,4 +451,14 @@ func (o *CompilerOptions) GetTracerOutput() *jutil.Path {
 // Java: CompilerOptions.setTracerOutput(Path)
 func (o *CompilerOptions) SetTracerOutput(out *jutil.Path) {
 	o.tracerOutput = out
+}
+
+// Java: CompilerOptions.isJ2clMinifierEnabled()
+func (o *CompilerOptions) IsJ2clMinifierEnabled() bool {
+	return o.j2clMinifierEnabled
+}
+
+// Java: CompilerOptions.getJ2clMinifierPruningManifest()
+func (o *CompilerOptions) GetJ2clMinifierPruningManifest() *string {
+	return o.j2clMinifierPruningManifest
 }

@@ -29,14 +29,14 @@ type Level struct {
 
 var (
 	Level_OFF     = &Level{"OFF", math.MaxInt32}
-	Level_SEVERE  = &Level{"SEVERE", 1000}
+	level_SEVERE  = &Level{"SEVERE", 1000}
 	Level_WARNING = &Level{"WARNING", 900}
 	Level_INFO    = &Level{"INFO", 800}
-	Level_CONFIG  = &Level{"CONFIG", 700}
+	level_CONFIG  = &Level{"CONFIG", 700}
 	Level_FINE    = &Level{"FINE", 500}
-	Level_FINER   = &Level{"FINER", 400}
-	Level_FINEST  = &Level{"FINEST", 300}
-	Level_ALL     = &Level{"ALL", math.MinInt32}
+	level_FINER   = &Level{"FINER", 400}
+	level_FINEST  = &Level{"FINEST", 300}
+	level_ALL     = &Level{"ALL", math.MinInt32}
 )
 
 // GetName is Level.getName().
@@ -45,8 +45,8 @@ func (l *Level) GetName() string { return l.name }
 // String is Level.toString().
 func (l *Level) String() string { return l.name }
 
-// LogRecord is java.util.logging.LogRecord.
-type LogRecord struct {
+// logRecordEntry is java.util.logging.LogRecord.
+type logRecordEntry struct {
 	level      *Level
 	message    string
 	parameters []any
@@ -55,18 +55,18 @@ type LogRecord struct {
 	millis     int64
 }
 
-func (r *LogRecord) GetLevel() *Level { return r.level }
+func (r *logRecordEntry) getLevel() *Level { return r.level }
 
-// Handler is java.util.logging.Handler (the part loggers call).
-type Handler interface {
-	Publish(record *LogRecord)
+// logHandler is java.util.logging.Handler (the part loggers call).
+type logHandler interface {
+	publish(record *logRecordEntry)
 }
 
 // Logger is java.util.logging.Logger.
 type Logger struct {
 	name              string
 	level             atomic.Pointer[Level]
-	handlers          []Handler
+	handlers          []logHandler
 	useParentHandlers bool
 }
 
@@ -74,7 +74,7 @@ func newRootLogger() *Logger {
 	l := &Logger{
 		name:              "",
 		useParentHandlers: true,
-		handlers:          []Handler{&consoleHandler{out: os.Stderr, level: Level_INFO}},
+		handlers:          []logHandler{&consoleHandler{out: os.Stderr, level: Level_INFO}},
 	}
 	l.level.Store(Level_INFO)
 	return l
@@ -161,15 +161,15 @@ func (l *Logger) IsLoggable(level *Level) bool {
 	return level.value >= eff.value && eff.value != Level_OFF.value
 }
 
-// AddHandler is Logger.addHandler(Handler).
-func (l *Logger) AddHandler(h Handler) {
+// addHandler is Logger.addHandler(Handler).
+func (l *Logger) addHandler(h logHandler) {
 	loggersMu.Lock()
 	l.handlers = append(l.handlers, h)
 	loggersMu.Unlock()
 }
 
-// RemoveHandler is Logger.removeHandler(Handler).
-func (l *Logger) RemoveHandler(h Handler) {
+// removeHandler is Logger.removeHandler(Handler).
+func (l *Logger) removeHandler(h logHandler) {
 	loggersMu.Lock()
 	defer loggersMu.Unlock()
 	for i, x := range l.handlers {
@@ -180,18 +180,18 @@ func (l *Logger) RemoveHandler(h Handler) {
 	}
 }
 
-// SetUseParentHandlers is Logger.setUseParentHandlers(boolean).
-func (l *Logger) SetUseParentHandlers(b bool) {
+// setUseParentHandlers is Logger.setUseParentHandlers(boolean).
+func (l *Logger) setUseParentHandlers(b bool) {
 	loggersMu.Lock()
 	l.useParentHandlers = b
 	loggersMu.Unlock()
 }
 
-func (l *Logger) logRecord(r *LogRecord) {
+func (l *Logger) logRecord(r *logRecordEntry) {
 	if !l.IsLoggable(r.level) {
 		return
 	}
-	var buf [4]Handler
+	var buf [4]logHandler
 	hs := buf[:0]
 	loggersMu.RLock()
 	for x := l; x != nil; x = x.parentLocked() {
@@ -202,12 +202,12 @@ func (l *Logger) logRecord(r *LogRecord) {
 	}
 	loggersMu.RUnlock()
 	for _, h := range hs {
-		h.Publish(r)
+		h.publish(r)
 	}
 }
 
-func (l *Logger) newRecord(level *Level, msg string) *LogRecord {
-	return &LogRecord{
+func (l *Logger) newRecord(level *Level, msg string) *logRecordEntry {
+	return &logRecordEntry{
 		level:      level,
 		message:    msg,
 		loggerName: l.name,
@@ -244,7 +244,7 @@ func (l *Logger) LogWithThrown(level *Level, msg string, thrown Throwable) {
 }
 
 // Severe is Logger.severe(String).
-func (l *Logger) Severe(msg string) { l.Log(Level_SEVERE, msg) }
+func (l *Logger) Severe(msg string) { l.Log(level_SEVERE, msg) }
 
 // Warning is Logger.warning(String).
 func (l *Logger) Warning(msg string) { l.Log(Level_WARNING, msg) }
@@ -256,7 +256,7 @@ func (l *Logger) Info(msg string) { l.Log(Level_INFO, msg) }
 func (l *Logger) Fine(msg string) { l.Log(Level_FINE, msg) }
 
 // Finest is Logger.finest(String).
-func (l *Logger) Finest(msg string) { l.Log(Level_FINEST, msg) }
+func (l *Logger) Finest(msg string) { l.Log(level_FINEST, msg) }
 
 // consoleHandler is java.util.logging.ConsoleHandler with SimpleFormatter.
 type consoleHandler struct {
@@ -265,8 +265,8 @@ type consoleHandler struct {
 	level *Level
 }
 
-// Publish is ConsoleHandler.publish(LogRecord).
-func (h *consoleHandler) Publish(r *LogRecord) {
+// publish is ConsoleHandler.publish(LogRecord).
+func (h *consoleHandler) publish(r *logRecordEntry) {
 	if r.level.value < h.level.value || h.level.value == Level_OFF.value {
 		return
 	}
@@ -279,7 +279,7 @@ func (h *consoleHandler) Publish(r *LogRecord) {
 // simpleFormatterFormat is SimpleFormatter.format(LogRecord) with the
 // default format "%1$tb %1$td, %1$tY %1$tl:%1$tM:%1$tS %1$Tp %2$s%n%4$s:
 // %5$s%6$s%n" (source = logger name).
-func simpleFormatterFormat(r *LogRecord) string {
+func simpleFormatterFormat(r *logRecordEntry) string {
 	var sb strings.Builder
 	sb.WriteString(time.UnixMilli(r.millis).Format("Jan 02, 2006 3:04:05 PM"))
 	sb.WriteByte(' ')
@@ -287,7 +287,7 @@ func simpleFormatterFormat(r *LogRecord) string {
 	sb.WriteByte('\n')
 	sb.WriteString(r.level.name)
 	sb.WriteString(": ")
-	sb.WriteString(Formatter_FormatMessage(r))
+	sb.WriteString(formatter_FormatMessage(r))
 	if r.thrown != nil {
 		sb.WriteByte('\n')
 		sb.WriteString(r.thrown.Error())
@@ -296,9 +296,9 @@ func simpleFormatterFormat(r *LogRecord) string {
 	return sb.String()
 }
 
-// Formatter_FormatMessage is Formatter.formatMessage(LogRecord): the
+// formatter_FormatMessage is Formatter.formatMessage(LogRecord): the
 // parameters are substituted only if the message contains "{0" to "{3".
-func Formatter_FormatMessage(r *LogRecord) string {
+func formatter_FormatMessage(r *logRecordEntry) string {
 	format := r.message
 	if len(r.parameters) == 0 {
 		return format
@@ -343,7 +343,7 @@ func Formatter_FormatMessage(r *LogRecord) string {
 
 // levelKnown are the levels the Level class defines, which Level.parse
 // knows by name and by value.
-var levelKnown = []*Level{Level_OFF, Level_SEVERE, Level_WARNING, Level_INFO, Level_CONFIG, Level_FINE, Level_FINER, Level_FINEST, Level_ALL}
+var levelKnown = []*Level{Level_OFF, level_SEVERE, Level_WARNING, Level_INFO, level_CONFIG, Level_FINE, level_FINER, level_FINEST, level_ALL}
 
 // Level_Parse is Level.parse(String): a known level name (case-sensitive),
 // or an integer value, which yields the known level of that value or a new

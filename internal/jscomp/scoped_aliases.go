@@ -24,7 +24,10 @@ import (
 	"github.com/paullepoulpe/jsgo/internal/ast"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
+	"github.com/paullepoulpe/jsgo/internal/strpool"
 )
+
+var scopedAliasesJscompID = strpool.Intern("$jscomp")
 
 // ScopedAliases processes aliases in goog.scope blocks.
 //
@@ -280,14 +283,39 @@ type aliasUsage struct {
 	isTypeNode     bool
 }
 
-func (u aliasUsage) referencesOtherAlias(deletedAliasVars map[*Var]struct{}) bool {
-	aliasDefinition := u.aliasVar.GetInitialValue()
-	qname := scopedAliases_getAliasedNamespace(aliasDefinition)
-	rootName := qname
-	if dotIndex := strings.IndexByte(qname, '.'); dotIndex != -1 {
-		rootName = qname[:dotIndex]
+func scopedAliases_aliasedRootID(rhs rhino.Node, intern bool) (rootID uint32, isQualified bool) {
+	cur := rhs
+	for cur.IsGetProp() {
+		isQualified = true
+		cur = cur.GetFirstChild()
 	}
-	otherAliasVar, _ := u.aliasVar.GetScope().(*Scope).GetOwnSlot(rootName).(*Var)
+	switch cur.GetToken() {
+	case rhino.Token_NAME:
+		return cur.GetStringID(), isQualified
+	case rhino.Token_CALL:
+		jutil.CheckStateMsg1(NodeUtil_IsCallToQualifiedName(cur, scopedAliases_GOOG_MODULE_GET), "%s", cur)
+		arg, ok := ast.MustCall(cur).OnlyArg()
+		jutil.CheckStateMsg1(ok, "%s", cur)
+		ns := arg.Node().GetString()
+		if dotIndex := strings.IndexByte(ns, '.'); dotIndex != -1 {
+			root := ns[:dotIndex]
+			if intern {
+				return uint32(strpool.Intern(root)), true
+			}
+			return uint32(strpool.Lookup(root)), true
+		}
+		return arg.Node().GetStringID(), isQualified
+	default:
+		panic(jutil.NewRuntimeException("Invalid alias RHS:" + rhs.String()))
+	}
+}
+
+func (u aliasUsage) referencesOtherAlias(deletedAliasVars map[*Var]struct{}) bool {
+	rootID, _ := scopedAliases_aliasedRootID(u.aliasVar.GetInitialValue(), false)
+	if rootID == 0 {
+		return false
+	}
+	otherAliasVar := u.aliasVar.scope.lookupOwnVarByID(rootID)
 	if otherAliasVar == nil {
 		return false
 	}
@@ -377,7 +405,6 @@ type ScopedAliases_Traversal struct {
 	aliasUsages              []aliasUsage
 
 	// This map is temporary and cleared for each scope.
-	aliases   map[string]*Var
 	aliasByID map[uint32]*Var
 
 	// Also temporary and cleared for each scope.
@@ -396,7 +423,7 @@ type ScopedAliases_Traversal struct {
 	// normalization (before optimizations). We run it here on a limited
 	// set of variables, but only as a last resort (because this will screw
 	// up warning messages downstream).
-	forbiddenLocals *jutil.LinkedHashSet[string]
+	forbiddenLocals map[strpool.ID]struct{}
 
 	hasNamespaceShadows bool
 	hasErrors           bool
@@ -461,7 +488,7 @@ func (v *ScopedAliases_Traversal) EnterScope(t *NodeTraversal) {
 	scopeMethodCall := v.FindScopeMethodCall(t.GetScopeRoot())
 	if !scopeMethodCall.IsNil() {
 		if v.forbiddenLocals == nil {
-			v.forbiddenLocals = jutil.NewLinkedHashSet("$jscomp")
+			v.forbiddenLocals = map[strpool.ID]struct{}{scopedAliasesJscompID: {}}
 		}
 		v.FindAliases(t.GetScope())
 		if lastArg, ok := ast.MustCall(scopeMethodCall).LastArg(); ok {
@@ -480,9 +507,8 @@ func (v *ScopedAliases_Traversal) ExitScope(t *NodeTraversal) {
 		v.scopeFunctionBody = rhino.NilNode
 		v.RenameNamespaceShadows(t)
 		clear(v.injectedDecls)
-		clear(v.aliases)
 		clear(v.aliasByID)
-		v.forbiddenLocals.Clear()
+		clear(v.forbiddenLocals)
 		v.hasNamespaceShadows = false
 	} else if v.InGoogScopeBody() {
 		// Called on inner scopes within a goog.scope, including both block
@@ -623,8 +649,7 @@ func (v *ScopedAliases_Traversal) RecordAlias(aliasVar *Var) {
 	nameNode := aliasVar.GetNameNode()
 	v.aliasDefinitionsToDelete = append(v.aliasDefinitionsToDelete, nameNode)
 
-	if v.aliases == nil {
-		v.aliases = make(map[string]*Var)
+	if v.aliasByID == nil {
 		v.aliasByID = make(map[uint32]*Var)
 	}
 
@@ -652,20 +677,15 @@ func (v *ScopedAliases_Traversal) RecordAlias(aliasVar *Var) {
 			v.deletedAliasVars = make(map[*Var]struct{})
 		}
 		v.deletedAliasVars[aliasVar] = struct{}{}
-		v.aliases[name] = aliasVar
 		v.aliasByID[nameNode.GetStringID()] = aliasVar
 		return
 	}
 
-	name := aliasVar.GetName()
-	v.aliases[name] = aliasVar
 	v.aliasByID[nameNode.GetStringID()] = aliasVar
 
-	qualifiedName := scopedAliases_getAliasedNamespace(initialValue)
-	if rootIndex := strings.IndexByte(qualifiedName, '.'); rootIndex != -1 {
-		qNameRoot := qualifiedName[:rootIndex]
-		if _, ok := v.aliases[qNameRoot]; !ok {
-			v.forbiddenLocals.Add(qNameRoot)
+	if rootID, isQualified := scopedAliases_aliasedRootID(initialValue, true); isQualified && rootID != 0 {
+		if _, ok := v.aliasByID[rootID]; !ok {
+			v.forbiddenLocals[strpool.ID(rootID)] = struct{}{}
 		}
 	}
 }
@@ -700,7 +720,7 @@ func (v *ScopedAliases_Traversal) FindNamespaceShadows(t *NodeTraversal) {
 
 	scope := t.GetScope()
 	for var_ := range scope.GetVarIterable() {
-		if v.forbiddenLocals.Contains(var_.GetName()) {
+		if _, ok := v.forbiddenLocals[strpool.ID(var_.nameID)]; ok {
 			v.hasNamespaceShadows = true
 			return
 		}
@@ -716,10 +736,14 @@ func (v *ScopedAliases_Traversal) RenameNamespaceShadows(t *NodeTraversal) {
 	jutil.CheckStateMsg1(NodeUtil_IsFunctionBlock(t.GetScopeRoot()), "%s", t.GetScopeRoot())
 
 	if v.hasNamespaceShadows {
-		var renamer MakeDeclaredNamesUnique_Renamer = NewMakeDeclaredNamesUnique_TargettedRenamer(
-			NewMakeDeclaredNamesUnique_ContextualRenamer(), v.forbiddenLocals)
-		for s := range v.forbiddenLocals.All() {
-			renamer.AddDeclaredName(s, false)
+		renamer := &MakeDeclaredNamesUnique_TargettedRenamer{
+			delegate:   NewMakeDeclaredNamesUnique_ContextualRenamer(),
+			targetIDs:  v.forbiddenLocals,
+			cachedSize: len(v.forbiddenLocals),
+		}
+		// order-independent: root ContextualRenamer.addDeclaredNameID sets each independent nameUsage[id] = 1
+		for id := range v.forbiddenLocals {
+			renamer.addDeclaredNameID(id, false)
 		}
 		uniquifier :=
 			MakeDeclaredNamesUnique_Builder_().WithRenamer(renamer).Build()
@@ -887,11 +911,13 @@ func (v *ScopedAliases_Traversal) Visit(t *NodeTraversal, n rhino.Node, parent r
 func (v *ScopedAliases_Traversal) FixTypeNode(typeNode rhino.Node) {
 	if strLit, ok := ast.AsStringLit(typeNode); ok {
 		name := strLit.Value()
-		baseName := name
+		var baseID uint32
 		if endIndex := strings.IndexByte(name, '.'); endIndex != -1 {
-			baseName = name[:endIndex]
+			baseID = uint32(strpool.Lookup(name[:endIndex]))
+		} else {
+			baseID = typeNode.GetStringID()
 		}
-		if aliasVar := v.aliases[baseName]; aliasVar != nil {
+		if aliasVar := v.aliasByID[baseID]; aliasVar != nil {
 			v.aliasUsages = append(v.aliasUsages, aliasUsage{
 				aliasVar:       aliasVar,
 				aliasReference: typeNode,

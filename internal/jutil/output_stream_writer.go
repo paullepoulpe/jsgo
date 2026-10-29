@@ -34,7 +34,7 @@ func (c *Charset) NewStreamEncoder() StreamEncoder {
 	}
 	return StreamEncoder{
 		enc:     c.impl().newEncoder(),
-		isASCII: c == StandardCharsets_US_ASCII || c == StandardCharsets_ISO_8859_1,
+		isASCII: c == StandardCharsets_US_ASCII || c == standardCharsets_ISO_8859_1,
 	}
 }
 
@@ -233,8 +233,8 @@ func (se *StreamEncoder) FinishTo(bw *bufio.Writer) error {
 	return err
 }
 
-// OutputStreamWriter is java.io.OutputStreamWriter.
-type OutputStreamWriter struct {
+// outputStreamWriter is java.io.OutputStreamWriter.
+type outputStreamWriter struct {
 	out     io.WriteCloser
 	byteBuf []byte
 	enc     StreamEncoder
@@ -242,30 +242,30 @@ type OutputStreamWriter struct {
 }
 
 // NewOutputStreamWriter is new OutputStreamWriter(out, UTF_8).
-func NewOutputStreamWriter(out io.WriteCloser) *OutputStreamWriter {
+func NewOutputStreamWriter(out io.WriteCloser) Writer {
 	if out == nil {
 		panic(NewNullPointerException())
 	}
-	return &OutputStreamWriter{out: out, enc: StreamEncoder{isUTF8: true}}
+	return &outputStreamWriter{out: out, enc: StreamEncoder{isUTF8: true}}
 }
 
-// NewOutputStreamWriterWithCharset is new OutputStreamWriter(out, cs).
-func NewOutputStreamWriterWithCharset(out io.WriteCloser, cs *Charset) Writer {
+// newOutputStreamWriterWithCharset is new OutputStreamWriter(out, cs).
+func newOutputStreamWriterWithCharset(out io.WriteCloser, cs *Charset) Writer {
 	if out == nil || cs == nil {
 		panic(NewNullPointerException())
 	}
-	return &OutputStreamWriter{out: out, enc: cs.NewStreamEncoder()}
+	return &outputStreamWriter{out: out, enc: cs.NewStreamEncoder()}
 }
 
 // Write is OutputStreamWriter.write(String).
-func (w *OutputStreamWriter) Write(s string) {
+func (w *outputStreamWriter) Write(s string) {
 	if err := w.TryWrite(s); err != nil {
 		panic(err)
 	}
 }
 
 // TryWrite writes s and returns an IIOException instead of panicking on I/O failure.
-func (w *OutputStreamWriter) TryWrite(s string) IIOException {
+func (w *outputStreamWriter) TryWrite(s string) IIOException {
 	if w.closed {
 		return NewIOException("Stream closed")
 	}
@@ -278,7 +278,7 @@ func (w *OutputStreamWriter) TryWrite(s string) IIOException {
 	return w.tryWriteBytes(b)
 }
 
-func (w *OutputStreamWriter) tryWriteBytes(b []byte) IIOException {
+func (w *outputStreamWriter) tryWriteBytes(b []byte) IIOException {
 	if len(b) == 0 {
 		return nil
 	}
@@ -289,14 +289,14 @@ func (w *OutputStreamWriter) tryWriteBytes(b []byte) IIOException {
 }
 
 // Flush is OutputStreamWriter.flush(); the bytes are already in the stream.
-func (w *OutputStreamWriter) Flush() {
+func (w *outputStreamWriter) Flush() {
 	if ex := w.TryFlush(); ex != nil {
 		panic(ex)
 	}
 }
 
 // TryFlush checks that the stream is open and returns an IIOException if closed.
-func (w *OutputStreamWriter) TryFlush() IIOException {
+func (w *outputStreamWriter) TryFlush() IIOException {
 	if w.closed {
 		return NewIOException("Stream closed")
 	}
@@ -306,7 +306,7 @@ func (w *OutputStreamWriter) TryFlush() IIOException {
 // Close is OutputStreamWriter.close(): an unpaired high surrogate left
 // over from the last write is encoded as unpaired, the output is ended, then
 // the stream is closed. Closing a closed writer has no effect.
-func (w *OutputStreamWriter) Close() {
+func (w *outputStreamWriter) Close() {
 	if w.closed {
 		return
 	}

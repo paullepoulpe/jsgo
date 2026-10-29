@@ -514,7 +514,7 @@ func (tc *TypeCheck) ShouldTraverse(t *NodeTraversal, n rhino.Node, parent rhino
 		// the 'x' from the outer scope, rather than the local alias bled into the function).
 		if fnName, ok := fn.Name(); ok {
 			outerScope := t.GetTypedScope()
-			var_ := outerScope.GetVar(fnName.Ident())
+			var_ := outerScope.GetVarByID(fnName.Node().GetStringID())
 			if var_ != nil &&
 				var_.GetScope().(*TypedScope).HasSameContainerScope(outerScope) &&
 				// Ideally, we would want to check whether the type in the scope

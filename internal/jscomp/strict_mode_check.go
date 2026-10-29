@@ -281,7 +281,7 @@ func (c *StrictModeCheck) CheckAssignment(assign ast.Assign) {
 // Java: StrictModeCheck.checkDelete(NodeTraversal, Node)
 func (c *StrictModeCheck) CheckDelete(t *NodeTraversal, del ast.Unary) {
 	if name, ok := del.Operand().AsName(); ok {
-		v := t.GetScope().GetVar(name.Ident())
+		v := t.GetScope().GetVarByNode(name.Node())
 		if v != nil {
 			c.Report(del.Node(), StrictModeCheck_DELETE_VARIABLE)
 		}

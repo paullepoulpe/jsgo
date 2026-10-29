@@ -392,3 +392,80 @@ func runParallelWork(
 		}
 	}
 }
+
+func runParallelItemIndexed[W any](w *W, idx int, panicsByItem []any, runItem func(w *W, itemIdx int)) (panicked bool) {
+	defer func() {
+		if r := recover(); r != nil {
+			panicsByItem[idx] = r
+			panicked = true
+		}
+	}()
+	runItem(w, idx)
+	return false
+}
+
+func runParallelWorkersIndexed[W any](
+	itemCount, numWorkers int,
+	initWorker func(workerIdx int) W,
+	runItem func(w *W, itemIdx int),
+	finishWorker func(workerIdx int, w *W),
+) {
+	if itemCount <= 0 {
+		return
+	}
+	if numWorkers > itemCount {
+		numWorkers = itemCount
+	}
+	if numWorkers <= 1 {
+		w := initWorker(0)
+		if finishWorker != nil {
+			defer finishWorker(0, &w)
+		}
+		for i := 0; i < itemCount; i++ {
+			runItem(&w, i)
+		}
+		return
+	}
+
+	panicsByItem := make([]any, itemCount)
+	var workerPanic any
+	var workerPanicOnce sync.Once
+	var nextIdx atomic.Uint32
+	var wg sync.WaitGroup
+	wg.Add(numWorkers)
+	for workerIdx := 0; workerIdx < numWorkers; workerIdx++ {
+		go func(wIdx int) {
+			defer wg.Done()
+			defer func() {
+				if r := recover(); r != nil {
+					workerPanicOnce.Do(func() {
+						workerPanic = r
+					})
+				}
+			}()
+			w := initWorker(wIdx)
+			if finishWorker != nil {
+				defer finishWorker(wIdx, &w)
+			}
+			for {
+				idx := int(nextIdx.Add(1) - 1)
+				if idx >= itemCount {
+					return
+				}
+				if runParallelItemIndexed(&w, idx, panicsByItem, runItem) {
+					return
+				}
+			}
+		}(workerIdx)
+	}
+	wg.Wait()
+
+	for _, p := range panicsByItem {
+		if p != nil {
+			panic(p)
+		}
+	}
+	if workerPanic != nil {
+		panic(workerPanic)
+	}
+}

@@ -262,7 +262,7 @@ func (e *Es6RewriteClass) ReportPrimitiveReturns(constructor ast.Function) {
 	// the end of its body, before calling `super()` must throw a ReferenceError.
 	NodeUtil_VisitPostOrderWithPred(
 		constructor.Body().Node(),
-		NodeUtil_VisitorFunc(func(n rhino.Node) {
+		func(n rhino.Node) {
 			if ret, ok := ast.AsReturn(n); ok {
 				if val, hasVal := ret.Value(); hasVal &&
 					NodeUtil_IsImmutableValue(val.Node()) &&
@@ -270,7 +270,7 @@ func (e *Es6RewriteClass) ReportPrimitiveReturns(constructor ast.Function) {
 					e.compiler.Report(JSError_MakeWithNode(n, Es6RewriteClass_CONSTRUCTOR_PRIMITIVE_RETURN))
 				}
 			}
-		}),
+		},
 		// A `return` in a nested function belongs to that function.
 		func(n rhino.Node) bool { return !n.IsFunction() })
 }

@@ -705,16 +705,6 @@ func (t *Compiler_ChunkGraphAwareLicenseTracker) EmitLicenses() []string {
 	return rv
 }
 
-// toSourceAndMappings generates JavaScript source code for an AST.
-//
-// Java: Compiler.toSourceAndMappings(Node, boolean, LicenseTracker)
-func (c *Compiler) toSourceAndMappings(
-	n rhino.Node, firstOutput bool, licenseTracker CodePrinter_LicenseTracker) *CodePrinter_SourceAndMappings {
-	sm := &CodePrinter_SourceAndMappings{}
-	c.toSourceAndMappingsInto(n, firstOutput, licenseTracker, sm)
-	return sm
-}
-
 func (c *Compiler) acquirePrintScratch() (*codePrinterScratch, bool) {
 	if c.printScratchBusy.CompareAndSwap(false, true) {
 		return &c.printScratch, true
@@ -731,18 +721,29 @@ func (c *Compiler) toSourceAndMappingsInto(
 	c.toSourceAndMappingsIntoWithScratch(n, firstOutput, licenseTracker, sm, scratch)
 }
 
+func (c *Compiler) printRootWithScratch(
+	n rhino.Node,
+	firstOutput bool,
+	gatherSourceMap bool,
+	licenseTracker CodePrinter_LicenseTracker,
+	sm *CodePrinter_SourceAndMappings,
+	scratch *codePrinterScratch,
+) string {
+	builder := CodePrinter_Builder{root: n}
+	builder.SetCompilerOptions(c.options)
+	builder.SetTagAsTypeSummary(c.options.ShouldGenerateTypedExterns())
+	builder.SetTagAsStrict(firstOutput && c.options.ShouldEmitUseStrict())
+	builder.SetLicenseTracker(licenseTracker)
+	return builder.buildSourceAndMappingsInto(sm, gatherSourceMap, scratch)
+}
+
 func (c *Compiler) toSourceAndMappingsIntoWithScratch(
 	n rhino.Node,
 	firstOutput bool,
 	licenseTracker CodePrinter_LicenseTracker,
 	sm *CodePrinter_SourceAndMappings,
 	scratch *codePrinterScratch) {
-	builder := CodePrinter_Builder{root: n}
-	builder.SetCompilerOptions(c.options)
-	builder.SetTagAsTypeSummary(c.options.ShouldGenerateTypedExterns())
-	builder.SetTagAsStrict(firstOutput && c.options.ShouldEmitUseStrict())
-	builder.SetLicenseTracker(licenseTracker)
-	builder.buildSourceAndMappingsInto(sm, true, scratch)
+	c.printRootWithScratch(n, firstOutput, true, licenseTracker, sm, scratch)
 }
 
 func (c *Compiler) toSourceWithoutMappings(
@@ -751,12 +752,7 @@ func (c *Compiler) toSourceWithoutMappings(
 	if owned {
 		defer c.printScratchBusy.Store(false)
 	}
-	builder := CodePrinter_Builder{root: n}
-	builder.SetCompilerOptions(c.options)
-	builder.SetTagAsTypeSummary(c.options.ShouldGenerateTypedExterns())
-	builder.SetTagAsStrict(firstOutput && c.options.ShouldEmitUseStrict())
-	builder.SetLicenseTracker(licenseTracker)
-	return builder.buildSourceAndMappingsInto(nil, false, scratch)
+	return c.printRootWithScratch(n, firstOutput, false, licenseTracker, nil, scratch)
 }
 
 func compiler_getLicenseForFileName(compiler AbstractCompiler, fileName string) *string {
@@ -769,42 +765,6 @@ func compiler_getLicenseForFileName(compiler AbstractCompiler, fileName string) 
 		return nil
 	}
 	return docInfo.GetLicense()
-}
-
-// ToSourceArray converts the parse tree for each input in a chunk back to
-// JS code, using the given License Tracker implementation to decide which
-// licenses should be emitted before each input file.
-//
-// licenseTracker: The license tracker implementation to use.
-// ChunkGraphAwareLicenseTracker is a suitable implementation when this
-// method is being called on each chunk in the chunk graph in dependency
-// order - see its javadoc on how to use it correctly. chunk: the chunk
-// being converted to source.
-//
-// Java: Compiler.toSourceArray(LicenseTracker, JSChunk)
-func (c *Compiler) ToSourceArray(licenseTracker CodePrinter_LicenseTracker, chunk *JSChunk) []string {
-	return Compiler_RunInCompilerThread(c,
-		func() []string {
-			inputs := chunk.GetInputs()
-			numInputs := len(inputs)
-			if numInputs == 0 {
-				return []string{}
-			}
-
-			sources := make([]string, numInputs)
-			cb := NewCompiler_CodeBuilder()
-			for i := 0; i < numInputs; i++ {
-				scriptNode := inputs[i].GetAstRoot(c)
-				if scriptNode.IsNil() {
-					panic(jutil.NewIllegalArgumentExceptionMsg("Bad chunk input: " + inputs[i].GetName()))
-				}
-
-				cb.Reset()
-				c.ToSourceOfCodeBuilder(cb, licenseTracker, i, scriptNode)
-				sources[i] = cb.String()
-			}
-			return sources
-		})
 }
 
 // Compiler_CodeBuilder stores a buffer of text to which more can be

@@ -8,7 +8,7 @@ import (
 
 func TestMonitorReentrant(t *testing.T) {
 	var m Monitor
-	if m.IsHeldByCurrentGoroutine() || m.GetHoldCount() != 0 {
+	if m.isHeldByCurrentGoroutine() || m.getHoldCount() != 0 {
 		t.Fatal("a new monitor is held")
 	}
 	m.Lock()
@@ -16,16 +16,16 @@ func TestMonitorReentrant(t *testing.T) {
 	func() {
 		m.Lock()
 		defer m.Unlock()
-		if got := m.GetHoldCount(); got != 3 {
+		if got := m.getHoldCount(); got != 3 {
 			t.Fatalf("hold count %d, want 3", got)
 		}
 	}()
 	m.Unlock()
-	if !m.IsHeldByCurrentGoroutine() || m.GetHoldCount() != 1 {
-		t.Fatalf("after 3 locks and 2 unlocks: held=%v count=%d", m.IsHeldByCurrentGoroutine(), m.GetHoldCount())
+	if !m.isHeldByCurrentGoroutine() || m.getHoldCount() != 1 {
+		t.Fatalf("after 3 locks and 2 unlocks: held=%v count=%d", m.isHeldByCurrentGoroutine(), m.getHoldCount())
 	}
 	m.Unlock()
-	if m.IsHeldByCurrentGoroutine() || m.GetHoldCount() != 0 {
+	if m.isHeldByCurrentGoroutine() || m.getHoldCount() != 0 {
 		t.Fatal("still held after the last unlock")
 	}
 }
@@ -33,7 +33,7 @@ func TestMonitorReentrant(t *testing.T) {
 func TestMonitorUnlockNotHeld(t *testing.T) {
 	var m Monitor
 	caught := false
-	Try(func() { m.Unlock() }, func(e IIllegalMonitorStateException) { caught = true })
+	Try(func() { m.Unlock() }, func(e *illegalMonitorStateException) { caught = true })
 	if !caught {
 		t.Fatal("unlocking a free monitor did not throw IllegalMonitorStateException")
 	}
@@ -43,7 +43,7 @@ func TestMonitorUnlockNotHeld(t *testing.T) {
 	done := make(chan bool)
 	go func() {
 		defer close(done)
-		Try(func() { m.Unlock() }, func(e IIllegalMonitorStateException) { done <- true })
+		Try(func() { m.Unlock() }, func(e *illegalMonitorStateException) { done <- true })
 	}()
 	if !<-done {
 		t.Fatal("unlocking another goroutine's monitor did not throw")
@@ -58,8 +58,8 @@ func TestMonitorExcludesOtherGoroutines(t *testing.T) {
 	acquired := make(chan struct{})
 	go func() {
 		m.Lock()
-		if m.GetHoldCount() != 1 {
-			t.Errorf("second goroutine hold count %d, want 1", m.GetHoldCount())
+		if m.getHoldCount() != 1 {
+			t.Errorf("second goroutine hold count %d, want 1", m.getHoldCount())
 		}
 		m.Unlock()
 		close(acquired)

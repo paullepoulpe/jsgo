@@ -347,23 +347,26 @@ func (c *Compiler) deserializeCompilerState(inputStream io.Reader) {
 
 	jutil.CheckNotNullMsg(
 		c.chunkGraph, "Did you forget to call .init or .initChunks before restoreState?")
-	externFilesBuilder := jutil.NewLinkedHashMap[string, *SourceFile]()
-	codeFilesBuilder := jutil.NewLinkedHashMap[string, *SourceFile]()
-	allInputFiles := jutil.NewLinkedHashSet[*SourceFile]()
-	compiler_putOrThrow := func(m *jutil.LinkedHashMap[string, *SourceFile], k string, v *SourceFile) {
+	allInputs := c.chunkGraph.GetAllInputs()
+	externFiles := make(map[string]*SourceFile, len(c.externs))
+	codeFiles := make(map[string]*SourceFile, len(allInputs))
+	allInputFiles := make([]*SourceFile, 0, len(allInputs)+len(c.externs))
+	compiler_putOrThrow := func(m map[string]*SourceFile, k string, v *SourceFile) {
 		// ImmutableMap.Builder.buildOrThrow: duplicate keys are an error.
-		if m.ContainsKey(k) {
+		if _, dup := m[k]; dup {
 			panic(jutil.NewIllegalArgumentExceptionMsg("Multiple entries with same key: " + k))
 		}
-		m.Put(k, v)
+		m[k] = v
 	}
-	for _, input := range c.chunkGraph.GetAllInputs() {
-		allInputFiles.Add(input.GetSourceFile())
-		compiler_putOrThrow(codeFilesBuilder, input.GetInputId().GetIdName(), input.GetSourceFile())
+	for _, input := range allInputs {
+		sf := input.GetSourceFile()
+		allInputFiles = append(allInputFiles, sf)
+		compiler_putOrThrow(codeFiles, input.GetInputId().GetIdName(), sf)
 	}
 	for _, extern := range c.externs {
-		allInputFiles.Add(extern.GetSourceFile())
-		compiler_putOrThrow(externFilesBuilder, extern.GetInputId().GetIdName(), extern.GetSourceFile())
+		sf := extern.GetSourceFile()
+		allInputFiles = append(allInputFiles, sf)
+		compiler_putOrThrow(externFiles, extern.GetInputId().GetIdName(), sf)
 	}
 
 	deserializedAst := TypedAstDeserializer_DeserializeFullAst(
@@ -405,26 +408,21 @@ func (c *Compiler) deserializeCompilerState(inputStream io.Reader) {
 	runtimeLibraries := deserializedAst.GetRuntimeLibraries()
 
 	// Tells CompilerInput::getRoot to deserialize an AST rather than re-parsing the file
-	c.typedAstFilesystem = deserializedAst.rawFilesystem()
-	c.typedAstScriptDeserializers = deserializedAst.scriptDeserializers
+	c.typedAstFilesystem = deserializedAst.filesystem
 	deserializedAst = nil
 
 	// overwrite any existing CompilerInput instances. Reuse the SourceFiles created by
 	// TypedAstDeserializer; otherwise lookups in this.typedAstFilesystem will fail.
-	externFiles := externFilesBuilder
-	codeFiles := codeFilesBuilder
-	externFilesBuilder = nil
-	codeFilesBuilder = nil
 	for _, externName := range stateProto.GetExternsList() {
 		if externName == c.SYNTHETIC_EXTERNS_FILE.GetName() {
 			c.GetSynthesizedExternsInput()
 			continue
 		}
-		externFile := externFiles.Get(externName)
+		externFile := externFiles[externName]
 		if externFile == nil {
 			// Extern files may passed in with regular source files, and later 'hoisted' to externs
 			// because they are annotated `@externs`.
-			externFile = jutil.CheckNotNullMsg1(codeFiles.Get(externName), "Missing %s", externName)
+			externFile = jutil.CheckNotNullMsg1(codeFiles[externName], "Missing %s", externName)
 		}
 		input := NewCompilerInputWithIsExtern(externFile /* isExtern= */, true)
 		script := input.GetAstRoot(c) // accesses this.typedAstFilesystem
@@ -449,7 +447,7 @@ func (c *Compiler) deserializeCompilerState(inputStream io.Reader) {
 	for i := 0; i < len(chunks); i++ {
 		chunkProto := stateProto.GetChunks(i)
 		for _, inputId := range chunkProto.GetInputIdsList() {
-			src := codeFiles.Get(inputId)
+			src := codeFiles[inputId]
 			if src == nil {
 				// The auto-generated empty fill files used to facilitate CCCM for
 				// empty chunks may not have gotten serialized, but all the others
@@ -493,7 +491,6 @@ func (c *Compiler) deserializeCompilerState(inputStream io.Reader) {
 	}
 
 	c.typedAstFilesystem = nil // allow garbage collection
-	c.typedAstScriptDeserializers = nil
 
 	if stateProto.GetLastInjectedLibraryIndexInFirstScript() != -1 {
 		lastInjectedLibrary := c.jsRoot.

@@ -22,8 +22,6 @@ import (
 	"math/bits"
 	"slices"
 	"strings"
-	"sync"
-	"sync/atomic"
 
 	"github.com/paullepoulpe/jsgo/internal/ast"
 	"github.com/paullepoulpe/jsgo/internal/graph"
@@ -198,68 +196,34 @@ func (c *CoalesceVariableNames) Process(externs rhino.Node, root rhino.Node) {
 		return
 	}
 
-	workers := min(numThreads, len(topFns))
 	changesByFn := make([][]rhino.Node, len(topFns))
-	failures := make([]jutil.Throwable, len(topFns))
-	var next atomic.Int64
-	var wg sync.WaitGroup
-	for range workers {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+	runParallelWorkersIndexed(
+		len(topFns),
+		numThreads,
+		func(_ int) *CoalesceVariableNames {
 			wc := NewCoalesceVariableNames(c.compiler, false)
 			wc.deferChanges = true
 			wc.pushCfgRoot(root)
-			defer wc.resetCfgStack()
-			curIdx := -1
-			defer func() {
-				if r := recover(); r != nil && curIdx >= 0 {
-					failures[curIdx] = jutil.AsThrowable(r)
-				}
-			}()
-			for {
-				idx := int(next.Add(1) - 1)
-				if idx >= len(topFns) {
-					return
-				}
-				curIdx = idx
-				wc.changedScopes = wc.changedScopes[:0]
-				wc.processTopFunction(topFns[idx], dummyGlobal)
-				if len(wc.changedScopes) > 0 {
-					changesByFn[idx] = slices.Clone(wc.changedScopes)
-				}
-				curIdx = -1
+			return wc
+		},
+		func(wc **CoalesceVariableNames, idx int) {
+			w := *wc
+			w.changedScopes = w.changedScopes[:0]
+			w.processTopFunction(topFns[idx], dummyGlobal)
+			if len(w.changedScopes) > 0 {
+				changesByFn[idx] = slices.Clone(w.changedScopes)
 			}
-		}()
-	}
-	wg.Wait()
-	for _, f := range failures {
-		if f != nil {
-			panic(f)
-		}
-	}
+		},
+		func(_ int, wc **CoalesceVariableNames) {
+			(*wc).resetCfgStack()
+		},
+	)
 	for _, scopes := range changesByFn {
 		for _, scope := range scopes {
 			c.compiler.ReportChangeToChangeScope(scope)
 		}
 	}
 	c.compiler.SetLifeCycleStage(AbstractCompiler_LifeCycleStage_RAW)
-}
-
-// CoalesceVariableNames_ShouldOptimizeScope returns populated
-// AllVarsDeclaredInFunction object iff shouldOptimizeScope is true.
-//
-// Java: CoalesceVariableNames.shouldOptimizeScope(NodeTraversal)
-func CoalesceVariableNames_ShouldOptimizeScope(t *NodeTraversal) *NodeUtil_AllVarsDeclaredInFunction {
-	if t.GetScopeRoot().IsFunction() {
-		allVarsDeclaredInFunction :=
-			NodeUtil_GetAllVarsDeclaredInFunction(t.GetCompiler(), t.GetScopeCreator(), t.GetScope())
-		if LiveVariablesAnalysis_MAX_VARIABLES_TO_ANALYZE >
-			len(allVarsDeclaredInFunction.GetAllVariablesInOrder()) {
-			return allVarsDeclaredInFunction
-		}
-	}
-	return nil
 }
 
 func (c *CoalesceVariableNames) EnterScope(t *NodeTraversal) {

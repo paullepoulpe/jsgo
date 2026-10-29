@@ -700,7 +700,7 @@ func (m *ClosureRewriteModule) maybeUpdateExportDeclToNode(t *NodeTraversal, tar
 
 	if value.IsName() {
 		currentScope := t.GetScope()
-		if v := currentScope.GetVar(value.GetString()); v != nil {
+		if v := currentScope.GetVarByNode(value); v != nil {
 			varScope := v.GetScope().(*Scope)
 			if varScope.GetDepth() == currentScope.GetDepth() {
 				if info := v.GetJSDocInfo(); info != nil && info.HasTypedefType() {

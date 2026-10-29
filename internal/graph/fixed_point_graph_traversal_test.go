@@ -6,11 +6,11 @@ import (
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 )
 
-type embeddedLinkedGraph[N comparable, E any] struct {
+type embeddedLinkedGraph[N, E comparable] struct {
 	LinkedDirectedGraph[N, E]
 }
 
-func newEmbeddedLinkedGraph[N comparable, E any]() *embeddedLinkedGraph[N, E] {
+func newEmbeddedLinkedGraph[N, E comparable]() *embeddedLinkedGraph[N, E] {
 	g := &embeddedLinkedGraph[N, E]{}
 	g.Init(true, true)
 	return g

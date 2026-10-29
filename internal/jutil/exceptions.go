@@ -334,13 +334,6 @@ func tryCatch[E any](body func()) (caught E, ok bool) {
 // ArrayIndexOutOfBoundsException is java.lang.ArrayIndexOutOfBoundsException.
 type ArrayIndexOutOfBoundsException struct{ IndexOutOfBoundsException }
 
-func (*ArrayIndexOutOfBoundsException) arrayIndexOutOfBoundsException() {}
-
-type IArrayIndexOutOfBoundsException interface {
-	IIndexOutOfBoundsException
-	arrayIndexOutOfBoundsException()
-}
-
 // NewArrayIndexOutOfBoundsException is new ArrayIndexOutOfBoundsException(int index).
 func NewArrayIndexOutOfBoundsException(index int) *ArrayIndexOutOfBoundsException {
 	e := &ArrayIndexOutOfBoundsException{}
@@ -394,13 +387,6 @@ func NewNoSuchElementExceptionMsg(message string) *NoSuchElementException {
 
 // ArithmeticException is java.lang.ArithmeticException.
 type ArithmeticException struct{ RuntimeException }
-
-func (*ArithmeticException) arithmeticException() {}
-
-type IArithmeticException interface {
-	IRuntimeException
-	arithmeticException()
-}
 
 func NewArithmeticException(message string) *ArithmeticException {
 	e := &ArithmeticException{}
@@ -655,43 +641,41 @@ type ICharacterCodingException interface {
 	characterCodingException()
 }
 
-// MalformedInputException is java.nio.charset.MalformedInputException.
-type MalformedInputException struct {
+// malformedInputException is java.nio.charset.MalformedInputException.
+type malformedInputException struct {
 	CharacterCodingException
 	inputLength int
 }
 
-// NewMalformedInputException is new MalformedInputException(inputLength);
+// newMalformedInputException is new MalformedInputException(inputLength);
 // its message is "Input length = <inputLength>".
-func NewMalformedInputException(inputLength int) *MalformedInputException {
-	e := &MalformedInputException{inputLength: inputLength}
+func newMalformedInputException(inputLength int) *malformedInputException {
+	e := &malformedInputException{inputLength: inputLength}
 	msg := "Input length = " + strconv.Itoa(inputLength)
 	InitThrowable(e, "java.nio.charset.MalformedInputException", &msg, nil)
 	return e
 }
 
-// GetInputLength is MalformedInputException.getInputLength().
-func (e *MalformedInputException) GetInputLength() int { return e.inputLength }
+func (e *malformedInputException) getInputLength() int { return e.inputLength }
 
-// UnmappableCharacterException is
+// unmappableCharacterException is
 // java.nio.charset.UnmappableCharacterException.
-type UnmappableCharacterException struct {
+type unmappableCharacterException struct {
 	CharacterCodingException
 	inputLength int
 }
 
-// NewUnmappableCharacterException is new
+// newUnmappableCharacterException is new
 // UnmappableCharacterException(inputLength); its message is
 // "Input length = <inputLength>".
-func NewUnmappableCharacterException(inputLength int) *UnmappableCharacterException {
-	e := &UnmappableCharacterException{inputLength: inputLength}
+func newUnmappableCharacterException(inputLength int) *unmappableCharacterException {
+	e := &unmappableCharacterException{inputLength: inputLength}
 	msg := "Input length = " + strconv.Itoa(inputLength)
 	InitThrowable(e, "java.nio.charset.UnmappableCharacterException", &msg, nil)
 	return e
 }
 
-// GetInputLength is UnmappableCharacterException.getInputLength().
-func (e *UnmappableCharacterException) GetInputLength() int { return e.inputLength }
+func (e *unmappableCharacterException) getInputLength() int { return e.inputLength }
 
 // FileNotFoundException is java.io.FileNotFoundException.
 type FileNotFoundException struct{ IOException }

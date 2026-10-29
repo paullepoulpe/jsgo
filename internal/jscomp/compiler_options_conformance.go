@@ -94,24 +94,9 @@ func (o *CompilerOptions) ShouldSerializeExtraDebugInfo() bool {
 	return o.serializeExtraDebugInfo || o.GetDebugLogDirectory() != nil
 }
 
-// Java: CompilerOptions.setSerializeExtraDebugInfo(boolean)
-func (o *CompilerOptions) SetSerializeExtraDebugInfo(serializeExtraDebugInfo bool) {
-	o.serializeExtraDebugInfo = serializeExtraDebugInfo
-}
-
-// Java: CompilerOptions.setStateCompressionWrapper(Function<OutputStream, OutputStream>)
-func (o *CompilerOptions) SetStateCompressionWrapper(wrapper func(io.Writer) io.Writer) {
-	o.stateCompressionWrapper = wrapper
-}
-
 // Java: CompilerOptions.getStateCompressionWrapper()
 func (o *CompilerOptions) GetStateCompressionWrapper() func(io.Writer) io.Writer {
 	return o.stateCompressionWrapper
-}
-
-// Java: CompilerOptions.setStateDecompressionWrapper(Function<InputStream, InputStream>)
-func (o *CompilerOptions) SetStateDecompressionWrapper(wrapper func(io.Reader) io.Reader) {
-	o.stateDecompressionWrapper = wrapper
 }
 
 // Java: CompilerOptions.getStateDecompressionWrapper()
@@ -141,11 +126,6 @@ func (o *CompilerOptions) SetErrorFormat(errorFormat ErrorFormat) {
 // Java: CompilerOptions.getErrorFormat()
 func (o *CompilerOptions) GetErrorFormat() ErrorFormat {
 	return o.errorFormat
-}
-
-// Java: CompilerOptions.setWarningsGuard(ComposeWarningsGuard)
-func (o *CompilerOptions) SetWarningsGuard(warningsGuard *ComposeWarningsGuard) {
-	o.warningsGuard = warningsGuard
 }
 
 // Java: CompilerOptions.setLineLengthThreshold(int)
@@ -191,11 +171,6 @@ func (o *CompilerOptions) SetApplyInputSourceMaps(applyInputSourceMaps bool) {
 // Java: CompilerOptions.getApplyInputSourceMaps()
 func (o *CompilerOptions) GetApplyInputSourceMaps() bool {
 	return o.applyInputSourceMaps
-}
-
-// Java: CompilerOptions.setResolveSourceMapAnnotations(boolean)
-func (o *CompilerOptions) SetResolveSourceMapAnnotations(resolveSourceMapAnnotations bool) {
-	o.resolveSourceMapAnnotations = resolveSourceMapAnnotations
 }
 
 // Java: CompilerOptions.getResolveSourceMapAnnotations()
@@ -388,11 +363,6 @@ func (o *CompilerOptions) GetRuntimeLibraryMode() RuntimeJsLibManager_RuntimeLib
 	return o.runtimeLibraryMode
 }
 
-// Java: CompilerOptions.setUnusedImportsToRemove(ImmutableSet<String>)
-func (o *CompilerOptions) SetUnusedImportsToRemove(unusedImportsToRemove *jutil.LinkedHashSet[string]) {
-	o.unusedImportsToRemove = unusedImportsToRemove
-}
-
 // Java: CompilerOptions.getUnusedImportsToRemove()
 func (o *CompilerOptions) GetUnusedImportsToRemove() *jutil.LinkedHashSet[string] {
 	return o.unusedImportsToRemove
@@ -430,26 +400,12 @@ func (o *CompilerOptions) GetConformanceConfigs() []*ConformanceConfig {
 //
 // @deprecated See go/binary-level-conformance-deprecated.
 //
-// Java: CompilerOptions.setConformanceConfig(ConformanceConfig)
-func (o *CompilerOptions) SetConformanceConfig(conformanceConfig *ConformanceConfig) {
-	o.SetConformanceConfigs([]*ConformanceConfig{jutil.CheckNotNull(conformanceConfig)})
-}
-
-// Both enable and configure conformance checks, if non-null.
-//
-// @deprecated See go/binary-level-conformance-deprecated.
-//
 // Java: CompilerOptions.setConformanceConfigs(List<ConformanceConfig>)
 func (o *CompilerOptions) SetConformanceConfigs(configs []*ConformanceConfig) {
 	for _, c := range configs {
 		jutil.CheckNotNull(c) // ImmutableList.copyOf rejects null elements.
 	}
 	o.conformanceConfigs = append([]*ConformanceConfig{}, configs...)
-}
-
-// Java: CompilerOptions.clearConformanceConfigs()
-func (o *CompilerOptions) ClearConformanceConfigs() {
-	o.conformanceConfigs = []*ConformanceConfig{}
 }
 
 // Whether the output should contain a 'use strict' directive.
@@ -541,11 +497,6 @@ func (o *CompilerOptions) GetChunkOutputType() CompilerOptions_ChunkOutputType {
 // Java: CompilerOptions.setChunkOutputType(ChunkOutputType)
 func (o *CompilerOptions) SetChunkOutputType(chunkOutputType CompilerOptions_ChunkOutputType) {
 	o.chunkOutputType = chunkOutputType
-}
-
-// Java: CompilerOptions.setStrictMessageReplacement(boolean)
-func (o *CompilerOptions) SetStrictMessageReplacement(strictMessageReplacement bool) {
-	o.strictMessageReplacement = strictMessageReplacement
 }
 
 // Java: CompilerOptions.getStrictMessageReplacement()

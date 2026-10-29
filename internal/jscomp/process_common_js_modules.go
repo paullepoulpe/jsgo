@@ -26,6 +26,7 @@ import (
 	"github.com/paullepoulpe/jsgo/internal/ast"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
+	"github.com/paullepoulpe/jsgo/internal/strpool"
 )
 
 // Go-only: this pass uses the typed AST view (internal/ast) where it reads
@@ -68,6 +69,11 @@ const (
 	processCommonJSModules_WEBPACK_REQUIRE           = "__webpack_require__"
 	processCommonJSModules_WEBPACK_REQUIRE_NAMESPACE = "__webpack_require__.t"
 	processCommonJSModules_EXPORT_PROPERTY_NAME      = "default"
+)
+
+var (
+	processCommonJSModules_exportsID = uint32(strpool.Intern(processCommonJSModules_EXPORTS))
+	processCommonJSModules_moduleID  = uint32(strpool.Intern(processCommonJSModules_MODULE))
 )
 
 var ProcessCommonJSModules_UNKNOWN_REQUIRE_ENSURE = DiagnosticType_Warning(
@@ -258,13 +264,13 @@ func processCommonJSModules_sourceFileName(n rhino.Node) string {
 // Java: ProcessCommonJSModules.isCommonJsExport(NodeTraversal, Node, ModuleLoader.ResolutionMode)
 func ProcessCommonJSModules_IsCommonJsExport(
 	t *NodeTraversal, export rhino.Node, resolutionMode ModuleLoader_ResolutionMode) bool {
-	if export.MatchesQualifiedName(processCommonJSModules_MODULE+"."+processCommonJSModules_EXPORTS) ||
+	if processCommonJSModules_MODULE_EXPORTS.Matches(export) ||
 		processCommonJSModules_isModuleExportsElement(export) {
-		v := t.GetScope().GetVar(processCommonJSModules_MODULE)
+		v := t.GetScope().GetVarByID(processCommonJSModules_moduleID)
 		return v == nil || v.IsExtern()
 	}
-	if export.IsName() && processCommonJSModules_EXPORTS == export.GetString() {
-		v := t.GetScope().GetVar(processCommonJSModules_EXPORTS)
+	if export.IsName() && export.GetStringID() == processCommonJSModules_exportsID {
+		v := t.GetScope().GetVarByID(processCommonJSModules_exportsID)
 		return v == nil || v.IsGlobal()
 	}
 	return false
@@ -574,7 +580,7 @@ func (f *commonJsFindImportsAndExports) Visit(t *NodeTraversal, n rhino.Node, pa
 		f.visitRequireEnsureCall(t, call)
 	}
 
-	if n.MatchesQualifiedName(processCommonJSModules_MODULE+"."+processCommonJSModules_EXPORTS) ||
+	if processCommonJSModules_MODULE_EXPORTS.Matches(n) ||
 		processCommonJSModules_isModuleExportsElement(n) {
 		if f.outer.isCommonJsExport(t, n) {
 			f.moduleExports = append(f.moduleExports, newCommonJsExportInfo(n, t.GetScope()))
@@ -600,8 +606,8 @@ func (f *commonJsFindImportsAndExports) Visit(t *NodeTraversal, n rhino.Node, pa
 		}
 	}
 
-	if n.IsName() && processCommonJSModules_EXPORTS == n.GetString() {
-		v := t.GetScope().GetVar(processCommonJSModules_EXPORTS)
+	if n.IsName() && n.GetStringID() == processCommonJSModules_exportsID {
+		v := t.GetScope().GetVarByID(processCommonJSModules_exportsID)
 		if v == nil || v.IsGlobal() {
 			qNameRoot := baseQualifiedNameNode(n)
 			if !qNameRoot.IsNil() &&
@@ -612,9 +618,9 @@ func (f *commonJsFindImportsAndExports) Visit(t *NodeTraversal, n rhino.Node, pa
 				if n.GetGrandparent().IsExprResult() &&
 					!next.IsNil() &&
 					((next.IsGetProp() &&
-						next.MatchesQualifiedName(processCommonJSModules_MODULE+"."+processCommonJSModules_EXPORTS)) ||
+						processCommonJSModules_MODULE_EXPORTS.Matches(next)) ||
 						(next.IsAssign() &&
-							next.GetFirstChild().MatchesQualifiedName(processCommonJSModules_MODULE+"."+processCommonJSModules_EXPORTS))) {
+							processCommonJSModules_MODULE_EXPORTS.Matches(next.GetFirstChild()))) {
 					f.exports = append(f.exports, newCommonJsExportInfo(n, t.GetScope()))
 				} else if !f.hasGoogProvideOrModule &&
 					(v == nil || (v.GetNameNode().IsNil() && v.GetNameNode().GetFirstChild() != n)) {

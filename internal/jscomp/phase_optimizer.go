@@ -151,26 +151,6 @@ func (p *PhaseOptimizer) MaybePrintAstHashcodes(passName string, root rhino.Node
 	}
 }
 
-func (p *PhaseOptimizer) MaybeRunValidityCheck(passName string, externs rhino.Node, root rhino.Node) {
-	if p.validityCheck == nil {
-		return
-	}
-	defer func() {
-		if rec := recover(); rec != nil {
-			t, ok := rec.(jutil.Throwable)
-			if !ok {
-				t = jutil.AsThrowable(rec)
-			}
-			if e, ok := t.(jutil.IRuntimeException); ok {
-				panic(jutil.NewIllegalStateExceptionWithMessageAndCause("Validity checks failed for pass: "+passName, e))
-			}
-			panic(rec)
-		}
-	}()
-	p.validityCheck.Create(p.compiler).Process(externs, root)
-	p.changeVerifier.CheckRecordedChangesWithPassName(passName, p.jsRoot)
-}
-
 func (p *PhaseOptimizer) HasHaltingErrors() bool {
 	return p.compiler.HasHaltingErrors()
 }
@@ -236,19 +216,25 @@ func (n *PhaseOptimizer_NamedPass) Process(externs rhino.Node, root rhino.Node) 
 }
 
 func (n *PhaseOptimizer_NamedPass) runValidityCheck(externs rhino.Node, root rhino.Node) {
+	p := n.outer
+	if p.validityCheck == nil {
+		return
+	}
 	defer func() {
 		if rec := recover(); rec != nil {
 			t, ok := rec.(jutil.Throwable)
 			if !ok {
 				t = jutil.AsThrowable(rec)
 			}
-			if e, ok := t.(jutil.IIllegalStateException); ok {
-				panic(jutil.NewRuntimeExceptionWithMessageAndCause("Validity check failed for "+n.name, e))
+			if e, ok := t.(jutil.IRuntimeException); ok {
+				cause := jutil.NewIllegalStateExceptionWithMessageAndCause("Validity checks failed for pass: "+n.name, e)
+				panic(jutil.NewRuntimeExceptionWithMessageAndCause("Validity check failed for "+n.name, cause))
 			}
 			panic(rec)
 		}
 	}()
-	n.outer.MaybeRunValidityCheck(n.name, externs, root)
+	p.validityCheck.Create(p.compiler).Process(externs, root)
+	p.changeVerifier.CheckRecordedChangesWithPassName(n.name, p.jsRoot)
 }
 
 func (n *PhaseOptimizer_NamedPass) String() string {

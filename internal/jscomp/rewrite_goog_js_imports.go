@@ -215,7 +215,7 @@ func (p *RewriteGoogJsImports_ReferenceReplacer) MaybeRewriteBadGoogJsImportRef(
 		return
 	}
 
-	var_ := t.GetScope().GetVar("goog")
+	var_ := t.GetScope().GetVarByID(rewriteGoogJsGoogID)
 
 	if var_ == nil ||
 		var_.GetNameNode().IsNil() ||
@@ -233,6 +233,22 @@ func (p *RewriteGoogJsImports_ReferenceReplacer) MaybeRewriteBadGoogJsImportRef(
 	nameNode.SetOriginalName(jutil.StringPtr("goog"))
 	nameNode.SetString("$goog")
 	t.ReportCodeChange()
+}
+
+var rewriteGoogJsRefReplacerVisitTokens = func() ast.TokenSet {
+	var s ast.TokenSet
+	s.Add(rhino.Token_NAME)
+	return s
+}()
+
+var (
+	_ nodeTraversal_visitTokens    = (*RewriteGoogJsImports_ReferenceReplacer)(nil)
+	_ nodeTraversal_onlyNameLeaves = (*RewriteGoogJsImports_ReferenceReplacer)(nil)
+)
+
+func (*RewriteGoogJsImports_ReferenceReplacer) onlyNameLeaves() {}
+func (*RewriteGoogJsImports_ReferenceReplacer) visitTokens() *ast.TokenSet {
+	return &rewriteGoogJsRefReplacerVisitTokens
 }
 
 // Java: RewriteGoogJsImports.ReferenceReplacer.visit(NodeTraversal, Node, Node)
@@ -333,7 +349,7 @@ func (r *RewriteGoogJsImports) FindGoogImportNode(scriptRoot rhino.Node) rhino.N
 	moduleScope :=
 		NewSyntacticScopeCreator(r.compiler).
 			CreateScopeOfScope(scriptRoot.GetFirstChild(), Scope_CreateGlobalScope(scriptRoot))
-	googVar := moduleScope.GetVar("goog")
+	googVar := moduleScope.GetVarByID(rewriteGoogJsGoogID)
 
 	if googVar != nil && !googVar.GetNameNode().IsNil() {
 		r.compiler.Report(

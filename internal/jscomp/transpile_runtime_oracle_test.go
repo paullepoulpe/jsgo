@@ -441,13 +441,13 @@ func trSectionNamed(name string) trSection {
 	case "shorthand":
 		return func(c *Compiler, r *[]string) rhino.Node {
 			p := NewEs6NormalizeShorthandProperties(c)
-			NodeUtil_VisitPostOrder(c.GetJsRoot(), NodeUtil_VisitorFunc(func(n rhino.Node) { p.TranspileSubtree(n) }))
+			NodeUtil_VisitPostOrder(c.GetJsRoot(), func(n rhino.Node) { p.TranspileSubtree(n) })
 			return c.GetJsRoot()
 		}
 	case "catch":
 		return func(c *Compiler, r *[]string) rhino.Node {
 			p := NewRewriteCatchWithNoBinding(c)
-			NodeUtil_VisitPostOrder(c.GetJsRoot(), NodeUtil_VisitorFunc(func(n rhino.Node) { p.TranspileSubtree(n) }))
+			NodeUtil_VisitPostOrder(c.GetJsRoot(), func(n rhino.Node) { p.TranspileSubtree(n) })
 			return c.GetJsRoot()
 		}
 	case "trycatch":

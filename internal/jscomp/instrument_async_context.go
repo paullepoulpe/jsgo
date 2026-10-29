@@ -25,6 +25,7 @@ import (
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/parser"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
+	"github.com/paullepoulpe/jsgo/internal/strpool"
 )
 
 // InstrumentAsyncContext instruments `await` and `yield` for the
@@ -55,7 +56,16 @@ const (
 	asyncContextResumePrefix  = "ᵃᶜresume"
 )
 
-var asyncContextArgumentsOriginalName = "arguments"
+var (
+	asyncContextArgumentsOriginalName = "arguments"
+	asyncContextArgumentsID           = uint32(strpool.Intern("arguments"))
+)
+
+var asyncContextArgsRenamerVisitTokens = func() ast.TokenSet {
+	var s ast.TokenSet
+	s.Add(rhino.Token_NAME)
+	return s
+}()
 
 func NewInstrumentAsyncContext(compiler AbstractCompiler, shouldInstrumentAwait bool) *InstrumentAsyncContext {
 	return &InstrumentAsyncContext{
@@ -280,7 +290,7 @@ func (i *InstrumentAsyncContext) instrumentGeneratorMethod(t *NodeTraversal, fn 
 	innerParams := outerParams.CloneTree()
 
 	innerFactoryName := functionContext.factoryName
-	outerFactoryName := i.astFactory.CreateNameWithUnknownType(asyncContextFactoryPrefix + i.uniqueIdSupplier.GetUniqueId(t.GetInput()))
+	outerFactoryName := i.astFactory.CreateNameWithUnknownType(i.uniqueIdSupplier.UniqueVarName(asyncContextFactoryPrefix, t.GetInput()))
 	innerParams.AddChildToFront(innerFactoryName)
 	unknownType := AstFactory_Type_(innerFactoryName)
 
@@ -365,12 +375,12 @@ func (i *InstrumentAsyncContext) simplifyParameter(param rhino.Node, t *NodeTrav
 		return i.simplifyParameter(param.RemoveFirstChild(), t)
 	case param.IsArrayPattern() || param.IsObjectPattern():
 		newParam := i.astFactory.
-			CreateName("$jscomp$param$"+i.uniqueIdSupplier.GetUniqueId(t.GetInput()), AstFactory_Type_(param)).
+			CreateName(i.uniqueIdSupplier.UniqueVarName("$jscomp$param$", t.GetInput()), AstFactory_Type_(param)).
 			SrcrefTreeIfMissing(param)
 		return newParam.CloneTree(), newParam
 	case param.IsName():
 		newParam := i.astFactory.
-			CreateName(param.GetString()+"$jscomp$param$"+i.uniqueIdSupplier.GetUniqueId(t.GetInput()), AstFactory_Type_(param)).
+			CreateName(i.uniqueIdSupplier.UniqueVarName(param.GetString()+"$jscomp$param$", t.GetInput()), AstFactory_Type_(param)).
 			SrcrefTreeIfMissing(param)
 		return newParam.CloneTree(), newParam
 	default:
@@ -383,15 +393,21 @@ type asyncContextArgsRenamer struct {
 	argumentsName string
 }
 
+var _ nodeTraversal_visitTokens = (*asyncContextArgsRenamer)(nil)
+
+func (*asyncContextArgsRenamer) visitTokens() *ast.TokenSet {
+	return &asyncContextArgsRenamerVisitTokens
+}
+
 func (r *asyncContextArgsRenamer) ShouldTraverse(t *NodeTraversal, n rhino.Node, parent rhino.Node) bool {
 	fn, ok := ast.AsFunction(n)
 	return !ok || fn.IsArrow()
 }
 
 func (r *asyncContextArgsRenamer) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
-	if nm, ok := ast.AsName(n); ok && nm.Ident() == "arguments" {
+	if nm, ok := ast.AsName(n); ok && n.GetStringID() == asyncContextArgumentsID {
 		if r.argumentsName == "" {
-			r.argumentsName = "$jscomp$arguments$" + r.outer.uniqueIdSupplier.GetUniqueId(t.GetInput())
+			r.argumentsName = r.outer.uniqueIdSupplier.UniqueVarName("$jscomp$arguments$", t.GetInput())
 		}
 		nm.SetIdent(r.argumentsName)
 		if r.outer.compiler.GetOptions().PreservesDetailedSourceInfo() {

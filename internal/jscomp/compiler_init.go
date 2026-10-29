@@ -20,7 +20,6 @@ package jscomp
 
 import (
 	"bytes"
-	"fmt"
 	"io"
 	"slices"
 	"strconv"
@@ -346,7 +345,7 @@ func (c *Compiler) GetTypedAstDeserializer(file *SourceFile) func() rhino.Node {
 		c.checkMissingTypedAstFile(file)
 		return nil
 	}
-	return entry.toSupplier()
+	return entry.DeserializeNew
 }
 
 func (c *Compiler) takeTypedAstDeserializer(file *SourceFile) (*ScriptNodeDeserializer, func() rhino.Node) {
@@ -361,7 +360,7 @@ func (c *Compiler) takeTypedAstDeserializer(file *SourceFile) (*ScriptNodeDeseri
 	if entry.sd != nil {
 		return entry.sd, typedAstDeserializer_scriptSentinel
 	}
-	return nil, entry.toSupplier()
+	return nil, entry.DeserializeNew
 }
 
 // InitWithTypedAstFilesystem initializes a compiler with deserialized state
@@ -474,8 +473,7 @@ func (c *Compiler) mergeAndDeserializeTypedAsts(
 				options.GetParseInlineSourceMaps())
 		})
 
-	c.typedAstFilesystem = astData.rawFilesystem()
-	c.typedAstScriptDeserializers = astData.scriptDeserializers
+	c.typedAstFilesystem = astData.filesystem
 	c.externProperties = astData.GetExternProperties()
 	c.colorRegistry = astData.GetColorRegistry()
 	c.SetTypeCheckingHasRun(deserializeTypes)
@@ -527,14 +525,11 @@ func (c *Compiler) InitRuntimeLibraryTypedAsts(colorPoolBuilder *ColorPool_Build
 		c.GetOptions().GetParseInlineSourceMaps())
 
 	// Re-index the runtime libraries by file name rather than SourceFile object
-	fs := astData.rawFilesystem()
+	fs := astData.filesystem
 	runtimeLibraryTypedAsts := make(map[string]*ScriptNodeDeserializer, len(fs))
-	for _, key := range astData.filesystemOrder {
-		if entry := fs[key]; entry.sd != nil {
-			name := key.GetName()
-			if _, exists := runtimeLibraryTypedAsts[name]; !exists {
-				runtimeLibraryTypedAsts[name] = entry.sd
-			}
+	for key, entry := range fs { // order-independent: each SourceFile in filePoolBuilder has a unique filename
+		if entry.sd != nil {
+			runtimeLibraryTypedAsts[key.GetName()] = entry.sd
 		}
 	}
 
@@ -586,7 +581,7 @@ func (c *Compiler) InitChunks(externs []*SourceFile, chunks []*JSChunk, options 
 	// Creating the chunk graph can move weak source around, and end up with empty chunks.
 	c.fillEmptyChunks(c.GetChunks())
 
-	c.commentsPerFile = jutil.NewLinkedHashMap[string, []parser.Comment]()
+	c.commentsPerFile = make(map[string][]parser.Comment)
 	c.InitBasedOnOptions()
 
 	c.InitInputsByIdMap()
@@ -655,7 +650,7 @@ func (c *Compiler) InitBasedOnOptions() {
 			c.sourceMap.generatorV3.SetParallelWorkers(c.options.GetNumParallelThreads())
 		}
 		if c.options.GetApplyInputSourceMaps() {
-			c.sourceMap.SetSourceFileMapping(c.AsSourceFileMapping())
+			c.sourceMap.SetCompilerSourceMapping(c)
 			if c.options.GetSourceMapIncludeSourcesContent() {
 				for _, name := range c.inputSourceMapOrder {
 					c.addSourceMapSourceFiles(c.inputSourceMaps[name])
@@ -959,9 +954,15 @@ func (c *Compiler) GetCurrentJsSource() string {
 		builder.WriteString("// that contain references to these qualified names.\n")
 		builder.WriteString("//\n")
 		for _, qname := range qnameOrder {
-			builder.WriteString(fmt.Sprintf("// '%s'\n", qname))
+			builder.WriteString("// '")
+			builder.WriteString(qname)
+			builder.WriteString("'\n")
 			for _, newName := range originalToNewQNameMap[qname] {
-				builder.WriteString(fmt.Sprintf("// '%s' (originally '%s')\n", newName, qname))
+				builder.WriteString("// '")
+				builder.WriteString(newName)
+				builder.WriteString("' (originally '")
+				builder.WriteString(qname)
+				builder.WriteString("')\n")
 			}
 		}
 		builder.WriteString("//\n")
@@ -969,7 +970,9 @@ func (c *Compiler) GetCurrentJsSource() string {
 			if !statementFilter(statement) {
 				continue
 			}
-			builder.WriteString(fmt.Sprintf("// %s\n", statement.GetLocation()))
+			builder.WriteString("// ")
+			builder.WriteString(statement.GetLocation())
+			builder.WriteByte('\n')
 			builder.WriteString(c.ToSourceOfNode(statement))
 			builder.WriteString("\n")
 		}

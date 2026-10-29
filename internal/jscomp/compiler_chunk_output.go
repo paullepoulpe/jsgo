@@ -1,6 +1,7 @@
 package jscomp
 
 import (
+	"path/filepath"
 	"runtime"
 	"strings"
 
@@ -72,7 +73,7 @@ func (c *Compiler) ensureSourceMapInitialized() {
 	c.sourceMap = c.options.GetSourceMapFormat().GetInstance()
 	c.sourceMap.SetPrefixMappings(c.options.GetSourceMapLocationMappings())
 	if c.options.GetApplyInputSourceMaps() {
-		c.sourceMap.SetSourceFileMapping(c.AsSourceFileMapping())
+		c.sourceMap.SetCompilerSourceMapping(c)
 	}
 }
 
@@ -88,12 +89,7 @@ func (c *Compiler) printChunkInput(
 	if scriptNode.IsNil() {
 		return "", jutil.NewIllegalArgumentExceptionMsg("Bad chunk: " + chunkName)
 	}
-	builder := NewCodePrinter_Builder(scriptNode)
-	builder.SetCompilerOptions(c.options)
-	builder.SetTagAsTypeSummary(c.options.ShouldGenerateTypedExterns())
-	builder.SetTagAsStrict(firstOutput && c.options.ShouldEmitUseStrict())
-	builder.SetLicenseTracker(licenseTracker)
-	return builder.buildSourceAndMappingsInto(sm, gatherSourceMap, scratch), nil
+	return c.printRootWithScratch(scriptNode, firstOutput, gatherSourceMap, licenseTracker, sm, scratch), nil
 }
 
 // RenderChunksAndSourceMaps renders non-weak chunks and optional per-chunk
@@ -390,7 +386,7 @@ func (c *Compiler) OutputChunksParallel(
 				}
 				code = cb.String()
 			}
-			baseName := jutil.NewFile(chunkFilename).GetName()
+			baseName := filepath.Base(chunkFilename)
 			wrapper := strings.ReplaceAll(hooks.WrapperTemplate(m.GetName()), "%basename%", baseName)
 			writeTasks[j] = chunkWriteTask{
 				filename:    chunkFilename,

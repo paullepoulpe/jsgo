@@ -47,7 +47,7 @@ func TestCliVectors(t *testing.T) {
 			s := inputs[n%len(inputs)]
 			n++
 			var buf bytes.Buffer
-			w := NewOutputStreamWriterWithCharset(nopWriteCloser{&buf}, Charset_ForName(parts[0]))
+			w := newOutputStreamWriterWithCharset(nopWriteCloser{&buf}, Charset_ForName(parts[0]))
 			w.Write(s)
 			w.Write(s)
 			w.Close()

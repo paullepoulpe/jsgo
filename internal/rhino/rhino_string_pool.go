@@ -43,13 +43,6 @@ import (
 	"github.com/paullepoulpe/jsgo/internal/strpool"
 )
 
-// RhinoStringPool is an interning pool for strings used by the Rhino
-// package.
-//
-// As of 2021-03-16 and again as of 2024-12-09, this custom pool is
-// measurably more performant than `String::intern`.
-type RhinoStringPool struct{}
-
 // rhinoStringID is a 32-bit pointer-free handle to an interned string (see
 // package strpool): 0 is null / unset, 1 is "".
 type rhinoStringID = strpool.ID
@@ -129,9 +122,6 @@ func RhinoStringPool_LookupID(s string) uint32 {
 func RhinoStringPool_StringFromID(id uint32) string {
 	return rhinoStringFromID(rhinoStringID(id))
 }
-
-// Java: RhinoStringPool()
-func NewRhinoStringPool() *RhinoStringPool { return &RhinoStringPool{} }
 
 // RhinoStringPool_LazyInternedStringList is a list of strings that is lazily
 // interned into a RhinoStringPool as they are accessed.

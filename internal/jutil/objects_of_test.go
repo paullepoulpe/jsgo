@@ -39,8 +39,8 @@ func checkObjectsOf[T any](t *testing.T, vals []T) {
 		if got, want := isNilOf(a), IsNil(a); got != want {
 			t.Errorf("isNilOf(%#v) = %v, IsNil %v", a, got, want)
 		}
-		if got, want := ObjectHashCodeOf(a), ObjectHashCode(a); got != want {
-			t.Errorf("ObjectHashCodeOf(%#v) = %d, ObjectHashCode %d", a, got, want)
+		if got, want := objectHashCodeOf(a), ObjectHashCode(a); got != want {
+			t.Errorf("objectHashCodeOf(%#v) = %d, ObjectHashCode %d", a, got, want)
 		}
 		for _, b := range vals {
 			if got, want := ObjectsEqualsOf(a, b), ObjectsEquals(a, b); got != want {
@@ -103,7 +103,7 @@ func TestObjectsEqualsOfAndHashCodeOfMatchObjects(t *testing.T) {
 }
 
 func objectsOfStringOps[T any](a, b T) bool {
-	return ObjectsEqualsOf(a, b) && ObjectHashCodeOf(a) == ObjectHashCodeOf(b)
+	return ObjectsEqualsOf(a, b) && objectHashCodeOf(a) == objectHashCodeOf(b)
 }
 
 func TestObjectsEqualsOfDoesNotBoxStrings(t *testing.T) {

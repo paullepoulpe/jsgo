@@ -336,22 +336,19 @@ func (e *ExpressionDecomposer) rewriteAllContainingOptionalChains(subExpression 
 	//
 	// Go-only: language-adapter — the ArrayDeque filled with addFirst is a
 	// slice filled with append and read back to front.
-	var optChainRewriterBuilder *OptionalChainRewriter_Builder
-	getBuilder := func() *OptionalChainRewriter_Builder {
-		if optChainRewriterBuilder == nil {
-			optChainRewriterBuilder = OptionalChainRewriter_Builder_(e.compiler).
-				SetTmpVarNameCreator(e.GetTempConstantValueName).
-				SetScope(e.scope)
-		}
-		return optChainRewriterBuilder
-	}
-	var rewriters []*OptionalChainRewriter
+	var rewritersBuf [4]OptionalChainRewriter
+	rewriters := rewritersBuf[:0]
+	var tmpCreator OptionalChainRewriter_TmpVarNameCreator
 
 	for exprParent := subExpression.GetParent(); !NodeUtil_IsStatement(exprParent); exprParent = exprParent.GetParent() {
 		if NodeUtil_IsEndOfFullOptChain(exprParent) {
+			if tmpCreator == nil {
+				tmpCreator = e.GetTempConstantValueName
+			}
 			// We want to rewrite the outermost chain first, so the last one
 			// we find is the first one we rewrite.
-			rewriters = append(rewriters, getBuilder().Build(exprParent))
+			rewriters = append(rewriters, OptionalChainRewriter{})
+			initOptionalChainRewriter(&rewriters[len(rewriters)-1], e.compiler, e.astFactory, tmpCreator, e.scope, exprParent)
 		} else if call, isCall := ast.AsCall(exprParent); isCall {
 			// It is possible to make a non-optional call against an optional chain callee by applying
 			// parentheses like this.
@@ -362,10 +359,14 @@ func (e *ExpressionDecomposer) rewriteAllContainingOptionalChains(subExpression 
 			// made with the right `this` value.
 			callee := call.Callee().Node()
 			if NodeUtil_IsOptChainGet(callee) {
+				if tmpCreator == nil {
+					tmpCreator = e.GetTempConstantValueName
+				}
 				// By definition callee must end an optional chain, because it is the first child of a
 				// non-optional parent.
 				// checkState(NodeUtil.isEndOfFullOptChain(callee))
-				rewriters = append(rewriters, getBuilder().Build(callee))
+				rewriters = append(rewriters, OptionalChainRewriter{})
+				initOptionalChainRewriter(&rewriters[len(rewriters)-1], e.compiler, e.astFactory, tmpCreator, e.scope, callee)
 			}
 		}
 	}

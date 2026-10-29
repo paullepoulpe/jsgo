@@ -298,11 +298,6 @@ func (l LogFile) Close() {
 	}
 }
 
-// LogsGson is a Gson instance tailored to generating logs output.
-//
-// Java: public final class LogsGson (only static members).
-type LogsGson struct{}
-
 // LogsGson_Able is a conversion to a preferred logging representation.
 //
 // When an implementor is logged, the result of this method will be JSON
@@ -367,11 +362,4 @@ func (*logsGson_multimapTypeAdapter) Read(in *jutil.JsonReader) any {
 func (*logsGson_multimapTypeAdapter) Write(out *jutil.JsonWriter, value any) {
 	json := LogsGson_GSON.ToJson(value.(logsGsonMapBacked).AsMapObject())
 	out.JsonValue(&json)
-}
-
-// NewLogsGson is the private constructor, which always throws.
-//
-// Java: LogsGson()
-func NewLogsGson() *LogsGson {
-	panic(jutil.NewAssertionErrorNoMessage())
 }

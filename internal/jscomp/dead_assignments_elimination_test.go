@@ -56,7 +56,7 @@ func (c *DeadAssignmentsEliminationTest) CustomSetUp() {
 // Java: DeadAssignmentsEliminationTest.getProcessor(Compiler)
 func (c *DeadAssignmentsEliminationTest) GetProcessor(compiler *Compiler) CompilerPass {
 	return CompilerPassFunc(func(externs rhino.Node, js rhino.Node) {
-		NodeTraversal_Traverse(compiler, js, NewDeadAssignmentsElimination(compiler))
+		NewDeadAssignmentsElimination(compiler).Process(externs, js)
 	})
 }
 

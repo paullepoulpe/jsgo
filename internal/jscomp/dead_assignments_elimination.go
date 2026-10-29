@@ -19,9 +19,6 @@
 package jscomp
 
 import (
-	"sync"
-	"sync/atomic"
-
 	"github.com/paullepoulpe/jsgo/internal/ast"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
@@ -32,33 +29,17 @@ import (
 // assignment to variable x and x is dead after this assignment, we know that
 // the current content of x will not be read and this assignment is useless.
 type DeadAssignmentsElimination struct {
-	NodeTraversal_AbstractPostOrderCallbackBase
 	cfgScopeStack
 
 	compiler     AbstractCompiler
 	scopeCreator *SyntacticScopeCreator
 	liveness     *LiveVariablesAnalysis
-	// Go-only: language-adapter — the ArrayDeque used as a stack
-	// (addFirst/peekFirst/removeFirst); the first element is the last one
-	// of the slice.
-	functionStack []DeadAssignmentsElimination_BailoutInformation
 
 	livenessStorage LiveVariablesAnalysis
 	varsFinder      lvaAllVarsFinder
 
 	deferChanges bool
 	changeCount  int
-}
-
-var _ nodeTraversal_noVisitLeaves = (*DeadAssignmentsElimination)(nil)
-
-func (*DeadAssignmentsElimination) noVisitLeaves() {}
-
-// DeadAssignmentsElimination_BailoutInformation is the nested class
-// BailoutInformation.
-type DeadAssignmentsElimination_BailoutInformation struct {
-	containsFunction        bool
-	containsRemovableAssign bool
 }
 
 // Java: DeadAssignmentsElimination(AbstractCompiler)
@@ -120,27 +101,17 @@ func (d *DeadAssignmentsElimination) eliminateFunction(fn rhino.Node, dummyGloba
 	scopeCreator := d.scopeCreator
 	functionScope := scopeCreator.CreateScopeOfScope(fn, dummyGlobal)
 	blockScope := scopeCreator.CreateScopeOfScope(fnBody, functionScope)
-	d.eliminateFunctionScopes(fn, functionScope, blockScope, true)
-}
-
-func (d *DeadAssignmentsElimination) eliminateFunctionScopes(fn rhino.Node, functionScope, blockScope *Scope, pushCfg bool) {
 	if LiveVariablesAnalysis_MAX_VARIABLES_TO_ANALYZE <
 		blockScope.GetVarCount()+functionScope.GetVarCount() {
 		return
 	}
 
-	if d.scopeCreator == nil {
-		d.scopeCreator = NewSyntacticScopeCreator(d.compiler)
-	}
-	scopeCreator := d.scopeCreator
 	allVarsDeclaredInFunction := d.varsFinder.collect(d.compiler, scopeCreator, functionScope)
 	if allVarsDeclaredInFunction.table.isEmpty() {
 		return
 	}
-	if pushCfg {
-		d.pushCfgRoot(fn)
-		defer d.popCfgRoot()
-	}
+	d.pushCfgRoot(fn)
+	defer d.popCfgRoot()
 	cfg := d.GetControlFlowGraph(d.compiler)
 
 	d.livenessStorage.Reset(
@@ -191,106 +162,31 @@ func (d *DeadAssignmentsElimination) Process(externs rhino.Node, root rhino.Node
 		return
 	}
 
-	workers := min(numThreads, len(candidates))
 	changeCounts := make([]int, len(candidates))
-	failures := make([]jutil.Throwable, len(candidates))
-	var next atomic.Int64
-	var wg sync.WaitGroup
-	for range workers {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+	runParallelWorkersIndexed(
+		len(candidates),
+		numThreads,
+		func(_ int) *DeadAssignmentsElimination {
 			wd := NewDeadAssignmentsElimination(d.compiler)
 			wd.deferChanges = true
-			sc := NewSyntacticScopeCreator(d.compiler)
-			wd.scopeCreator = sc
-			defer func() {
-				wd.scopeCreator = nil
-			}()
-			curIdx := -1
-			defer func() {
-				if r := recover(); r != nil && curIdx >= 0 {
-					failures[curIdx] = jutil.AsThrowable(r)
-				}
-			}()
-			for {
-				idx := int(next.Add(1) - 1)
-				if idx >= len(candidates) {
-					return
-				}
-				curIdx = idx
-				wd.changeCount = 0
-				wd.eliminateFunction(candidates[idx], dummyGlobal)
-				changeCounts[idx] = wd.changeCount
-				curIdx = -1
-			}
-		}()
-	}
-	wg.Wait()
-	for _, f := range failures {
-		if f != nil {
-			panic(f)
-		}
-	}
+			wd.scopeCreator = NewSyntacticScopeCreator(d.compiler)
+			return wd
+		},
+		func(wd **DeadAssignmentsElimination, idx int) {
+			w := *wd
+			w.changeCount = 0
+			w.eliminateFunction(candidates[idx], dummyGlobal)
+			changeCounts[idx] = w.changeCount
+		},
+		func(_ int, wd **DeadAssignmentsElimination) {
+			(*wd).scopeCreator = nil
+		},
+	)
 	for i, count := range changeCounts {
 		for range count {
 			d.compiler.ReportChangeToChangeScope(candidates[i])
 		}
 	}
-}
-
-// Java: DeadAssignmentsElimination.visit(NodeTraversal, Node, Node)
-func (d *DeadAssignmentsElimination) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
-	if len(d.functionStack) == 0 {
-		return
-	}
-	top := &d.functionStack[len(d.functionStack)-1]
-	if n.IsFunction() {
-		top.containsFunction = true
-	} else if !top.containsRemovableAssign && isRemovableAssignNode(n) {
-		top.containsRemovableAssign = true
-	}
-}
-
-func (d *DeadAssignmentsElimination) EnterScope(t *NodeTraversal) {
-	d.pushScopeRoot(t.GetScopeRoot())
-	if t.InFunctionBlockScope() {
-		d.functionStack = append(d.functionStack, DeadAssignmentsElimination_BailoutInformation{})
-	}
-}
-
-func (d *DeadAssignmentsElimination) ExitScope(t *NodeTraversal) {
-	if t.InFunctionBlockScope() {
-		d.eliminateDeadAssignments(t)
-		if len(d.functionStack) == 0 {
-			panic(jutil.NewNoSuchElementException()) // ArrayDeque.removeFirst()
-		}
-		d.functionStack = d.functionStack[:len(d.functionStack)-1]
-	}
-	d.popScopeRoot(t.GetScopeRoot())
-}
-
-// Java: DeadAssignmentsElimination.eliminateDeadAssignments(NodeTraversal)
-func (d *DeadAssignmentsElimination) eliminateDeadAssignments(t *NodeTraversal) {
-	jutil.CheckArgument(t.InFunctionBlockScope())
-	jutil.CheckState(len(d.functionStack) != 0)
-
-	fn := t.GetScopeRoot().GetParent()
-	// Skip unchanged functions (note that the scope root is the function block, not the function).
-	if !d.compiler.HasScopeChanged(fn) {
-		return
-	}
-
-	currentFunction := &d.functionStack[len(d.functionStack)-1]
-	// We are not going to do any dead assignment elimination in when there is
-	// at least one inner function because in most browsers, when there is a
-	// closure, ALL the variables are saved (escaped).
-	if currentFunction.containsFunction || !currentFunction.containsRemovableAssign {
-		return
-	}
-
-	blockScope := t.GetScope()
-	d.eliminateFunctionScopes(fn, blockScope.GetParent(), blockScope, false)
 }
 
 func (d *DeadAssignmentsElimination) tryRemoveDeadAssignments(cfg *ControlFlowGraph[rhino.Node]) {

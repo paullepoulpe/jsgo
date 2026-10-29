@@ -4882,13 +4882,13 @@ func (c *NodeUtilTest_CreateSynthesizedExternsSymbolTests) TestTest() {
 
 func TestNodeUtil_NodeTraversalTests_TestVisitPreOrder(t *testing.T) {
 	visitor := &nuRecordingVisitor{}
-	NodeUtil_VisitPreOrder(nuh_buildTestTree(t), visitor)
+	NodeUtil_VisitPreOrder(nuh_buildTestTree(t), visitor.Visit)
 	nuAssertThat(t, nuGetNodeStringsFromMockVisitor(t, visitor)).ContainsExactly("A", "B", "C", "D", "E", "F", "G").InOrder()
 }
 
 func TestNodeUtil_NodeTraversalTests_TestVisitPostOrder(t *testing.T) {
 	visitor := &nuRecordingVisitor{}
-	NodeUtil_VisitPostOrder(nuh_buildTestTree(t), visitor)
+	NodeUtil_VisitPostOrder(nuh_buildTestTree(t), visitor.Visit)
 	nuAssertThat(t, nuGetNodeStringsFromMockVisitor(t, visitor)).ContainsExactly("C", "D", "B", "F", "G", "E", "A").InOrder()
 }
 

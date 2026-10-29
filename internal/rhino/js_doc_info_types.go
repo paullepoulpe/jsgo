@@ -480,7 +480,7 @@ func (i *JSDocInfo) GetParameterNames() *jutil.LinkedHashSet[string] {
 		}
 		return set
 	}
-	return jsDocInfo_noSuppressions
+	return jutil.NewLinkedHashSet[string]()
 }
 
 // GetParameterNameAt returns the nth name in the defined parameters. The
@@ -559,18 +559,13 @@ func (i *JSDocInfo) HasTemplateTypeName(name string) bool {
 	return false
 }
 
-var (
-	jsDocInfo_noTemplateTypes       = jutil.NewLinkedHashMap[string, *JSTypeExpression]()
-	jsDocInfo_noTypeTransformations = jutil.NewLinkedHashMap[string, Node]()
-)
-
 // Java: JSDocInfo.getTemplateTypes()
 func (i *JSDocInfo) GetTemplateTypes() *jutil.LinkedHashMap[string, *JSTypeExpression] {
 	params := i.GetTemplateTypeEntries()
 	if len(params) != 0 {
 		return jsDocParamsToMap(params)
 	}
-	return jsDocInfo_noTemplateTypes
+	return jutil.NewLinkedHashMap[string, *JSTypeExpression]()
 }
 
 // GetTypeTransformationEntries returns the ordered @template T := ... entries
@@ -596,5 +591,5 @@ func (i *JSDocInfo) GetTypeTransformations() *jutil.LinkedHashMap[string, Node] 
 	if len(entries) != 0 {
 		return jsDocTypeTransformsToMap(entries)
 	}
-	return jsDocInfo_noTypeTransformations
+	return jutil.NewLinkedHashMap[string, Node]()
 }

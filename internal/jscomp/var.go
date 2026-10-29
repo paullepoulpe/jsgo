@@ -188,11 +188,17 @@ func (v *Var) IsImplicit() bool {
 }
 
 func (v *Var) AddImplicitGoogNamespaceDefinition(definition rhino.Node) {
-	v.addImplicitGoogNamespaceDefinition(v, definition)
+	if !v.addImplicitGoogNamespaceDefinition(definition) {
+		failNotImplicitGoogNamespace(v)
+	}
 }
 
 func (v *Var) GetImplicitGoogNamespaceStrength() rhino.StaticSourceFile_SourceKind {
-	return v.getImplicitGoogNamespaceStrength(v)
+	s, ok := v.getImplicitGoogNamespaceStrength()
+	if !ok {
+		failNotImplicitGoogNamespace(v)
+	}
+	return s
 }
 
 // Java: AbstractVar.getSymbol()

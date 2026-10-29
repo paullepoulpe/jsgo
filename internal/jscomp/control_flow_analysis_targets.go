@@ -676,41 +676,6 @@ func cfaMatchLabelByID(target rhino.Node, labelID uint32, hasLabel bool) bool {
 	return false
 }
 
-// ControlFlowAnalysis_IsBreakTarget checks if target is actually the break
-// target of labeled continue. The label can be null if it is an unlabeled
-// break.
-//
-// Java: ControlFlowAnalysis.isBreakTarget(Node, String)
-func ControlFlowAnalysis_IsBreakTarget(target rhino.Node, label *string) bool {
-	return ControlFlowAnalysis_IsBreakStructure(target, label != nil) && ControlFlowAnalysis_MatchLabel(target.GetParent(), label)
-}
-
-// ControlFlowAnalysis_IsContinueTarget checks if target is actually the
-// continue target of labeled continue. The label can be null if it is an
-// unlabeled continue.
-//
-// Java: ControlFlowAnalysis.isContinueTarget(Node, String)
-func ControlFlowAnalysis_IsContinueTarget(target rhino.Node, label *string) bool {
-	return NodeUtil_IsLoopStructure(target) && ControlFlowAnalysis_MatchLabel(target.GetParent(), label)
-}
-
-// ControlFlowAnalysis_MatchLabel checks if label is actually referencing the
-// target control structure. If label is null, it always returns true.
-//
-// Java: ControlFlowAnalysis.matchLabel(Node, String)
-func ControlFlowAnalysis_MatchLabel(target rhino.Node, label *string) bool {
-	if label == nil {
-		return true
-	}
-	// A statement can have several labels (a: b: while (x) ...).
-	for l, ok := ast.AsLabel(target); ok; l, ok = ast.AsLabel(l.Node().GetParent()) {
-		if l.Name().Ident() == *label {
-			return true
-		}
-	}
-	return false
-}
-
 // ControlFlowAnalysis_MayThrowException determines if the subtree might
 // throw an exception.
 //

@@ -126,6 +126,21 @@ type rescopeGlobalDeclsCallback struct {
 	compiler AbstractCompiler
 }
 
+var rescopeGlobalDeclsVisitTokens = func() ast.TokenSet {
+	var s ast.TokenSet
+	s.Add(rhino.Token_FUNCTION)
+	s.Add(rhino.Token_CLASS)
+	return s
+}()
+
+var (
+	_ nodeTraversal_visitTokens   = (*rescopeGlobalDeclsCallback)(nil)
+	_ nodeTraversal_noVisitLeaves = (*rescopeGlobalDeclsCallback)(nil)
+)
+
+func (*rescopeGlobalDeclsCallback) visitTokens() *ast.TokenSet { return &rescopeGlobalDeclsVisitTokens }
+func (*rescopeGlobalDeclsCallback) noVisitLeaves()             {}
+
 func (c *rescopeGlobalDeclsCallback) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	if !t.InGlobalScope() {
 		return
@@ -192,27 +207,45 @@ type rescopeAnalyzeNamesCallback struct {
 	info                 rescopeSymbolInfo
 }
 
+var rescopeNameVisitTokens = func() ast.TokenSet {
+	var s ast.TokenSet
+	s.Add(rhino.Token_NAME)
+	return s
+}()
+
+var (
+	_ nodeTraversal_visitTokens    = (*rescopeAnalyzeNamesCallback)(nil)
+	_ nodeTraversal_onlyNameLeaves = (*rescopeAnalyzeNamesCallback)(nil)
+)
+
+func (*rescopeAnalyzeNamesCallback) visitTokens() *ast.TokenSet { return &rescopeNameVisitTokens }
+func (*rescopeAnalyzeNamesCallback) onlyNameLeaves()            {}
+
 func (c *rescopeAnalyzeNamesCallback) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	nameNode, ok := ast.AsName(n)
 	if !ok {
 		return
 	}
-	name := nameNode.Ident()
-	if name == "" {
+	id := n.GetStringID()
+	if id <= rhino.RhinoStringPool_EmptyID {
 		return
 	}
-	c.visitCrossChunkName(t, nameNode, n, name, parent)
-	c.visitMaybeReferencesThis(t, nameNode, n, name, parent)
+	v := t.GetScope().GetVarByID(id)
+	if v == nil || !v.IsGlobal() {
+		return
+	}
+	name := v.GetName()
+	c.visitCrossChunkName(t, nameNode, n, name, v, parent)
+	c.visitMaybeReferencesThis(nameNode, n, name, v, parent)
 }
 
 func (c *rescopeAnalyzeNamesCallback) visitCrossChunkName(
-	t *NodeTraversal, nameNode ast.Name, n rhino.Node, name string, parent rhino.Node) {
+	t *NodeTraversal, nameNode ast.Name, n rhino.Node, name string, v *Var, parent rhino.Node) {
 	if !c.trackLocalAccessSets {
 		if _, exists := c.info.crossChunkNames[name]; exists {
 			return
 		}
 	}
-	v := t.GetScope().GetVar(name)
 	if v == nil || !v.IsGlobal() {
 		return
 	}
@@ -245,7 +278,10 @@ func (c *rescopeAnalyzeNamesCallback) visitCrossChunkName(
 }
 
 func (c *rescopeAnalyzeNamesCallback) visitMaybeReferencesThis(
-	t *NodeTraversal, nameNode ast.Name, n rhino.Node, name string, parent rhino.Node) {
+	nameNode ast.Name, n rhino.Node, name string, v *Var, parent rhino.Node) {
+	if v == nil || !v.IsGlobal() {
+		return
+	}
 	var value rhino.Node
 	switch ast.RoleIn(n, parent) {
 	case ast.RoleAssignTarget:
@@ -263,10 +299,6 @@ func (c *rescopeAnalyzeNamesCallback) visitMaybeReferencesThis(
 	if _, already := c.info.maybeReferencesThis[name]; already {
 		return
 	}
-	v := t.GetScope().GetVar(name)
-	if v == nil || !v.IsGlobal() {
-		return
-	}
 	if value.IsNil() || !value.IsFunction() || NodeUtil_ReferencesOwnReceiver(value) {
 		c.info.maybeReferencesThis[name] = struct{}{}
 	}
@@ -280,6 +312,24 @@ type rescopeRemoveGlobalVarCallback struct {
 	commas   []rhino.Node
 	children []rhino.Node
 }
+
+var rescopeRemoveGlobalVarVisitTokens = func() ast.TokenSet {
+	var s ast.TokenSet
+	s.Add(rhino.Token_VAR)
+	s.Add(rhino.Token_LET)
+	s.Add(rhino.Token_CONST)
+	return s
+}()
+
+var (
+	_ nodeTraversal_visitTokens   = (*rescopeRemoveGlobalVarCallback)(nil)
+	_ nodeTraversal_noVisitLeaves = (*rescopeRemoveGlobalVarCallback)(nil)
+)
+
+func (*rescopeRemoveGlobalVarCallback) visitTokens() *ast.TokenSet {
+	return &rescopeRemoveGlobalVarVisitTokens
+}
+func (*rescopeRemoveGlobalVarCallback) noVisitLeaves() {}
 
 func (c *rescopeRemoveGlobalVarCallback) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	if !NodeUtil_IsNameDeclaration(n) {

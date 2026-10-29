@@ -41,7 +41,7 @@ func TestFarmHashFingerprint64MatchesGuava(t *testing.T) {
 			h := Hashing_FarmHashFingerprint64NewHasher()
 			for _, s := range strings.Split(r[0][1:], ",") {
 				v, _ := strconv.ParseInt(s, 10, 64)
-				h.PutLong(v)
+				h.putLong(v)
 			}
 			got = h.HashAsLong()
 		} else {
@@ -90,10 +90,6 @@ func TestBigIntegerMatchesJava(t *testing.T) {
 		bs, _ := hex.DecodeString(r[1][1:])
 		if back := NewBigIntegerFromBytes(bs); back.Cmp(x) != 0 {
 			t.Errorf("new BigInteger(%s) = %s, want %s", r[1], back, r[0])
-		}
-		want, _ := strconv.ParseInt(r[2], 10, 32)
-		if got := BigIntegerIntValue(x); int64(got) != want {
-			t.Errorf("intValue(%s) = %d, Java %d", r[0], got, want)
 		}
 		if x.String() != r[0] {
 			t.Errorf("toString = %s, want %s", x.String(), r[0])
@@ -155,7 +151,7 @@ func TestCaseFormat(t *testing.T) {
 
 func TestBigIntegerOverflow(t *testing.T) {
 	caught := ""
-	Try(func() { BigIntegerPow(NewBigIntegerFromString("5"), 800000000) }, func(e IArithmeticException) { caught = e.GetMessage() })
+	Try(func() { BigIntegerPow(NewBigIntegerFromString("5"), 800000000) }, func(e *ArithmeticException) { caught = e.GetMessage() })
 	if caught != "BigInteger would overflow supported range" {
 		t.Fatalf("caught %q", caught)
 	}

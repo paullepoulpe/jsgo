@@ -201,6 +201,14 @@ func (c *CheckClosureImports) Process(externs rhino.Node, root rhino.Node) {
 	b.Traverse(root)
 }
 
+var checkClosureImportsVisitTokens = func() ast.TokenSet {
+	var s ast.TokenSet
+	s.Add(rhino.Token_SCRIPT)
+	s.Add(rhino.Token_BLOCK)
+	s.Add(rhino.Token_CALL)
+	return s
+}()
+
 // CheckClosureImports_Checker is CheckClosureImports.Checker (an inner
 // class: outer is the enclosing CheckClosureImports).
 type CheckClosureImports_Checker struct {
@@ -208,7 +216,15 @@ type CheckClosureImports_Checker struct {
 	outer *CheckClosureImports
 }
 
+var (
+	_ nodeTraversal_visitTokens   = (*CheckClosureImports_Checker)(nil)
+	_ nodeTraversal_noVisitLeaves = (*CheckClosureImports_Checker)(nil)
+)
+
 func (*CheckClosureImports_Checker) noVisitLeaves() {}
+func (*CheckClosureImports_Checker) visitTokens() *ast.TokenSet {
+	return &checkClosureImportsVisitTokens
+}
 
 // Java: CheckClosureImports.Checker(AbstractCompiler, ModuleMetadataMap)
 func (c *CheckClosureImports) NewChecker(compiler AbstractCompiler, moduleMetadataMap *ModuleMetadataMap) *CheckClosureImports_Checker {
@@ -352,10 +368,8 @@ func (k *CheckClosureImports_Checker) CheckGoogModuleGet(t *NodeTraversal, call 
 	isFillingAnAlias := maybeAssign.IsAssign() && maybeAssign.GetFirstChild().IsName()
 	isModule := currentModule.IsGoogModule() || currentModule.IsEs6Module()
 	if isFillingAnAlias && isModule {
-		aliasName := call.GetParent().GetFirstChild().GetString()
-
 		// If the assignment isn't into a var in our scope then it's not ok.
-		aliasVar := t.GetScope().GetVar(aliasName)
+		aliasVar := t.GetScope().GetVarByNode(maybeAssign.GetFirstChild())
 		if aliasVar == nil {
 			t.Report(call, ClosureRewriteModule_INVALID_GET_ALIAS)
 			return

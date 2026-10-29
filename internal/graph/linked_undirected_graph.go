@@ -30,7 +30,7 @@ import (
 //
 // N is the value type that the graph node stores; E is the value type that
 // the graph edge stores.
-type LinkedUndirectedGraph[N comparable, E any] struct {
+type LinkedUndirectedGraph[N, E comparable] struct {
 	Nodes GraphNodeMap[N, *LinkedUndirectedGraphNode[N, E]]
 
 	// Go-only: performance — see jutil.ReuseSlab.
@@ -44,7 +44,7 @@ type LinkedUndirectedGraph[N comparable, E any] struct {
 	useEdgeAnnotations bool
 }
 
-type linkedUndirectedSubGraph[N comparable, E any] struct {
+type linkedUndirectedSubGraph[N, E comparable] struct {
 	graph *LinkedUndirectedGraph[N, E]
 	nodes []*LinkedUndirectedGraphNode[N, E]
 	buf   [8]*LinkedUndirectedGraphNode[N, E]
@@ -75,12 +75,12 @@ func (s *linkedUndirectedSubGraph[N, E]) AddNode(value N) {
 }
 
 // Java: LinkedUndirectedGraph.create()
-func LinkedUndirectedGraph_Create[N comparable, E any]() *LinkedUndirectedGraph[N, E] {
+func LinkedUndirectedGraph_Create[N, E comparable]() *LinkedUndirectedGraph[N, E] {
 	return NewLinkedUndirectedGraph[N, E](true, true)
 }
 
 // Java: LinkedUndirectedGraph(boolean, boolean)
-func NewLinkedUndirectedGraph[N comparable, E any](useNodeAnnotations bool, useEdgeAnnotations bool) *LinkedUndirectedGraph[N, E] {
+func NewLinkedUndirectedGraph[N, E comparable](useNodeAnnotations bool, useEdgeAnnotations bool) *LinkedUndirectedGraph[N, E] {
 	g := &LinkedUndirectedGraph[N, E]{}
 	g.Init(useNodeAnnotations, useEdgeAnnotations)
 	return g
@@ -302,7 +302,7 @@ func (g *LinkedUndirectedGraph[N, E]) isConnectedNodesWithEdge(
 	for _, outEdge := range edges {
 		if (outEdge.nodeA == ln1 && outEdge.nodeB == ln2) ||
 			(outEdge.nodeA == ln2 && outEdge.nodeB == ln1) {
-			if jutil.ObjectsEqualsOf(e, outEdge.value) {
+			if e == outEdge.value {
 				return true
 			}
 		}
@@ -432,7 +432,7 @@ func (g *LinkedUndirectedGraph[N, E]) GetNodeDegree(value N) int {
 
 // LinkedUndirectedGraphNode is an undirected graph node storing incident edges
 // inline when at most two.
-type LinkedUndirectedGraphNode[N, E any] struct {
+type LinkedUndirectedGraphNode[N, E comparable] struct {
 	NeighborEdges      []*LinkedUndirectedGraphEdge[N, E]
 	neighborEdgeBuffer [2]*LinkedUndirectedGraphEdge[N, E]
 	Value              N
@@ -513,7 +513,7 @@ func (n *LinkedUndirectedGraphNode[N, E]) neighborList() []*LinkedUndirectedGrap
 
 // LinkedUndirectedGraphEdge is an undirected graph edge storing concrete
 // endpoint node pointers.
-type LinkedUndirectedGraphEdge[N, E any] struct {
+type LinkedUndirectedGraphEdge[N, E comparable] struct {
 	nodeA *LinkedUndirectedGraphNode[N, E]
 	nodeB *LinkedUndirectedGraphNode[N, E]
 	value E

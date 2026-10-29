@@ -126,9 +126,9 @@ func TestBitSetMatchesJava(t *testing.T) {
 func TestLoggerLevelsAndHandlers(t *testing.T) {
 	l := Logger_GetLogger("com.example.jutil.Test")
 	h := &recordingHandler{}
-	l.AddHandler(h)
-	l.SetUseParentHandlers(false)
-	defer l.RemoveHandler(h)
+	l.addHandler(h)
+	l.setUseParentHandlers(false)
+	defer l.removeHandler(h)
 	l.Fine("hidden")
 	l.Info("shown")
 	l.LogWithParam(Level_WARNING, "timers:\n{0}", "x")
@@ -144,13 +144,13 @@ func TestLoggerLevelsAndHandlers(t *testing.T) {
 
 type recordingHandler struct{ got []string }
 
-func (h *recordingHandler) Publish(r *LogRecord) {
-	h.got = append(h.got, r.GetLevel().GetName()+":"+Formatter_FormatMessage(r))
+func (h *recordingHandler) publish(r *logRecordEntry) {
+	h.got = append(h.got, r.getLevel().GetName()+":"+formatter_FormatMessage(r))
 }
 
 type noopHandler struct{}
 
-func (noopHandler) Publish(*LogRecord) {}
+func (noopHandler) publish(*logRecordEntry) {}
 
 func TestLoggerConcurrentGetLoggerAndParse(t *testing.T) {
 	const workers = 16
@@ -161,11 +161,11 @@ func TestLoggerConcurrentGetLoggerAndParse(t *testing.T) {
 		go func(id int) {
 			defer wg.Done()
 			parent := Logger_GetLogger(fmt.Sprintf("com.example.concurrent.p%d", id%4))
-			parent.SetUseParentHandlers(false)
+			parent.setUseParentHandlers(false)
 			for i := 0; i < iters; i++ {
 				child := Logger_GetLogger(fmt.Sprintf("com.example.concurrent.p%d.c%d", id%4, i%8))
 				h := &noopHandler{}
-				child.AddHandler(h)
+				child.addHandler(h)
 				if i%2 == 0 {
 					parent.SetLevel(Level_FINE)
 				} else {
@@ -180,7 +180,7 @@ func TestLoggerConcurrentGetLoggerAndParse(t *testing.T) {
 				if lv := Level_Parse("850"); lv.GetName() != "850" || lv.value != 850 {
 					t.Errorf("Level_Parse(850) = %v/%d", lv.GetName(), lv.value)
 				}
-				child.RemoveHandler(h)
+				child.removeHandler(h)
 			}
 		}(w)
 	}

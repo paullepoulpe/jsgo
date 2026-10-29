@@ -90,7 +90,7 @@ func StringToLowerCaseRoot(s string) string {
 				lower = 0x03C3
 			}
 		default:
-			lower = rune(CharacterToLowerCaseCodePoint(int(cp)))
+			lower = rune(characterToLowerCaseCodePoint(int(cp)))
 		}
 		if lower != cp && out == nil {
 			out = append(make([]uint16, 0, len(u)+8), u[:i]...)
@@ -106,11 +106,11 @@ func StringToLowerCaseRoot(s string) string {
 	return StringFromUTF16(out)
 }
 
-// CharacterToLowerCaseCodePoint is Character.toLowerCase(int): the simple
+// characterToLowerCaseCodePoint is Character.toLowerCase(int): the simple
 // lowercase mapping of UnicodeData.txt. Ints that are not code points, and
 // surrogates, are returned unchanged (observed behaviour, black-box: -1,
 // Integer.MIN_VALUE and 0x110041 map to themselves).
-func CharacterToLowerCaseCodePoint(codePoint int) int {
+func characterToLowerCaseCodePoint(codePoint int) int {
 	if codePoint < 0x80 {
 		if codePoint >= 'A' && codePoint <= 'Z' {
 			return codePoint + ('a' - 'A')

@@ -13,9 +13,8 @@
 // its messages are reconstructed (proto_runtime.go, which already prints the
 // text format). This file translates the parsing half of
 // com.google.protobuf.TextFormat (the version shaded into the pinned
-// closure-compiler.jar): Tokenizer, ParseException,
-// InvalidEscapeSequenceException, Parser (merge, the skipping of unknown
-// fields) and unescapeBytes / parseInteger, over the generated builders'
+// closure-compiler.jar): Parser (merge, the skipping of unknown fields) and
+// parseInteger / parseJavaDouble, over the generated builders'
 // MessageReflection.MergeTarget (proto_descriptors.go). The reconstructed
 // messages have no extensions, no google.protobuf.Any and no groups, and no
 // caller asks for a parse-info tree, so those branches are not translated;
@@ -33,16 +32,10 @@ import (
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 )
 
-// Java: TextFormat.PARSER
-var textFormat_PARSER = TextFormat_Parser_NewBuilder().Build()
+const textFormat_DEFAULT_RECURSION_LIMIT = 100
 
-// TextFormat_GetParser returns a Parser instance which can parse text-format
-// messages. The returned instance is thread-safe.
-//
-// Java: TextFormat.getParser()
-func TextFormat_GetParser() *TextFormat_Parser {
-	return textFormat_PARSER
-}
+// Java: TextFormat.PARSER
+var textFormat_PARSER = &TextFormat_Parser{}
 
 // TextFormat_Merge parses a text-format message from input and merges the
 // contents into builder. It panics with TextFormat_ParseException (a checked
@@ -56,126 +49,13 @@ func TextFormat_Merge(input string, builder TextFormat_MergeTarget) {
 // TextFormat_Parser is the parser for text-format proto2 instances. This
 // class is thread-safe. The implementation largely follows
 // google/protobuf/text_format.cc.
-//
-// Use TextFormat#getParser() to obtain the default parser, or Builder to
-// control the parser behavior.
-type TextFormat_Parser struct {
-	allowUnknownFields      bool
-	allowUnknownEnumValues  bool
-	allowUnknownExtensions  bool
-	singularOverwritePolicy TextFormat_Parser_SingularOverwritePolicy
-	recursionLimit          int
-}
-
-// TextFormat_Parser_SingularOverwritePolicy determines if repeated values for
-// non-repeated fields and oneofs are permitted. For example, given
-// required/optional field "foo" and a oneof containing "baz" and "moo":
-//
-//   - "foo: 1 foo: 2"
-//   - "baz: 1 moo: 2"
-//   - merging "foo: 2" into a proto in which foo is already set, or
-//   - merging "moo: 2" into a proto in which baz is already set.
-type TextFormat_Parser_SingularOverwritePolicy int32
-
-const (
-	// Later values are merged with earlier values. For primitive fields or
-	// conflicting oneofs, the last value is retained.
-	TextFormat_Parser_SingularOverwritePolicy_ALLOW_SINGULAR_OVERWRITES TextFormat_Parser_SingularOverwritePolicy = iota
-	// An error is issued.
-	TextFormat_Parser_SingularOverwritePolicy_FORBID_SINGULAR_OVERWRITES
-)
-
-// Java: TextFormat.Parser.newBuilder()
-func TextFormat_Parser_NewBuilder() *TextFormat_Parser_Builder {
-	return &TextFormat_Parser_Builder{
-		singularOverwritePolicy: TextFormat_Parser_SingularOverwritePolicy_ALLOW_SINGULAR_OVERWRITES,
-		recursionLimit:          100,
-	}
-}
-
-// TextFormat_Parser_Builder can be used to obtain new instances of Parser.
-type TextFormat_Parser_Builder struct {
-	allowUnknownFields      bool
-	allowUnknownEnumValues  bool
-	allowUnknownExtensions  bool
-	singularOverwritePolicy TextFormat_Parser_SingularOverwritePolicy
-	recursionLimit          int
-}
-
-// SetAllowUnknownFields sets whether this parser will allow unknown fields.
-// By default, an exception is thrown if an unknown field is encountered. If
-// this is set, the parser will only log a warning. Allow unknown fields will
-// also allow unknown extensions.
-//
-// Java: TextFormat.Parser.Builder.setAllowUnknownFields(boolean)
-func (b *TextFormat_Parser_Builder) SetAllowUnknownFields(allowUnknownFields bool) *TextFormat_Parser_Builder {
-	b.allowUnknownFields = allowUnknownFields
-	return b
-}
-
-// SetAllowUnknownExtensions sets whether this parser will allow unknown
-// extensions. By default, an exception is thrown if unknown extension is
-// encountered. If this is set true, the parser will only log a warning.
-// Allow unknown extensions does not mean allow normal unknown fields.
-//
-// Java: TextFormat.Parser.Builder.setAllowUnknownExtensions(boolean)
-func (b *TextFormat_Parser_Builder) SetAllowUnknownExtensions(allowUnknownExtensions bool) *TextFormat_Parser_Builder {
-	b.allowUnknownExtensions = allowUnknownExtensions
-	return b
-}
-
-// SetSingularOverwritePolicy sets parser behavior when a non-repeated field
-// appears more than once.
-//
-// Java: TextFormat.Parser.Builder.setSingularOverwritePolicy(SingularOverwritePolicy)
-func (b *TextFormat_Parser_Builder) SetSingularOverwritePolicy(p TextFormat_Parser_SingularOverwritePolicy) *TextFormat_Parser_Builder {
-	b.singularOverwritePolicy = p
-	return b
-}
-
-// SetRecursionLimit sets the maximum recursion limit that the parser will
-// allow. If the depth of the message exceeds this limit then the parser will
-// stop and throw an exception.
-//
-// Java: TextFormat.Parser.Builder.setRecursionLimit(int)
-func (b *TextFormat_Parser_Builder) SetRecursionLimit(recursionLimit int) *TextFormat_Parser_Builder {
-	b.recursionLimit = recursionLimit
-	return b
-}
-
-// Java: TextFormat.Parser.Builder.build()
-func (b *TextFormat_Parser_Builder) Build() *TextFormat_Parser {
-	return &TextFormat_Parser{
-		allowUnknownFields:      b.allowUnknownFields,
-		allowUnknownEnumValues:  b.allowUnknownEnumValues,
-		allowUnknownExtensions:  b.allowUnknownExtensions,
-		singularOverwritePolicy: b.singularOverwritePolicy,
-		recursionLimit:          b.recursionLimit,
-	}
-}
-
-// TextFormat_Parser_UnknownField_Type is TextFormat.Parser.UnknownField.Type.
-type TextFormat_Parser_UnknownField_Type int32
-
-const (
-	TextFormat_Parser_UnknownField_Type_FIELD TextFormat_Parser_UnknownField_Type = iota
-	TextFormat_Parser_UnknownField_Type_EXTENSION
-)
-
-// Java: TextFormat.Parser.UnknownField
-type TextFormat_Parser_UnknownField struct {
-	message string
-	type_   TextFormat_Parser_UnknownField_Type
-}
+type TextFormat_Parser struct{}
 
 // CheckUnknownFields checks both unknown fields and unknown extensions and
-// logs warning messages or throws exceptions according to the flag.
-//
-// Go-only: language-adapter — the java.util.logging warnings of the
-// allow-unknown modes are not emitted (no caller enables them).
+// throws an exception if any were encountered.
 //
 // Java: TextFormat.Parser.checkUnknownFields(List<UnknownField>)
-func (p *TextFormat_Parser) CheckUnknownFields(unknownFields []*TextFormat_Parser_UnknownField) {
+func (p *TextFormat_Parser) CheckUnknownFields(unknownFields []string) {
 	if len(unknownFields) == 0 {
 		return
 	}
@@ -184,29 +64,10 @@ func (p *TextFormat_Parser) CheckUnknownFields(unknownFields []*TextFormat_Parse
 	msg.WriteString("Input contains unknown fields and/or extensions:")
 	for _, field := range unknownFields {
 		msg.WriteByte('\n')
-		msg.WriteString(field.message)
+		msg.WriteString(field)
 	}
 
-	if p.allowUnknownFields {
-		return
-	}
-
-	firstErrorIndex := 0
-	if p.allowUnknownExtensions {
-		allUnknownExtensions := true
-		for _, field := range unknownFields {
-			if field.type_ == TextFormat_Parser_UnknownField_Type_FIELD {
-				allUnknownExtensions = false
-				break
-			}
-			firstErrorIndex++
-		}
-		if allUnknownExtensions {
-			return
-		}
-	}
-
-	lineColumn := strings.Split(unknownFields[firstErrorIndex].message, ":")
+	lineColumn := strings.Split(unknownFields[0], ":")
 	line, _ := strconv.Atoi(lineColumn[0])
 	column, _ := strconv.Atoi(lineColumn[1])
 	panic(NewTextFormat_ParseExceptionAt(line, column, msg.String()))
@@ -218,10 +79,10 @@ func (p *TextFormat_Parser) CheckUnknownFields(unknownFields []*TextFormat_Parse
 // Java: TextFormat.Parser.merge(CharSequence, ExtensionRegistry, Message.Builder)
 func (p *TextFormat_Parser) Merge(input string, target TextFormat_MergeTarget) {
 	tokenizer := NewTextFormat_Tokenizer(input)
-	unknownFields := []*TextFormat_Parser_UnknownField{}
+	var unknownFields []string
 
 	for !tokenizer.AtEnd() {
-		p.MergeField(tokenizer, target, &unknownFields, p.recursionLimit)
+		p.MergeField(tokenizer, target, &unknownFields, textFormat_DEFAULT_RECURSION_LIMIT)
 	}
 	p.CheckUnknownFields(unknownFields)
 }
@@ -232,7 +93,7 @@ func (p *TextFormat_Parser) Merge(input string, target TextFormat_MergeTarget) {
 func (p *TextFormat_Parser) MergeField(
 	tokenizer *TextFormat_Tokenizer,
 	target TextFormat_MergeTarget,
-	unknownFields *[]*TextFormat_Parser_UnknownField,
+	unknownFields *[]string,
 	recursionLimit int) {
 	var field *Descriptors_FieldDescriptor
 	var name string
@@ -261,7 +122,7 @@ func (p *TextFormat_Parser) MergeField(
 			".[" +
 			name +
 			"]"
-		*unknownFields = append(*unknownFields, &TextFormat_Parser_UnknownField{message, TextFormat_Parser_UnknownField_Type_EXTENSION})
+		*unknownFields = append(*unknownFields, message)
 
 		tokenizer.Consume("]")
 	} else {
@@ -293,7 +154,7 @@ func (p *TextFormat_Parser) MergeField(
 				type_.GetFullName() +
 				"." +
 				name
-			*unknownFields = append(*unknownFields, &TextFormat_Parser_UnknownField{message, TextFormat_Parser_UnknownField_Type_FIELD})
+			*unknownFields = append(*unknownFields, message)
 		}
 	}
 
@@ -350,7 +211,7 @@ func (p *TextFormat_Parser) ConsumeFieldValues(
 	tokenizer *TextFormat_Tokenizer,
 	target TextFormat_MergeTarget,
 	field *Descriptors_FieldDescriptor,
-	unknownFields *[]*TextFormat_Parser_UnknownField,
+	unknownFields *[]string,
 	recursionLimit int) {
 	// Support specifying repeated field values as a comma-separated list.
 	// Ex."foo: [1, 2, 3]"
@@ -378,17 +239,8 @@ func (p *TextFormat_Parser) ConsumeFieldValue(
 	tokenizer *TextFormat_Tokenizer,
 	target TextFormat_MergeTarget,
 	field *Descriptors_FieldDescriptor,
-	unknownFields *[]*TextFormat_Parser_UnknownField,
+	unknownFields *[]string,
 	recursionLimit int) {
-	if p.singularOverwritePolicy == TextFormat_Parser_SingularOverwritePolicy_FORBID_SINGULAR_OVERWRITES &&
-		!field.IsRepeated() {
-		if target.protoHasField(field) {
-			panic(tokenizer.ParseExceptionPreviousToken(
-				"Non-repeated field \"" + field.GetFullName() + "\" cannot be overwritten."))
-		}
-		// (The reconstructed messages Closure parses have no oneofs.)
-	}
-
 	var value any
 
 	if field.GetJavaType() == Descriptors_FieldDescriptor_JavaType_MESSAGE {
@@ -462,32 +314,22 @@ func (p *TextFormat_Parser) ConsumeFieldValue(
 					panic(jutil.NewUnsupportedOperationExceptionMsg("open enum " + enumType.GetFullName()))
 				}
 				if enumValue == nil {
-					unknownValueMsg := "Enum type \"" +
+					panic(tokenizer.ParseExceptionPreviousToken("Enum type \"" +
 						enumType.GetFullName() +
 						"\" has no value with number " +
 						strconv.Itoa(int(number)) +
-						"."
-					if p.allowUnknownEnumValues {
-						return
-					} else {
-						panic(tokenizer.ParseExceptionPreviousToken(unknownValueMsg))
-					}
+						"."))
 				}
 				value = enumValue
 			} else {
 				id := tokenizer.ConsumeIdentifier()
 				enumValue := enumType.FindValueByName(id)
 				if enumValue == nil {
-					unknownValueMsg := "Enum type \"" +
+					panic(tokenizer.ParseExceptionPreviousToken("Enum type \"" +
 						enumType.GetFullName() +
 						"\" has no value named \"" +
 						id +
-						"\"."
-					if p.allowUnknownEnumValues {
-						return
-					} else {
-						panic(tokenizer.ParseExceptionPreviousToken(unknownValueMsg))
-					}
+						"\"."))
 				}
 				value = enumValue
 			}
@@ -498,8 +340,6 @@ func (p *TextFormat_Parser) ConsumeFieldValue(
 	}
 
 	if field.IsRepeated() {
-		// TODO: If field.isMapField() and FORBID_SINGULAR_OVERWRITES mode,
-		//     check for duplicate map keys here.
 		target.protoAddRepeatedField(field, value)
 	} else {
 		target.protoSetField(field, value)
@@ -595,234 +435,6 @@ func (p *TextFormat_Parser) SkipFieldShortFormedRepeated(
 		}
 		tokenizer.Consume(",")
 	}
-}
-
-// TextFormat_UnescapeBytes un-escapes a byte sequence as escaped using
-// escapeBytes(ByteString). Two-digit hex escapes (starting with "\x") are
-// also recognized. It panics with InvalidEscapeSequenceException.
-//
-// Java: TextFormat.unescapeBytes(CharSequence)
-func TextFormat_UnescapeBytes(charString string) []byte {
-	result, errMsg, ok := textFormat_unescapeBytes(charString)
-	if !ok {
-		panic(NewTextFormat_InvalidEscapeSequenceException(errMsg))
-	}
-	return result
-}
-
-func textFormat_unescapeBytes(charString string) ([]byte, string, bool) {
-	input := jutil.StringGetBytesUTF8(charString)
-	result := make([]byte, 0, len(input))
-	for i := 0; i < len(input); i++ {
-		c := input[i]
-		if c == '\\' {
-			if i+1 < len(input) {
-				i++
-				c = input[i]
-				if textFormat_isOctal(c) {
-					code := textFormat_digitValue(c)
-					if i+1 < len(input) && textFormat_isOctal(input[i+1]) {
-						i++
-						code = code*8 + textFormat_digitValue(input[i])
-					}
-					if i+1 < len(input) && textFormat_isOctal(input[i+1]) {
-						i++
-						code = code*8 + textFormat_digitValue(input[i])
-					}
-					result = append(result, byte(code))
-				} else {
-					switch c {
-					case 'a':
-						result = append(result, 0x07)
-					case 'b':
-						result = append(result, '\b')
-					case 'f':
-						result = append(result, '\f')
-					case 'n':
-						result = append(result, '\n')
-					case 'r':
-						result = append(result, '\r')
-					case 't':
-						result = append(result, '\t')
-					case 'v':
-						result = append(result, 0x0b)
-					case '\\':
-						result = append(result, '\\')
-					case '\'':
-						result = append(result, '\'')
-					case '"':
-						result = append(result, '"')
-					case '?':
-						result = append(result, '?')
-
-					case 'x':
-						code := 0
-						if i+1 < len(input) && textFormat_isHex(input[i+1]) {
-							i++
-							code = textFormat_digitValue(input[i])
-						} else {
-							return nil, "Invalid escape sequence: '\\x' with no digits", false
-						}
-						if i+1 < len(input) && textFormat_isHex(input[i+1]) {
-							i++
-							code = code*16 + textFormat_digitValue(input[i])
-						}
-						result = append(result, byte(code))
-
-					case 'u':
-						i++
-						if i+3 < len(input) &&
-							textFormat_isHex(input[i]) &&
-							textFormat_isHex(input[i+1]) &&
-							textFormat_isHex(input[i+2]) &&
-							textFormat_isHex(input[i+3]) {
-							ch := uint16(textFormat_digitValue(input[i])<<12 |
-								textFormat_digitValue(input[i+1])<<8 |
-								textFormat_digitValue(input[i+2])<<4 |
-								textFormat_digitValue(input[i+3]))
-
-							if ch >= 0xD800 && ch <= 0xDFFF {
-								return nil, "Invalid escape sequence: '\\u' refers to a surrogate", false
-							}
-							result = append(result, jutil.StringGetBytesUTF8(jutil.StringFromUTF16([]uint16{ch}))...)
-							i += 3
-						} else {
-							return nil, "Invalid escape sequence: '\\u' with too few hex chars", false
-						}
-
-					case 'U':
-						i++
-						if i+7 >= len(input) {
-							return nil, "Invalid escape sequence: '\\U' with too few hex chars", false
-						}
-						codepoint := 0
-						for offset := i; offset < i+8; offset++ {
-							b := input[offset]
-							if !textFormat_isHex(b) {
-								return nil, "Invalid escape sequence: '\\U' with too few hex chars", false
-							}
-							codepoint = (codepoint << 4) | textFormat_digitValue(b)
-						}
-						// Character.isValidCodePoint; the hex digits make it non-negative
-						// as an int only below 0x80000000.
-						if int32(codepoint) < 0 || codepoint > 0x10FFFF {
-							return nil, "Invalid escape sequence: '\\U" +
-								jutil.NewStringFromUTF8Bytes(input[i:i+8]) +
-								"' is not a valid code point value", false
-						}
-						// Character.UnicodeBlock LOW_SURROGATES, HIGH_SURROGATES,
-						// HIGH_PRIVATE_USE_SURROGATES: U+D800..U+DFFF.
-						if codepoint >= 0xD800 && codepoint <= 0xDFFF {
-							return nil, "Invalid escape sequence: '\\U" +
-								jutil.NewStringFromUTF8Bytes(input[i:i+8]) +
-								"' refers to a surrogate code unit", false
-						}
-						result = append(result, []byte(string(rune(codepoint)))...)
-						i += 7
-
-					default:
-						return nil, "Invalid escape sequence: '\\" + string(rune(c)) + "'", false
-					}
-				}
-			} else {
-				return nil, "Invalid escape sequence: '\\' at end of string.", false
-			}
-		} else {
-			result = append(result, c)
-		}
-	}
-
-	return result, "", true
-}
-
-// TextFormat_InvalidEscapeSequenceException is thrown by unescape methods
-// upon encountering an invalid escape sequence (an IOException).
-type TextFormat_InvalidEscapeSequenceException struct {
-	jutil.IOException
-}
-
-func (*TextFormat_InvalidEscapeSequenceException) invalidEscapeSequenceException() {}
-
-// Java: TextFormat.InvalidEscapeSequenceException(String)
-func NewTextFormat_InvalidEscapeSequenceException(description string) *TextFormat_InvalidEscapeSequenceException {
-	e := &TextFormat_InvalidEscapeSequenceException{}
-	jutil.InitThrowable(e, "com.google.javascript.jscomp.jarjar.com.google.protobuf.TextFormat$InvalidEscapeSequenceException",
-		jutil.StringPtr(description), nil)
-	return e
-}
-
-// Java: TextFormat.isOctal(byte)
-func textFormat_isOctal(c byte) bool {
-	return '0' <= c && c <= '7'
-}
-
-// Java: TextFormat.isHex(byte)
-func textFormat_isHex(c byte) bool {
-	return ('0' <= c && c <= '9') || ('a' <= c && c <= 'f') || ('A' <= c && c <= 'F')
-}
-
-// textFormat_digitValue interprets a character as a digit (in any base up to
-// 36) and returns the numeric value. This is like Character.digit() but we
-// don't accept non-ASCII digits.
-//
-// Java: TextFormat.digitValue(byte)
-func textFormat_digitValue(c byte) int {
-	if '0' <= c && c <= '9' {
-		return int(c - '0')
-	} else if 'a' <= c && c <= 'z' {
-		return int(c-'a') + 10
-	} else {
-		return int(c-'A') + 10
-	}
-}
-
-// TextFormat_ParseInt32 parses a 32-bit signed integer from the text. Unlike
-// the Java standard Integer.parseInt(), this function recognizes the prefixes
-// "0x" and "0" to signify hexadecimal and octal numbers, respectively.
-//
-// Java: TextFormat.parseInt32(String)
-func TextFormat_ParseInt32(text string) int32 {
-	return int32(TextFormat_ParseInteger(text, true, false))
-}
-
-// TextFormat_ParseUInt32 parses a 32-bit unsigned integer from the text.
-// Unlike the Java standard Integer.parseInt(), this function recognizes the
-// prefixes "0x" and "0" to signify hexadecimal and octal numbers,
-// respectively. The result is coerced to a (signed) int when returned since
-// Java has no unsigned integer type.
-//
-// Java: TextFormat.parseUInt32(String)
-func TextFormat_ParseUInt32(text string) int32 {
-	return int32(TextFormat_ParseInteger(text, false, false))
-}
-
-// TextFormat_ParseInt64 parses a 64-bit signed integer from the text. Unlike
-// the Java standard Integer.parseInt(), this function recognizes the prefixes
-// "0x" and "0" to signify hexadecimal and octal numbers, respectively.
-//
-// Java: TextFormat.parseInt64(String)
-func TextFormat_ParseInt64(text string) int64 {
-	return TextFormat_ParseInteger(text, true, true)
-}
-
-// TextFormat_ParseUInt64 parses a 64-bit unsigned integer from the text.
-// Unlike the Java standard Integer.parseInt(), this function recognizes the
-// prefixes "0x" and "0" to signify hexadecimal and octal numbers,
-// respectively. The result is coerced to a (signed) long when returned since
-// Java has no unsigned long type.
-//
-// Java: TextFormat.parseUInt64(String)
-func TextFormat_ParseUInt64(text string) int64 {
-	return TextFormat_ParseInteger(text, false, true)
-}
-
-// Java: TextFormat.parseInteger(String, boolean, boolean)
-func TextFormat_ParseInteger(text string, isSigned bool, isLong bool) int64 {
-	result, errMsg, ok := textFormat_parseInteger(text, isSigned, isLong)
-	if !ok {
-		panic(jutil.NewNumberFormatException(errMsg))
-	}
-	return result
 }
 
 func textFormat_parseInteger(text string, isSigned bool, isLong bool) (int64, string, bool) {

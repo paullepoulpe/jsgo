@@ -327,41 +327,22 @@ func NodeUtil_GetCount(n rhino.Node, pred func(rhino.Node) bool, traverseChildre
 	return total
 }
 
-// NodeUtil_Visitor is the interface for use with the visit method.
-//
-// See NodeUtil_VisitPreOrder.
-//
-// Java: NodeUtil.Visitor
-type NodeUtil_Visitor interface {
-	// Java: NodeUtil.Visitor.visit(Node)
-	Visit(node rhino.Node)
-}
-
-// NodeUtil_VisitorFunc adapts a function (a Java lambda) to NodeUtil_Visitor.
-//
-// Go-only: language-adapter — Java lambdas implementing the functional
-// interface.
-type NodeUtil_VisitorFunc func(node rhino.Node)
-
-// Visit calls f.
-func (f NodeUtil_VisitorFunc) Visit(node rhino.Node) { f(node) }
-
-// NodeUtil_VisitPreOrder is a pre-order traversal, calling Visitor.visit for
-// each decendent.
+// NodeUtil_VisitPreOrder is a pre-order traversal, calling visitor for each
+// decendent.
 //
 // Java: NodeUtil.visitPreOrder(Node, Visitor)
-func NodeUtil_VisitPreOrder(node rhino.Node, visitor NodeUtil_Visitor) {
+func NodeUtil_VisitPreOrder(node rhino.Node, visitor func(rhino.Node)) {
 	NodeUtil_VisitPreOrderWithPred(node, visitor, nodeUtil_alwaysTrue)
 }
 
-// NodeUtil_VisitPreOrderWithPred is a pre-order traversal, calling
-// Visitor.visit for each node in the tree. Children of nodes that do not
-// match the predicate will not be visited.
+// NodeUtil_VisitPreOrderWithPred is a pre-order traversal, calling visitor for
+// each node in the tree. Children of nodes that do not match the predicate
+// will not be visited.
 //
 // Java: NodeUtil.visitPreOrder(Node, Visitor, Predicate<Node>)
 func NodeUtil_VisitPreOrderWithPred(
-	node rhino.Node, visitor NodeUtil_Visitor, traverseChildrenPred func(rhino.Node) bool) {
-	visitor.Visit(node)
+	node rhino.Node, visitor func(rhino.Node), traverseChildrenPred func(rhino.Node) bool) {
+	visitor(node)
 
 	if traverseChildrenPred(node) {
 		for c := node.GetFirstChild(); !c.IsNil(); c = c.GetNext() {
@@ -370,21 +351,21 @@ func NodeUtil_VisitPreOrderWithPred(
 	}
 }
 
-// NodeUtil_VisitPostOrder is a post-order traversal, calling Visitor.visit
-// for each decendent.
+// NodeUtil_VisitPostOrder is a post-order traversal, calling visitor for each
+// decendent.
 //
 // Java: NodeUtil.visitPostOrder(Node, Visitor)
-func NodeUtil_VisitPostOrder(node rhino.Node, visitor NodeUtil_Visitor) {
+func NodeUtil_VisitPostOrder(node rhino.Node, visitor func(rhino.Node)) {
 	NodeUtil_VisitPostOrderWithPred(node, visitor, nodeUtil_alwaysTrue)
 }
 
-// NodeUtil_VisitPostOrderWithPred is a post-order traversal, calling
-// Visitor.visit for each node in the tree. Children of nodes that do not
-// match the predicate will not be visited.
+// NodeUtil_VisitPostOrderWithPred is a post-order traversal, calling visitor
+// for each node in the tree. Children of nodes that do not match the predicate
+// will not be visited.
 //
 // Java: NodeUtil.visitPostOrder(Node, Visitor, Predicate<Node>)
 func NodeUtil_VisitPostOrderWithPred(
-	node rhino.Node, visitor NodeUtil_Visitor, traverseChildrenPred func(rhino.Node) bool) {
+	node rhino.Node, visitor func(rhino.Node), traverseChildrenPred func(rhino.Node) bool) {
 	if traverseChildrenPred(node) {
 		for c := node.GetFirstChild(); !c.IsNil(); {
 			next := c.GetNext()
@@ -393,7 +374,7 @@ func NodeUtil_VisitPostOrderWithPred(
 		}
 	}
 
-	visitor.Visit(node)
+	visitor(node)
 }
 
 // NodeUtil_PreOrderIterableWithPred creates an Iterable over the given node
@@ -545,6 +526,10 @@ func NodeUtil_GetAllVarNamesDeclaredInModule(
 type nodeUtil_getAllVarNamesDeclaredInModule_finder struct {
 	nameVars *jutil.LinkedHashSet[string]
 }
+
+var _ nodeTraversal_noVisit = (*nodeUtil_getAllVarNamesDeclaredInModule_finder)(nil)
+
+func (*nodeUtil_getAllVarNamesDeclaredInModule_finder) nodeTraversalNoVisit() {}
 
 // Java: NodeUtil.getAllVarNamesDeclaredInModule(...).finder.enterScope(NodeTraversal)
 func (f *nodeUtil_getAllVarNamesDeclaredInModule_finder) EnterScope(t *NodeTraversal) {

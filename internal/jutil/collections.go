@@ -669,7 +669,7 @@ func (h *LinkedHashMap[K, V]) HashCode() int32 {
 		if i < len(removed) && removed[i] {
 			continue
 		}
-		sum += ObjectHashCodeOf(h.slots[i].key) ^ ObjectHashCodeOf(h.slots[i].value)
+		sum += objectHashCodeOf(h.slots[i].key) ^ objectHashCodeOf(h.slots[i].value)
 	}
 	return sum
 }

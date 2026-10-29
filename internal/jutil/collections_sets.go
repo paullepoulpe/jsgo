@@ -206,7 +206,7 @@ func (s *LinkedHashSet[T]) HashCode() int32 {
 		if i < len(removed) && removed[i] {
 			continue
 		}
-		h += ObjectHashCodeOf(s.m.slots[i].key)
+		h += objectHashCodeOf(s.m.slots[i].key)
 	}
 	return h
 }
@@ -246,7 +246,7 @@ func NewObjectLinkedHashMap[K any, V any]() *ObjectLinkedHashMap[K, V] {
 // find returns k's slot index (or -1) and its hash code.
 func (h *ObjectLinkedHashMap[K, V]) find(k K) (int, int32) {
 	// Go-only: performance — the ...Of forms do not box String keys.
-	hash := ObjectHashCodeOf(k)
+	hash := objectHashCodeOf(k)
 	if h == nil || h.size == 0 {
 		return -1, hash
 	}
@@ -517,7 +517,7 @@ func (h *ObjectLinkedHashMap[K, V]) HashCode() int32 {
 		if h.slots[i].removed {
 			continue
 		}
-		sum += ObjectHashCodeOf(h.slots[i].key) ^ ObjectHashCodeOf(h.slots[i].value)
+		sum += objectHashCodeOf(h.slots[i].key) ^ objectHashCodeOf(h.slots[i].value)
 	}
 	return sum
 }
@@ -673,7 +673,7 @@ func (s *ObjectLinkedHashSet[T]) HashCode() int32 {
 		if s.m.slots[i].removed {
 			continue
 		}
-		h += ObjectHashCodeOf(s.m.slots[i].key)
+		h += objectHashCodeOf(s.m.slots[i].key)
 	}
 	return h
 }

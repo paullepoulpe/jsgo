@@ -19,6 +19,7 @@
 package jscomp
 
 import (
+	"github.com/paullepoulpe/jsgo/internal/ast"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
@@ -315,6 +316,22 @@ func newProcessTweaks_CollectTweaks(outer *ProcessTweaks) *ProcessTweaks_Collect
 	c := &ProcessTweaks_CollectTweaks{outer: outer}
 	c.allTweaks = jutil.NewLinkedHashMap[string, *ProcessTweaks_TweakInfo]()
 	return c
+}
+
+var processTweaksCollectVisitTokens = func() ast.TokenSet {
+	var s ast.TokenSet
+	s.Add(rhino.Token_CALL)
+	return s
+}()
+
+var (
+	_ nodeTraversal_visitTokens   = (*ProcessTweaks_CollectTweaks)(nil)
+	_ nodeTraversal_noVisitLeaves = (*ProcessTweaks_CollectTweaks)(nil)
+)
+
+func (*ProcessTweaks_CollectTweaks) noVisitLeaves() {}
+func (*ProcessTweaks_CollectTweaks) visitTokens() *ast.TokenSet {
+	return &processTweaksCollectVisitTokens
 }
 
 // Java: ProcessTweaks.CollectTweaks.visit(NodeTraversal, Node, Node)

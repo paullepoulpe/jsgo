@@ -120,6 +120,7 @@ var es6NormalizeClassesVisitTokens = func() ast.TokenSet {
 // Es6ConvertSuper, which only handle classes in simpler forms.
 type Es6NormalizeClasses struct {
 	compiler                    AbstractCompiler
+	uniqueIdSupplier            *UniqueIdSupplier
 	astFactory                  *AstFactory
 	expressionDecomposer        *ExpressionDecomposer
 	ctorCreator                 SynthesizeExplicitConstructors
@@ -196,14 +197,14 @@ var Es6NormalizeClasses_GENERIC_NAME_REPLACEMENTS = func() *jutil.LinkedHashMap[
 //
 // Java: Es6NormalizeClasses.generateUniqueTmpVarName(NodeTraversal)
 func (e *Es6NormalizeClasses) GenerateUniqueTmpVarName(t *NodeTraversal) string {
-	return es6NormalizeClasses_TMP_VAR + e.compiler.GetUniqueIdSupplier().GetUniqueId(t.GetInput())
+	return e.uniqueIdSupplier.UniqueVarName(es6NormalizeClasses_TMP_VAR, t.GetInput())
 }
 
 // GenerateUniqueClassDeclVarName returns $jscomp$classDecl$[FILE_ID]$[number]
 //
 // Java: Es6NormalizeClasses.generateUniqueClassDeclVarName(NodeTraversal)
 func (e *Es6NormalizeClasses) GenerateUniqueClassDeclVarName(t *NodeTraversal) string {
-	return es6NormalizeClasses_CLASS_DECL_VAR + e.compiler.GetUniqueIdSupplier().GetUniqueId(t.GetInput())
+	return e.uniqueIdSupplier.UniqueVarName(es6NormalizeClasses_CLASS_DECL_VAR, t.GetInput())
 }
 
 // GenerateUniqueClassExtendsVarName returns
@@ -211,14 +212,14 @@ func (e *Es6NormalizeClasses) GenerateUniqueClassDeclVarName(t *NodeTraversal) s
 //
 // Java: Es6NormalizeClasses.generateUniqueClassExtendsVarName(NodeTraversal)
 func (e *Es6NormalizeClasses) GenerateUniqueClassExtendsVarName(t *NodeTraversal) string {
-	return es6NormalizeClasses_CLASS_EXTENDS_VAR + e.compiler.GetUniqueIdSupplier().GetUniqueId(t.GetInput())
+	return e.uniqueIdSupplier.UniqueVarName(es6NormalizeClasses_CLASS_EXTENDS_VAR, t.GetInput())
 }
 
 // GenerateUniqueCompFieldVarName returns $jscomp$compfield$[FILE_ID]$[number]
 //
 // Java: Es6NormalizeClasses.generateUniqueCompFieldVarName(NodeTraversal)
 func (e *Es6NormalizeClasses) GenerateUniqueCompFieldVarName(t *NodeTraversal) string {
-	return es6NormalizeClasses_COMP_FIELD_VAR + e.compiler.GetUniqueIdSupplier().GetUniqueId(t.GetInput())
+	return e.uniqueIdSupplier.UniqueVarName(es6NormalizeClasses_COMP_FIELD_VAR, t.GetInput())
 }
 
 // GenerateUniqueStaticInitMethodName returns
@@ -226,7 +227,7 @@ func (e *Es6NormalizeClasses) GenerateUniqueCompFieldVarName(t *NodeTraversal) s
 //
 // Java: Es6NormalizeClasses.generateUniqueStaticInitMethodName(NodeTraversal)
 func (e *Es6NormalizeClasses) GenerateUniqueStaticInitMethodName(t *NodeTraversal) string {
-	return es6NormalizeClasses_STATIC_INIT_METHOD_NAME + e.compiler.GetUniqueIdSupplier().GetUniqueId(t.GetInput())
+	return e.uniqueIdSupplier.UniqueVarName(es6NormalizeClasses_STATIC_INIT_METHOD_NAME, t.GetInput())
 }
 
 // Es6NormalizeClasses_GenerateUniquePrivateMapVarName returns
@@ -235,7 +236,7 @@ func (e *Es6NormalizeClasses) GenerateUniqueStaticInitMethodName(t *NodeTraversa
 // Java: Es6NormalizeClasses.generateUniquePrivateMapVarName(AbstractCompiler, NodeTraversal)
 func Es6NormalizeClasses_GenerateUniquePrivateMapVarName(
 	compiler AbstractCompiler, t *NodeTraversal) string {
-	return es6NormalizeClasses_PRIVATE_MAP_VAR + compiler.GetUniqueIdSupplier().GetUniqueId(t.GetInput())
+	return compiler.GetUniqueIdSupplier().UniqueVarName(es6NormalizeClasses_PRIVATE_MAP_VAR, t.GetInput())
 }
 
 // Es6NormalizeClasses_GenerateUniqueStaticPrivateMapVarName returns
@@ -244,7 +245,7 @@ func Es6NormalizeClasses_GenerateUniquePrivateMapVarName(
 // Java: Es6NormalizeClasses.generateUniqueStaticPrivateMapVarName(AbstractCompiler, NodeTraversal)
 func Es6NormalizeClasses_GenerateUniqueStaticPrivateMapVarName(
 	compiler AbstractCompiler, t *NodeTraversal) string {
-	return es6NormalizeClasses_STATIC_PRIVATE_MAP_VAR + compiler.GetUniqueIdSupplier().GetUniqueId(t.GetInput())
+	return compiler.GetUniqueIdSupplier().UniqueVarName(es6NormalizeClasses_STATIC_PRIVATE_MAP_VAR, t.GetInput())
 }
 
 // Es6NormalizeClasses_GenerateUniquePrivateProtoVarName returns
@@ -253,7 +254,7 @@ func Es6NormalizeClasses_GenerateUniqueStaticPrivateMapVarName(
 // Java: Es6NormalizeClasses.generateUniquePrivateProtoVarName(AbstractCompiler, NodeTraversal)
 func Es6NormalizeClasses_GenerateUniquePrivateProtoVarName(
 	compiler AbstractCompiler, t *NodeTraversal) string {
-	return es6NormalizeClasses_PRIVATE_PROTO_VAR + compiler.GetUniqueIdSupplier().GetUniqueId(t.GetInput())
+	return compiler.GetUniqueIdSupplier().UniqueVarName(es6NormalizeClasses_PRIVATE_PROTO_VAR, t.GetInput())
 }
 
 // Es6NormalizeClasses_GenerateUniquePrivateVarName returns
@@ -261,7 +262,7 @@ func Es6NormalizeClasses_GenerateUniquePrivateProtoVarName(
 //
 // Java: Es6NormalizeClasses.generateUniquePrivateVarName(AbstractCompiler, NodeTraversal)
 func Es6NormalizeClasses_GenerateUniquePrivateVarName(compiler AbstractCompiler, t *NodeTraversal) string {
-	return es6NormalizeClasses_PRIVATE_VAR + compiler.GetUniqueIdSupplier().GetUniqueId(t.GetInput())
+	return compiler.GetUniqueIdSupplier().UniqueVarName(es6NormalizeClasses_PRIVATE_VAR, t.GetInput())
 }
 
 // Java: Es6NormalizeClasses(AbstractCompiler)
@@ -269,6 +270,7 @@ func NewEs6NormalizeClasses(compiler AbstractCompiler) *Es6NormalizeClasses {
 	astFactory := compiler.CreateAstFactory()
 	e := &Es6NormalizeClasses{
 		compiler:             compiler,
+		uniqueIdSupplier:     compiler.GetUniqueIdSupplier(),
 		astFactory:           astFactory,
 		expressionDecomposer: compiler.CreateDefaultExpressionDecomposer(),
 		ctorCreator: SynthesizeExplicitConstructors{
@@ -712,7 +714,7 @@ func (e *Es6NormalizeClasses) MaybeUpdateClassSelfRef(t *NodeTraversal, name ast
 
 		// Ensure that this nameNode is not being shadowed by a different variable with the same name
 		// as the inner class name.
-		var_ := t.LookupVar(name.Ident())
+		var_ := t.LookupVarByID(nameID)
 		if var_ == nil || var_.GetNameNode() != bindingIdentifier {
 			continue
 		}

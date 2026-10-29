@@ -30,7 +30,7 @@ import (
 // that the graph edge holds.
 //
 // See GraphNode.GetAnnotation.
-type GraphReachability[N comparable, E any] struct {
+type GraphReachability[N, E comparable] struct {
 	Graph DiGraph[N, E]
 
 	EdgePredicate func(*GraphReachability_EdgeTuple[N, E]) bool
@@ -39,7 +39,7 @@ type GraphReachability[N comparable, E any] struct {
 }
 
 // Java: GraphReachability(DiGraph<N, E>)
-func NewGraphReachability[N comparable, E any](graph DiGraph[N, E]) *GraphReachability[N, E] {
+func NewGraphReachability[N, E comparable](graph DiGraph[N, E]) *GraphReachability[N, E] {
 	return &GraphReachability[N, E]{
 		Graph: graph,
 	}
@@ -137,7 +137,7 @@ type graphReachability_sentinel struct{ name string }
 var GraphReachability_REACHABLE Annotation = &graphReachability_sentinel{"REACHABLE"}
 
 // GraphReachability_EdgeTuple represents a Source Node and an Edge.
-type GraphReachability_EdgeTuple[N, E any] struct {
+type GraphReachability_EdgeTuple[N, E comparable] struct {
 	SourceNode N
 	Edge       E
 }

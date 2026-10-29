@@ -41,7 +41,6 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/paullepoulpe/jsgo/internal/ast"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
@@ -63,39 +62,6 @@ type inlineFnTarget struct {
 	nameNode rhino.Node
 	fnNode   rhino.Node
 	declNode rhino.Node
-}
-
-func newNamedFnTarget(fn rhino.Node) inlineFnTarget {
-	name, ok := ast.MustFunction(fn).Name()
-	jutil.CheckState(ok)
-	return inlineFnTarget{
-		kind:     fnKindDecl,
-		name:     name.Ident(),
-		nameNode: name.Node(),
-		fnNode:   fn,
-		declNode: fn,
-	}
-}
-
-func newVarFnTarget(declNode rhino.Node) inlineFnTarget {
-	d, _ := ast.MustNameDeclaration(declNode).FirstDeclarator()
-	name := d.MustName()
-	initVal, _ := name.Init()
-	return inlineFnTarget{
-		kind:     fnKindVar,
-		name:     name.Ident(),
-		nameNode: name.Node(),
-		fnNode:   initVal.MustFunction().Node(),
-		declNode: declNode,
-	}
-}
-
-func newExprFnTarget(fn rhino.Node, index int) inlineFnTarget {
-	return inlineFnTarget{
-		kind:   fnKindExpr,
-		name:   strconv.Itoa(index),
-		fnNode: fn,
-	}
 }
 
 func (t inlineFnTarget) declaringBlock() rhino.Node {
@@ -395,15 +361,6 @@ func (s *InlineFunctions_FunctionState) HasReferences() bool {
 	return len(s.refs) > 0
 }
 
-// Java: InlineFunctions.FunctionState.getReferencesInternal()
-func (s *InlineFunctions_FunctionState) GetReferencesInternal() *jutil.LinkedHashMap[rhino.Node, *FunctionInjector_Reference] {
-	out := jutil.NewLinkedHashMapWithCapacity[rhino.Node, *FunctionInjector_Reference](len(s.refs))
-	for _, r := range s.refs {
-		out.Put(r.callNode, r)
-	}
-	return out
-}
-
 // Java: InlineFunctions.FunctionState.addReference(Reference)
 func (s *InlineFunctions_FunctionState) AddReference(ref *FunctionInjector_Reference) {
 	if len(s.refs) <= fnStateSmallRefs {
@@ -432,8 +389,6 @@ func (s *InlineFunctions_FunctionState) AddReference(ref *FunctionInjector_Refer
 	s.refByNode[ref.callNode] = len(s.refs)
 	s.refs = append(s.refs, ref)
 }
-
-var inlineFunctions_emptyStringSet = jutil.NewLinkedHashSet[string]()
 
 // GetReferences returns the references (the values of the references map).
 //
@@ -468,19 +423,6 @@ func (s *InlineFunctions_FunctionState) GetReference(n rhino.Node) *FunctionInje
 		return s.refs[idx]
 	}
 	return nil
-}
-
-// Java: InlineFunctions.FunctionState.getNamesToAlias()
-func (s *InlineFunctions_FunctionState) GetNamesToAlias() *jutil.LinkedHashSet[string] {
-	if s.namesToAliasIDs.isEmpty() {
-		return inlineFunctions_emptyStringSet
-	}
-	return s.namesToAliasIDs.toLinkedHashSet()
-}
-
-// Java: InlineFunctions.FunctionState.setNamesToAlias(Set<String>)
-func (s *InlineFunctions_FunctionState) SetNamesToAlias(names *jutil.LinkedHashSet[string]) {
-	s.namesToAliasIDs.fromLinkedHashSet(names, true)
 }
 
 func (s *InlineFunctions_FunctionState) setNamesToAliasIDs(ids *inlineIDSet) {

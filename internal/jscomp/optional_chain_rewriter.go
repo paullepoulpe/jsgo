@@ -65,71 +65,41 @@ type OptionalChainRewriter struct {
 // Java: OptionalChainRewriter.TmpVarNameCreator
 type OptionalChainRewriter_TmpVarNameCreator func() string
 
-// OptionalChainRewriter_Builder is OptionalChainRewriter.Builder.
-type OptionalChainRewriter_Builder struct {
-	compiler          AbstractCompiler
-	astFactory        *AstFactory
-	tmpVarNameCreator OptionalChainRewriter_TmpVarNameCreator
-	scope             *Scope
-}
-
-// Java: OptionalChainRewriter.Builder(AbstractCompiler)
-func NewOptionalChainRewriter_Builder(compiler AbstractCompiler) *OptionalChainRewriter_Builder {
-	b := &OptionalChainRewriter_Builder{}
-	b.compiler = jutil.CheckNotNull(compiler)
-	b.astFactory = compiler.CreateAstFactory()
-	return b
-}
-
-// Java: OptionalChainRewriter.Builder.setTmpVarNameCreator(OptionalChainRewriter.TmpVarNameCreator)
-func (b *OptionalChainRewriter_Builder) SetTmpVarNameCreator(
-	tmpVarNameCreator OptionalChainRewriter_TmpVarNameCreator) *OptionalChainRewriter_Builder {
-	if tmpVarNameCreator == nil {
-		panic(jutil.NewNullPointerException())
-	}
-	b.tmpVarNameCreator = tmpVarNameCreator
-	return b
-}
-
-// SetScope optionally sets a scope in which the rewriter will declare all
-// temporary variables
-//
-// Java: OptionalChainRewriter.Builder.setScope(Scope)
-func (b *OptionalChainRewriter_Builder) SetScope(scope *Scope) *OptionalChainRewriter_Builder {
-	b.scope = jutil.CheckNotNull(scope)
-	return b
-}
-
-// Build: wholeChain is the last Node in the optional chain. Parent of all
-// the rest.
-//
-// Java: OptionalChainRewriter.Builder.build(Node)
-func (b *OptionalChainRewriter_Builder) Build(wholeChain rhino.Node) *OptionalChainRewriter {
-	return NewOptionalChainRewriter(b, wholeChain)
-}
-
-// Java: OptionalChainRewriter.builder(AbstractCompiler)
-func OptionalChainRewriter_Builder_(compiler AbstractCompiler) *OptionalChainRewriter_Builder {
-	return NewOptionalChainRewriter_Builder(compiler)
-}
-
-// Java: OptionalChainRewriter(OptionalChainRewriter.Builder, Node)
-func NewOptionalChainRewriter(builder *OptionalChainRewriter_Builder, wholeChain rhino.Node) *OptionalChainRewriter {
+// NewOptionalChainRewriter constructs an OptionalChainRewriter for wholeChain
+// (the last Node in the optional chain, parent of all the rest).
+func NewOptionalChainRewriter(
+	compiler AbstractCompiler,
+	astFactory *AstFactory,
+	tmpVarNameCreator OptionalChainRewriter_TmpVarNameCreator,
+	scope *Scope,
+	wholeChain rhino.Node,
+) *OptionalChainRewriter {
 	o := &OptionalChainRewriter{}
-	initOptionalChainRewriter(o, builder, wholeChain)
+	initOptionalChainRewriter(o, compiler, astFactory, tmpVarNameCreator, scope, wholeChain)
 	return o
 }
 
-func initOptionalChainRewriter(o *OptionalChainRewriter, builder *OptionalChainRewriter_Builder, wholeChain rhino.Node) {
+func initOptionalChainRewriter(
+	o *OptionalChainRewriter,
+	compiler AbstractCompiler,
+	astFactory *AstFactory,
+	tmpVarNameCreator OptionalChainRewriter_TmpVarNameCreator,
+	scope *Scope,
+	wholeChain rhino.Node,
+) {
+	jutil.CheckNotNull(compiler)
+	if astFactory == nil {
+		astFactory = compiler.CreateAstFactory()
+	}
 	// This class will only operate on an entire chain.
 	jutil.CheckArgumentMsg1(NodeUtil_IsEndOfFullOptChain(wholeChain), "%s", wholeChain)
-	if builder.tmpVarNameCreator == nil {
+	if tmpVarNameCreator == nil {
 		panic(jutil.NewNullPointerException())
 	}
-	o.compiler = builder.compiler
-	o.astFactory = builder.astFactory
-	o.tmpVarNameCreator = builder.tmpVarNameCreator
-	o.scope = builder.scope
+	o.compiler = compiler
+	o.astFactory = astFactory
+	o.tmpVarNameCreator = tmpVarNameCreator
+	o.scope = scope
 	o.wholeChain = wholeChain
 	o.chainParent = rhino.CheckNotNullMsg1(wholeChain.GetParent(), "%s", wholeChain)
 	o.deletesToDelete = o.deletesToDelete[:0]
@@ -462,13 +432,13 @@ func (r *RewriteOptionalChainingOperator) Process(externs rhino.Node, root rhino
 // RewriteOptionalChainingOperator_TranspilationCallback locates and
 // transpiles all optional chains.
 type RewriteOptionalChainingOperator_TranspilationCallback struct {
-	outer           *RewriteOptionalChainingOperator
-	rewriterBuilder *OptionalChainRewriter_Builder
-	builderVal      OptionalChainRewriter_Builder
-	currentInput    *CompilerInput
-	boundTmpCreator OptionalChainRewriter_TmpVarNameCreator
-	optChains       []OptionalChainRewriter
-	optChainsBuf    [4]OptionalChainRewriter
+	outer             *RewriteOptionalChainingOperator
+	astFactory        *AstFactory
+	tmpVarNameCreator OptionalChainRewriter_TmpVarNameCreator
+	currentInput      *CompilerInput
+	boundTmpCreator   OptionalChainRewriter_TmpVarNameCreator
+	optChains         []OptionalChainRewriter
+	optChainsBuf      [4]OptionalChainRewriter
 }
 
 // Java: RewriteOptionalChainingOperator.TranspilationCallback()
@@ -479,19 +449,16 @@ func NewRewriteOptionalChainingOperator_TranspilationCallback(outer *RewriteOpti
 }
 
 func (c *RewriteOptionalChainingOperator_TranspilationCallback) initForProcess(outer *RewriteOptionalChainingOperator) {
+	jutil.CheckNotNull(outer.compiler)
 	c.outer = outer
-	c.builderVal = OptionalChainRewriter_Builder{
-		compiler:   jutil.CheckNotNull(outer.compiler),
-		astFactory: outer.compiler.CreateAstFactory(),
-	}
-	c.rewriterBuilder = &c.builderVal
+	c.astFactory = outer.compiler.CreateAstFactory()
 	if outer.customTmpVarNameCreator != nil {
-		c.rewriterBuilder.SetTmpVarNameCreator(outer.customTmpVarNameCreator)
+		c.tmpVarNameCreator = outer.customTmpVarNameCreator
 	} else {
 		if c.boundTmpCreator == nil {
 			c.boundTmpCreator = c.nextTmpVarName
 		}
-		c.rewriterBuilder.SetTmpVarNameCreator(c.boundTmpCreator)
+		c.tmpVarNameCreator = c.boundTmpCreator
 	}
 	if c.optChains == nil {
 		c.optChains = c.optChainsBuf[:0]
@@ -502,7 +469,7 @@ func (c *RewriteOptionalChainingOperator_TranspilationCallback) initForProcess(o
 }
 
 func (c *RewriteOptionalChainingOperator_TranspilationCallback) nextTmpVarName() string {
-	return "$jscomp$optchain$tmp" + c.outer.uniqueIdSupplier.GetUniqueId(c.currentInput)
+	return c.outer.uniqueIdSupplier.UniqueVarName("$jscomp$optchain$tmp", c.currentInput)
 }
 
 func (*RewriteOptionalChainingOperator_TranspilationCallback) noVisitLeaves() {}
@@ -538,6 +505,6 @@ func (c *RewriteOptionalChainingOperator_TranspilationCallback) Visit(t *NodeTra
 		}
 	} else if NodeUtil_IsEndOfFullOptChain(n) {
 		c.optChains = append(c.optChains, OptionalChainRewriter{})
-		initOptionalChainRewriter(&c.optChains[len(c.optChains)-1], c.rewriterBuilder, n)
+		initOptionalChainRewriter(&c.optChains[len(c.optChains)-1], c.outer.compiler, c.astFactory, c.tmpVarNameCreator, nil, n)
 	}
 }

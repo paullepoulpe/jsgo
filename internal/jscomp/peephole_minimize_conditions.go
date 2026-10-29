@@ -305,7 +305,7 @@ func (p *PeepholeMinimizeConditions) TryReplaceExitWithBreak(n rhino.Node) rhino
 	// Find the enclosing control structure, if any, that a "break" would exit
 	// from.
 	breakTarget := n
-	for ; !ControlFlowAnalysis_IsBreakTarget(breakTarget, nil /* no label */); breakTarget = breakTarget.GetParent() {
+	for ; !cfaIsBreakTargetByID(breakTarget, 0, false); breakTarget = breakTarget.GetParent() {
 		if breakTarget.IsFunction() || breakTarget.IsScript() {
 			// No break target.
 			return n

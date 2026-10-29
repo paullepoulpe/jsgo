@@ -111,7 +111,7 @@ func PolymerPassStaticUtils_SwitchDollarSignPropsToBrackets(def rhino.Node, comp
 		}
 		NodeUtil_VisitPostOrder(
 			fn.Body().Node(),
-			NodeUtil_VisitorFunc(func(n rhino.Node) {
+			func(n rhino.Node) {
 				gp, ok := ast.AsGetProp(n)
 				if !ok {
 					return
@@ -129,7 +129,7 @@ func PolymerPassStaticUtils_SwitchDollarSignPropsToBrackets(def rhino.Node, comp
 				getelem := rhino.IR_Getelem(dollarSign.Detach().Node(), key).ClonePropsFrom(n).Srcref(n)
 				n.ReplaceWith(getelem)
 				compiler.ReportChangeToEnclosingScope(getelem)
-			}))
+			})
 	}
 }
 

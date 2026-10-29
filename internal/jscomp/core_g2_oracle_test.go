@@ -385,19 +385,19 @@ func (o *coreG2Out) mutate(script rhino.Node) {
 			clone := script.CloneTree()
 			target := coreG2Preorder(clone)[i]
 			next := 0
-			builder := OptionalChainRewriter_Builder_(compiler).
-				SetTmpVarNameCreator(func() string {
-					s := "tmp$" + strconv.Itoa(next)
-					next++
-					return s
-				})
+			tmpVarNameCreator := func() string {
+				s := "tmp$" + strconv.Itoa(next)
+				next++
+				return s
+			}
+			var scope *Scope
 			if rewritten%2 == 0 {
-				builder.SetScope(Scope_CreateGlobalScope(rhino.NewNode(rhino.Token_SCRIPT)))
+				scope = Scope_CreateGlobalScope(rhino.NewNode(rhino.Token_SCRIPT))
 			}
 			var block rhino.Node
 			var from, before int
 			if e := coreG2Try(func() {
-				rewriter := builder.Build(target)
+				rewriter := NewOptionalChainRewriter(compiler, compiler.CreateAstFactory(), tmpVarNameCreator, scope, target)
 				block = rewriter.insertionPoint.GetParent()
 				from = block.GetIndexOfChild(rewriter.insertionPoint)
 				before = block.GetChildCount()

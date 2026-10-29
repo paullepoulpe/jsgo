@@ -102,15 +102,15 @@ func (v *ChangeVerifier) VerifyScopeChangesHaveBeenRecorded(passName string, roo
 	snapshotScopeNodes := jutil.NewLinkedHashSet[rhino.Node]()
 	NodeUtil_VisitPreOrder(
 		v.clonesByCurrent[root],
-		NodeUtil_VisitorFunc(func(oldNode rhino.Node) {
+		func(oldNode rhino.Node) {
 			if ChangeTracker_IsChangeScopeRoot(oldNode) {
 				snapshotScopeNodes.Add(oldNode)
 			}
-		}))
+		})
 
 	NodeUtil_VisitPreOrder(
 		root,
-		NodeUtil_VisitorFunc(func(n rhino.Node) {
+		func(n rhino.Node) {
 			if n.IsRoot() {
 				v.VerifyRoot(n)
 			} else if ChangeTracker_IsChangeScopeRoot(n) {
@@ -124,7 +124,7 @@ func (v *ChangeVerifier) VerifyScopeChangesHaveBeenRecorded(passName string, roo
 					v.VerifyNodeChange(passNameMsg, n, clone)
 				}
 			}
-		}))
+		})
 
 	// Only actually deleted snapshot scope nodes should remain.
 	v.VerifyDeletedScopeNodes(passNameMsg, snapshotScopeNodes)

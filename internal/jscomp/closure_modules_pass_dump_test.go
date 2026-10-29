@@ -291,7 +291,7 @@ func (d *closureModulesDump) conventions(js rhino.Node) {
 	for script := js.GetFirstChild(); !script.IsNil(); script = script.GetNext() {
 		closureModulesLine(sb, "package "+jutil.ToJavaString(c.GetPackageName(script.GetStaticSourceFile())))
 	}
-	NodeUtil_VisitPreOrder(js, NodeUtil_VisitorFunc(func(n rhino.Node) { d.conventionsAt(c, n) }))
+	NodeUtil_VisitPreOrder(js, func(n rhino.Node) { d.conventionsAt(c, n) })
 }
 
 func (d *closureModulesDump) conventionsAt(c CodingConvention, n rhino.Node) {

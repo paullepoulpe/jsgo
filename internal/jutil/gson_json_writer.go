@@ -98,11 +98,11 @@ func (w *JsonWriter) write(s string) {
 	}
 }
 
-// SetIndent sets the indentation string to be repeated for each level of
+// setIndent sets the indentation string to be repeated for each level of
 // indentation in the encoded document.
 //
 // Java: JsonWriter.setIndent(String)
-func (w *JsonWriter) SetIndent(indent string) {
+func (w *JsonWriter) setIndent(indent string) {
 	if len(indent) == 0 {
 		w.indent = nil
 		w.separator = ":"
@@ -134,11 +134,11 @@ func (w *JsonWriter) SetHtmlSafe(htmlSafe bool) {
 	w.htmlSafe = htmlSafe
 }
 
-// IsHtmlSafe returns true if this writer writes JSON that's safe for
+// isHtmlSafe returns true if this writer writes JSON that's safe for
 // inclusion in HTML and XML documents.
 //
 // Java: JsonWriter.isHtmlSafe()
-func (w *JsonWriter) IsHtmlSafe() bool {
+func (w *JsonWriter) isHtmlSafe() bool {
 	return w.htmlSafe
 }
 
@@ -150,11 +150,11 @@ func (w *JsonWriter) SetSerializeNulls(serializeNulls bool) {
 	w.serializeNulls = serializeNulls
 }
 
-// GetSerializeNulls returns true if object members are serialized when
+// getSerializeNulls returns true if object members are serialized when
 // their value is null.
 //
 // Java: JsonWriter.getSerializeNulls()
-func (w *JsonWriter) GetSerializeNulls() bool {
+func (w *JsonWriter) getSerializeNulls() bool {
 	return w.serializeNulls
 }
 

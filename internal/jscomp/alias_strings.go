@@ -23,6 +23,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/paullepoulpe/jsgo/internal/ast"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
@@ -130,6 +131,16 @@ func (a *AliasStrings) ShouldTraverse(nodeTraversal *NodeTraversal, n rhino.Node
 		return true
 	}
 }
+
+var aliasStringsVisitTokens = func() ast.TokenSet {
+	var s ast.TokenSet
+	s.Add(rhino.Token_STRINGLIT)
+	return s
+}()
+
+var _ nodeTraversal_visitTokens = (*AliasStrings)(nil)
+
+func (*AliasStrings) visitTokens() *ast.TokenSet { return &aliasStringsVisitTokens }
 
 // Java: AliasStrings.visit(NodeTraversal, Node, Node)
 func (a *AliasStrings) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {

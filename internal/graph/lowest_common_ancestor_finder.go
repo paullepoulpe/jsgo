@@ -35,7 +35,7 @@ import (
 // implementation returns one or more elements of that cycle. Those elements
 // are chosen arbitrarily but deterministically (as long as the underlying
 // graph has deterministic iteration).
-type LowestCommonAncestorFinder[N comparable, E any] interface {
+type LowestCommonAncestorFinder[N, E comparable] interface {
 	// FindAll executes a search on all the elements of roots.
 	//
 	// Java: LowestCommonAncestorFinder.findAll(Set<N>)
@@ -48,13 +48,13 @@ type LowestCommonAncestorFinder[N comparable, E any] interface {
 
 // LowestCommonAncestorFinder_Factory is an abstraction for
 // LowestCommonAncestorFinder::new, allowing injection in tests.
-type LowestCommonAncestorFinder_Factory[N comparable, E any] func(graph DiGraph[N, E]) LowestCommonAncestorFinder[N, E]
+type LowestCommonAncestorFinder_Factory[N, E comparable] func(graph DiGraph[N, E]) LowestCommonAncestorFinder[N, E]
 
 // lcaColorNotLowest marks common ancestors that have lower common ancestors.
 // Because its MSB is set (-1), bitwise OR with any root bitmask stays -1.
 const lcaColorNotLowest int32 = -1
 
-type lowestCommonAncestorFinder[N comparable, E any] struct {
+type lowestCommonAncestorFinder[N, E comparable] struct {
 	graph       *LinkedDirectedGraph[N, E]
 	colors      []int32
 	touched     []*LinkedDiGraphNode[N, E]
@@ -62,7 +62,7 @@ type lowestCommonAncestorFinder[N comparable, E any] struct {
 }
 
 // Java: LowestCommonAncestorFinder(DiGraph<N, E>)
-func NewLowestCommonAncestorFinder[N comparable, E any](graph DiGraph[N, E]) LowestCommonAncestorFinder[N, E] {
+func NewLowestCommonAncestorFinder[N, E comparable](graph DiGraph[N, E]) LowestCommonAncestorFinder[N, E] {
 	f := &lowestCommonAncestorFinder[N, E]{}
 	if graph != nil {
 		f.graph = graph.AsLinkedDirectedGraph()

@@ -64,7 +64,7 @@ func (m *Monitor) Lock() {
 // current goroutine does not hold the monitor.
 func (m *Monitor) Unlock() {
 	if m.owner.Load() != GoroutineID() {
-		panic(NewIllegalMonitorStateException())
+		panic(newIllegalMonitorStateException())
 	}
 	m.holds--
 	if m.holds == 0 {
@@ -94,15 +94,15 @@ func (m *Monitor) UnlockFast() {
 	}
 }
 
-// IsHeldByCurrentGoroutine reports whether the current goroutine holds the
+// isHeldByCurrentGoroutine reports whether the current goroutine holds the
 // monitor (Thread.holdsLock(obj); ReentrantLock.isHeldByCurrentThread()).
-func (m *Monitor) IsHeldByCurrentGoroutine() bool {
+func (m *Monitor) isHeldByCurrentGoroutine() bool {
 	return m.owner.Load() == GoroutineID()
 }
 
-// GetHoldCount is the number of holds the current goroutine has on the
+// getHoldCount is the number of holds the current goroutine has on the
 // monitor, 0 if it does not hold it (ReentrantLock.getHoldCount()).
-func (m *Monitor) GetHoldCount() int {
+func (m *Monitor) getHoldCount() int {
 	if m.owner.Load() != GoroutineID() {
 		return 0
 	}
@@ -139,22 +139,14 @@ func GoroutineID() int64 {
 	return id
 }
 
-// IllegalMonitorStateException is java.lang.IllegalMonitorStateException:
+// illegalMonitorStateException is java.lang.IllegalMonitorStateException:
 // thrown when a thread releases a monitor (or a ReentrantLock) it does not
 // hold.
-type IllegalMonitorStateException struct{ RuntimeException }
+type illegalMonitorStateException struct{ RuntimeException }
 
-func (*IllegalMonitorStateException) illegalMonitorStateException() {}
-
-// IIllegalMonitorStateException matches IllegalMonitorStateException.
-type IIllegalMonitorStateException interface {
-	IRuntimeException
-	illegalMonitorStateException()
-}
-
-// NewIllegalMonitorStateException is new IllegalMonitorStateException().
-func NewIllegalMonitorStateException() *IllegalMonitorStateException {
-	e := &IllegalMonitorStateException{}
+// newIllegalMonitorStateException is new IllegalMonitorStateException().
+func newIllegalMonitorStateException() *illegalMonitorStateException {
+	e := &illegalMonitorStateException{}
 	InitThrowable(e, "java.lang.IllegalMonitorStateException", nil, nil)
 	return e
 }

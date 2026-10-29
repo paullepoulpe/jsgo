@@ -86,9 +86,7 @@ func checkNullabilityModifiers_isPrimitiveTypeName(name string) bool {
 // Java: CheckNullabilityModifiers(AbstractCompiler)
 func NewCheckNullabilityModifiers(compiler AbstractCompiler) *CheckNullabilityModifiers {
 	return &CheckNullabilityModifiers{
-		compiler:          compiler,
-		candidateMask:     make(map[rhino.Node]uint8),
-		templateTypeNames: make(map[string]bool),
+		compiler: compiler,
 	}
 }
 
@@ -97,15 +95,33 @@ func (c *CheckNullabilityModifiers) Process(externs rhino.Node, root rhino.Node)
 	NodeTraversal_TraverseRoots(c.compiler, c, externs, root)
 }
 
+func (c *CheckNullabilityModifiers) addTemplateTypeName(name string) {
+	if c.templateTypeNames == nil {
+		c.templateTypeNames = make(map[string]bool)
+	}
+	c.templateTypeNames[name] = true
+}
+
+func (c *CheckNullabilityModifiers) recordCandidate(node rhino.Node, bit uint8) bool {
+	if c.candidateMask == nil {
+		c.candidateMask = make(map[rhino.Node]uint8)
+	}
+	if c.candidateMask[node]&bit != 0 {
+		return false
+	}
+	c.candidateMask[node] |= bit
+	return true
+}
+
 // Java: CheckNullabilityModifiers.visit(NodeTraversal, Node, Node)
 func (c *CheckNullabilityModifiers) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	info := n.GetJSDocInfo()
 	if info != nil {
 		for _, name := range info.GetTemplateTypeNames() {
-			c.templateTypeNames[name] = true
+			c.addTemplateTypeName(name)
 		}
 		for name := range info.GetTypeTransformations().Keys() {
-			c.templateTypeNames[name] = true
+			c.addTemplateTypeName(name)
 		}
 		if info.HasType() {
 			c.HandleHasType(info.GetType(), n)
@@ -184,6 +200,9 @@ func (c *CheckNullabilityModifiers) Report(t *NodeTraversal) {
 
 // Java: CheckNullabilityModifiers.shouldReport(Node)
 func (c *CheckNullabilityModifiers) ShouldReport(n rhino.Node) bool {
+	if len(c.templateTypeNames) == 0 {
+		return true
+	}
 	// Ignore type names that appear in @template clauses in the same source file.
 	strLit, ok := ast.AsStringLit(n)
 	return !ok || !c.templateTypeNames[strLit.Value()]
@@ -201,14 +220,22 @@ func (c *CheckNullabilityModifiers) VisitTypeExpressionWithRValue(
 	_, rValueIsNull := ast.AsNull(rValue)
 	NodeUtil_VisitPreOrder(
 		root,
-		NodeUtil_VisitorFunc(func(node rhino.Node) {
-			parent := node.GetParent()
+		func(node rhino.Node) {
+			var isPrimitiveOrLiteral, isReference bool
+			switch node.GetToken() {
+			case rhino.Token_STRINGLIT:
+				if checkNullabilityModifiers_isPrimitiveTypeName(node.GetString()) {
+					isPrimitiveOrLiteral = true
+				} else {
+					isReference = true
+				}
+			case rhino.Token_FUNCTION, rhino.Token_LC:
+				isPrimitiveOrLiteral = true
+			default:
+				return
+			}
 
-			isPrimitiveOrLiteral :=
-				CheckNullabilityModifiers_IsPrimitiveType(node) ||
-					CheckNullabilityModifiers_IsFunctionLiteral(node) ||
-					CheckNullabilityModifiers_IsRecordLiteral(node)
-			isReference := CheckNullabilityModifiers_IsReferenceType(node)
+			parent := node.GetParent()
 
 			// Whether the node is preceded by a '!' or '?'.
 			var parentTok rhino.Token
@@ -235,23 +262,20 @@ func (c *CheckNullabilityModifiers) VisitTypeExpressionWithRValue(
 
 			if isReference && !hasBang && !hasQmark && !isNewOrThis && !isTypeOfType {
 				if isAppliedToRValue && rValueIsNull {
-					if c.candidateMask[node]&nullabilityCandNullMissing == 0 {
-						c.candidateMask[node] |= nullabilityCandNullMissing
+					if c.recordCandidate(node, nullabilityCandNullMissing) {
 						c.nullMissingCandidates = append(c.nullMissingCandidates, node)
 					}
 				} else {
-					if c.candidateMask[node]&nullabilityCandMissing == 0 {
-						c.candidateMask[node] |= nullabilityCandMissing
+					if c.recordCandidate(node, nullabilityCandMissing) {
 						c.missingCandidates = append(c.missingCandidates, node)
 					}
 				}
 			} else if isPrimitiveOrLiteral && hasNonArtificialBang {
-				if c.candidateMask[node]&nullabilityCandRedundant == 0 {
-					c.candidateMask[node] |= nullabilityCandRedundant
+				if c.recordCandidate(node, nullabilityCandRedundant) {
 					c.redundantCandidates = append(c.redundantCandidates, node)
 				}
 			}
-		}))
+		})
 }
 
 // Java: CheckNullabilityModifiers.isPrimitiveType(Node)

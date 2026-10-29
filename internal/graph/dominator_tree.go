@@ -98,7 +98,7 @@ func newDominatorTree[N comparable](idoms map[N]N, subtreeSizes DominatorSubtree
 // graph. Returns a DominatorTree instance.
 //
 // Java: DominatorTree.compute(DiGraph<N, ?>, N)
-func DominatorTree_Compute[N comparable, E any](graph DiGraph[N, E], entry N) *DominatorTree[N] {
+func DominatorTree_Compute[N, E comparable](graph DiGraph[N, E], entry N) *DominatorTree[N] {
 	ldg := graph.AsLinkedDirectedGraph()
 	jutil.CheckNotNullMsg(ldg.GetNode(entry), "Entry node not in graph")
 
@@ -211,7 +211,7 @@ func dominatorTree_intersect(idomIndexes []int, i int, j int) int {
 }
 
 // Java: DominatorTree.buildPostOrder(DiGraph<N, ?>, N, List<N>, Map<N, Boolean>)
-func dominatorTree_buildPostOrder[N comparable, E any](
+func dominatorTree_buildPostOrder[N, E comparable](
 	ldg *LinkedDirectedGraph[N, E], node N, postOrder *[]N, visited map[N]bool) {
 	visited[node] = true
 	gNode := jutil.CheckNotNull(ldg.GetNode(node))

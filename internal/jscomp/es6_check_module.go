@@ -129,7 +129,7 @@ func (e *Es6CheckModule) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node
 			NodeUtil_IsLValue(n) &&
 			!NodeUtil_IsDeclarationLValue(n) &&
 			n.GetFirstChild().IsName() {
-			var_ := t.GetScope().GetVar(n.GetFirstChild().GetString())
+			var_ := t.GetScope().GetVarByNode(n.GetFirstChild())
 			if var_ != nil {
 				nameNode := var_.GetNameNode()
 				if !nameNode.IsNil() && nameNode.IsImportStar() {
@@ -142,7 +142,7 @@ func (e *Es6CheckModule) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node
 	case rhino.Token_NAME:
 		if !e.noImportsInCurrentScript &&
 			NodeUtil_IsLValue(n) && !NodeUtil_IsDeclarationLValue(n) {
-			var_ := t.GetScope().GetVar(n.GetString())
+			var_ := t.GetScope().GetVarByNode(n)
 			if var_ != nil {
 				nameNode := var_.GetNameNode()
 				if !nameNode.IsNil() && nameNode != n {
@@ -167,8 +167,8 @@ func (e *Es6CheckModule) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node
 type CheckTypeImportCodeReferences struct {
 	NodeTraversal_AbstractPostOrderCallbackBase
 
-	compiler         AbstractCompiler
-	requireTypeNames map[string]struct{}
+	compiler       AbstractCompiler
+	requireTypeIDs map[uint32]struct{}
 }
 
 // Java: CheckTypeImportCodeReferences.TYPE_IMPORT_CODE_REFERENCE
@@ -186,24 +186,24 @@ func NewCheckTypeImportCodeReferences(compiler AbstractCompiler) *CheckTypeImpor
 	return c
 }
 
-func collectRequireTypeNames(n rhino.Node, names *map[string]struct{}) {
+func collectRequireTypeIDs(n rhino.Node, ids *map[uint32]struct{}) {
 	if NodeUtil_IsNameDeclaration(n) && n.HasOneChild() {
 		first := n.GetFirstChild()
 		if first.HasChildren() {
 			last := first.GetLastChild()
 			if last.IsCall() && last.GetFirstChild().MatchesQualifiedNameNode(checkTypeImportCodeReferences_GOOG_REQUIRE_TYPE) {
-				if *names == nil {
-					*names = make(map[string]struct{})
+				if *ids == nil {
+					*ids = make(map[uint32]struct{})
 				}
 				if first.IsName() {
-					(*names)[first.GetString()] = struct{}{}
+					(*ids)[first.GetStringID()] = struct{}{}
 				} else {
 					for pat := first.GetFirstChild(); !pat.IsNil(); pat = pat.GetNext() {
 						for key := pat.GetFirstChild(); !key.IsNil(); key = key.GetNext() {
 							if key.IsStringKey() {
 								for child := key.GetFirstChild(); !child.IsNil(); child = child.GetNext() {
 									if child.IsName() {
-										(*names)[child.GetString()] = struct{}{}
+										(*ids)[child.GetStringID()] = struct{}{}
 									}
 								}
 							}
@@ -214,15 +214,15 @@ func collectRequireTypeNames(n rhino.Node, names *map[string]struct{}) {
 		}
 	}
 	for child := n.GetFirstChild(); !child.IsNil(); child = child.GetNext() {
-		collectRequireTypeNames(child, names)
+		collectRequireTypeIDs(child, ids)
 	}
 }
 
 // Java: CheckTypeImportCodeReferences.process(Node, Node)
 func (c *CheckTypeImportCodeReferences) Process(externs rhino.Node, root rhino.Node) {
-	c.requireTypeNames = nil
-	collectRequireTypeNames(root, &c.requireTypeNames)
-	if len(c.requireTypeNames) == 0 {
+	c.requireTypeIDs = nil
+	collectRequireTypeIDs(root, &c.requireTypeIDs)
+	if len(c.requireTypeIDs) == 0 {
 		return
 	}
 	sc := NewSyntacticScopeCreator(c.compiler)
@@ -232,7 +232,7 @@ func (c *CheckTypeImportCodeReferences) Process(externs rhino.Node, root rhino.N
 		scopeCreator: sc,
 	}
 	b.Traverse(root)
-	c.requireTypeNames = nil
+	c.requireTypeIDs = nil
 }
 
 func (*CheckTypeImportCodeReferences) visitTokens() *ast.TokenSet {
@@ -247,13 +247,14 @@ func (c *CheckTypeImportCodeReferences) Visit(t *NodeTraversal, n rhino.Node, pa
 	if !n.IsName() {
 		return
 	}
-	if c.requireTypeNames != nil {
-		if _, ok := c.requireTypeNames[n.GetString()]; !ok {
+	id := n.GetStringID()
+	if c.requireTypeIDs != nil {
+		if _, ok := c.requireTypeIDs[id]; !ok {
 			return
 		}
 	}
 
-	var_ := t.GetScope().GetVar(n.GetString())
+	var_ := t.GetScope().GetVarByID(id)
 	if var_ == nil {
 		return
 	}

@@ -137,18 +137,19 @@ func (c *InlineAndCollapseProperties_InlineAliases_AliasesCollector) Visit(t *No
 // Java: InlineAndCollapseProperties.InlineAliases.AliasesCollector.visitAliasDefinition(Node, JSDocInfo)
 func (c *InlineAndCollapseProperties_InlineAliases_AliasesCollector) VisitAliasDefinition(lhs rhino.Node, info *rhino.JSDocInfo) {
 	if c.IsDeclaredConst(lhs, info) &&
-		(info == nil || !info.HasTypeInformation()) {
-		if lhsQName, ok := lhs.GetQualifiedNameString(); ok {
-			rhs := NodeUtil_GetRValueOfLValue(lhs)
-			if rhsQName, ok := rhs.GetQualifiedNameString(); ok {
-				lhsName, _ := c.outer.namespace.GetOwnSlot(lhsQName).(*GlobalNamespace_Name)
-				rhsName, _ := c.outer.namespace.GetOwnSlot(rhsQName).(*GlobalNamespace_Name)
-				if lhsName != nil &&
-					lhsName.CalculateInlinability().ShouldInlineUsages() &&
-					rhsName != nil &&
-					rhsName.CalculateInlinability().ShouldInlineUsages() {
-					c.outer.aliases[lhsQName] = rhsQName
-				}
+		(info == nil || !info.HasTypeInformation()) &&
+		!lhs.IsNil() && lhs.IsQualifiedName() {
+		rhs := NodeUtil_GetRValueOfLValue(lhs)
+		if !rhs.IsNil() && rhs.IsQualifiedName() {
+			lhsName, _ := c.outer.namespace.lookupGlobalNode(lhs)
+			rhsName, _ := c.outer.namespace.lookupGlobalNode(rhs)
+			if lhsName != nil &&
+				lhsName.CalculateInlinability().ShouldInlineUsages() &&
+				rhsName != nil &&
+				rhsName.CalculateInlinability().ShouldInlineUsages() {
+				lhsQName, _ := lhs.GetQualifiedNameString()
+				rhsQName, _ := rhs.GetQualifiedNameString()
+				c.outer.aliases[lhsQName] = rhsQName
 			}
 		}
 	}

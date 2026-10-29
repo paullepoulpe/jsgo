@@ -140,11 +140,12 @@ func StringToUTF16(s string) []uint16 {
 
 // StringLength is Java's String.length(): the number of UTF-16 code units.
 func StringLength(s string) int {
-	if isASCII(s) {
+	prefix := ASCIIPrefixLen(s)
+	if prefix == len(s) {
 		return len(s)
 	}
-	n := 0
-	for i := 0; i < len(s); {
+	n := prefix
+	for i := prefix; i < len(s); {
 		r, size := decodeWTF8(s[i:])
 		i += size
 		if r >= 0x10000 {
@@ -158,37 +159,179 @@ func StringLength(s string) int {
 
 // StringCharAt is Java's String.charAt(int).
 func StringCharAt(s string, index int) uint16 {
-	if isASCII(s) {
-		if index < 0 || index >= len(s) {
-			panic(NewStringIndexOutOfBoundsExceptionForIndex(index, len(s)))
-		}
+	if index < 0 {
+		panic(NewStringIndexOutOfBoundsExceptionForIndex(index, StringLength(s)))
+	}
+	prefix := ASCIIPrefixLen(s)
+	if index < prefix {
 		return uint16(s[index])
 	}
-	u := StringToUTF16(s)
-	if index < 0 || index >= len(u) {
-		panic(NewStringIndexOutOfBoundsExceptionForIndex(index, len(u)))
+	if prefix == len(s) {
+		panic(NewStringIndexOutOfBoundsExceptionForIndex(index, len(s)))
 	}
-	return u[index]
+	uIdx := prefix
+	for i := prefix; i < len(s); {
+		r, size := decodeWTF8(s[i:])
+		if r >= 0x10000 {
+			if index == uIdx {
+				hi, _ := utf16.EncodeRune(r)
+				return uint16(hi)
+			}
+			if index == uIdx+1 {
+				_, lo := utf16.EncodeRune(r)
+				return uint16(lo)
+			}
+			uIdx += 2
+		} else {
+			if index == uIdx {
+				return uint16(r)
+			}
+			uIdx++
+		}
+		i += size
+	}
+	panic(NewStringIndexOutOfBoundsExceptionForIndex(index, uIdx))
 }
 
 // StringSubstring is Java's String.substring(begin, end) with UTF-16 indices.
 func StringSubstring(s string, begin, end int) string {
-	if isASCII(s) {
-		if begin < 0 || end > len(s) || begin > end {
-			panic(NewStringIndexOutOfBoundsExceptionForRange(begin, end, len(s)))
-		}
+	if begin < 0 || begin > end {
+		panic(NewStringIndexOutOfBoundsExceptionForRange(begin, end, StringLength(s)))
+	}
+	prefix := ASCIIPrefixLen(s)
+	if end <= prefix {
 		return s[begin:end]
 	}
-	u := StringToUTF16(s)
-	if begin < 0 || end > len(u) || begin > end {
-		panic(NewStringIndexOutOfBoundsExceptionForRange(begin, end, len(u)))
+	if prefix == len(s) {
+		panic(NewStringIndexOutOfBoundsExceptionForRange(begin, end, len(s)))
 	}
-	return StringFromUTF16(u[begin:end])
+	var (
+		byteStart    int
+		haveBegin    bool
+		splitBeginLo rune
+		uIdx         = prefix
+	)
+	if begin <= prefix {
+		byteStart = begin
+		haveBegin = true
+	}
+	for i := prefix; i < len(s); {
+		r, size := decodeWTF8(s[i:])
+		if !haveBegin {
+			if r >= 0x10000 {
+				if begin == uIdx {
+					byteStart = i
+					haveBegin = true
+				} else if begin == uIdx+1 {
+					if end == begin {
+						return ""
+					}
+					_, splitBeginLo = utf16.EncodeRune(r)
+					byteStart = i + size
+					haveBegin = true
+					uIdx += 2
+					i += size
+					if end == uIdx {
+						return StringFromChar(uint16(splitBeginLo))
+					}
+					continue
+				}
+			} else if begin == uIdx {
+				byteStart = i
+				haveBegin = true
+			}
+		}
+		if haveBegin {
+			if end == uIdx {
+				if splitBeginLo == 0 {
+					return s[byteStart:i]
+				}
+				var sb strings.Builder
+				sb.Grow(3 + i - byteStart)
+				appendWTF8(&sb, splitBeginLo)
+				sb.WriteString(s[byteStart:i])
+				return sb.String()
+			}
+			if r >= 0x10000 && end == uIdx+1 {
+				hi, _ := utf16.EncodeRune(r)
+				var sb strings.Builder
+				extra := 3
+				if splitBeginLo != 0 {
+					extra = 6
+				}
+				sb.Grow(extra + i - byteStart)
+				if splitBeginLo != 0 {
+					appendWTF8(&sb, splitBeginLo)
+				}
+				sb.WriteString(s[byteStart:i])
+				appendWTF8(&sb, hi)
+				return sb.String()
+			}
+		}
+		if r >= 0x10000 {
+			uIdx += 2
+		} else {
+			uIdx++
+		}
+		i += size
+	}
+	if end == uIdx {
+		if !haveBegin {
+			return ""
+		}
+		if splitBeginLo == 0 {
+			return s[byteStart:]
+		}
+		var sb strings.Builder
+		sb.Grow(3 + len(s) - byteStart)
+		appendWTF8(&sb, splitBeginLo)
+		sb.WriteString(s[byteStart:])
+		return sb.String()
+	}
+	panic(NewStringIndexOutOfBoundsExceptionForRange(begin, end, uIdx))
 }
 
 // StringSubstringFrom is Java's String.substring(begin).
 func StringSubstringFrom(s string, begin int) string {
-	return StringSubstring(s, begin, StringLength(s))
+	if begin < 0 {
+		n := StringLength(s)
+		panic(NewStringIndexOutOfBoundsExceptionForRange(begin, n, n))
+	}
+	prefix := ASCIIPrefixLen(s)
+	if begin <= prefix {
+		return s[begin:]
+	}
+	if prefix == len(s) {
+		panic(NewStringIndexOutOfBoundsExceptionForRange(begin, len(s), len(s)))
+	}
+	uIdx := prefix
+	for i := prefix; i < len(s); {
+		r, size := decodeWTF8(s[i:])
+		if r >= 0x10000 {
+			if begin == uIdx {
+				return s[i:]
+			}
+			if begin == uIdx+1 {
+				_, lo := utf16.EncodeRune(r)
+				var sb strings.Builder
+				sb.Grow(3 + len(s) - (i + size))
+				appendWTF8(&sb, lo)
+				sb.WriteString(s[i+size:])
+				return sb.String()
+			}
+			uIdx += 2
+		} else {
+			if begin == uIdx {
+				return s[i:]
+			}
+			uIdx++
+		}
+		i += size
+	}
+	if begin == uIdx {
+		return ""
+	}
+	panic(NewStringIndexOutOfBoundsExceptionForRange(begin, uIdx, uIdx))
 }
 
 // StringIndexOf is Java's String.indexOf(String): a UTF-16 index or -1.
@@ -445,54 +588,6 @@ func StringIndexOfChar(s string, ch uint16) int {
 	}
 	for i, c := range StringToUTF16(s) {
 		if c == ch {
-			return i
-		}
-	}
-	return -1
-}
-
-// StringIndexOfCharFrom is String.indexOf(int ch, int fromIndex) for a BMP
-// character.
-func StringIndexOfCharFrom(s string, ch uint16, fromIndex int) int {
-	// Go-only: performance — for an ASCII char, search the bytes instead of
-	// converting all of s to UTF-16 on every call (callers loop over the
-	// occurrences, which made them quadratic). An ASCII byte is always a
-	// code point of its own, so its UTF-16 index is that of the code point
-	// where the search starts plus the length of what lies in between.
-	if ch < 0x80 {
-		if fromIndex < 0 {
-			fromIndex = 0
-		}
-		// Skip the code points before fromIndex. A code point straddling
-		// fromIndex (a surrogate pair) is skipped too: its low surrogate is
-		// not ch.
-		i, u := 0, 0
-		for i < len(s) && u < fromIndex {
-			if s[i] < 0x80 {
-				i++
-				u++
-				continue
-			}
-			r, size := decodeWTF8(s[i:])
-			i += size
-			if r >= 0x10000 {
-				u += 2
-			} else {
-				u++
-			}
-		}
-		j := strings.IndexByte(s[i:], byte(ch))
-		if j < 0 {
-			return -1
-		}
-		return u + StringLength(s[i:i+j])
-	}
-	u := StringToUTF16(s)
-	if fromIndex < 0 {
-		fromIndex = 0
-	}
-	for i := fromIndex; i < len(u); i++ {
-		if u[i] == ch {
 			return i
 		}
 	}

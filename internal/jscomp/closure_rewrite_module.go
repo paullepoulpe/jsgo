@@ -220,7 +220,7 @@ func newExportDefinition(t *NodeTraversal, name string, isNamed bool, rhs rhino.
 		rhs:        rhs,
 	}
 	if !rhs.IsNil() && (rhs.IsName() || rhs.IsStringKey()) {
-		def.nameDecl = t.GetScope().GetVar(rhs.GetString())
+		def.nameDecl = t.GetScope().GetVarByNode(rhs)
 	}
 	return def
 }
@@ -388,11 +388,25 @@ func (p *closureScriptPreprocessor) ShouldTraverse(t *NodeTraversal, n rhino.Nod
 	}
 }
 
+var closureScriptRecorderVisitTokens = func() ast.TokenSet {
+	var s ast.TokenSet
+	s.Add(rhino.Token_MODULE_BODY)
+	return s
+}()
+
 type closureScriptRecorder struct {
 	outer *ClosureRewriteModule
 }
 
+var (
+	_ nodeTraversal_visitTokens   = (*closureScriptRecorder)(nil)
+	_ nodeTraversal_noVisitLeaves = (*closureScriptRecorder)(nil)
+)
+
 func (*closureScriptRecorder) noVisitLeaves() {}
+func (*closureScriptRecorder) visitTokens() *ast.TokenSet {
+	return &closureScriptRecorderVisitTokens
+}
 
 func (r *closureScriptRecorder) ShouldTraverse(t *NodeTraversal, n rhino.Node, parent rhino.Node) bool {
 	m := r.outer
@@ -844,7 +858,7 @@ func (m *ClosureRewriteModule) recordGoogModuleGet(t *NodeTraversal, call ast.Ca
 		return
 	}
 
-	aliasVar := t.GetScope().GetVar(alias.Ident())
+	aliasVar := t.GetScope().GetVarByNode(alias.Node())
 	if aliasVar == nil {
 		return
 	}

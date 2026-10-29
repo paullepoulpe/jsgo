@@ -618,22 +618,6 @@ func (f *FunctionInjector) inlineFunctionWithSummary(
 	return newBlock
 }
 
-// Java: FunctionInjector.removeConstantVarAnnotation(Scope, String)
-func FunctionInjector_RemoveConstantVarAnnotation(scope *Scope, name string) {
-	var_ := scope.GetVar(name)
-	var nameNode rhino.Node
-	if var_ != nil {
-		nameNode = var_.GetNameNode()
-	}
-	if nameNode.IsNil() {
-		return
-	}
-
-	if nameNode.IsDeclaredConstantVar() {
-		nameNode.SetDeclaredConstantVar(false)
-	}
-}
-
 func removeConstantVarAnnotationByID(scope *Scope, id uint32) {
 	var_ := scope.GetVarByID(id)
 	var nameNode rhino.Node

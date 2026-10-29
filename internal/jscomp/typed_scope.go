@@ -63,6 +63,7 @@ type TypedScope struct {
 
 	implicitVars *[4]*TypedVar
 	parent       *TypedScope
+	lookupParent *TypedScope
 
 	// Go-only: performance — the Java `module` and `reservedNames` fields,
 	// which only the scope builder reads; dropped by ValidateCompletelyBuilt
@@ -153,7 +154,31 @@ func newTypedScopeOwnedReservedNames(
 	if len(reservedNames) > 0 || module != nil {
 		s.build = &typedScopeBuildState{module: module, reservedNames: reservedNames}
 	}
+	s.initLookupChain(parent)
 	return s
+}
+
+func (s *TypedScope) initLookupChain(parent *TypedScope) {
+	if parent == nil {
+		s.hasImplicitVars = false
+		s.lookupParent = nil
+		return
+	}
+	switch s.rootNode.GetToken() {
+	case rhino.Token_FUNCTION:
+		s.hasImplicitVars = NodeUtil_IsNonArrowFunction(s.rootNode)
+	case rhino.Token_MEMBER_FIELD_DEF, rhino.Token_COMPUTED_FIELD_DEF:
+		s.hasImplicitVars = true
+	case rhino.Token_BLOCK:
+		s.hasImplicitVars = s.IsStaticBlockScope()
+	default:
+		s.hasImplicitVars = false
+	}
+	if parent.scanDone && len(parent.vars) == 0 && len(parent.reservedNames()) == 0 && !parent.hasImplicitVars && !parent.IsHoistScope() {
+		s.lookupParent = parent.lookupParent
+	} else {
+		s.lookupParent = parent
+	}
 }
 
 // Java: TypedScope(Node, boolean)
@@ -163,6 +188,7 @@ func newTypedScopeWithIsBottom(rootNode rhino.Node, isBottom bool) *TypedScope {
 	s.scopeID = allocTypedScopeID()
 	s.CheckRootScope()
 	s.isBottom = isBottom
+	s.initLookupChain(nil)
 	return s
 }
 
@@ -174,6 +200,7 @@ func newGlobalTypedScopeWithCapacity(rootNode rhino.Node, varCap int) *TypedScop
 		s.vars = make([]*TypedVar, 0, varCap)
 	}
 	s.CheckRootScope()
+	s.initLookupChain(nil)
 	return s
 }
 
@@ -585,21 +612,49 @@ func (s *TypedScope) IsDeclarativelyUnboundVarWithoutType(var_ *TypedVar) bool {
 		!var_.IsExtern()
 }
 
+var (
+	typedScopeSymbolID    = rhino.RhinoStringPool_InternID("Symbol")
+	typedScopeSymbolHash  = scopeNameHash("Symbol")
+	typedScopeSymbolBloom = scopeBloomFromHash(typedScopeSymbolHash)
+)
+
 // lookupRootVar is AbstractScope.getVar, for a name without dots.
 func (s *TypedScope) lookupRootVar(name string) *TypedVar {
 	h := scopeNameHash(name)
 	imp, isImplicit := AbstractScope_ImplicitVar_Lookup(name)
-	for cur := s; cur != nil; cur = cur.parent {
-		if v := cur.ownVar(name, h); v != nil {
-			return v
+	return s.lookupRootVarPrehashed(name, h, scopeBloomFromHash(h), imp, isImplicit)
+}
+
+func (s *TypedScope) lookupRootVarPrehashed(
+	name string, h uint32, bloom uint64, imp AbstractScope_ImplicitVar, isImplicit bool,
+) *TypedVar {
+	for cur := s; cur != nil; cur = cur.lookupParent {
+		if cur.varBloom&bloom == bloom {
+			if i := cur.findVar(name, h); i >= 0 {
+				return cur.vars[i]
+			}
 		}
-		if isImplicit {
+		if isImplicit && cur.hasImplicitVars {
 			if v := cur.getOwnImplicitVar(imp); v != nil {
 				return v
 			}
 		}
 	}
 	return nil
+}
+
+// GetVarByID returns the slot for an interned Rhino string ID.
+func (s *TypedScope) GetVarByID(id uint32) *TypedVar {
+	if id == typedScopeSymbolID {
+		return s.lookupRootVarPrehashed("Symbol", typedScopeSymbolHash, typedScopeSymbolBloom, 0, false)
+	}
+	name := rhino.RhinoStringPool_StringFromID(id)
+	if strings.IndexByte(name, '.') >= 0 {
+		return s.GetVar(name)
+	}
+	h := scopeNameHash(name)
+	imp, isImplicit := AbstractScope_ImplicitVar_LookupID(id)
+	return s.lookupRootVarPrehashed(name, h, scopeBloomFromHash(h), imp, isImplicit)
 }
 
 // GetVar returns the slot for name, considering shadowing of qualified names.
@@ -684,8 +739,14 @@ func (s *TypedScope) GetGlobalScope() *TypedScope {
 
 // Java: AbstractScope.hasSlot(String)
 func (s *TypedScope) HasSlot(name string) bool {
-	for cur := s; cur != nil; cur = cur.parent {
-		if cur.HasOwnSlot(name) {
+	h := scopeNameHash(name)
+	bloom := scopeBloomFromHash(h)
+	imp, isImplicit := AbstractScope_ImplicitVar_Lookup(name)
+	for cur := s; cur != nil; cur = cur.lookupParent {
+		if cur.varBloom&bloom == bloom && cur.findVar(name, h) >= 0 {
+			return true
+		}
+		if isImplicit && cur.hasImplicitVars && cur.hasOwnImplicitVar(imp) {
 			return true
 		}
 	}
@@ -703,9 +764,11 @@ func (s *TypedScope) GetSlot(name string) rhino.StaticSlot {
 
 // Java: AbstractScope.getArgumentsVar()
 func (s *TypedScope) GetArgumentsVar() *TypedVar {
-	for cur := s; cur != nil; cur = cur.parent {
-		if v := cur.getOwnImplicitVar(AbstractScope_ImplicitVar_ARGUMENTS); v != nil {
-			return v
+	for cur := s; cur != nil; cur = cur.lookupParent {
+		if cur.hasImplicitVars {
+			if v := cur.getOwnImplicitVar(AbstractScope_ImplicitVar_ARGUMENTS); v != nil {
+				return v
+			}
 		}
 	}
 	return nil

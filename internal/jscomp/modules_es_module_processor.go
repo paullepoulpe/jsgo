@@ -87,11 +87,28 @@ func newEsFindMutableExports(exports []*Export) *esFindMutableExports {
 	return f
 }
 
+var esFindMutableExportsVisitTokens = func() ast.TokenSet {
+	var s ast.TokenSet
+	s.Add(rhino.Token_NAME)
+	return s
+}()
+
+var (
+	_ nodeTraversal_visitTokens    = (*esFindMutableExports)(nil)
+	_ nodeTraversal_onlyNameLeaves = (*esFindMutableExports)(nil)
+)
+
+func (*esFindMutableExports) onlyNameLeaves() {}
+func (*esFindMutableExports) visitTokens() *ast.TokenSet {
+	return &esFindMutableExportsVisitTokens
+}
+
 func (f *esFindMutableExports) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	if !n.IsName() || len(f.exportsByLocalID) == 0 {
 		return
 	}
-	exports := f.exportsByLocalID[n.GetStringID()]
+	id := n.GetStringID()
+	exports := f.exportsByLocalID[id]
 	if len(exports) == 0 {
 		return
 	}
@@ -99,7 +116,7 @@ func (f *esFindMutableExports) Visit(t *NodeTraversal, n rhino.Node, parent rhin
 	if !NodeUtil_IsLValue(n) || scope.GetClosestHoistScope().IsModuleScope() {
 		return
 	}
-	var_ := scope.GetVar(n.GetString())
+	var_ := scope.GetVarByID(id)
 	if var_ == nil || !var_.GetScope().(*Scope).IsModuleScope() {
 		return
 	}
@@ -598,6 +615,21 @@ func (m *unresolvedEsModule) ResolveExportWithTraces(
 	m.resolvedExports[exportName] = res
 	return res
 }
+
+var esModuleProcessorVisitTokens = func() ast.TokenSet {
+	var s ast.TokenSet
+	s.Add(rhino.Token_EXPORT)
+	s.Add(rhino.Token_IMPORT)
+	return s
+}()
+
+var (
+	_ nodeTraversal_visitTokens   = (*EsModuleProcessor)(nil)
+	_ nodeTraversal_noVisitLeaves = (*EsModuleProcessor)(nil)
+)
+
+func (*EsModuleProcessor) noVisitLeaves()             {}
+func (*EsModuleProcessor) visitTokens() *ast.TokenSet { return &esModuleProcessorVisitTokens }
 
 // Java: EsModuleProcessor(AbstractCompiler)
 func NewEsModuleProcessor(compiler AbstractCompiler) *EsModuleProcessor {

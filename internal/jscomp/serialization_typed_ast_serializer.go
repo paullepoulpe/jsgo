@@ -44,7 +44,6 @@ type TypedAstSerializer struct {
 	sourceFilePointers map[*SourceFile]int
 	sourceFileList     []*SourceFile
 
-	typeSerializer      TypedAstSerializer_TypeSerializer
 	colorTypeSerializer *TypedAstSerializer_ColorTypeSerializer
 	jsTypeSerializer    *TypedAstSerializer_JSTypeSerializer
 	usedPropBits        []uint64
@@ -73,14 +72,12 @@ type TypedAstSerializer struct {
 
 // Java: TypedAstSerializer(AbstractCompiler, SerializationOptions)
 func NewTypedAstSerializer(compiler AbstractCompiler, serializationMode *SerializationOptions) *TypedAstSerializer {
-	s := &TypedAstSerializer{
+	return &TypedAstSerializer{
+		compiler:           compiler,
+		serializationMode:  serializationMode,
 		stringPool:         StringPool_Builder_(),
 		sourceFilePointers: make(map[*SourceFile]int, 64),
-		typeSerializer:     nil,
 	}
-	s.compiler = compiler
-	s.serializationMode = serializationMode
-	return s
 }
 
 func (s *TypedAstSerializer) resetScriptSlabs() {
@@ -233,15 +230,11 @@ func (s *TypedAstSerializer) SerializeRoots(externsRoot rhino.Node, jsRoot rhino
 		} else {
 			s.colorTypeSerializer = s.CreateColorTypeSerializer(s.compiler, s.serializationMode, s.stringPool)
 		}
-		s.typeSerializer = s.colorTypeSerializer
 	} else if s.compiler.HasTypeCheckingRun() {
 		// The AST has JSTypes, but we want to serialize colors instead.
 		// TODO(bradfordcsmith): Change this branch to throw an error and delete the related logic.
 		//     Nothing should be using it anymore.
 		s.jsTypeSerializer = TypedAstSerializer_CreateJSTypeSerializer(s.compiler, s.serializationMode, s.stringPool)
-		s.typeSerializer = s.jsTypeSerializer
-	} else {
-		s.typeSerializer = NewTypedAstSerializer_NoOpTypeSerializer()
 	}
 
 	numThreads := 1
@@ -285,10 +278,20 @@ func (s *TypedAstSerializer) SerializeRoots(externsRoot rhino.Node, jsRoot rhino
 
 	return builder.
 		AddAllRuntimeLibraryToInject(s.serializationMode.RuntimeLibraries()).
-		SetTypePool(s.typeSerializer.GenerateTypePool()).
+		SetTypePool(s.generateTypePool()).
 		SetStringPool(s.stringPool.Build().ToProtoWithThreads(numThreads)).
 		SetSourceFilePool(sourceFiles).
 		Build()
+}
+
+func (s *TypedAstSerializer) generateTypePool() *TypePool {
+	if s.colorTypeSerializer != nil {
+		return s.colorTypeSerializer.GenerateTypePool()
+	}
+	if s.jsTypeSerializer != nil {
+		return s.jsTypeSerializer.GenerateTypePool()
+	}
+	return TypePool_GetDefaultInstance()
 }
 
 // Java: TypedAstSerializer.serializeScriptNode(Node)
@@ -526,11 +529,6 @@ func (s *TypedAstSerializer) serializeRootsParallel(
 	}
 }
 
-// Java: TypedAstSerializer.addType(Node, AstNode.Builder)
-func (s *TypedAstSerializer) AddType(n rhino.Node, builder *AstNode_Builder) {
-	s.typeSerializer.AddTypeForNode(n, builder)
-}
-
 func (s *TypedAstSerializer) markUsedProp(ptr int) {
 	word := ptr >> 6
 	if word >= len(s.usedPropBits) {
@@ -552,47 +550,6 @@ func (s *TypedAstSerializer) lookupUsedPropIndex(prop string) (int, bool) {
 		return 0, false
 	}
 	return idx, true
-}
-
-// TypedAstSerializer_TypeSerializer is used to provide TypePointers for
-// serializing Nodes and to generate the TypePool.
-//
-// Java: interface TypedAstSerializer.TypeSerializer
-type TypedAstSerializer_TypeSerializer interface {
-	// AddTypeForNode adds, if appropriate for `node`, an `Integer` to
-	// `astNodeBuilder`.
-	//
-	// Java: TypedAstSerializer.TypeSerializer.addTypeForNode(Node, AstNode.Builder)
-	AddTypeForNode(node rhino.Node, astNodeBuilder *AstNode_Builder)
-
-	// GenerateTypePool returns a `TypePool` containing the types used by
-	// `addTypeForNode()`.
-	//
-	// Java: TypedAstSerializer.TypeSerializer.generateTypePool()
-	GenerateTypePool() *TypePool
-}
-
-// TypedAstSerializer_NoOpTypeSerializer is used when type checking has not
-// been done.
-//
-// Java: private static class TypedAstSerializer.NoOpTypeSerializer
-type TypedAstSerializer_NoOpTypeSerializer struct {
-	_ byte // Go-only: language-adapter — distinct identity
-}
-
-// Java: TypedAstSerializer.NoOpTypeSerializer()
-func NewTypedAstSerializer_NoOpTypeSerializer() *TypedAstSerializer_NoOpTypeSerializer {
-	return &TypedAstSerializer_NoOpTypeSerializer{}
-}
-
-// Java: TypedAstSerializer.NoOpTypeSerializer.addTypeForNode(Node, AstNode.Builder)
-func (*TypedAstSerializer_NoOpTypeSerializer) AddTypeForNode(node rhino.Node, astNodeBuilder *AstNode_Builder) {
-	// Do nothing.
-}
-
-// Java: TypedAstSerializer.NoOpTypeSerializer.generateTypePool()
-func (*TypedAstSerializer_NoOpTypeSerializer) GenerateTypePool() *TypePool {
-	return TypePool_GetDefaultInstance() // empty TypePool
 }
 
 // TypedAstSerializer_CreateJSTypeSerializer creates the `TypeSerializer`
@@ -633,11 +590,6 @@ func (s *TypedAstSerializer_JSTypeSerializer) addTypeToNode(node rhino.Node, m *
 	}
 	m.type_ = pointer
 	m.bitField0_ |= 1 << 0
-}
-
-// Java: TypedAstSerializer.JSTypeSerializer.addTypeForNode(Node, AstNode.Builder)
-func (s *TypedAstSerializer_JSTypeSerializer) AddTypeForNode(node rhino.Node, astNodeBuilder *AstNode_Builder) {
-	s.addTypeToNode(node, astNodeBuilder.m)
 }
 
 // Java: TypedAstSerializer.JSTypeSerializer.generateTypePool()
@@ -715,14 +667,6 @@ type TypedAstSerializer_ColorTypeSerializer struct {
 // Java: TypedAstSerializer.ColorTypeSerializer(ColorSerializer, ColorRegistry)
 func NewTypedAstSerializer_ColorTypeSerializer(colorSerializer *ColorSerializer, colorRegistry *colors.ColorRegistry) *TypedAstSerializer_ColorTypeSerializer {
 	return &TypedAstSerializer_ColorTypeSerializer{colorSerializer: colorSerializer, colorRegistry: colorRegistry}
-}
-
-// Java: TypedAstSerializer.ColorTypeSerializer.addTypeForNode(Node, AstNode.Builder)
-func (s *TypedAstSerializer_ColorTypeSerializer) AddTypeForNode(node rhino.Node, astNodeBuilder *AstNode_Builder) {
-	color := node.GetColor()
-	if color != nil {
-		astNodeBuilder.SetType(int32(s.colorSerializer.AddColor(color)))
-	}
 }
 
 // Java: TypedAstSerializer.ColorTypeSerializer.generateTypePool()

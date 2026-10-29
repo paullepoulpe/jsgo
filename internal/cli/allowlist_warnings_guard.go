@@ -39,12 +39,6 @@ type AllowlistWarningsGuard struct {
 	allowlist map[string]struct{}
 }
 
-// AllowlistWarningsGuard_LINE_SPLITTER is Splitter.on('\n'): splitToList.
-//
-// Go-only: language-adapter — Guava's Splitter.on(char) without options
-// splits like strings.Split (empty pieces are kept).
-var AllowlistWarningsGuard_LINE_SPLITTER = func(s string) []string { return strings.Split(s, "\n") }
-
 // Pattern to match line number in error descriptions.
 var AllowlistWarningsGuard_LINE_NUMBER = jutil.Pattern_Compile(":-?\\d+")
 
@@ -205,15 +199,17 @@ func (g *AllowlistWarningsGuard) FormatWarningWithMetaData(error *jscomp.JSError
 	if withMetaData {
 		sb.WriteString(strconv.Itoa(error.GetLineNumber()))
 	}
-	lines := AllowlistWarningsGuard_LINE_SPLITTER(error.Description())
+	firstLine, rest, hasMore := strings.Cut(error.Description(), "\n")
 	sb.WriteString("  ")
-	sb.WriteString(lines[0])
+	sb.WriteString(firstLine)
 
 	// Add the rest of the message as a comment.
 	if withMetaData {
-		for i := 1; i < len(lines); i++ {
+		for hasMore {
+			var line string
+			line, rest, hasMore = strings.Cut(rest, "\n")
 			sb.WriteString("\n# ")
-			sb.WriteString(lines[i])
+			sb.WriteString(line)
 		}
 		sb.WriteString("\n")
 	}
@@ -367,10 +363,11 @@ func (b *AllowlistWarningsGuard_AllowlistBuilder) AppendAllowlist(out *jutil.Pri
 			// Deprecation warnings are not raisable to error, so we don't need them in allowlists.
 			continue
 		}
+		firstPatternLine, _, _ := strings.Cut(type_.FormatPattern(), "\n")
 		out.Append("\n# Warning ").
 			Append(type_.Key()).
 			Append(": ").
-			Println(AllowlistWarningsGuard_LINE_SPLITTER(type_.FormatPattern())[0])
+			Println(firstPatternLine)
 
 		slices.SortFunc(grp.warnings, jutil.StringCompareTo)
 		for _, warning := range grp.warnings {

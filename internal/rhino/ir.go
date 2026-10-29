@@ -44,12 +44,6 @@ import (
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 )
 
-// IR is an AST construction helper class.
-type IR struct{}
-
-// Java: IR()
-func NewIR() *IR { return &IR{} }
-
 // Java: IR.empty()
 func IR_Empty() Node {
 	return NewNode(Token_EMPTY)

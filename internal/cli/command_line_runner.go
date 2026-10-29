@@ -477,13 +477,10 @@ func (r *CommandLineRunner) InitConfigFromFlags(args []string, out *jutil.PrintS
 		r.ReportError("ERROR - renaming cannot be disabled when ADVANCED_OPTIMIZATIONS is used.")
 	}
 
-	var dependencyOptions *jscomp.DependencyOptions
-	jutil.Try(func() {
-		dependencyOptions = jscomp.DependencyOptions_FromFlags(
-			flags.dependencyMode, flags.entryPoint, []string{}, nil, false, false)
-	}, func(e jscomp.IFlagUsageException) {
-		r.ReportError(e.GetMessage())
-	})
+	dependencyOptions, depErr := dependencyOptionsFromFlags(flags.dependencyMode, flags.entryPoint)
+	if depErr != nil {
+		r.ReportError(depErr.GetMessage())
+	}
 
 	if r.errors {
 		commandLineRunner_Flags_printShortUsageAfterErrors(r.errorStream)
@@ -707,11 +704,7 @@ func (r *CommandLineRunner) CreateOptions() *jscomp.CompilerOptions {
 			panic(jutil.NewRuntimeExceptionWithMessageAndCause("Reading XTB file", ioErr))
 		}
 		defer stream.Close()
-		jutil.Try(func() {
-			options.SetMessageBundle(jscomp.NewXtbMessageBundle(stream, flags.translationsProject))
-		}, func(e jutil.IIOException) {
-			panic(jutil.NewRuntimeExceptionWithMessageAndCause("Reading XTB file", e))
-		})
+		options.SetMessageBundle(jscomp.NewXtbMessageBundle(stream, flags.translationsProject))
 	} else if jscomp.CompilationLevel_ADVANCED_OPTIMIZATIONS == level {
 		// In SIMPLE or WHITESPACE mode, if the user hasn't specified a
 		// translations file, they might reasonably try to write their own
@@ -879,14 +872,31 @@ func (r *CommandLineRunner) CreateExterns(options *jscomp.CompilerOptions) []*js
 	return builtinExterns
 }
 
+func dependencyOptionsFromFlags(
+	dependencyMode *jscomp.DependencyOptions_DependencyMode,
+	entryPoints []string,
+) (*jscomp.DependencyOptions, *jscomp.FlagUsageException) {
+	if len(entryPoints) == 0 && dependencyMode != nil && *dependencyMode == jscomp.DependencyOptions_DependencyMode_PRUNE {
+		return nil, jscomp.NewFlagUsageException("--dependency_mode=PRUNE requires --entry_point.")
+	}
+	if len(entryPoints) != 0 && dependencyMode != nil &&
+		(*dependencyMode == jscomp.DependencyOptions_DependencyMode_NONE ||
+			*dependencyMode == jscomp.DependencyOptions_DependencyMode_SORT_ONLY) {
+		return nil, jscomp.NewFlagUsageException(
+			"--dependency_mode=" + dependencyMode.String() +
+				" cannot be used with --entry_point, --closure_entry_point or --common_js_entry_module.")
+	}
+	return jscomp.DependencyOptions_FromFlags(dependencyMode, entryPoints, []string{}, nil, false, false), nil
+}
+
 // Java: CommandLineRunner.loadConformanceConfigs(List<String>)
 func commandLineRunner_loadConformanceConfigs(configPaths []string) []*jscomp.ConformanceConfig {
 	configs := make([]*jscomp.ConformanceConfig, 0, len(configPaths))
 
 	for _, configPath := range configPaths {
-		cfg, ioErr := commandLineRunner_loadConformanceConfig(configPath)
-		if ioErr != nil {
-			panic(jutil.NewRuntimeExceptionWithMessageAndCause("Error loading conformance config", ioErr))
+		cfg, err := commandLineRunner_loadConformanceConfig(configPath)
+		if err != nil {
+			panic(err)
 		}
 		configs = append(configs, cfg)
 	}
@@ -895,10 +905,10 @@ func commandLineRunner_loadConformanceConfigs(configPaths []string) []*jscomp.Co
 }
 
 // Java: CommandLineRunner.loadConformanceConfig(String)
-func commandLineRunner_loadConformanceConfig(configFile string) (*jscomp.ConformanceConfig, jutil.IIOException) {
+func commandLineRunner_loadConformanceConfig(configFile string) (*jscomp.ConformanceConfig, jutil.Throwable) {
 	textProto, ioErr := readUTF8FileLossy(jutil.NewFile(configFile).GetPath())
 	if ioErr != nil {
-		return nil, ioErr
+		return nil, jutil.NewRuntimeExceptionWithMessageAndCause("Error loading conformance config", ioErr)
 	}
 
 	builder := jscomp.ConformanceConfig_NewBuilder()
@@ -906,12 +916,24 @@ func commandLineRunner_loadConformanceConfig(configFile string) (*jscomp.Conform
 	// Stripping the BOM if present.
 	textProto = strings.TrimPrefix(textProto, "\uFEFF")
 
-	jutil.Try(func() {
-		jscomp.TextFormat_Merge(textProto, builder)
-	}, func(e jutil.IException) {
-		panic(jutil.NewRuntimeExceptionWithCause(e))
-	})
+	if parseErr := mergeConformanceTextProto(textProto, builder); parseErr != nil {
+		return nil, jutil.NewRuntimeExceptionWithCause(parseErr)
+	}
 	return builder.Build(), nil
+}
+
+func mergeConformanceTextProto(textProto string, builder *jscomp.ConformanceConfig_Builder) (parseErr jutil.IException) {
+	defer func() {
+		if rec := recover(); rec != nil {
+			if e, ok := rec.(jutil.IException); ok {
+				parseErr = e
+				return
+			}
+			panic(rec)
+		}
+	}()
+	jscomp.TextFormat_Merge(textProto, builder)
+	return nil
 }
 
 // Deprecated: use AbstractCommandLineRunner_GetBuiltinExterns(

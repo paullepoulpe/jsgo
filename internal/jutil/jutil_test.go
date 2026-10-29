@@ -98,9 +98,14 @@ func TestStringSemanticsMatchJava(t *testing.T) {
 				t.Errorf("charAt(%v, %d) = %x, want %x", ua, i, c, ua[i])
 			}
 		}
-		if len(ua) >= 2 {
-			if got := StringToUTF16(StringSubstring(a, 1, len(ua))); !equalU16(got, ua[1:]) {
-				t.Errorf("substring(%v, 1) = %v", ua, got)
+		for beg := 0; beg <= len(ua); beg++ {
+			if got := StringToUTF16(StringSubstringFrom(a, beg)); !equalU16(got, ua[beg:]) {
+				t.Errorf("substringFrom(%v, %d) = %v, want %v", ua, beg, got, ua[beg:])
+			}
+			for end := beg; end <= len(ua); end++ {
+				if got := StringToUTF16(StringSubstring(a, beg, end)); !equalU16(got, ua[beg:end]) {
+					t.Errorf("substring(%v, %d, %d) = %v, want %v", ua, beg, end, got, ua[beg:end])
+				}
 			}
 		}
 	}
@@ -186,4 +191,42 @@ func TestFixedArityPreconditionsDoNotAllocate(t *testing.T) {
 	if got != "a 123456 b 654321" {
 		t.Fatalf("message %q", got)
 	}
+}
+
+func TestWTF8IndexingZeroAllocAndBounds(t *testing.T) {
+	s := "hello_é_😀_world"
+	if n := testing.AllocsPerRun(100, func() {
+		_ = StringCharAt(s, 0)
+		_ = StringCharAt(s, 6)
+		_ = StringCharAt(s, 8)
+		_ = StringCharAt(s, 9)
+		_ = StringSubstring(s, 0, 5)
+		_ = StringSubstring(s, 6, 10)
+		_ = StringSubstringFrom(s, 8)
+	}); n != 0 {
+		t.Fatalf("expected 0 allocs on non-splitting WTF-8 indexing, got %v", n)
+	}
+	// Splitting astral surrogate pairs [0xD83D, 0xDE00] and [0xD83D, 0xDE01]
+	twoEmoji := "😀😁"
+	if got := StringToUTF16(StringSubstring(twoEmoji, 1, 3)); !equalU16(got, []uint16{0xDE00, 0xD83D}) {
+		t.Fatalf("split both surrogates = %x", got)
+	}
+	if got := StringToUTF16(StringSubstringFrom(twoEmoji, 1)); !equalU16(got, []uint16{0xDE00, 0xD83D, 0xDE01}) {
+		t.Fatalf("split begin surrogate = %x", got)
+	}
+	assertOOB := func(fn func(), want string) {
+		t.Helper()
+		var gotMsg string
+		Try(fn, func(e IIndexOutOfBoundsException) { gotMsg = e.GetMessage() })
+		if gotMsg != want {
+			t.Fatalf("got %q, want %q", gotMsg, want)
+		}
+	}
+	assertOOB(func() { StringCharAt(twoEmoji, -1) }, "Index -1 out of bounds for length 4")
+	assertOOB(func() { StringCharAt(twoEmoji, 4) }, "Index 4 out of bounds for length 4")
+	assertOOB(func() { StringSubstring(twoEmoji, -1, 2) }, "Range [-1, 2) out of bounds for length 4")
+	assertOOB(func() { StringSubstring(twoEmoji, 3, 2) }, "Range [3, 2) out of bounds for length 4")
+	assertOOB(func() { StringSubstring(twoEmoji, 0, 5) }, "Range [0, 5) out of bounds for length 4")
+	assertOOB(func() { StringSubstringFrom(twoEmoji, -1) }, "Range [-1, 4) out of bounds for length 4")
+	assertOOB(func() { StringSubstringFrom(twoEmoji, 5) }, "Range [5, 4) out of bounds for length 4")
 }

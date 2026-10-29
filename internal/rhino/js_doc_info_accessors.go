@@ -107,16 +107,12 @@ func formatJsDocKVs(s []jsDocKV) string {
 
 func jsDocStringSetFromSlice(s []string) *jutil.LinkedHashSet[string] {
 	if len(s) == 0 {
-		return jsDocInfo_noSuppressions
+		return jutil.NewLinkedHashSet[string]()
 	}
 	return jutil.NewLinkedHashSet(s...)
 }
 
 var (
-	// jsDocInfo_noSuppressions is GetSuppressions' result for a JSDocInfo
-	// without suppressions (ImmutableSet.of()). Never modified.
-	jsDocInfo_noSuppressions = jutil.NewLinkedHashSet[string]()
-
 	emptyStringSlice              = []string{}
 	jsDocModifiesThis             = []string{RhinoStringPool_AddOrGet("this")}
 	jsDocModifiesArguments        = []string{RhinoStringPool_AddOrGet("arguments")}
@@ -150,11 +146,7 @@ func (i *JSDocInfo) suppressions() []JSDocSuppression {
 func (i *JSDocInfo) GetSuppressions() *jutil.LinkedHashSet[string] {
 	suppressions := i.suppressions()
 	if len(suppressions) == 0 {
-		// Go-only: performance — ImmutableSet.of() is a shared singleton;
-		// callers only read the result, so share one empty set instead of
-		// allocating one per call (this runs for every JSDoc, externs
-		// included).
-		return jsDocInfo_noSuppressions
+		return jutil.NewLinkedHashSet[string]()
 	}
 	names := jutil.NewLinkedHashSet[string]()
 	for _, sup := range suppressions {

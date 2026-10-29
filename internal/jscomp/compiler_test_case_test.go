@@ -2014,11 +2014,11 @@ func (b *CompilerTestCaseBase) FindQualifiedNameNodes(name string, root rhino.No
 	matches := []rhino.Node{}
 	NodeUtil_VisitPostOrder(
 		root,
-		NodeUtil_VisitorFunc(func(n rhino.Node) {
+		func(n rhino.Node) {
 			if n.MatchesQualifiedName(name) {
 				matches = append(matches, n)
 			}
-		}))
+		})
 	return matches
 }
 

@@ -59,9 +59,6 @@ func (s *TypedAstSerializer) visitArena(n rhino.Node) *AstNode {
 		}
 	} else if s.jsTypeSerializer != nil {
 		s.jsTypeSerializer.addTypeToNode(n, m)
-	} else if s.typeSerializer != nil {
-		b := AstNode_Builder{m: m}
-		s.typeSerializer.AddTypeForNode(n, &b)
 	}
 
 	if jsdoc := n.GetJSDocInfo(); jsdoc != nil {
@@ -225,9 +222,8 @@ func (a *typedAstScriptArena) visitArenaParallel(n rhino.Node, parent *TypedAstS
 				dst:   &m.type_,
 			})
 		}
-	} else if parent.typeSerializer != nil {
-		b := AstNode_Builder{m: m}
-		parent.typeSerializer.AddTypeForNode(n, &b)
+	} else if parent.jsTypeSerializer != nil {
+		parent.jsTypeSerializer.addTypeToNode(n, m)
 	}
 
 	if jsdoc := n.GetJSDocInfo(); jsdoc != nil {

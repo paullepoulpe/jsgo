@@ -11,12 +11,12 @@ import (
 // ("%1$s"). Formatting is locale-independent (Closure formats with the root
 // locale in practice: ASCII digits, no grouping).
 
-// IllegalFormatException is java.util.IllegalFormatException (and its
+// illegalFormatException is java.util.IllegalFormatException (and its
 // subclasses MissingFormatArgumentException, UnknownFormatConversionException).
-type IllegalFormatException struct{ IllegalArgumentException }
+type illegalFormatException struct{ IllegalArgumentException }
 
-func newIllegalFormatException(className, message string) *IllegalFormatException {
-	e := &IllegalFormatException{}
+func newIllegalFormatException(className, message string) *illegalFormatException {
+	e := &illegalFormatException{}
 	InitThrowable(e, className, msgPtr(message), nil)
 	return e
 }

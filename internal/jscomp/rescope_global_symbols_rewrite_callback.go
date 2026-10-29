@@ -65,7 +65,7 @@ type rescopeRewriteCallback struct {
 	disambigPrefix        string
 	assumeCrossChunkNames bool
 	optimizeLocalAccess   CompilerOptions_OptimizeLocalAccess
-	externNames           *jutil.LinkedHashSet[string]
+	externNames           map[uint32]struct{}
 	symbolInfo            *rescopeSymbolInfo
 
 	preDeclarations []rescopeChunkGlobal
@@ -74,6 +74,27 @@ type rescopeRewriteCallback struct {
 	localAliasesForUnwrappedCrossChunkNames map[*JSChunk]*rescopeOrderedStringSet
 	chunksUsingWrappedReassignableSymbols   map[string]*rescopeOrderedChunkSet
 	wrappedReassignableCrossChunkNames      rescopeOrderedStringSet
+}
+
+var (
+	_ nodeTraversal_visitTokens    = (*rescopeRewriteCallback)(nil)
+	_ nodeTraversal_onlyNameLeaves = (*rescopeRewriteCallback)(nil)
+)
+
+func (*rescopeRewriteCallback) visitTokens() *ast.TokenSet { return &rescopeNameVisitTokens }
+func (*rescopeRewriteCallback) onlyNameLeaves()            {}
+
+func rescopeCollectExternVariableNameIDs(compiler AbstractCompiler, externs rhino.Node) map[uint32]struct{} {
+	externsRefs := NewReferenceCollector(
+		compiler, ReferenceCollector_DO_NOTHING_BEHAVIOR, NewSyntacticScopeCreator(compiler))
+	externsRefs.ProcessRoot(externs)
+	externsNames := make(map[uint32]struct{})
+	for v := range externsRefs.GetAllSymbols() {
+		if !v.IsParam() {
+			externsNames[v.nameID] = struct{}{}
+		}
+	}
+	return externsNames
 }
 
 func newRescopeRewriteCallback(
@@ -89,7 +110,7 @@ func newRescopeRewriteCallback(
 		disambigPrefix:        globalSymbolNamespace + rescopeDisambiguationSuffix,
 		assumeCrossChunkNames: assumeCrossChunkNames,
 		optimizeLocalAccess:   optimizeLocalAccess,
-		externNames:           NodeUtil_CollectExternVariableNames(compiler, externs),
+		externNames:           rescopeCollectExternVariableNameIDs(compiler, externs),
 		symbolInfo:            symbolInfo,
 	}
 	c.collectWrappedReassignableCrossChunkNames()
@@ -106,14 +127,25 @@ func (c *rescopeRewriteCallback) isCrossChunkName(name string) bool {
 	return c.compiler.GetCodingConvention().IsExportedWithLocal(name /* local= */, false)
 }
 
-func (c *rescopeRewriteCallback) isExternVar(varname string, t *NodeTraversal) bool {
-	if varname == "" {
+func (c *rescopeRewriteCallback) isExternVar(id uint32, scope *Scope) bool {
+	if id <= rhino.RhinoStringPool_EmptyID {
 		return false
 	}
-	v := t.GetScope().GetVar(varname)
-	return v == nil ||
-		v.IsExtern() ||
-		(v.GetScope().(*Scope).IsGlobal() && c.externNames.Contains(varname))
+	return c.isExternVarResolved(id, scope.GetVarByID(id))
+}
+
+func (c *rescopeRewriteCallback) isExternVarResolved(id uint32, v *Var) bool {
+	if id <= rhino.RhinoStringPool_EmptyID {
+		return false
+	}
+	if v == nil || v.IsExtern() {
+		return true
+	}
+	if v.IsGlobal() {
+		_, ok := c.externNames[id]
+		return ok
+	}
+	return false
 }
 
 func (c *rescopeRewriteCallback) collectWrappedReassignableCrossChunkNames() {
@@ -150,24 +182,25 @@ func (c *rescopeRewriteCallback) visitNameDeclaration(t *NodeTraversal, declarat
 		return
 	}
 	hasImportantName := false
-	isGlobalDeclaration := t.GetScope().GetVar(c.lhsScratch[0].GetString()).IsGlobal()
+	scope := t.GetScope()
+	isGlobalDeclaration := scope.GetVarByID(c.lhsScratch[0].GetStringID()).IsGlobal()
 
 	for _, lhs := range c.lhsScratch {
 		jutil.CheckStateMsg1(lhs.IsName(), "Unexpected lhs node %s, expected NAME", lhs)
 		name := lhs.GetString()
-		if (isGlobalDeclaration && c.isCrossChunkName(name)) || c.isExternVar(name, t) {
+		if (isGlobalDeclaration && c.isCrossChunkName(name)) || c.isExternVar(lhs.GetStringID(), scope) {
 			hasImportantName = true
 			break
 		}
 	}
 
 	if hasImportantName {
-		c.rewriteNameDeclaration(t, declaration, c.lhsScratch, isGlobalDeclaration)
+		c.rewriteNameDeclaration(t, scope, declaration, c.lhsScratch, isGlobalDeclaration)
 	}
 }
 
 func (c *rescopeRewriteCallback) rewriteNameDeclaration(
-	t *NodeTraversal, declaration rhino.Node, allLhsNodes []rhino.Node, isGlobalDeclaration bool) {
+	t *NodeTraversal, scope *Scope, declaration rhino.Node, allLhsNodes []rhino.Node, isGlobalDeclaration bool) {
 	input := t.GetInput()
 
 	if c.optimizeLocalAccess.ShouldOptimize() {
@@ -178,7 +211,7 @@ func (c *rescopeRewriteCallback) rewriteNameDeclaration(
 				_, readInDefining := c.symbolInfo.globalNamesWithReadInDefiningChunk[name]
 				if !c.symbolInfo.crossChunkNamesWithWriteFromOtherChunk.contains(name) &&
 					!c.wrappedReassignableCrossChunkNames.contains(name) &&
-					!c.isExternVar(name, t) &&
+					!c.isExternVar(lhs.GetStringID(), scope) &&
 					(!c.isCrossChunkName(name) || readInDefining) {
 					if astRoot.IsNil() {
 						astRoot = input.GetAstRoot(c.compiler)
@@ -192,7 +225,7 @@ func (c *rescopeRewriteCallback) rewriteNameDeclaration(
 		var astRoot rhino.Node
 		for _, lhs := range allLhsNodes {
 			name := lhs.GetString()
-			if !(isGlobalDeclaration && c.isCrossChunkName(name)) && !c.isExternVar(name, t) {
+			if !(isGlobalDeclaration && c.isCrossChunkName(name)) && !c.isExternVar(lhs.GetStringID(), scope) {
 				if astRoot.IsNil() {
 					astRoot = input.GetAstRoot(c.compiler)
 				}
@@ -277,15 +310,19 @@ func (c *rescopeRewriteCallback) ensureChunksUsingWrappedSymbol(name string) *re
 }
 
 func (c *rescopeRewriteCallback) visitName(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
-	name := n.GetString()
-	if parent.IsFunction() && name == "" {
+	id := n.GetStringID()
+	if parent.IsFunction() && id <= rhino.RhinoStringPool_EmptyID {
 		return
 	}
-	if c.isExternVar(name, t) {
-		return
+	var var_ *Var
+	if id > rhino.RhinoStringPool_EmptyID {
+		var_ = t.GetScope().GetVarByID(id)
+		if c.isExternVarResolved(id, var_) {
+			return
+		}
 	}
 
-	var_ := t.GetScope().GetVar(name)
+	name := n.GetString()
 	if !var_.IsGlobal() &&
 		(name == c.globalSymbolNamespace || strings.HasPrefix(name, c.disambigPrefix)) {
 		n.SetString(name + rescopeDisambiguationSuffix)

@@ -163,7 +163,7 @@ type LatticeElement interface {
 }
 
 // GraphNode is a generic node carrying a value and an optional annotation.
-type GraphNode[N, E any] interface {
+type GraphNode[N, E comparable] interface {
 	Annotatable
 
 	// GetValue retrieves the node's value.
@@ -173,7 +173,7 @@ type GraphNode[N, E any] interface {
 }
 
 // SubGraph represents a subgraph that provides adjacency checks against a node.
-type SubGraph[N, E any] interface {
+type SubGraph[N, E comparable] interface {
 	// IsIndependentOf returns true if node is not adjacent to any node in this SubGraph.
 	//
 	// Java: SubGraph.isIndependentOf(N)
@@ -187,7 +187,7 @@ type SubGraph[N, E any] interface {
 
 // Graph is the common interface shared by [LinkedDirectedGraph] and
 // [LinkedUndirectedGraph] for algorithms such as [GreedyGraphColoring].
-type Graph[N comparable, E any] interface {
+type Graph[N, E comparable] interface {
 	Connect(n1 N, edge E, n2 N)
 	Disconnect(n1 N, n2 N)
 	ConnectIfNotFound(n1 N, edge E, n2 N)
@@ -206,7 +206,7 @@ type Graph[N comparable, E any] interface {
 
 // DiGraph is implemented by [*LinkedDirectedGraph] and types that embed it
 // (such as jscomp.ControlFlowGraph).
-type DiGraph[N comparable, E any] interface {
+type DiGraph[N, E comparable] interface {
 	AsLinkedDirectedGraph() *LinkedDirectedGraph[N, E]
 }
 

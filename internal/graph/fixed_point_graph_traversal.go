@@ -33,7 +33,7 @@ import (
 //
 // TODO(nicksantos): Generalize the algorithm for undirected graphs, if we
 // need it.
-type FixedPointGraphTraversal[N comparable, E any] struct {
+type FixedPointGraphTraversal[N, E comparable] struct {
 	callback FixedPointGraphTraversal_EdgeCallback[N, E]
 
 	traversalDirection fixedPointGraphTraversal_TraversalDirection
@@ -66,7 +66,7 @@ const FixedPointGraphTraversal_NON_HALTING_ERROR_MSG = "Fixed point computation 
 // traversed.
 //
 // Java: FixedPointGraphTraversal(EdgeCallback<N, E>, TraversalDirection)
-func newFixedPointGraphTraversal[N comparable, E any](
+func newFixedPointGraphTraversal[N, E comparable](
 	callback FixedPointGraphTraversal_EdgeCallback[N, E], traversalDirection fixedPointGraphTraversal_TraversalDirection) *FixedPointGraphTraversal[N, E] {
 	return &FixedPointGraphTraversal[N, E]{
 		callback:           callback,
@@ -78,7 +78,7 @@ func newFixedPointGraphTraversal[N comparable, E any](
 // traversals that traverse from parent to child.
 //
 // Java: FixedPointGraphTraversal.newTraversal(EdgeCallback<NodeT, EdgeT>)
-func FixedPointGraphTraversal_NewTraversal[NodeT comparable, EdgeT any](
+func FixedPointGraphTraversal_NewTraversal[NodeT, EdgeT comparable](
 	callback FixedPointGraphTraversal_EdgeCallback[NodeT, EdgeT]) *FixedPointGraphTraversal[NodeT, EdgeT] {
 	return newFixedPointGraphTraversal(callback, fixedPointGraphTraversal_TraversalDirection_OUTWARDS)
 }
@@ -87,7 +87,7 @@ func FixedPointGraphTraversal_NewTraversal[NodeT comparable, EdgeT any](
 // creating new traversals that traverse from child to parent.
 //
 // Java: FixedPointGraphTraversal.newReverseTraversal(EdgeCallback<NodeT, EdgeT>)
-func FixedPointGraphTraversal_NewReverseTraversal[NodeT comparable, EdgeT any](
+func FixedPointGraphTraversal_NewReverseTraversal[NodeT, EdgeT comparable](
 	callback FixedPointGraphTraversal_EdgeCallback[NodeT, EdgeT]) *FixedPointGraphTraversal[NodeT, EdgeT] {
 	return newFixedPointGraphTraversal(callback, fixedPointGraphTraversal_TraversalDirection_INWARDS)
 }
@@ -215,7 +215,7 @@ func (t *FixedPointGraphTraversal[N, E]) computeFixedPointLinked(
 }
 
 // FixedPointGraphTraversal_EdgeCallback is the edge callback.
-type FixedPointGraphTraversal_EdgeCallback[NodeT, EdgeT any] interface {
+type FixedPointGraphTraversal_EdgeCallback[NodeT, EdgeT comparable] interface {
 	// TraverseEdge updates the state of the destination node when the given
 	// edge is traversed.
 	//
@@ -236,7 +236,7 @@ type FixedPointGraphTraversal_EdgeCallback[NodeT, EdgeT any] interface {
 //
 // Go-only: language-adapter — Java lambdas implement the functional
 // interface directly.
-type FixedPointGraphTraversal_EdgeCallbackFunc[NodeT, EdgeT any] func(source NodeT, e EdgeT, destination NodeT) bool
+type FixedPointGraphTraversal_EdgeCallbackFunc[NodeT, EdgeT comparable] func(source NodeT, e EdgeT, destination NodeT) bool
 
 // TraverseEdge calls f.
 func (f FixedPointGraphTraversal_EdgeCallbackFunc[NodeT, EdgeT]) TraverseEdge(source NodeT, e EdgeT, destination NodeT) bool {

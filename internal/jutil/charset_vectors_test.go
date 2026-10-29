@@ -76,10 +76,10 @@ func cvReport(cs *Charset, b []byte) (res string) {
 	defer func() {
 		if x := recover(); x != nil {
 			switch e := x.(type) {
-			case *MalformedInputException:
-				res = "M" + strconv.Itoa(e.GetInputLength())
-			case *UnmappableCharacterException:
-				res = "U" + strconv.Itoa(e.GetInputLength())
+			case *malformedInputException:
+				res = "M" + strconv.Itoa(e.getInputLength())
+			case *unmappableCharacterException:
+				res = "U" + strconv.Itoa(e.getInputLength())
 			default:
 				panic(x)
 			}
@@ -90,7 +90,7 @@ func cvReport(cs *Charset, b []byte) (res string) {
 
 func cvWrite(cs *Charset, writes ...string) []byte {
 	var buf bytes.Buffer
-	w := NewOutputStreamWriterWithCharset(nopWriteCloser{&buf}, cs)
+	w := newOutputStreamWriterWithCharset(nopWriteCloser{&buf}, cs)
 	for _, s := range writes {
 		w.Write(s)
 	}
