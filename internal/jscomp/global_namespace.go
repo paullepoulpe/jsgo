@@ -377,24 +377,25 @@ func (g *GlobalNamespace) refByID(id uint32) *GlobalNamespace_Ref {
 
 func (g *GlobalNamespace) allocRef(chunk *JSChunk, scope *Scope, node rhino.Node, type_ GlobalNamespace_Ref_Type) (uint32, *GlobalNamespace_Ref) {
 	idx := g.refCount
-	g.refCount = idx + 1
+	id := idx + 1
+	g.refCount = id
 	pageIdx := idx >> gnRefPageShift
 	if int(pageIdx) >= len(g.refPages) {
 		g.refPages = append(g.refPages, new([gnRefPageLen]GlobalNamespace_Ref))
 	}
 	r := &g.refPages[pageIdx][idx&gnRefPageMask]
-	*r = GlobalNamespace_Ref{chunk: chunk, scope: scope, node: node, type_: type_}
-	return idx + 1, r
+	*r = GlobalNamespace_Ref{chunk: chunk, scope: scope, node: node, type_: type_, pageRefID: id}
+	return id, r
 }
 
 func (g *GlobalNamespace) findOrCopyRefID(ref *GlobalNamespace_Ref) uint32 {
 	if ref == nil {
 		return 0
 	}
-	for idx := g.refCount; idx > 0; idx-- {
-		i := idx - 1
+	if id := ref.pageRefID; id != 0 && id <= g.refCount {
+		i := id - 1
 		if &g.refPages[i>>gnRefPageShift][i&gnRefPageMask] == ref {
-			return idx
+			return id
 		}
 	}
 	id, _ := g.allocRef(ref.chunk, ref.scope, ref.node, ref.type_)
@@ -454,6 +455,128 @@ func (g *GlobalNamespace) LookupName(fullName string) *GlobalNamespace_Name {
 // ContainsName reports whether fullName is indexed in the global namespace.
 func (g *GlobalNamespace) ContainsName(fullName string) bool {
 	return g.LookupName(fullName) != nil
+}
+
+// lookupGlobalNode resolves an AST qualified-name node directly against the
+// interned child table without allocating an intermediate qualified-name
+// string. ok is false iff qname is not a valid qualified name.
+func (g *GlobalNamespace) lookupGlobalNode(qname rhino.Node) (*GlobalNamespace_Name, bool) {
+	if qname.IsNil() {
+		return nil, false
+	}
+	g.EnsureGenerated()
+	switch qname.GetToken() {
+	case rhino.Token_NAME:
+		id := qname.GetStringID()
+		if id <= rhino.RhinoStringPool_EmptyID {
+			return nil, false
+		}
+		if g.indexedGlobalCount == 0 {
+			return nil, true
+		}
+		if s := strpool.String(strpool.ID(id)); strings.IndexByte(s, '.') >= 0 {
+			return g.LookupName(s), true
+		}
+		if nameID := g.lookupChildID(0, id); nameID != 0 {
+			if n := g.nameByID(nameID); n.propertyBitSet&gnNamePropIndexedGlobal != 0 {
+				return n, true
+			}
+		}
+		return nil, true
+	case rhino.Token_THIS:
+		if g.indexedGlobalCount != 0 {
+			if nameID := g.lookupChildID(0, gnThisStrID); nameID != 0 {
+				if n := g.nameByID(nameID); n.propertyBitSet&gnNamePropIndexedGlobal != 0 {
+					return n, true
+				}
+			}
+		}
+		return nil, true
+	case rhino.Token_SUPER:
+		if g.indexedGlobalCount != 0 {
+			if nameID := g.lookupChildID(0, gnSuperStrID); nameID != 0 {
+				if n := g.nameByID(nameID); n.propertyBitSet&gnNamePropIndexedGlobal != 0 {
+					return n, true
+				}
+			}
+		}
+		return nil, true
+	case rhino.Token_GETPROP:
+		var segBuf [8]uint32
+		segs := segBuf[:0]
+		hasDot := false
+		cur := qname
+		for cur.IsGetProp() {
+			segID := cur.GetStringID()
+			if !hasDot && (segID <= rhino.RhinoStringPool_EmptyID || strings.IndexByte(strpool.String(strpool.ID(segID)), '.') >= 0) {
+				hasDot = true
+			}
+			segs = append(segs, segID)
+			cur = cur.GetFirstChild()
+		}
+		var topID uint32
+		switch cur.GetToken() {
+		case rhino.Token_NAME:
+			topID = cur.GetStringID()
+			if topID <= rhino.RhinoStringPool_EmptyID {
+				return nil, false
+			}
+			if !hasDot && strings.IndexByte(strpool.String(strpool.ID(topID)), '.') >= 0 {
+				hasDot = true
+			}
+		case rhino.Token_THIS:
+			topID = gnThisStrID
+		case rhino.Token_SUPER:
+			topID = gnSuperStrID
+		default:
+			return nil, false
+		}
+		if g.indexedGlobalCount == 0 {
+			return nil, true
+		}
+		if hasDot {
+			fullName, ok := qname.GetQualifiedNameString()
+			if !ok {
+				return nil, false
+			}
+			return g.LookupName(fullName), true
+		}
+		curNameID := g.lookupChildID(0, topID)
+		if curNameID == 0 {
+			return nil, true
+		}
+		for i := len(segs) - 1; i >= 0; i-- {
+			curNameID = g.lookupChildID(curNameID, segs[i])
+			if curNameID == 0 {
+				return nil, true
+			}
+		}
+		if n := g.nameByID(curNameID); n.propertyBitSet&gnNamePropIndexedGlobal != 0 {
+			return n, true
+		}
+		return nil, true
+	default:
+		return nil, false
+	}
+}
+
+// lookupGlobalChildByID resolves an indexed global child property of parent by
+// interned baseNameID without string concatenation.
+func (g *GlobalNamespace) lookupGlobalChildByID(parent *GlobalNamespace_Name, baseNameID uint32) *GlobalNamespace_Name {
+	if parent == nil || parent.firstPropID == 0 || baseNameID == 0 {
+		return nil
+	}
+	if s := strpool.String(strpool.ID(baseNameID)); strings.IndexByte(s, '.') >= 0 {
+		return g.LookupName(parent.GetFullName() + "." + s)
+	}
+	childID := g.lookupChildID(parent.selfID, baseNameID)
+	if childID == 0 {
+		return nil
+	}
+	if child := g.nameByID(childID); child.propertyBitSet&gnNamePropIndexedGlobal != 0 {
+		return child
+	}
+	return nil
 }
 
 // Java: GlobalNamespace.setShouldTraverseScriptPredicate(Predicate<Node>)

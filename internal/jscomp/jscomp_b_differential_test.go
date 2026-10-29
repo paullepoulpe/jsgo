@@ -87,9 +87,11 @@ func jscompBNames(s string) *jutil.LinkedHashSet[string] {
 	return set
 }
 
-func jscompBChars(s string) *jutil.LinkedHashSet[uint16] {
-	set := jutil.NewLinkedHashSet[uint16]()
-	set.AddAll(jutil.StringToUTF16(s)...)
+func jscompBChars(s string) ASCIICharSet {
+	var set ASCIICharSet
+	for _, ch := range jutil.StringToUTF16(s) {
+		set.Add(ch)
+	}
 	return set
 }
 
@@ -111,7 +113,7 @@ func jscompBRunNameOps(ops string) string {
 			case "D0":
 				g = NewDefaultNameGenerator()
 			case "D3":
-				g = NewDefaultNameGeneratorWithReserved(jscompBNames(f[1]), f[2], jscompBChars(f[3]))
+				g = NewDefaultNameGeneratorWithReservedChars(jscompBNames(f[1]), f[2], jscompBChars(f[3]))
 			case "D4":
 				g = NewDefaultNameGeneratorWithFirstAndNonFirstChars(jscompBNames(f[1]), f[2], jscompBChars(f[3]), jscompBChars(f[4]))
 			case "R1":
@@ -285,6 +287,13 @@ func jscompBParseEntries(col string) *jutil.LinkedHashMap[string, string] {
 
 func jscompBHex(b []byte) string { return "x" + hex.EncodeToString(b) }
 
+func jscompBEncLookup(s string, ok bool) string {
+	if !ok {
+		return "N"
+	}
+	return jscompBEncS(s)
+}
+
 func jscompBVariableMap(col string) string {
 	m := jscompBParseEntries(col)
 	return jscompBCatch(func() string {
@@ -297,7 +306,7 @@ func jscompBVariableMap(col string) string {
 		})
 		var lookups []string
 		for k, v := range m.All() {
-			lookups = append(lookups, jscompBEnc(vm.LookupNewName(k))+"/"+jscompBEnc(vm.LookupSourceName(v)))
+			lookups = append(lookups, jscompBEncLookup(vm.LookupNewName(k))+"/"+jscompBEncLookup(vm.LookupSourceName(v)))
 		}
 		return jscompBHex(bytes) + ";" + strings.Join(lookups, ",") + ";" + back
 	})

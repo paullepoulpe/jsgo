@@ -1064,11 +1064,27 @@ func (p *PureFunctionIdentifier) markPureFunctionCalls() {
 	}
 }
 
+var pfiExternFnAnnotationTokens = makeVisitTokenSet(rhino.Token_FUNCTION)
+
 // pfiExternFunctionAnnotationAnalyzer inspects extern function JSDoc annotations
 // and applies side effects to the associated summaries.
 type pfiExternFunctionAnnotationAnalyzer struct {
 	outer *PureFunctionIdentifier
 }
+
+var (
+	_ nodeTraversal_visitTokens      = (*pfiExternFunctionAnnotationAnalyzer)(nil)
+	_ nodeTraversal_noVisitLeaves    = (*pfiExternFunctionAnnotationAnalyzer)(nil)
+	_ nodeTraversal_noShouldTraverse = (*pfiExternFunctionAnnotationAnalyzer)(nil)
+)
+
+func (*pfiExternFunctionAnnotationAnalyzer) visitTokens() *ast.TokenSet {
+	return &pfiExternFnAnnotationTokens
+}
+
+func (*pfiExternFunctionAnnotationAnalyzer) noVisitLeaves() {}
+
+func (*pfiExternFunctionAnnotationAnalyzer) nodeTraversalNoShouldTraverse() {}
 
 func (a *pfiExternFunctionAnnotationAnalyzer) ShouldTraverse(traversal *NodeTraversal, node rhino.Node, parent rhino.Node) bool {
 	return true

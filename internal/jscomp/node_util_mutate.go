@@ -20,6 +20,7 @@ package jscomp
 
 import (
 	"math"
+	"strings"
 
 	"github.com/paullepoulpe/jsgo/internal/base"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
@@ -297,13 +298,13 @@ func NodeUtil_CanMergeBlock(block rhino.Node) bool {
 //
 // Java: NodeUtil.newQName(AbstractCompiler, String)
 func NodeUtil_NewQName(compiler AbstractCompiler, name string) rhino.Node {
-	endPos := jutil.StringIndexOfChar(name, '.')
-	if endPos == -1 {
-		endPos = jutil.StringLength(name)
+	dot := strings.IndexByte(name, '.')
+	nodeName := name
+	if dot != -1 {
+		nodeName = name[:dot]
 	}
 
 	var qname rhino.Node
-	nodeName := jutil.StringSubstring(name, 0, endPos)
 	if "this" == nodeName {
 		qname = rhino.IR_ThisNode()
 	} else if "super" == nodeName {
@@ -311,20 +312,29 @@ func NodeUtil_NewQName(compiler AbstractCompiler, name string) rhino.Node {
 	} else {
 		qname = NodeUtil_NewName(compiler, nodeName)
 	}
-	qname.SetLength(endPos)
+	qname.SetLength(jutil.StringLength(nodeName))
+	if dot == -1 {
+		return qname
+	}
 
-	for startPos := endPos + 1; endPos < jutil.StringLength(name); startPos = endPos + 1 {
-		endPos = jutil.StringIndexOfCharFrom(name, '.', startPos)
-		if endPos == -1 {
-			endPos = jutil.StringLength(name)
+	conv := compiler.GetCodingConvention()
+	rest := name[dot+1:]
+	for {
+		dot = strings.IndexByte(rest, '.')
+		part := rest
+		if dot != -1 {
+			part = rest[:dot]
+			rest = rest[dot+1:]
 		}
 
-		part := jutil.StringSubstring(name, startPos, endPos)
 		qname = rhino.IR_Getprop(qname, part)
-		if compiler.GetCodingConvention().IsConstantKey(part) {
+		if conv.IsConstantKey(part) {
 			qname.PutBooleanProp(rhino.Node_IS_CONSTANT_NAME, true)
 		}
 		qname.SetLength(jutil.StringLength(part))
+		if dot == -1 {
+			break
+		}
 	}
 
 	return qname

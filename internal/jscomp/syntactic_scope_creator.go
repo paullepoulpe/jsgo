@@ -350,7 +350,7 @@ type SyntacticScopeCreator_ScopeScanner struct {
 	input           *CompilerInput
 	inputIdResolved bool
 	inputResolved   bool
-	changeRootSet   *jutil.LinkedHashSet[rhino.Node]
+	changeRootSet   map[rhino.Node]struct{}
 }
 
 // initSyntacticScopeCreator_ScopeScanner is the body of the ScopeScanner
@@ -362,7 +362,7 @@ func initSyntacticScopeCreator_ScopeScanner(
 	compiler AbstractCompiler,
 	redeclarationHandler SyntacticScopeCreator_RedeclarationHandler,
 	scope *Scope,
-	changeRootSet *jutil.LinkedHashSet[rhino.Node],
+	changeRootSet map[rhino.Node]struct{},
 	treatProvidesAsRedeclarations bool) {
 	s.compiler = compiler
 	s.redeclarationHandler = redeclarationHandler
@@ -784,11 +784,13 @@ func (s *SyntacticScopeCreator_ScopeScanner) ScanVars(n rhino.Node, hoistScope *
 		s.ScanVars(catch.Body().Node(), hoistScope, blockScope)
 		return // only one child to scan
 	case rhino.Token_SCRIPT:
-		if s.changeRootSet != nil && !s.changeRootSet.Contains(n) {
-			// If there is a changeRootSet configured, that means
-			// a partial update is being done and we should skip
-			// any SCRIPT that aren't being asked for.
-			return
+		if s.changeRootSet != nil {
+			if _, ok := s.changeRootSet[n]; !ok {
+				// If there is a changeRootSet configured, that means
+				// a partial update is being done and we should skip
+				// any SCRIPT that aren't being asked for.
+				return
+			}
 		}
 		s.setInputId(n.GetInputId())
 		// Go-only: performance — the loop over children below, with the

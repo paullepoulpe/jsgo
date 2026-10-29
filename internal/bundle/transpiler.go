@@ -56,18 +56,6 @@ func Transpiler_CompilerSupplier() CompilerBasedTransformer_CompilerSupplier {
 	return NewCompilerBasedTransformer_CompilerSupplier()
 }
 
-// Java: Transpiler.ES5_TRANSPILER
-var Transpiler_ES5_TRANSPILER = NewTranspiler(NewCompilerBasedTransformer_CompilerSupplier(), "es6_runtime")
-
-// Transpiler_ToEs5 returns the recommended transpiler.
-//
-// Java: Transpiler.toEs5()
-func Transpiler_ToEs5() *Transpiler {
-	return transpiler_TO_ES5
-}
-
-var transpiler_TO_ES5 = NewTranspiler(NewCompilerBasedTransformer_CompilerSupplier(), "es6_runtime")
-
 // TranspilationException is an unchecked exception thrown when
 // transpilation fails due to one or more errors in the input script.
 type TranspilationException struct {
@@ -84,13 +72,6 @@ type ITranspilationException interface {
 	transpilationException()
 }
 
-// NewTranspilationExceptionWithCause takes cause, an Exception.
-//
-// Java: TranspilationException(Exception)
-func NewTranspilationExceptionWithCause(cause jutil.Throwable) *TranspilationException {
-	return newTranspilationExceptionFromRoot(transpilationException_tryCastToTranspilationException(cause.GetCause()), cause)
-}
-
 // Java: TranspilationException(SourceExcerptProvider, ImmutableList<JSError>, ImmutableList<JSError>)
 func NewTranspilationException(
 	source jscomp.SourceExcerptProvider,
@@ -98,16 +79,6 @@ func NewTranspilationException(
 	warnings []*jscomp.JSError) *TranspilationException {
 	formatted := transpilationException_format(source, errors, warnings)
 	return newTranspilationException(errors, warnings, &formatted, nil)
-}
-
-// Java: TranspilationException(TranspilationException, Exception)
-func newTranspilationExceptionFromRoot(root *TranspilationException, cause jutil.Throwable) *TranspilationException {
-	if root == nil {
-		panic(jutil.NewNullPointerException())
-	}
-	// root's message is the formatted report, never null.
-	message := root.GetMessage()
-	return newTranspilationException(root.errors, root.warnings, &message, cause)
 }
 
 // Java: TranspilationException(ImmutableList<JSError>, ImmutableList<JSError>, String, Exception)
@@ -153,14 +124,4 @@ func transpilationException_format(
 		sb.WriteString(formatter.FormatError(warning))
 	}
 	return sb.String()
-}
-
-// transpilationException_tryCastToTranspilationException may return nil.
-//
-// Java: TranspilationException.tryCastToTranspilationException(Throwable)
-func transpilationException_tryCastToTranspilationException(t jutil.Throwable) *TranspilationException {
-	if transpilationException, ok := t.(*TranspilationException); ok {
-		return transpilationException
-	}
-	return nil
 }

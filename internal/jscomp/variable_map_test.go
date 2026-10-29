@@ -69,25 +69,39 @@ func TestVariableMap_ToBytes(t *testing.T) {
 	assertSameElements(t, "lines", lines, []string{"AAA:a", "BBB:b"})
 }
 
+func assertVariableMapNewName(t *testing.T, label string, vm *VariableMap, sourceName, want string) {
+	t.Helper()
+	got, ok := vm.LookupNewName(sourceName)
+	assertEqual(t, label+" found", ok, true)
+	assertEqual(t, label, got, want)
+}
+
+func assertVariableMapSourceName(t *testing.T, label string, vm *VariableMap, newName, want string) {
+	t.Helper()
+	got, ok := vm.LookupSourceName(newName)
+	assertEqual(t, label+" found", ok, true)
+	assertEqual(t, label, got, want)
+}
+
 func TestVariableMap_FromBytes(t *testing.T) {
 	vm := VariableMap_FromBytes([]byte("AAA:a\nBBB:b\n"))
 	assertEqual(t, "size", vm.GetOriginalNameToNewNameMap().Size(), 2)
-	assertEqual(t, "AAA", strPtrValue(vm.LookupNewName("AAA")), "a")
-	assertEqual(t, "BBB", strPtrValue(vm.LookupNewName("BBB")), "b")
-	assertEqual(t, "a", strPtrValue(vm.LookupSourceName("a")), "AAA")
-	assertEqual(t, "b", strPtrValue(vm.LookupSourceName("b")), "BBB")
+	assertVariableMapNewName(t, "AAA", vm, "AAA", "a")
+	assertVariableMapNewName(t, "BBB", vm, "BBB", "b")
+	assertVariableMapSourceName(t, "a", vm, "a", "AAA")
+	assertVariableMapSourceName(t, "b", vm, "b", "BBB")
 }
 
 func TestVariableMap_FromBytesWithEmptyValue(t *testing.T) {
 	vm := VariableMap_FromBytes([]byte("AAA:"))
-	assertEqual(t, "AAA", strPtrValue(vm.LookupNewName("AAA")), "")
+	assertVariableMapNewName(t, "AAA", vm, "AAA", "")
 }
 
 func TestVariableMap_FromStream(t *testing.T) {
 	vm := VariableMap_FromStream(bytes.NewReader([]byte("AAA:a\nBBB:b\n")))
 	assertEqual(t, "size", vm.GetOriginalNameToNewNameMap().Size(), 2)
-	assertEqual(t, "AAA", strPtrValue(vm.LookupNewName("AAA")), "a")
-	assertEqual(t, "BBB", strPtrValue(vm.LookupNewName("BBB")), "b")
+	assertVariableMapNewName(t, "AAA", vm, "AAA", "a")
+	assertVariableMapNewName(t, "BBB", vm, "BBB", "b")
 }
 
 func TestVariableMap_FileFormat1(t *testing.T) {
@@ -114,10 +128,10 @@ func TestVariableMap_FromBytesComplex2(t *testing.T) {
 	vm := VariableMap_FromBytes([]byte("AAA['\\:f']:a\n"))
 
 	assertEqual(t, "size", vm.GetOriginalNameToNewNameMap().Size(), 1)
-	assertEqual(t, "lookup", strPtrValue(vm.LookupNewName("AAA[':f']")), "a")
+	assertVariableMapNewName(t, "lookup", vm, "AAA[':f']", "a")
 
 	assertEqual(t, "inverse size", vm.GetNewNameToOriginalNameMap().Size(), 1)
-	assertEqual(t, "reverse lookup", strPtrValue(vm.LookupSourceName("a")), "AAA[':f']")
+	assertVariableMapSourceName(t, "reverse lookup", vm, "a", "AAA[':f']")
 }
 
 func variableMapAssertBytesEqual(t *testing.T, bytes1 []byte, s2 string) {
@@ -137,18 +151,18 @@ func TestVariableMap_ReverseLookupOfNullFindsNoName(t *testing.T) {
 	// Go-only: language-adapter — a Go string cannot be null; the lookup
 	// of a name that is not a value finds no name either.
 	vm := NewVariableMap(variableMapTestOf("AA", "a", "BB", "b"))
-	if got := vm.LookupSourceName("c"); got != nil {
-		t.Errorf("got %q, want null", *got)
+	if got, ok := vm.LookupSourceName("c"); ok {
+		t.Errorf("got %q, want absent", got)
 	}
 }
 
 // Java: VariableMapTest.testFromLines_leadingNewline()
 func TestVariableMap_FromLines_leadingNewline(t *testing.T) {
 	vm := VariableMap_FromBytes(jutil.StringGetBytesUTF8("\na:b\n"))
-	assertEqual(t, "lookup", strPtrValue(vm.LookupNewName("a")), "b")
+	assertVariableMapNewName(t, "lookup", vm, "a", "b")
 
 	vmCrlf := VariableMap_FromBytes(jutil.StringGetBytesUTF8("\r\na:b\r\n"))
-	assertEqual(t, "lookup", strPtrValue(vmCrlf.LookupNewName("a")), "b")
+	assertVariableMapNewName(t, "lookup", vmCrlf, "a", "b")
 }
 
 // Java: VariableMapTest.testFromLines_colonAtStartThrowsParseException()

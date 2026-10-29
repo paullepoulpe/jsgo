@@ -23,29 +23,6 @@
 
 package sourcemap
 
-// Mapping is the generated outer class of mapping.proto.
-type Mapping struct{}
-
-// Mapping_OriginalMappingOrBuilder is the accessor interface implemented by
-// OriginalMapping and its Builder.
-type Mapping_OriginalMappingOrBuilder interface {
-	// The original source file.
-	HasOriginalFile() bool
-	GetOriginalFile() string
-	// The line in the original file.
-	HasLineNumber() bool
-	GetLineNumber() int
-	// The column number on the line.
-	HasColumnPosition() bool
-	GetColumnPosition() int
-	// The original name of the identifier.
-	HasIdentifier() bool
-	GetIdentifier() string
-	// The type of retrieval performed to get this mapping
-	HasPrecision() bool
-	GetPrecision() Mapping_OriginalMapping_Precision
-}
-
 // Field numbers of OriginalMapping.
 const (
 	Mapping_OriginalMapping_ORIGINAL_FILE_FIELD_NUMBER   = 1

@@ -609,8 +609,6 @@ func (s *Scope) MakeImplicitVar(var_ AbstractScope_ImplicitVar) *Var {
 	return newVarWithID(var_.nameID(), rhino.NilNode, s, -1, nil, rhino.NilNode)
 }
 
-func (s *Scope) ThisScope() *Scope { return s }
-
 // Java: AbstractScope.contains(S)
 func (s *Scope) Contains(other *Scope) bool {
 	for cur := jutil.CheckNotNull(other); cur != nil; cur = cur.parent {

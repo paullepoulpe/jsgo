@@ -1,6 +1,5 @@
 // Port of com/google/javascript/jscomp/transpile/BaseTranspiler.java @ closure-compiler v20261021
 // Port of com/google/javascript/jscomp/transpile/Transpiler.java @ closure-compiler v20261021
-// Port of com/google/javascript/jscomp/transpile/TranspilerBuilder.java @ closure-compiler v20261021
 
 /*
  * Copyright 2016 The Closure Compiler Authors.
@@ -71,56 +70,6 @@ func (transpile_Transpiler_null) Runtime() string { return "" }
 //
 // Java: Transpiler.NULL
 var Transpiler_NULL Transpiler = transpile_Transpiler_null{}
-
-// TranspilerBuilder is the basic Transpiler implementation for outputting
-// ES5 code.
-//
-// Java: final class transpile.TranspilerBuilder
-type TranspilerBuilder struct {
-	transpiler Transpiler
-}
-
-// TranspilerBuilder_ToEs5 returns a new TranspilerBuilder that transpiles
-// down to ES5.
-//
-// Java: TranspilerBuilder.toEs5()
-func TranspilerBuilder_ToEs5() *TranspilerBuilder {
-	return transpilerBuilder_TO_ES5
-}
-
-var transpilerBuilder_TO_ES5 = NewTranspilerBuilder(
-	NewBaseTranspiler(NewBaseTranspiler_CompilerSupplier(), "es6_runtime"))
-
-// Java: TranspilerBuilder(Transpiler)
-func NewTranspilerBuilder(transpiler Transpiler) *TranspilerBuilder {
-	return &TranspilerBuilder{transpiler: transpiler}
-}
-
-const transpilerBuilder_DEFAULT_MAX_SIZE = 10000
-
-// Caching returns a TranspilerBuilder with cached transpilations, using the
-// default cache settings (maximum size of 10,000). Note that the builder
-// itself is not changed.
-//
-// Java: TranspilerBuilder.caching()
-func (b *TranspilerBuilder) Caching() *TranspilerBuilder {
-	return NewTranspilerBuilder(NewCachingTranspiler(b.transpiler, transpilerBuilder_DEFAULT_MAX_SIZE))
-}
-
-// CachingWithSpec returns a TranspilerBuilder with cached transpilations,
-// using the given cache spec. Note that the builder itself is not changed.
-//
-// Java: TranspilerBuilder.caching(String)
-func (b *TranspilerBuilder) CachingWithSpec(spec string) *TranspilerBuilder {
-	return NewTranspilerBuilder(NewCachingTranspiler(b.transpiler, bundle.ParseCacheMaxSize(spec)))
-}
-
-// Build returns the built Transpiler.
-//
-// Java: TranspilerBuilder.build()
-func (b *TranspilerBuilder) Build() Transpiler {
-	return b.transpiler
-}
 
 // BaseTranspiler is the basic Transpiler implementation for outputting ES5
 // code.
@@ -234,10 +183,12 @@ func NewBaseTranspiler_CompilerSupplierWithModuleResolution(
 
 // Java: CompilerSupplier.compile(URI, String)
 func (s *BaseTranspiler_DefaultCompilerSupplier) Compile(path string, code string) *BaseTranspiler_CompileResult {
-	compiler := s.Compiler()
+	compiler := jscomp.NewCompiler()
 	result :=
 		compiler.CompileOfSourceFiles(
-			s.CreateTrivialExterns(), jscomp.SourceFile_FromCode(path, code), s.Options())
+			jscomp.SourceFile_FromCode("externs.js", "function Symbol() {}"),
+			jscomp.SourceFile_FromCode(path, code),
+			s.Options())
 	source := compiler.ToSource()
 	var sourceMap strings.Builder
 	if result.SourceMap != nil {
@@ -256,16 +207,14 @@ func (s *BaseTranspiler_DefaultCompilerSupplier) Compile(path string, code strin
 
 // Java: CompilerSupplier.runtime(String)
 func (s *BaseTranspiler_DefaultCompilerSupplier) Runtime(library string) string {
-	compiler := s.Compiler()
+	compiler := jscomp.NewCompiler()
 	options := s.Options()
 	options.SetForceLibraryInjection([]string{library})
-	compiler.CompileOfSourceFiles(s.CreateTrivialExterns(), s.CreateEmptySource(), options)
+	compiler.CompileOfSourceFiles(
+		jscomp.SourceFile_FromCode("externs.js", "function Symbol() {}"),
+		jscomp.SourceFile_FromCode("empty.js", ""),
+		options)
 	return compiler.ToSource()
-}
-
-// Java: CompilerSupplier.compiler()
-func (s *BaseTranspiler_DefaultCompilerSupplier) Compiler() *jscomp.Compiler {
-	return jscomp.NewCompiler()
 }
 
 // Java: CompilerSupplier.options()
@@ -348,16 +297,6 @@ func (baseTranspiler_absoluteLocationMapping) Map(location string) *string {
 		}
 	}
 	return baseTranspiler_prefixMapping.Map(location)
-}
-
-// Java: CompilerSupplier.createTrivialExterns()
-func (s *BaseTranspiler_DefaultCompilerSupplier) CreateTrivialExterns() *jscomp.SourceFile {
-	return jscomp.SourceFile_FromCode("externs.js", "function Symbol() {}")
-}
-
-// Java: CompilerSupplier.createEmptySource()
-func (s *BaseTranspiler_DefaultCompilerSupplier) CreateEmptySource() *jscomp.SourceFile {
-	return jscomp.SourceFile_FromCode("empty.js", "")
 }
 
 // BaseTranspiler_CompileResult is the source together with the additional

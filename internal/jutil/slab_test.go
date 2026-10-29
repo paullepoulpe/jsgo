@@ -34,7 +34,7 @@ func TestSlabNewReturnsDistinctZeroValues(t *testing.T) {
 }
 
 // Chunk requested sizes ramp 16 -> 32 -> 64 -> 128, each filled to what its
-// allocation size class holds (and capped by maxChunk when set).
+// allocation size class holds.
 func TestSlabChunkSizes(t *testing.T) {
 	type node struct {
 		p [4]*int
@@ -58,19 +58,6 @@ func TestSlabChunkSizes(t *testing.T) {
 	}
 	if !slices.Equal(got, want) {
 		t.Fatalf("chunk sizes %v, want %v", got, want)
-	}
-	m := NewMaxSlab[node](40)
-	var maxGot []int
-	for i := 0; i < 150; i++ {
-		m.New()
-		if m.used == 1 {
-			maxGot = append(maxGot, len(m.chunk))
-		}
-	}
-	for _, sz := range maxGot {
-		if sz > 40 {
-			t.Fatalf("NewMaxSlab(40) produced chunk of %d elements (> 40)", sz)
-		}
 	}
 	f := NewFixedSlab[node](100)
 	f.New()

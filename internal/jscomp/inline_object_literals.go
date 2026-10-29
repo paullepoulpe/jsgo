@@ -528,8 +528,8 @@ func (b *InlineObjectLiterals_InliningBehavior) AfterExitScope(t *NodeTraversal,
 
 // Java: InlineObjectLiterals.InliningBehavior.recordStaleVarReferencesInTree(Node, Scope)
 func (b *InlineObjectLiterals_InliningBehavior) recordStaleVarReferencesInTree(root rhino.Node, scope *Scope) {
-	if name, ok := ast.AsName(root); ok {
-		b.addStaleVar(scope.GetVar(name.Ident()))
+	if root.IsName() {
+		b.addStaleVar(scope.GetVarByID(root.GetStringID()))
 	}
 	if !root.IsFunction() {
 		for c := root.GetFirstChild(); !c.IsNil(); c = c.GetNext() {

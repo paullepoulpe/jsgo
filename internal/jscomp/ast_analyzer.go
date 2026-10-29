@@ -24,6 +24,7 @@ import (
 	"github.com/paullepoulpe/jsgo/internal/colors"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
+	"github.com/paullepoulpe/jsgo/internal/strpool"
 )
 
 // Go-only: side-effect and mutability queries inspect call, class, property,
@@ -79,7 +80,7 @@ var (
 
 func init() {
 	intern := func(s string) uint32 {
-		return rhino.IR_Name(s).GetStringID()
+		return uint32(strpool.Intern(s))
 	}
 
 	astAnalyzerID_Math = intern("Math")
@@ -176,80 +177,45 @@ type AstAnalyzer_Options struct {
 	assumeKnownBuiltinsArePure   bool
 }
 
-// Java: AstAnalyzer.Options(boolean, boolean, boolean, boolean)
-func NewAstAnalyzer_Options(
-	useTypesForLocalOptimization bool,
-	assumeGettersArePure bool,
-	hasRegexpGlobalReferences bool,
-	assumeKnownBuiltinsArePure bool) *AstAnalyzer_Options {
-	return &AstAnalyzer_Options{
-		useTypesForLocalOptimization: useTypesForLocalOptimization,
-		assumeGettersArePure:         assumeGettersArePure,
-		hasRegexpGlobalReferences:    hasRegexpGlobalReferences,
-		assumeKnownBuiltinsArePure:   assumeKnownBuiltinsArePure,
-	}
-}
-
-// Java: AstAnalyzer.Options.useTypesForLocalOptimization()
-func (o *AstAnalyzer_Options) UseTypesForLocalOptimization() bool {
-	return o.useTypesForLocalOptimization
-}
-
-// Java: AstAnalyzer.Options.assumeGettersArePure()
-func (o *AstAnalyzer_Options) AssumeGettersArePure() bool { return o.assumeGettersArePure }
-
-// Java: AstAnalyzer.Options.hasRegexpGlobalReferences()
-func (o *AstAnalyzer_Options) HasRegexpGlobalReferences() bool {
-	return o.hasRegexpGlobalReferences
-}
-
-// Java: AstAnalyzer.Options.assumeKnownBuiltinsArePure()
-func (o *AstAnalyzer_Options) AssumeKnownBuiltinsArePure() bool {
-	return o.assumeKnownBuiltinsArePure
-}
-
 // AstAnalyzer_Options_Builder builds AstAnalyzer_Options.
-type AstAnalyzer_Options_Builder struct {
-	opts AstAnalyzer_Options
-}
+type AstAnalyzer_Options_Builder = AstAnalyzer_Options
 
 // Java: AstAnalyzer.Options.builder()
 func AstAnalyzer_Options_Builder_() *AstAnalyzer_Options_Builder {
-	return &AstAnalyzer_Options_Builder{}
+	return &AstAnalyzer_Options{}
 }
 
 // Java: AutoBuilder_AstAnalyzer_Options_Builder.setUseTypesForLocalOptimization(boolean)
 func (b *AstAnalyzer_Options_Builder) SetUseTypesForLocalOptimization(
 	useTypesForLocalOptimization bool) *AstAnalyzer_Options_Builder {
-	b.opts.useTypesForLocalOptimization = useTypesForLocalOptimization
+	b.useTypesForLocalOptimization = useTypesForLocalOptimization
 	return b
 }
 
 // Java: AutoBuilder_AstAnalyzer_Options_Builder.setAssumeGettersArePure(boolean)
 func (b *AstAnalyzer_Options_Builder) SetAssumeGettersArePure(
 	assumeGettersArePure bool) *AstAnalyzer_Options_Builder {
-	b.opts.assumeGettersArePure = assumeGettersArePure
+	b.assumeGettersArePure = assumeGettersArePure
 	return b
 }
 
 // Java: AutoBuilder_AstAnalyzer_Options_Builder.setHasRegexpGlobalReferences(boolean)
 func (b *AstAnalyzer_Options_Builder) SetHasRegexpGlobalReferences(
 	hasRegexpGlobalReferences bool) *AstAnalyzer_Options_Builder {
-	b.opts.hasRegexpGlobalReferences = hasRegexpGlobalReferences
+	b.hasRegexpGlobalReferences = hasRegexpGlobalReferences
 	return b
 }
 
 // Java: AutoBuilder_AstAnalyzer_Options_Builder.setAssumeKnownBuiltinsArePure(boolean)
 func (b *AstAnalyzer_Options_Builder) SetAssumeKnownBuiltinsArePure(
 	assumeKnownBuiltinsArePure bool) *AstAnalyzer_Options_Builder {
-	b.opts.assumeKnownBuiltinsArePure = assumeKnownBuiltinsArePure
+	b.assumeKnownBuiltinsArePure = assumeKnownBuiltinsArePure
 	return b
 }
 
 // Java: AutoBuilder_AstAnalyzer_Options_Builder.build()
 func (b *AstAnalyzer_Options_Builder) Build() *AstAnalyzer_Options {
-	opts := b.opts
-	return &opts
+	return b
 }
 
 // MayEffectMutableState returns true if the node may create new mutable
@@ -408,7 +374,6 @@ func (a *AstAnalyzer) IsTypedAsString(n rhino.Node) bool {
 //
 // Java: AstAnalyzer.checkForStateChangeHelper(Node, boolean)
 func (a *AstAnalyzer) CheckForStateChangeHelper(n rhino.Node, checkForNewObjects bool) bool {
-	parent := n.GetParent()
 	// Rather than id which ops may have side effects, id the ones
 	// that we know to be safe
 	switch n.GetToken() {
@@ -432,8 +397,17 @@ func (a *AstAnalyzer) CheckForStateChangeHelper(n rhino.Node, checkForNewObjects
 		rhino.Token_DYNAMIC_IMPORT:
 		return true
 
-	// The super keyword is a noop on its own.
-	case rhino.Token_SUPER:
+	// Leaf literals and keywords with no children have no side effects.
+	case rhino.Token_SUPER,
+		rhino.Token_NUMBER,
+		rhino.Token_BIGINT,
+		rhino.Token_THIS,
+		rhino.Token_TRUE,
+		rhino.Token_FALSE,
+		rhino.Token_NULL,
+		rhino.Token_STRINGLIT,
+		rhino.Token_EMPTY,
+		rhino.Token_TEMPLATELIT_STRING:
 		return false
 
 	case rhino.Token_OBJECTLIT, rhino.Token_ARRAYLIT, rhino.Token_REGEXP:
@@ -448,8 +422,7 @@ func (a *AstAnalyzer) CheckForStateChangeHelper(n rhino.Node, checkForNewObjects
 	case rhino.Token_NAME:
 		// NAMEs have children if the left side of a var/let/const
 		// TODO(b/129564961): Consider EXPORT declarations.
-		_, hasInit := ast.MustName(n).Init()
-		return hasInit
+		return !n.GetFirstChild().IsNil()
 	case rhino.Token_FUNCTION:
 		// Function expressions don't have side-effects, but function
 		// declarations change the namespace. Either way, we don't need to
@@ -461,6 +434,7 @@ func (a *AstAnalyzer) CheckForStateChangeHelper(n rhino.Node, checkForNewObjects
 		return false
 
 	case rhino.Token_COMPUTED_PROP:
+		parent := n.GetParent()
 		cp := ast.MustComputedProp(n)
 		switch parent.GetToken() {
 		case rhino.Token_CLASS_MEMBERS:
@@ -533,25 +507,16 @@ func (a *AstAnalyzer) CheckForStateChangeHelper(n rhino.Node, checkForNewObjects
 		// default doesn't itself create a side-effect. Therefore, we prefer to defer the
 		// decision.
 		rhino.Token_DEFAULT_VALUE,
-		rhino.Token_NUMBER,
-		rhino.Token_BIGINT,
 		rhino.Token_OR,
 		rhino.Token_COALESCE,
-		rhino.Token_THIS,
-		rhino.Token_TRUE,
-		rhino.Token_FALSE,
-		rhino.Token_NULL,
-		rhino.Token_STRINGLIT,
 		rhino.Token_SWITCH,
 		rhino.Token_TEMPLATELIT_SUB,
 		rhino.Token_TRY,
-		rhino.Token_EMPTY,
-		rhino.Token_TEMPLATELIT,
-		rhino.Token_TEMPLATELIT_STRING:
+		rhino.Token_TEMPLATELIT:
 		return a.CheckForChangeStateInChildren(n, checkForNewObjects)
 
 	case rhino.Token_STRING_KEY:
-		if objPat, ok := ast.AsObjectPattern(parent); ok {
+		if objPat, ok := ast.AsObjectPattern(n.GetParent()); ok {
 			// This STRING_KEY names a property being read from.
 			// Assumption: GETELEM (via a COMPUTED_PROP) never triggers a getter or setter.
 			if a.getPropertyKindByID(n.GetStringID()).HasGetter() {
@@ -708,8 +673,7 @@ func (a *AstAnalyzer) NodeTypeMayHaveSideEffects(n rhino.Node) bool {
 	// A variable definition that assigns a value.
 	// TODO(b/129564961): Consider EXPORT declarations.
 	case rhino.Token_NAME:
-		_, hasInit := ast.MustName(n).Init()
-		return hasInit
+		return !n.GetFirstChild().IsNil()
 	// A destructuring declaration statement or assignment. Technically these might contain no
 	// lvalues but that case is rare enough to be ignored.
 	case rhino.Token_DESTRUCTURING_LHS:

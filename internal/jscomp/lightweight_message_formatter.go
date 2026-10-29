@@ -228,7 +228,7 @@ type LightweightMessageFormatter struct {
 
 var _ MessageFormatter = (*LightweightMessageFormatter)(nil)
 
-var lightweightMessageFormatter_excerptFormatter SourceExcerptProvider_ExcerptFormatter = NewLightweightMessageFormatter_LineNumberingFormatter()
+var lightweightMessageFormatter_excerptFormatter = NewLightweightMessageFormatter_LineNumberingFormatter()
 
 const lightweightMessageFormatter_MAX_MULTILINE_ERROR_LENGTH = 4 // must be even.
 
@@ -671,8 +671,6 @@ func (f *LightweightMessageFormatter) PadMultipleLines(
 // and return line excerpt without any modification.
 type LightweightMessageFormatter_LineNumberingFormatter struct{}
 
-var _ SourceExcerptProvider_ExcerptFormatter = (*LightweightMessageFormatter_LineNumberingFormatter)(nil)
-
 // Java: LightweightMessageFormatter.LineNumberingFormatter()
 func NewLightweightMessageFormatter_LineNumberingFormatter() *LightweightMessageFormatter_LineNumberingFormatter {
 	return &LightweightMessageFormatter_LineNumberingFormatter{}
@@ -857,7 +855,7 @@ func (e SourceExcerptProvider_SourceExcerpt) String() string {
 //
 // Java: SourceExcerptProvider.SourceExcerpt.get(SourceExcerptProvider, String, int, ExcerptFormatter)
 func (e SourceExcerptProvider_SourceExcerpt) Get(
-	source SourceExcerptProvider, sourceName *string, lineNumber int, formatter SourceExcerptProvider_ExcerptFormatter) *string {
+	source SourceExcerptProvider, sourceName *string, lineNumber int, formatter *LightweightMessageFormatter_LineNumberingFormatter) *string {
 	return e.GetWithLength(source, sourceName, lineNumber, -1, formatter)
 }
 
@@ -867,7 +865,7 @@ func (e SourceExcerptProvider_SourceExcerpt) Get(
 // Java: SourceExcerptProvider.SourceExcerpt.get(SourceExcerptProvider, String, int, int, ExcerptFormatter)
 func (e SourceExcerptProvider_SourceExcerpt) GetWithLength(
 	source SourceExcerptProvider, sourceName *string, lineNumber int, length int,
-	formatter SourceExcerptProvider_ExcerptFormatter) *string {
+	formatter *LightweightMessageFormatter_LineNumberingFormatter) *string {
 	switch e {
 	case SourceExcerptProvider_SourceExcerpt_LINE:
 		return formatter.FormatLine(source.GetSourceLine(sourceName, lineNumber), lineNumber)
@@ -876,14 +874,4 @@ func (e SourceExcerptProvider_SourceExcerpt) GetWithLength(
 	default: // REGION
 		return formatter.FormatRegion(source.GetSourceRegion(sourceName, lineNumber))
 	}
-}
-
-// SourceExcerptProvider_ExcerptFormatter is responsible of formatting
-// source excerpts.
-type SourceExcerptProvider_ExcerptFormatter interface {
-	// FormatLine formats a line excerpt.
-	FormatLine(line *string, lineNumber int) *string
-
-	// FormatRegion formats a region excerpt.
-	FormatRegion(region Region) *string
 }

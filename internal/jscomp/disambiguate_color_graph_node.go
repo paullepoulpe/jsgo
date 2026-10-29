@@ -456,8 +456,8 @@ func (f *ColorGraphNodeFactory) simplifyColor(type_ *colors.Color) *colors.Color
 			return colors.Color_CreateUnionSlice(simplified)
 		}
 		return f.simplifyColor(type_)
-	} else if type_.GetBoxId() != nil {
-		return f.registry.Get(*type_.GetBoxId())
+	} else if boxId, ok := type_.GetBoxId(); ok {
+		return f.registry.Get(boxId)
 	} else if type_.Equals(colors.StandardColors_NULL_OR_VOID) {
 		return colors.StandardColors_UNKNOWN
 	} else {

@@ -130,14 +130,6 @@ func (c *JsFlumeCallback) Visit(t *jscomp.NodeTraversal, n rhino.Node, parent rh
 	}
 }
 
-// RefactoringUtils holds utility methods for refactoring code.
-type RefactoringUtils struct{}
-
-// Java: RefactoringUtils()
-func NewRefactoringUtils() *RefactoringUtils {
-	return &RefactoringUtils{}
-}
-
 // RefactoringUtils_IsInClosurizedFile looks for a goog.require(),
 // goog.provide() or goog.module() call in the node's file.
 //

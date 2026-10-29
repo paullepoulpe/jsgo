@@ -48,14 +48,11 @@ func NewJSDocInfoPrinterWithPrintDesc(useOriginalName bool, printDesc bool) *JSD
 	return &JSDocInfoPrinter{useOriginalName: useOriginalName, printDesc: printDesc}
 }
 
-// The regular expressions of print(JSDocInfo). Java's \s is
-// [ \t\n\x0B\f\r]; Go's \s lacks \x0B, so the class is spelled out. Neither
-// pattern uses backreferences or lookaround, and Go's leftmost-first
-// matching picks the same matches as Java's backtracking for them.
-var (
-	jsDocInfoPrinter_BLOCK_DESCRIPTION_LINE_START = regexp.MustCompile("\n[ \t\n\x0B\f\r]*\\*[ \t\n\x0B\f\r]*")
-	jsDocInfoPrinter_LINE_START_WITHOUT_SPACE     = regexp.MustCompile("\n \\*([^ \n])")
-)
+// The regular expression of print(JSDocInfo). Java's \s is
+// [ \t\n\x0B\f\r]; Go's \s lacks \x0B, so the class is spelled out. The
+// pattern uses neither backreferences nor lookaround, and Go's leftmost-first
+// matching picks the same matches as Java's backtracking for it.
+var jsDocInfoPrinter_BLOCK_DESCRIPTION_LINE_START = regexp.MustCompile("\n[ \t\n\x0B\f\r]*\\*[ \t\n\x0B\f\r]*")
 
 // Java: JSDocInfoPrinter.print(JSDocInfo)
 func (p *JSDocInfoPrinter) Print(info *rhino.JSDocInfo) string {
@@ -371,22 +368,67 @@ func (p *JSDocInfoPrinter) Print(info *rhino.JSDocInfo) string {
 	}
 
 	var sb strings.Builder
-	if multiline {
-		sb.WriteString(strings.Join(parts, "\n"))
-	} else {
-		sb.WriteString(strings.Join(parts, " "))
-		sb.WriteString(" */")
+	estLen := 8
+	for _, part := range parts {
+		estLen += len(part) + 4
 	}
+	sb.Grow(estLen)
+
 	// Ensure all lines start with " *", and then ensure all non blank lines
 	// have a space after the *.
-	s := jsDocInfoPrinter_LINE_START_WITHOUT_SPACE.ReplaceAllString(
-		strings.ReplaceAll(sb.String(), "\n", "\n *"), "\n * $1")
 	if multiline {
-		s += "\n */\n"
+		for i, part := range parts {
+			if i > 0 {
+				afterSep := -1
+				if len(part) > 0 {
+					afterSep = int(part[0])
+				} else if i+1 < len(parts) {
+					afterSep = '\n'
+				}
+				if afterSep >= 0 && afterSep != ' ' && afterSep != '\n' {
+					sb.WriteString("\n * ")
+				} else {
+					sb.WriteString("\n *")
+				}
+			}
+			nextByte := -1
+			if i+1 < len(parts) {
+				nextByte = '\n'
+			}
+			jsDocWriteWithLinePrefixes(&sb, part, nextByte)
+		}
+		sb.WriteString("\n */\n")
 	} else {
-		s += " "
+		for i, part := range parts {
+			if i > 0 {
+				sb.WriteByte(' ')
+			}
+			jsDocWriteWithLinePrefixes(&sb, part, ' ')
+		}
+		sb.WriteString(" */ ")
 	}
-	return s
+	return sb.String()
+}
+
+func jsDocWriteWithLinePrefixes(sb *strings.Builder, s string, nextByte int) {
+	for {
+		nl := strings.IndexByte(s, '\n')
+		if nl < 0 {
+			sb.WriteString(s)
+			return
+		}
+		sb.WriteString(s[:nl])
+		after := nextByte
+		if nl+1 < len(s) {
+			after = int(s[nl+1])
+		}
+		if after >= 0 && after != ' ' && after != '\n' {
+			sb.WriteString("\n * ")
+		} else {
+			sb.WriteString("\n *")
+		}
+		s = s[nl+1:]
+	}
 }
 
 // Java: JSDocInfoPrinter.stripBang(Node)

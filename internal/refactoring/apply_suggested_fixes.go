@@ -31,14 +31,6 @@ import (
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 )
 
-// ApplySuggestedFixes is the class that applies suggested fixes to code or
-// files.
-//
-// Java: public final class ApplySuggestedFixes
-type ApplySuggestedFixes struct {
-	_ byte // Go-only: language-adapter — distinct identity
-}
-
 // applySuggestedFixes_DOUBLE_LINE_JOINER_Join is
 // DOUBLE_LINE_JOINER.join(parts) with DOUBLE_LINE_JOINER =
 // Joiner.on("\n\n"): the parts' toString() separated by "\n\n".
@@ -60,8 +52,9 @@ func applySuggestedFixes_DOUBLE_LINE_JOINER_Join(parts []*CodeReplacement) strin
 //
 // Java: ApplySuggestedFixes.applySuggestedFixesToFiles(Iterable<SuggestedFix>)
 func ApplySuggestedFixes_ApplySuggestedFixesToFiles(fixes iter.Seq[*SuggestedFix]) {
+	fixList := slices.Collect(fixes)
 	var filenames []string
-	for fix := range fixes {
+	for _, fix := range fixList {
 		for filename := range fix.GetReplacements().KeySet() {
 			if !slices.Contains(filenames, filename) {
 				filenames = append(filenames, filename)
@@ -74,7 +67,7 @@ func ApplySuggestedFixes_ApplySuggestedFixesToFiles(fixes iter.Seq[*SuggestedFix
 		filenameToCodeMap[filename] = jutil.Files_AsCharSource(jutil.NewFile(filename), jutil.StandardCharsets_UTF_8).Read()
 	}
 
-	newCode := ApplySuggestedFixes_ApplySuggestedFixesToCode(fixes, filenameToCodeMap)
+	newCode := ApplySuggestedFixes_ApplySuggestedFixesToCode(slices.Values(fixList), filenameToCodeMap)
 	for _, filename := range filenames {
 		if value, ok := newCode[filename]; ok {
 			if err := os.WriteFile(filename, jutil.StringGetBytesUTF8(value), 0o666); err != nil {
@@ -97,19 +90,13 @@ func ApplySuggestedFixes_ApplySuggestedFixesToFiles(fixes iter.Seq[*SuggestedFix
 // Java: ApplySuggestedFixes.applyAllSuggestedFixChoicesToCode(Iterable<SuggestedFix>, Map<String, String>)
 func ApplySuggestedFixes_ApplyAllSuggestedFixChoicesToCode(
 	fixChoices iter.Seq[*SuggestedFix], fileNameToCodeMap map[string]string) []map[string]string {
-	var first *SuggestedFix
-	isEmpty := true
-	for f := range fixChoices {
-		first = f
-		isEmpty = false
-		break
-	}
-	if isEmpty {
+	choiceList := slices.Collect(fixChoices)
+	if len(choiceList) == 0 {
 		return []map[string]string{{}}
 	}
-	alternativeCount := len(first.GetAlternatives())
+	alternativeCount := len(choiceList[0].GetAlternatives())
 	allMatch := true
-	for f := range fixChoices {
+	for _, f := range choiceList[1:] {
 		if len(f.GetAlternatives()) != alternativeCount {
 			allMatch = false
 			break
@@ -121,7 +108,7 @@ func ApplySuggestedFixes_ApplyAllSuggestedFixChoicesToCode(
 			"utility to make sense")
 	result := make([]map[string]string, 0, alternativeCount)
 	for i := 0; i < alternativeCount; i++ {
-		result = append(result, ApplySuggestedFixes_ApplySuggestedFixChoicesToCode(fixChoices, i, fileNameToCodeMap))
+		result = append(result, ApplySuggestedFixes_ApplySuggestedFixChoicesToCode(slices.Values(choiceList), i, fileNameToCodeMap))
 	}
 	return result
 }
@@ -310,11 +297,6 @@ func (r *ApplySuggestedFixes_ReplacementMap) EntrySet() iter.Seq2[string, []*Cod
 			}
 		}
 	}
-}
-
-// Java: ApplySuggestedFixes()
-func newApplySuggestedFixes() *ApplySuggestedFixes {
-	return &ApplySuggestedFixes{}
 }
 
 // CodeReplacement represents a set of changes to make to the code.

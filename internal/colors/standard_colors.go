@@ -30,8 +30,7 @@ import "github.com/paullepoulpe/jsgo/internal/jutil"
 //   - primitive Colors (e.g. `number`, `null`)
 //   - box Colors (e.g. `Number`, `String`)
 //   - Colors used in AstFactory to type synthetic nodes (e.g. `Array`)
-type StandardColors struct{}
-
+//
 // These IDs are randomly chosen.
 var (
 	StandardColors_ARGUMENTS_ID               = ColorId_FromUnsignedInt(0x1939a66d)
@@ -63,7 +62,7 @@ var StandardColors_BOOLEAN = Color_SingleBuilder().
 	BuildAxiomatic()
 
 var StandardColors_NULL_OR_VOID = Color_SingleBuilder().
-	SetBoxId(nil).
+	ClearBoxId().
 	SetId(ColorId_FromUnsignedInt(0x22b49f69)).
 	SetInvalidating(false).
 	BuildAxiomatic()
@@ -93,20 +92,20 @@ var StandardColors_SYMBOL = Color_SingleBuilder().
 // non-object primitives + unknown but operate on the top object.
 var StandardColors_TOP_OBJECT = Color_SingleBuilder().
 	SetId(ColorId_FromUnsignedInt(int32(-0x776497c8))). // 0x889b6838
-	SetBoxId(nil).
+	ClearBoxId().
 	SetInvalidating(true).
 	BuildAxiomatic()
 
 // StandardColors_TOP_FUNCTION is the supertype of all functions.
 var StandardColors_TOP_FUNCTION = Color_SingleBuilder().
 	SetId(ColorId_FromUnsignedInt(0x283b5838)).
-	SetBoxId(nil).
+	ClearBoxId().
 	SetInvalidating(true).
 	BuildAxiomatic()
 
 // StandardColors_UNKNOWN is analagous to Closure '*'/'?' and TS unknown/any.
 var StandardColors_UNKNOWN = Color_SingleBuilder().
-	SetBoxId(nil).
+	ClearBoxId().
 	SetId(ColorId_FromUnsignedInt(0)). // Make UNKNOWN the "default" numerical value.
 	SetInvalidating(true).
 	BuildAxiomatic()
@@ -114,7 +113,7 @@ var StandardColors_UNKNOWN = Color_SingleBuilder().
 // Java: StandardColors.GBIGINT
 var StandardColors_GBIGINT = Color_SingleBuilder().
 	SetId(ColorId_FromUnsignedInt(int32(-0x5551c988))). // 0xaaae3678
-	SetBoxId(nil).
+	ClearBoxId().
 	SetInvalidating(false).
 	BuildAxiomatic()
 

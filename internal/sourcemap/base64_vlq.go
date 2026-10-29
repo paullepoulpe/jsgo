@@ -25,9 +25,6 @@ import (
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 )
 
-// Base64 is a utility class for working with Base64 values.
-type Base64 struct{}
-
 // Base64_BASE64_MAP is a map used to convert integer values in the range
 // 0-63 to their base64 values.
 const Base64_BASE64_MAP = "ABCDEFGHIJKLMNOPQRSTUVWXYZ" +
@@ -84,7 +81,6 @@ func Base64_Base64EncodeInt(value int32) string {
 // encodes a 5-bit value (0-31) and a continuation bit. Signed values can be
 // represented by using the least significant bit of the value as the sign
 // bit.
-type Base64VLQ struct{}
 
 // A Base64 VLQ digit can represent 5 bits, so it is base-32.
 const (

@@ -1010,13 +1010,15 @@ func (c *Compiler) GetCompilerExecutor() *CompilerExecutor {
 
 // Java: Compiler.toProto(Feature)
 func compiler_toProto(feature parser.FeatureSet_Feature) FeatureProto {
-	var result FeatureProto
-	jutil.Try(func() {
-		result = FeatureProto_ValueOfName("FEATURE_" + feature.Name())
-	}, func(e jutil.IIllegalArgumentException) {
-		result = FeatureProto_FEATURE_UNKNOWN
-	})
-	return result
+	name := feature.Name()
+	const prefix = "FEATURE_"
+	wantLen := len(prefix) + len(name)
+	for i, n := range featureProto_names {
+		if len(n) == wantLen && strings.HasPrefix(n, prefix) && n[len(prefix):] == name {
+			return FeatureProto(i)
+		}
+	}
+	return FeatureProto_FEATURE_UNKNOWN
 }
 
 // Java: Compiler.getModuleMetadataMap()

@@ -229,6 +229,10 @@ func (f *InlineFunctions) Process(externs rhino.Node, root rhino.Node) {
 	defer func() {
 		f.injector.fnInfoCache = nil
 		f.injector.knownConstantFunctions = nil
+		if f.injector.decomposer != nil {
+			f.injector.decomposer.knownConstantFunctions = nil
+			f.injector.decomposer.knownConstantFnIDs = nil
+		}
 		f.functionArgumentInjector.sideEffectCache = nil
 		f.runState = nil
 		f.fns = nil
@@ -371,8 +375,14 @@ func inlineFunctions_walkClassMembers(body ast.ClassBody, inLocalHoist bool, wal
 	}
 }
 
-// Java: InlineFunctions.targetSizeAfterInlineExceedsLimit(NodeTraversal, FunctionState)
-func (f *InlineFunctions) TargetSizeAfterInlineExceedsLimit(t *NodeTraversal, functionState *InlineFunctions_FunctionState) bool {
+func inlineTargetSizeExceedsLimit(
+	t *NodeTraversal,
+	functionState *InlineFunctions_FunctionState,
+	maxSizeAfterInlining int,
+	lastContainingFn *rhino.Node,
+	lastContainingFnSize *int,
+	cacheBodySize bool,
+) bool {
 	containingFunction := t.GetEnclosingFunction()
 	// Always inline at the top level,
 	// unless maybeAddFunction has marked functionState as not inlinable.
@@ -386,18 +396,63 @@ func (f *InlineFunctions) TargetSizeAfterInlineExceedsLimit(t *NodeTraversal, fu
 
 	inlinedFunSize := int(functionState.bodyAstSize)
 	if inlinedFunSize == 0 {
-		inlinedFunSize = NodeUtil_CountAstSizeUpToLimit(ast.MustFunction(inlinedFun).Body().Node(), f.maxSizeAfterInlining)
-		functionState.bodyAstSize = int32(inlinedFunSize)
+		inlinedFunSize = NodeUtil_CountAstSizeUpToLimit(ast.MustFunction(inlinedFun).Body().Node(), maxSizeAfterInlining)
+		if cacheBodySize {
+			functionState.bodyAstSize = int32(inlinedFunSize)
+		}
 	}
 	var targetFunSize int
-	if containingFunction == f.lastContainingFn {
-		targetFunSize = f.lastContainingFnSize
+	if containingFunction == *lastContainingFn {
+		targetFunSize = *lastContainingFnSize
 	} else {
-		targetFunSize = NodeUtil_CountAstSizeUpToLimit(containingFunction, f.maxSizeAfterInlining)
-		f.lastContainingFn = containingFunction
-		f.lastContainingFnSize = targetFunSize
+		targetFunSize = NodeUtil_CountAstSizeUpToLimit(containingFunction, maxSizeAfterInlining)
+		*lastContainingFn = containingFunction
+		*lastContainingFnSize = targetFunSize
 	}
-	return inlinedFunSize+targetFunSize > f.maxSizeAfterInlining
+	return inlinedFunSize+targetFunSize > maxSizeAfterInlining
+}
+
+// Java: InlineFunctions.targetSizeAfterInlineExceedsLimit(NodeTraversal, FunctionState)
+func (f *InlineFunctions) TargetSizeAfterInlineExceedsLimit(t *NodeTraversal, functionState *InlineFunctions_FunctionState) bool {
+	return inlineTargetSizeExceedsLimit(
+		t, functionState, f.maxSizeAfterInlining, &f.lastContainingFn, &f.lastContainingFnSize, true)
+}
+
+func inlineFunctions_walkCandidates(
+	compiler AbstractCompiler,
+	n rhino.Node,
+	parent rhino.Node,
+	chunk *JSChunk,
+	inLocalHoist bool,
+	visit func(n, parent rhino.Node, chunk *JSChunk, inLocalHoist bool),
+) {
+	tok := n.GetToken()
+	childLocalHoist := inLocalHoist
+	switch tok {
+	case rhino.Token_SCRIPT:
+		if id := n.GetInputId(); id != nil {
+			if inp := compiler.GetInput(id); inp != nil {
+				chunk = inp.GetChunk()
+			}
+		}
+	case rhino.Token_FUNCTION, rhino.Token_MODULE_BODY, rhino.Token_MEMBER_FIELD_DEF:
+		childLocalHoist = true
+	case rhino.Token_BLOCK:
+		if !parent.IsNil() && parent.IsClassMembers() {
+			childLocalHoist = true
+		}
+	case rhino.Token_CLASS_MEMBERS:
+		inlineFunctions_walkClassMembers(ast.MustClassBody(n), inLocalHoist, func(n, parent rhino.Node, inLocalHoist bool) {
+			inlineFunctions_walkCandidates(compiler, n, parent, chunk, inLocalHoist, visit)
+		})
+		return
+	}
+	for ch := n.GetFirstChild(); !ch.IsNil(); ch = ch.GetNext() {
+		if !ch.GetFirstChild().IsNil() {
+			inlineFunctions_walkCandidates(compiler, ch, n, chunk, childLocalHoist, visit)
+		}
+	}
+	visit(n, parent, chunk, inLocalHoist)
 }
 
 // InlineFunctions_FindCandidateFunctions finds functions that might be
@@ -417,33 +472,11 @@ func NewInlineFunctions_FindCandidateFunctions(outer *InlineFunctions) *InlineFu
 func (*InlineFunctions_FindCandidateFunctions) noVisitLeaves() {}
 
 func (c *InlineFunctions_FindCandidateFunctions) walk(n rhino.Node, parent rhino.Node, chunk *JSChunk, inLocalHoist bool) {
-	tok := n.GetToken()
-	childLocalHoist := inLocalHoist
-	switch tok {
-	case rhino.Token_SCRIPT:
-		if id := n.GetInputId(); id != nil {
-			if inp := c.outer.compiler.GetInput(id); inp != nil {
-				chunk = inp.GetChunk()
-			}
-		}
-	case rhino.Token_FUNCTION, rhino.Token_MODULE_BODY, rhino.Token_MEMBER_FIELD_DEF:
-		childLocalHoist = true
-	case rhino.Token_BLOCK:
-		if !parent.IsNil() && parent.IsClassMembers() {
-			childLocalHoist = true
-		}
-	case rhino.Token_CLASS_MEMBERS:
-		inlineFunctions_walkClassMembers(ast.MustClassBody(n), inLocalHoist, func(n, parent rhino.Node, inLocalHoist bool) {
-			c.walk(n, parent, chunk, inLocalHoist)
-		})
-		return
-	}
-	for ch := n.GetFirstChild(); !ch.IsNil(); ch = ch.GetNext() {
-		if !ch.GetFirstChild().IsNil() {
-			c.walk(ch, n, chunk, childLocalHoist)
-		}
-	}
-	switch tok {
+	inlineFunctions_walkCandidates(c.outer.compiler, n, parent, chunk, inLocalHoist, c.visitWalkNode)
+}
+
+func (c *InlineFunctions_FindCandidateFunctions) visitWalkNode(n, parent rhino.Node, chunk *JSChunk, inLocalHoist bool) {
+	switch n.GetToken() {
 	case rhino.Token_VAR, rhino.Token_LET, rhino.Token_CONST, rhino.Token_FUNCTION:
 		if c.outer.reach.IncludesGlobals() || inLocalHoist {
 			c.findNamedFunctionsWithChunk(n, parent, chunk)
@@ -758,6 +791,18 @@ func (f *InlineFunctions) checkCandidateAndScanSummary(target inlineFnTarget, ds
 	return f.injector.DoesFunctionMeetMinimumRequirements(target.name, target.fnNode), false
 }
 
+var (
+	inlineCallAndNameVisitTokens = makeVisitTokenSet(
+		rhino.Token_NAME,
+		rhino.Token_CALL,
+		rhino.Token_OPTCHAIN_CALL,
+	)
+	inlineCallOnlyVisitTokens = makeVisitTokenSet(
+		rhino.Token_CALL,
+		rhino.Token_OPTCHAIN_CALL,
+	)
+)
+
 // inlineCallVisitor visits candidate call sites (and optionally NAME nodes)
 // without interface or base-struct wrapper ceremony.
 type inlineCallVisitor struct {
@@ -767,8 +812,22 @@ type inlineCallVisitor struct {
 	onName     func(n, parent rhino.Node)
 }
 
+var (
+	_ nodeTraversal_visitTokens      = (*inlineCallVisitor)(nil)
+	_ nodeTraversal_onlyNameLeaves   = (*inlineCallVisitor)(nil)
+	_ nodeTraversal_noShouldTraverse = (*inlineCallVisitor)(nil)
+)
+
 func (*inlineCallVisitor) ShouldTraverse(*NodeTraversal, rhino.Node, rhino.Node) bool { return true }
+func (*inlineCallVisitor) nodeTraversalNoShouldTraverse()                             {}
 func (*inlineCallVisitor) onlyNameLeaves()                                            {}
+
+func (v *inlineCallVisitor) visitTokens() *ast.TokenSet {
+	if v.onName != nil {
+		return &inlineCallAndNameVisitTokens
+	}
+	return &inlineCallOnlyVisitTokens
+}
 
 func (v *inlineCallVisitor) inlineWalk(n rhino.Node, parent rhino.Node) {
 	if n.GetToken() == rhino.Token_CLASS_MEMBERS {
@@ -938,6 +997,37 @@ func (r *inlineRefFinder) maybeAddReference(
 	}
 }
 
+func inlineCheckCallSiteWithMode(
+	t *NodeTraversal,
+	injector *FunctionInjector,
+	scratchRef *FunctionInjector_Reference,
+	functionState *InlineFunctions_FunctionState,
+	summary *calleeSummary,
+	callNode rhino.Node,
+	chunk *JSChunk,
+	mode FunctionInjector_InliningMode,
+) (bool, *Scope, bool) {
+	scratchRef.init(callNode, nil, chunk, mode, false)
+	scratchRef.t = t
+	result := injector.canInlineReferenceWithSummary(
+		scratchRef,
+		functionState.functionNode(),
+		functionStateAliasCount(functionState),
+		functionState.GetReferencesThis(),
+		functionState.HasInnerClosures(),
+		summary)
+	if result == FunctionInjector_CanInlineResult_NO {
+		return false, nil, false
+	}
+	var scope *Scope
+	if result == FunctionInjector_CanInlineResult_AFTER_PREPARATION {
+		scope = t.GetScope()
+	} else if mode != FunctionInjector_InliningMode_DIRECT && !NodeUtil_IsExprCall(callNode.GetParent()) {
+		scope = t.resolveLookupScope(len(t.scopes) - 1)
+	}
+	return true, scope, result == FunctionInjector_CanInlineResult_AFTER_PREPARATION
+}
+
 func (r *inlineRefFinder) maybeAddReferenceUsingMode(
 	t *NodeTraversal,
 	functionState *InlineFunctions_FunctionState,
@@ -955,31 +1045,15 @@ func (r *inlineRefFinder) maybeAddReferenceUsingMode(
 		return false
 	}
 
-	r.scratchRef.init(callNode, nil, chunk, mode, false)
-	r.scratchRef.t = t
-	summary := functionState.ensureSummary()
-	result := r.outer.injector.canInlineReferenceWithSummary(
-		&r.scratchRef,
-		functionState.functionNode(),
-		functionStateAliasCount(functionState),
-		functionState.GetReferencesThis(),
-		functionState.HasInnerClosures(),
-		summary)
-	if result != FunctionInjector_CanInlineResult_NO {
-		// Yeah!
-		var scope *Scope
-		if result == FunctionInjector_CanInlineResult_AFTER_PREPARATION {
-			scope = t.GetScope()
-		} else if mode != FunctionInjector_InliningMode_DIRECT && !NodeUtil_IsExprCall(callNode.GetParent()) {
-			scope = t.resolveLookupScope(len(t.scopes) - 1)
-		}
-		candidate := r.outer.allocReference(callNode, scope, chunk, mode)
-		candidate.SetRequiresDecomposition(result == FunctionInjector_CanInlineResult_AFTER_PREPARATION)
-		functionState.AddReference(candidate)
-		return true
+	ok, scope, reqDecomp := inlineCheckCallSiteWithMode(
+		t, r.outer.injector, &r.scratchRef, functionState, functionState.ensureSummary(), callNode, chunk, mode)
+	if !ok {
+		return false
 	}
-
-	return false
+	candidate := r.outer.allocReference(callNode, scope, chunk, mode)
+	candidate.SetRequiresDecomposition(reqDecomp)
+	functionState.AddReference(candidate)
+	return true
 }
 
 func (r *inlineRefFinder) checkNameUsage(n rhino.Node, parent rhino.Node) {

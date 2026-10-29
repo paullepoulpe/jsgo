@@ -21,6 +21,7 @@ package jscomp
 import (
 	"strings"
 
+	"github.com/paullepoulpe/jsgo/internal/ast"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
@@ -335,12 +336,11 @@ func (a *InlineAndCollapseProperties_AggressiveInlineAliases) RewriteAllSubclass
 	if subclass.IsNil() {
 		return false
 	}
-	subclassName, ok := subclass.GetQualifiedNameString()
+	subclassNameObj, ok := namespace.lookupGlobalNode(subclass)
 	if !ok {
 		return false
 	}
-	subclassQualifiedPropName := subclassName + "." + prop.GetBaseName()
-	subclassPropNameObj, _ := namespace.GetOwnSlot(subclassQualifiedPropName).(*GlobalNamespace_Name)
+	subclassPropNameObj := namespace.lookupGlobalChildByID(subclassNameObj, prop.baseNameID)
 	// Don't rewrite if the subclass ever shadows the parent static property.
 	// This may also back off on cases where the subclass first accesses the parent property, then
 	// shadows it.
@@ -350,7 +350,6 @@ func (a *InlineAndCollapseProperties_AggressiveInlineAliases) RewriteAllSubclass
 	}
 
 	// Recurse to find potential sub-subclass accesses of the superclass property.
-	subclassNameObj, _ := namespace.GetOwnSlot(subclassName).(*GlobalNamespace_Name)
 	if subclassNameObj != nil && subclassNameObj.SubclassingGetCount() > 0 {
 		var subRefsBuf [8]*GlobalNamespace_Ref
 		for _, ref := range subclassNameObj.snapshotRefs(&subRefsBuf) {
@@ -983,6 +982,19 @@ func InlineAndCollapseProperties_RewriteSimpleDestructuringAliases_IsSimpleDestr
 	}
 	return true
 }
+
+var rewriteSimpleDestructuringTokens = makeVisitTokenSet(rhino.Token_CONST)
+
+var (
+	_ nodeTraversal_visitTokens   = (*InlineAndCollapseProperties_RewriteSimpleDestructuringAliases)(nil)
+	_ nodeTraversal_noVisitLeaves = (*InlineAndCollapseProperties_RewriteSimpleDestructuringAliases)(nil)
+)
+
+func (*InlineAndCollapseProperties_RewriteSimpleDestructuringAliases) visitTokens() *ast.TokenSet {
+	return &rewriteSimpleDestructuringTokens
+}
+
+func (*InlineAndCollapseProperties_RewriteSimpleDestructuringAliases) noVisitLeaves() {}
 
 // Java: InlineAndCollapseProperties.RewriteSimpleDestructuringAliases.visit(NodeTraversal, Node, Node)
 func (r *InlineAndCollapseProperties_RewriteSimpleDestructuringAliases) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {

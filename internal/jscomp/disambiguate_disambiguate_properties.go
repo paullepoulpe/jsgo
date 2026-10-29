@@ -38,6 +38,7 @@ package jscomp
 
 import (
 	"cmp"
+	"encoding/json"
 	"fmt"
 	"slices"
 
@@ -59,7 +60,7 @@ type propAssocKey struct {
 // Java: public final class DisambiguateProperties implements CompilerPass
 type DisambiguateProperties struct {
 	compiler                       AbstractCompiler
-	propertiesThatMustDisambiguate *jutil.LinkedHashSet[string]
+	propertiesThatMustDisambiguate map[string]struct{}
 	registry                       *colors.ColorRegistry
 
 	mayHavePropertySeen []*colors.Color
@@ -72,18 +73,22 @@ var DisambiguateProperties_PROPERTY_INVALIDATION = DiagnosticType_Error(
 	"Property ''{0}'' was required to be disambiguated but was invalidated."+
 		"{1}")
 
-var disambiguateProperties_GSON = jutil.NewGson()
-
 // Java: DisambiguateProperties(AbstractCompiler, ImmutableSet<String>)
 func NewDisambiguateProperties(
 	compiler AbstractCompiler, propertiesThatMustDisambiguate *jutil.LinkedHashSet[string]) *DisambiguateProperties {
-	d := &DisambiguateProperties{
-		mayHavePropertySeen: make([]*colors.Color, 0, 16),
+	var mustDisambiguate map[string]struct{}
+	if propertiesThatMustDisambiguate != nil && !propertiesThatMustDisambiguate.IsEmpty() {
+		mustDisambiguate = make(map[string]struct{}, propertiesThatMustDisambiguate.Size())
+		for p := range propertiesThatMustDisambiguate.All() {
+			mustDisambiguate[p] = struct{}{}
+		}
 	}
-	d.compiler = compiler
-	d.propertiesThatMustDisambiguate = propertiesThatMustDisambiguate
-	d.registry = d.compiler.GetColorRegistry()
-	return d
+	return &DisambiguateProperties{
+		compiler:                       compiler,
+		propertiesThatMustDisambiguate: mustDisambiguate,
+		registry:                       compiler.GetColorRegistry(),
+		mayHavePropertySeen:            make([]*colors.Color, 0, 16),
+	}
 }
 
 // Java: DisambiguateProperties.process(Node, Node)
@@ -162,12 +167,14 @@ func (d *DisambiguateProperties) Process(externs rhino.Node, root rhino.Node) {
 	propagator = nil
 
 	trackerSummaryGenerator := &DisambiguateProperties_TrackerSummaryGenerator{}
-	mustDisambiguate := d.propertiesThatMustDisambiguate != nil && !d.propertiesThatMustDisambiguate.IsEmpty()
+	mustDisambiguate := len(d.propertiesThatMustDisambiguate) > 0
 	for _, prop := range propIndex.values() {
 		renameUsesResult := renamer.RenameUses(prop)
 		trackerSummaryGenerator.AddRenameUsesResult(renameUsesResult)
-		if mustDisambiguate && prop.IsInvalidated() && d.propertiesThatMustDisambiguate.Contains(prop.GetName()) {
-			d.compiler.Report(d.CreateInvalidationError(prop))
+		if mustDisambiguate && prop.IsInvalidated() {
+			if _, ok := d.propertiesThatMustDisambiguate[prop.GetName()]; ok {
+				d.compiler.Report(d.CreateInvalidationError(prop))
+			}
 		}
 	}
 	d.compiler.ReportDisambiguatePropertiesSummary(trackerSummaryGenerator.BuildSummaryString)
@@ -252,8 +259,10 @@ func DisambiguateProperties_BuildRenamingIndex(
 	props *propertyClusteringIndex, renamer *UseSiteRenamer) *jutil.LinkedHashMap[string, any] {
 	newNames := renamer.GetRenamingIndex()
 	// collect(toImmutableSortedMap(naturalOrder(), getName, ...)): duplicate keys throw.
-	byName := jutil.NewLinkedHashMap[string, any]()
-	for _, prop := range props.values() {
+	propVals := props.values()
+	byName := make(map[string]any, len(propVals))
+	keys := make([]string, 0, len(propVals))
+	for _, prop := range propVals {
 		var value any
 		if prop.IsInvalidated() {
 			value = prop.GetLastInvalidation()
@@ -262,16 +271,17 @@ func DisambiguateProperties_BuildRenamingIndex(
 			slices.SortStableFunc(names, jutil.StringCompareTo)
 			value = slices.Compact(names) // ImmutableSortedSet.copyOf
 		}
-		if byName.ContainsKey(prop.GetName()) {
-			panic(jutil.NewIllegalArgumentExceptionMsg("Duplicate keys in toImmutableSortedMap: " + prop.GetName()))
+		name := prop.GetName()
+		if _, exists := byName[name]; exists {
+			panic(jutil.NewIllegalArgumentExceptionMsg("Duplicate keys in toImmutableSortedMap: " + name))
 		}
-		byName.Put(prop.GetName(), value)
+		byName[name] = value
+		keys = append(keys, name)
 	}
-	keys := byName.KeySlice()
 	slices.SortStableFunc(keys, jutil.StringCompareTo)
 	sorted := jutil.NewLinkedHashMap[string, any]()
 	for _, key := range keys {
-		sorted.Put(key, byName.Get(key))
+		sorted.Put(key, byName[key])
 	}
 	return sorted
 }
@@ -452,7 +462,12 @@ func (j *disambiguateProperties_PropertyReferenceIndexJson) WriteJson(writer *ju
 	writer.Name("name").ValueString(&j.name)
 	writer.Name("refs").BeginArray()
 	for _, ref := range j.refs {
-		disambiguateProperties_GSON.ToJsonWithWriter(ref, writer)
+		b, err := json.Marshal(ref)
+		if err != nil {
+			panic(err)
+		}
+		raw := string(b)
+		writer.JsonValue(&raw)
 	}
 	writer.EndArray()
 	writer.EndObject()
@@ -460,8 +475,8 @@ func (j *disambiguateProperties_PropertyReferenceIndexJson) WriteJson(writer *ju
 
 // Java: private static final class DisambiguateProperties.PropertyReferenceJson implements Comparable<PropertyReferenceJson>
 type disambiguateProperties_PropertyReferenceJson struct {
-	Location      string `gson:"location"`
-	ReceiverIndex int    `gson:"receiverIndex"`
+	Location      string `json:"location"`
+	ReceiverIndex int    `json:"receiverIndex"`
 }
 
 // Java: DisambiguateProperties.PropertyReferenceJson(Node, ColorGraphNode)
@@ -508,20 +523,22 @@ func newDisambiguateProperties_TypeNodeJson(
 	slices.SortStableFunc(j.Edges, (*disambiguateProperties_TypeEdgeJson).CompareTo)
 	j.Edges = slices.CompactFunc(j.Edges, func(a, b *disambiguateProperties_TypeEdgeJson) bool { return a.CompareTo(b) == 0 })
 	// collect(toImmutableSortedMap(naturalOrder(), e -> e.getKey().getName(), Map.Entry::getValue))
-	var names []string
-	byName := jutil.NewLinkedHashMap[string, ColorGraphNode_PropAssociation]()
-	for _, prop := range t.Props() {
-		if byName.ContainsKey(prop.GetName()) {
-			panic(jutil.NewIllegalArgumentExceptionMsg("Duplicate keys in toImmutableSortedMap: " + prop.GetName()))
+	tProps := t.Props()
+	names := make([]string, 0, len(tProps))
+	byName := make(map[string]ColorGraphNode_PropAssociation, len(tProps))
+	for _, prop := range tProps {
+		name := prop.GetName()
+		if _, exists := byName[name]; exists {
+			panic(jutil.NewIllegalArgumentExceptionMsg("Duplicate keys in toImmutableSortedMap: " + name))
 		}
 		association := propAssocs[propAssocKey{node: t, prop: prop}]
-		byName.Put(prop.GetName(), association)
-		names = append(names, prop.GetName())
+		byName[name] = association
+		names = append(names, name)
 	}
 	slices.SortStableFunc(names, jutil.StringCompareTo)
 	j.Props = jutil.NewLinkedHashMap[string, ColorGraphNode_PropAssociation]()
 	for _, name := range names {
-		j.Props.Put(name, byName.Get(name))
+		j.Props.Put(name, byName[name])
 	}
 	return j
 }

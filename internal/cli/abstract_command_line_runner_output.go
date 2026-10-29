@@ -493,27 +493,26 @@ func (r *AbstractCommandLineRunnerBase) outputChunksParallel(
 		ChunkFileName: func(m *jscomp.JSChunk) string {
 			return r.self.GetChunkOutputFileName(m)
 		},
-		SourceMapPath: func(m *jscomp.JSChunk) *string {
+		SourceMapPath: func(m *jscomp.JSChunk) string {
 			if !options.ShouldGatherSourceMapInfo() {
-				return nil
+				return ""
 			}
-			p := r.self.ExpandSourceMapPath(options, m)
-			return &p
+			return r.self.ExpandSourceMapPath(options, m)
 		},
 		WrapperTemplate: func(chunkName string) string {
 			return r.parsedChunkWrappers[chunkName]
 		},
-		EnsureDir: func(filename *string) {
-			if filename == nil || *filename == "" {
+		EnsureDir: func(filename string) {
+			if filename == "" {
 				return
 			}
 			dir := ""
-			if idx := strings.LastIndexAny(*filename, "/\\"); idx >= 0 {
-				dir = (*filename)[:idx]
+			if idx := strings.LastIndexAny(filename, "/\\"); idx >= 0 {
+				dir = filename[:idx]
 			}
 			if _, ok := createdDirs[dir]; !ok {
 				createdDirs[dir] = struct{}{}
-				abstractCommandLineRunner_maybeCreateDirsForPath(*filename)
+				abstractCommandLineRunner_maybeCreateDirsForPath(filename)
 			}
 		},
 		WriteChunkWithMap: func(filename string, mapFilename string, sm *jscomp.SourceMap, code string, wrapper string) {

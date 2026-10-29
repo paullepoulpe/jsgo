@@ -740,21 +740,21 @@ func (o *CompilerOptions) SetStrictModeInput(isStrictModeInput bool) *CompilerOp
 }
 
 // Java: CompilerOptions.getPropertyReservedNamingFirstChars()
-func (o *CompilerOptions) GetPropertyReservedNamingFirstChars() *jutil.LinkedHashSet[uint16] {
+func (o *CompilerOptions) GetPropertyReservedNamingFirstChars() ASCIICharSet {
 	if o.polymerPass {
 		return compilerOptions_POLYMER_PROPERTY_RESERVED_FIRST_CHARS
 	} else if o.angularPass {
 		return compilerOptions_ANGULAR_PROPERTY_RESERVED_FIRST_CHARS
 	}
-	return jutil.NewLinkedHashSet[uint16]()
+	return ASCIICharSet{}
 }
 
 // Java: CompilerOptions.getPropertyReservedNamingNonFirstChars()
-func (o *CompilerOptions) GetPropertyReservedNamingNonFirstChars() *jutil.LinkedHashSet[uint16] {
+func (o *CompilerOptions) GetPropertyReservedNamingNonFirstChars() ASCIICharSet {
 	if o.polymerPass {
 		return compilerOptions_POLYMER_PROPERTY_RESERVED_NON_FIRST_CHARS
 	}
-	return jutil.NewLinkedHashSet[uint16]()
+	return ASCIICharSet{}
 }
 
 // Java: CompilerOptions.shouldOptimize()

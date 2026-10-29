@@ -23,7 +23,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
 
@@ -1036,8 +1035,8 @@ func (c *RenamePropertiesTest) GetProcessor(compiler *Compiler) CompilerPass {
 		compiler,
 		c.generatePseudoNames,
 		c.prevUsedPropertyMap,
-		jutil.NewLinkedHashSet[uint16](),
-		jutil.NewLinkedHashSet[uint16](),
+		ASCIICharSet{},
+		ASCIICharSet{},
 		NewDefaultNameGenerator(),
 		c.propertyNameFilter)
 	return c.renameProperties

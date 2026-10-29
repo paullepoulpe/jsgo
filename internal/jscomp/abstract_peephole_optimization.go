@@ -103,7 +103,35 @@ type AbstractPeepholeOptimization interface {
 	// GetAbstractPeepholeOptimizationBase gives access to the base fields
 	// through the interface (PORTING.md §4).
 	GetAbstractPeepholeOptimizationBase() *AbstractPeepholeOptimizationBase
+
+	peepholeConfig() peepholeOptConfig
+	cloneForWorker() AbstractPeepholeOptimization
 }
+
+type peepholeOptConfig struct {
+	tokens                ast.TokenSet
+	isStandard            bool
+	tracksFeatures        bool
+	isJ2clCallPass        bool
+	isOptimizeLetAndConst bool
+}
+
+func peepholeTokenSet(tokens ...rhino.Token) ast.TokenSet {
+	var s ast.TokenSet
+	for _, t := range tokens {
+		s.Add(t)
+	}
+	return s
+}
+
+func peepholeTokenSetWith(base ast.TokenSet, tokens ...rhino.Token) ast.TokenSet {
+	for _, t := range tokens {
+		base.Add(t)
+	}
+	return base
+}
+
+var peepholeCallOnlyTokens = peepholeTokenSet(rhino.Token_CALL)
 
 // AbstractPeepholeOptimizationBase holds the fields and the base
 // implementations of AbstractPeepholeOptimization; every subclass embeds it.
@@ -125,6 +153,14 @@ type AbstractPeepholeOptimizationBase struct {
 // GetAbstractPeepholeOptimizationBase returns the embedded base.
 func (b *AbstractPeepholeOptimizationBase) GetAbstractPeepholeOptimizationBase() *AbstractPeepholeOptimizationBase {
 	return b
+}
+
+func (b *AbstractPeepholeOptimizationBase) peepholeConfig() peepholeOptConfig {
+	return peepholeOptConfig{tracksFeatures: true}
+}
+
+func (b *AbstractPeepholeOptimizationBase) cloneForWorker() AbstractPeepholeOptimization {
+	return nil
 }
 
 // Report is a helper method for reporting an error to the compiler when
@@ -420,6 +456,24 @@ type OptimizeLetAndConstPeephole struct {
 // Java: OptimizeLetAndConstPeephole(boolean)
 func NewOptimizeLetAndConstPeephole(assumeOutputIsWrapped bool) *OptimizeLetAndConstPeephole {
 	return &OptimizeLetAndConstPeephole{assumeOutputIsWrapped: assumeOutputIsWrapped}
+}
+
+var optimizeLetAndConstTokens = peepholeTokenSet(
+	rhino.Token_LET,
+	rhino.Token_CONST,
+)
+
+func (p *OptimizeLetAndConstPeephole) peepholeConfig() peepholeOptConfig {
+	return peepholeOptConfig{
+		tokens:                optimizeLetAndConstTokens,
+		isStandard:            true,
+		tracksFeatures:        true,
+		isOptimizeLetAndConst: true,
+	}
+}
+
+func (p *OptimizeLetAndConstPeephole) cloneForWorker() AbstractPeepholeOptimization {
+	return NewOptimizeLetAndConstPeephole(p.assumeOutputIsWrapped)
 }
 
 // Java: OptimizeLetAndConstPeephole.optimizeSubtree(Node)

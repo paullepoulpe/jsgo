@@ -798,8 +798,9 @@ type GlobalNamespace_Ref struct {
 	scope *Scope
 
 	// Not final because CollapseProperties needs to update the namespace in-place.
-	node  rhino.Node
-	type_ GlobalNamespace_Ref_Type
+	node      rhino.Node
+	type_     GlobalNamespace_Ref_Type
+	pageRefID uint32
 }
 
 // GlobalNamespace_Ref_Type is the enum GlobalNamespace.Ref.Type.

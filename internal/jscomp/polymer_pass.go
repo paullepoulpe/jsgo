@@ -46,6 +46,19 @@ import (
 
 const polymerPass_VIRTUAL_FILE = "<PolymerPass.java>"
 
+var polymerPassVisitTokens = func() ast.TokenSet {
+	var s ast.TokenSet
+	s.Add(rhino.Token_CALL)
+	s.Add(rhino.Token_CLASS)
+	return s
+}()
+
+var _ nodeTraversal_visitTokens = (*PolymerPass)(nil)
+
+func (*PolymerPass) visitTokens() *ast.TokenSet {
+	return &polymerPassVisitTokens
+}
+
 // PolymerPass rewrites "Polymer({})" calls into a form that is suitable for
 // type checking and dead code elimination. Also ensures proper format and
 // types.
@@ -407,6 +420,21 @@ var (
 )
 
 const polymerPassFindExterns_POLYMER_ELEMENT_NAME = "PolymerElement"
+
+var polymerPassFindExternsVisitTokens = func() ast.TokenSet {
+	var s ast.TokenSet
+	s.Add(rhino.Token_VAR)
+	s.Add(rhino.Token_LET)
+	s.Add(rhino.Token_CONST)
+	s.Add(rhino.Token_EXPR_RESULT)
+	return s
+}()
+
+var _ nodeTraversal_visitTokens = (*PolymerPassFindExterns)(nil)
+
+func (*PolymerPassFindExterns) visitTokens() *ast.TokenSet {
+	return &polymerPassFindExternsVisitTokens
+}
 
 // PolymerPassFindExterns finds the externs for the PolymerElement base class
 // and all of its properties in the externs.

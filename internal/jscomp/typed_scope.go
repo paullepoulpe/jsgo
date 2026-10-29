@@ -664,8 +664,6 @@ func (s *TypedScope) LookupQualifiedName(qname rhino.QualifiedName) rhino.JSType
 	return rhino.StaticTypedScope_LookupQualifiedName(s, qname)
 }
 
-func (s *TypedScope) ThisScope() *TypedScope { return s }
-
 // Java: AbstractScope.contains(S)
 func (s *TypedScope) Contains(other *TypedScope) bool {
 	for cur := jutil.CheckNotNull(other); cur != nil; cur = cur.parent {

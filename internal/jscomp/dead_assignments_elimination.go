@@ -41,8 +41,7 @@ type DeadAssignmentsElimination struct {
 	// Go-only: language-adapter — the ArrayDeque used as a stack
 	// (addFirst/peekFirst/removeFirst); the first element is the last one
 	// of the slice.
-	functionStack    []DeadAssignmentsElimination_BailoutInformation
-	functionStackBuf [8]DeadAssignmentsElimination_BailoutInformation
+	functionStack []DeadAssignmentsElimination_BailoutInformation
 
 	livenessStorage LiveVariablesAnalysis
 	varsFinder      lvaAllVarsFinder
@@ -50,6 +49,10 @@ type DeadAssignmentsElimination struct {
 	deferChanges bool
 	changeCount  int
 }
+
+var _ nodeTraversal_noVisitLeaves = (*DeadAssignmentsElimination)(nil)
+
+func (*DeadAssignmentsElimination) noVisitLeaves() {}
 
 // DeadAssignmentsElimination_BailoutInformation is the nested class
 // BailoutInformation.
@@ -62,7 +65,6 @@ type DeadAssignmentsElimination_BailoutInformation struct {
 func NewDeadAssignmentsElimination(compiler AbstractCompiler) *DeadAssignmentsElimination {
 	d := &DeadAssignmentsElimination{compiler: compiler}
 	d.cfgs = d.cfgsBuf[:0]
-	d.functionStack = d.functionStackBuf[:0]
 	return d
 }
 
@@ -118,17 +120,27 @@ func (d *DeadAssignmentsElimination) eliminateFunction(fn rhino.Node, dummyGloba
 	scopeCreator := d.scopeCreator
 	functionScope := scopeCreator.CreateScopeOfScope(fn, dummyGlobal)
 	blockScope := scopeCreator.CreateScopeOfScope(fnBody, functionScope)
+	d.eliminateFunctionScopes(fn, functionScope, blockScope, true)
+}
+
+func (d *DeadAssignmentsElimination) eliminateFunctionScopes(fn rhino.Node, functionScope, blockScope *Scope, pushCfg bool) {
 	if LiveVariablesAnalysis_MAX_VARIABLES_TO_ANALYZE <
 		blockScope.GetVarCount()+functionScope.GetVarCount() {
 		return
 	}
 
+	if d.scopeCreator == nil {
+		d.scopeCreator = NewSyntacticScopeCreator(d.compiler)
+	}
+	scopeCreator := d.scopeCreator
 	allVarsDeclaredInFunction := d.varsFinder.collect(d.compiler, scopeCreator, functionScope)
 	if allVarsDeclaredInFunction.table.isEmpty() {
 		return
 	}
-	d.pushCfgRoot(fn)
-	defer d.popCfgRoot()
+	if pushCfg {
+		d.pushCfgRoot(fn)
+		defer d.popCfgRoot()
+	}
 	cfg := d.GetControlFlowGraph(d.compiler)
 
 	d.livenessStorage.Reset(
@@ -138,7 +150,7 @@ func (d *DeadAssignmentsElimination) eliminateFunction(fn rhino.Node, dummyGloba
 		return
 	}
 	d.liveness.Analyze()
-	d.TryRemoveDeadAssignments(nil, cfg, nil)
+	d.tryRemoveDeadAssignments(cfg)
 }
 
 func (d *DeadAssignmentsElimination) reportChange(n rhino.Node) {
@@ -227,16 +239,6 @@ func (d *DeadAssignmentsElimination) Process(externs rhino.Node, root rhino.Node
 	}
 }
 
-// functionStackPeekFirst is ArrayDeque.peekFirst() (null when empty).
-//
-// Go-only: language-adapter — see functionStack.
-func (d *DeadAssignmentsElimination) functionStackPeekFirst() *DeadAssignmentsElimination_BailoutInformation {
-	if len(d.functionStack) == 0 {
-		return nil
-	}
-	return &d.functionStack[len(d.functionStack)-1]
-}
-
 // Java: DeadAssignmentsElimination.visit(NodeTraversal, Node, Node)
 func (d *DeadAssignmentsElimination) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	if len(d.functionStack) == 0 {
@@ -245,111 +247,53 @@ func (d *DeadAssignmentsElimination) Visit(t *NodeTraversal, n rhino.Node, paren
 	top := &d.functionStack[len(d.functionStack)-1]
 	if n.IsFunction() {
 		top.containsFunction = true
-	} else if !top.containsRemovableAssign && d.IsRemovableAssign(n) {
+	} else if !top.containsRemovableAssign && isRemovableAssignNode(n) {
 		top.containsRemovableAssign = true
 	}
 }
 
 func (d *DeadAssignmentsElimination) EnterScope(t *NodeTraversal) {
 	d.pushScopeRoot(t.GetScopeRoot())
-	d.EnterScopeWithCfg(t)
-}
-
-func (d *DeadAssignmentsElimination) ExitScope(t *NodeTraversal) {
-	d.ExitScopeWithCfg(t)
-	d.popScopeRoot(t.GetScopeRoot())
-}
-
-// Java: DeadAssignmentsElimination.enterScopeWithCfg(NodeTraversal)
-func (d *DeadAssignmentsElimination) EnterScopeWithCfg(t *NodeTraversal) {
 	if t.InFunctionBlockScope() {
 		d.functionStack = append(d.functionStack, DeadAssignmentsElimination_BailoutInformation{})
 	}
 }
 
-// Java: DeadAssignmentsElimination.exitScopeWithCfg(NodeTraversal)
-func (d *DeadAssignmentsElimination) ExitScopeWithCfg(t *NodeTraversal) {
+func (d *DeadAssignmentsElimination) ExitScope(t *NodeTraversal) {
 	if t.InFunctionBlockScope() {
-		d.EliminateDeadAssignments(t)
+		d.eliminateDeadAssignments(t)
 		if len(d.functionStack) == 0 {
 			panic(jutil.NewNoSuchElementException()) // ArrayDeque.removeFirst()
 		}
 		d.functionStack = d.functionStack[:len(d.functionStack)-1]
 	}
+	d.popScopeRoot(t.GetScopeRoot())
 }
 
 // Java: DeadAssignmentsElimination.eliminateDeadAssignments(NodeTraversal)
-func (d *DeadAssignmentsElimination) EliminateDeadAssignments(t *NodeTraversal) {
+func (d *DeadAssignmentsElimination) eliminateDeadAssignments(t *NodeTraversal) {
 	jutil.CheckArgument(t.InFunctionBlockScope())
 	jutil.CheckState(len(d.functionStack) != 0)
 
+	fn := t.GetScopeRoot().GetParent()
 	// Skip unchanged functions (note that the scope root is the function block, not the function).
-	if !d.compiler.HasScopeChanged(t.GetScopeRoot().GetParent()) {
+	if !d.compiler.HasScopeChanged(fn) {
 		return
 	}
 
-	currentFunction := d.functionStackPeekFirst()
+	currentFunction := &d.functionStack[len(d.functionStack)-1]
 	// We are not going to do any dead assignment elimination in when there is
 	// at least one inner function because in most browsers, when there is a
 	// closure, ALL the variables are saved (escaped).
-	if currentFunction.containsFunction {
-		return
-	}
-
-	// We don't do any dead assignment elimination if there are no assigns
-	// to eliminate. :)
-	if !currentFunction.containsRemovableAssign {
+	if currentFunction.containsFunction || !currentFunction.containsRemovableAssign {
 		return
 	}
 
 	blockScope := t.GetScope()
-	functionScope := blockScope.GetParent()
-	if LiveVariablesAnalysis_MAX_VARIABLES_TO_ANALYZE <
-		blockScope.GetVarCount()+functionScope.GetVarCount() {
-		return
-	}
-
-	// Computes liveness information first.
-	if d.scopeCreator == nil {
-		d.scopeCreator = NewSyntacticScopeCreator(d.compiler)
-	}
-	scopeCreator := d.scopeCreator
-	allVarsDeclaredInFunction := d.varsFinder.collect(d.compiler, scopeCreator, functionScope)
-	if allVarsDeclaredInFunction.table.isEmpty() {
-		return
-	}
-	cfg := d.GetControlFlowGraph(d.compiler)
-	d.livenessStorage.Reset(
-		cfg, functionScope, blockScope, d.compiler, scopeCreator, allVarsDeclaredInFunction)
-	d.liveness = &d.livenessStorage
-	if d.liveness.allInFnVarsEscaped() {
-		return
-	}
-	d.liveness.Analyze()
-	d.TryRemoveDeadAssignments(t, cfg, nil)
+	d.eliminateFunctionScopes(fn, blockScope.GetParent(), blockScope, false)
 }
 
-// IsRemovableAssign matches all assignment operators and increment/decrement
-// operators. Does *not* match VAR initialization, since
-// RemoveUnusedVariables will already remove variables that are initialized
-// but unused.
-//
-// Java: DeadAssignmentsElimination.isRemovableAssign(Node)
-func (d *DeadAssignmentsElimination) IsRemovableAssign(n rhino.Node) bool {
-	return isRemovableAssignNode(n)
-}
-
-// TryRemoveDeadAssignments tries to remove useless assignments from a
-// control flow graph that has been annotated with liveness information.
-//
-// t is the node traversal; cfg the control flow graph of the program
-// annotated with liveness information.
-//
-// Java: DeadAssignmentsElimination.tryRemoveDeadAssignments(NodeTraversal, ControlFlowGraph<Node>, Map<String, Var>)
-func (d *DeadAssignmentsElimination) TryRemoveDeadAssignments(t *NodeTraversal,
-	cfg *ControlFlowGraph[rhino.Node],
-	allVarsInFn *jutil.LinkedHashMap[string, *Var]) {
-
+func (d *DeadAssignmentsElimination) tryRemoveDeadAssignments(cfg *ControlFlowGraph[rhino.Node]) {
 	for cfgNode := range cfg.Nodes.Values() {
 		state := dataFlowAnalysis_linearFlowStateOf[*LiveVariablesAnalysis_LiveVariableLattice](cfgNode)
 		n := cfgNode.Value
@@ -357,58 +301,42 @@ func (d *DeadAssignmentsElimination) TryRemoveDeadAssignments(t *NodeTraversal,
 			continue
 		}
 		switch n.GetToken() {
-		case rhino.Token_IF, rhino.Token_WHILE, rhino.Token_DO:
-			d.TryRemoveAssignment(t, NodeUtil_GetConditionExpression(n), state, allVarsInFn)
-			continue
-		case rhino.Token_FOR:
-			d.TryRemoveAssignment(t, NodeUtil_GetConditionExpression(n), state, allVarsInFn)
+		case rhino.Token_IF, rhino.Token_WHILE, rhino.Token_DO, rhino.Token_FOR:
+			cond := NodeUtil_GetConditionExpression(n)
+			d.tryRemoveAssignment(cond, cond, state)
 			continue
 		case rhino.Token_FOR_IN, rhino.Token_FOR_OF, rhino.Token_FOR_AWAIT_OF:
 			continue
 		case rhino.Token_SWITCH:
-			d.TryRemoveAssignment(t, ast.MustSwitch(n).Discriminant().Node(), state, allVarsInFn)
+			disc := ast.MustSwitch(n).Discriminant().Node()
+			d.tryRemoveAssignment(disc, disc, state)
 			continue
 		case rhino.Token_CASE:
-			d.TryRemoveAssignment(t, ast.MustCase(n).Value().Node(), state, allVarsInFn)
+			val := ast.MustCase(n).Value().Node()
+			d.tryRemoveAssignment(val, val, state)
 			continue
 		case rhino.Token_RETURN:
 			if val, ok := ast.MustReturn(n).Value(); ok {
-				d.TryRemoveAssignment(t, val.Node(), state, allVarsInFn)
+				vn := val.Node()
+				d.tryRemoveAssignment(vn, vn, state)
 			}
 			continue
 			// TODO(user): case VAR: Remove var a=1;a=2;.....
 		default:
 		}
 
-		d.TryRemoveAssignment(t, n, state, allVarsInFn)
+		d.tryRemoveAssignment(n, n, state)
 	}
 }
 
-// Java: DeadAssignmentsElimination.tryRemoveAssignment(NodeTraversal, Node, LinearFlowState<LiveVariableLattice>, Map<String, Var>)
-func (d *DeadAssignmentsElimination) TryRemoveAssignment(
-	t *NodeTraversal,
-	n rhino.Node,
-	state *DataFlowAnalysis_LinearFlowState[*LiveVariablesAnalysis_LiveVariableLattice],
-	allVarsInFn *jutil.LinkedHashMap[string, *Var]) {
-	d.TryRemoveAssignmentWithExprRoot(t, n, n, state, allVarsInFn)
-}
-
-// TryRemoveAssignmentWithExprRoot determines if any local variables are dead
-// after the instruction n and are assigned within the subtree of n. Removes
-// those assignments if there are any.
-//
-// n is the target instruction; exprRoot the CFG node where the liveness
-// information in state is still correct; state the liveness information at
-// n.
-//
-// Java: DeadAssignmentsElimination.tryRemoveAssignment(NodeTraversal, Node, Node, LinearFlowState<LiveVariableLattice>, Map<String, Var>)
-func (d *DeadAssignmentsElimination) TryRemoveAssignmentWithExprRoot(
-	t *NodeTraversal,
+// tryRemoveAssignment determines if any local variables are dead after the
+// instruction n and are assigned within the subtree of n, removing those
+// assignments if there are any.
+func (d *DeadAssignmentsElimination) tryRemoveAssignment(
 	n rhino.Node,
 	exprRoot rhino.Node,
 	state *DataFlowAnalysis_LinearFlowState[*LiveVariablesAnalysis_LiveVariableLattice],
-	allVarsInFn *jutil.LinkedHashMap[string, *Var]) {
-
+) {
 	parent := n.GetParent()
 	parentDecl, isDeclarationNode := ast.AsNameDeclaration(parent)
 	assign, isAssignOp := ast.AsAssignment(n)
@@ -434,14 +362,14 @@ func (d *DeadAssignmentsElimination) TryRemoveAssignmentWithExprRoot(
 		// Recurse first. Example: dead_x = dead_y = 1; We try to clean up dead_y
 		// first.
 		if !rhs.IsNil() {
-			d.TryRemoveAssignmentWithExprRoot(t, rhs, exprRoot, state, allVarsInFn)
+			d.tryRemoveAssignment(rhs, exprRoot, state)
 			rhs = NodeUtil_GetRValueOfLValue(lhs)
 		}
 
 		// Multiple declarations should be processed from right-to-left to ensure side-effects
 		// are run in the correct order.
 		if isDeclarationNode && !lhs.GetNext().IsNil() {
-			d.TryRemoveAssignmentWithExprRoot(t, lhs.GetNext(), exprRoot, state, allVarsInFn)
+			d.tryRemoveAssignment(lhs.GetNext(), exprRoot, state)
 		}
 
 		// Ignore declarations that don't initialize a value. Dead code removal will kill those nodes.
@@ -454,28 +382,10 @@ func (d *DeadAssignmentsElimination) TryRemoveAssignmentWithExprRoot(
 		if !lhs.IsName() {
 			return // Not a local variable assignment.
 		}
-		if t != nil {
-			scope := t.GetScope()
-			jutil.CheckState(scope.IsFunctionBlockScope() || scope.IsBlockScope())
-		}
 		lhsID := lhs.GetStringID()
-		var index int
-		if allVarsInFn == nil || (d.liveness.allVarsSrc != nil && d.liveness.allVarsSrc.allVarsInFn != nil && allVarsInFn == d.liveness.allVarsSrc.allVarsInFn) {
-			var ok bool
-			index, ok = d.liveness.lookupVarIndexByID(lhsID)
-			if !ok || d.liveness.isEscapedIndex(index) {
-				return
-			}
-		} else {
-			var_ := allVarsInFn.Get(lhs.GetString())
-			if var_ == nil {
-				return
-			}
-			if d.liveness.GetEscapedLocals().Contains(var_) {
-				return // Local variable that might be escaped due to closures.
-			}
-			lhsID = var_.nameID
-			index = d.liveness.getVarIndexByID(lhsID)
+		index, ok := d.liveness.lookupVarIndexByID(lhsID)
+		if !ok || d.liveness.isEscapedIndex(index) {
+			return
 		}
 
 		// If we have an identity assignment such as a=a, always remove it
@@ -543,7 +453,7 @@ func (d *DeadAssignmentsElimination) TryRemoveAssignmentWithExprRoot(
 		for c := n.GetFirstChild(); !c.IsNil(); {
 			next := c.GetNext()
 			if !ControlFlowGraph_IsEnteringNewCfgNode(c) {
-				d.TryRemoveAssignmentWithExprRoot(t, c, exprRoot, state, allVarsInFn)
+				d.tryRemoveAssignment(c, exprRoot, state)
 			}
 			c = next
 		}
@@ -551,30 +461,9 @@ func (d *DeadAssignmentsElimination) TryRemoveAssignmentWithExprRoot(
 	}
 }
 
-// IsVariableStillLiveWithinExpression: given a variable, node n in the tree
-// and a sub-tree denoted by exprRoot as the root, this function returns true
-// if there exists a read of that variable before a write to that variable
-// that is on the right side of n.
-//
-// For example, suppose the node is x = 1:
-//
-//	y = 1, x = 1; // false, there is no reads at all.
-//	y = 1, x = 1, print(x) // true, there is a read right of n.
-//	y = 1, x = 1, x = 2, print(x) // false, there is a read right of n but
-//	                              // it is after a write.
-//
-// n is the current node we should look at; exprRoot the node.
-//
-// Java: DeadAssignmentsElimination.isVariableStillLiveWithinExpression(Node, Node, String)
-func (d *DeadAssignmentsElimination) IsVariableStillLiveWithinExpression(
-	n rhino.Node, exprRoot rhino.Node, variable string) bool {
-	id := rhino.RhinoStringPool_LookupID(variable)
-	if id == 0 {
-		return false
-	}
-	return d.isVariableStillLiveWithinExpressionByID(n, exprRoot, id)
-}
-
+// isVariableStillLiveWithinExpressionByID returns true if there exists a read
+// of varID before a write to varID that is on the right side of n within
+// exprRoot.
 func (d *DeadAssignmentsElimination) isVariableStillLiveWithinExpressionByID(
 	n rhino.Node, exprRoot rhino.Node, varID uint32) bool {
 	for n != exprRoot {
@@ -640,21 +529,8 @@ func (v DeadAssignmentsElimination_VariableLiveness) String() string {
 	return deadAssignmentsElimination_VariableLiveness_names[v]
 }
 
-// IsVariableReadBeforeKill: give an expression and a variable. It returns
-// READ, if the first reference of that variable is a read. It returns KILL,
-// if the first reference of that variable is an assignment. It returns
-// MAY_LIVE otherwise.
-//
-// Java: DeadAssignmentsElimination.isVariableReadBeforeKill(Node, String)
-func (d *DeadAssignmentsElimination) IsVariableReadBeforeKill(
-	n rhino.Node, variable string) DeadAssignmentsElimination_VariableLiveness {
-	id := rhino.RhinoStringPool_LookupID(variable)
-	if id == 0 {
-		return DeadAssignmentsElimination_VariableLiveness_MAYBE_LIVE
-	}
-	return d.isVariableReadBeforeKillByID(n, id)
-}
-
+// isVariableReadBeforeKillByID returns READ if the first reference of varID in
+// n is a read, KILL if it is an assignment, or MAYBE_LIVE otherwise.
 func (d *DeadAssignmentsElimination) isVariableReadBeforeKillByID(
 	n rhino.Node, varID uint32) DeadAssignmentsElimination_VariableLiveness {
 	if ControlFlowGraph_IsEnteringNewCfgNode(n) { // Not a FUNCTION
@@ -739,16 +615,6 @@ func (d *DeadAssignmentsElimination) isVariableReadBeforeKillByID(
 	}
 
 	return DeadAssignmentsElimination_VariableLiveness_MAYBE_LIVE
-}
-
-// Java: DeadAssignmentsElimination.checkHookBranchReadBeforeKill(Node, Node, String)
-func (d *DeadAssignmentsElimination) CheckHookBranchReadBeforeKill(
-	trueCase rhino.Node, falseCase rhino.Node, variable string) DeadAssignmentsElimination_VariableLiveness {
-	id := rhino.RhinoStringPool_LookupID(variable)
-	if id == 0 {
-		return DeadAssignmentsElimination_VariableLiveness_MAYBE_LIVE
-	}
-	return d.checkHookBranchReadBeforeKillByID(trueCase, falseCase, id)
 }
 
 func (d *DeadAssignmentsElimination) checkHookBranchReadBeforeKillByID(

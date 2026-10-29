@@ -85,22 +85,29 @@ func newScriptNodeDeserializer_Runner(owner *ScriptNodeDeserializer) *scriptNode
 }
 
 // Java: ScriptNodeDeserializer.Runner.run()
-func (r *scriptNodeDeserializer_Runner) Run() (result rhino.Node) {
-	jutil.Try(func() {
-		r.contextStack = append(r.contextStack[:0], parsing.FeatureCollector_FeatureContext_NONE)
+func (r *scriptNodeDeserializer_Runner) Run() rhino.Node {
+	defer func() {
+		if rec := recover(); rec != nil {
+			t, ok := rec.(jutil.Throwable)
+			if !ok {
+				t = jutil.AsThrowable(rec)
+			}
+			if ex, ok := t.(jutil.IIOException); ok {
+				panic(NewMalformedTypedAstExceptionWithCause(r.Owner().sourceFile, ex))
+			}
+			panic(rec)
+		}
+	}()
+	r.contextStack = append(r.contextStack[:0], parsing.FeatureCollector_FeatureContext_NONE)
 
-		tmpl := r.Owner().sourceFile.getOrCreateSourceInfoTemplate()
+	tmpl := r.Owner().sourceFile.getOrCreateSourceInfoTemplate()
 
-		scriptNode, _ := r.visitBytes(
-			r.Owner().scriptBytes,
-			0,
-			tmpl)
-		scriptNode.PutProp(rhino.Node_FEATURE_SET, r.featureCollector.AllFeatures())
-		result = scriptNode
-	}, func(ex jutil.IIOException) {
-		panic(NewMalformedTypedAstExceptionWithCause(r.Owner().sourceFile, ex))
-	})
-	return result
+	scriptNode, _ := r.visitBytes(
+		r.Owner().scriptBytes,
+		0,
+		tmpl)
+	scriptNode.PutProp(rhino.Node_FEATURE_SET, r.featureCollector.AllFeatures())
+	return scriptNode
 }
 
 // Java: ScriptNodeDeserializer.Runner.owner()

@@ -40,6 +40,30 @@ func NewMinimizeExitPoints() *MinimizeExitPoints {
 	return &MinimizeExitPoints{}
 }
 
+var minimizeExitPointsTokens = peepholeTokenSet(
+	rhino.Token_LABEL,
+	rhino.Token_FOR,
+	rhino.Token_FOR_IN,
+	rhino.Token_FOR_OF,
+	rhino.Token_FOR_AWAIT_OF,
+	rhino.Token_WHILE,
+	rhino.Token_DO,
+	rhino.Token_BLOCK,
+	rhino.Token_SWITCH,
+	rhino.Token_SCRIPT,
+)
+
+func (m *MinimizeExitPoints) peepholeConfig() peepholeOptConfig {
+	return peepholeOptConfig{
+		tokens:     minimizeExitPointsTokens,
+		isStandard: true,
+	}
+}
+
+func (m *MinimizeExitPoints) cloneForWorker() AbstractPeepholeOptimization {
+	return NewMinimizeExitPoints()
+}
+
 // Java: MinimizeExitPoints.optimizeSubtree(Node)
 func (m *MinimizeExitPoints) OptimizeSubtree(n rhino.Node) rhino.Node {
 	jutil.CheckStateMsg(m.IsASTNormalized(), "MinimizeExitPoints requires the AST to be normalized")

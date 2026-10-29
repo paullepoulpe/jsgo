@@ -35,9 +35,6 @@ var (
 	nodeUtilIDSymbol    = uint32(strpool.Intern("Symbol"))
 )
 
-// NodeUtil contains generally useful AST utilities.
-type NodeUtil struct{}
-
 // Value of JavaScript's Number.MAX_SAFE_INTEGER
 //
 // Java: NodeUtil.MAX_POSITIVE_INTEGER_NUMBER
@@ -81,13 +78,6 @@ var NodeUtil_GOOG_WEAK_USAGE = rhino.QualifiedName_Of("goog.weakUsage")
 
 // Java: NodeUtil.GOOG_WEAK_USAGE_MANGLED
 var NodeUtil_GOOG_WEAK_USAGE_MANGLED = rhino.QualifiedName_Of("goog$weakUsage")
-
-// Utility class; do not instantiate.
-//
-// Java: NodeUtil()
-func NewNodeUtil() *NodeUtil {
-	return &NodeUtil{}
-}
 
 // NodeUtil_IsSymmetricOperation returns true if the operator on this node is
 // symmetric.

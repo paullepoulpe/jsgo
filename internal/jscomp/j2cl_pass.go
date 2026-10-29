@@ -547,6 +547,21 @@ func NewJ2clStringValueOfRewriterPass() *J2clStringValueOfRewriterPass {
 	return &J2clStringValueOfRewriterPass{}
 }
 
+func (p *J2clStringValueOfRewriterPass) peepholeConfig() peepholeOptConfig {
+	if p.shouldRunJ2clPasses {
+		return peepholeOptConfig{
+			tokens:         peepholeCallOnlyTokens,
+			isStandard:     true,
+			isJ2clCallPass: true,
+		}
+	}
+	return peepholeOptConfig{isStandard: true}
+}
+
+func (p *J2clStringValueOfRewriterPass) cloneForWorker() AbstractPeepholeOptimization {
+	return NewJ2clStringValueOfRewriterPass()
+}
+
 // Java: J2clStringValueOfRewriterPass.beginTraversal(AbstractCompiler)
 func (p *J2clStringValueOfRewriterPass) BeginTraversal(compiler AbstractCompiler) {
 	p.AbstractPeepholeOptimizationBase.BeginTraversal(compiler)
@@ -611,6 +626,21 @@ type J2clUndefinedChecksRewriterPass struct {
 // Java: J2clUndefinedChecksRewriterPass()
 func NewJ2clUndefinedChecksRewriterPass() *J2clUndefinedChecksRewriterPass {
 	return &J2clUndefinedChecksRewriterPass{}
+}
+
+func (p *J2clUndefinedChecksRewriterPass) peepholeConfig() peepholeOptConfig {
+	if p.shouldRunJ2clPasses {
+		return peepholeOptConfig{
+			tokens:         peepholeCallOnlyTokens,
+			isStandard:     true,
+			isJ2clCallPass: true,
+		}
+	}
+	return peepholeOptConfig{isStandard: true}
+}
+
+func (p *J2clUndefinedChecksRewriterPass) cloneForWorker() AbstractPeepholeOptimization {
+	return NewJ2clUndefinedChecksRewriterPass()
 }
 
 // Java: J2clUndefinedChecksRewriterPass.beginTraversal(AbstractCompiler)

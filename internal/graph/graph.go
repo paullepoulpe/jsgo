@@ -59,7 +59,6 @@ package graph
 import (
 	"fmt"
 	"iter"
-	"reflect"
 	"slices"
 	"strconv"
 
@@ -194,10 +193,8 @@ type Graph[N comparable, E any] interface {
 	ConnectIfNotFound(n1 N, edge E, n2 N)
 	GetNodeCount() int
 	GetNodeDegree(value N) int
-	GetWeight(value N) int
 	HasNode(n N) bool
 	IsConnected(n1 N, n2 N) bool
-	IsConnectedWithEdge(n1 N, e E, n2 N) bool
 	NewSubGraph() SubGraph[N, E]
 	ClearNodeAnnotations()
 	ClearEdgeAnnotations()
@@ -323,12 +320,8 @@ func formatGraphValue(v any) string {
 		}
 		return strconv.FormatInt(int64(*x), 10)
 	}
-	rv := reflect.ValueOf(v)
-	switch rv.Kind() {
-	case reflect.Pointer, reflect.Slice, reflect.Map, reflect.Func, reflect.Chan, reflect.Interface:
-		if rv.IsNil() {
-			return "null"
-		}
+	if jutil.IsNil(v) {
+		return "null"
 	}
 	if s, ok := v.(fmt.Stringer); ok {
 		return s.String()

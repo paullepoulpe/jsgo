@@ -323,7 +323,7 @@ func NodeUtil_IsGoogModuleExportsReference(scope *Scope, possibleName rhino.Node
 	if !possibleName.IsName() || possibleName.GetString() != "exports" {
 		return false
 	}
-	var_ := scope.GetVar(possibleName.GetString())
+	var_ := scope.GetVarByID(possibleName.GetStringID())
 	var scopeRoot rhino.Node
 	if var_ != nil {
 		scopeRoot = var_.GetScopeRoot()

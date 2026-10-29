@@ -106,11 +106,11 @@ type RandomNameGenerator struct {
 
 // RandomNameGenerator_FIRST_CHAR: generate random names with this first
 // character.
-var RandomNameGenerator_FIRST_CHAR = randomNameGenerator_asSet(DefaultNameGenerator_FIRST_CHAR)
+var RandomNameGenerator_FIRST_CHAR = ASCIICharSetFromString(defaultNameGenerator_FIRST_CHAR_STR)
 
 // RandomNameGenerator_NONFIRST_CHAR: these appear after after the first
 // character
-var RandomNameGenerator_NONFIRST_CHAR = randomNameGenerator_asSet(DefaultNameGenerator_NONFIRST_CHAR)
+var RandomNameGenerator_NONFIRST_CHAR = ASCIICharSetFromString(defaultNameGenerator_NONFIRST_CHAR_STR)
 
 // How many shuffles of nonFirstChars to generate
 const randomNameGenerator_NUM_SHUFFLES = 16
@@ -118,13 +118,13 @@ const randomNameGenerator_NUM_SHUFFLES = 16
 // Java: RandomNameGenerator(Random)
 func NewRandomNameGenerator(random *JavaRandom) *RandomNameGenerator {
 	g := &RandomNameGenerator{random: random}
-	g.Reset(nil, "", nil)
+	g.Reset(nil, "", ASCIICharSet{})
 	return g
 }
 
 // Java: RandomNameGenerator(Set<String>, String, Set<Character>, Random)
 func NewRandomNameGeneratorWithReserved(
-	reservedNames jutil.Set[string], prefix string, reservedCharacters jutil.Set[uint16], random *JavaRandom) *RandomNameGenerator {
+	reservedNames jutil.Set[string], prefix string, reservedCharacters ASCIICharSet, random *JavaRandom) *RandomNameGenerator {
 	g := &RandomNameGenerator{random: random}
 	g.ResetWithFirstAndNonFirstChars(reservedNames, prefix, reservedCharacters, reservedCharacters)
 	return g
@@ -147,8 +147,8 @@ func NewRandomNameGeneratorWithReserved(
 func NewRandomNameGeneratorWithFirstAndNonFirstChars(
 	reservedNames jutil.Set[string],
 	prefix string,
-	reservedFirstCharacters jutil.Set[uint16],
-	reservedNonFirstCharacters jutil.Set[uint16],
+	reservedFirstCharacters ASCIICharSet,
+	reservedNonFirstCharacters ASCIICharSet,
 	random *JavaRandom) *RandomNameGenerator {
 	g := &RandomNameGenerator{random: random}
 	g.ResetWithFirstAndNonFirstChars(reservedNames, prefix, reservedFirstCharacters, reservedNonFirstCharacters)
@@ -156,7 +156,7 @@ func NewRandomNameGeneratorWithFirstAndNonFirstChars(
 }
 
 // Java: RandomNameGenerator.reset(Set<String>, String, Set<Character>)
-func (g *RandomNameGenerator) Reset(reservedNames jutil.Set[string], prefix string, reservedCharacters jutil.Set[uint16]) {
+func (g *RandomNameGenerator) Reset(reservedNames jutil.Set[string], prefix string, reservedCharacters ASCIICharSet) {
 	g.ResetWithFirstAndNonFirstChars(reservedNames, prefix, reservedCharacters, reservedCharacters)
 }
 
@@ -164,8 +164,8 @@ func (g *RandomNameGenerator) Reset(reservedNames jutil.Set[string], prefix stri
 func (g *RandomNameGenerator) ResetWithFirstAndNonFirstChars(
 	reservedNames jutil.Set[string],
 	prefix string,
-	reservedFirstCharacters jutil.Set[uint16],
-	reservedNonFirstCharacters jutil.Set[uint16]) {
+	reservedFirstCharacters ASCIICharSet,
+	reservedNonFirstCharacters ASCIICharSet) {
 	g.reservedNames = randomNameGenerator_copyOf(reservedNames)
 	g.prefix = prefix
 	g.prefixUTF16Len = jutil.StringLength(prefix)
@@ -197,11 +197,11 @@ func randomNameGenerator_copyOf(s jutil.Set[string]) map[string]struct{} {
 // against reserved, returning the remaining slice and an O(1) ASCII table.
 func randomNameGenerator_filterASCII(
 	base []uint16,
-	reserved jutil.Set[uint16],
+	reserved ASCIICharSet,
 	dst []uint16,
 ) ([]uint16, [128]bool) {
 	var allowed [128]bool
-	if reserved == nil || reserved.IsEmpty() {
+	if reserved.IsEmpty() {
 		for _, c := range base {
 			dst = append(dst, c)
 			allowed[c] = true
@@ -219,16 +219,8 @@ func randomNameGenerator_filterASCII(
 
 // Java: RandomNameGenerator.clone(Set<String>, String, Set<Character>)
 func (g *RandomNameGenerator) Clone(
-	reservedNames jutil.Set[string], prefix string, reservedCharacters jutil.Set[uint16]) NameGenerator {
+	reservedNames jutil.Set[string], prefix string, reservedCharacters ASCIICharSet) NameGenerator {
 	return NewRandomNameGeneratorWithReserved(reservedNames, prefix, reservedCharacters, g.random)
-}
-
-// Java: RandomNameGenerator.asSet(char[])
-func randomNameGenerator_asSet(chars []uint16) *jutil.LinkedHashSet[uint16] {
-	if chars == nil {
-		return jutil.NewLinkedHashSet[uint16]()
-	}
-	return jutil.NewLinkedHashSet(chars...)
 }
 
 // randomNameGenerator_joinChars is Joiner.on(", ").join(chars).

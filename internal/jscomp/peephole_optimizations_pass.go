@@ -90,12 +90,6 @@ func NewPeepholeOptimizationsPassOfList(
 	return p
 }
 
-func (p *PeepholeOptimizationsPass) addTokensToMask(bit uint16, tokens ...rhino.Token) {
-	for _, tok := range tokens {
-		p.activeMaskByToken[tok] |= bit
-	}
-}
-
 func (p *PeepholeOptimizationsPass) initDispatchTable() {
 	p.featureOptimBases = p.featureOptimBases[:0]
 	if len(p.peepholeOptimizations) > 16 {
@@ -114,185 +108,28 @@ func (p *PeepholeOptimizationsPass) initDispatchTable() {
 
 	for idx, optim := range p.peepholeOptimizations {
 		bit := uint16(1) << idx
-		switch opt := optim.(type) {
-		case *MinimizeExitPoints:
-			p.addTokensToMask(bit,
-				rhino.Token_LABEL,
-				rhino.Token_FOR,
-				rhino.Token_FOR_IN,
-				rhino.Token_FOR_OF,
-				rhino.Token_FOR_AWAIT_OF,
-				rhino.Token_WHILE,
-				rhino.Token_DO,
-				rhino.Token_BLOCK,
-				rhino.Token_SWITCH,
-				rhino.Token_SCRIPT,
-			)
-		case *PeepholeMinimizeConditions:
-			p.addTokensToMask(bit,
-				rhino.Token_THROW,
-				rhino.Token_RETURN,
-				rhino.Token_NOT,
-				rhino.Token_IF,
-				rhino.Token_EXPR_RESULT,
-				rhino.Token_HOOK,
-				rhino.Token_WHILE,
-				rhino.Token_DO,
-				rhino.Token_FOR,
-				rhino.Token_BLOCK,
-			)
-		case *PeepholeSubstituteAlternateSyntax:
-			p.addTokensToMask(bit,
-				rhino.Token_ASSIGN_SUB,
-				rhino.Token_NEW,
-				rhino.Token_CALL,
-				rhino.Token_RETURN,
-				rhino.Token_NAME,
-				rhino.Token_GETPROP,
-				rhino.Token_TEMPLATELIT,
-			)
-			if opt.late {
-				p.addTokensToMask(bit,
-					rhino.Token_TRUE,
-					rhino.Token_FALSE,
-					rhino.Token_ARRAYLIT,
-					rhino.Token_AND,
-					rhino.Token_OR,
-					rhino.Token_BITOR,
-					rhino.Token_BITXOR,
-					rhino.Token_BITAND,
-					rhino.Token_COALESCE,
-					rhino.Token_MUL,
-				)
-			} else {
-				p.addTokensToMask(bit, rhino.Token_EXPR_RESULT)
-			}
-		case *PeepholeReplaceKnownMethods:
-			p.addTokensToMask(bit, rhino.Token_CALL)
-		case *PeepholeRemoveDeadCode:
-			p.featureOptimBases = append(p.featureOptimBases, &opt.AbstractPeepholeOptimizationBase)
-			p.addTokensToMask(bit,
-				rhino.Token_ASSIGN,
-				rhino.Token_COMMA,
-				rhino.Token_SCRIPT,
-				rhino.Token_BLOCK,
-				rhino.Token_EXPR_RESULT,
-				rhino.Token_HOOK,
-				rhino.Token_SWITCH,
-				rhino.Token_IF,
-				rhino.Token_FOR,
-				rhino.Token_DO,
-				rhino.Token_TRY,
-				rhino.Token_LABEL,
-				rhino.Token_ARRAY_PATTERN,
-				rhino.Token_OBJECT_PATTERN,
-				rhino.Token_VAR,
-				rhino.Token_CONST,
-				rhino.Token_LET,
-				rhino.Token_DEFAULT_VALUE,
-				rhino.Token_OPTCHAIN_GETPROP,
-				rhino.Token_OPTCHAIN_CALL,
-				rhino.Token_OPTCHAIN_GETELEM,
-			)
-		case *J2clEqualitySameRewriterPass:
-			if opt.shouldRunJ2clPasses {
-				p.hasJ2clCallPass = true
-				p.addTokensToMask(bit, rhino.Token_CALL)
-			}
-		case *J2clStringValueOfRewriterPass:
-			if opt.shouldRunJ2clPasses {
-				p.hasJ2clCallPass = true
-				p.addTokensToMask(bit, rhino.Token_CALL)
-			}
-		case *J2clUndefinedChecksRewriterPass:
-			if opt.shouldRunJ2clPasses {
-				p.hasJ2clCallPass = true
-				p.addTokensToMask(bit, rhino.Token_CALL)
-			}
-		case *PeepholeFoldConstants:
-			p.addTokensToMask(bit,
-				rhino.Token_OPTCHAIN_CALL,
-				rhino.Token_CALL,
-				rhino.Token_NEW,
-				rhino.Token_TYPEOF,
-				rhino.Token_ITER_SPREAD,
-				rhino.Token_ARRAYLIT,
-				rhino.Token_OBJECTLIT,
-				rhino.Token_NOT,
-				rhino.Token_POS,
-				rhino.Token_NEG,
-				rhino.Token_BITNOT,
-				rhino.Token_VOID,
-				rhino.Token_OPTCHAIN_GETPROP,
-				rhino.Token_GETPROP,
-				rhino.Token_TEMPLATELIT,
-				rhino.Token_GETELEM,
-				rhino.Token_OPTCHAIN_GETELEM,
-				rhino.Token_INSTANCEOF,
-				rhino.Token_AND,
-				rhino.Token_OR,
-				rhino.Token_COALESCE,
-				rhino.Token_LSH,
-				rhino.Token_RSH,
-				rhino.Token_URSH,
-				rhino.Token_ASSIGN_BITOR,
-				rhino.Token_ASSIGN_BITXOR,
-				rhino.Token_ASSIGN_BITAND,
-				rhino.Token_ASSIGN_LSH,
-				rhino.Token_ASSIGN_RSH,
-				rhino.Token_ASSIGN_URSH,
-				rhino.Token_ASSIGN_ADD,
-				rhino.Token_ASSIGN_SUB,
-				rhino.Token_ASSIGN_MUL,
-				rhino.Token_ASSIGN_DIV,
-				rhino.Token_ASSIGN_MOD,
-				rhino.Token_ASSIGN_EXPONENT,
-				rhino.Token_ADD,
-				rhino.Token_SUB,
-				rhino.Token_DIV,
-				rhino.Token_MOD,
-				rhino.Token_MUL,
-				rhino.Token_EXPONENT,
-				rhino.Token_BITAND,
-				rhino.Token_BITOR,
-				rhino.Token_BITXOR,
-				rhino.Token_LT,
-				rhino.Token_GT,
-				rhino.Token_LE,
-				rhino.Token_GE,
-				rhino.Token_EQ,
-				rhino.Token_NE,
-				rhino.Token_SHEQ,
-				rhino.Token_SHNE,
-			)
-			if opt.late {
-				p.addTokensToMask(bit, rhino.Token_ASSIGN)
-			}
-		case *PeepholeCollectPropertyAssignments:
-			p.addTokensToMask(bit,
-				rhino.Token_SCRIPT,
-				rhino.Token_BLOCK,
-			)
-		case *ExploitAssigns:
-			p.addTokensToMask(bit,
-				rhino.Token_SCRIPT,
-				rhino.Token_BLOCK,
-				rhino.Token_MODULE_BODY,
-			)
-		case *StatementFusion:
-			p.addTokensToMask(bit, rhino.Token_BLOCK)
-		case *OptimizeLetAndConstPeephole:
-			p.hasOptimizeLetAndConst = true
-			p.featureOptimBases = append(p.featureOptimBases, &opt.AbstractPeepholeOptimizationBase)
-			p.addTokensToMask(bit,
-				rhino.Token_LET,
-				rhino.Token_CONST,
-			)
-		default:
-			p.standardOptimizationsOnly = false
+		cfg := optim.peepholeConfig()
+		if cfg.tracksFeatures {
 			p.featureOptimBases = append(p.featureOptimBases, optim.GetAbstractPeepholeOptimizationBase())
+		}
+		if !cfg.isStandard {
+			p.standardOptimizationsOnly = false
 			for tok := range p.activeMaskByToken {
 				p.activeMaskByToken[tok] |= bit
+			}
+			continue
+		}
+		if cfg.isJ2clCallPass {
+			p.hasJ2clCallPass = true
+		}
+		if cfg.isOptimizeLetAndConst {
+			p.hasOptimizeLetAndConst = true
+		}
+		for w, word := range cfg.tokens {
+			for word != 0 {
+				b := bits.TrailingZeros64(word)
+				word &^= uint64(1) << b
+				p.activeMaskByToken[(w<<6)|b] |= bit
 			}
 		}
 	}
@@ -334,21 +171,7 @@ func (p *PeepholeOptimizationsPass) Process(externs rhino.Node, root rhino.Node)
 
 func (p *PeepholeOptimizationsPass) canCloneForParallel() bool {
 	for _, optim := range p.peepholeOptimizations {
-		switch optim.(type) {
-		case *MinimizeExitPoints,
-			*PeepholeMinimizeConditions,
-			*PeepholeSubstituteAlternateSyntax,
-			*PeepholeReplaceKnownMethods,
-			*PeepholeRemoveDeadCode,
-			*J2clEqualitySameRewriterPass,
-			*J2clStringValueOfRewriterPass,
-			*J2clUndefinedChecksRewriterPass,
-			*PeepholeFoldConstants,
-			*PeepholeCollectPropertyAssignments,
-			*ExploitAssigns,
-			*StatementFusion,
-			*OptimizeLetAndConstPeephole:
-		default:
+		if !optim.peepholeConfig().isStandard {
 			return false
 		}
 	}
@@ -358,34 +181,7 @@ func (p *PeepholeOptimizationsPass) canCloneForParallel() bool {
 func (p *PeepholeOptimizationsPass) cloneForWorker(rc *recordingCompiler) *PeepholeOptimizationsPass {
 	clonedOpts := make([]AbstractPeepholeOptimization, len(p.peepholeOptimizations))
 	for i, optim := range p.peepholeOptimizations {
-		switch opt := optim.(type) {
-		case *MinimizeExitPoints:
-			clonedOpts[i] = NewMinimizeExitPoints()
-		case *PeepholeMinimizeConditions:
-			clonedOpts[i] = NewPeepholeMinimizeConditions(opt.late)
-		case *PeepholeSubstituteAlternateSyntax:
-			clonedOpts[i] = NewPeepholeSubstituteAlternateSyntax(opt.late)
-		case *PeepholeReplaceKnownMethods:
-			clonedOpts[i] = NewPeepholeReplaceKnownMethods(opt.late, opt.useTypes)
-		case *PeepholeRemoveDeadCode:
-			clonedOpts[i] = NewPeepholeRemoveDeadCode()
-		case *J2clEqualitySameRewriterPass:
-			clonedOpts[i] = NewJ2clEqualitySameRewriterPass(opt.useTypes)
-		case *J2clStringValueOfRewriterPass:
-			clonedOpts[i] = NewJ2clStringValueOfRewriterPass()
-		case *J2clUndefinedChecksRewriterPass:
-			clonedOpts[i] = NewJ2clUndefinedChecksRewriterPass()
-		case *PeepholeFoldConstants:
-			clonedOpts[i] = NewPeepholeFoldConstants(opt.late, opt.shouldUseTypes)
-		case *PeepholeCollectPropertyAssignments:
-			clonedOpts[i] = NewPeepholeCollectPropertyAssignments()
-		case *ExploitAssigns:
-			clonedOpts[i] = NewExploitAssigns()
-		case *StatementFusion:
-			clonedOpts[i] = NewStatementFusion()
-		case *OptimizeLetAndConstPeephole:
-			clonedOpts[i] = NewOptimizeLetAndConstPeephole(opt.assumeOutputIsWrapped)
-		}
+		clonedOpts[i] = optim.cloneForWorker()
 	}
 	cp := NewPeepholeOptimizationsPassOfList(rc, p.passName, clonedOpts)
 	cp.retraverseOnChange = p.retraverseOnChange

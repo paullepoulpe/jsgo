@@ -87,17 +87,6 @@ type CheckConformance_Rule interface {
 	Check(t *NodeTraversal, n rhino.Node, behavior ConformanceConfig_LibraryLevelNonAllowlistedConformanceViolationsBehavior)
 }
 
-// CheckConformance_RuleDefaults holds Rule's default methods; implementations
-// embed it.
-//
-// Go-only: language-adapter — Java interface default methods.
-type CheckConformance_RuleDefaults struct{}
-
-// Java: CheckConformance.Rule.getPrecondition() (default method)
-func (CheckConformance_RuleDefaults) GetPrecondition() CheckConformance_Precondition {
-	return CheckConformance_Precondition_CHECK_ALL
-}
-
 // CheckConformance_Precondition is a condition that must be true for a rule
 // to possibly match a node.
 //
@@ -189,9 +178,14 @@ func (c *CheckConformance) Process(externs rhino.Node, root rhino.Node) {
 // Java: CheckConformance.shouldTraverse(NodeTraversal, Node, Node)
 func (c *CheckConformance) ShouldTraverse(t *NodeTraversal, n rhino.Node, parent rhino.Node) bool {
 	// Don't inspect extern files, *.tsmes.closure.js, weak sources, or @closureUnaware ASTs.
-	return !n.IsScript() ||
-		(c.IsScriptOfInterest(t.GetInput().GetSourceFile()) &&
-			!strings.HasSuffix(*t.GetSourceName(), "tsmes.closure.js"))
+	if !n.IsScript() {
+		return true
+	}
+	if !c.IsScriptOfInterest(t.GetInput().GetSourceFile()) {
+		return false
+	}
+	sn := t.GetSourceName()
+	return sn == nil || !strings.HasSuffix(*sn, "tsmes.closure.js")
 }
 
 // Java: CheckConformance.isScriptOfInterest(SourceFile)
@@ -311,17 +305,25 @@ func CheckConformance_ValidateBehaviorSettingOfConfigs(
 	return true
 }
 
-// Java: CheckConformance.EXTENDABLE_FIELDS
-var checkConformance_EXTENDABLE_FIELDS = jutil.NewLinkedHashSet(
-	"config_file",
-	"extends",
-	"only_apply_to",
-	"only_apply_to_regexp",
-	"whitelist",
-	"whitelist_regexp",
-	"allowlist",
-	"allowlist_regexp",
-	"value")
+const checkConformance_EXTENDABLE_FIELDS_STR = "[config_file, extends, only_apply_to, only_apply_to_regexp, whitelist, whitelist_regexp, allowlist, allowlist_regexp, value]"
+
+// Java: CheckConformance.EXTENDABLE_FIELDS.contains(String)
+func checkConformance_isExtendableField(name string) bool {
+	switch name {
+	case "config_file",
+		"extends",
+		"only_apply_to",
+		"only_apply_to_regexp",
+		"whitelist",
+		"whitelist_regexp",
+		"allowlist",
+		"allowlist_regexp",
+		"value":
+		return true
+	default:
+		return false
+	}
+}
 
 type rootRequirementEntry struct {
 	builder  *Requirement_Builder
@@ -503,9 +505,9 @@ func CheckConformance_ValidateExtendingRequirement(
 		return false
 	}
 	for field := range extendingRequirement.GetAllFields().Keys() {
-		if !checkConformance_EXTENDABLE_FIELDS.Contains(field.GetName()) {
+		if !checkConformance_isExtendableField(field.GetName()) {
 			CheckConformance_ReportInvalidRequirement(
-				compiler, extendingRequirement, "extending rules allow only "+checkConformance_EXTENDABLE_FIELDS.String())
+				compiler, extendingRequirement, "extending rules allow only "+checkConformance_EXTENDABLE_FIELDS_STR)
 		}
 	}
 	if extendingRequirement.GetValueCount() > 0 &&

@@ -531,7 +531,7 @@ func NodeUtil_IsConstantVar(node rhino.Node, scope *Scope) bool {
 		return false
 	}
 
-	var_ := scope.GetVar(node.GetString())
+	var_ := scope.GetVarByID(node.GetStringID())
 	return var_ != nil && (var_.IsDeclaredOrInferredConst() || var_.IsConst())
 }
 

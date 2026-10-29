@@ -95,6 +95,17 @@ func NewPeepholeReplaceKnownMethods(late bool, useTypes bool) *PeepholeReplaceKn
 	}
 }
 
+func (p *PeepholeReplaceKnownMethods) peepholeConfig() peepholeOptConfig {
+	return peepholeOptConfig{
+		tokens:     peepholeCallOnlyTokens,
+		isStandard: true,
+	}
+}
+
+func (p *PeepholeReplaceKnownMethods) cloneForWorker() AbstractPeepholeOptimization {
+	return NewPeepholeReplaceKnownMethods(p.late, p.useTypes)
+}
+
 // Java: PeepholeReplaceKnownMethods.optimizeSubtree(Node)
 func (p *PeepholeReplaceKnownMethods) OptimizeSubtree(subtree rhino.Node) rhino.Node {
 	call, ok := ast.AsCall(subtree)

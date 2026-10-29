@@ -22,6 +22,7 @@ import (
 	"iter"
 	"slices"
 
+	"github.com/paullepoulpe/jsgo/internal/ast"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
@@ -592,9 +593,70 @@ func (c *ReferenceCollector) materializeBlock(idx int) *BasicBlock {
 	return parent
 }
 
+func makeVisitTokenSet(toks ...rhino.Token) ast.TokenSet {
+	var s ast.TokenSet
+	for _, tok := range toks {
+		s.Add(tok)
+	}
+	return s
+}
+
 // ReferenceCollector_CollectorCallback is the traversal callback.
 type ReferenceCollector_CollectorCallback struct {
 	c *ReferenceCollector
+}
+
+// refCollectorVisitTokens retains all tokens that can be NAME, IMPORT_STAR,
+// CASE, or a child of a parent token in refCollectorParentBoundaryKind (where
+// Visit must pop the basic block pushed in ShouldTraverse), and excludes all
+// structural/member/module/0-child-leaf tokens that can never trigger either.
+var refCollectorVisitTokens = func() ast.TokenSet {
+	s := ast.TokenSet{^uint64(0), ^uint64(0), ^uint64(0), ^uint64(0)}
+	for _, tok := range [...]rhino.Token{
+		rhino.Token_ROOT,
+		rhino.Token_SCRIPT,
+		rhino.Token_MODULE_BODY,
+		rhino.Token_PARAM_LIST,
+		rhino.Token_STRING_KEY,
+		rhino.Token_OBJECT_SPREAD,
+		rhino.Token_OBJECT_REST,
+		rhino.Token_ITER_REST,
+		rhino.Token_MEMBER_FUNCTION_DEF,
+		rhino.Token_MEMBER_FIELD_DEF,
+		rhino.Token_MEMBER_VARIABLE_DEF,
+		rhino.Token_COMPUTED_PROP,
+		rhino.Token_COMPUTED_FIELD_DEF,
+		rhino.Token_GETTER_DEF,
+		rhino.Token_SETTER_DEF,
+		rhino.Token_IMPORT,
+		rhino.Token_IMPORT_SPECS,
+		rhino.Token_IMPORT_SPEC,
+		rhino.Token_EXPORT,
+		rhino.Token_EXPORT_SPECS,
+		rhino.Token_EXPORT_SPEC,
+		rhino.Token_TEMPLATELIT_SUB,
+		rhino.Token_TEMPLATELIT_STRING,
+		rhino.Token_LABEL_NAME,
+		rhino.Token_NUMBER,
+		rhino.Token_STRINGLIT,
+		rhino.Token_BIGINT,
+		rhino.Token_TRUE,
+		rhino.Token_FALSE,
+		rhino.Token_NULL,
+		rhino.Token_THIS,
+		rhino.Token_SUPER,
+		rhino.Token_EMPTY,
+		rhino.Token_DEBUGGER,
+	} {
+		s[tok>>6] &^= 1 << (tok & 63)
+	}
+	return s
+}()
+
+var _ nodeTraversal_visitTokens = (*ReferenceCollector_CollectorCallback)(nil)
+
+func (*ReferenceCollector_CollectorCallback) visitTokens() *ast.TokenSet {
+	return &refCollectorVisitTokens
 }
 
 // ShouldTraverse updates block stack.

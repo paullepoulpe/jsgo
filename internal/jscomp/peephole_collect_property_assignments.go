@@ -53,6 +53,22 @@ func NewPeepholeCollectPropertyAssignments() *PeepholeCollectPropertyAssignments
 	return &PeepholeCollectPropertyAssignments{}
 }
 
+var peepholeCollectPropertyAssignmentsTokens = peepholeTokenSet(
+	rhino.Token_SCRIPT,
+	rhino.Token_BLOCK,
+)
+
+func (p *PeepholeCollectPropertyAssignments) peepholeConfig() peepholeOptConfig {
+	return peepholeOptConfig{
+		tokens:     peepholeCollectPropertyAssignmentsTokens,
+		isStandard: true,
+	}
+}
+
+func (p *PeepholeCollectPropertyAssignments) cloneForWorker() AbstractPeepholeOptimization {
+	return NewPeepholeCollectPropertyAssignments()
+}
+
 // Java: PeepholeCollectPropertyAssignments.optimizeSubtree(Node)
 func (p *PeepholeCollectPropertyAssignments) OptimizeSubtree(subtree rhino.Node) rhino.Node {
 	if !subtree.IsScript() && !subtree.IsBlock() {

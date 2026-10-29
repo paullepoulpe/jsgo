@@ -469,7 +469,6 @@ type ToStringHelper struct {
 	className      string
 	holders        []toStringHolder
 	omitNullValues bool
-	omitEmpty      bool
 }
 
 // MoreObjects_ToStringHelper is MoreObjects.toStringHelper(Object self) /
@@ -481,12 +480,6 @@ func MoreObjects_ToStringHelper(className string) *ToStringHelper {
 // OmitNullValues is ToStringHelper.omitNullValues().
 func (h *ToStringHelper) OmitNullValues() *ToStringHelper {
 	h.omitNullValues = true
-	return h
-}
-
-// OmitEmptyValues is ToStringHelper.omitEmptyValues().
-func (h *ToStringHelper) OmitEmptyValues() *ToStringHelper {
-	h.omitEmpty = true
 	return h
 }
 
@@ -513,18 +506,6 @@ func (h *ToStringHelper) AddValue(value any) *ToStringHelper {
 	return h
 }
 
-func toStringHelperIsEmpty(v any) bool {
-	switch x := v.(type) {
-	case string:
-		return x == ""
-	case javaCollection:
-		return x.IsEmpty()
-	case javaMap:
-		return x.IsEmpty()
-	}
-	return false
-}
-
 // String is ToStringHelper.toString().
 func (h *ToStringHelper) String() string {
 	var sb strings.Builder
@@ -533,14 +514,8 @@ func (h *ToStringHelper) String() string {
 	sep := ""
 	for _, vh := range h.holders {
 		v := vh.value
-		if !vh.unconditional {
-			if IsNil(v) {
-				if h.omitNullValues {
-					continue
-				}
-			} else if h.omitEmpty && toStringHelperIsEmpty(v) {
-				continue
-			}
+		if !vh.unconditional && h.omitNullValues && IsNil(v) {
+			continue
 		}
 		sb.WriteString(sep)
 		sep = ", "

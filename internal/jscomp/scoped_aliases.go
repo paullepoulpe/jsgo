@@ -728,6 +728,8 @@ func (v *ScopedAliases_Traversal) RenameNamespaceShadows(t *NodeTraversal) {
 	}
 }
 
+var scopedAliasesRenameBleedingTokens = makeVisitTokenSet(rhino.Token_NAME)
+
 // scopedAliases_renameBleedingFunctionNameCallback is the anonymous
 // AbstractPostOrderCallback of Traversal.renameBleedingFunctionName.
 type scopedAliases_renameBleedingFunctionNameCallback struct {
@@ -739,11 +741,22 @@ type scopedAliases_renameBleedingFunctionNameCallback struct {
 	fnName   rhino.Node
 }
 
+var (
+	_ nodeTraversal_visitTokens    = (*scopedAliases_renameBleedingFunctionNameCallback)(nil)
+	_ nodeTraversal_onlyNameLeaves = (*scopedAliases_renameBleedingFunctionNameCallback)(nil)
+)
+
+func (*scopedAliases_renameBleedingFunctionNameCallback) visitTokens() *ast.TokenSet {
+	return &scopedAliasesRenameBleedingTokens
+}
+
+func (*scopedAliases_renameBleedingFunctionNameCallback) onlyNameLeaves() {}
+
 // Java: ScopedAliases.Traversal.renameBleedingFunctionName(NodeTraversal, Node).new AbstractPostOrderCallback() {...}.visit(NodeTraversal, Node, Node)
 func (c *scopedAliases_renameBleedingFunctionNameCallback) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	if name, ok := ast.AsName(n); ok &&
 		n.GetStringID() == c.nameID &&
-		t.GetScope().GetVar(c.name).GetNode() == c.fnName {
+		t.GetScope().GetVarByID(c.nameID).GetNode() == c.fnName {
 		name.SetIdent(c.name + "$jscomp$scopedAliases$" + c.suffix)
 		c.compiler.ReportChangeToEnclosingScope(n)
 	}
@@ -807,14 +820,15 @@ func (v *ScopedAliases_Traversal) Visit(t *NodeTraversal, n rhino.Node, parent r
 	type_ := n.GetToken()
 	var aliasVar *Var
 	if type_ == rhino.Token_NAME {
-		if candidate := v.aliasByID[n.GetStringID()]; candidate != nil {
-			name := n.GetString()
-			if t.GetScope().GetVar(name) == candidate {
+		id := n.GetStringID()
+		if candidate := v.aliasByID[id]; candidate != nil {
+			if t.GetScope().GetVarByID(id) == candidate {
 				aliasVar = candidate
 				// For nodes that are referencing the aliased type, set the original
 				// name so it can be accessed later in tools such as the CodePrinter
 				// or refactoring tools.
 				if compiler.GetOptions().PreservesDetailedSourceInfo() {
+					name := n.GetString()
 					n.SetOriginalName(&name)
 				}
 			}

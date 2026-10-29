@@ -107,26 +107,22 @@ func newVariableMapFromEntries(entries []variableMapEntry) *VariableMap {
 	}
 }
 
-// LookupNewName given an original variable name, looks up new name, may
-// return null if it's not found.
+// LookupNewName given an original variable name, looks up new name, returning
+// ("", false) if it's not found.
 //
 // Java: VariableMap.lookupNewName(String)
-func (vm *VariableMap) LookupNewName(sourceName string) *string {
-	if v, ok := vm.origToNew[sourceName]; ok {
-		return &v
-	}
-	return nil
+func (vm *VariableMap) LookupNewName(sourceName string) (string, bool) {
+	v, ok := vm.origToNew[sourceName]
+	return v, ok
 }
 
-// LookupSourceName given a new variable name, looks up the source name, may
-// return null if it's not found.
+// LookupSourceName given a new variable name, looks up the source name,
+// returning ("", false) if it's not found.
 //
 // Java: VariableMap.lookupSourceName(String)
-func (vm *VariableMap) LookupSourceName(newName string) *string {
-	if v, ok := vm.newToOrig[newName]; ok {
-		return &v
-	}
-	return nil
+func (vm *VariableMap) LookupSourceName(newName string) (string, bool) {
+	v, ok := vm.newToOrig[newName]
+	return v, ok
 }
 
 // GetOriginalNameToNewNameMap returns an immutable mapping from original

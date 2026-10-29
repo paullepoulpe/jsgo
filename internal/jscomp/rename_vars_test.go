@@ -86,12 +86,12 @@ func (c *RenameVarsTest) GetProcessor(compiler *Compiler) CompilerPass {
 		c.renameVars =
 			NewRenameVars(
 				compiler,
-				&c.prefix,
+				c.prefix,
 				c.localRenamingOnly,
 				c.generatePseudoNames,
 				c.preferStableNames,
 				c.previouslyUsedMap,
-				jutil.NewLinkedHashSet[uint16](),
+				ASCIICharSet{},
 				nil,
 				c.nameGenerator)
 		pass = c.renameVars
@@ -99,12 +99,12 @@ func (c *RenameVarsTest) GetProcessor(compiler *Compiler) CompilerPass {
 		c.renameVars =
 			NewRenameVars(
 				compiler,
-				&c.prefix,
+				c.prefix,
 				c.localRenamingOnly,
 				c.generatePseudoNames,
 				c.preferStableNames,
 				c.previouslyUsedMap,
-				jutil.NewLinkedHashSet[uint16](),
+				ASCIICharSet{},
 				nil,
 				NewDefaultNameGenerator())
 		pass = c.renameVars
@@ -828,7 +828,7 @@ func (c *RenameVarsTest) TestDollarSignSuperExport2() {
 // Java: RenameVarsTest.testBias()
 func (c *RenameVarsTest) TestBias() {
 	c.nameGenerator =
-		NewDefaultNameGeneratorWithReserved(jutil.NewLinkedHashSet[string](), "", jutil.NewLinkedHashSet[uint16]())
+		NewDefaultNameGeneratorWithReservedChars(jutil.NewLinkedHashSet[string](), "", ASCIICharSet{})
 	c.nameGenerator.Favors("AAAAAAAAHH")
 	c.Test("var x, y", "var A, H")
 }
@@ -1071,27 +1071,33 @@ func (c *RenameVarsTest) TestImport2() {
 
 // Java: RenameVarsTest.testPreferStableNames()
 func (c *RenameVarsTest) TestPreferStableNames() {
+	lookupNewName := func(k string) *string {
+		if v, ok := c.renameVars.GetVariableMap().LookupNewName(k); ok {
+			return &v
+		}
+		return nil
+	}
 	c.preferStableNames = true
 	// Locals in scopes with too many local variables (>1000) should
 	// not receive temporary names (eg, 'L 123').  These locals will
 	// appear in the name maps with the same name as in the code (eg,
 	// 'a0' in this case).
 	c.Test(RenameVarsTest_CreateManyVarFunction(1000), (*string)(nil))
-	AssertThat(c.renameVars.GetVariableMap().LookupNewName("a0")).IsNull()
-	AssertThat(c.renameVars.GetVariableMap().LookupNewName("L 0")).IsEqualTo("b")
+	AssertThat(lookupNewName("a0")).IsNull()
+	AssertThat(lookupNewName("L 0")).IsEqualTo("b")
 	c.Test(RenameVarsTest_CreateManyVarFunction(1001), (*string)(nil))
-	AssertThat(c.renameVars.GetVariableMap().LookupNewName("a0")).IsEqualTo("b")
-	AssertThat(c.renameVars.GetVariableMap().LookupNewName("L 0")).IsNull()
+	AssertThat(lookupNewName("a0")).IsEqualTo("b")
+	AssertThat(lookupNewName("L 0")).IsNull()
 
 	// With {@code preferStableNames} off locals should
 	// unconditionally receive temporary names.
 	c.preferStableNames = false
 	c.Test(RenameVarsTest_CreateManyVarFunction(1000), (*string)(nil))
-	AssertThat(c.renameVars.GetVariableMap().LookupNewName("a0")).IsNull()
-	AssertThat(c.renameVars.GetVariableMap().LookupNewName("L 0")).IsEqualTo("b")
+	AssertThat(lookupNewName("a0")).IsNull()
+	AssertThat(lookupNewName("L 0")).IsEqualTo("b")
 	c.Test(RenameVarsTest_CreateManyVarFunction(1001), (*string)(nil))
-	AssertThat(c.renameVars.GetVariableMap().LookupNewName("a0")).IsNull()
-	AssertThat(c.renameVars.GetVariableMap().LookupNewName("L 0")).IsEqualTo("b")
+	AssertThat(lookupNewName("a0")).IsNull()
+	AssertThat(lookupNewName("L 0")).IsEqualTo("b")
 }
 
 // Java: RenameVarsTest.testRenameMapUsingOldMap(String, String, VariableMap)
@@ -1168,12 +1174,12 @@ func (p *RenameVarsTest_ClosurePassAndRenameVars) Process(externs rhino.Node, ro
 	p.outer.renameVars =
 		NewRenameVars(
 			p.compiler,
-			&p.outer.prefix,
+			p.outer.prefix,
 			false,
 			false,
 			false,
 			p.outer.previouslyUsedMap,
-			jutil.NewLinkedHashSet[uint16](),
+			ASCIICharSet{},
 			closurePass.GetExportedVariableNames(),
 			NewDefaultNameGenerator())
 	p.outer.renameVars.Process(externs, root)

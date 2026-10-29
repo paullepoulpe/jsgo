@@ -168,12 +168,12 @@ func (h *astAnalyzerTest_ParseHelper) parseCase(kase *astAnalyzerTest_AnalysisCa
 
 func (h *astAnalyzerTest_ParseHelper) getAstAnalyzer() *AstAnalyzer {
 	return NewAstAnalyzer(
-		AstAnalyzer_Options_Builder_().
-			SetUseTypesForLocalOptimization(h.useTypesForLocalOptimizations).
-			SetHasRegexpGlobalReferences(h.hasGlobalRegexpReferences).
-			SetAssumeGettersArePure(h.assumeGettersArePure).
-			SetAssumeKnownBuiltinsArePure(h.assumeBuiltinsPure).
-			Build(),
+		&AstAnalyzer_Options{
+			useTypesForLocalOptimization: h.useTypesForLocalOptimizations,
+			hasRegexpGlobalReferences:    h.hasGlobalRegexpReferences,
+			assumeGettersArePure:         h.assumeGettersArePure,
+			assumeKnownBuiltinsArePure:   h.assumeBuiltinsPure,
+		},
 		h.typeRegistry,
 		h.accessorSummary)
 }
@@ -454,7 +454,7 @@ func TestAstAnalyzer_OptionsBuilder(t *testing.T) {
 		SetHasRegexpGlobalReferences(true).
 		SetAssumeKnownBuiltinsArePure(false).
 		Build()
-	if !o.UseTypesForLocalOptimization() || o.AssumeGettersArePure() || !o.HasRegexpGlobalReferences() || o.AssumeKnownBuiltinsArePure() {
+	if !o.useTypesForLocalOptimization || o.assumeGettersArePure || !o.hasRegexpGlobalReferences || o.assumeKnownBuiltinsArePure {
 		t.Errorf("unexpected options: %+v", o)
 	}
 	jsaThrows[*jutil.IllegalArgumentException](t, func() {

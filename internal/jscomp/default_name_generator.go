@@ -37,6 +37,7 @@ package jscomp
 
 import (
 	"iter"
+	"math/bits"
 	"slices"
 	"strings"
 
@@ -44,6 +45,59 @@ import (
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 	"github.com/paullepoulpe/jsgo/internal/strpool"
 )
+
+// ASCIICharSet is a 128-bit value set of ASCII characters (0..127).
+type ASCIICharSet [2]uint64
+
+func NewASCIICharSet(chars ...byte) ASCIICharSet {
+	var s ASCIICharSet
+	for _, c := range chars {
+		if c < 128 {
+			s[c>>6] |= 1 << (c & 63)
+		}
+	}
+	return s
+}
+
+func ASCIICharSetFromString(str string) ASCIICharSet {
+	var s ASCIICharSet
+	for i := 0; i < len(str); i++ {
+		c := str[i]
+		if c < 128 {
+			s[c>>6] |= 1 << (c & 63)
+		}
+	}
+	return s
+}
+
+func (s *ASCIICharSet) Add(ch uint16) {
+	if ch < 128 {
+		s[ch>>6] |= 1 << (ch & 63)
+	}
+}
+
+func (s ASCIICharSet) Contains(ch uint16) bool {
+	if ch >= 128 {
+		return false
+	}
+	return (s[ch>>6] & (1 << (ch & 63))) != 0
+}
+
+func (s ASCIICharSet) Union(other ASCIICharSet) ASCIICharSet {
+	return ASCIICharSet{s[0] | other[0], s[1] | other[1]}
+}
+
+func (s ASCIICharSet) IsEmpty() bool {
+	return s[0] == 0 && s[1] == 0
+}
+
+func (s ASCIICharSet) Size() int {
+	return bits.OnesCount64(s[0]) + bits.OnesCount64(s[1])
+}
+
+func (s ASCIICharSet) Ptr() *ASCIICharSet {
+	return &s
+}
 
 // stringMapSet adapts a plain Go map[string]struct{} to jutil.Set[string]
 // without LinkedHashSet entry/order slice overhead.
@@ -89,17 +143,17 @@ func setNodeStringID(n rhino.Node, id strpool.ID) {
 // map's key set).
 type NameGenerator interface {
 	// Java: NameGenerator.reset(Set<String>, String, Set<Character>)
-	Reset(reservedNames jutil.Set[string], prefix string, reservedCharacters jutil.Set[uint16])
+	Reset(reservedNames jutil.Set[string], prefix string, reservedCharacters ASCIICharSet)
 
 	// Java: NameGenerator.reset(Set<String>, String, Set<Character>, Set<Character>)
 	ResetWithFirstAndNonFirstChars(
 		reservedNames jutil.Set[string],
 		prefix string,
-		reservedFirstCharacters jutil.Set[uint16],
-		reservedNonFirstCharacters jutil.Set[uint16])
+		reservedFirstCharacters ASCIICharSet,
+		reservedNonFirstCharacters ASCIICharSet)
 
 	// Java: NameGenerator.clone(Set<String>, String, Set<Character>)
-	Clone(reservedNames jutil.Set[string], prefix string, reservedCharacters jutil.Set[uint16]) NameGenerator
+	Clone(reservedNames jutil.Set[string], prefix string, reservedCharacters ASCIICharSet) NameGenerator
 
 	// Java: NameGenerator.generateNextName()
 	GenerateNextName() string
@@ -190,13 +244,22 @@ var DefaultNameGenerator_NONFIRST_CHAR = jutil.StringToUTF16(defaultNameGenerato
 func NewDefaultNameGenerator() *DefaultNameGenerator {
 	g := &DefaultNameGenerator{}
 	g.initPriorities()
-	g.Reset(nil, "", nil)
+	g.Reset(nil, "", ASCIICharSet{})
 	return g
 }
 
 // Java: DefaultNameGenerator(Set<String>, String, Set<Character>)
 func NewDefaultNameGeneratorWithReserved(
-	reservedNames jutil.Set[string], prefix string, reservedCharacters jutil.Set[uint16]) *DefaultNameGenerator {
+	reservedNames jutil.Set[string], prefix string, reservedCharacters *ASCIICharSet) *DefaultNameGenerator {
+	var chars ASCIICharSet
+	if reservedCharacters != nil {
+		chars = *reservedCharacters
+	}
+	return NewDefaultNameGeneratorWithFirstAndNonFirstChars(reservedNames, prefix, chars, chars)
+}
+
+func NewDefaultNameGeneratorWithReservedChars(
+	reservedNames jutil.Set[string], prefix string, reservedCharacters ASCIICharSet) *DefaultNameGenerator {
 	return NewDefaultNameGeneratorWithFirstAndNonFirstChars(reservedNames, prefix, reservedCharacters, reservedCharacters)
 }
 
@@ -215,8 +278,8 @@ func NewDefaultNameGeneratorWithReserved(
 func NewDefaultNameGeneratorWithFirstAndNonFirstChars(
 	reservedNames jutil.Set[string],
 	prefix string,
-	reservedFirstCharacters jutil.Set[uint16],
-	reservedNonFirstCharacters jutil.Set[uint16]) *DefaultNameGenerator {
+	reservedFirstCharacters ASCIICharSet,
+	reservedNonFirstCharacters ASCIICharSet) *DefaultNameGenerator {
 	g := &DefaultNameGenerator{}
 	g.initPriorities()
 	g.ResetWithFirstAndNonFirstChars(reservedNames, prefix, reservedFirstCharacters, reservedNonFirstCharacters)
@@ -248,7 +311,7 @@ func DefaultNameGenerator_IsBadName(name string) bool {
 }
 
 // Java: DefaultNameGenerator.reset(Set<String>, String, Set<Character>)
-func (g *DefaultNameGenerator) Reset(reservedNames jutil.Set[string], prefix string, reservedCharacters jutil.Set[uint16]) {
+func (g *DefaultNameGenerator) Reset(reservedNames jutil.Set[string], prefix string, reservedCharacters ASCIICharSet) {
 	g.ResetWithFirstAndNonFirstChars(reservedNames, prefix, reservedCharacters, reservedCharacters)
 }
 
@@ -262,8 +325,8 @@ func (g *DefaultNameGenerator) Reset(reservedNames jutil.Set[string], prefix str
 func (g *DefaultNameGenerator) ResetWithFirstAndNonFirstChars(
 	reservedNames jutil.Set[string],
 	prefix string,
-	reservedFirstCharacters jutil.Set[uint16],
-	reservedNonFirstCharacters jutil.Set[uint16]) {
+	reservedFirstCharacters ASCIICharSet,
+	reservedNonFirstCharacters ASCIICharSet) {
 
 	g.reservedNames = reservedNames
 	if m, ok := reservedNames.(stringMapSet); ok {
@@ -296,7 +359,7 @@ func (g *DefaultNameGenerator) isReserved(cand string) bool {
 
 // Java: DefaultNameGenerator.clone(Set<String>, String, Set<Character>)
 func (g *DefaultNameGenerator) Clone(
-	reservedNames jutil.Set[string], prefix string, reservedCharacters jutil.Set[uint16]) NameGenerator {
+	reservedNames jutil.Set[string], prefix string, reservedCharacters ASCIICharSet) NameGenerator {
 	cloned := &DefaultNameGenerator{
 		priorities: g.priorities,
 		hasFavored: g.hasFavored,
@@ -328,10 +391,10 @@ func (g *DefaultNameGenerator) Favors(sequence string) {
 func (g *DefaultNameGenerator) reserveCharactersInto(
 	dst []*defaultNameGenerator_CharPriority,
 	chars string,
-	reservedCharacterSet jutil.Set[uint16],
+	reservedCharacterSet ASCIICharSet,
 ) ([]*defaultNameGenerator_CharPriority, [128]bool) {
 	var allowed [128]bool
-	if reservedCharacterSet == nil || reservedCharacterSet.IsEmpty() {
+	if reservedCharacterSet.IsEmpty() {
 		for i := 0; i < len(chars); i++ {
 			ch := chars[i]
 			dst = append(dst, &g.priorities[defaultNameGenerator_orderByASCII[ch]])
@@ -391,89 +454,17 @@ func (g *DefaultNameGenerator) checkPrefix(prefix string) {
 //
 // Java: DefaultNameGenerator.generateNextName()
 func (g *DefaultNameGenerator) GenerateNextName() string {
-	buf := &g.scratchBuf
 	for {
 		i := g.nameCount
-		n := 0
-		asciiOK := true
+		b := g.scratchBuf[:0]
 		if g.prefix != "" {
-			if len(g.prefix) > 16 {
-				asciiOK = false
-			} else {
-				for k := 0; k < len(g.prefix); k++ {
-					if g.prefix[k] >= 0x80 {
-						asciiOK = false
-						break
-					}
-				}
-				if asciiOK {
-					n = copy(buf[:], g.prefix)
-				}
-			}
-		}
-
-		if asciiOK {
-			if n == 0 {
-				if len(g.firstChars) == 0 {
-					panic(jutil.NewArithmeticException("/ by zero"))
-				}
-				pos := i % len(g.firstChars)
-				ch := g.firstChars[pos].name
-				if ch >= 0x80 {
-					asciiOK = false
-				} else {
-					buf[0] = byte(ch)
-					n = 1
-					i /= len(g.firstChars)
-				}
-			}
-			for asciiOK && i > 0 {
-				i--
-				if len(g.nonFirstChars) == 0 {
-					panic(jutil.NewArithmeticException("/ by zero"))
-				}
-				pos := i % len(g.nonFirstChars)
-				ch := g.nonFirstChars[pos].name
-				if ch >= 0x80 || n >= len(buf) {
-					asciiOK = false
-					break
-				}
-				buf[n] = byte(ch)
-				n++
-				i /= len(g.nonFirstChars)
-			}
-		}
-
-		if asciiOK {
-			g.nameCount++
-			if n == 1 {
-				b := buf[0]
-				cand := asciiByteTable[b : b+1]
-				if rhino.TokenStream_IsKeyword(cand) || g.isReserved(cand) || DefaultNameGenerator_IsBadName(cand) {
-					continue
-				}
-				return cand
-			}
-			cand := string(buf[:n])
-			if rhino.TokenStream_IsKeyword(cand) || g.isReserved(cand) || DefaultNameGenerator_IsBadName(cand) {
-				continue
-			}
-			return cand
-		}
-
-		var sb strings.Builder
-		i = g.nameCount
-
-		if g.prefix != "" {
-			sb.WriteString(g.prefix)
-		}
-
-		if sb.Len() == 0 {
+			b = append(b, g.prefix...)
+		} else {
 			if len(g.firstChars) == 0 {
 				panic(jutil.NewArithmeticException("/ by zero"))
 			}
 			pos := i % len(g.firstChars)
-			sb.WriteByte(byte(g.firstChars[pos].name))
+			b = append(b, byte(g.firstChars[pos].name))
 			i /= len(g.firstChars)
 		}
 
@@ -483,16 +474,21 @@ func (g *DefaultNameGenerator) GenerateNextName() string {
 				panic(jutil.NewArithmeticException("/ by zero"))
 			}
 			pos := i % len(g.nonFirstChars)
-			sb.WriteByte(byte(g.nonFirstChars[pos].name))
+			b = append(b, byte(g.nonFirstChars[pos].name))
 			i /= len(g.nonFirstChars)
 		}
 
 		g.nameCount++
-		name := sb.String()
-
-		// Make sure it's not a JS keyword or reserved name.
-		if !(rhino.TokenStream_IsKeyword(name) || g.isReserved(name) || DefaultNameGenerator_IsBadName(name)) {
-			return name
+		var cand string
+		if len(b) == 1 {
+			c := b[0]
+			cand = asciiByteTable[c : c+1]
+		} else {
+			cand = string(b)
 		}
+		if rhino.TokenStream_IsKeyword(cand) || g.isReserved(cand) || DefaultNameGenerator_IsBadName(cand) {
+			continue
+		}
+		return cand
 	}
 }

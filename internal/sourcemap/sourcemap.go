@@ -301,9 +301,6 @@ type SourceMapGenerator interface {
 	Validate(validate bool)
 }
 
-// SourceMapGeneratorFactory creates source map generators.
-type SourceMapGeneratorFactory struct{}
-
 // SourceMapGeneratorFactory_GetInstance returns the appropriate source map
 // object for the given source map format.
 //
@@ -317,9 +314,6 @@ func SourceMapGeneratorFactory_GetInstance(format SourceMapFormat) SourceMapGene
 	// Java switch expression is exhaustive.
 	panic(jutil.NewIllegalStateException())
 }
-
-// SourceMapConsumerFactory detects and parses the provided source map.
-type SourceMapConsumerFactory struct{}
 
 // SourceMapConsumerFactory_Parse parses the string representing the source
 // map file contents. It panics with a *SourceMapParseException.

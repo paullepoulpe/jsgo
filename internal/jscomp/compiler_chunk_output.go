@@ -1,7 +1,6 @@
 package jscomp
 
 import (
-	"fmt"
 	"runtime"
 	"strings"
 
@@ -46,9 +45,9 @@ type RenderChunkOptions struct {
 // wrapper lookup, and stream writing hooks to Compiler.OutputChunksParallel.
 type ParallelChunkOutputCallbacks struct {
 	ChunkFileName     func(m *JSChunk) string
-	SourceMapPath     func(m *JSChunk) *string
+	SourceMapPath     func(m *JSChunk) string
 	WrapperTemplate   func(chunkName string) string
-	EnsureDir         func(filename *string)
+	EnsureDir         func(filename string)
 	WriteChunkWithMap func(filename string, mapFilename string, sm *SourceMap, code string, wrapper string)
 	WriteChunkNoMap   func(filename string, code string, wrapper string)
 }
@@ -78,19 +77,23 @@ func (c *Compiler) ensureSourceMapInitialized() {
 }
 
 func (c *Compiler) printChunkInput(
+	chunkName string,
 	scriptNode rhino.Node,
 	firstOutput bool,
 	gatherSourceMap bool,
 	licenseTracker CodePrinter_LicenseTracker,
 	sm *CodePrinter_SourceAndMappings,
 	scratch *codePrinterScratch,
-) string {
+) (string, error) {
+	if scriptNode.IsNil() {
+		return "", jutil.NewIllegalArgumentExceptionMsg("Bad chunk: " + chunkName)
+	}
 	builder := NewCodePrinter_Builder(scriptNode)
 	builder.SetCompilerOptions(c.options)
 	builder.SetTagAsTypeSummary(c.options.ShouldGenerateTypedExterns())
 	builder.SetTagAsStrict(firstOutput && c.options.ShouldEmitUseStrict())
 	builder.SetLicenseTracker(licenseTracker)
-	return builder.buildSourceAndMappingsInto(sm, gatherSourceMap, scratch)
+	return builder.buildSourceAndMappingsInto(sm, gatherSourceMap, scratch), nil
 }
 
 // RenderChunksAndSourceMaps renders non-weak chunks and optional per-chunk
@@ -100,17 +103,6 @@ func (c *Compiler) RenderChunksAndSourceMaps(
 	chunks []*JSChunk,
 	opts RenderChunkOptions,
 ) (rendered []RenderedChunk, err error) {
-	defer func() {
-		if r := recover(); r != nil {
-			if e, ok := r.(error); ok {
-				err = e
-			} else {
-				err = fmt.Errorf("render chunks failed: %v", r)
-			}
-			rendered = nil
-		}
-	}()
-
 	c.InitCompilerOptionsIfTesting()
 
 	activeChunks := make([]*JSChunk, 0, len(chunks))
@@ -154,6 +146,11 @@ func (c *Compiler) RenderChunksAndSourceMaps(
 	rendered = make([]RenderedChunk, len(activeChunks))
 	if !canParallel {
 		for j, m := range activeChunks {
+			for _, in := range m.GetInputs() {
+				if in.GetAstRoot(c).IsNil() {
+					return nil, jutil.NewIllegalArgumentExceptionMsg("Bad chunk: " + m.GetName())
+				}
+			}
 			if gatherSourceMap {
 				c.ResetAndIntitializeSourceMap()
 			}
@@ -180,6 +177,7 @@ func (c *Compiler) RenderChunksAndSourceMaps(
 	}
 
 	printed := make([]chunkPrinted, len(activeChunks))
+	printErrs := make([]error, len(activeChunks))
 	scratches := make([]codePrinterScratch, numWorkers)
 	failures := parallelPrebuildIndexed(len(activeChunks), numWorkers, func(w, j int) {
 		m := activeChunks[j]
@@ -191,20 +189,25 @@ func (c *Compiler) RenderChunksAndSourceMaps(
 		pc.inputs = make([]chunkPrintedInput, len(inputs))
 		for i, in := range inputs {
 			scriptNode := in.GetAstRoot(c)
-			if scriptNode.IsNil() {
-				panic(jutil.NewIllegalArgumentExceptionMsg("Bad chunk: " + m.GetName()))
-			}
 			pi := &pc.inputs[i]
 			pi.root = scriptNode
 			pi.rec.Reset(onlyScript)
+			var printErr error
 			if gatherSourceMap {
-				c.printChunkInput(scriptNode, i == 0, true, &pi.rec, &pi.sm, &scratches[w])
+				_, printErr = c.printChunkInput(m.GetName(), scriptNode, i == 0, true, &pi.rec, &pi.sm, &scratches[w])
 			} else {
-				pi.sm.source = c.printChunkInput(scriptNode, i == 0, false, &pi.rec, nil, &scratches[w])
+				pi.sm.source, printErr = c.printChunkInput(m.GetName(), scriptNode, i == 0, false, &pi.rec, nil, &scratches[w])
+			}
+			if printErr != nil {
+				printErrs[j] = printErr
+				return
 			}
 		}
 	})
-	for _, f := range failures {
+	for j, f := range failures {
+		if printErrs[j] != nil {
+			return nil, printErrs[j]
+		}
 		if f != nil {
 			return nil, f
 		}
@@ -337,9 +340,6 @@ func (c *Compiler) OutputChunksParallel(
 			}
 			for i := 0; i < nInputs; i++ {
 				scriptNode := inputs[i].GetAstRoot(c)
-				if scriptNode.IsNil() {
-					panic(jutil.NewIllegalArgumentExceptionMsg("Bad chunk: " + m.GetName()))
-				}
 				pi := &pc.inputs[i]
 				pi.root = scriptNode
 				pi.rec.Reset(false)
@@ -347,10 +347,14 @@ func (c *Compiler) OutputChunksParallel(
 				pi.startLine = 0
 				pi.startCol = 0
 				pi.emitted = false
+				var printErr error
 				if gatherSourceMap {
-					c.printChunkInput(scriptNode, i == 0, true, &pi.rec, &pi.sm, &scratches[w])
+					_, printErr = c.printChunkInput(m.GetName(), scriptNode, i == 0, true, &pi.rec, &pi.sm, &scratches[w])
 				} else {
-					pi.sm.source = c.printChunkInput(scriptNode, i == 0, false, &pi.rec, nil, &scratches[w])
+					pi.sm.source, printErr = c.printChunkInput(m.GetName(), scriptNode, i == 0, false, &pi.rec, nil, &scratches[w])
+				}
+				if printErr != nil {
+					panic(printErr)
 				}
 			}
 		})
@@ -364,12 +368,10 @@ func (c *Compiler) OutputChunksParallel(
 		for j := 0; j < batchLen; j++ {
 			m := activeChunks[batchStart+j]
 			chunkFilename := hooks.ChunkFileName(m)
-			hooks.EnsureDir(&chunkFilename)
+			hooks.EnsureDir(chunkFilename)
 			var mapFilename string
 			if gatherSourceMap {
-				if mp := hooks.SourceMapPath(m); mp != nil {
-					mapFilename = *mp
-				}
+				mapFilename = hooks.SourceMapPath(m)
 			}
 			mlicenseTracker.SetCurrentChunkContext(m)
 			pc := &printed[j]

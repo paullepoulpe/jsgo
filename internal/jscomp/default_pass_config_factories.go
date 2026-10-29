@@ -1095,7 +1095,7 @@ func (c *DefaultPassConfig) runVariableRenaming(
 	compiler AbstractCompiler, prevVariableMap *VariableMap, externs rhino.Node, root rhino.Node,
 ) *VariableMap {
 	options := c.options
-	reservedChars := jutil.NewLinkedHashSet[uint16]()
+	var reservedChars ASCIICharSet
 	reservedNames := jutil.NewLinkedHashSet[string]()
 	if ns := options.GetRenamePrefixNamespace(); ns != nil {
 		reservedNames.Add(*ns)
@@ -1106,9 +1106,13 @@ func (c *DefaultPassConfig) runVariableRenaming(
 	for name := range parsing.ParserRunner_GetReservedVars().All() {
 		reservedNames.Add(name)
 	}
+	var renamePrefix string
+	if p := options.GetRenamePrefix(); p != nil {
+		renamePrefix = *p
+	}
 	rn := NewRenameVars(
 		compiler,
-		options.GetRenamePrefix(),
+		renamePrefix,
 		options.GetVariableRenaming() == VariableRenamingPolicy_LOCAL,
 		options.ShouldGeneratePseudoNames(),
 		options.ShouldPreferStableNames(),

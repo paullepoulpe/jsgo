@@ -66,6 +66,19 @@ func NewStatementFusion() *StatementFusion {
 	return &StatementFusion{}
 }
 
+var statementFusionTokens = peepholeTokenSet(rhino.Token_BLOCK)
+
+func (s *StatementFusion) peepholeConfig() peepholeOptConfig {
+	return peepholeOptConfig{
+		tokens:     statementFusionTokens,
+		isStandard: true,
+	}
+}
+
+func (s *StatementFusion) cloneForWorker() AbstractPeepholeOptimization {
+	return NewStatementFusion()
+}
+
 // Java: StatementFusion.optimizeSubtree(Node)
 func (s *StatementFusion) OptimizeSubtree(n rhino.Node) rhino.Node {
 	if _, inFn := ast.AsFunction(n.GetParent()); inFn || !s.CanFuseIntoOneStatement(n) {

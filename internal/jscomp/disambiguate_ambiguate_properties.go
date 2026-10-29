@@ -60,9 +60,9 @@ type AmbiguateProperties struct {
 
 	nodesToRename []ambiguateNodeToRename
 	// Can't use these to start property names.
-	reservedFirstCharacters jutil.Set[uint16]
+	reservedFirstCharacters ASCIICharSet
 	// Can't use these at all in property names.
-	reservedNonFirstCharacters jutil.Set[uint16]
+	reservedNonFirstCharacters ASCIICharSet
 
 	// Properties discovered in deterministic encounter order, indexed by name ID.
 	properties    []AmbiguateProperties_Property
@@ -99,8 +99,8 @@ func ambiguateProperties_FREQUENCY_COMPARATOR(p1 *AmbiguateProperties_Property, 
 // Java: AmbiguateProperties(AbstractCompiler, Set<Character>, Set<Character>, Set<String>)
 func NewAmbiguateProperties(
 	compiler AbstractCompiler,
-	reservedFirstCharacters jutil.Set[uint16],
-	reservedNonFirstCharacters jutil.Set[uint16],
+	reservedFirstCharacters ASCIICharSet,
+	reservedNonFirstCharacters ASCIICharSet,
 	externProperties jutil.Set[string]) *AmbiguateProperties {
 	jutil.CheckState(compiler.GetLifeCycleStage().IsNormalized())
 	// ImmutableSet.<String>builder().add("prototype").addAll(externProperties).build()
@@ -123,8 +123,8 @@ func NewAmbiguateProperties(
 // Java: AmbiguateProperties.makePassForTesting(AbstractCompiler, Set<Character>, Set<Character>, Set<String>)
 func AmbiguateProperties_MakePassForTesting(
 	compiler AbstractCompiler,
-	reservedFirstCharacters jutil.Set[uint16],
-	reservedNonFirstCharacters jutil.Set[uint16],
+	reservedFirstCharacters ASCIICharSet,
+	reservedNonFirstCharacters ASCIICharSet,
 	externProperties jutil.Set[string]) *AmbiguateProperties {
 	ap := NewAmbiguateProperties(
 		compiler, reservedFirstCharacters, reservedNonFirstCharacters, externProperties)

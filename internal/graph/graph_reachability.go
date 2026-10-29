@@ -40,19 +40,8 @@ type GraphReachability[N comparable, E any] struct {
 
 // Java: GraphReachability(DiGraph<N, E>)
 func NewGraphReachability[N comparable, E any](graph DiGraph[N, E]) *GraphReachability[N, E] {
-	return NewGraphReachabilityWithPredicate[N, E](graph, nil)
-}
-
-// NewGraphReachabilityWithPredicate: given the predecessor P of the a node
-// S and the edge coming from P to S, edgePredicate should return true if S
-// is reachable from P using the edge. It may be nil.
-//
-// Java: GraphReachability(DiGraph<N, E>, Predicate<EdgeTuple<N, E>>)
-func NewGraphReachabilityWithPredicate[N comparable, E any](
-	graph DiGraph[N, E], edgePredicate func(*GraphReachability_EdgeTuple[N, E]) bool) *GraphReachability[N, E] {
 	return &GraphReachability[N, E]{
-		Graph:         graph,
-		EdgePredicate: edgePredicate,
+		Graph: graph,
 	}
 }
 
@@ -151,17 +140,6 @@ var GraphReachability_REACHABLE Annotation = &graphReachability_sentinel{"REACHA
 type GraphReachability_EdgeTuple[N, E any] struct {
 	SourceNode N
 	Edge       E
-}
-
-// NewGraphReachability_EdgeTuple: destNode is accepted but not stored, as
-// in Java.
-//
-// Java: GraphReachability.EdgeTuple(N, E, N)
-func NewGraphReachability_EdgeTuple[N, E any](sourceNode N, edge E, destNode N) *GraphReachability_EdgeTuple[N, E] {
-	return &GraphReachability_EdgeTuple[N, E]{
-		SourceNode: sourceNode,
-		Edge:       edge,
-	}
 }
 
 var _ FixedPointGraphTraversal_EdgeCallback[string, string] = (*GraphReachability[string, string])(nil)

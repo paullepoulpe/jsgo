@@ -24,10 +24,6 @@ import (
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 )
 
-// SourceMapObjectParser is the Java implementation of the source map
-// parser.
-type SourceMapObjectParser struct{}
-
 // Gson objects are safe to share across threads and are somewhat expensive
 // to construct. Use a single instance. This is Safe per gson docs:
 // https://google.github.io/gson/apidocs/com/google/gson/Gson.html

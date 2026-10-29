@@ -566,27 +566,14 @@ func (e *utf32Encoder) finish(dst []byte) []byte             { return dst }
 // is not a legal charset name is used as such. Its message is the name.
 type IllegalCharsetNameException struct {
 	IllegalArgumentException
-	charsetName string
-}
-
-func (*IllegalCharsetNameException) illegalCharsetNameException() {}
-
-// IIllegalCharsetNameException is the catch marker for
-// IllegalCharsetNameException.
-type IIllegalCharsetNameException interface {
-	IIllegalArgumentException
-	illegalCharsetNameException()
 }
 
 // NewIllegalCharsetNameException is new IllegalCharsetNameException(String).
 func NewIllegalCharsetNameException(charsetName string) *IllegalCharsetNameException {
-	e := &IllegalCharsetNameException{charsetName: charsetName}
+	e := &IllegalCharsetNameException{}
 	InitThrowable(e, "java.nio.charset.IllegalCharsetNameException", &charsetName, nil)
 	return e
 }
-
-// GetCharsetName is IllegalCharsetNameException.getCharsetName().
-func (e *IllegalCharsetNameException) GetCharsetName() string { return e.charsetName }
 
 // requireLegalCharsetName applies the Javadoc's rules for legal charset names:
 // non-empty, made of the letters A-Z and a-z, the digits 0-9, '-', '+',

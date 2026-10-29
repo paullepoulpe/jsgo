@@ -88,6 +88,66 @@ var checkAccessControlsActiveToken = func() [256]bool {
 	return t
 }()
 
+var checkAccessControlsVisitTokens = func() ast.TokenSet {
+	var s ast.TokenSet
+	for tok := rhino.Token(0); tok < rhino.Token_STRING_TYPE; tok++ {
+		switch tok {
+		case rhino.Token_ROOT,
+			rhino.Token_SCRIPT,
+			rhino.Token_MODULE_BODY,
+			rhino.Token_BLOCK,
+			rhino.Token_EXPR_RESULT,
+			rhino.Token_LABEL,
+			rhino.Token_LABEL_NAME,
+			rhino.Token_VAR,
+			rhino.Token_LET,
+			rhino.Token_CONST,
+			rhino.Token_DESTRUCTURING_LHS,
+			rhino.Token_ARRAY_PATTERN,
+			rhino.Token_OBJECT_PATTERN,
+			rhino.Token_IF,
+			rhino.Token_SWITCH,
+			rhino.Token_SWITCH_BODY,
+			rhino.Token_CASE,
+			rhino.Token_DEFAULT_CASE,
+			rhino.Token_WHILE,
+			rhino.Token_DO,
+			rhino.Token_FOR,
+			rhino.Token_FOR_IN,
+			rhino.Token_FOR_OF,
+			rhino.Token_FOR_AWAIT_OF,
+			rhino.Token_WITH,
+			rhino.Token_RETURN,
+			rhino.Token_THROW,
+			rhino.Token_BREAK,
+			rhino.Token_CONTINUE,
+			rhino.Token_DEBUGGER,
+			rhino.Token_TRY,
+			rhino.Token_CATCH,
+			rhino.Token_PARAM_LIST,
+			rhino.Token_CLASS_MEMBERS,
+			rhino.Token_IMPORT,
+			rhino.Token_IMPORT_SPECS,
+			rhino.Token_IMPORT_SPEC,
+			rhino.Token_IMPORT_STAR,
+			rhino.Token_EXPORT,
+			rhino.Token_EXPORT_SPECS,
+			rhino.Token_EXPORT_SPEC,
+			rhino.Token_TEMPLATELIT_SUB,
+			rhino.Token_TEMPLATELIT_STRING:
+			continue
+		}
+		s.Add(tok)
+	}
+	return s
+}()
+
+var _ nodeTraversal_visitTokens = (*CheckAccessControls)(nil)
+
+func (*CheckAccessControls) visitTokens() *ast.TokenSet {
+	return &checkAccessControlsVisitTokens
+}
+
 // Java: CheckAccessControls.DEPRECATED_NAME
 var CheckAccessControls_DEPRECATED_NAME = DiagnosticType_Disabled("JSC_DEPRECATED_VAR", "Variable {0} has been deprecated.")
 

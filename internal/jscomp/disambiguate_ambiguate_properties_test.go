@@ -81,8 +81,8 @@ func (c *AmbiguatePropertiesTest) GetProcessor(compiler *Compiler) CompilerPass 
 	return CompilerPassFunc(func(externs rhino.Node, root rhino.Node) {
 		c.lastPass = AmbiguateProperties_MakePassForTesting(
 			compiler,
-			jutil.NewLinkedHashSet[uint16]('$'),
-			jutil.NewLinkedHashSet[uint16]('$'),
+			NewASCIICharSet('$'),
+			NewASCIICharSet('$'),
 			c.GetGatheredExternProperties())
 		c.lastPass.Process(externs, root)
 	})

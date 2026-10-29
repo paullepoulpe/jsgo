@@ -109,7 +109,7 @@ type AbstractVar interface {
 	IsThis() bool
 
 	// Java: AbstractVar.declarationType()
-	DeclarationType() *rhino.Token
+	DeclarationToken() (rhino.Token, bool)
 
 	// Java: AbstractVar.isImplicitGoogNamespace()
 	IsImplicitGoogNamespace() bool
@@ -307,11 +307,6 @@ func abstractVar_isDeclarationType(tok rhino.Token) bool {
 	}
 }
 
-// Go-only: language-adapter — a Java Token reference may be null; such
-// values are *rhino.Token in DeclarationType() (nil is null), always pointing
-// into this table so that no call allocates.
-var abstractVar_tokenPtrs = rhino.Token_values()
-
 func (b *varCommon) findDeclarationToken() (rhino.Token, bool) {
 	if b.IsImplicitGoogNamespace() {
 		return 0, false
@@ -325,10 +320,10 @@ func (b *varCommon) findDeclarationToken() (rhino.Token, bool) {
 }
 
 //go:noinline
-func failInvalidDeclarationType(self any) {
-	jutil.CheckStateMsg2(
+func failInvalidDeclarationType() {
+	jutil.CheckStateMsg1(
 		false,
-		"The nameNode for %s must be a descendant of one of: %s", self, abstractVar_DECLARATION_TYPES_STR)
+		"The nameNode must be a descendant of one of: %s", abstractVar_DECLARATION_TYPES_STR)
 }
 
 //go:noinline

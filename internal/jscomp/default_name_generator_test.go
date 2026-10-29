@@ -28,7 +28,7 @@ import (
 
 var defaultNameGeneratorTest_RESERVED_NAMES = jutil.NewLinkedHashSet("ba", "xba")
 
-func noChars(chars ...uint16) *jutil.LinkedHashSet[uint16] { return jutil.NewLinkedHashSet(chars...) }
+func noChars(chars ...byte) ASCIICharSet { return NewASCIICharSet(chars...) }
 
 func generateNames(t *testing.T, ng NameGenerator, prefix string, num int) []string {
 	t.Helper()
@@ -44,7 +44,7 @@ func generateNames(t *testing.T, ng NameGenerator, prefix string, num int) []str
 
 func TestDefaultNameGenerator_NameGeneratorInvalidPrefixes(t *testing.T) {
 	ex := assertThrows[jutil.IIllegalArgumentException](t, func() {
-		NewDefaultNameGeneratorWithReserved(jutil.NewLinkedHashSet[string](), "123abc", noChars())
+		NewDefaultNameGeneratorWithReservedChars(jutil.NewLinkedHashSet[string](), "123abc", noChars())
 	})
 	// The error messages should contain meaningful information.
 	if !strings.Contains(ex.GetMessage(), "W, X, Y, Z, $]") {
@@ -52,7 +52,7 @@ func TestDefaultNameGenerator_NameGeneratorInvalidPrefixes(t *testing.T) {
 	}
 
 	ex = assertThrows[jutil.IIllegalArgumentException](t, func() {
-		NewDefaultNameGeneratorWithReserved(jutil.NewLinkedHashSet[string](), "abc%", noChars())
+		NewDefaultNameGeneratorWithReservedChars(jutil.NewLinkedHashSet[string](), "abc%", noChars())
 	})
 	if !strings.Contains(ex.GetMessage(), "W, X, Y, Z, _, 0, 1") {
 		t.Errorf("message %q", ex.GetMessage())
@@ -60,7 +60,7 @@ func TestDefaultNameGenerator_NameGeneratorInvalidPrefixes(t *testing.T) {
 }
 
 func TestDefaultNameGenerator_Generate(t *testing.T) {
-	ng := NewDefaultNameGeneratorWithReserved(defaultNameGeneratorTest_RESERVED_NAMES, "", noChars())
+	ng := NewDefaultNameGeneratorWithReservedChars(defaultNameGeneratorTest_RESERVED_NAMES, "", noChars())
 	result := generateNames(t, ng, "", 106)
 	assertEqual(t, "0", result[0], "a")
 	assertEqual(t, "25", result[25], "z")
@@ -72,7 +72,7 @@ func TestDefaultNameGenerator_Generate(t *testing.T) {
 	assertEqual(t, "54", result[54], "ca")
 	assertEqual(t, "104", result[104], "$a")
 
-	ng = NewDefaultNameGeneratorWithReserved(defaultNameGeneratorTest_RESERVED_NAMES, "x", noChars())
+	ng = NewDefaultNameGeneratorWithReservedChars(defaultNameGeneratorTest_RESERVED_NAMES, "x", noChars())
 	result = generateNames(t, ng, "x", 132)
 
 	// Expected: x, xa, ..., x$, xaa, ..., x$$
@@ -85,7 +85,7 @@ func TestDefaultNameGenerator_Generate(t *testing.T) {
 }
 
 func TestDefaultNameGenerator_Reserve(t *testing.T) {
-	ng := NewDefaultNameGeneratorWithReserved(defaultNameGeneratorTest_RESERVED_NAMES, "", noChars('$'))
+	ng := NewDefaultNameGeneratorWithReservedChars(defaultNameGeneratorTest_RESERVED_NAMES, "", noChars('$'))
 	result := generateNames(t, ng, "", 106)
 	assertEqual(t, "0", result[0], "a")
 	assertEqual(t, "25", result[25], "z")
@@ -98,13 +98,13 @@ func TestDefaultNameGenerator_Reserve(t *testing.T) {
 }
 
 func TestDefaultNameGenerator_ES6KeywordsNotGenerated(t *testing.T) {
-	ng := NewDefaultNameGeneratorWithReserved(defaultNameGeneratorTest_RESERVED_NAMES, "le", noChars('$'))
+	ng := NewDefaultNameGeneratorWithReservedChars(defaultNameGeneratorTest_RESERVED_NAMES, "le", noChars('$'))
 	result := generateNames(t, ng, "le", 106)
 	assertEqual(t, "19", result[19], "les")
 	assertEqual(t, "20", result[20], "leu") // "let" keyword skipped
 	assertEqual(t, "45", result[45], "leT") // "leT" not skipped
 
-	ng = NewDefaultNameGeneratorWithReserved(defaultNameGeneratorTest_RESERVED_NAMES, "awai", noChars('$'))
+	ng = NewDefaultNameGeneratorWithReservedChars(defaultNameGeneratorTest_RESERVED_NAMES, "awai", noChars('$'))
 	result = generateNames(t, ng, "awai", 106)
 	assertEqual(t, "19", result[19], "awais")
 	assertEqual(t, "20", result[20], "awaiu") // "await" keyword skipped
@@ -112,7 +112,7 @@ func TestDefaultNameGenerator_ES6KeywordsNotGenerated(t *testing.T) {
 }
 
 func TestDefaultNameGenerator_GenerateWithPriority1(t *testing.T) {
-	ng := NewDefaultNameGeneratorWithReserved(defaultNameGeneratorTest_RESERVED_NAMES, "", noChars())
+	ng := NewDefaultNameGeneratorWithReservedChars(defaultNameGeneratorTest_RESERVED_NAMES, "", noChars())
 	result := generateNames(t, ng, "", 106)
 	assertEqual(t, "0", result[0], "a")
 	assertEqual(t, "25", result[25], "z")
@@ -139,7 +139,7 @@ func TestDefaultNameGenerator_GenerateWithPriority1(t *testing.T) {
 }
 
 func TestDefaultNameGenerator_GenerateWithPriority2(t *testing.T) {
-	ng := NewDefaultNameGeneratorWithReserved(defaultNameGeneratorTest_RESERVED_NAMES, "", noChars())
+	ng := NewDefaultNameGeneratorWithReservedChars(defaultNameGeneratorTest_RESERVED_NAMES, "", noChars())
 	result := generateNames(t, ng, "", 106)
 	assertEqual(t, "0", result[0], "a")
 	assertEqual(t, "25", result[25], "z")
@@ -178,7 +178,7 @@ func TestDefaultNameGenerator_GenerateWithPriority2(t *testing.T) {
 }
 
 func TestDefaultNameGenerator_GenerateWithPriority3(t *testing.T) {
-	ng := NewDefaultNameGeneratorWithReserved(defaultNameGeneratorTest_RESERVED_NAMES, "", noChars())
+	ng := NewDefaultNameGeneratorWithReservedChars(defaultNameGeneratorTest_RESERVED_NAMES, "", noChars())
 	generateNames(t, ng, "", 106)
 	ng.Favors("???")
 	ng.Reset(defaultNameGeneratorTest_RESERVED_NAMES, "", noChars())
@@ -188,11 +188,11 @@ func TestDefaultNameGenerator_GenerateWithPriority3(t *testing.T) {
 
 // Java: DefaultNameGeneratorTest.testDeterministicNameGeneration()
 func TestDefaultNameGenerator_DeterministicNameGeneration(t *testing.T) {
-	reservedChars1 := jutil.NewLinkedHashSet[uint16]('a', 'b', 'c')
-	reservedChars2 := jutil.NewLinkedHashSet[uint16]('c', 'b', 'a')
+	reservedChars1 := NewASCIICharSet('a', 'b', 'c')
+	reservedChars2 := NewASCIICharSet('c', 'b', 'a')
 
-	ng1 := NewDefaultNameGeneratorWithReserved(jutil.NewLinkedHashSet[string](), "", reservedChars1)
-	ng2 := NewDefaultNameGeneratorWithReserved(jutil.NewLinkedHashSet[string](), "", reservedChars2)
+	ng1 := NewDefaultNameGeneratorWithReservedChars(jutil.NewLinkedHashSet[string](), "", reservedChars1)
+	ng2 := NewDefaultNameGeneratorWithReservedChars(jutil.NewLinkedHashSet[string](), "", reservedChars2)
 
 	result1 := generateNames(t, ng1, "", 10)
 	result2 := generateNames(t, ng2, "", 10)
@@ -204,8 +204,8 @@ func TestDefaultNameGenerator_DeterministicNameGeneration(t *testing.T) {
 	reservedNames1 := jutil.NewLinkedHashSet("a", "b", "c")
 	reservedNames2 := jutil.NewLinkedHashSet("c", "b", "a")
 
-	ng1 = NewDefaultNameGeneratorWithReserved(reservedNames1, "", jutil.NewLinkedHashSet[uint16]())
-	ng2 = NewDefaultNameGeneratorWithReserved(reservedNames2, "", jutil.NewLinkedHashSet[uint16]())
+	ng1 = NewDefaultNameGeneratorWithReserved(reservedNames1, "", nil)
+	ng2 = NewDefaultNameGeneratorWithReservedChars(reservedNames2, "", ASCIICharSet{})
 
 	result1 = generateNames(t, ng1, "", 10)
 	result2 = generateNames(t, ng2, "", 10)

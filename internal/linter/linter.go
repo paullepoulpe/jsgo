@@ -69,7 +69,6 @@ func newLinter_Builder() *Linter_Builder {
 	b.options.SetPreferSingleQuotes(true)
 	b.options.SetEmitUseStrict(false)
 
-	b.options.SetParseJsDocDocumentation(parsing.Config_JsDocParsing_INCLUDE_ALL_COMMENTS)
 	b.options.SetCodingConvention(jscomp.NewGoogleCodingConvention())
 
 	// Even though we're not running the typechecker, enable the checkTypes

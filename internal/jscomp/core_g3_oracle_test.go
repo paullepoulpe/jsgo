@@ -115,6 +115,17 @@ func coreG3Fmt(v any) string {
 		return *x
 	case string, bool, int, int32, int64, float64, uint16:
 		return jutil.ToJavaString(x)
+	case ASCIICharSet:
+		if x.IsEmpty() {
+			return "[]"
+		}
+		var parts []string
+		for _, ch := range "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_$" {
+			if x.Contains(uint16(ch)) {
+				parts = append(parts, string(ch))
+			}
+		}
+		return "[" + strings.Join(parts, ", ") + "]"
 	}
 	rv := reflect.ValueOf(v)
 	if e, ok := v.(interface{ Name() string }); ok && rv.CanInt() {

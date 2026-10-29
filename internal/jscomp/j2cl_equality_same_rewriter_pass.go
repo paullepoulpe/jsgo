@@ -42,6 +42,21 @@ func NewJ2clEqualitySameRewriterPass(useTypes bool) *J2clEqualitySameRewriterPas
 	return &J2clEqualitySameRewriterPass{useTypes: useTypes}
 }
 
+func (p *J2clEqualitySameRewriterPass) peepholeConfig() peepholeOptConfig {
+	if p.shouldRunJ2clPasses {
+		return peepholeOptConfig{
+			tokens:         peepholeCallOnlyTokens,
+			isStandard:     true,
+			isJ2clCallPass: true,
+		}
+	}
+	return peepholeOptConfig{isStandard: true}
+}
+
+func (p *J2clEqualitySameRewriterPass) cloneForWorker() AbstractPeepholeOptimization {
+	return NewJ2clEqualitySameRewriterPass(p.useTypes)
+}
+
 // Java: J2clEqualitySameRewriterPass.beginTraversal(AbstractCompiler)
 func (p *J2clEqualitySameRewriterPass) BeginTraversal(compiler AbstractCompiler) {
 	p.AbstractPeepholeOptimizationBase.BeginTraversal(compiler)

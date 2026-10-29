@@ -22,8 +22,29 @@ package jscomp
 import (
 	"testing"
 
+	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
+
+func linkedHashSetSize(s *jutil.LinkedHashSet[string]) int {
+	if s == nil {
+		return 0
+	}
+	return s.Size()
+}
+
+// CanInlineReferenceToFunction: test-only wrapper over canInlineReferenceWithSummary.
+//
+// Java: FunctionInjector.canInlineReferenceToFunction(Reference, Node, ImmutableSet<String>, boolean, boolean)
+func (f *FunctionInjector) CanInlineReferenceToFunction(
+	ref *FunctionInjector_Reference,
+	fnNode rhino.Node,
+	needAliases *jutil.LinkedHashSet[string],
+	referencesThis bool,
+	containsClosures bool) FunctionInjector_CanInlineResult {
+	return f.canInlineReferenceWithSummary(
+		ref, fnNode, linkedHashSetSize(needAliases), referencesThis, containsClosures, nil)
+}
 
 // FunctionInjectorTest: inline function tests.
 type FunctionInjectorTest struct {

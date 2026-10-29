@@ -109,8 +109,8 @@ type RenameProperties struct {
 	toRemove                   []rhino.Node
 	candidates                 []propRenameCandidate
 	callSites                  []propCallSite
-	reservedFirstCharacters    jutil.Set[uint16]
-	reservedNonFirstCharacters jutil.Set[uint16]
+	reservedFirstCharacters    ASCIICharSet
+	reservedNonFirstCharacters ASCIICharSet
 
 	// Map from interned property ID to Property object, plus insertion-ordered list.
 	propertyByID map[strpool.ID]*RenameProperties_Property
@@ -173,8 +173,8 @@ func NewRenameProperties(
 	compiler AbstractCompiler,
 	generatePseudoNames bool,
 	prevUsedPropertyMap *VariableMap,
-	reservedFirstCharacters jutil.Set[uint16],
-	reservedNonFirstCharacters jutil.Set[uint16],
+	reservedFirstCharacters ASCIICharSet,
+	reservedNonFirstCharacters ASCIICharSet,
 	nameGenerator NameGenerator) *RenameProperties {
 	r := newRenameProperties(
 		compiler,
@@ -203,8 +203,8 @@ func NewRenamePropertiesWithFilter(
 	compiler AbstractCompiler,
 	generatePseudoNames bool,
 	prevUsedPropertyMap *VariableMap,
-	reservedFirstCharacters jutil.Set[uint16],
-	reservedNonFirstCharacters jutil.Set[uint16],
+	reservedFirstCharacters ASCIICharSet,
+	reservedNonFirstCharacters ASCIICharSet,
 	nameGenerator NameGenerator,
 	propertyRenameEligibilityFilter func(rhino.Node) bool) *RenameProperties {
 	return newRenameProperties(
@@ -221,8 +221,8 @@ func newRenameProperties(
 	compiler AbstractCompiler,
 	generatePseudoNames bool,
 	prevUsedPropertyMap *VariableMap,
-	reservedFirstCharacters jutil.Set[uint16],
-	reservedNonFirstCharacters jutil.Set[uint16],
+	reservedFirstCharacters ASCIICharSet,
+	reservedNonFirstCharacters ASCIICharSet,
 	nameGenerator NameGenerator,
 	propertyRenameEligibilityFilter func(rhino.Node) bool) *RenameProperties {
 	externProperties := compiler.GetExternProperties()

@@ -33,10 +33,7 @@ var preallocatedColors = func() [256]GraphColoring_Color {
 }()
 
 // GraphColoring aliases *GreedyGraphColoring, the sole graph coloring implementation.
-type (
-	GraphColoring[N comparable, E any]                     = *GreedyGraphColoring[N, E]
-	GraphColoring_GreedyGraphColoring[N comparable, E any] = GreedyGraphColoring[N, E]
-)
+type GraphColoring[N comparable, E any] = *GreedyGraphColoring[N, E]
 
 // GraphColoring_ColorOf is the unchecked cast (Color) annotation.
 func GraphColoring_ColorOf(a Annotation) *GraphColoring_Color {
@@ -87,31 +84,20 @@ type GreedyGraphColoring[N comparable, E any] struct {
 }
 
 // Java: GraphColoring.GreedyGraphColoring(AdjacencyGraph<N, E>)
-func NewGreedyGraphColoring[N comparable, E any](graph Graph[N, E]) *GreedyGraphColoring[N, E] {
-	return NewGreedyGraphColoringWithTieBreaker[N, E](graph, nil)
-}
-
-// NewGraphColoring_GreedyGraphColoring preserves the legacy constructor name.
 func NewGraphColoring_GreedyGraphColoring[N comparable, E any](graph Graph[N, E]) *GreedyGraphColoring[N, E] {
-	return NewGreedyGraphColoringWithTieBreaker[N, E](graph, nil)
+	return NewGraphColoring_GreedyGraphColoringWithTieBreaker[N, E](graph, nil)
 }
 
-// NewGreedyGraphColoringWithTieBreaker constructs a greedy graph coloring with
-// an optional tie-breaking comparator for equal-degree nodes.
+// NewGraphColoring_GreedyGraphColoringWithTieBreaker constructs a greedy graph
+// coloring with an optional tie-breaking comparator for equal-degree nodes.
 //
 // Java: GraphColoring.GreedyGraphColoring(AdjacencyGraph<N, E>, Comparator<N>)
-func NewGreedyGraphColoringWithTieBreaker[N comparable, E any](
+func NewGraphColoring_GreedyGraphColoringWithTieBreaker[N comparable, E any](
 	graph Graph[N, E], tieBreaker func(a, b N) int) *GreedyGraphColoring[N, E] {
 	return &GreedyGraphColoring[N, E]{
 		graph:      graph,
 		TieBreaker: tieBreaker,
 	}
-}
-
-// NewGraphColoring_GreedyGraphColoringWithTieBreaker preserves the legacy constructor name.
-func NewGraphColoring_GreedyGraphColoringWithTieBreaker[N comparable, E any](
-	graph Graph[N, E], tieBreaker func(a, b N) int) *GreedyGraphColoring[N, E] {
-	return NewGreedyGraphColoringWithTieBreaker[N, E](graph, tieBreaker)
 }
 
 func (c *GreedyGraphColoring[N, E]) nodeAnnotation(node N) Annotation {
@@ -149,25 +135,6 @@ func (c *GreedyGraphColoring[N, E]) GetPartitionSuperNode(node N) N {
 		return node
 	}
 	return c.superNodes[idx]
-}
-
-// HaveSameColor reports whether first and second were assigned the same color.
-//
-// Java: GraphColoring.haveSameColor(N, N)
-func (c *GreedyGraphColoring[N, E]) HaveSameColor(first N, second N) bool {
-	if !c.colored {
-		panic(jutil.NewNullPointerExceptionMsg("No coloring founded. color() should be called first."))
-	}
-	colorFirst := GraphColoring_ColorOf(c.nodeAnnotation(first))
-	colorSecond := GraphColoring_ColorOf(c.nodeAnnotation(second))
-	jutil.CheckNotNull(colorFirst)
-	jutil.CheckNotNull(colorSecond)
-	return colorFirst.Value == colorSecond.Value
-}
-
-// Java: GraphColoring.getGraph()
-func (c *GreedyGraphColoring[N, E]) GetGraph() Graph[N, E] {
-	return c.graph
 }
 
 // Color annotates the graph nodes with Color objects and returns the number of

@@ -25,27 +25,6 @@ var (
 	_ MapSource[string, int] = (*ObjectLinkedHashMap[string, int])(nil)
 )
 
-// javaCollection is implemented by the jutil types that model a
-// java.util.Collection, so that `x instanceof Collection` can be expressed
-// as a Go type assertion.
-type javaCollection interface {
-	Size() int
-	IsEmpty() bool
-	isJavaCollection()
-}
-
-// javaMap is implemented by the jutil types that model a java.util.Map.
-type javaMap interface {
-	Size() int
-	IsEmpty() bool
-	isJavaMap()
-}
-
-func (*LinkedHashSet[T]) isJavaCollection()       {}
-func (*LinkedHashMap[K, V]) isJavaMap()           {}
-func (*ObjectLinkedHashSet[T]) isJavaCollection() {}
-func (*ObjectLinkedHashMap[K, V]) isJavaMap()     {}
-
 // CollectionToString renders elements like Java's AbstractCollection.toString.
 func CollectionToString[T any](elems []T) string {
 	var sb strings.Builder

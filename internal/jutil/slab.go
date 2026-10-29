@@ -21,18 +21,11 @@ type Slab[T any] struct {
 	used       int
 	nextChunk  int
 	fixedChunk int
-	maxChunk   int
 }
 
 // NewFixedSlab returns a Slab that allocates chunks of fixedChunk elements.
 func NewFixedSlab[T any](fixedChunk int) Slab[T] {
 	return Slab[T]{fixedChunk: fixedChunk}
-}
-
-// NewMaxSlab returns a Slab whose chunks ramp up as usual but never hold
-// more than maxChunk elements.
-func NewMaxSlab[T any](maxChunk int) Slab[T] {
-	return Slab[T]{maxChunk: maxChunk}
 }
 
 const (
@@ -51,28 +44,20 @@ func (s *Slab[T]) New() *T {
 	return p
 }
 
-// grow starts a new chunk, ramping 16 -> 32 -> 64 -> 128 elements (capped by
-// maxChunk when set) so that a slab that serves few objects stays small while
-// larger slabs amortize allocations without spanning many 8 KB pages.
+// grow starts a new chunk, ramping 16 -> 32 -> 64 -> 128 elements so that a
+// slab that serves few objects stays small while larger slabs amortize
+// allocations without spanning many 8 KB pages.
 func (s *Slab[T]) grow() {
 	n := s.fixedChunk
 	if n == 0 {
-		limit := defaultMaxChunk
-		if s.maxChunk > 0 {
-			limit = s.maxChunk
-		}
 		if s.nextChunk == 0 {
-			n = min(minChunk, limit)
+			n = minChunk
 		} else {
-			n = min(s.nextChunk, limit)
+			n = s.nextChunk
 		}
-		s.nextChunk = min(2*n, limit)
+		s.nextChunk = min(2*n, defaultMaxChunk)
 	}
-	chunk := SlabChunk[T](n)
-	if s.maxChunk > 0 && len(chunk) > s.maxChunk {
-		chunk = chunk[:s.maxChunk]
-	}
-	s.chunk = chunk
+	s.chunk = SlabChunk[T](n)
 	s.used = 0
 }
 

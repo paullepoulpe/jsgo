@@ -508,6 +508,11 @@ func (b *SuggestedFix_Builder) AddOrReplaceJsDoc(n rhino.Node, newJsDoc string) 
 	return b
 }
 
+var (
+	suggestedFixJsDocTypePattern       = jutil.Pattern_Compile("@(type) *\\{?[^@\\s}]+\\}?")
+	suggestedFixJsDocVisibilityPattern = jutil.Pattern_Compile("@(export|package|private|protected|public|const|return) *\\{[^}]+\\}")
+)
+
 // Java: SuggestedFix.Builder.changeJsDocType(Node, AbstractCompiler, String)
 func (b *SuggestedFix_Builder) ChangeJsDocType(n rhino.Node, compiler jscomp.AbstractCompiler, type_ string) *SuggestedFix_Builder {
 	typeNode := parsing.JsDocInfoParser_ParseTypeString(type_)
@@ -518,8 +523,8 @@ func (b *SuggestedFix_Builder) ChangeJsDocType(n rhino.Node, compiler jscomp.Abs
 		panic(jutil.NewRuntimeException("JS Compiler does not recognize type: " + type_))
 	}
 
-	b.ReplaceTypePattern(n, type_, jutil.Pattern_Compile("@(type) *\\{?[^@\\s}]+\\}?"))
-	b.ReplaceTypePattern(n, type_, jutil.Pattern_Compile("@(export|package|private|protected|public|const|return) *\\{[^}]+\\}"))
+	b.ReplaceTypePattern(n, type_, suggestedFixJsDocTypePattern)
+	b.ReplaceTypePattern(n, type_, suggestedFixJsDocVisibilityPattern)
 	return b
 }
 

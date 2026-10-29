@@ -66,15 +66,6 @@ func renamingDump_dumpFile(sb *strings.Builder, externs, rel, src string, fullTh
 	}
 }
 
-// renamingDump_charSet passes a nullable option set on as Java does (a null
-// Set is a nil interface).
-func renamingDump_charSet(s *jutil.LinkedHashSet[uint16]) jutil.Set[uint16] {
-	if s == nil {
-		return nil
-	}
-	return s
-}
-
 // renamingDump_dumpVariant is RenamingDump.dumpVariant.
 func renamingDump_dumpVariant(sb *strings.Builder, variant string, externsFile, inputFile *SourceFile, fullThis bool) {
 	s := newSerializationDump_setup(externsFile, inputFile)
@@ -109,8 +100,8 @@ func renamingDump_dumpVariant(sb *strings.Builder, variant string, externsFile, 
 			// RenamingDump sets the renamingMap field as makePassForTesting does.
 			ap := AmbiguateProperties_MakePassForTesting(
 				s.compiler,
-				renamingDump_charSet(options.GetPropertyReservedNamingFirstChars()),
-				renamingDump_charSet(options.GetPropertyReservedNamingNonFirstChars()),
+				options.GetPropertyReservedNamingFirstChars(),
+				options.GetPropertyReservedNamingNonFirstChars(),
 				s.compiler.GetExternProperties())
 			ap.Process(externsRoot, jsRoot)
 			hasMap = true
@@ -122,8 +113,8 @@ func renamingDump_dumpVariant(sb *strings.Builder, variant string, externsFile, 
 				s.compiler,
 				variant == "rename-pseudo",
 				nil,
-				renamingDump_charSet(options.GetPropertyReservedNamingFirstChars()),
-				renamingDump_charSet(options.GetPropertyReservedNamingNonFirstChars()),
+				options.GetPropertyReservedNamingFirstChars(),
+				options.GetPropertyReservedNamingNonFirstChars(),
 				options.GetNameGenerator())
 			rprop.Process(externsRoot, jsRoot)
 			hasMap = true

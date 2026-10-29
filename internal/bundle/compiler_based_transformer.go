@@ -50,11 +50,6 @@ func (t *CompilerBasedTransformer) GetRuntime() *string {
 	return &s
 }
 
-// Java: CompilerBasedTransformer.getTranformationName()
-func (t *CompilerBasedTransformer) GetTranformationName() string {
-	return t.transformationName
-}
-
 // Java: CompilerBasedTransformer.transform(Source)
 func (t *CompilerBasedTransformer) Transform(input *Source) *Source {
 	result := t.compilerSupplier.Compile(input.Path(), input.Code())
@@ -149,19 +144,9 @@ func (s *CompilerBasedTransformer_DefaultCompilerSupplier) Compile(path *jutil.P
 	return compileSingleFileWithOptions(path, code, s.Options(), false)
 }
 
-// Java: CompilerSupplier.transformed(Result)
-func (s *CompilerBasedTransformer_DefaultCompilerSupplier) Transformed(result *jscomp.Result) bool {
-	return result.TranspiledFiles
-}
-
 // Java: CompilerSupplier.runtime(String)
 func (s *CompilerBasedTransformer_DefaultCompilerSupplier) Runtime(library string) string {
 	return runtimeSingleFileWithOptions(s.Options(), library)
-}
-
-// Java: CompilerSupplier.compiler()
-func (s *CompilerBasedTransformer_DefaultCompilerSupplier) Compiler() *jscomp.Compiler {
-	return jscomp.NewCompiler()
 }
 
 // Java: CompilerSupplier.options()
@@ -291,11 +276,6 @@ func (s *CoverageInstrumenter_CompilerSupplier) SetOptions(options *jscomp.Compi
 	options.SetInstrumentForCoverageOnly(true)
 }
 
-// Java: CoverageInstrumenter.CompilerSupplier.transformed(Result)
-func (s *CoverageInstrumenter_CompilerSupplier) Transformed(result *jscomp.Result) bool {
-	return true
-}
-
 // CoverageInstrumenter_CompilerSupplier_ is CoverageInstrumenter's static
 // compilerSupplier() (the trailing underscore keeps it apart from the type
 // CoverageInstrumenter_CompilerSupplier).
@@ -304,6 +284,3 @@ func (s *CoverageInstrumenter_CompilerSupplier) Transformed(result *jscomp.Resul
 func CoverageInstrumenter_CompilerSupplier_() *CoverageInstrumenter_CompilerSupplier {
 	return NewCoverageInstrumenter_CompilerSupplier()
 }
-
-// Java: CoverageInstrumenter.INSTRUMENTER
-var CoverageInstrumenter_INSTRUMENTER = NewCoverageInstrumenter(CoverageInstrumenter_CompilerSupplier_())

@@ -91,7 +91,7 @@ func (r *Reference) GetSymbol() rhino.StaticSlot {
 //
 // Go-only: language-adapter — see GetSymbol.
 func (r *Reference) getSymbolV() *Var {
-	return r.scope.GetVar(r.nameNode.GetString())
+	return r.scope.GetVarByID(r.nameNode.GetStringID())
 }
 
 // Java: Reference.getNode()

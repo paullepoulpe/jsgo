@@ -261,6 +261,62 @@ func (c *CodeConsumer) codeInsertByte(offset int, b byte) {
 	c.code[offset] = b
 }
 
+func (c *CodeConsumer) recordCost(units int, lastChar uint16) {
+	c.lastChar = lastChar
+	c.cost += units
+	if c.maxCost <= c.cost {
+		c.continueProcessing = false
+	}
+}
+
+func (c *CodeConsumer) flushGzScratch() {
+	if _, err := c.gzStream.Write(c.gzScratch); err != nil {
+		panic(jutil.NewRuntimeExceptionWithCause(jutil.NewIOException(err.Error())))
+	}
+}
+
+func (c *CodeConsumer) recordSizeBytes(units int, lastChar uint16, b []byte) {
+	c.lastChar = lastChar
+	c.cost += units
+	if c.trackGzSize {
+		c.gzScratch = append(c.gzScratch[:0], b...)
+		c.flushGzScratch()
+	}
+}
+
+func (c *CodeConsumer) appendRawASCIIBytes(b []byte) {
+	last := uint16(b[len(b)-1])
+	switch c.mode {
+	case sinkCompact, sinkPretty:
+		c.lastChar = last
+		c.lineLength += len(b)
+		c.code = append(c.code, b...)
+	case sinkCost:
+		c.recordCost(len(b), last)
+	case sinkSize:
+		c.recordSizeBytes(len(b), last, b)
+	}
+}
+
+// emitTokenSeparator inserts any mandatory token-separation or optional pretty
+// space needed before emitting a token starting with ch.
+func (c *CodeConsumer) emitTokenSeparator(ch uint16) {
+	if (CodeConsumer_IsWordChar(ch) || ch == '\\') && CodeConsumer_IsWordChar(c.lastChar) {
+		// need space to separate. This is not pretty printing.
+		// For example: "return foo;"
+		c.Append(" ")
+	} else if ch == '/' && (c.lastChar == '/' || c.lastChar == '<') {
+		// Do not allow a forward slash to appear after a DIV or LT.
+		// For example,
+		// REGEXP DIV REGEXP
+		// is valid and should print like
+		// / // / /
+		c.Append(" ")
+	} else if (ch == '"' || ch == '\'') && CodeConsumer_IsWordChar(c.lastChar) {
+		c.MaybeInsertSpace()
+	}
+}
+
 // Append appends a string to the consumer's output.
 //
 // Java: CodeConsumer.append(String)
@@ -273,19 +329,11 @@ func (c *CodeConsumer) Append(str string) {
 		c.lineLength += c.codeAppend(str)
 	case sinkCost:
 		if n := len(str); n > 0 && jutil.IsASCII(str) {
-			c.lastChar = uint16(str[n-1])
-			c.cost += n
-			if c.maxCost <= c.cost {
-				c.continueProcessing = false
-			}
+			c.recordCost(n, uint16(str[n-1]))
 			return
 		}
 		length := jutil.StringLength(str)
-		c.lastChar = jutil.StringCharAt(str, length-1)
-		c.cost += length
-		if c.maxCost <= c.cost {
-			c.continueProcessing = false
-		}
+		c.recordCost(length, jutil.StringCharAt(str, length-1))
 	case sinkSize:
 		if n := len(str); n > 0 {
 			if jutil.IsASCII(str) {
@@ -293,9 +341,7 @@ func (c *CodeConsumer) Append(str string) {
 				c.lastChar = uint16(str[n-1])
 				if c.trackGzSize {
 					c.gzScratch = append(c.gzScratch[:0], str...)
-					if _, err := c.gzStream.Write(c.gzScratch); err != nil {
-						panic(jutil.NewRuntimeExceptionWithCause(jutil.NewIOException(err.Error())))
-					}
+					c.flushGzScratch()
 				}
 				return
 			}
@@ -304,9 +350,7 @@ func (c *CodeConsumer) Append(str string) {
 			c.lastChar = jutil.StringCharAt(str, len_-1)
 			if c.trackGzSize {
 				c.gzScratch = jutil.AppendStringBytesUTF8(c.gzScratch[:0], str)
-				if _, err := c.gzStream.Write(c.gzScratch); err != nil {
-					panic(jutil.NewRuntimeExceptionWithCause(jutil.NewIOException(err.Error())))
-				}
+				c.flushGzScratch()
 			}
 		}
 	}
@@ -315,44 +359,17 @@ func (c *CodeConsumer) Append(str string) {
 // appendASCIIBytes appends a non-empty pure-ASCII byte slice directly without
 // allocating a temporary string.
 func (c *CodeConsumer) appendASCIIBytes(b []byte) {
-	switch c.mode {
-	case sinkPretty:
+	if c.mode == sinkPretty {
 		c.maybeIndent()
-		fallthrough
-	case sinkCompact:
-		c.lastChar = uint16(b[len(b)-1])
-		c.lineLength += len(b)
-		c.code = append(c.code, b...)
-	case sinkCost:
-		c.lastChar = uint16(b[len(b)-1])
-		c.cost += len(b)
-		if c.maxCost <= c.cost {
-			c.continueProcessing = false
-		}
-	case sinkSize:
-		c.lastChar = uint16(b[len(b)-1])
-		c.cost += len(b)
-		if c.trackGzSize {
-			c.gzScratch = append(c.gzScratch[:0], b...)
-			if _, err := c.gzStream.Write(c.gzScratch); err != nil {
-				panic(jutil.NewRuntimeExceptionWithCause(jutil.NewIOException(err.Error())))
-			}
-		}
 	}
+	c.appendRawASCIIBytes(b)
 }
 
 // beginToken prepares statement-end, separator-space, and pretty indentation
 // before streaming a single-line token whose first ASCII byte is firstByte.
 func (c *CodeConsumer) beginToken(firstByte byte) {
 	c.MaybeEndStatement()
-	ch := uint16(firstByte)
-	if (CodeConsumer_IsWordChar(ch) || ch == '\\') && CodeConsumer_IsWordChar(c.lastChar) {
-		c.Append(" ")
-	} else if ch == '/' && (c.lastChar == '/' || c.lastChar == '<') {
-		c.Append(" ")
-	} else if (ch == '"' || ch == '\'') && CodeConsumer_IsWordChar(c.lastChar) {
-		c.MaybeInsertSpace()
-	}
+	c.emitTokenSeparator(uint16(firstByte))
 	if c.mode == sinkPretty {
 		c.maybeIndent()
 	}
@@ -362,58 +379,24 @@ func (c *CodeConsumer) beginToken(firstByte byte) {
 // surrogates already escaped to \uXXXX) after beginToken has run.
 func (c *CodeConsumer) appendContinuationChunk(b []byte, isASCII bool) {
 	if isASCII {
-		switch c.mode {
-		case sinkCompact, sinkPretty:
-			c.lastChar = uint16(b[len(b)-1])
-			c.lineLength += len(b)
-			c.code = append(c.code, b...)
-		case sinkCost:
-			c.lastChar = uint16(b[len(b)-1])
-			c.cost += len(b)
-			if c.maxCost <= c.cost {
-				c.continueProcessing = false
-			}
-		case sinkSize:
-			c.lastChar = uint16(b[len(b)-1])
-			c.cost += len(b)
-			if c.trackGzSize {
-				c.gzScratch = append(c.gzScratch[:0], b...)
-				if _, err := c.gzStream.Write(c.gzScratch); err != nil {
-					panic(jutil.NewRuntimeExceptionWithCause(jutil.NewIOException(err.Error())))
-				}
-			}
-		}
+		c.appendRawASCIIBytes(b)
 		return
 	}
 
 	// Non-ASCII BMP UTF-8 chunk: every rune is 1 UTF-16 code unit.
+	unitsAdded := utf8.RuneCount(b)
+	r, _ := utf8.DecodeLastRune(b)
+	last := uint16(r)
 	switch c.mode {
 	case sinkCompact, sinkPretty:
 		c.hasNonASCII = true
 		c.code = append(c.code, b...)
-		unitsAdded := utf8.RuneCount(b)
-		r, _ := utf8.DecodeLastRune(b)
-		c.lastChar = uint16(r)
+		c.lastChar = last
 		c.lineLength += unitsAdded
 	case sinkCost:
-		unitsAdded := utf8.RuneCount(b)
-		r, _ := utf8.DecodeLastRune(b)
-		c.lastChar = uint16(r)
-		c.cost += unitsAdded
-		if c.maxCost <= c.cost {
-			c.continueProcessing = false
-		}
+		c.recordCost(unitsAdded, last)
 	case sinkSize:
-		unitsAdded := utf8.RuneCount(b)
-		r, _ := utf8.DecodeLastRune(b)
-		c.lastChar = uint16(r)
-		c.cost += unitsAdded
-		if c.trackGzSize {
-			c.gzScratch = append(c.gzScratch[:0], b...)
-			if _, err := c.gzStream.Write(c.gzScratch); err != nil {
-				panic(jutil.NewRuntimeExceptionWithCause(jutil.NewIOException(err.Error())))
-			}
-		}
+		c.recordSizeBytes(unitsAdded, last, b)
 	}
 }
 
@@ -429,11 +412,7 @@ func (c *CodeConsumer) addPlainQuotedASCII(quote byte, s string) {
 		c.code = append(c.code, s...)
 		c.code = append(c.code, quote)
 	case sinkCost:
-		c.lastChar = uint16(quote)
-		c.cost += len(s) + 2
-		if c.maxCost <= c.cost {
-			c.continueProcessing = false
-		}
+		c.recordCost(len(s)+2, uint16(quote))
 	case sinkSize:
 		c.lastChar = uint16(quote)
 		c.cost += len(s) + 2
@@ -441,9 +420,7 @@ func (c *CodeConsumer) addPlainQuotedASCII(quote byte, s string) {
 			c.gzScratch = append(c.gzScratch[:0], quote)
 			c.gzScratch = append(c.gzScratch, s...)
 			c.gzScratch = append(c.gzScratch, quote)
-			if _, err := c.gzStream.Write(c.gzScratch); err != nil {
-				panic(jutil.NewRuntimeExceptionWithCause(jutil.NewIOException(err.Error())))
-			}
+			c.flushGzScratch()
 		}
 	}
 }
@@ -454,14 +431,7 @@ func (c *CodeConsumer) addSingleLineASCIIBytes(b []byte) {
 	if len(b) == 0 {
 		return
 	}
-	ch := uint16(b[0])
-	if (CodeConsumer_IsWordChar(ch) || ch == '\\') && CodeConsumer_IsWordChar(c.lastChar) {
-		c.Append(" ")
-	} else if ch == '/' && (c.lastChar == '/' || c.lastChar == '<') {
-		c.Append(" ")
-	} else if (ch == '"' || ch == '\'') && CodeConsumer_IsWordChar(c.lastChar) {
-		c.MaybeInsertSpace()
-	}
+	c.emitTokenSeparator(uint16(b[0]))
 	c.appendASCIIBytes(b)
 }
 
@@ -476,21 +446,7 @@ func (c *CodeConsumer) Add(newcode string) {
 		return
 	}
 
-	ch := codeConsumer_firstChar(newcode)
-	if (CodeConsumer_IsWordChar(ch) || ch == '\\') && CodeConsumer_IsWordChar(c.lastChar) {
-		// need space to separate. This is not pretty printing.
-		// For example: "return foo;"
-		c.Append(" ")
-	} else if ch == '/' && (c.lastChar == '/' || c.lastChar == '<') {
-		// Do not allow a forward slash to appear after a DIV or LT.
-		// For example,
-		// REGEXP DIV REGEXP
-		// is valid and should print like
-		// / // / /
-		c.Append(" ")
-	} else if (ch == '"' || ch == '\'') && CodeConsumer_IsWordChar(c.lastChar) {
-		c.MaybeInsertSpace()
-	}
+	c.emitTokenSeparator(codeConsumer_firstChar(newcode))
 
 	endOfLine := strings.IndexByte(newcode, '\n')
 	if endOfLine < 0 {

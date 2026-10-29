@@ -113,20 +113,13 @@ func isASCII(s string) bool {
 
 // StringToUTF16 converts a WTF-8 Go string to UTF-16 code units.
 func StringToUTF16(s string) []uint16 {
-	out, _ := StringToUTF16AndASCIIPrefix(s)
-	return out
-}
-
-// StringToUTF16AndASCIIPrefix converts s to UTF-16 code units and returns
-// the length of its leading pure-ASCII prefix.
-func StringToUTF16AndASCIIPrefix(s string) ([]uint16, int) {
 	prefix := ASCIIPrefixLen(s)
 	if prefix == len(s) {
 		out := make([]uint16, len(s))
 		for i := 0; i < len(s); i++ {
 			out[i] = uint16(s[i])
 		}
-		return out, prefix
+		return out
 	}
 	out := make([]uint16, prefix, len(s))
 	for i := 0; i < prefix; i++ {
@@ -142,7 +135,7 @@ func StringToUTF16AndASCIIPrefix(s string) ([]uint16, int) {
 			out = append(out, uint16(r))
 		}
 	}
-	return out, prefix
+	return out
 }
 
 // StringLength is Java's String.length(): the number of UTF-16 code units.
@@ -504,27 +497,6 @@ func StringIndexOfCharFrom(s string, ch uint16, fromIndex int) int {
 		}
 	}
 	return -1
-}
-
-// StringCodePointAt is String.codePointAt(int) with a UTF-16 index.
-func StringCodePointAt(s string, index int) int {
-	if isASCII(s) {
-		if index < 0 || index >= len(s) {
-			panic(NewStringIndexOutOfBoundsException(index, len(s)))
-		}
-		return int(s[index])
-	}
-	u := StringToUTF16(s)
-	if index < 0 || index >= len(u) {
-		panic(NewStringIndexOutOfBoundsException(index, len(u)))
-	}
-	c := u[index]
-	if c >= 0xD800 && c <= 0xDBFF && index+1 < len(u) {
-		if lo := u[index+1]; lo >= 0xDC00 && lo <= 0xDFFF {
-			return int(utf16.DecodeRune(rune(c), rune(lo)))
-		}
-	}
-	return int(c)
 }
 
 // StringLastIndexOfFrom is String.lastIndexOf(String str, int fromIndex)

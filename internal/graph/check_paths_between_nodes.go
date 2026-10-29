@@ -42,8 +42,6 @@ type CheckPathsBetweenNodes[N comparable, E any] struct {
 	edgeBuf   [64]uint32
 }
 
-const checkPathsReuseMaxEdges = 4096
-
 // NewCheckPathsBetweenNodes: given a graph G with nodes A and B, this
 // algorithm determines if all paths from A to B contain at least one node
 // satisfying a given predicate.
@@ -132,13 +130,6 @@ func (c *CheckPathsBetweenNodes[N, E]) ResetLinkedAllEdges(
 	c.edgePredicate = nil
 	c.allEdges = true
 	c.inclusive = inclusive
-}
-
-// ReleaseLargeStorage drops heap storage when it grew beyond checkPathsReuseMaxEdges.
-func (c *CheckPathsBetweenNodes[N, E]) ReleaseLargeStorage() {
-	if cap(c.edgeState) > checkPathsReuseMaxEdges {
-		c.edgeState = nil
-	}
 }
 
 func (c *CheckPathsBetweenNodes[N, E]) prepare() uint32 {

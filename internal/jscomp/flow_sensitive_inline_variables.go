@@ -924,6 +924,8 @@ func (f *FlowSensitiveInlineVariables) hasEnclosingSlotByID(nameID uint32) bool 
 	return f.curFnEnclosingScope != nil && f.curFnEnclosingScope.GetVarByID(nameID) != nil
 }
 
+var fsivGatherCandidatesCfgTokens = makeVisitTokenSet(rhino.Token_NAME)
+
 // FlowSensitiveInlineVariables_GatherCandidatesCfgNodeCallback visits a
 // control flow graph node without entering subtrees represented by other CFG
 // nodes.
@@ -932,6 +934,21 @@ type FlowSensitiveInlineVariables_GatherCandidatesCfgNodeCallback struct {
 
 	cfgNode rhino.Node
 	inState *MustBeReachingVariableDef_MustDef
+}
+
+var (
+	_ nodeTraversal_visitTokens    = (*FlowSensitiveInlineVariables_GatherCandidatesCfgNodeCallback)(nil)
+	_ nodeTraversal_onlyNameLeaves = (*FlowSensitiveInlineVariables_GatherCandidatesCfgNodeCallback)(nil)
+)
+
+func (*FlowSensitiveInlineVariables_GatherCandidatesCfgNodeCallback) visitTokens() *ast.TokenSet {
+	return &fsivGatherCandidatesCfgTokens
+}
+
+func (*FlowSensitiveInlineVariables_GatherCandidatesCfgNodeCallback) onlyNameLeaves() {}
+
+func (*FlowSensitiveInlineVariables_GatherCandidatesCfgNodeCallback) ShouldTraverse(t *NodeTraversal, n rhino.Node, parent rhino.Node) bool {
+	return parent.IsNil() || !ControlFlowGraph_IsEnteringNewCfgNode(n)
 }
 
 // Java: FlowSensitiveInlineVariables.GatherCandidatesCfgNodeCallback()
@@ -1030,8 +1047,6 @@ func (cb *FlowSensitiveInlineVariables_GatherCandidatesCfgNodeCallback) walkCfgN
 					if val, hasVal := cm.Value(); hasVal {
 						cb.walkCfgNode(val.Node(), child, currentNode)
 					}
-					*currentNode = n
-					cb.Visit(nil, child, n)
 				}
 			} else {
 				switch child.GetToken() {
@@ -1047,12 +1062,25 @@ func (cb *FlowSensitiveInlineVariables_GatherCandidatesCfgNodeCallback) walkCfgN
 	default:
 		for child := n.GetFirstChild(); !child.IsNil(); {
 			next := child.GetNext()
-			cb.walkCfgNode(child, n, currentNode)
+			if child.GetFirstChild().IsNil() {
+				if child.IsName() {
+					*currentNode = child
+					cb.Visit(nil, child, n)
+				} else if child.GetToken() == rhino.Token_SCRIPT && !ControlFlowGraph_IsEnteringNewCfgNode(child) {
+					if Platform_IsThreadInterrupted() {
+						panic(jutil.NewRuntimeExceptionWithCause(jutil.NewInterruptedException()))
+					}
+				}
+			} else {
+				cb.walkCfgNode(child, n, currentNode)
+			}
 			child = next
 		}
 	}
-	*currentNode = n
-	cb.Visit(nil, n, parent)
+	if n.IsName() {
+		*currentNode = n
+		cb.Visit(nil, n, parent)
+	}
 }
 
 // FlowSensitiveInlineVariables_GatherCandidates gathers a list of possible

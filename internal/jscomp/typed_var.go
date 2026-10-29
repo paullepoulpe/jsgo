@@ -153,7 +153,7 @@ func (v *TypedVar) DeclarationToken() (rhino.Token, bool) {
 		return tok, true
 	}
 	if !v.IsImplicit() {
-		failInvalidDeclarationType(v)
+		failInvalidDeclarationType()
 	}
 	return 0, false
 }
@@ -182,13 +182,6 @@ func (v *TypedVar) IsImplicit() bool {
 	}
 	imp, ok := AbstractScope_ImplicitVar_Lookup(v.name)
 	return ok && imp.isMadeByRootNode(v.scope.rootNode)
-}
-
-func (v *TypedVar) DeclarationType() *rhino.Token {
-	if tok, ok := v.DeclarationToken(); ok {
-		return &abstractVar_tokenPtrs[tok]
-	}
-	return nil
 }
 
 func (v *TypedVar) AddImplicitGoogNamespaceDefinition(definition rhino.Node) {

@@ -21,6 +21,9 @@ package refactoring
 
 import (
 	"fmt"
+	"iter"
+	"os"
+	"path/filepath"
 	"slices"
 	"testing"
 
@@ -259,4 +262,53 @@ func applySuggestedFixesTest_getCompiler(jsInput string) *jscomp.Compiler {
 func applySuggestedFixesTest_getOnlyElement(nodes []rhino.Node) rhino.Node {
 	jutil.CheckArgumentMsg1(len(nodes) == 1, "expected one element but was: %s", len(nodes))
 	return nodes[0]
+}
+
+func singleUseSeq[T any](items []T) iter.Seq[T] {
+	consumed := false
+	return func(yield func(T) bool) {
+		if consumed {
+			panic("single-use iter.Seq iterated more than once")
+		}
+		consumed = true
+		for _, item := range items {
+			if !yield(item) {
+				return
+			}
+		}
+	}
+}
+
+func (c *ApplySuggestedFixesTest) TestApplySuggestedFixes_singleUseIterSeq() {
+	tmpFile := filepath.Join(c.t.TempDir(), "input.js")
+	code := "var oldName;"
+	if err := os.WriteFile(tmpFile, []byte(code), 0644); err != nil {
+		c.t.Fatal(err)
+	}
+	compiler := jscomp.NewCompiler()
+	options := RefactoringDriver_GetCompilerOptions()
+	compiler.Init(
+		[]*jscomp.SourceFile{},
+		[]*jscomp.SourceFile{jscomp.SourceFile_FromCode(tmpFile, code)},
+		options)
+	compiler.Parse()
+	root := applySuggestedFixesTest_compileToScriptRoot(compiler)
+	nameNode := root.GetFirstFirstChild()
+
+	fix := NewSuggestedFix_Builder().Rename(nameNode, "newName").Build()
+	ApplySuggestedFixes_ApplySuggestedFixesToFiles(singleUseSeq([]*SuggestedFix{fix}))
+	gotBytes, err := os.ReadFile(tmpFile)
+	if err != nil {
+		c.t.Fatal(err)
+	}
+	testjunit.AssertThat(string(gotBytes)).IsEqualTo("var newName;")
+
+	alt2 := NewSuggestedFix_Builder().Rename(nameNode, "choiceB").Build()
+	withAlts := NewSuggestedFix_Builder().Rename(nameNode, "choiceA").AddAlternative(alt2).Build()
+	choices := ApplySuggestedFixes_ApplyAllSuggestedFixChoicesToCode(
+		singleUseSeq([]*SuggestedFix{withAlts}),
+		applySuggestedFixesTest_mapOf(tmpFile, code))
+	testjunit.AssertThat(len(choices)).IsEqualTo(2)
+	testjunit.AssertThat(choices[0][tmpFile]).IsEqualTo("var choiceA;")
+	testjunit.AssertThat(choices[1][tmpFile]).IsEqualTo("var choiceB;")
 }

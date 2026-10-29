@@ -475,7 +475,7 @@ func (d *scopeDumper) printVar(v *Var) {
 		" pn=" + scopeDumpNode(v.GetParentNode()) +
 		" i=" + strconv.Itoa(v.GetIndex()) +
 		" dt=" + scopeDumpStr(func() string {
-		if t := v.DeclarationType(); t != nil {
+		if t, ok := v.DeclarationToken(); ok {
 			return t.String()
 		}
 		return "null"

@@ -380,13 +380,45 @@ func (p *AnalyzePrototypeProperties_ProcessProperties) ExitScope(t *NodeTraversa
 	p.pop()
 }
 
+var (
+	analyzeProcessPropGlobalTokens = makeVisitTokenSet(
+		rhino.Token_SUPER,
+		rhino.Token_OPTCHAIN_GETPROP,
+		rhino.Token_GETPROP,
+		rhino.Token_OBJECTLIT,
+		rhino.Token_OBJECT_PATTERN,
+		rhino.Token_CLASS,
+		rhino.Token_NAME,
+	)
+	analyzeProcessPropNonGlobalTokens = makeVisitTokenSet(
+		rhino.Token_SUPER,
+		rhino.Token_OPTCHAIN_GETPROP,
+		rhino.Token_GETPROP,
+		rhino.Token_OBJECTLIT,
+		rhino.Token_OBJECT_PATTERN,
+		rhino.Token_CLASS,
+		rhino.Token_NAME,
+		rhino.Token_ASSIGN,
+	)
+)
+
+var _ nodeTraversal_visitTokens = (*AnalyzePrototypeProperties_ProcessProperties)(nil)
+
+func (p *AnalyzePrototypeProperties_ProcessProperties) visitTokens() *ast.TokenSet {
+	if p.outer.rootScopeUsesAreGlobal {
+		return &analyzeProcessPropGlobalTokens
+	}
+	return &analyzeProcessPropNonGlobalTokens
+}
+
 // Java: AnalyzePrototypeProperties.ProcessProperties.shouldTraverse(NodeTraversal, Node, Node)
 func (p *AnalyzePrototypeProperties_ProcessProperties) ShouldTraverse(t *NodeTraversal, n rhino.Node, parent rhino.Node) bool {
 	if !p.outer.rootScopeUsesAreGlobal {
 		// Process assignment of a non-function expression to a prototype property.
 		if propID, ok := p.processNonFunctionPrototypeAssignID(n, parent); ok {
 			p.push(AnalyzePrototypeProperties_NameContext{
-				name: p.outer.getNameInfoByID(propID, AnalyzePrototypeProperties_PROPERTY),
+				name:       p.outer.getNameInfoByID(propID, AnalyzePrototypeProperties_PROPERTY),
+				assignNode: parent,
 			})
 		}
 	}
@@ -519,13 +551,15 @@ func (p *AnalyzePrototypeProperties_ProcessProperties) Visit(t *NodeTraversal, n
 			}
 		}
 
-	default:
-	}
-	// Process prototype assignments to non-functions.
-	if !a.rootScopeUsesAreGlobal {
-		if _, ok := p.processNonFunctionPrototypeAssignID(n, parent); ok {
+	case rhino.Token_ASSIGN:
+		// Process prototype assignments to non-functions (pushed on the RHS in
+		// ShouldTraverse; popped here right after visiting the RHS, which is
+		// always the last child of ASSIGN).
+		if !a.rootScopeUsesAreGlobal && len(p.symbolStack) > 0 && p.symbolStack[len(p.symbolStack)-1].assignNode == n {
 			p.pop()
 		}
+
+	default:
 	}
 }
 
@@ -899,8 +933,9 @@ func (s AnalyzePrototypeProperties_Symbol) GetValue() rhino.Node {
 // name. This includes the NameInfo and the scope root if it is a scope-defining
 // name (function).
 type AnalyzePrototypeProperties_NameContext struct {
-	name      *AnalyzePrototypeProperties_NameInfo
-	scopeRoot rhino.Node
+	name       *AnalyzePrototypeProperties_NameInfo
+	scopeRoot  rhino.Node
+	assignNode rhino.Node
 }
 
 // AnalyzePrototypeProperties_NameInfo is information on all properties or

@@ -174,9 +174,7 @@ type NodeTraversal_ScopedCallback interface {
 
 // NodeTraversal_AbstractPostOrderCallbackBase holds the methods of
 // AbstractPostOrderCallback; subclasses embed it and define Visit.
-type NodeTraversal_AbstractPostOrderCallbackBase struct {
-	_ byte // Go-only: language-adapter — distinct identity
-}
+type NodeTraversal_AbstractPostOrderCallbackBase struct{}
 
 // ShouldTraverse is final in Java.
 //
@@ -191,9 +189,7 @@ func (NodeTraversal_AbstractPostOrderCallbackBase) nodeTraversalNoShouldTraverse
 // ExternsSkippingCallback; subclasses embed it and define Visit.
 // Note: Even though type-summary nodes are included under the externs roots,
 // they are traversed by this callback.
-type NodeTraversal_ExternsSkippingCallbackBase struct {
-	_ byte // Go-only: language-adapter — distinct identity
-}
+type NodeTraversal_ExternsSkippingCallbackBase struct{}
 
 // ShouldTraverse is final in Java.
 //
@@ -237,9 +233,7 @@ func (c *nodeTraversal_Builder_postOrderCallback) Visit(t *NodeTraversal, n rhin
 
 // NodeTraversal_AbstractPreOrderCallbackBase holds the methods of
 // AbstractPreOrderCallback; subclasses embed it and define ShouldTraverse.
-type NodeTraversal_AbstractPreOrderCallbackBase struct {
-	_ byte // Go-only: language-adapter — distinct identity
-}
+type NodeTraversal_AbstractPreOrderCallbackBase struct{}
 
 // Visit is final in Java.
 //
@@ -252,9 +246,7 @@ func (NodeTraversal_AbstractPreOrderCallbackBase) nodeTraversalNoVisit() {}
 // NodeTraversal_AbstractScopedCallbackBase holds the methods of
 // AbstractScopedCallback; subclasses embed it, define Visit and may
 // redefine EnterScope and ExitScope.
-type NodeTraversal_AbstractScopedCallbackBase struct {
-	_ byte // Go-only: language-adapter — distinct identity
-}
+type NodeTraversal_AbstractScopedCallbackBase struct{}
 
 // ShouldTraverse is final in Java.
 //
@@ -274,9 +266,7 @@ func (b *NodeTraversal_AbstractScopedCallbackBase) ExitScope(t *NodeTraversal) {
 // NodeTraversal_AbstractShallowCallbackBase holds the methods of
 // AbstractShallowCallback (visits all nodes without traversing into function
 // bodies); subclasses embed it and define Visit.
-type NodeTraversal_AbstractShallowCallbackBase struct {
-	_ byte // Go-only: language-adapter — distinct identity
-}
+type NodeTraversal_AbstractShallowCallbackBase struct{}
 
 // ShouldTraverse is final in Java.
 //
@@ -291,9 +281,7 @@ func (b *NodeTraversal_AbstractShallowCallbackBase) ShouldTraverse(nodeTraversal
 // AbstractShallowStatementCallback (visits all structure and statement nodes
 // without traversing into functions or expressions); subclasses embed it and
 // define Visit.
-type NodeTraversal_AbstractShallowStatementCallbackBase struct {
-	_ byte // Go-only: language-adapter — distinct identity
-}
+type NodeTraversal_AbstractShallowStatementCallbackBase struct{}
 
 // ShouldTraverse is final in Java.
 //

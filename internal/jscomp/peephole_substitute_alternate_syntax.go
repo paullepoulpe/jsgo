@@ -74,6 +74,50 @@ func NewPeepholeSubstituteAlternateSyntax(late bool) *PeepholeSubstituteAlternat
 	return &PeepholeSubstituteAlternateSyntax{late: late}
 }
 
+var (
+	peepholeSubstituteBaseTokens = peepholeTokenSet(
+		rhino.Token_ASSIGN_SUB,
+		rhino.Token_NEW,
+		rhino.Token_CALL,
+		rhino.Token_RETURN,
+		rhino.Token_NAME,
+		rhino.Token_GETPROP,
+		rhino.Token_TEMPLATELIT,
+	)
+	peepholeSubstituteEarlyTokens = peepholeTokenSetWith(
+		peepholeSubstituteBaseTokens,
+		rhino.Token_EXPR_RESULT,
+	)
+	peepholeSubstituteLateTokens = peepholeTokenSetWith(
+		peepholeSubstituteBaseTokens,
+		rhino.Token_TRUE,
+		rhino.Token_FALSE,
+		rhino.Token_ARRAYLIT,
+		rhino.Token_AND,
+		rhino.Token_OR,
+		rhino.Token_BITOR,
+		rhino.Token_BITXOR,
+		rhino.Token_BITAND,
+		rhino.Token_COALESCE,
+		rhino.Token_MUL,
+	)
+)
+
+func (p *PeepholeSubstituteAlternateSyntax) peepholeConfig() peepholeOptConfig {
+	tokens := peepholeSubstituteEarlyTokens
+	if p.late {
+		tokens = peepholeSubstituteLateTokens
+	}
+	return peepholeOptConfig{
+		tokens:     tokens,
+		isStandard: true,
+	}
+}
+
+func (p *PeepholeSubstituteAlternateSyntax) cloneForWorker() AbstractPeepholeOptimization {
+	return NewPeepholeSubstituteAlternateSyntax(p.late)
+}
+
 // OptimizeSubtree tries apply our various peephole minimizations on the
 // passed in node.
 //

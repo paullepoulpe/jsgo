@@ -382,13 +382,10 @@ func jsFileFullParser_parseComment(comment *parser.Comment, info *JsFileFullPars
 	}
 }
 
-// JsFileFullParser_Reporter is the interface for reporting errors.
+// JsFileFullParser_Reporter is the callback function for reporting errors.
 //
 // Java: interface JsFileFullParser.Reporter
-type JsFileFullParser_Reporter interface {
-	// Java: Reporter.report(boolean, String, String, int, int)
-	Report(fatal bool, message string, sourceName string, line int, lineOffset int)
-}
+type JsFileFullParser_Reporter func(fatal bool, message string, sourceName string, line int, lineOffset int)
 
 // Java: static final class JsFileFullParser.DelegatingReporter implements ErrorReporter
 type jsFileFullParser_DelegatingReporter struct {
@@ -398,18 +395,19 @@ type jsFileFullParser_DelegatingReporter struct {
 
 // Java: DelegatingReporter(Reporter)
 func newJsFileFullParser_DelegatingReporter(delegate JsFileFullParser_Reporter) *jsFileFullParser_DelegatingReporter {
-	r := &jsFileFullParser_DelegatingReporter{}
-	r.delegate = jutil.CheckNotNull(delegate)
-	return r
+	if delegate == nil {
+		panic(jutil.NewNullPointerException())
+	}
+	return &jsFileFullParser_DelegatingReporter{delegate: delegate}
 }
 
 // Java: DelegatingReporter.warning(String, String, int, int)
 func (r *jsFileFullParser_DelegatingReporter) Warning(message string, sourceName string, line int, lineOffset int) {
-	r.delegate.Report(false, message, sourceName, line, lineOffset)
+	r.delegate(false, message, sourceName, line, lineOffset)
 }
 
 // Java: DelegatingReporter.error(String, String, int, int)
 func (r *jsFileFullParser_DelegatingReporter) Error(message string, sourceName string, line int, lineOffset int) {
 	r.seenError = true
-	r.delegate.Report(true, message, sourceName, line, lineOffset)
+	r.delegate(true, message, sourceName, line, lineOffset)
 }

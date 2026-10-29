@@ -19,6 +19,8 @@
 package transpile
 
 import (
+	"sync"
+	"sync/atomic"
 	"testing"
 
 	"github.com/paullepoulpe/jsgo/internal/bundle"
@@ -126,4 +128,46 @@ func TestCachingTranspiler_TranspilationException(t *testing.T) {
 		jsaEq(t, len(te.Errors()), 1)
 		jsaEq(t, te.GetMessage(), "Transpilation failed:\n\nERROR - [TEST_FOO] Foo\n")
 	}
+}
+
+type jsaAtomicRuntimeTranspiler struct {
+	runtimeCalls atomic.Int32
+}
+
+func (*jsaAtomicRuntimeTranspiler) Transpile(path string, code string) *TranspileResult {
+	return jsaCtRESULT1
+}
+
+func (m *jsaAtomicRuntimeTranspiler) Runtime() string {
+	m.runtimeCalls.Add(1)
+	return "runtime_lib"
+}
+
+func TestCachingTranspiler_ConcurrentRuntimeAndBoundedEviction(t *testing.T) {
+	delegate := &jsaAtomicRuntimeTranspiler{}
+	transpiler := NewCachingTranspiler(delegate, -1)
+	var wg sync.WaitGroup
+	for range 16 {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			jsaEq(t, transpiler.Runtime(), "runtime_lib")
+		}()
+	}
+	wg.Wait()
+	jsaEq(t, int(delegate.runtimeCalls.Load()), 1)
+
+	mock := newJsaMockTranspiler()
+	mock.when(jsaCtFOO_JS, "1", jsaCtRESULT1)
+	mock.when(jsaCtBAR_JS, "2", jsaCtRESULT2)
+	mock.when(jsaCtQUX_JS, "3", jsaCtRESULT3)
+	bounded := NewCachingTranspiler(mock, 2)
+	jsaTrue(t, bounded.Transpile(jsaCtFOO_JS, "1") == jsaCtRESULT1)
+	jsaTrue(t, bounded.Transpile(jsaCtBAR_JS, "2") == jsaCtRESULT2)
+	jsaTrue(t, bounded.Transpile(jsaCtFOO_JS, "1") == jsaCtRESULT1)
+	jsaTrue(t, bounded.Transpile(jsaCtQUX_JS, "3") == jsaCtRESULT3)
+	jsaTrue(t, bounded.Transpile(jsaCtFOO_JS, "1") == jsaCtRESULT1)
+	jsaTrue(t, bounded.Transpile(jsaCtBAR_JS, "2") == jsaCtRESULT2)
+	jsaEq(t, mock.transpileCall[cacheKey{path: jsaCtFOO_JS, code: "1"}], 1)
+	jsaEq(t, mock.transpileCall[cacheKey{path: jsaCtBAR_JS, code: "2"}], 2)
 }

@@ -45,6 +45,20 @@ type Es6RewriteBlockScopedDeclaration struct {
 	uniqueIdSupplier  *UniqueIdSupplier
 }
 
+var es6RewriteBlockScopedDeclarationVisitTokens = func() ast.TokenSet {
+	var s ast.TokenSet
+	s.Add(rhino.Token_LET)
+	s.Add(rhino.Token_CONST)
+	s.Add(rhino.Token_FOR_OF)
+	return s
+}()
+
+var _ nodeTraversal_visitTokens = (*Es6RewriteBlockScopedDeclaration)(nil)
+
+func (*Es6RewriteBlockScopedDeclaration) visitTokens() *ast.TokenSet {
+	return &es6RewriteBlockScopedDeclarationVisitTokens
+}
+
 func (e *Es6RewriteBlockScopedDeclaration) noVisitLeaves() {}
 
 var es6RewriteBlockScopedDeclarationTranspiledFeatures = parser.FeatureSet_BARE_MINIMUM.WithFeatures(
@@ -82,6 +96,7 @@ func (e *Es6RewriteBlockScopedDeclaration) removeLetConst(n rhino.Node) {
 }
 
 func (e *Es6RewriteBlockScopedDeclaration) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
+	jutil.CheckStateMsg1(!n.IsForOf(), "%s", n)
 	jutil.CheckStateMsg1(parent.IsNil() || !parent.IsForOf(), "%s", parent)
 
 	if n.IsLet() || n.IsConst() {

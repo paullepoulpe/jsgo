@@ -167,13 +167,13 @@ type InverseMismatchLocationsMap struct {
 // All iterates (node, involved types) pairs in insertion order.
 func (m InverseMismatchLocationsMap) All() iter.Seq2[rhino.Node, *jutil.ObjectLinkedHashSet[rhino.JSType]] {
 	return func(yield func(rhino.Node, *jutil.ObjectLinkedHashSet[rhino.JSType]) bool) {
-		if m.inv == nil {
+		if m.inv == nil || len(m.inv.order) == 0 {
 			return
 		}
+		s := jutil.NewObjectLinkedHashSet[rhino.JSType]()
 		for _, loc := range m.inv.order {
-			types := m.inv.byNode[loc]
-			s := jutil.NewObjectLinkedHashSet[rhino.JSType]()
-			for _, t := range types {
+			s.Clear()
+			for _, t := range m.inv.byNode[loc] {
 				s.Add(t)
 			}
 			if !yield(loc, s) {

@@ -52,12 +52,6 @@ type AstValidator struct {
 	shouldValidateRequiredInlinings bool
 }
 
-// AstValidator_ViolationHandler is the violation handler.
-type AstValidator_ViolationHandler interface {
-	// Java: AstValidator.ViolationHandler.handleViolation(String, Node)
-	HandleViolation(message string, n rhino.Node)
-}
-
 // AstValidator_TypeInfoValidation selects the type information that is
 // validated.
 type AstValidator_TypeInfoValidation int32
@@ -103,7 +97,9 @@ func NewAstValidatorWithViolationFunc(
 // Java: AstValidator(AbstractCompiler, ViolationHandler, boolean, boolean)
 func NewAstValidatorWithHandler(
 	compiler AbstractCompiler,
-	handler AstValidator_ViolationHandler,
+	handler interface {
+		HandleViolation(message string, n rhino.Node)
+	},
 	validateScriptFeatures bool,
 	shouldValidateRequiredInlinings bool) *AstValidator {
 	var fn func(message string, n rhino.Node)

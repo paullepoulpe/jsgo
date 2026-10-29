@@ -295,8 +295,6 @@ func (a *ConformanceRules_AllowList) Matches(path string) bool {
 // by AbstractRule and AbstractTypeRestrictionRule subclasses, without virtual
 // self-dispatch pointers.
 type ConformanceRules_AbstractRule struct {
-	CheckConformance_RuleDefaults
-
 	compiler                  AbstractCompiler
 	message                   string
 	severity                  Requirement_Severity
@@ -310,6 +308,11 @@ type ConformanceRules_AbstractRule struct {
 	nativeObjectType   rhino.JSType
 	allowlistedTypes   rhino.JSType
 	assertionFunctions *CodingConvention_AssertionFunctionLookup
+}
+
+// Java: CheckConformance.Rule.getPrecondition() (default method)
+func (*ConformanceRules_AbstractRule) GetPrecondition() CheckConformance_Precondition {
+	return CheckConformance_Precondition_CHECK_ALL
 }
 
 // initAbstractRule initializes the common AbstractRule state.

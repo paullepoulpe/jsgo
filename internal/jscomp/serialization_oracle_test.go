@@ -258,8 +258,8 @@ func serializationDump_collectColor(colorsSeen *jutil.LinkedHashMap[colors.Color
 
 func serializationDump_colorLine(c *colors.Color) string {
 	box := "null"
-	if c.GetBoxId() != nil {
-		box = c.GetBoxId().String()
+	if boxId, ok := c.GetBoxId(); ok {
+		box = boxId.String()
 	}
 	return "color " + c.GetId().String() +
 		" inv=" + strconv.FormatBool(c.IsInvalidating()) +

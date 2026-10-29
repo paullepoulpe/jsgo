@@ -63,18 +63,155 @@ func (p *PrebuildAst) Prebuild(allInputs iter.Seq[*CompilerInput]) {
 	var failure jutil.Throwable
 	// TODO(moz): Support canceling all parsing on the first halting error
 	for input := range allInputs {
-		jutil.Try(func() {
-			input.GetAstRoot(p.compiler)
-		}, func(t jutil.Throwable) {
-			if failure == nil {
-				failure = t
-			}
-		})
+		if t := p.getAstRootCatching(input); t != nil && failure == nil {
+			failure = t
+		}
 	}
 
 	if failure != nil {
 		panic(jutil.NewRuntimeExceptionWithCause(jutil.NewExecutionException(failure)))
 	}
+}
+
+func (p *PrebuildAst) getAstRootCatching(input *CompilerInput) (caught jutil.Throwable) {
+	defer func() {
+		if r := recover(); r != nil {
+			if t, ok := r.(jutil.Throwable); ok {
+				caught = t
+				return
+			}
+			caught = jutil.AsThrowable(r)
+		}
+	}()
+	input.GetAstRoot(p.compiler)
+	return nil
+}
+
+type prebuildOutcome struct {
+	scriptDeserializer *ScriptNodeDeserializer
+	deserializer       func() rhino.Node
+	deserializedRoot   rhino.Node
+	parsed             *parsing.ParserRunner_ParseResult
+	errors             parseBufferedErrors
+	readErr            jutil.IIOException
+	failure            jutil.Throwable
+	wasDeserialized    bool
+}
+
+func takeDeserializerCatching(compiler *Compiler, sf *SourceFile, out *prebuildOutcome) (needParser bool) {
+	defer func() {
+		if r := recover(); r != nil {
+			if t, ok := r.(jutil.Throwable); ok {
+				out.failure = t
+				return
+			}
+			out.failure = jutil.AsThrowable(r)
+		}
+	}()
+	sd, fn := compiler.takeTypedAstDeserializer(sf)
+	if fn != nil {
+		if sd != nil {
+			out.scriptDeserializer = sd
+		} else {
+			out.deserializer = fn
+		}
+		out.wasDeserialized = true
+		return false
+	}
+	return true
+}
+
+func prebuildWorkerStep(
+	input *CompilerInput,
+	result *prebuildOutcome,
+	normal, extern *parsing.Config,
+	alloc *rhino.NodeAllocator,
+	index int,
+	recordFailure func(int, jutil.Throwable),
+) {
+	defer func() {
+		if r := recover(); r != nil {
+			result.scriptDeserializer = nil
+			result.deserializer = nil
+			if t, ok := r.(jutil.Throwable); ok {
+				recordFailure(index, t)
+				return
+			}
+			recordFailure(index, jutil.AsThrowable(r))
+		}
+	}()
+	if input.ast.isParsed() || result.failure != nil {
+		result.scriptDeserializer = nil
+		result.deserializer = nil
+		return
+	}
+	if result.wasDeserialized {
+		if sd := result.scriptDeserializer; sd != nil {
+			result.scriptDeserializer = nil
+			result.deserializedRoot = sd.DeserializeNew()
+			return
+		}
+		fn := result.deserializer
+		result.deserializer = nil
+		result.deserializedRoot = fn()
+		return
+	}
+	code, readErr := input.sourceFile.getCode()
+	if readErr != nil {
+		if ioex, ok := readErr.(jutil.IIOException); ok {
+			result.readErr = ioex
+		} else {
+			result.readErr = jutil.NewIOException(readErr.Error())
+		}
+		return
+	}
+	config := normal
+	if input.sourceFile.IsExtern() {
+		config = extern
+	}
+	result.parsed = parsing.ParserRunner_ParseWithAllocator(
+		input.sourceFile, code, config, &result.errors, alloc)
+}
+
+func publishPrebuiltInput(
+	compiler *Compiler,
+	reporter rhino.ErrorReporter,
+	input *CompilerInput,
+	result *prebuildOutcome,
+) (caught jutil.Throwable) {
+	defer func() {
+		if r := recover(); r != nil {
+			if t, ok := r.(jutil.Throwable); ok {
+				caught = t
+				return
+			}
+			caught = jutil.AsThrowable(r)
+		}
+	}()
+	if result.wasDeserialized {
+		if result.failure != nil {
+			return result.failure
+		}
+		input.ast.installDeserializedRoot(result.deserializedRoot)
+	} else {
+		result.errors.replay(reporter)
+		if result.readErr != nil {
+			compiler.Report(JSError_Make(AbstractCompiler_READ_ERROR, input.sourceFile.GetName(), result.readErr.GetMessage()))
+		} else if result.failure != nil {
+			if ioerr, ok := result.failure.(jutil.IIOException); ok {
+				compiler.Report(JSError_Make(AbstractCompiler_READ_ERROR, input.sourceFile.GetName(), ioerr.GetMessage()))
+			} else {
+				return result.failure
+			}
+		} else {
+			input.ast.installParseResult(compiler, result.parsed)
+		}
+		input.ast.ensureScriptRoot()
+	}
+	jutil.CheckState(input.ast.root.GetStaticSourceFile() == rhino.StaticSourceFile(input.sourceFile))
+	input.ast.root.SetInputId(input.id)
+	input.sourceFile.ClearCachedSource()
+	return nil
 }
 
 // Go-only: language-adapter — parse files or deserialize TypedAST script roots
@@ -96,36 +233,15 @@ func (p *PrebuildAst) prebuildParallel(inputs []*CompilerInput) bool {
 	}
 	var normal, extern *parsing.Config
 	needParserConfig := compiler.typedAstFilesystem == nil
-	type outcome struct {
-		scriptDeserializer *ScriptNodeDeserializer
-		deserializer       func() rhino.Node
-		deserializedRoot   rhino.Node
-		parsed             *parsing.ParserRunner_ParseResult
-		errors             parseBufferedErrors
-		failure            jutil.Throwable
-		wasDeserialized    bool
-	}
-	outcomes := make([]outcome, len(inputs))
+	outcomes := make([]prebuildOutcome, len(inputs))
 	if compiler.typedAstFilesystem != nil {
 		for index, input := range inputs {
 			if input.ast.isParsed() {
 				continue
 			}
-			jutil.Try(func() {
-				sd, fn := compiler.takeTypedAstDeserializer(input.sourceFile)
-				if fn != nil {
-					if sd != nil {
-						outcomes[index].scriptDeserializer = sd
-					} else {
-						outcomes[index].deserializer = fn
-					}
-					outcomes[index].wasDeserialized = true
-				} else {
-					needParserConfig = true
-				}
-			}, func(t jutil.Throwable) {
-				outcomes[index].failure = t
-			})
+			if takeDeserializerCatching(compiler, input.sourceFile, &outcomes[index]) {
+				needParserConfig = true
+			}
 		}
 	}
 	if needParserConfig {
@@ -139,35 +255,7 @@ func (p *PrebuildAst) prebuildParallel(inputs []*CompilerInput) bool {
 			if !ok {
 				return
 			}
-			jutil.Try(func() {
-				input, result := inputs[index], &outcomes[index]
-				if input.ast.isParsed() || result.failure != nil {
-					result.scriptDeserializer = nil
-					result.deserializer = nil
-					return
-				}
-				if result.wasDeserialized {
-					if sd := result.scriptDeserializer; sd != nil {
-						result.scriptDeserializer = nil
-						result.deserializedRoot = sd.DeserializeNew()
-						return
-					}
-					fn := result.deserializer
-					result.deserializer = nil
-					result.deserializedRoot = fn()
-					return
-				}
-				config := normal
-				if input.sourceFile.IsExtern() {
-					config = extern
-				}
-				result.parsed = parsing.ParserRunner_ParseWithAllocator(
-					input.sourceFile, input.sourceFile.GetCode(), config, &result.errors, alloc)
-			}, func(t jutil.Throwable) {
-				outcomes[index].scriptDeserializer = nil
-				outcomes[index].deserializer = nil
-				recordFailure(index, t)
-			})
+			prebuildWorkerStep(inputs[index], &outcomes[index], normal, extern, alloc, index, recordFailure)
 		}
 	})
 	for i, f := range failures {
@@ -181,34 +269,9 @@ func (p *PrebuildAst) prebuildParallel(inputs []*CompilerInput) bool {
 		if input.ast.isParsed() {
 			continue
 		}
-		result := &outcomes[index]
-		jutil.Try(func() {
-			if result.wasDeserialized {
-				if result.failure != nil {
-					panic(result.failure)
-				}
-				input.ast.installDeserializedRoot(result.deserializedRoot)
-			} else {
-				result.errors.replay(reporter)
-				if result.failure != nil {
-					if ioerr, ok := result.failure.(jutil.IIOException); ok {
-						compiler.Report(JSError_Make(AbstractCompiler_READ_ERROR, input.sourceFile.GetName(), ioerr.GetMessage()))
-					} else {
-						panic(result.failure)
-					}
-				} else {
-					input.ast.installParseResult(compiler, result.parsed)
-				}
-				input.ast.ensureScriptRoot()
-			}
-			jutil.CheckState(input.ast.root.GetStaticSourceFile() == rhino.StaticSourceFile(input.sourceFile))
-			input.ast.root.SetInputId(input.id)
-			input.sourceFile.ClearCachedSource()
-		}, func(t jutil.Throwable) {
-			if failure == nil {
-				failure = t
-			}
-		})
+		if t := publishPrebuiltInput(compiler, reporter, input, &outcomes[index]); t != nil && failure == nil {
+			failure = t
+		}
 	}
 	if failure != nil {
 		panic(jutil.NewRuntimeExceptionWithCause(jutil.NewExecutionException(failure)))

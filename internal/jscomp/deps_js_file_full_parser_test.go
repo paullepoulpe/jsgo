@@ -29,9 +29,7 @@ import (
 
 // jsFileFullParserTest_failReporter is the lambda of parse(String): it fails
 // (throws an AssertionError) on any report.
-type jsFileFullParserTest_failReporter struct{}
-
-func (jsFileFullParserTest_failReporter) Report(fatal bool, message string, sourceName string, line int, lineOffset int) {
+func jsFileFullParserTest_failReporter(fatal bool, message string, sourceName string, line int, lineOffset int) {
 	panic(jutil.NewAssertionError(fmt.Sprintf("%s:%d:%d: %s", sourceName, line, lineOffset, message)))
 }
 
@@ -40,7 +38,7 @@ func jsFileFullParserTest_parse(content string) *JsFileFullParser_FileInfo {
 	return JsFileFullParser_Parse(
 		content,
 		"file.js",
-		jsFileFullParserTest_failReporter{})
+		jsFileFullParserTest_failReporter)
 }
 
 func jsFileFullParserTest_assertModuleType(t *testing.T, info *JsFileFullParser_FileInfo, want JsFileFullParser_FileInfo_ModuleType) {
@@ -130,7 +128,7 @@ func TestJsFileFullParser_ProvidesRequires_syntaxError(t *testing.T) {
 		"syntax error;\n"
 
 	errorCollector := &jsFileFullParserTest_ErrorCollector{}
-	info := JsFileFullParser_Parse(src, "file.js", errorCollector)
+	info := JsFileFullParser_Parse(src, "file.js", errorCollector.Report)
 
 	jsFileFullParserTest_containsExactly(t, "provides", info.provides)
 	jsFileFullParserTest_containsExactly(t, "requires", info.requires)

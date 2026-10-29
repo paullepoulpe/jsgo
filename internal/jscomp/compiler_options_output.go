@@ -45,22 +45,21 @@ import (
 const CompilerOptions_DEFAULT_LINE_LENGTH_THRESHOLD = 500
 
 // Java: CompilerOptions.POLYMER_PROPERTY_RESERVED_FIRST_CHARS
-var compilerOptions_POLYMER_PROPERTY_RESERVED_FIRST_CHARS = jutil.NewLinkedHashSet(
-	jutil.StringToUTF16("ABCDEFGHIJKLMNOPQRSTUVWXYZ$")...)
+var compilerOptions_POLYMER_PROPERTY_RESERVED_FIRST_CHARS = ASCIICharSetFromString("ABCDEFGHIJKLMNOPQRSTUVWXYZ$")
 
 // Java: CompilerOptions.POLYMER_PROPERTY_RESERVED_NON_FIRST_CHARS
-var compilerOptions_POLYMER_PROPERTY_RESERVED_NON_FIRST_CHARS = jutil.NewLinkedHashSet[uint16]('_', '$')
+var compilerOptions_POLYMER_PROPERTY_RESERVED_NON_FIRST_CHARS = NewASCIICharSet('_', '$')
 
 // Java: CompilerOptions.ANGULAR_PROPERTY_RESERVED_FIRST_CHARS
-var compilerOptions_ANGULAR_PROPERTY_RESERVED_FIRST_CHARS = jutil.NewLinkedHashSet[uint16]('$')
+var compilerOptions_ANGULAR_PROPERTY_RESERVED_FIRST_CHARS = NewASCIICharSet('$')
 
 // Java: CompilerOptions.getAngularPropertyReservedFirstChars()
-func CompilerOptions_GetAngularPropertyReservedFirstChars() *jutil.LinkedHashSet[uint16] {
+func CompilerOptions_GetAngularPropertyReservedFirstChars() ASCIICharSet {
 	return compilerOptions_ANGULAR_PROPERTY_RESERVED_FIRST_CHARS
 }
 
 // Java: CompilerOptions.getPolymerPropertyReservedFirstChars()
-func CompilerOptions_GetPolymerPropertyReservedFirstChars() *jutil.LinkedHashSet[uint16] {
+func CompilerOptions_GetPolymerPropertyReservedFirstChars() ASCIICharSet {
 	return compilerOptions_POLYMER_PROPERTY_RESERVED_FIRST_CHARS
 }
 

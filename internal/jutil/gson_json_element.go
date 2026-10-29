@@ -69,8 +69,6 @@ type JsonElement interface {
 	GetAsJsonArray() *JsonArray
 	// Java: JsonElement.getAsJsonPrimitive()
 	GetAsJsonPrimitive() *JsonPrimitive
-	// Java: JsonElement.getAsJsonNull()
-	GetAsJsonNull() *JsonNull
 	// Java: JsonElement.getAsBoolean()
 	GetAsBoolean() bool
 	// Java: JsonElement.getAsNumber()
@@ -154,9 +152,6 @@ func (o *JsonObject) GetAsJsonArray() *JsonArray {
 func (o *JsonObject) GetAsJsonPrimitive() *JsonPrimitive {
 	panic(NewIllegalStateExceptionMsg("Not a JSON Primitive: " + o.String()))
 }
-func (o *JsonObject) GetAsJsonNull() *JsonNull {
-	panic(NewIllegalStateExceptionMsg("Not a JSON Null: " + o.String()))
-}
 
 func (*JsonObject) GetAsBoolean() bool      { panic(NewUnsupportedOperationExceptionMsg("JsonObject")) }
 func (*JsonObject) GetAsNumber() JavaNumber { panic(NewUnsupportedOperationExceptionMsg("JsonObject")) }
@@ -208,13 +203,6 @@ func (o *JsonObject) AddPropertyString(property string, value *string) {
 	} else {
 		o.Add(property, NewJsonPrimitiveString(*value))
 	}
-}
-
-// AddPropertyBoolean adds a boolean member.
-//
-// Java: JsonObject.addProperty(String, Boolean)
-func (o *JsonObject) AddPropertyBoolean(property string, value bool) {
-	o.Add(property, NewJsonPrimitiveBoolean(value))
 }
 
 // EntrySet iterates the members in insertion order.
@@ -314,9 +302,6 @@ func (a *JsonArray) GetAsJsonObject() *JsonObject {
 func (a *JsonArray) GetAsJsonArray() *JsonArray { return a }
 func (a *JsonArray) GetAsJsonPrimitive() *JsonPrimitive {
 	panic(NewIllegalStateExceptionMsg("Not a JSON Primitive: " + a.String()))
-}
-func (a *JsonArray) GetAsJsonNull() *JsonNull {
-	panic(NewIllegalStateExceptionMsg("Not a JSON Null: " + a.String()))
 }
 
 func (a *JsonArray) String() string { return jsonElementToString(a) }
@@ -514,9 +499,6 @@ func (p *JsonPrimitive) GetAsJsonArray() *JsonArray {
 	panic(NewIllegalStateExceptionMsg("Not a JSON Array: " + p.String()))
 }
 func (p *JsonPrimitive) GetAsJsonPrimitive() *JsonPrimitive { return p }
-func (p *JsonPrimitive) GetAsJsonNull() *JsonNull {
-	panic(NewIllegalStateExceptionMsg("Not a JSON Null: " + p.String()))
-}
 
 func (p *JsonPrimitive) String() string { return jsonElementToString(p) }
 
@@ -701,7 +683,6 @@ func (n *JsonNull) GetAsJsonArray() *JsonArray {
 func (n *JsonNull) GetAsJsonPrimitive() *JsonPrimitive {
 	panic(NewIllegalStateExceptionMsg("Not a JSON Primitive: " + n.String()))
 }
-func (n *JsonNull) GetAsJsonNull() *JsonNull { return n }
 
 func (*JsonNull) GetAsBoolean() bool      { panic(NewUnsupportedOperationExceptionMsg("JsonNull")) }
 func (*JsonNull) GetAsNumber() JavaNumber { panic(NewUnsupportedOperationExceptionMsg("JsonNull")) }

@@ -55,9 +55,6 @@ func Ushr32(x int32, n int64) int32 { return int32(uint32(x) >> (uint64(n) & 31)
 // Shl64 is Java's long `x << n` (shift distance masked to 6 bits).
 func Shl64(x int64, n int64) int64 { return x << (uint64(n) & 63) }
 
-// Shr64 is Java's long `x >> n`.
-func Shr64(x int64, n int64) int64 { return x >> (uint64(n) & 63) }
-
 // Ushr64 is Java's long `x >>> n`.
 func Ushr64(x int64, n int64) int64 { return int64(uint64(x) >> (uint64(n) & 63)) }
 

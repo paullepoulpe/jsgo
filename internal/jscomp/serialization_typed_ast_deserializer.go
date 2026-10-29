@@ -817,8 +817,8 @@ func typedAstDeserializer_deserializeTypedAsts(
 	typedAstDeserializer_scanTypedAstStream(
 		typedAstsStream,
 		processShardBatch,
-		func(largeMsgLen int) {
-			typedAst, stringShard := typedAstDeserializer_streamLargeShard(typedAstsStream, largeMsgLen, buildStringPool)
+		func(stream io.Reader, largeMsgLen int) {
+			typedAst, stringShard := typedAstDeserializer_streamLargeShard(stream, largeMsgLen, buildStringPool)
 			deserializer.deserializeTypedAstWithStringShard(
 				typedAst, stringShard, compiler, resolveSourceMapAnnotations, parseInlineSourceMaps)
 		})

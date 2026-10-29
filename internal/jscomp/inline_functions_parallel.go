@@ -200,33 +200,11 @@ func (w *ifPhase1Worker) buildNamedOrVarCandidate(kind ifCandKind, node rhino.No
 }
 
 func (w *ifPhase1Worker) walk(n rhino.Node, parent rhino.Node, chunk *JSChunk, inLocalHoist bool) {
-	tok := n.GetToken()
-	childLocalHoist := inLocalHoist
-	switch tok {
-	case rhino.Token_SCRIPT:
-		if id := n.GetInputId(); id != nil {
-			if inp := w.outer.compiler.GetInput(id); inp != nil {
-				chunk = inp.GetChunk()
-			}
-		}
-	case rhino.Token_FUNCTION, rhino.Token_MODULE_BODY, rhino.Token_MEMBER_FIELD_DEF:
-		childLocalHoist = true
-	case rhino.Token_BLOCK:
-		if !parent.IsNil() && parent.IsClassMembers() {
-			childLocalHoist = true
-		}
-	case rhino.Token_CLASS_MEMBERS:
-		inlineFunctions_walkClassMembers(ast.MustClassBody(n), inLocalHoist, func(n, parent rhino.Node, inLocalHoist bool) {
-			w.walk(n, parent, chunk, inLocalHoist)
-		})
-		return
-	}
-	for ch := n.GetFirstChild(); !ch.IsNil(); ch = ch.GetNext() {
-		if !ch.GetFirstChild().IsNil() {
-			w.walk(ch, n, chunk, childLocalHoist)
-		}
-	}
-	switch tok {
+	inlineFunctions_walkCandidates(w.outer.compiler, n, parent, chunk, inLocalHoist, w.visitWalkNode)
+}
+
+func (w *ifPhase1Worker) visitWalkNode(n, parent rhino.Node, chunk *JSChunk, inLocalHoist bool) {
+	switch n.GetToken() {
 	case rhino.Token_VAR, rhino.Token_LET, rhino.Token_CONST:
 		if (w.outer.reach.IncludesGlobals() || inLocalHoist) && NodeUtil_IsStatement(n) {
 			decl := ast.MustNameDeclaration(n)
@@ -395,8 +373,16 @@ type ifPhase2RefCallback struct {
 	events               []ifPhase2Event
 }
 
+var (
+	_ nodeTraversal_visitTokens      = (*ifPhase2RefCallback)(nil)
+	_ nodeTraversal_onlyNameLeaves   = (*ifPhase2RefCallback)(nil)
+	_ nodeTraversal_noShouldTraverse = (*ifPhase2RefCallback)(nil)
+)
+
 func (*ifPhase2RefCallback) ShouldTraverse(*NodeTraversal, rhino.Node, rhino.Node) bool { return true }
+func (*ifPhase2RefCallback) nodeTraversalNoShouldTraverse()                             {}
 func (*ifPhase2RefCallback) onlyNameLeaves()                                            {}
+func (*ifPhase2RefCallback) visitTokens() *ast.TokenSet                                 { return &inlineCallAndNameVisitTokens }
 
 func (r *ifPhase2RefCallback) isDisallowed(fs *InlineFunctions_FunctionState) bool {
 	if !fs.CanInline() {
@@ -410,27 +396,8 @@ func (r *ifPhase2RefCallback) isDisallowed(fs *InlineFunctions_FunctionState) bo
 }
 
 func (r *ifPhase2RefCallback) targetSizeExceedsLimit(t *NodeTraversal, fs *InlineFunctions_FunctionState) bool {
-	containingFunction := t.GetEnclosingFunction()
-	if containingFunction.IsNil() {
-		return false
-	}
-	inlinedFun := fs.functionNode()
-	if InlineFunctions_IsAlwaysInlinable(inlinedFun) {
-		return false
-	}
-	inlinedFunSize := int(fs.bodyAstSize)
-	if inlinedFunSize == 0 {
-		inlinedFunSize = NodeUtil_CountAstSizeUpToLimit(ast.MustFunction(inlinedFun).Body().Node(), r.outer.maxSizeAfterInlining)
-	}
-	var targetFunSize int
-	if containingFunction == r.lastContainingFn {
-		targetFunSize = r.lastContainingFnSize
-	} else {
-		targetFunSize = NodeUtil_CountAstSizeUpToLimit(containingFunction, r.outer.maxSizeAfterInlining)
-		r.lastContainingFn = containingFunction
-		r.lastContainingFnSize = targetFunSize
-	}
-	return inlinedFunSize+targetFunSize > r.outer.maxSizeAfterInlining
+	return inlineTargetSizeExceedsLimit(
+		t, fs, r.outer.maxSizeAfterInlining, &r.lastContainingFn, &r.lastContainingFnSize, false)
 }
 
 func (r *ifPhase2RefCallback) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
@@ -488,26 +455,9 @@ func (r *ifPhase2RefCallback) tryMode(
 	if r.outer.enforceMaxSizeAfterInlining && r.targetSizeExceedsLimit(t, functionState) {
 		return false, nil, false, mode
 	}
-	r.scratchRef.init(callNode, nil, chunk, mode, false)
-	r.scratchRef.t = t
-	summary := functionState.readOnlySummary()
-	result := r.injector.canInlineReferenceWithSummary(
-		&r.scratchRef,
-		functionState.functionNode(),
-		functionStateAliasCount(functionState),
-		functionState.GetReferencesThis(),
-		functionState.HasInnerClosures(),
-		summary)
-	if result != FunctionInjector_CanInlineResult_NO {
-		var scope *Scope
-		if result == FunctionInjector_CanInlineResult_AFTER_PREPARATION {
-			scope = t.GetScope()
-		} else if mode != FunctionInjector_InliningMode_DIRECT && !NodeUtil_IsExprCall(callNode.GetParent()) {
-			scope = t.resolveLookupScope(len(t.scopes) - 1)
-		}
-		return true, scope, result == FunctionInjector_CanInlineResult_AFTER_PREPARATION, mode
-	}
-	return false, nil, false, mode
+	ok, scope, reqDecomp := inlineCheckCallSiteWithMode(
+		t, r.injector, &r.scratchRef, functionState, functionState.readOnlySummary(), callNode, chunk, mode)
+	return ok, scope, reqDecomp, mode
 }
 
 func (r *ifPhase2RefCallback) checkNameUsage(n rhino.Node, parent rhino.Node) {

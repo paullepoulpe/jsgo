@@ -403,7 +403,7 @@ func (d *diffState) run(op []*string) {
 	}
 }
 
-func diffProto(m sourcemap.Mapping_OriginalMappingOrBuilder) string {
+func diffProto(m *sourcemap.Mapping_OriginalMapping) string {
 	return jutil.ToJavaString(m.HasOriginalFile()) + "," + m.GetOriginalFile() + "," +
 		jutil.ToJavaString(m.HasLineNumber()) + "," + strconv.Itoa(m.GetLineNumber()) + "," +
 		jutil.ToJavaString(m.HasColumnPosition()) + "," + strconv.Itoa(m.GetColumnPosition()) + "," +

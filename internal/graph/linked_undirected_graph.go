@@ -19,7 +19,6 @@
 package graph
 
 import (
-	"iter"
 	"slices"
 	"strconv"
 
@@ -44,14 +43,6 @@ type LinkedUndirectedGraph[N comparable, E any] struct {
 	useNodeAnnotations bool
 	useEdgeAnnotations bool
 }
-
-// Type aliases preserving callers that spell out the nested Java names.
-type (
-	LinkedUndirectedGraph_LinkedUndirectedGraphNode[N, E any] = LinkedUndirectedGraphNode[N, E]
-	LinkedUndirectedGraph_LinkedUndirectedGraphEdge[N, E any] = LinkedUndirectedGraphEdge[N, E]
-	UndiGraph_UndiGraphNode[N, E any]                         = *LinkedUndirectedGraphNode[N, E]
-	UndiGraph_UndiGraphEdge[N, E any]                         = *LinkedUndirectedGraphEdge[N, E]
-)
 
 type linkedUndirectedSubGraph[N comparable, E any] struct {
 	graph *LinkedUndirectedGraph[N, E]
@@ -122,11 +113,6 @@ func (g *LinkedUndirectedGraph[N, E]) getLinkedNodeOrFail(val N) *LinkedUndirect
 	panic(jutil.NewIllegalArgumentExceptionMsg(formatGraphValue(val) + " does not exist in graph"))
 }
 
-// Java: Graph.getNodeOrFail(N)
-func (g *LinkedUndirectedGraph[N, E]) GetNodeOrFail(val N) *LinkedUndirectedGraphNode[N, E] {
-	return g.getLinkedNodeOrFail(val)
-}
-
 func (g *LinkedUndirectedGraph[N, E]) allocNode(nodeValue N) *LinkedUndirectedGraphNode[N, E] {
 	n := g.nodeSlab.Alloc()
 	n.Value = nodeValue
@@ -185,11 +171,6 @@ func (g *LinkedUndirectedGraph[N, E]) Disconnect(srcValue N, destValue N) {
 	}
 }
 
-// Java: LinkedUndirectedGraph.createUndirectedGraphNode(N)
-func (g *LinkedUndirectedGraph[N, E]) CreateUndirectedGraphNode(nodeValue N) *LinkedUndirectedGraphNode[N, E] {
-	return g.CreateLinkedNode(nodeValue)
-}
-
 // CreateLinkedNode returns or creates the concrete linked undirected graph node for nodeValue.
 func (g *LinkedUndirectedGraph[N, E]) CreateLinkedNode(nodeValue N) *LinkedUndirectedGraphNode[N, E] {
 	if n := g.Nodes.Get(nodeValue); n != nil {
@@ -229,16 +210,6 @@ func (g *LinkedUndirectedGraph[N, E]) GetUndirectedGraphEdges(n1 N, n2 N) []*Lin
 		}
 	}
 	return edges
-}
-
-// Java: LinkedUndirectedGraph.getUndirectedGraphNode(N)
-func (g *LinkedUndirectedGraph[N, E]) GetUndirectedGraphNode(nodeValue N) *LinkedUndirectedGraphNode[N, E] {
-	return g.Nodes.Get(nodeValue)
-}
-
-// Java: LinkedUndirectedGraph.getUndirectedGraphNodes()
-func (g *LinkedUndirectedGraph[N, E]) GetUndirectedGraphNodes() []*LinkedUndirectedGraphNode[N, E] {
-	return g.GetNodes()
 }
 
 // Java: LinkedUndirectedGraph.createNode(N)
@@ -304,19 +275,6 @@ func (g *LinkedUndirectedGraph[N, E]) IsConnected(n1 N, n2 N) bool {
 		return false
 	}
 	return g.IsConnectedNodesAny(ln1, ln2)
-}
-
-// Java: LinkedUndirectedGraph.isConnected(N, E, N)
-func (g *LinkedUndirectedGraph[N, E]) IsConnectedWithEdge(n1 N, e E, n2 N) bool {
-	ln1 := g.Nodes.Get(n1)
-	if ln1 == nil {
-		return false
-	}
-	ln2 := g.Nodes.Get(n2)
-	if ln2 == nil {
-		return false
-	}
-	return g.isConnectedNodesWithEdge(ln1, e, ln2)
 }
 
 // IsConnectedNodesAny reports whether ln1 and ln2 share any edge.
@@ -472,11 +430,6 @@ func (g *LinkedUndirectedGraph[N, E]) GetNodeDegree(value N) int {
 	return len(uNode.NeighborEdges)
 }
 
-// Java: Graph.getWeight(N)
-func (g *LinkedUndirectedGraph[N, E]) GetWeight(value N) int {
-	return g.GetNodeDegree(value)
-}
-
 // LinkedUndirectedGraphNode is an undirected graph node storing incident edges
 // inline when at most two.
 type LinkedUndirectedGraphNode[N, E any] struct {
@@ -496,16 +449,6 @@ func (n *LinkedUndirectedGraphNode[N, E]) recycle() {
 		clear(edges)
 		n.NeighborEdges = edges[:0]
 	}
-}
-
-// Java: LinkedUndirectedGraph.LinkedUndirectedGraphNode.getNeighborEdges()
-func (n *LinkedUndirectedGraphNode[N, E]) GetNeighborEdges() []*LinkedUndirectedGraphEdge[N, E] {
-	return n.NeighborEdges
-}
-
-// Java: LinkedUndirectedGraph.LinkedUndirectedGraphNode.getNeighborEdgesIterator()
-func (n *LinkedUndirectedGraphNode[N, E]) GetNeighborEdgesIterator() iter.Seq[*LinkedUndirectedGraphEdge[N, E]] {
-	return slices.Values(n.NeighborEdges)
 }
 
 // Java: LinkedUndirectedGraph.LinkedUndirectedGraphNode.getAnnotation()

@@ -427,7 +427,7 @@ func (r *RemoveUnusedCode) TraverseAndRemoveUnusedReferences(root rhino.Node) {
 	if r.varByKey == nil {
 		r.varByKey = make(map[scopedVarKey]*RemoveUnusedCode_RealVarInfo, 1024)
 	}
-	if !scope.HasSlot(NodeUtil_JSC_PROPERTY_NAME_FN) {
+	if !scope.HasSlotByID(rucCalleeJscPropNameFnID) {
 		// TODO(b/70730762): Passes that add references to this should ensure it is declared.
 		// NOTE: null input makes this an extern var.
 		scope.Declare(
@@ -480,7 +480,7 @@ func (r *RemoveUnusedCode) traverseAndRemoveLocalScriptsParallel(root rhino.Node
 	defer restoreReg()
 
 	globalScope := r.scopeCreator.CreateScopeOfScope(root.GetParent(), nil)
-	if !globalScope.HasSlot(NodeUtil_JSC_PROPERTY_NAME_FN) {
+	if !globalScope.HasSlotByID(rucCalleeJscPropNameFnID) {
 		globalScope.Declare(NodeUtil_JSC_PROPERTY_NAME_FN, rhino.NilNode, nil)
 	}
 	freezeGlobalScopeForParallelReads(globalScope)

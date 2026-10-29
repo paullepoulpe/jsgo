@@ -2,7 +2,6 @@ package jutil
 
 import (
 	"os"
-	"strconv"
 	"strings"
 )
 
@@ -75,7 +74,7 @@ func ParsePathString(input string) string {
 	for i := 0; i < len(input); i++ {
 		c := input[i]
 		if c == 0 {
-			panic(NewInvalidPathException(input, "Nul character not allowed"))
+			panic(newInvalidPathException(input, "Nul character not allowed"))
 		}
 		if c == '/' && i > 0 && input[i-1] == '/' {
 			slow = true
@@ -99,7 +98,7 @@ func ParsePathString(input string) string {
 	}
 	for i := 0; i+1 < len(b); i++ {
 		if b[i] == 0xED && b[i+1] >= 0xA0 && b[i+1] <= 0xBF {
-			panic(NewInvalidPathException(string(b), "Malformed input or input contains unmappable characters"))
+			panic(newInvalidPathException(string(b), "Malformed input or input contains unmappable characters"))
 		}
 	}
 	return string(b)
@@ -271,22 +270,14 @@ func (p *Path) Resolve(obj *Path) *Path {
 // ResolveString is Path.resolve(String).
 func (p *Path) ResolveString(other string) *Path { return p.Resolve(parsePath(other)) }
 
-// ResolveSibling is Path.resolveSibling(Path): other resolved against the
-// parent, or other itself when there is no parent.
-func (p *Path) ResolveSibling(other *Path) *Path {
-	if other == nil {
-		panic(NewNullPointerException())
-	}
-	parent := p.GetParent()
-	if parent == nil {
-		return other
-	}
-	return parent.Resolve(other)
-}
-
 // ResolveSiblingString is Path.resolveSibling(String).
 func (p *Path) ResolveSiblingString(other string) *Path {
-	return p.ResolveSibling(parsePath(other))
+	parsed := parsePath(other)
+	parent := p.GetParent()
+	if parent == nil {
+		return parsed
+	}
+	return parent.Resolve(parsed)
 }
 
 // Relativize is Path.relativize(Path) (see the observed behaviour above).
@@ -487,22 +478,7 @@ func (p *Path) String() string { return p.s }
 // Path struct on the common case where input has no NULs, lone surrogates,
 // duplicate slashes, or trailing slashes.
 func Path_NormalizeString(input string) string {
-	slow := len(input) > 1 && input[len(input)-1] == '/'
-	for i := 0; i < len(input); i++ {
-		c := input[i]
-		if c == 0 {
-			panic(NewInvalidPathException(input, "Nul character not allowed"))
-		}
-		if c == '/' && i > 0 && input[i-1] == '/' {
-			slow = true
-		} else if c == 0xED && i+1 < len(input) && input[i+1] >= 0xA0 && input[i+1] <= 0xBF {
-			slow = true
-		}
-	}
-	if !slow {
-		return input
-	}
-	return parsePath(input).String()
+	return ParsePathString(input)
 }
 
 // ToAbsolutePath is Path.toAbsolutePath(): a relative path resolved against
@@ -540,41 +516,11 @@ func (p *Path) ToAbsolutePathWithWd(wd *Path) *Path {
 // InvalidPathException is java.nio.file.InvalidPathException.
 type InvalidPathException struct {
 	IllegalArgumentException
-	input  string
-	reason string
-	index  int
 }
 
-func (*InvalidPathException) invalidPathException() {}
-
-// IInvalidPathException matches InvalidPathException.
-type IInvalidPathException interface {
-	IIllegalArgumentException
-	invalidPathException()
-}
-
-// NewInvalidPathException is new InvalidPathException(input, reason).
-func NewInvalidPathException(input, reason string) *InvalidPathException {
-	return NewInvalidPathExceptionAt(input, reason, -1)
-}
-
-// NewInvalidPathExceptionAt is new InvalidPathException(input, reason, index).
-func NewInvalidPathExceptionAt(input, reason string, index int) *InvalidPathException {
-	e := &InvalidPathException{input: input, reason: reason, index: index}
-	msg := reason
-	if index > -1 {
-		msg += " at index " + strconv.Itoa(index)
-	}
-	msg += ": " + input
+func newInvalidPathException(input, reason string) *InvalidPathException {
+	e := &InvalidPathException{}
+	msg := reason + ": " + input
 	InitThrowable(e, "java.nio.file.InvalidPathException", &msg, nil)
 	return e
 }
-
-// GetInput is InvalidPathException.getInput().
-func (e *InvalidPathException) GetInput() string { return e.input }
-
-// GetReason is InvalidPathException.getReason().
-func (e *InvalidPathException) GetReason() string { return e.reason }
-
-// GetIndex is InvalidPathException.getIndex().
-func (e *InvalidPathException) GetIndex() int { return e.index }

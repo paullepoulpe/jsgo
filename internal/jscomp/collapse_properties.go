@@ -669,6 +669,11 @@ func (c *InlineAndCollapseProperties_CollapseProperties) FlattenNameRef(
 	c.outer.compiler.ReportChangeToEnclosingScope(ref)
 }
 
+var (
+	collapseFindDynamicImportCallTokens    = makeVisitTokenSet(rhino.Token_CALL)
+	collapseFindDynamicImportCjsCallTokens = makeVisitTokenSet(rhino.Token_GETPROP, rhino.Token_CALL)
+)
+
 // collapseProperties_findDynamicallyImportedModules finds all the module
 // namespace objects which are referenced by a dynamic import.
 type collapseProperties_findDynamicallyImportedModules struct {
@@ -678,6 +683,20 @@ type collapseProperties_findDynamicallyImportedModules struct {
 	processCommonJSModules bool
 	moduleResolutionMode   ModuleLoader_ResolutionMode
 }
+
+var (
+	_ nodeTraversal_visitTokens   = (*collapseProperties_findDynamicallyImportedModules)(nil)
+	_ nodeTraversal_noVisitLeaves = (*collapseProperties_findDynamicallyImportedModules)(nil)
+)
+
+func (f *collapseProperties_findDynamicallyImportedModules) visitTokens() *ast.TokenSet {
+	if f.processCommonJSModules {
+		return &collapseFindDynamicImportCjsCallTokens
+	}
+	return &collapseFindDynamicImportCallTokens
+}
+
+func (*collapseProperties_findDynamicallyImportedModules) noVisitLeaves() {}
 
 // Java: InlineAndCollapseProperties.CollapseProperties.FindDynamicallyImportedModules(boolean, ResolutionMode)
 func newCollapseProperties_findDynamicallyImportedModules(

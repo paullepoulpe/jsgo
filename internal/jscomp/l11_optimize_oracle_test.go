@@ -150,16 +150,20 @@ func l11optPasses() []l11optPass {
 // like DefaultPassConfig.runVariableRenaming with default options.
 func l11optRenameVars(c *Compiler, externs rhino.Node, js rhino.Node, extra *[]string) {
 	options := c.GetOptions()
-	reservedChars := jutil.NewLinkedHashSet[uint16]()
+	var reservedChars ASCIICharSet
 	reservedNames := jutil.NewLinkedHashSet[string]()
 	if options.GetRenamePrefixNamespace() != nil {
 		reservedNames.Add(*options.GetRenamePrefixNamespace())
 	}
 	reservedNames.AddAll(c.GetExportedNames().ToSlice()...)
 	reservedNames.AddAll(parsing.ParserRunner_GetReservedVars().ToSlice()...)
+	var renamePrefix string
+	if p := options.GetRenamePrefix(); p != nil {
+		renamePrefix = *p
+	}
 	rn := NewRenameVars(
 		c,
-		options.GetRenamePrefix(),
+		renamePrefix,
 		options.GetVariableRenaming() == VariableRenamingPolicy_LOCAL,
 		options.ShouldGeneratePseudoNames(),
 		options.ShouldPreferStableNames(),

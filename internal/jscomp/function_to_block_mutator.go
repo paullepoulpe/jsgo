@@ -581,25 +581,6 @@ func (m *FunctionToBlockMutator) takeOrCloneCallArg(origArg rhino.Node) rhino.No
 	return origArg.CloneTree()
 }
 
-// AliasAndInlineArguments inlines the arguments within the node tree using
-// the given argument map, replaces "unsafe" names with local aliases.
-//
-// The aliases for unsafe require new VAR declarations, so this function can
-// not be used in for direct CALL node replacement as VAR nodes can not be
-// created there.
-//
-// Returns the node or its replacement.
-//
-// Java: FunctionToBlockMutator.aliasAndInlineArguments(Node, ImmutableMap<String, ParamArgPair>, Set<String>)
-func (m *FunctionToBlockMutator) AliasAndInlineArguments(
-	fnTemplateRoot rhino.Node,
-	paramToArgMap *jutil.LinkedHashMap[string, FunctionArgumentInjector_ParamArgPair],
-	namesToAlias *jutil.LinkedHashSet[string]) rhino.Node {
-	m.argsScratch = bindingsFromArgMap(m.argsScratch[:0], paramToArgMap)
-	m.allNamesToAliasScratch.fromLinkedHashSet(namesToAlias, true)
-	return m.aliasAndInlineArgumentsByID(fnTemplateRoot, m.argsScratch, &m.allNamesToAliasScratch, false, false)
-}
-
 func (m *FunctionToBlockMutator) aliasAndInlineArgumentsByID(
 	fnTemplateRoot rhino.Node,
 	bindings []callParamBinding,

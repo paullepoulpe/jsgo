@@ -79,6 +79,83 @@ func NewPeepholeFoldConstants(late bool, shouldUseTypes bool) *PeepholeFoldConst
 	}
 }
 
+var (
+	peepholeFoldConstantsEarlyTokens = peepholeTokenSet(
+		rhino.Token_OPTCHAIN_CALL,
+		rhino.Token_CALL,
+		rhino.Token_NEW,
+		rhino.Token_TYPEOF,
+		rhino.Token_ITER_SPREAD,
+		rhino.Token_ARRAYLIT,
+		rhino.Token_OBJECTLIT,
+		rhino.Token_NOT,
+		rhino.Token_POS,
+		rhino.Token_NEG,
+		rhino.Token_BITNOT,
+		rhino.Token_VOID,
+		rhino.Token_OPTCHAIN_GETPROP,
+		rhino.Token_GETPROP,
+		rhino.Token_TEMPLATELIT,
+		rhino.Token_GETELEM,
+		rhino.Token_OPTCHAIN_GETELEM,
+		rhino.Token_INSTANCEOF,
+		rhino.Token_AND,
+		rhino.Token_OR,
+		rhino.Token_COALESCE,
+		rhino.Token_LSH,
+		rhino.Token_RSH,
+		rhino.Token_URSH,
+		rhino.Token_ASSIGN_BITOR,
+		rhino.Token_ASSIGN_BITXOR,
+		rhino.Token_ASSIGN_BITAND,
+		rhino.Token_ASSIGN_LSH,
+		rhino.Token_ASSIGN_RSH,
+		rhino.Token_ASSIGN_URSH,
+		rhino.Token_ASSIGN_ADD,
+		rhino.Token_ASSIGN_SUB,
+		rhino.Token_ASSIGN_MUL,
+		rhino.Token_ASSIGN_DIV,
+		rhino.Token_ASSIGN_MOD,
+		rhino.Token_ASSIGN_EXPONENT,
+		rhino.Token_ADD,
+		rhino.Token_SUB,
+		rhino.Token_DIV,
+		rhino.Token_MOD,
+		rhino.Token_MUL,
+		rhino.Token_EXPONENT,
+		rhino.Token_BITAND,
+		rhino.Token_BITOR,
+		rhino.Token_BITXOR,
+		rhino.Token_LT,
+		rhino.Token_GT,
+		rhino.Token_LE,
+		rhino.Token_GE,
+		rhino.Token_EQ,
+		rhino.Token_NE,
+		rhino.Token_SHEQ,
+		rhino.Token_SHNE,
+	)
+	peepholeFoldConstantsLateTokens = peepholeTokenSetWith(
+		peepholeFoldConstantsEarlyTokens,
+		rhino.Token_ASSIGN,
+	)
+)
+
+func (p *PeepholeFoldConstants) peepholeConfig() peepholeOptConfig {
+	tokens := peepholeFoldConstantsEarlyTokens
+	if p.late {
+		tokens = peepholeFoldConstantsLateTokens
+	}
+	return peepholeOptConfig{
+		tokens:     tokens,
+		isStandard: true,
+	}
+}
+
+func (p *PeepholeFoldConstants) cloneForWorker() AbstractPeepholeOptimization {
+	return NewPeepholeFoldConstants(p.late, p.shouldUseTypes)
+}
+
 // Java: PeepholeFoldConstants.optimizeSubtree(Node)
 func (p *PeepholeFoldConstants) OptimizeSubtree(subtree rhino.Node) rhino.Node {
 	switch subtree.GetToken() {

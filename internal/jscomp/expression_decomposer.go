@@ -53,6 +53,7 @@ type ExpressionDecomposer struct {
 	astFactory               *AstFactory
 	safeNameIdSupplier       func() string
 	knownConstantFunctions   map[string]bool
+	knownConstantFnIDs       map[uint32]struct{}
 	scope                    *Scope
 	brokenIE11LocationAssign bool
 	unknownType              rhino.JSType
@@ -666,11 +667,29 @@ func ExpressionDecomposer_BuildResultExpression(expr rhino.Node, needResult bool
 	}
 }
 
+func (e *ExpressionDecomposer) isKnownConstantFunctionID(id uint32) bool {
+	if len(e.knownConstantFunctions) == 0 {
+		e.knownConstantFnIDs = nil
+		return false
+	}
+	if e.knownConstantFnIDs == nil {
+		e.knownConstantFnIDs = make(map[uint32]struct{}, len(e.knownConstantFunctions))
+		// order-independent: populates set of interned constant-function name IDs
+		for name, isConst := range e.knownConstantFunctions {
+			if isConst {
+				e.knownConstantFnIDs[rhino.RhinoStringPool_InternID(name)] = struct{}{}
+			}
+		}
+	}
+	_, ok := e.knownConstantFnIDs[id]
+	return ok
+}
+
 // Java: ExpressionDecomposer.isConstantNameNode(Node)
 func (e *ExpressionDecomposer) IsConstantNameNode(n rhino.Node) bool {
 	// Non-constant names values may have been changed.
 	return n.IsName() &&
-		(NodeUtil_IsConstantVar(n, e.scope) || e.knownConstantFunctions[n.GetString()])
+		(NodeUtil_IsConstantVar(n, e.scope) || e.isKnownConstantFunctionID(n.GetStringID()))
 }
 
 // ExtractExpression: expr is the expression to extract; injectionPoint the

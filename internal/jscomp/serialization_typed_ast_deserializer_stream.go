@@ -19,6 +19,7 @@
 package jscomp
 
 import (
+	"bufio"
 	"bytes"
 	"encoding/binary"
 	"io"
@@ -33,6 +34,85 @@ import (
 // WireFormat.WIRETYPE_LENGTH_DELIMITED.
 const typedAstDeserializer_WIRETYPE_LENGTH_DELIMITED = 2
 
+func typedAstValidateShardTag(rawTag uint64) jutil.Throwable {
+	tag := int32(rawTag)
+	if uint32(tag)>>3 == 0 {
+		return protoInvalidTag()
+	}
+	if jutil.Ushr32(tag, 3) != TypedAst_List_TYPED_ASTS_FIELD_NUMBER ||
+		int(tag)&7 != typedAstDeserializer_WIRETYPE_LENGTH_DELIMITED {
+		return NewInvalidProtocolBufferException(
+			"Unexpected field number " +
+				strconv.Itoa(int(jutil.Ushr32(tag, 3))) +
+				" or wire type " +
+				strconv.Itoa(int(tag)&7))
+	}
+	return nil
+}
+
+func typedAstReadSliceVarint64(b []byte, pos *int, allowEOF bool) (uint64, bool, jutil.Throwable) {
+	if *pos >= len(b) {
+		if allowEOF {
+			return 0, false, nil
+		}
+		return 0, false, protoTruncatedMessage()
+	}
+	first := b[*pos]
+	*pos++
+	x := uint64(first & 0x7f)
+	if first < 0x80 {
+		return x, true, nil
+	}
+	for shift := uint(7); shift < 64; shift += 7 {
+		if *pos >= len(b) {
+			return 0, false, protoTruncatedMessage()
+		}
+		c := b[*pos]
+		*pos++
+		x |= uint64(c&0x7f) << shift
+		if c < 0x80 {
+			return x, true, nil
+		}
+	}
+	return 0, false, protoMalformedVarint()
+}
+
+func typedAstReadByte(br io.ByteReader, allowEOF bool) (byte, bool, jutil.Throwable) {
+	b, err := br.ReadByte()
+	if err == nil {
+		return b, true, nil
+	}
+	if err == io.EOF {
+		if allowEOF {
+			return 0, false, nil
+		}
+		return 0, false, protoTruncatedMessage()
+	}
+	return 0, false, jutil.NewIOException(err.Error())
+}
+
+func typedAstReadVarint64(br io.ByteReader, allowEOF bool) (uint64, bool, jutil.Throwable) {
+	first, ok, err := typedAstReadByte(br, allowEOF)
+	if err != nil || !ok {
+		return 0, false, err
+	}
+	x := uint64(first & 0x7f)
+	if first < 0x80 {
+		return x, true, nil
+	}
+	for shift := uint(7); shift < 64; shift += 7 {
+		b, _, err := typedAstReadByte(br, false)
+		if err != nil {
+			return 0, false, err
+		}
+		x |= uint64(b&0x7f) << shift
+		if b < 0x80 {
+			return x, true, nil
+		}
+	}
+	return 0, false, protoMalformedVarint()
+}
+
 func typedAstDeserializer_decodeShardBytes(messageBytes []byte, buildStringPool func(*TypedAst) bool) (*TypedAst, *StringPool) {
 	rd := &protoReader{b: messageBytes, depth: 1, limit: math.MaxInt32}
 	m := &TypedAst{memoizedSize: -1}
@@ -45,53 +125,32 @@ func typedAstDeserializer_decodeShardBytes(messageBytes []byte, buildStringPool 
 	return typedAst, stringShard
 }
 
+type byteAndBlockReader interface {
+	io.Reader
+	io.ByteReader
+}
+
 func typedAstDeserializer_scanTypedAstStream(
 	typedAstsStream io.Reader,
 	processShardBatch func([][]byte),
-	processLargeShard func(int),
+	processLargeShard func(io.Reader, int),
 ) {
+	const batchSize = 32
 	if br, ok := typedAstsStream.(*bytes.Reader); ok {
 		data := make([]byte, br.Len())
 		if _, err := io.ReadFull(br, data); err != nil {
 			panic(jutil.NewIOException(err.Error()))
 		}
-		codedInput := &protoReader{b: data, limit: math.MaxInt32}
-		readRawVarint64FromCoded := func() (uint64, jutil.Throwable) {
-			var x uint64
-			for shift := 0; shift < 64; shift += 7 {
-				if codedInput.pos >= len(codedInput.b) {
-					return 0, protoTruncatedMessage()
-				}
-				c := codedInput.b[codedInput.pos]
-				codedInput.pos++
-				x |= uint64(c&0x7F) << shift
-				if c < 0x80 {
-					return x, nil
-				}
-			}
-			return 0, protoMalformedVarint()
-		}
-		readNextFromCoded := func() ([]byte, bool, jutil.Throwable) {
-			if codedInput.atEnd() {
-				return nil, false, nil
-			}
-			rawTag, err := readRawVarint64FromCoded()
-			if err != nil {
+		pos := 0
+		readNextFromSlice := func() ([]byte, bool, jutil.Throwable) {
+			rawTag, ok, err := typedAstReadSliceVarint64(data, &pos, true)
+			if err != nil || !ok {
 				return nil, false, err
 			}
-			tag := int(int32(rawTag))
-			if uint32(int32(tag))>>3 == 0 {
-				return nil, false, protoInvalidTag()
+			if err := typedAstValidateShardTag(rawTag); err != nil {
+				return nil, false, err
 			}
-			if jutil.Ushr32(int32(tag), 3) != TypedAst_List_TYPED_ASTS_FIELD_NUMBER ||
-				tag&7 != typedAstDeserializer_WIRETYPE_LENGTH_DELIMITED {
-				return nil, false, NewInvalidProtocolBufferException(
-					"Unexpected field number " +
-						strconv.Itoa(int(jutil.Ushr32(int32(tag), 3))) +
-						" or wire type " +
-						strconv.Itoa(tag&7))
-			}
-			rawSize, err := readRawVarint64FromCoded()
+			rawSize, _, err := typedAstReadSliceVarint64(data, &pos, false)
 			if err != nil {
 				return nil, false, err
 			}
@@ -99,31 +158,30 @@ func typedAstDeserializer_scanTypedAstStream(
 			if size < 0 {
 				return nil, false, protoNegativeSize()
 			}
-			if int(size) > len(codedInput.b)-codedInput.pos {
+			if int(size) > len(data)-pos {
 				return nil, false, protoTruncatedMessage()
 			}
-			v := codedInput.b[codedInput.pos : codedInput.pos+int(size) : codedInput.pos+int(size)]
-			codedInput.pos += int(size)
+			v := data[pos : pos+int(size) : pos+int(size)]
+			pos += int(size)
 			return v, true, nil
 		}
-		firstMsg, ok, firstErr := readNextFromCoded()
+		firstMsg, ok, firstErr := readNextFromSlice()
 		if firstErr != nil {
 			panic(firstErr)
 		}
 		if !ok {
 			return
 		}
-		if codedInput.atEnd() {
+		if pos >= len(data) {
 			processShardBatch([][]byte{firstMsg})
 			return
 		}
-		const batchSize = 32
 		batch := make([][]byte, 0, batchSize)
 		batch = append(batch, firstMsg)
 		for {
 			var readErr jutil.Throwable
 			for len(batch) < batchSize {
-				msg, hasMore, err := readNextFromCoded()
+				msg, hasMore, err := readNextFromSlice()
 				if err != nil {
 					readErr = err
 					break
@@ -140,79 +198,35 @@ func typedAstDeserializer_scanTypedAstStream(
 			if readErr != nil {
 				panic(readErr)
 			}
-			if codedInput.atEnd() {
+			if pos >= len(data) {
 				break
 			}
 		}
 		return
 	}
 
-	var oneByte [1]byte
-	readByte := func(allowEOF bool) (byte, bool, jutil.Throwable) {
-		for {
-			n, err := typedAstsStream.Read(oneByte[:])
-			if n == 1 {
-				return oneByte[0], true, nil
-			}
-			if err == io.EOF {
-				if allowEOF {
-					return 0, false, nil
-				}
-				return 0, false, protoTruncatedMessage()
-			}
-			if err != nil {
-				return 0, false, jutil.NewIOException(err.Error())
-			}
-		}
-	}
-	readVarint64 := func(firstByte byte) (uint64, jutil.Throwable) {
-		x := uint64(firstByte & 0x7f)
-		if firstByte < 0x80 {
-			return x, nil
-		}
-		for shift := uint(7); shift < 64; shift += 7 {
-			b, _, err := readByte(false)
-			if err != nil {
-				return 0, err
-			}
-			x |= uint64(b&0x7f) << shift
-			if b < 0x80 {
-				return x, nil
-			}
-		}
-		return 0, NewInvalidProtocolBufferException("CodedInputStream encountered a malformed varint.")
-	}
 	const (
 		probeSize          = 32 * 1024
 		streamLargeShardAt = 1 << 20
 	)
+	bbr, ok := typedAstsStream.(byteAndBlockReader)
+	if !ok {
+		bbr = bufio.NewReaderSize(typedAstsStream, probeSize)
+	}
+
 	var probe [probeSize]byte
 	readNextTagAndLen := func() (int, bool, jutil.Throwable) {
-		first, ok, err := readByte(true)
+		uTag, ok, err := typedAstReadVarint64(bbr, true)
 		if err != nil || !ok {
 			return 0, false, err
 		}
-		uTag, err := readVarint64(first)
-		if err != nil {
+		if uTag > math.MaxUint32 {
+			return 0, false, protoInvalidTag()
+		}
+		if err := typedAstValidateShardTag(uTag); err != nil {
 			return 0, false, err
 		}
-		if uTag>>3 == 0 || uTag > math.MaxUint32 {
-			return 0, false, NewInvalidProtocolBufferException("Protocol message contained an invalid tag (zero).")
-		}
-		tag := int(int32(uTag))
-		if jutil.Ushr32(int32(tag), 3) != TypedAst_List_TYPED_ASTS_FIELD_NUMBER ||
-			tag&7 != typedAstDeserializer_WIRETYPE_LENGTH_DELIMITED {
-			return 0, false, NewInvalidProtocolBufferException(
-				"Unexpected field number " +
-					strconv.Itoa(int(jutil.Ushr32(int32(tag), 3))) +
-					" or wire type " +
-					strconv.Itoa(tag&7))
-		}
-		lenFirst, _, err := readByte(false)
-		if err != nil {
-			return 0, false, err
-		}
-		rawLen, err := readVarint64(lenFirst)
+		rawLen, _, err := typedAstReadVarint64(bbr, false)
 		if err != nil {
 			return 0, false, err
 		}
@@ -227,14 +241,14 @@ func typedAstDeserializer_scanTypedAstStream(
 		var messageBytes []byte
 		if msgLen <= probeSize {
 			messageBytes = make([]byte, msgLen)
-			if _, err := io.ReadFull(typedAstsStream, messageBytes); err != nil {
+			if _, err := io.ReadFull(bbr, messageBytes); err != nil {
 				if err == io.EOF || err == io.ErrUnexpectedEOF {
 					return nil, protoTruncatedMessage()
 				}
 				return nil, jutil.NewIOException(err.Error())
 			}
 		} else {
-			if _, err := io.ReadFull(typedAstsStream, probe[:]); err != nil {
+			if _, err := io.ReadFull(bbr, probe[:]); err != nil {
 				if err == io.EOF || err == io.ErrUnexpectedEOF {
 					return nil, protoTruncatedMessage()
 				}
@@ -242,7 +256,7 @@ func typedAstDeserializer_scanTypedAstStream(
 			}
 			messageBytes = make([]byte, msgLen)
 			copy(messageBytes, probe[:])
-			if _, err := io.ReadFull(typedAstsStream, messageBytes[probeSize:]); err != nil {
+			if _, err := io.ReadFull(bbr, messageBytes[probeSize:]); err != nil {
 				if err == io.EOF || err == io.ErrUnexpectedEOF {
 					return nil, protoTruncatedMessage()
 				}
@@ -252,7 +266,6 @@ func typedAstDeserializer_scanTypedAstStream(
 		return messageBytes, nil
 	}
 
-	const batchSize = 32
 	batch := make([][]byte, 0, batchSize)
 	for {
 		var readErr jutil.Throwable
@@ -289,7 +302,7 @@ func typedAstDeserializer_scanTypedAstStream(
 			panic(readErr)
 		}
 		if hasLarge {
-			processLargeShard(largeMsgLen)
+			processLargeShard(bbr, largeMsgLen)
 		}
 		if reachedEOF {
 			break

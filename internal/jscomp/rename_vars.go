@@ -122,7 +122,7 @@ type RenameVars struct {
 	preferStableNames bool
 
 	// Characters that shouldn't be used in variable names.
-	reservedCharacters jutil.Set[uint16]
+	reservedCharacters ASCIICharSet
 
 	// Shared name generator
 	nameGenerator NameGenerator
@@ -219,38 +219,12 @@ const RenameVars_LOCAL_VAR_PREFIX = "L "
 // Java: RenameVars(AbstractCompiler, String, boolean, boolean, boolean, VariableMap, Set<Character>, Set<String>, NameGenerator)
 func NewRenameVars(
 	compiler AbstractCompiler,
-	prefix *string,
-	localRenamingOnly bool,
-	generatePseudoNames bool,
-	preferStableNames bool,
-	prevUsedRenameMap *VariableMap,
-	reservedCharacters jutil.Set[uint16],
-	reservedNames jutil.Set[string],
-	nameGenerator NameGenerator) *RenameVars {
-	var pfx string
-	if prefix != nil {
-		pfx = *prefix
-	}
-	return newRenameVars(
-		compiler,
-		pfx,
-		localRenamingOnly,
-		generatePseudoNames,
-		preferStableNames,
-		prevUsedRenameMap,
-		reservedCharacters,
-		reservedNames,
-		nameGenerator)
-}
-
-func newRenameVars(
-	compiler AbstractCompiler,
 	prefix string,
 	localRenamingOnly bool,
 	generatePseudoNames bool,
 	preferStableNames bool,
 	prevUsedRenameMap *VariableMap,
-	reservedCharacters jutil.Set[uint16],
+	reservedCharacters ASCIICharSet,
 	reservedNames jutil.Set[string],
 	nameGenerator NameGenerator) *RenameVars {
 	reservedCap := 32

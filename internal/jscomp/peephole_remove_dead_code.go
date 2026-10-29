@@ -45,6 +45,42 @@ func NewPeepholeRemoveDeadCode() *PeepholeRemoveDeadCode {
 	return &PeepholeRemoveDeadCode{}
 }
 
+var peepholeRemoveDeadCodeTokens = peepholeTokenSet(
+	rhino.Token_ASSIGN,
+	rhino.Token_COMMA,
+	rhino.Token_SCRIPT,
+	rhino.Token_BLOCK,
+	rhino.Token_EXPR_RESULT,
+	rhino.Token_HOOK,
+	rhino.Token_SWITCH,
+	rhino.Token_IF,
+	rhino.Token_FOR,
+	rhino.Token_DO,
+	rhino.Token_TRY,
+	rhino.Token_LABEL,
+	rhino.Token_ARRAY_PATTERN,
+	rhino.Token_OBJECT_PATTERN,
+	rhino.Token_VAR,
+	rhino.Token_CONST,
+	rhino.Token_LET,
+	rhino.Token_DEFAULT_VALUE,
+	rhino.Token_OPTCHAIN_GETPROP,
+	rhino.Token_OPTCHAIN_CALL,
+	rhino.Token_OPTCHAIN_GETELEM,
+)
+
+func (p *PeepholeRemoveDeadCode) peepholeConfig() peepholeOptConfig {
+	return peepholeOptConfig{
+		tokens:         peepholeRemoveDeadCodeTokens,
+		isStandard:     true,
+		tracksFeatures: true,
+	}
+}
+
+func (p *PeepholeRemoveDeadCode) cloneForWorker() AbstractPeepholeOptimization {
+	return NewPeepholeRemoveDeadCode()
+}
+
 // Java: PeepholeRemoveDeadCode.optimizeSubtree(Node)
 func (p *PeepholeRemoveDeadCode) OptimizeSubtree(subtree rhino.Node) rhino.Node {
 	switch subtree.GetToken() {

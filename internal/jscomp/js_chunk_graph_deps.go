@@ -459,18 +459,6 @@ type JSChunkGraph_ChunkDependenceException struct {
 	dependentChunk *JSChunk
 }
 
-func (*JSChunkGraph_ChunkDependenceException) chunkDependenceException() {}
-
-// IJSChunkGraph_ChunkDependenceException matches
-// JSChunkGraph_ChunkDependenceException.
-type IJSChunkGraph_ChunkDependenceException interface {
-	jutil.IIllegalArgumentException
-	chunkDependenceException()
-}
-
-// Java: JSChunkGraph.ChunkDependenceException.serialVersionUID
-const jsChunkGraph_ChunkDependenceException_serialVersionUID int64 = 1
-
 // Java: JSChunkGraph.ChunkDependenceException(String, JSChunk, JSChunk)
 func NewJSChunkGraph_ChunkDependenceException(
 	message string, chunk *JSChunk, dependentChunk *JSChunk) *JSChunkGraph_ChunkDependenceException {
@@ -492,15 +480,6 @@ func (e *JSChunkGraph_ChunkDependenceException) GetDependentChunk() *JSChunk {
 // JSChunkGraph_MissingChunkException is another exception class (a checked
 // exception).
 type JSChunkGraph_MissingChunkException struct{ jutil.JavaException }
-
-func (*JSChunkGraph_MissingChunkException) missingChunkException() {}
-
-// IJSChunkGraph_MissingChunkException matches
-// JSChunkGraph_MissingChunkException.
-type IJSChunkGraph_MissingChunkException interface {
-	jutil.IException
-	missingChunkException()
-}
 
 // Java: JSChunkGraph.MissingChunkException(String)
 func NewJSChunkGraph_MissingChunkException(chunkName string) *JSChunkGraph_MissingChunkException {

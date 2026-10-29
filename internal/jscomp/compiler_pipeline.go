@@ -266,10 +266,7 @@ func Compiler_RunInCompilerThread[T any](c *Compiler, callable func() T) T {
 }
 
 func (c *Compiler) runInCompilerThread(fn func()) {
-	Compiler_RunInCompilerThread(c, func() struct{} {
-		fn()
-		return struct{}{}
-	})
+	c.compilerExecutor.runVoid(fn, c.options != nil && c.options.GetTracerMode().IsOn())
 }
 
 // Java: Compiler.performChecks()
@@ -318,27 +315,36 @@ func (c *Compiler) performPostCompilationTasksInternal() {
 		if c.options.GetTracerOutput() == nil {
 			c.tracker.OutputTracerReport(c.outStream)
 		} else {
-			jutil.Try(func() {
-				stream, err := os.OpenFile(c.options.GetTracerOutput().String(), os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o666)
-				if err != nil {
-					panic(jutil.NewIOException(err.Error()))
-				}
-				out := jutil.NewPrintStream(stream)
-				defer func() {
-					// PrintStream.close: flush, then close the stream.
-					out.Flush()
-					_ = stream.Close()
-				}()
-				c.tracker.OutputTracerReport(out)
-			}, func(e jutil.Throwable) {
-				// Java: catch (Exception e), which does not see java.lang.Errors.
-				if _, isError := e.(jutil.IError); isError {
-					panic(e)
-				}
-				panic(jutil.NewRuntimeExceptionWithCause(e))
-			})
+			c.writeTracerOutputReport()
 		}
 	}
+}
+
+func (c *Compiler) writeTracerOutputReport() {
+	stream, err := os.OpenFile(c.options.GetTracerOutput().String(), os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o666)
+	if err != nil {
+		panic(jutil.NewRuntimeExceptionWithCause(jutil.NewIOException(err.Error())))
+	}
+	defer func() {
+		if rec := recover(); rec != nil {
+			e, ok := rec.(jutil.Throwable)
+			if !ok {
+				e = jutil.AsThrowable(rec)
+			}
+			// Java: catch (Exception e), which does not see java.lang.Errors.
+			if _, isError := e.(jutil.IError); isError {
+				panic(e)
+			}
+			panic(jutil.NewRuntimeExceptionWithCause(e))
+		}
+	}()
+	out := jutil.NewPrintStream(stream)
+	defer func() {
+		// PrintStream.close: flush, then close the stream.
+		out.Flush()
+		_ = stream.Close()
+	}()
+	c.tracker.OutputTracerReport(out)
 }
 
 // InstrumentForCoverage instruments code for coverage.
@@ -665,30 +671,16 @@ func (c *Compiler) passListAfter(passes []*PassFactory, passName string) []*Pass
 	return passList
 }
 
-// CompilerExecutor runs the compiler in a separate thread with a larger
-// stack.
+// CompilerExecutor runs the compiler inline on the calling goroutine.
 //
-// Go-only: language-adapter — the port is sequential (PORTING.md §5). In
-// Java, runInCompilerThread submits the callable to a single-thread
-// executor whose daemon thread "jscompiler" has a 64MB stack (the compiler
-// recurses O(depth) on the AST), waits for it with future.get() (or
-// future.get(timeout, SECONDS)), and shuts the executor down. Here the
-// callable runs inline on the calling goroutine: Go stacks grow on demand,
-// so no dedicated stack is needed, and the timeout is recorded but cannot
-// interrupt the inline call. The per-thread Tracer trace of the Java
-// compiler thread is the single Tracer trace of the port. Everything else
-// (the re-entrancy check, the bookkeeping of compilerThread, which
-// exceptions are caught and how they are rethrown) is Java's.
+// Go-only: language-adapter — Go stacks grow dynamically on demand so no
+// dedicated 64MB OS thread is needed, and fake-thread identity bookkeeping
+// is replaced by a lightweight re-entrancy boolean.
 type CompilerExecutor struct {
-	// Use a dedicated compiler thread per Compiler instance.
-	compilerThread *jutil.Thread
-
-	// Whether to use threads.
-	useThreads bool
-
-	timeout int
-
-	debugMessage *string
+	inCompilerThread bool
+	useThreads       bool
+	timeout          int
+	debugMessage     *string
 }
 
 // CompilerExecutor_COMPILER_STACK_SIZE: we use many recursive algorithms
@@ -716,6 +708,52 @@ func (e *CompilerExecutor) SetDebugMessage(debugMessage *string) {
 	e.debugMessage = debugMessage
 }
 
+func (e *CompilerExecutor) finishRun(bootThread bool, dumpTraceReport bool, r any) {
+	if bootThread {
+		e.inCompilerThread = false
+		if dumpTraceReport {
+			Tracer_LogCurrentThreadTrace()
+		}
+		Tracer_ClearCurrentThreadTrace()
+	}
+	if r == nil {
+		return
+	}
+	exception, ok := r.(jutil.Throwable)
+	if !ok {
+		exception = jutil.AsThrowable(r)
+	}
+	if !bootThread {
+		// Java catches Exception: an Error propagates.
+		if _, isError := exception.(jutil.IError); isError {
+			panic(exception)
+		}
+	}
+	if e.debugMessage != nil {
+		panic(jutil.NewRuntimeExceptionWithMessageAndCause("Exception during compilation: "+*e.debugMessage, exception))
+	}
+	// Throwables.throwIfUnchecked
+	switch exception.(type) {
+	case jutil.IRuntimeException, jutil.IError:
+		panic(exception)
+	}
+	panic(jutil.NewRuntimeExceptionWithCause(exception))
+}
+
+func (e *CompilerExecutor) runVoid(fn func(), dumpTraceReport bool) {
+	bootThread := e.useThreads && !e.inCompilerThread
+	defer func() {
+		e.finishRun(bootThread, dumpTraceReport, recover())
+	}()
+	if bootThread {
+		e.inCompilerThread = true
+		if dumpTraceReport {
+			Tracer_InitCurrentThreadTrace()
+		}
+	}
+	fn()
+}
+
 // CompilerExecutor_RunInCompilerThread is runInCompilerThread.
 //
 // Go-only: language-adapter — a generic method, so a package function;
@@ -723,47 +761,13 @@ func (e *CompilerExecutor) SetDebugMessage(debugMessage *string) {
 //
 // Java: CompilerExecutor.runInCompilerThread(Callable<T>, boolean)
 func CompilerExecutor_RunInCompilerThread[T any](e *CompilerExecutor, callable func() T, dumpTraceReport bool) (result T) {
-	if !(e.compilerThread == nil || e.compilerThread == jutil.Thread_CurrentThread()) {
-		// checkState(boolean, Object errorMessage)
-		panic(jutil.NewIllegalStateExceptionMsg("Please do not share the Compiler across threads"))
-	}
-
-	bootThread := e.useThreads && e.compilerThread == nil
+	bootThread := e.useThreads && !e.inCompilerThread
 	defer func() {
-		r := recover()
-		if bootThread {
-			e.compilerThread = nil
-			if dumpTraceReport {
-				Tracer_LogCurrentThreadTrace()
-			}
-			Tracer_ClearCurrentThreadTrace()
-		}
-		if r == nil {
-			return
-		}
-		exception, ok := r.(jutil.Throwable)
-		if !ok {
-			exception = jutil.AsThrowable(r)
-		}
-		if !bootThread {
-			// Java catches Exception: an Error propagates.
-			if _, isError := exception.(jutil.IError); isError {
-				panic(exception)
-			}
-		}
-		if e.debugMessage != nil {
-			panic(jutil.NewRuntimeExceptionWithMessageAndCause("Exception during compilation: "+*e.debugMessage, exception))
-		}
-		// Throwables.throwIfUnchecked
-		switch exception.(type) {
-		case jutil.IRuntimeException, jutil.IError:
-			panic(exception)
-		}
-		panic(jutil.NewRuntimeExceptionWithCause(exception))
+		e.finishRun(bootThread, dumpTraceReport, recover())
 	}()
 
 	if bootThread {
-		e.compilerThread = jutil.Thread_CurrentThread()
+		e.inCompilerThread = true
 		if dumpTraceReport {
 			Tracer_InitCurrentThreadTrace()
 		}

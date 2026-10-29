@@ -61,11 +61,6 @@ func ColorId_FromUnsignedInt(x int32) ColorId {
 	return NewColorId(int64(x) & 0xFFFFFFFF)
 }
 
-// Java: ColorId.fromUnsigned(byte)
-func ColorId_FromUnsignedByte(x int8) ColorId {
-	return NewColorId(int64(x) & 0xFF)
-}
-
 // ColorId_FromBytes builds an ID from a protobuf ByteString (Go []byte).
 //
 // Java: ColorId.fromBytes(ByteString)
@@ -78,11 +73,6 @@ func ColorId_FromBytes(bytes []byte) ColorId {
 		rightAligned = (rightAligned << 8) | int64(b)
 	}
 	return NewColorId(rightAligned)
-}
-
-// Java: ColorId.fromBytes(byte[])
-func ColorId_FromByteArray(bytes []byte) ColorId {
-	return ColorId_FromBytes(bytes)
 }
 
 // Java: ColorId.fromAscii(String)
@@ -145,16 +135,20 @@ func ColorId_UnionSlice(ids []ColorId) ColorId {
 	for i, c := range ids {
 		sorted[i] = c.rightAligned
 	}
-	slices.Sort(sorted)
-	sorted = slices.Compact(sorted)
-	n := len(sorted)
+	return unionRightAlignedIds(sorted)
+}
+
+func unionRightAlignedIds(ids []int64) ColorId {
+	slices.Sort(ids)
+	ids = slices.Compact(ids)
+	n := len(ids)
 	if n == 1 {
-		return NewColorId(sorted[0])
+		return NewColorId(ids[0])
 	}
 	if n == 2 {
 		var buf [16]byte
-		binary.LittleEndian.PutUint64(buf[0:8], uint64(sorted[0]))
-		binary.LittleEndian.PutUint64(buf[8:16], uint64(sorted[1]))
+		binary.LittleEndian.PutUint64(buf[0:8], uint64(ids[0]))
+		binary.LittleEndian.PutUint64(buf[8:16], uint64(ids[1]))
 		return NewColorId(int64(jutil.FarmHashFingerprint64(buf[:])))
 	}
 	var stackBytes [256]byte
@@ -165,7 +159,7 @@ func ColorId_UnionSlice(ids []ColorId) ColorId {
 		raw = make([]byte, n*8)
 	}
 	for i := 0; i < n; i++ {
-		binary.LittleEndian.PutUint64(raw[i*8:], uint64(sorted[i]))
+		binary.LittleEndian.PutUint64(raw[i*8:], uint64(ids[i]))
 	}
 	return NewColorId(int64(jutil.FarmHashFingerprint64(raw)))
 }
@@ -221,12 +215,6 @@ func (c ColorId) String() string {
 func (c ColorId) ToLogsGson() string {
 	return c.String()
 }
-
-// ColorId_FARM_64 is Hashing.farmHashFingerprint64(), represented by its
-// newHasher() method.
-//
-// Java: ColorId.FARM_64
-var ColorId_FARM_64 = jutil.Hashing_FarmHashFingerprint64NewHasher
 
 // ColorId_ByteAt reads byte `index` of `source`.
 //

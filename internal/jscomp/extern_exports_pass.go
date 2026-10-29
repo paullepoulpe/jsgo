@@ -246,10 +246,10 @@ func createExternsParamListFromFunctionType(functionType rhino.JSType) rhino.Nod
 
 func createExternsParamListFromOriginalParamList(originalParamNames []string) rhino.Node {
 	paramList := rhino.IR_ParamList()
-	var nameGenerator NameGenerator = NewDefaultNameGeneratorWithReserved(
+	var nameGenerator NameGenerator = NewDefaultNameGeneratorWithReservedChars(
 		jutil.NewLinkedHashSet(originalParamNames...),
 		"",
-		/* reservedCharacters= */ jutil.NewLinkedHashSet[uint16]())
+		/* reservedCharacters= */ ASCIICharSet{})
 	for _, originalParamName := range originalParamNames {
 		externParamName := originalParamName
 		if originalParamName == "" {

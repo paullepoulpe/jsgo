@@ -191,10 +191,16 @@ func NewSourceMap_PrefixLocationMapping(prefix string, replacement string) *Sour
 	return &SourceMap_PrefixLocationMapping{prefix: prefix, replacement: replacement}
 }
 
+func (m *SourceMap_PrefixLocationMapping) mapLocation(location string) (string, bool) {
+	if strings.HasPrefix(location, m.prefix) {
+		return m.replacement + location[len(m.prefix):], true
+	}
+	return "", false
+}
+
 // Java: SourceMap.PrefixLocationMapping.map(String)
 func (m *SourceMap_PrefixLocationMapping) Map(location string) *string {
-	if strings.HasPrefix(location, m.prefix) {
-		s := m.replacement + location[len(m.prefix):]
+	if s, ok := m.mapLocation(location); ok {
 		return &s
 	}
 	return nil
@@ -431,19 +437,21 @@ func (s *SourceMap) fixupSourceLocation(sourceFile string) string {
 		return fixed
 	}
 
-	// Replace the first prefix found with its replacement
-	var fixed *string
-	for _, mapping := range s.prefixMappings {
-		fixed = mapping.Map(sourceFile)
-		if fixed != nil {
-			break
-		}
-	}
-
+	// Replace the first prefix found with its replacement.
 	// If none of the mappings match then use the original file path.
 	res := sourceFile
-	if fixed != nil {
-		res = *fixed
+	for _, mapping := range s.prefixMappings {
+		if pm, ok := mapping.(*SourceMap_PrefixLocationMapping); ok {
+			if s, matched := pm.mapLocation(sourceFile); matched {
+				res = s
+				break
+			}
+			continue
+		}
+		if fixed := mapping.Map(sourceFile); fixed != nil {
+			res = *fixed
+			break
+		}
 	}
 
 	if s.sourceLocationFixupCache == nil {
@@ -561,10 +569,10 @@ func (i *SourceMapInput) GetSourceMap(errorManager ErrorManager) *sourcemap.Sour
 				// to treat this file as having a real source map (implying this is an
 				// intermediate source file). Rather, this is the original source file.
 				// https://github.com/gulp-sourcemaps/gulp-sourcemaps/blob/91b94954/src/init/index.js#L116-L124
-				if consumer.GetFile() != nil &&
-					*consumer.GetFile() != "" &&
+				if file := consumer.GetFile(); file != nil &&
+					*file != "" &&
 					len(consumer.GetOriginalSources()) == 1 &&
-					sourceMapInput_contains(consumer.GetOriginalSources(), consumer.GetFile()) &&
+					sourceMapInput_contains(consumer.GetOriginalSources(), *file) &&
 					len(consumer.GetOriginalSourcesContent()) == 1 &&
 					len(consumer.GetOriginalNames()) == 0 &&
 					consumer.GetLineCount() == -1 {
@@ -594,11 +602,10 @@ func (i *SourceMapInput) dropSourcesContentOnce(consumer *sourcemap.SourceMapCon
 	i.mu.Unlock()
 }
 
-// sourceMapInput_contains is Collection.contains(Object) on a list of
-// nullable Strings.
-func sourceMapInput_contains(list []*string, o *string) bool {
+// sourceMapInput_contains reports whether list contains a non-nil string equal to target.
+func sourceMapInput_contains(list []*string, target string) bool {
 	for _, s := range list {
-		if (s == nil && o == nil) || (s != nil && o != nil && *s == *o) {
+		if s != nil && *s == target {
 			return true
 		}
 	}
@@ -623,10 +630,6 @@ func (i *SourceMapInput) GetRawSourceMapContents() *string {
 	}
 	return &code
 }
-
-// SourceMapResolver is a utility class for resolving source maps and files
-// referenced in source maps.
-type SourceMapResolver struct{}
 
 const sourceMapResolver_BASE64_URL_PREFIX = "data:"
 const sourceMapResolver_BASE64_START = "base64,"

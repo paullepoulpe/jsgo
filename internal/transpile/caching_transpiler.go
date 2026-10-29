@@ -21,7 +21,6 @@ package transpile
 import (
 	"sync"
 
-	"github.com/paullepoulpe/jsgo/internal/bundle"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 )
 
@@ -31,6 +30,7 @@ type cacheKey struct {
 
 type cachingTranspilerNode struct {
 	key        cacheKey
+	result     *TranspileResult
 	prev, next *cachingTranspilerNode
 }
 
@@ -40,8 +40,7 @@ type CachingTranspiler struct {
 	delegate Transpiler
 	maxSize  int // -1: unbounded
 	mu       sync.Mutex
-	cache    map[cacheKey]*TranspileResult
-	lru      map[cacheKey]*cachingTranspilerNode
+	cache    map[cacheKey]*cachingTranspilerNode
 	head     *cachingTranspilerNode // least recently accessed
 	tail     *cachingTranspilerNode // most recently accessed
 	runtime  func() string
@@ -56,13 +55,10 @@ func NewCachingTranspiler(delegate Transpiler, maxSize int) *CachingTranspiler {
 	t := &CachingTranspiler{
 		delegate: delegate,
 		maxSize:  maxSize,
-		runtime:  bundle.Source_Suppliers_Memoize(delegate.Runtime),
+		runtime:  sync.OnceValue(delegate.Runtime),
 	}
 	if maxSize != 0 {
-		t.cache = make(map[cacheKey]*TranspileResult)
-		if maxSize > 0 {
-			t.lru = make(map[cacheKey]*cachingTranspilerNode)
-		}
+		t.cache = make(map[cacheKey]*cachingTranspilerNode)
 	}
 	return t
 }
@@ -79,12 +75,13 @@ func (t *CachingTranspiler) Transpile(path string, code string) *TranspileResult
 
 	key := cacheKey{path: path, code: code}
 	t.mu.Lock()
-	if val, ok := t.cache[key]; ok {
-		if t.lru != nil {
-			t.moveToTailLocked(t.lru[key])
+	if node, ok := t.cache[key]; ok {
+		if t.maxSize > 0 {
+			t.moveToTailLocked(node)
 		}
+		res := node.result
 		t.mu.Unlock()
-		return val
+		return res
 	}
 	t.mu.Unlock()
 
@@ -94,22 +91,21 @@ func (t *CachingTranspiler) Transpile(path string, code string) *TranspileResult
 	}
 
 	t.mu.Lock()
-	if val, ok := t.cache[key]; ok {
-		if t.lru != nil {
-			t.moveToTailLocked(t.lru[key])
+	if node, ok := t.cache[key]; ok {
+		if t.maxSize > 0 {
+			t.moveToTailLocked(node)
 		}
+		res := node.result
 		t.mu.Unlock()
-		return val
+		return res
 	}
-	t.cache[key] = value
-	if t.lru != nil {
-		node := &cachingTranspilerNode{key: key}
-		t.lru[key] = node
+	node := &cachingTranspilerNode{key: key, result: value}
+	t.cache[key] = node
+	if t.maxSize > 0 {
 		t.linkLastLocked(node)
 		if len(t.cache) > t.maxSize {
 			oldest := t.head
 			t.unlinkLocked(oldest)
-			delete(t.lru, oldest.key)
 			delete(t.cache, oldest.key)
 		}
 	}

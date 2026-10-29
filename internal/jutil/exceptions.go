@@ -331,12 +331,6 @@ func tryCatch[E any](body func()) (caught E, ok bool) {
 	return caught, false
 }
 
-// Throw panics with t. It exists so that call sites read like Java and so
-// that Go vet sees a terminating statement after it via the panic.
-func Throw(t Throwable) {
-	panic(t)
-}
-
 // ArrayIndexOutOfBoundsException is java.lang.ArrayIndexOutOfBoundsException.
 type ArrayIndexOutOfBoundsException struct{ IndexOutOfBoundsException }
 
@@ -385,13 +379,6 @@ func NewClassCastException(from, to string) *ClassCastException {
 
 // NoSuchElementException is java.util.NoSuchElementException.
 type NoSuchElementException struct{ RuntimeException }
-
-func (*NoSuchElementException) noSuchElementException() {}
-
-type INoSuchElementException interface {
-	IRuntimeException
-	noSuchElementException()
-}
 
 func NewNoSuchElementException() *NoSuchElementException {
 	e := &NoSuchElementException{}
@@ -556,39 +543,10 @@ func NewAssertionErrorNoMessage() *AssertionError {
 	return e
 }
 
-// ConcurrentModificationException is
-// java.util.ConcurrentModificationException: thrown by fail-fast iterators
-// when a collection is structurally modified other than through the iterator
-// itself.
-type ConcurrentModificationException struct{ RuntimeException }
-
-func (*ConcurrentModificationException) concurrentModificationException() {}
-
-type IConcurrentModificationException interface {
-	IRuntimeException
-	concurrentModificationException()
-}
-
-// NewConcurrentModificationException is new
-// ConcurrentModificationException().
-func NewConcurrentModificationException() *ConcurrentModificationException {
-	e := &ConcurrentModificationException{}
-	InitThrowable(e, "java.util.ConcurrentModificationException", nil, nil)
-	return e
-}
-
 // ExecutionException is java.util.concurrent.ExecutionException: the
 // checked exception thrown when retrieving the result of a task that
 // aborted by throwing an exception.
 type ExecutionException struct{ JavaException }
-
-func (*ExecutionException) executionException() {}
-
-// IExecutionException matches ExecutionException and its subclasses.
-type IExecutionException interface {
-	IException
-	executionException()
-}
 
 // NewExecutionException is new ExecutionException(Throwable cause): the
 // message is cause.toString().
@@ -601,14 +559,6 @@ func NewExecutionException(cause Throwable) *ExecutionException {
 // InterruptedException is java.lang.InterruptedException (a checked
 // exception).
 type InterruptedException struct{ JavaException }
-
-func (*InterruptedException) interruptedException() {}
-
-// IInterruptedException matches InterruptedException.
-type IInterruptedException interface {
-	IException
-	interruptedException()
-}
 
 // NewInterruptedException is new InterruptedException().
 func NewInterruptedException() *InterruptedException {
@@ -746,14 +696,6 @@ func (e *UnmappableCharacterException) GetInputLength() int { return e.inputLeng
 // FileNotFoundException is java.io.FileNotFoundException.
 type FileNotFoundException struct{ IOException }
 
-func (*FileNotFoundException) fileNotFoundException() {}
-
-// IFileNotFoundException is the catch marker for FileNotFoundException.
-type IFileNotFoundException interface {
-	IIOException
-	fileNotFoundException()
-}
-
 // NewFileNotFoundException is new FileNotFoundException(String).
 func NewFileNotFoundException(message string) *FileNotFoundException {
 	e := &FileNotFoundException{}
@@ -785,14 +727,6 @@ func FileNotFoundExceptionFromError(err error, path string) *FileNotFoundExcepti
 // archive.
 type ZipException struct{ IOException }
 
-func (*ZipException) zipException() {}
-
-// IZipException is the catch marker for ZipException.
-type IZipException interface {
-	IIOException
-	zipException()
-}
-
 // NewZipException is new ZipException(String).
 func NewZipException(message string) *ZipException {
 	e := &ZipException{}
@@ -818,14 +752,6 @@ type PatternSyntaxException struct {
 	desc    string
 	pattern string
 	index   int
-}
-
-func (*PatternSyntaxException) patternSyntaxException() {}
-
-// IPatternSyntaxException matches PatternSyntaxException.
-type IPatternSyntaxException interface {
-	IIllegalArgumentException
-	patternSyntaxException()
 }
 
 // NewPatternSyntaxException is new PatternSyntaxException(desc, regex,

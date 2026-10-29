@@ -109,31 +109,6 @@ func (f *FunctionInjector) DoesFunctionMeetMinimumRequirements(fnName string, fn
 	return !functionInjector_blocksMinimumRequirements(block, fnNameID, fnRecursionNameID, true)
 }
 
-func linkedHashSetSize(s *jutil.LinkedHashSet[string]) int {
-	if s == nil {
-		return 0
-	}
-	return s.Size()
-}
-
-// CanInlineReferenceToFunction: fnNode is the function to evaluate for
-// inlining; needAliases a set of function parameter names that can not be
-// used without aliasing (returned by getUnsafeParameterNames());
-// referencesThis whether fnNode contains references to its this object;
-// containsClosures whether fnNode contains inner functions or non-static
-// class field initializers. Returns whether the inlining can occur.
-//
-// Java: FunctionInjector.canInlineReferenceToFunction(Reference, Node, ImmutableSet<String>, boolean, boolean)
-func (f *FunctionInjector) CanInlineReferenceToFunction(
-	ref *FunctionInjector_Reference,
-	fnNode rhino.Node,
-	needAliases *jutil.LinkedHashSet[string],
-	referencesThis bool,
-	containsClosures bool) FunctionInjector_CanInlineResult {
-	return f.canInlineReferenceWithSummary(
-		ref, fnNode, linkedHashSetSize(needAliases), referencesThis, containsClosures, nil)
-}
-
 func (f *FunctionInjector) canInlineReferenceWithSummary(
 	ref *FunctionInjector_Reference,
 	fnNode rhino.Node,
@@ -266,22 +241,6 @@ func (r FunctionInjector_CanInlineResult) String() string {
 // Java: FunctionInjector.CanInlineResult.ordinal()
 func (r FunctionInjector_CanInlineResult) Ordinal() int { return int(r) }
 
-// CanInlineReferenceAsStatementBlock determines whether a function can be
-// inlined at a particular call site. There are several criteria that the
-// function and reference must hold in order for the functions to be
-// inlined: - It must be a simple call, or assignment, or var
-// initialization.
-//
-//	f();
-//	a = foo();
-//	var a = foo();
-//
-// Java: FunctionInjector.canInlineReferenceAsStatementBlock(Reference, Node, ImmutableSet<String>)
-func (f *FunctionInjector) CanInlineReferenceAsStatementBlock(
-	ref *FunctionInjector_Reference, fnNode rhino.Node, namesToAlias *jutil.LinkedHashSet[string]) FunctionInjector_CanInlineResult {
-	return f.canInlineReferenceAsStatementBlockWithSummary(ref, fnNode, linkedHashSetSize(namesToAlias), nil)
-}
-
 func (f *FunctionInjector) canInlineReferenceAsStatementBlockWithSummary(
 	ref *FunctionInjector_Reference,
 	fnNode rhino.Node,
@@ -308,10 +267,6 @@ func (f *FunctionInjector) canInlineReferenceAsStatementBlockWithSummary(
 	} else {
 		return FunctionInjector_CanInlineResult_YES
 	}
-}
-
-func functionInjector_isEvalName(n rhino.Node) bool {
-	return n.IsName() && n.GetStringID() == calleeEvalIdentID
 }
 
 func functionInjector_isShallowStatement(n rhino.Node) bool {
@@ -464,16 +419,6 @@ func (f *FunctionInjector) InnerFunctionOf(containerFn rhino.Node) rhino.Node {
 	return cached
 }
 
-// CallMeetsBlockInliningRequirements determines whether a function can be
-// inlined at a particular call site. - Don't inline if the calling function
-// contains an inner function and inlining would introduce new globals.
-//
-// Java: FunctionInjector.callMeetsBlockInliningRequirements(Reference, Node, ImmutableSet<String>)
-func (f *FunctionInjector) CallMeetsBlockInliningRequirements(
-	callRef *FunctionInjector_Reference, calleeFn rhino.Node, namesToAlias *jutil.LinkedHashSet[string]) bool {
-	return f.callMeetsBlockInliningRequirementsWithSummary(callRef, calleeFn, linkedHashSetSize(namesToAlias), nil)
-}
-
 func (f *FunctionInjector) callMeetsBlockInliningRequirementsWithSummary(
 	callRef *FunctionInjector_Reference,
 	calleeFn rhino.Node,
@@ -537,22 +482,6 @@ func (f *FunctionInjector) callMeetsBlockInliningRequirementsWithSummary(
 	return true
 }
 
-// CanInlineReferenceDirectly determines whether a function can be inlined at
-// a particular call site. There are several criteria that the function and
-// reference must hold in order for the functions to be inlined: 1) If a
-// call's arguments have side effects, the corresponding argument in the
-// function must only be referenced once. For instance, this will not be
-// inlined:
-//
-//	function foo(a) { return a + a }
-//	x = foo(i++);
-//
-// Java: FunctionInjector.canInlineReferenceDirectly(Reference, Node, ImmutableSet<String>)
-func (f *FunctionInjector) CanInlineReferenceDirectly(
-	ref *FunctionInjector_Reference, fnNode rhino.Node, namesToAlias *jutil.LinkedHashSet[string]) FunctionInjector_CanInlineResult {
-	return f.canInlineReferenceDirectlyWithSummary(ref, fnNode, linkedHashSetSize(namesToAlias), nil)
-}
-
 func (f *FunctionInjector) canInlineReferenceDirectlyWithSummary(
 	ref *FunctionInjector_Reference,
 	fnNode rhino.Node,
@@ -596,21 +525,6 @@ func (f *FunctionInjector) canInlineReferenceDirectlyWithSummary(
 	}
 
 	return FunctionInjector_CanInlineResult_YES
-}
-
-// InliningLowersCost determines if inlining the function is likely to reduce
-// the code size.
-//
-// Java: FunctionInjector.inliningLowersCost(JSChunk, Node, Collection<? extends Reference>, Set<String>, boolean, boolean)
-func (f *FunctionInjector) InliningLowersCost(
-	fnChunk *JSChunk,
-	fnNode rhino.Node,
-	refs []*FunctionInjector_Reference,
-	namesToAlias *jutil.LinkedHashSet[string],
-	isRemovable bool,
-	referencesThis bool) bool {
-	return f.inliningLowersCostWithSummary(
-		fnChunk, fnNode, refs, linkedHashSetSize(namesToAlias), isRemovable, referencesThis, nil)
 }
 
 func (f *FunctionInjector) inliningLowersCostWithSummary(
@@ -733,14 +647,6 @@ func FunctionInjector_EstimateCallCost(fnNode rhino.Node, referencesThis bool) i
 	}
 
 	return callCost
-}
-
-// FunctionInjector_InlineCostDelta returns the difference between the
-// function definition cost and inline cost.
-//
-// Java: FunctionInjector.inlineCostDelta(Node, Set<String>, InliningMode)
-func FunctionInjector_InlineCostDelta(fnNode rhino.Node, namesToAlias *jutil.LinkedHashSet[string], mode FunctionInjector_InliningMode) int {
-	return functionInjector_inlineCostDeltaWithSummary(fnNode, linkedHashSetSize(namesToAlias), mode, nil)
 }
 
 func functionInjector_inlineCostDeltaWithSummary(
