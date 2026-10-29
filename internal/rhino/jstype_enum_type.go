@@ -36,6 +36,8 @@
 package rhino
 
 import (
+	"slices"
+
 	"github.com/paullepoulpe/jsgo/internal/base"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 )
@@ -47,11 +49,11 @@ type EnumType struct {
 
 	// the type of the individual elements
 	elementType *EnumElementType
-	// the elements' names (they all have the same type)
-	elements *jutil.LinkedHashSet[string]
+	// the elements' interned string IDs (zero GC pointers inside the backing array)
+	elementIDs []rhinoStringID
 	// the node representing rhs of the enum
 	source       Node
-	googModuleId *string
+	googModuleID rhinoStringID
 }
 
 // Java: EnumType.TYPE_CLASS
@@ -66,10 +68,10 @@ func EnumType_Builder_(registry *JSTypeRegistry) *EnumType_Builder {
 type EnumType_Builder struct {
 	PrototypeObjectType_Builder
 
-	elementName  *string
-	source       Node
-	googModuleId *string
-	elementType  JSType
+	elementType   JSType
+	source        Node
+	elementNameID rhinoStringID
+	googModuleID  rhinoStringID
 }
 
 // Java: EnumType.Builder(JSTypeRegistry)
@@ -81,9 +83,8 @@ func NewEnumType_Builder(registry *JSTypeRegistry) *EnumType_Builder {
 
 // Java: EnumType.Builder.setName(String)
 func (b *EnumType_Builder) SetName(x *string) *EnumType_Builder {
-	name := "enum{" + jutil.ToJavaString(x) + "}"
-	b.className = &name
-	b.elementName = x
+	b.classNameID = rhinoStringPoolIntern("enum{" + jutil.ToJavaString(x) + "}")
+	b.elementNameID = rhinoStringIDFromPtr(x)
 	return b
 }
 
@@ -131,7 +132,7 @@ func (b *EnumType_Builder) SetSource(x Node) *EnumType_Builder {
 //
 // Java: EnumType.Builder.setGoogModuleId(String)
 func (b *EnumType_Builder) SetGoogModuleId(x *string) *EnumType_Builder {
-	b.googModuleId = x
+	b.googModuleID = rhinoStringIDFromPtr(x)
 	return b
 }
 
@@ -152,11 +153,10 @@ func (b *EnumType_Builder) Build() *EnumType {
 func NewEnumType(builder *EnumType_Builder) *EnumType {
 	t := &EnumType{}
 	t.objFlags = objKindEnum
-	t.elements = jutil.NewLinkedHashSet[string]()
 	t.InitPrototypeObjectTypeBase(t, &builder.PrototypeObjectType_Builder)
-	t.elementType = NewEnumElementType(builder.registry, builder.elementType, builder.elementName, t)
+	t.elementType = newEnumElementTypeByID(builder.registry, builder.elementType, builder.elementNameID, t)
 	t.source = builder.source
-	t.googModuleId = builder.googModuleId
+	t.googModuleID = builder.googModuleID
 
 	t.GetRegistry().GetResolver().ResolveIfClosed(t, EnumType_TYPE_CLASS)
 	return t
@@ -187,7 +187,11 @@ func (t *EnumType) GetImplicitPrototype() ObjectType {
 //
 // Java: EnumType.getElements()
 func (t *EnumType) GetElements() []string {
-	return t.elements.ToSlice()
+	out := make([]string, len(t.elementIDs))
+	for i, id := range t.elementIDs {
+		out[i] = rhinoStringFromID(id)
+	}
+	return out
 }
 
 // DefineElement defines a new element on this enum.
@@ -197,8 +201,11 @@ func (t *EnumType) GetElements() []string {
 //
 // Java: EnumType.defineElement(String, Node)
 func (t *EnumType) DefineElement(name string, definingNode Node) bool {
-	t.elements.Add(name)
-	return t.DefineDeclaredProperty(name, t.elementType, definingNode)
+	id := rhinoStringPoolIntern(name)
+	if !slices.Contains(t.elementIDs, id) {
+		t.elementIDs = append(t.elementIDs, id)
+	}
+	return t.DefineDeclaredPropertyByKey(NewProperty_StringKeyByID(uint32(id)), t.elementType, definingNode)
 }
 
 // GetElementsType gets the elements' type, which is a subtype of the
@@ -269,7 +276,7 @@ func (t *EnumType) GetSource() Node {
 
 // Java: EnumType.getGoogModuleId()
 func (t *EnumType) GetGoogModuleId() *string {
-	return t.googModuleId
+	return rhinoStringPtrFromID(t.googModuleID)
 }
 
 // Java: EnumType.resolveInternal(ErrorReporter)

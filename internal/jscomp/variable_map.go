@@ -19,6 +19,7 @@
 package jscomp
 
 import (
+	"errors"
 	"io"
 	"os"
 	"slices"
@@ -27,20 +28,83 @@ import (
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 )
 
-// VariableMap stores the mapping from original variable name to new
-// variable names.
+// VariableMapParseError represents a syntax error when parsing a serialized VariableMap.
+type VariableMapParseError struct {
+	jutil.JavaException
+}
+
+func newVariableMapParseError(msg string) *VariableMapParseError {
+	e := &VariableMapParseError{}
+	jutil.InitThrowable(e, "java.text.ParseException", &msg, nil)
+	return e
+}
+
+type variableMapEntry struct {
+	orig    string
+	newName string
+}
+
+// VariableMap stores the bidirectional mapping between original variable names
+// and new variable names.
 //
 // See RenameVars.
 type VariableMap struct {
-	// Maps between original source name to new name
-	map_ *jutil.BiMap[string, string]
+	origToNew map[string]string
+	newToOrig map[string]string
+	origKeys  []string
 }
 
 const variableMap_SEPARATOR = ':'
 
 // Java: VariableMap(Map<String, String>)
 func NewVariableMap(m *jutil.LinkedHashMap[string, string]) *VariableMap {
-	return &VariableMap{map_: jutil.ImmutableBiMap_CopyOf(m)}
+	n := m.Size()
+	origToNew := make(map[string]string, n)
+	newToOrig := make(map[string]string, n)
+	origKeys := make([]string, 0, n)
+	for k, v := range m.All() {
+		if prevKey, dup := newToOrig[v]; dup {
+			panic(jutil.NewIllegalArgumentExceptionMsg(
+				"Multiple entries with same value: " + k + "=" + v + " and " + prevKey + "=" + v))
+		}
+		origToNew[k] = v
+		newToOrig[v] = k
+		origKeys = append(origKeys, k)
+	}
+	return &VariableMap{
+		origToNew: origToNew,
+		newToOrig: newToOrig,
+		origKeys:  origKeys,
+	}
+}
+
+func newVariableMapFromEntries(entries []variableMapEntry) *VariableMap {
+	n := len(entries)
+	origToNew := make(map[string]string, n)
+	// Match Guava ImmutableMap.Builder.buildOrThrow() duplicate-key order (last-to-first).
+	for i := n - 1; i >= 0; i-- {
+		e := entries[i]
+		if later, dup := origToNew[e.orig]; dup {
+			panic(jutil.NewIllegalArgumentExceptionMsg(
+				"Multiple entries with same key: " + e.orig + "=" + later + " and " + e.orig + "=" + e.newName))
+		}
+		origToNew[e.orig] = e.newName
+	}
+	newToOrig := make(map[string]string, n)
+	origKeys := make([]string, n)
+	for i, e := range entries {
+		if prevOrig, dup := newToOrig[e.newName]; dup {
+			panic(jutil.NewIllegalArgumentExceptionMsg(
+				"Multiple entries with same value: " + e.orig + "=" + e.newName + " and " + prevOrig + "=" + e.newName))
+		}
+		newToOrig[e.newName] = e.orig
+		origKeys[i] = e.orig
+	}
+	return &VariableMap{
+		origToNew: origToNew,
+		newToOrig: newToOrig,
+		origKeys:  origKeys,
+	}
 }
 
 // LookupNewName given an original variable name, looks up new name, may
@@ -48,7 +112,7 @@ func NewVariableMap(m *jutil.LinkedHashMap[string, string]) *VariableMap {
 //
 // Java: VariableMap.lookupNewName(String)
 func (vm *VariableMap) LookupNewName(sourceName string) *string {
-	if v, ok := vm.map_.Lookup(sourceName); ok {
+	if v, ok := vm.origToNew[sourceName]; ok {
 		return &v
 	}
 	return nil
@@ -59,7 +123,7 @@ func (vm *VariableMap) LookupNewName(sourceName string) *string {
 //
 // Java: VariableMap.lookupSourceName(String)
 func (vm *VariableMap) LookupSourceName(newName string) *string {
-	if v, ok := vm.map_.Inverse().Lookup(newName); ok {
+	if v, ok := vm.newToOrig[newName]; ok {
 		return &v
 	}
 	return nil
@@ -71,11 +135,11 @@ func (vm *VariableMap) LookupSourceName(newName string) *string {
 // Java: VariableMap.getOriginalNameToNewNameMap()
 func (vm *VariableMap) GetOriginalNameToNewNameMap() *jutil.LinkedHashMap[string, string] {
 	// ImmutableSortedMap.copyOf(map): natural (String.compareTo) key order.
-	keys := slices.Collect(vm.map_.Keys())
-	slices.SortStableFunc(keys, jutil.StringCompareTo)
+	keys := slices.Clone(vm.origKeys)
+	slices.SortFunc(keys, jutil.StringCompareTo)
 	out := jutil.NewLinkedHashMap[string, string]()
 	for _, k := range keys {
-		out.Put(k, vm.map_.Get(k))
+		out.Put(k, vm.origToNew[k])
 	}
 	return out
 }
@@ -85,7 +149,11 @@ func (vm *VariableMap) GetOriginalNameToNewNameMap() *jutil.LinkedHashMap[string
 //
 // Java: VariableMap.getNewNameToOriginalNameMap()
 func (vm *VariableMap) GetNewNameToOriginalNameMap() *jutil.LinkedHashMap[string, string] {
-	return vm.map_.Inverse().ToLinkedHashMap()
+	out := jutil.NewLinkedHashMap[string, string]()
+	for _, orig := range vm.origKeys {
+		out.Put(vm.origToNew[orig], orig)
+	}
+	return out
 }
 
 // Save saves the variable map to a file.
@@ -101,18 +169,16 @@ func (vm *VariableMap) Save(filename string) {
 //
 // Java: VariableMap.load(String)
 func VariableMap_Load(filename string) *VariableMap {
-	var result *VariableMap
-	jutil.Try(func() {
-		b, err := os.ReadFile(filename)
-		if err != nil {
-			panic(jutil.NewIOException(err.Error()))
-		}
-		result = VariableMap_FromBytes(b)
-	}, func(e jutil.IParseException) {
+	b, err := os.ReadFile(filename)
+	if err != nil {
+		panic(jutil.NewIOException(err.Error()))
+	}
+	vm, err := parseVariableMapLines(jutil.NewStringFromUTF8Bytes(b))
+	if err != nil {
 		// Wrap parse exception for backwards compatibility.
-		panic(jutil.NewIOExceptionWithCause(e))
-	})
-	return result
+		panic(jutil.NewIOExceptionWithCause(newVariableMapParseError(err.Error())))
+	}
+	return vm
 }
 
 // ToBytes serializes the variable map to a byte array.
@@ -122,17 +188,17 @@ func (vm *VariableMap) ToBytes() []byte {
 	// Go-only: language-adapter — the OutputStreamWriter's UTF-8 encoding
 	// of the whole text; no surrogate pair can straddle two writes, so
 	// encoding the concatenation is the same.
-	writer := jutil.NewStringBuilder()
+	var sb strings.Builder
 	// The output order should be stable.
-	keys := slices.Collect(vm.map_.Keys())
-	slices.SortStableFunc(keys, jutil.StringCompareTo)
+	keys := slices.Clone(vm.origKeys)
+	slices.SortFunc(keys, jutil.StringCompareTo)
 	for _, key := range keys {
-		writer.Append(variableMap_escape(key))
-		writer.AppendChar(variableMap_SEPARATOR)
-		writer.Append(variableMap_escape(vm.map_.Get(key)))
-		writer.AppendChar('\n')
+		sb.WriteString(variableMap_escape(key))
+		sb.WriteByte(variableMap_SEPARATOR)
+		sb.WriteString(variableMap_escape(vm.origToNew[key]))
+		sb.WriteByte('\n')
 	}
-	return jutil.StringGetBytesUTF8(writer.String())
+	return jutil.StringGetBytesUTF8(sb.String())
 }
 
 // VariableMap_FromBytes deserializes the variable map from a byte array
@@ -143,12 +209,19 @@ func VariableMap_FromBytes(bytes []byte) *VariableMap {
 	return VariableMap_FromLines(jutil.NewStringFromUTF8Bytes(bytes))
 }
 
-// VariableMap_FromStream deserializes the variable map from an
-// InputStream.
-//
-// Java: VariableMap.fromStream(InputStream)
-func VariableMap_FromStream(stream io.Reader) *VariableMap {
-	m := jutil.NewImmutableMapBuilder[string, string]()
+func parseVariableMapLine(line string) (orig, newName string, ok bool) {
+	pos := variableMap_findIndexOfUnescapedChar(line, variableMap_SEPARATOR)
+	if pos <= 0 {
+		return "", "", false
+	}
+	if pos != len(line)-1 {
+		newName = variableMap_unescape(line[pos+1:])
+	}
+	return variableMap_unescape(line[:pos]), newName, true
+}
+
+func parseVariableMapStream(stream io.Reader) (*VariableMap, error) {
+	var entries []variableMapEntry
 	br := jutil.NewBufferedReaderUTF8(stream)
 	for {
 		line, ok := br.ReadLine()
@@ -158,29 +231,17 @@ func VariableMap_FromStream(stream io.Reader) *VariableMap {
 		if line == "" {
 			continue
 		}
-		pos := variableMap_findIndexOfUnescapedChar(line, variableMap_SEPARATOR)
-		if pos <= 0 {
-			panic(jutil.NewParseException("Bad line: "+line, 0))
+		orig, newName, ok := parseVariableMapLine(line)
+		if !ok {
+			return nil, errors.New("Bad line: " + line)
 		}
-		value := ""
-		if pos != len(line)-1 {
-			value = variableMap_unescape(line[pos+1:])
-		}
-		m.Put(variableMap_unescape(line[:pos]), value)
+		entries = append(entries, variableMapEntry{orig: orig, newName: newName})
 	}
-	return NewVariableMap(m.BuildOrThrow())
+	return newVariableMapFromEntries(entries), nil
 }
 
-// VariableMap_FromLines deserializes the variable map from a string.
-//
-// Go-only: language-adapter — the Java indices are UTF-16 offsets; here
-// they are byte offsets. Every index the method computes is at an ASCII
-// character ('\n', '\r', ':', '\\'), so the lines and substrings are the
-// same.
-//
-// Java: VariableMap.fromLines(String)
-func VariableMap_FromLines(s string) *VariableMap {
-	m := jutil.NewImmutableMapBuilder[string, string]()
+func parseVariableMapLines(s string) (*VariableMap, error) {
+	var entries []variableMapEntry
 	startOfLine := 0
 	for startOfLine < len(s) {
 		newLine := strings.IndexByte(s[startOfLine:], '\n')
@@ -201,17 +262,41 @@ func VariableMap_FromLines(s string) *VariableMap {
 		if line == "" {
 			continue
 		}
-		pos := variableMap_findIndexOfUnescapedChar(line, variableMap_SEPARATOR)
-		if pos <= 0 {
-			panic(jutil.NewParseException("Bad line: "+line, 0))
+		orig, newName, ok := parseVariableMapLine(line)
+		if !ok {
+			return nil, errors.New("Bad line: " + line)
 		}
-		value := ""
-		if pos != len(line)-1 {
-			value = variableMap_unescape(line[pos+1:])
-		}
-		m.Put(variableMap_unescape(line[:pos]), value)
+		entries = append(entries, variableMapEntry{orig: orig, newName: newName})
 	}
-	return NewVariableMap(m.BuildOrThrow())
+	return newVariableMapFromEntries(entries), nil
+}
+
+// VariableMap_FromStream deserializes the variable map from an
+// InputStream.
+//
+// Java: VariableMap.fromStream(InputStream)
+func VariableMap_FromStream(stream io.Reader) *VariableMap {
+	vm, err := parseVariableMapStream(stream)
+	if err != nil {
+		panic(newVariableMapParseError(err.Error()))
+	}
+	return vm
+}
+
+// VariableMap_FromLines deserializes the variable map from a string.
+//
+// Go-only: language-adapter — the Java indices are UTF-16 offsets; here
+// they are byte offsets. Every index the method computes is at an ASCII
+// character ('\n', '\r', ':', '\\'), so the lines and substrings are the
+// same.
+//
+// Java: VariableMap.fromLines(String)
+func VariableMap_FromLines(s string) *VariableMap {
+	vm, err := parseVariableMapLines(s)
+	if err != nil {
+		panic(newVariableMapParseError(err.Error()))
+	}
+	return vm
 }
 
 // Java: VariableMap.escape(String)
@@ -280,5 +365,9 @@ func VariableMap_FromMap(m *jutil.LinkedHashMap[string, string]) *VariableMap {
 
 // Java: VariableMap.toMap()
 func (vm *VariableMap) ToMap() *jutil.LinkedHashMap[string, string] {
-	return vm.map_.ToLinkedHashMap()
+	out := jutil.NewLinkedHashMap[string, string]()
+	for _, orig := range vm.origKeys {
+		out.Put(orig, vm.origToNew[orig])
+	}
+	return out
 }

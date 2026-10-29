@@ -21,6 +21,7 @@ package jscomp
 
 import (
 	"slices"
+	"strconv"
 	"strings"
 
 	"github.com/paullepoulpe/jsgo/internal/jutil"
@@ -71,6 +72,13 @@ func (o *SerializationOptions) Equals(obj any) bool {
 		slices.Equal(o.runtimeLibraries, that.runtimeLibraries)
 }
 
+func serializationBoolHashCode(b bool) int32 {
+	if b {
+		return 1231
+	}
+	return 1237
+}
+
 // Java: SerializationOptions.hashCode() (record: 31 * h + hash(component))
 func (o *SerializationOptions) HashCode() int32 {
 	lh := int32(1)
@@ -78,17 +86,17 @@ func (o *SerializationOptions) HashCode() int32 {
 		lh = 31*lh + jutil.StringHashCode(lib)
 	}
 	var h int32
-	h = 31*h + jutil.ObjectHashCode(o.includeDebugInfo)
-	h = 31*h + jutil.ObjectHashCode(o.runValidation)
+	h = 31*h + serializationBoolHashCode(o.includeDebugInfo)
+	h = 31*h + serializationBoolHashCode(o.runValidation)
 	h = 31*h + lh
 	return h
 }
 
 // Java: SerializationOptions.toString() (record)
 func (o *SerializationOptions) String() string {
-	return "SerializationOptions[includeDebugInfo=" + jutil.ToJavaString(o.includeDebugInfo) +
-		", runValidation=" + jutil.ToJavaString(o.runValidation) +
-		", runtimeLibraries=" + jutil.CollectionToString(o.runtimeLibraries) + "]"
+	return "SerializationOptions[includeDebugInfo=" + strconv.FormatBool(o.includeDebugInfo) +
+		", runValidation=" + strconv.FormatBool(o.runValidation) +
+		", runtimeLibraries=[" + strings.Join(o.runtimeLibraries, ", ") + "]]"
 }
 
 // SerializationOptions_Builder is SerializationOptions.Builder (the

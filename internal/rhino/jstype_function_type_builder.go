@@ -47,13 +47,17 @@ func FunctionType_Builder_(registry *JSTypeRegistry) *FunctionType_Builder {
 func (f *FunctionTypeBase) initBuilder(b *FunctionType_Builder) {
 	b.registry = f.GetRegistry()
 	b.implicitPrototype = jutil.CheckNotNull(f.GetRegistry().GetNativeObjectType(JSTypeNative_FUNCTION_PROTOTYPE))
-	b.googModuleId = f.selfFunc().GetGoogModuleId()
-	b.className = f.selfFunc().GetReferenceName()
+	b.googModuleID = rhinoStringIDFromPtr(f.selfFunc().GetGoogModuleId())
+	b.classNameID = rhinoStringIDFromPtr(f.selfFunc().GetReferenceName())
 	b.nativeType = f.selfFunc().IsNativeObjectType()
 	b.templateTypeMap = f.selfFunc().GetTemplateTypeMap()
 	b.canonicalRepresentation = f.selfFunc().GetCanonicalRepresentation()
 	b.isKnownAmbiguous = f.call.fnConstructorAmbiguity == FunctionType_ConstructorAmbiguity_IS_AMBIGUOUS_CONSTRUCTOR
-	b.primitiveId = f.selfFunc().GetClosurePrimitive()
+	if p := f.selfFunc().GetClosurePrimitive(); p != nil {
+		b.primitivePlus1 = uint8(*p) + 1
+	} else {
+		b.primitivePlus1 = 0
+	}
 	b.isAbstract = f.selfFunc().IsAbstract()
 	b.kind = f.selfFunc().GetKind()
 	b.parameters = f.selfFunc().GetParameters()
@@ -81,22 +85,22 @@ func (f *FunctionTypeBase) ToBuilder() *FunctionType_Builder {
 type FunctionType_Builder struct {
 	PrototypeObjectType_Builder
 
-	sourceNode   Node
-	googModuleId *string
 	// Go: nil is Java null (unknown parameters).
 	parameters              []*FunctionType_Parameter
 	returnType              JSType
 	typeOfThis              JSType
 	setPrototypeBasedOn     ObjectType
 	constructorOnlyKeys     []*TemplateType
+	canonicalRepresentation FunctionType
+	sourceNode              Node
+	googModuleID            rhinoStringID
 	kind                    FunctionType_Kind
+	primitivePlus1          uint8
 	isAbstract              bool
 	isKnownAmbiguous        bool
 	returnTypeIsInferred    bool
 	returnsOwnInstanceType  bool
 	pooled                  bool
-	primitiveId             *ClosurePrimitive
-	canonicalRepresentation FunctionType
 }
 
 // Java: FunctionType.Builder(JSTypeRegistry)
@@ -110,7 +114,7 @@ func NewFunctionType_Builder(registry *JSTypeRegistry) *FunctionType_Builder {
 
 // Java: PrototypeObjectType.Builder.setName(String)
 func (b *FunctionType_Builder) SetName(x *string) *FunctionType_Builder {
-	b.className = x
+	b.classNameID = rhinoStringIDFromPtr(x)
 	return b
 }
 
@@ -148,7 +152,13 @@ func (b *FunctionType_Builder) SetTemplateParamCount(x int) *FunctionType_Builde
 //
 // Java: FunctionType.Builder.withName(String)
 func (b *FunctionType_Builder) WithName(name *string) *FunctionType_Builder {
-	b.className = name
+	b.classNameID = rhinoStringIDFromPtr(name)
+	return b
+}
+
+// WithNameString sets the non-null name of the function type without allocating a *string.
+func (b *FunctionType_Builder) WithNameString(name string) *FunctionType_Builder {
+	b.classNameID = rhinoStringPoolIntern(name)
 	return b
 }
 
@@ -165,7 +175,7 @@ func (b *FunctionType_Builder) WithSourceNode(sourceNode Node) *FunctionType_Bui
 //
 // Java: FunctionType.Builder.setGoogModuleId(String)
 func (b *FunctionType_Builder) SetGoogModuleId(x *string) *FunctionType_Builder {
-	b.googModuleId = x
+	b.googModuleID = rhinoStringIDFromPtr(x)
 	return b
 }
 
@@ -356,7 +366,11 @@ func (b *FunctionType_Builder) WithPrototypeBasedOn(setPrototypeBasedOn ObjectTy
 //
 // Java: FunctionType.Builder.withClosurePrimitiveId(ClosurePrimitive)
 func (b *FunctionType_Builder) WithClosurePrimitiveId(id *ClosurePrimitive) *FunctionType_Builder {
-	b.primitiveId = id
+	if id == nil {
+		b.primitivePlus1 = 0
+	} else {
+		b.primitivePlus1 = uint8(*id) + 1
+	}
 	return b
 }
 

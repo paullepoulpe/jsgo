@@ -20,6 +20,7 @@ package jscomp
 
 import (
 	"slices"
+	"strings"
 
 	"github.com/paullepoulpe/jsgo/internal/colors"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
@@ -57,18 +58,26 @@ type JSTypeReconserializer struct {
 	// The pointer of the record of each type recorded so far.
 	//
 	// Go-only: performance — an identity map from a type to its pointer,
-	// equivalent to searching the records' jstypes.
+	// equivalent to searching the records' jstypes. recordsByPointer holds the
+	// records in exact insertion order alongside seenTypeRecords.
 	typePointers           map[*rhino.JSTypeBase]int32
 	recordsByPointer       []*JSTypeReconserializer_SeenTypeRecord
-	seenTypeRecords        *jutil.LinkedHashMap[colors.ColorId, *JSTypeReconserializer_SeenTypeRecord]
-	disambiguateEdges      *jutil.LinkedHashMap[int32, []int32]
+	seenTypeRecords        map[colors.ColorId]*JSTypeReconserializer_SeenTypeRecord
+	disambiguateEdges      map[int32][]int32
+	disambiguateSubtypes   []int32
 	totalDisambiguateEdges int
 
-	scratchInstances    *jutil.LinkedHashSet[int]
-	scratchPrototypes   *jutil.LinkedHashSet[int]
-	scratchOwnProps     *jutil.LinkedHashSet[int]
-	scratchAltRecords   *jutil.LinkedHashSet[*JSTypeReconserializer_SeenTypeRecord]
-	scratchAlternateIds *jutil.LinkedHashSet[colors.ColorId]
+	scratchInstances    []int32
+	scratchPrototypes   []int32
+	scratchOwnProps     []int32
+	seenOwnProps        map[int32]uint32
+	seenOwnPropsGen     uint32
+	ownPropsUseMap      bool
+	scratchAltRecords   []*JSTypeReconserializer_SeenTypeRecord
+	seenAltRecords      map[*JSTypeReconserializer_SeenTypeRecord]uint32
+	seenAltRecordsGen   uint32
+	altRecordsUseMap    bool
+	scratchAlternateIds []colors.ColorId
 	scratchInt32s       []int32
 	singleOwnPropFn     func(string)
 	multiOwnPropFn      func(string)
@@ -80,35 +89,40 @@ type JSTypeReconserializer struct {
 	state JSTypeReconserializer_State
 }
 
+type jsTypeNativeAxiomaticEntry struct {
+	native rhino.JSTypeNative
+	color  *colors.Color
+}
+
 // This is a one-way mapping because some JSTypes go to the same Color.
 //
 // Java: JSTypeReconserializer.JSTYPE_NATIVE_TO_AXIOMATIC_COLOR_MAP
-var jsTypeReconserializer_JSTYPE_NATIVE_TO_AXIOMATIC_COLOR_MAP = jutil.NewImmutableMapBuilder[rhino.JSTypeNative, *colors.Color]().
+var jsTypeReconserializer_JSTYPE_NATIVE_TO_AXIOMATIC_COLOR_ENTRIES = [...]jsTypeNativeAxiomaticEntry{
 	// Merge all the various top/bottom-like/unknown types into a single unknown type.
-	Put(rhino.JSTypeNative_ALL_TYPE, colors.StandardColors_UNKNOWN).
-	Put(rhino.JSTypeNative_CHECKED_UNKNOWN_TYPE, colors.StandardColors_UNKNOWN).
-	Put(rhino.JSTypeNative_NO_OBJECT_TYPE, colors.StandardColors_UNKNOWN).
-	Put(rhino.JSTypeNative_NO_TYPE, colors.StandardColors_UNKNOWN).
-	Put(rhino.JSTypeNative_UNKNOWN_TYPE, colors.StandardColors_UNKNOWN).
+	{rhino.JSTypeNative_ALL_TYPE, colors.StandardColors_UNKNOWN},
+	{rhino.JSTypeNative_CHECKED_UNKNOWN_TYPE, colors.StandardColors_UNKNOWN},
+	{rhino.JSTypeNative_NO_OBJECT_TYPE, colors.StandardColors_UNKNOWN},
+	{rhino.JSTypeNative_NO_TYPE, colors.StandardColors_UNKNOWN},
+	{rhino.JSTypeNative_UNKNOWN_TYPE, colors.StandardColors_UNKNOWN},
 	// Map all the primitives in the obvious way.
-	Put(rhino.JSTypeNative_BIGINT_TYPE, colors.StandardColors_BIGINT).
-	Put(rhino.JSTypeNative_BOOLEAN_TYPE, colors.StandardColors_BOOLEAN).
-	Put(rhino.JSTypeNative_GBIGINT_TYPE, colors.StandardColors_GBIGINT).
-	Put(rhino.JSTypeNative_NULL_TYPE, colors.StandardColors_NULL_OR_VOID).
-	Put(rhino.JSTypeNative_NUMBER_TYPE, colors.StandardColors_NUMBER).
-	Put(rhino.JSTypeNative_STRING_TYPE, colors.StandardColors_STRING).
-	Put(rhino.JSTypeNative_SYMBOL_TYPE, colors.StandardColors_SYMBOL).
-	Put(rhino.JSTypeNative_VOID_TYPE, colors.StandardColors_NULL_OR_VOID).
+	{rhino.JSTypeNative_BIGINT_TYPE, colors.StandardColors_BIGINT},
+	{rhino.JSTypeNative_BOOLEAN_TYPE, colors.StandardColors_BOOLEAN},
+	{rhino.JSTypeNative_GBIGINT_TYPE, colors.StandardColors_GBIGINT},
+	{rhino.JSTypeNative_NULL_TYPE, colors.StandardColors_NULL_OR_VOID},
+	{rhino.JSTypeNative_NUMBER_TYPE, colors.StandardColors_NUMBER},
+	{rhino.JSTypeNative_STRING_TYPE, colors.StandardColors_STRING},
+	{rhino.JSTypeNative_SYMBOL_TYPE, colors.StandardColors_SYMBOL},
+	{rhino.JSTypeNative_VOID_TYPE, colors.StandardColors_NULL_OR_VOID},
 	// Smoosh top-like function types into a single type.
-	Put(rhino.JSTypeNative_FUNCTION_FUNCTION_TYPE, colors.StandardColors_TOP_FUNCTION).
-	Put(rhino.JSTypeNative_FUNCTION_TYPE, colors.StandardColors_TOP_FUNCTION).
+	{rhino.JSTypeNative_FUNCTION_FUNCTION_TYPE, colors.StandardColors_TOP_FUNCTION},
+	{rhino.JSTypeNative_FUNCTION_TYPE, colors.StandardColors_TOP_FUNCTION},
 	// Smoosh top-like objects into a single type.
-	Put(rhino.JSTypeNative_FUNCTION_PROTOTYPE, colors.StandardColors_TOP_OBJECT).
-	Put(rhino.JSTypeNative_FUNCTION_INSTANCE_PROTOTYPE, colors.StandardColors_TOP_OBJECT).
-	Put(rhino.JSTypeNative_OBJECT_FUNCTION_TYPE, colors.StandardColors_TOP_OBJECT).
-	Put(rhino.JSTypeNative_OBJECT_PROTOTYPE, colors.StandardColors_TOP_OBJECT).
-	Put(rhino.JSTypeNative_OBJECT_TYPE, colors.StandardColors_TOP_OBJECT).
-	BuildOrThrow()
+	{rhino.JSTypeNative_FUNCTION_PROTOTYPE, colors.StandardColors_TOP_OBJECT},
+	{rhino.JSTypeNative_FUNCTION_INSTANCE_PROTOTYPE, colors.StandardColors_TOP_OBJECT},
+	{rhino.JSTypeNative_OBJECT_FUNCTION_TYPE, colors.StandardColors_TOP_OBJECT},
+	{rhino.JSTypeNative_OBJECT_PROTOTYPE, colors.StandardColors_TOP_OBJECT},
+	{rhino.JSTypeNative_OBJECT_TYPE, colors.StandardColors_TOP_OBJECT},
+}
 
 // JSTypeReconserializer_State is JSTypeReconserializer.State.
 type JSTypeReconserializer_State int32
@@ -137,27 +151,27 @@ func newJSTypeReconserializer(
 	stringPoolBuilder *StringPool_Builder,
 	shouldPropagatePropertyName func(string) bool,
 	serializationMode *SerializationOptions) *JSTypeReconserializer {
-	s := &JSTypeReconserializer{}
-	// Field initializers.
-	s.typePointers = make(map[*rhino.JSTypeBase]int32, 4096)
-	s.recordsByPointer = make([]*JSTypeReconserializer_SeenTypeRecord, 0, 4096)
-	s.seenTypeRecords = jutil.NewLinkedHashMapWithCapacity[colors.ColorId, *JSTypeReconserializer_SeenTypeRecord](4096)
-	s.disambiguateEdges = jutil.NewLinkedHashMapWithCapacity[int32, []int32](2048)
-	s.state = JSTypeReconserializer_State_COLLECTING_TYPES
-	// Constructor body.
-	s.registry = registry
-	s.hasher = NewJSTypeColorIdHasher(registry)
-	s.invalidatingTypes = invalidatingTypes
-	s.stringPoolBuilder = stringPoolBuilder
-	s.shouldPropagatePropertyName = shouldPropagatePropertyName
-	s.serializationMode = serializationMode
+	s := &JSTypeReconserializer{
+		typePointers:                make(map[*rhino.JSTypeBase]int32, 4096),
+		recordsByPointer:            make([]*JSTypeReconserializer_SeenTypeRecord, 0, 4096),
+		seenTypeRecords:             make(map[colors.ColorId]*JSTypeReconserializer_SeenTypeRecord, 4096),
+		disambiguateEdges:           make(map[int32][]int32, 2048),
+		disambiguateSubtypes:        make([]int32, 0, 2048),
+		state:                       JSTypeReconserializer_State_COLLECTING_TYPES,
+		registry:                    registry,
+		hasher:                      NewJSTypeColorIdHasher(registry),
+		invalidatingTypes:           invalidatingTypes,
+		stringPoolBuilder:           stringPoolBuilder,
+		shouldPropagatePropertyName: shouldPropagatePropertyName,
+		serializationMode:           serializationMode,
+	}
 	s.singleOwnPropFn = s.onSingleOwnProp
 	s.multiOwnPropFn = s.onMultiOwnProp
 
 	s.SeedCachesWithAxiomaticTypes()
 
-	s.unknownRecord = s.seenTypeRecords.Get(colors.StandardColors_UNKNOWN.GetId())
-	s.topFunctionRecord = s.seenTypeRecords.Get(colors.StandardColors_TOP_FUNCTION.GetId())
+	s.unknownRecord = s.seenTypeRecords[colors.StandardColors_UNKNOWN.GetId()]
+	s.topFunctionRecord = s.seenTypeRecords[colors.StandardColors_TOP_FUNCTION.GetId()]
 	return s
 }
 
@@ -174,17 +188,73 @@ func (s *JSTypeReconserializer) onSingleOwnProp(ownProperty string) {
 	}
 }
 
+func (s *JSTypeReconserializer) appendDedupOwnProp(ptr int32) {
+	if !s.ownPropsUseMap {
+		if slices.Contains(s.scratchOwnProps, ptr) {
+			return
+		}
+		s.scratchOwnProps = append(s.scratchOwnProps, ptr)
+		if len(s.scratchOwnProps) == 8 {
+			s.ownPropsUseMap = true
+			s.seenOwnPropsGen++
+			if s.seenOwnProps == nil {
+				s.seenOwnProps = make(map[int32]uint32, 64)
+			} else if s.seenOwnPropsGen == 0 {
+				clear(s.seenOwnProps)
+				s.seenOwnPropsGen = 1
+			}
+			for _, existing := range s.scratchOwnProps {
+				s.seenOwnProps[existing] = s.seenOwnPropsGen
+			}
+		}
+		return
+	}
+	if s.seenOwnProps[ptr] == s.seenOwnPropsGen {
+		return
+	}
+	s.seenOwnProps[ptr] = s.seenOwnPropsGen
+	s.scratchOwnProps = append(s.scratchOwnProps, ptr)
+}
+
 func (s *JSTypeReconserializer) onMultiOwnProp(ownProperty string) {
 	if s.allowedProperties != nil {
 		id := strpool.Lookup(ownProperty)
 		if id != 0 && s.allowedProperties.Get(int(id)) {
-			s.scratchOwnProps.Add(s.stringPoolBuilder.PutID(uint32(id)))
+			s.appendDedupOwnProp(int32(s.stringPoolBuilder.PutID(uint32(id))))
 		}
 		return
 	}
 	if s.shouldPropagatePropertyName(ownProperty) {
-		s.scratchOwnProps.Add(s.stringPoolBuilder.Put(ownProperty))
+		s.appendDedupOwnProp(int32(s.stringPoolBuilder.Put(ownProperty)))
 	}
+}
+
+func (s *JSTypeReconserializer) appendDedupAltRecord(rec *JSTypeReconserializer_SeenTypeRecord) {
+	if !s.altRecordsUseMap {
+		if slices.Contains(s.scratchAltRecords, rec) {
+			return
+		}
+		s.scratchAltRecords = append(s.scratchAltRecords, rec)
+		if len(s.scratchAltRecords) == 8 {
+			s.altRecordsUseMap = true
+			s.seenAltRecordsGen++
+			if s.seenAltRecords == nil {
+				s.seenAltRecords = make(map[*JSTypeReconserializer_SeenTypeRecord]uint32, 32)
+			} else if s.seenAltRecordsGen == 0 {
+				clear(s.seenAltRecords)
+				s.seenAltRecordsGen = 1
+			}
+			for _, existing := range s.scratchAltRecords {
+				s.seenAltRecords[existing] = s.seenAltRecordsGen
+			}
+		}
+		return
+	}
+	if s.seenAltRecords[rec] == s.seenAltRecordsGen {
+		return
+	}
+	s.seenAltRecords[rec] = s.seenAltRecordsGen
+	s.scratchAltRecords = append(s.scratchAltRecords, rec)
 }
 
 func (s *JSTypeReconserializer) allocSeenTypeRecord(colorId colors.ColorId, pointer int) *JSTypeReconserializer_SeenTypeRecord {
@@ -239,17 +309,15 @@ func (s *JSTypeReconserializer) shouldPropagate(prop string) bool {
 
 func (s *JSTypeReconserializer) putDisambiguateEdge(subtype, supertype int) {
 	sub, sup := int32(subtype), int32(supertype)
-	edges, ok := s.disambiguateEdges.Lookup(sub)
+	edges, ok := s.disambiguateEdges[sub]
 	if slices.Contains(edges, sup) {
 		return
 	}
-	edges = append(edges, sup)
-	s.totalDisambiguateEdges++
 	if !ok {
-		s.disambiguateEdges.PutNew(sub, edges)
-	} else {
-		s.disambiguateEdges.Put(sub, edges)
+		s.disambiguateSubtypes = append(s.disambiguateSubtypes, sub)
 	}
+	s.disambiguateEdges[sub] = append(edges, sup)
+	s.totalDisambiguateEdges++
 }
 
 // JSTypeReconserializer_Create initializes a JSTypeReconserializer
@@ -321,8 +389,6 @@ func (s *JSTypeReconserializer) RecordType(type_ rhino.JSType) *JSTypeReconseria
 	} else if type_.IsFunctionType() &&
 		type_.ToMaybeFunctionType().GetCanonicalRepresentation() != nil {
 		forwardedType = type_.ToMaybeFunctionType().GetCanonicalRepresentation()
-	} else {
-		forwardedType = nil
 	}
 	if forwardedType != nil {
 		rec := s.RecordType(forwardedType)
@@ -369,53 +435,51 @@ func (s *JSTypeReconserializer) RecordUnionType(type_ *rhino.UnionType) *JSTypeR
 		resolved[i] = s.RecordType(altType)
 	}
 
-	if s.scratchAltRecords == nil {
-		s.scratchAltRecords = jutil.NewLinkedHashSet[*JSTypeReconserializer_SeenTypeRecord]()
-		s.scratchAlternateIds = jutil.NewLinkedHashSet[colors.ColorId]()
-	} else {
-		s.scratchAltRecords.Clear()
-	}
-	altRecords := s.scratchAltRecords
+	s.scratchAltRecords = s.scratchAltRecords[:0]
+	s.altRecordsUseMap = false
 	for _, alt := range resolved {
 		if len(alt.unionMembers) == 0 {
-			altRecords.Add(alt)
+			s.appendDedupAltRecord(alt)
 		} else {
 			// Flatten out any nested unions. They are possible due to proxy-like types.
 			for _, member := range alt.unionMembers {
-				altRecords.Add(member)
+				s.appendDedupAltRecord(member)
 			}
 		}
 	}
+	altRecords := s.scratchAltRecords
 
 	// Some elements of the union may be equal as Colors
-	if altRecords.Size() == 1 {
-		only := jsTypeReconserializer_getOnlyElement(altRecords)
-		return s.cacheForwardedRecord(type_, type_.GetJSTypeBase(), only)
+	if len(altRecords) == 1 {
+		return s.cacheForwardedRecord(type_, type_.GetJSTypeBase(), altRecords[0])
 	}
 
-	alternateIds := s.scratchAlternateIds
-	alternateIds.Clear()
-	for altRecord := range altRecords.All() {
-		alternateIds.Add(altRecord.colorId)
+	alternateIds := s.scratchAlternateIds[:0]
+	for _, altRecord := range altRecords {
+		alternateIds = append(alternateIds, altRecord.colorId)
 	}
-	unionId := colors.ColorId_Union(alternateIds)
+	s.scratchAlternateIds = alternateIds
+	unionId := unionColorIds(alternateIds)
 	record := s.GetOrCreateRecord(unionId, type_)
 
 	if len(record.unionMembers) == 0 {
-		n := altRecords.Size()
+		n := len(altRecords)
 		if n <= len(record.unionMembersBuf) {
-			record.unionMembers = record.unionMembersBuf[:0]
+			record.unionMembers = append(record.unionMembersBuf[:0], altRecords...)
 		} else {
-			record.unionMembers = make([]*JSTypeReconserializer_SeenTypeRecord, 0, n)
-		}
-		for r := range altRecords.All() {
-			record.unionMembers = append(record.unionMembers, r)
+			record.unionMembers = append(make([]*JSTypeReconserializer_SeenTypeRecord, 0, n), altRecords...)
 		}
 	} else if s.serializationMode.RunValidation() {
-		same := altRecords.Size() == len(record.unionMembers)
+		same := len(altRecords) == len(record.unionMembers)
 		if same {
 			for _, m := range record.unionMembers {
-				if !altRecords.Contains(m) {
+				found := false
+				if s.altRecordsUseMap {
+					found = s.seenAltRecords[m] == s.seenAltRecordsGen
+				} else {
+					found = slices.Contains(altRecords, m)
+				}
+				if !found {
 					same = false
 					break
 				}
@@ -426,42 +490,29 @@ func (s *JSTypeReconserializer) RecordUnionType(type_ *rhino.UnionType) *JSTypeR
 				false,
 				"Unions with same ID must have same members: %s => %s == %s",
 				unionId,
-				jsTypeReconserializer_colorIdsOfSet(altRecords),
-				jsTypeReconserializer_colorIdsOfSlice(record.unionMembers))
+				jsTypeReconserializer_formatColorIds(altRecords),
+				jsTypeReconserializer_formatColorIds(record.unionMembers))
 		}
 	}
 
 	return record
 }
 
-// jsTypeReconserializer_getOnlyElement is Iterables.getOnlyElement on a set
-// of size 1.
-func jsTypeReconserializer_getOnlyElement(
-	set *jutil.LinkedHashSet[*JSTypeReconserializer_SeenTypeRecord]) *JSTypeReconserializer_SeenTypeRecord {
-	for e := range set.All() {
-		return e
-	}
-	panic(jutil.NewNoSuchElementException())
-}
-
-// jsTypeReconserializer_colorIdsOfSet is records.stream().map((r) ->
-// r.colorId).collect(toImmutableSet()).
-func jsTypeReconserializer_colorIdsOfSet(
-	records *jutil.LinkedHashSet[*JSTypeReconserializer_SeenTypeRecord]) *jutil.LinkedHashSet[colors.ColorId] {
-	ids := jutil.NewLinkedHashSet[colors.ColorId]()
-	for r := range records.All() {
-		ids.Add(r.colorId)
-	}
-	return ids
-}
-
-func jsTypeReconserializer_colorIdsOfSlice(
-	records []*JSTypeReconserializer_SeenTypeRecord) *jutil.LinkedHashSet[colors.ColorId] {
-	ids := jutil.NewLinkedHashSet[colors.ColorId]()
+func jsTypeReconserializer_formatColorIds(records []*JSTypeReconserializer_SeenTypeRecord) string {
+	var sb strings.Builder
+	sb.WriteByte('[')
+	seen := make([]colors.ColorId, 0, len(records))
 	for _, r := range records {
-		ids.Add(r.colorId)
+		if !slices.Contains(seen, r.colorId) {
+			if len(seen) > 0 {
+				sb.WriteString(", ")
+			}
+			sb.WriteString(r.colorId.String())
+			seen = append(seen, r.colorId)
+		}
 	}
-	return ids
+	sb.WriteByte(']')
+	return sb.String()
 }
 
 // Java: JSTypeReconserializer.recordObjectType(ObjectType)
@@ -516,11 +567,11 @@ func (s *JSTypeReconserializer) GetOrCreateRecord(id colors.ColorId, jstype rhin
 	jutil.CheckNotNull(jstype)
 	jutil.CheckState(JSTypeReconserializer_State_COLLECTING_TYPES == s.state || JSTypeReconserializer_State_GENERATING_POOL == s.state)
 
-	record := s.seenTypeRecords.Get(id)
+	record := s.seenTypeRecords[id]
 	if record == nil {
-		pointer := s.seenTypeRecords.Size()
+		pointer := len(s.recordsByPointer)
 		record = s.allocSeenTypeRecord(id, pointer)
-		s.seenTypeRecords.PutNew(id, record)
+		s.seenTypeRecords[id] = record
 		s.recordsByPointer = append(s.recordsByPointer, record)
 	}
 	tb := jstype.GetJSTypeBase()
@@ -616,18 +667,10 @@ func (s *JSTypeReconserializer) reconcileObjectTypesInto(seen *JSTypeReconserial
 		return
 	}
 
-	if s.scratchInstances == nil {
-		s.scratchInstances = jutil.NewLinkedHashSet[int]()
-		s.scratchPrototypes = jutil.NewLinkedHashSet[int]()
-		s.scratchOwnProps = jutil.NewLinkedHashSet[int]()
-	} else {
-		s.scratchInstances.Clear()
-		s.scratchPrototypes.Clear()
-		s.scratchOwnProps.Clear()
-	}
-	instancePointers := s.scratchInstances
-	prototypePointers := s.scratchPrototypes
-	ownProperties := s.scratchOwnProps
+	s.scratchInstances = s.scratchInstances[:0]
+	s.scratchPrototypes = s.scratchPrototypes[:0]
+	s.scratchOwnProps = s.scratchOwnProps[:0]
+	s.ownPropsUseMap = false
 	isClosureAssert := false
 	isConstructor := false
 	isInvalidating := false
@@ -642,8 +685,14 @@ func (s *JSTypeReconserializer) reconcileObjectTypesInto(seen *JSTypeReconserial
 			// Serialize prototypes and instance types for instantiable types. Even if these types never
 			// appear on the AST, optimizations need to know that at runtime these types may be present.
 			if fnType.HasInstanceType() && fnType.GetInstanceType() != nil {
-				instancePointers.Add(s.SerializeType(fnType.GetInstanceType()))
-				prototypePointers.Add(s.SerializeType(fnType.GetPrototype()))
+				instPtr := int32(s.SerializeType(fnType.GetInstanceType()))
+				if !slices.Contains(s.scratchInstances, instPtr) {
+					s.scratchInstances = append(s.scratchInstances, instPtr)
+				}
+				protoPtr := int32(s.SerializeType(fnType.GetPrototype()))
+				if !slices.Contains(s.scratchPrototypes, protoPtr) {
+					s.scratchPrototypes = append(s.scratchPrototypes, protoPtr)
+				}
 				isConstructor = isConstructor || fnType.IsConstructor()
 			}
 
@@ -663,9 +712,9 @@ func (s *JSTypeReconserializer) reconcileObjectTypesInto(seen *JSTypeReconserial
 	}
 
 	*op = ObjectTypeProto{
-		instanceType_:               s.int32sFromSet(instancePointers),
-		ownProperty_:                s.int32sFromSet(ownProperties),
-		prototype_:                  s.int32sFromSet(prototypePointers),
+		instanceType_:               s.allocInt32Slice(s.scratchInstances),
+		ownProperty_:                s.allocInt32Slice(s.scratchOwnProps),
+		prototype_:                  s.allocInt32Slice(s.scratchPrototypes),
 		closureAssert_:              isClosureAssert,
 		isInvalidating_:             isInvalidating,
 		markedConstructor_:          isConstructor,
@@ -680,31 +729,6 @@ func (s *JSTypeReconserializer) reconcileObjectTypesInto(seen *JSTypeReconserial
 		frozen:       true,
 		memoizedSize: -1,
 	}
-}
-
-func (s *JSTypeReconserializer) int32sFromSet(set *jutil.LinkedHashSet[int]) []int32 {
-	if set.IsEmpty() {
-		return nil
-	}
-	tmp := s.scratchInt32s[:0]
-	for v := range set.All() {
-		tmp = append(tmp, int32(v))
-	}
-	s.scratchInt32s = tmp
-	return s.allocInt32Slice(tmp)
-}
-
-// jsTypeReconserializer_int32s is the Iterable<Integer> handed to a proto's
-// addAll: the set's elements in order, as int32.
-func jsTypeReconserializer_int32s(set *jutil.LinkedHashSet[int]) []int32 {
-	if set.IsEmpty() {
-		return nil
-	}
-	out := make([]int32, 0, set.Size())
-	for v := range set.All() {
-		out = append(out, int32(v))
-	}
-	return out
 }
 
 // OwnAncestorInterfacesOf returns the interfaces directly implemented and
@@ -746,22 +770,22 @@ func (s *JSTypeReconserializer) OwnAncestorInterfacesOf(type_ rhino.ObjectType) 
 //
 // Java: JSTypeReconserializer.seedCachesWithAxiomaticTypes()
 func (s *JSTypeReconserializer) SeedCachesWithAxiomaticTypes() {
-	jutil.CheckState(s.seenTypeRecords.IsEmpty())
+	jutil.CheckState(len(s.recordsByPointer) == 0)
 
 	// Load all the axiomatic records in the right order without any types.
 	for _, axiomatic := range TypePointers_OFFSET_TO_AXIOMATIC_COLOR {
-		index := s.seenTypeRecords.Size()
+		index := len(s.recordsByPointer)
 		record := s.allocSeenTypeRecord(axiomatic.GetId(), index)
-		s.seenTypeRecords.PutNew(axiomatic.GetId(), record)
+		s.seenTypeRecords[axiomatic.GetId()] = record
 		s.recordsByPointer = append(s.recordsByPointer, record)
 	}
 
 	// Add JSTypes corresponding to axiomatic IDs.
-	for jstypeNative, axiomatic := range jsTypeReconserializer_JSTYPE_NATIVE_TO_AXIOMATIC_COLOR_MAP.All() {
-		s.GetOrCreateRecord(axiomatic.GetId(), s.registry.GetNativeType(jstypeNative))
+	for _, entry := range jsTypeReconserializer_JSTYPE_NATIVE_TO_AXIOMATIC_COLOR_ENTRIES {
+		s.GetOrCreateRecord(entry.color.GetId(), s.registry.GetNativeType(entry.native))
 	}
 
-	jutil.CheckState(s.seenTypeRecords.Size() == len(TypePointers_OFFSET_TO_AXIOMATIC_COLOR))
+	jutil.CheckState(len(s.recordsByPointer) == TypePointers_AXIOMATIC_COLOR_COUNT)
 }
 
 // CheckValidLinearTime checks that this instance is in a valid state.
@@ -772,8 +796,8 @@ func (s *JSTypeReconserializer) CheckValidLinearTime() {
 		return
 	}
 
-	totalTypeCount := s.seenTypeRecords.Size()
-	for seen := range s.seenTypeRecords.Values() {
+	totalTypeCount := len(s.recordsByPointer)
+	for _, seen := range s.recordsByPointer {
 		offset := seen.pointer
 		jutil.CheckState(offset >= 0)
 		jutil.CheckStateMsg2(
@@ -782,6 +806,17 @@ func (s *JSTypeReconserializer) CheckValidLinearTime() {
 			offset,
 			totalTypeCount)
 	}
+}
+
+func (s *JSTypeReconserializer) collectSortedInvolvedPointers(types *jutil.ObjectLinkedHashSet[rhino.JSType]) []int32 {
+	involvedColors := make([]int32, 0, types.Size())
+	for t := range types.All() {
+		jutil.CheckStateMsg1(!t.IsUnionType(), "%s", t)
+		// Ensure all types are recorded before reconciliation.
+		involvedColors = append(involvedColors, int32(s.SerializeType(t)))
+	}
+	slices.Sort(involvedColors)
+	return slices.Compact(involvedColors)
 }
 
 // GenerateTypePool generates a "type-pool" representing all the types that
@@ -797,7 +832,6 @@ func (s *JSTypeReconserializer) GenerateTypePool() *TypePool {
 	s.CheckValidLinearTime()
 
 	var debugInfoProto *TypePool_DebugInfo
-
 	if s.serializationMode.IncludeDebugInfo() {
 		debugInfo := TypePool_DebugInfo_NewBuilder()
 		// Key by source ref to deduplicate the strings, which are pretty long.
@@ -806,19 +840,10 @@ func (s *JSTypeReconserializer) GenerateTypePool() *TypePool {
 			Inverse().
 			AsMap().
 			All() {
-			mismatch := debugInfo.
+			debugInfo.
 				AddMismatchBuilder().
-				SetSourceRef(location.GetLocation())
-			// types.stream().peek(...).map(this::serializeType).distinct().sorted()
-			involved := jutil.NewLinkedHashSet[int]()
-			for t := range types.All() {
-				jutil.CheckStateMsg1(!t.IsUnionType(), "%s", t)
-				// Ensure all types are recorded before reconciliation.
-				involved.Add(s.SerializeType(t))
-			}
-			involvedColors := jsTypeReconserializer_int32s(involved)
-			slices.Sort(involvedColors)
-			mismatch.AddAllInvolvedColor(involvedColors)
+				SetSourceRef(location.GetLocation()).
+				AddAllInvolvedColor(s.collectSortedInvolvedPointers(types))
 		}
 		debugInfoProto = debugInfo.Build()
 	}
@@ -829,13 +854,13 @@ func (s *JSTypeReconserializer) GenerateTypePool() *TypePool {
 	// which would throw ConcurrentModificationException if reconciliation
 	// recorded a new type; recordObjectType serializes instance types and
 	// prototypes ahead of time so that it never does.
-	numTypes := s.seenTypeRecords.Size() - len(TypePointers_OFFSET_TO_AXIOMATIC_COLOR)
+	numTypes := len(s.recordsByPointer) - TypePointers_AXIOMATIC_COLOR_COUNT
 	var types []*TypeProto
 	if numTypes > 0 {
 		types = make([]*TypeProto, numTypes)
 		typeProtoSlab := make([]TypeProto, numTypes)
 		numUnions := 0
-		for seen := range s.seenTypeRecords.Values() {
+		for _, seen := range s.recordsByPointer[TypePointers_AXIOMATIC_COLOR_COUNT:] {
 			if len(seen.unionMembers) != 0 {
 				numUnions++
 			}
@@ -852,9 +877,9 @@ func (s *JSTypeReconserializer) GenerateTypePool() *TypePool {
 		typeIdx := 0
 		objIdx := 0
 		unionIdx := 0
-		for seen := range s.seenTypeRecords.Values() {
+		for _, seen := range s.recordsByPointer {
 			if TypePointers_IsAxiomatic(seen.pointer) {
-				jutil.CheckStateMsg1(colors.StandardColors_AXIOMATIC_COLORS.ContainsKey(seen.colorId), "Missing .type for SeenTypeRecord %s", seen)
+				jutil.CheckStateMsg1(isAxiomaticColorId(seen.colorId), "Missing .type for SeenTypeRecord %s", seen)
 				continue
 			}
 			tp := &typeProtoSlab[typeIdx]
@@ -869,8 +894,8 @@ func (s *JSTypeReconserializer) GenerateTypePool() *TypePool {
 			}
 		}
 	} else {
-		for seen := range s.seenTypeRecords.Values() {
-			if colors.StandardColors_AXIOMATIC_COLORS.ContainsKey(seen.colorId) {
+		for _, seen := range s.recordsByPointer {
+			if isAxiomaticColorId(seen.colorId) {
 				jutil.CheckStateMsg1(TypePointers_IsAxiomatic(seen.pointer), "Missing .type for SeenTypeRecord %s", seen)
 			}
 		}
@@ -881,8 +906,8 @@ func (s *JSTypeReconserializer) GenerateTypePool() *TypePool {
 		disambiguationEdges = make([]*SubtypingEdge, s.totalDisambiguateEdges)
 		edgeSlab := make([]SubtypingEdge, s.totalDisambiguateEdges)
 		edgeIdx := 0
-		for subtype, supertypes := range s.disambiguateEdges.All() {
-			for _, sup := range supertypes {
+		for _, subtype := range s.disambiguateSubtypes {
+			for _, sup := range s.disambiguateEdges[subtype] {
 				e := &edgeSlab[edgeIdx]
 				*e = SubtypingEdge{
 					subtype_:     subtype,
@@ -917,16 +942,9 @@ func (s *JSTypeReconserializer) prepareForColorPool() {
 			Inverse().
 			AsMap().
 			All() {
-			involved := jutil.NewLinkedHashSet[int]()
-			for t := range types.All() {
-				jutil.CheckStateMsg1(!t.IsUnionType(), "%s", t)
-				involved.Add(s.SerializeType(t))
-			}
-			involvedColors := jsTypeReconserializer_int32s(involved)
-			slices.Sort(involvedColors)
 			s.debugMismatches = append(s.debugMismatches, jsTypeDebugMismatch{
 				sourceRef:        location.GetLocation(),
-				involvedPointers: involvedColors,
+				involvedPointers: s.collectSortedInvolvedPointers(types),
 			})
 		}
 	}
@@ -936,7 +954,7 @@ func (s *JSTypeReconserializer) prepareForColorPool() {
 		for _, seen := range s.recordsByPointer {
 			if TypePointers_IsAxiomatic(seen.pointer) {
 				jutil.CheckStateMsg1(
-					colors.StandardColors_AXIOMATIC_COLORS.ContainsKey(seen.colorId),
+					isAxiomaticColorId(seen.colorId),
 					"Missing .type for SeenTypeRecord %s",
 					seen)
 			}
@@ -961,7 +979,7 @@ func (s *JSTypeReconserializer) GetColorIdToJSTypeMapForDebugging() *jutil.Linke
 	// representations at once
 	var keys []string
 	byId := make(map[string][]rhino.JSType)
-	for record := range s.seenTypeRecords.Values() {
+	for _, record := range s.recordsByPointer {
 		if len(record.jstypes) == 0 {
 			continue
 		}
@@ -971,7 +989,7 @@ func (s *JSTypeReconserializer) GetColorIdToJSTypeMapForDebugging() *jutil.Linke
 		}
 		byId[idStr] = append(byId[idStr], record.jstypes...)
 	}
-	slices.SortStableFunc(keys, jutil.StringCompareTo)
+	slices.Sort(keys)
 	colorIdToTypes := jutil.NewLinkedHashMapWithCapacity[string, []rhino.JSType](len(keys))
 	for _, k := range keys {
 		colorIdToTypes.Put(k, byId[k])

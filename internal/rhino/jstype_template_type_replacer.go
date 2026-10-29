@@ -421,14 +421,16 @@ func (r *TemplateTypeReplacer) CaseObjectTypeUnguarded(objType ObjectType) JSTyp
 	}
 
 	ownProps := objType.GetOwnPropertyNames()
-	var builder *RecordTypeBuilder
+	var builder RecordTypeBuilder
+	hasBuilder := false
 	for i, prop := range ownProps {
 		beforeType := objType.GetPropertyType(prop)
 		afterType := r.visitJSType(beforeType)
-		if builder != nil {
+		if hasBuilder {
 			builder.AddProperty(prop, afterType, objType.GetPropertyNode(prop))
 		} else if beforeType != afterType {
-			builder = NewRecordTypeBuilder(r.registry)
+			builder.init(r.registry)
+			hasBuilder = true
 			for j := 0; j < i; j++ {
 				prevProp := ownProps[j]
 				builder.AddProperty(prevProp, objType.GetPropertyType(prevProp), objType.GetPropertyNode(prevProp))
@@ -439,7 +441,7 @@ func (r *TemplateTypeReplacer) CaseObjectTypeUnguarded(objType ObjectType) JSTyp
 
 	// Use our new type if anything changed, and be sure to update the cache.
 	var result JSType = objType
-	if builder != nil {
+	if hasBuilder {
 		result = builder.Build()
 	}
 	r.putVisitedObjectType(objType, result)

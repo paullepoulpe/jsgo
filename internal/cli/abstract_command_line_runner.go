@@ -421,7 +421,7 @@ func (r *AbstractCommandLineRunnerBase) SetRunOptions(options *jscomp.CompilerOp
 	r.outputCharset2 = r.GetOutputCharset2()
 	r.inputCharset = r.GetInputCharset()
 
-	if jutil.StringLength(config.jsOutputFile) > 0 {
+	if config.jsOutputFile != "" {
 		if config.skipNormalOutputs {
 			panic(jscomp.NewFlagUsageException(
 				"skip_normal_outputs and js_output_file cannot be used together."))
@@ -441,7 +441,7 @@ func (r *AbstractCommandLineRunnerBase) SetRunOptions(options *jscomp.CompilerOp
 			"skip_normal_outputs and print_tree_json_path cannot be used together."))
 	}
 
-	if jutil.StringLength(config.createSourceMap) > 0 {
+	if config.createSourceMap != "" {
 		options.SetSourceMapOutputPath(&config.createSourceMap)
 	} else if r.IsOutputInJson() {
 		outname := "%outname%"
@@ -527,7 +527,7 @@ func AbstractCommandLineRunner_GetBuiltinExterns(env jscomp.CompilerOptions_Envi
 	if err != nil {
 		panic(jutil.NewZipException(err.Error()))
 	}
-	envPrefix := jutil.Ascii_ToLowerCase(env.String()) + "/"
+	envPrefix := asciiLower(env.String()) + "/"
 	mapFromExternsZip := jutil.NewLinkedHashMap[string, *jscomp.SourceFile]()
 	for _, entry := range zipReader.File {
 		filename := entry.Name
@@ -1106,14 +1106,18 @@ func (r *AbstractCommandLineRunnerBase) DoRun() int {
 
 		foundJsonInputSourceMap := false
 		for _, jsonFile := range jsonFiles {
-			if jsonFile.GetSourceMap() != nil && jutil.StringLength(*jsonFile.GetSourceMap()) > 0 {
-				sourceMapPath := jutil.ToJavaString(jsonFile.GetPath()) + ".map"
-				sourceMap := jscomp.SourceFile_FromCode(sourceMapPath, *jsonFile.GetSourceMap())
+			if sm := jsonFile.GetSourceMap(); sm != nil && *sm != "" {
+				pathStr := "null"
+				if p := jsonFile.GetPath(); p != nil {
+					pathStr = *p
+				}
+				sourceMapPath := pathStr + ".map"
+				sourceMap := jscomp.SourceFile_FromCode(sourceMapPath, *sm)
 				inputSourceMaps.Put(*jsonFile.GetPath(), jscomp.NewSourceMapInput(sourceMap))
 				foundJsonInputSourceMap = true
 			}
-			if jsonFile.GetWebpackId() != nil {
-				inputPathByWebpackId.Put(*jsonFile.GetWebpackId(), *jsonFile.GetPath())
+			if wid := jsonFile.GetWebpackId(); wid != nil {
+				inputPathByWebpackId.Put(*wid, *jsonFile.GetPath())
 			}
 		}
 
@@ -1567,7 +1571,7 @@ func AbstractCommandLineRunner_CreateDefineReplacements(definitions []string, op
 		assignment := jutil.StringSplitLiteralLimit(override, "=", 2)
 		defName := assignment[0]
 
-		if jutil.StringLength(defName) > 0 {
+		if defName != "" {
 			defValue := "true"
 			if len(assignment) != 1 {
 				defValue = assignment[1]
@@ -1578,14 +1582,13 @@ func AbstractCommandLineRunner_CreateDefineReplacements(definitions []string, op
 			if isTrue || isFalse {
 				options.SetDefineToBooleanLiteral(defName, isTrue)
 				continue
-			} else if jutil.StringLength(defValue) > 1 &&
-				((jutil.StringCharAt(defValue, 0) == '\'' && jutil.StringCharAt(defValue, jutil.StringLength(defValue)-1) == '\'') ||
-					(jutil.StringCharAt(defValue, 0) == '"' &&
-						jutil.StringCharAt(defValue, jutil.StringLength(defValue)-1) == '"')) {
+			} else if len(defValue) > 1 &&
+				(defValue[0] == '\'' || defValue[0] == '"') &&
+				defValue[len(defValue)-1] == defValue[0] {
 				// If the value starts and ends with a single quote,
 				// we assume that it's a string.
-				maybeStringVal := jutil.StringSubstring(defValue, 1, jutil.StringLength(defValue)-1)
-				if jutil.StringIndexOfChar(maybeStringVal, jutil.StringCharAt(defValue, 0)) == -1 {
+				maybeStringVal := defValue[1 : len(defValue)-1]
+				if strings.IndexByte(maybeStringVal, defValue[0]) == -1 {
 					options.SetDefineToStringLiteral(defName, maybeStringVal)
 					continue
 				}
@@ -1602,7 +1605,7 @@ func AbstractCommandLineRunner_CreateDefineReplacements(definitions []string, op
 					continue
 				}
 
-				if jutil.StringLength(defValue) > 0 {
+				if defValue != "" {
 					options.SetDefineToStringLiteral(defName, defValue)
 					continue
 				}

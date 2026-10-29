@@ -61,6 +61,13 @@ func rhinoStringPoolLookup(s string) rhinoStringID  { return strpool.Lookup(s) }
 func rhinoStringPoolClearForTest()                  { strpool.ClearForTest() }
 func rhinoStringPoolWasCleared() bool               { return strpool.WasClearedForTest() }
 
+func rhinoStringIDFromPtr(s *string) rhinoStringID {
+	if s == nil {
+		return 0
+	}
+	return rhinoStringPoolIntern(*s)
+}
+
 // RhinoStringPool_UncheckedEquals checks if two strings are the same
 // according to interning.
 //

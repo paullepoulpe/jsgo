@@ -409,6 +409,9 @@ func TestJSDocInfo_SetModifies(t *testing.T) {
 	if want := jutil.NewLinkedHashSet("this"); !info.GetModifies().Equals(want) {
 		t.Errorf("getModifies() = %v, want %v", info.GetModifies(), want)
 	}
+	if got := info.GetModifiesSlice(); !slices.Equal(got, []string{"this"}) {
+		t.Errorf("GetModifiesSlice() = %v, want [this]", got)
+	}
 
 	builder = JSDocInfo_Builder_()
 	builder.ParseDocumentation()
@@ -416,6 +419,19 @@ func TestJSDocInfo_SetModifies(t *testing.T) {
 	info = builder.Build()
 	if want := jutil.NewLinkedHashSet("arguments"); !info.GetModifies().Equals(want) {
 		t.Errorf("getModifies() = %v, want %v", info.GetModifies(), want)
+	}
+	if got := info.GetModifiesSlice(); !slices.Equal(got, []string{"arguments"}) {
+		t.Errorf("GetModifiesSlice() = %v, want [arguments]", got)
+	}
+
+	builder = JSDocInfo_Builder_()
+	builder.ParseDocumentation()
+	if !builder.RecordModifiesSlice([]string{"this", "arguments", "this"}) {
+		t.Fatal("RecordModifiesSlice failed")
+	}
+	info = builder.Build()
+	if got := info.GetModifiesSlice(); !slices.Equal(got, []string{"this", "arguments"}) {
+		t.Errorf("GetModifiesSlice() = %v, want [this arguments]", got)
 	}
 }
 

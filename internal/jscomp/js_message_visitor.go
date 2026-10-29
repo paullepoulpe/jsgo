@@ -1,7 +1,24 @@
 // Port of com/google/javascript/jscomp/JsMessageVisitor.java @ closure-compiler v20261021
+// Port of com/google/javascript/jscomp/JsMessageExtractor.java @ closure-compiler v20261021
 
 /*
  * Copyright 2008 The Closure Compiler Authors.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+/*
+ * Copyright 2004 The Closure Compiler Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -20,6 +37,7 @@ package jscomp
 
 import (
 	"errors"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -111,16 +129,17 @@ type JsMessageVisitor struct {
 
 	// messageNames tracks named messages with their defining node for duplicate
 	// detection and fallback resolution.
-	messageNames jutil.LinkedHashMap[string, jsMessageLocation]
+	messageNames map[string]jsMessageLocation
 
 	// unnamedMessages tracks unnamed messages by Var, as they are not
 	// guaranteed to be globally unique.
-	unnamedMessages jutil.LinkedHashMap[*Var, *JsMessage]
+	unnamedMessages map[*Var]*JsMessage
 
-	// googMsgNodes holds visited goog.getMsg / declareIcuTemplate call nodes
-	// that have not yet been matched to an enclosing MSG_* declaration. Any
-	// nodes left at the end of traversal are orphaned.
-	googMsgNodes jutil.LinkedHashSet[rhino.Node]
+	// googMsgOrder + googMsgActive hold visited goog.getMsg / declareIcuTemplate
+	// call nodes that have not yet been matched to an enclosing MSG_*
+	// declaration. Any nodes left at the end of traversal are orphaned.
+	googMsgOrder  []rhino.Node
+	googMsgActive map[rhino.Node]struct{}
 }
 
 // NewJsMessageVisitor constructs a JsMessageVisitor with the given callbacks.
@@ -160,10 +179,14 @@ func (v *JsMessageVisitor) ShouldTraverse(t *NodeTraversal, n rhino.Node, parent
 func (v *JsMessageVisitor) Process(externs rhino.Node, root rhino.Node) {
 	NodeTraversal_Traverse(v.compiler, root, v)
 
-	for msgNode := range v.googMsgNodes.All() {
-		v.compiler.Report(
-			JSError_MakeWithNode(
-				msgNode, JsMessageVisitor_MESSAGE_NODE_IS_ORPHANED, *msgNode.GetFirstChild().GetQualifiedName()))
+	if len(v.googMsgActive) > 0 {
+		for _, msgNode := range v.googMsgOrder {
+			if _, ok := v.googMsgActive[msgNode]; ok {
+				v.compiler.Report(
+					JSError_MakeWithNode(
+						msgNode, JsMessageVisitor_MESSAGE_NODE_IS_ORPHANED, *msgNode.GetFirstChild().GetQualifiedName()))
+			}
+		}
 	}
 }
 
@@ -173,14 +196,23 @@ func (v *JsMessageVisitor) Visit(traversal *NodeTraversal, node rhino.Node, unus
 	v.checkMessageInitialization(traversal, node)
 }
 
+func isJavaTrimEmpty(s string) bool {
+	for i := 0; i < len(s); i++ {
+		if s[i] > ' ' {
+			return false
+		}
+	}
+	return true
+}
+
 // checkMessageInitialization is called for every Node in the sources AST.
 //
 // Java: JsMessageVisitor.checkMessageInitialization(NodeTraversal, Node)
 func (v *JsMessageVisitor) checkMessageInitialization(traversal *NodeTraversal, node rhino.Node) {
 	parent := node.GetParent()
 
-	var originalMessageKey *string
 	var possiblyObfuscatedMessageKey string
+	var messageKeyFromLhs string
 	var msgNode rhino.Node
 	var jsDocInfo *rhino.JSDocInfo
 
@@ -192,7 +224,10 @@ func (v *JsMessageVisitor) checkMessageInitialization(traversal *NodeTraversal, 
 		}
 		nm := ast.MustName(node)
 		possiblyObfuscatedMessageKey = nm.Ident()
-		originalMessageKey = node.GetOriginalName()
+		messageKeyFromLhs = possiblyObfuscatedMessageKey
+		if orig := node.GetOriginalName(); orig != nil {
+			messageKeyFromLhs = *orig
+		}
 		if init, ok := nm.Init(); ok {
 			msgNode = init.Node()
 		}
@@ -205,7 +240,10 @@ func (v *JsMessageVisitor) checkMessageInitialization(traversal *NodeTraversal, 
 			return
 		}
 		possiblyObfuscatedMessageKey = getProp.Property()
-		originalMessageKey = getProp.Node().GetOriginalName()
+		messageKeyFromLhs = possiblyObfuscatedMessageKey
+		if orig := getProp.Node().GetOriginalName(); orig != nil {
+			messageKeyFromLhs = *orig
+		}
 		msgNode = assign.Value().Node()
 		jsDocInfo = node.GetJSDocInfo()
 	case rhino.Token_STRING_KEY:
@@ -216,25 +254,26 @@ func (v *JsMessageVisitor) checkMessageInitialization(traversal *NodeTraversal, 
 		jutil.CheckStateMsg1(parent.IsObjectLit(), "%s", parent)
 		sk := ast.MustStringKey(node)
 		possiblyObfuscatedMessageKey = sk.Key()
-		originalMessageKey = node.GetOriginalName()
+		messageKeyFromLhs = possiblyObfuscatedMessageKey
+		if orig := node.GetOriginalName(); orig != nil {
+			messageKeyFromLhs = *orig
+		}
 		msgNode = sk.Value().Node()
 		jsDocInfo = node.GetJSDocInfo()
 	case rhino.Token_MEMBER_FIELD_DEF:
 		// Case: `class Foo { MSG_HELLO = 'Message'; }`
 		mfd := ast.MustMemberFieldDef(node)
 		possiblyObfuscatedMessageKey = mfd.Key()
-		originalMessageKey = node.GetOriginalName()
+		messageKeyFromLhs = possiblyObfuscatedMessageKey
+		if orig := node.GetOriginalName(); orig != nil {
+			messageKeyFromLhs = *orig
+		}
 		if val, ok := mfd.Value(); ok {
 			msgNode = val.Node()
 		}
 		jsDocInfo = node.GetJSDocInfo()
 	default:
 		return
-	}
-
-	messageKeyFromLhs := possiblyObfuscatedMessageKey
-	if originalMessageKey != nil {
-		messageKeyFromLhs = *originalMessageKey
 	}
 
 	if !v.IsMessageName(messageKeyFromLhs) {
@@ -255,14 +294,19 @@ func (v *JsMessageVisitor) checkMessageInitialization(traversal *NodeTraversal, 
 		v.compiler.Report(JSError_MakeWithNode(node, JsMessageVisitor_MESSAGE_NOT_INITIALIZED_CORRECTLY))
 		return
 	}
-	v.googMsgNodes.Remove(msgNode)
+	delete(v.googMsgActive, msgNode)
 
-	mapping := v.compiler.GetSourceMapping(traversal.GetSourceName(), node.GetLineno(), node.GetCharno())
+	srcPtr := traversal.GetSourceName()
+	mapping := v.compiler.GetSourceMapping(srcPtr, node.GetLineno(), node.GetCharno())
 	var sourceName string
 	if mapping != nil {
 		sourceName = mapping.GetOriginalFile() + ":" + strconv.Itoa(mapping.GetLineNumber())
 	} else {
-		sourceName = jutil.ToJavaString(traversal.GetSourceName()) + ":" + strconv.Itoa(node.GetLineno())
+		src := "null"
+		if srcPtr != nil {
+			src = *srcPtr
+		}
+		sourceName = src + ":" + strconv.Itoa(node.GetLineno())
 	}
 
 	fnNameNode := msgCall.Callee().Node()
@@ -290,7 +334,7 @@ func (v *JsMessageVisitor) checkMessageInitialization(traversal *NodeTraversal, 
 
 		// goog.getMsg() calls are required to have `@desc` unless they are external.
 		desc, hasDesc := extractedMessage.DescOpt()
-		if (!hasDesc || jutil.StringTrim(desc) == "") && !extractedMessage.IsExternal() {
+		if (!hasDesc || isJavaTrimEmpty(desc)) && !extractedMessage.IsExternal() {
 			v.compiler.Report(
 				JSError_MakeWithNode(node, JsMessageVisitor_MESSAGE_HAS_NO_DESCRIPTION, extractedMessage.GetKey()))
 		}
@@ -326,12 +370,15 @@ type jsMessageBuildInput struct {
 	messageKeyFromLhs          string
 	sourceName                 string
 	messageText                string
-	description                *string
-	meaning                    *string
-	alternateMessageId         *string
+	description                string
+	meaning                    string
+	alternateMessageId         string
 	messageParts               []JsMessage_Part
 	placeholderExampleMap      *jutil.LinkedHashMap[string, string]
 	placeholderOriginalCodeMap *jutil.LinkedHashMap[string, string]
+	hasDescription             bool
+	hasMeaning                 bool
+	hasAlternateMessageId      bool
 }
 
 // Java: JsMessageVisitor.buildJsMessage(InputForBuildJsMsg)
@@ -349,27 +396,23 @@ func (v *JsMessageVisitor) buildJsMessage(input jsMessageBuildInput) *JsMessage 
 		messageId = externalId
 		messageKeyFinal = messageKeyFromLhs
 	} else {
-		var meaningForIdGeneration string
-		hasMeaning := input.meaning != nil
-		if hasMeaning {
-			meaningForIdGeneration = *input.meaning
-		}
+		meaningForIdGeneration := input.meaning
 		if jsMessageVisitor_isUnnamedMessageName(messageKeyFromLhs) {
 			isAnonymous = true
 			messageKeyFinal = jsMessageVisitor_generateKeyFromMessageText(input.messageText)
-			if !hasMeaning {
+			if !input.hasMeaning {
 				meaningForIdGeneration = messageKeyFinal
 			}
 		} else {
 			messageKeyFinal = messageKeyFromLhs
-			if !hasMeaning {
+			if !input.hasMeaning {
 				meaningForIdGeneration = JsMessageVisitor_RemoveScopedAliasesPrefix(messageKeyFromLhs)
 			}
 		}
 		if v.idGenerator == nil {
 			messageId = meaningForIdGeneration
 		} else {
-			messageId = v.idGenerator.GenerateId(&meaningForIdGeneration, messageParts)
+			messageId = generateMessageId(v.idGenerator, meaningForIdGeneration, messageParts)
 		}
 	}
 
@@ -381,9 +424,9 @@ func (v *JsMessageVisitor) buildJsMessage(input jsMessageBuildInput) *JsMessage 
 		SetIsExternalMsg(isExternal).
 		SetKey(messageKeyFinal).
 		SetSourceNameString(input.sourceName).
-		SetDesc(input.description).
-		SetMeaning(input.meaning).
-		SetAlternateId(input.alternateMessageId).
+		SetDescOpt(input.description, input.hasDescription).
+		SetMeaningOpt(input.meaning, input.hasMeaning).
+		SetAlternateIdOpt(input.alternateMessageId, input.hasAlternateMessageId).
 		SetId(messageId).
 		Build()
 }
@@ -455,7 +498,13 @@ func (v *JsMessageVisitor) collectGetMsgCall(traversal *NodeTraversal, n rhino.N
 
 	callee := call.Callee().Node()
 	if callee.MatchesQualifiedName(jsMessageVisitor_MSG_FUNCTION_QNAME) || jsMessageVisitor_isDeclareIcuTemplateCallee(callee) {
-		v.googMsgNodes.Add(n)
+		if v.googMsgActive == nil {
+			v.googMsgActive = make(map[rhino.Node]struct{})
+		}
+		if _, exists := v.googMsgActive[n]; !exists {
+			v.googMsgActive[n] = struct{}{}
+			v.googMsgOrder = append(v.googMsgOrder, n)
+		}
 	} else if callee.MatchesQualifiedName(jsMessageVisitor_MSG_FALLBACK_FUNCTION_NAME) {
 		v.visitFallbackFunctionCall(traversal, call)
 	}
@@ -463,13 +512,19 @@ func (v *JsMessageVisitor) collectGetMsgCall(traversal *NodeTraversal, n rhino.N
 
 // Java: JsMessageVisitor.trackNormalMessage(JsMessage, String, Node)
 func (v *JsMessageVisitor) trackNormalMessage(message *JsMessage, msgName string, msgNode rhino.Node) {
-	v.messageNames.Put(msgName, jsMessageLocation{message: message, messageNode: msgNode})
+	if v.messageNames == nil {
+		v.messageNames = make(map[string]jsMessageLocation)
+	}
+	v.messageNames[msgName] = jsMessageLocation{message: message, messageNode: msgNode}
 }
 
 // Java: JsMessageVisitor.trackUnnamedMessage(NodeTraversal, JsMessage, String)
 func (v *JsMessageVisitor) trackUnnamedMessage(t *NodeTraversal, message *JsMessage, msgNameInScope string) {
 	if var_ := t.GetScope().GetVar(msgNameInScope); var_ != nil {
-		v.unnamedMessages.Put(var_, message)
+		if v.unnamedMessages == nil {
+			v.unnamedMessages = make(map[*Var]*JsMessage)
+		}
+		v.unnamedMessages[var_] = message
 	}
 }
 
@@ -497,14 +552,14 @@ func jsMessageVisitor_isLegalMessageVarAlias(msgNode rhino.Node) bool {
 // Java: JsMessageVisitor.getTrackedUnnamedMessage(NodeTraversal, String)
 func (v *JsMessageVisitor) getTrackedUnnamedMessage(t *NodeTraversal, msgNameInScope string) *JsMessage {
 	if var_ := t.GetScope().GetVar(msgNameInScope); var_ != nil {
-		return v.unnamedMessages.Get(var_)
+		return v.unnamedMessages[var_]
 	}
 	return nil
 }
 
 // Java: JsMessageVisitor.getTrackedNormalMessage(String)
 func (v *JsMessageVisitor) getTrackedNormalMessage(msgName string) *JsMessage {
-	if location, ok := v.messageNames.Lookup(msgName); ok {
+	if location, ok := v.messageNames[msgName]; ok {
 		return location.message
 	}
 	return nil
@@ -512,13 +567,17 @@ func (v *JsMessageVisitor) getTrackedNormalMessage(msgName string) *JsMessage {
 
 // Java: JsMessageVisitor.checkIfMessageDuplicated(String, Node)
 func (v *JsMessageVisitor) checkIfMessageDuplicated(msgName string, msgNode rhino.Node) {
-	if location, ok := v.messageNames.Lookup(msgName); ok {
+	if location, ok := v.messageNames[msgName]; ok {
+		srcFile := "null"
+		if s := location.messageNode.GetSourceFileName(); s != nil {
+			srcFile = *s
+		}
 		v.compiler.Report(
 			JSError_MakeWithNode(
 				msgNode,
 				JsMessageVisitor_MESSAGE_DUPLICATE_KEY,
 				msgName,
-				jutil.ToJavaString(location.messageNode.GetSourceFileName()),
+				srcFile,
 				strconv.Itoa(location.messageNode.GetLineno())))
 	}
 }
@@ -562,11 +621,21 @@ func (v *JsMessageVisitor) extractJsMessageDefinition(
 	msgCall ast.Call, jsDocInfo *rhino.JSDocInfo, messageKeyFromLhs string, sourceName string,
 ) (JsMessageDefinition, *malformedMessageError) {
 	msgNode := msgCall.Node()
-	var description, meaning, alternateMessageId *string
+	var description, meaning, alternateMessageId string
+	var hasDescription, hasMeaning, hasAlternateMessageId bool
 	if jsDocInfo != nil {
-		description = jsDocInfo.GetDescription()
-		meaning = jsDocInfo.GetMeaning()
-		alternateMessageId = jsDocInfo.GetAlternateMessageId()
+		if s := jsDocInfo.GetDescription(); s != nil {
+			description = *s
+			hasDescription = true
+		}
+		if s := jsDocInfo.GetMeaning(); s != nil {
+			meaning = *s
+			hasMeaning = true
+		}
+		if s := jsDocInfo.GetAlternateMessageId(); s != nil {
+			alternateMessageId = *s
+			hasAlternateMessageId = true
+		}
 	}
 
 	firstArg, hasFirstArg := msgCall.FirstArg()
@@ -599,14 +668,13 @@ func (v *JsMessageVisitor) extractJsMessageDefinition(
 		return JsMessageDefinition{}, malErr
 	}
 
-	placeholderNamesFromText := googGetMsgParsedText.placeholderNames
 	if malErr := placeholderObjectLiteralMap.checkForRequiredKeys(
-		placeholderNamesFromText, msgTextNode, "Unrecognized message placeholder referenced: ",
+		googGetMsgParsedText.placeholderOrder, msgTextNode, "Unrecognized message placeholder referenced: ",
 	); malErr != nil {
 		return JsMessageDefinition{}, malErr
 	}
 	if malErr := placeholderObjectLiteralMap.checkForUnexpectedKeys(
-		placeholderNamesFromText, "Unused message placeholder: ",
+		googGetMsgParsedText.placeholderSet, "Unused message placeholder: ",
 	); malErr != nil {
 		return JsMessageDefinition{}, malErr
 	}
@@ -617,7 +685,7 @@ func (v *JsMessageVisitor) extractJsMessageDefinition(
 	if malErr != nil {
 		return JsMessageDefinition{}, malErr
 	}
-	if malErr := jsMessageOptions.checkForUnknownPlaceholders(placeholderNamesFromText); malErr != nil {
+	if malErr := jsMessageOptions.checkForUnknownPlaceholders(googGetMsgParsedText.placeholderSet); malErr != nil {
 		return JsMessageDefinition{}, malErr
 	}
 
@@ -629,8 +697,11 @@ func (v *JsMessageVisitor) extractJsMessageDefinition(
 		placeholderExampleMap:      jsMessageOptions.placeholderExamplesMap,
 		placeholderOriginalCodeMap: jsMessageOptions.placeholderOriginalCodeMap,
 		description:                description,
+		hasDescription:             hasDescription,
 		meaning:                    meaning,
+		hasMeaning:                 hasMeaning,
 		alternateMessageId:         alternateMessageId,
+		hasAlternateMessageId:      hasAlternateMessageId,
 	})
 
 	return JsMessageDefinition{
@@ -702,7 +773,6 @@ func (v *JsMessageVisitor) extractIcuTemplateDefinition(
 		return IcuTemplateDefinition{}, &malformedMessageError{msg: "too many arguments", node: unexpectedArgument}
 	}
 
-	desc := icuOptions.description
 	extractedMessage := v.buildJsMessage(jsMessageBuildInput{
 		messageKeyFromLhs:          messageKeyFromLhs,
 		sourceName:                 sourceName,
@@ -710,9 +780,12 @@ func (v *JsMessageVisitor) extractIcuTemplateDefinition(
 		messageParts:               extractedIcuTemplateParts.extractedParts,
 		placeholderExampleMap:      icuOptions.placeholderExamplesMap,
 		placeholderOriginalCodeMap: icuOptions.placeholderOriginalCodeMap,
-		description:                &desc,
+		description:                icuOptions.description,
+		hasDescription:             true,
 		meaning:                    icuOptions.meaning,
+		hasMeaning:                 icuOptions.hasMeaning,
 		alternateMessageId:         icuOptions.alternateMessageId,
+		hasAlternateMessageId:      icuOptions.hasAlternateMessageId,
 	})
 
 	return IcuTemplateDefinition{
@@ -738,13 +811,13 @@ func NewJsMessageVisitor_IcuMessageTemplateString(template string) JsMessageVisi
 //
 // Java: JsMessageVisitor.IcuMessageTemplateString.extractParts(Set<String>)
 func (s JsMessageVisitor_IcuMessageTemplateString) ExtractParts(
-	placeholderNamesToExtract *jutil.LinkedHashSet[string],
+	placeholderNamesToExtract map[string]struct{},
 ) JsMessageVisitor_ExtractedIcuTemplateParts {
 	tpl := s.template
 	if len(tpl) == 0 {
 		return JsMessageVisitor_ExtractedIcuTemplateParts{}
 	}
-	if placeholderNamesToExtract.IsEmpty() {
+	if len(placeholderNamesToExtract) == 0 {
 		return JsMessageVisitor_ExtractedIcuTemplateParts{
 			extractedParts: []JsMessage_Part{JsMessage_StringPart_Create(tpl)},
 		}
@@ -769,11 +842,11 @@ func (s JsMessageVisitor_IcuMessageTemplateString) ExtractParts(
 		}
 		if j > openIdx+1 && j < len(tpl) && tpl[j] == '}' {
 			placeholderName := tpl[openIdx+1 : j]
-			if placeholderNamesToExtract.Contains(placeholderName) {
+			if _, ok := placeholderNamesToExtract[placeholderName]; ok {
 				if result.extractedPlaceholderNames == nil {
-					result.extractedPlaceholderNames = jutil.NewLinkedHashSet[string]()
+					result.extractedPlaceholderNames = make(map[string]struct{})
 				}
-				result.extractedPlaceholderNames.Add(placeholderName)
+				result.extractedPlaceholderNames[placeholderName] = struct{}{}
 				result.extractedParts = append(result.extractedParts,
 					JsMessage_StringPart_Create(tpl[remainingStart:openIdx]),
 					JsMessage_PlaceholderReference_CreateForCanonicalName(placeholderName),
@@ -797,11 +870,17 @@ func (s JsMessageVisitor_IcuMessageTemplateString) ExtractParts(
 // JsMessageVisitor_ExtractedIcuTemplateParts is the result of
 // IcuMessageTemplateString.ExtractParts.
 type JsMessageVisitor_ExtractedIcuTemplateParts struct {
-	extractedPlaceholderNames *jutil.LinkedHashSet[string]
+	extractedPlaceholderNames map[string]struct{}
 	extractedParts            []JsMessage_Part
 }
 
-var jsMessageVisitor_MESSAGE_OPTION_NAMES = jutil.NewLinkedHashSet("html", "unescapeHtmlEntities", "example", "original_code")
+func isJsMessageOptionName(key string) bool {
+	switch key {
+	case "html", "unescapeHtmlEntities", "example", "original_code":
+		return true
+	}
+	return false
+}
 
 type jsMessageOptions struct {
 	placeholderExamplesMap       *jutil.LinkedHashMap[string, string]
@@ -812,7 +891,7 @@ type jsMessageOptions struct {
 	isUnescapeHtmlEntities       bool
 }
 
-func (o *jsMessageOptions) checkForUnknownPlaceholders(knownPlaceholders *jutil.LinkedHashSet[string]) *malformedMessageError {
+func (o *jsMessageOptions) checkForUnknownPlaceholders(knownPlaceholders map[string]struct{}) *malformedMessageError {
 	if err := o.exampleObjectLiteralMap.checkForUnexpectedKeys(knownPlaceholders, "Unknown placeholder: "); err != nil {
 		return err
 	}
@@ -828,7 +907,7 @@ func extractJsMessageOptions(optionsBag rhino.Node) (jsMessageOptions, *malforme
 	if err != nil {
 		return jsMessageOptions{}, err
 	}
-	if err := objectLiteralMap.checkForUnexpectedKeys(jsMessageVisitor_MESSAGE_OPTION_NAMES, "Unknown option: "); err != nil {
+	if err := objectLiteralMap.checkForUnexpectedKeysFn(isJsMessageOptionName, "Unknown option: "); err != nil {
 		return jsMessageOptions{}, err
 	}
 
@@ -869,21 +948,28 @@ func extractJsMessageOptions(optionsBag rhino.Node) (jsMessageOptions, *malforme
 	}, nil
 }
 
-var jsMessageVisitor_ICU_TEMPLATE_OPTION_NAMES = jutil.NewLinkedHashSet(
-	"description", "meaning", "alternate_message_id", "example", "original_code")
+func isIcuTemplateOptionName(key string) bool {
+	switch key {
+	case "description", "meaning", "alternate_message_id", "example", "original_code":
+		return true
+	}
+	return false
+}
 
 type icuTemplateOptions struct {
 	description                  string
-	meaning                      *string
-	alternateMessageId           *string
+	meaning                      string
+	alternateMessageId           string
 	placeholderExamplesMap       *jutil.LinkedHashMap[string, string]
 	placeholderOriginalCodeMap   *jutil.LinkedHashMap[string, string]
-	placeholderNames             *jutil.LinkedHashSet[string]
+	placeholderNames             map[string]struct{}
 	exampleObjectLiteralMap      jsMessageObjectLiteralMap
 	originalCodeObjectLiteralMap jsMessageObjectLiteralMap
+	hasMeaning                   bool
+	hasAlternateMessageId        bool
 }
 
-func (o *icuTemplateOptions) checkForUnknownPlaceholders(knownPlaceholders *jutil.LinkedHashSet[string]) *malformedMessageError {
+func (o *icuTemplateOptions) checkForUnknownPlaceholders(knownPlaceholders map[string]struct{}) *malformedMessageError {
 	if err := o.exampleObjectLiteralMap.checkForUnexpectedKeys(knownPlaceholders, "Unknown placeholder: "); err != nil {
 		return err
 	}
@@ -896,7 +982,7 @@ func extractIcuTemplateOptions(optionsBag rhino.Node) (icuTemplateOptions, *malf
 	if err != nil {
 		return icuTemplateOptions{}, err
 	}
-	if err := objectLiteralMap.checkForUnexpectedKeys(jsMessageVisitor_ICU_TEMPLATE_OPTION_NAMES, "Unknown option: "); err != nil {
+	if err := objectLiteralMap.checkForUnexpectedKeysFn(isIcuTemplateOptionName, "Unknown option: "); err != nil {
 		return icuTemplateOptions{}, err
 	}
 
@@ -909,22 +995,26 @@ func extractIcuTemplateOptions(optionsBag rhino.Node) (icuTemplateOptions, *malf
 		return icuTemplateOptions{}, err
 	}
 
-	var meaning *string
+	var meaning string
+	var hasMeaning bool
 	if meaningNode := objectLiteralMap.getValueNode("meaning"); !meaningNode.IsNil() {
 		m, err := jsMessageVisitor_extractStringFromStringExprNode(meaningNode)
 		if err != nil {
 			return icuTemplateOptions{}, err
 		}
-		meaning = &m
+		meaning = m
+		hasMeaning = true
 	}
 
-	var alternateMessageId *string
+	var alternateMessageId string
+	var hasAlternateMessageId bool
 	if alternateMessageIdNode := objectLiteralMap.getValueNode("alternate_message_id"); !alternateMessageIdNode.IsNil() {
 		alt, err := jsMessageVisitor_extractStringFromStringExprNode(alternateMessageIdNode)
 		if err != nil {
 			return icuTemplateOptions{}, err
 		}
-		alternateMessageId = &alt
+		alternateMessageId = alt
+		hasAlternateMessageId = true
 	}
 
 	exampleObjectLiteralMap, err := extractObjectLiteralMap(objectLiteralMap.getValueNode("example"))
@@ -945,29 +1035,35 @@ func extractIcuTemplateOptions(optionsBag rhino.Node) (icuTemplateOptions, *malf
 		return icuTemplateOptions{}, err
 	}
 
-	var placeholderNames *jutil.LinkedHashSet[string]
+	var placeholderNames map[string]struct{}
 	if !placeholderExamplesMap.IsEmpty() || !placeholderOriginalCodeMap.IsEmpty() {
-		placeholderNames = jutil.NewLinkedHashSetWithCapacity[string](placeholderExamplesMap.Size() + placeholderOriginalCodeMap.Size())
+		placeholderNames = make(map[string]struct{}, placeholderExamplesMap.Size()+placeholderOriginalCodeMap.Size())
 		for k := range placeholderExamplesMap.Keys() {
-			placeholderNames.Add(k)
-		}
-		for k := range placeholderOriginalCodeMap.Keys() {
-			placeholderNames.Add(k)
-		}
-		for placeholderName := range placeholderNames.All() {
-			if !JsMessage_IsCanonicalPlaceholderNameFormat(placeholderName) {
+			if !JsMessage_IsCanonicalPlaceholderNameFormat(k) {
 				return icuTemplateOptions{}, &malformedMessageError{
-					msg:  "Placeholder not in UPPER_SNAKE_CASE: " + placeholderName,
+					msg:  "Placeholder not in UPPER_SNAKE_CASE: " + k,
 					node: optionsBag,
 				}
 			}
+			placeholderNames[k] = struct{}{}
+		}
+		for k := range placeholderOriginalCodeMap.Keys() {
+			if _, seen := placeholderNames[k]; !seen && !JsMessage_IsCanonicalPlaceholderNameFormat(k) {
+				return icuTemplateOptions{}, &malformedMessageError{
+					msg:  "Placeholder not in UPPER_SNAKE_CASE: " + k,
+					node: optionsBag,
+				}
+			}
+			placeholderNames[k] = struct{}{}
 		}
 	}
 
 	return icuTemplateOptions{
 		description:                  description,
 		meaning:                      meaning,
+		hasMeaning:                   hasMeaning,
 		alternateMessageId:           alternateMessageId,
+		hasAlternateMessageId:        hasAlternateMessageId,
 		placeholderExamplesMap:       placeholderExamplesMap,
 		placeholderOriginalCodeMap:   placeholderOriginalCodeMap,
 		placeholderNames:             placeholderNames,
@@ -976,11 +1072,30 @@ func extractIcuTemplateOptions(optionsBag rhino.Node) (icuTemplateOptions, *malf
 	}, nil
 }
 
+type jsMessageObjEntry struct {
+	key  string
+	node rhino.Node
+}
+
 // jsMessageObjectLiteralMap represents an AST OBJECTLIT whose members are all
-// unique STRING_KEY nodes. When empty (including nil AST node), zero heap
-// allocations are performed.
+// unique STRING_KEY nodes. Small object literals (<=8 keys) avoid allocating a
+// hash map altogether; larger ones lazily populate byKey.
 type jsMessageObjectLiteralMap struct {
-	keys *jutil.LinkedHashMap[string, rhino.Node]
+	entries []jsMessageObjEntry
+	byKey   map[string]rhino.Node
+}
+
+func (m *jsMessageObjectLiteralMap) findNode(key string) (rhino.Node, bool) {
+	if m.byKey != nil {
+		n, ok := m.byKey[key]
+		return n, ok
+	}
+	for _, e := range m.entries {
+		if e.key == key {
+			return e.node, true
+		}
+	}
+	return rhino.NilNode, false
 }
 
 func extractObjectLiteralMap(objLit rhino.Node) (jsMessageObjectLiteralMap, *malformedMessageError) {
@@ -998,27 +1113,34 @@ func extractObjectLiteralMap(objLit rhino.Node) (jsMessageObjectLiteralMap, *mal
 			return jsMessageObjectLiteralMap{}, &malformedMessageError{msg: "string key expected", node: member.Node()}
 		}
 		key := sk.Key()
-		if m.keys == nil {
-			m.keys = jutil.NewLinkedHashMap[string, rhino.Node]()
-		} else if m.keys.ContainsKey(key) {
+		if _, dup := m.findNode(key); dup {
 			return jsMessageObjectLiteralMap{}, &malformedMessageError{msg: "duplicate string key: " + key, node: member.Node()}
 		}
-		m.keys.PutNew(key, member.Node())
+		if len(m.entries) == 8 && m.byKey == nil {
+			m.byKey = make(map[string]rhino.Node, 16)
+			for _, prev := range m.entries {
+				m.byKey[prev.key] = prev.node
+			}
+		}
+		m.entries = append(m.entries, jsMessageObjEntry{key: key, node: member.Node()})
+		if m.byKey != nil {
+			m.byKey[key] = member.Node()
+		}
 	}
 	return m, nil
 }
 
 func (m *jsMessageObjectLiteralMap) getValueNode(key string) rhino.Node {
-	stringKeyNode := m.keys.Get(key)
-	if stringKeyNode.IsNil() {
+	stringKeyNode, ok := m.findNode(key)
+	if !ok {
 		return rhino.NilNode
 	}
 	return stringKeyNode.GetOnlyChild()
 }
 
 func (m *jsMessageObjectLiteralMap) getBooleanValueOrFalse(key string) (bool, *malformedMessageError) {
-	stringKeyNode := m.keys.Get(key)
-	if stringKeyNode.IsNil() {
+	stringKeyNode, ok := m.findNode(key)
+	if !ok {
 		return false, nil
 	}
 	valueNode := stringKeyNode.GetOnlyChild()
@@ -1035,47 +1157,58 @@ func (m *jsMessageObjectLiteralMap) getBooleanValueOrFalse(key string) (bool, *m
 }
 
 func (m *jsMessageObjectLiteralMap) extractAsValueMap() *jutil.LinkedHashMap[string, rhino.Node] {
-	if m.keys.IsEmpty() {
+	if len(m.entries) == 0 {
 		return nil
 	}
-	out := jutil.NewLinkedHashMapWithCapacity[string, rhino.Node](m.keys.Size())
-	for key, stringKeyNode := range m.keys.All() {
-		out.PutNew(key, stringKeyNode.GetOnlyChild())
+	out := jutil.NewLinkedHashMapWithCapacity[string, rhino.Node](len(m.entries))
+	for _, e := range m.entries {
+		out.PutNew(e.key, e.node.GetOnlyChild())
 	}
 	return out
 }
 
 func (m *jsMessageObjectLiteralMap) extractAsStringToStringMap() (*jutil.LinkedHashMap[string, string], *malformedMessageError) {
-	if m.keys.IsEmpty() {
+	if len(m.entries) == 0 {
 		return nil, nil
 	}
-	out := jutil.NewLinkedHashMapWithCapacity[string, string](m.keys.Size())
-	for key, stringKeyNode := range m.keys.All() {
-		val, err := jsMessageVisitor_extractStringFromStringExprNode(stringKeyNode.GetOnlyChild())
+	out := jutil.NewLinkedHashMapWithCapacity[string, string](len(m.entries))
+	for _, e := range m.entries {
+		val, err := jsMessageVisitor_extractStringFromStringExprNode(e.node.GetOnlyChild())
 		if err != nil {
 			return nil, err
 		}
-		out.PutNew(key, val)
+		out.PutNew(e.key, val)
 	}
 	return out, nil
 }
 
 func (m *jsMessageObjectLiteralMap) checkForUnexpectedKeys(
-	expectedKeys *jutil.LinkedHashSet[string], errorPrefix string,
+	expectedKeys map[string]struct{}, errorPrefix string,
 ) *malformedMessageError {
-	for key, node := range m.keys.All() {
-		if !expectedKeys.Contains(key) {
-			return &malformedMessageError{msg: errorPrefix + key, node: node}
+	for _, e := range m.entries {
+		if _, ok := expectedKeys[e.key]; !ok {
+			return &malformedMessageError{msg: errorPrefix + e.key, node: e.node}
+		}
+	}
+	return nil
+}
+
+func (m *jsMessageObjectLiteralMap) checkForUnexpectedKeysFn(
+	isExpected func(string) bool, errorPrefix string,
+) *malformedMessageError {
+	for _, e := range m.entries {
+		if !isExpected(e.key) {
+			return &malformedMessageError{msg: errorPrefix + e.key, node: e.node}
 		}
 	}
 	return nil
 }
 
 func (m *jsMessageObjectLiteralMap) checkForRequiredKeys(
-	requiredKeys *jutil.LinkedHashSet[string], errNode rhino.Node, errorPrefix string,
+	requiredKeys []string, errNode rhino.Node, errorPrefix string,
 ) *malformedMessageError {
-	for requiredKey := range requiredKeys.All() {
-		if !m.keys.ContainsKey(requiredKey) {
+	for _, requiredKey := range requiredKeys {
+		if _, ok := m.findNode(requiredKey); !ok {
 			return &malformedMessageError{msg: errorPrefix + requiredKey, node: errNode}
 		}
 	}
@@ -1084,7 +1217,8 @@ func (m *jsMessageObjectLiteralMap) checkForRequiredKeys(
 
 type googGetMsgParsedText struct {
 	originalMsgText  string
-	placeholderNames *jutil.LinkedHashSet[string]
+	placeholderOrder []string
+	placeholderSet   map[string]struct{}
 	parts            []JsMessage_Part
 }
 
@@ -1102,7 +1236,8 @@ var errPlaceholderMalformed = errors.New("Placeholder incorrectly formatted")
 func jsMessageVisitor_extractGoogGetMsgParsedText(originalMsgText string) (googGetMsgParsedText, error) {
 	msgText := originalMsgText
 	var partsBuilder []JsMessage_Part
-	var placeholderNames *jutil.LinkedHashSet[string]
+	var placeholderOrder []string
+	var placeholderSet map[string]struct{}
 	for {
 		phBegin := strings.Index(msgText, JsMessage_PH_JS_PREFIX)
 		if phBegin < 0 {
@@ -1123,10 +1258,13 @@ func jsMessageVisitor_extractGoogGetMsgParsedText(originalMsgText string) (googG
 		if !JsMessage_IsLowerCamelCaseWithNumericSuffixes(phName) {
 			return googGetMsgParsedText{}, errors.New("Placeholder name not in lowerCamelCase: " + phName)
 		}
-		if placeholderNames == nil {
-			placeholderNames = jutil.NewLinkedHashSet[string]()
+		if placeholderSet == nil {
+			placeholderSet = make(map[string]struct{})
 		}
-		placeholderNames.Add(phName)
+		if _, seen := placeholderSet[phName]; !seen {
+			placeholderSet[phName] = struct{}{}
+			placeholderOrder = append(placeholderOrder, phName)
+		}
 		partsBuilder = append(partsBuilder, JsMessage_PlaceholderReference_CreateForJsName(phName))
 		rest := afterPrefix[phEndRel+len(JsMessage_PH_JS_SUFFIX):]
 		if len(rest) == 0 {
@@ -1136,7 +1274,8 @@ func jsMessageVisitor_extractGoogGetMsgParsedText(originalMsgText string) (googG
 	}
 	return googGetMsgParsedText{
 		originalMsgText:  originalMsgText,
-		placeholderNames: placeholderNames,
+		placeholderOrder: placeholderOrder,
+		placeholderSet:   placeholderSet,
 		parts:            partsBuilder,
 	}, nil
 }
@@ -1246,4 +1385,77 @@ func JsMessageVisitor_RemoveScopedAliasesPrefix(name string) string {
 		return name
 	}
 	return "MSG_" + name[end:]
+}
+
+// JsMessageExtractor extracts messages and message comments from JS code.
+type JsMessageExtractor struct {
+	idGenerator             JsMessage_IdGenerator
+	options                 *CompilerOptions
+	extractExternalMessages bool
+}
+
+// Java: JsMessageExtractor(JsMessage.IdGenerator)
+func NewJsMessageExtractor(idGenerator JsMessage_IdGenerator) *JsMessageExtractor {
+	return NewJsMessageExtractorWithOptions(idGenerator, NewCompilerOptions(), false)
+}
+
+// Java: JsMessageExtractor(JsMessage.IdGenerator, CompilerOptions, boolean)
+func NewJsMessageExtractorWithOptions(
+	idGenerator JsMessage_IdGenerator, options *CompilerOptions, extractExternalMessages bool,
+) *JsMessageExtractor {
+	return &JsMessageExtractor{
+		idGenerator:             idGenerator,
+		options:                 options,
+		extractExternalMessages: extractExternalMessages,
+	}
+}
+
+// ExtractMessages extracts JS messages from JavaScript code.
+//
+// Java: JsMessageExtractor.extractMessages(SourceFile...)
+func (e *JsMessageExtractor) ExtractMessages(inputs ...*SourceFile) []*JsMessage {
+	return e.ExtractMessagesFromIterable(inputs)
+}
+
+// ExtractMessagesFromIterable extracts JS messages from JavaScript code.
+//
+// Java: JsMessageExtractor.extractMessages(Iterable<SourceFile>)
+func (e *JsMessageExtractor) ExtractMessagesFromIterable(inputs []*SourceFile) []*JsMessage {
+	compiler := NewCompiler()
+	compiler.Init([]*SourceFile{}, slices.Clone(inputs), e.options)
+	Compiler_RunInCompilerThread(compiler,
+		func() any {
+			compiler.ParseInputs()
+			return nil
+		})
+
+	var messages []*JsMessage
+	recordMessage := func(jsMessage *JsMessage) {
+		if e.extractExternalMessages || !jsMessage.IsExternal() {
+			messages = append(messages, jsMessage)
+		}
+	}
+	if len(compiler.GetErrors()) == 0 {
+		visitor := NewJsMessageVisitor(
+			compiler,
+			e.idGenerator,
+			func(def JsMessageDefinition) { recordMessage(def.GetMessage()) },
+			func(def IcuTemplateDefinition) { recordMessage(def.GetMessage()) },
+			nil,
+		)
+		visitor.Process(rhino.NilNode, compiler.GetRoot())
+	}
+
+	errs := compiler.GetErrors()
+	if len(errs) != 0 {
+		var msg strings.Builder
+		msg.WriteString("JSCompiler errors\n")
+		formatter := NewLightweightMessageFormatter(compiler)
+		for _, err := range errs {
+			msg.WriteString(formatter.FormatError(err))
+		}
+		panic(jutil.NewRuntimeException(msg.String()))
+	}
+
+	return messages
 }

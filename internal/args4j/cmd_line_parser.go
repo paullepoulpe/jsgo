@@ -64,11 +64,11 @@ type Parameters interface {
 // CmdLineParser parses command-line flags and positional arguments into a Bean
 // and formats usage/help output.
 type CmdLineParser struct {
-	options              []OptionHandler
-	optionByName         map[string]OptionHandler
-	arguments            []OptionHandler
+	options              []*OptionHandler
+	optionByName         map[string]*OptionHandler
+	arguments            []*OptionHandler
 	parsingOptions       bool
-	currentOptionHandler OptionHandler
+	currentOptionHandler *OptionHandler
 	parserProperties     *ParserProperties
 }
 
@@ -89,10 +89,10 @@ func NewCmdLineParserWithProperties(bean any, parserProperties *ParserProperties
 	if b, ok := bean.(Bean); ok {
 		for _, af := range b.Args4jFields() {
 			if af.Option != nil {
-				p.AddOption(newSetterForField(af.Field, bean), af.Option)
+				p.AddOption(newSetterForField(af.Field), af.Option)
 			}
 			if af.Argument != nil {
-				p.AddArgument(newSetterForField(af.Field, bean), af.Argument)
+				p.AddArgument(newSetterForField(af.Field), af.Argument)
 			}
 		}
 	}
@@ -104,8 +104,8 @@ func NewCmdLineParserWithProperties(bean any, parserProperties *ParserProperties
 }
 
 func (p *CmdLineParser) GetProperties() *ParserProperties { return p.parserProperties }
-func (p *CmdLineParser) GetArguments() []OptionHandler    { return p.arguments }
-func (p *CmdLineParser) GetOptions() []OptionHandler      { return p.options }
+func (p *CmdLineParser) GetArguments() []*OptionHandler   { return p.arguments }
+func (p *CmdLineParser) GetOptions() []*OptionHandler     { return p.options }
 
 func (p *CmdLineParser) AddArgument(setter Setter, a *Argument) {
 	checkNonNull(setter, "Setter")
@@ -150,7 +150,7 @@ func (p *CmdLineParser) checkOptionNotInMap(name string) {
 	}
 }
 
-func (p *CmdLineParser) CreateOptionHandler(o OptionDef, setter Setter) OptionHandler {
+func (p *CmdLineParser) CreateOptionHandler(o *OptionDef, setter Setter) *OptionHandler {
 	return createOptionHandler(p, o, setter)
 }
 
@@ -162,8 +162,7 @@ func (p *CmdLineParser) PrintExampleWithResourceBundle(mode OptionHandlerFilter,
 	checkNonNull(mode, "mode")
 	var buf strings.Builder
 	for _, h := range p.options {
-		option := h.GetOptionHandlerBase().Option
-		if len(option.Usage()) == 0 || !mode.Select(h) {
+		if len(h.Option.Usage()) == 0 || !mode.Select(h) {
 			continue
 		}
 		buf.WriteByte(' ')
@@ -181,7 +180,9 @@ func (p *CmdLineParser) PrintUsageToWriter(out jutil.Writer, rb ResourceBundle) 
 }
 
 func (p *CmdLineParser) PrintUsageToWriterWithFilter(out jutil.Writer, rb ResourceBundle, filter OptionHandlerFilter) {
-	w := jutil.NewPrintWriter(out)
+	if jutil.IsNil(out) {
+		panic(jutil.NewNullPointerException())
+	}
 	prefixLen := 0
 	for _, h := range p.arguments {
 		prefixLen = max(prefixLen, p.getPrefixLen(h, rb))
@@ -190,16 +191,16 @@ func (p *CmdLineParser) PrintUsageToWriterWithFilter(out jutil.Writer, rb Resour
 		prefixLen = max(prefixLen, p.getPrefixLen(h, rb))
 	}
 	for _, h := range p.arguments {
-		p.PrintOption(w, h, prefixLen, rb, filter)
+		p.PrintOption(out, h, prefixLen, rb, filter)
 	}
 	for _, h := range p.options {
-		p.PrintOption(w, h, prefixLen, rb, filter)
+		p.PrintOption(out, h, prefixLen, rb, filter)
 	}
-	w.Flush()
+	jutil.Try(func() { out.Flush() }, func(jutil.IIOException) {})
 }
 
-func (p *CmdLineParser) PrintOption(out *jutil.PrintWriter, handler OptionHandler, maxMetaLen int, rb ResourceBundle, filter OptionHandlerFilter) {
-	option := handler.GetOptionHandlerBase().Option
+func (p *CmdLineParser) PrintOption(out jutil.Writer, handler *OptionHandler, maxMetaLen int, rb ResourceBundle, filter OptionHandlerFilter) {
+	option := handler.Option
 	if len(option.Usage()) == 0 || !filter.Select(handler) {
 		return
 	}
@@ -229,13 +230,13 @@ func (p *CmdLineParser) PrintOption(out *jutil.PrintWriter, handler OptionHandle
 		if len(nameAndMeta) > 0 && i == 0 {
 			format = colonFmt
 		}
-		out.Println(jutil.StringFormat(format, nameAndMeta, usage))
+		line := jutil.StringFormat(format, nameAndMeta, usage) + "\n"
+		jutil.Try(func() { out.Write(line) }, func(jutil.IIOException) {})
 	}
 }
 
-func (p *CmdLineParser) createDefaultValuePart(handler OptionHandler) string {
-	b := handler.GetOptionHandlerBase()
-	if _, isGetter := b.Setter.(Getter); p.parserProperties.GetShowDefaults() && !b.Option.Required() && isGetter {
+func (p *CmdLineParser) createDefaultValuePart(handler *OptionHandler) string {
+	if _, isGetter := handler.Setter.(Getter); p.parserProperties.GetShowDefaults() && !handler.Option.Required() && isGetter {
 		if v := handler.PrintDefaultValue(); v != nil {
 			return " " + msgDefaultValue.format(*v)
 		}
@@ -268,8 +269,8 @@ func (p *CmdLineParser) wrapLines(line string, maxLength int) []string {
 	return rv
 }
 
-func (p *CmdLineParser) getPrefixLen(h OptionHandler, rb ResourceBundle) int {
-	if len(h.GetOptionHandlerBase().Option.Usage()) == 0 {
+func (p *CmdLineParser) getPrefixLen(h *OptionHandler, rb ResourceBundle) int {
+	if len(h.Option.Usage()) == 0 {
 		return 0
 	}
 	return jutil.StringLength(h.GetNameAndMetaWithProperties(rb, p.parserProperties))
@@ -288,7 +289,7 @@ func (c *cmdLineParams) Size() int            { return len(c.args) - c.pos }
 
 func (c *cmdLineParams) GetParameter(idx int) string {
 	if c.pos+idx >= len(c.args) || c.pos+idx < 0 {
-		optName := c.owner.currentOptionHandler.GetOptionHandlerBase().Option.String()
+		optName := c.owner.currentOptionHandler.Option.String()
 		panic(newCmdLineException(c.owner, msgMissingOperand, optName))
 	}
 	return c.args[c.pos+idx]
@@ -314,8 +315,8 @@ func (p *CmdLineParser) ParseArgument(args ...string) {
 	}
 	cmdLine := &cmdLineParams{owner: p, args: expandedArgs}
 
-	presentSet := make(map[OptionHandler]bool)
-	var presentOrder []OptionHandler
+	presentSet := make(map[*OptionHandler]bool)
+	var presentOrder []*OptionHandler
 	argIndex := 0
 
 	for cmdLine.hasMore() {
@@ -348,7 +349,7 @@ func (p *CmdLineParser) ParseArgument(args ...string) {
 			if p.currentOptionHandler == nil {
 				panic(jutil.NewIllegalStateExceptionMsg("@Argument with index=" + strconv.Itoa(argIndex) + " is undefined"))
 			}
-			if !p.currentOptionHandler.GetOptionHandlerBase().Option.IsMultiValued() {
+			if !p.currentOptionHandler.Option.IsMultiValued() {
 				argIndex++
 			}
 		}
@@ -361,7 +362,7 @@ func (p *CmdLineParser) ParseArgument(args ...string) {
 	}
 
 	for _, handler := range p.options {
-		if handler.GetOptionHandlerBase().Option.Help() && presentSet[handler] {
+		if handler.Option.Help() && presentSet[handler] {
 			return
 		}
 	}
@@ -390,44 +391,40 @@ func (p *CmdLineParser) expandAtFiles(args []string) []string {
 	return result
 }
 
-func (p *CmdLineParser) checkRequiredOptionsAndArguments(presentSet map[OptionHandler]bool, presentOrder []OptionHandler) {
+func (p *CmdLineParser) checkRequiredOptionsAndArguments(presentSet map[*OptionHandler]bool, presentOrder []*OptionHandler) {
 	for _, handler := range p.options {
-		option := handler.GetOptionHandlerBase().Option
-		if option.Required() && !presentSet[handler] {
-			panic(newCmdLineException(p, msgRequiredOptionMissing, option.String()))
+		if handler.Option.Required() && !presentSet[handler] {
+			panic(newCmdLineException(p, msgRequiredOptionMissing, handler.Option.String()))
 		}
 	}
 	for _, handler := range p.arguments {
-		option := handler.GetOptionHandlerBase().Option
-		if option.Required() && !presentSet[handler] {
-			panic(newCmdLineException(p, msgRequiredArgumentMissing, option.String()))
+		if handler.Option.Required() && !presentSet[handler] {
+			panic(newCmdLineException(p, msgRequiredArgumentMissing, handler.Option.String()))
 		}
 	}
 	for _, handler := range presentOrder {
-		named, ok := handler.GetOptionHandlerBase().Option.(*NamedOptionDef)
-		if !ok {
+		if !handler.Option.IsNamed() {
 			continue
 		}
-		for _, depend := range named.Depends() {
+		for _, depend := range handler.Option.Depends() {
 			if !presentSet[p.findOptionHandler(depend)] {
-				panic(newCmdLineException(p, msgRequiresOptionMissing, named.String(), "["+strings.Join(named.Depends(), ", ")+"]"))
+				panic(newCmdLineException(p, msgRequiresOptionMissing, handler.Option.String(), "["+strings.Join(handler.Option.Depends(), ", ")+"]"))
 			}
 		}
 	}
 	for _, handler := range presentOrder {
-		named, ok := handler.GetOptionHandlerBase().Option.(*NamedOptionDef)
-		if !ok {
+		if !handler.Option.IsNamed() {
 			continue
 		}
-		for _, forbid := range named.Forbids() {
+		for _, forbid := range handler.Option.Forbids() {
 			if presentSet[p.findOptionHandler(forbid)] {
-				panic(newCmdLineException(p, msgForbiddenOptionPresent, named.String(), "["+strings.Join(named.Forbids(), ", ")+"]"))
+				panic(newCmdLineException(p, msgForbiddenOptionPresent, handler.Option.String(), "["+strings.Join(handler.Option.Forbids(), ", ")+"]"))
 			}
 		}
 	}
 }
 
-func (p *CmdLineParser) findOptionHandler(name string) OptionHandler {
+func (p *CmdLineParser) findOptionHandler(name string) *OptionHandler {
 	delim := p.parserProperties.GetOptionValueDelimiter()
 	pos := jutil.StringIndexOf(name, delim)
 	if pos < 0 {
@@ -439,19 +436,18 @@ func (p *CmdLineParser) findOptionHandler(name string) OptionHandler {
 	return p.findOptionByName(name)
 }
 
-func (p *CmdLineParser) findOptionByName(name string) OptionHandler {
+func (p *CmdLineParser) findOptionByName(name string) *OptionHandler {
 	if len(p.options) == 0 {
 		return nil
 	}
 	if p.optionByName == nil {
-		m := make(map[string]OptionHandler, len(p.options)*2)
+		m := make(map[string]*OptionHandler, len(p.options)*2)
 		for _, h := range p.options {
-			option := h.GetOptionHandlerBase().Option.(*NamedOptionDef)
-			optName := option.Name()
+			optName := h.Option.Name()
 			if _, exists := m[optName]; !exists {
 				m[optName] = h
 			}
-			for _, alias := range option.Aliases() {
+			for _, alias := range h.Option.Aliases() {
 				if _, exists := m[alias]; !exists {
 					m[alias] = h
 				}
@@ -481,28 +477,32 @@ func (p *CmdLineParser) PrintSingleLineUsage(out io.Writer) {
 
 func (p *CmdLineParser) PrintSingleLineUsageToWriter(w jutil.Writer, rb ResourceBundle) {
 	checkNonNull(w, "Writer")
-	pw := jutil.NewPrintWriter(w)
+	var buf strings.Builder
 	for _, h := range p.arguments {
-		p.printSingleLineOption(pw, h, rb)
+		p.printSingleLineOption(&buf, h, rb)
 	}
 	for _, h := range p.options {
-		p.printSingleLineOption(pw, h, rb)
+		p.printSingleLineOption(&buf, h, rb)
 	}
-	pw.Flush()
+	if buf.Len() > 0 {
+		s := buf.String()
+		jutil.Try(func() { w.Write(s) }, func(jutil.IIOException) {})
+	}
+	jutil.Try(func() { w.Flush() }, func(jutil.IIOException) {})
 }
 
-func (p *CmdLineParser) printSingleLineOption(pw *jutil.PrintWriter, h OptionHandler, rb ResourceBundle) {
-	option := h.GetOptionHandlerBase().Option
-	pw.PrintChar(' ')
+func (p *CmdLineParser) printSingleLineOption(buf *strings.Builder, h *OptionHandler, rb ResourceBundle) {
+	option := h.Option
+	buf.WriteByte(' ')
 	if !option.Required() {
-		pw.PrintChar('[')
+		buf.WriteByte('[')
 	}
-	pw.Print(h.GetNameAndMetaWithProperties(rb, p.parserProperties))
+	buf.WriteString(h.GetNameAndMetaWithProperties(rb, p.parserProperties))
 	if option.IsMultiValued() {
-		pw.Print(" ...")
+		buf.WriteString(" ...")
 	}
 	if !option.Required() {
-		pw.PrintChar(']')
+		buf.WriteByte(']')
 	}
 }
 

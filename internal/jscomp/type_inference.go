@@ -136,16 +136,19 @@ func (ti *TypeInference) initTypeInference(
 			" scope root node of %s",
 		cfg.GetEntry(),
 		syntacticScope.GetRootNode())
-	ti.compiler = jutil.CheckNotNull(compiler)
-	registry := jutil.CheckNotNull(compiler.GetTypeRegistry())
+	if compiler == nil {
+		panic(jutil.NewNullPointerException())
+	}
+	ti.compiler = compiler
+	registry := jutil.CheckNotNullPtr(compiler.GetTypeRegistry())
 	if ti.registry != registry {
 		ti.registry = registry
 		ti.unknownType = registry.GetNativeObjectType(rhino.JSTypeNative_UNKNOWN_TYPE)
 		ti.numberAdditionSupertype = registry.GetNativeType(rhino.JSTypeNative_NUMBER_ADDITION_SUPERTYPE)
 		ti.arrayOfUnknownType = nil
 	}
-	ti.reverseInterpreter = jutil.CheckNotNull(reverseInterpreter)
-	ti.scopeCreator = jutil.CheckNotNull(scopeCreator)
+	ti.reverseInterpreter = jutil.CheckNotNullPtr(reverseInterpreter)
+	ti.scopeCreator = jutil.CheckNotNullPtr(scopeCreator)
 	if scopeCreator.moduleImportResolver != nil {
 		ti.moduleImportResolver = scopeCreator.moduleImportResolver
 	} else {
@@ -154,7 +157,7 @@ func (ti *TypeInference) initTypeInference(
 				compiler.GetModuleMap(), scopeCreator.GetNodeToScopeMapper(), ti.registry)
 	}
 	ti.containerScope = syntacticScope
-	ti.assertionFunctionLookup = jutil.CheckNotNull(assertionFunctionLookup)
+	ti.assertionFunctionLookup = jutil.CheckNotNullPtr(assertionFunctionLookup)
 
 	rootNode := syntacticScope.GetRootNode()
 	clear(ti.bottomImplicitVars[:])
@@ -372,8 +375,7 @@ func (ti *TypeInference) UpdateDestructuringParameter(
 			entryFlowScope,
 			inferredType,
 			func(scope FlowScope, lvalue rhino.Node, type_ rhino.JSType) FlowScope {
-				var_ := ti.containerScope.GetVar(lvalue.GetString())
-				jutil.CheckNotNull(var_)
+				var_ := jutil.CheckNotNullPtr(ti.containerScope.GetVar(lvalue.GetString()))
 				// This condition will trigger on cases like
 				//   (function f({x}) {})({x: 3})
 				// where `x` is of unknown type during the typed scope creation phase, but
@@ -409,7 +411,9 @@ func (ti *TypeInference) UpdateDestructuringParameter(
 func (ti *TypeInference) UpdateNamedParameter(
 	paramName rhino.Node, hasDefaultValue bool, inferredType rhino.JSType, entryFlowScope FlowScope) FlowScope {
 	var_ := ti.containerScope.GetVar(paramName.GetString())
-	jutil.CheckNotNullMsg1(var_, "Missing var for parameter %s", paramName)
+	if var_ == nil {
+		panic(jutil.NewNullPointerExceptionMsg(jutil.StringFormat("Missing var for parameter %s", paramName)))
+	}
 
 	paramName.SetJSType(inferredType)
 
@@ -522,11 +526,10 @@ func (ti *TypeInference) UpdateModuleScope(module *Module, syntacticBlockScope *
 			syntacticBlockScope)
 		return
 	case ModuleMetadataMap_ModuleType_GOOG_MODULE, ModuleMetadataMap_ModuleType_LEGACY_GOOG_MODULE:
-		exportsVar :=
-			jutil.CheckNotNullMsg1(
-				syntacticBlockScope.GetVar("exports"),
-				"Missing exports var for %s",
-				module.Metadata())
+		exportsVar := syntacticBlockScope.GetVar("exports")
+		if exportsVar == nil {
+			panic(jutil.NewNullPointerExceptionMsg(jutil.StringFormat("Missing exports var for %s", module.Metadata())))
+		}
 		var exportsType rhino.JSType
 		if exportsVar.GetType() != nil {
 			exportsType = exportsVar.GetType()
@@ -798,7 +801,9 @@ func (ti *TypeInference) Traverse(n rhino.Node, scope FlowScope) FlowScope {
 		scope = ti.TraverseChildren(n, scope)
 		info := n.GetJSDocInfo()
 		// TODO(b/123955687): also check that info.hasType() is true
-		jutil.CheckNotNullMsg(info, "CAST node should always have JSDocInfo")
+		if info == nil {
+			panic(jutil.NewNullPointerExceptionMsg("CAST node should always have JSDocInfo"))
+		}
 		if info.HasType() {
 			// NOTE(lharker) - I tried moving CAST type evaluation into the typed scope creation
 			// phase.
@@ -1225,7 +1230,9 @@ func (ti *TypeInference) UpdateScopeForAssignmentWithUpdateNode(
 	resultType rhino.JSType,
 	updateNode rhino.Node,
 	type_ TypeInference_AssignmentType) FlowScope {
-	jutil.CheckNotNull(resultType)
+	if resultType == nil {
+		panic(jutil.NewNullPointerException())
+	}
 	jutil.CheckState(updateNode.IsNil() || updateNode == target)
 
 	targetType := target.GetJSType() // may be null
@@ -1546,7 +1553,9 @@ func (ti *TypeInference) TraverseDestructuringPattern(
 func (ti *TypeInference) TraverseDestructuringPatternHelper(
 	pattern rhino.Node, scope FlowScope, patternType rhino.JSType, declarer TypeInference_TypeDeclaringCallback) FlowScope {
 	jutil.CheckArgumentMsg1(pattern.IsDestructuringPattern(), "%s", pattern)
-	jutil.CheckNotNull(patternType)
+	if patternType == nil {
+		panic(jutil.NewNullPointerException())
+	}
 	ForEachDestructuredTarget(ti.registry, patternType, pattern, func(target DestructuredTarget) {
 		// The computed property is always evaluated first.
 		if target.HasComputedProperty() {

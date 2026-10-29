@@ -873,30 +873,24 @@ func (o *ObjectTypeBase) GetOwnPropertyKeys() []Property_Key {
 		pm := self.GetPropertyMap()
 		pm.ensureSorted()
 		entries := pm.entries()
-		if len(ownSymbols) == 0 {
-			out := make([]Property_Key, len(entries))
-			for i, prop := range entries {
-				out[i] = NewProperty_StringKeyByID(uint32(prop.nameID))
-			}
-			return out
+		out := make([]Property_Key, len(entries)+len(ownSymbols))
+		for i, prop := range entries {
+			out[i] = NewProperty_StringKeyByID(uint32(prop.nameID))
 		}
-		ownPropertyKeys := jutil.NewObjectLinkedHashSet[Property_Key]()
-		for _, prop := range entries {
-			ownPropertyKeys.Add(NewProperty_StringKeyByID(uint32(prop.nameID)))
+		for i, symbol := range ownSymbols {
+			out[len(entries)+i] = NewProperty_SymbolKey(symbol)
 		}
-		for _, symbol := range ownSymbols {
-			ownPropertyKeys.Add(NewProperty_SymbolKey(symbol))
-		}
-		return ownPropertyKeys.ToSlice()
+		return out
 	}
-	ownPropertyKeys := jutil.NewObjectLinkedHashSet[Property_Key]()
-	self.ForEachOwnPropertyName(func(propertyName string) {
-		ownPropertyKeys.Add(NewProperty_StringKey(propertyName))
-	})
-	for _, symbol := range ownSymbols {
-		ownPropertyKeys.Add(NewProperty_SymbolKey(symbol))
+	ownNames := self.GetOwnPropertyNames()
+	out := make([]Property_Key, len(ownNames)+len(ownSymbols))
+	for i, propertyName := range ownNames {
+		out[i] = NewProperty_StringKey(propertyName)
 	}
-	return ownPropertyKeys.ToSlice()
+	for i, symbol := range ownSymbols {
+		out[len(ownNames)+i] = NewProperty_SymbolKey(symbol)
+	}
+	return out
 }
 
 // IsPropertyTypeInferred checks whether the property's type is inferred.

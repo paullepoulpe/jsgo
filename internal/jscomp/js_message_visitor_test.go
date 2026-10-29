@@ -109,13 +109,15 @@ func (c *JsMessageVisitorTest) TestIcuTemplateParsing() {
 				"}\n")
 	extractedParts :=
 		icuMessageTemplateString.ExtractParts(
-			jutil.NewLinkedHashSet("INTERPOLATION_1", "INTERPOLATION_2", "MISSING"))
+			map[string]struct{}{"INTERPOLATION_1": {}, "INTERPOLATION_2": {}, "MISSING": {}})
 
-	// The non-existent placeholder name "MISSING" should be missing from this list.
+	// The non-existent placeholder name "MISSING" should be missing from this set.
 	// JsMessageVisitor will notice the name is missing from the resulting set of
 	// seen placeholders and report an error, though we won't do that in this test.
-	AssertThat(extractedParts.extractedPlaceholderNames).
-		ContainsExactly("INTERPOLATION_1", "INTERPOLATION_2")
+	AssertThat(len(extractedParts.extractedPlaceholderNames)).IsEqualTo(2)
+	_, has1 := extractedParts.extractedPlaceholderNames["INTERPOLATION_1"]
+	_, has2 := extractedParts.extractedPlaceholderNames["INTERPOLATION_2"]
+	AssertThat(has1 && has2).IsTrue()
 	parts := extractedParts.extractedParts
 
 	AssertThat(parts[0].GetString()).

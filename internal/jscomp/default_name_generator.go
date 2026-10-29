@@ -1,4 +1,5 @@
 // Port of com/google/javascript/jscomp/DefaultNameGenerator.java @ closure-compiler v20261021
+// Port of com/google/javascript/jscomp/NameGenerator.java @ closure-compiler v20261021
 
 /*
  * Copyright 2005 The Closure Compiler Authors.
@@ -16,14 +17,93 @@
  * limitations under the License.
  */
 
+/*
+ * Copyright 2015 The Closure Compiler Authors.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 package jscomp
 
 import (
+	"iter"
 	"slices"
+	"strings"
 
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
+	"github.com/paullepoulpe/jsgo/internal/strpool"
 )
+
+// stringMapSet adapts a plain Go map[string]struct{} to jutil.Set[string]
+// without LinkedHashSet entry/order slice overhead.
+type stringMapSet map[string]struct{}
+
+func (s stringMapSet) Size() int              { return len(s) }
+func (s stringMapSet) IsEmpty() bool          { return len(s) == 0 }
+func (s stringMapSet) Contains(e string) bool { _, ok := s[e]; return ok }
+func (s stringMapSet) All() iter.Seq[string] {
+	return func(yield func(string) bool) {
+		// order-independent: unordered set view used only for membership snapshots
+		for k := range s {
+			if !yield(k) {
+				return
+			}
+		}
+	}
+}
+
+// setNodeStringID updates a StringNode's payload to pre-interned id without
+// re-interning, while preserving SourceInformationAnnotator's lazy OriginalName
+// spill when kindFlagOrigNameIsString is set.
+func setNodeStringID(n rhino.Node, id strpool.ID) {
+	if id == 0 {
+		panic(jutil.NewNullPointerException())
+	}
+	curID := n.GetStringID()
+	if curID == uint32(id) {
+		return
+	}
+	if n.GetOriginalNameID() == curID {
+		n.SetString(strpool.String(id))
+		return
+	}
+	n.SetStringID(id)
+}
+
+// NameGenerator is a class that generates unique JavaScript
+// variable/property names.
+//
+// Go-only: language-adapter — the Java Set parameters are jutil.Set views:
+// reservedNames is referenced, not copied (it may be a live view such as a
+// map's key set).
+type NameGenerator interface {
+	// Java: NameGenerator.reset(Set<String>, String, Set<Character>)
+	Reset(reservedNames jutil.Set[string], prefix string, reservedCharacters jutil.Set[uint16])
+
+	// Java: NameGenerator.reset(Set<String>, String, Set<Character>, Set<Character>)
+	ResetWithFirstAndNonFirstChars(
+		reservedNames jutil.Set[string],
+		prefix string,
+		reservedFirstCharacters jutil.Set[uint16],
+		reservedNonFirstCharacters jutil.Set[uint16])
+
+	// Java: NameGenerator.clone(Set<String>, String, Set<Character>)
+	Clone(reservedNames jutil.Set[string], prefix string, reservedCharacters jutil.Set[uint16]) NameGenerator
+
+	// Java: NameGenerator.generateNextName()
+	GenerateNextName() string
+}
 
 const asciiByteTable = "\x00\x01\x02\x03\x04\x05\x06\x07\x08\x09\x0a\x0b\x0c\x0d\x0e\x0f" +
 	"\x10\x11\x12\x13\x14\x15\x16\x17\x18\x19\x1a\x1b\x1c\x1d\x1e\x1f" +
@@ -58,12 +138,14 @@ type DefaultNameGenerator struct {
 	nameCount     int
 	hasFavored    bool
 
-	firstChars    []*defaultNameGenerator_CharPriority
-	nonFirstChars []*defaultNameGenerator_CharPriority
-	priorities    [len(defaultNameGenerator_NONFIRST_CHAR_STR)]defaultNameGenerator_CharPriority
-	firstBuf      [len(defaultNameGenerator_FIRST_CHAR_STR)]*defaultNameGenerator_CharPriority
-	nonFirstBuf   [len(defaultNameGenerator_NONFIRST_CHAR_STR)]*defaultNameGenerator_CharPriority
-	scratchBuf    [32]byte
+	firstChars      []*defaultNameGenerator_CharPriority
+	nonFirstChars   []*defaultNameGenerator_CharPriority
+	firstAllowed    [128]bool
+	nonFirstAllowed [128]bool
+	priorities      [len(defaultNameGenerator_NONFIRST_CHAR_STR)]defaultNameGenerator_CharPriority
+	firstBuf        [len(defaultNameGenerator_FIRST_CHAR_STR)]*defaultNameGenerator_CharPriority
+	nonFirstBuf     [len(defaultNameGenerator_NONFIRST_CHAR_STR)]*defaultNameGenerator_CharPriority
+	scratchBuf      [32]byte
 }
 
 // defaultNameGenerator_CharPriority represents a char that can be used in
@@ -193,8 +275,8 @@ func (g *DefaultNameGenerator) ResetWithFirstAndNonFirstChars(
 	g.nameCount = 0
 
 	// build the character arrays to use
-	g.firstChars = g.reserveCharactersInto(g.firstBuf[:0], defaultNameGenerator_FIRST_CHAR_STR, reservedFirstCharacters)
-	g.nonFirstChars = g.reserveCharactersInto(g.nonFirstBuf[:0], defaultNameGenerator_NONFIRST_CHAR_STR, reservedNonFirstCharacters)
+	g.firstChars, g.firstAllowed = g.reserveCharactersInto(g.firstBuf[:0], defaultNameGenerator_FIRST_CHAR_STR, reservedFirstCharacters)
+	g.nonFirstChars, g.nonFirstAllowed = g.reserveCharactersInto(g.nonFirstBuf[:0], defaultNameGenerator_NONFIRST_CHAR_STR, reservedNonFirstCharacters)
 	if g.hasFavored {
 		// Arrays.sort(Object[]) is a stable merge sort.
 		slices.SortStableFunc(g.firstChars, (*defaultNameGenerator_CharPriority).CompareTo)
@@ -247,20 +329,41 @@ func (g *DefaultNameGenerator) reserveCharactersInto(
 	dst []*defaultNameGenerator_CharPriority,
 	chars string,
 	reservedCharacterSet jutil.Set[uint16],
-) []*defaultNameGenerator_CharPriority {
+) ([]*defaultNameGenerator_CharPriority, [128]bool) {
+	var allowed [128]bool
 	if reservedCharacterSet == nil || reservedCharacterSet.IsEmpty() {
 		for i := 0; i < len(chars); i++ {
-			dst = append(dst, &g.priorities[defaultNameGenerator_orderByASCII[chars[i]]])
+			ch := chars[i]
+			dst = append(dst, &g.priorities[defaultNameGenerator_orderByASCII[ch]])
+			allowed[ch] = true
 		}
-		return dst
+		return dst, allowed
 	}
 	for i := 0; i < len(chars); i++ {
 		ch := chars[i]
 		if !reservedCharacterSet.Contains(uint16(ch)) {
 			dst = append(dst, &g.priorities[defaultNameGenerator_orderByASCII[ch]])
+			allowed[ch] = true
 		}
 	}
-	return dst
+	return dst, allowed
+}
+
+func formatCharPriorities(arr []*defaultNameGenerator_CharPriority) string {
+	if len(arr) == 0 {
+		return "[]"
+	}
+	var sb strings.Builder
+	sb.Grow(2 + 3*len(arr))
+	sb.WriteByte('[')
+	for i, cp := range arr {
+		if i > 0 {
+			sb.WriteString(", ")
+		}
+		sb.WriteByte(byte(cp.name))
+	}
+	sb.WriteByte(']')
+	return sb.String()
 }
 
 // checkPrefix validates a name prefix.
@@ -270,37 +373,18 @@ func (g *DefaultNameGenerator) checkPrefix(prefix string) {
 	if prefix == "" {
 		return
 	}
-	units := jutil.StringToUTF16(prefix)
 	// Make sure that prefix starts with a legal character.
-	if !defaultNameGenerator_contains(g.firstChars, units[0]) {
-		chars := make([]uint16, len(g.firstChars))
-		for i := 0; i < len(chars); i++ {
-			chars[i] = g.firstChars[i].name
-		}
+	if prefix[0] >= 0x80 || !g.firstAllowed[prefix[0]] {
 		panic(jutil.NewIllegalArgumentExceptionMsg(
-			"prefix must start with one of: " + jutil.CollectionToString(chars)))
+			"prefix must start with one of: " + formatCharPriorities(g.firstChars)))
 	}
-	for pos := 1; pos < len(units); pos++ {
-		if !defaultNameGenerator_contains(g.nonFirstChars, units[pos]) {
-			chars := make([]uint16, len(g.nonFirstChars))
-			for i := 0; i < len(chars); i++ {
-				chars[i] = g.nonFirstChars[i].name
-			}
+	for pos := 1; pos < len(prefix); pos++ {
+		if prefix[pos] >= 0x80 || !g.nonFirstAllowed[prefix[pos]] {
 			panic(jutil.NewIllegalArgumentExceptionMsg(
 				"prefix has invalid characters, must be one of: " +
-					jutil.CollectionToString(chars)))
+					formatCharPriorities(g.nonFirstChars)))
 		}
 	}
-}
-
-// Java: DefaultNameGenerator.contains(CharPriority[], char)
-func defaultNameGenerator_contains(arr []*defaultNameGenerator_CharPriority, c uint16) bool {
-	for i := 0; i < len(arr); i++ {
-		if arr[i].name == c {
-			return true
-		}
-	}
-	return false
 }
 
 // GenerateNextName generates the next short name.
@@ -377,19 +461,19 @@ func (g *DefaultNameGenerator) GenerateNextName() string {
 			return cand
 		}
 
-		sb := jutil.NewStringBuilder()
+		var sb strings.Builder
 		i = g.nameCount
 
 		if g.prefix != "" {
-			sb.Append(g.prefix)
+			sb.WriteString(g.prefix)
 		}
 
-		if sb.Length() == 0 {
+		if sb.Len() == 0 {
 			if len(g.firstChars) == 0 {
 				panic(jutil.NewArithmeticException("/ by zero"))
 			}
 			pos := i % len(g.firstChars)
-			sb.AppendChar(g.firstChars[pos].name)
+			sb.WriteByte(byte(g.firstChars[pos].name))
 			i /= len(g.firstChars)
 		}
 
@@ -399,7 +483,7 @@ func (g *DefaultNameGenerator) GenerateNextName() string {
 				panic(jutil.NewArithmeticException("/ by zero"))
 			}
 			pos := i % len(g.nonFirstChars)
-			sb.AppendChar(g.nonFirstChars[pos].name)
+			sb.WriteByte(byte(g.nonFirstChars[pos].name))
 			i /= len(g.nonFirstChars)
 		}
 

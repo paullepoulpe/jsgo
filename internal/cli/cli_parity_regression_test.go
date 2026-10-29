@@ -225,3 +225,35 @@ take(b);
 			"0 error(s), 2 warning(s), 100.0% typed\n",
 	}.run(t)
 }
+
+func TestPathMatcherGlobVectors(t *testing.T) {
+	data, err := os.ReadFile("testdata/glob_vectors.tsv")
+	if err != nil {
+		t.Fatal(err)
+	}
+	paths := []string{"a.js", "b.js", "c.js", "d.js", "-.js", "./a.js", "./x/a.js", "x/y/a.js", "ab.js", "a*.js", "./src/x_test.js", "./src/d/y_test.js", "a/b", "]].js", "].js", "x*y", "x?y", "x\\y", "axb", ".js"}
+	for _, line := range strings.Split(strings.TrimRight(string(data), "\n"), "\n") {
+		parts := strings.SplitN(line, "\t", 3)
+		glob, kind, want := parts[0], parts[1], parts[2]
+		var got string
+		jutil.Try(func() {
+			re := compileGlobMatcher(glob)
+			var matched []string
+			for _, p := range paths {
+				if re.MatchString(jutil.Path_Of(p).String()) {
+					matched = append(matched, p)
+				}
+			}
+			got = "OK\t" + strings.Join(matched, " ")
+		}, func(e jutil.Throwable) { got = "ERR\t" + strings.ReplaceAll(e.Error(), "\n", "\\n") })
+		if strings.Contains(want, "Unclosed character class") {
+			if !strings.HasPrefix(got, "ERR\tjava.util.regex.PatternSyntaxException: Unclosed character class") {
+				t.Errorf("glob %q: got %s, want an Unclosed character class error", glob, got)
+			}
+			continue
+		}
+		if got != kind+"\t"+want {
+			t.Errorf("glob %q:\n got %s\nwant %s\t%s", glob, got, kind, want)
+		}
+	}
+}

@@ -124,18 +124,22 @@ func (c *CheckJSDoc) Process(externs rhino.Node, root rhino.Node) {
 // that look like they are JsDoc, and thus should start with /**.
 //
 // Java: CheckJSDoc.checkJsDocInBlockComments(String)
-func (c *CheckJSDoc) CheckJsDocInBlockComments(fileName *string) {
+func (c *CheckJSDoc) CheckJsDocInBlockComments(script rhino.Node) {
 	if !c.compiler.GetOptions().PreservesDetailedSourceInfo() {
 		// Comments only available if preservesDetailedSourceInfo is true.
 		return
 	}
+	sf := script.GetStaticSourceFile()
+	if sf == nil {
+		panic(jutil.NewNullPointerException())
+	}
 
-	for _, comment := range c.compiler.GetComments(*fileName) {
+	for _, comment := range c.compiler.GetComments(sf.GetName()) {
 		if comment.Type == parser.Comment_Type_BLOCK {
 			if checkJSDoc_COMMENT_PATTERN.Matcher(comment.Value).Find() {
 				c.compiler.Report(
 					JSError_MakeWithSourceLocation(
-						fileName,
+						script.GetSourceFileName(),
 						int(comment.Location.Start.Line)+1,
 						int(comment.Location.Start.Column),
 						CheckJSDoc_JSDOC_IN_BLOCK_COMMENT))
@@ -147,7 +151,7 @@ func (c *CheckJSDoc) CheckJsDocInBlockComments(fileName *string) {
 // Java: CheckJSDoc.visit(NodeTraversal, Node, Node)
 func (c *CheckJSDoc) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	if n.IsScript() {
-		c.CheckJsDocInBlockComments(n.GetSourceFileName())
+		c.CheckJsDocInBlockComments(n)
 	}
 	info := n.GetJSDocInfo()
 	c.ValidateTypeAnnotations(n, info)
@@ -835,11 +839,7 @@ func (*CheckJSDoc_CheckJsdocTypes) Visit(typeRefNode rhino.Node) {
 	}
 	// A type name that might be simple like "Foo" or qualified like "foo.Bar".
 	typeName := typeRefNode.GetString()
-	dot := jutil.StringIndexOfChar(typeName, '.')
-	rootOfType := typeName
-	if dot != -1 {
-		rootOfType = jutil.StringSubstring(typeName, 0, dot)
-	}
+	rootOfType, _, _ := strings.Cut(typeName, ".")
 
 	// Prevent handwritten JS from referencing a module export or module content name that's
 	// synthesized by ClosureRewriteModule. Prefix the JSDoc references with

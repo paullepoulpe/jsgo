@@ -43,7 +43,7 @@ type ReplaceIdGenerators struct {
 
 	generatorOrder  []string
 	idGeneratorMaps map[string]*idGenMapping
-	previousMap     *jutil.LinkedHashMap[string, *jutil.BiMap[string, string]]
+	previousMap     map[string]*IdMappingSection
 
 	generatePseudoNames bool
 	xidHashFunction     Xid_HashFunction
@@ -143,11 +143,11 @@ func NewReplaceIdGenerators(
 	return r
 }
 
-func (r *ReplaceIdGenerators) prevMappingsFor(name string) *jutil.BiMap[string, string] {
+func (r *ReplaceIdGenerators) prevMappingsFor(name string) *IdMappingSection {
 	if r.previousMap == nil {
 		return nil
 	}
-	return r.previousMap.Get(name)
+	return r.previousMap[name]
 }
 
 func (r *ReplaceIdGenerators) registerGeneratorMap(name string) {
@@ -174,29 +174,27 @@ type idNameSupplier interface {
 
 type obfuscatedIdNameSupplier struct {
 	generator        NameGenerator
-	previousMappings *jutil.BiMap[string, string]
+	previousMappings *IdMappingSection
 	strategy         idRenameStrategy
 }
 
-func newObfuscatedIdNameSupplier(strategy idRenameStrategy, previousMappings *jutil.BiMap[string, string]) *obfuscatedIdNameSupplier {
+func newObfuscatedIdNameSupplier(strategy idRenameStrategy, previousMappings *IdMappingSection) *obfuscatedIdNameSupplier {
 	reservedNames := jutil.NewLinkedHashSet[string]()
-	var inv *jutil.BiMap[string, string]
 	if previousMappings != nil {
-		inv = previousMappings.Inverse()
-		for k := range previousMappings.Keys() {
+		for _, k := range previousMappings.Keys() {
 			reservedNames.Add(k)
 		}
 	}
 	return &obfuscatedIdNameSupplier{
 		generator:        NewDefaultNameGeneratorWithReserved(reservedNames, "", nil),
-		previousMappings: inv,
+		previousMappings: previousMappings,
 		strategy:         strategy,
 	}
 }
 
 func (s *obfuscatedIdNameSupplier) getName(id, name string) string {
 	if s.previousMappings != nil {
-		if newName, ok := s.previousMappings.Lookup(id); ok {
+		if newName, ok := s.previousMappings.LookupByValue(id); ok {
 			return newName
 		}
 	}
@@ -254,7 +252,7 @@ func (s *mappedIdNameSupplier) getName(id, name string) string {
 func (s *mappedIdNameSupplier) renameStrategy() idRenameStrategy { return idRenameMapped }
 
 func (r *ReplaceIdGenerators) createNameSupplier(
-	strategy idRenameStrategy, previousMappings *jutil.BiMap[string, string]) idNameSupplier {
+	strategy idRenameStrategy, previousMappings *IdMappingSection) idNameSupplier {
 	switch {
 	case strategy == idRenameStable:
 		return stableIdNameSupplier{}
@@ -589,5 +587,9 @@ func getIdForGeneratorNode(consistent bool, n rhino.Node, name string) string {
 	if consistent {
 		return name
 	}
-	return jutil.ToJavaString(n.GetSourceFileName()) + ":" + strconv.Itoa(n.GetLineno()) + ":" + strconv.Itoa(n.GetCharno())
+	src := "null"
+	if s := n.GetSourceFileName(); s != nil {
+		src = *s
+	}
+	return src + ":" + strconv.Itoa(n.GetLineno()) + ":" + strconv.Itoa(n.GetCharno())
 }

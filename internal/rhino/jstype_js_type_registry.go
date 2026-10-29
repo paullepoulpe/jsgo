@@ -1628,8 +1628,7 @@ func (r *JSTypeRegistry) getTypeWithLocationString(
 	if type_ := r.getTypeResolvedOrNil(scope, jsTypeName); type_ != nil {
 		return type_
 	}
-	src := sourceName
-	return r.CreateNamedType(scope, jsTypeName, &src, lineno, charno)
+	return r.createNamedTypeByID(scope, jsTypeName, rhinoStringPoolIntern(sourceName), lineno, charno)
 }
 
 // Java: JSTypeRegistry.getType(StaticTypedScope, String, String, int, int)

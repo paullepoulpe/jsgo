@@ -1,4 +1,5 @@
 // Port of com/google/javascript/rhino/jstype/RecordType.java @ closure-compiler v20261021
+// Port of com/google/javascript/rhino/jstype/RecordTypeBuilder.java @ closure-compiler v20261021
 
 /*
  *
@@ -35,7 +36,11 @@
 
 package rhino
 
-import "github.com/paullepoulpe/jsgo/internal/jutil"
+import (
+	"slices"
+
+	"github.com/paullepoulpe/jsgo/internal/jutil"
+)
 
 // RecordType is a record (structural) type.
 //
@@ -49,9 +54,6 @@ import "github.com/paullepoulpe/jsgo/internal/jutil"
 // record of type { a : A }.
 type RecordType struct {
 	PrototypeObjectTypeBase
-
-	declared bool
-	isFrozen bool
 }
 
 // Java: RecordType.TYPE_CLASS
@@ -78,7 +80,9 @@ func NewRecordType(registry *JSTypeRegistry, properties *jutil.TreeMap[string, *
 	}
 	t.InitPrototypeObjectTypeBase(t, &builder)
 	t.SetPrettyPrint(true)
-	t.declared = declared
+	if declared {
+		t.protoFlags |= protoFlagRecordDeclared
+	}
 
 	for property := range properties.Keys() {
 		prop := properties.Get(property)
@@ -93,7 +97,34 @@ func NewRecordType(registry *JSTypeRegistry, properties *jutil.TreeMap[string, *
 		}
 	}
 	// Freeze the record type.
-	t.isFrozen = true
+	t.protoFlags |= protoFlagRecordFrozen
+
+	registry.GetResolver().ResolveIfClosed(t, RecordType_TYPE_CLASS)
+	return t
+}
+
+func newRecordTypeFromProps(registry *JSTypeRegistry, props []recordProp, declared bool) *RecordType {
+	t := &RecordType{}
+	t.objFlags = objKindRecord
+	builder := PrototypeObjectType_Builder{
+		registry:        registry,
+		templateTypeMap: registry.GetEmptyTemplateTypeMap(),
+	}
+	t.InitPrototypeObjectTypeBase(t, &builder)
+	t.SetPrettyPrint(true)
+	if declared {
+		t.protoFlags |= protoFlagRecordDeclared
+	}
+
+	for i := range props {
+		prop := &props[i]
+		if declared {
+			t.DefineDeclaredProperty(prop.name, prop.type_, prop.propertyNode)
+		} else {
+			t.DefineSynthesizedProperty(prop.name, prop.type_, prop.propertyNode)
+		}
+	}
+	t.protoFlags |= protoFlagRecordFrozen
 
 	registry.GetResolver().ResolveIfClosed(t, RecordType_TYPE_CLASS)
 	return t
@@ -108,7 +139,7 @@ func (t *RecordType) GetTypeClass() JSTypeClass {
 //
 // Java: RecordType.isSynthetic()
 func (t *RecordType) IsSynthetic() bool {
-	return !t.declared
+	return (t.protoFlags & protoFlagRecordDeclared) == 0
 }
 
 // Java: RecordType.getImplicitPrototype()
@@ -118,7 +149,7 @@ func (t *RecordType) GetImplicitPrototype() ObjectType {
 
 // Java: RecordType.defineProperty(Property.Key, JSType, boolean, Node)
 func (t *RecordType) DefinePropertyByKey(propertyName Property_Key, type_ JSType, inferred bool, propertyNode Node) bool {
-	if t.isFrozen {
+	if (t.protoFlags & protoFlagRecordFrozen) != 0 {
 		return false
 	}
 
@@ -129,7 +160,8 @@ func (t *RecordType) DefinePropertyByKey(propertyName Property_Key, type_ JSType
 func (t *RecordType) GetGreatestSubtypeHelper(that JSType) JSType {
 	if that.IsRecordType() {
 		thatRecord := that.ToMaybeRecordType()
-		builder := NewRecordTypeBuilder(t.GetRegistry())
+		var builder RecordTypeBuilder
+		builder.init(t.GetRegistry())
 		builder.SetSynthesized(true)
 
 		noType := t.GetRegistry().GetNativeObjectType(JSTypeNative_NO_TYPE)
@@ -210,4 +242,111 @@ func (t *RecordType) ToMaybeRecordType() *RecordType {
 // Java: RecordType.isStructuralType()
 func (t *RecordType) IsStructuralType() bool {
 	return true
+}
+
+type recordProp struct {
+	name         string
+	type_        JSType
+	propertyNode Node
+}
+
+func compareRecordProp(a, b recordProp) int {
+	return jutil.StringCompareTo(a.name, b.name)
+}
+
+// RecordTypeBuilder is a builder for record types.
+type RecordTypeBuilder struct {
+	registry   *JSTypeRegistry
+	props      []recordProp
+	propsBuf   [8]recordProp
+	isEmpty    bool
+	isDeclared bool
+}
+
+func (b *RecordTypeBuilder) init(registry *JSTypeRegistry) {
+	b.registry = registry
+	b.props = b.propsBuf[:0]
+	b.isEmpty = true
+	b.isDeclared = true
+}
+
+// Java: RecordTypeBuilder(JSTypeRegistry)
+func NewRecordTypeBuilder(registry *JSTypeRegistry) *RecordTypeBuilder {
+	b := &RecordTypeBuilder{}
+	b.init(registry)
+	return b
+}
+
+// SetSynthesized: see the comments on RecordType about synthetic types.
+//
+// Java: RecordTypeBuilder.setSynthesized(boolean)
+func (b *RecordTypeBuilder) SetSynthesized(synthesized bool) {
+	b.isDeclared = !synthesized
+}
+
+// AddProperty adds a property with the given name and type to the record
+// type.
+//
+// name: the name of the new property. type: the JSType of the new property.
+// propertyNode: the node that holds this property definition. Returns the
+// builder itself for chaining purposes.
+//
+// Java: RecordTypeBuilder.addProperty(String, JSType, Node)
+func (b *RecordTypeBuilder) AddProperty(name string, type_ JSType, propertyNode Node) *RecordTypeBuilder {
+	b.isEmpty = false
+	for i := range b.props {
+		if b.props[i].name == name {
+			b.props[i].type_ = type_
+			b.props[i].propertyNode = propertyNode
+			return b
+		}
+	}
+	b.props = append(b.props, recordProp{name: name, type_: type_, propertyNode: propertyNode})
+	return b
+}
+
+// Build creates a record.
+//
+// Java: RecordTypeBuilder.build()
+func (b *RecordTypeBuilder) Build() JSType {
+	// If we have an empty record, simply return the object type.
+	if b.isEmpty {
+		return b.registry.GetNativeObjectType(JSTypeNative_OBJECT_TYPE)
+	}
+	var sortedBuf [8]recordProp
+	var sorted []recordProp
+	if len(b.props) <= len(sortedBuf) {
+		sorted = sortedBuf[:len(b.props)]
+	} else {
+		sorted = make([]recordProp, len(b.props))
+	}
+	copy(sorted, b.props)
+	slices.SortFunc(sorted, compareRecordProp)
+	return newRecordTypeFromProps(b.registry, sorted, b.isDeclared)
+}
+
+// RecordTypeBuilder_RecordProperty is RecordTypeBuilder.RecordProperty.
+type RecordTypeBuilder_RecordProperty struct {
+	type_        JSType
+	propertyNode Node
+}
+
+// Java: RecordTypeBuilder.RecordProperty(JSType, Node)
+func NewRecordTypeBuilder_RecordProperty(type_ JSType, propertyNode Node) *RecordTypeBuilder_RecordProperty {
+	return &RecordTypeBuilder_RecordProperty{type_: type_, propertyNode: propertyNode}
+}
+
+// Java: RecordTypeBuilder.RecordProperty.getType()
+func (p *RecordTypeBuilder_RecordProperty) GetType() JSType {
+	return p.type_
+}
+
+// Java: RecordTypeBuilder.RecordProperty.getPropertyNode()
+func (p *RecordTypeBuilder_RecordProperty) GetPropertyNode() Node {
+	return p.propertyNode
+}
+
+// Java: RecordTypeBuilder.RecordProperty.toString()
+func (p *RecordTypeBuilder_RecordProperty) String() string {
+	return "RecordProperty{type: " + jutil.ToJavaString(p.type_) + ", node: " + jutil.ToJavaString(p.propertyNode) + "}"
 }

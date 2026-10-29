@@ -1,4 +1,5 @@
 // Port of com/google/javascript/jscomp/ReplaceStrings.java @ closure-compiler v20261021
+// Port of com/google/javascript/jscomp/ReplacedStringsDecoder.java @ closure-compiler v20261021
 
 /*
  * Copyright 2010 The Closure Compiler Authors.
@@ -16,9 +17,26 @@
  * limitations under the License.
  */
 
+/*
+ * Copyright 2016 The Closure Compiler Authors.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 package jscomp
 
 import (
+	"maps"
 	"slices"
 	"strings"
 
@@ -173,14 +191,13 @@ func (r *ReplaceStrings) GetResult() []*ReplaceStrings_Result {
 //
 // Java: ReplaceStrings.getStringMap()
 func (r *ReplaceStrings) GetStringMap() *VariableMap {
-	map_ := jutil.NewImmutableMapBuilder[string, string]()
+	entries := make([]variableMapEntry, 0, len(r.resultOrder))
 	for _, result := range r.resultOrder {
 		if ReplaceStrings_USED_RESULTS(result) {
-			map_.Put(result.replacement, result.original)
+			entries = append(entries, variableMapEntry{orig: result.replacement, newName: result.original})
 		}
 	}
-
-	return NewVariableMap(map_.BuildOrThrow())
+	return newVariableMapFromEntries(entries)
 }
 
 // Java: ReplaceStrings.process(Node, Node)
@@ -462,10 +479,25 @@ func (r *ReplaceStrings) ParseConfigurationOfFunction(function string) *ReplaceS
 
 	var excludedSuffixes []string
 	if colon != -1 {
-		for _, suffix := range jutil.StringSplitLiteral(
-			function[colon+len(ReplaceStrings_EXCLUSION_PREFIX):], ",") {
-			if !slices.Contains(excludedSuffixes, suffix) {
-				excludedSuffixes = append(excludedSuffixes, suffix)
+		raw := function[colon+len(ReplaceStrings_EXCLUSION_PREFIX):]
+		if raw == "" {
+			excludedSuffixes = []string{""}
+		} else if trimmed := strings.TrimRight(raw, ","); trimmed != "" {
+			for rest := trimmed; ; {
+				comma := strings.IndexByte(rest, ',')
+				var suffix string
+				if comma < 0 {
+					suffix = rest
+				} else {
+					suffix = rest[:comma]
+				}
+				if !slices.Contains(excludedSuffixes, suffix) {
+					excludedSuffixes = append(excludedSuffixes, suffix)
+				}
+				if comma < 0 {
+					break
+				}
+				rest = rest[comma+1:]
 			}
 		}
 	}
@@ -480,7 +512,78 @@ func (r *ReplaceStrings) ParseConfigurationOfFunction(function string) *ReplaceS
 //
 // Java: ReplaceStrings.createNameGenerator()
 func ReplaceStrings_CreateNameGenerator() *DefaultNameGenerator {
-	namePrefix := ""
-	reservedChars := jutil.NewLinkedHashSet[uint16]()
-	return NewDefaultNameGeneratorWithReserved(jutil.NewLinkedHashSet[string](), namePrefix, reservedChars)
+	return NewDefaultNameGenerator()
+}
+
+// ReplacedStringsDecoder is a decoder for strings encoded by the
+// ReplaceStrings JS compiler pass. This class is immutable.
+type ReplacedStringsDecoder struct {
+	originalToNewNameMap map[string]string
+}
+
+// ReplacedStringsDecoder_ARGUMENT_PLACE_HOLDER is the default place holder
+// for replaced string arguments. Note: We're not allowing this to be
+// changed here because it's present in the replacement strings in the
+// js_storage protocol buffer.
+const ReplacedStringsDecoder_ARGUMENT_PLACE_HOLDER = "`"
+
+// ReplacedStringsDecoder_NULL_DECODER is a null decoder that does no
+// mapping.
+var ReplacedStringsDecoder_NULL_DECODER = &ReplacedStringsDecoder{}
+
+// Java: ReplacedStringsDecoder(VariableMap)
+func NewReplacedStringsDecoder(variableMap *VariableMap) *ReplacedStringsDecoder {
+	if variableMap == nil {
+		panic(jutil.NewNullPointerException())
+	}
+	// VariableMap is not an immutable type, so we clone the map instead of
+	// directly aliasing it.
+	return &ReplacedStringsDecoder{originalToNewNameMap: maps.Clone(variableMap.origToNew)}
+}
+
+// Decode decodes an encoded string from the JS Compiler ReplaceStrings
+// pass.
+//
+// Returns the decoded string, or the encoded string if it fails to decode.
+//
+// See com.google.javascript.jscomp.ReplaceStrings.
+//
+// Java: ReplacedStringsDecoder.decode(String)
+func (d *ReplacedStringsDecoder) Decode(encodedStr string) string {
+	if len(d.originalToNewNameMap) == 0 {
+		return encodedStr
+	}
+	tick := strings.IndexByte(encodedStr, '`')
+	key := encodedStr
+	if tick >= 0 {
+		key = encodedStr[:tick]
+	}
+	originalStr, ok := d.originalToNewNameMap[key]
+	if !ok {
+		return encodedStr // Failed to decode.
+	}
+	if tick < 0 && strings.IndexByte(originalStr, '`') < 0 {
+		return originalStr
+	}
+	// Java: encodedStr.split(ARGUMENT_PLACE_HOLDER, -1)
+	suppliedBits := strings.Split(encodedStr, ReplacedStringsDecoder_ARGUMENT_PLACE_HOLDER)
+	originalBits := strings.Split(originalStr, ReplacedStringsDecoder_ARGUMENT_PLACE_HOLDER)
+	var sb strings.Builder
+	sb.Grow(len(originalStr) + len(encodedStr))
+	sb.WriteString(originalBits[0])
+	for i := 1; i < max(len(originalBits), len(suppliedBits)); i++ {
+		// Replace missing bits with "-". Shouldn't happen except that we
+		// aren't escaping the replacement token at the moment.
+		if i < len(suppliedBits) {
+			sb.WriteString(suppliedBits[i])
+		} else {
+			sb.WriteByte('-')
+		}
+		if i < len(originalBits) {
+			sb.WriteString(originalBits[i])
+		} else {
+			sb.WriteByte('-')
+		}
+	}
+	return sb.String()
 }

@@ -21,6 +21,7 @@ package jscomp
 import (
 	"strings"
 
+	"github.com/paullepoulpe/jsgo/internal/ast"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
@@ -86,66 +87,85 @@ import (
 // NOTE: currently this pass only exists to prevent property collapsing from
 // breaking some simple class-side inheritance cases when transpiling.
 type ConcretizeStaticInheritanceForInlining struct {
-	duplicateClassNames *jutil.LinkedHashSet[string]
+	duplicateClassNames map[string]bool
 
 	inherits RuntimeJsLibManager_JsLibField
 
 	compiler AbstractCompiler
 
-	classByAlias    *jutil.LinkedHashMap[string, *ConcretizeStaticInheritanceForInlining_JavascriptClass]
+	classByAlias    map[string]*ConcretizeStaticInheritanceForInlining_JavascriptClass
 	classAliasLeafs map[string]struct{}
 }
 
 var ConcretizeStaticInheritanceForInlining_DUPLICATE_CLASS = DiagnosticType_Error("DUPLICATE_CLASS", "Multiple classes cannot share the same name: {0}")
 
-// Property names that may cause issues if they are concretized.
-var ConcretizeStaticInheritanceForInlining_BANNED_PROP_NAMES = jutil.NewLinkedHashSet("prototype", "getInstance")
+// isBannedStaticInheritancePropName reports property names that may cause
+// issues if they are concretized.
+func isBannedStaticInheritancePropName(name string) bool {
+	return name == "prototype" || name == "getInstance"
+}
 
 // ConcretizeStaticInheritanceForInlining_JavascriptClass is the nested class
 // JavascriptClass.
 type ConcretizeStaticInheritanceForInlining_JavascriptClass struct {
-	// All static members to the class including get set properties.
-	staticMembers *jutil.LinkedHashSet[rhino.Node]
+	// All static members to the class including get set properties, in insertion order.
+	staticMembers   []rhino.Node
+	staticMemberSet map[rhino.Node]bool
 	// Keep updated the set of static member names to avoid O(n^2) searches.
-	staticMemberNames *jutil.LinkedHashSet[string]
+	staticMemberNames map[string]bool
 	// Collect all get set properties as defined by Object.defineProperties(...)
-	definedProperties *jutil.LinkedHashSet[string]
+	definedProperties map[string]bool
 }
 
 // Java: ConcretizeStaticInheritanceForInlining.JavascriptClass()
 func NewConcretizeStaticInheritanceForInlining_JavascriptClass() *ConcretizeStaticInheritanceForInlining_JavascriptClass {
-	return &ConcretizeStaticInheritanceForInlining_JavascriptClass{
-		staticMembers:     jutil.NewLinkedHashSet[rhino.Node](),
-		staticMemberNames: jutil.NewLinkedHashSet[string](),
-		definedProperties: jutil.NewLinkedHashSet[string](),
-	}
+	return &ConcretizeStaticInheritanceForInlining_JavascriptClass{}
 }
 
 // Java: ConcretizeStaticInheritanceForInlining.JavascriptClass.addStaticMember(Node)
 func (c *ConcretizeStaticInheritanceForInlining_JavascriptClass) AddStaticMember(node rhino.Node) {
-	c.staticMembers.Add(node)
-	c.staticMemberNames.Add(node.GetFirstChild().GetString())
+	if c.staticMemberSet == nil {
+		c.staticMemberSet = make(map[rhino.Node]bool)
+		c.staticMemberNames = make(map[string]bool)
+	}
+	if !c.staticMemberSet[node] {
+		c.staticMemberSet[node] = true
+		c.staticMembers = append(c.staticMembers, node)
+	}
+	c.staticMemberNames[node.GetFirstChild().GetString()] = true
+}
+
+func (c *ConcretizeStaticInheritanceForInlining_JavascriptClass) addDefinedProperty(name string) {
+	if c.definedProperties == nil {
+		c.definedProperties = make(map[string]bool)
+	}
+	c.definedProperties[name] = true
 }
 
 // Java: ConcretizeStaticInheritanceForInlining(AbstractCompiler)
 func NewConcretizeStaticInheritanceForInlining(compiler AbstractCompiler) *ConcretizeStaticInheritanceForInlining {
-	c := &ConcretizeStaticInheritanceForInlining{
-		duplicateClassNames: jutil.NewLinkedHashSet[string](),
-		classByAlias:        jutil.NewLinkedHashMap[string, *ConcretizeStaticInheritanceForInlining_JavascriptClass](),
-		classAliasLeafs:     make(map[string]struct{}, 64),
+	return &ConcretizeStaticInheritanceForInlining{
+		compiler:        compiler,
+		inherits:        compiler.GetRuntimeJsLibManager().GetJsLibField("$jscomp.inherits"),
+		classByAlias:    make(map[string]*ConcretizeStaticInheritanceForInlining_JavascriptClass, 64),
+		classAliasLeafs: make(map[string]struct{}, 64),
 	}
-	c.compiler = compiler
-	c.inherits = compiler.GetRuntimeJsLibManager().GetJsLibField("$jscomp.inherits")
-	return c
 }
 
 func (c *ConcretizeStaticInheritanceForInlining) putClassByAlias(name string, cls *ConcretizeStaticInheritanceForInlining_JavascriptClass) {
-	c.classByAlias.Put(name, cls)
+	c.classByAlias[name] = cls
 	leaf := name
 	if dot := strings.LastIndexByte(name, '.'); dot >= 0 {
 		leaf = name[dot+1:]
 	}
 	c.classAliasLeafs[leaf] = struct{}{}
+}
+
+func (c *ConcretizeStaticInheritanceForInlining) addDuplicateClassName(name string) {
+	if c.duplicateClassNames == nil {
+		c.duplicateClassNames = make(map[string]bool)
+	}
+	c.duplicateClassNames[name] = true
 }
 
 func (c *ConcretizeStaticInheritanceForInlining) lookupClassByNode(n rhino.Node) (string, *ConcretizeStaticInheritanceForInlining_JavascriptClass) {
@@ -158,7 +178,7 @@ func (c *ConcretizeStaticInheritanceForInlining) lookupClassByNode(n rhino.Node)
 		if _, ok := c.classAliasLeafs[name]; !ok {
 			return "", nil
 		}
-		return name, c.classByAlias.Get(name)
+		return name, c.classByAlias[name]
 	case rhino.Token_GETPROP:
 		if _, ok := c.classAliasLeafs[n.GetString()]; !ok {
 			return "", nil
@@ -167,13 +187,13 @@ func (c *ConcretizeStaticInheritanceForInlining) lookupClassByNode(n rhino.Node)
 		if !ok {
 			return "", nil
 		}
-		return qname, c.classByAlias.Get(qname)
+		return qname, c.classByAlias[qname]
 	case rhino.Token_THIS, rhino.Token_SUPER:
 		qname, ok := n.GetQualifiedNameString()
 		if !ok {
 			return "", nil
 		}
-		return qname, c.classByAlias.Get(qname)
+		return qname, c.classByAlias[qname]
 	default:
 		return "", nil
 	}
@@ -194,26 +214,6 @@ func (c *ConcretizeStaticInheritanceForInlining) resolveReferencedClass(t *NodeT
 	return nil
 }
 
-// classByAliasGet is
-// classByAlias.get(qname) for a nullable qualified name: a null key is never
-// present.
-//
-// Go-only: language-adapter — LinkedHashMap.get(null).
-func (c *ConcretizeStaticInheritanceForInlining) classByAliasGet(qname *string) *ConcretizeStaticInheritanceForInlining_JavascriptClass {
-	if qname == nil {
-		return nil
-	}
-	return c.classByAlias.Get(*qname)
-}
-
-// classByAliasContainsKey is classByAlias.containsKey(qname) for a nullable
-// qualified name.
-//
-// Go-only: language-adapter — LinkedHashMap.containsKey(null).
-func (c *ConcretizeStaticInheritanceForInlining) classByAliasContainsKey(qname *string) bool {
-	return qname != nil && c.classByAlias.ContainsKey(*qname)
-}
-
 // Java: ConcretizeStaticInheritanceForInlining.process(Node, Node)
 func (c *ConcretizeStaticInheritanceForInlining) Process(externs rhino.Node, root rhino.Node) {
 	findStaticMembers := NewConcretizeStaticInheritanceForInlining_FindStaticMembers(c)
@@ -226,13 +226,18 @@ func (c *ConcretizeStaticInheritanceForInlining) Process(externs rhino.Node, roo
 func (c *ConcretizeStaticInheritanceForInlining) ProcessInherits(findStaticMembers *ConcretizeStaticInheritanceForInlining_FindStaticMembers) {
 	for _, inheritsCall := range findStaticMembers.inheritsCalls {
 		superclassNameNode := inheritsCall.GetLastChild()
-		superclassQname := superclassNameNode.GetQualifiedName()
+		superclassQname, superOk := superclassNameNode.GetQualifiedNameString()
 		subclassNameNode := superclassNameNode.GetPrevious()
-		subclassQname := subclassNameNode.GetQualifiedName()
-		superClass := c.classByAliasGet(superclassQname)
-		subClass := c.classByAliasGet(subclassQname)
-		if superclassQname != nil && c.duplicateClassNames.Contains(*superclassQname) {
-			c.compiler.Report(JSError_MakeWithNode(inheritsCall, ConcretizeStaticInheritanceForInlining_DUPLICATE_CLASS, *superclassQname))
+		subclassQname, subOk := subclassNameNode.GetQualifiedNameString()
+		var superClass, subClass *ConcretizeStaticInheritanceForInlining_JavascriptClass
+		if superOk {
+			superClass = c.classByAlias[superclassQname]
+		}
+		if subOk {
+			subClass = c.classByAlias[subclassQname]
+		}
+		if superOk && c.duplicateClassNames[superclassQname] {
+			c.compiler.Report(JSError_MakeWithNode(inheritsCall, ConcretizeStaticInheritanceForInlining_DUPLICATE_CLASS, superclassQname))
 			return
 		}
 		if superClass == nil || subClass == nil {
@@ -248,10 +253,10 @@ func (c *ConcretizeStaticInheritanceForInlining) CopyStaticMembers(
 	subClass *ConcretizeStaticInheritanceForInlining_JavascriptClass,
 	inheritsCall rhino.Node,
 	findStaticMembers *ConcretizeStaticInheritanceForInlining_FindStaticMembers) {
-	for staticMember := range superClass.staticMembers.All() {
-		jutil.CheckStateMsg1(staticMember.IsAssign(), "%s", staticMember)
-		memberName := staticMember.GetFirstChild().GetString()
-		if superClass.definedProperties.Contains(memberName) {
+	for _, staticMember := range superClass.staticMembers {
+		assignMember := ast.MustAssign(staticMember)
+		memberName := assignMember.Target().Node().GetString()
+		if superClass.definedProperties[memberName] {
 			continue
 		}
 		if c.IsOverriden(subClass, memberName) {
@@ -265,7 +270,7 @@ func (c *ConcretizeStaticInheritanceForInlining) CopyStaticMembers(
 		}
 
 		info := rhino.JSDocInfo_Builder_MaybeCopyFrom(staticMember.GetJSDocInfo())
-		function := staticMember.GetLastChild()
+		function := assignMember.Value().Node()
 		sourceInfoNode := function
 		if function.IsFunction() {
 			sourceInfoNode = function.GetFirstChild()
@@ -290,21 +295,18 @@ func (c *ConcretizeStaticInheritanceForInlining) CopyStaticMembers(
 
 // Java: ConcretizeStaticInheritanceForInlining.isOverriden(JavascriptClass, String)
 func (c *ConcretizeStaticInheritanceForInlining) IsOverriden(subClass *ConcretizeStaticInheritanceForInlining_JavascriptClass, memberName string) bool {
-	if subClass.staticMemberNames.Contains(memberName) {
-		// This subclass overrides the static method, so there is no need to copy the
-		// method from the base class.
-		return true
-	}
-	if subClass.definedProperties.Contains(memberName) {
-		return true
-	}
-	return false
+	// If this subclass overrides the static method or defines a getter/setter property,
+	// there is no need to copy the method from the base class.
+	return subClass.staticMemberNames[memberName] || subClass.definedProperties[memberName]
 }
 
 // Java: ConcretizeStaticInheritanceForInlining.isReferenceToClass(NodeTraversal, Node)
 func (c *ConcretizeStaticInheritanceForInlining) IsReferenceToClass(t *NodeTraversal, n rhino.Node) bool {
-	className := n.GetQualifiedName()
-	if !c.classByAliasContainsKey(className) {
+	className, ok := n.GetQualifiedNameString()
+	if !ok {
+		return false
+	}
+	if _, exists := c.classByAlias[className]; !exists {
 		return false
 	}
 
@@ -312,7 +314,7 @@ func (c *ConcretizeStaticInheritanceForInlining) IsReferenceToClass(t *NodeTrave
 		return true
 	}
 
-	var_ := t.GetScope().GetVar(*className)
+	var_ := t.GetScope().GetVar(className)
 	return var_ == nil || !var_.IsLocal()
 }
 
@@ -340,7 +342,8 @@ func NewConcretizeStaticInheritanceForInlining_FindStaticMembers(outer *Concreti
 func (f *ConcretizeStaticInheritanceForInlining_FindStaticMembers) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	switch n.GetToken() {
 	case rhino.Token_CALL:
-		if f.outer.inherits.Matches(n.GetFirstChild()) {
+		call := ast.MustCall(n)
+		if f.outer.inherits.Matches(call.Callee().Node()) {
 			f.inheritsCalls = append(f.inheritsCalls, n)
 			f.nodeOrder[n] = len(f.nodeOrder)
 		}
@@ -359,10 +362,12 @@ func (f *ConcretizeStaticInheritanceForInlining_FindStaticMembers) Visit(t *Node
 
 // Java: ConcretizeStaticInheritanceForInlining.FindStaticMembers.visitDefinedPropertiesCall(NodeTraversal, Node)
 func (f *ConcretizeStaticInheritanceForInlining_FindStaticMembers) VisitDefinedPropertiesCall(t *NodeTraversal, definePropertiesCall rhino.Node) {
-	object := definePropertiesCall.GetSecondChild()
-	if c := f.outer.resolveReferencedClass(t, object); c != nil {
-		for _, prop := range NodeUtil_GetObjectDefinedPropertiesKeys(definePropertiesCall) {
-			c.definedProperties.Add(prop.GetString())
+	call := ast.MustCall(definePropertiesCall)
+	if firstArg, ok := call.FirstArg(); ok {
+		if c := f.outer.resolveReferencedClass(t, firstArg.Node()); c != nil {
+			for _, prop := range NodeUtil_GetObjectDefinedPropertiesKeys(definePropertiesCall) {
+				c.addDefinedProperty(prop.GetString())
+			}
 		}
 	}
 }
@@ -371,37 +376,38 @@ func (f *ConcretizeStaticInheritanceForInlining_FindStaticMembers) VisitDefinedP
 func (f *ConcretizeStaticInheritanceForInlining_FindStaticMembers) VisitFunctionClassDef(n rhino.Node) {
 	classInfo := NodeUtil_GetBestJSDocInfo(n)
 	if classInfo != nil && classInfo.IsConstructor() {
-		name := NodeUtil_GetName(n)
-		if name == nil {
+		name, ok := NodeUtil_GetNameString(n)
+		if !ok {
 			return
 		}
-		if f.outer.classByAlias.ContainsKey(*name) {
-			f.outer.duplicateClassNames.Add(*name)
+		if _, exists := f.outer.classByAlias[name]; exists {
+			f.outer.addDuplicateClassName(name)
 		} else {
-			f.outer.putClassByAlias(*name, NewConcretizeStaticInheritanceForInlining_JavascriptClass())
+			f.outer.putClassByAlias(name, NewConcretizeStaticInheritanceForInlining_JavascriptClass())
 		}
 	}
 }
 
 // Java: ConcretizeStaticInheritanceForInlining.FindStaticMembers.setAlias(String, String)
-func (f *ConcretizeStaticInheritanceForInlining_FindStaticMembers) SetAlias(original *string, alias *string) {
-	jutil.CheckNotNullMsg(original, "original is null")
-	jutil.CheckNotNullMsg(alias, "alias is null")
-	jutil.CheckArgument(f.outer.classByAlias.ContainsKey(*original))
-	f.outer.putClassByAlias(*alias, f.outer.classByAlias.Get(*original))
+func (f *ConcretizeStaticInheritanceForInlining_FindStaticMembers) SetAlias(original string, alias string) {
+	existing, exists := f.outer.classByAlias[original]
+	jutil.CheckArgument(exists)
+	f.outer.putClassByAlias(alias, existing)
 }
 
 // Java: ConcretizeStaticInheritanceForInlining.FindStaticMembers.visitAssign(NodeTraversal, Node)
 func (f *ConcretizeStaticInheritanceForInlining_FindStaticMembers) VisitAssign(t *NodeTraversal, n rhino.Node) {
+	assign := ast.MustAssign(n)
+	lhs := assign.Target().Node()
+	rhs := assign.Value().Node()
 	// Alias for classes. We assume that the alias appears after the class declaration.
-	if _, existingClass := f.outer.lookupClassByNode(n.GetLastChild()); existingClass != nil {
-		if alias, ok := n.GetFirstChild().GetQualifiedNameString(); ok {
+	if _, existingClass := f.outer.lookupClassByNode(rhs); existingClass != nil {
+		if alias, ok := lhs.GetQualifiedNameString(); ok {
 			f.outer.putClassByAlias(alias, existingClass)
 		}
-	} else if n.GetFirstChild().IsGetProp() {
-		getProp := n.GetFirstChild()
-		classNode := getProp.GetFirstChild()
-		if cls := f.outer.resolveReferencedClass(t, classNode); cls != nil && !ConcretizeStaticInheritanceForInlining_BANNED_PROP_NAMES.Contains(getProp.GetString()) {
+	} else if lhs.IsGetProp() {
+		classNode := lhs.GetFirstChild()
+		if cls := f.outer.resolveReferencedClass(t, classNode); cls != nil && !isBannedStaticInheritancePropName(lhs.GetString()) {
 			cls.AddStaticMember(n)
 			f.nodeOrder[n] = len(f.nodeOrder)
 		}
@@ -410,7 +416,12 @@ func (f *ConcretizeStaticInheritanceForInlining_FindStaticMembers) VisitAssign(t
 
 // Java: ConcretizeStaticInheritanceForInlining.FindStaticMembers.visitVariableDeclaration(Node)
 func (f *ConcretizeStaticInheritanceForInlining_FindStaticMembers) VisitVariableDeclaration(n rhino.Node) {
-	child := n.GetFirstChild()
+	decl := ast.MustNameDeclaration(n)
+	firstDecl, ok := decl.FirstDeclarator()
+	if !ok {
+		return
+	}
+	child := firstDecl.Node()
 	if !child.HasChildren() {
 		return
 	}

@@ -185,65 +185,6 @@ func TestBitSetMatchesJava(t *testing.T) {
 	}
 }
 
-func TestBiMapMatchesGuava(t *testing.T) {
-	for _, r := range readTSV(t, "bimap.tsv") {
-		switch r[0] {
-		case "H":
-			m := HashBiMap_Create[string, string]()
-			var results strings.Builder
-			for _, op := range strings.Split(strings.TrimSuffix(r[1], ","), ",") {
-				if op == "" {
-					continue
-				}
-				k, v := op[1:2], op[2:3]
-				res := ""
-				Try(func() {
-					var old string
-					var had bool
-					switch op[0] {
-					case 'F':
-						old, had = m.Lookup(k)
-						m.ForcePut(k, v)
-					case 'R':
-						old, had = m.Lookup(k)
-						m.Remove(k)
-					default:
-						old, had = m.Lookup(k)
-						m.Put(k, v)
-					}
-					if had {
-						res = old
-					} else {
-						res = "null"
-					}
-				}, func(e IIllegalArgumentException) { res = "!" + e.GetMessage() })
-				results.WriteString(res + ";")
-			}
-			if got := results.String(); got != r[2] {
-				t.Errorf("ops %s: results %s, Guava %s", r[1], got, r[2])
-			}
-			if m.String() != r[3] || m.Inverse().String() != r[4] {
-				t.Errorf("ops %s: %s / %s, Guava %s / %s", r[1], m, m.Inverse(), r[3], r[4])
-			}
-		case "I":
-			src := NewLinkedHashMap[string, string]()
-			for _, op := range strings.Split(strings.TrimSuffix(r[1], ","), ",") {
-				if op != "" {
-					src.Put(op[0:1], op[1:2])
-				}
-			}
-			got := ""
-			Try(func() {
-				m := ImmutableBiMap_CopyOf(src)
-				got = m.String() + "\t" + m.Inverse().String()
-			}, func(e IIllegalArgumentException) { got = "!" + e.GetMessage() + "\t-" })
-			if got != r[2]+"\t"+r[3] {
-				t.Errorf("copyOf(%s) = %s, Guava %s\t%s", r[1], got, r[2], r[3])
-			}
-		}
-	}
-}
-
 func TestLoggerLevelsAndHandlers(t *testing.T) {
 	l := Logger_GetLogger("com.example.jutil.Test")
 	h := &recordingHandler{}
@@ -297,15 +238,5 @@ func TestBufferedReaderReadLine(t *testing.T) {
 				t.Errorf("readLine(%q) = %q, want %q", tc.in, got, tc.want)
 			}
 		}
-	}
-}
-
-func TestParseException(t *testing.T) {
-	caught := false
-	Try(func() { panic(NewParseException("Bad line: x", 0)) }, func(e IException) {
-		caught = e.Error() == "java.text.ParseException: Bad line: x"
-	})
-	if !caught {
-		t.Error("ParseException not caught as a checked exception")
 	}
 }

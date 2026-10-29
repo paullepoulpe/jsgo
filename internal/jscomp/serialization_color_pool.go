@@ -1,4 +1,5 @@
 // Port of com/google/javascript/jscomp/serialization/ColorPool.java @ closure-compiler v20261021
+// Port of com/google/javascript/jscomp/serialization/TypePointers.java @ closure-compiler v20261021
 
 /*
  * Copyright 2020 The Closure Compiler Authors.
@@ -16,9 +17,27 @@
  * limitations under the License.
  */
 
+/*
+ * Copyright 2021 The Closure Compiler Authors.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 package jscomp
 
 import (
+	"encoding/binary"
+	"fmt"
 	"slices"
 	"strings"
 
@@ -26,6 +45,103 @@ import (
 	"github.com/paullepoulpe/jsgo/internal/colors"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 )
+
+// TypePointers holds TypePointer utilities.
+type TypePointers struct{}
+
+// Java: TypePointers.AXIOMATIC_COLOR_COUNT
+const TypePointers_AXIOMATIC_COLOR_COUNT = int(PrimitiveType_UNRECOGNIZED)
+
+// TypePointers_OFFSET_TO_AXIOMATIC_COLOR lists the axiomatic colors that the
+// first N TypePointer pool offsets correspond to, in this order.
+//
+// These colors are never serialized because all their information is
+// constant.
+var TypePointers_OFFSET_TO_AXIOMATIC_COLOR = [TypePointers_AXIOMATIC_COLOR_COUNT]*colors.Color{
+	PrimitiveType_UNKNOWN_TYPE:      colors.StandardColors_UNKNOWN,
+	PrimitiveType_BOOLEAN_TYPE:      colors.StandardColors_BOOLEAN,
+	PrimitiveType_STRING_TYPE:       colors.StandardColors_STRING,
+	PrimitiveType_NUMBER_TYPE:       colors.StandardColors_NUMBER,
+	PrimitiveType_NULL_OR_VOID_TYPE: colors.StandardColors_NULL_OR_VOID,
+	PrimitiveType_SYMBOL_TYPE:       colors.StandardColors_SYMBOL,
+	PrimitiveType_BIGINT_TYPE:       colors.StandardColors_BIGINT,
+	PrimitiveType_TOP_OBJECT:        colors.StandardColors_TOP_OBJECT,
+	PrimitiveType_TOP_FUNCTION:      colors.StandardColors_TOP_FUNCTION,
+	PrimitiveType_GBIGINT_TYPE:      colors.StandardColors_GBIGINT,
+}
+
+func isAxiomaticColorId(id colors.ColorId) bool {
+	for _, c := range TypePointers_OFFSET_TO_AXIOMATIC_COLOR {
+		if c.GetId() == id {
+			return true
+		}
+	}
+	return false
+}
+
+// Java: TypePointers.trimOffset(int)
+func TypePointers_TrimOffset(x int) int {
+	jutil.CheckStateMsg1(x >= TypePointers_AXIOMATIC_COLOR_COUNT, "%s", x)
+	return x - TypePointers_AXIOMATIC_COLOR_COUNT
+}
+
+// Java: TypePointers.untrimOffset(int)
+func TypePointers_UntrimOffset(x int) int {
+	jutil.CheckStateMsg1(x >= 0, "%s", x)
+	return x + TypePointers_AXIOMATIC_COLOR_COUNT
+}
+
+// Java: TypePointers.isAxiomatic(int)
+func TypePointers_IsAxiomatic(x int) bool {
+	return x < TypePointers_AXIOMATIC_COLOR_COUNT
+}
+
+func colorIdRawInt64(id colors.ColorId) int64 {
+	var b [8]byte
+	id.PutBigEndian(b[:])
+	return int64(binary.BigEndian.Uint64(b[:]))
+}
+
+// unionColorIds computes colors.ColorId_Union over a slice of already-unique ColorIds.
+func unionColorIds(ids []colors.ColorId) colors.ColorId {
+	n := len(ids)
+	if n == 0 {
+		panic(jutil.NewNoSuchElementException())
+	}
+	if n == 1 {
+		return ids[0]
+	}
+	if n == 2 {
+		a, b := colorIdRawInt64(ids[0]), colorIdRawInt64(ids[1])
+		if a > b {
+			a, b = b, a
+		}
+		var buf [16]byte
+		binary.LittleEndian.PutUint64(buf[0:8], uint64(a))
+		binary.LittleEndian.PutUint64(buf[8:16], uint64(b))
+		return colors.NewColorId(int64(jutil.FarmHashFingerprint64(buf[:])))
+	}
+
+	var stackBuf [32]int64
+	var stackBytes [256]byte
+	var sorted []int64
+	var raw []byte
+	if n <= len(stackBuf) {
+		sorted = stackBuf[:n]
+		raw = stackBytes[:n*8]
+	} else {
+		sorted = make([]int64, n)
+		raw = make([]byte, n*8)
+	}
+	for i, cid := range ids {
+		sorted[i] = colorIdRawInt64(cid)
+	}
+	slices.Sort(sorted)
+	for i, v := range sorted {
+		binary.LittleEndian.PutUint64(raw[i*8:], uint64(v))
+	}
+	return colors.NewColorId(int64(jutil.FarmHashFingerprint64(raw)))
+}
 
 // ColorPool is a set of Colors reconstructed from possibly many TypePool
 // protos.
@@ -80,11 +196,11 @@ func colorPool_getOnlyElement[T any](list []T) T {
 	if len(list) > 1 {
 		var sb strings.Builder
 		sb.WriteString("expected one element but was: <")
-		sb.WriteString(jutil.ToJavaString(list[0]))
+		sb.WriteString(fmt.Sprint(list[0]))
 		i := 1
 		for ; i < 5 && i < len(list); i++ {
 			sb.WriteString(", ")
-			sb.WriteString(jutil.ToJavaString(list[i]))
+			sb.WriteString(fmt.Sprint(list[i]))
 		}
 		if i < len(list) {
 			sb.WriteString(", ...")
@@ -136,9 +252,8 @@ func (s *ColorPool_ShardView) GetId(untrimmedOffset int) colors.ColorId {
 	}
 	if TypePointers_IsAxiomatic(untrimmedOffset) {
 		return TypePointers_OFFSET_TO_AXIOMATIC_COLOR[untrimmedOffset].GetId()
-	} else {
-		return s.trimmedOffsetToId[TypePointers_TrimOffset(untrimmedOffset)]
 	}
+	return s.trimmedOffsetToId[TypePointers_TrimOffset(untrimmedOffset)]
 }
 
 // Java: ColorPool.ShardView.updateStateAfterColorPoolIsBuilt(ColorPool)
@@ -146,9 +261,9 @@ func (s *ColorPool_ShardView) UpdateStateAfterColorPoolIsBuilt(colorPool *ColorP
 	s.built = true
 	s.typePool = nil
 	s.stringPool = nil
-	axiomaticCount := len(TypePointers_OFFSET_TO_AXIOMATIC_COLOR)
+	axiomaticCount := TypePointers_AXIOMATIC_COLOR_COUNT
 	offsetToColor := make([]*colors.Color, axiomaticCount+len(s.trimmedOffsetToId))
-	copy(offsetToColor, TypePointers_OFFSET_TO_AXIOMATIC_COLOR)
+	copy(offsetToColor, TypePointers_OFFSET_TO_AXIOMATIC_COLOR[:])
 	if s.trimmedOffsetToColor != nil {
 		copy(offsetToColor[axiomaticCount:], s.trimmedOffsetToColor)
 		s.trimmedOffsetToColor = nil
@@ -183,6 +298,7 @@ type colorPoolShardProto struct {
 }
 
 type colorPoolIdEntry struct {
+	id         colors.ColorId
 	firstShard *ColorPool_ShardView
 	firstProto *TypeProto
 	extra      []colorPoolShardProto
@@ -190,17 +306,32 @@ type colorPoolIdEntry struct {
 }
 
 func (e colorPoolIdEntry) rowString() string {
-	m := jutil.NewLinkedHashMap[*ColorPool_ShardView, *TypeProto]()
+	if e.firstProto == nil && len(e.extra) == 0 {
+		if e.jsRecord != nil {
+			return e.jsRecord.String()
+		}
+		return "{}"
+	}
+	var sb strings.Builder
+	sb.WriteByte('{')
+	first := true
 	if e.firstProto != nil {
-		m.Put(e.firstShard, e.firstProto)
+		sb.WriteString(e.firstShard.String())
+		sb.WriteByte('=')
+		sb.WriteString(e.firstProto.String())
+		first = false
 	}
 	for _, sp := range e.extra {
-		m.Put(sp.shard, sp.proto)
+		if !first {
+			sb.WriteString(", ")
+		}
+		sb.WriteString(sp.shard.String())
+		sb.WriteByte('=')
+		sb.WriteString(sp.proto.String())
+		first = false
 	}
-	if e.jsRecord != nil && m.IsEmpty() {
-		return e.jsRecord.String()
-	}
-	return m.String()
+	sb.WriteByte('}')
+	return sb.String()
 }
 
 // ColorPool_Builder collects TypePools and other data into ShardViews and
@@ -211,7 +342,8 @@ type ColorPool_Builder struct {
 	jsTypeShard  *JSTypeReconserializer
 	idToColor    map[colors.ColorId]*colors.Color
 	registry     *colors.ColorRegistry_Builder
-	idToProto    *jutil.LinkedHashMap[colors.ColorId, colorPoolIdEntry]
+	idToProtoIdx map[colors.ColorId]int
+	protoEntries []colorPoolIdEntry
 	forTesting_  bool
 	built        bool
 
@@ -427,13 +559,12 @@ func (b *ColorPool_Builder) Build() *ColorPool {
 	b.built = true
 
 	totalTypes := 0
-	shardCount := 0
+	shardCount := len(b.shards)
 	var singleShard *ColorPool_ShardView
-	b.ForEachShard(func(shard *ColorPool_ShardView) {
+	for _, shard := range b.shards {
 		totalTypes += shard.typePool.GetTypeCount()
-		shardCount++
 		singleShard = shard
-	})
+	}
 	if b.jsTypeShard != nil {
 		totalTypes += len(b.jsTypeShard.recordsByPointer)
 	}
@@ -443,9 +574,9 @@ func (b *ColorPool_Builder) Build() *ColorPool {
 	if b.jsTypeShard != nil && shardCount == 0 {
 		s := b.jsTypeShard
 		records := s.recordsByPointer
-		axiomaticCount := len(TypePointers_OFFSET_TO_AXIOMATIC_COLOR)
+		axiomaticCount := TypePointers_AXIOMATIC_COLOR_COUNT
 		offsetToColor := make([]*colors.Color, len(records))
-		copy(offsetToColor, TypePointers_OFFSET_TO_AXIOMATIC_COLOR)
+		copy(offsetToColor, TypePointers_OFFSET_TO_AXIOMATIC_COLOR[:])
 		for _, c := range TypePointers_OFFSET_TO_AXIOMATIC_COLOR {
 			b.idToColor[c.GetId()] = c
 		}
@@ -463,7 +594,8 @@ func (b *ColorPool_Builder) Build() *ColorPool {
 				}
 				b.idToColor[id] = colorPool_UNRECONCILED_COLOR
 			}
-			for id, v := range colors.StandardColors_AXIOMATIC_COLORS.All() {
+			for _, v := range TypePointers_OFFSET_TO_AXIOMATIC_COLOR {
+				id := v.GetId()
 				if b.idToColor[id] != nil {
 					MalformedTypedAstException_CheckWellFormedWithParam(
 						false, "Found serialized definiton for axiomatic color", id)
@@ -475,82 +607,85 @@ func (b *ColorPool_Builder) Build() *ColorPool {
 				b.reconcileSingleShardAt(singleShard, i)
 			}
 		} else {
-			for k, v := range colors.StandardColors_AXIOMATIC_COLORS.All() {
-				b.idToColor[k] = v
+			for _, v := range TypePointers_OFFSET_TO_AXIOMATIC_COLOR {
+				b.idToColor[v.GetId()] = v
 			}
 		}
 	} else {
-		for k, v := range colors.StandardColors_AXIOMATIC_COLORS.All() {
-			b.idToColor[k] = v
+		for _, v := range TypePointers_OFFSET_TO_AXIOMATIC_COLOR {
+			b.idToColor[v.GetId()] = v
 		}
-		b.idToProto = jutil.NewLinkedHashMapWithCapacity[colors.ColorId, colorPoolIdEntry](totalTypes)
-		b.ForEachShard(
-			func(shard *ColorPool_ShardView) {
-				typeList := shard.typePool.GetTypeList()
-				seenIds := make(map[colors.ColorId]struct{}, len(typeList))
-				for i, proto := range typeList {
-					id := shard.trimmedOffsetToId[i]
-					if _, dup := seenIds[id]; dup {
-						MalformedTypedAstException_CheckWellFormedWithParam(false, "Duplicate ID in single shard", proto)
-					}
-					seenIds[id] = struct{}{}
-					if entry, ok := b.idToProto.Lookup(id); !ok {
-						b.idToProto.PutNew(id, colorPoolIdEntry{
-							firstShard: shard,
-							firstProto: proto,
-						})
+		b.idToProtoIdx = make(map[colors.ColorId]int, totalTypes)
+		b.protoEntries = make([]colorPoolIdEntry, 0, totalTypes)
+		for _, shard := range b.shards {
+			typeList := shard.typePool.GetTypeList()
+			seenIds := make(map[colors.ColorId]struct{}, len(typeList))
+			for i, proto := range typeList {
+				id := shard.trimmedOffsetToId[i]
+				if _, dup := seenIds[id]; dup {
+					MalformedTypedAstException_CheckWellFormedWithParam(false, "Duplicate ID in single shard", proto)
+				}
+				seenIds[id] = struct{}{}
+				if entryIdx, ok := b.idToProtoIdx[id]; !ok {
+					b.idToProtoIdx[id] = len(b.protoEntries)
+					b.protoEntries = append(b.protoEntries, colorPoolIdEntry{
+						id:         id,
+						firstShard: shard,
+						firstProto: proto,
+					})
+				} else {
+					entry := &b.protoEntries[entryIdx]
+					if entry.firstShard == shard {
+						entry.firstProto = proto
 					} else {
-						if entry.firstShard == shard {
-							entry.firstProto = proto
-						} else {
-							replaced := false
-							for j := range entry.extra {
-								if entry.extra[j].shard == shard {
-									entry.extra[j].proto = proto
-									replaced = true
-									break
-								}
-							}
-							if !replaced {
-								entry.extra = append(entry.extra, colorPoolShardProto{shard: shard, proto: proto})
+						replaced := false
+						for j := range entry.extra {
+							if entry.extra[j].shard == shard {
+								entry.extra[j].proto = proto
+								replaced = true
+								break
 							}
 						}
-						b.idToProto.Put(id, entry)
+						if !replaced {
+							entry.extra = append(entry.extra, colorPoolShardProto{shard: shard, proto: proto})
+						}
 					}
 				}
-			})
+			}
+		}
 
 		if s := b.jsTypeShard; s != nil {
-			axiomaticCount := len(TypePointers_OFFSET_TO_AXIOMATIC_COLOR)
+			axiomaticCount := TypePointers_AXIOMATIC_COLOR_COUNT
 			records := s.recordsByPointer
 			for ptr := axiomaticCount; ptr < len(records); ptr++ {
 				seen := records[ptr]
 				id := seen.colorId
-				if entry, ok := b.idToProto.Lookup(id); !ok {
-					b.idToProto.PutNew(id, colorPoolIdEntry{jsRecord: seen})
+				if entryIdx, ok := b.idToProtoIdx[id]; !ok {
+					b.idToProtoIdx[id] = len(b.protoEntries)
+					b.protoEntries = append(b.protoEntries, colorPoolIdEntry{id: id, jsRecord: seen})
 				} else {
-					entry.jsRecord = seen
-					b.idToProto.Put(id, entry)
+					b.protoEntries[entryIdx].jsRecord = seen
 				}
 			}
 		}
 
-		for id := range colors.StandardColors_AXIOMATIC_COLORS.Keys() {
-			if b.idToProto.ContainsKey(id) {
+		for _, c := range TypePointers_OFFSET_TO_AXIOMATIC_COLOR {
+			id := c.GetId()
+			if _, exists := b.idToProtoIdx[id]; exists {
 				MalformedTypedAstException_CheckWellFormedWithParam(
 					false, "Found serialized definiton for axiomatic color", id)
 			}
 		}
 
-		for id := range b.idToProto.Keys() {
-			b.LookupOrReconcileColor(id)
+		for i := range b.protoEntries {
+			b.LookupOrReconcileColor(b.protoEntries[i].id)
 		}
 
 		if s := b.jsTypeShard; s != nil {
-			axiomaticCount := len(TypePointers_OFFSET_TO_AXIOMATIC_COLOR)
+			axiomaticCount := TypePointers_AXIOMATIC_COLOR_COUNT
 			records := s.recordsByPointer
 			offsetToColor := make([]*colors.Color, len(records))
-			copy(offsetToColor, TypePointers_OFFSET_TO_AXIOMATIC_COLOR)
+			copy(offsetToColor, TypePointers_OFFSET_TO_AXIOMATIC_COLOR[:])
 			for ptr := axiomaticCount; ptr < len(records); ptr++ {
 				offsetToColor[ptr] = b.idToColor[records[ptr].colorId]
 			}
@@ -599,20 +734,19 @@ func (b *ColorPool_Builder) Build() *ColorPool {
 			b.registry.AddDisambiguationEdge(subColor, supColor)
 		}
 	} else {
-		b.ForEachShard(
-			func(shard *ColorPool_ShardView) {
-				for _, edge := range shard.typePool.GetDisambiguationEdgesList() {
-					b.registry.AddDisambiguationEdge(
-						b.idToColor[shard.GetId(colorPool_validatePointer(int(edge.GetSubtype()), shard))], //
-						b.idToColor[shard.GetId(colorPool_validatePointer(int(edge.GetSupertype()), shard))])
-				}
-			})
+		for _, shard := range b.shards {
+			for _, edge := range shard.typePool.GetDisambiguationEdgesList() {
+				b.registry.AddDisambiguationEdge(
+					b.idToColor[shard.GetId(colorPool_validatePointer(int(edge.GetSubtype()), shard))],
+					b.idToColor[shard.GetId(colorPool_validatePointer(int(edge.GetSupertype()), shard))])
+			}
+		}
 	}
 	if s := b.jsTypeShard; s != nil && s.totalDisambiguateEdges > 0 {
 		offsetToColor := s.offsetToColor
-		for subtype, supertypes := range s.disambiguateEdges.All() {
+		for _, subtype := range s.disambiguateSubtypes {
 			subColor := offsetToColor[subtype]
-			for _, sup := range supertypes {
+			for _, sup := range s.disambiguateEdges[subtype] {
 				b.registry.AddDisambiguationEdge(subColor, offsetToColor[sup])
 			}
 		}
@@ -620,13 +754,16 @@ func (b *ColorPool_Builder) Build() *ColorPool {
 
 	shardViewsForTesting := []*ColorPool_ShardView{}
 	if b.forTesting_ {
-		b.ForEachShard(func(shard *ColorPool_ShardView) { shardViewsForTesting = append(shardViewsForTesting, shard) })
+		shardViewsForTesting = append(shardViewsForTesting, b.shards...)
 	}
 
 	colorPool := newColorPool(b.idToColor, b.registry.Build(), shardViewsForTesting)
 
-	b.ForEachShard(func(shard *ColorPool_ShardView) { shard.UpdateStateAfterColorPoolIsBuilt(colorPool) })
-	b.idToProto = nil
+	for _, shard := range b.shards {
+		shard.UpdateStateAfterColorPoolIsBuilt(colorPool)
+	}
+	b.idToProtoIdx = nil
+	b.protoEntries = nil
 	b.jsTypeShard = nil
 	b.propScratch = nil
 	b.seenProps = nil
@@ -954,7 +1091,7 @@ func (b *ColorPool_Builder) LookupOrReconcileColor(id colors.ColorId) *colors.Co
 		if existing == colorPool_PENDING_COLOR {
 			rows := make([]string, 0, len(b.reconcilationDebugStack))
 			for _, stackId := range b.reconcilationDebugStack {
-				rows = append(rows, b.idToProto.Get(stackId).rowString())
+				rows = append(rows, b.protoEntries[b.idToProtoIdx[stackId]].rowString())
 			}
 			panic(NewMalformedTypedAstException(
 				"Cyclic Color structure detected: [" + strings.Join(rows, ", ") + "]"))
@@ -963,7 +1100,7 @@ func (b *ColorPool_Builder) LookupOrReconcileColor(id colors.ColorId) *colors.Co
 	}
 	b.idToColor[id] = colorPool_PENDING_COLOR
 
-	entry := b.idToProto.Get(id)
+	entry := b.protoEntries[b.idToProtoIdx[id]]
 	var result *colors.Color
 	if sample := entry.firstProto; sample != nil {
 		if sample.HasObject() {
@@ -1224,7 +1361,7 @@ func (b *ColorPool_Builder) reconcileUnionProtos(id colors.ColorId, entry colorP
 	}
 
 	result := colors.Color_CreateUnionSliceWithBuilder(union, &b.colorBuilder, b.allocColorSliceFn, b.allocStringSliceFn)
-	if !id.Equals(result.GetId()) {
+	if id != result.GetId() {
 		jutil.CheckStateMsg2(false, "%s == %s", id, result)
 	}
 	return result
@@ -1251,10 +1388,13 @@ func colorPool_createTrimmedOffsetToId(typePool *TypePool) []colors.ColorId {
 	}
 
 	if hasUnion {
-		scratchMembers := jutil.NewLinkedHashSet[colors.ColorId]()
+		var scratchBuf [16]colors.ColorId
+		scratch := scratchBuf[:0]
+		var seenMap map[colors.ColorId]uint32
+		var gen uint32
 		for i, proto := range typeList {
 			if proto.HasUnion() {
-				out[i] = colorPool_createUnionColorId(proto, i, typeList, out, scratchMembers)
+				out[i] = colorPool_createUnionColorId(proto, i, typeList, out, &scratch, &seenMap, &gen)
 			}
 		}
 	}
@@ -1267,25 +1407,53 @@ func colorPool_createUnionColorId(
 	unionIndex int,
 	typeList []*TypeProto,
 	allIds []colors.ColorId,
-	scratchMembers *jutil.LinkedHashSet[colors.ColorId],
+	scratch *[]colors.ColorId,
+	seenMap *map[colors.ColorId]uint32,
+	gen *uint32,
 ) colors.ColorId {
-	MalformedTypedAstException_CheckWellFormedWithParam(proto.GetUnion().GetUnionMemberCount() > 1, "Union has too few members", proto)
-	scratchMembers.Clear()
 	unionMemberList := proto.GetUnion().GetUnionMemberList()
-	for i := 0; i < len(unionMemberList); i++ {
-		memberPointer := int(unionMemberList[i])
+	MalformedTypedAstException_CheckWellFormedWithParam(len(unionMemberList) > 1, "Union has too few members", proto)
+	members := (*scratch)[:0]
+	useMap := len(unionMemberList) > 16
+	var curGen uint32
+	if useMap {
+		*gen++
+		if *seenMap == nil {
+			*seenMap = make(map[colors.ColorId]uint32, 32)
+		} else if *gen == 0 {
+			clear(*seenMap)
+			*gen = 1
+		}
+		curGen = *gen
+	}
+	for _, rawPtr := range unionMemberList {
+		memberPointer := int(rawPtr)
+		var cid colors.ColorId
 		if TypePointers_IsAxiomatic(memberPointer) {
-			scratchMembers.Add(TypePointers_OFFSET_TO_AXIOMATIC_COLOR[memberPointer].GetId())
+			MalformedTypedAstException_CheckWellFormedWithParam(
+				memberPointer >= 0,
+				"Union member not found",
+				proto)
+			cid = TypePointers_OFFSET_TO_AXIOMATIC_COLOR[memberPointer].GetId()
 		} else {
 			trimmed := TypePointers_TrimOffset(memberPointer)
 			MalformedTypedAstException_CheckWellFormedWithParam(
 				trimmed >= 0 && trimmed < len(typeList) && (trimmed < unionIndex || typeList[trimmed].HasObject()),
 				"Union member not found",
 				proto)
-			scratchMembers.Add(allIds[trimmed])
+			cid = allIds[trimmed]
+		}
+		if useMap {
+			if (*seenMap)[cid] != curGen {
+				(*seenMap)[cid] = curGen
+				members = append(members, cid)
+			}
+		} else if !slices.Contains(members, cid) {
+			members = append(members, cid)
 		}
 	}
-	return colors.ColorId_Union(scratchMembers)
+	*scratch = members
+	return unionColorIds(members)
 }
 
 // Java: ColorPool.validatePointer(int, ShardView)

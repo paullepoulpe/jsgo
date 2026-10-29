@@ -55,9 +55,8 @@ type EnumElementType struct {
 	// The primitive type, if it is an object.
 	primitiveObjectType ObjectType
 
-	name *string
-
 	enumType *EnumType
+	nameID   rhinoStringID
 }
 
 // Java: EnumElementType.TYPE_CLASS
@@ -65,12 +64,16 @@ const EnumElementType_TYPE_CLASS = JSTypeClass_ENUM_ELEMENT
 
 // Java: EnumElementType(JSTypeRegistry, JSType, String, EnumType)
 func NewEnumElementType(registry *JSTypeRegistry, elementType JSType, name *string, enumType *EnumType) *EnumElementType {
+	return newEnumElementTypeByID(registry, elementType, rhinoStringIDFromPtr(name), enumType)
+}
+
+func newEnumElementTypeByID(registry *JSTypeRegistry, elementType JSType, nameID rhinoStringID, enumType *EnumType) *EnumElementType {
 	t := &EnumElementType{}
 	t.objFlags = objKindEnumElement
 	t.InitObjectTypeBase(t, registry)
 	t.primitiveType = elementType
 	t.primitiveObjectType = elementType.ToObjectType()
-	t.name = name
+	t.nameID = nameID
 	t.enumType = enumType
 
 	registry.GetResolver().ResolveIfClosed(t, EnumElementType_TYPE_CLASS)
@@ -162,12 +165,12 @@ func (t *EnumElementType) IsVoidable() bool {
 
 // Java: EnumElementType.isNominalType()
 func (t *EnumElementType) IsNominalType() bool {
-	return t.HasReferenceName()
+	return t.nameID != 0
 }
 
 // Java: EnumElementType.recursionUnsafeHashCode()
 func (t *EnumElementType) RecursionUnsafeHashCode() int32 {
-	if !t.HasReferenceName() {
+	if t.nameID == 0 {
 		// TODO(nickreid): Apparently this can happen if the l-value the enum is
 		// assinged to is not a qname. Fortunatly, this whole thing should become
 		// redundant once equality cannot be checked before resolution.
@@ -196,9 +199,14 @@ func jsTypeNullableToString(s *string) string {
 	return *s
 }
 
+// Java: ObjectType.hasReferenceName()
+func (t *EnumElementType) HasReferenceName() bool {
+	return t.nameID != 0
+}
+
 // Java: EnumElementType.getReferenceName()
 func (t *EnumElementType) GetReferenceName() *string {
-	return t.name
+	return rhinoStringPtrFromID(t.nameID)
 }
 
 // Java: EnumElementType.defineProperty(Property.Key, JSType, boolean, Node)
@@ -241,18 +249,6 @@ func (t *EnumElementType) GetPrimitiveType() JSType {
 // EnumElementType_GetGreatestSubtype returns the infimum of a enum element
 // type and another type, or null if the infimum is empty.
 //
-// This can be a little bit weird. For example, suppose you have an enum of
-// {(string|number)}, and you want the greatest subtype of the enum and a
-// {number}.
-//
-// The infimum is non-empty. But at the same time, we don't really have a
-// name for this infimum. It's equivalent to "elements of this enum that are
-// numbers".
-//
-// The best we can do is make up a new type. This is similar to what we do
-// in UnionType#meet, which kind-of-sort-of makes sense, because an
-// EnumElementType is a union of instances of a type.
-//
 // Java: EnumElementType.getGreatestSubtype(EnumElementType, JSType)
 func EnumElementType_GetGreatestSubtype(element *EnumElementType, that JSType) JSType {
 	// This method is implemented as a static because we don't want
@@ -263,7 +259,7 @@ func EnumElementType_GetGreatestSubtype(element *EnumElementType, that JSType) J
 	if meetPrimitive.IsEmptyType() {
 		return nil
 	} else {
-		return NewEnumElementType(element.GetRegistry(), meetPrimitive, element.name, element.GetEnumType())
+		return newEnumElementTypeByID(element.GetRegistry(), meetPrimitive, element.nameID, element.GetEnumType())
 	}
 }
 

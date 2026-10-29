@@ -578,7 +578,7 @@ func (p *Parser) ReportErrorAtToken(token Token, message string, arguments ...an
 	if token.IsNull() {
 		p.ReportError(message, arguments...)
 	} else {
-		p.errorReporter.ReportErrorFormat(p.linePos(token.GetStart()), message, arguments...)
+		reportErrorFormat(p.errorReporter, p.linePos(token.GetStart()), message, arguments...)
 	}
 }
 
@@ -594,7 +594,7 @@ func (p *Parser) ReportErrorAtTree(parseTree ParseTree, message string, argument
 	if parseTree == nil {
 		p.ReportError(message, arguments...)
 	} else {
-		p.errorReporter.ReportErrorFormat(p.linePos(parseTree.GetParseTreeBase().Location.Start), message, arguments...)
+		reportErrorFormat(p.errorReporter, p.linePos(parseTree.GetParseTreeBase().Location.Start), message, arguments...)
 	}
 }
 
@@ -605,7 +605,7 @@ func (p *Parser) ReportErrorAtTree(parseTree ParseTree, message string, argument
 //
 // Java: Parser.reportError(String, Object...)
 func (p *Parser) ReportError(message string, arguments ...any) {
-	p.errorReporter.ReportErrorFormat(p.linePos(p.scanner.GetPosition()), message, arguments...)
+	reportErrorFormat(p.errorReporter, p.linePos(p.scanner.GetPosition()), message, arguments...)
 }
 
 // ReportErrorAtPosition reports an error at the specified location.
@@ -616,7 +616,7 @@ func (p *Parser) ReportError(message string, arguments ...any) {
 //
 // Java: Parser.reportError(SourcePosition, String, Object...)
 func (p *Parser) ReportErrorAtPosition(position SourcePosition, message string, arguments ...any) {
-	p.errorReporter.ReportErrorFormat(p.linePos(position), message, arguments...)
+	reportErrorFormat(p.errorReporter, p.linePos(position), message, arguments...)
 }
 
 // Java: Parser.reportTemplateErrorIfPresent(TemplateLiteralToken)
@@ -632,7 +632,7 @@ func (p *Parser) ReportTemplateErrorIfPresent(templateToken Token) {
 	// a NullPointerException here.
 	switch *errInfo.ErrorLevelPtr() {
 	case TemplateLiteralToken_ErrorLevel_WARNING:
-		p.errorReporter.ReportWarningFormat(p.linePos(errInfo.Position), "%s", errInfo.Message)
+		p.errorReporter.ReportWarning(p.linePos(errInfo.Position), errInfo.Message)
 		return
 	case TemplateLiteralToken_ErrorLevel_ERROR:
 		p.ReportErrorAtPosition(errInfo.Position, "%s", errInfo.Message)

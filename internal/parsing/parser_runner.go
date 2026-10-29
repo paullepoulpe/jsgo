@@ -272,8 +272,6 @@ func ParserRunner_NewParserConfig(config *Config) *parser.Parser_Config {
 // ParserRunner_Es6ErrorReporter forwards the parser's errors and warnings to
 // a rhino ErrorReporter.
 type ParserRunner_Es6ErrorReporter struct {
-	parser.ErrorReporterBase
-
 	reporter        rhino.ErrorReporter
 	errorSeen       bool
 	reportAllErrors bool
@@ -281,12 +279,10 @@ type ParserRunner_Es6ErrorReporter struct {
 }
 
 func NewParserRunner_Es6ErrorReporter(reporter rhino.ErrorReporter, reportAllErrors bool) *ParserRunner_Es6ErrorReporter {
-	r := &ParserRunner_Es6ErrorReporter{
+	return &ParserRunner_Es6ErrorReporter{
 		reporter:        reporter,
 		reportAllErrors: reportAllErrors,
 	}
-	r.InitErrorReporterBase(r)
-	return r
 }
 
 func (r *ParserRunner_Es6ErrorReporter) ReportError(location parser.LinePosition, message string) {
@@ -298,6 +294,10 @@ func (r *ParserRunner_Es6ErrorReporter) ReportError(location parser.LinePosition
 
 func (r *ParserRunner_Es6ErrorReporter) ReportWarning(location parser.LinePosition, message string) {
 	r.reporter.Warning(message, r.sourceName, int(location.Line)+1, int(location.Column))
+}
+
+func (r *ParserRunner_Es6ErrorReporter) HadError() bool {
+	return r.errorSeen
 }
 
 // ParserRunner_ParseResult holds results of parsing.
@@ -338,9 +338,7 @@ func ParserConfiguration_GetString(name string) string {
 	})
 	value, ok := parserConfiguration_bundle.Lookup(name)
 	if !ok {
-		panic(jutil.NewMissingResourceException(
-			"Can't find resource for bundle java.util.PropertyResourceBundle, key "+name,
-			"java.util.PropertyResourceBundle", name))
+		panic(jutil.NewIllegalStateExceptionMsg("missing ParserConfig.properties resource: " + name))
 	}
 	return value
 }

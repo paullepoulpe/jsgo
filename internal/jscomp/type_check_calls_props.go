@@ -145,11 +145,11 @@ func (tc *TypeCheck) CheckAbstractPropertyAccess(method ast.NormalOrOptChainGetP
 		// `super.foo()` definitely refers to `Superclass.prototype.foo`, not an override.
 		// At parse time, `Subclass.prototype` becomes a lower bound for what `super` evaluates to,
 		// even if the `this` object changes. So `super` will never resolve to a concrete subclass.
-		tc.Report(method.Node(), TypeCheck_ABSTRACT_SUPER_METHOD_NOT_USABLE, jutil.ToJavaString(methodType.GetDisplayName()))
+		tc.Report(method.Node(), TypeCheck_ABSTRACT_SUPER_METHOD_NOT_USABLE, stringPtrOrNull(methodType.GetDisplayName()))
 	} else if objectGetProp, ok := object.AsGetProp(); ok {
 		if objectGetProp.Node().GetStringID() == typeCheckPrototypeID || // case (b), e.g. `Foo.prototype.bar`
 			tc.compiler.GetCodingConvention().IsSuperClassReference(objectGetProp.Property()) { // case (c)
-			tc.Report(method.Node(), TypeCheck_ABSTRACT_SUPER_METHOD_NOT_USABLE, jutil.ToJavaString(methodType.GetDisplayName()))
+			tc.Report(method.Node(), TypeCheck_ABSTRACT_SUPER_METHOD_NOT_USABLE, stringPtrOrNull(methodType.GetDisplayName()))
 		}
 	}
 }
@@ -566,7 +566,7 @@ func (tc *TypeCheck) VisitClass(class ast.Class) {
 		tc.CheckInterface(n, functionType)
 	} else {
 		panic(jutil.NewIllegalStateExceptionMsg(
-			"CLASS node's type must be either constructor or interface: " + jutil.ToJavaString(functionType)))
+			"CLASS node's type must be either constructor or interface: " + jsTypeStringOrNull(functionType)))
 	}
 }
 
@@ -576,9 +576,9 @@ func (tc *TypeCheck) VisitClass(class ast.Class) {
 // Java: TypeCheck.checkConstructor(Node, FunctionType)
 func (tc *TypeCheck) CheckConstructor(n rhino.Node, functionType rhino.FunctionType) {
 	baseConstructor := functionType.GetSuperClassConstructor()
-	if !jutil.ObjectsEquals(baseConstructor, tc.GetNativeType(rhino.JSTypeNative_OBJECT_FUNCTION_TYPE)) &&
-		baseConstructor != nil &&
-		baseConstructor.IsInterface() {
+	if baseConstructor != nil &&
+		baseConstructor.IsInterface() &&
+		!baseConstructor.Equals(tc.GetNativeType(rhino.JSTypeNative_OBJECT_FUNCTION_TYPE)) {
 		// Warn if a class extends an interface.
 		tc.compiler.Report(
 			JSError_MakeWithNode(n, TypeCheck_CONFLICTING_EXTENDED_TYPE, "constructor", tc.GetBestFunctionName(n)))
@@ -593,8 +593,8 @@ func (tc *TypeCheck) CheckConstructor(n rhino.Node, functionType rhino.FunctionT
 				JSError_MakeWithNode(
 					n,
 					TypeCheck_ES5_CLASS_EXTENDING_ES6_CLASS,
-					jutil.ToJavaString(functionType.GetDisplayName()),
-					jutil.ToJavaString(baseConstructor.GetDisplayName())))
+					stringPtrOrNull(functionType.GetDisplayName()),
+					stringPtrOrNull(baseConstructor.GetDisplayName())))
 		}
 		if baseConstructor != nil {
 			tc.CheckStructDictSubtyping(n, functionType, baseConstructor)
@@ -663,11 +663,11 @@ func (tc *TypeCheck) CheckStructDictSubtyping(n rhino.Node, subtype rhino.Functi
 	if subtype.MakesDicts() && supertype.MakesStructs() {
 		tc.compiler.Report(
 			JSError_MakeWithNode(
-				n, TypeCheck_DICT_EXTEND_STRUCT_TYPE, jutil.ToJavaString(subtype.GetDisplayName()), jutil.ToJavaString(supertype.GetDisplayName())))
+				n, TypeCheck_DICT_EXTEND_STRUCT_TYPE, stringPtrOrNull(subtype.GetDisplayName()), stringPtrOrNull(supertype.GetDisplayName())))
 	} else if subtype.MakesStructs() && supertype.MakesDicts() {
 		tc.compiler.Report(
 			JSError_MakeWithNode(
-				n, TypeCheck_STRUCT_EXTEND_DICT_TYPE, jutil.ToJavaString(subtype.GetDisplayName()), jutil.ToJavaString(supertype.GetDisplayName())))
+				n, TypeCheck_STRUCT_EXTEND_DICT_TYPE, stringPtrOrNull(subtype.GetDisplayName()), stringPtrOrNull(supertype.GetDisplayName())))
 	}
 }
 
@@ -703,11 +703,11 @@ func (tc *TypeCheck) CheckInterface(n rhino.Node, functionType rhino.FunctionTyp
 	if loopPath != nil {
 		names := make([]string, len(loopPath))
 		for i, fn := range loopPath {
-			names[i] = jutil.ToJavaString(fn.GetDisplayName())
+			names[i] = stringPtrOrNull(fn.GetDisplayName())
 		}
 		strPath := strings.Join(names, " -> ")
 		tc.compiler.Report(
-			JSError_MakeWithNode(n, TypeCheck_INTERFACE_EXTENDS_LOOP, jutil.ToJavaString(loopPath[0].GetDisplayName()), strPath))
+			JSError_MakeWithNode(n, TypeCheck_INTERFACE_EXTENDS_LOOP, stringPtrOrNull(loopPath[0].GetDisplayName()), strPath))
 	}
 
 	tc.validator.ExpectAllInterfaceProperties(n, functionType)
@@ -720,7 +720,7 @@ func (tc *TypeCheck) GetBestFunctionName(n rhino.Node) string {
 	if name != nil {
 		return *name
 	}
-	return "<anonymous@" + jutil.ToJavaString(n.GetSourceFileName()) + ":" + strconv.Itoa(n.GetLineno()) + ">"
+	return "<anonymous@" + stringPtrOrNull(n.GetSourceFileName()) + ":" + strconv.Itoa(n.GetLineno()) + ">"
 }
 
 var TypeCheck_GOOG_INHERITS = rhino.QualifiedName_Of("goog.inherits")
@@ -1160,7 +1160,7 @@ func (tc *TypeCheck) VisitBinaryOperator(op rhino.Token, n rhino.Node, left rhin
 		tc.Report(
 			n,
 			TypeCheck_BINARY_OPERATION,
-			jutil.ToJavaString(NodeUtil_OpToStr(n.GetToken())),
+			stringPtrOrNull(NodeUtil_OpToStr(n.GetToken())),
 			leftType.String(),
 			rightType.String())
 		return
@@ -1173,7 +1173,7 @@ func (tc *TypeCheck) VisitBinaryOperator(op rhino.Token, n rhino.Node, left rhin
 			// NOTE: >>> and >>>= aren't valid operations for bigint, so TypeInference ignores the
 			//     operand types for it and always sets the operator's type to 'number'. Thus,
 			//     if one of the operands is a bigint, we'll end up reporting that as an error here.
-			opStr := jutil.ToJavaString(NodeUtil_OpToStr(n.GetToken()))
+			opStr := stringPtrOrNull(NodeUtil_OpToStr(n.GetToken()))
 			if !leftType.MatchesNumberContext() {
 				tc.Report(left, TypeCheck_BIT_OPERATION, opStr, leftType.String())
 			} else {

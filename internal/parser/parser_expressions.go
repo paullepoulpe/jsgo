@@ -268,7 +268,7 @@ func (p *Parser) MaybeReportTrailingComma(commaToken Token) {
 		if p.config.warnTrailingCommas {
 			// In ES3 mode warn about trailing commas which aren't accepted by
 			// older browsers (such as IE8).
-			p.errorReporter.ReportWarningFormat(
+			p.errorReporter.ReportWarning(
 				p.linePos(commaToken.Location.Start),
 				"Trailing comma is not legal in an ECMA-262 object initializer")
 		}

@@ -24,29 +24,9 @@ import (
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
 
-// SemanticReverseAbstractInterpreter is a reverse abstract interpreter using
-// the semantics of the JavaScript language as a means to reverse interpret
-// computations. This interpreter expects the parse tree inputs to be typed.
-type SemanticReverseAbstractInterpreter struct {
-	ChainableReverseAbstractInterpreterBase
-	trackingUsed []*sraiTrackingFlowScope
-	trackingFree []*sraiTrackingFlowScope
-	trackingSlab jutil.Slab[sraiTrackingFlowScope]
-}
-
-// NewSemanticReverseAbstractInterpreter creates a semantic reverse abstract
-// interpreter.
-//
-// Java: SemanticReverseAbstractInterpreter(JSTypeRegistry)
-func NewSemanticReverseAbstractInterpreter(typeRegistry *rhino.JSTypeRegistry) *SemanticReverseAbstractInterpreter {
-	s := &SemanticReverseAbstractInterpreter{}
-	s.initChainableBase(s, typeRegistry)
-	return s
-}
-
 // Java: SemanticReverseAbstractInterpreter.getPreciserScopeKnowingConditionOutcome(Node, FlowScope, Outcome)
-func (s *SemanticReverseAbstractInterpreter) GetPreciserScopeKnowingConditionOutcome(
-	condition rhino.Node, blindScope FlowScope, outcome rhino.Outcome) FlowScope {
+func (s *SemanticReverseAbstractInterpreter) semanticPreciserScope(
+	condition rhino.Node, blindScope FlowScope, outcome rhino.Outcome) (FlowScope, bool) {
 	// Check for the typeof operator.
 	operatorToken := condition.GetToken()
 	switch operatorToken {
@@ -83,7 +63,7 @@ func (s *SemanticReverseAbstractInterpreter) GetPreciserScopeKnowingConditionOut
 					resultEqualsValue = !resultEqualsValue
 				}
 				return s.CaseTypeOf(
-					operandNode, operandType, stringNode.GetString(), resultEqualsValue, blindScope)
+					operandNode, operandType, stringNode.GetString(), resultEqualsValue, blindScope), true
 			}
 		}
 	default:
@@ -93,92 +73,97 @@ func (s *SemanticReverseAbstractInterpreter) GetPreciserScopeKnowingConditionOut
 		bin := ast.MustBinary(condition)
 		if outcome.IsTruthy() {
 			return s.CaseAndOrNotShortCircuiting(
-				bin.Left().Node(), bin.Right().Node(), blindScope, rhino.Outcome_TRUE)
+				bin.Left().Node(), bin.Right().Node(), blindScope, rhino.Outcome_TRUE), true
 		} else {
 			return s.CaseAndOrMaybeShortCircuiting(
-				bin.Left().Node(), bin.Right().Node(), blindScope, rhino.Outcome_TRUE)
+				bin.Left().Node(), bin.Right().Node(), blindScope, rhino.Outcome_TRUE), true
 		}
 	case rhino.Token_OR:
 		bin := ast.MustBinary(condition)
 		if !outcome.IsTruthy() {
 			return s.CaseAndOrNotShortCircuiting(
-				bin.Left().Node(), bin.Right().Node(), blindScope, rhino.Outcome_FALSE)
+				bin.Left().Node(), bin.Right().Node(), blindScope, rhino.Outcome_FALSE), true
 		} else {
 			return s.CaseAndOrMaybeShortCircuiting(
-				bin.Left().Node(), bin.Right().Node(), blindScope, rhino.Outcome_FALSE)
+				bin.Left().Node(), bin.Right().Node(), blindScope, rhino.Outcome_FALSE), true
 		}
 	case rhino.Token_EQ:
 		bin := ast.MustBinary(condition)
 		if outcome.IsTruthy() {
-			return s.caseEqualityMode(bin.Left().Node(), bin.Right().Node(), blindScope, sraiModeEq)
+			return s.caseEqualityMode(bin.Left().Node(), bin.Right().Node(), blindScope, sraiModeEq), true
 		} else {
-			return s.caseEqualityMode(bin.Left().Node(), bin.Right().Node(), blindScope, sraiModeNe)
+			return s.caseEqualityMode(bin.Left().Node(), bin.Right().Node(), blindScope, sraiModeNe), true
 		}
 	case rhino.Token_NE:
 		bin := ast.MustBinary(condition)
 		if outcome.IsTruthy() {
-			return s.caseEqualityMode(bin.Left().Node(), bin.Right().Node(), blindScope, sraiModeNe)
+			return s.caseEqualityMode(bin.Left().Node(), bin.Right().Node(), blindScope, sraiModeNe), true
 		} else {
-			return s.caseEqualityMode(bin.Left().Node(), bin.Right().Node(), blindScope, sraiModeEq)
+			return s.caseEqualityMode(bin.Left().Node(), bin.Right().Node(), blindScope, sraiModeEq), true
 		}
 	case rhino.Token_SHEQ:
 		bin := ast.MustBinary(condition)
 		if outcome.IsTruthy() {
-			return s.caseEqualityMode(bin.Left().Node(), bin.Right().Node(), blindScope, sraiModeSheq)
+			return s.caseEqualityMode(bin.Left().Node(), bin.Right().Node(), blindScope, sraiModeSheq), true
 		} else {
-			return s.caseEqualityMode(bin.Left().Node(), bin.Right().Node(), blindScope, sraiModeShne)
+			return s.caseEqualityMode(bin.Left().Node(), bin.Right().Node(), blindScope, sraiModeShne), true
 		}
 	case rhino.Token_SHNE:
 		bin := ast.MustBinary(condition)
 		if outcome.IsTruthy() {
-			return s.caseEqualityMode(bin.Left().Node(), bin.Right().Node(), blindScope, sraiModeShne)
+			return s.caseEqualityMode(bin.Left().Node(), bin.Right().Node(), blindScope, sraiModeShne), true
 		} else {
-			return s.caseEqualityMode(bin.Left().Node(), bin.Right().Node(), blindScope, sraiModeSheq)
+			return s.caseEqualityMode(bin.Left().Node(), bin.Right().Node(), blindScope, sraiModeSheq), true
 		}
 	case rhino.Token_NAME, rhino.Token_GETPROP:
-		return s.CaseNameOrGetProp(condition, blindScope, outcome)
+		return s.CaseNameOrGetProp(condition, blindScope, outcome), true
 	case rhino.Token_ASSIGN:
 		assign := ast.MustAssign(condition)
-		return s.FirstPreciserScopeKnowingConditionOutcome(
+		return s.GetPreciserScopeKnowingConditionOutcome(
 			assign.Target().Node(),
-			s.FirstPreciserScopeKnowingConditionOutcome(
+			s.GetPreciserScopeKnowingConditionOutcome(
 				assign.Value().Node(), blindScope, outcome),
-			outcome)
+			outcome), true
 	case rhino.Token_NOT:
-		return s.FirstPreciserScopeKnowingConditionOutcome(
-			ast.MustUnary(condition).Operand().Node(), blindScope, outcome.Not())
+		return s.GetPreciserScopeKnowingConditionOutcome(
+			ast.MustUnary(condition).Operand().Node(), blindScope, outcome.Not()), true
 	case rhino.Token_LE, rhino.Token_LT, rhino.Token_GE, rhino.Token_GT:
 		if outcome.IsTruthy() {
 			bin := ast.MustBinary(condition)
-			return s.caseEqualityMode(bin.Left().Node(), bin.Right().Node(), blindScope, sraiModeIneq)
+			return s.caseEqualityMode(bin.Left().Node(), bin.Right().Node(), blindScope, sraiModeIneq), true
 		}
 	case rhino.Token_INSTANCEOF:
 		bin := ast.MustBinary(condition)
 		return s.CaseInstanceOf(
-			bin.Left().Node(), bin.Right().Node(), blindScope, outcome)
+			bin.Left().Node(), bin.Right().Node(), blindScope, outcome), true
 	case rhino.Token_IN:
 		bin := ast.MustBinary(condition)
 		if outcome.IsTruthy() && bin.Left().Node().IsStringLit() {
 			return s.CaseIn(
-				bin.Right().Node(), bin.Left().Node().GetString(), blindScope)
+				bin.Right().Node(), bin.Left().Node().GetString(), blindScope), true
 		}
 	case rhino.Token_CASE:
 		left := ast.MustSwitch(condition.GetGrandparent()).Discriminant().Node() // the switch condition
 		right := ast.MustCase(condition).Value().Node()
 		if outcome.IsTruthy() {
-			return s.caseEqualityMode(left, right, blindScope, sraiModeSheq)
+			return s.caseEqualityMode(left, right, blindScope, sraiModeSheq), true
 		} else {
-			return s.caseEqualityMode(left, right, blindScope, sraiModeShne)
+			return s.caseEqualityMode(left, right, blindScope, sraiModeShne), true
 		}
 	case rhino.Token_CALL:
 		call := ast.MustCall(condition)
-		if firstArg, ok := call.FirstArg(); ok && call.Callee().Node().MatchesQualifiedName("Array.isArray") {
-			return s.CaseIsArray(firstArg.Node(), blindScope, outcome)
+		if firstArg, ok := call.FirstArg(); ok {
+			if callee, ok := call.Callee().AsGetProp(); ok && callee.Node().GetStringID() == raiIsArrayID {
+				obj := callee.Object().Node()
+				if obj.IsName() && obj.GetStringID() == raiArrayID {
+					return s.CaseIsArray(firstArg.Node(), blindScope, outcome), true
+				}
+			}
 		}
 	default:
 	}
 
-	return s.NextPreciserScopeKnowingConditionOutcome(condition, blindScope, outcome)
+	return blindScope, false
 }
 
 // Java: SemanticReverseAbstractInterpreter.caseIsArray(Node, FlowScope, Outcome)
@@ -284,7 +269,7 @@ func (s *SemanticReverseAbstractInterpreter) CaseAndOrNotShortCircuiting(
 	} else {
 		leftIsRefineable = false
 		leftType = left.GetJSType()
-		blindScope = s.FirstPreciserScopeKnowingConditionOutcome(left, blindScope, outcome)
+		blindScope = s.GetPreciserScopeKnowingConditionOutcome(left, blindScope, outcome)
 	}
 
 	// restricting left type
@@ -293,7 +278,7 @@ func (s *SemanticReverseAbstractInterpreter) CaseAndOrNotShortCircuiting(
 		restrictedLeftType = leftType.GetRestrictedTypeGivenOutcome(outcome)
 	}
 	if restrictedLeftType == nil {
-		return s.FirstPreciserScopeKnowingConditionOutcome(right, blindScope, outcome)
+		return s.GetPreciserScopeKnowingConditionOutcome(right, blindScope, outcome)
 	}
 	var leftRestriction rhino.JSType
 	if leftIsRefineable {
@@ -309,7 +294,7 @@ func (s *SemanticReverseAbstractInterpreter) CaseAndOrNotShortCircuiting(
 	} else {
 		rightIsRefineable = false
 		rightType = right.GetJSType()
-		blindScope = s.FirstPreciserScopeKnowingConditionOutcome(right, blindScope, outcome)
+		blindScope = s.GetPreciserScopeKnowingConditionOutcome(right, blindScope, outcome)
 	}
 
 	if outcome.IsTruthy() {
@@ -339,7 +324,7 @@ func (s *SemanticReverseAbstractInterpreter) CaseAndOrMaybeShortCircuiting(
 	rootTracking := s.acquireTrackingScope(blindScope, nil)
 	tracker := rootTracking.tracker
 	blindScope = rootTracking
-	leftScope := s.FirstPreciserScopeKnowingConditionOutcome(left, blindScope, outcome.Not())
+	leftScope := s.GetPreciserScopeKnowingConditionOutcome(left, blindScope, outcome.Not())
 	var leftVar rhino.StaticTypedSlot
 	if tracker.count == 1 {
 		leftVar, _ = leftScope.GetSlot(tracker.first).(rhino.StaticTypedSlot)
@@ -355,8 +340,8 @@ func (s *SemanticReverseAbstractInterpreter) CaseAndOrMaybeShortCircuiting(
 	*tracker = sraiRefinementTracker{}
 	// Note: re-wrap the scope, in case it was unwrapped by a nested call to this method.
 	var rightScope FlowScope = s.acquireTrackingScope(
-		s.FirstPreciserScopeKnowingConditionOutcome(left, blindScope, outcome), tracker)
-	rightScope = s.FirstPreciserScopeKnowingConditionOutcome(right, rightScope, outcome.Not())
+		s.GetPreciserScopeKnowingConditionOutcome(left, blindScope, outcome), tracker)
+	rightScope = s.GetPreciserScopeKnowingConditionOutcome(right, rightScope, outcome.Not())
 	var rightVar rhino.StaticTypedSlot
 	if tracker.count == 1 {
 		rightVar, _ = rightScope.GetSlot(tracker.first).(rhino.StaticTypedSlot)

@@ -22,6 +22,7 @@ import (
 	"cmp"
 	"slices"
 	"strconv"
+	"strings"
 
 	"github.com/paullepoulpe/jsgo/internal/ast"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
@@ -128,7 +129,7 @@ type RenameVars_Assignment struct {
 
 // Java: RenameVars.Assignment(String)
 func NewRenameVars_Assignment(outer *RenameVars, name string) *RenameVars_Assignment {
-	return outer.allocAssignment(name, jutil.StringStartsWith(name, RenameVars_LOCAL_VAR_PREFIX))
+	return outer.allocAssignment(name, strings.HasPrefix(name, RenameVars_LOCAL_VAR_PREFIX))
 }
 
 type renameVarDecision struct {
@@ -595,19 +596,19 @@ func (r *RenameVars) RecordPseudoName(n rhino.Node) {
 func (r *RenameVars) reusePreviouslyUsedVariableMapSlice(varsToRename []*RenameVars_Assignment) {
 	jutil.CheckNotNullPtr(r.prevUsedRenameMap)
 	for _, a := range varsToRename {
-		prevNewName := r.prevUsedRenameMap.LookupNewName(a.oldName)
-		if prevNewName == nil {
+		prevNewName, ok := r.prevUsedRenameMap.origToNew[a.oldName]
+		if !ok {
 			continue
 		}
-		if _, reserved := r.reservedNames[*prevNewName]; reserved {
+		if _, reserved := r.reservedNames[prevNewName]; reserved {
 			continue
 		}
 
 		_, isExtern := r.externNames[a.oldName]
 		if a.isLocal ||
-			(!isExtern && jutil.StringStartsWith(*prevNewName, r.prefix)) {
-			r.reservedNames[*prevNewName] = struct{}{}
-			r.FinalizeNameAssignment(a, *prevNewName)
+			(!isExtern && strings.HasPrefix(prevNewName, r.prefix)) {
+			r.reservedNames[prevNewName] = struct{}{}
+			r.FinalizeNameAssignment(a, prevNewName)
 		}
 	}
 }
@@ -678,11 +679,28 @@ func (r *RenameVars) FinalizeNameAssignment(a *RenameVars_Assignment, newName st
 //
 // Java: RenameVars.getVariableMap()
 func (r *RenameVars) GetVariableMap() *VariableMap {
-	m := jutil.NewLinkedHashMapWithCapacity[string, string](len(r.finalized))
+	n := len(r.finalized)
+	origToNew := make(map[string]string, n)
+	newToOrig := make(map[string]string, n)
+	origKeys := make([]string, 0, n)
 	for _, entry := range r.finalized {
-		m.Put(entry.oldName, entry.newName)
+		if prevNew, exists := origToNew[entry.oldName]; exists {
+			delete(newToOrig, prevNew)
+		} else {
+			origKeys = append(origKeys, entry.oldName)
+		}
+		if prevOrig, dup := newToOrig[entry.newName]; dup && prevOrig != entry.oldName {
+			panic(jutil.NewIllegalArgumentExceptionMsg(
+				"Multiple entries with same value: " + entry.oldName + "=" + entry.newName + " and " + prevOrig + "=" + entry.newName))
+		}
+		origToNew[entry.oldName] = entry.newName
+		newToOrig[entry.newName] = entry.oldName
 	}
-	return NewVariableMap(m)
+	return &VariableMap{
+		origToNew: origToNew,
+		newToOrig: newToOrig,
+		origKeys:  origKeys,
+	}
 }
 
 // OkToRenameVar determines whether a variable name is okay to rename.

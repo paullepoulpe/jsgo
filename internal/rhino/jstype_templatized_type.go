@@ -108,22 +108,30 @@ func (t *TemplatizedType) GetTypeClass() JSTypeClass {
 //
 // Java: TemplatizedType.getCtorImplementedInterfaces()
 func (t *TemplatizedType) GetCtorImplementedInterfaces() []ObjectType {
-	resolvedImplementedInterfaces := jutil.NewObjectLinkedHashSet[ObjectType]()
-	replacer := TemplateTypeReplacer_MakeForPartialReplacement(t.GetRegistry(), t.templateTypeMap)
-	for _, obj := range t.GetReferencedObjTypeInternal().GetCtorImplementedInterfaces() {
-		resolvedImplementedInterfaces.Add(replacer.VisitJSType(obj).ToObjectType())
+	raw := t.GetReferencedObjTypeInternal().GetCtorImplementedInterfaces()
+	if len(raw) == 0 {
+		return emptyObjectTypeSlice
 	}
-	return resolvedImplementedInterfaces.ToSlice()
+	replacer := TemplateTypeReplacer_MakeForPartialReplacement(t.GetRegistry(), t.templateTypeMap)
+	out := make([]ObjectType, 0, len(raw))
+	for _, obj := range raw {
+		out = appendUniqueObjectType(out, replacer.VisitJSType(obj).ToObjectType())
+	}
+	return out
 }
 
 // Java: TemplatizedType.getCtorExtendedInterfaces()
 func (t *TemplatizedType) GetCtorExtendedInterfaces() []ObjectType {
-	resolvedExtendedInterfaces := jutil.NewObjectLinkedHashSet[ObjectType]()
-	replacer := TemplateTypeReplacer_MakeForPartialReplacement(t.GetRegistry(), t.templateTypeMap)
-	for _, obj := range t.GetReferencedObjTypeInternal().GetCtorExtendedInterfaces() {
-		resolvedExtendedInterfaces.Add(replacer.VisitJSType(obj).ToObjectType())
+	raw := t.GetReferencedObjTypeInternal().GetCtorExtendedInterfaces()
+	if len(raw) == 0 {
+		return emptyObjectTypeSlice
 	}
-	return resolvedExtendedInterfaces.ToSlice()
+	replacer := TemplateTypeReplacer_MakeForPartialReplacement(t.GetRegistry(), t.templateTypeMap)
+	out := make([]ObjectType, 0, len(raw))
+	for _, obj := range raw {
+		out = appendUniqueObjectType(out, replacer.VisitJSType(obj).ToObjectType())
+	}
+	return out
 }
 
 // Java: TemplatizedType.appendTo(TypeStringBuilder)

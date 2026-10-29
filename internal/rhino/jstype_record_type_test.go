@@ -322,3 +322,19 @@ func TestRecordType_Equality_onlyCompares_ownProperties(t *testing.T) {
 	// Then
 	s.AssertType(recordA).IsNotEqualTo(recordB)
 }
+
+func TestRecordType_UTF16PropertySortOrder(t *testing.T) {
+	s := newRecordTypeTest(t)
+	// In UTF-16 code unit order (Java String.compareTo), supplementary
+	// U+10000 (0xD800, 0xDC00) sorts BEFORE BMP U+E000 (0xE000), whereas in
+	// UTF-8 byte order U+E000 (0xEE...) sorts before U+10000 (0xF0...).
+	// Duplicate property overwrites must also take effect before sorting.
+	record := NewRecordTypeBuilder(s.Registry).
+		AddProperty("\uE000", s.STRING_TYPE, NilNode).
+		AddProperty("\U00010000", s.BOOLEAN_TYPE, NilNode).
+		AddProperty("\U00010000", s.NUMBER_TYPE, NilNode).
+		Build()
+
+	s.AssertThat(record.ToAnnotationString(JSType_Nullability_EXPLICIT)).
+		IsEqualTo("{\U00010000: number, \uE000: string}")
+}

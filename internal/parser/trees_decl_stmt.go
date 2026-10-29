@@ -226,7 +226,7 @@ func (t *ParseTreeBase) IsRestParameter() bool {
 //
 // Java: ParseTree.toString()
 func (t *ParseTreeBase) String() string {
-	return t.Type.String() + "@" + jutil.ToJavaString(t.Location)
+	return t.Type.String() + "@" + t.Location.String()
 }
 
 // ParseTreeType: the types of concrete parse trees.
@@ -678,8 +678,11 @@ func NewFunctionDeclarationTree(builder *FunctionDeclarationTree_Builder) *Funct
 	t.IsGenerator = builder.isGenerator
 	t.IsOptional = builder.isOptional
 	t.Kind = builder.kind // Java: checkNotNull(builder.kind); an enum value is never null in Go.
-	t.FormalParameterList = jutil.CheckNotNull(builder.formalParameterList)
-	t.FunctionBody = jutil.CheckNotNull(builder.functionBody)
+	if builder.formalParameterList == nil || builder.functionBody == nil {
+		panic(jutil.NewNullPointerException())
+	}
+	t.FormalParameterList = builder.formalParameterList
+	t.FunctionBody = builder.functionBody
 	t.IsAsync = builder.isAsync
 	return t
 }

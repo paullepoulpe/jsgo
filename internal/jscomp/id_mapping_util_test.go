@@ -19,56 +19,34 @@
 package jscomp
 
 import (
-	"bytes"
+	"strings"
 	"testing"
-
-	"github.com/paullepoulpe/jsgo/internal/jutil"
 )
 
 func TestIdMappingUtil_ParseIdMapping(t *testing.T) {
-	mapping := jutil.NewStringBuilder()
-	mapping.
-		Append("[gen1]").
-		AppendChar(IdMappingUtil_NEW_LINE).
-		Append("id1:data1").
-		AppendChar(IdMappingUtil_NEW_LINE).
-		Append("id2:data2:data22").
-		AppendChar(IdMappingUtil_NEW_LINE).
-		AppendChar(IdMappingUtil_NEW_LINE).
-		Append("[gen2]")
-
-	s := mapping.String()
+	s := "[gen1]\nid1:data1\nid2:data2:data22\n\n[gen2]"
 	result := IdMappingUtil_ParseSerializedIdMappings(&s)
 
-	assertEqual(t, "size", result.Size(), 2)
+	assertEqual(t, "size", len(result), 2)
 
-	if !result.ContainsKey("gen1") {
+	gen1, ok := result["gen1"]
+	if !ok {
 		t.Fatal("missing gen1")
 	}
-	gen1 := result.Get("gen1")
 	assertEqual(t, "gen1 size", gen1.Size(), 2)
 	assertEqual(t, "id1", gen1.Get("id1"), "data1")
 	assertEqual(t, "id2", gen1.Get("id2"), "data2:data22")
 
-	if !result.ContainsKey("gen2") {
+	gen2, ok := result["gen2"]
+	if !ok {
 		t.Fatal("missing gen2")
 	}
-	assertEqual(t, "gen2 empty", result.Get("gen2").IsEmpty(), true)
+	assertEqual(t, "gen2 empty", gen2.IsEmpty(), true)
 }
 
 func TestIdMappingUtil_ParseSectionAsStream(t *testing.T) {
-	mapping := jutil.NewStringBuilder()
-	mapping.
-		Append("[gen1]").
-		AppendChar(IdMappingUtil_NEW_LINE).
-		Append("id1:data1").
-		AppendChar(IdMappingUtil_NEW_LINE).
-		Append("[gen2]").
-		AppendChar(IdMappingUtil_NEW_LINE).
-		Append("id2:data2")
-
-	result := IdMappingUtil_ParseSectionAsStream(
-		bytes.NewReader(jutil.StringGetBytesUTF8(mapping.String())), "gen1")
+	s := "[gen1]\nid1:data1\n[gen2]\nid2:data2"
+	result := IdMappingUtil_ParseSectionAsStream(strings.NewReader(s), "gen1")
 
 	assertEqual(t, "result", result.String(), "{id1=data1}")
 }

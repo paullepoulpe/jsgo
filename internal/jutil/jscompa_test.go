@@ -91,26 +91,6 @@ func javaNullable(p *string) string {
 	return *p
 }
 
-func TestMessageFormatMatchesJava(t *testing.T) {
-	rows := readTSV(t, "jscompa_messageformat.tsv")
-	if len(rows) < 1500 {
-		t.Fatalf("only %d vectors", len(rows))
-	}
-	argSets := map[string][]any{
-		"0": {},
-		"4": {"A", "B", "C", "D"},
-		"3": {"x'y", "{0}", "ü"},
-	}
-	for _, r := range rows {
-		pattern, _ := unescVector(t, r[0])
-		args := argSets[r[1]]
-		got := guardVector(func() string { return MessageFormat_Format(pattern, args) })
-		if got != r[2] {
-			t.Errorf("MessageFormat.format(%q, %v) = %q, want %q", pattern, args, got, r[2])
-		}
-	}
-}
-
 func TestPathMatchesJava(t *testing.T) {
 	for _, r := range readTSV(t, "jscompa_path.tsv") {
 		p, _ := unescVector(t, r[1])

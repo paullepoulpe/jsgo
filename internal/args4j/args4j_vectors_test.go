@@ -70,60 +70,45 @@ var (
 	outFmtClass = EnumClassOf("Args4jVectors$OutFmt", []tOutFmt{tOutFmt_MD, tOutFmt_JSON})
 )
 
-// closureBool is CommandLineRunner.Flags.BooleanOptionHandler.
-type closureBool struct{ OptionHandlerBase }
-
-func newClosureBool(parser *CmdLineParser, option OptionDef, setter Setter) OptionHandler {
-	h := &closureBool{}
-	h.InitOptionHandlerBase(h, parser, option, setter)
-	return h
-}
-
-func (h *closureBool) ParseArguments(params Parameters) int {
-	var param *string
-	jutil.Try(func() {
-		p := params.GetParameter(0)
-		param = &p
-	}, func(e ICmdLineException) {
-		param = nil
+// newClosureBool is CommandLineRunner.Flags.BooleanOptionHandler.
+func newClosureBool(parser *CmdLineParser, option *OptionDef, setter Setter) *OptionHandler {
+	return NewOptionHandler(parser, option, setter, nil, func(h *OptionHandler, params Parameters) int {
+		var param string
+		hasParam := false
+		jutil.Try(func() {
+			param = params.GetParameter(0)
+			hasParam = true
+		}, func(e ICmdLineException) {})
+		if !hasParam {
+			h.Setter.AddValue(true)
+			return 0
+		}
+		switch jutil.StringToLowerCaseASCII(param) {
+		case "true", "on", "yes", "1":
+			h.Setter.AddValue(true)
+		case "false", "off", "no", "0":
+			h.Setter.AddValue(false)
+		default:
+			h.Setter.AddValue(true)
+			return 0
+		}
+		return 1
 	})
-	if param == nil {
-		h.Setter.AddValue(true)
-		return 0
-	}
-	lowerParam := jutil.StringToLowerCaseASCII(*param)
-	switch lowerParam {
-	case "true", "on", "yes", "1":
-		h.Setter.AddValue(true)
-	case "false", "off", "no", "0":
-		h.Setter.AddValue(false)
-	default:
-		h.Setter.AddValue(true)
-		return 0
-	}
-	return 1
 }
-
-func (h *closureBool) GetDefaultMetaVariable() *string { return nil }
 
 var recorded []string
 
-// recordingStringHandler is CommandLineRunner.Flags.JsOptionHandler with its
+// newRecordingStringHandler is CommandLineRunner.Flags.JsOptionHandler with its
 // MultiFlagSetter.
-type recordingStringHandler struct{ StringOptionHandler }
-
-func newRecordingStringHandler(parser *CmdLineParser, option OptionDef, setter Setter) OptionHandler {
-	h := &recordingStringHandler{}
-	h.InitStringOptionHandler(h, parser, option, &recording{proxy: setter})
-	return h
+func newRecordingStringHandler(parser *CmdLineParser, option *OptionDef, setter Setter) *OptionHandler {
+	return NewStringOptionHandler(parser, option, &recording{proxy: setter})
 }
 
 type recording struct{ proxy Setter }
 
-func (r *recording) IsMultiValued() bool                  { return r.proxy.IsMultiValued() }
-func (r *recording) GetType() *Class                      { return r.proxy.GetType() }
-func (r *recording) AsFieldSetter() *FieldSetter          { return r.proxy.AsFieldSetter() }
-func (r *recording) AsAnnotatedElement() AnnotatedElement { return r.proxy.AsAnnotatedElement() }
+func (r *recording) IsMultiValued() bool         { return r.proxy.IsMultiValued() }
+func (r *recording) GetType() *Class             { return r.proxy.GetType() }
+func (r *recording) AsFieldSetter() *FieldSetter { return r.proxy.AsFieldSetter() }
 func (r *recording) AddValue(v any) {
 	value := v.(string)
 	normalizedValue := value
@@ -429,10 +414,10 @@ func vectorUsage(bean any, config string) string {
 		parser.SetUsageWidth(n)
 		parser.PrintUsageToWriter(w, nil)
 	case "category":
-		parser.PrintUsageToWriterWithFilter(w, nil, OptionHandlerFilterFunc(func(optionHandler OptionHandler) bool {
-			option := optionHandler.GetOptionHandlerBase().Option
-			if namedOptionDef, ok := option.(*NamedOptionDef); ok {
-				return !option.Hidden() && slices.Contains(vectorCategory, strings.TrimPrefix(namedOptionDef.Name(), "--"))
+		parser.PrintUsageToWriterWithFilter(w, nil, OptionHandlerFilterFunc(func(optionHandler *OptionHandler) bool {
+			option := optionHandler.Option
+			if option.IsNamed() {
+				return !option.Hidden() && slices.Contains(vectorCategory, strings.TrimPrefix(option.Name(), "--"))
 			}
 			return false
 		}))

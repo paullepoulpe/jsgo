@@ -540,6 +540,40 @@ func (m *JsMessage) HashCode() int32 {
 	return h
 }
 
+func jsMessage_formatPartsList(parts []JsMessage_Part) string {
+	if len(parts) == 0 {
+		return "[]"
+	}
+	var sb strings.Builder
+	sb.WriteByte('[')
+	for i, p := range parts {
+		if i > 0 {
+			sb.WriteString(", ")
+		}
+		sb.WriteString(p.String())
+	}
+	sb.WriteByte(']')
+	return sb.String()
+}
+
+func jsMessage_formatStringSet(s *jutil.LinkedHashSet[string]) string {
+	if s.IsEmpty() {
+		return "[]"
+	}
+	var sb strings.Builder
+	sb.WriteByte('[')
+	first := true
+	for elem := range s.All() {
+		if !first {
+			sb.WriteString(", ")
+		}
+		first = false
+		sb.WriteString(elem)
+	}
+	sb.WriteByte(']')
+	return sb.String()
+}
+
 // String is the record's toString.
 //
 // Java: JsMessage.toString()
@@ -558,7 +592,7 @@ func (m *JsMessage) String() string {
 			first = false
 			sb.WriteString(k.String())
 			sb.WriteByte('=')
-			sb.WriteString(jutil.CollectionToString(v))
+			sb.WriteString(jsMessage_formatPartsList(v))
 		}
 		sb.WriteByte('}')
 		gendered = sb.String()
@@ -569,15 +603,15 @@ func (m *JsMessage) String() string {
 		", isAnonymous=" + strconv.FormatBool(m.isAnonymous) +
 		", isExternal=" + strconv.FormatBool(m.isExternal) +
 		", getId=" + m.id +
-		", getParts=" + jutil.CollectionToString(m.parts) +
+		", getParts=" + jsMessage_formatPartsList(m.parts) +
 		", getGenderedMessagesMap=" + gendered +
 		", getAlternateId=" + jsMessage_optStringFormat(m.alternateId, m.hasAlternateId) +
 		", getDesc=" + jsMessage_optStringFormat(m.desc, m.hasDesc) +
 		", getMeaning=" + jsMessage_optStringFormat(m.meaning, m.hasMeaning) +
 		", getPlaceholderNameToExampleMap=" + m.GetPlaceholderNameToExampleMap().String() +
 		", getPlaceholderNameToOriginalCodeMap=" + m.GetPlaceholderNameToOriginalCodeMap().String() +
-		", jsPlaceholderNames=" + jutil.CollectionToString(m.jsPlaceholderNames.ToSlice()) +
-		", canonicalPlaceholderNames=" + jutil.CollectionToString(m.canonicalPlaceholderNames.ToSlice()) +
+		", jsPlaceholderNames=" + jsMessage_formatStringSet(m.jsPlaceholderNames) +
+		", canonicalPlaceholderNames=" + jsMessage_formatStringSet(m.canonicalPlaceholderNames) +
 		"]"
 }
 
@@ -633,8 +667,7 @@ func (p JsMessage_Part) IsPlaceholder() bool { return p.isPlaceholder }
 // Java: JsMessage.Part.getString()
 func (p JsMessage_Part) GetString() string {
 	if p.isPlaceholder {
-		panic(jutil.NewUnsupportedOperationExceptionMsg(
-			jutil.StringFormat("not a string part: '%s'", p.GetJsPlaceholderName())))
+		panic(jutil.NewUnsupportedOperationExceptionMsg("not a string part: '" + p.GetJsPlaceholderName() + "'"))
 	}
 	return p.str
 }
@@ -644,7 +677,7 @@ func (p JsMessage_Part) GetString() string {
 // Java: JsMessage.PlaceholderReference.storedPlaceholderName()
 func (p JsMessage_Part) StoredPlaceholderName() string {
 	if !p.isPlaceholder {
-		panic(jutil.NewUnsupportedOperationExceptionMsg(jutil.StringFormat("not a placeholder: '%s'", p.str)))
+		panic(jutil.NewUnsupportedOperationExceptionMsg("not a placeholder: '" + p.str + "'"))
 	}
 	return p.str
 }
@@ -661,7 +694,7 @@ func (p JsMessage_Part) CanonicalFormat() bool { return p.canonical }
 // Java: JsMessage.Part.getJsPlaceholderName()
 func (p JsMessage_Part) GetJsPlaceholderName() string {
 	if !p.isPlaceholder {
-		panic(jutil.NewUnsupportedOperationExceptionMsg(jutil.StringFormat("not a placeholder: '%s'", p.str)))
+		panic(jutil.NewUnsupportedOperationExceptionMsg("not a placeholder: '" + p.str + "'"))
 	}
 	if p.canonical {
 		return JsMessage_ToLowerCamelCaseWithNumericSuffixes(p.str)
@@ -675,7 +708,7 @@ func (p JsMessage_Part) GetJsPlaceholderName() string {
 // Java: JsMessage.Part.getCanonicalPlaceholderName()
 func (p JsMessage_Part) GetCanonicalPlaceholderName() string {
 	if !p.isPlaceholder {
-		panic(jutil.NewUnsupportedOperationExceptionMsg(jutil.StringFormat("not a placeholder: '%s'", p.str)))
+		panic(jutil.NewUnsupportedOperationExceptionMsg("not a placeholder: '" + p.str + "'"))
 	}
 	if p.canonical {
 		return p.str
@@ -1024,6 +1057,18 @@ func (b *JsMessage_Builder) SetDescString(desc string) *JsMessage_Builder {
 	return b
 }
 
+// SetDescOpt sets or clears the description without pointer boxing.
+func (b *JsMessage_Builder) SetDescOpt(desc string, ok bool) *JsMessage_Builder {
+	if !ok {
+		b.desc = ""
+		b.hasDesc = false
+	} else {
+		b.desc = desc
+		b.hasDesc = true
+	}
+	return b
+}
+
 // SetMeaning sets the programmer-specified meaning of this message, which
 // forces this message to translate differently.
 //
@@ -1043,6 +1088,18 @@ func (b *JsMessage_Builder) SetMeaning(meaning *string) *JsMessage_Builder {
 func (b *JsMessage_Builder) SetMeaningString(meaning string) *JsMessage_Builder {
 	b.meaning = meaning
 	b.hasMeaning = true
+	return b
+}
+
+// SetMeaningOpt sets or clears the meaning without pointer boxing.
+func (b *JsMessage_Builder) SetMeaningOpt(meaning string, ok bool) *JsMessage_Builder {
+	if !ok {
+		b.meaning = ""
+		b.hasMeaning = false
+	} else {
+		b.meaning = meaning
+		b.hasMeaning = true
+	}
 	return b
 }
 
@@ -1068,6 +1125,18 @@ func (b *JsMessage_Builder) SetAlternateIdString(alternateId string) *JsMessage_
 	return b
 }
 
+// SetAlternateIdOpt sets or clears the alternate message ID without pointer boxing.
+func (b *JsMessage_Builder) SetAlternateIdOpt(alternateId string, ok bool) *JsMessage_Builder {
+	if !ok {
+		b.alternateId = ""
+		b.hasAlternateId = false
+	} else {
+		b.alternateId = alternateId
+		b.hasAlternateId = true
+	}
+	return b
+}
+
 // Java: JsMessage.Builder.setIsAnonymous(boolean)
 func (b *JsMessage_Builder) SetIsAnonymous(isAnonymous bool) *JsMessage_Builder {
 	b.isAnonymous = isAnonymous
@@ -1077,8 +1146,8 @@ func (b *JsMessage_Builder) SetIsAnonymous(isAnonymous bool) *JsMessage_Builder 
 // Java: JsMessage.Builder.setId(String)
 func (b *JsMessage_Builder) SetId(id string) *JsMessage_Builder {
 	if b.hasId {
-		panic(jutil.NewIllegalStateExceptionMsg(jutil.LenientFormat(
-			"id already set to '%s': cannot change it to '%s'", b.id, id)))
+		panic(jutil.NewIllegalStateExceptionMsg(
+			"id already set to '" + b.id + "': cannot change it to '" + id + "'"))
 	}
 	b.id = id
 	b.hasId = true
@@ -1411,4 +1480,11 @@ type JsMessage_IdGenerator interface {
 	//
 	// Java: JsMessage.IdGenerator.generateId(String, List<Part>)
 	GenerateId(meaning *string, messageParts []JsMessage_Part) string
+}
+
+func generateMessageId(gen JsMessage_IdGenerator, meaning string, parts []JsMessage_Part) string {
+	if g, ok := gen.(*GoogleJsMessageIdGenerator); ok {
+		return g.generateId(meaning, parts)
+	}
+	return gen.GenerateId(&meaning, parts)
 }

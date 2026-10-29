@@ -408,8 +408,8 @@ func (c *TypedScopeCreator) CreateScopeInternal(root rhino.Node, typedParent *Ty
 			// Store the module scope on the CompilerInput object so it can be found and used for
 			// program analysis purposes.
 			// DefaultPassConfig is responsible for removing it when it is no longer needed.
-			inputId := jutil.CheckNotNull(NodeUtil_GetInputId(root))
-			compilerInput := jutil.CheckNotNull(c.compiler.GetInput(inputId))
+			inputId := jutil.CheckNotNullPtr(NodeUtil_GetInputId(root))
+			compilerInput := jutil.CheckNotNullPtr(c.compiler.GetInput(inputId))
 			compilerInput.SetTypedScope(newScope)
 		}
 	}

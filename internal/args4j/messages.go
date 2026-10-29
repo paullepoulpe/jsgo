@@ -26,7 +26,12 @@
 
 package args4j
 
-import "github.com/paullepoulpe/jsgo/internal/jutil"
+import (
+	"strconv"
+	"strings"
+
+	"github.com/paullepoulpe/jsgo/internal/jutil"
+)
 
 // ResourceBundle localizes option usage strings and meta variables when passed
 // to CmdLineParser usage printers.
@@ -39,7 +44,39 @@ type ResourceBundle interface {
 type messageTemplate string
 
 func (m messageTemplate) format(args ...any) string {
-	return jutil.MessageFormat_Format(string(m), args)
+	s := string(m)
+	var sb strings.Builder
+	sb.Grow(len(s) + 16)
+	quoted := false
+	for i := 0; i < len(s); i++ {
+		c := s[i]
+		if c == '\'' {
+			if i+1 < len(s) && s[i+1] == '\'' {
+				sb.WriteByte('\'')
+				i++
+			} else {
+				quoted = !quoted
+			}
+			continue
+		}
+		if c == '{' && !quoted {
+			if end := strings.IndexByte(s[i+1:], '}'); end >= 0 {
+				if idx, err := strconv.Atoi(s[i+1 : i+1+end]); err == nil && idx >= 0 {
+					if idx < len(args) {
+						sb.WriteString(jutil.ToJavaString(args[idx]))
+					} else {
+						sb.WriteByte('{')
+						sb.WriteString(strconv.Itoa(idx))
+						sb.WriteByte('}')
+					}
+					i += 1 + end
+					continue
+				}
+			}
+		}
+		sb.WriteByte(c)
+	}
+	return sb.String()
 }
 
 const (

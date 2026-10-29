@@ -1,7 +1,41 @@
 // Port of com/google/javascript/jscomp/CompilerOptions.java @ closure-compiler v20261021
+// Port of com/google/javascript/jscomp/CompilerOptionsPreprocessor.java @ closure-compiler v20261021
+// Port of com/google/javascript/jscomp/FlagUsageException.java @ closure-compiler v20261021
 
 /*
  * Copyright 2009 The Closure Compiler Authors.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+/*
+ * Copyright 2014 The Closure Compiler Authors.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+/*
+ * Copyright 2018 The Closure Compiler Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -544,570 +578,6 @@ type CompilerOptions struct {
 	fastMode bool
 }
 
-// The number of characters after which we insert a line break in the code
-//
-// Java: CompilerOptions.DEFAULT_LINE_LENGTH_THRESHOLD
-const CompilerOptions_DEFAULT_LINE_LENGTH_THRESHOLD = 500
-
-// Java: CompilerOptions.POLYMER_PROPERTY_RESERVED_FIRST_CHARS
-var compilerOptions_POLYMER_PROPERTY_RESERVED_FIRST_CHARS = jutil.NewLinkedHashSet(
-	jutil.StringToUTF16("ABCDEFGHIJKLMNOPQRSTUVWXYZ$")...)
-
-// Java: CompilerOptions.POLYMER_PROPERTY_RESERVED_NON_FIRST_CHARS
-var compilerOptions_POLYMER_PROPERTY_RESERVED_NON_FIRST_CHARS = jutil.NewLinkedHashSet[uint16]('_', '$')
-
-// Java: CompilerOptions.ANGULAR_PROPERTY_RESERVED_FIRST_CHARS
-var compilerOptions_ANGULAR_PROPERTY_RESERVED_FIRST_CHARS = jutil.NewLinkedHashSet[uint16]('$')
-
-// Java: CompilerOptions.getAngularPropertyReservedFirstChars()
-func CompilerOptions_GetAngularPropertyReservedFirstChars() *jutil.LinkedHashSet[uint16] {
-	return compilerOptions_ANGULAR_PROPERTY_RESERVED_FIRST_CHARS
-}
-
-// Java: CompilerOptions.getPolymerPropertyReservedFirstChars()
-func CompilerOptions_GetPolymerPropertyReservedFirstChars() *jutil.LinkedHashSet[uint16] {
-	return compilerOptions_POLYMER_PROPERTY_RESERVED_FIRST_CHARS
-}
-
-// Java: CompilerOptions.shouldRunCrossChunkCodeMotion()
-func (o *CompilerOptions) ShouldRunCrossChunkCodeMotion() bool {
-	return o.crossChunkCodeMotion
-}
-
-// Java: CompilerOptions.shouldRunCrossChunkMethodMotion()
-func (o *CompilerOptions) ShouldRunCrossChunkMethodMotion() bool {
-	return o.crossChunkMethodMotion
-}
-
-// Java: CompilerOptions.getSourceMapOutputPath()
-func (o *CompilerOptions) GetSourceMapOutputPath() *string {
-	return o.sourceMapOutputPath
-}
-
-// Java: CompilerOptions.shouldGatherSourceMapInfo()
-func (o *CompilerOptions) ShouldGatherSourceMapInfo() bool {
-	return o.shouldAlwaysGatherSourceMapInfo || !(o.sourceMapOutputPath == nil || *o.sourceMapOutputPath == "")
-}
-
-// Java: CompilerOptions.setAlwaysGatherSourceMapInfo(boolean)
-func (o *CompilerOptions) SetAlwaysGatherSourceMapInfo(shouldAlwaysGatherSourceMapInfo bool) {
-	o.shouldAlwaysGatherSourceMapInfo = shouldAlwaysGatherSourceMapInfo
-}
-
-// Java: CompilerOptions.getBrowserFeaturesetYearObject()
-func (o *CompilerOptions) GetBrowserFeaturesetYearObject() *CompilerOptions_BrowserFeaturesetYear {
-	return o.browserFeaturesetYear
-}
-
-// Java: CompilerOptions.setBrowserFeaturesetYear(int)
-func (o *CompilerOptions) SetBrowserFeaturesetYear(year int) {
-	o.SetBrowserFeaturesetYearOfBrowserFeaturesetYear(CompilerOptions_BrowserFeaturesetYear_From(year))
-}
-
-// Java: CompilerOptions.setBrowserFeaturesetYear(BrowserFeaturesetYear)
-func (o *CompilerOptions) SetBrowserFeaturesetYearOfBrowserFeaturesetYear(year CompilerOptions_BrowserFeaturesetYear) {
-	o.browserFeaturesetYear = year.Ptr()
-	o.browserFeaturesetYear.SetDependentValuesFromYear(o)
-}
-
-// Java: CompilerOptions.setInstrumentForCoverageOnly(boolean)
-func (o *CompilerOptions) SetInstrumentForCoverageOnly(instrumentForCoverageOnly bool) {
-	o.instrumentForCoverageOnly = instrumentForCoverageOnly
-}
-
-// Java: CompilerOptions.getInstrumentForCoverageOnly()
-func (o *CompilerOptions) GetInstrumentForCoverageOnly() bool {
-	return o.instrumentForCoverageOnly
-}
-
-// Sets file to output in-progress TypedAST format to. DO NOT USE!
-//
-// The "TypedAST format" is currently a gzipped TypedAst proto but this is not stable.
-//
-// Java: CompilerOptions.setTypedAstOutputFile(Path)
-func (o *CompilerOptions) SetTypedAstOutputFile(file *jutil.Path) {
-	o.typedAstOutputFile = file
-}
-
-// Java: CompilerOptions.getTypedAstOutputFile()
-func (o *CompilerOptions) GetTypedAstOutputFile() *jutil.Path {
-	return o.typedAstOutputFile
-}
-
-// Java: CompilerOptions.setMergedPrecompiledLibraries(boolean)
-func (o *CompilerOptions) SetMergedPrecompiledLibraries(mergedPrecompiledLibraries bool) {
-	o.mergedPrecompiledLibraries = mergedPrecompiledLibraries
-}
-
-// Java: CompilerOptions.getMergedPrecompiledLibraries()
-func (o *CompilerOptions) GetMergedPrecompiledLibraries() bool {
-	return o.mergedPrecompiledLibraries
-}
-
-// Java: CompilerOptions.setSkipTranspilationAndCrash(boolean)
-func (o *CompilerOptions) SetSkipTranspilationAndCrash(value bool) {
-}
-
-// Sets the input sourcemap files, indexed by the JS files they refer to.
-//
-// @param inputSourceMaps the collection of input sourcemap files
-//
-// Java: CompilerOptions.setInputSourceMaps(ImmutableMap<String, SourceMapInput>)
-func (o *CompilerOptions) SetInputSourceMaps(inputSourceMaps *jutil.LinkedHashMap[string, *SourceMapInput]) {
-	o.inputSourceMaps = inputSourceMaps
-}
-
-// Java: CompilerOptions.getInputSourceMaps()
-func (o *CompilerOptions) GetInputSourceMaps() *jutil.LinkedHashMap[string, *SourceMapInput] {
-	return o.inputSourceMaps
-}
-
-// TODO(tbreisacher): Remove this method after ctemplate issues are solved.
-//
-// Java: CompilerOptions.setInferConst(boolean)
-func (o *CompilerOptions) SetInferConst(value bool) {
-	o.inferConsts = value
-}
-
-// Java: CompilerOptions.shouldInferConsts()
-func (o *CompilerOptions) ShouldInferConsts() bool {
-	return o.inferConsts
-}
-
-// Java: CompilerOptions.setIncrementalChecks(IncrementalCheckMode)
-func (o *CompilerOptions) SetIncrementalChecks(value CompilerOptions_IncrementalCheckMode) {
-	o.incrementalCheckMode = value
-	switch value {
-	case CompilerOptions_IncrementalCheckMode_OFF:
-	case CompilerOptions_IncrementalCheckMode_GENERATE_IJS:
-		o.SetPreserveTypeAnnotations(true)
-		o.SetOutputJs(CompilerOptions_OutputJs_NORMAL)
-	}
-}
-
-// Java: CompilerOptions.shouldGenerateTypedExterns()
-func (o *CompilerOptions) ShouldGenerateTypedExterns() bool {
-	return o.incrementalCheckMode == CompilerOptions_IncrementalCheckMode_GENERATE_IJS
-}
-
-// Java: CompilerOptions.setPrintExterns(boolean)
-func (o *CompilerOptions) SetPrintExterns(printExterns bool) {
-	o.printExterns = printExterns
-}
-
-// Java: CompilerOptions.shouldPrintExterns()
-func (o *CompilerOptions) ShouldPrintExterns() bool {
-	return o.printExterns || o.incrementalCheckMode == CompilerOptions_IncrementalCheckMode_GENERATE_IJS
-}
-
-// Deprecated. Please use setWarningLevel(DiagnosticGroups.GLOBAL_THIS, level) instead.
-//
-// Java: CompilerOptions.setCheckGlobalThisLevel(CheckLevel)
-func (o *CompilerOptions) SetCheckGlobalThisLevel(level CheckLevel) {
-}
-
-// Sets the level of parallelism for compilation passes that can exploit multi-threading.
-//
-// Some compiler passes may take advantage of multi-threading, for example, parsing inputs.
-// This sets the level of parallelism. The compiler will not start more than this number of
-// threads.
-//
-// @param parallelism up to this number of parallel threads may be created.
-//
-// Java: CompilerOptions.setNumParallelThreads(int)
-func (o *CompilerOptions) SetNumParallelThreads(parallelism int) {
-	o.numParallelThreads = parallelism
-}
-
-// Java: CompilerOptions.getNumParallelThreads()
-func (o *CompilerOptions) GetNumParallelThreads() int {
-	return o.numParallelThreads
-}
-
-// SetFastMode enables or disables Go-to-Go deterministic fast mode.
-func (o *CompilerOptions) SetFastMode(fastMode bool) {
-	o.fastMode = fastMode
-}
-
-// isFastMode returns whether Go-to-Go deterministic fast mode is enabled.
-func (o *CompilerOptions) isFastMode() bool {
-	return o != nil && o.fastMode
-}
-
-// CompilerOptions_IsFastMode returns whether Go-to-Go deterministic fast mode is enabled.
-func CompilerOptions_IsFastMode(o *CompilerOptions) bool {
-	return o != nil && o.fastMode
-}
-
-// Java: CompilerOptions.UNLIMITED_FUN_SIZE_AFTER_INLINING
-const CompilerOptions_UNLIMITED_FUN_SIZE_AFTER_INLINING = -1
-
-// Useful for tests to avoid having to declare two chunks
-//
-// Java: CompilerOptions.setRenamePrefixNamespaceAssumeCrossChunkNames(boolean)
-func (o *CompilerOptions) SetRenamePrefixNamespaceAssumeCrossChunkNames(assume bool) {
-	o.renamePrefixNamespaceAssumeCrossChunkNames = assume
-}
-
-// Java: CompilerOptions.assumeCrossChunkNamesForRenamePrefixNamespace()
-func (o *CompilerOptions) AssumeCrossChunkNamesForRenamePrefixNamespace() bool {
-	return o.renamePrefixNamespaceAssumeCrossChunkNames
-}
-
-// SetOptimizeLocalAccessForGlobalSymbolNamespace: optimize access to global
-// symbols.
-//
-// Java: CompilerOptions.setOptimizeLocalAccessForGlobalSymbolNamespace(OptimizeLocalAccess)
-func (o *CompilerOptions) SetOptimizeLocalAccessForGlobalSymbolNamespace(optimize CompilerOptions_OptimizeLocalAccess) {
-	o.optimizeLocalAccessForGlobalSymbolNamespace = optimize
-}
-
-// Java: CompilerOptions.getOptimizeLocalAccessForGlobalSymbolNamespace()
-func (o *CompilerOptions) GetOptimizeLocalAccessForGlobalSymbolNamespace() CompilerOptions_OptimizeLocalAccess {
-	return o.optimizeLocalAccessForGlobalSymbolNamespace
-}
-
-// Flattens multi-level property names (e.g. a$b = x)
-//
-// @deprecated use getPropertyCollapseLevel
-//
-// Java: CompilerOptions.shouldCollapseProperties()
-func (o *CompilerOptions) ShouldCollapseProperties() bool {
-	return o.collapsePropertiesLevel != CompilerOptions_PropertyCollapseLevel_NONE
-}
-
-// Java: CompilerOptions.getPropertyCollapseLevel()
-func (o *CompilerOptions) GetPropertyCollapseLevel() CompilerOptions_PropertyCollapseLevel {
-	return o.collapsePropertiesLevel
-}
-
-// Java: CompilerOptions.setCollapseObjectLiterals(boolean)
-func (o *CompilerOptions) SetCollapseObjectLiterals(enabled bool) {
-	o.collapseObjectLiterals = enabled
-}
-
-// Java: CompilerOptions.getCollapseObjectLiterals()
-func (o *CompilerOptions) GetCollapseObjectLiterals() bool {
-	return o.collapseObjectLiterals
-}
-
-// Java: CompilerOptions.setNameGenerator(NameGenerator)
-func (o *CompilerOptions) SetNameGenerator(nameGenerator NameGenerator) {
-	o.nameGenerator = nameGenerator
-}
-
-// Java: CompilerOptions.getNameGenerator()
-func (o *CompilerOptions) GetNameGenerator() NameGenerator {
-	return o.nameGenerator
-}
-
-// Java: CompilerOptions.setReplaceMessagesWithChromeI18n(boolean, String)
-func (o *CompilerOptions) SetReplaceMessagesWithChromeI18n(replaceMessagesWithChromeI18n bool, tcProjectId *string) {
-	if replaceMessagesWithChromeI18n && o.messageBundle != nil {
-		if _, isEmpty := o.messageBundle.(*EmptyMessageBundle); !isEmpty {
-			panic(jutil.NewRuntimeException(
-				"When replacing messages with" +
-					" chrome.i18n.getMessage, a message bundle should not be specified."))
-		}
-	}
-
-	o.replaceMessagesWithChromeI18n = replaceMessagesWithChromeI18n
-	o.tcProjectId = tcProjectId
-}
-
-// Java: CompilerOptions.getTcProjectId()
-func (o *CompilerOptions) GetTcProjectId() *string {
-	return o.tcProjectId
-}
-
-// Should we run the pass that does replacement of the chrome-specific `chrome.i18n.getMessage()`
-// translatable message definitions?
-//
-// This form of l10n is incompatible with our standard `goog.getMsg()` messages.
-//
-// Java: CompilerOptions.shouldRunReplaceMessagesForChrome()
-func (o *CompilerOptions) ShouldRunReplaceMessagesForChrome() bool {
-	if o.replaceMessagesWithChromeI18n {
-		_, isEmpty := o.messageBundle.(*EmptyMessageBundle)
-		jutil.CheckStateMsg(
-			o.messageBundle == nil || isEmpty,
-			"When replacing messages with chrome.i18n.getMessage, a message bundle should not be"+
-				" specified.")
-		jutil.CheckStateMsg(
-			!o.doLateLocalization, "Late localization is not supported for chrome.i18n.getMessage")
-		return true
-	} else {
-		return false
-	}
-}
-
-// If true, considers all missing types to be forward declared (useful for partial
-// compilation).
-//
-// Java: CompilerOptions.setAssumeForwardDeclaredForMissingTypes(boolean)
-func (o *CompilerOptions) SetAssumeForwardDeclaredForMissingTypes(assumeForwardDeclaredForMissingTypes bool) {
-	o.assumeForwardDeclaredForMissingTypes = assumeForwardDeclaredForMissingTypes
-}
-
-// Java: CompilerOptions.assumeForwardDeclaredForMissingTypes()
-func (o *CompilerOptions) AssumeForwardDeclaredForMissingTypes() bool {
-	return o.assumeForwardDeclaredForMissingTypes
-}
-
-// Normally, when there are an equal number of single and double quotes in a string, the compiler
-// will use double quotes. Set this to true to prefer single quotes.
-//
-// Java: CompilerOptions.setPreferSingleQuotes(boolean)
-func (o *CompilerOptions) SetPreferSingleQuotes(enabled bool) {
-	o.preferSingleQuotes = enabled
-}
-
-// Java: CompilerOptions.shouldPreferSingleQuotes()
-func (o *CompilerOptions) ShouldPreferSingleQuotes() bool {
-	return o.preferSingleQuotes
-}
-
-// Some people want to put arbitrary user input into strings, which are then run through the
-// compiler. These scripts are then put into HTML. By default, we assume strings are untrusted. If
-// the compiler is run from the command-line, we assume that strings are trusted.
-//
-// Java: CompilerOptions.setTrustedStrings(boolean)
-func (o *CompilerOptions) SetTrustedStrings(yes bool) {
-	o.trustedStrings = yes
-}
-
-// Java: CompilerOptions.assumeTrustedStrings()
-func (o *CompilerOptions) AssumeTrustedStrings() bool {
-	return o.trustedStrings
-}
-
-// Java: CompilerOptions.setPrintSourceAfterEachPass(boolean)
-func (o *CompilerOptions) SetPrintSourceAfterEachPass(printSource bool) {
-	o.printSourceAfterEachPass = printSource
-}
-
-// Java: CompilerOptions.shouldPrintSourceAfterEachPass()
-func (o *CompilerOptions) ShouldPrintSourceAfterEachPass() bool {
-	return o.printSourceAfterEachPass
-}
-
-// Java: CompilerOptions.setFilesToPrintAfterEachPassRegexList(List<String>)
-func (o *CompilerOptions) SetFilesToPrintAfterEachPassRegexList(filePathRegexList []string) {
-	o.filesToPrintAfterEachPassRegexList = filePathRegexList
-}
-
-// Java: CompilerOptions.setChunksToPrintAfterEachPassRegexList(List<String>)
-func (o *CompilerOptions) SetChunksToPrintAfterEachPassRegexList(chunkPathRegexList []string) {
-	o.chunksToPrintAfterEachPassRegexList = chunkPathRegexList
-}
-
-// Java: CompilerOptions.setQnameUsesToPrintAfterEachPassList(List<String>)
-func (o *CompilerOptions) SetQnameUsesToPrintAfterEachPassList(qnameRegexList []string) {
-	o.qnameUsesToPrintAfterEachPassList = qnameRegexList
-}
-
-// Java: CompilerOptions.getFilesToPrintAfterEachPassRegexList()
-func (o *CompilerOptions) GetFilesToPrintAfterEachPassRegexList() []string {
-	return o.filesToPrintAfterEachPassRegexList
-}
-
-// Java: CompilerOptions.getChunksToPrintAfterEachPassRegexList()
-func (o *CompilerOptions) GetChunksToPrintAfterEachPassRegexList() []string {
-	return o.chunksToPrintAfterEachPassRegexList
-}
-
-// Java: CompilerOptions.getQnameUsesToPrintAfterEachPassList()
-func (o *CompilerOptions) GetQnameUsesToPrintAfterEachPassList() []string {
-	return o.qnameUsesToPrintAfterEachPassList
-}
-
-// Java: CompilerOptions.getTracerMode()
-func (o *CompilerOptions) GetTracerMode() CompilerOptions_TracerMode {
-	return o.tracer
-}
-
-// NOTE: Timing information will not be printed if compiler.disableThreads() is called!
-//
-// Java: CompilerOptions.setTracerMode(TracerMode)
-func (o *CompilerOptions) SetTracerMode(mode CompilerOptions_TracerMode) {
-	o.tracer = mode
-}
-
-// Java: CompilerOptions.getTracerOutput()
-func (o *CompilerOptions) GetTracerOutput() *jutil.Path {
-	return o.tracerOutput
-}
-
-// Java: CompilerOptions.setTracerOutput(Path)
-func (o *CompilerOptions) SetTracerOutput(out *jutil.Path) {
-	o.tracerOutput = out
-}
-
-// Java: CompilerOptions.getExtraReportGenerators()
-func (o *CompilerOptions) GetExtraReportGenerators() []SortingErrorManager_ErrorReportGenerator {
-	return o.extraReportGenerators
-}
-
-// Java: CompilerOptions.addReportGenerator(SortingErrorManager.ErrorReportGenerator)
-func (o *CompilerOptions) AddReportGenerator(generator SortingErrorManager_ErrorReportGenerator) {
-	o.extraReportGenerators = append(o.extraReportGenerators, generator)
-}
-
-// When enabled, assume that apparently side-effect free code is meaningful.
-//
-// Java: CompilerOptions.setProtectHiddenSideEffects(boolean)
-func (o *CompilerOptions) SetProtectHiddenSideEffects(enable bool) {
-	o.protectHiddenSideEffects = enable
-}
-
-// Whether or not the compiler should wrap apparently side-effect free code to prevent it from
-// being removed
-//
-// Java: CompilerOptions.shouldProtectHiddenSideEffects()
-func (o *CompilerOptions) ShouldProtectHiddenSideEffects() bool {
-	// TODO(lharker): would it make sense to make 'checksOnly' a tristate instead? either we're
-	// running only checks for refactoring; running checks to generate a .typedast; or running
-	// checks as part of a fully optimizing build?
-	return o.protectHiddenSideEffects && (!o.checksOnly || o.GetTypedAstOutputFile() != nil)
-}
-
-// Java: CompilerOptions.setAssumeGettersArePure(boolean)
-func (o *CompilerOptions) SetAssumeGettersArePure(x bool) {
-	o.assumeGettersArePure = x
-}
-
-// Java: CompilerOptions.getAssumeGettersArePure()
-func (o *CompilerOptions) GetAssumeGettersArePure() bool {
-	return o.assumeGettersArePure
-}
-
-// Java: CompilerOptions.setAssumePropertiesAreStaticallyAnalyzable(boolean)
-func (o *CompilerOptions) SetAssumePropertiesAreStaticallyAnalyzable(x bool) {
-	o.assumePropertiesAreStaticallyAnalyzable = x
-}
-
-// Java: CompilerOptions.getAssumePropertiesAreStaticallyAnalyzable()
-func (o *CompilerOptions) GetAssumePropertiesAreStaticallyAnalyzable() bool {
-	return o.assumePropertiesAreStaticallyAnalyzable
-}
-
-// Java: CompilerOptions.setAssumeStaticInheritanceIsNotUsed(boolean)
-func (o *CompilerOptions) SetAssumeStaticInheritanceIsNotUsed(x bool) {
-	o.assumeStaticInheritanceIsNotUsed = x
-}
-
-// Java: CompilerOptions.getAssumeStaticInheritanceIsNotUsed()
-func (o *CompilerOptions) GetAssumeStaticInheritanceIsNotUsed() bool {
-	return o.assumeStaticInheritanceIsNotUsed
-}
-
-// Java: CompilerOptions.getConformanceReportingMode()
-func (o *CompilerOptions) GetConformanceReportingMode() CompilerOptions_ConformanceReportingMode {
-	return o.conformanceReportingMode
-}
-
-// Java: CompilerOptions.setConformanceReportingMode(ConformanceReportingMode)
-func (o *CompilerOptions) SetConformanceReportingMode(mode CompilerOptions_ConformanceReportingMode) {
-	o.conformanceReportingMode = mode
-}
-
-// Java: CompilerOptions.setConformanceRemoveRegexFromPath(Optional<Pattern>)
-func (o *CompilerOptions) SetConformanceRemoveRegexFromPath(pattern *jutil.Pattern) {
-	o.conformanceRemoveRegexFromPath = pattern
-}
-
-// Java: CompilerOptions.getConformanceRemoveRegexFromPath()
-func (o *CompilerOptions) GetConformanceRemoveRegexFromPath() *jutil.Pattern {
-	return o.conformanceRemoveRegexFromPath
-}
-
-// Java: CompilerOptions.setWrapGoogModulesForWhitespaceOnly(boolean)
-func (o *CompilerOptions) SetWrapGoogModulesForWhitespaceOnly(enable bool) {
-	o.wrapGoogModulesForWhitespaceOnly = enable
-}
-
-// Java: CompilerOptions.shouldWrapGoogModulesForWhitespaceOnly()
-func (o *CompilerOptions) ShouldWrapGoogModulesForWhitespaceOnly() bool {
-	return o.wrapGoogModulesForWhitespaceOnly
-}
-
-// Whether to enable the bad module rewriting before typechecking that we want to get rid of
-//
-// Java: CompilerOptions.setBadRewriteModulesBeforeTypecheckingThatWeWantToGetRidOf(boolean)
-func (o *CompilerOptions) SetBadRewriteModulesBeforeTypecheckingThatWeWantToGetRidOf(b bool) {
-	o.rewriteModulesBeforeTypechecking = b
-}
-
-// Java: CompilerOptions.shouldRewriteModulesBeforeTypechecking()
-func (o *CompilerOptions) ShouldRewriteModulesBeforeTypechecking() bool {
-	return o.enableModuleRewriting &&
-		(o.rewriteModulesBeforeTypechecking || o.processCommonJSModules)
-}
-
-// Experimental option to disable all Closure and ES module and goog.provide rewriting
-//
-// Use at your own risk - disabling module rewriting is not fully tested yet.
-//
-// Java: CompilerOptions.setEnableModuleRewriting(boolean)
-func (o *CompilerOptions) SetEnableModuleRewriting(enable bool) {
-	o.enableModuleRewriting = enable
-}
-
-// Java: CompilerOptions.shouldRewriteModulesAfterTypechecking()
-func (o *CompilerOptions) ShouldRewriteModulesAfterTypechecking() bool {
-	return o.enableModuleRewriting && !o.rewriteModulesBeforeTypechecking
-}
-
-// Java: CompilerOptions.shouldRewriteModules()
-func (o *CompilerOptions) ShouldRewriteModules() bool {
-	return o.enableModuleRewriting
-}
-
-// Should the compiler print its configuration options to stderr when they are initialized?
-//
-// Default false.
-//
-// Java: CompilerOptions.setPrintConfig(boolean)
-func (o *CompilerOptions) SetPrintConfig(printConfig bool) {
-	o.printConfig = printConfig
-}
-
-// Java: CompilerOptions.shouldPrintConfig()
-func (o *CompilerOptions) ShouldPrintConfig() bool {
-	return o.printConfig
-}
-
-// Whether to enable support for dynamic import expressions
-//
-// Java: CompilerOptions.setAllowDynamicImport(boolean)
-func (o *CompilerOptions) SetAllowDynamicImport(value bool) {
-	o.allowDynamicImport = value
-}
-
-// Java: CompilerOptions.shouldAllowDynamicImport()
-func (o *CompilerOptions) ShouldAllowDynamicImport() bool {
-	return o.allowDynamicImport
-}
-
-// Set the alias name for dynamic import expressions
-//
-// Java: CompilerOptions.getDynamicImportAlias()
-func (o *CompilerOptions) GetDynamicImportAlias() *string {
-	return o.dynamicImportAlias
-}
-
-// Set the alias name for dynamic import expressions
-//
-// Java: CompilerOptions.setDynamicImportAlias(String)
-func (o *CompilerOptions) SetDynamicImportAlias(value *string) {
-	o.dynamicImportAlias = value
-}
-
-// Java: CompilerOptions.shouldAliasDynamicImport()
-func (o *CompilerOptions) ShouldAliasDynamicImport() bool {
-	return o.dynamicImportAlias != nil
-}
-
 // Initializes compiler options. All options are disabled by default.
 //
 // Command-line frontends to the compiler should set these properties like a builder.
@@ -1284,89 +754,11 @@ func NewCompilerOptions() *CompilerOptions {
 	return o
 }
 
-// @return Whether to attempt to remove unused class properties
-//
-// Java: CompilerOptions.isRemoveUnusedClassProperties()
-func (o *CompilerOptions) IsRemoveUnusedClassProperties() bool {
-	return o.removeUnusedClassProperties
-}
+// Java: CompilerOptions.UNLIMITED_FUN_SIZE_AFTER_INLINING
+const CompilerOptions_UNLIMITED_FUN_SIZE_AFTER_INLINING = -1
 
-// @param removeUnusedClassProperties Whether to attempt to remove unused class properties
-//
-// Java: CompilerOptions.setRemoveUnusedClassProperties(boolean)
-func (o *CompilerOptions) SetRemoveUnusedClassProperties(removeUnusedClassProperties bool) {
-	o.removeUnusedClassProperties = removeUnusedClassProperties
-}
-
-type defineReplacementKind uint8
-
-const (
-	defineReplacementBool defineReplacementKind = iota
-	defineReplacementInt
-	defineReplacementDouble
-	defineReplacementString
-)
-
-type defineReplacement struct {
-	kind    defineReplacementKind
-	boolVal bool
-	intVal  int32
-	numVal  float64
-	strVal  string
-}
-
-func (d defineReplacement) toNode() rhino.Node {
-	switch d.kind {
-	case defineReplacementBool:
-		return NodeUtil_BooleanNode(d.boolVal)
-	case defineReplacementInt:
-		return NodeUtil_NumberNode(float64(d.intVal), rhino.NilNode)
-	case defineReplacementDouble:
-		return NodeUtil_NumberNode(d.numVal, rhino.NilNode)
-	case defineReplacementString:
-		return rhino.IR_String(d.strVal)
-	default:
-		panic(jutil.NewIllegalStateException())
-	}
-}
-
-// Returns the map of define replacements.
-//
-// Java: CompilerOptions.getDefineReplacements()
-func (o *CompilerOptions) GetDefineReplacements() *jutil.LinkedHashMap[string, rhino.Node] {
-	m := jutil.NewLinkedHashMap[string, rhino.Node]()
-	for name, value := range o.defineReplacements.All() {
-		m.Put(name, value.toNode())
-	}
-	return m
-}
-
-// Sets the value of the @define variable in JS to a boolean literal.
-//
-// Java: CompilerOptions.setDefineToBooleanLiteral(String, boolean)
-func (o *CompilerOptions) SetDefineToBooleanLiteral(defineName string, value bool) {
-	o.defineReplacements.Put(defineName, defineReplacement{kind: defineReplacementBool, boolVal: value})
-}
-
-// Sets the value of the @define variable in JS to a String literal.
-//
-// Java: CompilerOptions.setDefineToStringLiteral(String, String)
-func (o *CompilerOptions) SetDefineToStringLiteral(defineName string, value string) {
-	o.defineReplacements.Put(defineName, defineReplacement{kind: defineReplacementString, strVal: value})
-}
-
-// Sets the value of the @define variable in JS to a number literal.
-//
-// Java: CompilerOptions.setDefineToNumberLiteral(String, int)
-func (o *CompilerOptions) SetDefineToNumberLiteral(defineName string, value int) {
-	o.defineReplacements.Put(defineName, defineReplacement{kind: defineReplacementInt, intVal: int32(value)})
-}
-
-// Sets the value of the @define variable in JS to a number literal.
-//
-// Java: CompilerOptions.setDefineToDoubleLiteral(String, double)
-func (o *CompilerOptions) SetDefineToDoubleLiteral(defineName string, value float64) {
-	o.defineReplacements.Put(defineName, defineReplacement{kind: defineReplacementDouble, numVal: value})
+// Java: CompilerOptions.setSkipTranspilationAndCrash(boolean)
+func (o *CompilerOptions) SetSkipTranspilationAndCrash(value bool) {
 }
 
 // Skip all possible passes, to make the compiler as fast as possible.
@@ -1376,389 +768,37 @@ func (o *CompilerOptions) SkipAllCompilerPasses() {
 	o.SetSkipNonTranspilationPasses(true)
 }
 
-// Whether the warnings guard in this Options object enables the given group of warnings.
+// Sets the level of parallelism for compilation passes that can exploit multi-threading.
 //
-// Java: CompilerOptions.enables(DiagnosticGroup)
-func (o *CompilerOptions) Enables(group *DiagnosticGroup) bool {
-	return o.warningsGuard.MustRunChecks(group) == base.Tri_TRUE
-}
-
-// Whether the warnings guard in this Options object disables the given group of warnings.
+// Some compiler passes may take advantage of multi-threading, for example, parsing inputs.
+// This sets the level of parallelism. The compiler will not start more than this number of
+// threads.
 //
-// Java: CompilerOptions.disables(DiagnosticGroup)
-func (o *CompilerOptions) Disables(group *DiagnosticGroup) bool {
-	return o.warningsGuard.MustRunChecks(group) == base.Tri_FALSE
-}
-
-// Java: CompilerOptions.setUnknownDefinesToIgnore(ImmutableList<String>)
-func (o *CompilerOptions) SetUnknownDefinesToIgnore(unknownDefinesToIgnore []string) {
-	o.unknownDefinesToIgnore = unknownDefinesToIgnore
-}
-
-// Java: CompilerOptions.addUnknownDefinesToIgnore(ImmutableList<String>)
-func (o *CompilerOptions) AddUnknownDefinesToIgnore(unknownDefinesToIgnore []string) {
-	combined := make([]string, 0, len(o.unknownDefinesToIgnore)+len(unknownDefinesToIgnore))
-	combined = append(combined, o.unknownDefinesToIgnore...)
-	combined = append(combined, unknownDefinesToIgnore...)
-	o.unknownDefinesToIgnore = combined
-}
-
-// Java: CompilerOptions.getUnknownDefinesToIgnore()
-func (o *CompilerOptions) GetUnknownDefinesToIgnore() []string {
-	return o.unknownDefinesToIgnore
-}
-
-// Configure the given type of warning to the given level.
+// @param parallelism up to this number of parallel threads may be created.
 //
-// Java: CompilerOptions.setWarningLevel(DiagnosticGroup, CheckLevel)
-func (o *CompilerOptions) SetWarningLevel(type_ *DiagnosticGroup, level CheckLevel) {
-	o.AddWarningsGuard(NewDiagnosticGroupWarningsGuard(type_, level))
+// Java: CompilerOptions.setNumParallelThreads(int)
+func (o *CompilerOptions) SetNumParallelThreads(parallelism int) {
+	o.numParallelThreads = parallelism
 }
 
-// Java: CompilerOptions.getWarningsGuard()
-func (o *CompilerOptions) GetWarningsGuard() WarningsGuard {
-	return o.warningsGuard
+// Java: CompilerOptions.getNumParallelThreads()
+func (o *CompilerOptions) GetNumParallelThreads() int {
+	return o.numParallelThreads
 }
 
-// Reset the warnings guard.
-//
-// Java: CompilerOptions.resetWarningsGuard()
-func (o *CompilerOptions) ResetWarningsGuard() {
-	o.warningsGuard = NewComposeWarningsGuard()
+// SetFastMode enables or disables Go-to-Go deterministic fast mode.
+func (o *CompilerOptions) SetFastMode(fastMode bool) {
+	o.fastMode = fastMode
 }
 
-// Add a guard to the set of warnings guards.
-//
-// Java: CompilerOptions.addWarningsGuard(WarningsGuard)
-func (o *CompilerOptions) AddWarningsGuard(guard WarningsGuard) {
-	o.warningsGuard.AddGuard(guard)
+// isFastMode returns whether Go-to-Go deterministic fast mode is enabled.
+func (o *CompilerOptions) isFastMode() bool {
+	return o != nil && o.fastMode
 }
 
-// Sets the variable and property renaming policies for the compiler, in a way that clears
-// warnings about the renaming policy being uninitialized from flags.
-//
-// Java: CompilerOptions.setRenamingPolicy(VariableRenamingPolicy, PropertyRenamingPolicy)
-func (o *CompilerOptions) SetRenamingPolicy(newVariablePolicy VariableRenamingPolicy, newPropertyPolicy PropertyRenamingPolicy) {
-	o.variableRenaming = newVariablePolicy
-	o.propertyRenaming = newPropertyPolicy
-}
-
-// @param replaceIdGenerators the replaceIdGenerators to set
-//
-// Java: CompilerOptions.setReplaceIdGenerators(boolean)
-func (o *CompilerOptions) SetReplaceIdGenerators(replaceIdGenerators bool) {
-	o.replaceIdGenerators = replaceIdGenerators
-}
-
-// Java: CompilerOptions.shouldReplaceIdGenerators()
-func (o *CompilerOptions) ShouldReplaceIdGenerators() bool {
-	return o.replaceIdGenerators
-}
-
-// Sets the id generators to replace.
-//
-// Java: CompilerOptions.setIdGenerators(Set<String>)
-func (o *CompilerOptions) SetIdGenerators(idGenerators *jutil.LinkedHashSet[string]) {
-	builder := jutil.NewLinkedHashMap[string, RenamingMap]()
-	for name := range idGenerators.All() {
-		builder.Put(name, RenamingMap(RenamingToken_INCONSISTENT))
-	}
-	o.idGenerators = builder
-}
-
-// Sets the id generators to replace.
-//
-// Java: CompilerOptions.setIdGenerators(Map<String, RenamingMap>)
-func (o *CompilerOptions) SetIdGeneratorsOfMap(idGenerators *jutil.LinkedHashMap[string, RenamingMap]) {
-	o.idGenerators = jutil.NewLinkedHashMapFrom(idGenerators)
-}
-
-// Java: CompilerOptions.getIdGenerators()
-func (o *CompilerOptions) GetIdGenerators() *jutil.LinkedHashMap[string, RenamingMap] {
-	return o.idGenerators
-}
-
-// A previous map of ids (serialized to a string by a previous compile). This will be used as a
-// hint during the ReplaceIdGenerators pass, which will attempt to reuse the same ids.
-//
-// Java: CompilerOptions.setIdGeneratorsMap(String)
-func (o *CompilerOptions) SetIdGeneratorsMap(previousMappings *string) {
-	o.idGeneratorsMapSerialized = previousMappings
-}
-
-// Java: CompilerOptions.getIdGeneratorsMapSerialized()
-func (o *CompilerOptions) GetIdGeneratorsMapSerialized() *string {
-	return o.idGeneratorsMapSerialized
-}
-
-// Sets the hash function to use for Xid
-//
-// Java: CompilerOptions.setXidHashFunction(Xid.HashFunction)
-func (o *CompilerOptions) SetXidHashFunction(xidHashFunction Xid_HashFunction) {
-	o.xidHashFunction = xidHashFunction
-}
-
-// Java: CompilerOptions.getXidHashFunction()
-func (o *CompilerOptions) GetXidHashFunction() Xid_HashFunction {
-	return o.xidHashFunction
-}
-
-// Sets the hash function to use for chunk ID generation
-//
-// Java: CompilerOptions.setChunkIdHashFunction(Xid.HashFunction)
-func (o *CompilerOptions) SetChunkIdHashFunction(chunkIdHashFunction Xid_HashFunction) {
-	o.chunkIdHashFunction = chunkIdHashFunction
-}
-
-// Java: CompilerOptions.getChunkIdHashFunction()
-func (o *CompilerOptions) GetChunkIdHashFunction() Xid_HashFunction {
-	return o.chunkIdHashFunction
-}
-
-// Set the function inlining policy for the compiler.
-//
-// Java: CompilerOptions.setInlineFunctions(Reach)
-func (o *CompilerOptions) SetInlineFunctions(reach CompilerOptions_Reach) {
-	o.inlineFunctionsLevel = reach
-}
-
-// Get the function inlining policy for the compiler.
-//
-// Java: CompilerOptions.getInlineFunctionsLevel()
-func (o *CompilerOptions) GetInlineFunctionsLevel() CompilerOptions_Reach {
-	return o.inlineFunctionsLevel
-}
-
-// Java: CompilerOptions.setMaxFunctionSizeAfterInlining(int)
-func (o *CompilerOptions) SetMaxFunctionSizeAfterInlining(funAstSize int) {
-	jutil.CheckArgument(funAstSize > 0)
-	o.maxFunctionSizeAfterInlining = funAstSize
-}
-
-// Java: CompilerOptions.getMaxFunctionSizeAfterInlining()
-func (o *CompilerOptions) GetMaxFunctionSizeAfterInlining() int {
-	return o.maxFunctionSizeAfterInlining
-}
-
-// Java: CompilerOptions.setInlineVariables(boolean)
-func (o *CompilerOptions) SetInlineVariables(inlineVariables bool) {
-	o.inlineVariables = inlineVariables
-}
-
-// Java: CompilerOptions.shouldInlineVariables()
-func (o *CompilerOptions) ShouldInlineVariables() bool {
-	return o.inlineVariables
-}
-
-// Set the variable inlining policy for the compiler.
-//
-// Java: CompilerOptions.setInlineVariables(Reach)
-func (o *CompilerOptions) SetInlineVariablesOfReach(reach CompilerOptions_Reach) {
-	switch reach {
-	case CompilerOptions_Reach_ALL:
-		o.inlineVariables = true
-		o.inlineLocalVariables = true
-	case CompilerOptions_Reach_LOCAL_ONLY:
-		o.inlineVariables = false
-		o.inlineLocalVariables = true
-	case CompilerOptions_Reach_NONE:
-		o.inlineVariables = false
-		o.inlineLocalVariables = false
-	}
-}
-
-// Set the function inlining policy for the compiler.
-//
-// Java: CompilerOptions.setInlineProperties(boolean)
-func (o *CompilerOptions) SetInlineProperties(enable bool) {
-	o.inlineProperties = enable
-}
-
-// Java: CompilerOptions.shouldInlineProperties()
-func (o *CompilerOptions) ShouldInlineProperties() bool {
-	return o.inlineProperties
-}
-
-// Set the variable removal policy for the compiler.
-//
-// Java: CompilerOptions.setRemoveUnusedVariables(Reach)
-func (o *CompilerOptions) SetRemoveUnusedVariables(reach CompilerOptions_Reach) {
-	switch reach {
-	case CompilerOptions_Reach_ALL:
-		o.removeUnusedVars = true
-		o.removeUnusedLocalVars = true
-	case CompilerOptions_Reach_LOCAL_ONLY:
-		o.removeUnusedVars = false
-		o.removeUnusedLocalVars = true
-	case CompilerOptions_Reach_NONE:
-		o.removeUnusedVars = false
-		o.removeUnusedLocalVars = false
-	}
-}
-
-// Java: CompilerOptions.shouldRemoveUnusedVariables()
-func (o *CompilerOptions) ShouldRemoveUnusedVariables() bool {
-	return o.removeUnusedVars
-}
-
-// Java: CompilerOptions.shouldRemoveUnusedLocalVariables()
-func (o *CompilerOptions) ShouldRemoveUnusedLocalVariables() bool {
-	return o.removeUnusedLocalVars
-}
-
-// Sets the functions whose debug strings to replace.
-//
-// Java: CompilerOptions.setReplaceStringsConfiguration(String, List<String>)
-func (o *CompilerOptions) SetReplaceStringsConfiguration(placeholderToken string, functionDescriptors []string) {
-	o.replaceStringsPlaceholderToken = placeholderToken
-	o.replaceStringsFunctionDescriptions = append([]string{}, functionDescriptors...)
-}
-
-// Java: CompilerOptions.setRemoveAbstractMethods(boolean)
-func (o *CompilerOptions) SetRemoveAbstractMethods(remove bool) {
-	o.removeAbstractMethods = remove
-}
-
-// Java: CompilerOptions.shouldRemoveAbstractMethods()
-func (o *CompilerOptions) ShouldRemoveAbstractMethods() bool {
-	return o.removeAbstractMethods
-}
-
-// Java: CompilerOptions.setRemoveClosureAsserts(boolean)
-func (o *CompilerOptions) SetRemoveClosureAsserts(remove bool) {
-	o.removeClosureAsserts = remove
-}
-
-// Java: CompilerOptions.shouldRemoveClosureAsserts()
-func (o *CompilerOptions) ShouldRemoveClosureAsserts() bool {
-	return o.removeClosureAsserts
-}
-
-// Java: CompilerOptions.setRemoveJ2clAsserts(boolean)
-func (o *CompilerOptions) SetRemoveJ2clAsserts(remove bool) {
-	o.removeJ2clAsserts = remove
-}
-
-// Java: CompilerOptions.shouldRemoveJ2clAsserts()
-func (o *CompilerOptions) ShouldRemoveJ2clAsserts() bool {
-	return o.removeJ2clAsserts
-}
-
-// Java: CompilerOptions.setColorizeErrorOutput(boolean)
-func (o *CompilerOptions) SetColorizeErrorOutput(colorizeErrorOutput bool) {
-	o.colorizeErrorOutput = colorizeErrorOutput
-}
-
-// Java: CompilerOptions.shouldColorizeErrorOutput()
-func (o *CompilerOptions) ShouldColorizeErrorOutput() bool {
-	return o.colorizeErrorOutput
-}
-
-// Java: CompilerOptions.setChecksOnly(boolean)
-func (o *CompilerOptions) SetChecksOnly(checksOnly bool) {
-	o.checksOnly = checksOnly
-}
-
-// Java: CompilerOptions.isChecksOnly()
-func (o *CompilerOptions) IsChecksOnly() bool {
-	return o.checksOnly
-}
-
-// Java: CompilerOptions.setOutputJs(OutputJs)
-func (o *CompilerOptions) SetOutputJs(outputJs CompilerOptions_OutputJs) {
-	o.outputJs = outputJs
-}
-
-// Java: CompilerOptions.getOutputJs()
-func (o *CompilerOptions) GetOutputJs() CompilerOptions_OutputJs {
-	return o.outputJs
-}
-
-// Java: CompilerOptions.setGenerateExports(boolean)
-func (o *CompilerOptions) SetGenerateExports(generateExports bool) {
-	o.generateExports = generateExports
-}
-
-// Java: CompilerOptions.shouldGenerateExports()
-func (o *CompilerOptions) ShouldGenerateExports() bool {
-	return o.generateExports
-}
-
-// Java: CompilerOptions.setExportLocalPropertyDefinitions(boolean)
-func (o *CompilerOptions) SetExportLocalPropertyDefinitions(export bool) {
-	o.exportLocalPropertyDefinitions = export
-}
-
-// Java: CompilerOptions.shouldExportLocalPropertyDefinitions()
-func (o *CompilerOptions) ShouldExportLocalPropertyDefinitions() bool {
-	return o.exportLocalPropertyDefinitions
-}
-
-// Java: CompilerOptions.setAngularPass(boolean)
-func (o *CompilerOptions) SetAngularPass(angularPass bool) {
-	o.angularPass = angularPass
-}
-
-// Java: CompilerOptions.getAngularPass()
-func (o *CompilerOptions) GetAngularPass() bool {
-	return o.angularPass
-}
-
-// Java: CompilerOptions.setPolymerVersion(Integer)
-func (o *CompilerOptions) SetPolymerVersion(polymerVersion *int32) {
-	jutil.CheckArgumentMsg1(
-		polymerVersion == nil || *polymerVersion == 1 || *polymerVersion == 2,
-		"Invalid Polymer version: (%s)",
-		polymerVersion)
-	// Internally we model the polymerVersion as a boolean. if True, run the PolymerPass; otherwise
-	// don't. The public API is an integer for historical reasons & in case we need to modify it
-	// in the future.
-	o.polymerPass = polymerVersion != nil
-}
-
-// Java: CompilerOptions.isPolymerPassEnabled()
-func (o *CompilerOptions) IsPolymerPassEnabled() bool {
-	return o.polymerPass
-}
-
-// Java: CompilerOptions.setChromePass(boolean)
-func (o *CompilerOptions) SetChromePass(chromePass bool) {
-	o.chromePass = chromePass
-}
-
-// Java: CompilerOptions.isChromePassEnabled()
-func (o *CompilerOptions) IsChromePassEnabled() bool {
-	return o.chromePass
-}
-
-// Java: CompilerOptions.setJ2clPass(J2clPassMode)
-func (o *CompilerOptions) SetJ2clPass(j2clPassMode CompilerOptions_J2clPassMode) {
-	o.j2clPassMode = j2clPassMode
-}
-
-// Java: CompilerOptions.getJ2clPass()
-func (o *CompilerOptions) GetJ2clPass() CompilerOptions_J2clPassMode {
-	return o.j2clPassMode
-}
-
-// Java: CompilerOptions.setJ2clMinifierEnabled(boolean)
-func (o *CompilerOptions) SetJ2clMinifierEnabled(enabled bool) {
-	o.j2clMinifierEnabled = enabled
-}
-
-// Java: CompilerOptions.isJ2clMinifierEnabled()
-func (o *CompilerOptions) IsJ2clMinifierEnabled() bool {
-	return o.j2clMinifierEnabled
-}
-
-// Java: CompilerOptions.setJ2clMinifierPruningManifest(String)
-func (o *CompilerOptions) SetJ2clMinifierPruningManifest(j2clMinifierPruningManifest *string) {
-	o.j2clMinifierPruningManifest = j2clMinifierPruningManifest
-}
-
-// Java: CompilerOptions.getJ2clMinifierPruningManifest()
-func (o *CompilerOptions) GetJ2clMinifierPruningManifest() *string {
-	return o.j2clMinifierPruningManifest
+// CompilerOptions_IsFastMode returns whether Go-to-Go deterministic fast mode is enabled.
+func CompilerOptions_IsFastMode(o *CompilerOptions) bool {
+	return o != nil && o.fastMode
 }
 
 // Java: CompilerOptions.setCodingConvention(CodingConvention)
@@ -1771,66 +811,34 @@ func (o *CompilerOptions) GetCodingConvention() CodingConvention {
 	return o.codingConvention
 }
 
-// Sets the dependency management options.
+// Should the compiler print its configuration options to stderr when they are initialized?
 //
-// Java: CompilerOptions.setDependencyOptions(DependencyOptions)
-func (o *CompilerOptions) SetDependencyOptions(dependencyOptions *DependencyOptions) {
-	o.dependencyOptions = dependencyOptions
-}
-
-// Java: CompilerOptions.getDependencyOptions()
-func (o *CompilerOptions) GetDependencyOptions() *DependencyOptions {
-	return o.dependencyOptions
-}
-
-// Controls how detailed the compilation summary is. Values: 0 (never print summary), 1 (print
-// summary only if there are errors or warnings), 2 (print summary if type checking is on), 3
-// (always print summary). The default level is 1
+// Default false.
 //
-// Java: CompilerOptions.setSummaryDetailLevel(int)
-func (o *CompilerOptions) SetSummaryDetailLevel(summaryDetailLevel int) {
-	o.summaryDetailLevel = summaryDetailLevel
+// Java: CompilerOptions.setPrintConfig(boolean)
+func (o *CompilerOptions) SetPrintConfig(printConfig bool) {
+	o.printConfig = printConfig
 }
 
-// Java: CompilerOptions.getSummaryDetailLevel()
-func (o *CompilerOptions) GetSummaryDetailLevel() int {
-	return o.summaryDetailLevel
+// Java: CompilerOptions.shouldPrintConfig()
+func (o *CompilerOptions) ShouldPrintConfig() bool {
+	return o.printConfig
 }
 
-// Java: CompilerOptions.setExtraAnnotationNames(Iterable<String>)
-func (o *CompilerOptions) SetExtraAnnotationNames(extraAnnotationNames []string) {
-	o.extraAnnotationNames = jutil.NewLinkedHashSet(extraAnnotationNames...)
+// Java: CompilerOptions.getBrowserFeaturesetYearObject()
+func (o *CompilerOptions) GetBrowserFeaturesetYearObject() *CompilerOptions_BrowserFeaturesetYear {
+	return o.browserFeaturesetYear
 }
 
-// Java: CompilerOptions.getExtraAnnotationNames()
-func (o *CompilerOptions) GetExtraAnnotationNames() *jutil.LinkedHashSet[string] {
-	return o.extraAnnotationNames
+// Java: CompilerOptions.setBrowserFeaturesetYear(int)
+func (o *CompilerOptions) SetBrowserFeaturesetYear(year int) {
+	o.SetBrowserFeaturesetYearOfBrowserFeaturesetYear(CompilerOptions_BrowserFeaturesetYear_From(year))
 }
 
-// Sets the output charset.
-//
-// Java: CompilerOptions.setOutputCharset(Charset)
-func (o *CompilerOptions) SetOutputCharset(charset *jutil.Charset) {
-	o.outputCharset = charset
-}
-
-// Gets the output charset.
-//
-// Java: CompilerOptions.getOutputCharset()
-func (o *CompilerOptions) GetOutputCharset() *jutil.Charset {
-	return o.outputCharset
-}
-
-// Sets how goog.tweak calls are processed.
-//
-// Java: CompilerOptions.setTweakProcessing(TweakProcessing)
-func (o *CompilerOptions) SetTweakProcessing(tweakProcessing CompilerOptions_TweakProcessing) {
-	o.tweakProcessing = tweakProcessing
-}
-
-// Java: CompilerOptions.getTweakProcessing()
-func (o *CompilerOptions) GetTweakProcessing() CompilerOptions_TweakProcessing {
-	return o.tweakProcessing
+// Java: CompilerOptions.setBrowserFeaturesetYear(BrowserFeaturesetYear)
+func (o *CompilerOptions) SetBrowserFeaturesetYearOfBrowserFeaturesetYear(year CompilerOptions_BrowserFeaturesetYear) {
+	o.browserFeaturesetYear = year.Ptr()
+	o.browserFeaturesetYear.SetDependentValuesFromYear(o)
 }
 
 // Sets ECMAScript version to use.
@@ -1973,76 +981,433 @@ func (o *CompilerOptions) GetEnvironment() CompilerOptions_Environment {
 	return o.environment
 }
 
-// Set a custom handler for warnings and errors.
+// Sets the dependency management options.
 //
-// This is mostly used for piping the warnings and errors to a file behind the scenes.
-//
-// If you want to filter warnings and errors, you should use a WarningsGuard.
-//
-// If you want to change how warnings and errors are reported to the user, you should set a
-// ErrorManager on the Compiler. An ErrorManager is intended to summarize the errors for a single
-// compile job.
-//
-// Java: CompilerOptions.setErrorHandler(ErrorHandler)
-func (o *CompilerOptions) SetErrorHandler(handler ErrorHandler) {
-	o.errorHandler = handler
+// Java: CompilerOptions.setDependencyOptions(DependencyOptions)
+func (o *CompilerOptions) SetDependencyOptions(dependencyOptions *DependencyOptions) {
+	o.dependencyOptions = dependencyOptions
 }
 
-// Java: CompilerOptions.getErrorHandler()
-func (o *CompilerOptions) GetErrorHandler() ErrorHandler {
-	return o.errorHandler
+// Java: CompilerOptions.getDependencyOptions()
+func (o *CompilerOptions) GetDependencyOptions() *DependencyOptions {
+	return o.dependencyOptions
 }
 
-// If true, enables type inference. If checkTypes is enabled, this flag has no effect.
+// Java: CompilerOptions.setMergedPrecompiledLibraries(boolean)
+func (o *CompilerOptions) SetMergedPrecompiledLibraries(mergedPrecompiledLibraries bool) {
+	o.mergedPrecompiledLibraries = mergedPrecompiledLibraries
+}
+
+// Java: CompilerOptions.getMergedPrecompiledLibraries()
+func (o *CompilerOptions) GetMergedPrecompiledLibraries() bool {
+	return o.mergedPrecompiledLibraries
+}
+
+// Java: CompilerOptions.setWrapGoogModulesForWhitespaceOnly(boolean)
+func (o *CompilerOptions) SetWrapGoogModulesForWhitespaceOnly(enable bool) {
+	o.wrapGoogModulesForWhitespaceOnly = enable
+}
+
+// Java: CompilerOptions.shouldWrapGoogModulesForWhitespaceOnly()
+func (o *CompilerOptions) ShouldWrapGoogModulesForWhitespaceOnly() bool {
+	return o.wrapGoogModulesForWhitespaceOnly
+}
+
+// Whether to enable the bad module rewriting before typechecking that we want to get rid of
 //
-// Java: CompilerOptions.setInferTypes(boolean)
-func (o *CompilerOptions) SetInferTypes(enable bool) {
-	o.inferTypes = enable
+// Java: CompilerOptions.setBadRewriteModulesBeforeTypecheckingThatWeWantToGetRidOf(boolean)
+func (o *CompilerOptions) SetBadRewriteModulesBeforeTypecheckingThatWeWantToGetRidOf(b bool) {
+	o.rewriteModulesBeforeTypechecking = b
 }
 
-// Gets the inferTypes flag. Note that if checkTypes is enabled, this flag is ignored when
-// configuring the compiler.
+// Java: CompilerOptions.shouldRewriteModulesBeforeTypechecking()
+func (o *CompilerOptions) ShouldRewriteModulesBeforeTypechecking() bool {
+	return o.enableModuleRewriting &&
+		(o.rewriteModulesBeforeTypechecking || o.processCommonJSModules)
+}
+
+// Experimental option to disable all Closure and ES module and goog.provide rewriting
 //
-// Java: CompilerOptions.getInferTypes()
-func (o *CompilerOptions) GetInferTypes() bool {
-	return o.inferTypes
-}
-
-// @deprecated This is a no-op.
+// Use at your own risk - disabling module rewriting is not fully tested yet.
 //
-// Java: CompilerOptions.setNewTypeInference(boolean)
-func (o *CompilerOptions) SetNewTypeInference(enable bool) {
+// Java: CompilerOptions.setEnableModuleRewriting(boolean)
+func (o *CompilerOptions) SetEnableModuleRewriting(enable bool) {
+	o.enableModuleRewriting = enable
 }
 
-// @return true if either typechecker is ON.
+// Java: CompilerOptions.shouldRewriteModulesAfterTypechecking()
+func (o *CompilerOptions) ShouldRewriteModulesAfterTypechecking() bool {
+	return o.enableModuleRewriting && !o.rewriteModulesBeforeTypechecking
+}
+
+// Java: CompilerOptions.shouldRewriteModules()
+func (o *CompilerOptions) ShouldRewriteModules() bool {
+	return o.enableModuleRewriting
+}
+
+// Whether to enable support for dynamic import expressions
 //
-// Java: CompilerOptions.isTypecheckingEnabled()
-func (o *CompilerOptions) IsTypecheckingEnabled() bool {
-	return o.checkTypes
+// Java: CompilerOptions.setAllowDynamicImport(boolean)
+func (o *CompilerOptions) SetAllowDynamicImport(value bool) {
+	o.allowDynamicImport = value
 }
 
-// @return Whether assumeStrictThis is set.
+// Java: CompilerOptions.shouldAllowDynamicImport()
+func (o *CompilerOptions) ShouldAllowDynamicImport() bool {
+	return o.allowDynamicImport
+}
+
+// Set the alias name for dynamic import expressions
 //
-// Java: CompilerOptions.assumeStrictThis()
-func (o *CompilerOptions) AssumeStrictThis() bool {
-	return o.assumeStrictThis
+// Java: CompilerOptions.getDynamicImportAlias()
+func (o *CompilerOptions) GetDynamicImportAlias() *string {
+	return o.dynamicImportAlias
 }
 
-// If true, enables enables additional optimizations.
+// Set the alias name for dynamic import expressions
 //
-// Java: CompilerOptions.setAssumeStrictThis(boolean)
-func (o *CompilerOptions) SetAssumeStrictThis(enable bool) {
-	o.assumeStrictThis = enable
+// Java: CompilerOptions.setDynamicImportAlias(String)
+func (o *CompilerOptions) SetDynamicImportAlias(value *string) {
+	o.dynamicImportAlias = value
 }
 
-// Sets the list of properties that we report property invalidation errors for.
+// Java: CompilerOptions.shouldAliasDynamicImport()
+func (o *CompilerOptions) ShouldAliasDynamicImport() bool {
+	return o.dynamicImportAlias != nil
+}
+
+// Java: CompilerOptions.shouldRunCrossChunkCodeMotion()
+func (o *CompilerOptions) ShouldRunCrossChunkCodeMotion() bool {
+	return o.crossChunkCodeMotion
+}
+
+// Java: CompilerOptions.shouldRunCrossChunkMethodMotion()
+func (o *CompilerOptions) ShouldRunCrossChunkMethodMotion() bool {
+	return o.crossChunkMethodMotion
+}
+
+// Flattens multi-level property names (e.g. a$b = x)
 //
-// Java: CompilerOptions.setPropertiesThatMustDisambiguate(Set<String>)
-func (o *CompilerOptions) SetPropertiesThatMustDisambiguate(names *jutil.LinkedHashSet[string]) {
-	o.propertiesThatMustDisambiguate = jutil.NewLinkedHashSet(names.ToSlice()...)
+// @deprecated use getPropertyCollapseLevel
+//
+// Java: CompilerOptions.shouldCollapseProperties()
+func (o *CompilerOptions) ShouldCollapseProperties() bool {
+	return o.collapsePropertiesLevel != CompilerOptions_PropertyCollapseLevel_NONE
 }
 
-// Java: CompilerOptions.getPropertiesThatMustDisambiguate()
-func (o *CompilerOptions) GetPropertiesThatMustDisambiguate() *jutil.LinkedHashSet[string] {
-	return o.propertiesThatMustDisambiguate
+// Java: CompilerOptions.getPropertyCollapseLevel()
+func (o *CompilerOptions) GetPropertyCollapseLevel() CompilerOptions_PropertyCollapseLevel {
+	return o.collapsePropertiesLevel
+}
+
+// Java: CompilerOptions.setCollapseObjectLiterals(boolean)
+func (o *CompilerOptions) SetCollapseObjectLiterals(enabled bool) {
+	o.collapseObjectLiterals = enabled
+}
+
+// Java: CompilerOptions.getCollapseObjectLiterals()
+func (o *CompilerOptions) GetCollapseObjectLiterals() bool {
+	return o.collapseObjectLiterals
+}
+
+// @return Whether to attempt to remove unused class properties
+//
+// Java: CompilerOptions.isRemoveUnusedClassProperties()
+func (o *CompilerOptions) IsRemoveUnusedClassProperties() bool {
+	return o.removeUnusedClassProperties
+}
+
+// @param removeUnusedClassProperties Whether to attempt to remove unused class properties
+//
+// Java: CompilerOptions.setRemoveUnusedClassProperties(boolean)
+func (o *CompilerOptions) SetRemoveUnusedClassProperties(removeUnusedClassProperties bool) {
+	o.removeUnusedClassProperties = removeUnusedClassProperties
+}
+
+// Set the function inlining policy for the compiler.
+//
+// Java: CompilerOptions.setInlineFunctions(Reach)
+func (o *CompilerOptions) SetInlineFunctions(reach CompilerOptions_Reach) {
+	o.inlineFunctionsLevel = reach
+}
+
+// Get the function inlining policy for the compiler.
+//
+// Java: CompilerOptions.getInlineFunctionsLevel()
+func (o *CompilerOptions) GetInlineFunctionsLevel() CompilerOptions_Reach {
+	return o.inlineFunctionsLevel
+}
+
+// Java: CompilerOptions.setMaxFunctionSizeAfterInlining(int)
+func (o *CompilerOptions) SetMaxFunctionSizeAfterInlining(funAstSize int) {
+	jutil.CheckArgument(funAstSize > 0)
+	o.maxFunctionSizeAfterInlining = funAstSize
+}
+
+// Java: CompilerOptions.getMaxFunctionSizeAfterInlining()
+func (o *CompilerOptions) GetMaxFunctionSizeAfterInlining() int {
+	return o.maxFunctionSizeAfterInlining
+}
+
+// Java: CompilerOptions.setInlineVariables(boolean)
+func (o *CompilerOptions) SetInlineVariables(inlineVariables bool) {
+	o.inlineVariables = inlineVariables
+}
+
+// Java: CompilerOptions.shouldInlineVariables()
+func (o *CompilerOptions) ShouldInlineVariables() bool {
+	return o.inlineVariables
+}
+
+// Set the variable inlining policy for the compiler.
+//
+// Java: CompilerOptions.setInlineVariables(Reach)
+func (o *CompilerOptions) SetInlineVariablesOfReach(reach CompilerOptions_Reach) {
+	switch reach {
+	case CompilerOptions_Reach_ALL:
+		o.inlineVariables = true
+		o.inlineLocalVariables = true
+	case CompilerOptions_Reach_LOCAL_ONLY:
+		o.inlineVariables = false
+		o.inlineLocalVariables = true
+	case CompilerOptions_Reach_NONE:
+		o.inlineVariables = false
+		o.inlineLocalVariables = false
+	}
+}
+
+// Set the function inlining policy for the compiler.
+//
+// Java: CompilerOptions.setInlineProperties(boolean)
+func (o *CompilerOptions) SetInlineProperties(enable bool) {
+	o.inlineProperties = enable
+}
+
+// Java: CompilerOptions.shouldInlineProperties()
+func (o *CompilerOptions) ShouldInlineProperties() bool {
+	return o.inlineProperties
+}
+
+// Set the variable removal policy for the compiler.
+//
+// Java: CompilerOptions.setRemoveUnusedVariables(Reach)
+func (o *CompilerOptions) SetRemoveUnusedVariables(reach CompilerOptions_Reach) {
+	switch reach {
+	case CompilerOptions_Reach_ALL:
+		o.removeUnusedVars = true
+		o.removeUnusedLocalVars = true
+	case CompilerOptions_Reach_LOCAL_ONLY:
+		o.removeUnusedVars = false
+		o.removeUnusedLocalVars = true
+	case CompilerOptions_Reach_NONE:
+		o.removeUnusedVars = false
+		o.removeUnusedLocalVars = false
+	}
+}
+
+// Java: CompilerOptions.shouldRemoveUnusedVariables()
+func (o *CompilerOptions) ShouldRemoveUnusedVariables() bool {
+	return o.removeUnusedVars
+}
+
+// Java: CompilerOptions.shouldRemoveUnusedLocalVariables()
+func (o *CompilerOptions) ShouldRemoveUnusedLocalVariables() bool {
+	return o.removeUnusedLocalVars
+}
+
+// Java: CompilerOptions.setRemoveAbstractMethods(boolean)
+func (o *CompilerOptions) SetRemoveAbstractMethods(remove bool) {
+	o.removeAbstractMethods = remove
+}
+
+// Java: CompilerOptions.shouldRemoveAbstractMethods()
+func (o *CompilerOptions) ShouldRemoveAbstractMethods() bool {
+	return o.removeAbstractMethods
+}
+
+// Java: CompilerOptions.setRemoveClosureAsserts(boolean)
+func (o *CompilerOptions) SetRemoveClosureAsserts(remove bool) {
+	o.removeClosureAsserts = remove
+}
+
+// Java: CompilerOptions.shouldRemoveClosureAsserts()
+func (o *CompilerOptions) ShouldRemoveClosureAsserts() bool {
+	return o.removeClosureAsserts
+}
+
+// Java: CompilerOptions.setRemoveJ2clAsserts(boolean)
+func (o *CompilerOptions) SetRemoveJ2clAsserts(remove bool) {
+	o.removeJ2clAsserts = remove
+}
+
+// Java: CompilerOptions.shouldRemoveJ2clAsserts()
+func (o *CompilerOptions) ShouldRemoveJ2clAsserts() bool {
+	return o.removeJ2clAsserts
+}
+
+// Sets how goog.tweak calls are processed.
+//
+// Java: CompilerOptions.setTweakProcessing(TweakProcessing)
+func (o *CompilerOptions) SetTweakProcessing(tweakProcessing CompilerOptions_TweakProcessing) {
+	o.tweakProcessing = tweakProcessing
+}
+
+// Java: CompilerOptions.getTweakProcessing()
+func (o *CompilerOptions) GetTweakProcessing() CompilerOptions_TweakProcessing {
+	return o.tweakProcessing
+}
+
+type defineReplacementKind uint8
+
+const (
+	defineReplacementBool defineReplacementKind = iota
+	defineReplacementInt
+	defineReplacementDouble
+	defineReplacementString
+)
+
+type defineReplacement struct {
+	kind    defineReplacementKind
+	boolVal bool
+	intVal  int32
+	numVal  float64
+	strVal  string
+}
+
+func (d defineReplacement) toNode() rhino.Node {
+	switch d.kind {
+	case defineReplacementBool:
+		return NodeUtil_BooleanNode(d.boolVal)
+	case defineReplacementInt:
+		return NodeUtil_NumberNode(float64(d.intVal), rhino.NilNode)
+	case defineReplacementDouble:
+		return NodeUtil_NumberNode(d.numVal, rhino.NilNode)
+	case defineReplacementString:
+		return rhino.IR_String(d.strVal)
+	default:
+		panic(jutil.NewIllegalStateException())
+	}
+}
+
+// Returns the map of define replacements.
+//
+// Java: CompilerOptions.getDefineReplacements()
+func (o *CompilerOptions) GetDefineReplacements() *jutil.LinkedHashMap[string, rhino.Node] {
+	m := jutil.NewLinkedHashMap[string, rhino.Node]()
+	for name, value := range o.defineReplacements.All() {
+		m.Put(name, value.toNode())
+	}
+	return m
+}
+
+// Sets the value of the @define variable in JS to a boolean literal.
+//
+// Java: CompilerOptions.setDefineToBooleanLiteral(String, boolean)
+func (o *CompilerOptions) SetDefineToBooleanLiteral(defineName string, value bool) {
+	o.defineReplacements.Put(defineName, defineReplacement{kind: defineReplacementBool, boolVal: value})
+}
+
+// Sets the value of the @define variable in JS to a String literal.
+//
+// Java: CompilerOptions.setDefineToStringLiteral(String, String)
+func (o *CompilerOptions) SetDefineToStringLiteral(defineName string, value string) {
+	o.defineReplacements.Put(defineName, defineReplacement{kind: defineReplacementString, strVal: value})
+}
+
+// Sets the value of the @define variable in JS to a number literal.
+//
+// Java: CompilerOptions.setDefineToNumberLiteral(String, int)
+func (o *CompilerOptions) SetDefineToNumberLiteral(defineName string, value int) {
+	o.defineReplacements.Put(defineName, defineReplacement{kind: defineReplacementInt, intVal: int32(value)})
+}
+
+// Sets the value of the @define variable in JS to a number literal.
+//
+// Java: CompilerOptions.setDefineToDoubleLiteral(String, double)
+func (o *CompilerOptions) SetDefineToDoubleLiteral(defineName string, value float64) {
+	o.defineReplacements.Put(defineName, defineReplacement{kind: defineReplacementDouble, numVal: value})
+}
+
+// Java: CompilerOptions.setUnknownDefinesToIgnore(ImmutableList<String>)
+func (o *CompilerOptions) SetUnknownDefinesToIgnore(unknownDefinesToIgnore []string) {
+	o.unknownDefinesToIgnore = unknownDefinesToIgnore
+}
+
+// Java: CompilerOptions.addUnknownDefinesToIgnore(ImmutableList<String>)
+func (o *CompilerOptions) AddUnknownDefinesToIgnore(unknownDefinesToIgnore []string) {
+	combined := make([]string, 0, len(o.unknownDefinesToIgnore)+len(unknownDefinesToIgnore))
+	combined = append(combined, o.unknownDefinesToIgnore...)
+	combined = append(combined, unknownDefinesToIgnore...)
+	o.unknownDefinesToIgnore = combined
+}
+
+// Java: CompilerOptions.getUnknownDefinesToIgnore()
+func (o *CompilerOptions) GetUnknownDefinesToIgnore() []string {
+	return o.unknownDefinesToIgnore
+}
+
+// CompilerOptionsPreprocessor checks for combinations of options that are
+// incompatible, i.e. will produce incorrect code.
+//
+// This is run by Compiler#compileInternal, which is not run during unit
+// tests. The catch is that it's run after Compiler#initOptions, so if for
+// example you want to change the warningsGuard, you can't do it here.
+//
+// Also, turns off options if the provided options don't make sense
+// together.
+//
+// Don't instantiate (Java: private CompilerOptionsPreprocessor()).
+type CompilerOptionsPreprocessor struct{}
+
+// Java: CompilerOptionsPreprocessor.preprocess(CompilerOptions)
+func CompilerOptionsPreprocessor_Preprocess(options *CompilerOptions) {
+	if options.GetInlineFunctionsLevel() == CompilerOptions_Reach_NONE &&
+		options.GetMaxFunctionSizeAfterInlining() != CompilerOptions_UNLIMITED_FUN_SIZE_AFTER_INLINING {
+		panic(newCompilerOptionsPreprocessor_InvalidOptionsException(
+			"max_function_size_after_inlining has no effect if inlining is disabled."))
+	}
+}
+
+// CompilerOptionsPreprocessor_InvalidOptionsException is an exception to
+// indicate incompatible options in the CompilerOptions.
+type CompilerOptionsPreprocessor_InvalidOptionsException struct {
+	jutil.RuntimeException
+}
+
+func (*CompilerOptionsPreprocessor_InvalidOptionsException) invalidOptionsException() {}
+
+// ICompilerOptionsPreprocessor_InvalidOptionsException matches
+// CompilerOptionsPreprocessor.InvalidOptionsException and its subclasses.
+type ICompilerOptionsPreprocessor_InvalidOptionsException interface {
+	jutil.IRuntimeException
+	invalidOptionsException()
+}
+
+// Java: CompilerOptionsPreprocessor.InvalidOptionsException(String)
+func newCompilerOptionsPreprocessor_InvalidOptionsException(message string) *CompilerOptionsPreprocessor_InvalidOptionsException {
+	e := &CompilerOptionsPreprocessor_InvalidOptionsException{}
+	jutil.InitThrowable(e, "com.google.javascript.jscomp.CompilerOptionsPreprocessor$InvalidOptionsException", &message, nil)
+	return e
+}
+
+// FlagUsageException is an exception thrown when command-line flags are used
+// incorrectly.
+type FlagUsageException struct{ jutil.RuntimeException }
+
+func (*FlagUsageException) flagUsageException() {}
+
+// IFlagUsageException matches FlagUsageException.
+type IFlagUsageException interface {
+	jutil.IRuntimeException
+	flagUsageException()
+}
+
+// Java: FlagUsageException.serialVersionUID
+const FlagUsageException_serialVersionUID int64 = 1
+
+// Java: FlagUsageException(String)
+func NewFlagUsageException(message string) *FlagUsageException {
+	e := &FlagUsageException{}
+	jutil.InitThrowable(e, "com.google.javascript.jscomp.FlagUsageException", &message, nil)
+	return e
 }

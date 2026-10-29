@@ -274,7 +274,7 @@ func (p *rucPolyfillInfo) getName() string {
 //
 // Java: RemoveUnusedCode.PolyfillInfo.considerPossibleReference(Node)
 func (p *rucPolyfillInfo) considerPossibleReference(n rhino.Node) {
-	if !p.isRemovable || (p.removable.flags&remFlagSubBit == 0 && p.outer.guardedUsages != nil && p.outer.guardedUsages.Contains(n)) {
+	if !p.isRemovable || (p.removable.flags&remFlagSubBit == 0 && p.outer.guardedUsages[n]) {
 		return
 	}
 	if NodeUtil_IsNormalOrOptChainGetProp(n) || (p.kind == rucPolyfillGlobal && n.IsName()) {

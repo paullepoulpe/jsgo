@@ -525,14 +525,14 @@ func (f *commandLineRunner_Flags) Args4jFields() []args4j.AnnotatedField {
 func (f *commandLineRunner_Flags) Parse(args []string) {
 	f.parser.ParseArgumentCollection(args)
 
-	compilationLevel := jutil.Ascii_ToUpperCase(f.compilationLevel)
+	compilationLevel := asciiUpper(f.compilationLevel)
 	f.compilationLevelParsed = jscomp.CompilationLevel_FromString(&compilationLevel)
 	if f.compilationLevelParsed == nil {
 		panic(args4j.NewCmdLineExceptionWithParser(
 			f.parser, "Bad value for --compilation_level: "+f.compilationLevel))
 	}
 
-	instrumentForCoverageOption := jutil.Ascii_ToUpperCase(f.instrumentForCoverageOption)
+	instrumentForCoverageOption := asciiUpper(f.instrumentForCoverageOption)
 	instrumentCodeParsed := jscomp.CompilerOptions_InstrumentOption_FromString(&instrumentForCoverageOption)
 	if instrumentCodeParsed == nil {
 		panic(args4j.NewCmdLineExceptionWithParser(
@@ -661,7 +661,7 @@ func (f *commandLineRunner_Flags) PrintUsage(ps *jutil.PrintStream) {
 			f.parser.SetUsageWidth(f.maxLineLength)
 		}
 
-		f.PrintCategoryUsage(entry.key, entry.values, outputStream, &prefix, &suffix)
+		f.PrintCategoryUsage(entry.key, entry.values, outputStream, prefix, suffix)
 	}
 
 	ps.Flush()
@@ -676,17 +676,11 @@ const commandLineRunner_Flags_NORMAL_PREFIX = "\033[0m"
 // Java: CommandLineRunner.Flags.MARKDOWN_CHARS_TO_ESCAPE
 const commandLineRunner_Flags_MARKDOWN_CHARS_TO_ESCAPE = "[-*\\`\\[\\]{}\\(\\)#+\\.!<>]"
 
-// commandLineRunner_Flags_optionName is
-// namedOptionDef.name().replaceFirst("^--", "") for a handler whose option
-// is a NamedOptionDef, and ok false otherwise.
-//
-// Go-only: language-adapter — the instanceof pattern of the lambdas below.
-func commandLineRunner_Flags_optionName(optionHandler args4j.OptionHandler) (name string, ok bool) {
-	namedOptionDef, ok := optionHandler.GetOptionHandlerBase().Option.(*args4j.NamedOptionDef)
-	if !ok {
+func commandLineRunner_Flags_optionName(optionHandler *args4j.OptionHandler) (name string, ok bool) {
+	if !optionHandler.Option.IsNamed() {
 		return "", false
 	}
-	return jutil.StringReplaceFirst(namedOptionDef.Name(), "^--", ""), true
+	return strings.TrimPrefix(optionHandler.Option.Name(), "--"), true
 }
 
 // Java: CommandLineRunner.Flags.printCategoryUsage(String, Collection<String>, OutputStreamWriter, String, String)
@@ -694,13 +688,11 @@ func (f *commandLineRunner_Flags) PrintCategoryUsage(
 	categoryName string,
 	options []string,
 	outputStream jutil.Writer,
-	prefix *string,
-	suffix *string) {
+	prefix string,
+	suffix string) {
 
 	jutil.Try(func() {
-		if prefix != nil {
-			f.PrintStringLineWrapped(*prefix, outputStream)
-		}
+		f.PrintStringLineWrapped(prefix, outputStream)
 
 		if f.helpMarkdown {
 			outputStream.Write("# " + categoryName + "\n")
@@ -710,22 +702,21 @@ func (f *commandLineRunner_Flags) PrintCategoryUsage(
 				f.parser.PrintUsageToWriterWithFilter(
 					stringWriter,
 					nil,
-					args4j.OptionHandlerFilterFunc(func(optionHandler args4j.OptionHandler) bool {
+					args4j.OptionHandlerFilterFunc(func(optionHandler *args4j.OptionHandler) bool {
 						if name, ok := commandLineRunner_Flags_optionName(optionHandler); ok {
-							return !optionHandler.GetOptionHandlerBase().Option.Hidden() &&
-								optionName == name
+							return !optionHandler.Option.Hidden() && optionName == name
 						}
 						return false
 					}))
 				stringWriter.Flush()
 				rawOptionUsage := stringWriter.String()
-				delimiterIndex := jutil.StringIndexOf(rawOptionUsage, " : ")
+				delimiterIndex := strings.Index(rawOptionUsage, " : ")
 				if delimiterIndex > 0 {
 					outputStream.Write(
-						"\n**" + jutil.StringTrim(jutil.StringSubstring(rawOptionUsage, 0, delimiterIndex)) + "**  \n")
+						"\n**" + jutil.StringTrim(rawOptionUsage[:delimiterIndex]) + "**  \n")
 
 					optionDescription := jutil.StringTrim(jutil.StringReplaceAll(
-						jutil.StringSubstringFrom(rawOptionUsage, delimiterIndex+3),
+						rawOptionUsage[delimiterIndex+3:],
 						commandLineRunner_Flags_MARKDOWN_CHARS_TO_ESCAPE, "\\\\$0"))
 					outputStream.Write(optionDescription + "\n")
 				} else {
@@ -738,18 +729,15 @@ func (f *commandLineRunner_Flags) PrintCategoryUsage(
 			f.parser.PrintUsageToWriterWithFilter(
 				outputStream,
 				nil,
-				args4j.OptionHandlerFilterFunc(func(optionHandler args4j.OptionHandler) bool {
+				args4j.OptionHandlerFilterFunc(func(optionHandler *args4j.OptionHandler) bool {
 					if name, ok := commandLineRunner_Flags_optionName(optionHandler); ok {
-						return !optionHandler.GetOptionHandlerBase().Option.Hidden() &&
-							slices.Contains(options, name)
+						return !optionHandler.Option.Hidden() && slices.Contains(options, name)
 					}
 					return false
 				}))
 		}
 
-		if suffix != nil {
-			f.PrintStringLineWrapped(*suffix, outputStream)
-		}
+		f.PrintStringLineWrapped(suffix, outputStream)
 	}, func(e jutil.IIOException) {
 		// Ignore.
 	})
@@ -914,143 +902,80 @@ func (f *commandLineRunner_Flags) GetPackageJsonEntryNames() []string {
 // be backwards-compatible. It needs to be public because of the crazy
 // reflection that args4j does.
 //
-// Java: CommandLineRunner.Flags.BooleanOptionHandler
-type commandLineRunner_Flags_BooleanOptionHandler struct {
-	args4j.OptionHandlerBase
-}
-
-// Handlers are used reflectively by args4j
-//
 // Java: CommandLineRunner.Flags.BooleanOptionHandler(CmdLineParser, OptionDef, Setter<? super Boolean>)
 func newCommandLineRunner_Flags_BooleanOptionHandler(
-	parser *args4j.CmdLineParser, option args4j.OptionDef, setter args4j.Setter) args4j.OptionHandler {
-	h := &commandLineRunner_Flags_BooleanOptionHandler{}
-	h.InitOptionHandlerBase(h, parser, option, setter)
-	return h
-}
+	parser *args4j.CmdLineParser, option *args4j.OptionDef, setter args4j.Setter) *args4j.OptionHandler {
+	return args4j.NewOptionHandler(parser, option, setter, nil, func(h *args4j.OptionHandler, params args4j.Parameters) int {
+		var param string
+		hasParam := false
+		jutil.Try(func() {
+			param = params.GetParameter(0)
+			hasParam = true
+		}, func(e args4j.ICmdLineException) {})
 
-// Java: CommandLineRunner.Flags.BooleanOptionHandler.parseArguments(Parameters)
-func (h *commandLineRunner_Flags_BooleanOptionHandler) ParseArguments(params args4j.Parameters) int {
-	var param *string
-	jutil.Try(func() {
-		p := params.GetParameter(0)
-		param = &p
-	}, func(e args4j.ICmdLineException) {
-		param = nil // to stop linter complaints
+		if !hasParam {
+			h.Setter.AddValue(true)
+			return 0
+		}
+		switch asciiLower(param) {
+		case "true", "on", "yes", "1":
+			h.Setter.AddValue(true)
+			return 1
+		case "false", "off", "no", "0":
+			h.Setter.AddValue(false)
+			return 1
+		default:
+			h.Setter.AddValue(true)
+			return 0
+		}
 	})
-
-	if param == nil {
-		h.Setter.AddValue(true)
-		return 0
-	}
-	switch jutil.Ascii_ToLowerCase(*param) {
-	case "true", "on", "yes", "1":
-		h.Setter.AddValue(true)
-		return 1
-	case "false", "off", "no", "0":
-		h.Setter.AddValue(false)
-		return 1
-	default:
-		h.Setter.AddValue(true)
-		return 0
-	}
 }
 
-// Java: CommandLineRunner.Flags.BooleanOptionHandler.getDefaultMetaVariable()
-func (h *commandLineRunner_Flags_BooleanOptionHandler) GetDefaultMetaVariable() *string {
-	return nil
-}
-
-// commandLineRunner_Flags_WarningGuardErrorOptionHandler is our own parser
+// newCommandLineRunner_Flags_WarningGuardErrorOptionHandler is our own parser
 // for warning guards that preserves the original order of the flags.
-//
-// Java: CommandLineRunner.Flags.WarningGuardErrorOptionHandler
-type commandLineRunner_Flags_WarningGuardErrorOptionHandler struct {
-	args4j.StringOptionHandler
-}
-
-// Handlers are used reflectively by args4j
 //
 // Java: CommandLineRunner.Flags.WarningGuardErrorOptionHandler(CmdLineParser, OptionDef, Setter<? super String>)
 func newCommandLineRunner_Flags_WarningGuardErrorOptionHandler(
 	guardLevels *[]*AbstractCommandLineRunner_FlagEntry[jscomp.CheckLevel],
 ) args4j.OptionHandlerClass {
-	return func(parser *args4j.CmdLineParser, option args4j.OptionDef, setter args4j.Setter) args4j.OptionHandler {
-		h := &commandLineRunner_Flags_WarningGuardErrorOptionHandler{}
-		h.InitStringOptionHandler(h, parser, option, newCommandLineRunner_Flags_MultiFlagSetter(setter, jscomp.CheckLevel_ERROR, guardLevels))
-		return h
+	return func(parser *args4j.CmdLineParser, option *args4j.OptionDef, setter args4j.Setter) *args4j.OptionHandler {
+		return args4j.NewStringOptionHandler(parser, option, newCommandLineRunner_Flags_MultiFlagSetter(setter, jscomp.CheckLevel_ERROR, guardLevels))
 	}
 }
 
-// Java: CommandLineRunner.Flags.WarningGuardWarningOptionHandler
-type commandLineRunner_Flags_WarningGuardWarningOptionHandler struct {
-	args4j.StringOptionHandler
-}
-
-// Handlers are used reflectively by args4j
-//
 // Java: CommandLineRunner.Flags.WarningGuardWarningOptionHandler(CmdLineParser, OptionDef, Setter<? super String>)
 func newCommandLineRunner_Flags_WarningGuardWarningOptionHandler(
 	guardLevels *[]*AbstractCommandLineRunner_FlagEntry[jscomp.CheckLevel],
 ) args4j.OptionHandlerClass {
-	return func(parser *args4j.CmdLineParser, option args4j.OptionDef, setter args4j.Setter) args4j.OptionHandler {
-		h := &commandLineRunner_Flags_WarningGuardWarningOptionHandler{}
-		h.InitStringOptionHandler(h, parser, option, newCommandLineRunner_Flags_MultiFlagSetter(setter, jscomp.CheckLevel_WARNING, guardLevels))
-		return h
+	return func(parser *args4j.CmdLineParser, option *args4j.OptionDef, setter args4j.Setter) *args4j.OptionHandler {
+		return args4j.NewStringOptionHandler(parser, option, newCommandLineRunner_Flags_MultiFlagSetter(setter, jscomp.CheckLevel_WARNING, guardLevels))
 	}
 }
 
-// Java: CommandLineRunner.Flags.WarningGuardOffOptionHandler
-type commandLineRunner_Flags_WarningGuardOffOptionHandler struct {
-	args4j.StringOptionHandler
-}
-
-// Handlers are used reflectively by args4j
-//
 // Java: CommandLineRunner.Flags.WarningGuardOffOptionHandler(CmdLineParser, OptionDef, Setter<? super String>)
 func newCommandLineRunner_Flags_WarningGuardOffOptionHandler(
 	guardLevels *[]*AbstractCommandLineRunner_FlagEntry[jscomp.CheckLevel],
 ) args4j.OptionHandlerClass {
-	return func(parser *args4j.CmdLineParser, option args4j.OptionDef, setter args4j.Setter) args4j.OptionHandler {
-		h := &commandLineRunner_Flags_WarningGuardOffOptionHandler{}
-		h.InitStringOptionHandler(h, parser, option, newCommandLineRunner_Flags_MultiFlagSetter(setter, jscomp.CheckLevel_OFF, guardLevels))
-		return h
+	return func(parser *args4j.CmdLineParser, option *args4j.OptionDef, setter args4j.Setter) *args4j.OptionHandler {
+		return args4j.NewStringOptionHandler(parser, option, newCommandLineRunner_Flags_MultiFlagSetter(setter, jscomp.CheckLevel_OFF, guardLevels))
 	}
 }
 
-// Java: CommandLineRunner.Flags.JsOptionHandler
-type commandLineRunner_Flags_JsOptionHandler struct {
-	args4j.StringOptionHandler
-}
-
-// Handlers are used reflectively by args4j
-//
 // Java: CommandLineRunner.Flags.JsOptionHandler(CmdLineParser, OptionDef, Setter<? super String>)
 func newCommandLineRunner_Flags_JsOptionHandler(
 	mixedJsSources *[]*AbstractCommandLineRunner_FlagEntry[AbstractCommandLineRunner_JsSourceType],
 ) args4j.OptionHandlerClass {
-	return func(parser *args4j.CmdLineParser, option args4j.OptionDef, setter args4j.Setter) args4j.OptionHandler {
-		h := &commandLineRunner_Flags_JsOptionHandler{}
-		h.InitStringOptionHandler(h, parser, option, newCommandLineRunner_Flags_MultiFlagSetter(setter, AbstractCommandLineRunner_JsSourceType_JS, mixedJsSources))
-		return h
+	return func(parser *args4j.CmdLineParser, option *args4j.OptionDef, setter args4j.Setter) *args4j.OptionHandler {
+		return args4j.NewStringOptionHandler(parser, option, newCommandLineRunner_Flags_MultiFlagSetter(setter, AbstractCommandLineRunner_JsSourceType_JS, mixedJsSources))
 	}
 }
 
-// Java: CommandLineRunner.Flags.JsZipOptionHandler
-type commandLineRunner_Flags_JsZipOptionHandler struct {
-	args4j.StringOptionHandler
-}
-
-// Handlers are used reflectively by args4j
-//
 // Java: CommandLineRunner.Flags.JsZipOptionHandler(CmdLineParser, OptionDef, Setter<? super String>)
 func newCommandLineRunner_Flags_JsZipOptionHandler(
 	mixedJsSources *[]*AbstractCommandLineRunner_FlagEntry[AbstractCommandLineRunner_JsSourceType],
 ) args4j.OptionHandlerClass {
-	return func(parser *args4j.CmdLineParser, option args4j.OptionDef, setter args4j.Setter) args4j.OptionHandler {
-		h := &commandLineRunner_Flags_JsZipOptionHandler{}
-		h.InitStringOptionHandler(h, parser, option, newCommandLineRunner_Flags_MultiFlagSetter(setter, AbstractCommandLineRunner_JsSourceType_JS_ZIP, mixedJsSources))
-		return h
+	return func(parser *args4j.CmdLineParser, option *args4j.OptionDef, setter args4j.Setter) *args4j.OptionHandler {
+		return args4j.NewStringOptionHandler(parser, option, newCommandLineRunner_Flags_MultiFlagSetter(setter, AbstractCommandLineRunner_JsSourceType_JS_ZIP, mixedJsSources))
 	}
 }
 
@@ -1109,9 +1034,4 @@ func (s *commandLineRunner_Flags_MultiFlagSetter[T]) AddValue(v any) {
 // Java: CommandLineRunner.Flags.MultiFlagSetter.asFieldSetter()
 func (s *commandLineRunner_Flags_MultiFlagSetter[T]) AsFieldSetter() *args4j.FieldSetter {
 	return s.proxy.AsFieldSetter()
-}
-
-// Java: CommandLineRunner.Flags.MultiFlagSetter.asAnnotatedElement()
-func (s *commandLineRunner_Flags_MultiFlagSetter[T]) AsAnnotatedElement() args4j.AnnotatedElement {
-	return s.proxy.AsAnnotatedElement()
 }

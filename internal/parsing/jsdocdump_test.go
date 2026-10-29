@@ -55,17 +55,18 @@ import (
 
 // silentParserReporter drops the parser's own diagnostics (JsDocDump does).
 type silentParserReporter struct {
-	parser.ErrorReporterBase
+	hadError bool
 }
 
 func newSilentParserReporter() *silentParserReporter {
-	r := &silentParserReporter{}
-	r.InitErrorReporterBase(r)
-	return r
+	return &silentParserReporter{}
 }
 
-func (r *silentParserReporter) ReportError(location parser.LinePosition, message string)   {}
+func (r *silentParserReporter) ReportError(location parser.LinePosition, message string) {
+	r.hadError = true
+}
 func (r *silentParserReporter) ReportWarning(location parser.LinePosition, message string) {}
+func (r *silentParserReporter) HadError() bool                                             { return r.hadError }
 
 // jsdocRecordingReporter is JsDocDump.RecordingReporter.
 type jsdocRecordingReporter struct {

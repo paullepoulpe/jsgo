@@ -404,10 +404,13 @@ func (b *JSDocInfo_Builder) RecordTemplateTypeNameWithBound(name string, bound *
 	if bound == nil {
 		bound = JSTypeExpression_IMPLICIT_TEMPLATE_BOUND
 	}
-	transformations := jsdocGet[*jutil.LinkedHashMap[string, Node]](b.GetProp(JSDocInfo_TYPE_TRANSFORMATIONS))
-	if (transformations != nil && transformations.ContainsKey(name)) ||
-		b.hasPropKey(JSDocInfo_TYPEDEF_TYPE) {
+	if b.hasPropKey(JSDocInfo_TYPEDEF_TYPE) {
 		return false
+	}
+	for _, tr := range jsdocGet[[]JSDocTypeTransform](b.GetProp(JSDocInfo_TYPE_TRANSFORMATIONS)) {
+		if tr.Name == name {
+			return false
+		}
 	}
 	return b.populateParamEntry(JSDocInfo_TEMPLATE_TYPE_NAMES, RhinoStringPool_AddOrGet(name), bound)
 }
@@ -599,7 +602,18 @@ func (b *JSDocInfo_Builder) RecordSuppression(suppression string) {
 //
 // Java: JSDocInfo.Builder.recordModifies(Set<String>)
 func (b *JSDocInfo_Builder) RecordModifies(modifies *jutil.LinkedHashSet[string]) bool {
-	return !b.HasAnySingletonSideEffectTags() && b.PopulateProp(JSDocInfo_MODIFIES, JSDocInfo_InternSet(modifies))
+	if b.HasAnySingletonSideEffectTags() {
+		return false
+	}
+	return b.PopulateProp(JSDocInfo_MODIFIES, internModifiesSet(modifies))
+}
+
+// RecordModifiesSlice records a parsed @modifies slice without allocating a LinkedHashSet.
+func (b *JSDocInfo_Builder) RecordModifiesSlice(modifies []string) bool {
+	if b.HasAnySingletonSideEffectTags() {
+		return false
+	}
+	return b.PopulateProp(JSDocInfo_MODIFIES, internModifiesSlice(modifies))
 }
 
 // RecordType records a type; returns true if the type was recorded and false
@@ -1524,14 +1538,18 @@ func (b *JSDocInfo_Builder) populateStringMapEntry(prop *JSDocInfo_Property, key
 }
 
 func (b *JSDocInfo_Builder) populateNodeMapEntry(prop *JSDocInfo_Property, key string, expr Node) bool {
-	m := jsdocGet[*jutil.LinkedHashMap[string, Node]](b.GetProp(prop))
-	if m == nil {
-		m = jutil.NewLinkedHashMap[string, Node]()
-		b.SetProp(prop, m)
-	} else if prev, exists := m.Lookup(key); exists && !prev.IsNil() {
-		return false
+	transforms := jsdocGet[[]JSDocTypeTransform](b.GetProp(prop))
+	for i := range transforms {
+		if transforms[i].Name == key {
+			if transforms[i].TypeNode.IsNil() {
+				transforms[i].TypeNode = expr
+				b.populated = true
+				return true
+			}
+			return false
+		}
 	}
-	m.Put(key, expr)
+	b.SetProp(prop, append(transforms, JSDocTypeTransform{Name: key, TypeNode: expr}))
 	b.populated = true
 	return true
 }
@@ -1588,4 +1606,80 @@ func JSDocInfo_InternSet(strings_ *jutil.LinkedHashSet[string]) *jutil.LinkedHas
 		interned.Add(RhinoStringPool_AddOrGet(s))
 	}
 	return interned
+}
+
+func internModifiesSet(modifies *jutil.LinkedHashSet[string]) []string {
+	if modifies == nil || modifies.IsEmpty() {
+		return emptyStringSlice
+	}
+	switch modifies.Size() {
+	case 1:
+		for s := range modifies.All() {
+			return internSingleModifies(s)
+		}
+	case 2:
+		var a, b string
+		idx := 0
+		for s := range modifies.All() {
+			if idx == 0 {
+				a = s
+			} else {
+				b = s
+			}
+			idx++
+		}
+		return internTwoModifies(a, b)
+	}
+	out := make([]string, 0, modifies.Size())
+	for s := range modifies.All() {
+		out = append(out, RhinoStringPool_AddOrGet(s))
+	}
+	return out
+}
+
+func internModifiesSlice(modifies []string) []string {
+	if len(modifies) == 0 {
+		return emptyStringSlice
+	}
+	if len(modifies) == 1 {
+		return internSingleModifies(modifies[0])
+	}
+	if len(modifies) == 2 && modifies[0] != modifies[1] {
+		return internTwoModifies(modifies[0], modifies[1])
+	}
+	out := make([]string, 0, len(modifies))
+	for _, raw := range modifies {
+		s := RhinoStringPool_AddOrGet(raw)
+		if !slices.Contains(out, s) {
+			out = append(out, s)
+		}
+	}
+	if len(out) == 1 {
+		return internSingleModifies(out[0])
+	}
+	if len(out) == 2 {
+		return internTwoModifies(out[0], out[1])
+	}
+	return out
+}
+
+func internSingleModifies(s string) []string {
+	switch s {
+	case "this":
+		return jsDocModifiesThis
+	case "arguments":
+		return jsDocModifiesArguments
+	default:
+		return []string{RhinoStringPool_AddOrGet(s)}
+	}
+}
+
+func internTwoModifies(a, b string) []string {
+	if a == "this" && b == "arguments" {
+		return jsDocModifiesThisAndArguments
+	}
+	if a == "arguments" && b == "this" {
+		return jsDocModifiesArgumentsAndThis
+	}
+	return []string{RhinoStringPool_AddOrGet(a), RhinoStringPool_AddOrGet(b)}
 }

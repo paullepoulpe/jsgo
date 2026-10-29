@@ -6,8 +6,6 @@ import (
 	"sort"
 	"sync"
 	"sync/atomic"
-
-	"github.com/paullepoulpe/jsgo/internal/jutil"
 )
 
 // Go-only: compaction of the AST (see node_store.go).
@@ -521,9 +519,8 @@ func (i *JSDocInfo) forwardTypeNodes(fwd func(Node) Node) {
 			e.root = fwd(e.root)
 		}
 	}
-	if m := jsdocGet[*jutil.LinkedHashMap[string, Node]](JSDocInfo_TYPE_TRANSFORMATIONS.Get(i)); m != nil {
-		for _, key := range m.KeySlice() {
-			m.Put(key, fwd(m.Get(key)))
-		}
+	transforms := i.GetTypeTransformationEntries()
+	for idx := range transforms {
+		transforms[idx].TypeNode = fwd(transforms[idx].TypeNode)
 	}
 }

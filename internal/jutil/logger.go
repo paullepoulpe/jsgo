@@ -4,6 +4,7 @@ import (
 	"io"
 	"math"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -289,5 +290,36 @@ func Formatter_FormatMessage(r *LogRecord) string {
 		!strings.Contains(format, "{2") && !strings.Contains(format, "{3") {
 		return format
 	}
-	return MessageFormat_Format(format, r.parameters)
+	var sb strings.Builder
+	sb.Grow(len(format) + 16)
+	quoted := false
+	for i := 0; i < len(format); i++ {
+		c := format[i]
+		if c == '\'' {
+			if i+1 < len(format) && format[i+1] == '\'' {
+				sb.WriteByte('\'')
+				i++
+			} else {
+				quoted = !quoted
+			}
+			continue
+		}
+		if c == '{' && !quoted {
+			if end := strings.IndexByte(format[i+1:], '}'); end >= 0 {
+				if idx, err := strconv.Atoi(format[i+1 : i+1+end]); err == nil && idx >= 0 {
+					if idx < len(r.parameters) {
+						sb.WriteString(ToJavaString(r.parameters[idx]))
+					} else {
+						sb.WriteByte('{')
+						sb.WriteString(strconv.Itoa(idx))
+						sb.WriteByte('}')
+					}
+					i += 1 + end
+					continue
+				}
+			}
+		}
+		sb.WriteByte(c)
+	}
+	return sb.String()
 }

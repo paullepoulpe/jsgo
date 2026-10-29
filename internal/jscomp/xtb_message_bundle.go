@@ -29,8 +29,19 @@ import (
 // XtbMessageBundle is a MessageBundle that parses messages from an XML
 // Translation Bundle (XTB) file.
 type XtbMessageBundle struct {
-	messages    jutil.LinkedHashMap[string, *JsMessage]
+	messages    map[string]*JsMessage
+	order       []string
 	idGenerator JsMessage_IdGenerator
+}
+
+func (b *XtbMessageBundle) putMessage(key string, msg *JsMessage) {
+	if b.messages == nil {
+		b.messages = make(map[string]*JsMessage)
+	}
+	if _, exists := b.messages[key]; !exists {
+		b.order = append(b.order, key)
+	}
+	b.messages[key] = msg
 }
 
 var xtbMessageBundle_NOOP_RESOLVER = &xtbMessageBundle_SecureEntityResolver{}
@@ -88,7 +99,7 @@ func xtbMessageBundle_createSAXParser() *jutil.SAXParser {
 
 // Java: XtbMessageBundle.getMessage(String)
 func (b *XtbMessageBundle) GetMessage(id string) *JsMessage {
-	return b.messages.Get(id)
+	return b.messages[id]
 }
 
 // Java: XtbMessageBundle.idGenerator()
@@ -98,7 +109,13 @@ func (b *XtbMessageBundle) IdGenerator() JsMessage_IdGenerator {
 
 // Java: XtbMessageBundle.getAllMessages()
 func (b *XtbMessageBundle) GetAllMessages() iter.Seq[*JsMessage] {
-	return b.messages.Values()
+	return func(yield func(*JsMessage) bool) {
+		for _, k := range b.order {
+			if !yield(b.messages[k]) {
+				return
+			}
+		}
+	}
 }
 
 const (
@@ -114,10 +131,42 @@ const (
 	xtbMessageBundle_Handler_FEMALE_GENDER_CASE        = "FEMININE"
 	xtbMessageBundle_Handler_NEUTER_GENDER_CASE        = "NEUTER"
 	xtbMessageBundle_Handler_OTHER_GENDER_CASE         = "OTHER"
-	xtbMessageBundle_Handler_GENDER_VARIANT_PATTERN    = `grammatical_gender_case:\s*(\w+)`
+	xtbMessageBundle_Handler_GENDER_VARIANT_PREFIX     = "grammatical_gender_case:"
 )
 
-var xtbMessageBundle_Handler_GET_STRING_PATTERN = jutil.Pattern_Compile(xtbMessageBundle_Handler_GENDER_VARIANT_PATTERN)
+// parseXtbGenderVariant matches `grammatical_gender_case:\s*(\w+)` on ASCII
+// whitespace and word characters without regex compilation or allocation.
+func parseXtbGenderVariant(s string) (string, bool) {
+	for pos := 0; pos < len(s); {
+		idx := strings.Index(s[pos:], xtbMessageBundle_Handler_GENDER_VARIANT_PREFIX)
+		if idx < 0 {
+			return "", false
+		}
+		i := pos + idx + len(xtbMessageBundle_Handler_GENDER_VARIANT_PREFIX)
+		for i < len(s) {
+			switch s[i] {
+			case ' ', '\t', '\n', '\v', '\f', '\r':
+				i++
+				continue
+			}
+			break
+		}
+		start := i
+		for i < len(s) {
+			c := s[i]
+			if (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c == '_' {
+				i++
+			} else {
+				break
+			}
+		}
+		if i > start {
+			return s[start:i], true
+		}
+		pos = start
+	}
+	return "", false
+}
 
 // xtbMessageBundle_Handler is a ContentHandler that creates a JsMessage for
 // each message parsed from an XML Translation Bundle (XTB) file.
@@ -180,10 +229,9 @@ func (h *xtbMessageBundle_Handler) StartElement(uri string, localName string, qN
 	case xtbMessageBundle_Handler_BRANCH_ELEM_NAME:
 		jutil.CheckState(h.msgBuilder != nil)
 		gender := atts.GetValue(xtbMessageBundle_Handler_BRANCH_NAME_ATT_NAME)
-		matcher := xtbMessageBundle_Handler_GET_STRING_PATTERN.Matcher(*jutil.CheckNotNull(gender))
-		if matcher.Find() {
+		if variant, ok := parseXtbGenderVariant(*jutil.CheckNotNull(gender)); ok {
 			var parsed JsMessage_GrammaticalGenderCase
-			switch *matcher.Group(1) {
+			switch variant {
 			case xtbMessageBundle_Handler_MALE_GENDER_CASE:
 				parsed = JsMessage_GrammaticalGenderCase_MASCULINE
 			case xtbMessageBundle_Handler_FEMALE_GENDER_CASE:
@@ -210,7 +258,7 @@ func (h *xtbMessageBundle_Handler) EndElement(uri string, localName string, qNam
 		if !h.msgBuilder.HasParts() {
 			h.msgBuilder.AppendStringPart("")
 		}
-		h.outer.messages.Put(h.msgBuilder.key, h.msgBuilder.Build())
+		h.outer.putMessage(h.msgBuilder.key, h.msgBuilder.Build())
 		h.msgBuilder = nil
 	}
 }

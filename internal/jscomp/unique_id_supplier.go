@@ -1,7 +1,24 @@
 // Port of com/google/javascript/jscomp/UniqueIdSupplier.java @ closure-compiler v20261021
+// Port of com/google/javascript/jscomp/IdGenerator.java @ closure-compiler v20261021
 
 /*
  * Copyright 2016 The Closure Compiler Authors.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+/*
+ * Copyright 2017 The Closure Compiler Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -33,15 +50,13 @@ import (
 //
 // Java: UniqueIdSupplier
 type UniqueIdSupplier struct {
-	// Go-only: language-adapter — Multiset<Integer> (a LinkedHashMultiset,
-	// whose entrySet toProto iterates in the order the elements were first
-	// added) is a LinkedHashMap from element to count.
-	counter *jutil.LinkedHashMap[int32, int]
+	counts map[int32]int
+	order  []int32
 }
 
 // Java: UniqueIdSupplier()
 func NewUniqueIdSupplier() *UniqueIdSupplier {
-	return &UniqueIdSupplier{counter: jutil.NewLinkedHashMap[int32, int]()}
+	return &UniqueIdSupplier{}
 }
 
 // GetUniqueId creates and returns a unique Id across all compiler input
@@ -66,13 +81,15 @@ func (s *UniqueIdSupplier) GetUniqueId(input *CompilerInput) string {
 
 // Java: UniqueIdSupplier.toProto()
 func (s *UniqueIdSupplier) ToProto() []*UniqueIdProto {
-	var result []*UniqueIdProto
-	for element, count := range s.counter.All() {
-		result = append(result,
-			UniqueIdProto_NewBuilder().
-				SetHash(element).
-				SetCounter(int32(count)).
-				Build())
+	if len(s.order) == 0 {
+		return nil
+	}
+	result := make([]*UniqueIdProto, len(s.order))
+	for i, element := range s.order {
+		result[i] = UniqueIdProto_NewBuilder().
+			SetHash(element).
+			SetCounter(int32(s.counts[element])).
+			Build()
 	}
 	return result
 }
@@ -86,15 +103,56 @@ func UniqueIdSupplier_FromProto(protos []*UniqueIdProto) *UniqueIdSupplier {
 	return supplier
 }
 
-// addToCounter is Multiset.add(E, int) on counter: adds occurrences
-// occurrences of element and returns the count before the operation.
-//
-// Go-only: language-adapter — Guava's Multiset.add(E, int).
 func (s *UniqueIdSupplier) addToCounter(element int32, occurrences int) int {
-	jutil.CheckArgumentMsg1(occurrences >= 0, "occurrences cannot be negative: %s", occurrences)
-	oldCount := s.counter.Get(element)
+	if occurrences < 0 {
+		panic(jutil.NewIllegalArgumentExceptionMsg(
+			"occurrences cannot be negative: " + strconv.Itoa(occurrences)))
+	}
+	oldCount, exists := s.counts[element]
 	if occurrences > 0 {
-		s.counter.Put(element, oldCount+occurrences)
+		if s.counts == nil {
+			s.counts = make(map[int32]int)
+		}
+		if !exists {
+			s.order = append(s.order, element)
+		}
+		s.counts[element] = oldCount + occurrences
 	}
 	return oldCount
+}
+
+// IdGenerator is the id generator used in CrossChunkMethodMotion.
+type IdGenerator struct {
+	// Ids for cross-chunk method stubbing, so that each method has a unique
+	// id.
+	currentId int
+}
+
+// NewIdGenerator is new IdGenerator().
+func NewIdGenerator() *IdGenerator { return &IdGenerator{} }
+
+// HasGeneratedAnyIds returns whether we've generated any new ids.
+//
+// Java: IdGenerator.hasGeneratedAnyIds()
+func (g *IdGenerator) HasGeneratedAnyIds() bool {
+	return g.currentId != 0
+}
+
+// NewId creates a new id for stubbing a method.
+//
+// Java: IdGenerator.newId()
+func (g *IdGenerator) NewId() int {
+	id := g.currentId
+	g.currentId++
+	return id
+}
+
+// Java: IdGenerator.getCurrentId()
+func (g *IdGenerator) GetCurrentId() int {
+	return g.currentId
+}
+
+// Java: IdGenerator.setCurrentId(int)
+func (g *IdGenerator) SetCurrentId(id int) {
+	g.currentId = id
 }

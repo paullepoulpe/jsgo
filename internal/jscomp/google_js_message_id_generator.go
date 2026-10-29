@@ -57,7 +57,10 @@ func NewGoogleJsMessageIdGenerator(projectId *string) *GoogleJsMessageIdGenerato
 // Java: GoogleJsMessageIdGenerator.generateId(String, List<Part>)
 func (g *GoogleJsMessageIdGenerator) GenerateId(meaning *string, messageParts []JsMessage_Part) string {
 	jutil.CheckState(meaning != nil)
+	return g.generateId(*meaning, messageParts)
+}
 
+func (g *GoogleJsMessageIdGenerator) generateId(meaning string, messageParts []JsMessage_Part) string {
 	var tcValue string
 	if len(messageParts) == 1 && !messageParts[0].IsPlaceholder() {
 		tcValue = messageParts[0].GetString()
@@ -73,7 +76,7 @@ func (g *GoogleJsMessageIdGenerator) GenerateId(meaning *string, messageParts []
 		tcValue = sb.String()
 	}
 
-	projectScopedMeaning := *meaning
+	projectScopedMeaning := meaning
 	if g.projectId != "" {
 		projectScopedMeaning = g.projectId + ": " + projectScopedMeaning
 	}

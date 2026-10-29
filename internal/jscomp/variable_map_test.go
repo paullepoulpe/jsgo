@@ -153,5 +153,5 @@ func TestVariableMap_FromLines_leadingNewline(t *testing.T) {
 
 // Java: VariableMapTest.testFromLines_colonAtStartThrowsParseException()
 func TestVariableMap_FromLines_colonAtStartThrowsParseException(t *testing.T) {
-	assertThrows[*jutil.ParseException](t, func() { VariableMap_FromBytes(jutil.StringGetBytesUTF8(":foo\n")) })
+	assertThrows[*VariableMapParseError](t, func() { VariableMap_FromBytes([]byte(":foo\n")) })
 }

@@ -342,7 +342,7 @@ func (p *Parser) ParseForStatement() ParseTree {
 				if p.config.atLeast6 {
 					p.ReportError("for-in statement may not have initializer")
 				} else {
-					p.errorReporter.ReportWarningFormat(
+					p.errorReporter.ReportWarning(
 						p.linePos(declaration.Location.Start), "for-in statement should not have initializer")
 				}
 			}

@@ -23,8 +23,10 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"regexp"
 	"slices"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/paullepoulpe/jsgo/internal/args4j"
 	"github.com/paullepoulpe/jsgo/internal/jscomp"
@@ -609,7 +611,7 @@ func (r *CommandLineRunner) CreateOptions() *jscomp.CompilerOptions {
 
 	if flags.j2clPassMode != "" {
 		jutil.Try(func() {
-			j2clPassMode := commandLineRunner_j2clPassModeValueOf(jutil.Ascii_ToUpperCase(flags.j2clPassMode))
+			j2clPassMode := commandLineRunner_j2clPassModeValueOf(asciiUpper(flags.j2clPassMode))
 			options.SetJ2clPass(j2clPassMode)
 		}, func(ex jutil.IIllegalArgumentException) {
 			panic(jscomp.NewFlagUsageException(
@@ -971,13 +973,13 @@ func commandLineRunner_matchPaths(
 		}
 	}
 
-	matcher := jutil.FileSystem_GetPathMatcher("glob:" + prefix + separator + pattern)
+	matcher := compileGlobMatcher(prefix + separator + pattern)
 	visitFile := func(p *jutil.Path) {
 		var norm *jutil.Path
-		matched := matcher.Matches(p)
+		matched := matcher.MatchString(p.String())
 		if !matched {
 			norm = p.Normalize()
-			matched = matcher.Matches(norm)
+			matched = matcher.MatchString(norm.String())
 		}
 		if !matched {
 			return
@@ -1115,4 +1117,154 @@ func CommandLineRunner_Main(args []string) {
 	if runner.HasErrors() {
 		jutil.System_Exit(-1)
 	}
+}
+
+func asciiLower(s string) string {
+	for i := 0; i < len(s); i++ {
+		if s[i] >= 'A' && s[i] <= 'Z' {
+			b := []byte(s)
+			for ; i < len(b); i++ {
+				if b[i] >= 'A' && b[i] <= 'Z' {
+					b[i] += 'a' - 'A'
+				}
+			}
+			return string(b)
+		}
+	}
+	return s
+}
+
+func asciiUpper(s string) string {
+	for i := 0; i < len(s); i++ {
+		if s[i] >= 'a' && s[i] <= 'z' {
+			b := []byte(s)
+			for ; i < len(b); i++ {
+				if b[i] >= 'a' && b[i] <= 'z' {
+					b[i] -= 'a' - 'A'
+				}
+			}
+			return string(b)
+		}
+	}
+	return s
+}
+
+func compileGlobMatcher(glob string) *regexp.Regexp {
+	var sb strings.Builder
+	sb.WriteString(`(?s)^`)
+	groupOpen := false
+	n := len(glob)
+	for i := 0; i < n; i++ {
+		switch glob[i] {
+		case '\\':
+			if i+1 == n {
+				panic(jutil.NewPatternSyntaxException("No character to escape", glob, i))
+			}
+			i++
+			_, w := utf8.DecodeRuneInString(glob[i:])
+			sb.WriteString(regexp.QuoteMeta(glob[i : i+w]))
+			i += w - 1
+		case '*':
+			if i+1 < n && glob[i+1] == '*' {
+				sb.WriteString(`.*`)
+				i++
+			} else {
+				sb.WriteString(`[^/]*`)
+			}
+		case '?':
+			sb.WriteString(`[^/]`)
+		case '[':
+			i = globBracket(glob, i, &sb)
+		case '{':
+			if groupOpen {
+				panic(jutil.NewPatternSyntaxException("Cannot nest groups", glob, i))
+			}
+			groupOpen = true
+			sb.WriteString(`(?:`)
+		case '}':
+			if groupOpen {
+				groupOpen = false
+				sb.WriteString(`)`)
+			} else {
+				sb.WriteString(`\}`)
+			}
+		case ',':
+			if groupOpen {
+				sb.WriteString(`|`)
+			} else {
+				sb.WriteString(`,`)
+			}
+		default:
+			_, w := utf8.DecodeRuneInString(glob[i:])
+			sb.WriteString(regexp.QuoteMeta(glob[i : i+w]))
+			i += w - 1
+		}
+	}
+	if groupOpen {
+		panic(jutil.NewPatternSyntaxException("Missing '}", glob, n-1))
+	}
+	sb.WriteString(`$`)
+	return regexp.MustCompile(sb.String())
+}
+
+func globBracket(glob string, start int, sb *strings.Builder) int {
+	n := len(glob)
+	i := start + 1
+	negate := false
+	if i < n && glob[i] == '!' {
+		negate = true
+		i++
+	}
+	type rng struct{ lo, hi rune }
+	var ranges []rng
+	for ; i < n && glob[i] != ']'; i++ {
+		loIndex := i
+		lo, w := utf8.DecodeRuneInString(glob[i:])
+		i += w - 1
+		if lo == '/' {
+			panic(jutil.NewPatternSyntaxException("Explicit 'name separator' in class", glob, i))
+		}
+		hi := lo
+		if i+2 < n && glob[i+1] == '-' && glob[i+2] != ']' {
+			i += 2
+			var hw int
+			hi, hw = utf8.DecodeRuneInString(glob[i:])
+			i += hw - 1
+			if hi < lo {
+				panic(jutil.NewPatternSyntaxException("Invalid range", glob, loIndex))
+			}
+		}
+		ranges = append(ranges, rng{lo, hi})
+	}
+	if i >= n {
+		panic(jutil.NewPatternSyntaxException("Missing ']", glob, n-1))
+	}
+	if len(ranges) == 0 {
+		panic(jutil.NewPatternSyntaxException("Unclosed character class", glob, i))
+	}
+	sb.WriteByte('[')
+	if negate {
+		sb.WriteString(`^/`)
+	}
+	writeClassRune := func(r rune) {
+		switch r {
+		case '\\', ']', '[', '^', '-':
+			sb.WriteByte('\\')
+		}
+		sb.WriteRune(r)
+	}
+	for _, r := range ranges {
+		for _, part := range [2]rng{{r.lo, min(r.hi, '/'-1)}, {max(r.lo, '/'+1), r.hi}} {
+			if part.lo > part.hi {
+				continue
+			}
+			writeClassRune(part.lo)
+			if part.hi != part.lo {
+				sb.WriteByte('-')
+				writeClassRune(part.hi)
+			}
+		}
+	}
+	sb.WriteByte(']')
+	return i
 }

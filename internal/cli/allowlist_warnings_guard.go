@@ -20,6 +20,7 @@ package cli
 
 import (
 	"slices"
+	"strconv"
 	"strings"
 
 	"github.com/paullepoulpe/jsgo/internal/jscomp"
@@ -193,10 +194,14 @@ func (g *AllowlistWarningsGuard) FormatWarning(error *jscomp.JSError) string {
 // Java: AllowlistWarningsGuard.formatWarning(JSError, boolean)
 func (g *AllowlistWarningsGuard) FormatWarningWithMetaData(error *jscomp.JSError, withMetaData bool) string {
 	sb := &strings.Builder{}
-	sb.WriteString(jutil.ToJavaString(g.NormalizeSourceName(error.SourceName())))
+	if norm := g.NormalizeSourceName(error.SourceName()); norm != nil {
+		sb.WriteString(*norm)
+	} else {
+		sb.WriteString("null")
+	}
 	sb.WriteString(":")
 	if withMetaData {
-		sb.WriteString(jutil.ToJavaString(error.GetLineNumber()))
+		sb.WriteString(strconv.Itoa(error.GetLineNumber()))
 	}
 	lines := AllowlistWarningsGuard_LINE_SPLITTER(error.Description())
 	sb.WriteString("  ")

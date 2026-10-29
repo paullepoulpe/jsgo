@@ -69,8 +69,6 @@ import (
 type NamedType struct {
 	ProxyObjectTypeBase
 
-	reference       string
-	sourceName      *string
 	resolutionScope StaticTypedScope
 
 	// Validates the type resolution.
@@ -94,6 +92,8 @@ type NamedType struct {
 	// checking; it is only needed by Clutz.
 	templateTypes []JSType
 
+	referenceID    rhinoStringID
+	sourceNameID   rhinoStringID
 	lineno         int32
 	charno         int32
 	resolutionKind NamedType_ResolutionKind
@@ -128,8 +128,8 @@ func NewNamedType(builder *NamedType_Builder) *NamedType {
 
 	t.restrictByNull = builder.restrictByNull
 	t.resolutionScope = builder.scope
-	t.reference = builder.referenceName
-	t.sourceName = builder.sourceName
+	t.referenceID = rhinoStringPoolIntern(builder.referenceName)
+	t.sourceNameID = builder.sourceNameID
 	t.lineno = int32(builder.lineno)
 	t.charno = int32(builder.charno)
 	t.templateTypes = builder.templateTypes
@@ -207,14 +207,18 @@ func (t *NamedType) GetReferencedType() JSType {
 
 // Java: NamedType.getReferenceName()
 func (t *NamedType) GetReferenceName() *string {
-	return &t.reference
+	return rhinoStringPtrFromID(t.referenceID)
+}
+
+func (t *NamedType) referenceString() string {
+	return rhinoStringFromID(t.referenceID)
 }
 
 // Java: NamedType.appendTo(TypeStringBuilder)
 func (t *NamedType) AppendTo(sb *TypeStringBuilder) {
 	type_ := t.GetReferencedType()
 	if !t.IsResolved() || type_.IsNoResolvedType() {
-		sb.Append(*t.GetReferenceName())
+		sb.Append(t.referenceString())
 	} else {
 		sb.AppendType(type_)
 	}
@@ -323,7 +327,7 @@ func (t *NamedType) ResolveInternal(reporter ErrorReporter) JSType {
 //
 // Java: NamedType.resolveViaRegistry(ErrorReporter)
 func (t *NamedType) ResolveViaRegistry(reporter ErrorReporter) bool {
-	type_ := t.GetRegistry().GetType(t.resolutionScope, t.reference)
+	type_ := t.GetRegistry().GetType(t.resolutionScope, t.referenceString())
 	if type_ == nil {
 		t.HandleUnresolvedType(reporter)
 		return false
@@ -338,15 +342,16 @@ func (t *NamedType) ResolveTypeof(reporter ErrorReporter) bool {
 		return false
 	}
 
+	ref := t.referenceString()
 	// TODO(sdh): require var to be const?
-	scopeName := jutil.StringSubstringFrom(t.reference, jutil.StringLength("typeof "))
+	scopeName := jutil.StringSubstringFrom(ref, jutil.StringLength("typeof "))
 	type_ := t.resolutionScope.LookupQualifiedName(QualifiedName_Of(scopeName))
 	if type_ == nil || type_.IsUnknownType() {
 		if t.GetRegistry().IsForwardDeclaredType(scopeName) {
 			// Preserve the "typeof" as a `NoResolvedType`. This is depended on by
 			// Clutz so it can generate `typeof ImportedType` instead of `any` when
 			// `ImportedType` is not defined in the files it can see.
-			t.SetReferencedType(NewNoResolvedType(t.GetRegistry(), *t.GetReferenceName(), t.GetTemplateTypes()))
+			t.SetReferencedType(NewNoResolvedType(t.GetRegistry(), ref, t.GetTemplateTypes()))
 			if t.validator != nil {
 				unused := t.validator(t.GetReferencedType())
 				_ = unused
@@ -361,7 +366,7 @@ func (t *NamedType) ResolveTypeof(reporter ErrorReporter) bool {
 			// preserved for namespaces. This is depended on by Clutz to prevent
 			// infinite loops in self-referential typeof types.
 			objlit := type_
-			type_ = NamedType_Builder_(t.GetRegistry(), *t.GetReferenceName()).
+			type_ = NamedType_Builder_(t.GetRegistry(), ref).
 				SetResolutionKind(NamedType_ResolutionKind_NONE).
 				SetReferencedType(objlit).
 				Build()
@@ -389,7 +394,7 @@ func (t *NamedType) SetReferencedAndResolvedType(type_ JSType, reporter ErrorRep
 // Java: NamedType.handleTypeCycle(ErrorReporter)
 func (t *NamedType) HandleTypeCycle(reporter ErrorReporter) {
 	t.SetReferencedType(t.GetRegistry().GetNativeObjectType(JSTypeNative_UNKNOWN_TYPE))
-	t.Warning(reporter, "Cycle detected in inheritance chain of type "+t.reference)
+	t.Warning(reporter, "Cycle detected in inheritance chain of type "+t.referenceString())
 }
 
 // Java: NamedType.checkEnumElementCycle(ErrorReporter)
@@ -414,24 +419,25 @@ func (t *NamedType) CheckProtoCycle(reporter ErrorReporter) {
 //
 // Java: NamedType.handleUnresolvedType(ErrorReporter)
 func (t *NamedType) HandleUnresolvedType(reporter ErrorReporter) {
-	isForwardDeclared := t.GetRegistry().IsForwardDeclaredType(t.reference)
+	ref := t.referenceString()
+	isForwardDeclared := t.GetRegistry().IsForwardDeclaredType(ref)
 	if !isForwardDeclared {
-		msg := "Bad type annotation. Unknown type " + t.reference
+		msg := "Bad type annotation. Unknown type " + ref
 		// Look for a local variable that shadows a global namespace to give a
 		// clearer message.
-		root := t.reference
-		if jutil.StringIndexOf(t.reference, ".") >= 0 {
-			root = jutil.StringSubstring(t.reference, 0, jutil.StringIndexOf(t.reference, "."))
+		root := ref
+		if jutil.StringIndexOf(ref, ".") >= 0 {
+			root = jutil.StringSubstring(ref, 0, jutil.StringIndexOf(ref, "."))
 		}
 		if t.LocalVariableShadowsGlobalNamespace(root) {
 			msg += "\nIt's possible that a local variable called '" + root +
 				"' is shadowing the intended global namespace."
 		} else if t.resolutionScope.GetSlot(root) != nil {
-			msg += "\nIt's possible that '" + t.reference + "' refers to a value, not a type."
+			msg += "\nIt's possible that '" + ref + "' refers to a value, not a type."
 		}
 		t.Warning(reporter, msg)
 	} else {
-		t.SetReferencedType(NewNoResolvedType(t.GetRegistry(), *t.GetReferenceName(), t.GetTemplateTypes()))
+		t.SetReferencedType(NewNoResolvedType(t.GetRegistry(), ref, t.GetTemplateTypes()))
 		if t.validator != nil {
 			unused := t.validator(t.GetReferencedType())
 			_ = unused
@@ -472,7 +478,7 @@ func (t *NamedType) SetValidator(validator func(JSType) bool) bool {
 
 // Java: NamedType.warning(ErrorReporter, String)
 func (t *NamedType) Warning(reporter ErrorReporter, message string) {
-	reporter.Warning(message, jsTypeDerefString(t.sourceName), int(t.lineno), int(t.charno))
+	reporter.Warning(message, rhinoStringFromID(t.sourceNameID), int(t.lineno), int(t.charno))
 }
 
 // NamedType_PropertyContinuation stores enough information to define a
@@ -535,13 +541,16 @@ func (k NamedType_ResolutionKind) String() string { return namedType_ResolutionK
 // Java: NamedType.toBuilder()
 func (t *NamedType) ToBuilder() *NamedType_Builder {
 	jutil.CheckStateMsg(!t.IsResolved(), "Only call toBuilder on unresolved NamedTypes")
-	return NewNamedType_Builder(t.GetRegistry(), t.reference).
+	b := NewNamedType_Builder(t.GetRegistry(), t.referenceString()).
 		SetScope(t.resolutionScope).
 		SetResolutionKind(t.resolutionKind).
-		SetErrorReportingLocation(t.sourceName, int(t.lineno), int(t.charno)).
 		SetTemplateTypes(t.templateTypes).
 		SetReferencedType(t.GetReferencedType()).
 		SetRestrictByNull(t.restrictByNull)
+	b.sourceNameID = t.sourceNameID
+	b.lineno = int(t.lineno)
+	b.charno = int(t.charno)
+	return b
 }
 
 // NamedType_Builder is NamedType.Builder.
@@ -549,11 +558,11 @@ type NamedType_Builder struct {
 	registry          *JSTypeRegistry
 	referenceName     string
 	scope             StaticTypedScope
-	sourceName        *string
-	lineno            int
-	charno            int
 	referencedType    JSType
 	templateTypes     []JSType
+	lineno            int
+	charno            int
+	sourceNameID      rhinoStringID
 	resolutionKind    NamedType_ResolutionKind
 	hasResolutionKind bool
 	hasReferenceName  bool
@@ -586,7 +595,7 @@ func (b *NamedType_Builder) SetResolutionKind(resolutionKind NamedType_Resolutio
 
 // Java: NamedType.Builder.setErrorReportingLocation(String, int, int)
 func (b *NamedType_Builder) SetErrorReportingLocation(sourceName *string, lineno int, charno int) *NamedType_Builder {
-	b.sourceName = sourceName
+	b.sourceNameID = rhinoStringIDFromPtr(sourceName)
 	b.lineno = lineno
 	b.charno = charno
 	return b
@@ -594,7 +603,7 @@ func (b *NamedType_Builder) SetErrorReportingLocation(sourceName *string, lineno
 
 // Java: NamedType.Builder.setErrorReportingLocationFrom(Node)
 func (b *NamedType_Builder) SetErrorReportingLocationFrom(source Node) *NamedType_Builder {
-	b.sourceName = source.GetSourceFileName()
+	b.sourceNameID = rhinoStringIDFromPtr(source.GetSourceFileName())
 	b.lineno = source.GetLineno()
 	b.charno = source.GetCharno()
 	return b

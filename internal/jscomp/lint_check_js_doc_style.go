@@ -21,6 +21,7 @@ package jscomp
 import (
 	"strings"
 
+	"github.com/paullepoulpe/jsgo/internal/ast"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
@@ -107,9 +108,7 @@ var CheckJSDocStyle_ALL_DIAGNOSTICS = NewDiagnosticGroupFromGroups(CheckJSDocSty
 
 // Java: CheckJSDocStyle(AbstractCompiler)
 func NewCheckJSDocStyle(compiler AbstractCompiler) *CheckJSDocStyle {
-	c := &CheckJSDocStyle{}
-	c.compiler = compiler
-	return c
+	return &CheckJSDocStyle{compiler: compiler}
 }
 
 // Java: CheckJSDocStyle.process(Node, Node)
@@ -122,7 +121,7 @@ func (c *CheckJSDocStyle) Process(externs rhino.Node, root rhino.Node) {
 func (c *CheckJSDocStyle) Visit(t *NodeTraversal, n rhino.Node, unused rhino.Node) {
 	switch n.GetToken() {
 	case rhino.Token_FUNCTION:
-		c.VisitFunction(t, n)
+		c.VisitFunction(t, ast.MustFunction(n))
 	case rhino.Token_CLASS:
 		c.VisitClass(t, n)
 	case rhino.Token_ASSIGN:
@@ -143,79 +142,68 @@ func (c *CheckJSDocStyle) Visit(t *NodeTraversal, n rhino.Node, unused rhino.Nod
 
 // Java: CheckJSDocStyle.checkForAtSignCodePresence(NodeTraversal, Node, JSDocInfo)
 func (c *CheckJSDocStyle) CheckForAtSignCodePresence(t *NodeTraversal, n rhino.Node, jsDoc *rhino.JSDocInfo) {
-	if jsDoc == nil {
-		return
-	}
-	if jsDoc.IsAtSignCodePresent() {
+	if jsDoc != nil && jsDoc.IsAtSignCodePresent() {
 		t.Report(n, CheckJSDocStyle_PREFER_BACKTICKS_TO_AT_SIGN_CODE)
 	}
 }
 
 // Java: CheckJSDocStyle.visitNonFunction(NodeTraversal, Node)
 func (c *CheckJSDocStyle) VisitNonFunction(t *NodeTraversal, n rhino.Node) {
-	jsDoc := n.GetJSDocInfo()
-
-	c.CheckForAtSignCodePresence(t, n, jsDoc)
+	c.CheckForAtSignCodePresence(t, n, n.GetJSDocInfo())
 }
 
 // Java: CheckJSDocStyle.checkStyleForPrivateProperties(NodeTraversal, Node)
 func (c *CheckJSDocStyle) CheckStyleForPrivateProperties(t *NodeTraversal, n rhino.Node) {
-	jsDoc := NodeUtil_GetBestJSDocInfo(n)
-	c.CheckForAtSignCodePresence(t, n, jsDoc)
+	c.CheckForAtSignCodePresence(t, n, NodeUtil_GetBestJSDocInfo(n))
 }
 
 // Java: CheckJSDocStyle.checkNoTypeOnGettersAndSetters(NodeTraversal, Node, JSDocInfo)
 func CheckJSDocStyle_CheckNoTypeOnGettersAndSetters(
 	t *NodeTraversal, function rhino.Node, jsDoc *rhino.JSDocInfo) {
-	if function.GetGrandparent().IsClassMembers() {
+	if jsDoc != nil && jsDoc.HasType() && function.GetGrandparent().IsClassMembers() {
 		memberNode := function.GetParent()
 		if memberNode.IsSetterDef() || memberNode.IsGetterDef() {
-			if jsDoc != nil && jsDoc.HasType() {
-				t.Report(function, CheckJSDocStyle_INCORRECT_ANNOTATION_ON_GETTER_SETTER)
-			}
+			t.Report(function, CheckJSDocStyle_INCORRECT_ANNOTATION_ON_GETTER_SETTER)
 		}
 	}
 }
 
 // Java: CheckJSDocStyle.visitFunction(NodeTraversal, Node)
-func (c *CheckJSDocStyle) VisitFunction(t *NodeTraversal, function rhino.Node) {
-	jsDoc := NodeUtil_GetBestJSDocInfo(function)
+func (c *CheckJSDocStyle) VisitFunction(t *NodeTraversal, fn ast.Function) {
+	fnNode := fn.Node()
+	jsDoc := NodeUtil_GetBestJSDocInfo(fnNode)
 
-	c.CheckForAtSignCodePresence(t, function, jsDoc)
+	c.CheckForAtSignCodePresence(t, fnNode, jsDoc)
 
-	if jsDoc == nil && !c.HasAnyInlineJsDoc(function) {
-		c.CheckMissingJsDoc(t, function)
+	hasInline := c.HasAnyInlineJsDoc(fn)
+	if jsDoc == nil && !hasInline {
+		c.CheckMissingJsDoc(t, fn)
 	} else {
 		if t.InGlobalScope() ||
-			c.HasAnyInlineJsDoc(function) ||
+			hasInline ||
 			!jsDoc.GetParameterNames().IsEmpty() ||
 			jsDoc.HasReturnType() ||
 			jsDoc.IsOverride() {
-			c.CheckParams(t, function, jsDoc)
+			c.CheckParams(t, fn, jsDoc)
 		}
-		CheckJSDocStyle_CheckNoTypeOnGettersAndSetters(t, function, jsDoc)
-		c.CheckReturn(function, jsDoc)
+		CheckJSDocStyle_CheckNoTypeOnGettersAndSetters(t, fnNode, jsDoc)
+		c.CheckReturn(fn, jsDoc)
 	}
 }
 
 // Java: CheckJSDocStyle.visitClass(NodeTraversal, Node)
 func (c *CheckJSDocStyle) VisitClass(t *NodeTraversal, cls rhino.Node) {
 	jsDoc := NodeUtil_GetBestJSDocInfo(cls)
-
 	c.CheckForAtSignCodePresence(t, cls, jsDoc)
-
-	if jsDoc == nil {
-		return
-	}
-	if jsDoc.IsConstructor() {
+	if jsDoc != nil && jsDoc.IsConstructor() {
 		t.Report(cls, CheckJSDocStyle_CLASS_DISALLOWED_JSDOC)
 	}
 }
 
 // Java: CheckJSDocStyle.checkMissingJsDoc(NodeTraversal, Node)
-func (c *CheckJSDocStyle) CheckMissingJsDoc(t *NodeTraversal, function rhino.Node) {
-	if c.IsFunctionThatShouldHaveJsDoc(t, function) && !c.IsTestMethod(function) {
-		t.Report(function, CheckJSDocStyle_MISSING_JSDOC)
+func (c *CheckJSDocStyle) CheckMissingJsDoc(t *NodeTraversal, fn ast.Function) {
+	if c.IsFunctionThatShouldHaveJsDoc(t, fn) && !c.IsTestMethod(fn.Node()) {
+		t.Report(fn.Node(), CheckJSDocStyle_MISSING_JSDOC)
 	}
 }
 
@@ -224,34 +212,33 @@ func (c *CheckJSDocStyle) CheckMissingJsDoc(t *NodeTraversal, function rhino.Nod
 // method on a class which is declared in the global scope.
 //
 // Java: CheckJSDocStyle.isFunctionThatShouldHaveJsDoc(NodeTraversal, Node)
-func (c *CheckJSDocStyle) IsFunctionThatShouldHaveJsDoc(t *NodeTraversal, function rhino.Node) bool {
+func (c *CheckJSDocStyle) IsFunctionThatShouldHaveJsDoc(t *NodeTraversal, fn ast.Function) bool {
 	if !(t.InGlobalHoistScope() || t.InModuleScope()) {
 		// TODO(b/233631820): this should check for the module hoist scope instead
 		return false
 	}
+	function := fn.Node()
 	if NodeUtil_IsFunctionDeclaration(function) {
 		return true
 	}
-	if NodeUtil_IsNameDeclaration(function.GetGrandparent()) || function.GetParent().IsAssign() {
-		return true
-	}
-	if function.GetParent().IsExport() {
+	parent := function.GetParent()
+	grandparent := parent.GetParent()
+	if NodeUtil_IsNameDeclaration(grandparent) || parent.IsAssign() || parent.IsExport() {
 		return true
 	}
 
-	if function.GetGrandparent().IsClassMembers() {
-		memberNode := function.GetParent()
-		if memberNode.IsMemberFunctionDef() {
+	if grandparent.IsClassMembers() {
+		if parent.IsMemberFunctionDef() {
 			// A constructor with no parameters doesn't need JSDoc,
 			// but all other member functions do.
-			return !c.IsConstructorWithoutParameters(function)
-		} else if memberNode.IsGetterDef() || memberNode.IsSetterDef() {
+			return !c.IsConstructorWithoutParameters(fn)
+		} else if parent.IsGetterDef() || parent.IsSetterDef() {
 			return true
 		}
 	}
 
-	return function.GetGrandparent().IsObjectLit() &&
-		NodeUtil_IsCallTo(function.GetGrandparent().GetParent(), "Polymer")
+	return grandparent.IsObjectLit() &&
+		NodeUtil_IsCallTo(grandparent.GetParent(), "Polymer")
 }
 
 // IsTestMethod reports whether this is a test method (test* or
@@ -260,21 +247,21 @@ func (c *CheckJSDocStyle) IsFunctionThatShouldHaveJsDoc(t *NodeTraversal, functi
 // Java: CheckJSDocStyle.isTestMethod(Node)
 func (c *CheckJSDocStyle) IsTestMethod(function rhino.Node) bool {
 	bestLValue := NodeUtil_GetBestLValue(function)
-	var name *string
-	if !bestLValue.IsNil() {
-		name = NodeUtil_GetBestLValueName(bestLValue)
+	if bestLValue.IsNil() {
+		return false
 	}
+	name := NodeUtil_GetBestLValueName(bestLValue)
 	return name != nil && ExportTestFunctions_IsTestFunction(name)
 }
 
 // Java: CheckJSDocStyle.isConstructorWithoutParameters(Node)
-func (c *CheckJSDocStyle) IsConstructorWithoutParameters(function rhino.Node) bool {
-	return NodeUtil_IsEs6Constructor(function) &&
-		!NodeUtil_GetFunctionParameters(function).HasChildren()
+func (c *CheckJSDocStyle) IsConstructorWithoutParameters(fn ast.Function) bool {
+	_, hasParam := fn.Params().FirstParam()
+	return !hasParam && NodeUtil_IsEs6Constructor(fn.Node())
 }
 
 // Java: CheckJSDocStyle.checkParams(NodeTraversal, Node, JSDocInfo)
-func (c *CheckJSDocStyle) CheckParams(t *NodeTraversal, function rhino.Node, jsDoc *rhino.JSDocInfo) {
+func (c *CheckJSDocStyle) CheckParams(t *NodeTraversal, fn ast.Function, jsDoc *rhino.JSDocInfo) {
 	if jsDoc != nil && jsDoc.GetType() != nil {
 		// Sometimes functions are declared with @type {function(Foo, Bar)} instead of
 		//   @param {Foo} foo
@@ -283,77 +270,58 @@ func (c *CheckJSDocStyle) CheckParams(t *NodeTraversal, function rhino.Node, jsD
 		return
 	}
 
-	var paramsFromJsDoc []string
-	if jsDoc == nil {
-		paramsFromJsDoc = []string{}
-	} else {
-		paramsFromJsDoc = jsDoc.GetParameterNames().ToSlice()
+	if jsDoc == nil || jsDoc.GetParameterNames().IsEmpty() {
+		c.CheckInlineParams(t, fn)
+		return
 	}
-	if len(paramsFromJsDoc) == 0 {
-		c.CheckInlineParams(t, function, jsDoc)
-	} else {
-		paramList := NodeUtil_GetFunctionParameters(function)
-		if !paramList.HasXChildren(len(paramsFromJsDoc)) {
-			var note string
-			if jsDoc.IsOverride() {
-				note = ""
-			} else {
-				note = ""
-			}
-			c.compiler.Report(
-				JSError_MakeWithNode(
-					paramList,
-					CheckJSDocStyle_WRONG_NUMBER_OF_PARAMS,
-					note))
+
+	paramList := fn.Params()
+	paramNames := jsDoc.GetParameterNames()
+	if !paramList.Node().HasXChildren(paramNames.Size()) {
+		c.compiler.Report(
+			JSError_MakeWithNode(
+				paramList.Node(),
+				CheckJSDocStyle_WRONG_NUMBER_OF_PARAMS,
+				""))
+		return
+	}
+
+	param := paramList.Node().GetFirstChild()
+	for name := range paramNames.All() {
+		if param.GetJSDocInfo() != nil {
+			t.Report(param, CheckJSDocStyle_MIXED_PARAM_JSDOC_STYLES)
+		}
+		paramType := jsDoc.GetParameterType(name)
+		if c.CheckParam(t, param, name, true, paramType) {
 			return
 		}
-
-		param := paramList.GetFirstChild()
-		for _, s := range paramsFromJsDoc {
-			if param.GetJSDocInfo() != nil {
-				t.Report(param, CheckJSDocStyle_MIXED_PARAM_JSDOC_STYLES)
-			}
-			name := s
-			paramType := jsDoc.GetParameterType(name)
-			if c.CheckParam(t, param, &name, paramType) {
-				return
-			}
-			param = param.GetNext()
-		}
+		param = param.GetNext()
 	}
 }
 
 // CheckInlineParams checks that the inline type annotations are correct.
 //
 // Java: CheckJSDocStyle.checkInlineParams(NodeTraversal, Node, JSDocInfo)
-func (c *CheckJSDocStyle) CheckInlineParams(t *NodeTraversal, function rhino.Node, fnJSDoc *rhino.JSDocInfo) {
-	paramList := NodeUtil_GetFunctionParameters(function)
-
-	for param := paramList.GetFirstChild(); !param.IsNil(); param = param.GetNext() {
+func (c *CheckJSDocStyle) CheckInlineParams(t *NodeTraversal, fn ast.Function) {
+	for param := range fn.Params().Params() {
+		paramNode := param.Node()
 		var jsDoc *rhino.JSDocInfo
-		if param.IsDefaultValue() {
-			jsDoc = param.GetFirstChild().GetJSDocInfo()
+		if defVal, ok := param.AsDefaultValue(); ok {
+			jsDoc = defVal.Target().Node().GetJSDocInfo()
 		} else {
-			jsDoc = param.GetJSDocInfo()
+			jsDoc = paramNode.GetJSDocInfo()
 		}
 		if jsDoc == nil {
-			var note string
-			if fnJSDoc != nil && fnJSDoc.IsOverride() {
-				note = ""
-			} else {
-				note = ""
-			}
 			c.compiler.Report(
 				JSError_MakeWithNode(
-					param,
+					paramNode,
 					CheckJSDocStyle_MISSING_PARAMETER_JSDOC,
-					note))
+					""))
 			return
-		} else {
-			paramType := jsDoc.GetType()
-			jutil.CheckNotNullMsg(paramType, "Inline JSDoc info should always have a type")
-			c.CheckParam(t, param, nil, paramType)
 		}
+		paramType := jsDoc.GetType()
+		jutil.CheckNotNullMsg(paramType, "Inline JSDoc info should always have a type")
+		c.CheckParam(t, paramNode, "", false, paramType)
 	}
 }
 
@@ -361,29 +329,28 @@ func (c *CheckJSDocStyle) CheckInlineParams(t *NodeTraversal, function rhino.Nod
 // that the given type is compatible.
 //
 // param: if this is a non-NAME node, such as a destructuring pattern, skip
-// the name check. name: if null, skip the name check. Returns whether a
+// the name check. hasName: if false, skip the name check. Returns whether a
 // warning was reported.
 //
 // Java: CheckJSDocStyle.checkParam(NodeTraversal, Node, String, JSTypeExpression)
 func (c *CheckJSDocStyle) CheckParam(
-	t *NodeTraversal, param rhino.Node, name *string, paramType *rhino.JSTypeExpression) bool {
+	t *NodeTraversal, param rhino.Node, name string, hasName bool, paramType *rhino.JSTypeExpression) bool {
 	var nameOptional bool
 	nodeToCheck := param
-	if param.IsDefaultValue() {
-		nodeToCheck = param.GetFirstChild()
+	if defVal, ok := ast.AsDefaultValue(param); ok {
+		nodeToCheck = defVal.Target().Node()
 		nameOptional = true
-	} else if param.IsName() {
-		nameOptional = strings.HasPrefix(param.GetString(), "opt_")
+	} else if paramName, ok := ast.AsName(param); ok {
+		nameOptional = strings.HasPrefix(paramName.Ident(), "opt_")
 	} else {
 		jutil.CheckStateMsg1(param.IsDestructuringPattern() || param.IsRest(), "%s", param)
-		nameOptional = false
 	}
 
-	if name == nil || !nodeToCheck.IsName() {
+	reportedName := name
+	if !hasName || !nodeToCheck.IsName() {
 		// Skip the name check, but use "<unknown name>" for other errors that might be reported.
-		unknown := "<unknown name>"
-		name = &unknown
-	} else if !nodeToCheck.MatchesQualifiedName(*name) {
+		reportedName = "<unknown name>"
+	} else if !nodeToCheck.MatchesQualifiedName(name) {
 		t.Report(nodeToCheck, CheckJSDocStyle_INCORRECT_PARAM_NAME)
 		return true
 	}
@@ -392,8 +359,7 @@ func (c *CheckJSDocStyle) CheckParam(
 		return false
 	}
 
-	jsDocOptional := paramType != nil && paramType.IsOptionalArg()
-	if jsDocOptional {
+	if paramType != nil && paramType.IsOptionalArg() {
 		return false
 	}
 
@@ -401,28 +367,29 @@ func (c *CheckJSDocStyle) CheckParam(
 	if paramType != nil {
 		errorSource = paramType.GetRoot()
 	}
-	t.Report(errorSource, CheckJSDocStyle_OPTIONAL_PARAM_NOT_MARKED_OPTIONAL, *name)
+	t.Report(errorSource, CheckJSDocStyle_OPTIONAL_PARAM_NOT_MARKED_OPTIONAL, reportedName)
 	return true
 }
 
 // Java: CheckJSDocStyle.isDefaultAssignedParamWithInlineJsDoc(Node)
 func CheckJSDocStyle_IsDefaultAssignedParamWithInlineJsDoc(param rhino.Node) bool {
-	if param.IsDefaultValue() {
-		if param.HasChildren() && param.GetFirstChild().IsName() {
-			return param.GetFirstChild().GetJSDocInfo() != nil
+	if defVal, ok := ast.AsDefaultValue(param); ok {
+		if nameTarget, ok := defVal.Target().AsName(); ok {
+			return nameTarget.Node().GetJSDocInfo() != nil
 		}
 	}
 	return false
 }
 
 // Java: CheckJSDocStyle.hasAnyInlineJsDoc(Node)
-func (c *CheckJSDocStyle) HasAnyInlineJsDoc(function rhino.Node) bool {
-	if function.GetFirstChild().GetJSDocInfo() != nil {
+func (c *CheckJSDocStyle) HasAnyInlineJsDoc(fn ast.Function) bool {
+	if fn.NameNode().Node().GetJSDocInfo() != nil {
 		// Inline return annotation.
 		return true
 	}
-	for param := NodeUtil_GetFunctionParameters(function).GetFirstChild(); !param.IsNil(); param = param.GetNext() {
-		if param.GetJSDocInfo() != nil || CheckJSDocStyle_IsDefaultAssignedParamWithInlineJsDoc(param) {
+	for param := range fn.Params().Params() {
+		pNode := param.Node()
+		if pNode.GetJSDocInfo() != nil || CheckJSDocStyle_IsDefaultAssignedParamWithInlineJsDoc(pNode) {
 			return true
 		}
 	}
@@ -430,34 +397,29 @@ func (c *CheckJSDocStyle) HasAnyInlineJsDoc(function rhino.Node) bool {
 }
 
 // Java: CheckJSDocStyle.checkReturn(Node, JSDocInfo)
-func (c *CheckJSDocStyle) CheckReturn(function rhino.Node, jsDoc *rhino.JSDocInfo) {
+func (c *CheckJSDocStyle) CheckReturn(fn ast.Function, jsDoc *rhino.JSDocInfo) {
 	if jsDoc != nil && (jsDoc.HasType() || jsDoc.IsConstructor() || jsDoc.HasReturnType()) {
 		return
 	}
 
-	if NodeUtil_IsEs6Constructor(function) {
+	fnNode := fn.Node()
+	if NodeUtil_IsEs6Constructor(fnNode) {
 		// ES6 class constructors should never have "@return".
 		return
 	}
 
-	if function.GetFirstChild().GetJSDocInfo() != nil {
+	if fn.NameNode().Node().GetJSDocInfo() != nil {
 		return
 	}
 
 	finder := &CheckJSDocStyle_FindNonTrivialReturn{}
-	NodeTraversal_Traverse(c.compiler, function.GetLastChild(), finder)
+	NodeTraversal_Traverse(c.compiler, fn.Body().Node(), finder)
 	if finder.found {
-		var note string
-		if jsDoc != nil && jsDoc.IsOverride() {
-			note = ""
-		} else {
-			note = ""
-		}
 		c.compiler.Report(
 			JSError_MakeWithNode(
-				function,
+				fnNode,
 				CheckJSDocStyle_MISSING_RETURN_JSDOC,
-				note))
+				""))
 	}
 }
 
@@ -476,9 +438,11 @@ func (f *CheckJSDocStyle_FindNonTrivialReturn) ShouldTraverse(t *NodeTraversal, 
 
 	// Shallow traversal, since we don't need to inspect within functions or expressions.
 	if NodeUtil_IsShallowStatementTree(parent) {
-		if n.IsReturn() && n.HasChildren() {
-			f.found = true
-			return false
+		if ret, ok := ast.AsReturn(n); ok {
+			if _, hasVal := ret.Value(); hasVal {
+				f.found = true
+				return false
+			}
 		}
 		return true
 	}
@@ -495,7 +459,7 @@ func (*CheckJSDocStyle_ExternsCallback) ShouldTraverse(t *NodeTraversal, n rhino
 
 // Java: CheckJSDocStyle.ExternsCallback.visit(NodeTraversal, Node, Node)
 func (*CheckJSDocStyle_ExternsCallback) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
-	if n.IsScript() {
+	if _, ok := ast.AsScript(n); ok {
 		info := n.GetJSDocInfo()
 		if info == nil || !info.IsExterns() {
 			t.Report(n, CheckJSDocStyle_EXTERNS_FILES_SHOULD_BE_ANNOTATED)
@@ -505,11 +469,12 @@ func (*CheckJSDocStyle_ExternsCallback) Visit(t *NodeTraversal, n rhino.Node, pa
 
 // Java: CheckJSDocStyle.checkLicenseComment(NodeTraversal, Node)
 func (c *CheckJSDocStyle) CheckLicenseComment(t *NodeTraversal, n rhino.Node) {
-	if n.GetJSDocInfo() == nil || n.GetJSDocInfo().GetLicense() == nil {
+	jsDoc := n.GetJSDocInfo()
+	if jsDoc == nil {
 		return
 	}
-	license := *n.GetJSDocInfo().GetLicense()
-	if strings.Contains(license, "@externs") {
+	license := jsDoc.GetLicense()
+	if license != nil && strings.Contains(*license, "@externs") {
 		t.Report(n, CheckJSDocStyle_LICENSE_CONTAINS_AT_EXTERNS)
 	}
 }

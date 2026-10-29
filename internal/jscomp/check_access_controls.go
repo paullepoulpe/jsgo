@@ -350,7 +350,7 @@ func (c *CheckAccessControls) BestInstanceTypeForMethodOrCtor(n rhino.Node) rhin
 			return CheckAccessControls_InstanceTypeFor(greatGrandparent.GetJSType())
 		} else {
 			// This would indicate the AST is malformed.
-			panic(jutil.NewAssertionError(jutil.ToJavaString(greatGrandparent)))
+			panic(jutil.NewAssertionError(nodeStringOrNull(greatGrandparent)))
 		}
 	default:
 		return nil
@@ -506,16 +506,16 @@ func (c *CheckAccessControls) CheckTypeDeprecation(t *NodeTraversal, n rhino.Nod
 
 	instanceType := n.GetJSType().ToMaybeFunctionType().GetInstanceType()
 
-	deprecationInfo := CheckAccessControls_GetTypeDeprecationInfo(instanceType)
-	if deprecationInfo == nil {
+	deprecationInfo, ok := CheckAccessControls_GetTypeDeprecationInfo(instanceType)
+	if !ok {
 		return
 	}
 
 	message := CheckAccessControls_DEPRECATED_CLASS_REASON
-	if *deprecationInfo == "" {
+	if deprecationInfo == "" {
 		message = CheckAccessControls_DEPRECATED_CLASS
 	}
-	c.compiler.Report(JSError_MakeWithNode(n, message, instanceType.String(), *deprecationInfo))
+	c.compiler.Report(JSError_MakeWithNode(n, message, instanceType.String(), deprecationInfo))
 }
 
 // CheckNameDeprecation checks the given NAME node to ensure that access
@@ -568,16 +568,15 @@ func (c *CheckAccessControls) CheckPropertyDeprecation(t *NodeTraversal, propRef
 	propertyName := propRef.name
 
 	if objectType != nil {
-		deprecationInfo := CheckAccessControls_GetPropertyDeprecationInfo(objectType, propertyName)
-		if deprecationInfo != nil {
-			if *deprecationInfo != "" {
+		if deprecationInfo, ok := CheckAccessControls_GetPropertyDeprecationInfo(objectType, propertyName); ok {
+			if deprecationInfo != "" {
 				c.compiler.Report(
 					JSError_MakeWithNode(
 						propRef.sourceNode,
 						CheckAccessControls_DEPRECATED_PROP_REASON,
 						propertyName,
 						propRef.GetReadableTypeNameOrDefault(),
-						*deprecationInfo))
+						deprecationInfo))
 			} else {
 				c.compiler.Report(
 					JSError_MakeWithNode(
@@ -715,13 +714,12 @@ func (c *CheckAccessControls) CheckPropertyOverrideVisibilityIsSame(
 }
 
 // Java: CheckAccessControls.getOverridingPropertyVisibility(PropertyReference)
-func CheckAccessControls_GetOverridingPropertyVisibility(propRef *CheckAccessControls_PropertyReference) *rhino.JSDocInfo_Visibility {
+func CheckAccessControls_GetOverridingPropertyVisibility(propRef *CheckAccessControls_PropertyReference) (rhino.JSDocInfo_Visibility, bool) {
 	overridingInfo := propRef.GetJSDocInfo()
 	if overridingInfo == nil || !overridingInfo.IsOverride() {
-		return nil
+		return 0, false
 	}
-	visibility := overridingInfo.GetVisibility()
-	return &visibility
+	return overridingInfo.GetVisibility(), true
 }
 
 // CheckFinalClassOverrides checks if a constructor is trying to override a
@@ -746,8 +744,8 @@ func (c *CheckAccessControls) CheckFinalClassOverrides(ctor rhino.Node) {
 			JSError_MakeWithNode(
 				ctor,
 				CheckAccessControls_EXTEND_FINAL_CLASS,
-				jutil.ToJavaString(ctorType.GetDisplayName()),
-				jutil.ToJavaString(finalParentClass.GetDisplayName())))
+				stringPtrOrNull(ctorType.GetDisplayName()),
+				stringPtrOrNull(finalParentClass.GetDisplayName())))
 	}
 }
 
@@ -1015,10 +1013,9 @@ func (c *CheckAccessControls) CheckPropertyVisibility(propRef *CheckAccessContro
 	}
 
 	if isOverride {
-		overriding := CheckAccessControls_GetOverridingPropertyVisibility(propRef)
-		if overriding != nil {
+		if overriding, ok := CheckAccessControls_GetOverridingPropertyVisibility(propRef); ok {
 			c.CheckPropertyOverrideVisibilityIsSame(
-				*overriding, visibility, fileOverviewVisibility, propRef)
+				overriding, visibility, fileOverviewVisibility, propRef)
 		}
 	}
 
@@ -1049,6 +1046,14 @@ func (c *CheckAccessControls) CheckPropertyVisibility(propRef *CheckAccessContro
 	}
 }
 
+var checkAccessControls_visibilityPtrs = [...]rhino.JSDocInfo_Visibility{
+	rhino.JSDocInfo_Visibility_PRIVATE:   rhino.JSDocInfo_Visibility_PRIVATE,
+	rhino.JSDocInfo_Visibility_PACKAGE:   rhino.JSDocInfo_Visibility_PACKAGE,
+	rhino.JSDocInfo_Visibility_PROTECTED: rhino.JSDocInfo_Visibility_PROTECTED,
+	rhino.JSDocInfo_Visibility_PUBLIC:    rhino.JSDocInfo_Visibility_PUBLIC,
+	rhino.JSDocInfo_Visibility_INHERITED: rhino.JSDocInfo_Visibility_INHERITED,
+}
+
 func checkAccessControls_visibilityFor(
 	m map[rhino.StaticSourceFile]rhino.JSDocInfo_Visibility,
 	file rhino.StaticSourceFile) *rhino.JSDocInfo_Visibility {
@@ -1056,7 +1061,7 @@ func checkAccessControls_visibilityFor(
 		return nil
 	}
 	if v, ok := m[file]; ok {
-		return &v
+		return &checkAccessControls_visibilityPtrs[v]
 	}
 	return nil
 }
@@ -1319,13 +1324,11 @@ func (c *CheckAccessControls) CanAccessDeprecatedTypes(t *NodeTraversal) bool {
 
 	// Cases 2 and 3 are required to handle ES5-style class methods since they aren't nested inside
 	// their class. This is tested in the CheckAccessControlsOldSyntaxTest class.
-	res :=
-		// Case #2
-		(CheckAccessControls_GetTypeDeprecationInfo(c.GetTypeOfThis(scopeRoot)) != nil) ||
-			// Case #3
-			(!scopeRootParent.IsNil() &&
-				scopeRootParent.IsAssign() &&
-				CheckAccessControls_GetTypeDeprecationInfo(c.BestInstanceTypeForMethodOrCtor(scopeRoot)) != nil)
+	_, thisDeprecated := CheckAccessControls_GetTypeDeprecationInfo(c.GetTypeOfThis(scopeRoot))
+	res := thisDeprecated
+	if !res && !scopeRootParent.IsNil() && scopeRootParent.IsAssign() {
+		_, res = CheckAccessControls_GetTypeDeprecationInfo(c.BestInstanceTypeForMethodOrCtor(scopeRoot))
+	}
 	c.lastHoistScopeRoot = hoistRoot
 	c.lastHoistScopeDeprecated = res
 	return res
@@ -1336,34 +1339,31 @@ func (c *CheckAccessControls) CanAccessDeprecatedTypes(t *NodeTraversal) bool {
 //
 // Java: CheckAccessControls.isMarkedDeprecated(Node)
 func CheckAccessControls_IsMarkedDeprecated(n rhino.Node) bool {
-	return CheckAccessControls_GetDeprecationReason(NodeUtil_GetBestJSDocInfo(n)) != nil
+	_, ok := CheckAccessControls_GetDeprecationReason(NodeUtil_GetBestJSDocInfo(n))
+	return ok
 }
 
 // CheckAccessControls_GetTypeDeprecationInfo returns the deprecation reason
-// for the type if it is marked as being deprecated. Returns empty string if
-// the type is deprecated but no reason was given. Returns null if the type is
-// not deprecated.
+// for the type if it is marked as being deprecated. Returns ("", true) if
+// the type is deprecated without a reason, or ("", false) if not deprecated.
 //
 // Java: CheckAccessControls.getTypeDeprecationInfo(JSType)
-func CheckAccessControls_GetTypeDeprecationInfo(type_ rhino.JSType) *string {
+func CheckAccessControls_GetTypeDeprecationInfo(type_ rhino.JSType) (string, bool) {
 	if type_ == nil {
-		return nil
+		return "", false
 	}
-
 	return CheckAccessControls_GetDeprecationReason(type_.GetJSDocInfo())
 }
 
-var checkAccessControls_emptyDeprecationReason = ""
-
 // Java: CheckAccessControls.getDeprecationReason(JSDocInfo)
-func CheckAccessControls_GetDeprecationReason(info *rhino.JSDocInfo) *string {
+func CheckAccessControls_GetDeprecationReason(info *rhino.JSDocInfo) (string, bool) {
 	if info != nil && info.IsDeprecated() {
-		if info.GetDeprecationReason() != nil {
-			return info.GetDeprecationReason()
+		if reason := info.GetDeprecationReason(); reason != nil {
+			return *reason, true
 		}
-		return &checkAccessControls_emptyDeprecationReason
+		return "", true
 	}
-	return nil
+	return "", false
 }
 
 // IsPropertyDeclaredConstant returns if a property is declared constant.
@@ -1384,20 +1384,19 @@ func (c *CheckAccessControls) IsPropertyDeclaredConstant(objectType rhino.Object
 }
 
 // CheckAccessControls_GetPropertyDeprecationInfo returns the deprecation
-// reason for the property if it is marked as being deprecated. Returns empty
-// string if the property is deprecated but no reason was given. Returns null
-// if the property is not deprecated.
+// reason for the property if it is marked as being deprecated. Returns ("", true)
+// if the property is deprecated without a reason, or ("", false) if not deprecated.
 //
 // Java: CheckAccessControls.getPropertyDeprecationInfo(ObjectType, String)
-func CheckAccessControls_GetPropertyDeprecationInfo(type_ rhino.ObjectType, prop string) *string {
+func CheckAccessControls_GetPropertyDeprecationInfo(type_ rhino.ObjectType, prop string) (string, bool) {
 	for ; type_ != nil; type_ = type_.GetImplicitPrototype() {
 		if info := type_.GetOwnPropertyJSDocInfo(prop); info != nil {
-			if depReason := CheckAccessControls_GetDeprecationReason(info); depReason != nil {
-				return depReason
+			if depReason, ok := CheckAccessControls_GetDeprecationReason(info); ok {
+				return depReason, true
 			}
 		}
 	}
-	return nil
+	return "", false
 }
 
 // CheckAccessControls_GetSuperClassInstanceIfFinal: if the superclass is

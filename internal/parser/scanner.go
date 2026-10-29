@@ -1680,12 +1680,12 @@ func (s *Scanner) ReportError(format string, arguments ...any) {
 
 // Java: Scanner.reportError(SourcePosition, String, Object...)
 func (s *Scanner) ReportErrorAtPosition(position SourcePosition, format string, arguments ...any) {
-	s.errorReporter.ReportErrorFormat(s.source.LinePosition(position), format, arguments...)
+	reportErrorFormat(s.errorReporter, s.source.LinePosition(position), format, arguments...)
 }
 
 // Java: Scanner.reportWarning(String, Object...)
 func (s *Scanner) ReportWarning(format string, arguments ...any) {
-	s.errorReporter.ReportWarningFormat(s.source.LinePosition(s.GetPosition()), format, arguments...)
+	reportWarningFormat(s.errorReporter, s.source.LinePosition(s.GetPosition()), format, arguments...)
 }
 
 // Java: Scanner.incTypeParameterLevel()

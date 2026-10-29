@@ -77,7 +77,7 @@ func NewInstanceObjectType_Builder(registry *JSTypeRegistry) *InstanceObjectType
 
 // Java: PrototypeObjectType.Builder.setName(String)
 func (b *InstanceObjectType_Builder) SetName(x *string) *InstanceObjectType_Builder {
-	b.className = x
+	b.classNameID = rhinoStringIDFromPtr(x)
 	return b
 }
 
@@ -127,7 +127,7 @@ func InstanceObjectType_BuilderForCtor(ctor FunctionType) *InstanceObjectType_Bu
 	return &InstanceObjectType_Builder{
 		PrototypeObjectType_Builder: PrototypeObjectType_Builder{
 			registry:          ctor.GetJSTypeBase().GetRegistry(),
-			className:         ctor.GetReferenceName(),
+			classNameID:       rhinoStringIDFromPtr(ctor.GetReferenceName()),
 			implicitPrototype: nil, // This isn't shared by a function and it's instances.
 			nativeType:        ctor.IsNativeObjectType(),
 			anonymousType:     ctor.IsAnonymous(),

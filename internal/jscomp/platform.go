@@ -21,8 +21,6 @@ package jscomp
 import (
 	"os"
 	"runtime"
-
-	"github.com/paullepoulpe/jsgo/internal/jutil"
 )
 
 // Platform is a utility to abstract platform specific logic so it could be
@@ -71,9 +69,5 @@ func Platform_FormatMessage(message string, arguments ...string) string {
 	// Note that MessageFormat is removing single quotes and in many cases
 	// intended ones. Consider moving to a simpler formatting version like the
 	// Web one.
-	args := make([]any, len(arguments))
-	for i, a := range arguments {
-		args[i] = a
-	}
-	return jutil.MessageFormat_Format(message, args)
+	return parseDiagPattern(message).format(arguments...)
 }

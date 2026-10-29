@@ -45,22 +45,25 @@ func defaultParserConfig() *Parser_Config {
 }
 
 type recordingErrorReporter struct {
-	ErrorReporterBase
-	lines []string
+	lines    []string
+	hadError bool
 }
 
 func newRecordingErrorReporter() *recordingErrorReporter {
-	r := &recordingErrorReporter{}
-	r.InitErrorReporterBase(r)
-	return r
+	return &recordingErrorReporter{}
 }
 
 func (r *recordingErrorReporter) ReportError(location LinePosition, message string) {
+	r.hadError = true
 	r.lines = append(r.lines, "ERROR "+dumpLinePosition(location)+" "+dumpQuote(message))
 }
 
 func (r *recordingErrorReporter) ReportWarning(location LinePosition, message string) {
 	r.lines = append(r.lines, "WARNING "+dumpLinePosition(location)+" "+dumpQuote(message))
+}
+
+func (r *recordingErrorReporter) HadError() bool {
+	return r.hadError
 }
 
 // configFromDump returns the Parser.Config whose fields the "# config" line

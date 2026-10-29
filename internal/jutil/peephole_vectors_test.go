@@ -180,10 +180,7 @@ func TestStringOpsMatchJava(t *testing.T) {
 				t.Errorf("%q.lastIndexOf(%q, %d) = %d, Java %d", s, u, from, got, want)
 			}
 		case "equalsIgnoreCase":
-			want := r[4] == "true"
-			if got := AsciiEqualsIgnoreCase(s, u); got != want {
-				t.Errorf("Ascii.equalsIgnoreCase(%q, %q) = %v, Java %v", s, u, got, want)
-			}
+			// Ascii.equalsIgnoreCase was removed with ascii.go.
 		default:
 			t.Fatalf("unknown op %q", r[0])
 		}

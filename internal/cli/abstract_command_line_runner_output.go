@@ -220,12 +220,12 @@ func (r *AbstractCommandLineRunnerBase) writeOutputOfCodeWithSourceMap(
 	wrapper string,
 	codePlaceholder string,
 	escaper func(string) string) {
-	pos := jutil.StringIndexOf(wrapper, codePlaceholder)
+	pos := strings.Index(wrapper, codePlaceholder)
 	if pos != -1 {
 		prefix := ""
 
 		if pos > 0 {
-			prefix = jutil.StringSubstring(wrapper, 0, pos)
+			prefix = wrapper[:pos]
 			out.AppendCharSequence(prefix)
 		}
 
@@ -235,10 +235,10 @@ func (r *AbstractCommandLineRunnerBase) writeOutputOfCodeWithSourceMap(
 			out.AppendCharSequence(escaper(code))
 		}
 
-		suffixStart := pos + jutil.StringLength(codePlaceholder)
-		if suffixStart != jutil.StringLength(wrapper) {
+		suffixStart := pos + len(codePlaceholder)
+		if suffixStart != len(wrapper) {
 			// Something after placeholder?
-			out.AppendCharSequence(jutil.StringSubstringFrom(wrapper, suffixStart))
+			out.AppendCharSequence(wrapper[suffixStart:])
 		}
 		if r.self.GetCommandLineConfig().includeTrailingNewline {
 			out.AppendCharacter('\n')
@@ -765,45 +765,45 @@ func (r *AbstractCommandLineRunnerBase) GetMapPath(outputFile string) string {
 func (r *AbstractCommandLineRunnerBase) OutputNameMaps() {
 	config := r.config
 
-	var propertyMapOutputPath *string
-	var variableMapOutputPath *string
+	var propertyMapOutputPath string
+	var variableMapOutputPath string
 
 	// Check the create_name_map_files FLAG.
 	if config.createNameMapFiles {
 		basePath := r.GetMapPath(config.jsOutputFile)
 
-		propertyMapOutputPath = jutil.StringPtr(basePath + "_props_map.out")
-		variableMapOutputPath = jutil.StringPtr(basePath + "_vars_map.out")
+		propertyMapOutputPath = basePath + "_props_map.out"
+		variableMapOutputPath = basePath + "_vars_map.out"
 	}
 
 	// Check the individual FLAGS.
 	if config.variableMapOutputFile != "" {
-		if variableMapOutputPath != nil {
+		if variableMapOutputPath != "" {
 			panic(jscomp.NewFlagUsageException(
 				"The flags variable_map_output_file and " +
 					"create_name_map_files cannot both be used simultaneously."))
 		}
 
-		variableMapOutputPath = &config.variableMapOutputFile
+		variableMapOutputPath = config.variableMapOutputFile
 	}
 
 	if config.propertyMapOutputFile != "" {
-		if propertyMapOutputPath != nil {
+		if propertyMapOutputPath != "" {
 			panic(jscomp.NewFlagUsageException(
 				"The flags property_map_output_file and " +
 					"create_name_map_files cannot both be used simultaneously."))
 		}
 
-		propertyMapOutputPath = &config.propertyMapOutputFile
+		propertyMapOutputPath = config.propertyMapOutputFile
 	}
 
 	// Output the maps.
-	if variableMapOutputPath != nil && r.compiler.GetVariableMap() != nil {
-		r.compiler.GetVariableMap().Save(*variableMapOutputPath)
+	if variableMapOutputPath != "" && r.compiler.GetVariableMap() != nil {
+		r.compiler.GetVariableMap().Save(variableMapOutputPath)
 	}
 
-	if propertyMapOutputPath != nil && r.compiler.GetPropertyMap() != nil {
-		r.compiler.GetPropertyMap().Save(*propertyMapOutputPath)
+	if propertyMapOutputPath != "" && r.compiler.GetPropertyMap() != nil {
+		r.compiler.GetPropertyMap().Save(propertyMapOutputPath)
 	}
 }
 
@@ -912,7 +912,7 @@ func (r *AbstractCommandLineRunnerBase) OutputManifestOrBundle(outputFiles []str
 //
 // Java: AbstractCommandLineRunner.outputChunkGraphJson()
 func (r *AbstractCommandLineRunnerBase) OutputChunkGraphJson() {
-	if r.config.outputChunkDependencies != nil && jutil.StringLength(*r.config.outputChunkDependencies) != 0 {
+	if r.config.outputChunkDependencies != nil && *r.config.outputChunkDependencies != "" {
 		out := r.FileNameToOutputWriter2(r.config.outputChunkDependencies)
 		defer abstractCommandLineRunner_closeWriter(out)
 		r.self.PrintChunkGraphJsonTo(out)

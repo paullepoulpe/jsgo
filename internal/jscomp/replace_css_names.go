@@ -1,4 +1,5 @@
 // Port of com/google/javascript/jscomp/ReplaceCssNames.java @ closure-compiler v20261021
+// Port of com/google/javascript/jscomp/CssRenamingMap.java @ closure-compiler v20261021
 
 /*
  * Copyright 2009 The Closure Compiler Authors.
@@ -19,7 +20,6 @@
 package jscomp
 
 import (
-	"fmt"
 	"strconv"
 	"strings"
 
@@ -27,6 +27,61 @@ import (
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
+
+// CssRenamingMap is the interface used by ReplaceCssNames to substitute
+// CSS class names.
+type CssRenamingMap interface {
+	RenamingMap
+
+	// Java: CssRenamingMap.getStyle()
+	GetStyle() CssRenamingMap_Style
+}
+
+// CssRenamingMap_Style is the kind of renaming map.
+type CssRenamingMap_Style int32
+
+const (
+	CssRenamingMap_Style_BY_WHOLE CssRenamingMap_Style = iota
+	CssRenamingMap_Style_BY_PART
+)
+
+var cssRenamingMap_Style_names = [...]string{"BY_WHOLE", "BY_PART"}
+
+// Name is Enum.name().
+func (s CssRenamingMap_Style) Name() string { return cssRenamingMap_Style_names[s] }
+
+// String is Enum.toString().
+func (s CssRenamingMap_Style) String() string { return s.Name() }
+
+// Ordinal is Enum.ordinal().
+func (s CssRenamingMap_Style) Ordinal() int { return int(s) }
+
+// CssRenamingMap_Style_ValueOf is Style.valueOf(String).
+func CssRenamingMap_Style_ValueOf(name string) CssRenamingMap_Style {
+	for i, n := range cssRenamingMap_Style_names {
+		if n == name {
+			return CssRenamingMap_Style(i)
+		}
+	}
+	panic(jutil.NewIllegalArgumentExceptionMsg(
+		"No enum constant com.google.javascript.jscomp.CssRenamingMap.Style." + name))
+}
+
+// CssRenamingMap_ByPartBase provides GetStyle() returning BY_PART for ByPart maps.
+type CssRenamingMap_ByPartBase struct{}
+
+// Java: CssRenamingMap.ByPart.getStyle()
+func (CssRenamingMap_ByPartBase) GetStyle() CssRenamingMap_Style {
+	return CssRenamingMap_Style_BY_PART
+}
+
+// CssRenamingMap_ByWholeBase provides GetStyle() returning BY_WHOLE for ByWhole maps.
+type CssRenamingMap_ByWholeBase struct{}
+
+// Java: CssRenamingMap.ByWhole.getStyle()
+func (CssRenamingMap_ByWholeBase) GetStyle() CssRenamingMap_Style {
+	return CssRenamingMap_Style_BY_WHOLE
+}
 
 // ReplaceCssNames replaces occurrences of goog.getCssName('foo') with a
 // shorter version from the passed in renaming map. There are two styles of
@@ -241,7 +296,7 @@ func (inst *cssNameInstance) classesMemberName() string {
 		}
 	}
 	panic(jutil.NewIllegalStateExceptionMsg(
-		fmt.Sprintf("No css closure classes member name found: %s", inst.callNode.String())))
+		"No css closure classes member name found: " + inst.callNode.String()))
 }
 
 func (inst *cssNameInstance) cssClassName() string {
@@ -258,7 +313,7 @@ func (inst *cssNameInstance) cssClassName() string {
 		return secondArg.GetString()
 	default:
 		panic(jutil.NewIllegalStateExceptionMsg(
-			fmt.Sprintf("invalid number of children: %d for: %s", childCount, inst.callNode.String())))
+			"invalid number of children: " + strconv.Itoa(childCount) + " for: " + inst.callNode.String()))
 	}
 }
 
@@ -287,7 +342,7 @@ func (r *ReplaceCssNames) replaceGetCssNameCall(callNode rhino.Node) {
 		r.compiler.ReportChangeToEnclosingScope(replacement)
 	default:
 		panic(jutil.NewIllegalStateExceptionMsg(
-			fmt.Sprintf("invalid number of children: %d for: %s", childCount, callNode.String())))
+			"invalid number of children: " + strconv.Itoa(childCount) + " for: " + callNode.String()))
 	}
 }
 
@@ -343,7 +398,7 @@ func (r *ReplaceCssNames) processStringNode(n rhino.Node) {
 		}
 		replacement = *mapped
 	} else if r.symbolMap.GetStyle() == CssRenamingMap_Style_BY_PART {
-		if !strings.Contains(name, "-") {
+		if strings.IndexByte(name, '-') < 0 {
 			part := r.symbolMap.Get(name)
 			if part == nil {
 				r.compiler.Report(JSError_MakeWithNode(n, ReplaceCssNames_UNKNOWN_SYMBOL_WARNING, name, name))
@@ -351,20 +406,33 @@ func (r *ReplaceCssNames) processStringNode(n rhino.Node) {
 			}
 			replacement = *part
 		} else {
-			parts := strings.Split(name, "-")
-			for len(parts) > 0 && parts[len(parts)-1] == "" {
-				parts = parts[:len(parts)-1]
-			}
-			for i, p := range parts {
-				part := r.symbolMap.Get(p)
-				if part == nil {
-					// If we can't encode all parts, don't encode any of it.
-					r.compiler.Report(JSError_MakeWithNode(n, ReplaceCssNames_UNKNOWN_SYMBOL_WARNING, p, name))
-					return
+			trimmed := strings.TrimRight(name, "-")
+			if trimmed != "" {
+				var sb strings.Builder
+				sb.Grow(len(trimmed))
+				for rest := trimmed; ; {
+					dash := strings.IndexByte(rest, '-')
+					var p string
+					if dash < 0 {
+						p = rest
+					} else {
+						p = rest[:dash]
+					}
+					part := r.symbolMap.Get(p)
+					if part == nil {
+						// If we can't encode all parts, don't encode any of it.
+						r.compiler.Report(JSError_MakeWithNode(n, ReplaceCssNames_UNKNOWN_SYMBOL_WARNING, p, name))
+						return
+					}
+					sb.WriteString(*part)
+					if dash < 0 {
+						break
+					}
+					sb.WriteByte('-')
+					rest = rest[dash+1:]
 				}
-				parts[i] = *part
+				replacement = sb.String()
 			}
-			replacement = strings.Join(parts, "-")
 		}
 	}
 	n.SetString(replacement)

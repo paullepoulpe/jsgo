@@ -265,7 +265,7 @@ func (r *ReplaceMessages) GetReplacementCompletionPass() CompilerPass {
 // localized expressions.
 type ReplaceMessages_ReplacementCompletionPass struct {
 	outer             *ReplaceMessages
-	translatedMsgKeys jutil.LinkedHashSet[string]
+	translatedMsgKeys map[string]struct{}
 }
 
 // Java: ReplaceMessages.ReplacementCompletionPass()
@@ -301,7 +301,10 @@ func (p *ReplaceMessages_ReplacementCompletionPass) VisitMsgDefinition(protected
 	var msgToUse *JsMessage
 	if translatedMsg != nil {
 		msgToUse = translatedMsg
-		p.translatedMsgKeys.Add(originalMsg.GetKey())
+		if p.translatedMsgKeys == nil {
+			p.translatedMsgKeys = make(map[string]struct{})
+		}
+		p.translatedMsgKeys[originalMsg.GetKey()] = struct{}{}
 	} else {
 		if r.strictReplacement {
 			r.compiler.Report(
@@ -323,9 +326,9 @@ func (p *ReplaceMessages_ReplacementCompletionPass) VisitMsgDefinition(protected
 // Java: ReplaceMessages.ReplacementCompletionPass.visitMsgFallback(ReplaceMessages.ProtectedMsgFallback)
 func (p *ReplaceMessages_ReplacementCompletionPass) VisitMsgFallback(protectedMsgFallback ReplaceMessages_ProtectedMsgFallback) {
 	var valueNodeToUse rhino.Node
-	if p.translatedMsgKeys.Contains(protectedMsgFallback.firstMsgKey) {
+	if _, ok := p.translatedMsgKeys[protectedMsgFallback.firstMsgKey]; ok {
 		valueNodeToUse = protectedMsgFallback.firstMsgValue
-	} else if p.translatedMsgKeys.Contains(protectedMsgFallback.secondMsgKey) {
+	} else if _, ok := p.translatedMsgKeys[protectedMsgFallback.secondMsgKey]; ok {
 		valueNodeToUse = protectedMsgFallback.secondMsgValue
 	} else {
 		valueNodeToUse = protectedMsgFallback.firstMsgValue
@@ -536,15 +539,18 @@ func (r *ReplaceMessages) CreateNodeForGenderedMsgString(
 	uniqueId := r.compiler.
 		GetUniqueIdSupplier().
 		GetUniqueId(r.compiler.GetInput(NodeUtil_GetInputId(nodeToReplace)))
-	var placeholderMapIds jutil.LinkedHashMap[string, string]
-	for placeholderName := range placeholderMap.Keys() {
-		placeholderId := placeholderName + uniqueId
-		paramList.AddChildToBack(r.astFactory.CreateName(placeholderId, type_))
-		placeholderMapIds.Put(placeholderName, placeholderId)
+	var placeholderMapIds map[string]string
+	if !placeholderMap.IsEmpty() {
+		placeholderMapIds = make(map[string]string, placeholderMap.Size())
+		for placeholderName := range placeholderMap.Keys() {
+			placeholderId := placeholderName + uniqueId
+			paramList.AddChildToBack(r.astFactory.CreateName(placeholderId, type_))
+			placeholderMapIds[placeholderName] = placeholderId
+		}
 	}
 
 	hookExpression, err := r.CreateHookExpressionForGenderedMsg(
-		type_, message, options, nodeToReplace, &placeholderMapIds)
+		type_, message, options, nodeToReplace, placeholderMapIds)
 	if err != nil {
 		return rhino.NilNode, err
 	}
@@ -598,14 +604,14 @@ func (r *ReplaceMessages) CreateHookExpressionForGenderedMsg(
 	msg *JsMessage,
 	options ReplaceMessages_MsgOptions,
 	nodeToReplace rhino.Node,
-	placeholderMapIds *jutil.LinkedHashMap[string, string],
+	placeholderMapIds map[string]string,
 ) (rhino.Node, *malformedMessageError) {
 	hookHead := rhino.IR_Hook(rhino.IR_Name(""), rhino.IR_String(""), rhino.IR_String(""))
 	hookHead.SetColor(nodeToReplace.GetColor())
 	placeholderHook := hookHead
 
 	placeholderNodeProvider := func(placeholderName string) rhino.Node {
-		if placeholderId, ok := placeholderMapIds.Lookup(placeholderName); ok {
+		if placeholderId, ok := placeholderMapIds[placeholderName]; ok {
 			return r.astFactory.CreateName(placeholderId, AstFactory_Type_(nodeToReplace))
 		}
 		return rhino.NilNode
@@ -820,7 +826,7 @@ func ReplaceMessages_ProtectedJsMessage_FromAstNode(
 
 	var msgKey, meaning, messageText string
 	var hasMsgKey, hasMeaning, hasMessageText bool
-	var icuPlaceholderNames jutil.LinkedHashSet[string]
+	var icuPlaceholderNames map[string]struct{}
 	var messageTextNode rhino.Node
 
 	for member := range propertiesLit.Members() {
@@ -832,7 +838,10 @@ func ReplaceMessages_ProtectedJsMessage_FromAstNode(
 			arr, ok := ast.AsArrayLit(valueNode)
 			jutil.CheckStateMsg(ok, "icu_placeholder_names must be an array")
 			for elem := range arr.Elements() {
-				icuPlaceholderNames.Add(elem.Node().GetString())
+				if icuPlaceholderNames == nil {
+					icuPlaceholderNames = make(map[string]struct{})
+				}
+				icuPlaceholderNames[elem.Node().GetString()] = struct{}{}
 			}
 			continue
 		}
@@ -868,12 +877,12 @@ func ReplaceMessages_ProtectedJsMessage_FromAstNode(
 	if !hasMessageText {
 		panic(jutil.NewNullPointerException())
 	}
-	if !icuPlaceholderNames.IsEmpty() {
+	if len(icuPlaceholderNames) > 0 {
 		jutil.CheckStateMsg(
 			options.isIcuTemplate,
 			"Found icu_placeholder_names for a message that is not an ICU template.")
 		icuMessageTemplateString := NewJsMessageVisitor_IcuMessageTemplateString(messageText)
-		extractedIcuTemplateParts := icuMessageTemplateString.ExtractParts(&icuPlaceholderNames)
+		extractedIcuTemplateParts := icuMessageTemplateString.ExtractParts(icuPlaceholderNames)
 		jsMessageBuilder.AppendParts(extractedIcuTemplateParts.extractedParts)
 	} else {
 		parts, err := jsMessageVisitor_parseJsMessageTextIntoParts(messageText)
@@ -899,7 +908,7 @@ func ReplaceMessages_ProtectedJsMessage_FromAstNode(
 		}
 		if idGenerator != nil {
 			jsMessageBuilder.SetId(
-				idGenerator.GenerateId(&meaningForIdGeneration, jsMessageBuilder.GetParts()))
+				generateMessageId(idGenerator, meaningForIdGeneration, jsMessageBuilder.GetParts()))
 		} else {
 			jsMessageBuilder.SetId(meaningForIdGeneration)
 		}

@@ -625,7 +625,11 @@ func (t *TypeTransformation) evalRecordType(ttlAst rhino.Node, nameResolver *typ
 		}
 		recType := t.registry.BuildRecordTypeFromObject(objType)
 		if !recType.Equals(t.getObjectType()) {
-			recTypesBuilder = append(recTypesBuilder, jutil.CheckNotNull(recType.ToMaybeObjectType()))
+			recObj := recType.ToMaybeObjectType()
+			if recObj == nil {
+				panic(jutil.NewNullPointerException())
+			}
+			recTypesBuilder = append(recTypesBuilder, recObj)
 		}
 	}
 	return t.joinRecordTypes(recTypesBuilder)
@@ -639,10 +643,12 @@ func (t *TypeTransformation) putNewPropInPropertyMap(
 				props[i].typ = newPropValue
 				return props
 			}
-			pair := [2]rhino.ObjectType{
-				jutil.CheckNotNull(typeTransformation_castToObjectType(props[i].typ)),
-				jutil.CheckNotNull(typeTransformation_castToObjectType(newPropValue)),
+			firstObj := typeTransformation_castToObjectType(props[i].typ)
+			secondObj := typeTransformation_castToObjectType(newPropValue)
+			if firstObj == nil || secondObj == nil {
+				panic(jutil.NewNullPointerException())
 			}
+			pair := [2]rhino.ObjectType{firstObj, secondObj}
 			props[i].typ = t.joinRecordTypes(pair[:])
 			return props
 		}
@@ -810,7 +816,7 @@ func (t *TypeTransformation) evalTypeOfVar(ttlAst rhino.Node) rhino.JSType {
 func (t *TypeTransformation) evalInstanceOf(ttlAst rhino.Node, nameResolver *typeTransformation_NameResolver) rhino.JSType {
 	type_ := t.evalInternal(t.getCallArgument(ttlAst, 0), nameResolver)
 	if type_.IsUnknownType() || !type_.IsConstructor() {
-		t.reportWarning(ttlAst, TypeTransformation_INVALID_CTOR, jutil.ToJavaString(type_.GetDisplayName()))
+		t.reportWarning(ttlAst, TypeTransformation_INVALID_CTOR, stringPtrOrNull(type_.GetDisplayName()))
 		return t.getUnknownType()
 	}
 	return type_.ToMaybeFunctionType().GetInstanceType()

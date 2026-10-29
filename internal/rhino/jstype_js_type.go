@@ -254,10 +254,19 @@ type JSTypeBase struct {
 
 	// flags holds the rarely used booleans (jsTypeFlag*) and the 2-bit
 	// templateCheckResult (0 = unset, 1 = false, 2 = true).
-	flags    uint8
-	unknown  bool
-	objFlags uint8
+	flags      uint8
+	unknown    bool
+	objFlags   uint8
+	protoFlags uint8
 }
+
+const (
+	protoFlagNative         uint8 = 1 << 0
+	protoFlagAnonymous      uint8 = 1 << 1
+	protoFlagPrettyPrint    uint8 = 1 << 2
+	protoFlagRecordDeclared uint8 = 1 << 3
+	protoFlagRecordFrozen   uint8 = 1 << 4
+)
 
 const (
 	jsTypeFlagLoosenTypechecking      uint8 = 1 << 0 // loosenTypecheckingDueToForwardReferencedSupertype

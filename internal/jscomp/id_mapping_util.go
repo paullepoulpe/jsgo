@@ -19,8 +19,10 @@
 package jscomp
 
 import (
+	"fmt"
 	"io"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 )
@@ -31,6 +33,48 @@ type IdMappingUtil struct{}
 
 // Java: IdMappingUtil.NEW_LINE
 const IdMappingUtil_NEW_LINE uint16 = '\n'
+
+// IdMappingSection holds bidirectional key/value entries for a single id
+// generator section, preserving key insertion order.
+type IdMappingSection struct {
+	byKey   map[string]string
+	byValue map[string]string
+	keys    []string
+}
+
+func newIdMappingSection() *IdMappingSection {
+	return &IdMappingSection{
+		byKey:   make(map[string]string),
+		byValue: make(map[string]string),
+	}
+}
+
+func (s *IdMappingSection) Size() int           { return len(s.byKey) }
+func (s *IdMappingSection) IsEmpty() bool       { return len(s.byKey) == 0 }
+func (s *IdMappingSection) Get(k string) string { return s.byKey[k] }
+func (s *IdMappingSection) Keys() []string      { return s.keys }
+func (s *IdMappingSection) LookupByValue(v string) (string, bool) {
+	k, ok := s.byValue[v]
+	return k, ok
+}
+
+func (s *IdMappingSection) Put(k, v string) {
+	if oldVal, hasKey := s.byKey[k]; hasKey && oldVal == v {
+		return
+	}
+	if _, valExists := s.byValue[v]; valExists {
+		panic(jutil.NewIllegalArgumentExceptionMsg("value already present: " + v))
+	}
+	if oldVal, hasKey := s.byKey[k]; hasKey {
+		delete(s.byValue, oldVal)
+		s.byKey[k] = v
+		s.byValue[v] = k
+		return
+	}
+	s.keys = append(s.keys, k)
+	s.byKey[k] = v
+	s.byValue[v] = k
+}
 
 // IdMappingUtil_GenerateSerializedIdMappings returns the serialized map of
 // generators and their ids and their replacements.
@@ -60,9 +104,10 @@ func IdMappingUtil_GenerateSerializedIdMappings(idGeneratorMaps *jutil.LinkedHas
 // mapping sections and entries line by line.
 type IdMappingUtil_MappingReader struct {
 	reader         *jutil.BufferedReader
-	currentSection *string
-	currentKey     *string
-	currentValue   *string
+	currentSection string
+	currentKey     string
+	currentValue   string
+	isSection      bool
 	lineIndex      int
 }
 
@@ -82,46 +127,48 @@ func (mr *IdMappingUtil_MappingReader) Next() bool {
 		if line == "" {
 			continue
 		}
-		if jutil.StringCharAt(line, 0) == '[' {
-			section := jutil.StringSubstring(line, 1, jutil.StringLength(line)-1)
-			mr.currentSection = &section
-			mr.currentKey = nil
-			mr.currentValue = nil
-			return true
-		} else {
-			split := jutil.StringIndexOfChar(line, ':')
-			if split != -1 {
-				key := jutil.StringSubstring(line, 0, split)
-				value := jutil.StringSubstringFrom(line, split+1)
-				mr.currentKey = &key
-				mr.currentValue = &value
-				return true
-			} else {
-				panic(jutil.NewIllegalArgumentExceptionMsg(
-					jutil.StringFormat("Cannot parse id map.\n Line: %s, lineIndex: %d", line, mr.lineIndex)))
+		if line[0] == '[' {
+			end := len(line) - 1
+			if end >= 1 && line[end] >= 0x80 {
+				_, w := utf8.DecodeLastRuneInString(line)
+				end = len(line) - w
 			}
+			mr.currentSection = line[1:end]
+			mr.currentKey = ""
+			mr.currentValue = ""
+			mr.isSection = true
+			return true
 		}
+		split := strings.IndexByte(line, ':')
+		if split != -1 {
+			mr.currentKey = line[:split]
+			mr.currentValue = line[split+1:]
+			mr.isSection = false
+			return true
+		}
+		panic(jutil.NewIllegalArgumentExceptionMsg(
+			fmt.Sprintf("Cannot parse id map.\n Line: %s, lineIndex: %d", line, mr.lineIndex)))
 	}
 	return false
 }
 
 // Java: IdMappingUtil.MappingReader.isSection()
 func (mr *IdMappingUtil_MappingReader) IsSection() bool {
-	return mr.currentKey == nil
+	return mr.isSection
 }
 
 // Java: IdMappingUtil.MappingReader.getSection()
-func (mr *IdMappingUtil_MappingReader) GetSection() *string {
+func (mr *IdMappingUtil_MappingReader) GetSection() string {
 	return mr.currentSection
 }
 
 // Java: IdMappingUtil.MappingReader.getKey()
-func (mr *IdMappingUtil_MappingReader) GetKey() *string {
+func (mr *IdMappingUtil_MappingReader) GetKey() string {
 	return mr.currentKey
 }
 
 // Java: IdMappingUtil.MappingReader.getValue()
-func (mr *IdMappingUtil_MappingReader) GetValue() *string {
+func (mr *IdMappingUtil_MappingReader) GetValue() string {
 	return mr.currentValue
 }
 
@@ -143,58 +190,48 @@ func IdMappingUtil_ParseSectionAsStream(stream io.Reader, sectionFilter string) 
 			if inSection {
 				break // Next section found, stop
 			}
-			if *mr.GetSection() == sectionFilter {
+			if mr.GetSection() == sectionFilter {
 				inSection = true
 			}
 		} else if inSection {
-			mapBuilder.Put(*mr.GetKey(), *mr.GetValue())
+			mapBuilder.Put(mr.GetKey(), mr.GetValue())
 		}
 	}
 	return mapBuilder
 }
 
 // Java: IdMappingUtil.parseSerializedIdMappings(BufferedReader)
-func IdMappingUtil_ParseSerializedIdMappingsFromReader(br *jutil.BufferedReader) *jutil.LinkedHashMap[string, *jutil.BiMap[string, string]] {
-	resultMap := jutil.NewLinkedHashMap[string, *jutil.BiMap[string, string]]()
+func IdMappingUtil_ParseSerializedIdMappingsFromReader(br *jutil.BufferedReader) map[string]*IdMappingSection {
+	resultMap := make(map[string]*IdMappingSection)
 	mr := NewIdMappingUtil_MappingReader(br)
-	var currentSectionMap *jutil.BiMap[string, string]
-	sectionNames := make(map[string]struct{})
+	var currentSectionMap *IdMappingSection
 	for mr.Next() {
 		if mr.IsSection() {
-			sectionName := *mr.GetSection()
-			if _, dup := sectionNames[sectionName]; dup {
+			sectionName := mr.GetSection()
+			if _, dup := resultMap[sectionName]; dup {
 				panic(jutil.NewIllegalArgumentExceptionMsg(
-					jutil.StringFormat(
+					fmt.Sprintf(
 						"Cannot parse id map: Duplicate section %s\n lineIndex: %d",
 						sectionName, mr.GetLineIndex())))
 			}
-			sectionNames[sectionName] = struct{}{}
-			currentSectionMap = jutil.HashBiMap_Create[string, string]()
-			resultMap.Put(sectionName, currentSectionMap)
+			currentSectionMap = newIdMappingSection()
+			resultMap[sectionName] = currentSectionMap
 		} else {
 			if currentSectionMap == nil {
 				panic(jutil.NewIllegalArgumentExceptionMsg("Mapping entry outside of section"))
 			}
-			currentSectionMap.Put(*mr.GetKey(), *mr.GetValue()) // throws if duplicate values
+			currentSectionMap.Put(mr.GetKey(), mr.GetValue()) // throws if duplicate values
 		}
 	}
 	return resultMap
 }
 
 // Java: IdMappingUtil.parseSerializedIdMappings(String)
-func IdMappingUtil_ParseSerializedIdMappings(idMappings *string) *jutil.LinkedHashMap[string, *jutil.BiMap[string, string]] {
+func IdMappingUtil_ParseSerializedIdMappings(idMappings *string) map[string]*IdMappingSection {
 	if idMappings == nil || *idMappings == "" {
-		return jutil.NewLinkedHashMap[string, *jutil.BiMap[string, string]]()
+		return make(map[string]*IdMappingSection)
 	}
-	var result *jutil.LinkedHashMap[string, *jutil.BiMap[string, string]]
-	jutil.Try(func() {
-		br := jutil.NewBufferedReaderFromString(*idMappings)
-		defer br.Close()
-		result = IdMappingUtil_ParseSerializedIdMappingsFromReader(br)
-	}, func(e jutil.IIOException) {
-		ex := &jutil.IllegalArgumentException{}
-		jutil.InitThrowable(ex, "java.lang.IllegalArgumentException", jutil.StringPtr("Failed to parse id mappings"), e)
-		panic(ex)
-	})
-	return result
+	br := jutil.NewBufferedReaderFromString(*idMappings)
+	defer br.Close()
+	return IdMappingUtil_ParseSerializedIdMappingsFromReader(br)
 }

@@ -36,6 +36,9 @@
 package rhino
 
 import (
+	"math/bits"
+	"slices"
+
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 )
 
@@ -55,74 +58,38 @@ type TemplateTypeMap struct {
 	// TemplateTypeMap instance. These fully-resolved values are necessary for
 	// determining the equivalence of two TemplateTypeMap instances.
 	resolvedTemplateValues []JSType
-	// A positive boolean indicates that the corresponding key is the start of
-	// a new submap, which corresponds to separate individual ObjectTypes with
-	// their own keys.
-	//
-	// For example, consider:
-	//
-	//	class Foo<T> {}
-	//	class Bar<U, V, X> extends Foo<U | V> {}
-	//	class Baz<Y> extends Bar<Y, number, string> {}
-	//
-	// The TemplateTypeMap for Baz will have:
-	//
-	//	templateKeys:   [  T, U,      V,      X, Y]
-	//	templateValues: [U|V, Y, number, string, ?]
-	//	subMapStarts:   [  1, 1,      0,      0, 1]
-	//
-	// (resolvedTemplateValues would be all ? at the start) We would say there
-	// are three "submaps" in the Baz TemplateMap:
-	//
-	//  1. [T -> U], for Foo
-	//  2. [U -> Y, V -> number, X -> string] for Bar
-	//  3. [Y -> ?] for Baz
-	//
-	// In theory, we could model this with having multiple arrays of keys and
-	// values - a single submap would have pointers to the parent maps for its
-	// extended/implemented types, and those could further extend other types.
-	// But in practice, it has historically seemed more useful to view these as
-	// a single template key/value list pair.
-	//
-	// A TemplateType key may only be referenced by a template value if the
-	// key is either 1. to the "right" of the value, i.e. at an index greater
-	// than or equal to the value 2. in the same submap as the value.
-	//
-	// For example, given class Parent<T> {} and class Child<U> extends
-	// Parent<(whatever is here)> {} the TemplateTypeMap for Child can never
-	// look like: templateKeys: [T, U] templateValues: [?, T] There's no way for
-	// the templateValue of U to depend on T. It's not in scope. Of course,
-	// it's fine for T to depend on U, if e.g. Child<U> extends Parent<U> {}
-	//
-	// Note: this map is only read during 1) construction and 2) this.copy*
-	// methods.
+	registry               *JSTypeRegistry
+	// Overflow bitset used only when len(templateKeys) > 64 (or when an external
+	// caller passes a BitSet with bits >= 64). Nil in the common <= 64 key case.
 	subMapStarts *jutil.BitSet
-	registry     *JSTypeRegistry
+	// Inline 64-bit submap-start bitset for maps with <= 64 template keys.
+	subMapStartsBits uint64
 }
 
 var emptyJSTypeSlice = []JSType{}
 var emptyTemplateTypeSlice = []*TemplateType{}
-
-var sharedSubMapStartsEmpty = jutil.NewBitSetWithSize(64)
-
-var sharedSubMapStartsZero = func() *jutil.BitSet {
-	b := jutil.NewBitSetWithSize(64)
-	b.Set(0)
-	return b
-}()
-
-// newTemplateTypeMapBitSet is new BitSet().
-func newTemplateTypeMapBitSet() *jutil.BitSet {
-	// Java: new BitSet() reserves 64 bits.
-	return jutil.NewBitSetWithSize(64)
-}
 
 // Java: TemplateTypeMap.createEmpty(JSTypeRegistry)
 func TemplateTypeMap_CreateEmpty(registry *JSTypeRegistry) *TemplateTypeMap {
 	// This method should only be called during registry initialization.
 	jutil.CheckArgument(registry.GetEmptyTemplateTypeMap() == nil)
 
-	return NewTemplateTypeMap(registry, emptyTemplateTypeSlice, emptyJSTypeSlice, sharedSubMapStartsEmpty)
+	return initTemplateTypeMap(&TemplateTypeMap{}, registry, emptyTemplateTypeSlice, emptyJSTypeSlice, 0, nil)
+}
+
+func bitSetToInline(bs *jutil.BitSet, nKeys int) (uint64, *jutil.BitSet) {
+	jutil.CheckArgument(nKeys <= bs.Size())
+	if bs.Length() <= 64 && nKeys <= 64 {
+		var mask uint64
+		limit := bs.Length()
+		for i := 0; i < limit; i++ {
+			if bs.Get(i) {
+				mask |= uint64(1) << uint(i)
+			}
+		}
+		return mask, nil
+	}
+	return 0, bs
 }
 
 // Java: TemplateTypeMap(JSTypeRegistry, ImmutableList<TemplateType>, ImmutableList<JSType>, BitSet)
@@ -131,7 +98,10 @@ func NewTemplateTypeMap(
 	templateKeys []*TemplateType,
 	templateValues []JSType,
 	subMapStarts *jutil.BitSet) *TemplateTypeMap {
-	return initTemplateTypeMap(&TemplateTypeMap{}, registry, templateKeys, templateValues, subMapStarts)
+	jutil.CheckNotNull(templateKeys)
+	jutil.CheckNotNull(templateValues)
+	bits64, overflow := bitSetToInline(subMapStarts, len(templateKeys))
+	return initTemplateTypeMap(&TemplateTypeMap{}, registry, templateKeys, templateValues, bits64, overflow)
 }
 
 func initTemplateTypeMap(
@@ -139,15 +109,21 @@ func initTemplateTypeMap(
 	registry *JSTypeRegistry,
 	templateKeys []*TemplateType,
 	templateValues []JSType,
+	subMapStartsBits uint64,
 	subMapStarts *jutil.BitSet) *TemplateTypeMap {
 	jutil.CheckNotNull(templateKeys)
 	jutil.CheckNotNull(templateValues)
 	jutil.CheckArgument(len(templateValues) <= len(templateKeys))
-	jutil.CheckArgument(len(templateKeys) <= subMapStarts.Size())
+	if subMapStarts != nil {
+		jutil.CheckArgument(len(templateKeys) <= subMapStarts.Size())
+	} else {
+		jutil.CheckArgument(len(templateKeys) <= 64)
+	}
 
 	m.registry = registry
 	m.templateKeys = templateKeys
 	m.templateValues = templateValues
+	m.subMapStartsBits = subMapStartsBits
 	m.subMapStarts = subMapStarts
 
 	nValues := len(m.templateValues)
@@ -268,13 +244,37 @@ func resolveSimpleTemplateValue(t JSType, registry *JSTypeRegistry) (JSType, boo
 	}
 }
 
+func (m *TemplateTypeMap) subMapStartAt(i int) bool {
+	if m.subMapStarts != nil {
+		return m.subMapStarts.Get(i)
+	}
+	if uint(i) >= 64 {
+		return false
+	}
+	return (m.subMapStartsBits & (uint64(1) << uint(i))) != 0
+}
+
 // NextSubMapStart returns the index of the next submap in subMapStarts,
 // starting at index (inclusive); will return subMapStarts.length if there is
 // no next submap & we are in the last one.
 //
 // Java: TemplateTypeMap.nextSubMapStart(int)
 func (m *TemplateTypeMap) NextSubMapStart(index int) int {
-	for index < len(m.templateKeys) && !m.subMapStarts.Get(index) {
+	n := len(m.templateKeys)
+	if index >= n {
+		return index
+	}
+	if m.subMapStarts == nil && index >= 0 {
+		if index >= 64 {
+			return n
+		}
+		masked := m.subMapStartsBits >> uint(index)
+		if masked == 0 {
+			return n
+		}
+		return min(index+bits.TrailingZeros64(masked), n)
+	}
+	for index < n && !m.subMapStarts.Get(index) {
 		index++
 	}
 	return index
@@ -352,7 +352,7 @@ func (m *TemplateTypeMap) CopyFilledWithValues(values []JSType) *TemplateTypeMap
 		idx++
 	}
 
-	res := initTemplateTypeMap(out, m.registry, m.templateKeys, extendedValues, m.subMapStarts)
+	res := initTemplateTypeMap(out, m.registry, m.templateKeys, extendedValues, m.subMapStartsBits, m.subMapStarts)
 	if canCache && !m.registry.parallelReadOnly {
 		if m.registry.templateTypeMapCache == nil {
 			m.registry.templateTypeMapCache = new([jsTypeRegistryTemplatizedCacheSize]templateTypeMapCacheEntry)
@@ -367,19 +367,6 @@ func (m *TemplateTypeMap) CopyFilledWithValues(values []JSType) *TemplateTypeMap
 	return res
 }
 
-// templateTypeMapCopyOfTypes is ImmutableList.copyOf(list), which rejects
-// null elements.
-func templateTypeMapCopyOfTypes(list []JSType) []JSType {
-	out := make([]JSType, len(list))
-	for i, e := range list {
-		if e == nil {
-			panic(jutil.NewNullPointerExceptionMsg("at index " + jutil.ToJavaString(i)))
-		}
-		out[i] = e
-	}
-	return out
-}
-
 // CopyWithExtension creates a new map in which the keys and values have been
 // extended by extension.
 //
@@ -388,8 +375,8 @@ func templateTypeMapCopyOfTypes(list []JSType) []JSType {
 //
 // Java: TemplateTypeMap.copyWithExtension(TemplateTypeMap)
 func (m *TemplateTypeMap) CopyWithExtension(extension *TemplateTypeMap) *TemplateTypeMap {
-	return m.CopyWithExtensionOfKeysWithSubMapStarts(
-		extension.templateKeys, extension.templateValues, extension.subMapStarts)
+	return m.copyWithExtensionInternal(
+		extension.templateKeys, extension.templateValues, extension.subMapStartsBits, extension.subMapStarts)
 }
 
 // CopyWithExtensionOfKeys creates a new map in which the keys and values
@@ -404,15 +391,15 @@ func (m *TemplateTypeMap) CopyWithExtensionOfKeys(keys []*TemplateType, values [
 		if len(values) == 0 && m.NumUnfilledTemplateKeys() == 0 {
 			return m
 		}
-		return m.CopyWithExtensionOfKeysWithSubMapStarts(keys, values, sharedSubMapStartsEmpty)
+		return m.copyWithExtensionInternal(keys, values, 0, nil)
 	}
 	if len(keys) <= 64 {
-		return m.CopyWithExtensionOfKeysWithSubMapStarts(keys, values, sharedSubMapStartsZero)
+		return m.copyWithExtensionInternal(keys, values, 1, nil)
 	}
 	var subMapStarts jutil.BitSet
 	subMapStarts.InitWithSize(len(keys))
 	subMapStarts.Set(0)
-	return m.CopyWithExtensionOfKeysWithSubMapStarts(keys, values, &subMapStarts)
+	return m.copyWithExtensionInternal(keys, values, 0, &subMapStarts)
 }
 
 // CopyWithExtensionOfKeysWithSubMapStarts creates a new map in which the
@@ -424,6 +411,21 @@ func (m *TemplateTypeMap) CopyWithExtensionOfKeys(keys []*TemplateType, values [
 // Java: TemplateTypeMap.copyWithExtension(ImmutableList<TemplateType>, ImmutableList<JSType>, BitSet)
 func (m *TemplateTypeMap) CopyWithExtensionOfKeysWithSubMapStarts(
 	keys []*TemplateType, values []JSType, newsubMapStarts *jutil.BitSet) *TemplateTypeMap {
+	if newsubMapStarts.Length() <= 64 && len(keys) <= 64 {
+		var mask uint64
+		limit := newsubMapStarts.Length()
+		for i := 0; i < limit; i++ {
+			if newsubMapStarts.Get(i) {
+				mask |= uint64(1) << uint(i)
+			}
+		}
+		return m.copyWithExtensionInternal(keys, values, mask, nil)
+	}
+	return m.copyWithExtensionInternal(keys, values, 0, newsubMapStarts)
+}
+
+func (m *TemplateTypeMap) copyWithExtensionInternal(
+	keys []*TemplateType, values []JSType, newBits uint64, newOverflow *jutil.BitSet) *TemplateTypeMap {
 	extendedUnfilledCount := len(keys) - len(values)
 	jutil.CheckArgumentMsg1(extendedUnfilledCount >= 0, "%s", extendedUnfilledCount)
 
@@ -474,21 +476,40 @@ func (m *TemplateTypeMap) CopyWithExtensionOfKeysWithSubMapStarts(
 		idx++
 	}
 
-	var extendedsubMapStarts *jutil.BitSet
-	if nOldKeys == 0 && newsubMapStarts == sharedSubMapStartsZero {
-		extendedsubMapStarts = sharedSubMapStartsZero
-	} else if nNewKeys == 0 {
-		extendedsubMapStarts = m.subMapStarts
-	} else {
-		extendedsubMapStarts = jutil.NewBitSetWithSize(nNewKeys + nOldKeys)
-		extendedsubMapStarts.Or(m.subMapStarts)
-		for i := 0; i < nNewKeys; i++ {
-			extendedsubMapStarts.SetTo(i+nOldKeys, newsubMapStarts.Get(i))
+	if nNewKeys == 0 {
+		return initTemplateTypeMap(out, m.registry, extendedKeys, extendedValues, m.subMapStartsBits, m.subMapStarts)
+	}
+	if nOldKeys+nNewKeys <= 64 && m.subMapStarts == nil && newOverflow == nil {
+		var mask uint64
+		if nOldKeys > 0 {
+			mask = m.subMapStartsBits & ((uint64(1) << uint(nOldKeys)) - 1)
 		}
+		var extMask uint64
+		if nNewKeys == 64 {
+			extMask = newBits
+		} else {
+			extMask = (newBits & ((uint64(1) << uint(nNewKeys)) - 1)) << uint(nOldKeys)
+		}
+		return initTemplateTypeMap(out, m.registry, extendedKeys, extendedValues, mask|extMask, nil)
 	}
 
-	return initTemplateTypeMap(
-		out, m.registry, extendedKeys, extendedValues, extendedsubMapStarts)
+	extendedsubMapStarts := jutil.NewBitSetWithSize(nNewKeys + nOldKeys)
+	for i := 0; i < nOldKeys; i++ {
+		if m.subMapStartAt(i) {
+			extendedsubMapStarts.Set(i)
+		}
+	}
+	for i := 0; i < nNewKeys; i++ {
+		var bit bool
+		if newOverflow != nil {
+			bit = newOverflow.Get(i)
+		} else if i < 64 {
+			bit = (newBits & (uint64(1) << uint(i))) != 0
+		}
+		extendedsubMapStarts.SetTo(i+nOldKeys, bit)
+	}
+
+	return initTemplateTypeMap(out, m.registry, extendedKeys, extendedValues, 0, extendedsubMapStarts)
 }
 
 // CopyWithoutKeys creates a new map in which keys contained in removals are
@@ -498,33 +519,71 @@ func (m *TemplateTypeMap) CopyWithExtensionOfKeysWithSubMapStarts(
 //
 // Java: TemplateTypeMap.copyWithoutKeys(Set<TemplateType>)
 func (m *TemplateTypeMap) CopyWithoutKeys(removals *jutil.LinkedHashSet[*TemplateType]) *TemplateTypeMap {
+	if removals == nil || removals.IsEmpty() {
+		return m
+	}
+	return m.copyWithoutKeysWhere(removals.Contains)
+}
+
+func (m *TemplateTypeMap) copyWithoutKeySlice(removals []*TemplateType) *TemplateTypeMap {
+	if len(removals) == 0 {
+		return m
+	}
+	return m.copyWithoutKeysWhere(func(t *TemplateType) bool {
+		return slices.Contains(removals, t)
+	})
+}
+
+func (m *TemplateTypeMap) copyWithoutKeysWhere(contains func(*TemplateType) bool) *TemplateTypeMap {
 	hasRemovals := false
-	if removals.Size() > 0 {
-		for i := len(m.templateValues); i < len(m.templateKeys); i++ {
-			if removals.Contains(m.templateKeys[i]) {
-				hasRemovals = true
-				break
-			}
+	for i := len(m.templateValues); i < len(m.templateKeys); i++ {
+		if contains(m.templateKeys[i]) {
+			hasRemovals = true
+			break
 		}
 	}
 	if !hasRemovals {
 		return m // Nothing will change.
 	}
 
-	keys := make([]*TemplateType, len(m.templateValues), len(m.templateKeys)-1)
-	copy(keys, m.templateKeys[:len(m.templateValues)])
-	newsubMapStarts := newTemplateTypeMapBitSet()
-	for i := 0; i < len(m.templateValues); i++ {
-		newsubMapStarts.SetTo(i, m.subMapStarts.Get(i))
+	nFilled := len(m.templateValues)
+	keys := make([]*TemplateType, nFilled, len(m.templateKeys)-1)
+	copy(keys, m.templateKeys[:nFilled])
+
+	if len(m.templateKeys) <= 64 && m.subMapStarts == nil {
+		var newBits uint64
+		if nFilled > 0 {
+			newBits = m.subMapStartsBits & ((uint64(1) << uint(nFilled)) - 1)
+		}
+		newKeysSize := 0
+		inNewSubmap := false
+		for i := nFilled; i < len(m.templateKeys); i++ {
+			key := m.templateKeys[i]
+			inNewSubmap = inNewSubmap || ((m.subMapStartsBits & (uint64(1) << uint(i))) != 0)
+			if !contains(key) {
+				keys = append(keys, key)
+				if inNewSubmap {
+					newBits |= uint64(1) << uint(nFilled+newKeysSize)
+				}
+				newKeysSize++
+				inNewSubmap = false
+			}
+		}
+		return initTemplateTypeMap(&TemplateTypeMap{}, m.registry, keys, m.templateValues, newBits, nil)
+	}
+
+	newsubMapStarts := jutil.NewBitSetWithSize(max(64, len(m.templateKeys)))
+	for i := 0; i < nFilled; i++ {
+		newsubMapStarts.SetTo(i, m.subMapStartAt(i))
 	}
 	newKeysSize := 0
 	inNewSubmap := false
-	for i := len(m.templateValues); i < len(m.templateKeys); i++ {
+	for i := nFilled; i < len(m.templateKeys); i++ {
 		key := m.templateKeys[i]
-		inNewSubmap = inNewSubmap || m.subMapStarts.Get(i)
-		if !removals.Contains(key) {
+		inNewSubmap = inNewSubmap || m.subMapStartAt(i)
+		if !contains(key) {
 			keys = append(keys, key)
-			newsubMapStarts.SetTo(len(m.templateValues)+newKeysSize, inNewSubmap)
+			newsubMapStarts.SetTo(nFilled+newKeysSize, inNewSubmap)
 			newKeysSize++
 			inNewSubmap = false
 		}
@@ -573,13 +632,6 @@ func (m *TemplateTypeMap) HasTemplateKey(templateKey *TemplateType) bool {
 // defined on a type earlier in the supertype chain.
 //
 // For use in TemplateTypeReplacer.
-//
-// The "nextSubMap" parameter tells this method to only consider template
-// keys in the range [nextSubMap, templateKeys.size()). This is used in the
-// TemplateTypeMap constructor to avoid "leaking" sibling generic types from
-// the same sub map. It is /not/ used in TypeInference when further
-// specializing templates. (See the Java source for the long worked example
-// of why this matters.)
 //
 // Java: TemplateTypeMap.hasTemplateKey(TemplateType, int)
 func (m *TemplateTypeMap) HasTemplateKeyFrom(templateKey *TemplateType, nextSubMap int) bool {
@@ -649,7 +701,7 @@ func (m *TemplateTypeMap) GetLastTemplateTypeKeyByName(keyName string) *Template
 	size := len(m.templateKeys)
 	for i := size - 1; i >= 0; i-- {
 		key := m.templateKeys[i]
-		if *key.GetReferenceName() == keyName {
+		if key.name == keyName {
 			return key
 		}
 	}
@@ -734,6 +786,14 @@ func (m *TemplateTypeMap) DefaultValueType(type_ *TemplateType) JSType {
 // Java: TemplateTypeMap.getIndicesOfSubmapsForTesting()
 func (m *TemplateTypeMap) GetIndicesOfSubmapsForTesting() []int {
 	indices := []int{}
+	if m.subMapStarts == nil {
+		for b := m.subMapStartsBits; b != 0; {
+			tz := bits.TrailingZeros64(b)
+			indices = append(indices, tz)
+			b &= b - 1
+		}
+		return indices
+	}
 	for i := 0; i < m.subMapStarts.Length(); i++ {
 		if m.subMapStarts.Get(i) {
 			indices = append(indices, i)

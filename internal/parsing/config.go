@@ -192,7 +192,11 @@ func Config_LanguageMode_MinimumRequiredForSet(featureSet *parser.FeatureSet) Co
 			return mode
 		}
 	}
-	panic(jutil.NewIllegalStateExceptionMsg("No input language mode supports feature set: " + jutil.ToJavaString(featureSet)))
+	fsStr := "null"
+	if featureSet != nil {
+		fsStr = featureSet.String()
+	}
+	panic(jutil.NewIllegalStateExceptionMsg("No input language mode supports feature set: " + fsStr))
 }
 
 // Java: Config.LanguageMode.latestEcmaScript()

@@ -101,7 +101,7 @@ func (r *JSTypeRegistry) InitializeBuiltInTypes() {
 	// access to it.
 	functionPrototype := NewPrototypeObjectType(&PrototypeObjectType_Builder{
 		registry:        r,
-		className:       jutil.StringPtr("Function.prototype"),
+		classNameID:     rhinoStringPoolIntern("Function.prototype"),
 		nativeType:      true,
 		templateTypeMap: r.GetEmptyTemplateTypeMap(),
 	})
@@ -114,7 +114,7 @@ func (r *JSTypeRegistry) InitializeBuiltInTypes() {
 	// other type.
 	functionInstancePrototype := NewPrototypeObjectType(&PrototypeObjectType_Builder{
 		registry:        r,
-		className:       jutil.StringPtr("?.prototype"),
+		classNameID:     rhinoStringPoolIntern("?.prototype"),
 		nativeType:      true,
 		templateTypeMap: r.GetEmptyTemplateTypeMap(),
 	})
@@ -125,7 +125,7 @@ func (r *JSTypeRegistry) InitializeBuiltInTypes() {
 	// The default implicit prototype of all `FunctionType`s is
 	// `functionPrototype`.
 	functionType := FunctionType_Builder_(r).
-		WithName(jutil.StringPtr("Function")).
+		WithNameString("Function").
 		ForConstructor().
 		ForNativeType().
 		WithParametersOfList(r.CreateParametersWithVarArgs(unknownType)).
@@ -140,7 +140,7 @@ func (r *JSTypeRegistry) InitializeBuiltInTypes() {
 	// The default implict prototype of all `FunctionType`s is
 	// `functionPrototype`.
 	functionFunctionType := FunctionType_Builder_(r).
-		WithName(jutil.StringPtr("Function")).
+		WithNameString("Function").
 		ForConstructor().
 		ForNativeType().
 		WithParametersOfList(r.CreateParametersWithVarArgs(allType)).
@@ -153,7 +153,7 @@ func (r *JSTypeRegistry) InitializeBuiltInTypes() {
 	// `Object.prototype`
 	objectPrototype := NewPrototypeObjectType(&PrototypeObjectType_Builder{
 		registry:        r,
-		className:       jutil.StringPtr("Object.prototype"),
+		classNameID:     rhinoStringPoolIntern("Object.prototype"),
 		nativeType:      true,
 		templateTypeMap: r.GetEmptyTemplateTypeMap(),
 	})
@@ -705,12 +705,12 @@ func (r *JSTypeRegistry) InitializeRegistry() {
 
 // Java: JSTypeRegistry.nativeConstructorBuilder(String)
 func (r *JSTypeRegistry) NativeConstructorBuilder(name string) *FunctionType_Builder {
-	return FunctionType_Builder_(r).ForNativeType().ForConstructor().WithName(&name)
+	return FunctionType_Builder_(r).ForNativeType().ForConstructor().WithNameString(name)
 }
 
 // Java: JSTypeRegistry.nativeInterface(String, TemplateType...)
 func (r *JSTypeRegistry) NativeInterface(name string, templateKeys ...*TemplateType) FunctionType {
-	builder := FunctionType_Builder_(r).ForNativeType().ForInterface().WithName(&name)
+	builder := FunctionType_Builder_(r).ForNativeType().ForInterface().WithNameString(name)
 	if len(templateKeys) > 0 {
 		builder.WithTemplateKeys(templateKeys...)
 	}

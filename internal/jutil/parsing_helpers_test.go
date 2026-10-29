@@ -110,25 +110,6 @@ func sortJavaStrings(s []string) {
 	}
 }
 
-func TestMissingResourceException(t *testing.T) {
-	var caught IMissingResourceException
-	Try(func() {
-		panic(NewMissingResourceException("Can't find resource", "B", "k"))
-	}, func(e IMissingResourceException) { caught = e })
-	if caught == nil {
-		t.Fatal("not caught")
-	}
-	e := caught.(*MissingResourceException)
-	if e.Error() != "java.util.MissingResourceException: Can't find resource" || e.GetKey() != "k" || e.GetClassName() != "B" {
-		t.Errorf("got %q %q %q", e.Error(), e.GetKey(), e.GetClassName())
-	}
-	var asRuntime IRuntimeException
-	Try(func() { panic(NewMissingResourceException("m", "B", "k")) }, func(e IRuntimeException) { asRuntime = e })
-	if asRuntime == nil {
-		t.Error("MissingResourceException is not a RuntimeException")
-	}
-}
-
 func TestCharMatcherWhitespace(t *testing.T) {
 	want := map[uint16]bool{}
 	for _, u := range StringToUTF16(charMatcherWhitespaceTable) {

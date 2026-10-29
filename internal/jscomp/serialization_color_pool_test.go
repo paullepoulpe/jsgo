@@ -214,7 +214,8 @@ func TestColorPool_Uuid_mustBeSet(t *testing.T) {
 }
 
 func TestColorPool_Uuid_mustNotBeAxiomatic(t *testing.T) {
-	for id := range colors.StandardColors_AXIOMATIC_COLORS.Keys() {
+	for _, c := range TypePointers_OFFSET_TO_AXIOMATIC_COLOR {
+		id := c.GetId()
 		// Given
 		typePool := jsaSingleObjectPool(ObjectTypeProto_NewBuilder().SetUuid(id.AsByteString()))
 		// When & Then

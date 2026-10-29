@@ -33,15 +33,10 @@ import (
 type CheckRequiresSorted struct {
 	mode CheckRequiresSorted_Mode
 
-	// Maps each namespace into the existing import statements for that namespace.
-	// Use an ArrayListMultimap so that values for a key are iterated in a deterministic order.
-	//
-	// Go-only: language-adapter — ArrayListMultimap.create(): a map from each
-	// key to the list of its values in insertion order. Java's keys iterate in
-	// java.util.HashMap order; here they iterate in insertion order. The only
-	// iteration (canonicalizeImports) is followed by a sort on the formatted
-	// text, which contains the namespace, so the key order is not observable.
-	importsByNamespace *jutil.LinkedHashMap[string, []*CheckRequiresSorted_ImportStatement]
+	// Maps each namespace into the existing import statements for that namespace,
+	// accompanied by namespaceOrder for deterministic iteration order.
+	importsByNamespace map[string][]*CheckRequiresSorted_ImportStatement
+	namespaceOrder     []string
 
 	// The import statements in the order they appear.
 	originalImports []*CheckRequiresSorted_ImportStatement
@@ -51,8 +46,9 @@ type CheckRequiresSorted struct {
 	lastNode  rhino.Node
 	finished  bool
 
-	needsFix    bool
-	replacement *string
+	needsFix       bool
+	hasReplacement bool
+	replacement    string
 }
 
 var CheckRequiresSorted_REQUIRES_NOT_SORTED = DiagnosticType_Warning(
@@ -124,12 +120,16 @@ func (p CheckRequiresSorted_ImportPrimitive) Ordinal() int { return int(p) }
 //
 // Java: CheckRequiresSorted.ImportPrimitive.fromName(String)
 func CheckRequiresSorted_ImportPrimitive_FromName(name string) CheckRequiresSorted_ImportPrimitive {
-	for _, primitive := range CheckRequiresSorted_ImportPrimitive_values() {
-		if checkRequiresSorted_ImportPrimitive_name[primitive] == name {
-			return primitive
-		}
+	switch name {
+	case "goog.require":
+		return CheckRequiresSorted_ImportPrimitive_REQUIRE
+	case "goog.requireType":
+		return CheckRequiresSorted_ImportPrimitive_REQUIRE_TYPE
+	case "goog.forwardDeclare":
+		return CheckRequiresSorted_ImportPrimitive_FORWARD_DECLARE
+	default:
+		panic(jutil.NewIllegalArgumentExceptionMsg("Invalid primitive name " + name))
 	}
-	panic(jutil.NewIllegalArgumentExceptionMsg("Invalid primitive name " + name))
 }
 
 var CheckRequiresSorted_ImportPrimitive_WEAKEST = CheckRequiresSorted_ImportPrimitive_FORWARD_DECLARE
@@ -142,7 +142,7 @@ var CheckRequiresSorted_ImportPrimitive_WEAKEST = CheckRequiresSorted_ImportPrim
 //
 // Java: CheckRequiresSorted.ImportPrimitive.stronger(ImportPrimitive, ImportPrimitive)
 func CheckRequiresSorted_ImportPrimitive_Stronger(p1 CheckRequiresSorted_ImportPrimitive, p2 CheckRequiresSorted_ImportPrimitive) CheckRequiresSorted_ImportPrimitive {
-	if p1.Ordinal() < p2.Ordinal() {
+	if p1 < p2 {
 		return p1
 	}
 	return p2
@@ -172,8 +172,6 @@ type CheckRequiresSorted_DestructuringBinding struct {
 // Java: CheckRequiresSorted.DestructuringBinding(String, String, boolean)
 func newCheckRequiresSorted_DestructuringBinding(
 	exportedName string, localName string, isShorthandProperty bool) *CheckRequiresSorted_DestructuringBinding {
-	// Go-only: language-adapter — requireNonNull(exportedName/localName): Go
-	// strings cannot be null.
 	jutil.CheckArgument(!isShorthandProperty || exportedName == localName)
 	return &CheckRequiresSorted_DestructuringBinding{
 		exportedName:        exportedName,
@@ -203,14 +201,13 @@ func (b *CheckRequiresSorted_DestructuringBinding) IsShorthandProperty() bool {
 //
 // Java: CheckRequiresSorted.DestructuringBinding.compareTo(DestructuringBinding)
 func (b *CheckRequiresSorted_DestructuringBinding) CompareTo(other *CheckRequiresSorted_DestructuringBinding) int {
-	// ComparisonChain.start().compare(exportedName).compare(localName).result()
-	if c := jutil.StringCompareTo(b.ExportedName(), other.ExportedName()); c != 0 {
+	if c := jutil.StringCompareTo(b.exportedName, other.exportedName); c != 0 {
 		if c < 0 {
 			return -1
 		}
 		return 1
 	}
-	if c := jutil.StringCompareTo(b.LocalName(), other.LocalName()); c != 0 {
+	if c := jutil.StringCompareTo(b.localName, other.localName); c != 0 {
 		if c < 0 {
 			return -1
 		}
@@ -219,7 +216,7 @@ func (b *CheckRequiresSorted_DestructuringBinding) CompareTo(other *CheckRequire
 	return 0
 }
 
-// IsCanonical returns true if the destructuring binding is not canonical.
+// IsCanonical returns true if the destructuring binding is canonical.
 //
 // For example:
 //   - `{Foo}` is canonical
@@ -228,7 +225,7 @@ func (b *CheckRequiresSorted_DestructuringBinding) CompareTo(other *CheckRequire
 //
 // Java: CheckRequiresSorted.DestructuringBinding.isCanonical()
 func (b *CheckRequiresSorted_DestructuringBinding) IsCanonical() bool {
-	return b.ExportedName() != b.LocalName() || b.IsShorthandProperty()
+	return b.exportedName != b.localName || b.isShorthandProperty
 }
 
 // CanonicalizeShorthandProperties canonicalizes the destructuring to a
@@ -242,13 +239,12 @@ func (b *CheckRequiresSorted_DestructuringBinding) CanonicalizeShorthandProperti
 		return b
 	}
 	return CheckRequiresSorted_DestructuringBinding_Of(
-		b.ExportedName(), b.LocalName() /* isShorthandProperty= */, true)
+		b.exportedName, b.localName /* isShorthandProperty= */, true)
 }
 
 // Equals is the record's component-wise equals.
-func (b *CheckRequiresSorted_DestructuringBinding) Equals(o any) bool {
-	other, ok := o.(*CheckRequiresSorted_DestructuringBinding)
-	if !ok || other == nil {
+func (b *CheckRequiresSorted_DestructuringBinding) Equals(other *CheckRequiresSorted_DestructuringBinding) bool {
+	if other == nil {
 		return false
 	}
 	return b.exportedName == other.exportedName &&
@@ -259,28 +255,14 @@ func (b *CheckRequiresSorted_DestructuringBinding) Equals(o any) bool {
 // CheckRequiresSorted_ImportStatement is an import statement, which may have
 // been merged from several import statements for the same namespace in the
 // original code.
-//
-// An import statement has exactly one of three shapes:
-//
-//   - Standalone: has no LHS, as in `goog.require('namespace')`.
-//   - Aliasing: has an LHS with an alias, as in `const alias =
-//     goog.require('namespace')`.
-//   - Destructuring: has an LHS with a destructuring pattern, as in `const
-//     {name: localName} = goog.require('namespace')`.
-//
-// nodes: the nodes this import statement was merged from, in source order.
-// primitive: the import primitive being called. namespace: the namespace
-// being imported. alias: the alias for an aliasing import (when hasAlias is
-// true). destructures: the destructures for a destructuring import in source
-// order, or nil if the import isn't destructuring. If the import is
-// destructuring but the pattern is empty, the value is non-nil but empty.
 type CheckRequiresSorted_ImportStatement struct {
-	nodes        []rhino.Node
-	namespace    string
-	alias        string
-	destructures []*CheckRequiresSorted_DestructuringBinding
-	primitive    CheckRequiresSorted_ImportPrimitive
-	hasAlias     bool
+	nodes               []rhino.Node
+	namespace           string
+	alias               string
+	formattedWithoutDoc string
+	destructures        []*CheckRequiresSorted_DestructuringBinding
+	primitive           CheckRequiresSorted_ImportPrimitive
+	hasAlias            bool
 }
 
 // newCheckRequiresSorted_ImportStatement is the record's canonical
@@ -346,7 +328,7 @@ func (s *CheckRequiresSorted_ImportStatement) Destructures() []*CheckRequiresSor
 //
 // Java: CheckRequiresSorted.ImportStatement.isStandalone()
 func (s *CheckRequiresSorted_ImportStatement) IsStandalone() bool {
-	return !s.IsAliasing() && !s.IsDestructuring()
+	return !s.hasAlias && s.destructures == nil
 }
 
 // IsAliasing returns whether the import is aliasing.
@@ -368,7 +350,7 @@ func (s *CheckRequiresSorted_ImportStatement) IsDestructuring() bool {
 //
 // Java: CheckRequiresSorted.ImportStatement.upgrade(ImportPrimitive)
 func (s *CheckRequiresSorted_ImportStatement) Upgrade(otherPrimitive CheckRequiresSorted_ImportPrimitive) *CheckRequiresSorted_ImportStatement {
-	if CheckRequiresSorted_ImportPrimitive_Stronger(s.Primitive(), otherPrimitive) != s.Primitive() {
+	if CheckRequiresSorted_ImportPrimitive_Stronger(s.primitive, otherPrimitive) != s.primitive {
 		return newCheckRequiresSorted_ImportStatement(s.nodes, otherPrimitive, s.namespace, s.alias, s.hasAlias, s.destructures)
 	}
 	return s
@@ -376,6 +358,9 @@ func (s *CheckRequiresSorted_ImportStatement) Upgrade(otherPrimitive CheckRequir
 
 // Java: CheckRequiresSorted.ImportStatement.formatWithoutDoc()
 func (s *CheckRequiresSorted_ImportStatement) FormatWithoutDoc() string {
+	if s.formattedWithoutDoc != "" {
+		return s.formattedWithoutDoc
+	}
 	var sb strings.Builder
 
 	if !s.IsStandalone() {
@@ -385,33 +370,29 @@ func (s *CheckRequiresSorted_ImportStatement) FormatWithoutDoc() string {
 		sb.WriteString(s.alias)
 	}
 	if s.destructures != nil {
-		sb.WriteString("{")
-		first := true
-		for _, binding := range s.destructures {
-			exportedName := binding.ExportedName()
-			localName := binding.LocalName()
-			if first {
-				first = false
-			} else {
+		sb.WriteByte('{')
+		for i, binding := range s.destructures {
+			if i > 0 {
 				sb.WriteString(", ")
 			}
-			sb.WriteString(exportedName)
-			if exportedName != localName {
+			sb.WriteString(binding.exportedName)
+			if binding.exportedName != binding.localName {
 				sb.WriteString(": ")
-				sb.WriteString(localName)
+				sb.WriteString(binding.localName)
 			}
 		}
-		sb.WriteString("}")
+		sb.WriteByte('}')
 	}
 	if !s.IsStandalone() {
 		sb.WriteString(" = ")
 	}
-	sb.WriteString(s.Primitive().String())
+	sb.WriteString(s.primitive.String())
 	sb.WriteString("('")
-	sb.WriteString(s.Namespace())
+	sb.WriteString(s.namespace)
 	sb.WriteString("');")
 
-	return sb.String()
+	s.formattedWithoutDoc = sb.String()
+	return s.formattedWithoutDoc
 }
 
 // Format formats the import statement into code.
@@ -420,11 +401,11 @@ func (s *CheckRequiresSorted_ImportStatement) FormatWithoutDoc() string {
 func (s *CheckRequiresSorted_ImportStatement) Format() string {
 	var sb strings.Builder
 
-	for _, node := range s.Nodes() {
+	for _, node := range s.nodes {
 		comment := node.GetNonJSDocCommentString()
 		if comment != "" {
 			sb.WriteString(comment)
-			sb.WriteString("\n")
+			sb.WriteByte('\n')
 		}
 		jsDoc := NodeUtil_GetBestJSDocInfo(node)
 		if jsDoc != nil {
@@ -434,7 +415,7 @@ func (s *CheckRequiresSorted_ImportStatement) Format() string {
 			} else {
 				sb.WriteString("null")
 			}
-			sb.WriteString("\n")
+			sb.WriteByte('\n')
 		}
 	}
 
@@ -451,11 +432,9 @@ func (s *CheckRequiresSorted_ImportStatement) CompareTo(other *CheckRequiresSort
 	return jutil.StringCompareTo(s.FormatWithoutDoc(), other.FormatWithoutDoc())
 }
 
-// Equals is the record's component-wise equals: the lists compare element by
-// element (Node by identity), alias and destructures with Objects.equals.
-func (s *CheckRequiresSorted_ImportStatement) Equals(o any) bool {
-	other, ok := o.(*CheckRequiresSorted_ImportStatement)
-	if !ok || other == nil {
+// Equals is the record's component-wise equals.
+func (s *CheckRequiresSorted_ImportStatement) Equals(other *CheckRequiresSorted_ImportStatement) bool {
+	if other == nil {
 		return false
 	}
 	if !slices.Equal(s.nodes, other.nodes) ||
@@ -467,7 +446,7 @@ func (s *CheckRequiresSorted_ImportStatement) Equals(o any) bool {
 		return false
 	}
 	return slices.EqualFunc(s.destructures, other.destructures,
-		func(a, b *CheckRequiresSorted_DestructuringBinding) bool { return a.Equals(b) })
+		(*CheckRequiresSorted_DestructuringBinding).Equals)
 }
 
 var checkRequiresSorted_GOOG_REQUIRE = rhino.QualifiedName_Of("goog.require")
@@ -481,12 +460,9 @@ var checkRequiresSorted_GOOG_FORWARDDECLARE = rhino.QualifiedName_Of("goog.forwa
 // Java: CheckRequiresSorted(CheckRequiresSorted.Mode)
 func NewCheckRequiresSorted(mode CheckRequiresSorted_Mode) *CheckRequiresSorted {
 	return &CheckRequiresSorted{
-		importsByNamespace: jutil.NewLinkedHashMap[string, []*CheckRequiresSorted_ImportStatement](),
+		importsByNamespace: make(map[string][]*CheckRequiresSorted_ImportStatement),
 		firstNode:          rhino.NilNode,
 		lastNode:           rhino.NilNode,
-		finished:           false,
-		needsFix:           false,
-		replacement:        nil,
 		mode:               mode,
 	}
 }
@@ -510,7 +486,11 @@ func (c *CheckRequiresSorted) GetLastNode() rhino.Node {
 //
 // Java: CheckRequiresSorted.getReplacement()
 func (c *CheckRequiresSorted) GetReplacement() *string {
-	return c.replacement
+	if !c.hasReplacement {
+		return nil
+	}
+	s := c.replacement
+	return &s
 }
 
 // NeedsFix returns whether the imports need to be fixed, i.e., whether they
@@ -530,7 +510,7 @@ func (c *CheckRequiresSorted) ShouldTraverse(t *NodeTraversal, n rhino.Node, par
 
 // Java: CheckRequiresSorted.visit(NodeTraversal, Node, Node)
 func (c *CheckRequiresSorted) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
-	if n.IsScript() {
+	if _, ok := ast.AsScript(n); ok {
 		c.CheckCanonical(t)
 		return
 	}
@@ -546,15 +526,17 @@ func (c *CheckRequiresSorted) Visit(t *NodeTraversal, n rhino.Node, parent rhino
 	if !callNode.IsNil() && CheckRequiresSorted_IsValidImportCall(callNode) {
 		stmt := CheckRequiresSorted_ParseImport(callNode)
 		c.originalImports = append(c.originalImports, stmt)
-		// importsByNamespace.put(stmt.namespace(), stmt)
-		c.importsByNamespace.Put(stmt.Namespace(), append(c.importsByNamespace.Get(stmt.Namespace()), stmt))
-		if c.firstNode.IsNil() {
-			c.lastNode = n
-			c.firstNode = c.lastNode
-		} else {
-			c.lastNode = n
+		ns := stmt.namespace
+		existing, seen := c.importsByNamespace[ns]
+		if !seen {
+			c.namespaceOrder = append(c.namespaceOrder, ns)
 		}
-	} else if !c.importsByNamespace.IsEmpty() {
+		c.importsByNamespace[ns] = append(existing, stmt)
+		if c.firstNode.IsNil() {
+			c.firstNode = n
+		}
+		c.lastNode = n
+	} else if len(c.importsByNamespace) > 0 {
 		c.finished = true
 	}
 }
@@ -606,8 +588,6 @@ func CheckRequiresSorted_ParseImport(callNode rhino.Node) *CheckRequiresSorted_I
 			for prop := range objPattern.Props() {
 				if key, ok := prop.AsStringKey(); ok {
 					if local, ok := key.Value().AsName(); ok {
-						// {a: a} and {a: b} both yield false
-						// {a} yields true
 						destructures = append(
 							destructures,
 							CheckRequiresSorted_DestructuringBinding_Of(
@@ -647,17 +627,20 @@ func CheckRequiresSorted_ParseImport(callNode rhino.Node) *CheckRequiresSorted_I
 
 // Java: CheckRequiresSorted.checkCanonical(NodeTraversal)
 func (c *CheckRequiresSorted) CheckCanonical(t *NodeTraversal) {
-	canonicalImports := CheckRequiresSorted_CanonicalizeImports(c.importsByNamespace)
-	if !slices.EqualFunc(c.originalImports, canonicalImports,
-		func(a, b *CheckRequiresSorted_ImportStatement) bool { return a.Equals(b) }) {
+	canonicalImports := CheckRequiresSorted_CanonicalizeImports(c.importsByNamespace, c.namespaceOrder)
+	if !slices.EqualFunc(c.originalImports, canonicalImports, (*CheckRequiresSorted_ImportStatement).Equals) {
 		c.needsFix = true
-		formatted := make([]string, len(canonicalImports))
+		var sb strings.Builder
 		for i, stmt := range canonicalImports {
-			formatted[i] = stmt.Format()
+			if i > 0 {
+				sb.WriteByte('\n')
+			}
+			sb.WriteString(stmt.Format())
 		}
-		c.replacement = jutil.StringPtr(strings.Join(formatted, "\n"))
+		c.replacement = sb.String()
+		c.hasReplacement = true
 		if c.mode == CheckRequiresSorted_Mode_COLLECT_AND_REPORT {
-			t.Report(c.firstNode, CheckRequiresSorted_REQUIRES_NOT_SORTED, *c.replacement)
+			t.Report(c.firstNode, CheckRequiresSorted_REQUIRES_NOT_SORTED, c.replacement)
 		}
 	}
 }
@@ -668,26 +651,28 @@ func (c *CheckRequiresSorted) CheckCanonical(t *NodeTraversal) {
 //
 // Java: CheckRequiresSorted.canonicalizeImports(Multimap<String, ImportStatement>)
 func CheckRequiresSorted_CanonicalizeImports(
-	importsByNamespace *jutil.LinkedHashMap[string, []*CheckRequiresSorted_ImportStatement]) []*CheckRequiresSorted_ImportStatement {
-	var canonicalImports []*CheckRequiresSorted_ImportStatement
+	importsByNamespace map[string][]*CheckRequiresSorted_ImportStatement,
+	namespaceOrder []string) []*CheckRequiresSorted_ImportStatement {
+	if len(namespaceOrder) == 0 {
+		return nil
+	}
+	canonicalImports := make([]*CheckRequiresSorted_ImportStatement, 0, len(namespaceOrder))
 
-	for namespace := range importsByNamespace.Keys() {
-		allImports := importsByNamespace.Get(namespace)
+	for _, namespace := range namespaceOrder {
+		allImports := importsByNamespace[namespace]
 
 		// Find the strongest primitive across all existing imports. Every emitted import for this
-		// namespace will use this primitive. This makes the logic simpler and cannot change runtime
-		// behavior, but may produce spurious changes when multiple aliasing imports of differing
-		// strength exist (which are already in violation of the style guide).
+		// namespace will use this primitive.
 		strongestPrimitive := CheckRequiresSorted_ImportPrimitive_WEAKEST
 		for _, i := range allImports {
-			strongestPrimitive = CheckRequiresSorted_ImportPrimitive_Stronger(strongestPrimitive, i.Primitive())
+			strongestPrimitive = CheckRequiresSorted_ImportPrimitive_Stronger(strongestPrimitive, i.primitive)
 		}
 
 		// Emit each aliasing import separately, as deduplicating them would require code references
 		// to be rewritten.
 		hasAliasing := false
 		for _, stmt := range allImports {
-			if !stmt.IsAliasing() {
+			if !stmt.hasAlias {
 				continue
 			}
 			canonicalImports = append(canonicalImports, stmt.Upgrade(strongestPrimitive))
@@ -698,30 +683,18 @@ func CheckRequiresSorted_CanonicalizeImports(
 		// destructuring imports.
 		hasDestructuring := false
 		destructuringNodes := []rhino.Node{}
-		for _, i := range allImports {
-			if i.IsDestructuring() {
-				destructuringNodes = append(destructuringNodes, i.Nodes()...)
-			}
-		}
-		// .flatMap(destructures).map(canonicalizeShorthandProperties).sorted().distinct()
 		var allDestructures []*CheckRequiresSorted_DestructuringBinding
 		for _, i := range allImports {
-			if i.IsDestructuring() {
-				for _, d := range i.Destructures() {
+			if i.destructures != nil {
+				destructuringNodes = append(destructuringNodes, i.nodes...)
+				for _, d := range i.destructures {
 					allDestructures = append(allDestructures, d.CanonicalizeShorthandProperties())
 				}
 			}
 		}
-		slices.SortStableFunc(allDestructures, func(a, b *CheckRequiresSorted_DestructuringBinding) int {
-			return a.CompareTo(b)
-		})
-		destructures := []*CheckRequiresSorted_DestructuringBinding{}
-		for _, d := range allDestructures {
-			if !slices.ContainsFunc(destructures, func(e *CheckRequiresSorted_DestructuringBinding) bool { return e.Equals(d) }) {
-				destructures = append(destructures, d)
-			}
-		}
-		if len(destructures) != 0 {
+		if len(allDestructures) > 0 {
+			slices.SortFunc(allDestructures, (*CheckRequiresSorted_DestructuringBinding).CompareTo)
+			destructures := slices.CompactFunc(allDestructures, (*CheckRequiresSorted_DestructuringBinding).Equals)
 			canonicalImports = append(canonicalImports,
 				CheckRequiresSorted_ImportStatement_Of(
 					destructuringNodes,
@@ -738,7 +711,7 @@ func CheckRequiresSorted_CanonicalizeImports(
 			standaloneNodes := []rhino.Node{}
 			for _, i := range allImports {
 				if i.IsStandalone() {
-					standaloneNodes = append(standaloneNodes, i.Nodes()...)
+					standaloneNodes = append(standaloneNodes, i.nodes...)
 				}
 			}
 			canonicalImports = append(canonicalImports,
@@ -754,9 +727,7 @@ func CheckRequiresSorted_CanonicalizeImports(
 
 	// Sorting by natural order yields the correct result due to the implementation of
 	// ImportStatement#compareTo.
-	slices.SortStableFunc(canonicalImports, func(a, b *CheckRequiresSorted_ImportStatement) int {
-		return a.CompareTo(b)
-	})
+	slices.SortStableFunc(canonicalImports, (*CheckRequiresSorted_ImportStatement).CompareTo)
 
 	return canonicalImports
 }

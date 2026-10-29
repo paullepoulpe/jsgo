@@ -19,8 +19,15 @@
 package jscomp
 
 import (
+	"github.com/paullepoulpe/jsgo/internal/ast"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
+)
+
+const (
+	nullabilityCandMissing uint8 = 1 << iota
+	nullabilityCandNullMissing
+	nullabilityCandRedundant
 )
 
 // CheckNullabilityModifiers checks for missing or redundant nullability
@@ -33,10 +40,11 @@ type CheckNullabilityModifiers struct {
 	compiler AbstractCompiler
 
 	// Store the candidate warnings and template types found while traversing a single script node.
-	redundantCandidates   *jutil.LinkedHashSet[rhino.Node]
-	missingCandidates     *jutil.LinkedHashSet[rhino.Node]
-	nullMissingCandidates *jutil.LinkedHashSet[rhino.Node]
-	templateTypeNames     *jutil.LinkedHashSet[string]
+	candidateMask         map[rhino.Node]uint8
+	redundantCandidates   []rhino.Node
+	missingCandidates     []rhino.Node
+	nullMissingCandidates []rhino.Node
+	templateTypeNames     map[string]bool
 }
 
 // CheckNullabilityModifiers_MISSING_NULLABILITY_MODIFIER_JSDOC is the
@@ -64,21 +72,24 @@ var CheckNullabilityModifiers_REDUNDANT_NULLABILITY_MODIFIER_JSDOC = DiagnosticT
 		"Please remove the redundant '!', which is disallowed by the style guide.")
 
 // The set of primitive type names. Note that `void` is a synonym for `undefined`.
-var checkNullabilityModifiers_PRIMITIVE_TYPE_NAMES = jutil.NewLinkedHashSet(
-	"boolean", "number", "bigint", "string", "symbol", "undefined", "void", "null")
+func checkNullabilityModifiers_isPrimitiveTypeName(name string) bool {
+	switch name {
+	case "boolean", "number", "bigint", "string", "symbol", "undefined", "void", "null":
+		return true
+	default:
+		return false
+	}
+}
 
 // NewCheckNullabilityModifiers is new CheckNullabilityModifiers(compiler).
 //
 // Java: CheckNullabilityModifiers(AbstractCompiler)
 func NewCheckNullabilityModifiers(compiler AbstractCompiler) *CheckNullabilityModifiers {
-	c := &CheckNullabilityModifiers{
-		redundantCandidates:   jutil.NewLinkedHashSet[rhino.Node](),
-		missingCandidates:     jutil.NewLinkedHashSet[rhino.Node](),
-		nullMissingCandidates: jutil.NewLinkedHashSet[rhino.Node](),
-		templateTypeNames:     jutil.NewLinkedHashSet[string](),
+	return &CheckNullabilityModifiers{
+		compiler:          compiler,
+		candidateMask:     make(map[rhino.Node]uint8),
+		templateTypeNames: make(map[string]bool),
 	}
-	c.compiler = compiler
-	return c
 }
 
 // Java: CheckNullabilityModifiers.process(Node, Node)
@@ -90,9 +101,11 @@ func (c *CheckNullabilityModifiers) Process(externs rhino.Node, root rhino.Node)
 func (c *CheckNullabilityModifiers) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	info := n.GetJSDocInfo()
 	if info != nil {
-		c.templateTypeNames.AddAll(info.GetTemplateTypeNames()...)
+		for _, name := range info.GetTemplateTypeNames() {
+			c.templateTypeNames[name] = true
+		}
 		for name := range info.GetTypeTransformations().Keys() {
-			c.templateTypeNames.Add(name)
+			c.templateTypeNames[name] = true
 		}
 		if info.HasType() {
 			c.HandleHasType(info.GetType(), n)
@@ -124,23 +137,24 @@ func (c *CheckNullabilityModifiers) Visit(t *NodeTraversal, n rhino.Node, parent
 		// code, so we don't need to check them.
 	}
 
-	if n.IsScript() {
+	if _, ok := ast.AsScript(n); ok {
 		// If exiting a script node, report applicable warnings and clear the maps.
 		c.Report(t)
-		c.redundantCandidates.Clear()
-		c.missingCandidates.Clear()
-		c.nullMissingCandidates.Clear()
-		c.templateTypeNames.Clear()
-		return
+		clear(c.candidateMask)
+		c.redundantCandidates = c.redundantCandidates[:0]
+		c.missingCandidates = c.missingCandidates[:0]
+		c.nullMissingCandidates = c.nullMissingCandidates[:0]
+		clear(c.templateTypeNames)
 	}
 }
 
 // Java: CheckNullabilityModifiers.handleHasType(JSTypeExpression, Node)
 func (c *CheckNullabilityModifiers) HandleHasType(expr *rhino.JSTypeExpression, n rhino.Node) {
 	// Check if the type is explicitly set to null, if so use NULL_MISSING_NULLABILITY diagnostic.
-	if NodeUtil_IsNameDeclOrSimpleAssignLhs(n.GetFirstChild(), n) {
-		rValue := NodeUtil_GetRValueOfLValue(n.GetFirstChild())
-		if !rValue.IsNil() && rValue.IsNull() {
+	firstChild := n.GetFirstChild()
+	if NodeUtil_IsNameDeclOrSimpleAssignLhs(firstChild, n) {
+		rValue := NodeUtil_GetRValueOfLValue(firstChild)
+		if _, isNull := ast.AsNull(rValue); isNull {
 			c.VisitTypeExpressionWithRValue(expr, false, rValue)
 			return
 		}
@@ -150,17 +164,17 @@ func (c *CheckNullabilityModifiers) HandleHasType(expr *rhino.JSTypeExpression, 
 
 // Java: CheckNullabilityModifiers.report(NodeTraversal)
 func (c *CheckNullabilityModifiers) Report(t *NodeTraversal) {
-	for n := range c.missingCandidates.All() {
+	for _, n := range c.missingCandidates {
 		if c.ShouldReport(n) {
 			t.Report(n, CheckNullabilityModifiers_MISSING_NULLABILITY_MODIFIER_JSDOC, CheckNullabilityModifiers_GetReportedTypeName(n))
 		}
 	}
-	for n := range c.nullMissingCandidates.All() {
+	for _, n := range c.nullMissingCandidates {
 		if c.ShouldReport(n) {
 			t.Report(n, CheckNullabilityModifiers_NULL_MISSING_NULLABILITY_MODIFIER_JSDOC, CheckNullabilityModifiers_GetReportedTypeName(n))
 		}
 	}
-	for n := range c.redundantCandidates.All() {
+	for _, n := range c.redundantCandidates {
 		if c.ShouldReport(n) {
 			// Report on parent so that modifier is also highlighted.
 			t.Report(n.GetParent(), CheckNullabilityModifiers_REDUNDANT_NULLABILITY_MODIFIER_JSDOC, CheckNullabilityModifiers_GetReportedTypeName(n))
@@ -170,13 +184,9 @@ func (c *CheckNullabilityModifiers) Report(t *NodeTraversal) {
 
 // Java: CheckNullabilityModifiers.shouldReport(Node)
 func (c *CheckNullabilityModifiers) ShouldReport(n rhino.Node) bool {
-	// Ignore type names that appear in @template clauses in the same source file. In rare cases,
-	// this may cause a false negative (if the name is used in a non-template capacity in the same
-	// file) or a false positive (if the name is used in a template capacity in a separate file),
-	// but it makes this check possible in the absence of type information. If the style guide ever
-	// mandates template types (and nothing else) to be all-caps, we can use that assumption to make
-	// this check more precise.
-	return !n.IsStringLit() || !c.templateTypeNames.Contains(n.GetString())
+	// Ignore type names that appear in @template clauses in the same source file.
+	strLit, ok := ast.AsStringLit(n)
+	return !ok || !c.templateTypeNames[strLit.Value()]
 }
 
 // Java: CheckNullabilityModifiers.visitTypeExpression(JSTypeExpression, boolean)
@@ -188,53 +198,72 @@ func (c *CheckNullabilityModifiers) VisitTypeExpression(expr *rhino.JSTypeExpres
 func (c *CheckNullabilityModifiers) VisitTypeExpressionWithRValue(
 	expr *rhino.JSTypeExpression, hasArtificialTopLevelBang bool, rValue rhino.Node) {
 	root := expr.GetRoot()
+	_, rValueIsNull := ast.AsNull(rValue)
 	NodeUtil_VisitPreOrder(
 		root,
 		NodeUtil_VisitorFunc(func(node rhino.Node) {
 			parent := node.GetParent()
 
 			isPrimitiveOrLiteral :=
-				CheckNullabilityModifiers_IsPrimitiveType(node) || CheckNullabilityModifiers_IsFunctionLiteral(node) || CheckNullabilityModifiers_IsRecordLiteral(node)
+				CheckNullabilityModifiers_IsPrimitiveType(node) ||
+					CheckNullabilityModifiers_IsFunctionLiteral(node) ||
+					CheckNullabilityModifiers_IsRecordLiteral(node)
 			isReference := CheckNullabilityModifiers_IsReferenceType(node)
 
 			// Whether the node is preceded by a '!' or '?'.
-			hasBang := !parent.IsNil() && parent.GetToken() == rhino.Token_BANG
-			hasQmark := !parent.IsNil() && parent.GetToken() == rhino.Token_QMARK
+			var parentTok rhino.Token
+			hasParent := !parent.IsNil()
+			if hasParent {
+				parentTok = parent.GetToken()
+			}
+			hasBang := hasParent && parentTok == rhino.Token_BANG
+			hasQmark := hasParent && parentTok == rhino.Token_QMARK
 
 			// Whether the node is preceded by a '!' that wasn't artificially added.
 			hasNonArtificialBang := hasBang && !(hasArtificialTopLevelBang && parent == root)
 
 			// Whether the node is the type in function(new:T) or function(this:T).
-			isNewOrThis := !parent.IsNil() && (parent.IsNew() || parent.IsThis())
+			isNewOrThis := hasParent && (parentTok == rhino.Token_NEW || parentTok == rhino.Token_THIS)
 
 			// Whether the node is the type name in a typeof expression.
-			isTypeOfType := !parent.IsNil() && parent.IsTypeOf()
+			isTypeOfType := hasParent && parentTok == rhino.Token_TYPEOF
 
 			// Whether the node is definitely a possible type for the rValue e.g. 'Type' in @type
 			// {Type} or @type {Type|number} but not in @type {!Array<Type>}
 			isAppliedToRValue :=
-				node == root || (!parent.IsNil() && parent.GetToken() == rhino.Token_PIPE)
+				node == root || (hasParent && parentTok == rhino.Token_PIPE)
 
 			if isReference && !hasBang && !hasQmark && !isNewOrThis && !isTypeOfType {
-				if isAppliedToRValue && !rValue.IsNil() && rValue.IsNull() {
-					c.nullMissingCandidates.Add(node)
+				if isAppliedToRValue && rValueIsNull {
+					if c.candidateMask[node]&nullabilityCandNullMissing == 0 {
+						c.candidateMask[node] |= nullabilityCandNullMissing
+						c.nullMissingCandidates = append(c.nullMissingCandidates, node)
+					}
 				} else {
-					c.missingCandidates.Add(node)
+					if c.candidateMask[node]&nullabilityCandMissing == 0 {
+						c.candidateMask[node] |= nullabilityCandMissing
+						c.missingCandidates = append(c.missingCandidates, node)
+					}
 				}
 			} else if isPrimitiveOrLiteral && hasNonArtificialBang {
-				c.redundantCandidates.Add(node)
+				if c.candidateMask[node]&nullabilityCandRedundant == 0 {
+					c.candidateMask[node] |= nullabilityCandRedundant
+					c.redundantCandidates = append(c.redundantCandidates, node)
+				}
 			}
 		}))
 }
 
 // Java: CheckNullabilityModifiers.isPrimitiveType(Node)
 func CheckNullabilityModifiers_IsPrimitiveType(node rhino.Node) bool {
-	return node.IsStringLit() && checkNullabilityModifiers_PRIMITIVE_TYPE_NAMES.Contains(node.GetString())
+	strLit, ok := ast.AsStringLit(node)
+	return ok && checkNullabilityModifiers_isPrimitiveTypeName(strLit.Value())
 }
 
 // Java: CheckNullabilityModifiers.isReferenceType(Node)
 func CheckNullabilityModifiers_IsReferenceType(node rhino.Node) bool {
-	return node.IsStringLit() && !checkNullabilityModifiers_PRIMITIVE_TYPE_NAMES.Contains(node.GetString())
+	strLit, ok := ast.AsStringLit(node)
+	return ok && !checkNullabilityModifiers_isPrimitiveTypeName(strLit.Value())
 }
 
 // Java: CheckNullabilityModifiers.isFunctionLiteral(Node)
@@ -255,6 +284,7 @@ func CheckNullabilityModifiers_GetReportedTypeName(node rhino.Node) string {
 	if CheckNullabilityModifiers_IsRecordLiteral(node) {
 		return "Record literal"
 	}
-	jutil.CheckState(CheckNullabilityModifiers_IsPrimitiveType(node) || CheckNullabilityModifiers_IsReferenceType(node))
-	return node.GetString()
+	strLit, ok := ast.AsStringLit(node)
+	jutil.CheckState(ok)
+	return strLit.Value()
 }

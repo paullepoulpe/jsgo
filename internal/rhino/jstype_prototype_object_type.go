@@ -71,8 +71,6 @@ type PrototypeObjectType interface {
 type PrototypeObjectTypeBase struct {
 	ObjectTypeBase
 
-	className *string
-
 	// NOTE(nicksantos): The implicit prototype can change over time.
 	// Modeling this is a bear. Always call getImplicitPrototype(), because
 	// some subclasses override this to do special resolution handling.
@@ -90,12 +88,7 @@ type PrototypeObjectTypeBase struct {
 	properties PropertyMap
 
 	templateParamCount int32
-	nativeType         bool
-	anonymousType      bool
-
-	// Whether the toString representation of this should be pretty-printed,
-	// by printing all properties.
-	prettyPrint bool
+	classNameID        rhinoStringID
 }
 
 // Java: PrototypeObjectType.TYPE_CLASS
@@ -123,23 +116,27 @@ func NewPrototypeObjectType(builder *PrototypeObjectType_Builder) *PrototypeObje
 func (p *PrototypeObjectTypeBase) InitPrototypeObjectTypeBase(self PrototypeObjectType, builder *PrototypeObjectType_Builder) {
 	p.InitObjectTypeBaseWithTemplateTypeMap(self, builder.registry, builder.templateTypeMap)
 
-	p.className = builder.className
+	p.classNameID = builder.classNameID
 	p.templateParamCount = int32(builder.templateParamCount)
-	p.nativeType = builder.nativeType
-	p.anonymousType = builder.anonymousType
+	if builder.nativeType {
+		p.protoFlags |= protoFlagNative
+	}
+	if builder.anonymousType {
+		p.protoFlags |= protoFlagAnonymous
+	}
 
 	p.properties.sorted = true
 	p.properties.parentSource = &p.ObjectTypeBase
 	p.properties.cachedKeySetCounter = 1
 
-	if p.nativeType || builder.implicitPrototype != nil {
+	if builder.nativeType || builder.implicitPrototype != nil {
 		p.SetImplicitPrototype(builder.implicitPrototype)
 	} else {
 		p.SetImplicitPrototype(p.GetRegistry().GetNativeObjectType(JSTypeNative_OBJECT_TYPE))
 	}
 
-	if p.anonymousType {
-		jutil.CheckState(p.className == nil)
+	if builder.anonymousType {
+		jutil.CheckState(p.classNameID == 0)
 	}
 	jutil.CheckNotNull(p.templateTypeMap)
 	// Also guarantees `templateParamCount >= 0`.
@@ -158,14 +155,12 @@ func (p *PrototypeObjectTypeBase) GetTypeClass() JSTypeClass {
 type PrototypeObjectType_Builder struct {
 	registry *JSTypeRegistry
 
-	className         *string
-	implicitPrototype ObjectType
-
-	nativeType    bool
-	anonymousType bool
-
+	implicitPrototype  ObjectType
 	templateTypeMap    *TemplateTypeMap
 	templateParamCount int
+	classNameID        rhinoStringID
+	nativeType         bool
+	anonymousType      bool
 }
 
 // InitPrototypeObjectType_Builder initializes the embedded base builder.
@@ -185,7 +180,13 @@ func NewPrototypeObjectType_Builder(registry *JSTypeRegistry) *PrototypeObjectTy
 
 // Java: PrototypeObjectType.Builder.setName(String)
 func (b *PrototypeObjectType_Builder) SetName(x *string) *PrototypeObjectType_Builder {
-	b.className = x
+	b.classNameID = rhinoStringIDFromPtr(x)
+	return b
+}
+
+// SetNameString sets the non-null class name without allocating a *string.
+func (b *PrototypeObjectType_Builder) SetNameString(x string) *PrototypeObjectType_Builder {
+	b.classNameID = rhinoStringPoolIntern(x)
 	return b
 }
 
@@ -383,7 +384,7 @@ func (p *PrototypeObjectTypeBase) AppendTo(sb *TypeStringBuilder) {
 		return
 	}
 
-	if !p.prettyPrint {
+	if !p.IsPrettyPrint() {
 		if sb.IsForAnnotations() {
 			sb.Append("?")
 		} else {
@@ -393,7 +394,7 @@ func (p *PrototypeObjectTypeBase) AppendTo(sb *TypeStringBuilder) {
 	}
 
 	// Don't pretty print recursively. It would cause infinite recursion.
-	p.prettyPrint = false
+	p.protoFlags &^= protoFlagPrettyPrint
 
 	// Use a tree set so that the properties are sorted.
 	properties := jutil.NewTreeSet[PrototypeObjectType_PropertyForPrettyPrinting](PrototypeObjectType_PROP_COMPARATOR)
@@ -444,17 +445,21 @@ func (p *PrototypeObjectTypeBase) AppendTo(sb *TypeStringBuilder) {
 	}
 	sb.Append("}")
 
-	p.prettyPrint = true
+	p.protoFlags |= protoFlagPrettyPrint
 }
 
 // Java: PrototypeObjectType.setPrettyPrint(boolean)
 func (p *PrototypeObjectTypeBase) SetPrettyPrint(prettyPrint bool) {
-	p.prettyPrint = prettyPrint
+	if prettyPrint {
+		p.protoFlags |= protoFlagPrettyPrint
+	} else {
+		p.protoFlags &^= protoFlagPrettyPrint
+	}
 }
 
 // Java: PrototypeObjectType.isPrettyPrint()
 func (p *PrototypeObjectTypeBase) IsPrettyPrint() bool {
-	return p.prettyPrint
+	return (p.protoFlags & protoFlagPrettyPrint) != 0
 }
 
 // Java: PrototypeObjectType.getConstructor()
@@ -491,13 +496,13 @@ func (p *PrototypeObjectTypeBase) GetTemplateParamCount() int {
 
 // Java: ObjectType.hasReferenceName()
 func (p *PrototypeObjectTypeBase) HasReferenceName() bool {
-	return p.className != nil || p.ownerFunction != nil
+	return p.classNameID != 0 || p.ownerFunction != nil
 }
 
 // Java: PrototypeObjectType.getReferenceName()
 func (p *PrototypeObjectTypeBase) GetReferenceName() *string {
-	if p.className != nil {
-		return p.className
+	if p.classNameID != 0 {
+		return rhinoStringPtrFromID(p.classNameID)
 	} else if p.ownerFunction != nil {
 		name := jutil.ToJavaString(p.ownerFunction.GetReferenceName()) + ".prototype"
 		return &name
@@ -508,14 +513,14 @@ func (p *PrototypeObjectTypeBase) GetReferenceName() *string {
 
 // Java: PrototypeObjectType.isAnonymous()
 func (p *PrototypeObjectTypeBase) IsAnonymous() bool {
-	return p.anonymousType
+	return (p.protoFlags & protoFlagAnonymous) != 0
 }
 
 // IsNativeObjectType reports whether this is a built-in object.
 //
 // Java: PrototypeObjectType.isNativeObjectType()
 func (p *PrototypeObjectTypeBase) IsNativeObjectType() bool {
-	return p.nativeType
+	return (p.protoFlags & protoFlagNative) != 0
 }
 
 // Java: PrototypeObjectType.setOwnerFunction(FunctionType)
@@ -628,8 +633,8 @@ func (p *PrototypeObjectTypeBase) MatchRecordTypeConstraint(constraintObj Object
 func (p *PrototypeObjectTypeBase) RecursionUnsafeHashCode() int32 {
 	if p.self().IsStructuralType() {
 		var classHash int32
-		if p.className != nil {
-			classHash = jutil.StringHashCode(*p.className)
+		if p.classNameID != 0 {
+			classHash = jutil.StringHashCode(rhinoStringFromID(p.classNameID))
 		}
 		return 31*(31+classHash) + p.properties.HashCode()
 	} else {

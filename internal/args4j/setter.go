@@ -41,7 +41,6 @@ type Setter interface {
 	GetType() *Class
 	IsMultiValued() bool
 	AsFieldSetter() *FieldSetter
-	AsAnnotatedElement() AnnotatedElement
 }
 
 // StringSetter is an optional fast path implemented by Setters that accept
@@ -50,99 +49,67 @@ type StringSetter interface {
 	AddStringValue(value string)
 }
 
-// AnnotatedElement represents the Field carrying an Option or Argument.
-type AnnotatedElement interface {
-	annotatedElement()
-}
-
 // Getter reads the current default value(s) of a Bean property for usage output.
 type Getter interface {
 	GetValueList() []any
 }
 
-func newSetterForField(f *Field, bean any) Setter {
+func newSetterForField(f *Field) Setter {
 	if f.IsFinal() {
 		panic(jutil.NewIllegalStateExceptionMsg("Cannot set value to a final field '" + f.GetDeclaringClassName() + "." + f.GetName() + "'."))
 	}
 	if Class_List.IsAssignableFrom(f.GetType()) {
-		return NewMultiValueFieldSetter(bean, f)
+		return NewMultiValueFieldSetter(f)
 	}
-	return NewFieldSetter(bean, f)
+	return NewFieldSetter(f)
 }
 
-// FieldSetter writes single values to a Field.
+// FieldSetter writes single or list values to a Field.
 type FieldSetter struct {
-	f    *Field
-	bean any
+	f           *Field
+	multiValued bool
 }
 
-func NewFieldSetter(bean any, f *Field) *FieldSetter {
-	return &FieldSetter{f: f, bean: bean}
+func NewFieldSetter(f *Field) *FieldSetter {
+	return &FieldSetter{f: f}
 }
 
-func (s *FieldSetter) GetType() *Class                      { return s.f.GetType() }
-func (s *FieldSetter) IsMultiValued() bool                  { return false }
-func (s *FieldSetter) AsFieldSetter() *FieldSetter          { return NewFieldSetter(s.bean, s.f) }
-func (s *FieldSetter) AsAnnotatedElement() AnnotatedElement { return s.f }
-func (s *FieldSetter) AddValue(value any)                   { s.f.Set(s.bean, value) }
-func (s *FieldSetter) GetValue() any                        { return s.f.Get(s.bean) }
-
-func (s *FieldSetter) AddStringValue(value string) {
-	if s.f.setString != nil {
-		s.f.setString(value)
-		return
-	}
-	s.AddValue(value)
-}
-
-func (s *FieldSetter) GetValueList() []any {
-	if v := s.GetValue(); v != nil {
-		return []any{v}
-	}
-	return []any{}
-}
-
-// MultiValueFieldSetter appends multiple values to a List Field.
-type MultiValueFieldSetter struct {
-	bean any
-	f    *Field
-}
-
-func NewMultiValueFieldSetter(bean any, f *Field) *MultiValueFieldSetter {
+func NewMultiValueFieldSetter(f *Field) *FieldSetter {
 	if !Class_List.IsAssignableFrom(f.GetType()) {
 		panic(NewIllegalAnnotationError(spiMsgIllegalFieldSignature.format(f.GetType())))
 	}
-	return &MultiValueFieldSetter{bean: bean, f: f}
+	return &FieldSetter{f: f, multiValued: true}
 }
 
-func (s *MultiValueFieldSetter) IsMultiValued() bool                  { return true }
-func (s *MultiValueFieldSetter) AsFieldSetter() *FieldSetter          { return NewFieldSetter(s.bean, s.f) }
-func (s *MultiValueFieldSetter) AsAnnotatedElement() AnnotatedElement { return s.f }
+func (s *FieldSetter) IsMultiValued() bool { return s.multiValued }
+func (s *FieldSetter) GetValue() any       { return s.f.Get() }
 
-func (s *MultiValueFieldSetter) GetType() *Class {
+func (s *FieldSetter) AsFieldSetter() *FieldSetter {
+	if s.multiValued {
+		return &FieldSetter{f: s.f}
+	}
+	return s
+}
+
+func (s *FieldSetter) GetType() *Class {
+	if !s.multiValued {
+		return s.f.GetType()
+	}
 	if t := s.f.GetGenericTypeArgument(); t != nil {
 		return t
 	}
 	return Class_Object
 }
 
-func (s *MultiValueFieldSetter) AddValue(value any) {
-	s.doAddValue(s.bean, value)
-}
-
-func (s *MultiValueFieldSetter) AddStringValue(value string) {
-	if s.f.addString != nil {
-		s.f.addString(value)
+func (s *FieldSetter) AddValue(value any) {
+	if !s.multiValued {
+		s.f.Set(value)
 		return
 	}
-	s.doAddValue(s.bean, value)
-}
-
-func (s *MultiValueFieldSetter) doAddValue(bean any, value any) {
-	o := s.f.Get(bean)
+	o := s.f.Get()
 	if o == nil {
 		o = jutil.NewArrayList[any]()
-		s.f.Set(bean, o)
+		s.f.Set(o)
 	}
 	l, ok := o.(List)
 	if !ok {
@@ -151,10 +118,29 @@ func (s *MultiValueFieldSetter) doAddValue(bean any, value any) {
 	l.Add(value)
 }
 
-func (s *MultiValueFieldSetter) GetValueList() []any {
-	o := s.f.Get(s.bean)
+func (s *FieldSetter) AddStringValue(value string) {
+	if !s.multiValued {
+		if s.f.setString != nil {
+			s.f.setString(value)
+			return
+		}
+		s.f.Set(value)
+		return
+	}
+	if s.f.addString != nil {
+		s.f.addString(value)
+		return
+	}
+	s.AddValue(value)
+}
+
+func (s *FieldSetter) GetValueList() []any {
+	o := s.f.Get()
 	if o == nil {
 		return nil
+	}
+	if !s.multiValued {
+		return []any{o}
 	}
 	l := o.(List)
 	values := make([]any, l.Size())
@@ -277,12 +263,11 @@ func (f *Field) GetName() string                { return f.name }
 func (f *Field) GetType() *Class                { return f.type_ }
 func (f *Field) GetGenericTypeArgument() *Class { return f.typeArgument }
 func (f *Field) IsFinal() bool                  { return f.final }
-func (f *Field) Get(_ any) any                  { return f.get() }
-func (f *Field) Set(_ any, value any)           { f.set(value) }
+func (f *Field) Get() any                       { return f.get() }
+func (f *Field) Set(value any)                  { f.set(value) }
 func (f *Field) String() string                 { return f.type_.GetName() + " " + f.declaringClass + "." + f.name }
-func (*Field) annotatedElement()                {}
 
-// List is the collection interface used by MultiValueFieldSetter.
+// List is the collection interface used by multi-value FieldSetter.
 type List interface {
 	Add(e any) bool
 	Size() int

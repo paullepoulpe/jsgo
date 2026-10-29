@@ -21,15 +21,16 @@ package jscomp
 import (
 	"strings"
 
-	"github.com/paullepoulpe/jsgo/internal/jutil"
+	"github.com/paullepoulpe/jsgo/internal/ast"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
 
 // CheckEs6ModuleFileStructure checks the file structure of ES6 modules.
 type CheckEs6ModuleFileStructure struct {
 	NodeTraversal_AbstractPreOrderCallbackBase
-	compiler          AbstractCompiler
-	orderedStatements *jutil.TreeSet[CheckEs6ModuleFileStructure_OrderedStatement]
+	compiler AbstractCompiler
+	// Bitmask of CheckEs6ModuleFileStructure_OrderedStatement values seen in the current module.
+	seenStatements uint8
 }
 
 var CheckEs6ModuleFileStructure_MUST_COME_BEFORE = DiagnosticType_Warning(
@@ -73,20 +74,11 @@ func (s CheckEs6ModuleFileStructure_OrderedStatement) String() string {
 	return checkEs6ModuleFileStructure_OrderedStatement_description[s]
 }
 
-// checkEs6ModuleFileStructure_OrderedStatement_compareTo is Enum.compareTo:
-// the natural (ordinal) order of the TreeSet.
-func checkEs6ModuleFileStructure_OrderedStatement_compareTo(a, b CheckEs6ModuleFileStructure_OrderedStatement) int {
-	return int(a) - int(b)
-}
-
 // NewCheckEs6ModuleFileStructure is new CheckEs6ModuleFileStructure(compiler).
 //
 // Java: CheckEs6ModuleFileStructure(AbstractCompiler)
 func NewCheckEs6ModuleFileStructure(compiler AbstractCompiler) *CheckEs6ModuleFileStructure {
-	return &CheckEs6ModuleFileStructure{
-		compiler:          compiler,
-		orderedStatements: jutil.NewTreeSet(checkEs6ModuleFileStructure_OrderedStatement_compareTo),
-	}
+	return &CheckEs6ModuleFileStructure{compiler: compiler}
 }
 
 // Java: CheckEs6ModuleFileStructure.shouldTraverse(NodeTraversal, Node, Node)
@@ -97,17 +89,17 @@ func (c *CheckEs6ModuleFileStructure) ShouldTraverse(t *NodeTraversal, n rhino.N
 	case rhino.Token_SCRIPT:
 		return n.GetBooleanProp(rhino.Node_ES6_MODULE)
 	case rhino.Token_MODULE_BODY:
-		c.orderedStatements.Clear()
+		c.seenStatements = 0
 		return true
 	case rhino.Token_IMPORT:
 		c.VisitImport(t, n)
 		return false
 	case rhino.Token_EXPR_RESULT:
-		return c.VisitExprResult(t, n, parent)
+		return c.VisitExprResult(t, ast.MustExprStmt(n), parent)
 	case rhino.Token_VAR, rhino.Token_LET, rhino.Token_CONST:
-		return c.VisitDeclaration(t, n, parent)
+		return c.VisitDeclaration(t, ast.MustNameDeclaration(n), parent)
 	default:
-		if !parent.IsNil() && parent.IsModuleBody() {
+		if parent.IsModuleBody() {
 			c.CheckOrder(t, n, CheckEs6ModuleFileStructure_OrderedStatement_OTHER)
 		}
 		return false
@@ -116,21 +108,17 @@ func (c *CheckEs6ModuleFileStructure) ShouldTraverse(t *NodeTraversal, n rhino.N
 
 // Java: CheckEs6ModuleFileStructure.checkOrder(NodeTraversal, Node, OrderedStatement)
 func (c *CheckEs6ModuleFileStructure) CheckOrder(t *NodeTraversal, n rhino.Node, statement CheckEs6ModuleFileStructure_OrderedStatement) {
-	c.orderedStatements.Add(statement)
-	// Go-only: language-adapter — orderedStatements.tailSet(statement, /* inclusive= */ false):
-	// the elements of the sorted set strictly greater than statement, in order.
-	var outOfOrder []CheckEs6ModuleFileStructure_OrderedStatement
-	for s := range c.orderedStatements.All() {
-		if checkEs6ModuleFileStructure_OrderedStatement_compareTo(s, statement) > 0 {
-			outOfOrder = append(outOfOrder, s)
+	c.seenStatements |= 1 << statement
+	var outOfOrder [4]string
+	count := 0
+	for s := statement + 1; s <= CheckEs6ModuleFileStructure_OrderedStatement_OTHER; s++ {
+		if c.seenStatements&(1<<s) != 0 {
+			outOfOrder[count] = s.String()
+			count++
 		}
 	}
-	if len(outOfOrder) != 0 {
-		parts := make([]string, len(outOfOrder))
-		for i, s := range outOfOrder {
-			parts[i] = s.String()
-		}
-		t.Report(n, CheckEs6ModuleFileStructure_MUST_COME_BEFORE, statement.String(), strings.Join(parts, ", "))
+	if count > 0 {
+		t.Report(n, CheckEs6ModuleFileStructure_MUST_COME_BEFORE, statement.String(), strings.Join(outOfOrder[:count], ", "))
 	}
 }
 
@@ -139,36 +127,43 @@ var checkEs6ModuleFileStructure_GOOG_DECLAREMODULEID = rhino.QualifiedName_Of("g
 var checkEs6ModuleFileStructure_GOOG_REQUIRE = rhino.QualifiedName_Of("goog.require")
 
 // Java: CheckEs6ModuleFileStructure.visitExprResult(NodeTraversal, Node, Node)
-func (c *CheckEs6ModuleFileStructure) VisitExprResult(t *NodeTraversal, exprResult rhino.Node, parent rhino.Node) bool {
-	if parent.IsModuleBody() && exprResult.GetFirstChild().IsCall() {
-		call := exprResult.GetFirstChild()
-		if checkEs6ModuleFileStructure_GOOG_DECLAREMODULEID.Matches(call.GetFirstChild()) {
-			c.CheckOrder(t, call, CheckEs6ModuleFileStructure_OrderedStatement_DECLARE_MODULE_ID)
-			return false
-		} else if checkEs6ModuleFileStructure_GOOG_REQUIRE.Matches(call.GetFirstChild()) {
-			c.CheckOrder(t, call, CheckEs6ModuleFileStructure_OrderedStatement_GOOG_REQUIRE)
-			return false
+func (c *CheckEs6ModuleFileStructure) VisitExprResult(t *NodeTraversal, exprResult ast.ExprStmt, parent rhino.Node) bool {
+	if parent.IsModuleBody() {
+		if call, ok := exprResult.Expr().AsCall(); ok {
+			callee := call.Callee().Node()
+			if checkEs6ModuleFileStructure_GOOG_DECLAREMODULEID.Matches(callee) {
+				c.CheckOrder(t, call.Node(), CheckEs6ModuleFileStructure_OrderedStatement_DECLARE_MODULE_ID)
+				return false
+			} else if checkEs6ModuleFileStructure_GOOG_REQUIRE.Matches(callee) {
+				c.CheckOrder(t, call.Node(), CheckEs6ModuleFileStructure_OrderedStatement_GOOG_REQUIRE)
+				return false
+			}
 		}
 	}
 
-	c.CheckOrder(t, exprResult, CheckEs6ModuleFileStructure_OrderedStatement_OTHER)
+	c.CheckOrder(t, exprResult.Node(), CheckEs6ModuleFileStructure_OrderedStatement_OTHER)
 	return true
 }
 
 // Java: CheckEs6ModuleFileStructure.visitDeclaration(NodeTraversal, Node, Node)
-func (c *CheckEs6ModuleFileStructure) VisitDeclaration(t *NodeTraversal, declaration rhino.Node, parent rhino.Node) bool {
-	if parent.IsModuleBody() &&
-		declaration.HasOneChild() &&
-		declaration.GetFirstChild().HasOneChild() &&
-		declaration.GetFirstFirstChild().IsCall() {
-		call := declaration.GetFirstFirstChild()
-		if checkEs6ModuleFileStructure_GOOG_REQUIRE.Matches(call.GetFirstChild()) {
-			c.CheckOrder(t, call, CheckEs6ModuleFileStructure_OrderedStatement_GOOG_REQUIRE)
-			return false
+func (c *CheckEs6ModuleFileStructure) VisitDeclaration(t *NodeTraversal, declaration ast.NameDeclaration, parent rhino.Node) bool {
+	if parent.IsModuleBody() {
+		if firstDecl, ok := declaration.FirstDeclarator(); ok {
+			if _, hasSecond := firstDecl.Next(); !hasSecond {
+				if nameDecl, ok := firstDecl.AsName(); ok {
+					if initExpr, hasInit := nameDecl.Init(); hasInit {
+						if call, ok := initExpr.AsCall(); ok &&
+							checkEs6ModuleFileStructure_GOOG_REQUIRE.Matches(call.Callee().Node()) {
+							c.CheckOrder(t, call.Node(), CheckEs6ModuleFileStructure_OrderedStatement_GOOG_REQUIRE)
+							return false
+						}
+					}
+				}
+			}
 		}
 	}
 
-	c.CheckOrder(t, declaration, CheckEs6ModuleFileStructure_OrderedStatement_OTHER)
+	c.CheckOrder(t, declaration.Node(), CheckEs6ModuleFileStructure_OrderedStatement_OTHER)
 	return true
 }
 

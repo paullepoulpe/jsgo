@@ -1,7 +1,24 @@
 // Port of com/google/javascript/jscomp/RenameProperties.java @ closure-compiler v20261021
+// Port of com/google/javascript/jscomp/RemovePropertyRenamingCalls.java @ closure-compiler v20261021
 
 /*
  * Copyright 2004 The Closure Compiler Authors.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+/*
+ * Copyright 2023 The Closure Compiler Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -325,15 +342,18 @@ func (r *RenameProperties) Process(externs rhino.Node, root rhino.Node) {
 }
 
 func (r *RenameProperties) reusePropertyNamesSlice(reservedNames stringMapSet, allProps []*RenameProperties_Property) {
+	if r.generatePseudoNames {
+		return
+	}
 	for _, prop := range allProps {
-		prevName := r.prevUsedPropertyMap.LookupNewName(prop.oldName)
-		if !r.generatePseudoNames && prevName != nil {
-			if _, reserved := reservedNames[*prevName]; reserved {
+		prevName, ok := r.prevUsedPropertyMap.origToNew[prop.oldName]
+		if ok {
+			if _, reserved := reservedNames[prevName]; reserved {
 				continue
 			}
 
-			prop.newName = *prevName
-			reservedNames[*prevName] = struct{}{}
+			prop.newName = prevName
+			reservedNames[prevName] = struct{}{}
 		}
 	}
 }
@@ -361,13 +381,13 @@ func (r *RenameProperties) generateNamesSlice(props []*RenameProperties_Property
 //
 // Java: RenameProperties.getPropertyMap()
 func (r *RenameProperties) GetPropertyMap() *VariableMap {
-	m := jutil.NewLinkedHashMapWithCapacity[string, string](len(r.propertyList))
+	entries := make([]variableMapEntry, 0, len(r.propertyList))
 	for _, p := range r.propertyList {
 		if p.newName != "" {
-			m.PutNew(p.oldName, p.newName)
+			entries = append(entries, variableMapEntry{orig: p.oldName, newName: p.newName})
 		}
 	}
-	return NewVariableMap(m)
+	return newVariableMapFromEntries(entries)
 }
 
 // -------------------------------------------------------------------------
@@ -583,4 +603,54 @@ type RenameProperties_Property struct {
 // Java: RenameProperties.Property(String)
 func NewRenameProperties_Property(name string) *RenameProperties_Property {
 	return &RenameProperties_Property{oldName: name, oldNameID: strpool.Intern(name)}
+}
+
+// -------------------------------------------------------------------------
+
+// RemovePropertyRenamingCalls replaces all calls to property-renaming
+// functions like JSCompiler_renameProperty with the string literal property
+// name.
+//
+// Intended for use when RenameProperties isn't running, since this
+// functionality is also baked into RenameProperties.
+type RemovePropertyRenamingCalls struct {
+	compiler AbstractCompiler
+}
+
+// Java: RemovePropertyRenamingCalls(AbstractCompiler)
+func NewRemovePropertyRenamingCalls(compiler AbstractCompiler) *RemovePropertyRenamingCalls {
+	return &RemovePropertyRenamingCalls{compiler: compiler}
+}
+
+// Java: RemovePropertyRenamingCalls.process(Node, Node)
+func (r *RemovePropertyRenamingCalls) Process(externs rhino.Node, root rhino.Node) {
+	NodeTraversal_Traverse(r.compiler, root, &RemovePropertyRenamingCalls_RemoveCompilerPropertyRenamingCallback{outer: r})
+}
+
+// RemovePropertyRenamingCalls_RemoveCompilerPropertyRenamingCallback is the
+// inner class RemoveCompilerPropertyRenamingCallback.
+type RemovePropertyRenamingCalls_RemoveCompilerPropertyRenamingCallback struct {
+	NodeTraversal_AbstractPostOrderCallbackBase
+	outer *RemovePropertyRenamingCalls
+}
+
+// Java: RemovePropertyRenamingCalls.RemoveCompilerPropertyRenamingCallback.visit(NodeTraversal, Node, Node)
+func (c *RemovePropertyRenamingCalls_RemoveCompilerPropertyRenamingCallback) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
+	if call, ok := ast.AsCall(n); ok {
+		if c.outer.compiler.GetCodingConvention().IsPropertyRenameFunction(call.Callee().Node()) {
+			c.ReplacePropertyRenamingCall(n)
+		}
+	}
+}
+
+// ReplacePropertyRenamingCall replaces JSCompiler_renameProperty("bar", obj)
+// with "bar".
+//
+// Java: RemovePropertyRenamingCalls.RemoveCompilerPropertyRenamingCallback.replacePropertyRenamingCall(Node)
+func (c *RemovePropertyRenamingCalls_RemoveCompilerPropertyRenamingCallback) ReplacePropertyRenamingCall(callNode rhino.Node) {
+	propName := NodeUtil_GetArgumentForCallOrNew(callNode, 0)
+	if !propName.IsNil() {
+		callNode.ReplaceWith(propName.Detach())
+		c.outer.compiler.ReportChangeToEnclosingScope(propName)
+	}
 }

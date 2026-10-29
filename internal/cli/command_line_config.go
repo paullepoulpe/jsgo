@@ -1113,7 +1113,7 @@ func AbstractCommandLineRunner_JsChunkSpec_Create(specString string, isFirstChun
 
 	// Parse chunk dependencies.
 	deps := []string{}
-	if len(parts) > 2 && jutil.StringLength(parts[2]) > 0 {
+	if len(parts) > 2 && parts[2] != "" {
 		deps = jutil.StringSplitLiteral(parts[2], ",")
 	}
 

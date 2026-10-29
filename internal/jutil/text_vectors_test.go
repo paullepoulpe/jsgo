@@ -3,7 +3,6 @@ package jutil
 import (
 	"bufio"
 	"encoding/hex"
-	"math"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -161,37 +160,6 @@ func TestPathTextVectors(t *testing.T) {
 		}
 		if got != want {
 			t.Errorf("%v:\n got %s\nwant %s", r, got, want)
-		}
-	}
-}
-
-// textArgSets are JutilTextVectors.argSets() with the Go types of the
-// corresponding Java boxes.
-var textArgSets = [][]any{
-	{}, {"A", "B", "C"}, {7, int64(-1234567), 2.5}, {nil, "x'y", 0.0005}, {1.5, 0, math.Copysign(0, -1)},
-	{math.NaN(), math.Inf(1), 1234567.891},
-}
-
-func TestMessageFormatTextVectors(t *testing.T) {
-	for _, r := range readTextVectors(t, "text_messageformat.tsv", 5000) {
-		pattern, _ := unescVector(t, r[1])
-		var got string
-		switch r[0] {
-		case "mf":
-			set, _ := strconv.Atoi(r[2])
-			got = textGuard(func() string { return MessageFormat_Format(pattern, textArgSets[set]) })
-		case "ml":
-			v, _ := strconv.ParseInt(r[2], 10, 64)
-			got = textGuard(func() string { return MessageFormat_Format(pattern, []any{v}) })
-		case "md":
-			bits, _ := strconv.ParseUint(r[2], 16, 64)
-			got = textGuard(func() string { return MessageFormat_Format(pattern, []any{math.Float64frombits(bits)}) })
-		case "mF":
-			bits, _ := strconv.ParseUint(r[2], 16, 32)
-			got = textGuard(func() string { return MessageFormat_Format(pattern, []any{math.Float32frombits(uint32(bits))}) })
-		}
-		if got != r[3] {
-			t.Errorf("%v:\n got %s\nwant %s", r, got, r[3])
 		}
 	}
 }

@@ -21,6 +21,7 @@ package jscomp
 import (
 	"strings"
 
+	"github.com/paullepoulpe/jsgo/internal/ast"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
@@ -43,12 +44,13 @@ type ProcessClosureProvidesAndRequires struct {
 	compiler   AbstractCompiler
 	chunkGraph *JSChunkGraph
 
-	// Use a LinkedHashMap because the goog.provides must be processed in a
-	// deterministic order.
-	providedNames *jutil.LinkedHashMap[string, *ProcessClosureProvidesAndRequires_ProvidedName]
+	// Track goog.provides in deterministic insertion order.
+	providedNames map[string]*ProcessClosureProvidesAndRequires_ProvidedName
+	providedOrder []*ProcessClosureProvidesAndRequires_ProvidedName
 	providedLeafs map[string]struct{}
 
-	exportedVariables *jutil.LinkedHashSet[string]
+	exportedVarSet   map[string]bool
+	exportedVarOrder []string
 
 	// If this is true, rewriting will not remove any goog.provide or
 	// goog.require calls
@@ -76,21 +78,33 @@ func NewProcessClosureProvidesAndRequires(
 	return &ProcessClosureProvidesAndRequires{
 		compiler:                        compiler,
 		chunkGraph:                      compiler.GetChunkGraph(),
-		providedNames:                   jutil.NewLinkedHashMap[string, *ProcessClosureProvidesAndRequires_ProvidedName](),
+		providedNames:                   make(map[string]*ProcessClosureProvidesAndRequires_ProvidedName, 64),
 		providedLeafs:                   make(map[string]struct{}, 64),
-		exportedVariables:               jutil.NewLinkedHashSet[string](),
 		preserveGoogProvidesAndRequires: preserveGoogProvidesAndRequires,
 		astFactory:                      compiler.CreateAstFactory(),
 	}
 }
 
 func (p *ProcessClosureProvidesAndRequires) putProvidedName(ns string, pn *ProcessClosureProvidesAndRequires_ProvidedName) {
-	p.providedNames.Put(ns, pn)
+	if _, exists := p.providedNames[ns]; !exists {
+		p.providedOrder = append(p.providedOrder, pn)
+	}
+	p.providedNames[ns] = pn
 	leaf := ns
 	if dot := strings.LastIndexByte(ns, '.'); dot >= 0 {
 		leaf = ns[dot+1:]
 	}
 	p.providedLeafs[leaf] = struct{}{}
+}
+
+func (p *ProcessClosureProvidesAndRequires) addExportedVariable(name string) {
+	if p.exportedVarSet == nil {
+		p.exportedVarSet = make(map[string]bool)
+	}
+	if !p.exportedVarSet[name] {
+		p.exportedVarSet[name] = true
+		p.exportedVarOrder = append(p.exportedVarOrder, name)
+	}
 }
 
 func (p *ProcessClosureProvidesAndRequires) getProvidedNameByNode(node rhino.Node) *ProcessClosureProvidesAndRequires_ProvidedName {
@@ -100,7 +114,7 @@ func (p *ProcessClosureProvidesAndRequires) getProvidedNameByNode(node rhino.Nod
 		if name == "" {
 			return nil
 		}
-		return p.providedNames.Get(name)
+		return p.providedNames[name]
 	case rhino.Token_GETPROP:
 		if _, ok := p.providedLeafs[node.GetString()]; !ok {
 			return nil
@@ -109,13 +123,13 @@ func (p *ProcessClosureProvidesAndRequires) getProvidedNameByNode(node rhino.Nod
 		if !ok {
 			return nil
 		}
-		return p.providedNames.Get(name)
+		return p.providedNames[name]
 	default:
 		name, ok := node.GetQualifiedNameString()
 		if !ok {
 			return nil
 		}
-		return p.providedNames.Get(name)
+		return p.providedNames[name]
 	}
 }
 
@@ -128,7 +142,21 @@ func (p *ProcessClosureProvidesAndRequires) Process(externs rhino.Node, root rhi
 
 // Java: ProcessClosureProvidesAndRequires.getExportedVariableNames()
 func (p *ProcessClosureProvidesAndRequires) GetExportedVariableNames() *jutil.LinkedHashSet[string] {
-	return p.exportedVariables
+	exported := jutil.NewLinkedHashSet[string]()
+	for _, name := range p.exportedVarOrder {
+		exported.Add(name)
+	}
+	return exported
+}
+
+func (p *ProcessClosureProvidesAndRequires) collectProvidedNamesInternal(externs rhino.Node, root rhino.Node) {
+	if len(p.providedNames) == 0 {
+		// goog is special-cased because it is provided in Closure's base library.
+		p.putProvidedName(
+			processClosureProvidesAndRequires_GOOG,
+			p.newProvidedName(processClosureProvidesAndRequires_GOOG, rhino.NilNode, nil, false, false, false))
+		NodeTraversal_TraverseRoots(p.compiler, &closureProvideCollector{outer: p}, externs, root)
+	}
 }
 
 // CollectProvidedNames collects all `goog.provide`s in the given namespace
@@ -136,14 +164,12 @@ func (p *ProcessClosureProvidesAndRequires) GetExportedVariableNames() *jutil.Li
 //
 // Java: ProcessClosureProvidesAndRequires.collectProvidedNames(Node, Node)
 func (p *ProcessClosureProvidesAndRequires) CollectProvidedNames(externs rhino.Node, root rhino.Node) *jutil.LinkedHashMap[string, *ProcessClosureProvidesAndRequires_ProvidedName] {
-	if p.providedNames.IsEmpty() {
-		// goog is special-cased because it is provided in Closure's base library.
-		p.putProvidedName(
-			processClosureProvidesAndRequires_GOOG,
-			p.newProvidedName(processClosureProvidesAndRequires_GOOG, rhino.NilNode, nil, false, false, false))
-		NodeTraversal_TraverseRoots(p.compiler, &closureProvideCollector{outer: p}, externs, root)
+	p.collectProvidedNamesInternal(externs, root)
+	out := jutil.NewLinkedHashMap[string, *ProcessClosureProvidesAndRequires_ProvidedName]()
+	for _, pn := range p.providedOrder {
+		out.Put(pn.namespace, p.providedNames[pn.namespace])
 	}
-	return p.providedNames
+	return out
 }
 
 // RewriteProvidesAndRequires rewrites all provides and requires in the given namespace.
@@ -153,9 +179,9 @@ func (p *ProcessClosureProvidesAndRequires) RewriteProvidesAndRequires(externs r
 	jutil.CheckStateMsg(!p.hasRewritingOccurred, "Cannot call rewriteProvidesAndRequires twice per instance")
 	p.hasRewritingOccurred = true
 
-	p.CollectProvidedNames(externs, root)
+	p.collectProvidedNamesInternal(externs, root)
 
-	for pn := range p.providedNames.Values() {
+	for _, pn := range p.providedOrder {
 		pn.replace(p.preserveGoogProvidesAndRequires, p.providedNames)
 	}
 
@@ -193,7 +219,8 @@ func (c *closureProvideCollector) ShouldTraverse(t *NodeTraversal, n rhino.Node,
 func (c *closureProvideCollector) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	switch n.GetToken() {
 	case rhino.Token_CALL:
-		left := n.GetFirstChild()
+		call := ast.MustCall(n)
+		left := call.Callee().Node()
 		if left.IsGetProp() && left.GetFirstChild().MatchesName(processClosureProvidesAndRequires_GOOG) {
 			c.outer.visitGoogMethodCall(t, parent, n, left.GetString())
 		}
@@ -209,10 +236,10 @@ func (p *ProcessClosureProvidesAndRequires) visitGoogMethodCall(t *NodeTraversal
 	switch methodName {
 	case "exportSymbol":
 		// Note: exportSymbol is allowed in local scope
-		arg := n.GetSecondChild()
-		if arg.IsStringLit() {
-			rootVar, _, _ := strings.Cut(arg.GetString(), ".")
-			p.exportedVariables.Add(rootVar)
+		call := ast.MustCall(n)
+		if firstArg, ok := call.FirstArg(); ok && firstArg.Node().IsStringLit() {
+			rootVar, _, _ := strings.Cut(firstArg.Node().GetString(), ".")
+			p.addExportedVariable(rootVar)
 		}
 	case "require", "requireType":
 		if p.isValidPrimitiveCall(t, n) {
@@ -254,16 +281,16 @@ func (p *ProcessClosureProvidesAndRequires) processLegacyModuleCall(namespace st
 }
 
 func (p *ProcessClosureProvidesAndRequires) processProvideCall(t *NodeTraversal, call rhino.Node, parent rhino.Node) {
-	jutil.CheckState(call.IsCall())
+	callNode := ast.MustCall(call)
 	if !verifyOnlyArgumentIsString(call) {
 		return
 	}
-	ns := call.GetSecondChild().GetString()
+	ns := callNode.MustFirstArg().Node().GetString()
 
 	info := NodeUtil_GetBestJSDocInfo(call)
 	isImplicitlyInitialized := info != nil && info.IsProvideAlreadyProvided()
 
-	if previouslyProvided := p.providedNames.Get(ns); previouslyProvided != nil {
+	if previouslyProvided := p.providedNames[ns]; previouslyProvided != nil {
 		if !previouslyProvided.IsExplicitlyProvided() {
 			previouslyProvided.addProvide(parent, t.GetChunk(), true /* explicit */, p.chunkGraph)
 		}
@@ -321,11 +348,11 @@ func (p *ProcessClosureProvidesAndRequires) checkNestedTypedefProvide(exprResult
 	if lastDot < 0 {
 		return
 	}
-	if !p.providedNames.ContainsKey(name) {
+	if _, exists := p.providedNames[name]; !exists {
 		return
 	}
 	parentName := name[:lastDot]
-	parent := p.providedNames.Get(parentName)
+	parent := p.providedNames[parentName]
 	parentDefinition := parent.GetCandidateDefinition()
 	if parentDefinition.IsNil() ||
 		parentDefinition.GetStaticSourceFile() != exprResult.GetStaticSourceFile() ||
@@ -351,13 +378,13 @@ func (p *ProcessClosureProvidesAndRequires) handleCandidateProvideDefinition(t *
 	switch n.GetParent().GetToken() {
 	case rhino.Token_LET, rhino.Token_CONST:
 		if t.InGlobalScope() {
-			pn = p.providedNames.Get(n.GetString())
+			pn = p.providedNames[n.GetString()]
 		}
 	case rhino.Token_VAR:
-		pn = p.providedNames.Get(n.GetString())
+		pn = p.providedNames[n.GetString()]
 	case rhino.Token_EXPR_RESULT:
-		if n.IsAssign() {
-			pn = p.getProvidedNameByNode(n.GetFirstChild())
+		if assign, ok := ast.AsAssign(n); ok {
+			pn = p.getProvidedNameByNode(assign.Target().Node())
 		}
 	case rhino.Token_CLASS, rhino.Token_FUNCTION:
 		// Class and function provides are forbidden; see ProcessClosurePrimitives's
@@ -405,7 +432,7 @@ func (p *ProcessClosureProvidesAndRequires) registerAnyProvidedPrefixes(ns strin
 		pos := start + rel
 		prefixNs := ns[:pos]
 		start = pos + 1
-		if existing := p.providedNames.Get(prefixNs); existing != nil {
+		if existing := p.providedNames[prefixNs]; existing != nil {
 			existing.addProvide(node, chunk, false /* explicit */, p.chunkGraph)
 		} else {
 			p.putProvidedName(
@@ -533,7 +560,7 @@ func (pn *ProcessClosureProvidesAndRequires_ProvidedName) updateMinimumChunk(new
 }
 
 func (pn *ProcessClosureProvidesAndRequires_ProvidedName) replace(
-	preserveGoogProvidesAndRequires bool, providedNames *jutil.LinkedHashMap[string, *ProcessClosureProvidesAndRequires_ProvidedName]) {
+	preserveGoogProvidesAndRequires bool, providedNames map[string]*ProcessClosureProvidesAndRequires_ProvidedName) {
 	jutil.CheckStateMsg1(
 		!pn.IsFromLegacyModule(),
 		"Cannot rewrite provides without having rewritten goog.modules, found %s",
@@ -548,13 +575,12 @@ func (pn *ProcessClosureProvidesAndRequires_ProvidedName) replace(
 	// provided symbol.
 	if pn.HasCandidateDefinition() && !pn.explicitNode.IsNil() {
 		pn.replacementNode = pn.candidateDefinition
-		if pn.candidateDefinition.IsExprResult() {
-			exprNode := pn.candidateDefinition.GetOnlyChild()
-			if exprNode.IsAssign() {
-				nameNode := exprNode.GetFirstChild()
+		if exprStmt, ok := ast.AsExprStmt(pn.candidateDefinition); ok {
+			if assign, ok := exprStmt.Expr().AsAssign(); ok {
+				nameNode := assign.Target().Node()
 				if nameNode.IsName() {
 					// In the case of a simple name, `name = value;`, ensure the name is declared with `var`.
-					pn.convertProvideAssignmentToVarDeclaration(exprNode, nameNode)
+					pn.convertProvideAssignmentToVarDeclaration(assign.Node(), nameNode)
 				} else {
 					// `some.provided.namespace = value;`
 					pn.candidateDefinition.PutBooleanProp(rhino.Node_IS_NAMESPACE, true)
@@ -593,7 +619,7 @@ func (pn *ProcessClosureProvidesAndRequires_ProvidedName) convertProvideAssignme
 }
 
 func (pn *ProcessClosureProvidesAndRequires_ProvidedName) createNamespaceInitialization(
-	replacement rhino.Node, providedNames *jutil.LinkedHashMap[string, *ProcessClosureProvidesAndRequires_ProvidedName]) {
+	replacement rhino.Node, providedNames map[string]*ProcessClosureProvidesAndRequires_ProvidedName) {
 	pn.replacementNode = replacement
 	if pn.firstChunk == pn.minimumChunk {
 		pn.replacementNode.InsertBefore(pn.firstNode)
@@ -604,7 +630,7 @@ func (pn *ProcessClosureProvidesAndRequires_ProvidedName) createNamespaceInitial
 		if indexOfDot == -1 {
 			pn.compiler.GetNodeForCodeInsertion(pn.minimumChunk).AddChildToBack(pn.replacementNode)
 		} else {
-			parentName := providedNames.Get(pn.namespace[:indexOfDot])
+			parentName := providedNames[pn.namespace[:indexOfDot]]
 			jutil.CheckNotNull(parentName)
 			rhino.CheckNotNull(parentName.replacementNode)
 			pn.replacementNode.InsertAfter(parentName.replacementNode)

@@ -121,11 +121,11 @@ type functionTypeExt struct {
 	// for constructors.
 	canonicalRepresentation FunctionType
 
-	// The primitive id associated with this FunctionType, or null if none.
-	closurePrimitive *ClosurePrimitive
-
 	// The ID of the goog.module in which this function was declared.
-	googModuleId *string
+	googModuleID rhinoStringID
+
+	// 1 + ClosurePrimitive ordinal, or 0 if none.
+	closurePrimitivePlus1 uint8
 }
 
 // FunctionTypeBase holds FunctionType's fields and methods; plain function
@@ -253,8 +253,8 @@ func (f *FunctionTypeBase) InitFunctionTypeBase(self FunctionType, builder *Func
 	source := builder.sourceNode
 	jutil.CheckArgument(source.IsNil() || source.IsFunction() || source.IsClass())
 	f.source = source
-	if builder.googModuleId != nil {
-		f.ensureExt().googModuleId = builder.googModuleId
+	if builder.googModuleID != 0 {
+		f.ensureExt().googModuleID = builder.googModuleID
 	}
 	f.call.fnKind = builder.kind
 	if builder.isKnownAmbiguous {
@@ -270,7 +270,7 @@ func (f *FunctionTypeBase) InitFunctionTypeBase(self FunctionType, builder *Func
 		case FunctionType_Kind_CONSTRUCTOR, FunctionType_Kind_INTERFACE:
 			var typeOfThisBuilder InstanceObjectType_Builder
 			typeOfThisBuilder.registry = f.GetRegistry()
-			typeOfThisBuilder.className = self.GetReferenceName()
+			typeOfThisBuilder.classNameID = rhinoStringIDFromPtr(self.GetReferenceName())
 			typeOfThisBuilder.nativeType = self.IsNativeObjectType()
 			typeOfThisBuilder.anonymousType = self.IsAnonymous()
 			typeOfThisBuilder.templateTypeMap = self.GetTemplateTypeMap()
@@ -279,7 +279,7 @@ func (f *FunctionTypeBase) InitFunctionTypeBase(self FunctionType, builder *Func
 
 			ctorKeys := builder.constructorOnlyKeys
 			if len(ctorKeys) > 0 {
-				typeOfThisBuilder.templateTypeMap = f.templateTypeMap.CopyWithoutKeys(jutil.NewLinkedHashSet(ctorKeys...))
+				typeOfThisBuilder.templateTypeMap = f.templateTypeMap.copyWithoutKeySlice(ctorKeys)
 				typeOfThisBuilder.templateParamCount = f.selfFunc().GetTemplateParamCount() - len(ctorKeys)
 			}
 
@@ -306,8 +306,8 @@ func (f *FunctionTypeBase) InitFunctionTypeBase(self FunctionType, builder *Func
 		f.call.resolveInternal(f.GetRegistry().GetErrorReporter())
 	}
 
-	if builder.primitiveId != nil {
-		f.ensureExt().closurePrimitive = builder.primitiveId
+	if builder.primitivePlus1 != 0 {
+		f.ensureExt().closurePrimitivePlus1 = builder.primitivePlus1
 	}
 	f.call.fnIsStructuralInterface = false
 	f.call.fnIsAbstract = builder.isAbstract
@@ -550,14 +550,19 @@ func (f *FunctionTypeBase) GetSlotByKey(name Property_Key) *Property {
 func (f *FunctionTypeBase) GetOwnPropertyNames() []string {
 	if f.prototypeSlot() == nil {
 		return f.PrototypeObjectTypeBase.GetOwnPropertyNames()
-	} else {
-		names := jutil.NewLinkedHashSet[string]()
-		names.Add("prototype")
-		f.PrototypeObjectTypeBase.ForEachOwnPropertyName(func(name string) {
-			names.Add(name)
-		})
-		return names.ToSlice()
 	}
+	pm := &f.properties
+	pm.ensureSorted()
+	entries := pm.entries()
+	names := make([]string, 0, len(entries)+1)
+	names = append(names, "prototype")
+	for _, prop := range entries {
+		name := rhinoStringFromID(prop.nameID)
+		if name != "prototype" {
+			names = append(names, name)
+		}
+	}
+	return names
 }
 
 // ForEachOwnPropertyName calls fn for each own property name in sorted order (with "prototype" first when present).
@@ -593,10 +598,9 @@ func (f *FunctionTypeBase) GetPrototype() ObjectType {
 			// then it would propagate to all structural functions.
 			f.SetPrototypeNoCheck(f.GetRegistry().GetNativeObjectType(JSTypeNative_UNKNOWN_TYPE), NilNode)
 		} else {
-			name := *refName + ".prototype"
 			fields := PrototypeObjectType_Builder{
 				registry:          f.GetRegistry(),
-				className:         &name,
+				classNameID:       rhinoStringPoolIntern(*refName + ".prototype"),
 				implicitPrototype: f.GetRegistry().GetNativeObjectType(JSTypeNative_OBJECT_TYPE),
 				nativeType:        f.selfFunc().IsNativeObjectType(),
 				templateTypeMap:   f.GetRegistry().GetEmptyTemplateTypeMap(),
@@ -652,10 +656,9 @@ func (f *FunctionTypeBase) SetPrototypeBasedOnWithPropertyNode(baseType ObjectTy
 			// Bail out for cases like Foo.prototype = new Foo();
 			return
 		}
-		name := jutil.ToJavaString(f.selfFunc().GetReferenceName()) + ".prototype"
 		fields := PrototypeObjectType_Builder{
 			registry:          f.GetRegistry(),
-			className:         &name,
+			classNameID:       rhinoStringPoolIntern(jutil.ToJavaString(f.selfFunc().GetReferenceName()) + ".prototype"),
 			implicitPrototype: baseType,
 			templateTypeMap:   f.GetRegistry().GetEmptyTemplateTypeMap(),
 		}
@@ -712,6 +715,30 @@ func (f *FunctionTypeBase) SetPrototypeNoCheck(prototype ObjectType, propertyNod
 	return true
 }
 
+func appendUniqueObjectType(slice []ObjectType, elem ObjectType) []ObjectType {
+	for _, existing := range slice {
+		if existing == elem || (existing != nil && elem != nil && existing.Equals(elem)) {
+			return slice
+		}
+	}
+	return append(slice, elem)
+}
+
+func addRelatedInterfacesSlice(instance ObjectType, out *[]ObjectType) {
+	constructor := instance.GetConstructor()
+	if constructor == nil || !constructor.IsInterface() {
+		return
+	}
+	prevLen := len(*out)
+	*out = appendUniqueObjectType(*out, instance)
+	if len(*out) == prevLen {
+		return
+	}
+	for _, interfaceType := range instance.GetCtorExtendedInterfaces() {
+		addRelatedInterfacesSlice(interfaceType, out)
+	}
+}
+
 // GetAllImplementedInterfaces returns all interfaces implemented by a class
 // or its superclass and any superclasses for any of those interfaces. If
 // this is called before all types are resolved, it may return an incomplete
@@ -719,14 +746,15 @@ func (f *FunctionTypeBase) SetPrototypeNoCheck(prototype ObjectType, propertyNod
 //
 // Java: FunctionType.getAllImplementedInterfaces()
 func (f *FunctionTypeBase) GetAllImplementedInterfaces() []ObjectType {
-	// Store them in a linked hash set, so that the compile job is
-	// deterministic.
-	interfaces := jutil.NewObjectLinkedHashSet[ObjectType]()
-
-	for _, type_ := range f.selfFunc().GetImplementedInterfaces() {
-		f.AddRelatedInterfaces(type_, interfaces)
+	direct := f.selfFunc().GetImplementedInterfaces()
+	if len(direct) == 0 {
+		return emptyObjectTypeSlice
 	}
-	return interfaces.ToSlice()
+	interfaces := make([]ObjectType, 0, len(direct))
+	for _, type_ := range direct {
+		addRelatedInterfacesSlice(type_, &interfaces)
+	}
+	return interfaces
 }
 
 // Java: FunctionType.AddRelatedInterfaces(ObjectType, Set<ObjectType>)
@@ -749,17 +777,20 @@ func (f *FunctionTypeBase) AddRelatedInterfaces(instance ObjectType, set *jutil.
 
 // Java: FunctionType.getAncestorInterfaces()
 func (f *FunctionTypeBase) GetAncestorInterfaces() []ObjectType {
-	result := jutil.NewObjectLinkedHashSet[ObjectType]()
+	var src []ObjectType
 	if f.selfFunc().IsConstructor() {
-		for _, t := range f.selfFunc().GetImplementedInterfaces() {
-			result.Add(t)
-		}
+		src = f.selfFunc().GetImplementedInterfaces()
 	} else {
-		for _, t := range f.selfFunc().GetExtendedInterfaces() {
-			result.Add(t)
-		}
+		src = f.selfFunc().GetExtendedInterfaces()
 	}
-	return result.ToSlice()
+	if len(src) == 0 {
+		return emptyObjectTypeSlice
+	}
+	result := make([]ObjectType, 0, len(src))
+	for _, t := range src {
+		result = appendUniqueObjectType(result, t)
+	}
+	return result
 }
 
 // GetImplementedInterfaces returns interfaces implemented directly by a
@@ -1303,7 +1334,7 @@ func (f *FunctionTypeBase) GetSource() Node {
 // Java: FunctionType.getGoogModuleId()
 func (f *FunctionTypeBase) GetGoogModuleId() *string {
 	if f.ext != nil {
-		return f.ext.googModuleId
+		return rhinoStringPtrFromID(f.ext.googModuleID)
 	}
 	return nil
 }
@@ -1479,12 +1510,44 @@ func (f *FunctionTypeBase) IsAbstract() bool {
 // GetPropertyTypeMap gets the map of properties to types covered in a
 // function type. Returns a Map that maps the property's name to the
 // property's type.
-//
+func fnSliceContains(list []FunctionType, elem FunctionType) bool {
+	for _, existing := range list {
+		if existing == elem || (existing != nil && elem != nil && existing.Equals(elem)) {
+			return true
+		}
+	}
+	return false
+}
+
 // Java: FunctionType.getPropertyTypeMap()
 func (f *FunctionTypeBase) GetPropertyTypeMap() *jutil.LinkedHashMap[string, JSType] {
 	propTypeMap := jutil.NewLinkedHashMap[string, JSType]()
-	FunctionType_UpdatePropertyTypeMap(f.selfFunc(), propTypeMap, jutil.NewObjectLinkedHashSet[FunctionType]())
+	var cacheBuf [8]FunctionType
+	updatePropertyTypeMapSlice(f.selfFunc(), propTypeMap, cacheBuf[:0])
 	return propTypeMap
+}
+
+func updatePropertyTypeMapSlice(type_ FunctionType, propTypeMap *jutil.LinkedHashMap[string, JSType], cache []FunctionType) {
+	if type_ == nil {
+		return
+	}
+	prototype := type_.GetPrototype()
+	if prototype != nil {
+		propNames := prototype.GetOwnPropertyNames()
+		for _, name := range propNames {
+			if !propTypeMap.ContainsKey(name) {
+				propTypeMap.Put(name, prototype.GetPropertyType(name))
+			}
+		}
+	}
+	iterable := type_.GetExtendedInterfaces()
+	for _, interfaceType := range iterable {
+		superConstructor := interfaceType.GetConstructor()
+		if superConstructor == nil || fnSliceContains(cache, superConstructor) {
+			continue
+		}
+		updatePropertyTypeMapSlice(superConstructor, propTypeMap, append(cache, superConstructor))
+	}
 }
 
 // FunctionType_UpdatePropertyTypeMap: cache is added to prevent infinite
@@ -1529,8 +1592,40 @@ func FunctionType_UpdatePropertyTypeMap(
 //
 // Java: FunctionType.checkExtendsLoop()
 func (f *FunctionTypeBase) CheckExtendsLoop() []FunctionType {
-	var path []FunctionType
-	return f.CheckExtendsLoopWithCacheAndPath(jutil.NewObjectLinkedHashSet[FunctionType](), &path)
+	if len(f.selfFunc().GetExtendedInterfaces()) == 0 {
+		return nil
+	}
+	var pathBuf [8]FunctionType
+	path := pathBuf[:0]
+	return f.checkExtendsLoopSlice(&path)
+}
+
+func (f *FunctionTypeBase) checkExtendsLoopSlice(path *[]FunctionType) []FunctionType {
+	for _, interfaceType := range f.selfFunc().GetExtendedInterfaces() {
+		superConstructor := interfaceType.GetConstructor()
+		if superConstructor == nil {
+			continue
+		}
+		if fnSliceContains(*path, superConstructor) {
+			i := 0
+			for (*path)[i] != superConstructor && !(*path)[i].Equals(superConstructor) {
+				i++
+			}
+			loopLen := len(*path) - i + 1
+			out := make([]FunctionType, loopLen)
+			copy(out, (*path)[i:])
+			out[loopLen-1] = superConstructor
+			return out
+		}
+		*path = append(*path, superConstructor)
+		result := superConstructor.GetFunctionTypeBase().checkExtendsLoopSlice(path)
+		if result != nil {
+			return result
+		}
+		(*path)[len(*path)-1] = nil
+		*path = (*path)[:len(*path)-1]
+	}
+	return nil
 }
 
 // Java: FunctionType.checkExtendsLoop(Set<FunctionType>, List<FunctionType>)
@@ -1706,8 +1801,8 @@ func (f *FunctionTypeBase) IsDelegateProxy() bool {
 //
 // Java: FunctionType.getClosurePrimitive()
 func (f *FunctionTypeBase) GetClosurePrimitive() *ClosurePrimitive {
-	if f.ext != nil {
-		return f.ext.closurePrimitive
+	if f.ext != nil && f.ext.closurePrimitivePlus1 != 0 {
+		return &closurePrimitive_values[f.ext.closurePrimitivePlus1-1]
 	}
 	return nil
 }

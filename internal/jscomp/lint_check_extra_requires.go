@@ -19,6 +19,7 @@
 package jscomp
 
 import (
+	"github.com/paullepoulpe/jsgo/internal/ast"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
@@ -31,12 +32,14 @@ type CheckExtraRequires struct {
 	compiler AbstractCompiler
 
 	// Keys are the local name of a required namespace. Values are the goog.require CALL node.
-	requires *jutil.LinkedHashMap[string, rhino.Node]
+	// Accompanied by requiresOrder to preserve insertion order for deterministic warning output.
+	requires      map[string]rhino.Node
+	requiresOrder []string
 
 	// Adding an entry to usages indicates that the name (either a fully qualified or local name)
-	// is used and can be required.  Note that since usages are name-based and not scoped, any usage
+	// is used and can be required. Note that since usages are name-based and not scoped, any usage
 	// that shadows an unused require in that file will cause the extra require warning to be missed.
-	usages *jutil.LinkedHashSet[string]
+	usages map[string]bool
 
 	// This is only relevant for the standalone CheckExtraRequires run. This is
 	// used to restrict the linter rule only for the modules listed in this set
@@ -48,8 +51,9 @@ var CheckExtraRequires_EXTRA_REQUIRE_WARNING = DiagnosticType_Disabled(
 	"extra require: ''{0}'' is never referenced in this file")
 
 // TODO(b/130215517): This should eventually be removed and exceptions suppressed
-var checkExtraRequires_DEFAULT_EXTRA_NAMESPACES = jutil.NewLinkedHashSet(
-	"goog.testing.asserts", "goog.testing.jsunit")
+func checkExtraRequires_isDefaultExtraNamespace(ns string) bool {
+	return ns == "goog.testing.asserts" || ns == "goog.testing.jsunit"
+}
 
 // NewCheckExtraRequires is new CheckExtraRequires(compiler, requiresToRemove).
 //
@@ -60,13 +64,12 @@ var checkExtraRequires_DEFAULT_EXTRA_NAMESPACES = jutil.NewLinkedHashSet(
 // Java: CheckExtraRequires(AbstractCompiler, ImmutableSet<String>)
 func NewCheckExtraRequires(
 	compiler AbstractCompiler, requiresToRemove *jutil.LinkedHashSet[string]) *CheckExtraRequires {
-	c := &CheckExtraRequires{
-		requires: jutil.NewLinkedHashMap[string, rhino.Node](),
-		usages:   jutil.NewLinkedHashSet[string](),
+	return &CheckExtraRequires{
+		compiler:         compiler,
+		requires:         make(map[string]rhino.Node),
+		usages:           make(map[string]bool),
+		requiresToRemove: requiresToRemove,
 	}
-	c.compiler = compiler
-	c.requiresToRemove = requiresToRemove
-	return c
 }
 
 // Java: CheckExtraRequires.process(Node, Node)
@@ -76,29 +79,34 @@ func (c *CheckExtraRequires) Process(externs rhino.Node, root rhino.Node) {
 }
 
 // Java: CheckExtraRequires.extractNamespace(Node, String...)
-func (c *CheckExtraRequires) ExtractNamespace(call rhino.Node, primitiveNames ...string) *string {
-	callee := call.GetFirstChild()
+func (c *CheckExtraRequires) ExtractNamespace(call ast.Call, primitiveNames ...string) (string, bool) {
+	callee := call.Callee().Node()
 	if !callee.IsGetProp() {
-		return nil
+		return "", false
+	}
+	firstArg, hasArg := call.FirstArg()
+	if !hasArg {
+		return "", false
+	}
+	strLit, isStr := ast.AsStringLit(firstArg.Node())
+	if !isStr {
+		return "", false
 	}
 	for _, primitiveName := range primitiveNames {
 		if callee.MatchesQualifiedName(primitiveName) {
-			target := callee.GetNext()
-			if !target.IsNil() && target.IsStringLit() {
-				return jutil.StringPtr(target.GetString())
-			}
+			return strLit.Value(), true
 		}
 	}
-	return nil
+	return "", false
 }
 
 // Java: CheckExtraRequires.extractNamespaceIfRequire(Node)
-func (c *CheckExtraRequires) ExtractNamespaceIfRequire(call rhino.Node) *string {
+func (c *CheckExtraRequires) ExtractNamespaceIfRequire(call ast.Call) (string, bool) {
 	return c.ExtractNamespace(call, "goog.require", "goog.requireType")
 }
 
 // Java: CheckExtraRequires.extractNamespaceIfForwardDeclare(Node)
-func (c *CheckExtraRequires) ExtractNamespaceIfForwardDeclare(call rhino.Node) *string {
+func (c *CheckExtraRequires) ExtractNamespaceIfForwardDeclare(call ast.Call) (string, bool) {
 	return c.ExtractNamespace(call, "goog.forwardDeclare")
 }
 
@@ -116,36 +124,37 @@ func (c *CheckExtraRequires) Visit(t *NodeTraversal, n rhino.Node, parent rhino.
 			c.VisitQualifiedName(n)
 		}
 	case rhino.Token_CALL:
-		c.VisitCallNode(n, parent)
+		c.VisitCallNode(ast.MustCall(n), parent)
 	case rhino.Token_SCRIPT:
 		c.VisitScriptNode()
 		c.Reset()
 	case rhino.Token_IMPORT:
-		c.VisitImportNode(n)
+		c.VisitImportNode(ast.MustImport(n))
 	default:
 	}
 }
 
 // Java: CheckExtraRequires.reset()
 func (c *CheckExtraRequires) Reset() {
-	c.usages.Clear()
-	c.requires.Clear()
+	clear(c.usages)
+	clear(c.requires)
+	c.requiresOrder = c.requiresOrder[:0]
 }
 
 // Java: CheckExtraRequires.visitScriptNode()
 func (c *CheckExtraRequires) VisitScriptNode() {
 	// For every goog.require, check that there is a usage and warn if there is not.
-	for require, call := range c.requires.All() {
-		if !c.usages.Contains(require) &&
+	for _, require := range c.requiresOrder {
+		if !c.usages[require] &&
 			(c.requiresToRemove == nil || c.requiresToRemove.Contains(require)) {
-			c.ReportExtraRequireWarning(call, require)
+			c.ReportExtraRequireWarning(c.requires[require], require)
 		}
 	}
 }
 
 // Java: CheckExtraRequires.reportExtraRequireWarning(Node, String)
 func (c *CheckExtraRequires) ReportExtraRequireWarning(call rhino.Node, require string) {
-	if checkExtraRequires_DEFAULT_EXTRA_NAMESPACES.Contains(require) {
+	if checkExtraRequires_isDefaultExtraNamespace(require) {
 		return
 	}
 	jsDoc := NodeUtil_GetBestJSDocInfo(call)
@@ -170,19 +179,22 @@ func (c *CheckExtraRequires) ReportExtraRequireWarning(call rhino.Node, require 
 //
 // Java: CheckExtraRequires.visitRequire(String, Node)
 func (c *CheckExtraRequires) VisitRequire(localName string, node rhino.Node) {
-	c.requires.PutIfAbsent(localName, node)
+	if _, exists := c.requires[localName]; !exists {
+		c.requires[localName] = node
+		c.requiresOrder = append(c.requiresOrder, localName)
+	}
 }
 
 // Java: CheckExtraRequires.visitImportNode(Node)
-func (c *CheckExtraRequires) VisitImportNode(importNode rhino.Node) {
-	defaultImport := importNode.GetFirstChild()
-	if defaultImport.IsName() {
-		c.VisitRequire(defaultImport.GetString(), importNode)
+func (c *CheckExtraRequires) VisitImportNode(imp ast.Import) {
+	if defaultImport, ok := imp.Default(); ok {
+		c.VisitRequire(defaultImport.Ident(), imp.Node())
 	}
-	namedImports := defaultImport.GetNext()
-	if namedImports.IsImportSpecs() {
-		for importSpec := namedImports.GetFirstChild(); !importSpec.IsNil(); importSpec = importSpec.GetNext() {
-			c.VisitRequire(importSpec.GetLastChild().GetString(), importNode)
+	if bindings, ok := imp.Bindings(); ok {
+		if specs, ok := bindings.AsImportSpecs(); ok {
+			for spec := range specs.Specs() {
+				c.VisitRequire(spec.Local().Ident(), imp.Node())
+			}
 		}
 	}
 }
@@ -194,21 +206,23 @@ func (c *CheckExtraRequires) VisitForwardDeclare(namespace string, forwardDeclar
 
 // Java: CheckExtraRequires.visitGoogRequire(String, Node, Node)
 func (c *CheckExtraRequires) VisitGoogRequire(namespace string, googRequireCall rhino.Node, parent rhino.Node) {
-	if parent.IsName() {
-		c.VisitRequire(parent.GetString(), googRequireCall)
-	} else if parent.IsDestructuringLhs() && parent.GetFirstChild().IsObjectPattern() {
-		if parent.GetFirstChild().HasChildren() {
-			for stringKey := parent.GetFirstFirstChild(); !stringKey.IsNil(); stringKey = stringKey.GetNext() {
-				importName := stringKey.GetFirstChild()
-				if !importName.IsName() {
-					// invalid reported elsewhere
-					continue
+	if parentName, ok := ast.AsName(parent); ok {
+		c.VisitRequire(parentName.Ident(), googRequireCall)
+	} else if lhs, ok := ast.AsDestructuringLhs(parent); ok {
+		if objPat, ok := lhs.Pattern().AsObjectPattern(); ok {
+			if _, hasProps := objPat.FirstProp(); hasProps {
+				for prop := range objPat.Props() {
+					importName := prop.Node().GetFirstChild()
+					if nameNode, ok := ast.AsName(importName); ok {
+						c.VisitRequire(nameNode.Ident(), nameNode.Node())
+					}
 				}
-				c.VisitRequire(importName.GetString(), importName)
+			} else {
+				c.VisitRequire(namespace, googRequireCall)
 			}
-		} else {
-			c.VisitRequire(namespace, googRequireCall)
+			return
 		}
+		c.VisitRequire(namespace, googRequireCall)
 	} else {
 		c.VisitRequire(namespace, googRequireCall)
 	}
@@ -217,32 +231,33 @@ func (c *CheckExtraRequires) VisitGoogRequire(namespace string, googRequireCall 
 var checkExtraRequires_GOOG_MODULE_GET = rhino.QualifiedName_Of("goog.module.get")
 
 // Java: CheckExtraRequires.visitCallNode(Node, Node)
-func (c *CheckExtraRequires) VisitCallNode(call rhino.Node, parent rhino.Node) {
-	required := c.ExtractNamespaceIfRequire(call)
-	if required != nil {
-		c.VisitGoogRequire(*required, call, parent)
+func (c *CheckExtraRequires) VisitCallNode(call ast.Call, parent rhino.Node) {
+	if required, ok := c.ExtractNamespaceIfRequire(call); ok {
+		c.VisitGoogRequire(required, call.Node(), parent)
 		return
 	}
-	declare := c.ExtractNamespaceIfForwardDeclare(call)
-	if declare != nil {
-		c.VisitForwardDeclare(*declare, call, parent)
+	if declare, ok := c.ExtractNamespaceIfForwardDeclare(call); ok {
+		c.VisitForwardDeclare(declare, call.Node(), parent)
 		return
 	}
-	callee := call.GetFirstChild()
-	if checkExtraRequires_GOOG_MODULE_GET.Matches(callee) && call.GetSecondChild().IsStringLit() {
-		c.usages.Add(call.GetSecondChild().GetString())
+	if checkExtraRequires_GOOG_MODULE_GET.Matches(call.Callee().Node()) {
+		if firstArg, hasArg := call.FirstArg(); hasArg {
+			if strLit, ok := ast.AsStringLit(firstArg.Node()); ok {
+				c.usages[strLit.Value()] = true
+			}
+		}
 	}
 }
 
 // Java: CheckExtraRequires.addUsagesOfAllPrefixes(QualifiedName)
 func (c *CheckExtraRequires) AddUsagesOfAllPrefixes(qualifiedName rhino.QualifiedName) {
-	c.usages.Add(qualifiedName.Join())
+	c.usages[qualifiedName.Join()] = true
 	// For "foo.bar.baz.qux" add usages for "foo.bar.baz.qux", "foo.bar.baz",
 	// "foo.bar", and "foo" because any of those might be a require that
 	// we need to include.
 	for !qualifiedName.IsSimple() {
 		qualifiedName = qualifiedName.GetOwner()
-		c.usages.Add(qualifiedName.Join())
+		c.usages[qualifiedName.Join()] = true
 	}
 }
 

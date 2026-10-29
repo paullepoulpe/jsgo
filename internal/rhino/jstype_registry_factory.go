@@ -258,7 +258,8 @@ func (r *JSTypeRegistry) BuildRecordTypeFromObject(objType ObjectType) JSType {
 	if len(propNames) == 0 {
 		return r.GetNativeType(JSTypeNative_OBJECT_TYPE)
 	}
-	builder := NewRecordTypeBuilder(r)
+	var builder RecordTypeBuilder
+	builder.init(r)
 	// Otherwise collect the properties and build a record type
 	for _, propName := range propNames {
 		builder.AddProperty(propName, objType.GetPropertyType(propName), NilNode)
@@ -268,7 +269,8 @@ func (r *JSTypeRegistry) BuildRecordTypeFromObject(objType ObjectType) JSType {
 
 // Java: JSTypeRegistry.createRecordType(Map<String, ? extends JSType>)
 func (r *JSTypeRegistry) CreateRecordType(props *jutil.LinkedHashMap[string, JSType]) JSType {
-	builder := NewRecordTypeBuilder(r)
+	var builder RecordTypeBuilder
+	builder.init(r)
 	for k, v := range props.All() {
 		builder.AddProperty(k, v, NilNode)
 	}
@@ -281,7 +283,7 @@ func (r *JSTypeRegistry) CreateRecordType(props *jutil.LinkedHashMap[string, JST
 func (r *JSTypeRegistry) CreateObjectType(name *string, implicitPrototype ObjectType) ObjectType {
 	builder := PrototypeObjectType_Builder{
 		registry:          r,
-		className:         name,
+		classNameID:       rhinoStringIDFromPtr(name),
 		implicitPrototype: implicitPrototype,
 		templateTypeMap:   r.GetEmptyTemplateTypeMap(),
 	}
@@ -423,12 +425,17 @@ func (r *JSTypeRegistry) CreateTemplatizedType(baseType ObjectType, templatizedT
 // Java: JSTypeRegistry.createNamedType(StaticTypedScope, String, String, int, int)
 func (r *JSTypeRegistry) CreateNamedType(
 	scope StaticTypedScope, reference string, sourceName *string, lineno int, charno int) *NamedType {
+	return r.createNamedTypeByID(scope, reference, rhinoStringIDFromPtr(sourceName), lineno, charno)
+}
+
+func (r *JSTypeRegistry) createNamedTypeByID(
+	scope StaticTypedScope, reference string, sourceNameID rhinoStringID, lineno int, charno int) *NamedType {
 	b := NamedType_Builder{
 		registry:          r,
 		referenceName:     reference,
 		hasReferenceName:  true,
 		scope:             scope,
-		sourceName:        sourceName,
+		sourceNameID:      sourceNameID,
 		lineno:            lineno,
 		charno:            charno,
 		referencedType:    r.GetNativeType(JSTypeNative_UNKNOWN_TYPE),
@@ -747,8 +754,8 @@ func (r *JSTypeRegistry) ParseTemplateArgs(
 //
 // Java: JSTypeRegistry.createRecordTypeFromNodes(Node, String, StaticTypedScope)
 func (r *JSTypeRegistry) CreateRecordTypeFromNodes(n Node, sourceName string, scope StaticTypedScope) JSType {
-
-	builder := NewRecordTypeBuilder(r)
+	var builder RecordTypeBuilder
+	builder.init(r)
 
 	// For each of the fields in the record type.
 	for fieldTypeNode := n.GetFirstChild(); !fieldTypeNode.IsNil(); fieldTypeNode = fieldTypeNode.GetNext() {

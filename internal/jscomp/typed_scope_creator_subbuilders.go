@@ -24,6 +24,7 @@ import (
 	"github.com/paullepoulpe/jsgo/internal/ast"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
+	"github.com/paullepoulpe/jsgo/internal/strpool"
 )
 
 // visitPreorder dispatches pre-order scope-builder actions by scopeBuilderKind.
@@ -368,7 +369,7 @@ func (b *TypedScopeCreator_scopeBuilder) DeclareNamesInPositionalParameter(
 		// function f({x}) {}
 		b.DeclareDestructuringParameter(isInferred, astParameter.Node(), paramType)
 	default:
-		panic(jutil.NewIllegalStateExceptionMsg("Unexpected function parameter node " + jutil.ToJavaString(astParameter.Node())))
+		panic(jutil.NewIllegalStateExceptionMsg("Unexpected function parameter node " + nodeStringOrNull(astParameter.Node())))
 	}
 }
 
@@ -825,7 +826,7 @@ func TypedScopeCreator_ContainingGoogModuleIdOf(scope *TypedScope) *string {
 			return ns
 		}
 		for namespace := range metadata.GoogNamespaces().All() {
-			return jutil.StringPtr(namespace)
+			return strpool.StringPtr(strpool.Intern(namespace))
 		}
 		return nil
 	}

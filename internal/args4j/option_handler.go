@@ -39,42 +39,50 @@ import (
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 )
 
-// OptionHandler parses command-line operands for a single Option or Argument.
-type OptionHandler interface {
-	ParseArguments(params Parameters) int
-	GetDefaultMetaVariable() *string
-	GetMetaVariable(rb ResourceBundle) *string
-	GetNameAndMeta(rb ResourceBundle) string
-	GetNameAndMetaWithProperties(rb ResourceBundle, properties *ParserProperties) string
-	Print(v any) string
-	PrintDefaultValue() *string
-	GetOptionHandlerBase() *OptionHandlerBase
+// OptionHandler parses command-line operands and formats metadata for a single
+// Option or Argument.
+type OptionHandler struct {
+	Option              *OptionDef
+	Setter              Setter
+	Owner               *CmdLineParser
+	parse               func(h *OptionHandler, params Parameters) int
+	defaultMetaVar      *string
+	ignoreOptionMetaVar bool
 }
 
-// OptionHandlerBase implements the shared state and formatting methods of
-// OptionHandler. Concrete handlers embed OptionHandlerBase and call
-// InitOptionHandlerBase with themselves as self.
-type OptionHandlerBase struct {
-	self   OptionHandler
-	Option OptionDef
-	Setter Setter
-	Owner  *CmdLineParser
+// NewOptionHandler constructs a concrete OptionHandler with custom parsing logic.
+func NewOptionHandler(
+	parser *CmdLineParser,
+	option *OptionDef,
+	setter Setter,
+	defaultMetaVar *string,
+	parse func(h *OptionHandler, params Parameters) int,
+) *OptionHandler {
+	return &OptionHandler{
+		Owner:          parser,
+		Option:         option,
+		Setter:         setter,
+		defaultMetaVar: defaultMetaVar,
+		parse:          parse,
+	}
 }
 
-func (h *OptionHandlerBase) InitOptionHandlerBase(self OptionHandler, parser *CmdLineParser, option OptionDef, setter Setter) {
-	h.self = self
-	h.Owner = parser
-	h.Option = option
-	h.Setter = setter
+func (h *OptionHandler) ParseArguments(params Parameters) int {
+	return h.parse(h, params)
 }
 
-func (h *OptionHandlerBase) GetOptionHandlerBase() *OptionHandlerBase { return h }
+func (h *OptionHandler) GetDefaultMetaVariable() *string {
+	return h.defaultMetaVar
+}
 
-func (h *OptionHandlerBase) GetMetaVariable(rb ResourceBundle) *string {
+func (h *OptionHandler) GetMetaVariable(rb ResourceBundle) *string {
+	if h.ignoreOptionMetaVar {
+		return h.defaultMetaVar
+	}
 	token := h.Option.MetaVar()
 	tokenOrNull := &token
 	if len(token) == 0 {
-		tokenOrNull = h.self.GetDefaultMetaVariable()
+		tokenOrNull = h.defaultMetaVar
 	}
 	if tokenOrNull == nil {
 		return nil
@@ -86,16 +94,16 @@ func (h *OptionHandlerBase) GetMetaVariable(rb ResourceBundle) *string {
 	return tokenOrNull
 }
 
-func (h *OptionHandlerBase) GetNameAndMeta(rb ResourceBundle) string {
-	return h.self.GetNameAndMetaWithProperties(rb, ParserProperties_Defaults())
+func (h *OptionHandler) GetNameAndMeta(rb ResourceBundle) string {
+	return h.GetNameAndMetaWithProperties(rb, ParserProperties_Defaults())
 }
 
-func (h *OptionHandlerBase) GetNameAndMetaWithProperties(rb ResourceBundle, properties *ParserProperties) string {
+func (h *OptionHandler) GetNameAndMetaWithProperties(rb ResourceBundle, properties *ParserProperties) string {
 	str := ""
 	if !h.Option.IsArgument() {
 		str = h.Option.String()
 	}
-	if meta := h.self.GetMetaVariable(rb); meta != nil {
+	if meta := h.GetMetaVariable(rb); meta != nil {
 		if len(str) > 0 {
 			str += properties.GetOptionValueDelimiter()
 		}
@@ -104,11 +112,11 @@ func (h *OptionHandlerBase) GetNameAndMetaWithProperties(rb ResourceBundle, prop
 	return str
 }
 
-func (h *OptionHandlerBase) Print(v any) string {
+func (h *OptionHandler) Print(v any) string {
 	return jutil.ToJavaString(v)
 }
 
-func (h *OptionHandlerBase) PrintDefaultValue() *string {
+func (h *OptionHandler) PrintDefaultValue() *string {
 	getter, ok := h.Setter.(Getter)
 	if !ok {
 		return nil
@@ -118,7 +126,7 @@ func (h *OptionHandlerBase) PrintDefaultValue() *string {
 		return nil
 	}
 	if len(defaultValues) == 1 {
-		s := h.self.Print(defaultValues[0])
+		s := h.Print(defaultValues[0])
 		return &s
 	}
 	var buf strings.Builder
@@ -127,7 +135,7 @@ func (h *OptionHandlerBase) PrintDefaultValue() *string {
 		if i > 0 {
 			buf.WriteByte(',')
 		}
-		buf.WriteString(h.self.Print(v))
+		buf.WriteString(h.Print(v))
 	}
 	buf.WriteByte(']')
 	s := buf.String()
@@ -143,7 +151,7 @@ var defaultOptionHandlers = map[*Class]OptionHandlerClass{
 	Class_Map:     NewMapOptionHandler,
 }
 
-func createOptionHandler(parser *CmdLineParser, o OptionDef, setter Setter) OptionHandler {
+func createOptionHandler(parser *CmdLineParser, o *OptionDef, setter Setter) *OptionHandler {
 	checkNonNull(o, "OptionDef")
 	checkNonNull(setter, "Setter")
 
@@ -166,132 +174,57 @@ var (
 	acceptableBooleanFalse = []string{"false", "off", "no", "0"}
 )
 
-// BooleanOptionHandler parses boolean flags and positional boolean arguments.
-type BooleanOptionHandler struct {
-	OptionHandlerBase
-}
-
-func NewBooleanOptionHandler(parser *CmdLineParser, option OptionDef, setter Setter) OptionHandler {
-	h := &BooleanOptionHandler{}
-	h.InitOptionHandlerBase(h, parser, option, setter)
-	return h
-}
-
-func (h *BooleanOptionHandler) ParseArguments(params Parameters) int {
-	if !h.Option.IsArgument() {
-		h.Setter.AddValue(true)
-		return 0
-	}
-	valueStr := jutil.StringToLowerCaseRoot(params.GetParameter(0))
-	switch {
-	case slices.Contains(acceptableBooleanTrue, valueStr):
-		h.Setter.AddValue(true)
-	case slices.Contains(acceptableBooleanFalse, valueStr):
-		h.Setter.AddValue(false)
-	default:
-		panic(newCmdLineException(h.Owner, spiMsgIllegalBoolean, valueStr))
-	}
-	return 1
-}
-
-func (h *BooleanOptionHandler) GetDefaultMetaVariable() *string { return nil }
-
-// StringOptionHandler parses a single string operand. Subclasses embed it and
-// call InitStringOptionHandler.
-type StringOptionHandler struct {
-	OptionHandlerBase
-}
-
-func NewStringOptionHandler(parser *CmdLineParser, option OptionDef, setter Setter) OptionHandler {
-	h := &StringOptionHandler{}
-	h.InitStringOptionHandler(h, parser, option, setter)
-	return h
-}
-
-func (h *StringOptionHandler) InitStringOptionHandler(self OptionHandler, parser *CmdLineParser, option OptionDef, setter Setter) {
-	h.InitOptionHandlerBase(self, parser, option, setter)
-}
-
-func (h *StringOptionHandler) ParseArguments(params Parameters) int {
-	v := params.GetParameter(0)
-	if ss, ok := h.Setter.(StringSetter); ok {
-		ss.AddStringValue(v)
-	} else {
-		h.Setter.AddValue(v)
-	}
-	return 1
-}
-
-func (h *StringOptionHandler) GetDefaultMetaVariable() *string {
-	s := defaultMetaString
-	return &s
-}
-
-// IntOptionHandler parses a single base-10 32-bit integer operand.
-type IntOptionHandler struct {
-	OptionHandlerBase
-}
-
-func NewIntOptionHandler(parser *CmdLineParser, option OptionDef, setter Setter) OptionHandler {
-	h := &IntOptionHandler{}
-	h.InitOptionHandlerBase(h, parser, option, setter)
-	return h
-}
-
-func (h *IntOptionHandler) GetDefaultMetaVariable() *string {
-	s := "N"
-	return &s
-}
-
-func (h *IntOptionHandler) ParseArguments(params Parameters) int {
-	token := params.GetParameter(0)
-	jutil.Try(func() {
-		h.Setter.AddValue(jutil.IntegerParseInt(token, 10))
-	}, func(jutil.INumberFormatException) {
-		panic(newCmdLineException(h.Owner, spiMsgIllegalOperand, params.GetParameter(-1), token))
+// NewBooleanOptionHandler parses boolean flags and positional boolean arguments.
+func NewBooleanOptionHandler(parser *CmdLineParser, option *OptionDef, setter Setter) *OptionHandler {
+	return NewOptionHandler(parser, option, setter, nil, func(h *OptionHandler, params Parameters) int {
+		if !h.Option.IsArgument() {
+			h.Setter.AddValue(true)
+			return 0
+		}
+		valueStr := jutil.StringToLowerCaseRoot(params.GetParameter(0))
+		switch {
+		case slices.Contains(acceptableBooleanTrue, valueStr):
+			h.Setter.AddValue(true)
+		case slices.Contains(acceptableBooleanFalse, valueStr):
+			h.Setter.AddValue(false)
+		default:
+			panic(newCmdLineException(h.Owner, spiMsgIllegalBoolean, valueStr))
+		}
+		return 1
 	})
-	return 1
 }
 
-// EnumOptionHandler parses a case-insensitive enum constant name (with '-' normalized to '_').
-type EnumOptionHandler struct {
-	OptionHandlerBase
-	enumType *Class
-}
-
-func NewEnumOptionHandler(parser *CmdLineParser, option OptionDef, setter Setter, enumType *Class) *EnumOptionHandler {
-	h := &EnumOptionHandler{enumType: enumType}
-	h.InitOptionHandlerBase(h, parser, option, setter)
-	return h
-}
-
-func (h *EnumOptionHandler) ParseArguments(params Parameters) int {
-	s := strings.ReplaceAll(params.GetParameter(0), "-", "_")
-	var value any
-	for _, o := range h.enumType.GetEnumConstants() {
-		if equalsIgnoreCaseUTF16(enumName(o), s) {
-			value = o
-			break
+// NewStringOptionHandler parses a single string operand.
+func NewStringOptionHandler(parser *CmdLineParser, option *OptionDef, setter Setter) *OptionHandler {
+	meta := defaultMetaString
+	return NewOptionHandler(parser, option, setter, &meta, func(h *OptionHandler, params Parameters) int {
+		v := params.GetParameter(0)
+		if ss, ok := h.Setter.(StringSetter); ok {
+			ss.AddStringValue(v)
+		} else {
+			h.Setter.AddValue(v)
 		}
-	}
-	if value == nil {
-		optName := params.GetParameter(-1)
-		if h.Option.IsArgument() {
-			optName = h.Option.String()
-		}
-		panic(newCmdLineException(h.Owner, spiMsgIllegalOperand, optName, s))
-	}
-	h.Setter.AddValue(value)
-	return 1
+		return 1
+	})
 }
 
-func equalsIgnoreCaseUTF16(a, b string) bool {
-	ua, ub := jutil.StringToUTF16(a), jutil.StringToUTF16(b)
-	return len(ua) == len(ub) && jutil.UTF16RegionMatches(true, ua, 0, ub, 0, len(ua))
+// NewIntOptionHandler parses a single base-10 32-bit integer operand.
+func NewIntOptionHandler(parser *CmdLineParser, option *OptionDef, setter Setter) *OptionHandler {
+	meta := "N"
+	return NewOptionHandler(parser, option, setter, &meta, func(h *OptionHandler, params Parameters) int {
+		token := params.GetParameter(0)
+		jutil.Try(func() {
+			h.Setter.AddValue(jutil.IntegerParseInt(token, 10))
+		}, func(jutil.INumberFormatException) {
+			panic(newCmdLineException(h.Owner, spiMsgIllegalOperand, params.GetParameter(-1), token))
+		})
+		return 1
+	})
 }
 
-func (h *EnumOptionHandler) GetDefaultMetaVariable() *string {
-	constants := h.enumType.GetEnumConstants()
+// NewEnumOptionHandler parses a case-insensitive enum constant name (with '-' normalized to '_').
+func NewEnumOptionHandler(parser *CmdLineParser, option *OptionDef, setter Setter, enumType *Class) *OptionHandler {
+	constants := enumType.GetEnumConstants()
 	var buf strings.Builder
 	buf.WriteByte('[')
 	for i, c := range constants {
@@ -301,86 +234,82 @@ func (h *EnumOptionHandler) GetDefaultMetaVariable() *string {
 		buf.WriteString(jutil.ToJavaString(c))
 	}
 	buf.WriteByte(']')
-	s := buf.String()
-	return &s
+	meta := buf.String()
+
+	h := NewOptionHandler(parser, option, setter, &meta, func(h *OptionHandler, params Parameters) int {
+		s := strings.ReplaceAll(params.GetParameter(0), "-", "_")
+		var value any
+		for _, o := range enumType.constants {
+			if equalsIgnoreCaseUTF16(enumName(o), s) {
+				value = o
+				break
+			}
+		}
+		if value == nil {
+			optName := params.GetParameter(-1)
+			if h.Option.IsArgument() {
+				optName = h.Option.String()
+			}
+			panic(newCmdLineException(h.Owner, spiMsgIllegalOperand, optName, s))
+		}
+		h.Setter.AddValue(value)
+		return 1
+	})
+	h.ignoreOptionMetaVar = true
+	return h
 }
 
-func (h *EnumOptionHandler) GetMetaVariable(_ ResourceBundle) *string {
-	return h.GetDefaultMetaVariable()
+func equalsIgnoreCaseUTF16(a, b string) bool {
+	ua, ub := jutil.StringToUTF16(a), jutil.StringToUTF16(b)
+	return len(ua) == len(ub) && jutil.UTF16RegionMatches(true, ua, 0, ub, 0, len(ua))
 }
 
-// MapOptionHandler parses "key=value" operands into a Map field.
-type MapOptionHandler struct {
-	OptionHandlerBase
-}
-
-func NewMapOptionHandler(parser *CmdLineParser, option OptionDef, setter Setter) OptionHandler {
-	h := &MapOptionHandler{}
-	h.InitOptionHandlerBase(h, parser, option, setter)
+// NewMapOptionHandler parses "key=value" operands into a Map field.
+func NewMapOptionHandler(parser *CmdLineParser, option *OptionDef, setter Setter) *OptionHandler {
 	if setter.AsFieldSetter() == nil {
 		panic(jutil.NewIllegalArgumentExceptionMsg("MapOptionHandler can only work with fields"))
 	}
-	return h
+	return NewOptionHandler(parser, option, setter, nil, func(h *OptionHandler, params Parameters) int {
+		fs := h.Setter.AsFieldSetter()
+		var m Map
+		if o := fs.GetValue(); o != nil {
+			m = o.(Map)
+		}
+		if m == nil {
+			m = jutil.NewJavaHashMap[string, *string]()
+			fs.AddValue(m)
+		}
+		mapKey, value, ok := strings.Cut(params.GetParameter(0), "=")
+		if !ok {
+			panic(newCmdLineException(h.Owner, spiMsgFormatErrorForMap))
+		}
+		if len(mapKey) == 0 {
+			panic(newCmdLineException(h.Owner, spiMsgMapHasNoKey))
+		}
+		var mapValue *string
+		if len(value) > 0 {
+			mapValue = &value
+		}
+		m.Put(mapKey, mapValue)
+		return 1
+	})
 }
 
-func (h *MapOptionHandler) GetDefaultMetaVariable() *string { return nil }
-
-func (h *MapOptionHandler) ParseArguments(params Parameters) int {
-	fs := h.Setter.AsFieldSetter()
-	var m Map
-	if o := fs.GetValue(); o != nil {
-		m = o.(Map)
-	}
-	if m == nil {
-		m = jutil.NewJavaHashMap[string, *string]()
-		fs.AddValue(m)
-	}
-	h.addToMap(params.GetParameter(0), m)
-	return 1
-}
-
-func (h *MapOptionHandler) addToMap(argument string, m Map) {
-	mapKey, value, ok := strings.Cut(argument, "=")
-	if !ok {
-		panic(newCmdLineException(h.Owner, spiMsgFormatErrorForMap))
-	}
-	if len(mapKey) == 0 {
-		panic(newCmdLineException(h.Owner, spiMsgMapHasNoKey))
-	}
-	var mapValue *string
-	if len(value) > 0 {
-		mapValue = &value
-	}
-	m.Put(mapKey, mapValue)
-}
-
-// StringArrayOptionHandler greedily consumes non-option tokens (splitting each
+// NewStringArrayOptionHandler greedily consumes non-option tokens (splitting each
 // on literal spaces) into a multi-valued String setter.
-type StringArrayOptionHandler struct {
-	OptionHandlerBase
-}
-
-func NewStringArrayOptionHandler(parser *CmdLineParser, option OptionDef, setter Setter) OptionHandler {
-	h := &StringArrayOptionHandler{}
-	h.InitOptionHandlerBase(h, parser, option, setter)
-	return h
-}
-
-func (h *StringArrayOptionHandler) GetDefaultMetaVariable() *string {
-	s := defaultMetaStringArray
-	return &s
-}
-
-func (h *StringArrayOptionHandler) ParseArguments(params Parameters) int {
-	counter := 0
-	for ; counter < params.Size(); counter++ {
-		param := params.GetParameter(counter)
-		if strings.HasPrefix(param, "-") {
-			break
+func NewStringArrayOptionHandler(parser *CmdLineParser, option *OptionDef, setter Setter) *OptionHandler {
+	meta := defaultMetaStringArray
+	return NewOptionHandler(parser, option, setter, &meta, func(h *OptionHandler, params Parameters) int {
+		counter := 0
+		for ; counter < params.Size(); counter++ {
+			param := params.GetParameter(counter)
+			if strings.HasPrefix(param, "-") {
+				break
+			}
+			for _, p := range jutil.StringSplitLiteral(param, " ") {
+				h.Setter.AddValue(p)
+			}
 		}
-		for _, p := range jutil.StringSplitLiteral(param, " ") {
-			h.Setter.AddValue(p)
-		}
-	}
-	return counter
+		return counter
+	})
 }

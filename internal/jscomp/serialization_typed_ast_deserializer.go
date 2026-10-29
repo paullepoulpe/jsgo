@@ -1,8 +1,25 @@
 // Port of com/google/javascript/jscomp/serialization/TypedAstDeserializer.java (with the
 // AutoValue-generated AutoValue_TypedAstDeserializer_DeserializedAst.java) @ closure-compiler v20261021
+// Port of com/google/javascript/jscomp/serialization/MalformedTypedAstException.java @ closure-compiler v20261021
 
 /*
  * Copyright 2021 The Closure Compiler Authors.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+/*
+ * Copyright 2020 The Closure Compiler Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -22,6 +39,7 @@ package jscomp
 import (
 	"bytes"
 	"encoding/binary"
+	"fmt"
 	"io"
 	"math"
 	"runtime"
@@ -33,6 +51,85 @@ import (
 	"github.com/paullepoulpe/jsgo/internal/parser"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
+
+// MalformedTypedAstException is emitted when deserialization sees a
+// TypedAst with semantic errors.
+//
+// This excpetion means a TypedAst is flawed in some way. It is distinct from
+// other kinds of expections because it describes a user error, rather than a
+// bug in deserialization. Most likely, the tool that generated the
+// serialized data is faulty.
+//
+// This exception says nothing about the byte-level encoding or parsing of
+// the input data. Instead, it means that TypedAst parsed from those bytes
+// can't be translated into the compiler's internal representation.
+type MalformedTypedAstException struct{ jutil.RuntimeException }
+
+func (*MalformedTypedAstException) malformedTypedAstException() {}
+
+// IMalformedTypedAstException matches MalformedTypedAstException.
+type IMalformedTypedAstException interface {
+	jutil.IRuntimeException
+	malformedTypedAstException()
+}
+
+func malformedTypedAstFormatMsg(v any, requireNonNil bool) string {
+	if v == nil {
+		if requireNonNil {
+			panic(jutil.NewNullPointerException())
+		}
+		return "null"
+	}
+	switch x := v.(type) {
+	case string:
+		return x
+	case int:
+		return strconv.Itoa(x)
+	case int32:
+		return strconv.FormatInt(int64(x), 10)
+	case int64:
+		return strconv.FormatInt(x, 10)
+	case bool:
+		return strconv.FormatBool(x)
+	case fmt.Stringer:
+		return x.String()
+	case error:
+		return x.Error()
+	default:
+		return fmt.Sprint(x)
+	}
+}
+
+// Java: MalformedTypedAstException.checkWellFormed(boolean, String)
+func MalformedTypedAstException_CheckWellFormed(condition bool, description string) {
+	if !condition {
+		panic(NewMalformedTypedAstException(description))
+	}
+}
+
+// Java: MalformedTypedAstException.checkWellFormed(boolean, String, Object)
+func MalformedTypedAstException_CheckWellFormedWithParam(condition bool, description string, param any) {
+	if !condition {
+		message := description + ": " + malformedTypedAstFormatMsg(param, false)
+		panic(NewMalformedTypedAstException(message))
+	}
+}
+
+// Java: MalformedTypedAstException(Object)
+func NewMalformedTypedAstException(msg any) *MalformedTypedAstException {
+	e := &MalformedTypedAstException{}
+	s := malformedTypedAstFormatMsg(msg, true)
+	jutil.InitThrowable(e, "com.google.javascript.jscomp.serialization.MalformedTypedAstException", &s, nil)
+	return e
+}
+
+// Java: MalformedTypedAstException(Object, Throwable)
+func NewMalformedTypedAstExceptionWithCause(msg any, cause jutil.Throwable) *MalformedTypedAstException {
+	e := &MalformedTypedAstException{}
+	s := malformedTypedAstFormatMsg(msg, true)
+	jutil.InitThrowable(e, "com.google.javascript.jscomp.serialization.MalformedTypedAstException", &s, cause)
+	return e
+}
 
 type runtimeLibsTypedAstStream struct {
 	data []byte
@@ -66,8 +163,8 @@ type TypedAstDeserializer struct {
 	colorPoolBuilder *ColorPool_Builder // Optional: nil when absent
 
 	requiredInputFiles            *jutil.LinkedHashSet[*SourceFile] // Optional: nil when absent
-	filePoolBuilder               *jutil.LinkedHashMap[string, *SourceFile]
-	canonicalFilePool             *jutil.LinkedHashMap[string, *SourceFile]
+	filePoolBuilder               map[string]*SourceFile
+	canonicalFilePool             map[string]*SourceFile
 	typedAstFilesystem            *jutil.LinkedHashMap[*SourceFile, func() rhino.Node]
 	scriptDeserializers           map[*SourceFile]*ScriptNodeDeserializer
 	externProperties              *jutil.LinkedHashSet[string]
@@ -86,9 +183,13 @@ func newTypedAstDeserializer(
 	requiredInputFiles *jutil.LinkedHashSet[*SourceFile],
 	mode typedAstDeserializer_Mode,
 	includeTypeInformation bool) *TypedAstDeserializer {
+	capHint := 16
+	if requiredInputFiles != nil {
+		capHint = requiredInputFiles.Size() + 1
+	}
 	d := &TypedAstDeserializer{
-		filePoolBuilder:     jutil.NewLinkedHashMap[string, *SourceFile](),
-		canonicalFilePool:   jutil.NewLinkedHashMap[string, *SourceFile](),
+		filePoolBuilder:     make(map[string]*SourceFile, capHint),
+		canonicalFilePool:   make(map[string]*SourceFile),
 		typedAstFilesystem:  jutil.NewLinkedHashMap[*SourceFile, func() rhino.Node](),
 		scriptDeserializers: make(map[*SourceFile]*ScriptNodeDeserializer),
 		externProperties:    jutil.NewLinkedHashSet[string](),
@@ -142,16 +243,19 @@ func TypedAstDeserializer_DeserializeFullAst(
 	resolveSourceMapAnnotations bool,
 	parseInlineSourceMaps bool) *TypedAstDeserializer_DeserializedAst {
 	// requiredInputFiles.stream().collect(toImmutableMap(SourceFile::getName, Function.identity()))
-	sourceFilesByNameBuilder := jutil.NewImmutableMapBuilder[string, *SourceFile]()
+	seenNames := make(map[string]*SourceFile, requiredInputFiles.Size())
 	for f := range requiredInputFiles.All() {
-		sourceFilesByNameBuilder.Put(f.GetName(), f)
+		name := f.GetName()
+		if prev, dup := seenNames[name]; dup {
+			panic(jutil.NewIllegalArgumentExceptionMsg(
+				"Multiple entries with same key: " + name + "=" + f.String() + " and " + name + "=" + prev.String()))
+		}
+		seenNames[name] = f
 	}
-	sourceFilesByName := sourceFilesByNameBuilder.BuildOrThrow()
 	return typedAstDeserializer_deserialize(
 		compiler,
 		syntheticExterns,
 		requiredInputFiles,
-		sourceFilesByName,
 		nil,
 		typedAstsStream,
 		typedAstDeserializer_Mode_FULL_AST,
@@ -181,7 +285,6 @@ func TypedAstDeserializer_DeserializeRuntimeLibraries(
 		// we don't a priori know the SourceFiles corresponding to the runtime libraries like we
 		// do for normal CompilerInputs
 		nil,
-		jutil.NewLinkedHashMap[string, *SourceFile](),
 		colorPool,
 		typedAstsStream,
 		typedAstDeserializer_Mode_RUNTIME_LIBRARY_ONLY,
@@ -195,7 +298,6 @@ func typedAstDeserializer_deserialize(
 	compiler AbstractCompiler,
 	syntheticExterns *SourceFile,
 	requiredInputFiles *jutil.LinkedHashSet[*SourceFile],
-	scriptSourceFiles *jutil.LinkedHashMap[string, *SourceFile],
 	colorPool *ColorPool_Builder,
 	typedAstStream io.Reader,
 	mode typedAstDeserializer_Mode,
@@ -210,8 +312,10 @@ func typedAstDeserializer_deserialize(
 		newTypedAstDeserializer(
 			syntheticExterns, colorPool, requiredInputFiles, mode, includeTypeInformation)
 	deserializer.addToFilePool(syntheticExterns.GetName(), syntheticExterns)
-	for name, file := range scriptSourceFiles.All() {
-		deserializer.addToFilePool(name, file)
+	if requiredInputFiles != nil {
+		for file := range requiredInputFiles.All() {
+			deserializer.addToFilePool(file.GetName(), file)
+		}
 	}
 
 	if mode != typedAstDeserializer_Mode_RUNTIME_LIBRARY_ONLY {
@@ -284,10 +388,14 @@ func (d *TypedAstDeserializer) toDeserializedAst() *TypedAstDeserializer_Deseria
 	} else {
 		registry = d.colorPoolBuilder.Build().GetRegistry()
 	}
+	externProps := d.externProperties
+	runtimeLibs := d.runtimeLibraries
+	d.externProperties = nil
+	d.runtimeLibraries = nil
 	out := typedAstDeserializer_DeserializedAst_create(
 		d.typedAstFilesystem, registry,
-		jutil.NewLinkedHashSet(d.externProperties.ToSlice()...),
-		jutil.NewLinkedHashSet(d.runtimeLibraries.ToSlice()...))
+		externProps,
+		runtimeLibs)
 	out.scriptDeserializers = d.scriptDeserializers
 	return out
 }
@@ -377,25 +485,25 @@ func (d *TypedAstDeserializer) deserializeTypedAstWithStringShard(
 
 // Java: TypedAstDeserializer.addToFilePool(String, SourceFile)
 func (d *TypedAstDeserializer) addToFilePool(filename string, file *SourceFile) {
-	d.filePoolBuilder.Put(filename, file)
+	d.filePoolBuilder[filename] = file
 	canonicalPath := SourceFile_CanonicalizePathForMatching(filename)
 	if canonicalPath != filename {
-		d.canonicalFilePool.PutIfAbsent(canonicalPath, file)
+		if _, exists := d.canonicalFilePool[canonicalPath]; !exists {
+			d.canonicalFilePool[canonicalPath] = file
+		}
 	}
 }
 
 // Java: TypedAstDeserializer.findExistingFile(String)
 func (d *TypedAstDeserializer) findExistingFile(filename string) *SourceFile {
-	exact := d.filePoolBuilder.Get(filename)
-	if exact != nil {
+	if exact := d.filePoolBuilder[filename]; exact != nil {
 		return exact
 	}
 	canonicalPath := SourceFile_CanonicalizePathForMatching(filename)
-	canonical := d.canonicalFilePool.Get(canonicalPath)
-	if canonical != nil {
+	if canonical := d.canonicalFilePool[canonicalPath]; canonical != nil {
 		return canonical
 	}
-	return d.filePoolBuilder.Get(canonicalPath)
+	return d.filePoolBuilder[canonicalPath]
 }
 
 // Java: TypedAstDeserializer.toFileShard(TypedAst)
@@ -481,7 +589,7 @@ func typedAstDeserializer_addInputSourceMap(
 	sourceFile := deserializer.GetSourceFile()
 	sourceMappingURL := deserializer.GetSourceMappingURL() // This is the encoded source map.
 
-	if jutil.StringLength(sourceMappingURL) > 0 && resolveSourceMapAnnotations {
+	if sourceMappingURL != "" && resolveSourceMapAnnotations {
 		if parseInlineSourceMaps {
 			canonicalUTF8 := jutil.BaseEncoding_Base64().ValidateAndCheckCanonicalUTF8(sourceMappingURL)
 			sourceMapSourceFile := newInlineBase64SourceFile(
@@ -1539,7 +1647,7 @@ func newAutoValue_TypedAstDeserializer_DeserializedAst(
 func (a *TypedAstDeserializer_DeserializedAst) String() string {
 	colorRegistry := "Optional.absent()"
 	if a.colorRegistry != nil {
-		colorRegistry = "Optional.of(" + jutil.ToJavaString(a.colorRegistry) + ")"
+		colorRegistry = "Optional.of(" + jutil.ObjectToString("com.google.javascript.jscomp.colors.ColorRegistry", a.colorRegistry) + ")"
 	}
 	externProperties := "null"
 	if a.externProperties != nil {
