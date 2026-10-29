@@ -348,6 +348,45 @@ compilation benchmark (macOS arm64, Go 1.27.1 with `default.pgo`, OpenJDK
 | **`shaka-blockly`** | **8.6 MB, 847 files** (Shaka Player 5.3.1 + Blockly 8.0.5, 93.9% typed → 1.86 MB JS + 4.94 MB map) | **3.78 s** / **3.40 s** *(`3.34 s` fast)* | 12.50 s `[12.36, 12.56]` | 6.97 s `[6.95, 7.05]` | **3.67×** / **2.05×** *(`3.75×` / `2.09×`)* | **412 MiB** vs. 1,809 / 2,861 MiB *(peak 4,586)* (**4.39× / 6.94× lower**, **11.13×** vs. JVM peak) |
 | **`bundle-advanced`** | **5.4 MB, 11 UMD libraries** (three, lodash, react-dom, rxjs, d3, moment, vue, jquery, handlebars, immutable, underscore → 1.88 MB JS + 4.35 MB map) | **3.03 s** / **2.75 s** | 11.35 s `[11.25, 11.45]` | 5.79 s `[5.75, 5.82]` | **4.12×** / **2.10×** | **328 MiB** vs. 2,291 / 2,037 MiB *(peak 2,872)* (**6.98× / 6.21× lower**, **8.76×** vs. JVM peak) |
 
+### 019139af on JDK 27 (Apple M2)
+
+$N = 5$ counterbalanced interleaved suite with 95% CIs, at commit `019139af`: `90bc249a` plus `19c8aa38` (Round 68: simpler pass factories, synchronization, lexers and stage passes). Same machine, method, gate and Java (v20261021 on OpenJDK 27.0.1) as [the v20261021 section](#v20261021-on-jdk-27-apple-m2), at `--num_parallel_threads=4`, with `90bc249a` in the same blocks. Every `jsgo` run was byte-identical to Java (in `single-files`, apart from the Java stack frames of the same 11 inputs on which both compilers crash). The machine was on AC power and kept awake; Java's cold times are within 2.6% of the previous section's on every task.
+
+#### 1. Production-Scale Staged Compilation (`googleapis-bench`: 43,917 Files, 35.6M Parsed AST Nodes, 7,460 Chunks)
+
+| Stage | `jsgo` (`t=4`) | Java (`t=4`, `-Xmx20g`) | Speedup vs. Java (`[95% CI]`) | `jsgo` Peak RSS | Java Peak RSS | Memory Ratio vs. Java (`[95% CI]`) |
+|---|---:|---:|---:|---:|---:|---:|
+| **`CHECKS`** | **52.97 s** | 96.21 s | **1.82× `[1.79, 1.84]`** | **5,505 MiB** | 11,868 MiB | **2.16× `[2.04, 2.27]`** |
+| **`OPTIMIZATIONS`** | **45.12 s** | 90.13 s | **2.00× `[1.96, 2.03]`** | **6,091 MiB** | 12,666 MiB | **2.09× `[1.81, 2.41]`** |
+| **`FINALIZATIONS`** | **6.65 s** | 19.91 s | **3.00× `[2.96, 3.03]`** | **1,136 MiB** | 7,342 MiB | **6.49× `[5.69, 7.41]`** |
+| **Total** | **104.7 s** | **206.2 s** | **1.97× `[1.96, 1.98]`** | **6,227 MiB** | **12,666 MiB** | **2.04× `[1.89, 2.19]`** |
+
+#### 2. Large & Mega Whole-Program `ADVANCED` Workloads
+
+| Benchmark | Mode & Parsed Nodes | `jsgo` (`t=1` / `t=4`) | Java `t=4` (Cold / Warm) | Speedup vs. Cold (`[95% CI]`) | Speedup vs. Warm (`[95% CI]`) | Peak RSS (`jsgo` vs. Cold / Warm) & Cold Ratio (`[95% CI]`) |
+|---|---|---:|---:|---:|---:|---:|
+| **`bundle-mega`** | ADV · 4.19M nodes | **25.03 s** / **20.88 s** | 49.28 s / 40.11 s | 2.36× `[2.34, 2.38]` | 1.92× `[1.91, 1.94]` | **894 MiB** vs. 4,862 / 6,605 MiB — **5.41× `[4.56, 6.42]`** |
+| **`typed-mega`** | ADV+types · 3.55M nodes | **17.42 s** / **13.99 s** | 35.23 s / 25.94 s | 2.52× `[2.50, 2.54]` | 1.85× `[1.83, 1.88]` | **722 MiB** vs. 3,800 / 3,998 MiB — **5.27× `[5.10, 5.44]`** |
+| **`typed-full`** | ADV+types · 1.90M nodes | **10.15 s** / **8.11 s** | 23.09 s / 15.51 s | 2.85× `[2.82, 2.88]` | 1.91× `[1.87, 1.96]` | **426 MiB** vs. 3,531 / 3,631 MiB — **8.30× `[8.05, 8.54]`** |
+| **`bundle-advanced-ts`** | ADV · 1.11M nodes | **6.79 s** / **6.29 s** | 17.92 s / 11.56 s | 2.85× `[2.77, 2.93]` | 1.84× `[1.81, 1.86]` | **324 MiB** vs. 1,745 / 3,696 MiB — **5.39× `[5.20, 5.58]`** |
+| **`shaka-blockly`** | ADV+types · 618k nodes | **4.26 s** / **3.32 s** | 12.57 s / 6.65 s | 3.78× `[3.68, 3.88]` | 2.00× `[1.96, 2.04]` | **218 MiB** vs. 1,467 / 3,540 MiB — **6.73× `[6.44, 7.04]`** |
+| **`bundle-advanced`** | ADV · 573k nodes | **3.49 s** / **2.64 s** | 11.46 s / 5.53 s | 4.33× `[4.21, 4.47]` | 2.09× `[2.06, 2.12]` | **183 MiB** vs. 1,526 / 1,957 MiB — **8.33× `[7.73, 8.97]`** |
+
+#### 3. Standard Whole-Program & CLI Suite
+
+| Benchmark | Mode & Parsed Nodes | `jsgo` (`t=1` / `t=4`) | Java `t=4` (Cold / Warm) | Speedup vs. Cold (`[95% CI]`) | Speedup vs. Warm (`[95% CI]`) | Peak RSS (`jsgo` vs. Cold / Warm) & Cold Ratio (`[95% CI]`) |
+|---|---|---:|---:|---:|---:|---:|
+| **`typed-app`** | ADV+types · 1.29M nodes | **1.33 s** / **1.08 s** | 6.14 s / 1.82 s | 5.68× `[5.47, 5.89]` | 1.69× `[1.60, 1.77]` | **128 MiB** vs. 628 / 1,574 MiB — **4.90× `[4.71, 5.10]`** |
+| **`checks-only`** | CHECKS+types · 1.29M nodes | **2.22 s** / **1.71 s** | 6.85 s / 2.84 s | 4.00× `[3.91, 4.10]` | 1.66× `[1.62, 1.70]` | **260 MiB** vs. 1,396 / 3,510 MiB — **5.37× `[5.18, 5.56]`** |
+| **`bundle`** | SIMPLE · 1.11M nodes | **4.24 s** / **3.74 s** | 12.98 s / 8.69 s | 3.47× `[3.37, 3.58]` | 2.33× `[2.31, 2.35]` | **229 MiB** vs. 1,653 / 1,805 MiB — **7.23× `[6.94, 7.53]`** |
+| **`single-files`** | 1,000 CLI runs, SIMPLE · 306k nodes | **65.73 s** | — / 87.14 s | — | 1.33× `[1.32, 1.33]` | **70 MiB** vs. — / 1,702 MiB — **24.3×** vs. batch |
+| **`downlevel-simple`** | SIMPLE→ES5 · 232k nodes | **0.95 s** / **0.80 s** | 4.49 s / 1.46 s | 5.58× `[5.39, 5.79]` | 1.82× `[1.73, 1.90]` | **123 MiB** vs. 604 / 1,481 MiB — **4.93× `[4.70, 5.16]`** |
+| **`downlevel-whitespace`** | WHITESPACE_ONLY→ES5 · 232k nodes | **0.44 s** / **0.37 s** | 2.35 s / 0.50 s | 6.36× `[6.20, 6.53]` | 1.35× `[1.26, 1.45]` | **100 MiB** vs. 515 / 1,424 MiB — **5.15× `[4.87, 5.43]`** |
+
+#### Against `90bc249a`
+
+`googleapis` is 1.05× `[1.04, 1.05]` faster (104.7 s against 109.7 s, 4.1–4.8% in every block, CPU time 1.05×), all of it in the `OPTIMIZATIONS` stage (45.1 s against 50.0 s in every block, 1.11×); `CHECKS` and `FINALIZATIONS` are unchanged. It is now 1.97× faster than cold Java, and its `OPTIMIZATIONS` stage 2.00×. The whole-program tasks are neutral: measured in the same blocks (ratios `90bc249a / 019139af`), every one is 0.99×–1.01× with intervals that include 1, and the `t=1` times are within 1%. `single-files` takes 65.7 s against 65.9 s. Peak RSS is unchanged within its [run-to-run spread](#peak-rss-between-runs).
+
 ### 90bc249a on JDK 27 (Apple M2)
 
 $N = 5$ counterbalanced interleaved suite with 95% CIs, at commit `90bc249a`: `3e2e776c` plus `346ce473` (Refactor Round 67: no production `jutil.Try` left, a `TypedScope` skip chain, token and `strpool.ID` fast paths in the visitors, Stage 2 and `jutil` deduplication). Same machine, method, gate and Java (v20261021 on OpenJDK 27.0.1) as [the v20261021 section](#v20261021-on-jdk-27-apple-m2), at `--num_parallel_threads=4`, with `3e2e776c` in the same blocks. Every `jsgo` run was byte-identical to Java (in `single-files`, apart from the Java stack frames of the same 11 inputs on which both compilers crash). The machine was on AC power and kept awake; Java's cold times are within 1.9% of the previous section's on every task.
