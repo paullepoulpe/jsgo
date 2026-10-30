@@ -192,8 +192,8 @@ func (f *FunctionTypeBase) SetPrototypeNoCheck(prototype ObjectType, propertyNod
 	if replacedPrototype {
 		f.ClearCachedValues()
 	}
-	if f.GetRegistry() != nil {
-		f.GetRegistry().leastSupertypeGen++
+	if reg := f.GetRegistry(); reg != nil && !reg.parallelReadOnly {
+		reg.leastSupertypeGen++ // see PrototypeObjectTypeBase.SetImplicitPrototype
 	}
 
 	return true

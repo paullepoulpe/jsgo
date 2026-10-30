@@ -270,11 +270,13 @@ func (t *InstanceObjectType) IsNominalType() bool {
 }
 
 // Java: InstanceObjectType.recursionUnsafeHashCode()
-func (t *InstanceObjectType) RecursionUnsafeHashCode() int32 {
+func (t *InstanceObjectType) RecursionUnsafeHashCode(hs *JSTypeStack) int32 {
 	if t.HasReferenceName() {
 		return NamedType_NominalHashCode(t)
 	} else {
-		return t.PrototypeObjectTypeBase.HashCode()
+		// Java: super.hashCode(), the final JSType.hashCode(): this type is in
+		// progress, so -1.
+		return t.PrototypeObjectTypeBase.GetJSTypeBase().hashCodeIn(hs)
 	}
 }
 

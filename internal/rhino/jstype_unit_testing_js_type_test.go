@@ -78,7 +78,7 @@ func (u *unitTestingJSType) GetTypeClass() JSTypeClass {
 }
 
 // Java: UnitTestingJSType.recursionUnsafeHashCode()
-func (u *unitTestingJSType) RecursionUnsafeHashCode() int32 {
+func (u *unitTestingJSType) RecursionUnsafeHashCode(*JSTypeStack) int32 {
 	panic(jutil.NewUnsupportedOperationException())
 }
 

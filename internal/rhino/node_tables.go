@@ -108,14 +108,14 @@ type nodeAux struct {
 
 // typeHandle returns the handle of t in s, registering it on first use.
 func (s *NodeStore) typeHandle(t *JSTypeBase) uint32 {
-	if h := t.nodeHandle; h != 0 && s.types.peek(h) == t {
+	if h := t.nodeHandle.Load(); h != 0 && s.types.peek(h) == t {
 		return h
 	}
 	if reg := t.GetRegistry(); reg != nil {
 		reg.noteNodeStore(s)
 	}
 	h := s.types.add(&s.mu, t)
-	t.nodeHandle = h
+	t.nodeHandle.Store(h)
 	return h
 }
 

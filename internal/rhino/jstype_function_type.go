@@ -727,7 +727,7 @@ func (f *FunctionTypeBase) GetCallOrBindSignature(isCall bool) FunctionType {
 }
 
 // Java: FunctionType.recursionUnsafeHashCode() / NoObjectType.recursionUnsafeHashCode()
-func (f *FunctionTypeBase) RecursionUnsafeHashCode() int32 {
+func (f *FunctionTypeBase) RecursionUnsafeHashCode(hs *JSTypeStack) int32 {
 	if f.isNoObjectOrNo() {
 		return jutil.IdentityHashCode(f)
 	}
@@ -739,8 +739,8 @@ func (f *FunctionTypeBase) RecursionUnsafeHashCode() int32 {
 	case FunctionType_Kind_CONSTRUCTOR, FunctionType_Kind_INTERFACE:
 		return 31*hc + jutil.IdentityHashCode(f)
 	case FunctionType_Kind_ORDINARY:
-		hc = 31*hc + f.typeOfThis.self().HashCode()
-		hc = 31*hc + f.call.HashCode()
+		hc = 31*hc + f.typeOfThis.hashCodeIn(hs)
+		hc = 31*hc + f.call.RecursionUnsafeHashCode(hs)
 		hc = 31*hc + functionTypeClosurePrimitiveHashCode(f.GetClosurePrimitive())
 		return hc
 	}
@@ -912,10 +912,10 @@ func (f *FunctionTypeBase) SetSource(source Node) {
 }
 
 // Java: FunctionType.hasAnyTemplateTypesInternal()
-func (f *FunctionTypeBase) HasAnyTemplateTypesInternal() bool {
+func (f *FunctionTypeBase) HasAnyTemplateTypesInternal(st *JSTypeStack) bool {
 	return f.GetTemplateParamCount() > 0 ||
-		f.typeOfThis.self().HasAnyTemplateTypes() ||
-		f.call.HasAnyTemplateTypes()
+		f.typeOfThis.hasAnyTemplateTypesIn(st) ||
+		f.call.HasAnyTemplateTypesInternal(st)
 }
 
 // Java: FunctionType.hasProperties()

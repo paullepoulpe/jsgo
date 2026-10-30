@@ -495,8 +495,10 @@ func (p *PrototypeObjectTypeBase) GetImplicitPrototype() ObjectType {
 func (p *PrototypeObjectTypeBase) SetImplicitPrototype(implicitPrototype ObjectType) {
 	jutil.CheckState(!p.selfObj().HasCachedValues())
 	p.implicitPrototypeFallback = objTypeBase(implicitPrototype)
-	if p.GetRegistry() != nil {
-		p.GetRegistry().leastSupertypeGen++
+	if reg := p.GetRegistry(); reg != nil && !reg.parallelReadOnly {
+		// Go-only: in parallel read-only mode the cache is bypassed and the
+		// generation is bumped when the mode ends (SetParallelReadOnly).
+		reg.leastSupertypeGen++
 	}
 	if implicitPrototype != nil {
 		p.self().MaybeLoosenTypecheckingDueToForwardReferencedSupertype(implicitPrototype)
@@ -637,7 +639,7 @@ func (p *PrototypeObjectTypeBase) MatchRecordTypeConstraint(constraintObj Object
 }
 
 // Java: PrototypeObjectType.recursionUnsafeHashCode()
-func (p *PrototypeObjectTypeBase) RecursionUnsafeHashCode() int32 {
+func (p *PrototypeObjectTypeBase) RecursionUnsafeHashCode(*JSTypeStack) int32 {
 	if p.self().IsStructuralType() {
 		var classHash int32
 		if p.classNameID != 0 {

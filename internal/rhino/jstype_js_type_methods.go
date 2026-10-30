@@ -270,19 +270,32 @@ func (t *JSTypeBase) ToMaybeTemplateType() *TemplateType {
 
 // Java: JSType.hasAnyTemplateTypes()
 func (t *JSTypeBase) HasAnyTemplateTypes() bool {
+	var st JSTypeStack
+	return t.hasAnyTemplateTypesIn(&st)
+}
+
+// jsTypeHasAnyTemplateTypesIn is x.HasAnyTemplateTypes() inside a
+// HasAnyTemplateTypes computation.
+func jsTypeHasAnyTemplateTypesIn(x JSType, st *JSTypeStack) bool {
+	return x.GetJSTypeBase().hasAnyTemplateTypesIn(st)
+}
+
+// Go-only: the types in progress are kept on the stack of the outermost
+// call, not as a flag on each type (see HashCode).
+func (t *JSTypeBase) hasAnyTemplateTypesIn(st *JSTypeStack) bool {
 	// If the result has been cached use that.
 	if r := t.templateCheckResult(); r != 0 {
 		return r == 2
 	}
 
-	if t.flags&jsTypeFlagInTemplatedCheck != 0 {
+	if st.contains(t) {
 		// prevent infinite recursion, this is "not yet".
 		return false
 	}
 
-	t.flags |= jsTypeFlagInTemplatedCheck
-	result := t.self().HasAnyTemplateTypesInternal()
-	t.flags &^= jsTypeFlagInTemplatedCheck
+	st.push(t)
+	result := t.self().HasAnyTemplateTypesInternal(st)
+	st.pop()
 
 	// Cache the result if the type has been resolved.
 	if t.self().IsResolved() {
@@ -296,8 +309,8 @@ func (t *JSTypeBase) HasAnyTemplateTypes() bool {
 }
 
 // Java: JSType.hasAnyTemplateTypesInternal()
-func (t *JSTypeBase) HasAnyTemplateTypesInternal() bool {
-	return t.self().GetTemplateTypeMap().HasAnyTemplateTypesInternal()
+func (t *JSTypeBase) HasAnyTemplateTypesInternal(st *JSTypeStack) bool {
+	return t.self().GetTemplateTypeMap().HasAnyTemplateTypesInternal(st)
 }
 
 // GetTemplateTypeMap returns the template type map associated with this
@@ -423,7 +436,7 @@ func (t *JSTypeBase) IsNativeObjectType() bool {
 //
 // Java: JSType.loosenTypecheckingDueToForwardReferencedSupertype()
 func (t *JSTypeBase) LoosenTypecheckingDueToForwardReferencedSupertype() bool {
-	return t.flags&jsTypeFlagLoosenTypechecking != 0
+	return t.hasFlag(jsTypeFlagLoosenTypechecking)
 }
 
 // Java: JSType.maybeLoosenTypecheckingDueToForwardReferencedSupertype(JSType)
@@ -433,7 +446,7 @@ func (t *JSTypeBase) MaybeLoosenTypecheckingDueToForwardReferencedSupertype(supe
 	// not be loosened.
 	if (supertype.IsNamedType() && !supertype.IsResolved()) ||
 		supertype.LoosenTypecheckingDueToForwardReferencedSupertype() {
-		t.flags |= jsTypeFlagLoosenTypechecking
+		t.setFlag(jsTypeFlagLoosenTypechecking)
 	}
 }
 
@@ -514,19 +527,73 @@ func JSType_AreSimilar(first JSType, second JSType) bool {
 
 // HashCode calculates a hash of the object as per Object#hashCode().
 //
-// This method is unsafe for multi-threaded use. The implementation mutates
-// instance state to prevent recursion and therefore expects sole access.
+// Java marks the type as "hash code in progress" to cut recursion (and is
+// therefore unsafe for concurrent use). Go-only: the types in progress are
+// kept on a stack owned by this call instead, which gives the same values
+// and lets several goroutines hash the same types at once.
 //
 // Java: JSType.hashCode()
 func (t *JSTypeBase) HashCode() int32 {
-	if t.flags&jsTypeFlagHashCodeInProgress != 0 {
+	var hs JSTypeStack
+	return t.hashCodeIn(&hs)
+}
+
+// JSTypeStack holds the types in progress in one recursive computation:
+// one HashCode or HasAnyTemplateTypes call (Java's hashCodeInProgress and
+// inTemplatedCheckLoop flags on each type).
+type JSTypeStack struct {
+	n      int
+	inline [8]*JSTypeBase
+	more   []*JSTypeBase
+}
+
+func (s *JSTypeStack) contains(t *JSTypeBase) bool {
+	for i := 0; i < s.n && i < len(s.inline); i++ {
+		if s.inline[i] == t {
+			return true
+		}
+	}
+	for _, x := range s.more {
+		if x == t {
+			return true
+		}
+	}
+	return false
+}
+
+func (s *JSTypeStack) push(t *JSTypeBase) {
+	if s.n < len(s.inline) {
+		s.inline[s.n] = t
+	} else {
+		s.more = append(s.more, t)
+	}
+	s.n++
+}
+
+func (s *JSTypeStack) pop() {
+	s.n--
+	if s.n >= len(s.inline) {
+		s.more = s.more[:len(s.more)-1]
+	}
+}
+
+func (t *JSTypeBase) hashCodeIn(hs *JSTypeStack) int32 {
+	if hs.contains(t) {
 		return -1 // Recursive base-case.
 	}
-
-	t.flags |= jsTypeFlagHashCodeInProgress
-	hashCode := t.self().RecursionUnsafeHashCode()
-	t.flags &^= jsTypeFlagHashCodeInProgress
+	hs.push(t)
+	hashCode := t.self().RecursionUnsafeHashCode(hs)
+	hs.pop()
 	return hashCode
+}
+
+// jsTypeHashCodeIn is x.HashCode() inside a hash code computation: 0 for
+// nil, like Objects.hashCode.
+func jsTypeHashCodeIn(x JSType, hs *JSTypeStack) int32 {
+	if x == nil {
+		return 0
+	}
+	return x.GetJSTypeBase().hashCodeIn(hs)
 }
 
 // MatchesNumberContext is used to test whether a given type can appear in a

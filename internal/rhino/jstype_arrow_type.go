@@ -103,16 +103,17 @@ func (t *ArrowType) GetTypeClass() JSTypeClass {
 }
 
 // Java: ArrowType.recursionUnsafeHashCode()
-func (t *ArrowType) RecursionUnsafeHashCode() int32 {
-	hashCode := jutil.ObjectHashCode(jsTypeOf(t.returnType))
+func (t *ArrowType) RecursionUnsafeHashCode(hs *JSTypeStack) int32 {
+	hashCode := jsTypeHashCodeIn(jsTypeOf(t.returnType), hs)
 	for _, param := range t.parameterList {
-		hashCode = hashCode*31 + jutil.ObjectHashCode(param.GetJSType())
+		hashCode = hashCode*31 + jsTypeHashCodeIn(param.GetJSType(), hs)
 	}
 	return hashCode
 }
 
 func (t *ArrowType) HashCode() int32 {
-	return t.RecursionUnsafeHashCode()
+	var hs JSTypeStack
+	return t.RecursionUnsafeHashCode(&hs)
 }
 
 // Java: ArrowType.getReturnType()
@@ -167,19 +168,25 @@ func (t *ArrowType) AppendTo(sb *TypeStringBuilder) {
 }
 
 // Java: ArrowType.hasAnyTemplateTypesInternal()
-func (t *ArrowType) HasAnyTemplateTypesInternal() bool {
-	return t.returnType.self().HasAnyTemplateTypes() || t.HasTemplatedParameterType()
+func (t *ArrowType) HasAnyTemplateTypesInternal(st *JSTypeStack) bool {
+	return t.returnType.hasAnyTemplateTypesIn(st) || t.hasTemplatedParameterTypeIn(st)
 }
 
 func (t *ArrowType) HasAnyTemplateTypes() bool {
-	return t.HasAnyTemplateTypesInternal()
+	var st JSTypeStack
+	return t.HasAnyTemplateTypesInternal(&st)
 }
 
 // Java: ArrowType.HasTemplatedParameterType()
 func (t *ArrowType) HasTemplatedParameterType() bool {
+	var st JSTypeStack
+	return t.hasTemplatedParameterTypeIn(&st)
+}
+
+func (t *ArrowType) hasTemplatedParameterTypeIn(st *JSTypeStack) bool {
 	for _, param := range t.parameterList {
 		type_ := param.GetJSType()
-		if type_.HasAnyTemplateTypes() {
+		if jsTypeHasAnyTemplateTypesIn(type_, st) {
 			return true
 		}
 	}

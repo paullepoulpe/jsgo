@@ -169,7 +169,7 @@ func (t *EnumElementType) IsNominalType() bool {
 }
 
 // Java: EnumElementType.recursionUnsafeHashCode()
-func (t *EnumElementType) RecursionUnsafeHashCode() int32 {
+func (t *EnumElementType) RecursionUnsafeHashCode(*JSTypeStack) int32 {
 	if t.nameID == 0 {
 		// TODO(nickreid): Apparently this can happen if the l-value the enum is
 		// assinged to is not a qname. Fortunatly, this whole thing should become

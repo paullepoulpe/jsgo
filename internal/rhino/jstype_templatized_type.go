@@ -145,15 +145,20 @@ func (t *TemplatizedType) AppendTo(sb *TypeStringBuilder) {
 }
 
 // Java: TemplatizedType.recursionUnsafeHashCode()
-func (t *TemplatizedType) RecursionUnsafeHashCode() int32 {
-	baseHash := t.ProxyObjectTypeBase.RecursionUnsafeHashCode()
+func (t *TemplatizedType) RecursionUnsafeHashCode(hs *JSTypeStack) int32 {
+	baseHash := t.ProxyObjectTypeBase.RecursionUnsafeHashCode(hs)
 
 	// TODO(b/110224889): This case can probably be removed if `equals()` is
 	// updated.
 	if t.isSpecializedOnlyWithUnknown {
 		return baseHash
 	}
-	return 31*(31*1+jutil.ListHashCode(t.templateTypes)) + baseHash
+	// jutil.ListHashCode(t.templateTypes), in this hash code computation.
+	var listHash int32 = 1
+	for _, e := range t.templateTypes {
+		listHash = 31*listHash + jsTypeHashCodeIn(e, hs)
+	}
+	return 31*(31*1+listHash) + baseHash
 }
 
 // Java: JSType.isTemplatizedType()
@@ -225,8 +230,8 @@ func (t *TemplatizedType) GetTemplateTypeMap() *TemplateTypeMap {
 }
 
 // Java: TemplatizedType.hasAnyTemplateTypesInternal()
-func (t *TemplatizedType) HasAnyTemplateTypesInternal() bool {
-	return t.templateTypeMap.HasAnyTemplateTypesInternal()
+func (t *TemplatizedType) HasAnyTemplateTypesInternal(st *JSTypeStack) bool {
+	return t.templateTypeMap.HasAnyTemplateTypesInternal(st)
 }
 
 // GetReferencedType returns the referenced ObjectType wrapped by this
