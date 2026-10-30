@@ -392,15 +392,15 @@ type JSTypeRegistry struct {
 	// The symbols used as property keys (see propertySymbolID).
 	propertySymbols []*KnownSymbolType
 
-	unionBuilderStack    [16]UnionType_Builder
-	unionBuilderDepth    int
-	fnBuilderStack       [8]FunctionType_Builder
-	fnBuilderDepth       int
-	leastSupertypeGen    uint32
+	unionBuilderStack [16]UnionType_Builder
+	unionBuilderDepth int
+	fnBuilderStack    [8]FunctionType_Builder
+	fnBuilderDepth    int
+	leastSupertypeGen uint32
 	// Go-only: property maps that became unsorted since the last
 	// SetParallelReadOnly(true), which sorts them.
-	unsortedMapsMu sync.Mutex
-	unsortedMaps   []*PropertyMap
+	unsortedMapsMu       sync.Mutex
+	unsortedMaps         []*PropertyMap
 	leastSupertypeCache  *[jsTypeRegistryLeastSupertypeCacheSize]leastSupertypeCacheEntry
 	templateTypeMapCache *[jsTypeRegistryTemplatizedCacheSize]templateTypeMapCacheEntry
 	objectDocInfo        map[*ObjectTypeBase]*JSDocInfo

@@ -778,7 +778,7 @@ func (f *FunctionTypeBase) AppendTo(sb *TypeStringBuilder) {
 		}
 		return
 	}
-	if !f.IsPrettyPrint() || JSType(f) == f.GetRegistry().GetNativeType(JSTypeNative_FUNCTION_TYPE) {
+	if !f.IsPrettyPrint() || sb.printing.contains(f.GetJSTypeBase()) || JSType(f) == f.GetRegistry().GetNativeType(JSTypeNative_FUNCTION_TYPE) {
 		if sb.IsForAnnotations() {
 			sb.Append("!Function")
 		} else {
@@ -798,7 +798,7 @@ func (f *FunctionTypeBase) AppendTo(sb *TypeStringBuilder) {
 		return
 	}
 
-	f.SetPrettyPrint(false)
+	sb.printing.push(f.GetJSTypeBase()) // Java: setPrettyPrint(false) meanwhile
 
 	sb.Append("function(")
 	paramNum := len(f.call.GetParameterList())
@@ -828,7 +828,7 @@ func (f *FunctionTypeBase) AppendTo(sb *TypeStringBuilder) {
 	sb.Append("): ")
 	sb.AppendNonNull(f.call.GetReturnType())
 
-	f.SetPrettyPrint(true)
+	sb.printing.pop() // Java: setPrettyPrint(true)
 }
 
 // Java: FunctionType.AppendArgString(TypeStringBuilder, Parameter)

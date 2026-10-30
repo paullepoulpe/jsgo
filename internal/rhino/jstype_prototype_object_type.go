@@ -393,7 +393,7 @@ func (p *PrototypeObjectTypeBase) AppendTo(sb *TypeStringBuilder) {
 		return
 	}
 
-	if !p.IsPrettyPrint() {
+	if !p.IsPrettyPrint() || sb.printing.contains(p.GetJSTypeBase()) {
 		if sb.IsForAnnotations() {
 			sb.Append("?")
 		} else {
@@ -403,7 +403,7 @@ func (p *PrototypeObjectTypeBase) AppendTo(sb *TypeStringBuilder) {
 	}
 
 	// Don't pretty print recursively. It would cause infinite recursion.
-	p.protoFlags &^= protoFlagPrettyPrint
+	sb.printing.push(p.GetJSTypeBase())
 
 	// Sort and deduplicate properties across the prototype chain (subtype wins).
 	var propsBuf [8]PrototypeObjectType_PropertyForPrettyPrinting
@@ -459,7 +459,7 @@ func (p *PrototypeObjectTypeBase) AppendTo(sb *TypeStringBuilder) {
 	}
 	sb.Append("}")
 
-	p.protoFlags |= protoFlagPrettyPrint
+	sb.printing.pop()
 }
 
 // Java: PrototypeObjectType.setPrettyPrint(boolean)

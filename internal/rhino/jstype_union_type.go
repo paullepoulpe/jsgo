@@ -694,6 +694,7 @@ func (t *UnionType) AppendTo(sb *TypeStringBuilder) {
 		clone.builder.Reset()
 		clone.isForAnnotations = sb.isForAnnotations
 		clone.indentDepth = sb.indentDepth
+		clone.printing = sb.printing
 		clone.AppendType(alt)
 		names = append(names, clone.Build())
 	}
