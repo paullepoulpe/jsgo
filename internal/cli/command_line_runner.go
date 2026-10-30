@@ -627,6 +627,9 @@ func (r *CommandLineRunner) CreateOptions() *jscomp.CompilerOptions {
 	if flags.fastMode {
 		options.SetFastMode(true)
 	}
+	if flags.maxOptimizationLoopIterations > 0 {
+		options.SetMaxOptimizationLoopIterations(flags.maxOptimizationLoopIterations)
+	}
 
 	options.SetEnvironment(flags.environment)
 
