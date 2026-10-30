@@ -61,7 +61,7 @@ func (ti *TypeInference) InferParameters(entryFlowScope *LinkedFlowScope) *Linke
 	functionType := rhino.JSType_ToMaybeFunctionType(functionNode.GetJSType())
 	parameterTypes := functionType.GetParameters()
 	nextParameter := 0
-	var parameter *rhino.FunctionType_Parameter
+	var parameter rhino.FunctionType_Parameter
 	if nextParameter < len(parameterTypes) {
 		parameter = parameterTypes[nextParameter]
 		nextParameter++
@@ -90,10 +90,8 @@ func (ti *TypeInference) InferParameters(entryFlowScope *LinkedFlowScope) *Linke
 			if iifeArgumentNode.GetJSType() != nil {
 				inferredType = iifeArgumentNode.GetJSType()
 			}
-		} else if parameter != nil {
-			if parameter.GetJSType() != nil {
-				inferredType = parameter.GetJSType()
-			}
+		} else if parameter.GetJSType() != nil {
+			inferredType = parameter.GetJSType()
 		}
 
 		var defaultValue rhino.Node
@@ -129,7 +127,7 @@ func (ti *TypeInference) InferParameters(entryFlowScope *LinkedFlowScope) *Linke
 				ti.UpdateNamedParameter(astParam, !defaultValue.IsNil(), inferredType, entryFlowScope)
 		}
 
-		parameter = nil
+		parameter = rhino.FunctionType_Parameter{}
 		if nextParameter < len(parameterTypes) {
 			parameter = parameterTypes[nextParameter]
 			nextParameter++

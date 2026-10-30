@@ -464,7 +464,7 @@ func TypedCodeGenerator_AppendAnnotation(sb *strings.Builder, name string, type_
 //
 // Java: TypedCodeGenerator.getParameterJSDocType(List<FunctionType.Parameter>, int, int, int)
 func (t *CodeGenerator) GetParameterJSDocType(
-	parameters []*rhino.FunctionType_Parameter, index int, minArgs int, maxArgs int) string {
+	parameters []rhino.FunctionType_Parameter, index int, minArgs int, maxArgs int) string {
 	type_ := parameters[index].GetJSType()
 	if index < minArgs {
 		return type_.ToAnnotationString(rhino.JSType_Nullability_EXPLICIT)

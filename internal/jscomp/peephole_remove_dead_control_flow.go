@@ -902,7 +902,7 @@ func peepholeRemoveDeadCode_hasUnnamedBreakOrContinue(n rhino.Node, allowBreak b
 //
 // Java: PeepholeRemoveDeadCode.tryFoldForCondition(Node)
 func (p *PeepholeRemoveDeadCode) TryFoldForCondition(forCondition rhino.Node) {
-	if p.GetSideEffectFreeBooleanValue(forCondition) == base.Tri_TRUE {
+	if val, ok := p.GetSideEffectFreeBooleanValue(forCondition); ok && val {
 		p.ReportChangeToEnclosingScope(forCondition)
 		forCondition.ReplaceWith(rhino.IR_Empty())
 	}

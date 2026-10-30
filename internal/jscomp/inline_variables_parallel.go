@@ -20,6 +20,166 @@ package jscomp
 
 import "github.com/paullepoulpe/jsgo/internal/rhino"
 
+type rcStreamOpKind uint8
+
+const (
+	rcOpCompilerEvents rcStreamOpKind = iota + 1
+	rcOpGlobalRef
+	rcOpGlobalAliasRetry
+	rcOpJumpHoisted
+	rcOpDeclHoisted
+)
+
+type rcStreamOp struct {
+	kind    rcStreamOpKind
+	events  []recordedCompilerEvent
+	v       *Var
+	node    rhino.Node
+	block   *BasicBlock
+	scope   *Scope
+	inputId *rhino.InputId
+	retry   *InlineVariables_InliningBehavior_AliasInlineRetryHandler
+}
+
+type rcStreamSegment struct {
+	fnNode rhino.Node
+	ops    []rcStreamOp
+}
+
+type rcParallelScriptState struct {
+	globalScope   *Scope
+	globalBlock   *BasicBlock
+	rc            *recordingCompiler
+	curSeg        *rcStreamSegment
+	rootSeg       rcStreamSegment
+	hoistedSegs   []*rcStreamSegment
+	inHoistedRoot rhino.Node
+}
+
+func (ps *rcParallelScriptState) flushCompilerEvents() {
+	if ps.rc != nil && len(ps.rc.events) > 0 {
+		ps.curSeg.ops = append(ps.curSeg.ops, rcStreamOp{
+			kind:   rcOpCompilerEvents,
+			events: ps.rc.takeEvents(),
+		})
+	}
+}
+
+func (ps *rcParallelScriptState) recordHoistedFunctionDecl(
+	c *ReferenceCollector,
+	t *NodeTraversal,
+	n rhino.Node,
+	parent rhino.Node,
+) bool {
+	if n == ps.inHoistedRoot || parent.IsNil() {
+		return false
+	}
+	gv := ps.globalScope.lookupOwnVarByID(n.GetFirstChild().GetStringID())
+	if gv == nil || gv.nameNode != n.GetFirstChild() {
+		return false
+	}
+	ps.flushCompilerEvents()
+	declInputId := t.inputId
+	if t.compilerInput == nil {
+		declInputId = t.GetInput().GetInputId()
+	}
+	ps.curSeg.ops = append(ps.curSeg.ops, rcStreamOp{
+		kind:    rcOpDeclHoisted,
+		v:       gv,
+		node:    n,
+		scope:   ps.globalScope,
+		inputId: declInputId,
+	})
+	hSeg := &rcStreamSegment{fnNode: n}
+	ps.hoistedSegs = append(ps.hoistedSegs, hSeg)
+
+	prevSeg := ps.curSeg
+	prevHoisted := ps.inHoistedRoot
+	savedBlocks := c.blocks.pushRootBlockFrame(ps.globalBlock)
+	oldLocalDepth := c.localScopeDepth
+
+	ps.curSeg = hSeg
+	ps.inHoistedRoot = n
+	c.localScopeDepth = 0
+
+	b := c.builderVal()
+	b.TraverseAtScope(c.scopeCreator.CreateScope(n, ps.globalScope))
+	ps.flushCompilerEvents()
+
+	c.blocks.restoreFrame(savedBlocks)
+	c.localScopeDepth = oldLocalDepth
+	ps.inHoistedRoot = prevHoisted
+	ps.curSeg = prevSeg
+	return true
+}
+
+func (ps *rcParallelScriptState) maybeRecordJumpHoisted(v *Var, t *NodeTraversal) {
+	if v.nameNode.IsNil() {
+		return
+	}
+	fnNode := v.nameNode.GetParent()
+	if fnNode.IsNil() || !fnNode.IsFunction() || !rcIsHoistedFunctionDeclaration(fnNode) {
+		return
+	}
+	ps.flushCompilerEvents()
+	inputId := t.inputId
+	if t.compilerInput == nil {
+		inputId = t.GetInput().GetInputId()
+	}
+	ps.curSeg.ops = append(ps.curSeg.ops, rcStreamOp{
+		kind:    rcOpJumpHoisted,
+		v:       v,
+		node:    fnNode,
+		scope:   t.GetScope(),
+		inputId: inputId,
+	})
+}
+
+func (ps *rcParallelScriptState) recordGlobalRef(
+	c *ReferenceCollector,
+	v *Var,
+	n rhino.Node,
+	t *NodeTraversal,
+	scope *Scope,
+) {
+	block := c.blocks.currentBlock()
+	if scope == nil {
+		scope = t.GetScope()
+	}
+	inputId := t.inputId
+	if t.compilerInput == nil {
+		inputId = t.GetInput().GetInputId()
+	}
+	ps.flushCompilerEvents()
+	ps.curSeg.ops = append(ps.curSeg.ops, rcStreamOp{
+		kind:    rcOpGlobalRef,
+		v:       v,
+		node:    n,
+		block:   block,
+		scope:   scope,
+		inputId: inputId,
+	})
+}
+
+func (c *ReferenceCollector) addGlobalReferenceDirect(
+	v *Var,
+	n rhino.Node,
+	block *BasicBlock,
+	scope *Scope,
+	inputId *rhino.InputId,
+) {
+	if v != c.lastVar && c.varFilter != nil {
+		if v == c.lastRejectedVar || !c.varFilter(v) {
+			c.lastRejectedVar = v
+			return
+		}
+	}
+	collection := c.getOrCreateReferences(v)
+	r := c.refSlab[rcGlobal].New()
+	*r = Reference{nameNode: n, basicBlock: block, scope: scope, inputId: inputId}
+	c.addToCollection(collection, r, rcGlobal)
+}
+
 func (iv *InlineVariables) processParallel(externs rhino.Node, root rhino.Node) bool {
 	scopeRoot, items, ok := collectExternAndRootScripts(externs, root)
 	if !ok {
@@ -66,9 +226,7 @@ func (iv *InlineVariables) processParallel(externs rhino.Node, root rhino.Node) 
 				col.scopeCreator = reusableSC
 				col.clearLocalBase()
 				col.maybeReclaimLocals()
-				if col.collectedHoistedFunctions != nil {
-					clear(col.collectedHoistedFunctions)
-				}
+				col.blocks.resetHoistedCollected()
 			} else {
 				beh = NewInlineVariables(rc, iv.mode)
 				beh.resetBehavior()

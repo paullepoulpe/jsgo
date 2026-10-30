@@ -41,6 +41,8 @@ import (
 //     (GetParent, GetVar, GetGlobalScope, GetClosestHoistScope,
 //     GetVarIterable, ...) live directly on *Scope and *TypedScope without
 //     F-bounded generic indirection.
+//   - varCommon holds the shared fields and methods of Var and TypedVar
+//     directly (no AbstractVar interface in production code).
 //   - Java narrows three rhino.StaticScope methods to S/V: getParentScope(),
 //     getSlot(String) and getOwnSlot(String). They keep rhino.StaticScope's
 //     Go signatures (as rhino.StaticTypedScope does), so that *Scope is a
@@ -49,7 +51,7 @@ import (
 //     comma-ok form so that Java null stays nil:
 //       v, _ := scope.GetOwnSlot(name).(*Var)
 //       tv, _ := typedScope.GetSlot(name).(*TypedVar)
-//     The same holds for AbstractVar's getScope() (rhino.StaticSlot),
+//     The same holds for Var/TypedVar's getScope() (rhino.StaticSlot),
 //     getDeclaration() and getSymbol(): `v.GetScope().(*Scope)`.
 
 // AbstractScope contains information about a variable scope in JavaScript.

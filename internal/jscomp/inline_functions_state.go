@@ -37,7 +37,6 @@ package jscomp
 
 import (
 	"math"
-	"slices"
 	"strconv"
 	"strings"
 
@@ -94,10 +93,10 @@ type InlineFunctions_FunctionState struct {
 	hasInnerClosures bool
 	summaryValid     bool
 	refs             []*FunctionInjector_Reference
-	refsBuf          [4]*FunctionInjector_Reference
+	refsBuf          [fnStateSmallRefs]*FunctionInjector_Reference
 	refByNode        map[rhino.Node]int
 	chunk            *JSChunk
-	summary          *calleeSummary
+	summary          calleeSummary
 
 	hasRequireInliningAnnotation            bool
 	hasRequireInliningAnnotationInitialized bool
@@ -214,7 +213,7 @@ func (s *InlineFunctions_FunctionState) GetSafeFnNode() rhino.Node {
 
 // Java: InlineFunctions.FunctionState.setSafeFnNode(Node)
 func (s *InlineFunctions_FunctionState) SetSafeFnNode(safeFnNode rhino.Node) {
-	if s.summaryValid && s.summary != nil {
+	if s.summaryValid {
 		if s.summary.fnNode == s.GetSafeFnNode() {
 			s.summary.fnNode = safeFnNode
 		} else {
@@ -225,23 +224,20 @@ func (s *InlineFunctions_FunctionState) SetSafeFnNode(safeFnNode rhino.Node) {
 }
 
 func (s *InlineFunctions_FunctionState) readOnlySummary() *calleeSummary {
-	if s.summaryValid && s.summary != nil && s.summary.fnNode == s.GetSafeFnNode() {
-		return s.summary
+	if s.summaryValid && s.summary.fnNode == s.GetSafeFnNode() {
+		return &s.summary
 	}
 	return nil
 }
 
 func (s *InlineFunctions_FunctionState) ensureSummary() *calleeSummary {
 	fnNode := s.GetSafeFnNode()
-	if s.summaryValid && s.summary != nil && s.summary.fnNode == fnNode {
-		return s.summary
+	if s.summaryValid && s.summary.fnNode == fnNode {
+		return &s.summary
 	}
-	if s.summary == nil {
-		s.summary = new(calleeSummary)
-	}
-	if scanCalleeSummary(s.target.name, fnNode, s.summary) {
+	if scanCalleeSummary(s.target.name, fnNode, &s.summary) {
 		s.summaryValid = true
-		return s.summary
+		return &s.summary
 	}
 	s.summaryValid = false
 	return nil
@@ -301,7 +297,7 @@ func (s *InlineFunctions_FunctionState) DisallowInliningWithWarning(
 		s.refs = nil
 	}
 	s.refByNode = nil
-	s.summary = nil
+	s.summary = calleeSummary{}
 	s.summaryValid = false
 	// Don't remove functions that we aren't inlining.
 	s.remove = false
@@ -392,15 +388,9 @@ func (s *InlineFunctions_FunctionState) AddReference(ref *FunctionInjector_Refer
 
 // GetReferences returns the references (the values of the references map).
 //
-// Go-only: language-adapter — Java's live values() view becomes a snapshot
-// slice; no caller modifies the map while iterating it.
-//
 // Java: InlineFunctions.FunctionState.getReferences()
 func (s *InlineFunctions_FunctionState) GetReferences() []*FunctionInjector_Reference {
-	if len(s.refs) == 0 {
-		return nil
-	}
-	return slices.Clone(s.refs)
+	return s.refs
 }
 
 // Java: InlineFunctions.FunctionState.getReference(Node)

@@ -30,7 +30,7 @@ type BranchCoverageInstrumentationCallback struct {
 	cfgScopeStack
 
 	compiler            AbstractCompiler
-	instrumentationData *jutil.LinkedHashMap[string, *FileInstrumentationData]
+	instrumentationData map[string]*FileInstrumentationData
 }
 
 // Java: BranchCoverageInstrumentationCallback.BRANCH_ARRAY_NAME_PREFIX
@@ -47,13 +47,24 @@ func BranchCoverageInstrumentationCallback_CreateArrayName(traversal *NodeTraver
 
 // Java: BranchCoverageInstrumentationCallback(AbstractCompiler, Map<String, FileInstrumentationData>)
 func NewBranchCoverageInstrumentationCallback(
-	compiler AbstractCompiler, instrumentationData *jutil.LinkedHashMap[string, *FileInstrumentationData]) *BranchCoverageInstrumentationCallback {
+	compiler AbstractCompiler, instrumentationData map[string]*FileInstrumentationData) *BranchCoverageInstrumentationCallback {
 	c := &BranchCoverageInstrumentationCallback{
 		compiler:            compiler,
 		instrumentationData: instrumentationData,
 	}
 	c.cfgs = c.cfgsBuf[:0]
 	return c
+}
+
+func (c *BranchCoverageInstrumentationCallback) getOrCreateFileData(
+	fileName string, traversal *NodeTraversal,
+) *FileInstrumentationData {
+	if data := c.instrumentationData[fileName]; data != nil {
+		return data
+	}
+	data := NewFileInstrumentationData(fileName, BranchCoverageInstrumentationCallback_CreateArrayName(traversal))
+	c.instrumentationData[fileName] = data
+	return data
 }
 
 func (c *BranchCoverageInstrumentationCallback) EnterScope(t *NodeTraversal) {
@@ -93,7 +104,7 @@ func (c *BranchCoverageInstrumentationCallback) Visit(traversal *NodeTraversal, 
 	}
 
 	if node.IsScript() {
-		if fileNamePtr != nil && c.instrumentationData.Get(fileName) != nil {
+		if fileNamePtr != nil && c.instrumentationData[fileName] != nil {
 			toAddTo := node
 			if node.HasChildren() && node.GetFirstChild().IsModuleBody() {
 				toAddTo = node.GetFirstChild()
@@ -101,7 +112,7 @@ func (c *BranchCoverageInstrumentationCallback) Visit(traversal *NodeTraversal, 
 			// Add instrumentation code
 			toAddTo.AddChildrenToFront(c.NewHeaderNode(traversal, toAddTo).RemoveChildren())
 			c.compiler.ReportChangeToEnclosingScope(node)
-			c.InstrumentBranchCoverage(traversal, c.instrumentationData.Get(fileName))
+			c.InstrumentBranchCoverage(traversal, c.instrumentationData[fileName])
 		}
 	}
 
@@ -123,11 +134,7 @@ func (c *BranchCoverageInstrumentationCallback) Visit(traversal *NodeTraversal, 
 		if !hasDefaultBlock {
 			c.AddDefaultBlock(node)
 		}
-		c.instrumentationData.ComputeIfAbsent(
-			fileName, func(k string) *FileInstrumentationData {
-				return NewFileInstrumentationData(k, BranchCoverageInstrumentationCallback_CreateArrayName(traversal))
-			})
-		c.ProcessBranchInfo(node, c.instrumentationData.Get(fileName), c.GetChildrenBlocks(node))
+		c.ProcessBranchInfo(node, c.getOrCreateFileData(fileName, traversal), c.GetChildrenBlocks(node))
 	} else if NodeUtil_IsLoopStructure(node) {
 		blocks := c.GetChildrenBlocks(node)
 		cfg := c.GetControlFlowGraph(c.compiler)
@@ -152,11 +159,7 @@ func (c *BranchCoverageInstrumentationCallback) Visit(traversal *NodeTraversal, 
 				}
 			}
 		}
-		c.instrumentationData.ComputeIfAbsent(
-			fileName, func(k string) *FileInstrumentationData {
-				return NewFileInstrumentationData(k, BranchCoverageInstrumentationCallback_CreateArrayName(traversal))
-			})
-		c.ProcessBranchInfo(node, c.instrumentationData.Get(fileName), blocks)
+		c.ProcessBranchInfo(node, c.getOrCreateFileData(fileName, traversal), blocks)
 	}
 }
 
@@ -207,8 +210,9 @@ func (c *BranchCoverageInstrumentationCallback) NewBranchInstrumentationNode(tra
 
 	// Note line as instrumented
 	fileName := CoverageInstrumentationCallback_GetFileName(traversal)
-	c.instrumentationData.ComputeIfAbsent(
-		fileName, func(k string) *FileInstrumentationData { return NewFileInstrumentationData(k, arrayName) })
+	if c.instrumentationData[fileName] == nil {
+		c.instrumentationData[fileName] = NewFileInstrumentationData(fileName, arrayName)
+	}
 	return exprNode.SrcrefTreeIfMissing(node)
 }
 
@@ -239,7 +243,7 @@ func (c *BranchCoverageInstrumentationCallback) AddDefaultBlock(node rhino.Node)
 // Java: BranchCoverageInstrumentationCallback.newHeaderNode(NodeTraversal, Node)
 func (c *BranchCoverageInstrumentationCallback) NewHeaderNode(traversal *NodeTraversal, srcref rhino.Node) rhino.Node {
 	fileName := CoverageInstrumentationCallback_GetFileName(traversal)
-	data := c.instrumentationData.Get(fileName)
+	data := c.instrumentationData[fileName]
 	jutil.CheckNotNull(data)
 
 	// var JSCompiler_lcov_branch_data_xx = [];

@@ -59,62 +59,19 @@ type Normalize struct {
 	assertOnChange bool
 }
 
-// Java: Normalize(Builder)
-func NewNormalize(builder *Normalize_Builder) *Normalize {
-	n := &Normalize{}
-	n.compiler = builder.compiler
-	n.assertOnChange = builder.assertOnChange
-	n.astFactory = builder.compiler.CreateAstFactory()
-	return n
+// NewNormalize creates a Normalize pass. If assertOnChange is true, finding
+// denormalized AST constructs panics instead of mutating the AST.
+func NewNormalize(compiler AbstractCompiler, assertOnChange bool) *Normalize {
+	return &Normalize{
+		compiler:       compiler,
+		astFactory:     compiler.CreateAstFactory(),
+		assertOnChange: assertOnChange,
+	}
 }
 
 // Java: Normalize.createNormalizeForOptimizations(AbstractCompiler)
 func Normalize_CreateNormalizeForOptimizations(compiler AbstractCompiler) *Normalize {
-	// The default option values are the right ones for optimizations
-	return &Normalize{
-		compiler:   compiler,
-		astFactory: compiler.CreateAstFactory(),
-	}
-}
-
-// Go-only: language-adapter — the trailing underscore keeps the mechanical
-// name Normalize_Builder for the nested Builder type.
-//
-// Java: Normalize.builder(AbstractCompiler)
-func Normalize_Builder_(compiler AbstractCompiler) *Normalize_Builder {
-	return NewNormalize_Builder(compiler)
-}
-
-// Normalize_Builder configures and builds a Normalize object.
-type Normalize_Builder struct {
-	compiler       AbstractCompiler
-	assertOnChange bool
-}
-
-// Java: Normalize.Builder(AbstractCompiler)
-func NewNormalize_Builder(compiler AbstractCompiler) *Normalize_Builder {
-	b := &Normalize_Builder{}
-	b.assertOnChange = false
-	b.compiler = compiler
-	return b
-}
-
-// AssertOnChange: if the Normalize pass finds work to do, it will throw an
-// exception.
-//
-// This is intended for use in validating that an AST is already normalized.
-//
-// This option is false by default.
-//
-// Java: Normalize.Builder.assertOnChange(boolean)
-func (b *Normalize_Builder) AssertOnChange(assertOnChange bool) *Normalize_Builder {
-	b.assertOnChange = assertOnChange
-	return b
-}
-
-// Java: Normalize.Builder.build()
-func (b *Normalize_Builder) Build() *Normalize {
-	return NewNormalize(b)
+	return NewNormalize(compiler, false)
 }
 
 // Java: Normalize.reportCodeChange(String, Node)

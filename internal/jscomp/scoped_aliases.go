@@ -397,6 +397,7 @@ type ScopedAliases_Traversal struct {
 	// Set when the traversal enters the body, and set back to null when it
 	// exits.
 	scopeFunctionBody rhino.Node
+	uniquifier        MakeDeclaredNamesUnique
 }
 
 var _ NodeTraversal_ScopedCallback = (*ScopedAliases_Traversal)(nil)
@@ -711,10 +712,9 @@ func (v *ScopedAliases_Traversal) RenameNamespaceShadows(t *NodeTraversal) {
 		for id := range v.forbiddenLocals {
 			renamer.addDeclaredNameID(id, false)
 		}
-		uniquifier :=
-			MakeDeclaredNamesUnique_Builder_().WithRenamer(renamer).Build()
+		v.uniquifier.reset(renamer, true, false)
 		NodeTraversal_TraverseScopeRoots(
-			v.outer.compiler, []rhino.Node{t.GetScopeRoot()}, uniquifier, true)
+			v.outer.compiler, []rhino.Node{t.GetScopeRoot()}, &v.uniquifier, true)
 	}
 }
 

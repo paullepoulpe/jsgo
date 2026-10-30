@@ -47,7 +47,8 @@ type inlineFunctionsRunState struct {
 	calledIDs   inlineIDSet
 	refsScratch []*FunctionInjector_Reference
 	movedArgs   map[rhino.Node]struct{}
-	references  jutil.Slab[FunctionInjector_Reference] // one run's references die together
+	references  jutil.Slab[FunctionInjector_Reference]    // one run's references die together
+	fnStates    jutil.Slab[InlineFunctions_FunctionState] // one run's function states die together
 }
 
 // InlineFunctions inlines functions that are divided into two types: "direct
@@ -166,7 +167,7 @@ func (f *InlineFunctions) functionStateName(fs *InlineFunctions_FunctionState) s
 }
 
 func functionStateAliasCount(fs *InlineFunctions_FunctionState) int {
-	if fs.summary != nil {
+	if fs.summaryValid {
 		return int(fs.summary.numModified)
 	}
 	return int(fs.aliasCount)
@@ -186,7 +187,9 @@ func (f *InlineFunctions) getOrCreateNamedFunctionState(nameID uint32) *InlineFu
 	if f.namedFns == nil {
 		f.namedFns = make(map[uint32]*InlineFunctions_FunctionState, 64)
 	}
-	fs := &InlineFunctions_FunctionState{inline: true, remove: true}
+	fs := p.fnStates.New()
+	fs.inline = true
+	fs.remove = true
 	f.namedFns[nameID] = fs
 	f.fns = append(f.fns, fs)
 	p.fnKeys = append(p.fnKeys, inlineFnKey{nameID: nameID})
@@ -199,7 +202,9 @@ func (f *InlineFunctions) allocAnonFunctionState(fnNode rhino.Node) *InlineFunct
 	if f.anonFns == nil {
 		f.anonFns = make(map[rhino.Node]*InlineFunctions_FunctionState, 8)
 	}
-	fs := &InlineFunctions_FunctionState{inline: true, remove: true}
+	fs := p.fnStates.New()
+	fs.inline = true
+	fs.remove = true
 	f.anonFns[fnNode] = fs
 	f.fns = append(f.fns, fs)
 	p.fnKeys = append(p.fnKeys, inlineFnKey{anonNode: fnNode})
@@ -473,11 +478,12 @@ func (c *InlineFunctions_FindCandidateFunctions) visitWalkNode(n, parent rhino.N
 type inlineCandidateAnalysis struct {
 	target              inlineFnTarget
 	chunk               *JSChunk
-	summary             *calleeSummary
+	summary             calleeSummary
 	disallowReasons     [5]InlineFunctions_DisallowInliningReason
 	bodyAstSize         int32
 	aliasCount          int32
 	disallowCount       uint8
+	hasSummary          bool
 	disallowBeforeSetFn bool
 	inlineDirectly      bool
 	referencesThis      bool
@@ -527,7 +533,7 @@ func (a *inlineCandidateAnalysis) applyTo(
 		fs.SetHasInnerClosures(true)
 	}
 	fs.bodyAstSize = a.bodyAstSize
-	if a.summary != nil {
+	if a.hasSummary {
 		fs.summary = a.summary
 		fs.summaryValid = true
 	}
@@ -656,8 +662,8 @@ func (s *inlineCandidateScratch) analyzeCandidate(
 	}
 
 	if res.canInline() && s.scratchSummary.paramsPositional {
-		sumCopy := s.scratchSummary
-		res.summary = &sumCopy
+		res.summary = s.scratchSummary
+		res.hasSummary = true
 	}
 	return res
 }

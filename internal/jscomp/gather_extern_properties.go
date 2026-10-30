@@ -19,9 +19,141 @@
 package jscomp
 
 import (
+	"iter"
+	"slices"
+
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
+	"github.com/paullepoulpe/jsgo/internal/strpool"
 )
+
+// ExternPropSet stores interned extern property names as both a dense BitSet
+// indexed by strpool.ID (for O(1) membership checks without string hashing) and
+// a deduplicated insertion-ordered slice of IDs (for deterministic iteration).
+type ExternPropSet struct {
+	bits jutil.BitSet
+	ids  []strpool.ID
+}
+
+// NewExternPropSetFromIDs builds an ExternPropSet from interned string IDs,
+// preserving first-seen order and ignoring zero (unset) IDs.
+func NewExternPropSetFromIDs(ids []strpool.ID) *ExternPropSet {
+	s := &ExternPropSet{
+		ids: make([]strpool.ID, 0, len(ids)),
+	}
+	for _, id := range ids {
+		s.addID(id)
+	}
+	return s
+}
+
+// NewExternPropSetFromStrings interns each property name in names and builds an
+// ExternPropSet preserving first-seen iteration order.
+func NewExternPropSetFromStrings(names iter.Seq[string]) *ExternPropSet {
+	s := &ExternPropSet{}
+	if names != nil {
+		for name := range names {
+			s.addID(strpool.Intern(name))
+		}
+	}
+	return s
+}
+
+func (s *ExternPropSet) addID(id strpool.ID) {
+	if id == 0 || s.bits.Get(int(id)) {
+		return
+	}
+	s.bits.Set(int(id))
+	s.ids = append(s.ids, id)
+}
+
+func (s *ExternPropSet) clone() *ExternPropSet {
+	if s == nil {
+		return &ExternPropSet{}
+	}
+	out := &ExternPropSet{
+		ids: slices.Clone(s.ids),
+	}
+	out.bits.Or(&s.bits)
+	return out
+}
+
+// HasID reports whether id is in the extern property set.
+func (s *ExternPropSet) HasID(id strpool.ID) bool {
+	return s != nil && id != 0 && s.bits.Get(int(id))
+}
+
+// Has reports whether name is in the extern property set without interning
+// unknown candidate strings.
+func (s *ExternPropSet) Has(name string) bool {
+	if s == nil {
+		return false
+	}
+	id := strpool.Lookup(name)
+	return id != 0 && s.bits.Get(int(id))
+}
+
+// Bits returns the underlying BitSet indexed by uint32(strpool.ID), or nil if s is nil.
+func (s *ExternPropSet) Bits() *jutil.BitSet {
+	if s == nil {
+		return nil
+	}
+	return &s.bits
+}
+
+// IDs returns the deduplicated extern property IDs in insertion order.
+func (s *ExternPropSet) IDs() []strpool.ID {
+	if s == nil {
+		return nil
+	}
+	return s.ids
+}
+
+// Len returns the number of unique extern property names in s.
+func (s *ExternPropSet) Len() int {
+	if s == nil {
+		return 0
+	}
+	return len(s.ids)
+}
+
+// AllStrings yields each extern property name in insertion order.
+func (s *ExternPropSet) AllStrings() iter.Seq[string] {
+	return func(yield func(string) bool) {
+		if s == nil {
+			return
+		}
+		for _, id := range s.ids {
+			if !yield(strpool.String(id)) {
+				return
+			}
+		}
+	}
+}
+
+// ToLinkedHashSet materializes a LinkedHashSet[string] in insertion order, or
+// returns nil if s is nil.
+func (s *ExternPropSet) ToLinkedHashSet() *jutil.LinkedHashSet[string] {
+	if s == nil {
+		return nil
+	}
+	out := jutil.NewLinkedHashSetWithCapacity[string](len(s.ids))
+	for _, id := range s.ids {
+		out.Add(strpool.String(id))
+	}
+	return out
+}
+
+// Equals reports whether s and other contain the exact same set of extern properties.
+func (s *ExternPropSet) Equals(other *ExternPropSet) bool {
+	if s == other {
+		return true
+	}
+	if s == nil || other == nil {
+		return false
+	}
+	return len(s.ids) == len(other.ids) && s.bits.Equals(&other.bits)
+}
 
 // GatherExternProperties gathers property names defined in externs.
 //
@@ -40,7 +172,8 @@ import (
 type GatherExternProperties struct {
 	compiler AbstractCompiler
 
-	externProperties *jutil.LinkedHashSet[string]
+	externProperties *ExternPropSet
+	published        bool
 
 	mode GatherExternProperties_Mode
 }
@@ -73,22 +206,22 @@ func (m GatherExternProperties_Mode) Ordinal() int { return int(m) }
 
 // Java: GatherExternProperties(AbstractCompiler, Mode)
 func NewGatherExternProperties(compiler AbstractCompiler, mode GatherExternProperties_Mode) *GatherExternProperties {
-	g := &GatherExternProperties{externProperties: jutil.NewLinkedHashSet[string]()}
-	g.compiler = compiler
-	g.mode = mode
-
-	if compiler.GetExternProperties() != nil {
-		for p := range compiler.GetExternProperties().All() {
-			g.externProperties.Add(p)
-		}
+	return &GatherExternProperties{
+		compiler:         compiler,
+		externProperties: compiler.GetExternPropSet().clone(),
+		mode:             mode,
 	}
-	return g
 }
 
 // Java: GatherExternProperties.process(Node, Node)
 func (g *GatherExternProperties) Process(externs rhino.Node, root rhino.Node) {
+	if g.published {
+		g.externProperties = g.externProperties.clone()
+		g.published = false
+	}
 	NodeTraversal_Traverse(g.compiler, externs, g)
-	g.compiler.SetExternProperties(jutil.NewLinkedHashSet(g.externProperties.ToSlice()...))
+	g.published = true
+	g.compiler.SetExternPropSet(g.externProperties)
 }
 
 // Java: GatherExternProperties.shouldTraverse(NodeTraversal, Node, Node)
@@ -102,13 +235,13 @@ func (g *GatherExternProperties) Visit(t *NodeTraversal, n rhino.Node, parent rh
 		switch n.GetToken() {
 		case rhino.Token_GETPROP:
 			// Gathers "name" from (someObject.name).
-			g.externProperties.Add(n.GetString())
+			g.externProperties.addID(strpool.ID(n.GetStringID()))
 		case rhino.Token_STRING_KEY:
 			if parent.IsObjectLit() {
-				g.externProperties.Add(n.GetString())
+				g.externProperties.addID(strpool.ID(n.GetStringID()))
 			}
 		case rhino.Token_MEMBER_FUNCTION_DEF, rhino.Token_MEMBER_FIELD_DEF, rhino.Token_GETTER_DEF, rhino.Token_SETTER_DEF:
-			g.externProperties.Add(n.GetString())
+			g.externProperties.addID(strpool.ID(n.GetStringID()))
 		default:
 		}
 	}
@@ -152,12 +285,14 @@ func (g *GatherExternProperties) GatherPropertiesFromJsDocRecordType(jsDocRecord
 			fieldTypeNode = rhino.NilNode
 		}
 		jutil.CheckStateMsg1(fieldNameNode.IsStringKey(), "%s", fieldNameNode)
-		fieldName := fieldNameNode.GetString()
+		id := strpool.ID(fieldNameNode.GetStringID())
+		fieldName := strpool.String(id)
 		// TODO(bradfordcsmith): The JSDoc parser should do this.
-		if jutil.StringStartsWith(fieldName, "'") || jutil.StringStartsWith(fieldName, "\"") {
+		if len(fieldName) > 0 && (fieldName[0] == '\'' || fieldName[0] == '"') {
 			fieldName = jutil.StringSubstring(fieldName, 1, jutil.StringLength(fieldName)-1)
+			id = strpool.Intern(fieldName)
 		}
-		g.externProperties.Add(fieldName)
+		g.externProperties.addID(id)
 		if !fieldTypeNode.IsNil() {
 			g.GatherPropertiesFromJsTypeExpressionNode(fieldTypeNode)
 		}

@@ -52,29 +52,12 @@ func (f *IRFactory) isCommentParsed(idx int) bool {
 	return uint(idx) < uint(len(f.parsedCommentBits)*64) && (f.parsedCommentBits[idx>>6]&(1<<(uint(idx)&63))) != 0
 }
 
-// The CommentTracker filters of the IRFactory constructor (the lambdas
-// (c) -> c.type == Comment.Type.JSDOC and (c) -> c.type != Comment.Type.JSDOC).
-func irFactory_isJsdocComment(c *parser.Comment) bool    { return c.Type == parser.Comment_Type_JSDOC }
-func irFactory_isNonJsdocComment(c *parser.Comment) bool { return c.Type != parser.Comment_Type_JSDOC }
-
 // Java: final class IRFactory.CommentTracker
 type IRFactory_CommentTracker struct {
 	source        []parser.Comment
-	filter        func(*parser.Comment) bool
 	index         int
 	previousIndex int
-}
-
-// Java: IRFactory.CommentTracker(ImmutableList<Comment>, Predicate<Comment>)
-func NewIRFactory_CommentTracker(source []parser.Comment, filter func(*parser.Comment) bool) *IRFactory_CommentTracker {
-	t := &IRFactory_CommentTracker{}
-	t.index = -1
-	t.previousIndex = -1
-	t.source = source
-	t.filter = filter
-
-	t.Advance()
-	return t
+	jsdocOnly     bool
 }
 
 // Java: IRFactory.CommentTracker.current()
@@ -93,9 +76,10 @@ func (t *IRFactory_CommentTracker) hasPendingBeforeOffset(offset int32) bool {
 func (t *IRFactory_CommentTracker) Advance() {
 	t.previousIndex = t.index
 	src := t.source
+	jsdocOnly := t.jsdocOnly
 	for {
 		t.index++ // Always advance at least one element.
-		if t.index >= len(src) || t.filter(&src[t.index]) {
+		if t.index >= len(src) || (src[t.index].Type == parser.Comment_Type_JSDOC) == jsdocOnly {
 			break
 		}
 	}

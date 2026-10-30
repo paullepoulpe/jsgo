@@ -666,7 +666,7 @@ func typedAstDeserializer_deserializeTypedAsts(
 			codedInput := &protoReader{b: rlStream.data, limit: math.MaxInt32}
 			for !codedInput.atEnd() {
 				tag := codedInput.readTag()
-				if jutil.Ushr32(int32(tag), 3) != TypedAst_List_TYPED_ASTS_FIELD_NUMBER ||
+				if jutil.Ushr32(int32(tag), 3) != typedAstList_TYPED_ASTS_FIELD_NUMBER ||
 					tag&7 != typedAstDeserializer_WIRETYPE_LENGTH_DELIMITED {
 					panic(NewInvalidProtocolBufferException(
 						"Unexpected field number " +

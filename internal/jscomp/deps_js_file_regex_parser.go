@@ -197,14 +197,14 @@ func (p *JsFileRegexParser) finishDependencyInfo(filePath string, closureRelativ
 		p.provides = append(p.provides, p.file.ToModuleName())
 	}
 
-	var loadFlags *jutil.LinkedHashMap[string, string]
+	var loadFlags LoadFlags
 	switch p.moduleType {
 	case jsFileRegexParser_ModuleType_GOOG_MODULE:
-		loadFlags = simpleDependencyInfo_Builder_GOOG_MODULE_FLAGS
+		loadFlags = GoogModuleLoadFlags
 	case jsFileRegexParser_ModuleType_ES6_MODULE:
-		loadFlags = simpleDependencyInfo_ES6_FLAGS
+		loadFlags = ES6ModuleLoadFlags
 	default:
-		loadFlags = simpleDependencyInfo_EMPTY_FLAGS
+		loadFlags = EmptyLoadFlags
 	}
 
 	dependencyInfo := newSimpleDependencyInfoDirect(

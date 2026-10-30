@@ -107,10 +107,9 @@ type AbstractPeepholeOptimization interface {
 }
 
 type peepholeOptConfig struct {
-	tokens                ast.TokenSet
-	isStandard            bool
-	isJ2clCallPass        bool
-	isOptimizeLetAndConst bool
+	tokens         ast.TokenSet
+	isStandard     bool
+	isJ2clCallPass bool
 }
 
 func peepholeTokenSet(tokens ...rhino.Token) ast.TokenSet {
@@ -310,20 +309,17 @@ func (b *AbstractPeepholeOptimizationBase) GetSideEffectFreeStringValue(n rhino.
 // GetSideEffectFreeBooleanValue calculates the known boolean value for a
 // node if possible and if it has no side effects.
 //
-// Returns Tri#UNKNOWN if the node has side effects or its value cannot be
-// statically determined.
-//
 // Java: AbstractPeepholeOptimization.getSideEffectFreeBooleanValue(Node)
-func (b *AbstractPeepholeOptimizationBase) GetSideEffectFreeBooleanValue(n rhino.Node) base.Tri {
+func (b *AbstractPeepholeOptimizationBase) GetSideEffectFreeBooleanValue(n rhino.Node) (bool, bool) {
 	value := NodeUtil_GetBooleanValue(n)
 	// Calculating the boolean value, if any, is likely to be faster than calculating side effects,
 	// and there are only a very few cases where we can compute a boolean value, but there could
 	// also be side effects. e.g. `void doSomething()` has value `false`, regardless of the
 	// behavior of `doSomething()`
-	if value != base.Tri_UNKNOWN && b.astAnalyzer.MayHaveSideEffects(n) {
-		value = base.Tri_UNKNOWN
+	if value == base.Tri_UNKNOWN || b.astAnalyzer.MayHaveSideEffects(n) {
+		return false, false
 	}
-	return value
+	return value == base.Tri_TRUE, true
 }
 
 // NodeTypeMayHaveSideEffects returns true if the current node's type implies
@@ -466,9 +462,8 @@ var optimizeLetAndConstTokens = peepholeTokenSet(
 
 func (p *OptimizeLetAndConstPeephole) peepholeConfig() peepholeOptConfig {
 	return peepholeOptConfig{
-		tokens:                optimizeLetAndConstTokens,
-		isStandard:            true,
-		isOptimizeLetAndConst: true,
+		tokens:     optimizeLetAndConstTokens,
+		isStandard: true,
 	}
 }
 

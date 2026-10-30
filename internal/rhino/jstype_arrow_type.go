@@ -36,6 +36,8 @@
 package rhino
 
 import (
+	"slices"
+
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 )
 
@@ -45,7 +47,7 @@ import (
 // JavaScript functions include more things like properties, type of THIS,
 // etc, and are modeled by FunctionType.
 type ArrowType struct {
-	parameterList []*FunctionType_Parameter
+	parameterList []FunctionType_Parameter
 	// Go-only: performance — the type's base (8 bytes) rather than a JSType
 	// interface (16); GetReturnType returns its self().
 	returnType *JSTypeBase
@@ -68,7 +70,7 @@ const ArrowType_TYPE_CLASS = JSTypeClass_ARROW
 // Java: ArrowType(JSTypeRegistry, List<Parameter>, JSType, boolean)
 func (t *ArrowType) init(
 	registry *JSTypeRegistry,
-	parameters []*FunctionType_Parameter,
+	parameters []FunctionType_Parameter,
 	returnType JSType,
 	returnTypeInferred bool) {
 	if parameters == nil {
@@ -84,17 +86,11 @@ func (t *ArrowType) init(
 	t.returnTypeInferred = returnTypeInferred
 }
 
-// arrowTypeCopyParameters is ImmutableList.copyOf(parameters), which
-// rejects null elements.
-func arrowTypeCopyParameters(parameters []*FunctionType_Parameter) []*FunctionType_Parameter {
+func arrowTypeCopyParameters(parameters []FunctionType_Parameter) []FunctionType_Parameter {
 	if len(parameters) == 0 {
 		return emptyFunctionTypeParameterSlice
 	}
-	out := make([]*FunctionType_Parameter, len(parameters))
-	for i, p := range parameters {
-		out[i] = jutil.CheckNotNull(p)
-	}
-	return out
+	return slices.Clone(parameters)
 }
 
 // Java: ArrowType.getTypeClass()
@@ -121,7 +117,7 @@ func (t *ArrowType) GetReturnType() JSType {
 }
 
 // Java: ArrowType.getParameterList()
-func (t *ArrowType) GetParameterList() []*FunctionType_Parameter {
+func (t *ArrowType) GetParameterList() []FunctionType_Parameter {
 	return t.parameterList
 }
 

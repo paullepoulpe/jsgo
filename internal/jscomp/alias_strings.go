@@ -156,7 +156,8 @@ func (a *AliasStrings) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) 
 		}
 
 		if a.aliasStringsMode == CompilerOptions_AliasStringsMode_LARGE &&
-			jutil.StringLength(str) <= AliasStrings_ALIAS_LARGE_STRINGS_LENGTH {
+			(len(str) <= AliasStrings_ALIAS_LARGE_STRINGS_LENGTH ||
+				jutil.StringLength(str) <= AliasStrings_ALIAS_LARGE_STRINGS_LENGTH) {
 			return
 		}
 
@@ -377,30 +378,54 @@ func (s *AliasStrings_StringInfo) GetVariableName(stringLiteral string) string {
 func (s *AliasStrings_StringInfo) EncodeStringAsIdentifier(prefix string, str string) string {
 	// Limit to avoid generating very long identifiers
 	const maxLimit = 20
-	length := jutil.StringLength(str)
-	limit := min(length, maxLimit)
-
 	var sb strings.Builder
-	sb.WriteString(prefix)
+	var hexBuf [8]byte
 	protectHex := false
 
-	for i := 0; i < limit; i++ {
-		ch := jutil.StringCharAt(str, i)
-
-		if protectHex {
-			if (ch >= '0' && ch <= '9') ||
-				(ch >= 'a' && ch <= 'f') { // toHexString generate lowercase
-				sb.WriteByte('_')
+	var length, limit int
+	asciiLen := jutil.ASCIIPrefixLen(str)
+	if asciiLen == len(str) || asciiLen > maxLimit {
+		length = len(str)
+		limit = min(length, maxLimit)
+		sb.Grow(len(prefix) + limit*2)
+		sb.WriteString(prefix)
+		for i := 0; i < limit; i++ {
+			ch := str[i]
+			if protectHex {
+				if (ch >= '0' && ch <= '9') || (ch >= 'a' && ch <= 'f') {
+					sb.WriteByte('_')
+				}
+				protectHex = false
 			}
-			protectHex = false
+			if (ch >= '0' && ch <= '9') || (ch >= 'A' && ch <= 'Z') || (ch >= 'a' && ch <= 'z') {
+				sb.WriteByte(ch)
+			} else {
+				sb.WriteByte('$')
+				sb.Write(strconv.AppendUint(hexBuf[:0], uint64(ch), 16))
+				protectHex = true
+			}
 		}
-
-		if (ch >= '0' && ch <= '9') || (ch >= 'A' && ch <= 'Z') || (ch >= 'a' && ch <= 'z') {
-			sb.WriteByte(byte(ch))
-		} else {
-			sb.WriteByte('$')
-			sb.WriteString(jutil.IntegerToHexString(int32(ch)))
-			protectHex = true
+	} else {
+		length = jutil.StringLength(str)
+		limit = min(length, maxLimit)
+		sb.Grow(len(prefix) + limit*2)
+		sb.WriteString(prefix)
+		for i := 0; i < limit; i++ {
+			ch := jutil.StringCharAt(str, i)
+			if protectHex {
+				if (ch >= '0' && ch <= '9') ||
+					(ch >= 'a' && ch <= 'f') { // toHexString generate lowercase
+					sb.WriteByte('_')
+				}
+				protectHex = false
+			}
+			if (ch >= '0' && ch <= '9') || (ch >= 'A' && ch <= 'Z') || (ch >= 'a' && ch <= 'z') {
+				sb.WriteByte(byte(ch))
+			} else {
+				sb.WriteByte('$')
+				sb.Write(strconv.AppendUint(hexBuf[:0], uint64(ch), 16))
+				protectHex = true
+			}
 		}
 	}
 
@@ -412,7 +437,7 @@ func (s *AliasStrings_StringInfo) EncodeStringAsIdentifier(prefix string, str st
 	// checksum as a hashcode.
 	hash := jutil.StringHashCode(str) & s.outer.unitTestHashReductionMask
 	sb.WriteByte('_')
-	sb.WriteString(jutil.IntegerToHexString(hash))
+	sb.Write(strconv.AppendUint(hexBuf[:0], uint64(uint32(hash)), 16))
 	encoded := sb.String()
 	if _, exists := s.outer.usedHashedAliases[encoded]; exists {
 		// A collision has been detected (which is very rare). Use the sequence

@@ -30,7 +30,7 @@ import (
 type CoverageInstrumentationPass struct {
 	compiler                  AbstractCompiler
 	lineInstrumentationData   map[string]*FileInstrumentationData
-	branchInstrumentationData *jutil.LinkedHashMap[string, *FileInstrumentationData]
+	branchInstrumentationData map[string]*FileInstrumentationData
 	reach                     CoverageInstrumentationPass_CoverageReach
 	instrumentOption          CompilerOptions_InstrumentOption
 
@@ -127,7 +127,7 @@ func (p *CoverageInstrumentationPass) Process(externsNode rhino.Node, rootNode r
 		switch p.instrumentOption {
 		case CompilerOptions_InstrumentOption_BRANCH_ONLY:
 			if p.branchInstrumentationData == nil {
-				p.branchInstrumentationData = jutil.NewLinkedHashMap[string, *FileInstrumentationData]()
+				p.branchInstrumentationData = make(map[string]*FileInstrumentationData)
 			}
 			NodeTraversal_Traverse(
 				p.compiler,

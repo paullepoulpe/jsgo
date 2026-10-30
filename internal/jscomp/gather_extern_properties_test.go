@@ -20,7 +20,10 @@
 package jscomp
 
 import (
+	"slices"
 	"testing"
+
+	"github.com/paullepoulpe/jsgo/internal/strpool"
 )
 
 // GatherExternPropertiesTest is the test case for GatherExternProperties.
@@ -352,4 +355,31 @@ func GatherExternPropertiesTest_ExpectExterns(properties ...string) CompilerTest
 // Java: GatherExternPropertiesTest.assertExternProperties(String, String...)
 func (c *GatherExternPropertiesTest) AssertExternProperties(externs string, properties ...string) {
 	c.TestSame(c.Externs(GatherExternPropertiesTest_EXTERNS+externs), c.Srcs(""), GatherExternPropertiesTest_ExpectExterns(properties...))
+}
+
+func TestExternPropSet(t *testing.T) {
+	idAlpha := strpool.Intern("alpha")
+	idBeta := strpool.Intern("beta")
+	set := NewExternPropSetFromIDs([]strpool.ID{0, idAlpha, idBeta, idAlpha})
+	if set.Len() != 2 {
+		t.Fatalf("Len() = %d, want 2", set.Len())
+	}
+	if !set.HasID(idAlpha) || !set.Has("beta") || set.HasID(0) {
+		t.Fatalf("unexpected membership results")
+	}
+	unknown := "__extern_prop_set_uninterned_probe_9f8e7d__"
+	if set.Has(unknown) {
+		t.Fatalf("Has(%q) = true, want false", unknown)
+	}
+	if got := strpool.Lookup(unknown); got != 0 {
+		t.Fatalf("Has(%q) interned unknown string as %d", unknown, got)
+	}
+	gotStrings := slices.Collect(set.AllStrings())
+	if !slices.Equal(gotStrings, []string{"alpha", "beta"}) {
+		t.Fatalf("AllStrings() = %v, want [alpha beta]", gotStrings)
+	}
+	fromStrings := NewExternPropSetFromStrings(slices.Values([]string{"alpha", "beta"}))
+	if !set.Equals(fromStrings) {
+		t.Fatalf("Equals() = false, want true")
+	}
 }

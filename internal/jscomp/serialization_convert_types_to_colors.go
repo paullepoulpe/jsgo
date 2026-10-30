@@ -185,18 +185,19 @@ func convertTypesToColors_forDetachedRoots(compiler AbstractCompiler, externsAnd
 				visit(e.NameNode())
 			}
 		}
-		visitBindings := func(bindings *jutil.LinkedHashMap[string, *Binding]) {
-			for b := range bindings.Values() {
+		visitBindings := func(bindings *OrderedStringMap[*Binding]) {
+			for _, entry := range bindings.Entries() {
+				b := entry.Value
 				visit(b.SourceNode())
 				visitExport(b.OriginatingExport())
 			}
 		}
 		visitModule := func(m *Module) {
 			visit(m.Metadata().RootNode())
-			visitBindings(m.Namespace())
-			visitBindings(m.BoundNames())
-			for e := range m.LocalNameToLocalExport().Values() {
-				visitExport(e)
+			visitBindings(m.NamespaceMap())
+			visitBindings(m.BoundNamesMap())
+			for _, entry := range m.LocalExportsMap().Entries() {
+				visitExport(entry.Value)
 			}
 		}
 		for m := range mm.GetModulesByPath().Values() {

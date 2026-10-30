@@ -36,7 +36,6 @@ import (
 	"io"
 	"strconv"
 	"strings"
-	"unicode/utf8"
 
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 )
@@ -83,14 +82,13 @@ const (
 	saxEncASCIILenient
 )
 
-// saxInput is the decoded character buffer over an InputSource.
+// saxInput is the decoded character buffer over a byte stream.
 type saxInput struct {
-	src      io.Reader // bytes (or, for a character stream, UTF-8 text)
-	ahead    []byte    // bytes read for encoding detection, not yet decoded
-	srcEOF   bool
-	enc      saxEncoding
-	bomLen   int
-	charMode bool // src is a character stream: reads count chars, not bytes
+	src    io.Reader
+	ahead  []byte // bytes read for encoding detection, not yet decoded
+	srcEOF bool
+	enc    saxEncoding
+	bomLen int
 
 	// deferred is a decoding error met by the last read after it had
 	// decoded something; the next read throws it.
@@ -113,20 +111,14 @@ type saxInput struct {
 	fail func(msg string)
 }
 
-func newSaxInput(source *InputSource) *saxInput {
-	in := &saxInput{
+func newSaxInput(src io.Reader) *saxInput {
+	return &saxInput{
+		src:       src,
 		buf:       make([]uint16, saxBufferChars+2),
 		line:      1,
 		column:    1,
 		firstRead: true,
 	}
-	if source.characterStream != nil {
-		in.src = source.characterStream
-		in.charMode = true
-	} else {
-		in.src = source.byteStream
-	}
-	return in
 }
 
 // detectEncoding looks at the first bytes of a byte stream, as XML 1.0
@@ -134,9 +126,6 @@ func newSaxInput(source *InputSource) *saxInput {
 // "<?xml" in UTF-16. Everything else is read as UTF-8 until an encoding
 // declaration says otherwise.
 func (in *saxInput) detectEncoding() {
-	if in.charMode {
-		return
-	}
 	in.ahead = in.readRaw(4)
 	b := in.ahead
 	switch {
@@ -178,7 +167,7 @@ func (in *saxInput) readRaw(n int) []byte {
 		if err == io.EOF {
 			in.srcEOF = true
 		} else if err != nil {
-			panic(jutil.NewIOException(err.Error()))
+			panic(saxBailout{err: jutil.NewIOException(err.Error())})
 		}
 	}
 	// Return a copy the caller may keep while readRaw is called again for
@@ -199,9 +188,6 @@ func (in *saxInput) readByte() (byte, bool) {
 // the byte order of a stream detected as UTF-16; any other name switches
 // to its own decoder, whatever was detected.
 func (in *saxInput) setEncoding(enc saxEncoding, name string) {
-	if in.charMode {
-		return
-	}
 	if strings.EqualFold(name, "UTF-16") && (in.enc == saxEncUTF16BE || in.enc == saxEncUTF16LE) {
 		return
 	}
@@ -213,9 +199,6 @@ func (in *saxInput) setEncoding(enc saxEncoding, name string) {
 func (in *saxInput) readChars(n int) int {
 	if in.deferred != "" {
 		in.fail(in.deferred)
-	}
-	if in.charMode {
-		return in.readFromCharStream(n)
 	}
 	switch in.enc {
 	case saxEncUTF8Lenient:
@@ -535,50 +518,12 @@ func (in *saxInput) readLenientUTF16(n int) int {
 	return in.count - start
 }
 
-// readFromCharStream reads up to n chars from a character stream (Go UTF-8
-// text).
-func (in *saxInput) readFromCharStream(n int) int {
-	start := in.count
-	for in.count-start < n {
-		b, ok := in.readByte()
-		if !ok {
-			break
-		}
-		if b < utf8.RuneSelf {
-			in.put(uint16(b))
-			continue
-		}
-		seq := []byte{b}
-		for !utf8.FullRune(seq) {
-			c, ok := in.readByte()
-			if !ok {
-				break
-			}
-			seq = append(seq, c)
-		}
-		r, _ := utf8.DecodeRune(seq)
-		if r >= 0x10000 {
-			r -= 0x10000
-			in.put(uint16(0xD800 + r>>10))
-			in.put(uint16(0xDC00 + r&0x3FF))
-		} else {
-			in.put(uint16(r))
-		}
-	}
-	return in.count - start
-}
-
 // readSize is the number of bytes the next read asks for, given the number
 // of chars kept in the buffer.
 func (in *saxInput) readSize(kept int) int {
 	switch {
 	case in.firstRead:
 		in.firstRead = false
-		if in.charMode {
-			// Observed behaviour (black-box): 64 chars from a character
-			// stream.
-			return 2 * saxFirstReadBytes
-		}
 		in.splitRead = true
 		return saxFirstReadBytes - in.bomLen
 	case in.declMode:

@@ -136,6 +136,16 @@ func (b *EnumType_Builder) SetGoogModuleId(x *string) *EnumType_Builder {
 	return b
 }
 
+// SetOptionalGoogModuleId sets or clears the goog.module ID without allocating a *string.
+func (b *EnumType_Builder) SetOptionalGoogModuleId(id string, ok bool) *EnumType_Builder {
+	if !ok {
+		b.googModuleID = 0
+	} else {
+		b.googModuleID = rhinoStringPoolIntern(id)
+	}
+	return b
+}
+
 // SetElementType sets the base type of the individual elements.
 //
 // Java: EnumType.Builder.setElementType(JSType)

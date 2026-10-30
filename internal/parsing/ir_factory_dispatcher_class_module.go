@@ -27,16 +27,16 @@ import (
 var IRFactory_GOOG_MODULE = rhino.QualifiedName_Of("goog.module")
 
 // Java: IRFactory.TransformDispatcher.processAstRoot(ProgramTree)
-func (d *IRFactory_TransformDispatcher) ProcessAstRoot(rootNode *parser.ProgramTree) rhino.Node {
-	scriptNode := d.NewNode(rhino.Token_SCRIPT)
+func (f *IRFactory) ProcessAstRoot(rootNode *parser.ProgramTree) rhino.Node {
+	scriptNode := f.NewNode(rhino.Token_SCRIPT)
 	for _, child := range rootNode.SourceElements {
-		scriptNode.AddChildToBack(d.Transform(child))
+		scriptNode.AddChildToBack(f.Transform(child))
 	}
-	d.ParseDirectives(scriptNode)
-	isGoogModule := d.IsGoogModuleFile(scriptNode)
-	if isGoogModule || d.features.Has(parser.FeatureSet_Feature_MODULES) {
-		moduleNode := d.NewNode(rhino.Token_MODULE_BODY)
-		d.SetSourceInfo(moduleNode, rootNode)
+	f.ParseDirectives(scriptNode)
+	isGoogModule := f.IsGoogModuleFile(scriptNode)
+	if isGoogModule || f.features.Has(parser.FeatureSet_Feature_MODULES) {
+		moduleNode := f.NewNode(rhino.Token_MODULE_BODY)
+		f.SetSourceInfo(moduleNode, rootNode)
 		moduleNode.AddChildrenToBack(scriptNode.RemoveChildren())
 		scriptNode.AddChildToBack(moduleNode)
 		if isGoogModule {
@@ -49,7 +49,7 @@ func (d *IRFactory_TransformDispatcher) ProcessAstRoot(rootNode *parser.ProgramT
 }
 
 // Java: IRFactory.TransformDispatcher.isGoogModuleFile(Node)
-func (d *IRFactory_TransformDispatcher) IsGoogModuleFile(scriptNode rhino.Node) bool {
+func (f *IRFactory) IsGoogModuleFile(scriptNode rhino.Node) bool {
 	jutil.CheckArgument(scriptNode.IsScript())
 	if !scriptNode.HasChildren() {
 		return false
@@ -75,7 +75,7 @@ func (d *IRFactory_TransformDispatcher) IsGoogModuleFile(scriptNode rhino.Node) 
 // For information on ES5 directives, see section 14.1 of ECMA-262, Edition 5.
 //
 // Java: IRFactory.TransformDispatcher.parseDirectives(Node)
-func (d *IRFactory_TransformDispatcher) ParseDirectives(node rhino.Node) {
+func (f *IRFactory) ParseDirectives(node rhino.Node) {
 	useStrict := false
 	for {
 		statement := node.GetFirstChild()
@@ -102,21 +102,21 @@ func (d *IRFactory_TransformDispatcher) ParseDirectives(node rhino.Node) {
 // ProcessField processes class fields: general case.
 //
 // Java: IRFactory.TransformDispatcher.processField(FieldDeclarationTree)
-func (d *IRFactory_TransformDispatcher) ProcessField(tree *parser.FieldDeclarationTree) rhino.Node {
+func (f *IRFactory) ProcessField(tree *parser.FieldDeclarationTree) rhino.Node {
 	if tree.Name.IsPrivateIdentifier() {
-		d.MaybeWarnForFeature(tree, parser.FeatureSet_Feature_PRIVATE_ELEMENTS)
+		f.MaybeWarnForFeature(tree, parser.FeatureSet_Feature_PRIVATE_ELEMENTS)
 	} else {
-		d.MaybeWarnForFeature(tree, parser.FeatureSet_Feature_PUBLIC_CLASS_FIELDS)
+		f.MaybeWarnForFeature(tree, parser.FeatureSet_Feature_PUBLIC_CLASS_FIELDS)
 	}
 
-	node := d.MaybeAddNonJsDocComment(
-		d.NewStringNodeFromIdentifier(
-			rhino.Token_MEMBER_FIELD_DEF, IRFactory_TransformDispatcher_IdentifierType_CAN_BE_PRIVATE, tree.Name),
+	node := f.MaybeAddNonJsDocComment(
+		f.NewStringNodeFromIdentifier(
+			rhino.Token_MEMBER_FIELD_DEF, IRFactory_IdentifierType_CAN_BE_PRIVATE, tree.Name),
 		tree.GetStart())
 	if tree.Initializer != nil {
-		initializer := d.Transform(tree.Initializer)
+		initializer := f.Transform(tree.Initializer)
 		node.AddChildToBack(initializer)
-		d.SetLength(node, tree.Location.Start, tree.Location.End)
+		f.SetLength(node, tree.Location.Start, tree.Location.End)
 	}
 
 	node.PutBooleanProp(rhino.Node_STATIC_MEMBER, tree.IsStatic)
@@ -128,16 +128,16 @@ func (d *IRFactory_TransformDispatcher) ProcessField(tree *parser.FieldDeclarati
 // fields.
 //
 // Java: IRFactory.TransformDispatcher.processComputedPropertyField(ComputedPropertyFieldTree)
-func (d *IRFactory_TransformDispatcher) ProcessComputedPropertyField(tree *parser.ComputedPropertyFieldTree) rhino.Node {
-	d.MaybeWarnForFeature(tree, parser.FeatureSet_Feature_PUBLIC_CLASS_FIELDS)
+func (f *IRFactory) ProcessComputedPropertyField(tree *parser.ComputedPropertyFieldTree) rhino.Node {
+	f.MaybeWarnForFeature(tree, parser.FeatureSet_Feature_PUBLIC_CLASS_FIELDS)
 
-	key := d.Transform(tree.Property)
+	key := f.Transform(tree.Property)
 
 	var node rhino.Node
 	if tree.Initializer != nil {
-		node = d.NewNodeWith2Children(rhino.Token_COMPUTED_FIELD_DEF, key, d.Transform(tree.Initializer))
+		node = f.NewNodeWith2Children(rhino.Token_COMPUTED_FIELD_DEF, key, f.Transform(tree.Initializer))
 	} else {
-		node = d.NewNodeWithChild(rhino.Token_COMPUTED_FIELD_DEF, key)
+		node = f.NewNodeWithChild(rhino.Token_COMPUTED_FIELD_DEF, key)
 	}
 
 	node.PutBooleanProp(rhino.Node_STATIC_MEMBER, tree.IsStatic)
@@ -146,10 +146,10 @@ func (d *IRFactory_TransformDispatcher) ProcessComputedPropertyField(tree *parse
 }
 
 // Java: IRFactory.TransformDispatcher.processFormalParameterList(FormalParameterListTree)
-func (d *IRFactory_TransformDispatcher) ProcessFormalParameterList(tree *parser.FormalParameterListTree) rhino.Node {
-	params := d.NewNode(rhino.Token_PARAM_LIST)
+func (f *IRFactory) ProcessFormalParameterList(tree *parser.FormalParameterListTree) rhino.Node {
+	params := f.NewNode(rhino.Token_PARAM_LIST)
 	params.SetTrailingComma(tree.HasTrailingComma)
-	if !d.CheckParameters(tree) {
+	if !f.CheckParameters(tree) {
 		return params
 	}
 
@@ -162,15 +162,15 @@ func (d *IRFactory_TransformDispatcher) ProcessFormalParameterList(tree *parser.
 		case parser.ParseTreeType_DEFAULT_PARAMETER:
 			// processDefaultParameter() knows how to find and apply inline
 			// JSDoc to the right node
-			paramNode = d.ProcessDefaultParameter(param.(*parser.DefaultParameterTree))
+			paramNode = f.ProcessDefaultParameter(param.(*parser.DefaultParameterTree))
 		case parser.ParseTreeType_ITER_REST:
-			d.MaybeWarnForFeature(param, parser.FeatureSet_Feature_REST_PARAMETERS)
-			paramNode = d.TransformNodeWithInlineComments(param)
+			f.MaybeWarnForFeature(param, parser.FeatureSet_Feature_REST_PARAMETERS)
+			paramNode = f.TransformNodeWithInlineComments(param)
 		default:
-			paramNode = d.TransformNodeWithInlineComments(param)
+			paramNode = f.TransformNodeWithInlineComments(param)
 			// Reusing the logic to attach trailing comments used from
 			// call-site argsList
-			d.attachPossibleTrailingCommentsForArgAt(
+			f.attachPossibleTrailingCommentsForArgAt(
 				paramNode, parameters, argCount, tree.CommaPositions, tree.Location.End)
 		}
 
@@ -190,8 +190,8 @@ func (d *IRFactory_TransformDispatcher) ProcessFormalParameterList(tree *parser.
 }
 
 // Java: IRFactory.TransformDispatcher.processDefaultParameter(DefaultParameterTree)
-func (d *IRFactory_TransformDispatcher) ProcessDefaultParameter(tree *parser.DefaultParameterTree) rhino.Node {
-	d.MaybeWarnForFeature(tree, parser.FeatureSet_Feature_DEFAULT_PARAMETERS)
+func (f *IRFactory) ProcessDefaultParameter(tree *parser.DefaultParameterTree) rhino.Node {
+	f.MaybeWarnForFeature(tree, parser.FeatureSet_Feature_DEFAULT_PARAMETERS)
 	targetTree := tree.Lhs
 	var targetNode rhino.Node
 	if targetTree.GetParseTreeBase().Type == parser.ParseTreeType_IDENTIFIER_EXPRESSION {
@@ -199,70 +199,70 @@ func (d *IRFactory_TransformDispatcher) ProcessDefaultParameter(tree *parser.Def
 		// let { /** inlineType */ x = defaultValue } = someObject;
 		// TODO(bradfordcsmith): Do we need to allow inline JSDoc for
 		// qualified names, too?
-		targetNode = d.ProcessNameWithInlineComments(
-			targetTree.(*parser.IdentifierExpressionTree), IRFactory_TransformDispatcher_IdentifierType_STANDARD)
+		targetNode = f.ProcessNameWithInlineComments(
+			targetTree.(*parser.IdentifierExpressionTree), IRFactory_IdentifierType_STANDARD)
 	} else {
 		// ({prop: /** string */ ns.a.b = 'foo'} = someObject);
 		// NOTE: CheckJSDoc will report an error for this case, since we want
 		// qualified names to be declared with individual statements, like
 		// `/** @type {string} */ ns.a.b;`
-		targetNode = d.TransformNodeWithInlineComments(targetTree)
+		targetNode = f.TransformNodeWithInlineComments(targetTree)
 	}
-	defaultValueExpression := d.Transform(tree.DefaultValue)
-	defaultValueNode := d.NewNodeWith2Children(rhino.Token_DEFAULT_VALUE, targetNode, defaultValueExpression)
-	d.ReportErrorIfYieldOrAwaitInDefaultValue(defaultValueNode)
-	d.SetSourceInfo(defaultValueNode, tree)
+	defaultValueExpression := f.Transform(tree.DefaultValue)
+	defaultValueNode := f.NewNodeWith2Children(rhino.Token_DEFAULT_VALUE, targetNode, defaultValueExpression)
+	f.ReportErrorIfYieldOrAwaitInDefaultValue(defaultValueNode)
+	f.SetSourceInfo(defaultValueNode, tree)
 	return defaultValueNode
 }
 
 // Java: IRFactory.TransformDispatcher.processClassDeclaration(ClassDeclarationTree)
-func (d *IRFactory_TransformDispatcher) ProcessClassDeclaration(tree *parser.ClassDeclarationTree) rhino.Node {
-	d.MaybeWarnForFeature(tree, parser.FeatureSet_Feature_CLASSES)
+func (f *IRFactory) ProcessClassDeclaration(tree *parser.ClassDeclarationTree) rhino.Node {
+	f.MaybeWarnForFeature(tree, parser.FeatureSet_Feature_CLASSES)
 
-	name := d.TransformOrEmptyIdentifier(tree.Name, tree)
-	superClass := d.TransformOrEmpty(tree.SuperClass, tree)
+	name := f.TransformOrEmptyIdentifier(tree.Name, tree)
+	superClass := f.TransformOrEmpty(tree.SuperClass, tree)
 
-	classMembers := d.NewNode(rhino.Token_CLASS_MEMBERS)
-	d.SetSourceInfo(classMembers, tree)
+	classMembers := f.NewNode(rhino.Token_CLASS_MEMBERS)
+	f.SetSourceInfo(classMembers, tree)
 
 	func() {
-		ignored := d.classScope.Increment()
+		ignored := f.classScope.Increment()
 		defer ignored.Close()
 		hasConstructor := false
 		for _, child := range tree.Elements {
 			switch child.GetParseTreeBase().Type {
 			case parser.ParseTreeType_COMPUTED_PROPERTY_GETTER, parser.ParseTreeType_COMPUTED_PROPERTY_SETTER,
 				parser.ParseTreeType_GET_ACCESSOR, parser.ParseTreeType_SET_ACCESSOR:
-				d.features = d.features.With(parser.FeatureSet_Feature_CLASS_GETTER_SETTER)
+				f.features = f.features.With(parser.FeatureSet_Feature_CLASS_GETTER_SETTER)
 			case parser.ParseTreeType_BLOCK:
-				d.features = d.features.With(parser.FeatureSet_Feature_CLASS_STATIC_BLOCK)
+				f.features = f.features.With(parser.FeatureSet_Feature_CLASS_STATIC_BLOCK)
 			default:
 			}
 
-			childIsCtor := d.ValidateClassConstructorMember(child) // Has side-effects.
+			childIsCtor := f.ValidateClassConstructorMember(child) // Has side-effects.
 			if childIsCtor {
 				if hasConstructor {
-					d.errorReporter.Error(
+					f.errorReporter.Error(
 						"Class may have only one constructor.", //
-						d.sourceName,
-						d.Lineno(child),
-						d.Charno(child))
+						f.sourceName,
+						f.Lineno(child),
+						f.Charno(child))
 				}
 				hasConstructor = true
 			}
 
-			classMembers.AddChildToBack(d.Transform(child))
+			classMembers.AddChildToBack(f.Transform(child))
 		}
 	}()
 
 	// When nested inside of multiple classes, only run the validation once
 	// the top-most class exits scope.
-	if !d.classScope.InScope() {
-		d.ValidatePrivatePropertyUsage(d.GetPrivatePropsAndValidateUniqueness(classMembers), classMembers)
+	if !f.classScope.InScope() {
+		f.ValidatePrivatePropertyUsage(f.GetPrivatePropsAndValidateUniqueness(classMembers), classMembers)
 	}
 
-	classNode := d.NewNodeWith3Children(rhino.Token_CLASS, name, superClass, classMembers)
-	d.AttachPossibleTrailingComment(classNode, tree.GetEnd())
+	classNode := f.NewNodeWith3Children(rhino.Token_CLASS, name, superClass, classMembers)
+	f.AttachPossibleTrailingComment(classNode, tree.GetEnd())
 
 	return classNode
 }
@@ -297,11 +297,11 @@ func (s *privatePropScope) contains(name string) bool {
 // such that outer class private properties are available to inner classes.
 //
 // Java: IRFactory.TransformDispatcher.validatePrivatePropertyUsage(Set<String>, Node)
-func (d *IRFactory_TransformDispatcher) ValidatePrivatePropertyUsage(privatePropNames map[string]uint8, classMembers rhino.Node) {
-	d.validatePrivatePropertyUsage(&privatePropScope{props: privatePropNames}, classMembers)
+func (f *IRFactory) ValidatePrivatePropertyUsage(privatePropNames map[string]uint8, classMembers rhino.Node) {
+	f.validatePrivatePropertyUsage(&privatePropScope{props: privatePropNames}, classMembers)
 }
 
-func (d *IRFactory_TransformDispatcher) validatePrivatePropertyUsage(scope *privatePropScope, classMembers rhino.Node) {
+func (f *IRFactory) validatePrivatePropertyUsage(scope *privatePropScope, classMembers rhino.Node) {
 	jutil.CheckState(classMembers.IsClassMembers())
 	if !classMembers.HasChildren() {
 		return
@@ -329,9 +329,9 @@ func (d *IRFactory_TransformDispatcher) validatePrivatePropertyUsage(scope *priv
 			if node.GetParent().IsCall() {
 				propType = "methods"
 			}
-			d.errorReporter.Error(
+			f.errorReporter.Error(
 				"Private "+propType+" must be declared in an enclosing class",
-				d.sourceName,
+				f.sourceName,
 				node.GetLineno(),
 				node.GetCharno())
 		}
@@ -344,16 +344,16 @@ func (d *IRFactory_TransformDispatcher) validatePrivatePropertyUsage(scope *priv
 			firstChild := rhino.CheckNotNull(node.GetFirstChild())
 			if firstChild.IsPrivateIdentifier() &&
 				(firstChild.IsGetProp() || firstChild.IsOptChainGetProp()) {
-				d.errorReporter.Error(
-					"Private fields cannot be deleted", d.sourceName, node.GetLineno(), node.GetCharno())
+				f.errorReporter.Error(
+					"Private fields cannot be deleted", f.sourceName, node.GetLineno(), node.GetCharno())
 			}
 		}
 
 		if node.IsClassMembers() {
 			// Recurse into the inner class with the outer and inner class
 			// private properties.
-			innerProps := d.GetPrivatePropsAndValidateUniqueness(node)
-			d.validatePrivatePropertyUsage(&privatePropScope{props: innerProps, parent: scope}, node)
+			innerProps := f.GetPrivatePropsAndValidateUniqueness(node)
+			f.validatePrivatePropertyUsage(&privatePropScope{props: innerProps, parent: scope}, node)
 		} else {
 			if !node.GetNext().IsNil() {
 				visitStack = append(visitStack, node.GetNext())
@@ -374,7 +374,7 @@ func (d *IRFactory_TransformDispatcher) validatePrivatePropertyUsage(scope *priv
 // non-static modifier.
 //
 // Java: IRFactory.TransformDispatcher.getPrivatePropsAndValidateUniqueness(Node)
-func (d *IRFactory_TransformDispatcher) GetPrivatePropsAndValidateUniqueness(classMembers rhino.Node) map[string]uint8 {
+func (f *IRFactory) GetPrivatePropsAndValidateUniqueness(classMembers rhino.Node) map[string]uint8 {
 	var props map[string]uint8
 	for curNode := classMembers.GetFirstChild(); !curNode.IsNil(); curNode = curNode.GetNext() {
 		if !curNode.IsPrivateIdentifier() {
@@ -420,9 +420,9 @@ func (d *IRFactory_TransformDispatcher) GetPrivatePropsAndValidateUniqueness(cla
 			}
 		}
 		if alreadyDeclared {
-			d.errorReporter.Error(
+			f.errorReporter.Error(
 				"Identifier '"+propName+"' has already been declared",
-				d.sourceName,
+				f.sourceName,
 				curNode.GetLineno(),
 				curNode.GetCharno())
 		}
@@ -435,7 +435,7 @@ func (d *IRFactory_TransformDispatcher) GetPrivatePropsAndValidateUniqueness(cla
 // class constructor.
 //
 // Java: IRFactory.TransformDispatcher.validateClassConstructorMember(ParseTree)
-func (d *IRFactory_TransformDispatcher) ValidateClassConstructorMember(member parser.ParseTree) bool {
+func (f *IRFactory) ValidateClassConstructorMember(member parser.ParseTree) bool {
 	var memberName parser.Token
 	var isStatic bool
 	var hasIllegalModifier bool
@@ -477,11 +477,11 @@ func (d *IRFactory_TransformDispatcher) ValidateClassConstructorMember(member pa
 	}
 
 	if hasIllegalModifier {
-		d.errorReporter.Error(
+		f.errorReporter.Error(
 			"Class constructor may not be getter, setter, async, or generator.",
-			d.sourceName,
-			d.Lineno(member),
-			d.Charno(member))
+			f.sourceName,
+			f.Lineno(member),
+			f.Charno(member))
 		return false
 	}
 
@@ -489,24 +489,24 @@ func (d *IRFactory_TransformDispatcher) ValidateClassConstructorMember(member pa
 }
 
 // Java: IRFactory.TransformDispatcher.processExportDecl(ExportDeclarationTree)
-func (d *IRFactory_TransformDispatcher) ProcessExportDecl(tree *parser.ExportDeclarationTree) rhino.Node {
-	d.MaybeWarnForFeature(tree, parser.FeatureSet_Feature_MODULES)
+func (f *IRFactory) ProcessExportDecl(tree *parser.ExportDeclarationTree) rhino.Node {
+	f.MaybeWarnForFeature(tree, parser.FeatureSet_Feature_MODULES)
 	var decls rhino.Node
 	if tree.IsExportAll {
 		jutil.CheckState(tree.Declaration == nil && tree.ExportSpecifierList == nil)
 	} else if tree.Declaration != nil {
 		jutil.CheckState(tree.ExportSpecifierList == nil)
-		decls = d.Transform(tree.Declaration)
+		decls = f.Transform(tree.Declaration)
 	} else {
-		decls = d.TransformList(rhino.Token_EXPORT_SPECS, tree.ExportSpecifierList)
+		decls = f.TransformList(rhino.Token_EXPORT_SPECS, tree.ExportSpecifierList)
 	}
 	if decls.IsNil() {
-		decls = d.NewNode(rhino.Token_EMPTY)
+		decls = f.NewNode(rhino.Token_EMPTY)
 	}
-	d.SetSourceInfo(decls, tree)
-	export := d.NewNodeWithChild(rhino.Token_EXPORT, decls)
+	f.SetSourceInfo(decls, tree)
+	export := f.NewNodeWithChild(rhino.Token_EXPORT, decls)
 	if tree.From.IsPresent() {
-		from := d.ProcessString(tree.From)
+		from := f.ProcessString(tree.From)
 		export.AddChildToBack(from)
 	}
 
@@ -516,74 +516,74 @@ func (d *IRFactory_TransformDispatcher) ProcessExportDecl(tree *parser.ExportDec
 }
 
 // Java: IRFactory.TransformDispatcher.processExportSpec(ExportSpecifierTree)
-func (d *IRFactory_TransformDispatcher) ProcessExportSpec(tree *parser.ExportSpecifierTree) rhino.Node {
-	importedName := d.ProcessNameOfToken(tree.ImportedName, rhino.Token_NAME, IRFactory_TransformDispatcher_IdentifierType_STANDARD)
-	exportSpec := d.NewNodeWithChild(rhino.Token_EXPORT_SPEC, importedName)
+func (f *IRFactory) ProcessExportSpec(tree *parser.ExportSpecifierTree) rhino.Node {
+	importedName := f.ProcessNameOfToken(tree.ImportedName, rhino.Token_NAME, IRFactory_IdentifierType_STANDARD)
+	exportSpec := f.NewNodeWithChild(rhino.Token_EXPORT_SPEC, importedName)
 	if tree.DestinationName.IsNull() {
 		exportSpec.SetShorthandProperty(true)
 		exportSpec.AddChildToBack(importedName.CloneTree())
 	} else {
-		destinationName := d.ProcessNameOfToken(tree.DestinationName, rhino.Token_NAME, IRFactory_TransformDispatcher_IdentifierType_STANDARD)
+		destinationName := f.ProcessNameOfToken(tree.DestinationName, rhino.Token_NAME, IRFactory_IdentifierType_STANDARD)
 		exportSpec.AddChildToBack(destinationName)
 	}
 	return exportSpec
 }
 
 // Java: IRFactory.TransformDispatcher.processImportDecl(ImportDeclarationTree)
-func (d *IRFactory_TransformDispatcher) ProcessImportDecl(tree *parser.ImportDeclarationTree) rhino.Node {
-	d.MaybeWarnForFeature(tree, parser.FeatureSet_Feature_MODULES)
+func (f *IRFactory) ProcessImportDecl(tree *parser.ImportDeclarationTree) rhino.Node {
+	f.MaybeWarnForFeature(tree, parser.FeatureSet_Feature_MODULES)
 
-	firstChild := d.TransformOrEmptyIdentifier(tree.DefaultBindingIdentifier, tree)
+	firstChild := f.TransformOrEmptyIdentifier(tree.DefaultBindingIdentifier, tree)
 	var secondChild rhino.Node
 	if tree.NameSpaceImportIdentifier.IsNull() {
-		secondChild = d.TransformListOrEmpty(rhino.Token_IMPORT_SPECS, tree.ImportSpecifierList)
+		secondChild = f.TransformListOrEmpty(rhino.Token_IMPORT_SPECS, tree.ImportSpecifierList)
 		// Currently source info is "import {foo} from '...';" expression. If
 		// needed this should be changed to use only "{foo}" part.
-		d.SetSourceInfo(secondChild, tree)
+		f.SetSourceInfo(secondChild, tree)
 	} else {
-		secondChild = d.NewStringNodeFromIdentifier(
-			rhino.Token_IMPORT_STAR, IRFactory_TransformDispatcher_IdentifierType_STANDARD, tree.NameSpaceImportIdentifier)
-		d.SetSourceInfoFromToken(secondChild, tree.NameSpaceImportIdentifier)
+		secondChild = f.NewStringNodeFromIdentifier(
+			rhino.Token_IMPORT_STAR, IRFactory_IdentifierType_STANDARD, tree.NameSpaceImportIdentifier)
+		f.SetSourceInfoFromToken(secondChild, tree.NameSpaceImportIdentifier)
 	}
-	thirdChild := d.ProcessString(tree.ModuleSpecifier)
+	thirdChild := f.ProcessString(tree.ModuleSpecifier)
 
-	return d.NewNodeWith3Children(rhino.Token_IMPORT, firstChild, secondChild, thirdChild)
+	return f.NewNodeWith3Children(rhino.Token_IMPORT, firstChild, secondChild, thirdChild)
 }
 
 // Java: IRFactory.TransformDispatcher.processImportSpec(ImportSpecifierTree)
-func (d *IRFactory_TransformDispatcher) ProcessImportSpec(tree *parser.ImportSpecifierTree) rhino.Node {
-	importedName := d.ProcessNameOfToken(tree.ImportedName, rhino.Token_NAME, IRFactory_TransformDispatcher_IdentifierType_STANDARD)
-	importSpec := d.NewNodeWithChild(rhino.Token_IMPORT_SPEC, importedName)
+func (f *IRFactory) ProcessImportSpec(tree *parser.ImportSpecifierTree) rhino.Node {
+	importedName := f.ProcessNameOfToken(tree.ImportedName, rhino.Token_NAME, IRFactory_IdentifierType_STANDARD)
+	importSpec := f.NewNodeWithChild(rhino.Token_IMPORT_SPEC, importedName)
 	if tree.DestinationName.IsNull() {
 		importSpec.SetShorthandProperty(true)
 		importSpec.AddChildToBack(importedName.CloneTree())
 	} else {
 		importSpec.AddChildToBack(
-			d.ProcessNameOfToken(tree.DestinationName, rhino.Token_NAME, IRFactory_TransformDispatcher_IdentifierType_STANDARD))
+			f.ProcessNameOfToken(tree.DestinationName, rhino.Token_NAME, IRFactory_IdentifierType_STANDARD))
 	}
 	return importSpec
 }
 
 // Java: IRFactory.TransformDispatcher.checkParameters(FormalParameterListTree)
-func (d *IRFactory_TransformDispatcher) CheckParameters(tree *parser.FormalParameterListTree) bool {
+func (f *IRFactory) CheckParameters(tree *parser.FormalParameterListTree) bool {
 	params := tree.Parameters
 	good := true
 	for i := 0; i < len(params); i++ {
 		param := params[i]
 		if param.GetParseTreeBase().Type == parser.ParseTreeType_ITER_REST {
 			if i != len(params)-1 {
-				d.errorReporter.Error(
+				f.errorReporter.Error(
 					"A rest parameter must be last in a parameter list.",
-					d.sourceName,
-					d.Lineno(param),
-					d.Charno(param))
+					f.sourceName,
+					f.Lineno(param),
+					f.Charno(param))
 				good = false
 			} else if tree.HasTrailingComma {
-				d.errorReporter.Error(
+				f.errorReporter.Error(
 					"A trailing comma must not follow a rest parameter.",
-					d.sourceName,
-					d.Lineno(param),
-					d.Charno(param))
+					f.sourceName,
+					f.Lineno(param),
+					f.Charno(param))
 				good = false
 			}
 		}
@@ -592,8 +592,8 @@ func (d *IRFactory_TransformDispatcher) CheckParameters(tree *parser.FormalParam
 }
 
 // Java: IRFactory.TransformDispatcher.transformList(Token, ImmutableList<ParseTree>)
-func (d *IRFactory_TransformDispatcher) TransformList(type_ rhino.Token, list []parser.ParseTree) rhino.Node {
-	n := d.NewNode(type_)
+func (f *IRFactory) TransformList(type_ rhino.Token, list []parser.ParseTree) rhino.Node {
+	n := f.NewNode(type_)
 	// Go-only: language-adapter — a nil slice is Java null (the parser keeps
 	// empty lists non-nil), and an enhanced for statement over a null list
 	// throws NullPointerException where a Go range does nothing. Of the lists
@@ -604,16 +604,16 @@ func (d *IRFactory_TransformDispatcher) TransformList(type_ rhino.Token, list []
 		panic(jutil.NewNullPointerException())
 	}
 	for _, tree := range list {
-		n.AddChildToBack(d.Transform(tree))
+		n.AddChildToBack(f.Transform(tree))
 	}
 	return n
 }
 
 // Java: IRFactory.TransformDispatcher.transformListOrEmpty(Token, ImmutableList<ParseTree>)
-func (d *IRFactory_TransformDispatcher) TransformListOrEmpty(type_ rhino.Token, list []parser.ParseTree) rhino.Node {
+func (f *IRFactory) TransformListOrEmpty(type_ rhino.Token, list []parser.ParseTree) rhino.Node {
 	if list == nil || len(list) == 0 {
-		return d.NewNode(rhino.Token_EMPTY)
+		return f.NewNode(rhino.Token_EMPTY)
 	} else {
-		return d.TransformList(type_, list)
+		return f.TransformList(type_, list)
 	}
 }

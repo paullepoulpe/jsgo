@@ -73,7 +73,7 @@ func (tc *TypeCheck) CheckGetterOrSetterType(child ast.GetterOrSetterDef, classT
 // IllegalArgumentException listing up to five elements when longer.
 //
 // Go-only: language-adapter — Guava helper.
-func typeCheck_iterablesGetOnlyElement(params []*rhino.FunctionType_Parameter) *rhino.FunctionType_Parameter {
+func typeCheck_iterablesGetOnlyElement(params []rhino.FunctionType_Parameter) rhino.FunctionType_Parameter {
 	if len(params) == 0 {
 		panic(jutil.NewNoSuchElementException())
 	}

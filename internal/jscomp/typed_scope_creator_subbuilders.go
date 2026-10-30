@@ -24,7 +24,6 @@ import (
 	"github.com/paullepoulpe/jsgo/internal/ast"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
-	"github.com/paullepoulpe/jsgo/internal/strpool"
 )
 
 // visitPreorder dispatches pre-order scope-builder actions by scopeBuilderKind.
@@ -197,7 +196,7 @@ func (b *TypedScopeCreator_scopeBuilder) DeclareParameters(fn ast.Function) {
 		// the parameter list.
 		jsdocParameters := functionType.GetParameters()
 		jsdocParametersIndex := 0
-		var jsDocParameter *rhino.FunctionType_Parameter
+		var jsDocParameter rhino.FunctionType_Parameter
 		if jsdocParametersIndex < len(jsdocParameters) {
 			jsDocParameter = jsdocParameters[jsdocParametersIndex]
 			jsdocParametersIndex++
@@ -210,14 +209,14 @@ func (b *TypedScopeCreator_scopeBuilder) DeclareParameters(fn ast.Function) {
 				iifeArgumentNode = rhino.NilNode
 			}
 			var declaredType rhino.JSType
-			if jsDocParameter == nil {
+			if jsDocParameter.IsZero() {
 				declaredType = b.outer.unknownType
 			} else {
 				declaredType = jsDocParameter.GetJSType()
 			}
 			b.DeclareNamesInPositionalParameter(astParameter, declaredType, iifeArgumentNode)
-			if jsDocParameter != nil {
-				jsDocParameter = nil
+			if !jsDocParameter.IsZero() {
+				jsDocParameter = rhino.FunctionType_Parameter{}
 				if jsdocParametersIndex < len(jsdocParameters) {
 					jsDocParameter = jsdocParameters[jsdocParametersIndex]
 					jsdocParametersIndex++
@@ -833,7 +832,7 @@ func (a *TypedScopeCreator_FirstOrderFunctionAnalyzer) Visit(t *NodeTraversal, n
 }
 
 // Java: TypedScopeCreator.containingGoogModuleIdOf(TypedScope)
-func TypedScopeCreator_ContainingGoogModuleIdOf(scope *TypedScope) *string {
+func TypedScopeCreator_ContainingGoogModuleIdOf(scope *TypedScope) (string, bool) {
 	for scope != nil {
 		module := scope.GetModule()
 		if module == nil {
@@ -850,14 +849,14 @@ func TypedScopeCreator_ContainingGoogModuleIdOf(scope *TypedScope) *string {
 		 * malformed with multiple module IDs.
 		 */
 		if ns := module.ClosureNamespace(); ns != nil {
-			return ns
+			return *ns, true
 		}
 		for namespace := range metadata.GoogNamespaces().All() {
-			return strpool.StringPtr(strpool.Intern(namespace))
+			return namespace, true
 		}
-		return nil
+		return "", false
 	}
-	return nil
+	return "", false
 }
 
 // Java: TypedScopeCreator.extractKnownSymbolKey(TypedScope, Node)

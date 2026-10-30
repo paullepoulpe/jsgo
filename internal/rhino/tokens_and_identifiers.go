@@ -157,7 +157,7 @@ func TokenUtil_IsJSSpace(c int) bool {
 		return c == 0x20 || c == 0x9 || c == 0xC || c == 0xB
 	} else {
 		return c == 0xA0 ||
-			jutil.CharacterGetType(uint16(c)) == jutil.Character_SPACE_SEPARATOR
+			(c <= 0xFFFF && jutil.CharacterGetType(uint16(c)) == jutil.Character_SPACE_SEPARATOR)
 	}
 }
 
@@ -279,12 +279,6 @@ const (
 
 var closurePrimitive_names = [...]string{"ASSERTS_FAIL", "ASSERTS_MATCHES_RETURN", "ASSERTS_TRUTHY"}
 
-var closurePrimitive_values = [...]ClosurePrimitive{
-	ClosurePrimitive_ASSERTS_FAIL,
-	ClosurePrimitive_ASSERTS_MATCHES_RETURN,
-	ClosurePrimitive_ASSERTS_TRUTHY,
-}
-
 // String is Enum.name().
 func (p ClosurePrimitive) String() string { return closurePrimitive_names[p] }
 
@@ -296,25 +290,20 @@ func (p ClosurePrimitive) String() string { return closurePrimitive_names[p] }
 // would require code like `closurePrimitive {ASSERTS_FAIL}`; instead we
 // separate the string ids from the enum names.
 //
-// Returns null if the argument is null, otherwise the corresponding enum
-// member. Throws IllegalArgumentException if the id is non-null but does not
-// match an enum member.
+// Throws IllegalArgumentException if the id does not match an enum member.
 //
 // Java: ClosurePrimitive.fromStringId(String)
-func ClosurePrimitive_FromStringId(id *string) *ClosurePrimitive {
-	if id == nil {
-		return nil
-	}
-	switch *id {
+func ClosurePrimitive_FromStringId(id string) ClosurePrimitive {
+	switch id {
 	case "asserts.fail":
-		return &closurePrimitive_values[ClosurePrimitive_ASSERTS_FAIL]
+		return ClosurePrimitive_ASSERTS_FAIL
 	case "asserts.truthy":
-		return &closurePrimitive_values[ClosurePrimitive_ASSERTS_TRUTHY]
+		return ClosurePrimitive_ASSERTS_TRUTHY
 	case "asserts.matchesReturn":
-		return &closurePrimitive_values[ClosurePrimitive_ASSERTS_MATCHES_RETURN]
+		return ClosurePrimitive_ASSERTS_MATCHES_RETURN
 	default:
 		panic(jutil.NewIllegalArgumentExceptionMsg(
-			"String id " + *id + " does not match any ClosurePrimitive"))
+			"String id " + id + " does not match any ClosurePrimitive"))
 	}
 }
 

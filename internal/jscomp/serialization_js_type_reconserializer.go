@@ -402,7 +402,7 @@ func (s *JSTypeReconserializer) RecordType(type_ rhino.JSType) *JSTypeReconseria
 	}
 	if type_.IsFunctionType() &&
 		!type_.ToMaybeFunctionType().HasInstanceType() &&
-		type_.ToMaybeFunctionType().GetClosurePrimitive() == nil {
+		!type_.ToMaybeFunctionType().HasClosurePrimitive() {
 		// Distinguishing different function types does not matter for optimizations unless they
 		// are a constructor/interface or have a @closurePrimitive tag associated. Optimization colors
 		// don't track function parameter/return/template types, and function literals are all
@@ -1022,12 +1022,12 @@ func (r *JSTypeReconserializer_SeenTypeRecord) String() string {
 // --remove_closure_asserts is enabled.
 //
 // Java: JSTypeReconserializer.isClosureAssert(ClosurePrimitive)
-func JSTypeReconserializer_IsClosureAssert(primitive *rhino.ClosurePrimitive) bool {
-	if primitive == nil {
+func JSTypeReconserializer_IsClosureAssert(primitive rhino.ClosurePrimitive, ok bool) bool {
+	if !ok {
 		return false
 	}
 
-	switch *primitive {
+	switch primitive {
 	case rhino.ClosurePrimitive_ASSERTS_TRUTHY, rhino.ClosurePrimitive_ASSERTS_MATCHES_RETURN:
 		return true
 	default: // ASSERTS_FAIL: the Java switch expression is exhaustive over the enum.

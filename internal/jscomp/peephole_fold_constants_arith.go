@@ -39,8 +39,8 @@ func (p *PeepholeFoldConstants) TryFoldUnaryOperator(n rhino.Node) rhino.Node {
 	left := unary.Operand().Node()
 	parent := n.GetParent()
 
-	leftVal := p.GetSideEffectFreeBooleanValue(left)
-	if leftVal == base.Tri_UNKNOWN {
+	leftVal, ok := p.GetSideEffectFreeBooleanValue(left)
+	if !ok {
 		return n
 	}
 
@@ -53,7 +53,7 @@ func (p *PeepholeFoldConstants) TryFoldUnaryOperator(n rhino.Node) rhino.Node {
 				return n
 			}
 		}
-		replacementNode := NodeUtil_BooleanNode(!leftVal.ToBoolean(true))
+		replacementNode := NodeUtil_BooleanNode(!leftVal)
 		n.ReplaceWith(replacementNode)
 		p.ReportChangeToEnclosingScope(parent)
 		return replacementNode

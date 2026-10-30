@@ -46,6 +46,7 @@ type FunctionInjector struct {
 	functionArgumentInjector *FunctionArgumentInjector
 	mutator                  FunctionToBlockMutator
 	paramReplacements        inlineIDNodeMap
+	scratchSummary           calleeSummary
 	decomposer               *ExpressionDecomposer
 
 	// Combined cache of function node to whether it deeply contains an `eval`
@@ -218,28 +219,13 @@ func (f *FunctionInjector) inlineWithSummary(
 	return f.internalInlineWithSummary(ref, fnName, fnNode, summary)
 }
 
-// UnsafeInline inlines a function into the call site. Note that this unsafe
-// version doesn't verify if the AST is normalized. You should use inline
-// instead, unless you are 100% certain that the bit of code you're inlining
-// is safe without being normalized first.
-//
-// Java: FunctionInjector.unsafeInline(Reference, String, Node)
-func (f *FunctionInjector) UnsafeInline(ref *FunctionInjector_Reference, fnName string, fnNode rhino.Node) rhino.Node {
-	return f.InternalInline(ref, fnName, fnNode)
-}
-
-// Java: FunctionInjector.internalInline(Reference, String, Node)
-func (f *FunctionInjector) InternalInline(ref *FunctionInjector_Reference, fnName string, fnNode rhino.Node) rhino.Node {
-	return f.internalInlineWithSummary(ref, fnName, fnNode, nil)
-}
-
 func (f *FunctionInjector) internalInlineWithSummary(
 	ref *FunctionInjector_Reference, fnName string, fnNode rhino.Node, summary *calleeSummary) rhino.Node {
 	var result rhino.Node
 	if ref.mode == FunctionInjector_InliningMode_DIRECT {
 		result = f.InlineReturnValue(ref, fnNode)
 	} else {
-		result = f.inlineFunctionWithSummary(ref, fnNode, fnName, summary)
+		result = f.inlineFunction(ref, fnNode, fnName, summary)
 	}
 	f.compiler.ReportChangeToEnclosingScope(result)
 	return result
@@ -392,6 +378,49 @@ func (f *FunctionInjector) ClassifyCallSite(ref *FunctionInjector_Reference) Fun
 	return f.classifyCallSite(ref, true)
 }
 
+func classifyWithoutScope(exprRoot, subExpression rhino.Node) (FunctionInjector_CallSiteType, bool) {
+	requiresDecomposition := NodeUtil_IsOptChainNode(subExpression) && !NodeUtil_IsEndOfFullOptChain(subExpression)
+	child := subExpression
+	for parent := child.GetParent(); !parent.IsNil(); parent = parent.GetParent() {
+		if decl, isDecl := ast.AsNameDeclaration(parent); isDecl && !decl.MustFirstDeclarator().Is(child) {
+			return FunctionInjector_CallSiteType_UNSUPPORTED, true
+		}
+		if tt, isTagged := ast.AsTaggedTemplateLit(parent); isTagged && !tt.IsFreeCall() {
+			return FunctionInjector_CallSiteType_UNSUPPORTED, true
+		}
+		if parent == exprRoot {
+			if requiresDecomposition {
+				return FunctionInjector_CallSiteType_DECOMPOSABLE_EXPRESSION, true
+			}
+			return FunctionInjector_CallSiteType_EXPRESSION, true
+		}
+		if ExpressionDecomposer_IsConditionalOp(parent) {
+			if child != parent.GetFirstChild() {
+				requiresDecomposition = true
+			}
+		} else if assign, isAssign := ast.AsAssign(parent); isAssign && assign.Target().Token() == rhino.Token_NAME {
+		} else {
+			direction := ExpressionDecomposer_GetEvaluationDirection(parent)
+			var first rhino.Node
+			if direction == ExpressionDecomposer_EvaluationDirection_FORWARD {
+				first = parent.GetFirstChild()
+			} else {
+				first = parent.GetLastChild()
+			}
+			if first != child {
+				return 0, false
+			}
+			if call, isCall := ast.AsCall(parent); requiresDecomposition && isCall {
+				if _, isGet := call.Callee().AsNormalGet(); isGet {
+					return FunctionInjector_CallSiteType_DECOMPOSABLE_EXPRESSION, true
+				}
+			}
+		}
+		child = parent
+	}
+	return 0, false
+}
+
 func (f *FunctionInjector) classifyCallSite(ref *FunctionInjector_Reference, allowDecomposition bool) FunctionInjector_CallSiteType {
 	callNode := ref.callNode
 
@@ -408,11 +437,15 @@ func (f *FunctionInjector) classifyCallSite(ref *FunctionInjector_Reference, all
 		// left-hand-side of the assignments and handling them as EXPRESSION?
 		return FunctionInjector_CallSiteType_VAR_DECL_SIMPLE_ASSIGNMENT
 	} else if allowDecomposition {
-		if ExpressionDecomposer_FindExpressionRoot(callNode).IsNil() {
+		exprRoot := ExpressionDecomposer_FindExpressionRoot(callNode)
+		if exprRoot.IsNil() {
 			return FunctionInjector_CallSiteType_UNSUPPORTED
 		}
+		if ct, ok := classifyWithoutScope(exprRoot, callNode); ok {
+			return ct
+		}
 		decomposer := f.GetDecomposer(ref.lookupScope())
-		switch decomposer.CanExposeExpression(callNode) {
+		switch decomposer.IsSubexpressionMovable(exprRoot, callNode) {
 		case ExpressionDecomposer_DecompositionType_MOVABLE:
 			return FunctionInjector_CallSiteType_EXPRESSION
 		case ExpressionDecomposer_DecompositionType_DECOMPOSABLE:
@@ -479,16 +512,10 @@ func (f *FunctionInjector) MaybePrepareCall(ref *FunctionInjector_Reference) {
 	callSiteType.Prepare(f, ref)
 }
 
-// InlineFunction inlines a function which fulfills the requirements of
+// inlineFunction inlines a function which fulfills the requirements of
 // canInlineReferenceAsStatementBlock into the call site, replacing the
 // parent expression.
-//
-// Java: FunctionInjector.inlineFunction(Reference, Node, String)
-func (f *FunctionInjector) InlineFunction(ref *FunctionInjector_Reference, fnNode rhino.Node, fnName string) rhino.Node {
-	return f.inlineFunctionWithSummary(ref, fnNode, fnName, nil)
-}
-
-func (f *FunctionInjector) inlineFunctionWithSummary(
+func (f *FunctionInjector) inlineFunction(
 	ref *FunctionInjector_Reference, fnNode rhino.Node, fnName string, summary *calleeSummary) rhino.Node {
 	callNode := ref.callNode
 	parent := callNode.GetParent()
@@ -525,7 +552,7 @@ func (f *FunctionInjector) inlineFunctionWithSummary(
 	}
 
 	isCallInLoop := NodeUtil_IsWithinLoop(callNode)
-	summary = resolveCalleeSummary(fnName, fnNode, summary)
+	summary = f.ensureCalleeSummary(fnName, fnNode, summary)
 	f.mutator.allowMoveCallArgs = true
 	newBlock := f.mutator.mutateWithSummary(
 		fnName, fnNode, callNode, resultName, needsDefaultReturnResult, isCallInLoop, summary)

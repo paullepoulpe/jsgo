@@ -33,37 +33,57 @@ type contextualDecl struct {
 	newID  strpool.ID // 0 means declared in this scope keeping original name
 }
 
-// MakeDeclaredNamesUnique_ContextualRenamer renames every local name to be
-// unique. The first encountered declaration of a given name (specifically a
-// global declaration) is left in its original form. Those that are renamed
-// are made unique by giving them a unique suffix based on the number of
-// declarations of the name.
-//
-// The root ContextualRenamer is assumed to be in GlobalScope.
-//
-// Used by the Normalize pass.
-//
-// See Normalize.
-type MakeDeclaredNamesUnique_ContextualRenamer struct {
-	scopeRoot rhino.Node
-
-	// This multiset is shared between this ContextualRenamer and its parent (and its parent's
-	// parent, etc.) because it tracks counts of variables across the entire JS program.
-	nameUsage *makeDeclaredNamesUniqueMultiset
-
-	// Inline small-scope declaration array + overflow map keyed by strpool.ID.
+type renamerDeclMap struct {
 	inlineDecls [8]contextualDecl
 	inlineLen   int
 	overflow    map[strpool.ID]strpool.ID
-	global      bool
-
-	hoistRenamer MakeDeclaredNamesUnique_Renamer
 }
 
-const MakeDeclaredNamesUnique_ContextualRenamer_UNIQUE_ID_SEPARATOR = "$jscomp$"
+func (m *renamerDeclMap) isEmpty() bool {
+	return m.inlineLen == 0 && len(m.overflow) == 0
+}
 
-func (c *MakeDeclaredNamesUnique_ContextualRenamer) declarationsString() string {
-	if c.inlineLen == 0 && len(c.overflow) == 0 {
+func (m *renamerDeclMap) get(origID strpool.ID) (strpool.ID, bool) {
+	for i := 0; i < m.inlineLen; i++ {
+		if m.inlineDecls[i].origID == origID {
+			return m.inlineDecls[i].newID, true
+		}
+	}
+	if m.overflow != nil {
+		v, ok := m.overflow[origID]
+		return v, ok
+	}
+	return 0, false
+}
+
+func (m *renamerDeclMap) put(origID, newID strpool.ID) {
+	if m.inlineLen < len(m.inlineDecls) {
+		m.inlineDecls[m.inlineLen] = contextualDecl{origID: origID, newID: newID}
+		m.inlineLen++
+		return
+	}
+	if m.overflow == nil {
+		m.overflow = make(map[strpool.ID]strpool.ID, 16)
+	}
+	m.overflow[origID] = newID
+}
+
+func (m *renamerDeclMap) lookupReplacementValue(oldName string) (string, bool) {
+	if m.isEmpty() {
+		return "", false
+	}
+	id := strpool.Lookup(oldName)
+	if id == 0 {
+		return "", false
+	}
+	if newID, ok := m.get(id); ok && newID != 0 {
+		return strpool.String(newID), true
+	}
+	return "", false
+}
+
+func (m *renamerDeclMap) String() string {
+	if m.isEmpty() {
 		return "{}"
 	}
 	var sb strings.Builder
@@ -82,28 +102,81 @@ func (c *MakeDeclaredNamesUnique_ContextualRenamer) declarationsString() string 
 			sb.WriteString(strpool.String(newID))
 		}
 	}
-	for i := 0; i < c.inlineLen; i++ {
-		writeEntry(c.inlineDecls[i].origID, c.inlineDecls[i].newID)
+	for i := 0; i < m.inlineLen; i++ {
+		writeEntry(m.inlineDecls[i].origID, m.inlineDecls[i].newID)
 	}
-	if len(c.overflow) > 0 {
-		keys := make([]strpool.ID, 0, len(c.overflow))
+	if len(m.overflow) > 0 {
+		keys := make([]strpool.ID, 0, len(m.overflow))
 		// order-independent: overflow keys are sorted before formatting debug String()
-		for k := range c.overflow {
+		for k := range m.overflow {
 			keys = append(keys, k)
 		}
 		slices.Sort(keys)
 		for _, k := range keys {
-			writeEntry(k, c.overflow[k])
+			writeEntry(k, m.overflow[k])
 		}
 	}
 	sb.WriteByte('}')
 	return sb.String()
 }
 
+// MakeDeclaredNamesUnique_ContextualRenamer renames every local name to be
+// unique. The first encountered declaration of a given name (specifically a
+// global declaration) is left in its original form. Those that are renamed
+// are made unique by giving them a unique suffix based on the number of
+// declarations of the name.
+//
+// The root ContextualRenamer is assumed to be in GlobalScope.
+//
+// Used by the Normalize pass.
+//
+// See Normalize.
+type MakeDeclaredNamesUnique_ContextualRenamer struct {
+	scopeRoot    rhino.Node
+	nameUsage    map[strpool.ID]int
+	decls        renamerDeclMap
+	global       bool
+	hoistRenamer MakeDeclaredNamesUnique_Renamer
+}
+
+const MakeDeclaredNamesUnique_ContextualRenamer_UNIQUE_ID_SEPARATOR = "$jscomp$"
+
+func formatNameUsage(counts map[strpool.ID]int) string {
+	if len(counts) == 0 {
+		return "[]"
+	}
+	type entry struct {
+		name  string
+		count int
+	}
+	entries := make([]entry, 0, len(counts))
+	// order-independent: entries are sorted lexicographically by name before formatting debug String()
+	for id, c := range counts {
+		entries = append(entries, entry{name: strpool.String(id), count: c})
+	}
+	slices.SortFunc(entries, func(a, b entry) int {
+		return strings.Compare(a.name, b.name)
+	})
+	var sb strings.Builder
+	sb.WriteByte('[')
+	for idx, e := range entries {
+		if idx > 0 {
+			sb.WriteString(", ")
+		}
+		sb.WriteString(e.name)
+		if e.count != 1 {
+			sb.WriteString(" x ")
+			sb.WriteString(strconv.Itoa(e.count))
+		}
+	}
+	sb.WriteByte(']')
+	return sb.String()
+}
+
 func (c *MakeDeclaredNamesUnique_ContextualRenamer) formatToString(className string) string {
 	return className + "{scopeRoot=" + jutil.ToJavaString(c.scopeRoot) +
-		", nameUsage=" + c.nameUsage.String() +
-		", declarations=" + c.declarationsString() +
+		", nameUsage=" + formatNameUsage(c.nameUsage) +
+		", declarations=" + c.decls.String() +
 		", global=" + jutil.ToJavaString(c.global) + "}"
 }
 
@@ -117,7 +190,7 @@ func NewMakeDeclaredNamesUnique_ContextualRenamer() *MakeDeclaredNamesUnique_Con
 	c := &MakeDeclaredNamesUnique_ContextualRenamer{
 		scopeRoot: rhino.NilNode,
 		global:    true,
-		nameUsage: newMakeDeclaredNamesUniqueMultiset(),
+		nameUsage: make(map[strpool.ID]int, 64),
 	}
 	c.hoistRenamer = c
 	return c
@@ -129,7 +202,7 @@ func NewMakeDeclaredNamesUnique_ContextualRenamer() *MakeDeclaredNamesUnique_Con
 // Java: MakeDeclaredNamesUnique.ContextualRenamer(Node, Multiset<String>, boolean, MakeDeclaredNamesUnique.Renamer)
 func NewMakeDeclaredNamesUnique_ContextualRenamerForChildScope(
 	scopeRoot rhino.Node,
-	nameUsage *makeDeclaredNamesUniqueMultiset,
+	nameUsage map[strpool.ID]int,
 	hoistingTargetScope bool,
 	parent MakeDeclaredNamesUnique_Renamer) *MakeDeclaredNamesUnique_ContextualRenamer {
 	jutil.CheckStateMsg1(NodeUtil_CreatesScope(scopeRoot), "%s", scopeRoot)
@@ -167,31 +240,6 @@ func (c *MakeDeclaredNamesUnique_ContextualRenamer) CreateForChildScope(
 	return NewMakeDeclaredNamesUnique_ContextualRenamerForChildScope(scopeRoot, c.nameUsage, hoistingTargetScope, c)
 }
 
-func (c *MakeDeclaredNamesUnique_ContextualRenamer) containsDeclaration(origID strpool.ID) bool {
-	for i := 0; i < c.inlineLen; i++ {
-		if c.inlineDecls[i].origID == origID {
-			return true
-		}
-	}
-	if c.overflow != nil {
-		_, ok := c.overflow[origID]
-		return ok
-	}
-	return false
-}
-
-func (c *MakeDeclaredNamesUnique_ContextualRenamer) putDeclaration(origID, newID strpool.ID) {
-	if c.inlineLen < len(c.inlineDecls) {
-		c.inlineDecls[c.inlineLen] = contextualDecl{origID: origID, newID: newID}
-		c.inlineLen++
-		return
-	}
-	if c.overflow == nil {
-		c.overflow = make(map[strpool.ID]strpool.ID, 16)
-	}
-	c.overflow[origID] = newID
-}
-
 // AddDeclaredName adds a name to the map of names declared in this scope.
 //
 // Java: MakeDeclaredNamesUnique.ContextualRenamer.addDeclaredName(String, boolean)
@@ -208,57 +256,43 @@ func (c *MakeDeclaredNamesUnique_ContextualRenamer) addDeclaredNameID(origID str
 		return
 	}
 	if c.global {
-		c.nameUsage.SetCountConditionally(origID, 0, 1)
+		if _, exists := c.nameUsage[origID]; !exists {
+			c.nameUsage[origID] = 1
+		}
 		return
 	}
-	// It hasn't been declared locally yet, so increment the count.
-	if c.containsDeclaration(origID) {
+	if _, exists := c.decls.get(origID); exists {
 		return
 	}
-	id := c.nameUsage.AddOccurrences(origID, 1)
+	id := c.nameUsage[origID]
+	c.nameUsage[origID] = id + 1
 	var newID strpool.ID
 	if id != 0 {
 		// this name exists at another source location, create another
 		name := strpool.String(origID)
 		newID = strpool.Intern(MakeDeclaredNamesUnique_ContextualRenamer_GetUniqueName(name, id))
-		for c.nameUsage.Contains(newID) {
+		for {
+			uid, exists := c.nameUsage[newID]
+			if !exists {
+				break
+			}
 			// if the newName also exists at another location, create another
-			id = c.nameUsage.AddOccurrences(newID, 1)
-			newID = strpool.Intern(MakeDeclaredNamesUnique_ContextualRenamer_GetUniqueName(name, id))
+			c.nameUsage[newID] = uid + 1
+			newID = strpool.Intern(MakeDeclaredNamesUnique_ContextualRenamer_GetUniqueName(name, uid))
 		}
-		c.nameUsage.SetCountConditionally(newID, 0, 1) // reserve this new name so that it's never reused
+		c.nameUsage[newID] = 1 // reserve this new name so that it's never reused
 	}
-	c.putDeclaration(origID, newID)
+	c.decls.put(origID, newID)
 }
 
 func (c *MakeDeclaredNamesUnique_ContextualRenamer) getReplacementNameID(origID strpool.ID) (strpool.ID, bool) {
-	for i := 0; i < c.inlineLen; i++ {
-		if c.inlineDecls[i].origID == origID {
-			newID := c.inlineDecls[i].newID
-			return newID, newID != 0
-		}
-	}
-	if c.overflow != nil {
-		if newID, ok := c.overflow[origID]; ok {
-			return newID, newID != 0
-		}
-	}
-	return 0, false
+	newID, ok := c.decls.get(origID)
+	return newID, ok && newID != 0
 }
 
 // Java: MakeDeclaredNamesUnique.ContextualRenamer.getReplacementName(String)
 func (c *MakeDeclaredNamesUnique_ContextualRenamer) GetReplacementNameValue(oldName string) (string, bool) {
-	if c.inlineLen == 0 && len(c.overflow) == 0 {
-		return "", false
-	}
-	id := strpool.Lookup(oldName)
-	if id == 0 {
-		return "", false
-	}
-	if newID, ok := c.getReplacementNameID(id); ok {
-		return strpool.String(newID), true
-	}
-	return "", false
+	return c.decls.lookupReplacementValue(oldName)
 }
 
 // MakeDeclaredNamesUnique_ContextualRenamer_GetUniqueName: given a name
@@ -267,16 +301,6 @@ func (c *MakeDeclaredNamesUnique_ContextualRenamer) GetReplacementNameValue(oldN
 // Java: MakeDeclaredNamesUnique.ContextualRenamer.getUniqueName(String, int)
 func MakeDeclaredNamesUnique_ContextualRenamer_GetUniqueName(name string, id int) string {
 	return name + MakeDeclaredNamesUnique_ContextualRenamer_UNIQUE_ID_SEPARATOR + strconv.Itoa(id)
-}
-
-// Java: MakeDeclaredNamesUnique.ContextualRenamer.reserveName(String)
-func (c *MakeDeclaredNamesUnique_ContextualRenamer) ReserveName(name string) {
-	c.nameUsage.SetCountConditionally(strpool.Intern(name), 0, 1)
-}
-
-// Java: MakeDeclaredNamesUnique.ContextualRenamer.incrementNameCount(String)
-func (c *MakeDeclaredNamesUnique_ContextualRenamer) IncrementNameCount(name string) int {
-	return c.nameUsage.AddOccurrences(strpool.Intern(name), 1)
 }
 
 // Java: MakeDeclaredNamesUnique.ContextualRenamer.stripConstIfReplaced()
@@ -289,83 +313,6 @@ func (c *MakeDeclaredNamesUnique_ContextualRenamer) GetHoistRenamer() MakeDeclar
 	return c.hoistRenamer
 }
 
-// makeDeclaredNamesUniqueMultiset is the HashMultiset<String> of
-// ContextualRenamer.nameUsage: count(e) (via Contains), add(e, n) and
-// setCount(e, oldCount, newCount), keyed by strpool.ID.
-type makeDeclaredNamesUniqueMultiset struct {
-	counts map[strpool.ID]int
-}
-
-func newMakeDeclaredNamesUniqueMultiset() *makeDeclaredNamesUniqueMultiset {
-	return &makeDeclaredNamesUniqueMultiset{counts: make(map[strpool.ID]int, 64)}
-}
-
-// Contains is Multiset.contains(Object).
-func (m *makeDeclaredNamesUniqueMultiset) Contains(e strpool.ID) bool {
-	_, ok := m.counts[e]
-	return ok
-}
-
-// AddOccurrences is Multiset.add(E, int): returns the count before the
-// operation.
-func (m *makeDeclaredNamesUniqueMultiset) AddOccurrences(e strpool.ID, occurrences int) int {
-	jutil.CheckArgumentMsg1(occurrences >= 0, "occurrences cannot be negative: %s", occurrences)
-	old := m.counts[e]
-	if occurrences == 0 {
-		return old
-	}
-	m.counts[e] = old + occurrences
-	return old
-}
-
-// SetCountConditionally is Multiset.setCount(E, int, int): sets the count
-// to newCount only if it is currently oldCount.
-func (m *makeDeclaredNamesUniqueMultiset) SetCountConditionally(e strpool.ID, oldCount int, newCount int) bool {
-	if m.counts[e] != oldCount {
-		return false
-	}
-	if newCount == 0 {
-		delete(m.counts, e)
-	} else {
-		m.counts[e] = newCount
-	}
-	return true
-}
-
-// String is AbstractMultiset.toString(): entrySet().toString(), each entry
-// "e" or "e x n".
-func (m *makeDeclaredNamesUniqueMultiset) String() string {
-	if len(m.counts) == 0 {
-		return "[]"
-	}
-	type entry struct {
-		name  string
-		count int
-	}
-	entries := make([]entry, 0, len(m.counts))
-	// order-independent: entries are sorted lexicographically by name before formatting debug String()
-	for id, c := range m.counts {
-		entries = append(entries, entry{name: strpool.String(id), count: c})
-	}
-	slices.SortFunc(entries, func(a, b entry) int {
-		return strings.Compare(a.name, b.name)
-	})
-	var sb strings.Builder
-	sb.WriteByte('[')
-	for idx, e := range entries {
-		if idx > 0 {
-			sb.WriteString(", ")
-		}
-		sb.WriteString(e.name)
-		if e.count != 1 {
-			sb.WriteString(" x ")
-			sb.WriteString(strconv.Itoa(e.count))
-		}
-	}
-	sb.WriteByte(']')
-	return sb.String()
-}
-
 // MakeDeclaredNamesUnique_InlineRenamer renames every declared name to be
 // unique. Typically, this would be used when injecting code to ensure that
 // names do not conflict with existing names.
@@ -374,15 +321,12 @@ func (m *makeDeclaredNamesUniqueMultiset) String() string {
 //
 // See FunctionInjector.
 type MakeDeclaredNamesUnique_InlineRenamer struct {
-	inlineDecls      [8]contextualDecl
-	inlineLen        int
-	overflow         map[strpool.ID]strpool.ID
+	decls            renamerDeclMap
 	uniqueIdSupplier func() string
 	idPrefix         string
 	removeConstness  bool
 	convention       CodingConvention
-
-	hoistRenamer MakeDeclaredNamesUnique_Renamer
+	hoistRenamer     MakeDeclaredNamesUnique_Renamer
 }
 
 // Java: MakeDeclaredNamesUnique.InlineRenamer(CodingConvention, Supplier<String>, String, boolean, boolean, MakeDeclaredNamesUnique.Renamer)
@@ -393,15 +337,15 @@ func NewMakeDeclaredNamesUnique_InlineRenamer(
 	removeConstness bool,
 	hoistingTargetScope bool,
 	parent MakeDeclaredNamesUnique_Renamer) *MakeDeclaredNamesUnique_InlineRenamer {
-	r := &MakeDeclaredNamesUnique_InlineRenamer{}
-	r.convention = convention
-	r.uniqueIdSupplier = uniqueIdSupplier
 	// To ensure that the id does not conflict with the id from the
 	// ContextualRenamer some prefix is needed.
 	jutil.CheckArgument(idPrefix != "")
-	r.idPrefix = idPrefix
-	r.removeConstness = removeConstness
-
+	r := &MakeDeclaredNamesUnique_InlineRenamer{
+		convention:       convention,
+		uniqueIdSupplier: uniqueIdSupplier,
+		idPrefix:         idPrefix,
+		removeConstness:  removeConstness,
+	}
 	if hoistingTargetScope {
 		r.hoistRenamer = r
 	} else {
@@ -411,16 +355,7 @@ func NewMakeDeclaredNamesUnique_InlineRenamer(
 }
 
 func (r *MakeDeclaredNamesUnique_InlineRenamer) getReplacementNameID(origID strpool.ID) (strpool.ID, bool) {
-	for i := 0; i < r.inlineLen; i++ {
-		if r.inlineDecls[i].origID == origID {
-			return r.inlineDecls[i].newID, true
-		}
-	}
-	if r.overflow != nil {
-		v, ok := r.overflow[origID]
-		return v, ok
-	}
-	return 0, false
+	return r.decls.get(origID)
 }
 
 // Java: MakeDeclaredNamesUnique.InlineRenamer.addDeclaredName(String, boolean)
@@ -434,20 +369,11 @@ func (r *MakeDeclaredNamesUnique_InlineRenamer) addDeclaredNameID(origID strpool
 		r.hoistRenamer.addDeclaredNameID(origID, hoisted)
 		return
 	}
-	if _, exists := r.getReplacementNameID(origID); exists {
+	if _, exists := r.decls.get(origID); exists {
 		return
 	}
 	unique := r.GetUniqueName(strpool.String(origID))
-	newID := strpool.Intern(unique)
-	if r.inlineLen < len(r.inlineDecls) {
-		r.inlineDecls[r.inlineLen] = contextualDecl{origID: origID, newID: newID}
-		r.inlineLen++
-		return
-	}
-	if r.overflow == nil {
-		r.overflow = make(map[strpool.ID]strpool.ID, 16)
-	}
-	r.overflow[origID] = newID
+	r.decls.put(origID, strpool.Intern(unique))
 }
 
 // Java: MakeDeclaredNamesUnique.InlineRenamer.getUniqueName(String)
@@ -475,17 +401,7 @@ func (r *MakeDeclaredNamesUnique_InlineRenamer) GetUniqueName(name string) strin
 
 // Java: MakeDeclaredNamesUnique.InlineRenamer.getReplacementName(String)
 func (r *MakeDeclaredNamesUnique_InlineRenamer) GetReplacementNameValue(oldName string) (string, bool) {
-	if r.inlineLen == 0 && len(r.overflow) == 0 {
-		return "", false
-	}
-	id := strpool.Lookup(oldName)
-	if id == 0 {
-		return "", false
-	}
-	if newID, ok := r.getReplacementNameID(id); ok {
-		return strpool.String(newID), true
-	}
-	return "", false
+	return r.decls.lookupReplacementValue(oldName)
 }
 
 // Java: MakeDeclaredNamesUnique.InlineRenamer.createForChildScope(Node, boolean)

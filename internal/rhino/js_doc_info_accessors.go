@@ -258,14 +258,9 @@ func (i *JSDocInfo) GetThrowsAnnotations() []string {
 	return []string{}
 }
 
-// GetClosurePrimitiveId returns the `@closurePrimitive {id}` identifier.
+// GetClosurePrimitiveIdString returns the `@closurePrimitive {id}` identifier.
 //
 // Java: JSDocInfo.getClosurePrimitiveId()
-func (i *JSDocInfo) GetClosurePrimitiveId() *string {
-	return i.getStringPtrProp(JSDocInfo_CLOSURE_PRIMITIVE_ID)
-}
-
-// GetClosurePrimitiveIdString returns the `@closurePrimitive` id without allocating a *string.
 func (i *JSDocInfo) GetClosurePrimitiveIdString() (string, bool) {
 	return i.getStringProp(JSDocInfo_CLOSURE_PRIMITIVE_ID)
 }
@@ -368,20 +363,10 @@ func (i *JSDocInfo) HasDescriptionForParameter(name string) bool {
 	return ok
 }
 
-// GetDescriptionForParameter returns the description for the parameter with
-// the given name, if its exists.
+// GetDescriptionForParameterString returns the description for the parameter
+// with the given name, if it exists.
 //
 // Java: JSDocInfo.getDescriptionForParameter(String)
-func (i *JSDocInfo) GetDescriptionForParameter(name string) *string {
-	d, ok := i.GetDescriptionForParameterString(name)
-	if !ok {
-		return nil
-	}
-	return &d
-}
-
-// GetDescriptionForParameterString returns the description for the parameter
-// with the given name without allocating a *string.
 func (i *JSDocInfo) GetDescriptionForParameterString(name string) (string, bool) {
 	for _, kv := range i.parameterDescriptions() {
 		if kv.key == name {
@@ -405,15 +390,9 @@ func (i *JSDocInfo) GetReferences() []string {
 	return jsdocGet[[]string](JSDocInfo_SEES.getRaw(i))
 }
 
-// GetReturnDescription returns the description of the returned object or
-// null if none specified.
+// GetReturnDescriptionString returns the description of the returned object.
 //
 // Java: JSDocInfo.getReturnDescription()
-func (i *JSDocInfo) GetReturnDescription() *string {
-	return i.getStringPtrProp(JSDocInfo_RETURN_DESCRIPTION)
-}
-
-// GetReturnDescriptionString returns the `@return` description without allocating a *string.
 func (i *JSDocInfo) GetReturnDescriptionString() (string, bool) {
 	return i.getStringProp(JSDocInfo_RETURN_DESCRIPTION)
 }
@@ -438,14 +417,9 @@ func (i *JSDocInfo) HasFileOverview() bool {
 	return i.CheckBit(JSDocInfo_Bit_FILEOVERVIEW)
 }
 
-// GetFileOverview returns the file overview or null if none specified.
+// GetFileOverviewString returns the `@fileoverview` description.
 //
 // Java: JSDocInfo.getFileOverview()
-func (i *JSDocInfo) GetFileOverview() *string {
-	return i.getStringPtrProp(JSDocInfo_FILEOVERVIEW_DESCRIPTION)
-}
-
-// GetFileOverviewString returns the `@fileoverview` description without allocating a *string.
 func (i *JSDocInfo) GetFileOverviewString() (string, bool) {
 	return i.getStringProp(JSDocInfo_FILEOVERVIEW_DESCRIPTION)
 }

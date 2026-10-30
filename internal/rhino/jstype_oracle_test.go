@@ -113,7 +113,7 @@ func taStr(o any) string {
 		return strconv.FormatBool(v)
 	case int:
 		return strconv.Itoa(v)
-	case *FunctionType_Parameter:
+	case FunctionType_Parameter:
 		return "P(" + taStr(v.GetJSType()) + "," + strconv.FormatBool(v.IsOptional()) + "," +
 			strconv.FormatBool(v.IsVariadic()) + ")"
 	case fmt.Stringer:

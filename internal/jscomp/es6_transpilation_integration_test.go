@@ -122,7 +122,7 @@ func (c *Es6TranspilationIntegrationTest) GetProcessor(compiler *Compiler) Compi
 	}))
 
 	passes.MaybeAdd(NewPassFactory(PassNames_NORMALIZE, func(abstractCompiler AbstractCompiler) CompilerPass {
-		return Normalize_Builder_(abstractCompiler).Build()
+		return NewNormalize(abstractCompiler, false)
 	}))
 	TranspilationPasses_AddTranspilationPasses(passes, compilerOptions)
 	// Since we're testing the transpile-only case, we need to put back the original variable names

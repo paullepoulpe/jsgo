@@ -89,7 +89,7 @@ func closureRewriteDefineReplacements() *jutil.LinkedHashMap[string, rhino.Node]
 	return m
 }
 
-func closureRewriteKeys[V any](m *jutil.LinkedHashMap[string, V]) string {
+func closureRewriteKeys[V any](m *OrderedStringMap[V]) string {
 	return "[" + strings.Join(m.KeySlice(), ", ") + "]"
 }
 
@@ -115,9 +115,9 @@ func closureRewriteModule(m *Module) string {
 	return "path=" + closureRewritePath(m.Path()) +
 		" " + closureRewriteMetadata(m.Metadata()) +
 		" closureNamespace=" + closureRewriteStr(m.ClosureNamespace()) +
-		" namespace=" + closureRewriteKeys(m.Namespace()) +
-		" boundNames=" + closureRewriteKeys(m.BoundNames()) +
-		" localExports=" + closureRewriteKeys(m.LocalNameToLocalExport())
+		" namespace=" + closureRewriteKeys(m.NamespaceMap()) +
+		" boundNames=" + closureRewriteKeys(m.BoundNamesMap()) +
+		" localExports=" + closureRewriteKeys(m.LocalExportsMap())
 }
 
 func closureRewriteBinding(b *Binding) string {
@@ -160,13 +160,13 @@ func closureRewriteModuleMap(m *ModuleMap, extra *[]string) {
 	}
 	for k, v := range m.GetModulesByPath().All() {
 		*extra = append(*extra, "module "+k+" "+closureRewriteModule(v))
-		for name, b := range v.Namespace().All() {
+		for name, b := range v.NamespaceMap().All() {
 			*extra = append(*extra, "  ns "+name+" "+closureRewriteBinding(b))
 		}
-		for name, b := range v.BoundNames().All() {
+		for name, b := range v.BoundNamesMap().All() {
 			*extra = append(*extra, "  bound "+name+" "+closureRewriteBinding(b))
 		}
-		for name, e := range v.LocalNameToLocalExport().All() {
+		for name, e := range v.LocalExportsMap().All() {
 			*extra = append(*extra, "  local "+name+" "+closureRewriteExport(e))
 		}
 	}

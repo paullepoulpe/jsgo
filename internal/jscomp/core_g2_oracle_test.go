@@ -437,14 +437,14 @@ func (o *coreG2Out) mdnu(script rhino.Node) {
 		clone := script.CloneTree()
 		o.line("## contextual")
 		if e := coreG2Try(func() {
-			NodeTraversal_Traverse(compiler, clone, MakeDeclaredNamesUnique_Builder_().Build())
+			NodeTraversal_Traverse(compiler, clone, NewMakeDeclaredNamesUnique())
 			o.printRenames(orig, clone)
 			o.line("## inverted")
 			MakeDeclaredNamesUnique_GetContextualRenameInverter(compiler).Process(rhino.NilNode, clone)
 			o.printRenames(orig, clone)
 			o.line("## assert")
 			again := clone.CloneTree()
-			NodeTraversal_Traverse(compiler, again, MakeDeclaredNamesUnique_Builder_().WithAssertOnChange(true).Build())
+			NodeTraversal_Traverse(compiler, again, NewMakeDeclaredNamesUniqueWith(nil, true, true))
 			o.line("ok")
 		}); e != nil {
 			o.line("! " + coreG2Exc(e))
@@ -466,11 +466,10 @@ func (o *coreG2Out) mdnu(script rhino.Node) {
 				NodeTraversal_TraverseScopeRoots(
 					compiler,
 					[]rhino.Node{fn},
-					MakeDeclaredNamesUnique_Builder_().
-						WithRenamer(NewMakeDeclaredNamesUnique_InlineRenamer(
-							convention, coreG2Counter(), "inline_", done%2 == 0, true, nil)).
-						WithMarkChanges(false).
-						Build(),
+					NewMakeDeclaredNamesUniqueWith(
+						NewMakeDeclaredNamesUnique_InlineRenamer(
+							convention, coreG2Counter(), "inline_", done%2 == 0, true, nil),
+						false, false),
 					true)
 				o.printRenames(coreG2Preorder(orig[i]), fn)
 			}); e != nil {
@@ -487,10 +486,9 @@ func (o *coreG2Out) mdnu(script rhino.Node) {
 			NodeTraversal_Traverse(
 				compiler,
 				clone,
-				MakeDeclaredNamesUnique_Builder_().
-					WithRenamer(NewMakeDeclaredNamesUnique_BoilerplateRenamer(convention, coreG2Counter(), "boiler_")).
-					WithMarkChanges(false).
-					Build())
+				NewMakeDeclaredNamesUniqueWith(
+					NewMakeDeclaredNamesUnique_BoilerplateRenamer(convention, coreG2Counter(), "boiler_"),
+					false, false))
 			o.printRenames(orig, clone)
 		}); e != nil {
 			o.line("! " + coreG2Exc(e))
@@ -505,11 +503,11 @@ func (o *coreG2Out) mdnu(script rhino.Node) {
 			NodeTraversal_Traverse(
 				compiler,
 				clone,
-				MakeDeclaredNamesUnique_Builder_().
-					WithRenamer(NewMakeDeclaredNamesUnique_TargettedRenamer(
+				NewMakeDeclaredNamesUniqueWith(
+					NewMakeDeclaredNamesUnique_TargettedRenamer(
 						NewMakeDeclaredNamesUnique_ContextualRenamer(),
-						jutil.NewLinkedHashSet("i", "e", "a", "x", "n", "t"))).
-					Build())
+						jutil.NewLinkedHashSet("i", "e", "a", "x", "n", "t")),
+					true, false))
 			o.printRenames(orig, clone)
 		}); e != nil {
 			o.line("! " + coreG2Exc(e))

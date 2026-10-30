@@ -139,8 +139,10 @@ func TestUniqueIdSupplier_ProtoRoundTripPreservesInsertionOrder(t *testing.T) {
 		t.Fatalf("restored.toProto(): got %d protos, want %d", len(restoredProtos), len(protos))
 	}
 	for i := range protos {
-		if !restoredProtos[i].Equals(protos[i]) {
-			t.Errorf("restored.toProto()[%d]: got %v, want %v", i, restoredProtos[i], protos[i])
+		if restoredProtos[i].GetHash() != protos[i].GetHash() || restoredProtos[i].GetCounter() != protos[i].GetCounter() {
+			t.Errorf("restored.toProto()[%d]: got (%d, %d), want (%d, %d)",
+				i, restoredProtos[i].GetHash(), restoredProtos[i].GetCounter(),
+				protos[i].GetHash(), protos[i].GetCounter())
 		}
 	}
 }

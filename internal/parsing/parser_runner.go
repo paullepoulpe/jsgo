@@ -166,25 +166,36 @@ func parserRunner_extractList(configProp string) *jutil.LinkedHashSet[string] {
 }
 
 func parserRunner_trimWhitespace(s string) string {
-	if jutil.IsASCII(s) {
-		first, last := 0, len(s)
-		for first < last && jutil.CharMatcher_Whitespace_Matches(uint16(s[first])) {
+	first, last := 0, len(s)
+	for first < last {
+		if b := s[first]; b < 0x80 {
+			if !jutil.CharMatcher_Whitespace_Matches(uint16(b)) {
+				break
+			}
 			first++
+			continue
 		}
-		for last > first && jutil.CharMatcher_Whitespace_Matches(uint16(s[last-1])) {
+		r, w := utf8.DecodeRuneInString(s[first:last])
+		if r > 0xFFFF || !jutil.CharMatcher_Whitespace_Matches(uint16(r)) {
+			break
+		}
+		first += w
+	}
+	for last > first {
+		if b := s[last-1]; b < 0x80 {
+			if !jutil.CharMatcher_Whitespace_Matches(uint16(b)) {
+				break
+			}
 			last--
+			continue
 		}
-		return s[first:last]
+		r, w := utf8.DecodeLastRuneInString(s[first:last])
+		if r > 0xFFFF || !jutil.CharMatcher_Whitespace_Matches(uint16(r)) {
+			break
+		}
+		last -= w
 	}
-	u := jutil.StringToUTF16(s)
-	first, last := 0, len(u)
-	for first < last && jutil.CharMatcher_Whitespace_Matches(u[first]) {
-		first++
-	}
-	for last > first && jutil.CharMatcher_Whitespace_Matches(u[last-1]) {
-		last--
-	}
-	return jutil.StringFromUTF16(u[first:last])
+	return s[first:last]
 }
 
 // Java: ParserRunner.parse(StaticSourceFile, String, Config, ErrorReporter)

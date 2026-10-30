@@ -37,6 +37,7 @@ package rhino
 
 import (
 	"math"
+	"slices"
 
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 )
@@ -178,7 +179,7 @@ func (a FunctionType_ConstructorAmbiguity) String() string {
 
 var (
 	emptyObjectTypeSlice            = []ObjectType{}
-	emptyFunctionTypeParameterSlice = []*FunctionType_Parameter{}
+	emptyFunctionTypeParameterSlice = []FunctionType_Parameter{}
 )
 
 // NewFunctionType creates an instance for a function that might be a
@@ -221,7 +222,7 @@ func (f *FunctionTypeBase) InitFunctionTypeBase(self FunctionType, builder *Func
 		case FunctionType_Kind_CONSTRUCTOR, FunctionType_Kind_INTERFACE:
 			var typeOfThisBuilder InstanceObjectType_Builder
 			typeOfThisBuilder.registry = f.GetRegistry()
-			typeOfThisBuilder.classNameID = rhinoStringIDFromPtr(self.GetReferenceName())
+			typeOfThisBuilder.classNameID = self.referenceNameID()
 			typeOfThisBuilder.nativeType = self.IsNativeObjectType()
 			typeOfThisBuilder.anonymousType = self.IsAnonymous()
 			typeOfThisBuilder.templateTypeMap = self.GetTemplateTypeMap()
@@ -456,6 +457,27 @@ func (f *FunctionTypeBase) HasReferenceName() bool {
 	return f.PrototypeObjectTypeBase.HasReferenceName()
 }
 
+func (f *FunctionTypeBase) referenceNameString() (string, bool) {
+	if f.isNoObjectOrNo() {
+		return "", false
+	}
+	return f.PrototypeObjectTypeBase.referenceNameString()
+}
+
+func (f *FunctionTypeBase) referenceNameID() rhinoStringID {
+	if f.isNoObjectOrNo() {
+		return 0
+	}
+	if f.classNameID != 0 {
+		return f.classNameID
+	}
+	if f.ownerFunction != nil {
+		name, _ := f.PrototypeObjectTypeBase.referenceNameString()
+		return rhinoStringPoolIntern(name)
+	}
+	return 0
+}
+
 // Java: PrototypeObjectType.getReferenceName() / NoObjectType.getReferenceName()
 func (f *FunctionTypeBase) GetReferenceName() *string {
 	if f.isNoObjectOrNo() {
@@ -503,7 +525,7 @@ func (f *FunctionTypeBase) CanBeCalled() bool {
 }
 
 // Java: FunctionType.getParameters()
-func (f *FunctionTypeBase) GetParameters() []*FunctionType_Parameter {
+func (f *FunctionTypeBase) GetParameters() []FunctionType_Parameter {
 	return f.GetInternalArrowType().GetParameterList()
 }
 
@@ -632,9 +654,11 @@ func (f *FunctionTypeBase) GetPropertyTypeByKey(name Property_Key) JSType {
 			builder.AddOptionalParam(
 				f.GetRegistry().CreateNullableType(f.GetRegistry().GetNativeType(JSTypeNative_OBJECT_TYPE)))
 
+			var fnBuilder FunctionType_Builder
+			fnBuilder.Init(f.GetRegistry())
 			f.DefineDeclaredPropertyByKey(
 				name,
-				FunctionType_Builder_(f.GetRegistry()).
+				fnBuilder.
 					WithParametersOfList(builder.Build()).
 					WithReturnType(f.GetReturnType()).
 					WithTemplateKeysOfList(f.GetTemplateTypeMap().GetTemplateKeys()).
@@ -654,14 +678,16 @@ func (f *FunctionTypeBase) GetPropertyTypeByKey(name Property_Key) JSType {
 //
 // Java: FunctionType.getBindReturnType(int)
 func (f *FunctionTypeBase) GetBindReturnType(argsToBind int) FunctionType {
-	builder := FunctionType_Builder_(f.GetRegistry()).
+	var builder FunctionType_Builder
+	builder.Init(f.GetRegistry())
+	builder.
 		WithReturnType(f.GetReturnType()).
 		WithTemplateKeysOfList(f.GetTemplateTypeMap().GetTemplateKeys())
 	if argsToBind < 0 {
 		return builder.Build()
 	}
 	origParams := f.call.GetParameterList()
-	params := append([]*FunctionType_Parameter{}, origParams...)
+	params := slices.Clone(origParams)
 	for i := 1; i < argsToBind && len(params) != 0; i++ {
 		if params[0].IsVariadic() {
 			break
@@ -686,38 +712,34 @@ func (f *FunctionTypeBase) GetCallOrBindSignature(isCall bool) FunctionType {
 	} else {
 		returnType = f.GetBindReturnType(-1)
 	}
-	builder := FunctionType_Builder_(f.GetRegistry()).
+	var builder FunctionType_Builder
+	builder.Init(f.GetRegistry())
+	builder.
 		WithReturnType(returnType).
 		WithTemplateKeysOfList(f.GetTemplateTypeMap().GetTemplateKeys())
 
 	origParams := f.GetInternalArrowType().GetParameterList()
 
-	params := append([]*FunctionType_Parameter{}, origParams...)
-
 	thisType := FunctionType_Parameter_Create(
 		f.GetRegistry().CreateOptionalNullableType(f.GetTypeOfThis()),
 		/* isOptional= */ false,
 		/* isVariadic= */ false)
-	params = append([]*FunctionType_Parameter{thisType}, params...)
+	params := make([]FunctionType_Parameter, 1+len(origParams))
+	params[0] = thisType
+	copy(params[1:], origParams)
 
 	if isBind {
 		// The arguments of bind() are unique in that they are all optional but
 		// not undefinable.
 		for i := 1; i < len(params); i++ {
 			current := params[i]
-			optionalCopy := FunctionType_Parameter_Create(current.GetJSType() /* isOptional= */, true, current.IsVariadic())
-			params[i] = optionalCopy
+			params[i] = FunctionType_Parameter_Create(current.GetJSType() /* isOptional= */, true, current.IsVariadic())
 		}
 	} else if isCall {
 		// The first argument of call() is optional iff all the arguments are
 		// optional. It's sufficient to check the first argument.
-		var firstArg *FunctionType_Parameter
-		if len(params) > 1 {
-			firstArg = params[1]
-		}
-		if firstArg == nil || firstArg.IsOptional() || firstArg.IsVariadic() {
-			optionalThisType := FunctionType_Parameter_Create(thisType.GetJSType() /* isOptional= */, true /* isVariadic= */, false)
-			params[0] = optionalThisType
+		if len(params) <= 1 || params[1].IsOptional() || params[1].IsVariadic() {
+			params[0] = FunctionType_Parameter_Create(thisType.GetJSType() /* isOptional= */, true /* isVariadic= */, false)
 		}
 	}
 
@@ -741,19 +763,10 @@ func (f *FunctionTypeBase) RecursionUnsafeHashCode() int32 {
 	case FunctionType_Kind_ORDINARY:
 		hc = 31*hc + f.typeOfThis.self().HashCode()
 		hc = 31*hc + f.call.HashCode()
-		hc = 31*hc + functionTypeClosurePrimitiveHashCode(f.GetClosurePrimitive())
+		hc = 31*hc + int32(f.closurePrimitivePlus1())
 		return hc
 	}
 	panic(jutil.NewAssertionErrorNoMessage())
-}
-
-// functionTypeClosurePrimitiveHashCode is Objects.hashCode on a nullable
-// ClosurePrimitive.
-func functionTypeClosurePrimitiveHashCode(p *ClosurePrimitive) int32 {
-	if p == nil {
-		return 0
-	}
-	return int32(*p) + 1
 }
 
 // Java: FunctionType.hasEqualCallType(FunctionType)
@@ -832,7 +845,7 @@ func (f *FunctionTypeBase) AppendTo(sb *TypeStringBuilder) {
 }
 
 // Java: FunctionType.AppendArgString(TypeStringBuilder, Parameter)
-func (f *FunctionTypeBase) AppendArgString(sb *TypeStringBuilder, p *FunctionType_Parameter) {
+func (f *FunctionTypeBase) AppendArgString(sb *TypeStringBuilder, p FunctionType_Parameter) {
 	if p.IsVariadic() {
 		f.AppendVarArgsString(sb, p.GetJSType())
 	} else if p.IsOptional() {
@@ -880,6 +893,13 @@ func (f *FunctionTypeBase) GetTypeOfThis() JSType {
 // Java: FunctionType.getSource()
 func (f *FunctionTypeBase) GetSource() Node {
 	return f.source
+}
+
+func (f *FunctionTypeBase) googModuleStringID() rhinoStringID {
+	if f.ext != nil {
+		return f.ext.googModuleID
+	}
+	return 0
 }
 
 // Java: FunctionType.getGoogModuleId()
@@ -930,10 +950,10 @@ func (f *FunctionTypeBase) AcceptsArguments(argumentTypes []JSType) bool {
 	// make it very painful to refactor out the shared code.
 	parameters := f.GetParameters()
 	ai, pi := 0, 0
-	var parameter *FunctionType_Parameter
+	var parameter FunctionType_Parameter
 	var argument JSType
 	for ai < len(argumentTypes) &&
-		(pi < len(parameters) || (parameter != nil && parameter.IsVariadic())) {
+		(pi < len(parameters) || (!parameter.IsZero() && parameter.IsVariadic())) {
 		// If there are no parameters left in the list, then the while loop
 		// above implies that this must be a var_args function.
 		if pi < len(parameters) {
@@ -957,8 +977,10 @@ func (f *FunctionTypeBase) AcceptsArguments(argumentTypes []JSType) bool {
 //
 // Java: FunctionType.forgetParameterAndReturnTypes()
 func (f *FunctionTypeBase) ForgetParameterAndReturnTypes() FunctionType {
-	result := FunctionType_Builder_(f.GetRegistry()).
-		WithName(f.GetReferenceName()).
+	var b FunctionType_Builder
+	b.Init(f.GetRegistry())
+	b.classNameID = f.referenceNameID()
+	result := b.
 		WithSourceNode(f.source).
 		WithTypeOfThis(f.GetInstanceType()).
 		WithKind(f.call.fnKind).
@@ -988,15 +1010,27 @@ func (f *FunctionTypeBase) GetConstructorOnlyTemplateParameters() []*TemplateTyp
 	return jsTypeSubList(m.GetTemplateKeys(), m.Size()-ctorOnlyKeyCount, m.Size())
 }
 
+func (f *FunctionTypeBase) closurePrimitivePlus1() uint8 {
+	if f.ext != nil {
+		return f.ext.closurePrimitivePlus1
+	}
+	return 0
+}
+
+// HasClosurePrimitive reports whether this function has an associated @closurePrimitive identifier.
+func (f *FunctionTypeBase) HasClosurePrimitive() bool {
+	return f.ext != nil && f.ext.closurePrimitivePlus1 != 0
+}
+
 // GetClosurePrimitive returns the @closurePrimitive identifier associated
 // with this function
 //
 // Java: FunctionType.getClosurePrimitive()
-func (f *FunctionTypeBase) GetClosurePrimitive() *ClosurePrimitive {
+func (f *FunctionTypeBase) GetClosurePrimitive() (ClosurePrimitive, bool) {
 	if f.ext != nil && f.ext.closurePrimitivePlus1 != 0 {
-		return &closurePrimitive_values[f.ext.closurePrimitivePlus1-1]
+		return ClosurePrimitive(f.ext.closurePrimitivePlus1 - 1), true
 	}
-	return nil
+	return 0, false
 }
 
 // Java: FunctionType.getCanonicalRepresentation()

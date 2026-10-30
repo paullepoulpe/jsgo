@@ -628,7 +628,7 @@ func (c *SubtypeChecker) IsArrowTypeSubtype(subtype *ArrowType, supertype *Arrow
 	subtypeParameters := subtype.GetParameterList()
 	supertypeParameters := supertype.GetParameterList()
 	si, pi := 0, 0
-	var subtypeParam, supertypeParam *FunctionType_Parameter
+	var subtypeParam, supertypeParam FunctionType_Parameter
 	if si < len(subtypeParameters) {
 		subtypeParam = subtypeParameters[si]
 		si++
@@ -637,7 +637,7 @@ func (c *SubtypeChecker) IsArrowTypeSubtype(subtype *ArrowType, supertype *Arrow
 		supertypeParam = supertypeParameters[pi]
 		pi++
 	}
-	for subtypeParam != nil && supertypeParam != nil {
+	for !subtypeParam.IsZero() && !supertypeParam.IsZero() {
 
 		subtypeParamType := subtypeParam.GetJSType()
 		supertypeParamType := supertypeParam.GetJSType()
@@ -671,14 +671,14 @@ func (c *SubtypeChecker) IsArrowTypeSubtype(subtype *ArrowType, supertype *Arrow
 
 		// don't advance if we have variable arguments
 		if !thisIsVarArgs {
-			subtypeParam = nil
+			subtypeParam = FunctionType_Parameter{}
 			if si < len(subtypeParameters) {
 				subtypeParam = subtypeParameters[si]
 				si++
 			}
 		}
 		if !thatIsVarArgs {
-			supertypeParam = nil
+			supertypeParam = FunctionType_Parameter{}
 			if pi < len(supertypeParameters) {
 				supertypeParam = supertypeParameters[pi]
 				pi++
@@ -692,10 +692,10 @@ func (c *SubtypeChecker) IsArrowTypeSubtype(subtype *ArrowType, supertype *Arrow
 	}
 
 	// "that" can't be a supertype, because it's missing a required argument.
-	return subtypeParam == nil ||
+	return subtypeParam.IsZero() ||
 		subtypeParam.IsOptional() ||
 		subtypeParam.IsVariadic() ||
-		supertypeParam != nil
+		!supertypeParam.IsZero()
 }
 
 // Java: SubtypeChecker.isEnumSubtype(EnumType, JSType)

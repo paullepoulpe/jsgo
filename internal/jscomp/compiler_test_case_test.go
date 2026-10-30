@@ -1615,7 +1615,7 @@ func (b *CompilerTestCaseBase) transpileToEs5(compiler AbstractCompiler, externs
 	TranspilationPasses_AddRewritePolyfillPass(factories)
 	// Transpilation requires normalization.
 	factories.MaybeAdd(NewPassFactory(PassNames_NORMALIZE, func(abstractCompiler AbstractCompiler) CompilerPass {
-		return Normalize_Builder_(abstractCompiler).Build()
+		return NewNormalize(abstractCompiler, false)
 	}))
 	TranspilationPasses_AddTranspilationPasses(factories, options)
 	// We need to put back the original variable names where possible once transpilation is
@@ -1756,10 +1756,7 @@ func (b *CompilerTestCaseBase) validateNormalizationInvariants(root rhino.Node, 
 	// (Closure primitive rewrites, etc) runs before the Normalize pass,
 	// so this can't be force on everywhere.
 	if b.normalizeEnabled {
-		Normalize_Builder_(compiler).
-			AssertOnChange(true).
-			Build().
-			Process(normalizeCheckExternsRootClone, normalizeCheckMainRootClone)
+		NewNormalize(compiler, true).Process(normalizeCheckExternsRootClone, normalizeCheckMainRootClone)
 
 		NodeSubject_AssertNode(normalizeCheckMainRootClone).
 			UsingSerializer(compilerTestCase_createPrettyPrinter(compiler)).

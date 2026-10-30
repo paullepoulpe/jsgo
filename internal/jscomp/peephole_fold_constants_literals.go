@@ -34,6 +34,9 @@ import (
 // Java: PeepholeFoldConstants.tryFoldCtorCall(Node)
 func (p *PeepholeFoldConstants) TryFoldCtorCall(n rhino.Node) rhino.Node {
 	jutil.CheckArgument(n.IsNew())
+	if !n.GetFirstChild().IsName() {
+		return n
+	}
 
 	// we can remove this for GETELEM calls (anywhere else?)
 	if PeepholeFoldConstants_InForcedStringContext(n) {

@@ -27,7 +27,7 @@ import (
 
 var (
 	emptyTemplateTypeSlice       = []*rhino.TemplateType{}
-	emptyFunctionParametersSlice = []*rhino.FunctionType_Parameter{}
+	emptyFunctionParametersSlice = []rhino.FunctionType_Parameter{}
 )
 
 // FunctionTypeBuilder is a builder for FunctionTypes, because FunctionTypes
@@ -69,8 +69,9 @@ type FunctionTypeBuilder struct {
 	isRecord                     bool
 	isAbstract                   bool
 	isKnownAmbiguous             bool
-	parameters                   []*rhino.FunctionType_Parameter
-	closurePrimitiveId           *rhino.ClosurePrimitive
+	hasClosurePrimitive          bool
+	closurePrimitiveId           rhino.ClosurePrimitive
+	parameters                   []rhino.FunctionType_Parameter
 	templateTypeNames            []*rhino.TemplateType
 	constructorTemplateTypeNames []*rhino.TemplateType
 	declarationScope             *TypedScope
@@ -535,8 +536,11 @@ func (f *FunctionTypeBuilder) InferThisType(info *rhino.JSDocInfo) *FunctionType
 
 // Java: FunctionTypeBuilder.inferClosurePrimitive(JSDocInfo)
 func (f *FunctionTypeBuilder) InferClosurePrimitive(info *rhino.JSDocInfo) *FunctionTypeBuilder {
-	if info != nil && info.HasClosurePrimitiveId() {
-		f.closurePrimitiveId = rhino.ClosurePrimitive_FromStringId(info.GetClosurePrimitiveId())
+	if info != nil {
+		if id, ok := info.GetClosurePrimitiveIdString(); ok {
+			f.closurePrimitiveId = rhino.ClosurePrimitive_FromStringId(id)
+			f.hasClosurePrimitive = true
+		}
 	}
 	return f
 }
@@ -613,12 +617,14 @@ func (f *FunctionTypeBuilder) BuildAndRegister() rhino.FunctionType {
 	} else if f.isInterface {
 		fnType = f.GetOrCreateInterface()
 	} else {
-		fnType = f.CreateDefaultBuilder().
+		var b rhino.FunctionType_Builder
+		f.initDefaultBuilder(&b)
+		fnType = b.
 			WithParametersOfList(f.parameters).
 			WithReturnTypeWithInferred(f.returnType, f.returnTypeInferred).
 			WithTypeOfThis(f.thisType).
 			WithIsAbstract(f.isAbstract).
-			WithClosurePrimitiveId(f.closurePrimitiveId).
+			WithOptionalClosurePrimitive(f.closurePrimitiveId, f.hasClosurePrimitive).
 			Build()
 		f.MaybeSetBaseType(fnType)
 	}
@@ -649,13 +655,13 @@ func (f *FunctionTypeBuilder) MaybeSetBaseType(fnType rhino.FunctionType) {
 }
 
 // Java: FunctionTypeBuilder.createDefaultBuilder()
-func (f *FunctionTypeBuilder) CreateDefaultBuilder() *rhino.FunctionType_Builder {
-	return rhino.FunctionType_Builder_(f.typeRegistry).
-		WithNameString(f.fnName).
+func (f *FunctionTypeBuilder) initDefaultBuilder(b *rhino.FunctionType_Builder) {
+	b.Init(f.typeRegistry)
+	b.WithNameString(f.fnName).
 		WithSourceNode(f.sourceNode).
 		WithTemplateKeysOfList(f.templateTypeNames).
 		SetIsKnownAmbiguous(f.isKnownAmbiguous).
-		SetGoogModuleId(TypedScopeCreator_ContainingGoogModuleIdOf(f.declarationScope))
+		SetOptionalGoogModuleId(TypedScopeCreator_ContainingGoogModuleIdOf(f.declarationScope))
 }
 
 // GetOrCreateConstructor returns a constructor function either by returning
@@ -671,7 +677,9 @@ func (f *FunctionTypeBuilder) CreateDefaultBuilder() *rhino.FunctionType_Builder
 //
 // Java: FunctionTypeBuilder.getOrCreateConstructor()
 func (f *FunctionTypeBuilder) GetOrCreateConstructor() rhino.FunctionType {
-	fnType := f.CreateDefaultBuilder().
+	var b rhino.FunctionType_Builder
+	f.initDefaultBuilder(&b)
+	fnType := b.
 		ForConstructor().
 		WithParametersOfList(f.parameters).
 		WithReturnType(f.returnType).
@@ -753,7 +761,9 @@ func (f *FunctionTypeBuilder) GetOrCreateInterface() rhino.FunctionType {
 	}
 
 	if fnType == nil {
-		fnType = f.CreateDefaultBuilder().ForInterface().WithParameters().Build()
+		var b rhino.FunctionType_Builder
+		f.initDefaultBuilder(&b)
+		fnType = b.ForInterface().WithParameters().Build()
 		if f.makesStructs {
 			fnType.SetStruct()
 		}

@@ -80,7 +80,7 @@ func (p *makeDeclaredNamesUniqueTest_pass) Process(externs rhino.Node, root rhin
 			true,
 			nil)
 	}
-	NodeTraversal_TraverseRoots(p.compiler, NewMakeDeclaredNamesUnique(renamer, true, p.c.assertOnChange), externs, root)
+	NodeTraversal_TraverseRoots(p.compiler, NewMakeDeclaredNamesUniqueWith(renamer, true, p.c.assertOnChange), externs, root)
 }
 
 // Java: MakeDeclaredNamesUniqueTest.getProcessor(Compiler)

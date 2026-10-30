@@ -236,10 +236,11 @@ func (s *SourceMap) AddMapping(mapping *SourceMap_Mapping) {
 // sourceMap_resolvedMapping is a mapping whose node has been resolved to
 // its source file name, original name and source position (Go-only).
 type sourceMap_resolvedMapping struct {
-	sourceFileName string
-	originalName   *string
-	srcPos         sourcemap.FilePosition
-	start, end     sourcemap.FilePosition
+	sourceFileName  string
+	originalName    string
+	srcPos          sourcemap.FilePosition
+	start, end      sourcemap.FilePosition
+	hasOriginalName bool
 }
 
 func (s *SourceMap) AddMappingOfNodePositions(
@@ -265,7 +266,7 @@ func (s *SourceMap) resolveMappingOfNodePositions(
 
 	lineNo := node.GetLineno()
 	charNo := node.GetCharno()
-	originalName := sourceMap_getOriginalName(node)
+	originalName, hasOriginalName := sourceMap_getOriginalName(node)
 
 	var sourceFileName string
 	if s.compilerMapping == nil {
@@ -295,7 +296,8 @@ func (s *SourceMap) resolveMappingOfNodePositions(
 			lineNo = sourceMapping.GetLineNumber()
 			charNo = sourceMapping.GetColumnPosition()
 			if identifierPtr != nil {
-				originalName = identifierPtr
+				originalName = *identifierPtr
+				hasOriginalName = true
 			}
 		}
 		sourceFileName = s.fixupSourceLocation(sourceFileName)
@@ -306,28 +308,46 @@ func (s *SourceMap) resolveMappingOfNodePositions(
 	lineBaseOffset := 1
 
 	srcPos := sourcemap.MakeFilePosition(lineNo-lineBaseOffset, charNo)
-	return sourceMap_resolvedMapping{sourceFileName, originalName, srcPos, outputStartPosition, outputEndPosition}, true
+	return sourceMap_resolvedMapping{
+		sourceFileName:  sourceFileName,
+		originalName:    originalName,
+		srcPos:          srcPos,
+		start:           outputStartPosition,
+		end:             outputEndPosition,
+		hasOriginalName: hasOriginalName,
+	}, true
 }
 
 // addResolvedMapping is the generator half of AddMappingOfNodePositions.
 func (s *SourceMap) addResolvedMapping(r *sourceMap_resolvedMapping) {
 	if s.generatorV3 != nil {
-		s.generatorV3.AddMappingPositions(r.sourceFileName, r.originalName, r.srcPos, r.start, r.end)
+		var origPtr *string
+		var origName string
+		if r.hasOriginalName {
+			origName = r.originalName
+			origPtr = &origName
+		}
+		s.generatorV3.AddMappingPositions(r.sourceFileName, origPtr, r.srcPos, r.start, r.end)
 	} else {
-		s.addMappingFallback(r.sourceFileName, r.originalName, r.srcPos, r.start, r.end)
+		s.addMappingFallback(r.sourceFileName, r.originalName, r.hasOriginalName, r.srcPos, r.start, r.end)
 	}
 }
 
 //go:noinline
 func (s *SourceMap) addMappingFallback(
 	sourceFileName string,
-	originalName *string,
+	originalName string,
+	hasOriginalName bool,
 	srcPos sourcemap.FilePosition,
 	outputStartPosition sourcemap.FilePosition,
 	outputEndPosition sourcemap.FilePosition) {
+	var origPtr *string
+	if hasOriginalName {
+		origPtr = &originalName
+	}
 	s.generator.AddMapping(
 		&sourceFileName,
-		originalName,
+		origPtr,
 		&srcPos,
 		&outputStartPosition,
 		&outputEndPosition)
@@ -339,9 +359,9 @@ func (s *SourceMap) AddSourceFile(name string, code *string) {
 }
 
 // Java: SourceMap.getOriginalName(Node)
-func sourceMap_getOriginalName(node rhino.Node) *string {
-	if orig := node.GetOriginalName(); orig != nil {
-		return orig
+func sourceMap_getOriginalName(node rhino.Node) (string, bool) {
+	if id := node.GetOriginalNameID(); id != 0 {
+		return rhino.RhinoStringPool_StringFromID(id), true
 	}
 	// If this is the name identifier of a function declaration/expression and the name node itself
 	// has no originalName, fall back to the enclosing FUNCTION node's originalName.
@@ -353,14 +373,18 @@ func sourceMap_getOriginalName(node rhino.Node) *string {
 	if node.IsName() {
 		parent := node.GetParent()
 		if !parent.IsNil() && parent.IsFunction() && parent.GetFirstChild() == node {
-			return parent.GetOriginalName()
+			if id := parent.GetOriginalNameID(); id != 0 {
+				return rhino.RhinoStringPool_StringFromID(id), true
+			}
 		}
-		return nil
+		return "", false
 	}
 	if node.IsMemberFunctionDef() {
-		return node.GetFirstChild().GetOriginalName()
+		if id := node.GetFirstChild().GetOriginalNameID(); id != 0 {
+			return rhino.RhinoStringPool_StringFromID(id), true
+		}
 	}
-	return nil
+	return "", false
 }
 
 // fixupSourceLocation: sourceFile is the source file location to fixup;

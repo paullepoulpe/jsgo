@@ -41,18 +41,18 @@ import "slices"
 // Parameters.
 type FunctionParamBuilder struct {
 	registry   *JSTypeRegistry
-	parameters []*FunctionType_Parameter
+	parameters []FunctionType_Parameter
 	consumed   bool
 }
 
-var emptyFunctionTypeParams = []*FunctionType_Parameter{}
+var emptyFunctionTypeParams = []FunctionType_Parameter{}
 
 // Init initializes a stack-allocated FunctionParamBuilder with an optional capacity hint.
 func (b *FunctionParamBuilder) Init(registry *JSTypeRegistry, initialParameterCapacity int) {
 	b.registry = registry
 	b.consumed = false
 	if initialParameterCapacity > 0 {
-		b.parameters = make([]*FunctionType_Parameter, 0, initialParameterCapacity)
+		b.parameters = make([]FunctionType_Parameter, 0, initialParameterCapacity)
 	} else {
 		b.parameters = nil
 	}
@@ -74,7 +74,7 @@ func NewFunctionParamBuilder(registry *JSTypeRegistry) *FunctionParamBuilder {
 func NewFunctionParamBuilderWithCapacity(registry *JSTypeRegistry, initialParameterCapacity int) *FunctionParamBuilder {
 	b := &FunctionParamBuilder{registry: registry}
 	if initialParameterCapacity > 0 {
-		b.parameters = make([]*FunctionType_Parameter, 0, initialParameterCapacity)
+		b.parameters = make([]FunctionType_Parameter, 0, initialParameterCapacity)
 	}
 	return b
 }
@@ -144,7 +144,7 @@ func (b *FunctionParamBuilder) AddVarArgs(type_ JSType) bool {
 // NewParameterFrom copies the existing parameter into this builder.
 //
 // Java: FunctionParamBuilder.newParameterFrom(Parameter)
-func (b *FunctionParamBuilder) NewParameterFrom(n *FunctionType_Parameter) {
+func (b *FunctionParamBuilder) NewParameterFrom(n FunctionType_Parameter) {
 	b.ensureMutable()
 	b.parameters = append(b.parameters, n)
 }
@@ -153,7 +153,7 @@ func (b *FunctionParamBuilder) NewParameterFrom(n *FunctionType_Parameter) {
 // parameter, but makes sure it's optional.
 //
 // Java: FunctionParamBuilder.newOptionalParameterFrom(Parameter)
-func (b *FunctionParamBuilder) NewOptionalParameterFrom(p *FunctionType_Parameter) {
+func (b *FunctionParamBuilder) NewOptionalParameterFrom(p FunctionType_Parameter) {
 	isOptional := p.IsOptional() || !p.IsVariadic()
 	if isOptional != p.IsOptional() {
 		b.NewParameter(p.GetJSType(), isOptional, p.IsVariadic())
@@ -185,7 +185,7 @@ func (b *FunctionParamBuilder) HasVarArgs() bool {
 }
 
 // Java: FunctionParamBuilder.build()
-func (b *FunctionParamBuilder) Build() []*FunctionType_Parameter {
+func (b *FunctionParamBuilder) Build() []FunctionType_Parameter {
 	if len(b.parameters) == 0 {
 		return emptyFunctionTypeParams
 	}

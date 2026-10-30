@@ -54,7 +54,7 @@ type SortedDependencies[InputT SortedDependencies_Input] struct {
 
 	uniqueInputs            []InputT
 	ptrToID                 map[InputT]int32
-	objToID                 *jutil.ObjectLinkedHashMap[InputT, int32]
+	hashToIDs               map[int32][]int32
 	exportingIDBySymbolName map[string]int32
 	userOrderedIDs          []int32
 	importOrderedIDs        []int32
@@ -81,8 +81,12 @@ func (d *SortedDependencies[InputT]) lookupID(input InputT) (int32, bool) {
 	if id, ok := d.ptrToID[input]; ok {
 		return id, true
 	}
-	if d.objToID != nil {
-		return d.objToID.Lookup(input)
+	if d.hashToIDs != nil {
+		for _, candID := range d.hashToIDs[jutil.ObjectHashCode(input)] {
+			if jutil.ObjectsEqualsOf(d.uniqueInputs[candID], input) {
+				return candID, true
+			}
+		}
 	}
 	return -1, false
 }
@@ -354,28 +358,33 @@ func (d *SortedDependencies[InputT]) ProcessInputs() {
 	n := len(userSlice)
 	d.uniqueInputs = make([]InputT, 0, n)
 	d.ptrToID = make(map[InputT]int32, n)
-	var zero InputT
-	if _, isEqualer := any(zero).(jutil.Equaler); isEqualer {
-		d.objToID = jutil.NewObjectLinkedHashMap[InputT, int32]()
-	}
 	d.userOrderedIDs = make([]int32, n)
 	d.exportingIDBySymbolName = make(map[string]int32, n)
 
 	// Index.
 	for i, userOrderedInput := range userSlice {
 		id, ok := d.ptrToID[userOrderedInput]
-		if !ok && d.objToID != nil {
-			id, ok = d.objToID.Lookup(userOrderedInput)
-			if ok {
-				d.ptrToID[userOrderedInput] = id
+		var eqHash int32
+		_, isEqualer := any(userOrderedInput).(jutil.Equaler)
+		if !ok && isEqualer {
+			if d.hashToIDs == nil {
+				d.hashToIDs = make(map[int32][]int32, n)
+			}
+			eqHash = jutil.ObjectHashCode(userOrderedInput)
+			for _, candID := range d.hashToIDs[eqHash] {
+				if jutil.ObjectsEqualsOf(d.uniqueInputs[candID], userOrderedInput) {
+					id, ok = candID, true
+					d.ptrToID[userOrderedInput] = id
+					break
+				}
 			}
 		}
 		if !ok {
 			id = int32(len(d.uniqueInputs))
 			d.uniqueInputs = append(d.uniqueInputs, userOrderedInput)
 			d.ptrToID[userOrderedInput] = id
-			if d.objToID != nil {
-				d.objToID.Put(userOrderedInput, id)
+			if isEqualer {
+				d.hashToIDs[eqHash] = append(d.hashToIDs[eqHash], id)
 			}
 		} else {
 			d.hasDuplicateUserInputs = true

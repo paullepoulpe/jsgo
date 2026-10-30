@@ -12,31 +12,14 @@ import "github.com/paullepoulpe/jsgo/internal/jutil"
 //
 // Java: com.google.javascript.jscomp.serialization.SourceFilePool
 type SourceFilePool struct {
-	sourceFile_   []*SourceFileProto
-	unknownFields []byte
-	cachedSize    int
+	sourceFile_ []*SourceFileProto
+	cachedSize  int
 }
 
 var sourceFilePool_DEFAULT_INSTANCE = &SourceFilePool{cachedSize: 1}
 
-// Java: SourceFilePool.getDefaultInstance()
-func SourceFilePool_GetDefaultInstance() *SourceFilePool { return sourceFilePool_DEFAULT_INSTANCE }
-
 // Java: SourceFilePool.getSourceFileList()
 func (m *SourceFilePool) GetSourceFileList() []*SourceFileProto { return m.sourceFile_ }
-
-// appendTo is SourceFilePool.writeTo(CodedOutputStream): fields in number order, then unknown fields.
-func (m *SourceFilePool) appendTo(b []byte) []byte {
-	for _, x := range m.sourceFile_ {
-		b = protoAppendTag(b, 1, 2)
-		b = protoAppendVarint(b, uint64(x.serializedSize()))
-		b = x.appendTo(b)
-	}
-	if len(m.unknownFields) > 0 {
-		b = append(b, protoCanonicalUnknownFields(m.unknownFields)...)
-	}
-	return b
-}
 
 // serializedSize is getSerializedSize() (memoized once immutable).
 func (m *SourceFilePool) serializedSize() int {
@@ -48,9 +31,6 @@ func (m *SourceFilePool) serializedSize() int {
 		s := x.serializedSize()
 		size += 1 + protoVarintLen(uint64(s)) + s
 	}
-	if len(m.unknownFields) > 0 {
-		size += len(protoCanonicalUnknownFields(m.unknownFields))
-	}
 	m.cachedSize = size + 1
 	return size
 }
@@ -58,7 +38,6 @@ func (m *SourceFilePool) serializedSize() int {
 // mergeFromReader is SourceFilePool.Builder.mergeFrom(CodedInputStream) on a mutable m.
 func (m *SourceFilePool) mergeFromReader(r *protoReader) {
 	for {
-		start := r.pos
 		tag := r.readTag()
 		switch tag {
 		case 0:
@@ -71,16 +50,8 @@ func (m *SourceFilePool) mergeFromReader(r *protoReader) {
 			m.sourceFile_ = append(m.sourceFile_, x)
 		default:
 			r.skipField(tag)
-			m.unknownFields = append(m.unknownFields, r.b[start:r.pos]...)
 		}
 	}
-}
-
-func (m *SourceFilePool) printText(p *protoTextPrinter) {
-	for _, x := range m.sourceFile_ {
-		p.message("source_file", x.printText)
-	}
-	p.unknownFields(m.unknownFields)
 }
 
 // SourceFileProto_SourceKind is the protobuf enum jscomp.SourceFileProto.SourceKind.
@@ -164,21 +135,6 @@ type SourceFileProto struct {
 	cachedSize            int
 }
 
-// Java: SourceFileProto.newBuilder()
-func SourceFileProto_NewBuilder() *SourceFileProto {
-	return &SourceFileProto{}
-}
-
-// SourceFileProto_ParseFrom panics with *InvalidProtocolBufferException on malformed input.
-//
-// Java: SourceFileProto.parseFrom(byte[])
-func SourceFileProto_ParseFrom(data []byte) *SourceFileProto {
-	m := &SourceFileProto{}
-	r := protoReader{b: data}
-	m.mergeFromReader(&r)
-	return m
-}
-
 // Java: SourceFileProto.getFilename()
 func (m *SourceFileProto) GetFilename() string {
 	return m.filename_
@@ -197,7 +153,7 @@ func (m *SourceFileProto) GetFileOnDisk() *SourceFileProto_FileOnDisk {
 	if m.loaderCase_ == 3 {
 		return m.fileOnDisk_
 	}
-	return SourceFileProto_FileOnDisk_GetDefaultInstance()
+	return sourceFileProto_FileOnDisk_DEFAULT_INSTANCE
 }
 
 // Java: SourceFileProto.getZipEntry()
@@ -205,7 +161,7 @@ func (m *SourceFileProto) GetZipEntry() *SourceFileProto_ZipEntryOnDisk {
 	if m.loaderCase_ == 4 {
 		return m.zipEntry_
 	}
-	return SourceFileProto_ZipEntryOnDisk_GetDefaultInstance()
+	return sourceFileProto_ZipEntryOnDisk_DEFAULT_INSTANCE
 }
 
 // Java: SourceFileProto.getSourceKind()
@@ -242,65 +198,6 @@ func (m *SourceFileProto) GetLoaderCase() SourceFileProto_LoaderCase {
 	default:
 		return SourceFileProto_LoaderCase_LOADER_NOT_SET
 	}
-}
-
-// Java: SourceFileProto.Builder.build()
-func (m *SourceFileProto) Build() *SourceFileProto {
-	m.cachedSize = 0
-	return m
-}
-
-// Java: SourceFileProto.Builder.setFilename(String)
-func (m *SourceFileProto) SetFilename(v string) *SourceFileProto {
-	m.filename_ = v
-	return m
-}
-
-// Java: SourceFileProto.Builder.setPreloadedContents(String)
-func (m *SourceFileProto) SetPreloadedContents(v string) *SourceFileProto {
-	m.preloadedContents_ = v
-	m.fileOnDisk_ = nil
-	m.zipEntry_ = nil
-	m.stubFile_ = false
-	m.loaderCase_ = 2
-	return m
-}
-
-// Java: SourceFileProto.Builder.setFileOnDisk(SourceFileProto_FileOnDisk)
-func (m *SourceFileProto) SetFileOnDisk(v *SourceFileProto_FileOnDisk) *SourceFileProto {
-	if v == nil {
-		panic(jutil.NewNullPointerException())
-	}
-	m.fileOnDisk_ = v
-	m.preloadedContents_ = ""
-	m.zipEntry_ = nil
-	m.stubFile_ = false
-	m.loaderCase_ = 3
-	return m
-}
-
-// Java: SourceFileProto.Builder.setSourceKind(SourceKind)
-func (m *SourceFileProto) SetSourceKind(v SourceFileProto_SourceKind) *SourceFileProto {
-	m.sourceKind_ = v.GetNumber()
-	return m
-}
-
-// Java: SourceFileProto.Builder.setIsClosureUnawareCode(boolean)
-func (m *SourceFileProto) SetIsClosureUnawareCode(v bool) *SourceFileProto {
-	m.isClosureUnawareCode_ = v
-	return m
-}
-
-// Java: SourceFileProto.Builder.setNumBytesPlusOne(int)
-func (m *SourceFileProto) SetNumBytesPlusOne(v int32) *SourceFileProto {
-	m.numBytesPlusOne_ = v
-	return m
-}
-
-// Java: SourceFileProto.Builder.setNumLinesPlusOne(int)
-func (m *SourceFileProto) SetNumLinesPlusOne(v int32) *SourceFileProto {
-	m.numLinesPlusOne_ = v
-	return m
 }
 
 // Java: SourceFileProto.equals(Object)
@@ -541,11 +438,6 @@ type SourceFileProto_FileOnDisk struct {
 
 var sourceFileProto_FileOnDisk_DEFAULT_INSTANCE = &SourceFileProto_FileOnDisk{cachedSize: 1}
 
-// Java: SourceFileProto.FileOnDisk.getDefaultInstance()
-func SourceFileProto_FileOnDisk_GetDefaultInstance() *SourceFileProto_FileOnDisk {
-	return sourceFileProto_FileOnDisk_DEFAULT_INSTANCE
-}
-
 // Java: SourceFileProto.FileOnDisk.getActualPath()
 func (m *SourceFileProto_FileOnDisk) GetActualPath() string {
 	return m.actualPath_
@@ -646,11 +538,6 @@ type SourceFileProto_ZipEntryOnDisk struct {
 }
 
 var sourceFileProto_ZipEntryOnDisk_DEFAULT_INSTANCE = &SourceFileProto_ZipEntryOnDisk{cachedSize: 1}
-
-// Java: SourceFileProto.ZipEntryOnDisk.getDefaultInstance()
-func SourceFileProto_ZipEntryOnDisk_GetDefaultInstance() *SourceFileProto_ZipEntryOnDisk {
-	return sourceFileProto_ZipEntryOnDisk_DEFAULT_INSTANCE
-}
 
 // Java: SourceFileProto.ZipEntryOnDisk.getZipPath()
 func (m *SourceFileProto_ZipEntryOnDisk) GetZipPath() string {

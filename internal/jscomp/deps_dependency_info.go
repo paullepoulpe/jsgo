@@ -40,11 +40,148 @@
 package jscomp
 
 import (
+	"iter"
+	"slices"
 	"strings"
 
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
+
+// LoadFlag is a single (Key, Value) entry in LoadFlags.
+type LoadFlag struct {
+	Key   string
+	Value string
+}
+
+// LoadFlags is an immutable insertion-ordered map of JS file load flags (such
+// as "lang" and "module") backed by a compact value slice.
+type LoadFlags struct {
+	entries []LoadFlag
+}
+
+var (
+	_ jutil.MapSource[string, string] = LoadFlags{}
+
+	EmptyLoadFlags      = LoadFlags{}
+	loadFlagsGoogArray  = [1]LoadFlag{{Key: "module", Value: "goog"}}
+	loadFlagsES6Array   = [1]LoadFlag{{Key: "module", Value: "es6"}}
+	GoogModuleLoadFlags = LoadFlags{entries: loadFlagsGoogArray[:]}
+	ES6ModuleLoadFlags  = LoadFlags{entries: loadFlagsES6Array[:]}
+)
+
+// NewLoadFlags constructs LoadFlags from alternating key, value pairs.
+func NewLoadFlags(kv ...string) LoadFlags {
+	if len(kv) == 0 {
+		return EmptyLoadFlags
+	}
+	var buf [4]LoadFlag
+	entries := buf[:0]
+	for i := 0; i+1 < len(kv); i += 2 {
+		putLoadFlag(&entries, kv[i], kv[i+1])
+	}
+	flags, _ := normalizeLoadFlagsEntries(entries, true)
+	return flags
+}
+
+func putLoadFlag(entries *[]LoadFlag, k, v string) {
+	s := *entries
+	for i := range s {
+		if s[i].Key == k {
+			s[i].Value = v
+			return
+		}
+	}
+	*entries = append(s, LoadFlag{Key: k, Value: v})
+}
+
+// Len returns the number of entries in f.
+func (f LoadFlags) Len() int { return len(f.entries) }
+
+// Size implements jutil.MapSource.
+func (f LoadFlags) Size() int { return len(f.entries) }
+
+// IsEmpty reports whether f has zero entries.
+func (f LoadFlags) IsEmpty() bool { return len(f.entries) == 0 }
+
+// Entries returns the underlying entries in insertion order.
+func (f LoadFlags) Entries() []LoadFlag { return f.entries }
+
+// Get returns (value, true) if key is present, or ("", false) otherwise.
+func (f LoadFlags) Get(key string) (string, bool) {
+	for _, e := range f.entries {
+		if e.Key == key {
+			return e.Value, true
+		}
+	}
+	return "", false
+}
+
+// Lookup is an alias for Get.
+func (f LoadFlags) Lookup(key string) (string, bool) { return f.Get(key) }
+
+// GetOrDefault returns the value for key, or def if absent.
+func (f LoadFlags) GetOrDefault(key, def string) string {
+	if v, ok := f.Get(key); ok {
+		return v
+	}
+	return def
+}
+
+// All yields (key, value) pairs in insertion order.
+func (f LoadFlags) All() iter.Seq2[string, string] {
+	return func(yield func(string, string) bool) {
+		for _, e := range f.entries {
+			if !yield(e.Key, e.Value) {
+				return
+			}
+		}
+	}
+}
+
+// Equals reports whether f and other contain the same (key, value) mappings.
+func (f LoadFlags) Equals(other LoadFlags) bool {
+	if len(f.entries) != len(other.entries) {
+		return false
+	}
+	if slices.Equal(f.entries, other.entries) {
+		return true
+	}
+	for _, e := range f.entries {
+		if ov, ok := other.Get(e.Key); !ok || ov != e.Value {
+			return false
+		}
+	}
+	return true
+}
+
+// HashCode computes Java Map.hashCode(): sum of (key.hashCode() ^ value.hashCode()).
+func (f LoadFlags) HashCode() int32 {
+	var sum int32
+	for _, e := range f.entries {
+		sum += jutil.StringHashCode(e.Key) ^ jutil.StringHashCode(e.Value)
+	}
+	return sum
+}
+
+// String formats f like Java AbstractMap.toString(): "{k1=v1, k2=v2}".
+func (f LoadFlags) String() string {
+	if len(f.entries) == 0 {
+		return "{}"
+	}
+	var sb strings.Builder
+	sb.WriteByte('{')
+	for i, e := range f.entries {
+		if i > 0 {
+			sb.WriteString(", ")
+		}
+		sb.WriteString(e.Key)
+		sb.WriteByte('=')
+		sb.WriteString(e.Value)
+	}
+	sb.WriteByte('}')
+	return sb.String()
+}
 
 // DependencyInfo is a data structure for JS dependency information for a
 // single .js file.
@@ -55,7 +192,7 @@ type DependencyInfo interface {
 	GetRequires() []*DependencyInfo_Require
 	GetRequiredSymbols() []string
 	GetTypeRequires() []string
-	GetLoadFlags() *jutil.LinkedHashMap[string, string]
+	GetLoadFlags() LoadFlags
 	IsEs6Module() bool
 	IsGoogModule() bool
 	GetHasExternsAnnotation() bool
@@ -69,13 +206,13 @@ func DependencyInfo_GetRequiredSymbols(d DependencyInfo) []string {
 
 // Java: DependencyInfo.isEs6Module() (default method)
 func DependencyInfo_IsEs6Module(d DependencyInfo) bool {
-	v, ok := d.GetLoadFlags().Lookup("module")
+	v, ok := d.GetLoadFlags().Get("module")
 	return ok && v == "es6"
 }
 
 // Java: DependencyInfo.isGoogModule() (default method)
 func DependencyInfo_IsGoogModule(d DependencyInfo) bool {
-	v, ok := d.GetLoadFlags().Lookup("module")
+	v, ok := d.GetLoadFlags().Get("module")
 	return ok && v == "goog"
 }
 
@@ -215,18 +352,16 @@ func DependencyInfo_Util_WriteAddDependency(out jutil.Appendable, info Dependenc
 	out.AppendCharSequence(");\n")
 }
 
-func dependencyInfo_Util_writeJsObject(out jutil.Appendable, m *jutil.LinkedHashMap[string, string]) {
+func dependencyInfo_Util_writeJsObject(out jutil.Appendable, m LoadFlags) {
 	out.AppendCharSequence("{")
-	first := true
-	for k, v := range m.All() {
-		if !first {
+	for i, e := range m.Entries() {
+		if i > 0 {
 			out.AppendCharSequence(", ")
 		}
-		first = false
 		out.AppendCharSequence("'")
-		out.AppendCharSequence(strings.ReplaceAll(k, "'", "\\'"))
+		out.AppendCharSequence(strings.ReplaceAll(e.Key, "'", "\\'"))
 		out.AppendCharSequence("': '")
-		out.AppendCharSequence(strings.ReplaceAll(v, "'", "\\'"))
+		out.AppendCharSequence(strings.ReplaceAll(e.Value, "'", "\\'"))
 		out.AppendCharSequence("'")
 	}
 	out.AppendCharSequence("}")

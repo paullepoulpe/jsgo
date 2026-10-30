@@ -20,10 +20,8 @@
 package parsing
 
 import (
-	"unicode/utf16"
 	"unicode/utf8"
 
-	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
 
@@ -37,8 +35,8 @@ type JsDocTokenStream struct {
 	// code.
 	string_ string
 
-	stringBuffer    []uint16
-	stringScratch   [64]uint16
+	stringBuffer    []byte
+	stringScratch   [128]byte
 	stringBufferTop int
 
 	// Room to backtrace from to < on failed match of the last - in <!--
@@ -55,10 +53,8 @@ type JsDocTokenStream struct {
 	// Go-only: language-adapter — the Java String sourceString is scanned
 	// directly in WTF-8 bytes (rawSource / byteCursor) while tracking exact
 	// UTF-16 code-unit positions in sourceCursor and cursor.
-	rawSource    string
-	byteCursor   int
-	pendingLo    uint16
-	hasPendingLo bool
+	rawSource  string
+	byteCursor int
 
 	// sourceCursor is an index into a small buffer that keeps a
 	// sliding window of the source stream.
@@ -104,8 +100,6 @@ func (s *JsDocTokenStream) Init(sourceString string, lineno int, initCharno int)
 	s.lineno = lineno
 	s.rawSource = sourceString
 	s.byteCursor = 0
-	s.pendingLo = 0
-	s.hasPendingLo = false
 	s.cursor = 0
 	s.sourceCursor = 0
 	s.initLineno = lineno
@@ -134,7 +128,7 @@ func (s *JsDocTokenStream) GetJsDocToken() JsDocToken {
 	s.stringBufferTop = 0
 	for {
 		// Fast-skip ASCII horizontal whitespace before per-char GetChar().
-		if s.ungetCursor == 0 && !s.hasPendingLo && s.lineEndChar < 0 {
+		if s.ungetCursor == 0 && s.lineEndChar < 0 {
 			src := s.rawSource
 			end := len(src)
 			cur := s.byteCursor
@@ -167,7 +161,7 @@ func (s *JsDocTokenStream) GetJsDocToken() JsDocToken {
 		switch c {
 		// annotation, e.g. @type or @constructor
 		case '@':
-			if s.ungetCursor == 0 && !s.hasPendingLo {
+			if s.ungetCursor == 0 {
 				src := s.rawSource
 				start := s.byteCursor
 				cur := start
@@ -247,7 +241,7 @@ func (s *JsDocTokenStream) GetJsDocToken() JsDocToken {
 
 		case '.':
 			fastDot := false
-			if s.ungetCursor == 0 && !s.hasPendingLo && s.lineEndChar < 0 && s.byteCursor < len(s.rawSource) {
+			if s.ungetCursor == 0 && s.lineEndChar < 0 && s.byteCursor < len(s.rawSource) {
 				b1 := s.rawSource[s.byteCursor]
 				if b1 == '<' {
 					s.byteCursor++
@@ -291,7 +285,7 @@ func (s *JsDocTokenStream) GetJsDocToken() JsDocToken {
 			{
 				// recognize a JsDoc string but discard last . if it is followed by
 				// a non-JsDoc comment char, e.g. Array.<
-				if c < 128 && s.ungetCursor == 0 && !s.hasPendingLo {
+				if c < 128 && s.ungetCursor == 0 {
 					src := s.rawSource
 					start := s.byteCursor - 1
 					cur := s.byteCursor
@@ -352,7 +346,7 @@ func (s *JsDocTokenStream) GetJsDocToken() JsDocToken {
 //
 // Java: JsDocTokenStream.getRemainingJSDocLine()
 func (s *JsDocTokenStream) GetRemainingJSDocLine() string {
-	if s.ungetCursor == 0 && !s.hasPendingLo && s.stringBufferTop == 0 && s.lineEndChar < 0 {
+	if s.ungetCursor == 0 && s.stringBufferTop == 0 && s.lineEndChar < 0 {
 		src := s.rawSource
 		end := len(src)
 		start := s.byteCursor
@@ -447,9 +441,8 @@ func (s *JsDocTokenStream) GetStringFromBuffer() string {
 	if n == 0 {
 		return ""
 	}
-	var stack [256]byte
-	b := appendUTF16ToWTF8(stack[:0], s.stringBuffer[:n])
-	if !s.hasPendingLo && s.ungetCursor <= 1 {
+	b := s.stringBuffer[:n]
+	if s.ungetCursor <= 1 {
 		end := s.byteCursor
 		if s.ungetCursor == 1 {
 			uc := s.ungetBuffer[0]
@@ -473,88 +466,44 @@ func decodeWTF8Rune(s string) (rune, int) {
 	return utf8.DecodeRuneInString(s)
 }
 
-// appendWTF8ToUTF16 appends the UTF-16 code units of WTF-8 string s into dst,
-// preserving lone surrogates identically to jutil.StringToUTF16.
-func appendWTF8ToUTF16(dst []uint16, s string) []uint16 {
-	prefix := jutil.ASCIIPrefixLen(s)
-	if cap(dst)-len(dst) < len(s) {
-		grown := make([]uint16, len(dst)+prefix, len(dst)+len(s))
-		copy(grown, dst)
-		dst = grown
-	} else {
-		base := len(dst)
-		dst = dst[:base+prefix]
-		for i := 0; i < prefix; i++ {
-			dst[base+i] = uint16(s[i])
-		}
-		goto decodeTail
+func charUTF16Width(c int) int {
+	if c >= 0x10000 {
+		return 2
 	}
-	for i := 0; i < prefix; i++ {
-		dst[len(dst)-prefix+i] = uint16(s[i])
-	}
-decodeTail:
-	for i := prefix; i < len(s); {
-		c := s[i]
-		if c < 0x80 {
-			dst = append(dst, uint16(c))
-			i++
-			continue
-		}
-		r, n := decodeWTF8Rune(s[i:])
-		i += n
-		if r >= 0x10000 {
-			hi, lo := utf16.EncodeRune(r)
-			dst = append(dst, uint16(hi), uint16(lo))
-		} else {
-			dst = append(dst, uint16(r))
-		}
-	}
-	return dst
+	return 1
 }
 
-// appendUTF16ToWTF8 encodes UTF-16 code units into WTF-8 bytes in dst,
-// preserving surrogate pairs as 4-byte UTF-8 and lone surrogates as 3-byte
-// generalized UTF-8 identically to jutil.StringFromUTF16.
-func appendUTF16ToWTF8(dst []byte, units []uint16) []byte {
-	for i := 0; i < len(units); i++ {
-		u := units[i]
-		if u < 0x80 {
-			dst = append(dst, byte(u))
-			continue
-		}
-		if u < 0x800 {
-			dst = append(dst, byte(0xC0|(u>>6)), byte(0x80|(u&0x3F)))
-			continue
-		}
-		if u >= 0xD800 && u < 0xDC00 && i+1 < len(units) {
-			if lo := units[i+1]; lo >= 0xDC00 && lo <= 0xDFFF {
-				dst = utf8.AppendRune(dst, utf16.DecodeRune(rune(u), rune(lo)))
-				i++
-				continue
-			}
-		}
-		dst = append(dst,
-			byte(0xE0|(u>>12)),
-			byte(0x80|((u>>6)&0x3F)),
-			byte(0x80|(u&0x3F)))
+func (s *JsDocTokenStream) ungetUTF16Len() int {
+	n := 0
+	for i := 0; i < s.ungetCursor; i++ {
+		n += charUTF16Width(s.ungetBuffer[i])
 	}
-	return dst
+	return n
 }
 
 // Java: JsDocTokenStream.AddToString(int)
 func (s *JsDocTokenStream) AddToString(c int) {
-	n := s.stringBufferTop
-	if n == len(s.stringBuffer) {
-		if n == 0 {
-			s.stringBuffer = s.stringScratch[:]
-		} else {
-			tmp := make([]uint16, n*2)
-			copy(tmp, s.stringBuffer[:n])
-			s.stringBuffer = tmp
-		}
+	if s.stringBuffer == nil {
+		s.stringBuffer = s.stringScratch[:0]
 	}
-	s.stringBuffer[n] = uint16(c)
-	s.stringBufferTop = n + 1
+	b := s.stringBuffer[:s.stringBufferTop]
+	if c < 0x80 {
+		b = append(b, byte(c))
+	} else if c < 0x800 {
+		b = append(b, byte(0xC0|(c>>6)), byte(0x80|(c&0x3F)))
+	} else if c < 0x10000 {
+		if c >= 0xDC00 && c <= 0xDFFF && len(b) >= 3 && b[len(b)-3] == 0xED && b[len(b)-2] >= 0xA0 && b[len(b)-2] <= 0xAF {
+			hi := int(b[len(b)-3]&0x0F)<<12 | int(b[len(b)-2]&0x3F)<<6 | int(b[len(b)-1]&0x3F)
+			cp := 0x10000 + ((hi - 0xD800) << 10) + (c - 0xDC00)
+			b = utf8.AppendRune(b[:len(b)-3], rune(cp))
+		} else {
+			b = append(b, byte(0xE0|(c>>12)), byte(0x80|((c>>6)&0x3F)), byte(0x80|(c&0x3F)))
+		}
+	} else {
+		b = utf8.AppendRune(b, rune(c))
+	}
+	s.stringBuffer = b
+	s.stringBufferTop = len(b)
 }
 
 // Java: JsDocTokenStream.ungetChar(int)
@@ -563,7 +512,7 @@ func (s *JsDocTokenStream) UngetChar(c int) {
 	// (the Java assert is dropped, PORTING.md §5)
 	s.ungetBuffer[s.ungetCursor] = c
 	s.ungetCursor++
-	s.cursor--
+	s.cursor -= charUTF16Width(c)
 }
 
 // Java: JsDocTokenStream.MatchChar(int)
@@ -641,47 +590,39 @@ func (s *JsDocTokenStream) GetCharIgnoreLineEnd() int {
 
 func (s *JsDocTokenStream) getChar(ignoreLineEnd bool) int {
 	if s.ungetCursor != 0 {
-		s.cursor++
 		s.ungetCursor--
+		c := s.ungetBuffer[s.ungetCursor]
+		w := charUTF16Width(c)
+		s.cursor += w
 		if s.charno == -1 {
-			s.charno = s.GetLineOffset()
+			s.charno = s.GetLineOffset() - (w - 1)
 		}
-		return s.ungetBuffer[s.ungetCursor]
+		return c
 	}
 
 	for {
-		var c int
-		if s.hasPendingLo {
-			s.hasPendingLo = false
-			c = int(s.pendingLo)
-			s.cursor++
-			s.sourceCursor++
-		} else {
-			if s.byteCursor == len(s.rawSource) {
-				if s.charno == -1 {
-					s.charno = s.GetLineOffset()
-				}
-				return JsDocTokenStream_EOF_CHAR
+		if s.byteCursor == len(s.rawSource) {
+			if s.charno == -1 {
+				s.charno = s.GetLineOffset()
 			}
-			b := s.rawSource[s.byteCursor]
-			if b < 0x80 {
-				c = int(b)
-				s.byteCursor++
-			} else {
-				r, width := decodeWTF8Rune(s.rawSource[s.byteCursor:])
-				s.byteCursor += width
-				if r >= 0x10000 {
-					hi, lo := utf16.EncodeRune(r)
-					c = int(hi)
-					s.pendingLo = uint16(lo)
-					s.hasPendingLo = true
-				} else {
-					c = int(r)
-				}
-			}
-			s.cursor++
-			s.sourceCursor++
+			return JsDocTokenStream_EOF_CHAR
 		}
+		var c int
+		w := 1
+		b := s.rawSource[s.byteCursor]
+		if b < 0x80 {
+			c = int(b)
+			s.byteCursor++
+		} else {
+			r, width := decodeWTF8Rune(s.rawSource[s.byteCursor:])
+			s.byteCursor += width
+			c = int(r)
+			if c >= 0x10000 {
+				w = 2
+			}
+		}
+		s.cursor += w
+		s.sourceCursor += w
 
 		if !ignoreLineEnd && s.lineEndChar >= 0 {
 			if s.lineEndChar == '\r' && c == '\n' {
@@ -689,7 +630,7 @@ func (s *JsDocTokenStream) getChar(ignoreLineEnd bool) int {
 				continue
 			}
 			s.lineEndChar = -1
-			s.lineStart = s.sourceCursor - 1
+			s.lineStart = s.sourceCursor - w
 			s.lineno++
 		}
 
@@ -698,7 +639,7 @@ func (s *JsDocTokenStream) getChar(ignoreLineEnd bool) int {
 				s.lineEndChar = c
 				c = '\n'
 			}
-		} else {
+		} else if c <= 0xFFFF {
 			if rhino.TokenUtil_IsJSFormatChar(c) {
 				continue
 			}
@@ -709,7 +650,7 @@ func (s *JsDocTokenStream) getChar(ignoreLineEnd bool) int {
 		}
 
 		if s.charno == -1 {
-			s.charno = s.GetLineOffset()
+			s.charno = s.GetLineOffset() - (w - 1)
 		}
 
 		return c
@@ -735,7 +676,7 @@ func (s *JsDocTokenStream) UngetCharIgnoreLineEnd(c int) {
 //
 // Java: JsDocTokenStream.GetLineOffset()
 func (s *JsDocTokenStream) GetLineOffset() int {
-	return s.sourceCursor - s.lineStart - s.ungetCursor - 1
+	return s.sourceCursor - s.lineStart - s.ungetUTF16Len() - 1
 }
 
 // Java: JsDocTokenStream.getCursor()

@@ -394,8 +394,6 @@ type JSTypeRegistry struct {
 
 	unionBuilderStack    [16]UnionType_Builder
 	unionBuilderDepth    int
-	fnBuilderStack       [8]FunctionType_Builder
-	fnBuilderDepth       int
 	leastSupertypeGen    uint32
 	leastSupertypeCache  *[jsTypeRegistryLeastSupertypeCacheSize]leastSupertypeCacheEntry
 	templateTypeMapCache *[jsTypeRegistryTemplatizedCacheSize]templateTypeMapCacheEntry
@@ -436,24 +434,6 @@ func (r *JSTypeRegistry) setObjectDocInfo(o *ObjectTypeBase, info *JSDocInfo) {
 func (r *JSTypeRegistry) deleteObjectDocInfo(o *ObjectTypeBase) {
 	if r != nil && r.objectDocInfo != nil {
 		delete(r.objectDocInfo, o)
-	}
-}
-
-func (r *JSTypeRegistry) acquireFunctionBuilder() *FunctionType_Builder {
-	if r != nil && !r.parallelReadOnly && r.fnBuilderDepth < len(r.fnBuilderStack) {
-		b := &r.fnBuilderStack[r.fnBuilderDepth]
-		r.fnBuilderDepth++
-		*b = FunctionType_Builder{}
-		b.pooled = true
-		return b
-	}
-	return &FunctionType_Builder{}
-}
-
-func (r *JSTypeRegistry) releaseFunctionBuilder(b *FunctionType_Builder) {
-	if b.pooled && r != nil && !r.parallelReadOnly && r.fnBuilderDepth > 0 && b == &r.fnBuilderStack[r.fnBuilderDepth-1] {
-		b.pooled = false
-		r.fnBuilderDepth--
 	}
 }
 

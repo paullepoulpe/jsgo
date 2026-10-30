@@ -596,9 +596,10 @@ func (a *AstFactory) CreateZeroArgArrowFunctionForExpression(expression rhino.No
 		// because you're allowed to supply any kind of value of `this` when calling an arrow
 		// function. It will just be ignored in favor of the `this` in the scope where the
 		// arrow was defined.
+		var b rhino.FunctionType_Builder
+		b.Init(a.registry)
 		functionType :=
-			rhino.FunctionType_Builder_(a.registry).
-				WithReturnType(expression.GetJSTypeRequired()).
+			b.WithReturnType(expression.GetJSTypeRequired()).
 				WithParameters().
 				BuildAndResolve()
 		result.SetJSType(functionType)

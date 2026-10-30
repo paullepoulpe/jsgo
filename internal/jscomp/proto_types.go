@@ -50,16 +50,6 @@ func (e PrimitiveType) GetNumber() int32 {
 	return int32(e)
 }
 
-// PrimitiveType_ForNumber returns the constant with the given number, if valid.
-//
-// Java: PrimitiveType.forNumber(int)
-func PrimitiveType_ForNumber(value int32) (PrimitiveType, bool) {
-	if uint32(value) < uint32(PrimitiveType_UNRECOGNIZED) {
-		return PrimitiveType(value), true
-	}
-	return 0, false
-}
-
 // TypePool is the protobuf message jscomp.TypePool.
 //
 // Java: com.google.javascript.jscomp.serialization.TypePool
@@ -75,16 +65,6 @@ var typePool_DEFAULT_INSTANCE = &TypePool{cachedSize: 1}
 
 // Java: TypePool.getDefaultInstance()
 func TypePool_GetDefaultInstance() *TypePool { return typePool_DEFAULT_INSTANCE }
-
-// TypePool_ParseFrom panics with *InvalidProtocolBufferException on malformed input.
-//
-// Java: TypePool.parseFrom(byte[])
-func TypePool_ParseFrom(data []byte) *TypePool {
-	m := &TypePool{}
-	r := protoReader{b: data}
-	m.mergeFromReader(&r)
-	return m
-}
 
 // Java: TypePool.getTypeList()
 func (m *TypePool) GetTypeList() []*TypeProto { return m.type_ }
@@ -103,7 +83,7 @@ func (m *TypePool) GetDebugInfo() *TypePool_DebugInfo {
 	if m.debugInfo_ != nil {
 		return m.debugInfo_
 	}
-	return TypePool_DebugInfo_GetDefaultInstance()
+	return typePool_DebugInfo_DEFAULT_INSTANCE
 }
 
 // appendTo is TypePool.writeTo(CodedOutputStream): fields in number order, then unknown fields.
@@ -226,11 +206,6 @@ type TypePool_DebugInfo struct {
 }
 
 var typePool_DebugInfo_DEFAULT_INSTANCE = &TypePool_DebugInfo{cachedSize: 1}
-
-// Java: TypePool.DebugInfo.getDefaultInstance()
-func TypePool_DebugInfo_GetDefaultInstance() *TypePool_DebugInfo {
-	return typePool_DebugInfo_DEFAULT_INSTANCE
-}
 
 // Java: TypePool.DebugInfo.getMismatchList()
 func (m *TypePool_DebugInfo) GetMismatchList() []*TypePool_DebugInfo_Mismatch { return m.mismatch_ }
@@ -484,9 +459,6 @@ type UnionTypeProto struct {
 
 var unionTypeProto_DEFAULT_INSTANCE = &UnionTypeProto{cachedSize: 1}
 
-// Java: UnionTypeProto.getDefaultInstance()
-func UnionTypeProto_GetDefaultInstance() *UnionTypeProto { return unionTypeProto_DEFAULT_INSTANCE }
-
 // Java: UnionTypeProto.getUnionMemberList()
 func (m *UnionTypeProto) GetUnionMemberList() []int32 { return m.unionMember_ }
 
@@ -573,9 +545,6 @@ type ObjectTypeProto struct {
 }
 
 var objectTypeProto_DEFAULT_INSTANCE = &ObjectTypeProto{cachedSize: 1}
-
-// Java: ObjectTypeProto.getDefaultInstance()
-func ObjectTypeProto_GetDefaultInstance() *ObjectTypeProto { return objectTypeProto_DEFAULT_INSTANCE }
 
 // Java: ObjectTypeProto.getIsInvalidating()
 func (m *ObjectTypeProto) GetIsInvalidating() bool { return m.isInvalidating_ }
@@ -901,7 +870,7 @@ func (m *TypeProto) GetObject() *ObjectTypeProto {
 	if m.kindCase_ == 2 {
 		return m.object_
 	}
-	return ObjectTypeProto_GetDefaultInstance()
+	return objectTypeProto_DEFAULT_INSTANCE
 }
 
 // Java: TypeProto.hasUnion()
@@ -912,7 +881,7 @@ func (m *TypeProto) GetUnion() *UnionTypeProto {
 	if m.kindCase_ == 4 {
 		return m.union_
 	}
-	return UnionTypeProto_GetDefaultInstance()
+	return unionTypeProto_DEFAULT_INSTANCE
 }
 
 // appendTo is TypeProto.writeTo(CodedOutputStream): fields in number order, then unknown fields.

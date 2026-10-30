@@ -59,18 +59,14 @@ import (
 //
 // Go-only: language-adapter — closureNamespace is stored unboxed on Module
 // (returning an interior pointer from ClosureNamespace when present), native
-// OrderedStringMap fields back Namespace/BoundNames/LocalNameToLocalExport
-// with lazy LinkedHashMap materialization, and AutoBuilder_Module_Builder is
-// replaced by NewModule / WithBoundNamesMap.
+// OrderedStringMap fields back NamespaceMap/BoundNamesMap/LocalExportsMap,
+// and AutoBuilder_Module_Builder is replaced by NewModule / WithBoundNamesMap.
 type Module struct {
 	metadata               *ModuleMetadataMap_ModuleMetadata
 	path                   *ModuleLoader_ModulePath
 	namespace              *OrderedStringMap[*Binding]
 	boundNames             *OrderedStringMap[*Binding]
 	localNameToLocalExport *OrderedStringMap[*Export]
-	lazyNamespace          *jutil.LinkedHashMap[string, *Binding]
-	lazyBoundNames         *jutil.LinkedHashMap[string, *Binding]
-	lazyLocalExports       *jutil.LinkedHashMap[string, *Export]
 	closureNamespace       string
 	hasClosureNamespace    bool
 }
@@ -113,32 +109,11 @@ func (m *Module) NamespaceMap() *OrderedStringMap[*Binding] { return m.namespace
 // BoundNamesMap returns the native OrderedStringMap of bound names.
 func (m *Module) BoundNamesMap() *OrderedStringMap[*Binding] { return m.boundNames }
 
+// Java: Module.boundNames()
+func (m *Module) BoundNames() *OrderedStringMap[*Binding] { return m.boundNames }
+
 // LocalExportsMap returns the native OrderedStringMap of local exports.
 func (m *Module) LocalExportsMap() *OrderedStringMap[*Export] { return m.localNameToLocalExport }
-
-// Java: Module.namespace()
-func (m *Module) Namespace() *jutil.LinkedHashMap[string, *Binding] {
-	if m.lazyNamespace == nil {
-		m.lazyNamespace = m.namespace.toLinkedHashMap(nonEsEmptyLinkedBindingMap)
-	}
-	return m.lazyNamespace
-}
-
-// Java: Module.boundNames()
-func (m *Module) BoundNames() *jutil.LinkedHashMap[string, *Binding] {
-	if m.lazyBoundNames == nil {
-		m.lazyBoundNames = m.boundNames.toLinkedHashMap(nonEsEmptyLinkedBindingMap)
-	}
-	return m.lazyBoundNames
-}
-
-// Java: Module.localNameToLocalExport()
-func (m *Module) LocalNameToLocalExport() *jutil.LinkedHashMap[string, *Export] {
-	if m.lazyLocalExports == nil {
-		m.lazyLocalExports = m.localNameToLocalExport.toLinkedHashMap(nonEsEmptyLinkedExportMap)
-	}
-	return m.lazyLocalExports
-}
 
 // ClosureNamespace returns an interior pointer to closureNamespace when
 // present, or nil when absent (zero extra heap allocation).
@@ -164,7 +139,6 @@ func (m *Module) WithBoundNamesMap(boundNames *OrderedStringMap[*Binding]) *Modu
 	}
 	cp := *m
 	cp.boundNames = boundNames
-	cp.lazyBoundNames = nil
 	return &cp
 }
 
@@ -711,10 +685,8 @@ func ResolveExportResult_Of(binding *Binding) *ResolveExportResult {
 }
 
 var (
-	nonEsEmptyBindingMap       = &OrderedStringMap[*Binding]{}
-	nonEsEmptyExportMap        = &OrderedStringMap[*Export]{}
-	nonEsEmptyLinkedBindingMap = jutil.NewLinkedHashMap[string, *Binding]()
-	nonEsEmptyLinkedExportMap  = jutil.NewLinkedHashMap[string, *Export]()
+	nonEsEmptyBindingMap = &OrderedStringMap[*Binding]{}
+	nonEsEmptyExportMap  = &OrderedStringMap[*Export]{}
 )
 
 // NonEsModuleProcessor is the catch-all module processor for non-ES and

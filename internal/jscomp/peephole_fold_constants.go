@@ -169,13 +169,23 @@ func (p *PeepholeFoldConstants) OptimizeSubtree(subtree rhino.Node) rhino.Node {
 		return p.TryFoldSpread(subtree)
 	case rhino.Token_ARRAYLIT, rhino.Token_OBJECTLIT:
 		return p.TryFlattenArrayOrObjectLit(subtree)
-	case rhino.Token_NOT, rhino.Token_POS, rhino.Token_NEG, rhino.Token_BITNOT:
+	case rhino.Token_NEG:
+		if subtree.GetFirstChild().IsNumber() {
+			return subtree
+		}
+		p.TryReduceOperandsForOp(subtree)
+		return p.TryFoldUnaryOperator(subtree)
+	case rhino.Token_NOT, rhino.Token_POS, rhino.Token_BITNOT:
 		p.TryReduceOperandsForOp(subtree)
 		return p.TryFoldUnaryOperator(subtree)
 	case rhino.Token_VOID:
 		return p.TryReduceVoid(subtree)
 	case rhino.Token_OPTCHAIN_GETPROP, rhino.Token_GETPROP:
 		return p.TryFoldGetProp(subtree)
+	case rhino.Token_GETELEM, rhino.Token_OPTCHAIN_GETELEM:
+		return p.TryFoldGetElem(subtree)
+	case rhino.Token_ASSIGN:
+		return p.TryFoldAssign(subtree)
 	case rhino.Token_TEMPLATELIT:
 		return p.TryFoldTemplateLiteralSubstitutions(subtree)
 	default:

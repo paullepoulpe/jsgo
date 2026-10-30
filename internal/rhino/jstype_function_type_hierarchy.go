@@ -75,8 +75,8 @@ func (f *FunctionTypeBase) GetPrototypeProperty() ObjectType {
 func (f *FunctionTypeBase) GetPrototype() ObjectType {
 	// lazy initialization of the prototype field
 	if f.prototypeSlot() == nil {
-		refName := f.GetReferenceName()
-		if refName == nil {
+		refName, ok := f.referenceNameString()
+		if !ok {
 			// Someone is trying to access the prototype of a structural function.
 			// We don't want to give real properties to this prototype, because
 			// then it would propagate to all structural functions.
@@ -84,7 +84,7 @@ func (f *FunctionTypeBase) GetPrototype() ObjectType {
 		} else {
 			fields := PrototypeObjectType_Builder{
 				registry:          f.GetRegistry(),
-				classNameID:       rhinoStringPoolIntern(*refName + ".prototype"),
+				classNameID:       rhinoStringPoolIntern(refName + ".prototype"),
 				implicitPrototype: f.GetRegistry().GetNativeObjectType(JSTypeNative_OBJECT_TYPE),
 				nativeType:        f.IsNativeObjectType(),
 				templateTypeMap:   f.GetRegistry().GetEmptyTemplateTypeMap(),
@@ -140,9 +140,13 @@ func (f *FunctionTypeBase) SetPrototypeBasedOnWithPropertyNode(baseType ObjectTy
 			// Bail out for cases like Foo.prototype = new Foo();
 			return
 		}
+		refName, ok := f.referenceNameString()
+		if !ok {
+			refName = "null"
+		}
 		fields := PrototypeObjectType_Builder{
 			registry:          f.GetRegistry(),
-			classNameID:       rhinoStringPoolIntern(jutil.ToJavaString(f.GetReferenceName()) + ".prototype"),
+			classNameID:       rhinoStringPoolIntern(refName + ".prototype"),
 			implicitPrototype: baseType,
 			templateTypeMap:   f.GetRegistry().GetEmptyTemplateTypeMap(),
 		}
@@ -620,7 +624,7 @@ func (f *FunctionTypeBase) SupAndInfHelper(that FunctionType, leastSuper bool) F
 //
 // Java: FunctionType.TryMergeFunctionPiecewise(FunctionType, boolean)
 func (f *FunctionTypeBase) TryMergeFunctionPiecewise(other FunctionType, leastSuper bool) FunctionType {
-	var newParamsNode []*FunctionType_Parameter
+	var newParamsNode []FunctionType_Parameter
 	if NewEqualityChecker().
 		SetEqMethod(EqualityChecker_EqMethod_IDENTITY).
 		CheckParameters(&f.call, &other.call) {
@@ -650,7 +654,9 @@ func (f *FunctionTypeBase) TryMergeFunctionPiecewise(other FunctionType, leastSu
 
 	newReturnTypeInferred := f.call.returnTypeInferred || other.call.returnTypeInferred
 
-	return FunctionType_Builder_(f.GetRegistry()).
+	var b FunctionType_Builder
+	b.Init(f.GetRegistry())
+	return b.
 		WithParametersOfList(newParamsNode).
 		WithReturnTypeWithInferred(newReturnType, newReturnTypeInferred).
 		WithTypeOfThis(newTypeOfThis).
@@ -841,5 +847,6 @@ var FunctionType_DELEGATE_SUFFIX = ObjectType_CreateDelegateSuffix("Proxy")
 func (f *FunctionTypeBase) IsDelegateProxy() bool {
 	// TODO(bradfordcsmith): There should be a better way to determine that we
 	// have a proxy type.
-	return f.HasReferenceName() && strings.HasSuffix(*f.GetReferenceName(), FunctionType_DELEGATE_SUFFIX)
+	name, ok := f.referenceNameString()
+	return ok && strings.HasSuffix(name, FunctionType_DELEGATE_SUFFIX)
 }

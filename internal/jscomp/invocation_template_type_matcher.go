@@ -111,7 +111,7 @@ func (m *InvocationTemplateTypeMatcher) match() {
 		// Resolve the remaining template types from the template literal substitutions.
 		declParams := calleeParameters[1:]
 		i := 0
-		var variadicParam *rhino.FunctionType_Parameter
+		var variadicParam rhino.FunctionType_Parameter
 		for callParam := range NewNodeUtil_TemplateArgsIterable(m.invocation.GetLastChild()).All() {
 			if !m.matchCallArg(declParams, &i, &variadicParam, callParam) {
 				break
@@ -120,7 +120,7 @@ func (m *InvocationTemplateTypeMatcher) match() {
 	} else if m.invocation.HasMoreThanOneChild() {
 		declParams := m.calleeType.GetParameters()
 		i := 0
-		var variadicParam *rhino.FunctionType_Parameter
+		var variadicParam rhino.FunctionType_Parameter
 		for callParam := m.invocation.GetSecondChild(); !callParam.IsNil(); callParam = callParam.GetNext() {
 			if !m.matchCallArg(declParams, &i, &variadicParam, callParam) {
 				break
@@ -139,12 +139,12 @@ func (m *InvocationTemplateTypeMatcher) getOrDefault(key *rhino.TemplateType, de
 }
 
 func (m *InvocationTemplateTypeMatcher) matchCallArg(
-	declParams []*rhino.FunctionType_Parameter,
+	declParams []rhino.FunctionType_Parameter,
 	i *int,
-	variadicParam **rhino.FunctionType_Parameter,
+	variadicParam *rhino.FunctionType_Parameter,
 	callParam rhino.Node) bool {
-	if *variadicParam != nil {
-		m.matchTemplateTypesRecursive((*variadicParam).GetJSType(), m.getTypeOrUnknown(callParam))
+	if !variadicParam.IsZero() {
+		m.matchTemplateTypesRecursive(variadicParam.GetJSType(), m.getTypeOrUnknown(callParam))
 		return true
 	}
 	if *i >= len(declParams) {
@@ -245,7 +245,7 @@ func (m *InvocationTemplateTypeMatcher) matchTemplateTypesRecursive(paramType rh
 
 // Java: InvocationTemplateTypeMatcher.matchTemplateTypesFromParameters(Iterator<Parameter>, Iterator<Parameter>)
 func (m *InvocationTemplateTypeMatcher) matchTemplateTypesFromParameters(
-	declParams []*rhino.FunctionType_Parameter, callParams []*rhino.FunctionType_Parameter) {
+	declParams []rhino.FunctionType_Parameter, callParams []rhino.FunctionType_Parameter) {
 	i, j := 0, 0
 	for i < len(declParams) && j < len(callParams) {
 		declParam := declParams[i]

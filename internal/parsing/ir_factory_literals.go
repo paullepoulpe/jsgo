@@ -1026,3 +1026,71 @@ func IRFactory_TransformBinaryTokenType(token parser.TokenType) rhino.Token {
 		panic(jutil.NewIllegalStateExceptionMsg(token.String()))
 	}
 }
+
+// appendWTF8ToUTF16 appends the UTF-16 code units of WTF-8 string s into dst,
+// preserving lone surrogates identically to jutil.StringToUTF16.
+func appendWTF8ToUTF16(dst []uint16, s string) []uint16 {
+	prefix := jutil.ASCIIPrefixLen(s)
+	if cap(dst)-len(dst) < len(s) {
+		grown := make([]uint16, len(dst)+prefix, len(dst)+len(s))
+		copy(grown, dst)
+		dst = grown
+	} else {
+		base := len(dst)
+		dst = dst[:base+prefix]
+		for i := 0; i < prefix; i++ {
+			dst[base+i] = uint16(s[i])
+		}
+		goto decodeTail
+	}
+	for i := 0; i < prefix; i++ {
+		dst[len(dst)-prefix+i] = uint16(s[i])
+	}
+decodeTail:
+	for i := prefix; i < len(s); {
+		c := s[i]
+		if c < 0x80 {
+			dst = append(dst, uint16(c))
+			i++
+			continue
+		}
+		r, n := decodeWTF8Rune(s[i:])
+		i += n
+		if r >= 0x10000 {
+			hi, lo := utf16.EncodeRune(r)
+			dst = append(dst, uint16(hi), uint16(lo))
+		} else {
+			dst = append(dst, uint16(r))
+		}
+	}
+	return dst
+}
+
+// appendUTF16ToWTF8 encodes UTF-16 code units into WTF-8 bytes in dst,
+// preserving surrogate pairs as 4-byte UTF-8 and lone surrogates as 3-byte
+// generalized UTF-8 identically to jutil.StringFromUTF16.
+func appendUTF16ToWTF8(dst []byte, units []uint16) []byte {
+	for i := 0; i < len(units); i++ {
+		u := units[i]
+		if u < 0x80 {
+			dst = append(dst, byte(u))
+			continue
+		}
+		if u < 0x800 {
+			dst = append(dst, byte(0xC0|(u>>6)), byte(0x80|(u&0x3F)))
+			continue
+		}
+		if u >= 0xD800 && u < 0xDC00 && i+1 < len(units) {
+			if lo := units[i+1]; lo >= 0xDC00 && lo <= 0xDFFF {
+				dst = utf8.AppendRune(dst, utf16.DecodeRune(rune(u), rune(lo)))
+				i++
+				continue
+			}
+		}
+		dst = append(dst,
+			byte(0xE0|(u>>12)),
+			byte(0x80|((u>>6)&0x3F)),
+			byte(0x80|(u&0x3F)))
+	}
+	return dst
+}

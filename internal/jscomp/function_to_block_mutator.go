@@ -47,6 +47,7 @@ type FunctionToBlockMutator struct {
 	allNamesToAliasScratch   inlineIDSet
 	paramReplacementsScratch inlineIDNodeMap
 	newAliasesToAddScratch   []rhino.Node
+	scratchSummary           calleeSummary
 }
 
 // Java: FunctionToBlockMutator(AbstractCompiler, Supplier<String>)
@@ -92,7 +93,7 @@ func (m *FunctionToBlockMutator) mutateWithSummary(
 	if m.allowMoveCallArgs {
 		m.currentCallNode = callNode
 	}
-	res := m.mutateInternalWithSummary(
+	res := m.mutateInternal(
 		fnName,
 		fnNode,
 		callNode,
@@ -125,40 +126,18 @@ func (m *FunctionToBlockMutator) MutateWithoutRenaming(
 	resultName string,
 	needsDefaultResult bool,
 	isCallInLoop bool) rhino.Node {
-	return m.MutateInternal(
+	return m.mutateInternal(
 		fnName,
 		fnNode,
 		callNode,
 		resultName,
 		needsDefaultResult,
 		isCallInLoop,
-		/* renameLocals= */ false)
+		/* renameLocals= */ false,
+		nil)
 }
 
-// MutateInternal: fnName is the name to use when preparing human readable
-// names; fnNode the function to prepare; callNode the call node that will be
-// replaced; resultName the name function results should be assigned to;
-// needsDefaultResult whether the result value must be set; isCallInLoop
-// whether the function body must be prepared to be injected into the body
-// of a loop; renameLocals false if the inlining is part of module rewriting
-// and doesn't require making local names unique. Returns a clone of the
-// function body mutated to be suitable for injection as a statement into
-// another code block.
-//
-// Java: FunctionToBlockMutator.mutateInternal(String, Node, Node, String, boolean, boolean, boolean)
-func (m *FunctionToBlockMutator) MutateInternal(
-	fnName string,
-	fnNode rhino.Node,
-	callNode rhino.Node,
-	resultName string,
-	needsDefaultResult bool,
-	isCallInLoop bool,
-	renameLocals bool) rhino.Node {
-	return m.mutateInternalWithSummary(
-		fnName, fnNode, callNode, resultName, needsDefaultResult, isCallInLoop, renameLocals, nil)
-}
-
-func (m *FunctionToBlockMutator) mutateInternalWithSummary(
+func (m *FunctionToBlockMutator) mutateInternal(
 	fnName string,
 	fnNode rhino.Node,
 	callNode rhino.Node,
@@ -169,9 +148,8 @@ func (m *FunctionToBlockMutator) mutateInternalWithSummary(
 	summary *calleeSummary,
 ) rhino.Node {
 	if summary == nil || summary.fnNode != fnNode {
-		localSummary := new(calleeSummary)
-		if scanCalleeSummary(fnName, fnNode, localSummary) {
-			summary = localSummary
+		if scanCalleeSummary(fnName, fnNode, &m.scratchSummary) {
+			summary = &m.scratchSummary
 		} else {
 			summary = nil
 		}

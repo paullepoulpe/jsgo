@@ -135,7 +135,7 @@ func (r *NestedCompilerRunner) initializeCompiler() {
 	externNames :=
 		NodeUtil_CollectExternVariableNames(r.original, r.original.GetRoot().GetFirstChild())
 	r.shadowCompiler.AddExportedNames(externNames)
-	r.shadowCompiler.SetExternProperties(r.original.GetExternProperties())
+	r.shadowCompiler.SetExternPropSet(r.original.GetExternPropSet())
 	debugMessage := "<shadow AST compilation>"
 	r.shadowCompiler.SetDebugMessage(&debugMessage)
 

@@ -917,7 +917,7 @@ func (c *SerializeAndDeserializeAstTest) runWithoutExpected(externs *CompilerTes
 	result := make([]*TypedAst, 1)
 	c.consumer = func(ast *TypedAst) { result[0] = ast }
 	c.CompilerTestCaseBase.TestNoWarning(externs, code)
-	serializedStream := bytes.NewReader((&TypedAst_List{typedAsts_: result}).ToByteArray())
+	serializedStream := bytes.NewBuffer((&TypedAst_List{typedAsts_: result}).ToByteArray())
 	return c.run(externs, code, serializedStream)
 }
 
@@ -1059,7 +1059,7 @@ func (c *SerializeAndDeserializeAstTest) toInputStream(externs *CompilerTestCase
 	// The process of serializing modifies the input code (e.g. removing casts and changing JSDoc)
 	// to the expected result.
 	c.CompilerTestCaseBase.Test(externs, code, expected)
-	return bytes.NewReader((&TypedAst_List{typedAsts_: result}).ToByteArray())
+	return bytes.NewBuffer((&TypedAst_List{typedAsts_: result}).ToByteArray())
 }
 
 // Java: SerializeAndDeserializeAstTest.createZipWithContent(Path, String)

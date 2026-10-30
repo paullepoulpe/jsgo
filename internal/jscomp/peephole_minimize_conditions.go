@@ -104,7 +104,11 @@ func (p *PeepholeMinimizeConditions) OptimizeSubtree(node rhino.Node) rhino.Node
 		return p.TryMinimizeIf(ifs)
 	case rhino.Token_EXPR_RESULT:
 		expr := ast.MustExprStmt(node)
-		p.PerformConditionSubstitutions(expr.Expr().Node())
+		inner := expr.Expr().Node()
+		if peepholeExprResultCannotMinimize(inner) {
+			return node
+		}
+		p.PerformConditionSubstitutions(inner)
 		return p.TryMinimizeExprResult(expr)
 	case rhino.Token_HOOK:
 		hook := ast.MustHook(node)
@@ -133,6 +137,51 @@ func (p *PeepholeMinimizeConditions) OptimizeSubtree(node rhino.Node) rhino.Node
 	default:
 		return node
 		// Nothing changed
+	}
+}
+
+func peepholeExprResultCannotMinimize(expr rhino.Node) bool {
+	switch expr.GetToken() {
+	case rhino.Token_ASSIGN,
+		rhino.Token_ASSIGN_BITOR,
+		rhino.Token_ASSIGN_BITXOR,
+		rhino.Token_ASSIGN_BITAND,
+		rhino.Token_ASSIGN_LSH,
+		rhino.Token_ASSIGN_RSH,
+		rhino.Token_ASSIGN_URSH,
+		rhino.Token_ASSIGN_ADD,
+		rhino.Token_ASSIGN_SUB,
+		rhino.Token_ASSIGN_MUL,
+		rhino.Token_ASSIGN_DIV,
+		rhino.Token_ASSIGN_MOD,
+		rhino.Token_ASSIGN_EXPONENT,
+		rhino.Token_ASSIGN_OR,
+		rhino.Token_ASSIGN_AND,
+		rhino.Token_ASSIGN_COALESCE:
+		target := expr.GetFirstChild()
+		if target.IsName() {
+			return true
+		}
+		if !NodeUtil_IsNormalGet(target) {
+			return false
+		}
+		current := target.GetFirstChild()
+		if NodeUtil_EvaluatesToLocalValue(current) {
+			return false
+		}
+		for NodeUtil_IsNormalGet(current) {
+			current = current.GetFirstChild()
+		}
+		return !NodeUtil_IsLiteralValue(current, true)
+	case rhino.Token_INC,
+		rhino.Token_DEC,
+		rhino.Token_DELPROP,
+		rhino.Token_YIELD,
+		rhino.Token_AWAIT,
+		rhino.Token_DYNAMIC_IMPORT:
+		return true
+	default:
+		return false
 	}
 }
 

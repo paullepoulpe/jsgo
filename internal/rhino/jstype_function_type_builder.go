@@ -44,20 +44,17 @@ func FunctionType_Builder_(registry *JSTypeRegistry) *FunctionType_Builder {
 	return NewFunctionType_Builder(registry)
 }
 
-func (f *FunctionTypeBase) initBuilder(b *FunctionType_Builder) {
+// InitBuilder initializes b as a copy of f without heap-allocating b.
+func (f *FunctionTypeBase) InitBuilder(b *FunctionType_Builder) {
 	b.registry = f.GetRegistry()
 	b.implicitPrototype = jutil.CheckNotNull(f.GetRegistry().GetNativeObjectType(JSTypeNative_FUNCTION_PROTOTYPE))
-	b.googModuleID = rhinoStringIDFromPtr(f.GetGoogModuleId())
-	b.classNameID = rhinoStringIDFromPtr(f.GetReferenceName())
+	b.googModuleID = f.googModuleStringID()
+	b.classNameID = f.referenceNameID()
 	b.nativeType = f.IsNativeObjectType()
 	b.templateTypeMap = f.GetTemplateTypeMap()
 	b.canonicalRepresentation = f.GetCanonicalRepresentation()
 	b.isKnownAmbiguous = f.call.fnConstructorAmbiguity == FunctionType_ConstructorAmbiguity_IS_AMBIGUOUS_CONSTRUCTOR
-	if p := f.GetClosurePrimitive(); p != nil {
-		b.primitivePlus1 = uint8(*p) + 1
-	} else {
-		b.primitivePlus1 = 0
-	}
+	b.primitivePlus1 = f.closurePrimitivePlus1()
 	b.isAbstract = f.IsAbstract()
 	b.kind = f.GetKind()
 	b.parameters = f.GetParameters()
@@ -68,7 +65,7 @@ func (f *FunctionTypeBase) initBuilder(b *FunctionType_Builder) {
 	b.templateParamCount = f.GetTemplateParamCount()
 
 	if f.IsConstructor() {
-		b.WithConstructorTemplateKeys(f.GetConstructorOnlyTemplateParameters())
+		b.setConstructorTemplateKeys(f.GetConstructorOnlyTemplateParameters())
 	}
 }
 
@@ -76,8 +73,8 @@ func (f *FunctionTypeBase) initBuilder(b *FunctionType_Builder) {
 //
 // Java: FunctionType.toBuilder()
 func (f *FunctionTypeBase) ToBuilder() *FunctionType_Builder {
-	b := f.GetRegistry().acquireFunctionBuilder()
-	f.initBuilder(b)
+	b := &FunctionType_Builder{}
+	f.InitBuilder(b)
 	return b
 }
 
@@ -86,7 +83,7 @@ type FunctionType_Builder struct {
 	PrototypeObjectType_Builder
 
 	// Go: nil is Java null (unknown parameters).
-	parameters              []*FunctionType_Parameter
+	parameters              []FunctionType_Parameter
 	returnType              JSType
 	typeOfThis              JSType
 	setPrototypeBasedOn     ObjectType
@@ -100,15 +97,19 @@ type FunctionType_Builder struct {
 	isKnownAmbiguous        bool
 	returnTypeIsInferred    bool
 	returnsOwnInstanceType  bool
-	pooled                  bool
+}
+
+// Init initializes a stack-allocated FunctionType_Builder for registry.
+func (b *FunctionType_Builder) Init(registry *JSTypeRegistry) {
+	b.InitPrototypeObjectType_Builder(registry)
+	b.kind = FunctionType_Kind_ORDINARY
+	b.implicitPrototype = jutil.CheckNotNull(registry.GetNativeObjectType(JSTypeNative_FUNCTION_PROTOTYPE))
 }
 
 // Java: FunctionType.Builder(JSTypeRegistry)
 func NewFunctionType_Builder(registry *JSTypeRegistry) *FunctionType_Builder {
-	b := registry.acquireFunctionBuilder()
-	b.InitPrototypeObjectType_Builder(registry)
-	b.kind = FunctionType_Kind_ORDINARY
-	b.implicitPrototype = jutil.CheckNotNull(registry.GetNativeObjectType(JSTypeNative_FUNCTION_PROTOTYPE))
+	b := &FunctionType_Builder{}
+	b.Init(registry)
 	return b
 }
 
@@ -179,10 +180,26 @@ func (b *FunctionType_Builder) SetGoogModuleId(x *string) *FunctionType_Builder 
 	return b
 }
 
+// SetGoogModuleIdString sets the non-null goog.module ID without allocating a *string.
+func (b *FunctionType_Builder) SetGoogModuleIdString(id string) *FunctionType_Builder {
+	b.googModuleID = rhinoStringPoolIntern(id)
+	return b
+}
+
+// SetOptionalGoogModuleId sets or clears the goog.module ID without allocating a *string.
+func (b *FunctionType_Builder) SetOptionalGoogModuleId(id string, ok bool) *FunctionType_Builder {
+	if !ok {
+		b.googModuleID = 0
+	} else {
+		b.googModuleID = rhinoStringPoolIntern(id)
+	}
+	return b
+}
+
 // WithParametersOfList sets the parameters of the function type.
 //
 // Java: FunctionType.Builder.withParameters(List<Parameter>)
-func (b *FunctionType_Builder) WithParametersOfList(parameters []*FunctionType_Parameter) *FunctionType_Builder {
+func (b *FunctionType_Builder) WithParametersOfList(parameters []FunctionType_Parameter) *FunctionType_Builder {
 	b.parameters = parameters
 	return b
 }
@@ -278,15 +295,10 @@ func jsTypeCopyOfTemplateTypes(keys []*TemplateType) []*TemplateType {
 	return out
 }
 
-// WithConstructorTemplateKeys specifies a subset of the template keys that
-// only apply to the constructor, and should be removed from the instance
-// type. These keys must still be passed to #withTemplateKeys.
-//
-// Java: FunctionType.Builder.withConstructorTemplateKeys(Iterable<TemplateType>)
-func (b *FunctionType_Builder) WithConstructorTemplateKeys(constructorOnlyKeys []*TemplateType) *FunctionType_Builder {
+func (b *FunctionType_Builder) setConstructorTemplateKeys(constructorOnlyKeys []*TemplateType) {
 	if len(constructorOnlyKeys) == 0 {
 		b.constructorOnlyKeys = nil
-		return b
+		return
 	}
 	out := make([]*TemplateType, 0, len(constructorOnlyKeys))
 	for _, k := range constructorOnlyKeys {
@@ -303,6 +315,15 @@ func (b *FunctionType_Builder) WithConstructorTemplateKeys(constructorOnlyKeys [
 		}
 	}
 	b.constructorOnlyKeys = out
+}
+
+// WithConstructorTemplateKeys specifies a subset of the template keys that
+// only apply to the constructor, and should be removed from the instance
+// type. These keys must still be passed to #withTemplateKeys.
+//
+// Java: FunctionType.Builder.withConstructorTemplateKeys(Iterable<TemplateType>)
+func (b *FunctionType_Builder) WithConstructorTemplateKeys(constructorOnlyKeys []*TemplateType) *FunctionType_Builder {
+	b.setConstructorTemplateKeys(constructorOnlyKeys)
 	return b
 }
 
@@ -327,7 +348,7 @@ func (b *FunctionType_Builder) ForConstructor() *FunctionType_Builder {
 // Java: FunctionType.Builder.forInterface()
 func (b *FunctionType_Builder) ForInterface() *FunctionType_Builder {
 	b.kind = FunctionType_Kind_INTERFACE
-	b.parameters = []*FunctionType_Parameter{}
+	b.parameters = emptyFunctionTypeParameterSlice
 	return b
 }
 
@@ -374,6 +395,16 @@ func (b *FunctionType_Builder) WithClosurePrimitiveId(id *ClosurePrimitive) *Fun
 	return b
 }
 
+// WithOptionalClosurePrimitive sets the ClosurePrimitive corresponding to this function without boxing.
+func (b *FunctionType_Builder) WithOptionalClosurePrimitive(id ClosurePrimitive, ok bool) *FunctionType_Builder {
+	if !ok {
+		b.primitivePlus1 = 0
+	} else {
+		b.primitivePlus1 = uint8(id) + 1
+	}
+	return b
+}
+
 // withCanonicalRepresentation sets the canonical representation of a
 // constructor, if any
 //
@@ -414,9 +445,7 @@ func (b *FunctionType_Builder) Build() FunctionType {
 		jutil.CheckState(len(b.constructorOnlyKeys) == 0)
 	}
 
-	res := NewFunctionType(b)
-	b.registry.releaseFunctionBuilder(b)
-	return res
+	return NewFunctionType(b)
 }
 
 // Java: FunctionType.Builder.buildAndResolve()
@@ -440,58 +469,92 @@ type FunctionType_Parameter struct {
 }
 
 // Java: FunctionType.Parameter.create(JSType, boolean, boolean)
-func FunctionType_Parameter_Create(type_ JSType, isOptional bool, isVariadic bool) *FunctionType_Parameter {
+func FunctionType_Parameter_Create(type_ JSType, isOptional bool, isVariadic bool) FunctionType_Parameter {
 	if type_ == nil {
 		panic(jutil.NewNullPointerExceptionMsg("Null JSType"))
 	}
-	return &FunctionType_Parameter{jSType: type_.GetJSTypeBase(), optional: isOptional, variadic: isVariadic}
+	return FunctionType_Parameter{jSType: type_.GetJSTypeBase(), optional: isOptional, variadic: isVariadic}
+}
+
+// IsZero reports whether p is the zero-value FunctionType_Parameter.
+func (p FunctionType_Parameter) IsZero() bool {
+	return p.jSType == nil
 }
 
 // Java: FunctionType.Parameter.getJSType()
-func (p *FunctionType_Parameter) GetJSType() JSType {
+func (p FunctionType_Parameter) GetJSType() JSType {
+	if p.jSType == nil {
+		return nil
+	}
 	return p.jSType.self()
 }
 
 // Java: FunctionType.Parameter.isOptional()
-func (p *FunctionType_Parameter) IsOptional() bool {
+func (p FunctionType_Parameter) IsOptional() bool {
 	return p.optional
 }
 
 // Java: FunctionType.Parameter.isVariadic()
-func (p *FunctionType_Parameter) IsVariadic() bool {
+func (p FunctionType_Parameter) IsVariadic() bool {
 	return p.variadic
 }
 
 // Java: AutoValue_FunctionType_Parameter.toString()
-func (p *FunctionType_Parameter) String() string {
+func (p FunctionType_Parameter) String() string {
+	optStr := "false"
+	if p.optional {
+		optStr = "true"
+	}
+	varStr := "false"
+	if p.variadic {
+		varStr = "true"
+	}
 	return "Parameter{" +
 		"JSType=" + p.jSType.self().String() + ", " +
-		"optional=" + jutil.ToJavaString(p.optional) + ", " +
-		"variadic=" + jutil.ToJavaString(p.variadic) +
+		"optional=" + optStr + ", " +
+		"variadic=" + varStr +
 		"}"
 }
 
+func (p FunctionType_Parameter) EqualsParameter(that FunctionType_Parameter) bool {
+	if p.jSType == nil || that.jSType == nil {
+		return p.jSType == that.jSType && p.optional == that.optional && p.variadic == that.variadic
+	}
+	return p.optional == that.optional &&
+		p.variadic == that.variadic &&
+		p.jSType.self().Equals(that.jSType.self())
+}
+
 // Java: AutoValue_FunctionType_Parameter.equals(Object)
-func (p *FunctionType_Parameter) Equals(o any) bool {
-	if any(p) == o {
-		return true
+func (p FunctionType_Parameter) Equals(o any) bool {
+	switch that := o.(type) {
+	case FunctionType_Parameter:
+		return p.EqualsParameter(that)
+	case *FunctionType_Parameter:
+		return that != nil && p.EqualsParameter(*that)
+	default:
+		return false
 	}
-	if that, ok := o.(*FunctionType_Parameter); ok && that != nil {
-		return p.jSType.self().Equals(that.GetJSType()) &&
-			p.optional == that.IsOptional() &&
-			p.variadic == that.IsVariadic()
-	}
-	return false
 }
 
 // Java: AutoValue_FunctionType_Parameter.hashCode()
-func (p *FunctionType_Parameter) HashCode() int32 {
+func (p FunctionType_Parameter) HashCode() int32 {
 	var h int32 = 1
 	h *= 1000003
-	h ^= p.jSType.self().HashCode()
+	if p.jSType != nil {
+		h ^= p.jSType.self().HashCode()
+	}
 	h *= 1000003
-	h ^= jutil.ObjectHashCode(p.optional)
+	if p.optional {
+		h ^= 1231
+	} else {
+		h ^= 1237
+	}
 	h *= 1000003
-	h ^= jutil.ObjectHashCode(p.variadic)
+	if p.variadic {
+		h ^= 1231
+	} else {
+		h ^= 1237
+	}
 	return h
 }

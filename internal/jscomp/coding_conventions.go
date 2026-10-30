@@ -116,9 +116,10 @@ func (d *CodingConventions_DefaultCodingConvention) IsVarArgsParameter(parameter
 
 func (d *CodingConventions_DefaultCodingConvention) IsFunctionCallThatAlwaysThrows(n rhino.Node) bool {
 	if NodeUtil_IsExprCall(n) {
-		fnType := rhino.JSType_ToMaybeFunctionType(n.GetFirstFirstChild().GetJSType())
-		return fnType != nil && fnType.GetClosurePrimitive() != nil &&
-			*fnType.GetClosurePrimitive() == rhino.ClosurePrimitive_ASSERTS_FAIL
+		if fnType := rhino.JSType_ToMaybeFunctionType(n.GetFirstFirstChild().GetJSType()); fnType != nil {
+			prim, ok := fnType.GetClosurePrimitive()
+			return ok && prim == rhino.ClosurePrimitive_ASSERTS_FAIL
+		}
 	}
 	return false
 }

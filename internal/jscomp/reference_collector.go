@@ -27,11 +27,6 @@ import (
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
 
-type basicBlockEntry struct {
-	root  rhino.Node
-	block *BasicBlock
-}
-
 // scopedVarKey is what makes two Vars equal (ScopedName equality).
 type scopedVarKey struct {
 	scopeRoot rhino.Node
@@ -40,6 +35,14 @@ type scopedVarKey struct {
 
 func scopedVarKeyOf(v *Var) scopedVarKey {
 	return scopedVarKey{scopeRoot: v.scope.GetRootNode(), nameID: v.nameID}
+}
+
+type rcLocalScopeFrame struct {
+	root      rhino.Node
+	scope     *Scope
+	base      int
+	count     int
+	implicits [4]*ReferenceCollection
 }
 
 // ReferenceCollector is a helper class for passes that want to access all
@@ -68,13 +71,10 @@ type ReferenceCollector struct {
 	refs map[scopedVarKey]*ReferenceCollection
 	vars []*Var
 
-	// Go-only: performance — with reclaimLocals set, the vars of local scopes
-	// are listed in localVars instead of vars, and those past localBase are
-	// forgotten when the traversal leaves an outermost local scope (unless
-	// canReclaimLocals says otherwise), so that a pass does not hold the
-	// references of every function at once.
 	reclaimLocals    bool
 	canReclaimLocals func() bool
+	localCollections []*ReferenceCollection
+	localFrames      []rcLocalScopeFrame
 	localVars        []*Var
 	localBase        int
 	localScopeDepth  int
@@ -92,13 +92,7 @@ type ReferenceCollector struct {
 	refSlab [2]jutil.Slab[Reference]
 	colSlab [2]jutil.Slab[ReferenceCollection]
 	refBufs [2][]*Reference
-	blocks  jutil.Slab[BasicBlock]
-
-	// The stack of basic blocks and scopes the current traversal is in.
-	//
-	// Go-only: language-adapter — the ArrayDeque, first element first. Go-only:
-	// performance — a block is created only when a reference needs it.
-	blockStack []basicBlockEntry
+	blocks  basicBlockTracker
 
 	// Source of behavior at various points in the traversal.
 	behavior ReferenceCollector_Behavior
@@ -111,74 +105,8 @@ type ReferenceCollector struct {
 	// Only collect references for filtered variables.
 	varFilter func(*Var) bool
 
-	collectedHoistedFunctions map[rhino.Node]struct{}
-
 	narrowScope   *Scope
 	parallelState *rcParallelScriptState
-}
-
-type rcStreamOpKind uint8
-
-const (
-	rcOpCompilerEvents rcStreamOpKind = iota + 1
-	rcOpGlobalRef
-	rcOpGlobalAliasRetry
-	rcOpJumpHoisted
-	rcOpDeclHoisted
-)
-
-type rcStreamOp struct {
-	kind    rcStreamOpKind
-	events  []recordedCompilerEvent
-	v       *Var
-	node    rhino.Node
-	block   *BasicBlock
-	scope   *Scope
-	inputId *rhino.InputId
-	retry   *InlineVariables_InliningBehavior_AliasInlineRetryHandler
-}
-
-type rcStreamSegment struct {
-	fnNode rhino.Node
-	ops    []rcStreamOp
-}
-
-type rcParallelScriptState struct {
-	globalScope   *Scope
-	globalBlock   *BasicBlock
-	rc            *recordingCompiler
-	curSeg        *rcStreamSegment
-	rootSeg       rcStreamSegment
-	hoistedSegs   []*rcStreamSegment
-	inHoistedRoot rhino.Node
-}
-
-func (ps *rcParallelScriptState) flushCompilerEvents() {
-	if ps.rc != nil && len(ps.rc.events) > 0 {
-		ps.curSeg.ops = append(ps.curSeg.ops, rcStreamOp{
-			kind:   rcOpCompilerEvents,
-			events: ps.rc.takeEvents(),
-		})
-	}
-}
-
-func (c *ReferenceCollector) addGlobalReferenceDirect(
-	v *Var,
-	n rhino.Node,
-	block *BasicBlock,
-	scope *Scope,
-	inputId *rhino.InputId,
-) {
-	if v != c.lastVar && c.varFilter != nil {
-		if v == c.lastRejectedVar || !c.varFilter(v) {
-			c.lastRejectedVar = v
-			return
-		}
-	}
-	collection := c.getOrCreateReferences(v)
-	r := c.refSlab[rcGlobal].New()
-	*r = Reference{nameNode: n, basicBlock: block, scope: scope, inputId: inputId}
-	c.addToCollection(collection, r, rcGlobal)
 }
 
 // NewReferenceCollector: constructor initializes block stack.
@@ -222,6 +150,10 @@ func (c *ReferenceCollector) maybeReclaimLocals() {
 	if c.narrowScope != nil {
 		return
 	}
+	if len(c.localFrames) == 0 && len(c.localCollections) > 0 {
+		clear(c.localCollections)
+		c.localCollections = c.localCollections[:0]
+	}
 	if c.canReclaimLocals != nil && !c.canReclaimLocals() {
 		c.localBase = len(c.localVars)
 		return
@@ -235,9 +167,61 @@ func (c *ReferenceCollector) maybeReclaimLocals() {
 	c.lastCollection = nil
 }
 
+func (c *ReferenceCollector) findLocalFrame(root rhino.Node) *rcLocalScopeFrame {
+	for i := len(c.localFrames) - 1; i >= 0; i-- {
+		if c.localFrames[i].root == root {
+			return &c.localFrames[i]
+		}
+	}
+	return nil
+}
+
+func (c *ReferenceCollector) allocCollection(v *Var, k int) *ReferenceCollection {
+	col := c.colSlab[k].New()
+	col.varScope = v.scope
+	col.references = c.newRefBuffer(k, rcRefBufSlots)
+	return col
+}
+
 func (c *ReferenceCollector) getOrCreateReferences(v *Var) *ReferenceCollection {
 	if v == c.lastVar && v != nil {
 		return c.lastCollection
+	}
+	if c.reclaimLocals && c.narrowScope == nil && v.scope.parent != nil {
+		if frame := c.findLocalFrame(v.scope.GetRootNode()); frame != nil {
+			var col *ReferenceCollection
+			if slot := scopeVarSlot(v.scope, v); slot >= 0 {
+				if frame.base < 0 {
+					nVars := max(len(v.scope.varList), slot+1)
+					frame.base = len(c.localCollections)
+					frame.count = nVars
+					frame.scope = v.scope
+					c.localCollections = slices.Grow(c.localCollections, nVars)[:frame.base+nVars]
+				} else if slot >= frame.count && frame.base+frame.count == len(c.localCollections) {
+					extra := slot + 1 - frame.count
+					c.localCollections = slices.Grow(c.localCollections, extra)[:frame.base+slot+1]
+					frame.count = slot + 1
+				}
+				if slot < frame.count {
+					col = c.localCollections[frame.base+slot]
+					if col == nil {
+						col = c.allocCollection(v, rcLocal)
+						c.localCollections[frame.base+slot] = col
+					}
+				}
+			} else if imp, ok := AbstractScope_ImplicitVar_LookupID(v.nameID); ok {
+				col = frame.implicits[imp]
+				if col == nil {
+					col = c.allocCollection(v, rcLocal)
+					frame.implicits[imp] = col
+				}
+			}
+			if col != nil {
+				c.lastVar = v
+				c.lastCollection = col
+				return col
+			}
+		}
 	}
 	key := scopedVarKeyOf(v)
 	col := c.refs[key]
@@ -246,9 +230,7 @@ func (c *ReferenceCollector) getOrCreateReferences(v *Var) *ReferenceCollection 
 		if v.scope.parent != nil {
 			k = rcLocal
 		}
-		col = c.colSlab[k].New()
-		col.varScope = v.scope
-		col.references = c.newRefBuffer(k, rcRefBufSlots)
+		col = c.allocCollection(v, k)
 		if c.refs == nil {
 			c.refs = make(map[scopedVarKey]*ReferenceCollection)
 		}
@@ -299,12 +281,38 @@ func (c *ReferenceCollector) addToCollection(col *ReferenceCollection, r *Refere
 }
 
 func (c *ReferenceCollector) getReferencesByScopedNameID(scopeRoot rhino.Node, nameID uint32) *ReferenceCollection {
+	if c.reclaimLocals && c.narrowScope == nil {
+		if frame := c.findLocalFrame(scopeRoot); frame != nil {
+			if frame.base >= 0 && frame.scope != nil {
+				if v := frame.scope.lookupOwnVarByID(nameID); v != nil {
+					if slot := scopeVarSlot(frame.scope, v); slot >= 0 && slot < frame.count {
+						return c.localCollections[frame.base+slot]
+					}
+				}
+			}
+			if imp, ok := AbstractScope_ImplicitVar_LookupID(nameID); ok {
+				return frame.implicits[imp]
+			}
+			return nil
+		}
+	}
 	return c.refs[scopedVarKey{scopeRoot: scopeRoot, nameID: nameID}]
 }
 
 func (c *ReferenceCollector) forgetVar(v *Var) {
 	if v == nil {
 		return
+	}
+	if c.reclaimLocals && c.narrowScope == nil && v.scope.parent != nil {
+		if frame := c.findLocalFrame(v.scope.GetRootNode()); frame != nil {
+			if slot := scopeVarSlot(v.scope, v); slot >= 0 {
+				if frame.base >= 0 && slot < frame.count {
+					c.localCollections[frame.base+slot] = nil
+				}
+			} else if imp, ok := AbstractScope_ImplicitVar_LookupID(v.nameID); ok {
+				frame.implicits[imp] = nil
+			}
+		}
 	}
 	delete(c.refs, scopedVarKeyOf(v))
 	if c.lastVar == v {
@@ -398,6 +406,30 @@ func (c *ReferenceCollector) GetReferences(v *Var) *ReferenceCollection {
 	if v == c.lastVar {
 		return c.lastCollection
 	}
+	if c.reclaimLocals && c.narrowScope == nil && v.scope.parent != nil {
+		if frame := c.findLocalFrame(v.scope.GetRootNode()); frame != nil {
+			if slot := scopeVarSlot(v.scope, v); slot >= 0 {
+				if frame.base < 0 {
+					return nil
+				}
+				if slot < frame.count {
+					col := c.localCollections[frame.base+slot]
+					if col != nil {
+						c.lastVar = v
+						c.lastCollection = col
+					}
+					return col
+				}
+			} else if imp, ok := AbstractScope_ImplicitVar_LookupID(v.nameID); ok {
+				col := frame.implicits[imp]
+				if col != nil {
+					c.lastVar = v
+					c.lastCollection = col
+				}
+				return col
+			}
+		}
+	}
 	col := c.refs[scopedVarKeyOf(v)]
 	if col != nil {
 		c.lastVar = v
@@ -446,35 +478,10 @@ func (t referenceCollector_staticSymbolTable) GetAllSymbols() iter.Seq[*Var] {
 	return t.c.GetAllSymbols()
 }
 
-func rcIsHoistedFunctionDeclaration(fnNode rhino.Node) bool {
-	parent := fnNode.GetParent()
-	if parent.IsNil() {
-		return false
-	}
-	switch parent.GetToken() {
-	case rhino.Token_SCRIPT, rhino.Token_MODULE_BODY, rhino.Token_EXPORT:
-		first := fnNode.GetFirstChild()
-		return !first.IsNil() && first.IsName() && first.GetStringID() != rhino.RhinoStringPool_EmptyID
-	case rhino.Token_BLOCK, rhino.Token_LABEL, rhino.Token_DECLARE, rhino.Token_NAMESPACE_ELEMENTS:
-		if gp := parent.GetParent(); !gp.IsNil() && gp.IsFunction() {
-			first := fnNode.GetFirstChild()
-			return !first.IsNil() && first.IsName() && first.GetStringID() != rhino.RhinoStringPool_EmptyID
-		}
-	}
-	return false
-}
-
 // Java: ReferenceCollector.maybeJumpToHoistedFunction(Var, NodeTraversal)
 func (c *ReferenceCollector) MaybeJumpToHoistedFunction(var_ *Var, t *NodeTraversal) {
-	nameNode := var_.nameNode
-	if nameNode.IsNil() {
-		return
-	}
-	fnNode := nameNode.GetParent()
-	if fnNode.IsNil() || !fnNode.IsFunction() {
-		return
-	}
-	if _, ok := c.collectedHoistedFunctions[fnNode]; ok || !rcIsHoistedFunctionDeclaration(fnNode) {
+	fnNode, ok := c.blocks.uncollectedHoistedTarget(var_)
+	if !ok {
 		return
 	}
 	varScope := var_.getScopeS()
@@ -493,29 +500,7 @@ func (c *ReferenceCollector) MaybeJumpToHoistedFunction(var_ *Var, t *NodeTraver
 	 * <p>This is tricky to compute because of the weird traverseAtScope call for
 	 * AggressiveInlineAliases.
 	 */
-	oldBlockStack := c.blockStack
-	if varScope.IsGlobal() {
-		if len(oldBlockStack) == 0 {
-			panic(jutil.NewNoSuchElementException())
-		}
-		if oldBlockStack[0].block == nil {
-			c.materializeBlock(0)
-		}
-		c.blockStack = append(oldBlockStack[len(oldBlockStack):len(oldBlockStack)], oldBlockStack[0])
-	} else {
-		rootNode := varScope.GetRootNode()
-		end := len(oldBlockStack)
-		for i := range oldBlockStack {
-			if oldBlockStack[i].root == rootNode {
-				end = i + 1
-				break
-			}
-		}
-		if end > 0 && oldBlockStack[end-1].block == nil {
-			c.materializeBlock(end - 1)
-		}
-		c.blockStack = append(oldBlockStack[len(oldBlockStack):len(oldBlockStack)], oldBlockStack[:end]...)
-	}
+	saved := c.blocks.saveHoistedFrame(varScope)
 
 	/*
 	 * Record the function declaration reference explicitly because it is a bleeding name. The
@@ -526,32 +511,7 @@ func (c *ReferenceCollector) MaybeJumpToHoistedFunction(var_ *Var, t *NodeTraver
 	b := c.builderVal()
 	b.TraverseAtScope(c.scopeCreator.CreateScope(fnNode, varScope))
 
-	clear(c.blockStack)
-	c.blockStack = oldBlockStack
-}
-
-func (c *ReferenceCollector) getCurrentBlock() *BasicBlock {
-	idx := len(c.blockStack) - 1
-	if b := c.blockStack[idx].block; b != nil {
-		return b
-	}
-	return c.materializeBlock(idx)
-}
-
-func (c *ReferenceCollector) materializeBlock(idx int) *BasicBlock {
-	i := idx
-	for i > 0 && c.blockStack[i-1].block == nil {
-		i--
-	}
-	var parent *BasicBlock
-	if i > 0 {
-		parent = c.blockStack[i-1].block
-	}
-	for ; i <= idx; i++ {
-		parent = initBasicBlock(c.blocks.New(), parent, c.blockStack[i].root)
-		c.blockStack[i].block = parent
-	}
-	return parent
+	c.blocks.restoreFrame(saved)
 }
 
 func makeVisitTokenSet(toks ...rhino.Token) ast.TokenSet {
@@ -640,51 +600,12 @@ func (c *ReferenceCollector) ShouldTraverse(nodeTraversal *NodeTraversal, n rhin
 	// TODO(nicksantos): Maybe generalize this to a continuation mechanism
 	// like in RemoveUnusedCode.
 	if n.IsFunction() && rcIsHoistedFunctionDeclaration(n) {
-		if ps := c.parallelState; ps != nil && n != ps.inHoistedRoot && !parent.IsNil() {
-			if gv := ps.globalScope.lookupOwnVarByID(n.GetFirstChild().GetStringID()); gv != nil && gv.nameNode == n.GetFirstChild() {
-				ps.flushCompilerEvents()
-				declInputId := nodeTraversal.inputId
-				if nodeTraversal.compilerInput == nil {
-					declInputId = nodeTraversal.GetInput().GetInputId()
-				}
-				ps.curSeg.ops = append(ps.curSeg.ops, rcStreamOp{
-					kind:    rcOpDeclHoisted,
-					v:       gv,
-					node:    n,
-					scope:   ps.globalScope,
-					inputId: declInputId,
-				})
-				hSeg := &rcStreamSegment{fnNode: n}
-				ps.hoistedSegs = append(ps.hoistedSegs, hSeg)
-
-				prevSeg := ps.curSeg
-				prevHoisted := ps.inHoistedRoot
-				oldBlockStack := c.blockStack
-				oldLocalDepth := c.localScopeDepth
-
-				ps.curSeg = hSeg
-				ps.inHoistedRoot = n
-				c.localScopeDepth = 0
-				c.blockStack = []basicBlockEntry{{root: ps.globalBlock.root, block: ps.globalBlock}}
-
-				b := c.builderVal()
-				b.TraverseAtScope(c.scopeCreator.CreateScope(n, ps.globalScope))
-				ps.flushCompilerEvents()
-
-				c.blockStack = oldBlockStack
-				c.localScopeDepth = oldLocalDepth
-				ps.inHoistedRoot = prevHoisted
-				ps.curSeg = prevSeg
-				return false
-			}
-		}
-		if _, ok := c.collectedHoistedFunctions[n]; ok {
+		if ps := c.parallelState; ps != nil && ps.recordHoistedFunctionDecl(c, nodeTraversal, n, parent) {
 			return false
 		}
-		if c.collectedHoistedFunctions == nil {
-			c.collectedHoistedFunctions = make(map[rhino.Node]struct{})
+		if !c.blocks.markHoistedCollected(n) {
+			return false
 		}
-		c.collectedHoistedFunctions[n] = struct{}{}
 	}
 
 	// If node is a new basic block, put on basic block stack
@@ -700,16 +621,20 @@ func (c *ReferenceCollector) ShouldTraverse(nodeTraversal *NodeTraversal, n rhin
 // Java: ReferenceCollector.CollectorCallback.enterScope(NodeTraversal)
 func (c *ReferenceCollector) EnterScope(t *NodeTraversal) {
 	inGlobal := t.InGlobalScope()
+	root := t.GetScopeRoot()
 	if !inGlobal {
 		c.localScopeDepth++
+		if c.reclaimLocals && c.narrowScope == nil {
+			c.localFrames = append(c.localFrames, rcLocalScopeFrame{root: root, base: -1})
+		}
 	}
 	// Don't add all ES6 scope roots to blockStack, only those that are also scopes according to
 	// the ES5 scoping rules. Other nodes that ought to be considered the root of a BasicBlock
 	// are added in shouldTraverse() or processScope() and removed in visit().
-	if root := t.GetScopeRoot(); nodeTraversal_isHoistScopeRootNode(root) {
+	if nodeTraversal_isHoistScopeRootNode(root) {
 		c.PushNewBlock(root)
 		if inGlobal && c.parallelState != nil {
-			c.blockStack[len(c.blockStack)-1].block = c.parallelState.globalBlock
+			c.blocks.setTopBlock(c.parallelState.globalBlock)
 		}
 	}
 }
@@ -719,7 +644,8 @@ func (c *ReferenceCollector) EnterScope(t *NodeTraversal) {
 // Java: ReferenceCollector.CollectorCallback.exitScope(NodeTraversal)
 func (c *ReferenceCollector) ExitScope(t *NodeTraversal) {
 	inGlobal := t.InGlobalScope()
-	if root := t.GetScopeRoot(); nodeTraversal_isHoistScopeRootNode(root) {
+	root := t.GetScopeRoot()
+	if nodeTraversal_isHoistScopeRootNode(root) {
 		c.PopLastBlock(root)
 	}
 	if inGlobal && c.parallelState != nil {
@@ -730,6 +656,24 @@ func (c *ReferenceCollector) ExitScope(t *NodeTraversal) {
 		c.behavior.AfterExitScope(t, c)
 	}
 	if !inGlobal {
+		if c.reclaimLocals && c.narrowScope == nil && len(c.localFrames) > 0 {
+			top := len(c.localFrames) - 1
+			f := c.localFrames[top]
+			c.localFrames[top] = rcLocalScopeFrame{}
+			c.localFrames = c.localFrames[:top]
+			if f.base >= 0 {
+				end := f.base + f.count
+				clear(c.localCollections[f.base:end])
+				if end == len(c.localCollections) {
+					c.localCollections = c.localCollections[:f.base]
+				}
+			}
+			if len(c.localFrames) == 0 {
+				c.localCollections = c.localCollections[:0]
+			}
+			c.lastVar = nil
+			c.lastCollection = nil
+		}
 		c.localScopeDepth--
 		if c.localScopeDepth == 0 && c.reclaimLocals {
 			c.maybeReclaimLocals()
@@ -765,22 +709,7 @@ func (c *ReferenceCollector) Visit(t *NodeTraversal, n rhino.Node, parent rhino.
 			c.addReferenceWithScope(v, n, t, scope)
 			if v.nameNode != n {
 				if ps := c.parallelState; ps != nil && v.IsGlobal() {
-					if !v.nameNode.IsNil() {
-						if fnNode := v.nameNode.GetParent(); !fnNode.IsNil() && fnNode.IsFunction() && rcIsHoistedFunctionDeclaration(fnNode) {
-							ps.flushCompilerEvents()
-							inputId := t.inputId
-							if t.compilerInput == nil {
-								inputId = t.GetInput().GetInputId()
-							}
-							ps.curSeg.ops = append(ps.curSeg.ops, rcStreamOp{
-								kind:    rcOpJumpHoisted,
-								v:       v,
-								node:    fnNode,
-								scope:   t.GetScope(),
-								inputId: inputId,
-							})
-						}
-					}
+					ps.maybeRecordJumpHoisted(v, t)
 				} else {
 					c.MaybeJumpToHoistedFunction(v, t)
 				}
@@ -795,20 +724,12 @@ func (c *ReferenceCollector) Visit(t *NodeTraversal, n rhino.Node, parent rhino.
 
 // Java: ReferenceCollector.pushNewBlock(Node)
 func (c *ReferenceCollector) PushNewBlock(root rhino.Node) {
-	c.blockStack = append(c.blockStack, basicBlockEntry{root: root})
+	c.blocks.push(root)
 }
 
 // Java: ReferenceCollector.popLastBlock(Node)
 func (c *ReferenceCollector) PopLastBlock(root rhino.Node) {
-	if len(c.blockStack) == 0 {
-		panic(jutil.NewNoSuchElementException()) // ArrayDeque.removeLast()
-	}
-	idx := len(c.blockStack) - 1
-	lastRoot := c.blockStack[idx].root
-	c.blockStack[idx] = basicBlockEntry{}
-	c.blockStack = c.blockStack[:idx]
-	// Verfiy that the stack is unwound correctly.
-	jutil.CheckStateMsg1(root == lastRoot, "%s", root)
+	c.blocks.pop(root)
 }
 
 var refCollectorParentBoundaryKind = [256]uint8{
@@ -863,33 +784,11 @@ func (c *ReferenceCollector) addReferenceWithScope(v *Var, n rhino.Node, t *Node
 		}
 	}
 	if ps := c.parallelState; ps != nil && v.IsGlobal() {
-		if len(c.blockStack) == 0 {
-			panic(jutil.NewNoSuchElementException())
-		}
-		if scope == nil {
-			scope = t.GetScope()
-		}
-		inputId := t.inputId
-		if t.compilerInput == nil {
-			inputId = t.GetInput().GetInputId()
-		}
-		ps.flushCompilerEvents()
-		ps.curSeg.ops = append(ps.curSeg.ops, rcStreamOp{
-			kind:    rcOpGlobalRef,
-			v:       v,
-			node:    n,
-			block:   c.getCurrentBlock(),
-			scope:   scope,
-			inputId: inputId,
-		})
+		ps.recordGlobalRef(c, v, n, t, scope)
 		return
 	}
 	collection := c.getOrCreateReferences(v)
-
-	// Add this particular reference
-	if len(c.blockStack) == 0 {
-		panic(jutil.NewNoSuchElementException()) // ArrayDeque.getLast()
-	}
+	block := c.blocks.currentBlock()
 	if scope == nil {
 		scope = t.GetScope()
 	}
@@ -902,7 +801,7 @@ func (c *ReferenceCollector) addReferenceWithScope(v *Var, n rhino.Node, t *Node
 		k = rcLocal
 	}
 	r := c.refSlab[k].New()
-	*r = Reference{nameNode: n, basicBlock: c.getCurrentBlock(), scope: scope, inputId: inputId}
+	*r = Reference{nameNode: n, basicBlock: block, scope: scope, inputId: inputId}
 	c.addToCollection(collection, r, k)
 }
 

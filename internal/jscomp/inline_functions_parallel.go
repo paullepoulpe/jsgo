@@ -296,7 +296,7 @@ func (f *InlineFunctions) InliningLowersCost(functionState *InlineFunctions_Func
 		return true
 	}
 	summary := functionState.ensureSummary()
-	return f.injector.inliningLowersCostWithSummary(
+	return f.injector.inliningLowersCost(
 		functionState.GetChunk(),
 		functionState.functionNode(),
 		functionState.refs,

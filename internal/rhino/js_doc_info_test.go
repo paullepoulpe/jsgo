@@ -379,7 +379,9 @@ func TestJSDocInfo_SetFileOverviewWithDocumentationOff(t *testing.T) {
 	builder := JSDocInfo_Builder_()
 	builder.RecordFileOverview("hi bob")
 	info := builder.BuildWithAlways(true)
-	assertNullString(t, "getFileOverview", info.GetFileOverview())
+	if s, ok := info.GetFileOverviewString(); ok {
+		t.Errorf("getFileOverview = %q, want unset", s)
+	}
 }
 
 func TestJSDocInfo_SetFileOverviewWithDocumentationOn(t *testing.T) {
@@ -387,7 +389,9 @@ func TestJSDocInfo_SetFileOverviewWithDocumentationOn(t *testing.T) {
 	builder.ParseDocumentation()
 	builder.RecordFileOverview("hi bob")
 	info := builder.Build()
-	assertStringPtr(t, "getFileOverview", info.GetFileOverview(), "hi bob")
+	if s, ok := info.GetFileOverviewString(); !ok || s != "hi bob" {
+		t.Errorf("getFileOverview = (%q, %v), want (\"hi bob\", true)", s, ok)
+	}
 }
 
 func TestJSDocInfo_SetSuppressions(t *testing.T) {

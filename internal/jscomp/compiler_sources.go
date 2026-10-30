@@ -845,10 +845,17 @@ func (c *Compiler) removeSyntheticCodeInputMerging(mergeContentIntoFirstInput bo
 // Java: Compiler.setExternProperties(ImmutableSet<String>)
 func (c *Compiler) SetExternProperties(externProperties *jutil.LinkedHashSet[string]) {
 	c.externProperties = externProperties
+	c.externPropSet = nil
+	c.externPropSetSource = nil
 }
 
 // Java: Compiler.getExternProperties()
 func (c *Compiler) GetExternProperties() *jutil.LinkedHashSet[string] {
+	if c.externProperties == nil && c.externPropSet != nil {
+		lhs := c.externPropSet.ToLinkedHashSet()
+		c.externProperties = lhs
+		c.externPropSetSource = lhs
+	}
 	return c.externProperties
 }
 

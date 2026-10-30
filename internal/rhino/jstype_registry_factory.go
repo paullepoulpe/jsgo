@@ -143,8 +143,10 @@ func (r *JSTypeRegistry) CreateFunctionType(returnType JSType, parameterTypes ..
 // null to indicate that the return type is unknown.
 //
 // Java: JSTypeRegistry.createFunctionType(JSType, List<FunctionType.Parameter>)
-func (r *JSTypeRegistry) CreateFunctionTypeWithParameters(returnType JSType, parameters []*FunctionType_Parameter) FunctionType {
-	return FunctionType_Builder_(r).WithParametersOfList(parameters).WithReturnType(returnType).Build()
+func (r *JSTypeRegistry) CreateFunctionTypeWithParameters(returnType JSType, parameters []FunctionType_Parameter) FunctionType {
+	var b FunctionType_Builder
+	b.Init(r)
+	return b.WithParametersOfList(parameters).WithReturnType(returnType).Build()
 }
 
 // CreateFunctionTypeWithVarArgs creates a function type. The last parameter
@@ -173,7 +175,9 @@ func (r *JSTypeRegistry) CreateNativeFunctionTypeWithVarArgs(returnType JSType, 
 func (r *JSTypeRegistry) CreateFunctionTypeWithInstanceType(
 	instanceType ObjectType, returnType JSType, parameterTypes []JSType) JSType {
 	paramsNode := r.CreateParameters(parameterTypes...)
-	return FunctionType_Builder_(r).
+	var b FunctionType_Builder
+	b.Init(r)
+	return b.
 		WithParametersOfList(paramsNode).
 		WithReturnType(returnType).
 		WithTypeOfThis(instanceType).
@@ -184,7 +188,7 @@ func (r *JSTypeRegistry) CreateFunctionTypeWithInstanceType(
 // list.
 //
 // Java: JSTypeRegistry.createParameters(JSType...)
-func (r *JSTypeRegistry) CreateParameters(parameterTypes ...JSType) []*FunctionType_Parameter {
+func (r *JSTypeRegistry) CreateParameters(parameterTypes ...JSType) []FunctionType_Parameter {
 	return r.CreateParametersWithLastVarArgs(false, parameterTypes...)
 }
 
@@ -196,8 +200,9 @@ func (r *JSTypeRegistry) CreateParameters(parameterTypes ...JSType) []*FunctionT
 // array is considered a variable length argument is lastVarArgs is true.
 //
 // Java: JSTypeRegistry.createParameters(boolean, JSType...)
-func (r *JSTypeRegistry) CreateParametersWithLastVarArgs(lastVarArgs bool, parameterTypes ...JSType) []*FunctionType_Parameter {
-	builder := NewFunctionParamBuilderWithCapacity(r, len(parameterTypes))
+func (r *JSTypeRegistry) CreateParametersWithLastVarArgs(lastVarArgs bool, parameterTypes ...JSType) []FunctionType_Parameter {
+	var builder FunctionParamBuilder
+	builder.Init(r, len(parameterTypes))
 	max := len(parameterTypes) - 1
 	for i := 0; i <= max; i++ {
 		if lastVarArgs && i == max {
@@ -214,7 +219,7 @@ func (r *JSTypeRegistry) CreateParametersWithLastVarArgs(lastVarArgs bool, param
 // argument.
 //
 // Java: JSTypeRegistry.createParametersWithVarArgs(JSType...)
-func (r *JSTypeRegistry) CreateParametersWithVarArgs(parameterTypes ...JSType) []*FunctionType_Parameter {
+func (r *JSTypeRegistry) CreateParametersWithVarArgs(parameterTypes ...JSType) []FunctionType_Parameter {
 	return r.CreateParametersWithLastVarArgs(true, parameterTypes...)
 }
 
@@ -222,8 +227,9 @@ func (r *JSTypeRegistry) CreateParametersWithVarArgs(parameterTypes ...JSType) [
 // parameter list in which every parameter is optional.
 //
 // Java: JSTypeRegistry.createOptionalParameters(JSType...)
-func (r *JSTypeRegistry) CreateOptionalParameters(parameterTypes ...JSType) []*FunctionType_Parameter {
-	builder := NewFunctionParamBuilderWithCapacity(r, len(parameterTypes))
+func (r *JSTypeRegistry) CreateOptionalParameters(parameterTypes ...JSType) []FunctionType_Parameter {
+	var builder FunctionParamBuilder
+	builder.Init(r, len(parameterTypes))
 	builder.AddOptionalParams(parameterTypes...)
 	return builder.Build()
 }
@@ -233,12 +239,16 @@ func (r *JSTypeRegistry) CreateOptionalParameters(parameterTypes ...JSType) []*F
 //
 // Java: JSTypeRegistry.createFunctionTypeWithNewReturnType(FunctionType, JSType)
 func (r *JSTypeRegistry) CreateFunctionTypeWithNewReturnType(existingFunctionType FunctionType, returnType JSType) FunctionType {
-	return existingFunctionType.ToBuilder().WithReturnType(returnType).Build()
+	var b FunctionType_Builder
+	existingFunctionType.InitBuilder(&b)
+	return b.WithReturnType(returnType).Build()
 }
 
 // Java: JSTypeRegistry.createNativeFunctionType(JSType, List<FunctionType.Parameter>)
-func (r *JSTypeRegistry) CreateNativeFunctionType(returnType JSType, parameters []*FunctionType_Parameter) FunctionType {
-	return FunctionType_Builder_(r).
+func (r *JSTypeRegistry) CreateNativeFunctionType(returnType JSType, parameters []FunctionType_Parameter) FunctionType {
+	var b FunctionType_Builder
+	b.Init(r)
+	return b.
 		WithParametersOfList(parameters).
 		WithReturnType(returnType).
 		ForNativeType().
@@ -334,12 +344,14 @@ func (r *JSTypeRegistry) ResetImplicitPrototype(type_ JSType, newImplicitProto O
 func (r *JSTypeRegistry) CreateConstructorType(
 	name *string,
 	source Node,
-	parameters []*FunctionType_Parameter,
+	parameters []FunctionType_Parameter,
 	returnType JSType,
 	templateKeys []*TemplateType,
 	isAbstract bool) FunctionType {
 	jutil.CheckArgument(source.IsNil() || source.IsFunction() || source.IsClass())
-	return FunctionType_Builder_(r).
+	var b FunctionType_Builder
+	b.Init(r)
+	return b.
 		ForConstructor().
 		WithName(name).
 		WithSourceNode(source).
@@ -615,9 +627,11 @@ func (r *JSTypeRegistry) CreateTypeFromCommentNodeWithScope(n Node, sourceName s
 			current = current.GetNext()
 		}
 
-		paramBuilder := NewFunctionParamBuilder(r)
+		var paramBuilder FunctionParamBuilder
+		paramBuilder.registry = r
 
 		if current.GetToken() == Token_PARAM_LIST {
+			paramBuilder.Init(r, current.GetChildCount())
 			for arg := current.GetFirstChild(); !arg.IsNil(); arg = arg.GetNext() {
 				if arg.GetToken() == Token_ITER_REST {
 					if !arg.HasChildren() {
@@ -651,8 +665,10 @@ func (r *JSTypeRegistry) CreateTypeFromCommentNodeWithScope(n Node, sourceName s
 		if isConstructor {
 			kind = FunctionType_Kind_CONSTRUCTOR
 		}
-		return FunctionType_Builder_(r).
-			WithParams(paramBuilder).
+		var b FunctionType_Builder
+		b.Init(r)
+		return b.
+			WithParams(&paramBuilder).
 			WithReturnType(returnType).
 			WithTypeOfThis(thisType).
 			WithKind(kind).

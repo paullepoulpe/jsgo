@@ -19,8 +19,6 @@
 package jscomp
 
 import (
-	"slices"
-
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
@@ -93,58 +91,6 @@ func jsDocSerializer_buildConvertedJSDoc(
 	}
 	jsDocSerializer_applyTagsToBuilder(kinds, builder)
 	return builder.Build()
-}
-
-// JSDocSerializer_SerializeJsdoc may return nil.
-//
-// Java: JSDocSerializer.serializeJsdoc(JSDocInfo, StringPool.Builder)
-func JSDocSerializer_SerializeJsdoc(jsdoc *rhino.JSDocInfo, stringPool *StringPool_Builder) *OptimizationJsdoc {
-	if jsdoc == nil {
-		return nil
-	}
-	var kindBuf [8]int32
-	kinds := jsDocSerializer_fillJsdocTagsOnly(jsdoc, kindBuf[:0])
-	license, description, alternateMessageId, meaning, mode, hasMode := jsDocSerializer_stringFields(jsdoc)
-	if len(kinds) == 0 &&
-		license == "" &&
-		description == "" &&
-		alternateMessageId == "" &&
-		meaning == "" &&
-		!hasMode {
-		return nil
-	}
-	return jsDocSerializer_allocProto(
-		kinds, license, description, alternateMessageId, meaning, mode, hasMode, stringPool)
-}
-
-func jsDocSerializer_allocProto(
-	kinds []int32,
-	license, description, alternateMessageId, meaning string,
-	mode rhino.JSDocInfo_PerFileClosureUnawareMode,
-	hasMode bool,
-	stringPool *StringPool_Builder,
-) *OptimizationJsdoc {
-	m := &OptimizationJsdoc{}
-	if len(kinds) > 0 {
-		m.kind_ = slices.Clone(kinds)
-	}
-	if license != "" {
-		m.licenseTextPointer_ = int32(stringPool.Put(license))
-	}
-	if description != "" {
-		m.descriptionPointer_ = int32(stringPool.Put(description))
-	}
-	if alternateMessageId != "" {
-		m.alternateMessageIdPointer_ = int32(stringPool.Put(alternateMessageId))
-	}
-	if meaning != "" {
-		m.meaningPointer_ = int32(stringPool.Put(meaning))
-	}
-	if hasMode {
-		m.closureUnawareModePointer_ = int32(stringPool.Put(mode.String()))
-	}
-	m.cachedSize = m.scalarsSerializedSize() + 1
-	return m
 }
 
 func jsDocSerializer_stringFields(jsdoc *rhino.JSDocInfo) (
@@ -323,17 +269,6 @@ var (
 	jsDocSerializer_modifiesArgumentsAndThis = rhino.JSDocInfo_InternSet(jutil.NewLinkedHashSet("arguments", "this"))
 	jsDocSerializer_throwsPlaceholder        = "{!" + jsDocSerializer_PLACEHOLDER_TYPE_NAME + "}"
 )
-
-// JSDocSerializer_DeserializeJsdoc may return nil.
-//
-// Java: JSDocSerializer.deserializeJsdoc(OptimizationJsdoc, StringPool)
-func JSDocSerializer_DeserializeJsdoc(serializedJsdoc *OptimizationJsdoc, stringPool *StringPool) *rhino.JSDocInfo {
-	if serializedJsdoc == nil || serializedJsdoc == OptimizationJsdoc_GetDefaultInstance() {
-		return nil
-	}
-	var builder rhino.JSDocInfo_Builder
-	return jsDocSerializer_deserializeJsdocWithBuilder(serializedJsdoc, stringPool, &builder)
-}
 
 func jsDocSerializer_deserializeJsdocWithBuilder(
 	serializedJsdoc *OptimizationJsdoc,

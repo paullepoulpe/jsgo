@@ -230,7 +230,7 @@ func (d *normalizeOracleDumper) dumpFile(rel string, src string) {
 					recheck = "recheck exception " + normalizeOracleException(r)
 				}
 			}()
-			Normalize_Builder_(c).AssertOnChange(true).Build().Process(c.GetExternsRoot(), c.GetJsRoot())
+			NewNormalize(c, true).Process(c.GetExternsRoot(), c.GetJsRoot())
 		}()
 		d.line(recheck)
 	}

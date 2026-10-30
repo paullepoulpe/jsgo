@@ -84,6 +84,14 @@ func (t peepholeReplaceKnownMethods_trimPattern) replaceAll(s string) string {
 	start := 0
 	if t.leading {
 		for start < len(s) {
+			b := s[start]
+			if b < 0x80 {
+				if b != ' ' && b != '\t' && (b < '\n' || b > '\r') {
+					break
+				}
+				start++
+				continue
+			}
 			r, size := utf8.DecodeRuneInString(s[start:])
 			if !peepholeReplaceKnownMethods_isEcmaWhitespace(r) {
 				break
@@ -94,6 +102,14 @@ func (t peepholeReplaceKnownMethods_trimPattern) replaceAll(s string) string {
 	end := len(s)
 	if t.trailing {
 		for end > start {
+			b := s[end-1]
+			if b < 0x80 {
+				if b != ' ' && b != '\t' && (b < '\n' || b > '\r') {
+					break
+				}
+				end--
+				continue
+			}
 			r, size := utf8.DecodeLastRuneInString(s[start:end])
 			if !peepholeReplaceKnownMethods_isEcmaWhitespace(r) {
 				break

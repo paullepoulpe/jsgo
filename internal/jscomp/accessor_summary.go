@@ -19,8 +19,6 @@
 package jscomp
 
 import (
-	"sync"
-
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/strpool"
 )
@@ -32,8 +30,6 @@ type AccessorSummary struct {
 	hasAnyAccessors       bool
 	kindsByID             []uint64 // 2 bits per strpool.ID (32 IDs per uint64)
 	accessorIDs           []uint32 // insertion-ordered strpool.IDs
-	accessorsOnce         sync.Once
-	accessors             *jutil.LinkedHashMap[string, AccessorSummary_PropertyAccessKind]
 }
 
 // AccessorSummary_PropertyAccessKind indicates whether a property has a
@@ -215,14 +211,11 @@ func (s *AccessorSummary) AccessorIDs() []uint32 {
 
 // Java: AccessorSummary.getAccessors()
 func (s *AccessorSummary) GetAccessors() *jutil.LinkedHashMap[string, AccessorSummary_PropertyAccessKind] {
-	s.accessorsOnce.Do(func() {
-		m := jutil.NewLinkedHashMapWithCapacity[string, AccessorSummary_PropertyAccessKind](len(s.accessorIDs))
-		for _, id := range s.accessorIDs {
-			m.Put(strpool.String(strpool.ID(id)), s.GetKindByID(id))
-		}
-		s.accessors = m
-	})
-	return s.accessors
+	m := jutil.NewLinkedHashMapWithCapacity[string, AccessorSummary_PropertyAccessKind](len(s.accessorIDs))
+	for _, id := range s.accessorIDs {
+		m.Put(strpool.String(strpool.ID(id)), s.GetKindByID(id))
+	}
+	return m
 }
 
 // GetKindByID returns the PropertyAccessKind for an interned strpool.ID.
@@ -265,21 +258,21 @@ func AccessorSummary_CreateAssumingAlwaysGetterAndSetter() *AccessorSummary {
 
 // Java: AccessorSummary.toProto()
 func (s *AccessorSummary) ToProto() *AccessorSummaryProto {
-	builder :=
-		AccessorSummaryProto_NewBuilder().
-			SetAssumeAlwaysGetterAndSetter(s.alwaysGetterAndSetter)
 	if s.alwaysGetterAndSetter {
 		jutil.CheckState(len(s.accessorIDs) == 0)
-	} else {
-		for _, id := range s.accessorIDs {
-			builder.AddAccessors(
-				AccessorSummaryEntryProto_NewBuilder().
-					SetName(strpool.String(strpool.ID(id))).
-					SetKind(AccessorSummary_ToProto(s.GetKindByID(id))).
-					Build())
+		return &AccessorSummaryProto{assumeAlwaysGetterAndSetter_: true}
+	}
+	var accessors []*AccessorSummaryEntryProto
+	if len(s.accessorIDs) > 0 {
+		accessors = make([]*AccessorSummaryEntryProto, len(s.accessorIDs))
+		for i, id := range s.accessorIDs {
+			accessors[i] = &AccessorSummaryEntryProto{
+				name_: strpool.String(strpool.ID(id)),
+				kind_: int32(AccessorSummary_ToProto(s.GetKindByID(id))),
+			}
 		}
 	}
-	return builder.Build()
+	return &AccessorSummaryProto{accessors_: accessors}
 }
 
 // Java: AccessorSummary.toProto(PropertyAccessKind)

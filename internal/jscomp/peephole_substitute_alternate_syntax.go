@@ -695,7 +695,7 @@ func (p *PeepholeSubstituteAlternateSyntax) ReduceTrueFalse(n rhino.Node) rhino.
 
 // Java: PeepholeSubstituteAlternateSyntax.tryMinimizeArrayLiteral(Node)
 func (p *PeepholeSubstituteAlternateSyntax) TryMinimizeArrayLiteral(array ast.ArrayLit) rhino.Node {
-	if !p.late {
+	if !p.late || !array.HasElements() {
 		return array.Node()
 	}
 	for elem := range array.Elements() {

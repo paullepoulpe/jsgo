@@ -128,7 +128,7 @@ func (c *JSChunk) GetPathRelativeToClosureBase() string {
 }
 
 // Java: JSChunk.getLoadFlags()
-func (c *JSChunk) GetLoadFlags() *jutil.LinkedHashMap[string, string] {
+func (c *JSChunk) GetLoadFlags() LoadFlags {
 	panic(jutil.NewUnsupportedOperationException())
 }
 

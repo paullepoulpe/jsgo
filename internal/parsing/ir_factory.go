@@ -40,9 +40,8 @@ type IRFactory struct {
 	// Source file reference that also contains the file content.
 	fileWithContent *parser.SourceFile
 
-	config              *Config
-	errorReporter       rhino.ErrorReporter
-	transformDispatcher *IRFactory_TransformDispatcher
+	config        *Config
+	errorReporter rhino.ErrorReporter
 
 	parsedCommentBits    []uint64
 	parsedCommentBitsBuf [4]uint64
@@ -65,11 +64,9 @@ type IRFactory struct {
 	defaultTemplateNode        rhino.Node
 	closureUnawareTemplateNode rhino.Node
 
-	jsdocTracker       *IRFactory_CommentTracker
-	nonJsdocTracker    *IRFactory_CommentTracker
-	jsdocTrackerVal    IRFactory_CommentTracker
-	nonJsdocTrackerVal IRFactory_CommentTracker
-	jsDocSourceKind    JsDocInfoParser_JsDocSourceKind
+	jsdocTracker    IRFactory_CommentTracker
+	nonJsdocTracker IRFactory_CommentTracker
+	jsDocSourceKind JsDocInfoParser_JsDocSourceKind
 
 	currentFileIsExterns bool
 
@@ -83,10 +80,16 @@ type IRFactory struct {
 
 	// Go-only: performance — where the factory takes its node ids (nil: the
 	// store's counter); a parse worker passes its own (rhino.NodeAllocator).
-	alloc                    *rhino.NodeAllocator
-	transformDispatcherVal   IRFactory_TransformDispatcher
-	classScopeVal            IRFactory_TransformDispatcher_ScopeTracker
-	privateIdLhsOfInScopeVal IRFactory_TransformDispatcher_ScopeTracker
+	alloc *rhino.NodeAllocator
+
+	// Tracks whether a class is currently in scope. Presently used to detect
+	// valid usage of private fields.
+	classScope IRFactory_ScopeTracker
+
+	// Used to detect an IdentifierExpression in the following context:
+	// Valid: `class A { #x; static isA(o) { return #x in o; } }`
+	// Invalid: `class A { #x; } function isA(o) { return #x in o; } }`
+	privateIdLhsOfInScope IRFactory_ScopeTracker
 
 	// Go-only: performance — single-threaded line table + cursor, fast-path
 	// flags, L1 string intern cache, and reusable literal scratch buffers.
@@ -195,13 +198,11 @@ func NewIRFactory(
 	f.currentFileIsExterns = false
 	f.features = parser.FeatureSet_BARE_MINIMUM
 
-	f.jsdocTrackerVal = IRFactory_CommentTracker{index: -1, previousIndex: -1, source: comments, filter: irFactory_isJsdocComment}
-	f.jsdocTrackerVal.Advance()
-	f.jsdocTracker = &f.jsdocTrackerVal
+	f.jsdocTracker = IRFactory_CommentTracker{index: -1, previousIndex: -1, source: comments, jsdocOnly: true}
+	f.jsdocTracker.Advance()
 
-	f.nonJsdocTrackerVal = IRFactory_CommentTracker{index: -1, previousIndex: -1, source: comments, filter: irFactory_isNonJsdocComment}
-	f.nonJsdocTrackerVal.Advance()
-	f.nonJsdocTracker = &f.nonJsdocTrackerVal
+	f.nonJsdocTracker = IRFactory_CommentTracker{index: -1, previousIndex: -1, source: comments, jsdocOnly: false}
+	f.nonJsdocTracker.Advance()
 
 	f.sourceFile = sourceFile
 	f.fileWithContent = fileWithContent
@@ -222,12 +223,6 @@ func NewIRFactory(
 	f.config = config
 	f.includeAllComments = config.JsDocParsingMode() == Config_JsDocParsing_INCLUDE_ALL_COMMENTS
 	f.errorReporter = errorReporter
-	f.transformDispatcherVal = IRFactory_TransformDispatcher{
-		IRFactory:             f,
-		classScope:            &f.classScopeVal,
-		privateIdLhsOfInScope: &f.privateIdLhsOfInScopeVal,
-	}
-	f.transformDispatcher = &f.transformDispatcherVal
 
 	if config.StrictMode().IsStrict() {
 		f.reservedMode = 2
@@ -356,7 +351,7 @@ func irFactoryTransformTree(
 	irFactory.jsdocParser.alloc = alloc
 
 	// don't call transform as we don't want standard jsdoc handling.
-	n := irFactory.transformDispatcher.Process(tree)
+	n := irFactory.Process(tree)
 	irFactory.SetSourceInfo(n, tree)
 
 	if tree.SourceComments != nil {
@@ -476,7 +471,7 @@ func (f *IRFactory) Transform(tree parser.ParseTree) rhino.Node {
 		)
 	}
 
-	node := f.transformDispatcher.Process(tree)
+	node := f.Process(tree)
 
 	if info != nil {
 		node = f.MaybeInjectCastNode(tree, info, node)
@@ -584,7 +579,7 @@ func (f *IRFactory) TransformNodeWithInlineComments(tree parser.ParseTree) rhino
 		comment = f.ParseNonJSDocCommentAt(startPos, true)
 	}
 
-	node := f.transformDispatcher.Process(tree)
+	node := f.Process(tree)
 
 	if info != nil {
 		node.SetJSDocInfo(info)

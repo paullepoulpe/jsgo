@@ -25,29 +25,6 @@ import (
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/parser"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
-	"github.com/paullepoulpe/jsgo/internal/strpool"
-)
-
-var (
-	peepholeIDUndefined        = uint32(strpool.Intern("undefined"))
-	peepholeIDWindow           = uint32(strpool.Intern("window"))
-	peepholeIDObject           = uint32(strpool.Intern("Object"))
-	peepholeIDArray            = uint32(strpool.Intern("Array"))
-	peepholeIDBoolean          = uint32(strpool.Intern("Boolean"))
-	peepholeIDString           = uint32(strpool.Intern("String"))
-	peepholeIDParseInt         = uint32(strpool.Intern("parseInt"))
-	peepholeIDParseFloat       = uint32(strpool.Intern("parseFloat"))
-	peepholeIDMath             = uint32(strpool.Intern("Math"))
-	peepholeIDNumber           = uint32(strpool.Intern("Number"))
-	peepholeIDGoog             = uint32(strpool.Intern("goog"))
-	peepholeIDConcat           = uint32(strpool.Intern("concat"))
-	peepholeIDSubstr           = uint32(strpool.Intern("substr"))
-	peepholeIDSubstring        = uint32(strpool.Intern("substring"))
-	peepholeIDSlice            = uint32(strpool.Intern("slice"))
-	peepholeIDDefineProperties = uint32(strpool.Intern("defineProperties"))
-	peepholeIDBind             = uint32(strpool.Intern("bind"))
-	peepholeIDCall             = uint32(strpool.Intern("call"))
-	peepholeIDApply            = uint32(strpool.Intern("apply"))
 )
 
 // PeepholeOptimizationsPass is a compiler pass to run various peephole
@@ -58,15 +35,12 @@ type PeepholeOptimizationsPass struct {
 	passName string
 	// NOTE: Use a native array rather than a List to avoid creating iterators
 	// for every node in the AST.
-	peepholeOptimizations     []AbstractPeepholeOptimization
-	pendingFeatures           uint64
-	visitTokenSet             ast.TokenSet
-	activeMaskByToken         [256]uint16
-	useActiveMask             bool
-	standardOptimizationsOnly bool
-	hasJ2clCallPass           bool
-	hasOptimizeLetAndConst    bool
-	retraverseOnChange        bool
+	peepholeOptimizations []AbstractPeepholeOptimization
+	pendingFeatures       uint64
+	visitTokenSet         ast.TokenSet
+	activeMaskByToken     [256]uint16
+	useActiveMask         bool
+	retraverseOnChange    bool
 }
 
 var (
@@ -115,30 +89,19 @@ func NewPeepholeOptimizationsPassOfList(
 func (p *PeepholeOptimizationsPass) initDispatchTable() {
 	if len(p.peepholeOptimizations) > 16 {
 		p.useActiveMask = false
-		p.standardOptimizationsOnly = false
 		return
 	}
 	p.useActiveMask = true
-	p.standardOptimizationsOnly = true
-	p.hasJ2clCallPass = false
-	p.hasOptimizeLetAndConst = false
 	clear(p.activeMaskByToken[:])
 
 	for idx, optim := range p.peepholeOptimizations {
 		bit := uint16(1) << idx
 		cfg := optim.peepholeConfig()
 		if !cfg.isStandard {
-			p.standardOptimizationsOnly = false
 			for tok := range p.activeMaskByToken {
 				p.activeMaskByToken[tok] |= bit
 			}
 			continue
-		}
-		if cfg.isJ2clCallPass {
-			p.hasJ2clCallPass = true
-		}
-		if cfg.isOptimizeLetAndConst {
-			p.hasOptimizeLetAndConst = true
 		}
 		for w, word := range cfg.tokens {
 			for word != 0 {
@@ -369,152 +332,6 @@ func (p *PeepholeOptimizationsPass) visitOptimize(n rhino.Node) {
 	currentNode := n
 	tok := currentNode.GetToken()
 	mask := p.activeMaskByToken[tok]
-	if mask == 0 {
-		return
-	}
-	if p.standardOptimizationsOnly {
-		switch tok {
-		case rhino.Token_NAME:
-			if currentNode.GetStringID() != peepholeIDUndefined {
-				return
-			}
-		case rhino.Token_GETPROP:
-			switch first := currentNode.GetFirstChild(); first.GetToken() {
-			case rhino.Token_NAME:
-				if first.GetStringID() != peepholeIDWindow {
-					return
-				}
-			case rhino.Token_OBJECTLIT, rhino.Token_ARRAYLIT, rhino.Token_STRINGLIT:
-			default:
-				return
-			}
-		case rhino.Token_GETELEM:
-			switch currentNode.GetFirstChild().GetToken() {
-			case rhino.Token_OBJECTLIT, rhino.Token_ARRAYLIT, rhino.Token_STRINGLIT:
-			default:
-				return
-			}
-		case rhino.Token_CALL:
-			if !p.hasJ2clCallPass {
-				callee := currentNode.GetFirstChild()
-				switch callee.GetToken() {
-				case rhino.Token_NAME:
-					switch callee.GetStringID() {
-					case peepholeIDObject, peepholeIDArray, peepholeIDBoolean, peepholeIDString, peepholeIDParseInt, peepholeIDParseFloat:
-					default:
-						return
-					}
-				case rhino.Token_GETPROP:
-					recv := callee.GetFirstChild()
-					switch recv.GetToken() {
-					case rhino.Token_STRINGLIT, rhino.Token_ARRAYLIT:
-					case rhino.Token_NAME:
-						switch recv.GetStringID() {
-						case peepholeIDObject, peepholeIDArray, peepholeIDMath, peepholeIDNumber, peepholeIDGoog:
-						default:
-							switch callee.GetStringID() {
-							case peepholeIDConcat, peepholeIDSubstr, peepholeIDSubstring, peepholeIDSlice:
-							default:
-								return
-							}
-						}
-					default:
-						switch callee.GetStringID() {
-						case peepholeIDConcat, peepholeIDSubstr, peepholeIDSubstring, peepholeIDSlice,
-							peepholeIDDefineProperties, peepholeIDBind, peepholeIDCall, peepholeIDApply:
-						default:
-							return
-						}
-					}
-				case rhino.Token_CALL:
-				default:
-					return
-				}
-			}
-		case rhino.Token_EXPR_RESULT:
-			expr := currentNode.GetFirstChild()
-			switch expr.GetToken() {
-			case rhino.Token_ASSIGN,
-				rhino.Token_ASSIGN_BITOR,
-				rhino.Token_ASSIGN_BITXOR,
-				rhino.Token_ASSIGN_BITAND,
-				rhino.Token_ASSIGN_LSH,
-				rhino.Token_ASSIGN_RSH,
-				rhino.Token_ASSIGN_URSH,
-				rhino.Token_ASSIGN_ADD,
-				rhino.Token_ASSIGN_SUB,
-				rhino.Token_ASSIGN_MUL,
-				rhino.Token_ASSIGN_DIV,
-				rhino.Token_ASSIGN_MOD,
-				rhino.Token_ASSIGN_EXPONENT,
-				rhino.Token_ASSIGN_OR,
-				rhino.Token_ASSIGN_AND,
-				rhino.Token_ASSIGN_COALESCE:
-				// An assignment is a statement the standard optimizations
-				// leave alone only if it certainly changes state: dead-code
-				// removal drops a side-effect-free one (`[1].a = 2`), as
-				// AstAnalyzer.checkAssignmentForChangeState decides.
-				if peepholeAssignmentCertainlyChangesState(expr) {
-					return
-				}
-			case rhino.Token_INC,
-				rhino.Token_DEC,
-				rhino.Token_DELPROP,
-				rhino.Token_YIELD,
-				rhino.Token_AWAIT,
-				rhino.Token_DYNAMIC_IMPORT:
-				return
-			}
-		case rhino.Token_ASSIGN:
-			left := currentNode.GetFirstChild()
-			right := currentNode.GetLastChild()
-			if !(left.IsName() && right.IsName()) && !(left.IsDestructuringPattern() && !left.HasChildren()) {
-				switch right.GetToken() {
-				case rhino.Token_ADD,
-					rhino.Token_BITAND,
-					rhino.Token_BITOR,
-					rhino.Token_BITXOR,
-					rhino.Token_DIV,
-					rhino.Token_EXPONENT,
-					rhino.Token_LSH,
-					rhino.Token_MOD,
-					rhino.Token_MUL,
-					rhino.Token_RSH,
-					rhino.Token_SUB,
-					rhino.Token_URSH:
-				default:
-					return
-				}
-			}
-		case rhino.Token_VAR:
-			if first := currentNode.GetFirstChild(); first.IsNil() || !first.IsDestructuringLhs() {
-				return
-			}
-		case rhino.Token_LET, rhino.Token_CONST:
-			if !p.hasOptimizeLetAndConst {
-				if first := currentNode.GetFirstChild(); first.IsNil() || !first.IsDestructuringLhs() {
-					return
-				}
-			}
-		case rhino.Token_NEW:
-			if !currentNode.GetFirstChild().IsName() {
-				return
-			}
-		case rhino.Token_OBJECTLIT, rhino.Token_ARRAYLIT:
-			if currentNode.GetFirstChild().IsNil() {
-				return
-			}
-		case rhino.Token_VOID:
-			if first := currentNode.GetFirstChild(); !first.IsNil() && first.IsNumber() && first.GetDouble() == 0 {
-				return
-			}
-		case rhino.Token_NEG:
-			if first := currentNode.GetFirstChild(); !first.IsNil() && first.IsNumber() {
-				return
-			}
-		}
-	}
-
 	for mask != 0 {
 		idx := bits.TrailingZeros16(mask)
 		bit := uint16(1) << idx
@@ -558,31 +375,4 @@ func (p *PeepholeOptimizationsPass) EndTraversal() {
 		optimization.bindPendingFeatures(nil)
 		optimization.EndTraversal()
 	}
-}
-
-// peepholeAssignmentCertainlyChangesState reports whether the assignment
-// assign has side effects whatever its operands are: the conditions under
-// which AstAnalyzer.checkAssignmentForChangeState returns true before
-// looking at the operands' own side effects (a name target, or a property
-// of a receiver that is neither a local value nor rooted in a literal).
-// When it returns false, the assignment may be side-effect free and the
-// standard optimizations must see it.
-//
-// Go-only: performance — the PeepCallback prefilter.
-func peepholeAssignmentCertainlyChangesState(assign rhino.Node) bool {
-	target := assign.GetFirstChild()
-	if target.IsName() {
-		return true
-	}
-	if !NodeUtil_IsNormalGet(target) {
-		return false
-	}
-	current := target.GetFirstChild()
-	if NodeUtil_EvaluatesToLocalValue(current) {
-		return false
-	}
-	for NodeUtil_IsNormalGet(current) {
-		current = current.GetFirstChild()
-	}
-	return !NodeUtil_IsLiteralValue(current, true)
 }

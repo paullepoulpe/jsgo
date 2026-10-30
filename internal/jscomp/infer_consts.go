@@ -44,17 +44,16 @@ func NewInferConsts(compiler AbstractCompiler) *InferConsts {
 	return &InferConsts{compiler: compiler}
 }
 
-func (*InferConsts) onlyNameLeaves() {}
-
 // Java: InferConsts.process(Node, Node)
 func (c *InferConsts) Process(externs rhino.Node, js rhino.Node) {
 	scopeCreator := NewSyntacticScopeCreator(c.compiler)
 	collector := newInferConstsCollector(c, c.compiler, scopeCreator)
 	collector.processRoot(js)
 
-	collector.flushLocalStates()
 	for i := range collector.globalStates {
-		c.considerVarState(&collector.globalStates[i])
+		if collector.globalStates[i].v != nil {
+			c.considerVarState(&collector.globalStates[i])
+		}
 	}
 
 	globalExternsScope := scopeCreator.CreateScopeOfScope(externs, nil)
@@ -63,9 +62,9 @@ func (c *InferConsts) Process(externs rhino.Node, js rhino.Node) {
 	}
 }
 
-func (c *InferConsts) considerExternVar(v *Var) {
+func markDeclaredConst(v *Var) rhino.Node {
 	if v.IsImplicitGoogNamespace() {
-		return // no name node for provided variables.
+		return rhino.NilNode // no name node for provided variables.
 	}
 	nameNode := v.GetNameNode()
 	if !nameNode.IsNil() && nameNode.GetParent().IsConst() {
@@ -73,26 +72,22 @@ func (c *InferConsts) considerExternVar(v *Var) {
 	} else if docInfo := v.GetJSDocInfo(); docInfo != nil && docInfo.IsConstant() {
 		nameNode.SetDeclaredConstantVar(true)
 	}
+	return nameNode
+}
+
+func (c *InferConsts) considerExternVar(v *Var) {
+	markDeclaredConst(v)
 }
 
 func (c *InferConsts) considerVarState(st *inferConstVarState) {
-	v := st.v
-	if v.IsImplicitGoogNamespace() {
-		return // no name node for provided variables.
-	}
-	nameNode := v.GetNameNode()
-	if !nameNode.IsNil() && nameNode.GetParent().IsConst() {
-		nameNode.SetDeclaredConstantVar(true)
-	} else if docInfo := v.GetJSDocInfo(); docInfo != nil && docInfo.IsConstant() {
-		nameNode.SetDeclaredConstantVar(true)
-	}
-	if inferConsts_isInferredConstState(v, nameNode, st) {
+	nameNode := markDeclaredConst(st.v)
+	if !nameNode.IsNil() && inferConsts_isInferredConstState(st.v, nameNode, st) {
 		nameNode.SetInferredConstantVar(true)
 	}
 }
 
 func inferConsts_isInferredConstState(v *Var, nameNode rhino.Node, st *inferConstVarState) bool {
-	if nameNode.IsNil() || st.assignCount != 1 || !st.isAssignedOnceInLifetime() {
+	if nameNode.IsNil() || st.assignCount != 1 || !st.assignedOnceInLifetime {
 		return false
 	}
 	declarationType, ok := v.DeclarationToken()
@@ -127,54 +122,38 @@ func inferConsts_isInferredConstState(v *Var, nameNode rhino.Node, st *inferCons
 }
 
 type inferConstVarState struct {
-	v               *Var
-	firstBlock      *BasicBlock
-	assignBlock     *BasicBlock
-	assignHoistRoot rhino.Node
-	assignCount     int32
-	firstIsInitDecl bool
-	firstIsDecl     bool
-	allAfterFirst   bool
+	v                      *Var
+	firstBlock             *BasicBlock
+	assignCount            int32
+	firstIsInitDecl        bool
+	firstIsDecl            bool
+	allAfterFirst          bool
+	assignedOnceInLifetime bool
 }
 
-func (st *inferConstVarState) isAssignedOnceInLifetime() bool {
-	varScope := st.v.scope
-	for block := st.assignBlock; block != nil; block = block.parent {
-		if block.isFunction {
-			if varScope.GetClosestHoistScope().GetRootNode() != st.assignHoistRoot {
-				return false
-			}
-			break
-		}
-
-		if block.parent == nil && !block.isLoop {
-			break
-		}
-
-		if block.root == varScope.GetRootNode() {
-			break
-		}
-
-		if block.isLoop {
-			return false
-		}
-	}
-	return true
+type inferConstScopeFrame struct {
+	root  rhino.Node
+	base  int
+	count int
 }
 
 type inferConstsCollector struct {
-	outer            *InferConsts
-	compiler         AbstractCompiler
-	scopeCreator     ScopeCreator
-	sc               *SyntacticScopeCreator
-	localStates      []inferConstVarState
-	globalStates     []inferConstVarState
-	localIndex       map[*Var]int
-	globalIndex      map[*Var]int
-	blockStack       []basicBlockEntry
-	blocks           jutil.Slab[BasicBlock] // one pass's blocks die together
-	collectedHoisted map[rhino.Node]struct{}
-	jumpDepth        int
+	outer        *InferConsts
+	compiler     AbstractCompiler
+	scopeCreator ScopeCreator
+	localStates  []inferConstVarState
+	globalStates []inferConstVarState
+	scopeFrames  []inferConstScopeFrame
+	blocks       basicBlockTracker
+}
+
+var (
+	_ NodeTraversal_ScopedCallback = (*inferConstsCollector)(nil)
+	_ nodeTraversal_visitTokens    = (*inferConstsCollector)(nil)
+)
+
+func (*inferConstsCollector) visitTokens() *ast.TokenSet {
+	return &refCollectorVisitTokens
 }
 
 func newInferConstsCollector(outer *InferConsts, compiler AbstractCompiler, sc *SyntacticScopeCreator) *inferConstsCollector {
@@ -182,23 +161,6 @@ func newInferConstsCollector(outer *InferConsts, compiler AbstractCompiler, sc *
 		outer:        outer,
 		compiler:     compiler,
 		scopeCreator: sc,
-		sc:           sc,
-	}
-}
-
-func (c *inferConstsCollector) flushLocalStates() {
-	if len(c.localStates) == 0 {
-		return
-	}
-	for i := range c.localStates {
-		c.outer.considerVarState(&c.localStates[i])
-	}
-	clear(c.localStates)
-	c.localStates = c.localStates[:0]
-	if len(c.localIndex) > 64 {
-		c.localIndex = nil
-	} else if c.localIndex != nil {
-		clear(c.localIndex)
 	}
 }
 
@@ -216,56 +178,45 @@ func (c *inferConstsCollector) processRoot(root rhino.Node) {
 	b.Traverse(root)
 }
 
-func (c *inferConstsCollector) pushNewBlock(root rhino.Node) {
-	c.blockStack = append(c.blockStack, basicBlockEntry{root: root})
-}
-
-func (c *inferConstsCollector) popLastBlock(root rhino.Node) {
-	idx := len(c.blockStack) - 1
-	lastRoot := c.blockStack[idx].root
-	c.blockStack[idx] = basicBlockEntry{}
-	c.blockStack = c.blockStack[:idx]
-	jutil.CheckStateMsg1(root == lastRoot, "%s", root)
-}
-
-func (c *inferConstsCollector) getCurrentBlock() *BasicBlock {
-	idx := len(c.blockStack) - 1
-	if b := c.blockStack[idx].block; b != nil {
-		return b
-	}
-	return c.materializeBlock(idx)
-}
-
-func (c *inferConstsCollector) materializeBlock(idx int) *BasicBlock {
-	i := idx
-	for i > 0 && c.blockStack[i-1].block == nil {
-		i--
-	}
-	var parent *BasicBlock
-	if i > 0 {
-		parent = c.blockStack[i-1].block
-	}
-	for ; i <= idx; i++ {
-		parent = initBasicBlock(c.blocks.New(), parent, c.blockStack[i].root)
-		c.blockStack[i].block = parent
-	}
-	return parent
-}
-
-func (c *inferConstsCollector) addCollectedHoistedFunction(n rhino.Node) bool {
-	if c.collectedHoisted == nil {
-		c.collectedHoisted = make(map[rhino.Node]struct{})
-	}
-	if _, exists := c.collectedHoisted[n]; exists {
+func isLoopBlockRoot(root rhino.Node) bool {
+	p := root.GetParent()
+	if p.IsNil() {
 		return false
 	}
-	c.collectedHoisted[n] = struct{}{}
-	return true
+	switch p.GetToken() {
+	case rhino.Token_DO, rhino.Token_WHILE, rhino.Token_FOR,
+		rhino.Token_FOR_OF, rhino.Token_FOR_AWAIT_OF, rhino.Token_FOR_IN:
+		return true
+	default:
+		return false
+	}
 }
 
-func (c *inferConstsCollector) hasCollectedHoistedFunction(n rhino.Node) bool {
-	_, exists := c.collectedHoisted[n]
-	return exists
+func (c *inferConstsCollector) isCurrentBlockSingleExec(varScope *Scope, t *NodeTraversal) bool {
+	entries := c.blocks.entries
+	base := c.blocks.frameBase
+	if len(entries) <= base {
+		panic(jutil.NewNoSuchElementException())
+	}
+	varScopeRoot := varScope.GetRootNode()
+	for i := len(entries) - 1; i >= base; i-- {
+		root := entries[i].root
+		if root.IsFunction() {
+			_, assignHoistRoot := t.closestScopeHoistRoot()
+			return varScope.GetClosestHoistScope().GetRootNode() == assignHoistRoot
+		}
+		isLoop := isLoopBlockRoot(root)
+		if i == base && !isLoop {
+			return true
+		}
+		if root == varScopeRoot {
+			return true
+		}
+		if isLoop {
+			return false
+		}
+	}
+	return true
 }
 
 func (c *inferConstsCollector) ShouldTraverse(t *NodeTraversal, n rhino.Node, parent rhino.Node) bool {
@@ -273,7 +224,7 @@ func (c *inferConstsCollector) ShouldTraverse(t *NodeTraversal, n rhino.Node, pa
 		switch n.GetToken() {
 		case rhino.Token_NAME, rhino.Token_IMPORT_STAR, rhino.Token_BLOCK, rhino.Token_SWITCH_BODY:
 			if referenceCollector_isBlockBoundary(n, parent) {
-				c.pushNewBlock(n)
+				c.blocks.push(n)
 			}
 			return true
 		default:
@@ -281,12 +232,12 @@ func (c *inferConstsCollector) ShouldTraverse(t *NodeTraversal, n rhino.Node, pa
 		}
 	}
 	if n.IsFunction() && rcIsHoistedFunctionDeclaration(n) {
-		if !c.addCollectedHoistedFunction(n) {
+		if !c.blocks.markHoistedCollected(n) {
 			return false
 		}
 	}
 	if referenceCollector_isBlockBoundary(n, parent) {
-		c.pushNewBlock(n)
+		c.blocks.push(n)
 	}
 	return true
 }
@@ -294,17 +245,38 @@ func (c *inferConstsCollector) ShouldTraverse(t *NodeTraversal, n rhino.Node, pa
 func (c *inferConstsCollector) EnterScope(t *NodeTraversal) {
 	scopeRoot := t.GetScopeRoot()
 	if nodeTraversal_isHoistScopeRootNode(scopeRoot) {
-		c.pushNewBlock(scopeRoot)
+		c.blocks.push(scopeRoot)
+	}
+	if !t.InGlobalScope() {
+		c.scopeFrames = append(c.scopeFrames, inferConstScopeFrame{root: scopeRoot, base: -1})
 	}
 }
 
 func (c *inferConstsCollector) ExitScope(t *NodeTraversal) {
 	scopeRoot := t.GetScopeRoot()
 	if nodeTraversal_isHoistScopeRootNode(scopeRoot) {
-		c.popLastBlock(scopeRoot)
+		c.blocks.pop(scopeRoot)
 	}
-	if len(t.scopes) == 2 && c.jumpDepth == 0 {
-		c.flushLocalStates()
+	if !t.InGlobalScope() {
+		top := len(c.scopeFrames) - 1
+		f := c.scopeFrames[top]
+		c.scopeFrames = c.scopeFrames[:top]
+		if f.base >= 0 {
+			end := f.base + f.count
+			for i := f.base; i < end; i++ {
+				if c.localStates[i].v != nil {
+					c.outer.considerVarState(&c.localStates[i])
+				}
+			}
+			clear(c.localStates[f.base:end])
+			if end == len(c.localStates) {
+				c.localStates = c.localStates[:f.base]
+			}
+		}
+		if len(c.scopeFrames) == 0 && len(c.localStates) > 0 {
+			clear(c.localStates)
+			c.localStates = c.localStates[:0]
+		}
 	}
 }
 
@@ -318,7 +290,7 @@ func (c *inferConstsCollector) Visit(t *NodeTraversal, n rhino.Node, parent rhin
 		id := n.GetStringID()
 		if id > rhino.RhinoStringPool_EmptyID {
 			v := t.LookupVarByID(id)
-			if v != nil {
+			if v != nil && !v.nameNode.IsNil() {
 				c.addReference(v, n, parent, t)
 				if v.nameNode != n {
 					c.maybeJumpToHoistedFunction(v, t)
@@ -328,60 +300,23 @@ func (c *inferConstsCollector) Visit(t *NodeTraversal, n rhino.Node, parent rhin
 	}
 
 	if referenceCollector_isBlockBoundary(n, parent) {
-		c.popLastBlock(n)
+		c.blocks.pop(n)
 	}
 }
 
 func (c *inferConstsCollector) maybeJumpToHoistedFunction(var_ *Var, t *NodeTraversal) {
-	nameNode := var_.nameNode
-	if nameNode.IsNil() {
-		return
-	}
-	fnNode := nameNode.GetParent()
-	if fnNode.IsNil() || !fnNode.IsFunction() {
-		return
-	}
-	if c.hasCollectedHoistedFunction(fnNode) || !rcIsHoistedFunctionDeclaration(fnNode) {
+	fnNode, ok := c.blocks.uncollectedHoistedTarget(var_)
+	if !ok {
 		return
 	}
 	varScope := var_.scope
-	oldBlockStack := c.blockStack
-	var newStack []basicBlockEntry
-	if varScope.IsGlobal() {
-		if len(oldBlockStack) == 0 {
-			panic(jutil.NewNoSuchElementException())
-		}
-		if oldBlockStack[0].block == nil {
-			c.materializeBlock(0)
-		}
-		newStack = []basicBlockEntry{oldBlockStack[0]}
-	} else {
-		rootNode := varScope.GetRootNode()
-		end := len(oldBlockStack)
-		for i := range oldBlockStack {
-			if oldBlockStack[i].root == rootNode {
-				end = i + 1
-				break
-			}
-		}
-		if end > 0 && oldBlockStack[end-1].block == nil {
-			c.materializeBlock(end - 1)
-		}
-		newStack = slices.Clone(oldBlockStack[:end])
-	}
-	c.blockStack = newStack
+	saved := c.blocks.saveHoistedFrame(varScope)
 
-	firstChild := fnNode.GetFirstChild()
-	c.addReference(var_, firstChild, fnNode, t)
-	c.jumpDepth++
+	c.addReference(var_, fnNode.GetFirstChild(), fnNode, t)
 	b := c.builderVal()
 	b.TraverseAtScope(c.scopeCreator.CreateScope(fnNode, varScope))
-	c.jumpDepth--
-	if len(t.scopes) == 1 && c.jumpDepth == 0 {
-		c.flushLocalStates()
-	}
 
-	c.blockStack = oldBlockStack
+	c.blocks.restoreFrame(saved)
 }
 
 func inferConsts_isLvalue(n rhino.Node, parent rhino.Node) bool {
@@ -410,60 +345,70 @@ func inferConsts_isLvalue(n rhino.Node, parent rhino.Node) bool {
 	}
 }
 
-func (c *inferConstsCollector) addReference(v *Var, n rhino.Node, parent rhino.Node, t *NodeTraversal) {
-	isLocal := v.IsLocal()
-	var idx int
-	var ok bool
-	if isLocal {
-		idx, ok = c.localIndex[v]
-	} else {
-		idx, ok = c.globalIndex[v]
+func (c *inferConstsCollector) stateForVar(v *Var) *inferConstVarState {
+	slot := scopeVarSlot(v.scope, v)
+	if slot < 0 {
+		return nil
 	}
-	if !ok {
+	if !v.IsLocal() {
+		if slot >= len(c.globalStates) {
+			oldLen := len(c.globalStates)
+			n := max(len(v.scope.varList), slot+1)
+			c.globalStates = slices.Grow(c.globalStates, n-oldLen)[:n]
+			clear(c.globalStates[oldLen:n])
+		}
+		return &c.globalStates[slot]
+	}
+	targetRoot := v.scope.rootNode
+	for fi := len(c.scopeFrames) - 1; fi >= 0; fi-- {
+		f := &c.scopeFrames[fi]
+		if f.root == targetRoot {
+			if f.base < 0 {
+				count := max(len(v.scope.varList), slot+1)
+				base := len(c.localStates)
+				f.base = base
+				f.count = count
+				c.localStates = slices.Grow(c.localStates, count)[:base+count]
+				clear(c.localStates[base : base+count])
+			} else if slot >= f.count {
+				return nil
+			}
+			return &c.localStates[f.base+slot]
+		}
+	}
+	return nil
+}
+
+func (c *inferConstsCollector) addReference(v *Var, n rhino.Node, parent rhino.Node, t *NodeTraversal) {
+	st := c.stateForVar(v)
+	if st == nil {
+		return
+	}
+	if st.v == nil {
 		isDecl := reference_isDeclarationHelper(n)
 		parentTok := parent.GetToken()
 		isInitDecl := (isDecl && parentTok != rhino.Token_VAR && parentTok != rhino.Token_LET) || n.HasChildren()
 		isAssign := isInitDecl || inferConsts_isLvalue(n, parent)
 		declType, hasDeclType := v.DeclarationToken()
 		needOrderCheck := isInitDecl && hasDeclType && declType == rhino.Token_VAR
-		var currentBlock *BasicBlock
-		if isAssign || needOrderCheck {
-			currentBlock = c.getCurrentBlock()
+		var firstBlock *BasicBlock
+		if needOrderCheck {
+			firstBlock = c.blocks.currentBlock()
 		}
-		st := inferConstVarState{
+		*st = inferConstVarState{
 			v:               v,
-			firstBlock:      currentBlock,
+			firstBlock:      firstBlock,
 			firstIsInitDecl: isInitDecl,
 			firstIsDecl:     isDecl,
 			allAfterFirst:   needOrderCheck,
 		}
 		if isAssign {
 			st.assignCount = 1
-			st.assignBlock = currentBlock
-			_, st.assignHoistRoot = t.closestScopeHoistRoot()
-		}
-		if isLocal {
-			if c.localIndex == nil {
-				c.localIndex = make(map[*Var]int, 16)
-			}
-			c.localIndex[v] = len(c.localStates)
-			c.localStates = append(c.localStates, st)
-		} else {
-			if c.globalIndex == nil {
-				c.globalIndex = make(map[*Var]int, 64)
-			}
-			c.globalIndex[v] = len(c.globalStates)
-			c.globalStates = append(c.globalStates, st)
+			st.assignedOnceInLifetime = c.isCurrentBlockSingleExec(v.scope, t)
 		}
 		return
 	}
 
-	var st *inferConstVarState
-	if isLocal {
-		st = &c.localStates[idx]
-	} else {
-		st = &c.globalStates[idx]
-	}
 	if st.assignCount > 1 {
 		return
 	}
@@ -473,69 +418,16 @@ func (c *inferConstsCollector) addReference(v *Var, n rhino.Node, parent rhino.N
 	if !isAssign && !st.allAfterFirst {
 		return
 	}
-	currentBlock := c.getCurrentBlock()
 	if isAssign {
 		st.assignCount++
 		if st.assignCount == 1 {
-			st.assignBlock = currentBlock
-			_, st.assignHoistRoot = t.closestScopeHoistRoot()
+			st.assignedOnceInLifetime = c.isCurrentBlockSingleExec(v.scope, t)
 		}
 	}
 	if st.assignCount <= 1 && st.allAfterFirst {
+		currentBlock := c.blocks.currentBlock()
 		if st.firstBlock != currentBlock && !st.firstBlock.ProvablyExecutesBefore(currentBlock) {
 			st.allAfterFirst = false
 		}
-	}
-}
-
-// Java: InferConsts.considerVar(Var, ReferenceCollection)
-func (c *InferConsts) ConsiderVar(v *Var, refCollection *ReferenceCollection) {
-	if v.IsImplicitGoogNamespace() {
-		return // no name node for provided variables.
-	}
-	nameNode := v.GetNameNode()
-	if !nameNode.IsNil() && nameNode.GetParent().IsConst() {
-		nameNode.SetDeclaredConstantVar(true)
-	} else if docInfo := v.GetJSDocInfo(); docInfo != nil && docInfo.IsConstant() {
-		nameNode.SetDeclaredConstantVar(true)
-	}
-	if InferConsts_IsInferredConst(v, refCollection) {
-		nameNode.SetInferredConstantVar(true)
-	}
-}
-
-// Java: InferConsts.isInferredConst(Var, ReferenceCollection)
-func InferConsts_IsInferredConst(v *Var, refCollection *ReferenceCollection) bool {
-	nameNode := v.GetNameNode()
-	if nameNode.IsNil() || refCollection == nil || !refCollection.IsAssignedOnceInLifetime() {
-		return false
-	}
-	if v.IsImplicitGoogNamespace() {
-		return false
-	}
-	declarationType, ok := v.DeclarationToken()
-	if !ok {
-		panic(jutil.NewNullPointerException())
-	}
-	switch declarationType {
-	case rhino.Token_LET:
-		// Check that non-destructuring let names are actually assigned at declaration.
-		return !nameNode.GetParent().IsLet() || nameNode.HasChildren()
-	case rhino.Token_CONST,
-		rhino.Token_CATCH,
-		rhino.Token_CLASS,
-		rhino.Token_PARAM_LIST, // Parameters cannot be referenced before declaration.
-		rhino.Token_FUNCTION:   // Function hoisting means no references before declaration.
-		return true
-	case rhino.Token_IMPORT:
-		// ES module exports are mutable.
-		// TODO(lharker): make this check smarter if we start optimizing unrewritten modules.
-		return false
-	case rhino.Token_VAR:
-		// var hoisting requires this extra work to make sure the 'declaration' is also the first
-		// reference.
-		return refCollection.FirstReferenceIsAssigningDeclaration() && refCollection.IsWellDefined()
-	default:
-		panic(jutil.NewIllegalStateExceptionMsg("Unrecognized declaration type " + declarationType.String()))
 	}
 }

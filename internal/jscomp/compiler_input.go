@@ -396,7 +396,7 @@ func (c *CompilerInput) GetDependencyInfo() DependencyInfo {
 			SetProvides(compilerInput_concat(c.dependencyInfo.GetProvides(), c.extraProvides)).
 			SetRequires(compilerInput_concat(c.dependencyInfo.GetRequires(), c.extraRequires)).
 			SetTypeRequires(c.dependencyInfo.GetTypeRequires()).
-			SetLoadFlags(c.dependencyInfo.GetLoadFlags()).
+			SetLoadFlagsValue(c.dependencyInfo.GetLoadFlags()).
 			SetHasExternsAnnotation(c.dependencyInfo.GetHasExternsAnnotation()).
 			SetHasNoCompileAnnotation(c.dependencyInfo.GetHasNoCompileAnnotation()).
 			Build()
@@ -711,7 +711,7 @@ func (c *CompilerInput) IsGoogModule() bool {
 }
 
 // Java: CompilerInput.getLoadFlags()
-func (c *CompilerInput) GetLoadFlags() *jutil.LinkedHashMap[string, string] {
+func (c *CompilerInput) GetLoadFlags() LoadFlags {
 	return c.GetDependencyInfo().GetLoadFlags()
 }
 

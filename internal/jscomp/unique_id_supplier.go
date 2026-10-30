@@ -135,10 +135,10 @@ func (s *UniqueIdSupplier) ToProto() []*UniqueIdProto {
 	}
 	result := make([]*UniqueIdProto, len(s.order))
 	for i, element := range s.order {
-		result[i] = UniqueIdProto_NewBuilder().
-			SetHash(element).
-			SetCounter(int32(s.counts[element])).
-			Build()
+		result[i] = &UniqueIdProto{
+			hash_:    element,
+			counter_: int32(s.counts[element]),
+		}
 	}
 	return result
 }

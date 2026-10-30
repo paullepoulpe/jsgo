@@ -73,10 +73,10 @@ type removeUnusedCodeState struct {
 	extraContSlab []RemoveUnusedCode_Continuation
 
 	// Go-only: performance — one run's removables, var infos, and polyfill infos
-	// are created together and die together with this state (see jutil.Slab).
-	removables   jutil.Slab[RemoveUnusedCode_RemovableBase]
-	varInfoSlab  jutil.Slab[RemoveUnusedCode_RealVarInfo]
-	polyfillSlab jutil.Slab[rucPolyfillInfo]
+	// are created together and recycled per script in parallel mode.
+	removables   jutil.ReuseSlab[RemoveUnusedCode_RemovableBase]
+	varInfoSlab  jutil.ReuseSlab[RemoveUnusedCode_RealVarInfo]
+	polyfillSlab jutil.ReuseSlab[rucPolyfillInfo]
 }
 
 // RemoveUnusedCode is garbage collection for variable and function
@@ -460,7 +460,11 @@ func (r *RemoveUnusedCode) traverseAndRemoveLocalScriptsParallel(root rhino.Node
 				wr.varInfos = wr.varInfos[:0]
 				wr.worklistHead = 0
 				wr.worklistSize = 0
+				clear(wr.extraContSlab)
 				wr.extraContSlab = wr.extraContSlab[:0]
+				wr.removables.Reset(nil)
+				wr.varInfoSlab.Reset(nil)
+				wr.polyfillSlab.Reset(nil)
 			}
 			wr.traverseRootAndRemoveVars(scripts[idx], globalScope)
 		}
@@ -953,6 +957,14 @@ func (r *RemoveUnusedCode) GetVarInfo(var_ *Var) *RemoveUnusedCode_RealVarInfo {
 		panic(jutil.NewNullPointerException())
 	}
 	isGlobal := var_.IsGlobal()
+	if !r.trackProps && !r.unremovableLog.IsLogging() &&
+		((isGlobal && !r.removeGlobals) || (!isGlobal && !r.removeLocalVars)) {
+		return r.canonicalUnremovableVarInfo
+	}
+	key := scopedVarKeyOf(var_)
+	if v := r.varByKey[key]; v != nil {
+		return v
+	}
 	if var_.IsExtern() {
 		if r.unremovableLog.IsLogging() {
 			r.unremovableLog.LogString(var_.GetName() + ": extern")
@@ -967,17 +979,12 @@ func (r *RemoveUnusedCode) GetVarInfo(var_ *Var) *RemoveUnusedCode_RealVarInfo {
 		// No point in logging that we cannot remove "arguments"
 		return r.canonicalUnremovableVarInfo
 	}
-	key := scopedVarKeyOf(var_)
-	if v := r.varByKey[key]; v != nil {
-		return v
-	}
 	varInfo := NewRemoveUnusedCode_RealVarInfo(r, var_)
 	if var_.GetParentNode().IsParamList() {
 		varInfo.SetHasNonLocalOrNonLiteralValue()
 	}
-	// Cannot use canonicalUnremovableVarInfo for the 2 non-removable cases below, because each
-	// varInfo needs to track what value is assigned to it for the purpose of correctly allowing
-	// or preventing removal of properties set on it.
+	// When trackProps is enabled, non-removable vars still need their own VarInfo
+	// to track assigned values for static property removal.
 	if !r.removeGlobals && isGlobal {
 		varInfo.pin(rucPinNotRemovingGlobals)
 	} else if !r.removeLocalVars && !isGlobal {

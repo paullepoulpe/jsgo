@@ -1,32 +1,18 @@
 package xtbxml
 
-// Go-only: language-adapter — the javax.xml.parsers / org.xml.sax API that
-// XtbMessageBundle uses (SAXParserFactory, SAXParser, XMLReader,
-// ContentHandler, Attributes, Locator, EntityResolver, InputSource and the
-// SAX exceptions), declared from the public Javadoc, over a clean-room XML
-// parser (sax_scanner.go, sax_input.go) written from the XML 1.0
-// specification and checked black-box against the JDK's SAXParser
+// Go-only: language-adapter — clean-room XML 1.0 streaming parser
+// (sax_scanner.go, sax_input.go) checked black-box against the JDK's SAXParser
 // (tools/oracle/java/JutilSaxVectors.java, testdata/sax_vectors.txt.gz).
 //
-// Only the configuration XtbMessageBundle uses is emulated: no validation,
-// no XInclude, no namespaces, no external entities and no external DTD,
-// secure processing on.
+// Only the secure configuration XtbMessageBundle uses is supported: no
+// validation, no XInclude, no namespaces, no external entities and no
+// external DTD.
 
 import (
 	"io"
 	"strconv"
 
 	"github.com/paullepoulpe/jsgo/internal/jutil"
-)
-
-// XMLConstants_FEATURE_SECURE_PROCESSING is
-// javax.xml.XMLConstants.FEATURE_SECURE_PROCESSING.
-const XMLConstants_FEATURE_SECURE_PROCESSING = "http://javax.xml.XMLConstants/feature/secure-processing"
-
-const (
-	saxFeatureExternalGeneralEntities   = "http://xml.org/sax/features/external-general-entities"
-	saxFeatureExternalParameterEntities = "http://xml.org/sax/features/external-parameter-entities"
-	saxFeatureLoadExternalDtd           = "http://apache.org/xml/features/nonvalidating/load-external-dtd"
 )
 
 // SAXException is org.xml.sax.SAXException.
@@ -40,8 +26,7 @@ type ISAXException interface {
 	saxException()
 }
 
-// SAXParseException is org.xml.sax.SAXParseException. The parser's
-// exceptions have no public or system id (the InputSource has none).
+// SAXParseException is org.xml.sax.SAXParseException.
 type SAXParseException struct {
 	SAXException
 	lineNumber   int
@@ -49,12 +34,6 @@ type SAXParseException struct {
 }
 
 func (*SAXParseException) saxParseException() {}
-
-// NewSAXParseException is new SAXParseException(String, Locator) without a
-// locator.
-func NewSAXParseException(message string) *SAXParseException {
-	return newSAXParseExceptionAt(message, -1, -1)
-}
 
 func newSAXParseExceptionAt(message string, line, column int) *SAXParseException {
 	e := &SAXParseException{lineNumber: line, columnNumber: column}
@@ -85,12 +64,6 @@ func (e *SAXParseException) Error() string {
 	}
 	return s
 }
-
-// ParserConfigurationException is
-// javax.xml.parsers.ParserConfigurationException.
-type ParserConfigurationException struct{ jutil.JavaException }
-
-func (*ParserConfigurationException) parserConfigurationException() {}
 
 // Locator is org.xml.sax.Locator.
 type Locator interface {
@@ -126,98 +99,38 @@ type ContentHandler interface {
 	SkippedEntity(name string)
 }
 
-// EntityResolver is org.xml.sax.EntityResolver.
-type EntityResolver interface {
-	ResolveEntity(publicId *string, systemId *string) *InputSource
+// DefaultHandler provides no-op implementations of ContentHandler.
+type DefaultHandler struct{}
+
+func (DefaultHandler) SetDocumentLocator(Locator)                      {}
+func (DefaultHandler) StartDocument()                                  {}
+func (DefaultHandler) EndDocument()                                    {}
+func (DefaultHandler) StartPrefixMapping(string, string)               {}
+func (DefaultHandler) EndPrefixMapping(string)                         {}
+func (DefaultHandler) StartElement(string, string, string, Attributes) {}
+func (DefaultHandler) EndElement(string, string, string)               {}
+func (DefaultHandler) Characters([]uint16, int, int)                   {}
+func (DefaultHandler) IgnorableWhitespace([]uint16, int, int)          {}
+func (DefaultHandler) ProcessingInstruction(string, string)            {}
+func (DefaultHandler) SkippedEntity(string)                            {}
+
+type saxBailout struct {
+	err jutil.Throwable
 }
 
-// InputSource is org.xml.sax.InputSource with a byte stream or a character
-// stream.
-type InputSource struct {
-	byteStream      io.Reader
-	characterStream io.Reader
-}
-
-// NewInputSource is new InputSource(InputStream).
-func NewInputSource(byteStream io.Reader) *InputSource {
-	return &InputSource{byteStream: byteStream}
-}
-
-// NewInputSourceOfCharacterStream is new InputSource(Reader); the Go reader
-// yields UTF-8 text.
-func NewInputSourceOfCharacterStream(characterStream io.Reader) *InputSource {
-	return &InputSource{characterStream: characterStream}
-}
-
-// SAXParserFactory is javax.xml.parsers.SAXParserFactory.
-type SAXParserFactory struct {
-	validating    bool
-	xIncludeAware bool
-	features      map[string]bool
-}
-
-// SAXParserFactory_NewInstance is SAXParserFactory.newInstance().
-func SAXParserFactory_NewInstance() *SAXParserFactory {
-	return &SAXParserFactory{features: map[string]bool{
-		saxFeatureExternalGeneralEntities:      true,
-		saxFeatureExternalParameterEntities:    true,
-		saxFeatureLoadExternalDtd:              true,
-		XMLConstants_FEATURE_SECURE_PROCESSING: true,
-	}}
-}
-
-// SetValidating is SAXParserFactory.setValidating(boolean).
-func (f *SAXParserFactory) SetValidating(validating bool) { f.validating = validating }
-
-// SetXIncludeAware is SAXParserFactory.setXIncludeAware(boolean).
-func (f *SAXParserFactory) SetXIncludeAware(state bool) { f.xIncludeAware = state }
-
-// SetFeature is SAXParserFactory.setFeature(String, boolean).
-func (f *SAXParserFactory) SetFeature(name string, value bool) {
-	if _, ok := f.features[name]; !ok {
-		panic(jutil.NewUnsupportedOperationExceptionMsg("SAX feature not emulated: " + name))
-	}
-	f.features[name] = value
-}
-
-// NewSAXParser is SAXParserFactory.newSAXParser().
-func (f *SAXParserFactory) NewSAXParser() *SAXParser {
-	if f.validating || f.xIncludeAware ||
-		f.features[saxFeatureExternalGeneralEntities] ||
-		f.features[saxFeatureExternalParameterEntities] ||
-		f.features[saxFeatureLoadExternalDtd] {
-		panic(jutil.NewUnsupportedOperationExceptionMsg(
-			"SAXParser emulated only without validation, XInclude, external entities and external DTD loading"))
-	}
-	return &SAXParser{reader: &XMLReader{}}
-}
-
-// SAXParser is javax.xml.parsers.SAXParser.
-type SAXParser struct {
-	reader *XMLReader
-}
-
-// GetXMLReader is SAXParser.getXMLReader().
-func (p *SAXParser) GetXMLReader() *XMLReader { return p.reader }
-
-// XMLReader is org.xml.sax.XMLReader.
-type XMLReader struct {
-	contentHandler ContentHandler
-	entityResolver EntityResolver
-}
-
-// SetEntityResolver is XMLReader.setEntityResolver(EntityResolver).
-// Observed behaviour (black-box): with the external DTD and external
-// entities off, the JDK never calls the resolver, so neither does this
-// parser.
-func (r *XMLReader) SetEntityResolver(resolver EntityResolver) { r.entityResolver = resolver }
-
-// SetContentHandler is XMLReader.setContentHandler(ContentHandler).
-func (r *XMLReader) SetContentHandler(handler ContentHandler) { r.contentHandler = handler }
-
-// Parse is XMLReader.parse(InputSource): it reports the document to the
-// ContentHandler and throws SAXParseException at the first well-formedness
-// error (see sax_scanner.go).
-func (r *XMLReader) Parse(input *InputSource) {
-	newSaxScanner(r.contentHandler, input).parse()
+// Parse streams XML 1.0 events from r to handler and returns the exception
+// the JDK's SAXParser would throw at the first well-formedness, encoding, or
+// I/O error.
+func Parse(r io.Reader, handler ContentHandler) (err jutil.Throwable) {
+	defer func() {
+		if rec := recover(); rec != nil {
+			if b, ok := rec.(saxBailout); ok {
+				err = b.err
+				return
+			}
+			panic(rec)
+		}
+	}()
+	newSaxScanner(handler, r).parse()
+	return nil
 }

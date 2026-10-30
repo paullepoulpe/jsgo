@@ -51,7 +51,7 @@ type TypedVar struct {
 }
 
 var (
-	_ AbstractVar           = (*TypedVar)(nil)
+	_ ScopedName            = (*TypedVar)(nil)
 	_ rhino.StaticTypedSlot = (*TypedVar)(nil)
 	_ rhino.StaticTypedRef  = (*TypedVar)(nil)
 )

@@ -495,18 +495,9 @@ func (c *EqualityChecker) AreFunctionEqual(left FunctionType, right FunctionType
 	case FunctionType_Kind_ORDINARY:
 		return c.AreEqualCaching(left.GetTypeOfThis(), right.GetTypeOfThis()) &&
 			c.AreArrowEqual(left.GetInternalArrowType(), right.GetInternalArrowType()) &&
-			jsTypeClosurePrimitiveEquals(left.GetClosurePrimitive(), right.GetClosurePrimitive())
+			left.closurePrimitivePlus1() == right.closurePrimitivePlus1()
 	}
 	panic(jutil.NewAssertionErrorNoMessage())
-}
-
-// jsTypeClosurePrimitiveEquals is Objects.equals on two nullable
-// ClosurePrimitives.
-func jsTypeClosurePrimitiveEquals(a, b *ClosurePrimitive) bool {
-	if a == nil || b == nil {
-		return a == nil && b == nil
-	}
-	return *a == *b
 }
 
 // Java: EqualityChecker.areArrowEqual(ArrowType, ArrowType)

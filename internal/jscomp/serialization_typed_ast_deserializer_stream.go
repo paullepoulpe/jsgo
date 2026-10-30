@@ -21,7 +21,6 @@ package jscomp
 import (
 	"bufio"
 	"bytes"
-	"encoding/binary"
 	"io"
 	"math"
 	"strconv"
@@ -32,14 +31,17 @@ import (
 
 // typedAstDeserializer_WIRETYPE_LENGTH_DELIMITED is
 // WireFormat.WIRETYPE_LENGTH_DELIMITED.
-const typedAstDeserializer_WIRETYPE_LENGTH_DELIMITED = 2
+const (
+	typedAstDeserializer_WIRETYPE_LENGTH_DELIMITED = 2
+	typedAstList_TYPED_ASTS_FIELD_NUMBER           = 1
+)
 
 func typedAstValidateShardTag(rawTag uint64) jutil.Throwable {
 	tag := int32(rawTag)
 	if uint32(tag)>>3 == 0 {
 		return protoInvalidTag()
 	}
-	if jutil.Ushr32(tag, 3) != TypedAst_List_TYPED_ASTS_FIELD_NUMBER ||
+	if jutil.Ushr32(tag, 3) != typedAstList_TYPED_ASTS_FIELD_NUMBER ||
 		int(tag)&7 != typedAstDeserializer_WIRETYPE_LENGTH_DELIMITED {
 		return NewInvalidProtocolBufferException(
 			"Unexpected field number " +
@@ -135,11 +137,8 @@ func typedAstDeserializer_scanTypedAstStream(
 	processLargeShard func(io.Reader, int),
 ) {
 	const batchSize = 32
-	if br, ok := typedAstsStream.(*bytes.Reader); ok {
-		data := make([]byte, br.Len())
-		if _, err := io.ReadFull(br, data); err != nil {
-			panic(jutil.NewIOException(err.Error()))
-		}
+	if buf, ok := typedAstsStream.(*bytes.Buffer); ok {
+		data := buf.Next(buf.Len())
 		pos := 0
 		readNextFromSlice := func() ([]byte, bool, jutil.Throwable) {
 			rawTag, ok, err := typedAstReadSliceVarint64(data, &pos, true)
@@ -435,19 +434,14 @@ func (s *typedAstStreamReader) readSliceView(n int, minLeft int) []byte {
 	return s.scratch[:n:n]
 }
 
-func (s *typedAstStreamReader) appendUnknownField(dst []byte, tag int, minLeft int) []byte {
-	dst = protoAppendVarint(dst, uint64(uint32(tag)))
+func (s *typedAstStreamReader) skipField(tag int, minLeft int) {
 	switch tag & 7 {
 	case protoWireVarint:
-		dst = protoAppendVarint(dst, s.readVarint64(minLeft))
+		_ = s.readVarint64(minLeft)
 	case protoWireFixed64:
-		raw := s.readSliceView(8, minLeft)
-		var tmp [8]byte
-		copy(tmp[:], raw)
-		dst = binary.LittleEndian.AppendUint64(dst, binary.LittleEndian.Uint64(tmp[:]))
+		_ = s.readSliceView(8, minLeft)
 	case protoWireBytes:
-		raw := s.readSliceView(s.readLength(minLeft), minLeft)
-		dst = protoAppendBytes(dst, raw)
+		_ = s.readSliceView(s.readLength(minLeft), minLeft)
 	case protoWireStartGroup:
 		groupNum := tag >> 3
 		for {
@@ -459,22 +453,17 @@ func (s *typedAstStreamReader) appendUnknownField(dst []byte, tag int, minLeft i
 				if gt>>3 != groupNum {
 					panic(protoInvalidEndTag())
 				}
-				dst = protoAppendVarint(dst, uint64(uint32(gt)))
-				break
+				return
 			}
-			dst = s.appendUnknownField(dst, gt, minLeft)
+			s.skipField(gt, minLeft)
 		}
 	case protoWireEndGroup:
 		panic(protoInvalidEndTag())
 	case protoWireFixed32:
-		raw := s.readSliceView(4, minLeft)
-		var tmp [4]byte
-		copy(tmp[:], raw)
-		dst = binary.LittleEndian.AppendUint32(dst, binary.LittleEndian.Uint32(tmp[:]))
+		_ = s.readSliceView(4, minLeft)
 	default:
 		panic(protoInvalidWireType())
 	}
-	return dst
 }
 
 func typedAstDeserializer_streamLargeShard(
@@ -489,49 +478,9 @@ func typedAstDeserializer_streamLargeShard(
 	}
 	m := &TypedAst{}
 	typeProtoSlab := jutil.NewFixedSlab[TypeProto](512)
-	objectTypeSlab := jutil.NewFixedSlab[ObjectTypeProto](240)
-	unionTypeSlab := jutil.NewFixedSlab[UnionTypeProto](480)
 	edgeSlab := jutil.NewFixedSlab[SubtypingEdge](512)
 	lazyAstSlab := jutil.NewFixedSlab[LazyAst](256)
 	sourceFileSlab := jutil.NewFixedSlab[SourceFileProto](256)
-
-	var int32Slab []int32
-	allocInt32Slice := func(src []int32) []int32 {
-		n := len(src)
-		if n == 0 {
-			return nil
-		}
-		if n > 4096 {
-			return append([]int32(nil), src...)
-		}
-		if len(int32Slab) < n {
-			int32Slab = make([]int32, 4096) // 16 KiB noscan
-		}
-		dst := int32Slab[:n:n]
-		int32Slab = int32Slab[n:]
-		copy(dst, src)
-		return dst
-	}
-
-	var uuidSlab []byte
-	allocUuidBytes := func(src []byte) []byte {
-		n := len(src)
-		if n == 0 {
-			return nil
-		}
-		if n > 16384 {
-			return bytes.Clone(src)
-		}
-		if len(uuidSlab) < n {
-			uuidSlab = make([]byte, 16384) // 16 KiB noscan
-		}
-		dst := uuidSlab[:n:n]
-		uuidSlab = uuidSlab[n:]
-		copy(dst, src)
-		return dst
-	}
-
-	var instScratch, protoScratch, ownScratch, unionScratch []int32
 
 	var scriptSlab []byte
 	allocScriptBytes := func(src []byte) []byte {
@@ -584,149 +533,13 @@ func typedAstDeserializer_streamLargeShard(
 					data := sr.readSliceView(sr.readLength(endLeft), endLeft)
 					tp := typeProtoSlab.New()
 					pr := protoReader{b: data, depth: 2, limit: math.MaxInt32}
-					for {
-						tStart := pr.pos
-						tTag := pr.readTag()
-						if tTag == 0 {
-							break
-						}
-						switch tTag {
-						case 18:
-							objBytes := pr.readMessageBytes()
-							var op *ObjectTypeProto
-							if tp.kindCase_ == 2 && tp.object_ != nil {
-								op = tp.object_
-								instScratch = append(instScratch[:0], op.instanceType_...)
-								protoScratch = append(protoScratch[:0], op.prototype_...)
-								ownScratch = append(ownScratch[:0], op.ownProperty_...)
-							} else {
-								op = objectTypeSlab.New()
-								instScratch = instScratch[:0]
-								protoScratch = protoScratch[:0]
-								ownScratch = ownScratch[:0]
-							}
-							opr := protoReader{b: objBytes, depth: 3, limit: math.MaxInt32}
-							for {
-								oStart := opr.pos
-								oTag := opr.readTag()
-								if oTag == 0 {
-									break
-								}
-								switch oTag {
-								case 16:
-									op.isInvalidating_ = opr.readBool()
-								case 26:
-									op.uuid_ = allocUuidBytes(opr.readBytesView())
-								case 32:
-									op.propertiesKeepOriginalName_ = opr.readBool()
-								case 40:
-									instScratch = append(instScratch, opr.readInt32())
-								case 42:
-									sub := protoReader{b: opr.readBytesView()}
-									for !sub.atEnd() {
-										instScratch = append(instScratch, sub.readInt32())
-									}
-								case 48:
-									protoScratch = append(protoScratch, opr.readInt32())
-								case 50:
-									sub := protoReader{b: opr.readBytesView()}
-									for !sub.atEnd() {
-										protoScratch = append(protoScratch, sub.readInt32())
-									}
-								case 56:
-									op.markedConstructor_ = opr.readBool()
-								case 64:
-									ownScratch = append(ownScratch, opr.readInt32())
-								case 66:
-									sub := protoReader{b: opr.readBytesView()}
-									for !sub.atEnd() {
-										ownScratch = append(ownScratch, sub.readInt32())
-									}
-								case 72:
-									op.closureAssert_ = opr.readBool()
-								case 122:
-									dbgBytes := opr.readMessageBytes()
-									var dbg *ObjectTypeProto_DebugInfo
-									if op.debugInfo_ != nil {
-										dbg = op.debugInfo_
-										dbg.cachedSize = 0
-									} else {
-										dbg = &ObjectTypeProto_DebugInfo{}
-									}
-									dpr := protoReader{b: dbgBytes, depth: 4, limit: math.MaxInt32}
-									dbg.mergeFromReader(&dpr)
-									op.debugInfo_ = dbg
-								default:
-									opr.skipField(oTag)
-									op.unknownFields = append(op.unknownFields, opr.b[oStart:opr.pos]...)
-								}
-							}
-							op.instanceType_ = allocInt32Slice(instScratch)
-							op.prototype_ = allocInt32Slice(protoScratch)
-							op.ownProperty_ = allocInt32Slice(ownScratch)
-							tp.object_ = op
-							tp.union_ = nil
-							tp.kindCase_ = 2
-						case 34:
-							uBytes := pr.readMessageBytes()
-							var up *UnionTypeProto
-							if tp.kindCase_ == 4 && tp.union_ != nil {
-								up = tp.union_
-								unionScratch = append(unionScratch[:0], up.unionMember_...)
-							} else {
-								up = unionTypeSlab.New()
-								unionScratch = unionScratch[:0]
-							}
-							upr := protoReader{b: uBytes, depth: 3, limit: math.MaxInt32}
-							for {
-								uStart := upr.pos
-								uTag := upr.readTag()
-								if uTag == 0 {
-									break
-								}
-								switch uTag {
-								case 8:
-									unionScratch = append(unionScratch, upr.readInt32())
-								case 10:
-									sub := protoReader{b: upr.readBytesView()}
-									for !sub.atEnd() {
-										unionScratch = append(unionScratch, sub.readInt32())
-									}
-								default:
-									upr.skipField(uTag)
-									up.unknownFields = append(up.unknownFields, upr.b[uStart:upr.pos]...)
-								}
-							}
-							up.unionMember_ = allocInt32Slice(unionScratch)
-							tp.union_ = up
-							tp.object_ = nil
-							tp.kindCase_ = 4
-						default:
-							pr.skipField(tTag)
-							tp.unknownFields = append(tp.unknownFields, pr.b[tStart:pr.pos]...)
-						}
-					}
+					tp.mergeFromReader(&pr)
 					x.type_ = append(x.type_, tp)
 				case 18:
 					data := sr.readSliceView(sr.readLength(endLeft), endLeft)
 					ed := edgeSlab.New()
 					pr := protoReader{b: data, depth: 2, limit: math.MaxInt32}
-					for {
-						eStart := pr.pos
-						eTag := pr.readTag()
-						if eTag == 0 {
-							break
-						}
-						switch eTag {
-						case 8:
-							ed.subtype_ = pr.readInt32()
-						case 16:
-							ed.supertype_ = pr.readInt32()
-						default:
-							pr.skipField(eTag)
-							ed.unknownFields = append(ed.unknownFields, pr.b[eStart:pr.pos]...)
-						}
-					}
+					ed.mergeFromReader(&pr)
 					x.disambiguationEdges_ = append(x.disambiguationEdges_, ed)
 				case 26:
 					data := sr.readSliceView(sr.readLength(endLeft), endLeft)
@@ -741,7 +554,7 @@ func typedAstDeserializer_streamLargeShard(
 					dbg.mergeFromReader(&pr)
 					x.debugInfo_ = dbg
 				default:
-					x.unknownFields = sr.appendUnknownField(x.unknownFields, subTag, endLeft)
+					sr.skipField(subTag, endLeft)
 				}
 			}
 			m.typePool_ = x
@@ -753,7 +566,6 @@ func typedAstDeserializer_streamLargeShard(
 				stringIDs = make([]uint32, 1, min(subLen/12+2, 4_000_000))
 				stringIDs[0] = rhino.RhinoStringPool_InternID("")
 			}
-			var spUnknown []byte
 			for sr.totalLeft() > endLeft {
 				subTag := sr.readTag(endLeft)
 				switch subTag {
@@ -771,31 +583,14 @@ func typedAstDeserializer_streamLargeShard(
 				case 16:
 					maxLength = int32(sr.readVarint64(endLeft))
 				default:
-					spUnknown = sr.appendUnknownField(spUnknown, subTag, endLeft)
+					sr.skipField(subTag, endLeft)
 				}
 			}
 		case 26, 34:
 			data := sr.readSliceView(sr.readLength(0), 0)
 			la := lazyAstSlab.New()
 			pr := protoReader{b: data, depth: 2, limit: math.MaxInt32}
-			for {
-				lStart := pr.pos
-				lTag := pr.readTag()
-				if lTag == 0 {
-					break
-				}
-				switch lTag {
-				case 10:
-					la.script_ = pr.readBytesView()
-				case 16:
-					la.sourceFile_ = pr.readUint32()
-				case 26:
-					la.sourceMappingUrl_ = pr.readStringRequireUtf8()
-				default:
-					pr.skipField(lTag)
-					la.unknownFields = append(la.unknownFields, pr.b[lStart:pr.pos]...)
-				}
-			}
+			la.mergeFromReader(&pr)
 			la.script_ = allocScriptBytes(la.script_)
 			if tag == 26 {
 				m.externAst_ = append(m.externAst_, la)
@@ -822,7 +617,7 @@ func typedAstDeserializer_streamLargeShard(
 					sf.mergeFromReader(&pr)
 					x.sourceFile_ = append(x.sourceFile_, sf)
 				default:
-					x.unknownFields = sr.appendUnknownField(x.unknownFields, subTag, endLeft)
+					sr.skipField(subTag, endLeft)
 				}
 			}
 			m.sourceFilePool_ = x
@@ -845,7 +640,7 @@ func typedAstDeserializer_streamLargeShard(
 			}
 			m.runtimeLibraryToInject_ = append(m.runtimeLibraryToInject_, string(raw))
 		default:
-			m.unknownFields = sr.appendUnknownField(m.unknownFields, tag, 0)
+			sr.skipField(tag, 0)
 		}
 	}
 

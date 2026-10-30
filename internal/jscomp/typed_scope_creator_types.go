@@ -604,7 +604,7 @@ func (b *TypedScopeCreator_scopeBuilder) CreateEnumTypeFromNodes(
 	if enumType == nil {
 		enumType = rhino.EnumType_Builder_(b.outer.typeRegistry).
 			SetName(b.GetBestTypeName(lValue, name)).
-			SetGoogModuleId(TypedScopeCreator_ContainingGoogModuleIdOf(b.currentScope)).
+			SetOptionalGoogModuleId(TypedScopeCreator_ContainingGoogModuleIdOf(b.currentScope)).
 			SetSource(rValue).
 			SetElementType(info.GetEnumParameterType().Evaluate(b.currentScope, b.outer.typeRegistry)).
 			Build()

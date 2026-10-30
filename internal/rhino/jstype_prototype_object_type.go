@@ -513,16 +513,28 @@ func (p *PrototypeObjectTypeBase) HasReferenceName() bool {
 	return p.classNameID != 0 || p.ownerFunction != nil
 }
 
+func (p *PrototypeObjectTypeBase) referenceNameString() (string, bool) {
+	if p.classNameID != 0 {
+		return rhinoStringFromID(p.classNameID), true
+	}
+	if p.ownerFunction != nil {
+		if ownerName, ok := p.ownerFunction.referenceNameString(); ok {
+			return ownerName + ".prototype", true
+		}
+		return "null.prototype", true
+	}
+	return "", false
+}
+
 // Java: PrototypeObjectType.getReferenceName()
 func (p *PrototypeObjectTypeBase) GetReferenceName() *string {
 	if p.classNameID != 0 {
 		return rhinoStringPtrFromID(p.classNameID)
-	} else if p.ownerFunction != nil {
-		name := jutil.ToJavaString(p.ownerFunction.GetReferenceName()) + ".prototype"
-		return &name
-	} else {
-		return nil
 	}
+	if name, ok := p.referenceNameString(); ok {
+		return &name
+	}
+	return nil
 }
 
 // Java: PrototypeObjectType.isAnonymous()

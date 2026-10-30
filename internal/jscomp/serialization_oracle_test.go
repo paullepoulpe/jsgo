@@ -153,7 +153,7 @@ func serializationDump_dumpVariant(sb *strings.Builder, variant string, externsF
 			d.compiler,
 			SourceFile_FromCodeWithKind("syntheticExterns", "", rhino.StaticSourceFile_SourceKind_EXTERN),
 			requiredInputFiles,
-			bytes.NewReader(data),
+			bytes.NewBuffer(data),
 			true,
 			d.options.GetResolveSourceMapAnnotations(),
 			d.options.GetParseInlineSourceMaps())

@@ -147,13 +147,13 @@ func (tc *TypeCheck) VisitArgumentList(call ast.CallOrNew, functionType rhino.Fu
 func (tc *TypeCheck) CheckArgumentsMatchParameters(
 	call rhino.Node,
 	functionType rhino.FunctionType,
-	parameters []*rhino.FunctionType_Parameter,
+	parameters []rhino.FunctionType_Parameter,
 	firstParameterIndex int) {
 
 	spreadArgumentCount := 0
 	normalArgumentCount := firstParameterIndex
 	checkArgumentTypeAgainstParameter := true
-	var parameter *rhino.FunctionType_Parameter
+	var parameter rhino.FunctionType_Parameter
 	nextParameter := 0
 	checkArgument := func(argument ast.Arg) {
 		// Count normal & spread arguments.
@@ -172,11 +172,11 @@ func (tc *TypeCheck) CheckArgumentsMatchParameters(
 			if nextParameter < len(parameters) {
 				parameter = parameters[nextParameter]
 				nextParameter++
-			} else if parameter != nil && parameter.IsVariadic() {
+			} else if !parameter.IsZero() && parameter.IsVariadic() {
 				// use varargs for all remaining parameters
 			} else {
 				// else we ran out of parameters and will report that after this loop
-				parameter = nil
+				parameter = rhino.FunctionType_Parameter{}
 				checkArgumentTypeAgainstParameter = false
 			}
 		}

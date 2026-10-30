@@ -212,6 +212,26 @@ func TestJsDocTokenization21(t *testing.T) {
 	testJSDocTokenStream(t, "@param {Object=  }*/", tokens, strings)
 }
 
+func TestJsDocTokenizationSupplementaryAndLineOffsets(t *testing.T) {
+	stream := NewJsDocTokenStreamWithLinenoCharno("😀 @param {string} x\u2028😀bar */", 1, 3)
+	if tok := stream.GetJsDocToken(); tok != JsDocToken_STRING || stream.GetString() != "😀" || stream.GetLineno() != 1 || stream.GetCharno() != 3 {
+		t.Fatalf("first token: tok=%v str=%q line=%d char=%d", tok, stream.GetString(), stream.GetLineno(), stream.GetCharno())
+	}
+	// "😀" is 2 UTF-16 code units + 1 space = offset 3 from initCharno 3 -> charno 6.
+	if tok := stream.GetJsDocToken(); tok != JsDocToken_ANNOTATION || stream.GetString() != "param" || stream.GetLineno() != 1 || stream.GetCharno() != 6 {
+		t.Fatalf("annotation: tok=%v str=%q line=%d char=%d", tok, stream.GetString(), stream.GetLineno(), stream.GetCharno())
+	}
+	for range 4 {
+		stream.GetJsDocToken()
+	}
+	if tok := stream.GetJsDocToken(); tok != JsDocToken_EOL {
+		t.Fatalf("expected EOL, got %v", tok)
+	}
+	if tok := stream.GetJsDocToken(); tok != JsDocToken_STRING || stream.GetString() != "😀bar" || stream.GetLineno() != 2 || stream.GetCharno() != 0 {
+		t.Fatalf("line 2 string: tok=%v str=%q line=%d char=%d", tok, stream.GetString(), stream.GetLineno(), stream.GetCharno())
+	}
+}
+
 func testJSDocTokenStream(t *testing.T, comment string, tokens []JsDocToken, strings []string) {
 	t.Helper()
 	stream := NewJsDocTokenStreamWithLineno(comment, 0)

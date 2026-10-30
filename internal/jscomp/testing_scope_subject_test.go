@@ -95,24 +95,30 @@ func (s *ScopeSubject) Declares(name string) *ScopeSubject_DeclarationSubject {
 	return newScopeSubject_DeclarationSubject(s, var_)
 }
 
+type scopeSubjectVar interface {
+	ScopedName
+	rhino.StaticSlot
+	rhino.StaticRef
+}
+
 // Java: ScopeSubject.getVar(String)
-func (s *ScopeSubject) getVar(name string) AbstractVar {
+func (s *ScopeSubject) getVar(name string) scopeSubjectVar {
 	if s.actual.HasSlot(name) {
 		return jutil.CheckNotNull(scopeSubject_getVar(s.actual, name))
 	}
 	return nil
 }
 
-// ScopeSubject_DeclarationSubject is a subject for an AbstractVar declared
+// ScopeSubject_DeclarationSubject is a subject for a variable declared
 // by this particular scope.
 type ScopeSubject_DeclarationSubject struct {
 	// Go-only: language-adapter — the enclosing ScopeSubject.
 	outer *ScopeSubject
-	var_  AbstractVar
+	var_  scopeSubjectVar
 }
 
 // Java: ScopeSubject.DeclarationSubject(AbstractVar<?, ?>)
-func newScopeSubject_DeclarationSubject(outer *ScopeSubject, var_ AbstractVar) *ScopeSubject_DeclarationSubject {
+func newScopeSubject_DeclarationSubject(outer *ScopeSubject, var_ scopeSubjectVar) *ScopeSubject_DeclarationSubject {
 	return &ScopeSubject_DeclarationSubject{outer: outer, var_: jutil.CheckNotNull(var_)}
 }
 
@@ -251,7 +257,7 @@ func (s *ScopeSubject) getLabel(n rhino.Node) *string {
 // abstract_scope.go), on the two concrete scopes. They return nil for Java
 // null, never a typed nil.
 
-func scopeSubject_getVar(scope AbstractScope, name string) AbstractVar {
+func scopeSubject_getVar(scope AbstractScope, name string) scopeSubjectVar {
 	switch s := scope.(type) {
 	case *Scope:
 		if v := s.GetVar(name); v != nil {
@@ -267,8 +273,8 @@ func scopeSubject_getVar(scope AbstractScope, name string) AbstractVar {
 	return nil
 }
 
-func scopeSubject_getAllAccessibleVariables(scope AbstractScope) []AbstractVar {
-	var out []AbstractVar
+func scopeSubject_getAllAccessibleVariables(scope AbstractScope) []scopeSubjectVar {
+	var out []scopeSubjectVar
 	switch s := scope.(type) {
 	case *Scope:
 		for v := range s.GetAllAccessibleVariables() {

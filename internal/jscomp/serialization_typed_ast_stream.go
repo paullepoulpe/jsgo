@@ -218,51 +218,6 @@ func writeTypedAstListItemTo(m *TypedAst, out io.Writer) error {
 	if m.typePool_ != nil {
 		ensureTypePoolMemoizedSizes(m.typePool_)
 	}
-	if m.stringPool_ != nil && m.stringPool_.cachedSize == 0 {
-		spSize := 0
-		for _, x := range m.stringPool_.strings_ {
-			spSize += 1 + protoVarintLen(uint64(len(x))) + len(x)
-		}
-		if m.stringPool_.maxLength_ != 0 {
-			spSize += 1 + protoVarintLen(uint64(int64(m.stringPool_.maxLength_)))
-		}
-		if len(m.stringPool_.unknownFields) > 0 {
-			spSize += len(protoCanonicalUnknownFields(m.stringPool_.unknownFields))
-		}
-		m.stringPool_.cachedSize = spSize + 1
-	}
-	for _, x := range m.externAst_ {
-		if x.cachedSize == 0 {
-			if len(x.sourceMappingUrl_) == 0 && len(x.unknownFields) == 0 {
-				s := 0
-				if len(x.script_) != 0 {
-					s += 1 + protoVarintLen(uint64(len(x.script_))) + len(x.script_)
-				}
-				if x.sourceFile_ != 0 {
-					s += 1 + protoVarintLen(uint64(uint32(x.sourceFile_)))
-				}
-				x.cachedSize = s + 1
-			} else {
-				x.serializedSize()
-			}
-		}
-	}
-	for _, x := range m.codeAst_ {
-		if x.cachedSize == 0 {
-			if len(x.sourceMappingUrl_) == 0 && len(x.unknownFields) == 0 {
-				s := 0
-				if len(x.script_) != 0 {
-					s += 1 + protoVarintLen(uint64(len(x.script_))) + len(x.script_)
-				}
-				if x.sourceFile_ != 0 {
-					s += 1 + protoVarintLen(uint64(uint32(x.sourceFile_)))
-				}
-				x.cachedSize = s + 1
-			} else {
-				x.serializedSize()
-			}
-		}
-	}
 	buf := make([]byte, 0, 64*1024)
 	flush := func() error {
 		if len(buf) == 0 {
@@ -335,9 +290,6 @@ func writeTypedAstListItemTo(m *TypedAst, out io.Writer) error {
 			buf = append(buf, 16)
 			buf = protoAppendInt32(buf, m.stringPool_.maxLength_)
 		}
-		if len(m.stringPool_.unknownFields) > 0 {
-			buf = append(buf, protoCanonicalUnknownFields(m.stringPool_.unknownFields)...)
-		}
 		if err := flush(); err != nil {
 			return err
 		}
@@ -345,18 +297,7 @@ func writeTypedAstListItemTo(m *TypedAst, out io.Writer) error {
 	for _, x := range m.externAst_ {
 		buf = append(buf, 26)
 		buf = protoAppendVarint(buf, uint64(x.serializedSize()))
-		if len(x.sourceMappingUrl_) == 0 && len(x.unknownFields) == 0 {
-			if len(x.script_) != 0 {
-				buf = append(buf, 10)
-				buf = protoAppendBytes(buf, x.script_)
-			}
-			if x.sourceFile_ != 0 {
-				buf = append(buf, 16)
-				buf = protoAppendUint32(buf, x.sourceFile_)
-			}
-		} else {
-			buf = x.appendTo(buf)
-		}
+		buf = x.appendTo(buf)
 		if len(buf) >= 64*1024 {
 			if err := flush(); err != nil {
 				return err
@@ -366,18 +307,7 @@ func writeTypedAstListItemTo(m *TypedAst, out io.Writer) error {
 	for _, x := range m.codeAst_ {
 		buf = append(buf, 34)
 		buf = protoAppendVarint(buf, uint64(x.serializedSize()))
-		if len(x.sourceMappingUrl_) == 0 && len(x.unknownFields) == 0 {
-			if len(x.script_) != 0 {
-				buf = append(buf, 10)
-				buf = protoAppendBytes(buf, x.script_)
-			}
-			if x.sourceFile_ != 0 {
-				buf = append(buf, 16)
-				buf = protoAppendUint32(buf, x.sourceFile_)
-			}
-		} else {
-			buf = x.appendTo(buf)
-		}
+		buf = x.appendTo(buf)
 		if len(buf) >= 64*1024 {
 			if err := flush(); err != nil {
 				return err
@@ -397,9 +327,6 @@ func writeTypedAstListItemTo(m *TypedAst, out io.Writer) error {
 				}
 			}
 		}
-		if len(m.sourceFilePool_.unknownFields) > 0 {
-			buf = append(buf, protoCanonicalUnknownFields(m.sourceFilePool_.unknownFields)...)
-		}
 	}
 	if m.externsSummary_ != nil {
 		buf = append(buf, 50)
@@ -409,9 +336,6 @@ func writeTypedAstListItemTo(m *TypedAst, out io.Writer) error {
 	for _, x := range m.runtimeLibraryToInject_ {
 		buf = append(buf, 58)
 		buf = protoAppendString(buf, x)
-	}
-	if len(m.unknownFields) > 0 {
-		buf = append(buf, protoCanonicalUnknownFields(m.unknownFields)...)
 	}
 	return flush()
 }

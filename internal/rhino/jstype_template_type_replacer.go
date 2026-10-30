@@ -331,7 +331,7 @@ func (r *TemplateTypeReplacer) CaseFunctionTypeUnguarded(type_ FunctionType) JST
 				changed = true
 				paramsChanged = true
 				paramBuilder.registry = r.registry
-				paramBuilder.parameters = make([]*FunctionType_Parameter, i, numParams)
+				paramBuilder.parameters = make([]FunctionType_Parameter, i, numParams)
 				copy(paramBuilder.parameters, parameters[:i])
 			}
 			if parameter.IsOptional() {
@@ -347,14 +347,14 @@ func (r *TemplateTypeReplacer) CaseFunctionTypeUnguarded(type_ FunctionType) JST
 	}
 
 	if changed {
-		var params []*FunctionType_Parameter
+		var params []FunctionType_Parameter
 		if paramsChanged {
 			params = paramBuilder.parameters
 		} else {
 			params = parameters
 		}
 		var builder FunctionType_Builder
-		type_.initBuilder(&builder)
+		type_.InitBuilder(&builder)
 		return builder.
 			WithParametersOfList(params).
 			WithReturnType(afterReturn).

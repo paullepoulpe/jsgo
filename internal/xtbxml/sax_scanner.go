@@ -41,6 +41,7 @@ package xtbxml
 // content (whitespace in such elements is ignorable).
 
 import (
+	"io"
 	"strconv"
 	"strings"
 
@@ -136,25 +137,11 @@ func (a *saxAttributes) GetValue(qName string) *string {
 	return nil
 }
 
-type saxNoopHandler struct{}
-
-func (saxNoopHandler) SetDocumentLocator(Locator)                      {}
-func (saxNoopHandler) StartDocument()                                  {}
-func (saxNoopHandler) EndDocument()                                    {}
-func (saxNoopHandler) StartPrefixMapping(string, string)               {}
-func (saxNoopHandler) EndPrefixMapping(string)                         {}
-func (saxNoopHandler) StartElement(string, string, string, Attributes) {}
-func (saxNoopHandler) EndElement(string, string, string)               {}
-func (saxNoopHandler) Characters([]uint16, int, int)                   {}
-func (saxNoopHandler) IgnorableWhitespace([]uint16, int, int)          {}
-func (saxNoopHandler) ProcessingInstruction(string, string)            {}
-func (saxNoopHandler) SkippedEntity(string)                            {}
-
-func newSaxScanner(handler ContentHandler, source *InputSource) *saxScanner {
+func newSaxScanner(handler ContentHandler, src io.Reader) *saxScanner {
 	if handler == nil {
-		handler = saxNoopHandler{}
+		handler = DefaultHandler{}
 	}
-	s := &saxScanner{in: newSaxInput(source), handler: handler}
+	s := &saxScanner{in: newSaxInput(src), handler: handler}
 	s.locator.s = s
 	s.in.fail = s.fatal
 	return s
@@ -167,12 +154,12 @@ func (s *saxScanner) fatal(msg string) {
 	s.fatalAt(msg, s.in.line, s.in.column)
 }
 
-// fatalAt throws the SAXParseException of a fatal error. With no
-// ErrorHandler (XMLReader has none here), the JDK also prints the error on
-// System.err; observed behaviour (black-box): "[Fatal Error] :L:C: msg".
+// fatalAt reports the SAXParseException of a fatal error. With no
+// ErrorHandler, the JDK also prints the error on System.err; observed
+// behaviour (black-box): "[Fatal Error] :L:C: msg".
 func (s *saxScanner) fatalAt(msg string, line, column int) {
 	jutil.System_Err().Println("[Fatal Error] :" + strconv.Itoa(line) + ":" + strconv.Itoa(column) + ": " + msg)
-	panic(newSAXParseExceptionAt(msg, line, column))
+	panic(saxBailout{err: newSAXParseExceptionAt(msg, line, column)})
 }
 
 // fatalOrEOF reports msg, or the end-of-input error when the input has
@@ -679,7 +666,7 @@ func (s *saxScanner) xmlDecl() {
 			// not know.
 			e := &saxUnsupportedEncodingException{}
 			jutil.InitThrowable(e, "java.io.UnsupportedEncodingException", &encoding, nil)
-			panic(e)
+			panic(saxBailout{err: e})
 		}
 		s.in.setEncoding(enc, encoding)
 	}
@@ -1108,7 +1095,7 @@ func (s *saxScanner) markup() {
 				e := &SAXException{}
 				msg := "Scanner State 24 not Recognized "
 				jutil.InitThrowable(e, "org.xml.sax.SAXException", &msg, nil)
-				panic(e)
+				panic(saxBailout{err: e})
 			}
 			s.fatalOrEOF("The content of elements must consist of well-formed character data or markup.")
 		default:

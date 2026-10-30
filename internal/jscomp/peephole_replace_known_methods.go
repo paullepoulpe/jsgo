@@ -57,6 +57,9 @@ var (
 	rkmIDJoin          = uint32(strpool.Intern("join"))
 	rkmIDConcat        = uint32(strpool.Intern("concat"))
 	rkmIDComma         = uint32(strpool.Intern(","))
+	rkmIDGoog          = uint32(strpool.Intern("goog"))
+	rkmIDWeakUsage     = uint32(strpool.Intern("weakUsage"))
+	rkmIDGoogWeakUsage = uint32(strpool.Intern("goog$weakUsage"))
 )
 
 // Go-only: this pass uses the typed AST view (internal/ast) to read the
@@ -109,7 +112,7 @@ func (p *PeepholeReplaceKnownMethods) cloneForWorker() AbstractPeepholeOptimizat
 // Java: PeepholeReplaceKnownMethods.optimizeSubtree(Node)
 func (p *PeepholeReplaceKnownMethods) OptimizeSubtree(subtree rhino.Node) rhino.Node {
 	call, ok := ast.AsCall(subtree)
-	if !ok {
+	if !ok || !p.canFoldCall(call.Callee().Node()) {
 		return subtree
 	}
 	if p.late && NodeUtil_IsGoogWeakUsageCall(subtree) {
@@ -124,6 +127,41 @@ func (p *PeepholeReplaceKnownMethods) OptimizeSubtree(subtree rhino.Node) rhino.
 		return name
 	}
 	return p.TryFoldKnownMethods(call)
+}
+
+func (p *PeepholeReplaceKnownMethods) canFoldCall(callee rhino.Node) bool {
+	switch callee.GetToken() {
+	case rhino.Token_NAME:
+		switch callee.GetStringID() {
+		case rkmIDParseInt, rkmIDParseFloat:
+			return true
+		case rkmIDGoogWeakUsage:
+			return p.late
+		}
+		return false
+	case rhino.Token_GETPROP:
+		switch recv := callee.GetFirstChild(); recv.GetToken() {
+		case rhino.Token_STRINGLIT, rhino.Token_ARRAYLIT:
+			return true
+		case rhino.Token_NAME:
+			switch recv.GetStringID() {
+			case rkmIDArray, rkmIDMath, rkmIDNumber:
+				return true
+			case rkmIDGoog:
+				return p.late && callee.GetStringID() == rkmIDWeakUsage
+			}
+		}
+		if !p.useTypes {
+			return false
+		}
+		switch callee.GetStringID() {
+		case rkmIDConcat, rkmIDSubstr, rkmIDSubstring, rkmIDSlice:
+			return true
+		}
+		return false
+	default:
+		return false
+	}
 }
 
 // Java: PeepholeReplaceKnownMethods.tryFoldKnownMethods(Node)

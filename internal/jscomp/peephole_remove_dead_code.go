@@ -38,6 +38,7 @@ import (
 // with no side effects, etc.
 type PeepholeRemoveDeadCode struct {
 	AbstractPeepholeOptimizationBase
+	rootsScratch []rhino.Node
 }
 
 // Java: PeepholeRemoveDeadCode()
@@ -283,14 +284,17 @@ func (p *PeepholeRemoveDeadCode) TryFoldExpr(subtree rhino.Node) rhino.Node {
 //
 // Java: PeepholeRemoveDeadCode.trySimplifyUnusedResult(Node)
 func (p *PeepholeRemoveDeadCode) TrySimplifyUnusedResult(expression rhino.Node) rhino.Node {
-	var rootsBuf [8]rhino.Node
-	sideEffectRoots, atFixedPoint := p.trySimplifyUnusedResultInternal(expression, rootsBuf[:0])
+	base := len(p.rootsScratch)
+	atFixedPoint := p.trySimplifyUnusedResultInternal(expression)
+	sideEffectRoots := p.rootsScratch[base:]
 
 	if atFixedPoint {
 		// `expression` is in a form that cannot be further optimized.
+		p.rootsScratch = p.rootsScratch[:base]
 		return expression
 	}
 	if len(sideEffectRoots) == 0 {
+		p.rootsScratch = p.rootsScratch[:base]
 		p.DeleteNode(expression)
 		return rhino.NilNode
 	}
@@ -298,8 +302,11 @@ func (p *PeepholeRemoveDeadCode) TrySimplifyUnusedResult(expression rhino.Node) 
 		// Expression was a conditional that was transformed. There can't be any other side-effects,
 		// but we also can't detach the transformed root.
 		if len(sideEffectRoots) != 1 {
-			panic(jutil.NewIllegalStateExceptionMsg(jutil.CollectionToString(sideEffectRoots)))
+			msg := jutil.CollectionToString(sideEffectRoots)
+			p.rootsScratch = p.rootsScratch[:base]
+			panic(jutil.NewIllegalStateExceptionMsg(msg))
 		}
+		p.rootsScratch = p.rootsScratch[:base]
 		p.ReportChangeToEnclosingScope(expression)
 		return expression
 	}
@@ -312,6 +319,7 @@ func (p *PeepholeRemoveDeadCode) TrySimplifyUnusedResult(expression rhino.Node) 
 		next := PeepholeRemoveDeadCode_AsDetachedExpression(root)
 		sideEffects = rhino.IR_Comma(sideEffects, next).Srcref(next)
 	}
+	p.rootsScratch = p.rootsScratch[:base]
 
 	sideEffects.InsertBefore(expression)
 	p.DeleteNode(expression)
@@ -319,30 +327,30 @@ func (p *PeepholeRemoveDeadCode) TrySimplifyUnusedResult(expression rhino.Node) 
 }
 
 // trySimplifyUnusedResultInternal collects any potentially side-effectful
-// subtrees within tree into sideEffectRoots.
+// subtrees within tree into p.rootsScratch.
 //
 // When a node is determined to have side-effects its descendants are not
 // explored. This method assumes the entire subtree of such a node must be
-// preserved. As a corollary, the contents of sideEffectRoots are a forest.
+// preserved. As a corollary, the contents of p.rootsScratch are a forest.
 //
 // This operation generally does not mutate tree; however, exceptions are
 // made for expressions that alter control-flow. Such expression will be
 // pruned of their side-effectless branches. Even in this case, tree is never
 // detached.
 //
-// sideEffectRoots are the roots of subtrees determined to have side-effects,
-// in execution order. Returns true iff there is no code to be removed from
-// within tree; it is already at a fixed point for code removal.
+// Returns true iff there is no code to be removed from within tree; it is
+// already at a fixed point for code removal.
 //
 // Java: PeepholeRemoveDeadCode.trySimplifyUnusedResultInternal(Node, ArrayDeque<Node>)
-func (p *PeepholeRemoveDeadCode) trySimplifyUnusedResultInternal(tree rhino.Node, sideEffectRoots []rhino.Node) ([]rhino.Node, bool) {
+func (p *PeepholeRemoveDeadCode) trySimplifyUnusedResultInternal(tree rhino.Node) bool {
 	// Special cases for conditional expressions that may be using results.
 	switch tree.GetToken() {
 	case rhino.Token_OPTCHAIN_GETELEM, rhino.Token_OPTCHAIN_GETPROP, rhino.Token_OPTCHAIN_CALL:
 		if p.MayHaveSideEffects(tree) {
-			return append(sideEffectRoots, tree), PeepholeRemoveDeadCode_HasFixedPointParent(tree)
+			p.rootsScratch = append(p.rootsScratch, tree)
+			return PeepholeRemoveDeadCode_HasFixedPointParent(tree)
 		}
-		return sideEffectRoots, false
+		return false
 	case rhino.Token_HOOK:
 		// Try to remove one or more of the conditional children and transform the HOOK to an
 		// equivalent operation. Remember that if either value branch still exists, the result of
@@ -359,21 +367,24 @@ func (p *PeepholeRemoveDeadCode) trySimplifyUnusedResultInternal(tree rhino.Node
 		if trueNode.IsNil() && !falseNode.IsNil() {
 			jutil.CheckStateMsg1(tree.HasTwoChildren(), "%s", tree)
 			tree.SetToken(rhino.Token_OR)
-			return append(sideEffectRoots, tree), false // The node type was changed.
+			p.rootsScratch = append(p.rootsScratch, tree)
+			return false // The node type was changed.
 		}
 		if !trueNode.IsNil() && falseNode.IsNil() {
 			jutil.CheckStateMsg1(tree.HasTwoChildren(), "%s", tree)
 			tree.SetToken(rhino.Token_AND)
-			return append(sideEffectRoots, tree), false // The node type was changed.
+			p.rootsScratch = append(p.rootsScratch, tree)
+			return false // The node type was changed.
 		}
 		if trueNode.IsNil() && falseNode.IsNil() {
 			// Don't bother adding true and false branch children to make the AST valid; this HOOK is
 			// going to be deleted. We just need to collect any side-effects from the predicate
 			// expression.
-			sideEffectRoots, _ = p.trySimplifyUnusedResultInternal(cond.Node(), sideEffectRoots)
-			return sideEffectRoots, false // This HOOK must be cleaned up.
+			p.trySimplifyUnusedResultInternal(cond.Node())
+			return false // This HOOK must be cleaned up.
 		}
-		return append(sideEffectRoots, tree), PeepholeRemoveDeadCode_HasFixedPointParent(tree)
+		p.rootsScratch = append(p.rootsScratch, tree)
+		return PeepholeRemoveDeadCode_HasFixedPointParent(tree)
 	case rhino.Token_AND, rhino.Token_OR, rhino.Token_COALESCE:
 		// Try to remove the second operand from a AND, OR, and COALESCE operations. Remember that
 		// if the second
@@ -388,44 +399,45 @@ func (p *PeepholeRemoveDeadCode) trySimplifyUnusedResultInternal(tree rhino.Node
 		if p.TrySimplifyUnusedResult(right.Node()).IsNil() {
 			// Don't bother adding a second child to make the AST valid; this op is going to be
 			// deleted. We just need to collect any side-effects from the predicate first child.
-			sideEffectRoots, _ = p.trySimplifyUnusedResultInternal(left.Node(), sideEffectRoots)
-			return sideEffectRoots, false // This op must be cleaned up.
+			p.trySimplifyUnusedResultInternal(left.Node())
+			return false // This op must be cleaned up.
 		}
-		return append(sideEffectRoots, tree), PeepholeRemoveDeadCode_HasFixedPointParent(tree)
+		p.rootsScratch = append(p.rootsScratch, tree)
+		return PeepholeRemoveDeadCode_HasFixedPointParent(tree)
 	case rhino.Token_FUNCTION:
 		// Functions that aren't being invoked are dead. If they were invoked we'd see the CALL
 		// before arriving here. We don't want to look at any children since they'll never execute.
 	case rhino.Token_MEMBER_FIELD_DEF:
 		field := ast.MustMemberFieldDef(tree)
 		if value, ok := field.Value(); ok && tree.IsStaticMember() {
-			sideEffectRoots, _ = p.trySimplifyUnusedResultInternal(value.Node(), sideEffectRoots)
+			p.trySimplifyUnusedResultInternal(value.Node())
 		}
 	case rhino.Token_COMPUTED_FIELD_DEF:
 		field := ast.MustComputedFieldDef(tree)
 		value, hasValue := field.Value()
 		// Computed key initializers run once when the class is defined, even on non-static fields.
-		sideEffectRoots, _ = p.trySimplifyUnusedResultInternal(field.Key().Node(), sideEffectRoots)
+		p.trySimplifyUnusedResultInternal(field.Key().Node())
 		if hasValue && tree.IsStaticMember() {
-			sideEffectRoots, _ = p.trySimplifyUnusedResultInternal(value.Node(), sideEffectRoots)
+			p.trySimplifyUnusedResultInternal(value.Node())
 		}
 	default:
 		// This is the meat of this function. It covers the general case of nodes which are unused
 		if p.NodeTypeMayHaveSideEffects(tree) {
-			return append(sideEffectRoots, tree), PeepholeRemoveDeadCode_HasFixedPointParent(tree)
+			p.rootsScratch = append(p.rootsScratch, tree)
+			return PeepholeRemoveDeadCode_HasFixedPointParent(tree)
 		}
 		if !tree.HasChildren() {
-			return sideEffectRoots, false // A node must have children or side-effects to be at fixed-point.
+			return false // A node must have children or side-effects to be at fixed-point.
 		}
 
 		atFixedPoint := PeepholeRemoveDeadCode_HasFixedPointParent(tree)
 		for child := tree.GetFirstChild(); !child.IsNil(); child = child.GetNext() {
-			var childFixed bool
-			sideEffectRoots, childFixed = p.trySimplifyUnusedResultInternal(child, sideEffectRoots)
+			childFixed := p.trySimplifyUnusedResultInternal(child)
 			atFixedPoint = childFixed && atFixedPoint
 		}
-		return sideEffectRoots, atFixedPoint
+		return atFixedPoint
 	}
-	return sideEffectRoots, false
+	return false
 }
 
 // PeepholeRemoveDeadCode_AsDetachedExpression returns an expression

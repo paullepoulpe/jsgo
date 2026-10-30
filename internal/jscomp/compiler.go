@@ -171,8 +171,10 @@ type Compiler struct {
 
 	outStream *jutil.PrintStream
 
-	externProperties *jutil.LinkedHashSet[string]
-	accessorSummary  *AccessorSummary
+	externProperties    *jutil.LinkedHashSet[string]
+	externPropSet       *ExternPropSet
+	externPropSetSource *jutil.LinkedHashSet[string]
+	accessorSummary     *AccessorSummary
 
 	changeTracker *ChangeTracker
 
@@ -646,4 +648,25 @@ func (c *Compiler) BuildKnownSymbolTable() *SymbolTable {
 	symbolTable.RemoveGeneratedSymbols()
 
 	return symbolTable
+}
+
+// GetExternPropSet returns the interned extern property set, or nil if extern
+// properties have not been gathered or set.
+func (c *Compiler) GetExternPropSet() *ExternPropSet {
+	if c.externProperties != c.externPropSetSource {
+		if c.externProperties == nil {
+			c.externPropSet = nil
+		} else {
+			c.externPropSet = NewExternPropSetFromStrings(c.externProperties.All())
+		}
+		c.externPropSetSource = c.externProperties
+	}
+	return c.externPropSet
+}
+
+// SetExternPropSet sets the interned extern property set.
+func (c *Compiler) SetExternPropSet(externPropSet *ExternPropSet) {
+	c.externPropSet = externPropSet
+	c.externProperties = nil
+	c.externPropSetSource = nil
 }

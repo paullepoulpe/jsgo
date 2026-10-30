@@ -139,8 +139,8 @@ func ModuleRenaming_GetGlobalNameForJsDoc(
 		prop < len(propertyChain) {
 		propertyName := propertyChain[prop]
 		m := moduleMap.GetModuleByPath(binding.Metadata().Path())
-		if m.Namespace().ContainsKey(propertyName) {
-			binding = m.Namespace().Get(propertyName)
+		if next, ok := m.NamespaceMap().Lookup(propertyName); ok {
+			binding = next
 		} else {
 			// This means someone referenced an invalid export on a module object. This should be an
 			// error, so just rewrite and let the type checker complain later. It isn't a super clear

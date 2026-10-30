@@ -32,7 +32,8 @@ type LazyParsedDependencyInfo struct {
 	ast      *CompilerInput
 	compiler AbstractCompiler
 
-	loadFlags *jutil.LinkedHashMap[string, string]
+	loadFlags    LoadFlags
+	hasLoadFlags bool
 }
 
 var _ DependencyInfo = (*LazyParsedDependencyInfo)(nil)
@@ -62,8 +63,8 @@ func (d *LazyParsedDependencyInfo) IsGoogModule() bool {
 }
 
 // Java: LazyParsedDependencyInfo.getLoadFlags()
-func (d *LazyParsedDependencyInfo) GetLoadFlags() *jutil.LinkedHashMap[string, string] {
-	if d.loadFlags == nil {
+func (d *LazyParsedDependencyInfo) GetLoadFlags() LoadFlags {
+	if !d.hasLoadFlags {
 		hadSourceInMemory := d.ast.GetSourceFile().HasSourceInMemory()
 		delegateFlags := d.delegate.GetLoadFlags()
 		features := d.ast.GetFeatures(d.compiler)
@@ -73,12 +74,12 @@ func (d *LazyParsedDependencyInfo) GetLoadFlags() *jutil.LinkedHashMap[string, s
 		var langFlag, modFlag string
 		hasLang, hasMod := false, false
 		onlyLangAndMod := true
-		for k, v := range delegateFlags.All() {
-			switch k {
+		for _, e := range delegateFlags.Entries() {
+			switch e.Key {
 			case "lang":
-				langFlag, hasLang = v, true
+				langFlag, hasLang = e.Value, true
 			case "module":
-				modFlag, hasMod = v, true
+				modFlag, hasMod = e.Value, true
 			default:
 				onlyLangAndMod = false
 			}
@@ -102,31 +103,25 @@ func (d *LazyParsedDependencyInfo) GetLoadFlags() *jutil.LinkedHashMap[string, s
 		}
 
 		if onlyLangAndMod && (hasLang || langFlag == "") && (hasMod || modFlag == "") {
-			// Fast path: reuse pre-built singleton LinkedHashMap in UTF-16 key order ("lang" < "module").
+			// Fast path: reuse canonical LoadFlags in UTF-16 key order ("lang" < "module").
 			d.loadFlags = simpleDependencyInfo_flagsForLangModule(langFlag, modFlag)
 		} else {
-			vals := make(map[string]string, delegateFlags.Size()+2)
-			keys := make([]string, 0, delegateFlags.Size()+2)
-			for k, v := range delegateFlags.All() {
-				vals[k] = v
-				keys = append(keys, k)
+			entries := make([]LoadFlag, 0, delegateFlags.Len()+2)
+			for _, e := range delegateFlags.Entries() {
+				putLoadFlag(&entries, e.Key, e.Value)
 			}
 			if hasMod {
-				vals["module"] = modFlag
-				keys = append(keys, "module")
+				putLoadFlag(&entries, "module", modFlag)
 			}
 			if hasLang {
-				vals["lang"] = langFlag
-				keys = append(keys, "lang")
+				putLoadFlag(&entries, "lang", langFlag)
 			}
-			slices.SortFunc(keys, jutil.StringCompareTo)
-			keys = slices.Compact(keys)
-			loadFlags := jutil.NewLinkedHashMap[string, string]()
-			for _, k := range keys {
-				loadFlags.Put(k, vals[k])
-			}
-			d.loadFlags = loadFlags
+			slices.SortFunc(entries, func(a, b LoadFlag) int {
+				return jutil.StringCompareTo(a.Key, b.Key)
+			})
+			d.loadFlags, _ = normalizeLoadFlagsEntries(entries, false)
 		}
+		d.hasLoadFlags = true
 
 		// Don't preserve the source in memory if it was loaded only for getLoadFlags().
 		if !hadSourceInMemory {

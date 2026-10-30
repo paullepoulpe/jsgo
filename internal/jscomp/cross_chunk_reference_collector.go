@@ -35,12 +35,10 @@ type CrossChunkReferenceCollector struct {
 	maxVarIndex int
 
 	// The stack of basic blocks and scopes the current traversal is in.
-	blockStack    []basicBlockEntry
-	blockStackBuf [16]basicBlockEntry
-	blocks        jutil.Slab[BasicBlock]
-	refSlab       jutil.Slab[Reference]
-	colSlab       jutil.Slab[ReferenceCollection]
-	stmtSlab      jutil.Slab[CrossChunkReferenceCollector_TopLevelStatement]
+	blocks   basicBlockTracker
+	refSlab  jutil.Slab[Reference]
+	colSlab  jutil.Slab[ReferenceCollection]
+	stmtSlab jutil.Slab[CrossChunkReferenceCollector_TopLevelStatement]
 
 	// List of all top-level statements in the order they appear in the AST.
 	topLevelStatements []*CrossChunkReferenceCollector_TopLevelStatement
@@ -114,7 +112,6 @@ func NewCrossChunkReferenceCollector(compiler AbstractCompiler, creator ScopeCre
 		scopeCreator: creator,
 		maxVarIndex:  -1,
 	}
-	c.blockStack = c.blockStackBuf[:0]
 	c.draftVal.nonDeclarationReferences = c.draftRefsBuf[:0]
 	c.draftVal.nonDeclarationVars = c.draftVarsBuf[:0]
 	return c
@@ -204,29 +201,6 @@ func (c *CrossChunkReferenceCollector) GetReferences(v *Var) *ReferenceCollectio
 	return c.byKey[scopedVarKeyOf(v)]
 }
 
-func (c *CrossChunkReferenceCollector) getCurrentBlock() *BasicBlock {
-	if len(c.blockStack) == 0 {
-		panic(jutil.NewNoSuchElementException())
-	}
-	idx := len(c.blockStack) - 1
-	if b := c.blockStack[idx].block; b != nil {
-		return b
-	}
-	i := idx
-	for i > 0 && c.blockStack[i-1].block == nil {
-		i--
-	}
-	var parent *BasicBlock
-	if i > 0 {
-		parent = c.blockStack[i-1].block
-	}
-	for ; i <= idx; i++ {
-		parent = initBasicBlock(c.blocks.New(), parent, c.blockStack[i].root)
-		c.blockStack[i].block = parent
-	}
-	return parent
-}
-
 // Visit, for each node, updates the block stack and reference collection as
 // appropriate.
 //
@@ -253,7 +227,7 @@ func (c *CrossChunkReferenceCollector) Visit(t *NodeTraversal, n rhino.Node, par
 					reference := c.refSlab.New()
 					*reference = Reference{
 						nameNode:   n,
-						basicBlock: c.getCurrentBlock(),
+						basicBlock: c.blocks.currentBlock(),
 						scope:      scope,
 						inputId:    t.GetInput().GetInputId(),
 					}
@@ -271,7 +245,7 @@ func (c *CrossChunkReferenceCollector) Visit(t *NodeTraversal, n rhino.Node, par
 	}
 checkBoundary:
 	if CrossChunkReferenceCollector_IsBlockBoundary(n, parent) {
-		crossChunkReferenceCollector_pop(&c.blockStack)
+		c.blocks.popUnchecked()
 	}
 }
 
@@ -283,7 +257,7 @@ func (c *CrossChunkReferenceCollector) EnterScope(t *NodeTraversal) {
 	// the ES5 scoping rules. Other nodes that ought to be considered the root of a BasicBlock
 	// are added in shouldTraverse() and removed in visit().
 	if t.IsHoistScope() {
-		c.blockStack = append(c.blockStack, basicBlockEntry{root: t.GetScopeRoot()})
+		c.blocks.push(t.GetScopeRoot())
 	}
 }
 
@@ -292,7 +266,7 @@ func (c *CrossChunkReferenceCollector) EnterScope(t *NodeTraversal) {
 // Java: CrossChunkReferenceCollector.exitScope(NodeTraversal)
 func (c *CrossChunkReferenceCollector) ExitScope(t *NodeTraversal) {
 	if t.IsHoistScope() {
-		crossChunkReferenceCollector_pop(&c.blockStack)
+		c.blocks.popUnchecked()
 	}
 }
 
@@ -315,7 +289,7 @@ func (c *CrossChunkReferenceCollector) ShouldTraverse(t *NodeTraversal, n rhino.
 	}
 	// If node is a new basic block, put on basic block stack
 	if CrossChunkReferenceCollector_IsBlockBoundary(n, parent) {
-		c.blockStack = append(c.blockStack, basicBlockEntry{root: n})
+		c.blocks.push(n)
 	}
 	return true
 }
@@ -441,20 +415,6 @@ func CrossChunkReferenceCollector_IsPotentiallyMoveableGetElem(maybeGetElem rhin
 	}
 	name, ok := property.Object().AsName()
 	return ok && name.Ident() == "Symbol"
-}
-
-// Java: CrossChunkReferenceCollector.pop(List<T>)
-func crossChunkReferenceCollector_pop[T any](list *[]T) T {
-	l := *list
-	if len(l) == 0 {
-		// ArrayList.remove(-1)
-		panic(jutil.NewIndexOutOfBoundsException("Index -1 out of bounds for length 0"))
-	}
-	last := l[len(l)-1]
-	var zero T
-	l[len(l)-1] = zero
-	*list = l[:len(l)-1]
-	return last
 }
 
 var crossChunkParentBoundaryKind = [256]uint8{

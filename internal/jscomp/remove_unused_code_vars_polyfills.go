@@ -65,7 +65,7 @@ type RemoveUnusedCode_RealVarInfo struct {
 
 // Java: RemoveUnusedCode.RealVarInfo(String)
 func NewRemoveUnusedCode_RealVarInfo(outer *RemoveUnusedCode, var_ *Var) *RemoveUnusedCode_RealVarInfo {
-	v := outer.varInfoSlab.New()
+	v := outer.varInfoSlab.Alloc()
 	v.outer = outer
 	v.var_ = var_
 	v.flags = rucVarFlagEntirelyRemovable
@@ -171,7 +171,9 @@ func (v *RemoveUnusedCode_RealVarInfo) formatUnremovableLog() string {
 
 // Java: RemoveUnusedCode.RealVarInfo.setHasNonLocalOrNonLiteralValue()
 func (v *RemoveUnusedCode_RealVarInfo) SetHasNonLocalOrNonLiteralValue() {
-	v.flags |= rucVarFlagHasNonLocalOrNonLit
+	if v.flags&rucVarFlagCanonical == 0 {
+		v.flags |= rucVarFlagHasNonLocalOrNonLit
+	}
 }
 
 // Java: RemoveUnusedCode.RealVarInfo.hasFunctionOrClassLiteralValue()
@@ -227,7 +229,7 @@ func (r *RemoveUnusedCode) createPolyfillInfo(call ast.NormalOrOptChainCall, sco
 			TraverseOnlyGuarded(r.root, r.StorePolyfill)
 	}
 	removable := r.newPolyfillRemovable(call, scope)
-	info := r.polyfillSlab.New()
+	info := r.polyfillSlab.Alloc()
 	lastDot := strings.LastIndexByte(name, '.')
 	if lastDot < 0 {
 		*info = rucPolyfillInfo{

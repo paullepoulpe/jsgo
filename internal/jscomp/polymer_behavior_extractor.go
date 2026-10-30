@@ -398,7 +398,7 @@ func (e *PolymerBehaviorExtractor) getNameIfModuleImport(
 	if dot != -1 {
 		root = name[:dot]
 	}
-	b := module.BoundNames().Get(root)
+	b := module.BoundNamesMap().Get(root)
 
 	if b == nil || !b.IsSomeImport() {
 		return nil
@@ -471,7 +471,7 @@ func (e *PolymerBehaviorExtractor) resolveModuleNamespaceBinding(b *Binding, res
 		exportedName = rest[:dot]
 	}
 	originalModule := e.moduleMap.GetModuleByPath(b.Metadata().Path())
-	exportBinding := originalModule.Namespace().Get(exportedName)
+	exportBinding := originalModule.NamespaceMap().Get(exportedName)
 	if exportBinding == nil || !exportBinding.IsCreatedByEsExport() {
 		// This is an invalid import, and will cause an error elsewhere.
 		return polymerBehaviorExtractor_FAILED_RESOLVE_RESULT

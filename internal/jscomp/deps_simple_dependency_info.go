@@ -39,7 +39,7 @@ type SimpleDependencyInfo struct {
 	provides                  []string
 	requires                  []*DependencyInfo_Require
 	typeRequires              []string
-	loadFlags                 *jutil.LinkedHashMap[string, string]
+	loadFlags                 LoadFlags
 	moduleKind                uint8
 	hasExternsAnnotation      bool
 	hasNoCompileAnnotation    bool
@@ -47,58 +47,59 @@ type SimpleDependencyInfo struct {
 
 var _ DependencyInfo = (*SimpleDependencyInfo)(nil)
 
+type canonicalLangFlags struct {
+	only [1]LoadFlag
+	goog [2]LoadFlag
+	es6  [2]LoadFlag
+}
+
+func makeCanonicalLangFlags(lang string) canonicalLangFlags {
+	return canonicalLangFlags{
+		only: [1]LoadFlag{{Key: "lang", Value: lang}},
+		goog: [2]LoadFlag{{Key: "lang", Value: lang}, {Key: "module", Value: "goog"}},
+		es6:  [2]LoadFlag{{Key: "lang", Value: lang}, {Key: "module", Value: "es6"}},
+	}
+}
+
 var (
-	simpleDependencyInfo_emptyStrings              = []string{}
-	simpleDependencyInfo_emptyRequires             = []*DependencyInfo_Require{}
-	simpleDependencyInfo_EMPTY_FLAGS               = jutil.NewLinkedHashMap[string, string]()
-	simpleDependencyInfo_Builder_GOOG_MODULE_FLAGS = func() *jutil.LinkedHashMap[string, string] {
-		m := jutil.NewLinkedHashMap[string, string]()
-		m.Put("module", "goog")
-		return m
-	}()
-	simpleDependencyInfo_ES6_FLAGS = func() *jutil.LinkedHashMap[string, string] {
-		m := jutil.NewLinkedHashMap[string, string]()
-		m.Put("module", "es6")
-		return m
-	}()
-	simpleDependencyInfo_singletonModuleKind = map[*jutil.LinkedHashMap[string, string]]uint8{}
-	simpleDependencyInfo_langModuleFlags     = func() map[[2]string]*jutil.LinkedHashMap[string, string] {
-		langs := []string{"", "es5", "es6", "es7", "es8", "es9", "es_2020", "es_2021", "es_next", "ts_unsupported"}
-		mods := []string{"", "goog", "es6"}
-		out := make(map[[2]string]*jutil.LinkedHashMap[string, string], len(langs)*len(mods))
-		for _, l := range langs {
-			for _, mod := range mods {
-				var m *jutil.LinkedHashMap[string, string]
-				switch {
-				case l == "" && mod == "":
-					m = simpleDependencyInfo_EMPTY_FLAGS
-				case l == "" && mod == "goog":
-					m = simpleDependencyInfo_Builder_GOOG_MODULE_FLAGS
-				case l == "" && mod == "es6":
-					m = simpleDependencyInfo_ES6_FLAGS
-				default:
-					m = jutil.NewLinkedHashMap[string, string]()
-					if l != "" {
-						m.Put("lang", l)
-					}
-					if mod != "" {
-						m.Put("module", mod)
-					}
-				}
-				out[[2]string{l, mod}] = m
-				var kind uint8
-				switch mod {
-				case "goog":
-					kind = simpleDepModuleGoog
-				case "es6":
-					kind = simpleDepModuleES6
-				}
-				simpleDependencyInfo_singletonModuleKind[m] = kind
-			}
-		}
-		return out
-	}()
+	simpleDependencyInfo_emptyStrings  = []string{}
+	simpleDependencyInfo_emptyRequires = []*DependencyInfo_Require{}
+
+	canonFlagsES5     = makeCanonicalLangFlags("es5")
+	canonFlagsES6     = makeCanonicalLangFlags("es6")
+	canonFlagsES7     = makeCanonicalLangFlags("es7")
+	canonFlagsES8     = makeCanonicalLangFlags("es8")
+	canonFlagsES9     = makeCanonicalLangFlags("es9")
+	canonFlagsES2020  = makeCanonicalLangFlags("es_2020")
+	canonFlagsES2021  = makeCanonicalLangFlags("es_2021")
+	canonFlagsESNext  = makeCanonicalLangFlags("es_next")
+	canonFlagsTSUnsup = makeCanonicalLangFlags("ts_unsupported")
 )
+
+func lookupCanonicalLangFlags(lang string) *canonicalLangFlags {
+	switch lang {
+	case "es5":
+		return &canonFlagsES5
+	case "es6":
+		return &canonFlagsES6
+	case "es7":
+		return &canonFlagsES7
+	case "es8":
+		return &canonFlagsES8
+	case "es9":
+		return &canonFlagsES9
+	case "es_2020":
+		return &canonFlagsES2020
+	case "es_2021":
+		return &canonFlagsES2021
+	case "es_next":
+		return &canonFlagsESNext
+	case "ts_unsupported":
+		return &canonFlagsTSUnsup
+	default:
+		return nil
+	}
+}
 
 func simpleDependencyInfo_moduleKindOf(mod string) uint8 {
 	switch mod {
@@ -111,62 +112,77 @@ func simpleDependencyInfo_moduleKindOf(mod string) uint8 {
 	}
 }
 
-func simpleDependencyInfo_normalizeFlags(
-	loadFlags *jutil.LinkedHashMap[string, string],
-	cloneCustom bool,
-) (*jutil.LinkedHashMap[string, string], uint8) {
-	if loadFlags == nil || loadFlags.IsEmpty() {
-		return simpleDependencyInfo_EMPTY_FLAGS, simpleDepModuleNone
-	}
-	if kind, ok := simpleDependencyInfo_singletonModuleKind[loadFlags]; ok {
-		return loadFlags, kind
-	}
-	if loadFlags.Size() <= 2 {
-		var lang, mod string
-		validOrder := true
-		idx := 0
-		for k, v := range loadFlags.All() {
-			switch k {
-			case "lang":
-				if idx != 0 || v == "" {
-					validOrder = false
-				}
-				lang = v
-			case "module":
-				if v == "" {
-					validOrder = false
-				}
-				mod = v
-			default:
-				validOrder = false
+func normalizeLoadFlagsEntries(entries []LoadFlag, cloneCustom bool) (LoadFlags, uint8) {
+	switch len(entries) {
+	case 0:
+		return EmptyLoadFlags, simpleDepModuleNone
+	case 1:
+		e := entries[0]
+		switch e.Key {
+		case "module":
+			if e.Value == "goog" {
+				return GoogModuleLoadFlags, simpleDepModuleGoog
 			}
-			idx++
+			if e.Value == "es6" {
+				return ES6ModuleLoadFlags, simpleDepModuleES6
+			}
+		case "lang":
+			if c := lookupCanonicalLangFlags(e.Value); c != nil {
+				return LoadFlags{entries: c.only[:]}, simpleDepModuleNone
+			}
 		}
-		if validOrder {
-			if singleton, ok := simpleDependencyInfo_langModuleFlags[[2]string{lang, mod}]; ok {
-				return singleton, simpleDependencyInfo_moduleKindOf(mod)
+	case 2:
+		if entries[0].Key == "lang" && entries[1].Key == "module" {
+			if c := lookupCanonicalLangFlags(entries[0].Value); c != nil {
+				switch entries[1].Value {
+				case "goog":
+					return LoadFlags{entries: c.goog[:]}, simpleDepModuleGoog
+				case "es6":
+					return LoadFlags{entries: c.es6[:]}, simpleDepModuleES6
+				}
 			}
 		}
 	}
-	mod, _ := loadFlags.Lookup("module")
+	var mod string
+	for _, e := range entries {
+		if e.Key == "module" {
+			mod = e.Value
+			break
+		}
+	}
 	if cloneCustom {
-		loadFlags = jutil.NewLinkedHashMapFrom(loadFlags)
+		entries = slices.Clone(entries)
 	}
-	return loadFlags, simpleDependencyInfo_moduleKindOf(mod)
+	return LoadFlags{entries: entries}, simpleDependencyInfo_moduleKindOf(mod)
 }
 
-func simpleDependencyInfo_flagsForLangModule(lang, mod string) *jutil.LinkedHashMap[string, string] {
-	if m, ok := simpleDependencyInfo_langModuleFlags[[2]string{lang, mod}]; ok {
-		return m
+func simpleDependencyInfo_flagsForLangModule(lang, mod string) LoadFlags {
+	if lang == "" {
+		switch mod {
+		case "":
+			return EmptyLoadFlags
+		case "goog":
+			return GoogModuleLoadFlags
+		case "es6":
+			return ES6ModuleLoadFlags
+		default:
+			return LoadFlags{entries: []LoadFlag{{Key: "module", Value: mod}}}
+		}
 	}
-	m := jutil.NewLinkedHashMap[string, string]()
-	if lang != "" {
-		m.Put("lang", lang)
+	if c := lookupCanonicalLangFlags(lang); c != nil {
+		switch mod {
+		case "":
+			return LoadFlags{entries: c.only[:]}
+		case "goog":
+			return LoadFlags{entries: c.goog[:]}
+		case "es6":
+			return LoadFlags{entries: c.es6[:]}
+		}
 	}
-	if mod != "" {
-		m.Put("module", mod)
+	if mod == "" {
+		return LoadFlags{entries: []LoadFlag{{Key: "lang", Value: lang}}}
 	}
-	return m
+	return LoadFlags{entries: []LoadFlag{{Key: "lang", Value: lang}, {Key: "module", Value: mod}}}
 }
 
 func newSimpleDependencyInfoDirect(
@@ -175,7 +191,7 @@ func newSimpleDependencyInfoDirect(
 	provides []string,
 	requires []*DependencyInfo_Require,
 	typeRequires []string,
-	loadFlags *jutil.LinkedHashMap[string, string],
+	loadFlags LoadFlags,
 	hasExternsAnnotation bool,
 	hasNoCompileAnnotation bool,
 ) *SimpleDependencyInfo {
@@ -192,7 +208,7 @@ func newSimpleDependencyInfoDirect(
 			typeReqCopy = combined[np:]
 		}
 	}
-	normFlags, modKind := simpleDependencyInfo_normalizeFlags(loadFlags, false)
+	normFlags, modKind := normalizeLoadFlagsEntries(loadFlags.entries, false)
 	return &SimpleDependencyInfo{
 		name:                      pathOfDefiningFile,
 		pathRelativeToClosureBase: srcPathRelativeToClosure,
@@ -224,7 +240,7 @@ func (d *SimpleDependencyInfo) GetRequires() []*DependencyInfo_Require { return 
 func (d *SimpleDependencyInfo) GetTypeRequires() []string { return d.typeRequires }
 
 // Java: AutoValue_SimpleDependencyInfo.getLoadFlags()
-func (d *SimpleDependencyInfo) GetLoadFlags() *jutil.LinkedHashMap[string, string] {
+func (d *SimpleDependencyInfo) GetLoadFlags() LoadFlags {
 	return d.loadFlags
 }
 
@@ -343,7 +359,7 @@ func SimpleDependencyInfo_Builder_(srcPathRelativeToClosure string, pathOfDefini
 			provides:                  simpleDependencyInfo_emptyStrings,
 			requires:                  simpleDependencyInfo_emptyRequires,
 			typeRequires:              simpleDependencyInfo_emptyStrings,
-			loadFlags:                 simpleDependencyInfo_EMPTY_FLAGS,
+			loadFlags:                 EmptyLoadFlags,
 		},
 	}
 }
@@ -402,9 +418,25 @@ func (b *SimpleDependencyInfo_Builder) SetTypeRequiresArray(typeRequires ...stri
 }
 
 // Java: SimpleDependencyInfo.Builder.setLoadFlags(Map<String, String>)
-func (b *SimpleDependencyInfo_Builder) SetLoadFlags(loadFlags *jutil.LinkedHashMap[string, string]) *SimpleDependencyInfo_Builder {
-	jutil.CheckNotNull(loadFlags)
-	b.info.loadFlags, b.info.moduleKind = simpleDependencyInfo_normalizeFlags(loadFlags, true)
+func (b *SimpleDependencyInfo_Builder) SetLoadFlags(loadFlags jutil.MapSource[string, string]) *SimpleDependencyInfo_Builder {
+	if jutil.IsNil(loadFlags) {
+		panic(jutil.NewNullPointerException())
+	}
+	if lf, ok := loadFlags.(LoadFlags); ok {
+		return b.SetLoadFlagsValue(lf)
+	}
+	var buf [4]LoadFlag
+	entries := buf[:0]
+	for k, v := range loadFlags.All() {
+		putLoadFlag(&entries, k, v)
+	}
+	b.info.loadFlags, b.info.moduleKind = normalizeLoadFlagsEntries(entries, true)
+	return b
+}
+
+// SetLoadFlagsValue sets LoadFlags directly without boxing into MapSource.
+func (b *SimpleDependencyInfo_Builder) SetLoadFlagsValue(loadFlags LoadFlags) *SimpleDependencyInfo_Builder {
+	b.info.loadFlags, b.info.moduleKind = normalizeLoadFlagsEntries(loadFlags.entries, false)
 	return b
 }
 
@@ -423,10 +455,10 @@ func (b *SimpleDependencyInfo_Builder) SetHasNoCompileAnnotation(hasNoCompileAnn
 // Java: SimpleDependencyInfo.Builder.setGoogModule(boolean)
 func (b *SimpleDependencyInfo_Builder) SetGoogModule(isModule bool) *SimpleDependencyInfo_Builder {
 	if isModule {
-		b.info.loadFlags = simpleDependencyInfo_Builder_GOOG_MODULE_FLAGS
+		b.info.loadFlags = GoogModuleLoadFlags
 		b.info.moduleKind = simpleDepModuleGoog
 	} else {
-		b.info.loadFlags = simpleDependencyInfo_EMPTY_FLAGS
+		b.info.loadFlags = EmptyLoadFlags
 		b.info.moduleKind = simpleDepModuleNone
 	}
 	return b

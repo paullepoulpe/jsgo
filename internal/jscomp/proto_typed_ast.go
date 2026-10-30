@@ -472,18 +472,6 @@ var nodeKind_byNumber = func() [636]NodeKind {
 	return t
 }()
 
-// NodeKind_ForNumber returns the constant with the given number, if valid.
-//
-// Java: NodeKind.forNumber(int)
-func NodeKind_ForNumber(value int32) (NodeKind, bool) {
-	if uint32(value) < uint32(len(nodeKind_byNumber)) {
-		if e := nodeKind_byNumber[value]; e != NodeKind_UNRECOGNIZED {
-			return e, true
-		}
-	}
-	return 0, false
-}
-
 func nodeKind_fromNumber(value int32) NodeKind {
 	if uint32(value) < uint32(len(nodeKind_byNumber)) {
 		return nodeKind_byNumber[value]
@@ -502,7 +490,6 @@ type TypedAst struct {
 	sourceFilePool_         *SourceFilePool
 	externsSummary_         *ExternsSummary
 	runtimeLibraryToInject_ []string
-	unknownFields           []byte
 	cachedSize              int
 }
 
@@ -511,7 +498,7 @@ func (m *TypedAst) GetTypePool() *TypePool {
 	if m.typePool_ != nil {
 		return m.typePool_
 	}
-	return TypePool_GetDefaultInstance()
+	return typePool_DEFAULT_INSTANCE
 }
 
 // Java: TypedAst.getStringPool()
@@ -519,7 +506,7 @@ func (m *TypedAst) GetStringPool() *StringPoolProto {
 	if m.stringPool_ != nil {
 		return m.stringPool_
 	}
-	return StringPoolProto_GetDefaultInstance()
+	return stringPoolProto_DEFAULT_INSTANCE
 }
 
 // Java: TypedAst.getExternAstList()
@@ -533,7 +520,7 @@ func (m *TypedAst) GetSourceFilePool() *SourceFilePool {
 	if m.sourceFilePool_ != nil {
 		return m.sourceFilePool_
 	}
-	return SourceFilePool_GetDefaultInstance()
+	return sourceFilePool_DEFAULT_INSTANCE
 }
 
 // Java: TypedAst.getExternsSummary()
@@ -541,53 +528,11 @@ func (m *TypedAst) GetExternsSummary() *ExternsSummary {
 	if m.externsSummary_ != nil {
 		return m.externsSummary_
 	}
-	return ExternsSummary_GetDefaultInstance()
+	return externsSummary_DEFAULT_INSTANCE
 }
 
 // Java: TypedAst.getRuntimeLibraryToInjectList()
 func (m *TypedAst) GetRuntimeLibraryToInjectList() []string { return m.runtimeLibraryToInject_ }
-
-// appendTo is TypedAst.writeTo(CodedOutputStream): fields in number order, then unknown fields.
-func (m *TypedAst) appendTo(b []byte) []byte {
-	if m.typePool_ != nil {
-		b = protoAppendTag(b, 1, 2)
-		b = protoAppendVarint(b, uint64(m.typePool_.serializedSize()))
-		b = m.typePool_.appendTo(b)
-	}
-	if m.stringPool_ != nil {
-		b = protoAppendTag(b, 2, 2)
-		b = protoAppendVarint(b, uint64(m.stringPool_.serializedSize()))
-		b = m.stringPool_.appendTo(b)
-	}
-	for _, x := range m.externAst_ {
-		b = protoAppendTag(b, 3, 2)
-		b = protoAppendVarint(b, uint64(x.serializedSize()))
-		b = x.appendTo(b)
-	}
-	for _, x := range m.codeAst_ {
-		b = protoAppendTag(b, 4, 2)
-		b = protoAppendVarint(b, uint64(x.serializedSize()))
-		b = x.appendTo(b)
-	}
-	if m.sourceFilePool_ != nil {
-		b = protoAppendTag(b, 5, 2)
-		b = protoAppendVarint(b, uint64(m.sourceFilePool_.serializedSize()))
-		b = m.sourceFilePool_.appendTo(b)
-	}
-	if m.externsSummary_ != nil {
-		b = protoAppendTag(b, 6, 2)
-		b = protoAppendVarint(b, uint64(m.externsSummary_.serializedSize()))
-		b = m.externsSummary_.appendTo(b)
-	}
-	for _, x := range m.runtimeLibraryToInject_ {
-		b = protoAppendTag(b, 7, 2)
-		b = protoAppendString(b, x)
-	}
-	if len(m.unknownFields) > 0 {
-		b = append(b, protoCanonicalUnknownFields(m.unknownFields)...)
-	}
-	return b
-}
 
 // serializedSize is getSerializedSize() (memoized once immutable).
 func (m *TypedAst) serializedSize() int {
@@ -622,20 +567,13 @@ func (m *TypedAst) serializedSize() int {
 	for _, x := range m.runtimeLibraryToInject_ {
 		size += protoStringSize(1, x)
 	}
-	if len(m.unknownFields) > 0 {
-		size += len(protoCanonicalUnknownFields(m.unknownFields))
-	}
 	m.cachedSize = size + 1
 	return size
 }
 
-// Java: TypedAst.toByteArray()
-func (m *TypedAst) ToByteArray() []byte { return m.appendTo(make([]byte, 0, m.serializedSize())) }
-
 // mergeFromReader is TypedAst.Builder.mergeFrom(CodedInputStream) on a mutable m.
 func (m *TypedAst) mergeFromReader(r *protoReader) {
 	for {
-		start := r.pos
 		tag := r.readTag()
 		switch tag {
 		case 0:
@@ -704,120 +642,6 @@ func (m *TypedAst) mergeFromReader(r *protoReader) {
 			m.runtimeLibraryToInject_ = append(m.runtimeLibraryToInject_, r.readStringRequireUtf8())
 		default:
 			r.skipField(tag)
-			m.unknownFields = append(m.unknownFields, r.b[start:r.pos]...)
-		}
-	}
-}
-
-func (m *TypedAst) printText(p *protoTextPrinter) {
-	if m.typePool_ != nil {
-		p.message("type_pool", m.typePool_.printText)
-	}
-	if m.stringPool_ != nil {
-		p.message("string_pool", m.stringPool_.printText)
-	}
-	for _, x := range m.externAst_ {
-		p.message("extern_ast", x.printText)
-	}
-	for _, x := range m.codeAst_ {
-		p.message("code_ast", x.printText)
-	}
-	if m.sourceFilePool_ != nil {
-		p.message("source_file_pool", m.sourceFilePool_.printText)
-	}
-	if m.externsSummary_ != nil {
-		p.message("externs_summary", m.externsSummary_.printText)
-	}
-	for _, x := range m.runtimeLibraryToInject_ {
-		p.scalar("runtime_library_to_inject", protoTextString(x))
-	}
-	p.unknownFields(m.unknownFields)
-}
-
-// String is TypedAst.toString() (protobuf text format).
-func (m *TypedAst) String() string {
-	p := &protoTextPrinter{}
-	m.printText(p)
-	return p.sb.String()
-}
-
-// TypedAst_List is the protobuf message jscomp.TypedAst.List.
-//
-// Java: com.google.javascript.jscomp.serialization.TypedAst.List
-type TypedAst_List struct {
-	typedAsts_    []*TypedAst
-	unknownFields []byte
-	cachedSize    int
-}
-
-// Field numbers (TypedAst.List.X_FIELD_NUMBER).
-const (
-	TypedAst_List_TYPED_ASTS_FIELD_NUMBER = 1
-)
-
-// TypedAst_List_ParseFrom panics with *InvalidProtocolBufferException on malformed input.
-//
-// Java: TypedAst.List.parseFrom(byte[])
-func TypedAst_List_ParseFrom(data []byte) *TypedAst_List {
-	m := &TypedAst_List{}
-	r := protoReader{b: data}
-	m.mergeFromReader(&r)
-	return m
-}
-
-// Java: TypedAst.List.getTypedAsts(int)
-func (m *TypedAst_List) GetTypedAsts(index int) *TypedAst { return m.typedAsts_[index] }
-
-// appendTo is List.writeTo(CodedOutputStream): fields in number order, then unknown fields.
-func (m *TypedAst_List) appendTo(b []byte) []byte {
-	for _, x := range m.typedAsts_ {
-		b = protoAppendTag(b, 1, 2)
-		b = protoAppendVarint(b, uint64(x.serializedSize()))
-		b = x.appendTo(b)
-	}
-	if len(m.unknownFields) > 0 {
-		b = append(b, protoCanonicalUnknownFields(m.unknownFields)...)
-	}
-	return b
-}
-
-// serializedSize is getSerializedSize() (memoized once immutable).
-func (m *TypedAst_List) serializedSize() int {
-	if m.cachedSize > 0 {
-		return m.cachedSize - 1
-	}
-	size := 0
-	for _, x := range m.typedAsts_ {
-		s := x.serializedSize()
-		size += 1 + protoVarintLen(uint64(s)) + s
-	}
-	if len(m.unknownFields) > 0 {
-		size += len(protoCanonicalUnknownFields(m.unknownFields))
-	}
-	m.cachedSize = size + 1
-	return size
-}
-
-// Java: List.toByteArray()
-func (m *TypedAst_List) ToByteArray() []byte { return m.appendTo(make([]byte, 0, m.serializedSize())) }
-
-// mergeFromReader is List.Builder.mergeFrom(CodedInputStream) on a mutable m.
-func (m *TypedAst_List) mergeFromReader(r *protoReader) {
-	for {
-		start := r.pos
-		tag := r.readTag()
-		switch tag {
-		case 0:
-			return
-		case 10:
-			data := r.readMessageBytes()
-			x := &TypedAst{}
-			sub := r.sub(data)
-			x.mergeFromReader(&sub)
-			m.typedAsts_ = append(m.typedAsts_, x)
-		default:
-			r.skipField(tag)
-			m.unknownFields = append(m.unknownFields, r.b[start:r.pos]...)
 		}
 	}
 }
@@ -829,7 +653,6 @@ type LazyAst struct {
 	script_           []byte
 	sourceFile_       int32
 	sourceMappingUrl_ string
-	unknownFields     []byte
 	cachedSize        int
 }
 
@@ -842,7 +665,7 @@ func (m *LazyAst) GetSourceFile() int32 { return m.sourceFile_ }
 // Java: LazyAst.getSourceMappingUrl()
 func (m *LazyAst) GetSourceMappingUrl() string { return m.sourceMappingUrl_ }
 
-// appendTo is LazyAst.writeTo(CodedOutputStream): fields in number order, then unknown fields.
+// appendTo is LazyAst.writeTo(CodedOutputStream): fields in number order.
 func (m *LazyAst) appendTo(b []byte) []byte {
 	if len(m.script_) != 0 {
 		b = protoAppendTag(b, 1, 2)
@@ -855,9 +678,6 @@ func (m *LazyAst) appendTo(b []byte) []byte {
 	if m.sourceMappingUrl_ != "" {
 		b = protoAppendTag(b, 3, 2)
 		b = protoAppendString(b, m.sourceMappingUrl_)
-	}
-	if len(m.unknownFields) > 0 {
-		b = append(b, protoCanonicalUnknownFields(m.unknownFields)...)
 	}
 	return b
 }
@@ -878,9 +698,6 @@ func (m *LazyAst) serializedSize() int {
 		b := jutil.StringGetBytesUTF8(m.sourceMappingUrl_)
 		size += 1 + protoVarintLen(uint64(len(b))) + len(b)
 	}
-	if len(m.unknownFields) > 0 {
-		size += len(protoCanonicalUnknownFields(m.unknownFields))
-	}
 	m.cachedSize = size + 1
 	return size
 }
@@ -888,7 +705,6 @@ func (m *LazyAst) serializedSize() int {
 // mergeFromReader is LazyAst.Builder.mergeFrom(CodedInputStream) on a mutable m.
 func (m *LazyAst) mergeFromReader(r *protoReader) {
 	for {
-		start := r.pos
 		tag := r.readTag()
 		switch tag {
 		case 0:
@@ -901,77 +717,26 @@ func (m *LazyAst) mergeFromReader(r *protoReader) {
 			m.sourceMappingUrl_ = r.readStringRequireUtf8()
 		default:
 			r.skipField(tag)
-			m.unknownFields = append(m.unknownFields, r.b[start:r.pos]...)
 		}
 	}
-}
-
-func (m *LazyAst) printText(p *protoTextPrinter) {
-	if len(m.script_) != 0 {
-		p.scalar("script", protoTextBytes(m.script_))
-	}
-	if m.sourceFile_ != 0 {
-		p.scalar("source_file", protoTextUint32(m.sourceFile_))
-	}
-	if m.sourceMappingUrl_ != "" {
-		p.scalar("source_mapping_url", protoTextString(m.sourceMappingUrl_))
-	}
-	p.unknownFields(m.unknownFields)
-}
-
-// String is LazyAst.toString() (protobuf text format).
-func (m *LazyAst) String() string {
-	p := &protoTextPrinter{}
-	m.printText(p)
-	return p.sb.String()
 }
 
 // StringPoolProto is the protobuf message jscomp.StringPoolProto.
 //
 // Java: com.google.javascript.jscomp.serialization.StringPoolProto
 type StringPoolProto struct {
-	strings_      [][]byte
-	maxLength_    int32
-	unknownFields []byte
-	cachedSize    int
+	strings_   [][]byte
+	maxLength_ int32
+	cachedSize int
 }
 
 var stringPoolProto_DEFAULT_INSTANCE = &StringPoolProto{cachedSize: 1}
-
-// Java: StringPoolProto.getDefaultInstance()
-func StringPoolProto_GetDefaultInstance() *StringPoolProto { return stringPoolProto_DEFAULT_INSTANCE }
-
-// StringPoolProto_ParseFrom panics with *InvalidProtocolBufferException on malformed input.
-//
-// Java: StringPoolProto.parseFrom(byte[])
-func StringPoolProto_ParseFrom(data []byte) *StringPoolProto {
-	m := &StringPoolProto{}
-	r := protoReader{b: data}
-	m.mergeFromReader(&r)
-	return m
-}
 
 // Java: StringPoolProto.getStringsList()
 func (m *StringPoolProto) GetStringsList() [][]byte { return m.strings_ }
 
 // Java: StringPoolProto.getMaxLength()
 func (m *StringPoolProto) GetMaxLength() int32 { return m.maxLength_ }
-
-// appendTo is StringPoolProto.writeTo(CodedOutputStream): fields in number order, then unknown fields.
-func (m *StringPoolProto) appendTo(b []byte) []byte {
-	for _, x := range m.strings_ {
-		b = protoAppendTag(b, 1, 2)
-		b = protoAppendBytes(b, x)
-	}
-	if m.maxLength_ != 0 {
-		b = protoAppendTag(b, 2, 0)
-		b = protoAppendInt32(b, m.maxLength_)
-	}
-	if len(m.unknownFields) > 0 {
-		b = append(b, protoCanonicalUnknownFields(m.unknownFields)...)
-	}
-	return b
-}
 
 // serializedSize is getSerializedSize() (memoized once immutable).
 func (m *StringPoolProto) serializedSize() int {
@@ -985,16 +750,8 @@ func (m *StringPoolProto) serializedSize() int {
 	if m.maxLength_ != 0 {
 		size += 1 + protoVarintLen(uint64(int64(m.maxLength_)))
 	}
-	if len(m.unknownFields) > 0 {
-		size += len(protoCanonicalUnknownFields(m.unknownFields))
-	}
 	m.cachedSize = size + 1
 	return size
-}
-
-// Java: StringPoolProto.toByteArray()
-func (m *StringPoolProto) ToByteArray() []byte {
-	return m.appendTo(make([]byte, 0, m.serializedSize()))
 }
 
 // mergeFromReader is StringPoolProto.Builder.mergeFrom(CodedInputStream) on a mutable m.
@@ -1003,7 +760,6 @@ func (m *StringPoolProto) mergeFromReader(r *protoReader) {
 		m.strings_ = make([][]byte, 0, min(len(r.b)/20, 4_000_000))
 	}
 	for {
-		start := r.pos
 		tag := r.readTag()
 		switch tag {
 		case 0:
@@ -1014,46 +770,24 @@ func (m *StringPoolProto) mergeFromReader(r *protoReader) {
 			m.maxLength_ = r.readInt32()
 		default:
 			r.skipField(tag)
-			m.unknownFields = append(m.unknownFields, r.b[start:r.pos]...)
 		}
 	}
-}
-
-func (m *StringPoolProto) printText(p *protoTextPrinter) {
-	for _, x := range m.strings_ {
-		p.scalar("strings", protoTextBytes(x))
-	}
-	if m.maxLength_ != 0 {
-		p.scalar("max_length", protoTextInt32(m.maxLength_))
-	}
-	p.unknownFields(m.unknownFields)
-}
-
-// String is StringPoolProto.toString() (protobuf text format).
-func (m *StringPoolProto) String() string {
-	p := &protoTextPrinter{}
-	m.printText(p)
-	return p.sb.String()
 }
 
 // ExternsSummary is the protobuf message jscomp.ExternsSummary.
 //
 // Java: com.google.javascript.jscomp.serialization.ExternsSummary
 type ExternsSummary struct {
-	propNamePtr_  []int32
-	unknownFields []byte
-	cachedSize    int
+	propNamePtr_ []int32
+	cachedSize   int
 }
 
 var externsSummary_DEFAULT_INSTANCE = &ExternsSummary{cachedSize: 1}
 
-// Java: ExternsSummary.getDefaultInstance()
-func ExternsSummary_GetDefaultInstance() *ExternsSummary { return externsSummary_DEFAULT_INSTANCE }
-
 // Java: ExternsSummary.getPropNamePtrList()
 func (m *ExternsSummary) GetPropNamePtrList() []int32 { return m.propNamePtr_ }
 
-// appendTo is ExternsSummary.writeTo(CodedOutputStream): fields in number order, then unknown fields.
+// appendTo is ExternsSummary.writeTo(CodedOutputStream): fields in number order.
 func (m *ExternsSummary) appendTo(b []byte) []byte {
 	if len(m.propNamePtr_) > 0 {
 		packedLen := 0
@@ -1065,9 +799,6 @@ func (m *ExternsSummary) appendTo(b []byte) []byte {
 		for _, x := range m.propNamePtr_ {
 			b = protoAppendInt32(b, x)
 		}
-	}
-	if len(m.unknownFields) > 0 {
-		b = append(b, protoCanonicalUnknownFields(m.unknownFields)...)
 	}
 	return b
 }
@@ -1085,9 +816,6 @@ func (m *ExternsSummary) serializedSize() int {
 		}
 		size += 1 + protoVarintLen(uint64(packedLen)) + packedLen
 	}
-	if len(m.unknownFields) > 0 {
-		size += len(protoCanonicalUnknownFields(m.unknownFields))
-	}
 	m.cachedSize = size + 1
 	return size
 }
@@ -1095,7 +823,6 @@ func (m *ExternsSummary) serializedSize() int {
 // mergeFromReader is ExternsSummary.Builder.mergeFrom(CodedInputStream) on a mutable m.
 func (m *ExternsSummary) mergeFromReader(r *protoReader) {
 	for {
-		start := r.pos
 		tag := r.readTag()
 		switch tag {
 		case 0:
@@ -1106,14 +833,6 @@ func (m *ExternsSummary) mergeFromReader(r *protoReader) {
 			})
 		default:
 			r.skipField(tag)
-			m.unknownFields = append(m.unknownFields, r.b[start:r.pos]...)
 		}
 	}
-}
-
-func (m *ExternsSummary) printText(p *protoTextPrinter) {
-	for _, x := range m.propNamePtr_ {
-		p.scalar("prop_name_ptr", protoTextInt32(x))
-	}
-	p.unknownFields(m.unknownFields)
 }

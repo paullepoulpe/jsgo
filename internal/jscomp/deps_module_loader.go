@@ -64,14 +64,19 @@ var ModuleLoader_INVALID_MODULE_PATH = DiagnosticType_Error(
 	"JSC_INVALID_MODULE_PATH", "Invalid module path \"{0}\" for resolution mode \"{1}\"")
 
 // Java: ModuleLoader.builder()
-func ModuleLoader_Builder_() *ModuleLoader_Builder {
-	return newModuleLoader_Builder()
+func ModuleLoader_Builder_() ModuleLoader_Builder {
+	return ModuleLoader_Builder{
+		errorHandler: moduleLoader_NOOP_ERROR_HANDER,
+		pathResolver: ModuleLoader_PathResolver_RELATIVE,
+		pathEscaper:  ModuleLoader_PathEscaper_ESCAPE,
+	}
 }
 
-// ModuleLoader_Builder is the Builder.
+// ModuleLoader_Builder is the value Builder for ModuleLoader.
 //
-// Go-only: language-adapter — moduleRootsSet/inputsSet record whether the
-// Java Iterables were set (non-null), since a nil Go slice is also empty.
+// Go-only: language-adapter — value struct (zero heap allocation);
+// moduleRootsSet/inputsSet record whether the Java Iterables were set
+// (non-null), since a nil Go slice is also empty.
 type ModuleLoader_Builder struct {
 	errorHandler   ErrorHandler
 	moduleRoots    []string
@@ -83,17 +88,8 @@ type ModuleLoader_Builder struct {
 	pathEscaper    ModuleLoader_PathEscaper
 }
 
-// Java: ModuleLoader.Builder()
-func newModuleLoader_Builder() *ModuleLoader_Builder {
-	return &ModuleLoader_Builder{
-		errorHandler: moduleLoader_NOOP_ERROR_HANDER,
-		pathResolver: ModuleLoader_PathResolver_RELATIVE,
-		pathEscaper:  ModuleLoader_PathEscaper_ESCAPE,
-	}
-}
-
 // Java: ModuleLoader.Builder.setErrorHandler(ErrorHandler)
-func (b *ModuleLoader_Builder) SetErrorHandler(x ErrorHandler) *ModuleLoader_Builder {
+func (b ModuleLoader_Builder) SetErrorHandler(x ErrorHandler) ModuleLoader_Builder {
 	if x != nil {
 		b.errorHandler = x
 	}
@@ -103,7 +99,7 @@ func (b *ModuleLoader_Builder) SetErrorHandler(x ErrorHandler) *ModuleLoader_Bui
 // SetModuleRoots sets the path prefixes to strip from module paths.
 //
 // Java: ModuleLoader.Builder.setModuleRoots(Iterable<String>)
-func (b *ModuleLoader_Builder) SetModuleRoots(x []string) *ModuleLoader_Builder {
+func (b ModuleLoader_Builder) SetModuleRoots(x []string) ModuleLoader_Builder {
 	b.moduleRoots = x
 	b.moduleRootsSet = true
 	return b
@@ -114,7 +110,7 @@ func (b *ModuleLoader_Builder) SetModuleRoots(x []string) *ModuleLoader_Builder 
 // Used to ensure that resolved paths references a valid input.
 //
 // Java: ModuleLoader.Builder.setInputs(Iterable<? extends DependencyInfo>)
-func (b *ModuleLoader_Builder) SetInputs(x []DependencyInfo) *ModuleLoader_Builder {
+func (b ModuleLoader_Builder) SetInputs(x []DependencyInfo) ModuleLoader_Builder {
 	b.inputs = x
 	b.inputsSet = true
 	return b
@@ -124,7 +120,7 @@ func (b *ModuleLoader_Builder) SetInputs(x []DependencyInfo) *ModuleLoader_Build
 // identifiers are resolved.
 //
 // Java: ModuleLoader.Builder.setFactory(ModuleResolverFactory)
-func (b *ModuleLoader_Builder) SetFactory(x ModuleLoader_ModuleResolverFactory) *ModuleLoader_Builder {
+func (b ModuleLoader_Builder) SetFactory(x ModuleLoader_ModuleResolverFactory) ModuleLoader_Builder {
 	b.factory = x
 	return b
 }
@@ -132,7 +128,7 @@ func (b *ModuleLoader_Builder) SetFactory(x ModuleLoader_ModuleResolverFactory) 
 // SetPathResolver determines how to sanitize paths before resolving.
 //
 // Java: ModuleLoader.Builder.setPathResolver(PathResolver)
-func (b *ModuleLoader_Builder) SetPathResolver(x ModuleLoader_PathResolver) *ModuleLoader_Builder {
+func (b ModuleLoader_Builder) SetPathResolver(x ModuleLoader_PathResolver) ModuleLoader_Builder {
 	b.pathResolver = x
 	return b
 }
@@ -140,14 +136,14 @@ func (b *ModuleLoader_Builder) SetPathResolver(x ModuleLoader_PathResolver) *Mod
 // SetPathEscaper determines if / how paths should be escaped.
 //
 // Java: ModuleLoader.Builder.setPathEscaper(PathEscaper)
-func (b *ModuleLoader_Builder) SetPathEscaper(x ModuleLoader_PathEscaper) *ModuleLoader_Builder {
+func (b ModuleLoader_Builder) SetPathEscaper(x ModuleLoader_PathEscaper) ModuleLoader_Builder {
 	b.pathEscaper = x
 	return b
 }
 
 // Java: ModuleLoader.Builder.build()
-func (b *ModuleLoader_Builder) Build() *ModuleLoader {
-	return newModuleLoader(b)
+func (b ModuleLoader_Builder) Build() *ModuleLoader {
+	return newModuleLoader(&b)
 }
 
 // Java: ModuleLoader(Builder)

@@ -140,13 +140,14 @@ func cvnCollectTopFunctions(n rhino.Node, out *[]rhino.Node) {
 }
 
 func (c *CoalesceVariableNames) processTopFunction(topFn rhino.Node, dummyGlobal *Scope) {
-	fnScope := c.scopeCreator.CreateScope(topFn, dummyGlobal)
+	fnScope := c.scopeCreator.CreateScopeOfScope(topFn, dummyGlobal)
 	b := NodeTraversal_Builder{
 		compiler:     c.compiler,
 		callback:     c,
 		scopeCreator: c.scopeCreator,
 	}
 	b.TraverseAtScope(fnScope)
+	clear(c.scopeCreator.untypedScopes)
 }
 
 func (c *CoalesceVariableNames) reportChange(n rhino.Node) {

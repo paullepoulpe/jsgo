@@ -194,7 +194,7 @@ func initNodeTraversal(
 		t.syntacticScopeCreator = &t.defaultScopeCreator
 	} else if ssc, ok := scopeCreator.(*SyntacticScopeCreator); ok {
 		t.syntacticScopeCreator = ssc
-	} else if msc, ok := scopeCreator.(*MemoizedScopeCreator); ok && msc.syntacticDelegate != nil {
+	} else if msc, ok := scopeCreator.(*MemoizedScopeCreator); ok {
 		t.syntacticScopeCreator = msc.syntacticDelegate
 		t.memoizedScopeCreator = msc
 	} else {
@@ -208,11 +208,11 @@ func initNodeTraversal(
 }
 
 // Java: NodeTraversal.builder()
-func NodeTraversal_Builder_() *NodeTraversal_Builder {
-	return newNodeTraversal_Builder()
+func NodeTraversal_Builder_() NodeTraversal_Builder {
+	return NodeTraversal_Builder{}
 }
 
-// NodeTraversal_Builder is the builder.
+// NodeTraversal_Builder is the value builder for NodeTraversal.
 type NodeTraversal_Builder struct {
 	callback                                       NodeTraversal_Callback
 	compiler                                       AbstractCompiler
@@ -220,13 +220,8 @@ type NodeTraversal_Builder struct {
 	obeyDestructuringAndDefaultValueExecutionOrder bool
 }
 
-// Java: NodeTraversal.Builder()
-func newNodeTraversal_Builder() *NodeTraversal_Builder {
-	return &NodeTraversal_Builder{obeyDestructuringAndDefaultValueExecutionOrder: false}
-}
-
 // Java: NodeTraversal.Builder.setCallback(Callback)
-func (b *NodeTraversal_Builder) SetCallback(x NodeTraversal_Callback) *NodeTraversal_Builder {
+func (b NodeTraversal_Builder) SetCallback(x NodeTraversal_Callback) NodeTraversal_Builder {
 	b.callback = x
 	return b
 }
@@ -235,7 +230,7 @@ func (b *NodeTraversal_Builder) SetCallback(x NodeTraversal_Callback) *NodeTrave
 // lambda for AbstractPostOrderCallbackInterface).
 //
 // Java: NodeTraversal.Builder.setCallback(AbstractPostOrderCallbackInterface)
-func (b *NodeTraversal_Builder) SetCallbackFunc(x NodeTraversal_AbstractPostOrderCallbackInterface) *NodeTraversal_Builder {
+func (b NodeTraversal_Builder) SetCallbackFunc(x NodeTraversal_AbstractPostOrderCallbackInterface) NodeTraversal_Builder {
 	if x != nil {
 		b.callback = x
 	} else {
@@ -245,77 +240,77 @@ func (b *NodeTraversal_Builder) SetCallbackFunc(x NodeTraversal_AbstractPostOrde
 }
 
 // Java: NodeTraversal.Builder.setCompiler(AbstractCompiler)
-func (b *NodeTraversal_Builder) SetCompiler(x AbstractCompiler) *NodeTraversal_Builder {
+func (b NodeTraversal_Builder) SetCompiler(x AbstractCompiler) NodeTraversal_Builder {
 	b.compiler = x
 	return b
 }
 
 // Java: NodeTraversal.Builder.setScopeCreator(ScopeCreator)
-func (b *NodeTraversal_Builder) SetScopeCreator(x ScopeCreator) *NodeTraversal_Builder {
+func (b NodeTraversal_Builder) SetScopeCreator(x ScopeCreator) NodeTraversal_Builder {
 	b.scopeCreator = x
 	return b
 }
 
 // Java: NodeTraversal.Builder.setObeyDestructuringAndDefaultValueExecutionOrder(boolean)
-func (b *NodeTraversal_Builder) SetObeyDestructuringAndDefaultValueExecutionOrder(x bool) *NodeTraversal_Builder {
+func (b NodeTraversal_Builder) SetObeyDestructuringAndDefaultValueExecutionOrder(x bool) NodeTraversal_Builder {
 	b.obeyDestructuringAndDefaultValueExecutionOrder = x
 	return b
 }
 
 // Java: NodeTraversal.Builder.build()
-func (b *NodeTraversal_Builder) Build() *NodeTraversal {
-	return newNodeTraversal(b)
+func (b NodeTraversal_Builder) Build() *NodeTraversal {
+	return newNodeTraversal(&b)
 }
 
 // Java: NodeTraversal.Builder.traverse(Node)
-func (b *NodeTraversal_Builder) Traverse(root rhino.Node) {
-	t := acquireNodeTraversal(b)
+func (b NodeTraversal_Builder) Traverse(root rhino.Node) {
+	t := acquireNodeTraversal(&b)
 	t.Traverse(root)
 	releaseNodeTraversal(t)
 }
 
 // Java: NodeTraversal.Builder.traverseAtScope(AbstractScope<?, ?>)
-func (b *NodeTraversal_Builder) TraverseAtScope(scope AbstractScope) {
-	t := acquireNodeTraversal(b)
+func (b NodeTraversal_Builder) TraverseAtScope(scope AbstractScope) {
+	t := acquireNodeTraversal(&b)
 	t.TraverseAtScope(scope)
 	releaseNodeTraversal(t)
 }
 
 // Java: NodeTraversal.Builder.traverseRoots(Node, Node)
-func (b *NodeTraversal_Builder) TraverseRoots(externs rhino.Node, root rhino.Node) {
-	t := acquireNodeTraversal(b)
+func (b NodeTraversal_Builder) TraverseRoots(externs rhino.Node, root rhino.Node) {
+	t := acquireNodeTraversal(&b)
 	t.TraverseRoots(externs, root)
 	releaseNodeTraversal(t)
 }
 
 // Java: NodeTraversal.Builder.traverseWithScope(Node, AbstractScope<?, ?>)
-func (b *NodeTraversal_Builder) TraverseWithScope(root rhino.Node, s AbstractScope) {
-	t := acquireNodeTraversal(b)
+func (b NodeTraversal_Builder) TraverseWithScope(root rhino.Node, s AbstractScope) {
+	t := acquireNodeTraversal(&b)
 	t.TraverseWithScope(root, s)
 	releaseNodeTraversal(t)
 }
 
-func (b *NodeTraversal_Builder) TraverseScopeRoot(scopeNode rhino.Node) {
-	t := acquireNodeTraversal(b)
+func (b NodeTraversal_Builder) TraverseScopeRoot(scopeNode rhino.Node) {
+	t := acquireNodeTraversal(&b)
 	t.TraverseScopeRoot(scopeNode)
 	releaseNodeTraversal(t)
 }
 
-func (b *NodeTraversal_Builder) traverseScopedRoot(scopeNode rhino.Node, traverseNested bool) {
-	t := acquireNodeTraversal(b)
+func (b NodeTraversal_Builder) traverseScopedRoot(scopeNode rhino.Node, traverseNested bool) {
+	t := acquireNodeTraversal(&b)
 	t.stopAtNestedChangeScope = !traverseNested
 	t.scopeTraversalRoot = scopeNode
 	t.traverseScopeRoot(scopeNode, true)
 	releaseNodeTraversal(t)
 }
 
-func (b *NodeTraversal_Builder) traverseScriptUnderRoot(
+func (b NodeTraversal_Builder) traverseScriptUnderRoot(
 	scopeRoot rhino.Node,
 	scriptParent rhino.Node,
 	script rhino.Node,
 	lazyGlobal *lazyGlobalScope,
 ) {
-	t := acquireNodeTraversal(b)
+	t := acquireNodeTraversal(&b)
 	traverseScriptUnderRoot(t, scopeRoot, scriptParent, script, lazyGlobal)
 	releaseNodeTraversal(t)
 }

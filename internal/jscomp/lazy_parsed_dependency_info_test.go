@@ -24,17 +24,13 @@ import (
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 )
 
-func lazyParsedDependencyInfoTest_flags(kv ...string) *jutil.LinkedHashMap[string, string] {
-	m := jutil.NewLinkedHashMap[string, string]()
-	for i := 0; i < len(kv); i += 2 {
-		m.Put(kv[i], kv[i+1])
-	}
-	return m
+func lazyParsedDependencyInfoTest_flags(kv ...string) LoadFlags {
+	return NewLoadFlags(kv...)
 }
 
 // lazyParsedDependencyInfoTest_assertMapContainsExactly is
 // assertThat(map).containsExactly(k1, v1, ...) (in any order).
-func lazyParsedDependencyInfoTest_assertMapContainsExactly(t *testing.T, got *jutil.LinkedHashMap[string, string], kv ...string) {
+func lazyParsedDependencyInfoTest_assertMapContainsExactly(t *testing.T, got LoadFlags, kv ...string) {
 	t.Helper()
 	if !got.Equals(lazyParsedDependencyInfoTest_flags(kv...)) {
 		t.Errorf("load flags: got %v, want %v", got, kv)

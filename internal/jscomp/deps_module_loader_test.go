@@ -66,7 +66,7 @@ func (b *jsaMapBuilderT) Put(k, v string) *jsaMapBuilderT { b.m.Put(k, v); retur
 
 func (b *jsaMapBuilderT) Build() *jutil.LinkedHashMap[string, string] { return b.m }
 
-func (b *ModuleLoader_Builder) jsaBuildFunc() func() { return func() { b.Build() } }
+func (b ModuleLoader_Builder) jsaBuildFunc() func() { return func() { b.Build() } }
 
 // jsaMlCollect is the lambda (CheckLevel level, JSError error) -> errors.add(error).
 type jsaMlCollector struct{ errors *[]*JSError }

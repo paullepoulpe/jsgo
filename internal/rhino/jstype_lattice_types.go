@@ -302,12 +302,12 @@ func NewNoType(registry *JSTypeRegistry) *NoObjectType {
 func newNoObjectTypeWithKind(registry *JSTypeRegistry, kind uint8) *NoObjectType {
 	t := &NoObjectType{}
 	t.objFlags = kind
-	b := FunctionType_Builder_(registry).
-		WithKind(FunctionType_Kind_NONE).
+	var b FunctionType_Builder
+	b.Init(registry)
+	b.WithKind(FunctionType_Kind_NONE).
 		WithReturnsOwnInstanceType().
 		ForNativeType()
-	t.InitFunctionTypeBase(t, b)
-	registry.releaseFunctionBuilder(b)
+	t.InitFunctionTypeBase(t, &b)
 	t.EagerlyResolveToSelf()
 	return t
 }

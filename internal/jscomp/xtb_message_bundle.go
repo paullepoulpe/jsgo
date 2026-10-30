@@ -45,8 +45,6 @@ func (b *XtbMessageBundle) putMessage(key string, msg *JsMessage) {
 	b.messages[key] = msg
 }
 
-var xtbMessageBundle_NOOP_RESOLVER = &xtbMessageBundle_SecureEntityResolver{}
-
 // NewXtbMessageBundle creates an instance and initializes it with the
 // messages in an XTB file.
 //
@@ -58,51 +56,10 @@ func NewXtbMessageBundle(xtb io.Reader, projectId *string) *XtbMessageBundle {
 	b := &XtbMessageBundle{
 		idGenerator: NewGoogleJsMessageIdGenerator(projectId),
 	}
-
-	defer func() {
-		if r := recover(); r != nil {
-			switch e := r.(type) {
-			case *xtbxml.ParserConfigurationException:
-				panic(jutil.NewRuntimeExceptionWithCause(e))
-			case jutil.IIOException:
-				panic(jutil.NewRuntimeExceptionWithCause(e))
-			case xtbxml.ISAXException:
-				panic(jutil.NewRuntimeExceptionWithCause(e))
-			default:
-				panic(r)
-			}
-		}
-	}()
-
-	// Use a SAX parser for speed and less memory usage.
-	parser := xtbMessageBundle_createSAXParser()
-	reader := parser.GetXMLReader()
-	contentHandler := &xtbMessageBundle_Handler{outer: b}
-	reader.SetContentHandler(contentHandler)
-	reader.Parse(xtbxml.NewInputSource(xtb))
+	if err := xtbxml.Parse(xtb, &xtbMessageBundle_Handler{outer: b}); err != nil {
+		panic(jutil.NewRuntimeExceptionWithCause(err))
+	}
 	return b
-}
-
-// xtbMessageBundle_createSAXParser is inlined from guava-internal.
-//
-// Java: XtbMessageBundle.createSAXParser()
-func xtbMessageBundle_createSAXParser() *xtbxml.SAXParser {
-	factory := xtbxml.SAXParserFactory_NewInstance()
-	factory.SetValidating(false)
-	factory.SetXIncludeAware(false)
-	factory.SetFeature(
-		"http://xml.org/sax/features/external-general-entities", false)
-	factory.SetFeature(
-		"http://xml.org/sax/features/external-parameter-entities", false)
-	factory.SetFeature(
-		"http://apache.org/xml/features/nonvalidating/load-external-dtd",
-		false)
-	factory.SetFeature(xtbxml.XMLConstants_FEATURE_SECURE_PROCESSING, true)
-
-	parser := factory.NewSAXParser()
-	xmlReader := parser.GetXMLReader()
-	xmlReader.SetEntityResolver(xtbMessageBundle_NOOP_RESOLVER)
-	return parser
 }
 
 // Java: XtbMessageBundle.getMessage(String)
@@ -300,14 +257,3 @@ func (h *xtbMessageBundle_Handler) ProcessingInstruction(target string, data str
 
 // Java: XtbMessageBundle.Handler.skippedEntity(String)
 func (h *xtbMessageBundle_Handler) SkippedEntity(name string) {}
-
-// xtbMessageBundle_SecureEntityResolver returns an empty string in response to
-// any attempt to resolve an external entity.
-type xtbMessageBundle_SecureEntityResolver struct {
-	_ byte // Go-only: language-adapter — distinct identity
-}
-
-// Java: XtbMessageBundle.SecureEntityResolver.resolveEntity(String, String)
-func (r *xtbMessageBundle_SecureEntityResolver) ResolveEntity(publicId *string, systemId *string) *xtbxml.InputSource {
-	return xtbxml.NewInputSourceOfCharacterStream(strings.NewReader(""))
-}

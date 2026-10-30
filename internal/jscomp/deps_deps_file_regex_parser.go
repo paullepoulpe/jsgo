@@ -149,7 +149,7 @@ func (d *DepsFileRegexParser) parseLine(line string) (bool, string) {
 			}
 
 			// ES6 modules are require'd by path but do not provide them in the addDependency call.
-			if module, ok := loadFlags.Lookup("module"); ok && module == "es6" {
+			if module, ok := loadFlags.Get("module"); ok && module == "es6" {
 				provides = append(provides, relativePath)
 			}
 
@@ -183,12 +183,12 @@ func (d *DepsFileRegexParser) parseLine(line string) (bool, string) {
 }
 
 // Java: DepsFileRegexParser.parseLoadFlags(String)
-func (d *DepsFileRegexParser) parseLoadFlags(loadFlags string, hasFlags bool) (*jutil.LinkedHashMap[string, string], string, bool) {
+func (d *DepsFileRegexParser) parseLoadFlags(loadFlags string, hasFlags bool) (LoadFlags, string, bool) {
 	if !hasFlags || loadFlags == "false" {
-		return simpleDependencyInfo_EMPTY_FLAGS, "", true
+		return EmptyLoadFlags, "", true
 	}
 	if loadFlags == "true" {
-		return simpleDependencyInfo_Builder_GOOG_MODULE_FLAGS, "", true
+		return GoogModuleLoadFlags, "", true
 	}
-	return d.parseJsStringMap(loadFlags)
+	return d.parseLoadFlagsObject(loadFlags)
 }

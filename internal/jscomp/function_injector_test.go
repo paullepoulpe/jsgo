@@ -33,7 +33,7 @@ func linkedHashSetSize(s *jutil.LinkedHashSet[string]) int {
 	return s.Size()
 }
 
-// CanInlineReferenceToFunction: test-only wrapper over canInlineReferenceWithSummary.
+// CanInlineReferenceToFunction: test-only wrapper over canInlineReference.
 //
 // Java: FunctionInjector.canInlineReferenceToFunction(Reference, Node, ImmutableSet<String>, boolean, boolean)
 func (f *FunctionInjector) CanInlineReferenceToFunction(
@@ -42,7 +42,7 @@ func (f *FunctionInjector) CanInlineReferenceToFunction(
 	needAliases *jutil.LinkedHashSet[string],
 	referencesThis bool,
 	containsClosures bool) FunctionInjector_CanInlineResult {
-	return f.canInlineReferenceWithSummary(
+	return f.canInlineReference(
 		ref, fnNode, linkedHashSetSize(needAliases), referencesThis, containsClosures, nil)
 }
 

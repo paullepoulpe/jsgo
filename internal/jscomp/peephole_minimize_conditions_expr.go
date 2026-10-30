@@ -22,7 +22,6 @@ import (
 	"strings"
 
 	"github.com/paullepoulpe/jsgo/internal/ast"
-	"github.com/paullepoulpe/jsgo/internal/base"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
@@ -124,10 +123,10 @@ func (p *PeepholeMinimizeConditions) TryMinimizeHook(hook ast.Hook) rhino.Node {
 	// Note: identical branches (e.g. x ? true : true -> true or (x, true)) are handled
 	// generally for any equal subtrees (x ? a : a) in PeepholeRemoveDeadCode.tryFoldHook.
 	if NodeUtil_IsBooleanResult(thenBranch) && NodeUtil_IsBooleanResult(elseBranch) {
-		thenVal := p.GetSideEffectFreeBooleanValue(thenBranch)
-		elseVal := p.GetSideEffectFreeBooleanValue(elseBranch)
+		thenVal, thenOk := p.GetSideEffectFreeBooleanValue(thenBranch)
+		elseVal, elseOk := p.GetSideEffectFreeBooleanValue(elseBranch)
 		var replacement rhino.Node
-		if thenVal == base.Tri_TRUE && elseVal == base.Tri_FALSE {
+		if thenOk && elseOk && thenVal && !elseVal {
 			// x ? true : false -> x (if boolean) or !!x
 			cond := originalCond.Detach()
 			if NodeUtil_IsBooleanResult(cond) {
@@ -135,7 +134,7 @@ func (p *PeepholeMinimizeConditions) TryMinimizeHook(hook ast.Hook) rhino.Node {
 			} else {
 				replacement = rhino.IR_Not(rhino.IR_Not(cond).Srcref(n)).Srcref(n)
 			}
-		} else if thenVal == base.Tri_FALSE && elseVal == base.Tri_TRUE {
+		} else if thenOk && elseOk && !thenVal && elseVal {
 			// x ? false : true -> !x
 			cond := originalCond.Detach()
 			replacement = rhino.IR_Not(cond).Srcref(n)
@@ -578,11 +577,9 @@ func (p *PeepholeMinimizeConditions) PerformConditionSubstitutions(n rhino.Node)
 		// In the last two cases, code size may increase slightly (adding
 		// some parens because the comma operator has a low precedence) but
 		// the new AST is easier for other passes to handle.
-		rightVal := p.GetSideEffectFreeBooleanValue(right)
-		if rightVal != base.Tri_UNKNOWN {
+		if rval, ok := p.GetSideEffectFreeBooleanValue(right); ok {
 			type_ := binary.Token()
 			var replacement rhino.Node
-			rval := rightVal.ToBoolean(true)
 
 			// (x || FALSE) => x
 			// (x && TRUE) => x
@@ -626,21 +623,21 @@ func (p *PeepholeMinimizeConditions) PerformConditionSubstitutions(n rhino.Node)
 		//   Only when x is NAME, hence x does not have side effects
 		//   x ? x : y        --> x || y
 		var replacement rhino.Node
-		trueNodeVal := p.GetSideEffectFreeBooleanValue(trueNode)
-		falseNodeVal := p.GetSideEffectFreeBooleanValue(falseNode)
-		if trueNodeVal == base.Tri_TRUE && falseNodeVal == base.Tri_FALSE {
+		trueNodeVal, trueOk := p.GetSideEffectFreeBooleanValue(trueNode)
+		falseNodeVal, falseOk := p.GetSideEffectFreeBooleanValue(falseNode)
+		if trueOk && trueNodeVal && falseOk && !falseNodeVal {
 			// Remove useless conditionals, keep the condition
 			condition.Detach()
 			replacement = condition
-		} else if trueNodeVal == base.Tri_FALSE && falseNodeVal == base.Tri_TRUE {
+		} else if trueOk && !trueNodeVal && falseOk && falseNodeVal {
 			// Remove useless conditionals, keep the condition
 			condition.Detach()
 			replacement = rhino.IR_Not(condition)
-		} else if trueNodeVal == base.Tri_TRUE {
+		} else if trueOk && trueNodeVal {
 			// Remove useless true case.
 			n.DetachChildren()
 			replacement = rhino.IR_Or(condition, falseNode)
-		} else if falseNodeVal == base.Tri_FALSE {
+		} else if falseOk && !falseNodeVal {
 			// Remove useless false case
 			n.DetachChildren()
 			replacement = rhino.IR_And(condition, trueNode)
@@ -661,9 +658,7 @@ func (p *PeepholeMinimizeConditions) PerformConditionSubstitutions(n rhino.Node)
 		return n
 	default:
 		// while(true) --> while(1)
-		nVal := p.GetSideEffectFreeBooleanValue(n)
-		if nVal != base.Tri_UNKNOWN {
-			result := nVal.ToBoolean(true)
+		if result, ok := p.GetSideEffectFreeBooleanValue(n); ok {
 			equivalentResult := 0
 			if result {
 				equivalentResult = 1

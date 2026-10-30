@@ -193,16 +193,6 @@ func OptimizationJsdoc_GetDefaultInstance() *OptimizationJsdoc {
 	return optimizationJsdoc_DEFAULT_INSTANCE
 }
 
-// OptimizationJsdoc_ParseFrom panics with *InvalidProtocolBufferException on malformed input.
-//
-// Java: OptimizationJsdoc.parseFrom(byte[])
-func OptimizationJsdoc_ParseFrom(data []byte) *OptimizationJsdoc {
-	m := &OptimizationJsdoc{}
-	r := protoReader{b: data}
-	m.mergeFromReader(&r)
-	return m
-}
-
 // Java: OptimizationJsdoc.getLicenseTextPointer()
 func (m *OptimizationJsdoc) GetLicenseTextPointer() int32 {
 	return m.licenseTextPointer_

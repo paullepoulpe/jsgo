@@ -153,7 +153,7 @@ func (f *FunctionTypeBuilder) InferParameterTypes(info *rhino.JSDocInfo) *Functi
 		isOptionalParam, varArgsByConv := f.paramNameConventions(paramName)
 		isVarArgs = varArgsByConv
 
-		var oldParameterType *rhino.FunctionType_Parameter
+		var oldParameterType rhino.FunctionType_Parameter
 		if oldIdx < len(f.parameters) {
 			oldParameterType = f.parameters[oldIdx]
 			oldIdx++
@@ -164,7 +164,7 @@ func (f *FunctionTypeBuilder) InferParameterTypes(info *rhino.JSDocInfo) *Functi
 			parameterType = parameterTypeExpression.Evaluate(f.templateScope, f.typeRegistry)
 			isOptionalParam = isOptionalParam || parameterTypeExpression.IsOptionalArg()
 			isVarArgs = isVarArgs || parameterTypeExpression.IsVarArgs()
-		} else if oldParameterType != nil && oldParameterType.GetJSType() != nil {
+		} else if oldParameterType.GetJSType() != nil {
 			parameterType = oldParameterType.GetJSType()
 			isOptionalParam = oldParameterType.IsOptional()
 			isVarArgs = oldParameterType.IsVariadic()
@@ -243,7 +243,7 @@ func (f *FunctionTypeBuilder) InferParameterTypesWithParamsParent(paramsParent r
 			seen = append(seen, paramName)
 		}
 
-		var oldParameterType *rhino.FunctionType_Parameter
+		var oldParameterType rhino.FunctionType_Parameter
 		if oldIdx < len(f.parameters) {
 			oldParameterType = f.parameters[oldIdx]
 			oldIdx++
@@ -264,7 +264,7 @@ func (f *FunctionTypeBuilder) InferParameterTypesWithParamsParent(paramsParent r
 			parameterType = parameterTypeExpression.Evaluate(f.templateScope, f.typeRegistry)
 			isOptionalParam = parameterTypeExpression.IsOptionalArg()
 			isVarArgs = parameterTypeExpression.IsVarArgs()
-		} else if oldParameterType != nil && oldParameterType.GetJSType() != nil {
+		} else if oldParameterType.GetJSType() != nil {
 			parameterType = oldParameterType.GetJSType()
 			isOptionalParam = oldParameterType.IsOptional()
 			isVarArgs = oldParameterType.IsVariadic()
@@ -329,7 +329,7 @@ func (f *FunctionTypeBuilder) InferConstructorParameters(argsParent rhino.Node, 
 }
 
 // Java: FunctionTypeBuilder.inferImplicitConstructorParameters(ImmutableList)
-func (f *FunctionTypeBuilder) InferImplicitConstructorParameters(parameters []*rhino.FunctionType_Parameter) *FunctionTypeBuilder {
+func (f *FunctionTypeBuilder) InferImplicitConstructorParameters(parameters []rhino.FunctionType_Parameter) *FunctionTypeBuilder {
 	f.parameters = parameters
 	return f
 }

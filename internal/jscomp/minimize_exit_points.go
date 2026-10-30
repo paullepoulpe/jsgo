@@ -20,7 +20,6 @@ package jscomp
 
 import (
 	"github.com/paullepoulpe/jsgo/internal/ast"
-	"github.com/paullepoulpe/jsgo/internal/base"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
@@ -71,11 +70,13 @@ func (m *MinimizeExitPoints) OptimizeSubtree(n rhino.Node) rhino.Node {
 		m.TryMinimizeExits(label.Body(), rhino.Token_BREAK, label.Name().Node().GetStringID(), true)
 	} else if loop, ok := ast.AsLoop(n); ok {
 		m.TryMinimizeExits(loop.Body().AsStatement(), rhino.Token_CONTINUE, 0, false)
-		if do, ok := loop.AsDo(); ok && m.GetSideEffectFreeBooleanValue(do.Cond().Node()) == base.Tri_FALSE {
-			// Normally, we wouldn't be able to optimize BREAKs inside a loop
-			// but as we know the condition will always be false, we can treat them
-			// as we would a CONTINUE.
-			m.TryMinimizeExits(do.Body().AsStatement(), rhino.Token_BREAK, 0, false)
+		if do, ok := loop.AsDo(); ok {
+			if condVal, condOk := m.GetSideEffectFreeBooleanValue(do.Cond().Node()); condOk && !condVal {
+				// Normally, we wouldn't be able to optimize BREAKs inside a loop
+				// but as we know the condition will always be false, we can treat them
+				// as we would a CONTINUE.
+				m.TryMinimizeExits(do.Body().AsStatement(), rhino.Token_BREAK, 0, false)
+			}
 		}
 	} else if block, ok := ast.AsBlock(n); ok {
 		if n.HasParent() && n.GetParent().IsFunction() {

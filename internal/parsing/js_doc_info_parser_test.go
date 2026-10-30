@@ -466,6 +466,13 @@ func assertThat(t *testing.T, actual any) *subject {
 	return &subject{t: t, actual: actual}
 }
 
+func optString(s string, ok bool) any {
+	if !ok {
+		return nil
+	}
+	return s
+}
+
 type messageSubjectFactory struct {
 	t   *testing.T
 	msg string
@@ -2406,26 +2413,26 @@ func TestParseAlternateMessageId4(t *testing.T) {
 func TestParseClosurePrimitive(t *testing.T) {
 	jt := newJsDocInfoParserTest(t)
 	info := jt.parse("@closurePrimitive {id} */")
-	assertThat(t, info.GetClosurePrimitiveId()).IsEqualTo("id")
+	assertThat(t, optString(info.GetClosurePrimitiveIdString())).IsEqualTo("id")
 }
 
 func TestParseClosurePrimitiveOnNewLine(t *testing.T) {
 	jt := newJsDocInfoParserTest(t)
 	info := jt.parse("@closurePrimitive    \n\n {id} */")
-	assertThat(t, info.GetClosurePrimitiveId()).IsEqualTo("id")
+	assertThat(t, optString(info.GetClosurePrimitiveIdString())).IsEqualTo("id")
 }
 
 func TestParseClosurePrimitiveWithAnnotationAfterId(t *testing.T) {
 	jt := newJsDocInfoParserTest(t)
 	info := jt.parse("@closurePrimitive {id} @const */")
-	assertThat(t, info.GetClosurePrimitiveId()).IsEqualTo("id")
+	assertThat(t, optString(info.GetClosurePrimitiveIdString())).IsEqualTo("id")
 	assertThat(t, info.IsConstant()).IsTrue()
 }
 
 func TestParseClosurePrimitiveWithStringAfterId(t *testing.T) {
 	jt := newJsDocInfoParserTest(t)
 	info := jt.parse("@closurePrimitive {id} some comment\n@const */")
-	assertThat(t, info.GetClosurePrimitiveId()).IsEqualTo("id")
+	assertThat(t, optString(info.GetClosurePrimitiveIdString())).IsEqualTo("id")
 	assertThat(t, info.IsConstant()).IsTrue()
 }
 
@@ -3581,7 +3588,7 @@ func TestDocumentationParameter(t *testing.T) {
 	jsdoc := jt.parse("@param {Number} number42 This is a description.*/", true)
 
 	assertThat(t, jsdoc.HasDescriptionForParameter("number42")).IsTrue()
-	assertThat(t, jsdoc.GetDescriptionForParameter("number42")).IsEqualTo("This is a description.")
+	assertThat(t, optString(jsdoc.GetDescriptionForParameterString("number42"))).IsEqualTo("This is a description.")
 }
 
 func TestMultilineDocumentationParameter(t *testing.T) {
@@ -3592,7 +3599,7 @@ func TestMultilineDocumentationParameter(t *testing.T) {
 			true)
 
 	assertThat(t, jsdoc.HasDescriptionForParameter("number42")).IsTrue()
-	assertThat(t, jsdoc.GetDescriptionForParameter("number42")).IsEqualTo("This is a description on multiple lines.")
+	assertThat(t, optString(jsdoc.GetDescriptionForParameterString("number42"))).IsEqualTo("This is a description on multiple lines.")
 }
 
 func TestDocumentationMultipleParameter(t *testing.T) {
@@ -3603,10 +3610,10 @@ func TestDocumentationMultipleParameter(t *testing.T) {
 			true)
 
 	assertThat(t, jsdoc.HasDescriptionForParameter("number42")).IsTrue()
-	assertThat(t, jsdoc.GetDescriptionForParameter("number42")).IsEqualTo("This is a description.")
+	assertThat(t, optString(jsdoc.GetDescriptionForParameterString("number42"))).IsEqualTo("This is a description.")
 
 	assertThat(t, jsdoc.HasDescriptionForParameter("number87")).IsTrue()
-	assertThat(t, jsdoc.GetDescriptionForParameter("number87")).IsEqualTo("This is another description.")
+	assertThat(t, optString(jsdoc.GetDescriptionForParameterString("number87"))).IsEqualTo("This is another description.")
 }
 
 func TestDocumentationMultipleParameter2(t *testing.T) {
@@ -3616,7 +3623,7 @@ func TestDocumentationMultipleParameter2(t *testing.T) {
 			"@param {number} delta = 0 results in a redraw\n  != 0 ..... */\n",
 			true)
 	assertThat(t, jsdoc.HasDescriptionForParameter("delta")).IsTrue()
-	assertThat(t, jsdoc.GetDescriptionForParameter("delta")).IsEqualTo("= 0 results in a redraw != 0 .....")
+	assertThat(t, optString(jsdoc.GetDescriptionForParameterString("delta"))).IsEqualTo("= 0 results in a redraw != 0 .....")
 }
 
 func TestAuthors(t *testing.T) {
@@ -4014,20 +4021,20 @@ func TestNoParseFileOverview(t *testing.T) {
 	t.Skip("@Ignore in JsDocInfoParserTest.java")
 	jt := newJsDocInfoParserTest(t)
 	jsdoc := jt.parseFileOverviewWithoutDoc("@fileoverview Hi mom! */")
-	assertThat(t, jsdoc.GetFileOverview()).IsNull()
+	assertThat(t, optString(jsdoc.GetFileOverviewString())).IsNull()
 	assertThat(t, jsdoc.HasFileOverview()).IsTrue()
 }
 
 func TestFileOverviewSingleLine(t *testing.T) {
 	jt := newJsDocInfoParserTest(t)
 	jsdoc := jt.parseFileOverview("@fileoverview Hi mom! */")
-	assertThat(t, jsdoc.GetFileOverview()).IsEqualTo("Hi mom!")
+	assertThat(t, optString(jsdoc.GetFileOverviewString())).IsEqualTo("Hi mom!")
 }
 
 func TestFileOverviewMultiLine(t *testing.T) {
 	jt := newJsDocInfoParserTest(t)
 	jsdoc := jt.parseFileOverview("@fileoverview Pie is \n * good! */")
-	assertThat(t, jsdoc.GetFileOverview()).IsEqualTo("Pie is\ngood!")
+	assertThat(t, optString(jsdoc.GetFileOverviewString())).IsEqualTo("Pie is\ngood!")
 }
 
 func TestFileOverviewDuplicate(t *testing.T) {
@@ -4094,14 +4101,14 @@ func TestSingleTags(t *testing.T) {
 
 	assertThat(t, jsdoc.IsDeprecated()).IsTrue()
 	assertThat(t, jsdoc.GetDeprecationReason()).IsEqualTo("In favor of the new one!")
-	assertThat(t, jsdoc.GetReturnDescription()).IsEqualTo("The most important object :-)")
+	assertThat(t, optString(jsdoc.GetReturnDescriptionString())).IsEqualTo("The most important object :-)")
 }
 
 func TestSingleTags2(t *testing.T) {
 	jt := newJsDocInfoParserTest(t)
 	jsdoc := jt.parse("@param {SomeType} a The most important object :-)*/", true)
 
-	assertThat(t, jsdoc.GetDescriptionForParameter("a")).IsEqualTo("The most important object :-)")
+	assertThat(t, optString(jsdoc.GetDescriptionForParameterString("a"))).IsEqualTo("The most important object :-)")
 }
 
 func TestSingleTagsReordered(t *testing.T) {
@@ -4113,7 +4120,7 @@ func TestSingleTagsReordered(t *testing.T) {
 
 	assertThat(t, jsdoc.IsDeprecated()).IsTrue()
 	assertThat(t, jsdoc.GetDeprecationReason()).IsEqualTo("In favor of the new one!")
-	assertThat(t, jsdoc.GetReturnDescription()).IsEqualTo("The most important object :-)")
+	assertThat(t, optString(jsdoc.GetReturnDescriptionString())).IsEqualTo("The most important object :-)")
 }
 
 func TestAuthorMissing(t *testing.T) {
@@ -5973,7 +5980,7 @@ func TestUnsupportedJsDocSyntax1(t *testing.T) {
 	info := jt.parse("@param {string} [accessLevel=\"author\"] The user level */", true)
 	assertThat(t, info.GetParameterCount()).IsEqualTo(1)
 	jt.AssertTypeEqualsExpr(jt.Registry.CreateOptionalType(jt.STRING_TYPE), info.GetParameterType("accessLevel"))
-	assertThat(t, info.GetDescriptionForParameter("accessLevel")).IsEqualTo("The user level")
+	assertThat(t, optString(info.GetDescriptionForParameterString("accessLevel"))).IsEqualTo("The user level")
 }
 
 func TestUnsupportedJsDocSyntax2(t *testing.T) {
@@ -5984,7 +5991,7 @@ func TestUnsupportedJsDocSyntax2(t *testing.T) {
 			true,
 			"invalid param name \"userInfo.name\"")
 	assertThat(t, info.GetParameterCount()).IsEqualTo(1)
-	assertThat(t, info.GetDescriptionForParameter("userInfo")).IsEqualTo("The user info.")
+	assertThat(t, optString(info.GetDescriptionForParameterString("userInfo"))).IsEqualTo("The user info.")
 }
 
 func TestAllowlistedAnnotations(t *testing.T) {
@@ -6176,7 +6183,7 @@ func TestPreserveWhitespace2(t *testing.T) {
 		jt.preserveWhitespaceParse(
 			"@param {string} x this is a nice comment\n * that spans multiple lines\n *     with custom\n *     formatting\n * @param {string} y */\n")
 
-	assertThat(t, jsdoc.GetDescriptionForParameter("x")).IsEqualTo(
+	assertThat(t, optString(jsdoc.GetDescriptionForParameterString("x"))).IsEqualTo(
 		" this is a nice comment\n that spans multiple lines\n     with custom\n     formatting\n" +
 			" ")
 }
@@ -6187,7 +6194,7 @@ func TestPreserveWhitespace3(t *testing.T) {
 		jt.preserveWhitespaceParse(
 			"@return {string} this is a nice comment\n * that spans multiple lines\n *     with custom\n *     formatting\n * @param {string} y */\n")
 
-	assertThat(t, jsdoc.GetReturnDescription()).IsEqualTo(
+	assertThat(t, optString(jsdoc.GetReturnDescriptionString())).IsEqualTo(
 		"this is a nice comment\n that spans multiple lines\n     with custom\n     formatting\n" +
 			" ")
 }

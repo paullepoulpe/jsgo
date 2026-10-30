@@ -508,9 +508,11 @@ func (p *JSDocInfoPrinter) TypeNode(typeNode rhino.Node) string {
 
 // Java: JSDocInfoPrinter.appendTypeNode(StringBuilder, Node)
 func (p *JSDocInfoPrinter) AppendTypeNode(sb *strings.Builder, typeNode rhino.Node) {
-	if p.useOriginalName && typeNode.GetOriginalName() != nil {
-		sb.WriteString(*typeNode.GetOriginalName())
-		return
+	if p.useOriginalName {
+		if orig, ok := typeNode.GetOriginalNameString(); ok {
+			sb.WriteString(orig)
+			return
+		}
 	}
 	switch typeNode.GetToken() {
 	case rhino.Token_BANG:

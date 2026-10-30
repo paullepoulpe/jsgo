@@ -720,8 +720,8 @@ type guardedTracker struct {
 	registeredGuards map[rhino.Node][]string
 	guarded          map[string]struct{}
 	installedGuards  map[rhino.Node][]string
-	contextStack     []*guardedCallback_Context
-	contextStackBuf  [64]*guardedCallback_Context
+	contextStack     []guardedContext
+	contextStackBuf  [64]guardedContext
 }
 
 func (b *guardedTracker) initGuardedTracker(compiler AbstractCompiler) {
@@ -756,12 +756,13 @@ func (b *guardedTracker) canPossiblyBeGuarded() bool {
 // Java: GuardedCallback.shouldTraverse(NodeTraversal, Node, Node)
 func (b *guardedTracker) shouldTraverse(n rhino.Node, parent rhino.Node) bool {
 	if parent.IsNil() {
-		b.contextStack = append(b.contextStack, guardedCallback_Context_EMPTY)
+		b.contextStack = append(b.contextStack, guardedContextEmpty)
 		return true
 	}
 
-	top := b.contextStack[len(b.contextStack)-1]
-	b.contextStack = append(b.contextStack, top.descendWithCC(b.compiler, b.codingConvention, parent, n))
+	topIdx := int32(len(b.contextStack) - 1)
+	top := b.contextStack[topIdx]
+	b.contextStack = append(b.contextStack, top.descendWithCC(topIdx, b.compiler, b.codingConvention, parent, n))
 
 	if len(b.registeredGuards) > 0 && guardedCallback_canHaveGuards(parent.GetToken()) {
 		if resources, ok := b.registeredGuards[parent]; ok {
@@ -832,53 +833,43 @@ func (b *guardedTracker) isGuarded(resource string) bool {
 	if len(b.contextStack) == 0 {
 		return false
 	}
-	context := b.contextStack[len(b.contextStack)-1]
-	if !context.safe {
+	idx := int32(len(b.contextStack) - 1)
+	if !b.contextStack[idx].safe {
 		return false
 	}
-	for context != nil && !context.conditional.IsNil() {
-		b.putRegisteredGuard(context.conditional, resource)
-		context = context.linked
+	for idx >= 0 {
+		ctx := b.contextStack[idx]
+		if ctx.conditional.IsNil() {
+			break
+		}
+		b.putRegisteredGuard(ctx.conditional, resource)
+		idx = ctx.prevIdx
 	}
 	return true
 }
 
-type guardedCallback_Context struct {
+type guardedContext struct {
 	conditional rhino.Node
+	prevIdx     int32 // -1 for root
 	safe        bool
-	linked      *guardedCallback_Context
 }
 
-var guardedCallback_Context_EMPTY = newGuardedCallback_Context(rhino.NilNode, false, nil)
+var guardedContextEmpty = guardedContext{conditional: rhino.NilNode, prevIdx: -1, safe: false}
 
-func newGuardedCallback_Context(conditional rhino.Node, safe bool, linked *guardedCallback_Context) *guardedCallback_Context {
-	return &guardedCallback_Context{conditional: conditional, safe: safe, linked: linked}
-}
-
-func (c *guardedCallback_Context) Link(newConditional rhino.Node, newSafe bool) *guardedCallback_Context {
-	var linked *guardedCallback_Context
+func (c guardedContext) link(selfIdx int32, newConditional rhino.Node, newSafe bool) guardedContext {
+	prev := int32(-1)
 	if !c.conditional.IsNil() {
-		linked = c
+		prev = selfIdx
 	}
-	return newGuardedCallback_Context(newConditional, newSafe, linked)
+	return guardedContext{conditional: newConditional, prevIdx: prev, safe: newSafe}
 }
 
-var guardedCallback_Context_SAFE_EMPTY = newGuardedCallback_Context(rhino.NilNode, true, nil)
-
-func (c *guardedCallback_Context) Propagate(newSafe bool) *guardedCallback_Context {
-	if newSafe == c.safe {
-		return c
-	}
-	if c.conditional.IsNil() && c.linked == nil {
-		if newSafe {
-			return guardedCallback_Context_SAFE_EMPTY
-		}
-		return guardedCallback_Context_EMPTY
-	}
-	return newGuardedCallback_Context(c.conditional, newSafe, c.linked)
+func (c guardedContext) propagate(newSafe bool) guardedContext {
+	c.safe = newSafe
+	return c
 }
 
-func (c *guardedCallback_Context) descendWithCC(compiler AbstractCompiler, cc CodingConvention, parent rhino.Node, child rhino.Node) *guardedCallback_Context {
+func (c guardedContext) descendWithCC(selfIdx int32, compiler AbstractCompiler, cc CodingConvention, parent rhino.Node, child rhino.Node) guardedContext {
 	role := ast.RoleIn(child, parent)
 	switch parent.GetToken() {
 	case rhino.Token_CAST:
@@ -887,40 +878,40 @@ func (c *guardedCallback_Context) descendWithCC(compiler AbstractCompiler, cc Co
 		if role == ast.RoleBinaryRight {
 			return c
 		}
-		return c.Propagate(true)
+		return c.propagate(true)
 	case rhino.Token_AND, rhino.Token_HOOK:
 		if role == ast.RoleBinaryLeft || role == ast.RoleHookCond {
-			return c.Link(parent, true)
+			return c.link(selfIdx, parent, true)
 		}
 		return c
 	case rhino.Token_OR, rhino.Token_COALESCE:
 		if role == ast.RoleBinaryLeft {
-			return c.Link(parent, false)
+			return c.link(selfIdx, parent, false)
 		}
 		return c
 	case rhino.Token_IF:
 		if role == ast.RoleIfCond {
-			return c.Link(parent, true)
+			return c.link(selfIdx, parent, true)
 		}
-		return guardedCallback_Context_EMPTY
+		return guardedContextEmpty
 	case rhino.Token_INSTANCEOF, rhino.Token_ASSIGN:
-		return c.Propagate(role == ast.RoleBinaryLeft || role == ast.RoleAssignTarget)
+		return c.propagate(role == ast.RoleBinaryLeft || role == ast.RoleAssignTarget)
 	case rhino.Token_TYPEOF, rhino.Token_NOT, rhino.Token_EQ, rhino.Token_NE, rhino.Token_SHEQ, rhino.Token_SHNE:
-		return c.Propagate(true)
+		return c.propagate(true)
 	case rhino.Token_CALL:
-		return c.Propagate(role == ast.RoleCallArgs && guardedCallback_isPropertyTestFunction(compiler, cc, parent))
+		return c.propagate(role == ast.RoleCallArgs && guardedCallback_isPropertyTestFunction(compiler, cc, parent))
 	case rhino.Token_ROOT:
-		return guardedCallback_Context_EMPTY
+		return guardedContextEmpty
 	case rhino.Token_OPTCHAIN_CALL, rhino.Token_OPTCHAIN_GETELEM, rhino.Token_OPTCHAIN_GETPROP:
 		if role == ast.RoleOptChainCallCallee || role == ast.RoleOptChainGetElemObject || role == ast.RoleOptChainGetPropObject {
-			return c.Link(parent, ast.MustOptChain(parent).IsStart())
+			return c.link(selfIdx, parent, ast.MustOptChain(parent).IsStart())
 		}
-		return c.Propagate(false)
+		return c.propagate(false)
 	default:
 		if c.conditional.IsNil() || NodeUtil_IsStatement(parent) {
-			return guardedCallback_Context_EMPTY
+			return guardedContextEmpty
 		}
-		return c.Propagate(false)
+		return c.propagate(false)
 	}
 }
 

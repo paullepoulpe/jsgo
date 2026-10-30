@@ -479,7 +479,8 @@ func (n Node) GetOriginalNameID() uint32 {
 	return uint32(n.node_originalNameID())
 }
 
-func (n Node) getOriginalNameString() (string, bool) {
+// GetOriginalNameString returns the node's originalName without allocating a *string.
+func (n Node) GetOriginalNameString() (string, bool) {
 	id := n.node_originalNameID()
 	if id == 0 {
 		return "", false

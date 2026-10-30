@@ -50,7 +50,15 @@ func (f *FunctionInjector) DoesFunctionMeetMinimumRequirements(fnName string, fn
 	return !sum.blocksMinReqs
 }
 
-func (f *FunctionInjector) canInlineReferenceWithSummary(
+func (f *FunctionInjector) ensureCalleeSummary(fnName string, fnNode rhino.Node, summary *calleeSummary) *calleeSummary {
+	if summary != nil && summary.fnNode == fnNode {
+		return summary
+	}
+	scanCalleeSummary(fnName, fnNode, &f.scratchSummary)
+	return &f.scratchSummary
+}
+
+func (f *FunctionInjector) canInlineReference(
 	ref *FunctionInjector_Reference,
 	fnNode rhino.Node,
 	aliasCount int,
@@ -92,11 +100,11 @@ func (f *FunctionInjector) canInlineReferenceWithSummary(
 		return FunctionInjector_CanInlineResult_NO
 	}
 
-	summary = resolveCalleeSummary("", fnNode, summary)
+	summary = f.ensureCalleeSummary("", fnNode, summary)
 	if ref.mode == FunctionInjector_InliningMode_DIRECT {
-		return f.canInlineReferenceDirectlyWithSummary(ref, fnNode, aliasCount, summary)
+		return f.canInlineReferenceDirectly(ref, fnNode, aliasCount, summary)
 	}
-	return f.canInlineReferenceAsStatementBlockWithSummary(ref, fnNode, aliasCount, summary)
+	return f.canInlineReferenceAsStatementBlock(ref, fnNode, aliasCount, summary)
 }
 
 // IsSupportedCallType: only ".call" calls and direct calls to functions are
@@ -179,7 +187,7 @@ func (r FunctionInjector_CanInlineResult) String() string {
 	return functionInjector_CanInlineResult_names[r]
 }
 
-func (f *FunctionInjector) canInlineReferenceAsStatementBlockWithSummary(
+func (f *FunctionInjector) canInlineReferenceAsStatementBlock(
 	ref *FunctionInjector_Reference,
 	fnNode rhino.Node,
 	aliasCount int,
@@ -195,7 +203,7 @@ func (f *FunctionInjector) canInlineReferenceAsStatementBlockWithSummary(
 		return FunctionInjector_CanInlineResult_NO
 	}
 
-	if !f.callMeetsBlockInliningRequirementsWithSummary(ref, fnNode, aliasCount, summary) {
+	if !f.callMeetsBlockInliningRequirements(ref, fnNode, aliasCount, summary) {
 		return FunctionInjector_CanInlineResult_NO
 	}
 
@@ -339,7 +347,7 @@ func (f *FunctionInjector) InnerFunctionOf(containerFn rhino.Node) rhino.Node {
 	return cached
 }
 
-func (f *FunctionInjector) callMeetsBlockInliningRequirementsWithSummary(
+func (f *FunctionInjector) callMeetsBlockInliningRequirements(
 	callRef *FunctionInjector_Reference,
 	calleeFn rhino.Node,
 	aliasCount int,
@@ -379,7 +387,7 @@ func (f *FunctionInjector) callMeetsBlockInliningRequirementsWithSummary(
 		// Don't inline functions with var declarations into a scope with inner
 		// functions as the new vars would leak into the inner function and
 		// cause memory leaks.
-		summary = resolveCalleeSummary("", calleeFn, summary)
+		summary = f.ensureCalleeSummary("", calleeFn, summary)
 		if summary.hasShallowDeclarations {
 			return false
 		}
@@ -397,7 +405,7 @@ func (f *FunctionInjector) callMeetsBlockInliningRequirementsWithSummary(
 	return true
 }
 
-func (f *FunctionInjector) canInlineReferenceDirectlyWithSummary(
+func (f *FunctionInjector) canInlineReferenceDirectly(
 	ref *FunctionInjector_Reference,
 	fnNode rhino.Node,
 	aliasCount int,
@@ -442,7 +450,7 @@ func (f *FunctionInjector) canInlineReferenceDirectlyWithSummary(
 	return FunctionInjector_CanInlineResult_YES
 }
 
-func (f *FunctionInjector) inliningLowersCostWithSummary(
+func (f *FunctionInjector) inliningLowersCost(
 	fnChunk *JSChunk,
 	fnNode rhino.Node,
 	refs []*FunctionInjector_Reference,
@@ -491,9 +499,9 @@ func (f *FunctionInjector) inliningLowersCostWithSummary(
 	callCost := FunctionInjector_EstimateCallCost(fnNode, referencesThis)
 	overallCallCost := callCost * referenceCount
 
-	summary = resolveCalleeSummary("", fnNode, summary)
-	costDeltaDirect := functionInjector_inlineCostDeltaWithSummary(fnNode, aliasCount, FunctionInjector_InliningMode_DIRECT, summary)
-	costDeltaBlock := functionInjector_inlineCostDeltaWithSummary(fnNode, aliasCount, FunctionInjector_InliningMode_BLOCK, summary)
+	summary = f.ensureCalleeSummary("", fnNode, summary)
+	costDeltaDirect := functionInjector_inlineCostDelta(fnNode, aliasCount, FunctionInjector_InliningMode_DIRECT, summary)
+	costDeltaBlock := functionInjector_inlineCostDelta(fnNode, aliasCount, FunctionInjector_InliningMode_BLOCK, summary)
 
 	return FunctionInjector_DoesLowerCost(
 		fnNode,
@@ -565,7 +573,7 @@ func FunctionInjector_EstimateCallCost(fnNode rhino.Node, referencesThis bool) i
 	return callCost
 }
 
-func functionInjector_inlineCostDeltaWithSummary(
+func functionInjector_inlineCostDelta(
 	fnNode rhino.Node,
 	aliasCount int,
 	mode FunctionInjector_InliningMode,
@@ -606,7 +614,6 @@ func functionInjector_inlineCostDeltaWithSummary(
 		const perReturnResultOverhead = 3 // "XX="
 		const perAliasOverhead = 3        // "XX="
 
-		summary = resolveCalleeSummary("", fnNode, summary)
 		returnCount := int(summary.shallowReturnCount)
 		resultCount := 0
 		if returnCount > 0 {

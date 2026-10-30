@@ -351,9 +351,12 @@ func PeepholeFoldConstants_TryStrictEqualityComparison(
 				return base.Tri_TRUE
 			}
 		case NodeUtil_ValueType_BOOLEAN:
-			lv := peepholeOptimization.GetSideEffectFreeBooleanValue(left)
-			rv := peepholeOptimization.GetSideEffectFreeBooleanValue(right)
-			return lv.And(rv).Or(lv.Not().And(rv.Not()))
+			lv, lok := peepholeOptimization.GetSideEffectFreeBooleanValue(left)
+			rv, rok := peepholeOptimization.GetSideEffectFreeBooleanValue(right)
+			if !lok || !rok {
+				return base.Tri_UNKNOWN
+			}
+			return base.Tri_ForBoolean(lv == rv)
 		case NodeUtil_ValueType_BIGINT:
 			lv := peepholeOptimization.GetSideEffectFreeBigIntValue(left)
 			rv := peepholeOptimization.GetSideEffectFreeBigIntValue(right)

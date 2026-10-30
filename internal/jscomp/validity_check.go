@@ -84,7 +84,7 @@ func (v *ValidityCheck) CheckNormalization(externs rhino.Node, root rhino.Node) 
 	// Exceptions into Errors so that it is easier to find the root cause
 	// when there are cascading issues.
 	if v.compiler.GetLifeCycleStage().IsNormalized() {
-		Normalize_Builder_(v.compiler).AssertOnChange(true).Build().Process(externs, root)
+		NewNormalize(v.compiler, true).Process(externs, root)
 
 		if v.compiler.GetLifeCycleStage().IsNormalizedUnobfuscated() {
 			checkUserDeclarations := true

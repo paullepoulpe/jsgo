@@ -420,7 +420,7 @@ func inlineCheckCallSiteWithMode(
 ) (bool, *Scope, bool) {
 	scratchRef.init(callNode, nil, chunk, mode, false)
 	scratchRef.t = t
-	result := injector.canInlineReferenceWithSummary(
+	result := injector.canInlineReference(
 		scratchRef,
 		functionState.functionNode(),
 		functionStateAliasCount(functionState),

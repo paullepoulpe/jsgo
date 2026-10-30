@@ -192,7 +192,8 @@ func (r *ModuleImportResolver) DeclareEsModuleImports(
 	jutil.CheckArgumentMsg1(module.Metadata().IsEs6Module(), "%s", module)
 	jutil.CheckArgumentMsg1(scope.IsModuleScope(), "%s", scope)
 	missingNames := jutil.NewImmutableMapBuilder[rhino.Node, ScopedName]()
-	for localName, binding := range module.BoundNames().All() {
+	for _, entry := range module.BoundNamesMap().Entries() {
+		localName, binding := entry.Key, entry.Value
 		if !binding.IsCreatedByEsImport() {
 			continue
 		}
@@ -255,7 +256,8 @@ func (r *ModuleImportResolver) UpdateEsModuleNamespaceType(namespace rhino.Objec
 	jutil.CheckArgumentMsg1(module.Metadata().IsEs6Module(), "%s", module)
 	jutil.CheckArgumentMsg1(scope.IsModuleScope(), "%s", scope)
 
-	for exportKey, binding := range module.Namespace().All() {
+	for _, entry := range module.NamespaceMap().Entries() {
+		exportKey, binding := entry.Key, entry.Value
 		if namespace.IsPropertyTypeDeclared(exportKey) {
 			// Cannot change the type of a declared property after it is added to the ObjectType.
 			continue

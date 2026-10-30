@@ -340,43 +340,66 @@ func (b *jsFileLineParser) ParseJsStringMap(input string) *jutil.LinkedHashMap[s
 }
 
 func (b *jsFileLineParser) parseJsStringMap(input string) (*jutil.LinkedHashMap[string, string], string, bool) {
+	results := jutil.NewLinkedHashMap[string, string]()
+	errMsg, ok := b.parseJsStringObjectEntries(input, func(key, val string) {
+		results.Put(key, val)
+	})
+	if !ok {
+		return nil, errMsg, false
+	}
+	return results, "", true
+}
+
+func (b *jsFileLineParser) parseLoadFlagsObject(input string) (LoadFlags, string, bool) {
+	var buf [4]LoadFlag
+	entries := buf[:0]
+	errMsg, ok := b.parseJsStringObjectEntries(input, func(key, val string) {
+		putLoadFlag(&entries, key, val)
+	})
+	if !ok {
+		return EmptyLoadFlags, errMsg, false
+	}
+	flags, _ := normalizeLoadFlagsEntries(entries, true)
+	return flags, "", true
+}
+
+func (b *jsFileLineParser) parseJsStringObjectEntries(input string, onEntry func(key, val string)) (string, bool) {
 	input = jsFileLineParser_trimCharMatcherWhitespace(input)
 	if input == "" || input[0] != '{' || input[len(input)-1] != '}' {
-		return nil, "Syntax error when parsing JS object", false
+		return "Syntax error when parsing JS object", false
 	}
 	input = jsFileLineParser_trimJava(input[1 : len(input)-1])
 
-	results := jutil.NewLinkedHashMap[string, string]()
 	b.valueMatcher.Reset(input)
 	for input != "" {
 		// Parse the next key (TODO(sdh): need to support non-quoted keys?).
 		if !b.valueMatcher.LookingAt() {
-			return nil, "Bad key in JS object literal", false
+			return "Bad key in JS object literal", false
 		}
 		key := b.valueMatcher.MatchedValue()
 		if b.valueMatcher.HitEnd() {
-			return nil, "Missing value in JS object literal", false
+			return "Missing value in JS object literal", false
 		}
 		if input[b.valueMatcher.End()] != ':' {
-			return nil, "Missing colon in JS object literal", false
+			return "Missing colon in JS object literal", false
 		}
 		b.valueMatcher.Region(b.valueMatcher.End()+1, b.valueMatcher.RegionEnd())
 
 		// Parse the corresponding value.
 		if !b.valueMatcher.LookingAt() {
-			return nil, "Bad value in JS object literal", false
+			return "Bad value in JS object literal", false
 		}
 		val := b.valueMatcher.MatchedValue()
-		results.Put(key, val)
+		onEntry(key, val)
 		if b.valueMatcher.HitEnd() {
 			break
 		}
 		if input[b.valueMatcher.End()] != ',' {
-			return nil, "Missing comma in JS object literal", false
+			return "Missing comma in JS object literal", false
 		}
 		b.valueMatcher.Region(b.valueMatcher.End()+1, b.valueMatcher.RegionEnd())
 	}
-	return results, "", true
+	return "", true
 }
 
 func jsFileLineParser_hasNonControlSpace(s string) bool {

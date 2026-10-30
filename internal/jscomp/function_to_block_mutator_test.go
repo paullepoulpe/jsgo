@@ -391,7 +391,7 @@ func (c *FunctionToBlockMutatorTest) HelperMutateWithResultName(
 
 			n.ReplaceWith(result)
 			NewValidityCheck_VerifyConstants(compiler, false).Process(externs, js)
-			Normalize_Builder_(compiler).AssertOnChange(true).Build().Process(externs, js)
+			NewNormalize(compiler, true).Process(externs, js)
 			result.ReplaceWith(n)
 
 			return true

@@ -29,8 +29,9 @@ import (
 )
 
 var (
-	eepGoogleExportSymbolID   = uint32(strpool.Intern("google_exportSymbol"))
-	eepGoogleExportPropertyID = uint32(strpool.Intern("google_exportProperty"))
+	eepGoogleExportSymbolID      = uint32(strpool.Intern("google_exportSymbol"))
+	eepGoogleExportPropertyID    = uint32(strpool.Intern("google_exportProperty"))
+	eepNamespaceSuppressionsList = []string{"const", "duplicate"}
 )
 
 // ExternExportsPass creates an externs file containing all exported symbols
@@ -240,19 +241,39 @@ func createExternsParamListFromOriginalFunction(exportedFunction rhino.Node) rhi
 }
 
 func createExternsParamListFromFunctionType(functionType rhino.JSType) rhino.Node {
-	emptyParamNames := make([]string, len(functionType.AssertFunctionType().GetParameters()))
-	return createExternsParamListFromOriginalParamList(emptyParamNames)
+	n := len(functionType.AssertFunctionType().GetParameters())
+	paramList := rhino.IR_ParamList()
+	if n == 0 {
+		return paramList
+	}
+	nameGenerator := NewDefaultNameGeneratorWithReservedChars(
+		stringMapSet(nil),
+		"",
+		/* reservedCharacters= */ ASCIICharSet{})
+	for range n {
+		paramList.AddChildToBack(rhino.IR_Name(nameGenerator.GenerateNextName()))
+	}
+	return paramList
 }
 
 func createExternsParamListFromOriginalParamList(originalParamNames []string) rhino.Node {
 	paramList := rhino.IR_ParamList()
-	var nameGenerator NameGenerator = NewDefaultNameGeneratorWithReservedChars(
-		jutil.NewLinkedHashSet(originalParamNames...),
-		"",
-		/* reservedCharacters= */ ASCIICharSet{})
+	var nameGenerator *DefaultNameGenerator
 	for _, originalParamName := range originalParamNames {
 		externParamName := originalParamName
 		if originalParamName == "" {
+			if nameGenerator == nil {
+				reserved := make(stringMapSet, len(originalParamNames))
+				for _, p := range originalParamNames {
+					if p != "" {
+						reserved[p] = struct{}{}
+					}
+				}
+				nameGenerator = NewDefaultNameGeneratorWithReservedChars(
+					reserved,
+					"",
+					/* reservedCharacters= */ ASCIICharSet{})
+			}
 			externParamName = nameGenerator.GenerateNextName()
 		}
 		paramList.AddChildToBack(rhino.IR_Name(externParamName))
@@ -268,8 +289,8 @@ func getOriginalNameForParam(paramNode rhino.Node) string {
 		nameOrPatternNode = defVal.Target().Node()
 	}
 	if name, ok := ast.AsName(nameOrPatternNode); ok {
-		if originalName := nameOrPatternNode.GetOriginalName(); originalName != nil {
-			return *originalName
+		if originalName, ok := nameOrPatternNode.GetOriginalNameString(); ok {
+			return originalName
 		}
 		return name.Ident()
 	}
@@ -295,7 +316,7 @@ func buildEmptyJSDoc() *rhino.JSDocInfo {
 func buildNamespaceJSDoc() *rhino.JSDocInfo {
 	builder := rhino.JSDocInfo_Builder_()
 	builder.RecordConstancy()
-	builder.RecordSuppressions(jutil.NewLinkedHashSet("const", "duplicate"))
+	builder.RecordSuppressionsSlice(eepNamespaceSuppressionsList)
 	return builder.Build()
 }
 

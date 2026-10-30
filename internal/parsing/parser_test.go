@@ -4346,7 +4346,7 @@ func TestFileOverviewJSDoc1(t *testing.T) {
 	assertNode(t, n.GetFirstChild()).HasType(rhino.Token_FUNCTION)
 	assertThat(t, n.GetJSDocInfo()).IsNotNull()
 	assertThat(t, n.GetFirstChild().GetJSDocInfo()).IsNull()
-	assertThat(t, n.GetJSDocInfo().GetFileOverview()).IsEqualTo("Hi mom!")
+	assertThat(t, optString(n.GetJSDocInfo().GetFileOverviewString())).IsEqualTo("Hi mom!")
 }
 
 // Java: ParserTest.testFileOverviewJSDoc_notOnTopOfFile()
@@ -4358,7 +4358,7 @@ func TestFileOverviewJSDoc_notOnTopOfFile(t *testing.T) {
 	n := pt.parse("// some comment \n let x; /** @fileoverview Hi mom! */ class Foo {}")
 	assertNode(t, n).HasType(rhino.Token_SCRIPT)
 	assertThat(t, n.GetJSDocInfo()).IsNotNull()
-	assertThat(t, n.GetJSDocInfo().GetFileOverview()).IsEqualTo("Hi mom!")
+	assertThat(t, optString(n.GetJSDocInfo().GetFileOverviewString())).IsEqualTo("Hi mom!")
 
 	letNode := n.GetFirstChild()
 	assertNode(t, letNode).HasType(rhino.Token_LET)
@@ -4395,7 +4395,7 @@ func TestFileOverviewJSDoc2(t *testing.T) {
  /** @constructor */ function Foo() {}
 `)
 	assertThat(t, n.GetJSDocInfo()).IsNotNull()
-	assertThat(t, n.GetJSDocInfo().GetFileOverview()).IsEqualTo("Hi mom!")
+	assertThat(t, optString(n.GetJSDocInfo().GetFileOverviewString())).IsEqualTo("Hi mom!")
 	assertThat(t, n.GetFirstChild().GetJSDocInfo()).IsNotNull()
 	assertThat(t, n.GetFirstChild().GetJSDocInfo().HasFileOverview()).IsFalse()
 	assertThat(t, n.GetFirstChild().GetJSDocInfo().IsConstructor()).IsTrue()
@@ -4414,7 +4414,7 @@ func TestFileoverview_firstOneWins(t *testing.T) {
 `)
 
 	assertThat(t, n.GetJSDocInfo()).IsNotNull()
-	assertThat(t, n.GetJSDocInfo().GetFileOverview()).IsEqualTo("First")
+	assertThat(t, optString(n.GetJSDocInfo().GetFileOverviewString())).IsEqualTo("First")
 }
 
 // Java: ParserTest.testFileoverview_firstOneWins_implicitFileoverview()
@@ -4431,7 +4431,7 @@ func TestFileoverview_firstOneWins_implicitFileoverview(t *testing.T) {
 
 	assertThat(t, n.GetJSDocInfo()).IsNotNull()
 	assertThat(t, n.GetJSDocInfo().IsTypeSummary()).IsTrue()
-	assertThat(t, n.GetJSDocInfo().GetFileOverview()).IsNull()
+	assertThat(t, optString(n.GetJSDocInfo().GetFileOverviewString())).IsNull()
 }
 
 // Java: ParserTest.testFileoverview_firstOneWins_suppressionsAccumulate()
@@ -4463,7 +4463,7 @@ func TestFileoverview_firstOneWins_externsAccumulate(t *testing.T) {
 `)
 
 	assertThat(t, n.GetJSDocInfo()).IsNotNull()
-	assertThat(t, n.GetJSDocInfo().GetFileOverview()).IsEqualTo("First")
+	assertThat(t, optString(n.GetJSDocInfo().GetFileOverviewString())).IsEqualTo("First")
 	assertThat(t, n.GetJSDocInfo().IsExterns()).IsTrue()
 }
 

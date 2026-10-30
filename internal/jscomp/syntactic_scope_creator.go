@@ -1081,25 +1081,16 @@ func (h *SyntacticScopeCreator_DefaultRedeclarationHandler) OnRedeclaration(
 // scope may be out of sync.
 type MemoizedScopeCreator struct {
 	untypedScopes     map[rhino.Node]*Scope
-	scopesByScopeRoot map[rhino.Node]AbstractScope
 	syntacticDelegate *SyntacticScopeCreator
-	delegate          ScopeCreator
 }
 
 // NewMemoizedScopeCreator: delegate is the real source of Scope objects.
 //
 // Java: MemoizedScopeCreator(ScopeCreator)
-func NewMemoizedScopeCreator(delegate ScopeCreator) *MemoizedScopeCreator {
-	if ssc, ok := delegate.(*SyntacticScopeCreator); ok {
-		return &MemoizedScopeCreator{
-			untypedScopes:     make(map[rhino.Node]*Scope),
-			syntacticDelegate: ssc,
-			delegate:          delegate,
-		}
-	}
+func NewMemoizedScopeCreator(delegate *SyntacticScopeCreator) *MemoizedScopeCreator {
 	return &MemoizedScopeCreator{
-		scopesByScopeRoot: make(map[rhino.Node]AbstractScope),
-		delegate:          delegate,
+		untypedScopes:     make(map[rhino.Node]*Scope),
+		syntacticDelegate: jutil.CheckNotNull(delegate),
 	}
 }
 
@@ -1113,23 +1104,17 @@ func (m *MemoizedScopeCreator) createUntypedScope(n rhino.Node, parent *Scope) *
 	return scope
 }
 
+// CreateScopeOfScope returns the memoized concrete *Scope for n without
+// boxing through AbstractScope.
+func (m *MemoizedScopeCreator) CreateScopeOfScope(n rhino.Node, parent *Scope) *Scope {
+	return m.createUntypedScope(n, parent)
+}
+
 // Java: MemoizedScopeCreator.createScope(Node, AbstractScope<?, ?>)
 func (m *MemoizedScopeCreator) CreateScope(n rhino.Node, parent AbstractScope) AbstractScope {
-	if m.syntacticDelegate != nil {
-		var p *Scope
-		if parent != nil {
-			p = parent.(*Scope)
-		}
-		return m.createUntypedScope(n, p)
+	var p *Scope
+	if parent != nil {
+		p = parent.(*Scope)
 	}
-	scope := m.scopesByScopeRoot[n]
-	if scope == nil {
-		scope = m.delegate.CreateScope(n, parent)
-		m.scopesByScopeRoot[n] = scope
-	} else {
-		// Go-only: language-adapter — scope.getParent() on an AbstractScope<?, ?>
-		// is the final getParentScope(), which returns getParent().
-		jutil.CheckState(parent == scope.GetParentScope())
-	}
-	return scope
+	return m.createUntypedScope(n, p)
 }

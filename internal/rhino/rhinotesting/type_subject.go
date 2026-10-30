@@ -436,9 +436,9 @@ func (f *TypeSubject_FunctionTypeSubject) IsAbstract() {
 }
 
 // Java: TypeSubject.FunctionTypeSubject.hasPrimitiveId(ClosurePrimitive)
-func (f *TypeSubject_FunctionTypeSubject) HasPrimitiveId(id *rhino.ClosurePrimitive) {
+func (f *TypeSubject_FunctionTypeSubject) HasPrimitiveId(id rhino.ClosurePrimitive) {
 	f.outer.t.Helper()
-	f.outer.check("getClosurePrimitive()").
-		That(f.outer.actualNonNull().ToMaybeFunctionType().GetClosurePrimitive()).
-		IsEqualTo(id)
+	actual, ok := f.outer.actualNonNull().ToMaybeFunctionType().GetClosurePrimitive()
+	f.outer.check("hasClosurePrimitive()").That(ok).IsTrue()
+	f.outer.check("getClosurePrimitive()").That(actual).IsEqualTo(id)
 }

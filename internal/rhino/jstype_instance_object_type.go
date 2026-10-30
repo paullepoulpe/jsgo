@@ -127,7 +127,7 @@ func InstanceObjectType_BuilderForCtor(ctor FunctionType) *InstanceObjectType_Bu
 	return &InstanceObjectType_Builder{
 		PrototypeObjectType_Builder: PrototypeObjectType_Builder{
 			registry:          ctor.GetJSTypeBase().GetRegistry(),
-			classNameID:       rhinoStringIDFromPtr(ctor.GetReferenceName()),
+			classNameID:       ctor.referenceNameID(),
 			implicitPrototype: nil, // This isn't shared by a function and it's instances.
 			nativeType:        ctor.IsNativeObjectType(),
 			anonymousType:     ctor.IsAnonymous(),

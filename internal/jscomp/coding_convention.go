@@ -538,9 +538,11 @@ func CodingConvention_AssertionFunctionLookup_Of(
 // function reference, first by ClosurePrimitive, then by qualified name.
 func (l *CodingConvention_AssertionFunctionLookup) LookupByCallee(callee rhino.Node) *CodingConvention_AssertionFunctionSpec {
 	fnType := rhino.JSType_ToMaybeFunctionType(callee.GetJSType())
-	if fnType != nil && fnType.GetClosurePrimitive() != nil {
-		if spec := l.byPrimitive[*fnType.GetClosurePrimitive()]; spec != nil {
-			return spec
+	if fnType != nil {
+		if prim, ok := fnType.GetClosurePrimitive(); ok {
+			if spec := l.byPrimitive[prim]; spec != nil {
+				return spec
+			}
 		}
 	}
 	if callee.IsName() {

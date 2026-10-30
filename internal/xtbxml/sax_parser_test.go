@@ -80,19 +80,6 @@ func matcherVectorEscape(s *string) string {
 	return sb.String()
 }
 
-// newXtbStyleReader returns an XMLReader configured as XtbMessageBundle
-// configures it.
-func newXtbStyleReader() *XMLReader {
-	factory := SAXParserFactory_NewInstance()
-	factory.SetValidating(false)
-	factory.SetXIncludeAware(false)
-	factory.SetFeature("http://xml.org/sax/features/external-general-entities", false)
-	factory.SetFeature("http://xml.org/sax/features/external-parameter-entities", false)
-	factory.SetFeature("http://apache.org/xml/features/nonvalidating/load-external-dtd", false)
-	factory.SetFeature(XMLConstants_FEATURE_SECURE_PROCESSING, true)
-	return factory.NewSAXParser().GetXMLReader()
-}
-
 // TestSAXParserMatchesJava parses testdata/sax/*.xml and compares the events
 // with the JDK 21 ones (testdata/sax/expected.txt, from
 // tools/oracle/java/JutilSaxVectors.java).
@@ -121,14 +108,12 @@ func TestSAXParserMatchesJava(t *testing.T) {
 			t.Fatal(err)
 		}
 		out := &strings.Builder{}
-		jutil.Try(func() {
-			reader := newXtbStyleReader()
-			reader.SetEntityResolver(saxEmptyResolver{})
-			reader.SetContentHandler(&saxVectorHandler{out: out})
-			reader.Parse(NewInputSource(bytes.NewReader(data)))
-		}, func(e ISAXException) {
+		if err := Parse(bytes.NewReader(data), &saxVectorHandler{out: out}); err != nil {
+			if _, ok := err.(ISAXException); !ok {
+				t.Fatalf("%s: %v", name, err)
+			}
 			out.WriteString("error org.xml.sax.SAXParseException\n")
-		})
+		}
 		want, ok := expected[name]
 		if !ok {
 			t.Errorf("%s: no Java vector", name)
@@ -138,12 +123,6 @@ func TestSAXParserMatchesJava(t *testing.T) {
 			t.Errorf("%s:\n got:\n%s\nJava:\n%s", name, out.String(), want)
 		}
 	}
-}
-
-type saxEmptyResolver struct{}
-
-func (saxEmptyResolver) ResolveEntity(publicId *string, systemId *string) *InputSource {
-	return NewInputSourceOfCharacterStream(strings.NewReader(""))
 }
 
 // saxPositionHandler records the events as JutilSaxVectors.runFull prints
@@ -205,13 +184,6 @@ func (h *saxPositionHandler) SkippedEntity(name string) {
 	h.out.WriteString("skipped " + saxVectorEscape(name) + h.pos() + "\n")
 }
 
-type saxRecordingResolver struct{ h *saxPositionHandler }
-
-func (r saxRecordingResolver) ResolveEntity(publicId *string, systemId *string) *InputSource {
-	r.h.out.WriteString("resolveEntity " + matcherVectorEscape(publicId) + "|" + matcherVectorEscape(systemId) + r.h.pos() + "\n")
-	return NewInputSourceOfCharacterStream(strings.NewReader(""))
-}
-
 // saxRunFull is the Go side of JutilSaxVectors.runFull.
 func saxRunFull(doc []byte) string {
 	out := &strings.Builder{}
@@ -220,13 +192,14 @@ func saxRunFull(doc []byte) string {
 	jutil.System_SetErr(jutil.NewPrintStream(errBuf))
 	defer jutil.System_SetErr(saved)
 	h := &saxPositionHandler{out: out}
+	var thrown jutil.Throwable
 	jutil.Try(func() {
-		reader := newXtbStyleReader()
-		reader.SetEntityResolver(saxRecordingResolver{h})
-		reader.SetContentHandler(h)
-		reader.Parse(NewInputSource(bytes.NewReader(doc)))
+		thrown = Parse(bytes.NewReader(doc), h)
 	}, func(e jutil.Throwable) {
-		switch e := e.(type) {
+		thrown = e
+	})
+	if thrown != nil {
+		switch e := thrown.(type) {
 		case *SAXParseException:
 			fmt.Fprintf(out, "error org.xml.sax.SAXParseException %d:%d <null>|<null> %s\n",
 				e.GetLineNumber(), e.GetColumnNumber(), saxVectorEscape(e.GetMessage()))
@@ -234,7 +207,7 @@ func saxRunFull(doc []byte) string {
 			name, _, _ := strings.Cut(e.Error(), ": ")
 			out.WriteString("error " + name + " " + saxVectorEscape(e.GetMessage()) + "\n")
 		}
-	})
+	}
 	if errBuf.Len() > 0 {
 		out.WriteString("stderr " + saxVectorEscape(errBuf.String()) + "\n")
 	}

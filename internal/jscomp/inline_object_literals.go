@@ -46,13 +46,18 @@ type InlineObjectLiterals struct {
 	validPropLen    int
 	validPropMap    map[uint32]struct{}
 
-	propSlots   []iolPropSlot
-	propIndex   map[uint32]int
-	assignNodes []rhino.Node
+	propSlotsBuf [8]iolPropSlot
+	propSlots    []iolPropSlot
+	propIndex    map[uint32]int
+	assignNodes  []rhino.Node
 
-	scanner      *iolCandidateScanner
-	idSupplier   func() string
-	reportChange func(rhino.Node)
+	scanState      iolCandidateScanner
+	scanner        *iolCandidateScanner
+	useLocalPrefix bool
+	localPrefix    string
+	localCounter   int
+	collectChanged bool
+	changedOut     *[]rhino.Node
 }
 
 const InlineObjectLiterals_VAR_PREFIX = "JSCompiler_object_inline_"
@@ -72,6 +77,24 @@ type iolCandidateScanner struct {
 	anyCandFnInHoistedFn bool
 	hasInvalidDecl       bool
 	candFns              []rhino.Node
+}
+
+func (s *iolCandidateScanner) reset() {
+	s.candidateBloom = 0
+	if len(s.candidateScopeBlooms) > 0 {
+		clear(s.candidateScopeBlooms)
+	}
+	if len(s.fnHasOwnCandidate) > 0 {
+		clear(s.fnHasOwnCandidate)
+	}
+	if len(s.hasCandSubtree) > 0 {
+		clear(s.hasCandSubtree)
+	}
+	s.hasNonFnCandidate = false
+	s.anyCandFnInHoistedFn = false
+	s.hasInvalidDecl = false
+	clear(s.candFns)
+	s.candFns = s.candFns[:0]
 }
 
 func iolHasParamName(fnNode rhino.Node, nameID uint32) bool {
@@ -301,27 +324,37 @@ func newIOLDummyGlobalScope(root rhino.Node) *Scope {
 	return s
 }
 
-func (o *InlineObjectLiterals) newFilteredCollector(
-	sc *SyntacticScopeCreator,
-	varFilter func(*Var) bool,
-) *ReferenceCollector {
-	rc := NewReferenceCollectorWithVarFilter(o.compiler, o, sc, varFilter)
-	rc.enableLocalReclamation(func() bool {
-		clear(o.staleVars)
-		return true
-	})
-	return rc
+func (o *InlineObjectLiterals) varFilter(v *Var) bool {
+	if v == nil || !v.IsLocal() {
+		return false
+	}
+	nameNode := v.nameNode
+	if nameNode.IsNil() {
+		return false
+	}
+	parent := nameNode.GetParent()
+	if parent.IsNil() || !NodeUtil_IsNameDeclaration(parent) {
+		return false
+	}
+	s := o.scanner
+	bloom := scopeBloomFromID(v.nameID)
+	if (s.candidateBloom & bloom) != bloom {
+		return false
+	}
+	return (s.candidateScopeBlooms[v.scope.GetRootNode()] & bloom) == bloom
 }
 
-func traverseIOLCandFn(rc *ReferenceCollector, root rhino.Node, dummyGlobalScope *Scope, candFn rhino.Node) {
-	tb := rc.builderVal()
-	t := newNodeTraversal(&tb)
-	t.currentNode = root
-	t.PushScopeOfScope(dummyGlobalScope)
-	t.currentScript = t.GetEnclosingScript(candFn)
-	t.ClearScriptState()
-	t.TraverseBranch(candFn, candFn.GetParent())
-	t.PopScope()
+func (o *InlineObjectLiterals) clearStaleVars() bool {
+	if len(o.staleVars) > 0 {
+		clear(o.staleVars)
+	}
+	return true
+}
+
+func (o *InlineObjectLiterals) newFilteredCollector(sc *SyntacticScopeCreator) *ReferenceCollector {
+	rc := NewReferenceCollectorWithVarFilter(o.compiler, o, sc, o.varFilter)
+	rc.enableLocalReclamation(o.clearStaleVars)
+	return rc
 }
 
 // Java: InlineObjectLiterals.process(Node, Node)
@@ -329,29 +362,11 @@ func (o *InlineObjectLiterals) Process(externs rhino.Node, root rhino.Node) {
 	if root.IsNil() {
 		return
 	}
-	var s iolCandidateScanner
+	s := &o.scanState
+	s.reset()
 	s.scan(root)
 	if s.candidateBloom == 0 && !s.hasInvalidDecl {
 		return
-	}
-
-	varFilter := func(v *Var) bool {
-		if v == nil || !v.IsLocal() {
-			return false
-		}
-		nameNode := v.nameNode
-		if nameNode.IsNil() {
-			return false
-		}
-		parent := nameNode.GetParent()
-		if parent.IsNil() || !NodeUtil_IsNameDeclaration(parent) {
-			return false
-		}
-		bloom := scopeBloomFromID(v.nameID)
-		if (s.candidateBloom & bloom) != bloom {
-			return false
-		}
-		return (s.candidateScopeBlooms[v.scope.GetRootNode()] & bloom) == bloom
 	}
 
 	opts := o.compiler.GetOptions()
@@ -376,36 +391,32 @@ func (o *InlineObjectLiterals) Process(externs rhino.Node, root rhino.Node) {
 					worker := &InlineObjectLiterals{
 						compiler:           o.compiler,
 						safeNameIdSupplier: o.safeNameIdSupplier,
-						scanner:            &s,
+						scanner:            s,
+						useLocalPrefix:     true,
+						collectChanged:     true,
 					}
-					dummyGlobalScope := newIOLDummyGlobalScope(root)
+					rc := worker.newFilteredCollector(sc)
+					tb := rc.builderVal()
+					t := newNodeTraversal(&tb)
+					t.currentNode = root
+					t.PushScopeOfScope(newIOLDummyGlobalScope(root))
 					for {
 						fnIdx := int(nextIdx.Add(1) - 1)
 						if fnIdx >= len(s.candFns) {
 							break
 						}
 						candFn := s.candFns[fnIdx]
-						localCounter := 0
-						prefix := runPrefix + "_" + strconv.Itoa(fnIdx) + "_"
-						clear(worker.staleVars)
-						worker.idSupplier = func() string {
-							id := prefix + strconv.Itoa(localCounter)
-							localCounter++
-							return id
-						}
-						worker.reportChange = func(n rhino.Node) {
-							if n.IsNil() {
-								return
-							}
-							if n.IsScript() {
-								changedPerFn[fnIdx] = append(changedPerFn[fnIdx], n)
-							} else if cs := ChangeTracker_GetEnclosingChangeScopeRoot(n.GetParent()); !cs.IsNil() {
-								changedPerFn[fnIdx] = append(changedPerFn[fnIdx], cs)
-							}
-						}
-						rc := worker.newFilteredCollector(sc, varFilter)
-						traverseIOLCandFn(rc, root, dummyGlobalScope, candFn)
+						worker.localPrefix = runPrefix + "_" + strconv.Itoa(fnIdx) + "_"
+						worker.localCounter = 0
+						worker.changedOut = &changedPerFn[fnIdx]
+						worker.clearStaleVars()
+						rc.blocks.resetHoistedCollected()
+						rc.lastRejectedVar = nil
+						t.currentScript = t.GetEnclosingScript(candFn)
+						t.ClearScriptState()
+						t.TraverseBranch(candFn, candFn.GetParent())
 					}
+					t.PopScope()
 				}()
 			}
 			wg.Wait()
@@ -418,37 +429,36 @@ func (o *InlineObjectLiterals) Process(externs rhino.Node, root rhino.Node) {
 		}
 		if fastMode || len(s.candFns) == 1 || !s.anyCandFnInHoistedFn {
 			sc := NewSyntacticScopeCreator(o.compiler)
-			o.scanner = &s
-			o.idSupplier = nil
-			o.reportChange = nil
-			dummyGlobalScope := newIOLDummyGlobalScope(root)
-			if fastMode && len(s.candFns) >= 1 {
-				runPrefix := o.safeNameIdSupplier()
-				for fnIdx, candFn := range s.candFns {
-					localCounter := 0
-					prefix := runPrefix + "_" + strconv.Itoa(fnIdx) + "_"
-					clear(o.staleVars)
-					o.idSupplier = func() string {
-						id := prefix + strconv.Itoa(localCounter)
-						localCounter++
-						return id
-					}
-					rc := o.newFilteredCollector(sc, varFilter)
-					traverseIOLCandFn(rc, root, dummyGlobalScope, candFn)
-				}
-				o.idSupplier = nil
-				return
-			}
-			callback := o.newFilteredCollector(sc, varFilter)
-			tb := callback.builderVal()
+			o.scanner = s
+			o.collectChanged = false
+			o.changedOut = nil
+			rc := o.newFilteredCollector(sc)
+			tb := rc.builderVal()
 			t := newNodeTraversal(&tb)
 			t.currentNode = root
-			t.PushScopeOfScope(dummyGlobalScope)
-			for _, candFn := range s.candFns {
-				clear(o.staleVars)
-				t.currentScript = t.GetEnclosingScript(candFn)
-				t.ClearScriptState()
-				t.TraverseBranch(candFn, candFn.GetParent())
+			t.PushScopeOfScope(newIOLDummyGlobalScope(root))
+			if fastMode {
+				runPrefix := o.safeNameIdSupplier()
+				o.useLocalPrefix = true
+				for fnIdx, candFn := range s.candFns {
+					o.localPrefix = runPrefix + "_" + strconv.Itoa(fnIdx) + "_"
+					o.localCounter = 0
+					o.clearStaleVars()
+					rc.blocks.resetHoistedCollected()
+					rc.lastRejectedVar = nil
+					t.currentScript = t.GetEnclosingScript(candFn)
+					t.ClearScriptState()
+					t.TraverseBranch(candFn, candFn.GetParent())
+				}
+				o.useLocalPrefix = false
+			} else {
+				o.useLocalPrefix = false
+				for _, candFn := range s.candFns {
+					o.clearStaleVars()
+					t.currentScript = t.GetEnclosingScript(candFn)
+					t.ClearScriptState()
+					t.TraverseBranch(candFn, candFn.GetParent())
+				}
 			}
 			t.PopScope()
 			return
@@ -456,11 +466,12 @@ func (o *InlineObjectLiterals) Process(externs rhino.Node, root rhino.Node) {
 	}
 
 	sc := NewSyntacticScopeCreator(o.compiler)
-	o.scanner = &s
-	o.idSupplier = nil
-	o.reportChange = nil
-	clear(o.staleVars)
-	o.newFilteredCollector(sc, varFilter).Process(externs, root)
+	o.scanner = s
+	o.useLocalPrefix = false
+	o.collectChanged = false
+	o.changedOut = nil
+	o.clearStaleVars()
+	o.newFilteredCollector(sc).Process(externs, root)
 }
 
 type iolPropSlot struct {
@@ -471,15 +482,24 @@ type iolPropSlot struct {
 }
 
 func (o *InlineObjectLiterals) nextID() string {
-	if o.idSupplier != nil {
-		return o.idSupplier()
+	if o.useLocalPrefix {
+		id := o.localPrefix + strconv.Itoa(o.localCounter)
+		o.localCounter++
+		return id
 	}
 	return o.safeNameIdSupplier()
 }
 
 func (o *InlineObjectLiterals) reportScopeChange(n rhino.Node) {
-	if o.reportChange != nil {
-		o.reportChange(n)
+	if o.collectChanged {
+		if n.IsNil() {
+			return
+		}
+		if n.IsScript() {
+			*o.changedOut = append(*o.changedOut, n)
+		} else if cs := ChangeTracker_GetEnclosingChangeScopeRoot(n.GetParent()); !cs.IsNil() {
+			*o.changedOut = append(*o.changedOut, cs)
+		}
 		return
 	}
 	o.compiler.ReportChangeToEnclosingScope(n)
@@ -593,6 +613,10 @@ func (o *InlineObjectLiterals) addValidProp(id uint32) {
 }
 
 func (o *InlineObjectLiterals) resetPropSlots() {
+	if o.propSlots == nil {
+		o.propSlots = o.propSlotsBuf[:0]
+		return
+	}
 	clear(o.propSlots)
 	o.propSlots = o.propSlots[:0]
 	if len(o.propIndex) > 0 {

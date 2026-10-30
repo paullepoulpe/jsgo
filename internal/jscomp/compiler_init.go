@@ -474,7 +474,7 @@ func (c *Compiler) mergeAndDeserializeTypedAsts(
 		})
 
 	c.typedAstFilesystem = astData.filesystem
-	c.externProperties = astData.GetExternProperties()
+	c.SetExternProperties(astData.GetExternProperties())
 	c.colorRegistry = astData.GetColorRegistry()
 	c.SetTypeCheckingHasRun(deserializeTypes)
 
