@@ -142,7 +142,7 @@ func (p *ProxyObjectTypeBase) GetReferencedObjTypeInternal() ObjectType {
 // Java: ProxyObjectType.setReferencedType(JSType)
 func (p *ProxyObjectTypeBase) SetReferencedType(referencedType JSType) {
 	jutil.CheckNotNull(referencedType)
-	p.flags &^= jsTypeFlagWellFormedTemplateValid
+	p.clearFlag(jsTypeFlagWellFormedTemplateValid)
 	p.referencedType = referencedType
 	if objectType, ok := referencedType.(ObjectType); ok {
 		p.referencedObjType = objectType
@@ -370,8 +370,8 @@ func (p *ProxyObjectTypeBase) GetCtorExtendedInterfaces() []ObjectType {
 }
 
 // Java: ProxyObjectType.recursionUnsafeHashCode()
-func (p *ProxyObjectTypeBase) RecursionUnsafeHashCode() int32 {
-	return p.referencedType.HashCode()
+func (p *ProxyObjectTypeBase) RecursionUnsafeHashCode(hs *JSTypeStack) int32 {
+	return jsTypeHashCodeIn(p.referencedType, hs)
 }
 
 // Java: ProxyObjectType.appendTo(TypeStringBuilder)
@@ -486,8 +486,8 @@ func (p *ProxyObjectTypeBase) ToMaybeTemplateType() *TemplateType {
 }
 
 // Java: ProxyObjectType.hasAnyTemplateTypesInternal()
-func (p *ProxyObjectTypeBase) HasAnyTemplateTypesInternal() bool {
-	return p.referencedType.HasAnyTemplateTypes()
+func (p *ProxyObjectTypeBase) HasAnyTemplateTypesInternal(st *JSTypeStack) bool {
+	return jsTypeHasAnyTemplateTypesIn(p.referencedType, st)
 }
 
 // Java: ProxyObjectType.getTemplateTypeMap()

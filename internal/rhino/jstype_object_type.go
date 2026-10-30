@@ -246,25 +246,42 @@ func (o *ObjectTypeBase) SetJSDocInfo(info *JSDocInfo) {
 // Java: ObjectType.detectImplicitPrototypeCycle()
 func (o *ObjectTypeBase) DetectImplicitPrototypeCycle() bool {
 	// detecting cycle
-	self := o.selfObj()
-	o.flags |= jsTypeFlagVisited
-	p := self.GetImplicitPrototype()
+	// Go-only: the types visited by this call are kept in a local list, and
+	// the per-type flag is only written when a cycle is found (Java returns
+	// without clearing its marks then, and later calls see them) or cleared
+	// when such a leftover mark is on the chain. Same results as Java's flag
+	// walk, without writes in the common case, so concurrent readers do not
+	// interfere.
+	var inline [16]*ObjectTypeBase
+	visited := append(inline[:0], o)
+	leftover := o.hasFlag(jsTypeFlagVisited)
+	p := o.selfObj().GetImplicitPrototype()
 	for p != nil {
-		if p.GetObjectTypeBase().flags&jsTypeFlagVisited != 0 {
-			return true
-		} else {
-			p.GetObjectTypeBase().flags |= jsTypeFlagVisited
+		pb := p.GetObjectTypeBase()
+		seen := pb.hasFlag(jsTypeFlagVisited)
+		for _, v := range visited {
+			if v == pb {
+				seen = true
+				break
+			}
 		}
+		if seen {
+			for _, v := range visited {
+				v.setFlag(jsTypeFlagVisited)
+			}
+			return true
+		}
+		visited = append(visited, pb)
 		p = p.GetImplicitPrototype()
 	}
 
 	// clean up
-	p = self
-	for {
-		p.GetObjectTypeBase().flags &^= jsTypeFlagVisited
-		p = p.GetImplicitPrototype()
-		if p == nil {
-			break
+	if leftover {
+		o.clearFlag(jsTypeFlagVisited)
+	}
+	for _, v := range visited[1:] {
+		if v.hasFlag(jsTypeFlagVisited) {
+			v.clearFlag(jsTypeFlagVisited)
 		}
 	}
 	return false
@@ -495,6 +512,9 @@ func (o *ObjectTypeBase) IsUnknownType() bool {
 	// If the object is unknown now, check the supertype again, because it
 	// might have been resolved since the last check.
 	if o.unknown {
+		if reg := o.GetRegistry(); reg != nil && reg.parallelReadOnly {
+			return o.isUnknownTypeNoCache()
+		}
 		self := o.selfObj()
 		implicitProto := self.GetImplicitPrototype()
 		if implicitProto == nil || implicitProto.IsNativeObjectType() {
@@ -510,6 +530,23 @@ func (o *ObjectTypeBase) IsUnknownType() bool {
 		}
 	}
 	return o.unknown
+}
+
+// isUnknownTypeNoCache is IsUnknownType's recheck without writing its cache
+// (Go-only: the registry's parallel read-only mode, where other goroutines
+// read the type).
+func (o *ObjectTypeBase) isUnknownTypeNoCache() bool {
+	self := o.selfObj()
+	implicitProto := self.GetImplicitPrototype()
+	if implicitProto == nil || implicitProto.IsNativeObjectType() {
+		for _, interfaceType := range self.GetCtorExtendedInterfaces() {
+			if interfaceType.IsUnknownType() {
+				return true
+			}
+		}
+		return false
+	}
+	return implicitProto.IsUnknownType()
 }
 
 // Java: ObjectType.isObject()

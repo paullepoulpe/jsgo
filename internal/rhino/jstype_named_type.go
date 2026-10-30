@@ -243,11 +243,11 @@ func (t *NamedType) IsNominalType() bool {
 }
 
 // Java: NamedType.recursionUnsafeHashCode()
-func (t *NamedType) RecursionUnsafeHashCode() int32 {
+func (t *NamedType) RecursionUnsafeHashCode(hs *JSTypeStack) int32 {
 	// Recall that equality on `NamedType` uses only the name until successful
 	// resolution, then delegates to the resolved type.
 	if t.IsSuccessfullyResolved() {
-		return t.ProxyObjectTypeBase.RecursionUnsafeHashCode()
+		return t.ProxyObjectTypeBase.RecursionUnsafeHashCode(hs)
 	}
 	return NamedType_NominalHashCode(t)
 }

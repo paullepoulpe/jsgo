@@ -306,8 +306,8 @@ func JSType_GetLeastSupertype(thisType JSType, thatType JSType) JSType {
 		return thisType
 	}
 	registry := thisTb.GetRegistry()
-	if registry != nil && registry.resolver.state == JSTypeResolver_State_CLOSED && thisTb.flags&jsTypeFlagResolvedToSelf != 0 && thatTb != nil {
-		if thatTb.flags&jsTypeFlagResolvedToSelf != 0 {
+	if registry != nil && registry.resolver.state == JSTypeResolver_State_CLOSED && thisTb.hasFlag(jsTypeFlagResolvedToSelf) && thatTb != nil {
+		if thatTb.hasFlag(jsTypeFlagResolvedToSelf) {
 			if cached := registry.lookupLeastSupertype(thisTb, thatTb); cached != nil {
 				return cached
 			}
@@ -711,7 +711,7 @@ func (t *JSTypeBase) Resolve(reporter ErrorReporter) JSType {
 			t.resolveResult = nil
 		}
 		if t.resolveResult == t {
-			t.flags |= jsTypeFlagResolvedToSelf
+			t.setFlag(jsTypeFlagResolvedToSelf)
 		}
 		jutil.CheckState(t.resolveResult != nil)
 	}
@@ -725,7 +725,7 @@ func (t *JSTypeBase) Resolve(reporter ErrorReporter) JSType {
 func (t *JSTypeBase) EagerlyResolveToSelf() {
 	jutil.CheckStateMsg1(!t.self().IsResolved(), "%s", t.self())
 	t.resolveResult = t
-	t.flags |= jsTypeFlagResolvedToSelf
+	t.setFlag(jsTypeFlagResolvedToSelf)
 	t.GetRegistry().GetResolver().ResolveIfClosed(t.self(), t.self().GetTypeClass())
 }
 

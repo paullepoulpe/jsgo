@@ -129,6 +129,12 @@ func (r *JSTypeResolver) AddUnresolved(captured JSType) {
 	// `resolveIfClosed`, but this way we get some guarantees against misuse.
 	// Separating capturing and resolving allows us to verify our invariants.
 	jutil.CheckState(!captured.IsResolved())
+	if r.registry.parallelReadOnly {
+		// Go-only: in the registry's parallel read-only mode several goroutines
+		// derive types at once, so the capture stack (an invariant check) is
+		// not kept; ResolveIfClosed resolves the new type at once.
+		return
+	}
 	r.captureStack = append(r.captureStack, captured)
 }
 
@@ -146,6 +152,11 @@ func (r *JSTypeResolver) AddUnresolved(captured JSType) {
 // Java: JSTypeResolver.resolveIfClosed(JSType, JSTypeClass)
 func (r *JSTypeResolver) ResolveIfClosed(captured JSType, caller JSTypeClass) {
 	if !caller.IsTypeOf(captured) {
+		return
+	}
+	if r.registry.parallelReadOnly {
+		jutil.CheckState(r.state == JSTypeResolver_State_CLOSED)
+		r.DoResolve(captured)
 		return
 	}
 

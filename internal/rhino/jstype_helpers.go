@@ -502,6 +502,10 @@ type TypeStringBuilder struct {
 	builder          strings.Builder
 	indentDepth      int
 	isForAnnotations bool
+	// printing holds the object and function types being pretty-printed
+	// (Go-only: Java clears each one's prettyPrint flag meanwhile, which
+	// concurrent printers of the same type would see).
+	printing JSTypeStack
 }
 
 // Java: TypeStringBuilder(boolean)
@@ -574,6 +578,7 @@ func (b *TypeStringBuilder) AppendType(x JSType) {
 		tmp := &TypeStringBuilder{
 			isForAnnotations: b.isForAnnotations,
 			indentDepth:      b.indentDepth,
+			printing:         b.printing,
 		}
 		x.AppendTo(tmp)
 		b.builder.WriteString(tmp.Build())
@@ -651,6 +656,7 @@ func (b *TypeStringBuilder) CloneWithConfig() *TypeStringBuilder {
 	return &TypeStringBuilder{
 		isForAnnotations: b.isForAnnotations,
 		indentDepth:      b.indentDepth,
+		printing:         b.printing,
 	}
 }
 

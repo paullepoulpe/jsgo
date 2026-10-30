@@ -156,7 +156,7 @@ func (v *ValueTypeBase) GetPropertyKindByKeyWithAutobox(propertyName Property_Ke
 }
 
 // Java: ValueType.recursionUnsafeHashCode()
-func (v *ValueTypeBase) RecursionUnsafeHashCode() int32 {
+func (v *ValueTypeBase) RecursionUnsafeHashCode(*JSTypeStack) int32 {
 	// Subclasses of this type are unique within a JSTypeRegistry.
 	return jutil.IdentityHashCode(v.self())
 }

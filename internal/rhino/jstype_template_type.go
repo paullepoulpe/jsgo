@@ -123,7 +123,7 @@ func (t *TemplateType) ToMaybeTemplateType() *TemplateType {
 }
 
 // Java: TemplateType.hasAnyTemplateTypesInternal()
-func (t *TemplateType) HasAnyTemplateTypesInternal() bool {
+func (t *TemplateType) HasAnyTemplateTypesInternal(*JSTypeStack) bool {
 	return true
 }
 
@@ -168,7 +168,7 @@ func (t *TemplateType) ContainsCycle() bool {
 }
 
 // Java: TemplateType.recursionUnsafeHashCode()
-func (t *TemplateType) RecursionUnsafeHashCode() int32 {
+func (t *TemplateType) RecursionUnsafeHashCode(*JSTypeStack) int32 {
 	// Since TemplateType has identity semantics for equality (see
 	// EqualityChecker), use identity hash code to avoid spurious hash
 	// conflicts

@@ -36,6 +36,8 @@
 package rhino
 
 import (
+	"sync/atomic"
+
 	"github.com/paullepoulpe/jsgo/internal/base"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 )
@@ -147,7 +149,7 @@ type JSType interface {
 	IsTemplateType() bool
 	ToMaybeTemplateType() *TemplateType
 	HasAnyTemplateTypes() bool
-	HasAnyTemplateTypesInternal() bool
+	HasAnyTemplateTypesInternal(st *JSTypeStack) bool
 	GetTemplateTypeMap() *TemplateTypeMap
 	GetTypeParameters() []*TemplateType
 	GetTemplateParamCount() int
@@ -168,7 +170,7 @@ type JSType interface {
 	DiffersFrom(that JSType) bool
 	// Java: JSType.hashCode()
 	HashCode() int32
-	RecursionUnsafeHashCode() int32
+	RecursionUnsafeHashCode(hs *JSTypeStack) int32
 	MatchesNumberContext() bool
 	MatchesStringContext() bool
 	MatchesSymbolContext() bool
@@ -244,11 +246,14 @@ type JSTypeBase struct {
 	templateTypeMap *TemplateTypeMap
 
 	// nodeHandle is the type's handle in the node type table once a Node
-	// referred to it (see node_tables.go); 0 before.
-	nodeHandle uint32
+	// referred to it (see node_tables.go); 0 before. Atomic: parallel
+	// workers may set the same type on nodes.
+	nodeHandle atomic.Uint32
 
 	// flags holds the rarely used booleans (jsTypeFlag*) and the 2-bit
-	// templateCheckResult (0 = unset, 1 = false, 2 = true).
+	// templateCheckResult (0 = unset, 1 = false, 2 = true). Go-only: the
+	// lazily cached bits are not written while the registry is in its
+	// parallel read-only mode, when other goroutines read the type.
 	flags      uint8
 	unknown    bool
 	objFlags   uint8
@@ -265,8 +270,6 @@ const (
 
 const (
 	jsTypeFlagLoosenTypechecking      uint8 = 1 << 0 // loosenTypecheckingDueToForwardReferencedSupertype
-	jsTypeFlagHashCodeInProgress      uint8 = 1 << 1
-	jsTypeFlagInTemplatedCheck        uint8 = 1 << 2
 	jsTypeFlagVisited                 uint8 = 1 << 3
 	jsTypeFlagResolvedToSelf          uint8 = 1 << 4
 	jsTypeTemplateCheckShift                = 5
@@ -277,7 +280,7 @@ const (
 // IsWellFormedTemplateValid reports whether TypeValidator has already verified
 // that this resolved type has well-formed bounded generic arguments.
 func (t *JSTypeBase) IsWellFormedTemplateValid() bool {
-	return t.flags&jsTypeFlagWellFormedTemplateValid != 0
+	return t.hasFlag(jsTypeFlagWellFormedTemplateValid)
 }
 
 // MarkWellFormedTemplateValidIfResolved records a positive well-formed
@@ -285,8 +288,8 @@ func (t *JSTypeBase) IsWellFormedTemplateValid() bool {
 // closed (so referenced types and bounds are final).
 func (t *JSTypeBase) MarkWellFormedTemplateValidIfResolved() {
 	if t.resolveResult != nil {
-		if reg := t.GetRegistry(); reg != nil && reg.resolver != nil && reg.resolver.state == JSTypeResolver_State_CLOSED {
-			t.flags |= jsTypeFlagWellFormedTemplateValid
+		if reg := t.GetRegistry(); reg != nil && !reg.parallelReadOnly && reg.resolver != nil && reg.resolver.state == JSTypeResolver_State_CLOSED {
+			t.setFlag(jsTypeFlagWellFormedTemplateValid)
 		}
 	}
 }
@@ -295,8 +298,30 @@ func (t *JSTypeBase) templateCheckResult() uint8 {
 	return (t.flags & jsTypeTemplateCheckMask) >> jsTypeTemplateCheckShift
 }
 
+// setTemplateCheckResult caches HasAnyTemplateTypes' result, except in the
+// registry's parallel read-only mode (Go-only).
 func (t *JSTypeBase) setTemplateCheckResult(v uint8) {
+	if reg := t.GetRegistry(); reg != nil && reg.parallelReadOnly {
+		return
+	}
 	t.flags = (t.flags &^ jsTypeTemplateCheckMask) | (v << jsTypeTemplateCheckShift)
+}
+
+func (t *JSTypeBase) hasFlag(f uint8) bool {
+	return t.flags&f != 0
+}
+
+// setFlag and clearFlag write only when the bit changes.
+func (t *JSTypeBase) setFlag(f uint8) {
+	if t.flags&f == 0 {
+		t.flags |= f
+	}
+}
+
+func (t *JSTypeBase) clearFlag(f uint8) {
+	if t.flags&f != 0 {
+		t.flags &^= f
+	}
 }
 
 const (

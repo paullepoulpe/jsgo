@@ -1421,6 +1421,126 @@ between functions. The patch is kept out of the branch.
 - The optimization loop: the waste above is real (10–13%) but not reachable
   under the alpha-isomorphism gate; it needs the behavioural oracle.
 
+## Fast mode round 2 (2026-10-30): toSource regression, thread-safe type layer, parallel TypeCheck
+
+Branch `fast/round2` off `d1c35b97`. 4-CPU Linux machine, Go 1.27.3.
+
+### Changes
+
+1. **toSource streams the scripts through the print workers** (both modes,
+   `compiler_tosource_streaming.go`). Round 1's fast-mode path printed all
+   scripts in one batch of up to 256 and resolved each script's source-map
+   mappings into a slice grown by `append` from nil: on bundle-mega 4.8 s of
+   `memmove`, toSource 4.7 s wall / 8.3 s CPU against compat's 2.2 s, and
+   every script's text and mappings alive at once (+400 MB RSS). Workers now
+   claim scripts in index order within a window of 2× the thread count and
+   the compiler goroutine merges each finished script in order while the
+   others print: the same calls in the same order, so the output is
+   unchanged. Fast mode still resolves mappings on the workers (into a slice
+   sized up front); compat resolves them in the merge, because resolving can
+   report input-source-map errors. toSource at t=4: bundle-mega fast
+   4.71 → 1.31 s, compat 2.14 → 1.62 s; typed-mega compat 1.15 → 1.06 s.
+   Fast t=4 peak RSS drops on every task with source maps (bundle-mega
+   1,326 → 974 MB, bundle-advanced-ts 420 → 332 MB).
+2. **A type layer safe for concurrent readers** (`internal/rhino`, compat
+   unchanged). The writers that `-race` found with TypeCheck on workers:
+   - recursion guards kept as a bit on each type (`HashCode`'s
+     in-progress bit, `HasAnyTemplateTypes`' templated-check bit, the
+     `prettyPrint` bit that `AppendTo` clears while printing a record or a
+     function): the types in progress now live on a `JSTypeStack` owned by
+     the outermost call (for printing, by the `TypeStringBuilder` and the
+     builders cloned from it). Same values, no shared writes;
+   - `DetectImplicitPrototypeCycle`'s visited marks: a local list, with
+     the per-type flag written only where Java leaves it set (a cycle was
+     found), so later calls see the same marks;
+   - lazy caches (the template-check result, the well-formed-template mark,
+     `ObjectType.IsUnknownType`, `PropertyMap.GetAllKeys`' key set, the
+     least-supertype generation): read but not written while the registry
+     is in parallel read-only mode;
+   - `PropertyMap` sorts its entries lazily in place: maps that become
+     unsorted are recorded and sorted when parallel read-only mode starts;
+   - `JSTypeBase.nodeHandle` is atomic (workers put new types on nodes);
+     `JSTypeBase` stays 40 bytes.
+3. **TypeCheck one script per worker in fast mode** (`type_check_parallel.go`,
+   round 1's shelved patch). Each worker has its own TypeCheck and
+   TypeValidator; reports and mismatches are replayed in script order, so
+   diagnostics are byte-identical to compat (not just as a multiset).
+   checks-only fast t=4 −10.5%, typed-full −5.9%.
+
+The `prettyPrint` guard was found by the final benchmark, not by `-race`
+(typed-mega is not among the race-gated tasks): 2 of 5 typed-mega fast t=4
+runs printed a record as `{...}` in one warning. The fix is in the branch;
+the table below was measured before it (printing only).
+
+### Parallel type inference: measured, not done
+
+Instrumented run of typed-mega, fast t=4: `inferTypes` is scope creation
+3.37 s, the global scope's dataflow 1.17 s (one CFG over every script's
+top level, inherently serial), and 51,811 function dataflows 3.5 s (largest
+21 ms). checks-only: 1.29 / 0.99 / 0.87 s. So per-function inference on 4
+workers would save at most ~2.5 s of typed-mega's 34 s and ~0.65 s of
+checks-only's 3.9 s.
+
+Inference is order-dependent across functions, unlike TypeCheck: it widens
+the types of inferred variables of enclosing scopes
+(`var.SetType(oldType.GetLeastSupertype(t))`), defines inferred and
+declared properties on shared object types, registers properties on types
+in the registry, and sets the types of a function's own locals, which its
+inner functions (later in pre-order) read. Counting those writes per
+function at t=1 (sequential): 94–95% of function inferences write no shared
+state outside their own scope (checks-only 17,641 of 18,625; typed-full
+27,523 of 29,391); 1.0–1.5% define or register properties, 0.5–1.5% widen an
+enclosing or global variable. That makes a speculative scheme plausible:
+infer a function on a worker once its enclosing functions are committed,
+with writes outside its own scopes intercepted (abort and rerun in order),
+its own variable and node-type writes buffered or undone on abort, and
+speculations invalidated when an earlier function commits a write to a
+scope they can read or to any property. It is a large change (every
+mutation site in TypeInference, undo logs for TypedVar and node types,
+diagnostics replay) for a ~5–15% ceiling, so it was left for a later round.
+
+### Measured results (interleaved, N=5 blocks, main `d1c35b97` vs branch before the prettyPrint fix, wall time mean, paired 95% CI)
+
+Every run gated byte for byte against the pinned Java jar's output (round
+1's reference; 440 runs, all MATCH except the 2 typed-mega fast t=4 runs
+above). Branch with the fix: fixtures 2,974/2,976; `parallel_gate.py` 48/48
+under `-race`; the relaxed fast gate 25/25 under `-race` at t=1/2/4 plus
+7/7 large tasks; typed-mega and typed-full fast t=4 under `-race` with no
+report; typed-mega, typed-full, shaka-blockly, typed-app and checks-only at
+fast t=2/4 and compat t=1, 4 runs each, byte-identical to Java; `make vet`.
+
+| task | compat t=1 main → branch | compat t=4 main → branch | fast t=1 main → branch | fast t=4 main → branch |
+|---|---|---|---|---|
+| typed-app | 3.22 → 2.97 s (-6.9%, CI -25.0…+15.6) | 2.61 → 2.56 s (-1.7%, CI -6.8…+3.7) | 2.92 → 3.02 s (+3.5%, CI -2.0…+9.4) | 2.50 → 2.40 s (-3.8%, CI -6.2…-1.4) |
+| downlevel-whitespace | 0.96 → 0.96 s (-0.0%, CI -5.9…+6.3) | 0.84 → 0.87 s (+3.5%, CI -6.7…+14.8) | 0.98 → 0.97 s (-0.9%, CI -7.3…+5.9) | 0.85 → 0.89 s (+4.4%, CI +0.7…+8.1) |
+| downlevel-simple | 2.09 → 2.04 s (-2.0%, CI -10.0…+6.6) | 1.79 → 1.80 s (+0.6%, CI -5.8…+7.4) | 2.03 → 2.04 s (+0.6%, CI -6.8…+8.5) | 1.71 → 1.68 s (-2.0%, CI -7.2…+3.4) |
+| checks-only | 5.20 → 5.17 s (-0.6%, CI -5.3…+4.3) | 4.24 → 4.29 s (+1.0%, CI -4.8…+7.1) | 5.26 → 5.30 s (+0.8%, CI -3.4…+5.2) | 4.38 → 3.92 s (-10.5%, CI -13.9…-7.1) |
+| bundle | 10.14 → 10.17 s (+0.3%, CI -3.3…+4.0) | 9.24 → 9.79 s (+5.2%, CI -10.4…+23.6) | 10.19 → 10.11 s (-0.8%, CI -2.3…+0.7) | 9.20 → 9.00 s (-2.1%, CI -7.8…+3.8) |
+| bundle-advanced | 8.25 → 8.01 s (-2.9%, CI -4.6…-1.1) | 6.36 → 6.34 s (-0.3%, CI -4.1…+3.7) | 8.23 → 8.17 s (-0.8%, CI -6.9…+5.8) | 6.13 → 5.88 s (-3.9%, CI -11.2…+4.0) |
+| shaka-blockly | 10.61 → 10.90 s (+2.7%, CI -3.2…+9.0) | 9.32 → 9.20 s (-1.3%, CI -9.9…+8.1) | 10.63 → 10.90 s (+2.3%, CI -4.4…+9.4) | 8.56 → 8.41 s (-1.8%, CI -8.3…+5.3) |
+| bundle-advanced-ts | 17.01 → 16.93 s (-0.4%, CI -5.7…+5.2) | 16.13 → 15.53 s (-3.7%, CI -6.2…-1.1) | 17.48 → 16.96 s (-3.0%, CI -6.1…+0.3) | 15.36 → 15.36 s (-0.1%, CI -3.4…+3.4) |
+| typed-full | 26.81 → 26.45 s (-1.3%, CI -4.4…+1.8) | 21.06 → 21.22 s (+0.7%, CI -3.1…+4.6) | 25.19 → 25.28 s (+0.3%, CI -4.4…+5.2) | 20.08 → 18.89 s (-5.9%, CI -9.6…-2.1) |
+| typed-mega | 45.48 → 44.90 s (-1.4%, CI -8.8…+6.7) | 35.55 → 35.70 s (+0.4%, CI -2.8…+3.8) | 43.26 → 42.63 s (-1.5%, CI -4.9…+2.2) | 33.92 → 33.78 s (-0.4%, CI -2.7…+1.9) |
+| bundle-mega | 60.95 → 60.68 s (-0.4%, CI -4.3…+3.7) | 49.99 → 50.52 s (+1.0%, CI -4.4…+6.8) | 60.04 → 59.39 s (-1.0%, CI -3.5…+1.4) | 48.43 → 47.53 s (-1.9%, CI -5.5…+1.8) |
+| geomean | -1.2% | +0.5% | -0.1% | -2.6% |
+
+Compat does not move (geomean −1.2% at t=1, +0.5% at t=4; typed-mega
++0.4% and typed-full +0.7% at t=4, both intervals include 0). Fast mode at
+t=4 gains 2.6% (geomean): checks-only −10.5% and typed-full −5.9%
+(parallel TypeCheck), typed-app −3.8%; bundle-mega −1.9% (toSource) with
+352 MB less RSS.
+
+### What is left (in order of measured payoff)
+
+- `removeUnusedCode` (still the largest serial pass in the optimization
+  loop): parallel, deterministic reachability.
+- Type inference per function (above): ~2.5 s on typed-mega, ~0.65 s on
+  checks-only.
+- Typed scope creation (3.4 s on typed-mega, serial).
+- Per-script counters for transpilation (`Es6RewriteClass` 1.6 s),
+  `typesToColors` and `normalize` per script, parse scheduling (largest
+  file first).
+
 ## Smaller open items
 
 - `tools/clie2e/sweep.go` runs its JVMs under its own `nice -n 10`; under

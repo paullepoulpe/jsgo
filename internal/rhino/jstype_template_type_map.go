@@ -758,10 +758,10 @@ func (m *TemplateTypeMap) GetResolvedTemplateType(key *TemplateType) JSType {
 }
 
 // Java: TemplateTypeMap.hasAnyTemplateTypesInternal()
-func (m *TemplateTypeMap) HasAnyTemplateTypesInternal() bool {
+func (m *TemplateTypeMap) HasAnyTemplateTypesInternal(st *JSTypeStack) bool {
 	if m.resolvedTemplateValues != nil {
 		for _, templateValue := range m.resolvedTemplateValues {
-			if templateValue.HasAnyTemplateTypes() {
+			if jsTypeHasAnyTemplateTypesIn(templateValue, st) {
 				return true
 			}
 		}

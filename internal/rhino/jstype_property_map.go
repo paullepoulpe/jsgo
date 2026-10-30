@@ -132,6 +132,25 @@ func NewPropertyMap() *PropertyMap {
 	return &PropertyMap{sorted: true}
 }
 
+// registry is the registry of the map's owner type, or nil.
+func (m *PropertyMap) registry() *JSTypeRegistry {
+	if m.parentSource == nil {
+		return nil
+	}
+	return m.parentSource.GetRegistry()
+}
+
+// noteUnsorted records a map whose entries are no longer sorted, so that
+// SetParallelReadOnly sorts it before concurrent readers start (Go-only:
+// ensureSorted sorts in place).
+func (m *PropertyMap) noteUnsorted() {
+	if r := m.registry(); r != nil {
+		r.unsortedMapsMu.Lock()
+		r.unsortedMaps = append(r.unsortedMaps, m)
+		r.unsortedMapsMu.Unlock()
+	}
+}
+
 func (m *PropertyMap) ensureSorted() {
 	if m.sorted {
 		return
@@ -417,6 +436,14 @@ func (m *PropertyMap) GetAllKeys() *PropertyMap_AllKeys {
 
 	// If any counter is greater than this counter, there has been a mutation
 	// and the cache must be rebuilt.
+	if r := m.registry(); r != nil && r.parallelReadOnly {
+		// Go-only: concurrent readers use a valid cache but neither rebuild
+		// nor store it (the same keys, computed without writes).
+		if m.ext != nil && maxAncestorCounter == m.cachedKeySetCounter && m.ext.cachedKeySet != nil {
+			return NewPropertyMap_AllKeys(m.ext.cachedKeySet, m.ext.cachedKnownSymbolsKeySet)
+		}
+		return propertyMapComputeAllKeys(ancestors)
+	}
 	ext := m.ensureExt()
 	if maxAncestorCounter != m.cachedKeySetCounter || ext.cachedKeySet == nil {
 		var keys []string
@@ -467,6 +494,41 @@ func (m *PropertyMap) GetAllKeys() *PropertyMap_AllKeys {
 	}
 
 	return NewPropertyMap_AllKeys(ext.cachedKeySet, ext.cachedKnownSymbolsKeySet)
+}
+
+// propertyMapComputeAllKeys is GetAllKeys' rebuild without its cache writes.
+func propertyMapComputeAllKeys(ancestors []*PropertyMap) *PropertyMap_AllKeys {
+	var keys []string
+	var knownSymbolsKeys []*KnownSymbolType
+	for _, ancestor := range ancestors {
+		for _, p := range ancestor.entries() {
+			keys = append(keys, rhinoStringFromID(p.nameID))
+		}
+		if ancestor.ext != nil {
+			for _, kv := range ancestor.ext.knownSymbols {
+				sym := kv.symbol
+				seen := false
+				for _, existing := range knownSymbolsKeys {
+					if existing == sym || (existing != nil && existing.Equals(sym)) {
+						seen = true
+						break
+					}
+				}
+				if !seen {
+					knownSymbolsKeys = append(knownSymbolsKeys, sym)
+				}
+			}
+		}
+	}
+	stringKeys := []string{}
+	if len(keys) > 0 {
+		slices.SortFunc(keys, jutil.StringCompareTo)
+		stringKeys = slices.Compact(keys)
+	}
+	if len(knownSymbolsKeys) == 0 {
+		knownSymbolsKeys = []*KnownSymbolType{}
+	}
+	return NewPropertyMap_AllKeys(stringKeys, knownSymbolsKeys)
 }
 
 // PropertyMap_AllKeys is the record of all the keys of a map and its
@@ -617,6 +679,7 @@ func (m *PropertyMap) putPropertyWithID(name string, nameID rhinoStringID, newPr
 		m.sorted = true
 	} else if m.sorted && jutil.StringCompareTo(rhinoStringFromID(m.entries()[len(m.entries())-1].nameID), name) >= 0 {
 		m.sorted = false
+		m.noteUnsorted()
 	}
 	m.setEntries(append(m.entries(), newProp))
 	if !m.hasNonASCII {

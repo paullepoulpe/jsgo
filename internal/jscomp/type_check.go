@@ -465,12 +465,15 @@ func (tc *TypeCheck) ProcessForTesting(externsRoot rhino.Node, jsRoot rhino.Node
 func (tc *TypeCheck) Check(node rhino.Node, externs bool) {
 	rhino.CheckNotNull(node)
 	tc.inExterns = externs
-	b := NodeTraversal_Builder{
-		compiler:     tc.compiler,
-		callback:     tc,
-		scopeCreator: tc.scopeCreator,
+	// Go-only: fast mode checks the scripts on worker goroutines (type_check_parallel.go).
+	if !tc.checkParallel(node) {
+		b := NodeTraversal_Builder{
+			compiler:     tc.compiler,
+			callback:     tc,
+			scopeCreator: tc.scopeCreator,
+		}
+		b.TraverseWithScope(node, tc.topScope)
 	}
-	b.TraverseWithScope(node, tc.topScope)
 	if externs {
 		tc.inferJSDocInfo.Process(node, rhino.NilNode)
 	} else {

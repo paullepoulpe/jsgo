@@ -749,7 +749,7 @@ func (f *FunctionTypeBase) GetCallOrBindSignature(isCall bool) FunctionType {
 }
 
 // Java: FunctionType.recursionUnsafeHashCode() / NoObjectType.recursionUnsafeHashCode()
-func (f *FunctionTypeBase) RecursionUnsafeHashCode() int32 {
+func (f *FunctionTypeBase) RecursionUnsafeHashCode(hs *JSTypeStack) int32 {
 	if f.isNoObjectOrNo() {
 		return jutil.IdentityHashCode(f)
 	}
@@ -761,8 +761,8 @@ func (f *FunctionTypeBase) RecursionUnsafeHashCode() int32 {
 	case FunctionType_Kind_CONSTRUCTOR, FunctionType_Kind_INTERFACE:
 		return 31*hc + jutil.IdentityHashCode(f)
 	case FunctionType_Kind_ORDINARY:
-		hc = 31*hc + f.typeOfThis.self().HashCode()
-		hc = 31*hc + f.call.HashCode()
+		hc = 31*hc + f.typeOfThis.hashCodeIn(hs)
+		hc = 31*hc + f.call.RecursionUnsafeHashCode(hs)
 		hc = 31*hc + int32(f.closurePrimitivePlus1())
 		return hc
 	}
@@ -791,7 +791,7 @@ func (f *FunctionTypeBase) AppendTo(sb *TypeStringBuilder) {
 		}
 		return
 	}
-	if !f.IsPrettyPrint() || JSType(f) == f.GetRegistry().GetNativeType(JSTypeNative_FUNCTION_TYPE) {
+	if !f.IsPrettyPrint() || sb.printing.contains(f.GetJSTypeBase()) || JSType(f) == f.GetRegistry().GetNativeType(JSTypeNative_FUNCTION_TYPE) {
 		if sb.IsForAnnotations() {
 			sb.Append("!Function")
 		} else {
@@ -811,7 +811,7 @@ func (f *FunctionTypeBase) AppendTo(sb *TypeStringBuilder) {
 		return
 	}
 
-	f.SetPrettyPrint(false)
+	sb.printing.push(f.GetJSTypeBase()) // Java: setPrettyPrint(false) meanwhile
 
 	sb.Append("function(")
 	paramNum := len(f.call.GetParameterList())
@@ -841,7 +841,7 @@ func (f *FunctionTypeBase) AppendTo(sb *TypeStringBuilder) {
 	sb.Append("): ")
 	sb.AppendNonNull(f.call.GetReturnType())
 
-	f.SetPrettyPrint(true)
+	sb.printing.pop() // Java: setPrettyPrint(true)
 }
 
 // Java: FunctionType.AppendArgString(TypeStringBuilder, Parameter)
@@ -932,10 +932,10 @@ func (f *FunctionTypeBase) SetSource(source Node) {
 }
 
 // Java: FunctionType.hasAnyTemplateTypesInternal()
-func (f *FunctionTypeBase) HasAnyTemplateTypesInternal() bool {
+func (f *FunctionTypeBase) HasAnyTemplateTypesInternal(st *JSTypeStack) bool {
 	return f.GetTemplateParamCount() > 0 ||
-		f.typeOfThis.self().HasAnyTemplateTypes() ||
-		f.call.HasAnyTemplateTypes()
+		f.typeOfThis.hasAnyTemplateTypesIn(st) ||
+		f.call.HasAnyTemplateTypesInternal(st)
 }
 
 // Java: FunctionType.hasProperties()

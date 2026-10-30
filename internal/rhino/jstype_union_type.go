@@ -601,7 +601,7 @@ func (t *UnionType) GetPropertyKindByKeyWithAutobox(pname Property_Key, autobox 
 }
 
 // Java: UnionType.recursionUnsafeHashCode()
-func (t *UnionType) RecursionUnsafeHashCode() int32 {
+func (t *UnionType) RecursionUnsafeHashCode(hs *JSTypeStack) int32 {
 	alts := t.rawAlternates()
 	hashCode := int32(len(alts))
 	for i := 0; i < len(alts); i++ {
@@ -609,7 +609,7 @@ func (t *UnionType) RecursionUnsafeHashCode() int32 {
 		// Using a commutative operatator (multiplication) allows us to achieve
 		// that without sorting. Multiplication also has some nice properties
 		// about reducing collisions compared to addition or xor.
-		hashCode *= alts[i].HashCode()
+		hashCode *= jsTypeHashCodeIn(alts[i], hs)
 	}
 	return hashCode
 }
@@ -694,6 +694,7 @@ func (t *UnionType) AppendTo(sb *TypeStringBuilder) {
 		clone.builder.Reset()
 		clone.isForAnnotations = sb.isForAnnotations
 		clone.indentDepth = sb.indentDepth
+		clone.printing = sb.printing
 		clone.AppendType(alt)
 		names = append(names, clone.Build())
 	}
@@ -855,10 +856,10 @@ func (t *UnionType) MatchConstraint(constraint JSType) {
 }
 
 // Java: UnionType.hasAnyTemplateTypesInternal()
-func (t *UnionType) HasAnyTemplateTypesInternal() bool {
+func (t *UnionType) HasAnyTemplateTypesInternal(st *JSTypeStack) bool {
 	alts := t.GetAlternates()
 	for i := 0; i < len(alts); i++ {
-		if alts[i].HasAnyTemplateTypes() {
+		if jsTypeHasAnyTemplateTypesIn(alts[i], st) {
 			return true
 		}
 	}

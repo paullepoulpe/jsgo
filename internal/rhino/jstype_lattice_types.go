@@ -113,7 +113,7 @@ func (t *AllType) ResolveInternal(reporter ErrorReporter) JSType {
 }
 
 // Java: AllType.recursionUnsafeHashCode()
-func (t *AllType) RecursionUnsafeHashCode() int32 {
+func (t *AllType) RecursionUnsafeHashCode(*JSTypeStack) int32 {
 	return jutil.IdentityHashCode(t)
 }
 
@@ -256,7 +256,7 @@ func (t *UnknownType) ResolveInternal(reporter ErrorReporter) JSType {
 }
 
 // Java: UnknownType.recursionUnsafeHashCode()
-func (t *UnknownType) RecursionUnsafeHashCode() int32 {
+func (t *UnknownType) RecursionUnsafeHashCode(*JSTypeStack) int32 {
 	return jutil.IdentityHashCode(t)
 }
 
@@ -398,7 +398,7 @@ func (t *NoResolvedType) GetImplicitPrototype() ObjectType {
 }
 
 // Java: NoResolvedType.recursionUnsafeHashCode()
-func (t *NoResolvedType) RecursionUnsafeHashCode() int32 {
+func (t *NoResolvedType) RecursionUnsafeHashCode(*JSTypeStack) int32 {
 	// NoResolvedType instances are unique within a JSTypeRegistry.
 	return jutil.IdentityHashCode(t)
 }
