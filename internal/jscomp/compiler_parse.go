@@ -655,84 +655,9 @@ func (c *Compiler) ToSource() string {
 					scripts = append(scripts, scriptNode)
 				}
 				if c.options.GetNumParallelThreads() > 1 && len(scripts) > 1 {
-					batchSize := 64
-					if len(scripts) <= 64 {
-						batchSize = max(c.options.GetNumParallelThreads(), 4)
-					}
-					// Go-only: fast mode prints up to 256 scripts per batch (better
-					// balance between scripts of very different sizes) and resolves
-					// the source-map mappings on the workers, leaving only the
-					// generator's appends to the sequential merge. Same output.
-					fastResolve := c.options.isFastMode() && c.options.ShouldGatherSourceMapInfo() && c.sourceMap != nil
-					var resolvers []*SourceMap
-					if c.options.isFastMode() {
-						batchSize = min(len(scripts), 256)
-					}
-					if fastResolve {
-						resolvers = make([]*SourceMap, c.options.GetNumParallelThreads())
-					}
-					type scriptPrinted struct {
-						sm       CodePrinter_SourceAndMappings
-						licenses []string
-						lt       *Compiler_SingleBinaryLicenseTracker
-						resolved []sourceMap_resolvedMapping
-					}
-					printed := make([]scriptPrinted, min(len(scripts), batchSize))
-					numThreads := c.options.GetNumParallelThreads()
-					scratches := make([]codePrinterScratch, numThreads)
-					for batchStart := 0; batchStart < len(scripts); batchStart += batchSize {
-						batchEnd := min(batchStart+batchSize, len(scripts))
-						batchLen := batchEnd - batchStart
-						failures := parallelPrebuildIndexed(batchLen, numThreads, func(w, j int) {
-							idx := batchStart + j
-							localLT := printed[j].lt
-							if localLT == nil {
-								localLT = newCompiler_SingleBinaryLicenseTracker(c)
-								printed[j].lt = localLT
-							} else {
-								localLT.current.clear()
-								localLT.lastSeenFile = ""
-							}
-							c.toSourceAndMappingsIntoWithScratch(scripts[idx], idx == 0, localLT, &printed[j].sm, &scratches[w])
-							if fastResolve {
-								if resolvers[w] == nil {
-									resolvers[w] = c.newWorkerSourceMap()
-								}
-								rs := resolvers[w]
-								out := printed[j].resolved[:0]
-								for k := range printed[j].sm.mappings {
-									m := &printed[j].sm.mappings[k]
-									if r, ok := rs.resolveMappingOfNodePositions(m.node, m.start, m.end); ok {
-										out = append(out, r)
-									}
-								}
-								printed[j].resolved = out
-							}
-							if localLT.current.isEmpty() {
-								printed[j].licenses = printed[j].licenses[:0]
-							} else {
-								printed[j].licenses = append(printed[j].licenses[:0], localLT.current.order...)
-							}
-						})
-						for _, f := range failures {
-							if f != nil {
-								panic(f)
-							}
-						}
-						for j := 0; j < batchLen; j++ {
-							idx := batchStart + j
-							for _, lic := range printed[j].licenses {
-								lt.addLicense(lic)
-							}
-							printed[j].licenses = printed[j].licenses[:0]
-							if fastResolve {
-								c.appendSourceAndResolvedMappingsToCodeBuilder(cb, lt, idx, scripts[idx], &printed[j].sm, printed[j].resolved)
-								printed[j].resolved = printed[j].resolved[:0]
-								continue
-							}
-							c.appendSourceAndMappingsToCodeBuilder(cb, lt, idx, scripts[idx], &printed[j].sm)
-						}
-					}
+					// Go-only: the scripts stream through the print workers and
+					// are merged in order as they finish. Same output.
+					c.toSourceStreaming(cb, lt, scripts, c.options.isFastMode())
 				} else {
 					for i, scriptNode := range scripts {
 						c.ToSourceOfCodeBuilder(cb, lt, i, scriptNode)
