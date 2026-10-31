@@ -420,17 +420,13 @@ func (c *InlineAndCollapseProperties_CollapseProperties) willFlattenReferences(p
 	return isAllowedToCollapse && p.CanCollapseOrInline().CanCollapse()
 }
 
-// FlattenReferencesTo flattens all references to a collapsible property of a
+// flattenReferencesTo flattens all references to a collapsible property of a
 // global name except its initial definition.
 //
 // n is a global property name (e.g. "a.b" or "a.b.c.d"); alias the
 // flattened name (e.g. "a$b" or "a$b$c$d").
 //
 // Java: InlineAndCollapseProperties.CollapseProperties.flattenReferencesTo(Name, String)
-func (c *InlineAndCollapseProperties_CollapseProperties) FlattenReferencesTo(n *GlobalNamespace_Name, alias string) {
-	c.flattenReferencesTo(n, alias, false)
-}
-
 func (c *InlineAndCollapseProperties_CollapseProperties) flattenReferencesTo(
 	n *GlobalNamespace_Name, alias string, checkEscaped bool) {
 	var originalName string
@@ -490,21 +486,6 @@ func flattenPrefixesHasWork(n *GlobalNamespace_Name) bool {
 	return nRefs > 1 || (nRefs == 1 && n.GetFirstRef() != decl)
 }
 
-// FlattenPrefixes flattens all occurrences of a name as a prefix of subnames
-// beginning with a particular subname.
-//
-// n is a global property name (e.g. "a.b.c.d"); alias a flattened prefix
-// name (e.g. "a$b"); originalName the full original name of the global
-// property (e.g. "a.b.c.d") equivalent to n.getFullName(), but pre-computed
-// to save on intermediate string allocation; depth the difference in depth
-// between the property name and the prefix name (e.g. 2).
-//
-// Java: InlineAndCollapseProperties.CollapseProperties.flattenPrefixes(String, String, Name, int, boolean)
-func (c *InlineAndCollapseProperties_CollapseProperties) FlattenPrefixes(
-	alias string, originalName string, n *GlobalNamespace_Name, depth int, isConstantName bool) {
-	c.flattenPrefixesLazy(alias, originalName, n, depth, 0, isConstantName, false)
-}
-
 func (c *InlineAndCollapseProperties_CollapseProperties) buildLazyPrefixOriginalName(baseOriginalName string, n *GlobalNamespace_Name, extraDepth int) string {
 	if extraDepth <= 0 {
 		return baseOriginalName
@@ -535,6 +516,10 @@ func (c *InlineAndCollapseProperties_CollapseProperties) buildLazyPrefixOriginal
 	return sb.String()
 }
 
+// flattenPrefixesLazy flattens all occurrences of a name as a prefix of
+// subnames beginning with a particular subname.
+//
+// Java: InlineAndCollapseProperties.CollapseProperties.flattenPrefixes(String, String, Name, int, boolean)
 func (c *InlineAndCollapseProperties_CollapseProperties) flattenPrefixesLazy(
 	alias string,
 	baseOriginalName string,
@@ -572,6 +557,10 @@ func (c *InlineAndCollapseProperties_CollapseProperties) flattenPrefixesLazy(
 	}
 }
 
+// flattenNameRefAtDepthLazy flattens a particular prefix of a single name
+// reference.
+//
+// Java: InlineAndCollapseProperties.CollapseProperties.flattenNameRefAtDepth(String, Node, int, String, boolean)
 func (c *InlineAndCollapseProperties_CollapseProperties) flattenNameRefAtDepthLazy(
 	alias string,
 	n rhino.Node,
@@ -597,34 +586,6 @@ func (c *InlineAndCollapseProperties_CollapseProperties) flattenNameRefAtDepthLa
 			*hasOrig = true
 		}
 		c.FlattenNameRef(alias, n.GetFirstChild(), n, *cachedOrig, isConstantName)
-	}
-}
-
-// FlattenNameRefAtDepth flattens a particular prefix of a single name
-// reference.
-//
-// alias is a flattened prefix name (e.g. "a$b"); n the node corresponding to
-// a subproperty name (e.g. "a.b.c.d"); depth the difference in depth between
-// the property name and the prefix name (e.g. 2); originalName the string
-// version of the property name.
-//
-// Java: InlineAndCollapseProperties.CollapseProperties.flattenNameRefAtDepth(String, Node, int, String, boolean)
-func (c *InlineAndCollapseProperties_CollapseProperties) FlattenNameRefAtDepth(
-	alias string, n rhino.Node, depth int, originalName string, isConstantName bool) {
-	// This method has to work for both GETPROP chains and, in rare cases,
-	// OBJLIT keys, possibly nested. That's why we check for children before
-	// proceeding. In the OBJLIT case, we don't need to do anything.
-	nType := n.GetToken()
-	isQName := nType == rhino.Token_NAME || nType == rhino.Token_GETPROP
-	isObjKey := NodeUtil_MayBeObjectLitKey(n)
-	jutil.CheckState(isObjKey || isQName)
-	if isQName {
-		for i := 1; i < depth && n.HasChildren(); i++ {
-			n = n.GetFirstChild()
-		}
-		if n.IsGetProp() && n.GetFirstChild().IsGetProp() {
-			c.FlattenNameRef(alias, n.GetFirstChild(), n, originalName, isConstantName)
-		}
 	}
 }
 

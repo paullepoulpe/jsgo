@@ -25,7 +25,6 @@ import (
 	"github.com/paullepoulpe/jsgo/internal/base"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
-	"github.com/paullepoulpe/jsgo/internal/strpool"
 )
 
 // TryFoldCtorCall tries to fold away unnecessary object instantiation. e.g.
@@ -374,7 +373,7 @@ func (p *PeepholeFoldConstants) TryFoldStringArrayAccess(n rhino.Node, left ast.
 	return elem
 }
 
-// TryFoldObjectPropAccess tries to fold the node `n` that's accessing an
+// tryFoldObjectPropAccessByID tries to fold the node `n` that's accessing an
 // object literal's property. Bails out (skips folding and returns the same
 // `n` node) with certainty when any of the following holds true:
 //   - the access `n` is L-value
@@ -391,10 +390,6 @@ func (p *PeepholeFoldConstants) TryFoldStringArrayAccess(n rhino.Node, left ast.
 // Java: PeepholeFoldConstants.tryFoldObjectPropAccess(Node, Node, String)
 //
 // Go-only: left is typed, so the Java's isObjectLit() test is gone.
-func (p *PeepholeFoldConstants) TryFoldObjectPropAccess(n rhino.Node, left ast.ObjectLit, name string) rhino.Node {
-	return p.tryFoldObjectPropAccessByID(n, left, uint32(strpool.Lookup(name)))
-}
-
 func (p *PeepholeFoldConstants) tryFoldObjectPropAccessByID(n rhino.Node, left ast.ObjectLit, nameID uint32) rhino.Node {
 	jutil.CheckArgument(NodeUtil_IsNormalOrOptChainGet(n))
 

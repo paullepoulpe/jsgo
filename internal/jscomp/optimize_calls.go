@@ -203,19 +203,11 @@ func (m *OptimizeCalls_ReferenceMap) AddReference(data *optimizeCalls_refTable, 
 }
 
 // Java: OptimizeCalls.ReferenceMap.addNameReference(String, Node)
-func (m *OptimizeCalls_ReferenceMap) AddNameReference(name string, n rhino.Node) {
-	m.addReferenceByID(&m.names, uint32(strpool.Intern(name)), n)
-}
-
-// Java: OptimizeCalls.ReferenceMap.addPropReference(String, Node)
-func (m *OptimizeCalls_ReferenceMap) AddPropReference(name string, n rhino.Node) {
-	m.addReferenceByID(&m.props, uint32(strpool.Intern(name)), n)
-}
-
 func (m *OptimizeCalls_ReferenceMap) addNameReferenceByID(id uint32, n rhino.Node) {
 	m.addReferenceByID(&m.names, id, n)
 }
 
+// Java: OptimizeCalls.ReferenceMap.addPropReference(String, Node)
 func (m *OptimizeCalls_ReferenceMap) addPropReferenceByID(id uint32, n rhino.Node) {
 	m.addReferenceByID(&m.props, id, n)
 }
@@ -254,16 +246,6 @@ func OptimizeCalls_ReferenceMap_AppendFunctionNodes(dst []rhino.Node, definition
 	return dst
 }
 
-// OptimizeCalls_ReferenceMap_GetSingleFunctionNode returns the single function
-// node associated with definitionSites if there is exactly 1, or nil if 0 or > 1.
-func OptimizeCalls_ReferenceMap_GetSingleFunctionNode(definitionSites []rhino.Node) rhino.Node {
-	fn, count := optimizeCalls_getSingleFunctionNode(definitionSites)
-	if count == 1 {
-		return fn
-	}
-	return rhino.NilNode
-}
-
 func optimizeCalls_getSingleFunctionNode(definitionSites []rhino.Node) (rhino.Node, int) {
 	var buf [2]rhino.Node
 	fns := buf[:0]
@@ -279,14 +261,7 @@ func optimizeCalls_getSingleFunctionNode(definitionSites []rhino.Node) (rhino.No
 	return rhino.NilNode, 0
 }
 
-// OptimizeCalls_ReferenceMap_DefinitionFunctionNodesFor collects potential
-// definition FUNCTIONs associated with a method definition site.
-//
 // Java: OptimizeCalls.ReferenceMap.definitionFunctionNodesFor(Node)
-func OptimizeCalls_ReferenceMap_DefinitionFunctionNodesFor(definitionSite rhino.Node) []rhino.Node {
-	return optimizeCalls_appendDefinitionFunctionNodesFor(nil, definitionSite)
-}
-
 func optimizeCalls_appendDefinitionFunctionNodesFor(fns []rhino.Node, definitionSite rhino.Node) []rhino.Node {
 	return optimizeCalls_appendDefinitionFunctionNodesLimit(fns, definitionSite, 0)
 }
@@ -640,25 +615,7 @@ func (c *optimizeCallsRefCollector) maybeAddPropReferenceByID(id uint32, n rhino
 	c.references.addPropReferenceByID(id, n)
 }
 
-// OptimizeCalls_MayBeOptimizableName returns whether the provided name may be
-// a candidate for call optimizations.
-//
 // Java: OptimizeCalls.mayBeOptimizableName(AbstractCompiler, String)
-func OptimizeCalls_MayBeOptimizableName(compiler AbstractCompiler, name string) bool {
-	if compiler.GetCodingConvention().IsExported(name) {
-		return false
-	}
-
-	// Avoid modifying a few special case functions. Specifically, $jscomp.inherits to
-	// recognize 'inherits' calls. (b/27244988)
-	switch name {
-	case NodeUtil_JSC_PROPERTY_NAME_FN, "inherits", "$jscomp$inherits", "goog$inherits":
-		return false
-	default:
-		return true
-	}
-}
-
 func OptimizeCalls_MayBeOptimizableNameByID(compiler AbstractCompiler, id uint32) bool {
 	switch id {
 	case optimizeCallsPropNameFnID, optimizeCallsInheritsID, optimizeCallsJscompInheritsID, optimizeCallsGoogInheritsID:

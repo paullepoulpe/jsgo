@@ -311,6 +311,7 @@ func (g *CodeGenerator) analyzeJsString(s string) (quote byte, doublequote, sing
 	return '"', "\\\"", "'", false, isASCII
 }
 
+// Java: CodeGenerator.strEscape(String, String, String, String, String, String, boolean)
 func (g *CodeGenerator) escapeInto(
 	b *escBuf,
 	s string,
@@ -373,6 +374,8 @@ func (g *CodeGenerator) addRegexp(pattern string, flags string) {
 
 // addNonLatinIdentifier streams an escaped non-Latin identifier directly into
 // g.cc without allocating an intermediate string or []uint16.
+//
+// Java: CodeGenerator.identifierEscape(String)
 func (g *CodeGenerator) addNonLatinIdentifier(s string) {
 	var stackUnits [128]uint16
 	units := g.decodeWTF8Units(s, stackUnits[:0])
@@ -424,42 +427,6 @@ func (g *CodeGenerator) RegexpEscape(s string) string {
 	b.writeByte('/')
 	g.escapeInto(&b, s, jutil.IsASCII(s), "\"", "'", "`", "\\", "$", true)
 	b.writeByte('/')
-	b.flush()
-	return sb.String()
-}
-
-// StrEscape is a helper to escape JavaScript string as well as regular
-// expression.
-//
-// Java: CodeGenerator.strEscape(String, String, String, String, String, String, boolean)
-func (g *CodeGenerator) StrEscape(
-	s string,
-	doublequoteEscape string,
-	singlequoteEscape string,
-	backtickEscape string,
-	backslashEscape string,
-	dollarEscape string,
-	isRegexp bool,
-) string {
-	plain := true
-	isASCII := true
-	for i := 0; i < len(s); i++ {
-		c := s[i]
-		if !codeGenerator_plainASCII[c] {
-			plain = false
-			if c >= utf8.RuneSelf {
-				isASCII = false
-				break
-			}
-		}
-	}
-	if plain {
-		return s
-	}
-	var sb strings.Builder
-	sb.Grow(len(s) + 2)
-	b := escBuf{sb: &sb, isASCII: true}
-	g.escapeInto(&b, s, isASCII, doublequoteEscape, singlequoteEscape, backtickEscape, backslashEscape, dollarEscape, isRegexp)
 	b.flush()
 	return sb.String()
 }
@@ -709,34 +676,6 @@ func (g *CodeGenerator) EscapeUnrecognizedCharacters(s string) string {
 			} else {
 				b.writeHexJS(c)
 			}
-		}
-	}
-	b.flush()
-	return sb.String()
-}
-
-// Java: CodeGenerator.identifierEscape(String)
-func CodeGenerator_IdentifierEscape(s string) string {
-	// First check if escaping is needed at all -- in most cases it isn't.
-	if NodeUtil_IsLatin(s) {
-		return s
-	}
-
-	var stackUnits [128]uint16
-	var units []uint16
-	if len(s) <= len(stackUnits) {
-		units = codeGenerator_decodeWTF8ToBuffer(s, stackUnits[:0])
-	} else {
-		units = jutil.StringToUTF16(s)
-	}
-	var sb strings.Builder
-	sb.Grow(len(s) + 6)
-	b := escBuf{sb: &sb, isASCII: true}
-	for _, c := range units {
-		if c > 0x1F && c < 0x7F {
-			b.writeByte(byte(c))
-		} else {
-			b.writeHexJS(c)
 		}
 	}
 	b.flush()

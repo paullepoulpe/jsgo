@@ -96,12 +96,6 @@ func (a ColorGraphNode_PropAssociation) String() string { return a.Name() }
 // Ordinal is Enum.ordinal().
 func (a ColorGraphNode_PropAssociation) Ordinal() int { return int(a) }
 
-// Java: ColorGraphNode.create(Color, int)
-func ColorGraphNode_Create(single *colors.Color, index int) *ColorGraphNode {
-	jutil.CheckArgument(index >= 0)
-	return newColorGraphNode(single, index)
-}
-
 // Java: ColorGraphNode.createForTesting(int)
 func ColorGraphNode_CreateForTesting(index int) *ColorGraphNode {
 	jutil.CheckArgument(index < 0) // All test nodes have negative indexs to differentiate them.

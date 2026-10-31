@@ -26,6 +26,7 @@ import (
 
 var inlineFnCallPropID = rhino.RhinoStringPool_InternID("call")
 
+// Java: InlineFunctions.targetSizeAfterInlineExceedsLimit(NodeTraversal, FunctionState)
 func inlineTargetSizeExceedsLimit(
 	t *NodeTraversal,
 	functionState *InlineFunctions_FunctionState,
@@ -61,12 +62,6 @@ func inlineTargetSizeExceedsLimit(
 		*lastContainingFnSize = targetFunSize
 	}
 	return inlinedFunSize+targetFunSize > maxSizeAfterInlining
-}
-
-// Java: InlineFunctions.targetSizeAfterInlineExceedsLimit(NodeTraversal, FunctionState)
-func (f *InlineFunctions) TargetSizeAfterInlineExceedsLimit(t *NodeTraversal, functionState *InlineFunctions_FunctionState) bool {
-	return inlineTargetSizeExceedsLimit(
-		t, functionState, f.maxSizeAfterInlining, &f.lastContainingFn, &f.lastContainingFnSize, true)
 }
 
 var (

@@ -401,16 +401,7 @@ func FunctionToBlockMutator_FixUninitializedVarDeclarationsWithInLoop(
 	}
 }
 
-// MakeLocalNamesUnique fixes up all local names to be unique for this
-// subtree.
-//
-// fnNode is a mutable instance of the function to be inlined.
-//
 // Java: FunctionToBlockMutator.makeLocalNamesUnique(Node, boolean)
-func (m *FunctionToBlockMutator) MakeLocalNamesUnique(fnNode rhino.Node, isCallInLoop bool) {
-	m.makeLocalNamesUnique(fnNode, isCallInLoop, true)
-}
-
 func (m *FunctionToBlockMutator) makeLocalNamesUnique(fnNode rhino.Node, isCallInLoop bool, checkLabels bool) {
 	idSupplier := m.compiler.GetUniqueNameIdSupplier()
 	rootRenamer := NewMakeDeclaredNamesUnique_InlineRenamer(

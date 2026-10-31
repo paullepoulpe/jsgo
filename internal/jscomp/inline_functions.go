@@ -179,6 +179,7 @@ func (f *InlineFunctions) allocReference(callNode rhino.Node, scope *Scope, chun
 	return r
 }
 
+// Java: InlineFunctions.getOrCreateFunctionState(String)
 func (f *InlineFunctions) getOrCreateNamedFunctionState(nameID uint32) *InlineFunctions_FunctionState {
 	p := f.ensureRunState()
 	if fs := f.namedFns[nameID]; fs != nil {
@@ -216,11 +217,6 @@ func (f *InlineFunctions) addAnonFunction(fnNode rhino.Node, chunk *JSChunk) {
 	target := inlineFnTarget{kind: fnKindExpr, fnNode: fnNode}
 	f.UpdateFunctionStateForInlining(target, chunk, fs)
 	jutil.CheckState(!(InlineFunctions_HasRequireInliningAnnotation(fnNode) && !fs.CanInline()))
-}
-
-// Java: InlineFunctions.getOrCreateFunctionState(String)
-func (f *InlineFunctions) GetOrCreateFunctionState(fnName string) *InlineFunctions_FunctionState {
-	return f.getOrCreateNamedFunctionState(rhino.RhinoStringPool_InternID(fnName))
 }
 
 func inlineFunctions_traverseWithScopeCreator(compiler AbstractCompiler, root rhino.Node, cb NodeTraversal_Callback, sc ScopeCreator) {
