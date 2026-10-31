@@ -223,11 +223,6 @@ type rucPolyfillInfo struct {
 // Java: RemoveUnusedCode.createPolyfillInfo(Node, Scope, String)
 func (r *RemoveUnusedCode) createPolyfillInfo(call ast.NormalOrOptChainCall, scope *Scope, name string) *rucPolyfillInfo {
 	jutil.CheckState(call.Node().GetParent().IsExprResult())
-	if !r.guardedUsagesComputed {
-		r.guardedUsagesComputed = true
-		NewPolyfillUsageFinder(r.compiler, r.polyfillsFromTable).
-			TraverseOnlyGuarded(r.root, r.StorePolyfill)
-	}
 	removable := r.newPolyfillRemovable(call, scope)
 	info := r.polyfillSlab.Alloc()
 	lastDot := strings.LastIndexByte(name, '.')
@@ -276,7 +271,7 @@ func (p *rucPolyfillInfo) getName() string {
 //
 // Java: RemoveUnusedCode.PolyfillInfo.considerPossibleReference(Node)
 func (p *rucPolyfillInfo) considerPossibleReference(n rhino.Node) {
-	if !p.isRemovable || (p.removable.flags&remFlagSubBit == 0 && p.outer.guardedUsages[n]) {
+	if !p.isRemovable || (p.removable.flags&remFlagSubBit == 0 && p.outer.isGuardedUsage(n)) {
 		return
 	}
 	if NodeUtil_IsNormalOrOptChainGetProp(n) || (p.kind == rucPolyfillGlobal && n.IsName()) {

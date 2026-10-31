@@ -66,11 +66,18 @@ type removeUnusedCodeState struct {
 	polyfillOrder         []*rucPolyfillInfo
 	guardedUsages         map[rhino.Node]bool
 	guardedUsagesComputed bool
-	root                  rhino.Node
+	// Go-only: the kept guarded usages, when the run uses them
+	// (remove_unused_code_incremental.go).
+	guardedCache *rucGuardedCache
+	root         rhino.Node
 
 	allFunctionParamScopes []*Scope
 
 	extraContSlab []RemoveUnusedCode_Continuation
+
+	// Go-only: GetVarInfo may read and write Var.rucInfo (not on parallel
+	// workers, which share the global scope's vars, nor while logging).
+	cacheVarInfos bool
 
 	// Go-only: performance — one run's removables, var infos, and polyfill infos
 	// are created together and recycled per script in parallel mode.
@@ -381,6 +388,8 @@ func (r *RemoveUnusedCode) TraverseAndRemoveUnusedReferences(root rhino.Node) {
 	if r.traverseAndRemoveLocalScriptsParallel(root) {
 		return
 	}
+	r.cacheVarInfos = r.compiler != nil && r.compiler.parallelRecorder == nil &&
+		!r.removalLog.IsLogging() && !r.unremovableLog.IsLogging()
 	r.trackProps = r.removesAnyProperties()
 	if r.trackProps {
 		for _, id := range rucImplicitPropIDs {
@@ -961,23 +970,34 @@ func (r *RemoveUnusedCode) GetVarInfo(var_ *Var) *RemoveUnusedCode_RealVarInfo {
 		((isGlobal && !r.removeGlobals) || (!isGlobal && !r.removeLocalVars)) {
 		return r.canonicalUnremovableVarInfo
 	}
+	if r.cacheVarInfos {
+		if c := var_.rucInfo; c != 0 {
+			if c == rucVarInfoCanonical {
+				return r.canonicalUnremovableVarInfo
+			}
+			if i := int(c - 1); i < len(r.varInfos) && r.varInfos[i].var_ == var_ {
+				return r.varInfos[i]
+			}
+		}
+	}
 	key := scopedVarKeyOf(var_)
 	if v := r.varByKey[key]; v != nil {
 		return v
 	}
+	// (These three depend on the var alone: the same answer in every run.)
 	if var_.IsExtern() {
 		if r.unremovableLog.IsLogging() {
 			r.unremovableLog.LogString(var_.GetName() + ": extern")
 		}
-		return r.canonicalUnremovableVarInfo
+		return r.cachedCanonicalVarInfo(var_)
 	} else if name := var_.GetName(); r.isExportedByConvention(name /* local= */, !isGlobal) {
 		if r.unremovableLog.IsLogging() {
 			r.unremovableLog.LogString(name + ": exported by convention")
 		}
-		return r.canonicalUnremovableVarInfo
+		return r.cachedCanonicalVarInfo(var_)
 	} else if var_.IsArguments() {
 		// No point in logging that we cannot remove "arguments"
-		return r.canonicalUnremovableVarInfo
+		return r.cachedCanonicalVarInfo(var_)
 	}
 	varInfo := NewRemoveUnusedCode_RealVarInfo(r, var_)
 	if var_.GetParentNode().IsParamList() {
@@ -992,7 +1012,21 @@ func (r *RemoveUnusedCode) GetVarInfo(var_ *Var) *RemoveUnusedCode_RealVarInfo {
 	}
 	r.varByKey[key] = varInfo
 	r.varInfos = append(r.varInfos, varInfo)
+	if r.cacheVarInfos {
+		var_.rucInfo = uint32(len(r.varInfos))
+	}
 	return varInfo
+}
+
+// rucVarInfoCanonical is Var.rucInfo for a var whose var info is always the
+// canonical unremovable one.
+const rucVarInfoCanonical = ^uint32(0)
+
+func (r *RemoveUnusedCode) cachedCanonicalVarInfo(var_ *Var) *RemoveUnusedCode_RealVarInfo {
+	if r.cacheVarInfos {
+		var_.rucInfo = rucVarInfoCanonical
+	}
+	return r.canonicalUnremovableVarInfo
 }
 
 // RemoveUnreferencedVarsAndPolyfills removes any vars in the scope that were

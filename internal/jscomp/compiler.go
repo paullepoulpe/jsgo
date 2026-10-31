@@ -93,6 +93,10 @@ type Compiler struct {
 	// Go-only: AST compaction state (compiler_compact.go).
 	astCompact astCompaction
 
+	// Go-only: what RemoveUnusedCode keeps between its runs
+	// (remove_unused_code_incremental.go).
+	rucGuarded *rucGuardedCache
+
 	inputPathByWebpackId *jutil.LinkedHashMap[string, string]
 
 	transpilationNamespace rhino.StaticScope

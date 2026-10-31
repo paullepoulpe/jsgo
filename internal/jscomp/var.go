@@ -373,6 +373,11 @@ type Var struct {
 
 	scope  *Scope
 	nameID uint32
+
+	// Go-only: performance — RemoveUnusedCode.GetVarInfo's answer for this
+	// var (rucVarInfoCanonical, or an index + 1 into the run's varInfos that
+	// is valid only if that entry is this var's), in what was padding.
+	rucInfo uint32
 }
 
 var (

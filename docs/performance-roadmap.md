@@ -1672,6 +1672,167 @@ runs' compat t=1/t=4 outputs are Java's).
 - Inference per function, removeUnusedCode in parallel: as in round 2,
   ceilings of 5–15% each for large changes.
 
+## Loop round 4: incremental passes (2026-10-31)
+
+Branch `fast/incr4` off `8f5b28b9`. 4-CPU Linux machine, Go 1.27.3. Goal:
+make the code-removal loops' passes cost in proportion to what changed
+instead of rescanning the program on every run, without capping the loop.
+This round is item 1, `removeUnusedCode` (RUC); the change-scoped local
+passes (item 2) follow.
+
+### Where RUC's time goes
+
+RUC runs 11 times on typed-mega and 10 on bundle-mega (before, in and
+after both loops) and cost 390–460 ms / 770–920 ms per run at fast t=4
+whether it reported 1,000 changes or 2. A CPU profile (fast t=4):
+
+- **guarded polyfill usages, ~30% of the pass** (all runs): at the first
+  `$jscomp.polyfill` of every run,
+  `PolyfillUsageFinder.traverseOnlyGuarded` walked the whole program (a
+  second full walk next to RUC's own) to find the polyfill usages behind
+  a guard (`if (typeof Promise ...)`);
+- **`GetVarInfo`, ~29% of the traversal** in the runs late in the loops
+  (profiled per run, with change 1 below applied): a map lookup keyed by
+  (scope root, name) for every name reference; a reference to an extern
+  or a name exported by convention missed and redid the checks (string
+  lookups included) every time;
+- scope creation ~15%, the rest the walk itself (latency-bound, as round 3
+  measured).
+
+### Changes (identical output: compat and fast)
+
+1. **Guarded usages kept per script, computed lazily**
+   (`remove_unused_code_incremental.go`). A guard never reaches outside
+   its script (the guard state starts empty under ROOT and is keyed by
+   the script's nodes), and the run only asks whether a node is a guarded
+   usage, for the references of the polyfills it may still remove. The
+   compiler keeps the usages per script; each run drops those of the
+   scripts that hold a scope changed since (a ChangeTracker timeline
+   mark) and traverses a script only when it asks about a node in it.
+   typed-mega asks 1,706 times over its 11 runs and traverses 384
+   scripts; bundle-mega asks 110 times and traverses 15 scripts, instead
+   of the whole program 10 times. Dropped on AST compaction or when the
+   root or the polyfill table change.
+2. **Each var keeps the index of its var info** (`Var.rucInfo`, in what
+   was padding: `Var` stays 32 bytes). The index is valid only if that
+   entry of the run's list is the var's own, so an index from an earlier
+   run is ignored; extern, exported-by-convention and `arguments` vars,
+   whose var info is always the canonical unremovable one (a property of
+   the var alone), are marked once. Parallel workers (which share the
+   global scope's vars) and logging runs do not use it.
+
+Both are exact by construction (pure caches of a deterministic function
+of the tree), and `JSGO_RUC_INCR_VERIFY=1` checks every cached answer
+against a full recomputation (guarded usages: every question in every
+run, on 8 tasks × t=1/4). `JSGO_RUC_INCR=0` turns the caches off.
+
+### Tried and shelved
+
+- **Trace and replay** (patch kept out of the branch). Each change scope's
+  walk (script, function, and the continuations inside it) is recorded
+  once as the list of its actions on the run's state (var infos,
+  removables, pinned properties, polyfills, the worklist), and later runs
+  replay the lists in the same worklist order instead of walking the
+  tree: exact by construction, since the walk's control flow depends on
+  the tree alone; a changed change scope is re-recorded, and names
+  resolved outside a trace's own scopes are re-resolved from the
+  replay's scope (a moved function or a new shadowing declaration
+  re-records it). On typed-app its state matched a full walk's in all 11
+  runs.
+  But the replay is latency-bound on the state objects as much as the
+  walk is on the tree: a late run still replays 1.9 M operations, 150 K
+  traces and rebuilds 100 K var infos and 166 K removables (190 ms
+  against 280 ms for the walk), and recording costs a walk plus a replay
+  on cold and high-change runs (890 ms against 430 ms). Net loss: 5.25 s
+  of RUC on typed-mega against 3.65 s.
+- **Keeping RUC's scopes between runs**, reused while the change scope
+  of their root (compared by change stamp) and the function declarations
+  they declare have recorded no change, re-parented under the current
+  run's scopes. Exact (verified against new scopes on every reuse), but
+  no gain (6 runs each: 4.02 s against 3.96 s of RUC): the bookkeeping
+  costs what creating the scopes did, and high-change runs got slower.
+  A first version keyed the scopes by the change scope they were made in
+  and missed changes when that change scope's root was replaced (d3:
+  stale `const` declarations); the stamp check is the robust form.
+
+### Why RUC cannot cost in proportion to the change
+
+The removals RUC makes, their order and their change reports follow the
+order in which the run's traversal first meets each var, property and
+polyfill: a breadth-first worklist of continuations, where a var's
+deferred code (its function body, its assigned values) joins the
+worklist at the first reference that pins it. That order is a function of
+the whole program: one new reference early in the worklist moves the
+deferred code of a var, and everything it reaches, to a different place.
+Keeping the run's state across runs would need an incremental
+maintenance of that breadth-first tree (which unit pins each var first,
+cascading when a first pin moves) and of the order-dependent decisions
+(`isIndependentlyRemovable` of a static property reads flags its var
+collects as removables are added). The replay above is the exact
+alternative, and it rebuilds that state each run. So this round removes
+RUC's fixed costs instead.
+
+### Measured (interleaved, N=5 blocks, wall time mean, paired 95% CI)
+
+Base `8f5b28b9`, change 1 alone, and the branch, in the same blocks; every
+one of the 120 runs is byte-identical to the Java reference (stdout,
+stderr, exit status, `out.js`, `out.js.map`), with one output per task and
+mode.
+
+| task | mode | base | change 1 (vs base) | branch (vs change 1) | branch vs base |
+|---|---|---|---|---|---|
+| typed-mega | compat t=1 | 47.14 s | 44.32 s (−5.9%, CI −8.7…−3.0) | 44.76 s (+1.0%, CI −5.8…+8.3) | −5.0% (CI −12.6…+3.4) |
+| typed-mega | compat t=4 | 37.90 s | 36.65 s (−3.3%, CI −9.0…+2.9) | 35.93 s (−2.0%, CI −4.2…+0.3) | −5.2% (CI −11.2…+1.3) |
+| typed-mega | fast t=1 | 44.65 s | 42.18 s (−5.6%, CI −9.2…−1.9) | 43.06 s (+2.0%, CI −1.7…+5.8) | −3.7% (CI −9.4…+2.3) |
+| typed-mega | fast t=4 | 35.75 s | 34.56 s (−3.3%, CI −6.3…−0.3) | 33.71 s (−2.7%, CI −8.5…+3.5) | −5.9% (CI −12.8…+1.5) |
+| bundle-mega | compat t=1 | 59.89 s | 58.67 s (−2.0%, CI −6.1…+2.3) | 56.85 s (−3.1%, CI −7.8…+1.7) | −5.1% (CI −10.3…+0.5) |
+| bundle-mega | compat t=4 | 51.84 s | 50.13 s (−3.4%, CI −9.9…+3.7) | 48.41 s (−3.4%, CI −6.2…−0.5) | −6.6% (CI −12.0…−0.9) |
+| bundle-mega | fast t=1 | 60.73 s | 58.34 s (−3.9%, CI −8.0…+0.3) | 57.91 s (−0.7%, CI −3.9…+2.5) | −4.6% (CI −6.4…−2.8) |
+| bundle-mega | fast t=4 | 49.58 s | 46.91 s (−5.4%, CI −7.9…−2.9) | 46.74 s (−0.4%, CI −4.1…+3.5) | −5.7% (CI −8.6…−2.8) |
+
+From the same runs' `JSGO_PASS_LOG` (means over the 5 blocks):
+
+| task | mode | RUC, all runs: base → change 1 → branch | both loops: base → branch | loop iterations 3 and later: base → branch |
+|---|---|---|---|---|
+| typed-mega | compat t=4 | 5.41 → 3.81 → 3.52 s | 13.83 → 12.31 s | 6.82 → 5.91 s |
+| typed-mega | fast t=4 | 5.60 → 4.05 → 3.69 s | 12.58 → 10.86 s | 6.28 → 5.26 s |
+| typed-mega | fast t=1 | 5.44 → 3.76 → 3.57 s | 15.48 → 14.36 s | 7.34 → 6.89 s |
+| bundle-mega | compat t=4 | 9.11 → 6.82 → 6.06 s | 20.77 → 18.58 s | 8.86 → 7.68 s |
+| bundle-mega | fast t=4 | 8.93 → 6.84 → 6.07 s | 19.62 → 17.43 s | 8.19 → 7.01 s |
+| bundle-mega | fast t=1 | 8.76 → 6.66 → 6.09 s | 24.29 → 22.71 s | 10.16 → 9.29 s |
+
+RUC is a third cheaper (−35% on typed-mega, −33% on bundle-mega), the
+loops 9–14% at t=4, the whole compile 5–7% (significant on bundle-mega).
+Change 2 lowers RUC's time in every one of the 8 task × mode cells (−5 to
+−11%); on the whole compile its effect is below the noise on typed-mega at
+t=1 (+1.0% and +2.0%, both intervals including 0) and −0.4 to −3.4%
+elsewhere. Peak RSS is unchanged within ±2%.
+
+Validation of the branch: the Java gate on the 11 bench tasks at t=1 and
+t=4 (22/22 byte-identical), fixtures 2,974/2,976, `parallel_gate.py` 48/48
+under `-race`, `fast_mode_gate.py` 25/25 under `-race` at t=1/2/4 and 7/7
+large tasks without `-race`, `make vet`; typed-full and bundle-advanced-ts
+fast t=4 under `-race` report no race. typed-mega fast t=4 under `-race`
+reports races in 3 of 4 runs, all in fast mode's parallel `TypeCheck`
+(round 2): `Node.PinForDiagnostic` sets a node flag when two workers report
+on the same node, and `FunctionTypeBase.MakesDicts` reads lazy state.
+Nothing of this round is in those stacks; they are on main and left for a
+separate fix.
+
+### What is left
+
+- Item 2: change-scoped local passes (`deadAssignmentsElimination`,
+  `collapseObjectLiterals`, `inlineVariables`' local part) — peephole
+  style, only the changed scopes.
+- RUC's remaining per-run cost is the walk (latency-bound) and the state
+  it rebuilds; an exact incremental version needs the breadth-first tree
+  above.
+- `peepholeOptimizations` deletes a function without reporting the
+  deletion (ChangeVerifier run after every pass in a debug build,
+  bundle-advanced: handlebars `values` at 1544:27). Every other pass
+  reported its changes there; not looked into.
+- The `TypeCheck` races above.
+
 ## Smaller open items
 
 - `tools/clie2e/sweep.go` runs its JVMs under its own `nice -n 10`; under
