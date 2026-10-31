@@ -66,7 +66,10 @@ type removeUnusedCodeState struct {
 	polyfillOrder         []*rucPolyfillInfo
 	guardedUsages         map[rhino.Node]bool
 	guardedUsagesComputed bool
-	root                  rhino.Node
+	// Go-only: the kept guarded usages, when the run uses them
+	// (remove_unused_code_incremental.go).
+	guardedCache *rucGuardedCache
+	root         rhino.Node
 
 	allFunctionParamScopes []*Scope
 
