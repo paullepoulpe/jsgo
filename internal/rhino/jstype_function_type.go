@@ -348,7 +348,11 @@ func (f *FunctionTypeBase) MakesStructs() bool {
 	case FunctionType_PropAccess_ANY:
 		superc := f.GetSuperClassConstructor()
 		if superc != nil && superc.MakesStructs() {
-			f.SetStruct()
+			// Go-only: the registry's parallel read-only mode leaves the
+			// memo out (the answer is the same; readers run concurrently).
+			if reg := f.GetRegistry(); reg == nil || !reg.parallelReadOnly {
+				f.SetStruct()
+			}
 			return true
 		}
 		return false
@@ -377,7 +381,10 @@ func (f *FunctionTypeBase) MakesDicts() bool {
 	case FunctionType_PropAccess_ANY:
 		superc := f.GetSuperClassConstructor()
 		if superc != nil && superc.MakesDicts() {
-			f.SetDict()
+			// Go-only: as in MakesStructs.
+			if reg := f.GetRegistry(); reg == nil || !reg.parallelReadOnly {
+				f.SetDict()
+			}
 			return true
 		}
 		return false

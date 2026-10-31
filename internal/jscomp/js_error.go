@@ -21,6 +21,7 @@ package jscomp
 
 import (
 	"strconv"
+	"sync/atomic"
 
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
@@ -47,6 +48,14 @@ type JSError struct {
 	requirement  *Requirement
 }
 
+// jsErrorPinsDeferred is non-zero while worker goroutines may report on
+// nodes other workers read (fast mode's parallel TypeCheck reports on
+// declarations in other scripts): PinForDiagnostic writes the node's
+// record, so the errors are pinned when their reports are replayed on the
+// main goroutine instead (replayCompilerEvents). One compilation runs at a
+// time per process (rhino/node_store.go).
+var jsErrorPinsDeferred atomic.Int32
+
 // Java: JSError(DiagnosticType, String, String, int, int, int, Node, CheckLevel, Requirement)
 func NewJSError(
 	type_ *DiagnosticType,
@@ -61,7 +70,7 @@ func NewJSError(
 	if type_ == nil {
 		panic(jutil.NewNullPointerExceptionMsg("type"))
 	}
-	if !node.IsNil() {
+	if !node.IsNil() && jsErrorPinsDeferred.Load() == 0 {
 		node.PinForDiagnostic()
 	}
 	return &JSError{

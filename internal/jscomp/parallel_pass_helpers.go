@@ -289,6 +289,9 @@ func replayCompilerEvents(base *Compiler, events []recordedCompilerEvent) {
 		case recordedEventFunctionDeleted:
 			base.ReportFunctionDeleted(ev.node)
 		case recordedEventReport:
+			if n := ev.err.Node(); !n.IsNil() {
+				n.PinForDiagnostic() // (a no-op unless the worker deferred it)
+			}
 			base.Report(ev.err)
 		case recordedEventAllowModules:
 			base.SetAllowableFeatures(base.GetAllowableFeatures().With(parser.FeatureSet_Feature_MODULES))

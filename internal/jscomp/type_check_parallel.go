@@ -90,6 +90,10 @@ func (tc *TypeCheck) checkParallel(node rhino.Node) bool {
 		validatorSubtypingMode rhino.JSType_SubtypingMode
 	}
 	results := make([]itemResult, len(scripts))
+	// The workers report on declarations in other scripts too: their errors
+	// are pinned when the reports are replayed.
+	jsErrorPinsDeferred.Add(1)
+	defer jsErrorPinsDeferred.Add(-1)
 	runParallelWork(tc.compiler, numWorkers, len(scripts), func(int) (func(int, *recordingCompiler), func()) {
 		runItem := func(idx int, rc *recordingCompiler) {
 			c := tc.cloneForWorker(rc)
