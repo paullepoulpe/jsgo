@@ -1541,6 +1541,137 @@ t=4 gains 2.6% (geomean): checks-only −10.5% and typed-full −5.9%
   `typesToColors` and `normalize` per script, parse scheduling (largest
   file first).
 
+## Fast mode round 3 (2026-10-30): the optimization loop, with Java as the oracle
+
+Branch `fast/fresh3` off `eb41daa5`. 4-CPU Linux machine, Go 1.27.3.
+
+### Where the time goes
+
+One `JSGO_PASS_LOG` run per task at fast t=4 (typed-mega 32 s, bundle-mega
+46 s):
+
+- **The two code-removal loops are 36% (typed-mega) and 40% (bundle-mega) of
+  wall time.** Each iteration reruns ~10 whole-program passes, and a pass
+  costs about the same whether it changes 15,000 scopes or one.
+  typed-mega's main loop: iterations 1–6 change 15,483 / 3,773 / 495 / 59 /
+  13 / 1 scopes and take 1.9 / 1.7 / 1.5 / 1.5 / 1.1 / 0.3 s. On
+  bundle-mega, iterations 3 and later of both loops take 7.7 s (17%) for
+  under 0.5% of the changed scopes.
+- **The cost of a whole-program pass has a floor: one walk over the
+  tree.** typed-mega has 3.5–3.7 M nodes after `typesToColors` (2.4 M at
+  the end). `inlineSimpleMethods` takes 150 ms per run with no change, all
+  of it in `TraverseBranch`. A bare recursive walk (first child / next
+  sibling) costs 18.5 ns per node, a `NodeTraversal` with a no-op callback
+  23 ns, and reading the same records independently (no dependency
+  between loads) 9 ns, in pre-order or in id order alike. The walk is
+  bound by the latency of its dependent loads, not by the work done per
+  node: only 53–58% of pre-order successors sit within 8 ids of their
+  predecessor.
+- The rest is the front end (`inferTypes` 4.8–5.7 s, serial) and a long
+  tail of ~150 serial passes of 50–600 ms, each paying at least that
+  floor.
+
+So the useful question is how many whole-tree passes run, not how fast
+each one is; per-pass parallelism (rounds 1 and 2) cannot reach this.
+
+### The finding: capping the loop is a Java option, so Java stays the oracle
+
+Java's `CompilerOptions.setMaxOptimizationLoopIterations(int)` (public, not
+exposed by the CLI; jsgo ports it) stops every code-removal loop after N
+iterations. Stopping the loop early is semantically safe by construction
+(every iteration is a sequence of sound passes; Java already stops early
+with its own 0.05% size heuristic). And because it is Java's option, the
+output with a cap is checkable byte for byte against Java, which keeps
+the strongest oracle the project has.
+
+- New hidden flag `--max_optimization_loop_iterations=N` (any mode), and
+  `tools/bench/java/MaxLoopRunner.java`, CommandLineRunner with the option
+  read from the same flag.
+- `tools/bench/maxloop_oracle.py`: Java with the option against jsgo
+  compat t=1 and fast t=4 with the flag. **33/33 byte-identical** (stdout,
+  stderr, exit status, `out.js`, `out.js.map`): the 11 bench tasks (all
+  but single-files) at N = 0, 2, 3.
+- Size against the uncapped output (Java's numbers, equal to jsgo's):
+
+| task | N=3 raw / gzip | N=2 raw / gzip |
+|---|---|---|
+| typed-app | +0.105% / +0.140% | +0.628% / +0.821% |
+| bundle | −0.003% / +0.004% | +0.023% / −0.033% |
+| shaka-blockly | +0.011% / +0.015% | +0.058% / +0.027% |
+| typed-full | +0.010% / +0.010% | +0.058% / +0.074% |
+| bundle-advanced | +0.015% / −0.051% | −0.027% / −0.092% |
+| bundle-advanced-ts | +0.013% / +0.007% | +0.038% / −0.021% |
+| typed-mega | +0.003% / +0.010% | +0.021% / +0.030% |
+| bundle-mega | +0.007% / +0.009% | +0.017% / +0.025% |
+| **aggregate** | **+0.006% / +0.007%** | **+0.026% / +0.020%** |
+
+  downlevel-whitespace, downlevel-simple and checks-only have no
+  code-removal loop and do not change. Both caps are inside the agreed
+  size limits (+0.1% aggregate, +2% per task).
+
+### Measured (interleaved, N=5 blocks, wall time mean, paired 95% CI)
+
+Same binary (`jsgo-flag`, this branch); every configuration produced one
+output over its 5 runs, compat t=1 and t=4 and fast t=4 the same one, and
+fast t=1 and t=4 with N=3 the same one.
+
+| task | compat t=1 | compat t=4 | fast t=1 | fast t=4 | fast t=1 N=3 | fast t=4 N=3 | fast t=4 N=2 |
+|---|---|---|---|---|---|---|---|
+| typed-mega | 42.93 s | 34.51 s | 40.94 s | 32.06 s | 36.20 s | 28.84 s (−10.0%, CI −14.1…−5.8) | 26.55 s (−17.1%, CI −21.5…−12.5) |
+| bundle-mega | 57.41 s | 47.90 s | 56.88 s | 46.86 s | 52.19 s | 42.92 s (−8.4%, CI −12.2…−4.6) | 38.77 s (−17.3%, CI −21.5…−12.9) |
+| typed-full | 24.41 s | 19.87 s | 23.48 s | 18.47 s | 20.24 s | 16.00 s (−13.3%, CI −16.7…−9.8) | 14.95 s (−19.1%, CI −21.4…−16.8) |
+| shaka-blockly | 9.70 s | 8.11 s | 9.48 s | 7.33 s | 8.44 s | 6.59 s (−10.1%, CI −16.6…−3.1) | 6.19 s (−15.7%, CI −20.9…−10.1) |
+| bundle | 9.36 s | 8.64 s | 9.27 s | 8.34 s | 8.03 s | 7.06 s (−15.2%, CI −21.0…−9.0) | 6.41 s (−23.1%, CI −28.1…−17.6) |
+| typed-app | 3.14 s | 2.64 s | 2.95 s | 2.58 s | 2.71 s | 2.35 s (−8.9%, CI −18.5…+1.8) | 2.13 s (−17.1%, CI −24.1…−9.6) |
+
+The percentages are against fast t=4 without a cap. Against compat t=4,
+fast t=4 is −2 to −10% today, −10 to −19% with N=3 and −19 to −26% with
+N=2. Against Java cold (single runs from the oracle: typed-mega 92 s,
+bundle-mega 128 s, typed-full 60 s), fast t=4 with N=2 is 3.3–4.0× faster.
+
+### Proposal to the owner (not enabled: fast mode's output is unchanged)
+
+Make fast mode run with `--max_optimization_loop_iterations=3` (or 2)
+unless the user sets it, and gate it with
+`fast_mode_gate.py --max-loop-iterations N`. That option keeps every
+strict layer: the alpha-isomorphism, census, diagnostics and source-map
+layers compare fast mode with compat run with the same flag, which
+`maxloop_oracle.py` holds byte-identical to Java with the option; only
+the size layer compares with plain compat, to price the cap. What the
+owner gives up is the claim "fast mode's AST equals Java's default
+output"; what remains is "fast mode's output is Java's, with one public
+Java option set". N=3 costs +0.006% of corpus size for −8 to −15%; N=2
++0.026% (+0.6–0.8% on typed-app, the worst task) for −16 to −23%.
+
+Validation of the branch: `fast_mode_gate.py --max-loop-iterations 3`
+passes 25/25 under `-race` at t=1/2/4 on the default task set (corpus size
++0.004% raw, −0.007% gzip) and 7/7 on the large tasks without `-race`
+(+0.005% / +0.008%; every layer but size byte-identical to compat with the
+same cap); typed-full fast t=4 with N=3 under `-race` reports no race;
+fixtures 2,974/2,976; `parallel_gate.py` 48/48 under `-race`; `make vet`.
+Compat without the flag is unchanged (the oracle's N=0 runs and the timing
+runs' compat t=1/t=4 outputs are Java's).
+
+### What is left (in order of expected payoff)
+
+- **Enable the cap in fast mode** (above): −8 to −23% on every task with
+  an ADVANCED or SIMPLE optimization loop, for one line and an owner
+  decision.
+- **Fewer whole-tree walks.** After the cap, the loop is still ~25% of
+  wall time and the front end and tail are walk-bound. Fusing passes
+  that only read the tree (the late checks, `processDefines`, the
+  `GlobalNamespace` builders) or keeping per-token node indexes across
+  passes attacks the count of walks; that is ordinary engineering under
+  the existing gate.
+- **Pre-order node layout at compaction.** The walk is latency-bound
+  (18.5 ns per node against 9 ns for independent reads); renumbering live
+  nodes in pre-order instead of sliding them could bring dependent walks
+  near the independent-read cost. Upper bound ~5–10 ns per node visit,
+  i.e. a few seconds on typed-mega. Compaction is also on in compat, so
+  first prove that no output depends on node id order.
+- Inference per function, removeUnusedCode in parallel: as in round 2,
+  ceilings of 5–15% each for large changes.
+
 ## Smaller open items
 
 - `tools/clie2e/sweep.go` runs its JVMs under its own `nice -n 10`; under

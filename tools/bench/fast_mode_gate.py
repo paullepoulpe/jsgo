@@ -25,6 +25,12 @@ the following layers (PLAN.md §7):
     --size-aggregate-pct (default +0.1%) of compat, and no single task above --size-file-pct
     (default +2%).
 
+  Proposed (fast mode round 3, off by default): --max-loop-iterations N runs fast mode with
+  --max_optimization_loop_iterations=N. The strict and relaxed layers above then compare it with
+  compat run with the same flag, whose output is byte-identical to Java's with
+  CompilerOptions.setMaxOptimizationLoopIterations(N) (tools/bench/maxloop_oracle.py); the size
+  layer still compares it with plain compat.
+
 Usage:
   python3 tools/bench/fast_mode_gate.py --jsgo /path/to/jsgo
   python3 tools/bench/fast_mode_gate.py --jsgo /path/to/jsgo --tasks closure-math
@@ -705,7 +711,7 @@ def binary_supports_fast_mode_flag(jsgo_bin: Path, env: dict) -> bool:
 
 
 def run_jsgo_once(jsgo_bin: Path, base_args: list, cwd: Path, out_dir: Path, env: dict,
-                  threads: int, fast_mode: bool, has_fast_flag: bool, timeout: int):
+                  threads: int, fast_mode: bool, has_fast_flag: bool, timeout: int, extra_args=()):
     """Runs jsgo once using a consistent relative .gate-output path inside cwd."""
     if out_dir.exists():
         shutil.rmtree(out_dir)
@@ -731,6 +737,7 @@ def run_jsgo_once(jsgo_bin: Path, base_args: list, cwd: Path, out_dir: Path, env
             args.append(a)
 
     args.append(f"--num_parallel_threads={threads}")
+    args.extend(extra_args)
     run_env = dict(env)
     if fast_mode:
         run_env["JSGO_FAST_MODE"] = "1"
@@ -812,27 +819,41 @@ def verify_ast_isomorphism(ast_iso_bin: Path, compat_js: Path, fast_js: Path, en
 
 def evaluate_task(name: str, jsgo_bin: Path, ast_iso_bin: Path, base_args: list, cwd: Path, task_out_dir: Path,
                   env: dict, threads: list, has_fast_flag: bool, timeout: int, repeats: int = 1,
-                  size_file_pct: float = 2.0, sourcemap_mismatch_pct: float = 0.0):
-    """Runs the compat baseline and every gate layer for a single task or fixture."""
+                  size_file_pct: float = 2.0, sourcemap_mismatch_pct: float = 0.0, max_loop_iterations: int = 0):
+    """Runs the compat baseline and every gate layer for a single task or fixture.
+
+    With max_loop_iterations > 0, the fast runs get --max_optimization_loop_iterations and the
+    layers other than size compare them with a compat run with the same flag (whose output is
+    Java's with CompilerOptions.setMaxOptimizationLoopIterations, tools/bench/maxloop_oracle.py);
+    size is still compared with plain compat, so it measures what stopping the loops early costs.
+    """
+    loop_args = [f"--max_optimization_loop_iterations={max_loop_iterations}"] if max_loop_iterations > 0 else []
     # Step 0: compat baseline (t=1, without --fast_mode)
-    compat_dir = task_out_dir / "compat-t1"
-    compat = run_jsgo_once(
-        jsgo_bin, base_args, cwd, compat_dir,
+    size_compat = run_jsgo_once(
+        jsgo_bin, base_args, cwd, task_out_dir / "compat-t1",
         env, threads=1, fast_mode=False, has_fast_flag=has_fast_flag, timeout=timeout,
     )
+    compat_dir = task_out_dir / "compat-t1"
+    compat = size_compat
+    if loop_args:
+        compat_dir = task_out_dir / "compat-loop-t1"
+        compat = run_jsgo_once(
+            jsgo_bin, base_args, cwd, compat_dir,
+            env, threads=1, fast_mode=False, has_fast_flag=has_fast_flag, timeout=timeout, extra_args=loop_args,
+        )
 
     # L1: determinism across thread counts and from run to run, race freedom.
     fast_runs = {}
     for t in threads:
         fast_runs[str(t)] = run_jsgo_once(
             jsgo_bin, base_args, cwd, task_out_dir / f"fast-t{t}",
-            env, threads=t, fast_mode=True, has_fast_flag=has_fast_flag, timeout=timeout,
+            env, threads=t, fast_mode=True, has_fast_flag=has_fast_flag, timeout=timeout, extra_args=loop_args,
         )
     for r in range(repeats):
         t = max(threads)
         fast_runs[f"{t}#{r + 2}"] = run_jsgo_once(
             jsgo_bin, base_args, cwd, task_out_dir / f"fast-t{t}-run{r + 2}",
-            env, threads=t, fast_mode=True, has_fast_flag=has_fast_flag, timeout=timeout,
+            env, threads=t, fast_mode=True, has_fast_flag=has_fast_flag, timeout=timeout, extra_args=loop_args,
         )
 
     ref_t = threads[0]
@@ -840,7 +861,7 @@ def evaluate_task(name: str, jsgo_bin: Path, ast_iso_bin: Path, base_args: list,
     fast_ref_dir = task_out_dir / f"fast-t{ref_t}"
 
     exits_ok = all(r["exit"] == compat["exit"] for r in fast_runs.values())
-    no_race = not compat["race_or_crash"] and all(not r["race_or_crash"] for r in fast_runs.values())
+    no_race = not compat["race_or_crash"] and not size_compat["race_or_crash"] and all(not r["race_or_crash"] for r in fast_runs.values())
     js_hashes = {r["js_sha256"] for r in fast_runs.values()}
     map_hashes = {r["map_sha256"] for r in fast_runs.values()}
     stderr_hashes = {r["stderr_sha256"] for r in fast_runs.values()}
@@ -875,9 +896,9 @@ def evaluate_task(name: str, jsgo_bin: Path, ast_iso_bin: Path, base_args: list,
                                max_mismatch_pct=sourcemap_mismatch_pct)
 
     # L3: size. Per task at most +size_file_pct; the aggregate is checked over the corpus in main().
-    compat_raw = len(compat["js_bytes"])
+    compat_raw = len(size_compat["js_bytes"])
     fast_raw = len(fast_ref["js_bytes"])
-    compat_gzip = gzip_size(compat["js_bytes"])
+    compat_gzip = gzip_size(size_compat["js_bytes"])
     fast_gzip = gzip_size(fast_ref["js_bytes"])
 
     def within(fast_v, compat_v, pct):
@@ -1036,6 +1057,9 @@ def main():
                         help="Max raw/gzip size growth of any single task, in %% (default 2.0)")
     parser.add_argument("--sourcemap-mismatch-pct", type=float, default=0.0,
                         help="Max share of output tokens whose original position differs from compat's (default 0)")
+    parser.add_argument("--max-loop-iterations", type=int, default=0,
+                        help="Run fast mode with --max_optimization_loop_iterations=N and compare it with compat "
+                             "run with the same flag; size is still compared with plain compat (default 0: off)")
     a = parser.parse_args()
 
     jsgo_bin = a.jsgo.resolve()
@@ -1112,6 +1136,7 @@ def main():
                 repeats=a.repeats,
                 size_file_pct=a.size_file_pct,
                 sourcemap_mismatch_pct=a.sourcemap_mismatch_pct,
+                max_loop_iterations=a.max_loop_iterations,
             )
             results.append(res)
             if not res["pass"]:
