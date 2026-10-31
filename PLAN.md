@@ -660,11 +660,14 @@ have:
     position); size over the corpus of gated tasks, aggregate raw and gzip at
     most +0.1% (configurable), no single task above +2%.
 
-  Proposed in fast mode round 3, awaiting the owner's decision: fast mode
-  caps the code-removal loops (`--max_optimization_loop_iterations`, Java's
-  `CompilerOptions.setMaxOptimizationLoopIterations`), and the strict layers
-  compare it with compat run with the same cap, which is byte-identical to
-  Java with that option (`tools/bench/maxloop_oracle.py`).
+  Decided (2026-10-31): fast mode does **not** cap the code-removal loops.
+  Capping (`--max_optimization_loop_iterations`, Java's
+  `CompilerOptions.setMaxOptimizationLoopIterations`, proposed in fast mode
+  round 3) lowers output quality, likely more on real workloads than on the
+  benchmarks. The hidden flag and `tools/bench/maxloop_oracle.py` stay as
+  measuring tools only. The loops are made cheaper instead: passes that cost
+  in proportion to what changed (loop round 4 in
+  docs/performance-roadmap.md).
 
   Replacing the alpha-isomorphism layer by a behavioural (execution-based)
   oracle is a later, separate project. It is not a drop-in mode and is not
