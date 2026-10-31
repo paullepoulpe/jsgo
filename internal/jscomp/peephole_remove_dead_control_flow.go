@@ -399,11 +399,19 @@ func (p *PeepholeRemoveDeadCode) TryOptimizeDefaultCase(sw ast.Switch) rhino.Nod
 //
 // caseNode is the case to remove.
 //
+// Go-only: intentional divergence — Java does not mark the functions in the
+// removed case deleted, so they stay in the change timeline as changed
+// scopes (ChangeVerifier: "deleted scope was not reported"). The passes
+// that read the timeline need complete reports (RemoveUnusedCode's kept
+// guarded usages; the change-scoped passes), so they are marked here, as
+// every other removal in this pass does.
+//
 // Java: PeepholeRemoveDeadCode.removeCase(Node, Node)
 func (p *PeepholeRemoveDeadCode) RemoveCase(switchNode rhino.Node, caseNode rhino.Node) {
 	NodeUtil_RedeclareVarsInsideBranch(caseNode)
 	caseNode.Detach()
 	p.ReportChangeToEnclosingScope(switchNode)
+	p.MarkFunctionsDeleted(caseNode)
 }
 
 // IsUselessCase reports whether the CASE or DEFAULT_CASE block does anything

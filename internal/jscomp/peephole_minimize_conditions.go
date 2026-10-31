@@ -274,6 +274,9 @@ func (p *PeepholeMinimizeConditions) TryReplaceIf(n ast.Block) rhino.Node {
 					nextCond.ReplaceWith(newCond)
 					newCond.AddChildToBack(nextCond)
 					p.ReportChangeToEnclosingScope(newCond)
+					// Go-only: intentional divergence — Java leaves the functions of
+					// the dropped branch unmarked (see PeepholeRemoveDeadCode.RemoveCase).
+					p.MarkFunctionsDeleted(thenBranch.Node())
 				} else if nextHasElse && p.AreNodesEqualForInlining(thenBranch.Node(), nextElse.Node()) {
 					// Transform
 					//   if (x) return 1; if (y) foo() else return 1;
@@ -286,6 +289,8 @@ func (p *PeepholeMinimizeConditions) TryReplaceIf(n ast.Block) rhino.Node {
 					nextCond.ReplaceWith(newCond)
 					newCond.AddChildToBack(nextCond)
 					p.ReportChangeToEnclosingScope(newCond)
+					// Go-only: as above.
+					p.MarkFunctionsDeleted(thenBranch.Node())
 				}
 			} else if elseExpr, ok := PeepholeMinimizeConditions_GetReturnExpression(next); ok {
 				var thenExpr rhino.Node
@@ -395,6 +400,9 @@ func (p *PeepholeMinimizeConditions) TryReplaceExitWithBreak(n rhino.Node) rhino
 		replacement := rhino.IR_BreakNode()
 		n.ReplaceWith(replacement)
 		p.ReportChangeToEnclosingScope(replacement)
+		// Go-only: intentional divergence — Java leaves the functions of the
+		// replaced exit unmarked (see PeepholeRemoveDeadCode.RemoveCase).
+		p.MarkFunctionsDeleted(n)
 		return replacement
 	}
 
@@ -437,6 +445,9 @@ func (p *PeepholeMinimizeConditions) TryRemoveRedundantExit(n rhino.Node) rhino.
 	if follow.IsNil() || p.AreMatchingExits(n, follow) {
 		p.ReportChangeToEnclosingScope(n)
 		n.Detach()
+		// Go-only: intentional divergence — Java leaves the functions of the
+		// removed exit unmarked (see PeepholeRemoveDeadCode.RemoveCase).
+		p.MarkFunctionsDeleted(n)
 		return rhino.NilNode
 	}
 
@@ -553,6 +564,9 @@ func (p *PeepholeMinimizeConditions) TryRemoveRepeatedStatements(n ast.If) {
 		lastFalse.Node().Detach()
 		lastTrue.Node().InsertAfter(n.Node())
 		p.ReportChangeToEnclosingScope(parent)
+		// Go-only: intentional divergence — Java leaves the functions of the
+		// removed copy unmarked (see PeepholeRemoveDeadCode.RemoveCase).
+		p.MarkFunctionsDeleted(lastFalse.Node())
 	}
 }
 
