@@ -36,6 +36,7 @@ pinned release, v20261021, and its jar), the corpus, `bench-inputs/` and
 | `tasks/*.json` | One file per task: the exact flags, inputs and outputs, identical for both compilers |
 | `tasks/single-files.txt` | The 1,000 files of the single-file task (`bench.py sample [--check]`) |
 | `java/CliBatch.java` | The warm Java driver: repeats the same `CommandLineRunner` invocations in one JVM |
+| `java/MaxLoopRunner.java`, `maxloop_oracle.py` | Java with `CompilerOptions.setMaxOptimizationLoopIterations`, read from jsgo's hidden `--max_optimization_loop_iterations` flag, and the byte-for-byte comparison of both on the tasks (fast mode round 3 in [docs/performance-roadmap.md](../../docs/performance-roadmap.md)) |
 | `phases.tsv` | Pass name → phase, used for the per-phase roll-up |
 | `bench.py` | Runner, correctness gate, tracer-report parser and Markdown report |
 | `pgo.py` | Regenerates `cmd/jsgo/default.pgo`, the profile for profile-guided optimisation (see [PGO profile](#pgo-profile)) |
