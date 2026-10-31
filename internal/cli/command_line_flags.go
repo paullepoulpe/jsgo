@@ -394,7 +394,7 @@ func (f *commandLineRunner_Flags) Args4jFields() []args4j.AnnotatedField {
 		{Option: &args4j.Option{Name: "--fast_mode", Hidden: true, Handler: newCommandLineRunner_Flags_BooleanOptionHandler, Usage: "Enable Go-to-Go deterministic fast mode."},
 			Field: args4j.BooleanField(c, "fastMode", &f.fastMode)},
 		// Go-only: CompilerOptions.setMaxOptimizationLoopIterations, which Java's CLI does not
-		// expose. The output is Java's with that option set (tools/oracle/java/MaxLoopRunner.java).
+		// expose. The output is Java's with that option set (tools/bench/java/MaxLoopRunner.java).
 		{Option: &args4j.Option{Name: "--max_optimization_loop_iterations", Hidden: true, Handler: args4j.NewIntOptionHandler, Usage: "Stop each code-removal optimization loop after this many iterations (0: no limit)."},
 			Field: args4j.IntField(c, "maxOptimizationLoopIterations", &f.maxOptimizationLoopIterations)},
 		{Option: &args4j.Option{Name: "--checks_only", Aliases: []string{"--checks-only"}, Handler: newCommandLineRunner_Flags_BooleanOptionHandler, Usage: "Don't generate output. Run checks, but no optimization passes."},
