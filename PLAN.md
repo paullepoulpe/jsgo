@@ -670,8 +670,8 @@ have:
   docs/performance-roadmap.md).
 
   Replacing the alpha-isomorphism layer by a behavioural (execution-based)
-  oracle is a later, separate project. It is not a drop-in mode and is not
-  in the README's numbers.
+  oracle is planned in §8. Fast mode is not a drop-in mode and is not in the
+  README's numbers.
 - **The typed AST view instead of 1:1 structure in ported passes.**
   `internal/ast` is a typed view of the `rhino.Node` tree generated from
   `internal/ast/grammar.txt` (`00a3bedd`,
@@ -700,3 +700,84 @@ have:
   empty since `a9785a99` (the string pool, slabs, JSType/PropertyMap and
   hash tricks were rewritten with the standard library first). Tests may
   still use it.
+
+## 8. Next: a behavioural oracle for fast mode
+
+Agreed with the owner on 2026-10-31. Today fast mode must stay
+alpha-isomorphic to compat, so any optimisation that makes different
+decisions (different inlining, a worklist instead of loop rounds, a shared
+reference index) is ruled out even when it is correct. The behavioural
+oracle checks instead that fast mode's output *does the same thing* as
+compat's.
+
+**Differential execution.** Each workload is compiled twice, compat and
+fast, and both builds run in the same engine (node 22 is installed) with the
+same inputs; their observable behaviour is compared. Compat is the
+reference: it is byte-identical to Java. This replaces only the
+alpha-isomorphism layer of `tools/bench/fast_mode_gate.py`. The strict layers
+stay: identical output across thread counts and runs, compat's exit status
+and error set, and the size limits.
+
+**Workloads, from fastest signal to deepest:**
+1. Self-checking language tests:
+   - test262's runtime suite: a pinned, stratified sample of about 5,000
+     tests at SIMPLE and ADVANCED, with ES5 and ES2015 output. The corpus has
+     only `test262-parser-tests` today.
+   - Closure Compiler's own runtime tests (`runtime_tests/`, Apache 2.0),
+     written to run compiled output.
+2. Library test suites compiled with their libraries in ADVANCED, so both are
+   renamed together, and run under node. The fast build must pass the same
+   set of tests as the compat build. Candidates from the corpora:
+   - lodash, underscore, immutable, moment, marked;
+   - handlebars, d3, preact;
+   - a Closure Library subset, with a small DOM stub.
+3. Workload checks on the bench bundles:
+   - The compiled TypeScript compiler (bundle-advanced-ts) compiles a fixed
+     set of TS files, and its output must match the compat build's.
+   - three.js: a headless maths and scene-graph script.
+   - protobuf: encode and decode round trips.
+4. Differential fuzzing, nightly: mutated and generated small programs.
+
+**Comparison.**
+- Compared: per-test pass/fail, stdout and stderr, exit code, and thrown
+  error type and message (renamed identifiers normalised).
+- A prelude fixes `Date`, `Math.random` and timers.
+- Allowed to differ: stack traces, `Function.prototype.toString`, timing, and
+  the enumeration order of renamed properties.
+- Tests that already fail on the compat build carry no signal. They are
+  counted, so the report shows how many tests check something.
+
+**Coverage rule.** A test vouches only for code it ran. jsgo logs where each
+fast-mode-only transformation applied. Engine coverage (`NODE_V8_COVERAGE`,
+mapped through the source maps) shows whether that code was executed. A
+fast-mode difference passes if either:
+- the function is still alpha-isomorphic to compat, as today; or
+- the changed code was executed and behaved identically.
+
+Changes in code that no test executes are reported as blind spots, never
+passed silently.
+
+**Checking the checker.** Seeded faults in fast mode (a flipped inlining
+condition, a dropped side effect, a swapped evaluation order) must be caught.
+The fraction caught is the oracle's mutation score.
+
+**Phases:**
+1. The harness, test262's runtime sample, Closure's runtime tests and the
+   seeded-fault check. As a side benefit, running uncompiled code against
+   compat may find existing bugs.
+2. The library test suites.
+3. The workload checks: TypeScript, three.js and protobuf.
+4. Gate integration with the coverage rule, and nightly fuzzing.
+
+The per-change gate should take 30–60 minutes. The full test262 run and
+fuzzing are nightly.
+
+**Licences:**
+- test262 is BSD.
+- Closure's tests are Apache 2.0.
+- The libraries are MIT or BSD.
+- No GPL code, no JDK sources.
+
+**Main risk.** A behavioural oracle is weaker than a structural one on code
+that no test runs. Hence the coverage rule, and alpha-isomorphism stays
+wherever it still holds.
