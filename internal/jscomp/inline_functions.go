@@ -85,9 +85,7 @@ type InlineFunctions struct {
 
 	runState *inlineFunctionsRunState
 
-	candScratch          inlineCandidateScratch
-	lastContainingFn     rhino.Node
-	lastContainingFnSize int
+	candScratch inlineCandidateScratch
 }
 
 // Java: InlineFunctions.MISSED_REQUIRED_INLINING
@@ -238,7 +236,6 @@ func (f *InlineFunctions) Process(externs rhino.Node, root rhino.Node) {
 		f.namedFns = nil
 		f.anonFns = nil
 		f.candScratch.lastCheckedBlock = rhino.NilNode
-		f.lastContainingFn = rhino.NilNode
 	}()
 
 	if !root.IsNil() {
@@ -256,7 +253,6 @@ func (f *InlineFunctions) Process(externs rhino.Node, root rhino.Node) {
 		collector.initSerial(f)
 		inlineFunctions_traverseWithScopeCreator(f.compiler, root, &collector.visitor, sc)
 	}
-	f.lastContainingFn = rhino.NilNode
 	f.TrimCandidatesNotMeetingMinimumRequirements()
 	if len(f.fns) == 0 {
 		return // Nothing left to do.

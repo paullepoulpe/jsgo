@@ -26,13 +26,27 @@ import (
 
 var inlineFnCallPropID = rhino.RhinoStringPool_InternID("call")
 
+// containingFnSizeCache remembers the AST size of the last enclosing function
+// measured, since consecutive call sites usually share one.
+type containingFnSizeCache struct {
+	fn   rhino.Node
+	size int
+}
+
+func (c *containingFnSizeCache) sizeOf(fn rhino.Node, limit int) int {
+	if fn != c.fn {
+		c.fn = fn
+		c.size = NodeUtil_CountAstSizeUpToLimit(fn, limit)
+	}
+	return c.size
+}
+
 // Java: InlineFunctions.targetSizeAfterInlineExceedsLimit(NodeTraversal, FunctionState)
 func inlineTargetSizeExceedsLimit(
 	t *NodeTraversal,
 	functionState *InlineFunctions_FunctionState,
 	maxSizeAfterInlining int,
-	lastContainingFn *rhino.Node,
-	lastContainingFnSize *int,
+	containingFnSize *containingFnSizeCache,
 	cacheBodySize bool,
 ) bool {
 	containingFunction := t.GetEnclosingFunction()
@@ -53,14 +67,7 @@ func inlineTargetSizeExceedsLimit(
 			functionState.bodyAstSize = int32(inlinedFunSize)
 		}
 	}
-	var targetFunSize int
-	if containingFunction == *lastContainingFn {
-		targetFunSize = *lastContainingFnSize
-	} else {
-		targetFunSize = NodeUtil_CountAstSizeUpToLimit(containingFunction, maxSizeAfterInlining)
-		*lastContainingFn = containingFunction
-		*lastContainingFnSize = targetFunSize
-	}
+	targetFunSize := containingFnSize.sizeOf(containingFunction, maxSizeAfterInlining)
 	return inlinedFunSize+targetFunSize > maxSizeAfterInlining
 }
 
@@ -253,25 +260,20 @@ type ifPhase2Event struct {
 // inlineRefCollector collects Phase-2 function call references and non-call
 // name usages for both sequential and parallel traversals.
 type inlineRefCollector struct {
-	visitor             inlineCallVisitor
-	outer               *InlineFunctions
-	injector            *FunctionInjector
-	lastContainingFnPtr *rhino.Node
-	lastContainingSzPtr *int
-	localLastFn         rhino.Node
-	localLastFnSize     int
-	safeIdsCounter      int
-	scratchRef          FunctionInjector_Reference
-	localDisallowed     map[*InlineFunctions_FunctionState]struct{}
-	events              []ifPhase2Event
-	recordEvents        bool
+	visitor          inlineCallVisitor
+	outer            *InlineFunctions
+	injector         *FunctionInjector
+	containingFnSize containingFnSizeCache
+	safeIdsCounter   int
+	scratchRef       FunctionInjector_Reference
+	localDisallowed  map[*InlineFunctions_FunctionState]struct{}
+	events           []ifPhase2Event
+	recordEvents     bool
 }
 
 func (r *inlineRefCollector) initSerial(f *InlineFunctions) {
 	r.outer = f
 	r.injector = f.injector
-	r.lastContainingFnPtr = &f.lastContainingFn
-	r.lastContainingSzPtr = &f.lastContainingFnSize
 	r.recordEvents = false
 	r.visitor = inlineCallVisitor{
 		namedFns:   f.namedFns,
@@ -284,8 +286,6 @@ func (r *inlineRefCollector) initSerial(f *InlineFunctions) {
 func (r *inlineRefCollector) initParallel(f *InlineFunctions, injector *FunctionInjector) {
 	r.outer = f
 	r.injector = injector
-	r.lastContainingFnPtr = &r.localLastFn
-	r.lastContainingSzPtr = &r.localLastFnSize
 	r.recordEvents = true
 	r.visitor = inlineCallVisitor{
 		namedFns:   f.namedFns,
@@ -297,7 +297,7 @@ func (r *inlineRefCollector) initParallel(f *InlineFunctions, injector *Function
 
 func (r *inlineRefCollector) resetForScript() {
 	r.events = nil
-	r.localLastFn = rhino.NilNode
+	r.containingFnSize = containingFnSizeCache{}
 	if r.localDisallowed != nil {
 		clear(r.localDisallowed)
 	}
@@ -389,7 +389,7 @@ func (r *inlineRefCollector) tryMode(
 	if r.outer.enforceMaxSizeAfterInlining &&
 		inlineTargetSizeExceedsLimit(
 			t, functionState, r.outer.maxSizeAfterInlining,
-			r.lastContainingFnPtr, r.lastContainingSzPtr, !r.recordEvents) {
+			&r.containingFnSize, !r.recordEvents) {
 		return false, nil, false
 	}
 

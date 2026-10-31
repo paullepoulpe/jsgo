@@ -54,18 +54,15 @@ import (
 // each CFG block once to compute local upward-exposed (varIdx, cfgNode) uses
 // and unconditional variable kills, assigns consecutive bit positions grouped
 // by variable, and solves the backward fixed-point over flat uint64 bitvectors
-// (single uint64 per node when total uses <= 64, []uint64 when > 64).
+// (one row of words per CFG node).
 type MaybeReachingVariableUse struct {
 	cfg    *ControlFlowGraph[rhino.Node]
 	varIDs varIDTable
 
 	// Per-block scratch during the single AST pre-pass.
-	curGen64        uint64
-	curKill64       uint64
 	curGenVarWords  []uint64
 	curKillVarWords []uint64
 
-	blockKillVars64   []uint64
 	blockKillVarWords []uint64
 	rawUses           []mrvuRawUse
 	varUseCount       []int
@@ -77,14 +74,6 @@ type MaybeReachingVariableUse struct {
 	useWords  int
 	useNodes  []rhino.Node
 
-	// Fast path (totalUses <= 64).
-	varMask64 []uint64
-	gen64     []uint64
-	kill64    []uint64
-	in64      []uint64
-	out64     []uint64
-
-	// General path (totalUses > 64).
 	genWords  []uint64
 	killWords []uint64
 	inWords   []uint64
@@ -124,16 +113,13 @@ func (u *MaybeReachingVariableUse) releaseLargeStorage() {
 	if cap(u.rawUses) > mrvuReuseMaxCap {
 		u.rawUses = nil
 	}
-	if cap(u.gen64) > mrvuReuseMaxCap {
-		u.blockKillVars64 = nil
-		u.gen64 = nil
-		u.kill64 = nil
-		u.in64 = nil
-		u.out64 = nil
+	if cap(u.steps) > mrvuReuseMaxCap {
 		u.steps = nil
 	}
-	if cap(u.genWords) > mrvuReuseMaxCap {
+	if cap(u.blockKillVarWords) > mrvuReuseMaxCap {
 		u.blockKillVarWords = nil
+	}
+	if cap(u.genWords) > mrvuReuseMaxCap {
 		u.genWords = nil
 		u.killWords = nil
 		u.inWords = nil
@@ -199,69 +185,39 @@ func (u *MaybeReachingVariableUse) Analyze() {
 	cfg := u.cfg
 	implicitReturn := cfg.implicitReturn
 	nodeCap := cfg.NodeIndexCap()
+	varWords := (numVars + 63) >> 6
 
 	clear(u.rawUses)
 	u.rawUses = u.rawUses[:0]
 	u.varUseCount = mrvuResetZeroSlice(u.varUseCount, numVars)
-
-	varWords := (numVars + 63) >> 6
-	if numVars <= 64 {
-		u.blockKillVars64 = mrvuResetZeroSlice(u.blockKillVars64, nodeCap)
-		for node := range cfg.Nodes.Values() {
-			if node == implicitReturn {
-				continue
+	u.blockKillVarWords = mrvuResetZeroSlice(u.blockKillVarWords, nodeCap*varWords)
+	u.curGenVarWords = mrvuResetZeroSlice(u.curGenVarWords, varWords)
+	u.curKillVarWords = mrvuResetZeroSlice(u.curKillVarWords, varWords)
+	for node := range cfg.Nodes.Values() {
+		if node == implicitReturn {
+			continue
+		}
+		conditional := false
+		for _, edge := range node.OutEdgeList.Slice() {
+			if edge.Value == ControlFlowGraph_Branch_ON_EX {
+				conditional = true
+				break
 			}
-			conditional := false
-			for _, edge := range node.OutEdgeList.Slice() {
-				if edge.Value == ControlFlowGraph_Branch_ON_EX {
-					conditional = true
-					break
-				}
-			}
-			u.curGen64 = 0
-			u.curKill64 = 0
-			u.computeMayUse(node.Value, conditional)
-			u.blockKillVars64[node.Index] = u.curKill64
-			for m := u.curGen64; m != 0; m &= m - 1 {
-				v := bits.TrailingZeros64(m)
+		}
+		clear(u.curGenVarWords)
+		clear(u.curKillVarWords)
+		u.computeMayUse(node.Value, conditional)
+		base := int(node.Index) * varWords
+		copy(u.blockKillVarWords[base:base+varWords], u.curKillVarWords)
+		for wIdx, w := range u.curGenVarWords {
+			for m := w; m != 0; m &= m - 1 {
+				v := (wIdx << 6) + bits.TrailingZeros64(m)
 				u.varUseCount[v]++
 				u.rawUses = append(u.rawUses, mrvuRawUse{
 					varIdx:  uint32(v),
 					cfgIdx:  node.Index,
 					cfgNode: node.Value,
 				})
-			}
-		}
-	} else {
-		u.blockKillVarWords = mrvuResetZeroSlice(u.blockKillVarWords, nodeCap*varWords)
-		u.curGenVarWords = mrvuResetZeroSlice(u.curGenVarWords, varWords)
-		u.curKillVarWords = mrvuResetZeroSlice(u.curKillVarWords, varWords)
-		for node := range cfg.Nodes.Values() {
-			if node == implicitReturn {
-				continue
-			}
-			conditional := false
-			for _, edge := range node.OutEdgeList.Slice() {
-				if edge.Value == ControlFlowGraph_Branch_ON_EX {
-					conditional = true
-					break
-				}
-			}
-			clear(u.curGenVarWords)
-			clear(u.curKillVarWords)
-			u.computeMayUse(node.Value, conditional)
-			base := int(node.Index) * varWords
-			copy(u.blockKillVarWords[base:base+varWords], u.curKillVarWords)
-			for wIdx, w := range u.curGenVarWords {
-				for m := w; m != 0; m &= m - 1 {
-					v := (wIdx << 6) + bits.TrailingZeros64(m)
-					u.varUseCount[v]++
-					u.rawUses = append(u.rawUses, mrvuRawUse{
-						varIdx:  uint32(v),
-						cfgIdx:  node.Index,
-						cfgNode: node.Value,
-					})
-				}
 			}
 		}
 	}
@@ -286,57 +242,6 @@ func (u *MaybeReachingVariableUse) Analyze() {
 	u.useNodes = mrvuResetZeroSlice(u.useNodes, totalUses)
 	u.steps = mrvuResetZeroSlice(u.steps, nodeCap)
 
-	if totalUses <= 64 {
-		u.varMask64 = mrvuResetZeroSlice(u.varMask64, numVars)
-		for v := range numVars {
-			s, e := u.varBitStart[v], u.varBitEnd[v]
-			if s < e {
-				u.varMask64[v] = (^uint64(0) >> uint(64-(e-s))) << uint(s)
-			}
-		}
-		u.gen64 = mrvuResetZeroSlice(u.gen64, nodeCap)
-		u.kill64 = mrvuResetZeroSlice(u.kill64, nodeCap)
-		u.in64 = mrvuResetZeroSlice(u.in64, nodeCap)
-		u.out64 = mrvuResetZeroSlice(u.out64, nodeCap)
-
-		for _, ru := range u.rawUses {
-			bit := u.varWritePos[ru.varIdx]
-			u.varWritePos[ru.varIdx]++
-			u.useNodes[bit] = ru.cfgNode
-			u.gen64[ru.cfgIdx] |= uint64(1) << uint(bit)
-		}
-		if numVars <= 64 {
-			for node := range cfg.Nodes.Values() {
-				if node == implicitReturn {
-					continue
-				}
-				var k uint64
-				for m := u.blockKillVars64[node.Index]; m != 0; m &= m - 1 {
-					v := bits.TrailingZeros64(m)
-					k |= u.varMask64[v]
-				}
-				u.kill64[node.Index] = k
-			}
-		} else {
-			for node := range cfg.Nodes.Values() {
-				if node == implicitReturn {
-					continue
-				}
-				var k uint64
-				base := int(node.Index) * varWords
-				for wIdx, w := range u.blockKillVarWords[base : base+varWords] {
-					for m := w; m != 0; m &= m - 1 {
-						v := (wIdx << 6) + bits.TrailingZeros64(m)
-						k |= u.varMask64[v]
-					}
-				}
-				u.kill64[node.Index] = k
-			}
-		}
-		u.solve64(cfg, implicitReturn)
-		return
-	}
-
 	words := (totalUses + 63) >> 6
 	u.useWords = words
 	totalWords := nodeCap * words
@@ -351,33 +256,20 @@ func (u *MaybeReachingVariableUse) Analyze() {
 		u.useNodes[bit] = ru.cfgNode
 		u.genWords[int(ru.cfgIdx)*words+(bit>>6)] |= uint64(1) << uint(bit&63)
 	}
-	if numVars <= 64 {
-		for node := range cfg.Nodes.Values() {
-			if node == implicitReturn {
-				continue
-			}
-			killRow := u.killWords[int(node.Index)*words : (int(node.Index)+1)*words]
-			for m := u.blockKillVars64[node.Index]; m != 0; m &= m - 1 {
-				v := bits.TrailingZeros64(m)
+	for node := range cfg.Nodes.Values() {
+		if node == implicitReturn {
+			continue
+		}
+		killRow := u.killWords[int(node.Index)*words : (int(node.Index)+1)*words]
+		base := int(node.Index) * varWords
+		for wIdx, w := range u.blockKillVarWords[base : base+varWords] {
+			for m := w; m != 0; m &= m - 1 {
+				v := (wIdx << 6) + bits.TrailingZeros64(m)
 				mrvuOrBitRange(killRow, u.varBitStart[v], u.varBitEnd[v])
 			}
 		}
-	} else {
-		for node := range cfg.Nodes.Values() {
-			if node == implicitReturn {
-				continue
-			}
-			killRow := u.killWords[int(node.Index)*words : (int(node.Index)+1)*words]
-			base := int(node.Index) * varWords
-			for wIdx, w := range u.blockKillVarWords[base : base+varWords] {
-				for m := w; m != 0; m &= m - 1 {
-					v := (wIdx << 6) + bits.TrailingZeros64(m)
-					mrvuOrBitRange(killRow, u.varBitStart[v], u.varBitEnd[v])
-				}
-			}
-		}
 	}
-	u.solveWords(cfg, implicitReturn, words)
+	u.solve(cfg, implicitReturn, words)
 }
 
 func (u *MaybeReachingVariableUse) initQueue(
@@ -393,46 +285,7 @@ func (u *MaybeReachingVariableUse) initQueue(
 	}
 }
 
-func (u *MaybeReachingVariableUse) solve64(
-	cfg *ControlFlowGraph[rhino.Node],
-	implicitReturn *graph.LinkedDiGraphNode[rhino.Node, ControlFlowGraph_Branch],
-) {
-	u.initQueue(cfg, implicitReturn)
-	for u.worklist.notEmpty() {
-		curNode := u.worklist.dequeue()
-		idx := curNode.Index
-		stepCount := u.steps[idx]
-		u.steps[idx] = stepCount + 1
-		if stepCount > DataFlowAnalysis_MAX_STEPS_PER_NODE {
-			panic(jutil.NewIllegalStateExceptionMsg("Dataflow analysis appears to diverge around: " + jutil.ToJavaString(curNode)))
-		}
-
-		outEdges := curNode.OutEdgeList.Slice()
-		if len(outEdges) > 0 {
-			var joined uint64
-			for _, edge := range outEdges {
-				dest := edge.DestNode
-				if dest != implicitReturn {
-					joined |= u.in64[dest.Index]
-				}
-			}
-			u.out64[idx] = joined
-		}
-
-		inAfter := (u.out64[idx] &^ u.kill64[idx]) | u.gen64[idx]
-		if inAfter != u.in64[idx] {
-			u.in64[idx] = inAfter
-			for _, edge := range curNode.InEdgeList.Slice() {
-				prev := edge.SourceNode
-				if !prev.DfaInQueue && prev != implicitReturn {
-					u.worklist.enqueue(prev)
-				}
-			}
-		}
-	}
-}
-
-func (u *MaybeReachingVariableUse) solveWords(
+func (u *MaybeReachingVariableUse) solve(
 	cfg *ControlFlowGraph[rhino.Node],
 	implicitReturn *graph.LinkedDiGraphNode[rhino.Node, ControlFlowGraph_Branch],
 	words int,
@@ -487,24 +340,13 @@ func (u *MaybeReachingVariableUse) solveWords(
 }
 
 func (u *MaybeReachingVariableUse) genVarIdx(v int) {
-	if u.varIDs.count <= 64 {
-		u.curGen64 |= uint64(1) << uint(v)
-	} else {
-		u.curGenVarWords[v>>6] |= uint64(1) << uint(v&63)
-	}
+	u.curGenVarWords[v>>6] |= uint64(1) << uint(v&63)
 }
 
 func (u *MaybeReachingVariableUse) killVarIdx(v int) {
-	if u.varIDs.count <= 64 {
-		bit := uint64(1) << uint(v)
-		u.curKill64 |= bit
-		u.curGen64 &^= bit
-	} else {
-		w, b := v>>6, uint(v&63)
-		bit := uint64(1) << b
-		u.curKillVarWords[w] |= bit
-		u.curGenVarWords[w] &^= bit
-	}
+	bit := uint64(1) << uint(v&63)
+	u.curKillVarWords[v>>6] |= bit
+	u.curGenVarWords[v>>6] &^= bit
 }
 
 func (u *MaybeReachingVariableUse) genLocalID(id uint32) {
@@ -674,6 +516,21 @@ func mrvuEmptyUses(func(rhino.Node) bool) {}
 
 // HasExactlyOneUseByID reports whether defNode has exactly one upward-exposed
 // reaching use CFG node for nameID, without allocating an iterator closure.
+// mrvuMaskedWord returns word w of row restricted to the bit range
+// [start, end).
+func mrvuMaskedWord(row []uint64, w, start, end int) uint64 {
+	word := row[w]
+	if w == start>>6 {
+		word &= ^uint64(0) << uint(start&63)
+	}
+	if w == (end-1)>>6 {
+		word &= ^uint64(0) >> uint(63-(end-1)&63)
+	}
+	return word
+}
+
+// HasExactlyOneUseByID reports whether defNode has exactly one upward-exposed
+// reaching use CFG node for nameID, without allocating an iterator closure.
 func (u *MaybeReachingVariableUse) HasExactlyOneUseByID(nameID uint32, defNode rhino.Node) bool {
 	n := u.cfg.Nodes.Get(defNode)
 	if n == nil {
@@ -686,42 +543,18 @@ func (u *MaybeReachingVariableUse) HasExactlyOneUseByID(nameID uint32, defNode r
 	if v < 0 {
 		return false
 	}
-	if u.totalUses <= 64 {
-		m := u.out64[n.Index] & u.varMask64[v]
-		return m != 0 && (m&(m-1)) == 0
-	}
 	start, end := u.varBitStart[v], u.varBitEnd[v]
 	if start >= end {
 		return false
 	}
 	words := u.useWords
 	outRow := u.outWords[int(n.Index)*words : (int(n.Index)+1)*words]
-	sw, sb := start>>6, uint(start&63)
-	ew, eb := (end-1)>>6, uint((end-1)&63)
-	if sw == ew {
-		w := outRow[sw] & ((^uint64(0) >> (63 - (eb - sb))) << sb)
-		return w != 0 && (w&(w-1)) == 0
-	}
 	count := 0
-	if w := outRow[sw] & (^uint64(0) << sb); w != 0 {
-		if (w & (w - 1)) != 0 {
+	for w := start >> 6; w <= (end-1)>>6; w++ {
+		count += bits.OnesCount64(mrvuMaskedWord(outRow, w, start, end))
+		if count > 1 {
 			return false
 		}
-		count++
-	}
-	for wi := sw + 1; wi < ew; wi++ {
-		if w := outRow[wi]; w != 0 {
-			if count > 0 || (w&(w-1)) != 0 {
-				return false
-			}
-			count++
-		}
-	}
-	if w := outRow[ew] & (^uint64(0) >> (63 - eb)); w != 0 {
-		if count > 0 || (w&(w-1)) != 0 {
-			return false
-		}
-		count++
 	}
 	return count == 1
 }
@@ -748,20 +581,6 @@ func (u *MaybeReachingVariableUse) GetUses(name string, defNode rhino.Node) iter
 	if v < 0 {
 		return mrvuEmptyUses
 	}
-	if u.totalUses <= 64 {
-		m0 := u.out64[n.Index] & u.varMask64[v]
-		if m0 == 0 {
-			return mrvuEmptyUses
-		}
-		useNodes := u.useNodes
-		return func(yield func(rhino.Node) bool) {
-			for m := m0; m != 0; m &= m - 1 {
-				if !yield(useNodes[bits.TrailingZeros64(m)]) {
-					return
-				}
-			}
-		}
-	}
 	start, end := u.varBitStart[v], u.varBitEnd[v]
 	if start >= end {
 		return mrvuEmptyUses
@@ -770,40 +589,9 @@ func (u *MaybeReachingVariableUse) GetUses(name string, defNode rhino.Node) iter
 	outRow := u.outWords[int(n.Index)*words : (int(n.Index)+1)*words]
 	useNodes := u.useNodes
 	return func(yield func(rhino.Node) bool) {
-		sw, sb := start>>6, uint(start&63)
-		ew, eb := (end-1)>>6, uint((end-1)&63)
-		if sw == ew {
-			w := outRow[sw] & ((^uint64(0) >> (63 - (eb - sb))) << sb)
-			base := sw << 6
-			for m := w; m != 0; m &= m - 1 {
-				if !yield(useNodes[base+bits.TrailingZeros64(m)]) {
-					return
-				}
-			}
-			return
-		}
-		if w := outRow[sw] & (^uint64(0) << sb); w != 0 {
-			base := sw << 6
-			for m := w; m != 0; m &= m - 1 {
-				if !yield(useNodes[base+bits.TrailingZeros64(m)]) {
-					return
-				}
-			}
-		}
-		for wi := sw + 1; wi < ew; wi++ {
-			if w := outRow[wi]; w != 0 {
-				base := wi << 6
-				for m := w; m != 0; m &= m - 1 {
-					if !yield(useNodes[base+bits.TrailingZeros64(m)]) {
-						return
-					}
-				}
-			}
-		}
-		if w := outRow[ew] & (^uint64(0) >> (63 - eb)); w != 0 {
-			base := ew << 6
-			for m := w; m != 0; m &= m - 1 {
-				if !yield(useNodes[base+bits.TrailingZeros64(m)]) {
+		for w := start >> 6; w <= (end-1)>>6; w++ {
+			for m := mrvuMaskedWord(outRow, w, start, end); m != 0; m &= m - 1 {
+				if !yield(useNodes[w<<6+bits.TrailingZeros64(m)]) {
 					return
 				}
 			}

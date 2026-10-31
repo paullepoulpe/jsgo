@@ -486,7 +486,26 @@ func flattenPrefixesHasWork(n *GlobalNamespace_Name) bool {
 	return nRefs > 1 || (nRefs == 1 && n.GetFirstRef() != decl)
 }
 
-func (c *InlineAndCollapseProperties_CollapseProperties) buildLazyPrefixOriginalName(baseOriginalName string, n *GlobalNamespace_Name, extraDepth int) string {
+// lazyOriginalName is the full original name of a property (e.g. "a.b.c.d"),
+// built from a prefix's original name and the property's extraDepth trailing
+// base names only when a reference actually gets flattened.
+type lazyOriginalName struct {
+	baseOriginalName string
+	name             *GlobalNamespace_Name
+	extraDepth       int
+	value            string
+	built            bool
+}
+
+func (l *lazyOriginalName) get() string {
+	if !l.built {
+		l.value = buildPrefixOriginalName(l.baseOriginalName, l.name, l.extraDepth)
+		l.built = true
+	}
+	return l.value
+}
+
+func buildPrefixOriginalName(baseOriginalName string, n *GlobalNamespace_Name, extraDepth int) string {
 	if extraDepth <= 0 {
 		return baseOriginalName
 	}
@@ -528,12 +547,11 @@ func (c *InlineAndCollapseProperties_CollapseProperties) flattenPrefixesLazy(
 	extraDepth int,
 	isConstantName bool,
 	descendantsVisited bool) {
-	var cachedOrig string
-	hasOrig := false
+	originalName := lazyOriginalName{baseOriginalName: baseOriginalName, name: n, extraDepth: extraDepth}
 
 	decl := n.getDeclarationRef()
 	if decl != nil && !decl.GetNode().IsNil() && decl.GetNode().IsGetProp() {
-		c.flattenNameRefAtDepthLazy(alias, decl.GetNode(), depth, baseOriginalName, n, extraDepth, &cachedOrig, &hasOrig, isConstantName)
+		c.flattenNameRefAtDepthLazy(alias, decl.GetNode(), depth, &originalName, isConstantName)
 	}
 
 	if descendantsVisited && c.willFlattenReferences(n) {
@@ -544,7 +562,7 @@ func (c *InlineAndCollapseProperties_CollapseProperties) flattenPrefixesLazy(
 		if r == decl {
 			continue
 		}
-		c.flattenNameRefAtDepthLazy(alias, r.GetNode(), depth, baseOriginalName, n, extraDepth, &cachedOrig, &hasOrig, isConstantName)
+		c.flattenNameRefAtDepthLazy(alias, r.GetNode(), depth, &originalName, isConstantName)
 	}
 
 	if n.HasProps() {
@@ -565,11 +583,7 @@ func (c *InlineAndCollapseProperties_CollapseProperties) flattenNameRefAtDepthLa
 	alias string,
 	n rhino.Node,
 	depth int,
-	baseOriginalName string,
-	nameObj *GlobalNamespace_Name,
-	extraDepth int,
-	cachedOrig *string,
-	hasOrig *bool,
+	originalName *lazyOriginalName,
 	isConstantName bool) {
 	nType := n.GetToken()
 	isQName := nType == rhino.Token_NAME || nType == rhino.Token_GETPROP
@@ -581,11 +595,7 @@ func (c *InlineAndCollapseProperties_CollapseProperties) flattenNameRefAtDepthLa
 		n = n.GetFirstChild()
 	}
 	if n.IsGetProp() && n.GetFirstChild().IsGetProp() {
-		if !*hasOrig {
-			*cachedOrig = c.buildLazyPrefixOriginalName(baseOriginalName, nameObj, extraDepth)
-			*hasOrig = true
-		}
-		c.FlattenNameRef(alias, n.GetFirstChild(), n, *cachedOrig, isConstantName)
+		c.FlattenNameRef(alias, n.GetFirstChild(), n, originalName.get(), isConstantName)
 	}
 }
 
