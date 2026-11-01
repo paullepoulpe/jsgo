@@ -772,6 +772,77 @@ The fraction caught is the oracle's mutation score.
 The per-change gate should take 30–60 minutes. The full test262 run and
 fuzzing are nightly.
 
+**Phase 1: done (2026-11-01;
+[docs/behavioural-oracle.md](docs/behavioural-oracle.md)).**
+- `tools/behave/`: the harness (`behave.py run`, `faults`, `explain`,
+  `replay`, `probe`, `sample`, `verify`), the node runner with the deterministic prelude, and
+  the suites, fetched at pinned revisions with digests (`fetch.sh`,
+  `pins.json`): test262 at `91c70759`, a stratified sample of 5,000 tests
+  (per-change subset 1,500) out of a pool of 32,083 after the recorded
+  exclusions; Closure's runtime tests, taken from v20231112, the last tag
+  GitHub carries them at (258 cases with the forced-polyfill variants).
+- Compat vs fast: no difference. Every fast build that compiles is byte for
+  byte the compat build (17,999 of the 20,000 test262 builds over
+  SIMPLE/ADVANCED × ES5/ES2015 compile, and 15,193 pass on the compat build,
+  so check something; 829 of the 838 Closure builds, 802 with signal): fast
+  mode's shortcuts leave no trace on programs of this size.
+- Seeded faults (`JSGO_FAST_FAULT`, fast mode only, compiled in only with
+  `-tags jsgo_faults`): 5 of 7 caught, 1,106 of the 5,946 changed builds
+  that check something (706 of 5,546 without the compiler crashes of
+  `collapse-unsafe`). `inline-args` (a dropped or duplicated argument) and
+  `swap-args` (reversed argument evaluation) are never caught. `behave.py
+  explain` sorts the 4,840 uncaught changes with V8 coverage: 3,768 ran,
+  1,058 never ran. The changes read by hand that ran were harmless on their
+  input (Closure's side-effect analysis calls impure what only builds fresh
+  objects), except goog.testing skipping `setUp`, which every Closure test
+  without a real `setUp` runs unchecked; those that never ran are blind
+  spots (harness failure paths, unused helpers, a broken Promise polyfill
+  behind a feature test).
+- Uncompiled vs compat: 4,807 builds pass uncompiled and fail on compat.
+  4,712 are upstream behaviour (Java's output is the same: renaming,
+  untranspilable features, removed code that should throw, transpiled async
+  generators, …). 95 were a port bug, an internal compiler error at
+  ADVANCED/ES2015 on methods of unnamed class expressions: the port of
+  `AnalyzePrototypeProperties.processMemberDef` had dropped a null check
+  (fixed in `c5d05ade`; the 95 builds are now Java's bytes).
+- Wall time on the 4-CPU machine: the per-change subset 49 minutes, the
+  full run 2 h 33 min with the Java check.
+- Not done yet: the coverage rule, the gate integration (phase 4), the
+  enumeration-order allowance (no phase-1 output needs it).
+
+What phase 1 changes for phases 2–4:
+- The oracle cannot replace the alpha-isomorphism layer by itself: a
+  fast-mode change in code no test runs passes unseen, and phase 1's suites
+  leave much code unrun or unchecked. It can under the coverage rule (a
+  change outside alpha-isomorphism passes only if the changed code ran and
+  behaved the same; otherwise the structural check stays). `explain` already
+  does the "ran" half; jsgo still has to log where fast-only transformations
+  applied. Phase 2's suites must run library code broadly and assert on its
+  results, so that changed code is both run and checked.
+- Small self-checking tests never reach fast mode's current shortcuts, so
+  they will only vouch for fast mode once it makes different decisions on
+  small programs. The coverage rule's log of where fast-only transformations
+  applied should come early (phase 2, not 4), and the bench bundles of
+  phase 3, where fast output does differ today, matter more than their place
+  in the order suggests.
+- Compiling dominates (0.27 s per SIMPLE and 0.7 s per ADVANCED test262
+  compile, mostly the default externs), and phase 1's per-change subset
+  already takes 49 of the 30–60 minutes. Compat builds can be cached across
+  changes, keyed by their inputs, flags and the pinned release, since compat
+  is Java's output (the parity suites check that separately); that halves
+  the compiles. Beyond that, the per-change test262 subset should shrink
+  (for example to 600 tests) to make room for the library suites.
+- ADVANCED loses a third of test262 to upstream behaviour (renaming,
+  externs), and goog.testing needed generated externs and exports to run at
+  all. Library suites compiled with their libraries in ADVANCED will need the
+  same per-library work: budget for it.
+- Running in node's main realm is faithful but fragile: tests that touch
+  `Object.prototype` can break node's own event loop (most of the 58 test262
+  tests that time out uncompiled). Library suites may want a fresh `vm`
+  context per test file.
+- The uncompiled-vs-compat check against Java found a port crash that the
+  corpus parity suites had not: it is worth running nightly on every suite.
+
 **Licences:**
 - test262 is BSD.
 - Closure's tests are Apache 2.0.
