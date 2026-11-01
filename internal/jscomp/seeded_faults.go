@@ -37,6 +37,9 @@ const (
 	// InlineVariables moves a variable's value to its only use without
 	// checking that nothing in between has side effects (LocalVarMotion).
 	faultInlineVars
+	// FunctionToBlockMutator declares the temporaries of an inlined call's
+	// arguments in reverse order (a swapped evaluation order).
+	faultSwapArgs
 )
 
 var seededFaultNames = map[string]seededFaultKind{
@@ -47,6 +50,7 @@ var seededFaultNames = map[string]seededFaultKind{
 	"hook-negation":    faultHookNegation,
 	"collapse-unsafe":  faultCollapseUnsafe,
 	"inline-vars":      faultInlineVars,
+	"swap-args":        faultSwapArgs,
 }
 
 var seededFault = parseSeededFault(os.Getenv("JSGO_FAST_FAULT"))

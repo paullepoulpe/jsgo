@@ -65,7 +65,7 @@ import closure_rt  # noqa: E402
 SUITES = ("test262", "closure")
 EXPECT_DIR = os.path.join(core.HERE, "expect")
 FAULTS = ("inline-args", "drop-unused-init", "swap-operands", "fold-negzero", "hook-negation", "collapse-unsafe",
-          "inline-vars")
+          "inline-vars", "swap-args")
 
 
 def log(msg):
