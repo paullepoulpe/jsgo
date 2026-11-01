@@ -106,12 +106,13 @@ func main() {
 
 var identRE = regexp.MustCompile(`[A-Za-z_$][A-Za-z0-9_$]*`)
 var typeTagRE = regexp.MustCompile(`@[A-Za-z]+\s*\{`)
+var recordKeyRE = regexp.MustCompile(`([A-Za-z_$][A-Za-z0-9_$]*)\s*:`)
 
 // printExternNames prints the names that ADVANCED's property renaming takes
-// from the default externs: the property names of their code, and the
-// identifiers inside their JSDoc type expressions (record types name
-// properties there). Words of the prose comments are left out, since short
-// renamed names (a, b, ...) occur there too.
+// from the default externs: the property names of their code, and the field
+// names of the record types in their JSDoc type expressions. Type names
+// (template types such as V) and the words of the prose comments are left
+// out, since renaming produces such short names too.
 func printExternNames() {
 	seen := map[string]bool{}
 	for _, f := range cli.CommandLineRunner_GetDefaultExterns() {
@@ -137,8 +138,8 @@ func printExternNames() {
 			if i > len(code) {
 				i = len(code)
 			}
-			for _, w := range identRE.FindAllString(code[loc[1]:i], -1) {
-				seen[w] = true
+			for _, m := range recordKeyRE.FindAllStringSubmatch(code[loc[1]:i], -1) {
+				seen[m[1]] = true
 			}
 		}
 	}

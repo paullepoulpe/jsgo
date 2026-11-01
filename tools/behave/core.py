@@ -235,10 +235,14 @@ def identifiers(text):
 
 def normaliser(build_text, source_ids):
     """A function that replaces, in a string, every identifier the build has
-    and the sources do not (a name the compiler made up) by a placeholder
+    and the sources do not (a name the compiler made up), and every one of up
+    to two characters, by a placeholder
     numbered in order of first appearance. One normaliser is used for all the
     fields of a behaviour, so that the numbering is shared."""
-    renamed = identifiers(build_text) - source_ids - ENGLISH
+    ids = identifiers(build_text)
+    # Names of one or two characters in a build are the compiler's almost
+    # always, even when a source happens to use them too.
+    renamed = (ids - source_ids - ENGLISH) | {w for w in ids if len(w) <= 2 and w not in ENGLISH}
     table = {}
 
     def norm(s):

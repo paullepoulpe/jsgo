@@ -643,6 +643,12 @@ def cmd_faults(args):
     with open(os.path.join(args.baseline, "run.json")) as f:
         bmeta = json.load(f)
     configs = bmeta["configs"]
+    if args.configs:
+        configs = [c for c in args.configs.split(",") if c in configs]
+    if args.suites:
+        keep = set(args.suites.split(","))
+        base = {k: v for k, v in base.items() if k[0] in keep}
+    base = {k: v for k, v in base.items() if k[2] in configs}
     faults = args.faults.split(",")
     check_fault_binary(args.jsgo, faults)
     summary = {"baseline": args.baseline, "jsgo": os.path.abspath(args.jsgo), "faults": {}}
@@ -1379,6 +1385,8 @@ def main():
     p.add_argument("--out", required=True)
     p.add_argument("--faults", default=",".join(FAULTS))
     p.add_argument("--fast-flags", default="", help="extra compiler flags for the faulted fast builds")
+    p.add_argument("--suites", default="", help="only these suites of the baseline (default: all)")
+    p.add_argument("--configs", default="", help="only these configurations of the baseline (default: all)")
     p.add_argument("--keep-diffs", action="store_true")
     p.add_argument("--resume", action="store_true")
     p.set_defaults(fn=cmd_faults)
