@@ -80,6 +80,9 @@ PIN_KEYS = {"test262": "test262", "closure": "closure", "closure-lib": "closure_
 EXPECT_DIR = os.path.join(core.HERE, "expect")
 FAULTS = ("inline-args", "drop-unused-init", "swap-args", "fold-negzero", "hook-negation", "collapse-unsafe",
           "inline-vars")
+# Benign variants (seeded_faults.go): output changes that keep behaviour. The oracle must never fail
+# them; `faults --faults benign-rename,benign-no-inline` measures its false alarms.
+BENIGN = ("benign-rename", "benign-no-inline")
 
 
 def log(msg):
@@ -667,23 +670,34 @@ def cmd_faults(args):
 
 
 def fault_summary(lines, wall):
-    s = {"wall": wall, "builds": 0, "triggered": 0, "signal_builds": 0, "caught": 0, "weak": 0,
-         "caught_cases": 0, "signal_cases": 0, "by_suite": {}, "examples": []}
+    s = {"wall": wall, "builds": 0, "triggered": 0, "signal_builds": 0, "changed_signal": 0, "caught": 0, "weak": 0,
+         "caught_cases": 0, "signal_cases": 0, "by_suite": {}, "examples": [], "rule": {}, "rule_changes": {}}
     caught_cases, signal_cases = set(), set()
     for ln in lines:
         if "harness_error" in ln:
             continue
         key = (ln["suite"], ln["id"])
-        bs = s["by_suite"].setdefault(ln["suite"], {"builds": 0, "triggered": 0, "signal_builds": 0, "caught": 0})
+        bs = s["by_suite"].setdefault(ln["suite"], {"builds": 0, "triggered": 0, "signal_builds": 0,
+                                                    "changed_signal": 0, "caught": 0, "rule": {}})
         s["builds"] += 1
         bs["builds"] += 1
-        if ln["compat_pass"]:
+        sig = ln.get("compat_signal", ln["compat_pass"])
+        if sig:
             s["signal_builds"] += 1
             bs["signal_builds"] += 1
             signal_cases.add(key)
         if ln["triggered"]:
             s["triggered"] += 1
             bs["triggered"] += 1
+            if sig:
+                s["changed_signal"] += 1
+                bs["changed_signal"] += 1
+            r = ln.get("rule") or {}
+            v = r.get("verdict", "?")
+            s["rule"][v] = s["rule"].get(v, 0) + 1
+            bs["rule"][v] = bs["rule"].get(v, 0) + 1
+            for k in ("vouched", "blind", "fail"):
+                s["rule_changes"][k] = s["rule_changes"].get(k, 0) + r.get(k, 0)
         if ln["cmp"] in core.SIGNAL_DIFFS:
             s["caught"] += 1
             bs["caught"] += 1
@@ -699,21 +713,34 @@ def fault_summary(lines, wall):
 
 def write_faults_md(out, summary):
     rows = []
+    rule_rows = []
     caught = 0
+    nfaults = 0
     for fault, s in summary["faults"].items():
-        if s["caught"]:
-            caught += 1
-        pct = 100.0 * s["caught"] / s["signal_builds"] if s["signal_builds"] else 0
-        cpct = 100.0 * s["caught_cases"] / s["signal_cases"] if s["signal_cases"] else 0
-        rows.append(f"| {fault} | {s['triggered']} | {s['caught']} | {pct:.2f}% | {s['caught_cases']} | {cpct:.2f}% "
-                    f"| {s['weak']} | {'yes' if s['caught'] else 'no'} | {s['wall'] / 60:.1f} |")
-    n = len(summary["faults"])
-    md = [f"# Seeded faults: {caught} of {n} caught (mutation score {100.0 * caught / n if n else 0:.0f}%)", "",
+        benign = fault in BENIGN
+        if not benign:
+            nfaults += 1
+            if s["caught"]:
+                caught += 1
+        cs = s.get("changed_signal", s["signal_builds"])
+        pct = 100.0 * s["caught"] / cs if cs else 0
+        rows.append(f"| {fault}{' (benign)' if benign else ''} | {s['builds']} | {s['triggered']} | {cs} | {s['caught']} "
+                    f"| {pct:.1f}% | {s['caught_cases']} | {s['weak']} | {s['wall'] / 60:.1f} |")
+        r, rc = s.get("rule", {}), s.get("rule_changes", {})
+        rule_rows.append(f"| {fault}{' (benign)' if benign else ''} | {s['triggered']} | {r.get('isomorphic', 0)} "
+                         f"| {r.get('vouched', 0)} | {r.get('blind', 0)} | {r.get('fail', 0)} "
+                         f"| {rc.get('vouched', 0)} / {rc.get('blind', 0)} / {rc.get('fail', 0)} |")
+    md = [f"# Seeded faults: {caught} of {nfaults} caught", "",
           f"Baseline: `{summary['baseline']}`", "",
-          "triggered: builds whose output the fault changed; caught: signal builds (compat passes) whose "
-          "behaviour differs; % of the signal builds; cases: tests caught in at least one configuration.", "",
-          "| fault | triggered | caught builds | % signal builds | caught tests | % signal tests | weak | caught | min |",
-          "|---|---:|---:|---:|---:|---:|---:|---|---:|"] + rows + [""]
+          "changed: builds whose output the fault changed; changed, signal: of those, builds whose compat build "
+          "checks something (passes, or passes some of its tests); caught: builds that behave differently on "
+          "something checked (a regression or behaviour difference); tests: cases caught in some configuration.", "",
+          "| fault | builds | changed | changed, signal | caught | caught / changed signal | caught tests | weak | min |",
+          "|---|---:|---:|---:|---:|---:|---:|---:|---:|"] + rows + [""]
+    md += ["Coverage rule on the changed builds (a fault the rule does not fail should be blind, never vouched "
+           "where it changes behaviour; a benign variant should never fail):", "",
+           "| fault | changed | isomorphic | vouched | blind | fail | changes vouched / blind / fail |",
+           "|---|---:|---:|---:|---:|---:|---|"] + rule_rows + [""]
     for fault, s in summary["faults"].items():
         if s["examples"]:
             md.append(f"## {fault}")
@@ -721,7 +748,7 @@ def write_faults_md(out, summary):
             md.append("")
     with open(os.path.join(out, "faults.md"), "w") as f:
         f.write("\n".join(md))
-    print("\n".join(md[:len(rows) + 8]))
+    print("\n".join(md[:len(rows) * 2 + 16]))
 
 
 # ---------------------------------------------------------------------------------------------
@@ -1197,6 +1224,27 @@ def cmd_probe(args):
     return 0
 
 
+def cmd_subset(args):
+    """Redraws test262's per-change subset from the pinned sample (same
+    stratification as `sample`, seed + 1), without a new probe."""
+    root = suite_root(args.cache, "test262")
+    sample = []
+    for rel in t262.read_list(t262.SAMPLE):
+        with open(os.path.join(root, "test", rel), encoding="utf-8", errors="surrogateescape") as f:
+            sample.append(t262.Test(rel, t262.parse_front_matter(f.read())))
+    per_change = t262.stratified_sample(sample, args.per_change, args.seed + 1, lambda t: t.stratum(),
+                                        lambda t: t.rel, floor=args.floor)
+    pins = core.read_pins()
+    with open(t262.PER_CHANGE, "w") as f:
+        f.write(f"# test262 {pins['test262']['commit']}, stratified by the first three path components under test/ "
+                f"(seed {args.seed + 1}, at least {args.floor} per stratum); generated by tools/behave/behave.py "
+                f"subset. {len(per_change)} tests.\n# The per-change subset: a stratified sample of sample.txt.\n")
+        f.writelines(t.rel + "\n" for t in per_change)
+    log(f"per-change subset: {len(per_change)} of {len(sample)} sampled tests, "
+        f"{len({t.stratum() for t in per_change})} strata")
+    return 0
+
+
 def cmd_sample(args):
     probe = os.path.abspath(args.probe)
     root = suite_root(args.cache, "test262")
@@ -1356,6 +1404,13 @@ def main():
     p.add_argument("--out", required=True)
     p.add_argument("--per-feature", type=int, default=12)
     p.set_defaults(fn=cmd_probe)
+
+    p = sub.add_parser("subset", help="test262: redraw the per-change subset from the pinned sample")
+    p.add_argument("--cache", default=None)
+    p.add_argument("--per-change", type=int, default=600)
+    p.add_argument("--floor", type=int, default=1)
+    p.add_argument("--seed", type=int, default=20261101)
+    p.set_defaults(fn=cmd_subset)
 
     p = sub.add_parser("sample", help="test262: exclusions, sample and per-change subset from a probe")
     p.add_argument("--probe", required=True)

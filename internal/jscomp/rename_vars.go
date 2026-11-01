@@ -604,6 +604,10 @@ func (r *RenameVars) assignNamesSlice(varsToRename []*RenameVars_Assignment) {
 	var pendingAssignments []*RenameVars_Assignment
 	var generatedNamesForAssignments []string
 
+	if fastFault(r.compiler.GetOptions(), faultBenignRename) {
+		r.reservedNames[globalNameGenerator.GenerateNextName()] = struct{}{}
+	}
+
 	for _, a := range varsToRename {
 		if a.hasNewName {
 			continue
