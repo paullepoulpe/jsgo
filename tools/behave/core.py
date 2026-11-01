@@ -319,15 +319,18 @@ TOKEN_RE = re.compile(r"[A-Za-z_$][\w$]*|\d[\w.]*|\"(?:[^\"\\]|\\.)*\"|'(?:[^'\\
 
 def changed_ranges(base_text, text, source_ids):
     """The ranges of `text` (offsets into it) that differ from base_text once
-    the identifiers the sources do not have (renamed ones) are replaced by one
-    placeholder: [(start, end)]. The builds are compared statement by
+    the identifiers that renaming may have made (those the sources do not
+    have, and all of up to three characters) are replaced by one placeholder:
+    [(start, end)]. The builds are compared statement by
     statement (cut after `;`, `{`, `}`), then token by token inside each
     changed run of statements, so that a range covers the changed tokens only.
     A deletion is the empty range where it happened."""
     import difflib
 
     def norm_ident(w):
-        return w if w in source_ids else "\u03b9"
+        # Renaming makes names of up to three characters (a, Gb, $jb, ...),
+        # which sources use too (i, x, len): those are placeholders as well.
+        return w if w in source_ids and len(w) > 3 else "\u03b9"
 
     def norm(t, segs):
         return [IDENT_RE.sub(lambda m: norm_ident(m.group(0)), t[a:b]) for a, b in segs]
