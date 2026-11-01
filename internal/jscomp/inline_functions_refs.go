@@ -90,6 +90,11 @@ type inlineCallVisitor struct {
 	anonFns    map[rhino.Node]*InlineFunctions_FunctionState
 	onCallSite func(t *NodeTraversal, callNode rhino.Node, fs *InlineFunctions_FunctionState)
 	onName     func(n, parent rhino.Node)
+
+	// inlineWalk's call being visited and its script (NodeTraversal's
+	// currentNode and currentScript), for inlineFunctions_throwWalkException.
+	current       rhino.Node
+	currentScript rhino.Node
 }
 
 var (
@@ -109,8 +114,23 @@ func (v *inlineCallVisitor) visitTokens() *ast.TokenSet {
 	return &inlineCallOnlyVisitTokens
 }
 
+// inlineWalkRoot is the NodeTraversal.traverse(compiler, root, new
+// CallVisitor(...)) of InlineFunctions.process: inlineWalk, with what a visit
+// throws rethrown as NodeTraversal does.
+func (v *inlineCallVisitor) inlineWalkRoot(compiler AbstractCompiler, root rhino.Node) {
+	defer func() {
+		if r := recover(); r != nil {
+			inlineFunctions_throwWalkException(compiler, r, v.current, v.currentScript)
+		}
+	}()
+	v.inlineWalk(root, rhino.NilNode)
+}
+
 func (v *inlineCallVisitor) inlineWalk(n rhino.Node, parent rhino.Node) {
-	if n.GetToken() == rhino.Token_CLASS_MEMBERS {
+	switch n.GetToken() {
+	case rhino.Token_SCRIPT:
+		v.currentScript = n
+	case rhino.Token_CLASS_MEMBERS:
 		body := ast.MustClassBody(n)
 		for m := range ast.ReadAhead(body.FirstMember()) {
 			switch m.Token() {
@@ -145,6 +165,7 @@ func (v *inlineCallVisitor) inlineWalk(n rhino.Node, parent rhino.Node) {
 	}
 	switch n.GetToken() {
 	case rhino.Token_OPTCHAIN_CALL, rhino.Token_CALL:
+		v.current = n
 		v.visitCallNode(nil, n)
 	}
 }

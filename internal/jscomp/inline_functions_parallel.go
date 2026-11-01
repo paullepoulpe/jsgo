@@ -30,15 +30,23 @@ type ifPhase1Worker struct {
 	outer   *InlineFunctions
 	scratch inlineCandidateScratch
 	cands   []inlineCandidateAnalysis
+	current rhino.Node // as InlineFunctions_FindCandidateFunctions.current
 }
 
 func (w *ifPhase1Worker) walk(n rhino.Node, parent rhino.Node, chunk *JSChunk, inLocalHoist bool) {
+	defer func() {
+		if r := recover(); r != nil {
+			inlineFunctions_throwWalkException(w.outer.compiler, r, w.current, NodeUtil_GetEnclosingScript(w.current))
+		}
+	}()
 	inlineFunctions_walkCandidates(w.outer.compiler, n, parent, chunk, inLocalHoist, w.visitWalkNode)
 }
 
 func (w *ifPhase1Worker) visitWalkNode(n, parent rhino.Node, chunk *JSChunk, inLocalHoist bool) {
+	w.current = n
 	if target, ok := inlineFunctions_matchCandidateNode(w.outer.reach, n, parent, inLocalHoist); ok {
 		w.cands = append(w.cands, w.scratch.analyzeCandidate(w.outer, target, chunk, false, true))
+		w.cands[len(w.cands)-1].visited = n
 	}
 }
 
@@ -72,9 +80,25 @@ func (f *InlineFunctions) findCandidateFunctionsParallel(root rhino.Node) bool {
 		nil,
 	)
 
-	for idx := range scripts {
-		for i := range candsByScript[idx] {
-			cand := &candsByScript[idx][i]
+	f.applyParallelCandidates(candsByScript)
+	return true
+}
+
+// applyParallelCandidates is the rest of Java's maybeAddFunction for the
+// candidates of findCandidateFunctionsParallel, in script order.
+func (f *InlineFunctions) applyParallelCandidates(candsByScript [][]inlineCandidateAnalysis) {
+	// Java runs it in the visit that found the candidate: what it throws is
+	// rethrown as the walk rethrows it.
+	var visited rhino.Node
+	defer func() {
+		if r := recover(); r != nil {
+			inlineFunctions_throwWalkException(f.compiler, r, visited, NodeUtil_GetEnclosingScript(visited))
+		}
+	}()
+	for _, cands := range candsByScript {
+		for i := range cands {
+			cand := &cands[i]
+			visited = cand.visited
 			var fs *InlineFunctions_FunctionState
 			if cand.target.kind == fnKindExpr {
 				fs = f.allocAnonFunctionState(cand.target.fnNode)
@@ -85,7 +109,6 @@ func (f *InlineFunctions) findCandidateFunctionsParallel(root rhino.Node) bool {
 			jutil.CheckState(!(InlineFunctions_HasRequireInliningAnnotation(cand.target.fnNode) && !fs.CanInline()))
 		}
 	}
-	return true
 }
 
 func (f *InlineFunctions) findCandidatesReferencesParallel(root rhino.Node) bool {

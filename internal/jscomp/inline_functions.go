@@ -284,7 +284,7 @@ func (f *InlineFunctions) Process(externs rhino.Node, root rhino.Node) {
 			anonFns:    f.anonFns,
 			onCallSite: f.inlineCallSite,
 		}
-		callVisitor.inlineWalk(root, rhino.NilNode)
+		callVisitor.inlineWalkRoot(f.compiler, root)
 	}
 
 	f.RemoveInlinedFunctions()
@@ -402,6 +402,17 @@ func inlineFunctions_walkCandidates(
 	visit(n, parent, chunk, inLocalHoist)
 }
 
+// inlineFunctions_throwWalkException rethrows r, thrown while one of the
+// walks that stand for the NodeTraversals of InlineFunctions.process
+// (FindCandidateFunctions, CallVisitor) visited n in script, the way
+// NodeTraversal.traverse rethrows what its callback throws:
+// throwUnexpectedException wraps it in an INTERNAL COMPILER ERROR that names
+// n and its parent.
+func inlineFunctions_throwWalkException(compiler AbstractCompiler, r any, n, script rhino.Node) {
+	t := NodeTraversal{compiler: compiler, currentNode: n, currentScript: script}
+	t.ThrowUnexpectedException(jutil.AsThrowable(r))
+}
+
 func inlineFunctions_matchCandidateNode(reach CompilerOptions_Reach, n, parent rhino.Node, inLocalHoist bool) (inlineFnTarget, bool) {
 	if !reach.IncludesGlobals() && !inLocalHoist {
 		return inlineFnTarget{}, false
@@ -455,21 +466,33 @@ func inlineFunctions_matchCandidateNode(reach CompilerOptions_Reach, n, parent r
 // inlined.
 type InlineFunctions_FindCandidateFunctions struct {
 	outer *InlineFunctions
+	// current is the node being visited (NodeTraversal.currentNode), for
+	// inlineFunctions_throwWalkException.
+	current rhino.Node
 }
 
 func (c *InlineFunctions_FindCandidateFunctions) walk(n rhino.Node, parent rhino.Node, chunk *JSChunk, inLocalHoist bool) {
+	defer func() {
+		if r := recover(); r != nil {
+			inlineFunctions_throwWalkException(c.outer.compiler, r, c.current, NodeUtil_GetEnclosingScript(c.current))
+		}
+	}()
 	inlineFunctions_walkCandidates(c.outer.compiler, n, parent, chunk, inLocalHoist, c.visitWalkNode)
 }
 
 func (c *InlineFunctions_FindCandidateFunctions) visitWalkNode(n, parent rhino.Node, chunk *JSChunk, inLocalHoist bool) {
+	c.current = n
 	if target, ok := inlineFunctions_matchCandidateNode(c.outer.reach, n, parent, inLocalHoist); ok {
 		c.outer.MaybeAddFunction(target, chunk)
 	}
 }
 
 type inlineCandidateAnalysis struct {
-	target              inlineFnTarget
-	chunk               *JSChunk
+	target inlineFnTarget
+	chunk  *JSChunk
+	// visited is the node whose visit found the candidate, for
+	// inlineFunctions_throwWalkException (set by the parallel walk only).
+	visited             rhino.Node
 	summary             calleeSummary
 	disallowReasons     [5]InlineFunctions_DisallowInliningReason
 	bodyAstSize         int32
