@@ -27,5 +27,34 @@
   "note": "from the corpus (tools/oracle/corpus.sh), for goog.testing",
   "sha256": "fd642a713145a069da46da14af2abc23679447350c563b01f0a176a83033d711",
   "files": 950
+ },
+ "closure_library_tests": {
+  "dir": "behave/closure-library",
+  "repo": "https://github.com/google/closure-library",
+  "tag": "v20230802",
+  "commit": "ccf3f1dcd7258ff413406daa45bad79277d40afd",
+  "sparse": "closure/goog",
+  "digest_paths": [
+   "closure/goog"
+  ],
+  "licence": "Apache-2.0",
+  "note": "the corpus version's tag; npm leaves the *_test.js files out. Its sources equal the corpus package's",
+  "sha256": "faa5272ff43b2f7356d79434df39b8b2a1a5fcfb37db5411f8099a1ccaa91a6a",
+  "files": 2305
+ },
+ "lodash": {
+  "dir": "behave/lodash",
+  "repo": "https://github.com/lodash/lodash",
+  "tag": "4.17.21",
+  "commit": "f299b52f39486275a9e6483b60a410e06520c538",
+  "digest_paths": [
+   "lodash.js",
+   "test/test.js",
+   "LICENSE"
+  ],
+  "licence": "MIT",
+  "note": "the corpus version's tag; npm leaves test/ out",
+  "sha256": "e0f90f6a40d4c591dda9350d5f7e4e4ec75819f183905bd9a69bad8165426c33",
+  "files": 3
  }
 }

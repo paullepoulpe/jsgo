@@ -53,6 +53,9 @@ ENV_DROP = ("GOGC", "GOMEMLIMIT", "GOMAXPROCS", "GODEBUG", "JSGO_FAST_MODE", "JS
             "NODE_OPTIONS", "NODE_V8_COVERAGE")
 JAVA_ENV_DROP = ("JAVA_TOOL_OPTIONS", "_JAVA_OPTIONS", "JDK_JAVA_OPTIONS")
 
+# Process warnings (a deprecated Buffer() call, ...) carry the process id: not printed.
+NODE_FLAGS = ["--no-warnings"]
+
 COMPILE_TIMEOUT = 300
 RUN_TIMEOUT = 30
 OUTPUT_LIMIT = 16 * 1024
@@ -191,7 +194,7 @@ def run_program(node, program, case, work_prefix, coverage_dir=None):
     result = work_prefix + ".rec.json"
     if os.path.exists(result):
         os.remove(result)
-    argv = [node, RUNNER] + case.run_opts + ["--result", result, program]
+    argv = [node] + NODE_FLAGS + [RUNNER] + case.run_opts + ["--result", result, program]
     t0 = time.monotonic()
     timeout = False
     try:
@@ -366,7 +369,7 @@ def run_key(case, node_version):
     """The cache key of a run, given its program: the engine, the runner and
     the runner's options (with the content of a --pre script)."""
     h = hashlib.sha256()
-    h.update(json.dumps([node_version, sha256_file(RUNNER), case.run_opts]).encode())
+    h.update(json.dumps([node_version, NODE_FLAGS, sha256_file(RUNNER), case.run_opts]).encode())
     for i, o in enumerate(case.run_opts):
         if o == "--pre" and i + 1 < len(case.run_opts):
             h.update(sha256_file(case.run_opts[i + 1]).encode())

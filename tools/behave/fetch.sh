@@ -6,6 +6,9 @@
 #   .cache/behave/test262          test262 (BSD), shallow, at the pinned commit
 #   .cache/behave/closure-compiler Closure Compiler (Apache 2.0) at the pinned tag,
 #                                  sparse: only runtime_tests/
+#   .cache/behave/closure-library  Closure Library (Apache 2.0) at the corpus version's tag,
+#                                  sparse: only closure/goog (its unit tests)
+#   .cache/behave/lodash          lodash (MIT) at the corpus version's tag, with its tests
 #   .cache/corpus/google-closure-library@<version>
 #                                  Closure Library (Apache 2.0) from the corpus
 #                                  (tools/oracle/corpus.sh), for goog.testing
@@ -39,6 +42,9 @@ fetch_commit() {
 
 fetch_commit "$CACHE/$(pin test262 dir)" "$(pin test262 repo)" "$(pin test262 commit)"
 fetch_commit "$CACHE/$(pin closure dir)" "$(pin closure repo)" "$(pin closure commit)" "$(pin closure path)"
+fetch_commit "$CACHE/$(pin closure_library_tests dir)" "$(pin closure_library_tests repo)" \
+  "$(pin closure_library_tests commit)" "$(pin closure_library_tests sparse)"
+fetch_commit "$CACHE/$(pin lodash dir)" "$(pin lodash repo)" "$(pin lodash commit)"
 if [[ ! -d "$CACHE/$(pin closure_library dir)" ]]; then
   bash tools/oracle/corpus.sh tools/oracle/corpus.txt "$CACHE/corpus"
 fi

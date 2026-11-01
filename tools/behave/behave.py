@@ -71,8 +71,11 @@ import core  # noqa: E402
 import rule  # noqa: E402
 import t262  # noqa: E402
 import closure_rt  # noqa: E402
+import closure_lib  # noqa: E402
+import libs  # noqa: E402
 
-SUITES = ("test262", "closure")
+SUITES = ("test262", "closure", "closure-lib", "lodash")
+PIN_KEYS = {"test262": "test262", "closure": "closure", "closure-lib": "closure_library_tests"}
 EXPECT_DIR = os.path.join(core.HERE, "expect")
 FAULTS = ("inline-args", "drop-unused-init", "swap-args", "fold-negzero", "hook-negation", "collapse-unsafe",
           "inline-vars")
@@ -84,13 +87,17 @@ def log(msg):
 
 def suite_root(cache, suite):
     pins = core.read_pins()
-    return os.path.join(cache, pins[suite]["dir"])
+    return os.path.join(cache, pins[PIN_KEYS.get(suite, suite)]["dir"])
 
 
 def load_cases(args, suite):
     root = suite_root(args.cache, suite)
     if suite == "test262":
         cs = t262.cases(root, args.subset)
+    elif suite == "closure-lib":
+        cs = closure_lib.cases(root, args.cache, args.subset)
+    elif suite == "lodash":
+        cs = libs.lodash_cases(root, args.cache)
     else:
         cs = closure_rt.cases(root, args.cache)
     if args.filter:
@@ -1051,17 +1058,22 @@ def suite_files(cache, name):
             files += [os.path.relpath(os.path.join(dirpath, f), root) for f in filenames if f.endswith(".js")]
         files += ["test/" + rel for rel in t262.read_list(t262.SAMPLE)]
         return root, files
-    sub = {"closure": pins["closure"]["path"], "closure_library": "closure/goog"}[name]
+    subs = {"closure": [pins["closure"].get("path")], "closure_library": ["closure/goog"]}.get(
+        name, pins[name].get("digest_paths"))
     files = []
-    for dirpath, dirnames, filenames in os.walk(os.path.join(root, sub)):
-        files += [os.path.relpath(os.path.join(dirpath, f), root) for f in filenames]
+    for sub in subs:
+        if os.path.isfile(os.path.join(root, sub)):
+            files.append(sub)
+            continue
+        for dirpath, dirnames, filenames in os.walk(os.path.join(root, sub)):
+            files += [os.path.relpath(os.path.join(dirpath, f), root) for f in filenames]
     return root, files
 
 
 def cmd_verify(args):
     pins = core.read_pins()
     bad = 0
-    for name in ("test262", "closure", "closure_library"):
+    for name in [k for k, v in pins.items() if isinstance(v, dict) and "dir" in v]:
         root, files = suite_files(args.cache, name)
         if not os.path.isdir(root):
             print(f"{name}: {root} is missing (run tools/behave/fetch.sh)")
