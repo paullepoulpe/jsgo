@@ -138,15 +138,16 @@ class Case:
     def runs_in(self, configs):
         return [c for c in configs if self.configs is None or c in self.configs]
 
-    def compile_argv(self, compiler, config, mode, out_js):
+    def compile_argv(self, compiler, config, mode, out_js, extra=()):
         """The compiler command line. compiler is the jsgo binary, or a list
-        (the Java command) for the Java check; Java gets no --fast_mode."""
+        (the Java command) for the Java check; Java gets no --fast_mode.
+        extra: flags added after the case's (the fast build's --fast-flags)."""
         argv = list(compiler) if isinstance(compiler, (list, tuple)) else [compiler]
         if mode == "fast":
             argv.append("--fast_mode")
         if mode in ("compat", "fast"):
             argv += ["--num_parallel_threads", "1"]
-        argv += CONFIGS[config] + self.flags
+        argv += CONFIGS[config] + self.flags + list(extra)
         for inp in self.inputs:
             argv += ["--js", inp]
         argv += ["--js_output_file", out_js]
@@ -162,10 +163,10 @@ def _clip(s):
     return s
 
 
-def compile_case(jsgo, case, config, mode, out_js, fault=None):
+def compile_case(jsgo, case, config, mode, out_js, fault=None, flags=()):
     """Compiles case with jsgo. Returns {exit, errors, crash, secs, stderr}."""
     extra = {"JSGO_FAST_FAULT": fault} if fault else None
-    argv = case.compile_argv(jsgo, config, mode, out_js)
+    argv = case.compile_argv(jsgo, config, mode, out_js, flags)
     t0 = time.monotonic()
     try:
         p = subprocess.run(argv, cwd=case.root, env=clean_env(extra=extra), capture_output=True,
@@ -286,8 +287,26 @@ def behaviour(o, norm=None):
             rec.get("timers"), n(json.dumps(suite, sort_keys=True)) if suite is not None else None]
 
 
+def suite_tests(o):
+    """The per-test results of an outcome ({name: [failure messages]}), for
+    suites whose runner reports them (goog.testing, the QUnit and mocha
+    shims), or None."""
+    run = o.get("run") if o else None
+    rec = run.get("rec") if run else None
+    s = rec.get("suite") if rec else None
+    return s.get("tests") if s else None
+
+
+def passing_tests(o):
+    t = suite_tests(o)
+    return sum(1 for v in t.values() if not v) if t else 0
+
+
 def compare(compat, fast, compat_text="", fast_text="", source_ids=frozenset()):
-    """Compares two outcomes (see the module comment)."""
+    """Compares two outcomes (see the module comment). For a suite with
+    per-test results, a test that passes on the compat build and not on the
+    fast build is a regression even when the compat build as a whole fails:
+    each test carries its own signal."""
     if behaviour(compat) == behaviour(fast):
         return "same"
     if behaviour(compat, normaliser(compat_text, source_ids)) == behaviour(fast, normaliser(fast_text, source_ids)):
@@ -296,6 +315,11 @@ def compare(compat, fast, compat_text="", fast_text="", source_ids=frozenset()):
         return "regression"
     if compat["pass"]:
         return "behaviour"
+    ct = suite_tests(compat)
+    if ct:
+        ft = suite_tests(fast) or {}
+        if any(not v and ft.get(k) != [] for k, v in ct.items()):
+            return "regression"
     if fast["pass"]:
         return "fast-only-pass"
     return "weak"
@@ -313,6 +337,91 @@ def write_gz(path, data):
 def read_gz(path):
     with gzip.open(path, "rb") as f:
         return f.read()
+
+
+# ---------------------------------------------------------------------------------------------
+# The compat cache. Compat output is Java's (the parity suites check jsgo against it separately),
+# so a compat build depends only on its inputs, its flags and the pinned Closure release, not on
+# the jsgo under test: a change compiles and runs only its fast builds. The key leaves the jsgo
+# binary out on purpose; `run --compat-cache none` rebuilds everything (and the nightly full run
+# should, to notice a stale cache). Bump CACHE_RECIPE when the way compat builds are made changes.
+
+CACHE_RECIPE = 1
+
+
+def compat_key(case, config, release):
+    """The cache key of a compat build: the pinned release, the configuration,
+    the flags and inputs, and the content of every input and of every flag
+    value that names a file."""
+    h = hashlib.sha256()
+    h.update(json.dumps([CACHE_RECIPE, release, CONFIGS[config], case.flags, case.inputs]).encode())
+    files = list(case.inputs) + [f for f in case.flags if not f.startswith("-") and
+                                 os.path.isfile(os.path.join(case.root, f))]
+    for rel in files:
+        h.update(f"{rel}\0{sha256_file(os.path.join(case.root, rel))}\n".encode())
+    return h.hexdigest()
+
+
+def run_key(case, node_version):
+    """The cache key of a run, given its program: the engine, the runner and
+    the runner's options (with the content of a --pre script)."""
+    h = hashlib.sha256()
+    h.update(json.dumps([node_version, sha256_file(RUNNER), case.run_opts]).encode())
+    for i, o in enumerate(case.run_opts):
+        if o == "--pre" and i + 1 < len(case.run_opts):
+            h.update(sha256_file(case.run_opts[i + 1]).encode())
+    return h.hexdigest()[:32]
+
+
+class CompatCache:
+    """compat builds (gzipped), their compile results and their runs, keyed as
+    above, under one directory; safe for the threads of one process."""
+
+    def __init__(self, root):
+        self.root = root
+        self.locks = {}
+        self.guard = __import__("threading").Lock()
+        self.hits = self.misses = self.run_hits = 0
+
+    def _lock(self, key):
+        with self.guard:
+            return self.locks.setdefault(key, __import__("threading").Lock())
+
+    def _paths(self, key):
+        d = os.path.join(self.root, key[:2])
+        return os.path.join(d, key + ".json"), os.path.join(d, key + ".js.gz")
+
+    def get(self, key):
+        """(compile result, compat text or None, {run key: run}) or None."""
+        meta_p, js_p = self._paths(key)
+        with self._lock(key):
+            try:
+                with open(meta_p) as f:
+                    meta = json.load(f)
+                text = read_gz(js_p).decode("utf-8", "surrogateescape") if meta["compile"]["ok"] else None
+            except (OSError, ValueError, EOFError):
+                return None
+        return meta["compile"], text, meta.get("runs", {})
+
+    def put(self, key, comp, text, runs, producer):
+        meta_p, js_p = self._paths(key)
+        with self._lock(key):
+            os.makedirs(os.path.dirname(meta_p), exist_ok=True)
+            old = {}
+            try:
+                with open(meta_p) as f:
+                    old = json.load(f).get("runs", {})
+            except (OSError, ValueError):
+                pass
+            old.update(runs)
+            if text is not None:
+                tmp = js_p + f".tmp{os.getpid()}"
+                write_gz(tmp, text.encode("utf-8", "surrogateescape"))
+                os.replace(tmp, js_p)
+            tmp = meta_p + f".tmp{os.getpid()}"
+            with open(tmp, "w") as f:
+                json.dump({"compile": comp, "runs": old, "producer": producer}, f, sort_keys=True)
+            os.replace(tmp, meta_p)
 
 
 # ---------------------------------------------------------------------------------------------

@@ -54,8 +54,10 @@ import argparse
 import collections
 import concurrent.futures
 import datetime
+import hashlib
 import json
 import os
+import shlex
 import shutil
 import subprocess
 import sys
@@ -66,6 +68,7 @@ import traceback
 sys.dont_write_bytecode = True
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import core  # noqa: E402
+import rule  # noqa: E402
 import t262  # noqa: E402
 import closure_rt  # noqa: E402
 
@@ -114,6 +117,14 @@ class Ctx:
         self.results = open(os.path.join(out, "results.jsonl"), "a")
         self.done = 0
         self.t0 = time.monotonic()
+        self.fast_flags = shlex.split(getattr(args, "fast_flags", "") or "")
+        cc = getattr(args, "compat_cache", "none")
+        self.cache = core.CompatCache(cc) if cc and cc != "none" else None
+        self.release = core.read_pins()["closure_version"]
+        self.node_version = subprocess.run([args.node, "--version"], capture_output=True, text=True).stdout.strip()
+        self.jsgo_sha = core.sha256_file(args.jsgo)[:16]
+        self.astdiff = rule.astdiff_binary(args.cache)
+        self.extern_names = rule.extern_names(self.astdiff, args.cache)
 
     def emit(self, lines):
         with self.lock:
@@ -155,6 +166,83 @@ def save_diff(ctx, case, config, cmp, co, fo, compat_js, fast_js, fault=None):
     return os.path.relpath(d, ctx.out)
 
 
+def compat_build(ctx, case, config, cjs):
+    """Compiles (or takes from the compat cache) the compat build of case into
+    cjs. Returns (compile result, text, cached runs, cache key)."""
+    a = ctx.args
+    key = core.compat_key(case, config, ctx.release) if ctx.cache else None
+    if key:
+        hit = ctx.cache.get(key)
+        if hit is not None:
+            comp, text, runs = hit
+            if comp["ok"]:
+                with open(cjs, "w", encoding="utf-8", errors="surrogateescape") as f:
+                    f.write(text)
+            with ctx.lock:
+                ctx.cache.hits += 1
+            return comp, text or "", runs, key
+        with ctx.lock:
+            ctx.cache.misses += 1
+    cc = core.compile_case(a.jsgo, case, config, "compat", cjs)
+    text = read_text(cjs) if cc["ok"] else ""
+    if key:
+        ctx.cache.put(key, cc, text if cc["ok"] else None, {}, ctx.jsgo_sha)
+    return cc, text, {}, key
+
+
+def run_cached(ctx, case, prog, key, runs, coverage_dir=None):
+    """Runs prog (a compat build or the uncompiled program), or takes its run
+    from the cache when no coverage is asked for."""
+    rk = core.run_key(case, ctx.node_version)
+    if coverage_dir is None and rk in runs:
+        with ctx.lock:
+            ctx.cache.run_hits += 1
+        return runs[rk]
+    r = core.run_program(ctx.args.node, prog, case, prog[:-3], coverage_dir=coverage_dir)
+    if key and ctx.cache and not r["timeout"]:
+        _cache_run(ctx, key, rk, r)
+    return r
+
+
+def _cache_run(ctx, key, rk, r):
+    hit = ctx.cache.get(key)
+    if hit is not None:
+        ctx.cache.put(key, hit[0], None, {rk: r}, ctx.jsgo_sha)
+
+
+def coverage_of(cov_dir):
+    return rule.Coverage(core.coverage_ranges(cov_dir)) if cov_dir and os.path.isdir(cov_dir) else None
+
+
+def apply_rule(ctx, case, config, work, co, ctext, cjs, cfile_ok, fo, ftext, fjs, cmp, diff, fast_cov,
+               compat_cov_dir):
+    """The coverage rule for one differing build. compat_cov_dir: where the
+    compat build ran under coverage, or None to run it now if a deletion needs
+    it."""
+    if "error" in diff or diff.get("isomorphic"):
+        return rule.judge(diff, cmp, co, None, None)[0]
+    compat_cov = coverage_of(compat_cov_dir)
+    if compat_cov is None and any(c["kind"] == "delete" for c in diff["changes"]) and cfile_ok:
+        cov = os.path.join(work, config + ".compat.cov")
+        shutil.rmtree(cov, ignore_errors=True)
+        r = core.run_program(ctx.args.node, cjs, case, cjs[:-3] + ".cov", coverage_dir=cov)
+        o = core.outcome(case, co["compile"], r)
+        if core.behaviour(o) != core.behaviour(co):
+            return {"verdict": "blind", "reason": "compat-nondeterministic"}
+        compat_cov = coverage_of(cov)
+    summary, details = rule.judge(diff, cmp, co, fast_cov, compat_cov)
+    if details:
+        d = os.path.join(ctx.out, "rule", case.suite, config)
+        os.makedirs(d, exist_ok=True)
+        sigs = rule.signatures(diff, ctext, ftext)
+        with open(os.path.join(d, case.safe_id() + ".json"), "w") as f:
+            json.dump({"summary": summary, "cmp": cmp, "id": case.id,
+                       "changes": [dict(c, verdict=v, ran=r, sig=g) for (c, v, r), g in zip(details, sigs)],
+                       "units_a": diff["units_a"], "units_b": diff["units_b"]}, f, sort_keys=True)
+        core.write_gz(os.path.join(d, case.safe_id() + ".fast.js.gz"), ftext.encode("utf-8", "surrogateescape"))
+    return summary
+
+
 def run_case(ctx, case):
     """Runs one case under every configuration (compat, fast and the uncompiled
     program) and returns its results lines."""
@@ -166,25 +254,47 @@ def run_case(ctx, case):
         prog = os.path.join(work, "uncompiled.js")
         with open(prog, "w", encoding="utf-8", errors="surrogateescape") as f:
             f.write(case.uncompiled)
-        unc = core.outcome(case, None, core.run_program(a.node, prog, case, os.path.join(work, "uncompiled")))
+        ukey = runs = None
+        if ctx.cache:
+            ukey = "u" + hashlib.sha256(case.uncompiled.encode("utf-8", "surrogateescape")).hexdigest()
+            hit = ctx.cache.get(ukey)
+            runs = hit[2] if hit else {}
+            if hit is None:
+                ctx.cache.put(ukey, {"ok": False, "uncompiled": True}, None, {}, ctx.jsgo_sha)
+        unc = core.outcome(case, None, run_cached(ctx, case, prog, ukey, runs or {}) if ctx.cache else
+                           core.run_program(a.node, prog, case, os.path.join(work, "uncompiled")))
     ids = None
     lines = []
     for config in case.runs_in(ctx.configs):
         cjs = os.path.join(work, config + ".compat.js")
         fjs = os.path.join(work, config + ".fast.js")
-        cc = core.compile_case(a.jsgo, case, config, "compat", cjs)
-        cr = core.run_program(a.node, cjs, case, cjs[:-3]) if cc["ok"] else None
-        co = core.outcome(case, cc, cr)
-        ctext = read_text(cjs) if cc["ok"] else ""
+        cc, ctext, cruns, ckey = compat_build(ctx, case, config, cjs)
         if cc["ok"]:
             core.write_gz(builds_path(ctx.out, case, config, "compat"), ctext.encode("utf-8", "surrogateescape"))
-        fc = core.compile_case(a.jsgo, case, config, "fast", fjs)
+        fc = core.compile_case(a.jsgo, case, config, "fast", fjs, flags=ctx.fast_flags)
         ftext = read_text(fjs) if fc["ok"] else ""
         identical = cc["ok"] and fc["ok"] and ctext == ftext
+        diff = None
+        if cc["ok"] and fc["ok"] and not identical:
+            diff = rule.locate(ctx.astdiff, cjs, fjs, rule.renames_properties(config, case),
+                               rule.fixed_names_file(case, ctx.extern_names, work))
+        need_cov = diff is not None and "error" not in diff and not diff["isomorphic"]
+        ccov = fcov = None
+        if need_cov:
+            ccov, fcov = os.path.join(work, config + ".compat.cov"), os.path.join(work, config + ".fast.cov")
+            for c in (ccov, fcov):
+                shutil.rmtree(c, ignore_errors=True)
+        cr = None
+        if cc["ok"]:
+            if ctx.cache:
+                cr = run_cached(ctx, case, cjs, ckey, cruns, coverage_dir=ccov)
+            else:
+                cr = core.run_program(a.node, cjs, case, cjs[:-3], coverage_dir=ccov)
+        co = core.outcome(case, cc, cr)
         if fc["ok"] and identical and not a.rerun_identical:
             fr = dict(cr, reused=True)
         else:
-            fr = core.run_program(a.node, fjs, case, fjs[:-3]) if fc["ok"] else None
+            fr = core.run_program(a.node, fjs, case, fjs[:-3], coverage_dir=fcov) if fc["ok"] else None
         fo = core.outcome(case, fc, fr)
         if (cc["ok"] or fc["ok"]) and core.behaviour(co) != core.behaviour(fo) and ids is None:
             ids = source_ids(case)
@@ -193,6 +303,11 @@ def run_case(ctx, case):
             cmp = "nondeterministic"
         line = {"suite": case.suite, "id": case.id, "stratum": case.stratum, "config": config,
                 "uncompiled": unc, "compat": co, "fast": fo, "cmp": cmp, "identical": identical}
+        if identical:
+            line["rule"] = {"verdict": "identical"}
+        elif diff is not None:
+            line["rule"] = apply_rule(ctx, case, config, work, co, ctext, cjs, cc["ok"], fo, ftext, fjs, cmp, diff,
+                                      coverage_of(fcov), ccov)
         if cmp not in ("same", "same-renamed"):
             line["detail"] = save_diff(ctx, case, config, cmp, co, fo, cjs, fjs)
         lines.append(line)
@@ -203,7 +318,7 @@ def run_case(ctx, case):
 
 def fault_case(ctx, case):
     """Rebuilds the fast builds of one case with the seeded fault and compares
-    them with the baseline's compat outcomes."""
+    them with the baseline's compat outcomes, under the coverage rule."""
     a = ctx.args
     work = os.path.join(ctx.work, case.suite + "-" + case.safe_id())
     os.makedirs(work, exist_ok=True)
@@ -217,25 +332,40 @@ def fault_case(ctx, case):
         cpath = os.path.join(a.baseline, "builds", case.suite, config, case.safe_id() + ".compat.js.gz")
         ctext = core.read_gz(cpath).decode("utf-8", "surrogateescape") if os.path.exists(cpath) else ""
         fjs = os.path.join(work, config + ".fast.js")
-        fc = core.compile_case(a.jsgo, case, config, "fast", fjs, fault=ctx.fault)
+        fc = core.compile_case(a.jsgo, case, config, "fast", fjs, fault=ctx.fault, flags=ctx.fast_flags)
         ftext = read_text(fjs) if fc["ok"] else ""
         triggered = not (fc["ok"] and co["compile"]["ok"] and ftext == ctext) and not (
             not fc["ok"] and not co["compile"]["ok"] and fc["errors"] == co["compile"]["errors"])
         if not triggered:
             lines.append({"suite": case.suite, "id": case.id, "config": config, "fault": ctx.fault,
-                          "triggered": False, "cmp": "same", "compat_pass": co["pass"]})
+                          "triggered": False, "cmp": "same", "compat_pass": co["pass"],
+                          "compat_signal": rule.signal(co), "rule": {"verdict": "identical"}})
             continue
-        fr = core.run_program(a.node, fjs, case, fjs[:-3]) if fc["ok"] else None
+        cjs = os.path.join(work, config + ".compat.js")
+        with open(cjs, "w", encoding="utf-8", errors="surrogateescape") as f:
+            f.write(ctext)
+        diff = None
+        if fc["ok"] and co["compile"]["ok"]:
+            diff = rule.locate(ctx.astdiff, cjs, fjs, rule.renames_properties(config, case),
+                               rule.fixed_names_file(case, ctx.extern_names, work))
+        need_cov = diff is not None and "error" not in diff and not diff["isomorphic"]
+        fcov = os.path.join(work, config + ".fast.cov") if need_cov else None
+        if fcov:
+            shutil.rmtree(fcov, ignore_errors=True)
+        fr = core.run_program(a.node, fjs, case, fjs[:-3], coverage_dir=fcov) if fc["ok"] else None
         fo = core.outcome(case, fc, fr)
         if ids is None:
             ids = source_ids(case)
         cmp = core.compare(co, fo, ctext, ftext, ids)
         line = {"suite": case.suite, "id": case.id, "config": config, "fault": ctx.fault, "triggered": True,
-                "cmp": cmp, "compat_pass": co["pass"], "fast_pass": fo["pass"], "fast_why": fo["why"]}
+                "cmp": cmp, "compat_pass": co["pass"], "compat_signal": rule.signal(co), "fast_pass": fo["pass"],
+                "fast_why": fo["why"]}
+        if diff is not None:
+            line["rule"] = apply_rule(ctx, case, config, work, co, ctext, cjs, co["compile"]["ok"], fo, ftext, fjs,
+                                      cmp, diff, coverage_of(fcov), None)
+        else:  # one side did not compile: a compile difference is checked by the strict layers
+            line["rule"] = {"verdict": "fail" if cmp in core.SIGNAL_DIFFS else "blind", "reason": "compile"}
         if cmp in core.SIGNAL_DIFFS and a.keep_diffs:
-            cjs = os.path.join(work, config + ".compat.js")
-            with open(cjs, "w", encoding="utf-8", errors="surrogateescape") as f:
-                f.write(ctext)
             line["detail"] = save_diff(ctx, case, config, cmp, co, fo, cjs, fjs, fault=ctx.fault)
         lines.append(line)
     shutil.rmtree(work, ignore_errors=True)
@@ -629,6 +759,14 @@ def write_report(out):
             t["uncompiled_fail_compat_pass"] += 1
         t["compile_secs_compat"] += ln["compat"]["compile"]["secs"]
         t["compile_secs_fast"] += ln["fast"]["compile"]["secs"]
+        t["signal"] += rule.signal(ln["compat"])
+        t["tests_compat_pass"] += core.passing_tests(ln["compat"])
+        r = ln.get("rule")
+        if r:
+            t["rule:" + r["verdict"]] += 1
+            for k in ("vouched", "blind", "fail"):
+                t["changes_" + k] += r.get(k, 0)
+                t["units_" + k] += r.get("units_" + k, 0)
         if ln["cmp"] not in ("same", "same-renamed"):
             diffs[ln["cmp"]].append(ln)
     unexpected = [ln for c in list(core.SIGNAL_DIFFS) + ["nondeterministic"] for ln in diffs.get(c, [])
@@ -663,6 +801,31 @@ def write_report(out):
                   f"| {t['cmp:behaviour']} | {t['cmp:fast-only-pass']} | {t['cmp:weak']} "
                   f"| {t['uncompiled_pass_compat_fail']} |")
     md.append("")
+    md += ["Coverage rule (PLAN.md §8), per build that is not byte-identical: isomorphic (every function "
+           "still alpha-isomorphic), vouched (every change ran and behaved the same in a test that checks "
+           "something), blind (some change never ran, or ran unchecked), fail (behaved differently); then the "
+           "changes and the changed functions by verdict.", "",
+           "| suite / config | signal builds | tests passing (compat) | identical | isomorphic | vouched | blind "
+           "| fail | changes vouched / blind / fail | changed functions vouched / blind / fail |",
+           "|---|---:|---:|---:|---:|---:|---:|---:|---|---|"]
+    for (s_, c), t in table.items():
+        md.append(f"| {s_} / {c} | {t['signal']} | {t['tests_compat_pass']} | {t['rule:identical']} "
+                  f"| {t['rule:isomorphic']} | {t['rule:vouched']} | {t['rule:blind']} | {t['rule:fail']} "
+                  f"| {t['changes_vouched']} / {t['changes_blind']} / {t['changes_fail']} "
+                  f"| {t['units_vouched']} / {t['units_blind']} / {t['units_fail']} |")
+    md.append("")
+    sigs = signature_summary(out)
+    if sigs["total"]:
+        summary["signatures"] = sigs
+        with open(os.path.join(out, "summary.json"), "w") as f:
+            json.dump(summary, f, indent=1, sort_keys=True)
+        md += [f"Distinct changes (the same function changed the same way in several builds counts once): "
+               f"{sigs['total']}; vouched somewhere and failing nowhere {sigs['vouched']}, blind everywhere "
+               f"{sigs['blind']}, failing somewhere {sigs['fail']}.", ""]
+        if sigs["blind_examples"]:
+            md.append("Blind everywhere (examples):")
+            md += [f"- {x}" for x in sigs["blind_examples"][:15]]
+            md.append("")
     md.append(f"**Unexpected signal differences: {len(unexpected)}**"
               + (" (the run fails)" if unexpected else ""))
     md.append("")
@@ -693,6 +856,36 @@ def write_report(out):
         f.write("\n".join(md))
     print("\n".join(md[:8 + len(table)]))
     return unexpected
+
+
+def signature_summary(out):
+    """Aggregates the changes of out/rule/ by signature (rule.signature)."""
+    import glob
+    by = {}
+    ex = {}
+    for path in glob.glob(os.path.join(out, "rule", "*", "*", "*.json")):
+        try:
+            with open(path) as f:
+                d = json.load(f)
+        except ValueError:
+            continue
+        suite, config = path.split(os.sep)[-3:-1]
+        for c in d["changes"]:
+            by.setdefault(c["sig"], collections.Counter())[c["verdict"]] += 1
+            if c["sig"] not in ex:
+                u = d["units_b"][c["unit_b"]] if c["unit_b"] >= 0 else d["units_a"][c["unit_a"]]
+                ex[c["sig"]] = f"{suite}/{d.get('id')} [{config}] {c['kind']} {c['what'][:50]} in {u['name']} (line {u['line']})"
+    res = {"total": len(by), "vouched": 0, "blind": 0, "fail": 0, "blind_examples": []}
+    for sig in sorted(by):
+        v = by[sig]
+        if v.get("fail"):
+            res["fail"] += 1
+        elif v.get("vouched"):
+            res["vouched"] += 1
+        else:
+            res["blind"] += 1
+            res["blind_examples"].append(ex[sig])
+    return res
 
 
 def summarize_findings(findings):
@@ -1100,6 +1293,13 @@ def main():
     p.add_argument("--suites", default=",".join(SUITES))
     p.add_argument("--configs", default=",".join(core.CONFIGS))
     p.add_argument("--java", action="store_true", help="check uncompiled-pass/compat-fail builds against Java")
+    p.add_argument("--compat-cache", default="",
+                   help="where compat builds and their runs are cached across runs (default: "
+                        "<cache>/behave/compat-cache; 'none': compile and run every compat build)")
+    p.add_argument("--fast-flags", default="",
+                   help="extra compiler flags for the fast builds only, e.g. "
+                        "'--max_optimization_loop_iterations=1' (a test input for the oracle: an output change "
+                        "that keeps behaviour)")
     p.add_argument("--rerun-identical", action="store_true",
                    help="run fast builds even when byte-identical to compat (checks the runner's determinism)")
     p.add_argument("--resume", action="store_true", help="keep the results already in --out")
@@ -1110,6 +1310,7 @@ def main():
     p.add_argument("--baseline", required=True, help="a finished `run` directory")
     p.add_argument("--out", required=True)
     p.add_argument("--faults", default=",".join(FAULTS))
+    p.add_argument("--fast-flags", default="", help="extra compiler flags for the faulted fast builds")
     p.add_argument("--keep-diffs", action="store_true")
     p.add_argument("--resume", action="store_true")
     p.set_defaults(fn=cmd_faults)
@@ -1155,6 +1356,8 @@ def main():
     args = ap.parse_args()
     if getattr(args, "cache", "unset") is None:
         args.cache = core.default_cache()
+    if getattr(args, "compat_cache", None) == "":
+        args.compat_cache = os.path.join(args.cache, "behave", "compat-cache")
     for k in ("jsgo", "node"):
         if getattr(args, k, None) and os.path.sep in getattr(args, k):
             setattr(args, k, os.path.abspath(getattr(args, k)))
