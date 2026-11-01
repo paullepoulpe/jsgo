@@ -73,8 +73,9 @@ import t262  # noqa: E402
 import closure_rt  # noqa: E402
 import closure_lib  # noqa: E402
 import libs  # noqa: E402
+import workloads  # noqa: E402
 
-SUITES = ("test262", "closure", "closure-lib", "lodash", "marked")
+SUITES = ("test262", "closure", "closure-lib", "lodash", "marked", "tsc")
 PIN_KEYS = {"test262": "test262", "closure": "closure", "closure-lib": "closure_library_tests",
             "marked": "marked_tests"}
 EXPECT_DIR = os.path.join(core.HERE, "expect")
@@ -90,6 +91,8 @@ def log(msg):
 
 
 def suite_root(cache, suite):
+    if suite == "tsc":
+        return os.path.join(cache, workloads.TS_REL)
     pins = core.read_pins()
     return os.path.join(cache, pins[PIN_KEYS.get(suite, suite)]["dir"])
 
@@ -104,6 +107,8 @@ def load_cases(args, suite):
         cs = libs.lodash_cases(root, args.cache)
     elif suite == "marked":
         cs = libs.marked_cases(root, args.cache)
+    elif suite == "tsc":
+        cs = workloads.tsc_cases(args.cache)
     else:
         cs = closure_rt.cases(root, args.cache)
     if args.filter:

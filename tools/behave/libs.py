@@ -41,16 +41,61 @@ false finally for function if import in instanceof new null return super switch 
 while with yield let static implements interface package private protected public await""".split())
 
 
+REFLECT_RE = re.compile(r"\bObject\.(?:entries|keys|getOwnPropertyNames)\(\s*\{")
+KEY_RE = re.compile(r"(?:^|[{,\s])([A-Za-z_$][A-Za-z0-9_$]*)\s*:")
+
+
+REFLECT_NAME_RE = re.compile(r"\bObject\.(?:entries|keys|getOwnPropertyNames)\(\s*([A-Za-z_$][\w$]*)\s*\)")
+
+
+def reflected_keys(src):
+    """The keys of the object literals passed to Object.entries, Object.keys
+    or Object.getOwnPropertyNames, directly or through a variable initialised
+    with one (`new Map(Object.entries({...}))` tables): the program reads them
+    back as strings."""
+    names = set()
+    starts = [m.end() for m in REFLECT_RE.finditer(src)]
+    for name in set(REFLECT_NAME_RE.findall(src)):
+        for m in re.finditer(r"\b(?:var|let|const)\s+" + re.escape(name) + r"\s*=\s*\{", src):
+            starts.append(m.end())
+    for start in starts:
+        depth, i = 0, start - 1
+        while i < len(src):
+            if src[i] == "{":
+                depth += 1
+            elif src[i] == "}":
+                depth -= 1
+                if depth == 0:
+                    break
+            i += 1
+        body = src[start:i]
+        # Keys at the literal's own level only.
+        flat, d = [], 0
+        for ch in body:
+            if ch in "{[(":
+                d += 1
+            elif ch in "}])":
+                d -= 1
+            elif d == 0:
+                flat.append(ch)
+                continue
+            flat.append(" ")
+        names |= set(KEY_RE.findall("".join(flat)))
+    return names
+
+
 def string_names(src):
-    """The identifier-like string literals of src and the properties it reads
-    from `root` (the global object)."""
+    """The identifier-like string literals of src, the properties it reads
+    from `root` (the global object), and the keys it reads back from object
+    literals (reflected_keys)."""
     names = set()
     for m in STRING_RE.finditer(src):
         s = m.group(1) if m.group(1) is not None else m.group(2)
-        if IDENT_FULL_RE.match(s) and s not in JS_RESERVED:
+        if IDENT_FULL_RE.match(s):
             names.add(s)
     names |= set(ROOT_PROP_RE.findall(src))
-    return names - JS_RESERVED
+    names |= reflected_keys(src)
+    return names
 
 
 def names_externs(cache, lib, names):
