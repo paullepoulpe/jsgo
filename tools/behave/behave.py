@@ -20,7 +20,8 @@ Commands:
            bug (<out>/findings/).
   faults   the seeded-fault check: rebuilds the fast builds of a finished run
            with JSGO_FAST_FAULT=<fault> and reports which faults the oracle
-           catches (<out>/faults.{md,json}).
+           catches (<out>/faults.{md,json}). It needs a jsgo built with the
+           faults: `go build -tags jsgo_faults`.
   replay   runs the stored compat builds of a finished run again and checks
            that each behaves as recorded: the runner's determinism (and, after
            a node upgrade, the engine's stability).
@@ -42,7 +43,8 @@ Usage:
   bash tools/behave/fetch.sh
   python3 tools/behave/behave.py run --jsgo /tmp/jsgo --out /tmp/behave-run            # per-change subset
   python3 tools/behave/behave.py run --jsgo /tmp/jsgo --out /tmp/behave-full --subset full --java
-  python3 tools/behave/behave.py faults --jsgo /tmp/jsgo --baseline /tmp/behave-run --out /tmp/behave-faults
+  go build -tags jsgo_faults -o /tmp/jsgo-faults ./cmd/jsgo
+  python3 tools/behave/behave.py faults --jsgo /tmp/jsgo-faults --baseline /tmp/behave-run --out /tmp/behave-faults
 
 The exit status of `run` is 1 when a test that passes on the compat build
 behaves differently on the fast build (a regression or behaviour difference)
@@ -468,6 +470,23 @@ def java_compare(args, out, ln, case, js, res):
 # Seeded faults
 
 
+def check_fault_binary(jsgo, faults):
+    """Exits unless jsgo was built with the seeded faults (`go build -tags
+    jsgo_faults`) and knows each fault name: a binary without them ignores
+    JSGO_FAST_FAULT, so every fault would look harmless."""
+    toy = os.path.join(core.HERE, "faults_toy.js")
+    env = core.clean_env(extra={"JSGO_FAST_FAULT": "fold-negzero"})
+    p = subprocess.run([jsgo, "--fast_mode", "-O", "SIMPLE", "--js", toy], env=env, capture_output=True, text=True)
+    if p.returncode != 0 or "-0" in p.stdout:
+        sys.exit(f"{jsgo} has no seeded faults (fold-negzero does not fire on {toy}): build it with "
+                 "`go build -tags jsgo_faults -o <bin> ./cmd/jsgo`")
+    for fault in faults:  # a fault build refuses an unknown fault name at start-up
+        p = subprocess.run([jsgo, "--version"], env=core.clean_env(extra={"JSGO_FAST_FAULT": fault}),
+                           capture_output=True, text=True)
+        if p.returncode != 0:
+            sys.exit(f"{jsgo} rejects JSGO_FAST_FAULT={fault}: {p.stderr.strip().splitlines()[:1]}")
+
+
 def cmd_faults(args):
     out = os.path.abspath(args.out)
     os.makedirs(out, exist_ok=True)
@@ -477,11 +496,7 @@ def cmd_faults(args):
         bmeta = json.load(f)
     configs = bmeta["configs"]
     faults = args.faults.split(",")
-    for fault in faults:  # jsgo refuses an unknown fault name at start-up
-        p = subprocess.run([args.jsgo, "--version"], env=core.clean_env(extra={"JSGO_FAST_FAULT": fault}),
-                           capture_output=True, text=True)
-        if p.returncode != 0:
-            sys.exit(f"{args.jsgo} rejects JSGO_FAST_FAULT={fault}: {p.stderr.strip().splitlines()[:1]}")
+    check_fault_binary(args.jsgo, faults)
     summary = {"baseline": args.baseline, "jsgo": os.path.abspath(args.jsgo), "faults": {}}
     path = os.path.join(out, "faults.json")
     if args.resume and os.path.exists(path):
@@ -738,6 +753,7 @@ def cmd_explain(args):
     with open(os.path.join(out, "faults.json")) as f:
         summary = json.load(f)
     faults = args.faults.split(",") if args.faults else list(summary["faults"])
+    check_fault_binary(args.jsgo, faults)
     cases = {}
     for suite in sorted({k[0] for k in base}):
         ids = {k[1] for k in base if k[0] == suite}
