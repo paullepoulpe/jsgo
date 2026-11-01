@@ -216,6 +216,20 @@ func (c *DataFlowAnalysisEscapedTest) computeEscapedLocals(src string) *jutil.Ob
 	return analysis.GetEscapedLocals()
 }
 
+// DataFlowAnalysis_ComputeEscaped is DataFlowAnalysis.computeEscaped for
+// the tests and the InfraDump oracle; the compiler runs
+// computeEscapedInTable on the table of NodeUtil_AllVarsDeclaredInFunction.
+//
+// Go-only: test-helper — Java adds to escaped the Var each reference
+// resolves to, also one whose name a later declaration (in another block)
+// takes over in allVarsInFn, which keeps one Var per name. So the table
+// holds every Var declared in the function, as getAllVarsDeclaredInFunction
+// collects them, rather than allVarsInFn's values. The last Var of each name
+// in it, the one the catch/exported loop over allVarsInFn.values() sees, is
+// allVarsInFn's when allVarsInFn is the function's getAllVariables(), as it
+// is for every Java caller (checked below).
+//
+// Java: DataFlowAnalysis.computeEscaped(Scope, Set<Var>, AbstractCompiler, ScopeCreator, Map<String, Var>)
 func DataFlowAnalysis_ComputeEscaped(
 	jsScope *Scope,
 	escaped *jutil.ObjectLinkedHashSet[*Var],
@@ -227,17 +241,15 @@ func DataFlowAnalysis_ComputeEscaped(
 	if allVarsInFn != nil && allVarsInFn.IsEmpty() {
 		return
 	}
-	var localTable fnVarTable
-	table := &localTable
+	table := &NodeUtil_GetAllVarsDeclaredInFunction(compiler, scopeCreator, jsScope).table
 	if allVarsInFn != nil {
-		table.vars = make([]*Var, 0, allVarsInFn.Size())
+		jutil.CheckArgument(allVarsInFn.Size() == table.uniqueCount)
 		for var_ := range allVarsInFn.Values() {
-			table.vars = append(table.vars, var_)
+			// (Var equality is ScopedName's: the traversals that build the
+			// table and allVarsInFn create Vars of their own.)
+			v := table.lookupVarByID(var_.nameID)
+			jutil.CheckArgument(v != nil && v.Equals(var_))
 		}
-		table.finalize()
-	} else {
-		var finder lvaAllVarsFinder
-		table = &finder.collect(compiler, scopeCreator, jsScope).table
 	}
 	computeEscapedInTable(jsScope, table, compiler, scopeCreator)
 	table.escaped.ForEach(func(idx int) {
