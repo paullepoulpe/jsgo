@@ -823,8 +823,10 @@ What phase 1 changes for phases 2–4:
   they will only vouch for fast mode once it makes different decisions on
   small programs. The coverage rule's log of where fast-only transformations
   applied should come early (phase 2, not 4), and the bench bundles of
-  phase 3, where fast output does differ today, matter more than their place
-  in the order suggests.
+  phase 3, where fast-mode optimisations will act, matter more than their
+  place in the order suggests. (Phase 1 said fast output already differs on
+  the bundles; it does not: the fast-mode gate's `layer1.byte_identical_to_compat`
+  is true on every task, the large bundles included.)
 - Compiling dominates (0.27 s per SIMPLE and 0.7 s per ADVANCED test262
   compile, mostly the default externs), and phase 1's per-change subset
   already takes 49 of the 30–60 minutes. Compat builds can be cached across
@@ -843,11 +845,108 @@ What phase 1 changes for phases 2–4:
 - The uncompiled-vs-compat check against Java found a port crash that the
   corpus parity suites had not: it is worth running nightly on every suite.
 
+**Phase 2: done (2026-11-01;
+[docs/behavioural-oracle.md](docs/behavioural-oracle.md)).**
+- **The coverage rule, end to end.** `tools/bench/ast_isomorphism -diff`
+  (the gate's isomorphism checker, extended) aligns a fast build's AST with
+  its compat build's and reports every change (a node with other flags or
+  literal, a node inserted or deleted, a reference whose names do not
+  correspond under one renaming of variables and, at ADVANCED, of renamed
+  properties) with the function or top-level statement around it; a
+  function without changes is still alpha-isomorphic. Both builds run under
+  V8 block coverage, and each change is *vouched* (it ran and the test,
+  which checks something, behaved the same), *blind* (it never ran, or ran
+  where nothing is checked: reported, never passed) or *fail*. The diff of
+  the outputs replaces the log from jsgo that this section proposed: it sees
+  the knock-on effects of a fast-only decision on later passes (the loop cap
+  applies nowhere and changes code everywhere), does not trust the code under
+  test to report its own changes, and needs no change to jsgo. Changes are
+  also aggregated by distinct change (the same function changed the same
+  way in several builds).
+- **Library suites** that run library code and check its results, compiled
+  with their libraries in all four configurations, with per-test signal:
+  Closure Library's unit tests (302 files with signal in every
+  configuration, 4,307 passing tests at SIMPLE and 3,834 at ADVANCED; tests
+  from GitHub's tag of the corpus version), lodash's test suite (3,084
+  passing QUnit tests; QUnit is provided uncompiled by the runner) and
+  marked's spec tests (127 / 123 specs). ADVANCED needed generated externs
+  for the names reached by string; no per-library hand-written exports.
+- **One bench-scale workload**: TypeScript 5.6.3's compiler (8.9 MB, the
+  bundle tasks' input) type-checks and emits a fixed program; it runs in all
+  four configurations.
+- **Compat vs fast: still no difference** on any of these builds.
+- **The loop cap** (different but correct, a test input only): 3,098 of
+  4,458 per-change builds change; none fails; 48% of the changes and 57% of
+  the distinct changes are vouched (97% in lodash, 79% in marked, 73% in the
+  Closure Library tests, 35% in tsc); 440 builds are vouched outright, the
+  others carry some change their test never runs. One oracle false alarm was
+  found on the way (tsc printed a digest of an object whose key ADVANCED
+  renames differently in the two builds) and fixed.
+- **Seeded faults on the library suites** (610 builds, SIMPLE ES5 and
+  ADVANCED ES2015): `hook-negation` caught in 62% of its changed builds (31%
+  on phase 1's suites), `inline-vars` 23% (12%), `collapse-unsafe` 100%
+  (now also at run time in lodash, marked and tsc), `drop-unused-init` 3%;
+  837 of 2,459 changed builds, 25% without the compiler crashes (phase 1:
+  13%). `inline-args` and `swap-args` are still never caught: the instances
+  read are harmless where they occur, and the rule vouches for them as for
+  correct changes (48% and 35% of their distinct changes, against 57% for the
+  loop cap). The faults that change results are failed or left blind, and a
+  fault build is vouched outright in 2% of cases against 14% for the loop
+  cap. No benign change was ever failed: `benign-rename` (a pure renaming)
+  leaves 607 of 610 builds alpha-isomorphic under the diff; `benign-no-inline`
+  is vouched for 54% of its distinct changes. Overall still 5 of 7 faults.
+- **Per-change wall time: 22 min** in the worst case (every build differs and
+  runs under coverage) with the compat cache warm, about 19 min when fast
+  equals compat, about 40 min with a cold cache, against 49 min for phase 1's
+  smaller set. Both of phase 1's proposals are in: compat builds and their
+  runs are cached across changes (keyed by inputs, flags and the pinned
+  release, not by the jsgo binary), and test262's per-change subset is 600.
+- **A port bug**, found by the Closure Library probe and fixed: jsgo stopped
+  with an internal error (`Only use on nodes with colors present`) on
+  `net/channelrequest_test.js` at ADVANCED, which Java compiles: the Go-only
+  walk of detached subtrees in ConvertTypesToColors marked a node colored
+  from a cast without a color. The two builds are now Java's bytes.
+
+What phase 2 changes for phases 3–4:
+- Gate per distinct change, not per build (phase 4): almost every build
+  carries some changed code its test never runs (polyfills behind feature
+  tests, error paths, unused helpers), so a per-build rule would refuse every
+  non-isomorphic change. A fast-mode change should pass when each distinct
+  change it makes is vouched by some build and failed by none, with the
+  blind ones listed per function and kept under the structural check (the
+  diff says which functions they are).
+- "Ran" is per process, not per test. Per-test coverage (V8 precise coverage
+  taken between tests through the inspector) would tie a change to the
+  passing tests that ran it; recording the values the QUnit and goog.testing
+  assertions compare (normalised for renaming) would check more than
+  pass/fail. Both target what the faults show: a change that runs without
+  changing what a test looks at is vouched.
+- The bench-scale workload is where the blind spots are: the TypeScript
+  compiler on a 150-line program runs 35% of the changed code. Phase 3 should
+  give it a corpus (TypeScript's own conformance tests are Apache 2.0), and
+  add three.js and protobuf as planned.
+- The faults left uncaught are those whose instances are harmless on every
+  input; measuring the oracle on harmful instances needs faults that fire
+  only where the moved evaluation interferes, or the fuzzing of phase 4
+  aimed at inlining and evaluation order.
+- Under ADVANCED, property ambiguation can make a pure renaming
+  non-bijective; the diff then reports changes (blind or vouched, never
+  isomorphic). Acceptable while rare (2 of 610 builds of `benign-rename`).
+- The compat cache leaves the jsgo binary out of its key by design; the
+  nightly full run should use `--compat-cache none`, so that a compat change
+  the parity suites miss still shows.
+- Failure messages that print compiled code (goog.testing's PropertyReplacer
+  quotes a function's source) make 38 loop-capped builds differ inside tests
+  that already fail; normalising function source in messages would let those
+  builds vouch.
+
 **Licences:**
 - test262 is BSD.
-- Closure's tests are Apache 2.0.
-- The libraries are MIT or BSD.
-- No GPL code, no JDK sources.
+- Closure's tests and Closure Library are Apache 2.0; TypeScript is Apache
+  2.0.
+- lodash and marked are MIT. marked's CommonMark and GFM example files (the
+  specifications' text, CC-BY-SA) are not used.
+- Nothing fetched is committed. No GPL code, no JDK sources.
 
 **Main risk.** A behavioural oracle is weaker than a structural one on code
 that no test runs. Hence the coverage rule, and alpha-isomorphism stays

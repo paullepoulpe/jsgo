@@ -361,6 +361,9 @@ func (r *RenameProperties) reusePropertyNamesSlice(reservedNames stringMapSet, a
 func (r *RenameProperties) generateNamesSlice(props []*RenameProperties_Property, reservedNames stringMapSet) {
 	r.nameGenerator.ResetWithFirstAndNonFirstChars(
 		reservedNames, "", r.reservedFirstCharacters, r.reservedNonFirstCharacters)
+	if fastFault(r.compiler.GetOptions(), faultBenignRename) {
+		reservedNames[r.nameGenerator.GenerateNextName()] = struct{}{}
+	}
 	for _, p := range props {
 		if r.generatePseudoNames {
 			p.newName = "$" + p.oldName + "$"

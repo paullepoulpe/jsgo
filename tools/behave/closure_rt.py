@@ -64,6 +64,8 @@ class Index:
         self.deps = {}
         self.base = os.path.join(lib_rel, "closure/goog/base.js")
         for top in (os.path.join(lib_rel, "closure/goog"), tests_rel):
+            if top is None:
+                continue
             for dirpath, dirnames, filenames in os.walk(os.path.join(cache, top)):
                 dirnames.sort()
                 for fn in sorted(filenames):

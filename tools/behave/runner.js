@@ -1,8 +1,8 @@
 // Node runner of the behavioural oracle (docs/behavioural-oracle.md).
 //
-//   node runner.js [--env script|browser] [--freeze-date] [--onload]
-//                  [--pre <script.js>] [--max-timers N] --result <out.json>
-//                  <program.js>
+//   node runner.js [--env script|browser|qunit] [--freeze-date] [--date-step N]
+//                  [--onload] [--pre <script.js>] [--max-timers N]
+//                  --result <out.json> <program.js>
 //
 // Runs one program (an uncompiled test or a compiled build of it) as a classic
 // script in this process's main realm (vm.runInThisContext: top-level `var`
@@ -19,12 +19,22 @@
 //   - with --freeze-date, Date reads the virtual clock (a fixed epoch plus the
 //     virtual time), so Date.now() and `new Date()` are deterministic too.
 //     It is off for test262, whose Date tests check the constructor's own
-//     shape;
+//     shape. With --date-step N, each such read also moves the virtual clock
+//     on by N ms, so that code which waits for the clock in a loop (lodash's
+//     throttle tests) ends, and timers fall due as they would;
 //   - `print` writes its arguments to stdout, and `$262` is the test262 host
 //     object (global, evalScript, detachArrayBuffer);
 //   - with --env browser, a minimal DOM stub (window, document, navigator,
 //     location) for code written for a page, such as Closure Library's
 //     goog.testing; with --onload, window.onload runs after the script;
+//   - with --env qunit, a QUnit subset (QUnit.module/test/skip/config/load/
+//     start/done and the assertions of QUnit 1 and 2) for library test suites
+//     written for QUnit (lodash). It lives here, uncompiled, so that the
+//     checking code is not part of the build under test; externs declare its
+//     names. Tests run one after the other on the virtual clock; an
+//     exception in a timer callback while a test runs fails that test.
+//     Failure messages name the assertion and its message argument, not the
+//     values compared (renamed property names would show in those);
 //   - --pre runs a script before the program, in the same realm (Closure's
 //     force_polyfills.js, which deletes built-ins so that a build's polyfills
 //     run).
@@ -45,7 +55,8 @@
 //                end, in the order they were rejected
 //   timers       {fired, pending, capped}: timer callbacks run, timers left,
 //                and whether --max-timers stopped the clock
-//   suite        for --env browser, Closure's G_testRunner results if it ran:
+//   suite        for --env browser, Closure's G_testRunner results if it ran,
+//                for --env qunit the QUnit subset's results:
 //                {finished, success, tests: {name: [failure messages]}}
 //
 // Stack traces are not recorded. A program that never ends is killed by the
@@ -56,11 +67,13 @@ const fs = require('fs');
 const vm = require('vm');
 
 const args = process.argv.slice(2);
-const opts = {env: 'script', freezeDate: false, onload: false, pre: null, maxTimers: 100000, result: null, file: null};
+const opts = {env: 'script', freezeDate: false, dateStep: 0, onload: false, pre: null, maxTimers: 100000, result: null,
+  file: null};
 for (let i = 0; i < args.length; i++) {
   const a = args[i];
   if (a === '--env') opts.env = args[++i];
   else if (a === '--freeze-date') opts.freezeDate = true;
+  else if (a === '--date-step') opts.dateStep = Number(args[++i]);
   else if (a === '--onload') opts.onload = true;
   else if (a === '--pre') opts.pre = args[++i];
   else if (a === '--max-timers') opts.maxTimers = Number(args[++i]);
@@ -170,15 +183,16 @@ if (typeof performance === 'object' && performance !== null) {
 }
 
 if (opts.freezeDate) {
+  const read = () => { const t = EPOCH + now; now += opts.dateStep; return t; };
   const FakeDate = function Date(...a) {
-    if (new.target === undefined) return RealDate(EPOCH + now);
-    if (a.length === 0) return construct(RealDate, [EPOCH + now], new.target);
+    if (new.target === undefined) return RealDate(read());
+    if (a.length === 0) return construct(RealDate, [read()], new.target);
     return construct(RealDate, a, new.target);
   };
   Object.defineProperty(FakeDate, 'length', {value: 7});
   FakeDate.prototype = RealDate.prototype;
   Object.defineProperty(FakeDate, 'prototype', {writable: false, enumerable: false, configurable: false});
-  FakeDate.now = {now() { return EPOCH + now; }}.now;
+  FakeDate.now = {now() { return read(); }}.now;
   FakeDate.parse = RealDate.parse;
   FakeDate.UTC = RealDate.UTC;
   Object.defineProperty(RealDate.prototype, 'constructor', {value: FakeDate, writable: true, enumerable: false, configurable: true});
@@ -195,6 +209,251 @@ globalThis.$262 = {
 
 if (opts.env === 'browser') {
   installDomStub();
+}
+let qunit = null;
+if (opts.env === 'qunit') {
+  qunit = installQUnit();
+}
+
+// installQUnit(): the QUnit subset of --env qunit. Returns {onError(e),
+// results()}.
+function installQUnit() {
+  const vSetTimeout = G.setTimeout;
+  const vClearTimeout = G.clearTimeout;
+  const objToString = Object.prototype.toString;
+  const getProto = Object.getPrototypeOf;
+  const isNaNv = (x) => x !== x;
+  const tests = [];
+  const names = new Map();
+  const results = {};
+  const doneCbs = [];
+  let moduleName = '';
+  let moduleHooks = null;
+  let started = false;
+  let finished = false;
+  let index = 0;
+  let cur = null;
+
+  function equiv(a, b, seen) {
+    if (a === b) return true;
+    const ta = typeof a;
+    if (ta !== typeof b) return false;
+    if (ta === 'number') return isNaNv(a) && isNaNv(b);
+    if (a === null || b === null || ta !== 'object' && ta !== 'function') return false;
+    if (ta === 'function') return false;
+    const tag = objToString.call(a);
+    if (tag !== objToString.call(b)) return false;
+    for (const [x, y] of seen) if (x === a && y === b) return true;
+    seen = seen.concat([[a, b]]);
+    switch (tag) {
+      case '[object Number]': case '[object String]': case '[object Boolean]':
+        return equiv(a.valueOf(), b.valueOf(), seen);
+      case '[object Date]': return equiv(a.getTime(), b.getTime(), seen);
+      case '[object RegExp]': return a.source === b.source && a.flags === b.flags;
+      case '[object Array]': case '[object Arguments]': {
+        if (a.length !== b.length) return false;
+        for (let i = 0; i < a.length; i++) if (!equiv(a[i], b[i], seen)) return false;
+        return true;
+      }
+      case '[object Map]': case '[object Set]': {
+        if (a.size !== b.size) return false;
+        const xa = [...a], xb = [...b];
+        for (let i = 0; i < xa.length; i++) if (!equiv(xa[i], xb[i], seen)) return false;
+        return true;
+      }
+    }
+    // QUnit compares constructors, unless one object has no prototype or
+    // inherits straight from one with none.
+    const pa = getProto(a), pb = getProto(b);
+    if (pa !== pb) {
+      const plain = (p) => p === null || p === Object.prototype || getProto(p) === null;
+      if (!(plain(pa) && plain(pb)) && a.constructor !== b.constructor) return false;
+    }
+    const ka = [], kb = [];
+    for (const k in a) ka.push(k);
+    for (const k in b) kb.push(k);
+    if (ka.length !== kb.length) return false;
+    ka.sort(); kb.sort();
+    for (let i = 0; i < ka.length; i++) {
+      if (ka[i] !== kb[i] || !equiv(a[ka[i]], b[ka[i]], seen)) return false;
+    }
+    return true;
+  }
+
+  function ownEquiv(a, b) {
+    const strip = (v, seen) => {
+      if (v === null || typeof v !== 'object') return v;
+      if (seen.includes(v)) return '[cycle]';
+      const out = Array.isArray(v) ? [] : {};
+      for (const k of objectKeys(v)) out[k] = strip(v[k], seen.concat([v]));
+      return out;
+    };
+    return equiv(strip(a, []), strip(b, []), []);
+  }
+
+  function push(ok, kind, message) {
+    if (!cur) return;
+    cur.count++;
+    if (!ok) cur.failures.push(kind + ' #' + cur.count + (message === undefined ? '' : ': ' + String(message)));
+  }
+
+  function makeAssert(t) {
+    const a = {
+      ok(v, m) { push(!!v, 'ok', m); },
+      notOk(v, m) { push(!v, 'notOk', m); },
+      equal(x, y, m) { push(x == y, 'equal', m); },
+      notEqual(x, y, m) { push(x != y, 'notEqual', m); },
+      strictEqual(x, y, m) { push(x === y, 'strictEqual', m); },
+      notStrictEqual(x, y, m) { push(x !== y, 'notStrictEqual', m); },
+      deepEqual(x, y, m) { push(equiv(x, y, []), 'deepEqual', m); },
+      notDeepEqual(x, y, m) { push(!equiv(x, y, []), 'notDeepEqual', m); },
+      propEqual(x, y, m) { push(ownEquiv(x, y), 'propEqual', m); },
+      notPropEqual(x, y, m) { push(!ownEquiv(x, y), 'notPropEqual', m); },
+      throws(fn, expected, m) {
+        if (typeof expected === 'string') { m = expected; expected = undefined; }
+        let threw = false, e;
+        try { fn.call(undefined); } catch (err) { threw = true; e = err; }
+        let ok = threw;
+        if (threw && expected !== undefined) {
+          if (typeof expected === 'function') {
+            ok = expected.prototype !== undefined && e instanceof expected ? true
+              : (expected.prototype === undefined || !(e instanceof Error)) && expected.call({}, e) === true;
+          } else if (expected instanceof RegExp) {
+            ok = expected.test(String(e));
+          } else if (expected !== null && typeof expected === 'object') {
+            ok = e instanceof expected.constructor && e.name === expected.name && e.message === expected.message;
+          }
+        }
+        push(ok, 'throws', m);
+      },
+      expect(n) { t.expected = n; },
+      async(n) {
+        let left = n === undefined ? 1 : n;
+        t.pending++;
+        return function done() {
+          if (left <= 0) return;
+          if (--left === 0 && --t.pending === 0 && cur === t) finishSoon(t);
+        };
+      },
+      pushResult(r) { push(!!(r && r.result), 'pushResult', r && r.message); },
+      step(m) { t.steps.push(String(m)); push(true, 'step', m); },
+      verifySteps(want, m) { push(equiv(t.steps, want, []), 'verifySteps', m); t.steps = []; },
+      timeout() {},
+    };
+    a.raises = a.throws;
+    a.same = a.deepEqual;
+    a.equals = a.equal;
+    return a;
+  }
+
+  function hook(t, names2) {
+    const h = t.hooks;
+    if (!h) return;
+    for (const n of names2) {
+      if (typeof h[n] === 'function') {
+        try { h[n].call(t.env, t.assert); } catch (e) { t.failures.push('hook ' + n + ' died: ' + describe(e).name); }
+      }
+    }
+  }
+
+  function finishSoon(t) {
+    if (t.timer !== null) vClearTimeout(t.timer);
+    t.timer = null;
+    vSetTimeout(() => finish(t), 0);
+  }
+
+  function finish(t) {
+    if (t.done) return;
+    t.done = true;
+    if (t.timer !== null) vClearTimeout(t.timer);
+    cur = t;
+    hook(t, ['afterEach', 'teardown']);
+    if (t.expected !== null && t.expected !== t.count) {
+      t.failures.push('expected ' + t.expected + ' assertions, ran ' + t.count);
+    }
+    results[t.name] = t.failures;
+    cur = null;
+    vSetTimeout(runNext, 0);
+  }
+
+  function runNext() {
+    if (index >= tests.length) {
+      if (!finished) {
+        finished = true;
+        const failed = objectKeys(results).filter((k) => results[k].length).length;
+        for (const cb of doneCbs) {
+          try { cb({failed, passed: tests.length - failed, total: tests.length}); } catch (_) { /* reporting only */ }
+        }
+      }
+      return;
+    }
+    const t = tests[index++];
+    t.assert = makeAssert(t);
+    cur = t;
+    hook(t, ['beforeEach', 'setup']);
+    try {
+      const r = t.fn.call(t.env, t.assert);
+      if (r && typeof r.then === 'function') {
+        t.pending++;
+        RealPromise.resolve(r).then(() => { if (--t.pending === 0 && cur === t) finishSoon(t); },
+          (e) => { t.failures.push('rejected: ' + describe(e).name + ': ' + describe(e).message); if (--t.pending === 0 && cur === t) finishSoon(t); });
+      }
+    } catch (e) {
+      const d = describe(e);
+      t.failures.push('died: ' + d.name + ': ' + d.message);
+      t.pending = 0;
+    }
+    if (t.pending === 0) {
+      finish(t);
+    } else {
+      t.timer = vSetTimeout(() => { t.failures.push('timeout'); t.pending = 0; finish(t); }, 60000);
+    }
+  }
+
+  function add(name, fn) {
+    let full = (moduleName ? moduleName + ': ' : '') + String(name);
+    const k = names.get(full) || 0;
+    names.set(full, k + 1);
+    if (k) full += ' #' + (k + 1);
+    tests.push({name: full, fn, hooks: moduleHooks, env: {}, assert: null, failures: [], count: 0, expected: null,
+      pending: 0, timer: null, done: false, steps: []});
+  }
+
+  G.QUnit = {
+    config: {},
+    module(name, hooks) {
+      moduleName = String(name);
+      moduleHooks = hooks && typeof hooks === 'object' ? hooks : null;
+      if (typeof hooks === 'function') hooks({beforeEach() {}, afterEach() {}});
+    },
+    test(name, fn) { add(name, fn); },
+    only(name, fn) { add(name, fn); },
+    skip() {},
+    todo() {},
+    load() {},
+    start() {
+      if (started) return;
+      started = true;
+      vSetTimeout(runNext, 0);
+    },
+    done(cb) { doneCbs.push(cb); },
+    begin() {}, testStart() {}, testDone() {}, moduleStart() {}, moduleDone() {}, log() {},
+    equiv(a, b) { return equiv(a, b, []); },
+  };
+  return {
+    onError(e) {
+      if (!cur || cur.done) return false;
+      const d = describe(e);
+      cur.failures.push('uncaught: ' + d.name + ': ' + d.message);
+      return true;
+    },
+    results() {
+      const failed = objectKeys(results).filter((k) => results[k].length).length;
+      const tests2 = {};
+      for (const k of objectKeys(results).sort()) tests2[k] = results[k];
+      return {finished, success: finished && failed === 0, tests: tests2, registered: tests.length};
+    },
+  };
 }
 
 function installDomStub() {
@@ -281,7 +540,7 @@ function installDomStub() {
 const unhandled = new Map(); // promise -> reason, in rejection order
 process.on('unhandledRejection', (reason, p) => { unhandled.set(p, reason); });
 process.on('rejectionHandled', (p) => { unhandled.delete(p); });
-process.on('uncaughtException', (e) => { fail('microtask', e); });
+process.on('uncaughtException', (e) => { if (!(qunit && qunit.onError(e))) fail('microtask', e); });
 
 function tick() {
   return new RealPromise((resolve) => realSetImmediate(resolve));
@@ -339,7 +598,7 @@ async function main() {
       if (typeof best.fn === 'function') best.fn(...best.args);
       else vm.runInThisContext(String(best.fn));
     } catch (e) {
-      fail('timer', e);
+      if (!(qunit && qunit.onError(e))) fail('timer', e);
     }
   }
   await tick();
@@ -348,6 +607,8 @@ async function main() {
   for (const r of unhandled.values()) record.rejections.push(describe(r));
   if (opts.env === 'browser') {
     record.suite = closureSuite();
+  } else if (qunit) {
+    record.suite = qunit.results();
   }
   fs.writeFileSync(opts.result, JSON.stringify(record));
 }

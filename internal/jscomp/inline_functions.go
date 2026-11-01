@@ -225,6 +225,9 @@ func inlineFunctions_traverseWithScopeCreator(compiler AbstractCompiler, root rh
 // Java: InlineFunctions.process(Node, Node)
 func (f *InlineFunctions) Process(externs rhino.Node, root rhino.Node) {
 	jutil.CheckState(f.compiler.GetLifeCycleStage().IsNormalized())
+	if fastFault(f.compiler.GetOptions(), faultBenignNoInline) {
+		return
+	}
 
 	p := f.ensureRunState()
 	defer func() {

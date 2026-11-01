@@ -181,6 +181,7 @@ func runReferenceProtoRoundTrip(
 	shard := colorPoolBuilder.AddShard(typePool, stringPool)
 	colorPool := colorPoolBuilder.Build()
 
+	detached := false
 	var applyWalk func(n rhino.Node)
 	applyWalk = func(n rhino.Node) {
 		for c := n.GetFirstChild(); !c.IsNil(); c = c.GetNext() {
@@ -197,11 +198,12 @@ func runReferenceProtoRoundTrip(
 				}
 			}
 		}
-		if hadBeforeCast {
+		if hadBeforeCast && (!detached || n.GetColor() != nil) {
 			n.SetColorFromTypeCast()
 		}
 	}
 	applyWalk(externsAndJsRoot)
+	detached = true
 	convertTypesToColors_forDetachedRoots(compiler, externsAndJsRoot, applyWalk)
 	compiler.ClearJSTypeRegistry()
 	if initRuntimeLibs {
@@ -358,7 +360,7 @@ processValue(instance, 42);
 				cb.jstypeReconserializer = ser.jstypeReconserializer
 				cb.offsetToColor = ser.jstypeReconserializer.offsetToColor
 				cb.walk(root)
-				convertTypesToColors_forDetachedRoots(cDirect, root, cb.walk)
+				convertTypesToColors_forDetachedRoots(cDirect, root, cb.walkDetached)
 				cDirect.ClearJSTypeRegistry()
 				directReg = cp.GetRegistry()
 			}
@@ -455,5 +457,53 @@ func TestTokenNodeKindTables_RoundTripAllValidKinds(t *testing.T) {
 			t.Fatalf("round-trip mismatch for %s: deserialized token %v serialized back to %s",
 				kind, n.GetToken(), got)
 		}
+	}
+}
+
+// Go-only regression test: a subtree that the checks detached but the change
+// timeline still holds is walked by convertTypesToColors_forDetachedRoots;
+// its types were never gathered, so a cast inside it has no color, and
+// marking it as colored from a cast threw "Only use on nodes with colors
+// present" (seen on Closure Library's net/channelrequest_test.js at
+// ADVANCED, which Java compiles). Java never visits detached nodes.
+func TestConvertTypesToColors_DetachedCastHasNoColor(t *testing.T) {
+	const externs = `
+/** @constructor */ function Object() {}
+/** @constructor */ function Function() {}
+/** @constructor @param {*=} x @return {string} */ function String(x) {}
+`
+	const src = `
+/** @param {*} x @return {?} */
+function f(x) { return /** @type {{onlyInF: number}} */ (x); }
+var y = f(1);
+`
+	c := prepareCheckedCompilerForColorsTest(t, externs, src)
+	var fn, cast rhino.Node
+	var find func(n rhino.Node)
+	find = func(n rhino.Node) {
+		if n.IsFunction() && fn.IsNil() {
+			fn = n
+		}
+		if n.IsName() && n.GetString() == "x" && n.GetJSTypeBeforeCast() != nil {
+			cast = n
+		}
+		for ch := n.GetFirstChild(); !ch.IsNil(); ch = ch.GetNext() {
+			find(ch)
+		}
+	}
+	find(c.GetJsRoot())
+	if fn.IsNil() || cast.IsNil() {
+		t.Fatalf("test input: function %v, cast %v", fn, cast)
+	}
+	c.ReportChangeToChangeScope(fn)
+	fn.Detach()
+
+	opts := SerializationOptions_Builder_().Build()
+	NewConvertTypesToColors(c, opts).Process(c.GetExternsRoot(), c.GetJsRoot())
+
+	// The record type occurs only inside f, so it was never gathered.
+	if cast.GetJSType() != nil || cast.GetColor() != nil || cast.IsColorFromTypeCast() {
+		t.Errorf("detached cast: JSType %v, color %v, color from cast %v; want none",
+			cast.GetJSType(), cast.GetColor(), cast.IsColorFromTypeCast())
 	}
 }

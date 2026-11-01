@@ -37,6 +37,16 @@ const (
 	// FunctionToBlockMutator declares the temporaries of an inlined call's
 	// arguments in reverse order (a swapped evaluation order).
 	faultSwapArgs
+	// Benign variants: output changes that keep behaviour, which the oracle
+	// must pass (or report as blind spots), never fail.
+	//
+	// RenameVars and RenameProperties skip the first name they would assign,
+	// so every renamed name shifts: a pure renaming, which the coverage rule's
+	// diff must call alpha-isomorphic.
+	faultBenignRename
+	// InlineFunctions inlines nothing: a different, correct decision at every
+	// call site it would have inlined.
+	faultBenignNoInline
 )
 
 var seededFaultNames = map[string]seededFaultKind{
@@ -47,6 +57,8 @@ var seededFaultNames = map[string]seededFaultKind{
 	"collapse-unsafe":  faultCollapseUnsafe,
 	"inline-vars":      faultInlineVars,
 	"swap-args":        faultSwapArgs,
+	"benign-rename":    faultBenignRename,
+	"benign-no-inline": faultBenignNoInline,
 }
 
 func parseSeededFault(name string) seededFaultKind {
