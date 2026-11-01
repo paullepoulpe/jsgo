@@ -15,6 +15,7 @@
 //     functions) run on a virtual clock: after the script, the runner fires
 //     them in (due time, creation order), jumping the clock to each due time,
 //     and drains the microtask queue (promise jobs) between two timers;
+//     performance.now() reads that clock;
 //   - with --freeze-date, Date reads the virtual clock (a fixed epoch plus the
 //     virtual time), so Date.now() and `new Date()` are deterministic too.
 //     It is off for test262, whose Date tests check the constructor's own
@@ -160,6 +161,13 @@ globalThis.setImmediate = {setImmediate(fn, ...rest) { return addTimer(fn, 0, re
 globalThis.clearTimeout = {clearTimeout(id) { clearTimer(id); }}.clearTimeout;
 globalThis.clearInterval = {clearInterval(id) { clearTimer(id); }}.clearInterval;
 globalThis.clearImmediate = {clearImmediate(id) { clearTimer(id); }}.clearImmediate;
+
+// performance.now() reads the virtual clock too (goog.testing times its tests
+// with it).
+if (typeof performance === 'object' && performance !== null) {
+  Object.defineProperty(performance, 'now', {
+    value: {now() { return now; }}.now, writable: true, enumerable: false, configurable: true});
+}
 
 if (opts.freezeDate) {
   const FakeDate = function Date(...a) {

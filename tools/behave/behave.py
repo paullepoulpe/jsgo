@@ -21,6 +21,9 @@ Commands:
   faults   the seeded-fault check: rebuilds the fast builds of a finished run
            with JSGO_FAST_FAULT=<fault> and reports which faults the oracle
            catches (<out>/faults.{md,json}).
+  replay   runs the stored compat builds of a finished run again and checks
+           that each behaves as recorded: the runner's determinism (and, after
+           a node upgrade, the engine's stability).
   report   rewrites the summary of a run directory.
   verify   checks the fetched suites against the digests in pins.json
            (tools/behave/fetch.sh runs it); --update rewrites them.
@@ -348,6 +351,8 @@ def category(o):
         c = o["compile"]
         if c["crash"]:
             return "compile-crash"
+        if "INTERNAL COMPILER ERROR" in c.get("stderr", ""):
+            return "compile-internal-error"
         return "compile-error:" + (",".join(c["errors"][:2]) or f"exit-{c['exit']}")
     return "runtime:" + o["why"]
 
@@ -389,7 +394,7 @@ def java_check(args, out):
             with open(jobfile, "w") as f:
                 for (i, ln, c, js, res, argv) in chunk:
                     f.write("\t".join([res] + argv) + "\n")
-            procs.append(subprocess.Popen(["java", "-Xss8m", "-cp", cp, "CliBatch"], cwd=root,
+            procs.append(subprocess.Popen(["java", "-Xss8m", "-Xmx2g", "-cp", cp, "CliBatch"], cwd=root,
                                           stdin=open(jobfile), stdout=subprocess.DEVNULL,
                                           stderr=open(jobfile + ".log", "w"), env=core.clean_env(core.JAVA_ENV_DROP)))
         for p in procs:
@@ -676,6 +681,50 @@ def summarize_findings(findings):
                           f"`{r.get('detail', '')}`" for r in findings if r["kind"] == "port"]}
 
 
+def cmd_replay(args):
+    out = os.path.abspath(args.out)
+    meta_path = os.path.join(out, "run.json")
+    if os.path.exists(meta_path):
+        with open(meta_path) as f:
+            args.subset = json.load(f).get("subset", args.subset)
+    lines = [ln for ln in latest(read_results(out)).values()
+             if "harness_error" not in ln and ln["compat"]["compile"]["ok"]]
+    if args.limit:
+        lines = lines[:args.limit]
+    cases = {}
+    for suite in sorted({ln["suite"] for ln in lines}):
+        for c in load_cases(args, suite):
+            cases[(suite, c.id)] = c
+    work = os.path.join(out, "replay-work")
+    os.makedirs(work, exist_ok=True)
+    lock = threading.Lock()
+    bad = []
+
+    def one(ln):
+        c = cases.get((ln["suite"], ln["id"]))
+        if c is None:
+            return
+        src = builds_path(out, c, ln["config"], "compat")
+        prog = os.path.join(work, f"{c.suite}-{c.safe_id()}-{ln['config']}.js")
+        with open(prog, "wb") as f:
+            f.write(core.read_gz(src))
+        o = core.outcome(c, ln["compat"]["compile"], core.run_program(args.node, prog, c, prog[:-3]))
+        os.remove(prog)
+        if core.behaviour(o) != core.behaviour(ln["compat"]):
+            with lock:
+                bad.append(f"{c.suite}/{c.id} [{ln['config']}]: recorded {ln['compat']['why']}, now {o['why']}")
+
+    t0 = time.monotonic()
+    with concurrent.futures.ThreadPoolExecutor(max_workers=args.jobs) as ex:
+        list(ex.map(one, lines))
+    shutil.rmtree(work, ignore_errors=True)
+    log(f"replay: {len(lines)} compat build(s) run again in {(time.monotonic() - t0) / 60:.1f} min, "
+        f"{len(bad)} behaved differently")
+    for b in sorted(bad):
+        print("  " + b)
+    return 1 if bad else 0
+
+
 def suite_files(cache, name):
     """The files whose digest pins.json records for suite `name`, relative
     to its directory."""
@@ -942,6 +991,11 @@ def main():
     p.add_argument("--keep-diffs", action="store_true")
     p.add_argument("--resume", action="store_true")
     p.set_defaults(fn=cmd_faults)
+
+    p = sub.add_parser("replay", help="run a finished run's compat builds again (determinism)")
+    common(p, jsgo=False)
+    p.add_argument("--out", required=True, help="a finished `run` directory")
+    p.set_defaults(fn=cmd_replay)
 
     p = sub.add_parser("report", help="rewrite a run's summary")
     p.add_argument("--out", required=True)
