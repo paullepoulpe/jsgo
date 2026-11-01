@@ -367,6 +367,19 @@ func (c *CrossChunkMethodMotionTest) TestMoveClassMethodForConstDefinition() {
 				"(new Foo).method();\n"))
 }
 
+// Go-only: a method of a class expression that no name holds (here the
+// receiver of .prototype) is analysed without a root variable, as in Java,
+// whose null check the port had dropped (an internal compiler error, found by
+// the behavioural oracle on test262 at ADVANCED with ES2015 output).
+func (c *CrossChunkMethodMotionTest) TestDoNotMoveMethodOfUnnamedClassExpression() {
+	c.TestSame(
+		c.Srcs(
+			JSChunkGraphBuilder_ForChain().
+				AddChunk("(class { method() {} }).prototype.method();").
+				AddChunk("(new Foo).method()").
+				Build()))
+}
+
 // Java: CrossChunkMethodMotionTest.doNotMoveFunctionCall_thatIsSideEffected()
 func (c *CrossChunkMethodMotionTest) TestDoNotMoveFunctionCall_thatIsSideEffected() {
 	// TODO(bradfordcsmith): Stop normalizing the expected output or document why it is necessary.

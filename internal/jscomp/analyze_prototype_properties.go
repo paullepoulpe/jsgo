@@ -801,7 +801,7 @@ func (p *AnalyzePrototypeProperties_ProcessProperties) processMemberDef(t *NodeT
 
 	classNameNode := NodeUtil_GetNameNode(n.GetGrandparent())
 	var var_ *Var
-	if classNameNode.IsName() {
+	if !classNameNode.IsNil() && classNameNode.IsName() {
 		var_ = t.LookupVarByID(classNameNode.GetStringID())
 	}
 	p.outer.getNameInfoByID(n.GetStringID(), AnalyzePrototypeProperties_PROPERTY).AddDeclaration(
