@@ -221,7 +221,9 @@ def judge(diff, cmp, compat_o, fast_cov, compat_cov):
         if key not in units or rank[v] > rank[units[key]]:
             units[key] = v
     ucounts = collections.Counter(units.values())
-    if counts.get("fail"):
+    if counts.get("fail") or cmp in core.SIGNAL_DIFFS:
+        # A behaviour difference fails the build even when no change shows as
+        # run (a run that timed out writes no coverage).
         verdict = "fail"
     elif counts.get("blind"):
         verdict = "blind"
