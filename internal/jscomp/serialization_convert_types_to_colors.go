@@ -67,6 +67,9 @@ type ConvertTypesToColors_RemoveTypesAndApplyColors struct {
 	offsetToColor         []*colors.Color
 	jstypeReconserializer *JSTypeReconserializer
 	jsdocBuilder          rhino.JSDocInfo_Builder
+	// detached: walking a subtree no longer attached to the AST
+	// (convertTypesToColors_forDetachedRoots, Go-only).
+	detached bool
 }
 
 func (r *ConvertTypesToColors_RemoveTypesAndApplyColors) visitNode(n rhino.Node) {
@@ -83,11 +86,22 @@ func (r *ConvertTypesToColors_RemoveTypesAndApplyColors) visitNode(n rhino.Node)
 		}
 	}
 
-	if hadBeforeCast {
+	// Go-only: a detached node's types were never gathered (Java does not
+	// visit detached nodes at all), so it gets no color and must not be
+	// marked as having its color from a cast: Node.setColorFromTypeCast
+	// requires a color.
+	if hadBeforeCast && (!r.detached || n.GetColor() != nil) {
 		// used by FunctionInjector and InlineVariables when inlining as a hint that a node has a
 		// more specific color
 		n.SetColorFromTypeCast()
 	}
+}
+
+// walkDetached is walk for a subtree that is no longer attached to the AST.
+func (r *ConvertTypesToColors_RemoveTypesAndApplyColors) walkDetached(n rhino.Node) {
+	r.detached = true
+	r.walk(n)
+	r.detached = false
 }
 
 func (r *ConvertTypesToColors_RemoveTypesAndApplyColors) walk(n rhino.Node) {
@@ -133,7 +147,7 @@ func (c *ConvertTypesToColors) Process(externs rhino.Node, root rhino.Node) {
 	callback.offsetToColor = serializeJstypes.jstypeReconserializer.offsetToColor
 
 	callback.walk(externsAndJsRoot)
-	convertTypesToColors_forDetachedRoots(c.compiler, externsAndJsRoot, callback.walk)
+	convertTypesToColors_forDetachedRoots(c.compiler, externsAndJsRoot, callback.walkDetached)
 
 	c.compiler.ClearJSTypeRegistry()
 	c.compiler.SetColorRegistry(colorPool.GetRegistry())
