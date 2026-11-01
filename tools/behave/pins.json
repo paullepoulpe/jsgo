@@ -56,5 +56,21 @@
   "note": "the corpus version's tag; npm leaves test/ out",
   "sha256": "e0f90f6a40d4c591dda9350d5f7e4e4ec75819f183905bd9a69bad8165426c33",
   "files": 3
+ },
+ "marked_tests": {
+  "dir": "behave/marked",
+  "repo": "https://github.com/markedjs/marked",
+  "tag": "v15.0.12",
+  "commit": "b4eb83bbb48107720d95162ccecf829ba16be91e",
+  "sparse": "test",
+  "digest_paths": [
+   "test/specs/new",
+   "test/specs/original",
+   "test/specs/redos"
+  ],
+  "licence": "MIT",
+  "note": "the corpus version's tag, for its spec tests; the library is the corpus package's lib/marked.umd.js",
+  "sha256": "b830a975a7e636ef5e911d6047f66ca639efae00ffeeb84146b05de65727787e",
+  "files": 299
  }
 }

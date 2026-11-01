@@ -74,8 +74,9 @@ import closure_rt  # noqa: E402
 import closure_lib  # noqa: E402
 import libs  # noqa: E402
 
-SUITES = ("test262", "closure", "closure-lib", "lodash")
-PIN_KEYS = {"test262": "test262", "closure": "closure", "closure-lib": "closure_library_tests"}
+SUITES = ("test262", "closure", "closure-lib", "lodash", "marked")
+PIN_KEYS = {"test262": "test262", "closure": "closure", "closure-lib": "closure_library_tests",
+            "marked": "marked_tests"}
 EXPECT_DIR = os.path.join(core.HERE, "expect")
 FAULTS = ("inline-args", "drop-unused-init", "swap-args", "fold-negzero", "hook-negation", "collapse-unsafe",
           "inline-vars")
@@ -98,6 +99,8 @@ def load_cases(args, suite):
         cs = closure_lib.cases(root, args.cache, args.subset)
     elif suite == "lodash":
         cs = libs.lodash_cases(root, args.cache)
+    elif suite == "marked":
+        cs = libs.marked_cases(root, args.cache)
     else:
         cs = closure_rt.cases(root, args.cache)
     if args.filter:

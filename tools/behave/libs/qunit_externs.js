@@ -71,3 +71,4 @@ QUnitAssert.prototype.timeout = function(ms) {};
 /** @type {?} */ var lodashModule;
 /** @type {?} */ var shimmedModule;
 /** @type {?} */ var underscoreModule;
+/** @param {...*} var_args */ function print(var_args) {}
