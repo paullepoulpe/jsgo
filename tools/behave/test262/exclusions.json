@@ -1,0 +1,313 @@
+{
+ "closure_threshold": 0.75,
+ "eligible": 43117,
+ "excluded_by_feature": {
+  "closure": 4126,
+  "node": 6408
+ },
+ "fail_uncompiled": {
+  "reason": "the test fails uncompiled on node 22: no signal",
+  "tests": 500
+ },
+ "features_closure": {
+  "class-fields-private": {
+   "codes": {
+    "JSC_PARSE_ERROR": 8,
+    "JSC_UNSUPPORTED_LANGUAGE_FEATURE": 21
+   },
+   "compile_errors": 28,
+   "probed": 28,
+   "reason": "Closure v20261021 rejects it: 28 of 28 probed tests do not compile (simple-es2015)",
+   "tests": 760
+  },
+  "class-fields-private-in": {
+   "codes": {
+    "JSC_PARSE_ERROR": 1,
+    "JSC_UNSUPPORTED_LANGUAGE_FEATURE": 11
+   },
+   "compile_errors": 11,
+   "probed": 11,
+   "reason": "Closure v20261021 rejects it: 11 of 11 probed tests do not compile (simple-es2015)",
+   "tests": 11
+  },
+  "class-methods-private": {
+   "codes": {
+    "JSC_PARSE_ERROR": 3,
+    "JSC_UNSUPPORTED_LANGUAGE_FEATURE": 16
+   },
+   "compile_errors": 19,
+   "probed": 19,
+   "reason": "Closure v20261021 rejects it: 19 of 19 probed tests do not compile (simple-es2015)",
+   "tests": 1359
+  },
+  "class-static-fields-private": {
+   "codes": {
+    "JSC_PARSE_ERROR": 9,
+    "JSC_UNSUPPORTED_LANGUAGE_FEATURE": 5
+   },
+   "compile_errors": 14,
+   "probed": 14,
+   "reason": "Closure v20261021 rejects it: 14 of 14 probed tests do not compile (simple-es2015)",
+   "tests": 327
+  },
+  "class-static-methods-private": {
+   "codes": {
+    "JSC_PARSE_ERROR": 3,
+    "JSC_UNSUPPORTED_LANGUAGE_FEATURE": 15
+   },
+   "compile_errors": 18,
+   "probed": 18,
+   "reason": "Closure v20261021 rejects it: 18 of 18 probed tests do not compile (simple-es2015)",
+   "tests": 1348
+  },
+  "import-attributes": {
+   "codes": {
+    "JSC_PARSE_ERROR": 12
+   },
+   "compile_errors": 12,
+   "probed": 12,
+   "reason": "Closure v20261021 rejects it: 12 of 12 probed tests do not compile (simple-es2015)",
+   "tests": 64
+  },
+  "regexp-lookbehind": {
+   "codes": {
+    "JSC_UNTRANSPILABLE": 12
+   },
+   "compile_errors": 12,
+   "probed": 12,
+   "reason": "Closure v20261021 rejects it: 12 of 12 probed tests do not compile (simple-es2015)",
+   "tests": 19
+  },
+  "regexp-unicode-property-escapes": {
+   "codes": {
+    "JSC_PARSE_ERROR": 5,
+    "JSC_UNTRANSPILABLE": 12
+   },
+   "compile_errors": 17,
+   "probed": 17,
+   "reason": "Closure v20261021 rejects it: 17 of 17 probed tests do not compile (simple-es2015)",
+   "tests": 518
+  },
+  "regexp-v-flag": {
+   "codes": {
+    "JSC_PARSE_ERROR": 13
+   },
+   "compile_errors": 13,
+   "probed": 14,
+   "reason": "Closure v20261021 rejects it: 13 of 14 probed tests do not compile (simple-es2015)",
+   "tests": 136
+  }
+ },
+ "features_node": {
+  "Atomics.pause": {
+   "fail_uncompiled": 5,
+   "reason": "node 22 does not implement it: 5 of 5 tests fail uncompiled",
+   "tests": 5
+  },
+  "Error.isError": {
+   "fail_uncompiled": 10,
+   "reason": "node 22 does not implement it: 10 of 10 tests fail uncompiled",
+   "tests": 10
+  },
+  "Float16Array": {
+   "fail_uncompiled": 38,
+   "reason": "node 22 does not implement it: 38 of 49 tests fail uncompiled",
+   "tests": 49
+  },
+  "Intl.Era-monthcode": {
+   "fail_uncompiled": 10,
+   "reason": "node 22 does not implement it: 10 of 10 tests fail uncompiled",
+   "tests": 10
+  },
+  "Iterator.prototype.join": {
+   "fail_uncompiled": 16,
+   "reason": "node 22 does not implement it: 16 of 18 tests fail uncompiled",
+   "tests": 18
+  },
+  "Math.sumPrecise": {
+   "fail_uncompiled": 10,
+   "reason": "node 22 does not implement it: 10 of 10 tests fail uncompiled",
+   "tests": 10
+  },
+  "RegExp.escape": {
+   "fail_uncompiled": 19,
+   "reason": "node 22 does not implement it: 19 of 19 tests fail uncompiled",
+   "tests": 19
+  },
+  "ShadowRealm": {
+   "fail_uncompiled": 57,
+   "reason": "node 22 does not implement it: 57 of 57 tests fail uncompiled",
+   "tests": 57
+  },
+  "Temporal": {
+   "fail_uncompiled": 4613,
+   "reason": "node 22 does not implement it: 4613 of 4613 tests fail uncompiled",
+   "tests": 4613
+  },
+  "await-dictionary": {
+   "fail_uncompiled": 87,
+   "reason": "node 22 does not implement it: 87 of 89 tests fail uncompiled",
+   "tests": 89
+  },
+  "decorators": {
+   "fail_uncompiled": 22,
+   "reason": "node 22 does not implement it: 22 of 24 tests fail uncompiled",
+   "tests": 24
+  },
+  "dynamic-import": {
+   "fail_uncompiled": 420,
+   "reason": "node 22 does not implement it: 420 of 592 tests fail uncompiled",
+   "tests": 592
+  },
+  "error-stack-accessor": {
+   "fail_uncompiled": 33,
+   "reason": "node 22 does not implement it: 33 of 33 tests fail uncompiled",
+   "tests": 33
+  },
+  "explicit-resource-management": {
+   "fail_uncompiled": 342,
+   "reason": "node 22 does not implement it: 342 of 351 tests fail uncompiled",
+   "tests": 351
+  },
+  "export-star-as-namespace-from-module": {
+   "fail_uncompiled": 4,
+   "reason": "node 22 does not implement it: 4 of 4 tests fail uncompiled",
+   "tests": 4
+  },
+  "immutable-arraybuffer": {
+   "fail_uncompiled": 59,
+   "reason": "node 22 does not implement it: 59 of 61 tests fail uncompiled",
+   "tests": 61
+  },
+  "import-defer": {
+   "fail_uncompiled": 58,
+   "reason": "node 22 does not implement it: 58 of 58 tests fail uncompiled",
+   "tests": 58
+  },
+  "import-text": {
+   "fail_uncompiled": 1,
+   "reason": "node 22 does not implement it: 1 of 1 tests fail uncompiled",
+   "tests": 1
+  },
+  "iterator-chunking": {
+   "fail_uncompiled": 73,
+   "reason": "node 22 does not implement it: 73 of 82 tests fail uncompiled",
+   "tests": 82
+  },
+  "iterator-includes": {
+   "fail_uncompiled": 40,
+   "reason": "node 22 does not implement it: 40 of 44 tests fail uncompiled",
+   "tests": 44
+  },
+  "iterator-sequencing": {
+   "fail_uncompiled": 37,
+   "reason": "node 22 does not implement it: 37 of 40 tests fail uncompiled",
+   "tests": 40
+  },
+  "joint-iteration": {
+   "fail_uncompiled": 77,
+   "reason": "node 22 does not implement it: 77 of 82 tests fail uncompiled",
+   "tests": 82
+  },
+  "json-modules": {
+   "fail_uncompiled": 1,
+   "reason": "node 22 does not implement it: 1 of 1 tests fail uncompiled",
+   "tests": 1
+  },
+  "legacy-regexp": {
+   "fail_uncompiled": 18,
+   "reason": "node 22 does not implement it: 18 of 19 tests fail uncompiled",
+   "tests": 19
+  },
+  "nonextensible-applies-to-private": {
+   "fail_uncompiled": 2,
+   "reason": "node 22 does not implement it: 2 of 2 tests fail uncompiled",
+   "tests": 2
+  },
+  "promise-try": {
+   "fail_uncompiled": 13,
+   "reason": "node 22 does not implement it: 13 of 15 tests fail uncompiled",
+   "tests": 15
+  },
+  "regexp-duplicate-named-groups": {
+   "fail_uncompiled": 16,
+   "reason": "node 22 does not implement it: 16 of 16 tests fail uncompiled",
+   "tests": 16
+  },
+  "source-phase-imports": {
+   "fail_uncompiled": 90,
+   "reason": "node 22 does not implement it: 90 of 91 tests fail uncompiled",
+   "tests": 91
+  },
+  "source-phase-imports-module-source": {
+   "fail_uncompiled": 42,
+   "reason": "node 22 does not implement it: 42 of 42 tests fail uncompiled",
+   "tests": 42
+  },
+  "tail-call-optimization": {
+   "fail_uncompiled": 35,
+   "reason": "node 22 does not implement it: 35 of 35 tests fail uncompiled",
+   "tests": 35
+  },
+  "top-level-await": {
+   "fail_uncompiled": 1,
+   "reason": "node 22 does not implement it: 1 of 2 tests fail uncompiled",
+   "tests": 2
+  },
+  "uint8array-base64": {
+   "fail_uncompiled": 62,
+   "reason": "node 22 does not implement it: 62 of 70 tests fail uncompiled",
+   "tests": 70
+  },
+  "upsert": {
+   "fail_uncompiled": 49,
+   "reason": "node 22 does not implement it: 49 of 72 tests fail uncompiled",
+   "tests": 72
+  }
+ },
+ "node_threshold": 0.5,
+ "per_change": 1500,
+ "pool": 32083,
+ "sample": 5000,
+ "seed": 20261101,
+ "static": {
+  "dir:harness": {
+   "reason": "harness/: tests of test262's own include files, not of the language",
+   "tests": 116
+  },
+  "dir:intl402": {
+   "reason": "ECMA-402 (Intl): a library outside the compiler's scope whose results depend on the engine's ICU data",
+   "tests": 3382
+  },
+  "dir:staging": {
+   "reason": "staging/: proposals and engine-contributed tests not yet in the main suite",
+   "tests": 1487
+  },
+  "feature:host": {
+   "reason": "needs a host hook the runner does not provide: cross-realm ($262.createRealm), IsHTMLDDA, host-gc-required ($262.gc), or $262.agent (atomicsHelper.js)",
+   "tests": 339
+  },
+  "fixture": {
+   "reason": "a _FIXTURE file imported by module tests, not a test",
+   "tests": 294
+  },
+  "flag:CanBlock": {
+   "reason": "CanBlockIsTrue/CanBlockIsFalse tests need $262.agent worker threads (Atomics.wait)",
+   "tests": 9
+  },
+  "flag:module": {
+   "reason": "ES module tests need a module loader and their _FIXTURE imports; Closure rewrites modules into one script, so import.meta, live bindings across files, top-level await and namespace objects do not carry over",
+   "tests": 598
+  },
+  "negative:parse": {
+   "reason": "the expected outcome is an early (parse-time) error: a parser test, with no runtime behaviour to compare (the parser is checked byte for byte against Java, and test262-parser-tests is in the corpus)",
+   "tests": 4669
+  },
+  "negative:resolution": {
+   "reason": "the expected outcome is a module resolution error: a loader test",
+   "tests": 34
+  }
+ },
+ "test262_commit": "91c70759363c46557b694792bf34a2551a7af5ba",
+ "total_tests": 54045
+}

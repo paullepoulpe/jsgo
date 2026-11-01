@@ -1,0 +1,5 @@
+# Accepted compat-vs-fast differences on tests that pass on the compat build
+# (tools/behave/behave.py run fails on any other). One per line:
+#   <suite>/<test id> <configuration>   # why it is accepted
+# Empty: fast mode is alpha-isomorphic to compat today, and the oracle finds
+# no difference.
