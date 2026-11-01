@@ -228,11 +228,33 @@ func (r *parallelRecorder) report(c *Compiler, err *JSError) {
 		kind: recordedEventReport,
 		err:  err,
 	})
-	if !r.continueAfterErrors && !r.halted {
-		if lvl := c.GetErrorLevel(err); lvl != nil && *lvl == CheckLevel_ERROR {
-			r.halted = true
+	if !r.continueAfterErrors && !r.halted && reportHalts(c, err) {
+		r.halted = true
+	}
+}
+
+// reportHalts reports whether Compiler.Report(err) makes HasHaltingErrors
+// true: Report gives err its default level unless the warnings guard sets
+// one, and the error managers count as halting the errors reported at level
+// ERROR whose type is an error (SortingErrorManager.originalErrorCount,
+// ErrorManager_HasHaltingErrors), not the warnings a guard promotes.
+//
+// Go-only: workers used the guard's level alone, so an error at its default
+// level did not stop a worker's script where the sequential traversal stops
+// (a CombinedCompilerPass then reported later diagnostics of the same
+// script), and a promoted warning stopped it where the sequential one goes
+// on.
+func reportHalts(c *Compiler, err *JSError) bool {
+	if err.Type().level != CheckLevel_ERROR {
+		return false
+	}
+	level := err.DefaultLevel()
+	if c.warningsGuard != nil {
+		if newLevel := c.warningsGuard.Level(err); newLevel != nil {
+			level = *newLevel
 		}
 	}
+	return level == CheckLevel_ERROR
 }
 
 func (r *parallelRecorder) reportChangeToEnclosingScope(n rhino.Node) {

@@ -385,3 +385,25 @@ window['gdecomp_%[1]d'] = extEffect('g_%[1]d') + leafBlockInl_%[1]d(%[1]d);
 		opts.SetInlineConstantVars(true)
 	})
 }
+
+// A worker's script stops where the sequential traversal stops: after an
+// error at its default level (CombinedCompilerPass stops on halting errors),
+// and not after a warning promoted to an error (promoted errors do not halt).
+func TestParallelPasses_RecorderHaltsLikeReport(t *testing.T) {
+	later := "function k(a) { /** @type {number} */ return a; }\n/** @abstract */ function m() {}\n"
+	inputs := []string{"var a = 1;", "/** @constructor */ var F = () => {};\n" + later, "var b = 2;"}
+	assertParallelParity(t, nil, inputs, nil)
+	_, errs, warns, _ := compileWithParallelThreads(t, nil, inputs, 1, nil)
+	if len(errs) != 1 || len(warns) != 0 {
+		t.Fatalf("want the error alone, got errs=%v warns=%v", errs, warns)
+	}
+	promoted := []string{"var a = 1;", later + later, "var b = 2;"}
+	promote := func(o *CompilerOptions) {
+		o.SetWarningLevel(DiagnosticGroups_MISPLACED_TYPE_ANNOTATION, CheckLevel_ERROR)
+	}
+	assertParallelParity(t, nil, promoted, promote)
+	_, errs, _, _ = compileWithParallelThreads(t, nil, promoted, 1, promote)
+	if len(errs) < 2 {
+		t.Fatalf("want every promoted warning, got %v", errs)
+	}
+}
