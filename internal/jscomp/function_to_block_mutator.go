@@ -624,6 +624,14 @@ func (m *FunctionToBlockMutator) aliasAndInlineArgumentsByID(
 
 	// Now that the names have been replaced, add the new aliases for
 	// the old names.
+	if fastFault(m.compiler.GetOptions(), faultSwapArgs) {
+		// Go-only: the seeded fault faultSwapArgs (seeded_faults.go) declares
+		// the aliases in reverse order.
+		for _, alias := range newAliasesToAdd {
+			fnTemplateRoot.AddChildToFront(alias)
+		}
+		return result
+	}
 	for i := len(newAliasesToAdd) - 1; i >= 0; i-- {
 		fnTemplateRoot.AddChildToFront(newAliasesToAdd[i])
 	}

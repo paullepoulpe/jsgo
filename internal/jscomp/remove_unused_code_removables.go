@@ -394,7 +394,9 @@ func (b *RemoveUnusedCode_RemovableBase) RemoveInternal(r *RemoveUnusedCode) {
 	case remKindNameDeclStmt:
 		value, hasValue := b.declaredName().Init()
 		valueNode := value.Node()
-		if hasValue && r.MayHaveSideEffects(valueNode) {
+		// Go-only: the seeded fault faultDropUnusedInit (seeded_faults.go) drops
+		// the initializer's side effects.
+		if hasValue && r.MayHaveSideEffects(valueNode) && !fastFault(compiler.GetOptions(), faultDropUnusedInit) {
 			compiler.ReportChangeToEnclosingScope(b.targetNode)
 			valueNode.Detach()
 			b.targetNode.ReplaceWith(rhino.IR_ExprResult(valueNode).Srcref(valueNode))

@@ -1,0 +1,31 @@
+{
+ "closure_version": "v20261021",
+ "test262": {
+  "dir": "behave/test262",
+  "repo": "https://github.com/tc39/test262",
+  "commit": "91c70759363c46557b694792bf34a2551a7af5ba",
+  "date": "2026-10-29",
+  "licence": "BSD-3-Clause",
+  "sha256": "885ecdc77476118090d89b1c9e737def41e16ff344df0e7e3f465945b8863706",
+  "files": 5043
+ },
+ "closure": {
+  "dir": "behave/closure-compiler",
+  "repo": "https://github.com/google/closure-compiler",
+  "tag": "v20231112",
+  "commit": "49a8dfb8761819e24b6cfd1a9e290500ddd2372c",
+  "path": "test/com/google/javascript/jscomp/runtime_tests",
+  "licence": "Apache-2.0",
+  "note": "GitHub's mirror carries runtime_tests up to v20231112 only (absent from v20240317 to v20261021)",
+  "sha256": "50dfc9e82e5cb2aaeb757eeb4f99101f73cd229288f7f16bf6b5cedb97bca4b2",
+  "files": 203
+ },
+ "closure_library": {
+  "dir": "corpus/google-closure-library@20230802.0.0/package",
+  "version": "20230802.0.0",
+  "licence": "Apache-2.0",
+  "note": "from the corpus (tools/oracle/corpus.sh), for goog.testing",
+  "sha256": "fd642a713145a069da46da14af2abc23679447350c563b01f0a176a83033d711",
+  "files": 950
+ }
+}

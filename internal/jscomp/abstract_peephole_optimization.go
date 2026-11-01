@@ -344,6 +344,12 @@ func (b *AbstractPeepholeOptimizationBase) IsEcmaScript5OrGreater() bool {
 		b.compiler.GetOptions().GetOutputFeatureSet().Contains(parser.FeatureSet_ES5)
 }
 
+// fastFault reports whether the seeded fault f (seeded_faults.go) is on.
+// Go-only.
+func (b *AbstractPeepholeOptimizationBase) fastFault(f seededFaultKind) bool {
+	return seededFault == f && b.compiler != nil && b.compiler.GetOptions().isFastMode()
+}
+
 // GetCodingConvention returns the current coding convention.
 //
 // Java: AbstractPeepholeOptimization.getCodingConvention()

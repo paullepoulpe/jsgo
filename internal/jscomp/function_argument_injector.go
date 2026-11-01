@@ -518,6 +518,9 @@ func (f *FunctionArgumentInjector) findRequiresTempsUpToParameterID(
 
 	astAnalyzer := compiler.GetAstAnalyzer()
 	summaryParams := summary.params()
+	// Go-only: the seeded fault faultInlineArgs (seeded_faults.go) ignores the
+	// arguments' own side effects.
+	inlineArgsFault := fastFault(compiler.GetOptions(), faultInlineArgs)
 
 	// Check for arguments that are evaluated more than once.
 	for entryIdx, b := range bindings {
@@ -543,7 +546,7 @@ func (f *FunctionArgumentInjector) findRequiresTempsUpToParameterID(
 			references = int(summaryParams[paramIdx].refCount)
 		}
 
-		argSideEffects := astAnalyzer.MayHaveSideEffects(cArg)
+		argSideEffects := astAnalyzer.MayHaveSideEffects(cArg) && !inlineArgsFault
 		if !argSideEffects && references == 0 {
 			requiresTemporary = false
 		} else if isTrivialBody &&
@@ -564,7 +567,7 @@ func (f *FunctionArgumentInjector) findRequiresTempsUpToParameterID(
 			// TODO: b/407603216 - return `true` when return expressions don't have
 			// references that can be side-effected
 			requiresTemporary = false
-		} else if astAnalyzer.MayEffectMutableState(cArg) && references > 0 {
+		} else if !inlineArgsFault && astAnalyzer.MayEffectMutableState(cArg) && references > 0 {
 			// Note: Mutable arguments should be assigned to temps, as the
 			// may be within in a loop:
 			//   function x(a) {
