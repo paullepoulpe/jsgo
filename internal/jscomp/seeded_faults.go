@@ -16,16 +16,15 @@ type seededFaultKind uint8
 
 const (
 	faultNone seededFaultKind = iota
-	// FunctionArgumentInjector substitutes an argument directly even when the
-	// callee's own side effects may change its value first (a flipped
-	// inlining condition).
+	// FunctionArgumentInjector ignores an argument's side effects when it
+	// decides whether the argument needs a temporary, so a call's argument is
+	// substituted into the inlined body as it is: dropped when the parameter
+	// is unused, evaluated twice when it is used twice (a flipped inlining
+	// condition).
 	faultInlineArgs
 	// RemoveUnusedCode deletes `var x = f()` without keeping the call (a
 	// dropped side effect).
 	faultDropUnusedInit
-	// PeepholeSubstituteAlternateSyntax rotates `a * (b / c)` to `b / c * a`
-	// without checking for side effects (a swapped evaluation order).
-	faultSwapOperands
 	// PeepholeFoldConstants folds an arithmetic result of -0 to 0.
 	faultFoldNegZero
 	// PeepholeMinimizeConditions drops the leading NOT of a ?: condition
@@ -45,7 +44,6 @@ const (
 var seededFaultNames = map[string]seededFaultKind{
 	"inline-args":      faultInlineArgs,
 	"drop-unused-init": faultDropUnusedInit,
-	"swap-operands":    faultSwapOperands,
 	"fold-negzero":     faultFoldNegZero,
 	"hook-negation":    faultHookNegation,
 	"collapse-unsafe":  faultCollapseUnsafe,
