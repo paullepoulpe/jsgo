@@ -64,7 +64,8 @@ import closure_rt  # noqa: E402
 
 SUITES = ("test262", "closure")
 EXPECT_DIR = os.path.join(core.HERE, "expect")
-FAULTS = ("inline-args", "drop-unused-init", "swap-operands", "fold-negzero", "dead-branch", "collapse-early")
+FAULTS = ("inline-args", "drop-unused-init", "swap-operands", "fold-negzero", "hook-negation", "collapse-unsafe",
+          "inline-vars")
 
 
 def log(msg):
@@ -471,6 +472,11 @@ def cmd_faults(args):
         bmeta = json.load(f)
     configs = bmeta["configs"]
     faults = args.faults.split(",")
+    for fault in faults:  # jsgo refuses an unknown fault name at start-up
+        p = subprocess.run([args.jsgo, "--version"], env=core.clean_env(extra={"JSGO_FAST_FAULT": fault}),
+                           capture_output=True, text=True)
+        if p.returncode != 0:
+            sys.exit(f"{args.jsgo} rejects JSGO_FAST_FAULT={fault}: {p.stderr.strip().splitlines()[:1]}")
     summary = {"baseline": args.baseline, "jsgo": os.path.abspath(args.jsgo), "faults": {}}
     path = os.path.join(out, "faults.json")
     if args.resume and os.path.exists(path):
