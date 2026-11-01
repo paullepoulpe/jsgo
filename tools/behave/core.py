@@ -252,9 +252,22 @@ def normaliser(build_text, source_ids):
     return norm
 
 
+STACK_FRAME_RE = re.compile(r"(?m)^[ \t]*at [^\n]*\n?")
+
+
+def strip_stack(s):
+    """The text without V8 stack frames (lines `    at f (file:line:col)`):
+    stack traces may differ between builds (PLAN.md §8)."""
+    return STACK_FRAME_RE.sub("", s) if s else s
+
+
 def behaviour(o, norm=None):
-    """The comparable behaviour of one outcome, as a JSON-able list."""
-    n = norm or (lambda s: s)
+    """The comparable behaviour of one outcome, as a JSON-able list. Stack
+    frames printed by the program are left out."""
+    n0 = norm or (lambda s: s)
+
+    def n(s):
+        return n0(strip_stack(s))
     comp = o.get("compile")
     if comp is not None and not comp["ok"]:
         return ["compile-error", comp["exit"] if comp["exit"] != "timeout" else "timeout", comp["errors"],
