@@ -24,6 +24,11 @@ Commands:
   replay   runs the stored compat builds of a finished run again and checks
            that each behaves as recorded: the runner's determinism (and, after
            a node upgrade, the engine's stability).
+  explain  for a finished `faults` run: rebuilds each build that a fault
+           changed but no test caught, finds where its output differs from
+           the compat build, and runs it with V8 block coverage, to tell
+           changes the tests executed from changes they never ran
+           (<out>/explain.{md,json}, hunks under <out>/<fault>/explain/).
   report   rewrites the summary of a run directory.
   verify   checks the fetched suites against the digests in pins.json
            (tools/behave/fetch.sh runs it); --update rewrites them.
@@ -64,8 +69,8 @@ import closure_rt  # noqa: E402
 
 SUITES = ("test262", "closure")
 EXPECT_DIR = os.path.join(core.HERE, "expect")
-FAULTS = ("inline-args", "drop-unused-init", "swap-operands", "fold-negzero", "hook-negation", "collapse-unsafe",
-          "inline-vars", "swap-args")
+FAULTS = ("inline-args", "drop-unused-init", "swap-args", "fold-negzero", "hook-negation", "collapse-unsafe",
+          "inline-vars")
 
 
 def log(msg):
@@ -687,6 +692,101 @@ def summarize_findings(findings):
                           f"`{r.get('detail', '')}`" for r in findings if r["kind"] == "port"]}
 
 
+def explain_case(args, fault, case, config, base_line, out_dir):
+    """Rebuilds one faulted build, diffs it against the compat build and runs
+    it under coverage. Returns a dict for explain.json."""
+    work = os.path.join(out_dir, "work", f"{case.suite}-{case.safe_id()}-{config}")
+    shutil.rmtree(work, ignore_errors=True)
+    os.makedirs(work)
+    cpath = builds_path(args.baseline, case, config, "compat")
+    ctext = core.read_gz(cpath).decode("utf-8", "surrogateescape")
+    fjs = os.path.join(work, "fault.js")
+    comp = core.compile_case(args.jsgo, case, config, "fast", fjs, fault=fault)
+    r = {"suite": case.suite, "id": case.id, "config": config}
+    if not comp["ok"]:
+        r["class"] = "compile-error"
+        shutil.rmtree(work, ignore_errors=True)
+        return r
+    ftext = read_text(fjs)
+    ids = source_ids(case)
+    hunks = core.changed_ranges(ctext, ftext, ids)
+    cov = os.path.join(work, "cov")
+    run = core.run_program(args.node, fjs, case, fjs[:-3], coverage_dir=cov)
+    ranges = core.coverage_ranges(cov)
+    flags = [core.executed(ranges, a, b) for a, b in hunks]
+    r.update({"hunks": len(hunks), "executed_hunks": sum(flags), "renaming_only": not hunks,
+              "fast_why": core.outcome(case, comp, run)["why"],
+              "class": "renaming-only" if not hunks else ("executed" if any(flags) else "not-executed")})
+    d = os.path.join(out_dir, case.suite, config, case.safe_id())
+    os.makedirs(d, exist_ok=True)
+    with open(os.path.join(d, "hunks.txt"), "w", encoding="utf-8", errors="surrogateescape") as f:
+        for (a, b), ex in zip(hunks, flags):
+            lo, hi = max(0, a - 160), min(len(ftext), b + 160)
+            f.write(f"== fault build [{a},{b}) {'EXECUTED' if ex else 'not executed'}\n"
+                    f"{ftext[lo:a]}\u27e6{ftext[a:b]}\u27e7{ftext[b:hi]}\n\n")
+    shutil.copyfile(fjs, os.path.join(d, "fault.js"))
+    with open(os.path.join(d, "compat.js"), "w", encoding="utf-8", errors="surrogateescape") as f:
+        f.write(ctext)
+    shutil.rmtree(work, ignore_errors=True)
+    return r
+
+
+def cmd_explain(args):
+    out = os.path.abspath(args.out)
+    args.baseline = os.path.abspath(args.baseline)
+    base = latest(read_results(args.baseline))
+    with open(os.path.join(out, "faults.json")) as f:
+        summary = json.load(f)
+    faults = args.faults.split(",") if args.faults else list(summary["faults"])
+    cases = {}
+    for suite in sorted({k[0] for k in base}):
+        ids = {k[1] for k in base if k[0] == suite}
+        for c in load_cases(args, suite):
+            if c.id in ids:
+                cases[(suite, c.id)] = c
+    report = {}
+    path = os.path.join(out, "explain.json")
+    if os.path.exists(path):
+        with open(path) as f:
+            report = json.load(f)
+    for fault in faults:
+        lines = read_results(os.path.join(out, fault))
+        todo = [ln for ln in lines if ln.get("triggered") and ln.get("compat_pass")
+                and ln["cmp"] in ("same", "same-renamed") and (ln["suite"], ln["id"]) in cases]
+        changed_signal = sum(1 for ln in lines if ln.get("triggered") and ln.get("compat_pass"))
+        caught = sum(1 for ln in lines if ln["cmp"] in core.SIGNAL_DIFFS)
+        log(f"explain {fault}: {len(todo)} changed signal build(s) not caught")
+        out_dir = os.path.join(out, fault, "explain")
+        shutil.rmtree(out_dir, ignore_errors=True)
+        with concurrent.futures.ThreadPoolExecutor(max_workers=args.jobs) as ex:
+            results = list(ex.map(lambda ln: explain_case(args, fault, cases[(ln["suite"], ln["id"])], ln["config"],
+                                                          base[(ln["suite"], ln["id"], ln["config"])], out_dir), todo))
+        shutil.rmtree(os.path.join(out_dir, "work"), ignore_errors=True)
+        counts = collections.Counter(r["class"] for r in results)
+        report[fault] = {"builds": len(lines), "changed": sum(1 for ln in lines if ln.get("triggered")),
+                         "changed_signal": changed_signal, "caught": caught, "uncaught": len(todo),
+                         "classes": dict(counts), "cases": results}
+        with open(path, "w") as f:
+            json.dump(report, f, indent=1, sort_keys=True)
+    md = ["# Seeded faults explained", "",
+          "changed: builds whose output the fault changed (the others are byte-identical to the fault-free "
+          "build, so nothing could catch them); signal: of those, builds whose compat build passes; uncaught "
+          "changes split by whether the run executed a changed range (V8 block coverage).", "",
+          "| fault | builds | changed | identical | changed, signal | caught | caught / changed signal "
+          "| uncaught: executed | not executed | renaming only | compile error |",
+          "|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|"]
+    for fault, v in report.items():
+        c = v["classes"]
+        pct = f"{100.0 * v['caught'] / v['changed_signal']:.0f}%" if v["changed_signal"] else "–"
+        md.append(f"| `{fault}` | {v['builds']} | {v['changed']} | {v['builds'] - v['changed']} | {v['changed_signal']} "
+                  f"| {v['caught']} | {pct} | {c.get('executed', 0)} | {c.get('not-executed', 0)} "
+                  f"| {c.get('renaming-only', 0)} | {c.get('compile-error', 0)} |")
+    with open(os.path.join(out, "explain.md"), "w") as f:
+        f.write("\n".join(md) + "\n")
+    print("\n".join(md))
+    return 0
+
+
 def cmd_replay(args):
     out = os.path.abspath(args.out)
     meta_path = os.path.join(out, "run.json")
@@ -997,6 +1097,13 @@ def main():
     p.add_argument("--keep-diffs", action="store_true")
     p.add_argument("--resume", action="store_true")
     p.set_defaults(fn=cmd_faults)
+
+    p = sub.add_parser("explain", help="where uncaught fault changes are, and whether tests ran them")
+    common(p)
+    p.add_argument("--baseline", required=True, help="the `run` directory the faults were checked against")
+    p.add_argument("--out", required=True, help="the `faults` directory")
+    p.add_argument("--faults", default="", help="comma-separated faults (default: all in faults.json)")
+    p.set_defaults(fn=cmd_explain)
 
     p = sub.add_parser("replay", help="run a finished run's compat builds again (determinism)")
     common(p, jsgo=False)

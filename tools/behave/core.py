@@ -183,9 +183,10 @@ def compile_case(jsgo, case, config, mode, out_js, fault=None):
             "stderr": _clip(err) if not ok else ""}
 
 
-def run_program(node, program, case, work_prefix):
+def run_program(node, program, case, work_prefix, coverage_dir=None):
     """Runs one program under runner.js. Returns {exit, timeout, stdout, stderr,
-    rec, secs}; rec is None when the runner wrote no record."""
+    rec, secs}; rec is None when the runner wrote no record. With coverage_dir,
+    node writes V8's block coverage there (NODE_V8_COVERAGE)."""
     result = work_prefix + ".rec.json"
     if os.path.exists(result):
         os.remove(result)
@@ -193,7 +194,8 @@ def run_program(node, program, case, work_prefix):
     t0 = time.monotonic()
     timeout = False
     try:
-        p = subprocess.run(argv, cwd=os.path.dirname(program), env=clean_env(), capture_output=True,
+        env = clean_env(extra={"NODE_V8_COVERAGE": coverage_dir} if coverage_dir else None)
+        p = subprocess.run(argv, cwd=os.path.dirname(program), env=env, capture_output=True,
                            timeout=RUN_TIMEOUT)
         code, out, err = p.returncode, p.stdout, p.stderr
     except subprocess.TimeoutExpired as e:
@@ -298,3 +300,69 @@ def write_gz(path, data):
 def read_gz(path):
     with gzip.open(path, "rb") as f:
         return f.read()
+
+
+# ---------------------------------------------------------------------------------------------
+# Where two builds differ, and whether a run executed it (the seeded-fault analysis; a first
+# piece of PLAN.md §8's coverage rule).
+
+SEGMENT_RE = re.compile(r"[^;{}\n]*[;{}\n]?")
+
+
+def segments(text):
+    """The build cut after each `;`, `{`, `}` and newline: [(start, end)]."""
+    return [(m.start(), m.end()) for m in SEGMENT_RE.finditer(text) if m.end() > m.start()]
+
+
+def changed_ranges(base_text, text, source_ids):
+    """The ranges of `text` (offsets into it) that differ from base_text once
+    the identifiers the sources do not have (renamed ones) are replaced by one
+    placeholder: [(start, end)]. A deletion is the empty range where it
+    happened."""
+    import difflib
+
+    def norm(t, segs):
+        return [IDENT_RE.sub(lambda m: m.group(0) if m.group(0) in source_ids else "\u03b9", t[a:b]) for a, b in segs]
+    bs, ts = segments(base_text), segments(text)
+    sm = difflib.SequenceMatcher(None, norm(base_text, bs), norm(text, ts), autojunk=False)
+    out = []
+    for op, i1, i2, j1, j2 in sm.get_opcodes():
+        if op == "equal":
+            continue
+        if j2 > j1:
+            out.append((ts[j1][0], ts[j2 - 1][1]))
+        else:
+            at = ts[j1][0] if j1 < len(ts) else len(text)
+            out.append((at, at))
+    return out
+
+
+def coverage_ranges(coverage_dir, url="program.js"):
+    """V8 block coverage ranges [(start, end, count)] of the script `url`."""
+    import glob
+    ranges = []
+    for path in glob.glob(os.path.join(coverage_dir, "*.json")):
+        try:
+            with open(path) as f:
+                data = json.load(f)
+        except ValueError:
+            continue
+        for script in data.get("result", []):
+            if script.get("url") == url:
+                for fn in script.get("functions", []):
+                    ranges += [(r["startOffset"], r["endOffset"], r["count"]) for r in fn.get("ranges", [])]
+    return ranges
+
+
+def executed(ranges, start, end):
+    """Whether any of a few points of [start, end) has a non-zero count (the
+    count of a point is that of the smallest range around it)."""
+    points = {start, max(start, end - 1), (start + end) // 2}
+    for p in points:
+        best = None
+        for a, b, c in ranges:
+            if a <= p < b and (best is None or b - a < best[0]):
+                best = (b - a, c)
+        if best is not None and best[1] > 0:
+            return True
+    return False
