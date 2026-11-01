@@ -357,6 +357,10 @@ const InlineVariables_InliningBehavior_MAX_MODERATE_MOTION_STEPS = 5000
 //
 // Java: InlineVariables.InliningBehavior.canMoveModerately(Reference, Reference)
 func (b *InlineVariables_InliningBehavior) CanMoveModerately(initialization *Reference, reference *Reference) bool {
+	if fastFault(b.outer.compiler.GetOptions(), faultInlineVars) {
+		// Go-only: the seeded fault faultInlineVars (seeded_faults.go).
+		return true
+	}
 	// Check if declaration can be inlined without passing
 	// any side-effect causing nodes.
 	it := &b.motionScratch

@@ -34,6 +34,9 @@ const (
 	// CollapseProperties flattens names whose collapse is unsafe; this check
 	// sits in the fast-mode-only early flattening.
 	faultCollapseUnsafe
+	// InlineVariables moves a variable's value to its only use without
+	// checking that nothing in between has side effects (LocalVarMotion).
+	faultInlineVars
 )
 
 var seededFaultNames = map[string]seededFaultKind{
@@ -43,6 +46,7 @@ var seededFaultNames = map[string]seededFaultKind{
 	"fold-negzero":     faultFoldNegZero,
 	"hook-negation":    faultHookNegation,
 	"collapse-unsafe":  faultCollapseUnsafe,
+	"inline-vars":      faultInlineVars,
 }
 
 var seededFault = parseSeededFault(os.Getenv("JSGO_FAST_FAULT"))
