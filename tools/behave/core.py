@@ -314,26 +314,55 @@ def segments(text):
     return [(m.start(), m.end()) for m in SEGMENT_RE.finditer(text) if m.end() > m.start()]
 
 
+TOKEN_RE = re.compile(r"[A-Za-z_$][\w$]*|\d[\w.]*|\"(?:[^\"\\]|\\.)*\"|'(?:[^'\\]|\\.)*'|\S")
+
+
 def changed_ranges(base_text, text, source_ids):
     """The ranges of `text` (offsets into it) that differ from base_text once
     the identifiers the sources do not have (renamed ones) are replaced by one
-    placeholder: [(start, end)]. A deletion is the empty range where it
-    happened."""
+    placeholder: [(start, end)]. The builds are compared statement by
+    statement (cut after `;`, `{`, `}`), then token by token inside each
+    changed run of statements, so that a range covers the changed tokens only.
+    A deletion is the empty range where it happened."""
     import difflib
 
+    def norm_ident(w):
+        return w if w in source_ids else "\u03b9"
+
     def norm(t, segs):
-        return [IDENT_RE.sub(lambda m: m.group(0) if m.group(0) in source_ids else "\u03b9", t[a:b]) for a, b in segs]
+        return [IDENT_RE.sub(lambda m: norm_ident(m.group(0)), t[a:b]) for a, b in segs]
+
+    def tokens(t, a, b):
+        return [(m.start(), m.end(), m.group(0)) for m in TOKEN_RE.finditer(t, a, b)]
+
+    def tnorm(toks):
+        return [norm_ident(w) if IDENT_RE.fullmatch(w) else w for _, _, w in toks]
+
     bs, ts = segments(base_text), segments(text)
     sm = difflib.SequenceMatcher(None, norm(base_text, bs), norm(text, ts), autojunk=False)
     out = []
     for op, i1, i2, j1, j2 in sm.get_opcodes():
         if op == "equal":
             continue
-        if j2 > j1:
-            out.append((ts[j1][0], ts[j2 - 1][1]))
-        else:
+        if j2 == j1:
             at = ts[j1][0] if j1 < len(ts) else len(text)
             out.append((at, at))
+            continue
+        a, b = ts[j1][0], ts[j2 - 1][1]
+        if i2 == i1:
+            out.append((a, b))
+            continue
+        bt = tokens(base_text, bs[i1][0], bs[i2 - 1][1])
+        tt = tokens(text, a, b)
+        tm = difflib.SequenceMatcher(None, tnorm(bt), tnorm(tt), autojunk=False)
+        for top, k1, k2, l1, l2 in tm.get_opcodes():
+            if top == "equal":
+                continue
+            if l2 > l1:
+                out.append((tt[l1][0], tt[l2 - 1][1]))
+            else:
+                at = tt[l1][0] if l1 < len(tt) else b
+                out.append((at, at))
     return out
 
 
@@ -355,9 +384,11 @@ def coverage_ranges(coverage_dir, url="program.js"):
 
 
 def executed(ranges, start, end):
-    """Whether any of a few points of [start, end) has a non-zero count (the
-    count of a point is that of the smallest range around it)."""
-    points = {start, max(start, end - 1), (start + end) // 2}
+    """Whether a point of [start, end) has a non-zero count (the count of a
+    point is that of the smallest range around it); up to 16 points are
+    tried."""
+    step = max(1, (end - start) // 16)
+    points = set(range(start, max(start + 1, end), step)) | {max(start, end - 1)}
     for p in points:
         best = None
         for a, b, c in ranges:
