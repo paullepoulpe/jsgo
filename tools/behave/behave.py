@@ -6,10 +6,20 @@ flags otherwise), runs the uncompiled test and both builds under node with a
 deterministic prelude (tools/behave/runner.js), and compares the builds'
 behaviour, compat being the reference (tools/behave/core.py).
 
-Suites (phase 1):
-  test262   the pinned stratified sample of test262's runtime suite
-            (tools/behave/t262.py, tools/behave/test262/)
-  closure   Closure Compiler's runtime tests (tools/behave/closure_rt.py)
+Suites:
+  test262      the pinned stratified sample of test262's runtime suite
+               (tools/behave/t262.py, tools/behave/test262/)
+  closure      Closure Compiler's runtime tests (tools/behave/closure_rt.py)
+  closure-lib  Closure Library's unit tests (tools/behave/closure_lib.py)
+  lodash       lodash with its QUnit test suite (tools/behave/libs.py)
+  marked       marked with its spec tests (tools/behave/libs.py)
+  tsc          the TypeScript compiler type-checking and emitting a fixed
+               program (tools/behave/workloads.py)
+
+Every build that is not byte-identical to its compat build goes through the
+coverage rule (tools/behave/rule.py): its changes are located with
+tools/bench/ast_isomorphism -diff, both builds run under V8 coverage, and
+each change is vouched, blind or fail.
 
 Commands:
   run      run suites; writes <out>/results.jsonl, the compat builds, the
@@ -20,8 +30,9 @@ Commands:
            bug (<out>/findings/).
   faults   the seeded-fault check: rebuilds the fast builds of a finished run
            with JSGO_FAST_FAULT=<fault> and reports which faults the oracle
-           catches (<out>/faults.{md,json}). It needs a jsgo built with the
-           faults: `go build -tags jsgo_faults`.
+           catches and the coverage rule's verdicts (<out>/faults.{md,json});
+           also the benign variants (benign-rename, benign-no-inline). It
+           needs a jsgo built with the faults: `go build -tags jsgo_faults`.
   replay   runs the stored compat builds of a finished run again and checks
            that each behaves as recorded: the runner's determinism (and, after
            a node upgrade, the engine's stability).
@@ -37,6 +48,7 @@ Commands:
            compiles a few tests per feature, the input of `sample`.
   sample   test262 only: derives the feature exclusions and draws the pinned
            sample and per-change subset from a probe.
+  subset   test262 only: redraws the per-change subset from the sample.
 
 Usage:
   go build -o /tmp/jsgo ./cmd/jsgo
