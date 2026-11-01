@@ -5,7 +5,8 @@
  * first). It type-checks and emits a small program in memory, twice (ES2015
  * with declarations and source maps; ES5 CommonJS), and prints every
  * diagnostic and a digest of every emitted file (the runner keeps 16 KB of
- * output), so that the builds' outputs are compared in full.
+ * output; a source map's digest is that of its values), so that the builds'
+ * outputs are compared in full.
  */
 (function() {
   function digest(s) {
@@ -54,7 +55,11 @@
       print(where + 'TS' + d.code + ' ' + ts.flattenDiagnosticMessageText(d.messageText, '\n'));
     });
     written.forEach(function(w) {
-      print('-- ' + w[0] + ' ' + digest(w[1]));
+      // A source map is printed by its values: ADVANCED renames the keys of
+      // the object TypeScript serialises ("mappings" becomes a short name), so
+      // the key names are the compiler's, not the program's output.
+      var data = /\.map$/.test(w[0]) ? JSON.stringify(Object.values(JSON.parse(w[1]))) : w[1];
+      print('-- ' + w[0] + ' ' + digest(data));
     });
   }
   run('es2015', {target: ts.ScriptTarget.ES2015, module: ts.ModuleKind.ES2015, strict: true, noLib: true,

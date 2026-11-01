@@ -823,8 +823,10 @@ What phase 1 changes for phases 2–4:
   they will only vouch for fast mode once it makes different decisions on
   small programs. The coverage rule's log of where fast-only transformations
   applied should come early (phase 2, not 4), and the bench bundles of
-  phase 3, where fast output does differ today, matter more than their place
-  in the order suggests.
+  phase 3, where fast-mode optimisations will act, matter more than their
+  place in the order suggests. (Phase 1 said fast output already differs on
+  the bundles; it does not: the fast-mode gate's `layer1.byte_identical_to_compat`
+  is true on every task, the large bundles included.)
 - Compiling dominates (0.27 s per SIMPLE and 0.7 s per ADVANCED test262
   compile, mostly the default externs), and phase 1's per-change subset
   already takes 49 of the 30–60 minutes. Compat builds can be cached across

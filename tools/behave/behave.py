@@ -261,6 +261,19 @@ def apply_rule(ctx, case, config, work, co, ctext, cjs, cfile_ok, fo, ftext, fjs
     return summary
 
 
+def compile_rule(cc, fc):
+    """The rule's verdict when a build does not compile: the same errors on
+    both sides are no difference; a fast build that fails where compat
+    compiles, or other errors, fail; a fast build that compiles where compat
+    does not checks nothing."""
+    if not cc["ok"] and not fc["ok"]:
+        same = cc["errors"] == fc["errors"] and cc["crash"] == fc["crash"]
+        return {"verdict": "identical" if same else "fail", "reason": "compile-errors"}
+    if cc["ok"]:
+        return {"verdict": "fail", "reason": "fast-compile-error"}
+    return {"verdict": "blind", "reason": "compat-compile-error"}
+
+
 def run_case(ctx, case):
     """Runs one case under every configuration (compat, fast and the uncompiled
     program) and returns its results lines."""
@@ -326,6 +339,8 @@ def run_case(ctx, case):
         elif diff is not None:
             line["rule"] = apply_rule(ctx, case, config, work, co, ctext, cjs, cc["ok"], fo, ftext, fjs, cmp, diff,
                                       coverage_of(fcov), ccov)
+        else:  # a compile error on either side: the strict layers compare exit status and error sets
+            line["rule"] = compile_rule(cc, fc)
         if cmp not in ("same", "same-renamed"):
             line["detail"] = save_diff(ctx, case, config, cmp, co, fo, cjs, fjs)
         lines.append(line)
@@ -381,8 +396,8 @@ def fault_case(ctx, case):
         if diff is not None:
             line["rule"] = apply_rule(ctx, case, config, work, co, ctext, cjs, co["compile"]["ok"], fo, ftext, fjs,
                                       cmp, diff, coverage_of(fcov), None)
-        else:  # one side did not compile: a compile difference is checked by the strict layers
-            line["rule"] = {"verdict": "fail" if cmp in core.SIGNAL_DIFFS else "blind", "reason": "compile"}
+        else:  # one side did not compile
+            line["rule"] = compile_rule(co["compile"], fc)
         if cmp in core.SIGNAL_DIFFS and a.keep_diffs:
             line["detail"] = save_diff(ctx, case, config, cmp, co, fo, cjs, fjs, fault=ctx.fault)
         lines.append(line)
@@ -452,6 +467,7 @@ def cmd_run(args):
                  "node": args.node, "node_version": subprocess.run([args.node, "--version"], capture_output=True,
                                                                    text=True).stdout.strip(),
                  "subset": args.subset, "configs": configs, "suites": args.suites.split(","), "jobs": args.jobs,
+                 "fast_flags": args.fast_flags,
                  "pins": core.read_pins()})
     meta.setdefault("wall", {})
     done = latest(read_results(out)) if args.resume else {}
@@ -464,6 +480,9 @@ def cmd_run(args):
         run_parallel(ctx, todo, run_case, suite)
         meta["wall"][suite] = meta["wall"].get(suite, 0) + round(time.monotonic() - t0, 1)
         meta.setdefault("cases", {})[suite] = len(cases)
+        if ctx.cache:
+            meta["compat_cache"] = {"dir": ctx.cache.root, "hits": ctx.cache.hits, "misses": ctx.cache.misses,
+                                    "run_hits": ctx.cache.run_hits}
         with open(meta_path, "w") as f:
             json.dump(meta, f, indent=1, sort_keys=True)
     ctx.results.close()
@@ -836,7 +855,12 @@ def write_report(out):
         md += [f"- jsgo: `{meta.get('jsgo')}` (sha256 {meta.get('jsgo_sha256', '')[:12]}), node {meta.get('node_version')}",
                f"- subset: {meta.get('subset')}; configurations: {', '.join(meta.get('configs', []))}; "
                f"jobs: {meta.get('jobs')}",
-               "- wall time: " + ", ".join(f"{k} {v / 60:.1f} min" for k, v in sorted(meta.get("wall", {}).items())),
+               "- wall time: " + ", ".join(f"{k} {v / 60:.1f} min" for k, v in sorted(meta.get("wall", {}).items()))
+               + f" (total {sum(meta.get('wall', {}).values()) / 60:.1f} min)",
+               (f"- compat cache: {meta['compat_cache']['hits']} builds and {meta['compat_cache']['run_hits']} runs "
+                f"reused, {meta['compat_cache']['misses']} builds compiled" if meta.get("compat_cache") else
+                "- compat cache: off"),
+               f"- fast flags: `{meta.get('fast_flags')}`" if meta.get("fast_flags") else "- fast flags: none",
                ""]
     md += ["| suite / config | tests | uncompiled pass | compat compiled | compat pass (signal) | fast pass "
            "| fast bytes = compat | same | same-renamed | regression | behaviour | fast-only-pass | weak "
