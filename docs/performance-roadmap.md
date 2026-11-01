@@ -1823,15 +1823,178 @@ separate fix.
 
 - Item 2: change-scoped local passes (`deadAssignmentsElimination`,
   `collapseObjectLiterals`, `inlineVariables`' local part) — peephole
-  style, only the changed scopes.
+  style, only the changed scopes. Done in round 5, not merged (below).
 - RUC's remaining per-run cost is the walk (latency-bound) and the state
   it rebuilds; an exact incremental version needs the breadth-first tree
   above.
 - `peepholeOptimizations` deletes a function without reporting the
   deletion (ChangeVerifier run after every pass in a debug build,
   bundle-advanced: handlebars `values` at 1544:27). Every other pass
-  reported its changes there; not looked into.
-- The `TypeCheck` races above.
+  reported its changes there. Fixed in round 5.
+- The `TypeCheck` races above. Fixed in round 5.
+
+## Loop round 5: change-scoped local passes (2026-10-31)
+
+Item 2 of the loop work, on top of round 4 (`f2af94c5`): the passes of
+the code-removal loops whose work is local to a function skip the functions
+that did not change since they last ran, as `peepholeOptimizations` does,
+with identical output (compat and fast). Two fixes came first: the races of
+fast mode's parallel `TypeCheck` found in round 4, and the change reports
+these passes rely on. **The two fixes are merged. The two pass changes (3
+and 4) gained per pass, but the whole compile moved only on typed-mega in
+compat mode, so they were not merged** (see "Decision" below).
+
+### Fixes
+
+1. **Races in fast mode's parallel `TypeCheck`** (`98aa7b68`). The workers
+   wrote shared state in two places. First, `NewJSError` pins its node (a
+   flag in the node's record, so that later passes do not rewrite it in
+   place), and workers report on declarations in other scripts
+   (`TypeValidator.checkPropertyType` reports at an inherited property's
+   declaration), so two workers pinned the same node while others read it.
+   Second, `FunctionType.makesStructs/makesDicts` memoize a superclass's
+   annotation on the subclass. During the parallel `TypeCheck` the pin is
+   deferred to the replay of the report on the main goroutine, and in the
+   registry's parallel read-only mode the two functions skip the memo
+   (same answer). typed-mega fast t=4 under `-race`: races in 3 of 4 runs
+   before, none in 4 runs after; typed-full and bundle-advanced-ts are
+   clean too. Compat never runs `TypeCheck` on workers.
+2. **Peephole optimizations mark the functions they delete** (`1d35f541`).
+   ChangeVerifier, run after every pass in a debug build, found functions
+   that `peepholeOptimizations` removed without marking them deleted
+   (bundle-advanced: handlebars' iterator helpers), so they stayed in the
+   change timeline as changed scopes. Five removals in Java do not mark:
+   `PeepholeRemoveDeadCode.removeCase`, and in `PeepholeMinimizeConditions`
+   `tryRemoveRedundantExit`, the dropped branch of `tryReplaceIf`'s two
+   joins, the exit `tryReplaceExitWithBreak` replaces and the copy
+   `tryRemoveRepeatedStatements` removes. They now mark, like every other
+   removal in those passes: an intentional divergence in bookkeeping, with
+   no change of output (Java gate, fixtures). With the debug check,
+   bundle-advanced, typed-app, shaka-blockly, bundle, downlevel-simple,
+   bundle-advanced-ts and typed-full report no unrecorded change or
+   deletion at t=1 and t=4; the mega tasks do not fit in memory with it
+   (it clones the whole AST after every pass).
+
+### Which loop passes are local
+
+From the pass logs (both loops, compat t=4 / fast t=4, one run):
+
+| pass | typed-mega | bundle-mega | can it skip unchanged functions exactly? |
+|---|---|---|---|
+| `removeUnusedCode` | 3.02 / 2.80 s | 4.60 s (compat) | no: the order of removals follows a whole-program walk (round 4) |
+| `collapseObjectLiterals` | 2.05 / 0.47 s | 3.04 s (compat) | yes (change 3, not merged) |
+| `inlineVariables` | 1.35 / 1.34 s | 2.32 s (compat) | no: globals in ADVANCED, and an alias of an outer var reads that var's references in other functions |
+| `optimizeCalls` | 1.58 / 1.25 s | 1.13 s (compat) | no: a function's parameters and returns depend on every call site |
+| `inlineFunctions` | 1.18 / 0.98 s | 2.32 s (compat) | no: inlining a function depends on its definition and all its call sites |
+| `inlineSimpleMethods`, `inlineProperties` | 0.76–0.88 s | 0.66–1.02 s (compat) | no: they read every definition of a property, program-wide |
+| `deadPropertyAssignmentElimination` | 0.45 / 0.39 s | 0.57 s (compat) | no: a property write is dead only if no function reads the property |
+| `crossChunkCodeMotion`, `crossChunkMethodMotion` | 0.27–0.47 s | 0.39–0.45 s (compat) | no: they move code by where it is used across chunks |
+| `deadAssignmentsElimination` | 0.42 / 0.38 s | 0.53 s (compat) | yes, and already change-scoped in Java except for its scan (change 4, not merged) |
+| `peepholeOptimizations` | 0.23 / 0.24 s | 0.70 s (compat) | already change-scoped |
+
+`flowSensitiveInlineVariables` does not run in the loops.
+
+### Tried, not merged (identical output: compat and fast)
+
+Both were commits on the unpushed branch `fast/incr5` (`58189c67`, `3e05d6e3`).
+
+3. **`collapseObjectLiterals` (InlineObjectLiterals) skips unchanged
+   functions**. What it does in a function depends on the
+   function's subtree alone (its object literals and the references to its
+   vars, nested functions included). It takes names from the supplier
+   only when it changes the code. So it would change nothing in a function
+   none of whose change scopes changed since the pass's previous run (a
+   timeline mark).
+   - Per-function path (compat when no candidate is inside a hoisted
+     function): unchanged candidate functions are skipped, the others keep
+     their order and indices. Fast mode, which processes the candidate
+     functions on workers, keeps processing them all: the unchanged ones are
+     the small ones, and a first version that skipped them was 10–15%
+     slower on this pass (finding them cost more than skipping saved).
+   - Whole-program path (compat on the bench tasks): the ReferenceCollector
+     skips a function outside every scope that declares a candidate when
+     the function holds no candidate or is unchanged (the collector keeps
+     the candidate scopes it has entered on a stack). The collector
+     traverses a hoisted function declaration at its first reference. So
+     skipping could move the processing of a changed hoisted function, and
+     with it the order in which candidates take their names. Therefore a
+     function whose subtree names a changed hoisted function declaration is
+     still traversed (a variant of the candidate scan records these), and
+     nothing is skipped on the first run.
+   `JSGO_IOL_INCR=0` turns it off; `JSGO_IOL_INCR_VERIFY=1` processes the
+   skipped functions too and panics if one of them changes the code.
+4. **`deadAssignmentsElimination` lists its changed functions instead of
+   scanning**. In the loops it already processes only the
+   functions changed since its previous run (`hasScopeChanged`), but it
+   walked the whole program to find them. Now a timeline mark set where
+   the run ends (checked against the phase optimizer's last-run stamp)
+   lists them, and the candidates keep the scan's order (document order).
+   The scan still runs on a loop's first run, outside the loops, and above
+   512 changed functions. `JSGO_DAE_INCR=0` turns it off;
+   `JSGO_DAE_INCR_VERIFY=1` compares with the scan.
+
+### Measured (interleaved, N=5 blocks, wall time mean, paired 95% CI)
+
+The base is the two fixes (`be857ab6` on the branch), then change 3 and the branch (3 +
+4), in the same blocks. Every one of the 120 runs is byte-identical to the
+Java reference (stdout, stderr, exit status, `out.js`, `out.js.map`), with
+one output per task and mode. The fixes alone measured within noise of
+`f2af94c5`.
+
+| task | mode | base | change 3 (vs base) | branch (vs change 3) | branch vs base |
+|---|---|---|---|---|---|
+| typed-mega | compat t=1 | 42.48 s | 41.99 s (−1.1%, CI −6.1…+4.2) | 41.36 s (−1.6%, CI −7.6…+4.7) | −2.7% (CI −10.4…+5.6) |
+| typed-mega | compat t=4 | 34.17 s | 33.61 s (−1.7%, CI −6.6…+3.4) | 33.15 s (−1.3%, CI −4.9…+2.5) | −3.0% (CI −4.7…−1.4) |
+| typed-mega | fast t=1 | 40.39 s | 40.60 s (+0.5%, CI −2.9…+4.1) | 40.51 s (−0.3%, CI −3.9…+3.4) | +0.2% (CI −4.0…+4.6) |
+| typed-mega | fast t=4 | 32.06 s | 32.03 s (−0.1%, CI −1.0…+0.9) | 31.52 s (−1.6%, CI −5.5…+2.4) | −1.7% (CI −5.9…+2.7) |
+| bundle-mega | compat t=1 | 53.93 s | 55.50 s (+2.9%, CI +0.3…+5.6) | 55.32 s (−0.3%, CI −1.9…+1.3) | +2.6% (CI −0.9…+6.1) |
+| bundle-mega | compat t=4 | 46.32 s | 46.78 s (+0.9%, CI −4.1…+6.1) | 47.34 s (+1.1%, CI −0.9…+3.2) | +2.0% (CI −4.4…+8.9) |
+| bundle-mega | fast t=1 | 54.87 s | 55.17 s (+0.6%, CI −3.0…+4.3) | 54.85 s (−0.6%, CI −3.4…+2.3) | −0.0% (CI −5.9…+6.3) |
+| bundle-mega | fast t=4 | 44.39 s | 43.22 s (−2.6%, CI −5.4…+0.2) | 44.14 s (+2.1%, CI −3.1…+7.6) | −0.6% (CI −6.7…+5.9) |
+
+From the same runs' `JSGO_PASS_LOG` (seconds per compile, means over the 5
+blocks, base → branch):
+
+| task | mode | `collapseObjectLiterals` | `deadAssignmentsElimination` | both loops |
+|---|---|---|---|---|
+| typed-mega | compat t=1 | 1.89 → 1.06 | 0.58 → 0.49 | 14.69 → 13.67 |
+| typed-mega | compat t=4 | 1.99 → 1.09 | 0.39 → 0.31 | 11.69 → 10.88 |
+| typed-mega | fast t=1 | 0.54 → 0.55 | 0.54 → 0.48 | 12.99 → 13.13 |
+| typed-mega | fast t=4 | 0.47 → 0.46 | 0.40 → 0.30 | 10.29 → 10.10 |
+| bundle-mega | compat t=1 | 2.84 → 2.91 | 0.84 → 0.76 | 20.92 → 21.40 |
+| bundle-mega | compat t=4 | 3.04 → 3.03 | 0.51 → 0.44 | 17.71 → 17.86 |
+| bundle-mega | fast t=1 | 2.66 → 2.73 | 0.80 → 0.77 | 21.01 → 21.15 |
+| bundle-mega | fast t=4 | 1.89 → 1.88 | 0.53 → 0.43 | 16.82 → 16.37 |
+
+Change 3 removes about 0.85 s of `collapseObjectLiterals` per typed-mega
+compile in compat mode (−45% of the pass), the only place where the whole
+compile moves clearly (compat t=4 −3.0%). It does nothing in fast mode
+(off there) and nothing on bundle-mega. bundle-mega compat t=1 reads +2.9%
+for change 3 with a CI just above zero, while the pass itself is within
+0.1 s of the base and the rest of the loops move by ±0.5 s from run to run;
+the earlier rounds of the same comparison read within noise. Change 4 saves
+0.03–0.10 s per compile, visible only in the pass log. Change 3 adds about
+250 lines, with a subtle ordering argument (hoisted-function jumps);
+change 4 about 160 lines.
+
+### Decision
+
+Neither change is merged. Change 3 buys −3% on one task, in compat mode
+only, for 250 lines whose exactness rests on an ordering argument; a
+mistake there would break compat's byte-identity with Java on inputs the
+gates do not cover. Change 4's gain shows only in the pass log.
+
+### What is left
+
+- `collapseObjectLiterals` on bundle-mega: its candidates are the bundles'
+  module functions, which hold most of the code and change in most
+  iterations. Skipping inside them would need, for each nested function,
+  the names it references (to know it cannot reference a candidate of the
+  module scope).
+- The other loop passes read other functions (globals, aliases, call
+  sites, property definitions). A shared reference index kept up to date
+  across passes is the next step for them, and for `removeUnusedCode`
+  (round 4).
 
 ## Smaller open items
 
