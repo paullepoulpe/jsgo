@@ -596,6 +596,10 @@ func peepholeDoubleToStringLen(d float64) int {
 // Java: PeepholeFoldConstants.maybeReplaceBinaryOpWithNumericResult(double, double, double)
 func (p *PeepholeFoldConstants) MaybeReplaceBinaryOpWithNumericResult(
 	result float64, lval float64, rval float64) rhino.Node {
+	if result == 0 && p.fastFault(faultFoldNegZero) {
+		// Go-only: the seeded fault faultFoldNegZero (seeded_faults.go).
+		result = 0
+	}
 	if math.IsNaN(result) || math.IsInf(result, 0) {
 		return NodeUtil_NumberNode(result, rhino.NilNode)
 	}

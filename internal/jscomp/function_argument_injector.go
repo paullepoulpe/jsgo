@@ -518,6 +518,9 @@ func (f *FunctionArgumentInjector) findRequiresTempsUpToParameterID(
 
 	astAnalyzer := compiler.GetAstAnalyzer()
 	summaryParams := summary.params()
+	// Go-only: the seeded fault faultInlineArgs (seeded_faults.go) ignores
+	// whether the callee's side effects can change an argument.
+	inlineArgsFault := fastFault(compiler.GetOptions(), faultInlineArgs)
 
 	// Check for arguments that are evaluated more than once.
 	for entryIdx, b := range bindings {
@@ -550,7 +553,7 @@ func (f *FunctionArgumentInjector) findRequiresTempsUpToParameterID(
 			hasMinimalParameters &&
 			references == 1 &&
 			// The below line is checking: Can this be affected by side-effects in the function body?
-			!(NodeUtil_CanBeSideEffected(cArg) && isReferencedAfterSideEffect(paramID, paramIdx)) &&
+			(inlineArgsFault || !(NodeUtil_CanBeSideEffected(cArg) && isReferencedAfterSideEffect(paramID, paramIdx))) &&
 			// The below line is checking: Can the function body be affected by the side effects of
 			// the argument? If the argument has side effects and the function body contains names
 			// that are referenced before the argument, then we need to inline using temporaries. If
@@ -578,7 +581,7 @@ func (f *FunctionArgumentInjector) findRequiresTempsUpToParameterID(
 			// even if there are no references, we still need to evaluate the
 			// expression if it has side-effects.
 			requiresTemporary = true
-		} else if NodeUtil_CanBeSideEffected(cArg) && isReferencedAfterSideEffect(paramID, paramIdx) {
+		} else if !inlineArgsFault && NodeUtil_CanBeSideEffected(cArg) && isReferencedAfterSideEffect(paramID, paramIdx) {
 			requiresTemporary = true
 		} else if references > 1 {
 			// Safe is a misnomer, this is a check for "large".

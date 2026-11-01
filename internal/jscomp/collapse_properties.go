@@ -417,6 +417,10 @@ func (c *InlineAndCollapseProperties_CollapseProperties) willFlattenReferences(p
 	}
 	isAllowedToCollapse :=
 		c.outer.propertyCollapseLevel != CompilerOptions_PropertyCollapseLevel_MODULE_EXPORT || p.IsModuleExport()
+	if comp := c.outer.compiler; comp != nil && fastFault(comp.options, faultCollapseUnsafe) {
+		// Go-only: the seeded fault faultCollapseUnsafe (seeded_faults.go).
+		return isAllowedToCollapse
+	}
 	return isAllowedToCollapse && p.CanCollapseOrInline().CanCollapse()
 }
 

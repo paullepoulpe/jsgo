@@ -168,7 +168,9 @@ func (p *PeepholeSubstituteAlternateSyntax) OptimizeSubtree(node rhino.Node) rhi
 		return p.TryRotateAssociativeOperator(op)
 	case rhino.Token_MUL:
 		op := ast.MustBinary(node)
-		if !p.late || p.MayHaveSideEffects(node) {
+		// Go-only: the seeded fault faultSwapOperands (seeded_faults.go) skips
+		// the side-effect check.
+		if !p.late || (p.MayHaveSideEffects(node) && !p.fastFault(faultSwapOperands)) {
 			return node
 		}
 		return p.TryRotateCommutativeOperator(op)
@@ -259,7 +261,9 @@ func (p *PeepholeSubstituteAlternateSyntax) TryRotateAssociativeOperator(n ast.B
 		n.Node().ReplaceWith(newRoot.Node())
 		p.ReportChangeToEnclosingScope(newRoot.Node())
 		return newRoot.Node()
-	} else if NodeUtil_IsCommutative(n.Token()) && !p.MayHaveSideEffects(n.Node()) {
+	} else if NodeUtil_IsCommutative(n.Token()) && (!p.MayHaveSideEffects(n.Node()) || p.fastFault(faultSwapOperands)) {
+		// Go-only: the seeded fault faultSwapOperands (seeded_faults.go) skips
+		// the side-effect check.
 		// Transform a * (b / c) to b / c * a
 		return p.TryRotateCommutativeOperator(n)
 	}

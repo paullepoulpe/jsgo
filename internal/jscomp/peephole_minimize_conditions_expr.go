@@ -160,8 +160,10 @@ func (p *PeepholeMinimizeConditions) TryMinimizeHook(hook ast.Hook) rhino.Node {
 	if mNode.IsNot() {
 		// Swap the HOOK
 		p.ReplaceNode(originalCond, mNode.WithoutNot())
-		thenBranch.Detach()
-		n.AddChildToBack(thenBranch)
+		if !p.fastFault(faultHookNegation) { // Go-only: the seeded fault (seeded_faults.go)
+			thenBranch.Detach()
+			n.AddChildToBack(thenBranch)
+		}
 		p.ReportChangeToEnclosingScope(n)
 	} else {
 		p.ReplaceNode(originalCond, mNode)
