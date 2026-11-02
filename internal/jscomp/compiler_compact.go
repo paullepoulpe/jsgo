@@ -3,6 +3,7 @@ package jscomp
 import (
 	"fmt"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/paullepoulpe/jsgo/internal/jutil"
@@ -12,12 +13,14 @@ import (
 // Go-only: AST compaction (rhino/node_compact.go).
 //
 // Nodes link with ids, so dead nodes are reclaimed only by compacting the
-// node store: keeping its live nodes, under new ids. This file decides when
-// (after typesToColors, then whenever the nodes allocated since the last
-// compaction exceed a quarter of the live nodes, checked at the end of every
-// optimization-loop iteration and after every top-level optimization pass,
-// and at the end of the optimization stage) and keeps the forwarding
-// registry: the explicit list
+// node store: keeping its live nodes, under new ids, which compaction gives
+// them in pre-order so that walks read the records nearly in address order.
+// This file decides when (always after typesToColors, so that the
+// optimizations run on that layout; then whenever the nodes allocated since
+// the last compaction exceed a quarter of the live nodes, checked at the end
+// of every optimization-loop iteration and after every top-level
+// optimization pass, and at the end of the optimization stage) and keeps the
+// forwarding registry: the explicit list
 // of every rhino.Node the Compiler holds outside the tree across a pass
 // boundary (docs/memory-research/node-holder-census.md, section 3.1).
 // Everything else that holds nodes is pass-local and dead between passes.
@@ -29,20 +32,51 @@ import (
 //
 // JSGO_AST_COMPACT=0|1 overrides the default (on), JSGO_AST_COMPACT_LOG=1
 // logs each compaction to stderr.
+//
+// Layout: JSGO_AST_LAYOUT=slide slides the live nodes down in id order
+// instead of renumbering them in pre-order (rhino.Compactor.Permute), and
+// skips the compaction after typesToColors when less than 10% of the nodes
+// are dead, as before the pre-order layout.
+// JSGO_AST_LAYOUT_AT=<point,...> also forces a compaction at those points
+// (pass names, "loopL.I" for iteration I of loop L) whatever the dead
+// fraction.
 
 type astCompaction struct {
 	enabled     bool
 	nested      bool // a NestedCompilerRunner compiler: shares nodes with the outer compilation, never compacts
 	allowed     bool // inside the optimization stage
+	preorder    bool // renumber the live nodes in pre-order instead of sliding them
 	nodesAtLast int  // nodes in the store right after the last compaction
 	liveAtLast  int
 	count       int
 }
 
 var (
-	astCompactEnv = os.Getenv("JSGO_AST_COMPACT")
-	astCompactLog = os.Getenv("JSGO_AST_COMPACT_LOG") == "1"
+	astCompactEnv  = os.Getenv("JSGO_AST_COMPACT")
+	astCompactLog  = os.Getenv("JSGO_AST_COMPACT_LOG") == "1"
+	astLayoutEnv   = os.Getenv("JSGO_AST_LAYOUT")
+	astLayoutForce = splitNonEmpty(os.Getenv("JSGO_AST_LAYOUT_AT"))
 )
+
+func splitNonEmpty(s string) []string {
+	var out []string
+	for _, x := range strings.Split(s, ",") {
+		if x = strings.TrimSpace(x); x != "" {
+			out = append(out, x)
+		}
+	}
+	return out
+}
+
+// astLayoutForced reports whether a compaction is forced at point.
+func astLayoutForced(point string) bool {
+	for _, x := range astLayoutForce {
+		if x == point {
+			return true
+		}
+	}
+	return false
+}
 
 // astCompactMinNodes is the allocation volume below which a compaction is
 // never worth its walk.
@@ -57,8 +91,9 @@ func (c *Compiler) initASTCompaction() {
 		on = true
 	}
 	c.astCompact = astCompaction{
-		enabled: on && !c.astCompact.nested && !c.options.PreservesDetailedSourceInfo(),
-		nested:  c.astCompact.nested,
+		enabled:  on && !c.astCompact.nested && !c.options.PreservesDetailedSourceInfo(),
+		nested:   c.astCompact.nested,
+		preorder: astLayoutEnv != "slide",
 	}
 }
 
@@ -83,27 +118,34 @@ func (c *Compiler) maybeCompactAST(after string, externs, root *rhino.Node, extr
 	if !c.GetLifeCycleStage().HasColorAndSimplifiedJSDoc() || c.typeRegistry != nil {
 		return
 	}
-	if after != "typesToColors" {
+	force := a.preorder && (after == "typesToColors" || astLayoutForced(after))
+	if after != "typesToColors" && !force {
 		allocated := c.nodeStore.NodeCount() - a.nodesAtLast
 		if allocated < max(a.liveAtLast/4, astCompactMinNodes) {
 			return
 		}
 	}
-	c.compactAST(after, externs, root, extra)
+	c.compactAST(after, force, externs, root, extra)
 }
 
 // compactAST keeps only the live nodes of the store (rhino/node_compact.go):
-// it marks what every registered holder refers to, slides the live nodes
-// down, and forwards the holders to the nodes' new ids.
-func (c *Compiler) compactAST(after string, externs, root *rhino.Node, extra func(fwd func(rhino.Node) rhino.Node)) {
+// it marks what every registered holder refers to, renumbers the live nodes
+// in pre-order (or slides them down), and forwards the holders to the
+// nodes' new ids. Unless force is set, it does nothing when less than 10%
+// of the nodes are dead.
+func (c *Compiler) compactAST(after string, force bool, externs, root *rhino.Node, extra func(fwd func(rhino.Node) rhino.Node)) {
 	a := &c.astCompact
 	t0 := time.Now()
 	jutil.CheckStateMsg(c.typedScopeCreator == nil && c.topScope == nil, "AST compaction with typed scopes alive")
 	k := rhino.NewCompactor()
+	if a.preorder {
+		k.RecordPreorder()
+	}
 	c.forwardASTHolders(k.Mark, externs, root, extra)
+	tMarked := time.Now()
 	total := k.Total()
 	live := k.CountMarked()
-	if dead := total - live; dead <= 0 || int64(dead)*10 < int64(total) {
+	if dead := total - live; !force && (dead <= 0 || int64(dead)*10 < int64(total)) {
 		k.PruneDeadAux()
 		k.Finish()
 		a.nodesAtLast = c.nodeStore.NodeCount()
@@ -117,7 +159,12 @@ func (c *Compiler) compactAST(after string, externs, root *rhino.Node, extra fun
 	if c.options != nil && c.options.GetNumParallelThreads() > 1 {
 		threads = c.options.GetNumParallelThreads()
 	}
-	k.SlideWithThreads(threads)
+	if a.preorder {
+		k.Permute(threads)
+	} else {
+		k.SlideWithThreads(threads)
+	}
+	tMoved := time.Now()
 	c.forwardASTHolders(k.Forward, externs, root, extra)
 	k.Finish()
 
@@ -125,7 +172,13 @@ func (c *Compiler) compactAST(after string, externs, root *rhino.Node, extra fun
 	a.nodesAtLast = c.nodeStore.NodeCount()
 	a.liveAtLast = k.Live
 	if astCompactLog {
-		fmt.Fprintf(os.Stderr, "[ast-compact #%d after %s] %s, %v\n", a.count, after, k, time.Since(t0).Round(time.Millisecond))
+		layout := "slide"
+		if a.preorder {
+			layout = fmt.Sprintf("pre-order, %d new blocks, %d reused, copy %v, tables %v", k.NewBlocks, k.ReusedBlocks,
+				k.CopyTime.Round(time.Millisecond), k.TablesTime.Round(time.Millisecond))
+		}
+		fmt.Fprintf(os.Stderr, "[ast-compact #%d after %s] %s, %s, %v (mark %v, move %v, forward %v)\n", a.count, after, k, layout,
+			time.Since(t0).Round(time.Millisecond), tMarked.Sub(t0).Round(time.Millisecond), tMoved.Sub(tMarked).Round(time.Millisecond), time.Since(tMoved).Round(time.Millisecond))
 	}
 }
 
