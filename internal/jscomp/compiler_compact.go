@@ -191,10 +191,10 @@ func (c *Compiler) forwardASTHolders(fwd func(rhino.Node) rhino.Node, externs, r
 	c.externAndJsRoot = fwd(c.externAndJsRoot)
 	c.externsRoot = fwd(c.externsRoot)
 	c.jsRoot = fwd(c.jsRoot)
-	if !externs.IsNil() {
+	if externs != nil && !externs.IsNil() {
 		*externs = fwd(*externs)
 	}
-	if !root.IsNil() {
+	if root != nil && !root.IsNil() {
 		*root = fwd(*root)
 	}
 	for name, n := range c.scriptNodeByFilename { // order-independent: updating existing keys in place without adding or removing keys
@@ -222,6 +222,10 @@ func (c *Compiler) forwardASTHolders(fwd func(rhino.Node) rhino.Node, externs, r
 	}
 	if c.phaseOptimizer != nil {
 		c.phaseOptimizer.jsRoot = fwd(c.phaseOptimizer.jsRoot)
+	}
+	if c.tracker != nil {
+		c.tracker.externsRoot = fwd(c.tracker.externsRoot)
+		c.tracker.jsRoot = fwd(c.tracker.jsRoot)
 	}
 
 	// 2. Change tracking.
