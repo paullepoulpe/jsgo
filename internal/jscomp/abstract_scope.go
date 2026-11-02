@@ -19,6 +19,8 @@
 package jscomp
 
 import (
+	"iter"
+
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
@@ -183,6 +185,134 @@ func (b *scopeCommon) IsCatchScope() bool {
 // Java: AbstractScope.isCfgRootScope()
 func (b *scopeCommon) IsCfgRootScope() bool {
 	return NodeUtil_IsValidCfgRoot(b.rootNode)
+}
+
+// Java: AbstractScope.isGlobal()
+func (b *scopeCommon) IsGlobal() bool {
+	return b.depth == 0
+}
+
+// Java: AbstractScope.isLocal()
+func (b *scopeCommon) IsLocal() bool {
+	return b.depth != 0
+}
+
+// Java: AbstractScope.isHoistScope()
+func (b *scopeCommon) IsHoistScope() bool {
+	return b.depth == 0 ||
+		b.rootNode.IsFunction() ||
+		NodeUtil_IsFunctionBlock(b.rootNode) ||
+		b.rootNode.IsModuleBody() ||
+		NodeUtil_IsClassStaticBlock(b.rootNode)
+}
+
+type scopeChain[S comparable] interface {
+	comparable
+	parentScope() S
+	common() *scopeCommon
+}
+
+func scopeGlobal[S scopeChain[S]](s S) S {
+	var zero S
+	for p := s.parentScope(); p != zero; p = s.parentScope() {
+		s = p
+	}
+	return s
+}
+
+func scopeContains[S scopeChain[S]](s, other S) bool {
+	var zero S
+	if other == zero {
+		panic(jutil.NewNullPointerException())
+	}
+	for cur := other; cur != zero; cur = cur.parentScope() {
+		if cur == s {
+			return true
+		}
+	}
+	return false
+}
+
+func scopeClosestHoist[S scopeChain[S]](s S) S {
+	var zero S
+	for cur := s; cur != zero; cur = cur.parentScope() {
+		if cur.common().IsHoistScope() {
+			return cur
+		}
+	}
+	return zero
+}
+
+func scopeClosestCfgRoot[S scopeChain[S]](s S) S {
+	for cur := s; ; cur = cur.parentScope() {
+		if cur.common().IsCfgRootScope() {
+			return cur
+		}
+	}
+}
+
+func scopeClosestContainer[S scopeChain[S]](s S) S {
+	scope := scopeClosestHoist(s)
+	if NodeUtil_IsFunctionBlock(scope.common().rootNode) {
+		scope = scope.parentScope()
+		if scope.common().IsBlockScope() {
+			panic(jutil.NewIllegalStateExceptionMsg(jutil.LenientFormat("%s", scope)))
+		}
+	}
+	return scope
+}
+
+func scopeCommonParent[S scopeChain[S]](s, other S) S {
+	var zero S
+	left, right := s, other
+	for left != zero && right != zero && left != right {
+		ld, rd := left.common().depth, right.common().depth
+		if ld >= rd {
+			left = left.parentScope()
+		}
+		if ld <= rd {
+			right = right.parentScope()
+		}
+	}
+	jutil.CheckState(left != zero && left == right)
+	return left
+}
+
+func scopeOfThis[S scopeChain[S]](s S) S {
+	var zero S
+	scope := scopeClosestContainer(s)
+	for p := scope.parentScope(); p != zero && !NodeUtil_IsNonArrowFunction(scope.common().rootNode); p = scope.parentScope() {
+		scope = scopeClosestContainer(p)
+	}
+	return scope
+}
+
+func scopeAllAccessibleVars[S scopeChain[S], V any, K comparable](
+	s S, vars func(S) []V, key func(V) K,
+) iter.Seq[V] {
+	return func(yield func(V) bool) {
+		var zero S
+		var seen map[K]struct{}
+		for cur := s; cur != zero; cur = cur.parentScope() {
+			list := vars(cur)
+			hasParent := cur.parentScope() != zero
+			for _, v := range list {
+				k := key(v)
+				if _, dup := seen[k]; dup {
+					continue
+				}
+				if hasParent || seen != nil {
+					if seen == nil {
+						seen = make(map[K]struct{}, len(list))
+					}
+					seen[k] = struct{}{}
+				}
+				if !yield(v) {
+					return
+				}
+			}
+		}
+	}
 }
 
 func (b *scopeCommon) checkChildScopeRoot(parentRoot rhino.Node) {

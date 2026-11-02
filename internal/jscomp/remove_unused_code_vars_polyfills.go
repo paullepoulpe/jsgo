@@ -56,8 +56,7 @@ const (
 type RemoveUnusedCode_RealVarInfo struct {
 	outer              *RemoveUnusedCode
 	var_               *Var
-	remHead            *rucRemovable
-	remTail            *rucRemovable
+	removables         rucRemovableQueue
 	reasonNode         rhino.Node
 	flags              uint8
 	nonRemovableReason rucPinReason
@@ -97,14 +96,7 @@ func (v *RemoveUnusedCode_RealVarInfo) AddRemovable(removable *rucRemovable) {
 	}
 
 	if v.flags&rucVarFlagEntirelyRemovable != 0 {
-		removable.propNext = nil
-		if v.remHead == nil {
-			v.remHead = removable
-			v.remTail = removable
-		} else {
-			v.remTail.propNext = removable
-			v.remTail = removable
-		}
+		v.removables.push(removable)
 	} else {
 		v.outer.ConsiderForIndependentRemoval(removable)
 	}
@@ -129,15 +121,7 @@ func (v *RemoveUnusedCode_RealVarInfo) pinAt(reason rucPinReason, reasonNode rhi
 	if v.outer.unremovableLog.IsLogging() {
 		v.outer.unremovableLog.LogString(v.formatUnremovableLog())
 	}
-	cur := v.remHead
-	v.remHead = nil
-	v.remTail = nil
-	for cur != nil {
-		next := cur.propNext
-		cur.propNext = nil
-		v.outer.ConsiderForIndependentRemoval(cur)
-		cur = next
-	}
+	v.removables.drain(v.outer.ConsiderForIndependentRemoval)
 }
 
 func (v *RemoveUnusedCode_RealVarInfo) formatUnremovableLog() string {
@@ -184,15 +168,9 @@ func (v *RemoveUnusedCode_RealVarInfo) HasFunctionOrClassLiteralValue() bool {
 // Java: RemoveUnusedCode.RealVarInfo.removeAllRemovables()
 func (v *RemoveUnusedCode_RealVarInfo) RemoveAllRemovables() {
 	jutil.CheckState(v.flags&rucVarFlagEntirelyRemovable != 0)
-	cur := v.remHead
-	v.remHead = nil
-	v.remTail = nil
-	for cur != nil {
-		next := cur.propNext
-		cur.propNext = nil
+	v.removables.drain(func(cur *rucRemovable) {
 		cur.Remove(v.outer)
-		cur = next
-	}
+	})
 }
 
 type rucPolyfillKind uint8

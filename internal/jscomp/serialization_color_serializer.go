@@ -58,8 +58,35 @@ type ColorSerializer struct {
 	objProtoSlab   jutil.Slab[ObjectTypeProto]
 	unionProtoSlab jutil.Slab[UnionTypeProto]
 	edgeSlab       jutil.Slab[SubtypingEdge]
-	int32Slab      []int32
+	int32Slab      int32Slab
 	scratchInt32s  []int32
+}
+
+// int32Slab bump-allocates immutable []int32 slices from 4096-element chunks.
+type int32Slab []int32
+
+func (b *int32Slab) clone(src []int32) []int32 {
+	n := len(src)
+	if n == 0 {
+		return nil
+	}
+	if len(*b) < n {
+		*b = make([]int32, max(n, 4096))
+	}
+	out := (*b)[:n:n]
+	*b = (*b)[n:]
+	copy(out, src)
+	return out
+}
+
+func (b *int32Slab) single(v int32) []int32 {
+	if len(*b) < 1 {
+		*b = make([]int32, 4096)
+	}
+	out := (*b)[:1:1]
+	*b = (*b)[1:]
+	out[0] = v
+	return out
 }
 
 // NewColorSerializer creates a ColorSerializer.
@@ -129,18 +156,6 @@ func (s *ColorSerializer) AddColor(color *colors.Color) int {
 	return idx
 }
 
-func (s *ColorSerializer) allocTypeProto() *TypeProto {
-	return s.typeProtoSlab.New()
-}
-
-func (s *ColorSerializer) allocObjectTypeProto() *ObjectTypeProto {
-	return s.objProtoSlab.New()
-}
-
-func (s *ColorSerializer) allocUnionTypeProto() *UnionTypeProto {
-	return s.unionProtoSlab.New()
-}
-
 func (s *ColorSerializer) allocSubtypingEdge(subtype, supertype int32) *SubtypingEdge {
 	e := s.edgeSlab.New()
 	edgeSize := 0
@@ -158,20 +173,6 @@ func (s *ColorSerializer) allocSubtypingEdge(subtype, supertype int32) *Subtypin
 	return e
 }
 
-func (s *ColorSerializer) allocInt32Slice(src []int32) []int32 {
-	n := len(src)
-	if n == 0 {
-		return nil
-	}
-	if len(s.int32Slab) < n {
-		s.int32Slab = make([]int32, max(n, 4096))
-	}
-	out := s.int32Slab[:n:n]
-	s.int32Slab = s.int32Slab[n:]
-	copy(out, src)
-	return out
-}
-
 func (s *ColorSerializer) addColorSliceInt32s(cs []*colors.Color) []int32 {
 	if len(cs) == 0 {
 		return nil
@@ -181,7 +182,7 @@ func (s *ColorSerializer) addColorSliceInt32s(cs []*colors.Color) []int32 {
 		tmp = append(tmp, int32(s.AddColor(c)))
 	}
 	s.scratchInt32s = tmp
-	return s.allocInt32Slice(tmp)
+	return s.int32Slab.clone(tmp)
 }
 
 // Java: ColorSerializer.getOwnPropertyStringPoolOffsets(Color)
@@ -205,7 +206,7 @@ func (s *ColorSerializer) ownPropertyInt32s(color *colors.Color) []int32 {
 		}
 	}
 	s.scratchInt32s = tmp
-	return s.allocInt32Slice(tmp)
+	return s.int32Slab.clone(tmp)
 }
 
 // GenerateTypePool generates a `TypePool` proto built from the previously
@@ -279,16 +280,20 @@ func (s *ColorSerializer) GenerateTypePool(
 	}
 }
 
+func packedInt32FieldSize(vals []int32) int {
+	if len(vals) == 0 {
+		return 0
+	}
+	p := protoPackedInt32PayloadSize(vals)
+	return 1 + protoVarintLen(uint64(p)) + p
+}
+
 func (s *ColorSerializer) GenerateTypeProto(color *colors.Color) *TypeProto {
-	tp := s.allocTypeProto()
+	tp := s.typeProtoSlab.New()
 	if color.IsUnion() {
-		up := s.allocUnionTypeProto()
+		up := s.unionProtoSlab.New()
 		members := s.addColorSliceInt32s(color.GetUnionElements())
-		uSize := 0
-		if len(members) > 0 {
-			p := protoPackedInt32PayloadSize(members)
-			uSize = 1 + protoVarintLen(uint64(p)) + p
-		}
+		uSize := packedInt32FieldSize(members)
 		*up = UnionTypeProto{
 			unionMember_: members,
 			cachedSize:   uSize + 1,
@@ -299,7 +304,7 @@ func (s *ColorSerializer) GenerateTypeProto(color *colors.Color) *TypeProto {
 			cachedSize: 1 + protoVarintLen(uint64(uSize)) + uSize + 1,
 		}
 	} else {
-		op := s.allocObjectTypeProto()
+		op := s.objProtoSlab.New()
 		inst := s.addColorSliceInt32s(color.GetInstanceColors())
 		own := s.ownPropertyInt32s(color)
 		protos := s.addColorSliceInt32s(color.GetPrototypes())
@@ -308,7 +313,7 @@ func (s *ColorSerializer) GenerateTypeProto(color *colors.Color) *TypeProto {
 		markedCtor := color.IsConstructor()
 		keepOrig := color.GetPropertiesKeepOriginalName()
 		uuid := color.GetId().AsByteString()
-		oSize := 0
+		oSize := packedInt32FieldSize(inst) + packedInt32FieldSize(protos) + packedInt32FieldSize(own)
 		if isInvalidating {
 			oSize += 2
 		}
@@ -318,20 +323,8 @@ func (s *ColorSerializer) GenerateTypeProto(color *colors.Color) *TypeProto {
 		if keepOrig {
 			oSize += 2
 		}
-		if len(inst) > 0 {
-			p := protoPackedInt32PayloadSize(inst)
-			oSize += 1 + protoVarintLen(uint64(p)) + p
-		}
-		if len(protos) > 0 {
-			p := protoPackedInt32PayloadSize(protos)
-			oSize += 1 + protoVarintLen(uint64(p)) + p
-		}
 		if markedCtor {
 			oSize += 2
-		}
-		if len(own) > 0 {
-			p := protoPackedInt32PayloadSize(own)
-			oSize += 1 + protoVarintLen(uint64(p)) + p
 		}
 		if closureAssert {
 			oSize += 2

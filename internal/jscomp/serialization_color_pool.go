@@ -359,36 +359,27 @@ type ColorPool_Builder struct {
 	reconcilationDebugStack []colors.ColorId
 }
 
-func (b *ColorPool_Builder) allocColorSlice(n int) []*colors.Color {
+func allocColorPoolSlice[T any](arena *[]T, n, chunk int, empty []T) []T {
 	if n == 0 {
-		return colors.EmptyColorSlice()
+		return empty
 	}
-	const chunk = 4096 // 32 KiB
 	if n > chunk {
-		return make([]*colors.Color, n)
+		return make([]T, n)
 	}
-	if len(b.colorSliceArena) < n {
-		b.colorSliceArena = make([]*colors.Color, chunk)
+	if len(*arena) < n {
+		*arena = make([]T, chunk)
 	}
-	out := b.colorSliceArena[:n:n]
-	b.colorSliceArena = b.colorSliceArena[n:]
+	out := (*arena)[:n:n]
+	*arena = (*arena)[n:]
 	return out
 }
 
+func (b *ColorPool_Builder) allocColorSlice(n int) []*colors.Color {
+	return allocColorPoolSlice(&b.colorSliceArena, n, 4096, colors.EmptyColorSlice())
+}
+
 func (b *ColorPool_Builder) allocStringSlice(n int) []string {
-	if n == 0 {
-		return colors.EmptyStringSlice()
-	}
-	const chunk = 2048 // 32 KiB
-	if n > chunk {
-		return make([]string, n)
-	}
-	if len(b.stringSliceArena) < n {
-		b.stringSliceArena = make([]string, chunk)
-	}
-	out := b.stringSliceArena[:n:n]
-	b.stringSliceArena = b.stringSliceArena[n:]
-	return out
+	return allocColorPoolSlice(&b.stringSliceArena, n, 2048, colors.EmptyStringSlice())
 }
 
 func appendUniquePoolColor(dst []*colors.Color, c *colors.Color, byHash *map[int32][]*colors.Color) []*colors.Color {
@@ -426,13 +417,8 @@ func (b *ColorPool_Builder) appendDedupProp(prop string, useMap bool) {
 			return
 		}
 		b.seenProps[prop] = b.seenPropsGen
-		b.propScratch = append(b.propScratch, prop)
+	} else if slices.Contains(b.propScratch, prop) {
 		return
-	}
-	for _, existing := range b.propScratch {
-		if existing == prop {
-			return
-		}
 	}
 	b.propScratch = append(b.propScratch, prop)
 }
@@ -443,33 +429,20 @@ func (b *ColorPool_Builder) startDirectPropDedup() {
 }
 
 func (b *ColorPool_Builder) appendDirectDedupProp(prop string) {
-	if !b.directPropMapActive {
+	b.appendDedupProp(prop, b.directPropMapActive)
+	if !b.directPropMapActive && len(b.propScratch) == 8 {
+		b.directPropMapActive = true
+		b.seenPropsGen++
+		if b.seenProps == nil {
+			b.seenProps = make(map[string]uint32, 64)
+		} else if b.seenPropsGen == 0 {
+			clear(b.seenProps)
+			b.seenPropsGen = 1
+		}
 		for _, existing := range b.propScratch {
-			if existing == prop {
-				return
-			}
+			b.seenProps[existing] = b.seenPropsGen
 		}
-		b.propScratch = append(b.propScratch, prop)
-		if len(b.propScratch) == 8 {
-			b.directPropMapActive = true
-			b.seenPropsGen++
-			if b.seenProps == nil {
-				b.seenProps = make(map[string]uint32, 64)
-			} else if b.seenPropsGen == 0 {
-				clear(b.seenProps)
-				b.seenPropsGen = 1
-			}
-			for _, existing := range b.propScratch {
-				b.seenProps[existing] = b.seenPropsGen
-			}
-		}
-		return
 	}
-	if b.seenProps[prop] == b.seenPropsGen {
-		return
-	}
-	b.seenProps[prop] = b.seenPropsGen
-	b.propScratch = append(b.propScratch, prop)
 }
 
 func (b *ColorPool_Builder) onDirectSingleOwnProp(prop string) {
@@ -713,21 +686,16 @@ func (b *ColorPool_Builder) Build() *ColorPool {
 	}
 
 	if b.jsTypeShard == nil && shardCount == 1 && singleShard != nil {
+		singleShardColor := func(offset int) *colors.Color {
+			if TypePointers_IsAxiomatic(offset) {
+				return TypePointers_OFFSET_TO_AXIOMATIC_COLOR[offset]
+			}
+			return singleShard.trimmedOffsetToColor[TypePointers_TrimOffset(offset)]
+		}
 		for _, edge := range singleShard.typePool.GetDisambiguationEdgesList() {
 			subOffset := colorPool_validatePointer(int(edge.GetSubtype()), singleShard)
 			supOffset := colorPool_validatePointer(int(edge.GetSupertype()), singleShard)
-			var subColor, supColor *colors.Color
-			if TypePointers_IsAxiomatic(subOffset) {
-				subColor = TypePointers_OFFSET_TO_AXIOMATIC_COLOR[subOffset]
-			} else {
-				subColor = singleShard.trimmedOffsetToColor[TypePointers_TrimOffset(subOffset)]
-			}
-			if TypePointers_IsAxiomatic(supOffset) {
-				supColor = TypePointers_OFFSET_TO_AXIOMATIC_COLOR[supOffset]
-			} else {
-				supColor = singleShard.trimmedOffsetToColor[TypePointers_TrimOffset(supOffset)]
-			}
-			b.registry.AddDisambiguationEdge(subColor, supColor)
+			b.registry.AddDisambiguationEdge(singleShardColor(subOffset), singleShardColor(supOffset))
 		}
 	} else {
 		for _, shard := range b.shards {

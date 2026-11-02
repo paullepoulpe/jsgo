@@ -176,46 +176,6 @@ func (n *ColorGraphNode) AddProp(prop *PropertyClustering) bool {
 	return true
 }
 
-// ColorGraphNodePropsView adapts ColorGraphNode's flat property list to the
-// map-like API expected by tests.
-type ColorGraphNodePropsView struct {
-	n *ColorGraphNode
-}
-
-func (v ColorGraphNodePropsView) Size() int { return len(v.n.props) }
-
-func (v ColorGraphNodePropsView) IsEmpty() bool { return len(v.n.props) == 0 }
-
-func (v ColorGraphNodePropsView) ContainsKey(prop *PropertyClustering) bool {
-	return v.n.HasProp(prop)
-}
-
-func (v ColorGraphNodePropsView) Put(prop *PropertyClustering, _ ColorGraphNode_PropAssociation) {
-	v.n.AddProp(prop)
-}
-
-func (v ColorGraphNodePropsView) PutIfAbsent(prop *PropertyClustering, _ ColorGraphNode_PropAssociation) {
-	v.n.AddProp(prop)
-}
-
-func (v ColorGraphNodePropsView) Keys() iter.Seq[*PropertyClustering] {
-	return func(yield func(*PropertyClustering) bool) {
-		for _, p := range v.n.props {
-			if !yield(p) {
-				return
-			}
-		}
-	}
-}
-
-// GetAssociatedProps is the set of properties that might be accessed
-// from this type.
-//
-// Java: ColorGraphNode.getAssociatedProps()
-func (n *ColorGraphNode) GetAssociatedProps() ColorGraphNodePropsView {
-	return ColorGraphNodePropsView{n: n}
-}
-
 func (n *ColorGraphNode) AssociatedPropsSize() int {
 	return len(n.props)
 }

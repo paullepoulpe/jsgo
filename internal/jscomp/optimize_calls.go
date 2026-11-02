@@ -525,20 +525,8 @@ func (c *optimizeCallsRefCollector) traverseNode(n rhino.Node) {
 		c.traverseNode(cls.Body().Node())
 		return
 	case rhino.Token_CLASS_MEMBERS:
-		body := ast.MustClassBody(n)
-		for member := range body.Members() {
-			if cm, ok := member.AsComputedMember(); ok {
-				c.traverseNode(cm.Key().Node())
-			}
-		}
-		for member := range body.Members() {
-			if cm, ok := member.AsComputedMember(); ok {
-				if val, hasVal := cm.Value(); hasVal {
-					c.traverseNode(val.Node())
-				}
-			} else {
-				c.traverseNode(member.Node())
-			}
+		for ch := range ast.MustClassBody(n).EvalOrder() {
+			c.traverseNode(ch)
 		}
 		return
 	}

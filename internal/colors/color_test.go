@@ -126,4 +126,22 @@ func TestColorCreateUnionSingleSliceReuseAndSpill(t *testing.T) {
 	if !slices.Equal(uLarge.GetOwnProperties(), wantProps) {
 		t.Fatalf("ownProperties = %v, want %v", uLarge.GetOwnProperties(), wantProps)
 	}
+
+	// Permuted >16-element union with freshly constructed value-equal *Color members.
+	reversed := make([]*Color, count)
+	for i := range count {
+		p := Color_SingleBuilder().SetId(ColorId_FromUnsigned(int64(1000 + (count - 1 - i)))).Build()
+		ic := Color_SingleBuilder().SetId(ColorId_FromUnsigned(int64(2000 + (count - 1 - i)))).Build()
+		prop := fmt.Sprintf("prop_%d", count-1-i)
+		reversed[i] = Color_SingleBuilder().
+			SetId(ColorId_FromUnsigned(int64(3000 + (count - 1 - i)))).
+			SetPrototypes([]*Color{proto, p}).
+			SetInstanceColors([]*Color{inst, ic}).
+			SetOwnProperties([]string{"shared", prop}).
+			Build()
+	}
+	uReversed := Color_CreateUnionSlice(reversed)
+	if !uLarge.Equals(uReversed) {
+		t.Fatal("expected permuted large union with distinct value-equal *Color pointers to compare equal")
+	}
 }

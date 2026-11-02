@@ -89,6 +89,7 @@ type nodeExtBox struct {
 	typeBeforeCast uint32             // node type handle of the canonical TYPE_BEFORE_CAST (0 iff not present as JSType)
 	length         int32              // the length, when Node.length16 is 0xFFFF
 	cookedID       rhinoStringID      // the cooked string of a TEMPLATELIT_STRING, when it is not the raw one
+	coldProps      uint16             // the 15 rare boolean properties (logical bits 32..46)
 	cookedNil      bool               // the TEMPLATELIT_STRING has no cooked string
 }
 
@@ -207,10 +208,10 @@ func (n Node) maybeCollapseExtBox(box *nodeExtBox) {
 	}
 }
 
-// extBoxHoldsNodeFields reports whether box holds a length or a cooked
-// string that does not fit in the Node itself.
+// extBoxHoldsNodeFields reports whether box holds a length, cooked string, or
+// rare boolean property that does not fit in the Node record itself.
 func (n Node) extBoxHoldsNodeFields(box *nodeExtBox) bool {
-	return n.rec().length16 == 0xFFFF || box.cookedID != 0 || box.cookedNil
+	return n.rec().length16 == 0xFFFF || box.cookedID != 0 || box.cookedNil || box.coldProps != 0
 }
 
 func (n Node) coldPropListHead() *Node_PropListItem {
@@ -246,15 +247,16 @@ func (n Node) copyTemplateColdProps(other Node) {
 		if otherBox.propListHead != nil {
 			otherBox.propListHead.markShared()
 		}
-		if otherBox.jsDocInfo != nil && otherBox.typeBeforeCast == 0 && otherBox.propListHead == nil && (n.rec().kindFlags&kindFlagHasExtBox) == 0 {
+		if otherBox.jsDocInfo != nil && otherBox.typeBeforeCast == 0 && otherBox.propListHead == nil && otherBox.coldProps == 0 && (n.rec().kindFlags&kindFlagHasExtBox) == 0 {
 			n.setAux(nodeAux{jsDoc: otherBox.jsDocInfo})
 			return
 		}
-		if otherBox.jsDocInfo != nil || otherBox.typeBeforeCast != 0 || otherBox.propListHead != nil {
+		if otherBox.jsDocInfo != nil || otherBox.typeBeforeCast != 0 || otherBox.propListHead != nil || otherBox.coldProps != 0 {
 			box := n.ensureExtBox()
 			box.jsDocInfo = otherBox.jsDocInfo
 			box.typeBeforeCast = n.store().translateTypeHandle(other.store(), otherBox.typeBeforeCast)
 			box.propListHead = otherBox.propListHead
+			box.coldProps = otherBox.coldProps
 		}
 		return
 	}
@@ -726,9 +728,9 @@ func (n Node) GetIsInClosureUnawareSubtree() bool {
 // tree links are node ids; the leaf payload is one 32-bit value whose
 // meaning depends on the kind (a string id, a number, a change time...;
 // node_payload.go); the source file is a 32-bit id (allocSourceFileID); the
-// 8 common boolean properties, CONSTANT_VAR_FLAGS and SIDE_EFFECT_FLAGS
-// share a 32-bit property word, and the 32 rare boolean properties are cold
-// data (propWord).
+// 25 common boolean properties, JSDoc bit, CONSTANT_VAR_FLAGS and
+// SIDE_EFFECT_FLAGS share the 32-bit propFlags word directly, and the 15
+// ultra-rare boolean properties live in nodeExtBox.coldProps.
 // What most nodes do not have is kept beside the record (node_tables.go):
 // the JSType or Color handle and the original name in per-block columns,
 // the cold data (JSDocInfo, remaining properties, overflow length, a cooked

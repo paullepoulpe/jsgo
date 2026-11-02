@@ -725,12 +725,16 @@ func (g *SourceMapGeneratorV3) ensureIDTables() {
 //
 // Java: SourceMapGeneratorV3.prepMappings()
 func (g *SourceMapGeneratorV3) PrepMappings() int {
+	maxLine := 0
 	t := SourceMapGeneratorV3_MappingTraversal{outer: g}
-	rv := mappingRangeVisitor{kind: visitUsedCheck}
-	t.traverse(&rv)
+	t.traverse(func(m SourceMapGeneratorV3_Mapping, mapped bool, line, col, nextLine, nextCol int) {
+		if mapped && int(m.endLine) > maxLine {
+			maxLine = int(m.endLine)
+		}
+	})
 
 	// Adjust for the prefix.
-	return jutil.IntAdd(rv.check.maxLine, g.prefixPosition.GetLine())
+	return jutil.IntAdd(maxLine, g.prefixPosition.GetLine())
 }
 
 // AppendIndexMapTo appends the index source map to the given buffer.

@@ -314,7 +314,7 @@ func (iv *InlineVariables) processParallel(externs rhino.Node, root rhino.Node) 
 			case rcOpGlobalRef:
 				globalCollector.addGlobalReferenceDirect(op.v, op.node, op.block, op.scope, op.inputId)
 			case rcOpGlobalAliasRetry:
-				op.retry.outer.outer = iv
+				op.retry.outer.compiler = iv.compiler
 				iv.putAliasRetryHandler(op.v, op.retry)
 			case rcOpJumpHoisted, rcOpDeclHoisted:
 				if _, done := collectedHoisted[op.node]; done {

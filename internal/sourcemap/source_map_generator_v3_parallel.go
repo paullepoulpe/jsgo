@@ -60,8 +60,8 @@ type phase1Visitor struct {
 	st      lineMapperState
 }
 
-func (p *phase1Visitor) Visit(m *SourceMapGeneratorV3_Mapping, line, col, nextLine, nextCol int) {
-	if m != nil {
+func (p *phase1Visitor) visitRange(m SourceMapGeneratorV3_Mapping, mapped bool, line, col, nextLine, nextCol int) {
+	if mapped {
 		if endLine := int(m.endLine); endLine > p.maxLine {
 			p.maxLine = endLine
 		}
@@ -72,7 +72,7 @@ func (p *phase1Visitor) Visit(m *SourceMapGeneratorV3_Mapping, line, col, nextLi
 	}
 	if line != nextLine || col != nextCol {
 		p.st.previousColumn = col
-		if m != nil {
+		if mapped {
 			g := p.g
 			sourceId := g.sourceIdxToFileId[m.sourceFileIdx]
 			if sourceId < 0 {
@@ -101,10 +101,8 @@ func (p *phase1Visitor) Visit(m *SourceMapGeneratorV3_Mapping, line, col, nextLi
 // line (before the prefix adjustment) and the checkpoints.
 func (g *SourceMapGeneratorV3) prepMappingsParallel() (int, []mappingCheckpoint) {
 	g.ensureIDTables()
-	rv := mappingRangeVisitor{
-		kind:   visitPhase1,
-		phase1: phase1Visitor{g: g, st: lineMapperState{previousLine: -1}},
-	}
+	phase1 := phase1Visitor{g: g, st: lineMapperState{previousLine: -1}}
+	visit := phase1.visitRange
 	t := SourceMapGeneratorV3_MappingTraversal{outer: g}
 	var cps []mappingCheckpoint
 	r := sourceMapGeneratorV3_mappingReader{store: &g.mappings}
@@ -116,7 +114,7 @@ func (g *SourceMapGeneratorV3) prepMappingsParallel() (int, []mappingCheckpoint)
 				stack:      append([]SourceMapGeneratorV3_Mapping(nil), t.stack...),
 				line:       t.line,
 				col:        t.col,
-				state:      rv.phase1.st,
+				state:      phase1.st,
 				startIndex: idx,
 			})
 		}
@@ -124,10 +122,10 @@ func (g *SourceMapGeneratorV3) prepMappingsParallel() (int, []mappingCheckpoint)
 			break
 		}
 		idx++
-		t.step(&rv)
+		t.step(visit)
 	}
-	t.finish(&rv)
-	return rv.phase1.maxLine, cps
+	t.finish(visit)
+	return phase1.maxLine, cps
 }
 
 // chunkWriter collects a chunk's bytes.
@@ -209,16 +207,16 @@ func (g *SourceMapGeneratorV3) encodeChunk(cp *mappingCheckpoint, count int, max
 	l.buffering = true
 	t := SourceMapGeneratorV3_MappingTraversal{outer: g, line: cp.line, col: cp.col}
 	t.stack = append(t.stack, cp.stack...)
-	rv := mappingRangeVisitor{kind: visitLineMapper, mapper: l}
+	visit := l.visitRange
 	r := cp.reader
 	for i := 0; count < 0 || i < count; i++ {
 		if !r.next(&t.cur) {
 			break
 		}
-		t.step(&rv)
+		t.step(visit)
 	}
 	if count < 0 {
-		t.finish(&rv)
+		t.finish(visit)
 	}
 	l.flush()
 	return w.b

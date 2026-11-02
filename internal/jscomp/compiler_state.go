@@ -525,56 +525,15 @@ func compiler_writeDelimitedTo(message []byte, out io.Writer) {
 // Go-only: language-adapter — Parser.parseDelimitedFrom(InputStream) of the
 // protoc-generated message.
 func compiler_parseDelimitedFrom(in io.Reader) *JSCompilerStateProto {
-	readByte := func() (byte, bool) {
-		var b [1]byte
-		for {
-			n, err := in.Read(b[:])
-			if n == 1 {
-				return b[0], true
-			}
-			if err == io.EOF {
-				return 0, false
-			}
-			if err != nil {
-				panic(jutil.NewIOException(err.Error()))
-			}
-		}
+	rawSize, ok, readErr := protoReadStreamVarint64(protoByteReader(in), true)
+	if readErr != nil {
+		panic(readErr)
 	}
-	firstByte, ok := readByte()
 	if !ok {
 		return nil
 	}
-	// CodedInputStream.readRawVarint32(int, InputStream)
-	size := uint32(firstByte & 0x7f)
-	if firstByte&0x80 != 0 {
-		offset := 7
-		for ; offset < 32; offset += 7 {
-			b, ok := readByte()
-			if !ok {
-				panic(protoTruncatedMessage())
-			}
-			size |= uint32(b&0x7f) << offset
-			if b&0x80 == 0 {
-				break
-			}
-		}
-		if offset >= 32 {
-			// Keep reading up to 64 bits.
-			for ; offset < 64; offset += 7 {
-				b, ok := readByte()
-				if !ok {
-					panic(protoTruncatedMessage())
-				}
-				if b&0x80 == 0 {
-					break
-				}
-			}
-			if offset >= 64 {
-				panic(protoMalformedVarint())
-			}
-		}
-	}
-	if int32(size) < 0 {
+	size := int32(rawSize)
+	if size < 0 {
 		panic(protoNegativeSize())
 	}
 	data, err := io.ReadAll(io.LimitReader(in, int64(size)))
@@ -627,6 +586,10 @@ func compiler_newBufferedInputStream(in io.Reader, size int) *compiler_bufferedI
 
 func (s *compiler_bufferedInputStream) Read(b []byte) (int, error) {
 	return s.r.Read(b)
+}
+
+func (s *compiler_bufferedInputStream) ReadByte() (byte, error) {
+	return s.r.ReadByte()
 }
 
 func (s *compiler_bufferedInputStream) Close() {

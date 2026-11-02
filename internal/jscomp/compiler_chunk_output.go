@@ -92,6 +92,165 @@ func (c *Compiler) printChunkInput(
 	return c.printRootWithScratch(scriptNode, firstOutput, gatherSourceMap, licenseTracker, sm, scratch), nil
 }
 
+func filterActiveChunks(chunks []*JSChunk) []*JSChunk {
+	active := make([]*JSChunk, 0, len(chunks))
+	for _, m := range chunks {
+		if m != nil && m.GetName() != JSChunk_WEAK_CHUNK_NAME {
+			active = append(active, m)
+		}
+	}
+	return active
+}
+
+func populateChunkSourceMap(sm *SourceMap, pc *chunkPrinted) {
+	sm.Reset()
+	for i := range pc.inputs {
+		pi := &pc.inputs[i]
+		if pi.emitted {
+			sm.SetStartingPosition(pi.startLine, pi.startCol)
+			for k := range pi.sm.mappings {
+				mp := &pi.sm.mappings[k]
+				sm.AddMappingOfNodePositions(mp.node, mp.start, mp.end)
+			}
+		}
+		resetSourceAndMappings(&pi.sm)
+	}
+}
+
+func renderChunkSourceMapString(
+	sm *SourceMap,
+	m *JSChunk,
+	wrapperPrefix func(*JSChunk) string,
+	chunkFileName func(*JSChunk) string,
+) string {
+	if wrapperPrefix != nil {
+		if prefix := wrapperPrefix(m); prefix != "" {
+			sm.SetWrapperPrefix(prefix)
+		}
+	}
+	name := chunkFileName(m)
+	var mapBuf strings.Builder
+	sm.AppendTo(&mapBuf, &name)
+	return mapBuf.String()
+}
+
+func (c *Compiler) renderChunksBatched(
+	activeChunks []*JSChunk,
+	numWorkers int,
+	lt CodePrinter_LicenseTracker,
+	onlyScript bool,
+	replay func(string),
+	gatherSourceMap bool,
+	onSeqChunk func(globalIdx, batchIdx int, m *JSChunk, code string),
+	onParChunk func(globalIdx, batchIdx int, m *JSChunk, sm *SourceMap),
+) error {
+	const batchSize = 256
+	chunkTracker, _ := lt.(*Compiler_ChunkGraphAwareLicenseTracker)
+	batchCap := min(len(activeChunks), batchSize)
+	printed := make([]chunkPrinted, batchCap)
+	printErrs := make([]error, batchCap)
+	scratches := make([]codePrinterScratch, numWorkers)
+
+	var workerSM []*SourceMap
+	if gatherSourceMap && onParChunk != nil {
+		workerSM = make([]*SourceMap, numWorkers)
+		for w := range workerSM {
+			workerSM[w] = c.newWorkerSourceMap()
+		}
+	}
+
+	cb := NewCompiler_CodeBuilder()
+	for batchStart := 0; batchStart < len(activeChunks); batchStart += batchSize {
+		batchLen := min(batchSize, len(activeChunks)-batchStart)
+		clear(printErrs[:batchLen])
+
+		failures := parallelPrebuildIndexed(batchLen, numWorkers, func(w, j int) {
+			m := activeChunks[batchStart+j]
+			inputs := m.GetInputs()
+			nInputs := len(inputs)
+			pc := &printed[j]
+			if cap(pc.inputs) >= nInputs {
+				pc.inputs = pc.inputs[:nInputs]
+			} else {
+				pc.inputs = make([]chunkPrintedInput, nInputs)
+			}
+			for i, in := range inputs {
+				scriptNode := in.GetAstRoot(c)
+				pi := &pc.inputs[i]
+				pi.root = scriptNode
+				pi.rec.Reset(onlyScript)
+				pi.sm.mappings = pi.sm.mappings[:0]
+				pi.startLine = 0
+				pi.startCol = 0
+				pi.emitted = false
+				var printErr error
+				if gatherSourceMap {
+					_, printErr = c.printChunkInput(m.GetName(), scriptNode, i == 0, true, &pi.rec, &pi.sm, &scratches[w])
+				} else {
+					pi.sm.source, printErr = c.printChunkInput(m.GetName(), scriptNode, i == 0, false, &pi.rec, nil, &scratches[w])
+				}
+				if printErr != nil {
+					printErrs[j] = printErr
+					return
+				}
+			}
+		})
+		for j, f := range failures {
+			if printErrs[j] != nil {
+				return printErrs[j]
+			}
+			if f != nil {
+				return f
+			}
+		}
+
+		for j := range batchLen {
+			globalIdx := batchStart + j
+			m := activeChunks[globalIdx]
+			if chunkTracker != nil {
+				chunkTracker.SetCurrentChunkContext(m)
+			}
+			pc := &printed[j]
+			var code string
+			if len(pc.inputs) > 0 {
+				cb.ResetAll()
+				for i := range pc.inputs {
+					pi := &pc.inputs[i]
+					pi.rec.Replay(replay)
+					pi.startLine, pi.startCol, pi.emitted = c.appendSourceToCodeBuilderForChunk(
+						cb, lt, i, pi.root, pi.sm.source)
+					pi.sm.source = ""
+					pi.root = rhino.NilNode
+				}
+				code = cb.String()
+			}
+			onSeqChunk(globalIdx, j, m, code)
+		}
+
+		if onParChunk != nil {
+			parFailures := parallelPrebuildIndexed(batchLen, numWorkers, func(w, j int) {
+				globalIdx := batchStart + j
+				m := activeChunks[globalIdx]
+				var sm *SourceMap
+				if gatherSourceMap {
+					sm = workerSM[w]
+					if globalIdx == len(activeChunks)-1 && c.sourceMap != nil {
+						sm = c.sourceMap
+					}
+					populateChunkSourceMap(sm, &printed[j])
+				}
+				onParChunk(globalIdx, j, m, sm)
+			})
+			for _, f := range parFailures {
+				if f != nil {
+					return f
+				}
+			}
+		}
+	}
+	return nil
+}
+
 // RenderChunksAndSourceMaps renders non-weak chunks and optional per-chunk
 // source maps in parallel across a worker pool while preserving sequential
 // dependency-order license deduplication across chunks.
@@ -101,12 +260,7 @@ func (c *Compiler) RenderChunksAndSourceMaps(
 ) (rendered []RenderedChunk, err error) {
 	c.InitCompilerOptionsIfTesting()
 
-	activeChunks := make([]*JSChunk, 0, len(chunks))
-	for _, m := range chunks {
-		if m != nil && m.GetName() != JSChunk_WEAK_CHUNK_NAME {
-			activeChunks = append(activeChunks, m)
-		}
-	}
+	activeChunks := filterActiveChunks(chunks)
 	if len(activeChunks) == 0 {
 		return []RenderedChunk{}, nil
 	}
@@ -156,124 +310,34 @@ func (c *Compiler) RenderChunksAndSourceMaps(
 			code := c.ToSourceOfLicenseTrackerAndJSChunk(lt, m)
 			var smText string
 			if gatherSourceMap {
-				sm := c.GetSourceMap()
-				if opts.WrapperPrefix != nil {
-					if prefix := opts.WrapperPrefix(m); prefix != "" {
-						sm.SetWrapperPrefix(prefix)
-					}
-				}
-				name := chunkFileName(m)
-				var mapBuf strings.Builder
-				sm.AppendTo(&mapBuf, &name)
-				smText = mapBuf.String()
+				smText = renderChunkSourceMapString(c.GetSourceMap(), m, opts.WrapperPrefix, chunkFileName)
 			}
 			rendered[j] = RenderedChunk{Chunk: m, Code: code, SourceMap: smText}
 		}
 		return rendered, nil
 	}
 
-	printed := make([]chunkPrinted, len(activeChunks))
-	printErrs := make([]error, len(activeChunks))
-	scratches := make([]codePrinterScratch, numWorkers)
-	failures := parallelPrebuildIndexed(len(activeChunks), numWorkers, func(w, j int) {
-		m := activeChunks[j]
-		inputs := m.GetInputs()
-		if len(inputs) == 0 {
-			return
-		}
-		pc := &printed[j]
-		pc.inputs = make([]chunkPrintedInput, len(inputs))
-		for i, in := range inputs {
-			scriptNode := in.GetAstRoot(c)
-			pi := &pc.inputs[i]
-			pi.root = scriptNode
-			pi.rec.Reset(onlyScript)
-			var printErr error
-			if gatherSourceMap {
-				_, printErr = c.printChunkInput(m.GetName(), scriptNode, i == 0, true, &pi.rec, &pi.sm, &scratches[w])
-			} else {
-				pi.sm.source, printErr = c.printChunkInput(m.GetName(), scriptNode, i == 0, false, &pi.rec, nil, &scratches[w])
-			}
-			if printErr != nil {
-				printErrs[j] = printErr
-				return
-			}
-		}
-	})
-	for j, f := range failures {
-		if printErrs[j] != nil {
-			return nil, printErrs[j]
-		}
-		if f != nil {
-			return nil, f
-		}
-	}
-
-	cb := NewCompiler_CodeBuilder()
-	for j, m := range activeChunks {
-		if chunkTracker != nil {
-			chunkTracker.SetCurrentChunkContext(m)
-		}
-		pc := &printed[j]
-		var code string
-		if len(pc.inputs) > 0 {
-			cb.ResetAll()
-			for i := range pc.inputs {
-				pi := &pc.inputs[i]
-				for _, file := range pi.rec.seenFiles {
-					replay(file)
-				}
-				pi.startLine, pi.startCol, pi.emitted = c.appendSourceToCodeBuilderForChunk(
-					cb, lt, i, pi.root, pi.sm.source)
-				pi.sm.source = ""
-				pi.root = rhino.NilNode
-			}
-			code = cb.String()
-		}
-		rendered[j] = RenderedChunk{Chunk: m, Code: code}
-	}
-
+	var onParChunk func(globalIdx, batchIdx int, m *JSChunk, sm *SourceMap)
 	if gatherSourceMap {
-		workerSM := make([]*SourceMap, numWorkers)
-		for w := 0; w < numWorkers; w++ {
-			workerSM[w] = c.newWorkerSourceMap()
-		}
-		mapFailures := parallelPrebuildIndexed(len(activeChunks), numWorkers, func(w, j int) {
-			m := activeChunks[j]
-			sm := workerSM[w]
-			if j == len(activeChunks)-1 && c.sourceMap != nil {
-				sm = c.sourceMap
-			}
-			sm.Reset()
-			pc := &printed[j]
-			for i := range pc.inputs {
-				pi := &pc.inputs[i]
-				if pi.emitted {
-					sm.SetStartingPosition(pi.startLine, pi.startCol)
-					for k := range pi.sm.mappings {
-						mp := &pi.sm.mappings[k]
-						sm.AddMappingOfNodePositions(mp.node, mp.start, mp.end)
-					}
-				}
-				pi.sm.mappings = nil
-			}
-			if opts.WrapperPrefix != nil {
-				if prefix := opts.WrapperPrefix(m); prefix != "" {
-					sm.SetWrapperPrefix(prefix)
-				}
-			}
-			name := chunkFileName(m)
-			var mapBuf strings.Builder
-			sm.AppendTo(&mapBuf, &name)
-			rendered[j].SourceMap = mapBuf.String()
-		})
-		for _, f := range mapFailures {
-			if f != nil {
-				return nil, f
-			}
+		onParChunk = func(globalIdx, _ int, m *JSChunk, sm *SourceMap) {
+			rendered[globalIdx].SourceMap = renderChunkSourceMapString(sm, m, opts.WrapperPrefix, chunkFileName)
 		}
 	}
-
+	err = c.renderChunksBatched(
+		activeChunks,
+		numWorkers,
+		lt,
+		onlyScript,
+		replay,
+		gatherSourceMap,
+		func(globalIdx, _ int, m *JSChunk, code string) {
+			rendered[globalIdx] = RenderedChunk{Chunk: m, Code: code}
+		},
+		onParChunk,
+	)
+	if err != nil {
+		return nil, err
+	}
 	return rendered, nil
 }
 
@@ -287,152 +351,60 @@ func (c *Compiler) OutputChunksParallel(
 	mlicenseTracker *Compiler_ChunkGraphAwareLicenseTracker,
 	hooks ParallelChunkOutputCallbacks,
 ) {
-	activeChunks := make([]*JSChunk, 0, len(chunks))
-	for _, m := range chunks {
-		if m.GetName() != JSChunk_WEAK_CHUNK_NAME {
-			activeChunks = append(activeChunks, m)
-		}
-	}
+	activeChunks := filterActiveChunks(chunks)
 	if len(activeChunks) == 0 {
 		return
 	}
 
 	numThreads := max(1, options.GetNumParallelThreads())
 	gatherSourceMap := options.ShouldGatherSourceMapInfo()
-	var workerSM []*SourceMap
 	if gatherSourceMap {
 		c.ResetAndIntitializeSourceMap()
-		workerSM = make([]*SourceMap, numThreads)
-		for w := 0; w < numThreads; w++ {
-			workerSM[w] = c.newWorkerSourceMap()
-		}
 	}
 
-	const batchSize = 256
 	type chunkWriteTask struct {
 		filename    string
 		mapFilename string
 		code        string
 		wrapper     string
 	}
+	writeTasks := make([]chunkWriteTask, min(len(activeChunks), 256))
 
-	printed := make([]chunkPrinted, min(len(activeChunks), batchSize))
-	writeTasks := make([]chunkWriteTask, min(len(activeChunks), batchSize))
-	scratches := make([]codePrinterScratch, numThreads)
-
-	for batchStart := 0; batchStart < len(activeChunks); batchStart += batchSize {
-		batchEnd := min(batchStart+batchSize, len(activeChunks))
-		batchLen := batchEnd - batchStart
-
-		failures := parallelPrebuildIndexed(batchLen, numThreads, func(w, j int) {
-			m := activeChunks[batchStart+j]
-			inputs := m.GetInputs()
-			nInputs := len(inputs)
-			pc := &printed[j]
-			if cap(pc.inputs) >= nInputs {
-				pc.inputs = pc.inputs[:nInputs]
-			} else {
-				pc.inputs = make([]chunkPrintedInput, nInputs)
-			}
-			for i := 0; i < nInputs; i++ {
-				scriptNode := inputs[i].GetAstRoot(c)
-				pi := &pc.inputs[i]
-				pi.root = scriptNode
-				pi.rec.Reset(false)
-				pi.sm.mappings = pi.sm.mappings[:0]
-				pi.startLine = 0
-				pi.startCol = 0
-				pi.emitted = false
-				var printErr error
-				if gatherSourceMap {
-					_, printErr = c.printChunkInput(m.GetName(), scriptNode, i == 0, true, &pi.rec, &pi.sm, &scratches[w])
-				} else {
-					pi.sm.source, printErr = c.printChunkInput(m.GetName(), scriptNode, i == 0, false, &pi.rec, nil, &scratches[w])
-				}
-				if printErr != nil {
-					panic(printErr)
-				}
-			}
-		})
-		for _, f := range failures {
-			if f != nil {
-				panic(f)
-			}
-		}
-
-		cb := NewCompiler_CodeBuilder()
-		for j := 0; j < batchLen; j++ {
-			m := activeChunks[batchStart+j]
+	err := c.renderChunksBatched(
+		activeChunks,
+		numThreads,
+		mlicenseTracker,
+		false,
+		mlicenseTracker.trackLicensesForFileName,
+		gatherSourceMap,
+		func(_, j int, m *JSChunk, code string) {
 			chunkFilename := hooks.ChunkFileName(m)
 			hooks.EnsureDir(chunkFilename)
 			var mapFilename string
 			if gatherSourceMap {
 				mapFilename = hooks.SourceMapPath(m)
 			}
-			mlicenseTracker.SetCurrentChunkContext(m)
-			pc := &printed[j]
-			var code string
-			if len(pc.inputs) > 0 {
-				cb.ResetAll()
-				for i := range pc.inputs {
-					pi := &pc.inputs[i]
-					for _, file := range pi.rec.seenFiles {
-						mlicenseTracker.trackLicensesForFileName(file)
-					}
-					pi.startLine, pi.startCol, pi.emitted = c.appendSourceToCodeBuilderForChunk(
-						cb, mlicenseTracker, i, pi.root, pi.sm.source)
-					pi.sm.source = ""
-					pi.root = rhino.NilNode
-				}
-				code = cb.String()
-			}
-			baseName := filepath.Base(chunkFilename)
-			wrapper := strings.ReplaceAll(hooks.WrapperTemplate(m.GetName()), "%basename%", baseName)
+			wrapper := strings.ReplaceAll(hooks.WrapperTemplate(m.GetName()), "%basename%", filepath.Base(chunkFilename))
 			writeTasks[j] = chunkWriteTask{
 				filename:    chunkFilename,
 				mapFilename: mapFilename,
 				code:        code,
 				wrapper:     wrapper,
 			}
-		}
-
-		wFailures := parallelPrebuildIndexed(batchLen, numThreads, func(w, j int) {
+		},
+		func(_, j int, _ *JSChunk, sm *SourceMap) {
 			t := &writeTasks[j]
 			defer func() {
 				*t = chunkWriteTask{}
 			}()
-			if !gatherSourceMap {
+			if sm == nil {
 				hooks.WriteChunkNoMap(t.filename, t.code, t.wrapper)
 				return
 			}
-			globalIdx := batchStart + j
-			sm := workerSM[w]
-			if globalIdx == len(activeChunks)-1 && c.sourceMap != nil {
-				sm = c.sourceMap
-			}
-			sm.Reset()
-			pc := &printed[j]
-			for i := range pc.inputs {
-				pi := &pc.inputs[i]
-				if pi.emitted {
-					sm.SetStartingPosition(pi.startLine, pi.startCol)
-					for k := range pi.sm.mappings {
-						mp := &pi.sm.mappings[k]
-						sm.AddMappingOfNodePositions(mp.node, mp.start, mp.end)
-					}
-				}
-				if cap(pi.sm.mappings) > 16384 {
-					pi.sm.mappings = nil
-				} else {
-					pi.sm.mappings = pi.sm.mappings[:0]
-				}
-			}
 			hooks.WriteChunkWithMap(t.filename, t.mapFilename, sm, t.code, t.wrapper)
-		})
-		for _, f := range wFailures {
-			if f != nil {
-				panic(f)
-			}
-		}
+		},
+	)
+	if err != nil {
+		panic(err)
 	}
 }

@@ -896,3 +896,75 @@ func TestWave3CategoriesAndHelpers(t *testing.T) {
 		t.Fatal("CallOrNew.ArgAt(2) out of range succeeded")
 	}
 }
+
+func TestClassBodyEvalOrder(t *testing.T) {
+	newStore(t)
+	k1 := NewName("k1").AsExpr()
+	v1 := NewFunction("", NewParamList(), NewBlock().AsFunctionBody()).AsPropValue()
+	cp := NewComputedProp(k1)
+	cp.SetValue(v1)
+
+	mf := NewMemberFieldDef("plain")
+	mf.SetValue(NewName("vPlain").AsExpr())
+
+	k2 := NewName("k2").AsExpr()
+	cf := NewComputedFieldDef(k2)
+	cfVal := NewName("v2").AsExpr()
+	cf.SetValue(cfVal)
+
+	k3 := NewName("k3").AsExpr()
+	cfUninit := NewComputedFieldDef(k3)
+
+	staticBlk := NewBlock()
+
+	body := NewClassBody(
+		cp.AsClassMember(),
+		mf.AsClassMember(),
+		cf.AsClassMember(),
+		cfUninit.AsClassMember(),
+		staticBlk.AsClassMember(),
+	)
+
+	var compKeys []string
+	for cm := range body.ComputedMembers() {
+		compKeys = append(compKeys, cm.Key().MustName().Ident())
+	}
+	if got := strings.Join(compKeys, ","); got != "k1,k2,k3" {
+		t.Fatalf("ComputedMembers() keys = %q, want %q", got, "k1,k2,k3")
+	}
+
+	type pair struct{ child, parent rhino.Node }
+	var got []pair
+	for ch, p := range body.EvalOrder() {
+		got = append(got, pair{ch, p})
+	}
+	want := []pair{
+		{k1.Node(), cp.Node()},
+		{k2.Node(), cf.Node()},
+		{k3.Node(), cfUninit.Node()},
+		{v1.Node(), cp.Node()},
+		{mf.Node(), body.Node()},
+		{cfVal.Node(), cf.Node()},
+		{staticBlk.Node(), body.Node()},
+	}
+	if len(got) != len(want) {
+		t.Fatalf("EvalOrder() len = %d, want %d", len(got), len(want))
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Fatalf("EvalOrder()[%d] = %v, want %v", i, got[i], want[i])
+		}
+	}
+
+	// Early break stops iteration cleanly.
+	count := 0
+	for range body.EvalOrder() {
+		count++
+		if count == 2 {
+			break
+		}
+	}
+	if count != 2 {
+		t.Fatalf("early break count = %d, want 2", count)
+	}
+}

@@ -683,6 +683,7 @@ func (n Node) SetPropListHead(propListHead *Node_PropListItem) {
 		box := n.extBox()
 		box.jsDocInfo = nil
 		box.typeBeforeCast = 0
+		box.coldProps = 0
 	} else if (n.props() & propFlagHasJSDoc) != 0 {
 		n.setAux(nodeAux{})
 	}

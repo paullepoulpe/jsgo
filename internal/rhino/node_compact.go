@@ -410,10 +410,8 @@ func (k *Compactor) SlideWithThreads(threads int) {
 	// The cold data is keyed by id (no other goroutine runs during
 	// compaction, so the shards are not locked).
 	var oldAux [auxShards]map[uint32]nodeAux
-	var oldCold [auxShards]map[uint32]uint32
 	for sh := range s.aux {
 		oldAux[sh], s.aux[sh].m = s.aux[sh].m, nil
-		oldCold[sh], s.aux[sh].cold = s.aux[sh].cold, nil
 	}
 	newNode := func(id uint32) (Node, bool) {
 		if i := id - k.base; id >= k.base && id < k.end && k.isMarked(i) {
@@ -430,14 +428,6 @@ func (k *Compactor) SlideWithThreads(threads int) {
 				if a.ext != nil && a.ext.propListHead != nil {
 					extPropNodes = append(extPropNodes, nn)
 				}
-			}
-		}
-	}
-	for _, m := range oldCold {
-		// order-independent: moves each entry to its new id
-		for id, c := range m {
-			if nn, ok := newNode(id); ok {
-				nn.auxShard().putCold(uint32(nn), c)
 			}
 		}
 	}
@@ -489,12 +479,6 @@ func (k *Compactor) PruneDeadAux() {
 		for id := range s.aux[sh].m {
 			if i := id - k.base; id >= k.base && id < k.end && !k.isMarked(i) {
 				delete(s.aux[sh].m, id)
-			}
-		}
-		// order-independent: deletes dead entries
-		for id := range s.aux[sh].cold {
-			if i := id - k.base; id >= k.base && id < k.end && !k.isMarked(i) {
-				delete(s.aux[sh].cold, id)
 			}
 		}
 	}

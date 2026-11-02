@@ -354,7 +354,7 @@ func (f *InlineFunctions) DecomposeExpressions() {
 	}
 	for _, functionState := range f.fns {
 		if functionState.CanInline() {
-			for _, ref := range functionState.refs {
+			for _, ref := range functionState.GetReferences() {
 				if ref.requiresDecomposition {
 					workRefs = append(workRefs, ref)
 				}
@@ -412,7 +412,7 @@ func (f *InlineFunctions) RemoveInlinedFunctions() {
 }
 
 func (f *InlineFunctions) verifyAllReferencesInlined(functionState *InlineFunctions_FunctionState) {
-	for _, ref := range functionState.refs {
+	for _, ref := range functionState.GetReferences() {
 		if !ref.inlined {
 			f.VerifyAllReferencesInlined(f.functionStateName(functionState), functionState)
 			return
@@ -425,7 +425,7 @@ func (f *InlineFunctions) verifyAllReferencesInlined(functionState *InlineFuncti
 //
 // Java: InlineFunctions.verifyAllReferencesInlined(String, FunctionState)
 func (f *InlineFunctions) VerifyAllReferencesInlined(name string, functionState *InlineFunctions_FunctionState) {
-	for _, ref := range functionState.refs {
+	for _, ref := range functionState.GetReferences() {
 		if !ref.inlined {
 			parent := ref.callNode.GetParent()
 			parentString := "null"

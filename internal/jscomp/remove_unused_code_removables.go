@@ -74,11 +74,57 @@ const (
 	remFlagClassDefiningCall
 )
 
+// rucExtraCont is an overflow continuation node in RemoveUnusedCode.extraContSlab,
+// singly-linked via 1-based next indices so multiple removables may append
+// continuations in arbitrary interleaved order without contiguous-slab assumptions.
+type rucExtraCont struct {
+	cont RemoveUnusedCode_Continuation
+	next uint32
+}
+
+// rucRemovableQueue is an intrusive FIFO queue of rucRemovable nodes linked
+// via nextInQueue. A removable resides in at most one queue at a time: first
+// RealVarInfo.removables while its owning variable is removable, then
+// rucPropEntry.removables if that variable is pinned.
+type rucRemovableQueue struct {
+	head *rucRemovable
+	tail *rucRemovable
+}
+
+func (q *rucRemovableQueue) isEmpty() bool {
+	return q.head == nil
+}
+
+func (q *rucRemovableQueue) push(rem *rucRemovable) {
+	rem.nextInQueue = nil
+	if q.head == nil {
+		q.head = rem
+	} else {
+		q.tail.nextInQueue = rem
+	}
+	q.tail = rem
+}
+
+func (q *rucRemovableQueue) drain(fn func(*rucRemovable)) {
+	cur := q.head
+	q.head = nil
+	q.tail = nil
+	for cur != nil {
+		next := cur.nextInQueue
+		cur.nextInQueue = nil
+		fn(cur)
+		cur = next
+	}
+}
+
 // rucRemovable holds all Removable state in a single flat <=64-byte struct.
 type rucRemovable struct {
-	propNext *rucRemovable
+	nextInQueue *rucRemovable
 
 	cont0 RemoveUnusedCode_Continuation
+
+	// Associated VarInfo for Assign.
+	varInfo *RemoveUnusedCode_RealVarInfo
 
 	// Primary AST node for the removable construct.
 	targetNode rhino.Node
@@ -86,12 +132,10 @@ type rucRemovable struct {
 	// Kind-specific auxiliary node; accessed via indirectAssignRoot / incDecPreserved.
 	auxNode rhino.Node
 
-	// Associated VarInfo for Assign.
-	varInfo *RemoveUnusedCode_RealVarInfo
-
 	propertyNameID uint32
-	extraContIdx   uint32
-	numConts       uint16
+	extraContHead  uint32 // 1-based index into extraContSlab, 0 if none
+	extraContTail  uint32 // 1-based index into extraContSlab, 0 if none
+	hasCont0       bool
 	remKind        uint8
 	flags          uint8
 }
@@ -101,59 +145,49 @@ func badRemovableKind() {
 	jutil.CheckState(false)
 }
 
-func (b *rucRemovable) indirectAssignRoot() rhino.Node {
-	if b.remKind != remKindIndirectAssign {
+func (b *rucRemovable) requireKind(k uint8) {
+	if b.remKind != k {
 		badRemovableKind()
 	}
+}
+
+func (b *rucRemovable) indirectAssignRoot() rhino.Node {
+	b.requireKind(remKindIndirectAssign)
 	return b.auxNode
 }
 
 func (b *rucRemovable) setIndirectAssignRoot(root rhino.Node) {
-	if b.remKind != remKindIndirectAssign {
-		badRemovableKind()
-	}
+	b.requireKind(remKindIndirectAssign)
 	b.auxNode = root
 }
 
 func (b *rucRemovable) incDecPreserved() rhino.Node {
-	if b.remKind != remKindIncOrDecOp {
-		badRemovableKind()
-	}
+	b.requireKind(remKindIncOrDecOp)
 	return b.auxNode
 }
 
 func (b *rucRemovable) setIncDecPreserved(toPreserve rhino.Node) {
-	if b.remKind != remKindIncOrDecOp {
-		badRemovableKind()
-	}
+	b.requireKind(remKindIncOrDecOp)
 	b.auxNode = toPreserve
 }
 
 func (b *rucRemovable) isPolyfillPatch() bool {
-	if b.remKind != remKindPolyfill {
-		badRemovableKind()
-	}
+	b.requireKind(remKindPolyfill)
 	return b.flags&remFlagPolyfillPatch != 0
 }
 
 func (b *rucRemovable) setPolyfillPatch() {
-	if b.remKind != remKindPolyfill {
-		badRemovableKind()
-	}
+	b.requireKind(remKindPolyfill)
 	b.flags |= remFlagPolyfillPatch
 }
 
 func (b *rucRemovable) isClassDefiningCall() bool {
-	if b.remKind != remKindClassSetupCall {
-		badRemovableKind()
-	}
+	b.requireKind(remKindClassSetupCall)
 	return b.flags&remFlagClassDefiningCall != 0
 }
 
 func (b *rucRemovable) setClassDefiningCall() {
-	if b.remKind != remKindClassSetupCall {
-		badRemovableKind()
-	}
+	b.requireKind(remKindClassSetupCall)
 	b.flags |= remFlagClassDefiningCall
 }
 
@@ -163,17 +197,19 @@ func (b *rucRemovable) isUninitVarDecl() bool {
 
 func (b *rucRemovable) addContinuation(r *RemoveUnusedCode, node rhino.Node, scope *Scope) {
 	c := RemoveUnusedCode_Continuation{node: node, scope: scope}
-	switch b.numConts {
-	case 0:
+	if !b.hasCont0 {
 		b.cont0 = c
-	case 1:
-		b.extraContIdx = uint32(len(r.extraContSlab))
-		r.extraContSlab = append(r.extraContSlab, c)
-	default:
-		jutil.CheckState(b.extraContIdx+uint32(b.numConts-1) == uint32(len(r.extraContSlab)))
-		r.extraContSlab = append(r.extraContSlab, c)
+		b.hasCont0 = true
+		return
 	}
-	b.numConts++
+	idx1 := uint32(len(r.extraContSlab) + 1)
+	r.extraContSlab = append(r.extraContSlab, rucExtraCont{cont: c})
+	if b.extraContHead == 0 {
+		b.extraContHead = idx1
+	} else {
+		r.extraContSlab[b.extraContTail-1].next = idx1
+	}
+	b.extraContTail = idx1
 }
 
 // Remove removes the associated nodes from the AST, unless they've already
@@ -194,19 +230,20 @@ func (b *rucRemovable) ApplyContinuations(r *RemoveUnusedCode) {
 		// Enqueue the continuation for processing.
 		// Don't invoke the continuation immediately, because that can lead to concurrent
 		// modification of data structures.
-		if b.numConts >= 1 {
+		if b.hasCont0 {
 			r.enqueueContinuation(b.cont0)
 			b.cont0 = RemoveUnusedCode_Continuation{}
+			b.hasCont0 = false
 		}
-		if b.numConts >= 2 {
-			end := b.extraContIdx + uint32(b.numConts-1)
-			extras := r.extraContSlab[b.extraContIdx:end]
-			for _, c := range extras {
-				r.enqueueContinuation(c)
-			}
-			clear(extras)
+		for idx1 := b.extraContHead; idx1 != 0; {
+			slot := &r.extraContSlab[idx1-1]
+			next := slot.next
+			r.enqueueContinuation(slot.cont)
+			*slot = rucExtraCont{}
+			idx1 = next
 		}
-		b.numConts = 0
+		b.extraContHead = 0
+		b.extraContTail = 0
 	}
 }
 
@@ -473,57 +510,25 @@ func (b *rucRemovable) RemoveInternal(r *RemoveUnusedCode) {
 		if RemoveUnusedCode_AlreadyRemoved(b.targetNode) {
 			return
 		}
-		parent := b.targetNode.GetParent()
-		compiler.ReportChangeToEnclosingScope(parent)
 		assign := ast.MustAssignment(b.targetNode)
-		rhs := assign.Value().Node()
-		mustPreserveRhs :=
-			r.MayHaveSideEffects(rhs) || NodeUtil_IsExpressionResultUsed(b.targetNode)
-		// The key of varName[key] = value.
-		getElem, isGetElem := assign.Target().AsGetElem()
-		mustPreserveGetElmExpr := isGetElem && r.MayHaveSideEffects(getElem.Index().Node())
-
-		if mustPreserveRhs && mustPreserveGetElmExpr {
-			replacement := rhino.IR_Comma(getElem.Index().Detach().Node(), rhs.Detach()).Srcref(b.targetNode)
-			r.ReplaceNodeWith(b.targetNode, replacement)
-		} else if mustPreserveGetElmExpr {
-			r.ReplaceNodeWith(b.targetNode, getElem.Index().Detach().Node())
-		} else if mustPreserveRhs {
-			r.ReplaceNodeWith(b.targetNode, rhs.Detach())
-		} else {
-			r.RemoveExpressionCompletely(b.targetNode)
+		var lhsSubexpr rhino.Node
+		if getElem, ok := assign.Target().AsGetElem(); ok {
+			// The key of varName[key] = value.
+			lhsSubexpr = getElem.Index().Node()
 		}
+		r.removeAssignPreservingSubexprs(b.targetNode, lhsSubexpr, assign.Value().Node())
 	case remKindAnonProtoPropAssign:
 		if RemoveUnusedCode_AlreadyRemoved(b.targetNode) {
 			return
 		}
-		parent := b.targetNode.GetParent()
-		compiler.ReportChangeToEnclosingScope(parent)
 		assign := ast.MustAssignment(b.targetNode)
-		rhs := assign.Value().Node()
-
 		// objExpression.prototype.propertyName = rhs
 		lhs, ok := assign.Target().AsGetProp()
 		jutil.CheckStateMsg1(ok, "%s", assign.Target().Node())
 		objDotPrototype, ok := lhs.Object().AsGetProp()
 		jutil.CheckStateMsg1(ok, "%s", lhs.Object().Node())
-		objExpression := objDotPrototype.Object().Node()
 		jutil.CheckStateMsg1(objDotPrototype.Node().GetStringID() == rucPropPrototypeID, "%s", objDotPrototype.Node())
-
-		mustPreserveRhs :=
-			r.MayHaveSideEffects(rhs) || NodeUtil_IsExpressionResultUsed(b.targetNode)
-		mustPreserveObjExpression := r.MayHaveSideEffects(objExpression)
-
-		if mustPreserveRhs && mustPreserveObjExpression {
-			replacement := rhino.IR_Comma(objExpression.Detach(), rhs.Detach()).Srcref(b.targetNode)
-			r.ReplaceNodeWith(b.targetNode, replacement)
-		} else if mustPreserveObjExpression {
-			r.ReplaceNodeWith(b.targetNode, objExpression.Detach())
-		} else if mustPreserveRhs {
-			r.ReplaceNodeWith(b.targetNode, rhs.Detach())
-		} else {
-			r.RemoveExpressionCompletely(b.targetNode)
-		}
+		r.removeAssignPreservingSubexprs(b.targetNode, objDotPrototype.Object().Node(), assign.Value().Node())
 	case remKindClassSetupCall:
 		parent := b.targetNode.GetParent()
 		classDefiningCall := b.isClassDefiningCall()
@@ -907,4 +912,20 @@ func RemoveUnusedCode_AlreadyRemoved(n rhino.Node) bool {
 		}
 	}
 	return true
+}
+
+func (r *RemoveUnusedCode) removeAssignPreservingSubexprs(assignNode, lhsSubexpr, rhs rhino.Node) {
+	r.compiler.ReportChangeToEnclosingScope(assignNode.GetParent())
+	mustPreserveRhs := r.MayHaveSideEffects(rhs) || NodeUtil_IsExpressionResultUsed(assignNode)
+	mustPreserveLhs := !lhsSubexpr.IsNil() && r.MayHaveSideEffects(lhsSubexpr)
+	switch {
+	case mustPreserveRhs && mustPreserveLhs:
+		r.ReplaceNodeWith(assignNode, rhino.IR_Comma(lhsSubexpr.Detach(), rhs.Detach()).Srcref(assignNode))
+	case mustPreserveLhs:
+		r.ReplaceNodeWith(assignNode, lhsSubexpr.Detach())
+	case mustPreserveRhs:
+		r.ReplaceNodeWith(assignNode, rhs.Detach())
+	default:
+		r.RemoveExpressionCompletely(assignNode)
+	}
 }

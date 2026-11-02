@@ -63,6 +63,9 @@ type LiveVariablesAnalysis struct {
 	escaped smallBitSet
 	// untracked marks indices in table.vars that are !local || escaped.
 	untracked           smallBitSet
+	genScratch          smallBitSet
+	killScratch         smallBitSet
+	outScratch          smallBitSet
 	paramsMarkedEscaped bool
 
 	emptyLattice LiveVariablesAnalysis_LiveVariableLattice
@@ -124,13 +127,7 @@ func (l *LiveVariablesAnalysis_LiveVariableLattice) NextSetBit(fromIndex int) in
 
 // Java: LiveVariablesAnalysis.LiveVariableLattice.hashCode()
 func (l *LiveVariablesAnalysis_LiveVariableLattice) HashCode() int32 {
-	var h int64 = 1234
-	h ^= int64(l.liveSet.w0)
-	h ^= int64(l.liveSet.w1) * 2
-	for i, w := range l.liveSet.ext {
-		h ^= int64(w) * int64(i+3)
-	}
-	return int32((h >> 32) ^ h)
+	return l.liveSet.JavaHashCode()
 }
 
 // Reset resets l for reuse on a new function scope while retaining slab,
@@ -159,6 +156,9 @@ func (l *LiveVariablesAnalysis) Reset(
 	l.table = table
 	l.escaped.CopyFrom(&table.escaped)
 	l.untracked.clear(releaseLarge)
+	l.genScratch.clear(releaseLarge)
+	l.killScratch.clear(releaseLarge)
+	l.outScratch.clear(releaseLarge)
 	l.paramsMarkedEscaped = false
 	l.emptyLattice = LiveVariablesAnalysis_LiveVariableLattice{}
 	l.lattices.Reset(nil)
@@ -434,9 +434,8 @@ func (l *LiveVariablesAnalysis) joinNodeInputs(
 	}
 
 	var first *LiveVariablesAnalysis_LiveVariableLattice
-	var w0, w1 uint64
-	maxExtra := 0
 	distinct := false
+	l.outScratch.ClearAll()
 	for _, edge := range outEdges {
 		dest := edge.DestNode
 		if dest == implicitReturn {
@@ -446,11 +445,7 @@ func (l *LiveVariablesAnalysis) joinNodeInputs(
 		if inLat == &l.emptyLattice {
 			continue
 		}
-		w0 |= inLat.liveSet.w0
-		w1 |= inLat.liveSet.w1
-		if n := len(inLat.liveSet.ext); n > maxExtra {
-			maxExtra = n
-		}
+		l.outScratch.Or(&inLat.liveSet)
 		if first == nil {
 			first = inLat
 		} else if !distinct && first != inLat && !first.liveSet.Equals(&inLat.liveSet) {
@@ -461,39 +456,15 @@ func (l *LiveVariablesAnalysis) joinNodeInputs(
 		state.out = &l.emptyLattice
 		return
 	}
-	if !distinct {
+	if !distinct || first.liveSet.Equals(&l.outScratch) {
 		state.out = first
 		return
 	}
-	if maxExtra == 0 {
-		if len(first.liveSet.ext) == 0 && first.liveSet.w0 == w0 && first.liveSet.w1 == w1 {
-			state.out = first
-			return
-		}
-		if prev := state.out; prev != nil && len(prev.liveSet.ext) == 0 && prev.liveSet.w0 == w0 && prev.liveSet.w1 == w1 {
-			return
-		}
-		joined := l.allocLattice()
-		joined.liveSet.w0 = w0
-		joined.liveSet.w1 = w1
-		state.out = joined
+	if prev := state.out; prev != nil && prev.liveSet.Equals(&l.outScratch) {
 		return
 	}
-	ext := make([]uint64, maxExtra)
-	for _, edge := range outEdges {
-		dest := edge.DestNode
-		if dest == implicitReturn {
-			continue
-		}
-		inLat := l.states[dest.Index].in
-		for i, ew := range inLat.liveSet.ext {
-			ext[i] |= ew
-		}
-	}
 	joined := l.allocLattice()
-	joined.liveSet.w0 = w0
-	joined.liveSet.w1 = w1
-	joined.liveSet.ext = ext
+	joined.liveSet = l.outScratch.Clone()
 	state.out = joined
 }
 
@@ -508,7 +479,8 @@ func (l *LiveVariablesAnalysis) flowThroughEdges(
 	input *LiveVariablesAnalysis_LiveVariableLattice,
 	prevIn *LiveVariablesAnalysis_LiveVariableLattice,
 ) *LiveVariablesAnalysis_LiveVariableLattice {
-	var gen, kill smallBitSet
+	l.genScratch.ClearAll()
+	l.killScratch.ClearAll()
 
 	// Make kills conditional if the node can end abruptly by an exception.
 	conditional := false
@@ -518,80 +490,20 @@ func (l *LiveVariablesAnalysis) flowThroughEdges(
 			break
 		}
 	}
-	l.computeGenKillBits(node, &gen, &kill, conditional)
+	l.computeGenKillBits(node, &l.genScratch, &l.killScratch, conditional)
 	// L_in = L_out - Kill + Gen
-	out0 := (input.liveSet.w0 &^ kill.w0) | gen.w0
-	out1 := (input.liveSet.w1 &^ kill.w1) | gen.w1
-	if len(input.liveSet.ext) == 0 && len(gen.ext) == 0 {
-		if out0 == input.liveSet.w0 && out1 == input.liveSet.w1 {
-			return input
-		}
-		if (out0 | out1) == 0 {
-			return &l.emptyLattice
-		}
-		if prevIn != nil && len(prevIn.liveSet.ext) == 0 && prevIn.liveSet.w0 == out0 && prevIn.liveSet.w1 == out1 {
-			return prevIn
-		}
-		result := l.allocLattice()
-		result.liveSet.w0 = out0
-		result.liveSet.w1 = out1
-		return result
-	}
-	maxExtra := max(len(input.liveSet.ext), len(gen.ext))
-	effectiveExt := 0
-	changed := out0 != input.liveSet.w0 || out1 != input.liveSet.w1
-	for i := 0; i < maxExtra; i++ {
-		var inW, killW, genW uint64
-		if i < len(input.liveSet.ext) {
-			inW = input.liveSet.ext[i]
-		}
-		if i < len(kill.ext) {
-			killW = kill.ext[i]
-		}
-		if i < len(gen.ext) {
-			genW = gen.ext[i]
-		}
-		outW := (inW &^ killW) | genW
-		if outW != inW {
-			changed = true
-		}
-		if outW != 0 {
-			effectiveExt = i + 1
-		}
-	}
-	if !changed {
+	l.outScratch.SetAndNotOr(&input.liveSet, &l.killScratch, &l.genScratch)
+	if l.outScratch.Equals(&input.liveSet) {
 		return input
 	}
-	if effectiveExt == 0 {
-		if (out0 | out1) == 0 {
-			return &l.emptyLattice
-		}
-		if prevIn != nil && len(prevIn.liveSet.ext) == 0 && prevIn.liveSet.w0 == out0 && prevIn.liveSet.w1 == out1 {
-			return prevIn
-		}
-		result := l.allocLattice()
-		result.liveSet.w0 = out0
-		result.liveSet.w1 = out1
-		return result
+	if l.outScratch.IsEmpty() {
+		return &l.emptyLattice
+	}
+	if prevIn != nil && prevIn.liveSet.Equals(&l.outScratch) {
+		return prevIn
 	}
 	result := l.allocLattice()
-	result.liveSet.w0 = out0
-	result.liveSet.w1 = out1
-	ext := make([]uint64, effectiveExt)
-	for i := 0; i < effectiveExt; i++ {
-		var inW, killW, genW uint64
-		if i < len(input.liveSet.ext) {
-			inW = input.liveSet.ext[i]
-		}
-		if i < len(kill.ext) {
-			killW = kill.ext[i]
-		}
-		if i < len(gen.ext) {
-			genW = gen.ext[i]
-		}
-		ext[i] = (inW &^ killW) | genW
-	}
-	result.liveSet.ext = ext
+	result.liveSet = l.outScratch.Clone()
 	return result
 }
 

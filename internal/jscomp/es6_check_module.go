@@ -89,27 +89,27 @@ func (e *Es6CheckModule) Process(externs rhino.Node, root rhino.Node) {
 }
 
 func (e *Es6CheckModule) ShouldTraverse(t *NodeTraversal, n rhino.Node, parent rhino.Node) bool {
-	if n.IsScript() {
-		hasModule := false
-		hasImports := false
-		for c := n.GetFirstChild(); !c.IsNil(); c = c.GetNext() {
-			if c.IsModuleBody() {
-				hasModule = true
-				for mc := c.GetFirstChild(); !mc.IsNil(); mc = mc.GetNext() {
-					if mc.IsImport() {
-						hasImports = true
-						break
-					}
-				}
-			} else if c.IsImport() {
-				hasModule = true
-				hasImports = true
-			}
-		}
-		e.noImportsInCurrentScript = !hasImports
-		return hasModule
+	script, ok := ast.AsScript(n)
+	if !ok {
+		return true
 	}
-	return true
+	hasModule, hasImports := false, false
+	for item := range script.Items() {
+		if mod, ok := item.AsModuleBody(); ok {
+			hasModule = true
+			for stmt := range mod.Statements() {
+				if _, ok := stmt.AsImport(); ok {
+					hasImports = true
+					break
+				}
+			}
+		} else if _, ok := item.AsImport(); ok {
+			hasModule = true
+			hasImports = true
+		}
+	}
+	e.noImportsInCurrentScript = !hasImports
+	return hasModule
 }
 
 func (*Es6CheckModule) visitTokens() *ast.TokenSet { return &es6CheckModuleVisitTokens }
@@ -129,34 +129,28 @@ func (e *Es6CheckModule) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node
 	case rhino.Token_GETPROP, rhino.Token_GETELEM:
 		if !e.noImportsInCurrentScript &&
 			NodeUtil_IsLValue(n) &&
-			!NodeUtil_IsDeclarationLValue(n) &&
-			n.GetFirstChild().IsName() {
-			var_ := t.GetScope().GetVarByNode(n.GetFirstChild())
-			if var_ != nil {
-				nameNode := var_.GetNameNode()
-				if !nameNode.IsNil() && nameNode.IsImportStar() {
-					// import * as M from '';
-					// M.x = 2;
-					e.compiler.Report(JSError_MakeWithNode(n, Es6CheckModule_IMPORT_CANNOT_BE_REASSIGNED, nameNode.GetString()))
+			!NodeUtil_IsDeclarationLValue(n) {
+			if obj, ok := ast.MustNormalGet(n).Object().AsName(); ok {
+				if v := t.GetScope().GetVarByNode(obj.Node()); v != nil {
+					if star, ok := ast.AsImportStar(v.GetNameNode()); ok {
+						// import * as M from '';
+						// M.x = 2;
+						e.compiler.Report(JSError_MakeWithNode(n, Es6CheckModule_IMPORT_CANNOT_BE_REASSIGNED, star.Ident()))
+					}
 				}
 			}
 		}
 	case rhino.Token_NAME:
 		if !e.noImportsInCurrentScript &&
 			NodeUtil_IsLValue(n) && !NodeUtil_IsDeclarationLValue(n) {
-			var_ := t.GetScope().GetVarByNode(n)
-			if var_ != nil {
-				nameNode := var_.GetNameNode()
-				if !nameNode.IsNil() && nameNode != n {
-					if NodeUtil_IsImportedName(nameNode) {
-						// import { x } from '';
-						// x = 2;
-						e.compiler.Report(JSError_MakeWithNode(n, Es6CheckModule_IMPORT_CANNOT_BE_REASSIGNED, nameNode.GetString()))
-					}
+			if v := t.GetScope().GetVarByNode(n); v != nil {
+				if nameNode := v.GetNameNode(); !nameNode.IsNil() && nameNode != n && NodeUtil_IsImportedName(nameNode) {
+					// import { x } from '';
+					// x = 2;
+					e.compiler.Report(JSError_MakeWithNode(n, Es6CheckModule_IMPORT_CANNOT_BE_REASSIGNED, nameNode.GetString()))
 				}
 			}
 		}
-	default:
 	}
 }
 
@@ -179,37 +173,50 @@ var CheckTypeImportCodeReferences_TYPE_IMPORT_CODE_REFERENCE = DiagnosticType_Er
 	"Cannot reference goog.requireType()''d name {0} outside of a type annotation.")
 
 // Java: CheckTypeImportCodeReferences.GOOG_REQUIRE_TYPE
-var checkTypeImportCodeReferences_GOOG_REQUIRE_TYPE = rhino.IR_Getprop(rhino.IR_Name("goog"), "requireType")
+var checkTypeImportCodeReferences_GOOG_REQUIRE_TYPE = rhino.QualifiedName_Of("goog.requireType")
 
 // Java: CheckTypeImportCodeReferences(AbstractCompiler)
 func NewCheckTypeImportCodeReferences(compiler AbstractCompiler) *CheckTypeImportCodeReferences {
-	c := &CheckTypeImportCodeReferences{}
-	c.compiler = compiler
-	return c
+	return &CheckTypeImportCodeReferences{compiler: compiler}
+}
+
+func googRequireTypeDeclarator(n rhino.Node) (ast.Declarator, bool) {
+	decl, ok := ast.AsNameDeclaration(n)
+	if !ok {
+		return ast.Declarator{}, false
+	}
+	d, ok := decl.OnlyDeclarator()
+	if !ok {
+		return ast.Declarator{}, false
+	}
+	var init ast.Expr
+	if name, isName := d.AsName(); isName {
+		init, ok = name.Init()
+	} else if dlhs, isDlhs := d.AsDestructuringLhs(); isDlhs {
+		init, ok = dlhs.Init()
+	}
+	if !ok {
+		return ast.Declarator{}, false
+	}
+	call, ok := init.AsCall()
+	if !ok || !checkTypeImportCodeReferences_GOOG_REQUIRE_TYPE.Matches(call.Callee().Node()) {
+		return ast.Declarator{}, false
+	}
+	return d, true
 }
 
 func collectRequireTypeIDs(n rhino.Node, ids *map[uint32]struct{}) {
-	if NodeUtil_IsNameDeclaration(n) && n.HasOneChild() {
-		first := n.GetFirstChild()
-		if first.HasChildren() {
-			last := first.GetLastChild()
-			if last.IsCall() && last.GetFirstChild().MatchesQualifiedNameNode(checkTypeImportCodeReferences_GOOG_REQUIRE_TYPE) {
-				if *ids == nil {
-					*ids = make(map[uint32]struct{})
-				}
-				if first.IsName() {
-					(*ids)[first.GetStringID()] = struct{}{}
-				} else {
-					for pat := first.GetFirstChild(); !pat.IsNil(); pat = pat.GetNext() {
-						for key := pat.GetFirstChild(); !key.IsNil(); key = key.GetNext() {
-							if key.IsStringKey() {
-								for child := key.GetFirstChild(); !child.IsNil(); child = child.GetNext() {
-									if child.IsName() {
-										(*ids)[child.GetStringID()] = struct{}{}
-									}
-								}
-							}
-						}
+	if d, ok := googRequireTypeDeclarator(n); ok {
+		if *ids == nil {
+			*ids = make(map[uint32]struct{})
+		}
+		if name, ok := d.AsName(); ok {
+			(*ids)[name.Node().GetStringID()] = struct{}{}
+		} else if objPat, ok := d.MustDestructuringLhs().Pattern().AsObjectPattern(); ok {
+			for prop := range objPat.Props() {
+				if sk, ok := prop.AsStringKey(); ok {
+					if target, ok := sk.Value().AsName(); ok {
+						(*ids)[target.Node().GetStringID()] = struct{}{}
 					}
 				}
 			}
@@ -262,7 +269,8 @@ func (*CheckTypeImportCodeReferences) visitTokens() *ast.TokenSet {
 
 // Java: CheckTypeImportCodeReferences.visit(NodeTraversal, Node, Node)
 func (c *CheckTypeImportCodeReferences) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
-	if !n.IsName() {
+	name, ok := ast.AsName(n)
+	if !ok {
 		return
 	}
 	id := n.GetStringID()
@@ -272,34 +280,23 @@ func (c *CheckTypeImportCodeReferences) Visit(t *NodeTraversal, n rhino.Node, pa
 		}
 	}
 
-	var_ := t.GetScope().GetVarByID(id)
-	if var_ == nil {
+	v := t.GetScope().GetVarByID(id)
+	if v == nil {
 		return
 	}
 
-	declNameNode := var_.GetNameNode()
-
+	declNameNode := v.GetNameNode()
 	if declNameNode.IsNil() || declNameNode == n || !NodeUtil_IsDeclarationLValue(declNameNode) {
 		return
 	}
 
-	var decl rhino.Node
-	if declNameNode.GetParent().IsStringKey() {
-		decl = declNameNode.GetGrandparent().GetGrandparent()
-	} else {
-		decl = declNameNode.GetParent()
+	decl := declNameNode.GetParent()
+	if _, ok := ast.AsStringKey(decl); ok {
+		decl = decl.GetGrandparent().GetParent()
 	}
-	if !NodeUtil_IsNameDeclaration(decl) ||
-		!decl.HasOneChild() ||
-		!decl.GetFirstChild().HasChildren() ||
-		!decl.GetFirstChild().GetLastChild().IsCall() {
+	if _, ok := googRequireTypeDeclarator(decl); !ok {
 		return
 	}
 
-	callNode := decl.GetFirstChild().GetLastChild()
-	if !callNode.GetFirstChild().MatchesQualifiedNameNode(checkTypeImportCodeReferences_GOOG_REQUIRE_TYPE) {
-		return
-	}
-
-	t.Report(n, CheckTypeImportCodeReferences_TYPE_IMPORT_CODE_REFERENCE, n.GetString())
+	t.Report(n, CheckTypeImportCodeReferences_TYPE_IMPORT_CODE_REFERENCE, name.Ident())
 }

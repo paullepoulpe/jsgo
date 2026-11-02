@@ -254,7 +254,9 @@ func (c *FlowSensitiveInlineVariables_Candidate) findDefWalk(n, parent rhino.Nod
 		}
 		c.findDefWalk(class.Body().Node(), n)
 	case rhino.Token_CLASS_MEMBERS:
-		fsivWalkClassMembers(ast.MustClassBody(n), c.findDefWalk)
+		for ch, p := range ast.MustClassBody(n).EvalOrder() {
+			c.findDefWalk(ch, p)
+		}
 	default:
 		for child := n.GetFirstChild(); !child.IsNil(); child = child.GetNext() {
 			c.findDefWalk(child, n)
@@ -300,35 +302,6 @@ func (c *FlowSensitiveInlineVariables_Candidate) defValue() ast.Expr {
 	return value
 }
 
-// fsivWalkClassMembers walks the parts of a class body that belong to the
-// CFG node of the class, in NodeTraversal's order: the computed keys
-// first, then the values of computed members (unless they start CFG nodes
-// of their own) and the other members.
-func fsivWalkClassMembers(body ast.ClassBody, walk func(n, parent rhino.Node)) {
-	for m := range body.Members() {
-		switch m.Token() {
-		case rhino.Token_COMPUTED_PROP:
-			walk(m.MustComputedProp().Key().Node(), m.Node())
-		case rhino.Token_COMPUTED_FIELD_DEF:
-			walk(m.MustComputedFieldDef().Key().Node(), m.Node())
-		}
-	}
-	for m := range body.Members() {
-		switch m.Token() {
-		case rhino.Token_COMPUTED_PROP:
-			if value, ok := m.MustComputedProp().Value(); ok && !ControlFlowGraph_IsEnteringNewCfgNode(m.Node()) {
-				walk(value.Node(), m.Node())
-			}
-		case rhino.Token_COMPUTED_FIELD_DEF:
-			if value, ok := m.MustComputedFieldDef().Value(); ok && !ControlFlowGraph_IsEnteringNewCfgNode(m.Node()) {
-				walk(value.Node(), m.Node())
-			}
-		default:
-			walk(m.Node(), body.Node())
-		}
-	}
-}
-
 // GetDefinition sets the def node.
 //
 // n is a node that has a corresponding CFG node in the CFG.
@@ -348,7 +321,9 @@ func (c *FlowSensitiveInlineVariables_Candidate) countUseWalk(n, parent, cfgNode
 		return
 	}
 	if n.GetToken() == rhino.Token_CLASS_MEMBERS {
-		fsivWalkClassMembers(ast.MustClassBody(n), func(n, parent rhino.Node) { c.countUseWalk(n, parent, cfgNode) })
+		for ch, p := range ast.MustClassBody(n).EvalOrder() {
+			c.countUseWalk(ch, p, cfgNode)
+		}
 		return
 	}
 	for child := n.GetFirstChild(); !child.IsNil(); child = child.GetNext() {

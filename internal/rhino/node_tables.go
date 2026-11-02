@@ -182,17 +182,12 @@ func (s *NodeStore) colorAt(h uint32) *colors.Color {
 // from several goroutines; readers only look when the record's flags say
 // the node has cold data (propWordJSDoc, kindFlagHasExtBox). Entries of
 // dead nodes stay until compaction rebuilds the map for the live ones.
-//
-// A shard has a second map for the rare boolean properties (see propWord),
-// read only when the record has propWordHasCold: a node that only has those
-// costs a 4-byte value, not a nodeAux.
 
 const auxShards = 16
 
 type auxShard struct {
-	mu   sync.RWMutex
-	m    map[uint32]nodeAux
-	cold map[uint32]uint32 // the boolean properties propHotCount..39, bit 0 first
+	mu sync.RWMutex
+	m  map[uint32]nodeAux
 }
 
 // hasAux reports whether the record's flags say n may have cold data.
@@ -225,24 +220,6 @@ func (n Node) setAux(a nodeAux) {
 	sh.mu.Unlock()
 }
 
-// coldProps returns the node's rare boolean properties.
-func (n Node) coldProps() uint32 {
-	sh := n.auxShard()
-	sh.mu.RLock()
-	c := sh.cold[uint32(n)]
-	sh.mu.RUnlock()
-	return c
-}
-
-// setColdProps sets the node's rare boolean properties. Only Node.setProps
-// calls it (it keeps propWordHasCold in step).
-func (n Node) setColdProps(cold uint32) {
-	sh := n.auxShard()
-	sh.mu.Lock()
-	sh.putCold(uint32(n), cold)
-	sh.mu.Unlock()
-}
-
 func (n Node) auxShard() *auxShard {
 	return &n.store().aux[uint32(n)%auxShards]
 }
@@ -258,19 +235,6 @@ func (sh *auxShard) put(id uint32, a nodeAux) {
 		sh.m = make(map[uint32]nodeAux)
 	}
 	sh.m[id] = a
-}
-
-// putCold stores the rare boolean properties of id (deleting the entry if
-// cold is zero); the caller holds sh.mu.
-func (sh *auxShard) putCold(id uint32, cold uint32) {
-	if cold == 0 {
-		delete(sh.cold, id)
-		return
-	}
-	if sh.cold == nil {
-		sh.cold = make(map[uint32]uint32)
-	}
-	sh.cold[id] = cold
 }
 
 // auxValue returns a copy of the node's cold-data entry (zero if none).

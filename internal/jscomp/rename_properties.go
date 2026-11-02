@@ -115,7 +115,7 @@ type RenameProperties struct {
 	// Map from interned property ID to Property object, plus insertion-ordered list.
 	propertyByID map[strpool.ID]*RenameProperties_Property
 	propertyList []*RenameProperties_Property
-	propSlab     []RenameProperties_Property
+	propSlab     jutil.Slab[RenameProperties_Property]
 
 	// Property names that don't get renamed
 	externedNames map[strpool.ID]struct{}
@@ -281,7 +281,7 @@ func (r *RenameProperties) Process(externs rhino.Node, root rhino.Node) {
 	// Update the string nodes.
 	for _, cand := range r.candidates {
 		p := cand.prop
-		if !p.externed && p.newNameID != 0 {
+		if p.newNameID != 0 {
 			setNodeStringID(cand.node, p.newNameID)
 			if p.newNameID != p.oldNameID {
 				r.compiler.ReportChangeToEnclosingScope(cand.node)
@@ -292,21 +292,13 @@ func (r *RenameProperties) Process(externs rhino.Node, root rhino.Node) {
 
 	// Update the call nodes.
 	for _, site := range r.callSites {
-		firstArg := site.call.GetSecondChild()
-		argStr := firstArg.GetString()
+		argStr := site.call.GetSecondChild().GetString()
 		var sb strings.Builder
 		sb.Grow(len(argStr))
-		for rest := argStr; ; {
-			dot := strings.IndexByte(rest, '.')
-			var oldName string
-			if dot < 0 {
-				oldName = rest
-			} else {
-				oldName = rest[:dot]
-			}
+		for oldName := range strings.SplitSeq(argStr, ".") {
 			replacement := oldName
 			if id := strpool.Lookup(oldName); id != 0 {
-				if p := r.propertyByID[id]; p != nil && !p.externed && p.newNameID != 0 {
+				if p := r.propertyByID[id]; p != nil && p.newNameID != 0 {
 					replacement = p.newName
 				}
 			}
@@ -314,10 +306,6 @@ func (r *RenameProperties) Process(externs rhino.Node, root rhino.Node) {
 				sb.WriteByte('.')
 			}
 			sb.WriteString(replacement)
-			if dot < 0 {
-				break
-			}
-			rest = rest[dot+1:]
 		}
 		site.call.ReplaceWith(rhino.IR_String(sb.String()))
 		r.compiler.ReportChangeToEnclosingScope(site.parent)
@@ -371,10 +359,8 @@ func (r *RenameProperties) generateNamesSlice(props []*RenameProperties_Property
 			p.newName = r.nameGenerator.GenerateNextName()
 		}
 		reservedNames[p.newName] = struct{}{}
-		if !p.externed {
-			if _, filtered := r.filteredOutNames[p.oldNameID]; !filtered {
-				p.newNameID = strpool.Intern(p.newName)
-			}
+		if _, filtered := r.filteredOutNames[p.oldNameID]; !filtered {
+			p.newNameID = strpool.Intern(p.newName)
 		}
 	}
 }
@@ -431,24 +417,11 @@ func (p *RenameProperties_ProcessProperties) Visit(t *NodeTraversal, n rhino.Nod
 			r.callSites = append(r.callSites, propCallSite{call: n, parent: parent})
 			p.CountCallCandidates(t, n)
 			if !r.allPropertiesEligible && !r.propertyRenameEligibilityFilter(n) {
-				stringArgument := n.GetSecondChild()
 				if r.filteredOutNames == nil {
 					r.filteredOutNames = make(map[strpool.ID]struct{})
 				}
-				argStr := stringArgument.GetString()
-				for rest := argStr; ; {
-					dot := strings.IndexByte(rest, '.')
-					var name string
-					if dot < 0 {
-						name = rest
-					} else {
-						name = rest[:dot]
-					}
+				for name := range strings.SplitSeq(n.GetSecondChild().GetString(), ".") {
 					r.filteredOutNames[strpool.Intern(name)] = struct{}{}
-					if dot < 0 {
-						break
-					}
-					rest = rest[dot+1:]
 				}
 			}
 		}
@@ -533,15 +506,7 @@ func (p *RenameProperties_ProcessProperties) CountCallCandidates(t *NodeTraversa
 		return
 	}
 
-	argStr := firstArg.GetString()
-	for rest := argStr; ; {
-		dot := strings.IndexByte(rest, '.')
-		var name string
-		if dot < 0 {
-			name = rest
-		} else {
-			name = rest[:dot]
-		}
+	for name := range strings.SplitSeq(firstArg.GetString(), ".") {
 		if !rhino.TokenStream_IsJSIdentifier(name) {
 			t.Report(callNode, RenameProperties_BAD_ARG, fnNameNode.GetString())
 		} else {
@@ -550,10 +515,6 @@ func (p *RenameProperties_ProcessProperties) CountCallCandidates(t *NodeTraversa
 				p.countPropertyOccurrenceID(id)
 			}
 		}
-		if dot < 0 {
-			break
-		}
-		rest = rest[dot+1:]
 	}
 }
 
@@ -570,11 +531,7 @@ func (p *RenameProperties_ProcessProperties) countPropertyOccurrenceID(id strpoo
 }
 
 func (r *RenameProperties) allocProperty(id strpool.ID, name string) *RenameProperties_Property {
-	if len(r.propSlab) == 0 {
-		r.propSlab = make([]RenameProperties_Property, 128)
-	}
-	prop := &r.propSlab[0]
-	r.propSlab = r.propSlab[1:]
+	prop := r.propSlab.New()
 	prop.oldNameID = id
 	prop.oldName = name
 	return prop
@@ -592,7 +549,6 @@ type RenameProperties_Property struct {
 	oldNameID      strpool.ID
 	newNameID      strpool.ID
 	numOccurrences int
-	externed       bool
 }
 
 // -------------------------------------------------------------------------

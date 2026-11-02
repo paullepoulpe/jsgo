@@ -65,9 +65,7 @@ import (
 type InlineVariables struct {
 	compiler AbstractCompiler
 
-	mode InlineVariables_Mode
-
-	outer            *InlineVariables
+	mode             InlineVariables_Mode
 	codingConvention CodingConvention
 
 	// Records the analyses of variables that have already been handled in
@@ -132,13 +130,10 @@ func (m InlineVariables_Mode) Ordinal() int { return int(m) }
 
 // Java: InlineVariables(AbstractCompiler, Mode)
 func NewInlineVariables(compiler AbstractCompiler, mode InlineVariables_Mode) *InlineVariables {
-	iv := &InlineVariables{compiler: compiler, mode: mode}
-	iv.outer = iv
-	return iv
+	return &InlineVariables{compiler: compiler, mode: mode}
 }
 
 func (iv *InlineVariables) resetBehavior() {
-	iv.outer = iv
 	if iv.compiler != nil {
 		iv.codingConvention = iv.compiler.GetCodingConvention()
 	}
@@ -228,7 +223,7 @@ func scopeVarSlot(scope *Scope, v *Var) int {
 }
 
 func (b *InlineVariables_InliningBehavior) recordHandledVar(v *Var, hv inlineVariables_handledVar) {
-	if b.outer.mode == InlineVariables_Mode_CONSTANTS_ONLY {
+	if b.mode == InlineVariables_Mode_CONSTANTS_ONLY {
 		return
 	}
 	handledPtr := &hv
@@ -329,10 +324,10 @@ func (b *InlineVariables_InliningBehavior) DoInlinesForScope(t *NodeTraversal, r
 		return
 	}
 	isLocalScope := scope.IsLocal()
-	if b.outer.mode == InlineVariables_Mode_LOCALS_ONLY && !isLocalScope && len(b.aliasRetryHandlers) == 0 {
+	if b.mode == InlineVariables_Mode_LOCALS_ONLY && !isLocalScope && len(b.aliasRetryHandlers) == 0 {
 		return
 	}
-	if b.outer.mode != InlineVariables_Mode_CONSTANTS_ONLY {
+	if b.mode != InlineVariables_Mode_CONSTANTS_ONLY {
 		b.currentScope = scope
 		nVars := len(scope.varList)
 		b.handledScopeVars = slices.Grow(b.handledScopeVars, nVars)[:nVars]
@@ -344,7 +339,7 @@ func (b *InlineVariables_InliningBehavior) DoInlinesForScope(t *NodeTraversal, r
 		if v == nil {
 			continue
 		}
-		if b.outer.mode == InlineVariables_Mode_CONSTANTS_ONLY && !inlineVariables_isDeclaredOrInferredConst(v) {
+		if b.mode == InlineVariables_Mode_CONSTANTS_ONLY && !inlineVariables_isDeclaredOrInferredConst(v) {
 			continue
 		}
 		referenceInfo := referenceMap.GetReferences(v)
@@ -675,7 +670,7 @@ func (e *inlineVariables_standardVarExpert) Analyze() {
 	// be removed as an alias (var a = b; see ReanalyzeAfterAliasedVar), so
 	// the others skip the analysis.
 	if len(e.referenceInfo.references) == 1 && !e.isDeclaredOrInferredConstant {
-		if e.outer.outer.mode == InlineVariables_Mode_CONSTANTS_ONLY ||
+		if e.outer.mode == InlineVariables_Mode_CONSTANTS_ONLY ||
 			!inlineVariables_isDeclaredAsAlias(e.declaration.nameNode) {
 			e.markNegativeAnalysis()
 			return
@@ -700,7 +695,7 @@ func (e *inlineVariables_standardVarExpert) Analyze() {
 		return
 	}
 
-	if e.outer.outer.mode == InlineVariables_Mode_CONSTANTS_ONLY {
+	if e.outer.mode == InlineVariables_Mode_CONSTANTS_ONLY {
 		// If we're in constants-only mode, don't run more aggressive
 		// inlining heuristics. See InlineConstantsTest.
 		e.markNegativeAnalysis()
@@ -790,7 +785,7 @@ func (e *inlineVariables_standardVarExpert) markNegativeAnalysis() {
 	// If we already know whether it is safe to inline aliases of this variable,
 	// record the resolved state immediately.
 	if e.mayBeAParameterModifiedViaArguments ||
-		e.outer.outer.mode == InlineVariables_Mode_CONSTANTS_ONLY ||
+		e.outer.mode == InlineVariables_Mode_CONSTANTS_ONLY ||
 		len(e.referenceInfo.references) <= 1 ||
 		e.isKnownFalse(veWellDefinedAssignedOnce) ||
 		e.isKnownFalse(veWellDefined) ||

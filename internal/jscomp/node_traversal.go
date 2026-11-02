@@ -411,12 +411,11 @@ func (t *NodeTraversal) FormatNodePosition(n rhino.Node) string {
 
 	lineNumber := n.GetLineno()
 	columnNumber := n.GetCharno()
-	src := t.compiler.GetSourceLine(sourceFileName, lineNumber)
-	if src == nil {
-		missing := nodeTraversal_MISSING_SOURCE
-		src = &missing
+	src := nodeTraversal_MISSING_SOURCE
+	if line := t.compiler.GetSourceLine(sourceFileName, lineNumber); line != nil {
+		src = *line
 	}
-	return *sourceFileName + ":" + strconv.Itoa(lineNumber) + ":" + strconv.Itoa(columnNumber) + "\n" + *src + "\n"
+	return *sourceFileName + ":" + strconv.Itoa(lineNumber) + ":" + strconv.Itoa(columnNumber) + "\n" + src + "\n"
 }
 
 // TraverseWithScope traverses a parse tree recursively with a scope,

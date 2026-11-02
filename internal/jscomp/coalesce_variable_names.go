@@ -19,7 +19,6 @@
 package jscomp
 
 import (
-	"math/bits"
 	"slices"
 	"strings"
 
@@ -79,7 +78,7 @@ type CoalesceVariableNames struct {
 	scopeStates    []*coalesceScopeState
 	scopeStatesBuf [4]*coalesceScopeState
 
-	interferenceBitsBuf [LiveVariablesAnalysis_MAX_VARIABLES_TO_ANALYZE][2]uint64
+	interferenceBitsBuf [LiveVariablesAnalysis_MAX_VARIABLES_TO_ANALYZE]bitSet128
 	liveRangeChecker    CoalesceVariableNames_LiveRangeChecker
 	assignToBuf         [16]int
 	readFromBuf         [16]int
@@ -493,8 +492,7 @@ func (c *CoalesceVariableNames) computeAndColorScope(
 		state.varColor[i] = -1
 	}
 
-	var candW0, candW1 uint64
-	var paramW0, paramW1 uint64
+	var candBits, paramBits bitSet128
 	worklist := state.worklistBuf[:0]
 	for vIndex, v := range orderedVariables {
 		if c.liveness.isEscapedIndex(vIndex) {
@@ -512,18 +510,9 @@ func (c *CoalesceVariableNames) computeAndColorScope(
 		if c.IsInMultipleLvalueDecl(v) {
 			continue
 		}
-		if vIndex < 64 {
-			bit := uint64(1) << uint(vIndex)
-			candW0 |= bit
-			if v.IsParam() {
-				paramW0 |= bit
-			}
-		} else {
-			bit := uint64(1) << uint(vIndex-64)
-			candW1 |= bit
-			if v.IsParam() {
-				paramW1 |= bit
-			}
+		candBits.set(vIndex)
+		if v.IsParam() {
+			paramBits.set(vIndex)
 		}
 		worklist = append(worklist, uint8(vIndex))
 	}
@@ -557,23 +546,15 @@ func (c *CoalesceVariableNames) computeAndColorScope(
 	// compute exact LinkedUndirectedGraph node degrees (where self-edges count twice).
 	for _, rawIdx := range worklist {
 		vIdx := int(rawIdx)
-		w0 := interferenceBits[vIdx][0]
-		w1 := interferenceBits[vIdx][1]
+		adj := interferenceBits[vIdx]
 		if orderedVariables[vIdx].IsParam() {
-			w0 |= paramW0
-			w1 |= paramW1
+			adj.orWith(paramBits)
 		}
-		w0 &= candW0
-		w1 &= candW1
-		interferenceBits[vIdx][0] = w0
-		interferenceBits[vIdx][1] = w1
+		adj.andWith(candBits)
+		interferenceBits[vIdx] = adj
 
-		deg := bits.OnesCount64(w0) + bits.OnesCount64(w1)
-		if vIdx < 64 {
-			if w0&(uint64(1)<<uint(vIdx)) != 0 {
-				deg++
-			}
-		} else if w1&(uint64(1)<<uint(vIdx-64)) != 0 {
+		deg := adj.onesCount()
+		if adj.has(vIdx) {
 			deg++
 		}
 		state.degrees[vIdx] = deg
@@ -590,19 +571,12 @@ func (c *CoalesceVariableNames) computeAndColorScope(
 		colorCount = 1
 	} else {
 		for len(worklist) > 0 {
-			var forb0, forb1 uint64
+			var forbidden bitSet128
 			kept := worklist[:0]
 			for _, rawIdx := range worklist {
 				vIdx := int(rawIdx)
-				var independent bool
-				if vIdx < 64 {
-					independent = forb0&(uint64(1)<<uint(vIdx)) == 0
-				} else {
-					independent = forb1&(uint64(1)<<uint(vIdx-64)) == 0
-				}
-				if independent {
-					forb0 |= interferenceBits[vIdx][0]
-					forb1 |= interferenceBits[vIdx][1]
+				if !forbidden.has(vIdx) {
+					forbidden.orWith(interferenceBits[vIdx])
 					state.varColor[vIdx] = int16(colorCount)
 				} else {
 					kept = append(kept, rawIdx)
@@ -620,35 +594,19 @@ func (c *CoalesceVariableNames) computeAndColorScope(
 
 func (c *CoalesceVariableNames) processCfgNodeBits128(
 	cfgNode *graph.LinkedDiGraphNode[rhino.Node, ControlFlowGraph_Branch],
-	interferenceBits [][2]uint64,
+	interferenceBits []bitSet128,
 ) {
 	state := c.liveness.FlowStateAt(cfgNode.Index)
 
-	inSet := &state.GetIn().liveSet
-	inW0, inW1 := inSet.w0, inSet.w1
-	for w := inW0; w != 0; w &= w - 1 {
-		i := bits.TrailingZeros64(w)
-		interferenceBits[i][0] |= inW0
-		interferenceBits[i][1] |= inW1
-	}
-	for w := inW1; w != 0; w &= w - 1 {
-		i := 64 + bits.TrailingZeros64(w)
-		interferenceBits[i][0] |= inW0
-		interferenceBits[i][1] |= inW1
-	}
+	inBits := state.GetIn().liveSet.bits128()
+	inBits.forEach(func(i int) {
+		interferenceBits[i].orWith(inBits)
+	})
 
-	outSet := &state.GetOut().liveSet
-	outW0, outW1 := outSet.w0, outSet.w1
-	for w := outW0; w != 0; w &= w - 1 {
-		i := bits.TrailingZeros64(w)
-		interferenceBits[i][0] |= outW0
-		interferenceBits[i][1] |= outW1
-	}
-	for w := outW1; w != 0; w &= w - 1 {
-		i := 64 + bits.TrailingZeros64(w)
-		interferenceBits[i][0] |= outW0
-		interferenceBits[i][1] |= outW1
-	}
+	outBits := state.GetOut().liveSet.bits128()
+	outBits.forEach(func(i int) {
+		interferenceBits[i].orWith(outBits)
+	})
 
 	lrc := &c.liveRangeChecker
 	val := cfgNode.Value
@@ -658,7 +616,7 @@ func (c *CoalesceVariableNames) processCfgNodeBits128(
 	lrc.isReadFromList = lrc.isReadFromList[:0]
 	lrc.Check(val)
 	if len(lrc.isAssignToList) > 0 {
-		lrc.setCrossingVariablesBits128(interferenceBits, outW0, outW1)
+		lrc.setCrossingVariablesBits128(interferenceBits, outBits)
 	}
 }
 
@@ -899,39 +857,21 @@ func (l *CoalesceVariableNames_LiveRangeChecker) Visit(n rhino.Node, parent rhin
 }
 
 func (l *CoalesceVariableNames_LiveRangeChecker) setCrossingVariablesBits128(
-	interferenceBits [][2]uint64,
-	outW0, outW1 uint64,
+	interferenceBits []bitSet128,
+	outBits bitSet128,
 ) {
-	var writtenW0, writtenW1 uint64
-	var readW0, readW1 uint64
+	var writtenBits, readBits bitSet128
 	for _, iReadVar := range l.isReadFromList {
-		if iReadVar < 64 {
-			readW0 |= uint64(1) << uint(iReadVar)
-		} else {
-			readW1 |= uint64(1) << uint(iReadVar-64)
-		}
+		readBits.set(iReadVar)
 	}
+	unionRead := outBits.or(readBits)
 	for _, iWrittenVar := range l.isAssignToList {
-		if iWrittenVar < 64 {
-			writtenW0 |= uint64(1) << uint(iWrittenVar)
-		} else {
-			writtenW1 |= uint64(1) << uint(iWrittenVar-64)
-		}
-		interferenceBits[iWrittenVar][0] |= outW0 | readW0
-		interferenceBits[iWrittenVar][1] |= outW1 | readW1
+		writtenBits.set(iWrittenVar)
+		interferenceBits[iWrittenVar].orWith(unionRead)
 	}
-	unionRead0 := outW0 | readW0
-	unionRead1 := outW1 | readW1
-	for w := unionRead0; w != 0; w &= w - 1 {
-		iReadVar := bits.TrailingZeros64(w)
-		interferenceBits[iReadVar][0] |= writtenW0
-		interferenceBits[iReadVar][1] |= writtenW1
-	}
-	for w := unionRead1; w != 0; w &= w - 1 {
-		iReadVar := 64 + bits.TrailingZeros64(w)
-		interferenceBits[iReadVar][0] |= writtenW0
-		interferenceBits[iReadVar][1] |= writtenW1
-	}
+	unionRead.forEach(func(iReadVar int) {
+		interferenceBits[iReadVar].orWith(writtenBits)
+	})
 }
 
 // CoalesceVariableNames_LiveRangeChecker_ShouldVisit returns whether any

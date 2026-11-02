@@ -78,6 +78,56 @@ type flatAstNode struct {
 	hasType    bool
 }
 
+func (fn *flatAstNode) markStringValue() {
+	fn.valCase = astValCase_String
+}
+
+func (fn *flatAstNode) setStringPointer(ptr int) {
+	fn.valBits = uint64(uint32(int32(ptr)))
+}
+
+func (fn *flatAstNode) stringPointerBits() uint64 {
+	return fn.valBits
+}
+
+func (fn *flatAstNode) setNumberValue(v float64) {
+	fn.valCase = astValCase_Double
+	fn.valBits = math.Float64bits(v)
+}
+
+func (fn *flatAstNode) numberBits() uint64 {
+	return fn.valBits
+}
+
+func (fn *flatAstNode) initTemplateValue() {
+	fn.valCase = astValCase_Template
+	fn.valBits = 0xFFFFFFFF // cooked = int32(-1) by default
+}
+
+func (fn *flatAstNode) setTemplateRawPointer(ptr int) {
+	fn.valBits = (fn.valBits & 0xFFFFFFFF) | (uint64(uint32(int32(ptr))) << 32)
+}
+
+func (fn *flatAstNode) setTemplateCookedPointer(ptr int) {
+	fn.valBits = (fn.valBits &^ 0xFFFFFFFF) | uint64(uint32(int32(ptr)))
+}
+
+func (fn *flatAstNode) templatePointers() (rawPtr, cookedPtr int32) {
+	return int32(fn.valBits >> 32), int32(fn.valBits)
+}
+
+func (fn *flatAstNode) templateWireSize() int {
+	rawPtr, cookedPtr := fn.templatePointers()
+	size := 0
+	if rawPtr != 0 {
+		size += 1 + protoVarintLen(uint64(uint32(rawPtr)))
+	}
+	if cookedPtr != 0 {
+		size += 1 + protoVarintLen(uint64(int64(cookedPtr)))
+	}
+	return size
+}
+
 // flatJsdoc is a pointer-free (noscan) record of an OptimizationJsdoc message.
 type flatJsdoc struct {
 	kindOff    uint32
@@ -177,37 +227,6 @@ func isNodeStringUsedProp(n rhino.Node, tok rhino.Token, recordUsedProps bool) b
 	}
 }
 
-func (s *TypedAstSerializer) putOptionalString(val string) int32 {
-	if val == "" {
-		return 0
-	}
-	return int32(s.stringPool.Put(val))
-}
-
-func (s *TypedAstSerializer) encodeJsdocDirect(jsdoc *rhino.JSDocInfo) int32 {
-	kindOff := len(s.scriptEnc.jsdocKinds)
-	s.scriptEnc.jsdocKinds = jsDocSerializer_fillJsdocTagsOnly(jsdoc, s.scriptEnc.jsdocKinds)
-	kindLen := len(s.scriptEnc.jsdocKinds) - kindOff
-	lic, desc, alt, mean, mode, hasMode := jsDocSerializer_stringFields(jsdoc)
-	doc := flatJsdoc{
-		licensePtr: s.putOptionalString(lic),
-		descPtr:    s.putOptionalString(desc),
-		altMsgPtr:  s.putOptionalString(alt),
-		meaningPtr: s.putOptionalString(mean),
-	}
-	if hasMode {
-		doc.cuModePtr = int32(s.stringPool.Put(mode.String()))
-	}
-	if kindLen == 0 && doc.licensePtr == 0 && doc.descPtr == 0 && doc.meaningPtr == 0 && doc.altMsgPtr == 0 && doc.cuModePtr == 0 {
-		return -1
-	}
-	doc.kindOff = uint32(kindOff)
-	doc.kindLen = uint32(kindLen)
-	jIdx := int32(len(s.scriptEnc.jsdocs))
-	s.scriptEnc.jsdocs = append(s.scriptEnc.jsdocs, doc)
-	return jIdx
-}
-
 func (enc *scriptWireEncoder) addJsdocStrFixup(jIdx uint32, val string, target fixupTarget) {
 	if val != "" {
 		enc.fixups = append(enc.fixups, poolFixup{
@@ -218,7 +237,7 @@ func (enc *scriptWireEncoder) addJsdocStrFixup(jIdx uint32, val string, target f
 	}
 }
 
-func (enc *scriptWireEncoder) encodeJsdocParallel(jsdoc *rhino.JSDocInfo) int32 {
+func (enc *scriptWireEncoder) encodeJsdoc(jsdoc *rhino.JSDocInfo) int32 {
 	kindOff := len(enc.jsdocKinds)
 	enc.jsdocKinds = jsDocSerializer_fillJsdocTagsOnly(jsdoc, enc.jsdocKinds)
 	kindLen := len(enc.jsdocKinds) - kindOff
@@ -251,6 +270,7 @@ func (enc *scriptWireEncoder) pushSourceFile(n rhino.Node, target fixupTarget, t
 		sf = ssf.(*SourceFile)
 	}
 	if sf == nil {
+		// TODO(b/186056977): enforce that SourceFile is not null in externs as well as code.
 		if !enc.peekLastSubtreeSourceFile().IsExtern() {
 			jutil.CheckStateMsg2(
 				false,
@@ -261,6 +281,8 @@ func (enc *scriptWireEncoder) pushSourceFile(n rhino.Node, target fixupTarget, t
 		return false
 	}
 	if sf == enc.peekLastSubtreeSourceFile() {
+		// To save space, only serialize a SourceFile for a node if it is different than the parent's
+		// source.
 		return false
 	}
 	enc.subtreeSourceFiles = append(enc.subtreeSourceFiles, sf)
@@ -274,107 +296,25 @@ func (enc *scriptWireEncoder) pushSourceFile(n rhino.Node, target fixupTarget, t
 	return true
 }
 
-func (s *TypedAstSerializer) visitDirect(n rhino.Node) {
-	jutil.CheckState(n.GetLength() >= 0)
-	currentLine := n.GetLineno()
-	currentColumn := n.GetCharno()
-	fn := flatAstNode{
-		relLine:  int32(currentLine - s.previousLine),
-		relCol:   int32(currentColumn - s.previousColumn),
-		jsdocIdx: -1,
-	}
-	s.previousLine = currentLine
-	s.previousColumn = currentColumn
-
-	if s.colorTypeSerializer != nil {
-		if color := n.GetColor(); color != nil {
-			fn.typePtr = int32(s.colorTypeSerializer.colorSerializer.AddColor(color))
-			fn.hasType = true
-		}
-	} else if s.jsTypeSerializer != nil {
-		s.jsTypeSerializer.addTypeToFlatNode(n, &fn)
-	}
-
-	if jsdoc := n.GetJSDocInfo(); jsdoc != nil {
-		fn.jsdocIdx = s.encodeJsdocDirect(jsdoc)
-	}
-
-	fn.kind = uint16(s.KindTranslator(n).GetNumber())
-	s.translateValueDirect(&fn, n)
-	fn.boolProps = uint64(n.SerializeProperties())
-	sourceFile := s.GetSourceFilePointer(n)
-	fn.sourceFile = int32(sourceFile)
-
-	idx := len(s.scriptEnc.nodes)
-	s.scriptEnc.nodes = append(s.scriptEnc.nodes, fn)
-
-	for child := n.GetFirstChild(); !child.IsNil(); child = child.GetNext() {
-		s.visitDirect(child)
-	}
-	if shadowFn := closureUnawareShadowFnNode(n); !shadowFn.IsNil() {
-		s.visitDirect(shadowFn)
-	}
-	s.scriptEnc.nodes[idx].endIdx = uint32(len(s.scriptEnc.nodes))
-
-	if sourceFile != 0 {
-		// ArrayDeque.removeLast() throws NoSuchElementException on an empty deque.
-		if len(s.subtreeSourceFiles) == 0 {
-			panic(jutil.NewNoSuchElementException())
-		}
-		s.subtreeSourceFiles = s.subtreeSourceFiles[:len(s.subtreeSourceFiles)-1]
-	}
-	if origID := n.GetOriginalNameID(); origID != 0 {
-		s.scriptEnc.nodes[idx].origName = int32(s.stringPool.PutID(origID))
-	}
-}
-
-func (s *TypedAstSerializer) translateValueDirect(fn *flatAstNode, n rhino.Node) {
-	tok := n.GetToken()
-	switch tok {
-	case rhino.Token_GETPROP, rhino.Token_OPTCHAIN_GETPROP,
-		rhino.Token_STRING_KEY, rhino.Token_MEMBER_FUNCTION_DEF, rhino.Token_MEMBER_FIELD_DEF,
-		rhino.Token_GETTER_DEF, rhino.Token_SETTER_DEF,
-		rhino.Token_NAME, rhino.Token_STRINGLIT, rhino.Token_LABEL_NAME, rhino.Token_IMPORT_STAR:
-		ptr := s.stringPool.PutID(n.GetStringID())
-		if isNodeStringUsedProp(n, tok, s.recordUsedProps) {
-			s.markUsedProp(ptr)
-		}
-		fn.valBits = uint64(uint32(int32(ptr)))
-		fn.valCase = astValCase_String
-	case rhino.Token_TEMPLATELIT_STRING:
-		// The raw string is put in the pool before the cooked one (Java's
-		// evaluation order).
-		rawPtr := uint32(int32(s.stringPool.PutID(n.GetRawStringID())))
-		cookedPtr := uint32(0xFFFFFFFF) // int32(-1)
-		if cookedID := n.GetCookedStringID(); cookedID != 0 {
-			cookedPtr = uint32(int32(s.stringPool.PutID(cookedID)))
-		}
-		fn.valBits = (uint64(rawPtr) << 32) | uint64(cookedPtr)
-		fn.valCase = astValCase_Template
-	case rhino.Token_NUMBER:
-		fn.valBits = math.Float64bits(n.GetDouble())
-		fn.valCase = astValCase_Double
-	case rhino.Token_BIGINT:
-		fn.valBits = uint64(uint32(int32(s.stringPool.Put(n.GetBigInt().String()))))
-		fn.valCase = astValCase_String
-	}
-}
-
-func (enc *scriptWireEncoder) buildScriptPassA(script rhino.Node, parent *TypedAstSerializer) {
+func (enc *scriptWireEncoder) buildScript(script rhino.Node, parent *TypedAstSerializer) {
 	jutil.CheckState(script.IsScript())
 	enc.reset()
 	enc.pushSourceFile(script, fixupLazySourceFile, 0)
 
-	enc.visitParallel(script, parent)
+	enc.visit(script, parent)
 	clear(enc.subtreeSourceFiles)
 	enc.subtreeSourceFiles = enc.subtreeSourceFiles[:0]
 
 	if encodedSourceMap := parent.compiler.GetBase64SourceMapContents(*script.GetSourceFileName()); encodedSourceMap != nil {
+		// This is the encoded source map taken from the inline sourcemap comment. It does not include
+		// the base64 prefix.
+		// E.g. We serialize "eyJ2ZXJzaW9uI..." from the "//# sourceMappingURL=
+		// data:application/json;base64,eyJ2ZXJzaW9uI..." comment.
 		enc.lazyAst.sourceMappingUrl_ = *encodedSourceMap
 	}
 }
 
-func (enc *scriptWireEncoder) visitParallel(n rhino.Node, parent *TypedAstSerializer) {
+func (enc *scriptWireEncoder) visit(n rhino.Node, parent *TypedAstSerializer) {
 	jutil.CheckState(n.GetLength() >= 0)
 	nodeIdx := uint32(len(enc.nodes))
 	currentLine := n.GetLineno()
@@ -403,25 +343,26 @@ func (enc *scriptWireEncoder) visitParallel(n rhino.Node, parent *TypedAstSerial
 	}
 
 	if jsdoc := n.GetJSDocInfo(); jsdoc != nil {
-		fn.jsdocIdx = enc.encodeJsdocParallel(jsdoc)
+		fn.jsdocIdx = enc.encodeJsdoc(jsdoc)
 	}
 
 	fn.kind = uint16(parent.KindTranslator(n).GetNumber())
-	enc.translateValueParallel(&fn, nodeIdx, n, parent.recordUsedProps)
+	enc.translateValue(&fn, nodeIdx, n, parent.recordUsedProps)
 	fn.boolProps = uint64(n.SerializeProperties())
 	pushedSF := enc.pushSourceFile(n, fixupNodeSourceFile, nodeIdx)
 
 	enc.nodes = append(enc.nodes, fn)
 
 	for child := n.GetFirstChild(); !child.IsNil(); child = child.GetNext() {
-		enc.visitParallel(child, parent)
+		enc.visit(child, parent)
 	}
 	if shadowFn := closureUnawareShadowFnNode(n); !shadowFn.IsNil() {
-		enc.visitParallel(shadowFn, parent)
+		enc.visit(shadowFn, parent)
 	}
 	enc.nodes[nodeIdx].endIdx = uint32(len(enc.nodes))
 
 	if pushedSF {
+		// ArrayDeque.removeLast() throws NoSuchElementException on an empty deque.
 		if len(enc.subtreeSourceFiles) == 0 {
 			panic(jutil.NewNoSuchElementException())
 		}
@@ -436,7 +377,7 @@ func (enc *scriptWireEncoder) visitParallel(n rhino.Node, parent *TypedAstSerial
 	}
 }
 
-func (enc *scriptWireEncoder) translateValueParallel(fn *flatAstNode, nodeIdx uint32, n rhino.Node, recordUsedProps bool) {
+func (enc *scriptWireEncoder) translateValue(fn *flatAstNode, nodeIdx uint32, n rhino.Node, recordUsedProps bool) {
 	tok := n.GetToken()
 	switch tok {
 	case rhino.Token_GETPROP, rhino.Token_OPTCHAIN_GETPROP,
@@ -452,10 +393,11 @@ func (enc *scriptWireEncoder) translateValueParallel(fn *flatAstNode, nodeIdx ui
 			refIdx:    n.GetStringID(),
 			target:    target,
 		})
-		fn.valCase = astValCase_String
+		fn.markStringValue()
 	case rhino.Token_TEMPLATELIT_STRING:
-		fn.valBits = 0xFFFFFFFF // cooked = int32(-1) by default
-		fn.valCase = astValCase_Template
+		// The raw string is put in the pool before the cooked one (Java's
+		// evaluation order).
+		fn.initTemplateValue()
 		enc.fixups = append(enc.fixups, poolFixup{
 			targetIdx: nodeIdx,
 			refIdx:    n.GetRawStringID(),
@@ -469,19 +411,18 @@ func (enc *scriptWireEncoder) translateValueParallel(fn *flatAstNode, nodeIdx ui
 			})
 		}
 	case rhino.Token_NUMBER:
-		fn.valBits = math.Float64bits(n.GetDouble())
-		fn.valCase = astValCase_Double
+		fn.setNumberValue(n.GetDouble())
 	case rhino.Token_BIGINT:
 		enc.fixups = append(enc.fixups, poolFixup{
 			targetIdx: nodeIdx,
 			refIdx:    rhino.RhinoStringPool_InternID(n.GetBigInt().String()),
 			target:    fixupNodeStrVal,
 		})
-		fn.valCase = astValCase_String
+		fn.markStringValue()
 	}
 }
 
-func (enc *scriptWireEncoder) marshalScriptPassC(byteSlab *[]byte) {
+func (enc *scriptWireEncoder) marshalScript(byteSlab *[]byte) {
 	scriptBytes := enc.encodeToByteSlab(byteSlab)
 	enc.lazyAst.script_ = scriptBytes
 	if len(enc.lazyAst.sourceMappingUrl_) == 0 {
@@ -549,19 +490,6 @@ func (enc *scriptWireEncoder) computeJsdocWireSize(d *flatJsdoc) uint32 {
 	return uint32(size)
 }
 
-func templateStringWireSize(valBits uint64) int {
-	rawPtr := int32(valBits >> 32)
-	cookedPtr := int32(valBits)
-	size := 0
-	if rawPtr != 0 {
-		size += 1 + protoVarintLen(uint64(uint32(rawPtr)))
-	}
-	if cookedPtr != 0 {
-		size += 1 + protoVarintLen(uint64(int64(cookedPtr)))
-	}
-	return size
-}
-
 func (enc *scriptWireEncoder) computeNodeWireSize(fn *flatAstNode, idx int) uint32 {
 	size := 0
 	if fn.kind != 0 {
@@ -574,11 +502,11 @@ func (enc *scriptWireEncoder) computeNodeWireSize(fn *flatAstNode, idx int) uint
 	}
 	switch fn.valCase {
 	case astValCase_String:
-		size += 1 + protoVarintLen(fn.valBits)
+		size += 1 + protoVarintLen(fn.stringPointerBits())
 	case astValCase_Double:
 		size += 9
 	case astValCase_Template:
-		ts := templateStringWireSize(fn.valBits)
+		ts := fn.templateWireSize()
 		size += 1 + protoVarintLen(uint64(ts)) + ts
 	}
 	if fn.relLine != 0 {
@@ -656,10 +584,10 @@ func (enc *scriptWireEncoder) appendNode(b []byte, idx int) []byte {
 	switch fn.valCase {
 	case astValCase_String:
 		b = append(b, astNodeTag_StringValue)
-		b = protoAppendVarint(b, fn.valBits)
+		b = protoAppendVarint(b, fn.stringPointerBits())
 	case astValCase_Double:
 		b = append(b, astNodeTag_DoubleValue)
-		b = protoAppendFixed64(b, fn.valBits)
+		b = protoAppendFixed64(b, fn.numberBits())
 	}
 	if fn.relLine != 0 {
 		b = append(b, astNodeTag_RelativeLine)
@@ -676,9 +604,8 @@ func (enc *scriptWireEncoder) appendNode(b []byte, idx int) []byte {
 		b = enc.appendJsdoc(b, d)
 	}
 	if fn.valCase == astValCase_Template {
-		rawPtr := int32(fn.valBits >> 32)
-		cookedPtr := int32(fn.valBits)
-		ts := templateStringWireSize(fn.valBits)
+		rawPtr, cookedPtr := fn.templatePointers()
+		ts := fn.templateWireSize()
 		b = append(b, astNodeTag_TemplateStringValue)
 		b = protoAppendVarint(b, uint64(ts))
 		if rawPtr != 0 {

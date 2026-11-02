@@ -131,28 +131,8 @@ func (v *inlineCallVisitor) inlineWalk(n rhino.Node, parent rhino.Node) {
 	case rhino.Token_SCRIPT:
 		v.currentScript = n
 	case rhino.Token_CLASS_MEMBERS:
-		body := ast.MustClassBody(n)
-		for m := range ast.ReadAhead(body.FirstMember()) {
-			switch m.Token() {
-			case rhino.Token_COMPUTED_PROP:
-				v.inlineWalk(m.MustComputedProp().Key().Node(), m.Node())
-			case rhino.Token_COMPUTED_FIELD_DEF:
-				v.inlineWalk(m.MustComputedFieldDef().Key().Node(), m.Node())
-			}
-		}
-		for m := range ast.ReadAhead(body.FirstMember()) {
-			switch m.Token() {
-			case rhino.Token_COMPUTED_PROP:
-				if value, ok := m.MustComputedProp().Value(); ok {
-					v.inlineWalk(value.Node(), m.Node())
-				}
-			case rhino.Token_COMPUTED_FIELD_DEF:
-				if value, ok := m.MustComputedFieldDef().Value(); ok {
-					v.inlineWalk(value.Node(), m.Node())
-				}
-			default:
-				v.inlineWalk(m.Node(), n)
-			}
+		for ch, p := range ast.MustClassBody(n).EvalOrder() {
+			v.inlineWalk(ch, p)
 		}
 		return
 	}

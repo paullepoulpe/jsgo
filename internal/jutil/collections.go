@@ -157,6 +157,24 @@ func (x *lhmIndex) erase(hash uint, slot int) {
 	t[b] = lhmTombstone
 }
 
+// find probes the table starting at hash and returns the first live slot for
+// which match returns true, or -1 if absent.
+func (x *lhmIndex) find(hash uint, match func(slot int) bool) int {
+	t := x.table
+	mask := uint(len(t) - 1)
+	for b := hash & mask; ; b = (b + 1) & mask {
+		switch e := t[b]; e {
+		case 0:
+			return -1
+		case lhmTombstone:
+		default:
+			if match(int(e - 1)) {
+				return int(e - 1)
+			}
+		}
+	}
+}
+
 // reset empties the table and gives it n buckets.
 func (x *lhmIndex) reset(n int) {
 	if n == len(x.table) {
@@ -222,19 +240,10 @@ func (h *LinkedHashMap[K, V]) find(k K) int {
 }
 
 func (h *LinkedHashMap[K, V]) lookupIn(m *lhmIndex, k K) int {
-	t := m.table
-	mask := uint(len(t) - 1)
-	for b := lhmHash(k) & mask; ; b = (b + 1) & mask {
-		switch e := t[b]; e {
-		case 0:
-			return -1
-		case lhmTombstone:
-		default:
-			if h.slots[e-1].key == k {
-				return int(e - 1)
-			}
-		}
-	}
+	slots := h.slots
+	return m.find(lhmHash(k), func(slot int) bool {
+		return slots[slot].key == k
+	})
 }
 
 func (h *LinkedHashMap[K, V]) Size() int {
@@ -593,12 +602,11 @@ func (h *LinkedHashMap[K, V]) KeySlice() []K {
 	return out
 }
 
-// String renders like AbstractMap.toString(): "{k1=v1, k2=v2}".
-func (h *LinkedHashMap[K, V]) String() string {
+func formatMapString[K any, V any](seq iter.Seq2[K, V]) string {
 	var sb strings.Builder
 	sb.WriteByte('{')
 	first := true
-	for k, v := range h.All() {
+	for k, v := range seq {
 		if !first {
 			sb.WriteString(", ")
 		}
@@ -611,11 +619,30 @@ func (h *LinkedHashMap[K, V]) String() string {
 	return sb.String()
 }
 
+// String renders like AbstractMap.toString(): "{k1=v1, k2=v2}".
+func (h *LinkedHashMap[K, V]) String() string {
+	return formatMapString(h.All())
+}
+
 // javaMapEntries is implemented by map types so that Map.equals can compare
 // across implementations.
 type javaMapEntries interface {
 	Size() int
 	lookupAny(k any) (any, bool)
+}
+
+func mapEntriesEquals[K any, V any](size int, seq iter.Seq2[K, V], o any) bool {
+	other, ok := o.(javaMapEntries)
+	if !ok || IsNil(o) || other.Size() != size {
+		return false
+	}
+	for k, v := range seq {
+		ov, present := other.lookupAny(k)
+		if !present || !ObjectsEquals(v, ov) {
+			return false
+		}
+	}
+	return true
 }
 
 func (h *LinkedHashMap[K, V]) lookupAny(k any) (any, bool) {
@@ -631,17 +658,7 @@ func (h *LinkedHashMap[K, V]) Equals(o any) bool {
 	if any(h) == o {
 		return true
 	}
-	other, ok := o.(javaMapEntries)
-	if !ok || IsNil(o) || other.Size() != h.Size() {
-		return false
-	}
-	for k, v := range h.All() {
-		ov, present := other.lookupAny(k)
-		if !present || !ObjectsEquals(v, ov) {
-			return false
-		}
-	}
-	return true
+	return mapEntriesEquals(h.Size(), h.All(), o)
 }
 
 // HashCode is Map.hashCode(): the sum of key^value hash codes.

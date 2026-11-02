@@ -563,62 +563,28 @@ func optimizeParameters_mayReferenceParamBeforeBody(fn ast.Function) bool {
 		}
 	}
 
-	var seen optimizeParametersParamNameTracker
-	return seen.scan(paramList.Node())
+	var seen smallMap[uint32, optimizeParametersParamNameEntry]
+	return optimizeParametersScanDuplicateParamNames(paramList.Node(), &seen)
 }
 
 type optimizeParametersParamNameEntry struct {
-	id    uint32
 	first rhino.Node
 	multi bool
 }
 
-type optimizeParametersParamNameTracker struct {
-	inline  [16]optimizeParametersParamNameEntry
-	entries []optimizeParametersParamNameEntry
-	byID    map[uint32]int
-}
-
-func (t *optimizeParametersParamNameTracker) scan(n rhino.Node) bool {
+func optimizeParametersScanDuplicateParamNames(n rhino.Node, seen *smallMap[uint32, optimizeParametersParamNameEntry]) bool {
 	for c := n.GetFirstChild(); !c.IsNil(); c = c.GetNext() {
-		if t.scan(c) {
+		if optimizeParametersScanDuplicateParamNames(c, seen) {
 			return true
 		}
 	}
 	if !n.IsName() {
 		return false
 	}
-	id := n.GetStringID()
-	if t.entries == nil {
-		t.entries = t.inline[:0]
-	}
-	idx := -1
-	if t.byID != nil {
-		if existing, ok := t.byID[id]; ok {
-			idx = existing
-		}
-	} else {
-		for i := range t.entries {
-			if t.entries[i].id == id {
-				idx = i
-				break
-			}
-		}
-	}
-	if idx < 0 {
-		newIdx := len(t.entries)
-		t.entries = append(t.entries, optimizeParametersParamNameEntry{id: id, first: n})
-		if t.byID != nil {
-			t.byID[id] = newIdx
-		} else if len(t.entries) == len(t.inline) {
-			t.byID = make(map[uint32]int, 32)
-			for i := range t.entries {
-				t.byID[t.entries[i].id] = i
-			}
-		}
+	e, existed := seen.getOrInsert(n.GetStringID(), optimizeParametersParamNameEntry{first: n})
+	if !existed {
 		return false
 	}
-	e := &t.entries[idx]
 	if !e.multi {
 		e.multi = true
 		if NodeUtil_IsLValue(e.first) {

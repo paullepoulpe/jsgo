@@ -52,69 +52,6 @@ func typedAstValidateShardTag(rawTag uint64) jutil.Throwable {
 	return nil
 }
 
-func typedAstReadSliceVarint64(b []byte, pos *int, allowEOF bool) (uint64, bool, jutil.Throwable) {
-	if *pos >= len(b) {
-		if allowEOF {
-			return 0, false, nil
-		}
-		return 0, false, protoTruncatedMessage()
-	}
-	first := b[*pos]
-	*pos++
-	x := uint64(first & 0x7f)
-	if first < 0x80 {
-		return x, true, nil
-	}
-	for shift := uint(7); shift < 64; shift += 7 {
-		if *pos >= len(b) {
-			return 0, false, protoTruncatedMessage()
-		}
-		c := b[*pos]
-		*pos++
-		x |= uint64(c&0x7f) << shift
-		if c < 0x80 {
-			return x, true, nil
-		}
-	}
-	return 0, false, protoMalformedVarint()
-}
-
-func typedAstReadByte(br io.ByteReader, allowEOF bool) (byte, bool, jutil.Throwable) {
-	b, err := br.ReadByte()
-	if err == nil {
-		return b, true, nil
-	}
-	if err == io.EOF {
-		if allowEOF {
-			return 0, false, nil
-		}
-		return 0, false, protoTruncatedMessage()
-	}
-	return 0, false, jutil.NewIOException(err.Error())
-}
-
-func typedAstReadVarint64(br io.ByteReader, allowEOF bool) (uint64, bool, jutil.Throwable) {
-	first, ok, err := typedAstReadByte(br, allowEOF)
-	if err != nil || !ok {
-		return 0, false, err
-	}
-	x := uint64(first & 0x7f)
-	if first < 0x80 {
-		return x, true, nil
-	}
-	for shift := uint(7); shift < 64; shift += 7 {
-		b, _, err := typedAstReadByte(br, false)
-		if err != nil {
-			return 0, false, err
-		}
-		x |= uint64(b&0x7f) << shift
-		if b < 0x80 {
-			return x, true, nil
-		}
-	}
-	return 0, false, protoMalformedVarint()
-}
-
 func typedAstDeserializer_decodeShardBytes(messageBytes []byte, buildStringPool func(*TypedAst) bool) (*TypedAst, *StringPool) {
 	rd := &protoReader{b: messageBytes, depth: 1, limit: math.MaxInt32}
 	typedAst := &TypedAst{}
@@ -141,14 +78,14 @@ func typedAstDeserializer_scanTypedAstStream(
 		data := buf.Next(buf.Len())
 		pos := 0
 		readNextFromSlice := func() ([]byte, bool, jutil.Throwable) {
-			rawTag, ok, err := typedAstReadSliceVarint64(data, &pos, true)
+			rawTag, ok, err := protoReadSliceVarint64(data, &pos, true)
 			if err != nil || !ok {
 				return nil, false, err
 			}
 			if err := typedAstValidateShardTag(rawTag); err != nil {
 				return nil, false, err
 			}
-			rawSize, _, err := typedAstReadSliceVarint64(data, &pos, false)
+			rawSize, _, err := protoReadSliceVarint64(data, &pos, false)
 			if err != nil {
 				return nil, false, err
 			}
@@ -214,7 +151,7 @@ func typedAstDeserializer_scanTypedAstStream(
 
 	var probe [probeSize]byte
 	readNextTagAndLen := func() (int, bool, jutil.Throwable) {
-		uTag, ok, err := typedAstReadVarint64(bbr, true)
+		uTag, ok, err := protoReadStreamVarint64(bbr, true)
 		if err != nil || !ok {
 			return 0, false, err
 		}
@@ -224,7 +161,7 @@ func typedAstDeserializer_scanTypedAstStream(
 		if err := typedAstValidateShardTag(uTag); err != nil {
 			return 0, false, err
 		}
-		rawLen, _, err := typedAstReadVarint64(bbr, false)
+		rawLen, _, err := protoReadStreamVarint64(bbr, false)
 		if err != nil {
 			return 0, false, err
 		}
@@ -236,30 +173,20 @@ func typedAstDeserializer_scanTypedAstStream(
 	}
 	readBodyBytes := func(msgLen int) ([]byte, jutil.Throwable) {
 		// Do not pool messageBytes buffers because LazyAst.script uses zero-copy readBytesView().
-		var messageBytes []byte
 		if msgLen <= probeSize {
-			messageBytes = make([]byte, msgLen)
-			if _, err := io.ReadFull(bbr, messageBytes); err != nil {
-				if err == io.EOF || err == io.ErrUnexpectedEOF {
-					return nil, protoTruncatedMessage()
-				}
-				return nil, jutil.NewIOException(err.Error())
+			messageBytes := make([]byte, msgLen)
+			if err := protoReadFull(bbr, messageBytes); err != nil {
+				return nil, err
 			}
-		} else {
-			if _, err := io.ReadFull(bbr, probe[:]); err != nil {
-				if err == io.EOF || err == io.ErrUnexpectedEOF {
-					return nil, protoTruncatedMessage()
-				}
-				return nil, jutil.NewIOException(err.Error())
-			}
-			messageBytes = make([]byte, msgLen)
-			copy(messageBytes, probe[:])
-			if _, err := io.ReadFull(bbr, messageBytes[probeSize:]); err != nil {
-				if err == io.EOF || err == io.ErrUnexpectedEOF {
-					return nil, protoTruncatedMessage()
-				}
-				return nil, jutil.NewIOException(err.Error())
-			}
+			return messageBytes, nil
+		}
+		if err := protoReadFull(bbr, probe[:]); err != nil {
+			return nil, err
+		}
+		messageBytes := make([]byte, msgLen)
+		copy(messageBytes, probe[:])
+		if err := protoReadFull(bbr, messageBytes[probeSize:]); err != nil {
+			return nil, err
 		}
 		return messageBytes, nil
 	}
@@ -369,7 +296,7 @@ func (s *typedAstStreamReader) readVarint64(minLeft int) uint64 {
 			return x
 		}
 	}
-	panic(NewInvalidProtocolBufferException("CodedInputStream encountered a malformed varint."))
+	panic(protoMalformedVarint())
 }
 
 func (s *typedAstStreamReader) readTag(minLeft int) int {
@@ -424,14 +351,16 @@ func (s *typedAstStreamReader) readSliceView(n int, minLeft int) []byte {
 		s.wpos = 0
 	}
 	need := n - avail
-	if _, err := io.ReadFull(s.r, s.scratch[avail:n]); err != nil {
-		if err == io.EOF || err == io.ErrUnexpectedEOF {
-			panic(protoTruncatedMessage())
-		}
-		panic(jutil.NewIOException(err.Error()))
+	if err := protoReadFull(s.r, s.scratch[avail:n]); err != nil {
+		panic(err)
 	}
 	s.remaining -= need
 	return s.scratch[:n:n]
+}
+
+func streamMergeSubmessage[T interface{ mergeFromReader(*protoReader) }](sr *typedAstStreamReader, dst T, minLeft int) {
+	pr := protoReader{b: sr.readSliceView(sr.readLength(minLeft), minLeft), depth: 2, limit: math.MaxInt32}
+	dst.mergeFromReader(&pr)
 }
 
 func (s *typedAstStreamReader) skipField(tag int, minLeft int) {
@@ -530,19 +459,14 @@ func typedAstDeserializer_streamLargeShard(
 				subTag := sr.readTag(endLeft)
 				switch subTag {
 				case 10:
-					data := sr.readSliceView(sr.readLength(endLeft), endLeft)
 					tp := typeProtoSlab.New()
-					pr := protoReader{b: data, depth: 2, limit: math.MaxInt32}
-					tp.mergeFromReader(&pr)
+					streamMergeSubmessage(&sr, tp, endLeft)
 					x.type_ = append(x.type_, tp)
 				case 18:
-					data := sr.readSliceView(sr.readLength(endLeft), endLeft)
 					ed := edgeSlab.New()
-					pr := protoReader{b: data, depth: 2, limit: math.MaxInt32}
-					ed.mergeFromReader(&pr)
+					streamMergeSubmessage(&sr, ed, endLeft)
 					x.disambiguationEdges_ = append(x.disambiguationEdges_, ed)
 				case 26:
-					data := sr.readSliceView(sr.readLength(endLeft), endLeft)
 					var dbg *TypePool_DebugInfo
 					if x.debugInfo_ != nil {
 						dbg = x.debugInfo_
@@ -550,8 +474,7 @@ func typedAstDeserializer_streamLargeShard(
 					} else {
 						dbg = &TypePool_DebugInfo{}
 					}
-					pr := protoReader{b: data, depth: 2, limit: math.MaxInt32}
-					dbg.mergeFromReader(&pr)
+					streamMergeSubmessage(&sr, dbg, endLeft)
 					x.debugInfo_ = dbg
 				default:
 					sr.skipField(subTag, endLeft)
@@ -587,10 +510,8 @@ func typedAstDeserializer_streamLargeShard(
 				}
 			}
 		case 26, 34:
-			data := sr.readSliceView(sr.readLength(0), 0)
 			la := lazyAstSlab.New()
-			pr := protoReader{b: data, depth: 2, limit: math.MaxInt32}
-			la.mergeFromReader(&pr)
+			streamMergeSubmessage(&sr, la, 0)
 			la.script_ = allocScriptBytes(la.script_)
 			if tag == 26 {
 				m.externAst_ = append(m.externAst_, la)
@@ -611,10 +532,8 @@ func typedAstDeserializer_streamLargeShard(
 				subTag := sr.readTag(endLeft)
 				switch subTag {
 				case 10:
-					data := sr.readSliceView(sr.readLength(endLeft), endLeft)
 					sf := sourceFileSlab.New()
-					pr := protoReader{b: data, depth: 2, limit: math.MaxInt32}
-					sf.mergeFromReader(&pr)
+					streamMergeSubmessage(&sr, sf, endLeft)
 					x.sourceFile_ = append(x.sourceFile_, sf)
 				default:
 					sr.skipField(subTag, endLeft)
@@ -622,7 +541,6 @@ func typedAstDeserializer_streamLargeShard(
 			}
 			m.sourceFilePool_ = x
 		case 50:
-			data := sr.readSliceView(sr.readLength(0), 0)
 			var x *ExternsSummary
 			if m.externsSummary_ != nil {
 				x = m.externsSummary_
@@ -630,8 +548,7 @@ func typedAstDeserializer_streamLargeShard(
 			} else {
 				x = &ExternsSummary{}
 			}
-			pr := protoReader{b: data, depth: 2, limit: math.MaxInt32}
-			x.mergeFromReader(&pr)
+			streamMergeSubmessage(&sr, x, 0)
 			m.externsSummary_ = x
 		case 58:
 			raw := sr.readSliceView(sr.readLength(0), 0)

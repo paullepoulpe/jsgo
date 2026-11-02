@@ -3,7 +3,6 @@ package jutil
 import (
 	"iter"
 	"slices"
-	"strings"
 )
 
 // Go-only: language-adapter — the read side of java.util.Set, and
@@ -38,6 +37,19 @@ func SetHashCode[T any](elems []T) int32 {
 type javaSet interface {
 	Size() int
 	containsAny(e any) bool
+}
+
+func setEntriesEquals[T any](size int, seq iter.Seq[T], o any) bool {
+	other, ok := o.(javaSet)
+	if !ok || IsNil(o) || other.Size() != size {
+		return false
+	}
+	for e := range seq {
+		if !other.containsAny(e) {
+			return false
+		}
+	}
+	return true
 }
 
 // ---------------------------------------------------------------------------
@@ -201,16 +213,7 @@ func (s *LinkedHashSet[T]) Equals(o any) bool {
 		}
 		return true
 	}
-	other, ok := o.(javaSet)
-	if !ok || IsNil(o) || other.Size() != s.Size() {
-		return false
-	}
-	for e := range s.All() {
-		if !other.containsAny(e) {
-			return false
-		}
-	}
-	return true
+	return setEntriesEquals(s.Size(), s.All(), o)
 }
 
 // HashCode is Set.hashCode(): the sum of the element hash codes.
@@ -277,19 +280,9 @@ func (h *ObjectLinkedHashMap[K, V]) findWithHash(k K, hash int32) int {
 	}
 	slots := h.slots
 	if h.m != nil {
-		t := h.m.table
-		mask := uint(len(t) - 1)
-		for b := lhmHash(hash) & mask; ; b = (b + 1) & mask {
-			switch e := t[b]; e {
-			case 0:
-				return -1
-			case lhmTombstone:
-			default:
-				if slots[e-1].hash == hash && ObjectsEqualsOf(slots[e-1].key, k) {
-					return int(e - 1)
-				}
-			}
-		}
+		return h.m.find(lhmHash(hash), func(slot int) bool {
+			return slots[slot].hash == hash && ObjectsEqualsOf(slots[slot].key, k)
+		})
 	}
 	for i := int(h.first); i < len(slots); i++ {
 		if slots[i].hash == hash && !slots[i].removed && ObjectsEqualsOf(slots[i].key, k) {
@@ -537,17 +530,7 @@ func (h *ObjectLinkedHashMap[K, V]) Equals(o any) bool {
 		}
 		return true
 	}
-	other, ok := o.(javaMapEntries)
-	if !ok || IsNil(o) || other.Size() != h.Size() {
-		return false
-	}
-	for k, v := range h.All() {
-		ov, present := other.lookupAny(k)
-		if !present || !ObjectsEquals(v, ov) {
-			return false
-		}
-	}
-	return true
+	return mapEntriesEquals(h.Size(), h.All(), o)
 }
 
 // HashCode is Map.hashCode().
@@ -567,20 +550,7 @@ func (h *ObjectLinkedHashMap[K, V]) HashCode() int32 {
 
 // String renders like AbstractMap.toString().
 func (h *ObjectLinkedHashMap[K, V]) String() string {
-	var sb strings.Builder
-	sb.WriteByte('{')
-	first := true
-	for k, v := range h.All() {
-		if !first {
-			sb.WriteString(", ")
-		}
-		first = false
-		sb.WriteString(ToJavaString(k))
-		sb.WriteByte('=')
-		sb.WriteString(ToJavaString(v))
-	}
-	sb.WriteByte('}')
-	return sb.String()
+	return formatMapString(h.All())
 }
 
 // Clear is Map.clear() for ObjectLinkedHashMap.
@@ -711,16 +681,7 @@ func (s *ObjectLinkedHashSet[T]) Equals(o any) bool {
 		}
 		return true
 	}
-	other, ok := o.(javaSet)
-	if !ok || IsNil(o) || other.Size() != s.Size() {
-		return false
-	}
-	for e := range s.All() {
-		if !other.containsAny(e) {
-			return false
-		}
-	}
-	return true
+	return setEntriesEquals(s.Size(), s.All(), o)
 }
 
 // HashCode is Set.hashCode().

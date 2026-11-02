@@ -126,6 +126,65 @@ func globalNamespace_nodeHasPrototype(n rhino.Node) bool {
 	return false
 }
 
+func (b *GlobalNamespace_BuildGlobalNamespace) metadataForRoot(root rhino.Node) *ModuleMetadataMap_ModuleMetadata {
+	if root != b.outer.globalRoot {
+		return b.curMetadata
+	}
+	return nil
+}
+
+func (b *GlobalNamespace_BuildGlobalNamespace) resolveTopLevelQName(
+	node rhino.Node, rejectProto bool, scope *Scope, t *NodeTraversal,
+) (string, rhino.Node, bool) {
+	if rejectProto && globalNamespace_nodeHasPrototype(node) {
+		return "", rhino.NilNode, false
+	}
+	topID, ok := globalNamespace_topRootOfQName(node)
+	if !ok {
+		return "", rhino.NilNode, false
+	}
+	root := b.getRootNodeOfTopNameByID(topID, scope, t)
+	if !b.IsTopLevelScopeRoot(root) {
+		return "", rhino.NilNode, false
+	}
+	qname, ok := node.GetQualifiedNameString()
+	if !ok || (rejectProto && globalNamespace_hasPrototype(qname)) {
+		return "", rhino.NilNode, false
+	}
+	return qname, root, true
+}
+
+func (b *GlobalNamespace_BuildGlobalNamespace) resolveScopeAndChunk(
+	scope *Scope, chunk *JSChunk, t *NodeTraversal,
+) (*Scope, *JSChunk) {
+	if !b.outer.forProcessDefines || scope != nil || t == nil {
+		if scope == nil {
+			scope = t.GetScope()
+		}
+		if chunk == nil && t != nil {
+			chunk = t.GetChunk()
+		}
+	}
+	return scope, chunk
+}
+
+func (b *GlobalNamespace_BuildGlobalNamespace) isGlobalHoistSet(
+	scope *Scope, t *NodeTraversal, root rhino.Node,
+) bool {
+	isModuleRoot := root != b.outer.globalRoot
+	if scope == nil {
+		hoistIdx, hoistRoot := t.closestScopeHoistRoot()
+		return hoistIdx == 0 || (isModuleRoot && hoistRoot == b.curModuleRoot)
+	}
+	// Use the closest hoist scope to select handleSetFromGlobal or handleSetFromLocal
+	// because they use the term 'global' in an ES5, pre-block-scoping sense.
+	hoistScope := scope.GetClosestHoistScope()
+	// Consider a set to be 'global' if it is in the hoist scope in which the name is defined.
+	// For example, a global name set in a module scope is a 'local' set, but a module-level
+	// name set in a module scope is a 'global' set.
+	return hoistScope.IsGlobal() || (isModuleRoot && hoistScope.GetRootNode() == b.curModuleRoot)
+}
+
 func (b *GlobalNamespace_BuildGlobalNamespace) resolveObjectLit(objLit rhino.Node, scope *Scope, t *NodeTraversal) (string, rhino.Node, *Scope, gnObjLitState) {
 	if e, ok := b.objLitCache[objLit]; ok {
 		return e.prefix, e.root, e.scope, e.state
@@ -137,22 +196,11 @@ func (b *GlobalNamespace_BuildGlobalNamespace) resolveObjectLit(objLit rhino.Nod
 		objLitParent := objLit.GetParent()
 		if NodeUtil_IsObjectDefinePropertiesDefinition(objLitParent) {
 			receiverNode := ast.MustCall(objLitParent).MustFirstArg().Node()
-			if globalNamespace_nodeHasPrototype(receiverNode) {
-				return b.putObjLitCache(objLit, "", rhino.NilNode, scope, gnObjLitInvalid)
-			}
-			topID, ok := globalNamespace_topRootOfQName(receiverNode)
+			qname, root, ok := b.resolveTopLevelQName(receiverNode, true, scope, t)
 			if !ok {
 				return b.putObjLitCache(objLit, "", rhino.NilNode, scope, gnObjLitInvalid)
 			}
 			jutil.CheckStateMsg1(objLit == receiverNode.GetNext(), "%s", objLitParent)
-			root := b.getRootNodeOfTopNameByID(topID, scope, t)
-			if !b.IsTopLevelScopeRoot(root) {
-				return b.putObjLitCache(objLit, "", rhino.NilNode, scope, gnObjLitInvalid)
-			}
-			qname, ok := receiverNode.GetQualifiedNameString()
-			if !ok || globalNamespace_hasPrototype(qname) {
-				return b.putObjLitCache(objLit, "", rhino.NilNode, scope, gnObjLitInvalid)
-			}
 			if scope == nil && !g.forProcessDefines {
 				scope = t.GetScope()
 			}
@@ -169,19 +217,7 @@ func (b *GlobalNamespace_BuildGlobalNamespace) resolveObjectLit(objLit rhino.Nod
 		if !owner.IsStaticMember() || owner.GetStringID() == gnPrototypeStrID {
 			return b.putObjLitCache(objLit, "", rhino.NilNode, scope, gnObjLitInvalid)
 		}
-		nameNode := NodeUtil_GetNameNode(ownerParent.GetParent())
-		if globalNamespace_nodeHasPrototype(nameNode) {
-			return b.putObjLitCache(objLit, "", rhino.NilNode, scope, gnObjLitInvalid)
-		}
-		topID, ok := globalNamespace_topRootOfQName(nameNode)
-		if !ok {
-			return b.putObjLitCache(objLit, "", rhino.NilNode, scope, gnObjLitInvalid)
-		}
-		root := b.getRootNodeOfTopNameByID(topID, scope, t)
-		if !b.IsTopLevelScopeRoot(root) {
-			return b.putObjLitCache(objLit, "", rhino.NilNode, scope, gnObjLitInvalid)
-		}
-		className, ok := nameNode.GetQualifiedNameString()
+		className, root, ok := b.resolveTopLevelQName(NodeUtil_GetNameNode(ownerParent.GetParent()), true, scope, t)
 		if !ok {
 			return b.putObjLitCache(objLit, "", rhino.NilNode, scope, gnObjLitInvalid)
 		}
@@ -214,19 +250,8 @@ func (b *GlobalNamespace_BuildGlobalNamespace) resolveObjectLit(objLit rhino.Nod
 			return b.putObjLitCache(objLit, "", rhino.NilNode, scope, gnObjLitInvalid)
 		}
 	}
-	if globalNamespace_nodeHasPrototype(owner) {
-		return b.putObjLitCache(objLit, "", rhino.NilNode, scope, gnObjLitInvalid)
-	}
-	topID, ok := globalNamespace_topRootOfQName(owner)
+	ownerName, root, ok := b.resolveTopLevelQName(owner, true, scope, t)
 	if !ok {
-		return b.putObjLitCache(objLit, "", rhino.NilNode, scope, gnObjLitInvalid)
-	}
-	root := b.getRootNodeOfTopNameByID(topID, scope, t)
-	if !b.IsTopLevelScopeRoot(root) {
-		return b.putObjLitCache(objLit, "", rhino.NilNode, scope, gnObjLitInvalid)
-	}
-	ownerName, ok := owner.GetQualifiedNameString()
-	if !ok || globalNamespace_hasPrototype(ownerName) {
 		return b.putObjLitCache(objLit, "", rhino.NilNode, scope, gnObjLitInvalid)
 	}
 	if scope == nil && !g.forProcessDefines {
@@ -354,7 +379,6 @@ func (b *GlobalNamespace_BuildGlobalNamespace) collect(scope *Scope, chunk *JSCh
 	var nameStr string
 	var resolvedName *GlobalNamespace_Name
 	var root rhino.Node
-	hasName := false
 	isSet := false
 	type_ := GlobalNamespace_NameProp_OTHER_OBJECT
 
@@ -372,29 +396,20 @@ func (b *GlobalNamespace_BuildGlobalNamespace) collect(scope *Scope, chunk *JSCh
 			nameStr = prefix + "." + key
 			root = r
 			scope = s
-			hasName = true
 		} else if parent.IsClassMembers() {
 			if !n.IsStaticMember() || n.IsComputedProp() {
 				return // Within a class, only static members define global names.
 			}
-			nameNode := NodeUtil_GetNameNode(parent.GetParent())
-			topID, ok := globalNamespace_topRootOfQName(nameNode)
-			if !ok {
-				return
-			}
-			root = b.getRootNodeOfTopNameByID(topID, scope, t)
-			if !b.IsTopLevelScopeRoot(root) {
-				return
-			}
-			className, ok := nameNode.GetQualifiedNameString()
+			className, r, ok := b.resolveTopLevelQName(NodeUtil_GetNameNode(parent.GetParent()), false, scope, t)
 			if !ok {
 				return
 			}
 			nameStr = className + "." + n.GetString()
-			hasName = true
+			root = r
 		} else {
-			nameStr, hasName = nodeUtil_getBestLValueNameString(n)
-			if !hasName {
+			var ok bool
+			nameStr, ok = nodeUtil_getBestLValueNameString(n)
+			if !ok {
 				return
 			}
 			root = b.getRootNodeOfTopNameByID(uint32(strpool.Lookup(GlobalNamespace_GetTopVarName(nameStr))), scope, t)
@@ -431,7 +446,6 @@ func (b *GlobalNamespace_BuildGlobalNamespace) collect(scope *Scope, chunk *JSCh
 			}
 			root = r
 			scope = s
-			hasName = true
 			isSet = true
 		} else if parent.IsObjectPattern() {
 			if g.forProcessDefines && (!g.processDefinesCheck || (t != nil && !t.currentHoistScopeRoot.IsNil() && b.curModuleRoot.IsNil())) {
@@ -448,21 +462,13 @@ func (b *GlobalNamespace_BuildGlobalNamespace) collect(scope *Scope, chunk *JSCh
 			} else {
 				return
 			}
-			topID, ok := globalNamespace_topRootOfQName(rhs)
+			qname, r, ok := b.resolveTopLevelQName(rhs, false, scope, t)
 			if !ok {
 				return
 			}
-			root = b.getRootNodeOfTopNameByID(topID, scope, t)
-			if !b.IsTopLevelScopeRoot(root) {
-				return
-			}
-			qname, ok := rhs.GetQualifiedNameString()
-			if !ok {
-				return
-			}
+			root = r
 			nameStr = qname + "." + sk.Key()
 			type_ = b.GetValueType(sk.Value().Node())
-			hasName = true
 			// not a set
 		} else {
 			// else not a reference we should record
@@ -552,18 +558,13 @@ func (b *GlobalNamespace_BuildGlobalNamespace) collect(scope *Scope, chunk *JSCh
 				if !b.IsTopLevelScopeRoot(root) || b.skipsLeafID(topID) {
 					return
 				}
-				var nameMetadata *ModuleMetadataMap_ModuleMetadata
-				if root != g.globalRoot {
-					nameMetadata = b.curMetadata
-				}
-				resolvedName = b.getOrCreateRootByID(topID, nameMetadata)
+				resolvedName = b.getOrCreateRootByID(topID, b.metadataForRoot(root))
 			} else {
 				nameStr = topName
 				root = b.getRootNodeOfTopNameByID(uint32(strpool.Lookup(GlobalNamespace_GetTopVarName(nameStr))), scope, t)
 				if !b.IsTopLevelScopeRoot(root) {
 					return
 				}
-				hasName = true
 			}
 		} else {
 			var segBuf [32]uint32
@@ -613,10 +614,7 @@ func (b *GlobalNamespace_BuildGlobalNamespace) collect(scope *Scope, chunk *JSCh
 				if segExtra != nil {
 					segs = segExtra
 				}
-				var nameMetadata *ModuleMetadataMap_ModuleMetadata
-				if root != g.globalRoot {
-					nameMetadata = b.curMetadata
-				}
+				nameMetadata := b.metadataForRoot(root)
 				if protoTarget.IsNil() {
 					if b.skipsLeafID(segs[0]) {
 						return
@@ -630,14 +628,7 @@ func (b *GlobalNamespace_BuildGlobalNamespace) collect(scope *Scope, chunk *JSCh
 					if b.skipsLeafID(leafID) {
 						return
 					}
-					if !g.forProcessDefines || scope != nil || t == nil {
-						if scope == nil {
-							scope = t.GetScope()
-						}
-						if chunk == nil && t != nil {
-							chunk = t.GetChunk()
-						}
-					}
+					scope, chunk = b.resolveScopeAndChunk(scope, chunk, t)
 					b.AddOrConfirmRef(b.resolveChainByID(topID, segs[protoCut:], nameMetadata), protoTarget, GlobalNamespace_Ref_Type_PROTOTYPE_GET, scope, chunk)
 					return
 				}
@@ -652,25 +643,13 @@ func (b *GlobalNamespace_BuildGlobalNamespace) collect(scope *Scope, chunk *JSCh
 					if !ok {
 						return
 					}
-					hasName = true
 				} else {
 					prefix, ok := protoTarget.GetQualifiedNameString()
 					if !ok || b.skipsName(prefix) {
 						return
 					}
-					var nameMetadata *ModuleMetadataMap_ModuleMetadata
-					if root != g.globalRoot {
-						nameMetadata = b.curMetadata
-					}
-					if !g.forProcessDefines || scope != nil || t == nil {
-						if scope == nil {
-							scope = t.GetScope()
-						}
-						if chunk == nil && t != nil {
-							chunk = t.GetChunk()
-						}
-					}
-					b.AddOrConfirmRef(b.GetOrCreateName(prefix, nameMetadata), protoTarget, GlobalNamespace_Ref_Type_PROTOTYPE_GET, scope, chunk)
+					scope, chunk = b.resolveScopeAndChunk(scope, chunk, t)
+					b.AddOrConfirmRef(b.GetOrCreateName(prefix, b.metadataForRoot(root)), protoTarget, GlobalNamespace_Ref_Type_PROTOTYPE_GET, scope, chunk)
 					return
 				}
 			}
@@ -695,78 +674,25 @@ func (b *GlobalNamespace_BuildGlobalNamespace) collect(scope *Scope, chunk *JSCh
 		return
 	}
 
+	scope, chunk = b.resolveScopeAndChunk(scope, chunk, t)
 	if resolvedName != nil {
-		if g.forProcessDefines && scope == nil && t != nil {
-			if isSet {
-				hoistIdx, hoistRoot := t.closestScopeHoistRoot()
-				if hoistIdx == 0 || (root != g.globalRoot && hoistRoot == b.curModuleRoot) {
-					b.handleResolvedSetFromGlobal(nil, nil, n, resolvedName, type_)
-				} else {
-					b.handleResolvedSetFromLocal(nil, nil, n, resolvedName)
-				}
-			} else {
-				b.handleResolvedGet(nil, nil, n, resolvedName)
-			}
-			return
-		}
-		if scope == nil {
-			scope = t.GetScope()
-		}
-		if chunk == nil && t != nil {
-			chunk = t.GetChunk()
-		}
-		if isSet {
-			hoistScope := scope.GetClosestHoistScope()
-			if hoistScope.IsGlobal() ||
-				(root != g.globalRoot && hoistScope.GetRootNode() == b.curModuleRoot) {
-				b.handleResolvedSetFromGlobal(chunk, scope, n, resolvedName, type_)
-			} else {
-				b.handleResolvedSetFromLocal(chunk, scope, n, resolvedName)
-			}
-		} else {
+		if !isSet {
 			b.handleResolvedGet(chunk, scope, n, resolvedName)
+		} else if b.isGlobalHoistSet(scope, t, root) {
+			b.handleResolvedSetFromGlobal(chunk, scope, n, resolvedName, type_)
+		} else {
+			b.handleResolvedSetFromLocal(chunk, scope, n, resolvedName)
 		}
 		return
 	}
 
-	var nameMetadata *ModuleMetadataMap_ModuleMetadata
-	if root != g.globalRoot {
-		nameMetadata = b.curMetadata
-	}
-	if g.forProcessDefines && scope == nil && t != nil {
-		if isSet {
-			hoistIdx, hoistRoot := t.closestScopeHoistRoot()
-			if hoistIdx == 0 || (root != g.globalRoot && hoistRoot == b.curModuleRoot) {
-				b.HandleSetFromGlobal(nil, nil, n, nameStr, type_, nameMetadata)
-			} else {
-				b.HandleSetFromLocal(nil, nil, n, nameStr, nameMetadata)
-			}
-		} else {
-			b.HandleGet(nil, nil, n, nameStr, nameMetadata)
-		}
-		return
-	}
-	if scope == nil {
-		scope = t.GetScope()
-	}
-	if chunk == nil && t != nil {
-		chunk = t.GetChunk()
-	}
-	if isSet {
-		// Use the closest hoist scope to select handleSetFromGlobal or handleSetFromLocal
-		// because they use the term 'global' in an ES5, pre-block-scoping sense.
-		hoistScope := scope.GetClosestHoistScope()
-		// Consider a set to be 'global' if it is in the hoist scope in which the name is defined.
-		// For example, a global name set in a module scope is a 'local' set, but a module-level
-		// name set in a module scope is a 'global' set.
-		if hoistScope.IsGlobal() ||
-			(root != g.globalRoot && hoistScope.GetRootNode() == b.curModuleRoot) {
-			b.HandleSetFromGlobal(chunk, scope, n, nameStr, type_, nameMetadata)
-		} else {
-			b.HandleSetFromLocal(chunk, scope, n, nameStr, nameMetadata)
-		}
-	} else {
+	nameMetadata := b.metadataForRoot(root)
+	if !isSet {
 		b.HandleGet(chunk, scope, n, nameStr, nameMetadata)
+	} else if b.isGlobalHoistSet(scope, t, root) {
+		b.HandleSetFromGlobal(chunk, scope, n, nameStr, type_, nameMetadata)
+	} else {
+		b.HandleSetFromLocal(chunk, scope, n, nameStr, nameMetadata)
 	}
 }
 

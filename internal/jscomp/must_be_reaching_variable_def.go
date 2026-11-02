@@ -713,31 +713,8 @@ func (d *MustBeReachingVariableDef) ComputeMustDef(n rhino.Node, cfgNode rhino.N
 }
 
 func hasDependent(defs []*MustBeReachingVariableDef_Definition, id int) bool {
-	if len(defs) == 0 {
-		return false
-	}
-	if id < 64 {
-		bit := uint64(1) << id
-		for _, otherDef := range defs {
-			if otherDef != nil && otherDef.deps.w0&bit != 0 {
-				return true
-			}
-		}
-		return false
-	}
-	if id < 128 {
-		bit := uint64(1) << (id - 64)
-		for _, otherDef := range defs {
-			if otherDef != nil && otherDef.deps.w1&bit != 0 {
-				return true
-			}
-		}
-		return false
-	}
-	wi := (id - 128) >> 6
-	bit := uint64(1) << ((id - 128) & 63)
 	for _, otherDef := range defs {
-		if otherDef != nil && wi < len(otherDef.deps.ext) && otherDef.deps.ext[wi]&bit != 0 {
+		if otherDef != nil && otherDef.deps.Get(id) {
 			return true
 		}
 	}
@@ -745,28 +722,8 @@ func hasDependent(defs []*MustBeReachingVariableDef_Definition, id int) bool {
 }
 
 func invalidateDependents(defs []*MustBeReachingVariableDef_Definition, id int) {
-	if id < 64 {
-		bit := uint64(1) << id
-		for i, otherDef := range defs {
-			if otherDef != nil && otherDef.deps.w0&bit != 0 {
-				defs[i] = &mustDefBottom
-			}
-		}
-		return
-	}
-	if id < 128 {
-		bit := uint64(1) << (id - 64)
-		for i, otherDef := range defs {
-			if otherDef != nil && otherDef.deps.w1&bit != 0 {
-				defs[i] = &mustDefBottom
-			}
-		}
-		return
-	}
-	wi := (id - 128) >> 6
-	bit := uint64(1) << ((id - 128) & 63)
 	for i, otherDef := range defs {
-		if otherDef != nil && wi < len(otherDef.deps.ext) && otherDef.deps.ext[wi]&bit != 0 {
+		if otherDef != nil && otherDef.deps.Get(id) {
 			defs[i] = &mustDefBottom
 		}
 	}
@@ -833,21 +790,8 @@ func (d *MustBeReachingVariableDef) computeDependenceWalk(def *MustBeReachingVar
 		return
 	}
 	if n.GetToken() == rhino.Token_CLASS_MEMBERS {
-		for child := n.GetFirstChild(); !child.IsNil(); child = child.GetNext() {
-			if cm, ok := ast.AsComputedMember(child); ok {
-				d.computeDependenceWalk(def, cm.Key().Node(), child)
-			}
-		}
-		for child := n.GetFirstChild(); !child.IsNil(); child = child.GetNext() {
-			if cm, ok := ast.AsComputedMember(child); ok {
-				if !ControlFlowGraph_IsEnteringNewCfgNode(child) {
-					if val, hasVal := cm.Value(); hasVal {
-						d.computeDependenceWalk(def, val.Node(), child)
-					}
-				}
-			} else {
-				d.computeDependenceWalk(def, child, n)
-			}
+		for ch, p := range ast.MustClassBody(n).EvalOrder() {
+			d.computeDependenceWalk(def, ch, p)
 		}
 		return
 	}
