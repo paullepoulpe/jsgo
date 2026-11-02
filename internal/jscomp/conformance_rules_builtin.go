@@ -390,14 +390,8 @@ func (r *ConformanceRules_BannedCodePattern) CheckConformance(t *NodeTraversal, 
 	return ConformanceRules_ConformanceResult_CONFORMANCE
 }
 
-// ConformanceRules_CustomRuleProxy is a custom rule proxy, for rules that we
-// load dynamically.
-type ConformanceRules_CustomRuleProxy struct {
-	customRule CheckConformance_Rule
-}
-
 // Java: ConformanceRules.CustomRuleProxy(AbstractCompiler, Requirement)
-func newConformanceRules_CustomRuleProxy(compiler AbstractCompiler, requirement *Requirement) (*ConformanceRules_CustomRuleProxy, error) {
+func newConformanceRules_CustomRule(compiler AbstractCompiler, requirement *Requirement) (CheckConformance_Rule, error) {
 	if !requirement.HasJavaClass() {
 		return nil, errInvalidRequirementSpec("missing java_class")
 	}
@@ -405,22 +399,7 @@ func newConformanceRules_CustomRuleProxy(compiler AbstractCompiler, requirement 
 	if !ok {
 		return nil, errInvalidRequirementSpec("Unknown conformance rule: " + requirement.GetJavaClass())
 	}
-	rule, err := factory(compiler, requirement)
-	if err != nil {
-		return nil, err
-	}
-	return &ConformanceRules_CustomRuleProxy{customRule: rule}, nil
-}
-
-// Java: ConformanceRules.CustomRuleProxy.getPrecondition()
-func (r *ConformanceRules_CustomRuleProxy) GetPrecondition() CheckConformance_Precondition {
-	return r.customRule.GetPrecondition()
-}
-
-// Java: ConformanceRules.CustomRuleProxy.check(NodeTraversal, Node, LibraryLevelNonAllowlistedConformanceViolationsBehavior)
-func (r *ConformanceRules_CustomRuleProxy) Check(
-	t *NodeTraversal, n rhino.Node, behavior ConformanceConfig_LibraryLevelNonAllowlistedConformanceViolationsBehavior) {
-	r.customRule.Check(t, n, behavior)
+	return factory(compiler, requirement)
 }
 
 // Java: ConformanceRules.CustomRuleProxy.CUSTOM_RULE_REGISTRY

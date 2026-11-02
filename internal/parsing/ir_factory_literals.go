@@ -329,32 +329,42 @@ func (f *IRFactory) NormalizeString(token parser.Token, templateLiteral bool) st
 	return string(b)
 }
 
+func stripASCIIQuotes(s string, templateLiteral bool) string {
+	if !templateLiteral {
+		if len(s) < 2 {
+			return stripLiteralQuotes(s, false)
+		}
+		return s[1 : len(s)-1]
+	}
+	return s
+}
+
+func (f *IRFactory) finishUTF16Norm(units []uint16, firstBackslash int, token parser.Token, templateLiteral bool) ([]byte, string, bool) {
+	if firstBackslash >= 0 {
+		units = f.normalizeStringEscapesInto(units, firstBackslash, token, templateLiteral)
+	} else if !templateLiteral {
+		if len(units) < 2 {
+			return nil, irFactory_substring(units, 1, len(units)-1), true
+		}
+		units = units[1 : len(units)-1]
+	}
+	return f.encodeUTF16ToWTF8(units), "", false
+}
+
 func (f *IRFactory) normalizeStringCore(token parser.Token, templateLiteral bool) ([]byte, string, bool) {
 	checkTokenNotNull(token)
 	if token.MaybePrivateValueID() == 0 {
 		startOff, endOff := token.ValueRange()
 		if s, ok := f.fileWithContent.ASCIISlice(startOff, endOff); ok {
 			if strings.IndexByte(s, '\\') == -1 {
+				s = stripASCIIQuotes(s, templateLiteral)
 				if strings.IndexByte(s, '\r') == -1 {
-					if templateLiteral {
-						return nil, s, true
-					}
-					if len(s) >= 2 {
-						return nil, s[1 : len(s)-1], true
-					}
-					return nil, irFactory_substringWithoutQuotes(s), true
+					return nil, s, true
 				}
-				if templateLiteral {
-					return f.scrubASCIICR(s), "", false
-				}
-				if len(s) >= 2 {
-					return f.scrubASCIICR(s[1 : len(s)-1]), "", false
-				}
-			} else {
-				units, firstBackslash := f.loadASCIIUnitsNormCR(s)
-				result := f.normalizeStringEscapesInto(units, firstBackslash, token, templateLiteral)
-				return f.encodeUTF16ToWTF8(result), "", false
+				return f.scrubASCIICR(s), "", false
 			}
+			units, firstBackslash := f.loadASCIIUnitsNormCR(s)
+			return f.finishUTF16Norm(units, firstBackslash, token, templateLiteral)
 		} else if units, ok := f.fileWithContent.UTF16Slice(startOff, endOff); ok {
 			hasCR := false
 			firstBackslash := -1
@@ -367,31 +377,10 @@ func (f *IRFactory) normalizeStringCore(token parser.Token, templateLiteral bool
 					firstBackslash = i
 				}
 			}
-			if !hasCR {
-				if firstBackslash < 0 {
-					if templateLiteral {
-						return f.encodeUTF16ToWTF8(units), "", false
-					}
-					if len(units) >= 2 {
-						return f.encodeUTF16ToWTF8(units[1 : len(units)-1]), "", false
-					}
-					return nil, irFactory_substring(units, 1, len(units)-1), true
-				}
-				result := f.normalizeStringEscapesInto(units, firstBackslash, token, templateLiteral)
-				return f.encodeUTF16ToWTF8(result), "", false
+			if hasCR {
+				units, firstBackslash = f.loadUTF16UnitsNormCR(units)
 			}
-			normUnits, normBackslash := f.loadUTF16UnitsNormCR(units)
-			if normBackslash < 0 {
-				if templateLiteral {
-					return f.encodeUTF16ToWTF8(normUnits), "", false
-				}
-				if len(normUnits) >= 2 {
-					return f.encodeUTF16ToWTF8(normUnits[1 : len(normUnits)-1]), "", false
-				}
-				return nil, irFactory_substring(normUnits, 1, len(normUnits)-1), true
-			}
-			result := f.normalizeStringEscapesInto(normUnits, normBackslash, token, templateLiteral)
-			return f.encodeUTF16ToWTF8(result), "", false
+			return f.finishUTF16Norm(units, firstBackslash, token, templateLiteral)
 		}
 	}
 
@@ -401,26 +390,13 @@ func (f *IRFactory) normalizeStringCore(token parser.Token, templateLiteral bool
 	// they can only be part of a line continuation, which we want to scrub.
 	if strings.IndexByte(value, '\r') == -1 && strings.IndexByte(value, '\\') == -1 {
 		// short circuit no escapes.
-		if templateLiteral {
-			return nil, value, true
-		}
-		return nil, irFactory_substringWithoutQuotes(value), true
+		return nil, stripLiteralQuotes(value, templateLiteral), true
 	}
 
 	// Go-only: language-adapter — the String and StringBuilder operations of
 	// the escape path work on the UTF-16 code units of the value.
 	units, firstBackslash := f.loadWTF8UnitsNormCR(value)
-	if firstBackslash == -1 {
-		if templateLiteral {
-			return f.encodeUTF16ToWTF8(units), "", false
-		}
-		if len(units) >= 2 {
-			return f.encodeUTF16ToWTF8(units[1 : len(units)-1]), "", false
-		}
-		return nil, irFactory_substring(units, 1, len(units)-1), true
-	}
-	result := f.normalizeStringEscapesInto(units, firstBackslash, token, templateLiteral)
-	return f.encodeUTF16ToWTF8(result), "", false
+	return f.finishUTF16Norm(units, firstBackslash, token, templateLiteral)
 }
 
 func parseUTF16HexCodePoint(units []uint16, begin, end int) int32 {
@@ -599,12 +575,18 @@ func (f *IRFactory) normalizeStringEscapesInto(units []uint16, cur int, token pa
 	return result
 }
 
-// irFactory_substringWithoutQuotes is value.substring(1, value.length() - 1).
+// stripLiteralQuotes strips surrounding quotes when !templateLiteral
+// (value.substring(1, value.length() - 1)).
 //
 // Go-only: language-adapter — the first char of a string token is an ASCII
 // quote; when the last byte is ASCII too, the UTF-16 range [1, length - 1)
 // is the byte range [1, len - 1).
-func irFactory_substringWithoutQuotes(value string) string {
+//
+//go:noinline
+func stripLiteralQuotes(value string, templateLiteral bool) string {
+	if templateLiteral {
+		return value
+	}
 	if n := len(value); n >= 2 && value[0] < 0x80 && value[n-1] < 0x80 {
 		return value[1 : n-1]
 	}

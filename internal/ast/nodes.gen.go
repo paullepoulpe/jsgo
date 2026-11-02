@@ -539,6 +539,12 @@ func (x LabelName) Ident() string { return x.node.GetString() }
 // SetIdent sets the node's string.
 func (x LabelName) SetIdent(s string) { x.node.SetString(s) }
 
+// NewLabelName returns a new LabelName.
+func NewLabelName(ident string) LabelName {
+	n := rhino.Node_NewStringWithToken(rhino.Token_LABEL_NAME, ident)
+	return LabelName{n}
+}
+
 // If is if (cond) then else else.
 //
 // Grammar: If = IF  cond:Expr then:Block else:Block?

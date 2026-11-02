@@ -129,14 +129,6 @@ func NewMalformedTypedAstExceptionWithCause(msg any, cause jutil.Throwable) *Mal
 	return e
 }
 
-type runtimeLibsTypedAstStream struct {
-	data []byte
-}
-
-func (r *runtimeLibsTypedAstStream) Read(p []byte) (int, error) {
-	return 0, io.EOF
-}
-
 type cachedTypedAstShard struct {
 	proto       *TypedAst
 	stringShard *StringPool
@@ -310,6 +302,7 @@ func typedAstDeserializer_deserializeFullAstFromSet(
 		requiredSet,
 		nil,
 		typedAstsStream,
+		nil,
 		typedAstDeserializer_Mode_FULL_AST,
 		includeTypeInformation,
 		resolveSourceMapAnnotations,
@@ -328,7 +321,7 @@ func TypedAstDeserializer_DeserializeRuntimeLibraries(
 	compiler AbstractCompiler,
 	syntheticExterns *SourceFile,
 	colorPool *ColorPool_Builder,
-	typedAstsStream io.Reader,
+	typedAstsBytes []byte,
 	resolveSourceMapAnnotations bool,
 	parseInlineSourceMaps bool) *TypedAstDeserializer_DeserializedAst {
 	return typedAstDeserializer_deserialize(
@@ -339,7 +332,8 @@ func TypedAstDeserializer_DeserializeRuntimeLibraries(
 		nil,
 		nil,
 		colorPool,
-		typedAstsStream,
+		nil,
+		typedAstsBytes,
 		typedAstDeserializer_Mode_RUNTIME_LIBRARY_ONLY,
 		colorPool != nil,
 		resolveSourceMapAnnotations,
@@ -354,6 +348,7 @@ func typedAstDeserializer_deserialize(
 	requiredInputFiles map[*SourceFile]struct{},
 	colorPool *ColorPool_Builder,
 	typedAstStream io.Reader,
+	typedAstBytes []byte,
 	mode typedAstDeserializer_Mode,
 	includeTypeInformation bool,
 	resolveSourceMapAnnotations bool,
@@ -370,14 +365,16 @@ func typedAstDeserializer_deserialize(
 		deserializer.addToFilePool(file.GetName(), file)
 	}
 
-	if mode != typedAstDeserializer_Mode_RUNTIME_LIBRARY_ONLY {
+	if mode == typedAstDeserializer_Mode_RUNTIME_LIBRARY_ONLY {
+		typedAstDeserializer_deserializeRuntimeLibraries(
+			typedAstBytes, deserializer, compiler, resolveSourceMapAnnotations, parseInlineSourceMaps)
+	} else {
 		// skip this step if deserializing the runtime libraries to avoid an infinite loop
 		// runtime library initialization needs an unbuilt ColorPool.Builder
 		compiler.InitRuntimeLibraryTypedAsts(deserializer.colorPoolBuilder)
+		typedAstDeserializer_deserializeTypedAsts(
+			typedAstStream, deserializer, compiler, resolveSourceMapAnnotations, parseInlineSourceMaps)
 	}
-
-	typedAstDeserializer_deserializeTypedAsts(
-		typedAstStream, deserializer, compiler, resolveSourceMapAnnotations, parseInlineSourceMaps)
 
 	deserializer.typedAstFilesystem[syntheticExterns] = typedAstFileEntry{
 		synthetic: newTypedAstDeserializer_SyntheticExternsDeserializer(
@@ -654,6 +651,42 @@ func typedAstDeserializer_deserializeWeakScriptNode(file *SourceFile) rhino.Node
 	return stubScript
 }
 
+func typedAstDeserializer_deserializeRuntimeLibraries(
+	data []byte,
+	deserializer *TypedAstDeserializer,
+	compiler AbstractCompiler,
+	resolveSourceMapAnnotations bool,
+	parseInlineSourceMaps bool) {
+	if data == nil {
+		panic(jutil.NewNullPointerException())
+	}
+	runtimeLibsTypedAstOnce.Do(func() {
+		codedInput := &protoReader{b: data, limit: math.MaxInt32}
+		for !codedInput.atEnd() {
+			tag := codedInput.readTag()
+			if jutil.Ushr32(int32(tag), 3) != typedAstList_TYPED_ASTS_FIELD_NUMBER ||
+				tag&7 != typedAstDeserializer_WIRETYPE_LENGTH_DELIMITED {
+				panic(NewInvalidProtocolBufferException(
+					"Unexpected field number " +
+						strconv.Itoa(int(jutil.Ushr32(int32(tag), 3))) +
+						" or wire type " +
+						strconv.Itoa(tag&7)))
+			}
+			messageBytes := codedInput.readMessageBytes()
+			typedAst, stringShard := typedAstDeserializer_decodeShardBytes(messageBytes, nil)
+			runtimeLibsTypedAstShards = append(runtimeLibsTypedAstShards, cachedTypedAstShard{
+				proto:       typedAst,
+				stringShard: stringShard,
+			})
+		}
+	})
+	for i := range runtimeLibsTypedAstShards {
+		sh := &runtimeLibsTypedAstShards[i]
+		deserializer.deserializeTypedAstWithStringShard(
+			sh.proto, sh.stringShard, compiler, resolveSourceMapAnnotations, parseInlineSourceMaps)
+	}
+}
+
 // Java: TypedAstDeserializer.deserializeTypedAsts(InputStream, TypedAstDeserializer, AbstractCompiler, boolean, boolean)
 func typedAstDeserializer_deserializeTypedAsts(
 	typedAstsStream io.Reader,
@@ -661,34 +694,6 @@ func typedAstDeserializer_deserializeTypedAsts(
 	compiler AbstractCompiler,
 	resolveSourceMapAnnotations bool,
 	parseInlineSourceMaps bool) {
-	if rlStream, ok := typedAstsStream.(*runtimeLibsTypedAstStream); ok {
-		runtimeLibsTypedAstOnce.Do(func() {
-			codedInput := &protoReader{b: rlStream.data, limit: math.MaxInt32}
-			for !codedInput.atEnd() {
-				tag := codedInput.readTag()
-				if jutil.Ushr32(int32(tag), 3) != typedAstList_TYPED_ASTS_FIELD_NUMBER ||
-					tag&7 != typedAstDeserializer_WIRETYPE_LENGTH_DELIMITED {
-					panic(NewInvalidProtocolBufferException(
-						"Unexpected field number " +
-							strconv.Itoa(int(jutil.Ushr32(int32(tag), 3))) +
-							" or wire type " +
-							strconv.Itoa(tag&7)))
-				}
-				messageBytes := codedInput.readMessageBytes()
-				typedAst, stringShard := typedAstDeserializer_decodeShardBytes(messageBytes, nil)
-				runtimeLibsTypedAstShards = append(runtimeLibsTypedAstShards, cachedTypedAstShard{
-					proto:       typedAst,
-					stringShard: stringShard,
-				})
-			}
-		})
-		for i := range runtimeLibsTypedAstShards {
-			sh := &runtimeLibsTypedAstShards[i]
-			deserializer.deserializeTypedAstWithStringShard(
-				sh.proto, sh.stringShard, compiler, resolveSourceMapAnnotations, parseInlineSourceMaps)
-		}
-		return
-	}
 
 	defer func() {
 		if r := recover(); r != nil {

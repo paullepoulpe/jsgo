@@ -488,16 +488,6 @@ type CompilerInput_DepsFinder struct {
 	modulePath   *ModuleLoader_ModulePath
 }
 
-// Java: CompilerInput.DepsFinder(ModulePath)
-func newCompilerInput_DepsFinder(modulePath *ModuleLoader_ModulePath) *CompilerInput_DepsFinder {
-	return &CompilerInput_DepsFinder{
-		provides:     []string{},
-		requires:     []*DependencyInfo_Require{},
-		typeRequires: []string{},
-		modulePath:   modulePath,
-	}
-}
-
 // Java: CompilerInput.DepsFinder.visitTree(Node)
 func (f *CompilerInput_DepsFinder) VisitTree(n rhino.Node) {
 	f.VisitSubtree(n, rhino.NilNode)
@@ -807,10 +797,6 @@ type CompilerInput_JsAst struct {
 	outer    *CompilerInput
 	root     rhino.Node
 	features *parser.FeatureSet
-}
-
-func newCompilerInput_JsAst(outer *CompilerInput) *CompilerInput_JsAst {
-	return &CompilerInput_JsAst{outer: outer}
 }
 
 // Java: CompilerInput.JsAst.getAstRoot(AbstractCompiler)

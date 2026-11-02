@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 )
 
@@ -87,5 +88,30 @@ func TestCharSourceWrapRead(t *testing.T) {
 	}
 	if got := Files_AsCharSource(NewFile(path), StandardCharsets_UTF_8).Read(); got != "xé\n" {
 		t.Errorf("Files.asCharSource(...).read() = %q", got)
+	}
+}
+
+func TestPathHashCodeConcurrent(t *testing.T) {
+	p := Path_Of("some/concurrent/path/foo.js")
+	var wg sync.WaitGroup
+	results := make([]int32, 16)
+	for i := range results {
+		wg.Add(1)
+		go func(idx int) {
+			defer wg.Done()
+			results[idx] = p.HashCode()
+		}(i)
+	}
+	wg.Wait()
+	for i, got := range results {
+		if got == 0 || got != results[0] {
+			t.Fatalf("results[%d] = %d, want %d", i, got, results[0])
+		}
+	}
+	if root := Path_Of("/"); root.HashCode() != '/' {
+		t.Fatalf("root HashCode() = %d, want %d", root.HashCode(), '/')
+	}
+	if empty := Path_Of(""); empty.HashCode() != 0 {
+		t.Fatalf("empty HashCode() = %d, want 0", empty.HashCode())
 	}
 }

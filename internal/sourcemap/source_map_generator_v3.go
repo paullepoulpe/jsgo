@@ -687,17 +687,50 @@ func SourceMapGeneratorV3_AppendFieldStartWithFirst(out io.StringWriter, name st
 // Java: SourceMapGeneratorV3.appendFieldEnd(Appendable)
 func SourceMapGeneratorV3_AppendFieldEnd(out io.StringWriter) {}
 
+func (g *SourceMapGeneratorV3) ensureIDTables() {
+	nSources := len(g.addedSourceFiles)
+	if cap(g.sourceIdxToFileId) < nSources {
+		g.sourceIdxToFileId = make([]int32, nSources)
+	} else {
+		g.sourceIdxToFileId = g.sourceIdxToFileId[:nSources]
+	}
+	for i := range g.sourceIdxToFileId {
+		g.sourceIdxToFileId[i] = -1
+	}
+	if cap(g.orderedSourceFiles) < nSources {
+		g.orderedSourceFiles = make([]string, 0, nSources)
+	} else {
+		clear(g.orderedSourceFiles)
+		g.orderedSourceFiles = g.orderedSourceFiles[:0]
+	}
+	nSymbols := len(g.addedSymbolNames)
+	if cap(g.symbolIdxToNameId) < nSymbols {
+		g.symbolIdxToNameId = make([]int32, nSymbols)
+	} else {
+		g.symbolIdxToNameId = g.symbolIdxToNameId[:nSymbols]
+	}
+	for i := range g.symbolIdxToNameId {
+		g.symbolIdxToNameId[i] = -1
+	}
+	if cap(g.orderedSymbolNames) == 0 && nSymbols > 0 {
+		g.orderedSymbolNames = make([]string, 0, min(nSymbols, 1024))
+	} else {
+		clear(g.orderedSymbolNames)
+		g.orderedSymbolNames = g.orderedSymbolNames[:0]
+	}
+}
+
 // PrepMappings assigns sequential ids to used mappings, and returns the last
 // line mapped.
 //
 // Java: SourceMapGeneratorV3.prepMappings()
 func (g *SourceMapGeneratorV3) PrepMappings() int {
-	var check SourceMapGeneratorV3_UsedMappingCheck
 	t := SourceMapGeneratorV3_MappingTraversal{outer: g}
-	t.Traverse(&check)
+	rv := mappingRangeVisitor{kind: visitUsedCheck}
+	t.traverse(&rv)
 
 	// Adjust for the prefix.
-	return jutil.IntAdd(check.maxLine, g.prefixPosition.GetLine())
+	return jutil.IntAdd(rv.check.maxLine, g.prefixPosition.GetLine())
 }
 
 // AppendIndexMapTo appends the index source map to the given buffer.

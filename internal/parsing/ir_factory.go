@@ -257,15 +257,10 @@ func (f *IRFactory) isReservedKeyword(identifier string) bool {
 
 func (f *IRFactory) internString(s string) strpool.ID {
 	if len(s) == 0 {
-		return 1
+		return strpool.EmptyID
 	}
 	if len(s) <= 32 {
-		h := uint32(2166136261)
-		for i := 0; i < len(s); i++ {
-			h ^= uint32(s[i])
-			h *= 16777619
-		}
-		slot := h & uint32(len(f.strCache)-1)
+		slot := strpool.HashString(s) & uint64(len(f.strCache)-1)
 		if id := f.strCache[slot]; id != 0 && strpool.String(id) == s {
 			return id
 		}
@@ -278,15 +273,10 @@ func (f *IRFactory) internString(s string) strpool.ID {
 
 func (f *IRFactory) internStringBytes(b []byte) strpool.ID {
 	if len(b) == 0 {
-		return 1
+		return strpool.EmptyID
 	}
 	if len(b) <= 32 {
-		h := uint32(2166136261)
-		for _, c := range b {
-			h ^= uint32(c)
-			h *= 16777619
-		}
-		slot := h & uint32(len(f.strCache)-1)
+		slot := strpool.HashBytes(b) & uint64(len(f.strCache)-1)
 		if id := f.strCache[slot]; id != 0 && strpool.String(id) == string(b) {
 			return id
 		}

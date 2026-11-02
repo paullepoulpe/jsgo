@@ -223,7 +223,3 @@ func appendByte(out io.StringWriter, b byte) {
 	tmp[0] = b
 	appendBytes(out, tmp[:])
 }
-
-func appendChar(out io.StringWriter, c uint16) {
-	appendString(out, jutil.StringFromChar(c))
-}

@@ -222,5 +222,4 @@ func (n Node) setPropsAndSourceFile(other Node) {
 }
 
 func (n Node) orProps(v uint64)     { n.setProps(n.props() | v) }
-func (n Node) andProps(v uint64)    { n.setProps(n.props() & v) }
 func (n Node) andNotProps(v uint64) { n.setProps(n.props() &^ v) }

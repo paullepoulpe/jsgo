@@ -967,37 +967,49 @@ type kvEntry[V any] struct {
 	value V
 }
 
+// checkUniqueKeys validates that entries contain no duplicate keys, panicking
+// with Guava ImmutableMap.Builder.buildOrThrow's exact error message on conflict.
+func checkUniqueKeys[E any](entries []E, keyOf func(E) string, valOf func(E) string) {
+	n := len(entries)
+	if n <= 1 {
+		return
+	}
+	if n > 8 {
+		seen := make(map[string]struct{}, n)
+		hasDup := false
+		for _, e := range entries {
+			k := keyOf(e)
+			if _, ok := seen[k]; ok {
+				hasDup = true
+				break
+			}
+			seen[k] = struct{}{}
+		}
+		if !hasDup {
+			return
+		}
+	}
+	for i := n - 1; i >= 0; i-- {
+		k := keyOf(entries[i])
+		for j := i + 1; j < n; j++ {
+			if keyOf(entries[j]) == k {
+				panic(jutil.NewIllegalArgumentExceptionMsg("Multiple entries with same key: " +
+					k + "=" + valOf(entries[j]) + " and " +
+					k + "=" + valOf(entries[i])))
+			}
+		}
+	}
+}
+
 func buildUniqueLinkedMap[V any](entries []kvEntry[V]) *jutil.LinkedHashMap[string, V] {
 	n := len(entries)
 	out := jutil.NewLinkedHashMapWithCapacity[string, V](n)
 	if n == 0 {
 		return out
 	}
-	hasDup := false
-	if n > 8 {
-		seen := make(map[string]struct{}, n)
-		for _, e := range entries {
-			if _, ok := seen[e.key]; ok {
-				hasDup = true
-				break
-			}
-			seen[e.key] = struct{}{}
-		}
-	} else {
-		hasDup = true
-	}
-	if hasDup {
-		for i := n - 1; i >= 0; i-- {
-			k := entries[i].key
-			for j := i + 1; j < n; j++ {
-				if entries[j].key == k {
-					panic(jutil.NewIllegalArgumentExceptionMsg("Multiple entries with same key: " +
-						k + "=" + jutil.ToJavaString(entries[j].value) + " and " +
-						k + "=" + jutil.ToJavaString(entries[i].value)))
-				}
-			}
-		}
-	}
+	checkUniqueKeys(entries,
+		func(e kvEntry[V]) string { return e.key },
+		func(e kvEntry[V]) string { return jutil.ToJavaString(e.value) })
 	for _, e := range entries {
 		out.Put(e.key, e.value)
 	}

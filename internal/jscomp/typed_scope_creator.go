@@ -245,7 +245,7 @@ func NewTypedScopeCreatorWithCodingConvention(compiler AbstractCompiler, codingC
 	}
 	c.moduleMap = compiler.GetModuleMap()
 	c.moduleImportResolver = NewModuleImportResolver(c.moduleMap, c.GetNodeToScopeMapper(), c.typeRegistry)
-	c.processClosurePrimitives = c.metadataMap.ModulesByGoogNamespaceMap().Size() > 0
+	c.processClosurePrimitives = c.metadataMap.GetModulesByGoogNamespace().Size() > 0
 
 	// Reset state to empty collections.
 	c.ClearCommonState()

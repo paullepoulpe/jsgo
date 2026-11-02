@@ -131,7 +131,10 @@ func NodeUtil_GetNearestFunctionName(n rhino.Node) *string {
 	case rhino.Token_MEMBER_FUNCTION_DEF, rhino.Token_SETTER_DEF, rhino.Token_GETTER_DEF, rhino.Token_STRING_KEY:
 		return jutil.StringPtr(parent.GetString())
 	case rhino.Token_NUMBER:
-		return NodeUtil_GetStringValue(parent)
+		if s, ok := NodeUtil_GetStringValue(parent); ok {
+			return &s
+		}
+		return nil
 	default:
 		return nil
 	}

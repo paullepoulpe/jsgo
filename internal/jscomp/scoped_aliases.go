@@ -172,7 +172,7 @@ type ScopedAliasesOptions struct {
 func NewScopedAliases(compiler AbstractCompiler, opts ScopedAliasesOptions) *ScopedAliases {
 	var closureNamespaces map[string]struct{}
 	if opts.ModuleMetadataMap != nil {
-		entries := opts.ModuleMetadataMap.ModulesByGoogNamespaceMap().Entries()
+		entries := opts.ModuleMetadataMap.GetModulesByGoogNamespace().Entries()
 		if len(entries) > 0 {
 			closureNamespaces = make(map[string]struct{}, len(entries))
 			for _, e := range entries {

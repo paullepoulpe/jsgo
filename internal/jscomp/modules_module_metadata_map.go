@@ -412,21 +412,6 @@ func (m *OrderedStringMap[V]) Values() iter.Seq[V] {
 	}
 }
 
-// toLinkedHashMap materializes a jutil.LinkedHashMap view, reusing emptySingleton when empty.
-func (m *OrderedStringMap[V]) toLinkedHashMap(emptySingleton *jutil.LinkedHashMap[string, V]) *jutil.LinkedHashMap[string, V] {
-	if m == nil || len(m.entries) == 0 {
-		if emptySingleton != nil {
-			return emptySingleton
-		}
-		return jutil.NewLinkedHashMap[string, V]()
-	}
-	out := jutil.NewLinkedHashMapWithCapacity[string, V](len(m.entries))
-	for _, e := range m.entries {
-		out.Put(e.Key, e.Value)
-	}
-	return out
-}
-
 // ModuleMetadataSet is a zero-allocation ordered set view over []*ModuleMetadataMap_ModuleMetadata.
 type ModuleMetadataSet struct {
 	items []*ModuleMetadataMap_ModuleMetadata
@@ -575,20 +560,13 @@ func (m *ModuleMetadataMap) buildAllMetadata() {
 }
 
 // Java: ModuleMetadataMap(Map<String, ModuleMetadata>, Map<String, ModuleMetadata>)
-func NewModuleMetadataMap(
-	modulesByPath *jutil.LinkedHashMap[string, *ModuleMetadataMap_ModuleMetadata],
-	modulesByGoogNamespace *jutil.LinkedHashMap[string, *ModuleMetadataMap_ModuleMetadata]) *ModuleMetadataMap {
+func NewModuleMetadataMapFromOrderedMaps(
+	modulesByPath *OrderedStringMap[*ModuleMetadataMap_ModuleMetadata],
+	modulesByGoogNamespace *OrderedStringMap[*ModuleMetadataMap_ModuleMetadata],
+) *ModuleMetadataMap {
 	jutil.CheckNotNull(modulesByPath)
 	jutil.CheckNotNull(modulesByGoogNamespace)
-	byPath := NewOrderedStringMapWithCapacity[*ModuleMetadataMap_ModuleMetadata](modulesByPath.Size())
-	for k, v := range modulesByPath.All() {
-		byPath.Put(k, jutil.CheckNotNull(v))
-	}
-	byNs := NewOrderedStringMapWithCapacity[*ModuleMetadataMap_ModuleMetadata](modulesByGoogNamespace.Size())
-	for k, v := range modulesByGoogNamespace.All() {
-		byNs.Put(k, jutil.CheckNotNull(v))
-	}
-	return newModuleMetadataMapDirect(*byPath, *byNs)
+	return newModuleMetadataMapDirect(*modulesByPath, *modulesByGoogNamespace)
 }
 
 // ModuleMetadataMap_ModuleMetadata is the struct containing basic
@@ -877,16 +855,6 @@ func (b ModuleMetadataMap_ModuleMetadata_Builder) GoogNamespacesBuilder() *Strin
 // Java: AutoValue_ModuleMetadataMap_ModuleMetadata.Builder.build()
 func (b ModuleMetadataMap_ModuleMetadata_Builder) Build() *ModuleMetadataMap_ModuleMetadata {
 	return b.m
-}
-
-// ModulesByPathMap returns the native Go OrderedStringMap from module path to metadata.
-func (m *ModuleMetadataMap) ModulesByPathMap() *OrderedStringMap[*ModuleMetadataMap_ModuleMetadata] {
-	return &m.byPath
-}
-
-// ModulesByGoogNamespaceMap returns the native Go OrderedStringMap from Closure namespace to metadata.
-func (m *ModuleMetadataMap) ModulesByGoogNamespaceMap() *OrderedStringMap[*ModuleMetadataMap_ModuleMetadata] {
-	return &m.byGoogNamespace
 }
 
 // ModuleByPath looks up metadata by module path in O(1) without materializing LinkedHashMap.

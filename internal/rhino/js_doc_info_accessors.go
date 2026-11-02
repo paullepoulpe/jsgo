@@ -438,11 +438,6 @@ func (i *JSDocInfo) GetEnhance() *string {
 	return i.getStringPtrProp(JSDocInfo_ENHANCED_NAMESPACE)
 }
 
-// GetEnhanceString returns the `@enhance` namespace without allocating a *string.
-func (i *JSDocInfo) GetEnhanceString() (string, bool) {
-	return i.getStringProp(JSDocInfo_ENHANCED_NAMESPACE)
-}
-
 // HasMods returns whether this has a modded namespace.
 //
 // Java: JSDocInfo.hasMods()
@@ -455,11 +450,6 @@ func (i *JSDocInfo) HasMods() bool {
 // Java: JSDocInfo.getMods()
 func (i *JSDocInfo) GetMods() *string {
 	return i.getStringPtrProp(JSDocInfo_MODS)
-}
-
-// GetModsString returns the `@mods` namespace without allocating a *string.
-func (i *JSDocInfo) GetModsString() (string, bool) {
-	return i.getStringProp(JSDocInfo_MODS)
 }
 
 // GetMarkers gets the list of all markers for the documentation in this

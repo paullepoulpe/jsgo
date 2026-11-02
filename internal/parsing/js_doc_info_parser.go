@@ -31,8 +31,7 @@ import (
 // JsDocInfoParser is a parser for JSDoc comments.
 type JsDocInfoParser struct {
 	stream          *JsDocTokenStream
-	jsdocBuilder    *rhino.JSDocInfo_Builder
-	jsdocBuilderVal rhino.JSDocInfo_Builder
+	jsdocBuilder    rhino.JSDocInfo_Builder
 	errorReporter   rhino.ErrorReporter
 	jsDocSourceKind JsDocInfoParser_JsDocSourceKind
 
@@ -223,7 +222,6 @@ func (p *JsDocInfoParser) Init(
 	errorReporter rhino.ErrorReporter,
 ) {
 	p.stream = stream
-	p.jsdocBuilder = &p.jsdocBuilderVal
 	p.jsdocBuilder.Reset()
 
 	parseDocumentation := config.JsDocParsingMode().ShouldParseDescriptions()

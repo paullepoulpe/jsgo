@@ -42,9 +42,6 @@ const (
 
 var tri_names = [...]string{"FALSE", "UNKNOWN", "TRUE"}
 
-// tri_value is the `value` field of each constant.
-var tri_value = [...]int32{-1, 0, 1}
-
 // Tri_values is Tri.values().
 func Tri_values() []Tri { return []Tri{Tri_FALSE, Tri_UNKNOWN, Tri_TRUE} }
 
@@ -58,34 +55,53 @@ func (t Tri) Ordinal() int { return int(t) }
 //
 // Java: Tri.or(Tri)
 func (t Tri) Or(x Tri) Tri {
-	if tri_value[t] > tri_value[x] {
-		return t
+	if t == Tri_TRUE || x == Tri_TRUE {
+		return Tri_TRUE
 	}
-	return x
+	if t == Tri_UNKNOWN || x == Tri_UNKNOWN {
+		return Tri_UNKNOWN
+	}
+	return Tri_FALSE
 }
 
 // And is ternary and.
 //
 // Java: Tri.and(Tri)
 func (t Tri) And(x Tri) Tri {
-	if tri_value[t] < tri_value[x] {
-		return t
+	if t == Tri_FALSE || x == Tri_FALSE {
+		return Tri_FALSE
 	}
-	return x
+	if t == Tri_UNKNOWN || x == Tri_UNKNOWN {
+		return Tri_UNKNOWN
+	}
+	return Tri_TRUE
 }
 
 // Xor is ternary xor.
 //
 // Java: Tri.xor(Tri)
 func (t Tri) Xor(x Tri) Tri {
-	return Tri_ForInt(-tri_value[t] * tri_value[x])
+	if t == Tri_UNKNOWN || x == Tri_UNKNOWN {
+		return Tri_UNKNOWN
+	}
+	if t == x {
+		return Tri_FALSE
+	}
+	return Tri_TRUE
 }
 
 // Not is ternary negation.
 //
 // Java: Tri.not()
 func (t Tri) Not() Tri {
-	return Tri_ForInt(-tri_value[t])
+	switch t {
+	case Tri_FALSE:
+		return Tri_TRUE
+	case Tri_TRUE:
+		return Tri_FALSE
+	default:
+		return Tri_UNKNOWN
+	}
 }
 
 // ToBoolean returns the boolean value, or x for UNKNOWN.
@@ -119,11 +135,3 @@ func Tri_ForBoolean(x bool) Tri {
 func (t Tri) String() string {
 	return jutil.StringToLowerCaseASCII(t.Name())
 }
-
-// Java: Tri.forInt(int)
-func Tri_ForInt(x int32) Tri {
-	return Tri_VALUES[x+1]
-}
-
-// Java: Tri.VALUES
-var Tri_VALUES = Tri_values()

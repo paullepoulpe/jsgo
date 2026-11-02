@@ -33,8 +33,6 @@ type SAXParseException struct {
 	columnNumber int
 }
 
-func (*SAXParseException) saxParseException() {}
-
 func newSAXParseExceptionAt(message string, line, column int) *SAXParseException {
 	e := &SAXParseException{lineNumber: line, columnNumber: column}
 	jutil.InitThrowable(e, "org.xml.sax.SAXParseException", &message, nil)

@@ -180,12 +180,6 @@ func (b *FunctionType_Builder) SetGoogModuleId(x *string) *FunctionType_Builder 
 	return b
 }
 
-// SetGoogModuleIdString sets the non-null goog.module ID without allocating a *string.
-func (b *FunctionType_Builder) SetGoogModuleIdString(id string) *FunctionType_Builder {
-	b.googModuleID = rhinoStringPoolIntern(id)
-	return b
-}
-
 // SetOptionalGoogModuleId sets or clears the goog.module ID without allocating a *string.
 func (b *FunctionType_Builder) SetOptionalGoogModuleId(id string, ok bool) *FunctionType_Builder {
 	if !ok {

@@ -711,7 +711,7 @@ func (c *VarCheckTest) TestNoCreateVarsForLabels() {
 
 // Java: VarCheckTest.testJSCompiler_renamePropertyInRequiredSymbols()
 func (c *VarCheckTest) TestJSCompiler_renamePropertyInRequiredSymbols() {
-	AssertThat(VarCheck_REQUIRED_SYMBOLS).Contains("JSCompiler_renameProperty")
+	AssertThat(varCheck_requiredSymbols[:]).Contains("JSCompiler_renameProperty")
 }
 
 // Java: VarCheckTest.testJSCompiler_renamePropertySynthesizedExtern()

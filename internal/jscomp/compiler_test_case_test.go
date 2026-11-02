@@ -301,7 +301,7 @@ var CompilerTestCase_VAR_CHECK_EXTERNS = compilerTestCase_varCheckExterns()
 
 func compilerTestCase_varCheckExterns() string {
 	var sb strings.Builder
-	for s := range VarCheck_REQUIRED_SYMBOLS.All() {
+	for _, s := range varCheck_requiredSymbols {
 		sb.WriteString("var " + s + ";\n")
 	}
 	return sb.String()

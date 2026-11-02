@@ -19,7 +19,6 @@
 package jscomp
 
 import (
-	"bytes"
 	"io"
 	"slices"
 	"strconv"
@@ -489,38 +488,18 @@ func (c *Compiler) mergeAndDeserializeTypedAsts(
 	c.runInCompilerThread(c.parseForCompilationInternal)
 }
 
-// compiler_getResourceAsStream is Compiler.class.getResourceAsStream(path):
-// nil (Java null) when there is no such resource.
-//
-// Go-only: language-adapter — classpath resources are embedded in package
-// resources.
-func compiler_getResourceAsStream(path string) io.Reader {
-	data := resources.ResourceLoader_GetResourceAsStream("com.google.javascript.jscomp.Compiler", path)
-	if data == nil {
-		return nil
-	}
-	return bytes.NewReader(data)
-}
-
 // Java: Compiler.initRuntimeLibraryTypedAsts(Optional<ColorPool.Builder>)
 func (c *Compiler) InitRuntimeLibraryTypedAsts(colorPoolBuilder *ColorPool_Builder) {
 	jutil.CheckState(c.runtimeLibraryTypedAsts == nil)
 
-	path := strings.Join([]string{
-		"/runtime_libs.typedast"}, "")
-
-	var stream io.Reader
-	if data := resources.ResourceLoader_GetResourceAsStream("com.google.javascript.jscomp.Compiler", path); data != nil {
-		stream = &runtimeLibsTypedAstStream{data: data}
-	} else {
-		stream = compiler_getResourceAsStream(path)
-	}
+	data := resources.ResourceLoader_GetResourceAsStream(
+		"com.google.javascript.jscomp.Compiler", "/runtime_libs.typedast")
 
 	astData := TypedAstDeserializer_DeserializeRuntimeLibraries(
 		c,
 		c.SYNTHETIC_EXTERNS_FILE,
 		colorPoolBuilder,
-		stream,
+		data,
 		c.GetOptions().GetResolveSourceMapAnnotations(),
 		c.GetOptions().GetParseInlineSourceMaps())
 

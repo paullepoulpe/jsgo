@@ -158,9 +158,6 @@ func initNodeTraversal(
 	t.scopeTraversalRoot = rhino.NilNode
 	t.callback = cb
 	_, t.noShouldTraverse = cb.(nodeTraversal_noShouldTraverse)
-	if !t.noShouldTraverse {
-		_, t.noShouldTraverse = cb.(NodeTraversal_AbstractPostOrderCallbackInterface)
-	}
 	t.noBranchShouldTraverse = t.noShouldTraverse
 	if !t.noBranchShouldTraverse {
 		if sf, ok := cb.(nodeTraversal_onlyScriptAndFunctionShouldTraverse); ok {
@@ -231,11 +228,7 @@ func (b NodeTraversal_Builder) SetCallback(x NodeTraversal_Callback) NodeTravers
 //
 // Java: NodeTraversal.Builder.setCallback(AbstractPostOrderCallbackInterface)
 func (b NodeTraversal_Builder) SetCallbackFunc(x NodeTraversal_AbstractPostOrderCallbackInterface) NodeTraversal_Builder {
-	if x != nil {
-		b.callback = x
-	} else {
-		b.callback = nodeTraversal_nilPostOrderCallback
-	}
+	b.callback = x
 	return b
 }
 

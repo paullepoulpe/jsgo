@@ -130,7 +130,7 @@ func (v *typedScopeVectors) run(t *testing.T) string {
 	fScope := NewTypedScope(global, fn)
 	v.labels[fScope] = "fScope"
 	fScope.Declare("x", xName, nil, input, true)
-	fBlock := NewTypedScopeWithReservedNames(fScope, fBody, jutil.NewLinkedHashSet("a", "z", "u"), nil)
+	fBlock := newTypedScopeOwnedReservedNames(fScope, fBody, []string{"a", "z", "u"}, nil)
 	v.labels[fBlock] = "fBlock"
 	fBlock.Declare("a", innerA, bool_, input, false)
 	fBlock.Declare("u", innerU, nil, input, false)

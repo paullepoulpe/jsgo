@@ -204,10 +204,6 @@ type TypeInferencePass_FirstScopeBuildingCallback struct {
 
 func (*TypeInferencePass_FirstScopeBuildingCallback) nodeTraversalNoVisit() {}
 
-func newTypeInferencePass_FirstScopeBuildingCallback() *TypeInferencePass_FirstScopeBuildingCallback {
-	return &TypeInferencePass_FirstScopeBuildingCallback{}
-}
-
 // Java: TypeInferencePass.FirstScopeBuildingCallback.enterScope(NodeTraversal)
 func (c *TypeInferencePass_FirstScopeBuildingCallback) EnterScope(t *NodeTraversal) {
 	t.GetTypedScope()
@@ -226,10 +222,6 @@ type TypeInferencePass_SecondScopeBuildingCallback struct {
 }
 
 func (*TypeInferencePass_SecondScopeBuildingCallback) nodeTraversalNoVisit() {}
-
-func newTypeInferencePass_SecondScopeBuildingCallback(outer *TypeInferencePass) *TypeInferencePass_SecondScopeBuildingCallback {
-	return &TypeInferencePass_SecondScopeBuildingCallback{outer: outer}
-}
 
 // Java: TypeInferencePass.SecondScopeBuildingCallback.enterScope(NodeTraversal)
 func (c *TypeInferencePass_SecondScopeBuildingCallback) EnterScope(t *NodeTraversal) {

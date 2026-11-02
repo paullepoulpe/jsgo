@@ -349,11 +349,6 @@ func (n Node) firstNode() Node  { return Node(n.rec().first) }
 func (n Node) parentNode() Node { return Node(n.rec().parent) }
 func (n Node) prevNode() Node   { return Node(n.rec().previous) }
 
-// idOf returns the id of n (0 for the nil node).
-func idOf(n Node) nodeID {
-	return nodeID(n)
-}
-
 // nodeID is a node id as stored in a record's links.
 type nodeID = uint32
 

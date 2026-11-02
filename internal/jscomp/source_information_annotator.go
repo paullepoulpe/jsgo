@@ -128,8 +128,8 @@ func annotateFunctionOriginalName(n rhino.Node) {
 	case rhino.Token_MEMBER_FUNCTION_DEF, rhino.Token_SETTER_DEF, rhino.Token_GETTER_DEF, rhino.Token_STRING_KEY:
 		SourceInformationAnnotator_SetOriginalNameFromNode(n, parent)
 	case rhino.Token_NUMBER:
-		if s := NodeUtil_GetStringValue(parent); s != nil && *s != "" {
-			n.SetOriginalNameString(*s)
+		if s, ok := NodeUtil_GetStringValue(parent); ok && s != "" {
+			n.SetOriginalNameString(s)
 		}
 	}
 }

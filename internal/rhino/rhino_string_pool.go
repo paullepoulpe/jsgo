@@ -81,26 +81,13 @@ func RhinoStringPool_UncheckedEquals(a string, b string) bool {
 	return a == b
 }
 
-// RhinoStringPool_UncheckedEqualsNullable is uncheckedEquals for Java
-// Strings that may be null (*string in the port): null is identical only to
-// null.
-//
-// Go-only: language-adapter — nullable String overload of
-// RhinoStringPool.uncheckedEquals(String, String).
-func RhinoStringPool_UncheckedEqualsNullable(a *string, b *string) bool {
-	if a == nil || b == nil {
-		return a == nil && b == nil
-	}
-	return RhinoStringPool_UncheckedEquals(*a, *b)
-}
-
 // Java: RhinoStringPool.addOrGet(String)
 func RhinoStringPool_AddOrGet(s string) string {
 	return rhinoStringFromID(rhinoStringPoolIntern(s))
 }
 
 // RhinoStringPool_EmptyID is the canonical 32-bit ID of the empty string "".
-const RhinoStringPool_EmptyID uint32 = 1
+const RhinoStringPool_EmptyID uint32 = strpool.EmptyID
 
 // RhinoStringPool_InternID interns s and returns its 32-bit pointer-free ID.
 func RhinoStringPool_InternID(s string) uint32 {

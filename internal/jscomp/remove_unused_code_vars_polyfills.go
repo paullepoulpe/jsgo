@@ -56,8 +56,8 @@ const (
 type RemoveUnusedCode_RealVarInfo struct {
 	outer              *RemoveUnusedCode
 	var_               *Var
-	remHead            *RemoveUnusedCode_RemovableBase
-	remTail            *RemoveUnusedCode_RemovableBase
+	remHead            *rucRemovable
+	remTail            *rucRemovable
 	reasonNode         rhino.Node
 	flags              uint8
 	nonRemovableReason rucPinReason
@@ -73,7 +73,7 @@ func NewRemoveUnusedCode_RealVarInfo(outer *RemoveUnusedCode, var_ *Var) *Remove
 }
 
 // Java: RemoveUnusedCode.RealVarInfo.addRemovable(Removable)
-func (v *RemoveUnusedCode_RealVarInfo) AddRemovable(removable *RemoveUnusedCode_RemovableBase) {
+func (v *RemoveUnusedCode_RealVarInfo) AddRemovable(removable *rucRemovable) {
 	if v.flags&rucVarFlagCanonical != 0 {
 		v.outer.ConsiderForIndependentRemoval(removable)
 		return
@@ -83,7 +83,7 @@ func (v *RemoveUnusedCode_RealVarInfo) AddRemovable(removable *RemoveUnusedCode_
 			if localValue.IsFunction() || localValue.IsClass() {
 				v.flags |= rucVarFlagHasFuncOrClassLit
 			}
-		} else if removable.flags&remFlagUninitVarDecl == 0 {
+		} else if !removable.isUninitVarDecl() {
 			v.flags |= rucVarFlagHasNonLocalOrNonLit
 		}
 	} else if removable.IsPrototypeAssignment() && !removable.IsAssignedValueLocal() {
@@ -208,7 +208,7 @@ const (
 // Java: RemoveUnusedCode.PolyfillInfo / GlobalPolyfillInfo / StaticPropertyPolyfillInfo / PrototypePropertyPolyfillInfo
 type rucPolyfillInfo struct {
 	outer       *RemoveUnusedCode
-	removable   *RemoveUnusedCode_RemovableBase
+	removable   *rucRemovable
 	nextByKey   *rucPolyfillInfo
 	owner       string
 	key         string
@@ -271,7 +271,7 @@ func (p *rucPolyfillInfo) getName() string {
 //
 // Java: RemoveUnusedCode.PolyfillInfo.considerPossibleReference(Node)
 func (p *rucPolyfillInfo) considerPossibleReference(n rhino.Node) {
-	if !p.isRemovable || (p.removable.flags&remFlagSubBit == 0 && p.outer.isGuardedUsage(n)) {
+	if !p.isRemovable || (!p.removable.isPolyfillPatch() && p.outer.isGuardedUsage(n)) {
 		return
 	}
 	if NodeUtil_IsNormalOrOptChainGetProp(n) || (p.kind == rucPolyfillGlobal && n.IsName()) {

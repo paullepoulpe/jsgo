@@ -262,24 +262,32 @@ func (c *LinkedFlowScopeTest) Join(a FlowScope, b FlowScope) FlowScope {
 	return joiner.Finish()
 }
 
-func TestLinkedFlowScopeSizeAndBlindScope(t *testing.T) {
+func TestLinkedFlowScopeSizeAndEntryLattice(t *testing.T) {
 	if got := reflect.TypeFor[LinkedFlowScope]().Size(); got != 48 {
 		t.Fatalf("sizeof(LinkedFlowScope) = %d, want 48", got)
 	}
-	var blind *LinkedFlowScope
+	compiler := NewCompiler()
+	fn := rhino.IR_Function(rhino.IR_Name("f"), rhino.IR_ParamList(), rhino.IR_Block())
+	script := rhino.IR_Script()
+	script.AddChildToBack(fn)
+	root := rhino.IR_Root(script)
+	globalScope := TypedScope_CreateGlobalScope(root)
+	fnScope := NewTypedScope(globalScope, fn)
+	fnScope.Declare("x", rhino.NilNode, nil, nil, true)
+
+	var entry *LinkedFlowScope
 	allocs := testing.AllocsPerRun(100, func() {
-		blind = newBlindLinkedFlowScope(nil)
+		entry = LinkedFlowScope_CreateEntryLattice(compiler, fnScope)
 	})
-	if blind == nil {
-		t.Fatal("newBlindLinkedFlowScope returned nil")
+	if entry == nil {
+		t.Fatal("LinkedFlowScope_CreateEntryLattice returned nil")
 	}
 	if allocs > 1 {
-		t.Fatalf("newBlindLinkedFlowScope allocs = %v, want <= 1", allocs)
+		t.Fatalf("LinkedFlowScope_CreateEntryLattice allocs = %v, want <= 1", allocs)
 	}
-	compiler := NewCompiler()
 	numType := compiler.GetTypeRegistry().GetNativeType(rhino.JSTypeNative_NUMBER_TYPE)
-	next := blind.InferSlotType("x", numType)
+	next := entry.InferSlotType("x", numType)
 	if got := linkedFlowScopeTest_slotType(next, "x"); got != numType {
-		t.Fatalf("blind InferSlotType slot type = %v, want %v", got, numType)
+		t.Fatalf("InferSlotType slot type = %v, want %v", got, numType)
 	}
 }

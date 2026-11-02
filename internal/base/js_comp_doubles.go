@@ -189,46 +189,13 @@ var JSCompDoubles_POW_2_53 = math.Pow(2, 53)
 // Go-only: language-adapter — java.lang.Math methods whose Go counterparts
 // differ from Java (special cases of max/min/pow, round's rounding, signum).
 
-// MathMax is Math.max(double, double). Javadoc: the result is NaN when
-// either argument is, and negative zero counts as less than positive zero
-// (which Go's comparison operators treat as equal).
-func MathMax(a, b float64) float64 {
-	switch {
-	case math.IsNaN(a):
-		return a
-	case math.IsNaN(b):
-		return b
-	case a == 0 && b == 0:
-		// Two zeros: the one without the sign bit, if there is one.
-		if math.Signbit(b) {
-			return a
-		}
-		return b
-	case a > b:
-		return a
-	}
-	return b
-}
+// MathMax is Math.max(double, double). Go's built-in max matches Java on NaN
+// and signed zeros (-0.0 < +0.0).
+func MathMax(a, b float64) float64 { return max(a, b) }
 
-// MathMin is Math.min(double, double). Javadoc: the result is NaN when
-// either argument is, and negative zero counts as less than positive zero.
-func MathMin(a, b float64) float64 {
-	switch {
-	case math.IsNaN(a):
-		return a
-	case math.IsNaN(b):
-		return b
-	case a == 0 && b == 0:
-		// Two zeros: the one with the sign bit, if there is one.
-		if math.Signbit(a) {
-			return a
-		}
-		return b
-	case a < b:
-		return a
-	}
-	return b
-}
+// MathMin is Math.min(double, double). Go's built-in min matches Java on NaN
+// and signed zeros (-0.0 < +0.0).
+func MathMin(a, b float64) float64 { return min(a, b) }
 
 // MathSignum is Math.signum(double): the argument itself for zeros and NaN,
 // otherwise ±1.0.

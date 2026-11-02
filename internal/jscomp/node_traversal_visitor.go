@@ -217,19 +217,7 @@ func (f NodeTraversal_AbstractPostOrderCallbackInterface) Visit(t *NodeTraversal
 	f(t, n, parent)
 }
 
-var nodeTraversal_nilPostOrderCallback NodeTraversal_Callback = &nodeTraversal_Builder_postOrderCallback{}
-
-// nodeTraversal_Builder_postOrderCallback is the anonymous
-// AbstractPostOrderCallback of setCallback(AbstractPostOrderCallbackInterface).
-type nodeTraversal_Builder_postOrderCallback struct {
-	NodeTraversal_AbstractPostOrderCallbackBase
-	x NodeTraversal_AbstractPostOrderCallbackInterface
-}
-
-// Java: NodeTraversal.Builder.setCallback(AbstractPostOrderCallbackInterface) (anonymous AbstractPostOrderCallback).visit(NodeTraversal, Node, Node)
-func (c *nodeTraversal_Builder_postOrderCallback) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
-	c.x(t, n, parent)
-}
+func (NodeTraversal_AbstractPostOrderCallbackInterface) nodeTraversalNoShouldTraverse() {}
 
 // NodeTraversal_AbstractPreOrderCallbackBase holds the methods of
 // AbstractPreOrderCallback; subclasses embed it and define ShouldTraverse.

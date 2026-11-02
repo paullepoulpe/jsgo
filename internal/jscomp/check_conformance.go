@@ -99,7 +99,6 @@ type checkConformance_NodePrecondition uint8
 
 const (
 	checkConformance_PreconditionCheckAll checkConformance_NodePrecondition = iota
-	checkConformance_PreconditionIsConstructorOrClass
 	checkConformance_PreconditionBannedNameCandidate
 	checkConformance_PreconditionBannedEnhanceScript
 	checkConformance_PreconditionBannedModsRegexScript
@@ -109,8 +108,6 @@ func (p checkConformance_NodePrecondition) ShouldCheck(n rhino.Node) bool {
 	switch p {
 	case checkConformance_PreconditionCheckAll:
 		return true
-	case checkConformance_PreconditionIsConstructorOrClass:
-		return n.IsClass() || NodeUtil_IsConstructor(n)
 	case checkConformance_PreconditionBannedNameCandidate:
 		switch n.GetToken() {
 		case rhino.Token_GETPROP:
@@ -130,9 +127,6 @@ func (p checkConformance_NodePrecondition) ShouldCheck(n rhino.Node) bool {
 // Java: CheckConformance.Precondition.CHECK_ALL
 var CheckConformance_Precondition_CHECK_ALL CheckConformance_Precondition = checkConformance_PreconditionCheckAll
 
-// Java: CheckConformance.Precondition.IS_CONSTRUCTOR_OR_CLASS
-var CheckConformance_Precondition_IS_CONSTRUCTOR_OR_CLASS CheckConformance_Precondition = checkConformance_PreconditionIsConstructorOrClass
-
 type categorizedRule struct {
 	rule     CheckConformance_Rule
 	behavior ConformanceConfig_LibraryLevelNonAllowlistedConformanceViolationsBehavior
@@ -142,20 +136,16 @@ type checkConformance_CategoryKind uint8
 
 const (
 	checkConformance_KindCheckAll checkConformance_CategoryKind = iota
-	checkConformance_KindIsConstructorOrClass
-	checkConformance_KindBannedNameCandidate
-	checkConformance_KindScript
+	checkConformance_KindNodePrecondition
 	checkConformance_KindBannedProperty
-	checkConformance_KindBannedPropertyWrite
-	checkConformance_KindBannedPropertyNonConstantWrite
-	checkConformance_KindBannedPropertyRead
-	checkConformance_KindBannedPropertyCall
 	checkConformance_KindCustom
 )
 
 // Java: CheckConformance.Category
 type CheckConformance_Category struct {
 	precondition CheckConformance_Precondition
+	bannedProp   ConformanceRules_BannedProperty_RequirementPrecondition
+	nodePrecond  checkConformance_NodePrecondition
 	kind         checkConformance_CategoryKind
 	rules        []categorizedRule
 }
@@ -164,43 +154,10 @@ func (cat *CheckConformance_Category) shouldCheck(n rhino.Node) bool {
 	switch cat.kind {
 	case checkConformance_KindCheckAll:
 		return true
-	case checkConformance_KindIsConstructorOrClass:
-		return n.IsClass() || NodeUtil_IsConstructor(n)
-	case checkConformance_KindBannedNameCandidate:
-		switch n.GetToken() {
-		case rhino.Token_GETPROP:
-			return n.GetFirstChild().IsQualifiedName()
-		case rhino.Token_NAME:
-			return n.GetStringID() != rhino.RhinoStringPool_EmptyID
-		default:
-			return false
-		}
-	case checkConformance_KindScript:
-		return n.IsScript()
+	case checkConformance_KindNodePrecondition:
+		return cat.nodePrecond.ShouldCheck(n)
 	case checkConformance_KindBannedProperty:
-		switch n.GetToken() {
-		case rhino.Token_STRING_KEY, rhino.Token_GETPROP, rhino.Token_GETELEM, rhino.Token_COMPUTED_PROP:
-			return true
-		default:
-			return false
-		}
-	case checkConformance_KindBannedPropertyWrite:
-		return NodeUtil_IsLValue(n)
-	case checkConformance_KindBannedPropertyNonConstantWrite:
-		if !NodeUtil_IsLValue(n) {
-			return false
-		}
-		if asgn, ok := ast.AsAssign(n.GetParent()); ok && asgn.Target().Node() == n {
-			rhs := asgn.Value().Node()
-			if NodeUtil_IsLiteralValue(rhs, false) || NodeUtil_IsSomeCompileTimeConstStringValue(rhs) {
-				return false
-			}
-		}
-		return true
-	case checkConformance_KindBannedPropertyRead:
-		return !NodeUtil_IsLValue(n) && NodeUtil_IsExpressionResultUsed(n)
-	case checkConformance_KindBannedPropertyCall:
-		return ConformanceRules_ConformanceUtil_IsCallTarget(n)
+		return cat.bannedProp.ShouldCheck(n)
 	default:
 		return cat.precondition.ShouldCheck(n)
 	}
@@ -270,57 +227,50 @@ func (c *CheckConformance) Visit(t *NodeTraversal, n rhino.Node, parent rhino.No
 	}
 }
 
-func (c *CheckConformance) recordCategoryPrecondition(rule CheckConformance_Rule, precondition CheckConformance_Precondition) checkConformance_CategoryKind {
+func (c *CheckConformance) newCategory(rule CheckConformance_Rule, precondition CheckConformance_Precondition) *CheckConformance_Category {
+	cat := &CheckConformance_Category{precondition: precondition, kind: checkConformance_KindCustom}
 	switch p := precondition.(type) {
 	case nil:
 		c.hasAllTokens = true
-		return checkConformance_KindCheckAll
+		cat.kind = checkConformance_KindCheckAll
 	case checkConformance_NodePrecondition:
 		switch p {
 		case checkConformance_PreconditionCheckAll:
 			c.hasAllTokens = true
-			return checkConformance_KindCheckAll
-		case checkConformance_PreconditionIsConstructorOrClass:
-			c.activeTokens.Add(rhino.Token_CLASS)
-			c.activeTokens.Add(rhino.Token_FUNCTION)
-			return checkConformance_KindIsConstructorOrClass
+			cat.kind = checkConformance_KindCheckAll
 		case checkConformance_PreconditionBannedNameCandidate:
 			c.activeTokens.Add(rhino.Token_GETPROP)
 			c.activeTokens.Add(rhino.Token_NAME)
-			return checkConformance_KindBannedNameCandidate
+			cat.kind = checkConformance_KindNodePrecondition
+			cat.nodePrecond = p
 		case checkConformance_PreconditionBannedEnhanceScript, checkConformance_PreconditionBannedModsRegexScript:
 			c.activeTokens.Add(rhino.Token_SCRIPT)
-			return checkConformance_KindScript
+			cat.kind = checkConformance_KindNodePrecondition
+			cat.nodePrecond = p
+		default:
+			c.hasAllTokens = true
 		}
 	case ConformanceRules_BannedProperty_RequirementPrecondition:
-		addBannedPropTokens := func() {
-			c.activeTokens.Add(rhino.Token_STRING_KEY)
-			c.activeTokens.Add(rhino.Token_GETPROP)
-			c.activeTokens.Add(rhino.Token_GETELEM)
-			c.activeTokens.Add(rhino.Token_COMPUTED_PROP)
-		}
 		if p == ConformanceRules_BannedProperty_RequirementPrecondition_BANNED_PROPERTY {
-			addBannedPropTokens()
-			return checkConformance_KindBannedProperty
-		}
-		if _, isBannedProp := rule.(*ConformanceRules_BannedProperty); isBannedProp {
-			addBannedPropTokens()
+			c.addBannedPropertyTokens()
+		} else if _, isBannedProp := rule.(*ConformanceRules_BannedProperty); isBannedProp {
+			c.addBannedPropertyTokens()
 		} else {
 			c.hasAllTokens = true
 		}
-		switch p {
-		case ConformanceRules_BannedProperty_RequirementPrecondition_BANNED_PROPERTY_WRITE:
-			return checkConformance_KindBannedPropertyWrite
-		case ConformanceRules_BannedProperty_RequirementPrecondition_BANNED_PROPERTY_NON_CONSTANT_WRITE:
-			return checkConformance_KindBannedPropertyNonConstantWrite
-		case ConformanceRules_BannedProperty_RequirementPrecondition_BANNED_PROPERTY_READ:
-			return checkConformance_KindBannedPropertyRead
-		case ConformanceRules_BannedProperty_RequirementPrecondition_BANNED_PROPERTY_CALL:
-			return checkConformance_KindBannedPropertyCall
-		}
+		cat.kind = checkConformance_KindBannedProperty
+		cat.bannedProp = p
+	default:
+		c.hasAllTokens = true
 	}
-	c.hasAllTokens = true
-	return checkConformance_KindCustom
+	return cat
+}
+
+func (c *CheckConformance) addBannedPropertyTokens() {
+	c.activeTokens.Add(rhino.Token_STRING_KEY)
+	c.activeTokens.Add(rhino.Token_GETPROP)
+	c.activeTokens.Add(rhino.Token_GETELEM)
+	c.activeTokens.Add(rhino.Token_COMPUTED_PROP)
 }
 
 type mergedRequirement struct {
@@ -355,12 +305,20 @@ func (c *CheckConformance) initRules(
 			continue
 		}
 		precondition := rule.GetPrecondition()
-		kind := c.recordCategoryPrecondition(rule, precondition)
 		idx, ok := categoryIndex[precondition]
 		if !ok {
 			idx = len(categories)
 			categoryIndex[precondition] = idx
-			categories = append(categories, &CheckConformance_Category{precondition: precondition, kind: kind})
+			categories = append(categories, c.newCategory(rule, precondition))
+		} else {
+			// Ensure activeTokens/hasAllTokens still updates if multiple rules share a precondition
+			// (e.g. a non-BannedProperty custom rule reusing RequirementPrecondition).
+			if _, isBannedPropPrecond := precondition.(ConformanceRules_BannedProperty_RequirementPrecondition); isBannedPropPrecond {
+				if _, isBannedProp := rule.(*ConformanceRules_BannedProperty); !isBannedProp &&
+					precondition != ConformanceRules_BannedProperty_RequirementPrecondition_BANNED_PROPERTY {
+					c.hasAllTokens = true
+				}
+			}
 		}
 		categories[idx].rules = append(categories[idx].rules, categorizedRule{rule: rule, behavior: entry.behavior})
 	}
@@ -704,7 +662,7 @@ func CheckConformance_InitRule(compiler AbstractCompiler, requirement *Requireme
 func checkConformance_initRule(compiler AbstractCompiler, requirement *Requirement) (CheckConformance_Rule, error) {
 	switch requirement.GetType() {
 	case Requirement_Type_CUSTOM:
-		return newConformanceRules_CustomRuleProxy(compiler, requirement)
+		return newConformanceRules_CustomRule(compiler, requirement)
 	case Requirement_Type_NO_OP:
 		return newConformanceRules_NoOp(compiler, requirement)
 	case Requirement_Type_BANNED_CODE_PATTERN:

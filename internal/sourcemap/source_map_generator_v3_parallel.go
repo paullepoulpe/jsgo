@@ -97,29 +97,14 @@ func (p *phase1Visitor) Visit(m *SourceMapGeneratorV3_Mapping, line, col, nextLi
 	}
 }
 
-// resetIdTables prepares the id tables as AppendLineMappings does.
-func (g *SourceMapGeneratorV3) resetIdTables() {
-	nSources := len(g.addedSourceFiles)
-	g.sourceIdxToFileId = make([]int32, nSources)
-	for i := range g.sourceIdxToFileId {
-		g.sourceIdxToFileId[i] = -1
-	}
-	clear(g.orderedSourceFiles)
-	g.orderedSourceFiles = g.orderedSourceFiles[:0]
-	nSymbols := len(g.addedSymbolNames)
-	g.symbolIdxToNameId = make([]int32, nSymbols)
-	for i := range g.symbolIdxToNameId {
-		g.symbolIdxToNameId[i] = -1
-	}
-	clear(g.orderedSymbolNames)
-	g.orderedSymbolNames = g.orderedSymbolNames[:0]
-}
-
 // prepMappingsParallel is PrepMappings plus phase 1; it returns the raw max
 // line (before the prefix adjustment) and the checkpoints.
 func (g *SourceMapGeneratorV3) prepMappingsParallel() (int, []mappingCheckpoint) {
-	g.resetIdTables()
-	v := &phase1Visitor{g: g, st: lineMapperState{previousLine: -1}}
+	g.ensureIDTables()
+	rv := mappingRangeVisitor{
+		kind:   visitPhase1,
+		phase1: phase1Visitor{g: g, st: lineMapperState{previousLine: -1}},
+	}
 	t := SourceMapGeneratorV3_MappingTraversal{outer: g}
 	var cps []mappingCheckpoint
 	r := sourceMapGeneratorV3_mappingReader{store: &g.mappings}
@@ -131,7 +116,7 @@ func (g *SourceMapGeneratorV3) prepMappingsParallel() (int, []mappingCheckpoint)
 				stack:      append([]SourceMapGeneratorV3_Mapping(nil), t.stack...),
 				line:       t.line,
 				col:        t.col,
-				state:      v.st,
+				state:      rv.phase1.st,
 				startIndex: idx,
 			})
 		}
@@ -139,35 +124,10 @@ func (g *SourceMapGeneratorV3) prepMappingsParallel() (int, []mappingCheckpoint)
 			break
 		}
 		idx++
-		t.step(v)
+		t.step(&rv)
 	}
-	t.finish(v)
-	return v.maxLine, cps
-}
-
-// step is the body of Traverse's loop for the mapping in t.cur.
-func (t *SourceMapGeneratorV3_MappingTraversal) step(v SourceMapGeneratorV3_MappingVisitor) {
-	m := &t.cur
-	for len(t.stack) > 0 && !t.IsOverlapped(&t.stack[len(t.stack)-1], m) {
-		t.closing = t.stack[len(t.stack)-1]
-		t.stack = t.stack[:len(t.stack)-1]
-		t.MaybeVisit(v, &t.closing)
-	}
-	var parent *SourceMapGeneratorV3_Mapping
-	if len(t.stack) > 0 {
-		parent = &t.stack[len(t.stack)-1]
-	}
-	t.MaybeVisitParent(v, parent, m)
-	t.stack = append(t.stack, *m)
-}
-
-// finish closes the mappings left on the stack, as the end of Traverse does.
-func (t *SourceMapGeneratorV3_MappingTraversal) finish(v SourceMapGeneratorV3_MappingVisitor) {
-	for len(t.stack) > 0 {
-		t.closing = t.stack[len(t.stack)-1]
-		t.stack = t.stack[:len(t.stack)-1]
-		t.MaybeVisit(v, &t.closing)
-	}
+	t.finish(&rv)
+	return rv.phase1.maxLine, cps
 }
 
 // chunkWriter collects a chunk's bytes.
@@ -249,15 +209,16 @@ func (g *SourceMapGeneratorV3) encodeChunk(cp *mappingCheckpoint, count int, max
 	l.buffering = true
 	t := SourceMapGeneratorV3_MappingTraversal{outer: g, line: cp.line, col: cp.col}
 	t.stack = append(t.stack, cp.stack...)
+	rv := mappingRangeVisitor{kind: visitLineMapper, mapper: l}
 	r := cp.reader
 	for i := 0; count < 0 || i < count; i++ {
 		if !r.next(&t.cur) {
 			break
 		}
-		t.step(l)
+		t.step(&rv)
 	}
 	if count < 0 {
-		t.finish(l)
+		t.finish(&rv)
 	}
 	l.flush()
 	return w.b

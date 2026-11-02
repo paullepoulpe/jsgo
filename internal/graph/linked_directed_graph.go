@@ -551,7 +551,7 @@ func (g *LinkedDirectedGraph[N, E]) GetNodeDegree(value N) int {
 // LinkedDiGraphNode is a directed graph node storing incoming and outgoing
 // edges inline when at most two per direction.
 type LinkedDiGraphNode[N, E comparable] struct {
-	InEdgeList, OutEdgeList LinkedEdgeList[N, E]
+	InEdgeList, OutEdgeList LinkedEdgeList[LinkedDiGraphEdge[N, E]]
 
 	Annotation Annotation
 
@@ -571,17 +571,18 @@ func (n *LinkedDiGraphNode[N, E]) recycle() {
 	n.InEdgeList.more, n.OutEdgeList.more = in, out
 }
 
-// LinkedEdgeList is the list of a graph node's in or out edges, in insertion order.
+// LinkedEdgeList is the list of a graph node's incident edges, in insertion order.
 //
-// Go-only: performance — most CFG nodes have at most two edges in each
-// direction, so up to two are stored inline without a separate slice header.
-type LinkedEdgeList[N, E comparable] struct {
-	two  [2]*LinkedDiGraphEdge[N, E]
-	more *[]*LinkedDiGraphEdge[N, E]
+// Go-only: performance — most CFG and interference-graph nodes have at most
+// two incident edges, so up to two are stored inline without a separate slice
+// header.
+type LinkedEdgeList[Edge any] struct {
+	two  [2]*Edge
+	more *[]*Edge
 }
 
 // Slice returns the edges, aliasing the list's storage.
-func (l *LinkedEdgeList[N, E]) Slice() []*LinkedDiGraphEdge[N, E] {
+func (l *LinkedEdgeList[Edge]) Slice() []*Edge {
 	switch {
 	case l.more != nil:
 		return *l.more
@@ -594,12 +595,12 @@ func (l *LinkedEdgeList[N, E]) Slice() []*LinkedDiGraphEdge[N, E] {
 }
 
 // Size returns the number of edges.
-func (l *LinkedEdgeList[N, E]) Size() int {
+func (l *LinkedEdgeList[Edge]) Size() int {
 	return len(l.Slice())
 }
 
 // Add appends e.
-func (l *LinkedEdgeList[N, E]) Add(e *LinkedDiGraphEdge[N, E]) {
+func (l *LinkedEdgeList[Edge]) Add(e *Edge) {
 	switch {
 	case l.more != nil:
 		*l.more = append(*l.more, e)
@@ -608,15 +609,15 @@ func (l *LinkedEdgeList[N, E]) Add(e *LinkedDiGraphEdge[N, E]) {
 	case l.two[1] == nil:
 		l.two[1] = e
 	default:
-		all := make([]*LinkedDiGraphEdge[N, E], 3, 4)
+		all := make([]*Edge, 3, 4)
 		all[0], all[1], all[2] = l.two[0], l.two[1], e
-		l.two = [2]*LinkedDiGraphEdge[N, E]{}
+		l.two = [2]*Edge{}
 		l.more = &all
 	}
 }
 
 // Remove removes the first occurrence of e, preserving order.
-func (l *LinkedEdgeList[N, E]) Remove(e *LinkedDiGraphEdge[N, E]) {
+func (l *LinkedEdgeList[Edge]) Remove(e *Edge) {
 	switch {
 	case l.more != nil:
 		if i := slices.Index(*l.more, e); i >= 0 {
@@ -629,7 +630,7 @@ func (l *LinkedEdgeList[N, E]) Remove(e *LinkedDiGraphEdge[N, E]) {
 	}
 }
 
-func (l *LinkedEdgeList[N, E]) spare() *[]*LinkedDiGraphEdge[N, E] {
+func (l *LinkedEdgeList[Edge]) spare() *[]*Edge {
 	if l.more == nil || cap(*l.more) > 64 {
 		return nil
 	}

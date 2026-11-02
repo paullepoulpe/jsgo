@@ -26,26 +26,8 @@ import (
 	"github.com/paullepoulpe/jsgo/internal/strpool"
 )
 
-func fnvHashString(s string) uint32 {
-	h := uint32(2166136261)
-	for i := 0; i < len(s); i++ {
-		h ^= uint32(s[i])
-		h *= 16777619
-	}
-	return h
-}
-
-func fnvHashBytes(b []byte) uint32 {
-	h := uint32(2166136261)
-	for i := 0; i < len(b); i++ {
-		h ^= uint32(b[i])
-		h *= 16777619
-	}
-	return h
-}
-
 func (s *Scanner) internIdent(str string) strpool.ID {
-	slot := fnvHashString(str) & scannerIdentCacheMask
+	slot := strpool.HashString(str) & scannerIdentCacheMask
 	if id := s.identCache[slot]; id != 0 && strpool.String(id) == str {
 		return id
 	}
@@ -55,7 +37,7 @@ func (s *Scanner) internIdent(str string) strpool.ID {
 }
 
 func (s *Scanner) internIdentBytes(b []byte) strpool.ID {
-	slot := fnvHashBytes(b) & scannerIdentCacheMask
+	slot := strpool.HashBytes(b) & scannerIdentCacheMask
 	if id := s.identCache[slot]; id != 0 && strpool.String(id) == string(b) {
 		return id
 	}
@@ -232,29 +214,67 @@ func (s *Scanner) PeekHexDigit() bool {
 	return Scanner_IsHexDigit(s.PeekChar())
 }
 
-// Java: Scanner.isHexDigit(char)
-func Scanner_IsHexDigit(ch uint16) bool {
-	if ch < 0x80 {
-		return (ch >= '0' && ch <= '9') || ((ch|0x20)-'a' < 6)
+const (
+	radixFlagBinary uint8 = 1 << iota
+	radixFlagOctal
+	radixFlagHex
+)
+
+var asciiRadixFlags = func() [128]uint8 {
+	var t [128]uint8
+	for c := uint8('0'); c <= '1'; c++ {
+		t[c] |= radixFlagBinary
 	}
+	for c := uint8('0'); c <= '7'; c++ {
+		t[c] |= radixFlagOctal
+	}
+	for c := uint8('0'); c <= '9'; c++ {
+		t[c] |= radixFlagHex
+	}
+	for c := uint8('a'); c <= 'f'; c++ {
+		t[c] |= radixFlagHex
+		t[c-'a'+'A'] |= radixFlagHex
+	}
+	return t
+}()
+
+//go:noinline
+func isUnicodeHexDigit(ch uint16) bool {
 	return jutil.CharacterDigit(ch, 0x10) >= 0
 }
 
-// Java: Scanner.skipHexDigits()
-func (s *Scanner) SkipHexDigits() {
-	ch := s.PeekChar()
-	for Scanner_IsHexDigit(ch) || ch == '_' {
+// Java: Scanner.isHexDigit(char)
+func Scanner_IsHexDigit(ch uint16) bool {
+	if ch < 0x80 {
+		return asciiRadixFlags[ch]&radixFlagHex != 0
+	}
+	return isUnicodeHexDigit(ch)
+}
+
+func isRadixDigit(ch uint16, flag uint8) bool {
+	if ch < 0x80 {
+		return asciiRadixFlags[ch]&flag != 0
+	}
+	return flag == radixFlagHex && isUnicodeHexDigit(ch)
+}
+
+func (s *Scanner) skipRadixDigits(flag uint8) {
+	for ch := s.PeekChar(); isRadixDigit(ch, flag) || ch == '_'; ch = s.PeekChar() {
 		s.NextChar()
 		if ch == '_' {
 			s.sawNumericSeparator = true
-			if s.PeekHexDigit() {
+			if isRadixDigit(s.PeekChar(), flag) {
 				s.NextChar()
 			} else {
 				s.ReportError("Trailing numeric separator")
 			}
 		}
-		ch = s.PeekChar()
 	}
+}
+
+// Java: Scanner.skipHexDigits()
+func (s *Scanner) SkipHexDigits() {
+	s.skipRadixDigits(radixFlagHex)
 }
 
 // Java: Scanner.skipHexDigit()
@@ -268,19 +288,7 @@ func (s *Scanner) SkipHexDigit() bool {
 
 // Java: Scanner.skipOctalDigits()
 func (s *Scanner) SkipOctalDigits() {
-	ch := s.PeekChar()
-	for Scanner_IsOctalDigit(ch) || ch == '_' {
-		s.NextChar()
-		if ch == '_' {
-			s.sawNumericSeparator = true
-			if Scanner_IsOctalDigit(s.PeekChar()) {
-				s.NextChar()
-			} else {
-				s.ReportError("Trailing numeric separator")
-			}
-		}
-		ch = s.PeekChar()
-	}
+	s.skipRadixDigits(radixFlagOctal)
 }
 
 // Java: Scanner.isOctalDigit(char)
@@ -298,19 +306,7 @@ func Scanner_ValueOfOctalDigit(ch uint16) int {
 
 // Java: Scanner.skipBinaryDigits()
 func (s *Scanner) SkipBinaryDigits() {
-	ch := s.PeekChar()
-	for Scanner_IsBinaryDigit(ch) || ch == '_' {
-		s.NextChar()
-		if ch == '_' {
-			s.sawNumericSeparator = true
-			if Scanner_IsBinaryDigit(s.PeekChar()) {
-				s.NextChar()
-			} else {
-				s.ReportError("Trailing numeric separator")
-			}
-		}
-		ch = s.PeekChar()
-	}
+	s.skipRadixDigits(radixFlagBinary)
 }
 
 // Java: Scanner.isBinaryDigit(char)
@@ -413,49 +409,45 @@ func (s *Scanner) ScanIdentifierOrKeyword(beginToken int, ch uint16) Token {
 			return s.CreateToken(TokenType_ERROR, beginToken)
 		}
 		loc := s.GetTokenRange(beginToken)
+		var flags uint8
+		if isPrivateIdentifier {
+			flags = tokenFlagPrivateIdent
+		}
+		var value string
 		if s.index <= s.asciiPrefix {
-			value := s.rawContents[valueStartIndex:s.index]
-			if !isPrivateIdentifier {
-				if k := Keywords_Get(value); k != nil {
-					return NewToken(k.Type(), loc)
-				}
-				return newIdentifierTokenFromID(loc, s.internIdent(value), 0)
-			}
-			return newIdentifierTokenFromID(loc, s.internIdent(value), tokenFlagPrivateIdent)
-		}
-		if valueStartIndex >= s.asciiPrefix {
-			n := s.index - valueStartIndex
-			if n <= 64 {
-				tail := s.utf16Tail[valueStartIndex-s.asciiPrefix : s.index-s.asciiPrefix]
-				var buf [64]byte
-				allASCII := true
-				for i, u := range tail {
-					if u >= 0x80 {
-						allASCII = false
-						break
-					}
-					buf[i] = byte(u)
-				}
-				if allASCII {
-					b := buf[:n]
-					if !isPrivateIdentifier {
-						if k := keywords_getBytes(b); k != nil {
-							return NewToken(k.Type(), loc)
+			value = s.rawContents[valueStartIndex:s.index]
+		} else {
+			if valueStartIndex >= s.asciiPrefix {
+				if n := s.index - valueStartIndex; n <= 64 {
+					tail := s.utf16Tail[valueStartIndex-s.asciiPrefix : s.index-s.asciiPrefix]
+					var buf [64]byte
+					allASCII := true
+					for i, u := range tail {
+						if u >= 0x80 {
+							allASCII = false
+							break
 						}
-						return newIdentifierTokenFromID(loc, s.internIdentBytes(b), 0)
+						buf[i] = byte(u)
 					}
-					return newIdentifierTokenFromID(loc, s.internIdentBytes(b), tokenFlagPrivateIdent)
+					if allASCII {
+						b := buf[:n]
+						if !isPrivateIdentifier {
+							if k := keywords_getBytes(b); k != nil {
+								return NewToken(k.Type(), loc)
+							}
+						}
+						return newIdentifierTokenFromID(loc, s.internIdentBytes(b), flags)
+					}
 				}
 			}
+			value = s.sliceString(valueStartIndex, s.index)
 		}
-		value := s.sliceString(valueStartIndex, s.index)
 		if !isPrivateIdentifier {
 			if k := Keywords_Get(value); k != nil {
 				return NewToken(k.Type(), loc)
 			}
-			return newIdentifierTokenFromID(loc, s.internIdent(value), 0)
 		}
-		return newIdentifierTokenFromID(loc, s.internIdent(value), tokenFlagPrivateIdent)
+		return newIdentifierTokenFromID(loc, s.internIdent(value), flags)
 	}
 
 	value := s.sliceString(valueStartIndex, s.index)

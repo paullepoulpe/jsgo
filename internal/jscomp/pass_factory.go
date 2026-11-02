@@ -60,6 +60,7 @@ import (
 
 // PassFactory creates JSCompiler passes and holds pass metadata (name,
 // preconditions, and whether the pass runs in a fixed-point loop).
+// A nil condition means passFactoryAlwaysEnabled.
 type PassFactory struct {
 	name                string
 	condition           func(options *CompilerOptions) bool
@@ -79,7 +80,6 @@ func NewPassFactory(name string, create func(AbstractCompiler) CompilerPass) *Pa
 	jutil.CheckState(name != "" && create != nil)
 	return &PassFactory{
 		name:              name,
-		condition:         passFactoryAlwaysEnabled,
 		preconditionCheck: passFactoryAlwaysValid,
 		internalFactory:   create,
 	}
@@ -90,29 +90,9 @@ func NewLoopablePassFactory(name string, create func(AbstractCompiler) CompilerP
 	jutil.CheckState(name != "" && create != nil)
 	return &PassFactory{
 		name:                name,
-		condition:           passFactoryAlwaysEnabled,
 		preconditionCheck:   passFactoryAlwaysValid,
 		runInFixedPointLoop: true,
 		internalFactory:     create,
-	}
-}
-
-func makePassFactory(name string, factory func(AbstractCompiler) CompilerPass) *PassFactory {
-	return &PassFactory{
-		name:              name,
-		condition:         passFactoryAlwaysEnabled,
-		preconditionCheck: passFactoryAlwaysValid,
-		internalFactory:   factory,
-	}
-}
-
-func makeLoopPassFactory(name string, factory func(AbstractCompiler) CompilerPass) *PassFactory {
-	return &PassFactory{
-		name:                name,
-		condition:           passFactoryAlwaysEnabled,
-		preconditionCheck:   passFactoryAlwaysValid,
-		runInFixedPointLoop: true,
-		internalFactory:     factory,
 	}
 }
 
@@ -122,9 +102,9 @@ func makeCheckedPassFactory(
 	loop bool,
 	factory func(AbstractCompiler) CompilerPass,
 ) *PassFactory {
+	jutil.CheckState(name != "" && precond != nil && factory != nil)
 	return &PassFactory{
 		name:                name,
-		condition:           passFactoryAlwaysEnabled,
 		preconditionCheck:   precond,
 		runInFixedPointLoop: loop,
 		internalFactory:     factory,
@@ -134,7 +114,12 @@ func makeCheckedPassFactory(
 // GetName returns the name of the pass as it will appear in logs.
 func (f *PassFactory) GetName() string { return f.name }
 
-func (f *PassFactory) GetCondition() func(options *CompilerOptions) bool { return f.condition }
+func (f *PassFactory) GetCondition() func(options *CompilerOptions) bool {
+	if f.condition != nil {
+		return f.condition
+	}
+	return passFactoryAlwaysEnabled
+}
 
 // PassFactory_PreconditionResult is the result of a pass precondition check.
 type PassFactory_PreconditionResult struct {
@@ -178,7 +163,7 @@ func (f *PassFactory) Equals(o any) bool {
 	}
 	return f.name == that.name &&
 		f.runInFixedPointLoop == that.runInFixedPointLoop &&
-		jutil.ObjectsEquals(f.condition, that.condition) &&
+		jutil.ObjectsEquals(f.GetCondition(), that.GetCondition()) &&
 		jutil.ObjectsEquals(f.preconditionCheck, that.preconditionCheck) &&
 		jutil.ObjectsEquals(f.internalFactory, that.internalFactory)
 }
@@ -194,10 +179,7 @@ func (f *PassFactory) ValidatePreconditions(options *CompilerOptions) {
 // PassFactory_CreateEmptyPass creates a no-op pass that can only run once.
 // Used to break up loops and mark pipeline boundaries.
 func PassFactory_CreateEmptyPass(name string) *PassFactory {
-	if name == "" {
-		jutil.CheckState(false)
-	}
-	return makePassFactory(name, passFactoryEmptyInternal)
+	return NewPassFactory(name, passFactoryEmptyInternal)
 }
 
 type passFactory_emptyPass struct{}

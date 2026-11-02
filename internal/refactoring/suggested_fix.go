@@ -612,6 +612,7 @@ func (b *SuggestedFix_Builder) DeleteArgument(n rhino.Node, position int) *Sugge
 	return b
 }
 
+// Java: SuggestedFix.Builder.createImportNode(ImportType, String, String)
 func createImportNode(importType SuggestedFix_ImportType, alias string, hasAlias bool, namespace string) rhino.Node {
 	var requireFlavor string
 	switch importType {
@@ -626,15 +627,6 @@ func createImportNode(importType SuggestedFix_ImportType, alias string, hasAlias
 		return rhino.IR_ConstNode(rhino.IR_Name(alias), callNode)
 	}
 	return rhino.IR_ExprResult(callNode)
-}
-
-// Java: SuggestedFix.Builder.createImportNode(ImportType, String, String)
-func SuggestedFix_Builder_CreateImportNode(
-	importType SuggestedFix_ImportType, alias *string, namespace string) rhino.Node {
-	if alias != nil {
-		return createImportNode(importType, *alias, true, namespace)
-	}
-	return createImportNode(importType, "", false, namespace)
 }
 
 // Java: SuggestedFix.Builder.addGoogRequire(Match, String, ScriptMetadata)
@@ -891,14 +883,12 @@ func NewSuggestedFix_MatchedNodeInfo(
 	}
 }
 
-func (i *SuggestedFix_MatchedNodeInfo) SourceFilename() string    { return i.sourceFilename }
-func (i *SuggestedFix_MatchedNodeInfo) Lineno() int               { return i.lineno }
-func (i *SuggestedFix_MatchedNodeInfo) Charno() int               { return i.charno }
-func (i *SuggestedFix_MatchedNodeInfo) InClosurizedFile() bool    { return i.inClosurizedFile }
-func (i *SuggestedFix_MatchedNodeInfo) GetSourceFilename() string { return i.sourceFilename }
-func (i *SuggestedFix_MatchedNodeInfo) GetLineno() int            { return i.lineno }
-func (i *SuggestedFix_MatchedNodeInfo) GetCharno() int            { return i.charno }
-func (i *SuggestedFix_MatchedNodeInfo) IsInClosurizedFile() bool  { return i.inClosurizedFile }
+func (i *SuggestedFix_MatchedNodeInfo) SourceFilename() string { return i.sourceFilename }
+func (i *SuggestedFix_MatchedNodeInfo) Lineno() int            { return i.lineno }
+func (i *SuggestedFix_MatchedNodeInfo) Charno() int            { return i.charno }
+func (i *SuggestedFix_MatchedNodeInfo) InClosurizedFile() bool { return i.inClosurizedFile }
+func (i *SuggestedFix_MatchedNodeInfo) GetLineno() int         { return i.lineno }
+func (i *SuggestedFix_MatchedNodeInfo) GetCharno() int         { return i.charno }
 
 // Java: SuggestedFix.MatchedNodeInfo.create(Node, boolean)
 func SuggestedFix_MatchedNodeInfo_Create(node rhino.Node, closurized bool) *SuggestedFix_MatchedNodeInfo {

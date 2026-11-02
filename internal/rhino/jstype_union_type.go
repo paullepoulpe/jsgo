@@ -333,12 +333,28 @@ func (t *UnionType) Autobox() JSType {
 	return res
 }
 
-// Java: UnionType.restrictByNotNullOrUndefined()
-func (t *UnionType) RestrictByNotNullOrUndefined() JSType {
+const (
+	unionRestrictNotNullOrUndefined uint8 = iota
+	unionRestrictNotUndefined
+	unionRestrictNotNull
+)
+
+func restrictAlternate(alt JSType, kind uint8) JSType {
+	switch kind {
+	case unionRestrictNotNullOrUndefined:
+		return alt.RestrictByNotNullOrUndefined()
+	case unionRestrictNotUndefined:
+		return alt.RestrictByNotUndefined()
+	default:
+		return alt.RestrictByNotNull()
+	}
+}
+
+func (t *UnionType) restrictBy(kind uint8) JSType {
 	alts := t.GetAlternates()
 	if t.alternatesResolvedBeforeBuild && len(alts) == 2 {
-		r0 := alts[0].RestrictByNotNullOrUndefined()
-		r1 := alts[1].RestrictByNotNullOrUndefined()
+		r0 := restrictAlternate(alts[0], kind)
+		r1 := restrictAlternate(alts[1], kind)
 		if r0 == alts[0] && r1.IsNoType() {
 			return r0
 		}
@@ -354,67 +370,26 @@ func (t *UnionType) RestrictByNotNullOrUndefined() JSType {
 	}
 	b := t.GetRegistry().acquireUnionBuilder()
 	for i := 0; i < len(alts); i++ {
-		b.AddAlternate(alts[i].RestrictByNotNullOrUndefined())
+		b.AddAlternate(restrictAlternate(alts[i], kind))
 	}
 	res := b.Build()
 	t.GetRegistry().releaseUnionBuilder(b)
 	return res
+}
+
+// Java: UnionType.restrictByNotNullOrUndefined()
+func (t *UnionType) RestrictByNotNullOrUndefined() JSType {
+	return t.restrictBy(unionRestrictNotNullOrUndefined)
 }
 
 // Java: UnionType.restrictByNotUndefined()
 func (t *UnionType) RestrictByNotUndefined() JSType {
-	alts := t.GetAlternates()
-	if t.alternatesResolvedBeforeBuild && len(alts) == 2 {
-		r0 := alts[0].RestrictByNotUndefined()
-		r1 := alts[1].RestrictByNotUndefined()
-		if r0 == alts[0] && r1.IsNoType() {
-			return r0
-		}
-		if r0.IsNoType() && r1 == alts[1] {
-			return r1
-		}
-		b := t.GetRegistry().acquireUnionBuilder()
-		b.AddAlternate(r0)
-		b.AddAlternate(r1)
-		res := b.Build()
-		t.GetRegistry().releaseUnionBuilder(b)
-		return res
-	}
-	b := t.GetRegistry().acquireUnionBuilder()
-	for i := 0; i < len(alts); i++ {
-		b.AddAlternate(alts[i].RestrictByNotUndefined())
-	}
-	res := b.Build()
-	t.GetRegistry().releaseUnionBuilder(b)
-	return res
+	return t.restrictBy(unionRestrictNotUndefined)
 }
 
 // Java: UnionType.restrictByNotNull()
 func (t *UnionType) RestrictByNotNull() JSType {
-	alts := t.GetAlternates()
-	if t.alternatesResolvedBeforeBuild && len(alts) == 2 {
-		r0 := alts[0].RestrictByNotNull()
-		r1 := alts[1].RestrictByNotNull()
-		if r0 == alts[0] && r1.IsNoType() {
-			return r0
-		}
-		if r0.IsNoType() && r1 == alts[1] {
-			return r1
-		}
-		b := t.GetRegistry().acquireUnionBuilder()
-		b.AddAlternate(r0)
-		b.AddAlternate(r1)
-		res := b.Build()
-		t.GetRegistry().releaseUnionBuilder(b)
-		return res
-	}
-	b := t.GetRegistry().acquireUnionBuilder()
-	for i := 0; i < len(alts); i++ {
-		b.AddAlternate(alts[i].RestrictByNotNull())
-	}
-	res := b.Build()
-	t.GetRegistry().releaseUnionBuilder(b)
-	return res
+	return t.restrictBy(unionRestrictNotNull)
 }
 
 // Java: UnionType.testForEquality(JSType)

@@ -32,8 +32,8 @@ import (
 // removals' tree edits and the parallel bookkeeping stay on rhino.Node.
 
 type rucPropEntry struct {
-	remHead         *RemoveUnusedCode_RemovableBase
-	remTail         *RemoveUnusedCode_RemovableBase
+	remHead         *rucRemovable
+	remTail         *rucRemovable
 	polyHead        *rucPolyfillInfo
 	polyTail        *rucPolyfillInfo
 	propID          uint32
@@ -81,7 +81,7 @@ type removeUnusedCodeState struct {
 
 	// Go-only: performance — one run's removables, var infos, and polyfill infos
 	// are created together and recycled per script in parallel mode.
-	removables   jutil.ReuseSlab[RemoveUnusedCode_RemovableBase]
+	removables   jutil.ReuseSlab[rucRemovable]
 	varInfoSlab  jutil.ReuseSlab[RemoveUnusedCode_RealVarInfo]
 	polyfillSlab jutil.ReuseSlab[rucPolyfillInfo]
 }
@@ -714,7 +714,7 @@ func (r *RemoveUnusedCode) isExportedByConvention(name string, local bool) bool 
 }
 
 // Java: RemoveUnusedCode.considerForIndependentRemoval(Removable)
-func (r *RemoveUnusedCode) ConsiderForIndependentRemoval(removable *RemoveUnusedCode_RemovableBase) {
+func (r *RemoveUnusedCode) ConsiderForIndependentRemoval(removable *rucRemovable) {
 	propID := removable.propertyNameID
 	if !r.trackProps || propID == 0 {
 		removable.ApplyContinuations(r)
@@ -791,7 +791,7 @@ func (r *RemoveUnusedCode) ConsiderForAccessorSideEffects(getprop rhino.Node, us
 }
 
 // Java: RemoveUnusedCode.isIndependentlyRemovable(Removable)
-func (r *RemoveUnusedCode) IsIndependentlyRemovable(removable *RemoveUnusedCode_RemovableBase) bool {
+func (r *RemoveUnusedCode) IsIndependentlyRemovable(removable *rucRemovable) bool {
 	if removable.IsPrototypeProperty() {
 		// `foo.prototype.prop = something;`
 		// `class C { prop() {} }`

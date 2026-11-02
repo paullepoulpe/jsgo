@@ -206,7 +206,7 @@ func (p *PeepholeFoldConstants) TryFoldAdjacentLiteralLeaves(n rhino.Node, left 
 				// Dangling literal term has no typecasting side effects; fold it!
 				(rr.IsNil())
 		if foldIsTypeSafe {
-			rightStr, ok := nodeUtil_getStringValue(right)
+			rightStr, ok := NodeUtil_GetStringValue(right)
 			if !ok {
 				rightStr = "null"
 			}

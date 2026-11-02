@@ -73,6 +73,7 @@ type ChainableReverseAbstractInterpreter = *SemanticReverseAbstractInterpreter
 // (goog.isObject), and chained combinations of both without dynamic dispatch.
 type SemanticReverseAbstractInterpreter struct {
 	typeRegistry   *rhino.JSTypeRegistry
+	firstLink      *SemanticReverseAbstractInterpreter
 	mode           raiChainMode
 	activeTrackers []*sraiRefinementTracker
 }
@@ -103,12 +104,15 @@ func (s *SemanticReverseAbstractInterpreter) hasNextLink() bool {
 	return s.mode == raiModeClosureThenSemantic || s.mode == raiModeSemanticThenClosure
 }
 
-// Append combines s with lastLink into a single concrete interpreter mode.
+// Append links lastLink after s and returns lastLink.
 //
 // Java: ChainableReverseAbstractInterpreter.append(ChainableReverseAbstractInterpreter)
 func (s *SemanticReverseAbstractInterpreter) Append(
 	lastLink ChainableReverseAbstractInterpreter) ChainableReverseAbstractInterpreter {
-	jutil.CheckArgument(lastLink != nil && !s.hasNextLink() && !lastLink.hasNextLink())
+	if lastLink == nil {
+		panic(jutil.NewNullPointerException())
+	}
+	jutil.CheckArgument(!s.hasNextLink() && !lastLink.hasNextLink() && s.firstLink == nil && lastLink.firstLink == nil)
 	var combined raiChainMode
 	switch {
 	case s.mode == raiModeClosure && lastLink.mode == raiModeSemantic:
@@ -119,14 +123,17 @@ func (s *SemanticReverseAbstractInterpreter) Append(
 		panic(jutil.NewIllegalArgumentExceptionMsg("Unsupported ReverseAbstractInterpreter chain"))
 	}
 	s.mode = combined
-	lastLink.mode = combined
-	return s
+	lastLink.firstLink = s.GetFirst()
+	return lastLink
 }
 
-// GetFirst returns this interpreter.
+// GetFirst returns the head of the interpreter chain.
 //
 // Java: ChainableReverseAbstractInterpreter.getFirst()
 func (s *SemanticReverseAbstractInterpreter) GetFirst() ChainableReverseAbstractInterpreter {
+	if s.firstLink != nil {
+		return s.firstLink
+	}
 	return s
 }
 

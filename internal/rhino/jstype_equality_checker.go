@@ -586,26 +586,6 @@ func (c *EqualityChecker) AreRecordEqual(left *RecordType, right *RecordType) bo
 	return true
 }
 
-// jsTypeStringSetsEqual is Set.equals for two sets of strings held as
-// slices without duplicates.
-//
-// Go-only: language-adapter — getOwnPropertyNames() returns a slice.
-func jsTypeStringSetsEqual(a, b []string) bool {
-	if len(a) != len(b) {
-		return false
-	}
-	set := make(map[string]struct{}, len(b))
-	for _, s := range b {
-		set[s] = struct{}{}
-	}
-	for _, s := range a {
-		if _, ok := set[s]; !ok {
-			return false
-		}
-	}
-	return true
-}
-
 // Java: EqualityChecker.areTypeMapEqual(TemplateTypeMap, TemplateTypeMap)
 func (c *EqualityChecker) AreTypeMapEqual(left *TemplateTypeMap, right *TemplateTypeMap) bool {
 	if left == right {

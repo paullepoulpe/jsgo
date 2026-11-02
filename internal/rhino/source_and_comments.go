@@ -246,11 +246,7 @@ type NonJSDocComment struct {
 }
 
 // Java: NonJSDocComment(SourcePosition, SourcePosition, String)
-func NewNonJSDocComment(start parser.LinePosition, end parser.LinePosition, s *string) *NonJSDocComment {
-	var contents string
-	if s != nil {
-		contents = *s
-	}
+func NewNonJSDocComment(start parser.LinePosition, end parser.LinePosition, contents string) *NonJSDocComment {
 	return &NonJSDocComment{
 		startPosition: start,
 		endPosition:   end,

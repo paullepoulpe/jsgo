@@ -211,7 +211,7 @@ func JsFileFullParser_Parse(code string, filename string, reporter JsFileFullPar
 			compiler /* processCommonJsModules= */, false, ModuleLoader_ResolutionMode_BROWSER)
 	gatherModuleMetadata.Process(rhino.NewNode(rhino.Token_ROOT), parsed.Ast)
 	compiler.GenerateReport()
-	byPath := compiler.GetModuleMetadataMap().ModulesByPathMap()
+	byPath := compiler.GetModuleMetadataMap().GetModulesByPath()
 	if byPath.Size() != 1 {
 		info.sortMultisets()
 		return info // Avoid potential crashes due to assumptions of the code below being violated.

@@ -115,6 +115,46 @@ func (r *scriptNodeDeserializer_Runner) Owner() *ScriptNodeDeserializer {
 	return r.owner_
 }
 
+func readTemplateStringValue(data []byte, depth int) (rawPtr, cookedPtr int32) {
+	subRd := protoReader{b: data, depth: depth, limit: math.MaxInt32}
+	for !subRd.atEnd() {
+		subTag := subRd.readTag()
+		switch subTag {
+		case 0:
+		case astTemplateTag_Raw:
+			rawPtr = subRd.readUint32()
+		case astTemplateTag_Cooked:
+			cookedPtr = subRd.readInt32()
+		default:
+			subRd.skipField(subTag)
+		}
+	}
+	return rawPtr, cookedPtr
+}
+
+func setOriginalNameIfPresent(n rhino.Node, internedStrings *rhino.RhinoStringPool_LazyInternedStringList, origNamePtr int32) {
+	if origNamePtr != 0 {
+		n.SetOriginalNameFromStringPool(internedStrings, int(origNamePtr))
+	}
+}
+
+func (r *scriptNodeDeserializer_Runner) deserializeShadowRoot(
+	serializedShadowChild []byte,
+	depth int,
+	sourceFileTemplate rhino.Node,
+) rhino.Node {
+	closureUnawareSubtreeTemplateNode := sourceFileTemplate.CloneTree()
+	closureUnawareSubtreeTemplateNode.SetIsInClosureUnawareSubtree(true)
+	shadowedCode, shadowOrigNamePtr := r.visitBytes(
+		serializedShadowChild, depth+1, closureUnawareSubtreeTemplateNode)
+	setOriginalNameIfPresent(shadowedCode, r.owner_.stringPool.GetInternedStrings(), shadowOrigNamePtr)
+	shadowRoot := rhino.IR_Root(rhino.IR_ScriptOfNodes(rhino.IR_ExprResult(shadowedCode)))
+	shadowRoot.ClonePropsFrom(closureUnawareSubtreeTemplateNode)
+	shadowRoot.GetFirstChild().ClonePropsFrom(closureUnawareSubtreeTemplateNode)
+	shadowRoot.GetFirstFirstChild().ClonePropsFrom(closureUnawareSubtreeTemplateNode)
+	return shadowRoot
+}
+
 func (r *scriptNodeDeserializer_Runner) visitBytes(
 	data []byte,
 	depth int,
@@ -142,26 +182,26 @@ func (r *scriptNodeDeserializer_Runner) visitBytes(
 		tag := rd.readTag()
 		switch tag {
 		case 0:
-		case 8:
+		case astNodeTag_Kind:
 			kindVal = rd.readInt32()
-		case 18:
+		case astNodeTag_Child:
 			rd.checkRecursionLimit()
 			r.childBytes = append(r.childBytes, rd.readMessageBytes())
-		case 24:
+		case astNodeTag_StringValue:
 			stringValuePointer = rd.readUint32()
 			doubleValue = 0
 			templateRawPtr = 0
 			templateCookedPtr = 0
-		case 33:
+		case astNodeTag_DoubleValue:
 			doubleValue = rd.readDouble()
 			stringValuePointer = 0
 			templateRawPtr = 0
 			templateCookedPtr = 0
-		case 40:
+		case astNodeTag_RelativeLine:
 			relativeLine = rd.readSint32()
-		case 48:
+		case astNodeTag_RelativeColumn:
 			relativeColumn = rd.readSint32()
-		case 58:
+		case astNodeTag_Jsdoc:
 			rd.checkRecursionLimit()
 			if !hasJsdoc {
 				r.jsdoc = OptimizationJsdoc{kind_: r.jsdocKindBuf[:0]}
@@ -169,31 +209,19 @@ func (r *scriptNodeDeserializer_Runner) visitBytes(
 			}
 			subRd := protoReader{b: rd.readMessageBytes(), depth: depth + 1, limit: math.MaxInt32}
 			r.jsdoc.mergeFromReader(&subRd)
-		case 66:
+		case astNodeTag_TemplateStringValue:
 			rd.checkRecursionLimit()
 			stringValuePointer = 0
 			doubleValue = 0
-			subRd := protoReader{b: rd.readMessageBytes(), depth: depth + 1, limit: math.MaxInt32}
-			for !subRd.atEnd() {
-				subTag := subRd.readTag()
-				switch subTag {
-				case 0:
-				case 8:
-					templateRawPtr = subRd.readUint32()
-				case 16:
-					templateCookedPtr = subRd.readInt32()
-				default:
-					subRd.skipField(subTag)
-				}
-			}
-		case 72:
+			templateRawPtr, templateCookedPtr = readTemplateStringValue(rd.readMessageBytes(), depth+1)
+		case astNodeTag_OriginalName:
 			originalNamePointer = rd.readUint32()
-		case 112:
+		case astNodeTag_BooleanProperties:
 			booleanProperties = rd.readInt64()
-		case 120:
+		case astNodeTag_Type:
 			typeVal = rd.readInt32()
 			hasType = true
-		case 128:
+		case astNodeTag_SourceFile:
 			sourceFile = rd.readUint32()
 		default:
 			rd.skipField(tag)
@@ -237,20 +265,7 @@ func (r *scriptNodeDeserializer_Runner) visitBytes(
 		}
 		serializedShadowChild := r.childBytes[childrenStart]
 		r.childBytes = r.childBytes[:childrenStart]
-		closureUnawareSubtreeTemplateNode := sourceFileTemplate.CloneTree()
-		closureUnawareSubtreeTemplateNode.SetIsInClosureUnawareSubtree(true)
-		shadowedCode, shadowOrigNamePtr := r.visitBytes(
-			serializedShadowChild, depth+1, closureUnawareSubtreeTemplateNode)
-		if shadowOrigNamePtr != 0 {
-			shadowedCode.SetOriginalNameFromStringPool(
-				owner.stringPool.GetInternedStrings(), int(shadowOrigNamePtr))
-		}
-		shadowRoot := rhino.IR_Root(rhino.IR_ScriptOfNodes(rhino.IR_ExprResult(shadowedCode)))
-		shadowRoot.ClonePropsFrom(closureUnawareSubtreeTemplateNode)
-		shadowRoot.GetFirstChild().ClonePropsFrom(closureUnawareSubtreeTemplateNode)
-		shadowRoot.GetFirstFirstChild().ClonePropsFrom(closureUnawareSubtreeTemplateNode)
-
-		n.SetClosureUnawareShadow(shadowRoot)
+		n.SetClosureUnawareShadow(r.deserializeShadowRoot(serializedShadowChild, depth, sourceFileTemplate))
 		return n, originalNamePointer
 	}
 
@@ -260,9 +275,7 @@ func (r *scriptNodeDeserializer_Runner) visitBytes(
 		deserializedChild, childOrigNamePtr := r.visitBytes(
 			r.childBytes[i], depth+1, sourceFileTemplate)
 		n.AddChildToBack(deserializedChild)
-		if childOrigNamePtr != 0 {
-			deserializedChild.SetOriginalNameFromStringPool(internedStrings, int(childOrigNamePtr))
-		}
+		setOriginalNameIfPresent(deserializedChild, internedStrings, childOrigNamePtr)
 	}
 	r.childBytes = r.childBytes[:childrenStart]
 

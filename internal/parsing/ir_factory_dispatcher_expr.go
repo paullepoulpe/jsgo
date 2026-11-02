@@ -252,8 +252,8 @@ func (f *IRFactory) AddExtraTrailingComment(node rhino.Node, lastComment *rhino.
 			Column: 0,
 		}
 
-		contents := "\n" + lastComment.GetCommentString()
-		newlineComment := rhino.NewNonJSDocComment(newStart, lastComment.GetEndPosition(), &contents)
+		newlineComment := rhino.NewNonJSDocComment(
+			newStart, lastComment.GetEndPosition(), "\n"+lastComment.GetCommentString())
 		node.GetLastChild().SetTrailingNonJSDocComment(newlineComment)
 		return
 	}
@@ -274,9 +274,8 @@ func (f *IRFactory) AddExtraTrailingComment(node rhino.Node, lastComment *rhino.
 	}
 	comment.WriteString(lastComment.GetCommentString())
 
-	contents := comment.String()
 	allComments := rhino.NewNonJSDocComment(
-		currentComment.GetStartPosition(), lastComment.GetEndPosition(), &contents)
+		currentComment.GetStartPosition(), lastComment.GetEndPosition(), comment.String())
 	allComments.SetEndsAsLineComment(lastComment.IsEndingAsLineComment())
 	allComments.SetIsInline(true)
 	node.GetLastChild().SetTrailingNonJSDocComment(allComments)

@@ -312,16 +312,6 @@ func (m *PropertyMap) getOwnPropertyByID(propertyName string, id rhinoStringID) 
 	return nil
 }
 
-// FindPropertyByID resolves the closest Property in m or its ancestors by its
-// interned rhinoStringID.
-func (m *PropertyMap) FindPropertyByID(id rhinoStringID) *Property {
-	if id == 0 {
-		return nil
-	}
-	_, prop := m.findClosestPairByStringID("", id)
-	return prop
-}
-
 // GetOwnPropertyByID looks up an own string property by its interned rhinoStringID.
 func (m *PropertyMap) GetOwnPropertyByID(id rhinoStringID) *Property {
 	if id == 0 || len(m.entries()) == 0 {
