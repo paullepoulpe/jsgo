@@ -32,22 +32,24 @@ import (
 //
 // Pre-order layout (RecordPreorder, then Permute instead of Slide): the live
 // nodes are renumbered in the order Mark reaches them, which is the
-// pre-order of each marked tree (first child, then next sibling), the trees
-// each followed by the trees hung off its nodes (JSDoc type expressions,
+// pre-order of each marked tree (first child, then next sibling), each tree
+// followed by the trees hung off its nodes (JSDoc type expressions,
 // node-valued props) in the order they are met. The program (the first
-// tree marked) is laid out by script, each script in pre-order followed by
-// the trees hung off its nodes, and the detached trees other holders refer
-// to come first. The order of the scripts and of the trees between them
-// does not matter to a walk (one jump each), so it is chosen for the copy,
-// which reuses old blocks as it goes (below): the detached trees, which
-// are scattered over the old blocks, are copied first, then the scripts in
-// the order of their lowest old id, which is the order they were parsed
-// in (dependency sorting makes their order in the tree different). A walk of the tree
-// after that reads its records nearly in address order, so the hardware
-// prefetcher hides most of the latency of its dependent loads (first
-// child, next sibling), where a slide keeps allocation order: the parser
-// makes children before their parents, and the nodes that passes created
-// (transpilation, inlining) sit far from their neighbours.
+// tree marked) is laid out by script: each script in pre-order, followed by
+// the trees hung off its nodes. A walk of the tree after that reads its
+// records nearly in address order, so the hardware prefetcher hides most of
+// the latency of its dependent loads (first child, next sibling), where a
+// slide keeps allocation order: the parser makes children before their
+// parents, and the nodes that passes create (transpilation, inlining) sit
+// far from their neighbours.
+//
+// The order of the scripts, and of the trees around them, does not matter
+// to a walk (one jump each), so it is chosen for the copy, which reuses old
+// blocks as it goes (below): the detached trees that other holders refer
+// to, which are scattered over the old blocks, come first, then the
+// program's ROOT nodes, then its scripts in the order of their lowest old
+// id, which is the order they were parsed in (dependency sorting makes
+// their order in the tree different).
 //
 // The permutation costs a table of new ids (4 bytes per old id) and the list
 // of live ids in pre-order (4 bytes per live node), and the records cannot
@@ -170,8 +172,8 @@ func (k *Compactor) Mark(n Node) Node {
 }
 
 // markSide marks a tree hung off a node (a JSDoc type expression, a
-// node-valued prop): at once, or, for the pre-order layout, after the tree
-// being marked, so that the records of a tree stay together.
+// node-valued prop): at once, or, for the pre-order layout, after the
+// script or tree being marked, so that the records of a tree stay together.
 func (k *Compactor) markSide(n Node) Node {
 	if !k.preorder {
 		return k.Mark(n)

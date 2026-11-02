@@ -13,12 +13,14 @@ import (
 // Go-only: AST compaction (rhino/node_compact.go).
 //
 // Nodes link with ids, so dead nodes are reclaimed only by compacting the
-// node store: keeping its live nodes, under new ids. This file decides when
-// (after typesToColors, then whenever the nodes allocated since the last
-// compaction exceed a quarter of the live nodes, checked at the end of every
-// optimization-loop iteration and after every top-level optimization pass,
-// and at the end of the optimization stage) and keeps the forwarding
-// registry: the explicit list
+// node store: keeping its live nodes, under new ids, which compaction gives
+// them in pre-order so that walks read the records nearly in address order.
+// This file decides when (always after typesToColors, so that the
+// optimizations run on that layout; then whenever the nodes allocated since
+// the last compaction exceed a quarter of the live nodes, checked at the end
+// of every optimization-loop iteration and after every top-level
+// optimization pass, and at the end of the optimization stage) and keeps the
+// forwarding registry: the explicit list
 // of every rhino.Node the Compiler holds outside the tree across a pass
 // boundary (docs/memory-research/node-holder-census.md, section 3.1).
 // Everything else that holds nodes is pass-local and dead between passes.
@@ -33,7 +35,8 @@ import (
 //
 // Layout: JSGO_AST_LAYOUT=slide slides the live nodes down in id order
 // instead of renumbering them in pre-order (rhino.Compactor.Permute), and
-// does not force the compaction after typesToColors.
+// skips the compaction after typesToColors when less than 10% of the nodes
+// are dead, as before the pre-order layout.
 // JSGO_AST_LAYOUT_AT=<point,...> also forces a compaction at those points
 // (pass names, "loopL.I" for iteration I of loop L) whatever the dead
 // fraction.
@@ -126,8 +129,10 @@ func (c *Compiler) maybeCompactAST(after string, externs, root *rhino.Node, extr
 }
 
 // compactAST keeps only the live nodes of the store (rhino/node_compact.go):
-// it marks what every registered holder refers to, slides the live nodes
-// down, and forwards the holders to the nodes' new ids.
+// it marks what every registered holder refers to, renumbers the live nodes
+// in pre-order (or slides them down), and forwards the holders to the
+// nodes' new ids. Unless force is set, it does nothing when less than 10%
+// of the nodes are dead.
 func (c *Compiler) compactAST(after string, force bool, externs, root *rhino.Node, extra func(fwd func(rhino.Node) rhino.Node)) {
 	a := &c.astCompact
 	t0 := time.Now()
