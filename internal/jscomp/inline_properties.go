@@ -41,6 +41,27 @@ type InlineProperties struct {
 	astAnalyzer *AstAnalyzer
 	prototypeID uint32
 	props       map[uint32]inlinePropInfo
+	// Go-only: the properties whose entry is invalidated (an entry never
+	// becomes a candidate again), to skip the map on repeated invalidations.
+	invalidated inlineBitSet
+}
+
+// invalidate records an invalidating reference to propID.
+func (p *InlineProperties) invalidate(propID uint32) {
+	if p.invalidated.Get(int(propID)) {
+		return
+	}
+	p.invalidated.Set(int(propID))
+	p.props[propID] = inlinePropInfo{invalidated: true}
+}
+
+// hasEntry reports whether propID has an entry (invalidated or a candidate).
+func (p *InlineProperties) hasEntry(propID uint32) bool {
+	if p.invalidated.Get(int(propID)) {
+		return true
+	}
+	_, ok := p.props[propID]
+	return ok
 }
 
 type inlinePropInfo struct {
@@ -91,9 +112,14 @@ func (p *InlineProperties) Process(externs rhino.Node, root rhino.Node) {
 	if externProps := p.compiler.GetExternProperties(); externProps != nil {
 		for name := range externProps.All() {
 			if id := strpool.Lookup(name); id != 0 {
-				p.props[uint32(id)] = inlinePropInfo{invalidated: true}
+				p.invalidate(uint32(id))
 			}
 		}
+	}
+
+	if ix := propUseIndexFor(p.compiler, externs, root); ix != nil {
+		p.processIndexed(ix, root)
+		return
 	}
 
 	// Find and replace the properties in non-extern AST.
@@ -101,6 +127,70 @@ func (p *InlineProperties) Process(externs rhino.Node, root rhino.Node) {
 	replacer := &inlineReplaceCandidates{outer: p}
 	replacer.seen = replacer.seenBuf[:0]
 	NodeTraversal_Traverse(p.compiler, root, replacer)
+}
+
+// processIndexed is Process with the property-use index (prop_use_index.go)
+// in place of the two traversals.
+//
+// Go-only: GatherCandidates' callback is replayed in the traversal's order:
+// the index classified each node as the callback does (inlineClassifyGather);
+// an invalidating reference is applied as is, a definition is evaluated with
+// the traversal state the callback reads (whether it is in the global hoist
+// scope, recorded when the node was indexed, and the enclosing function, the
+// node's change scope when that is a function). A definition of a property
+// that already has an entry is invalidating without evaluating it, as
+// maybeStoreCandidateValue decides last and every check before it is free of
+// side effects.
+// ReplaceCandidates' callback is replayed on the GETPROPs of the candidate
+// properties, in the traversal's post-order: replacing one never creates a
+// GETPROP and changes nothing after it in that order but its parent, which the
+// replay visits after it, as the traversal does.
+func (p *InlineProperties) processIndexed(ix *propUseIndex, root rhino.Node) {
+	rp := piReplay{compiler: p.compiler}
+	defer rp.done()
+	g := &inlineGatherCandidates{outer: p}
+	ix.each(root, piListIP, nil, func(s *piScope, it piItem) {
+		if it.bits&piIPInv != 0 {
+			p.invalidate(it.prop)
+			return
+		}
+		// A definition: it can only be recorded if the property has no
+		// entry yet (maybeStoreCandidateValue), and invalidates it otherwise.
+		if p.hasEntry(it.prop) {
+			p.invalidate(it.prop)
+			return
+		}
+		rp.cur = it.n
+		kind := inlineGatherFieldDef
+		if it.n.IsGetProp() {
+			kind = inlineGatherGetpropDef
+		}
+		g.apply(inlineTraversalState{inGlobalHoistScope: it.bits&piHoist != 0, enclosingFunction: s.enclosingFunction()},
+			it.n, it.n.GetParent(), it.prop, kind)
+	})
+
+	var candidates inlineBitSet
+	// order-independent: builds a set
+	for propID, info := range p.props {
+		if !info.invalidated {
+			candidates.Set(int(propID))
+		}
+	}
+	if candidates.IsEmpty() {
+		return
+	}
+	replacer := &inlineReplaceCandidates{outer: p}
+	replacer.seen = replacer.seenBuf[:0]
+	ix.each(root, piListUses, &candidates, func(_ *piScope, it piItem) {
+		rp.cur = it.n
+		replacer.Visit(nil, it.n, it.n.GetParent())
+	})
+}
+
+// inlineTraversalState is the state of the traversal GatherCandidates reads.
+type inlineTraversalState struct {
+	inGlobalHoistScope bool
+	enclosingFunction  rhino.Node
 }
 
 type inlineGatherCandidates struct {
@@ -114,67 +204,97 @@ func (g *inlineGatherCandidates) visitTokens() *ast.TokenSet {
 
 // Java: InlineProperties.GatherCandidates.visit(NodeTraversal, Node, Node)
 func (g *inlineGatherCandidates) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
-	var invalidatingPropRef bool
-	var propID uint32
+	g.visit(inlineTraversalState{inGlobalHoistScope: t.InGlobalHoistScope(), enclosingFunction: t.GetEnclosingFunction()}, n, parent)
+}
 
+func (g *inlineGatherCandidates) visit(t inlineTraversalState, n rhino.Node, parent rhino.Node) {
+	propID, kind := inlineClassifyGather(g.outer.compiler, n, parent)
+	g.apply(t, n, parent, propID, kind)
+}
+
+// inlineGatherKind is what GatherCandidates.visit does with a node.
+type inlineGatherKind uint8
+
+const (
+	inlineGatherNone inlineGatherKind = iota
+	// inlineGatherInvalidate: an invalidating reference.
+	inlineGatherInvalidate
+	// inlineGatherGetpropDef: a GETPROP in an assignment, a candidate
+	// definition or invalidating.
+	inlineGatherGetpropDef
+	// inlineGatherFieldDef: a class field with a value, likewise.
+	inlineGatherFieldDef
+)
+
+// inlineClassifyGather says what GatherCandidates.visit does with n (it reads
+// n, its children and its ancestors up to the enclosing function only), and
+// for which property.
+func inlineClassifyGather(compiler AbstractCompiler, n rhino.Node, parent rhino.Node) (uint32, inlineGatherKind) {
 	switch n.GetToken() {
 	case rhino.Token_GETPROP:
-		gp := ast.MustGetProp(n)
-		propID = n.GetStringID()
-		if assign, ok := ast.AsAssign(parent); ok {
-			invalidatingPropRef = !g.maybeRecordCandidateGetpropDefinition(t, gp, assign)
+		if parent.IsAssign() {
+			return n.GetStringID(), inlineGatherGetpropDef
 		} else if NodeUtil_IsLValue(n) {
 			// Other LValue references invalidate
 			// e.g. in an enhanced for loop or a destructuring statement
-			invalidatingPropRef = true
+			return n.GetStringID(), inlineGatherInvalidate
 		} else if parent.IsDelProp() {
 			// Deletes invalidate
-			invalidatingPropRef = true
+			return n.GetStringID(), inlineGatherInvalidate
 		}
 	case rhino.Token_STRING_KEY:
 		if parent.IsObjectPattern() {
 			// String keys in destructuring patterns are fine, since they just access the prop.
-			return
+			return 0, inlineGatherNone
 		}
-		propID = n.GetStringID()
-		invalidatingPropRef = true
+		return n.GetStringID(), inlineGatherInvalidate
 	case rhino.Token_GETTER_DEF, rhino.Token_SETTER_DEF, rhino.Token_MEMBER_FUNCTION_DEF:
 		// For now, any object literal key, getter/setter def, or member function invalidates
 		// since we do not inline functions in this pass.
-		propID = n.GetStringID()
-		invalidatingPropRef = true
+		return n.GetStringID(), inlineGatherInvalidate
 	case rhino.Token_MEMBER_FIELD_DEF:
-		fieldDef := ast.MustMemberFieldDef(n)
-		propID = n.GetStringID()
-		if val, ok := fieldDef.Value(); ok {
-			invalidatingPropRef = !g.maybeRecordCandidateClassFieldDefinition(fieldDef, propID, val.Node())
-		} else {
-			invalidatingPropRef = true
+		if _, ok := ast.MustMemberFieldDef(n).Value(); ok {
+			return n.GetStringID(), inlineGatherFieldDef
 		}
+		return n.GetStringID(), inlineGatherInvalidate
 	case rhino.Token_CALL:
 		call := ast.MustCall(n)
-		if !g.outer.compiler.GetCodingConvention().IsPropertyRenameFunction(call.Callee().Node()) {
-			return
+		if !compiler.GetCodingConvention().IsPropertyRenameFunction(call.Callee().Node()) {
+			return 0, inlineGatherNone
 		}
 		firstArg, ok := call.FirstArg()
 		if !ok {
-			return
+			return 0, inlineGatherNone
 		}
 		strLit, ok := firstArg.AsStringLit()
 		if !ok {
-			return
+			return 0, inlineGatherNone
 		}
 		// JSCompiler_renameProperty('foo', obj) and goog.reflect.objectProperty name `foo` for
 		// reflective access, so `foo` may be written without a GETPROP, e.g. by
 		// `obj[JSCompiler_renameProperty('foo', obj)] = value`.
-		propID = strLit.Node().GetStringID()
-		invalidatingPropRef = true
-	default:
-		return
+		return strLit.Node().GetStringID(), inlineGatherInvalidate
 	}
+	return 0, inlineGatherNone
+}
 
+// apply does what GatherCandidates.visit does with n, classified as kind.
+func (g *inlineGatherCandidates) apply(t inlineTraversalState, n rhino.Node, parent rhino.Node, propID uint32, kind inlineGatherKind) {
+	var invalidatingPropRef bool
+	switch kind {
+	case inlineGatherNone:
+		return
+	case inlineGatherInvalidate:
+		invalidatingPropRef = true
+	case inlineGatherGetpropDef:
+		invalidatingPropRef = !g.maybeRecordCandidateGetpropDefinition(t, ast.MustGetProp(n), ast.MustAssign(parent))
+	case inlineGatherFieldDef:
+		fieldDef := ast.MustMemberFieldDef(n)
+		val, _ := fieldDef.Value()
+		invalidatingPropRef = !g.maybeRecordCandidateClassFieldDefinition(fieldDef, propID, val.Node())
+	}
 	if invalidatingPropRef {
-		g.outer.props[propID] = inlinePropInfo{invalidated: true}
+		g.outer.invalidate(propID)
 	}
 }
 
@@ -194,7 +314,7 @@ func (g *inlineGatherCandidates) maybeRecordCandidateClassFieldDefinition(fieldD
 	return g.maybeStoreCandidateValue(c, propID, value)
 }
 
-func (g *inlineGatherCandidates) maybeRecordCandidateGetpropDefinition(t *NodeTraversal, gp ast.GetProp, assign ast.Assign) bool {
+func (g *inlineGatherCandidates) maybeRecordCandidateGetpropDefinition(t inlineTraversalState, gp ast.GetProp, assign ast.Assign) bool {
 	src := gp.Object().Node()
 	propID := gp.Node().GetStringID()
 	value := assign.Value().Node()
@@ -206,7 +326,7 @@ func (g *inlineGatherCandidates) maybeRecordCandidateGetpropDefinition(t *NodeTr
 			return g.maybeStoreCandidateValue(inlinePropColor(src), propID, value)
 		}
 		return false
-	} else if t.InGlobalHoistScope() {
+	} else if t.inGlobalHoistScope {
 		if srcGetProp, ok := ast.AsGetProp(src); ok && srcGetProp.Node().GetStringID() == g.outer.prototypeID {
 			// This is a prototype assignment like:
 			//    x.prototype.foo = 1;
@@ -224,7 +344,7 @@ func (g *inlineGatherCandidates) maybeRecordCandidateGetpropDefinition(t *NodeTr
 
 func (g *inlineGatherCandidates) maybeStoreCandidateValue(color *colors.Color, propID uint32, value rhino.Node) bool {
 	rhino.CheckNotNull(value)
-	if _, exists := g.outer.props[propID]; !exists &&
+	if !g.outer.hasEntry(propID) &&
 		!color.IsInvalidating() &&
 		NodeUtil_IsImmutableValue(value) &&
 		NodeUtil_IsExecutedExactlyOnce(value) {
@@ -241,8 +361,8 @@ func (g *inlineGatherCandidates) maybeStoreCandidateValue(color *colors.Color, p
 // functions (even though the `this` is the same). This pass only cares
 // about property definitions executed once per ctor invocation, and in
 // general we don't know how many times an arrow fn will be executed.
-func inlineInConstructor(t *NodeTraversal) bool {
-	root := t.GetEnclosingFunction()
+func inlineInConstructor(t inlineTraversalState) bool {
+	root := t.enclosingFunction
 	if root.IsNil() {
 		return false
 	}

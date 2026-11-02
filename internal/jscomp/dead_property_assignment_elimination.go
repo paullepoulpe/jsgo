@@ -79,6 +79,18 @@ func (d *DeadPropertyAssignmentElimination) Process(externs rhino.Node, root rhi
 			propertyMap: make(map[uint32]*deadProp, 32),
 		},
 	}
+	if ix := propUseIndexForDPAE(d.compiler, externs, root); ix != nil {
+		// Go-only: the change scopes in the traversal's pre-order, from the
+		// property-use index (prop_use_index.go), instead of a walk of the
+		// whole program; the edits of a function body neither move nor
+		// remove its nested functions.
+		ix.eachScope(root, func(s *piScope) {
+			if d.compiler.HasScopeChanged(s.root) {
+				visitor.EnterChangedScopeRoot(d.compiler, s.root)
+			}
+		})
+		return
+	}
 	NodeTraversal_Traverse(d.compiler, d.compiler.GetJsRoot(), visitor)
 }
 
