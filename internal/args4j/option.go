@@ -198,11 +198,7 @@ type CmdLineException struct {
 }
 
 func newCmdLineException(parser *CmdLineParser, msg messageTemplate, args ...string) *CmdLineException {
-	objs := make([]any, len(args))
-	for i, a := range args {
-		objs[i] = a
-	}
-	return NewCmdLineExceptionWithParser(parser, msg.format(objs...))
+	return NewCmdLineExceptionWithParser(parser, msg.format(args...))
 }
 
 func NewCmdLineExceptionWithParser(parser *CmdLineParser, message string) *CmdLineException {

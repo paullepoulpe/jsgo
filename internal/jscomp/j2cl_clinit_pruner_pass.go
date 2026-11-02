@@ -32,8 +32,7 @@ import (
 //
 // Java: public class J2clClinitPrunerPass implements CompilerPass
 type J2clClinitPrunerPass struct {
-	emptiedOrder             []strpool.ID
-	emptiedClinitMethods     map[strpool.ID]rhino.Node
+	emptiedClinitMethods     smallMap[strpool.ID, rhino.Node]
 	compiler                 AbstractCompiler
 	initialChangedScopeNodes []rhino.Node
 }
@@ -55,7 +54,7 @@ func (p *J2clClinitPrunerPass) Process(externs rhino.Node, root rhino.Node) {
 	p.removeRedundantClinits(root, p.initialChangedScopeNodes)
 	p.pruneEmptyClinits(root, p.initialChangedScopeNodes)
 
-	if len(p.emptiedOrder) == 0 {
+	if p.emptiedClinitMethods.isEmpty() {
 		// Since no clinits are pruned, we don't need to look for more opportunities.
 		return
 	}
@@ -64,7 +63,7 @@ func (p *J2clClinitPrunerPass) Process(externs rhino.Node, root rhino.Node) {
 	for {
 		newChangedScopes := p.cleanEmptyClinitReferences(clinitReferences)
 		p.pruneEmptyClinits(root, newChangedScopes)
-		if len(p.emptiedOrder) == 0 {
+		if p.emptiedClinitMethods.isEmpty() {
 			break
 		}
 	}
@@ -75,13 +74,7 @@ func (p *J2clClinitPrunerPass) Process(externs rhino.Node, root rhino.Node) {
 }
 
 func (p *J2clClinitPrunerPass) recordEmptiedClinit(id strpool.ID, replacement rhino.Node) {
-	if p.emptiedClinitMethods == nil {
-		p.emptiedClinitMethods = make(map[strpool.ID]rhino.Node)
-	}
-	if _, exists := p.emptiedClinitMethods[id]; !exists {
-		p.emptiedOrder = append(p.emptiedOrder, id)
-	}
-	p.emptiedClinitMethods[id] = replacement
+	p.emptiedClinitMethods.put(id, replacement)
 }
 
 func (p *J2clClinitPrunerPass) removeRedundantClinits(root rhino.Node, changedScopeNodes []rhino.Node) {
@@ -97,14 +90,13 @@ func (p *J2clClinitPrunerPass) removeRedundantClinits(root rhino.Node, changedSc
 }
 
 func (p *J2clClinitPrunerPass) pruneEmptyClinits(root rhino.Node, changedScopes []rhino.Node) {
-	p.emptiedOrder = p.emptiedOrder[:0]
-	clear(p.emptiedClinitMethods)
+	p.emptiedClinitMethods.clear()
 
 	p.traverseScopeRootsWithFallback(root, changedScopes, &emptyClinitPruner{p: p}, false)
 
 	// Make sure replacements point to final destination instead of intermediate ones.
-	for _, id := range p.emptiedOrder {
-		p.emptiedClinitMethods[id] = p.resolveReplacement(p.emptiedClinitMethods[id])
+	for i, repl := range p.emptiedClinitMethods.vals {
+		p.emptiedClinitMethods.vals[i] = p.resolveReplacement(repl)
 	}
 }
 
@@ -126,7 +118,7 @@ func (p *J2clClinitPrunerPass) resolveReplacement(node rhino.Node) rhino.Node {
 		if clinitID == 0 {
 			break
 		}
-		next, ok := p.emptiedClinitMethods[clinitID]
+		next, ok := p.emptiedClinitMethods.get(clinitID)
 		if !ok {
 			break
 		}
@@ -177,8 +169,8 @@ func (c *collectClinitRefsCallback) Visit(t *NodeTraversal, node rhino.Node, par
 
 func (p *J2clClinitPrunerPass) cleanEmptyClinitReferences(clinitReferences map[strpool.ID][]rhino.Node) []rhino.Node {
 	newChangedScopes := []rhino.Node{}
-	for _, clinitID := range p.emptiedOrder {
-		replacement := p.emptiedClinitMethods[clinitID]
+	for i, clinitID := range p.emptiedClinitMethods.keys {
+		replacement := p.emptiedClinitMethods.vals[i]
 		references := clinitReferences[clinitID]
 		delete(clinitReferences, clinitID)
 		for _, reference := range references {
@@ -258,7 +250,7 @@ func (ct *clinitBranchTracker) add(id strpool.ID) bool {
 // the clinit is guaranteed to have been called earlier.
 type redundantClinitPruner struct {
 	p          *J2clClinitPrunerPass
-	roots      map[rhino.Node]struct{}
+	roots      smallSet[rhino.Node]
 	stateStack []clinitBranchTracker
 	freePool   []clinitBranchTracker
 	current    clinitBranchTracker
@@ -266,11 +258,8 @@ type redundantClinitPruner struct {
 
 func newRedundantClinitPruner(p *J2clClinitPrunerPass, roots []rhino.Node) *redundantClinitPruner {
 	r := &redundantClinitPruner{p: p}
-	if len(roots) > 0 {
-		r.roots = make(map[rhino.Node]struct{}, len(roots))
-		for _, root := range roots {
-			r.roots[root] = struct{}{}
-		}
+	for _, root := range roots {
+		r.roots.add(root)
 	}
 	return r
 }
@@ -297,7 +286,7 @@ func (r *redundantClinitPruner) popIsolatedState() {
 }
 
 func (r *redundantClinitPruner) ShouldTraverse(t *NodeTraversal, node rhino.Node, parent rhino.Node) bool {
-	if _, ok := r.roots[node]; ok {
+	if r.roots.contains(node) {
 		for i := range r.stateStack {
 			r.stateStack[i].reset()
 			r.freePool = append(r.freePool, r.stateStack[i])

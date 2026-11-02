@@ -20,7 +20,6 @@ package jscomp
 
 import (
 	"iter"
-	"slices"
 
 	"github.com/paullepoulpe/jsgo/internal/ast"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
@@ -33,19 +32,14 @@ import (
 //
 // Java: NodeUtil.getVarsDeclaredInBranch(Node)
 func NodeUtil_GetVarsDeclaredInBranch(root rhino.Node) []rhino.Node {
-	var seenBuf [16]uint32
-	seen := seenBuf[:0]
+	var seen smallIDSet
 	var out []rhino.Node
 	var walk func(n rhino.Node)
 	walk = func(n rhino.Node) {
 		if n.IsVar() {
 			NodeUtil_GetLhsNodesHelper(n, func(name rhino.Node) {
-				if !name.IsName() {
-					_ = name.GetString()
-				}
-				id := name.GetStringID()
-				if !slices.Contains(seen, id) {
-					seen = append(seen, id)
+				// GetStringID enforces Java's StringNode precondition on malformed LHS nodes.
+				if seen.add(name.GetStringID()) {
 					out = append(out, name)
 				}
 			})
@@ -181,6 +175,13 @@ func NodeUtil_GetNodeTypeReferenceCount(
 	return total
 }
 
+// checkTraversePreconditions preserves Java's eager root-node and predicate NPE
+// checks when an uninterned-name fast path skips walking the AST.
+func checkTraversePreconditions(node rhino.Node, traverseChildrenPred func(rhino.Node) bool) {
+	_ = node.GetToken()
+	_ = traverseChildrenPred(node)
+}
+
 // NodeUtil_IsNameReferencedWithPred: whether a simple name is referenced
 // within the node tree.
 //
@@ -188,8 +189,7 @@ func NodeUtil_GetNodeTypeReferenceCount(
 func NodeUtil_IsNameReferencedWithPred(node rhino.Node, name string, traverseChildrenPred func(rhino.Node) bool) bool {
 	id := uint32(strpool.Lookup(name))
 	if id == 0 {
-		_ = node.GetToken()
-		_ = traverseChildrenPred(node)
+		checkTraversePreconditions(node, traverseChildrenPred)
 		return false
 	}
 	return nodeUtil_hasNameIDWithPred(node, id, traverseChildrenPred)
@@ -215,9 +215,9 @@ func nodeUtil_hasNameIDWithPred(node rhino.Node, id uint32, traverseChildrenPred
 //
 // Java: NodeUtil.isNameReferenced(Node, String)
 func NodeUtil_IsNameReferenced(node rhino.Node, name string) bool {
-	_ = node.GetToken()
 	id := uint32(strpool.Lookup(name))
 	if id == 0 {
+		checkTraversePreconditions(node, nodeUtil_alwaysTrue)
 		return false
 	}
 	return nodeUtil_hasNameID(node, id)
@@ -240,9 +240,9 @@ func nodeUtil_hasNameID(node rhino.Node, id uint32) bool {
 //
 // Java: NodeUtil.getNameReferenceCount(Node, String)
 func NodeUtil_GetNameReferenceCount(node rhino.Node, name string) int {
-	_ = node.GetToken()
 	id := uint32(strpool.Lookup(name))
 	if id == 0 {
+		checkTraversePreconditions(node, nodeUtil_alwaysTrue)
 		return 0
 	}
 	return nodeUtil_countNameID(node, id)

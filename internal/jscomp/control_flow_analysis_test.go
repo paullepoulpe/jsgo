@@ -52,7 +52,7 @@ func cfaTestCfg(t *testing.T, input string, expected string, shouldTraverseFunct
 // Java: ControlFlowAnalysisTest.getAllEdges(ControlFlowGraph<Node>)
 func cfaGetAllEdges(cfg *ControlFlowGraph[rhino.Node]) []graph.DiGraph_DiGraphEdge[rhino.Node, ControlFlowGraph_Branch] {
 	var edges []graph.DiGraph_DiGraphEdge[rhino.Node, ControlFlowGraph_Branch]
-	for _, n := range cfg.GetDiGraphNodes() {
+	for _, n := range cfg.GetNodes() {
 		for _, e := range cfg.GetOutEdges(n.GetValue()) {
 			edges = append(edges, e)
 		}
@@ -287,7 +287,7 @@ func cfaFindNodes(t *testing.T, rootNode rhino.Node, predicate func(rhino.Node) 
 // Java: ControlFlowAnalysisTest.assertNodeOrder(ControlFlowGraph<Node>, List<Token>)
 func cfaAssertNodeOrder(t *testing.T, cfg *ControlFlowGraph[rhino.Node], nodeTypes []rhino.Token) {
 	t.Helper()
-	cfgNodes := cfg.GetDiGraphNodes()
+	cfgNodes := cfg.GetNodes()
 	slices.SortStableFunc(cfgNodes, cfg.GetOptionalNodeComparator(true))
 
 	// IMPLICIT RETURN must always be last.
@@ -1463,10 +1463,10 @@ func TestControlFlowAnalysis_PartialTraversalOfScope(t *testing.T) {
 
 	cfg := ComputeControlFlowGraph(compiler, script1, true, true)
 
-	if cfg.GetDiGraphNode(script1) == nil {
+	if cfg.GetNode(script1) == nil {
 		t.Error("script1 should be in the CFG")
 	}
-	if cfg.GetDiGraphNode(script2) != nil {
+	if cfg.GetNode(script2) != nil {
 		t.Error("script2 should not be in the CFG")
 	}
 }
@@ -1766,8 +1766,8 @@ afterA();
 `
 	cfg := cfaTestCreateCfg(t, src, false)
 
-	var finExpr *graph.LinkedDirectedGraph_LinkedDiGraphNode[rhino.Node, ControlFlowGraph_Branch]
-	for _, n := range cfg.GetLinkedDiGraphNodes() {
+	var finExpr *graph.LinkedDiGraphNode[rhino.Node, ControlFlowGraph_Branch]
+	for _, n := range cfg.GetNodes() {
 		if !n.GetValue().IsNil() &&
 			n.GetValue().IsExprResult() &&
 			n.GetValue().GetFirstChild().GetFirstChild().MatchesName("fin") {

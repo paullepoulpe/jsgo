@@ -274,10 +274,7 @@ func (f *DotFormatter) Key(n rhino.Node) int {
 			f.builder.AppendCharSequence(type_.String())
 		}
 		if f.printAnnotations && f.cfg != nil && f.cfg.HasNode(n) {
-			// Go-only: language-adapter — Java's cfg.getNode(n) is
-			// LinkedDirectedGraph's covariant getNode; the annotation is
-			// the same on every view of the node.
-			annotation := f.cfg.GetDiGraphNode(n).GetAnnotation()
+			annotation := f.cfg.GetNode(n).GetAnnotation()
 			if annotation != nil {
 				f.builder.AppendCharSequence("\\n")
 				f.builder.AppendCharSequence(jutil.ToJavaString(annotation))

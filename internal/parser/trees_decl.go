@@ -492,12 +492,7 @@ type FormalParameterListTree struct {
 	CommaPositions []SourcePosition
 }
 
-// NewFormalParameterListTree constructs a FormalParameterListTree.
-//
-// Java: FormalParameterListTree(SourceRange, ImmutableList, boolean, ImmutableList)
-func NewFormalParameterListTree(location SourceRange, parameters []ParseTree, hasTrailingComma bool, commaPositions []SourcePosition) *FormalParameterListTree {
-	t := &FormalParameterListTree{}
-	t.InitParseTreeBase(ParseTreeType_FORMAL_PARAMETER_LIST, location)
+func checkFormalParameterListCommas(parameters []ParseTree, commaPositions []SourcePosition) {
 	numParams := len(parameters)
 	numCommas := len(commaPositions)
 	if !(numCommas <= numParams && numCommas >= numParams-1) {
@@ -508,8 +503,17 @@ func NewFormalParameterListTree(location SourceRange, parameters []ParseTree, ha
 			jutil.CollectionToString(parameters),
 			jutil.CollectionToString(commaPositions))))
 	}
-	t.Parameters = parameters
-	t.HasTrailingComma = hasTrailingComma
-	t.CommaPositions = commaPositions
-	return t
+}
+
+// NewFormalParameterListTree constructs a FormalParameterListTree.
+//
+// Java: FormalParameterListTree(SourceRange, ImmutableList, boolean, ImmutableList)
+func NewFormalParameterListTree(location SourceRange, parameters []ParseTree, hasTrailingComma bool, commaPositions []SourcePosition) *FormalParameterListTree {
+	checkFormalParameterListCommas(parameters, commaPositions)
+	return &FormalParameterListTree{
+		ParseTreeBase:    baseTree(ParseTreeType_FORMAL_PARAMETER_LIST, location),
+		HasTrailingComma: hasTrailingComma,
+		Parameters:       parameters,
+		CommaPositions:   commaPositions,
+	}
 }

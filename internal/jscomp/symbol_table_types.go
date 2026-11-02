@@ -32,9 +32,9 @@ import (
 type SymbolTable_Symbol struct {
 	rhino.SimpleSlotBase
 
-	// Use a linked hash map, so that the results are deterministic
+	// Use an ordered map so that the results are deterministic
 	// (and so the declaration always comes first).
-	references *jutil.LinkedHashMap[rhino.Node, *SymbolTable_Reference]
+	references OrderedMap[rhino.Node, *SymbolTable_Reference]
 
 	scope *SymbolTable_SymbolScope
 
@@ -56,8 +56,7 @@ type SymbolTable_Symbol struct {
 // Java: SymbolTable.Symbol(String, JSType, boolean, SymbolScope)
 func NewSymbolTable_Symbol(name string, type_ rhino.JSType, inferred bool, scope *SymbolTable_SymbolScope) *SymbolTable_Symbol {
 	s := &SymbolTable_Symbol{
-		references: jutil.NewLinkedHashMap[rhino.Node, *SymbolTable_Reference](),
-		scope:      scope,
+		scope: scope,
 	}
 	s.InitSimpleSlotBase(name, type_, inferred)
 	return s
@@ -200,7 +199,7 @@ type SymbolTable_SymbolScope struct {
 	rootNode   rhino.Node
 	parent     *SymbolTable_SymbolScope
 	typeOfThis rhino.JSType
-	ownSymbols *jutil.LinkedHashMap[string, *SymbolTable_Symbol]
+	ownSymbols OrderedStringMap[*SymbolTable_Symbol]
 	scopeDepth int
 
 	// Index of current scope in the parent scope. Used to generate unique names for variables
@@ -223,7 +222,6 @@ func NewSymbolTable_SymbolScope(
 		rootNode:   rootNode,
 		parent:     parent,
 		typeOfThis: typeOfThis,
-		ownSymbols: jutil.NewLinkedHashMap[string, *SymbolTable_Symbol](),
 		mySymbol:   mySymbol,
 	}
 	if parent == nil {
@@ -257,12 +255,10 @@ func (s *SymbolTable_SymbolScope) GetIndexOfSymbol(sym *SymbolTable_Symbol) int 
 	if sym == nil {
 		return -1
 	}
-	i := 0
-	for own := range s.ownSymbols.Values() {
-		if sym == own {
+	for i, e := range s.ownSymbols.Entries() {
+		if sym == e.Value {
 			return i
 		}
-		i++
 	}
 	return -1
 }

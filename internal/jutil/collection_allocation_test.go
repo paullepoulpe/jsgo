@@ -68,6 +68,48 @@ func TestBatchedCollectionMutationDuringIteration(t *testing.T) {
 	}
 }
 
+func TestCollectionIterationZeroAllocs(t *testing.T) {
+	lm := NewLinkedHashMap[int, int]()
+	ls := NewLinkedHashSet[int]()
+	om := NewObjectLinkedHashMap[int, int]()
+	os := NewObjectLinkedHashSet[int]()
+	for i := 0; i < 16; i++ {
+		lm.Put(i, i)
+		ls.Add(i)
+		om.Put(i, i)
+		os.Add(i)
+	}
+	var sink int
+	if n := testing.AllocsPerRun(100, func() {
+		for k, v := range lm.All() {
+			sink += k + v
+		}
+		for k := range lm.Keys() {
+			sink += k
+		}
+		for v := range lm.Values() {
+			sink += v
+		}
+		for k := range ls.All() {
+			sink += k
+		}
+		for k, v := range om.All() {
+			sink += k + v
+		}
+		for k := range om.Keys() {
+			sink += k
+		}
+		for v := range om.Values() {
+			sink += v
+		}
+		for k := range os.All() {
+			sink += k
+		}
+	}); n != 0 {
+		t.Fatalf("expected 0 allocations during ordered collection iteration, got %v (sink=%d)", n, sink)
+	}
+}
+
 func BenchmarkOrderedMapBuild(b *testing.B) {
 	for _, size := range []int{0, 1, 8, 16, 128, 1024} {
 		b.Run(fmt.Sprintf("linked/%d", size), func(b *testing.B) {

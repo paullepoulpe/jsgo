@@ -690,7 +690,7 @@ func (c *LiveVariablesAnalysisTest) GetFlowStateAtX(src string, async bool) *Dat
 func (c *LiveVariablesAnalysisTest) GetFlowStateAtXOfNode(node rhino.Node, cfg *ControlFlowGraph[rhino.Node]) *DataFlowAnalysis_LinearFlowState[*LiveVariablesAnalysis_LiveVariableLattice] {
 	if node.IsLabel() {
 		if node.GetFirstChild().GetString() == "X" {
-			return c.liveness.FlowStateAt(cfg.GetLinkedDiGraphNode(node.GetLastChild()).Index)
+			return c.liveness.FlowStateAt(cfg.GetNode(node.GetLastChild()).Index)
 		}
 	}
 	for child := node.GetFirstChild(); !child.IsNil(); child = child.GetNext() {
@@ -716,7 +716,7 @@ func (c *LiveVariablesAnalysisTest) GetFlowStateAtDeclaration(src string, name s
 func (c *LiveVariablesAnalysisTest) GetFlowStateAtDeclarationOfNode(node rhino.Node, cfg *ControlFlowGraph[rhino.Node], name string) *DataFlowAnalysis_LinearFlowState[*LiveVariablesAnalysis_LiveVariableLattice] {
 	if NodeUtil_IsNameDeclaration(node) {
 		if node.GetFirstChild().GetString() == name {
-			return c.liveness.FlowStateAt(cfg.GetLinkedDiGraphNode(node).Index)
+			return c.liveness.FlowStateAt(cfg.GetNode(node).Index)
 		}
 	}
 	for child := node.GetFirstChild(); !child.IsNil(); child = child.GetNext() {

@@ -402,11 +402,11 @@ func TestCheckPathsBetweenNodes_Cycles_backEdgeToStartNotTraversed(t *testing.T)
 func TestCheckPathsBetweenNodes_WithoutAnnotationsAndSideEffectFree(t *testing.T) {
 	// Works on graphs with annotations disabled.
 	noAnn := LinkedDirectedGraph_CreateWithoutAnnotations[string, string]()
-	a := noAnn.CreateLinkedDiGraphNode("a")
-	b := noAnn.CreateLinkedDiGraphNode("b")
-	c := noAnn.CreateLinkedDiGraphNode("c")
-	d := noAnn.CreateLinkedDiGraphNode("d")
-	p := noAnn.CreateLinkedDiGraphNode("p")
+	a := noAnn.CreateNode("a")
+	b := noAnn.CreateNode("b")
+	c := noAnn.CreateNode("c")
+	d := noAnn.CreateNode("d")
+	p := noAnn.CreateNode("p")
 	// Cycle where one path to loop header b passes through p and another bypasses p:
 	// a -> p -> b <-> c, b -> d, a -> b.
 	noAnn.ConnectLinkedNodes(a, "-", p)
@@ -427,9 +427,9 @@ func TestCheckPathsBetweenNodes_WithoutAnnotationsAndSideEffectFree(t *testing.T
 
 	// Preserves existing node and edge annotations on annotated graphs.
 	ann := LinkedDirectedGraph_Create[string, string]()
-	na := ann.CreateLinkedDiGraphNode("a")
-	nb := ann.CreateLinkedDiGraphNode("b")
-	nc := ann.CreateLinkedDiGraphNode("c")
+	na := ann.CreateNode("a")
+	nb := ann.CreateNode("b")
+	nc := ann.CreateNode("c")
 	ann.ConnectLinkedNodes(na, "-", nb)
 	ann.ConnectLinkedNodes(nb, "-", nb) // self-loop
 	ann.ConnectLinkedNodes(nb, "-", nc)
@@ -456,9 +456,9 @@ func TestCheckPathsBetweenNodes_WithoutAnnotationsAndSideEffectFree(t *testing.T
 func TestCheckPathsBetweenNodes_LargeGraphReuse(t *testing.T) {
 	lg := LinkedDirectedGraph_CreateWithoutAnnotations[int, int]()
 	const n = 100
-	nodes := make([]*LinkedDirectedGraph_LinkedDiGraphNode[int, int], n)
+	nodes := make([]*LinkedDiGraphNode[int, int], n)
 	for i := range n {
-		nodes[i] = lg.CreateLinkedDiGraphNode(i)
+		nodes[i] = lg.CreateNode(i)
 	}
 	for i := range n - 1 {
 		lg.ConnectLinkedNodes(nodes[i], 0, nodes[i+1])
@@ -495,7 +495,7 @@ func checkPathsTest_createTest(
 	nodePredicate func(string) bool,
 	edgePredicate func(*LinkedDiGraphEdge[string, string]) bool) *CheckPathsBetweenNodes[string, string] {
 	return NewCheckPathsBetweenNodesInclusive(
-		graph, graph.GetDiGraphNode(entry), graph.GetDiGraphNode(exit), nodePredicate, edgePredicate)
+		graph, graph.GetNode(entry), graph.GetNode(exit), nodePredicate, edgePredicate)
 }
 
 func checkPathsTest_createNonInclusiveTest(
@@ -505,7 +505,7 @@ func checkPathsTest_createNonInclusiveTest(
 	nodePredicate func(string) bool,
 	edgePredicate func(*LinkedDiGraphEdge[string, string]) bool) *CheckPathsBetweenNodes[string, string] {
 	return NewCheckPathsBetweenNodes(
-		graph, graph.GetDiGraphNode(entry), graph.GetDiGraphNode(exit), nodePredicate, edgePredicate, false)
+		graph, graph.GetNode(entry), graph.GetNode(exit), nodePredicate, edgePredicate, false)
 }
 
 func checkPathsTest_edgeIs(val string) func(*LinkedDiGraphEdge[string, string]) bool {

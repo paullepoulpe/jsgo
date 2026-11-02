@@ -260,7 +260,19 @@ func AsThrowable(r any) Throwable {
 	}
 }
 
-var goIndexOutOfRange = regexp.MustCompile(`index out of range \[(-?\d+)\] with length (\d+)`)
+func parseGoIndexOutOfRange(msg string) (index, length int, ok bool) {
+	_, rest, ok := strings.Cut(msg, "index out of range [")
+	if !ok {
+		return 0, 0, false
+	}
+	idxStr, lenStr, ok := strings.Cut(rest, "] with length ")
+	if !ok {
+		return 0, 0, false
+	}
+	i, err1 := strconv.Atoi(idxStr)
+	n, err2 := strconv.Atoi(lenStr)
+	return i, n, err1 == nil && err2 == nil
+}
 
 // runtimeErrorAsThrowable maps a Go runtime fault to the Java exception the
 // same faulty operation throws on the JVM, so that `catch
@@ -274,9 +286,7 @@ func runtimeErrorAsThrowable(v runtime.Error) Throwable {
 	case strings.Contains(msg, "nil pointer dereference"):
 		return NewNullPointerException()
 	case strings.Contains(msg, "index out of range"):
-		if m := goIndexOutOfRange.FindStringSubmatch(msg); m != nil {
-			i, _ := strconv.Atoi(m[1])
-			n, _ := strconv.Atoi(m[2])
+		if i, n, ok := parseGoIndexOutOfRange(msg); ok {
 			return NewArrayIndexOutOfBoundsExceptionForLength(i, n)
 		}
 		e := &ArrayIndexOutOfBoundsException{}

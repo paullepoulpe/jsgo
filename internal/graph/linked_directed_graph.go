@@ -167,19 +167,10 @@ func (g *LinkedDirectedGraph[N, E]) Connect(srcValue N, edgeValue E, destValue N
 	g.ConnectLinkedNodes(src, edgeValue, dest)
 }
 
-// ConnectNodes connects two resolved graph nodes without map lookups.
-//
-// Java: LinkedDirectedGraph.connect(DiGraphNode<N, E>, E, DiGraphNode<N, E>)
-func (g *LinkedDirectedGraph[N, E]) ConnectNodes(src *LinkedDiGraphNode[N, E], edgeValue E, dest *LinkedDiGraphNode[N, E]) {
-	jutil.CheckNotNull(src)
-	jutil.CheckNotNull(dest)
-	g.ConnectLinkedNodes(src, edgeValue, dest)
-}
-
 // Java: LinkedDirectedGraph.connectIfNotConnectedInDirection(N, E, N)
 func (g *LinkedDirectedGraph[N, E]) ConnectIfNotConnectedInDirection(srcValue N, edgeValue E, destValue N) {
-	src := g.CreateLinkedDiGraphNode(srcValue)
-	dest := g.CreateLinkedDiGraphNode(destValue)
+	src := g.CreateNode(srcValue)
+	dest := g.CreateNode(destValue)
 	if !g.isConnectedInDirectionOfNodesWithEdge(src, edgeValue, dest) {
 		g.ConnectLinkedNodes(src, edgeValue, dest)
 	}
@@ -225,16 +216,6 @@ func (g *LinkedDirectedGraph[N, E]) GetNodes() []*LinkedDiGraphNode[N, E] {
 	return slices.Clone(order)
 }
 
-// Java: LinkedDirectedGraph.getNodes() (as DiGraph.getNodes())
-func (g *LinkedDirectedGraph[N, E]) GetDiGraphNodes() []*LinkedDiGraphNode[N, E] {
-	return g.GetNodes()
-}
-
-// Java: LinkedDirectedGraph.getNodes() (Collection<LinkedDiGraphNode<N, E>>)
-func (g *LinkedDirectedGraph[N, E]) GetLinkedDiGraphNodes() []*LinkedDiGraphNode[N, E] {
-	return g.GetNodes()
-}
-
 // Java: Graph.hasNode(N)
 func (g *LinkedDirectedGraph[N, E]) HasNode(n N) bool {
 	return g.Nodes.Get(n) != nil
@@ -242,16 +223,6 @@ func (g *LinkedDirectedGraph[N, E]) HasNode(n N) bool {
 
 // Java: LinkedDirectedGraph.getNode(N)
 func (g *LinkedDirectedGraph[N, E]) GetNode(nodeValue N) *LinkedDiGraphNode[N, E] {
-	return g.Nodes.Get(nodeValue)
-}
-
-// Java: LinkedDirectedGraph.getNode(N) (as DiGraph.getNode(N))
-func (g *LinkedDirectedGraph[N, E]) GetDiGraphNode(nodeValue N) *LinkedDiGraphNode[N, E] {
-	return g.Nodes.Get(nodeValue)
-}
-
-// Java: LinkedDirectedGraph.getNode(N) (LinkedDiGraphNode<N, E>)
-func (g *LinkedDirectedGraph[N, E]) GetLinkedDiGraphNode(nodeValue N) *LinkedDiGraphNode[N, E] {
 	return g.Nodes.Get(nodeValue)
 }
 
@@ -303,11 +274,6 @@ func (g *LinkedDirectedGraph[N, E]) GetEdges() []*LinkedDiGraphEdge[N, E] {
 	return result
 }
 
-// Java: LinkedDirectedGraph.getEdges() (as DiGraph.getEdges())
-func (g *LinkedDirectedGraph[N, E]) GetDiGraphEdges() []*LinkedDiGraphEdge[N, E] {
-	return g.GetEdges()
-}
-
 // Java: LinkedDirectedGraph.getFirstEdge(N, N)
 func (g *LinkedDirectedGraph[N, E]) GetFirstEdge(n1 N, n2 N) *LinkedDiGraphEdge[N, E] {
 	dNode1 := g.getLinkedNodeOrFail(n1)
@@ -342,24 +308,19 @@ func (g *LinkedDirectedGraph[N, E]) GetEdgesInDirection(n1 N, n2 N) []*LinkedDiG
 func (g *LinkedDirectedGraph[N, E]) IsConnected(n1 N, n2 N) bool {
 	dNode1 := g.getLinkedNodeOrFail(n1)
 	dNode2 := g.getLinkedNodeOrFail(n2)
-	return g.isConnectedInDirectionOfNodesAny(dNode1, dNode2) ||
-		g.isConnectedInDirectionOfNodesAny(dNode2, dNode1)
+	return g.IsConnectedInDirectionOfNodesAny(dNode1, dNode2) ||
+		g.IsConnectedInDirectionOfNodesAny(dNode2, dNode1)
 }
 
 // Java: LinkedDirectedGraph.isConnectedInDirection(N, N)
 func (g *LinkedDirectedGraph[N, E]) IsConnectedInDirection(source N, dest N) bool {
 	dNode1 := g.getLinkedNodeOrFail(source)
 	dNode2 := g.getLinkedNodeOrFail(dest)
-	return g.isConnectedInDirectionOfNodesAny(dNode1, dNode2)
+	return g.IsConnectedInDirectionOfNodesAny(dNode1, dNode2)
 }
 
 // IsConnectedInDirectionOfNodesAny reports whether source has any directed edge to dest.
 func (g *LinkedDirectedGraph[N, E]) IsConnectedInDirectionOfNodesAny(
-	source *LinkedDiGraphNode[N, E], dest *LinkedDiGraphNode[N, E]) bool {
-	return g.isConnectedInDirectionOfNodesAny(source, dest)
-}
-
-func (g *LinkedDirectedGraph[N, E]) isConnectedInDirectionOfNodesAny(
 	source *LinkedDiGraphNode[N, E], dest *LinkedDiGraphNode[N, E]) bool {
 	outEdges := source.OutEdgeList.Slice()
 	inEdges := dest.InEdgeList.Slice()
@@ -461,12 +422,7 @@ func (g *LinkedDirectedGraph[N, E]) PopEdgeAnnotations() {
 
 // Java: LinkedDirectedGraph.getDirectedPredNodes(N)
 func (g *LinkedDirectedGraph[N, E]) GetDirectedPredNodesOfValue(nodeValue N) []*LinkedDiGraphNode[N, E] {
-	return g.GetDirectedPredNodes(g.Nodes.Get(nodeValue))
-}
-
-// Java: LinkedDirectedGraph.getDirectedPredNodes(DiGraphNode<N, E>)
-func (g *LinkedDirectedGraph[N, E]) GetDirectedPredNodes(dNode *LinkedDiGraphNode[N, E]) []*LinkedDiGraphNode[N, E] {
-	jutil.CheckNotNull(dNode)
+	dNode := jutil.CheckNotNull(g.Nodes.Get(nodeValue))
 	inEdges := dNode.InEdgeList.Slice()
 	nodeList := make([]*LinkedDiGraphNode[N, E], len(inEdges))
 	for i, edge := range inEdges {
@@ -477,12 +433,7 @@ func (g *LinkedDirectedGraph[N, E]) GetDirectedPredNodes(dNode *LinkedDiGraphNod
 
 // Java: LinkedDirectedGraph.getDirectedSuccNodes(N)
 func (g *LinkedDirectedGraph[N, E]) GetDirectedSuccNodesOfValue(nodeValue N) []*LinkedDiGraphNode[N, E] {
-	return g.GetDirectedSuccNodes(g.Nodes.Get(nodeValue))
-}
-
-// Java: LinkedDirectedGraph.getDirectedSuccNodes(DiGraphNode<N, E>)
-func (g *LinkedDirectedGraph[N, E]) GetDirectedSuccNodes(dNode *LinkedDiGraphNode[N, E]) []*LinkedDiGraphNode[N, E] {
-	jutil.CheckNotNull(dNode)
+	dNode := jutil.CheckNotNull(g.Nodes.Get(nodeValue))
 	outEdges := dNode.OutEdgeList.Slice()
 	nodeList := make([]*LinkedDiGraphNode[N, E], len(outEdges))
 	for i, edge := range outEdges {

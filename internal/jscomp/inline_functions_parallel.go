@@ -112,80 +112,65 @@ func (f *InlineFunctions) applyParallelCandidates(candsByScript [][]inlineCandid
 }
 
 func (f *InlineFunctions) findCandidatesReferencesParallel(root rhino.Node) bool {
-	scripts, ok := collectRootScripts(root)
-	if !ok {
-		return false
-	}
-	numWorkers := parallelThreadCount(f.compiler, len(scripts))
-	if numWorkers <= 1 {
-		return false
-	}
+	var workerFnCaches []map[rhino.Node]functionInjectorFnInfo
+	var workerSideEffects []map[rhino.Node]calleeSideEffectSummary
+	var ifEventsByScript [][]ifPhase2Event
 
-	prewarmCompilerForParallelReads(f.compiler)
-	if f.enforceMaxSizeAfterInlining {
-		for _, fs := range f.fns {
-			if fs.CanInline() && fs.bodyAstSize == 0 {
-				fnNode := fs.functionNode()
-				if !InlineFunctions_IsAlwaysInlinable(fnNode) {
-					fs.bodyAstSize = int32(NodeUtil_CountAstSizeUpToLimit(ast.MustFunction(fnNode).Body().Node(), f.maxSizeAfterInlining))
+	ok := traverseScriptsParallel(f.compiler, root, parallelScriptOptions[*inlineRefCollector]{
+		useSharedGlobalScope: true,
+		prepare: func(numWorkers, scriptCount int) bool {
+			if f.enforceMaxSizeAfterInlining {
+				for _, fs := range f.fns {
+					if fs.CanInline() && fs.bodyAstSize == 0 {
+						fnNode := fs.functionNode()
+						if !InlineFunctions_IsAlwaysInlinable(fnNode) {
+							fs.bodyAstSize = int32(NodeUtil_CountAstSizeUpToLimit(ast.MustFunction(fnNode).Body().Node(), f.maxSizeAfterInlining))
+						}
+					}
 				}
 			}
-		}
-	}
-
-	lazyGlobal := newLazyGlobalScope(f.compiler, root)
-	workerFnCaches := make([]map[rhino.Node]functionInjectorFnInfo, numWorkers)
-	workerSideEffects := make([]map[rhino.Node]calleeSideEffectSummary, numWorkers)
-
-	ifEventsByScript := make([][]ifPhase2Event, len(scripts))
-	runParallelWork(f.compiler, numWorkers, len(scripts), func(workerID int) (func(int, *recordingCompiler), func()) {
-		var workerRC *recordingCompiler
-		var cb *inlineRefCollector
-		var sc *SyntacticScopeCreator
-
-		cleanup := func() {
-			if cb != nil && cb.injector != nil {
-				if len(cb.injector.fnInfoCache) != 0 {
-					workerFnCaches[workerID] = cb.injector.fnInfoCache
-				}
-				if len(cb.injector.functionArgumentInjector.sideEffectCache) != 0 {
-					workerSideEffects[workerID] = cb.injector.functionArgumentInjector.sideEffectCache
-				}
-			}
-		}
-		runItem := func(idx int, rc *recordingCompiler) {
-			if cb == nil || workerRC != rc {
-				workerRC = rc
-				cb = &inlineRefCollector{}
-				localSafeSupplier := func() string {
+			workerFnCaches = make([]map[rhino.Node]functionInjectorFnInfo, numWorkers)
+			workerSideEffects = make([]map[rhino.Node]calleeSideEffectSummary, numWorkers)
+			ifEventsByScript = make([][]ifPhase2Event, scriptCount)
+			return true
+		},
+		initWorker: func(_ int, rc *Compiler) *inlineRefCollector {
+			cb := &inlineRefCollector{}
+			argInj := NewFunctionArgumentInjector(f.compiler.GetAstAnalyzer())
+			argInj.readOnlySummaries = true
+			inj := NewFunctionInjector(rc, FunctionInjectorOptions{
+				SafeNameIdSupplier: func() string {
 					id := cb.safeIdsCounter
 					cb.safeIdsCounter++
 					return strconv.Itoa(id)
-				}
-				argInj := NewFunctionArgumentInjector(f.compiler.GetAstAnalyzer())
-				argInj.readOnlySummaries = true
-				inj := NewFunctionInjector(rc, FunctionInjectorOptions{
-					SafeNameIdSupplier:       localSafeSupplier,
-					AllowDecomposition:       f.injector.allowDecomposition,
-					AssumeStrictThis:         f.injector.assumeStrictThis,
-					FunctionArgumentInjector: argInj,
-				})
-				inj.shareKnownConstantFunctionsFrom(f.injector)
-				cb.initParallel(f, inj)
-				sc = NewSyntacticScopeCreator(rc)
-			} else {
-				cb.resetForScript()
-			}
-			b := NodeTraversal_Builder{
-				compiler:     rc,
-				callback:     &cb.visitor,
-				scopeCreator: sc,
-			}
-			b.traverseScriptUnderRoot(root, root, scripts[idx], lazyGlobal)
+				},
+				AllowDecomposition:       f.injector.allowDecomposition,
+				AssumeStrictThis:         f.injector.assumeStrictThis,
+				FunctionArgumentInjector: argInj,
+			})
+			inj.shareKnownConstantFunctionsFrom(f.injector)
+			cb.initParallel(f, inj)
+			return cb
+		},
+		callback: func(cb *inlineRefCollector, _ int, _, _ rhino.Node, _ *Compiler) NodeTraversal_Callback {
+			cb.resetForScript()
+			return &cb.visitor
+		},
+		afterScript: func(cb *inlineRefCollector, idx int, _, _ rhino.Node, _ *Compiler) {
 			ifEventsByScript[idx] = cb.events
-		}
-		return runItem, cleanup
-	}, false)
+		},
+		finishWorker: func(workerID int, cb *inlineRefCollector) {
+			if len(cb.injector.fnInfoCache) != 0 {
+				workerFnCaches[workerID] = cb.injector.fnInfoCache
+			}
+			if len(cb.injector.functionArgumentInjector.sideEffectCache) != 0 {
+				workerSideEffects[workerID] = cb.injector.functionArgumentInjector.sideEffectCache
+			}
+		},
+	})
+	if !ok {
+		return false
+	}
 
 	for idx := range ifEventsByScript {
 		f.replayPhase2Events(ifEventsByScript[idx])

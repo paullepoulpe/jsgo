@@ -20,8 +20,6 @@ package jscomp
 
 import (
 	"strconv"
-	"sync"
-	"sync/atomic"
 
 	"github.com/paullepoulpe/jsgo/internal/ast"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
@@ -51,8 +49,6 @@ type InlineObjectLiterals struct {
 	useLocalPrefix bool
 	localPrefix    string
 	localCounter   int
-	collectChanged bool
-	changedOut     *[]rhino.Node
 }
 
 const InlineObjectLiterals_VAR_PREFIX = "JSCompiler_object_inline_"
@@ -207,14 +203,10 @@ func (s *iolCandidateScanner) checkObjectLit(objLit rhino.Node) {
 	if isDecl {
 		if gp.IsVar() {
 			for anc := gp.GetParent(); !anc.IsNil() && !anc.IsScript() && !anc.IsRoot(); anc = anc.GetParent() {
-				if NodeUtil_IsFunctionBlock(anc) {
-					if !iolHasParamName(anc.GetParent(), varNameID) {
+				if NodeUtil_IsFunctionBlock(anc) || anc.IsModuleBody() || NodeUtil_IsClassStaticBlock(anc) {
+					if !NodeUtil_IsFunctionBlock(anc) || !iolHasParamName(anc.GetParent(), varNameID) {
 						s.addScopeCandidate(anc, mask)
 					}
-					break
-				}
-				if anc.IsModuleBody() || NodeUtil_IsClassStaticBlock(anc) {
-					s.addScopeCandidate(anc, mask)
 					break
 				}
 			}
@@ -230,15 +222,10 @@ func (s *iolCandidateScanner) checkObjectLit(objLit rhino.Node) {
 		}
 	} else {
 		for anc := gp.GetParent(); !anc.IsNil() && !anc.IsScript() && !anc.IsRoot(); anc = anc.GetParent() {
-			if NodeUtil_IsFunctionBlock(anc) {
-				if iolHasParamName(anc.GetParent(), varNameID) {
+			if NodeUtil_IsFunctionBlock(anc) || anc.IsModuleBody() || NodeUtil_IsClassStaticBlock(anc) {
+				if NodeUtil_IsFunctionBlock(anc) && iolHasParamName(anc.GetParent(), varNameID) {
 					break
 				}
-				s.addScopeCandidate(anc, mask)
-				if iolHasDirectNameDecl(anc, varNameID, true) {
-					break
-				}
-			} else if anc.IsModuleBody() || NodeUtil_IsClassStaticBlock(anc) {
 				s.addScopeCandidate(anc, mask)
 				if iolHasDirectNameDecl(anc, varNameID, true) {
 					break
@@ -340,6 +327,41 @@ func (o *InlineObjectLiterals) newFilteredCollector(sc *SyntacticScopeCreator) *
 	return rc
 }
 
+type iolFnRunner struct {
+	iol *InlineObjectLiterals
+	rc  *ReferenceCollector
+	t   *NodeTraversal
+}
+
+func newIOLFnRunner(iol *InlineObjectLiterals, s *iolCandidateScanner, root rhino.Node, useLocalPrefix bool) iolFnRunner {
+	iol.scanner = s
+	iol.useLocalPrefix = useLocalPrefix
+	rc := iol.newFilteredCollector(NewSyntacticScopeCreator(iol.compiler))
+	tb := rc.builderVal()
+	t := newNodeTraversal(&tb)
+	t.currentNode = root
+	t.PushScopeOfScope(newIOLDummyGlobalScope(root))
+	return iolFnRunner{iol: iol, rc: rc, t: t}
+}
+
+func (r *iolFnRunner) traverseCandFn(candFn rhino.Node, runPrefix string, fnIdx int) {
+	if r.iol.useLocalPrefix {
+		r.iol.localPrefix = runPrefix + "_" + strconv.Itoa(fnIdx) + "_"
+		r.iol.localCounter = 0
+		r.rc.blocks.resetHoistedCollected()
+		r.rc.lastRejectedVar = nil
+	}
+	r.iol.clearStaleVars()
+	r.t.currentScript = r.t.GetEnclosingScript(candFn)
+	r.t.ClearScriptState()
+	r.t.TraverseBranch(candFn, candFn.GetParent())
+}
+
+func (r *iolFnRunner) close() {
+	r.iol.useLocalPrefix = false
+	r.t.PopScope()
+}
+
 // Java: InlineObjectLiterals.process(Node, Node)
 func (o *InlineObjectLiterals) Process(externs rhino.Node, root rhino.Node) {
 	if root.IsNil() {
@@ -352,98 +374,45 @@ func (o *InlineObjectLiterals) Process(externs rhino.Node, root rhino.Node) {
 		return
 	}
 
-	opts := o.compiler.GetOptions()
-	fastMode := opts.isFastMode()
-
+	fastMode := o.compiler.GetOptions().isFastMode()
 	if !s.hasNonFnCandidate && !s.hasInvalidDecl {
 		s.collectCandFns(root)
 		if len(s.candFns) == 0 {
 			return
 		}
-		if fastMode && len(s.candFns) >= 2 && opts.GetNumParallelThreads() > 1 {
-			numWorkers := min(opts.GetNumParallelThreads(), len(s.candFns))
-			runPrefix := o.safeNameIdSupplier()
-			changedPerFn := make([][]rhino.Node, len(s.candFns))
-			var nextIdx atomic.Int32
-			var wg sync.WaitGroup
-			wg.Add(numWorkers)
-			for w := 0; w < numWorkers; w++ {
-				go func() {
-					defer wg.Done()
-					sc := NewSyntacticScopeCreator(o.compiler)
-					worker := &InlineObjectLiterals{
-						compiler:           o.compiler,
-						safeNameIdSupplier: o.safeNameIdSupplier,
-						scanner:            s,
-						useLocalPrefix:     true,
-						collectChanged:     true,
-					}
-					rc := worker.newFilteredCollector(sc)
-					tb := rc.builderVal()
-					t := newNodeTraversal(&tb)
-					t.currentNode = root
-					t.PushScopeOfScope(newIOLDummyGlobalScope(root))
-					for {
-						fnIdx := int(nextIdx.Add(1) - 1)
-						if fnIdx >= len(s.candFns) {
-							break
-						}
-						candFn := s.candFns[fnIdx]
-						worker.localPrefix = runPrefix + "_" + strconv.Itoa(fnIdx) + "_"
-						worker.localCounter = 0
-						worker.changedOut = &changedPerFn[fnIdx]
-						worker.clearStaleVars()
-						rc.blocks.resetHoistedCollected()
-						rc.lastRejectedVar = nil
-						t.currentScript = t.GetEnclosingScript(candFn)
-						t.ClearScriptState()
-						t.TraverseBranch(candFn, candFn.GetParent())
-					}
-					t.PopScope()
-				}()
-			}
-			wg.Wait()
-			for _, list := range changedPerFn {
-				for _, cs := range list {
-					o.compiler.ReportChangeToChangeScope(cs)
-				}
-			}
-			return
-		}
 		if fastMode || len(s.candFns) == 1 || !s.anyCandFnInHoistedFn {
-			sc := NewSyntacticScopeCreator(o.compiler)
-			o.scanner = s
-			o.collectChanged = false
-			o.changedOut = nil
-			rc := o.newFilteredCollector(sc)
-			tb := rc.builderVal()
-			t := newNodeTraversal(&tb)
-			t.currentNode = root
-			t.PushScopeOfScope(newIOLDummyGlobalScope(root))
+			var runPrefix string
+			numWorkers := 1
 			if fastMode {
-				runPrefix := o.safeNameIdSupplier()
-				o.useLocalPrefix = true
-				for fnIdx, candFn := range s.candFns {
-					o.localPrefix = runPrefix + "_" + strconv.Itoa(fnIdx) + "_"
-					o.localCounter = 0
-					o.clearStaleVars()
-					rc.blocks.resetHoistedCollected()
-					rc.lastRejectedVar = nil
-					t.currentScript = t.GetEnclosingScript(candFn)
-					t.ClearScriptState()
-					t.TraverseBranch(candFn, candFn.GetParent())
-				}
-				o.useLocalPrefix = false
-			} else {
-				o.useLocalPrefix = false
-				for _, candFn := range s.candFns {
-					o.clearStaleVars()
-					t.currentScript = t.GetEnclosingScript(candFn)
-					t.ClearScriptState()
-					t.TraverseBranch(candFn, candFn.GetParent())
-				}
+				runPrefix = o.safeNameIdSupplier()
+				numWorkers = parallelThreadCount(o.compiler, len(s.candFns))
 			}
-			t.PopScope()
+			if numWorkers <= 1 {
+				r := newIOLFnRunner(o, s, root, fastMode)
+				for fnIdx, candFn := range s.candFns {
+					r.traverseCandFn(candFn, runPrefix, fnIdx)
+				}
+				r.close()
+				return
+			}
+			prewarmCompilerForParallelReads(o.compiler)
+			runParallelWork(o.compiler, numWorkers, len(s.candFns), func(_ int) (func(int, *recordingCompiler), func()) {
+				var r iolFnRunner
+				return func(fnIdx int, rc *recordingCompiler) {
+						if r.iol == nil {
+							worker := &InlineObjectLiterals{
+								compiler:           rc,
+								safeNameIdSupplier: o.safeNameIdSupplier,
+							}
+							r = newIOLFnRunner(worker, s, root, true)
+						}
+						r.traverseCandFn(s.candFns[fnIdx], runPrefix, fnIdx)
+					}, func() {
+						if r.t != nil {
+							r.close()
+						}
+					}
+			}, false)
 			return
 		}
 	}
@@ -451,8 +420,6 @@ func (o *InlineObjectLiterals) Process(externs rhino.Node, root rhino.Node) {
 	sc := NewSyntacticScopeCreator(o.compiler)
 	o.scanner = s
 	o.useLocalPrefix = false
-	o.collectChanged = false
-	o.changedOut = nil
 	o.clearStaleVars()
 	o.newFilteredCollector(sc).Process(externs, root)
 }
@@ -470,21 +437,6 @@ func (o *InlineObjectLiterals) nextID() string {
 		return id
 	}
 	return o.safeNameIdSupplier()
-}
-
-func (o *InlineObjectLiterals) reportScopeChange(n rhino.Node) {
-	if o.collectChanged {
-		if n.IsNil() {
-			return
-		}
-		if n.IsScript() {
-			*o.changedOut = append(*o.changedOut, n)
-		} else if cs := ChangeTracker_GetEnclosingChangeScopeRoot(n.GetParent()); !cs.IsNil() {
-			*o.changedOut = append(*o.changedOut, cs)
-		}
-		return
-	}
-	o.compiler.ReportChangeToEnclosingScope(n)
 }
 
 func (o *InlineObjectLiterals) addStaleVar(v *Var) {
@@ -643,36 +595,31 @@ func iolIsVarOrAssignExprLhs(n rhino.Node) bool {
 	return ok && assign.Target().Is(n) && parent.GetParent().IsExprResult()
 }
 
+func (o *InlineObjectLiterals) ensurePropSlot(propID uint32, sanitizeKey bool) {
+	if o.propSlots.indexOf(propID) >= 0 {
+		return
+	}
+	varIdent := rhino.RhinoStringPool_StringFromID(propID)
+	if sanitizeKey && !rhino.TokenStream_IsJSIdentifier(varIdent) {
+		varIdent = InlineObjectLiterals_STRING_KEY_IDENTIFIER
+	}
+	o.propSlots.put(propID, iolPropSlot{varName: InlineObjectLiterals_VAR_PREFIX + varIdent + "_" + o.nextID()})
+}
+
 // Java: InlineObjectLiterals.InliningBehavior.computeVarList(ReferenceCollection)
 func (o *InlineObjectLiterals) computeVarList(referenceInfo *ReferenceCollection) {
 	o.propSlots.clear()
 
 	for _, ref := range referenceInfo.references {
 		if ref.IsLvalue() || ref.IsInitializingDeclaration() {
-			val := ref.GetAssignedValue()
-			if !val.IsNil() {
+			if val := ref.GetAssignedValue(); !val.IsNil() {
 				for member := range ast.MustObjectLit(val).Members() {
-					propID := member.Node().GetStringID()
-					if o.propSlots.indexOf(propID) >= 0 {
-						continue
-					}
-					varname := rhino.RhinoStringPool_StringFromID(propID)
-					varIdent := varname
-					if !rhino.TokenStream_IsJSIdentifier(varname) {
-						varIdent = InlineObjectLiterals_STRING_KEY_IDENTIFIER
-					}
-					o.propSlots.put(propID, iolPropSlot{varName: InlineObjectLiterals_VAR_PREFIX + varIdent + "_" + o.nextID()})
+					o.ensurePropSlot(member.Node().GetStringID(), true)
 				}
 			}
-		} else if NodeUtil_IsNameDeclaration(ref.GetParent()) {
-			// Uninitialized declaration; no property keys to register.
-		} else {
+		} else if !NodeUtil_IsNameDeclaration(ref.GetParent()) {
 			gp := ast.MustNormalOrOptChainGetProp(ref.GetParent())
-			propID := gp.Node().GetStringID()
-			if o.propSlots.indexOf(propID) < 0 {
-				varname := rhino.RhinoStringPool_StringFromID(propID)
-				o.propSlots.put(propID, iolPropSlot{varName: InlineObjectLiterals_VAR_PREFIX + varname + "_" + o.nextID()})
-			}
+			o.ensurePropSlot(gp.Node().GetStringID(), false)
 		}
 	}
 }
@@ -773,11 +720,11 @@ func (o *InlineObjectLiterals) splitObject(v *Var, init *Reference, referenceInf
 			o.recordStaleVarReferencesInTree(val, v.GetScope().(*Scope))
 		}
 		newVarNode.InsertBefore(vnode)
-		o.reportScopeChange(vnode)
+		o.compiler.ReportChangeToEnclosingScope(vnode)
 	}
 
 	if defined {
-		o.reportScopeChange(vnode.GetParent())
+		o.compiler.ReportChangeToEnclosingScope(vnode.GetParent())
 		vnode.Detach()
 	}
 
@@ -785,7 +732,7 @@ func (o *InlineObjectLiterals) splitObject(v *Var, init *Reference, referenceInf
 		if defined && ref == init {
 			continue
 		}
-		o.reportScopeChange(ref.GetNode())
+		o.compiler.ReportChangeToEnclosingScope(ref.GetNode())
 
 		if ref.IsLvalue() {
 			o.replaceAssignmentExpression(v, ref)

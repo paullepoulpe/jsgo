@@ -486,48 +486,20 @@ func (f *IRFactory) ProcessRegExpLiteral(literalTree *parser.LiteralExpressionTr
 
 // Java: IRFactory.TransformDispatcher.validateRegExpFlags(LiteralExpressionTree, String)
 func (f *IRFactory) ValidateRegExpFlags(tree *parser.LiteralExpressionTree, flags string) {
-	if flags == "" {
-		return
-	}
-	allASCII := true
-	for i := 0; i < len(flags); i++ {
-		if flags[i] >= 0x80 {
-			allASCII = false
-			break
-		}
-	}
-	if allASCII {
-		for i := 0; i < len(flags); i++ {
-			flag := flags[i]
-			switch flag {
-			case 'g', 'i', 'm':
-			case 'u', 'y':
-				feature := parser.FeatureSet_Feature_REGEXP_FLAG_Y
-				if flag == 'u' {
-					feature = parser.FeatureSet_Feature_REGEXP_FLAG_U
-				}
-				f.MaybeWarnForFeature(tree, feature)
-			case 's':
-				f.MaybeWarnForFeature(tree, parser.FeatureSet_Feature_REGEXP_FLAG_S)
-			case 'd':
-				f.MaybeWarnForFeature(tree, parser.FeatureSet_Feature_REGEXP_FLAG_D)
-			default:
-				f.errorReporter.Error(
-					"Invalid RegExp flag '"+string(flag)+"'", f.sourceName, f.Lineno(tree), f.Charno(tree))
-			}
-		}
-		return
-	}
 	for i := 0; i < len(flags); {
-		r, width := decodeWTF8Rune(flags[i:])
+		var r rune
+		width := 1
+		if b := flags[i]; b < 0x80 {
+			r = rune(b)
+		} else {
+			r, width = decodeWTF8Rune(flags[i:])
+		}
 		switch r {
 		case 'g', 'i', 'm':
-		case 'u', 'y':
-			feature := parser.FeatureSet_Feature_REGEXP_FLAG_Y
-			if r == 'u' {
-				feature = parser.FeatureSet_Feature_REGEXP_FLAG_U
-			}
-			f.MaybeWarnForFeature(tree, feature)
+		case 'u':
+			f.MaybeWarnForFeature(tree, parser.FeatureSet_Feature_REGEXP_FLAG_U)
+		case 'y':
+			f.MaybeWarnForFeature(tree, parser.FeatureSet_Feature_REGEXP_FLAG_Y)
 		case 's':
 			f.MaybeWarnForFeature(tree, parser.FeatureSet_Feature_REGEXP_FLAG_S)
 		case 'd':

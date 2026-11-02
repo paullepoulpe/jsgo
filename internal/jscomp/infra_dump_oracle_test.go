@@ -595,7 +595,7 @@ func (d *infraDumper) runAnalysis(header string, cfg *ControlFlowGraph[rhino.Nod
 		return
 	}
 	d.line(header)
-	for _, node := range cfg.GetDiGraphNodes() {
+	for _, node := range cfg.GetNodes() {
 		state := node.GetAnnotation().(*DataFlowAnalysis_LinearFlowState[*infraNameSet])
 		d.line("  " + d.id(node.GetValue()) +
 			" in=" + state.GetIn().String() +

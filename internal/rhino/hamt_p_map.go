@@ -37,6 +37,7 @@ package rhino
 import (
 	"iter"
 	"math/bits"
+	"reflect"
 	"strings"
 
 	"github.com/paullepoulpe/jsgo/internal/jutil"
@@ -100,8 +101,8 @@ const HamtPMap_BITS = 4
 const HamtPMap_BITS_SHIFT = 32 - HamtPMap_BITS
 
 func hamtIsNull[V any](v V) bool {
-	if jt, ok := any(&v).(*JSType); ok {
-		return *jt == nil
+	if reflect.TypeFor[V]() == reflect.TypeFor[JSType]() {
+		return any(v) == nil
 	}
 	return jutil.IsNilOf(v)
 }
@@ -109,92 +110,25 @@ func hamtIsNull[V any](v V) bool {
 const debugHamtPMap = false
 
 // HamtPMapArena provides bump-allocated storage for HamtPMap nodes and small
-// child slices within a reusable analysis pass (e.g. TypeInference or
-// MaybeReachingVariableUse).
+// child slices within a reusable analysis pass (e.g. TypeInference).
 type HamtPMapArena[K any, V any] struct {
-	nodeBuf       [64]HamtPMap[K, V]
-	nodeInlineLen int
-	nodeChunks    []*[256]HamtPMap[K, V]
-	nodeChunkIdx  int
-	nodeOffset    int
-
-	childBuf       [128]*HamtPMap[K, V]
-	childInlineLen int
-	childChunks    []*[1024]*HamtPMap[K, V]
-	childChunkIdx  int
-	childOffset    int
+	nodes       jutil.ReuseSlab[HamtPMap[K, V]]
+	childBlocks jutil.ReuseSlab[[32]*HamtPMap[K, V]]
+	childSlice  []*HamtPMap[K, V]
 }
 
 // Reset clears used arena storage and resets indices for reuse while retaining
 // allocated chunk capacity.
 func (a *HamtPMapArena[K, V]) Reset() {
-	if a.nodeInlineLen > 0 {
-		clear(a.nodeBuf[:a.nodeInlineLen])
-		a.nodeInlineLen = 0
-	}
-	if a.nodeChunkIdx > 0 || a.nodeOffset > 0 {
-		for i := 0; i < a.nodeChunkIdx; i++ {
-			clear(a.nodeChunks[i][:])
-		}
-		if a.nodeOffset > 0 && a.nodeChunkIdx < len(a.nodeChunks) {
-			clear(a.nodeChunks[a.nodeChunkIdx][:a.nodeOffset])
-		}
-		a.nodeChunkIdx = 0
-		a.nodeOffset = 0
-	}
-
-	if a.childInlineLen > 0 {
-		clear(a.childBuf[:a.childInlineLen])
-		a.childInlineLen = 0
-	}
-	if a.childChunkIdx > 0 || a.childOffset > 0 {
-		for i := 0; i < a.childChunkIdx; i++ {
-			clear(a.childChunks[i][:])
-		}
-		if a.childOffset > 0 && a.childChunkIdx < len(a.childChunks) {
-			clear(a.childChunks[a.childChunkIdx][:a.childOffset])
-		}
-		a.childChunkIdx = 0
-		a.childOffset = 0
-	}
+	a.nodes.Reset(nil)
+	a.childBlocks.Reset(nil)
+	a.childSlice = nil
 }
 
 // TrimLargeChunks releases excess arena chunks after a large global pass while
 // retaining a small working set for function-level analyses.
 func (a *HamtPMapArena[K, V]) TrimLargeChunks() {
 	a.Reset()
-	const maxRetained = 8
-	if len(a.nodeChunks) > maxRetained {
-		clear(a.nodeChunks[maxRetained:])
-		a.nodeChunks = a.nodeChunks[:maxRetained]
-	}
-	if len(a.childChunks) > maxRetained {
-		clear(a.childChunks[maxRetained:])
-		a.childChunks = a.childChunks[:maxRetained]
-	}
-}
-
-func (a *HamtPMapArena[K, V]) allocNode() *HamtPMap[K, V] {
-	if a.nodeInlineLen < len(a.nodeBuf) {
-		m := &a.nodeBuf[a.nodeInlineLen]
-		a.nodeInlineLen++
-		return m
-	}
-	return a.allocNodeChunk()
-}
-
-//go:noinline
-func (a *HamtPMapArena[K, V]) allocNodeChunk() *HamtPMap[K, V] {
-	if a.nodeOffset == 256 {
-		a.nodeChunkIdx++
-		a.nodeOffset = 0
-	}
-	if a.nodeChunkIdx == len(a.nodeChunks) {
-		a.nodeChunks = append(a.nodeChunks, new([256]HamtPMap[K, V]))
-	}
-	m := &a.nodeChunks[a.nodeChunkIdx][a.nodeOffset]
-	a.nodeOffset++
-	return m
 }
 
 func allocHamtChildren[K any, V any](a *HamtPMapArena[K, V], n int) []*HamtPMap[K, V] {
@@ -204,35 +138,18 @@ func allocHamtChildren[K any, V any](a *HamtPMapArena[K, V], n int) []*HamtPMap[
 	if a == nil || n > 16 {
 		return make([]*HamtPMap[K, V], n)
 	}
-	if a.childInlineLen+n <= len(a.childBuf) {
-		off := a.childInlineLen
-		a.childInlineLen = off + n
-		return a.childBuf[off : off+n : off+n]
+	if len(a.childSlice) < n {
+		a.childSlice = a.childBlocks.Alloc()[:]
 	}
-	return a.allocChildrenChunk(n)
-}
-
-//go:noinline
-func (a *HamtPMapArena[K, V]) allocChildrenChunk(n int) []*HamtPMap[K, V] {
-	if a.childOffset+n > 1024 {
-		if a.childOffset > 0 {
-			a.childChunkIdx++
-			a.childOffset = 0
-		}
-	}
-	if a.childChunkIdx == len(a.childChunks) {
-		a.childChunks = append(a.childChunks, new([1024]*HamtPMap[K, V]))
-	}
-	ch := a.childChunks[a.childChunkIdx]
-	off := a.childOffset
-	a.childOffset = off + n
-	return ch[off : off+n : off+n]
+	s := a.childSlice[:n:n]
+	a.childSlice = a.childSlice[n:]
+	return s
 }
 
 func allocHamtPMap[K any, V any](a *HamtPMapArena[K, V], key K, hash int32, value V, mask int32, children []*HamtPMap[K, V]) *HamtPMap[K, V] {
 	var m *HamtPMap[K, V]
 	if a != nil {
-		m = a.allocNode()
+		m = a.nodes.Alloc()
 	} else {
 		m = &HamtPMap[K, V]{}
 	}
@@ -494,72 +411,82 @@ func (m *HamtPMap[K, V]) ReconcileMapWithArena(arena *HamtPMapArena[K, V], that 
 	return hamtPMap_ReconcileTrees(arena, m, that, joiner, true)
 }
 
+func reconcileSingleTree[K any, V any](arena *HamtPMapArena[K, V], t *HamtPMap[K, V], onLeft bool, joiner HamtPMap_Reconciler[K, V], checkNotNull bool) *HamtPMap[K, V] {
+	var null, newValue V
+	if onLeft {
+		newValue = joiner(t.key, t.value, null)
+	} else {
+		newValue = joiner(t.key, null, t.value)
+	}
+	if checkNotNull {
+		hamtCheckNotNull(newValue)
+	}
+	var newChildrenBuf [16]*HamtPMap[K, V]
+	n := len(t.children)
+	sameChildren := true
+	for i := 0; i < n; i++ {
+		c := reconcileSingleTree(arena, t.children[i], onLeft, joiner, checkNotNull)
+		newChildrenBuf[i] = c
+		if c != t.children[i] {
+			sameChildren = false
+		}
+	}
+	if sameChildren && hamtEquals(t.value, newValue) {
+		return t
+	}
+	var newChildren []*HamtPMap[K, V]
+	if sameChildren {
+		newChildren = t.children
+	} else {
+		newChildren = allocHamtChildren(arena, n)
+		copy(newChildren, newChildrenBuf[:n])
+	}
+	if checkNotNull || !hamtIsNull(newValue) {
+		return allocHamtPMap(arena, t.key, t.hash, newValue, t.mask, newChildren)
+	}
+	return deleteRoot(arena, t.mask, newChildren)
+}
+
+func reconcileVacatedChild[K any, V any](arena *HamtPMapArena[K, V], vacated, ownChild, otherChild *HamtPMap[K, V], vacatedOnLeft bool, joiner HamtPMap_Reconciler[K, V], checkNotNull bool) *HamtPMap[K, V] {
+	shiftedHash := HamtPMap_Shift(vacated.hash)
+	if ownChild == nil && otherChild == nil {
+		var null, v V
+		if vacatedOnLeft {
+			v = joiner(vacated.key, vacated.value, null)
+		} else {
+			v = joiner(vacated.key, null, vacated.value)
+		}
+		if checkNotNull {
+			hamtCheckNotNull(v)
+		}
+		if checkNotNull || !hamtIsNull(v) {
+			return allocHamtPMap(arena, vacated.key, shiftedHash, v, 0, nil)
+		}
+		return nil
+	}
+	var vacatedChild *HamtPMap[K, V]
+	if ownChild != nil {
+		vacatedChild = ownChild.plusWithHash(arena, vacated.key, shiftedHash, vacated.value)
+	} else {
+		vacatedChild = allocHamtPMap(arena, vacated.key, shiftedHash, vacated.value, 0, nil)
+	}
+	if vacatedOnLeft {
+		return hamtPMap_ReconcileTrees(arena, vacatedChild, otherChild, joiner, checkNotNull)
+	}
+	return hamtPMap_ReconcileTrees(arena, otherChild, vacatedChild, joiner, checkNotNull)
+}
+
 // hamtPMap_ReconcileTrees is the internal recursive implementation of
 // reconcile(HamtPMap, BiFunction), factoring out empies.
 //
 // Java: HamtPMap.reconcile(HamtPMap<K, V>, HamtPMap<K, V>, Reconciler<K, V>)
 func hamtPMap_ReconcileTrees[K any, V any](arena *HamtPMapArena[K, V], t1 *HamtPMap[K, V], t2 *HamtPMap[K, V], joiner HamtPMap_Reconciler[K, V], checkNotNull bool) *HamtPMap[K, V] {
-	var null V
 	if t1 == t2 {
 		return t1
 	} else if t1 == nil {
-		newValue := joiner(t2.key, null, t2.value)
-		if checkNotNull {
-			hamtCheckNotNull(newValue)
-		}
-		var newChildrenBuf [16]*HamtPMap[K, V]
-		n := len(t2.children)
-		sameChildren := true
-		for i := 0; i < n; i++ {
-			c := hamtPMap_ReconcileTrees(arena, nil, t2.children[i], joiner, checkNotNull)
-			newChildrenBuf[i] = c
-			if c != t2.children[i] {
-				sameChildren = false
-			}
-		}
-		if sameChildren && hamtEquals(t2.value, newValue) {
-			return t2
-		}
-		var newChildren []*HamtPMap[K, V]
-		if sameChildren {
-			newChildren = t2.children
-		} else {
-			newChildren = allocHamtChildren(arena, n)
-			copy(newChildren, newChildrenBuf[:n])
-		}
-		if checkNotNull || !hamtIsNull(newValue) {
-			return allocHamtPMap(arena, t2.key, t2.hash, newValue, t2.mask, newChildren)
-		}
-		return deleteRoot(arena, t2.mask, newChildren)
+		return reconcileSingleTree(arena, t2, false, joiner, checkNotNull)
 	} else if t2 == nil {
-		newValue := joiner(t1.key, t1.value, null)
-		if checkNotNull {
-			hamtCheckNotNull(newValue)
-		}
-		var newChildrenBuf [16]*HamtPMap[K, V]
-		n := len(t1.children)
-		sameChildren := true
-		for i := 0; i < n; i++ {
-			c := hamtPMap_ReconcileTrees(arena, t1.children[i], nil, joiner, checkNotNull)
-			newChildrenBuf[i] = c
-			if c != t1.children[i] {
-				sameChildren = false
-			}
-		}
-		if sameChildren && hamtEquals(t1.value, newValue) {
-			return t1
-		}
-		var newChildren []*HamtPMap[K, V]
-		if sameChildren {
-			newChildren = t1.children
-		} else {
-			newChildren = allocHamtChildren(arena, n)
-			copy(newChildren, newChildrenBuf[:n])
-		}
-		if checkNotNull || !hamtIsNull(newValue) {
-			return allocHamtPMap(arena, t1.key, t1.hash, newValue, t1.mask, newChildren)
-		}
-		return deleteRoot(arena, t1.mask, newChildren)
+		return reconcileSingleTree(arena, t1, true, joiner, checkNotNull)
 	}
 
 	// Try as hard as possible to return input trees exactly.
@@ -619,37 +546,9 @@ func hamtPMap_ReconcileTrees[K any, V any](arena *HamtPMapArena[K, V], t1 *HamtP
 		child2 := t2.GetChild(childBit)
 		var reconciled *HamtPMap[K, V]
 		if childBit == vacatedBit2 {
-			if (t2.mask & vacatedBit2) != 0 {
-				vacatedChild2 := child2.plusWithHash(arena, t2.key, HamtPMap_Shift(t2.hash), t2.value)
-				reconciled = hamtPMap_ReconcileTrees(arena, child1, vacatedChild2, joiner, checkNotNull)
-			} else if child1 == nil {
-				v := joiner(t2.key, null, t2.value)
-				if checkNotNull {
-					hamtCheckNotNull(v)
-				}
-				if checkNotNull || !hamtIsNull(v) {
-					reconciled = allocHamtPMap(arena, t2.key, HamtPMap_Shift(t2.hash), v, 0, nil)
-				}
-			} else {
-				vacatedChild2 := allocHamtPMap(arena, t2.key, HamtPMap_Shift(t2.hash), t2.value, 0, nil)
-				reconciled = hamtPMap_ReconcileTrees(arena, child1, vacatedChild2, joiner, checkNotNull)
-			}
+			reconciled = reconcileVacatedChild(arena, t2, child2, child1, false, joiner, checkNotNull)
 		} else if childBit == vacatedBit1 {
-			if (t1.mask & vacatedBit1) != 0 {
-				vacatedChild1 := child1.plusWithHash(arena, t1.key, HamtPMap_Shift(t1.hash), t1.value)
-				reconciled = hamtPMap_ReconcileTrees(arena, vacatedChild1, child2, joiner, checkNotNull)
-			} else if child2 == nil {
-				v := joiner(t1.key, t1.value, null)
-				if checkNotNull {
-					hamtCheckNotNull(v)
-				}
-				if checkNotNull || !hamtIsNull(v) {
-					reconciled = allocHamtPMap(arena, t1.key, HamtPMap_Shift(t1.hash), v, 0, nil)
-				}
-			} else {
-				vacatedChild1 := allocHamtPMap(arena, t1.key, HamtPMap_Shift(t1.hash), t1.value, 0, nil)
-				reconciled = hamtPMap_ReconcileTrees(arena, vacatedChild1, child2, joiner, checkNotNull)
-			}
+			reconciled = reconcileVacatedChild(arena, t1, child1, child2, true, joiner, checkNotNull)
 		} else {
 			reconciled = hamtPMap_ReconcileTrees(arena, child1, child2, joiner, checkNotNull)
 		}
@@ -759,20 +658,23 @@ func (m *HamtPMap[K, V]) GetChild(bit int32) *HamtPMap[K, V] {
 //
 // Java: HamtPMap.hash(Object)
 func HamtPMap_Hash[K any](key K) int32 {
-	// Go-only: performance — String, strpool.ID, and Node keys are hashed
-	// without being boxed into any.
-	if id, ok := any(&key).(*strpool.ID); ok {
-		if *id == 0 {
+	// Go-only: performance — common scalar/handle keys are hashed via direct
+	// non-escaping type assertions without boxing onto the heap.
+	if id, ok := any(key).(strpool.ID); ok {
+		if id == 0 {
 			failJSTypeNull()
 		}
-		h := uint32(*id) * 0x9e3779b1
+		h := uint32(id) * 0x9e3779b1
 		return int32(bits.Reverse32(h ^ (h >> 16)))
 	}
-	if s, ok := any(&key).(*string); ok {
-		return int32(bits.Reverse32(uint32(jutil.StringHashCode(*s))))
+	if s, ok := any(key).(string); ok {
+		return int32(bits.Reverse32(uint32(jutil.StringHashCode(s))))
 	}
-	if n, ok := any(&key).(*Node); ok {
-		return int32(bits.Reverse32(uint32(CheckNotNull(*n).IdentityHashCode())))
+	if n, ok := any(key).(Node); ok {
+		return int32(bits.Reverse32(uint32(CheckNotNull(n).IdentityHashCode())))
+	}
+	if x, ok := any(key).(int); ok {
+		return int32(bits.Reverse32(uint32(int32(x))))
 	}
 	jutil.CheckNotNull(key)
 	if h, ok := any(key).(interface{ HashCode() int32 }); ok {
@@ -783,35 +685,40 @@ func HamtPMap_Hash[K any](key K) int32 {
 
 // hamtEquals is jutil.ObjectsEqualsOf, without boxing value/interface types.
 func hamtEquals[T any](a, b T) bool {
-	if sa, ok := any(&a).(*string); ok {
-		return *sa == *any(&b).(*string)
+	if sa, ok := any(a).(string); ok {
+		sb, ok := any(b).(string)
+		return ok && sa == sb
 	}
-	if ia, ok := any(&a).(*int); ok {
-		return *ia == *any(&b).(*int)
+	if ia, ok := any(a).(int); ok {
+		ib, ok := any(b).(int)
+		return ok && ia == ib
 	}
-	if ida, ok := any(&a).(*strpool.ID); ok {
-		return *ida == *any(&b).(*strpool.ID)
+	if ida, ok := any(a).(strpool.ID); ok {
+		idb, ok := any(b).(strpool.ID)
+		return ok && ida == idb
 	}
-	if na, ok := any(&a).(*Node); ok {
-		return *na == *any(&b).(*Node)
+	if na, ok := any(a).(Node); ok {
+		nb, ok := any(b).(Node)
+		return ok && na == nb
 	}
-	if ja, ok := any(&a).(*JSType); ok {
-		jb := *any(&b).(*JSType)
-		return *ja == jb || jsTypeEquals(*ja, jb)
+	if reflect.TypeFor[T]() == reflect.TypeFor[JSType]() {
+		ja, _ := any(a).(JSType)
+		jb, _ := any(b).(JSType)
+		return ja == jb || jsTypeEquals(ja, jb)
 	}
 	return jutil.ObjectsEqualsOf(a, b)
 }
 
 // hamtCheckNotNull is jutil.CheckNotNull, without boxing a Node or JSType.
 func hamtCheckNotNull[T any](v T) {
-	if jt, ok := any(&v).(*JSType); ok {
-		if *jt == nil {
+	if reflect.TypeFor[T]() == reflect.TypeFor[JSType]() {
+		if any(v) == nil {
 			failJSTypeNull()
 		}
 		return
 	}
-	if n, ok := any(&v).(*Node); ok {
-		CheckNotNull(*n)
+	if n, ok := any(v).(Node); ok {
+		CheckNotNull(n)
 		return
 	}
 	jutil.CheckNotNull(v)

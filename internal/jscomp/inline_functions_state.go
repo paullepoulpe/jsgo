@@ -82,25 +82,21 @@ func (t inlineFnTarget) remove(compiler AbstractCompiler) {
 // InlineFunctions_FunctionState is used to track the decisions that have
 // been made about a function.
 type InlineFunctions_FunctionState struct {
-	target           inlineFnTarget
-	safeFnNode       rhino.Node
-	inline           bool
-	remove           bool
-	inlineDirectly   bool
-	referencesThis   bool
-	hasInnerClosures bool
-	summaryValid     bool
-	refs             smallMap[rhino.Node, *FunctionInjector_Reference]
-	chunk            *JSChunk
-	summary          calleeSummary
-
-	hasRequireInliningAnnotation            bool
-	hasRequireInliningAnnotationInitialized bool
-
-	hasEncourageInliningAnnotation            bool
-	hasEncourageInliningAnnotationInitialized bool
-	bodyAstSize                               int32
-	aliasCount                                int32
+	target                 inlineFnTarget
+	safeFnNode             rhino.Node
+	inline                 bool
+	remove                 bool
+	inlineDirectly         bool
+	referencesThis         bool
+	hasInnerClosures       bool
+	summaryValid           bool
+	requireInliningState   uint8 // 0=uninitialized, 1=false, 2=true
+	encourageInliningState uint8 // 0=uninitialized, 1=false, 2=true
+	refs                   smallMap[rhino.Node, *FunctionInjector_Reference]
+	chunk                  *JSChunk
+	summary                calleeSummary
+	bodyAstSize            int32
+	aliasCount             int32
 }
 
 // Java: InlineFunctions.FunctionState()
@@ -217,28 +213,28 @@ func (s *InlineFunctions_FunctionState) CanInline() bool {
 	return s.inline
 }
 
-// Java: InlineFunctions.FunctionState.encourageInlining()
-func (s *InlineFunctions_FunctionState) EncourageInlining() bool {
+func (s *InlineFunctions_FunctionState) lazyAnnotationFlag(state *uint8, check func(rhino.Node) bool) bool {
 	if s.target.kind == fnKindNone {
 		return false
 	}
-	if !s.hasEncourageInliningAnnotationInitialized {
-		s.hasEncourageInliningAnnotationInitialized = true
-		s.hasEncourageInliningAnnotation = InlineFunctions_HasEncourageInliningAnnotation(s.target.fnNode)
+	if *state == 0 {
+		if check(s.target.fnNode) {
+			*state = 2
+		} else {
+			*state = 1
+		}
 	}
-	return s.hasEncourageInliningAnnotation
+	return *state == 2
+}
+
+// Java: InlineFunctions.FunctionState.encourageInlining()
+func (s *InlineFunctions_FunctionState) EncourageInlining() bool {
+	return s.lazyAnnotationFlag(&s.encourageInliningState, InlineFunctions_HasEncourageInliningAnnotation)
 }
 
 // Java: InlineFunctions.FunctionState.requireInlining()
 func (s *InlineFunctions_FunctionState) RequireInlining() bool {
-	if s.target.kind == fnKindNone {
-		return false
-	}
-	if !s.hasRequireInliningAnnotationInitialized {
-		s.hasRequireInliningAnnotationInitialized = true
-		s.hasRequireInliningAnnotation = InlineFunctions_HasRequireInliningAnnotation(s.target.fnNode)
-	}
-	return s.hasRequireInliningAnnotation
+	return s.lazyAnnotationFlag(&s.requireInliningState, InlineFunctions_HasRequireInliningAnnotation)
 }
 
 // Java: InlineFunctions.FunctionState.disallowInlining(AbstractCompiler, DisallowInliningReason)

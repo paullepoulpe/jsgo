@@ -6,6 +6,7 @@ import (
 	"io"
 	"os"
 	"strings"
+	"unicode/utf16"
 	"unicode/utf8"
 )
 
@@ -89,6 +90,94 @@ func (w *StringWriter) WriteString(s string) (int, error) {
 	w.buf.WriteString(s)
 	return len(s), nil
 }
+
+// JavaReader is java.io.Reader's read(char[], int, int) / close().
+type JavaReader interface {
+	// Read is read(char[] cbuf, int off, int len): the number of chars read,
+	// or -1 at the end of the stream.
+	Read(cbuf []uint16, off, length int) int
+	// Close is close().
+	Close()
+}
+
+// StringReader is java.io.StringReader.
+type StringReader struct {
+	next int
+
+	// Go-only: performance — the string is decoded incrementally in Read
+	// (s holds it from the start), so that CharStreams_ToString can return
+	// an unread StringReader's string as it is, and Read never allocates a
+	// full []uint16 slice.
+	s            string
+	converted    bool
+	pendingLo    uint16
+	hasPendingLo bool
+}
+
+// NewStringReader is new StringReader(String).
+func NewStringReader(s string) *StringReader {
+	return &StringReader{s: s}
+}
+
+// Read is StringReader.read(char[], int, int).
+func (r *StringReader) Read(cbuf []uint16, off, length int) int {
+	if off < 0 || length < 0 || off+length > len(cbuf) {
+		panic(NewIndexOutOfBoundsException("Range [" + itoa(off) + ", " + itoa(off) + " + " + itoa(length) + ") out of bounds for length " + itoa(len(cbuf))))
+	}
+	if length == 0 {
+		return 0
+	}
+	r.converted = true
+	if !r.hasPendingLo && r.next >= len(r.s) {
+		return -1
+	}
+	dst := cbuf[off : off+length]
+	written := 0
+	if r.hasPendingLo {
+		dst[0] = r.pendingLo
+		r.hasPendingLo = false
+		written = 1
+	}
+	s := r.s
+	next := r.next
+	for written < length && next < len(s) {
+		if s[next] < 0x80 {
+			rem := min(length-written, len(s)-next)
+			i := 0
+			for ; i < rem && s[next+i] < 0x80; i++ {
+				dst[written+i] = uint16(s[next+i])
+			}
+			written += i
+			next += i
+			continue
+		}
+		ru, sz := decodeWTF8(s[next:])
+		next += sz
+		if ru >= 0x10000 {
+			hi, lo := utf16.EncodeRune(ru)
+			dst[written] = uint16(hi)
+			written++
+			if written < length {
+				dst[written] = uint16(lo)
+				written++
+			} else {
+				r.pendingLo = uint16(lo)
+				r.hasPendingLo = true
+			}
+		} else {
+			dst[written] = uint16(ru)
+			written++
+		}
+	}
+	r.next = next
+	if !r.hasPendingLo && next >= len(s) {
+		r.s = ""
+	}
+	return written
+}
+
+// Close is StringReader.close().
+func (r *StringReader) Close() {}
 
 // Go-only: language-adapter — java.io.BufferedReader over a StringReader or
 // over an InputStreamReader(stream, UTF_8). The whole input is decoded on

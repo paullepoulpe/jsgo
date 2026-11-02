@@ -42,7 +42,7 @@ type TypedAstSerializer struct {
 
 	colorTypeSerializer *TypedAstSerializer_ColorTypeSerializer
 	jsTypeSerializer    *TypedAstSerializer_JSTypeSerializer
-	usedPropBits        []uint64
+	usedPropBits        smallBitSet
 	recordUsedProps     bool
 
 	scriptEnc      scriptWireEncoder
@@ -69,7 +69,6 @@ func (s *TypedAstSerializer) SerializeRoots(externsRoot rhino.Node, jsRoot rhino
 
 	if s.compiler.HasOptimizationColors() {
 		if root := s.compiler.GetRoot(); !root.IsNil() && externsRoot.GetParent() == root {
-			s.usedPropBits = make([]uint64, 64)
 			s.recordUsedProps = true
 			colorSerializer := NewColorSerializer(
 				s.serializationMode,
@@ -205,7 +204,7 @@ func (s *TypedAstSerializer) applyFixupsSequential(enc *scriptWireEncoder) {
 			nodes[op.targetIdx].setStringPointer(sp.PutID(op.refIdx))
 		case fixupNodeStrValUsedProp:
 			ptr := sp.PutID(op.refIdx)
-			s.markUsedProp(ptr)
+			s.usedPropBits.Set(ptr)
 			nodes[op.targetIdx].setStringPointer(ptr)
 		case fixupNodeOrigName:
 			nodes[op.targetIdx].origName = int32(sp.PutID(op.refIdx))
@@ -358,24 +357,9 @@ func (s *TypedAstSerializer) serializeRootsParallel(
 	return externAsts, codeAsts
 }
 
-func (s *TypedAstSerializer) markUsedProp(ptr int) {
-	word := ptr >> 6
-	if word >= len(s.usedPropBits) {
-		newLen := max(len(s.usedPropBits)*2, word+1)
-		grown := make([]uint64, newLen)
-		copy(grown, s.usedPropBits)
-		s.usedPropBits = grown
-	}
-	s.usedPropBits[word] |= uint64(1) << (uint(ptr) & 63)
-}
-
 func (s *TypedAstSerializer) lookupUsedPropIndex(prop string) (int, bool) {
 	idx, ok := s.stringPool.Lookup(prop)
-	if !ok {
-		return 0, false
-	}
-	word := idx >> 6
-	if word >= len(s.usedPropBits) || (s.usedPropBits[word]&(uint64(1)<<(uint(idx)&63))) == 0 {
+	if !ok || !s.usedPropBits.Get(idx) {
 		return 0, false
 	}
 	return idx, true
@@ -435,7 +419,7 @@ func (s *TypedAstSerializer) CreateColorTypeSerializer(
 	serializationMode *SerializationOptions,
 	stringPoolBuilder *StringPool_Builder) *TypedAstSerializer_ColorTypeSerializer {
 	// Gather all the property names that are actually used in the AST.
-	var usedPropertyNames jutil.BitSet
+	var usedPropertyNames smallBitSet
 	var lastPropID uint32
 	var walk func(n rhino.Node)
 	walk = func(n rhino.Node) {

@@ -231,7 +231,7 @@ func (l *removeUnusedOracleLva) ExitScopeWithCfg(t *NodeTraversal) {
 	for _, v := range liveness.GetAllVariablesInOrder() {
 		*l.extra = append(*l.extra, "var "+strconv.Itoa(liveness.GetVarIndex(v.GetName()))+" "+v.GetName())
 	}
-	for _, cfgNode := range cfg.GetDiGraphNodes() {
+	for _, cfgNode := range cfg.GetNodes() {
 		state := liveness.FlowStateAt(cfgNode.Index)
 		n := cfgNode.GetValue()
 		where := "IMPLICIT_RETURN"

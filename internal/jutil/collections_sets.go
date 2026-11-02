@@ -62,6 +62,13 @@ type LinkedHashSet[T comparable] struct {
 	m LinkedHashMap[T, struct{}]
 }
 
+func (s *LinkedHashSet[T]) table() *orderedTable[T, struct{}, struct{}] {
+	if s == nil {
+		return nil
+	}
+	return &s.m.orderedTable
+}
+
 // NewLinkedHashSet returns a set containing elems in order.
 func NewLinkedHashSet[T comparable](elems ...T) *LinkedHashSet[T] {
 	s := &LinkedHashSet[T]{}
@@ -76,19 +83,16 @@ func NewLinkedHashSetWithCapacity[T comparable](cap int) *LinkedHashSet[T] {
 	if cap > 0 {
 		return &LinkedHashSet[T]{
 			m: LinkedHashMap[T, struct{}]{
-				slots: slices.Grow([]lhmSlot[T, struct{}](nil), cap),
+				orderedTable: orderedTable[T, struct{}, struct{}]{
+					slots: slices.Grow([]lhmSlot[T, struct{}](nil), cap),
+				},
 			},
 		}
 	}
 	return &LinkedHashSet[T]{}
 }
 
-func (s *LinkedHashSet[T]) Size() int {
-	if s == nil {
-		return 0
-	}
-	return int(s.m.size)
-}
+func (s *LinkedHashSet[T]) Size() int     { return s.table().sizeOrZero() }
 func (s *LinkedHashSet[T]) IsEmpty() bool { return s.Size() == 0 }
 
 // Add is Set.add; reports whether the set changed.
@@ -96,13 +100,13 @@ func (s *LinkedHashSet[T]) Add(e T) bool {
 	if s.m.find(e) >= 0 {
 		return false
 	}
-	s.m.add(e, struct{}{})
+	s.m.add(e, struct{}{}, struct{}{}, lhmSlotHash[T, struct{}])
 	return true
 }
 
 // AddNew inserts e when the caller has already verified that e is absent.
 func (s *LinkedHashSet[T]) AddNew(e T) {
-	s.m.add(e, struct{}{})
+	s.m.add(e, struct{}{}, struct{}{}, lhmSlotHash[T, struct{}])
 }
 
 // AddAll adds every element; reports whether the set changed.
@@ -125,59 +129,21 @@ func (s *LinkedHashSet[T]) Remove(e T) bool {
 	if i < 0 {
 		return false
 	}
-	s.m.removeSlot(i)
+	s.m.removeSlot(i, lhmSlotHash[T, struct{}])
 	return true
 }
 
 // Clear is Set.clear.
-func (s *LinkedHashSet[T]) Clear() { s.m.Clear() }
+func (s *LinkedHashSet[T]) Clear() { s.m.clear() }
 
-// All iterates in insertion order (see LinkedHashMap.Keys).
-func (s *LinkedHashSet[T]) All() iter.Seq[T] {
-	var h *LinkedHashMap[T, struct{}]
-	if s != nil {
-		h = &s.m
-	}
-	return func(yield func(T) bool) {
-		if h == nil {
-			return
-		}
-		for i := int(h.first); i < len(h.slots); i++ {
-			if m := h.loadIndex(); i < int(h.first) || m != nil && m.isRemoved(i) {
-				continue
-			}
-			if !yield(h.slots[i].key) {
-				return
-			}
-		}
-	}
-}
+// All iterates in insertion order.
+func (s *LinkedHashSet[T]) All() iter.Seq[T] { return s.table().keys() }
 
 // ToSlice returns the elements in insertion order.
-func (s *LinkedHashSet[T]) ToSlice() []T {
-	if s == nil {
-		return nil
-	}
-	return s.m.KeySlice()
-}
+func (s *LinkedHashSet[T]) ToSlice() []T { return s.table().keySlice() }
 
 // First returns the first element in insertion order, if any, without closures.
-func (s *LinkedHashSet[T]) First() (T, bool) {
-	if s != nil && s.m.size > 0 {
-		h := &s.m
-		m := h.loadIndex()
-		if m == nil || len(m.removed) == 0 {
-			return h.slots[h.first].key, true
-		}
-		for i := int(h.first); i < len(h.slots); i++ {
-			if i >= len(m.removed) || !m.removed[i] {
-				return h.slots[i].key, true
-			}
-		}
-	}
-	var zero T
-	return zero, false
-}
+func (s *LinkedHashSet[T]) First() (T, bool) { return s.table().firstKey() }
 
 // String renders like AbstractCollection.toString(): "[a, b]".
 func (s *LinkedHashSet[T]) String() string { return CollectionToString(s.ToSlice()) }
@@ -199,10 +165,7 @@ func (s *LinkedHashSet[T]) Equals(o any) bool {
 		if s.m.size == 0 {
 			return true
 		}
-		var removed []bool
-		if m := s.m.loadIndex(); m != nil {
-			removed = m.removed
-		}
+		removed := s.m.removedSlice()
 		for i := int(s.m.first); i < len(s.m.slots); i++ {
 			if i < len(removed) && removed[i] {
 				continue
@@ -222,10 +185,7 @@ func (s *LinkedHashSet[T]) HashCode() int32 {
 		return 0
 	}
 	var h int32
-	var removed []bool
-	if m := s.m.loadIndex(); m != nil {
-		removed = m.removed
-	}
+	removed := s.m.removedSlice()
 	for i := int(s.m.first); i < len(s.m.slots); i++ {
 		if i < len(removed) && removed[i] {
 			continue
@@ -238,13 +198,6 @@ func (s *LinkedHashSet[T]) HashCode() int32 {
 // ---------------------------------------------------------------------------
 // ObjectLinkedHashMap / ObjectLinkedHashSet
 
-type olhmSlot[K any, V any] struct {
-	key     K
-	value   V
-	hash    int32 // ObjectHashCode(key)
-	removed bool
-}
-
 // ObjectLinkedHashMap is java.util.LinkedHashMap (and Guava ImmutableMap)
 // for keys whose classes override equals()/hashCode(): keys are compared
 // with ObjectsEquals and hashed with ObjectHashCode instead of Go ==.
@@ -253,13 +206,21 @@ type olhmSlot[K any, V any] struct {
 // Go-only: performance — as for LinkedHashMap, the index is only built once
 // the slot slice holds more than lhmSmallSize entries (in the typed-app
 // benchmark, 65% of these maps stay empty); until then lookups walk the
-// contiguous slots slice and call ObjectsEquals on the entries whose hash
-// matches. The index hashes the hash codes stored in the slots.
+// contiguous slots slice and call ObjectsEquals on the entries whose cached
+// hash code matches.
 type ObjectLinkedHashMap[K any, V any] struct {
-	m     *lhmIndex // nil until len(slots) exceeds lhmSmallSize; m.removed is unused
-	slots []olhmSlot[K, V]
-	size  int32
-	first int32
+	orderedTable[K, V, int32]
+}
+
+func olhmSlotHash[K any, V any](s *orderedSlot[K, V, int32]) uint {
+	return lhmHash(s.meta)
+}
+
+func (h *ObjectLinkedHashMap[K, V]) table() *orderedTable[K, V, int32] {
+	if h == nil {
+		return nil
+	}
+	return &h.orderedTable
 }
 
 // NewObjectLinkedHashMap returns an empty map.
@@ -278,26 +239,28 @@ func (h *ObjectLinkedHashMap[K, V]) findWithHash(k K, hash int32) int {
 	if h == nil || h.size == 0 {
 		return -1
 	}
-	slots := h.slots
-	if h.m != nil {
-		return h.m.find(lhmHash(hash), func(slot int) bool {
-			return slots[slot].hash == hash && ObjectsEqualsOf(slots[slot].key, k)
-		})
+	if m := h.loadIndex(); m != nil {
+		return h.lookupIn(m, k, hash)
 	}
-	for i := int(h.first); i < len(slots); i++ {
-		if slots[i].hash == hash && !slots[i].removed && ObjectsEqualsOf(slots[i].key, k) {
+	if int(h.size) > lhmSmallSize || len(h.slots) > 2*lhmSmallSize {
+		return h.lookupIn(h.buildIndexShared(olhmSlotHash[K, V]), k, hash)
+	}
+	for i := int(h.first); i < len(h.slots); i++ {
+		if h.slots[i].meta == hash && ObjectsEqualsOf(h.slots[i].key, k) {
 			return i
 		}
 	}
 	return -1
 }
 
-func (h *ObjectLinkedHashMap[K, V]) Size() int {
-	if h == nil {
-		return 0
-	}
-	return int(h.size)
+func (h *ObjectLinkedHashMap[K, V]) lookupIn(m *lhmIndex, k K, hash int32) int {
+	slots := h.slots
+	return m.find(lhmHash(hash), func(slot int) bool {
+		return slots[slot].meta == hash && ObjectsEqualsOf(slots[slot].key, k)
+	})
 }
+
+func (h *ObjectLinkedHashMap[K, V]) Size() int     { return h.table().sizeOrZero() }
 func (h *ObjectLinkedHashMap[K, V]) IsEmpty() bool { return h.Size() == 0 }
 
 // Get is Map.get: the zero value (Java null) when absent.
@@ -308,12 +271,10 @@ func (h *ObjectLinkedHashMap[K, V]) Get(k K) V {
 
 // Lookup returns the value and whether the key is present.
 func (h *ObjectLinkedHashMap[K, V]) Lookup(k K) (V, bool) {
-	if h == nil || h.size == 0 {
-		var zero V
-		return zero, false
-	}
-	if i, _ := h.find(k); i >= 0 {
-		return h.slots[i].value, true
+	if h != nil && h.size > 0 {
+		if i, _ := h.find(k); i >= 0 {
+			return h.slots[i].value, true
+		}
 	}
 	var zero V
 	return zero, false
@@ -337,61 +298,9 @@ func (h *ObjectLinkedHashMap[K, V]) Put(k K, v V) V {
 		h.slots[i].value = v
 		return old
 	}
-	h.addWithHash(k, v, hash)
+	h.add(k, v, hash, olhmSlotHash[K, V])
 	var zero V
 	return zero
-}
-
-// addWithHash appends an entry for k, which must be absent and have hash
-// code hash.
-func (h *ObjectLinkedHashMap[K, V]) addWithHash(k K, v V, hash int32) {
-	if cap(h.slots) == 0 {
-		h.slots = make([]olhmSlot[K, V], 0, 2)
-		h.first = 0
-	} else if len(h.slots) >= 64 && int(h.size)*4 < len(h.slots) {
-		h.compact()
-	}
-	idx := len(h.slots)
-	h.slots = append(h.slots, olhmSlot[K, V]{key: k, value: v, hash: hash})
-	h.size++
-	switch {
-	case h.m != nil && !h.m.needsGrow():
-		h.m.insert(lhmHash(hash), idx)
-	case h.m != nil || int(h.size) > lhmSmallSize || len(h.slots) > 2*lhmSmallSize:
-		h.reindex()
-	}
-}
-
-// reindex (re)builds the index from the live slots, sized for them.
-func (h *ObjectLinkedHashMap[K, V]) reindex() {
-	if h.m == nil {
-		h.m = &lhmIndex{}
-	}
-	h.m.reset(lhmTableLen(int(h.size)))
-	for i := int(h.first); i < len(h.slots); i++ {
-		if !h.slots[i].removed {
-			h.m.insert(lhmHash(h.slots[i].hash), i)
-		}
-	}
-}
-
-// compact drops the removed slots, keeping the order of the others.
-//
-//go:noinline
-func (h *ObjectLinkedHashMap[K, V]) compact() {
-	w := 0
-	for i := int(h.first); i < len(h.slots); i++ {
-		if !h.slots[i].removed {
-			h.slots[w] = h.slots[i]
-			w++
-		}
-	}
-	clear(h.slots[w:])
-	h.slots = h.slots[:w]
-	h.first = 0
-	if h.m != nil {
-		h.reindex()
-	}
 }
 
 // Remove is Map.remove; returns the removed value (zero if absent).
@@ -400,104 +309,27 @@ func (h *ObjectLinkedHashMap[K, V]) Remove(k K) V {
 		var zero V
 		return zero
 	}
-	i, hash := h.find(k)
+	i, _ := h.find(k)
 	if i < 0 {
 		var zero V
 		return zero
 	}
 	old := h.slots[i].value
-	h.removeSlot(i, hash)
+	h.removeSlot(i, olhmSlotHash[K, V])
 	return old
 }
 
-// removeSlot removes the entry at slot index i, whose hash code is hash.
-func (h *ObjectLinkedHashMap[K, V]) removeSlot(i int, hash int32) {
-	if h.m != nil {
-		h.m.erase(lhmHash(hash), i)
-	}
-	h.size--
-	h.slots[i] = olhmSlot[K, V]{removed: true}
-	if i == int(h.first) {
-		first := i + 1
-		for first < len(h.slots) && h.slots[first].removed {
-			first++
-		}
-		h.first = int32(first)
-	}
-}
-
 // All iterates entries in insertion order.
-func (h *ObjectLinkedHashMap[K, V]) All() iter.Seq2[K, V] {
-	return func(yield func(K, V) bool) {
-		if h == nil || h.size == 0 {
-			return
-		}
-		for i := int(h.first); i < len(h.slots); i++ {
-			if h.slots[i].removed {
-				continue
-			}
-			if !yield(h.slots[i].key, h.slots[i].value) {
-				return
-			}
-		}
-	}
-}
+func (h *ObjectLinkedHashMap[K, V]) All() iter.Seq2[K, V] { return h.table().all() }
 
-// Keys iterates keys in insertion order (see LinkedHashMap.Keys).
-func (h *ObjectLinkedHashMap[K, V]) Keys() iter.Seq[K] {
-	return func(yield func(K) bool) {
-		if h == nil || h.size == 0 {
-			return
-		}
-		for i := int(h.first); i < len(h.slots); i++ {
-			if h.slots[i].removed {
-				continue
-			}
-			if !yield(h.slots[i].key) {
-				return
-			}
-		}
-	}
-}
+// Keys iterates keys in insertion order.
+func (h *ObjectLinkedHashMap[K, V]) Keys() iter.Seq[K] { return h.table().keys() }
 
 // Values iterates values in insertion order.
-func (h *ObjectLinkedHashMap[K, V]) Values() iter.Seq[V] {
-	return func(yield func(V) bool) {
-		if h == nil || h.size == 0 {
-			return
-		}
-		for i := int(h.first); i < len(h.slots); i++ {
-			if h.slots[i].removed {
-				continue
-			}
-			if !yield(h.slots[i].value) {
-				return
-			}
-		}
-	}
-}
+func (h *ObjectLinkedHashMap[K, V]) Values() iter.Seq[V] { return h.table().values() }
 
 // KeySlice returns the keys in insertion order.
-func (h *ObjectLinkedHashMap[K, V]) KeySlice() []K {
-	n := h.Size()
-	if n == 0 {
-		return nil
-	}
-	out := make([]K, 0, n)
-	slots := h.slots
-	if n == len(slots) {
-		for i := range slots {
-			out = append(out, slots[i].key)
-		}
-		return out
-	}
-	for i := int(h.first); i < len(slots); i++ {
-		if !slots[i].removed {
-			out = append(out, slots[i].key)
-		}
-	}
-	return out
-}
+func (h *ObjectLinkedHashMap[K, V]) KeySlice() []K { return h.table().keySlice() }
 
 func (h *ObjectLinkedHashMap[K, V]) lookupAny(k any) (any, bool) {
 	key, ok := k.(K)
@@ -519,11 +351,12 @@ func (h *ObjectLinkedHashMap[K, V]) Equals(o any) bool {
 		if h.size == 0 {
 			return true
 		}
+		removed := h.removedSlice()
 		for i := int(h.first); i < len(h.slots); i++ {
-			if h.slots[i].removed {
+			if i < len(removed) && removed[i] {
 				continue
 			}
-			oi := other.findWithHash(h.slots[i].key, h.slots[i].hash)
+			oi := other.findWithHash(h.slots[i].key, h.slots[i].meta)
 			if oi < 0 || !ObjectsEqualsOf(h.slots[i].value, other.slots[oi].value) {
 				return false
 			}
@@ -539,36 +372,34 @@ func (h *ObjectLinkedHashMap[K, V]) HashCode() int32 {
 		return 0
 	}
 	var sum int32
+	removed := h.removedSlice()
 	for i := int(h.first); i < len(h.slots); i++ {
-		if h.slots[i].removed {
+		if i < len(removed) && removed[i] {
 			continue
 		}
-		sum += h.slots[i].hash ^ objectHashCodeOf(h.slots[i].value)
+		sum += h.slots[i].meta ^ objectHashCodeOf(h.slots[i].value)
 	}
 	return sum
 }
 
 // String renders like AbstractMap.toString().
-func (h *ObjectLinkedHashMap[K, V]) String() string {
-	return formatMapString(h.All())
-}
+func (h *ObjectLinkedHashMap[K, V]) String() string { return formatMapString(h.All()) }
 
 // Clear is Map.clear() for ObjectLinkedHashMap.
-func (h *ObjectLinkedHashMap[K, V]) Clear() {
-	clear(h.slots)
-	h.slots = h.slots[:0]
-	if h.m != nil {
-		h.m.reset(len(h.m.table))
-	}
-	h.size = 0
-	h.first = 0
-}
+func (h *ObjectLinkedHashMap[K, V]) Clear() { h.clear() }
 
 // ObjectLinkedHashSet is java.util.LinkedHashSet (and Guava ImmutableSet)
 // for elements whose classes override equals()/hashCode().
 type ObjectLinkedHashSet[T any] struct {
 	// Go-only: performance — held by value: one allocation per set.
 	m ObjectLinkedHashMap[T, struct{}]
+}
+
+func (s *ObjectLinkedHashSet[T]) table() *orderedTable[T, struct{}, int32] {
+	if s == nil {
+		return nil
+	}
+	return &s.m.orderedTable
 }
 
 // NewObjectLinkedHashSet returns a set containing elems in order.
@@ -580,12 +411,7 @@ func NewObjectLinkedHashSet[T any](elems ...T) *ObjectLinkedHashSet[T] {
 	return s
 }
 
-func (s *ObjectLinkedHashSet[T]) Size() int {
-	if s == nil {
-		return 0
-	}
-	return s.m.Size()
-}
+func (s *ObjectLinkedHashSet[T]) Size() int     { return s.table().sizeOrZero() }
 func (s *ObjectLinkedHashSet[T]) IsEmpty() bool { return s.Size() == 0 }
 
 // Add is Set.add; reports whether the set changed.
@@ -594,7 +420,7 @@ func (s *ObjectLinkedHashSet[T]) Add(e T) bool {
 	if i >= 0 {
 		return false
 	}
-	s.m.addWithHash(e, struct{}{}, hash)
+	s.m.add(e, struct{}{}, hash, olhmSlotHash[T, struct{}])
 	return true
 }
 
@@ -617,42 +443,19 @@ func (s *ObjectLinkedHashSet[T]) Remove(e T) bool {
 	if s == nil || s.m.size == 0 {
 		return false
 	}
-	i, hash := s.m.find(e)
+	i, _ := s.m.find(e)
 	if i < 0 {
 		return false
 	}
-	s.m.removeSlot(i, hash)
+	s.m.removeSlot(i, olhmSlotHash[T, struct{}])
 	return true
 }
 
-// All iterates in insertion order (see LinkedHashMap.Keys).
-func (s *ObjectLinkedHashSet[T]) All() iter.Seq[T] {
-	var h *ObjectLinkedHashMap[T, struct{}]
-	if s != nil {
-		h = &s.m
-	}
-	return func(yield func(T) bool) {
-		if h == nil || h.size == 0 {
-			return
-		}
-		for i := int(h.first); i < len(h.slots); i++ {
-			if h.slots[i].removed {
-				continue
-			}
-			if !yield(h.slots[i].key) {
-				return
-			}
-		}
-	}
-}
+// All iterates in insertion order.
+func (s *ObjectLinkedHashSet[T]) All() iter.Seq[T] { return s.table().keys() }
 
 // ToSlice returns the elements in insertion order.
-func (s *ObjectLinkedHashSet[T]) ToSlice() []T {
-	if s == nil {
-		return nil
-	}
-	return s.m.KeySlice()
-}
+func (s *ObjectLinkedHashSet[T]) ToSlice() []T { return s.table().keySlice() }
 
 func (s *ObjectLinkedHashSet[T]) containsAny(e any) bool {
 	x, ok := e.(T)
@@ -671,11 +474,12 @@ func (s *ObjectLinkedHashSet[T]) Equals(o any) bool {
 		if s.m.size == 0 {
 			return true
 		}
+		removed := s.m.removedSlice()
 		for i := int(s.m.first); i < len(s.m.slots); i++ {
-			if s.m.slots[i].removed {
+			if i < len(removed) && removed[i] {
 				continue
 			}
-			if other.m.findWithHash(s.m.slots[i].key, s.m.slots[i].hash) < 0 {
+			if other.m.findWithHash(s.m.slots[i].key, s.m.slots[i].meta) < 0 {
 				return false
 			}
 		}
@@ -690,11 +494,12 @@ func (s *ObjectLinkedHashSet[T]) HashCode() int32 {
 		return 0
 	}
 	var h int32
+	removed := s.m.removedSlice()
 	for i := int(s.m.first); i < len(s.m.slots); i++ {
-		if s.m.slots[i].removed {
+		if i < len(removed) && removed[i] {
 			continue
 		}
-		h += s.m.slots[i].hash
+		h += s.m.slots[i].meta
 	}
 	return h
 }
@@ -703,6 +508,4 @@ func (s *ObjectLinkedHashSet[T]) HashCode() int32 {
 func (s *ObjectLinkedHashSet[T]) String() string { return CollectionToString(s.ToSlice()) }
 
 // Clear is Set.clear() for ObjectLinkedHashSet.
-func (s *ObjectLinkedHashSet[T]) Clear() {
-	s.m.Clear()
-}
+func (s *ObjectLinkedHashSet[T]) Clear() { s.m.clear() }

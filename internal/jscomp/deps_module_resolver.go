@@ -275,17 +275,28 @@ type WebpackModuleResolver struct {
 
 var _ ModuleResolver = (*WebpackModuleResolver)(nil)
 
+func orderedStringMapFromLinkedHashMap(src *jutil.LinkedHashMap[string, string]) *OrderedStringMap[string] {
+	if src == nil {
+		return nil
+	}
+	dst := NewOrderedStringMapWithCapacity[string](src.Size())
+	for k, v := range src.All() {
+		dst.Put(k, v)
+	}
+	return dst
+}
+
 // WebpackModuleResolver_Factory uses a lookup map provided by webpack to
 // locate modules from a numeric id used during import.
 type WebpackModuleResolver_Factory struct {
-	lookupMap *jutil.LinkedHashMap[string, string]
+	lookupMap *OrderedStringMap[string]
 }
 
 var _ ModuleLoader_ModuleResolverFactory = (*WebpackModuleResolver_Factory)(nil)
 
 // Java: WebpackModuleResolver.Factory(Map<String, String>)
 func NewWebpackModuleResolver_Factory(lookupMap *jutil.LinkedHashMap[string, string]) *WebpackModuleResolver_Factory {
-	return &WebpackModuleResolver_Factory{lookupMap: lookupMap}
+	return &WebpackModuleResolver_Factory{lookupMap: orderedStringMapFromLinkedHashMap(lookupMap)}
 }
 
 // Java: WebpackModuleResolver.Factory.create(ImmutableSet<String>, ImmutableList<String>, ErrorHandler, PathEscaper)
@@ -294,13 +305,14 @@ func (f *WebpackModuleResolver_Factory) Create(
 	moduleRootPaths []string,
 	errorHandler ErrorHandler,
 	pathEscaper ModuleLoader_PathEscaper) ModuleResolver {
+	jutil.CheckNotNull(f.lookupMap)
 	normalizedPathsById := make(map[string]string, f.lookupMap.Size())
-	for key, value := range f.lookupMap.All() {
-		canonicalizedPath := ModuleLoader_Normalize(pathEscaper.Escape(value), moduleRootPaths)
+	for _, e := range f.lookupMap.Entries() {
+		canonicalizedPath := ModuleLoader_Normalize(pathEscaper.Escape(e.Value), moduleRootPaths)
 		if ModuleLoader_IsAmbiguousIdentifier(canonicalizedPath) {
 			canonicalizedPath = ModuleLoader_MODULE_SLASH + canonicalizedPath
 		}
-		normalizedPathsById[key] = canonicalizedPath
+		normalizedPathsById[e.Key] = canonicalizedPath
 	}
 	return &WebpackModuleResolver{
 		NodeModuleResolver: *NewNodeModuleResolver(
@@ -354,14 +366,16 @@ var BrowserWithTransformedPrefixesModuleResolver_INVALID_AMBIGUOUS_PATH = Diagno
 // BrowserWithTransformedPrefixesModuleResolver_Factory is the factory for
 // BrowserWithTransformedPrefixesModuleResolver.
 type BrowserWithTransformedPrefixesModuleResolver_Factory struct {
-	prefixReplacements *jutil.LinkedHashMap[string, string]
+	prefixReplacements *OrderedStringMap[string]
 }
 
 var _ ModuleLoader_ModuleResolverFactory = (*BrowserWithTransformedPrefixesModuleResolver_Factory)(nil)
 
 // Java: BrowserWithTransformedPrefixesModuleResolver.Factory(ImmutableMap<String, String>)
 func NewBrowserWithTransformedPrefixesModuleResolver_Factory(prefixReplacements *jutil.LinkedHashMap[string, string]) *BrowserWithTransformedPrefixesModuleResolver_Factory {
-	return &BrowserWithTransformedPrefixesModuleResolver_Factory{prefixReplacements: prefixReplacements}
+	return &BrowserWithTransformedPrefixesModuleResolver_Factory{
+		prefixReplacements: orderedStringMapFromLinkedHashMap(prefixReplacements),
+	}
 }
 
 // Java: BrowserWithTransformedPrefixesModuleResolver.Factory.create(ImmutableSet<String>, ImmutableList<String>, ErrorHandler, PathEscaper)
@@ -380,16 +394,17 @@ func NewBrowserWithTransformedPrefixesModuleResolver(
 	moduleRootPaths []string,
 	errorHandler ErrorHandler,
 	pathEscaper ModuleLoader_PathEscaper,
-	prefixReplacements *jutil.LinkedHashMap[string, string]) *BrowserWithTransformedPrefixesModuleResolver {
+	prefixReplacements *OrderedStringMap[string]) *BrowserWithTransformedPrefixesModuleResolver {
+	jutil.CheckNotNull(prefixReplacements)
 	r := &BrowserWithTransformedPrefixesModuleResolver{
 		moduleResolverCommon: newModuleResolverCommon(modulePaths, moduleRootPaths, errorHandler, pathEscaper),
 	}
-	n := prefixReplacements.Size()
-	replacements := make([]browserPrefixReplacement, 0, n)
-	prefixes := make([]string, 0, n)
-	for k, v := range prefixReplacements.All() {
-		replacements = append(replacements, browserPrefixReplacement{prefix: k, replacement: v})
-		prefixes = append(prefixes, k)
+	entries := prefixReplacements.Entries()
+	replacements := make([]browserPrefixReplacement, len(entries))
+	prefixes := make([]string, len(entries))
+	for i, e := range entries {
+		replacements[i] = browserPrefixReplacement{prefix: e.Key, replacement: e.Value}
+		prefixes[i] = e.Key
 	}
 	slices.SortFunc(replacements, func(a, b browserPrefixReplacement) int {
 		return comparePathsLongestFirst(a.prefix, b.prefix)

@@ -37,6 +37,7 @@
 package rhino
 
 import (
+	"math/bits"
 	"strconv"
 
 	"github.com/paullepoulpe/jsgo/internal/jutil"
@@ -182,6 +183,8 @@ const (
 	// Indicates that this node is part of a subtree detached because it originated
 	// from a Closure-unaware file.
 	Node_Prop_IS_IN_CLOSURE_UNAWARE_SUBTREE
+
+	Node_LAST_PROP = Node_Prop_IS_IN_CLOSURE_UNAWARE_SUBTREE
 )
 
 var node_Prop_names = [...]string{
@@ -231,100 +234,60 @@ var Node_propValues = Node_Prop_values()
 
 const (
 	// Hot boolean properties (bits 0..24) live directly in nodeData.propFlags.
-	propBit_IS_CONSTANT_NAME uint = iota
-	propBit_QUOTED
-	propBit_FREE_CALL
-	propBit_NON_INDEXABLE
-	propBit_ADDED_BLOCK
-	propBit_TRAILING_COMMA
-	propBit_IS_PARENTHESIZED
-	propBit_ARROW_FN
-	propBit_INCRDECR
-	propBit_SYNTHETIC
-	propBit_IS_SHORTHAND_PROPERTY
-	propBit_IS_NAMESPACE
-	propBit_USE_STRICT
-	propBit_STATIC_MEMBER
-	propBit_GENERATOR_FN
-	propBit_ASYNC_FN
-	propBit_COLOR_FROM_CAST
-	propBit_GOOG_MODULE
-	propBit_ES6_MODULE
-	propBit_DELETED
-	propBit_MODULE_ALIAS
-	propBit_IS_UNUSED_PARAMETER
-	propBit_MODULE_EXPORT
-	propBit_START_OF_OPT_CHAIN
-	propBit_IS_IN_CLOSURE_UNAWARE_SUBTREE
-	propHotCount
+	propFlag_IS_CONSTANT_NAME uint64 = 1 << iota
+	propFlag_QUOTED
+	propFlag_FREE_CALL
+	propFlag_NON_INDEXABLE
+	propFlag_ADDED_BLOCK
+	propFlag_TRAILING_COMMA
+	propFlag_IS_PARENTHESIZED
+	propFlag_ARROW_FN
+	propFlag_INCRDECR
+	propFlag_SYNTHETIC
+	propFlag_IS_SHORTHAND_PROPERTY
+	propFlag_IS_NAMESPACE
+	propFlag_USE_STRICT
+	propFlag_STATIC_MEMBER
+	propFlag_GENERATOR_FN
+	propFlag_ASYNC_FN
+	propFlag_COLOR_FROM_CAST
+	propFlag_GOOG_MODULE
+	propFlag_ES6_MODULE
+	propFlag_DELETED
+	propFlag_MODULE_ALIAS
+	propFlag_IS_UNUSED_PARAMETER
+	propFlag_MODULE_EXPORT
+	propFlag_START_OF_OPT_CHAIN
+	propFlag_IS_IN_CLOSURE_UNAWARE_SUBTREE
+
+	propHotCount = iota
 )
 
 const propColdShift = 32
 
 const (
 	// Rare boolean properties (bits 32..46) live in nodeExtBox.coldProps.
-	propBit_DIRECT_EVAL uint = propColdShift + iota
-	propBit_YIELD_ALL
-	propBit_EXPORT_DEFAULT
-	propBit_EXPORT_ALL_FROM
-	propBit_IS_GENERATOR_MARKER
-	propBit_IS_GENERATOR_SAFE
-	propBit_COMPUTED_PROP_METHOD
-	propBit_COMPUTED_PROP_GETTER
-	propBit_COMPUTED_PROP_SETTER
-	propBit_COMPUTED_PROP_VARIABLE
-	propBit_OPT_ES6_TYPED
-	propBit_CONSTRUCT_SIGNATURE
-	propBit_IS_TYPESCRIPT_ABSTRACT
-	propBit_SYNTHESIZED_UNFULFILLED_NAME_DECLARATION
-	propBit_PRIVATE_IDENTIFIER
-	propColdEnd
+	propFlag_DIRECT_EVAL uint64 = 1 << (propColdShift + iota)
+	propFlag_YIELD_ALL
+	propFlag_EXPORT_DEFAULT
+	propFlag_EXPORT_ALL_FROM
+	propFlag_IS_GENERATOR_MARKER
+	propFlag_IS_GENERATOR_SAFE
+	propFlag_COMPUTED_PROP_METHOD
+	propFlag_COMPUTED_PROP_GETTER
+	propFlag_COMPUTED_PROP_SETTER
+	propFlag_COMPUTED_PROP_VARIABLE
+	propFlag_OPT_ES6_TYPED
+	propFlag_CONSTRUCT_SIGNATURE
+	propFlag_IS_TYPESCRIPT_ABSTRACT
+	propFlag_SYNTHESIZED_UNFULFILLED_NAME_DECLARATION
+	propFlag_PRIVATE_IDENTIFIER
+
+	propColdCount = iota
+	propColdEnd   = propColdShift + propColdCount
 )
 
-const propColdCount = propColdEnd - propColdShift
-
 const (
-	propFlag_IS_PARENTHESIZED                         uint64 = 1 << propBit_IS_PARENTHESIZED
-	propFlag_INCRDECR                                 uint64 = 1 << propBit_INCRDECR
-	propFlag_QUOTED                                   uint64 = 1 << propBit_QUOTED
-	propFlag_SYNTHETIC                                uint64 = 1 << propBit_SYNTHETIC
-	propFlag_ADDED_BLOCK                              uint64 = 1 << propBit_ADDED_BLOCK
-	propFlag_IS_CONSTANT_NAME                         uint64 = 1 << propBit_IS_CONSTANT_NAME
-	propFlag_IS_NAMESPACE                             uint64 = 1 << propBit_IS_NAMESPACE
-	propFlag_USE_STRICT                               uint64 = 1 << propBit_USE_STRICT
-	propFlag_DIRECT_EVAL                              uint64 = 1 << propBit_DIRECT_EVAL
-	propFlag_FREE_CALL                                uint64 = 1 << propBit_FREE_CALL
-	propFlag_STATIC_MEMBER                            uint64 = 1 << propBit_STATIC_MEMBER
-	propFlag_GENERATOR_FN                             uint64 = 1 << propBit_GENERATOR_FN
-	propFlag_ARROW_FN                                 uint64 = 1 << propBit_ARROW_FN
-	propFlag_ASYNC_FN                                 uint64 = 1 << propBit_ASYNC_FN
-	propFlag_YIELD_ALL                                uint64 = 1 << propBit_YIELD_ALL
-	propFlag_EXPORT_DEFAULT                           uint64 = 1 << propBit_EXPORT_DEFAULT
-	propFlag_EXPORT_ALL_FROM                          uint64 = 1 << propBit_EXPORT_ALL_FROM
-	propFlag_IS_GENERATOR_MARKER                      uint64 = 1 << propBit_IS_GENERATOR_MARKER
-	propFlag_IS_GENERATOR_SAFE                        uint64 = 1 << propBit_IS_GENERATOR_SAFE
-	propFlag_COMPUTED_PROP_METHOD                     uint64 = 1 << propBit_COMPUTED_PROP_METHOD
-	propFlag_COMPUTED_PROP_GETTER                     uint64 = 1 << propBit_COMPUTED_PROP_GETTER
-	propFlag_COMPUTED_PROP_SETTER                     uint64 = 1 << propBit_COMPUTED_PROP_SETTER
-	propFlag_COMPUTED_PROP_VARIABLE                   uint64 = 1 << propBit_COMPUTED_PROP_VARIABLE
-	propFlag_COLOR_FROM_CAST                          uint64 = 1 << propBit_COLOR_FROM_CAST
-	propFlag_OPT_ES6_TYPED                            uint64 = 1 << propBit_OPT_ES6_TYPED
-	propFlag_CONSTRUCT_SIGNATURE                      uint64 = 1 << propBit_CONSTRUCT_SIGNATURE
-	propFlag_NON_INDEXABLE                            uint64 = 1 << propBit_NON_INDEXABLE
-	propFlag_GOOG_MODULE                              uint64 = 1 << propBit_GOOG_MODULE
-	propFlag_IS_TYPESCRIPT_ABSTRACT                   uint64 = 1 << propBit_IS_TYPESCRIPT_ABSTRACT
-	propFlag_DELETED                                  uint64 = 1 << propBit_DELETED
-	propFlag_MODULE_ALIAS                             uint64 = 1 << propBit_MODULE_ALIAS
-	propFlag_IS_UNUSED_PARAMETER                      uint64 = 1 << propBit_IS_UNUSED_PARAMETER
-	propFlag_MODULE_EXPORT                            uint64 = 1 << propBit_MODULE_EXPORT
-	propFlag_IS_SHORTHAND_PROPERTY                    uint64 = 1 << propBit_IS_SHORTHAND_PROPERTY
-	propFlag_ES6_MODULE                               uint64 = 1 << propBit_ES6_MODULE
-	propFlag_START_OF_OPT_CHAIN                       uint64 = 1 << propBit_START_OF_OPT_CHAIN
-	propFlag_TRAILING_COMMA                           uint64 = 1 << propBit_TRAILING_COMMA
-	propFlag_SYNTHESIZED_UNFULFILLED_NAME_DECLARATION uint64 = 1 << propBit_SYNTHESIZED_UNFULFILLED_NAME_DECLARATION
-	propFlag_PRIVATE_IDENTIFIER                       uint64 = 1 << propBit_PRIVATE_IDENTIFIER
-	propFlag_IS_IN_CLOSURE_UNAWARE_SUBTREE            uint64 = 1 << propBit_IS_IN_CLOSURE_UNAWARE_SUBTREE
-
 	nodePropBoolMask uint64 = ((uint64(1) << propHotCount) - 1) | (((uint64(1) << propColdCount) - 1) << propColdShift)
 
 	// Bits 25..31 complete the inline 32-bit propWord in nodeData.propFlags.
@@ -336,90 +299,77 @@ const (
 	nodePropSideEffectMask  uint64 = uint64(15) << nodePropSideEffectShift
 )
 
-var nodePropBitMask = [64]uint64{
-	Node_Prop_IS_PARENTHESIZED:                         propFlag_IS_PARENTHESIZED,
-	Node_Prop_INCRDECR:                                 propFlag_INCRDECR,
-	Node_Prop_QUOTED:                                   propFlag_QUOTED,
-	Node_Prop_SYNTHETIC:                                propFlag_SYNTHETIC,
-	Node_Prop_ADDED_BLOCK:                              propFlag_ADDED_BLOCK,
-	Node_Prop_IS_CONSTANT_NAME:                         propFlag_IS_CONSTANT_NAME,
-	Node_Prop_IS_NAMESPACE:                             propFlag_IS_NAMESPACE,
-	Node_Prop_USE_STRICT:                               propFlag_USE_STRICT,
-	Node_Prop_DIRECT_EVAL:                              propFlag_DIRECT_EVAL,
-	Node_Prop_FREE_CALL:                                propFlag_FREE_CALL,
-	Node_Prop_STATIC_MEMBER:                            propFlag_STATIC_MEMBER,
-	Node_Prop_GENERATOR_FN:                             propFlag_GENERATOR_FN,
-	Node_Prop_ARROW_FN:                                 propFlag_ARROW_FN,
-	Node_Prop_ASYNC_FN:                                 propFlag_ASYNC_FN,
-	Node_Prop_YIELD_ALL:                                propFlag_YIELD_ALL,
-	Node_Prop_EXPORT_DEFAULT:                           propFlag_EXPORT_DEFAULT,
-	Node_Prop_EXPORT_ALL_FROM:                          propFlag_EXPORT_ALL_FROM,
-	Node_Prop_IS_GENERATOR_MARKER:                      propFlag_IS_GENERATOR_MARKER,
-	Node_Prop_IS_GENERATOR_SAFE:                        propFlag_IS_GENERATOR_SAFE,
-	Node_Prop_COMPUTED_PROP_METHOD:                     propFlag_COMPUTED_PROP_METHOD,
-	Node_Prop_COMPUTED_PROP_GETTER:                     propFlag_COMPUTED_PROP_GETTER,
-	Node_Prop_COMPUTED_PROP_SETTER:                     propFlag_COMPUTED_PROP_SETTER,
-	Node_Prop_COMPUTED_PROP_VARIABLE:                   propFlag_COMPUTED_PROP_VARIABLE,
-	Node_Prop_COLOR_FROM_CAST:                          propFlag_COLOR_FROM_CAST,
-	Node_Prop_OPT_ES6_TYPED:                            propFlag_OPT_ES6_TYPED,
-	Node_Prop_CONSTRUCT_SIGNATURE:                      propFlag_CONSTRUCT_SIGNATURE,
-	Node_Prop_NON_INDEXABLE:                            propFlag_NON_INDEXABLE,
-	Node_Prop_GOOG_MODULE:                              propFlag_GOOG_MODULE,
-	Node_Prop_IS_TYPESCRIPT_ABSTRACT:                   propFlag_IS_TYPESCRIPT_ABSTRACT,
-	Node_Prop_DELETED:                                  propFlag_DELETED,
-	Node_Prop_MODULE_ALIAS:                             propFlag_MODULE_ALIAS,
-	Node_Prop_IS_UNUSED_PARAMETER:                      propFlag_IS_UNUSED_PARAMETER,
-	Node_Prop_MODULE_EXPORT:                            propFlag_MODULE_EXPORT,
-	Node_Prop_IS_SHORTHAND_PROPERTY:                    propFlag_IS_SHORTHAND_PROPERTY,
-	Node_Prop_ES6_MODULE:                               propFlag_ES6_MODULE,
-	Node_Prop_START_OF_OPT_CHAIN:                       propFlag_START_OF_OPT_CHAIN,
-	Node_Prop_TRAILING_COMMA:                           propFlag_TRAILING_COMMA,
-	Node_Prop_SYNTHESIZED_UNFULFILLED_NAME_DECLARATION: propFlag_SYNTHESIZED_UNFULFILLED_NAME_DECLARATION,
-	Node_Prop_PRIVATE_IDENTIFIER:                       propFlag_PRIVATE_IDENTIFIER,
-	Node_Prop_IS_IN_CLOSURE_UNAWARE_SUBTREE:            propFlag_IS_IN_CLOSURE_UNAWARE_SUBTREE,
+// propKind classifies how a Node_Prop is stored on a compact Node record.
+type propKind uint8
+
+const (
+	propKindCold       propKind = iota // stored exclusively in coldPropListHead
+	propKindBool                       // 1-bit flag in n.props(), shadowed in coldPropListHead when kindFlagHasExtra
+	propKindPackedInt                  // small unsigned int in n.props(), shadowed in coldPropListHead on overflow/object
+	propKindChangeTime                 // uint32 payload on node_kindNode, else coldPropListHead
+	propKindSourceFile                 // sourceFile ID in nodeData.sourceFile
+	propKindJSDoc                      // inline *JSDocInfo in nodeAux / nodeExtBox.jsDocInfo + propFlagHasJSDoc
+	propKindTypeCast                   // type handle in nodeExtBox.typeBeforeCast, else coldPropListHead
+)
+
+type propSpec struct {
+	mask       uint64
+	kind       propKind
+	shift      uint8
+	maxInline  int8
+	staticBase uint8
 }
 
-var nodeBitToProp = [propColdEnd]Node_Prop{
-	propBit_IS_PARENTHESIZED:                         Node_Prop_IS_PARENTHESIZED,
-	propBit_INCRDECR:                                 Node_Prop_INCRDECR,
-	propBit_QUOTED:                                   Node_Prop_QUOTED,
-	propBit_SYNTHETIC:                                Node_Prop_SYNTHETIC,
-	propBit_ADDED_BLOCK:                              Node_Prop_ADDED_BLOCK,
-	propBit_IS_CONSTANT_NAME:                         Node_Prop_IS_CONSTANT_NAME,
-	propBit_IS_NAMESPACE:                             Node_Prop_IS_NAMESPACE,
-	propBit_USE_STRICT:                               Node_Prop_USE_STRICT,
-	propBit_DIRECT_EVAL:                              Node_Prop_DIRECT_EVAL,
-	propBit_FREE_CALL:                                Node_Prop_FREE_CALL,
-	propBit_STATIC_MEMBER:                            Node_Prop_STATIC_MEMBER,
-	propBit_GENERATOR_FN:                             Node_Prop_GENERATOR_FN,
-	propBit_ARROW_FN:                                 Node_Prop_ARROW_FN,
-	propBit_ASYNC_FN:                                 Node_Prop_ASYNC_FN,
-	propBit_YIELD_ALL:                                Node_Prop_YIELD_ALL,
-	propBit_EXPORT_DEFAULT:                           Node_Prop_EXPORT_DEFAULT,
-	propBit_EXPORT_ALL_FROM:                          Node_Prop_EXPORT_ALL_FROM,
-	propBit_IS_GENERATOR_MARKER:                      Node_Prop_IS_GENERATOR_MARKER,
-	propBit_IS_GENERATOR_SAFE:                        Node_Prop_IS_GENERATOR_SAFE,
-	propBit_COMPUTED_PROP_METHOD:                     Node_Prop_COMPUTED_PROP_METHOD,
-	propBit_COMPUTED_PROP_GETTER:                     Node_Prop_COMPUTED_PROP_GETTER,
-	propBit_COMPUTED_PROP_SETTER:                     Node_Prop_COMPUTED_PROP_SETTER,
-	propBit_COMPUTED_PROP_VARIABLE:                   Node_Prop_COMPUTED_PROP_VARIABLE,
-	propBit_COLOR_FROM_CAST:                          Node_Prop_COLOR_FROM_CAST,
-	propBit_OPT_ES6_TYPED:                            Node_Prop_OPT_ES6_TYPED,
-	propBit_CONSTRUCT_SIGNATURE:                      Node_Prop_CONSTRUCT_SIGNATURE,
-	propBit_NON_INDEXABLE:                            Node_Prop_NON_INDEXABLE,
-	propBit_GOOG_MODULE:                              Node_Prop_GOOG_MODULE,
-	propBit_IS_TYPESCRIPT_ABSTRACT:                   Node_Prop_IS_TYPESCRIPT_ABSTRACT,
-	propBit_DELETED:                                  Node_Prop_DELETED,
-	propBit_MODULE_ALIAS:                             Node_Prop_MODULE_ALIAS,
-	propBit_IS_UNUSED_PARAMETER:                      Node_Prop_IS_UNUSED_PARAMETER,
-	propBit_MODULE_EXPORT:                            Node_Prop_MODULE_EXPORT,
-	propBit_IS_SHORTHAND_PROPERTY:                    Node_Prop_IS_SHORTHAND_PROPERTY,
-	propBit_ES6_MODULE:                               Node_Prop_ES6_MODULE,
-	propBit_START_OF_OPT_CHAIN:                       Node_Prop_START_OF_OPT_CHAIN,
-	propBit_TRAILING_COMMA:                           Node_Prop_TRAILING_COMMA,
-	propBit_SYNTHESIZED_UNFULFILLED_NAME_DECLARATION: Node_Prop_SYNTHESIZED_UNFULFILLED_NAME_DECLARATION,
-	propBit_PRIVATE_IDENTIFIER:                       Node_Prop_PRIVATE_IDENTIFIER,
-	propBit_IS_IN_CLOSURE_UNAWARE_SUBTREE:            Node_Prop_IS_IN_CLOSURE_UNAWARE_SUBTREE,
+var _ [len(node_Prop_names) - 1 - int(Node_LAST_PROP)]struct{}
+var _ [int(Node_LAST_PROP) - (len(node_Prop_names) - 1)]struct{}
+
+var nodePropSpecs = [Node_LAST_PROP + 1]propSpec{
+	Node_Prop_IS_PARENTHESIZED:                         {mask: propFlag_IS_PARENTHESIZED, kind: propKindBool},
+	Node_Prop_JSDOC_INFO:                               {kind: propKindJSDoc},
+	Node_Prop_INCRDECR:                                 {mask: propFlag_INCRDECR, kind: propKindBool},
+	Node_Prop_QUOTED:                                   {mask: propFlag_QUOTED, kind: propKindBool},
+	Node_Prop_SYNTHETIC:                                {mask: propFlag_SYNTHETIC, kind: propKindBool},
+	Node_Prop_ADDED_BLOCK:                              {mask: propFlag_ADDED_BLOCK, kind: propKindBool},
+	Node_Prop_SIDE_EFFECT_FLAGS:                        {mask: nodePropSideEffectMask, kind: propKindPackedInt, shift: nodePropSideEffectShift, maxInline: 15, staticBase: 4},
+	Node_Prop_IS_CONSTANT_NAME:                         {mask: propFlag_IS_CONSTANT_NAME, kind: propKindBool},
+	Node_Prop_IS_NAMESPACE:                             {mask: propFlag_IS_NAMESPACE, kind: propKindBool},
+	Node_Prop_USE_STRICT:                               {mask: propFlag_USE_STRICT, kind: propKindBool},
+	Node_Prop_DIRECT_EVAL:                              {mask: propFlag_DIRECT_EVAL, kind: propKindBool},
+	Node_Prop_FREE_CALL:                                {mask: propFlag_FREE_CALL, kind: propKindBool},
+	Node_Prop_SOURCE_FILE:                              {kind: propKindSourceFile},
+	Node_Prop_CHANGE_TIME:                              {kind: propKindChangeTime},
+	Node_Prop_STATIC_MEMBER:                            {mask: propFlag_STATIC_MEMBER, kind: propKindBool},
+	Node_Prop_GENERATOR_FN:                             {mask: propFlag_GENERATOR_FN, kind: propKindBool},
+	Node_Prop_ARROW_FN:                                 {mask: propFlag_ARROW_FN, kind: propKindBool},
+	Node_Prop_ASYNC_FN:                                 {mask: propFlag_ASYNC_FN, kind: propKindBool},
+	Node_Prop_YIELD_ALL:                                {mask: propFlag_YIELD_ALL, kind: propKindBool},
+	Node_Prop_EXPORT_DEFAULT:                           {mask: propFlag_EXPORT_DEFAULT, kind: propKindBool},
+	Node_Prop_EXPORT_ALL_FROM:                          {mask: propFlag_EXPORT_ALL_FROM, kind: propKindBool},
+	Node_Prop_CONSTANT_VAR_FLAGS:                       {mask: nodePropConstVarMask, kind: propKindPackedInt, shift: nodePropConstVarShift, maxInline: 3, staticBase: 0},
+	Node_Prop_IS_GENERATOR_MARKER:                      {mask: propFlag_IS_GENERATOR_MARKER, kind: propKindBool},
+	Node_Prop_IS_GENERATOR_SAFE:                        {mask: propFlag_IS_GENERATOR_SAFE, kind: propKindBool},
+	Node_Prop_COMPUTED_PROP_METHOD:                     {mask: propFlag_COMPUTED_PROP_METHOD, kind: propKindBool},
+	Node_Prop_COMPUTED_PROP_GETTER:                     {mask: propFlag_COMPUTED_PROP_GETTER, kind: propKindBool},
+	Node_Prop_COMPUTED_PROP_SETTER:                     {mask: propFlag_COMPUTED_PROP_SETTER, kind: propKindBool},
+	Node_Prop_COMPUTED_PROP_VARIABLE:                   {mask: propFlag_COMPUTED_PROP_VARIABLE, kind: propKindBool},
+	Node_Prop_TYPE_BEFORE_CAST:                         {kind: propKindTypeCast},
+	Node_Prop_COLOR_FROM_CAST:                          {mask: propFlag_COLOR_FROM_CAST, kind: propKindBool},
+	Node_Prop_OPT_ES6_TYPED:                            {mask: propFlag_OPT_ES6_TYPED, kind: propKindBool},
+	Node_Prop_CONSTRUCT_SIGNATURE:                      {mask: propFlag_CONSTRUCT_SIGNATURE, kind: propKindBool},
+	Node_Prop_NON_INDEXABLE:                            {mask: propFlag_NON_INDEXABLE, kind: propKindBool},
+	Node_Prop_GOOG_MODULE:                              {mask: propFlag_GOOG_MODULE, kind: propKindBool},
+	Node_Prop_IS_TYPESCRIPT_ABSTRACT:                   {mask: propFlag_IS_TYPESCRIPT_ABSTRACT, kind: propKindBool},
+	Node_Prop_DELETED:                                  {mask: propFlag_DELETED, kind: propKindBool},
+	Node_Prop_MODULE_ALIAS:                             {mask: propFlag_MODULE_ALIAS, kind: propKindBool},
+	Node_Prop_IS_UNUSED_PARAMETER:                      {mask: propFlag_IS_UNUSED_PARAMETER, kind: propKindBool},
+	Node_Prop_MODULE_EXPORT:                            {mask: propFlag_MODULE_EXPORT, kind: propKindBool},
+	Node_Prop_IS_SHORTHAND_PROPERTY:                    {mask: propFlag_IS_SHORTHAND_PROPERTY, kind: propKindBool},
+	Node_Prop_ES6_MODULE:                               {mask: propFlag_ES6_MODULE, kind: propKindBool},
+	Node_Prop_START_OF_OPT_CHAIN:                       {mask: propFlag_START_OF_OPT_CHAIN, kind: propKindBool},
+	Node_Prop_TRAILING_COMMA:                           {mask: propFlag_TRAILING_COMMA, kind: propKindBool},
+	Node_Prop_SYNTHESIZED_UNFULFILLED_NAME_DECLARATION: {mask: propFlag_SYNTHESIZED_UNFULFILLED_NAME_DECLARATION, kind: propKindBool},
+	Node_Prop_PRIVATE_IDENTIFIER:                       {mask: propFlag_PRIVATE_IDENTIFIER, kind: propKindBool},
+	Node_Prop_IS_IN_CLOSURE_UNAWARE_SUBTREE:            {mask: propFlag_IS_IN_CLOSURE_UNAWARE_SUBTREE, kind: propKindBool},
 }
 
 // Node_PropListItem is an element of a node's property list.
@@ -446,31 +396,26 @@ func (p *Node_PropListItem) markShared() {
 }
 
 var (
-	staticBoolPropItems       [64]Node_PropListItem
-	staticConstVarPropItems   [4]Node_PropListItem
-	staticSideEffectPropItems [16]Node_PropListItem
+	nodePropBitMask       [64]uint64
+	nodeBitToProp         [propColdEnd]Node_Prop
+	staticBoolPropItems   [Node_LAST_PROP + 1]Node_PropListItem
+	staticPackedPropItems [20]Node_PropListItem
 )
 
 func init() {
-	for i := range staticBoolPropItems {
-		staticBoolPropItems[i] = Node_PropListItem{
-			propType: int8(i),
-			intValue: 1,
-			shared:   true,
-		}
-	}
-	for i := range staticConstVarPropItems {
-		staticConstVarPropItems[i] = Node_PropListItem{
-			propType: int8(Node_Prop_CONSTANT_VAR_FLAGS),
-			intValue: int32(i),
-			shared:   true,
-		}
-	}
-	for i := range staticSideEffectPropItems {
-		staticSideEffectPropItems[i] = Node_PropListItem{
-			propType: int8(Node_Prop_SIDE_EFFECT_FLAGS),
-			intValue: int32(i),
-			shared:   true,
+	for prop, s := range nodePropSpecs {
+		staticBoolPropItems[prop] = Node_PropListItem{propType: int8(prop), intValue: 1, shared: true}
+		if s.kind == propKindBool {
+			nodePropBitMask[prop] = s.mask
+			nodeBitToProp[bits.TrailingZeros64(s.mask)] = Node_Prop(prop)
+		} else if s.kind == propKindPackedInt {
+			for v := int8(0); v <= s.maxInline; v++ {
+				staticPackedPropItems[int(s.staticBase)+int(v)] = Node_PropListItem{
+					propType: int8(prop),
+					intValue: int32(v),
+					shared:   true,
+				}
+			}
 		}
 	}
 }
@@ -556,35 +501,90 @@ func Node_RebuildListWithoutProp(item *Node_PropListItem, prop Node_Prop) *Node_
 	}
 }
 
+func (n Node) inlineJSDoc() *JSDocInfo {
+	if (n.rec().kindFlags & kindFlagHasExtBox) == 0 {
+		return n.jsDocAux()
+	}
+	if box := n.extBoxOrNil(); box != nil {
+		return box.jsDocInfo
+	}
+	return nil
+}
+
+func (n Node) extraColdPropItem(prop Node_Prop) *Node_PropListItem {
+	if (n.rec().kindFlags & kindFlagHasExtra) != 0 {
+		return n.lookupPropListHead(prop)
+	}
+	return nil
+}
+
+func (n Node) removeColdProp(prop Node_Prop) {
+	if head := n.coldPropListHead(); head != nil {
+		n.setColdPropListHead(Node_RebuildListWithoutProp(head, prop))
+	}
+}
+
 func (n Node) removeExtraColdProp(prop Node_Prop) {
 	if (n.rec().kindFlags & kindFlagHasExtra) != 0 {
-		if head := n.coldPropListHead(); head != nil {
-			n.setColdPropListHead(Node_RebuildListWithoutProp(head, prop))
+		n.removeColdProp(prop)
+	}
+}
+
+func (n Node) putColdObjectProp(prop Node_Prop, value any) {
+	head := n.coldPropListHead()
+	for cur := head; cur != nil && !cur.shared; cur = cur.next {
+		if int(cur.propType) == prop.Ordinal() && cur.isObject {
+			cur.objectValue = value
+			return
 		}
 	}
+	head = Node_RebuildListWithoutProp(head, prop)
+	n.setColdPropListHead(NewNode_ObjectPropListItem(int8(prop.Ordinal()), value, head))
+}
+
+func (n Node) putColdIntProp(prop Node_Prop, value int32) {
+	head := n.coldPropListHead()
+	if head != nil && !head.shared && int(head.propType) == prop.Ordinal() && !head.isObject {
+		head.intValue = value
+		return
+	}
+	head = Node_RebuildListWithoutProp(head, prop)
+	n.setColdPropListHead(NewNode_IntPropListItem(int8(prop.Ordinal()), value, head))
 }
 
 // Java: Node.getProp(Prop)
 func (n Node) GetProp(propType Node_Prop) any {
-	if propType == Node_Prop_SOURCE_FILE {
+	s := nodePropSpecs[propType]
+	switch s.kind {
+	case propKindBool:
+		if (n.props() & s.mask) == 0 {
+			return nil
+		}
+		if x := n.extraColdPropItem(propType); x != nil {
+			return x.GetObjectValue()
+		}
+		panic(jutil.NewUnsupportedOperationException())
+	case propKindPackedInt:
+		if (n.props() & s.mask) != 0 {
+			panic(jutil.NewUnsupportedOperationException())
+		}
+	case propKindChangeTime:
+		if n.nodeKind() == node_kindNode && uint32(n.rec().payload) != 0 {
+			panic(jutil.NewUnsupportedOperationException())
+		}
+	case propKindSourceFile:
 		if sfID := n.rec().sourceFile; sfID != 0 {
 			return sourceFilePropItem(sfID).objectValue
 		}
 		return nil
-	} else if propType == Node_Prop_JSDOC_INFO {
+	case propKindJSDoc:
 		if (n.props() & propFlagHasJSDoc) == 0 {
 			return nil
 		}
-		if (n.rec().kindFlags & kindFlagHasExtBox) == 0 {
-			if jsdoc := n.jsDocAux(); jsdoc != nil {
-				return jsdoc
-			}
-			return nil
+		if jsdoc := n.inlineJSDoc(); jsdoc != nil {
+			return jsdoc
 		}
-		if box := n.extBoxOrNil(); box != nil && box.jsDocInfo != nil {
-			return box.jsDocInfo
-		}
-	} else if propType == Node_Prop_TYPE_BEFORE_CAST {
+	case propKindTypeCast:
 		box := n.extBoxOrNil()
 		if box == nil {
 			return nil
@@ -592,26 +592,6 @@ func (n Node) GetProp(propType Node_Prop) any {
 		if tbc := n.store().typeAt(box.typeBeforeCast); tbc != nil {
 			return tbc.self()
 		}
-	} else if mask := nodePropBitMask[propType]; mask != 0 {
-		if (n.props() & mask) == 0 {
-			return nil
-		}
-		if (n.rec().kindFlags & kindFlagHasExtra) != 0 {
-			if x := n.lookupPropListHead(propType); x != nil {
-				return x.GetObjectValue()
-			}
-		}
-		panic(jutil.NewUnsupportedOperationException())
-	} else if propType == Node_Prop_CONSTANT_VAR_FLAGS {
-		if (n.props() & nodePropConstVarMask) != 0 {
-			panic(jutil.NewUnsupportedOperationException())
-		}
-	} else if propType == Node_Prop_SIDE_EFFECT_FLAGS {
-		if (n.props() & nodePropSideEffectMask) != 0 {
-			panic(jutil.NewUnsupportedOperationException())
-		}
-	} else if propType == Node_Prop_CHANGE_TIME && n.nodeKind() == node_kindNode && uint32(n.rec().payload) != 0 {
-		panic(jutil.NewUnsupportedOperationException())
 	}
 	if x := n.lookupPropListHead(propType); x != nil {
 		return x.GetObjectValue()
@@ -632,51 +612,45 @@ func (n Node) GetBooleanProp(propType Node_Prop) bool {
 //
 // Java: Node.getIntProp(Prop)
 func (n Node) GetIntProp(propType Node_Prop) int32 {
-	if mask := nodePropBitMask[propType]; mask != 0 {
-		if (n.props() & mask) == 0 {
+	s := nodePropSpecs[propType]
+	switch s.kind {
+	case propKindBool:
+		if (n.props() & s.mask) == 0 {
 			return 0
 		}
-		if (n.rec().kindFlags & kindFlagHasExtra) != 0 {
-			if x := n.lookupPropListHead(propType); x != nil {
-				return x.GetIntValue()
-			}
+		if x := n.extraColdPropItem(propType); x != nil {
+			return x.GetIntValue()
 		}
 		return 1
-	}
-	if propType == Node_Prop_CHANGE_TIME && n.nodeKind() == node_kindNode {
-		if v := int32(uint32(n.rec().payload)); v != 0 {
+	case propKindPackedInt:
+		if v := int32((n.props() & s.mask) >> s.shift); v != 0 {
 			return v
 		}
 		if (n.rec().kindFlags & kindFlagHasExtra) == 0 {
 			return 0
 		}
-	} else if propType == Node_Prop_CONSTANT_VAR_FLAGS {
-		if v := int32((n.props() >> nodePropConstVarShift) & 3); v != 0 {
-			return v
+	case propKindChangeTime:
+		if n.nodeKind() == node_kindNode {
+			if v := int32(uint32(n.rec().payload)); v != 0 {
+				return v
+			}
+			if (n.rec().kindFlags & kindFlagHasExtra) == 0 {
+				return 0
+			}
 		}
-		if (n.rec().kindFlags & kindFlagHasExtra) == 0 {
-			return 0
-		}
-	} else if propType == Node_Prop_SIDE_EFFECT_FLAGS {
-		if v := int32((n.props() >> nodePropSideEffectShift) & 15); v != 0 {
-			return v
-		}
-		if (n.rec().kindFlags & kindFlagHasExtra) == 0 {
-			return 0
-		}
-	} else if propType == Node_Prop_SOURCE_FILE {
+	case propKindSourceFile:
 		if n.rec().sourceFile != 0 {
 			panic(jutil.NewUnsupportedOperationException())
 		}
 		return 0
-	} else if propType == Node_Prop_JSDOC_INFO {
+	case propKindJSDoc:
 		if (n.props() & propFlagHasJSDoc) == 0 {
 			return 0
 		}
-		if box := n.extBoxOrNil(); (n.rec().kindFlags&kindFlagHasExtBox) == 0 || (box != nil && box.jsDocInfo != nil) {
+		if n.inlineJSDoc() != nil {
 			panic(jutil.NewUnsupportedOperationException())
 		}
-	} else if propType == Node_Prop_TYPE_BEFORE_CAST {
+	case propKindTypeCast:
 		box := n.extBoxOrNil()
 		if box == nil {
 			return 0
@@ -702,40 +676,37 @@ func (n Node) PutProp(prop Node_Prop, value any) {
 		n.RemoveProp(prop)
 		return
 	}
-	if prop == Node_Prop_SOURCE_FILE {
+	s := nodePropSpecs[prop]
+	switch s.kind {
+	case propKindBool:
+		n.orProps(s.mask)
+		n.rec().kindFlags |= kindFlagHasExtra
+	case propKindPackedInt:
+		n.andNotProps(s.mask)
+		n.rec().kindFlags |= kindFlagHasExtra
+	case propKindChangeTime:
+		if n.nodeKind() == node_kindNode {
+			n.rec().payload = 0
+			n.rec().kindFlags |= kindFlagHasExtra
+		}
+	case propKindSourceFile:
 		n.rec().sourceFile = allocSourceFileID(value)
 		return
-	} else if prop == Node_Prop_JSDOC_INFO {
+	case propKindJSDoc:
 		if info, ok := value.(*JSDocInfo); ok {
 			n.SetJSDocInfo(info)
 			return
 		}
-		box := n.ensureExtBox()
-		box.jsDocInfo = nil
+		n.ensureExtBox().jsDocInfo = nil
 		n.orProps(propFlagHasJSDoc)
-	} else if prop == Node_Prop_TYPE_BEFORE_CAST {
+	case propKindTypeCast:
 		if t, ok := value.(JSType); ok {
 			n.SetJSTypeBeforeCast(t)
 			return
 		}
-		box := n.ensureExtBox()
-		box.typeBeforeCast = 0
-	} else if prop == Node_Prop_CHANGE_TIME && n.nodeKind() == node_kindNode {
-		n.rec().payload = 0
-		n.rec().kindFlags |= kindFlagHasExtra
-	} else if mask := nodePropBitMask[prop]; mask != 0 {
-		n.orProps(mask)
-		n.rec().kindFlags |= kindFlagHasExtra
+		n.ensureExtBox().typeBeforeCast = 0
 	}
-	head := n.coldPropListHead()
-	for cur := head; cur != nil && !cur.shared; cur = cur.next {
-		if int(cur.propType) == prop.Ordinal() && cur.isObject {
-			cur.objectValue = value
-			return
-		}
-	}
-	head = Node_RebuildListWithoutProp(head, prop)
-	n.setColdPropListHead(NewNode_ObjectPropListItem(int8(prop.Ordinal()), value, head))
+	n.putColdObjectProp(prop, value)
 }
 
 // Java: Node.putBooleanProp(Prop, boolean)
@@ -743,14 +714,13 @@ func (n Node) PutBooleanProp(propType Node_Prop, value bool) {
 	if mask := nodePropBitMask[propType]; mask != 0 {
 		if value {
 			n.orProps(mask)
-			n.removeExtraColdProp(propType)
 		} else {
 			if (n.props() & mask) == 0 {
 				return
 			}
 			n.andNotProps(mask)
-			n.removeExtraColdProp(propType)
 		}
+		n.removeExtraColdProp(propType)
 		return
 	}
 	if value {
@@ -762,119 +732,70 @@ func (n Node) PutBooleanProp(propType Node_Prop, value bool) {
 
 // Java: Node.putIntProp(Prop, int)
 func (n Node) PutIntProp(prop Node_Prop, value int32) {
-	if mask := nodePropBitMask[prop]; mask != 0 {
-		if value == 0 {
-			if (n.props() & mask) == 0 {
-				return
-			}
-			n.andNotProps(mask)
-			n.removeExtraColdProp(prop)
-			return
-		}
+	if value == 0 {
+		n.RemoveProp(prop)
+		return
+	}
+	s := nodePropSpecs[prop]
+	switch s.kind {
+	case propKindBool:
+		n.orProps(s.mask)
 		if value == 1 {
-			n.orProps(mask)
 			n.removeExtraColdProp(prop)
 			return
 		}
-		n.orProps(mask)
 		n.rec().kindFlags |= kindFlagHasExtra
-	} else if prop == Node_Prop_CHANGE_TIME && n.nodeKind() == node_kindNode {
-		n.rec().payload = uint32(value)
-		n.removeExtraColdProp(prop)
-		return
-	} else if prop == Node_Prop_CONSTANT_VAR_FLAGS {
-		if value == 0 {
-			n.andNotProps(nodePropConstVarMask)
+	case propKindPackedInt:
+		if value&^int32(s.maxInline) == 0 {
+			n.setProps((n.props() &^ s.mask) | (uint64(value) << s.shift))
 			n.removeExtraColdProp(prop)
 			return
 		}
-		if value&^3 == 0 {
-			n.setProps((n.props() &^ nodePropConstVarMask) | (uint64(value) << nodePropConstVarShift))
-			n.removeExtraColdProp(prop)
-			return
-		}
-		n.andNotProps(nodePropConstVarMask)
+		n.andNotProps(s.mask)
 		n.rec().kindFlags |= kindFlagHasExtra
-	} else if prop == Node_Prop_SIDE_EFFECT_FLAGS {
-		if value == 0 {
-			n.andNotProps(nodePropSideEffectMask)
+	case propKindChangeTime:
+		if n.nodeKind() == node_kindNode {
+			n.rec().payload = uint32(value)
 			n.removeExtraColdProp(prop)
 			return
 		}
-		if value&^15 == 0 {
-			n.setProps((n.props() &^ nodePropSideEffectMask) | (uint64(value) << nodePropSideEffectShift))
-			n.removeExtraColdProp(prop)
-			return
-		}
-		n.andNotProps(nodePropSideEffectMask)
-		n.rec().kindFlags |= kindFlagHasExtra
-	} else if prop == Node_Prop_SOURCE_FILE {
+	case propKindSourceFile:
 		// Go-only: the source file is an object property (an id in the record).
-		if value != 0 {
-			panic(jutil.NewUnsupportedOperationException())
-		}
-		n.rec().sourceFile = 0
-		return
-	} else if prop == Node_Prop_JSDOC_INFO {
-		if value == 0 {
-			n.RemoveProp(prop)
-			return
-		}
-		box := n.ensureExtBox()
-		box.jsDocInfo = nil
+		panic(jutil.NewUnsupportedOperationException())
+	case propKindJSDoc:
+		n.ensureExtBox().jsDocInfo = nil
 		n.orProps(propFlagHasJSDoc)
-	} else if prop == Node_Prop_TYPE_BEFORE_CAST {
-		if value == 0 {
-			n.RemoveProp(prop)
-			return
-		}
-		box := n.ensureExtBox()
-		box.typeBeforeCast = 0
+	case propKindTypeCast:
+		n.ensureExtBox().typeBeforeCast = 0
 	}
-	head := n.coldPropListHead()
-	if value != 0 && head != nil && !head.shared && int(head.propType) == prop.Ordinal() && !head.isObject {
-		head.intValue = value
-		return
-	}
-	head = Node_RebuildListWithoutProp(head, prop)
-	if value != 0 {
-		head = NewNode_IntPropListItem(int8(prop.Ordinal()), value, head)
-	}
-	n.setColdPropListHead(head)
+	n.putColdIntProp(prop, value)
 }
 
 // Java: Node.removeProp(Prop)
 func (n Node) RemoveProp(prop Node_Prop) {
-	if mask := nodePropBitMask[prop]; mask != 0 {
-		if (n.props() & mask) == 0 {
+	s := nodePropSpecs[prop]
+	switch s.kind {
+	case propKindBool:
+		if (n.props() & s.mask) == 0 {
 			return
 		}
-		n.andNotProps(mask)
+		n.andNotProps(s.mask)
 		n.removeExtraColdProp(prop)
 		return
-	}
-	switch prop {
-	case Node_Prop_SOURCE_FILE:
-		n.rec().sourceFile = 0
+	case propKindPackedInt:
+		n.andNotProps(s.mask)
+		n.removeExtraColdProp(prop)
 		return
-	case Node_Prop_CHANGE_TIME:
+	case propKindChangeTime:
 		if n.nodeKind() == node_kindNode {
 			n.rec().payload = 0
-			if (n.rec().kindFlags & kindFlagHasExtra) == 0 {
-				return
-			}
-		}
-	case Node_Prop_CONSTANT_VAR_FLAGS:
-		n.andNotProps(nodePropConstVarMask)
-		if (n.rec().kindFlags & kindFlagHasExtra) == 0 {
+			n.removeExtraColdProp(prop)
 			return
 		}
-	case Node_Prop_SIDE_EFFECT_FLAGS:
-		n.andNotProps(nodePropSideEffectMask)
-		if (n.rec().kindFlags & kindFlagHasExtra) == 0 {
-			return
-		}
-	case Node_Prop_JSDOC_INFO:
+	case propKindSourceFile:
+		n.rec().sourceFile = 0
+		return
+	case propKindJSDoc:
 		if (n.props() & propFlagHasJSDoc) == 0 {
 			return
 		}
@@ -889,7 +810,7 @@ func (n Node) RemoveProp(prop Node_Prop) {
 			n.maybeCollapseExtBox(box)
 			return
 		}
-	case Node_Prop_TYPE_BEFORE_CAST:
+	case propKindTypeCast:
 		if (n.rec().kindFlags & kindFlagHasExtBox) == 0 {
 			return
 		}
@@ -900,7 +821,5 @@ func (n Node) RemoveProp(prop Node_Prop) {
 			return
 		}
 	}
-	if head := n.coldPropListHead(); head != nil {
-		n.setColdPropListHead(Node_RebuildListWithoutProp(head, prop))
-	}
+	n.removeColdProp(prop)
 }

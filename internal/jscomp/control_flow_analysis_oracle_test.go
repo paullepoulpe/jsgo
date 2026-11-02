@@ -206,7 +206,7 @@ func (d *cfaDumper) dumpCfg(root rhino.Node, mode string, traverseFunctions, edg
 		return
 	}
 	cfg := cfa.GetCfg()
-	for _, gn := range cfg.GetDiGraphNodes() {
+	for _, gn := range cfg.GetNodes() {
 		v := gn.GetValue()
 		var desc string
 		if v.IsNil() {

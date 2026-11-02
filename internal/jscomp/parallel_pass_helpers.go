@@ -17,14 +17,10 @@ func parallelThreadCount(compiler AbstractCompiler, workCount int) int {
 	if opts == nil {
 		return 1
 	}
-	n := opts.GetNumParallelThreads()
-	if n <= 1 {
-		return 1
+	if n := opts.GetNumParallelThreads(); n > 1 {
+		return min(n, workCount)
 	}
-	if n > workCount {
-		n = workCount
-	}
-	return n
+	return 1
 }
 
 func prewarmCompilerForParallelReads(compiler *Compiler) {
@@ -78,19 +74,24 @@ func (l *lazyGlobalScope) get() *Scope {
 	return l.scope
 }
 
-func collectRootScripts(root rhino.Node) ([]rhino.Node, bool) {
+func countRootScripts(root rhino.Node) (int, bool) {
 	if root.IsNil() || !root.IsRoot() {
-		return nil, false
+		return 0, false
 	}
 	count := 0
 	for c := root.GetFirstChild(); !c.IsNil(); c = c.GetNext() {
 		if !c.IsScript() {
-			return nil, false
+			return 0, false
 		}
 		count++
 	}
-	if count == 0 {
-		return nil, true
+	return count, true
+}
+
+func collectRootScripts(root rhino.Node) ([]rhino.Node, bool) {
+	count, ok := countRootScripts(root)
+	if !ok || count == 0 {
+		return nil, ok
 	}
 	scripts := make([]rhino.Node, 0, count)
 	for c := root.GetFirstChild(); !c.IsNil(); c = c.GetNext() {
@@ -105,35 +106,23 @@ type scriptWithParent struct {
 }
 
 func collectExternAndRootScripts(externs rhino.Node, root rhino.Node) (rhino.Node, []scriptWithParent, bool) {
-	if externs.IsNil() || root.IsNil() || !externs.IsRoot() || !root.IsRoot() {
+	extCount, ok1 := countRootScripts(externs)
+	rootCount, ok2 := countRootScripts(root)
+	if !ok1 || !ok2 {
 		return rhino.NilNode, nil, false
 	}
 	scopeRoot := externs.GetParent()
 	if scopeRoot.IsNil() || root.GetParent() != scopeRoot {
 		return rhino.NilNode, nil, false
 	}
-	count := 0
-	for c := externs.GetFirstChild(); !c.IsNil(); c = c.GetNext() {
-		if !c.IsScript() {
-			return rhino.NilNode, nil, false
-		}
-		count++
-	}
-	for c := root.GetFirstChild(); !c.IsNil(); c = c.GetNext() {
-		if !c.IsScript() {
-			return rhino.NilNode, nil, false
-		}
-		count++
-	}
-	if count == 0 {
+	if extCount+rootCount == 0 {
 		return scopeRoot, nil, true
 	}
-	items := make([]scriptWithParent, 0, count)
-	for c := externs.GetFirstChild(); !c.IsNil(); c = c.GetNext() {
-		items = append(items, scriptWithParent{parent: externs, script: c})
-	}
-	for c := root.GetFirstChild(); !c.IsNil(); c = c.GetNext() {
-		items = append(items, scriptWithParent{parent: root, script: c})
+	items := make([]scriptWithParent, 0, extCount+rootCount)
+	for _, parent := range [2]rhino.Node{externs, root} {
+		for c := parent.GetFirstChild(); !c.IsNil(); c = c.GetNext() {
+			items = append(items, scriptWithParent{parent: parent, script: c})
+		}
 	}
 	return scopeRoot, items, true
 }
@@ -178,12 +167,6 @@ type parallelRecorder struct {
 	baseHalted          bool
 	halted              bool
 	errHandler          compiler_errorHandler
-}
-
-func newRecordingCompiler(base *Compiler) *Compiler {
-	var rc Compiler
-	initRecordingCompiler(&rc, base)
-	return &rc
 }
 
 func initRecordingCompiler(rc *Compiler, base *Compiler) {
@@ -294,14 +277,6 @@ func (c *Compiler) setWorkerAllowableFeatures(featureSet *parser.FeatureSet) {
 	panic(jutil.NewUnsupportedOperationExceptionMsg("SetAllowableFeatures unsupported in parallel worker"))
 }
 
-func (r *parallelRecorder) replayOnto(base *Compiler) {
-	if r == nil || len(r.events) == 0 {
-		return
-	}
-	replayCompilerEvents(base, r.events)
-	r.events = r.events[:0]
-}
-
 func replayCompilerEvents(base *Compiler, events []recordedCompilerEvent) {
 	for i := range events {
 		ev := &events[i]
@@ -321,6 +296,19 @@ func replayCompilerEvents(base *Compiler, events []recordedCompilerEvent) {
 	}
 }
 
+type parallelWorkState struct {
+	rc      recordingCompiler
+	runItem func(idx int, rc *recordingCompiler)
+	cleanup func()
+}
+
+func rethrowParallelPanic(base AbstractCompiler, p any) {
+	if ie, ok := p.(parallelInternalError); ok {
+		base.ThrowInternalError(ie.msg, ie.cause)
+	}
+	panic(p)
+}
+
 func runParallelWork(
 	base AbstractCompiler,
 	numWorkers int,
@@ -328,41 +316,31 @@ func runParallelWork(
 	initWorker func(workerID int) (runItem func(idx int, rc *recordingCompiler), cleanup func()),
 	stopOnHaltingError bool,
 ) {
-	eventsByItem := make([][]recordedCompilerEvent, workCount)
-	panicsByItem := make([]any, workCount)
-
-	var nextIdx atomic.Uint32
-	var wg sync.WaitGroup
-	wg.Add(numWorkers)
-	for w := 0; w < numWorkers; w++ {
-		workerID := w
-		go func() {
-			defer wg.Done()
-			runItem, cleanup := initWorker(workerID)
-			if cleanup != nil {
-				defer cleanup()
-			}
-			var rc recordingCompiler
-			initRecordingCompiler(&rc, base)
-			for {
-				idx := int(nextIdx.Add(1) - 1)
-				if idx >= workCount {
-					return
-				}
-				resetRecordingCompiler(&rc, base)
-				func() {
-					defer func() {
-						if r := recover(); r != nil {
-							panicsByItem[idx] = r
-						}
-					}()
-					runItem(idx, &rc)
-				}()
-				eventsByItem[idx] = rc.takeEvents()
-			}
-		}()
+	if workCount <= 0 {
+		return
 	}
-	wg.Wait()
+	eventsByItem := make([][]recordedCompilerEvent, workCount)
+	panicsByItem, workerPanic := collectParallelWorkers(
+		workCount,
+		max(min(numWorkers, workCount), 1),
+		func(workerID int, w *parallelWorkState) {
+			w.runItem, w.cleanup = initWorker(workerID)
+			initRecordingCompiler(&w.rc, base)
+		},
+		func(w *parallelWorkState, idx int) {
+			resetRecordingCompiler(&w.rc, base)
+			w.runItem(idx, &w.rc)
+		},
+		func(w *parallelWorkState, idx int) {
+			eventsByItem[idx] = w.rc.takeEvents()
+		},
+		func(_ int, w *parallelWorkState) {
+			if w.cleanup != nil {
+				w.cleanup()
+			}
+		},
+		false,
+	)
 
 	for i := 0; i < workCount; i++ {
 		if stopOnHaltingError && base.HasHaltingErrors() {
@@ -372,11 +350,11 @@ func runParallelWork(
 			replayCompilerEvents(base, eventsByItem[i])
 		}
 		if p := panicsByItem[i]; p != nil {
-			if ie, ok := p.(parallelInternalError); ok {
-				base.ThrowInternalError(ie.msg, ie.cause)
-			}
-			panic(p)
+			rethrowParallelPanic(base, p)
 		}
+	}
+	if workerPanic != nil {
+		rethrowParallelPanic(base, workerPanic)
 	}
 }
 
@@ -441,7 +419,6 @@ func traverseScriptsParallel[S any](
 	}
 
 	runParallelWork(compiler, numWorkers, itemCount, func(workerID int) (func(int, *recordingCompiler), func()) {
-		var workerRC *recordingCompiler
 		var state S
 		var sc *SyntacticScopeCreator
 		initialized := false
@@ -456,8 +433,7 @@ func traverseScriptsParallel[S any](
 		}
 
 		runItem := func(idx int, rc *recordingCompiler) {
-			if !initialized || workerRC != rc {
-				workerRC = rc
+			if !initialized {
 				state = opts.initWorker(workerID, rc)
 				initialized = true
 				if opts.useSharedGlobalScope {
@@ -505,29 +481,14 @@ func runParallelItemIndexed[W any](w *W, idx int, panicsByItem []any, runItem fu
 	return false
 }
 
-func runParallelWorkersIndexed[W any](
+func collectParallelWorkers[W any](
 	itemCount, numWorkers int,
-	initWorker func(workerIdx int) W,
+	initWorker func(workerIdx int, w *W),
 	runItem func(w *W, itemIdx int),
+	afterItem func(w *W, itemIdx int),
 	finishWorker func(workerIdx int, w *W),
-) {
-	if itemCount <= 0 {
-		return
-	}
-	if numWorkers > itemCount {
-		numWorkers = itemCount
-	}
-	if numWorkers <= 1 {
-		w := initWorker(0)
-		if finishWorker != nil {
-			defer finishWorker(0, &w)
-		}
-		for i := 0; i < itemCount; i++ {
-			runItem(&w, i)
-		}
-		return
-	}
-
+	stopWorkerOnPanic bool,
+) ([]any, any) {
 	panicsByItem := make([]any, itemCount)
 	var workerPanic any
 	var workerPanicOnce sync.Once
@@ -539,12 +500,11 @@ func runParallelWorkersIndexed[W any](
 			defer wg.Done()
 			defer func() {
 				if r := recover(); r != nil {
-					workerPanicOnce.Do(func() {
-						workerPanic = r
-					})
+					workerPanicOnce.Do(func() { workerPanic = r })
 				}
 			}()
-			w := initWorker(wIdx)
+			var w W
+			initWorker(wIdx, &w)
 			if finishWorker != nil {
 				defer finishWorker(wIdx, &w)
 			}
@@ -553,14 +513,50 @@ func runParallelWorkersIndexed[W any](
 				if idx >= itemCount {
 					return
 				}
-				if runParallelItemIndexed(&w, idx, panicsByItem, runItem) {
+				panicked := runParallelItemIndexed(&w, idx, panicsByItem, runItem)
+				if afterItem != nil {
+					afterItem(&w, idx)
+				}
+				if panicked && stopWorkerOnPanic {
 					return
 				}
 			}
 		}(workerIdx)
 	}
 	wg.Wait()
+	return panicsByItem, workerPanic
+}
 
+func runParallelWorkersIndexed[W any](
+	itemCount, numWorkers int,
+	initWorker func(workerIdx int) W,
+	runItem func(w *W, itemIdx int),
+	finishWorker func(workerIdx int, w *W),
+) {
+	if itemCount <= 0 {
+		return
+	}
+	numWorkers = min(numWorkers, itemCount)
+	if numWorkers <= 1 {
+		w := initWorker(0)
+		if finishWorker != nil {
+			defer finishWorker(0, &w)
+		}
+		for i := 0; i < itemCount; i++ {
+			runItem(&w, i)
+		}
+		return
+	}
+
+	panicsByItem, workerPanic := collectParallelWorkers(
+		itemCount,
+		numWorkers,
+		func(wIdx int, dst *W) { *dst = initWorker(wIdx) },
+		runItem,
+		nil,
+		finishWorker,
+		true,
+	)
 	for _, p := range panicsByItem {
 		if p != nil {
 			panic(p)
