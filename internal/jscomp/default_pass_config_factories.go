@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/DefaultPassConfig.java @ closure-compiler v20261021
+// Port of com/google/javascript/jscomp/DefaultPassConfig.java @ closure-compiler v20261028
 
 /*
  * Copyright 2009 The Closure Compiler Authors.
@@ -557,6 +557,7 @@ func createRemoveUnusedCodePass(c AbstractCompiler) CompilerPass {
 		RemoveUnusedObjectDefinePropertiesDefinitions: opts.IsRemoveUnusedClassProperties(),
 		RemoveUnusedPolyfills:                         len(opts.GetForceLibraryInjectionList()) == 0 && opts.GetInjectPolyfillsNewerThan() == nil,
 		AssumeGettersArePure:                          opts.GetAssumeGettersArePure(),
+		DisambiguateProperties:                        opts.ShouldDisambiguateProperties(),
 	})
 }
 

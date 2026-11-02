@@ -1,5 +1,5 @@
-// Port of com/google/javascript/jscomp/Es6CheckModule.java @ closure-compiler v20261021
-// Port of com/google/javascript/jscomp/CheckTypeImportCodeReferences.java @ closure-compiler v20261021
+// Port of com/google/javascript/jscomp/Es6CheckModule.java @ closure-compiler v20261028
+// Port of com/google/javascript/jscomp/CheckTypeImportCodeReferences.java @ closure-compiler v20261028
 
 /*
  * Copyright 2017 The Closure Compiler Authors.

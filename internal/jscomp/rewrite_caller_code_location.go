@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/RewriteCallerCodeLocation.java @ closure-compiler v20261021
+// Port of com/google/javascript/jscomp/RewriteCallerCodeLocation.java @ closure-compiler v20261028
 
 /*
  * Copyright 2024 The Closure Compiler Authors.

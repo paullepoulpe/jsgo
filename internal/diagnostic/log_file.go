@@ -1,7 +1,7 @@
-// Port of com/google/javascript/jscomp/diagnostic/LogFile.java @ closure-compiler v20261021
-// Port of com/google/javascript/jscomp/diagnostic/WritingLogFile.java @ closure-compiler v20261021
-// Port of com/google/javascript/jscomp/diagnostic/NoOpLogFile.java @ closure-compiler v20261021
-// Port of com/google/javascript/jscomp/diagnostic/LogsGson.java @ closure-compiler v20261021
+// Port of com/google/javascript/jscomp/diagnostic/LogFile.java @ closure-compiler v20261028
+// Port of com/google/javascript/jscomp/diagnostic/WritingLogFile.java @ closure-compiler v20261028
+// Port of com/google/javascript/jscomp/diagnostic/NoOpLogFile.java @ closure-compiler v20261028
+// Port of com/google/javascript/jscomp/diagnostic/LogsGson.java @ closure-compiler v20261028
 
 /*
  * Copyright 2019 The Closure Compiler Authors.

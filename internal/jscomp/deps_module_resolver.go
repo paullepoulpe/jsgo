@@ -1,7 +1,7 @@
-// Port of com/google/javascript/jscomp/deps/ModuleResolver.java @ closure-compiler v20261021
-// Port of com/google/javascript/jscomp/deps/BrowserModuleResolver.java @ closure-compiler v20261021
-// Port of com/google/javascript/jscomp/deps/WebpackModuleResolver.java @ closure-compiler v20261021
-// Port of com/google/javascript/jscomp/deps/BrowserWithTransformedPrefixesModuleResolver.java @ closure-compiler v20261021
+// Port of com/google/javascript/jscomp/deps/ModuleResolver.java @ closure-compiler v20261028
+// Port of com/google/javascript/jscomp/deps/BrowserModuleResolver.java @ closure-compiler v20261028
+// Port of com/google/javascript/jscomp/deps/WebpackModuleResolver.java @ closure-compiler v20261028
+// Port of com/google/javascript/jscomp/deps/BrowserWithTransformedPrefixesModuleResolver.java @ closure-compiler v20261028
 
 /*
  * Copyright 2017 The Closure Compiler Authors.

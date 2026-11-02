@@ -1,12 +1,12 @@
-// Port of com/google/javascript/rhino/jstype/ValueType.java @ closure-compiler v20261021
-// Port of com/google/javascript/rhino/jstype/BooleanType.java @ closure-compiler v20261021
-// Port of com/google/javascript/rhino/jstype/NumberType.java @ closure-compiler v20261021
-// Port of com/google/javascript/rhino/jstype/StringType.java @ closure-compiler v20261021
-// Port of com/google/javascript/rhino/jstype/BigIntType.java @ closure-compiler v20261021
-// Port of com/google/javascript/rhino/jstype/NullType.java @ closure-compiler v20261021
-// Port of com/google/javascript/rhino/jstype/VoidType.java @ closure-compiler v20261021
-// Port of com/google/javascript/rhino/jstype/SymbolType.java @ closure-compiler v20261021
-// Port of com/google/javascript/rhino/jstype/KnownSymbolType.java @ closure-compiler v20261021
+// Port of com/google/javascript/rhino/jstype/ValueType.java @ closure-compiler v20261028
+// Port of com/google/javascript/rhino/jstype/BooleanType.java @ closure-compiler v20261028
+// Port of com/google/javascript/rhino/jstype/NumberType.java @ closure-compiler v20261028
+// Port of com/google/javascript/rhino/jstype/StringType.java @ closure-compiler v20261028
+// Port of com/google/javascript/rhino/jstype/BigIntType.java @ closure-compiler v20261028
+// Port of com/google/javascript/rhino/jstype/NullType.java @ closure-compiler v20261028
+// Port of com/google/javascript/rhino/jstype/VoidType.java @ closure-compiler v20261028
+// Port of com/google/javascript/rhino/jstype/SymbolType.java @ closure-compiler v20261028
+// Port of com/google/javascript/rhino/jstype/KnownSymbolType.java @ closure-compiler v20261028
 
 /*
  *

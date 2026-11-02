@@ -1,14 +1,14 @@
-// Port of com/google/debugging/sourcemap/FilePosition.java @ closure-compiler v20261021
-// Port of com/google/debugging/sourcemap/SourceMapConsumer.java @ closure-compiler v20261021
-// Port of com/google/debugging/sourcemap/SourceMapConsumerFactory.java @ closure-compiler v20261021
-// Port of com/google/debugging/sourcemap/SourceMapFormat.java @ closure-compiler v20261021
-// Port of com/google/debugging/sourcemap/SourceMapGenerator.java @ closure-compiler v20261021
-// Port of com/google/debugging/sourcemap/SourceMapGeneratorFactory.java @ closure-compiler v20261021
-// Port of com/google/debugging/sourcemap/SourceMapParseException.java @ closure-compiler v20261021
-// Port of com/google/debugging/sourcemap/SourceMapSection.java @ closure-compiler v20261021
-// Port of com/google/debugging/sourcemap/SourceMapSupplier.java @ closure-compiler v20261021
-// Port of com/google/debugging/sourcemap/SourceMapping.java @ closure-compiler v20261021
-// Port of com/google/debugging/sourcemap/SourceMappingReversable.java @ closure-compiler v20261021
+// Port of com/google/debugging/sourcemap/FilePosition.java @ closure-compiler v20261028
+// Port of com/google/debugging/sourcemap/SourceMapConsumer.java @ closure-compiler v20261028
+// Port of com/google/debugging/sourcemap/SourceMapConsumerFactory.java @ closure-compiler v20261028
+// Port of com/google/debugging/sourcemap/SourceMapFormat.java @ closure-compiler v20261028
+// Port of com/google/debugging/sourcemap/SourceMapGenerator.java @ closure-compiler v20261028
+// Port of com/google/debugging/sourcemap/SourceMapGeneratorFactory.java @ closure-compiler v20261028
+// Port of com/google/debugging/sourcemap/SourceMapParseException.java @ closure-compiler v20261028
+// Port of com/google/debugging/sourcemap/SourceMapSection.java @ closure-compiler v20261028
+// Port of com/google/debugging/sourcemap/SourceMapSupplier.java @ closure-compiler v20261028
+// Port of com/google/debugging/sourcemap/SourceMapping.java @ closure-compiler v20261028
+// Port of com/google/debugging/sourcemap/SourceMappingReversable.java @ closure-compiler v20261028
 
 /*
  * Copyright 2009 The Closure Compiler Authors.
@@ -43,7 +43,7 @@
  */
 
 // Package sourcemap is a 1:1 port of com.google.debugging.sourcemap
-// (closure-compiler v20261021): the source map V3 generator
+// (closure-compiler v20261028): the source map V3 generator
 // (SourceMapGeneratorV3), consumer (SourceMapConsumerV3), their streaming JSON
 // parser (SourceMapObjectParser on SourceMapJsonLexer), and the Base64 VLQ
 // encoding. proto_mapping.go reconstructs the protobuf-generated

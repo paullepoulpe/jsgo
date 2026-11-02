@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/parsing/ParserTest.java @ closure-compiler v20261021
+// Port of com/google/javascript/jscomp/parsing/ParserTest.java @ closure-compiler v20261028
 
 /*
  * Copyright 2014 The Closure Compiler Authors.
@@ -4766,6 +4766,53 @@ func TestStringLineContinuationWarningsByMode(t *testing.T) {
 	pt.parseWarning("'one\\\ntwo';", parserTest_STRING_CONTINUATIONS_WARNING)
 }
 
+// Java: ParserTest.testEscapedLineOrParagraphSeparatorInString()
+func TestEscapedLineOrParagraphSeparatorInString(t *testing.T) {
+	pt := newParserTest(t)
+
+	pt.strictMode = Config_StrictMode_SLOPPY
+
+	// An escaped <LS>/<PS> is an ES5 line continuation, not the ES2019 JSON superset feature.
+	pt.mode = Config_LanguageMode_ECMASCRIPT3
+	lsEs3 := pt.doParse(
+		"'one\\\u2028two';",
+		requiresLanguageModeMessage(parser.FeatureSet_Feature_STRING_CONTINUATION),
+		parserTest_STRING_CONTINUATIONS_WARNING)
+	assertThat(t, lsEs3.Ast.GetFirstFirstChild().GetString()).IsEqualTo("onetwo")
+	assertFS(t, lsEs3.Features).Has(parser.FeatureSet_Feature_STRING_CONTINUATION)
+	assertFS(t, lsEs3.Features).DoesNotHave(parser.FeatureSet_Feature_UNESCAPED_UNICODE_LINE_OR_PARAGRAPH_SEP)
+
+	psEs3 := pt.doParse(
+		"'one\\\u2029two';",
+		requiresLanguageModeMessage(parser.FeatureSet_Feature_STRING_CONTINUATION),
+		parserTest_STRING_CONTINUATIONS_WARNING)
+	assertThat(t, psEs3.Ast.GetFirstFirstChild().GetString()).IsEqualTo("onetwo")
+	assertFS(t, psEs3.Features).Has(parser.FeatureSet_Feature_STRING_CONTINUATION)
+	assertFS(t, psEs3.Features).DoesNotHave(parser.FeatureSet_Feature_UNESCAPED_UNICODE_LINE_OR_PARAGRAPH_SEP)
+
+	pt.mode = Config_LanguageMode_ECMASCRIPT5
+	lsEs5 := pt.doParse("'one\\\u2028two';", parserTest_STRING_CONTINUATIONS_WARNING)
+	assertThat(t, lsEs5.Ast.GetFirstFirstChild().GetString()).IsEqualTo("onetwo")
+	assertFS(t, lsEs5.Features).Has(parser.FeatureSet_Feature_STRING_CONTINUATION)
+	assertFS(t, lsEs5.Features).DoesNotHave(parser.FeatureSet_Feature_UNESCAPED_UNICODE_LINE_OR_PARAGRAPH_SEP)
+
+	psEs5 := pt.doParse("'one\\\u2029two';", parserTest_STRING_CONTINUATIONS_WARNING)
+	assertThat(t, psEs5.Ast.GetFirstFirstChild().GetString()).IsEqualTo("onetwo")
+	assertFS(t, psEs5.Features).Has(parser.FeatureSet_Feature_STRING_CONTINUATION)
+	assertFS(t, psEs5.Features).DoesNotHave(parser.FeatureSet_Feature_UNESCAPED_UNICODE_LINE_OR_PARAGRAPH_SEP)
+
+	pt.mode = Config_LanguageMode_ECMASCRIPT_2015
+	lsEs2015 := pt.doParse("'one\\\u2028two';", parserTest_STRING_CONTINUATIONS_WARNING)
+	assertThat(t, lsEs2015.Ast.GetFirstFirstChild().GetString()).IsEqualTo("onetwo")
+	assertFS(t, lsEs2015.Features).Has(parser.FeatureSet_Feature_STRING_CONTINUATION)
+	assertFS(t, lsEs2015.Features).DoesNotHave(parser.FeatureSet_Feature_UNESCAPED_UNICODE_LINE_OR_PARAGRAPH_SEP)
+
+	psEs2015 := pt.doParse("'one\\\u2029two';", parserTest_STRING_CONTINUATIONS_WARNING)
+	assertThat(t, psEs2015.Ast.GetFirstFirstChild().GetString()).IsEqualTo("onetwo")
+	assertFS(t, psEs2015.Features).Has(parser.FeatureSet_Feature_STRING_CONTINUATION)
+	assertFS(t, psEs2015.Features).DoesNotHave(parser.FeatureSet_Feature_UNESCAPED_UNICODE_LINE_OR_PARAGRAPH_SEP)
+}
+
 // Java: ParserTest.testStringLineContinuationNormalization()
 func TestStringLineContinuationNormalization(t *testing.T) {
 	pt := newParserTest(t)
@@ -4787,6 +4834,13 @@ func TestStringLineContinuationNormalization(t *testing.T) {
 
 	n = pt.parseWarning("'one\\\n two';", parserTest_STRING_CONTINUATIONS_WARNING)
 	assertThat(t, n.GetFirstFirstChild().GetString()).IsEqualTo("one two")
+
+	// <LS> and <PS> are line terminators too, so a backslash before them is a line continuation.
+	n = pt.parseWarning("'one\\\u2028two';", parserTest_STRING_CONTINUATIONS_WARNING)
+	assertThat(t, n.GetFirstFirstChild().GetString()).IsEqualTo("onetwo")
+
+	n = pt.parseWarning("'one\\\u2029two';", parserTest_STRING_CONTINUATIONS_WARNING)
+	assertThat(t, n.GetFirstFirstChild().GetString()).IsEqualTo("onetwo")
 }
 
 // Java: ParserTest.testStringContinuationIssue3492()
@@ -4898,6 +4952,11 @@ func TestTemplateLiteralWithLineContinuation(t *testing.T) {
 	stringNode := templateLiteral.GetFirstChild()
 	assertNode(t, stringNode).HasType(rhino.Token_TEMPLATELIT_STRING)
 	assertThat(t, stringNode.GetCookedString()).IsEqualTo("string continuation")
+
+	n = pt.parseWarning("`string \\\u2028continuation`", parserTest_STRING_CONTINUATIONS_WARNING)
+	stringNode = n.GetFirstFirstChild().GetFirstChild()
+	assertThat(t, stringNode.GetCookedString()).IsEqualTo("string continuation")
+	assertThat(t, stringNode.GetRawString()).IsEqualTo("string \\\u2028continuation")
 }
 
 // Java: ParserTest.testTemplateLiteralSubstitution()
@@ -7180,6 +7239,25 @@ func TestPrivateProperty_invalid_identifierAlreadyDeclared_crossStaticGetterSett
 	pt.parseError("class C { set #p(x) {} static get #p() {} }", expectedError)
 	pt.parseError("class C { static get #p() {} set #p(x) {} }", expectedError)
 	pt.parseError("class C { static set #p(x) {} get #p() {} }", expectedError)
+}
+
+// Java: ParserTest.testPrivateProperty_namedConstructor_knownBug()
+func TestPrivateProperty_namedConstructor_knownBug(t *testing.T) {
+	pt := newParserTest(t)
+
+	// Expected behavior: the parser reports "Classes may not have a private element named
+	// '#constructor'" for each source. The spec makes a private element named `#constructor` an
+	// early SyntaxError.
+	//
+	// TODO(b/236744850): A private element named `#constructor` is accepted.
+	// Current behavior: each source parses without an error or a warning, so `parse` passes.
+	// Why it's a bug: natively each source is a SyntaxError, so the whole script fails to load.
+	//   The compiler accepts the code instead of reporting the error.
+	pt.parse("class C { #constructor; }")
+	pt.parse("class C { #constructor() {} }")
+	pt.parse("class C { async #constructor() {} }")
+	pt.parse("class C { get #constructor() {} }")
+	pt.parse("class C { set #constructor(v) {} }")
 }
 
 // Java: ParserTest.testPrivateProperty_classMembersReferencingOtherPrivateField()

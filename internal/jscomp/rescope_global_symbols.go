@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/RescopeGlobalSymbols.java @ closure-compiler v20261021
+// Port of com/google/javascript/jscomp/RescopeGlobalSymbols.java @ closure-compiler v20261028
 
 /*
  * Copyright 2011 The Closure Compiler Authors.
@@ -20,6 +20,7 @@ package jscomp
 
 import (
 	"github.com/paullepoulpe/jsgo/internal/ast"
+	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
 
@@ -90,6 +91,7 @@ func (r *RescopeGlobalSymbols) Process(externs rhino.Node, root rhino.Node) {
 	// Find global names that are used in more than one chunk and names that
 	// may refer to functions that reference `this`.
 	analyzer := rescopeAnalyzeNamesCallback{
+		compiler:             r.compiler,
 		trackLocalAccessSets: r.optimizeLocalAccess.ShouldOptimize(),
 		info: rescopeSymbolInfo{
 			crossChunkNames:     make(map[string]struct{}),
@@ -113,7 +115,10 @@ func (r *RescopeGlobalSymbols) Process(externs rhino.Node, root rhino.Node) {
 
 	// Remove the var/let/const from statements in global scope if the declared
 	// names have been rewritten in the previous pass.
-	removeVarCallback := rescopeRemoveGlobalVarCallback{compiler: r.compiler}
+	removeVarCallback := rescopeRemoveGlobalVarCallback{
+		compiler:                     r.compiler,
+		preserveLocalVarDeclarations: r.optimizeLocalAccess.ShouldPreserveLocalVarDeclarations(),
+	}
 	NodeTraversal_Traverse(r.compiler, root, &removeVarCallback)
 
 	rewriteScope.addDeclarations()
@@ -194,6 +199,7 @@ func (s *rescopeOrderedStringSet) contains(name string) bool {
 type rescopeSymbolInfo struct {
 	crossChunkNames                               map[string]struct{}
 	crossChunkNamesWithWriteFromOtherChunk        rescopeOrderedStringSet
+	crossChunkNamesUsedInNonDependentChunk        rescopeOrderedStringSet
 	globalNamesWithReadInDefiningChunk            map[string]struct{}
 	globalNamesWithInnerScopeWriteInDefiningChunk rescopeOrderedStringSet
 	maybeReferencesThis                           map[string]struct{}
@@ -203,6 +209,7 @@ type rescopeSymbolInfo struct {
 // FindNamesReferencingThis into a single post-order pass over NAME nodes.
 type rescopeAnalyzeNamesCallback struct {
 	NodeTraversal_AbstractPostOrderCallbackBase
+	compiler             AbstractCompiler
 	trackLocalAccessSets bool
 	info                 rescopeSymbolInfo
 }
@@ -267,10 +274,13 @@ func (c *rescopeAnalyzeNamesCallback) visitCrossChunkName(
 	}
 	if input.GetChunk() != t.GetChunk() {
 		c.info.crossChunkNames[name] = struct{}{}
-		if c.trackLocalAccessSets &&
-			NodeUtil_IsLValue(n) &&
-			(!NodeUtil_IsNameDeclaration(parent) || hasInit) {
-			c.info.crossChunkNamesWithWriteFromOtherChunk.add(name)
+		if c.trackLocalAccessSets {
+			if NodeUtil_IsLValue(n) && (!NodeUtil_IsNameDeclaration(parent) || hasInit) {
+				c.info.crossChunkNamesWithWriteFromOtherChunk.add(name)
+			}
+			if !c.compiler.GetChunkGraph().DependsOn(t.GetChunk(), input.GetChunk()) {
+				c.info.crossChunkNamesUsedInNonDependentChunk.add(name)
+			}
 		}
 	} else if c.trackLocalAccessSets && n != v.GetNameNode() {
 		c.info.globalNamesWithReadInDefiningChunk[name] = struct{}{}
@@ -304,13 +314,15 @@ func (c *rescopeAnalyzeNamesCallback) visitMaybeReferencesThis(
 	}
 }
 
-// rescopeRemoveGlobalVarCallback removes every occurrence of var/let/const
-// that declares a rewritten global variable.
+// rescopeRemoveGlobalVarCallback removes var/let/const declarations whose
+// global variables have been rewritten to property assignments by
+// rescopeRewriteCallback, while preserving var declarations for variables that
+// remain local to the chunk.
 type rescopeRemoveGlobalVarCallback struct {
 	NodeTraversal_AbstractShallowStatementCallbackBase
-	compiler AbstractCompiler
-	commas   []rhino.Node
-	children []rhino.Node
+	compiler                     AbstractCompiler
+	preserveLocalVarDeclarations bool
+	commas                       []rhino.Node
 }
 
 var rescopeRemoveGlobalVarVisitTokens = func() ast.TokenSet {
@@ -321,53 +333,73 @@ var rescopeRemoveGlobalVarVisitTokens = func() ast.TokenSet {
 	return s
 }()
 
-var (
-	_ nodeTraversal_visitTokens   = (*rescopeRemoveGlobalVarCallback)(nil)
-	_ nodeTraversal_noVisitLeaves = (*rescopeRemoveGlobalVarCallback)(nil)
-)
+var _ nodeTraversal_visitTokens = (*rescopeRemoveGlobalVarCallback)(nil)
 
 func (*rescopeRemoveGlobalVarCallback) visitTokens() *ast.TokenSet {
 	return &rescopeRemoveGlobalVarVisitTokens
 }
-func (*rescopeRemoveGlobalVarCallback) noVisitLeaves() {}
 
 func (c *rescopeRemoveGlobalVarCallback) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	if !NodeUtil_IsNameDeclaration(n) {
 		return
 	}
 
-	c.commas = c.commas[:0]
-	c.children = c.children[:0]
-	parentIsAnyFor := NodeUtil_IsAnyFor(parent)
-	allNameOrDestructuring := true
-	for ch := n.GetFirstChild(); !ch.IsNil(); ch = ch.GetNext() {
-		if !ch.IsName() && !ch.IsDestructuringLhs() {
-			allNameOrDestructuring = false
-		}
-		if ch.IsAssign() || parentIsAnyFor {
-			c.children = append(c.children, ch)
-		}
-	}
-	if allNameOrDestructuring {
+	// If every child of a non-empty declaration is still a variable binding
+	// (NAME or DESTRUCTURING_LHS) rather than a rewritten assignment (ASSIGN) or
+	// property access (GETPROP), then no variables in the declaration were
+	// rewritten into standalone expressions, and the declaration node must stay
+	// in place as-is.
+	if rescopeHasOnlyNameOrDestructuringChildren(n) {
 		return
 	}
-	isForInit := parentIsAnyFor && parent.GetFirstChild() == n
-	for _, ch := range c.children {
-		if isForInit {
+
+	if NodeUtil_IsAnyFor(parent) && parent.GetFirstChild() == n {
+		c.commas = c.commas[:0]
+		for ch := n.GetFirstChild(); !ch.IsNil(); ch = ch.GetNext() {
 			c.commas = append(c.commas, ch.CloneTree())
-		} else {
-			expr := rhino.IR_ExprResult(ch.CloneTree()).Srcref(ch)
-			NodeUtil_MarkNewScopesChanged(expr, c.compiler)
-			expr.InsertBefore(n)
 		}
-	}
-	if len(c.commas) != 0 {
-		comma := joinNodesOnComma(c.commas, n)
-		comma.InsertBefore(n)
+		if len(c.commas) != 0 {
+			comma := joinNodesOnComma(c.commas, n)
+			comma.InsertBefore(n)
+		}
+	} else {
+		var currentVar rhino.Node
+		for ch := n.GetFirstChild(); !ch.IsNil(); ch = ch.GetNext() {
+			jutil.CheckStateMsg1(!ch.IsDestructuringLhs(), "Unexpected DESTRUCTURING_LHS child: %s", ch)
+			if c.preserveLocalVarDeclarations && ch.IsName() {
+				if currentVar.IsNil() {
+					currentVar = rhino.IR_Var(ch.CloneTree()).Srcref(n)
+					currentVar.SetJSDocInfo(n.GetJSDocInfo())
+					currentVar.InsertBefore(n)
+				} else {
+					currentVar.AddChildToBack(ch.CloneTree())
+				}
+			} else if ch.IsAssign() {
+				if !currentVar.IsNil() {
+					NodeUtil_MarkNewScopesChanged(currentVar, c.compiler)
+					currentVar = rhino.NilNode
+				}
+				expr := rhino.IR_ExprResult(ch.CloneTree()).Srcref(ch)
+				NodeUtil_MarkNewScopesChanged(expr, c.compiler)
+				expr.InsertBefore(n)
+			}
+		}
+		if !currentVar.IsNil() {
+			NodeUtil_MarkNewScopesChanged(currentVar, c.compiler)
+		}
 	}
 	n.Detach()
 	NodeUtil_MarkFunctionsDeleted(n, c.compiler)
 	c.compiler.ReportChangeToEnclosingScope(parent)
+}
+
+func rescopeHasOnlyNameOrDestructuringChildren(n rhino.Node) bool {
+	for ch := n.GetFirstChild(); !ch.IsNil(); ch = ch.GetNext() {
+		if !ch.IsName() && !ch.IsDestructuringLhs() {
+			return false
+		}
+	}
+	return n.HasChildren()
 }
 
 func joinNodesOnComma(commas []rhino.Node, source rhino.Node) rhino.Node {

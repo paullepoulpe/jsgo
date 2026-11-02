@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/NodeUtilTest.java @ closure-compiler v20261021
+// Port of com/google/javascript/jscomp/NodeUtilTest.java @ closure-compiler v20261028
 
 /*
  * Copyright 2004 The Closure Compiler Authors.
@@ -2968,6 +2968,16 @@ func TestNodeUtil_AssortedTests_TestIsExecutedExactlyOnce(t *testing.T) {
 
 	nuAssertThat(t, nuh_executedOnceTestCase(t, "1 && (x ? 1 : 2);")).IsFalse()
 
+	nuAssertThat(t, nuh_executedOnceTestCase(t, "x?.y;")).IsTrue()
+	nuAssertThat(t, nuh_executedOnceTestCase(t, "x?.y.z();")).IsTrue()
+	nuAssertThat(t, nuh_executedOnceTestCase(t, "y?.[x];")).IsFalse()
+	nuAssertThat(t, nuh_executedOnceTestCase(t, "y?.(x);")).IsFalse()
+	nuAssertThat(t, nuh_executedOnceTestCase(t, "y?.z.w(x);")).IsFalse()
+
+	nuAssertThat(t, nuh_executedOnceTestCase(t, "var {y = x} = {};")).IsFalse()
+	nuAssertThat(t, nuh_executedOnceTestCase(t, "[y = x] = [];")).IsFalse()
+	nuAssertThat(t, nuh_executedOnceTestCase(t, "function f(y = x) {}")).IsFalse()
+
 	nuAssertThat(t, nuh_executedOnceTestCase(t, "if (x) {}")).IsTrue()
 	nuAssertThat(t, nuh_executedOnceTestCase(t, "if (true) {x;}")).IsFalse()
 	nuAssertThat(t, nuh_executedOnceTestCase(t, "if (true) {} else {x;}")).IsFalse()
@@ -4291,6 +4301,32 @@ func TestNodeUtil_AssortedTests_TestGetEs6ClassConstructorMemberFunctionDef(t *t
 	nuAssertThat(t, constructorMemberFunctionDef).IsNull()
 }
 
+func TestNodeUtil_AssortedTests_TestHasInstanceElements(t *testing.T) {
+	nuAssertThat(t, NodeUtil_HasInstanceElements(nuParseFirst(t, rhino.Token_CLASS, "class C { x = 1; }"))).IsTrue()
+	nuAssertThat(t, NodeUtil_HasInstanceElements(nuParseFirst(t, rhino.Token_CLASS, "class C { x; }"))).IsTrue()
+	nuAssertThat(t, NodeUtil_HasInstanceElements(nuParseFirst(t, rhino.Token_CLASS, "class C { [k] = 1; }"))).IsTrue()
+	nuAssertThat(t, NodeUtil_HasInstanceElements(nuParseFirst(t, rhino.Token_CLASS, "class C { #x = 1; }"))).IsTrue()
+	nuAssertThat(t, NodeUtil_HasInstanceElements(nuParseFirst(t, rhino.Token_CLASS, "class C { #m() {} }"))).IsTrue()
+	nuAssertThat(t, NodeUtil_HasInstanceElements(nuParseFirst(t, rhino.Token_CLASS, "class C { get #a() {} }"))).
+		IsTrue()
+
+	nuAssertThat(t, NodeUtil_HasInstanceElements(nuParseFirst(t, rhino.Token_CLASS, "class C {}"))).IsFalse()
+	nuAssertThat(t,
+		NodeUtil_HasInstanceElements(
+			nuParseFirst(t, rhino.Token_CLASS, "class C { m() {} constructor() {} }"))).
+		IsFalse()
+	nuAssertThat(t, NodeUtil_HasInstanceElements(nuParseFirst(t, rhino.Token_CLASS, "class C { static x = 1; }"))).
+		IsFalse()
+	nuAssertThat(t, NodeUtil_HasInstanceElements(nuParseFirst(t, rhino.Token_CLASS, "class C { static [k] = 1; }"))).
+		IsFalse()
+	nuAssertThat(t, NodeUtil_HasInstanceElements(nuParseFirst(t, rhino.Token_CLASS, "class C { static #x = 1; }"))).
+		IsFalse()
+	nuAssertThat(t, NodeUtil_HasInstanceElements(nuParseFirst(t, rhino.Token_CLASS, "class C { static #m() {} }"))).
+		IsFalse()
+	nuAssertThat(t, NodeUtil_HasInstanceElements(nuParseFirst(t, rhino.Token_CLASS, "class C { static {} }"))).
+		IsFalse()
+}
+
 func TestNodeUtil_AssortedTests_TestIsGetterOrSetter(t *testing.T) {
 	fnNode :=
 		nuParseFirst(t, rhino.Token_FUNCTION, "Object.defineProperty(this, 'bar', {get: function() {}});")
@@ -5465,6 +5501,13 @@ func nuh_isValidPropertyName(t *testing.T, s string) bool {
 // Java: NodeUtilTest.isValidQualifiedName(String)
 func nuh_isValidQualifiedName(t *testing.T, s string) bool {
 	return NodeUtil_IsValidQualifiedNameFeatureSet(parser.FeatureSet_ES3, s)
+}
+
+// Java: NodeUtilTest.DelegatedHelpersTests.testDelegatedHelpersWithNarrowDependencies()
+func TestNodeUtil_DelegatedHelpersTests_TestDelegatedHelpersWithNarrowDependencies(t *testing.T) {
+	nameNode := NodeUtil_NewQNameWithConvention(CodingConventions_GetDefault(), "foo.bar")
+	nuAssertThat(t, nameNode.IsGetProp()).IsTrue()
+	nuAssertThat(t, nameNode.GetString()).IsEqualTo("bar")
 }
 
 // Go-only: the record methods of NodeUtil.GoogRequire (equals, hashCode,

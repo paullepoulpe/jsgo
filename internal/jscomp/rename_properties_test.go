@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/RenamePropertiesTest.java @ closure-compiler v20261021
+// Port of com/google/javascript/jscomp/RenamePropertiesTest.java @ closure-compiler v20261028
 // (test/com/google/javascript/jscomp/RenamePropertiesTest.java)
 
 /*
@@ -23,6 +23,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
 
@@ -1013,6 +1014,35 @@ f('otherProp.d.someProp');
 				`var bar = {myProp: 0};
 f('otherProp.myProp.someProp');
 `)))
+}
+
+// Java: RenamePropertiesTest.testPrivateClassMembers_knownBug()
+func (c *RenamePropertiesTest) TestPrivateClassMembers_knownBug() {
+	// Expected behavior: `RenameProperties` renames private names only to other private names,
+	// and renames `#field in o` like the other uses of `#field`. A private member must stay
+	// private, and each private name in the code must be declared in its class.
+	js := `class C {
+  #field = 1;
+  #method() { return this.#field; }
+  check(o) { return #field in o ? this.#method() : 0; }
+}
+`
+	expected := `class C {
+  #a = 1;
+  #b() { return this.#a; }
+  c(o) { return #a in o ? this.#b() : 0; }
+}
+`
+	// TODO(b/236744850): Private names are renamed to public names.
+	// Current behavior: `#field` and `#method` become the public `a` and `b`, and `#field in o`
+	//   is not renamed. So `test(js, expected)` fails.
+	// Why it's a bug: `C` no longer declares `#field`, so `#field in o` is a SyntaxError, and the
+	//   whole script fails to load.
+	// In a full build: `VarCheck` and `RemoveUnusedCode` mishandle `#field in o` before this pass
+	//   runs (see their tests). Without `in`, private names still become public, so a
+	//   subclass's `#x` overwrites its base class's `#x`.
+	ex := AssertThrows[*jutil.AssertionError](func() { c.Test(js, expected) })
+	AssertThat(ex.GetMessage()).Contains("return #field in o ? this.b() : 0;")
 }
 
 // Java: RenamePropertiesTest.compileChunks(String, JSChunk[])

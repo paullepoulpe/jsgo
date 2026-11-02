@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/InlineAndCollapsePropertiesTest.java @ closure-compiler v20261021
+// Port of com/google/javascript/jscomp/InlineAndCollapsePropertiesTest.java @ closure-compiler v20261028
 // (test/com/google/javascript/jscomp/InlineAndCollapsePropertiesTest.java)
 
 /*
@@ -20,6 +20,7 @@
 package jscomp
 
 import (
+	"runtime"
 	"testing"
 
 	"github.com/paullepoulpe/jsgo/internal/jutil"
@@ -3873,6 +3874,58 @@ alert(b.Foo.bar);
 	}
 	IsInstanceOf[*jutil.IllegalStateException](AssertThat(root))
 	AssertThat(root.GetMessage()).Contains("unexpected node: MEMBER_FIELD_DEF")
+}
+
+// Java: InlineAndCollapsePropertiesTest.testClassStaticPrivateField_knownBug()
+func (c *InlineAndCollapsePropertiesTest) TestClassStaticPrivateField_knownBug() {
+	// Expected behavior: `InlineAndCollapseProperties` leaves this code unchanged. `#s` is valid
+	// only inside the body of `C`, so it can't be moved out of `C` into a global variable.
+	js := `class C {
+  static #s = 1;
+}
+`
+	// TODO(b/236744850): `CollapseProperties` crashes on a static private field.
+	// Current behavior: `CollapseProperties` tries to move `static #s = 1` out of `C` into a
+	//   global variable, and fails a `checkState` because `1` is not a function. `testSame(js)`
+	//   throws the `IllegalStateException`.
+	// Why it's a bug: the compiler crashes on valid code.
+	var stack []byte
+	ex := AssertThrows[*jutil.IllegalStateException](func() {
+		defer func() {
+			if r := recover(); r != nil {
+				stack = make([]byte, 8192)
+				stack = stack[:runtime.Stack(stack, false)]
+				panic(r)
+			}
+		}()
+		c.TestSame(js)
+	})
+	_ = ex
+	// The failed `checkState` has no message, so check that it is the one in
+	// `CheckForReceiverAffectedByCollapse`.
+	AssertThat(string(stack)).Contains("CheckForReceiverAffectedByCollapse")
+}
+
+// Java: InlineAndCollapsePropertiesTest.testClassStaticPrivateMethod_knownBug()
+func (c *InlineAndCollapsePropertiesTest) TestClassStaticPrivateMethod_knownBug() {
+	// Expected behavior: `InlineAndCollapseProperties` leaves this code unchanged. `#m` is valid
+	// only inside the body of `C`, so neither `#m` nor `getM`, which calls `C.#m()`, can be moved
+	// out of `C` into a global variable.
+	js := `class C {
+  static #m() { return 1; }
+  static getM() { return C.#m(); }
+}
+`
+	// TODO(b/236744850): A static private method, and a static method that calls it, are moved
+	// out of their class.
+	// Current behavior: `CollapseProperties` moves `#m` and `getM` out of `C`, to
+	//   `var C$#m = function() { return 1; };` and `var C$getM = function() { return C$#m(); };`
+	//   before an empty `class C {}`. So `testSame(js)` fails.
+	// Why it's a bug: `C$#m` is not a valid name, so the output is a SyntaxError, and the whole
+	//   script fails to load.
+	ex := AssertThrows[*jutil.AssertionError](func() { c.TestSame(js) })
+	AssertThat(ex.GetMessage()).Contains("+var C$#m = function() {")
+	AssertThat(ex.GetMessage()).Contains("+var C$getM = function() {")
 }
 
 func (c *InlineAndCollapsePropertiesTest) TestInlineAliasesSnapshotRefsUnderConcurrentRemoval() {

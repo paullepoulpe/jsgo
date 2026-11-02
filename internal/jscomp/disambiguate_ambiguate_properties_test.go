@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/disambiguate/AmbiguatePropertiesTest.java @ closure-compiler v20261021
+// Port of com/google/javascript/jscomp/disambiguate/AmbiguatePropertiesTest.java @ closure-compiler v20261028
 // (test/com/google/javascript/jscomp/disambiguate/AmbiguatePropertiesTest.java)
 
 /*
@@ -1625,6 +1625,34 @@ func (c *AmbiguatePropertiesTest) TestSingleClass_withSingleMemberFn_ambiguated(
 // Java: AmbiguatePropertiesTest.testSingleClass_withSingleMemberField_ambiguated()
 func (c *AmbiguatePropertiesTest) TestSingleClass_withSingleMemberField_ambiguated() {
 	c.Test("class Foo { field = 2; } ", "class Foo { a = 2; }")
+}
+
+// Java: AmbiguatePropertiesTest.testSingleClass_withPrivateMembers_notAmbiguated_knownBug()
+func (c *AmbiguatePropertiesTest) TestSingleClass_withPrivateMembers_notAmbiguated_knownBug() {
+	// Expected behavior: `AmbiguateProperties` keeps the private names and renames only `pub`, to
+	// `a`. Renaming `#field` to `a` would turn the private field into a public property that any
+	// code can read and write.
+	//
+	// TODO(b/236744850): Private names are renamed to public names.
+	// Current behavior: `#field`, `#method` and `pub` become `a`, `b` and `c`.
+	// Why it's a bug: `a` and `b` are public properties that any code can read and write. For
+	//   example, `JSON.stringify(new Foo())` returns `{"a":2}` instead of `{}`.
+	// In a full build: `RenameProperties` runs right after this pass and has the same bug today.
+	//   Fixing only this pass doesn't change the output, and fixing only `RenameProperties` makes
+	//   it a SyntaxError.
+	c.Test(
+		`class Foo {
+  #field = 2;
+  #method() { return this.#field; }
+  pub() { return this.#method(); }
+}
+`,
+		`class Foo {
+  a = 2;
+  b() { return this.a; }
+  c() { return this.b(); }
+}
+`)
 }
 
 // Java: AmbiguatePropertiesTest.testSingleClass_withSingleQuotedMemberField_notAmbiguated()

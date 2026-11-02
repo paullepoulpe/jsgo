@@ -1,5 +1,5 @@
-// Port of com/google/javascript/jscomp/InlineFunctions.java @ closure-compiler v20261021
-// Port of com/google/javascript/jscomp/InlineCostEstimator.java @ closure-compiler v20261021
+// Port of com/google/javascript/jscomp/InlineFunctions.java @ closure-compiler v20261028
+// Port of com/google/javascript/jscomp/InlineCostEstimator.java @ closure-compiler v20261028
 
 /*
  * Copyright 2005 The Closure Compiler Authors.

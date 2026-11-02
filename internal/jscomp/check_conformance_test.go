@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/CheckConformanceTest.java @ closure-compiler v20261021
+// Port of com/google/javascript/jscomp/CheckConformanceTest.java @ closure-compiler v20261028
 // (test/com/google/javascript/jscomp/CheckConformanceTest.java)
 
 /*
@@ -2587,6 +2587,60 @@ func (c *CheckConformanceTest) TestSimpleExtends_withAllowlistRegexp() {
 `)
 }
 
+// Java: CheckConformanceTest.testSimpleExtends_withErrorMessage()
+func (c *CheckConformanceTest) TestSimpleExtends_withErrorMessage() {
+	c.baseConfiguration =
+		jutil.StringPtr(`requirement: {
+  rule_id: "gws:goog.Promise.X"
+  type: BANNED_NAME
+  error_message: "Prefer using native Promise equivalents. See go/gws-js-conformance#goog-promise"
+  value: "goog.Promise.all"
+}
+`)
+	c.extendingConfiguration =
+		jutil.StringPtr(`requirement: {
+  extends: 'gws:goog.Promise.X'
+  error_message: "Contact gws-team@ for questions."
+}
+`)
+
+	c.TestWarning(
+		`goog.Promise.all();
+`,
+		CheckConformance_CONFORMANCE_VIOLATION,
+		"Violation: Prefer using native Promise equivalents. See go/gws-js-conformance#goog-promise"+
+			" Contact gws-team@ for questions.")
+}
+
+// Java: CheckConformanceTest.testSimpleExtends_missingRootErrorMessage_reportsInvalidRequirementSpec()
+func (c *CheckConformanceTest) TestSimpleExtends_missingRootErrorMessage_reportsInvalidRequirementSpec() {
+	c.AllowSourcelessWarnings()
+	c.baseConfiguration =
+		jutil.StringPtr(`requirement: {
+  rule_id: "gws:goog.Promise.X"
+  type: BANNED_NAME
+  value: "goog.Promise.all"
+}
+`)
+	c.extendingConfiguration =
+		jutil.StringPtr(`requirement: {
+  extends: 'gws:goog.Promise.X'
+  error_message: "Contact gws-team@ for questions."
+}
+`)
+
+	c.TestError(
+		`goog.Promise.all();
+`,
+		CheckConformance_INVALID_REQUIREMENT_SPEC,
+		`Invalid requirement. Reason: missing message
+Requirement spec:
+type: BANNED_NAME
+value: "goog.Promise.all"
+rule_id: "gws:goog.Promise.X"
+`)
+}
+
 // Java: CheckConformanceTest.testRequirementHasBothRuleIdAndExtends_reportsInvalidRequirementSpec()
 func (c *CheckConformanceTest) TestRequirementHasBothRuleIdAndExtends_reportsInvalidRequirementSpec() {
 	c.AllowSourcelessWarnings()
@@ -3153,6 +3207,21 @@ func (c *CheckConformanceTest) TestMergeRequirementsAllowlist() {
 	AssertThat(len(requirement.GetAllowlistList())).IsEqualTo(2)
 	AssertThat(len(requirement.GetAllowlistRegexpList())).IsEqualTo(2)
 	AssertThat(len(requirement.GetAllowlistEntryList())).IsEqualTo(2)
+}
+
+// Java: CheckConformanceTest.testMergeRequirementsErrorMessage()
+func (c *CheckConformanceTest) TestMergeRequirementsErrorMessage() {
+	compiler := c.CreateCompiler()
+	builder := ConformanceConfig_NewBuilder()
+	builder.AddRequirementBuilder().SetRuleId("a").SetErrorMessage("Root message.")
+	builder.AddRequirementBuilder().SetExtends("a").SetErrorMessage("Project message.")
+	checkConformance := NewCheckConformance(compiler)
+	requirements := checkConformance.MergeRequirements(
+		compiler,
+		[]*ConformanceConfig{builder.Build()},
+		/* isLibraryLevelConformanceReportingMode= */ false)
+	AssertThat(requirements).HasSize(1)
+	AssertThat(requirements[0].GetErrorMessage()).IsEqualTo("Root message. Project message.")
 }
 
 // Java: CheckConformanceTest.testMergeRequirementsWhitelist_findsDuplicates()

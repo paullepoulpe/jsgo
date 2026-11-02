@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/InvocationTemplateTypeMatcher.java @ closure-compiler v20261021
+// Port of com/google/javascript/jscomp/InvocationTemplateTypeMatcher.java @ closure-compiler v20261028
 
 /*
  * Copyright 2007 The Closure Compiler Authors.

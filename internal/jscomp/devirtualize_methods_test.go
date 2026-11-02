@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/DevirtualizeMethodsTest.java @ closure-compiler v20261021
+// Port of com/google/javascript/jscomp/DevirtualizeMethodsTest.java @ closure-compiler v20261028
 // (test/com/google/javascript/jscomp/DevirtualizeMethodsTest.java)
 
 /*
@@ -1014,6 +1014,31 @@ func (c *DevirtualizeMethodsTest) TestNoRewrite_definedUsingClassMember_prototyp
 				"\n" +
 				"// We need at least one normal call to trigger rewriting.\n" +
 				"x.bar();\n"))
+}
+
+// Java: DevirtualizeMethodsTest.testNoRewrite_privateMethod_knownBug()
+func (c *DevirtualizeMethodsTest) TestNoRewrite_privateMethod_knownBug() {
+	// Expected behavior: `DevirtualizeMethods` leaves this code unchanged. `#m` is valid only
+	// inside the body of `Foo`, so neither `#m` nor `bar`, which calls `this.#m()`, can be moved
+	// out of `Foo` into a global function.
+	js := `class Foo {
+  #m() { return 5; }
+  bar() { return this.#m(); }
+}
+new Foo().bar();
+`
+	// TODO(b/236744850): `#m` and `bar` are moved out of `Foo`.
+	// Current behavior: `#m` and `bar` become `var JSCompiler_StaticMethods_#m = function(...)`
+	//   and `var JSCompiler_StaticMethods_bar = function(...)` before an empty `class Foo {}`, and
+	//   `new Foo().bar()` becomes `JSCompiler_StaticMethods_bar(new Foo())`. So `testSame(js)`
+	//   fails.
+	// Why it's a bug: `JSCompiler_StaticMethods_#m` is not a valid name, so the output is a
+	//   SyntaxError, and the whole script fails to load.
+	// In a full build: ADVANCED variable renaming gives `JSCompiler_StaticMethods_#m` a valid
+	//   name, so the output loads, but `bar` no longer throws a TypeError for a receiver without
+	//   `#m`. The SyntaxError shows with pseudo names.
+	ex := AssertThrows[*jutil.AssertionError](func() { c.TestSame(js) })
+	AssertThat(ex.GetMessage()).Contains("var JSCompiler_StaticMethods_#m = function(")
 }
 
 // Java: DevirtualizeMethodsTest.testNoRewrite_definedUsingClassMember_constructor()

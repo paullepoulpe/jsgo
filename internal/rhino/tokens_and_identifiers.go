@@ -1,8 +1,8 @@
-// Port of com/google/javascript/rhino/TokenStream.java @ closure-compiler v20261021
-// Port of com/google/javascript/rhino/TokenUtil.java @ closure-compiler v20261021
-// Port of com/google/javascript/rhino/JSIdentifier.java @ closure-compiler v20261021
-// Port of com/google/javascript/rhino/ClosurePrimitive.java @ closure-compiler v20261021
-// Port of com/google/javascript/rhino/Outcome.java @ closure-compiler v20261021
+// Port of com/google/javascript/rhino/TokenStream.java @ closure-compiler v20261028
+// Port of com/google/javascript/rhino/TokenUtil.java @ closure-compiler v20261028
+// Port of com/google/javascript/rhino/JSIdentifier.java @ closure-compiler v20261028
+// Port of com/google/javascript/rhino/ClosurePrimitive.java @ closure-compiler v20261028
+// Port of com/google/javascript/rhino/Outcome.java @ closure-compiler v20261028
 
 /*
  *

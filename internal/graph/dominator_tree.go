@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/graph/DominatorTree.java @ closure-compiler v20261021
+// Port of com/google/javascript/jscomp/graph/DominatorTree.java @ closure-compiler v20261028
 
 /*
  * Copyright 2026 The Closure Compiler Authors.

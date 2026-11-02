@@ -1,5 +1,5 @@
-// Port of com/google/javascript/jscomp/UniqueIdSupplier.java @ closure-compiler v20261021
-// Port of com/google/javascript/jscomp/IdGenerator.java @ closure-compiler v20261021
+// Port of com/google/javascript/jscomp/UniqueIdSupplier.java @ closure-compiler v20261028
+// Port of com/google/javascript/jscomp/IdGenerator.java @ closure-compiler v20261028
 
 /*
  * Copyright 2016 The Closure Compiler Authors.

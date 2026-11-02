@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/NodeUtil.java @ closure-compiler v20261021
+// Port of com/google/javascript/jscomp/NodeUtil.java @ closure-compiler v20261028
 
 /*
  * Copyright 2004 The Closure Compiler Authors.
@@ -596,6 +596,18 @@ inspect:
 			}
 		case rhino.Token_ASSIGN_OR, rhino.Token_ASSIGN_AND, rhino.Token_ASSIGN_COALESCE:
 			if ast.MustAssignOp(parent).Target().Node() != n {
+				return false
+			}
+		case rhino.Token_OPTCHAIN_GETELEM:
+			if ast.MustOptChainGetElem(parent).Object().Node() != n {
+				return false
+			}
+		case rhino.Token_OPTCHAIN_CALL:
+			if ast.MustOptChainCall(parent).Callee().Node() != n {
+				return false
+			}
+		case rhino.Token_DEFAULT_VALUE:
+			if ast.MustDefaultValue(parent).Target().Node() != n {
 				return false
 			}
 		case rhino.Token_FOR_IN, rhino.Token_FOR_OF, rhino.Token_FOR_AWAIT_OF:

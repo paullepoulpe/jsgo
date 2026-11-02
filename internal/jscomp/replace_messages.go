@@ -1,5 +1,5 @@
-// Port of com/google/javascript/jscomp/ReplaceMessages.java @ closure-compiler v20261021
-// Port of com/google/javascript/jscomp/ReplaceMessagesForChrome.java @ closure-compiler v20261021
+// Port of com/google/javascript/jscomp/ReplaceMessages.java @ closure-compiler v20261028
+// Port of com/google/javascript/jscomp/ReplaceMessagesForChrome.java @ closure-compiler v20261028
 
 /*
  * Copyright 2004 The Closure Compiler Authors.

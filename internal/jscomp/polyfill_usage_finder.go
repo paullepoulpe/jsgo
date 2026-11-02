@@ -1,5 +1,5 @@
-// Port of com/google/javascript/jscomp/PolyfillUsageFinder.java @ closure-compiler v20261021
-// Port of com/google/javascript/jscomp/GuardedCallback.java @ closure-compiler v20261021
+// Port of com/google/javascript/jscomp/PolyfillUsageFinder.java @ closure-compiler v20261028
+// Port of com/google/javascript/jscomp/GuardedCallback.java @ closure-compiler v20261028
 
 /*
  * Copyright 2020 The Closure Compiler Authors.
@@ -41,6 +41,7 @@ import (
 	"sync"
 
 	"github.com/paullepoulpe/jsgo/internal/ast"
+	"github.com/paullepoulpe/jsgo/internal/colors"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/parser"
 	"github.com/paullepoulpe/jsgo/internal/resources"
@@ -66,8 +67,11 @@ type pufMethodEntry struct {
 // PolyfillUsageFinder detects all potential usages of polyfilled classes or
 // methods
 type PolyfillUsageFinder struct {
-	compiler  AbstractCompiler
-	polyfills *PolyfillUsageFinder_Polyfills
+	compiler                AbstractCompiler
+	polyfills               *PolyfillUsageFinder_Polyfills
+	disambiguateProperties  bool
+	registry                *colors.ColorRegistry
+	hasInSupertypesListSeen []*colors.Color
 }
 
 // PolyfillUsageFinder_Polyfill represents a single polyfill: specifically,
@@ -380,11 +384,20 @@ func PolyfillUsageFinder_PolyfillUsage_CreateNonExplicit(polyfill *PolyfillUsage
 	return NewPolyfillUsageFinder_PolyfillUsage(polyfill, node, name /* isExplicitGlobal= */, false)
 }
 
-// Java: PolyfillUsageFinder(AbstractCompiler, Polyfills)
-func NewPolyfillUsageFinder(compiler AbstractCompiler, polyfills *PolyfillUsageFinder_Polyfills) *PolyfillUsageFinder {
-	f := &PolyfillUsageFinder{}
-	f.polyfills = polyfills
-	f.compiler = compiler
+// Java: PolyfillUsageFinder(AbstractCompiler, Polyfills, boolean)
+func NewPolyfillUsageFinder(
+	compiler AbstractCompiler,
+	polyfills *PolyfillUsageFinder_Polyfills,
+	disambiguateProperties bool,
+) *PolyfillUsageFinder {
+	f := &PolyfillUsageFinder{
+		polyfills:              polyfills,
+		compiler:               compiler,
+		disambiguateProperties: disambiguateProperties,
+	}
+	if compiler != nil && compiler.HasOptimizationColors() {
+		f.registry = compiler.GetColorRegistry()
+	}
 	return f
 }
 
@@ -566,6 +579,11 @@ func (tr *polyfillUsageFinder_Traverser) VisitGetPropChain(traversal *NodeTraver
 		if methodEntry != nil &&
 			tr.includeGuardedUsages.ShouldInclude(tr.canPossiblyBeGuarded() && tr.isGuarded(methodEntry.dotGuardName)) {
 			for _, polyfill := range methodEntry.polyfills {
+				ownerName := polyfillUsageFinder_getMethodOwner(polyfill.nativeSymbol)
+				// isDisjointFromIterator check is guarded by the shouldDisambiguateProperties flag.
+				if tr.outer.disambiguateProperties && tr.outer.IsDisjointFromIteratorNode(getPropNode, ownerName) {
+					continue
+				}
 				tr.polyfillConsumer(
 					PolyfillUsageFinder_PolyfillUsage_CreateNonExplicit(polyfill, getPropNode, methodEntry.methodName))
 			}
@@ -947,4 +965,149 @@ func guardedCallback_canHaveGuards(t rhino.Token) bool {
 	default:
 		return false
 	}
+}
+
+func polyfillUsageFinder_isStandardCollectionId(id colors.ColorId) bool {
+	switch id {
+	case colors.StandardColors_ARRAY_ID,
+		colors.StandardColors_ARRAY_PROTOTYPE_ID,
+		colors.StandardColors_READONLY_ARRAY_ID,
+		colors.StandardColors_READONLY_ARRAY_PROTOTYPE_ID,
+		colors.StandardColors_I_TEMPLATE_ARRAY_ID,
+		colors.StandardColors_I_TEMPLATE_ARRAY_PROTOTYPE_ID,
+		colors.StandardColors_MAP_ID,
+		colors.StandardColors_MAP_PROTOTYPE_ID,
+		colors.StandardColors_READONLY_MAP_ID,
+		colors.StandardColors_READONLY_MAP_PROTOTYPE_ID,
+		colors.StandardColors_SET_ID,
+		colors.StandardColors_SET_PROTOTYPE_ID,
+		colors.StandardColors_READONLY_SET_ID,
+		colors.StandardColors_READONLY_SET_PROTOTYPE_ID:
+		return true
+	default:
+		return false
+	}
+}
+
+func polyfillUsageFinder_getMethodOwner(nativeSymbol string) string {
+	protoIdx := strings.Index(nativeSymbol, ".prototype.")
+	if protoIdx != -1 {
+		return nativeSymbol[:protoIdx]
+	}
+	return ""
+}
+
+// Java: PolyfillUsageFinder.isDisjointFromIterator(Node, String)
+func (f *PolyfillUsageFinder) IsDisjointFromIteratorNode(getPropNode rhino.Node, ownerName string) bool {
+	// Currently only checks "Iterator" because ES2025 Iterator helper methods (forEach, reduce,
+	// toArray) collide with very common Array/Collection method names, causing significant binary
+	// size regressions when polyfills cannot be pruned.
+	if ownerName != "Iterator" {
+		return false
+	}
+	// Registry can be null in three supported scenarios:
+	// 1. Transpile only builds.
+	// 2. Monolithic builds without type checking.
+	// 3. Precompiled .typedast (stage 2) builds with type-based optimizations disabled.
+	if f.registry == nil {
+		return false
+	}
+	receiverColor := getPropNode.GetFirstChild().GetColor()
+	if receiverColor == nil {
+		return false
+	}
+	return f.IsDisjointFromIterator(receiverColor)
+}
+
+// Java: PolyfillUsageFinder.isDisjointFromIterator(Color)
+func (f *PolyfillUsageFinder) IsDisjointFromIterator(receiver *colors.Color) bool {
+	iteratorColor := f.registry.Get(colors.StandardColors_ITERATOR_ID)
+	if receiver.Equals(iteratorColor) {
+		return false
+	}
+
+	// This generator check works around a bug in the externs:
+	// In javascript/externs/es6.js, Iterator is declared as
+	// @constructor @implements {IteratorIterable} and Generator is declared as
+	// @interface @extends {IteratorIterable}. Because the externs do not model Generator
+	// as a subtype of Iterator, neither is an ancestor of the other in the
+	// disambiguation graph, so they appear as unrelated siblings. However, in ECMAScript (ES2025),
+	// every Generator object inherits from %IteratorPrototype% at runtime, which means
+	// generator objects are runtime Iterators and support Iterator helper methods (e.g. toArray,
+	// forEach, reduce).
+	//
+	// TODO(b/576327592): Remove this workaround once Generator is related to Iterator in the
+	// externs.
+	if receiver.GetId().Equals(colors.StandardColors_GENERATOR_ID) {
+		return false
+	}
+	if receiver.IsUnion() {
+		for _, alt := range receiver.GetUnionElements() {
+			if !f.IsDisjointFromIterator(alt) {
+				return false
+			}
+		}
+		return true
+	}
+
+	if receiver.IsPrimitive() {
+		return true
+	}
+	// Back off on invalidating colors that cannot be proven disjoint from Iterator via nominal
+	// supertype edges in ColorRegistry:
+	// - UNKNOWN (?/*) and TOP_OBJECT (Object), which can hold any runtime object (including an
+	//   Iterator) without explicit supertype edges in ColorRegistry.
+	// - Structural interfaces (@record) and record types ({...}) (per b/571244650): because
+	//   Iterator.prototype helper methods are declared on Iterator in the externs, a real runtime
+	//   Iterator (e.g. from `arr.values()` or `Iterator.from(x)`, which inherits from
+	//   Iterator.prototype) structurally satisfies a @record such as `{forEach: function(...)}`.
+	//   When passed to a function parameter typed as that @record, the `.forEach()` call site only
+	//   sees the @record receiver color (which has no nominal edge from Iterator in ColorRegistry),
+	//   and `Iterator.from` itself does not inject the separate per-method helper polyfills.
+	// - Nominal types invalidated by type mismatches elsewhere in the program.
+	//
+	// However, in large Google3 builds, native collection types (Array, Map, Set) and their
+	// prototypes are frequently marked isInvalidating due to dynamic property access or type
+	// mismatches elsewhere in the codebase. Because their nominal inheritance hierarchy is sound
+	// and provably disjoint from Iterator, we exempt them from isInvalidating backoff so that calls
+	// on Array/Map/Set do not inject polyfills.
+	if receiver.IsInvalidating() && !polyfillUsageFinder_isStandardCollectionId(receiver.GetId()) {
+		return false
+	}
+
+	// Two types are non-disjoint if either is a supertype of the other:
+	// 1. hasInSupertypesList(receiver, iteratorColor): receiver is a subtype of Iterator
+	//    (e.g. `class MyIter extends Iterator`), which inherits Iterator.prototype methods.
+	// 2. hasInSupertypesList(iteratorColor, receiver): receiver is a supertype of Iterator
+	//    (e.g. `IteratorIterable` from `arr.values()`, or `Iterable`), which can hold an
+	//    Iterator instance at runtime.
+	return !f.hasInSupertypesList(receiver, iteratorColor) &&
+		!f.hasInSupertypesList(iteratorColor, receiver)
+}
+
+func (f *PolyfillUsageFinder) hasInSupertypesList(subCtor, superCtor *colors.Color) bool {
+	for _, seen := range f.hasInSupertypesListSeen {
+		if seen.Equals(subCtor) {
+			return false
+		}
+	}
+	f.hasInSupertypesListSeen = append(f.hasInSupertypesListSeen, subCtor)
+	defer func() {
+		f.hasInSupertypesListSeen = f.hasInSupertypesListSeen[:len(f.hasInSupertypesListSeen)-1]
+	}()
+	if subCtor.Equals(superCtor) {
+		return true
+	}
+	for _, immediateSupertype := range f.registry.GetDisambiguationSupertypesSlice(subCtor) {
+		if immediateSupertype.IsUnion() {
+			for _, alt := range immediateSupertype.GetUnionElements() {
+				if f.hasInSupertypesList(alt, superCtor) {
+					return true
+				}
+			}
+		} else if f.hasInSupertypesList(immediateSupertype, superCtor) {
+			return true
+		}
+	}
+	return false
 }

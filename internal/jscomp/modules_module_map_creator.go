@@ -1,15 +1,15 @@
-// Port of com/google/javascript/jscomp/modules/ModuleMapCreator.java @ closure-compiler v20261021
-// Port of com/google/javascript/jscomp/modules/ModuleMap.java @ closure-compiler v20261021
-// Port of com/google/javascript/jscomp/modules/Module.java @ closure-compiler v20261021
-// Port of com/google/javascript/jscomp/modules/AutoBuilder_Module_Builder.java @ closure-compiler v20261021
-// Port of com/google/javascript/jscomp/modules/Import.java @ closure-compiler v20261021
-// Port of com/google/javascript/jscomp/modules/AutoBuilder_Import_Builder.java @ closure-compiler v20261021
-// Port of com/google/javascript/jscomp/modules/ModuleRequestResolver.java @ closure-compiler v20261021
-// Port of com/google/javascript/jscomp/modules/GoogEsImports.java @ closure-compiler v20261021
-// Port of com/google/javascript/jscomp/modules/ExportTrace.java @ closure-compiler v20261021
-// Port of com/google/javascript/jscomp/modules/NonEsModuleProcessor.java @ closure-compiler v20261021
-// Port of com/google/javascript/jscomp/modules/ResolveExportResult.java @ closure-compiler v20261021
-// Port of com/google/javascript/jscomp/modules/UnresolvedModule.java @ closure-compiler v20261021
+// Port of com/google/javascript/jscomp/modules/ModuleMapCreator.java @ closure-compiler v20261028
+// Port of com/google/javascript/jscomp/modules/ModuleMap.java @ closure-compiler v20261028
+// Port of com/google/javascript/jscomp/modules/Module.java @ closure-compiler v20261028
+// Port of com/google/javascript/jscomp/modules/AutoBuilder_Module_Builder.java @ closure-compiler v20261028
+// Port of com/google/javascript/jscomp/modules/Import.java @ closure-compiler v20261028
+// Port of com/google/javascript/jscomp/modules/AutoBuilder_Import_Builder.java @ closure-compiler v20261028
+// Port of com/google/javascript/jscomp/modules/ModuleRequestResolver.java @ closure-compiler v20261028
+// Port of com/google/javascript/jscomp/modules/GoogEsImports.java @ closure-compiler v20261028
+// Port of com/google/javascript/jscomp/modules/ExportTrace.java @ closure-compiler v20261028
+// Port of com/google/javascript/jscomp/modules/NonEsModuleProcessor.java @ closure-compiler v20261028
+// Port of com/google/javascript/jscomp/modules/ResolveExportResult.java @ closure-compiler v20261028
+// Port of com/google/javascript/jscomp/modules/UnresolvedModule.java @ closure-compiler v20261028
 
 /*
  * Copyright 2018 The Closure Compiler Authors.

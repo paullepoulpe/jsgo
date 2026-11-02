@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/paullepoulpe/jsgo/internal/colors"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
 
@@ -46,10 +47,12 @@ const rucGuardedTimelineKey = "__removeUnusedCode_guardedUsages__"
 // rucGuardedCache holds the guarded polyfill usages of every script of one
 // root, per script.
 type rucGuardedCache struct {
-	root      rhino.Node
-	polyfills *PolyfillUsageFinder_Polyfills
-	compacts  int
-	byScript  map[rhino.Node][]rhino.Node
+	root          rhino.Node
+	polyfills     *PolyfillUsageFinder_Polyfills
+	disambiguate  bool
+	colorRegistry *colors.ColorRegistry
+	compacts      int
+	byScript      map[rhino.Node][]rhino.Node
 	// usages is the union of byScript, the set a run consults.
 	usages map[rhino.Node]bool
 }
@@ -90,7 +93,7 @@ func (r *RemoveUnusedCode) isGuardedUsage(n rhino.Node) bool {
 	s := rucScriptUnder(n, r.root)
 	if _, ok := g.byScript[s]; !ok && !s.IsNil() {
 		var found []rhino.Node
-		NewPolyfillUsageFinder(r.compiler, r.polyfillsFromTable).TraverseOnlyGuarded(s, func(u *PolyfillUsageFinder_PolyfillUsage) {
+		r.polyfillUsageFinder.TraverseOnlyGuarded(s, func(u *PolyfillUsageFinder_PolyfillUsage) {
 			found = append(found, u.Node())
 			g.usages[u.Node()] = true
 		})
@@ -103,7 +106,7 @@ func (r *RemoveUnusedCode) isGuardedUsage(n rhino.Node) bool {
 	if rucIncrVerify {
 		if r.guardedUsages == nil {
 			r.guardedUsages = make(map[rhino.Node]bool)
-			NewPolyfillUsageFinder(r.compiler, r.polyfillsFromTable).TraverseOnlyGuarded(r.root, r.StorePolyfill)
+			r.polyfillUsageFinder.TraverseOnlyGuarded(r.root, r.StorePolyfill)
 		}
 		if guarded != r.guardedUsages[n] {
 			panic(fmt.Sprintf("RemoveUnusedCode: guarded usage of %v: kept %v, full traversal %v", n, guarded, r.guardedUsages[n]))
@@ -119,19 +122,20 @@ func (r *RemoveUnusedCode) computeGuardedUsages() {
 	r.guardedUsagesComputed = true
 	c := r.incrCompiler()
 	if c == nil {
-		NewPolyfillUsageFinder(r.compiler, r.polyfillsFromTable).
-			TraverseOnlyGuarded(r.root, r.StorePolyfill)
+		r.polyfillUsageFinder.TraverseOnlyGuarded(r.root, r.StorePolyfill)
 		return
 	}
 	changed := c.changeTracker.GetChangedScopeNodesForPass(rucGuardedTimelineKey)
 	g := c.rucGuarded
-	if g == nil || changed == nil || g.root != r.root || g.compacts != c.astCompact.count || g.polyfills != r.polyfillsFromTable {
+	if g == nil || changed == nil || g.root != r.root || g.compacts != c.astCompact.count || g.polyfills != r.polyfillsFromTable || g.disambiguate != r.disambiguateProperties || g.colorRegistry != r.polyfillUsageFinder.registry {
 		g = &rucGuardedCache{
-			root:      r.root,
-			polyfills: r.polyfillsFromTable,
-			compacts:  c.astCompact.count,
-			byScript:  make(map[rhino.Node][]rhino.Node),
-			usages:    make(map[rhino.Node]bool),
+			root:          r.root,
+			polyfills:     r.polyfillsFromTable,
+			disambiguate:  r.disambiguateProperties,
+			colorRegistry: r.polyfillUsageFinder.registry,
+			compacts:      c.astCompact.count,
+			byScript:      make(map[rhino.Node][]rhino.Node),
+			usages:        make(map[rhino.Node]bool),
 		}
 		c.rucGuarded = g
 	} else {

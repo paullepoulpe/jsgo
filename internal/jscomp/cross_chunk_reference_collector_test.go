@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/CrossChunkReferenceCollectorTest.java @ closure-compiler v20261021
+// Port of com/google/javascript/jscomp/CrossChunkReferenceCollectorTest.java @ closure-compiler v20261028
 // (test/com/google/javascript/jscomp/CrossChunkReferenceCollectorTest.java)
 
 /*
@@ -251,6 +251,82 @@ func (c *CrossChunkReferenceCollectorTest) TestTopLevelStatements() {
 	AssertThat(functionDeclaration.GetDeclaredNameReference()).IsEqualTo(fReferences[0])
 	AssertThat(functionDeclaration.GetNonDeclarationReferences()).
 		ContainsExactly(zReferences[1])
+}
+
+// Java: CrossChunkReferenceCollectorTest.testHoistedFunctionReferencedBeforeDeclaration_bodyReferencesStayWithDeclaration()
+func (c *CrossChunkReferenceCollectorTest) TestHoistedFunctionReferencedBeforeDeclaration_bodyReferencesStayWithDeclaration() {
+	c.TestSame(
+		"var z = 1;\n" +
+			"f();\n" +
+			"function f() {\n" +
+			"  return z;\n" +
+			"}\n")
+
+	globalVariableNamesMap := c.testedCollector.GetGlobalVariableNamesMap()
+	zReferences :=
+		slices.Collect(c.testedCollector.GetReferences(globalVariableNamesMap.Get("z")).All())
+	fReferences :=
+		slices.Collect(c.testedCollector.GetReferences(globalVariableNamesMap.Get("f")).All())
+
+	topLevelStatements := c.testedCollector.GetTopLevelStatements()
+	AssertThat(topLevelStatements).HasSize(3)
+
+	// f();
+	callStatement := topLevelStatements[1]
+	AssertThat(callStatement.IsDeclarationStatement()).IsFalse()
+	AssertThat(callStatement.GetNonDeclarationReferences()).ContainsExactly(fReferences[0])
+
+	// function f() { return z; }
+	functionDeclaration := topLevelStatements[2]
+	AssertThat(functionDeclaration.GetDeclaredNameReference()).IsEqualTo(fReferences[1])
+	AssertThat(functionDeclaration.GetNonDeclarationReferences()).
+		ContainsExactly(zReferences[1])
+}
+
+// Java: CrossChunkReferenceCollectorTest.testDestructuringWithDefaultValueOrderMatchesExecutionOrder()
+func (c *CrossChunkReferenceCollectorTest) TestDestructuringWithDefaultValueOrderMatchesExecutionOrder() {
+	c.TestSame(
+		"var b = 1;\n" +
+			"var c = {};\n" +
+			"const {a = b} = c;\n")
+
+	statements := c.testedCollector.GetTopLevelStatements()
+	AssertThat(statements).HasSize(3)
+
+	// const {a = b} = c;
+	destructuringStatement := statements[2]
+	AssertThat(destructuringStatement.IsDeclarationStatement()).IsFalse()
+
+	globalVariableNamesMap := c.testedCollector.GetGlobalVariableNamesMap()
+	aRefs := c.testedCollector.GetReferences(globalVariableNamesMap.Get("a"))
+	bRefs := c.testedCollector.GetReferences(globalVariableNamesMap.Get("b"))
+	cRefs := c.testedCollector.GetReferences(globalVariableNamesMap.Get("c"))
+
+	// Traversal obeys destructuring and default value execution order:
+	// the destructured expression `c` is evaluated first, then the default value `b`,
+	// and finally the target `a`.
+	AssertThat(destructuringStatement.GetNonDeclarationReferences()).
+		ContainsExactly(cRefs.references[1], bRefs.references[1], aRefs.references[0]).
+		InOrder()
+}
+
+// Java: CrossChunkReferenceCollectorTest.testExportedVariablesAreExcluded()
+func (c *CrossChunkReferenceCollectorTest) TestExportedVariablesAreExcluded() {
+	c.TestSame("var _exported = 1; var y = _exported;")
+
+	globalVariableNamesMap := c.testedCollector.GetGlobalVariableNamesMap()
+	AssertThat(globalVariableNamesMap.ContainsKey("_exported")).IsFalse()
+	AssertThat(globalVariableNamesMap.ContainsKey("y")).IsTrue()
+
+	topLevelStatements := c.testedCollector.GetTopLevelStatements()
+	AssertThat(topLevelStatements).HasSize(2)
+
+	// var _exported = 1; (not a declaration statement for movable globals)
+	AssertThat(topLevelStatements[0].IsDeclarationStatement()).IsFalse()
+
+	// var y = _exported; (y is declared, but _exported is not collected as a movable reference)
+	AssertThat(topLevelStatements[1].IsDeclarationStatement()).IsTrue()
+	AssertThat(topLevelStatements[1].GetNonDeclarationReferences()).IsEmpty()
 }
 
 // Java: CrossChunkReferenceCollectorTest.testVarDeclarationStatement()

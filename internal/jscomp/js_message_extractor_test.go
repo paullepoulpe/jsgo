@@ -1,4 +1,4 @@
-// Port of test/com/google/javascript/jscomp/JsMessageExtractorTest.java @ closure-compiler v20261021
+// Port of test/com/google/javascript/jscomp/JsMessageExtractorTest.java @ closure-compiler v20261028
 
 /*
  * Copyright 2004 The Closure Compiler Authors.

@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/Es6TranspilationIntegrationTest.java @ closure-compiler v20261021
+// Port of com/google/javascript/jscomp/Es6TranspilationIntegrationTest.java @ closure-compiler v20261028
 // (test/com/google/javascript/jscomp/Es6TranspilationIntegrationTest.java)
 
 /*
@@ -113,7 +113,7 @@ func (c *Es6TranspilationIntegrationTest) GetProcessor(compiler *Compiler) Compi
 
 	passes.MaybeAdd(NewPassFactory("rewritePolyfills", func(ac AbstractCompiler) CompilerPass {
 		return NewRewritePolyfills(
-			ac /* injectPolyfills= */, true /* isolatePolyfills= */, false, nil)
+			ac /* injectPolyfills= */, true /* isolatePolyfills= */, false, nil /* disambiguateProperties= */, false)
 	}))
 
 	passes.MaybeAdd(NewPassFactory("convertTypesToColors", func(ac AbstractCompiler) CompilerPass {

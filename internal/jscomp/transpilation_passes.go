@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/TranspilationPasses.java @ closure-compiler v20261021
+// Port of com/google/javascript/jscomp/TranspilationPasses.java @ closure-compiler v20261028
 
 /*
  * Copyright 2016 The Closure Compiler Authors.
@@ -302,7 +302,8 @@ var TranspilationPasses_rewritePolyfills = makeTranspilationPass(
 			compiler,
 			compiler.GetOptions().GetRewritePolyfills(),
 			compiler.GetOptions().GetIsolatePolyfills(),
-			compiler.GetOptions().GetInjectPolyfillsNewerThan())
+			compiler.GetOptions().GetInjectPolyfillsNewerThan(),
+			compiler.GetOptions().ShouldDisambiguateProperties())
 	})
 
 // Java: TranspilationPasses.instrumentAsyncContext

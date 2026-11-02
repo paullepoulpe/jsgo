@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/NestedCompilerRunner.java @ closure-compiler v20261021
+// Port of com/google/javascript/jscomp/NestedCompilerRunner.java @ closure-compiler v20261028
 
 /*
  * Copyright 2025 The Closure Compiler Authors.

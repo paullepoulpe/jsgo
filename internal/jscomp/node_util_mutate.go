@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/NodeUtil.java @ closure-compiler v20261021
+// Port of com/google/javascript/jscomp/NodeUtil.java @ closure-compiler v20261028
 
 /*
  * Copyright 2004 The Closure Compiler Authors.
@@ -298,6 +298,11 @@ func NodeUtil_CanMergeBlock(block rhino.Node) bool {
 //
 // Java: NodeUtil.newQName(AbstractCompiler, String)
 func NodeUtil_NewQName(compiler AbstractCompiler, name string) rhino.Node {
+	return NodeUtil_NewQNameWithConvention(compiler.GetCodingConvention(), name)
+}
+
+// Java: NodeUtil.newQName(CodingConvention, String)
+func NodeUtil_NewQNameWithConvention(convention CodingConvention, name string) rhino.Node {
 	dot := strings.IndexByte(name, '.')
 	nodeName := name
 	if dot != -1 {
@@ -310,14 +315,13 @@ func NodeUtil_NewQName(compiler AbstractCompiler, name string) rhino.Node {
 	} else if "super" == nodeName {
 		qname = rhino.IR_SuperNode()
 	} else {
-		qname = NodeUtil_NewName(compiler, nodeName)
+		qname = NodeUtil_NewNameWithConvention(convention, nodeName)
 	}
 	qname.SetLength(jutil.StringLength(nodeName))
 	if dot == -1 {
 		return qname
 	}
 
-	conv := compiler.GetCodingConvention()
 	rest := name[dot+1:]
 	for {
 		dot = strings.IndexByte(rest, '.')
@@ -328,7 +332,7 @@ func NodeUtil_NewQName(compiler AbstractCompiler, name string) rhino.Node {
 		}
 
 		qname = rhino.IR_Getprop(qname, part)
-		if conv.IsConstantKey(part) {
+		if convention.IsConstantKey(part) {
 			qname.PutBooleanProp(rhino.Node_IS_CONSTANT_NAME, true)
 		}
 		qname.SetLength(jutil.StringLength(part))
@@ -352,7 +356,13 @@ func NodeUtil_NewQName(compiler AbstractCompiler, name string) rhino.Node {
 // Java: NodeUtil.newQName(AbstractCompiler, String, Node, String)
 func NodeUtil_NewQNameWithOriginalName(
 	compiler AbstractCompiler, name string, basisNode rhino.Node, originalName string) rhino.Node {
-	node := NodeUtil_NewQName(compiler, name)
+	return NodeUtil_NewQNameWithConventionAndOriginalName(compiler.GetCodingConvention(), name, basisNode, originalName)
+}
+
+// Java: NodeUtil.newQName(CodingConvention, String, Node, String)
+func NodeUtil_NewQNameWithConventionAndOriginalName(
+	convention CodingConvention, name string, basisNode rhino.Node, originalName string) rhino.Node {
+	node := NodeUtil_NewQNameWithConvention(convention, name)
 	node.SrcrefTreeIfMissing(basisNode)
 	if nodeOriginalName := node.GetOriginalName(); nodeOriginalName == nil || originalName != *nodeOriginalName {
 		// If basisNode already had the correct original name, then it will already be set correctly.
@@ -392,8 +402,13 @@ func NodeUtil_GetDeclarationFromName(nameNode rhino.Node, value rhino.Node, type
 //
 // Java: NodeUtil.newPropertyAccess(AbstractCompiler, Node, String)
 func NodeUtil_NewPropertyAccess(compiler AbstractCompiler, context rhino.Node, name string) rhino.Node {
+	return NodeUtil_NewPropertyAccessWithConvention(compiler.GetCodingConvention(), context, name)
+}
+
+// Java: NodeUtil.newPropertyAccess(CodingConvention, Node, String)
+func NodeUtil_NewPropertyAccessWithConvention(convention CodingConvention, context rhino.Node, name string) rhino.Node {
 	propNode := rhino.IR_Getprop(context, name)
-	if compiler.GetCodingConvention().IsConstantKey(name) {
+	if convention.IsConstantKey(name) {
 		propNode.PutBooleanProp(rhino.Node_IS_CONSTANT_NAME, true)
 	}
 	return propNode
@@ -407,7 +422,13 @@ func NodeUtil_NewPropertyAccess(compiler AbstractCompiler, context rhino.Node, n
 // Java: NodeUtil.newQNameDeclaration(AbstractCompiler, String, Node, JSDocInfo)
 func NodeUtil_NewQNameDeclaration(
 	compiler AbstractCompiler, name string, value rhino.Node, info *rhino.JSDocInfo) rhino.Node {
-	return NodeUtil_NewQNameDeclarationWithType(compiler, name, value, info, rhino.Token_VAR)
+	return NodeUtil_NewQNameDeclarationWithConvention(compiler.GetCodingConvention(), name, value, info)
+}
+
+// Java: NodeUtil.newQNameDeclaration(CodingConvention, String, Node, JSDocInfo)
+func NodeUtil_NewQNameDeclarationWithConvention(
+	convention CodingConvention, name string, value rhino.Node, info *rhino.JSDocInfo) rhino.Node {
+	return NodeUtil_NewQNameDeclarationWithConventionAndType(convention, name, value, info, rhino.Token_VAR)
 }
 
 // NodeUtil_NewQNameDeclarationWithType creates a node representing a
@@ -420,8 +441,14 @@ func NodeUtil_NewQNameDeclaration(
 // Java: NodeUtil.newQNameDeclaration(AbstractCompiler, String, Node, JSDocInfo, Token)
 func NodeUtil_NewQNameDeclarationWithType(
 	compiler AbstractCompiler, name string, value rhino.Node, info *rhino.JSDocInfo, type_ rhino.Token) rhino.Node {
+	return NodeUtil_NewQNameDeclarationWithConventionAndType(compiler.GetCodingConvention(), name, value, info, type_)
+}
+
+// Java: NodeUtil.newQNameDeclaration(CodingConvention, String, Node, JSDocInfo, Token)
+func NodeUtil_NewQNameDeclarationWithConventionAndType(
+	convention CodingConvention, name string, value rhino.Node, info *rhino.JSDocInfo, type_ rhino.Token) rhino.Node {
 	jutil.CheckStateMsg1(type_ == rhino.Token_VAR || type_ == rhino.Token_LET || type_ == rhino.Token_CONST, "%s", type_)
-	nameNode := NodeUtil_NewQName(compiler, name)
+	nameNode := NodeUtil_NewQNameWithConvention(convention, name)
 	return NodeUtil_GetDeclarationFromName(nameNode, value, type_, info)
 }
 
@@ -640,6 +667,9 @@ func NodeUtil_CreateSynthesizedExternsSymbol(compiler AbstractCompiler, nameToAd
 // NodeUtil_MarkNewScopesChanged recurses through a tree, marking all
 // function nodes as changed.
 //
+// Go-only: parallel — routes through compiler.ReportChangeToChangeScope rather
+// than compiler.GetChangeTracker() so parallel workers record scope changes.
+//
 // Java: NodeUtil.markNewScopesChanged(Node, AbstractCompiler)
 func NodeUtil_MarkNewScopesChanged(node rhino.Node, compiler AbstractCompiler) {
 	if node.IsFunction() {
@@ -650,8 +680,16 @@ func NodeUtil_MarkNewScopesChanged(node rhino.Node, compiler AbstractCompiler) {
 	}
 }
 
+// Java: NodeUtil.markNewScopesChanged(Node, ChangeTracker)
+func NodeUtil_MarkNewScopesChangedWithChangeTracker(node rhino.Node, changeTracker *ChangeTracker) {
+	changeTracker.MarkNewScopesChanged(node)
+}
+
 // NodeUtil_MarkFunctionsDeleted recurses through a tree, marking all
 // function nodes deleted.
+//
+// Go-only: parallel — routes through compiler.ReportFunctionDeleted rather
+// than compiler.GetChangeTracker() so parallel workers record deletions.
 //
 // Java: NodeUtil.markFunctionsDeleted(Node, AbstractCompiler)
 func NodeUtil_MarkFunctionsDeleted(node rhino.Node, compiler AbstractCompiler) {
@@ -666,6 +704,22 @@ func NodeUtil_MarkFunctionsDeleted(node rhino.Node, compiler AbstractCompiler) {
 	shadowed := node.GetClosureUnawareShadow()
 	if !shadowed.IsNil() {
 		NodeUtil_MarkFunctionsDeleted(shadowed, compiler)
+	}
+}
+
+// Java: NodeUtil.markFunctionsDeleted(Node, ChangeTracker)
+func NodeUtil_MarkFunctionsDeletedWithChangeTracker(node rhino.Node, changeTracker *ChangeTracker) {
+	if node.IsFunction() {
+		changeTracker.ReportFunctionDeleted(node)
+	}
+
+	for child := node.GetFirstChild(); !child.IsNil(); child = child.GetNext() {
+		NodeUtil_MarkFunctionsDeletedWithChangeTracker(child, changeTracker)
+	}
+
+	shadowed := node.GetClosureUnawareShadow()
+	if !shadowed.IsNil() {
+		NodeUtil_MarkFunctionsDeletedWithChangeTracker(shadowed, changeTracker)
 	}
 }
 

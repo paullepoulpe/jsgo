@@ -1,6 +1,6 @@
-// Port of com/google/javascript/jscomp/RewriteDynamicImports.java @ closure-compiler v20261021
-// Port of com/google/javascript/jscomp/Es6RewriteScriptsToModules.java @ closure-compiler v20261021
-// Port of com/google/javascript/jscomp/ForbidDynamicImportUsage.java @ closure-compiler v20261021
+// Port of com/google/javascript/jscomp/RewriteDynamicImports.java @ closure-compiler v20261028
+// Port of com/google/javascript/jscomp/Es6RewriteScriptsToModules.java @ closure-compiler v20261028
+// Port of com/google/javascript/jscomp/ForbidDynamicImportUsage.java @ closure-compiler v20261028
 
 /*
  * Copyright 2021 The Closure Compiler Authors.

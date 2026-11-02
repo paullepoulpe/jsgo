@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/CheckSuperTest.java @ closure-compiler v20261021
+// Port of com/google/javascript/jscomp/CheckSuperTest.java @ closure-compiler v20261028
 // (test/com/google/javascript/jscomp/CheckSuperTest.java)
 
 /*
@@ -135,13 +135,9 @@ func (c *CheckSuperTest) TestMissingSuper_nestedClass() {
 func (c *CheckSuperTest) TestNoWarning_derivedConstructorCompletesWithUndefinedBeforeSuperCall() {
 	// Won't fix (b/573571176): a derived class constructor that completes with `undefined` before
 	// calling `super()` throws a ReferenceError natively, but for a class without instance fields
-	// or private members, `MISSING_CALL_TO_SUPER` is only reported for a constructor that has
-	// neither a `super()` call nor a `return` with a value. We decided not to report these
-	// constructors, since the compiler isn't required to preserve errors in code that is already
-	// broken.
-	c.TestNoWarning("class C extends D { constructor() { return undefined; } }")
+	// or private members, `CheckSuper` only checks that `super()` appears somewhere in the
+	// constructor.
 	c.TestNoWarning("class C extends D { constructor(w) { if (w) return; super(); } }")
-	c.TestNoWarning("class C extends D { constructor(w) { if (w) return {}; } }")
 }
 
 // TestNoWarning_ is the @Test method testNoWarning(); the trailing _ keeps it
@@ -470,39 +466,127 @@ func (c *CheckSuperTest) TestPropertyInStaticMethod() {
 	c.TestSame("class C extends D { static foo() { this[super.x] = super.bar(); }}")
 }
 
-// Java: CheckSuperTest.testNoWarning_withExplicitReturnInConstructor()
-func (c *CheckSuperTest) TestNoWarning_withExplicitReturnInConstructor() {
-	// TODO(b/573596312): Require `super()` unless `@suppress {missingCallToSuper}` is used.
-	c.TestNoWarning("class C extends D { constructor() { return {}; } }")
-	c.TestNoWarning("class C extends D { constructor() { return f(); } }")
-	// the following cases will error at runtime but we don't bother checking them.
-	c.TestNoWarning("class C extends D { constructor() { return 3; } }")
-	c.TestNoWarning("class C extends D { constructor() { if (false) return {}; } }")
+// Java: CheckSuperTest.testError_withExplicitReturnInConstructor()
+func (c *CheckSuperTest) TestError_withExplicitReturnInConstructor() {
+	c.TestError("class C extends D { constructor() { return {}; } }", CheckSuper_RETURN_WITHOUT_CALL_TO_SUPER)
+	c.TestError("class C extends D { constructor() { return f(); } }", CheckSuper_RETURN_WITHOUT_CALL_TO_SUPER)
+	c.TestError("class C extends D { constructor() { return 3; } }", CheckSuper_RETURN_WITHOUT_CALL_TO_SUPER)
+	c.TestError(
+		"class C extends D { constructor() { return undefined; } }", CheckSuper_RETURN_WITHOUT_CALL_TO_SUPER)
+	c.TestError(
+		"class C extends D { constructor() { if (false) return {}; } }",
+		CheckSuper_RETURN_WITHOUT_CALL_TO_SUPER)
+	// A constructor may intentionally return a different object without calling `super()`.
+	c.TestNoWarning(
+		"class C extends D { /** @suppress {missingCallToSuper} */ constructor() { return {}; } }")
 }
 
 // Java: CheckSuperTest.testReturnWithoutSuperCall()
 func (c *CheckSuperTest) TestReturnWithoutSuperCall() {
-	// TODO(b/573596312): A derived class constructor should be required to call `super()` as a
-	// root-level statement, before any `return`, even when it returns a value. When class fields
-	// are transpiled, they are installed at the start of a constructor that never calls `super()`,
-	// where reading `this` throws a ReferenceError.
-	c.TestNoWarning("class C extends D { x = 1; constructor() { return {}; } }")
-	c.TestNoWarning("class C extends D { [k] = 1; constructor() { return {}; } }")
-	c.TestNoWarning("class C extends D { #x = 1; constructor() { return {}; } }")
-	c.TestNoWarning("class C extends D { #m() {} constructor() { return {}; } }")
-	c.TestNoWarning("class C extends D { static x = 1; constructor() { return {}; } }")
+	c.TestError(
+		"class C extends D { x = 1; constructor() { return {}; } }", CheckSuper_RETURN_WITHOUT_CALL_TO_SUPER)
+	c.TestError(
+		"class C extends D { [k] = 1; constructor() { return {}; } }",
+		CheckSuper_RETURN_WITHOUT_CALL_TO_SUPER)
+	c.TestError(
+		"class C extends D { #x = 1; constructor() { return {}; } }", CheckSuper_RETURN_WITHOUT_CALL_TO_SUPER)
+	c.TestError(
+		"class C extends D { #m() {} constructor() { return {}; } }", CheckSuper_RETURN_WITHOUT_CALL_TO_SUPER)
+	c.TestError(
+		"class C extends D { static x = 1; constructor() { return {}; } }",
+		CheckSuper_RETURN_WITHOUT_CALL_TO_SUPER)
+	c.TestError(
+		"class C extends D { x = 1; constructor(a) { if (a) { super(); } else { return {}; } } }",
+		CheckSuper_MISSING_ROOT_LEVEL_CALL_TO_SUPER)
+	c.TestError(
+		"class C extends D { x = 1; constructor(a) { if (a) return {}; super(); } }",
+		CheckSuper_MISSING_ROOT_LEVEL_CALL_TO_SUPER)
+	c.TestError(
+		"class C extends D { x = 1; constructor(w) { if (w) return; super(); } }",
+		CheckSuper_MISSING_ROOT_LEVEL_CALL_TO_SUPER)
+	// Without instance fields or private members, a constructor that contains `super()` may also
+	// return an object or call `super()` conditionally.
 	c.TestNoWarning(
 		"class C extends D { constructor(a) { if (a) { super(); } else { return {}; } } }")
 	c.TestNoWarning("class C extends D { constructor(a) { if (a) return {}; super(); } }")
 }
 
+// Java: CheckSuperTest.testError_superCallNotInRootLevelStatement()
+func (c *CheckSuperTest) TestError_superCallNotInRootLevelStatement() {
+	// When a class has instance fields or private members, `super()` must be called once in a
+	// root-level statement, outside of any branch, loop, or conditionally evaluated expression,
+	// even if every path that returns calls it.
+	c.TestError(
+		"class C extends D { x = 1; constructor(a) { if (a) { super(1); } else { super(2); } } }",
+		CheckSuper_MISSING_ROOT_LEVEL_CALL_TO_SUPER)
+	c.TestError(
+		"class C extends D { x = 1; constructor(a) { if (a) { super(); } else { throw a; } } }",
+		CheckSuper_MISSING_ROOT_LEVEL_CALL_TO_SUPER)
+	c.TestError(
+		"class C extends D { x = 1; constructor() { { super(); } } }",
+		CheckSuper_MISSING_ROOT_LEVEL_CALL_TO_SUPER)
+	c.TestError(
+		"class C extends D { x = 1; constructor() { try { super(); } finally {} } }",
+		CheckSuper_MISSING_ROOT_LEVEL_CALL_TO_SUPER)
+	c.TestError(
+		"class C extends D { x = 1; constructor(a) { a && super(); } }",
+		CheckSuper_MISSING_ROOT_LEVEL_CALL_TO_SUPER)
+	c.TestError(
+		"class C extends D { x = 1; constructor(a) { a ? super(1) : super(2); } }",
+		CheckSuper_MISSING_ROOT_LEVEL_CALL_TO_SUPER)
+	c.TestError(
+		"class C extends D { x = 1; constructor(a) { a ||= super(); } }",
+		CheckSuper_MISSING_ROOT_LEVEL_CALL_TO_SUPER)
+	c.TestError(
+		"class C extends D { x = 1; constructor(a) { a?.(super()); } }",
+		CheckSuper_MISSING_ROOT_LEVEL_CALL_TO_SUPER)
+	c.TestError(
+		"class C extends D { x = 1; constructor(a) { const {x = super()} = a; } }",
+		CheckSuper_MISSING_ROOT_LEVEL_CALL_TO_SUPER)
+	c.TestError(
+		"class C extends D { x = 1; constructor(a = super()) {} }",
+		CheckSuper_MISSING_ROOT_LEVEL_CALL_TO_SUPER)
+	c.TestError(
+		"class C extends D { x = 1; constructor(a) { super(1); if (a) super(2); } }",
+		CheckSuper_MISSING_ROOT_LEVEL_CALL_TO_SUPER)
+	c.TestError(
+		"class C extends D { x = 1; constructor() { super(1); super(2); } }",
+		CheckSuper_MISSING_ROOT_LEVEL_CALL_TO_SUPER)
+	// Without instance fields or private members, nested `super()` calls are allowed.
+	c.TestNoWarning(
+		"class C extends D { constructor(a) { if (a) { super(1); } else { super(2); } } }")
+	c.TestNoWarning(
+		"class C extends D { static x = 1; constructor(a) { if (a) { super(); } else { throw a; } }" +
+			" }")
+	c.TestNoWarning(
+		`class C extends D {
+  x = 1;
+  /** @suppress {missingCallToSuper} */
+  constructor(a) {
+    if (a) {
+      super(1);
+    } else {
+      super(2);
+    }
+  }
+}
+`)
+}
+
 // Java: CheckSuperTest.testNoWarning_rootLevelSuperCall()
 func (c *CheckSuperTest) TestNoWarning_rootLevelSuperCall() {
-	// `super()` is a root-level statement before any `return`, so every path that returns calls it.
+	// `super()` is called unconditionally in a root-level statement before any `return`, so every
+	// path that returns calls it.
 	c.TestNoWarning(
 		"class C extends D { x = 1; constructor(a) { if (!a) throw new Error(); super(); } }")
 	c.TestNoWarning(
 		"class C extends D { x = 1; constructor() { super(); return new Proxy(this, {}); } }")
+	c.TestNoWarning("class C extends D { x = 1; constructor() { super(), this.y = 2; } }")
+	c.TestNoWarning("class C extends D { x = 1; constructor() { const self = super(); } }")
+	c.TestNoWarning("class C extends D { x = 1; constructor() { return super(); } }")
+	// The condition of a root-level `if` or `switch` statement is executed exactly once.
+	c.TestNoWarning("class C extends D { x = 1; constructor(a) { if (super(a)) {} } }")
+	c.TestNoWarning("class C extends D { x = 1; constructor(a) { switch (super(a)) {} } }")
 }
 
 // Java: CheckSuperTest.testWarning_withInvalidReturnInConstructor()
@@ -524,9 +608,16 @@ func (c *CheckSuperTest) TestInvalidThisReference_withExplicitReturnInConstructo
 
 // Java: CheckSuperTest.testThisReference_withExplicitReturnInConstructor()
 func (c *CheckSuperTest) TestThisReference_withExplicitReturnInConstructor() {
-	// You don't have to call `super()` when the constructor returns a value, but then you also
-	// cannot have references to `this` either.
-	c.TestError("class C extends D { constructor() { this.x = 3; return {}; } }", CheckSuper_THIS_BEFORE_SUPER)
+	c.Test(
+		c.Srcs("class C extends D { constructor() { this.x = 3; return {}; } }"),
+		c.Error(CheckSuper_RETURN_WITHOUT_CALL_TO_SUPER),
+		c.Error(CheckSuper_THIS_BEFORE_SUPER))
+	// Even if `missingCallToSuper` is suppressed when the constructor returns a value, it still
+	// cannot have references to `this`.
+	c.TestError(
+		"class C extends D { /** @suppress {missingCallToSuper} */ constructor() { this.x = 3;"+
+			" return {}; } }",
+		CheckSuper_THIS_BEFORE_SUPER)
 }
 
 // Java: CheckSuperTest.testPropertyInConstructor()

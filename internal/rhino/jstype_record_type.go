@@ -1,5 +1,5 @@
-// Port of com/google/javascript/rhino/jstype/RecordType.java @ closure-compiler v20261021
-// Port of com/google/javascript/rhino/jstype/RecordTypeBuilder.java @ closure-compiler v20261021
+// Port of com/google/javascript/rhino/jstype/RecordType.java @ closure-compiler v20261028
+// Port of com/google/javascript/rhino/jstype/RecordTypeBuilder.java @ closure-compiler v20261028
 
 /*
  *

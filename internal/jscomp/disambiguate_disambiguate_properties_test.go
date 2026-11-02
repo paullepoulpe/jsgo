@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/disambiguate/DisambiguatePropertiesTest.java @ closure-compiler v20261021
+// Port of com/google/javascript/jscomp/disambiguate/DisambiguatePropertiesTest.java @ closure-compiler v20261028
 // (test/com/google/javascript/jscomp/disambiguate/DisambiguatePropertiesTest.java)
 
 /*
@@ -1251,6 +1251,32 @@ function use(/** (!Foo0|!Foo2) */ x, /** !Bar */ y) {
   y.y();
 }
 `))
+}
+
+// Java: DisambiguatePropertiesTest.privateNamesAreNotDisambiguated_knownBug()
+func (c *DisambiguatePropertiesTest) TestPrivateNamesAreNotDisambiguated_knownBug() {
+	// Expected behavior: `DisambiguateProperties` leaves this code unchanged. A private name is
+	// scoped to the body of its class, so `Foo`'s `#x` and `Other`'s `#x` are already distinct,
+	// and there is nothing to disambiguate.
+	js := `class Foo {
+  #x = 1;
+  #m() { return this.#x; }
+}
+class Other {
+  #x = 2;
+  #m() { return this.#x; }
+}
+`
+	// TODO(b/236744850): Private names are renamed to names that are not valid.
+	// Current behavior: in both classes, `#x` and `#m` are renamed to names of the form
+	//   `JSC$<n>_#x` and `JSC$<n>_#m`, each with its own number `<n>`. So `testSame(js)` fails.
+	// Why it's a bug: the new names are not valid names, so the output is a SyntaxError, and the
+	//   whole script fails to load.
+	// In a full build: ADVANCED property renaming renames these names again to valid (public)
+	//   names, so the output loads; the SyntaxError shows only with pseudo names or without
+	//   property renaming.
+	ex := AssertThrows[*jutil.AssertionError](func() { c.TestSame(js) })
+	AssertThat(ex.GetMessage()).Contains("JSC$1_#x = 1;")
 }
 
 // Java: private static final class DisambiguatePropertiesTest.SilenceNoiseGuard extends WarningsGuard

@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/Tracer.java @ closure-compiler v20261021
+// Port of com/google/javascript/jscomp/Tracer.java @ closure-compiler v20261028
 
 /*
  * Copyright 2002 The Closure Compiler Authors.

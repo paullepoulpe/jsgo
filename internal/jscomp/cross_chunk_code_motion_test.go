@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/CrossChunkCodeMotionTest.java @ closure-compiler v20261021
+// Port of com/google/javascript/jscomp/CrossChunkCodeMotionTest.java @ closure-compiler v20261028
 // (test/com/google/javascript/jscomp/CrossChunkCodeMotionTest.java)
 
 /*
@@ -852,6 +852,36 @@ func (c *CrossChunkCodeMotionTest) TestClassMovement_mixins() {
 				"ValueType.mixin(Foo, ValueType, 5, goog.reflect.objectProperty('foo', Foo))\n"+
 				"new Foo();\n", // m2
 		))
+}
+
+// Java: CrossChunkCodeMotionTest.testClassMovement_reflectObjectProperty_classDeclaration()
+func (c *CrossChunkCodeMotionTest) TestClassMovement_reflectObjectProperty_classDeclaration() {
+	// TODO(b/435019132): The expectation is currently wrong. Foo and value should move to m2.
+	c.TestSame(
+		c.Srcs(
+			JSChunkGraphBuilder_ForChain().
+				// m1
+				AddChunk(
+					"class Foo {}\n" +
+						"const value = goog.reflect.objectProperty('x', Foo);\n").
+				// m2
+				AddChunk("const useValue = value;").
+				Build()))
+}
+
+// Java: CrossChunkCodeMotionTest.testClassMovement_reflectObjectProperty_classExpression()
+func (c *CrossChunkCodeMotionTest) TestClassMovement_reflectObjectProperty_classExpression() {
+	// TODO(b/435019132): The expectation is currently wrong. Foo and value should move to m2.
+	c.TestSame(
+		c.Srcs(
+			JSChunkGraphBuilder_ForChain().
+				// m1
+				AddChunk(
+					"const Foo = class {};\n" +
+						"const value = goog.reflect.objectProperty('x', Foo);\n").
+				// m2
+				AddChunk("const useValue = value;").
+				Build()))
 }
 
 // Java: CrossChunkCodeMotionTest.testPureOrBreakMyCodedStaticClassFieldIsMovable()

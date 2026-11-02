@@ -1,8 +1,8 @@
-// Port of com/google/javascript/jscomp/TranspileAndOptimizeClosureUnaware.java @ closure-compiler v20261021
-// Port of com/google/javascript/jscomp/ManageClosureUnawareCode.java @ closure-compiler v20261021
+// Port of com/google/javascript/jscomp/TranspileAndOptimizeClosureUnaware.java @ closure-compiler v20261028
+// Port of com/google/javascript/jscomp/ManageClosureUnawareCode.java @ closure-compiler v20261028
 
 /*
- * Copyright 2024 The Closure Compiler Authors.
+ * Copyright 2025 The Closure Compiler Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,7 +18,7 @@
  */
 
 /*
- * Copyright 2025 The Closure Compiler Authors.
+ * Copyright 2024 The Closure Compiler Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.

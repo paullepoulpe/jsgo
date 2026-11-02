@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/OptimizeParametersTest.java @ closure-compiler v20261021
+// Port of com/google/javascript/jscomp/OptimizeParametersTest.java @ closure-compiler v20261028
 // (test/com/google/javascript/jscomp/OptimizeParametersTest.java)
 
 /*
@@ -20,8 +20,10 @@
 package jscomp
 
 import (
-	"github.com/paullepoulpe/jsgo/internal/rhino"
 	"testing"
+
+	"github.com/paullepoulpe/jsgo/internal/jutil"
+	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
 
 type OptimizeParametersTest struct {
@@ -1299,6 +1301,30 @@ func (c *OptimizeParametersTest) TestMutableValuesDoNotMoveSuper() {
 		"var A;\n" +
 			"function fn(p1) {}\n" +
 			"class B extends A { constructor() { fn(super.x); } }\n")
+}
+
+// Java: OptimizeParametersTest.testPrivateNameArgumentIsNotMoved_knownBug()
+func (c *OptimizeParametersTest) TestPrivateNameArgumentIsNotMoved_knownBug() {
+	// Expected behavior: `OptimizeParameters` leaves this code unchanged. `C.#n` is valid only
+	// inside the body of `C`, so it can't be moved into `fn`, which is outside `C`.
+	js := `function fn(p1) { return p1; }
+class C {
+  static #n = 1;
+  // Expected: ` + "`fn(C.#n)`" + ` stays, although every call passes the same ` + "`C.#n`" + `.
+  static a() { return fn(C.#n); }
+  static b() { return fn(C.#n); }
+}
+`
+	// TODO(b/236744850): `C.#n` is moved out of `C`.
+	// Current behavior: `fn` becomes `function fn() { var p1 = C.#n; return p1; }` and both
+	//   calls become `fn()`, so `testSame(js)` fails.
+	// Why it's a bug: `C.#n` outside the body of `C` is a SyntaxError, so the whole script
+	//   fails to load.
+	// In a full build: with property collapsing, as in ADVANCED builds, `CollapseProperties`
+	//   crashes on `static #n` before this pass runs; without that crash, this pass makes the
+	//   output a SyntaxError.
+	ex := AssertThrows[*jutil.AssertionError](func() { c.TestSame(js) })
+	AssertThat(ex.GetMessage()).Contains("var p1 = C.#n;")
 }
 
 // Java: OptimizeParametersTest.testShadows()

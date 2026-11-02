@@ -1,7 +1,7 @@
-// Port of com/google/javascript/rhino/InputId.java @ closure-compiler v20261021
-// Port of com/google/javascript/rhino/ErrorReporter.java @ closure-compiler v20261021
-// Port of com/google/javascript/rhino/NonJSDocComment.java @ closure-compiler v20261021
-// Port of com/google/javascript/rhino/SimpleSourceFile.java @ closure-compiler v20261021
+// Port of com/google/javascript/rhino/InputId.java @ closure-compiler v20261028
+// Port of com/google/javascript/rhino/ErrorReporter.java @ closure-compiler v20261028
+// Port of com/google/javascript/rhino/NonJSDocComment.java @ closure-compiler v20261028
+// Port of com/google/javascript/rhino/SimpleSourceFile.java @ closure-compiler v20261028
 
 /*
  *

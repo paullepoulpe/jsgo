@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/InlinePropertiesTest.java @ closure-compiler v20261021
+// Port of com/google/javascript/jscomp/InlinePropertiesTest.java @ closure-compiler v20261028
 // (test/com/google/javascript/jscomp/InlinePropertiesTest.java)
 
 /*
@@ -872,5 +872,27 @@ function C() {}
 C.prototype.foo = 1;
 C.prototype[JSCompiler_renameProperty('foo', C)] = 2;
 new C().foo;
+`)
+}
+
+// Java: InlinePropertiesTest.testPrivateClassField_knownBug()
+func (c *InlinePropertiesTest) TestPrivateClassField_knownBug() {
+	// Expected behavior: `InlineProperties` leaves `o.#a` alone. Reading `o.#a` throws a
+	// TypeError if `o` has no `#a`, so it can't be replaced by the initial value `1`.
+	//
+	// TODO(b/236744850): `o.#a` is replaced by its initial value.
+	// Current behavior: `return o.#a;` becomes `return 1;`.
+	// Why it's a bug: natively `C.read({})` throws a TypeError, because `{}` has no `#a`; the
+	//   compiled code returns 1 instead.
+	c.Test(
+		`class C {
+  #a = 1;
+  static read(/** !C */ o) { return o.#a; }
+}
+`,
+		`class C {
+  #a = 1;
+  static read(o) { return 1; }
+}
 `)
 }

@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/RemoveUnusedCode.java @ closure-compiler v20261021
+// Port of com/google/javascript/jscomp/RemoveUnusedCode.java @ closure-compiler v20261028
 
 /*
  * Copyright 2008 The Closure Compiler Authors.
@@ -148,7 +148,8 @@ type RemoveUnusedCode struct {
 	canonicalUnremovableVarInfo    *RemoveUnusedCode_RealVarInfo
 	canonicalUnremovableVarInfoVal RemoveUnusedCode_RealVarInfo
 
-	polyfillsFromTable *PolyfillUsageFinder_Polyfills
+	polyfillsFromTable  *PolyfillUsageFinder_Polyfills
+	polyfillUsageFinder *PolyfillUsageFinder
 
 	scopeCreator *SyntacticScopeCreator
 
@@ -157,6 +158,7 @@ type RemoveUnusedCode struct {
 	removeUnusedObjectDefinePropertiesDefinitions bool
 	removeUnusedPolyfills                         bool
 	assumeGettersArePure                          bool
+	disambiguateProperties                        bool
 
 	// Allocated & cleaned up by process()
 	removalLog     diagnostic.LogFile
@@ -211,11 +213,13 @@ type RemoveUnusedCodeOptions struct {
 	RemoveUnusedObjectDefinePropertiesDefinitions bool
 	RemoveUnusedPolyfills                         bool
 	AssumeGettersArePure                          bool
+	DisambiguateProperties                        bool
 }
 
 // Java: RemoveUnusedCode(Builder)
 func NewRemoveUnusedCode(compiler AbstractCompiler, opts RemoveUnusedCodeOptions) *RemoveUnusedCode {
 	sc := NewSyntacticScopeCreator(compiler)
+	polyfillsFromTable := defaultPolyfillsTable()
 	r := &RemoveUnusedCode{
 		compiler:                        compiler,
 		astAnalyzer:                     compiler.GetAstAnalyzer(),
@@ -228,7 +232,9 @@ func NewRemoveUnusedCode(compiler AbstractCompiler, opts RemoveUnusedCodeOptions
 		removeUnusedThisProperties:      opts.RemoveUnusedThisProperties,
 		removeUnusedObjectDefinePropertiesDefinitions: opts.RemoveUnusedObjectDefinePropertiesDefinitions,
 		removeUnusedPolyfills:                         opts.RemoveUnusedPolyfills,
-		polyfillsFromTable:                            defaultPolyfillsTable(),
+		disambiguateProperties:                        opts.DisambiguateProperties,
+		polyfillsFromTable:                            polyfillsFromTable,
+		polyfillUsageFinder:                           NewPolyfillUsageFinder(compiler, polyfillsFromTable, opts.DisambiguateProperties),
 		assumeGettersArePure:                          opts.AssumeGettersArePure,
 	}
 
@@ -455,7 +461,9 @@ func (r *RemoveUnusedCode) traverseAndRemoveLocalScriptsParallel(root rhino.Node
 					externProperties:                r.externProperties,
 					accessorSummary:                 r.accessorSummary,
 					polyfillsFromTable:              r.polyfillsFromTable,
+					polyfillUsageFinder:             r.polyfillUsageFinder,
 					assumeGettersArePure:            r.assumeGettersArePure,
+					disambiguateProperties:          r.disambiguateProperties,
 					removalLog:                      r.removalLog,
 					unremovableLog:                  r.unremovableLog,
 				}

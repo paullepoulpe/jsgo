@@ -1,5 +1,5 @@
-// Port of com/google/javascript/jscomp/AstAnalyzerTest.java @ closure-compiler v20261021
-// Port of com/google/javascript/jscomp/AutoBuilder_AstAnalyzer_Options_Builder.java @ closure-compiler v20261021
+// Port of com/google/javascript/jscomp/AstAnalyzerTest.java @ closure-compiler v20261028
+// Port of com/google/javascript/jscomp/AutoBuilder_AstAnalyzer_Options_Builder.java @ closure-compiler v20261028
 
 /*
  * Copyright 2019 The Closure Compiler Authors.
@@ -937,6 +937,24 @@ var astAnalyzerTest_MayHaveSideEffects_cases = []*astAnalyzerTest_AnalysisCase{
 	kase().Expect(false).Js("Symbol('desc')"),
 	kase().Expect(true).Js("Symbol(foo())"),
 	kase().Expect(true).Js("Symbol()").AssumeBuiltinsPure(false),
+
+	// Expected behavior: the private reads `o.#x`, `o?.#x`, and `this.#x` have side effects,
+	// but `#x in o` doesn't. A private read throws a TypeError if the object has no `#x`,
+	// also on `this` (as in `C.prototype.m.call(other)`), and code uses that as a brand
+	// check. `#x in o` throws only if `o` is not an object, like `'x' in o`, which has no
+	// side effects either.
+	//
+	// TODO(b/236744850): Private member reads are treated as free of side effects.
+	// Current behavior: `mayHaveSideEffects` returns false for the 3 reads below. It also
+	//   returns false for the last case, `#x in o`, which is correct.
+	// Why it's a bug: passes remove the brand checks. For example, `PeepholeRemoveDeadCode`
+	//   removes `if (o.#x) {}`, so
+	//   `try { if (o.#x) {} return true; } catch (e) { return false; }` returns true for
+	//   any `o`.
+	kase().Expect(false).Token(rhino.Token_GETPROP).Js("class C { #x; m(o) { o.#x; } }"),
+	kase().Expect(false).Token(rhino.Token_OPTCHAIN_GETPROP).Js("class C { #x; m(o) { o?.#x; } }"),
+	kase().Expect(false).Token(rhino.Token_GETPROP).Js("class C { #x; m() { this.#x; } }"),
+	kase().Expect(false).Token(rhino.Token_IN).Js("class C { #x; m(o) { #x in o; } }"),
 }
 
 // Java: AstAnalyzerTest.NodeTypeMayHaveSideEffects.cases()

@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/GenerateExportsTest.java @ closure-compiler v20261021
+// Port of com/google/javascript/jscomp/GenerateExportsTest.java @ closure-compiler v20261028
 // (test/com/google/javascript/jscomp/GenerateExportsTest.java)
 
 /*
@@ -448,6 +448,40 @@ func (c *GenerateExportsTest) TestCannotExportStaticBlock() {
 }
 `,
 		FindExportableNodes_EXPORT_ANNOTATION_NOT_ALLOWED)
+}
+
+// Java: GenerateExportsTest.testCannotExportPrivateClassMembers_knownBug()
+func (c *GenerateExportsTest) TestCannotExportPrivateClassMembers_knownBug() {
+	// Expected behavior: `@export` on a private member reports the error
+	// `JSC_EXPORT_ANNOTATION_NOT_ALLOWED`. A private name is valid only inside the body of its
+	// class, so an export call after the class can't refer to it.
+	method := `class G {
+  /** @export */ #m() {}
+}
+`
+	// TODO(b/236744850): `@export` on a private method exports it instead of reporting an error.
+	// Current behavior: no error, and `goog.exportProperty(G.prototype, "#m", G.prototype.#m);`
+	//   is added after `G`. So `testError` fails.
+	// Why it's a bug: `G.prototype.#m` outside the body of `G` is a SyntaxError, so the whole
+	//   script fails to load.
+	methodEx := AssertThrows[*jutil.AssertionError](func() {
+		c.TestError(method, FindExportableNodes_EXPORT_ANNOTATION_NOT_ALLOWED)
+	})
+	AssertThat(methodEx.GetMessage()).Contains("but was : []")
+
+	staticField := `class G {
+  /** @export */ static #x = 3;
+}
+`
+	// TODO(b/236744850): `@export` on a private field exports it instead of reporting an error.
+	// Current behavior: no error, and `goog.exportSymbol("G.#x", G.#x);` is added after `G`. So
+	//   `testError` fails.
+	// Why it's a bug: `G.#x` outside the body of `G` is a SyntaxError, so the whole script fails
+	//   to load.
+	staticFieldEx := AssertThrows[*jutil.AssertionError](func() {
+		c.TestError(staticField, FindExportableNodes_EXPORT_ANNOTATION_NOT_ALLOWED)
+	})
+	AssertThat(staticFieldEx.GetMessage()).Contains("but was : []")
 }
 
 // Java: GenerateExportsTest.testExportPublicStaticField()

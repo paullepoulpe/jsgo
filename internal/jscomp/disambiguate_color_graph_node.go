@@ -1,5 +1,5 @@
-// Port of com/google/javascript/jscomp/disambiguate/ColorGraphNode.java @ closure-compiler v20261021
-// Port of com/google/javascript/jscomp/disambiguate/ColorGraphNodeFactory.java @ closure-compiler v20261021
+// Port of com/google/javascript/jscomp/disambiguate/ColorGraphNode.java @ closure-compiler v20261028
+// Port of com/google/javascript/jscomp/disambiguate/ColorGraphNodeFactory.java @ closure-compiler v20261028
 
 /*
  * Copyright 2008 The Closure Compiler Authors.

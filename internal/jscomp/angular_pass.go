@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/AngularPass.java @ closure-compiler v20261021
+// Port of com/google/javascript/jscomp/AngularPass.java @ closure-compiler v20261028
 
 /*
  * Copyright 2012 The Closure Compiler Authors.

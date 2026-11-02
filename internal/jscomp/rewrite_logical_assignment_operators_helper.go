@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/RewriteLogicalAssignmentOperatorsHelper.java @ closure-compiler v20261021
+// Port of com/google/javascript/jscomp/RewriteLogicalAssignmentOperatorsHelper.java @ closure-compiler v20261028
 
 /*
  * Copyright 2021 The Closure Compiler Authors.
@@ -59,6 +59,11 @@ func (h *RewriteLogicalAssignmentOperatorsHelper) VisitLogicalAssignmentOperator
 	}
 
 	enclosingStatement := NodeUtil_GetEnclosingStatement(logicalAssignment)
+	// A LABEL must have exactly one statement child, so any temporaries must be declared before
+	// the outermost label of a labeled statement (e.g. `label: while (o.p ??= 1) {}`).
+	for enclosingStatement.GetParent().IsLabel() {
+		enclosingStatement = enclosingStatement.GetParent()
+	}
 
 	left := logicalAssignment.RemoveFirstChild()
 	right := logicalAssignment.GetLastChild().Detach()

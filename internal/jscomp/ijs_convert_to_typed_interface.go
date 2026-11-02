@@ -1,6 +1,6 @@
-// Port of com/google/javascript/jscomp/ijs/ConvertToTypedInterface.java @ closure-compiler v20261021
-// Port of com/google/javascript/jscomp/ijs/FileInfo.java @ closure-compiler v20261021
-// Port of com/google/javascript/jscomp/ijs/ClassUtil.java @ closure-compiler v20261021
+// Port of com/google/javascript/jscomp/ijs/ConvertToTypedInterface.java @ closure-compiler v20261028
+// Port of com/google/javascript/jscomp/ijs/FileInfo.java @ closure-compiler v20261028
+// Port of com/google/javascript/jscomp/ijs/ClassUtil.java @ closure-compiler v20261028
 
 /*
  * Copyright 2016 The Closure Compiler Authors.

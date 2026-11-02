@@ -170,7 +170,8 @@ func transpileBOraclePasses(compiler *Compiler, variant string) []*transpileBOra
 				c,
 				c.GetOptions().GetRewritePolyfills(),
 				c.GetOptions().GetIsolatePolyfills(),
-				c.GetOptions().GetInjectPolyfillsNewerThan())
+				c.GetOptions().GetInjectPolyfillsNewerThan(),
+				c.GetOptions().ShouldDisambiguateProperties())
 		}})
 	}
 	passes = append(passes, &transpileBOracleNamedPass{name: "InjectRuntimeLibraries", factory: func(c *Compiler) CompilerPass {

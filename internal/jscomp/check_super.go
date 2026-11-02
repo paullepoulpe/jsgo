@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/CheckSuper.java @ closure-compiler v20261021
+// Port of com/google/javascript/jscomp/CheckSuper.java @ closure-compiler v20261028
 
 /*
  * Copyright 2016 The Closure Compiler Authors.
@@ -43,18 +43,30 @@ type CheckSuper struct {
 	contextStack []superContext
 }
 
+// For a derived class constructor that has neither a `super()` call nor a `return` with a value,
+// so it always throws. This can't be suppressed.
+//
 // Java: CheckSuper.MISSING_CALL_TO_SUPER
 var CheckSuper_MISSING_CALL_TO_SUPER = DiagnosticType_Error("JSC_MISSING_CALL_TO_SUPER", "constructor is missing a call to super()")
 
-// For a derived class constructor that has a `super()` call or returns a value, but might still
-// return without calling `super()`. Unlike MISSING_CALL_TO_SUPER, this can be suppressed, since
-// the constructor might intentionally return a different object.
+// For a derived class constructor that returns a value without a `super()` call anywhere. Unlike
+// MISSING_CALL_TO_SUPER, this can be suppressed, since the constructor might intentionally return
+// a different object.
+//
+// Java: CheckSuper.RETURN_WITHOUT_CALL_TO_SUPER
+var CheckSuper_RETURN_WITHOUT_CALL_TO_SUPER = DiagnosticType_Error(
+	"JSC_RETURN_WITHOUT_CALL_TO_SUPER",
+	"constructor returns a value without calling super()")
+
+// For a derived class with instance fields or private members whose constructor calls `super()`,
+// but not exactly once in a root-level statement before any `return`, so there is no single place
+// to initialize the instance elements when they are transpiled.
 //
 // Java: CheckSuper.MISSING_ROOT_LEVEL_CALL_TO_SUPER
 var CheckSuper_MISSING_ROOT_LEVEL_CALL_TO_SUPER = DiagnosticType_Error(
 	"JSC_MISSING_ROOT_LEVEL_CALL_TO_SUPER",
-	"constructor must unconditionally call super() in a root-level statement before any"+
-		" return")
+	"constructor of a class with instance fields or private members must call super()"+
+		" unconditionally once in a root-level statement before any return")
 
 // Java: CheckSuper.THIS_BEFORE_SUPER
 var CheckSuper_THIS_BEFORE_SUPER = DiagnosticType_Error("JSC_THIS_BEFORE_SUPER", "cannot access this before calling super()")
@@ -108,13 +120,17 @@ const (
 type superContext struct {
 	contextNode                          rhino.Node
 	firstSuperCall                       rhino.Node
+	rootLevelSuperCall                   rhino.Node
 	thisAccessedBeforeSuper              rhino.Node
 	superPropertyAccessedBeforeSuperCall rhino.Node
 	constructorIdx                       int
 	kind                                 superContextKind
 	isClassMethod                        bool
 	hasParentClass                       bool
+	hasInstanceElements                  bool
+	hasMultipleSuperCalls                bool
 	returnsAValue                        bool
+	returnsBeforeRootLevelSuperCall      bool
 }
 
 func (ctx superContext) String() string {
@@ -208,9 +224,10 @@ func (c *CheckSuper) pushFunctionContextIfNeeded(fn rhino.Node) {
 			classNode := NodeUtil_GetEnclosingClass(fn)
 			_, hasParentClass := ast.MustClass(classNode).Extends()
 			c.pushContext(superContext{
-				kind:           superCtxConstructor,
-				contextNode:    fn,
-				hasParentClass: hasParentClass,
+				kind:                superCtxConstructor,
+				contextNode:         fn,
+				hasParentClass:      hasParentClass,
+				hasInstanceElements: NodeUtil_HasInstanceElements(classNode),
 			})
 		} else {
 			objLitOrClassMembers := rhino.CheckNotNull(fn.GetGrandparent())
@@ -303,6 +320,9 @@ func (c *CheckSuper) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 			if _, hasVal := ast.MustReturn(n).Value(); hasVal {
 				ctx.returnsAValue = true
 			}
+			if ctx.rootLevelSuperCall.IsNil() {
+				ctx.returnsBeforeRootLevelSuperCall = true
+			}
 		}
 	case rhino.Token_ROOT:
 		jutil.CheckState(len(c.contextStack) == 1)
@@ -332,12 +352,23 @@ func (c *CheckSuper) visitSuperConstructorCall(ctx *superContext, t *NodeTravers
 	case superCtxConstructor:
 		if ctx.firstSuperCall.IsNil() {
 			ctx.firstSuperCall = superNode
+		} else {
+			ctx.hasMultipleSuperCalls = true
+		}
+		call := superNode.GetParent()
+		if ctx.rootLevelSuperCall.IsNil() &&
+			rhino.CheckNotNull(NodeUtil_GetEnclosingStatement(call)).GetParent() == NodeUtil_GetFunctionBody(ctx.contextNode) &&
+			NodeUtil_IsExecutedExactlyOnce(call) {
+			ctx.rootLevelSuperCall = superNode
 		}
 	case superCtxConstructorArrow:
 		t.Report(superNode, CheckSuper_SUPER_CALL_IN_ARROW)
 		ctor := &c.contextStack[ctx.constructorIdx]
 		if ctor.firstSuperCall.IsNil() {
 			ctor.firstSuperCall = superNode
+		}
+		if ctor.rootLevelSuperCall.IsNil() {
+			ctor.rootLevelSuperCall = superNode
 		}
 	}
 }
@@ -367,9 +398,22 @@ func (c *CheckSuper) finishConstructorContext(ctx *superContext, t *NodeTraversa
 		}
 		return
 	}
-	if ctx.firstSuperCall.IsNil() && !ctx.returnsAValue {
+	// There is a parent class, so a call to `super()` is required. Like TypeScript (TS2377), we
+	// require it even when the constructor returns a value.
+	if ctx.firstSuperCall.IsNil() {
 		// ErrorToFixMapper expects the error on the parent MEMBER_FUNCTION_DEF.
-		t.Report(ctx.contextNode.GetParent(), CheckSuper_MISSING_CALL_TO_SUPER)
+		diag := CheckSuper_MISSING_CALL_TO_SUPER
+		if ctx.returnsAValue {
+			diag = CheckSuper_RETURN_WITHOUT_CALL_TO_SUPER
+		}
+		t.Report(ctx.contextNode.GetParent(), diag)
+	} else if ctx.hasInstanceElements &&
+		(ctx.rootLevelSuperCall.IsNil() ||
+			ctx.returnsBeforeRootLevelSuperCall ||
+			ctx.hasMultipleSuperCalls) {
+		// The instance elements are initialized right after `super()` returns, so like TypeScript
+		// (TS2401), require a single place to initialize them.
+		t.Report(ctx.contextNode.GetParent(), CheckSuper_MISSING_ROOT_LEVEL_CALL_TO_SUPER)
 	}
 	if !ctx.thisAccessedBeforeSuper.IsNil() {
 		t.Report(ctx.thisAccessedBeforeSuper, CheckSuper_THIS_BEFORE_SUPER)

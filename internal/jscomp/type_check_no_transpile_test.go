@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/TypeCheckNoTranspileTest.java @ closure-compiler v20261021
+// Port of com/google/javascript/jscomp/TypeCheckNoTranspileTest.java @ closure-compiler v20261028
 // (test/com/google/javascript/jscomp/TypeCheckNoTranspileTest.java)
 
 /*
@@ -3519,6 +3519,48 @@ class Sub extends Base {
 }
 `).
 		AddDiagnostic("property method already defined on superclass Base; use @override to override it").
+		Run()
+}
+
+// Java: TypeCheckNoTranspileTest.testPrivateClassMembersWithSameNameInSubclass_knownBug()
+func (c *TypeCheckNoTranspileTest) TestPrivateClassMembersWithSameNameInSubclass_knownBug() {
+	// Expected behavior: no diagnostics. Each class has its own private names, so the private
+	// members of `Sub` don't override those of `Base`, and their types can differ.
+	TypeCheckTestCase_TypeTestBuilder_NewTest().
+		AddSource(
+			`class Base {
+  /** @type {string} */
+  #x = '';
+  /** @return {string} */
+  #m() { return this.#x; }
+}
+class Sub extends Base {
+  /** @type {number} */
+  #x = 0;
+  /** @return {number} */
+  #m() { return this.#x; }
+}
+`).
+		// TODO(b/236744850): Private members of a subclass are checked as overrides.
+		// Current behavior: `TypeCheck` reports the 4 diagnostics below: a type mismatch with
+		//   `Base` and a missing `@override` for each of `#x` and `#m`.
+		// Why it's a bug: `Sub`'s `#x` and `#m` are new members that `Base` can't see, so all 4
+		//   diagnostics are false. The type mismatches are `checkTypes` warnings, so with
+		//   `--jscomp_error=checkTypes`, valid code fails to compile.
+		AddDiagnostic(
+			`mismatch of the #x property type and the type of the property it overrides from superclass Base
+original: string
+override: number
+`).
+		AddDiagnostic(
+			"property #x already defined on superclass Base; use @override to override it").
+		AddDiagnostic(
+			`mismatch of the #m property type and the type of the property it overrides from superclass Base
+original: function(this:Base): string
+override: function(this:Sub): number
+`).
+		AddDiagnostic(
+			"property #m already defined on superclass Base; use @override to override it").
 		Run()
 }
 
