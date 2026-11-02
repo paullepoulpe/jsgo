@@ -49,11 +49,14 @@ func TestCompactorPermuteLaysOutTreesInPreorder(t *testing.T) {
 			typeRoot := fn.GetJSDocInfo().GetType().GetRoot()
 			fn.SetIsGeneratorFunction(true) // a cold property
 			call := IR_Call(IR_Name("f"), IR_Name("a"), Node_NewNumber(1))
+			script := IR_ScriptOfNodes(IR_Var(IR_Name("a")), IR_ExprResult(call), fn)
 			withProp := IR_Name("p")
 			propTree := IR_Getprop(IR_Name("T"), "U")
 			withProp.PutProp(Node_Prop_DECLARED_TYPE_EXPR, propTree)
-			script := IR_ScriptOfNodes(IR_Var(IR_Name("a")), IR_ExprResult(call), fn, IR_ExprResult(withProp))
-			root := IR_Root(script)
+			script2 := IR_ScriptOfNodes(IR_ExprResult(withProp))
+			// The scripts in an order other than their allocation order
+			// (as after dependency sorting).
+			root := IR_Root(script2, script)
 			IR_Block().AddChildToBack(IR_Name("dead"))
 			// A statement added later, at the front: its ids are the
 			// highest.
@@ -70,13 +73,13 @@ func TestCompactorPermuteLaysOutTreesInPreorder(t *testing.T) {
 
 			k := NewCompactor()
 			k.RecordPreorder()
-			holders := []Node{heldInterior, root, held, fn, expected}
+			holders := []Node{root, heldInterior, held, fn, expected}
 			for _, n := range holders {
 				k.Mark(n)
 			}
 			k.Permute(threads)
 			k.ForwardSlice(holders)
-			newInterior, newRoot, newHeld, newFn, newExpected := holders[0], holders[1], holders[2], holders[3], holders[4]
+			newRoot, newInterior, newHeld, newFn, newExpected := holders[0], holders[1], holders[2], holders[3], holders[4]
 			if k.Forward(newRoot) != newRoot {
 				t.Fatal("Forward is not idempotent")
 			}
@@ -86,8 +89,10 @@ func TestCompactorPermuteLaysOutTreesInPreorder(t *testing.T) {
 			if !newRoot.IsEquivalentTo(newExpected) {
 				t.Fatalf("compacted tree differs:\n%s\nvs\n%s", newRoot.ToStringTree(), newExpected.ToStringTree())
 			}
-			// The trees, in the order their holders were marked, each in
-			// pre-order and followed by the trees hung off it.
+			// The detached trees, in the order their holders were marked,
+			// then the program's ROOT, then its scripts in allocation
+			// order, each in pre-order and followed by the trees hung off
+			// its nodes.
 			next := base
 			lay := func(what string, n Node) {
 				nodes := preorderNodes(n)
@@ -95,20 +100,26 @@ func TestCompactorPermuteLaysOutTreesInPreorder(t *testing.T) {
 				next += uint32(len(nodes))
 			}
 			lay("detached subtree", newInterior.GetParent())
-			lay("program", newRoot)
+			lay("detached node", newHeld)
+			lay("clone", newExpected)
+			if uint32(newRoot) != next {
+				t.Fatalf("root has id %d, want %d", uint32(newRoot), next)
+			}
+			next++
+			newScript, newScript2 := newRoot.GetLastChild(), newRoot.GetFirstChild()
+			lay("script", newScript)
 			newType := newFn.GetJSDocInfo().GetType().GetRoot()
 			if newType == typeRoot || newType.GetString() != "number" {
 				t.Fatal("JSDoc type expression root was not forwarded")
 			}
 			lay("JSDoc type expression", newType)
-			newWithProp := newRoot.GetFirstChild().GetLastChild().GetFirstChild()
+			lay("script 2", newScript2)
+			newWithProp := newScript2.GetFirstChild().GetFirstChild()
 			newPropTree, ok := newWithProp.GetProp(Node_Prop_DECLARED_TYPE_EXPR).(Node)
 			if !ok || newPropTree == propTree || newPropTree.GetString() != "U" {
 				t.Fatalf("node-valued prop was not forwarded: %v", newPropTree)
 			}
 			lay("prop tree", newPropTree)
-			lay("detached node", newHeld)
-			lay("clone", newExpected)
 			if live := CurrentNodeStore().NodeCount(); live != k.Live || uint32(live) != next-base {
 				t.Fatalf("store has %d nodes, %d live, %d laid out", live, k.Live, next-base)
 			}
@@ -116,7 +127,7 @@ func TestCompactorPermuteLaysOutTreesInPreorder(t *testing.T) {
 				t.Fatalf("expected 6 extra roots, got %d", k.ExtraRoots)
 			}
 
-			newCall := newRoot.GetFirstChild().GetChildAtIndex(2).GetFirstChild()
+			newCall := newScript.GetChildAtIndex(2).GetFirstChild()
 			if newCall.GetFirstChild().GetJSType() != num || newCall.GetSecondChild().GetJSType() != nil {
 				t.Fatal("the JSType of a node was lost or moved")
 			}
@@ -257,6 +268,64 @@ func TestCompactorPermuteMultiBlockReusesOldBlocks(t *testing.T) {
 				if n.GetJSType() != nil || n.GetOriginalName() != nil || !n.GetParent().IsNil() || n.GetToken() != Token_NAME {
 					t.Fatal("a node allocated after compaction is not empty")
 				}
+			}
+		})
+	}
+}
+
+func TestCompactorPermuteLaysOutScriptsInAllocationOrder(t *testing.T) {
+	for _, threads := range []int{1, 4} {
+		t.Run(fmt.Sprintf("threads=%d", threads), func(t *testing.T) {
+			prev := SetCurrentNodeStore(NewNodeStore())
+			defer SetCurrentNodeStore(prev)
+
+			// Eight scripts of about half a block each, parsed one after the
+			// other (with dead nodes among them), then put in the tree in
+			// another order, as dependency sorting does.
+			const nScripts, perScript = 8, blockLen / 2
+			scripts := make([]Node, nScripts)
+			for j := range scripts {
+				script := IR_Script()
+				for idx := range perScript {
+					if idx%5 == 0 {
+						IR_Name("dead")
+					}
+					script.AddChildToBack(IR_ExprResult(IR_Name(fmt.Sprintf("s%d_%d", j, idx))))
+				}
+				scripts[j] = script
+			}
+			treeOrder := []int{3, 7, 1, 5, 0, 4, 2, 6}
+			root := IR_Root()
+			for _, j := range treeOrder {
+				root.AddChildToBack(scripts[j])
+			}
+
+			k := NewCompactor()
+			k.RecordPreorder()
+			k.Mark(root)
+			k.Permute(threads)
+			newRoot := k.Forward(root)
+			base := k.newBase
+			k.Finish()
+
+			if uint32(newRoot) != base {
+				t.Fatalf("root has id %d, want %d", uint32(newRoot), base)
+			}
+			next := base + 1
+			byAlloc := make([]Node, nScripts)
+			for c, i := newRoot.GetFirstChild(), 0; !c.IsNil(); c, i = c.GetNext(), i+1 {
+				byAlloc[treeOrder[i]] = c
+				if want := fmt.Sprintf("s%d_0", treeOrder[i]); c.GetFirstChild().GetFirstChild().GetString() != want {
+					t.Fatalf("script %d starts with %q, want %q", i, c.GetFirstChild().GetFirstChild().GetString(), want)
+				}
+			}
+			for j, script := range byAlloc {
+				nodes := preorderNodes(script)
+				checkConsecutive(t, fmt.Sprintf("script %d", j), nodes, next)
+				next += uint32(len(nodes))
+			}
+			if threads == 1 && k.NewBlocks > 1 {
+				t.Fatalf("%d new and %d reused blocks: the copy in allocation order should reuse the old blocks", k.NewBlocks, k.ReusedBlocks)
 			}
 		})
 	}

@@ -1,8 +1,10 @@
 package rhino
 
 import (
+	"cmp"
 	"fmt"
 	"math/bits"
+	"slices"
 	"sort"
 	"sync"
 	"sync/atomic"
@@ -31,14 +33,21 @@ import (
 // Pre-order layout (RecordPreorder, then Permute instead of Slide): the live
 // nodes are renumbered in the order Mark reaches them, which is the
 // pre-order of each marked tree (first child, then next sibling), the trees
-// in the order the holders are marked: the whole program first (externs,
-// then the scripts in order), then the trees hung off its nodes (JSDoc type
-// expressions, node-valued props) in the order they are met, then the
-// detached trees other holders refer to. A walk of the tree after that
-// reads its records nearly in address order, so the hardware prefetcher
-// hides most of the latency of its dependent loads (first child, next
-// sibling), where a slide keeps allocation order: the nodes that passes
-// created (transpilation, inlining) sit far from their neighbours.
+// each followed by the trees hung off its nodes (JSDoc type expressions,
+// node-valued props) in the order they are met. The program (the first
+// tree marked) is laid out by script, each script in pre-order followed by
+// the trees hung off its nodes, and the detached trees other holders refer
+// to come first. The order of the scripts and of the trees between them
+// does not matter to a walk (one jump each), so it is chosen for the copy,
+// which reuses old blocks as it goes (below): the detached trees, which
+// are scattered over the old blocks, are copied first, then the scripts in
+// the order of their lowest old id, which is the order they were parsed
+// in (dependency sorting makes their order in the tree different). A walk of the tree
+// after that reads its records nearly in address order, so the hardware
+// prefetcher hides most of the latency of its dependent loads (first
+// child, next sibling), where a slide keeps allocation order: the parser
+// makes children before their parents, and the nodes that passes created
+// (transpilation, inlining) sit far from their neighbours.
 //
 // The permutation costs a table of new ids (4 bytes per old id) and the list
 // of live ids in pre-order (4 bytes per live node), and the records cannot
@@ -65,6 +74,9 @@ type Compactor struct {
 	perm     []uint32 // perm[i]: 1 + the new index of live index i, 0 if i is dead (after Permute starts)
 	side     []Node   // trees hung off nodes, marked after the tree they hang off
 	draining bool
+	scripts  []orderRange // the scripts of the first tree marked, in order
+	trees    int          // trees marked from a holder (not hung off another tree)
+	firstEnd int          // the end of the first tree (and its side trees) in order
 
 	Live       int // live nodes (after Slide)
 	ExtraRoots int // detached trees marked because a holder refers to them
@@ -101,6 +113,10 @@ func (k *Compactor) RecordPreorder() {
 	k.preorder = true
 	k.order = make([]uint32, 0, (k.end-k.base)/8*7)
 }
+
+// orderRange is the range [start, end) of Compactor.order that holds a
+// script, and the lowest old index in it.
+type orderRange struct{ start, end, key uint32 }
 
 // Store returns the store being compacted.
 func (k *Compactor) Store() *NodeStore {
@@ -139,9 +155,15 @@ func (k *Compactor) Mark(n Node) Node {
 	}
 	if ri, _ := k.inStore(r); !k.isMarked(ri) {
 		k.ExtraRoots++
+		if !k.draining {
+			k.trees++
+		}
 		k.markTree(r)
 		if k.preorder && !k.draining {
 			k.drainSide()
+			if k.trees == 1 {
+				k.firstEnd = len(k.order)
+			}
 		}
 	}
 	return n
@@ -224,10 +246,14 @@ func (k *Compactor) markTree(n Node) {
 		return
 	}
 	k.marks[i>>6] |= 1 << (i & 63)
+	r := n.rec()
+	script := -1
 	if k.preorder {
+		if k.trees == 1 && !k.draining && r.token == Token_SCRIPT && r.parent != 0 && Node(r.parent).rec().token == Token_ROOT {
+			script = len(k.order)
+		}
 		k.order = append(k.order, i)
 	}
-	r := n.rec()
 	if r.propFlags&propWordJSDoc != 0 {
 		if info := n.GetJSDocInfo(); info != nil {
 			if _, done := k.docs[info]; !done {
@@ -244,6 +270,48 @@ func (k *Compactor) markTree(n Node) {
 	for c := n.firstNode(); c != 0; c = c.nextNode() {
 		k.markTree(c)
 	}
+	if script >= 0 {
+		// The trees hung off the script's nodes go with it: they were
+		// allocated with it (JSDoc), so the old blocks the script was
+		// parsed into are not kept until the end of the copy for them.
+		k.drainSide()
+		k.scripts = append(k.scripts, orderRange{start: uint32(script), end: uint32(len(k.order))})
+	}
+}
+
+// arrangeForCopy reorders k.order for the copy (see the file comment):
+// what follows the first tree (the detached trees) first, then the nodes
+// of the first tree outside its scripts (its ROOT nodes), then its
+// scripts (each one a range in pre-order) in the order of their lowest old
+// index.
+func (k *Compactor) arrangeForCopy() {
+	segs := k.scripts
+	k.scripts = nil
+	order := k.order
+	first := uint32(k.firstEnd)
+	if len(segs) == 0 && first == uint32(len(order)) {
+		return
+	}
+	for j := range segs {
+		m := ^uint32(0)
+		for _, i := range order[segs[j].start:segs[j].end] {
+			m = min(m, i)
+		}
+		segs[j].key = m
+	}
+	out := make([]uint32, 0, len(order))
+	out = append(out, order[first:]...)
+	prev := uint32(0)
+	for _, sg := range segs {
+		out = append(out, order[prev:sg.start]...)
+		prev = sg.end
+	}
+	out = append(out, order[prev:first]...)
+	slices.SortFunc(segs, func(a, b orderRange) int { return cmp.Compare(a.key, b.key) })
+	for _, sg := range segs {
+		out = append(out, order[sg.start:sg.end]...)
+	}
+	k.order = out
 }
 
 type nodeProp struct {
@@ -506,6 +574,7 @@ func (k *Compactor) Permute(threads int) {
 	if uint32(len(k.order)) != live {
 		panic(fmt.Sprintf("rhino.Compactor: %d nodes in pre-order, %d marked", len(k.order), live))
 	}
+	k.arrangeForCopy()
 	raiseNextBlock(s.blockEnd())
 	k.newBase = nextBlock.Load() << blockShift
 	s.unregister()
