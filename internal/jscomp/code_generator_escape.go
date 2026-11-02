@@ -639,45 +639,73 @@ func (g *CodeGenerator) EscapeUnrecognizedCharacters(s string) string {
 	var sb strings.Builder
 	sb.Grow(len(s))
 	b := escBuf{sb: &sb, isASCII: true}
+	// Whether the immediately preceding character was an unescaped backslash
+	// starting an escape sequence.
+	pendingBackslash := false
+	emitUnescaped := func() {
+		if pendingBackslash {
+			b.writeByte('\\')
+			pendingBackslash = false
+		}
+	}
 	for i := 0; i < len(units); i++ {
 		c := units[i]
+		if !pendingBackslash && c == '\\' {
+			pendingBackslash = true
+			continue
+		}
 		switch c {
 		case '\b', '\f', '\n', '\r', '\t', '\\', '"', '\'', '$', '`', '\u2028', '\u2029':
+			emitUnescaped()
 			b.writeChar(c)
 		case '=':
 			if g.trustedStrings {
+				emitUnescaped()
 				b.writeByte('=')
 			} else {
+				pendingBackslash = false
 				b.writeASCII("\\x3d")
 			}
 		case '&':
 			if g.trustedStrings {
+				emitUnescaped()
 				b.writeByte('&')
 			} else {
+				pendingBackslash = false
 				b.writeASCII("\\x26")
 			}
 		case '>':
 			if !g.trustedStrings ||
 				(i >= 2 && ((units[i-1] == '-' && units[i-2] == '-') || (units[i-1] == ']' && units[i-2] == ']'))) {
+				pendingBackslash = false
 				b.writeASCII(codeGenerator_GT_ESCAPED)
 			} else {
+				emitUnescaped()
 				b.writeByte('>')
 			}
 		case '<':
 			if !g.trustedStrings || codeGenerator_matchesLtHazardUnits(units, i+1) {
+				pendingBackslash = false
 				b.writeASCII(codeGenerator_LT_ESCAPED)
 			} else {
+				emitUnescaped()
 				b.writeByte('<')
 			}
 		default:
 			if (g.outputCharsetEncoder != nil && g.outputCharsetEncoder.CanEncode(c)) ||
 				(c > 0x1f && c < 0x7f) {
+				emitUnescaped()
 				b.writeChar(c)
 			} else {
+				// If the escaped character was escaped again, the backslash would now escape the first
+				// character of the new sequence (`\</script` would print as `\\x3c/script`). Drop it:
+				// a NonEscapeCharacter cooks to itself, so `\<` and `\x3c` have the same value.
+				pendingBackslash = false
 				b.writeHexJS(c)
 			}
 		}
 	}
+	emitUnescaped()
 	b.flush()
 	return sb.String()
 }

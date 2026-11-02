@@ -374,15 +374,12 @@ func CheckConformance_ValidateBehaviorSettingOfConfigs(
 	return true
 }
 
-const checkConformance_EXTENDABLE_FIELDS_STR = "[config_file, extends, only_apply_to, only_apply_to_regexp, whitelist, whitelist_regexp, allowlist, allowlist_regexp, value]"
+const checkConformance_EXTENDABLE_FIELDS_STR = "[config_file, error_message, extends, only_apply_to, only_apply_to_regexp, whitelist, whitelist_regexp, allowlist, allowlist_regexp, value]"
 
 // checkConformance_countNonExtendableFields counts set fields on r that are not
 // in CheckConformance.EXTENDABLE_FIELDS (matching iterating r.getAllFields().keySet()).
 func checkConformance_countNonExtendableFields(r *Requirement) int {
 	n := 0
-	if r.HasErrorMessage() {
-		n++
-	}
 	if r.HasType() {
 		n++
 	}
@@ -553,6 +550,10 @@ func CheckConformance_MergeExtendingRequirementIntoExtended(
 		AddAllAllowlistEntry(extendingRequirement.GetAllowlistEntryList()).
 		AddAllValue(extendingRequirement.GetValueList()).
 		AddAllConfigFile(extendingRequirement.GetConfigFileList())
+	if extendingRequirement.HasErrorMessage() && extendedRequirement.HasErrorMessage() {
+		extendedRequirement.SetErrorMessage(
+			extendedRequirement.GetErrorMessage() + " " + extendingRequirement.GetErrorMessage())
+	}
 }
 
 // Java: CheckConformance.validateExtendableRequirement(AbstractCompiler, Requirement, Map<String, Requirement.Builder>)

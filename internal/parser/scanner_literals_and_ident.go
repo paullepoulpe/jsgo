@@ -829,7 +829,9 @@ func (s *Scanner) SkipStringLiteralEscapeSequence() bool {
 		s.ReportError("Unterminated string literal escape sequence")
 		return false
 	}
-	if Scanner_IsStringLineTerminator(s.PeekChar()) {
+	// LineContinuation :: \ LineTerminatorSequence — uses LineTerminator (all four), unlike
+	// unescaped string characters where U+2028/U+2029 are valid since ES2019.
+	if Scanner_IsLineTerminator(s.PeekChar()) {
 		s.SkipLineTerminator()
 		return true
 	}

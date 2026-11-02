@@ -460,7 +460,7 @@ func (f *IRFactory) normalizeStringEscapesInto(units []uint16, cur int, token pa
 			result = append(result, '\t')
 		case 'v':
 			result = append(result, '\u000B')
-		case '\n':
+		case '\n', '\u2028', '\u2029':
 			// line continuation, skip the line break
 			f.MaybeWarnForFeatureToken(token, parser.FeatureSet_Feature_STRING_CONTINUATION)
 			f.errorReporter.Warning(

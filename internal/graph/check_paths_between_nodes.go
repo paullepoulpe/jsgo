@@ -24,9 +24,10 @@ package graph
 // N is the node type; E is the edge type.
 //
 // Go-only: performance — instead of mutating graph node/edge annotations via
-// PushNodeAnnotations/PushEdgeAnnotations on every query, visited edges are
-// tracked in an epoch-stamped uint32 array indexed by LinkedDiGraphEdge.Index,
-// and traversal walks concrete LinkedDiGraphNodes directly.
+// PushNodeAnnotations/PushEdgeAnnotations on every query, DFS node colors and
+// back/visited edges are tracked in epoch-stamped uint32 arrays indexed by
+// LinkedDiGraphNode.Index and LinkedDiGraphEdge.Index, and traversal walks
+// concrete LinkedDiGraphNodes directly.
 type CheckPathsBetweenNodes[N, E comparable] struct {
 	nodePredicate func(N) bool
 	edgePredicate func(*LinkedDiGraphEdge[N, E]) bool
@@ -38,6 +39,8 @@ type CheckPathsBetweenNodes[N, E comparable] struct {
 	linkedEnd   *LinkedDiGraphNode[N, E]
 
 	epoch     uint32
+	nodeState []uint32
+	nodeBuf   [64]uint32
 	edgeState []uint32
 	edgeBuf   [64]uint32
 }
@@ -133,12 +136,22 @@ func (c *CheckPathsBetweenNodes[N, E]) ResetLinkedAllEdges(
 }
 
 func (c *CheckPathsBetweenNodes[N, E]) prepare() uint32 {
+	nodeCap := c.linkedGraph.NodeIndexCap()
 	edgeCap := c.linkedGraph.EdgeIndexCap()
-	c.epoch++
-	if c.epoch == 0 {
+	c.epoch += 2
+	if c.epoch < 2 {
+		clear(c.nodeState)
+		clear(c.nodeBuf[:])
 		clear(c.edgeState)
 		clear(c.edgeBuf[:])
-		c.epoch = 1
+		c.epoch = 2
+	}
+	if cap(c.nodeState) == 0 && nodeCap <= len(c.nodeBuf) {
+		c.nodeState = c.nodeBuf[:]
+	} else if cap(c.nodeState) < nodeCap {
+		c.nodeState = make([]uint32, max(nodeCap, 128))
+	} else if len(c.nodeState) < nodeCap {
+		c.nodeState = c.nodeState[:nodeCap]
 	}
 	if cap(c.edgeState) == 0 && edgeCap <= len(c.edgeBuf) {
 		c.edgeState = c.edgeBuf[:]
@@ -147,7 +160,26 @@ func (c *CheckPathsBetweenNodes[N, E]) prepare() uint32 {
 	} else if len(c.edgeState) < edgeCap {
 		c.edgeState = c.edgeState[:edgeCap]
 	}
-	return c.epoch
+	base := c.epoch
+	c.discoverBackEdges(c.linkedStart, base)
+	return base
+}
+
+func (c *CheckPathsBetweenNodes[N, E]) discoverBackEdges(u *LinkedDiGraphNode[N, E], base uint32) {
+	c.nodeState[u.Index] = base // GRAY
+	for _, e := range u.OutEdgeList.Slice() {
+		if !c.allEdges && !c.edgePredicate(e) {
+			continue
+		}
+		v := e.DestNode
+		vs := c.nodeState[v.Index]
+		if vs < base { // WHITE
+			c.discoverBackEdges(v, base)
+		} else if vs == base { // GRAY
+			c.edgeState[e.Index] = base // BACK_EDGE
+		}
+	}
+	c.nodeState[u.Index] = base + 1 // BLACK
 }
 
 // AllPathsSatisfyPredicate returns true iff all paths contain at least one
@@ -155,8 +187,8 @@ func (c *CheckPathsBetweenNodes[N, E]) prepare() uint32 {
 //
 // Java: CheckPathsBetweenNodes.allPathsSatisfyPredicate()
 func (c *CheckPathsBetweenNodes[N, E]) AllPathsSatisfyPredicate() bool {
-	epoch := c.prepare()
-	return c.checkAllPaths(c.linkedStart, c.linkedEnd, epoch)
+	base := c.prepare()
+	return c.checkAllPaths(c.linkedStart, c.linkedEnd, base)
 }
 
 // SomePathsSatisfyPredicate returns true iff some paths contain at least
@@ -164,14 +196,14 @@ func (c *CheckPathsBetweenNodes[N, E]) AllPathsSatisfyPredicate() bool {
 //
 // Java: CheckPathsBetweenNodes.somePathsSatisfyPredicate()
 func (c *CheckPathsBetweenNodes[N, E]) SomePathsSatisfyPredicate() bool {
-	epoch := c.prepare()
-	return c.checkSomePaths(c.linkedStart, c.linkedEnd, epoch)
+	base := c.prepare()
+	return c.checkSomePaths(c.linkedStart, c.linkedEnd, base)
 }
 
 func (c *CheckPathsBetweenNodes[N, E]) checkAllPaths(
 	a *LinkedDiGraphNode[N, E],
 	b *LinkedDiGraphNode[N, E],
-	epoch uint32,
+	base uint32,
 ) bool {
 	if (c.inclusive || (a != c.linkedStart && a != c.linkedEnd)) && c.nodePredicate(a.Value) {
 		return true
@@ -179,15 +211,20 @@ func (c *CheckPathsBetweenNodes[N, E]) checkAllPaths(
 	if a == b {
 		return false
 	}
+	visited := base + 1
 	for _, e := range a.OutEdgeList.Slice() {
-		if c.edgeState[e.Index] == epoch {
+		es := c.edgeState[e.Index]
+		if es == visited {
 			continue
 		}
-		c.edgeState[e.Index] = epoch
 		if !c.allEdges && !c.edgePredicate(e) {
 			continue
 		}
-		if !c.checkAllPaths(e.DestNode, b, epoch) {
+		if es == base { // BACK_EDGE
+			continue
+		}
+		c.edgeState[e.Index] = visited
+		if !c.checkAllPaths(e.DestNode, b, base) {
 			return false
 		}
 	}
@@ -197,7 +234,7 @@ func (c *CheckPathsBetweenNodes[N, E]) checkAllPaths(
 func (c *CheckPathsBetweenNodes[N, E]) checkSomePaths(
 	a *LinkedDiGraphNode[N, E],
 	b *LinkedDiGraphNode[N, E],
-	epoch uint32,
+	base uint32,
 ) bool {
 	if (c.inclusive || (a != c.linkedStart && a != c.linkedEnd)) && c.nodePredicate(a.Value) {
 		return true
@@ -205,15 +242,20 @@ func (c *CheckPathsBetweenNodes[N, E]) checkSomePaths(
 	if a == b {
 		return false
 	}
+	visited := base + 1
 	for _, e := range a.OutEdgeList.Slice() {
-		if c.edgeState[e.Index] == epoch {
+		es := c.edgeState[e.Index]
+		if es == visited {
 			continue
 		}
-		c.edgeState[e.Index] = epoch
 		if !c.allEdges && !c.edgePredicate(e) {
 			continue
 		}
-		if c.checkSomePaths(e.DestNode, b, epoch) {
+		if es == base { // BACK_EDGE
+			continue
+		}
+		c.edgeState[e.Index] = visited
+		if c.checkSomePaths(e.DestNode, b, base) {
 			return true
 		}
 	}

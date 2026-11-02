@@ -408,6 +408,18 @@ func (p *PeepholeFoldConstants) tryFoldObjectPropAccessByID(n rhino.Node, left a
 		c := member.Node()
 		switch member.Token() {
 		case rhino.Token_SETTER_DEF:
+			if nameID != 0 && c.GetStringID() == nameID {
+				// A setter definition overrides any preceding property definition.
+				// If the preceding definition was a getter, ECMAScript combines them into an accessor
+				// with both getter and setter, retaining the getter. If it was a data property, the
+				// setter replaces it, leaving [[Get]] as undefined (void 0).
+				// If there was no preceding definition, we do not fold because the property might
+				// be defined on the prototype chain.
+				if !key.IsNil() && !peepholeFoldConstants_isGetterProp(key) {
+					key = c
+					value = NodeUtil_NewUndefinedNode(c)
+				}
+			}
 		case rhino.Token_OBJECT_SPREAD:
 			// Reset the search because spread could overwrite any previous result.
 			key = rhino.NilNode
@@ -419,10 +431,17 @@ func (p *PeepholeFoldConstants) tryFoldObjectPropAccessByID(n rhino.Node, left a
 			if !ok {
 				return n
 			}
-			if nameID != 0 && prop.Node().GetStringID() == nameID && !c.GetBooleanProp(rhino.Node_COMPUTED_PROP_SETTER) {
-				v, _ := computed.Value() // the nil node if it has none, as in the Java
-				key = c
-				value = v.Node()
+			if nameID != 0 && prop.Node().GetStringID() == nameID {
+				if c.GetBooleanProp(rhino.Node_COMPUTED_PROP_SETTER) {
+					if !key.IsNil() && !peepholeFoldConstants_isGetterProp(key) {
+						key = c
+						value = NodeUtil_NewUndefinedNode(c)
+					}
+				} else {
+					v, _ := computed.Value() // the nil node if it has none, as in the Java
+					key = c
+					value = v.Node()
+				}
 			}
 		case rhino.Token_GETTER_DEF, rhino.Token_STRING_KEY, rhino.Token_MEMBER_FUNCTION_DEF:
 			// (Go: each of these kinds names its key and its only child
@@ -452,15 +471,24 @@ func (p *PeepholeFoldConstants) tryFoldObjectPropAccessByID(n rhino.Node, left a
 	 *
 	 * <p>We remove the value we're going to use because its side-effects will be preserved.
 	 */
-	tempValue := rhino.IR_NullNode()
-	value.ReplaceWith(tempValue)
-	hasSideEffectBesidesValue := p.MayHaveSideEffects(left.Node())
-	tempValue.ReplaceWith(value)
-	if hasSideEffectBesidesValue {
-		return n
+	// When value is a newly created synthetic node (e.g. NodeUtil_NewUndefinedNode from
+	// an overridden setter), it is not yet attached to left and has no parent. In that
+	// case, left can be checked for side effects directly without temporarily replacing value.
+	if !value.GetParent().IsNil() {
+		tempValue := rhino.IR_NullNode()
+		value.ReplaceWith(tempValue)
+		hasSideEffectBesidesValue := p.MayHaveSideEffects(left.Node())
+		tempValue.ReplaceWith(value)
+		if hasSideEffectBesidesValue {
+			return n
+		}
+	} else {
+		if p.MayHaveSideEffects(left.Node()) {
+			return n
+		}
 	}
 
-	keyIsGetter := NodeUtil_IsGetOrSetKey(key)
+	keyIsGetter := peepholeFoldConstants_isGetterProp(key)
 	nIsInvoked := NodeUtil_IsInvocationTarget(n)
 
 	if keyIsGetter || nIsInvoked {
@@ -480,7 +508,10 @@ func (p *PeepholeFoldConstants) tryFoldObjectPropAccessByID(n rhino.Node, left a
 		}
 	}
 
-	value.Detach()
+	// Detach value if it was part of left; synthetic nodes (e.g. NewUndefinedNode) are unattached.
+	if !value.GetParent().IsNil() {
+		value.Detach()
+	}
 
 	parent := n.GetParent()
 
@@ -517,6 +548,12 @@ func (p *PeepholeFoldConstants) tryFoldObjectPropAccessByID(n rhino.Node, left a
 	p.ReportChangeToEnclosingScope(value)
 	p.MarkFunctionsDeleted(n)
 	return n
+}
+
+func peepholeFoldConstants_isGetterProp(key rhino.Node) bool {
+	return !key.IsNil() &&
+		(key.IsGetterDef() ||
+			(key.IsComputedProp() && key.GetBooleanProp(rhino.Node_COMPUTED_PROP_GETTER)))
 }
 
 // Java: PeepholeFoldConstants.isSafeToFlattenObjectLitSpread(Node)

@@ -22,14 +22,13 @@ import (
 	"slices"
 
 	"github.com/paullepoulpe/jsgo/internal/jutil"
-	"github.com/paullepoulpe/jsgo/internal/parser"
 	"github.com/paullepoulpe/jsgo/internal/parsing"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
 
 // JsFileFullParser is a parser that extracts dependency information from a
-// .js file, including goog.require, goog.provide, goog.module, import/export
-// statements, and JSDoc annotations related to dependency management.
+// .js file, including goog.require, goog.provide, goog.module, and
+// import/export statements.
 //
 // Java: class deps.JsFileFullParser
 type JsFileFullParser struct {
@@ -43,21 +42,14 @@ type JsFileFullParser struct {
 // Java: static final class JsFileFullParser.FileInfo
 type JsFileFullParser_FileInfo struct {
 	goog              bool
-	isConfig          bool
-	isExterns         bool
-	provideGoog       bool
 	testonly          bool
 	moduleType        JsFileFullParser_FileInfo_ModuleType
 	isLegacyNamespace bool
 
-	delcalls     []string
-	deltemplates []string
 	// Import order matters!
 	importedModules []string
 	dynamicRequires []string
 	readToggles     []string
-	modName         []string
-	mods            []string
 
 	// Note: multiple copies doesn't make much sense, but we report
 	// each copy so that calling code can choose how to handle it
@@ -65,8 +57,8 @@ type JsFileFullParser_FileInfo struct {
 	requires      []string
 	typeRequires  []string
 	maybeRequires []string
-	requiresCss   []string
-	visibility    []string
+
+	parsed *parsing.ParserRunner_ParseResult
 }
 
 func jsFileFullParser_appendUnique(dst []string, elem string) []string {
@@ -77,24 +69,16 @@ func jsFileFullParser_appendUnique(dst []string, elem string) []string {
 }
 
 func (info *JsFileFullParser_FileInfo) sortMultisets() {
-	slices.SortFunc(info.delcalls, jutil.StringCompareTo)
-	info.delcalls = slices.Compact(info.delcalls)
-	slices.SortFunc(info.deltemplates, jutil.StringCompareTo)
-	info.deltemplates = slices.Compact(info.deltemplates)
 	slices.SortFunc(info.provides, jutil.StringCompareTo)
 	slices.SortFunc(info.requires, jutil.StringCompareTo)
 	slices.SortFunc(info.typeRequires, jutil.StringCompareTo)
 	slices.SortFunc(info.maybeRequires, jutil.StringCompareTo)
-	slices.SortFunc(info.requiresCss, jutil.StringCompareTo)
-	slices.SortFunc(info.visibility, jutil.StringCompareTo)
 }
 
 // Java: JsFileFullParser.FileInfo()
 func NewJsFileFullParser_FileInfo() *JsFileFullParser_FileInfo {
 	return &JsFileFullParser_FileInfo{
 		moduleType: JsFileFullParser_FileInfo_ModuleType_UNKNOWN,
-		modName:    []string{},
-		mods:       []string{},
 	}
 }
 
@@ -117,59 +101,6 @@ var jsFileFullParser_FileInfo_ModuleType_names = [...]string{"UNKNOWN", "GOOG_PR
 func (t JsFileFullParser_FileInfo_ModuleType) String() string {
 	return jsFileFullParser_FileInfo_ModuleType_names[t]
 }
-
-// jsFileFullParser_CommentAnnotation represents a single JSDoc annotation,
-// with an optional argument.
-//
-// Java: static class JsFileFullParser.CommentAnnotation
-type jsFileFullParser_CommentAnnotation struct {
-	// Annotation name, e.g. "@fileoverview" or "@externs".
-	name string
-	// Annotation value: either the bare identifier immediately after the
-	// annotation, or else string in braces.
-	value string
-}
-
-// Java: CommentAnnotation(String, String)
-func newJsFileFullParser_CommentAnnotation(name string, value string) *jsFileFullParser_CommentAnnotation {
-	a := &jsFileFullParser_CommentAnnotation{}
-	a.name = name
-	a.value = value
-	return a
-}
-
-// jsFileFullParser_CommentAnnotation_parse returns all the annotations in a
-// given comment string.
-//
-// Java: CommentAnnotation.parse(String)
-func jsFileFullParser_CommentAnnotation_parse(comment string) []*jsFileFullParser_CommentAnnotation {
-	// TODO(b/139159612): This is reinventing a large part of JSDocInfoParser.
-	// We should try to consolidate as much as possible.  This requires
-	// several steps:
-	//   1. Make all the annotations we look for first-class in JSDocInfo
-	//   2. Support custom annotations (may already be done?)
-	//   3. Fix up existing code so that all these annotations are in @fileoverview
-	//   4. Change this code to simply inspect the script's JSDocInfo instead of re-parsing
-	out := []*jsFileFullParser_CommentAnnotation{}
-	matcher := jsFileFullParser_CommentAnnotation_ANNOTATION_RE.Matcher(comment)
-	for matcher.Find() {
-		name := *matcher.Group(jsFileFullParser_CommentAnnotation_ANNOTATION_NAME_GROUP)
-		value := ""
-		if v := matcher.Group(jsFileFullParser_CommentAnnotation_ANNOTATION_VALUE_GROUP); v != nil {
-			value = *v
-		}
-		out = append(out, newJsFileFullParser_CommentAnnotation(name, value))
-	}
-	return out
-}
-
-// Regex for a JSDoc annotation with an `@name` and an optional
-// brace-delimited `{value}`. The `@` should not match the middle of a word.
-var jsFileFullParser_CommentAnnotation_ANNOTATION_RE = jutil.Pattern_Compile(
-	"(?:[^a-zA-Z0-9_$]|^)(@[a-zA-Z]+)(?:\\s*\\{\\s*([^}\\t\\n\\v\\f\\r ]+)\\s*\\})?")
-
-const jsFileFullParser_CommentAnnotation_ANNOTATION_NAME_GROUP = 1
-const jsFileFullParser_CommentAnnotation_ANNOTATION_VALUE_GROUP = 2
 
 // JsFileFullParser_Parse parses a JavaScript file for dependencies and
 // annotations. It returns empty info if a syntax error was encountered.
@@ -202,10 +133,10 @@ func JsFileFullParser_Parse(code string, filename string, reporter JsFileFullPar
 	if errorReporter.seenError {
 		return info
 	}
+	info.parsed = parsed
 
 	parsed.Ast.SetInputId(rhino.NewInputId(filename))
 
-	jsFileFullParser_parseTopLevelJsDocComments(parsed.TopLevelStatementRanges, parsed.Comments, info)
 	gatherModuleMetadata :=
 		NewGatherModuleMetadata(
 			compiler /* processCommonJsModules= */, false, ModuleLoader_ResolutionMode_BROWSER)
@@ -300,85 +231,6 @@ func jsFileFullParser_recordModuleMetadata(info *JsFileFullParser_FileInfo, modu
 	// Traverse any nested modules (goog.loadModule calls).
 	for _, nested := range module.NestedModules() {
 		jsFileFullParser_recordModuleMetadata(info, nested)
-	}
-}
-
-// jsFileFullParser_parseTopLevelJsDocComments parses all top-level JSDoc
-// comments (comments before or after top-level statements, or all comments
-// if there are no statements), ignoring comments nested inside top-level
-// statement bodies (functions, classes, methods, blocks).
-//
-// Uses the parser's statement ranges rather than Node.getSourceOffset, which
-// is lossy: Node wraps line numbers past 2^20, clamps columns past
-// Node.MAX_COLUMN_NUMBER, and resolves lines via SourceFile, which disagrees
-// with the parser on line terminators other than \n.
-//
-// Java: JsFileFullParser.parseTopLevelJsDocComments(List<SourceRange>, List<Comment>, FileInfo)
-func jsFileFullParser_parseTopLevelJsDocComments(
-	statementRanges []parser.SourceRange, comments []parser.Comment, info *JsFileFullParser_FileInfo) {
-	i := 0
-	for idx := range comments {
-		comment := &comments[idx]
-		if comment.Type != parser.Comment_Type_JSDOC {
-			continue
-		}
-		commentStart := comment.Location.Start.Offset
-		commentEnd := comment.Location.End.Offset
-		for i < len(statementRanges) && statementRanges[i].End.Offset <= commentStart {
-			i++
-		}
-		if i < len(statementRanges) &&
-			commentStart >= statementRanges[i].Start.Offset &&
-			commentEnd <= statementRanges[i].End.Offset {
-			continue
-		}
-		jsFileFullParser_parseComment(comment, info)
-	}
-}
-
-// jsFileFullParser_parseComment mutates info with information from the given
-// comment.
-//
-// Java: JsFileFullParser.parseComment(Comment, FileInfo)
-func jsFileFullParser_parseComment(comment *parser.Comment, info *JsFileFullParser_FileInfo) {
-	for _, annotation := range jsFileFullParser_CommentAnnotation_parse(comment.Value) {
-		switch annotation.name {
-		case "@fileoverview", "@author", "@see", "@link":
-		case "@mods":
-			if annotation.value != "" {
-				info.mods = append(info.mods, annotation.value)
-			}
-		case "@visibility":
-			if annotation.value != "" {
-				info.visibility = append(info.visibility, annotation.value)
-			}
-		case "@modName":
-			if annotation.value != "" {
-				info.modName = append(info.modName, annotation.value)
-			}
-		case "@config":
-			info.isConfig = true
-		case "@provideGoog":
-			info.provideGoog = true
-		case "@requirecss":
-			if annotation.value != "" {
-				info.requiresCss = append(info.requiresCss, annotation.value)
-			}
-		case "@deltemplate", "@hassoydeltemplate":
-			// TODO(b/210468818): Remove legacy @hassoydeltemplate annotation
-			// once Soy gencode has been updated to use the new one.
-			if annotation.value != "" {
-				info.deltemplates = append(info.deltemplates, annotation.value)
-			}
-		case "@delcall", "@hassoydelcall":
-			// TODO(b/210468818): Remove legacy @hassoydelcall annotation once
-			// Soy gencode has been updated to use the new one.
-			if annotation.value != "" {
-				info.delcalls = append(info.delcalls, annotation.value)
-			}
-		case "@externs":
-			info.isExterns = true
-		}
 	}
 }
 

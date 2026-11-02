@@ -863,6 +863,10 @@ func (c *CodePrinterTest) TestBreakTemplateLiterals() {
 	c.AssertPrint("`]]>`", "`]]\\x3e`")
 	c.AssertPrint("` --></script>`", "` --\\x3e\\x3c/script>`")
 	c.AssertPrint("`<!-- I am a string -->`", "`\\x3c!-- I am a string --\\x3e`")
+
+	// An escaped `<` is broken without leaving its backslash in front of the new escape.
+	c.AssertPrint("`\\</script>`", "`\\x3c/script>`")
+	c.AssertPrint("`\\<!--`", "`\\x3c!--`")
 }
 
 // Java: CodePrinterTest.testBreakUntrustedTemplateLiterals()
@@ -874,6 +878,7 @@ func (c *CodePrinterTest) TestBreakUntrustedTemplateLiterals() {
 	c.AssertPrint("`</script>`", "`\\x3c/script\\x3e`")
 	c.AssertPrint("`<!-- I am a string -->`", "`\\x3c!-- I am a string --\\x3e`")
 	c.AssertPrint("`<=&>`", "`\\x3c\\x3d\\x26\\x3e`")
+	c.AssertPrint("`\\<\\=\\&\\>`", "`\\x3c\\x3d\\x26\\x3e`")
 }
 
 // Java: CodePrinterTest.testHtmlComments()
@@ -3350,6 +3355,30 @@ func (c *CodePrinterTest) TestPrivateClassProperties_usage() {
 	c.AssertPrintSame("class C{static #f;static #m(){const t=this;#f in t}}")
 }
 
+// Java: CodePrinterTest.testPrivateClassProperties_nonLatinNames_knownBug()
+func (c *CodePrinterTest) TestPrivateClassProperties_nonLatinNames_knownBug() {
+	// Expected behavior: each input prints unchanged. Private names are never quoted, because a
+	// quoted name is a public property name. Non-Latin characters in method and field names are
+	// escaped, as in other identifiers.
+	//
+	// TODO(b/236744850): Private method and getter names with non-Latin characters are quoted.
+	// Current behavior: `#\u00f1(){}` prints as `"#\u00f1"(){}`, and `get #\u00fc(){return 1}`
+	//   prints as `get "#\u00fc"(){return 1}`.
+	// Why it's a bug: the quoted names declare public members, not the private `#\u00f1` and
+	//   `#\u00fc`. Then a use like `this.#\u00f1()` in the class is a SyntaxError, because
+	//   `#\u00f1` is no longer declared.
+	c.AssertPrint("class C{#\\u00f1(){}}", "class C{\"#\\u00f1\"(){}}")
+	c.AssertPrint("class C{get #\\u00fc(){return 1}}", "class C{get \"#\\u00fc\"(){return 1}}")
+	// TODO(b/236744850): Non-Latin characters in field names are not escaped.
+	// Current behavior: `#\u00e9=1;` and `\u00e9=1;` print with the character U+00E9 itself
+	//   instead of the escape `\u00e9`.
+	// Why it's a bug: other identifiers are always printed in ASCII. The command-line compiler
+	//   writes its output in US-ASCII by default, which turns U+00E9 into `?`, and `#?=1;` and
+	//   `?=1;` are SyntaxErrors.
+	c.AssertPrint("class C{#\\u00e9=1;}", "class C{#\u00e9=1;}")
+	c.AssertPrint("class C{\\u00e9=1;}", "class C{\u00e9=1;}")
+}
+
 // Java: CodePrinterTest.testSuper()
 func (c *CodePrinterTest) TestSuper() {
 	c.AssertPrintSame("class C extends foo(){}")
@@ -3875,6 +3904,11 @@ func (c *CodePrinterTest) TestTemplateLiteral() {
 	c.AssertPrintSame("`\\\"`")
 	c.AssertPrintSame("`\\'`")
 	c.AssertPrintSame("`\\``")
+
+	// A character escaped with a backslash that has to be escaped again.
+	c.AssertPrint("`\\\u00e9`", "`\\u00e9`")
+	c.AssertPrint("`\\\U0001f600`", "`\\ud83d\\ude00`")
+	c.AssertPrint("`\\\\\u00e9`", "`\\\\\\u00e9`")
 
 	c.AssertPrintSame("foo`\\unicode`")
 	// b/114808380

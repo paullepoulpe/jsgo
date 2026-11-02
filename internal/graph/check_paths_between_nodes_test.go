@@ -247,6 +247,158 @@ func TestCheckPathsBetweenNodes_NonInclusive(t *testing.T) {
 	assertTrue(t, "b", checkPathsTest_createNonInclusiveTest(g, "a", "c", checkPathsTest_equalTo("b"), checkPathsTest_ALL_EDGE).SomePathsSatisfyPredicate())
 }
 
+func TestCheckPathsBetweenNodes_ConfluentPaths_visitedEdgePreventsRedundantTraversal_allPaths(t *testing.T) {
+	g := LinkedDirectedGraph_Create[string, string]()
+	g.CreateNode("a")
+	g.CreateNode("b")
+	g.CreateNode("c")
+	g.CreateNode("d")
+	g.CreateNode("e")
+
+	g.Connect("a", "-", "b")
+	g.Connect("a", "-", "c")
+	g.Connect("b", "-", "d")
+	g.Connect("c", "-", "d")
+	g.Connect("d", "-", "e")
+
+	// Diamond DAG where paths a -> b -> d -> e and a -> c -> d -> e converge at 'd'.
+	// Once edge d -> e is traversed and marked VISITED_EDGE on the first path,
+	// the second path converging at 'd' must not re-traverse d -> e.
+	countE := newCheckPathsTest_nodeCountingPredicate("e", true)
+	assertTrue(t, "allPaths", checkPathsTest_createTest(g, "a", "e", countE.apply, checkPathsTest_ALL_EDGE).AllPathsSatisfyPredicate())
+	assertEqual(t, "countE", countE.count, 1)
+}
+
+func TestCheckPathsBetweenNodes_ConfluentPaths_visitedEdgePreventsRedundantTraversal_somePaths(t *testing.T) {
+	g := LinkedDirectedGraph_Create[string, string]()
+	g.CreateNode("a")
+	g.CreateNode("b")
+	g.CreateNode("c")
+	g.CreateNode("d")
+	g.CreateNode("e")
+
+	g.Connect("a", "-", "b")
+	g.Connect("a", "-", "c")
+	g.Connect("b", "-", "d")
+	g.Connect("c", "-", "d")
+	g.Connect("d", "-", "e")
+
+	// Diamond DAG where paths a -> b -> d -> e and a -> c -> d -> e converge at 'd'.
+	// In somePathsSatisfyPredicate, when the first path does not satisfy the predicate,
+	// edge d -> e is marked VISITED_EDGE. The second path converging at 'd' must not
+	// re-traverse d -> e.
+	countE := newCheckPathsTest_nodeCountingPredicate("e", false)
+	assertFalse(t, "somePaths", checkPathsTest_createTest(g, "a", "e", countE.apply, checkPathsTest_ALL_EDGE).SomePathsSatisfyPredicate())
+	assertEqual(t, "countE", countE.count, 1)
+}
+
+func TestCheckPathsBetweenNodes_ConfluentPaths_withCycles_allPaths(t *testing.T) {
+	g := LinkedDirectedGraph_Create[string, string]()
+	g.CreateNode("a")
+	g.CreateNode("b")
+	g.CreateNode("c")
+	g.CreateNode("d")
+	g.CreateNode("e")
+	g.CreateNode("f")
+
+	g.Connect("a", "-", "b")
+	g.Connect("a", "-", "c")
+	g.Connect("b", "-", "d")
+	g.Connect("c", "-", "d")
+	g.Connect("d", "-", "e")
+	g.Connect("e", "-", "d") // cycle on confluent subgraph
+	g.Connect("d", "-", "f")
+
+	// All paths from 'a' to 'f' converge at 'd'. The cycle e -> d is a back edge,
+	// and d -> f is marked VISITED_EDGE once traversed. 'f' must be visited once.
+	countF := newCheckPathsTest_nodeCountingPredicate("f", true)
+	assertTrue(t, "allPaths", checkPathsTest_createTest(g, "a", "f", countF.apply, checkPathsTest_ALL_EDGE).AllPathsSatisfyPredicate())
+	assertEqual(t, "countF", countF.count, 1)
+}
+
+func TestCheckPathsBetweenNodes_ConfluentPaths_withCycles_somePaths(t *testing.T) {
+	g := LinkedDirectedGraph_Create[string, string]()
+	g.CreateNode("a")
+	g.CreateNode("b")
+	g.CreateNode("c")
+	g.CreateNode("d")
+	g.CreateNode("e")
+	g.CreateNode("f")
+
+	g.Connect("a", "-", "b")
+	g.Connect("a", "-", "c")
+	g.Connect("b", "-", "d")
+	g.Connect("c", "-", "d")
+	g.Connect("d", "-", "e")
+	g.Connect("e", "-", "d") // cycle on confluent subgraph
+	g.Connect("d", "-", "f")
+
+	countF := newCheckPathsTest_nodeCountingPredicate("f", false)
+	assertFalse(t, "somePaths", checkPathsTest_createTest(g, "a", "f", countF.apply, checkPathsTest_ALL_EDGE).SomePathsSatisfyPredicate())
+	assertEqual(t, "countF", countF.count, 1)
+}
+
+func TestCheckPathsBetweenNodes_Cycles_backEdgeNotTraversed_allPaths(t *testing.T) {
+	g := LinkedDirectedGraph_Create[string, string]()
+	g.CreateNode("a")
+	g.CreateNode("b")
+	g.CreateNode("c")
+	g.CreateNode("d")
+
+	g.Connect("a", "-", "b")
+	g.Connect("b", "-", "c")
+	g.Connect("c", "-", "b") // back edge to b
+	g.Connect("b", "-", "d")
+
+	// NodeCountingPredicate on 'b': without back edges, 'b' is visited once.
+	// If the back edge c -> b is traversed, 'b' is revisited.
+	countB := newCheckPathsTest_nodeCountingPredicate("b", false)
+	assertFalse(t, "allPaths", checkPathsTest_createTest(g, "a", "d", countB.apply, checkPathsTest_ALL_EDGE).AllPathsSatisfyPredicate())
+	assertEqual(t, "countB", countB.count, 1)
+}
+
+func TestCheckPathsBetweenNodes_Cycles_backEdgeNotTraversed_somePaths(t *testing.T) {
+	g := LinkedDirectedGraph_Create[string, string]()
+	g.CreateNode("a")
+	g.CreateNode("b")
+	g.CreateNode("c")
+	g.CreateNode("d")
+
+	g.Connect("a", "-", "b")
+	g.Connect("b", "-", "c")
+	g.Connect("c", "-", "b") // back edge to b
+	g.Connect("b", "-", "d")
+
+	// NodeCountingPredicate on 'b': without back edges, 'b' is visited once.
+	// If the back edge c -> b is traversed, 'b' is revisited.
+	countB := newCheckPathsTest_nodeCountingPredicate("b", false)
+	assertFalse(t, "somePaths", checkPathsTest_createTest(g, "a", "d", countB.apply, checkPathsTest_ALL_EDGE).SomePathsSatisfyPredicate())
+	assertEqual(t, "countB", countB.count, 1)
+}
+
+func TestCheckPathsBetweenNodes_Cycles_backEdgeToStartNotTraversed(t *testing.T) {
+	g := LinkedDirectedGraph_Create[string, string]()
+	g.CreateNode("a")
+	g.CreateNode("b")
+	g.CreateNode("c")
+	g.CreateNode("d")
+
+	g.Connect("a", "-", "b")
+	g.Connect("b", "-", "c")
+	g.Connect("c", "-", "a") // back edge to start 'a'
+	g.Connect("b", "-", "d")
+
+	// NodeCountingPredicate on 'a': without back edges, start 'a' is visited once.
+	// If the back edge c -> a is traversed, 'a' is revisited.
+	countA := newCheckPathsTest_nodeCountingPredicate("a", false)
+	assertFalse(t, "allPaths", checkPathsTest_createTest(g, "a", "d", countA.apply, checkPathsTest_ALL_EDGE).AllPathsSatisfyPredicate())
+	assertEqual(t, "countA", countA.count, 1)
+
+	countSomeA := newCheckPathsTest_nodeCountingPredicate("a", false)
+	assertFalse(t, "somePaths", checkPathsTest_createTest(g, "a", "d", countSomeA.apply, checkPathsTest_ALL_EDGE).SomePathsSatisfyPredicate())
+	assertEqual(t, "countSomeA", countSomeA.count, 1)
+}
+
 func TestCheckPathsBetweenNodes_WithoutAnnotationsAndSideEffectFree(t *testing.T) {
 	// Works on graphs with annotations disabled.
 	noAnn := LinkedDirectedGraph_CreateWithoutAnnotations[string, string]()
@@ -255,18 +407,18 @@ func TestCheckPathsBetweenNodes_WithoutAnnotationsAndSideEffectFree(t *testing.T
 	c := noAnn.CreateLinkedDiGraphNode("c")
 	d := noAnn.CreateLinkedDiGraphNode("d")
 	p := noAnn.CreateLinkedDiGraphNode("p")
-	// Multi-entry cycle where one entry passes through p and the other bypasses p:
-	// a -> p -> b <-> c, b -> d, a -> c.
+	// Cycle where one path to loop header b passes through p and another bypasses p:
+	// a -> p -> b <-> c, b -> d, a -> b.
 	noAnn.ConnectLinkedNodes(a, "-", p)
 	noAnn.ConnectLinkedNodes(p, "-", b)
 	noAnn.ConnectLinkedNodes(b, "-", c)
 	noAnn.ConnectLinkedNodes(c, "-", b)
 	noAnn.ConnectLinkedNodes(b, "-", d)
-	noAnn.ConnectLinkedNodes(a, "-", c)
+	noAnn.ConnectLinkedNodes(a, "-", b)
 
 	var checker CheckPathsBetweenNodes[string, string]
 	checker.ResetLinkedAllEdges(noAnn, a, d, checkPathsTest_equalTo("p"), true)
-	assertFalse(t, "allPaths bypass via a->c->b->d", checker.AllPathsSatisfyPredicate())
+	assertFalse(t, "allPaths bypass via a->b->d", checker.AllPathsSatisfyPredicate())
 	assertTrue(t, "somePaths via a->p->b->d", checker.SomePathsSatisfyPredicate())
 
 	checker.ResetLinkedAllEdges(noAnn, a, d, checkPathsTest_equalTo("b"), false)
@@ -358,4 +510,22 @@ func checkPathsTest_createNonInclusiveTest(
 
 func checkPathsTest_edgeIs(val string) func(*LinkedDiGraphEdge[string, string]) bool {
 	return func(input *LinkedDiGraphEdge[string, string]) bool { return input.GetValue() == val }
+}
+
+type checkPathsTest_nodeCountingPredicate[T comparable] struct {
+	count       int
+	target      T
+	returnValue bool
+}
+
+func newCheckPathsTest_nodeCountingPredicate[T comparable](target T, returnValue bool) *checkPathsTest_nodeCountingPredicate[T] {
+	return &checkPathsTest_nodeCountingPredicate[T]{target: target, returnValue: returnValue}
+}
+
+func (p *checkPathsTest_nodeCountingPredicate[T]) apply(input T) bool {
+	if input == p.target {
+		p.count++
+		return p.returnValue
+	}
+	return false
 }
