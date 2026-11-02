@@ -51,6 +51,7 @@ const (
 	varFlagMarkedEscaped      uint32 = 1 << 26
 	varFlagMarkedAssignedOnce uint32 = 1 << 27
 	varFlagTypeInferred       uint32 = 1 << 28
+	varFlagIsImplicit         uint32 = 1 << 29
 )
 
 // varCommon holds the shared pointer-free fields of Var and TypedVar.
@@ -66,7 +67,7 @@ type varCommon struct {
 	input uint32
 
 	// Lower 24 bits: uint32(index + 1); bits 24..25: implicit goog namespace
-	// strength (0 = none, 1..3 = SourceKind + 1); bits 26..28: TypedVar flags.
+	// strength (0 = none, 1..3 = SourceKind + 1); bits 26..29: TypedVar/implicit flags.
 	indexAndFlags uint32
 	// Cached ScopedName.hashCode() (0 = uncomputed).
 	nameHash int32
@@ -78,6 +79,7 @@ func (b *varCommon) initVarCommon(
 	index int,
 	input *CompilerInput,
 	implicitGoogNamespaceDefinition rhino.Node,
+	isImplicit bool,
 ) {
 	if index < -1 {
 		failInvalidVarIndex(index)
@@ -86,9 +88,12 @@ func (b *varCommon) initVarCommon(
 	if !implicitGoogNamespaceDefinition.IsNil() {
 		b.nameNode = rhino.NilNode
 		strength := abstractVar_strengthOf(implicitGoogNamespaceDefinition)
-		flags |= (uint32(strength) + 1) << varImplicitStrengthShift
+		flags |= ((uint32(strength) + 1) << varImplicitStrengthShift) | varFlagIsImplicit
 	} else {
 		b.nameNode = nameNode
+		if isImplicit {
+			flags |= varFlagIsImplicit
+		}
 	}
 	b.indexAndFlags = flags
 	b.nameHash = 0
@@ -247,9 +252,40 @@ func failInvalidDeclarationType() {
 }
 
 //go:noinline
-func failNotImplicitGoogNamespace(self any) {
-	jutil.CheckStateMsg1(false, "%s", self)
+func failNotImplicitGoogNamespace(nameNode rhino.Node) {
+	jutil.CheckStateMsg1(false, "not an implicit goog namespace: %s", nameNode)
 }
+
+// IsImplicit reports whether this variable is an implicit scope variable or
+// implicit goog namespace.
+func (b *varCommon) IsImplicit() bool {
+	return b.indexAndFlags&varFlagIsImplicit != 0
+}
+
+// DeclarationToken returns the enclosing declaration token of b, or (0, false)
+// when b is an implicit variable.
+func (b *varCommon) DeclarationToken() (rhino.Token, bool) {
+	if tok, ok := b.findDeclarationToken(); ok {
+		return tok, true
+	}
+	if !b.IsImplicit() {
+		failInvalidDeclarationType()
+	}
+	return 0, false
+}
+
+func (b *varCommon) isDeclarationToken(want rhino.Token) bool {
+	tok, ok := b.DeclarationToken()
+	return ok && tok == want
+}
+
+func (b *varCommon) IsVar() bool    { return b.isDeclarationToken(rhino.Token_VAR) }
+func (b *varCommon) IsCatch() bool  { return b.isDeclarationToken(rhino.Token_CATCH) }
+func (b *varCommon) IsLet() bool    { return b.isDeclarationToken(rhino.Token_LET) }
+func (b *varCommon) IsConst() bool  { return b.isDeclarationToken(rhino.Token_CONST) }
+func (b *varCommon) IsClass() bool  { return b.isDeclarationToken(rhino.Token_CLASS) }
+func (b *varCommon) IsParam() bool  { return b.isDeclarationToken(rhino.Token_PARAM_LIST) }
+func (b *varCommon) IsImport() bool { return b.isDeclarationToken(rhino.Token_IMPORT) }
 
 // IsImplicitGoogNamespace reports whether this name comes from a
 // goog.provide or legacy goog.module and does not have a normal syntactical
@@ -260,21 +296,20 @@ func (b *varCommon) IsImplicitGoogNamespace() bool {
 	return b.indexAndFlags&varImplicitStrengthMask != 0
 }
 
-func (b *varCommon) addImplicitGoogNamespaceDefinition(definition rhino.Node) bool {
+func (b *varCommon) AddImplicitGoogNamespaceDefinition(definition rhino.Node) {
 	if !b.IsImplicitGoogNamespace() {
-		return false
+		failNotImplicitGoogNamespace(b.nameNode)
 	}
 	cur := rhino.StaticSourceFile_SourceKind(((b.indexAndFlags & varImplicitStrengthMask) >> varImplicitStrengthShift) - 1)
 	strength := abstractVar_strongerOf(cur, abstractVar_strengthOf(definition))
 	b.indexAndFlags = (b.indexAndFlags &^ varImplicitStrengthMask) | ((uint32(strength) + 1) << varImplicitStrengthShift)
-	return true
 }
 
-func (b *varCommon) getImplicitGoogNamespaceStrength() (rhino.StaticSourceFile_SourceKind, bool) {
+func (b *varCommon) GetImplicitGoogNamespaceStrength() rhino.StaticSourceFile_SourceKind {
 	if !b.IsImplicitGoogNamespace() {
-		return 0, false
+		failNotImplicitGoogNamespace(b.nameNode)
 	}
-	return rhino.StaticSourceFile_SourceKind(((b.indexAndFlags & varImplicitStrengthMask) >> varImplicitStrengthShift) - 1), true
+	return rhino.StaticSourceFile_SourceKind(((b.indexAndFlags & varImplicitStrengthMask) >> varImplicitStrengthShift) - 1)
 }
 
 // Java: AbstractVar.strengthOf(Node)
@@ -315,12 +350,13 @@ func equalsScopedName(name string, scopeRoot rhino.Node, other any) bool {
 // used while its compiler, which holds its inputs, is.
 var compilerInputTable struct {
 	mu       sync.Mutex
-	entries  []weak.Pointer[CompilerInput]                 // entry i has index i+1
-	snapshot atomic.Pointer[[]weak.Pointer[CompilerInput]] // immutable prefix snapshot for lock-free reads
+	used     int
+	free     []uint32                                      // 0-based indices of reclaimed dead slots
+	snapshot atomic.Pointer[[]weak.Pointer[CompilerInput]] // full-capacity backing slice for lock-free reads
 }
 
 // compilerInputTable_indexOf returns the index of input (0 for nil),
-// adding it to the table on first use.
+// adding it to the table on first use and recycling GC'd slots across compilations.
 func compilerInputTable_indexOf(input *CompilerInput) uint32 {
 	if input == nil {
 		return 0
@@ -333,23 +369,41 @@ func compilerInputTable_indexOf(input *CompilerInput) uint32 {
 	if i := input.varTableIndex.Load(); i != 0 {
 		return i
 	}
-	cur := compilerInputTable.entries
-	var next []weak.Pointer[CompilerInput]
-	if len(cur) < cap(cur) {
-		next = cur[:len(cur)+1]
-		next[len(cur)] = weak.Make(input)
-	} else {
-		next = make([]weak.Pointer[CompilerInput], len(cur)+1, max(cap(cur)*2, 64))
-		copy(next, cur)
-		next[len(cur)] = weak.Make(input)
+	var entries []weak.Pointer[CompilerInput]
+	if snap := compilerInputTable.snapshot.Load(); snap != nil {
+		entries = *snap
 	}
-	compilerInputTable.entries = next
-	snap := new([]weak.Pointer[CompilerInput])
-	*snap = next
-	compilerInputTable.snapshot.Store(snap)
-	i := uint32(len(next))
-	input.varTableIndex.Store(i)
-	return i
+	var slot uint32
+	if n := len(compilerInputTable.free); n > 0 {
+		slot = compilerInputTable.free[n-1]
+		compilerInputTable.free = compilerInputTable.free[:n-1]
+		entries[slot] = weak.Make(input)
+	} else if compilerInputTable.used < len(entries) {
+		slot = uint32(compilerInputTable.used)
+		compilerInputTable.used++
+		entries[slot] = weak.Make(input)
+	} else {
+		for k := range entries {
+			if entries[k].Value() == nil {
+				compilerInputTable.free = append(compilerInputTable.free, uint32(k))
+			}
+		}
+		if n := len(compilerInputTable.free); n > 0 {
+			slot = compilerInputTable.free[n-1]
+			compilerInputTable.free = compilerInputTable.free[:n-1]
+			entries[slot] = weak.Make(input)
+		} else {
+			grown := make([]weak.Pointer[CompilerInput], max(len(entries)*2, 64))
+			copy(grown, entries)
+			slot = uint32(compilerInputTable.used)
+			compilerInputTable.used++
+			grown[slot] = weak.Make(input)
+			compilerInputTable.snapshot.Store(&grown)
+		}
+	}
+	idx := slot + 1
+	input.varTableIndex.Store(idx)
+	return idx
 }
 
 // compilerInputTable_at returns the input with index i (nil for 0).
@@ -431,7 +485,13 @@ func initVar(
 ) *Var {
 	v.scope = scope
 	v.nameID = nameID
-	v.initVarCommon(nameNode, index, input, implicitGoogNamespaceDefinition)
+	var isImplicit bool
+	if implicitGoogNamespaceDefinition.IsNil() && scope != nil {
+		if imp, ok := AbstractScope_ImplicitVar_LookupID(nameID); ok {
+			isImplicit = imp.isMadeByRootNode(scope.rootNode)
+		}
+	}
+	v.initVarCommon(nameNode, index, input, implicitGoogNamespaceDefinition, isImplicit)
 	return v
 }
 
@@ -474,12 +534,12 @@ func (v *Var) GetSourceFile() rhino.StaticSourceFile {
 
 // Java: AbstractVar.isGlobal()
 func (v *Var) IsGlobal() bool {
-	return v.scope.parent == nil
+	return v.scope.IsGlobal()
 }
 
 // Java: AbstractVar.isLocal()
 func (v *Var) IsLocal() bool {
-	return v.scope.parent != nil
+	return v.scope.IsLocal()
 }
 
 // Java: ScopedName.hashCode()
@@ -498,57 +558,11 @@ func (v *Var) Equals(other any) bool {
 	return equalsScopedName(v.GetName(), v.scope.rootNode, other)
 }
 
-// DeclarationToken returns the enclosing declaration token of v, or (0, false)
-// when v is an implicit variable.
-func (v *Var) DeclarationToken() (rhino.Token, bool) {
-	if tok, ok := v.findDeclarationToken(); ok {
-		return tok, true
-	}
-	if !v.IsImplicit() {
-		failInvalidDeclarationType()
-	}
-	return 0, false
-}
-
-func (v *Var) isDeclarationToken(want rhino.Token) bool {
-	tok, ok := v.DeclarationToken()
-	return ok && tok == want
-}
-
-func (v *Var) IsVar() bool       { return v.isDeclarationToken(rhino.Token_VAR) }
-func (v *Var) IsCatch() bool     { return v.isDeclarationToken(rhino.Token_CATCH) }
-func (v *Var) IsLet() bool       { return v.isDeclarationToken(rhino.Token_LET) }
-func (v *Var) IsConst() bool     { return v.isDeclarationToken(rhino.Token_CONST) }
-func (v *Var) IsClass() bool     { return v.isDeclarationToken(rhino.Token_CLASS) }
-func (v *Var) IsParam() bool     { return v.isDeclarationToken(rhino.Token_PARAM_LIST) }
-func (v *Var) IsImport() bool    { return v.isDeclarationToken(rhino.Token_IMPORT) }
 func (v *Var) IsArguments() bool { return v.nameID == implicitArgumentsID && v.scope.IsFunctionScope() }
 func (v *Var) IsGoogModuleExports() bool {
 	return v.nameID == implicitExportsID && v.scope.IsModuleScope() && v.IsImplicit()
 }
 func (v *Var) IsThis() bool { return v.nameID == implicitThisID && v.scope.IsFunctionScope() }
-
-func (v *Var) IsImplicit() bool {
-	if v.IsImplicitGoogNamespace() {
-		return true
-	}
-	imp, ok := AbstractScope_ImplicitVar_LookupID(v.nameID)
-	return ok && imp.isMadeByRootNode(v.scope.rootNode)
-}
-
-func (v *Var) AddImplicitGoogNamespaceDefinition(definition rhino.Node) {
-	if !v.addImplicitGoogNamespaceDefinition(definition) {
-		failNotImplicitGoogNamespace(v)
-	}
-}
-
-func (v *Var) GetImplicitGoogNamespaceStrength() rhino.StaticSourceFile_SourceKind {
-	s, ok := v.getImplicitGoogNamespaceStrength()
-	if !ok {
-		failNotImplicitGoogNamespace(v)
-	}
-	return s
-}
 
 // Java: AbstractVar.getSymbol()
 func (v *Var) GetSymbol() rhino.StaticSlot {

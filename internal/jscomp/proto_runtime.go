@@ -27,6 +27,7 @@ package jscomp
 
 import (
 	"encoding/binary"
+	"io"
 	"math"
 	"math/bits"
 	"strconv"
@@ -207,6 +208,104 @@ func (r *protoReader) sub(data []byte) protoReader {
 }
 
 func (r *protoReader) atEnd() bool { return r.pos >= len(r.b) }
+
+type protoSingleByteReader struct {
+	r io.Reader
+	b [1]byte
+}
+
+func (s *protoSingleByteReader) ReadByte() (byte, error) {
+	for {
+		n, err := s.r.Read(s.b[:])
+		if n == 1 {
+			return s.b[0], nil
+		}
+		if err != nil {
+			return 0, err
+		}
+	}
+}
+
+// protoByteReader returns r as an io.ByteReader without buffering ahead of r.
+func protoByteReader(r io.Reader) io.ByteReader {
+	if br, ok := r.(io.ByteReader); ok {
+		return br
+	}
+	return &protoSingleByteReader{r: r}
+}
+
+func protoReadSliceVarint64(b []byte, pos *int, allowEOF bool) (uint64, bool, jutil.Throwable) {
+	if *pos >= len(b) {
+		if allowEOF {
+			return 0, false, nil
+		}
+		return 0, false, protoTruncatedMessage()
+	}
+	first := b[*pos]
+	*pos++
+	if first < 0x80 {
+		return uint64(first), true, nil
+	}
+	x := uint64(first & 0x7f)
+	for shift := uint(7); shift < 64; shift += 7 {
+		if *pos >= len(b) {
+			return 0, false, protoTruncatedMessage()
+		}
+		c := b[*pos]
+		*pos++
+		x |= uint64(c&0x7f) << shift
+		if c < 0x80 {
+			return x, true, nil
+		}
+	}
+	return 0, false, protoMalformedVarint()
+}
+
+func protoReadByte(br io.ByteReader, allowEOF bool) (byte, bool, jutil.Throwable) {
+	b, err := br.ReadByte()
+	if err == nil {
+		return b, true, nil
+	}
+	if err == io.EOF {
+		if allowEOF {
+			return 0, false, nil
+		}
+		return 0, false, protoTruncatedMessage()
+	}
+	return 0, false, jutil.NewIOException(err.Error())
+}
+
+func protoReadStreamVarint64(br io.ByteReader, allowEOF bool) (uint64, bool, jutil.Throwable) {
+	first, ok, err := protoReadByte(br, allowEOF)
+	if err != nil || !ok {
+		return 0, false, err
+	}
+	if first < 0x80 {
+		return uint64(first), true, nil
+	}
+	x := uint64(first & 0x7f)
+	for shift := uint(7); shift < 64; shift += 7 {
+		b, _, err := protoReadByte(br, false)
+		if err != nil {
+			return 0, false, err
+		}
+		x |= uint64(b&0x7f) << shift
+		if b < 0x80 {
+			return x, true, nil
+		}
+	}
+	return 0, false, protoMalformedVarint()
+}
+
+func protoReadFull(r io.Reader, dst []byte) jutil.Throwable {
+	if _, err := io.ReadFull(r, dst); err != nil {
+		if err == io.EOF || err == io.ErrUnexpectedEOF {
+			return protoTruncatedMessage()
+		}
+		return jutil.NewIOException(err.Error())
+	}
+	return nil
+}
 
 func (r *protoReader) readRawVarint64() uint64 {
 	var x uint64

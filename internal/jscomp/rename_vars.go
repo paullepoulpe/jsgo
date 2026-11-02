@@ -112,7 +112,7 @@ type RenameVars struct {
 	// Maps an old name to a new name assignment, plus insertion-ordered list
 	assignmentByName map[string]*RenameVars_Assignment
 	assignmentList   []*RenameVars_Assignment
-	assignmentSlab   []RenameVars_Assignment
+	assignmentSlab   jutil.Slab[RenameVars_Assignment]
 	localByIndex     []*RenameVars_Assignment
 	seenVars         map[*Var]renameVarDecision
 
@@ -150,11 +150,7 @@ type renameVarDecision struct {
 }
 
 func (r *RenameVars) allocAssignment(name string, isLocal bool) *RenameVars_Assignment {
-	if len(r.assignmentSlab) == 0 {
-		r.assignmentSlab = make([]RenameVars_Assignment, 128)
-	}
-	a := &r.assignmentSlab[0]
-	r.assignmentSlab = r.assignmentSlab[1:]
+	a := r.assignmentSlab.New()
 	a.isLocal = isLocal
 	a.oldName = name
 	a.orderOfOccurrence = r.assignmentCount
@@ -167,30 +163,17 @@ func (r *RenameVars) putAssignment(name string, a *RenameVars_Assignment) {
 	r.assignmentList = append(r.assignmentList, a)
 }
 
-func (r *RenameVars) appendLocalRef(n rhino.Node, a *RenameVars_Assignment) {
-	nChunks := len(r.localRefChunks)
-	if nChunks == 0 || len(r.localRefChunks[nChunks-1]) == cap(r.localRefChunks[nChunks-1]) {
+func appendChunkedNodeRef(chunks *[][]renameVarsNodeRef, n rhino.Node, a *RenameVars_Assignment) {
+	s := *chunks
+	if len(s) == 0 || len(s[len(s)-1]) == cap(s[len(s)-1]) {
 		newCap := 1024
-		if nChunks > 0 {
-			newCap = min(cap(r.localRefChunks[nChunks-1])*2, 16384)
+		if len(s) > 0 {
+			newCap = min(cap(s[len(s)-1])*2, 16384)
 		}
-		r.localRefChunks = append(r.localRefChunks, make([]renameVarsNodeRef, 0, newCap))
-		nChunks++
+		s = append(s, make([]renameVarsNodeRef, 0, newCap))
+		*chunks = s
 	}
-	r.localRefChunks[nChunks-1] = append(r.localRefChunks[nChunks-1], renameVarsNodeRef{node: n, assignment: a})
-}
-
-func (r *RenameVars) appendGlobalRef(n rhino.Node, a *RenameVars_Assignment) {
-	nChunks := len(r.globalRefChunks)
-	if nChunks == 0 || len(r.globalRefChunks[nChunks-1]) == cap(r.globalRefChunks[nChunks-1]) {
-		newCap := 512
-		if nChunks > 0 {
-			newCap = min(cap(r.globalRefChunks[nChunks-1])*2, 8192)
-		}
-		r.globalRefChunks = append(r.globalRefChunks, make([]renameVarsNodeRef, 0, newCap))
-		nChunks++
-	}
-	r.globalRefChunks[nChunks-1] = append(r.globalRefChunks[nChunks-1], renameVarsNodeRef{node: n, assignment: a})
+	s[len(s)-1] = append(s[len(s)-1], renameVarsNodeRef{node: n, assignment: a})
 }
 
 // SetNewName assigns the new name.
@@ -341,9 +324,9 @@ func (p *RenameVars_ProcessVars) Visit(t *NodeTraversal, n rhino.Node, parent rh
 					r.RecordPseudoName(n)
 				}
 				if a.isLocal {
-					r.appendLocalRef(n, a)
+					appendChunkedNodeRef(&r.localRefChunks, n, a)
 				} else {
-					r.appendGlobalRef(n, a)
+					appendChunkedNodeRef(&r.globalRefChunks, n, a)
 				}
 			} else if dec.invertID != 0 {
 				setNodeStringID(n, dec.invertID)
@@ -423,7 +406,7 @@ func (p *RenameVars_ProcessVars) Visit(t *NodeTraversal, n rhino.Node, parent rh
 				}
 			}
 			a.count++
-			r.appendLocalRef(n, a)
+			appendChunkedNodeRef(&r.localRefChunks, n, a)
 		} else {
 			a = r.assignmentByName[name]
 			if a == nil {
@@ -431,7 +414,7 @@ func (p *RenameVars_ProcessVars) Visit(t *NodeTraversal, n rhino.Node, parent rh
 				r.putAssignment(name, a)
 			}
 			a.count++
-			r.appendGlobalRef(n, a)
+			appendChunkedNodeRef(&r.globalRefChunks, n, a)
 		}
 		r.seenVars[var_] = renameVarDecision{assignment: a}
 		return
@@ -472,6 +455,24 @@ var RenameVars_ORDER_OF_OCCURRENCE_COMPARATOR = func(a1 *RenameVars_Assignment, 
 	return cmp.Compare(a1.orderOfOccurrence, a2.orderOfOccurrence)
 }
 
+func (r *RenameVars) applyNodeRename(n rhino.Node, newID, oldID strpool.ID) {
+	if r.pseudoNameMap != nil {
+		pName, ok := r.pseudoNameMap[n]
+		if !ok {
+			return
+		}
+		newID = strpool.Intern(pName)
+	}
+	if newID != oldID {
+		setNodeStringID(n, newID)
+		r.compiler.ReportChangeToEnclosingScope(n)
+		parent := n.GetParent()
+		if _, isFn := ast.AsFunction(parent); isFn && NodeUtil_IsFunctionDeclaration(parent) {
+			r.compiler.ReportChangeToEnclosingScope(parent)
+		}
+	}
+}
+
 // Java: RenameVars.process(Node, Node)
 func (r *RenameVars) Process(externs rhino.Node, root rhino.Node) {
 	r.externNames = make(map[string]struct{}, 64)
@@ -507,26 +508,10 @@ func (r *RenameVars) Process(externs rhino.Node, root rhino.Node) {
 	// Rename the globals!
 	for _, chunk := range r.globalRefChunks {
 		for _, ref := range chunk {
-			n := ref.node
 			a := ref.assignment
-			oldID := strpool.ID(n.GetStringID())
+			oldID := strpool.ID(ref.node.GetStringID())
 			if a.hasNewName && a.newNameID != oldID {
-				newID := a.newNameID
-				if r.pseudoNameMap != nil {
-					pName, ok := r.pseudoNameMap[n]
-					if !ok {
-						continue
-					}
-					newID = strpool.Intern(pName)
-				}
-				if newID != oldID {
-					setNodeStringID(n, newID)
-					r.compiler.ReportChangeToEnclosingScope(n)
-					parent := n.GetParent()
-					if _, isFn := ast.AsFunction(parent); isFn && NodeUtil_IsFunctionDeclaration(parent) {
-						r.compiler.ReportChangeToEnclosingScope(parent)
-					}
-				}
+				r.applyNodeRename(ref.node, a.newNameID, oldID)
 			}
 		}
 	}
@@ -534,26 +519,9 @@ func (r *RenameVars) Process(externs rhino.Node, root rhino.Node) {
 	// Rename the locals!
 	for _, chunk := range r.localRefChunks {
 		for _, ref := range chunk {
-			n := ref.node
 			a := ref.assignment
 			if a.changedFromOld {
-				oldID := strpool.ID(n.GetStringID())
-				newID := a.newNameID
-				if r.pseudoNameMap != nil {
-					pName, ok := r.pseudoNameMap[n]
-					if !ok {
-						continue
-					}
-					newID = strpool.Intern(pName)
-				}
-				if newID != oldID {
-					setNodeStringID(n, newID)
-					r.compiler.ReportChangeToEnclosingScope(n)
-					parent := n.GetParent()
-					if _, isFn := ast.AsFunction(parent); isFn && NodeUtil_IsFunctionDeclaration(parent) {
-						r.compiler.ReportChangeToEnclosingScope(parent)
-					}
-				}
+				r.applyNodeRename(ref.node, a.newNameID, strpool.ID(ref.node.GetStringID()))
 			}
 		}
 	}

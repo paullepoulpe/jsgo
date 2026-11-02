@@ -151,75 +151,71 @@ func (n Node) initTemplateLitPayload(cookedID, rawID rhinoStringID) {
 
 // --- property bits ---
 
-// propBits are the 64 property bits of a node (see the propFlag and
-// nodeProp constants), kept as two 32-bit words so that the record needs
-// only 4-byte alignment. The methods compile to single 64-bit operations.
-// --- property bits ---
-
-// A node's property bits have a logical 64-bit layout, which the code reads
-// and writes with Node.props and Node.setProps:
+// A node's property bits have a direct 64-bit layout read and written via
+// Node.props and Node.setProps:
 //
-//	bits 0..39   the boolean properties (propBit_*), the common ones first
-//	bit  40      propFlagHasJSDoc
-//	bits 41..42  ConstantVarFlags
-//	bits 43..46  SideEffectFlags
+//	bits 0..24   the 25 common boolean properties (propBit_*)
+//	bit  25      propFlagHasJSDoc
+//	bits 26..27  ConstantVarFlags
+//	bits 28..31  SideEffectFlags
+//	bits 32..46  the 15 ultra-rare boolean properties (in nodeExtBox.coldProps)
 //
-// (The source file is not a bit: it is the record's sourceFile id.)
-//
-// The record keeps 32 of them, in a propWord. The other boolean properties
-// (bits propHotCount..39) are rare, so they live in the node's aux entry
-// (nodeAux.cold), and the word only says whether there are any.
+// The low 32 bits match nodeData.propFlags verbatim with no bit-splicing.
 type propWord uint32
 
-// The bits of a propWord:
-//
-//	bits 0..7    the first propHotCount boolean properties
-//	bit  8       propFlagHasJSDoc
-//	bits 9..14   ConstantVarFlags, SideEffectFlags
-//	bit  15      propWordHasCold: nodeAux.cold is not zero
-//	bits 16..31  unused
-const (
-	propWordHotMask propWord = 1<<propHotCount - 1
-	propWordJSDoc   propWord = 1 << 8
-	propWordHasCold propWord = 1 << 15
+const propWordJSDoc = propWord(propFlagHasJSDoc)
 
-	propLogicalMidShift = 40 // logical bits 40..46 are word bits 8..14
-	propWordMidShift    = 8
-	propMidMask         = 0x7F
-)
-
-// props returns n's property bits in the logical layout.
+// props returns n's property bits.
 func (n Node) props() uint64 {
-	p := n.rec().propFlags
-	v := uint64(p&propWordHotMask) |
-		uint64(p>>propWordMidShift&propMidMask)<<propLogicalMidShift
-	if p&propWordHasCold != 0 {
-		v |= uint64(n.coldProps()) << propHotCount
+	r := n.rec()
+	v := uint64(r.propFlags)
+	if r.kindFlags&kindFlagHasExtBox != 0 {
+		if box := n.extBoxOrNil(); box != nil {
+			v |= uint64(box.coldProps) << propColdShift
+		}
 	}
 	return v
 }
 
-// setProps sets n's property bits from the logical layout.
+// setProps sets n's property bits.
 func (n Node) setProps(v uint64) {
 	r := n.rec()
-	cold := uint32(v>>propHotCount) & (1<<(propBitCount-propHotCount) - 1)
-	p := propWord(v)&propWordHotMask |
-		propWord(v>>propLogicalMidShift&propMidMask)<<propWordMidShift
+	r.propFlags = propWord(v)
+	cold := uint16(v >> propColdShift)
 	if cold != 0 {
-		p |= propWordHasCold
-	}
-	hadCold := r.propFlags&propWordHasCold != 0
-	r.propFlags = p
-	if cold != 0 || hadCold {
-		n.setColdProps(cold)
+		n.ensureExtBox().coldProps = cold
+	} else if r.kindFlags&kindFlagHasExtBox != 0 {
+		if box := n.extBoxOrNil(); box != nil && box.coldProps != 0 {
+			box.coldProps = 0
+			n.maybeCollapseExtBox(box)
+		}
 	}
 }
 
 // setPropsAndSourceFile copies other's property bits and source file.
 func (n Node) setPropsAndSourceFile(other Node) {
+	or := other.rec()
+	r := n.rec()
+	r.sourceFile = or.sourceFile
+	if (or.kindFlags|r.kindFlags)&kindFlagHasExtBox == 0 {
+		r.propFlags = or.propFlags
+		return
+	}
 	n.setProps(other.props())
-	n.rec().sourceFile = other.rec().sourceFile
 }
 
-func (n Node) orProps(v uint64)     { n.setProps(n.props() | v) }
-func (n Node) andNotProps(v uint64) { n.setProps(n.props() &^ v) }
+func (n Node) orProps(v uint64) {
+	if v>>propColdShift == 0 {
+		n.rec().propFlags |= propWord(v)
+		return
+	}
+	n.setProps(n.props() | v)
+}
+
+func (n Node) andNotProps(v uint64) {
+	if v>>propColdShift == 0 {
+		n.rec().propFlags &^= propWord(v)
+		return
+	}
+	n.setProps(n.props() &^ v)
+}

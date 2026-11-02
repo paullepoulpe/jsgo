@@ -170,17 +170,7 @@ func (s *TypedScope) initLookupChain(parent *TypedScope) {
 }
 
 // Java: TypedScope(Node, boolean)
-func newTypedScopeWithIsBottom(rootNode rhino.Node, isBottom bool) *TypedScope {
-	s := &TypedScope{}
-	s.initScopeCommon(rootNode)
-	s.scopeID = allocTypedScopeID()
-	s.CheckRootScope()
-	s.isBottom = isBottom
-	s.initLookupChain(nil)
-	return s
-}
-
-func newGlobalTypedScopeWithCapacity(rootNode rhino.Node, varCap int) *TypedScope {
+func newRootTypedScope(rootNode rhino.Node, isBottom bool, varCap int) *TypedScope {
 	s := &TypedScope{}
 	s.initScopeCommon(rootNode)
 	s.scopeID = allocTypedScopeID()
@@ -188,18 +178,23 @@ func newGlobalTypedScopeWithCapacity(rootNode rhino.Node, varCap int) *TypedScop
 		s.vars = make([]*TypedVar, 0, varCap)
 	}
 	s.CheckRootScope()
+	s.isBottom = isBottom
 	s.initLookupChain(nil)
 	return s
 }
 
+func newGlobalTypedScopeWithCapacity(rootNode rhino.Node, varCap int) *TypedScope {
+	return newRootTypedScope(rootNode, false, varCap)
+}
+
 // Java: TypedScope.createGlobalScope(Node)
 func TypedScope_CreateGlobalScope(rootNode rhino.Node) *TypedScope {
-	return newTypedScopeWithIsBottom(rootNode, false)
+	return newRootTypedScope(rootNode, false, 0)
 }
 
 // Java: TypedScope.createLatticeBottom(Node)
 func TypedScope_CreateLatticeBottom(rootNode rhino.Node) *TypedScope {
-	return newTypedScopeWithIsBottom(rootNode, true)
+	return newRootTypedScope(rootNode, true, 0)
 }
 
 // Java: TypedScope.typed()
@@ -238,6 +233,9 @@ func (s *TypedScope) GetModule() *Module {
 	return s.build.module
 }
 
+func (s *TypedScope) parentScope() *TypedScope { return s.parent }
+func (s *TypedScope) common() *scopeCommon     { return &s.scopeCommon }
+
 // Java: TypedScope.getParent()
 func (s *TypedScope) GetParent() *TypedScope {
 	return s.parent
@@ -249,16 +247,6 @@ func (s *TypedScope) GetParentScope() rhino.StaticScope {
 		return s.parent
 	}
 	return nil
-}
-
-// Java: AbstractScope.isGlobal()
-func (s *TypedScope) IsGlobal() bool {
-	return s.parent == nil
-}
-
-// Java: AbstractScope.isLocal()
-func (s *TypedScope) IsLocal() bool {
-	return s.parent != nil
 }
 
 // GetTypeOfThis gets the type of `this` in the current scope.
@@ -526,19 +514,6 @@ func (s *TypedScope) MakeImplicitVar(var_ AbstractScope_ImplicitVar) *TypedVar {
 	return NewTypedVar(false, var_.name(), rhino.NilNode, s.GetImplicitVarType(var_), s, -1, nil)
 }
 
-// Java: TypedScope.hasOwnImplicitSlot(ImplicitVar)
-func (s *TypedScope) HasOwnImplicitSlot(name *AbstractScope_ImplicitVar) bool {
-	return name != nil && s.hasOwnImplicitVar(*name)
-}
-
-// Java: AbstractScope.getOwnImplicitSlot(ImplicitVar)
-func (s *TypedScope) GetOwnImplicitSlot(name *AbstractScope_ImplicitVar) *TypedVar {
-	if name == nil {
-		return nil
-	}
-	return s.getOwnImplicitVar(*name)
-}
-
 // Java: TypedScope.getImplicitVarType(ImplicitVar)
 func (s *TypedScope) GetImplicitVarType(var_ AbstractScope_ImplicitVar) rhino.JSType {
 	switch var_ {
@@ -709,20 +684,12 @@ func (s *TypedScope) LookupQualifiedName(qname rhino.QualifiedName) rhino.JSType
 
 // Java: AbstractScope.contains(S)
 func (s *TypedScope) Contains(other *TypedScope) bool {
-	for cur := jutil.CheckNotNull(other); cur != nil; cur = cur.parent {
-		if cur == s {
-			return true
-		}
-	}
-	return false
+	return scopeContains(s, other)
 }
 
 // Java: AbstractScope.getGlobalScope()
 func (s *TypedScope) GetGlobalScope() *TypedScope {
-	for s.parent != nil {
-		s = s.parent
-	}
-	return s
+	return scopeGlobal(s)
 }
 
 // Java: AbstractScope.hasSlot(String)
@@ -740,8 +707,6 @@ func (s *TypedScope) HasSlot(name string) bool {
 	}
 	return false
 }
-
-func (s *TypedScope) getSlotV(name string) *TypedVar { return s.GetVar(name) }
 
 func (s *TypedScope) GetSlot(name string) rhino.StaticSlot {
 	if v := s.GetVar(name); v != nil {
@@ -780,81 +745,31 @@ func (s *TypedScope) IsBleedingFunctionName(name string) bool {
 
 // Java: AbstractScope.getAllAccessibleVariables()
 func (s *TypedScope) GetAllAccessibleVariables() iter.Seq[*TypedVar] {
-	return func(yield func(*TypedVar) bool) {
-		var seen map[string]struct{}
-		for cur := s; cur != nil; cur = cur.parent {
-			for _, v := range cur.vars {
-				if _, dup := seen[v.name]; dup {
-					continue
-				}
-				if cur.parent != nil || seen != nil {
-					if seen == nil {
-						seen = make(map[string]struct{}, len(cur.vars))
-					}
-					seen[v.name] = struct{}{}
-				}
-				if !yield(v) {
-					return
-				}
-			}
-		}
-	}
-}
-
-// Java: AbstractScope.isHoistScope()
-func (s *TypedScope) IsHoistScope() bool {
-	return s.parent == nil ||
-		s.rootNode.IsFunction() ||
-		NodeUtil_IsFunctionBlock(s.rootNode) ||
-		s.rootNode.IsModuleBody() ||
-		NodeUtil_IsClassStaticBlock(s.rootNode)
+	return scopeAllAccessibleVars(
+		s,
+		func(cur *TypedScope) []*TypedVar { return cur.vars },
+		func(v *TypedVar) string { return v.name },
+	)
 }
 
 // Java: AbstractScope.getClosestHoistScope()
 func (s *TypedScope) GetClosestHoistScope() *TypedScope {
-	for cur := s; cur != nil; cur = cur.parent {
-		if cur.IsHoistScope() {
-			return cur
-		}
-	}
-	return nil
+	return scopeClosestHoist(s)
 }
 
 // Java: AbstractScope.getClosestCfgRootScope()
 func (s *TypedScope) GetClosestCfgRootScope() *TypedScope {
-	cur := s
-	for !cur.IsCfgRootScope() {
-		cur = cur.parent
-	}
-	return cur
+	return scopeClosestCfgRoot(s)
 }
 
 // Java: AbstractScope.getClosestContainerScope()
 func (s *TypedScope) GetClosestContainerScope() *TypedScope {
-	scope := s.GetClosestHoistScope()
-	if NodeUtil_IsFunctionBlock(scope.rootNode) {
-		scope = scope.parent
-		if scope.IsBlockScope() {
-			panic(jutil.NewIllegalStateExceptionMsg(jutil.LenientFormat("%s", scope)))
-		}
-	}
-	return scope
+	return scopeClosestContainer(s)
 }
 
 // Java: AbstractScope.getCommonParent(S)
 func (s *TypedScope) GetCommonParent(other *TypedScope) *TypedScope {
-	left, right := s, other
-	for left != nil && right != nil && left != right {
-		ld, rd := left.depth, right.depth
-		if ld >= rd {
-			left = left.parent
-		}
-		if ld <= rd {
-			right = right.parent
-		}
-	}
-	jutil.CheckState(left != nil && left == right)
-	return left
+	return scopeCommonParent(s, other)
 }
 
 // Java: AbstractScope.hasSameContainerScope(S)
@@ -864,9 +779,5 @@ func (s *TypedScope) HasSameContainerScope(other *TypedScope) bool {
 
 // Java: AbstractScope.getScopeOfThis()
 func (s *TypedScope) GetScopeOfThis() *TypedScope {
-	scope := s.GetClosestContainerScope()
-	for scope.parent != nil && !NodeUtil_IsNonArrowFunction(scope.rootNode) {
-		scope = scope.parent.GetClosestContainerScope()
-	}
-	return scope
+	return scopeOfThis(s)
 }

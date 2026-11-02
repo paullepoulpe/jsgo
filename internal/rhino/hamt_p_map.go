@@ -445,40 +445,37 @@ func (m *HamtPMap[K, V]) Minus(key K) *HamtPMap[K, V] {
 // MinusMapWithArena is Minus using arena for node and child-slice allocations.
 func (m *HamtPMap[K, V]) MinusMapWithArena(arena *HamtPMapArena[K, V], key K) *HamtPMap[K, V] {
 	if m != nil {
-		return m.minusWithHash(arena, key, HamtPMap_Hash(key), nil)
+		res, _ := m.minusWithHash(arena, key, HamtPMap_Hash(key))
+		return res
 	}
 	return nil
 }
 
-// minusWithHash is the internal recursive implementation of minus(K). The
-// value of the removed node is returned via the 'value' array, if it is
-// non-null.
+// minusWithHash is the internal recursive implementation of minus(K), returning
+// the updated subtree and the removed value (zero V if not present).
 //
 // Java: HamtPMap.minus(K, int, V[])
-func (m *HamtPMap[K, V]) minusWithHash(arena *HamtPMapArena[K, V], key K, hash int32, value []V) *HamtPMap[K, V] {
+func (m *HamtPMap[K, V]) minusWithHash(arena *HamtPMapArena[K, V], key K, hash int32) (*HamtPMap[K, V], V) {
+	var zero V
 	if hash == m.hash && m.keyEquals(key) {
-		result := deleteRoot(arena, m.mask, m.children)
-		if value != nil {
-			value[0] = m.value
-		}
-		return result
+		return deleteRoot(arena, m.mask, m.children), m.value
 	}
 	bucket := HamtPMap_Bucket(hash)
 	bucketMask := jutil.Shl32(1, int64(bucket))
 	if (m.mask & bucketMask) == 0 {
 		// not present, stop looking
-		return m
+		return m, zero
 	}
 	hash = HamtPMap_Shift(hash)
 	index := m.Index(bucketMask)
 	child := m.children[index]
-	newChild := child.minusWithHash(arena, key, hash, value)
+	newChild, removed := child.minusWithHash(arena, key, hash)
 	if newChild == child {
-		return m
+		return m, zero
 	} else if newChild == nil {
-		return m.withChildren(arena, m.mask&^bucketMask, deleteChild(arena, m.children, index))
+		return m.withChildren(arena, m.mask&^bucketMask, deleteChild(arena, m.children, index)), removed
 	} else {
-		return m.withChildren(arena, m.mask, replaceChild(arena, m.children, index, newChild))
+		return m.withChildren(arena, m.mask, replaceChild(arena, m.children, index, newChild)), removed
 	}
 }
 
@@ -866,26 +863,22 @@ func (m *HamtPMap[K, V]) Pivot(key K, hash int32) *HamtPMap[K, V] {
 }
 
 func (m *HamtPMap[K, V]) pivot(arena *HamtPMapArena[K, V], key K, hash int32) *HamtPMap[K, V] {
-	var result [1]V
-	return m.pivotWithParent(arena, key, hash, nil, result[:])
+	res, _ := m.pivotWithParent(arena, key, hash, nil)
+	return res
 }
 
-// pivotWithParent is the internal recursive version of pivot.
-//
-// result is an array of size 1. The value, if found, is stored in the
-// 'result' array, as a secondary return value. Otherwise the result array is
-// unchanged. Returns, if parent is null, a map whose value is the value from
-// the 'result' array (possibly null) and that is rooted at 'key'. Otherwise,
-// a map rooted at 'parent.key'.
+// pivotWithParent is the internal recursive version of pivot, returning the
+// pivoted subtree and the found value (zero V if not present). If parent is
+// nil, returns a map rooted at key with the found value; otherwise returns a
+// map rooted at parent.key.
 //
 // Java: HamtPMap.pivot(K, int, HamtPMap<K, V>, V[])
-func (m *HamtPMap[K, V]) pivotWithParent(arena *HamtPMapArena[K, V], key K, hash int32, parent *HamtPMap[K, V], result []V) *HamtPMap[K, V] {
+func (m *HamtPMap[K, V]) pivotWithParent(arena *HamtPMapArena[K, V], key K, hash int32, parent *HamtPMap[K, V]) (*HamtPMap[K, V], V) {
+	var found V
 	newMask := m.mask
 	newChildren := m.children
 	if hash == m.hash && m.keyEquals(key) {
-		// Found the key: swap out this key/value with the parent and return
-		// the result in the holder.
-		result[0] = m.value
+		found = m.value
 	} else {
 		// Otherwise, see if the value might be present in a child.
 		searchBucket := HamtPMap_Bucket(hash)
@@ -897,7 +890,8 @@ func (m *HamtPMap[K, V]) pivotWithParent(arena *HamtPMapArena[K, V], key K, hash
 				// Found a child, call pivot recursively.
 				index := m.Index(bucketMask)
 				child := newChildren[index]
-				newChild := child.pivotWithParent(arena, key, HamtPMap_Shift(hash), m, result)
+				var newChild *HamtPMap[K, V]
+				newChild, found = child.pivotWithParent(arena, key, HamtPMap_Shift(hash), m)
 				newChildren = replaceChild(arena, newChildren, index, newChild)
 			}
 		} else {
@@ -905,7 +899,8 @@ func (m *HamtPMap[K, V]) pivotWithParent(arena *HamtPMapArena[K, V], key K, hash
 			if (m.mask & searchMask) != 0 {
 				index := m.Index(searchMask)
 				child := newChildren[index]
-				newChild := child.minusWithHash(arena, key, HamtPMap_Shift(hash), result)
+				var newChild *HamtPMap[K, V]
+				newChild, found = child.minusWithHash(arena, key, HamtPMap_Shift(hash))
 				if newChild != nil {
 					newChildren = replaceChild(arena, newChildren, index, newChild)
 				} else {
@@ -930,9 +925,9 @@ func (m *HamtPMap[K, V]) pivotWithParent(arena *HamtPMapArena[K, V], key K, hash
 		}
 	}
 	if parent != nil {
-		return allocHamtPMap(arena, parent.key, HamtPMap_Shift(parent.hash), parent.value, newMask, newChildren)
+		return allocHamtPMap(arena, parent.key, HamtPMap_Shift(parent.hash), parent.value, newMask, newChildren), found
 	}
-	return allocHamtPMap(arena, key, hash, result[0], newMask, newChildren)
+	return allocHamtPMap(arena, key, hash, found, newMask, newChildren), found
 }
 
 // withChildren returns a copy of this node with a different array of

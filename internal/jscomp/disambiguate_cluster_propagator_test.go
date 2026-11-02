@@ -19,10 +19,87 @@
 package jscomp
 
 import (
+	"iter"
 	"testing"
 
 	"github.com/paullepoulpe/jsgo/internal/colors"
 )
+
+// ColorGraphNodePropsView adapts ColorGraphNode's flat property list to the
+// map-like API expected by tests.
+type ColorGraphNodePropsView struct {
+	n *ColorGraphNode
+}
+
+func (v ColorGraphNodePropsView) Size() int { return len(v.n.props) }
+
+func (v ColorGraphNodePropsView) IsEmpty() bool { return len(v.n.props) == 0 }
+
+func (v ColorGraphNodePropsView) ContainsKey(prop *PropertyClustering) bool {
+	return v.n.HasProp(prop)
+}
+
+func (v ColorGraphNodePropsView) Put(prop *PropertyClustering, _ ColorGraphNode_PropAssociation) {
+	v.n.AddProp(prop)
+}
+
+func (v ColorGraphNodePropsView) PutIfAbsent(prop *PropertyClustering, _ ColorGraphNode_PropAssociation) {
+	v.n.AddProp(prop)
+}
+
+func (v ColorGraphNodePropsView) Keys() iter.Seq[*PropertyClustering] {
+	return func(yield func(*PropertyClustering) bool) {
+		for _, p := range v.n.props {
+			if !yield(p) {
+				return
+			}
+		}
+	}
+}
+
+// GetAssociatedProps is the set of properties that might be accessed
+// from this type.
+//
+// Java: ColorGraphNode.getAssociatedProps()
+func (n *ColorGraphNode) GetAssociatedProps() ColorGraphNodePropsView {
+	return ColorGraphNodePropsView{n: n}
+}
+
+// ColorNodeUFElementsView provides a read-only set view over the elements of a
+// ColorNodeUnionFind.
+type ColorNodeUFElementsView struct {
+	u *ColorNodeUnionFind
+}
+
+func (v ColorNodeUFElementsView) Size() int {
+	return len(v.u.nodes)
+}
+
+func (v ColorNodeUFElementsView) IsEmpty() bool {
+	return len(v.u.nodes) == 0
+}
+
+func (v ColorNodeUFElementsView) Contains(e *ColorGraphNode) bool {
+	if e == nil {
+		return false
+	}
+	_, ok := v.u.lookupSlot(e)
+	return ok
+}
+
+func (v ColorNodeUFElementsView) All() iter.Seq[*ColorGraphNode] {
+	return func(yield func(*ColorGraphNode) bool) {
+		for _, el := range v.u.nodes {
+			if !yield(el) {
+				return
+			}
+		}
+	}
+}
+
+func (u *ColorNodeUnionFind) Elements() ColorNodeUFElementsView {
+	return ColorNodeUFElementsView{u: u}
+}
 
 var clusterPropagatorTest_TEST_COLOR = colors.StandardColors_NUMBER
 

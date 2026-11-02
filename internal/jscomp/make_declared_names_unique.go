@@ -261,6 +261,9 @@ type MakeDeclaredNamesUnique_Renamer interface {
 	GetHoistRenamer() MakeDeclaredNamesUnique_Renamer
 }
 
+// Go-only: performance — ContextualRenameInverter runs on SIMPLE compilations
+// (variableRenaming == LOCAL); flat index-linked arenas avoid hundreds of
+// thousands of per-var slice headers and GC pointers on multi-MB bundles.
 type inverterRefLink struct {
 	node rhino.Node
 	next int32

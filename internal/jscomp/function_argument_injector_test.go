@@ -1115,3 +1115,76 @@ func (f *FunctionArgumentInjector) MayHaveConditionalCode(n rhino.Node) bool {
 	}
 	return false
 }
+
+func TestSmallCollections(t *testing.T) {
+	var nilIDSet *smallIDSet
+	if !nilIDSet.isEmpty() || nilIDSet.size() != 0 || nilIDSet.contains(1) {
+		t.Fatal("nil *smallIDSet should behave as empty")
+	}
+	nilIDSet.clear()
+
+	var nilIDNodeMap *smallIDNodeMap
+	if !nilIDNodeMap.isEmpty() || nilIDNodeMap.size() != 0 || !nilIDNodeMap.get(1).IsNil() {
+		t.Fatal("nil *smallIDNodeMap should behave as empty")
+	}
+	nilIDNodeMap.clear()
+	nilIDNodeMap.remove(1)
+	nilIDNodeMap.release()
+
+	var set smallSet[int]
+	for i := 0; i < 24; i++ {
+		if !set.add(i) {
+			t.Fatalf("expected add(%d) to return true", i)
+		}
+		if set.add(i) {
+			t.Fatalf("expected duplicate add(%d) to return false", i)
+		}
+	}
+	if set.size() != 24 {
+		t.Fatalf("set.size() = %d, want 24", set.size())
+	}
+	for i := 0; i < 24; i++ {
+		if !set.contains(i) || set.items[i] != i {
+			t.Fatalf("set mismatch at %d", i)
+		}
+	}
+	set.clear()
+	if !set.isEmpty() || set.contains(0) {
+		t.Fatal("cleared set should be empty")
+	}
+
+	// Verify removeSwap compacts entries without leaving tombstones across inline/spillover boundaries.
+	var m smallMap[uint32, int]
+	for k := uint32(1); k <= 20; k++ {
+		m.put(k, int(k*10))
+	}
+	for k := uint32(1); k <= 15; k++ {
+		if !m.removeSwap(k) {
+			t.Fatalf("removeSwap(%d) returned false", k)
+		}
+	}
+	if m.size() != 5 {
+		t.Fatalf("m.size() after removals = %d, want 5", m.size())
+	}
+	for k := uint32(16); k <= 20; k++ {
+		if got, ok := m.get(k); !ok || got != int(k*10) {
+			t.Fatalf("get(%d) = %d, %v; want %d, true", k, got, ok, k*10)
+		}
+	}
+	// Grow past smallMapInlineCap again to verify index rebuild after shrinking below cap.
+	for k := uint32(100); k < 110; k++ {
+		p, existed := m.getOrInsert(k, int(k))
+		if existed || *p != int(k) {
+			t.Fatalf("getOrInsert(%d) = %d, %v", k, *p, existed)
+		}
+	}
+	m.retainFunc(func(k uint32, _ int) bool { return k >= 105 })
+	if m.size() != 5 {
+		t.Fatalf("m.size() after retainFunc = %d, want 5", m.size())
+	}
+	for i, v := range m.values() {
+		if v != 105+i {
+			t.Fatalf("retainFunc order[%d] = %d, want %d", i, v, 105+i)
+		}
+	}
+}

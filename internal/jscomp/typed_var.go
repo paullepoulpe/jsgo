@@ -85,7 +85,13 @@ func NewTypedVar(inferred bool, name string, nameNode rhino.Node, type_ rhino.JS
 		jutil.CheckArgumentMsg1(false, "Invalid name node token %s", nameNode.GetToken())
 	}
 	v := &TypedVar{scope: scope, name: name}
-	v.initVarCommon(nameNode, index, input, rhino.NilNode /* implicitGoogNamespaceDefinition */)
+	var isImplicit bool
+	if scope != nil {
+		if imp, ok := AbstractScope_ImplicitVar_Lookup(name); ok {
+			isImplicit = imp.isMadeByRootNode(scope.rootNode)
+		}
+	}
+	v.initVarCommon(nameNode, index, input, rhino.NilNode /* implicitGoogNamespaceDefinition */, isImplicit)
 	v.SetType(type_)
 	if inferred {
 		v.indexAndFlags |= varFlagTypeInferred
@@ -127,12 +133,12 @@ func (v *TypedVar) GetSourceFile() rhino.StaticSourceFile {
 
 // Java: AbstractVar.isGlobal()
 func (v *TypedVar) IsGlobal() bool {
-	return v.scope.parent == nil
+	return v.scope.IsGlobal()
 }
 
 // Java: AbstractVar.isLocal()
 func (v *TypedVar) IsLocal() bool {
-	return v.scope.parent != nil
+	return v.scope.IsLocal()
 }
 
 // Java: ScopedName.hashCode()
@@ -151,57 +157,11 @@ func (v *TypedVar) Equals(other any) bool {
 	return equalsScopedName(v.name, v.scope.rootNode, other)
 }
 
-// DeclarationToken returns the enclosing declaration token of v, or (0, false)
-// when v is an implicit variable.
-func (v *TypedVar) DeclarationToken() (rhino.Token, bool) {
-	if tok, ok := v.findDeclarationToken(); ok {
-		return tok, true
-	}
-	if !v.IsImplicit() {
-		failInvalidDeclarationType()
-	}
-	return 0, false
-}
-
-func (v *TypedVar) isDeclarationToken(want rhino.Token) bool {
-	tok, ok := v.DeclarationToken()
-	return ok && tok == want
-}
-
-func (v *TypedVar) IsVar() bool       { return v.isDeclarationToken(rhino.Token_VAR) }
-func (v *TypedVar) IsCatch() bool     { return v.isDeclarationToken(rhino.Token_CATCH) }
-func (v *TypedVar) IsLet() bool       { return v.isDeclarationToken(rhino.Token_LET) }
-func (v *TypedVar) IsConst() bool     { return v.isDeclarationToken(rhino.Token_CONST) }
-func (v *TypedVar) IsClass() bool     { return v.isDeclarationToken(rhino.Token_CLASS) }
-func (v *TypedVar) IsParam() bool     { return v.isDeclarationToken(rhino.Token_PARAM_LIST) }
-func (v *TypedVar) IsImport() bool    { return v.isDeclarationToken(rhino.Token_IMPORT) }
 func (v *TypedVar) IsArguments() bool { return v.name == Var_ARGUMENTS && v.scope.IsFunctionScope() }
 func (v *TypedVar) IsGoogModuleExports() bool {
 	return v.name == Var_EXPORTS && v.scope.IsModuleScope() && v.IsImplicit()
 }
 func (v *TypedVar) IsThis() bool { return v.name == "this" && v.scope.IsFunctionScope() }
-
-func (v *TypedVar) IsImplicit() bool {
-	if v.IsImplicitGoogNamespace() {
-		return true
-	}
-	imp, ok := AbstractScope_ImplicitVar_Lookup(v.name)
-	return ok && imp.isMadeByRootNode(v.scope.rootNode)
-}
-
-func (v *TypedVar) AddImplicitGoogNamespaceDefinition(definition rhino.Node) {
-	if !v.addImplicitGoogNamespaceDefinition(definition) {
-		failNotImplicitGoogNamespace(v)
-	}
-}
-
-func (v *TypedVar) GetImplicitGoogNamespaceStrength() rhino.StaticSourceFile_SourceKind {
-	s, ok := v.getImplicitGoogNamespaceStrength()
-	if !ok {
-		failNotImplicitGoogNamespace(v)
-	}
-	return s
-}
 
 // Java: AbstractVar.getSymbol()
 func (v *TypedVar) GetSymbol() rhino.StaticSlot {

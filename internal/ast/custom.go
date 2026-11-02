@@ -1,6 +1,8 @@
 package ast
 
 import (
+	"iter"
+
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
 
@@ -472,4 +474,63 @@ func (x TemplateLitString) Cooked() (s string, ok bool) {
 		return *p, true
 	}
 	return "", false
+}
+
+// ComputedMembers yields the computed members (ComputedProp and
+// ComputedFieldDef) of x in declaration order, reading each member's next
+// sibling before yielding so the body may mutate or detach the member.
+func (x ClassBody) ComputedMembers() iter.Seq[ComputedMember] {
+	return func(yield func(ComputedMember) bool) {
+		for c := x.node.GetFirstChild(); c != rhino.NilNode; {
+			next := c.GetNext()
+			switch c.GetToken() {
+			case rhino.Token_COMPUTED_PROP, rhino.Token_COMPUTED_FIELD_DEF:
+				if !yield(ComputedMember{c}) {
+					return
+				}
+			}
+			c = next
+		}
+	}
+}
+
+// EvalOrder yields the subtrees of x in JavaScript class-evaluation order
+// (matching NodeTraversal.handleClassMembers), as (node, parent) pairs:
+//  1. the key expression of every computed member ([key]() {} or [key] = val),
+//     with the computed member as parent;
+//  2. for every member in declaration order: the value of a computed member
+//     (if present, with the computed member as parent), or the member itself
+//     (with x as parent) for non-computed members and static blocks.
+//
+// Each member's next sibling is read before yielding so callers may mutate or
+// detach the yielded subtree.
+func (x ClassBody) EvalOrder() iter.Seq2[rhino.Node, rhino.Node] {
+	return func(yield func(rhino.Node, rhino.Node) bool) {
+		for c := x.node.GetFirstChild(); c != rhino.NilNode; {
+			next := c.GetNext()
+			switch c.GetToken() {
+			case rhino.Token_COMPUTED_PROP, rhino.Token_COMPUTED_FIELD_DEF:
+				if !yield(c.GetFirstChild(), c) {
+					return
+				}
+			}
+			c = next
+		}
+		for c := x.node.GetFirstChild(); c != rhino.NilNode; {
+			next := c.GetNext()
+			switch c.GetToken() {
+			case rhino.Token_COMPUTED_PROP, rhino.Token_COMPUTED_FIELD_DEF:
+				if val := c.GetSecondChild(); val != rhino.NilNode {
+					if !yield(val, c) {
+						return
+					}
+				}
+			default:
+				if !yield(c, x.node) {
+					return
+				}
+			}
+			c = next
+		}
+	}
 }

@@ -470,3 +470,97 @@ func (b *smallBitSet) String() string {
 	buf = append(buf, '}')
 	return string(buf)
 }
+
+// SetAndNotOr sets b to (src &^ andNot) | or, reusing b.ext capacity when large enough.
+func (b *smallBitSet) SetAndNotOr(src, andNot, or *smallBitSet) {
+	b.w0 = (src.w0 &^ andNot.w0) | or.w0
+	b.w1 = (src.w1 &^ andNot.w1) | or.w1
+	n := max(len(src.ext), len(or.ext))
+	if n == 0 {
+		if len(b.ext) > 0 {
+			clear(b.ext)
+			b.ext = b.ext[:0]
+		}
+		return
+	}
+	if n <= cap(b.ext) {
+		b.ext = b.ext[:n]
+	} else {
+		b.ext = make([]uint64, n)
+	}
+	for i := 0; i < n; i++ {
+		var sw, kw, gw uint64
+		if i < len(src.ext) {
+			sw = src.ext[i]
+		}
+		if i < len(andNot.ext) {
+			kw = andNot.ext[i]
+		}
+		if i < len(or.ext) {
+			gw = or.ext[i]
+		}
+		b.ext[i] = (sw &^ kw) | gw
+	}
+	b.trim()
+}
+
+// JavaHashCode returns java.util.BitSet.hashCode() for b.
+func (b *smallBitSet) JavaHashCode() int32 {
+	var h int64 = 1234
+	h ^= int64(b.w0)
+	h ^= int64(b.w1) * 2
+	for i, w := range b.ext {
+		h ^= int64(w) * int64(i+3)
+	}
+	return int32((h >> 32) ^ h)
+}
+
+// bits128 returns the low 128 bits of b as a fixed-width value bitset.
+func (b *smallBitSet) bits128() bitSet128 {
+	return bitSet128{b.w0, b.w1}
+}
+
+// bitSet128 is a 128-bit value bitset for bounded (< 128-variable) analyses.
+type bitSet128 [2]uint64
+
+func (b *bitSet128) set(i int) {
+	if i < 64 {
+		b[0] |= uint64(1) << uint(i)
+	} else {
+		b[1] |= uint64(1) << uint(i-64)
+	}
+}
+
+func (b bitSet128) has(i int) bool {
+	if i < 64 {
+		return b[0]&(uint64(1)<<uint(i)) != 0
+	}
+	return b[1]&(uint64(1)<<uint(i-64)) != 0
+}
+
+func (b bitSet128) or(o bitSet128) bitSet128 {
+	return bitSet128{b[0] | o[0], b[1] | o[1]}
+}
+
+func (b *bitSet128) orWith(o bitSet128) {
+	b[0] |= o[0]
+	b[1] |= o[1]
+}
+
+func (b *bitSet128) andWith(o bitSet128) {
+	b[0] &= o[0]
+	b[1] &= o[1]
+}
+
+func (b bitSet128) onesCount() int {
+	return bits.OnesCount64(b[0]) + bits.OnesCount64(b[1])
+}
+
+func (b bitSet128) forEach(fn func(i int)) {
+	for w := b[0]; w != 0; w &= w - 1 {
+		fn(bits.TrailingZeros64(w))
+	}
+	for w := b[1]; w != 0; w &= w - 1 {
+		fn(64 + bits.TrailingZeros64(w))
+	}
+}

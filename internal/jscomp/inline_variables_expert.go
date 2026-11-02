@@ -94,14 +94,14 @@ func (b *InlineVariables_InliningBehavior) checkScopeVarEligibility(
 	}
 
 	isDeclaredOrInferredConstant = inlineVariables_isDeclaredOrInferredConst(v)
-	if !isDeclaredOrInferredConstant && b.outer.mode == InlineVariables_Mode_CONSTANTS_ONLY {
+	if !isDeclaredOrInferredConstant && b.mode == InlineVariables_Mode_CONSTANTS_ONLY {
 		// If we're only inlining constants, then we shouldn't inline an alias.
 		return false, handledVarUnsafe, true
 	}
 
 	cc := b.codingConvention
 	if cc == nil {
-		cc = b.outer.compiler.GetCodingConvention()
+		cc = b.compiler.GetCodingConvention()
 		b.codingConvention = cc
 	}
 
@@ -190,8 +190,8 @@ func (b *InlineVariables_InliningBehavior) Inline(decl *Reference, init *Referen
 
 		// In addition to changing the containing scope, inlining function declarations also changes
 		// the function name scope from the containing scope to the inner scope.
-		b.outer.compiler.ReportChangeToChangeScope(value)
-		b.outer.compiler.ReportChangeToEnclosingScope(value.GetParent())
+		b.compiler.ReportChangeToChangeScope(value)
+		b.compiler.ReportChangeToEnclosingScope(value.GetParent())
 	}
 	b.InlineValue(ref.GetNode(), value.Detach())
 	if decl != init {
@@ -224,7 +224,7 @@ func (b *InlineVariables_InliningBehavior) InlineWellDefinedVariable(v *Var, val
 		} else {
 			toRemove := r.GetNode()
 			if toRemove.CanCloneLeafInPlace() && value.CanCloneLeafInPlace() {
-				b.outer.compiler.ReportChangeToEnclosingScope(toRemove)
+				b.compiler.ReportChangeToEnclosingScope(toRemove)
 				castColor := toRemove.GetColor()
 				hasCastColor := castColor != nil && toRemove.IsColorFromTypeCast()
 				toRemove.OverwriteLeafFromClone(value)
@@ -234,7 +234,7 @@ func (b *InlineVariables_InliningBehavior) InlineWellDefinedVariable(v *Var, val
 				}
 			} else {
 				clonedValue := value.CloneTree()
-				NodeUtil_MarkNewScopesChanged(clonedValue, b.outer.compiler)
+				NodeUtil_MarkNewScopesChanged(clonedValue, b.compiler)
 				b.InlineValue(toRemove, clonedValue)
 			}
 		}
@@ -249,7 +249,7 @@ func (b *InlineVariables_InliningBehavior) RemoveDeclaration(decl *Reference) {
 	jutil.CheckStateMsg1(ok, "%s", decl.GetParent())
 	grandparent := decl.GetGrandparent()
 
-	b.outer.compiler.ReportChangeToEnclosingScope(decl.GetNode())
+	b.compiler.ReportChangeToEnclosingScope(decl.GetNode())
 	decl.GetNode().Detach()
 	// Remove var node if empty
 	if !varNode.HasDeclarators() {
@@ -259,7 +259,7 @@ func (b *InlineVariables_InliningBehavior) RemoveDeclaration(decl *Reference) {
 
 // Java: InlineVariables.InliningBehavior.inlineValue(Node, Node)
 func (b *InlineVariables_InliningBehavior) InlineValue(toRemove rhino.Node, toInsert rhino.Node) {
-	b.outer.compiler.ReportChangeToEnclosingScope(toRemove)
+	b.compiler.ReportChangeToEnclosingScope(toRemove)
 
 	// Help type-based optimizations by propagating more specific types from type assertions
 	if toRemove.GetColor() != nil && toRemove.IsColorFromTypeCast() {
@@ -267,7 +267,7 @@ func (b *InlineVariables_InliningBehavior) InlineValue(toRemove rhino.Node, toIn
 		toInsert.SetColorFromTypeCast()
 	}
 	toRemove.ReplaceWith(toInsert)
-	NodeUtil_MarkFunctionsDeleted(toRemove, b.outer.compiler)
+	NodeUtil_MarkFunctionsDeleted(toRemove, b.compiler)
 }
 
 // CanInline returns true if the provided reference and declaration can be
@@ -305,7 +305,7 @@ func (b *InlineVariables_InliningBehavior) CanInline(
 	}
 
 	if initValue.IsFunction() && isCall {
-		convention := b.outer.compiler.GetCodingConvention()
+		convention := b.compiler.GetCodingConvention()
 		// Bug 2388531: Don't inline subclass definitions into class defining
 		// calls as this confused class removing logic.
 		relationship := convention.GetClassesDefinedByCall(call.Node())
@@ -357,7 +357,7 @@ const InlineVariables_InliningBehavior_MAX_MODERATE_MOTION_STEPS = 5000
 //
 // Java: InlineVariables.InliningBehavior.canMoveModerately(Reference, Reference)
 func (b *InlineVariables_InliningBehavior) CanMoveModerately(initialization *Reference, reference *Reference) bool {
-	if fastFault(b.outer.compiler.GetOptions(), faultInlineVars) {
+	if fastFault(b.compiler.GetOptions(), faultInlineVars) {
 		// Go-only: the seeded fault faultInlineVars (seeded_faults.go).
 		return true
 	}
@@ -366,14 +366,14 @@ func (b *InlineVariables_InliningBehavior) CanMoveModerately(initialization *Ref
 	it := &b.motionScratch
 	if NodeUtil_IsNameDeclaration(initialization.GetParent()) {
 		it.initForVar(
-			b.outer.compiler,
+			b.compiler,
 			initialization.GetNode(),        // NAME
 			initialization.GetParent(),      // VAR/LET/CONST
 			initialization.GetGrandparent()) // VAR/LET/CONST container
 	} else if initialization.GetParent().IsAssign() {
 		jutil.CheckState(initialization.GetGrandparent().IsExprResult())
 		it.initForAssign(
-			b.outer.compiler,
+			b.compiler,
 			initialization.GetNode(),                    // NAME
 			initialization.GetParent(),                  // ASSIGN
 			initialization.GetGrandparent(),             // EXPR_RESULT

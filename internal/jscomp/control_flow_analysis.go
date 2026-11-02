@@ -67,7 +67,9 @@ type ControlFlowAnalysis struct {
 	// We need to store where we started, in case we aren't doing a flow
 	// analysis for the whole scope. This happens, for example, when running
 	// type inference on only the externs.
-	root rhino.Node
+	root       rhino.Node
+	walkNode   rhino.Node
+	walkScript rhino.Node
 
 	// This stack captures the structure of nested TRY blocks. The top of the
 	// stack is the inner most TRY block. A FUNCTION node in this stack
@@ -154,6 +156,8 @@ func (rc *ReusableCfg) release() {
 	rc.cfa.compiler = nil
 	rc.cfa.cfg = nil
 	rc.cfa.root = rhino.NilNode
+	rc.cfa.walkNode = rhino.NilNode
+	rc.cfa.walkScript = rhino.NilNode
 	rc.cfa.finallyMap.reset()
 }
 
@@ -323,116 +327,111 @@ func (c *ControlFlowAnalysis) traverse(root rhino.Node) {
 		c.compiler.ThrowInternalError(jutil.ToJavaString(jutil.GetMessageOrNull(exc)), exc)
 		return
 	}
-	var currentNode rhino.Node
-	var currentScript rhino.Node
+	c.walkNode = root
+	c.walkScript = rhino.NilNode
 	defer func() {
-		if r := recover(); r != nil {
-			reportUnexpectedCfgException(c.compiler, root, currentScript, currentNode, jutil.AsThrowable(r))
+		r := recover()
+		node, script := c.walkNode, c.walkScript
+		c.walkNode = rhino.NilNode
+		c.walkScript = rhino.NilNode
+		if r != nil {
+			reportUnexpectedCfgException(c.compiler, root, script, node, jutil.AsThrowable(r))
 		}
 	}()
-	currentNode = root
-	c.walkBranch(root, rhino.NilNode, &currentNode, &currentScript)
+	c.walkBranch(root, rhino.NilNode)
 }
 
-func (c *ControlFlowAnalysis) walkBranch(n, parent rhino.Node, currentNode, currentScript *rhino.Node) {
+func (c *ControlFlowAnalysis) walkBranch(n, parent rhino.Node) {
 	switch n.GetToken() {
 	case rhino.Token_SCRIPT:
 		if Platform_IsThreadInterrupted() {
 			panic(jutil.NewRuntimeExceptionWithCause(jutil.NewInterruptedException()))
 		}
-		*currentNode = n
-		*currentScript = n
+		c.walkNode = n
+		c.walkScript = n
 		if c.shouldTraverse(n, parent) {
 			for child := n.GetFirstChild(); !child.IsNil(); {
 				next := child.GetNext()
-				c.walkBranch(child, n, currentNode, currentScript)
+				c.walkBranch(child, n)
 				child = next
 			}
-			*currentNode = n
+			c.walkNode = n
 			c.visit(n, parent)
 		}
 		return
 	case rhino.Token_FUNCTION:
-		*currentNode = n
+		c.walkNode = n
 		if c.shouldTraverse(n, parent) {
 			fnName := n.GetFirstChild()
 			args := fnName.GetNext()
 			body := args.GetNext()
-			c.walkBranch(fnName, n, currentNode, currentScript)
-			c.walkBranch(args, n, currentNode, currentScript)
-			c.walkBranch(body, n, currentNode, currentScript)
-			*currentNode = n
+			c.walkBranch(fnName, n)
+			c.walkBranch(args, n)
+			c.walkBranch(body, n)
+			c.walkNode = n
 			c.visit(n, parent)
 		}
 		return
 	case rhino.Token_CLASS:
-		*currentNode = n
+		c.walkNode = n
 		if c.shouldTraverse(n, parent) {
 			className := n.GetFirstChild()
 			extendsClause := className.GetNext()
 			body := extendsClause.GetNext()
-			c.walkBranch(extendsClause, n, currentNode, currentScript)
-			c.walkBranch(className, n, currentNode, currentScript)
-			c.walkBranch(body, n, currentNode, currentScript)
-			*currentNode = n
+			c.walkBranch(extendsClause, n)
+			c.walkBranch(className, n)
+			c.walkBranch(body, n)
+			c.walkNode = n
 			c.visit(n, parent)
 		}
 		return
 	case rhino.Token_CLASS_MEMBERS:
-		*currentNode = n
+		c.walkNode = n
 		if !c.shouldTraverse(n, parent) {
 			return
 		}
-		for child := n.GetFirstChild(); !child.IsNil(); {
-			next := child.GetNext()
-			if child.IsComputedProp() || child.IsComputedFieldDef() {
-				c.walkBranch(child.GetFirstChild(), child, currentNode, currentScript)
-			}
-			child = next
+		body := ast.MustClassBody(n)
+		for cm := range body.ComputedMembers() {
+			c.walkBranch(cm.Key().Node(), cm.Node())
 		}
 		for child := n.GetFirstChild(); !child.IsNil(); {
 			next := child.GetNext()
-			switch child.GetToken() {
-			case rhino.Token_COMPUTED_PROP:
-				*currentNode = n
+			if cm, ok := ast.AsComputedMember(child); ok {
+				c.walkNode = n
 				if c.shouldTraverse(child, n) {
-					c.walkBranch(child.GetLastChild(), child, currentNode, currentScript)
-					*currentNode = n
-					c.visit(child, n)
-				}
-			case rhino.Token_COMPUTED_FIELD_DEF:
-				*currentNode = n
-				if c.shouldTraverse(child, n) {
-					if child.HasTwoChildren() {
-						c.walkBranch(child.GetLastChild(), child, currentNode, currentScript)
+					if val, hasVal := cm.Value(); hasVal {
+						c.walkBranch(val.Node(), child)
 					}
-					*currentNode = n
+					c.walkNode = n
 					c.visit(child, n)
 				}
-			case rhino.Token_MEMBER_FIELD_DEF, rhino.Token_BLOCK, rhino.Token_MEMBER_FUNCTION_DEF,
-				rhino.Token_MEMBER_VARIABLE_DEF, rhino.Token_GETTER_DEF, rhino.Token_SETTER_DEF:
-				c.walkBranch(child, n, currentNode, currentScript)
-			default:
-				panic(jutil.NewIllegalStateExceptionMsg("Invalid class member: " + child.GetToken().String()))
+			} else {
+				switch child.GetToken() {
+				case rhino.Token_MEMBER_FIELD_DEF, rhino.Token_BLOCK, rhino.Token_MEMBER_FUNCTION_DEF,
+					rhino.Token_MEMBER_VARIABLE_DEF, rhino.Token_GETTER_DEF, rhino.Token_SETTER_DEF:
+					c.walkBranch(child, n)
+				default:
+					panic(jutil.NewIllegalStateExceptionMsg("Invalid class member: " + child.GetToken().String()))
+				}
 			}
 			child = next
 		}
-		*currentNode = n
+		c.walkNode = n
 		c.visit(n, parent)
 		return
 	default:
 	}
 
-	*currentNode = n
+	c.walkNode = n
 	if !c.shouldTraverse(n, parent) {
 		return
 	}
 	for child := n.GetFirstChild(); !child.IsNil(); {
 		next := child.GetNext()
-		c.walkBranch(child, n, currentNode, currentScript)
+		c.walkBranch(child, n)
 		child = next
 	}
-	*currentNode = n
+	c.walkNode = n
 	c.visit(n, parent)
 }
 

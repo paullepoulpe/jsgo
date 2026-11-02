@@ -339,35 +339,6 @@ func inlineFunctions_calledFunction(call ast.NormalOrOptChainCall) (ast.Function
 	return ast.Function{}, false
 }
 
-// inlineFunctions_walkClassMembers walks the members of a class body as
-// NodeTraversal does: the computed keys first, then the values of computed
-// members (a computed field's value is in a local hoist scope) and the
-// other members.
-func inlineFunctions_walkClassMembers(body ast.ClassBody, inLocalHoist bool, walk func(n, parent rhino.Node, inLocalHoist bool)) {
-	for m := range body.Members() {
-		switch m.Token() {
-		case rhino.Token_COMPUTED_PROP:
-			walk(m.MustComputedProp().Key().Node(), m.Node(), inLocalHoist)
-		case rhino.Token_COMPUTED_FIELD_DEF:
-			walk(m.MustComputedFieldDef().Key().Node(), m.Node(), inLocalHoist)
-		}
-	}
-	for m := range body.Members() {
-		switch m.Token() {
-		case rhino.Token_COMPUTED_PROP:
-			if value, ok := m.MustComputedProp().Value(); ok {
-				walk(value.Node(), m.Node(), inLocalHoist)
-			}
-		case rhino.Token_COMPUTED_FIELD_DEF:
-			if value, ok := m.MustComputedFieldDef().Value(); ok {
-				walk(value.Node(), m.Node(), true)
-			}
-		default:
-			walk(m.Node(), body.Node(), inLocalHoist)
-		}
-	}
-}
-
 func inlineFunctions_walkCandidates(
 	compiler AbstractCompiler,
 	n rhino.Node,
@@ -392,9 +363,10 @@ func inlineFunctions_walkCandidates(
 			childLocalHoist = true
 		}
 	case rhino.Token_CLASS_MEMBERS:
-		inlineFunctions_walkClassMembers(ast.MustClassBody(n), inLocalHoist, func(n, parent rhino.Node, inLocalHoist bool) {
-			inlineFunctions_walkCandidates(compiler, n, parent, chunk, inLocalHoist, visit)
-		})
+		for ch, p := range ast.MustClassBody(n).EvalOrder() {
+			hoist := inLocalHoist || (p.IsComputedFieldDef() && ch != p.GetFirstChild())
+			inlineFunctions_walkCandidates(compiler, ch, p, chunk, hoist, visit)
+		}
 		return
 	}
 	for ch := n.GetFirstChild(); !ch.IsNil(); ch = ch.GetNext() {
@@ -852,7 +824,7 @@ func (f *InlineFunctions) InliningLowersCost(functionState *InlineFunctions_Func
 	return f.injector.inliningLowersCost(
 		functionState.GetChunk(),
 		functionState.functionNode(),
-		functionState.refs,
+		functionState.GetReferences(),
 		functionStateAliasCount(functionState),
 		functionState.CanRemove(),
 		functionState.GetReferencesThis(),

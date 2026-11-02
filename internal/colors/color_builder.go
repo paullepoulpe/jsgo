@@ -31,25 +31,22 @@ func Color_SingleBuilder() *Color_Builder {
 	}
 }
 
-func dedupCloneColors(src []*Color) []*Color {
+func dedupCloneSlice[T comparable, Ops setOps[T]](src, empty []T) []T {
 	if len(src) == 0 {
-		return emptyColorSlice
+		return empty
 	}
+	var ops Ops
 	if len(src) == 1 {
-		if src[0] == nil {
-			panic(jutil.NewNullPointerException())
-		}
-		return []*Color{src[0]}
+		ops.checkNonNull(src[0])
+		return []T{src[0]}
 	}
 	if len(src) <= 16 {
 		allUnique := true
 		for i, v := range src {
-			if v == nil {
-				panic(jutil.NewNullPointerException())
-			}
+			ops.checkNonNull(v)
 			if allUnique {
-				for j := 0; j < i; j++ {
-					if src[j].equalsColor(v) {
+				for j := range i {
+					if ops.equal(src[j], v) {
 						allUnique = false
 						break
 					}
@@ -57,52 +54,16 @@ func dedupCloneColors(src []*Color) []*Color {
 			}
 		}
 		if allUnique {
-			out := make([]*Color, len(src))
+			out := make([]T, len(src))
 			copy(out, src)
 			return out
 		}
 	}
-	out := make([]*Color, 0, len(src))
-	var seen colorDedupSet
+	out := make([]T, 0, len(src))
+	var table []int32
 	for _, v := range src {
-		if v == nil {
-			panic(jutil.NewNullPointerException())
-		}
-		out = appendUniqueColor(out, v, &seen)
-	}
-	return out
-}
-
-func dedupCloneStrings(src []string) []string {
-	if len(src) == 0 {
-		return emptyStringSlice
-	}
-	if len(src) == 1 {
-		return []string{src[0]}
-	}
-	if len(src) <= 16 {
-		allUnique := true
-		for i, v := range src {
-			for j := 0; j < i; j++ {
-				if src[j] == v {
-					allUnique = false
-					break
-				}
-			}
-			if !allUnique {
-				break
-			}
-		}
-		if allUnique {
-			out := make([]string, len(src))
-			copy(out, src)
-			return out
-		}
-	}
-	out := make([]string, 0, len(src))
-	var seen map[string]struct{}
-	for _, v := range src {
-		out = appendUniqueString(out, v, &seen)
+		ops.checkNonNull(v)
+		out = appendUnique[T, Ops](out, v, &table)
 	}
 	return out
 }
@@ -181,7 +142,7 @@ func (b *Color_Builder) SetOwnProperties(ownProperties []string) *Color_Builder 
 	} else if b.trustUnique {
 		b.ownProperties = ownProperties
 	} else {
-		b.ownProperties = dedupCloneStrings(ownProperties)
+		b.ownProperties = dedupCloneSlice[string, stringSetOps](ownProperties, emptyStringSlice)
 	}
 	return b
 }
@@ -202,7 +163,7 @@ func (b *Color_Builder) SetInstanceColors(instanceColors []*Color) *Color_Builde
 	} else if b.trustUnique {
 		b.instanceColors = instanceColors
 	} else {
-		b.instanceColors = dedupCloneColors(instanceColors)
+		b.instanceColors = dedupCloneSlice[*Color, colorSetOps](instanceColors, emptyColorSlice)
 	}
 	return b
 }
@@ -217,7 +178,7 @@ func (b *Color_Builder) SetPrototypes(prototypes []*Color) *Color_Builder {
 	} else if b.trustUnique {
 		b.prototypes = prototypes
 	} else {
-		b.prototypes = dedupCloneColors(prototypes)
+		b.prototypes = dedupCloneSlice[*Color, colorSetOps](prototypes, emptyColorSlice)
 	}
 	return b
 }
@@ -232,7 +193,7 @@ func (b *Color_Builder) SetUnionElements(unionElements []*Color) *Color_Builder 
 	} else if b.trustUnique {
 		b.unionElements = unionElements
 	} else {
-		b.unionElements = dedupCloneColors(unionElements)
+		b.unionElements = dedupCloneSlice[*Color, colorSetOps](unionElements, emptyColorSlice)
 	}
 	return b
 }

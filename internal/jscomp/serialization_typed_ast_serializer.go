@@ -34,14 +34,9 @@ import (
 //
 // Java: final class TypedAstSerializer
 type TypedAstSerializer struct {
-	compiler          AbstractCompiler
-	serializationMode *SerializationOptions
-	stringPool        *StringPool_Builder
-	previousLine      int
-	previousColumn    int
-	// Go-only: language-adapter — the ArrayDeque<SourceFile> is used only as
-	// a stack (addLast, removeLast, peekLast, clear): a slice, top last.
-	subtreeSourceFiles []*SourceFile
+	compiler           AbstractCompiler
+	serializationMode  *SerializationOptions
+	stringPool         *StringPool_Builder
 	sourceFilePointers map[*SourceFile]int
 	sourceFileList     []*SourceFile
 
@@ -51,33 +46,7 @@ type TypedAstSerializer struct {
 	recordUsedProps     bool
 
 	scriptEnc      scriptWireEncoder
-	lazyAstArena   slabArena[LazyAst]
 	scriptByteSlab []byte
-}
-
-// slabArena is a two-level bump allocator that retains backing slabs across resets.
-type slabArena[T any] struct {
-	slabs   [][]T
-	slabIdx int
-	slabPos int
-}
-
-func (a *slabArena[T]) alloc(chunkSize int) *T {
-	if a.slabIdx >= len(a.slabs) {
-		a.slabs = append(a.slabs, make([]T, chunkSize))
-	}
-	slab := a.slabs[a.slabIdx]
-	if a.slabPos >= len(slab) {
-		a.slabIdx++
-		a.slabPos = 0
-		if a.slabIdx >= len(a.slabs) {
-			a.slabs = append(a.slabs, make([]T, chunkSize))
-		}
-		slab = a.slabs[a.slabIdx]
-	}
-	p := &slab[a.slabPos]
-	a.slabPos++
-	return p
 }
 
 // Java: TypedAstSerializer(AbstractCompiler, SerializationOptions)
@@ -192,36 +161,11 @@ func (s *TypedAstSerializer) generateTypePool() *TypePool {
 
 // Java: TypedAstSerializer.serializeScriptNode(Node)
 func (s *TypedAstSerializer) SerializeScriptNode(script rhino.Node) *LazyAst {
-	jutil.CheckState(script.IsScript())
-	s.previousColumn = 0
-	s.previousLine = s.previousColumn
-	s.scriptEnc.reset()
-
-	sourceFile := s.GetSourceFilePointer(script)
-	s.visitDirect(script)
-	s.subtreeSourceFiles = s.subtreeSourceFiles[:0]
-
-	encodedSourceMap := s.compiler.GetBase64SourceMapContents(*script.GetSourceFileName())
-	scriptBytes := s.scriptEnc.encodeToByteSlab(&s.scriptByteSlab)
-
-	lazyAst := s.lazyAstArena.alloc(256)
-	*lazyAst = LazyAst{
-		script_:     scriptBytes,
-		sourceFile_: int32(sourceFile),
-	}
-
-	if encodedSourceMap != nil {
-		// This is the encoded source map taken from the inline sourcemap comment. It does not include
-		// the base64 prefix.
-		// E.g. We serialize "eyJ2ZXJzaW9uI..." from the "//# sourceMappingURL=
-		// data:application/json;base64,eyJ2ZXJzaW9uI..." comment.
-		lazyAst.sourceMappingUrl_ = *encodedSourceMap
-		lazyAst.serializedSize()
-	} else {
-		lazyAst.cachedSize = lazyAstFastSize(scriptBytes, lazyAst.sourceFile_) + 1
-	}
-
-	return lazyAst
+	s.scriptEnc.buildScript(script, s)
+	s.applyFixupsSequential(&s.scriptEnc)
+	s.scriptEnc.marshalScript(&s.scriptByteSlab)
+	lazyAst := s.scriptEnc.lazyAst
+	return &lazyAst
 }
 
 func lazyAstFastSize(scriptBytes []byte, sourceFile int32) int {
@@ -233,45 +177,6 @@ func lazyAstFastSize(scriptBytes []byte, sourceFile int32) int {
 		ls += 1 + protoVarintLen(uint64(uint32(sourceFile)))
 	}
 	return ls
-}
-
-// peekLastSubtreeSourceFile is subtreeSourceFiles.peekLast(): the top of the
-// stack, or null when it is empty.
-//
-// Go-only: language-adapter — ArrayDeque.peekLast on the slice stack.
-func (s *TypedAstSerializer) peekLastSubtreeSourceFile() *SourceFile {
-	if len(s.subtreeSourceFiles) == 0 {
-		return nil
-	}
-	return s.subtreeSourceFiles[len(s.subtreeSourceFiles)-1]
-}
-
-// Java: TypedAstSerializer.getSourceFilePointer(Node)
-func (s *TypedAstSerializer) GetSourceFilePointer(n rhino.Node) int {
-	var sourceFile *SourceFile
-	if ssf := n.GetStaticSourceFile(); ssf != nil {
-		sourceFile = ssf.(*SourceFile)
-	}
-	if sourceFile == nil {
-		// TODO(b/186056977): enforce that SourceFile is not null in externs as well as code.
-		if !s.peekLastSubtreeSourceFile().IsExtern() {
-			jutil.CheckStateMsg2(
-				false,
-				"Unexpected null SourceFile for node %s with parent %s",
-				n.ToStringTree(),
-				n.GetParent())
-		}
-		return 0 // not set
-	}
-
-	if sourceFile == s.peekLastSubtreeSourceFile() {
-		// To save space, only serialize a SourceFile for a node if it is different than the parent's
-		// source.
-		return 0 // not set
-	}
-
-	s.subtreeSourceFiles = append(s.subtreeSourceFiles, sourceFile)
-	return s.internSourceFile(sourceFile)
 }
 
 func (s *TypedAstSerializer) internSourceFile(sourceFile *SourceFile) int {
@@ -297,23 +202,19 @@ func (s *TypedAstSerializer) applyFixupsSequential(enc *scriptWireEncoder) {
 		op := fixups[i]
 		switch op.target {
 		case fixupNodeStrVal:
-			nodes[op.targetIdx].valBits = uint64(uint32(int32(sp.PutID(op.refIdx))))
+			nodes[op.targetIdx].setStringPointer(sp.PutID(op.refIdx))
 		case fixupNodeStrValUsedProp:
 			ptr := sp.PutID(op.refIdx)
 			s.markUsedProp(ptr)
-			nodes[op.targetIdx].valBits = uint64(uint32(int32(ptr)))
+			nodes[op.targetIdx].setStringPointer(ptr)
 		case fixupNodeOrigName:
 			nodes[op.targetIdx].origName = int32(sp.PutID(op.refIdx))
 		case fixupNodeColor:
 			nodes[op.targetIdx].typePtr = int32(cs.AddColor(enc.colorRefs[op.refIdx]))
 		case fixupNodeRawTmpl:
-			ptr := uint32(int32(sp.PutID(op.refIdx)))
-			n := &nodes[op.targetIdx]
-			n.valBits = (n.valBits & 0xFFFFFFFF) | (uint64(ptr) << 32)
+			nodes[op.targetIdx].setTemplateRawPointer(sp.PutID(op.refIdx))
 		case fixupNodeCookedTmpl:
-			ptr := uint32(int32(sp.PutID(op.refIdx)))
-			n := &nodes[op.targetIdx]
-			n.valBits = (n.valBits &^ 0xFFFFFFFF) | uint64(ptr)
+			nodes[op.targetIdx].setTemplateCookedPointer(sp.PutID(op.refIdx))
 		case fixupNodeSourceFile:
 			nodes[op.targetIdx].sourceFile = int32(s.internSourceFile(enc.sfRefs[op.refIdx]))
 		case fixupLazySourceFile:
@@ -429,7 +330,7 @@ func (s *TypedAstSerializer) serializeRootsParallel(
 
 		// Pass A: Build per-script flat AST tables and pointer-free fixup streams in parallel.
 		runSerializerBatchParallel(batchLen, numThreads, func(_ int, slot int) {
-			encoders[slot].buildScriptPassA(batch[slot], s)
+			encoders[slot].buildScript(batch[slot], s)
 		})
 
 		// Pass B: Replay pool registrations in strict script & AST pre/post order.
@@ -439,7 +340,7 @@ func (s *TypedAstSerializer) serializeRootsParallel(
 
 		// Pass C: Compute bottom-up wire sizes and emit protobuf wire bytes directly in parallel.
 		runSerializerBatchParallel(batchLen, numThreads, func(workerIdx int, slot int) {
-			encoders[slot].marshalScriptPassC(&workerByteSlabs[workerIdx])
+			encoders[slot].marshalScript(&workerByteSlabs[workerIdx])
 			lazyAstOut[base+slot] = encoders[slot].lazyAst
 		})
 	}

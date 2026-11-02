@@ -230,9 +230,7 @@ func (p Node_Prop) Ordinal() int { return int(p) }
 var Node_propValues = Node_Prop_values()
 
 const (
-	// The first propHotCount booleans are stored in the record's property
-	// word; the others (rare: under 1 % of the nodes each on the benchmark
-	// workloads) in the node's aux entry (see propWord).
+	// Hot boolean properties (bits 0..24) live directly in nodeData.propFlags.
 	propBit_IS_CONSTANT_NAME uint = iota
 	propBit_QUOTED
 	propBit_FREE_CALL
@@ -243,12 +241,29 @@ const (
 	propBit_ARROW_FN
 	propBit_INCRDECR
 	propBit_SYNTHETIC
+	propBit_IS_SHORTHAND_PROPERTY
 	propBit_IS_NAMESPACE
 	propBit_USE_STRICT
-	propBit_DIRECT_EVAL
 	propBit_STATIC_MEMBER
 	propBit_GENERATOR_FN
 	propBit_ASYNC_FN
+	propBit_COLOR_FROM_CAST
+	propBit_GOOG_MODULE
+	propBit_ES6_MODULE
+	propBit_DELETED
+	propBit_MODULE_ALIAS
+	propBit_IS_UNUSED_PARAMETER
+	propBit_MODULE_EXPORT
+	propBit_START_OF_OPT_CHAIN
+	propBit_IS_IN_CLOSURE_UNAWARE_SUBTREE
+	propHotCount
+)
+
+const propColdShift = 32
+
+const (
+	// Rare boolean properties (bits 32..46) live in nodeExtBox.coldProps.
+	propBit_DIRECT_EVAL uint = propColdShift + iota
 	propBit_YIELD_ALL
 	propBit_EXPORT_DEFAULT
 	propBit_EXPORT_ALL_FROM
@@ -258,26 +273,15 @@ const (
 	propBit_COMPUTED_PROP_GETTER
 	propBit_COMPUTED_PROP_SETTER
 	propBit_COMPUTED_PROP_VARIABLE
-	propBit_COLOR_FROM_CAST
 	propBit_OPT_ES6_TYPED
 	propBit_CONSTRUCT_SIGNATURE
-	propBit_GOOG_MODULE
 	propBit_IS_TYPESCRIPT_ABSTRACT
-	propBit_DELETED
-	propBit_MODULE_ALIAS
-	propBit_IS_UNUSED_PARAMETER
-	propBit_MODULE_EXPORT
-	propBit_IS_SHORTHAND_PROPERTY
-	propBit_ES6_MODULE
-	propBit_START_OF_OPT_CHAIN
 	propBit_SYNTHESIZED_UNFULFILLED_NAME_DECLARATION
 	propBit_PRIVATE_IDENTIFIER
-	propBit_IS_IN_CLOSURE_UNAWARE_SUBTREE
-	propBitCount
+	propColdEnd
 )
 
-// propHotCount is the number of boolean properties kept in the record.
-const propHotCount = 8
+const propColdCount = propColdEnd - propColdShift
 
 const (
 	propFlag_IS_PARENTHESIZED                         uint64 = 1 << propBit_IS_PARENTHESIZED
@@ -321,13 +325,14 @@ const (
 	propFlag_PRIVATE_IDENTIFIER                       uint64 = 1 << propBit_PRIVATE_IDENTIFIER
 	propFlag_IS_IN_CLOSURE_UNAWARE_SUBTREE            uint64 = 1 << propBit_IS_IN_CLOSURE_UNAWARE_SUBTREE
 
-	nodePropBoolMask uint64 = (uint64(1) << propBitCount) - 1
+	nodePropBoolMask uint64 = ((uint64(1) << propHotCount) - 1) | (((uint64(1) << propColdCount) - 1) << propColdShift)
 
-	propFlagHasJSDoc uint64 = 1 << 40
+	// Bits 25..31 complete the inline 32-bit propWord in nodeData.propFlags.
+	propFlagHasJSDoc uint64 = 1 << 25
 
-	nodePropConstVarShift          = 41
+	nodePropConstVarShift          = 26
 	nodePropConstVarMask    uint64 = uint64(3) << nodePropConstVarShift
-	nodePropSideEffectShift        = 43
+	nodePropSideEffectShift        = 28
 	nodePropSideEffectMask  uint64 = uint64(15) << nodePropSideEffectShift
 )
 
@@ -374,7 +379,7 @@ var nodePropBitMask = [64]uint64{
 	Node_Prop_IS_IN_CLOSURE_UNAWARE_SUBTREE:            propFlag_IS_IN_CLOSURE_UNAWARE_SUBTREE,
 }
 
-var nodeBitToProp = [propBitCount]Node_Prop{
+var nodeBitToProp = [propColdEnd]Node_Prop{
 	propBit_IS_PARENTHESIZED:                         Node_Prop_IS_PARENTHESIZED,
 	propBit_INCRDECR:                                 Node_Prop_INCRDECR,
 	propBit_QUOTED:                                   Node_Prop_QUOTED,

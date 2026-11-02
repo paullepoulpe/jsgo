@@ -165,10 +165,10 @@ func (c *InlineAndCollapseProperties_CollapseProperties) UpdateGlobalNameDeclara
 		c.UpdateGlobalNameDeclarationAtVariableNode(n, canCollapseChildNames)
 	case rhino.Token_FUNCTION:
 		c.LogDeclarationAction(n, declNode, "updating function declaration")
-		c.UpdateGlobalNameDeclarationAtFunctionNode(n, canCollapseChildNames)
+		c.updateGlobalNameDeclarationAtDeclNode(n, canCollapseChildNames)
 	case rhino.Token_CLASS:
 		c.LogDeclarationAction(n, declNode, "updating class declaration")
-		c.UpdateGlobalNameDeclarationAtClassNode(n, canCollapseChildNames)
+		c.updateGlobalNameDeclarationAtDeclNode(n, canCollapseChildNames)
 	case rhino.Token_CLASS_MEMBERS:
 		c.LogDeclarationAction(n, declNode, "updating static member declaration")
 		c.UpdateGlobalNameDeclarationAtStaticMemberNode(n, alias, canCollapseChildNames)
@@ -386,40 +386,20 @@ func (c *InlineAndCollapseProperties_CollapseProperties) UpdateGlobalNameDeclara
 	}
 }
 
-// UpdateGlobalNameDeclarationAtFunctionNode updates the first
-// initialization (a.k.a "declaration") of a global name that occurs at a
-// FUNCTION node. See comment for updateGlobalNameDeclaration.
+// updateGlobalNameDeclarationAtDeclNode updates the first initialization
+// (a.k.a "declaration") of a global name that occurs at a FUNCTION or CLASS
+// node. See comment for updateGlobalNameDeclaration.
 //
 // n is an object representing a global name (e.g. "a").
-//
-// Java: InlineAndCollapseProperties.CollapseProperties.updateGlobalNameDeclarationAtFunctionNode(Name, boolean)
-func (c *InlineAndCollapseProperties_CollapseProperties) UpdateGlobalNameDeclarationAtFunctionNode(n *GlobalNamespace_Name, canCollapseChildNames bool) {
+func (c *InlineAndCollapseProperties_CollapseProperties) updateGlobalNameDeclarationAtDeclNode(n *GlobalNamespace_Name, canCollapseChildNames bool) {
 	if !canCollapseChildNames || !c.CanCollapse(n) {
 		return
 	}
 
 	ref := n.getDeclarationRef()
-	fnName := ref.GetNode().GetString()
+	declNode := ref.GetNode()
 	c.AddStubsForUndeclaredProperties(
-		n, fnName, ref.GetNode().GetAncestor(2), ref.GetNode().GetParent())
-}
-
-// UpdateGlobalNameDeclarationAtClassNode updates the first initialization
-// (a.k.a "declaration") of a global name that occurs at a CLASS node. See
-// comment for updateGlobalNameDeclaration.
-//
-// n is an object representing a global name (e.g. "a").
-//
-// Java: InlineAndCollapseProperties.CollapseProperties.updateGlobalNameDeclarationAtClassNode(Name, boolean)
-func (c *InlineAndCollapseProperties_CollapseProperties) UpdateGlobalNameDeclarationAtClassNode(n *GlobalNamespace_Name, canCollapseChildNames bool) {
-	if !canCollapseChildNames || !c.CanCollapse(n) {
-		return
-	}
-
-	ref := n.getDeclarationRef()
-	className := ref.GetNode().GetString()
-	c.AddStubsForUndeclaredProperties(
-		n, className, ref.GetNode().GetAncestor(2), ref.GetNode().GetParent())
+		n, declNode.GetString(), declNode.GetAncestor(2), declNode.GetParent())
 }
 
 // UpdateGlobalNameDeclarationAtStaticMemberNode updates the first

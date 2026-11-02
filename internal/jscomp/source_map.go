@@ -54,7 +54,6 @@ import (
 //
 // See CodeConsumer, CodeGenerator, CodePrinter.
 type SourceMap struct {
-	generator                sourcemap.SourceMapGenerator
 	generatorV3              *sourcemap.SourceMapGeneratorV3
 	prefixMappings           []SourceMap_LocationMapping
 	sourceLocationFixupCache map[string]string
@@ -201,11 +200,9 @@ func (m *SourceMap_PrefixLocationMapping) HashCode() int32 {
 }
 
 // Java: SourceMap(SourceMapGenerator)
-func newSourceMap(generator sourcemap.SourceMapGenerator) *SourceMap {
-	v3, _ := generator.(*sourcemap.SourceMapGeneratorV3)
+func newSourceMap(generator *sourcemap.SourceMapGeneratorV3) *SourceMap {
 	return &SourceMap{
-		generator:   generator,
-		generatorV3: v3,
+		generatorV3: generator,
 	}
 }
 
@@ -320,42 +317,16 @@ func (s *SourceMap) resolveMappingOfNodePositions(
 
 // addResolvedMapping is the generator half of AddMappingOfNodePositions.
 func (s *SourceMap) addResolvedMapping(r *sourceMap_resolvedMapping) {
-	if s.generatorV3 != nil {
-		var origPtr *string
-		var origName string
-		if r.hasOriginalName {
-			origName = r.originalName
-			origPtr = &origName
-		}
-		s.generatorV3.AddMappingPositions(r.sourceFileName, origPtr, r.srcPos, r.start, r.end)
-	} else {
-		s.addMappingFallback(r.sourceFileName, r.originalName, r.hasOriginalName, r.srcPos, r.start, r.end)
-	}
-}
-
-//go:noinline
-func (s *SourceMap) addMappingFallback(
-	sourceFileName string,
-	originalName string,
-	hasOriginalName bool,
-	srcPos sourcemap.FilePosition,
-	outputStartPosition sourcemap.FilePosition,
-	outputEndPosition sourcemap.FilePosition) {
 	var origPtr *string
-	if hasOriginalName {
-		origPtr = &originalName
+	if r.hasOriginalName {
+		origPtr = &r.originalName
 	}
-	s.generator.AddMapping(
-		&sourceFileName,
-		origPtr,
-		&srcPos,
-		&outputStartPosition,
-		&outputEndPosition)
+	s.generatorV3.AddMappingPositions(r.sourceFileName, origPtr, r.srcPos, r.start, r.end)
 }
 
 // Java: SourceMap.addSourceFile(String, String)
 func (s *SourceMap) AddSourceFile(name string, code *string) {
-	s.generator.AddSourcesContent(s.fixupSourceLocation(name), code)
+	s.generatorV3.AddSourcesContent(s.fixupSourceLocation(name), code)
 }
 
 // Java: SourceMap.getOriginalName(Node)
@@ -430,12 +401,12 @@ func (s *SourceMap) AppendTo(out io.StringWriter, name *string) {
 		f := s.fixupSourceLocation(*name)
 		fixed = &f
 	}
-	s.generator.AppendTo(out, fixed)
+	s.generatorV3.AppendTo(out, fixed)
 }
 
 // Java: SourceMap.reset()
 func (s *SourceMap) Reset() {
-	s.generator.Reset()
+	s.generatorV3.Reset()
 	clear(s.sourceLocationFixupCache)
 	s.lastSourceFile = nil
 	s.lastFixedSourceFileName = ""
@@ -445,17 +416,17 @@ func (s *SourceMap) Reset() {
 
 // Java: SourceMap.setStartingPosition(int, int)
 func (s *SourceMap) SetStartingPosition(offsetLine int, offsetIndex int) {
-	s.generator.SetStartingPosition(offsetLine, offsetIndex)
+	s.generatorV3.SetStartingPosition(offsetLine, offsetIndex)
 }
 
 // Java: SourceMap.setWrapperPrefix(String)
 func (s *SourceMap) SetWrapperPrefix(prefix string) {
-	s.generator.SetWrapperPrefix(prefix)
+	s.generatorV3.SetWrapperPrefix(prefix)
 }
 
 // Java: SourceMap.validate(boolean)
 func (s *SourceMap) Validate(validate bool) {
-	s.generator.Validate(validate)
+	s.generatorV3.Validate(validate)
 }
 
 // Java: SourceMap.setPrefixMappings(List<? extends LocationMapping>)

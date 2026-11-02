@@ -21,28 +21,15 @@ package bundle
 import (
 	"strconv"
 	"strings"
-	"sync"
 
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 )
-
-type cachedSourceEntry struct {
-	key        *Source
-	hash       int32
-	value      *Source
-	prev, next *cachedSourceEntry
-}
 
 // CachedTransformer is a Transformer that caches output from a delegate
 // transformer.
 type CachedTransformer struct {
 	delegate Source_Transformer
-	maxSize  int // -1: unbounded
-	mu       sync.Mutex
-	table    map[int32][]*cachedSourceEntry
-	count    int
-	head     *cachedSourceEntry // least recently accessed
-	tail     *cachedSourceEntry // most recently accessed
+	cache    jutil.ObjectLRUCache[*Source, *Source]
 }
 
 var _ Source_Transformer = (*CachedTransformer)(nil)
@@ -111,13 +98,8 @@ func ParseCacheMaxSize(spec string) int {
 // given maximum entry count (-1 for unbounded).
 func NewCachedTransformerWithMaxSize(delegate Source_Transformer, maxSize int) *CachedTransformer {
 	jutil.CheckNotNull(delegate)
-	t := &CachedTransformer{
-		delegate: delegate,
-		maxSize:  maxSize,
-	}
-	if maxSize != 0 {
-		t.table = make(map[int32][]*cachedSourceEntry)
-	}
+	t := &CachedTransformer{delegate: delegate}
+	t.cache.Init(maxSize)
 	return t
 }
 
@@ -134,100 +116,11 @@ func NewCachedTransformer(delegate Source_Transformer) *CachedTransformer {
 // Java: CachedTransformer.transform(Source)
 func (t *CachedTransformer) Transform(input *Source) *Source {
 	jutil.CheckNotNull(input)
-	if t.maxSize == 0 {
+	return t.cache.GetOrLoad(input, func() *Source {
 		value := t.delegate.Transform(input)
 		if value == nil {
 			panic(jutil.NewRuntimeException("CacheLoader returned null."))
 		}
 		return value
-	}
-
-	hash := input.HashCode()
-	t.mu.Lock()
-	if e := t.findLocked(input, hash); e != nil {
-		t.moveToTailLocked(e)
-		val := e.value
-		t.mu.Unlock()
-		return val
-	}
-	t.mu.Unlock()
-
-	value := t.delegate.Transform(input)
-	if value == nil {
-		panic(jutil.NewRuntimeException("CacheLoader returned null."))
-	}
-
-	t.mu.Lock()
-	if e := t.findLocked(input, hash); e != nil {
-		t.moveToTailLocked(e)
-		val := e.value
-		t.mu.Unlock()
-		return val
-	}
-	e := &cachedSourceEntry{key: input, hash: hash, value: value}
-	t.table[hash] = append(t.table[hash], e)
-	t.count++
-	t.linkLastLocked(e)
-	if t.maxSize > 0 && t.count > t.maxSize {
-		t.removeLocked(t.head)
-	}
-	t.mu.Unlock()
-	return value
-}
-
-func (t *CachedTransformer) findLocked(key *Source, hash int32) *cachedSourceEntry {
-	for _, e := range t.table[hash] {
-		if e.key == key || e.key.Equals(key) {
-			return e
-		}
-	}
-	return nil
-}
-
-func (t *CachedTransformer) unlinkLocked(e *cachedSourceEntry) {
-	if e.prev != nil {
-		e.prev.next = e.next
-	} else {
-		t.head = e.next
-	}
-	if e.next != nil {
-		e.next.prev = e.prev
-	} else {
-		t.tail = e.prev
-	}
-	e.prev, e.next = nil, nil
-}
-
-func (t *CachedTransformer) linkLastLocked(e *cachedSourceEntry) {
-	e.prev = t.tail
-	e.next = nil
-	if t.tail != nil {
-		t.tail.next = e
-	} else {
-		t.head = e
-	}
-	t.tail = e
-}
-
-func (t *CachedTransformer) moveToTailLocked(e *cachedSourceEntry) {
-	if t.tail == e {
-		return
-	}
-	t.unlinkLocked(e)
-	t.linkLastLocked(e)
-}
-
-func (t *CachedTransformer) removeLocked(e *cachedSourceEntry) {
-	t.unlinkLocked(e)
-	bucket := t.table[e.hash]
-	for i, x := range bucket {
-		if x == e {
-			t.table[e.hash] = append(bucket[:i:i], bucket[i+1:]...)
-			break
-		}
-	}
-	if len(t.table[e.hash]) == 0 {
-		delete(t.table, e.hash)
-	}
-	t.count--
+	})
 }

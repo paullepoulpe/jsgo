@@ -20,6 +20,7 @@
 package colors
 
 import (
+	"math/bits"
 	"strconv"
 	"strings"
 	"sync/atomic"
@@ -162,63 +163,71 @@ func Color_CreateUnion2(e1, e2 *Color) *Color {
 	return Color_CreateUnionSliceWithBuilder(buf[:], &builder, nil, nil)
 }
 
-type colorDedupSet map[int32][]*Color
-
-func (s colorDedupSet) add(c *Color) bool {
-	h := c.HashCode()
-	bucket := s[h]
-	for _, existing := range bucket {
-		if existing.equalsColor(c) {
-			return false
-		}
-	}
-	s[h] = append(bucket, c)
-	return true
+type setOps[T comparable] interface {
+	checkNonNull(v T)
+	equal(a, b T) bool
+	hash(v T) int32
 }
 
-func appendUniqueColor(dst []*Color, c *Color, seen *colorDedupSet) []*Color {
-	if m := *seen; m != nil {
-		if m.add(c) {
-			return append(dst, c)
-		}
-		return dst
+type colorSetOps struct{}
+
+func (colorSetOps) checkNonNull(c *Color) {
+	if c == nil {
+		panic(jutil.NewNullPointerException())
 	}
-	for _, existing := range dst {
-		if existing.equalsColor(c) {
-			return dst
+}
+func (colorSetOps) equal(a, b *Color) bool { return a.equalsColor(b) }
+func (colorSetOps) hash(c *Color) int32    { return c.HashCode() }
+
+type stringSetOps struct{}
+
+func (stringSetOps) checkNonNull(string)    {}
+func (stringSetOps) equal(a, b string) bool { return a == b }
+func (stringSetOps) hash(s string) int32    { return jutil.StringHashCode(s) }
+
+func rebuildIndexTable[T comparable, Ops setOps[T]](items []T, size int) []int32 {
+	var ops Ops
+	slots := make([]int32, size)
+	mask := uint32(size - 1)
+	for i, item := range items {
+		for slot := uint32(ops.hash(item)) & mask; ; slot = (slot + 1) & mask {
+			if slots[slot] == 0 {
+				slots[slot] = int32(i + 1)
+				break
+			}
 		}
 	}
-	dst = append(dst, c)
-	if len(dst) > 16 {
-		m := make(colorDedupSet, len(dst)*2)
-		for _, existing := range dst {
-			m.add(existing)
-		}
-		*seen = m
-	}
-	return dst
+	return slots
 }
 
-func appendUniqueString(dst []string, v string, seen *map[string]struct{}) []string {
-	if m := *seen; m != nil {
-		if _, ok := m[v]; ok {
-			return dst
+func appendUnique[T comparable, Ops setOps[T]](dst []T, v T, table *[]int32) []T {
+	var ops Ops
+	if slots := *table; slots != nil {
+		mask := uint32(len(slots) - 1)
+		for slot := uint32(ops.hash(v)) & mask; ; slot = (slot + 1) & mask {
+			idx := slots[slot]
+			if idx == 0 {
+				dst = append(dst, v)
+				if len(dst)*2 > len(slots) {
+					*table = rebuildIndexTable[T, Ops](dst, len(slots)*2)
+				} else {
+					slots[slot] = int32(len(dst))
+				}
+				return dst
+			}
+			if ops.equal(dst[idx-1], v) {
+				return dst
+			}
 		}
-		m[v] = struct{}{}
-		return append(dst, v)
 	}
 	for _, existing := range dst {
-		if existing == v {
+		if ops.equal(existing, v) {
 			return dst
 		}
 	}
 	dst = append(dst, v)
 	if len(dst) > 16 {
-		m := make(map[string]struct{}, len(dst)*2)
-		for _, existing := range dst {
-			m[existing] = struct{}{}
-		}
-		*seen = m
+		*table = rebuildIndexTable[T, Ops](dst, 64)
 	}
 	return dst
 }
@@ -248,102 +257,23 @@ func allocCopySlice[T any](src []T, alloc func(int) []T) []T {
 	return out
 }
 
-// colorSetAccum deduplicates *Colors in insertion order using an inline stack
-// buffer before spilling to the heap.
-type colorSetAccum struct {
-	inline [8]*Color
-	spill  []*Color
-	seen   colorDedupSet
+// setAccum deduplicates elements in insertion order using an inline [8]T stack
+// buffer before spilling to a linear slice (<= 16) and open-addressed index table.
+type setAccum[T comparable, Ops setOps[T]] struct {
+	inline [8]T
+	spill  []T
+	table  []int32
 	n      int
 }
 
-func (a *colorSetAccum) add(c *Color) {
+func (a *setAccum[T, Ops]) add(v T) {
 	if a.spill != nil {
-		a.spill = appendUniqueColor(a.spill, c, &a.seen)
+		a.spill = appendUnique[T, Ops](a.spill, v, &a.table)
 		return
 	}
+	var ops Ops
 	for _, existing := range a.inline[:a.n] {
-		if existing.equalsColor(c) {
-			return
-		}
-	}
-	if a.n < len(a.inline) {
-		a.inline[a.n] = c
-		a.n++
-		return
-	}
-	a.spill = make([]*Color, len(a.inline)+1, len(a.inline)*2)
-	copy(a.spill, a.inline[:])
-	a.spill[len(a.inline)] = c
-}
-
-func (a *colorSetAccum) copyOut(alloc func(int) []*Color) []*Color {
-	if a.spill != nil {
-		return allocCopySlice(a.spill, alloc)
-	}
-	return allocCopySlice(a.inline[:a.n], alloc)
-}
-
-// colorSliceUnionAccum merges []*Color slices across union members, reusing a
-// single member's slice directly until two distinct non-empty slices appear.
-type colorSliceUnionAccum struct {
-	single  []*Color
-	merged  colorSetAccum
-	spilled bool
-}
-
-func (a *colorSliceUnionAccum) addSlice(s []*Color) {
-	if len(s) == 0 {
-		return
-	}
-	if a.spilled {
-		for _, c := range s {
-			a.merged.add(c)
-		}
-		return
-	}
-	if a.single == nil || &a.single[0] == &s[0] {
-		a.single = s
-		return
-	}
-	a.spilled = true
-	for _, c := range a.single {
-		a.merged.add(c)
-	}
-	for _, c := range s {
-		a.merged.add(c)
-	}
-	a.single = nil
-}
-
-func (a *colorSliceUnionAccum) finish(alloc func(int) []*Color) []*Color {
-	if a.spilled {
-		return a.merged.copyOut(alloc)
-	}
-	if a.single != nil {
-		return a.single
-	}
-	return emptyColorSlice
-}
-
-// stringSliceUnionAccum merges []string slices across union members, reusing a
-// single member's slice directly until two distinct non-empty slices appear.
-type stringSliceUnionAccum struct {
-	inline  [8]string
-	spill   []string
-	single  []string
-	seen    map[string]struct{}
-	n       int
-	spilled bool
-}
-
-func (a *stringSliceUnionAccum) addOne(v string) {
-	if a.spill != nil {
-		a.spill = appendUniqueString(a.spill, v, &a.seen)
-		return
-	}
-	for _, existing := range a.inline[:a.n] {
-		if existing == v {
+		if ops.equal(existing, v) {
 			return
 		}
 	}
@@ -352,18 +282,33 @@ func (a *stringSliceUnionAccum) addOne(v string) {
 		a.n++
 		return
 	}
-	a.spill = make([]string, len(a.inline)+1, len(a.inline)*2)
+	a.spill = make([]T, len(a.inline)+1, len(a.inline)*2)
 	copy(a.spill, a.inline[:])
 	a.spill[len(a.inline)] = v
 }
 
-func (a *stringSliceUnionAccum) addSlice(s []string) {
+func (a *setAccum[T, Ops]) copyOut(alloc func(int) []T) []T {
+	if a.spill != nil {
+		return allocCopySlice(a.spill, alloc)
+	}
+	return allocCopySlice(a.inline[:a.n], alloc)
+}
+
+// sliceUnionAccum merges slices across union members, reusing a single member's
+// slice directly until two distinct non-empty slices appear.
+type sliceUnionAccum[T comparable, Ops setOps[T]] struct {
+	single  []T
+	merged  setAccum[T, Ops]
+	spilled bool
+}
+
+func (a *sliceUnionAccum[T, Ops]) addSlice(s []T) {
 	if len(s) == 0 {
 		return
 	}
 	if a.spilled {
 		for _, v := range s {
-			a.addOne(v)
+			a.merged.add(v)
 		}
 		return
 	}
@@ -373,25 +318,22 @@ func (a *stringSliceUnionAccum) addSlice(s []string) {
 	}
 	a.spilled = true
 	for _, v := range a.single {
-		a.addOne(v)
+		a.merged.add(v)
 	}
 	for _, v := range s {
-		a.addOne(v)
+		a.merged.add(v)
 	}
 	a.single = nil
 }
 
-func (a *stringSliceUnionAccum) finish(alloc func(int) []string) []string {
-	if !a.spilled {
-		if a.single != nil {
-			return a.single
-		}
-		return emptyStringSlice
+func (a *sliceUnionAccum[T, Ops]) finish(empty []T, alloc func(int) []T) []T {
+	if a.spilled {
+		return a.merged.copyOut(alloc)
 	}
-	if a.spill != nil {
-		return allocCopySlice(a.spill, alloc)
+	if a.single != nil {
+		return a.single
 	}
-	return allocCopySlice(a.inline[:a.n], alloc)
+	return empty
 }
 
 // Color_CreateUnionSliceWithBuilder builds a union Color reusing builder and
@@ -426,9 +368,9 @@ func Color_CreateUnionSliceWithBuilder(
 		return first
 	}
 
-	var flatElems colorSetAccum
-	var inst, protos colorSliceUnionAccum
-	var props stringSliceUnionAccum
+	var flatElems setAccum[*Color, colorSetOps]
+	var inst, protos sliceUnionAccum[*Color, colorSetOps]
+	var props sliceUnionAccum[string, stringSetOps]
 
 	isClosureAssert := true
 	isConstructor := true
@@ -453,9 +395,9 @@ func Color_CreateUnionSliceWithBuilder(
 	}
 
 	newElements := flatElems.copyOut(allocColorSlice)
-	instanceColors := inst.finish(allocColorSlice)
-	prototypes := protos.finish(allocColorSlice)
-	ownProperties := props.finish(allocStringSlice)
+	instanceColors := inst.finish(emptyColorSlice, allocColorSlice)
+	prototypes := protos.finish(emptyColorSlice, allocColorSlice)
+	ownProperties := props.finish(emptyStringSlice, allocStringSlice)
 
 	prevTrust := builder.trustUnique
 	builder.trustUnique = true
@@ -631,21 +573,22 @@ func (c *Color) String() string {
 	return sb.String()
 }
 
-func colorSliceSetEquals(a, b []*Color) bool {
+func sliceSetEquals[T comparable, Ops setOps[T]](a, b []T) bool {
 	if len(a) != len(b) {
 		return false
 	}
 	if len(a) == 0 || &a[0] == &b[0] {
 		return true
 	}
+	var ops Ops
 	if len(a) <= 16 {
 		for i, x := range a {
-			if x.equalsColor(b[i]) {
+			if ops.equal(x, b[i]) {
 				continue
 			}
 			found := false
 			for j, y := range b {
-				if j != i && x.equalsColor(y) {
+				if j != i && ops.equal(x, y) {
 					found = true
 					break
 				}
@@ -656,69 +599,29 @@ func colorSliceSetEquals(a, b []*Color) bool {
 		}
 		return true
 	}
-	var byHash map[int32][]*Color
+	var slots []int32
+	var mask uint32
 	for i, x := range a {
-		if x.equalsColor(b[i]) {
+		if ops.equal(x, b[i]) {
 			continue
 		}
-		if byHash == nil {
-			byHash = make(map[int32][]*Color, len(b)*2)
-			for _, y := range b {
-				yh := y.HashCode()
-				byHash[yh] = append(byHash[yh], y)
-			}
+		if slots == nil {
+			tableSize := 1 << bits.Len(uint(len(b)*2-1))
+			slots = rebuildIndexTable[T, Ops](b, tableSize)
+			mask = uint32(tableSize - 1)
 		}
 		found := false
-		for _, y := range byHash[x.HashCode()] {
-			if x.equalsColor(y) {
+		for slot := uint32(ops.hash(x)) & mask; ; slot = (slot + 1) & mask {
+			idx := slots[slot]
+			if idx == 0 {
+				break
+			}
+			if ops.equal(x, b[idx-1]) {
 				found = true
 				break
 			}
 		}
 		if !found {
-			return false
-		}
-	}
-	return true
-}
-
-func stringSliceSetEquals(a, b []string) bool {
-	if len(a) != len(b) {
-		return false
-	}
-	if len(a) == 0 || &a[0] == &b[0] {
-		return true
-	}
-	if len(a) <= 16 {
-		for i, x := range a {
-			if x == b[i] {
-				continue
-			}
-			found := false
-			for j, y := range b {
-				if j != i && x == y {
-					found = true
-					break
-				}
-			}
-			if !found {
-				return false
-			}
-		}
-		return true
-	}
-	var seen map[string]struct{}
-	for i, x := range a {
-		if x == b[i] {
-			continue
-		}
-		if seen == nil {
-			seen = make(map[string]struct{}, len(b)*2)
-			for _, y := range b {
-				seen[y] = struct{}{}
-			}
-		}
-		if _, ok := seen[x]; !ok {
 			return false
 		}
 	}
@@ -743,10 +646,10 @@ func (c *Color) equalsColor(that *Color) bool {
 		len(c.instanceColors) == len(that.instanceColors) &&
 		len(c.ownProperties) == len(that.ownProperties) &&
 		len(c.unionElements) == len(that.unionElements) &&
-		colorSliceSetEquals(c.prototypes, that.prototypes) &&
-		colorSliceSetEquals(c.instanceColors, that.instanceColors) &&
-		stringSliceSetEquals(c.ownProperties, that.ownProperties) &&
-		colorSliceSetEquals(c.unionElements, that.unionElements)
+		sliceSetEquals[*Color, colorSetOps](c.prototypes, that.prototypes) &&
+		sliceSetEquals[*Color, colorSetOps](c.instanceColors, that.instanceColors) &&
+		sliceSetEquals[string, stringSetOps](c.ownProperties, that.ownProperties) &&
+		sliceSetEquals[*Color, colorSetOps](c.unionElements, that.unionElements)
 }
 
 // Java: $AutoValue_Color.equals(Object)

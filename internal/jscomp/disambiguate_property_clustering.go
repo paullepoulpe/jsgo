@@ -234,42 +234,6 @@ func (u *ColorNodeUnionFind) AppendRepresentatives(dst []*ColorGraphNode) []*Col
 	return dst
 }
 
-// ColorNodeUFElementsView provides a read-only set view over the elements of a
-// ColorNodeUnionFind.
-type ColorNodeUFElementsView struct {
-	u *ColorNodeUnionFind
-}
-
-func (v ColorNodeUFElementsView) Size() int {
-	return len(v.u.nodes)
-}
-
-func (v ColorNodeUFElementsView) IsEmpty() bool {
-	return len(v.u.nodes) == 0
-}
-
-func (v ColorNodeUFElementsView) Contains(e *ColorGraphNode) bool {
-	if e == nil {
-		return false
-	}
-	_, ok := v.u.lookupSlot(e)
-	return ok
-}
-
-func (v ColorNodeUFElementsView) All() iter.Seq[*ColorGraphNode] {
-	return func(yield func(*ColorGraphNode) bool) {
-		for _, el := range v.u.nodes {
-			if !yield(el) {
-				return
-			}
-		}
-	}
-}
-
-func (u *ColorNodeUnionFind) Elements() ColorNodeUFElementsView {
-	return ColorNodeUFElementsView{u: u}
-}
-
 // PropertyClustering is the disambiguation clusters for a given property
 // name.
 //

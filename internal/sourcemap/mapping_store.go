@@ -175,11 +175,9 @@ type SourceMapGeneratorV3_MappingTraversal struct {
 	line int
 	col  int
 
-	// Go-only: performance — the decoded mapping being visited, the one
-	// being closed, and the stack of open ones (fields, so that taking
-	// their addresses does not allocate per mapping).
-	cur, closing SourceMapGeneratorV3_Mapping
-	stack        []SourceMapGeneratorV3_Mapping
+	// Go-only: performance — the decoded mapping being visited and the stack of open ones.
+	cur   SourceMapGeneratorV3_Mapping
+	stack []SourceMapGeneratorV3_Mapping
 }
 
 // Java: SourceMapGeneratorV3.MappingTraversal()
@@ -187,47 +185,26 @@ func NewSourceMapGeneratorV3_MappingTraversal(outer *SourceMapGeneratorV3) *Sour
 	return &SourceMapGeneratorV3_MappingTraversal{outer: outer}
 }
 
-type mappingVisitorKind uint8
+type mappingRangeCallback func(m SourceMapGeneratorV3_Mapping, mapped bool, line, col, nextLine, nextCol int)
 
-const (
-	visitLineMapper mappingVisitorKind = iota
-	visitUsedCheck
-	visitPhase1
-	visitCustom
-)
-
-// mappingRangeVisitor dispatches visited mapping ranges to concrete visitors
-// without interface boxing or escaping stack-allocated traversal state.
-type mappingRangeVisitor struct {
-	kind   mappingVisitorKind
-	mapper *SourceMapGeneratorV3_LineMapper
-	check  SourceMapGeneratorV3_UsedMappingCheck
-	phase1 phase1Visitor
-	custom SourceMapGeneratorV3_MappingVisitor
-}
-
-func makeMappingRangeVisitor(v SourceMapGeneratorV3_MappingVisitor) mappingRangeVisitor {
-	if cv, ok := v.(*SourceMapGeneratorV3_LineMapper); ok {
-		return mappingRangeVisitor{kind: visitLineMapper, mapper: cv}
+func wrapMappingVisitor(v SourceMapGeneratorV3_MappingVisitor) mappingRangeCallback {
+	if lm, ok := v.(*SourceMapGeneratorV3_LineMapper); ok {
+		return lm.visitRange
 	}
-	return mappingRangeVisitor{kind: visitCustom, custom: v}
-}
-
-func (rv *mappingRangeVisitor) visit(m *SourceMapGeneratorV3_Mapping, line, col, nextLine, nextCol int) {
-	switch rv.kind {
-	case visitLineMapper:
-		rv.mapper.Visit(m, line, col, nextLine, nextCol)
-	case visitUsedCheck:
-		rv.check.Visit(m, line, col, nextLine, nextCol)
-	case visitPhase1:
-		rv.phase1.Visit(m, line, col, nextLine, nextCol)
-	default:
-		var mc *SourceMapGeneratorV3_Mapping
-		if m != nil {
-			cp := *m
-			mc = &cp
+	if uc, ok := v.(*SourceMapGeneratorV3_UsedMappingCheck); ok {
+		return func(m SourceMapGeneratorV3_Mapping, mapped bool, line, col, nextLine, nextCol int) {
+			if mapped && int(m.endLine) > uc.maxLine {
+				uc.maxLine = int(m.endLine)
+			}
 		}
-		rv.custom.Visit(mc, line, col, nextLine, nextCol)
+	}
+	return func(m SourceMapGeneratorV3_Mapping, mapped bool, line, col, nextLine, nextCol int) {
+		if !mapped {
+			v.Visit(nil, line, col, nextLine, nextCol)
+			return
+		}
+		cp := m
+		v.Visit(&cp, line, col, nextLine, nextCol)
 	}
 }
 
@@ -235,52 +212,51 @@ func (rv *mappingRangeVisitor) visit(m *SourceMapGeneratorV3_Mapping, line, col,
 //
 // Java: SourceMapGeneratorV3.MappingTraversal.traverse(MappingVisitor)
 func (t *SourceMapGeneratorV3_MappingTraversal) Traverse(v SourceMapGeneratorV3_MappingVisitor) {
-	rv := makeMappingRangeVisitor(v)
-	t.traverse(&rv)
+	t.traverse(wrapMappingVisitor(v))
 }
 
-func (t *SourceMapGeneratorV3_MappingTraversal) traverse(rv *mappingRangeVisitor) {
+func (t *SourceMapGeneratorV3_MappingTraversal) traverse(visit mappingRangeCallback) {
 	// The mapping list is ordered as a pre-order traversal. The mapping
 	// positions give us enough information to rebuild the stack and this
 	// allows the building of the source map in O(n) time.
 	t.stack = t.stack[:0]
 	r := sourceMapGeneratorV3_mappingReader{store: &t.outer.mappings}
 	for r.next(&t.cur) {
-		t.step(rv)
+		t.step(visit)
 	}
-	t.finish(rv)
+	t.finish(visit)
 }
 
 // step processes the mapping in t.cur against the open stack.
-func (t *SourceMapGeneratorV3_MappingTraversal) step(rv *mappingRangeVisitor) {
+func (t *SourceMapGeneratorV3_MappingTraversal) step(visit mappingRangeCallback) {
 	m := &t.cur
 	// Find the closest ancestor of the current mapping:
 	// An overlapping mapping is an ancestor of the current mapping, any
 	// non-overlapping mappings are siblings (or cousins) and must be
 	// closed in the reverse order of when they encountered.
 	for len(t.stack) > 0 && !t.IsOverlapped(&t.stack[len(t.stack)-1], m) {
-		t.closing = t.stack[len(t.stack)-1]
+		closing := t.stack[len(t.stack)-1]
 		t.stack = t.stack[:len(t.stack)-1]
-		t.maybeVisit(rv, &t.closing)
+		t.maybeVisit(visit, closing)
 	}
 
 	// Any gaps between the current line position and the start of the
 	// current mapping belong to the parent.
-	var parent *SourceMapGeneratorV3_Mapping
 	if len(t.stack) > 0 {
-		parent = &t.stack[len(t.stack)-1]
+		t.maybeVisitParent(visit, t.stack[len(t.stack)-1], true, m)
+	} else {
+		t.maybeVisitParent(visit, SourceMapGeneratorV3_Mapping{}, false, m)
 	}
-	t.maybeVisitParent(rv, parent, m)
 
 	t.stack = append(t.stack, *m)
 }
 
 // finish closes any mappings remaining on the stack in reverse order.
-func (t *SourceMapGeneratorV3_MappingTraversal) finish(rv *mappingRangeVisitor) {
+func (t *SourceMapGeneratorV3_MappingTraversal) finish(visit mappingRangeCallback) {
 	for len(t.stack) > 0 {
-		t.closing = t.stack[len(t.stack)-1]
+		closing := t.stack[len(t.stack)-1]
 		t.stack = t.stack[:len(t.stack)-1]
-		t.maybeVisit(rv, &t.closing)
+		t.maybeVisit(visit, closing)
 	}
 }
 
@@ -333,17 +309,16 @@ func (t *SourceMapGeneratorV3_MappingTraversal) IsOverlapped(m1, m2 *SourceMapGe
 //
 // Java: SourceMapGeneratorV3.MappingTraversal.maybeVisit(MappingVisitor, Mapping)
 func (t *SourceMapGeneratorV3_MappingTraversal) MaybeVisit(v SourceMapGeneratorV3_MappingVisitor, m *SourceMapGeneratorV3_Mapping) {
-	rv := makeMappingRangeVisitor(v)
-	t.maybeVisit(&rv, m)
+	t.maybeVisit(wrapMappingVisitor(v), *m)
 }
 
-func (t *SourceMapGeneratorV3_MappingTraversal) maybeVisit(rv *mappingRangeVisitor, m *SourceMapGeneratorV3_Mapping) {
+func (t *SourceMapGeneratorV3_MappingTraversal) maybeVisit(visit mappingRangeCallback, m SourceMapGeneratorV3_Mapping) {
 	nextLine := t.getAdjustedLine(m.endLine)
 	nextCol := t.getAdjustedCol(m.endLine, m.endCol)
 	// If this anything remaining in this mapping beyond the current line and
 	// column position, write it out now.
 	if t.line < nextLine || (t.line == nextLine && t.col < nextCol) {
-		t.visit(rv, m, nextLine, nextCol)
+		t.visitRange(visit, m, true, nextLine, nextCol)
 	}
 }
 
@@ -352,17 +327,20 @@ func (t *SourceMapGeneratorV3_MappingTraversal) maybeVisit(rv *mappingRangeVisit
 //
 // Java: SourceMapGeneratorV3.MappingTraversal.maybeVisitParent(MappingVisitor, Mapping, Mapping)
 func (t *SourceMapGeneratorV3_MappingTraversal) MaybeVisitParent(v SourceMapGeneratorV3_MappingVisitor, parent, m *SourceMapGeneratorV3_Mapping) {
-	rv := makeMappingRangeVisitor(v)
-	t.maybeVisitParent(&rv, parent, m)
+	if parent != nil {
+		t.maybeVisitParent(wrapMappingVisitor(v), *parent, true, m)
+	} else {
+		t.maybeVisitParent(wrapMappingVisitor(v), SourceMapGeneratorV3_Mapping{}, false, m)
+	}
 }
 
-func (t *SourceMapGeneratorV3_MappingTraversal) maybeVisitParent(rv *mappingRangeVisitor, parent, m *SourceMapGeneratorV3_Mapping) {
+func (t *SourceMapGeneratorV3_MappingTraversal) maybeVisitParent(visit mappingRangeCallback, parent SourceMapGeneratorV3_Mapping, hasParent bool, m *SourceMapGeneratorV3_Mapping) {
 	nextLine := t.getAdjustedLine(m.startLine)
 	nextCol := t.getAdjustedCol(m.startLine, m.startCol)
 	// If the previous value is null, no mapping exists.
 	jutil.CheckState(t.line < nextLine || t.col <= nextCol)
 	if t.line < nextLine || (t.line == nextLine && t.col < nextCol) {
-		t.visit(rv, parent, nextLine, nextCol)
+		t.visitRange(visit, parent, hasParent, nextLine, nextCol)
 	}
 }
 
@@ -372,11 +350,14 @@ func (t *SourceMapGeneratorV3_MappingTraversal) maybeVisitParent(rv *mappingRang
 // Java: SourceMapGeneratorV3.MappingTraversal.visit(MappingVisitor, Mapping, int, int)
 func (t *SourceMapGeneratorV3_MappingTraversal) Visit(v SourceMapGeneratorV3_MappingVisitor, m *SourceMapGeneratorV3_Mapping,
 	nextLine, nextCol int) {
-	rv := makeMappingRangeVisitor(v)
-	t.visit(&rv, m, nextLine, nextCol)
+	if m != nil {
+		t.visitRange(wrapMappingVisitor(v), *m, true, nextLine, nextCol)
+	} else {
+		t.visitRange(wrapMappingVisitor(v), SourceMapGeneratorV3_Mapping{}, false, nextLine, nextCol)
+	}
 }
 
-func (t *SourceMapGeneratorV3_MappingTraversal) visit(rv *mappingRangeVisitor, m *SourceMapGeneratorV3_Mapping,
+func (t *SourceMapGeneratorV3_MappingTraversal) visitRange(visit mappingRangeCallback, m SourceMapGeneratorV3_Mapping, mapped bool,
 	nextLine, nextCol int) {
 	jutil.CheckState(t.line <= nextLine)
 	jutil.CheckState(t.line < nextLine || t.col < nextCol)
@@ -386,7 +367,7 @@ func (t *SourceMapGeneratorV3_MappingTraversal) visit(rv *mappingRangeVisitor, m
 		panic(jutil.NewIllegalStateException())
 	}
 
-	rv.visit(m, t.line, t.col, nextLine, nextCol)
+	visit(m, mapped, t.line, t.col, nextLine, nextCol)
 
 	t.line = nextLine
 	t.col = nextCol
@@ -473,6 +454,14 @@ func (l *SourceMapGeneratorV3_LineMapper) writeVLQ(value int32) {
 //
 // Java: SourceMapGeneratorV3.LineMapper.visit(Mapping, int, int, int, int)
 func (l *SourceMapGeneratorV3_LineMapper) Visit(m *SourceMapGeneratorV3_Mapping, line, col, nextLine, nextCol int) {
+	if m != nil {
+		l.visitRange(*m, true, line, col, nextLine, nextCol)
+	} else {
+		l.visitRange(SourceMapGeneratorV3_Mapping{}, false, line, col, nextLine, nextCol)
+	}
+}
+
+func (l *SourceMapGeneratorV3_LineMapper) visitRange(m SourceMapGeneratorV3_Mapping, mapped bool, line, col, nextLine, nextCol int) {
 	if l.previousLine != line {
 		l.previousColumn = 0
 	}
@@ -485,11 +474,11 @@ func (l *SourceMapGeneratorV3_LineMapper) Visit(m *SourceMapGeneratorV3_Mapping,
 			if l.previousLine == line { // not the first entry for the line
 				l.writeByte(',')
 			}
-			l.WriteEntry(m, col)
+			l.writeEntryValue(m, mapped, col)
 			l.previousLine = line
 			l.previousColumn = col
 		} else {
-			jutil.CheckState(m == nil)
+			jutil.CheckState(!mapped)
 		}
 	}
 
@@ -509,10 +498,18 @@ func (l *SourceMapGeneratorV3_LineMapper) Visit(m *SourceMapGeneratorV3_Mapping,
 //
 // Java: SourceMapGeneratorV3.LineMapper.writeEntry(Mapping, int)
 func (l *SourceMapGeneratorV3_LineMapper) WriteEntry(m *SourceMapGeneratorV3_Mapping, column int) {
+	if m != nil {
+		l.writeEntryValue(*m, true, column)
+	} else {
+		l.writeEntryValue(SourceMapGeneratorV3_Mapping{}, false, column)
+	}
+}
+
+func (l *SourceMapGeneratorV3_LineMapper) writeEntryValue(m SourceMapGeneratorV3_Mapping, mapped bool, column int) {
 	// The relative generated column number
 	l.writeVLQ(int32(column - l.previousColumn))
 	l.previousColumn = column
-	if m != nil {
+	if mapped {
 		// The relative source file id
 		sourceId := l.outer.sourceIdxToFileId[m.sourceFileIdx]
 		if sourceId < 0 && l.frozenIds {
@@ -563,8 +560,7 @@ func (l *SourceMapGeneratorV3_LineMapper) AppendLineMappings() {
 	l.OpenLine(true)
 
 	t := SourceMapGeneratorV3_MappingTraversal{outer: l.outer}
-	rv := mappingRangeVisitor{kind: visitLineMapper, mapper: l}
-	t.traverse(&rv)
+	t.traverse(l.visitRange)
 
 	// And close the final line.
 	l.CloseLine(true)

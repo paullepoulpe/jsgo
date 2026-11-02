@@ -42,14 +42,9 @@ type InlineObjectLiterals struct {
 	// Variables whose reference information is out of sync with the AST.
 	staleVars map[*Var]struct{}
 
-	validPropInline [8]uint32
-	validPropLen    int
-	validPropMap    map[uint32]struct{}
-
-	propSlotsBuf [8]iolPropSlot
-	propSlots    []iolPropSlot
-	propIndex    map[uint32]int
-	assignNodes  []rhino.Node
+	validProps  smallSet[uint32]
+	propSlots   smallMap[uint32, iolPropSlot]
+	assignNodes []rhino.Node
 
 	scanState      iolCandidateScanner
 	scanner        *iolCandidateScanner
@@ -295,20 +290,8 @@ func (s *iolCandidateScanner) collectCandFns(n rhino.Node) {
 		s.collectCandFns(cls.NameNode())
 		s.collectCandFns(cls.Body().Node())
 	case rhino.Token_CLASS_MEMBERS:
-		body := ast.MustClassBody(n)
-		for member := range body.Members() {
-			if cm, ok := member.AsComputedMember(); ok {
-				s.collectCandFns(cm.Key().Node())
-			}
-		}
-		for member := range body.Members() {
-			if cm, ok := member.AsComputedMember(); ok {
-				if val, hasVal := cm.Value(); hasVal {
-					s.collectCandFns(val.Node())
-				}
-			} else {
-				s.collectCandFns(member.Node())
-			}
+		for ch := range ast.MustClassBody(n).EvalOrder() {
+			s.collectCandFns(ch)
 		}
 	default:
 		for c := n.GetFirstChild(); !c.IsNil(); c = c.GetNext() {
@@ -475,7 +458,6 @@ func (o *InlineObjectLiterals) Process(externs rhino.Node, root rhino.Node) {
 }
 
 type iolPropSlot struct {
-	propID   uint32
 	varName  string
 	initVal  rhino.Node
 	assigned bool
@@ -571,93 +553,10 @@ func (o *InlineObjectLiterals) isVarInlineForbidden(var_ *Var) bool {
 		stale
 }
 
-func (o *InlineObjectLiterals) clearValidProps() {
-	o.validPropLen = 0
-	if len(o.validPropMap) > 0 {
-		clear(o.validPropMap)
-	}
-}
-
-func (o *InlineObjectLiterals) hasValidProp(id uint32) bool {
-	if o.validPropLen <= len(o.validPropInline) {
-		for i := 0; i < o.validPropLen; i++ {
-			if o.validPropInline[i] == id {
-				return true
-			}
-		}
-		return false
-	}
-	_, ok := o.validPropMap[id]
-	return ok
-}
-
-func (o *InlineObjectLiterals) addValidProp(id uint32) {
-	if o.hasValidProp(id) {
-		return
-	}
-	if o.validPropLen < len(o.validPropInline) {
-		o.validPropInline[o.validPropLen] = id
-		o.validPropLen++
-		return
-	}
-	if o.validPropLen == len(o.validPropInline) {
-		if o.validPropMap == nil {
-			o.validPropMap = make(map[uint32]struct{}, 16)
-		}
-		for _, existing := range o.validPropInline {
-			o.validPropMap[existing] = struct{}{}
-		}
-	}
-	o.validPropMap[id] = struct{}{}
-	o.validPropLen++
-}
-
-func (o *InlineObjectLiterals) resetPropSlots() {
-	if o.propSlots == nil {
-		o.propSlots = o.propSlotsBuf[:0]
-		return
-	}
-	clear(o.propSlots)
-	o.propSlots = o.propSlots[:0]
-	if len(o.propIndex) > 0 {
-		clear(o.propIndex)
-	}
-}
-
-func (o *InlineObjectLiterals) findPropSlot(propID uint32) int {
-	if len(o.propSlots) <= 8 {
-		for i := range o.propSlots {
-			if o.propSlots[i].propID == propID {
-				return i
-			}
-		}
-		return -1
-	}
-	if idx, ok := o.propIndex[propID]; ok {
-		return idx
-	}
-	return -1
-}
-
-func (o *InlineObjectLiterals) addPropSlot(propID uint32, varName string) {
-	idx := len(o.propSlots)
-	o.propSlots = append(o.propSlots, iolPropSlot{propID: propID, varName: varName})
-	if len(o.propSlots) == 9 {
-		if o.propIndex == nil {
-			o.propIndex = make(map[uint32]int, 16)
-		}
-		for i := range o.propSlots {
-			o.propIndex[o.propSlots[i].propID] = i
-		}
-	} else if len(o.propSlots) > 9 {
-		o.propIndex[propID] = idx
-	}
-}
-
 // Java: InlineObjectLiterals.InliningBehavior.isInlinableObject(List<Reference>)
 func (o *InlineObjectLiterals) isInlinableObject(refs []*Reference) bool {
 	ret := false
-	o.clearValidProps()
+	o.validProps.clear()
 	for _, ref := range refs {
 		name := ref.GetNode()
 		parent := ref.GetParent()
@@ -675,9 +574,9 @@ func (o *InlineObjectLiterals) isInlinableObject(refs []*Reference) bool {
 			}
 
 			propID := parent.GetStringID()
-			if !o.hasValidProp(propID) {
+			if !o.validProps.contains(propID) {
 				if NodeUtil_IsNameDeclOrSimpleAssignLhs(parent, grandparent) {
-					o.addValidProp(propID)
+					o.validProps.add(propID)
 				} else {
 					return false
 				}
@@ -717,7 +616,7 @@ func (o *InlineObjectLiterals) isInlinableObject(refs []*Reference) bool {
 			}
 
 			pkm := ast.MustPlainKeyMember(member.Node())
-			o.addValidProp(member.Node().GetStringID())
+			o.validProps.add(member.Node().GetStringID())
 
 			childVal := pkm.Value().Node()
 			for _, t := range refs {
@@ -746,7 +645,7 @@ func iolIsVarOrAssignExprLhs(n rhino.Node) bool {
 
 // Java: InlineObjectLiterals.InliningBehavior.computeVarList(ReferenceCollection)
 func (o *InlineObjectLiterals) computeVarList(referenceInfo *ReferenceCollection) {
-	o.resetPropSlots()
+	o.propSlots.clear()
 
 	for _, ref := range referenceInfo.references {
 		if ref.IsLvalue() || ref.IsInitializingDeclaration() {
@@ -754,7 +653,7 @@ func (o *InlineObjectLiterals) computeVarList(referenceInfo *ReferenceCollection
 			if !val.IsNil() {
 				for member := range ast.MustObjectLit(val).Members() {
 					propID := member.Node().GetStringID()
-					if o.findPropSlot(propID) >= 0 {
+					if o.propSlots.indexOf(propID) >= 0 {
 						continue
 					}
 					varname := rhino.RhinoStringPool_StringFromID(propID)
@@ -762,7 +661,7 @@ func (o *InlineObjectLiterals) computeVarList(referenceInfo *ReferenceCollection
 					if !rhino.TokenStream_IsJSIdentifier(varname) {
 						varIdent = InlineObjectLiterals_STRING_KEY_IDENTIFIER
 					}
-					o.addPropSlot(propID, InlineObjectLiterals_VAR_PREFIX+varIdent+"_"+o.nextID())
+					o.propSlots.put(propID, iolPropSlot{varName: InlineObjectLiterals_VAR_PREFIX + varIdent + "_" + o.nextID()})
 				}
 			}
 		} else if NodeUtil_IsNameDeclaration(ref.GetParent()) {
@@ -770,9 +669,9 @@ func (o *InlineObjectLiterals) computeVarList(referenceInfo *ReferenceCollection
 		} else {
 			gp := ast.MustNormalOrOptChainGetProp(ref.GetParent())
 			propID := gp.Node().GetStringID()
-			if o.findPropSlot(propID) < 0 {
+			if o.propSlots.indexOf(propID) < 0 {
 				varname := rhino.RhinoStringPool_StringFromID(propID)
-				o.addPropSlot(propID, InlineObjectLiterals_VAR_PREFIX+varname+"_"+o.nextID())
+				o.propSlots.put(propID, iolPropSlot{varName: InlineObjectLiterals_VAR_PREFIX + varname + "_" + o.nextID()})
 			}
 		}
 	}
@@ -780,11 +679,12 @@ func (o *InlineObjectLiterals) computeVarList(referenceInfo *ReferenceCollection
 
 // Java: InlineObjectLiterals.InliningBehavior.fillInitialValues(Reference, Map<String, Node>)
 func (o *InlineObjectLiterals) fillInitialValues(init *Reference) {
+	slots := o.propSlots.values()
 	objLit := ast.MustObjectLit(init.GetAssignedValue())
 	for member := range objLit.Members() {
 		key := member.Node()
-		idx := o.findPropSlot(key.GetStringID())
-		o.propSlots[idx].initVal = key.RemoveFirstChild()
+		idx := o.propSlots.indexOf(key.GetStringID())
+		slots[idx].initVal = key.RemoveFirstChild()
 	}
 }
 
@@ -796,20 +696,21 @@ func (o *InlineObjectLiterals) replaceAssignmentExpression(v *Var, ref *Referenc
 	val := ref.GetAssignedValue()
 	o.recordStaleVarReferencesInTree(val, v.GetScope().(*Scope))
 	objLit := ast.MustObjectLit(val)
-	for i := range o.propSlots {
-		o.propSlots[i].assigned = false
+	slots := o.propSlots.values()
+	for i := range slots {
+		slots[i].assigned = false
 	}
 	for member := range objLit.Members() {
 		keyNode := member.Node()
-		idx := o.findPropSlot(keyNode.GetStringID())
+		idx := o.propSlots.indexOf(keyNode.GetStringID())
 		value := keyNode.RemoveFirstChild()
-		nodes = append(nodes, rhino.IR_Assign(rhino.IR_Name(o.propSlots[idx].varName), value))
-		o.propSlots[idx].assigned = true
+		nodes = append(nodes, rhino.IR_Assign(rhino.IR_Name(slots[idx].varName), value))
+		slots[idx].assigned = true
 	}
 
-	for i := range o.propSlots {
-		if !o.propSlots[i].assigned {
-			nodes = append(nodes, rhino.IR_Assign(rhino.IR_Name(o.propSlots[i].varName), NodeUtil_NewUndefinedNode(rhino.NilNode)))
+	for i := range slots {
+		if !slots[i].assigned {
+			nodes = append(nodes, rhino.IR_Assign(rhino.IR_Name(slots[i].varName), NodeUtil_NewUndefinedNode(rhino.NilNode)))
 		}
 	}
 
@@ -861,8 +762,9 @@ func (o *InlineObjectLiterals) splitObject(v *Var, init *Reference, referenceInf
 
 	jutil.CheckStateMsg1(NodeUtil_IsStatement(vnode), "%s", vnode)
 
-	for i := range o.propSlots {
-		slot := &o.propSlots[i]
+	slots := o.propSlots.values()
+	for i := range slots {
+		slot := &slots[i]
 		val := slot.initVal
 		newVarNode := NodeUtil_NewVarNode(slot.varName, val)
 		if val.IsNil() {
@@ -891,10 +793,10 @@ func (o *InlineObjectLiterals) splitObject(v *Var, init *Reference, referenceInf
 			ref.GetParent().Detach()
 		} else {
 			gpNode := ref.GetParent()
-			idx := o.findPropSlot(gpNode.GetStringID())
+			idx := o.propSlots.indexOf(gpNode.GetStringID())
 			jutil.CheckState(idx >= 0)
 
-			replacement := rhino.IR_Name(o.propSlots[idx].varName).SrcrefIfMissing(gpNode)
+			replacement := rhino.IR_Name(slots[idx].varName).SrcrefIfMissing(gpNode)
 			gpNode.ReplaceWith(replacement)
 		}
 	}

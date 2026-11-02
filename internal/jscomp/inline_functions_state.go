@@ -79,8 +79,6 @@ func (t inlineFnTarget) remove(compiler AbstractCompiler) {
 	NodeUtil_MarkFunctionsDeleted(t.declNode, compiler)
 }
 
-const fnStateSmallRefs = 8
-
 // InlineFunctions_FunctionState is used to track the decisions that have
 // been made about a function.
 type InlineFunctions_FunctionState struct {
@@ -92,9 +90,7 @@ type InlineFunctions_FunctionState struct {
 	referencesThis   bool
 	hasInnerClosures bool
 	summaryValid     bool
-	refs             []*FunctionInjector_Reference
-	refsBuf          [fnStateSmallRefs]*FunctionInjector_Reference
-	refByNode        map[rhino.Node]int
+	refs             smallMap[rhino.Node, *FunctionInjector_Reference]
 	chunk            *JSChunk
 	summary          calleeSummary
 
@@ -146,43 +142,16 @@ func (s *InlineFunctions_FunctionState) HasInnerClosures() bool {
 	return s.hasInnerClosures
 }
 
-func (s *InlineFunctions_FunctionState) rebuildRefIndex() {
-	if s.refByNode == nil {
-		s.refByNode = make(map[rhino.Node]int, len(s.refs)*2)
-	} else {
-		clear(s.refByNode)
-	}
-	for i, r := range s.refs {
-		s.refByNode[r.callNode] = i
-	}
-}
-
 // Java: InlineFunctions.FunctionState.removeBlockInliningReferences()
 func (s *InlineFunctions_FunctionState) RemoveBlockInliningReferences() {
-	if len(s.refs) == 0 {
-		return
-	}
-	w := 0
-	for _, r := range s.refs {
-		if r.mode != FunctionInjector_InliningMode_BLOCK {
-			s.refs[w] = r
-			w++
-		}
-	}
-	clear(s.refs[w:])
-	s.refs = s.refs[:w]
-	if s.refByNode != nil {
-		if w <= fnStateSmallRefs {
-			s.refByNode = nil
-		} else {
-			s.rebuildRefIndex()
-		}
-	}
+	s.refs.retainFunc(func(_ rhino.Node, r *FunctionInjector_Reference) bool {
+		return r.mode != FunctionInjector_InliningMode_BLOCK
+	})
 }
 
 // Java: InlineFunctions.FunctionState.hasBlockInliningReferences()
 func (s *InlineFunctions_FunctionState) HasBlockInliningReferences() bool {
-	for _, r := range s.refs {
+	for _, r := range s.refs.values() {
 		if r.mode == FunctionInjector_InliningMode_BLOCK {
 			return true
 		}
@@ -292,11 +261,7 @@ func (s *InlineFunctions_FunctionState) DisallowInliningWithWarning(
 	s.inline = false
 
 	// No need to keep references to function that can't be inlined.
-	if len(s.refs) > 0 {
-		clear(s.refs)
-		s.refs = nil
-	}
-	s.refByNode = nil
+	s.refs.release()
 	s.summary = calleeSummary{}
 	s.summaryValid = false
 	// Don't remove functions that we aren't inlining.
@@ -354,65 +319,24 @@ func (s *InlineFunctions_FunctionState) InlineDirectly(directReplacement bool) {
 
 // Java: InlineFunctions.FunctionState.hasReferences()
 func (s *InlineFunctions_FunctionState) HasReferences() bool {
-	return len(s.refs) > 0
+	return !s.refs.isEmpty()
 }
 
 // Java: InlineFunctions.FunctionState.addReference(Reference)
 func (s *InlineFunctions_FunctionState) AddReference(ref *FunctionInjector_Reference) {
-	if len(s.refs) <= fnStateSmallRefs {
-		for i, existing := range s.refs {
-			if existing.callNode == ref.callNode {
-				s.refs[i] = ref
-				return
-			}
-		}
-		if s.refs == nil {
-			s.refs = s.refsBuf[:0]
-		}
-		s.refs = append(s.refs, ref)
-		if len(s.refs) > fnStateSmallRefs {
-			s.rebuildRefIndex()
-		}
-		return
-	}
-	if s.refByNode == nil {
-		s.rebuildRefIndex()
-	}
-	if idx, ok := s.refByNode[ref.callNode]; ok {
-		s.refs[idx] = ref
-		return
-	}
-	s.refByNode[ref.callNode] = len(s.refs)
-	s.refs = append(s.refs, ref)
+	s.refs.put(ref.callNode, ref)
 }
 
 // GetReferences returns the references (the values of the references map).
 //
 // Java: InlineFunctions.FunctionState.getReferences()
 func (s *InlineFunctions_FunctionState) GetReferences() []*FunctionInjector_Reference {
-	return s.refs
+	return s.refs.values()
 }
 
 // Java: InlineFunctions.FunctionState.getReference(Node)
 func (s *InlineFunctions_FunctionState) GetReference(n rhino.Node) *FunctionInjector_Reference {
-	if len(s.refs) == 0 {
-		return nil
-	}
-	if len(s.refs) <= fnStateSmallRefs {
-		for _, r := range s.refs {
-			if r.callNode == n {
-				return r
-			}
-		}
-		return nil
-	}
-	if s.refByNode == nil {
-		s.rebuildRefIndex()
-	}
-	if idx, ok := s.refByNode[n]; ok {
-		return s.refs[idx]
-	}
-	return nil
+	return s.refs.getOrZero(n)
 }
 
 // Java: InlineFunctions.FunctionState.setChunk(JSChunk)

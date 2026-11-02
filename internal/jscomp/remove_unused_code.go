@@ -32,8 +32,7 @@ import (
 // removals' tree edits and the parallel bookkeeping stay on rhino.Node.
 
 type rucPropEntry struct {
-	remHead         *rucRemovable
-	remTail         *rucRemovable
+	removables      rucRemovableQueue
 	polyHead        *rucPolyfillInfo
 	polyTail        *rucPolyfillInfo
 	propID          uint32
@@ -73,7 +72,7 @@ type removeUnusedCodeState struct {
 
 	allFunctionParamScopes []*Scope
 
-	extraContSlab []RemoveUnusedCode_Continuation
+	extraContSlab []rucExtraCont
 
 	// Go-only: GetVarInfo may read and write Var.rucInfo (not on parallel
 	// workers, which share the global scope's vars, nor while logging).
@@ -655,22 +654,17 @@ func (r *RemoveUnusedCode) StorePolyfill(polyfillUsage *PolyfillUsageFinder_Poly
 // Java: RemoveUnusedCode.removeIndependentlyRemovableProperties()
 func (r *RemoveUnusedCode) RemoveIndependentlyRemovableProperties() {
 	for _, idx := range r.propRemOrder {
-		cur := r.propEntries[idx].remHead
-		if cur == nil {
+		entry := &r.propEntries[idx]
+		if entry.removables.isEmpty() {
 			continue
 		}
-		r.propEntries[idx].remHead = nil
-		r.propEntries[idx].remTail = nil
 		if r.removalLog.IsLogging() {
-			r.logRemoval("prop", rhino.RhinoStringPool_StringFromID(r.propEntries[idx].propID), "")
+			r.logRemoval("prop", rhino.RhinoStringPool_StringFromID(entry.propID), "")
 		}
-		for cur != nil {
-			next := cur.propNext
-			cur.propNext = nil
+		entry.removables.drain(func(cur *rucRemovable) {
 			cur.flags &^= remFlagInPropList
 			cur.Remove(r)
-			cur = next
-		}
+		})
 	}
 }
 
@@ -700,17 +694,10 @@ func (r *RemoveUnusedCode) markPropertyIDPinned(id uint32) {
 	// Continue traversal of all of the property name's values and no longer consider them for
 	// removal.
 	if idx1 := r.propIdxByID[id]; idx1 != 0 {
-		entry := &r.propEntries[idx1-1]
-		cur := entry.remHead
-		entry.remHead = nil
-		entry.remTail = nil
-		for cur != nil {
-			next := cur.propNext
-			cur.propNext = nil
+		r.propEntries[idx1-1].removables.drain(func(cur *rucRemovable) {
 			cur.flags &^= remFlagInPropList
 			cur.ApplyContinuations(r)
-			cur = next
-		}
+		})
 	}
 }
 
@@ -748,19 +735,12 @@ func (r *RemoveUnusedCode) ConsiderForIndependentRemoval(removable *rucRemovable
 		// Store for possible removal later.
 		if removable.flags&remFlagInPropList == 0 {
 			removable.flags |= remFlagInPropList
-			removable.propNext = nil
 			entry := &r.propEntries[idx]
-			if entry.remHead == nil {
-				entry.remHead = removable
-				entry.remTail = removable
-				if !entry.inRemOrder {
-					entry.inRemOrder = true
-					r.propRemOrder = append(r.propRemOrder, idx)
-				}
-			} else {
-				entry.remTail.propNext = removable
-				entry.remTail = removable
+			if !entry.inRemOrder {
+				entry.inRemOrder = true
+				r.propRemOrder = append(r.propRemOrder, idx)
 			}
+			entry.removables.push(removable)
 		}
 	} else {
 		removable.ApplyContinuations(r)

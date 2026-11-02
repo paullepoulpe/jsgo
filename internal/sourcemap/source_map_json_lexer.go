@@ -103,13 +103,6 @@ type SourceMapJsonLexer struct {
 	stackBuf [16]smFrame
 }
 
-// NewSourceMapJsonLexer constructs a lexer over json.
-//
-// Java: SourceMapJsonLexer(String)
-func NewSourceMapJsonLexer(json string) *SourceMapJsonLexer {
-	return &SourceMapJsonLexer{json: json, length: len(json)}
-}
-
 func (l *SourceMapJsonLexer) initStream(json string) {
 	*l = SourceMapJsonLexer{
 		json:    json,
@@ -142,55 +135,6 @@ func (l *SourceMapJsonLexer) setTopName(name string) {
 	f := &l.stack[len(l.stack)-1]
 	f.name = name
 	f.hasName = true
-}
-
-// Java: SourceMapJsonLexer.skipWhitespace()
-func (l *SourceMapJsonLexer) SkipWhitespace() {
-	for l.pos < l.length {
-		c := l.json[l.pos]
-		if c == ' ' || c == '\t' || c == '\n' || c == '\r' {
-			l.pos++
-		} else {
-			break
-		}
-	}
-}
-
-// Java: SourceMapJsonLexer.nextString()
-func (l *SourceMapJsonLexer) NextString() string {
-	l.SkipWhitespace()
-	if l.pos >= l.length || l.json[l.pos] != '"' {
-		panic(NewSourceMapParseException("Expected string"))
-	}
-	l.pos++
-	s, err := l.readQuotedValue('"')
-	if err != nil {
-		if sm, ok := err.(*SourceMapParseException); ok {
-			panic(sm)
-		}
-		panic(NewSourceMapParseException(err.GetMessage()))
-	}
-	return s
-}
-
-// Java: SourceMapJsonLexer.nextInt()
-func (l *SourceMapJsonLexer) NextInt() int {
-	l.SkipWhitespace()
-	start := l.pos
-	if l.pos < l.length && l.json[l.pos] == '-' {
-		l.pos++
-	}
-	for l.pos < l.length && l.json[l.pos] >= '0' && l.json[l.pos] <= '9' {
-		l.pos++
-	}
-	if start == l.pos {
-		panic(NewSourceMapParseException("Expected integer"))
-	}
-	result, ok := sourceMapJsonLexer_parseInt(l.json, start, l.pos, 10)
-	if !ok {
-		panic(NewSourceMapParseException("Invalid integer: " + l.json[start:l.pos]))
-	}
-	return int(result)
 }
 
 // ---------------------------------------------------------------------------
@@ -991,59 +935,4 @@ func (l *SourceMapJsonLexer) readEscapeCharacter() (uint16, jutil.Throwable) {
 	default:
 		return 0, l.syntaxError("Invalid escape sequence", 0)
 	}
-}
-
-// sourceMapJsonLexer_parseInt is Integer.parseInt(CharSequence, int, int,
-// int) on s[beginIndex:endIndex] (for radix 10 or 16); ok is false where Java
-// throws NumberFormatException.
-func sourceMapJsonLexer_parseInt(s string, beginIndex, endIndex, radix int) (int32, bool) {
-	i := beginIndex
-	neg := false
-	if i < endIndex && (s[i] == '-' || s[i] == '+') {
-		neg = s[i] == '-'
-		i++
-	}
-	if i == endIndex {
-		return 0, false
-	}
-	limit := uint64(math.MaxInt32)
-	if neg {
-		limit++
-	}
-	base := uint64(radix)
-	var mag uint64
-	for i < endIndex {
-		c := s[i]
-		var d int
-		if c >= '0' && c <= '9' {
-			d = int(c - '0')
-			i++
-		} else if radix == 16 && c >= 'a' && c <= 'f' {
-			d = int(c - 'a' + 10)
-			i++
-		} else if radix == 16 && c >= 'A' && c <= 'F' {
-			d = int(c - 'A' + 10)
-			i++
-		} else if c < 0x80 {
-			return 0, false
-		} else {
-			r, width := util_decodeWTF8(s[i:endIndex])
-			if r >= 0x10000 {
-				return 0, false
-			}
-			d = jutil.CharacterDigit(uint16(r), radix)
-			if d < 0 {
-				return 0, false
-			}
-			i += width
-		}
-		if mag > (limit-uint64(d))/base {
-			return 0, false
-		}
-		mag = mag*base + uint64(d)
-	}
-	if neg {
-		return int32(-int64(mag)), true
-	}
-	return int32(mag), true
 }

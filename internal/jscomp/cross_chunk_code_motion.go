@@ -93,7 +93,7 @@ func (c *CrossChunkCodeMotion) allocDsg(declaredGlobalSymbol *CrossChunkCodeMoti
 	g.declaredGlobalSymbol = declaredGlobalSymbol
 	g.currentChunk = currentChunk
 	g.statements = g.stmtBuf[:0]
-	g.referencedSlice = g.referencedBuf[:0]
+	g.referenced.clear()
 	return g
 }
 
@@ -601,9 +601,7 @@ func (c *CrossChunkCodeMotion) AddGuardToInstanceofReference(referenceNode rhino
 // grouped separately.
 type CrossChunkCodeMotion_DeclarationStatementGroup struct {
 	declaredGlobalSymbol *CrossChunkCodeMotion_GlobalSymbol
-	referencedSlice      []*CrossChunkCodeMotion_GlobalSymbol
-	referencedBuf        [16]*CrossChunkCodeMotion_GlobalSymbol
-	referencedMap        map[*CrossChunkCodeMotion_GlobalSymbol]struct{}
+	referenced           smallSet[*CrossChunkCodeMotion_GlobalSymbol]
 
 	// chunk containing the statements
 	currentChunk *JSChunk
@@ -624,41 +622,18 @@ func (g *CrossChunkCodeMotion_DeclarationStatementGroup) AllStatementsCanMove() 
 }
 
 func (g *CrossChunkCodeMotion_DeclarationStatementGroup) hasReferenceToGlobalSymbol(refSymbol *CrossChunkCodeMotion_GlobalSymbol) bool {
-	if g.referencedMap != nil {
-		_, exists := g.referencedMap[refSymbol]
-		return exists
-	}
-	return slices.Contains(g.referencedSlice, refSymbol)
+	return g.referenced.contains(refSymbol)
 }
 
 // Java: CrossChunkCodeMotion.DeclarationStatementGroup.addReferenceToGlobalSymbol(GlobalSymbol)
 func (g *CrossChunkCodeMotion_DeclarationStatementGroup) AddReferenceToGlobalSymbol(refSymbol *CrossChunkCodeMotion_GlobalSymbol) bool {
-	if g.referencedMap != nil {
-		if _, exists := g.referencedMap[refSymbol]; exists {
-			return false
-		}
-		g.referencedMap[refSymbol] = struct{}{}
-		g.referencedSlice = append(g.referencedSlice, refSymbol)
-		return true
-	}
-	if slices.Contains(g.referencedSlice, refSymbol) {
-		return false
-	}
-	if len(g.referencedSlice) == 16 {
-		g.referencedMap = make(map[*CrossChunkCodeMotion_GlobalSymbol]struct{}, 32)
-		for _, existing := range g.referencedSlice {
-			g.referencedMap[existing] = struct{}{}
-		}
-		g.referencedMap[refSymbol] = struct{}{}
-	}
-	g.referencedSlice = append(g.referencedSlice, refSymbol)
-	return true
+	return g.referenced.add(refSymbol)
 }
 
 // Java: CrossChunkCodeMotion.DeclarationStatementGroup.makeReferencesImmovable()
 func (g *CrossChunkCodeMotion_DeclarationStatementGroup) MakeReferencesImmovable() {
 	g.declaredGlobalSymbol.AddImmovableReference(g.currentChunk)
-	for _, symbol := range g.referencedSlice {
+	for _, symbol := range g.referenced.items {
 		jutil.CheckStateMsg2(
 			!symbol.isMoveDeclarationStatementsDone,
 			"symbol %s moved before referring symbol %s",

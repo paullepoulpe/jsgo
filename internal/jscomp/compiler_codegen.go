@@ -97,9 +97,7 @@ func (c *Compiler) ToSourceOfLicenseTrackerAndJSChunk(licenseTracker CodePrinter
 						}
 						for j := 0; j < batchLen; j++ {
 							idx := batchStart + j
-							for _, file := range printed[j].rec.seenFiles {
-								replay(file)
-							}
+							printed[j].rec.Replay(replay)
 							c.appendSourceAndMappingsToCodeBuilder(cb, licenseTracker, idx, scripts[idx], &printed[j].sm)
 						}
 					}
@@ -140,6 +138,14 @@ func (c *Compiler) ToSourceOfCodeBuilder(
 	})
 }
 
+func resetSourceAndMappings(sm *CodePrinter_SourceAndMappings) {
+	if cap(sm.mappings) > 16384 {
+		sm.mappings = nil
+	} else {
+		sm.mappings = sm.mappings[:0]
+	}
+}
+
 func (c *Compiler) appendSourceAndMappingsToCodeBuilder(
 	cb *Compiler_CodeBuilder,
 	licenseTracker CodePrinter_LicenseTracker,
@@ -161,11 +167,7 @@ func (c *Compiler) appendSourceAndMappingsToCodeBuilder(
 			m := &sourceAndMappings.mappings[i]
 			c.sourceMap.AddMappingOfNodePositions(m.node, m.start, m.end)
 		}
-		if cap(sourceAndMappings.mappings) > 16384 {
-			sourceAndMappings.mappings = nil
-		} else {
-			sourceAndMappings.mappings = sourceAndMappings.mappings[:0]
-		}
+		resetSourceAndMappings(sourceAndMappings)
 	}
 }
 
@@ -187,11 +189,7 @@ func (c *Compiler) appendSourceAndResolvedMappingsToCodeBuilder(
 			c.sourceMap.addResolvedMapping(&resolved[i])
 		}
 	}
-	if cap(sourceAndMappings.mappings) > 16384 {
-		sourceAndMappings.mappings = nil
-	} else {
-		sourceAndMappings.mappings = sourceAndMappings.mappings[:0]
-	}
+	resetSourceAndMappings(sourceAndMappings)
 }
 
 func (c *Compiler) appendSourceToCodeBuilderForChunk(
@@ -494,35 +492,12 @@ func (t *Compiler_ChunkGraphAwareLicenseTracker) SetCurrentChunkContext(chunk *J
 	t.licensesFromChunks[chunk] = emptyLicenseSet
 }
 
-func (t *Compiler_ChunkGraphAwareLicenseTracker) ensureCumulativeLicenses(chunk *JSChunk) *licenseSet {
-	if cum, ok := t.cumulativeLicenses[chunk]; ok {
-		return cum
-	}
-	chunkNew, visited := t.licensesFromChunks[chunk]
-	if !visited {
-		panic(jutil.NewIllegalStateExceptionMsg(
-			"Chunk aware license analysis error - analysis out of order."))
-	}
-	deps := chunk.deps
+func (t *Compiler_ChunkGraphAwareLicenseTracker) mergeDepLicenses(deps []*JSChunk, dst *licenseSet) (*licenseSet, bool) {
 	if len(deps) == 0 {
-		t.cumulativeLicenses[chunk] = chunkNew
-		return chunkNew
+		return emptyLicenseSet, false
 	}
 	if len(deps) == 1 {
-		cum0 := t.ensureCumulativeLicenses(deps[0])
-		if chunkNew.isEmpty() {
-			t.cumulativeLicenses[chunk] = cum0
-			return cum0
-		}
-		if cum0.isEmpty() {
-			t.cumulativeLicenses[chunk] = chunkNew
-			return chunkNew
-		}
-		merged := &licenseSet{}
-		merged.addAll(cum0.order)
-		merged.addAll(chunkNew.order)
-		t.cumulativeLicenses[chunk] = merged
-		return merged
+		return t.ensureCumulativeLicenses(deps[0]), false
 	}
 	var shared *licenseSet
 	needMerge := false
@@ -537,25 +512,49 @@ func (t *Compiler_ChunkGraphAwareLicenseTracker) ensureCumulativeLicenses(chunk 
 			needMerge = true
 		}
 	}
-	if !needMerge && chunkNew.isEmpty() {
+	if !needMerge {
 		if shared == nil {
-			shared = emptyLicenseSet
+			return emptyLicenseSet, false
 		}
-		t.cumulativeLicenses[chunk] = shared
-		return shared
+		return shared, false
 	}
-	merged := &licenseSet{}
+	if dst == nil {
+		dst = &licenseSet{}
+	}
 	for _, dep := range deps {
-		cumDep := t.cumulativeLicenses[dep]
-		if !cumDep.isEmpty() {
-			merged.addAll(cumDep.order)
+		if cumDep := t.cumulativeLicenses[dep]; !cumDep.isEmpty() {
+			dst.addAll(cumDep.order)
 		}
 	}
-	if !chunkNew.isEmpty() {
-		merged.addAll(chunkNew.order)
+	return dst, true
+}
+
+func (t *Compiler_ChunkGraphAwareLicenseTracker) ensureCumulativeLicenses(chunk *JSChunk) *licenseSet {
+	if cum, ok := t.cumulativeLicenses[chunk]; ok {
+		return cum
 	}
-	t.cumulativeLicenses[chunk] = merged
-	return merged
+	chunkNew, visited := t.licensesFromChunks[chunk]
+	if !visited {
+		panic(jutil.NewIllegalStateExceptionMsg(
+			"Chunk aware license analysis error - analysis out of order."))
+	}
+	depsCum, merged := t.mergeDepLicenses(chunk.deps, nil)
+	var res *licenseSet
+	switch {
+	case chunkNew.isEmpty():
+		res = depsCum
+	case depsCum.isEmpty():
+		res = chunkNew
+	case merged:
+		depsCum.addAll(chunkNew.order)
+		res = depsCum
+	default:
+		res = &licenseSet{}
+		res.addAll(depsCum.order)
+		res.addAll(chunkNew.order)
+	}
+	t.cumulativeLicenses[chunk] = res
+	return res
 }
 
 // Java: Compiler.ChunkGraphAwareLicenseTracker.trackLicensesForNode(Node)
@@ -593,40 +592,7 @@ func (t *Compiler_ChunkGraphAwareLicenseTracker) trackLicensesForFileName(source
 			}
 			t.currentChunkTDepsRef = &t.currentChunkLicencesInTDeps
 		} else {
-			deps := t.currentChunk.deps
-			if len(deps) == 0 {
-				t.currentChunkTDepsRef = emptyLicenseSet
-			} else if len(deps) == 1 {
-				t.currentChunkTDepsRef = t.ensureCumulativeLicenses(deps[0])
-			} else {
-				var shared *licenseSet
-				needMerge := false
-				for _, dep := range deps {
-					cumDep := t.ensureCumulativeLicenses(dep)
-					if cumDep.isEmpty() {
-						continue
-					}
-					if shared == nil {
-						shared = cumDep
-					} else if shared != cumDep {
-						needMerge = true
-					}
-				}
-				if !needMerge {
-					if shared == nil {
-						shared = emptyLicenseSet
-					}
-					t.currentChunkTDepsRef = shared
-				} else {
-					for _, dep := range deps {
-						cumDep := t.cumulativeLicenses[dep]
-						if !cumDep.isEmpty() {
-							t.currentChunkLicencesInTDeps.addAll(cumDep.order)
-						}
-					}
-					t.currentChunkTDepsRef = &t.currentChunkLicencesInTDeps
-				}
-			}
+			t.currentChunkTDepsRef, _ = t.mergeDepLicenses(t.currentChunk.deps, &t.currentChunkLicencesInTDeps)
 		}
 		t.haveInitializedCurrentChunkLicenses = true
 	}
@@ -666,6 +632,12 @@ func (r *compiler_ParallelScriptLicenseRecorder) Reset(onlyScript bool) {
 	r.lastSeenFile = ""
 	r.hasLastSeen = false
 	r.seenFiles = r.seenFiles[:0]
+}
+
+func (r *compiler_ParallelScriptLicenseRecorder) Replay(replay func(string)) {
+	for _, file := range r.seenFiles {
+		replay(file)
+	}
 }
 
 func (r *compiler_ParallelScriptLicenseRecorder) TrackLicensesForNode(node rhino.Node) {

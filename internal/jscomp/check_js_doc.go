@@ -21,6 +21,7 @@ package jscomp
 import (
 	"strings"
 
+	"github.com/paullepoulpe/jsgo/internal/ast"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/parser"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
@@ -209,23 +210,19 @@ func (c *CheckJSDoc) ValidateSuppress(n rhino.Node, info *rhino.JSDocInfo) {
 		// Suppressions are always valid here.
 		return
 	case rhino.Token_COMPUTED_PROP:
-		if n.GetLastChild().IsFunction() {
+		if val, ok := ast.MustComputedProp(n).Value(); ok && val.Node().IsFunction() {
 			return // Suppressions are valid on computed properties that declare functions.
 		}
 	case rhino.Token_STRING_KEY:
-		if n.GetParent().IsObjectLit() {
+		if ast.RoleOf(n) == ast.RoleObjectLitMembers {
 			return
 		}
 	case rhino.Token_WITH:
 		if CheckJSDoc_ContainsOnlySuppressionFor(info, "with") {
 			return
 		}
-	default:
 	}
-	if CheckJSDoc_ContainsOnlySuppressionFor(info, "missingRequire") {
-		return
-	}
-	if n.GetParent().IsExprResult() {
+	if CheckJSDoc_ContainsOnlySuppressionFor(info, "missingRequire") || ast.RoleOf(n) == ast.RoleExprStmtExpr {
 		return
 	}
 	c.compiler.Report(JSError_MakeWithNode(n, CheckJSDoc_MISPLACED_SUPPRESS))
@@ -256,8 +253,11 @@ func (c *CheckJSDoc) ValidateTypedefs(n rhino.Node, info *rhino.JSDocInfo) {
 		return
 	}
 	lvalue := n
-	if NodeUtil_IsNameDeclaration(n) || n.IsAssign() {
-		lvalue = n.GetFirstChild()
+	if decl, ok := ast.AsNameDeclaration(n); ok {
+		d, _ := decl.FirstDeclarator()
+		lvalue = d.Node()
+	} else if assign, ok := ast.AsAssign(n); ok {
+		lvalue = assign.Target().Node()
 	}
 	if !lvalue.IsQualifiedName() {
 		c.ReportMisplaced(
@@ -297,41 +297,52 @@ func CheckJSDoc_GetFunctionDecl(n rhino.Node) rhino.Node {
 	if n.IsFunction() {
 		return n
 	}
-	if n.IsMemberFunctionDef() {
-		return n.GetFirstChild()
+	if m, ok := ast.AsMethodDef(n); ok {
+		return m.Function().Node()
 	}
-	if NodeUtil_IsNameDeclaration(n) &&
-		!n.GetFirstFirstChild().IsNil() &&
-		n.GetFirstFirstChild().IsFunction() {
-		return n.GetFirstFirstChild()
+	if decl, ok := ast.AsNameDeclaration(n); ok {
+		if d, ok := decl.FirstDeclarator(); ok {
+			if name, ok := d.AsName(); ok {
+				if init, ok := name.Init(); ok && init.Node().IsFunction() {
+					return init.Node()
+				}
+			}
+		}
 	}
-
-	if n.IsAssign() && n.GetFirstChild().IsQualifiedName() && n.GetLastChild().IsFunction() {
-		return n.GetLastChild()
+	if assign, ok := ast.AsAssign(n); ok && assign.Target().Node().IsQualifiedName() && assign.Value().Node().IsFunction() {
+		return assign.Value().Node()
 	}
-
-	if n.IsGetterDef() || n.IsSetterDef() {
-		return n.GetFirstChild()
+	if cp, ok := ast.AsComputedProp(n); ok {
+		if val, ok := cp.Value(); ok && val.Node().IsFunction() {
+			return val.Node()
+		}
 	}
-
-	if n.IsComputedProp() && n.GetLastChild().IsFunction() {
-		return n.GetLastChild()
-	}
-
 	return rhino.NilNode
 }
 
 // Java: CheckJSDoc.isClassDecl(Node)
 func (c *CheckJSDoc) IsClassDecl(n rhino.Node) bool {
-	return c.IsClass(n) ||
-		(n.IsAssign() && c.IsClass(n.GetLastChild())) ||
-		(NodeUtil_IsNameDeclaration(n) && c.IsNameInitializeWithClass(n.GetFirstChild())) ||
-		c.IsNameInitializeWithClass(n)
+	if c.IsClass(n) || c.IsNameInitializeWithClass(n) {
+		return true
+	}
+	if assign, ok := ast.AsAssign(n); ok {
+		return c.IsClass(assign.Value().Node())
+	}
+	if decl, ok := ast.AsNameDeclaration(n); ok {
+		d, ok := decl.FirstDeclarator()
+		return ok && c.IsNameInitializeWithClass(d.Node())
+	}
+	return false
 }
 
 // Java: CheckJSDoc.isNameInitializeWithClass(Node)
 func (c *CheckJSDoc) IsNameInitializeWithClass(n rhino.Node) bool {
-	return !n.IsNil() && n.IsName() && n.HasChildren() && c.IsClassDecl(n.GetFirstChild())
+	name, ok := ast.AsName(n)
+	if !ok {
+		return false
+	}
+	init, ok := name.Init()
+	return ok && c.IsClassDecl(init.Node())
 }
 
 // Java: CheckJSDoc.isClass(Node)
@@ -371,22 +382,21 @@ func (c *CheckJSDoc) ValidateAbstractJsDoc(n rhino.Node, info *rhino.JSDocInfo) 
 	}
 
 	// @abstract annotation on a function written as a class field.
-	if n.IsGetProp() {
-		if !(n.GetFirstChild().IsThis() && info.GetReturnType() != nil) {
+	if gp, ok := ast.AsGetProp(n); ok {
+		if !(gp.Object().Node().IsThis() && info.GetReturnType() != nil) {
 			c.Report(
 				n,
 				CheckJSDoc_MISPLACED_ANNOTATION,
 				"@abstract",
 				"abstract undeclared methods can only be written as class fields")
-		} else if !(n.GetParent().IsExprResult() &&
+		} else if !(ast.RoleOf(n) == ast.RoleExprStmtExpr &&
 			n.GetGrandparent().IsBlock() &&
-			n.GetParent().GetGrandparent().IsFunction()) {
+			ast.RoleOf(n.GetGrandparent()) == ast.RoleFunctionBody) {
 			c.Report(
 				n,
 				CheckJSDoc_MISPLACED_ANNOTATION,
 				"@abstract",
 				"abstract methods without an initializer must be declared in a constructor function.")
-			return
 		}
 		return
 	}
@@ -469,13 +479,9 @@ func (c *CheckJSDoc) ValidateNoCollapse(n rhino.Node, info *rhino.JSDocInfo) {
 			"nocollapse",
 			"This JSDoc has no effect on prototype properties and non-static fields.")
 	}
-	if n.IsAssign() {
-		assignee := n.GetFirstChild()
-		if assignee.IsQualifiedName() {
-			rootOfQname := NodeUtil_GetRootOfQualifiedName(assignee)
-			if !rootOfQname.IsName() {
-				c.ReportMisplaced(n, "nocollapse", "This JSDoc has no effect.")
-			}
+	if assign, ok := ast.AsAssign(n); ok {
+		if assignee := assign.Target().Node(); assignee.IsQualifiedName() && !NodeUtil_GetRootOfQualifiedName(assignee).IsName() {
+			c.ReportMisplaced(n, "nocollapse", "This JSDoc has no effect.")
 		}
 	}
 }
@@ -520,14 +526,16 @@ func (c *CheckJSDoc) IsJSDocOnFunctionNode(n rhino.Node, info *rhino.JSDocInfo) 
 		rhino.Token_COMPUTED_FIELD_DEF:
 		return true
 	case rhino.Token_GETELEM, rhino.Token_GETPROP:
-		if n.GetFirstChild().IsQualifiedName() {
-			// assume qualified names may be function declarations
-			return true
-		}
-		return false
+		// assume qualified names may be function declarations
+		return ast.MustNormalGet(n).Object().Node().IsQualifiedName()
 	case rhino.Token_VAR, rhino.Token_LET, rhino.Token_CONST, rhino.Token_ASSIGN:
-		lhs := n.GetFirstChild()
-		rhs := NodeUtil_GetRValueOfLValue(lhs)
+		var rhs rhino.Node
+		if assign, ok := ast.AsAssign(n); ok {
+			rhs = assign.Value().Node()
+		} else {
+			d, _ := ast.MustNameDeclaration(n).FirstDeclarator()
+			rhs = NodeUtil_GetRValueOfLValue(d.Node())
+		}
 		if !rhs.IsNil() && c.IsClass(rhs) && !info.IsConstructor() {
 			return false
 		}
@@ -560,15 +568,17 @@ func (c *CheckJSDoc) ValidateMsgJsDoc(n rhino.Node, info *rhino.JSDocInfo) {
 		(info.GetDescription() != nil && !CheckJSDoc_IsFromTs(n)) {
 		descOkay := false
 		switch n.GetToken() {
-		case rhino.Token_ASSIGN, rhino.Token_VAR, rhino.Token_LET, rhino.Token_CONST:
-			descOkay = CheckJSDoc_IsValidMsgName(n.GetFirstChild())
+		case rhino.Token_ASSIGN:
+			descOkay = CheckJSDoc_IsValidMsgName(ast.MustAssign(n).Target().Node())
+		case rhino.Token_VAR, rhino.Token_LET, rhino.Token_CONST:
+			d, _ := ast.MustNameDeclaration(n).FirstDeclarator()
+			descOkay = CheckJSDoc_IsValidMsgName(d.Node())
 		case rhino.Token_STRING_KEY:
 			descOkay = CheckJSDoc_IsValidMsgName(n)
 		case rhino.Token_GETPROP:
 			if n.IsFromExterns() && n.IsQualifiedName() {
 				descOkay = CheckJSDoc_IsValidMsgName(n)
 			}
-		default:
 		}
 		if !descOkay {
 			c.Report(n, CheckJSDoc_MISPLACED_MSG_ANNOTATION)
@@ -581,13 +591,10 @@ func (c *CheckJSDoc) ValidateMsgJsDoc(n rhino.Node, info *rhino.JSDocInfo) {
 //
 // Java: CheckJSDoc.isValidMsgName(Node)
 func CheckJSDoc_IsValidMsgName(nameNode rhino.Node) bool {
-	if nameNode.IsName() || nameNode.IsStringKey() {
+	if nameNode.IsName() || nameNode.IsStringKey() || nameNode.IsQualifiedName() {
 		return strings.HasPrefix(nameNode.GetString(), "MSG_")
-	} else if nameNode.IsQualifiedName() {
-		return strings.HasPrefix(nameNode.GetString(), "MSG_")
-	} else {
-		return false
 	}
+	return false
 }
 
 // ValidateTypeAnnotations checks that JSDoc with a @type annotation is in a
@@ -609,7 +616,7 @@ func (c *CheckJSDoc) ValidateTypeAnnotations(n rhino.Node, info *rhino.JSDocInfo
 			// allow JSDoc like
 			//   function f(/** !Object */ {x}) {}
 			//   function f(/** !Array */ [x]) {}
-			valid = n.GetParent().IsParamList()
+			valid = ast.RoleOf(n) == ast.RoleParamListParams
 		// Casts, exports, and Object literal properties are valid.
 		case rhino.Token_CAST,
 			rhino.Token_EXPORT,
@@ -626,14 +633,13 @@ func (c *CheckJSDoc) ValidateTypeAnnotations(n rhino.Node, info *rhino.JSDocInfo
 			valid = !NodeUtil_IsDestructuringDeclaration(n)
 		// Property assignments are valid, if at the root of an expression.
 		case rhino.Token_ASSIGN:
-			lvalue := n.GetFirstChild()
-			valid = n.GetParent().IsExprResult() &&
+			lvalue := ast.MustAssign(n).Target().Node()
+			valid = ast.RoleOf(n) == ast.RoleExprStmtExpr &&
 				(lvalue.IsGetProp() || lvalue.IsGetElem() || lvalue.MatchesName("exports"))
 		case rhino.Token_GETPROP:
-			valid = n.GetParent().IsExprResult() && n.IsQualifiedName()
+			valid = ast.RoleOf(n) == ast.RoleExprStmtExpr && n.IsQualifiedName()
 		case rhino.Token_CALL:
 			valid = info.IsDefine()
-		default:
 		}
 
 		if !valid {
@@ -687,33 +693,27 @@ func (c *CheckJSDoc) ValidateArrowFunction(n rhino.Node) {
 //
 // Java: CheckJSDoc.validateRestParameter(Node)
 func (c *CheckJSDoc) ValidateRestParameter(restParam rhino.Node) {
-	if !restParam.IsRest() || !restParam.GetParent().IsParamList() {
+	rest, ok := ast.AsRest(restParam)
+	if !ok {
 		return
 	}
-	paramList := restParam.GetParent()
-	inlineInfo := restParam.GetFirstChild().GetJSDocInfo()
-	functionInfo := NodeUtil_GetBestJSDocInfo(paramList.GetParent())
+	paramList, ok := ast.AsParamList(restParam.GetParent())
+	if !ok {
+		return
+	}
+	target := rest.Target()
 	var paramTypeAnnotation *rhino.JSTypeExpression
-	if inlineInfo != nil {
+	if inlineInfo := target.Node().GetJSDocInfo(); inlineInfo != nil {
 		paramTypeAnnotation = inlineInfo.GetType()
-	} else if functionInfo != nil {
-		if restParam.GetFirstChild().IsName() {
-			paramName := restParam.GetFirstChild().GetString()
-			paramTypeAnnotation = functionInfo.GetParameterType(paramName)
-		} else {
+	} else if functionInfo := NodeUtil_GetBestJSDocInfo(paramList.Node().GetParent()); functionInfo != nil {
+		if name, ok := target.AsName(); ok {
+			paramTypeAnnotation = functionInfo.GetParameterType(name.Ident())
+		} else if indexOfRest := paramList.Node().GetIndexOfChild(restParam); functionInfo.GetParameterCount() >= indexOfRest {
 			// destructuring rest param. use the nth JSDoc parameter if present. the name will not match
-			indexOfRest := paramList.GetIndexOfChild(restParam)
-			if functionInfo.GetParameterCount() >= indexOfRest {
-				// getParameterType(null) (no such parameter) is null.
-				if paramName, ok := functionInfo.GetParameterNameValueAt(indexOfRest); ok {
-					paramTypeAnnotation = functionInfo.GetParameterType(paramName)
-				}
-			} else {
-				paramTypeAnnotation = nil
+			if paramName, ok := functionInfo.GetParameterNameValueAt(indexOfRest); ok {
+				paramTypeAnnotation = functionInfo.GetParameterType(paramName)
 			}
 		}
-	} else {
-		paramTypeAnnotation = nil
 	}
 
 	if paramTypeAnnotation != nil &&
@@ -728,22 +728,16 @@ func (c *CheckJSDoc) ValidateRestParameter(restParam rhino.Node) {
 //
 // Java: CheckJSDoc.validateDefaultValue(Node)
 func (c *CheckJSDoc) ValidateDefaultValue(n rhino.Node) {
-	if n.IsDefaultValue() && n.GetParent().IsParamList() {
-		targetNode := n.GetFirstChild()
-		info := targetNode.GetJSDocInfo()
-		if info == nil {
-			return
-		}
-
-		typeExpr := info.GetType()
-		if typeExpr == nil {
-			return
-		}
-
-		typeNode := typeExpr.GetRoot()
-		if typeNode.GetToken() != rhino.Token_EQUALS {
-			c.Report(typeNode, CheckJSDoc_DEFAULT_PARAM_MUST_BE_MARKED_OPTIONAL)
-		}
+	defVal, ok := ast.AsDefaultValue(n)
+	if !ok || ast.RoleOf(n) != ast.RoleParamListParams {
+		return
+	}
+	info := defVal.Target().Node().GetJSDocInfo()
+	if info == nil || info.GetType() == nil {
+		return
+	}
+	if typeNode := info.GetType().GetRoot(); typeNode.GetToken() != rhino.Token_EQUALS {
+		c.Report(typeNode, CheckJSDoc_DEFAULT_PARAM_MUST_BE_MARKED_OPTIONAL)
 	}
 }
 
@@ -847,11 +841,12 @@ type CheckJSDoc_CheckJsdocTypes struct{}
 
 // Java: CheckJSDoc.CheckJsdocTypes.visit(Node)
 func (*CheckJSDoc_CheckJsdocTypes) Visit(typeRefNode rhino.Node) {
-	if !typeRefNode.IsStringLit() {
+	str, ok := ast.AsStringLit(typeRefNode)
+	if !ok {
 		return
 	}
 	// A type name that might be simple like "Foo" or qualified like "foo.Bar".
-	typeName := typeRefNode.GetString()
+	typeName := str.Value()
 	rootOfType, _, _ := strings.Cut(typeName, ".")
 
 	// Prevent handwritten JS from referencing a module export or module content name that's
@@ -868,7 +863,7 @@ func (*CheckJSDoc_CheckJsdocTypes) Visit(typeRefNode rhino.Node) {
 	// TODO(b/144593112): remove this when ClosureRewriteModule always runs after typechecking
 	if ClosureRewriteModule_IsModuleExport(rootOfType) ||
 		ClosureRewriteModule_IsModuleContent(rootOfType) {
-		typeRefNode.SetString("UnrecognizedType_" + typeName)
+		str.SetValue("UnrecognizedType_" + typeName)
 	}
 }
 

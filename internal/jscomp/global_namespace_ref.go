@@ -26,6 +26,14 @@ import (
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
 
+func (n *GlobalNamespace_Name) inMapState() bool {
+	return n.propertyBitSet&gnNamePropRefsMapState != 0
+}
+
+func (n *GlobalNamespace_Name) hasMultiRefs() bool {
+	return n.ref0&gnMultiRefsBit != 0
+}
+
 func (n *GlobalNamespace_Name) multiRefsSlot() *globalNamespaceMultiRefs {
 	return &n.outer.multiRefs[n.ref0&^gnMultiRefsBit]
 }
@@ -53,6 +61,14 @@ func (n *GlobalNamespace_Name) compactMultiRefs(mr *globalNamespaceMultiRefs) {
 	mr.tombstones = 0
 }
 
+func (n *GlobalNamespace_Name) compactedMultiRefIDs() []uint32 {
+	mr := n.multiRefsSlot()
+	if mr.tombstones > 0 {
+		n.compactMultiRefs(mr)
+	}
+	return mr.refIDs
+}
+
 func (n *GlobalNamespace_Name) ensureRefsIndex(mr *globalNamespaceMultiRefs) map[rhino.Node]int {
 	if mr.refsIndex != nil {
 		return mr.refsIndex
@@ -75,6 +91,128 @@ func (n *GlobalNamespace_Name) ensureRefsIndex(mr *globalNamespaceMultiRefs) map
 	return nil
 }
 
+func (n *GlobalNamespace_Name) findMultiRefSlot(
+	mr *globalNamespaceMultiRefs, node rhino.Node,
+) (int, uint32, *GlobalNamespace_Ref) {
+	g := n.outer
+	if idxMap := n.ensureRefsIndex(mr); idxMap != nil {
+		if idx, ok := idxMap[node]; ok {
+			id := mr.refIDs[idx]
+			return idx, id, g.refByID(id)
+		}
+		return -1, 0, nil
+	}
+	for i, id := range mr.refIDs {
+		if id != 0 {
+			r := g.refByID(id)
+			if r.node == node {
+				return i, id, r
+			}
+		}
+	}
+	return -1, 0, nil
+}
+
+func (n *GlobalNamespace_Name) findRef(node rhino.Node) *GlobalNamespace_Ref {
+	if n.ref0 == 0 {
+		return nil
+	}
+	g := n.outer
+	if !n.hasMultiRefs() {
+		if r0 := g.refByID(n.ref0); r0.node == node {
+			return r0
+		}
+		if n.ref1 != 0 {
+			if r1 := g.refByID(n.ref1); r1.node == node {
+				return r1
+			}
+		}
+		return nil
+	}
+	_, _, r := n.findMultiRefSlot(n.multiRefsSlot(), node)
+	return r
+}
+
+func (n *GlobalNamespace_Name) deleteMapRefByNode(node rhino.Node) (uint32, *GlobalNamespace_Ref) {
+	if n.ref0 == 0 {
+		return 0, nil
+	}
+	g := n.outer
+	if !n.hasMultiRefs() {
+		if r0 := g.refByID(n.ref0); r0.node == node {
+			id := n.ref0
+			n.ref0 = n.ref1
+			n.ref1 = 0
+			return id, r0
+		}
+		if n.ref1 != 0 {
+			if r1 := g.refByID(n.ref1); r1.node == node {
+				id := n.ref1
+				n.ref1 = 0
+				return id, r1
+			}
+		}
+		return 0, nil
+	}
+	mr := n.multiRefsSlot()
+	idx, id, r := n.findMultiRefSlot(mr, node)
+	if idx < 0 {
+		return 0, nil
+	}
+	mr.refIDs[idx] = 0
+	mr.tombstones++
+	if mr.refsIndex != nil {
+		delete(mr.refsIndex, node)
+	}
+	if len(mr.refIDs) == int(mr.tombstones) {
+		mr.refIDs = mr.refIDs[:0]
+		mr.tombstones = 0
+		n.ref0 = 0
+		n.ref1 = 0
+	}
+	return id, r
+}
+
+func (n *GlobalNamespace_Name) firstRefIDOfType(t GlobalNamespace_Ref_Type) uint32 {
+	if n.ref0 == 0 {
+		return 0
+	}
+	g := n.outer
+	if !n.hasMultiRefs() {
+		if g.refByID(n.ref0).type_ == t {
+			return n.ref0
+		}
+		if n.ref1 != 0 && g.refByID(n.ref1).type_ == t {
+			return n.ref1
+		}
+		return 0
+	}
+	for _, id := range n.multiRefsSlot().refIDs {
+		if id != 0 && g.refByID(id).type_ == t {
+			return id
+		}
+	}
+	return 0
+}
+
+func (n *GlobalNamespace_Name) appendRefs(dst []*GlobalNamespace_Ref) []*GlobalNamespace_Ref {
+	if n.ref0 == 0 {
+		return nil
+	}
+	g := n.outer
+	if !n.hasMultiRefs() {
+		dst = append(dst, g.refByID(n.ref0))
+		if n.ref1 != 0 {
+			dst = append(dst, g.refByID(n.ref1))
+		}
+		return dst
+	}
+	for _, id := range n.compactedMultiRefIDs() {
+		dst = append(dst, g.refByID(id))
+	}
+	return dst
+}
+
 // Java: GlobalNamespace.Name.addRef(JSChunk, Scope, Node, Ref.Type)
 func (n *GlobalNamespace_Name) AddRef(chunk *JSChunk, scope *Scope, node rhino.Node, type_ GlobalNamespace_Ref_Type) {
 	n.CheckNoExistingRefsForNode(node)
@@ -85,31 +223,8 @@ func (n *GlobalNamespace_Name) AddRef(chunk *JSChunk, scope *Scope, node rhino.N
 
 // Java: GlobalNamespace.Name.checkNoExistingRefsForNode(Node)
 func (n *GlobalNamespace_Name) CheckNoExistingRefsForNode(node rhino.Node) {
-	if n.ref0 == 0 {
-		return
-	}
-	g := n.outer
-	if n.ref0&gnMultiRefsBit == 0 {
-		r0 := g.refByID(n.ref0)
-		jutil.CheckStateMsg1(r0.node != node, "Ref already exists for node: %s", r0)
-		if n.ref1 != 0 {
-			r1 := g.refByID(n.ref1)
-			jutil.CheckStateMsg1(r1.node != node, "Ref already exists for node: %s", r1)
-		}
-		return
-	}
-	mr := n.multiRefsSlot()
-	if idxMap := n.ensureRefsIndex(mr); idxMap != nil {
-		if idx, ok := idxMap[node]; ok {
-			jutil.CheckStateMsg1(false, "Ref already exists for node: %s", g.refByID(mr.refIDs[idx]))
-		}
-		return
-	}
-	for _, refID := range mr.refIDs {
-		if refID != 0 {
-			r := g.refByID(refID)
-			jutil.CheckStateMsg1(r.node != node, "Ref already exists for node: %s", r)
-		}
+	if r := n.findRef(node); r != nil {
+		jutil.CheckStateMsg1(false, "Ref already exists for node: %s", r)
 	}
 }
 
@@ -133,7 +248,7 @@ func (n *GlobalNamespace_Name) putNewRefID(node rhino.Node, refID uint32) {
 		return
 	}
 	g := n.outer
-	if n.ref0&gnMultiRefsBit == 0 {
+	if !n.hasMultiRefs() {
 		n.propertyBitSet |= gnNamePropRefsMapState
 		if n.ref1 == 0 {
 			n.ref1 = refID
@@ -173,7 +288,7 @@ func (n *GlobalNamespace_Name) putRefID(node rhino.Node, refID uint32) {
 		return
 	}
 	g := n.outer
-	if n.ref0&gnMultiRefsBit == 0 {
+	if !n.hasMultiRefs() {
 		if g.refByID(n.ref0).node == node {
 			n.ref0 = refID
 			return
@@ -186,18 +301,9 @@ func (n *GlobalNamespace_Name) putRefID(node rhino.Node, refID uint32) {
 		return
 	}
 	mr := n.multiRefsSlot()
-	if idxMap := n.ensureRefsIndex(mr); idxMap != nil {
-		if idx, ok := idxMap[node]; ok {
-			mr.refIDs[idx] = refID
-			return
-		}
-	} else {
-		for i, id := range mr.refIDs {
-			if id != 0 && g.refByID(id).node == node {
-				mr.refIDs[i] = refID
-				return
-			}
-		}
+	if idx, _, _ := n.findMultiRefSlot(mr, node); idx >= 0 {
+		mr.refIDs[idx] = refID
+		return
 	}
 	n.putNewRefID(node, refID)
 }
@@ -322,115 +428,26 @@ func (n *GlobalNamespace_Name) UpdateRefNode(ref *GlobalNamespace_Ref, newNode r
 	oldNode := ref.GetNode()
 	jutil.CheckStateMsg1(!oldNode.IsNil(), "Ref's node is already null: %s", ref)
 	g := n.outer
-	if n.ref0&gnMultiRefsBit != 0 {
-		n.ensureRefsIndex(n.multiRefsSlot())
-	}
-	ref.node = newNode
-
-	if n.ref0 == 0 {
-		if n.propertyBitSet&gnNamePropRefsMapState == 0 {
+	if !n.inMapState() {
+		ref.node = newNode
+		if n.ref0 == 0 {
 			n.ref0 = g.findOrCopyRefID(ref)
-		} else if !newNode.IsNil() {
-			n.putNewRefID(newNode, g.findOrCopyRefID(ref))
-		}
-		return
-	}
-	if n.ref0&gnMultiRefsBit == 0 {
-		if n.propertyBitSet&gnNamePropRefsMapState == 0 {
+		} else {
 			// No update needed, since refsForNode is a singleton.
 			jutil.CheckState(g.refByID(n.ref0) == ref)
-			return
-		}
-		slot := -1
-		var refID uint32
-		if r0 := g.refByID(n.ref0); r0.node == oldNode || r0 == ref {
-			slot = 0
-			refID = n.ref0
-		} else if n.ref1 != 0 {
-			if r1 := g.refByID(n.ref1); r1.node == oldNode || r1 == ref {
-				slot = 1
-				refID = n.ref1
-			}
-		}
-		if !newNode.IsNil() {
-			if slot != 0 {
-				if r0 := g.refByID(n.ref0); r0.node == newNode {
-					jutil.CheckArgumentMsg1(false, "refs already exist: %s", r0)
-				}
-			}
-			if slot != 1 && n.ref1 != 0 {
-				if r1 := g.refByID(n.ref1); r1.node == newNode {
-					jutil.CheckArgumentMsg1(false, "refs already exist: %s", r1)
-				}
-			}
-		}
-		if slot == 0 {
-			n.ref0 = n.ref1
-			n.ref1 = 0
-		} else if slot == 1 {
-			n.ref1 = 0
-		}
-		if !newNode.IsNil() {
-			if refID == 0 {
-				refID = g.findOrCopyRefID(ref)
-			}
-			n.putNewRefID(newNode, refID)
 		}
 		return
 	}
-
-	mr := n.multiRefsSlot()
-	idx := -1
-	var refID uint32
-	if mr.refsIndex != nil {
-		if i, ok := mr.refsIndex[oldNode]; ok {
-			idx = i
-			refID = mr.refIDs[i]
-		}
-	} else {
-		for i, id := range mr.refIDs {
-			if id != 0 {
-				r := g.refByID(id)
-				if r.node == oldNode || r == ref {
-					idx = i
-					refID = id
-					break
-				}
-			}
-		}
-	}
 	if !newNode.IsNil() {
-		if mr.refsIndex != nil {
-			if existingIdx, ok := mr.refsIndex[newNode]; ok && existingIdx != idx {
-				jutil.CheckArgumentMsg1(false, "refs already exist: %s", g.refByID(mr.refIDs[existingIdx]))
-			}
-		} else {
-			for i, id := range mr.refIDs {
-				if i != idx && id != 0 {
-					r := g.refByID(id)
-					if r.node == newNode {
-						jutil.CheckArgumentMsg1(false, "refs already exist: %s", r)
-					}
-				}
-			}
+		if existing := n.findRef(newNode); existing != nil {
+			ref.node = newNode
+			jutil.CheckArgumentMsg1(false, "refs already exist: %s", existing)
 		}
 	}
-	if idx >= 0 {
-		mr.refIDs[idx] = 0
-		mr.tombstones++
-		if mr.refsIndex != nil {
-			delete(mr.refsIndex, oldNode)
-		}
-		if !newNode.IsNil() {
-			n.putNewRefID(newNode, refID)
-		} else if len(mr.refIDs) == int(mr.tombstones) {
-			mr.refIDs = mr.refIDs[:0]
-			mr.tombstones = 0
-			n.ref0 = 0
-			n.ref1 = 0
-		}
-	} else if !newNode.IsNil() {
-		if refID == 0 {
+	refID, removed := n.deleteMapRefByNode(oldNode)
+	ref.node = newNode
+	if !newNode.IsNil() {
+		if removed != ref {
 			refID = g.findOrCopyRefID(ref)
 		}
 		n.putNewRefID(newNode, refID)
@@ -444,40 +461,15 @@ func (n *GlobalNamespace_Name) UpdateRefNode(ref *GlobalNamespace_Ref, newNode r
 //
 // Java: GlobalNamespace.Name.removeRef(Ref)
 func (n *GlobalNamespace_Name) RemoveRef(ref *GlobalNamespace_Ref) {
-	if n.ref0 == 0 {
-		if n.propertyBitSet&gnNamePropRefsMapState == 0 {
+	if !n.inMapState() {
+		if n.ref0 == 0 {
 			panic(jutil.NewNullPointerExceptionMsg("removeRef(" + jutil.ToJavaString(ref) + "): unknown ref"))
 		}
-		jutil.CheckStateMsg1(false, "removeRef(%s): unknown ref", ref)
-	}
-	g := n.outer
-	if n.ref0&gnMultiRefsBit == 0 {
-		if n.propertyBitSet&gnNamePropRefsMapState == 0 {
-			jutil.CheckStateMsg1(g.refByID(n.ref0) == ref, "removeRef(%s): unknown ref", ref)
-			n.ref0 = 0
-		} else {
-			refNode := ref.GetNode()
-			found := g.refByID(n.ref0).node == refNode || (n.ref1 != 0 && g.refByID(n.ref1).node == refNode)
-			jutil.CheckStateMsg1(found, "removeRef(%s): unknown ref", ref)
-			if !refNode.IsNil() {
-				n.RemoveRefFromNodeMap(ref)
-			}
-		}
+		jutil.CheckStateMsg1(n.outer.refByID(n.ref0) == ref, "removeRef(%s): unknown ref", ref)
+		n.ref0 = 0
 	} else {
-		mr := n.multiRefsSlot()
 		refNode := ref.GetNode()
-		found := false
-		if idxMap := n.ensureRefsIndex(mr); idxMap != nil {
-			_, found = idxMap[refNode]
-		} else {
-			for _, id := range mr.refIDs {
-				if id != 0 && g.refByID(id).node == refNode {
-					found = true
-					break
-				}
-			}
-		}
-		jutil.CheckStateMsg1(found, "removeRef(%s): unknown ref", ref)
+		jutil.CheckStateMsg1(n.findRef(refNode) != nil, "removeRef(%s): unknown ref", ref)
 		if !refNode.IsNil() {
 			n.RemoveRefFromNodeMap(ref)
 		}
@@ -490,26 +482,8 @@ func (n *GlobalNamespace_Name) RemoveRef(ref *GlobalNamespace_Ref) {
 //
 // Java: GlobalNamespace.Name.removeRefAndUpdateState(Ref)
 func (n *GlobalNamespace_Name) RemoveRefAndUpdateState(ref *GlobalNamespace_Ref) {
-	g := n.outer
-	if n.declarationID != 0 && g.refByID(n.declarationID) == ref {
-		n.declarationID = 0
-		if n.ref0 != 0 {
-			if n.ref0&gnMultiRefsBit == 0 {
-				if g.refByID(n.ref0).type_ == GlobalNamespace_Ref_Type_SET_FROM_GLOBAL {
-					n.declarationID = n.ref0
-				} else if n.ref1 != 0 && g.refByID(n.ref1).type_ == GlobalNamespace_Ref_Type_SET_FROM_GLOBAL {
-					n.declarationID = n.ref1
-				}
-			} else {
-				mr := n.multiRefsSlot()
-				for _, id := range mr.refIDs {
-					if id != 0 && g.refByID(id).type_ == GlobalNamespace_Ref_Type_SET_FROM_GLOBAL {
-						n.declarationID = id
-						break
-					}
-				}
-			}
-		}
+	if n.declarationID != 0 && n.outer.refByID(n.declarationID) == ref {
+		n.declarationID = n.firstRefIDOfType(GlobalNamespace_Ref_Type_SET_FROM_GLOBAL)
 	}
 
 	var info *rhino.JSDocInfo
@@ -553,70 +527,19 @@ func (n *GlobalNamespace_Name) RemoveRefAndUpdateState(ref *GlobalNamespace_Ref)
 // Java: GlobalNamespace.Name.removeRefFromNodeMap(Ref)
 func (n *GlobalNamespace_Name) RemoveRefFromNodeMap(ref *GlobalNamespace_Ref) {
 	refNode := rhino.CheckNotNullMsg1(ref.GetNode(), "%s", ref)
-	if n.ref0 == 0 {
-		if n.propertyBitSet&gnNamePropRefsMapState == 0 {
+	if !n.inMapState() {
+		if n.ref0 == 0 {
 			panic(jutil.NewNullPointerExceptionMsg("Missing ref when trying to remove it: " + jutil.ToJavaString(ref)))
 		}
-		jutil.CheckStateMsg2(false, "Unexpected Refs for Node: %s: when removing Ref: %s", (*GlobalNamespace_Ref)(nil), ref)
-	}
-	g := n.outer
-	if n.ref0&gnMultiRefsBit == 0 {
-		if n.propertyBitSet&gnNamePropRefsMapState == 0 {
-			n.ref0 = 0
-			return
-		}
-		if r0 := g.refByID(n.ref0); r0.node == refNode {
-			jutil.CheckStateMsg2(r0 == ref, "Unexpected Refs for Node: %s: when removing Ref: %s", r0, ref)
-			n.ref0 = n.ref1
-			n.ref1 = 0
-			return
-		}
-		if n.ref1 != 0 {
-			if r1 := g.refByID(n.ref1); r1.node == refNode {
-				jutil.CheckStateMsg2(r1 == ref, "Unexpected Refs for Node: %s: when removing Ref: %s", r1, ref)
-				n.ref1 = 0
-				return
-			}
-		}
-		jutil.CheckStateMsg2(false, "Unexpected Refs for Node: %s: when removing Ref: %s", (*GlobalNamespace_Ref)(nil), ref)
+		n.ref0 = 0
 		return
 	}
-	mr := n.multiRefsSlot()
-	idx := -1
-	var refsForNode *GlobalNamespace_Ref
-	if idxMap := n.ensureRefsIndex(mr); idxMap != nil {
-		if i, ok := idxMap[refNode]; ok {
-			idx = i
-			refsForNode = g.refByID(mr.refIDs[i])
-		}
-	} else {
-		for i, id := range mr.refIDs {
-			if id != 0 {
-				r := g.refByID(id)
-				if r.node == refNode {
-					refsForNode = r
-					idx = i
-					break
-				}
-			}
-		}
-	}
+	_, removed := n.deleteMapRefByNode(refNode)
 	jutil.CheckStateMsg2(
-		refsForNode == ref,
+		removed == ref,
 		"Unexpected Refs for Node: %s: when removing Ref: %s",
-		refsForNode,
+		removed,
 		ref)
-	mr.refIDs[idx] = 0
-	mr.tombstones++
-	if mr.refsIndex != nil {
-		delete(mr.refsIndex, refNode)
-	}
-	if len(mr.refIDs) == int(mr.tombstones) {
-		mr.refIDs = mr.refIDs[:0]
-		mr.tombstones = 0
-		n.ref0 = 0
-		n.ref1 = 0
-	}
 }
 
 // Refs iterates the Refs of this name in order with zero heap allocations.
@@ -626,7 +549,7 @@ func (n *GlobalNamespace_Name) Refs() iter.Seq[*GlobalNamespace_Ref] {
 			return
 		}
 		g := n.outer
-		if n.ref0&gnMultiRefsBit == 0 {
+		if !n.hasMultiRefs() {
 			if !yield(g.refByID(n.ref0)) {
 				return
 			}
@@ -635,12 +558,8 @@ func (n *GlobalNamespace_Name) Refs() iter.Seq[*GlobalNamespace_Ref] {
 			}
 			return
 		}
-		mr := n.multiRefsSlot()
-		if mr.tombstones > 0 {
-			n.compactMultiRefs(mr)
-		}
-		for _, id := range mr.refIDs {
-			if id != 0 && !yield(g.refByID(id)) {
+		for _, id := range n.compactedMultiRefIDs() {
+			if !yield(g.refByID(id)) {
 				return
 			}
 		}
@@ -651,33 +570,14 @@ func (n *GlobalNamespace_Name) Refs() iter.Seq[*GlobalNamespace_Ref] {
 // when len <= len(buf) so callers that mutate refs during iteration avoid heap
 // allocation in the common case.
 func (n *GlobalNamespace_Name) snapshotRefs(buf *[8]*GlobalNamespace_Ref) []*GlobalNamespace_Ref {
-	if n.ref0 == 0 {
+	cnt := n.refCount()
+	if cnt == 0 {
 		return nil
 	}
-	g := n.outer
-	if n.ref0&gnMultiRefsBit == 0 {
-		buf[0] = g.refByID(n.ref0)
-		if n.ref1 == 0 {
-			return buf[:1]
-		}
-		buf[1] = g.refByID(n.ref1)
-		return buf[:2]
-	}
-	mr := n.multiRefsSlot()
-	if mr.tombstones > 0 {
-		n.compactMultiRefs(mr)
-	}
-	cnt := len(mr.refIDs)
-	var out []*GlobalNamespace_Ref
 	if cnt <= len(buf) {
-		out = buf[:cnt]
-	} else {
-		out = make([]*GlobalNamespace_Ref, cnt)
+		return n.appendRefs(buf[:0])
 	}
-	for i, id := range mr.refIDs {
-		out[i] = g.refByID(id)
-	}
-	return out
+	return n.appendRefs(make([]*GlobalNamespace_Ref, 0, cnt))
 }
 
 // GetRefs returns the Refs of this name.
@@ -688,25 +588,11 @@ func (n *GlobalNamespace_Name) snapshotRefs(buf *[8]*GlobalNamespace_Ref) []*Glo
 //
 // Java: GlobalNamespace.Name.getRefs()
 func (n *GlobalNamespace_Name) GetRefs() []*GlobalNamespace_Ref {
-	if n.ref0 == 0 {
+	cnt := n.refCount()
+	if cnt == 0 {
 		return nil
 	}
-	g := n.outer
-	if n.ref0&gnMultiRefsBit == 0 {
-		if n.ref1 == 0 {
-			return []*GlobalNamespace_Ref{g.refByID(n.ref0)}
-		}
-		return []*GlobalNamespace_Ref{g.refByID(n.ref0), g.refByID(n.ref1)}
-	}
-	mr := n.multiRefsSlot()
-	if mr.tombstones > 0 {
-		n.compactMultiRefs(mr)
-	}
-	out := make([]*GlobalNamespace_Ref, len(mr.refIDs))
-	for i, id := range mr.refIDs {
-		out[i] = g.refByID(id)
-	}
-	return out
+	return n.appendRefs(make([]*GlobalNamespace_Ref, 0, cnt))
 }
 
 // GetRefForNode gets the Ref for this name that belongs to the given node.
@@ -716,57 +602,24 @@ func (n *GlobalNamespace_Name) GetRefs() []*GlobalNamespace_Ref {
 // Java: GlobalNamespace.Name.getRefForNode(Node)
 func (n *GlobalNamespace_Name) GetRefForNode(node rhino.Node) *GlobalNamespace_Ref {
 	rhino.CheckNotNull(node)
-	if n.ref0 == 0 {
-		return nil
-	}
-	g := n.outer
-	if n.ref0&gnMultiRefsBit == 0 {
-		if r0 := g.refByID(n.ref0); r0.node == node {
-			return r0
-		}
-		if n.ref1 != 0 {
-			if r1 := g.refByID(n.ref1); r1.node == node {
-				return r1
-			}
-		}
-		return nil
-	}
-	mr := n.multiRefsSlot()
-	if idxMap := n.ensureRefsIndex(mr); idxMap != nil {
-		if idx, ok := idxMap[node]; ok {
-			return g.refByID(mr.refIDs[idx])
-		}
-		return nil
-	}
-	for _, id := range mr.refIDs {
-		if id != 0 {
-			r := g.refByID(id)
-			if r.node == node {
-				return r
-			}
-		}
-	}
-	return nil
+	return n.findRef(node)
 }
 
 // Java: GlobalNamespace.Name.getFirstRef()
 func (n *GlobalNamespace_Name) GetFirstRef() *GlobalNamespace_Ref {
 	if n.ref0 == 0 {
-		if n.propertyBitSet&gnNamePropRefsMapState == 0 {
+		if !n.inMapState() {
 			panic(jutil.NewNullPointerExceptionMsg("no first Ref to get"))
 		}
 		panic(jutil.NewNoSuchElementException())
 	}
 	g := n.outer
-	if n.ref0&gnMultiRefsBit == 0 {
+	if !n.hasMultiRefs() {
 		return g.refByID(n.ref0)
 	}
-	mr := n.multiRefsSlot()
-	if mr.tombstones > 0 {
-		n.compactMultiRefs(mr)
-	}
-	if len(mr.refIDs) > 0 {
-		return g.refByID(mr.refIDs[0])
+	ids := n.compactedMultiRefIDs()
+	if len(ids) > 0 {
+		return g.refByID(ids[0])
 	}
 	panic(jutil.NewNoSuchElementException())
 }
@@ -775,7 +628,7 @@ func (n *GlobalNamespace_Name) refCount() int {
 	if n.ref0 == 0 {
 		return 0
 	}
-	if n.ref0&gnMultiRefsBit == 0 {
+	if !n.hasMultiRefs() {
 		if n.ref1 == 0 {
 			return 1
 		}

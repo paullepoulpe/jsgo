@@ -28,6 +28,53 @@ import (
 	"github.com/paullepoulpe/jsgo/internal/strpool"
 )
 
+type dedupAccumulator[T comparable] struct {
+	items  []T
+	seen   map[T]uint32
+	gen    uint32
+	useMap bool
+}
+
+func (d *dedupAccumulator[T]) reset() {
+	d.items = d.items[:0]
+	d.useMap = false
+}
+
+func (d *dedupAccumulator[T]) add(v T, initCap int) {
+	if !d.useMap {
+		if slices.Contains(d.items, v) {
+			return
+		}
+		d.items = append(d.items, v)
+		if len(d.items) == 8 {
+			d.useMap = true
+			d.gen++
+			if d.seen == nil {
+				d.seen = make(map[T]uint32, initCap)
+			} else if d.gen == 0 {
+				clear(d.seen)
+				d.gen = 1
+			}
+			for _, existing := range d.items {
+				d.seen[existing] = d.gen
+			}
+		}
+		return
+	}
+	if d.seen[v] == d.gen {
+		return
+	}
+	d.seen[v] = d.gen
+	d.items = append(d.items, v)
+}
+
+func (d *dedupAccumulator[T]) contains(v T) bool {
+	if d.useMap {
+		return d.seen[v] == d.gen
+	}
+	return slices.Contains(d.items, v)
+}
+
 type jsTypeDebugMismatch struct {
 	sourceRef        string
 	involvedPointers []int32
@@ -69,21 +116,15 @@ type JSTypeReconserializer struct {
 
 	scratchInstances    []int32
 	scratchPrototypes   []int32
-	scratchOwnProps     []int32
-	seenOwnProps        map[int32]uint32
-	seenOwnPropsGen     uint32
-	ownPropsUseMap      bool
-	scratchAltRecords   []*JSTypeReconserializer_SeenTypeRecord
-	seenAltRecords      map[*JSTypeReconserializer_SeenTypeRecord]uint32
-	seenAltRecordsGen   uint32
-	altRecordsUseMap    bool
+	ownPropsDedup       dedupAccumulator[int32]
+	altRecordsDedup     dedupAccumulator[*JSTypeReconserializer_SeenTypeRecord]
 	scratchAlternateIds []colors.ColorId
 	scratchInt32s       []int32
 	singleOwnPropFn     func(string)
 	multiOwnPropFn      func(string)
 
 	recordSlab   jutil.Slab[JSTypeReconserializer_SeenTypeRecord]
-	int32Slab    []int32
+	int32Slab    int32Slab
 	uuidByteSlab []byte
 
 	state JSTypeReconserializer_State
@@ -175,86 +216,30 @@ func newJSTypeReconserializer(
 	return s
 }
 
-func (s *JSTypeReconserializer) onSingleOwnProp(ownProperty string) {
+func (s *JSTypeReconserializer) internPropagatedOwnProp(ownProperty string) (int32, bool) {
 	if s.allowedProperties != nil {
 		id := strpool.Lookup(ownProperty)
 		if id != 0 && s.allowedProperties.Get(int(id)) {
-			s.scratchInt32s = append(s.scratchInt32s, int32(s.stringPoolBuilder.PutID(uint32(id))))
+			return int32(s.stringPoolBuilder.PutID(uint32(id))), true
 		}
-		return
+		return 0, false
 	}
 	if s.shouldPropagatePropertyName(ownProperty) {
-		s.scratchInt32s = append(s.scratchInt32s, int32(s.stringPoolBuilder.Put(ownProperty)))
+		return int32(s.stringPoolBuilder.Put(ownProperty)), true
 	}
+	return 0, false
 }
 
-func (s *JSTypeReconserializer) appendDedupOwnProp(ptr int32) {
-	if !s.ownPropsUseMap {
-		if slices.Contains(s.scratchOwnProps, ptr) {
-			return
-		}
-		s.scratchOwnProps = append(s.scratchOwnProps, ptr)
-		if len(s.scratchOwnProps) == 8 {
-			s.ownPropsUseMap = true
-			s.seenOwnPropsGen++
-			if s.seenOwnProps == nil {
-				s.seenOwnProps = make(map[int32]uint32, 64)
-			} else if s.seenOwnPropsGen == 0 {
-				clear(s.seenOwnProps)
-				s.seenOwnPropsGen = 1
-			}
-			for _, existing := range s.scratchOwnProps {
-				s.seenOwnProps[existing] = s.seenOwnPropsGen
-			}
-		}
-		return
+func (s *JSTypeReconserializer) onSingleOwnProp(ownProperty string) {
+	if ptr, ok := s.internPropagatedOwnProp(ownProperty); ok {
+		s.scratchInt32s = append(s.scratchInt32s, ptr)
 	}
-	if s.seenOwnProps[ptr] == s.seenOwnPropsGen {
-		return
-	}
-	s.seenOwnProps[ptr] = s.seenOwnPropsGen
-	s.scratchOwnProps = append(s.scratchOwnProps, ptr)
 }
 
 func (s *JSTypeReconserializer) onMultiOwnProp(ownProperty string) {
-	if s.allowedProperties != nil {
-		id := strpool.Lookup(ownProperty)
-		if id != 0 && s.allowedProperties.Get(int(id)) {
-			s.appendDedupOwnProp(int32(s.stringPoolBuilder.PutID(uint32(id))))
-		}
-		return
+	if ptr, ok := s.internPropagatedOwnProp(ownProperty); ok {
+		s.ownPropsDedup.add(ptr, 64)
 	}
-	if s.shouldPropagatePropertyName(ownProperty) {
-		s.appendDedupOwnProp(int32(s.stringPoolBuilder.Put(ownProperty)))
-	}
-}
-
-func (s *JSTypeReconserializer) appendDedupAltRecord(rec *JSTypeReconserializer_SeenTypeRecord) {
-	if !s.altRecordsUseMap {
-		if slices.Contains(s.scratchAltRecords, rec) {
-			return
-		}
-		s.scratchAltRecords = append(s.scratchAltRecords, rec)
-		if len(s.scratchAltRecords) == 8 {
-			s.altRecordsUseMap = true
-			s.seenAltRecordsGen++
-			if s.seenAltRecords == nil {
-				s.seenAltRecords = make(map[*JSTypeReconserializer_SeenTypeRecord]uint32, 32)
-			} else if s.seenAltRecordsGen == 0 {
-				clear(s.seenAltRecords)
-				s.seenAltRecordsGen = 1
-			}
-			for _, existing := range s.scratchAltRecords {
-				s.seenAltRecords[existing] = s.seenAltRecordsGen
-			}
-		}
-		return
-	}
-	if s.seenAltRecords[rec] == s.seenAltRecordsGen {
-		return
-	}
-	s.seenAltRecords[rec] = s.seenAltRecordsGen
-	s.scratchAltRecords = append(s.scratchAltRecords, rec)
 }
 
 // Java: JSTypeReconserializer.SeenTypeRecord(ColorId, int)
@@ -264,30 +249,6 @@ func (s *JSTypeReconserializer) allocSeenTypeRecord(colorId colors.ColorId, poin
 	r.pointer = pointer
 	r.jstypes = r.jstypeBuf[:0]
 	return r
-}
-
-func (s *JSTypeReconserializer) allocInt32Slice(src []int32) []int32 {
-	n := len(src)
-	if n == 0 {
-		return nil
-	}
-	if len(s.int32Slab) < n {
-		s.int32Slab = make([]int32, max(n, 4096))
-	}
-	out := s.int32Slab[:n:n]
-	s.int32Slab = s.int32Slab[n:]
-	copy(out, src)
-	return out
-}
-
-func (s *JSTypeReconserializer) allocSingleInt32(v int32) []int32 {
-	if len(s.int32Slab) < 1 {
-		s.int32Slab = make([]int32, 4096)
-	}
-	out := s.int32Slab[:1:1]
-	s.int32Slab = s.int32Slab[1:]
-	out[0] = v
-	return out
 }
 
 func (s *JSTypeReconserializer) allocColorIdBytes(id colors.ColorId) []byte {
@@ -343,12 +304,6 @@ func JSTypeReconserializer_Create(
 		serializationMode)
 	serializer.CheckValidLinearTime()
 	return serializer
-}
-
-// LookupTypePointer returns the cached pointer for type_ if it was serialized.
-func (s *JSTypeReconserializer) LookupTypePointer(type_ rhino.JSType) (int, bool) {
-	p, ok := s.typePointers[type_.GetJSTypeBase()]
-	return int(p), ok
 }
 
 // hasTypePointer reports whether the type of tb has been recorded.
@@ -436,19 +391,18 @@ func (s *JSTypeReconserializer) RecordUnionType(type_ *rhino.UnionType) *JSTypeR
 		resolved[i] = s.RecordType(altType)
 	}
 
-	s.scratchAltRecords = s.scratchAltRecords[:0]
-	s.altRecordsUseMap = false
+	s.altRecordsDedup.reset()
 	for _, alt := range resolved {
 		if len(alt.unionMembers) == 0 {
-			s.appendDedupAltRecord(alt)
+			s.altRecordsDedup.add(alt, 32)
 		} else {
 			// Flatten out any nested unions. They are possible due to proxy-like types.
 			for _, member := range alt.unionMembers {
-				s.appendDedupAltRecord(member)
+				s.altRecordsDedup.add(member, 32)
 			}
 		}
 	}
-	altRecords := s.scratchAltRecords
+	altRecords := s.altRecordsDedup.items
 
 	// Some elements of the union may be equal as Colors
 	if len(altRecords) == 1 {
@@ -474,13 +428,7 @@ func (s *JSTypeReconserializer) RecordUnionType(type_ *rhino.UnionType) *JSTypeR
 		same := len(altRecords) == len(record.unionMembers)
 		if same {
 			for _, m := range record.unionMembers {
-				found := false
-				if s.altRecordsUseMap {
-					found = s.seenAltRecords[m] == s.seenAltRecordsGen
-				} else {
-					found = slices.Contains(altRecords, m)
-				}
-				if !found {
+				if !s.altRecordsDedup.contains(m) {
 					same = false
 					break
 				}
@@ -593,7 +541,7 @@ func (s *JSTypeReconserializer) reconcileUnionTypesInto(seen *JSTypeReconseriali
 	slices.Sort(members)
 	s.scratchInt32s = members
 	*up = UnionTypeProto{
-		unionMember_: s.allocInt32Slice(members),
+		unionMember_: s.int32Slab.clone(members),
 	}
 	*tp = TypeProto{
 		union_:    up,
@@ -615,8 +563,8 @@ func (s *JSTypeReconserializer) reconcileObjectTypesInto(seen *JSTypeReconserial
 		if objType.IsFunctionType() {
 			fnType := objType.ToMaybeFunctionType()
 			if fnType.HasInstanceType() && fnType.GetInstanceType() != nil {
-				instanceTypes = s.allocSingleInt32(int32(s.SerializeType(fnType.GetInstanceType())))
-				prototypes = s.allocSingleInt32(int32(s.SerializeType(fnType.GetPrototype())))
+				instanceTypes = s.int32Slab.single(int32(s.SerializeType(fnType.GetInstanceType())))
+				prototypes = s.int32Slab.single(int32(s.SerializeType(fnType.GetPrototype())))
 				isConstructor = fnType.IsConstructor()
 			}
 			isClosureAssert = JSTypeReconserializer_IsClosureAssert(fnType.GetClosurePrimitive())
@@ -631,7 +579,7 @@ func (s *JSTypeReconserializer) reconcileObjectTypesInto(seen *JSTypeReconserial
 
 		*op = ObjectTypeProto{
 			instanceType_:               instanceTypes,
-			ownProperty_:                s.allocInt32Slice(ownProps),
+			ownProperty_:                s.int32Slab.clone(ownProps),
 			prototype_:                  prototypes,
 			closureAssert_:              isClosureAssert,
 			isInvalidating_:             isInvalidating,
@@ -648,8 +596,7 @@ func (s *JSTypeReconserializer) reconcileObjectTypesInto(seen *JSTypeReconserial
 
 	s.scratchInstances = s.scratchInstances[:0]
 	s.scratchPrototypes = s.scratchPrototypes[:0]
-	s.scratchOwnProps = s.scratchOwnProps[:0]
-	s.ownPropsUseMap = false
+	s.ownPropsDedup.reset()
 	isClosureAssert := false
 	isConstructor := false
 	isInvalidating := false
@@ -691,9 +638,9 @@ func (s *JSTypeReconserializer) reconcileObjectTypesInto(seen *JSTypeReconserial
 	}
 
 	*op = ObjectTypeProto{
-		instanceType_:               s.allocInt32Slice(s.scratchInstances),
-		ownProperty_:                s.allocInt32Slice(s.scratchOwnProps),
-		prototype_:                  s.allocInt32Slice(s.scratchPrototypes),
+		instanceType_:               s.int32Slab.clone(s.scratchInstances),
+		ownProperty_:                s.int32Slab.clone(s.ownPropsDedup.items),
+		prototype_:                  s.int32Slab.clone(s.scratchPrototypes),
 		closureAssert_:              isClosureAssert,
 		isInvalidating_:             isInvalidating,
 		markedConstructor_:          isConstructor,
@@ -704,36 +651,6 @@ func (s *JSTypeReconserializer) reconcileObjectTypesInto(seen *JSTypeReconserial
 		object_:   op,
 		kindCase_: TypeProto_OBJECT_FIELD_NUMBER,
 	}
-}
-
-// OwnAncestorInterfacesOf returns the interfaces directly implemented and
-// extended by type.
-//
-// Some of these relationships represent type errors; however, the graph
-// needs to contain those edges for safe disambiguation. In particular, code
-// generated from other languages (e.g TS) might have more flexible subtyping
-// rules.
-//
-// Java: JSTypeReconserializer.ownAncestorInterfacesOf(ObjectType)
-func (s *JSTypeReconserializer) OwnAncestorInterfacesOf(type_ rhino.ObjectType) []int {
-	ctorType := type_.GetConstructor()
-	if ctorType == nil {
-		return nil
-	}
-	ext := ctorType.GetExtendedInterfaces()
-	imp := ctorType.GetOwnImplementedInterfaces()
-	if len(ext)+len(imp) == 0 {
-		return nil
-	}
-
-	ancestors := make([]int, 0, len(ext)+len(imp))
-	for _, ancestor := range ext {
-		ancestors = append(ancestors, s.SerializeType(ancestor))
-	}
-	for _, ancestor := range imp {
-		ancestors = append(ancestors, s.SerializeType(ancestor))
-	}
-	return ancestors
 }
 
 // SeedCachesWithAxiomaticTypes inserts dummy pointers corresponding to all
