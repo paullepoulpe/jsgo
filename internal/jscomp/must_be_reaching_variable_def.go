@@ -54,8 +54,8 @@ type MustBeReachingVariableDef struct {
 
 	compiler     AbstractCompiler
 	varTable     fnVarTable
-	paramBits    inlineBitSet
-	catchBits    inlineBitSet
+	paramBits    smallBitSet
+	catchBits    smallBitSet
 	hasParams    bool
 	hasCatchVars bool
 
@@ -233,7 +233,7 @@ func (d *MustBeReachingVariableDef) initVarsFromTable(table *fnVarTable) {
 		d.varTable.finalize()
 		return
 	}
-	var seen inlineBitSet
+	var seen smallBitSet
 	for _, v := range table.vars {
 		canonIdx, _ := table.lookupIndexByID(v.nameID)
 		if seen.Get(canonIdx) {
@@ -357,7 +357,7 @@ func (d *MustBeReachingVariableDef) ensureMutableDefs(def *MustBeReachingVariabl
 // depending set would be {b,c}.
 type MustBeReachingVariableDef_Definition struct {
 	node                rhino.Node
-	deps                inlineBitSet
+	deps                smallBitSet
 	unknownDependencies bool
 }
 

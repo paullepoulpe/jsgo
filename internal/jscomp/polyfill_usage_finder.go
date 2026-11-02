@@ -142,10 +142,10 @@ type PolyfillUsageFinder_Polyfills struct {
 	staticsMap     map[string]*PolyfillUsageFinder_Polyfill
 	staticsOneByID map[uint32]*PolyfillUsageFinder_Polyfill
 	staticsPairMap map[[2]uint32]*PolyfillUsageFinder_Polyfill
-	staticNameIDs  inlineBitSet
-	staticRootIDs  inlineBitSet
-	suffixIDs      inlineBitSet
-	anyPropIDs     inlineBitSet
+	staticNameIDs  smallBitSet
+	staticRootIDs  smallBitSet
+	suffixIDs      smallBitSet
+	anyPropIDs     smallBitSet
 	methodsByID    map[uint32]*pufMethodEntry
 }
 

@@ -57,7 +57,7 @@ type ColorGraphNode struct {
 	props   []*PropertyClustering
 	propSet map[*PropertyClustering]struct{}
 
-	subtypeIndices inlineBitSet
+	subtypeIndices smallBitSet
 
 	index             int
 	reflexiveSubtype  bool
@@ -224,7 +224,7 @@ func (n *ColorGraphNode) AssociatedPropsSize() int {
 // found to be subtypes of this type.
 //
 // Java: ColorGraphNode.getSubtypeIndices()
-func (n *ColorGraphNode) GetSubtypeIndices() *inlineBitSet {
+func (n *ColorGraphNode) GetSubtypeIndices() *smallBitSet {
 	if !n.hasSubtypeIndices {
 		n.hasSubtypeIndices = true
 		if n.reflexiveSubtype && n.index >= 0 {

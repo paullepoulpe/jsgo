@@ -200,14 +200,6 @@ func PeepholeCollectPropertyAssignments_IsPropertyAssignmentToName(propertyCandi
 }
 
 // Java: PeepholeCollectPropertyAssignments.collectProperty(Node, String, Node)
-func (p *PeepholeCollectPropertyAssignments) CollectProperty(propertyCandidate rhino.Node, name string, value ast.Expr) bool {
-	id := uint32(strpool.Lookup(name))
-	if id == 0 {
-		return false
-	}
-	return p.collectPropertyByID(propertyCandidate, id, value)
-}
-
 func (p *PeepholeCollectPropertyAssignments) collectPropertyByID(propertyCandidate rhino.Node, nameID uint32, value ast.Expr) bool {
 	prop, ok := PeepholeCollectPropertyAssignments_IsPropertyAssignmentToName(propertyCandidate)
 	if !ok {
@@ -399,14 +391,6 @@ func (p *PeepholeCollectPropertyAssignments) CollectObjectProperty(objectLiteral
 }
 
 // Java: PeepholeCollectPropertyAssignments.mightContainForwardReference(Node, String)
-func PeepholeCollectPropertyAssignments_MightContainForwardReference(node rhino.Node, varName string) bool {
-	id := uint32(strpool.Lookup(varName))
-	if id == 0 {
-		return false
-	}
-	return peepholeCollectPropertyAssignments_mightContainForwardReferenceByID(node, id)
-}
-
 func peepholeCollectPropertyAssignments_mightContainForwardReferenceByID(node rhino.Node, varNameID uint32) bool {
 	if node.IsName() {
 		return varNameID == node.GetStringID()

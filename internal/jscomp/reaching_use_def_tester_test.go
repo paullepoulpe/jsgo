@@ -81,7 +81,7 @@ func (r *ReachingUseDefTester) ComputeReachingUses(src string, async bool) {
 	var varIDs []uint32
 	if !table.isEmpty() {
 		varIDs = make([]uint32, 0, table.uniqueCount)
-		var seen inlineBitSet
+		var seen smallBitSet
 		for _, v := range table.vars {
 			canonIdx, _ := table.lookupIndexByID(v.nameID)
 			if seen.Get(canonIdx) {

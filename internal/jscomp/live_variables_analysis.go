@@ -60,9 +60,9 @@ type LiveVariablesAnalysis struct {
 	table *fnVarTable
 
 	// escaped marks indices in table.vars that are escaped.
-	escaped inlineBitSet
+	escaped smallBitSet
 	// untracked marks indices in table.vars that are !local || escaped.
-	untracked           inlineBitSet
+	untracked           smallBitSet
 	paramsMarkedEscaped bool
 
 	emptyLattice LiveVariablesAnalysis_LiveVariableLattice
@@ -74,7 +74,7 @@ type LiveVariablesAnalysis struct {
 // lattice is the power set of all local variables and a variable is live if
 // it is in the set.
 type LiveVariablesAnalysis_LiveVariableLattice struct {
-	liveSet inlineBitSet
+	liveSet smallBitSet
 }
 
 // numVars is the number of all local variables.
@@ -508,7 +508,7 @@ func (l *LiveVariablesAnalysis) flowThroughEdges(
 	input *LiveVariablesAnalysis_LiveVariableLattice,
 	prevIn *LiveVariablesAnalysis_LiveVariableLattice,
 ) *LiveVariablesAnalysis_LiveVariableLattice {
-	var gen, kill inlineBitSet
+	var gen, kill smallBitSet
 
 	// Make kills conditional if the node can end abruptly by an exception.
 	conditional := false
@@ -595,7 +595,7 @@ func (l *LiveVariablesAnalysis) flowThroughEdges(
 	return result
 }
 
-func (l *LiveVariablesAnalysis) computeGenKillBits(n rhino.Node, gen *inlineBitSet, kill *inlineBitSet, conditional bool) {
+func (l *LiveVariablesAnalysis) computeGenKillBits(n rhino.Node, gen *smallBitSet, kill *smallBitSet, conditional bool) {
 	switch n.GetToken() {
 	case rhino.Token_SCRIPT, rhino.Token_ROOT, rhino.Token_FUNCTION, rhino.Token_BLOCK:
 		return
@@ -724,7 +724,7 @@ func (l *LiveVariablesAnalysis) computeGenKillBits(n rhino.Node, gen *inlineBitS
 	}
 }
 
-func (l *LiveVariablesAnalysis) addToSetIfLocalBits(node rhino.Node, set *inlineBitSet) {
+func (l *LiveVariablesAnalysis) addToSetIfLocalBits(node rhino.Node, set *smallBitSet) {
 	jutil.CheckStateMsg1(node.IsName(), "%s", node)
 	idx, found := l.table.lookupIndexByID(node.GetStringID())
 	if !found || l.untracked.Get(idx) {

@@ -475,7 +475,7 @@ func OptimizeCalls_ReferenceMap_IsSimpleAssignmentTarget(n rhino.Node) bool {
 type optimizeCallsRefCollector struct {
 	outer            *OptimizeCalls
 	codingConvention CodingConvention
-	externPropBits   inlineBitSet
+	externPropBits   smallBitSet
 	references       *OptimizeCalls_ReferenceMap
 	globalScope      *Scope
 }

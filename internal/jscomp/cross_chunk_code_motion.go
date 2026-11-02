@@ -68,7 +68,7 @@ type CrossChunkCodeMotion struct {
 	// declarations that have to be moved into that chunk
 	chunkInsertionPointMap map[*JSChunk]rhino.Node
 
-	scratchImmovableChunks inlineBitSet
+	scratchImmovableChunks smallBitSet
 	scratchDsgCycle        CrossChunkCodeMotion_DeclarationStatementGroupCycle
 
 	symbolSlab jutil.Slab[CrossChunkCodeMotion_GlobalSymbol]
@@ -130,7 +130,7 @@ func (c *CrossChunkCodeMotion) Process(externs rhino.Node, root rhino.Node) {
 		c.symbolSlab = jutil.Slab[CrossChunkCodeMotion_GlobalSymbol]{}
 		c.dsgSlab = jutil.Slab[CrossChunkCodeMotion_DeclarationStatementGroup]{}
 		c.cycleSlab = jutil.Slab[CrossChunkCodeMotion_GlobalSymbolCycle]{}
-		c.scratchImmovableChunks = inlineBitSet{}
+		c.scratchImmovableChunks = smallBitSet{}
 		clear(c.chunkInsertionPointMap)
 	}()
 	c.cccmLog = logFile
@@ -357,7 +357,7 @@ type CrossChunkCodeMotion_GlobalSymbol struct {
 	dsgs   []*CrossChunkCodeMotion_DeclarationStatementGroup
 	dsgBuf [2]*CrossChunkCodeMotion_DeclarationStatementGroup
 
-	chunksWithImmovableReferences inlineBitSet
+	chunksWithImmovableReferences smallBitSet
 
 	// Symbols whose declaration statements refer to this symbol.
 	//
@@ -387,7 +387,7 @@ func (s *CrossChunkCodeMotion_GlobalSymbol) AddImmovableReference(chunk *JSChunk
 	s.chunksWithImmovableReferences.Set(chunk.GetIndex())
 }
 
-func (s *CrossChunkCodeMotion_GlobalSymbol) orImmovableChunksInto(dst *inlineBitSet) {
+func (s *CrossChunkCodeMotion_GlobalSymbol) orImmovableChunksInto(dst *smallBitSet) {
 	dst.Or(&s.chunksWithImmovableReferences)
 }
 
@@ -798,7 +798,7 @@ func NewCrossChunkCodeMotion_DeclarationStatementGroupCycle(outer *CrossChunkCod
 }
 
 // Java: CrossChunkCodeMotion.DeclarationStatementGroupCycle.moveToPreferredChunk(BitSet)
-func (y *CrossChunkCodeMotion_DeclarationStatementGroupCycle) MoveToPreferredChunk(chunksWithImmovableReferences *inlineBitSet) {
+func (y *CrossChunkCodeMotion_DeclarationStatementGroupCycle) MoveToPreferredChunk(chunksWithImmovableReferences *smallBitSet) {
 	y.moveToPreferredChunkDirect(y.GetPreferredChunk(chunksWithImmovableReferences))
 }
 
@@ -914,7 +914,7 @@ func (y *CrossChunkCodeMotion_DeclarationStatementGroupCycle) GetStatementsLastF
 }
 
 // Java: CrossChunkCodeMotion.DeclarationStatementGroupCycle.getPreferredChunk(BitSet)
-func (y *CrossChunkCodeMotion_DeclarationStatementGroupCycle) GetPreferredChunk(chunksWithImmovableReferences *inlineBitSet) *JSChunk {
+func (y *CrossChunkCodeMotion_DeclarationStatementGroupCycle) GetPreferredChunk(chunksWithImmovableReferences *smallBitSet) *JSChunk {
 	if chunksWithImmovableReferences.IsEmpty() {
 		return y.currentChunk
 	} else if !y.AllStatementsCanMove() {

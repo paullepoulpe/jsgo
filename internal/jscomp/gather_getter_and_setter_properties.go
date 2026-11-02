@@ -201,6 +201,7 @@ func (c *GatherGetterAndSetterProperties_GatherCallback) RecordSetterDef(setterD
 	c.recordByID(setterDef.GetStringID(), AccessorSummary_PropertyAccessKind_SETTER_ONLY)
 }
 
+// Java: GatherCallback.visitDescriptor(String, Node)
 func (c *GatherGetterAndSetterProperties_GatherCallback) visitDescriptorByID(propertyID uint32, descriptor rhino.Node) {
 	for key := descriptor.GetFirstChild(); !key.IsNil(); key = key.GetNext() {
 		if key.IsStringKey() || key.IsMemberFunctionDef() {
@@ -212,17 +213,6 @@ func (c *GatherGetterAndSetterProperties_GatherCallback) visitDescriptorByID(pro
 			}
 		}
 	}
-}
-
-// VisitDescriptor looks for getters and setters passed to
-// Object.defineProperty or Object.defineProperties.
-//
-//	Object.defineProperty(obj, 'propertyName', { /* descriptor */ });
-//	Object.defineProperties(obj, { 'propertyName': { /* descriptor */ } });
-//
-// Java: GatherCallback.visitDescriptor(String, Node)
-func (c *GatherGetterAndSetterProperties_GatherCallback) VisitDescriptor(propertyName string, descriptor rhino.Node) {
-	c.visitDescriptorByID(uint32(strpool.Intern(propertyName)), descriptor)
 }
 
 // Java: GatherCallback.visitDefineProperty(Node)

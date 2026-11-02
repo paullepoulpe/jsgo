@@ -43,7 +43,7 @@ type InlineProperties struct {
 	props       map[uint32]inlinePropInfo
 	// Go-only: the properties whose entry is invalidated (an entry never
 	// becomes a candidate again), to skip the map on repeated invalidations.
-	invalidated inlineBitSet
+	invalidated smallBitSet
 }
 
 // invalidate records an invalidating reference to propID.
@@ -169,7 +169,7 @@ func (p *InlineProperties) processIndexed(ix *propUseIndex, root rhino.Node) {
 			it.n, it.n.GetParent(), it.prop, kind)
 	})
 
-	var candidates inlineBitSet
+	var candidates smallBitSet
 	// order-independent: builds a set
 	for propID, info := range p.props {
 		if !info.invalidated {

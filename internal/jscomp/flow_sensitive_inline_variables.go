@@ -89,7 +89,7 @@ type FlowSensitiveInlineVariables struct {
 	reachingDefStorage  MustBeReachingVariableDef
 	reachingUsesStorage MaybeReachingVariableUse
 	varTable            fnVarTable
-	candVarSeen         inlineBitSet
+	candVarSeen         smallBitSet
 	candVarIDs          []uint32
 	gatherCfgNode       rhino.Node
 	gatherInState       *MustBeReachingVariableDef_MustDef
