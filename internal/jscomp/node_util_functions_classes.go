@@ -171,6 +171,24 @@ func NodeUtil_GetFirstGetterMatchingKey(n rhino.Node, keyName string) rhino.Node
 	return rhino.NilNode
 }
 
+// NodeUtil_HasInstanceElements returns whether the class has instance
+// elements: non-static fields or private members, which
+// InitializeInstanceElements installs on `this` when the constructor's
+// `super()` call returns (or when a base class constructor starts).
+//
+// Java: NodeUtil.hasInstanceElements(Node)
+func NodeUtil_HasInstanceElements(classNode rhino.Node) bool {
+	for member := NodeUtil_GetClassMembers(classNode).GetFirstChild(); !member.IsNil(); member = member.GetNext() {
+		if !member.IsStaticMember() &&
+			(member.IsMemberFieldDef() ||
+				member.IsComputedFieldDef() ||
+				member.IsPrivateIdentifier()) {
+			return true
+		}
+	}
+	return false
+}
+
 // NodeUtil_ReferencesOwnReceiver returns true if this function references
 // its receiver object.
 //

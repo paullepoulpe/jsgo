@@ -716,9 +716,14 @@ func NodeUtil_GetRootOfQualifiedNameString(qName string) string {
 
 // Java: NodeUtil.newName(AbstractCompiler, String)
 func NodeUtil_NewName(compiler AbstractCompiler, name string) rhino.Node {
+	return NodeUtil_NewNameWithConvention(compiler.GetCodingConvention(), name)
+}
+
+// Java: NodeUtil.newName(CodingConvention, String)
+func NodeUtil_NewNameWithConvention(convention CodingConvention, name string) rhino.Node {
 	nameNode := rhino.IR_Name(name)
 	nameNode.SetLength(jutil.StringLength(name))
-	if compiler.GetCodingConvention().IsConstant(name) {
+	if convention.IsConstant(name) {
 		nameNode.PutBooleanProp(rhino.Node_IS_CONSTANT_NAME, true)
 	}
 	return nameNode
@@ -732,7 +737,12 @@ func NodeUtil_NewName(compiler AbstractCompiler, name string) rhino.Node {
 //
 // Java: NodeUtil.newName(AbstractCompiler, String, Node)
 func NodeUtil_NewNameWithSrcref(compiler AbstractCompiler, name string, srcref rhino.Node) rhino.Node {
-	return NodeUtil_NewName(compiler, name).Srcref(srcref)
+	return NodeUtil_NewNameWithConventionAndSrcref(compiler.GetCodingConvention(), name, srcref)
+}
+
+// Java: NodeUtil.newName(CodingConvention, String, Node)
+func NodeUtil_NewNameWithConventionAndSrcref(convention CodingConvention, name string, srcref rhino.Node) rhino.Node {
+	return NodeUtil_NewNameWithConvention(convention, name).Srcref(srcref)
 }
 
 // NodeUtil_NewNameWithOriginalName creates a new node representing an
@@ -747,7 +757,13 @@ func NodeUtil_NewNameWithSrcref(compiler AbstractCompiler, name string, srcref r
 // Java: NodeUtil.newName(AbstractCompiler, String, Node, String)
 func NodeUtil_NewNameWithOriginalName(
 	compiler AbstractCompiler, name string, basisNode rhino.Node, originalName string) rhino.Node {
-	nameNode := NodeUtil_NewNameWithSrcref(compiler, name, basisNode)
+	return NodeUtil_NewNameWithConventionAndOriginalName(compiler.GetCodingConvention(), name, basisNode, originalName)
+}
+
+// Java: NodeUtil.newName(CodingConvention, String, Node, String)
+func NodeUtil_NewNameWithConventionAndOriginalName(
+	convention CodingConvention, name string, basisNode rhino.Node, originalName string) rhino.Node {
+	nameNode := NodeUtil_NewNameWithConventionAndSrcref(convention, name, basisNode)
 	nameNode.SetOriginalNameString(originalName)
 	return nameNode
 }

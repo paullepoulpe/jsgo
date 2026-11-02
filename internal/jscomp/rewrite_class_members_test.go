@@ -101,6 +101,14 @@ func (o *RewriteClassMembersTest_Options) UseEs5LanguageOut() *RewriteClassMembe
 	return NewRewriteClassMembersTest_Options(o.AssumeStaticInheritanceIsNotUsed(), CompilerOptions_LanguageMode_ECMASCRIPT5)
 }
 
+// UseNativePrivateElementsLanguageOut configures `UNSUPPORTED` output; private
+// elements are only emitted natively (not transpiled) for `UNSUPPORTED` output.
+//
+// Java: RewriteClassMembersTest.Options.useNativePrivateElementsLanguageOut()
+func (o *RewriteClassMembersTest_Options) UseNativePrivateElementsLanguageOut() *RewriteClassMembersTest_Options {
+	return NewRewriteClassMembersTest_Options(o.AssumeStaticInheritanceIsNotUsed(), CompilerOptions_LanguageMode_UNSUPPORTED)
+}
+
 // Java: RewriteClassMembersTest.test(String, String)
 // Java: RewriteClassMembersTest.test(Options, String, String)
 func (c *RewriteClassMembersTest) Test(args ...any) {
@@ -6032,6 +6040,426 @@ func (c *RewriteClassMembersTest) TestSelfIdentifierCollision_overwritesInstance
 		"const PRIVATE_MAP$0 = new $jscomp.PrivateMap();\nconst PRIVATE_PROTO$1 = Object.create(null, {\n  val: {\n    get: function() {\n      // BUG: this.$self was overwritten with 1 below; PRIVATE_MAP$0.get(1) returns undefined,\n      // and accessing .$self on undefined throws a runtime TypeError.\n      return PRIVATE_MAP$0.get(this.$self).$self;\n    }\n  }\n});\nclass Foo {\n  constructor() {\n    const PRIVATE$2 = Object.create(PRIVATE_PROTO$1);\n    PRIVATE$2.$self = this;\n    PRIVATE_MAP$0.set(this, PRIVATE$2);\n    // BUG: User field assignment `#$self = 1` overwrites `PRIVATE$2.$self = this` set above.\n    PRIVATE$2.$self = 1;\n  }\n  getVal() {\n    return PRIVATE_MAP$0.get(this).val;\n  }\n}\n")
 }
 
+// Java: RewriteClassMembersTest.testPrivateNameInHeritageClause_knownBug()
+func (c *RewriteClassMembersTest) TestPrivateNameInHeritageClause_knownBug() {
+	// Expected behavior: `o.#x` in the `extends` clause of `Sub` is lowered to a read of `Outer`'s
+	// private map. The `extends` clause is outside the body of `Sub`, so `#x` there refers to
+	// `Outer`'s `#x`, not `Sub`'s.
+	//
+	// TODO(b/236744850): `#x` in an `extends` clause refers to `Sub`'s `#x`.
+	// Current behavior: `o.#x` is lowered to a read of `Sub`'s private map.
+	// Why it's a bug: natively `Sub.read(new Outer())` returns 1 and `Sub.read(new Sub())` throws a
+	//   TypeError; the compiled code throws a TypeError for the first and returns 2 for the second.
+	c.Test(
+		`class Outer {
+  #x = 1;
+  makeSub() {
+    return class Sub extends (class { static read(o) { return o.#x; } }) {
+      #x = 2;
+    };
+  }
+}
+`,
+		`const PRIVATE_MAP$5 = new $jscomp.PrivateMap();
+class Outer {
+  constructor() {
+    const PRIVATE$6 = Object.create(null);
+    PRIVATE_MAP$5.set(this, PRIVATE$6);
+    PRIVATE$6.x = 1;
+  }
+  makeSub() {
+    return (() => {
+      const CLASS_EXTENDS$0 = (() => {
+        const CLASS_DECL$2 = class {
+          static read(o) {
+            return PRIVATE_MAP$3.get(o).x;
+          }
+        };
+        return CLASS_DECL$2;
+      })();
+      const PRIVATE_MAP$3 = new $jscomp.PrivateMap();
+      const CLASS_DECL$1 = class extends CLASS_EXTENDS$0 {
+        constructor() {
+          super(...arguments);
+          const PRIVATE$4 = Object.create(null);
+          PRIVATE_MAP$3.set(this, PRIVATE$4);
+          PRIVATE$4.x = 2;
+        }
+      };
+      return CLASS_DECL$1;
+    })();
+  }
+}
+`)
+}
+
+// Java: RewriteClassMembersTest.testPrivateFieldAsSuperclass_knownBug()
+func (c *RewriteClassMembersTest) TestPrivateFieldAsSuperclass_knownBug() {
+	// Expected behavior: a private field read in an `extends` clause, as in `extends Outer.#base`,
+	// is lowered to a read of `Outer`'s static private map and moved into a temporary before the
+	// class, like other superclass expressions that aren't qualified names.
+	//
+	// TODO(b/236744850): A private field read in an `extends` clause crashes the compiler.
+	// Current behavior: `Outer.#base` is a qualified name, so the `extends` clause stays in place,
+	//   but lowering turns it into a read through a `get` call on `Outer`'s static private map,
+	//   which isn't one, so adding the constructor that initializes `x` throws an
+	//   IllegalStateException.
+	// Why it's a bug: the compiler crashes on valid code.
+	src := `class Outer {
+  static #base = class {};
+  static make() {
+    return class extends Outer.#base {
+      x = 1;
+    };
+  }
+}
+`
+	ex := AssertThrows[jutil.IRuntimeException](func() { c.Test(src, "") })
+	AssertThat(ex.GetMessage()).Contains("INTERNAL COMPILER ERROR")
+	IsInstanceOf[jutil.IIllegalStateException](AssertThat(ex.GetCause()))
+	AssertThat(ex.GetCause().GetMessage()).
+		Contains("Expected Es6NormalizeClasses to make all extends clauses into qualified names")
+}
+
+// Java: RewriteClassMembersTest.testSuperInPrivateMethodParameterDefault_knownBug()
+func (c *RewriteClassMembersTest) TestSuperInPrivateMethodParameterDefault_knownBug() {
+	// Expected behavior: `super` in a private method's parameter list is lowered like `super` in
+	// its body, so `super.m()` calls `Base.prototype.m` with the method's `this`.
+	//
+	// TODO(b/236744850): `super` in a private method's parameter list crashes the compiler.
+	// Current behavior: `super.m()` in the parameter list isn't lowered, so it ends up in a plain
+	//   function, where `super` is invalid, and AST validation fails.
+	// Why it's a bug: the compiler crashes on valid code.
+	src := `class Base {}
+class Sub extends Base {
+  #m(v = super.m()) {}
+}
+`
+	ex := AssertThrows[jutil.IIllegalStateException](func() { c.Test(src, "") })
+	AssertThat(ex.GetMessage()).
+		Contains(
+			"super property references are only allowed in methods, class static blocks and class" +
+				" fields")
+}
+
+// Java: RewriteClassMembersTest.testSuperCompoundAssignmentInPrivateMethod_knownBug()
+func (c *RewriteClassMembersTest) TestSuperCompoundAssignmentInPrivateMethod_knownBug() {
+	// Expected behavior: `+=`, `++` and `--` on `super` properties in a private method keep their
+	// native semantics: `super[k()] += 1` calls `k()` once, and `super.c++` returns the old value
+	// of `super.c`, converted to a number.
+	//
+	// TODO(b/236744850): `+=`, `++` and `--` on `super` properties crash the compiler.
+	// Current behavior: in `super.b += 1`, `super[k()] += 1`, `super.c++` and `--super[k]`, the
+	//   `super` property is lowered to a `Reflect.get(...)` call, which isn't a valid assignment
+	//   target, so AST validation fails at `super.b += 1`.
+	// Why it's a bug: the compiler crashes on valid code.
+	src := `class Base {}
+class Sub extends Base {
+  #m(k) {
+    return [super.b += 1, super[k()] += 1, super.c++, --super[k]];
+  }
+}
+`
+	ex := AssertThrows[jutil.IIllegalStateException](func() { c.Test(src, "") })
+	AssertThat(ex.GetMessage()).Contains("Invalid child for ASSIGN_ADD node")
+}
+
+// Java: RewriteClassMembersTest.testSuperAssignmentInPrivateMethod_knownBug()
+func (c *RewriteClassMembersTest) TestSuperAssignmentInPrivateMethod_knownBug() {
+	// Expected behavior: `super.a = v` in a private method keeps its native semantics. In class
+	// code, which is strict, it evaluates to `v` and throws a TypeError if the write fails.
+	//
+	// TODO(b/236744850): `super.a = v` in a private method evaluates to a boolean.
+	// Current behavior: `super.a = v` is lowered to `Reflect.set(...)`.
+	// Why it's a bug: `Reflect.set(...)` evaluates to true or false instead of `v`, and returns
+	//   false instead of throwing a TypeError when the write fails.
+	c.IgnoreWarnings(TypeCheck_INEXISTENT_PROPERTY, TypeCheck_ILLEGAL_PROPERTY_CREATION)
+	c.Test(
+		`class Base {}
+class Sub extends Base {
+  #m(v) {
+    return super.a = v;
+  }
+}
+`,
+		`class Base {}
+const PRIVATE_MAP$0 = new $jscomp.PrivateMap();
+const PRIVATE_PROTO$1 = Object.create(null, {
+  m: {
+    value: function(v) {
+      return Reflect.set(Base.prototype, JSCompiler_renameProperty("a", Base), v, this);
+    }
+  }
+});
+class Sub extends Base {
+  constructor() {
+    super(...arguments);
+    const PRIVATE$2 = Object.create(PRIVATE_PROTO$1);
+    PRIVATE_MAP$0.set(this, PRIVATE$2);
+  }
+}
+`)
+}
+
+// Java: RewriteClassMembersTest.testSuperInStaticPrivateAccessor_knownBug()
+func (c *RewriteClassMembersTest) TestSuperInStaticPrivateAccessor_knownBug() {
+	// Expected behavior: `super.y` in a static private getter is lowered to a read of `y` from
+	// `Base` with `C` as the receiver, as in `Reflect.get(Base, "y", C)`. In a static accessor of
+	// `C`, `super.y` reads `Base.y` with the accessor's `this`, which is `C` here.
+	//
+	// TODO(b/236744850): `super.y` in a static private getter loses its receiver.
+	// Current behavior: `return super.y;` becomes `return Base.y;`.
+	// Why it's a bug: a `Base.y` getter runs with `Base` as `this` instead of `C`. For example,
+	//   with `static get y() { return this.name; }` in `Base`, reading `C.#x` returns "Base"
+	//   instead of "C".
+	c.IgnoreWarnings(TypeCheck_INEXISTENT_PROPERTY)
+	c.Test(
+		`class Base {}
+class C extends Base {
+  static get #x() {
+    return super.y;
+  }
+}
+`,
+		`class Base {}
+const STATIC_PRIVATE_MAP$0 = new $jscomp.PrivateMap();
+class C extends Base {
+  static STATIC_INIT$2() {
+    const PRIVATE$1 = Object.create(null);
+    STATIC_PRIVATE_MAP$0.set(C, PRIVATE$1);
+    Object.defineProperty(PRIVATE$1, "x", {
+      get: function() {
+        return Base.y;
+      }
+    });
+  }
+}
+C.STATIC_INIT$2();
+`)
+}
+
+// Java: RewriteClassMembersTest.testThisInPrivateAccessorParameterList_knownBug()
+func (c *RewriteClassMembersTest) TestThisInPrivateAccessorParameterList_knownBug() {
+	// Expected behavior: `this` in the parameter list of a private accessor is lowered to the
+	// instance, like `this` in its body. A function's parameter list has the same `this` as its
+	// body.
+	//
+	// TODO(b/236744850): `this` in a private accessor's parameter list isn't lowered.
+	// Current behavior: `set: function(v = this) {}` keeps `this`, and the setter runs with the
+	//   internal record as `this`. Only `this` in the body is rewritten to `this.$self`.
+	// Why it's a bug: `v` defaults to the internal record instead of the instance. For example,
+	//   `this.#x = undefined` sets `v` to the record, not to `this`.
+	c.Test(
+		`class C {
+  set #x(v = this) {}
+}
+`,
+		`const PRIVATE_MAP$0 = new $jscomp.PrivateMap();
+const PRIVATE_PROTO$1 = Object.create(null, {
+  x: {
+    set: function(v = this) {}
+  }
+});
+class C {
+  constructor() {
+    const PRIVATE$2 = Object.create(PRIVATE_PROTO$1);
+    PRIVATE_MAP$0.set(this, PRIVATE$2);
+  }
+}
+`)
+}
+
+// Java: RewriteClassMembersTest.testPrivateMethodName_knownBug()
+func (c *RewriteClassMembersTest) TestPrivateMethodName_knownBug() {
+	// Expected behavior: lowered private methods keep their native names. The `name` of a private
+	// method is its private name, so `this.#m.name` is "#m" and `C.#s.name` is "#s".
+	//
+	// TODO(b/236744850): The lowered `#m` is named "value".
+	// Current behavior: `m: {value: function() {}}` names the function "value", after the
+	//   descriptor property that holds it.
+	// Why it's a bug: `this.#m.name` returns "value" instead of "#m".
+	//
+	// TODO(b/236744850): The lowered `#s` is named "".
+	// Current behavior: `#s` is lowered to `function() {}` assigned to a property of the static
+	//   private record, which gives the function no name.
+	// Why it's a bug: `C.#s.name` returns "" instead of "#s".
+	c.IgnoreWarnings(TypeCheck_INEXISTENT_PROPERTY)
+	c.Test(
+		`class C {
+  #m() {}
+  static #s() {}
+  names() {
+    return [this.#m.name, C.#s.name];
+  }
+}
+`,
+		`const PRIVATE_MAP$0 = new $jscomp.PrivateMap();
+const PRIVATE_PROTO$2 = Object.create(null, {
+  m: {value: function() {}},
+});
+const STATIC_PRIVATE_MAP$1 = new $jscomp.PrivateMap();
+class C {
+  constructor() {
+    const PRIVATE$3 = Object.create(PRIVATE_PROTO$2);
+    PRIVATE_MAP$0.set(this, PRIVATE$3);
+  }
+  names() {
+    return [PRIVATE_MAP$0.get(this).m.name, STATIC_PRIVATE_MAP$1.get(C).s.name];
+  }
+  static STATIC_INIT$5() {
+    const PRIVATE$4 = Object.create(null);
+    STATIC_PRIVATE_MAP$1.set(C, PRIVATE$4);
+    PRIVATE$4.s = function() {};
+  }
+}
+C.STATIC_INIT$5();
+`)
+}
+
+// Java: RewriteClassMembersTest.testPrivateMethodNamedProto_knownBug()
+func (c *RewriteClassMembersTest) TestPrivateMethodNamedProto_knownBug() {
+	// Expected behavior: a private method named `#__proto__` is defined and called like any other
+	// private method, under a key other than `__proto__`. `#__proto__` is a valid private name with
+	// no special meaning.
+	//
+	// TODO(b/236744850): A private method named `#__proto__` is never defined.
+	// Current behavior: `__proto__: {value: function() {}}` sets the prototype of the object
+	//   literal instead of defining a property, so the private records get no `__proto__`
+	//   method, and `this.#__proto__` in `m()` is `undefined`.
+	// Why it's a bug: `new C().m()` throws a TypeError instead of calling `#__proto__`.
+	c.Test(
+		`class C {
+  #__proto__() {}
+  m() {
+    return this.#__proto__();
+  }
+}
+`,
+		`const PRIVATE_MAP$0 = new $jscomp.PrivateMap();
+const PRIVATE_PROTO$1 = Object.create(null, {
+  __proto__: {value: function() {}},
+});
+class C {
+  constructor() {
+    const PRIVATE$2 = Object.create(PRIVATE_PROTO$1);
+    PRIVATE_MAP$0.set(this, PRIVATE$2);
+  }
+  m() {
+    return PRIVATE_MAP$0.get(this).__proto__.call(this);
+  }
+}
+`)
+}
+
+// Java: RewriteClassMembersTest.testForwardPrivateFieldWrite_knownBug()
+func (c *RewriteClassMembersTest) TestForwardPrivateFieldWrite_knownBug() {
+	// Expected behavior: writing or updating an instance or static private field before it is
+	// initialized throws a TypeError. A private field exists only after its initializer runs, and
+	// writing a missing private field throws. Once `#later` is initialized, `#inc()` returns its
+	// old value converted to a number, like a native `this.#later++`, and `#add(f)` calls `f` once.
+	//
+	// TODO(b/236744850): Writing `#later` before it is initialized doesn't throw.
+	// Current behavior: `this.#later = 1` and `this.#later += 3` write `later` on the private
+	//   record of `this`. The private map's `get(this)` only checks that `this` has a private
+	//   record, which exists before any field is initialized, so the writes create `later` early.
+	// Why it's a bug: natively `new Foo()` throws a TypeError at `this.#later = 1`; the compiled
+	//   `new Foo()` succeeds, with `#first` set to 4.
+	//
+	// TODO(b/236744850): Writing `#b` before it is initialized doesn't throw.
+	// Current behavior: `Foo.#b = 99` writes `b` on the static private record of `Foo`, which
+	//   creates `b` early.
+	// Why it's a bug: natively the definition of `Foo` throws a TypeError at `Foo.#b = 99`; the
+	//   compiled code defines `Foo`, with `#a` set to 99.
+	c.Test(
+		`class Foo {
+  #first = (this.#later = 1, this.#later += 3);
+  #inc = () => this.#later++;
+  #add = (f) => f().#later += 1;
+  #later = 2;
+  static #a = (Foo.#b = 99);
+  static #b = 1;
+}
+`,
+		`const PRIVATE_MAP$0 = new $jscomp.PrivateMap();
+const STATIC_PRIVATE_MAP$1 = new $jscomp.PrivateMap();
+class Foo {
+  constructor() {
+    const PRIVATE$2 = Object.create(null);
+    PRIVATE_MAP$0.set(this, PRIVATE$2);
+    PRIVATE$2.first =
+        (PRIVATE_MAP$0.get(this).later = 1, PRIVATE_MAP$0.get(this).later += 3);
+    PRIVATE$2.inc = () => {
+      return PRIVATE_MAP$0.get(this).later++;
+    };
+    PRIVATE$2.add = (f) => {
+      return PRIVATE_MAP$0.get(f()).later += 1;
+    };
+    PRIVATE$2.later = 2;
+  }
+  static STATIC_INIT$4() {
+    const PRIVATE$3 = Object.create(null);
+    STATIC_PRIVATE_MAP$1.set(Foo, PRIVATE$3);
+    PRIVATE$3.a = STATIC_PRIVATE_MAP$1.get(Foo).b = 99;
+    PRIVATE$3.b = 1;
+  }
+}
+Foo.STATIC_INIT$4();
+`)
+}
+
+// Java: RewriteClassMembersTest.testParenthesizedCallAndTaggedTemplate_knownBug()
+func (c *RewriteClassMembersTest) TestParenthesizedCallAndTaggedTemplate_knownBug() {
+	// Expected behavior: calls of a lowered private method get the same `this` as native calls. The
+	// comma operator drops the receiver, so `(0, this.#m)` gets `undefined` as `this` when called
+	// or used as a tag; the tag `this.#m` gets `this`; and in `(o?.#m)()`, the parentheses end the
+	// optional chain, so only `o?.#m` short-circuits.
+	//
+	// TODO(b/236744850): `(0, this.#m)()` throws instead of calling `#m`.
+	// Current behavior: it's lowered as if it were `(0, this.#m.call)(this)`, which calls `call`
+	//   with `undefined` as `this` and throws a TypeError.
+	// Why it's a bug: natively `(0, this.#m)()` calls `#m` with `undefined` as `this`, without
+	//   throwing.
+	//
+	// TODO(b/236744850): `(o?.#m)()` short-circuits the call too.
+	// Current behavior: it's lowered as if it were `o?.#m()`, which returns `undefined` when `o` is
+	//   nullish.
+	// Why it's a bug: natively the parentheses end the optional chain, so when `o` is nullish,
+	//   `(o?.#m)()` calls `undefined` and throws a TypeError.
+	//
+	// TODO(b/236744850): The tag `this.#m` gets the internal record as `this`.
+	// Current behavior: the tag is lowered to a read of `m` from the private record of `this`, so
+	//   `#m` runs with the record as `this`.
+	// Why it's a bug: natively the tag `this.#m` gets the instance as `this`. For example, if `#m`
+	//   returned `this`, the tagged template would return the record instead of the instance.
+	c.Test(
+		`class C {
+  #m(...a) {}
+  run(o) {
+    return [(0, this.#m)(), (o?.#m)(), this.#m`+"`x`"+`, (0, this.#m)`+"`x`"+`];
+  }
+}
+`,
+		`const PRIVATE_MAP$0 = new $jscomp.PrivateMap();
+const PRIVATE_PROTO$1 = Object.create(null, {
+  m: {value: function(...a) {}},
+});
+class C {
+  constructor() {
+    const PRIVATE$2 = Object.create(PRIVATE_PROTO$1);
+    PRIVATE_MAP$0.set(this, PRIVATE$2);
+  }
+  run(o) {
+    return [
+      (0, PRIVATE_MAP$0.get(this).m.call)(this),
+      o == null ? void 0 : PRIVATE_MAP$0.get(o).m.call(o),
+      PRIVATE_MAP$0.get(this).m`+"`x`"+`,
+      (0, PRIVATE_MAP$0.get(this).m)`+"`x`"+`,
+    ];
+  }
+}
+`)
+}
+
 // Java: RewriteClassMembersTest.testPrivateMethodAssignment_reportsCompileTimeError()
 func (c *RewriteClassMembersTest) TestPrivateMethodAssignment_reportsCompileTimeError() {
 	// See: BUG-5 in go/tsjs-private-elements-bugs
@@ -6269,5 +6697,410 @@ func (c *RewriteClassMembersTest) TestBaseClassParameterDefaultsOrder() {
     alert(a);
   }
 }
+`)
+}
+
+// Java: RewriteClassMembersTest.testComputedPropertyReferencingPrivateField_knownBug()
+func (c *RewriteClassMembersTest) TestComputedPropertyReferencingPrivateField_knownBug() {
+	// Expected behavior: `[o.#x] = 1` is lowered like any other computed field. It is a public
+	// field of the inner class whose key is the value of `o.#x`, not a private member, although
+	// its key reads the private field `#x` of `C`. The key is computed once, when the inner class
+	// is defined.
+	js := `class C {
+  #x = 'key';
+  make(o) {
+    return /** @dict */ class {
+      [o.#x] = 1;
+    };
+  }
+}
+`
+	expected := `const PRIVATE_MAP$1 = new $jscomp.PrivateMap();
+class C {
+  constructor() {
+    const PRIVATE$3 = Object.create(null);
+    PRIVATE_MAP$1.set(this, PRIVATE$3);
+    PRIVATE$3.x = 'key';
+  }
+  make(o) {
+    var COMP_FIELD$2 = PRIVATE_MAP$1.get(o).x;
+    const CLASS_DECL$0 = class {
+      constructor() {
+        this[COMP_FIELD$2] = 1;
+      }
+    };
+    return CLASS_DECL$0;
+  }
+}
+`
+	// TODO(b/236744850): `Es6NormalizeClasses` crashes on a computed field whose key reads `#x`.
+	// Current behavior: `Es6NormalizeClasses` takes `[o.#x] = 1` for a private member of the
+	//   inner class, and fails a `checkArgument` in `recordPrivateMember`. `test(js, expected)`
+	//   throws an internal compiler error caused by an IllegalArgumentException.
+	// Why it's a bug: the compiler crashes on valid code.
+	ex := AssertThrows[jutil.IRuntimeException](func() { c.Test(js, expected) })
+	AssertThat(ex.GetMessage()).Contains("INTERNAL COMPILER ERROR")
+	IsInstanceOf[jutil.IIllegalArgumentException](AssertThat(ex.GetCause()))
+}
+
+// Java: RewriteClassMembersTest.testLogicalAssignmentToPrivateField_knownBug()
+func (c *RewriteClassMembersTest) TestLogicalAssignmentToPrivateField_knownBug() {
+	// Expected behavior: both the read and the write of `#n` that `Normalize` creates for
+	// `this.#n ??= 1` are lowered, like any other use of `#n`, so both go through `C`'s private
+	// map. Once `#n` is lowered, `C` no longer declares a native `#n`, so a native `#n` access
+	// left in `C` is a SyntaxError.
+	js := `class C {
+  #n;
+  m() {
+    this.#n ??= 1;
+  }
+}
+`
+	expected := `const PRIVATE_MAP$1 = new $jscomp.PrivateMap();
+class C {
+  constructor() {
+    const PRIVATE$2 = Object.create(null);
+    PRIVATE_MAP$1.set(this, PRIVATE$2);
+    PRIVATE$2.n = void 0;
+  }
+  m() {
+    let $jscomp$logical$assign$tmpm1146332801$0;
+    PRIVATE_MAP$1.get($jscomp$logical$assign$tmpm1146332801$0 = this).n ??
+        (PRIVATE_MAP$1.get($jscomp$logical$assign$tmpm1146332801$0).n = 1);
+  }
+}
+`
+	// TODO(b/236744850): The accesses to `#n` that `Normalize` creates for `??=` are not lowered.
+	// Current behavior: `Normalize` rewrites `this.#n ??= 1` to `(tmp = this).#n ?? (tmp.#n = 1)`
+	//   with a temporary `tmp`, without the private name flag on the two new `#n` accesses. So
+	//   neither is lowered, the output keeps both as `#n`, and `test(js, expected)` fails.
+	// Why it's a bug: `#n` was lowered, so `C` no longer declares `#n`, and `tmp.#n` is a
+	//   SyntaxError. The whole script fails to load.
+	ex := AssertThrows[*jutil.AssertionError](func() { c.Test(js, expected) })
+	AssertThat(ex.GetMessage()).Contains(".#n")
+}
+
+// Java: RewriteClassMembersTest.testLogicalAssignmentToPrivateMethod_knownBug()
+func (c *RewriteClassMembersTest) TestLogicalAssignmentToPrivateMethod_knownBug() {
+	// Expected behavior: `this.#m ??= () => {}` compiles, and both accesses to `#m` that
+	// `Normalize` creates for it go through `C`'s private map. Natively `init()` only reads `#m`:
+	// a method is never nullish, so the assignment never runs.
+	js := `class C {
+  #m() {}
+  init() {
+    this.#m ??= () => {};
+  }
+}
+`
+	expected := `const PRIVATE_MAP$1 = new $jscomp.PrivateMap();
+const PRIVATE_PROTO$2 = Object.create(null, {
+  m: {
+    value: function() {}
+  }
+});
+class C {
+  constructor() {
+    const PRIVATE$3 = Object.create(PRIVATE_PROTO$2);
+    PRIVATE_MAP$1.set(this, PRIVATE$3);
+  }
+  init() {
+    let $jscomp$logical$assign$tmpm1146332801$0;
+    PRIVATE_MAP$1.get($jscomp$logical$assign$tmpm1146332801$0 = this).m ??
+        (PRIVATE_MAP$1.get($jscomp$logical$assign$tmpm1146332801$0).m = () => {});
+  }
+}
+`
+	// TODO(b/236744850): The accesses to `#m` that `Normalize` creates for `??=` are not lowered.
+	// Current behavior: `Normalize` rewrites `this.#m ??= () => {}` to
+	//   `(tmp = this).#m ?? (tmp.#m = () => {})` with a temporary `tmp`, without the private name
+	//   flag on the two new `#m` accesses. So neither is lowered, the output keeps both as `#m`,
+	//   and `test(js, expected)` fails.
+	// Why it's a bug: `#m` was lowered, so `C` no longer declares `#m`, and `tmp.#m` is a
+	//   SyntaxError. The whole script fails to load.
+	ex := AssertThrows[*jutil.AssertionError](func() { c.Test(js, expected) })
+	AssertThat(ex.GetMessage()).Contains(".#m")
+}
+
+// Java: RewriteClassMembersTest.testDirectEvalInClassWithPrivateElements_knownBug()
+func (c *RewriteClassMembersTest) TestDirectEvalInClassWithPrivateElements_knownBug() {
+	// Expected behavior: `Es6NormalizeClasses` reports `JSC_CANNOT_CONVERT_YET`. Code that a
+	// direct `eval` runs inside `C` can use `#x` natively, but not once `#x` is lowered, and the
+	// compiler can't lower the code in the `eval` string.
+	//
+	// TODO(b/236744850): No error for a direct `eval` that may use lowered private names.
+	// Current behavior: `#x` is lowered, `eval('this.#x')` is left as is, and no error is
+	//   reported.
+	// Why it's a bug: natively `new C().m()` returns the value of `#x`, `undefined`. The
+	//   compiled code throws a SyntaxError instead, because `C` no longer declares `#x`.
+	c.Test(
+		`class C {
+  #x;
+  m() { return eval('this.#x'); }
+}
+`,
+		`const PRIVATE_MAP$0 = new $jscomp.PrivateMap();
+class C {
+  constructor() {
+    const PRIVATE$1 = Object.create(null);
+    PRIVATE_MAP$0.set(this, PRIVATE$1);
+    PRIVATE$1.x = void 0;
+  }
+  m() { return eval('this.#x'); }
+}
+`)
+}
+
+// Java: RewriteClassMembersTest.testPrivateFieldAccessedBeforeItsInitializerRuns_wontFix()
+func (c *RewriteClassMembersTest) TestPrivateFieldAccessedBeforeItsInitializerRuns_wontFix() {
+	// Won't fix (b/236744850): Accessing `#b` before its initializer runs doesn't throw.
+	// Native behavior: accessing a private field before its initializer has run throws a
+	// TypeError. JS adds private fields one at a time, in order, each right after its initializer
+	// returns, and accessing a missing private field throws.
+	// Current behavior: the 3 accesses to `#b` in `poke()` only check that `this` has a private
+	//   record, which the constructor registers before any initializer runs. So `this.#b = 5`
+	//   adds `#b` to the record instead of throwing.
+	// Why it's a bug: natively `new C()` throws a TypeError at `this.#b = 5`; the compiled
+	//   `new C()` succeeds and sets `#a` to 6.
+	// Why we won't fix it: natively `new C()` always throws, so this code is already broken.
+	//   Throwing here would need a `Symbol` key and a check on every access, in methods, to each
+	//   field initialized after an initializer that may expose `this` (like `#a = this.poke()`),
+	//   which correct code would pay for too.
+	c.Test(
+		`class C {
+  #a = this.poke();
+  #b = 2;
+  poke() {
+    this.#b = 5;
+    this.#b += 1;
+    return this.#b;
+  }
+}
+`,
+		`const PRIVATE_MAP$0 = new $jscomp.PrivateMap();
+class C {
+  constructor() {
+    const PRIVATE$1 = Object.create(null);
+    PRIVATE_MAP$0.set(this, PRIVATE$1);
+    PRIVATE$1.a = this.poke();
+    PRIVATE$1.b = 2;
+  }
+  poke() {
+    PRIVATE_MAP$0.get(this).b = 5;
+    PRIVATE_MAP$0.get(this).b += 1;
+    return PRIVATE_MAP$0.get(this).b;
+  }
+}
+`)
+}
+
+// Java: RewriteClassMembersTest.testStaticPrivateFieldAccessedBeforeItsInitializerRuns_wontFix()
+func (c *RewriteClassMembersTest) TestStaticPrivateFieldAccessedBeforeItsInitializerRuns_wontFix() {
+	// Won't fix (b/236744850): Accessing static `#b` before its initializer runs doesn't throw.
+	// Native behavior: accessing a static private field before its initializer has run throws a
+	// TypeError, as for instance private fields.
+	// Current behavior: the 2 accesses to `#b` in `poke()` only check that `D` has a private
+	//   record, which is registered before any initializer runs. So `D.#b = 5` adds `#b` to the
+	//   record instead of throwing.
+	// Why it's a bug: natively the definition of `D` throws a TypeError at `D.#b = 5`; the
+	//   compiled code defines `D` and sets `#a` to 5.
+	// Why we won't fix it: natively the definition of `D` always throws, so this code is already
+	//   broken. Throwing here would need a `Symbol` key and a check on every access, in methods,
+	//   to each static field initialized after a side-effecting static initializer (like
+	//   `static #a = D.poke()`), which correct code would pay for too.
+	c.Test(
+		`class D {
+  static #a = D.poke();
+  static #b = 2;
+  static poke() {
+    D.#b = 5;
+    return D.#b;
+  }
+}
+`,
+		`const STATIC_PRIVATE_MAP$0 = new $jscomp.PrivateMap();
+class D {
+  static poke() {
+    STATIC_PRIVATE_MAP$0.get(D).b = 5;
+    return STATIC_PRIVATE_MAP$0.get(D).b;
+  }
+  static STATIC_INIT$2() {
+    const PRIVATE$1 = Object.create(null);
+    STATIC_PRIVATE_MAP$0.set(D, PRIVATE$1);
+    PRIVATE$1.a = D.poke();
+    PRIVATE$1.b = 2;
+  }
+}
+D.STATIC_INIT$2();
+`)
+}
+
+// Java: RewriteClassMembersTest.testPrivateFieldReadFromPartlyConstructedInstance_wontFix()
+func (c *RewriteClassMembersTest) TestPrivateFieldReadFromPartlyConstructedInstance_wontFix() {
+	// Won't fix (b/236744850): Reading `#later` from a partly constructed `E` doesn't throw.
+	// Native behavior: reading a private field from an instance whose constructor threw before the
+	// field's initializer ran throws a TypeError.
+	// Current behavior: `readLater()` only checks that `o` has a private record. `leaked` has
+	//   one, because the constructor registers it before the initializer of `#b` throws.
+	// Why it's a bug: natively `E.readLater(leaked)` throws a TypeError, because `leaked` has no
+	//   `#later`; the compiled code returns `undefined`.
+	// Why we won't fix it: `leaked` is left over from a `new E()` that threw, so this code is
+	//   already broken. Throwing here would need a `Symbol` key and a check on every access, in
+	//   methods, to each field initialized after an initializer that may expose `this` (like
+	//   `#a = (leaked = this, 1)`), which correct code would pay for too.
+	c.Test(
+		`let leaked;
+class E {
+  #a = (leaked = this, 1);
+  #b = (() => { throw new Error(); })();
+  #later = 3;
+  static readLater(o) { return o.#later; }
+}
+`,
+		`let leaked;
+const PRIVATE_MAP$0 = new $jscomp.PrivateMap();
+class E {
+  constructor() {
+    const PRIVATE$1 = Object.create(null);
+    PRIVATE_MAP$0.set(this, PRIVATE$1);
+    PRIVATE$1.a = (leaked = this, 1);
+    PRIVATE$1.b = (() => {
+      throw new Error();
+    })();
+    PRIVATE$1.later = 3;
+  }
+  static readLater(o) {
+    return PRIVATE_MAP$0.get(o).later;
+  }
+}
+`)
+}
+
+// Java: RewriteClassMembersTest.testPrivateWriteEvaluationOrder_wontFix()
+func (c *RewriteClassMembersTest) TestPrivateWriteEvaluationOrder_wontFix() {
+	// Won't fix (b/236744850): `o` is checked before `rhs()` is called.
+	// Native behavior: `o.#x = rhs()` calls `rhs()` before it checks that `o` has `#x`. JS
+	// evaluates the right-hand side of an assignment before the write, and only the write checks
+	// that `o` has the private member.
+	// Current behavior: both writes, to the field `#x` and through the setter `#acc`, look up the
+	//   private record of `o` before they call `rhs()`. The lookup throws a TypeError if `o` was
+	//   not constructed by `C`, so `rhs()` isn't called.
+	// Why it's a bug: natively `C.write({}, rhs)` calls `rhs()` and then throws a TypeError; the
+	//   compiled code throws without calling `rhs()`, so the side effects of `rhs()` are lost.
+	// Why we won't fix it: the order only matters when the write throws, so this code is already
+	//   broken, and it throws the same TypeError either way. Calling `rhs()` first would need a
+	//   temporary variable for its value in every private write whose receiver isn't `this` and
+	//   whose right side may have side effects.
+	c.Test(
+		`class C {
+  #x = 1;
+  set #acc(v) {}
+  static write(o, rhs) {
+    o.#x = rhs();
+    o.#acc = rhs();
+  }
+}
+`,
+		`const PRIVATE_MAP$0 = new $jscomp.PrivateMap();
+const PRIVATE_PROTO$1 = Object.create(null, {
+  acc: {
+    set: function(v) {}
+  }
+});
+class C {
+  constructor() {
+    const PRIVATE$2 = Object.create(PRIVATE_PROTO$1);
+    PRIVATE_MAP$0.set(this, PRIVATE$2);
+    PRIVATE$2.x = 1;
+  }
+  static write(o, rhs) {
+    PRIVATE_MAP$0.get(o).x = rhs();
+    PRIVATE_MAP$0.get(o).acc = rhs();
+  }
+}
+`)
+}
+
+// Java: RewriteClassMembersTest.testStaticInitializationWithNativePrivateElements_knownBug()
+func (c *RewriteClassMembersTest) TestStaticInitializationWithNativePrivateElements_knownBug() {
+	// Expected behavior: when private elements are not lowered, static initializers still run in
+	// declaration order, and code that uses a private name stays inside its class body. Static
+	// fields are initialized in order when the class is defined, and `#f` is valid only inside
+	// the body of `O`. In `C`, `static #b;` stays without its initializer, and both initializers
+	// move, in declaration order, into a static method of `C` that is called right after the
+	// class.
+	options := c.WithOptions().UseNativePrivateElementsLanguageOut()
+	// TODO(b/236744850): The initializer of `#b` runs before the initializer of `a`.
+	// Current behavior: `alert('b')` stays in the class body, but `alert('a')` moves out to
+	//   `C.a = alert('a');` after the class.
+	// Why it's a bug: natively 'a' is alerted before 'b'. The compiled code alerts 'b' first,
+	//   when `C` is defined, and 'a' after that.
+	c.Test(
+		options,
+		`class C {
+  static a = alert('a');
+  static #b = alert('b');
+}
+`,
+		`class C {
+  static a;
+  static #b = alert('b');
+}
+C.a = alert('a');
+`)
+	js := `class O {
+  #f = 1;
+  static d = {
+    read(o) { return o.#f; }
+  };
+}
+`
+	expected := `class O {
+  #f = 1;
+  static d;
+  static STATIC_INIT$0() {
+    O.d = {
+      read(o) { return o.#f; }
+    };
+  }
+}
+O.STATIC_INIT$0();
+`
+	// TODO(b/236744850): A static initializer that uses `#f` is moved out of `O`.
+	// Current behavior: the initializer moves out of `O`, to `O.d = {read(o) { return o.#f; }};`
+	//   after the class. So `test(options, js, expected)` fails.
+	// Why it's a bug: `o.#f` outside the body of `O` is a SyntaxError, so the whole script fails
+	//   to load.
+	ex := AssertThrows[*jutil.AssertionError](func() { c.Test(options, js, expected) })
+	AssertThat(ex.GetMessage()).Contains("+O.d = {read(o) {")
+}
+
+// Java: RewriteClassMembersTest.testNativeStaticPrivateFieldReadBeforeItsInitializerRuns_knownBug()
+func (c *RewriteClassMembersTest) TestNativeStaticPrivateFieldReadBeforeItsInitializerRuns_knownBug() {
+	// Expected behavior: reading `C.#b` in the static block throws a TypeError. Static blocks and
+	// static field initializers run in declaration order, and `#b` is added to `C` only after its
+	// initializer has run.
+	//
+	// TODO(b/236744850): The static block reads `#b` after the initializer of `#b` has run.
+	// Current behavior: `static #b = 2;` stays in the class body, but the static block moves into a
+	//   static method of `C` that is called after the class.
+	// Why it's a bug: natively defining `C` throws a TypeError; with this output, it alerts 2.
+	c.Test(
+		c.WithOptions().UseNativePrivateElementsLanguageOut(),
+		`class C {
+  static {
+    alert(C.#b);
+  }
+  static #b = 2;
+}
+`,
+		`class C {
+  static #b = 2;
+  static STATIC_INIT$0() {
+    {
+      alert(C.#b);
+    }
+  }
+}
+C.STATIC_INIT$0();
 `)
 }

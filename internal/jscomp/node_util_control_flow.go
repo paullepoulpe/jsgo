@@ -598,6 +598,18 @@ inspect:
 			if ast.MustAssignOp(parent).Target().Node() != n {
 				return false
 			}
+		case rhino.Token_OPTCHAIN_GETELEM:
+			if ast.MustOptChainGetElem(parent).Object().Node() != n {
+				return false
+			}
+		case rhino.Token_OPTCHAIN_CALL:
+			if ast.MustOptChainCall(parent).Callee().Node() != n {
+				return false
+			}
+		case rhino.Token_DEFAULT_VALUE:
+			if ast.MustDefaultValue(parent).Target().Node() != n {
+				return false
+			}
 		case rhino.Token_FOR_IN, rhino.Token_FOR_OF, rhino.Token_FOR_AWAIT_OF:
 			if ast.MustEnhancedFor(parent).Collection().Node() != n {
 				return false

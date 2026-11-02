@@ -480,7 +480,9 @@ func diagnosticGroups_clinit() {
 	)
 
 	DiagnosticGroups_MISSING_CALL_TO_SUPER = DiagnosticGroups_RegisterGroupOfTypes(
-		"missingCallToSuper", CheckSuper_MISSING_ROOT_LEVEL_CALL_TO_SUPER,
+		"missingCallToSuper",
+		CheckSuper_RETURN_WITHOUT_CALL_TO_SUPER,
+		CheckSuper_MISSING_ROOT_LEVEL_CALL_TO_SUPER,
 	)
 
 	DiagnosticGroups_MISSING_OVERRIDE = DiagnosticGroups_RegisterGroupOfTypes(
