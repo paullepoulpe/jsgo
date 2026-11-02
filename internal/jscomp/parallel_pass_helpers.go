@@ -391,6 +391,10 @@ type parallelScriptOptions[S any] struct {
 	callback                func(state S, idx int, parent rhino.Node, script rhino.Node, rc *Compiler) NodeTraversal_Callback
 	afterScript             func(state S, idx int, parent rhino.Node, script rhino.Node, rc *Compiler)
 	finishWorker            func(workerID int, state S)
+	// runScript, when set, replaces the traversal of each script (callback
+	// and afterScript are not used): for passes that are a function of each
+	// script but not a NodeTraversal callback (AstValidator).
+	runScript func(state S, idx int, parent rhino.Node, script rhino.Node, rc *Compiler)
 }
 
 func traverseScriptsParallel[S any](
@@ -467,6 +471,10 @@ func traverseScriptsParallel[S any](
 				script = items[idx].script
 			} else {
 				script = scripts[idx]
+			}
+			if opts.runScript != nil {
+				opts.runScript(state, idx, parent, script, rc)
+				return
 			}
 			var cb NodeTraversal_Callback
 			if opts.callback != nil {

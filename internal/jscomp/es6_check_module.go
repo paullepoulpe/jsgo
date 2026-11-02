@@ -227,14 +227,33 @@ func (c *CheckTypeImportCodeReferences) Process(externs rhino.Node, root rhino.N
 	if len(c.requireTypeIDs) == 0 {
 		return
 	}
-	sc := NewSyntacticScopeCreator(c.compiler)
-	b := NodeTraversal_Builder{
-		compiler:     c.compiler,
-		callback:     c,
-		scopeCreator: sc,
+	if !c.processParallel(root) {
+		sc := NewSyntacticScopeCreator(c.compiler)
+		b := NodeTraversal_Builder{
+			compiler:     c.compiler,
+			callback:     c,
+			scopeCreator: sc,
+		}
+		b.Traverse(root)
 	}
-	b.Traverse(root)
 	c.requireTypeIDs = nil
+}
+
+// processParallel checks the program's scripts on workers. Go-only: the pass
+// only reads the tree (each NAME of a goog.requireType'd name, looked up
+// through the scopes to its declaration), so each script is checked against
+// the shared global scope of the program, and the reports are replayed in
+// script order.
+func (c *CheckTypeImportCodeReferences) processParallel(root rhino.Node) bool {
+	ids := c.requireTypeIDs
+	return traverseScriptsParallel(c.compiler, root, parallelScriptOptions[*CheckTypeImportCodeReferences]{
+		useSharedGlobalScope: true,
+		initWorker: func(_ int, rc *Compiler) *CheckTypeImportCodeReferences {
+			w := NewCheckTypeImportCodeReferences(rc)
+			w.requireTypeIDs = ids
+			return w
+		},
+	})
 }
 
 func (*CheckTypeImportCodeReferences) visitTokens() *ast.TokenSet {

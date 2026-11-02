@@ -167,6 +167,9 @@ func (v *VarCheck) CreateScopeCreator() *SyntacticScopeCreator {
 
 // Java: VarCheck.process(Node, Node)
 func (v *VarCheck) Process(externs rhino.Node, root rhino.Node) {
+	if v.validityCheck && v.processValidityParallel(externs, root) {
+		return
+	}
 	sc := v.CreateScopeCreator()
 	var scopeCreator ScopeCreator = sc
 
@@ -196,6 +199,25 @@ func (v *VarCheck) Process(externs rhino.Node, root rhino.Node) {
 	if v.dupHandler != nil {
 		v.dupHandler.RemoveDuplicates()
 	}
+}
+
+// processValidityParallel checks the scripts of the externs and the program
+// on workers, in validity mode only. Go-only: in that mode the scope creator
+// has no redeclaration handler, the externs pass, the chunk checks, the
+// synthesized externs and the duplicate removal are skipped, and an
+// undeclared name reports and then panics (before it would be declared), so
+// the pass changes nothing and each script's names resolve against the
+// global scope of the externs and the program alone: the workers share that
+// scope (frozen) and their reports and panics are replayed in script order.
+func (v *VarCheck) processValidityParallel(externs rhino.Node, root rhino.Node) bool {
+	return traverseScriptsParallel(v.compiler, root, parallelScriptOptions[*VarCheck]{
+		hasExterns:           true,
+		externs:              externs,
+		useSharedGlobalScope: true,
+		initWorker: func(_ int, rc *Compiler) *VarCheck {
+			return NewVarCheckWithValidityCheck(rc, true)
+		},
+	})
 }
 
 var varCheckVisitTokens = func() ast.TokenSet {
