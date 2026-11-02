@@ -1996,6 +1996,448 @@ gates do not cover. Change 4's gain shows only in the pass log.
   across passes is the next step for them, and for `removeUnusedCode`
   (round 4).
 
+## Fusion round (2026-11-01): running check passes in one sweep ("miniphases")
+
+Branches `fast/fuse` (the fusion, not merged) and `fast/par3` (what was
+merged) off main `58e97f06`. 4-CPU Linux machine, Go 1.27.3. The
+owner asked whether passes could be "streaming", as in Scala 3, where a
+group of small transformations ("miniphases") runs in one tree traversal
+(a "megaphase") without merging their code. Closure already does this in
+two places (`CombinedCompilerPass`, `PeepholeOptimizationsPass`). This
+round measures what sharing the walk is worth, finds the passes that can
+share one exactly, and implements the grouping. **Result: exact (every
+run byte-identical to Java), and the fused passes save 0.02–0.38 s per
+compile at t=4 on all six tasks and up to 0.29 s at t=1 in the pass log,
+0.2–2% of the compile, which the interleaved wall times do not resolve.
+Sharing the walk is the smaller part: most of the t=4 gain comes from three
+serial passes that the sweep runs on the workers. Fusion is not merged (it
+stays on `fast/fuse`); merged instead: those three passes' parallel paths
+on their own (0.13–0.26 s per compile at t=4, no cost at t=1) and a parity
+fix of the parallel workers found on the way** (see "Decision, and what was
+merged").
+
+### What a shared walk can save
+
+A probe (not committed) timed walks at the check phase of typed-full
+(1.89 M nodes) at t=1:
+
+| walk | time | per node |
+|---|---|---|
+| bare recursive walk (first child / next sibling) | 28 ms | 14.7 ns |
+| `NodeTraversal`, no-op callback | 35 ms | 18.7 ns |
+| the same, script by script, second walk of each script right after the first | 22 ms | 11.6 ns |
+| creating every scope (82 K) during a `NodeTraversal` | +27 ms | |
+| creating the global scope | 7–9 ms | |
+
+So a pass pays about 35 ms for its walk on typed-full and 25–30 ms more if
+it builds every scope; ~16 check passes walk the program before the
+optimizations, so sharing every walk and every scope set would save at most
+~0.8 s of typed-full's 23 s (t=1). Walking a script again while it is
+still in cache costs 60% of a cold walk: most of the cost of
+`NodeTraversal` is its own work per node, not the memory latency, once the
+nodes are hot. Running several callbacks in one traversal (per-node
+dispatch) would save the rest of that 11.6 ns per node and member, minus
+the dispatch.
+
+At t=4 most of these check passes already run script by script on the
+workers (`traverseScriptsParallel`, round 2 and later), so their walks cost
+a quarter of that.
+
+### What makes fusion exact
+
+Every condition of the brief has a concrete rule in the implementation
+(`internal/jscomp/pass_fusion.go` on `fast/fuse`):
+
+- **Locality.** A member is a read-only pass whose whole effect is an
+  optional prelude that reports nothing, per-script traversals ("phases")
+  and an optional epilogue ("post"). The phases are the pass's own
+  per-script decomposition, the one its parallel path already uses and
+  that the Java and parallel gates hold equal to its sequential traversal.
+  No member changes the tree or anything another member reads before its
+  post; only the last member of a run may have a post that changes the
+  tree (`endsFusedRun`, checkSideEffects).
+- **Diagnostics.** Each phase runs on its own recording compiler (the
+  workers' `parallelRecorder`); events are kept per (phase, script) and
+  replayed member by member, in script order. A panic is rethrown where it
+  would have been thrown (after the events before it).
+- **Halting.** A member that stops on a halting error (a
+  `CombinedCompilerPass`) stops within a script through its recorder and
+  between scripts in the replay, as its parallel path does; after each
+  member the replay applies the PhaseOptimizer's check, which skips the
+  rest of the run as it skips the remaining passes. Members later in the
+  run have run on the workers by then, but they changed nothing and their
+  events are dropped.
+- **Per-pass bookkeeping.** Each member is replayed inside the
+  PhaseOptimizer's per-pass frame: preconditions, `BeforePass`/`AfterPass`
+  (the pass index), the tracer, the pass log. A member's change reports
+  reach the `ChangeTracker` at its place: recorded ones are replayed there,
+  and the only direct ones are checkSideEffects' protections, in its post.
+  No member asks for its changed scopes (timeline marks). The
+  PhaseOptimizer still sees every pass in order.
+- **Hooks between passes.** Fusion is off when anything observes the state
+  between two passes: `--tracer_mode`, the dev-mode validity check after
+  every pass, `--check_determinism` (AST hash per pass),
+  `--print_source_after_each_pass`, `DebugAfterPassHook`. `JSGO_FUSE=0`
+  turns it off.
+- **Shared scopes.** The sweep creates one global scope per scope root
+  (the program, or externs and program) for all members; it is a
+  deterministic function of the unchanged tree, frozen for parallel
+  reads, and no member declares into it. Function scopes are not shared:
+  each member's traversal builds its own (per-node dispatch would be needed
+  to share them).
+
+The sweep visits the scripts once (on the calling goroutine at t=1, on the
+workers at t>1) and runs every member's phases on a script back to back.
+Members are marked on their factories (`fusablePassFactory`); a run is a
+maximal sequence of consecutive marked one-time passes, and a member whose
+plan is unavailable this time (for example a `CombinedCompilerPass` with a
+callback that cannot be cloned) runs alone at its place.
+
+### Runs
+
+In the order of the typed-full pipeline (pass log names; what each member
+reads is in `pass_fusion_members.go` on `fast/fuse`):
+
+| run | members | typed-full t=1 base | t=4 base |
+|---|---|---|---|
+| J | checkJsDocAndEs6Modules, checkTypeImportCodeReferences | 205 ms | 113 ms |
+| P | checkStrictMode, closureCheckModule, checkSuper, checkSideEffects | 285 ms | 82 ms |
+| Q | suspiciousCode, j2clSourceFileChecker, checkControlFlow | 254 ms | 97 ms |
+| V | checkAstValidity, varCheckValidity (the last two passes) | 160 ms | 164 ms |
+
+checkTypeImportCodeReferences, checkAstValidity and varCheckValidity had no
+parallel path: their per-script decompositions are new (the first scans for
+the goog.requireType names when the plan is made, as its `Process` does
+first; the AST validator validates scripts one by one; VarCheck in validity
+mode has no redeclaration handler, skips everything that changes the tree
+and panics on an undeclared name), so fusing them also makes them parallel
+at t>1. j2clSourceFileChecker has no traversal; its post sets a compiler
+flag that no member reads.
+
+### Fix: parallel workers halt a script like `Compiler.Report` (merged, `49361651`)
+
+A worker's recording compiler decided that a report halts from the warnings
+guard's level alone. An error reported at its default level (no guard sets
+one) therefore did not stop the worker's script, so a
+`CombinedCompilerPass` at t>1 reported the later diagnostics of that script
+where t=1 and Java stop (compat t=4: checkJsDocAndEs6Modules after
+`JSC_ARROW_FUNCTION_AS_CONSTRUCTOR` reported the script's later
+`JSC_MISPLACED_ANNOTATION` warnings); and a warning promoted to an error
+stopped the script where the sequential traversal goes on (promoted errors
+do not halt). The recorder now gives the report the level `Compiler.Report`
+gives it and counts it as the error managers do (level ERROR and an error
+type). `TestParallelPasses_RecorderHaltsLikeReport` fails before the fix.
+Fusion needs it at t=1 too, since its members run on recorders there.
+
+### Looked fusable, but are not (exactly)
+
+- **checkVariableReferences** (ReferenceCollector): its checks of a global
+  variable run when the global scope exits, over references from every
+  script, and the collector's traversal order (hoisted functions at their
+  first reference) is whole-program. Not per script.
+- **checkVars** (VarCheck): its scope creator reports redeclarations while
+  it builds the global scope, it declares undeclared names into the global
+  scope during the walk and synthesizes externs and removes duplicates
+  after it, so it changes what any later member would read.
+- **checkGoogRequires** (CheckClosureImports): `namespacesSeen` grows in
+  program order and a goog.require is checked against the namespaces
+  provided before it, in earlier scripts too. A per-script decomposition
+  would need the prefix of provided namespaces per script (derivable from
+  the module metadata) — new logic, for ~50 ms.
+- **inferConsts**, **checkConsts**, **processDefines**: cross-script state
+  (a global var's assignments anywhere; constants initialized in one script
+  and reassigned in another; the global namespace). inferConsts also writes
+  `IS_CONSTANT_NAME`, which inferTypes reads.
+- **checkRegExp, gatherGettersAndSetters**: per script (they have parallel
+  paths), but their neighbours are not, so they would be runs of one.
+- **gatherModuleMetadata**: per script in principle, but its duplicate
+  namespace and path checks depend on what earlier scripts provided.
+- **stripSideEffectProtection** before V: its last step removes the
+  synthetic `JSCOMPILER_PRESERVE` extern, which varCheckValidity's global
+  scope reads.
+- **Modifying passes** (transpilation, the late
+  `coalesceVariableNames` / `peepholeOptimizations` /
+  `postNormalizePeephole`, `convertToDottedProperties`): their parallel
+  paths are per script, but a fused run of modifying passes needs the
+  change reports and `ChangeTracker` timeline marks of one pass to be in
+  place before the next one asks for its changed scopes, and a later member
+  to see the earlier members' edits of other scripts (global scopes, names).
+  Not attempted.
+- **The optimization loops**: every pass analyses the whole program before
+  it edits (round 5).
+- **Per-node dispatch** (one `NodeTraversal` per script for all members of
+  the same shape, the Scala form): not implemented. It needs a dispatcher
+  that gives each member its own compiler view (the traversal's compiler is
+  used for reports) and replays `CombinedCompilerPass`'s halting per member.
+  The probe bounds what it adds over the script-major sweep: the 11.6 ns
+  per node of a hot walk, ~22 ms per extra member on typed-full at t=1,
+  minus dispatch; for J, P and Q (five extra walks of the program) at most
+  ~0.1 s at t=1 and a quarter of that at t=4.
+
+### Measured (interleaved, N=5 blocks, wall time mean, paired 95% CI)
+
+Base main `58e97f06`, fusion branch `fast/fuse` at `14ad33ac` (the code of
+`aabb4dbf`), in the
+same blocks, with `JSGO_PASS_LOG` on every run. **All 180 runs are
+byte-identical to the Java reference** (stdout, stderr, exit status,
+`out.js`, `out.js.map`), with one output per task and mode.
+
+Whole compile:
+
+| task | compat t=1 | compat t=4 | fast t=4 |
+|---|---|---|---|
+| typed-app | 2.91 → 2.99 s (+2.7%, CI −4.7…+10.7) | 2.50 → 2.42 s (−2.9%, CI −5.0…−0.8) | 2.46 → 2.39 s (−3.0%, CI −10.9…+5.6) |
+| checks-only | 5.03 → 5.16 s (+2.6%, CI −2.7…+8.2) | 4.06 → 3.95 s (−2.6%, CI −7.0…+2.0) | 3.71 → 3.70 s (−0.2%, CI −4.6…+4.4) |
+| shaka-blockly | 9.55 → 9.87 s (+3.4%, CI −0.8…+7.7) | 8.03 → 7.78 s (−3.0%, CI −11.7…+6.6) | 6.91 → 6.89 s (−0.3%, CI −4.0…+3.5) |
+| typed-full | 22.96 → 23.05 s (+0.4%, CI −2.9…+3.7) | 19.02 → 18.85 s (−1.0%, CI −6.5…+4.8) | 17.05 → 17.29 s (+1.3%, CI −2.9…+5.6) |
+| typed-mega | 40.21 → 39.89 s (−0.8%, CI −4.4…+3.0) | 32.18 → 32.09 s (−0.3%, CI −2.1…+1.5) | 29.52 → 29.40 s (−0.4%, CI −4.8…+4.2) |
+| bundle-mega | 51.94 → 53.73 s (+3.4%, CI +0.8…+6.2) | 43.96 → 43.12 s (−1.9%, CI −5.3…+1.8) | 40.58 → 41.07 s (+1.3%, CI −2.2…+4.9) |
+
+The fused runs from the same pass logs (ms per compile; for each run,
+the members' time in the base against the sweep plus the members' replays;
+mean of fused − base and its paired 95% CI):
+
+| task | mode | J | P | Q | V | all four, base → fused |
+|---|---|---|---|---|---|---|
+| typed-app | compat t=1 | −11 (−18…−4) | −3 (−10…+5) | +0 (−4…+5) | +2 (−3…+6) | 108 → 96, −12 (−23…−2) |
+| checks-only | compat t=1 | −35 (−60…−10) | −5 (−62…+52) | −55 (−81…−30) | — | 470 → 375, −96 (−159…−32) |
+| shaka-blockly | compat t=1 | −28 (−75…+19) | −11 (−39…+16) | +10 (−5…+24) | +5 (−12…+22) | 350 → 325, −25 (−51…+1) |
+| typed-full | compat t=1 | −60 (−89…−31) | −33 (−63…−3) | −61 (−88…−34) | +2 (−25…+28) | 904 → 751, −152 (−204…−100) |
+| typed-mega | compat t=1 | −96 (−144…−49) | −80 (−200…+40) | −86 (−168…−5) | −23 (−64…+18) | 1697 → 1411, −286 (−494…−78) |
+| bundle-mega | compat t=1 | −77 (−102…−52) | +6 (−43…+56) | +29 (−142…+200) | +31 (−90…+153) | 1742 → 1731, −11 (−153…+132) |
+| typed-app | compat t=4 | −8 (−9…−7) | −3 (−4…−2) | −2 (−10…+6) | −11 (−14…−7) | 58 → 34, −24 (−31…−16) |
+| checks-only | compat t=4 | −49 (−58…−40) | −12 (−19…−4) | −29 (−39…−20) | — | 197 → 107, −90 (−110…−70) |
+| shaka-blockly | compat t=4 | −24 (−33…−16) | −2 (−8…+3) | −2 (−10…+6) | −60 (−89…−31) | 190 → 101, −89 (−121…−56) |
+| typed-full | compat t=4 | −68 (−80…−55) | +6 (−4…+15) | −29 (−47…−12) | −117 (−132…−103) | 455 → 247, −208 (−241…−176) |
+| typed-mega | compat t=4 | −133 (−171…−96) | −7 (−45…+31) | −44 (−81…−6) | −192 (−217…−166) | 808 → 432, −376 (−452…−299) |
+| bundle-mega | compat t=4 | −90 (−129…−52) | −23 (−61…+16) | +7 (−42…+56) | −212 (−267…−157) | 1126 → 808, −318 (−368…−269) |
+| typed-app | fast t=4 | −7 (−8…−6) | −1 (−2…−1) | −2 (−4…+1) | −11 (−16…−6) | 52 → 31, −21 (−25…−17) |
+| checks-only | fast t=4 | −38 (−47…−28) | −5 (−15…+5) | −29 (−37…−22) | — | 184 → 112, −72 (−86…−57) |
+| shaka-blockly | fast t=4 | −26 (−31…−20) | −5 (−13…+3) | −2 (−6…+2) | −51 (−56…−46) | 168 → 85, −83 (−94…−72) |
+| typed-full | fast t=4 | −59 (−73…−46) | +4 (−13…+21) | −36 (−48…−23) | −105 (−110…−101) | 427 → 231, −196 (−235…−157) |
+| typed-mega | fast t=4 | −112 (−121…−104) | −3 (−40…+34) | −57 (−97…−18) | −185 (−205…−165) | 794 → 437, −357 (−415…−300) |
+| bundle-mega | fast t=4 | −62 (−84…−40) | +10 (−76…+96) | +1 (−24…+27) | −180 (−251…−110) | 1076 → 844, −232 (−387…−76) |
+
+- **The runs save what the probe predicted, and no more.** At t=4 the four
+  runs take 53–72% of their base time; 85–95% of the saving on the large
+  tasks is V and J, i.e. mostly the three passes that gained a parallel
+  path. Fusing passes that already ran on the workers (P, Q) saves 0–57 ms.
+  At t=1, where only the walk and the global scope are shared, the runs
+  save 12–286 ms (J and Q; P within noise except on typed-full), and
+  nothing measurable on shaka-blockly and bundle-mega.
+- **0.2–2% of the compile.** The largest saving is 376 ms of typed-mega's
+  32 s at compat t=4 (1.2%); typed-full saves 1.1% at t=4 and 0.7% at t=1;
+  checks-only 2.2% at t=4. The whole-compile intervals are ±2–8%, so the
+  wall times cannot show it: 16 of the 18 cells include zero, and the
+  other two point in opposite directions (typed-app compat t=4 −2.9%,
+  bundle-mega compat t=1 +3.4%).
+- **No regression.** In bundle-mega compat t=1 the fused runs themselves
+  are flat (−11 ms) and the +1.8 s is spread over the later passes
+  (+60 to +170 ms each, individual intervals mostly across zero). A repeat
+  (N=5, base, branch, and the branch with `JSGO_FUSE=0`; 15/15
+  byte-identical) reads +0.6% (CI −2.9…+4.2) for the branch against the
+  base, and 0.0% (CI −1.4…+1.4) for fusion on against off in the same
+  binary.
+- Peak RSS is unchanged within ±21 MB (bundle-mega t=1: 875 → 891 MB).
+
+Validation of the fusion branch (`aabb4dbf`): the Java gate on the 11 bench tasks
+at t=1 and t=4 (22/22 byte-identical), fixtures 2,974/2,976,
+`parallel_gate.py` 48/48 under `-race`, `fast_mode_gate.py` 25/25 under
+`-race` at t=1/2/4 and 7/7 large tasks, typed-full and bundle-advanced-ts
+fast t=4 under `-race` with no race reported, `make vet`, and
+`go test ./internal/jscomp/` with `pass_fusion_test.go` (fused against
+unfused at t=1 and t=4: warnings from every member, a halting error in the
+first and in the third member of a run, promoted warnings; a mutation that
+drops the halting check between members fails it).
+
+### Decision, and what was merged
+
+**Fusion is not merged**; it stays on `fast/fuse` for reference. By the rule
+this work set itself (a significant gain on the whole compile, no
+regression) it does not qualify: it is exact and costs nothing, but its
+gain, real in every task at t=4 in the pass log, is 1–2% of the compile,
+below what interleaved runs resolve, and the walk sharing that motivated it
+is the smaller part; ~800 lines (plus tests) for that is not worth it.
+
+The owner accepted pass-log evidence (as for round 4's change 2) for the
+part that pays, which is merged on `fast/par3` without the fusion code:
+
+- **The recorder fix** (`49361651`, cherry-picked from `fast/fuse`'s
+  `4da344ed`): compat at t>1 stops where t=1 and Java stop after a halting
+  error in a `CombinedCompilerPass`, and goes on after a promoted one.
+- **Parallel paths for checkAstValidity, varCheckValidity and
+  checkTypeImportCodeReferences** (`5b4c930a`), in the style of the other
+  check passes: `processParallel` through `traverseScriptsParallel` when
+  there is more than one thread, with the decompositions found for fusion.
+  The AST validator is not a traversal callback, so `parallelScriptOptions`
+  gets a `runScript` option (a function of each script instead of a
+  traversal). It is parallel only with its default (panicking) violation
+  handler, without type validation and without the grammar check; VarCheck
+  only in validity mode; checkTypeImportCodeReferences keeps its scan and
+  its early exit when there are no goog.requireType names, then checks the
+  scripts against a shared global scope. Tests:
+  `parallel_validity_test.go` (1 against 4 threads: violations and
+  undeclared names in extern and program scripts, the first one in order
+  panics and reports; a caller's violation handler; goog.requireType code
+  references in several scripts and none at all), with four mutations
+  caught (workers skipping the extern scripts, VarCheck workers outside
+  validity mode, workers without the name set, the validator using workers
+  with a caller's handler); `parallel_gate.py` gets two goog.requireType
+  cases (the existing `simple` and `advanced` cases already run the two
+  validity passes over 12 scripts at t=2 and t=4).
+
+Measured on `fast/par3` (`5b4c930a`) against main, interleaved, N=5
+blocks, `JSGO_PASS_LOG` on every run; **all 70 runs byte-identical to the
+Java reference**, one output per task and mode. The three passes' time
+summed per compile (ms; mean of par − base and its paired 95% CI), and the
+whole compile:
+
+| task | mode | the three passes, base → par | typeImport | astValidity | varCheckValidity | whole compile |
+|---|---|---|---|---|---|---|
+| typed-full | compat t=1 | 230 → 235, +5 (−32…+43) | +0 | −2 | +7 | 22.23 → 21.81 s (−1.9%, CI −6.1…+2.6) |
+| typed-full | compat t=4 | 227 → 94, −133 (−151…−115) | −29 | −58 | −45 | 17.71 → 17.67 s (−0.2%, CI −6.3…+6.4) |
+| typed-full | fast t=4 | 240 → 93, −147 (−175…−120) | −28 | −62 | −57 | 16.25 → 15.88 s (−2.2%, CI −6.2…+2.0) |
+| typed-mega | compat t=4 | 451 → 187, −264 (−307…−221) | −62 | −106 | −95 | 32.40 → 31.63 s (−2.3%, CI −5.1…+0.5) |
+| typed-mega | fast t=4 | 415 → 181, −235 (−255…−214) | −56 | −102 | −77 | 28.99 → 29.23 s (+0.8%, CI −4.0…+5.8) |
+| bundle-mega | compat t=4 | 453 → 277, −176 (−229…−123) | +2 | −85 | −93 | 43.33 → 43.20 s (−0.3%, CI −3.9…+3.4) |
+| bundle-mega | fast t=4 | 460 → 254, −206 (−239…−172) | −1 | −93 | −112 | 40.55 → 39.90 s (−1.5%, CI −5.8…+3.0) |
+
+At t=4 the three passes take 39–61% of their former time: 0.13–0.26 s
+per compile, most of what fusion's V and J runs saved (0.16–0.33 s on
+these tasks; fusion also shared checkJsDocAndEs6Modules' walk). On
+bundle-mega checkTypeImportCodeReferences does not change: it has no
+goog.requireType, and its 75 ms are the scan for them, which stays
+serial. At t=1 nothing changes (the paths are not used). The whole-compile
+intervals include zero everywhere.
+
+Validation of `fast/par3` (`5b4c930a`): the Java gate on the 11 bench
+tasks at t=1 and t=4 (22/22 byte-identical), fixtures 2,974/2,976,
+`parallel_gate.py` 54/54 under `-race` (with the two new cases),
+`fast_mode_gate.py` 25/25 under `-race` at t=1/2/4 and 7/7 large tasks,
+typed-full and bundle-advanced-ts fast t=4 under `-race` with no race
+reported, `make vet` and `go test ./...`.
+
+### What is left
+
+- **Per-node dispatch** (the Scala form, one traversal per script for
+  same-shape members): at most ~0.1 s at t=1 on typed-full, a quarter at
+  t=4 (above); needs a dispatcher that swaps the traversal's compiler per
+  member and replays `CombinedCompilerPass`'s halting per member.
+- **More serial check passes with per-script decompositions**, in the style
+  of V: checkGoogRequires (the provided-namespace prefix per script, from
+  the module metadata; ~50 ms at t=4 on typed-full), gatherModuleMetadata
+  (~100 ms, needs its duplicate checks replayed in order). This is
+  parallelism, not fusion, and pays only at t>1.
+- **A shared reference index for the optimization loops** (design note
+  below): the loops are where the walks and the scope rebuilding are.
+
+#### Design note: a shared index of variable and property uses for the loop passes (not implemented)
+
+The idea: instead of every loop pass rebuilding its scopes and collecting
+its references on every run, one index of variable and property uses is
+kept current as the passes edit the tree, and the passes read it.
+
+**How much of each loop pass is rebuilding.** CPU profiles at compat t=1
+with the pass label (`JSGO_PASS_LOG` + `JSGO_CPU_PROFILE`, base binary),
+every run of each pass (in and outside the loops), split by stack:
+*scopes* (scope creation), *uses* (reference collection, name lookups,
+candidate, call-site and property scans, including their walks), *walk*
+(the bare traversal with nothing pass-specific above it), *work* (the
+pass's own decisions and edits):
+
+| pass | typed-full CPU | scopes | uses | walk | work | bundle-mega CPU | scopes | uses | walk | work |
+|---|---|---|---|---|---|---|---|---|---|---|
+| removeUnusedCode | 1.98 s | 22% | 69% | 0% | 9% | 6.08 s | 13% | 73% | 0% | 14% |
+| inlineVariables | 1.67 s | 20% | 55% | 0% | 25% | 4.02 s | 14% | 57% | 0% | 29% |
+| collapseObjectLiterals | 1.14 s | 19% | 77% | 0% | 4% | 2.73 s | 16% | 79% | 0% | 5% |
+| inlineFunctions | 1.13 s | 6% | 51% | 18% | 25% | 3.25 s | 1% | 61% | 13% | 25% |
+| optimizeCalls | 0.91 s | 4% | 41% | 0% | 53% | 1.06 s | 1% | 58% | 0% | 42% |
+| peepholeOptimizations | 0.54 s | 0% | 0% | 0% | 100% | 1.67 s | 0% | 0% | 1% | 99% |
+| inlineSimpleMethods | 0.43 s | 0% | 0% | 79% | 2% | 0.93 s | 0% | 0% | 85% | 8% |
+| inlineProperties | 0.41 s | 0% | 27% | 61% | 12% | 0.76 s | 0% | 16% | 68% | 13% |
+| deadAssignmentsElimination | 0.29 s | 0% | 0% | 0% | 100% | 0.82 s | 0% | 0% | 0% | 100% |
+| crossChunkCodeMotion | 0.21 s | 29% | 62% | 0% | 5% | 0.53 s | 19% | 81% | 0% | 0% |
+| deadPropertyAssignmentElimination | 0.16 s | 0% | 56% | 38% | 6% | 0.51 s | 0% | 31% | 57% | 10% |
+| crossChunkMethodMotion | 0.15 s | 20% | 80% | 0% | 0% | 0.36 s | 25% | 75% | 0% | 0% |
+| devirtualizeMethods | 0.13 s | 8% | 77% | 0% | 15% | 0.18 s | 0% | 100% | 0% | 0% |
+| **all** | **9.15 s** | 1.19 s | 4.66 s | 0.85 s | | **22.90 s** | 2.02 s | 12.64 s | 2.04 s | |
+
+73% of these passes' time on both tasks (6.7 of 9.2 s on typed-full,
+16.7 of 22.9 s on bundle-mega, out of 23 s and 55 s per compile) is finding
+uses, building scopes and walking; the rest is the passes' decisions and
+edits. peepholeOptimizations and deadAssignmentsElimination are local and
+already change-scoped; an index does nothing for them. (The split is by
+stack frames: "uses" in the collector-based passes includes the collector's
+walk, and removeUnusedCode's "uses" is the var-info graph it builds, which
+is its analysis.)
+
+**Which passes could read it.**
+
+- *Variable references* (each var: its declaration and its references, by
+  scope): inlineVariables and collapseObjectLiterals (both run a full
+  `ReferenceCollector` every time), crossChunkCodeMotion (references to
+  globals by chunk), optimizeCalls and devirtualizeMethods (the name half
+  of `OptimizeCalls_ReferenceMap`), inlineFunctions (call sites of each
+  function name; its candidate scan and call-site walk are 64–75%).
+- *Property uses and definitions* (each property name: its GETPROP reads,
+  its writes, its definitions in prototypes and object literals):
+  inlineSimpleMethods and inlineProperties (two whole walks each, 60–85%
+  of the time in the bare walk), deadPropertyAssignmentElimination,
+  crossChunkMethodMotion (`AnalyzePrototypeProperties`), and the property
+  half of `OptimizeCalls_ReferenceMap`.
+- removeUnusedCode could take its references from the index, but its
+  removals follow the order of its own breadth-first worklist (round 4),
+  so it would still build its var-info graph each run; the index would
+  replace its scope creation (22% on typed-full) and name lookups
+  (`GetVarInfo`, 20%), not its traversal.
+
+**What keeping it current would cost.** A temporary probe recorded, after
+every loop pass run, the change scopes it reported and the nodes they own
+(nested functions excluded), and the program's size. Summed over the runs,
+the scopes the loop passes change hold **2.6%** of the nodes of the
+programs those passes walk on typed-full
+(3.1 M of 117 M; 23 of 77 runs change nothing) and **4.0%** on bundle-mega
+(9.6 M of 241 M; 16 of 61 change nothing). The changes are concentrated:
+peepholeOptimizations changes scopes holding ~10% of the program per run,
+inlineFunctions 8% (typed-full) and 26% (bundle-mega), everything else
+0–3%; and by iteration, 8–11% of the program in the first iteration of
+each loop, then 0–3%. So an index that re-indexes the change scopes reported since it
+was last read (the `ChangeTracker` timeline already provides them, as
+round 4's guarded polyfill usages do) would walk 3–4% of what the passes
+walk today, and a pass that reads it would pay its own work plus that
+share instead of the 73%. At typed-full's size the index holds 328 K NAME
+and 276 K GETPROP nodes at the start of the loops (bundle-mega: 1.2 M and
+452 K).
+
+**What makes it hard to keep exact.**
+
+- *Order.* The passes' output depends on the order in which they meet
+  references: `ReferenceCollector` visits a hoisted function at its first
+  reference, and inlineVariables, collapseObjectLiterals and the others
+  take names and decide in that order. The index has to give each var's
+  references in the collector's order, and re-indexing a change scope has
+  to splice its references back in that order, including the jumps to
+  hoisted functions.
+- *Identity across passes.* Scopes and `Var`s are rebuilt by every pass;
+  the index needs a stable key (declaring scope root and name, as
+  removeUnusedCode's var infos use) and the passes need to read it instead
+  of their `Var` objects.
+- *Non-local effects of local edits.* A changed function can add or
+  remove references to outer vars and properties: the per-var and
+  per-property lists of other scopes change, and a pass that cached a
+  decision per var (inlineVariables' "referenced once") must see that.
+  Re-indexing the change scope fixes the lists; the passes' own per-run
+  conclusions are recomputed from them, as today.
+- *Unreported changes.* The index is only as good as the change reports;
+  round 5 found and fixed passes that deleted functions without reporting
+  them. A verify mode (rebuild and compare, like `JSGO_RUC_INCR_VERIFY`)
+  would be needed from the start.
+
+A first step that tests the idea at the smallest cost: the property half
+for inlineSimpleMethods and inlineProperties (60–85% bare walk, the fewest
+order subtleties; 0.8 s on typed-full and 1.7 s on bundle-mega over all
+their runs).
+
 ## Smaller open items
 
 - `tools/clie2e/sweep.go` runs its JVMs under its own `nice -n 10`; under
