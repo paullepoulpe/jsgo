@@ -34,11 +34,10 @@ import (
 // ErrorHandler is any generic sink for warnings and errors, after they've
 // passed through any filtering WarningsGuards.
 type ErrorHandler interface {
-	// Report reports error at the reporting level. level may be nil (Java
-	// callers pass null).
+	// Report reports error at the reporting level.
 	//
 	// Java: ErrorHandler.report(CheckLevel, JSError)
-	Report(level *CheckLevel, error *JSError)
+	Report(level CheckLevel, error *JSError)
 }
 
 // ErrorManager is in charge of storing, organizing and displaying errors
@@ -47,11 +46,10 @@ type ErrorManager interface {
 	ErrorHandler
 
 	// Report reports an error. The errors will be displayed by the
-	// GenerateReport at the discretion of the implementation. level may be
-	// nil.
+	// GenerateReport at the discretion of the implementation.
 	//
 	// Java: ErrorManager.report(CheckLevel, JSError)
-	Report(level *CheckLevel, error *JSError)
+	Report(level CheckLevel, error *JSError)
 
 	// GenerateReport writes a report to an implementation-specific medium.
 	// The compiler calls this method after any and all Report calls.
@@ -230,15 +228,12 @@ func NewLoggerErrorManager(logger *jutil.Logger) *LoggerErrorManager {
 }
 
 // Java: LoggerErrorManager.println(CheckLevel, JSError)
-func (m *LoggerErrorManager) Println(level *CheckLevel, error *JSError) {
-	if level == nil {
-		panic(jutil.NewNullPointerException()) // switch on a null enum
-	}
-	switch *level {
+func (m *LoggerErrorManager) Println(level CheckLevel, error *JSError) {
+	switch level {
 	case CheckLevel_ERROR:
-		m.logger.Severe(*error.Format(*level, m.formatter))
+		m.logger.Severe(*error.Format(level, m.formatter))
 	case CheckLevel_WARNING:
-		m.logger.Warning(*error.Format(*level, m.formatter))
+		m.logger.Warning(*error.Format(level, m.formatter))
 	case CheckLevel_OFF:
 	}
 }
@@ -263,11 +258,8 @@ func (m *LoggerErrorManager) PrintSummary() {
 	}
 }
 
-func printStreamPrintln(stream *jutil.PrintStream, formatter MessageFormatter, level *CheckLevel, error *JSError) {
-	if level == nil {
-		panic(jutil.NewNullPointerException()) // switch on a null CheckLevel in JSError.format
-	}
-	stream.PrintlnNullable(error.Format(*level, formatter))
+func printStreamPrintln(stream *jutil.PrintStream, formatter MessageFormatter, level CheckLevel, error *JSError) {
+	stream.PrintlnNullable(error.Format(level, formatter))
 }
 
 func printStreamPrintSummary(stream *jutil.PrintStream, summaryDetailLevel int, manager ErrorManager) {
@@ -408,7 +400,7 @@ func NewPrintStreamErrorManager(stream *jutil.PrintStream) *PrintStreamErrorMana
 }
 
 // Java: PrintStreamErrorManager.println(CheckLevel, JSError)
-func (m *PrintStreamErrorManager) Println(level *CheckLevel, error *JSError) {
+func (m *PrintStreamErrorManager) Println(level CheckLevel, error *JSError) {
 	printStreamPrintln(m.stream, m.formatter, level, error)
 }
 
@@ -455,7 +447,7 @@ func (g *PrintStreamErrorReportGenerator) GenerateReport(manager *SortingErrorMa
 }
 
 // Java: PrintStreamErrorReportGenerator.println(CheckLevel, JSError)
-func (g *PrintStreamErrorReportGenerator) Println(level *CheckLevel, error *JSError) {
+func (g *PrintStreamErrorReportGenerator) Println(level CheckLevel, error *JSError) {
 	printStreamPrintln(g.stream, g.formatter, level, error)
 }
 

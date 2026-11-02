@@ -435,11 +435,6 @@ func (f *FunctionTypeBase) SetImplicitMatch(flag bool) {
 	f.call.fnIsStructuralInterface = flag
 }
 
-// Java: FunctionType.isStructuralInterface()
-func (f *FunctionTypeBase) IsStructuralInterface() bool {
-	return f.IsInterface() && f.call.fnIsStructuralInterface
-}
-
 // Java: FunctionType.isAbstract()
 func (f *FunctionTypeBase) IsAbstract() bool {
 	return f.call.fnIsAbstract

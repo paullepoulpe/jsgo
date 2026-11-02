@@ -24,60 +24,6 @@ import (
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
 
-// IRFactory_ScopeTracker tracks whether a certain language feature is
-// currently in scope. Use in conjunction with try-with-resources to
-// auto-handle decrementing.
-//
-// Java: private static class IRFactory.TransformDispatcher.ScopeTracker
-type IRFactory_ScopeTracker struct {
-	usageCount int
-}
-
-// Java: IRFactory.TransformDispatcher.ScopeTracker.inScope()
-func (s *IRFactory_ScopeTracker) InScope() bool {
-	return s.usageCount > 0
-}
-
-// Java: IRFactory.TransformDispatcher.ScopeTracker.increment()
-func (s *IRFactory_ScopeTracker) Increment() irFactory_ScopeTracker_autoDecrement {
-	return s.MaybeIncrement(true)
-}
-
-// MaybeIncrement increments the usage count if condition holds and returns
-// the AutoDecrement that undoes it.
-//
-// Go-only: language-adapter — returns the anonymous AutoDecrement class by
-// value rather than as the AutoDecrement interface, so that it stays on the
-// stack (the JVM's escape analysis removes the allocation; Go's would not
-// once it is boxed in an interface).
-//
-// Java: IRFactory.TransformDispatcher.ScopeTracker.maybeIncrement(boolean)
-func (s *IRFactory_ScopeTracker) MaybeIncrement(condition bool) irFactory_ScopeTracker_autoDecrement {
-	if condition {
-		jutil.CheckState(s.usageCount >= 0)
-		s.usageCount++
-	}
-	return irFactory_ScopeTracker_autoDecrement{tracker: s, condition: condition, closed: false}
-}
-
-// irFactory_ScopeTracker_autoDecrement is the anonymous AutoDecrement class
-// of ScopeTracker.maybeIncrement.
-type irFactory_ScopeTracker_autoDecrement struct {
-	tracker   *IRFactory_ScopeTracker
-	condition bool
-	closed    bool
-}
-
-// Java: IRFactory.TransformDispatcher.ScopeTracker.maybeIncrement(boolean).new AutoDecrement() {...}.close()
-func (a *irFactory_ScopeTracker_autoDecrement) Close() {
-	jutil.CheckState(!a.closed)
-	if a.condition {
-		a.tracker.usageCount--
-		jutil.CheckState(a.tracker.usageCount >= 0)
-	}
-	a.closed = true
-}
-
 // IRFactory_IdentifierType indicates the valid values usages for an
 // identifier.
 //
@@ -592,7 +538,7 @@ func (f *IRFactory) Process(node parser.ParseTree) rhino.Node {
 		return f.ProcessParenthesizedExpression(n)
 	case *parser.IdentifierExpressionTree:
 		identifierType := IRFactory_IdentifierType_STANDARD
-		if f.privateIdLhsOfInScope.InScope() {
+		if f.privateIdLhsOfInDepth > 0 {
 			identifierType = IRFactory_IdentifierType_CAN_BE_PRIVATE
 		}
 		return f.ProcessName(n, identifierType)

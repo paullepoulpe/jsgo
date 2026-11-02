@@ -798,12 +798,12 @@ type dupVarCustomGuard struct {
 	sawNode rhino.Node
 }
 
-func (g *dupVarCustomGuard) Level(err *JSError) *CheckLevel {
+func (g *dupVarCustomGuard) Level(err *JSError) (CheckLevel, bool) {
 	g.sawNode = err.Node()
 	if err.Type() == TypeValidator_DUP_VAR_DECLARATION {
-		return CheckLevel_OFF.Ptr()
+		return CheckLevel_OFF, true
 	}
-	return nil
+	return 0, false
 }
 
 func TestHasDuplicateDeclarationSuppressionZeroAllocAndCustomGuard(t *testing.T) {

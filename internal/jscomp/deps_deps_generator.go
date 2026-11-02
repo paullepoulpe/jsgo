@@ -251,25 +251,25 @@ func (g *DepsGenerator) validateDependencies(preparsedFileDependencies, parsedFi
 func (g *DepsGenerator) reportMissingFile(depInfo DependencyInfo, path string) {
 	name := depInfo.GetName()
 	g.errorManager.Report(
-		CheckLevel_ERROR.Ptr(), JSError_MakeWithSourceLocation(&name, -1, -1, DepsGenerator_UNKNOWN_PATH_IMPORT, path))
+		CheckLevel_ERROR, JSError_MakeWithSourceLocation(&name, -1, -1, DepsGenerator_UNKNOWN_PATH_IMPORT, path))
 }
 
 func (g *DepsGenerator) reportEs6ImportForNonEs6Module(provider DependencyInfo, depInfo DependencyInfo) {
 	name := depInfo.GetName()
 	g.errorManager.Report(
-		CheckLevel_ERROR.Ptr(),
+		CheckLevel_ERROR,
 		JSError_MakeWithSourceLocation(&name, -1, -1, DepsGenerator_ES6_IMPORT_FOR_NON_ES6_MODULE, provider.GetName()))
 }
 
 func (g *DepsGenerator) reportSameFile(namespace string, depInfo DependencyInfo) {
 	name := depInfo.GetName()
-	g.errorManager.Report(CheckLevel_WARNING.Ptr(),
+	g.errorManager.Report(CheckLevel_WARNING,
 		JSError_MakeWithSourceLocation(&name, -1, -1, DepsGenerator_SAME_FILE_WARNING, namespace))
 }
 
 func (g *DepsGenerator) reportUndefinedNamespace(namespace string, depInfo DependencyInfo) {
 	name := depInfo.GetName()
-	g.errorManager.Report(CheckLevel_ERROR.Ptr(),
+	g.errorManager.Report(CheckLevel_ERROR,
 		JSError_MakeWithSourceLocation(&name, -1, -1, DepsGenerator_NEVER_PROVIDED_ERROR, namespace))
 }
 
@@ -278,19 +278,19 @@ func (g *DepsGenerator) reportDuplicateProvide(namespace string, firstDep, secon
 		if firstDep.GetPathRelativeToClosureBase() != namespace {
 			name := firstDep.GetName()
 			g.errorManager.Report(
-				CheckLevel_WARNING.Ptr(),
+				CheckLevel_WARNING,
 				JSError_MakeWithSourceLocation(&name, -1, -1, DepsGenerator_DUPE_PROVIDES_WARNING, namespace))
 		}
 	} else {
 		name := secondDep.GetName()
-		g.errorManager.Report(CheckLevel_ERROR.Ptr(),
+		g.errorManager.Report(CheckLevel_ERROR,
 			JSError_MakeWithSourceLocation(&name, -1, -1,
 				DepsGenerator_MULTIPLE_PROVIDES_ERROR, namespace, firstDep.GetName()))
 	}
 }
 
 func (g *DepsGenerator) reportNoDepsInDepsFile(filePath string) {
-	g.errorManager.Report(CheckLevel_WARNING.Ptr(),
+	g.errorManager.Report(CheckLevel_WARNING,
 		JSError_MakeWithSourceLocation(&filePath, -1, -1, DepsGenerator_NO_DEPS_WARNING))
 }
 

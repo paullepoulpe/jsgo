@@ -41,9 +41,9 @@ type tvDump struct {
 // tvErrorHandler is the ErrorHandler lambda of TypeValidatorDump.
 type tvErrorHandler struct{ d *tvDump }
 
-func (h *tvErrorHandler) Report(level *CheckLevel, error *JSError) {
+func (h *tvErrorHandler) Report(level CheckLevel, error *JSError) {
 	h.d.reported = append(h.d.reported,
-		"  D "+jutil.ToJavaString(level)+
+		"  D "+level.String()+
 			" "+error.GetType().key+
 			" "+raiEsc(error.GetDescription())+
 			" @"+tvNodeLabel(error.GetNode()))

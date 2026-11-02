@@ -71,7 +71,7 @@ func (b ModuleLoader_Builder) jsaBuildFunc() func() { return func() { b.Build() 
 // jsaMlCollect is the lambda (CheckLevel level, JSError error) -> errors.add(error).
 type jsaMlCollector struct{ errors *[]*JSError }
 
-func (c jsaMlCollector) Report(level *CheckLevel, error *JSError) {
+func (c jsaMlCollector) Report(level CheckLevel, error *JSError) {
 	*c.errors = append(*c.errors, error)
 }
 
@@ -362,7 +362,7 @@ func TestModuleLoader_BrowserWithPrefixReplacementInvalidPrefix(t *testing.T) {
 }
 
 func TestModuleLoader_CustomResolution(t *testing.T) {
-	loader := ModuleLoader_Builder_().SetModuleRoots([]string{"."}).SetInputs(jsaMlInputs("A/index.js", "B/index.js", "app.js")).SetFactory(ModuleLoader_ModuleResolverFactoryFunc(func(modulePaths *jutil.LinkedHashSet[string], moduleRootPaths []string, errorHandler ErrorHandler, pathEscaper ModuleLoader_PathEscaper) ModuleResolver {
+	loader := ModuleLoader_Builder_().SetModuleRoots([]string{"."}).SetInputs(jsaMlInputs("A/index.js", "B/index.js", "app.js")).SetFactory(ModuleLoader_ModuleResolverFactoryFunc(func(modulePaths *OrderedSet[string], moduleRootPaths []string, errorHandler ErrorHandler, pathEscaper ModuleLoader_PathEscaper) ModuleResolver {
 		return &jsaMlCustomResolver{
 			moduleResolverCommon: newModuleResolverCommon(modulePaths, moduleRootPaths, errorHandler, pathEscaper),
 		}

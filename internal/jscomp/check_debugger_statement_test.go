@@ -26,8 +26,8 @@ import (
 // CheckDebuggerStatementTest: CheckDebuggerStatementTest is a unit test for CheckDebuggerStatement.
 type CheckDebuggerStatementTest struct {
 	CompilerTestCaseBase
-	// A Java @Nullable CheckLevel: nil is null.
-	checkLevel *CheckLevel
+	checkLevel    CheckLevel
+	hasCheckLevel bool
 }
 
 // Java: CheckDebuggerStatementTest()
@@ -43,7 +43,7 @@ func TestCheckDebuggerStatementTest(t *testing.T) {
 
 // Java: CheckDebuggerStatementTest.tearDown()
 func (c *CheckDebuggerStatementTest) TearDown() {
-	c.checkLevel = nil
+	c.hasCheckLevel = false
 }
 
 // Java: CheckDebuggerStatementTest.getProcessor(Compiler)
@@ -54,15 +54,16 @@ func (c *CheckDebuggerStatementTest) GetProcessor(compiler *Compiler) CompilerPa
 // Java: CheckDebuggerStatementTest.getOptions()
 func (c *CheckDebuggerStatementTest) GetOptions() *CompilerOptions {
 	options := c.CompilerTestCaseBase.GetOptions()
-	if c.checkLevel != nil {
-		options.SetWarningLevel(DiagnosticGroups_DEBUGGER_STATEMENT_PRESENT, *c.checkLevel)
+	if c.hasCheckLevel {
+		options.SetWarningLevel(DiagnosticGroups_DEBUGGER_STATEMENT_PRESENT, c.checkLevel)
 	}
 	return options
 }
 
 // Java: CheckDebuggerStatementTest.testCheckDebuggerStatement()
 func (c *CheckDebuggerStatementTest) TestCheckDebuggerStatement() {
-	c.checkLevel = CheckLevel_WARNING.Ptr()
+	c.checkLevel = CheckLevel_WARNING
+	c.hasCheckLevel = true
 
 	c.TestWarning("debugger;", CheckDebuggerStatement_DEBUGGER_STATEMENT_PRESENT)
 	c.TestWarning("function foo() { debugger; }", CheckDebuggerStatement_DEBUGGER_STATEMENT_PRESENT)
@@ -70,7 +71,7 @@ func (c *CheckDebuggerStatementTest) TestCheckDebuggerStatement() {
 
 // Java: CheckDebuggerStatementTest.testCheckIsDisabledByDefault()
 func (c *CheckDebuggerStatementTest) TestCheckIsDisabledByDefault() {
-	c.checkLevel = nil
+	c.hasCheckLevel = false
 
 	c.TestSame("debugger;")
 	c.TestSame("function foo() { debugger; }")
@@ -78,7 +79,8 @@ func (c *CheckDebuggerStatementTest) TestCheckIsDisabledByDefault() {
 
 // Java: CheckDebuggerStatementTest.testNoWarningWhenExplicitlyDisabled()
 func (c *CheckDebuggerStatementTest) TestNoWarningWhenExplicitlyDisabled() {
-	c.checkLevel = CheckLevel_OFF.Ptr()
+	c.checkLevel = CheckLevel_OFF
+	c.hasCheckLevel = true
 
 	c.TestSame("debugger;")
 	c.TestSame("function foo() { debugger; }")
@@ -86,14 +88,16 @@ func (c *CheckDebuggerStatementTest) TestNoWarningWhenExplicitlyDisabled() {
 
 // Java: CheckDebuggerStatementTest.testCheckDebuggerKeywordMayAppearInComments()
 func (c *CheckDebuggerStatementTest) TestCheckDebuggerKeywordMayAppearInComments() {
-	c.checkLevel = CheckLevel_WARNING.Ptr()
+	c.checkLevel = CheckLevel_WARNING
+	c.hasCheckLevel = true
 
 	c.Test("// I like the debugger; it is helpful.", "")
 }
 
 // Java: CheckDebuggerStatementTest.testCheckDebuggerStatementInEval()
 func (c *CheckDebuggerStatementTest) TestCheckDebuggerStatementInEval() {
-	c.checkLevel = CheckLevel_WARNING.Ptr()
+	c.checkLevel = CheckLevel_WARNING
+	c.hasCheckLevel = true
 
 	c.TestSame("eval('debugger');")
 }

@@ -23,11 +23,11 @@ package graph
 //
 // N is the node type; E is the edge type.
 //
-// Go-only: performance — instead of mutating graph node/edge annotations via
-// PushNodeAnnotations/PushEdgeAnnotations on every query, DFS node colors and
-// back/visited edges are tracked in epoch-stamped uint32 arrays indexed by
-// LinkedDiGraphNode.Index and LinkedDiGraphEdge.Index, and traversal walks
-// concrete LinkedDiGraphNodes directly.
+// Go-only: performance — instead of mutating graph node/edge annotations on
+// every query, DFS node colors and back/visited edges are tracked in
+// epoch-stamped uint32 arrays indexed by LinkedDiGraphNode.Index and
+// LinkedDiGraphEdge.Index, and traversal walks concrete LinkedDiGraphNodes
+// directly.
 type CheckPathsBetweenNodes[N, E comparable] struct {
 	nodePredicate func(N) bool
 	edgePredicate func(*LinkedDiGraphEdge[N, E]) bool

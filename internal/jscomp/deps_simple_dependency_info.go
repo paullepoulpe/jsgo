@@ -288,7 +288,7 @@ func (d *SimpleDependencyInfo) Equals(o any) bool {
 		d.pathRelativeToClosureBase == that.pathRelativeToClosureBase &&
 		slices.Equal(d.provides, that.provides) &&
 		slices.EqualFunc(d.requires, that.requires, func(a, b *DependencyInfo_Require) bool {
-			return a == b || (a != nil && a.Equals(b))
+			return a == b || (a != nil && b != nil && *a == *b)
 		}) &&
 		slices.Equal(d.typeRequires, that.typeRequires) &&
 		d.loadFlags.Equals(that.loadFlags) &&
@@ -309,7 +309,8 @@ func simpleDependencyInfo_requireSliceHash(rs []*DependencyInfo_Require) int32 {
 	for _, r := range rs {
 		var eh int32
 		if r != nil {
-			eh = r.HashCode()
+			eh = ((1000003 ^ jutil.StringHashCode(r.symbol)) * 1000003) ^ jutil.StringHashCode(r.rawText)
+			eh = (eh * 1000003) ^ int32(r.type_)
 		}
 		h = 31*h + eh
 	}

@@ -163,11 +163,11 @@ func (c *RhinoErrorReporterTest) parseCode(code string) *Compiler {
 
 // jsaRecordingErrorHandler records the reports it receives.
 type jsaRecordingErrorHandler struct {
-	levels []*CheckLevel
+	levels []CheckLevel
 	errors []*JSError
 }
 
-func (h *jsaRecordingErrorHandler) Report(level *CheckLevel, error *JSError) {
+func (h *jsaRecordingErrorHandler) Report(level CheckLevel, error *JSError) {
 	h.levels = append(h.levels, level)
 	h.errors = append(h.errors, error)
 }
@@ -181,7 +181,7 @@ func TestRhinoErrorReporter_ForOldRhino(t *testing.T) {
 	r.Error("something odd", "b.js", 2, 3)
 	r.Warning("Duplicate parameter name \"x\"", "c.js", 3, 0)
 	jsaEq(t, len(h.errors), 3)
-	jsaTrue(t, h.levels[0] == nil && h.levels[1] == nil)
+	jsaTrue(t, h.levels[0] == CheckLevel_OFF && h.levels[1] == CheckLevel_ERROR)
 	jsaTrue(t, h.errors[0].Type() == RhinoErrorReporter_JSDOC_MISSING_TYPE_WARNING)
 	jsaEq(t, h.errors[0].GetDefaultLevel(), CheckLevel_OFF)
 	jsaEq(t, *h.errors[0].SourceName(), "a.js")

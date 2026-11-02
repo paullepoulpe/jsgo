@@ -209,84 +209,127 @@ func abstractCommandLineRunner_getExternsInput() []byte {
 // Java: AbstractCommandLineRunner.parseJsonFilesFromInputStream()
 func (r *AbstractCommandLineRunnerBase) ParseJsonFilesFromInputStream() []*AbstractCommandLineRunner_JsonFileSpec {
 	var jsonFiles []*AbstractCommandLineRunner_JsonFileSpec
-	reader := jutil.NewJsonReader(jutil.NewInputStreamReader(r.in, r.inputCharset))
-	defer reader.Close()
-	reader.BeginArray()
-	for reader.HasNext() {
-		spec, err := tryParseJsonFileSpec(reader)
+	inReader := jutil.NewInputStreamReader(r.in, r.inputCharset)
+	defer inReader.Close()
+	var scanner jutil.JsonScanner
+	scanner.Init(jutil.CharStreams_ToString(inReader), false)
+	defer scanner.Close()
+	if err := scanner.BeginArray(); err != nil {
+		panic(err)
+	}
+	for {
+		more, err := scanner.HasNext()
 		if err != nil {
 			panic(err)
 		}
+		if !more {
+			break
+		}
+		spec, parseErr := tryParseJsonFileSpec(&scanner)
+		if parseErr != nil {
+			panic(parseErr)
+		}
 		jsonFiles = append(jsonFiles, spec)
 	}
-	reader.EndArray()
+	if err := scanner.EndArray(); err != nil {
+		panic(err)
+	}
 	return jsonFiles
 }
 
-func tryParseJsonFileSpec(reader *jutil.JsonReader) (result *AbstractCommandLineRunner_JsonFileSpec, parseErr jutil.IJsonParseException) {
-	isEmpty := true
-	oldLenient := reader.IsLenient()
-	reader.SetLenient(true)
-	defer reader.SetLenient(oldLenient)
-	defer func() {
-		if rec := recover(); rec != nil {
-			switch e := rec.(type) {
-			case jutil.IEOFException:
-				if isEmpty {
-					result = nil
-					return
-				}
-				parseErr = jutil.NewJsonSyntaxExceptionWithCause(e)
-			case jutil.IIllegalStateException:
-				parseErr = jutil.NewJsonSyntaxExceptionWithCause(e)
-			case jutil.IIOException:
-				parseErr = jutil.NewJsonSyntaxExceptionWithCause(e)
-			default:
-				panic(rec)
-			}
+func wrapJsonSyntaxErr(err jutil.Throwable) jutil.IJsonParseException {
+	switch err.(type) {
+	case jutil.IEOFException, jutil.IIllegalStateException, jutil.IIOException:
+		return jutil.NewJsonSyntaxExceptionWithCause(err)
+	default:
+		panic(err)
+	}
+}
+
+func tryParseJsonFileSpec(scanner *jutil.JsonScanner) (*AbstractCommandLineRunner_JsonFileSpec, jutil.IJsonParseException) {
+	oldLenient := scanner.IsLenient()
+	scanner.SetLenient(true)
+	defer scanner.SetLenient(oldLenient)
+
+	tok, err := scanner.PeekToken()
+	if err != nil {
+		if _, isEOF := err.(jutil.IEOFException); isEOF {
+			return nil, nil
 		}
-	}()
-	tok := reader.Peek()
-	isEmpty = false
+		return nil, wrapJsonSyntaxErr(err)
+	}
 	if tok == jutil.JsonToken_NULL {
-		reader.NextNull()
+		if err := scanner.NextNull(); err != nil {
+			return nil, wrapJsonSyntaxErr(err)
+		}
 		return nil, nil
 	}
 	spec := newAbstractCommandLineRunner_JsonFileSpecDefault()
-	reader.BeginObject()
-	for reader.HasNext() {
-		switch reader.NextName() {
+	if err := scanner.BeginObject(); err != nil {
+		return nil, wrapJsonSyntaxErr(err)
+	}
+	for {
+		more, err := scanner.HasNext()
+		if err != nil {
+			return nil, wrapJsonSyntaxErr(err)
+		}
+		if !more {
+			break
+		}
+		name, err := scanner.NextName()
+		if err != nil {
+			return nil, wrapJsonSyntaxErr(err)
+		}
+		switch name {
 		case "src":
-			spec.Src = readJsonNullableString(reader)
+			spec.Src, err = readJsonNullableString(scanner)
 		case "path":
-			spec.Path = readJsonNullableString(reader)
+			spec.Path, err = readJsonNullableString(scanner)
 		case "source_map", "sourceMap":
-			spec.SourceMap = readJsonNullableString(reader)
+			spec.SourceMap, err = readJsonNullableString(scanner)
 		case "webpack_id", "webpackId":
-			spec.WebpackId = readJsonNullableString(reader)
+			spec.WebpackId, err = readJsonNullableString(scanner)
 		default:
-			reader.SkipValue()
+			err = scanner.SkipValue()
+		}
+		if err != nil {
+			return nil, wrapJsonSyntaxErr(err)
 		}
 	}
-	reader.EndObject()
+	if err := scanner.EndObject(); err != nil {
+		return nil, wrapJsonSyntaxErr(err)
+	}
 	return spec, nil
 }
 
-func readJsonNullableString(reader *jutil.JsonReader) *string {
-	switch reader.Peek() {
+func readJsonNullableString(scanner *jutil.JsonScanner) (*string, jutil.Throwable) {
+	tok, err := scanner.PeekToken()
+	if err != nil {
+		return nil, err
+	}
+	switch tok {
 	case jutil.JsonToken_NULL:
-		reader.NextNull()
-		return nil
+		if err := scanner.NextNull(); err != nil {
+			return nil, err
+		}
+		return nil, nil
 	case jutil.JsonToken_BOOLEAN:
-		if reader.NextBoolean() {
+		b, err := scanner.NextBoolean()
+		if err != nil {
+			return nil, err
+		}
+		if b {
 			s := "true"
-			return &s
+			return &s, nil
 		}
 		s := "false"
-		return &s
+		return &s, nil
 	default:
-		s := reader.NextString()
-		return &s
+		s, err := scanner.NextString()
+		if err != nil {
+			return nil, err
+		}
+		return &s, nil
 	}
 }
 

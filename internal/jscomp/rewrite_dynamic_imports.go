@@ -62,11 +62,7 @@ import (
 )
 
 var (
-	rewriteDynamicImportsVisitTokens = func() ast.TokenSet {
-		var s ast.TokenSet
-		s.Add(rhino.Token_DYNAMIC_IMPORT)
-		return s
-	}()
+	rewriteDynamicImportsVisitTokens  = makeVisitTokenSet(rhino.Token_DYNAMIC_IMPORT)
 	rewriteDynamicImportsOriginalName = "import"
 )
 
@@ -107,7 +103,8 @@ var (
 type RewriteDynamicImports struct {
 	compiler                         AbstractCompiler
 	astFactory                       *AstFactory
-	alias                            *string
+	alias                            string
+	hasAlias                         bool
 	requiresAliasing                 bool
 	shouldWrapDynamicImportCallbacks bool
 	dynamicImportsRemoved            bool
@@ -133,23 +130,25 @@ var RewriteDynamicImports_DYNAMIC_IMPORT_INVALID_ALIAS = DiagnosticType_Error(
 // Java: RewriteDynamicImports(AbstractCompiler, String, ChunkOutputType)
 func NewRewriteDynamicImports(
 	compiler AbstractCompiler, alias *string, chunkOutputType CompilerOptions_ChunkOutputType) *RewriteDynamicImports {
-	r := &RewriteDynamicImports{}
-	r.dynamicImportsRemoved = false
-	r.wrappedDynamicImportCallback = false
-	r.compiler = compiler
-	r.astFactory = compiler.CreateAstFactory()
-	r.alias = alias
-	r.requiresAliasing =
-		!compiler.GetOptions().GetOutputFeatureSet().ContainsFeature(parser.FeatureSet_Feature_DYNAMIC_IMPORT)
-	r.shouldWrapDynamicImportCallbacks = chunkOutputType == CompilerOptions_ChunkOutputType_ES_MODULES
-	return r
+	var aliasStr string
+	if alias != nil {
+		aliasStr = *alias
+	}
+	return &RewriteDynamicImports{
+		compiler:                         compiler,
+		astFactory:                       compiler.CreateAstFactory(),
+		alias:                            aliasStr,
+		hasAlias:                         alias != nil,
+		requiresAliasing:                 !compiler.GetOptions().GetOutputFeatureSet().ContainsFeature(parser.FeatureSet_Feature_DYNAMIC_IMPORT),
+		shouldWrapDynamicImportCallbacks: chunkOutputType == CompilerOptions_ChunkOutputType_ES_MODULES,
+	}
 }
 
 // Java: RewriteDynamicImports.aliasIsValid()
 func (r *RewriteDynamicImports) AliasIsValid() bool {
-	return r.alias != nil &&
-		(*r.alias == "import" ||
-			NodeUtil_IsValidQualifiedNameFeatureSet(r.compiler.GetAllowableFeatures(), *r.alias))
+	return r.hasAlias &&
+		(r.alias == "import" ||
+			NodeUtil_IsValidQualifiedNameFeatureSet(r.compiler.GetAllowableFeatures(), r.alias))
 }
 
 // Java: RewriteDynamicImports.process(Node, Node)
@@ -174,7 +173,8 @@ func (r *RewriteDynamicImports) Process(externs rhino.Node, root rhino.Node) {
 		// TranspilationPassses.maybeMarkFeaturesAsTranspiledAway}.
 		NodeUtil_RemoveFeatureFromAllScripts(root, parser.FeatureSet_Feature_DYNAMIC_IMPORT, r.compiler)
 		if r.requiresAliasing && r.AliasIsValid() {
-			NodeTraversal_Traverse(r.compiler, externs, NewRewriteDynamicImports_AliasInjectingTraversal(r))
+			injector := rewriteDynamicImportsAliasInjector{outer: r}
+			NodeTraversal_Traverse(r.compiler, externs, &injector)
 		}
 	}
 }
@@ -190,19 +190,19 @@ func (r *RewriteDynamicImports) ShouldTraverse(t *NodeTraversal, n rhino.Node, p
 
 // Java: RewriteDynamicImports.visit(NodeTraversal, Node, Node)
 func (r *RewriteDynamicImports) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
-	if n.GetToken() != rhino.Token_DYNAMIC_IMPORT {
+	dynImport, ok := ast.AsDynamicImport(n)
+	if !ok {
 		return
 	}
 
 	// If the module specifier is a string, attempt to resolve the module
 	moduleMap := r.compiler.GetModuleMap()
-	importSpecifier := n.GetFirstChild()
-	if importSpecifier.IsStringLit() && moduleMap != nil {
+	if specLit, ok := dynImport.Specifier().AsStringLit(); ok && moduleMap != nil {
 		targetPath :=
 			t.GetInput().
 				GetPath().
 				ResolveJsModule(
-					importSpecifier.GetString(), processCommonJSModules_sourceFileName(n), n.GetLineno(), n.GetCharno())
+					specLit.Value(), processCommonJSModules_sourceFileName(n), n.GetLineno(), n.GetCharno())
 		var module *Module
 		if targetPath != nil {
 			module = moduleMap.GetModuleByPath(targetPath)
@@ -235,7 +235,7 @@ func (r *RewriteDynamicImports) Visit(t *NodeTraversal, n rhino.Node, parent rhi
 	}
 	if r.AliasIsValid() {
 		r.AliasDynamicImport(t, n)
-	} else if r.alias != nil {
+	} else if r.hasAlias {
 		t.Report(n, RewriteDynamicImports_DYNAMIC_IMPORT_INVALID_ALIAS)
 	} else if r.requiresAliasing {
 		t.Report(n, RewriteDynamicImports_DYNAMIC_IMPORT_ALIASING_REQUIRED)
@@ -325,9 +325,10 @@ func (r *RewriteDynamicImports) RetargetImportSpecifier(t *NodeTraversal, dynami
 				targetChunkFilename))
 		return
 	}
-	originalSpecifierNode := dynamicImport.GetFirstChild()
+	dynImport := ast.MustDynamicImport(dynamicImport)
+	originalSpecifierNode := dynImport.Specifier().Node()
 	newSpecifier := r.astFactory.CreateString(retargetedSpecifier).Srcref(originalSpecifierNode)
-	originalSpecifierNode.ReplaceWith(newSpecifier)
+	dynImport.SetSpecifier(ast.MustExpr(newSpecifier))
 	t.ReportCodeChangeWithNode(newSpecifier)
 }
 
@@ -441,10 +442,10 @@ func (r *RewriteDynamicImports) AddChainedThen(t *NodeTraversal, dynamicImport r
 //
 // Java: RewriteDynamicImports.aliasDynamicImport(NodeTraversal, Node)
 func (r *RewriteDynamicImports) AliasDynamicImport(t *NodeTraversal, dynamicImport rhino.Node) {
-	jutil.CheckNotNull(r.alias)
-	aliasNode := r.astFactory.CreateQNameWithUnknownType(*r.alias)
+	jutil.CheckState(r.hasAlias)
+	aliasNode := r.astFactory.CreateQNameWithUnknownType(r.alias)
 	aliasNode.SetOriginalName(&rewriteDynamicImportsOriginalName)
-	moduleSpecifier := dynamicImport.RemoveFirstChild()
+	moduleSpecifier := ast.MustDynamicImport(dynamicImport).Specifier().Detach().Node()
 	importAliasCall :=
 		r.astFactory.
 			CreateCall(aliasNode, AstFactory_Type_(dynamicImport), moduleSpecifier).
@@ -494,22 +495,16 @@ func (r *RewriteDynamicImports) InjectWrappingFunctionExtern() {
 // Later passes require the names to be defined. For simple name aliases
 // first check for an existing definition. Qualified name aliases check for
 // an existing definition of the root name only.
-type RewriteDynamicImports_AliasInjectingTraversal struct {
+type rewriteDynamicImportsAliasInjector struct {
 	NodeTraversal_AbstractPreOrderCallbackBase
-
-	outer *RewriteDynamicImports // the enclosing instance
-}
-
-// Java: RewriteDynamicImports.AliasInjectingTraversal()
-func NewRewriteDynamicImports_AliasInjectingTraversal(outer *RewriteDynamicImports) *RewriteDynamicImports_AliasInjectingTraversal {
-	return &RewriteDynamicImports_AliasInjectingTraversal{outer: outer}
+	outer *RewriteDynamicImports
 }
 
 // Java: RewriteDynamicImports.AliasInjectingTraversal.shouldTraverse(NodeTraversal, Node, Node)
-func (a *RewriteDynamicImports_AliasInjectingTraversal) ShouldTraverse(t *NodeTraversal, n rhino.Node, parent rhino.Node) bool {
+func (a *rewriteDynamicImportsAliasInjector) ShouldTraverse(t *NodeTraversal, n rhino.Node, parent rhino.Node) bool {
 	r := a.outer
 	jutil.CheckState(r.AliasIsValid())
-	alias := *r.alias
+	alias := r.alias
 
 	// If the extern is a simple name and already declared, there is nothing to do
 	if NodeUtil_IsValidSimpleName(alias) && t.GetScope().GetVar(alias) != nil {
@@ -612,7 +607,7 @@ func (e *Es6RewriteScriptsToModules) ForceToEs6Module(root rhino.Node) {
 
 // Java: Es6RewriteScriptsToModules.process(Node, Node)
 func (e *Es6RewriteScriptsToModules) Process(externs rhino.Node, root rhino.Node) {
-	for file := root.GetFirstChild(); !file.IsNil(); file = file.GetNext() {
+	for file := range root.Children() {
 		jutil.CheckArgument(file.IsScript())
 		NodeTraversal_Traverse(e.compiler, file, e)
 	}

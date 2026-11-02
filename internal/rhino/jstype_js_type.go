@@ -189,7 +189,6 @@ type JSType interface {
 	Dereference() ObjectType
 	CanTestForEqualityWith(that JSType) bool
 	TestForEquality(that JSType) base.Tri
-	TestForEqualityHelper(aType JSType, bType JSType) base.Tri
 	CanTestForShallowEqualityWith(that JSType) bool
 	IsNullable() bool
 	IsVoidable() bool
@@ -344,7 +343,11 @@ const (
 	jsKindAll
 	jsKindNull
 	jsKindVoid
-	jsKindScalarValue
+	jsKindBoolean
+	jsKindNumber
+	jsKindString
+	jsKindBigInt
+	jsKindSymbol
 	jsKindKnownSymbol
 )
 
@@ -354,20 +357,25 @@ const (
 )
 
 const (
-	jsKindProxyOrFallbackMask uint32 = (1 << objKindFallback) |
-		(1 << objKindNamed) |
+	jsKindProxyMask uint32 = (1 << objKindNamed) |
 		(1 << objKindTemplatized) |
 		(1 << objKindTemplate) |
 		(1 << objKindProxy)
-	jsKindMaybeUnknownMask uint32 = jsKindProxyOrFallbackMask | (1 << jsKindUnion)
-	jsKindComplexEqMask    uint32 = jsKindMaybeUnknownMask | (1 << objKindUnknown)
-	jsKindValueMask        uint32 = (1 << jsKindNull) |
+	jsKindProxyOrFallbackMask uint32 = jsKindProxyMask | (1 << objKindFallback)
+	jsKindMaybeUnknownMask    uint32 = jsKindProxyOrFallbackMask | (1 << jsKindUnion)
+	jsKindComplexEqMask       uint32 = jsKindMaybeUnknownMask | (1 << objKindUnknown)
+	jsKindScalarValueMask     uint32 = (1 << jsKindBoolean) |
+		(1 << jsKindNumber) |
+		(1 << jsKindString) |
+		(1 << jsKindBigInt) |
+		(1 << jsKindSymbol)
+	jsKindValueMask uint32 = (1 << jsKindNull) |
 		(1 << jsKindVoid) |
-		(1 << jsKindScalarValue) |
+		jsKindScalarValueMask |
 		(1 << jsKindKnownSymbol)
 	jsKindNonObjectMask           uint32 = jsKindValueMask | (1 << jsKindAll)
 	jsKindMaybeRecordMask         uint32 = (1 << objKindRecord) | jsKindProxyOrFallbackMask
-	jsKindSimpleDisjointValueMask uint32 = (1 << jsKindNull) | (1 << jsKindVoid) | (1 << jsKindScalarValue)
+	jsKindSimpleDisjointValueMask uint32 = (1 << jsKindNull) | (1 << jsKindVoid) | jsKindScalarValueMask
 	jsKindCanRelateToValueMask    uint32 = jsKindProxyOrFallbackMask |
 		(1 << jsKindKnownSymbol) |
 		(1 << objKindEnumElement) |
@@ -376,6 +384,72 @@ const (
 		(1 << jsKindAll) |
 		(1 << jsKindUnion)
 )
+
+func (t *JSTypeBase) unwrapProxies() *JSTypeBase {
+	if (uint32(1)<<(t.objFlags&objKindMask))&jsKindProxyMask == 0 {
+		return t
+	}
+	return t.unwrapProxiesSlow()
+}
+
+//go:noinline
+func (t *JSTypeBase) unwrapProxiesSlow() *JSTypeBase {
+	cur := t.self_.(ProxyObjectType).GetProxyObjectTypeBase().referencedType.GetJSTypeBase()
+	for (uint32(1)<<(cur.objFlags&objKindMask))&jsKindProxyMask != 0 {
+		cur = cur.self_.(ProxyObjectType).GetProxyObjectTypeBase().referencedType.GetJSTypeBase()
+	}
+	return cur
+}
+
+func (t *JSTypeBase) unwrapProxyKind(targetKind uint8) *JSTypeBase {
+	k := t.objFlags & objKindMask
+	if k == targetKind {
+		return t
+	}
+	if (uint32(1)<<k)&jsKindProxyMask == 0 {
+		return nil
+	}
+	return t.unwrapProxyKindSlow(targetKind)
+}
+
+//go:noinline
+func (t *JSTypeBase) unwrapProxyKindSlow(targetKind uint8) *JSTypeBase {
+	cur := t.self_.(ProxyObjectType).GetProxyObjectTypeBase().referencedType.GetJSTypeBase()
+	for {
+		k := cur.objFlags & objKindMask
+		if k == targetKind {
+			return cur
+		}
+		if (uint32(1)<<k)&jsKindProxyMask == 0 {
+			return nil
+		}
+		cur = cur.self_.(ProxyObjectType).GetProxyObjectTypeBase().referencedType.GetJSTypeBase()
+	}
+}
+
+func (t *JSTypeBase) hasProxyKind(targetKind uint8) bool {
+	k := t.objFlags & objKindMask
+	if k == targetKind {
+		return true
+	}
+	if (uint32(1)<<k)&jsKindProxyMask == 0 {
+		return false
+	}
+	return t.unwrapProxyKindSlow(targetKind) != nil
+}
+
+func (t *JSTypeBase) isNativeInstanceClass(name string) bool {
+	if (t.objFlags & objKindMask) != objKindInstance {
+		return false
+	}
+	return t.isNativeInstanceClassSlow(name)
+}
+
+//go:noinline
+func (t *JSTypeBase) isNativeInstanceClassSlow(name string) bool {
+	c := t.self_.(*InstanceObjectType).constructor
+	return (c.protoFlags&protoFlagNative) != 0 && c.classNameID != 0 && rhinoStringFromID(c.classNameID) == name
+}
 
 func jsTypeBase(x JSType) *JSTypeBase {
 	if x == nil {
@@ -597,17 +671,21 @@ func (t *JSTypeBase) HasPropertyByKey(pname Property_Key) bool {
 
 // Java: JSType.isNoType()
 func (t *JSTypeBase) IsNoType() bool {
-	return false
+	return t.hasProxyKind(objKindNo)
 }
 
 // Java: JSType.isNoResolvedType()
 func (t *JSTypeBase) IsNoResolvedType() bool {
-	return false
+	cur := t.unwrapProxies()
+	if cur != t && (cur.objFlags&objKindMask) == objKindFallback {
+		return cur.self_.IsNoResolvedType()
+	}
+	return (cur.objFlags & objKindMask) == objKindNoResolved
 }
 
 // Java: JSType.isNoObjectType()
 func (t *JSTypeBase) IsNoObjectType() bool {
-	return false
+	return t.hasProxyKind(objKindNoObject)
 }
 
 // Java: JSType.isEmptyType()
@@ -620,22 +698,22 @@ func (t *JSTypeBase) IsEmptyType() bool {
 
 // Java: JSType.isNumberObjectType()
 func (t *JSTypeBase) IsNumberObjectType() bool {
-	return false
+	return t.isNativeInstanceClass("Number")
 }
 
 // Java: JSType.isNumberValueType()
 func (t *JSTypeBase) IsNumberValueType() bool {
-	return false
+	return (t.objFlags & objKindMask) == jsKindNumber
 }
 
 // Java: JSType.isBigIntObjectType()
 func (t *JSTypeBase) IsBigIntObjectType() bool {
-	return false
+	return t.isNativeInstanceClass("BigInt")
 }
 
 // Java: JSType.isBigIntValueType()
 func (t *JSTypeBase) IsBigIntValueType() bool {
-	return false
+	return (t.objFlags & objKindMask) == jsKindBigInt
 }
 
 // IsFunctionPrototypeType reports whether this is the prototype of a
@@ -649,32 +727,33 @@ func (t *JSTypeBase) IsFunctionPrototypeType() bool {
 
 // Java: JSType.isStringObjectType()
 func (t *JSTypeBase) IsStringObjectType() bool {
-	return false
+	return t.isNativeInstanceClass("String")
 }
 
 // Java: JSType.isSymbolObjectType()
 func (t *JSTypeBase) IsSymbolObjectType() bool {
-	return false
+	return t.isNativeInstanceClass("Symbol")
 }
 
 // Java: JSType.isTheObjectType()
 func (t *JSTypeBase) IsTheObjectType() bool {
-	return false
+	return t.isNativeInstanceClass("Object")
 }
 
 // Java: JSType.isStringValueType()
 func (t *JSTypeBase) IsStringValueType() bool {
-	return false
+	return (t.objFlags & objKindMask) == jsKindString
 }
 
 // Java: JSType.isSymbolValueType()
 func (t *JSTypeBase) IsSymbolValueType() bool {
-	return false
+	k := t.objFlags & objKindMask
+	return k == jsKindSymbol || k == jsKindKnownSymbol
 }
 
 // Java: JSType.isKnownSymbolValueType()
 func (t *JSTypeBase) IsKnownSymbolValueType() bool {
-	return false
+	return (t.objFlags & objKindMask) == jsKindKnownSymbol
 }
 
 // IsString tests whether the type is a string (value or Object). Returns
@@ -724,47 +803,47 @@ func (t *JSTypeBase) IsOnlyBigInt() bool {
 
 // Java: JSType.isArrayType()
 func (t *JSTypeBase) IsArrayType() bool {
-	return false
+	return t.isNativeInstanceClass("Array")
 }
 
 // Java: JSType.isReadonlyArrayType()
 func (t *JSTypeBase) IsReadonlyArrayType() bool {
-	return false
+	return t.isNativeInstanceClass("ReadonlyArray")
 }
 
 // Java: JSType.isBooleanObjectType()
 func (t *JSTypeBase) IsBooleanObjectType() bool {
-	return false
+	return t.isNativeInstanceClass("Boolean")
 }
 
 // Java: JSType.isBooleanValueType()
 func (t *JSTypeBase) IsBooleanValueType() bool {
-	return false
+	return (t.objFlags & objKindMask) == jsKindBoolean
 }
 
 // Java: JSType.isRegexpType()
 func (t *JSTypeBase) IsRegexpType() bool {
-	return false
+	return t.isNativeInstanceClass("RegExp")
 }
 
 // Java: JSType.isDateType()
 func (t *JSTypeBase) IsDateType() bool {
-	return false
+	return t.isNativeInstanceClass("Date")
 }
 
 // Java: JSType.isNullType()
 func (t *JSTypeBase) IsNullType() bool {
-	return false
+	return (t.objFlags & objKindMask) == jsKindNull
 }
 
 // Java: JSType.isVoidType()
 func (t *JSTypeBase) IsVoidType() bool {
-	return false
+	return (t.objFlags & objKindMask) == jsKindVoid
 }
 
 // Java: JSType.isAllType()
 func (t *JSTypeBase) IsAllType() bool {
-	return false
+	return t.hasProxyKind(jsKindAll)
 }
 
 // Java: JSType.isUnknownType()
@@ -781,12 +860,13 @@ func (t *JSTypeBase) IsSomeUnknownType() bool {
 
 // Java: JSType.isCheckedUnknownType()
 func (t *JSTypeBase) IsCheckedUnknownType() bool {
-	return false
+	b := t.unwrapProxyKind(objKindUnknown)
+	return b != nil && b.self_.(*UnknownType).isChecked
 }
 
 // Java: JSType.isUnionType()
 func (t *JSTypeBase) IsUnionType() bool {
-	return false
+	return t.hasProxyKind(jsKindUnion)
 }
 
 // Java: JSType.isRawTypeOfTemplatizedType()

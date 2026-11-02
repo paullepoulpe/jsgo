@@ -54,6 +54,7 @@ package parsing
 
 import (
 	_ "embed"
+	"slices"
 	"strings"
 	"sync"
 	"unicode/utf16"
@@ -65,7 +66,7 @@ import (
 )
 
 var (
-	parserRunner_defaultExtraAnnotations *jutil.LinkedHashSet[string]
+	parserRunner_defaultExtraAnnotations []string
 	parserRunner_defaultAnnotations      map[string]Annotation
 	parserRunner_suppressionNames        *jutil.LinkedHashSet[string]
 	parserRunner_reservedVars            *jutil.LinkedHashSet[string]
@@ -87,26 +88,23 @@ func ParserRunner_CreateConfigWithModes(
 	if extraAnnotationNames == nil || extraAnnotationNames.IsEmpty() {
 		annotations = parserRunner_defaultAnnotations
 	} else {
-		var custom *jutil.LinkedHashSet[string]
-		if !extra.IsEmpty() {
-			custom = jutil.NewLinkedHashSetWithCapacity[string](extra.Size() + extraAnnotationNames.Size())
-			for name := range extra.All() {
-				custom.AddNew(name)
-			}
+		var custom []string
+		if len(extra) > 0 {
+			custom = make([]string, len(extra), len(extra)+extraAnnotationNames.Size())
+			copy(custom, extra)
 		}
 		for name := range extraAnnotationNames.All() {
 			if name == "" {
 				continue
 			}
 			if _, recognized := Annotation_recognizedAnnotations[name]; !recognized {
-				if custom == nil {
-					custom = jutil.NewLinkedHashSet[string]()
+				if !slices.Contains(custom, name) {
+					custom = append(custom, name)
 				}
-				custom.Add(name)
 			}
 		}
 		extra = custom
-		if extra.IsEmpty() {
+		if len(extra) == 0 {
 			annotations = Annotation_recognizedAnnotations
 		}
 	}
@@ -147,10 +145,9 @@ func ParserRunner_InitResourceConfig() {
 				continue
 			}
 			if _, recognized := Annotation_recognizedAnnotations[name]; !recognized {
-				if parserRunner_defaultExtraAnnotations == nil {
-					parserRunner_defaultExtraAnnotations = jutil.NewLinkedHashSet[string]()
+				if !slices.Contains(parserRunner_defaultExtraAnnotations, name) {
+					parserRunner_defaultExtraAnnotations = append(parserRunner_defaultExtraAnnotations, name)
 				}
-				parserRunner_defaultExtraAnnotations.Add(name)
 			}
 		}
 		parserRunner_defaultAnnotations = Config_BuildAnnotations(annotations.All())

@@ -54,8 +54,8 @@ func (r *prebuildDependencyCallbackRecorder) record(kind string, level CheckLeve
 	r.events = append(r.events, prebuildDependencyCallback{kind, source, level})
 }
 
-func (r *prebuildDependencyCallbackRecorder) Report(level *CheckLevel, error *JSError) {
-	r.record("handler", *level, error)
+func (r *prebuildDependencyCallbackRecorder) Report(level CheckLevel, error *JSError) {
+	r.record("handler", level, error)
 }
 
 type prebuildDependencyWarningGuard struct {
@@ -64,12 +64,12 @@ type prebuildDependencyWarningGuard struct {
 	level    CheckLevel
 }
 
-func (g *prebuildDependencyWarningGuard) Level(error *JSError) *CheckLevel {
+func (g *prebuildDependencyWarningGuard) Level(error *JSError) (CheckLevel, bool) {
 	if error.Type() != ModuleLoader_LOAD_WARNING {
-		return nil
+		return 0, false
 	}
 	g.recorder.record("guard", g.level, error)
-	return g.level.Ptr()
+	return g.level, true
 }
 
 func TestPrebuildDependencyDiagnosticsPreserveHandlerAndGuardRouting(t *testing.T) {

@@ -19,7 +19,9 @@
 package jscomp
 
 import (
+	"hash/maphash"
 	"iter"
+	"slices"
 
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
@@ -112,6 +114,8 @@ func (b *scopeCommon) initScopeCommon(rootNode rhino.Node) {
 	*b = scopeCommon{rootNode: rhino.CheckNotNull(rootNode)}
 }
 
+func (b *scopeCommon) common() *scopeCommon { return b }
+
 // Java: AbstractScope.getDepth()
 func (b *scopeCommon) GetDepth() int {
 	return int(b.depth)
@@ -120,16 +124,6 @@ func (b *scopeCommon) GetDepth() int {
 // Java: AbstractScope.toString()
 func (b *scopeCommon) String() string {
 	return "Scope@" + jutil.ToJavaString(b.rootNode)
-}
-
-// Java: AbstractScope.untyped()
-func (b *scopeCommon) Untyped() *Scope {
-	panic(jutil.NewIllegalStateExceptionMsg("untyped() called, but not an untyped scope."))
-}
-
-// Java: AbstractScope.typed()
-func (b *scopeCommon) Typed() *TypedScope {
-	panic(jutil.NewIllegalStateExceptionMsg("typed() called, but not a typed scope."))
 }
 
 // GetRootNode gets the container node of the scope. This is typically the
@@ -206,9 +200,158 @@ func (b *scopeCommon) IsHoistScope() bool {
 		NodeUtil_IsClassStaticBlock(b.rootNode)
 }
 
+var scopeHashSeed = maphash.MakeSeed()
+
+func scopeNameHash(s string) uint32 {
+	if s == "" {
+		return 0
+	}
+	return uint32(maphash.String(scopeHashSeed, s))
+}
+
+func scopeBloomFromHash(h uint32) uint64 {
+	return (uint64(1) << (h & 63)) | (uint64(1) << ((h >> 6) & 63))
+}
+
+func scopeIDHash(id uint32) uint32 {
+	h := id * 0x9e3779b1
+	h ^= h >> 16
+	h *= 0x85ebca6b
+	return h ^ (h >> 13)
+}
+
+func scopeBloomFromID(id uint32) uint64 {
+	return scopeBloomFromHash(scopeIDHash(id))
+}
+
+const (
+	scopeSmallVars      = 8
+	scopeIndexTagMask   = 0xFF000000
+	scopeIndexPosMask   = 0x00FFFFFF
+	scopeIndexMinLength = 32
+)
+
+// scopeVarIndex holds the open-addressing hash index and 2-bit-per-name Bloom
+// filter shared by Scope and TypedScope (16 bytes: pointer + uint64).
+//
+// Each non-zero table slot stores (h & scopeIndexTagMask) | uint32(pos + 1),
+// keeping the table pointer-free for the GC and at most half full.
+type scopeVarIndex struct {
+	varIndex *[]uint32
+	varBloom uint64
+}
+
+func (idx *scopeVarIndex) insertSlot(pos int, h uint32) {
+	table := *idx.varIndex
+	mask := uint32(len(table) - 1)
+	slot := h & mask
+	for table[slot] != 0 {
+		slot = (slot + 1) & mask
+	}
+	table[slot] = h&scopeIndexTagMask | uint32(pos+1)
+}
+
+func (idx *scopeVarIndex) allocTable(nVars int) bool {
+	if nVars <= scopeSmallVars {
+		idx.varIndex = nil
+		return false
+	}
+	n := scopeIndexMinLength
+	for n < 4*nVars {
+		n *= 2
+	}
+	table := make([]uint32, n)
+	idx.varIndex = &table
+	return true
+}
+
+func (idx *scopeVarIndex) recordAdded(nVars int, h uint32, bloom uint64) bool {
+	idx.varBloom |= bloom
+	if idx.varIndex != nil && nVars*2 <= len(*idx.varIndex) {
+		idx.insertSlot(nVars-1, h)
+		return false
+	}
+	return nVars > scopeSmallVars
+}
+
+func scopeRebuildIndex[V any](idx *scopeVarIndex, vars []V, hashOf func(V) uint32) {
+	if !idx.allocTable(len(vars)) {
+		return
+	}
+	for i, v := range vars {
+		idx.insertSlot(i, hashOf(v))
+	}
+}
+
+func scopeAppendVar[V any](
+	c *scopeCommon, idx *scopeVarIndex, vars *[]V, var_ V, h uint32, bloom uint64, hashOf func(V) uint32,
+) {
+	c.varsInitialized = true
+	*vars = append(*vars, var_)
+	if idx.recordAdded(len(*vars), h, bloom) {
+		scopeRebuildIndex(idx, *vars, hashOf)
+	}
+}
+
+func scopeUndeclare[V jutil.Equaler](
+	var_ V, c *scopeCommon, idx *scopeVarIndex, vars *[]V, pos int, hashOf func(V) uint32,
+) {
+	if pos < 0 {
+		panic(jutil.NewNullPointerException())
+	}
+	jutil.CheckState((*vars)[pos].Equals(var_))
+	if !c.varsInitialized {
+		panic(jutil.NewUnsupportedOperationException())
+	}
+	*vars = slices.Delete(*vars, pos, pos+1)
+	if idx.varIndex != nil {
+		scopeRebuildIndex(idx, *vars, hashOf)
+	}
+	if len(*vars) == 0 {
+		idx.varBloom = 0
+	}
+}
+
+func scopeVarSeq[V any](vars *[]V) iter.Seq[V] {
+	return func(yield func(V) bool) {
+		for i := 0; i < len(*vars); i++ {
+			if !yield((*vars)[i]) {
+				return
+			}
+		}
+	}
+}
+
+func scopeGetImplicitVar[S any, V comparable](
+	s S, cache **[4]V, imp AbstractScope_ImplicitVar, makeVar func(S, AbstractScope_ImplicitVar) V,
+) V {
+	var zero V
+	if *cache == nil {
+		*cache = new([4]V)
+	}
+	if v := (*cache)[imp]; v != zero {
+		return v
+	}
+	if v := makeVar(s, imp); v != zero {
+		(*cache)[imp] = v
+		return v
+	}
+	return zero
+}
+
+func isBleedingFunctionNode(nameNode rhino.Node) bool {
+	return !nameNode.IsNil() && nameNode.GetParent().IsFunction()
+}
+
+//go:noinline
+func failIllegalShadow(nameNode rhino.Node) {
+	panic(jutil.NewIllegalStateExceptionMsg(jutil.LenientFormat("Illegal shadow: %s", nameNode)))
+}
+
 type scopeChain[S comparable] interface {
 	comparable
 	parentScope() S
+	lookupParentScope() S
 	common() *scopeCommon
 }
 
@@ -262,6 +405,10 @@ func scopeClosestContainer[S scopeChain[S]](s S) S {
 	return scope
 }
 
+func scopeHasSameContainer[S scopeChain[S]](s, other S) bool {
+	return s == other || scopeClosestContainer(s) == scopeClosestContainer(other)
+}
+
 func scopeCommonParent[S scopeChain[S]](s, other S) S {
 	var zero S
 	left, right := s, other
@@ -285,6 +432,21 @@ func scopeOfThis[S scopeChain[S]](s S) S {
 		scope = scopeClosestContainer(p)
 	}
 	return scope
+}
+
+func scopeArgumentsVar[S scopeChain[S], V comparable](
+	s S, getImplicit func(S, AbstractScope_ImplicitVar) V,
+) V {
+	var zeroS S
+	var zeroV V
+	for cur := s; cur != zeroS; cur = cur.lookupParentScope() {
+		if cur.common().hasImplicitVars {
+			if v := getImplicit(cur, AbstractScope_ImplicitVar_ARGUMENTS); v != zeroV {
+				return v
+			}
+		}
+	}
+	return zeroV
 }
 
 func scopeAllAccessibleVars[S scopeChain[S], V any, K comparable](
@@ -315,11 +477,15 @@ func scopeAllAccessibleVars[S scopeChain[S], V any, K comparable](
 	}
 }
 
-func (b *scopeCommon) checkChildScopeRoot(parentRoot rhino.Node) {
+func checkChildScope[S scopeChain[S]](b *scopeCommon, parent S) {
+	var zero S
+	if parent == zero {
+		panic(jutil.NewNullPointerException())
+	}
 	if !NodeUtil_CreatesScope(b.rootNode) {
 		panic(jutil.NewIllegalArgumentExceptionMsg(jutil.LenientFormat("%s", b.rootNode)))
 	}
-	if b.rootNode == parentRoot {
+	if b.rootNode == parent.common().rootNode {
 		panic(jutil.NewIllegalArgumentExceptionMsg(
 			jutil.LenientFormat("rootNode should not be the parent's root node: %s", b.rootNode)))
 	}
@@ -375,9 +541,6 @@ var (
 
 // String is Enum.name().
 func (v AbstractScope_ImplicitVar) String() string { return abstractScope_ImplicitVar_names[v] }
-
-// Ordinal is Enum.ordinal().
-func (v AbstractScope_ImplicitVar) Ordinal() int { return int(v) }
 
 // name is the field ImplicitVar.name.
 func (v AbstractScope_ImplicitVar) name() string { return abstractScope_ImplicitVar_name[v] }

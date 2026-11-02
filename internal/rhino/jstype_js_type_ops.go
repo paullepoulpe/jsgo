@@ -146,11 +146,11 @@ func jsTypeCheckTriNotNull(t base.Tri) {
 //
 // Java: JSType.testForEquality(JSType)
 func (t *JSTypeBase) TestForEquality(that JSType) base.Tri {
-	return t.self().TestForEqualityHelper(t.self(), that)
+	return t.testForEqualityHelper(t.self(), that)
 }
 
 // Java: JSType.testForEqualityHelper(JSType, JSType)
-func (t *JSTypeBase) TestForEqualityHelper(aType JSType, bType JSType) base.Tri {
+func (t *JSTypeBase) testForEqualityHelper(aType JSType, bType JSType) base.Tri {
 	if bType.IsAllType() || bType.IsUnknownType() ||
 		bType.IsNoResolvedType() ||
 		aType.IsAllType() || aType.IsUnknownType() ||

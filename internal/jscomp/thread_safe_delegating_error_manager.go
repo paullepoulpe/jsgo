@@ -47,7 +47,7 @@ func NewThreadSafeDelegatingErrorManager(delegated ErrorManager) *ThreadSafeDele
 }
 
 // Java: ThreadSafeDelegatingErrorManager.report(CheckLevel, JSError)
-func (m *ThreadSafeDelegatingErrorManager) Report(level *CheckLevel, error *JSError) {
+func (m *ThreadSafeDelegatingErrorManager) Report(level CheckLevel, error *JSError) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.delegated.Report(level, error)

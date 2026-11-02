@@ -279,8 +279,8 @@ func jsMessageExtractorTest_assertEquals(t *testing.T, expected *JsMessage, actu
 	if !same {
 		t.Errorf("parts = %v, want %v", ap, ep)
 	}
-	if !jutil.ObjectsEquals(actual.JsPlaceholderNames(), expected.JsPlaceholderNames()) {
-		t.Errorf("jsPlaceholderNames = %v, want %v", actual.JsPlaceholderNames(), expected.JsPlaceholderNames())
+	if !actual.JsPlaceholderNames().Equal(expected.JsPlaceholderNames()) {
+		t.Errorf("jsPlaceholderNames = %v, want %v", actual.JsPlaceholderSlice(), expected.JsPlaceholderSlice())
 	}
 	if !jutil.ObjectsEquals(actual.GetDesc(), expected.GetDesc()) {
 		t.Errorf("desc = %v, want %v", jutil.ToJavaString(actual.GetDesc()), jutil.ToJavaString(expected.GetDesc()))

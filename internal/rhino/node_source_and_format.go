@@ -46,6 +46,7 @@ import (
 
 	"github.com/paullepoulpe/jsgo/internal/base"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
+	"github.com/paullepoulpe/jsgo/internal/strpool"
 )
 
 // Java: Node.getDouble()
@@ -133,7 +134,7 @@ func (n Node) GetStringID() uint32 {
 // Java: Node.setString(String)
 func (n Node) SetString(str string) {
 	n.node_castKind(node_kindString)
-	n.setStringPayload(rhinoStringPoolIntern(str))
+	n.setStringPayload(strpool.Intern(str))
 }
 
 // Java: Node.setStringFromStringPool(RhinoStringPool.LazyInternedStringList, int)
@@ -234,7 +235,7 @@ func (n Node) ToStringInto(sb *strings.Builder, printSource bool, printAnnotatio
 		}
 		if origID := n.node_originalNameID(); origID != 0 {
 			sb.WriteString(" [original_name: ")
-			sb.WriteString(rhinoStringFromID(origID))
+			sb.WriteString(strpool.String(origID))
 			sb.WriteByte(']')
 		}
 	}
@@ -306,7 +307,7 @@ func (n Node) ToJson(appendable io.StringWriter) {
 
 	if origID := n.node_originalNameID(); origID != 0 {
 		sb.append(",")
-		sb.append(Node_CreateJsonPair("original_name", rhinoStringFromID(origID)))
+		sb.append(Node_CreateJsonPair("original_name", strpool.String(origID)))
 	}
 
 	keys := n.GetSortedPropTypes()
@@ -398,7 +399,7 @@ func (n Node) node_number() float64 {
 
 // node_cooked is the TemplateLiteralSubstringNode.cooked field.
 func (n Node) node_cooked() *string {
-	return rhinoStringPtrFromID(n.node_cookedID())
+	return strpool.StringPtr(n.node_cookedID())
 }
 
 // ==========================================================================
@@ -471,7 +472,7 @@ func (n Node) GetInputId() *InputId {
 //
 // Java: Node.getOriginalName()
 func (n Node) GetOriginalName() *string {
-	return rhinoStringPtrFromID(n.node_originalNameID())
+	return strpool.StringPtr(n.node_originalNameID())
 }
 
 // GetOriginalNameID returns the 32-bit interned originalName ID of n, or 0 if unset.
@@ -485,22 +486,18 @@ func (n Node) GetOriginalNameString() (string, bool) {
 	if id == 0 {
 		return "", false
 	}
-	return rhinoStringFromID(id), true
+	return strpool.String(id), true
 }
 
 // Java: Node.setOriginalName(String)
 func (n Node) SetOriginalName(s *string) {
-	if s == nil {
-		n.node_setOriginalNameID(0)
-	} else {
-		n.node_setOriginalNameID(rhinoStringPoolIntern(*s))
-	}
+	n.node_setOriginalNameID(rhinoStringIDFromPtr(s))
 }
 
 // SetOriginalNameString interns s in RhinoStringPool and sets it as the node's
 // original name without boxing s on the heap.
 func (n Node) SetOriginalNameString(s string) {
-	n.node_setOriginalNameID(rhinoStringPoolIntern(s))
+	n.node_setOriginalNameID(strpool.Intern(s))
 }
 
 // Java: Node.setOriginalNameFromStringPool(RhinoStringPool.LazyInternedStringList, int)

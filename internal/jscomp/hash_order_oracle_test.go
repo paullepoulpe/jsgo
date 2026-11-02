@@ -99,11 +99,11 @@ type hashOrderGuard struct {
 
 func (*hashOrderGuard) GetPriority() int { return -1000 }
 
-func (g *hashOrderGuard) Level(error *JSError) *CheckLevel {
+func (g *hashOrderGuard) Level(error *JSError) (CheckLevel, bool) {
 	if g.recording {
 		g.diags = append(g.diags, hashOrderFormat(error))
 	}
-	return nil
+	return 0, false
 }
 
 // hashOrderDumpOne is HashOrderDump.dumpOne.

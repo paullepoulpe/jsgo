@@ -78,7 +78,7 @@ func newNodeTraversalTest_ErrorManager(errors *[]*JSError) *nodeTraversalTest_Er
 	return m
 }
 
-func (m *nodeTraversalTest_ErrorManager) Report(level *CheckLevel, error_ *JSError) {
+func (m *nodeTraversalTest_ErrorManager) Report(level CheckLevel, error_ *JSError) {
 	*m.errors = append(*m.errors, error_)
 }
 

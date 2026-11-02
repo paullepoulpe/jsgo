@@ -244,22 +244,21 @@ func (c *rescopeRewriteCallback) rewriteNameDeclaration(
 			declaration.SetToken(rhino.Token_VAR)
 		}
 		var astRoot rhino.Node
-		for child := declaration.GetFirstChild(); !child.IsNil(); {
-			next := child.GetNext()
-			if child.IsName() {
-				id := child.GetStringID()
-				name := child.GetString()
+		for decl := range ast.ReadAhead(ast.MustNameDeclaration(declaration).FirstDeclarator()) {
+			if nameDecl, ok := decl.AsName(); ok {
+				id := nameDecl.Node().GetStringID()
+				name := nameDecl.Ident()
 				if !c.globalVarStaysLocalInDefiningChunk(id, name, scope) {
-					if child.HasChildren() {
-						assign := rhino.IR_Assign(child.CloneNode(), child.RemoveFirstChild())
-						child.ReplaceWith(assign)
+					if init, hasInit := nameDecl.Init(); hasInit {
+						assign := rhino.IR_Assign(nameDecl.Node().CloneNode(), init.Detach().Node())
+						nameDecl.Node().ReplaceWith(assign)
 						assign.SetJSDocInfo(declaration.GetJSDocInfo())
 					} else if c.isExternVar(id, scope) {
-						child.Detach()
+						nameDecl.Detach()
 					}
 				}
-			} else if child.IsDestructuringLhs() {
-				NodeUtil_VisitLhsNodesInNode(child, func(lhs rhino.Node) {
+			} else if dlhs, ok := decl.AsDestructuringLhs(); ok {
+				NodeUtil_VisitLhsNodesInNode(dlhs.Node(), func(lhs rhino.Node) {
 					id := lhs.GetStringID()
 					name := lhs.GetString()
 					if c.globalVarStaysLocalInDefiningChunk(id, name, scope) {
@@ -270,13 +269,12 @@ func (c *rescopeRewriteCallback) rewriteNameDeclaration(
 							rescopeChunkGlobal{root: astRoot, name: rhino.IR_Name(name).Srcref(lhs)})
 					}
 				})
-				first := child.RemoveFirstChild()
-				second := child.RemoveFirstChild()
-				assign := rhino.IR_Assign(first, second)
-				child.ReplaceWith(assign)
+				pattern := dlhs.Pattern()
+				init, _ := dlhs.Init()
+				assign := rhino.IR_Assign(pattern.Detach().Node(), init.Detach().Node())
+				dlhs.Node().ReplaceWith(assign)
 				assign.SetJSDocInfo(declaration.GetJSDocInfo())
 			}
-			child = next
 		}
 		c.compiler.ReportChangeToEnclosingScope(declaration)
 		return
@@ -466,8 +464,8 @@ func (c *rescopeRewriteCallback) addGlobalNamespaceAlias(n rhino.Node, name stri
 		parent.AddChildToBack(globalNamespaceAssign)
 		c.compiler.ReportChangeToEnclosingScope(parent)
 	} else if NodeUtil_IsNameDeclaration(parent) {
-		rhs := n.RemoveFirstChild()
-		globalNamespaceAssign := rhino.IR_Assign(rhino.IR_Getprop(rhino.IR_Name(c.globalSymbolNamespace), name), rhs)
+		init, _ := ast.MustName(n).Init()
+		globalNamespaceAssign := rhino.IR_Assign(rhino.IR_Getprop(rhino.IR_Name(c.globalSymbolNamespace), name), init.Detach().Node())
 		globalNamespaceAssign.SrcrefTree(n)
 		n.AddChildToBack(globalNamespaceAssign)
 		c.compiler.ReportChangeToEnclosingScope(n)
@@ -491,8 +489,8 @@ func (c *rescopeRewriteCallback) addDeclarations() {
 func (c *rescopeRewriteCallback) declareChunkGlobals() {
 	for i := range c.preDeclarations {
 		global := &c.preDeclarations[i]
-		if global.root.HasChildren() && global.root.GetFirstChild().IsVar() {
-			global.root.GetFirstChild().AddChildToBack(global.name)
+		if first, ok := ast.MustScript(global.root).FirstItem(); ok && first.Token() == rhino.Token_VAR {
+			first.Node().AddChildToBack(global.name)
 		} else {
 			global.root.AddChildToFront(rhino.IR_Var(global.name).Srcref(global.name))
 		}

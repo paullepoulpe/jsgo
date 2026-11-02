@@ -91,31 +91,29 @@ func SuppressDocWarningsGuard_CreateSuppressors(
 }
 
 // Java: SuppressDocWarningsGuard.level(JSError)
-func (g *SuppressDocWarningsGuard) Level(error *JSError) *CheckLevel {
+func (g *SuppressDocWarningsGuard) Level(error *JSError) (CheckLevel, bool) {
 	node := error.Node()
 	if node.IsNil() {
 		node = g.GetScriptNodeBySourceName(error)
 	}
 	if node.IsNil() {
-		return nil
+		return 0, false
 	}
 
-	level := g.GetCheckLevelFromAncestors(error, node)
-	if level != nil {
-		return level
+	if level, ok := g.GetCheckLevelFromAncestors(error, node); ok {
+		return level, true
 	}
 
 	// Some errors are on nodes that do not have the script as a parent.
 	// Look up the script node by filename.
 	scriptNode := g.GetScriptNodeBySourceName(error)
 	if !scriptNode.IsNil() {
-		info := scriptNode.GetJSDocInfo()
-		if info != nil {
+		if info := scriptNode.GetJSDocInfo(); info != nil {
 			return g.GetCheckLevelFromInfo(error, info)
 		}
 	}
 
-	return nil
+	return 0, false
 }
 
 // GetCheckLevelFromAncestors searches for @suppress tags on nodes
@@ -125,7 +123,7 @@ func (g *SuppressDocWarningsGuard) Level(error *JSError) *CheckLevel {
 // keys, and the top level script node.
 //
 // Java: SuppressDocWarningsGuard.getCheckLevelFromAncestors(JSError, Node)
-func (g *SuppressDocWarningsGuard) GetCheckLevelFromAncestors(error *JSError, node rhino.Node) *CheckLevel {
+func (g *SuppressDocWarningsGuard) GetCheckLevelFromAncestors(error *JSError, node rhino.Node) (CheckLevel, bool) {
 	for current := node; !current.IsNil(); current = current.GetParent() {
 		var info *rhino.JSDocInfo
 		if current.IsFunction() || current.IsClass() {
@@ -142,44 +140,45 @@ func (g *SuppressDocWarningsGuard) GetCheckLevelFromAncestors(error *JSError, no
 		}
 
 		if info != nil {
-			level := g.GetCheckLevelFromInfo(error, info)
-			if level != nil {
-				return level
+			if level, ok := g.GetCheckLevelFromInfo(error, info); ok {
+				return level, true
 			}
 		}
 	}
 
-	return nil
+	return 0, false
 }
 
 // GetCheckLevelFromInfo: if the given JSDocInfo has an @suppress for the
 // given JSError, returns the new level.
 //
 // Java: SuppressDocWarningsGuard.getCheckLevelFromInfo(JSError, JSDocInfo)
-func (g *SuppressDocWarningsGuard) GetCheckLevelFromInfo(error *JSError, info *rhino.JSDocInfo) *CheckLevel {
-	var matched *CheckLevel
+func (g *SuppressDocWarningsGuard) GetCheckLevelFromInfo(error *JSError, info *rhino.JSDocInfo) (CheckLevel, bool) {
+	var matched CheckLevel
+	var found bool
 	info.ForEachSuppression(func(suppressor string) bool {
 		group := g.suppressors[suppressor]
 		if group == nil {
 			return true // Some @suppress tags are for other tools, and may not have a group.
 		}
 		if group.Matches(error) {
-			matched = CheckLevel_OFF.Ptr()
+			matched = CheckLevel_OFF
+			found = true
 			return false
 		}
 		return true
 	})
-	return matched
+	return matched, found
 }
 
 // Java: SuppressDocWarningsGuard.getScriptNodeBySourceName(JSError)
 func (g *SuppressDocWarningsGuard) GetScriptNodeBySourceName(error *JSError) rhino.Node {
-	src := error.SourceName()
-	if src == nil {
+	src, ok := error.SourceNameOpt()
+	if !ok {
 		return rhino.NilNode
 	}
 
-	scriptNode := g.compiler.GetScriptNode(*src)
+	scriptNode := g.compiler.GetScriptNode(src)
 	if scriptNode.IsNil() {
 		return rhino.NilNode
 	}

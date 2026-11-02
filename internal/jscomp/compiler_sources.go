@@ -202,10 +202,9 @@ func (c *Compiler) Report(error *JSError) {
 		c.parallelRecorder.report(c, error)
 		return
 	}
-	level := error.DefaultLevel().Ptr()
+	level := error.DefaultLevel()
 	if c.warningsGuard != nil {
-		newLevel := c.warningsGuard.Level(error)
-		if newLevel != nil {
+		if newLevel, ok := c.warningsGuard.Level(error); ok {
 			level = newLevel
 		}
 	}
@@ -223,14 +222,17 @@ func (c *Compiler) Report(error *JSError) {
 // method (see AsErrorHandler).
 //
 // Java: Compiler.report(CheckLevel, JSError)
-func (c *Compiler) ReportWithLevel(ignoredLevel *CheckLevel, error *JSError) {
+func (c *Compiler) ReportWithLevel(ignoredLevel CheckLevel, error *JSError) {
 	c.Report(error)
 }
 
 // Java: Compiler.getErrorLevel(JSError)
-func (c *Compiler) GetErrorLevel(error *JSError) *CheckLevel {
+func (c *Compiler) GetErrorLevel(error *JSError) CheckLevel {
 	jutil.CheckNotNull(c.options)
-	return c.warningsGuard.Level(error)
+	if level, ok := c.warningsGuard.Level(error); ok {
+		return level
+	}
+	return error.DefaultLevel()
 }
 
 // ThrowInternalError reports an internal error.
@@ -401,7 +403,7 @@ type compiler_lockedErrorManager struct {
 	mu *sync.RWMutex
 }
 
-func (m compiler_lockedErrorManager) Report(level *CheckLevel, err *JSError) {
+func (m compiler_lockedErrorManager) Report(level CheckLevel, err *JSError) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.ErrorManager.Report(level, err)

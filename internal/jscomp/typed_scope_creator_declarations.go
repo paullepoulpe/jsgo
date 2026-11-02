@@ -47,8 +47,9 @@ func (b *TypedScopeCreator_scopeBuilder) DeclareAliasTypeIfRvalueIsAliasable(
 	if rValue == nil {
 		return
 	}
+	lValueName, _ := lValue.GetQualifiedNameString()
 	b.DeclareAliasTypeIfRvalueIsAliasableWithLValueName(
-		lValue.GetQualifiedName(), lValue, rValue, rValueType, rValueLookupScope, b.currentScope)
+		lValueName, lValue, rValue, rValueType, rValueLookupScope, b.currentScope)
 }
 
 // DeclareAliasTypeIfRvalueIsAliasableWithLValueName: for a const alias, like
@@ -61,14 +62,14 @@ func (b *TypedScopeCreator_scopeBuilder) DeclareAliasTypeIfRvalueIsAliasable(
 // representing the lvalue and 2) the type is declared in the global scope,
 // not the current module-local scope.
 //
-// lValueName is the fully qualified lValue name, if any. If null, all this
+// lValueName is the fully qualified lValue name, if any. If empty, all this
 // method will do is propagate the @typedef Node annotation to
 // actualLvalueNode. aliasDeclarationScope is the scope in which to declare
 // the alias name. In most cases, this should just be the currentScope.
 //
 // Java: TypedScopeCreator.AbstractScopeBuilder.declareAliasTypeIfRvalueIsAliasable(String, Node, QualifiedName, JSType, TypedScope, TypedScope)
 func (b *TypedScopeCreator_scopeBuilder) DeclareAliasTypeIfRvalueIsAliasableWithLValueName(
-	lValueName *string,
+	lValueName string,
 	actualLvalueNode rhino.Node,
 	rValue rhino.QualifiedName,
 	rValueType rhino.JSType,
@@ -89,15 +90,15 @@ func (b *TypedScopeCreator_scopeBuilder) DeclareAliasTypeIfRvalueIsAliasableWith
 		if typedefType != nil {
 			// Propagate typedef type to typedef aliases.
 			actualLvalueNode.SetTypedefTypeProp(typedefType)
-			if lValueName != nil {
-				b.outer.typeRegistry.IdentifyNonNullableName(aliasDeclarationScope, *lValueName)
-				b.outer.typeRegistry.DeclareType(aliasDeclarationScope, *lValueName, typedefType)
+			if lValueName != "" {
+				b.outer.typeRegistry.IdentifyNonNullableName(aliasDeclarationScope, lValueName)
+				b.outer.typeRegistry.DeclareType(aliasDeclarationScope, lValueName, typedefType)
 			}
 			return
 		}
 	}
 
-	if lValueName == nil {
+	if lValueName == "" {
 		return
 	}
 
@@ -110,15 +111,15 @@ func (b *TypedScopeCreator_scopeBuilder) DeclareAliasTypeIfRvalueIsAliasableWith
 		rValueType.ToMaybeFunctionType().HasInstanceType() {
 		// Look for @constructor/@interface by checking if the RHS has an instance type
 		functionType := rValueType.ToMaybeFunctionType()
-		b.outer.typeRegistry.DeclareType(aliasDeclarationScope, *lValueName, functionType.GetInstanceType())
+		b.outer.typeRegistry.DeclareType(aliasDeclarationScope, lValueName, functionType.GetInstanceType())
 		return
 	}
 
 	if rValueType != nil && rValueType.IsEnumType() {
 		// Look for cases where the rValue is an Enum namespace
 		b.outer.typeRegistry.DeclareType(
-			aliasDeclarationScope, *lValueName, rValueType.ToMaybeEnumType().GetElementsType())
-		b.outer.typeRegistry.IdentifyNonNullableName(aliasDeclarationScope, *lValueName)
+			aliasDeclarationScope, lValueName, rValueType.ToMaybeEnumType().GetElementsType())
+		b.outer.typeRegistry.IdentifyNonNullableName(aliasDeclarationScope, lValueName)
 	}
 }
 

@@ -94,11 +94,11 @@ func (c *InlineAndCollapseProperties_CollapseProperties) UpdateTwinnedDeclaratio
 	if !ref.GetNode().IsGetProp() {
 		return
 	}
-	rvalue := ref.GetNode().GetNext()
-	parent := ref.GetNode().GetParent()
-	grandparent := parent.GetParent()
+	assign := ast.MustAssign(ref.GetNode().GetParent())
+	rvalue := assign.Value().Node()
+	grandparent := assign.Node().GetParent()
 
-	if !rvalue.IsNil() && rvalue.IsFunction() {
+	if rvalue.IsFunction() {
 		c.CheckForReceiverAffectedByCollapse(rvalue, refName.GetJSDocInfo(), refName)
 	}
 
@@ -197,13 +197,13 @@ func (c *InlineAndCollapseProperties_CollapseProperties) MoveDeclarationIntoHigh
 	// Var hoisting means that early references are generally ok. E.g. `a$b; var a$b;` is valid.
 	// However, if `var a$b;` were in a different, conditionally loaded chunk, then it might not
 	// be parsed before `a$b;`. So we need to avoid a ReferenceError when referencing `a$b`.
-	newNode := decl.GetNode()
+	declName := ast.MustName(decl.GetNode())
+	newNode := declName.Node()
 	varNode := newNode.GetParent()
-	initializer := newNode.GetFirstChild()
 	jutil.CheckStateMsg1(varNode.IsVar(), "Unexpected declaration %s", varNode)
 
 	newRoot := commonAncestor.GetFirst().GetAstRoot(c.outer.compiler)
-	if initializer.IsNil() {
+	if init, hasInit := declName.Init(); !hasInit {
 		// Already a stub declaration - "var a$b;". Move it to the ancestor chunk.
 		newRoot.AddChildToFront(varNode.Detach())
 	} else {
@@ -212,7 +212,7 @@ func (c *InlineAndCollapseProperties_CollapseProperties) MoveDeclarationIntoHigh
 		newRoot.AddChildToFront(newVarNode)
 		// Replace `var a$b = () => {};` with `a$b = () = {};`. Having multiple `var` declarations
 		// of the same name is valid JavaScript but violates Normalize constraints.
-		newAssign := rhino.IR_ExprResult(rhino.IR_Assign(newNode.Detach(), initializer.Detach())).
+		newAssign := rhino.IR_ExprResult(rhino.IR_Assign(newNode.Detach(), init.Detach().Node())).
 			SrcrefTreeIfMissing(newNode)
 		varNode.ReplaceWith(newAssign)
 	}
@@ -237,13 +237,14 @@ func (c *InlineAndCollapseProperties_CollapseProperties) UpdateGlobalNameDeclara
 	// are being declared as VAR statements, but this is not incorrect because
 	// we are only collapsing for global names.
 	ref := n.getDeclarationRef()
-	refNode := ref.GetNode()
-	rvalue := refNode.GetNext()
 	if ref.IsTwin() {
 		c.UpdateTwinnedDeclaration(alias, n, ref)
 		return
 	}
-	assignNode := refNode.GetParent()
+	refNode := ref.GetNode()
+	assign := ast.MustAssign(refNode.GetParent())
+	assignNode := assign.Node()
+	rvalue := assign.Value().Node()
 	grandparent := assignNode.GetParent()
 	varParent := grandparent.GetParent()
 	isObjLit := rvalue.IsObjectLit()
@@ -360,12 +361,14 @@ func (c *InlineAndCollapseProperties_CollapseProperties) UpdateGlobalNameDeclara
 	}
 
 	ref := n.getDeclarationRef()
-	name := ref.GetNode().GetString()
-	rvalue := ref.GetNode().GetFirstChild()
-	variableNode := ref.GetNode().GetParent()
+	declName := ast.MustName(ref.GetNode())
+	name := declName.Ident()
+	init, hasInit := declName.Init()
+	rvalue := init.Node()
+	variableNode := declName.Node().GetParent()
 	grandparent := variableNode.GetParent()
 
-	isObjLit := rvalue.IsObjectLit()
+	isObjLit := hasInit && rvalue.IsObjectLit()
 
 	if isObjLit {
 		c.DeclareVariablesForObjLitValues(n, name, rvalue, variableNode, variableNode.GetPrevious())
@@ -374,7 +377,7 @@ func (c *InlineAndCollapseProperties_CollapseProperties) UpdateGlobalNameDeclara
 	c.AddStubsForUndeclaredProperties(n, name, grandparent, variableNode)
 
 	if isObjLit && c.CanEliminate(n, rvalue) {
-		ref.GetNode().Detach()
+		declName.Detach()
 		c.outer.compiler.ReportChangeToEnclosingScope(variableNode)
 		if !variableNode.HasChildren() {
 			variableNode.Detach()
@@ -428,9 +431,16 @@ func (c *InlineAndCollapseProperties_CollapseProperties) UpdateGlobalNameDeclara
 
 	// detach `static m() {}` from `class Foo { static m() {} }`
 	member := declaration.GetNode().Detach()
+	var memberVal rhino.Node
+	if mf, ok := ast.AsMemberFunctionDef(member); ok {
+		memberVal = mf.Function().Node()
+	} else if fd, ok := ast.AsMemberFieldDef(member); ok {
+		if val, hasVal := fd.Value(); hasVal {
+			memberVal = val.Node()
+		}
+	}
 	var varDecl rhino.Node
-	if member.HasChildren() {
-		memberVal := member.GetOnlyChild()
+	if !memberVal.IsNil() {
 		c.CheckForReceiverAffectedByCollapse(memberVal, member.GetJSDocInfo(), n)
 		memberVal = memberVal.Detach()
 
@@ -448,7 +458,8 @@ func (c *InlineAndCollapseProperties_CollapseProperties) UpdateGlobalNameDeclara
 	c.outer.compiler.ReportChangeToEnclosingScope(varDecl)
 
 	// collapsing this name's properties requires updating this Ref
-	n.UpdateRefNode(declaration, varDecl.GetFirstChild())
+	firstDecl, _ := ast.MustNameDeclaration(varDecl).FirstDeclarator()
+	n.UpdateRefNode(declaration, firstDecl.Node())
 }
 
 // DeclareVariablesForObjLitValues declares global variables to serve as
@@ -468,14 +479,17 @@ func (c *InlineAndCollapseProperties_CollapseProperties) DeclareVariablesForObjL
 
 	for member := range ast.ReadAhead(ast.MustObjectLit(objlit).FirstMember()) {
 		key := member.Node()
-		value := key.GetFirstChild()
 
 		// A computed property, or a get or a set can not be rewritten as a VAR. We don't know what
 		// properties will be generated by a spread.
-		switch key.GetToken() {
+		var value rhino.Node
+		switch member.Token() {
 		case rhino.Token_GETTER_DEF, rhino.Token_SETTER_DEF, rhino.Token_COMPUTED_PROP, rhino.Token_OBJECT_SPREAD:
 			continue
-		case rhino.Token_STRING_KEY, rhino.Token_MEMBER_FUNCTION_DEF:
+		case rhino.Token_STRING_KEY:
+			value = member.MustStringKey().Value().Node()
+		case rhino.Token_MEMBER_FUNCTION_DEF:
+			value = member.MustMemberFunctionDef().Function().Node()
 		default:
 			panic(jutil.NewIllegalStateExceptionMsg(
 				"Unexpected child of OBJECTLIT: " + key.ToStringTree()))

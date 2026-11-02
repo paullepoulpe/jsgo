@@ -514,8 +514,6 @@ func (u *MaybeReachingVariableUse) computeMayUse(n rhino.Node, conditional bool)
 
 func mrvuEmptyUses(func(rhino.Node) bool) {}
 
-// HasExactlyOneUseByID reports whether defNode has exactly one upward-exposed
-// reaching use CFG node for nameID, without allocating an iterator closure.
 // mrvuMaskedWord returns word w of row restricted to the bit range
 // [start, end).
 func mrvuMaskedWord(row []uint64, w, start, end int) uint64 {

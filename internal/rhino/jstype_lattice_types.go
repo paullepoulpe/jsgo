@@ -63,11 +63,6 @@ func (t *AllType) GetTypeClass() JSTypeClass {
 	return JSTypeClass_ALL
 }
 
-// Java: AllType.isAllType()
-func (t *AllType) IsAllType() bool {
-	return true
-}
-
 // Java: AllType.matchesStringContext()
 func (t *AllType) MatchesStringContext() bool {
 	// Be lenient.
@@ -153,11 +148,6 @@ func (t *UnknownType) GetTypeClass() JSTypeClass {
 // Java: UnknownType.isUnknownType()
 func (t *UnknownType) IsUnknownType() bool {
 	return true
-}
-
-// Java: UnknownType.isCheckedUnknownType()
-func (t *UnknownType) IsCheckedUnknownType() bool {
-	return t.isChecked
 }
 
 // Java: UnknownType.canBeCalled()
@@ -365,11 +355,6 @@ func (t *NoResolvedType) GetReferenceName() *string {
 // Java: NoResolvedType.getTemplateTypes()
 func (t *NoResolvedType) GetTemplateTypes() []JSType {
 	return t.templateTypes
-}
-
-// Java: NoResolvedType.isNoResolvedType()
-func (t *NoResolvedType) IsNoResolvedType() bool {
-	return true
 }
 
 // Java: NoResolvedType.getPossibleToBooleanOutcomes()

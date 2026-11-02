@@ -134,11 +134,10 @@ type JsMessageVisitor struct {
 	// guaranteed to be globally unique.
 	unnamedMessages map[*Var]*JsMessage
 
-	// googMsgOrder + googMsgActive hold visited goog.getMsg / declareIcuTemplate
-	// call nodes that have not yet been matched to an enclosing MSG_*
-	// declaration. Any nodes left at the end of traversal are orphaned.
-	googMsgOrder  []rhino.Node
-	googMsgActive map[rhino.Node]struct{}
+	// googMsgNodes holds visited goog.getMsg / declareIcuTemplate call nodes
+	// that have not yet been matched to an enclosing MSG_* declaration. Any
+	// nodes left at the end of traversal are orphaned.
+	googMsgNodes OrderedSet[rhino.Node]
 }
 
 // NewJsMessageVisitor constructs a JsMessageVisitor with the given callbacks.
@@ -194,14 +193,10 @@ func (v *JsMessageVisitor) ShouldTraverse(t *NodeTraversal, n rhino.Node, parent
 func (v *JsMessageVisitor) Process(externs rhino.Node, root rhino.Node) {
 	NodeTraversal_Traverse(v.compiler, root, v)
 
-	if len(v.googMsgActive) > 0 {
-		for _, msgNode := range v.googMsgOrder {
-			if _, ok := v.googMsgActive[msgNode]; ok {
-				v.compiler.Report(
-					JSError_MakeWithNode(
-						msgNode, JsMessageVisitor_MESSAGE_NODE_IS_ORPHANED, *msgNode.GetFirstChild().GetQualifiedName()))
-			}
-		}
+	for msgNode := range v.googMsgNodes.All() {
+		v.compiler.Report(
+			JSError_MakeWithNode(
+				msgNode, JsMessageVisitor_MESSAGE_NODE_IS_ORPHANED, *msgNode.GetFirstChild().GetQualifiedName()))
 	}
 }
 
@@ -309,7 +304,7 @@ func (v *JsMessageVisitor) checkMessageInitialization(traversal *NodeTraversal, 
 		v.compiler.Report(JSError_MakeWithNode(node, JsMessageVisitor_MESSAGE_NOT_INITIALIZED_CORRECTLY))
 		return
 	}
-	delete(v.googMsgActive, msgNode)
+	v.googMsgNodes.Remove(msgNode)
 
 	srcPtr := traversal.GetSourceName()
 	mapping := v.compiler.GetSourceMapping(srcPtr, node.GetLineno(), node.GetCharno())
@@ -382,20 +377,18 @@ func jsMessageVisitor_isDeclareIcuTemplateCallee(calleeNode rhino.Node) bool {
 }
 
 type jsMessageBuildInput struct {
-	messageKeyFromLhs            string
-	sourceName                   string
-	messageText                  string
-	description                  string
-	meaning                      string
-	alternateMessageId           string
-	messageParts                 []JsMessage_Part
-	placeholderExampleMap        map[string]string
-	placeholderExampleOrder      []string
-	placeholderOriginalCodeMap   map[string]string
-	placeholderOriginalCodeOrder []string
-	hasDescription               bool
-	hasMeaning                   bool
-	hasAlternateMessageId        bool
+	messageKeyFromLhs       string
+	sourceName              string
+	messageText             string
+	description             string
+	meaning                 string
+	alternateMessageId      string
+	messageParts            []JsMessage_Part
+	placeholderExamples     OrderedStringMap[string]
+	placeholderOriginalCode OrderedStringMap[string]
+	hasDescription          bool
+	hasMeaning              bool
+	hasAlternateMessageId   bool
 }
 
 // Java: JsMessageVisitor.buildJsMessage(InputForBuildJsMsg)
@@ -435,8 +428,8 @@ func (v *JsMessageVisitor) buildJsMessage(input jsMessageBuildInput) *JsMessage 
 
 	return NewJsMessage_Builder().
 		AppendParts(messageParts).
-		setPlaceholderNameToExampleOrdered(input.placeholderExampleMap, input.placeholderExampleOrder).
-		setPlaceholderNameToOriginalCodeOrdered(input.placeholderOriginalCodeMap, input.placeholderOriginalCodeOrder).
+		setPlaceholderExamples(input.placeholderExamples).
+		setPlaceholderOriginalCode(input.placeholderOriginalCode).
 		SetIsAnonymous(isAnonymous).
 		SetIsExternalMsg(isExternal).
 		SetKey(messageKeyFinal).
@@ -515,13 +508,7 @@ func (v *JsMessageVisitor) collectGetMsgCall(traversal *NodeTraversal, n rhino.N
 
 	callee := call.Callee().Node()
 	if callee.MatchesQualifiedName(jsMessageVisitor_MSG_FUNCTION_QNAME) || jsMessageVisitor_isDeclareIcuTemplateCallee(callee) {
-		if v.googMsgActive == nil {
-			v.googMsgActive = make(map[rhino.Node]struct{})
-		}
-		if _, exists := v.googMsgActive[n]; !exists {
-			v.googMsgActive[n] = struct{}{}
-			v.googMsgOrder = append(v.googMsgOrder, n)
-		}
+		v.googMsgNodes.Add(n)
 	} else if callee.MatchesQualifiedName(jsMessageVisitor_MSG_FALLBACK_FUNCTION_NAME) {
 		v.visitFallbackFunctionCall(traversal, call)
 	}

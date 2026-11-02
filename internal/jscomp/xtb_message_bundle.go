@@ -30,19 +30,8 @@ import (
 // XtbMessageBundle is a MessageBundle that parses messages from an XML
 // Translation Bundle (XTB) file.
 type XtbMessageBundle struct {
-	messages    map[string]*JsMessage
-	order       []string
+	messages    OrderedStringMap[*JsMessage]
 	idGenerator JsMessage_IdGenerator
-}
-
-func (b *XtbMessageBundle) putMessage(key string, msg *JsMessage) {
-	if b.messages == nil {
-		b.messages = make(map[string]*JsMessage)
-	}
-	if _, exists := b.messages[key]; !exists {
-		b.order = append(b.order, key)
-	}
-	b.messages[key] = msg
 }
 
 // NewXtbMessageBundle creates an instance and initializes it with the
@@ -64,7 +53,7 @@ func NewXtbMessageBundle(xtb io.Reader, projectId *string) *XtbMessageBundle {
 
 // Java: XtbMessageBundle.getMessage(String)
 func (b *XtbMessageBundle) GetMessage(id string) *JsMessage {
-	return b.messages[id]
+	return b.messages.Get(id)
 }
 
 // Java: XtbMessageBundle.idGenerator()
@@ -74,13 +63,7 @@ func (b *XtbMessageBundle) IdGenerator() JsMessage_IdGenerator {
 
 // Java: XtbMessageBundle.getAllMessages()
 func (b *XtbMessageBundle) GetAllMessages() iter.Seq[*JsMessage] {
-	return func(yield func(*JsMessage) bool) {
-		for _, k := range b.order {
-			if !yield(b.messages[k]) {
-				return
-			}
-		}
-	}
+	return b.messages.Values()
 }
 
 const (
@@ -223,7 +206,7 @@ func (h *xtbMessageBundle_Handler) EndElement(uri string, localName string, qNam
 		if !h.msgBuilder.HasParts() {
 			h.msgBuilder.AppendStringPart("")
 		}
-		h.outer.putMessage(h.msgBuilder.key, h.msgBuilder.Build())
+		h.outer.messages.Put(h.msgBuilder.key, h.msgBuilder.Build())
 		h.msgBuilder = nil
 	}
 }

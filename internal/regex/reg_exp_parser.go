@@ -110,13 +110,17 @@ const (
 )
 
 // ParseRegExp parses a regular expression pattern and flags into a RegExpTree,
-// returning a structured *RegExpParseError instead of panicking on malformed input.
+// returning an error (*RegExpParseError) instead of panicking on malformed input.
 //
 // pattern is the "foo" from /foo/i; flags is the "i" from /foo/i.
-func ParseRegExp(pattern string, flags string) (RegExpTree, *RegExpParseError) {
+func ParseRegExp(pattern string, flags string) (RegExpTree, error) {
 	var p regExpParser
 	p.init(pattern, flags)
-	return p.parseTopLevel()
+	tree, err := p.parseTopLevel()
+	if err != nil {
+		return nil, err
+	}
+	return tree, nil
 }
 
 // regExpParser is a recursive descent parser over pattern and flags.

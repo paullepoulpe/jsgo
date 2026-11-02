@@ -71,18 +71,19 @@ type TypedScope struct {
 	build *typedScopeBuildState
 
 	// Go-only: performance — the Java LinkedHashMap<String, TypedVar> is vars,
-	// in declaration order (a var is keyed by its name), plus varIndex once
-	// there are more than typedScopeSmallVars vars, plus varBloom, a filter
-	// that lets lookups skip scopes without the name.
-	vars     []*TypedVar
-	varIndex *[]uint32 // a pointer: most scopes have none, and it saves 16 bytes in each
-	varBloom uint64
+	// in declaration order (a var is keyed by its name), plus scopeVarIndex
+	// once there are more than scopeSmallVars vars.
+	vars []*TypedVar
+	scopeVarIndex
 }
 
 var (
 	_ AbstractScope          = (*TypedScope)(nil)
 	_ rhino.StaticTypedScope = (*TypedScope)(nil)
 )
+
+func typedVarName(v *TypedVar) string     { return v.name }
+func typedVarNameHash(v *TypedVar) uint32 { return scopeNameHash(v.name) }
 
 // typedScopeBuildState is the part of a TypedScope that TypedScopeCreator
 // needs while it builds the scope.
@@ -115,14 +116,6 @@ func (s *TypedScope) HashCode() int32 {
 	return int32(h ^ (h >> 16))
 }
 
-// Java: AbstractScope.checkChildScope(S)
-func (s *TypedScope) CheckChildScope(parent *TypedScope) {
-	if parent == nil {
-		panic(jutil.NewNullPointerException())
-	}
-	s.checkChildScopeRoot(parent.rootNode)
-}
-
 // Java: TypedScope(TypedScope, Node)
 func NewTypedScope(parent *TypedScope, rootNode rhino.Node) *TypedScope {
 	return newTypedScopeOwnedReservedNames(parent, rootNode, nil, nil)
@@ -136,7 +129,7 @@ func newTypedScopeOwnedReservedNames(
 	if len(reservedNames) > 0 {
 		s.vars = make([]*TypedVar, 0, len(reservedNames))
 	}
-	s.CheckChildScope(parent)
+	checkChildScope(&s.scopeCommon, parent)
 	s.parent = parent
 	s.depth = parent.depth + 1
 	if len(reservedNames) > 0 || module != nil {
@@ -197,11 +190,6 @@ func TypedScope_CreateLatticeBottom(rootNode rhino.Node) *TypedScope {
 	return newRootTypedScope(rootNode, true, 0)
 }
 
-// Java: TypedScope.typed()
-func (s *TypedScope) Typed() *TypedScope {
-	return s
-}
-
 // ValidateCompletelyBuilt asserts that all reserved names in the scope have
 // been actually declared.
 //
@@ -233,8 +221,8 @@ func (s *TypedScope) GetModule() *Module {
 	return s.build.module
 }
 
-func (s *TypedScope) parentScope() *TypedScope { return s.parent }
-func (s *TypedScope) common() *scopeCommon     { return &s.scopeCommon }
+func (s *TypedScope) parentScope() *TypedScope       { return s.parent }
+func (s *TypedScope) lookupParentScope() *TypedScope { return s.lookupParent }
 
 // Java: TypedScope.getParent()
 func (s *TypedScope) GetParent() *TypedScope {
@@ -304,65 +292,33 @@ func (s *TypedScope) declareWithReserved(name string, nameNode rhino.Node,
 		}
 	}
 	var_ := NewTypedVar(inferred, name, nameNode, type_, s, len(s.vars), input)
-	s.DeclareInternal(name, var_)
+	if s.IsFunctionBlockScope() && s.parent.HasOwnSlot(name) && !s.HasOwnSlot(name) && !s.IsBleedingFunctionName(name) {
+		failIllegalShadow(var_.nameNode)
+	}
+	h := scopeNameHash(name)
+	bloom := scopeBloomFromHash(h)
+	if i := -1; s.varBloom&bloom == bloom {
+		if i = s.findVar(name, h); i >= 0 {
+			s.varsInitialized = true
+			s.vars[i] = var_
+			return var_, wasReserved
+		}
+	}
+	scopeAppendVar(&s.scopeCommon, &s.scopeVarIndex, &s.vars, var_, h, bloom, typedVarNameHash)
 	return var_, wasReserved
 }
 
 // Java: AbstractScope.undeclare(V)
 func (s *TypedScope) Undeclare(var_ *TypedVar) {
 	jutil.CheckState(var_.scope == s)
-	current := s.getOwnTypedSlot(var_.name)
-	if current == nil {
-		panic(jutil.NewNullPointerException())
+	h := scopeNameHash(var_.name)
+	pos := -1
+	if bloom := scopeBloomFromHash(h); s.varBloom&bloom == bloom {
+		pos = s.findVar(var_.name, h)
 	}
-	jutil.CheckState(current.Equals(var_))
-	s.undeclareInternal(var_)
+	scopeUndeclare(var_, &s.scopeCommon, &s.scopeVarIndex, &s.vars, pos, typedVarNameHash)
 }
 
-// Java: AbstractScope.undeclareInternal(V)
-func (s *TypedScope) undeclareInternal(var_ *TypedVar) {
-	if !s.varsInitialized {
-		panic(jutil.NewUnsupportedOperationException())
-	}
-	name := var_.name
-	if i := s.findVar(name, scopeNameHash(name)); i >= 0 {
-		s.vars = slices.Delete(s.vars, i, i+1)
-		if s.varIndex != nil {
-			s.rebuildVarIndex()
-		}
-	}
-}
-
-// Java: AbstractScope.declareInternal(String, V)
-func (s *TypedScope) DeclareInternal(name string, var_ *TypedVar) {
-	if s.IsFunctionBlockScope() && s.parent.HasOwnSlot(name) && !s.HasOwnSlot(name) && !s.IsBleedingFunctionName(name) {
-		panic(jutil.NewIllegalStateExceptionMsg(jutil.LenientFormat("Illegal shadow: %s", var_.GetNode())))
-	}
-	jutil.CheckState(name == var_.name)
-	h := scopeNameHash(name)
-	s.varBloom |= scopeBloomFromHash(h)
-	s.varsInitialized = true
-	if i := s.findVar(name, h); i >= 0 {
-		s.vars[i] = var_
-		return
-	}
-	s.vars = append(s.vars, var_)
-	if s.varIndex != nil && len(s.vars)*2 <= len(*s.varIndex) {
-		s.indexVar(len(s.vars)-1, h)
-	} else if len(s.vars) > typedScopeSmallVars {
-		s.rebuildVarIndex()
-	}
-}
-
-const (
-	typedScopeSmallVars    = 8
-	typedVarIndexTagMask   = 0xFF000000
-	typedVarIndexPosMask   = 0x00FFFFFF
-	typedVarIndexMinLength = 32
-)
-
-// findVar returns the position in vars of the var named name, whose
-// scopeNameHash is h, or -1.
 func (s *TypedScope) findVar(name string, h uint32) int {
 	if s.varIndex == nil {
 		for i, v := range s.vars {
@@ -372,65 +328,23 @@ func (s *TypedScope) findVar(name string, h uint32) int {
 		}
 		return -1
 	}
-	index := *s.varIndex
-	mask := uint32(len(index) - 1)
+	table := *s.varIndex
+	mask := uint32(len(table) - 1)
+	tag := h & scopeIndexTagMask
 	for slot := h & mask; ; slot = (slot + 1) & mask {
-		e := index[slot]
+		e := table[slot]
 		if e == 0 {
 			return -1
 		}
-		if e&typedVarIndexTagMask == h&typedVarIndexTagMask {
-			if i := int(e&typedVarIndexPosMask) - 1; s.vars[i].name == name {
-				return i
-			}
+		if e&scopeIndexTagMask == tag && s.vars[e&scopeIndexPosMask-1].name == name {
+			return int(e&scopeIndexPosMask) - 1
 		}
 	}
-}
-
-// indexVar adds vars[i], whose name has scopeNameHash h, to varIndex.
-func (s *TypedScope) indexVar(i int, h uint32) {
-	index := *s.varIndex
-	mask := uint32(len(index) - 1)
-	slot := h & mask
-	for index[slot] != 0 {
-		slot = (slot + 1) & mask
-	}
-	index[slot] = h&typedVarIndexTagMask | uint32(i+1)
-}
-
-func (s *TypedScope) rebuildVarIndex() {
-	if len(s.vars) <= typedScopeSmallVars {
-		s.varIndex = nil
-		return
-	}
-	n := typedVarIndexMinLength
-	for n < 4*len(s.vars) {
-		n *= 2
-	}
-	index := make([]uint32, n)
-	s.varIndex = &index
-	for i, v := range s.vars {
-		s.indexVar(i, scopeNameHash(v.name))
-	}
-}
-
-// Java: AbstractScope.clearVarsInternal()
-func (s *TypedScope) ClearVarsInternal() {
-	s.varBloom = 0
-	clear(s.vars)
-	s.vars = s.vars[:0]
-	s.varIndex = nil
 }
 
 // Java: AbstractScope.getVarIterable()
 func (s *TypedScope) GetVarIterable() iter.Seq[*TypedVar] {
-	return func(yield func(*TypedVar) bool) {
-		for i := 0; i < len(s.vars); i++ {
-			if !yield(s.vars[i]) {
-				return
-			}
-		}
-	}
+	return scopeVarSeq(&s.vars)
 }
 
 // Java: AbstractScope.getAllSymbols()
@@ -443,19 +357,22 @@ func (s *TypedScope) GetVarCount() int {
 	return len(s.vars)
 }
 
-func (s *TypedScope) getOwnTypedSlot(name string) *TypedVar {
-	return s.ownVar(name, scopeNameHash(name))
-}
-
-// ownVar is getOwnTypedSlot for a name whose scopeNameHash is h.
-func (s *TypedScope) ownVar(name string, h uint32) *TypedVar {
-	if bloom := scopeBloomFromHash(h); s.varBloom&bloom != bloom {
+func (s *TypedScope) ownTypedVar(name string, h uint32, bloom uint64) *TypedVar {
+	if s.varBloom&bloom != bloom {
 		return nil
 	}
 	if i := s.findVar(name, h); i >= 0 {
 		return s.vars[i]
 	}
 	return nil
+}
+
+func (s *TypedScope) getOwnTypedSlot(name string) *TypedVar {
+	if len(s.vars) == 0 {
+		return nil
+	}
+	h := scopeNameHash(name)
+	return s.ownTypedVar(name, h, scopeBloomFromHash(h))
 }
 
 func (s *TypedScope) hasOwnImplicitVar(imp AbstractScope_ImplicitVar) bool {
@@ -466,17 +383,7 @@ func (s *TypedScope) getOwnImplicitVar(imp AbstractScope_ImplicitVar) *TypedVar 
 	if !s.hasOwnImplicitVar(imp) {
 		return nil
 	}
-	if s.implicitVars == nil {
-		s.implicitVars = new([4]*TypedVar)
-	}
-	if v := s.implicitVars[imp]; v != nil {
-		return v
-	}
-	v := s.MakeImplicitVar(imp)
-	if v != nil {
-		s.implicitVars[imp] = v
-	}
-	return v
+	return scopeGetImplicitVar(s, &s.implicitVars, imp, (*TypedScope).MakeImplicitVar)
 }
 
 func (s *TypedScope) getOwnSlotV(name string) *TypedVar {
@@ -592,10 +499,8 @@ func (s *TypedScope) lookupRootVarPrehashed(
 	name string, h uint32, bloom uint64, imp AbstractScope_ImplicitVar, isImplicit bool,
 ) *TypedVar {
 	for cur := s; cur != nil; cur = cur.lookupParent {
-		if cur.varBloom&bloom == bloom {
-			if i := cur.findVar(name, h); i >= 0 {
-				return cur.vars[i]
-			}
+		if v := cur.ownTypedVar(name, h, bloom); v != nil {
+			return v
 		}
 		if isImplicit && cur.hasImplicitVars {
 			if v := cur.getOwnImplicitVar(imp); v != nil {
@@ -698,10 +603,7 @@ func (s *TypedScope) HasSlot(name string) bool {
 	bloom := scopeBloomFromHash(h)
 	imp, isImplicit := AbstractScope_ImplicitVar_Lookup(name)
 	for cur := s; cur != nil; cur = cur.lookupParent {
-		if cur.varBloom&bloom == bloom && cur.findVar(name, h) >= 0 {
-			return true
-		}
-		if isImplicit && cur.hasImplicitVars && cur.hasOwnImplicitVar(imp) {
+		if cur.ownTypedVar(name, h, bloom) != nil || (isImplicit && cur.hasImplicitVars && cur.hasOwnImplicitVar(imp)) {
 			return true
 		}
 	}
@@ -717,14 +619,7 @@ func (s *TypedScope) GetSlot(name string) rhino.StaticSlot {
 
 // Java: AbstractScope.getArgumentsVar()
 func (s *TypedScope) GetArgumentsVar() *TypedVar {
-	for cur := s; cur != nil; cur = cur.lookupParent {
-		if cur.hasImplicitVars {
-			if v := cur.getOwnImplicitVar(AbstractScope_ImplicitVar_ARGUMENTS); v != nil {
-				return v
-			}
-		}
-	}
-	return nil
+	return scopeArgumentsVar(s, (*TypedScope).getOwnImplicitVar)
 }
 
 // Java: AbstractScope.canDeclare(String)
@@ -738,9 +633,7 @@ func (s *TypedScope) CanDeclare(name string) bool {
 // Java: AbstractScope.isBleedingFunctionName(String)
 func (s *TypedScope) IsBleedingFunctionName(name string) bool {
 	var_ := s.GetVar(name)
-	return var_ != nil &&
-		!var_.nameNode.IsNil() &&
-		var_.nameNode.GetParent().IsFunction()
+	return var_ != nil && isBleedingFunctionNode(var_.nameNode)
 }
 
 // Java: AbstractScope.getAllAccessibleVariables()
@@ -748,7 +641,7 @@ func (s *TypedScope) GetAllAccessibleVariables() iter.Seq[*TypedVar] {
 	return scopeAllAccessibleVars(
 		s,
 		func(cur *TypedScope) []*TypedVar { return cur.vars },
-		func(v *TypedVar) string { return v.name },
+		typedVarName,
 	)
 }
 
@@ -774,7 +667,7 @@ func (s *TypedScope) GetCommonParent(other *TypedScope) *TypedScope {
 
 // Java: AbstractScope.hasSameContainerScope(S)
 func (s *TypedScope) HasSameContainerScope(other *TypedScope) bool {
-	return s == other || s.GetClosestContainerScope() == other.GetClosestContainerScope()
+	return scopeHasSameContainer(s, other)
 }
 
 // Java: AbstractScope.getScopeOfThis()

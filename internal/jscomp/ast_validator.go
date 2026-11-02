@@ -30,6 +30,11 @@ import (
 )
 
 // AstValidator walks the AST and validates that the structure is correct.
+//
+// Validator methods inspect raw rhino.Node child positions rather than
+// internal/ast role views because ValidateChildCount records a violation and
+// continues into malformed/missing child slots (matching Java's cascading
+// violation and NullPointerException behavior on corrupted ASTs).
 type AstValidator struct {
 	// Possible enhancements:
 	// * verify NAME, LABEL_NAME, GETPROP property name and unquoted

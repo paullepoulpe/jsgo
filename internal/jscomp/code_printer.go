@@ -22,6 +22,7 @@ import (
 	"math"
 	"strings"
 
+	"github.com/paullepoulpe/jsgo/internal/ast"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/parser"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
@@ -223,8 +224,8 @@ func codePrinter_panicBadEndPosition(endPosition sourcemap.FilePosition, lineLen
 // getTryForCatch returns the TRY node for the specified CATCH node.
 //
 // Java: CodePrinter.PrettyCodePrinter.getTryForCatch(Node)
-func getTryForCatch(n rhino.Node) rhino.Node {
-	return n.GetGrandparent()
+func getTryForCatch(c ast.Catch) ast.Try {
+	return ast.MustTry(c.Node().GetGrandparent())
 }
 
 func codePrinter_parseDouble(s string) (float64, bool) {

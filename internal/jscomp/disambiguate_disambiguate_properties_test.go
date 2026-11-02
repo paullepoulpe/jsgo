@@ -1297,13 +1297,13 @@ func (g *disambiguatePropertiesTest_SilenceNoiseGuard) GetPriority() int {
 }
 
 // Java: DisambiguatePropertiesTest.SilenceNoiseGuard.level(JSError)
-func (g *disambiguatePropertiesTest_SilenceNoiseGuard) Level(error *JSError) *CheckLevel {
+func (g *disambiguatePropertiesTest_SilenceNoiseGuard) Level(error *JSError) (CheckLevel, bool) {
 	if strings.Contains(error.Description(), "Parse") {
-		return nil
+		return 0, false
 	} else if disambiguatePropertiesTest_SilenceNoiseGuard_RELEVANT_DIAGNOSTICS.Contains(error.Type()) {
-		return nil
+		return 0, false
 	} else {
-		return CheckLevel_OFF.Ptr()
+		return CheckLevel_OFF, true
 	}
 }
 

@@ -340,7 +340,7 @@ func (*rescopeRemoveGlobalVarCallback) visitTokens() *ast.TokenSet {
 }
 
 func (c *rescopeRemoveGlobalVarCallback) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
-	if !NodeUtil_IsNameDeclaration(n) {
+	if _, ok := ast.AsNameDeclaration(n); !ok {
 		return
 	}
 
@@ -353,7 +353,8 @@ func (c *rescopeRemoveGlobalVarCallback) Visit(t *NodeTraversal, n rhino.Node, p
 		return
 	}
 
-	if NodeUtil_IsAnyFor(parent) && parent.GetFirstChild() == n {
+	switch ast.RoleIn(n, parent) {
+	case ast.RoleForInit, ast.RoleForInTarget, ast.RoleForOfTarget, ast.RoleForAwaitOfTarget:
 		c.commas = c.commas[:0]
 		for ch := n.GetFirstChild(); !ch.IsNil(); ch = ch.GetNext() {
 			c.commas = append(c.commas, ch.CloneTree())
@@ -362,7 +363,7 @@ func (c *rescopeRemoveGlobalVarCallback) Visit(t *NodeTraversal, n rhino.Node, p
 			comma := joinNodesOnComma(c.commas, n)
 			comma.InsertBefore(n)
 		}
-	} else {
+	default:
 		var currentVar rhino.Node
 		for ch := n.GetFirstChild(); !ch.IsNil(); ch = ch.GetNext() {
 			jutil.CheckStateMsg1(!ch.IsDestructuringLhs(), "Unexpected DESTRUCTURING_LHS child: %s", ch)
@@ -395,7 +396,7 @@ func (c *rescopeRemoveGlobalVarCallback) Visit(t *NodeTraversal, n rhino.Node, p
 
 func rescopeHasOnlyNameOrDestructuringChildren(n rhino.Node) bool {
 	for ch := n.GetFirstChild(); !ch.IsNil(); ch = ch.GetNext() {
-		if !ch.IsName() && !ch.IsDestructuringLhs() {
+		if _, ok := ast.AsDeclarator(ch); !ok {
 			return false
 		}
 	}

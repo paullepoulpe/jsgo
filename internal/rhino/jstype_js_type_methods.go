@@ -97,6 +97,9 @@ func (t *JSTypeBase) IsLiteralObject() bool {
 //
 // Java: JSType.toMaybeUnionType()
 func (t *JSTypeBase) ToMaybeUnionType() *UnionType {
+	if b := t.unwrapProxyKind(jsKindUnion); b != nil {
+		return b.self_.(*UnionType)
+	}
 	return nil
 }
 
@@ -112,7 +115,7 @@ func (t *JSTypeBase) IsGlobalThisType() bool {
 //
 // Java: JSType.isFunctionType()
 func (t *JSTypeBase) IsFunctionType() bool {
-	return false
+	return t.hasProxyKind(objKindFunction)
 }
 
 // ToMaybeFunctionType downcasts this to a FunctionType, or returns null if
@@ -128,6 +131,9 @@ func (t *JSTypeBase) IsFunctionType() bool {
 //
 // Java: JSType.toMaybeFunctionType()
 func (t *JSTypeBase) ToMaybeFunctionType() FunctionType {
+	if b := t.unwrapProxyKind(objKindFunction); b != nil {
+		return b.self_.(*FunctionTypeBase)
+	}
 	return nil
 }
 
@@ -168,12 +174,15 @@ func JSType_ToMaybeFunctionType(type_ JSType) FunctionType {
 
 // Java: JSType.toMaybeKnownSymbolType()
 func (t *JSTypeBase) ToMaybeKnownSymbolType() *KnownSymbolType {
+	if b := t.unwrapProxyKind(jsKindKnownSymbol); b != nil {
+		return b.self_.(*KnownSymbolType)
+	}
 	return nil
 }
 
 // Java: JSType.isEnumElementType()
 func (t *JSTypeBase) IsEnumElementType() bool {
-	return false
+	return t.hasProxyKind(objKindEnumElement)
 }
 
 // Java: JSType.getEnumeratedTypeOfEnumElement()
@@ -190,6 +199,9 @@ func (t *JSTypeBase) GetEnumeratedTypeOfEnumElement() JSType {
 //
 // Java: JSType.toMaybeEnumElementType()
 func (t *JSTypeBase) ToMaybeEnumElementType() *EnumElementType {
+	if b := t.unwrapProxyKind(objKindEnumElement); b != nil {
+		return b.self_.(*EnumElementType)
+	}
 	return nil
 }
 
@@ -198,7 +210,7 @@ func (t *JSTypeBase) IsEnumType() bool {
 	// TODO(sdh): Consider changing this to isEnumObjectType(), though this
 	// would be inconsistent with the EnumType class and toMaybeEnumType(), so
 	// we would need to consider changing them, too.
-	return false
+	return t.hasProxyKind(objKindEnum)
 }
 
 // ToMaybeEnumType downcasts this to an EnumType, or returns null if this is
@@ -206,26 +218,36 @@ func (t *JSTypeBase) IsEnumType() bool {
 //
 // Java: JSType.toMaybeEnumType()
 func (t *JSTypeBase) ToMaybeEnumType() *EnumType {
+	if b := t.unwrapProxyKind(objKindEnum); b != nil {
+		return b.self_.(*EnumType)
+	}
 	return nil
 }
 
 // Java: JSType.isNamedType()
 func (t *JSTypeBase) IsNamedType() bool {
-	return false
+	return (t.objFlags & objKindMask) == objKindNamed
 }
 
 // Java: JSType.toMaybeNamedType()
 func (t *JSTypeBase) ToMaybeNamedType() *NamedType {
+	if (t.objFlags & objKindMask) == objKindNamed {
+		return t.self_.(*NamedType)
+	}
 	return nil
 }
 
 // Java: JSType.isRecordType()
 func (t *JSTypeBase) IsRecordType() bool {
-	return false
+	return t.hasProxyKind(objKindRecord)
 }
 
 // Java: JSType.isStructuralInterface()
 func (t *JSTypeBase) IsStructuralInterface() bool {
+	if (t.objFlags & objKindMask) == objKindFunction {
+		f := t.self_.(*FunctionTypeBase)
+		return f.call.fnKind == FunctionType_Kind_INTERFACE && f.call.fnIsStructuralInterface
+	}
 	return false
 }
 
@@ -239,12 +261,15 @@ func (t *JSTypeBase) IsStructuralType() bool {
 //
 // Java: JSType.toMaybeRecordType()
 func (t *JSTypeBase) ToMaybeRecordType() *RecordType {
+	if b := t.unwrapProxyKind(objKindRecord); b != nil {
+		return b.self_.(*RecordType)
+	}
 	return nil
 }
 
 // Java: JSType.isTemplatizedType()
 func (t *JSTypeBase) IsTemplatizedType() bool {
-	return false
+	return t.hasProxyKind(objKindTemplatized)
 }
 
 // ToMaybeTemplatizedType downcasts this to a TemplatizedType, or returns
@@ -252,12 +277,15 @@ func (t *JSTypeBase) IsTemplatizedType() bool {
 //
 // Java: JSType.toMaybeTemplatizedType()
 func (t *JSTypeBase) ToMaybeTemplatizedType() *TemplatizedType {
+	if b := t.unwrapProxyKind(objKindTemplatized); b != nil {
+		return b.self_.(*TemplatizedType)
+	}
 	return nil
 }
 
 // Java: JSType.isTemplateType()
 func (t *JSTypeBase) IsTemplateType() bool {
-	return false
+	return t.hasProxyKind(objKindTemplate)
 }
 
 // ToMaybeTemplateType downcasts this to a TemplateType, or returns null if
@@ -265,6 +293,9 @@ func (t *JSTypeBase) IsTemplateType() bool {
 //
 // Java: JSType.toMaybeTemplateType()
 func (t *JSTypeBase) ToMaybeTemplateType() *TemplateType {
+	if b := t.unwrapProxyKind(objKindTemplate); b != nil {
+		return b.self_.(*TemplateType)
+	}
 	return nil
 }
 
@@ -374,7 +405,7 @@ func (t *JSTypeBase) IsObject() bool {
 //
 // Java: JSType.isObjectType()
 func (t *JSTypeBase) IsObjectType() bool {
-	return false
+	return t.self().IsObject()
 }
 
 // IsConstructor reports whether this type is a FunctionType that is a
@@ -382,7 +413,8 @@ func (t *JSTypeBase) IsObjectType() bool {
 //
 // Java: JSType.isConstructor()
 func (t *JSTypeBase) IsConstructor() bool {
-	return false
+	b := t.unwrapProxyKind(objKindFunction)
+	return b != nil && b.self_.(*FunctionTypeBase).call.fnKind == FunctionType_Kind_CONSTRUCTOR
 }
 
 // IsNominalType reports whether this type is a nominal type (a named
@@ -418,7 +450,7 @@ func (t *JSTypeBase) IsNominalConstructorOrInterface() bool {
 
 // Java: JSType.isNativeObjectType()
 func (t *JSTypeBase) IsNativeObjectType() bool {
-	return false
+	return (t.unwrapProxies().protoFlags & protoFlagNative) != 0
 }
 
 // LoosenTypecheckingDueToForwardReferencedSupertype reports whether, during
@@ -463,7 +495,8 @@ func (t *JSTypeBase) IsInstanceType() bool {
 //
 // Java: JSType.isInterface()
 func (t *JSTypeBase) IsInterface() bool {
-	return false
+	b := t.unwrapProxyKind(objKindFunction)
+	return b != nil && b.self_.(*FunctionTypeBase).call.fnKind == FunctionType_Kind_INTERFACE
 }
 
 // IsOrdinaryFunction reports whether this type is a FunctionType that is an
@@ -472,7 +505,8 @@ func (t *JSTypeBase) IsInterface() bool {
 //
 // Java: JSType.isOrdinaryFunction()
 func (t *JSTypeBase) IsOrdinaryFunction() bool {
-	return false
+	b := t.unwrapProxyKind(objKindFunction)
+	return b != nil && b.self_.(*FunctionTypeBase).call.fnKind == FunctionType_Kind_ORDINARY
 }
 
 // Java: JSType.equals(Object)
@@ -734,7 +768,7 @@ func (t *JSTypeBase) ToAnnotationString(nullability JSType_Nullability) string {
 
 // Java: JSType.toMaybeObjectType()
 func (t *JSTypeBase) ToMaybeObjectType() ObjectType {
-	return t.self().ToObjectType()
+	return t.ToObjectType()
 }
 
 // JSType_Nullability specifies how to express nullability of reference

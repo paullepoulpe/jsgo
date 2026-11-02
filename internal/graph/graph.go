@@ -56,10 +56,8 @@
 package graph
 
 import (
-	"fmt"
 	"iter"
 	"slices"
-	"strconv"
 
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 )
@@ -183,10 +181,6 @@ type Graph[N, E comparable] interface {
 	IsConnected(n1 N, n2 N) bool
 	ClearNodeAnnotations()
 	ClearEdgeAnnotations()
-	PushNodeAnnotations()
-	PopNodeAnnotations()
-	PushEdgeAnnotations()
-	PopEdgeAnnotations()
 }
 
 // DiGraph is implemented by [*LinkedDirectedGraph] and types that embed it
@@ -237,79 +231,6 @@ type GraphvizGraph_GraphvizEdge interface {
 	GetLabel() string
 }
 
-// annotationState records an object's saved annotation on a push/pop stack.
-type annotationState struct {
-	first  Annotatable
-	second Annotation
-}
-
-// annotationStack is a reusable stack of saved node or edge annotation frames.
-type annotationStack struct {
-	states [][]annotationState
-}
-
-func pushAnnotationFrame(stack *annotationStack, capHint int) *[]annotationState {
-	idx := len(stack.states)
-	if idx < cap(stack.states) {
-		stack.states = stack.states[:idx+1]
-		top := &stack.states[idx]
-		*top = (*top)[:0]
-		return top
-	}
-	stack.states = append(stack.states, make([]annotationState, 0, capHint))
-	return &stack.states[idx]
-}
-
-func popAnnotations(stack *annotationStack) {
-	if len(stack.states) == 0 {
-		panic(jutil.NewNoSuchElementException()) // ArrayDeque.pop()
-	}
-	topIdx := len(stack.states) - 1
-	top := stack.states[topIdx]
-	for i := range top {
-		top[i].first.SetAnnotation(top[i].second)
-		top[i] = annotationState{}
-	}
-	stack.states[topIdx] = top[:0]
-	stack.states = stack.states[:topIdx]
-}
-
 func formatGraphValue(v any) string {
-	if v == nil {
-		return "null"
-	}
-	switch x := v.(type) {
-	case string:
-		return x
-	case *string:
-		if x == nil {
-			return "null"
-		}
-		return *x
-	case int:
-		return strconv.Itoa(x)
-	case int32:
-		return strconv.FormatInt(int64(x), 10)
-	case int64:
-		return strconv.FormatInt(x, 10)
-	case bool:
-		return strconv.FormatBool(x)
-	case *int:
-		if x == nil {
-			return "null"
-		}
-		return strconv.Itoa(*x)
-	case *int32:
-		if x == nil {
-			return "null"
-		}
-		return strconv.FormatInt(int64(*x), 10)
-	}
-	if jutil.IsNil(v) {
-		return "null"
-	}
-	if s, ok := v.(fmt.Stringer); ok {
-		return s.String()
-	}
-	return fmt.Sprint(v)
+	return jutil.ToJavaString(v)
 }

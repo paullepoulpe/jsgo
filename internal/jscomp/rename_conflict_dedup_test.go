@@ -97,7 +97,7 @@ func TestRenameConflictDedupPreservesOrderAndNames(t *testing.T) {
 			varID := uint32(len(inverter.vars))
 			inverter.vars = append(inverter.vars, inverterVar{
 				name: name, nameID: id, scopeDepth: 0,
-				refHead: -1, refTail: -1, conflictHead: -1, conflictTail: -1,
+				refs: emptyInt32List(), conflicts: emptyInt32List(),
 			})
 			inverter.shadowByID[id] = varID
 			oracleVars = append(oracleVars, &oracleInverterVar{id: varID, name: name, scopeDepth: 0})
@@ -217,7 +217,7 @@ func TestRenameConflictDedupPreservesOrderAndNames(t *testing.T) {
 			// Verify zero duplicate conflict links and exact conflict set match.
 			var gotConflicts []uint32
 			seen := make(map[uint32]bool)
-			for idx := gotVar.conflictHead; idx >= 0; idx = inverter.conflictLinks[idx].next {
+			for idx := gotVar.conflicts.head; idx >= 0; idx = inverter.conflictLinks[idx].next {
 				target := inverter.conflictLinks[idx].varID
 				if seen[target] {
 					t.Fatalf("seed %d var %d: duplicate conflict edge to %d", seed, id, target)

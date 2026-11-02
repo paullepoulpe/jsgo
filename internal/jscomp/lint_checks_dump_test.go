@@ -106,11 +106,11 @@ type lintChecksDumpGuard struct {
 
 func (*lintChecksDumpGuard) GetPriority() int { return -1000 }
 
-func (g *lintChecksDumpGuard) Level(error *JSError) *CheckLevel {
+func (g *lintChecksDumpGuard) Level(error *JSError) (CheckLevel, bool) {
 	if g.phase != "" {
 		*g.diags = append(*g.diags, g.phase+" "+lintChecksDumpFormat(error))
 	}
-	return nil
+	return 0, false
 }
 
 // lintChecksDumpOptions is LintChecksDump.options().

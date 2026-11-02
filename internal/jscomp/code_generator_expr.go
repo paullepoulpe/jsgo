@@ -29,31 +29,26 @@ import (
 
 // addExprOrTypeNode handles expression, literal, destructuring pattern,
 // spread/rest, and TypeScript type-expression nodes.
-func (g *CodeGenerator) addExprOrTypeNode(
-	node rhino.Node,
-	type_ rhino.Token,
-	first rhino.Node,
-	last rhino.Node,
-	childCount int,
-	context CodeGenerator_Context,
-) {
+func (g *CodeGenerator) addExprOrTypeNode(node rhino.Node, context CodeGenerator_Context) {
 	cc := &g.cc
+	type_ := node.GetToken()
 	switch type_ {
 	case rhino.Token_LABEL_NAME:
+		jutil.CheckStateMsg1(!node.HasChildren(), "%s", node)
 		lbl := ast.MustLabelName(node)
 		jutil.CheckStateMsg1(lbl.Ident() != "", "%s", node)
 		g.AddIdentifier(lbl.Ident())
 	case rhino.Token_DESTRUCTURING_LHS:
-		g.addDestructuringLhs(node, childCount, context)
+		g.addDestructuringLhs(ast.MustDestructuringLhs(node), context)
 	case rhino.Token_NAME:
-		g.addName(node, childCount, context)
+		g.addName(ast.MustName(node), context)
 	case rhino.Token_ARRAYLIT:
 		g.Add("[")
-		g.AddArrayList(first)
+		g.AddArrayList(ast.MustArrayLit(node).Node().GetFirstChild())
 		g.Add("]")
 	case rhino.Token_ARRAY_PATTERN:
 		g.Add("[")
-		g.AddArrayList(first)
+		g.AddArrayList(ast.MustArrayPattern(node).Node().GetFirstChild())
 		g.Add("]")
 		g.MaybeAddTypeDecl(node)
 	case rhino.Token_DEFAULT_VALUE:
@@ -63,30 +58,27 @@ func (g *CodeGenerator) addExprOrTypeNode(
 		cc.AddOp("=", true)
 		g.AddExpr(dv.Value().Node(), 1, CodeGenerator_Context_OTHER)
 	case rhino.Token_COMMA:
-		jutil.CheckStateMsg1(childCount == 2, "%s", node)
+		jutil.CheckStateMsg1(node.HasTwoChildren(), "%s", node)
 		g.UnrollBinaryOperator(
 			node, rhino.Token_COMMA, ",", context, CodeGenerator_GetContextForNoInOperator(context), 0, 0)
 	case rhino.Token_NUMBER:
-		jutil.CheckStateMsg1(childCount == 0, "%s", node)
 		cc.AddNumber(ast.MustNumber(node).Value(), node)
 	case rhino.Token_BIGINT:
-		jutil.CheckStateMsg1(childCount == 0, "%s", node)
+		jutil.CheckStateMsg1(!node.HasChildren(), "%s", node)
 		cc.AddBigInt(node.GetBigInt())
 	case rhino.Token_TYPEOF, rhino.Token_VOID, rhino.Token_NOT, rhino.Token_BITNOT, rhino.Token_POS, rhino.Token_NEG:
 		// All of these unary operators are right-associative
-		jutil.CheckStateMsg1(childCount == 1, "%s", node)
 		cc.AddOp(NodeUtil_OpToStrNoFail(type_), false)
 		g.AddExpr(ast.MustUnary(node).Operand().Node(), NodeUtil_Precedence(type_), CodeGenerator_Context_OTHER)
 	case rhino.Token_DELPROP:
-		jutil.CheckStateMsg1(childCount == 1, "%s", node)
 		g.Add("delete ")
 		g.AddNode(ast.MustUnary(node).Operand().Node())
 	case rhino.Token_INC, rhino.Token_DEC:
-		g.addIncDec(node, type_, childCount, context)
+		g.addIncDec(ast.MustIncDec(node), type_, context)
 	case rhino.Token_HOOK:
-		g.addHook(node, childCount, context)
+		g.addHook(ast.MustHook(node), context)
 	case rhino.Token_REGEXP:
-		g.addRegExpNode(node, first, last, childCount)
+		g.addRegExpNode(ast.MustRegExp(node))
 	case rhino.Token_ITER_REST, rhino.Token_OBJECT_REST:
 		g.Add("...")
 		g.AddNode(ast.MustRest(node).Target().Node())
@@ -99,63 +91,64 @@ func (g *CodeGenerator) addExprOrTypeNode(
 		g.AddExpr(ast.MustDynamicImport(node).Specifier().Node(), NodeUtil_Precedence(type_), context)
 		g.Add(")")
 	case rhino.Token_IMPORT_META:
+		jutil.CheckStateMsg1(!node.HasChildren(), "%s", node)
 		g.Add("import.meta")
 	case rhino.Token_OPTCHAIN_GETPROP:
-		g.addOptChainGetProp(node, context)
+		g.addOptChainGetProp(ast.MustOptChainGetProp(node), context)
 	case rhino.Token_GETPROP:
-		g.addGetProp(node, context)
+		g.addGetProp(ast.MustGetProp(node), context)
 	case rhino.Token_OPTCHAIN_GETELEM:
-		g.addOptChainGetElem(node, childCount, context)
+		g.addOptChainGetElem(ast.MustOptChainGetElem(node), context)
 	case rhino.Token_GETELEM:
-		g.addGetElem(node, childCount, context)
+		g.addGetElem(ast.MustGetElem(node), context)
 	case rhino.Token_OPTCHAIN_CALL:
-		g.addOptChainCall(node, context)
+		g.addOptChainCall(ast.MustOptChainCall(node), context)
 	case rhino.Token_CALL:
-		g.addCall(node, context)
+		g.addCall(ast.MustCall(node), context)
 	case rhino.Token_NEW:
-		g.addNew(node)
+		g.addNew(ast.MustNew(node))
 	case rhino.Token_NULL:
-		jutil.CheckStateMsg1(childCount == 0, "%s", node)
+		jutil.CheckStateMsg1(!node.HasChildren(), "%s", node)
 		cc.AddConstant("null")
 	case rhino.Token_THIS:
-		jutil.CheckStateMsg1(childCount == 0, "%s", node)
+		jutil.CheckStateMsg1(!node.HasChildren(), "%s", node)
 		g.Add("this")
 	case rhino.Token_SUPER:
-		jutil.CheckStateMsg1(childCount == 0, "%s", node)
+		jutil.CheckStateMsg1(!node.HasChildren(), "%s", node)
 		g.Add("super")
 	case rhino.Token_NEW_TARGET:
-		jutil.CheckStateMsg1(childCount == 0, "%s", node)
+		jutil.CheckStateMsg1(!node.HasChildren(), "%s", node)
 		g.Add("new.target")
 	case rhino.Token_YIELD:
-		g.addYield(node, first)
+		g.addYield(ast.MustYield(node))
 	case rhino.Token_AWAIT:
 		g.Add("await ")
 		g.AddExpr(ast.MustAwait(node).Value().Node(), NodeUtil_Precedence(type_), CodeGenerator_Context_OTHER)
 	case rhino.Token_FALSE:
-		jutil.CheckStateMsg1(childCount == 0, "%s", node)
+		jutil.CheckStateMsg1(!node.HasChildren(), "%s", node)
 		cc.AddConstant("false")
 	case rhino.Token_TRUE:
-		jutil.CheckStateMsg1(childCount == 0, "%s", node)
+		jutil.CheckStateMsg1(!node.HasChildren(), "%s", node)
 		cc.AddConstant("true")
 	case rhino.Token_STRING_KEY:
 		g.AddStringKey(node)
 	case rhino.Token_STRINGLIT:
-		jutil.CheckStateMsg1(childCount == 0, "String node %s may not have children", node)
+		jutil.CheckStateMsg1(!node.HasChildren(), "String node %s may not have children", node)
 		g.AddJsString(node)
 	case rhino.Token_OBJECTLIT:
-		g.addObjectLit(node, first, context)
+		g.addObjectLit(ast.MustObjectLit(node), context)
 	case rhino.Token_COMPUTED_PROP:
-		g.addComputedProp(node, last)
+		g.addComputedProp(ast.MustComputedProp(node))
 	case rhino.Token_OBJECT_PATTERN:
 		g.AddObjectPattern(node)
 		g.MaybeAddTypeDecl(node)
 	case rhino.Token_CAST:
-		g.addCast(node, context)
+		g.addCast(ast.MustCast(node), context)
 	case rhino.Token_TAGGED_TEMPLATELIT:
 		g.AddInvocationTarget(node, context)
 		g.AddNode(ast.MustTaggedTemplateLit(node).Template().Node())
 	case rhino.Token_TEMPLATELIT:
-		g.addTemplateLit(first)
+		g.addTemplateLit(ast.MustTemplateLit(node))
 	// Type Declaration ASTs.
 	case rhino.Token_STRING_TYPE:
 		g.Add("string")
@@ -168,30 +161,32 @@ func (g *CodeGenerator) addExprOrTypeNode(
 	case rhino.Token_VOID_TYPE:
 		g.Add("void")
 	case rhino.Token_NAMED_TYPE:
-		g.AddNode(first)
+		g.AddNode(node.GetFirstChild())
 	case rhino.Token_ARRAY_TYPE:
-		g.AddExpr(first, NodeUtil_Precedence(rhino.Token_ARRAY_TYPE), context)
+		g.AddExpr(node.GetFirstChild(), NodeUtil_Precedence(rhino.Token_ARRAY_TYPE), context)
 		g.Add("[]")
 	case rhino.Token_FUNCTION_TYPE:
+		first := node.GetFirstChild()
 		g.Add("(")
 		g.AddList(first.GetNext())
 		g.Add(")")
 		cc.AddOp("=>", true)
 		g.AddNode(first)
 	case rhino.Token_UNION_TYPE:
-		g.AddListWithSeparator(first, "|")
+		g.AddListWithSeparator(node.GetFirstChild(), "|")
 	case rhino.Token_RECORD_TYPE:
 		g.Add("{")
-		g.AddListWithContextAndSeparator(first, false, CodeGenerator_Context_OTHER, ",")
+		g.AddListWithContextAndSeparator(node.GetFirstChild(), false, CodeGenerator_Context_OTHER, ",")
 		g.Add("}")
 	case rhino.Token_PARAMETERIZED_TYPE:
+		first := node.GetFirstChild()
 		g.AddNode(first)
 		g.Add("<")
 		g.AddList(first.GetNext())
 		g.Add(">")
 	case rhino.Token_GENERIC_TYPE_LIST:
 		g.Add("<")
-		g.AddListWithContextAndSeparator(first, false, CodeGenerator_Context_STATEMENT, ",")
+		g.AddListWithContextAndSeparator(node.GetFirstChild(), false, CodeGenerator_Context_STATEMENT, ",")
 		g.Add(">")
 	case rhino.Token_GENERIC_TYPE:
 		g.AddIdentifier(node.GetString())
@@ -205,18 +200,16 @@ func (g *CodeGenerator) addExprOrTypeNode(
 	}
 }
 
-func (g *CodeGenerator) addDestructuringLhs(node rhino.Node, childCount int, context CodeGenerator_Context) {
-	lhs := ast.MustDestructuringLhs(node)
+func (g *CodeGenerator) addDestructuringLhs(lhs ast.DestructuringLhs, context CodeGenerator_Context) {
 	g.AddNode(lhs.Pattern().Node())
 	if init, ok := lhs.Init(); ok {
-		jutil.CheckStateMsg1(childCount == 2, "%s", node)
 		g.cc.AddOp("=", true)
 		g.AddExpr(init.Node(), NodeUtil_Precedence(rhino.Token_ASSIGN), CodeGenerator_GetContextForNoInOperator(context))
 	}
 }
 
-func (g *CodeGenerator) addName(node rhino.Node, childCount int, context CodeGenerator_Context) {
-	nm := ast.MustName(node)
+func (g *CodeGenerator) addName(nm ast.Name, context CodeGenerator_Context) {
+	node := nm.Node()
 	if g.useOriginalName && node.GetOriginalName() != nil {
 		g.AddIdentifier(*node.GetOriginalName())
 	} else {
@@ -226,15 +219,12 @@ func (g *CodeGenerator) addName(node rhino.Node, childCount int, context CodeGen
 	g.MaybeAddTypeDecl(node)
 
 	if init, ok := nm.Init(); ok && !init.Node().IsEmpty() {
-		jutil.CheckStateMsg1(childCount == 1, "%s", node)
 		g.cc.AddOp("=", true)
 		g.AddExpr(init.Node(), NodeUtil_Precedence(rhino.Token_ASSIGN), CodeGenerator_GetContextForNoInOperator(context))
 	}
 }
 
-func (g *CodeGenerator) addIncDec(node rhino.Node, type_ rhino.Token, childCount int, context CodeGenerator_Context) {
-	jutil.CheckStateMsg1(childCount == 1, "%s", node)
-	incDec := ast.MustIncDec(node)
+func (g *CodeGenerator) addIncDec(incDec ast.IncDec, type_ rhino.Token, context CodeGenerator_Context) {
 	o := "--"
 	if type_ == rhino.Token_INC {
 		o = "++"
@@ -249,11 +239,7 @@ func (g *CodeGenerator) addIncDec(node rhino.Node, type_ rhino.Token, childCount
 	}
 }
 
-func (g *CodeGenerator) addHook(node rhino.Node, childCount int, context CodeGenerator_Context) {
-	if childCount != 3 {
-		jutil.CheckStateMsg2(false, "%s wrong number of children: %s", node, node.GetChildCount())
-	}
-	hook := ast.MustHook(node)
+func (g *CodeGenerator) addHook(hook ast.Hook, context CodeGenerator_Context) {
 	p := NodeUtil_Precedence(rhino.Token_HOOK)
 	rhsContext := CodeGenerator_GetContextForNoInOperator(context)
 	g.AddExpr(hook.Cond().Node(), p+1, context)
@@ -263,32 +249,33 @@ func (g *CodeGenerator) addHook(node rhino.Node, childCount int, context CodeGen
 	g.AddExpr(hook.Else().Node(), 1, rhsContext)
 }
 
-func (g *CodeGenerator) addRegExpNode(node, first, last rhino.Node, childCount int) {
-	if !first.IsStringLit() || !last.IsStringLit() {
+func (g *CodeGenerator) addRegExpNode(re ast.RegExp) {
+	pat := re.Pattern()
+	if !pat.Node().IsStringLit() {
 		panic(jutil.NewJavaLangError("Expected children to be strings"))
 	}
-	jutil.CheckStateMsg1(childCount == 1 || childCount == 2, "%s", node)
-	re := ast.MustRegExp(node)
 	flags := ""
 	if f, ok := re.Flags(); ok {
+		if !f.Node().IsStringLit() {
+			panic(jutil.NewJavaLangError("Expected children to be strings"))
+		}
 		flags = f.Value()
 	}
-	g.addRegexp(re.Pattern().Value(), flags)
+	g.addRegexp(pat.Value(), flags)
 }
 
-func (g *CodeGenerator) addOptChainGetProp(node rhino.Node, context CodeGenerator_Context) {
-	gp := ast.MustOptChainGetProp(node)
+func (g *CodeGenerator) addOptChainGetProp(gp ast.OptChainGetProp, context CodeGenerator_Context) {
 	g.AddExpr(gp.Object().Node(), NodeUtil_Precedence(rhino.Token_OPTCHAIN_GETPROP), context)
 	if gp.IsStart() {
 		g.Add("?.")
 	} else {
 		g.Add(".")
 	}
-	g.AddGetpropIdentifier(node)
+	g.AddGetpropIdentifier(gp.Node())
 }
 
-func (g *CodeGenerator) addGetProp(node rhino.Node, context CodeGenerator_Context) {
-	gp := ast.MustGetProp(node)
+func (g *CodeGenerator) addGetProp(gp ast.GetProp, context CodeGenerator_Context) {
+	node := gp.Node()
 	objNode := gp.Object().Node()
 	// Convert rewritten aliased code back to original code when using goog.scope().
 	if g.useOriginalName && node.GetOriginalName() != nil {
@@ -319,15 +306,7 @@ func (g *CodeGenerator) addGetProp(node rhino.Node, context CodeGenerator_Contex
 	}
 }
 
-func (g *CodeGenerator) addOptChainGetElem(node rhino.Node, childCount int, context CodeGenerator_Context) {
-	if childCount != 2 {
-		jutil.CheckStateMsg2(
-			false,
-			"Bad GETELEM node: Expected 2 children but got %s. For node: %s",
-			node.GetChildCount(),
-			node)
-	}
-	ge := ast.MustOptChainGetElem(node)
+func (g *CodeGenerator) addOptChainGetElem(ge ast.OptChainGetElem, context CodeGenerator_Context) {
 	g.AddExpr(ge.Object().Node(), NodeUtil_Precedence(rhino.Token_OPTCHAIN_GETELEM), context)
 	if ge.IsStart() {
 		g.Add("?.")
@@ -337,15 +316,7 @@ func (g *CodeGenerator) addOptChainGetElem(node rhino.Node, childCount int, cont
 	g.Add("]")
 }
 
-func (g *CodeGenerator) addGetElem(node rhino.Node, childCount int, context CodeGenerator_Context) {
-	if childCount != 2 {
-		jutil.CheckStateMsg2(
-			false,
-			"Bad GETELEM node: Expected 2 children but got %s. For node: %s",
-			node.GetChildCount(),
-			node)
-	}
-	ge := ast.MustGetElem(node)
+func (g *CodeGenerator) addGetElem(ge ast.GetElem, context CodeGenerator_Context) {
 	objNode := ge.Object().Node()
 	needsParens := NodeUtil_IsOptChainNode(objNode)
 	if needsParens {
@@ -360,8 +331,7 @@ func (g *CodeGenerator) addGetElem(node rhino.Node, childCount int, context Code
 	g.Add("]")
 }
 
-func (g *CodeGenerator) addOptChainCall(node rhino.Node, context CodeGenerator_Context) {
-	call := ast.MustOptChainCall(node)
+func (g *CodeGenerator) addOptChainCall(call ast.OptChainCall, context CodeGenerator_Context) {
 	calleeNode := call.Callee().Node()
 	if CodeGenerator_IsIndirectEval(calleeNode) ||
 		(call.IsFreeCall() && NodeUtil_IsNormalOrOptChainGet(calleeNode)) {
@@ -381,9 +351,8 @@ func (g *CodeGenerator) addOptChainCall(node rhino.Node, context CodeGenerator_C
 	g.Add(")")
 }
 
-func (g *CodeGenerator) addCall(node rhino.Node, context CodeGenerator_Context) {
-	call := ast.MustCall(node)
-	g.AddInvocationTarget(node, context)
+func (g *CodeGenerator) addCall(call ast.Call, context CodeGenerator_Context) {
+	g.AddInvocationTarget(call.Node(), context)
 	g.Add("(")
 	if firstArg, ok := call.FirstArg(); ok {
 		g.AddList(firstArg.Node())
@@ -391,8 +360,7 @@ func (g *CodeGenerator) addCall(node rhino.Node, context CodeGenerator_Context) 
 	g.Add(")")
 }
 
-func (g *CodeGenerator) addNew(node rhino.Node) {
-	nw := ast.MustNew(node)
+func (g *CodeGenerator) addNew(nw ast.New) {
 	calleeNode := nw.Callee().Node()
 	g.Add("new ")
 	precedence := NodeUtil_Precedence(rhino.Token_NEW)
@@ -415,31 +383,32 @@ func (g *CodeGenerator) addNew(node rhino.Node) {
 		g.Add("(")
 		g.AddList(firstArg.Node())
 		g.Add(")")
-	} else if g.cc.ShouldPreserveExtras(node) {
+	} else if g.cc.ShouldPreserveExtras(nw.Node()) {
 		g.Add("(")
 		g.Add(")")
 	}
 }
 
-func (g *CodeGenerator) addYield(node, first rhino.Node) {
-	yld := ast.MustYield(node)
+func (g *CodeGenerator) addYield(yld ast.Yield) {
 	g.Add("yield")
+	val, hasVal := yld.Value()
 	if yld.IsYieldAll() {
-		rhino.CheckNotNull(first)
+		jutil.CheckState(hasVal)
 		g.Add("*")
 	}
-	if val, ok := yld.Value(); ok {
+	if hasVal {
 		g.cc.MaybeInsertSpace()
 		g.AddExpr(val.Node(), NodeUtil_Precedence(rhino.Token_YIELD), CodeGenerator_Context_OTHER)
 	}
 }
 
-func (g *CodeGenerator) addObjectLit(node, first rhino.Node, context CodeGenerator_Context) {
+func (g *CodeGenerator) addObjectLit(lit ast.ObjectLit, context CodeGenerator_Context) {
 	needsParens := context == CodeGenerator_Context_START_OF_EXPR || context.AtArrowFunctionBody()
 	if needsParens {
 		g.Add("(")
 	}
 	g.Add("{")
+	first := lit.Node().GetFirstChild()
 	for c := first; !c.IsNil(); c = c.GetNext() {
 		if c != first {
 			g.cc.ListSeparator()
@@ -447,7 +416,7 @@ func (g *CodeGenerator) addObjectLit(node, first rhino.Node, context CodeGenerat
 		jutil.CheckStateMsg1(NodeUtil_IsObjLitProperty(c) || c.IsSpread(), "%s", c)
 		g.AddNode(c)
 	}
-	if !first.IsNil() && node.HasTrailingComma() {
+	if !first.IsNil() && lit.Node().HasTrailingComma() {
 		g.cc.OptionalListSeparator()
 	}
 	g.Add("}")
@@ -456,13 +425,14 @@ func (g *CodeGenerator) addObjectLit(node, first rhino.Node, context CodeGenerat
 	}
 }
 
-func (g *CodeGenerator) addComputedProp(node, last rhino.Node) {
-	cp := ast.MustComputedProp(node)
+func (g *CodeGenerator) addComputedProp(cp ast.ComputedProp) {
+	node := cp.Node()
 	g.MaybeAddAccessibilityModifier(node)
 	if cp.IsStatic() {
 		g.Add("static ")
 	}
 
+	val, hasVal := cp.Value()
 	isGetter := cp.IsGetter()
 	isSetter := cp.IsSetter()
 	isMethod := cp.IsMethod()
@@ -471,10 +441,10 @@ func (g *CodeGenerator) addComputedProp(node, last rhino.Node) {
 	} else if isSetter {
 		g.Add("set ")
 	} else if isMethod {
-		if last.IsAsyncFunction() {
+		if val.Node().IsAsyncFunction() {
 			g.Add("async")
 		}
-		if last.GetBooleanProp(rhino.Node_GENERATOR_FN) {
+		if val.Node().GetBooleanProp(rhino.Node_GENERATOR_FN) {
 			g.Add("*")
 		}
 	}
@@ -484,7 +454,6 @@ func (g *CodeGenerator) addComputedProp(node, last rhino.Node) {
 	g.AddExpr(cp.Key().Node(), 1, CodeGenerator_Context_OTHER)
 	g.Add("]")
 	g.MaybeAddTypeDecl(node)
-	val, hasVal := cp.Value()
 	if isMethod || isGetter || isSetter {
 		fn := ast.MustFunction(val.Node())
 		g.AddNode(fn.Params().Node())
@@ -502,8 +471,8 @@ func (g *CodeGenerator) addComputedProp(node, last rhino.Node) {
 	}
 }
 
-func (g *CodeGenerator) addCast(node rhino.Node, context CodeGenerator_Context) {
-	exprNode := ast.MustCast(node).Expr().Node()
+func (g *CodeGenerator) addCast(cast ast.Cast, context CodeGenerator_Context) {
+	exprNode := cast.Expr().Node()
 	if g.preserveTypeAnnotations {
 		g.Add("(")
 		g.AddNode(exprNode) // drop context because of added parentheses
@@ -513,14 +482,15 @@ func (g *CodeGenerator) addCast(node rhino.Node, context CodeGenerator_Context) 
 	}
 }
 
-func (g *CodeGenerator) addTemplateLit(first rhino.Node) {
+func (g *CodeGenerator) addTemplateLit(tl ast.TemplateLit) {
 	cc := &g.cc
 	cc.BeginTemplateLit()
-	for c := first; !c.IsNil(); c = c.GetNext() {
-		if tls, ok := ast.AsTemplateLitString(c); ok {
+	for part, ok := tl.FirstPart(); ok; part, ok = part.Next() {
+		if tls, isStr := part.AsTemplateLitString(); isStr {
 			g.Add(g.EscapeUnrecognizedCharacters(tls.Raw()))
 		} else {
-			sub := ast.MustTemplateLitSub(c)
+			jutil.CheckStateMsg1(part.Node().HasOneChild(), "%s", part.Node())
+			sub := part.MustTemplateLitSub()
 			cc.BeginTemplateLitSub()
 			g.AddNodeWithContext(sub.Expr().Node(), CodeGenerator_Context_START_OF_EXPR)
 			cc.EndTemplateLitSub()

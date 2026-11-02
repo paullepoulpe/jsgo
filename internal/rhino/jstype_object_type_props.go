@@ -64,16 +64,6 @@ func (o *ObjectTypeBase) GetOwnSlot(name string) *Property {
 	return o.selfObj().GetPropertyMap().GetOwnProperty(name)
 }
 
-// Java: ObjectType.getOwnSlot(Property.Key)
-func (o *ObjectTypeBase) GetOwnSlotByKey(name Property_Key) *Property {
-	return o.selfObj().GetPropertyMap().GetOwnPropertyByKey(name)
-}
-
-// GetOwnSlotByID looks up an own property slot by its interned string ID.
-func (o *ObjectTypeBase) GetOwnSlotByID(id uint32) *Property {
-	return o.selfObj().GetPropertyMap().GetOwnPropertyByID(rhinoStringID(id))
-}
-
 // GetClosestDefiningType returns the closest ancestor that defines the
 // property including this type itself.
 //
@@ -233,27 +223,9 @@ func (o *ObjectTypeBase) GetPropertyNode(propertyName string) Node {
 	return p.GetNode()
 }
 
-// Java: ObjectType.getPropertyNode(Property.Key)
-func (o *ObjectTypeBase) GetPropertyNodeByKey(propertyName Property_Key) Node {
-	p := o.selfObj().GetSlotByKey(propertyName)
-	if p == nil {
-		return NilNode
-	}
-	return p.GetNode()
-}
-
 // Java: ObjectType.getPropertyDefSite(String)
 func (o *ObjectTypeBase) GetPropertyDefSite(propertyName string) Node {
 	p := o.selfObj().GetSlotByKey(propertyKeyLookup(propertyName))
-	if p == nil {
-		return NilNode
-	}
-	return p.GetNode()
-}
-
-// Java: ObjectType.getPropertyDefSite(Property.Key)
-func (o *ObjectTypeBase) GetPropertyDefSiteByKey(propertyName Property_Key) Node {
-	p := o.selfObj().GetSlotByKey(propertyName)
 	if p == nil {
 		return NilNode
 	}
@@ -281,12 +253,7 @@ func (o *ObjectTypeBase) GetPropertyJSDocInfoByKey(propertyName Property_Key) *J
 //
 // Java: ObjectType.getOwnPropertyJSDocInfo(String)
 func (o *ObjectTypeBase) GetOwnPropertyJSDocInfo(propertyName string) *JSDocInfo {
-	return o.GetOwnPropertyJSDocInfoByKey(propertyKeyLookup(propertyName))
-}
-
-// Java: ObjectType.getOwnPropertyJSDocInfo(Property.Key)
-func (o *ObjectTypeBase) GetOwnPropertyJSDocInfoByKey(propertyName Property_Key) *JSDocInfo {
-	p := o.selfObj().GetPropertyMap().GetOwnPropertyByKey(propertyName)
+	p := o.selfObj().GetPropertyMap().GetOwnPropertyByKey(propertyKeyLookup(propertyName))
 	if p == nil {
 		return nil
 	}
@@ -295,12 +262,7 @@ func (o *ObjectTypeBase) GetOwnPropertyJSDocInfoByKey(propertyName Property_Key)
 
 // Java: ObjectType.getOwnPropertyDefSite(String)
 func (o *ObjectTypeBase) GetOwnPropertyDefSite(propertyName string) Node {
-	return o.GetOwnPropertyDefSiteByKey(propertyKeyLookup(propertyName))
-}
-
-// Java: ObjectType.getOwnPropertyDefSite(Property.Key)
-func (o *ObjectTypeBase) GetOwnPropertyDefSiteByKey(propertyName Property_Key) Node {
-	p := o.selfObj().GetPropertyMap().GetOwnPropertyByKey(propertyName)
+	p := o.selfObj().GetPropertyMap().GetOwnPropertyByKey(propertyKeyLookup(propertyName))
 	if p == nil {
 		return NilNode
 	}
@@ -317,11 +279,6 @@ func (o *ObjectTypeBase) SetPropertyJSDocInfo(propertyName string, info *JSDocIn
 
 // Java: ObjectType.setPropertyJSDocInfo(Property.Key, JSDocInfo)
 func (o *ObjectTypeBase) SetPropertyJSDocInfoByKey(propertyName Property_Key, info *JSDocInfo) {
-	// by default, do nothing
-}
-
-// Java: ObjectType.setPropertyNode(Property.Key, Node)
-func (o *ObjectTypeBase) SetPropertyNodeByKey(propertyName Property_Key, defSite Node) {
 	// by default, do nothing
 }
 
@@ -394,14 +351,6 @@ func (o *ObjectTypeBase) GetPropertyTypeFromSlot(slot *Property) JSType {
 func (o *ObjectTypeBase) GetPropertyKindByKeyWithAutobox(propertyName Property_Key, autobox bool) JSType_HasPropertyKind {
 	// Unknown types have all properties.
 	return JSType_HasPropertyKind_Of(o.self().IsEmptyType() || o.self().IsUnknownType() || o.selfObj().GetSlotByKey(propertyName) != nil)
-}
-
-// Java: ObjectType.getOwnPropertyKind(Property.Key)
-func (o *ObjectTypeBase) GetOwnPropertyKindByKey(propertyName Property_Key) JSType_HasPropertyKind {
-	if o.selfObj().GetPropertyMap().GetOwnPropertyByKey(propertyName) != nil {
-		return JSType_HasPropertyKind_KNOWN_PRESENT
-	}
-	return JSType_HasPropertyKind_ABSENT
 }
 
 // HasOwnProperty checks whether the property whose name is given is present

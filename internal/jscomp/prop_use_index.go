@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"os"
 	"strings"
-	"sync"
 	"sync/atomic"
 	"time"
 
@@ -424,33 +423,14 @@ func (ix *propUseIndex) indexRound(round []*piScope) {
 	}
 	workers := min(ix.threads, (len(round)+piParallelMin/2-1)/(piParallelMin/2))
 	recs := make([]piRecorder, workers)
-	panics := make([]any, workers)
-	var next atomic.Int64
-	var wg sync.WaitGroup
+	runParallelWorkersIndexed(
+		len(round),
+		workers,
+		func(w int) piRecorder { return piRecorder{c: ix.c, conv: ix.conv} },
+		func(r *piRecorder, i int) { r.index(round[i]) },
+		func(w int, r *piRecorder) { recs[w] = *r },
+	)
 	for w := range recs {
-		recs[w] = piRecorder{c: ix.c, conv: ix.conv}
-		wg.Add(1)
-		go func(r *piRecorder, w int) {
-			defer wg.Done()
-			defer func() {
-				if p := recover(); p != nil {
-					panics[w] = p
-				}
-			}()
-			for {
-				i := int(next.Add(1)) - 1
-				if i >= len(round) {
-					return
-				}
-				r.index(round[i])
-			}
-		}(&recs[w], w)
-	}
-	wg.Wait()
-	for w := range recs {
-		if panics[w] != nil {
-			panic(panics[w])
-		}
 		ix.stats.reindexed += recs[w].indexed
 		ix.stats.items += recs[w].items
 	}

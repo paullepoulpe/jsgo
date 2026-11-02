@@ -202,29 +202,9 @@ func (p *ProxyObjectTypeBase) IsStructuralType() bool {
 	return p.referencedType.IsStructuralType()
 }
 
-// Java: ProxyObjectType.isNoType()
-func (p *ProxyObjectTypeBase) IsNoType() bool {
-	return p.referencedType.IsNoType()
-}
-
-// Java: ProxyObjectType.isNoObjectType()
-func (p *ProxyObjectTypeBase) IsNoObjectType() bool {
-	return p.referencedType.IsNoObjectType()
-}
-
-// Java: ProxyObjectType.isNoResolvedType()
-func (p *ProxyObjectTypeBase) IsNoResolvedType() bool {
-	return p.referencedType.IsNoResolvedType()
-}
-
 // Java: ProxyObjectType.isUnknownType()
 func (p *ProxyObjectTypeBase) IsUnknownType() bool {
 	return p.referencedType.IsUnknownType()
-}
-
-// Java: ProxyObjectType.isCheckedUnknownType()
-func (p *ProxyObjectTypeBase) IsCheckedUnknownType() bool {
-	return p.referencedType.IsCheckedUnknownType()
 }
 
 // Java: ProxyObjectType.isNullable()
@@ -237,21 +217,6 @@ func (p *ProxyObjectTypeBase) IsVoidable() bool {
 	return p.referencedType.IsVoidable()
 }
 
-// Java: JSType.isEnumType()
-func (p *ProxyObjectTypeBase) IsEnumType() bool {
-	return p.referencedType.IsEnumType()
-}
-
-// Java: ProxyObjectType.toMaybeEnumType()
-func (p *ProxyObjectTypeBase) ToMaybeEnumType() *EnumType {
-	return p.referencedType.ToMaybeEnumType()
-}
-
-// Java: ProxyObjectType.isConstructor()
-func (p *ProxyObjectTypeBase) IsConstructor() bool {
-	return p.referencedType.IsConstructor()
-}
-
 // Java: ProxyObjectType.isNominalType()
 func (p *ProxyObjectTypeBase) IsNominalType() bool {
 	return p.referencedType.IsNominalType()
@@ -262,21 +227,6 @@ func (p *ProxyObjectTypeBase) IsInstanceType() bool {
 	return p.referencedType.IsInstanceType()
 }
 
-// Java: ProxyObjectType.isInterface()
-func (p *ProxyObjectTypeBase) IsInterface() bool {
-	return p.referencedType.IsInterface()
-}
-
-// Java: ProxyObjectType.isOrdinaryFunction()
-func (p *ProxyObjectTypeBase) IsOrdinaryFunction() bool {
-	return p.referencedType.IsOrdinaryFunction()
-}
-
-// Java: ProxyObjectType.isAllType()
-func (p *ProxyObjectTypeBase) IsAllType() bool {
-	return p.referencedType.IsAllType()
-}
-
 // Java: ProxyObjectType.isStruct()
 func (p *ProxyObjectTypeBase) IsStruct() bool {
 	return p.referencedType.IsStruct()
@@ -285,59 +235,6 @@ func (p *ProxyObjectTypeBase) IsStruct() bool {
 // Java: ProxyObjectType.isDict()
 func (p *ProxyObjectTypeBase) IsDict() bool {
 	return p.referencedType.IsDict()
-}
-
-// Java: ProxyObjectType.isNativeObjectType()
-func (p *ProxyObjectTypeBase) IsNativeObjectType() bool {
-	if p.referencedObjType == nil {
-		return false
-	}
-	return p.referencedObjType.IsNativeObjectType()
-}
-
-// Java: JSType.isRecordType()
-func (p *ProxyObjectTypeBase) IsRecordType() bool {
-	return p.referencedType.IsRecordType()
-}
-
-// Java: ProxyObjectType.toMaybeRecordType()
-func (p *ProxyObjectTypeBase) ToMaybeRecordType() *RecordType {
-	return p.referencedType.ToMaybeRecordType()
-}
-
-// Java: JSType.isUnionType()
-func (p *ProxyObjectTypeBase) IsUnionType() bool {
-	return p.referencedType.IsUnionType()
-}
-
-// Java: ProxyObjectType.toMaybeUnionType()
-func (p *ProxyObjectTypeBase) ToMaybeUnionType() *UnionType {
-	return p.referencedType.ToMaybeUnionType()
-}
-
-// Java: JSType.isFunctionType()
-func (p *ProxyObjectTypeBase) IsFunctionType() bool {
-	return p.referencedType.IsFunctionType()
-}
-
-// Java: ProxyObjectType.toMaybeFunctionType()
-func (p *ProxyObjectTypeBase) ToMaybeFunctionType() FunctionType {
-	return p.referencedType.ToMaybeFunctionType()
-}
-
-// Java: JSType.isEnumElementType()
-func (p *ProxyObjectTypeBase) IsEnumElementType() bool {
-	return p.referencedType.IsEnumElementType()
-}
-
-// Java: ProxyObjectType.toMaybeEnumElementType()
-func (p *ProxyObjectTypeBase) ToMaybeEnumElementType() *EnumElementType {
-	return p.referencedType.ToMaybeEnumElementType()
-}
-
-// Java: ProxyObjectType.toMaybeKnownSymbolType()
-func (p *ProxyObjectTypeBase) ToMaybeKnownSymbolType() *KnownSymbolType {
-	return p.referencedType.ToMaybeKnownSymbolType()
 }
 
 // Java: ProxyObjectType.testForEquality(JSType)
@@ -463,26 +360,6 @@ func (p *ProxyObjectTypeBase) CollapseUnion() JSType {
 // Java: ProxyObjectType.matchConstraint(JSType)
 func (p *ProxyObjectTypeBase) MatchConstraint(constraint JSType) {
 	p.referencedType.MatchConstraint(constraint)
-}
-
-// Java: JSType.isTemplatizedType()
-func (p *ProxyObjectTypeBase) IsTemplatizedType() bool {
-	return p.referencedType.IsTemplatizedType()
-}
-
-// Java: ProxyObjectType.toMaybeTemplatizedType()
-func (p *ProxyObjectTypeBase) ToMaybeTemplatizedType() *TemplatizedType {
-	return p.referencedType.ToMaybeTemplatizedType()
-}
-
-// Java: JSType.isTemplateType()
-func (p *ProxyObjectTypeBase) IsTemplateType() bool {
-	return p.referencedType.IsTemplateType()
-}
-
-// Java: ProxyObjectType.toMaybeTemplateType()
-func (p *ProxyObjectTypeBase) ToMaybeTemplateType() *TemplateType {
-	return p.referencedType.ToMaybeTemplateType()
 }
 
 // Java: ProxyObjectType.hasAnyTemplateTypesInternal()

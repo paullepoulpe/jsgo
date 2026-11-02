@@ -86,17 +86,17 @@ func AllowlistWarningsGuard_NormalizeAllowlist(allowlist []string) map[string]st
 }
 
 // Java: AllowlistWarningsGuard.level(JSError)
-func (g *AllowlistWarningsGuard) Level(error *jscomp.JSError) *jscomp.CheckLevel {
+func (g *AllowlistWarningsGuard) Level(error *jscomp.JSError) (jscomp.CheckLevel, bool) {
 	if error.DefaultLevel() == jscomp.CheckLevel_ERROR {
-		return nil
+		return 0, false
 	}
 	if len(g.allowlist) > 0 && g.ContainWarning(g.FormatWarning(error)) {
 		// If the message matches the guard we use WARNING, so that it
 		// - Shows up on stderr, and
 		// - Gets caught by the AllowlistBuilder downstream in the pipeline
-		return jscomp.CheckLevel_WARNING.Ptr()
+		return jscomp.CheckLevel_WARNING, true
 	}
-	return nil
+	return 0, false
 }
 
 // ContainWarning determines whether a given warning is included in the
@@ -189,8 +189,8 @@ func (g *AllowlistWarningsGuard) FormatWarning(error *jscomp.JSError) string {
 // Java: AllowlistWarningsGuard.formatWarning(JSError, boolean)
 func (g *AllowlistWarningsGuard) FormatWarningWithMetaData(error *jscomp.JSError, withMetaData bool) string {
 	var sb strings.Builder
-	if src := error.SourceName(); src != nil {
-		sb.WriteString(g.NormalizeSourceName(*src))
+	if src, ok := error.SourceNameOpt(); ok {
+		sb.WriteString(g.NormalizeSourceName(src))
 	} else {
 		sb.WriteString("null")
 	}

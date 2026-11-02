@@ -669,15 +669,14 @@ func (f *colorGraphBuilderTest_StubLcaFinder) addStub(from, to *jutil.LinkedHash
 	return f
 }
 
-// Java: ColorGraphBuilderTest.StubLcaFinder.findAll(Set<ColorGraphNode>)
-func (f *colorGraphBuilderTest_StubLcaFinder) FindAll(roots *jutil.LinkedHashSet[*ColorGraphNode]) *jutil.LinkedHashSet[*ColorGraphNode] {
+func (f *colorGraphBuilderTest_StubLcaFinder) FindAllSlice(roots []*ColorGraphNode, dst []*ColorGraphNode) []*ColorGraphNode {
 	for _, entry := range f.preconditions {
 		entry.run()
 		entry.count--
 	}
 
 	rootIds := jutil.NewLinkedHashSet[colors.ColorId]()
-	for r := range roots.All() {
+	for _, r := range roots {
 		rootIds.Add(colorGraphBuilderTest_nameOf(r))
 	}
 	var resultNames *jutil.LinkedHashSet[colors.ColorId]
@@ -702,16 +701,8 @@ func (f *colorGraphBuilderTest_StubLcaFinder) FindAll(roots *jutil.LinkedHashSet
 	}
 	AssertThat(results).HasSize(resultNames.Size())
 
-	return results
-}
-
-func (f *colorGraphBuilderTest_StubLcaFinder) FindAllSlice(roots []*ColorGraphNode, dst []*ColorGraphNode) []*ColorGraphNode {
-	set := jutil.NewLinkedHashSetWithCapacity[*ColorGraphNode](len(roots))
-	for _, r := range roots {
-		set.Add(r)
-	}
 	out := dst[:0]
-	for r := range f.FindAll(set).All() {
+	for r := range results.All() {
 		out = append(out, r)
 	}
 	return out
@@ -748,9 +739,9 @@ func (c *ColorGraphBuilderTest) id(labelName string) colors.ColorId {
 
 // Java: ColorGraphBuilderTest.id(String...)
 func (c *ColorGraphBuilderTest) ids(idSources ...string) colors.ColorId {
-	ids := jutil.NewLinkedHashSet[colors.ColorId]()
-	for _, idSource := range idSources {
-		ids.Add(c.id(idSource))
+	ids := make([]colors.ColorId, len(idSources))
+	for i, idSource := range idSources {
+		ids[i] = c.id(idSource)
 	}
-	return colors.ColorId_Union(ids)
+	return colors.ColorId_UnionSlice(ids)
 }

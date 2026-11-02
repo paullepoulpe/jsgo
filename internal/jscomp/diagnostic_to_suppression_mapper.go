@@ -199,17 +199,16 @@ var diagnosticToSuppressionMapper_OutputFormatClass = args4j.EnumClassOf(
 //
 // Go-only: language-adapter — annotations (see package args4j).
 func (m *MapDiagnosticToSuppression) Args4jFields() []args4j.AnnotatedField {
-	const c = "com.google.javascript.jscomp.MapDiagnosticToSuppression"
 	return []args4j.AnnotatedField{
 		{
 			Option: &args4j.Option{
 				Name:  "--output",
 				Usage: "Sets the desired output format.\n" + "Options: md, json" + "Default: json"},
-			Field: args4j.EnumField(c, "output", diagnosticToSuppressionMapper_OutputFormatClass, &m.output),
+			Field: args4j.ScalarField(diagnosticToSuppressionMapper_OutputFormatClass, &m.output),
 		},
 		{
 			Option: &args4j.Option{Name: "--help", Usage: "Usage"},
-			Field:  args4j.BooleanField(c, "help", &m.help),
+			Field:  args4j.Bool(&m.help),
 		},
 	}
 }

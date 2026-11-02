@@ -24,6 +24,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/paullepoulpe/jsgo/internal/ast"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
@@ -56,31 +57,34 @@ func NewTypedCodeGenerator(consumer *CodeConsumer, options *CompilerOptions, reg
 // Java: TypedCodeGenerator.maybeAddTypeAnnotation(Node)
 func (t *CodeGenerator) MaybeAddTypeAnnotation(n rhino.Node) {
 	parent := n.GetParent()
-	if parent.IsNil() {
-		// root node cannot have a type annotation.
+	// Generate type annotations only for statements and class member functions.
+	if parent.IsNil() || (!parent.IsBlock() && !parent.IsScript() && !parent.IsClassMembers()) {
 		return
 	}
-	// Generate type annotations only for statements and class member
-	// functions.
-	if parent.IsBlock() || parent.IsScript() || parent.IsClassMembers() {
-		if n.IsClass() || n.IsFunction() || n.IsMemberFunctionDef() {
-			t.Add(t.GetTypeAnnotation(n))
-		} else if n.IsExprResult() &&
-			n.GetFirstChild().IsAssign() {
-			assign := n.GetFirstChild()
-			if NodeUtil_IsNamespaceDecl(assign.GetFirstChild()) {
-				t.Add(t.jsDocInfoPrinter.Print(assign.GetJSDocInfo()))
+	if n.IsClass() || n.IsFunction() || n.IsMemberFunctionDef() {
+		t.Add(t.GetTypeAnnotation(n))
+	} else if stmt, ok := ast.AsExprStmt(n); ok {
+		if assign, isAssign := stmt.Expr().AsAssign(); isAssign {
+			if NodeUtil_IsNamespaceDecl(assign.Target().Node()) {
+				t.Add(t.jsDocInfoPrinter.Print(assign.Node().GetJSDocInfo()))
 			} else {
-				rhs := assign.GetLastChild()
-				t.Add(t.GetTypeAnnotation(rhs))
+				t.Add(t.GetTypeAnnotation(assign.Value().Node()))
 			}
-		} else if NodeUtil_IsNameDeclaration(n) && !n.GetFirstFirstChild().IsNil() {
-			// All namespace declarations except `const x = {};` are signified
-			// by @const JSDoc.
-			if NodeUtil_IsNamespaceDecl(n.GetFirstChild()) && n.GetJSDocInfo() != nil {
-				t.Add(t.jsDocInfoPrinter.Print(n.GetJSDocInfo()))
+		}
+	} else if decl, ok := ast.AsNameDeclaration(n); ok {
+		if first, hasFirst := decl.FirstDeclarator(); hasFirst {
+			if name, isName := first.AsName(); isName {
+				if init, hasInit := name.Init(); hasInit {
+					// All namespace declarations except `const x = {};` are signified
+					// by @const JSDoc.
+					if NodeUtil_IsNamespaceDecl(name.Node()) && n.GetJSDocInfo() != nil {
+						t.Add(t.jsDocInfoPrinter.Print(n.GetJSDocInfo()))
+					} else {
+						t.Add(t.GetTypeAnnotation(init.Node()))
+					}
+				}
 			} else {
-				t.Add(t.GetTypeAnnotation(n.GetFirstFirstChild()))
+				t.Add(t.GetTypeAnnotation(first.MustDestructuringLhs().Pattern().Node()))
 			}
 		}
 	}
@@ -88,43 +92,43 @@ func (t *CodeGenerator) MaybeAddTypeAnnotation(n rhino.Node) {
 
 // Java: TypedCodeGenerator.getTypeAnnotation(Node)
 func (t *CodeGenerator) GetTypeAnnotation(node rhino.Node) string {
-	if node.IsMemberFunctionDef() {
+	if mfd, ok := ast.AsMemberFunctionDef(node); ok {
 		// For a member function the type information is actually on the
 		// function it contains, so just generate the type annotation for
 		// that.
-		return t.GetMemberFunctionAnnotation(node.GetOnlyChild())
-	} else if node.IsClass() {
-		return t.GetClassAnnotation(node.GetJSType())
-	} else if node.IsFunction() {
-		return t.GetFunctionAnnotation(node)
-	} else {
-		nodeOriginallyHadJSDoc := NodeUtil_GetBestJSDocInfo(node) != nil
-		if !nodeOriginallyHadJSDoc {
-			// For nodes that don't inherently define a type, ony generate
-			// JSDoc if they originally had some.
-			return ""
-		}
-
-		type_ := node.GetJSType()
-		if type_ == nil {
-			return ""
-		} else if type_.IsFunctionType() {
-			return t.GetFunctionAnnotation(node)
-		} else if type_.IsEnumType() {
-			return "/** @enum {" +
-				type_.ToMaybeObjectType().
-					GetEnumeratedTypeOfEnumObject().
-					ToAnnotationString(rhino.JSType_Nullability_EXPLICIT) +
-				"} */\n"
-		} else if !type_.IsUnknownType() &&
-			!type_.IsEmptyType() &&
-			!type_.IsVoidType() &&
-			!type_.IsFunctionPrototypeType() {
-			return "/** @type {" + node.GetJSType().ToAnnotationString(rhino.JSType_Nullability_EXPLICIT) + "} */\n"
-		} else {
-			return ""
-		}
+		return t.getMemberFunctionAnnotation(mfd.Function())
+	} else if cls, ok := ast.AsClass(node); ok {
+		return t.GetClassAnnotation(cls.Node().GetJSType())
+	} else if fn, ok := ast.AsFunction(node); ok {
+		return t.GetFunctionAnnotation(fn.Node())
 	}
+
+	if NodeUtil_GetBestJSDocInfo(node) == nil {
+		// For nodes that don't inherently define a type, only generate
+		// JSDoc if they originally had some.
+		return ""
+	}
+	type_ := node.GetJSType()
+	if type_ == nil {
+		return ""
+	}
+	if type_.IsFunctionType() {
+		return t.GetFunctionAnnotation(node)
+	}
+	if type_.IsEnumType() {
+		return "/** @enum {" +
+			type_.ToMaybeObjectType().
+				GetEnumeratedTypeOfEnumObject().
+				ToAnnotationString(rhino.JSType_Nullability_EXPLICIT) +
+			"} */\n"
+	}
+	if !type_.IsUnknownType() &&
+		!type_.IsEmptyType() &&
+		!type_.IsVoidType() &&
+		!type_.IsFunctionPrototypeType() {
+		return "/** @type {" + type_.ToAnnotationString(rhino.JSType_Nullability_EXPLICIT) + "} */\n"
+	}
+	return ""
 }
 
 // GetFunctionAnnotation: fnNode is a node for a function for which to
@@ -145,20 +149,16 @@ func (t *CodeGenerator) GetFunctionAnnotation(fnNode rhino.Node) string {
 	}
 	var sb strings.Builder
 	sb.WriteString("/**\n")
-	var paramNode rhino.Node
+	var param ast.Param
+	var hasParam bool
 	// We need to use the child nodes of the function as the nodes for the
 	// parameters of the function type do not have the real parameter names.
-	// FUNCTION
-	//   NAME
-	//   PARAM_LIST
-	//     NAME param1
-	//     NAME param2
-	if !fnNode.IsNil() && fnNode.IsFunction() {
-		paramNode = NodeUtil_GetFunctionParameters(fnNode).GetFirstChild()
+	if fn, ok := ast.AsFunction(fnNode); ok {
+		param, hasParam = fn.Params().FirstParam()
 	}
 
 	// Param types
-	t.AppendFunctionParamAnnotations(&sb, funType, paramNode)
+	t.appendFunctionParamAnnotations(&sb, funType, param, hasParam)
 
 	// Return type
 	retType := funType.GetReturnType()
@@ -202,14 +202,8 @@ func (t *CodeGenerator) GetFunctionAnnotation(fnNode rhino.Node) string {
 	return sb.String()
 }
 
-// GetMemberFunctionAnnotation: fnNode is a function node child of a
-// MEMBER_FUNCTION_DEF.
-//
-// Java: TypedCodeGenerator.getMemberFunctionAnnotation(Node)
-func (t *CodeGenerator) GetMemberFunctionAnnotation(fnNode rhino.Node) string {
-	jutil.CheckStateMsg1(fnNode.IsFunction() && fnNode.GetParent().IsMemberFunctionDef(), "%s", fnNode)
-	type_ := fnNode.GetJSType()
-
+func (t *CodeGenerator) getMemberFunctionAnnotation(fn ast.Function) string {
+	type_ := fn.Node().GetJSType()
 	if type_ == nil || type_.IsUnknownType() {
 		return ""
 	}
@@ -218,24 +212,14 @@ func (t *CodeGenerator) GetMemberFunctionAnnotation(fnNode rhino.Node) string {
 	var sb strings.Builder
 	sb.WriteString("/**\n")
 
-	// We need to use the child nodes of the function as the nodes for the
-	// parameters of the function type do not have the real parameter names.
-	// FUNCTION
-	//   NAME
-	//   PARAM_LIST
-	//     NAME param1
-	//     NAME param2
-	paramNode := NodeUtil_GetFunctionParameters(fnNode).GetFirstChild()
+	param, hasParam := fn.Params().FirstParam()
+	t.appendFunctionParamAnnotations(&sb, funType, param, hasParam)
 
-	// Param types
-	t.AppendFunctionParamAnnotations(&sb, funType, paramNode)
-
-	if NodeUtil_IsEs6Constructor(fnNode) {
+	if NodeUtil_IsEs6Constructor(fn.Node()) {
 		t.AppendTemplateAnnotations(&sb, funType.GetConstructorOnlyTemplateParameters())
 		// no return type for the constructor
 	} else {
 		t.AppendTemplateAnnotations(&sb, funType.GetTypeParameters())
-		// Return type
 		retType := funType.GetReturnType()
 		if retType != nil && !retType.IsEmptyType() {
 			// There is no annotation for the empty type.
@@ -249,26 +233,19 @@ func (t *CodeGenerator) GetMemberFunctionAnnotation(fnNode rhino.Node) string {
 	return sb.String()
 }
 
-// AppendFunctionParamAnnotations generates @param annotations.
-//
-// sb is where annotations will be appended; funType is the function type;
-// paramNode is where parameter names will be taken from.
-//
-// Java: TypedCodeGenerator.appendFunctionParamAnnotations(StringBuilder, FunctionType, Node)
-func (t *CodeGenerator) AppendFunctionParamAnnotations(
-	sb *strings.Builder, funType rhino.FunctionType, paramNode rhino.Node) {
+func (t *CodeGenerator) appendFunctionParamAnnotations(
+	sb *strings.Builder, funType rhino.FunctionType, param ast.Param, hasParam bool) {
 	minArity := funType.GetMinArity()
 	maxArity := funType.GetMaxArity()
 	formals := funType.GetParameters()
 	for i := 0; i < len(formals); i++ {
 		sb.WriteString(" * ")
 		TypedCodeGenerator_AppendAnnotation(sb, "param", t.GetParameterJSDocType(formals, i, minArity, maxArity))
-		parameterName := t.GetParameterJSDocName(paramNode, i)
 		sb.WriteString(" ")
-		sb.WriteString(parameterName)
+		sb.WriteString(getParameterJSDocName(param, hasParam, i))
 		sb.WriteString("\n")
-		if !paramNode.IsNil() {
-			paramNode = paramNode.GetNext()
+		if hasParam {
+			param, hasParam = param.Next()
 		}
 	}
 }
@@ -319,39 +296,21 @@ func (t *CodeGenerator) AppendTemplateAnnotations(
 	}
 }
 
-// GetParameterJSDocName returns the name of the parameter to be used in
-// JSDoc, generating one for destructuring parameters.
-//
-// paramNode is a child node of a parameter list; paramIndex is the position
-// of the child in the list. Returns the name to use in JSDoc.
-//
-// Java: TypedCodeGenerator.getParameterJSDocName(Node, int)
-func (t *CodeGenerator) GetParameterJSDocName(paramNode rhino.Node, paramIndex int) string {
-	var nameNode rhino.Node
-	if !paramNode.IsNil() {
-		jutil.CheckArgumentMsg1(paramNode.GetParent().IsParamList(), "%s", paramNode)
-		if paramNode.IsRest() {
-			// use `restParam` of `...restParam`
-			// restParam might still be a destructuring pattern
-			paramNode = paramNode.GetOnlyChild()
-		} else if paramNode.IsDefaultValue() {
-			// use `defaultParam` of `defaultParam = something`
-			// defaultParam might still be a destructuring pattern
-			paramNode = paramNode.GetFirstChild()
-		}
-		if paramNode.IsName() {
-			nameNode = paramNode
-		} else {
-			jutil.CheckStateMsg1(paramNode.IsObjectPattern() || paramNode.IsArrayPattern(), "%s", paramNode)
-			nameNode = rhino.NilNode // must generate a fake name
+func getParameterJSDocName(param ast.Param, hasParam bool, paramIndex int) string {
+	if hasParam {
+		if rest, ok := param.AsIterRest(); ok {
+			if name, isName := rest.Target().AsName(); isName {
+				return name.Ident()
+			}
+		} else if dv, ok := param.AsDefaultValue(); ok {
+			if name, isName := dv.Target().AsName(); isName {
+				return name.Ident()
+			}
+		} else if name, ok := param.AsName(); ok {
+			return name.Ident()
 		}
 	}
-	if nameNode.IsNil() {
-		return "p" + strconv.Itoa(paramIndex)
-	} else {
-		jutil.CheckStateMsg1(nameNode.IsName(), "%s", nameNode)
-		return nameNode.GetString()
-	}
+	return "p" + strconv.Itoa(paramIndex)
 }
 
 // Java: TypedCodeGenerator.formatTypeVar(JSType)
@@ -428,21 +387,18 @@ func (t *CodeGenerator) FindMethodOwner(n rhino.Node) rhino.ObjectType {
 	}
 	parent := n.GetParent()
 	var ctor rhino.FunctionType
-	if parent.IsAssign() {
-		target := parent.GetFirstChild()
-		if NodeUtil_IsPrototypeProperty(target) {
+	if assign, ok := ast.AsAssign(parent); ok {
+		if gp, isGp := assign.Target().AsGetProp(); isGp && NodeUtil_IsPrototypeProperty(gp.Node()) {
 			// TODO(johnlenz): handle non-global types
-			type_ := t.registry.GetGlobalType(*target.GetFirstFirstChild().GetQualifiedName())
-			if type_ != nil {
+			protoObj := ast.MustGetProp(gp.Object().Node()).Object().Node()
+			if type_ := t.registry.GetGlobalType(*protoObj.GetQualifiedName()); type_ != nil {
 				ctor = type_.(rhino.ObjectType).GetConstructor()
-			} else {
-				ctor = nil
 			}
 		}
-	} else if parent.IsClass() {
+	} else if cls, ok := ast.AsClass(parent); ok {
 		// TODO(sdh): test this case once the type checker understands ES6
 		// classes
-		ctor = parent.GetJSType().ToMaybeFunctionType()
+		ctor = cls.Node().GetJSType().ToMaybeFunctionType()
 	}
 	if ctor != nil {
 		return ctor.GetInstanceType()

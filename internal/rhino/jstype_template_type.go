@@ -112,16 +112,6 @@ func (t *TemplateType) AppendTo(sb *TypeStringBuilder) {
 	}
 }
 
-// Java: JSType.isTemplateType()
-func (t *TemplateType) IsTemplateType() bool {
-	return true
-}
-
-// Java: TemplateType.toMaybeTemplateType()
-func (t *TemplateType) ToMaybeTemplateType() *TemplateType {
-	return t
-}
-
 // Java: TemplateType.hasAnyTemplateTypesInternal()
 func (t *TemplateType) HasAnyTemplateTypesInternal(*JSTypeStack) bool {
 	return true

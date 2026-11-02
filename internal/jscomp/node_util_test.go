@@ -4260,7 +4260,9 @@ func TestNodeUtil_AssortedTests_TestGetGoogRequireInfo_returnsNullForShadowedReq
 	block := nuGetNode(t, first, rhino.Token_BLOCK)
 	blockScope := scopeCreator.CreateScopeOfScope(block, moduleScope)
 
-	nuAssertThat(t, NodeUtil_GetGoogRequireInfoWithScope("Foo", moduleScope)).IsEqualTo(NodeUtil_GoogRequire_FromNamespace("d.Foo", true))
+	got := NodeUtil_GetGoogRequireInfoWithScope("Foo", moduleScope)
+	nuAssertThat(t, got).IsNotNull()
+	nuAssertThat(t, *got).IsEqualTo(*NodeUtil_GoogRequire_FromNamespace("d.Foo", true))
 	nuAssertThat(t, NodeUtil_GetGoogRequireInfoWithScope("Foo", blockScope)).IsNull()
 }
 
@@ -5091,7 +5093,8 @@ func TestNodeUtil_GoogRequireInfoTest_Test(t *testing.T) {
 			if c.require == nil {
 				nuAssertThat(t, got).IsNull()
 			} else {
-				nuAssertThat(t, got).IsEqualTo(c.require)
+				nuAssertThat(t, got).IsNotNull()
+				nuAssertThat(t, *got).IsEqualTo(*c.require)
 			}
 		})
 	}
@@ -5510,30 +5513,28 @@ func TestNodeUtil_DelegatedHelpersTests_TestDelegatedHelpersWithNarrowDependenci
 	nuAssertThat(t, nameNode.GetString()).IsEqualTo("bar")
 }
 
-// Go-only: the record methods of NodeUtil.GoogRequire (equals, hashCode,
+// Go-only: the record methods of NodeUtil.GoogRequire (accessors, value equality,
 // toString), against values printed by the JDK 21 for the same records.
 func TestNodeUtil_GoogRequireRecordMethods(t *testing.T) {
 	cases := []struct {
-		r        *NodeUtil_GoogRequire
-		hashCode int32
-		str      string
+		r   *NodeUtil_GoogRequire
+		str string
 	}{
-		{NodeUtil_GoogRequire_FromNamespace("d.Foo", true), -58942997,
+		{NodeUtil_GoogRequire_FromNamespace("d.Foo", true),
 			"GoogRequire[namespace=d.Foo, property=null, isStrongRequire=true]"},
-		{NodeUtil_GoogRequire_FromNamespace("d.Foo", false), -58942991,
+		{NodeUtil_GoogRequire_FromNamespace("d.Foo", false),
 			"GoogRequire[namespace=d.Foo, property=null, isStrongRequire=false]"},
-		{NodeUtil_GoogRequire_FromNamespaceAndProperty("d.Foo", "Bar", true), -56880040,
+		{NodeUtil_GoogRequire_FromNamespaceAndProperty("d.Foo", "Bar", true),
 			"GoogRequire[namespace=d.Foo, property=Bar, isStrongRequire=true]"},
-		{NodeUtil_GoogRequire_FromNamespaceAndProperty("", "é", false), 8460,
+		{NodeUtil_GoogRequire_FromNamespaceAndProperty("", "é", false),
 			"GoogRequire[namespace=, property=é, isStrongRequire=false]"},
 	}
 	for i, c := range cases {
-		nuAssertThat(t, c.r.HashCode()).IsEqualTo(c.hashCode)
 		nuAssertThat(t, c.r.String()).IsEqualTo(c.str)
 		for j, d := range cases {
-			nuAssertThat(t, c.r.Equals(d.r)).IsEqualTo(i == j)
+			nuAssertThat(t, *c.r == *d.r).IsEqualTo(i == j)
 		}
-		nuAssertThat(t, c.r.Equals(NewNodeUtil_GoogRequire(c.r.Namespace(), c.r.Property(), c.r.IsStrongRequire()))).IsTrue()
+		nuAssertThat(t, *c.r == *NewNodeUtil_GoogRequire(c.r.Namespace(), c.r.Property(), c.r.IsStrongRequire())).IsTrue()
 	}
 }
 

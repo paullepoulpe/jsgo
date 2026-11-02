@@ -71,12 +71,86 @@ func (f *FunctionArgumentInjector) getTemplateUndefinedNode(callNode rhino.Node)
 	return NodeUtil_NewUndefinedNode(callNode)
 }
 
+// isLexicalThisBoundary reports whether node establishes its own `this` binding
+// (non-arrow functions, class member field definitions, and class static blocks).
+func isLexicalThisBoundary(node rhino.Node) bool {
+	return (node.IsFunction() && !node.IsArrowFunction()) ||
+		node.IsMemberFieldDef() ||
+		NodeUtil_IsClassStaticBlock(node)
+}
+
+// replaceLexicalThis replaces `this` nodes within node that bind to the
+// enclosing lexical `this` (stopping at inner `this` boundaries and walking only
+// the computed key of COMPUTED_FIELD_DEF).
+func replaceLexicalThis(node, parent rhino.Node, replaceThis func(thisNode, parent rhino.Node) rhino.Node) rhino.Node {
+	if node.IsThis() {
+		return replaceThis(node, parent)
+	}
+	if isLexicalThisBoundary(node) {
+		return node
+	}
+	if cf, ok := ast.AsComputedFieldDef(node); ok {
+		// Computed field keys are evaluated in the enclosing scope, but field
+		// initializers create a new binding for `this`.
+		if key := cf.Key().Node(); !key.IsNil() {
+			replaceLexicalThis(key, node, replaceThis)
+		}
+		return node
+	}
+	for c := node.GetFirstChild(); !c.IsNil(); c = c.GetNext() {
+		c = replaceLexicalThis(c, node, replaceThis)
+	}
+	return node
+}
+
+func replaceInjectedThis(
+	compiler AbstractCompiler,
+	node, parent rhino.Node,
+	replacements *inlineIDNodeMap,
+) rhino.Node {
+	replacementTemplate := replacements.get(calleeThisMarkerID)
+	rhino.CheckNotNull(replacementTemplate)
+	if replacementTemplate.IsThis() {
+		return node
+	}
+	if !parent.IsNil() && node.CanCloneLeafInPlace() && replacementTemplate.CanCloneLeafInPlace() {
+		node.OverwriteLeafFromClone(replacementTemplate)
+		if compiler.GetAstAnalyzer().MayHaveSideEffects(replacementTemplate) {
+			replacements.remove(calleeThisMarkerID)
+		}
+		return node
+	}
+	// The name may need to be replaced more than once,
+	// so we need to clone the node.
+	replacement := replacementTemplate.CloneTree()
+	node.ReplaceWith(replacement)
+
+	// Remove the value.  This isn't required but it ensures that we won't
+	// inject side-effects multiple times as it will trigger the null
+	// check above if we do.
+	if compiler.GetAstAnalyzer().MayHaveSideEffects(replacementTemplate) {
+		replacements.remove(calleeThisMarkerID)
+	}
+	return replacement
+}
+
 func (f *FunctionArgumentInjector) injectByID(
 	compiler AbstractCompiler,
 	node rhino.Node,
 	parent rhino.Node,
 	replacements *inlineIDNodeMap,
 	replaceThis bool) rhino.Node {
+	if len(replacements.keys) == 0 {
+		return node
+	}
+	if len(replacements.keys) == 1 && replacements.keys[0] == calleeThisMarkerID {
+		if !replaceThis {
+			return node
+		}
+		return replaceLexicalThis(node, parent, func(thisNode, p rhino.Node) rhino.Node {
+			return replaceInjectedThis(compiler, thisNode, p, replacements)
+		})
+	}
 	if node.IsName() {
 		replacementTemplate := replacements.get(node.GetStringID())
 		if !replacementTemplate.IsNil() {
@@ -93,33 +167,8 @@ func (f *FunctionArgumentInjector) injectByID(
 			return replacement
 		}
 	} else if replaceThis && node.IsThis() {
-		replacementTemplate := replacements.get(calleeThisMarkerID)
-		rhino.CheckNotNull(replacementTemplate)
-		if !replacementTemplate.IsThis() {
-			if !parent.IsNil() && node.CanCloneLeafInPlace() && replacementTemplate.CanCloneLeafInPlace() {
-				node.OverwriteLeafFromClone(replacementTemplate)
-				if compiler.GetAstAnalyzer().MayHaveSideEffects(replacementTemplate) {
-					replacements.remove(calleeThisMarkerID)
-				}
-				return node
-			}
-			// The name may need to be replaced more than once,
-			// so we need to clone the node.
-			replacement := replacementTemplate.CloneTree()
-			node.ReplaceWith(replacement)
-
-			// Remove the value.  This isn't required but it ensures that we won't
-			// inject side-effects multiple times as it will trigger the null
-			// check above if we do.
-			if compiler.GetAstAnalyzer().MayHaveSideEffects(replacementTemplate) {
-				replacements.remove(calleeThisMarkerID)
-			}
-
-			return replacement
-		}
-	} else if (node.IsFunction() && !node.IsArrowFunction()) ||
-		node.IsMemberFieldDef() ||
-		NodeUtil_IsClassStaticBlock(node) {
+		return replaceInjectedThis(compiler, node, parent, replacements)
+	} else if isLexicalThisBoundary(node) {
 		// Once we enter another non-arrow function, class field initializer, or static block,
 		// the "this" value changes. Don't try to replace it within an inner scope.
 		replaceThis = false

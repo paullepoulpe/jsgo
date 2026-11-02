@@ -22,6 +22,7 @@ import (
 	"math"
 	"strings"
 
+	"github.com/paullepoulpe/jsgo/internal/ast"
 	"github.com/paullepoulpe/jsgo/internal/base"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
@@ -40,26 +41,26 @@ import (
 //
 // Java: NodeUtil.iteratesImpureIterable(Node)
 func NodeUtil_IteratesImpureIterable(node rhino.Node) bool {
-	parent := node.GetParent()
-
 	var iterable rhino.Node
 	switch node.GetToken() {
 	case rhino.Token_ITER_SPREAD:
-		iterable = node.GetOnlyChild()
+		iterable = ast.MustIterSpread(node).Expr().Node()
 	case rhino.Token_YIELD:
-		if !node.IsYieldAll() {
+		y := ast.MustYield(node)
+		if !y.IsYieldAll() {
 			return false // Regular `yield` does not iterate, only `yield*`.
 		}
-		iterable = node.GetOnlyChild()
+		val, _ := y.Value()
+		iterable = val.Node()
 	case rhino.Token_FOR_OF, rhino.Token_FOR_AWAIT_OF:
-		iterable = node.GetSecondChild()
+		iterable = ast.MustForOfLoop(node).Iterable().Node()
 	case rhino.Token_ITER_REST:
+		parent := node.GetParent()
 		switch parent.GetToken() {
-		// Rest arguments are flat at the call-site.
 		case rhino.Token_PARAM_LIST:
-			return false
-		// TODO(b/127862986): We assume the r-value to be an impure iterable.
+			return false // Rest arguments are flat at the call-site.
 		case rhino.Token_ARRAY_PATTERN:
+			// TODO(b/127862986): We assume the r-value to be an impure iterable.
 			return true
 		default:
 			panic(jutil.NewIllegalStateExceptionMsg(
@@ -114,7 +115,7 @@ func NodeUtil_DeleteChildren(n rhino.Node, compiler AbstractCompiler) {
 // Java: NodeUtil.removeChild(Node, Node)
 func NodeUtil_RemoveChild(parent rhino.Node, node rhino.Node) {
 	if NodeUtil_IsTryFinallyNode(parent, node) {
-		if NodeUtil_HasCatchHandler(NodeUtil_GetCatchBlock(parent)) {
+		if _, hasCatch := ast.MustTry(parent).Catch(); hasCatch {
 			// A finally can only be removed if there is a catch.
 			node.Detach()
 		} else {
@@ -122,15 +123,15 @@ func NodeUtil_RemoveChild(parent rhino.Node, node rhino.Node) {
 			node.DetachChildren()
 		}
 	} else if node.IsCatch() {
-		// The CATCH can can only be removed if there is a finally clause.
-		tryNode := node.GetGrandparent()
-		jutil.CheckState(NodeUtil_HasFinally(tryNode))
+		// The CATCH can only be removed if there is a finally clause.
+		_, hasFinally := ast.MustTry(node.GetGrandparent()).Finally()
+		jutil.CheckState(hasFinally)
 		node.Detach()
 	} else if NodeUtil_IsTryCatchNodeContainer(node) {
 		// The container node itself can't be removed, but the contained CATCH
 		// can if there is a 'finally' clause
-		tryNode := node.GetParent()
-		jutil.CheckState(NodeUtil_HasFinally(tryNode))
+		_, hasFinally := ast.MustTry(node.GetParent()).Finally()
+		jutil.CheckState(hasFinally)
 		node.DetachChildren()
 	} else if node.IsBlock() {
 		// Simply empty the block.  This maintains source location and
@@ -148,7 +149,7 @@ func NodeUtil_RemoveChild(parent rhino.Node, node rhino.Node) {
 			// This would leave an empty VAR, remove the VAR itself.
 			NodeUtil_RemoveChild(parent.GetParent(), parent)
 		}
-	} else if parent.IsLabel() && node == parent.GetLastChild() {
+	} else if lbl, ok := ast.AsLabel(parent); ok && node == lbl.Body().Node() {
 		// Remove the node from the parent, so it can be reused.
 		node.Detach()
 		// A LABEL without children can not be referred to, remove it.
@@ -158,8 +159,7 @@ func NodeUtil_RemoveChild(parent rhino.Node, node rhino.Node) {
 		// need something for the condition. Others need to be replaced
 		// or the structure removed.
 		node.ReplaceWith(rhino.IR_Empty())
-	} else if parent.IsObjectPattern() {
-		// Remove the name from the object pattern
+	} else if parent.IsObjectPattern() || parent.IsParamList() {
 		node.Detach()
 	} else if parent.IsArrayPattern() {
 		if node == parent.GetLastChild() {
@@ -168,21 +168,15 @@ func NodeUtil_RemoveChild(parent rhino.Node, node rhino.Node) {
 			node.ReplaceWith(rhino.IR_Empty())
 		}
 	} else if parent.IsDestructuringLhs() {
-		// Destructuring is empty so we should remove the node
 		node.Detach()
 		if parent.GetParent().HasChildren() {
-			// removing the destructuring could leave an empty variable declaration node, so we would
-			// want to remove it from the AST
 			NodeUtil_RemoveChild(parent.GetParent(), parent)
 		}
 	} else if parent.IsRest() {
-		// Rest params can only ever have one child node
 		parent.Detach()
-	} else if parent.IsParamList() {
-		node.Detach()
-	} else if parent.IsImport() {
+	} else if imp, ok := ast.AsImport(parent); ok {
 		// An import node must always have three child nodes. Only the first can be safely removed.
-		if node == parent.GetFirstChild() {
+		if node == imp.Node().GetFirstChild() {
 			node.ReplaceWith(rhino.IR_Empty())
 		} else {
 			panic(jutil.NewIllegalStateExceptionMsg(
@@ -233,9 +227,9 @@ func NodeUtil_ReplaceDeclarationChild(declChild rhino.Node, newStatement rhino.N
 //
 // Java: NodeUtil.maybeAddFinally(Node)
 func NodeUtil_MaybeAddFinally(tryNode rhino.Node) {
-	jutil.CheckState(tryNode.IsTry())
-	if !NodeUtil_HasFinally(tryNode) {
-		tryNode.AddChildToBack(rhino.IR_Block().Srcref(tryNode))
+	tr := ast.MustTry(tryNode)
+	if _, hasFinally := tr.Finally(); !hasFinally {
+		tr.SetFinally(ast.MustBlock(rhino.IR_Block().Srcref(tryNode)))
 	}
 }
 
@@ -249,21 +243,17 @@ func NodeUtil_MaybeAddFinally(tryNode rhino.Node) {
 func NodeUtil_TryMergeBlock(block rhino.Node, ignoreBlockScopedDeclarations bool) bool {
 	jutil.CheckState(block.IsBlock())
 	parent := block.GetParent()
-	canMerge := ignoreBlockScopedDeclarations || NodeUtil_CanMergeBlock(block)
-	// Try to remove the block if its parent is a block/script or if its
-	// parent is label and it has exactly one child.
-	if NodeUtil_IsStatementBlock(parent) && canMerge {
-		previous := block
-		for block.HasChildren() {
-			child := block.RemoveFirstChild()
-			child.InsertAfter(previous)
-			previous = child
-		}
-		block.Detach()
-		return true
-	} else {
+	if !NodeUtil_IsStatementBlock(parent) || (!ignoreBlockScopedDeclarations && !NodeUtil_CanMergeBlock(block)) {
 		return false
 	}
+	previous := block
+	for block.HasChildren() {
+		child := block.RemoveFirstChild()
+		child.InsertAfter(previous)
+		previous = child
+	}
+	block.Detach()
+	return true
 }
 
 // NodeUtil_CanMergeBlock: a check inside a block to see if there are const,
@@ -274,18 +264,14 @@ func NodeUtil_TryMergeBlock(block rhino.Node, ignoreBlockScopedDeclarations bool
 //
 // Java: NodeUtil.canMergeBlock(Node)
 func NodeUtil_CanMergeBlock(block rhino.Node) bool {
-	for c := block.GetFirstChild(); !c.IsNil(); c = c.GetNext() {
+	for c := range block.Children() {
 		switch c.GetToken() {
 		case rhino.Token_LABEL:
-			if NodeUtil_CanMergeBlock(c) {
-				continue
-			} else {
+			if !NodeUtil_CanMergeBlock(c) {
 				return false
 			}
 		case rhino.Token_CONST, rhino.Token_LET, rhino.Token_CLASS, rhino.Token_FUNCTION:
 			return false
-		default:
-			continue
 		}
 	}
 	return true
@@ -380,22 +366,22 @@ func NodeUtil_NewQNameWithConventionAndOriginalName(
 //
 // Java: NodeUtil.getDeclarationFromName(Node, Node, Token, JSDocInfo)
 func NodeUtil_GetDeclarationFromName(nameNode rhino.Node, value rhino.Node, type_ rhino.Token, info *rhino.JSDocInfo) rhino.Node {
-	var result rhino.Node
 	if nameNode.IsName() {
+		var result rhino.Node
 		if value.IsNil() {
 			result = rhino.IR_Declaration(nameNode, type_)
 		} else {
 			result = rhino.IR_DeclarationWithValue(nameNode, value, type_)
 		}
 		result.SetJSDocInfo(info)
-	} else if !value.IsNil() {
-		result = rhino.IR_ExprResult(rhino.IR_Assign(nameNode, value))
-		result.GetFirstChild().SetJSDocInfo(info)
-	} else {
-		result = rhino.IR_ExprResult(nameNode)
-		result.GetFirstChild().SetJSDocInfo(info)
+		return result
 	}
-	return result
+	inner := nameNode
+	if !value.IsNil() {
+		inner = rhino.IR_Assign(nameNode, value)
+	}
+	inner.SetJSDocInfo(info)
+	return rhino.IR_ExprResult(inner)
 }
 
 // NodeUtil_NewPropertyAccess creates a property access on the context tree.
@@ -513,94 +499,50 @@ func NodeUtil_EmptyFunction() rhino.Node {
 	return rhino.IR_Function(rhino.IR_Name(""), rhino.IR_ParamList(), rhino.IR_Block())
 }
 
-// NodeUtil_MatchNameNode is a predicate for matching name nodes with the
-// specified node.
-//
-// Java: NodeUtil.MatchNameNode
-type NodeUtil_MatchNameNode struct {
-	name string
-}
-
 // NodeUtil_EvaluatesToLocalValue: whether the result of the expression node
 // is known to be a primitive value or an object that has not yet escaped.
-//
-// This guarantee is different than that provided by isLiteralValue (where
-// literal values are immune to side-effects if unescaped) or
-// isImmutableValue (which can be safely aliased).
-//
-// The concept of "local values" allow for the containment of side-effect
-// operations. For example, setting a property on a local value does not
-// produce a global side-effect.
-//
-// Note that the concept of "local value" is not deep, it does not say
-// anything about the properties of the "local value" (all class instances
-// have "constructor" properties that are not local values for instance).
-//
-// Note that this method only provides the starting state of the expression
-// result, it does not guarantee that the value is forever a local value. If
-// the containing method has any non-local side-effect, "local values" may
-// escape.
 //
 // Java: NodeUtil.evaluatesToLocalValue(Node)
 func NodeUtil_EvaluatesToLocalValue(value rhino.Node) bool {
 	switch value.GetToken() {
 	case rhino.Token_ASSIGN:
-		// A result that is aliased by a non-local name, is the effectively the
-		// same as returning a non-local name, but this doesn't matter if the
-		// value is immutable.
-		return NodeUtil_IsImmutableValue(value.GetLastChild())
+		return NodeUtil_IsImmutableValue(ast.MustAssign(value).Value().Node())
 	case rhino.Token_COMMA:
-		return NodeUtil_EvaluatesToLocalValue(value.GetLastChild())
+		return NodeUtil_EvaluatesToLocalValue(ast.MustBinary(value).Right().Node())
 	case rhino.Token_AND, rhino.Token_OR, rhino.Token_COALESCE:
-		return NodeUtil_EvaluatesToLocalValue(value.GetFirstChild()) &&
-			NodeUtil_EvaluatesToLocalValue(value.GetLastChild())
+		bin := ast.MustBinary(value)
+		return NodeUtil_EvaluatesToLocalValue(bin.Left().Node()) &&
+			NodeUtil_EvaluatesToLocalValue(bin.Right().Node())
 	case rhino.Token_HOOK:
-		return NodeUtil_EvaluatesToLocalValue(value.GetSecondChild()) &&
-			NodeUtil_EvaluatesToLocalValue(value.GetLastChild())
+		hook := ast.MustHook(value)
+		return NodeUtil_EvaluatesToLocalValue(hook.Then().Node()) &&
+			NodeUtil_EvaluatesToLocalValue(hook.Else().Node())
 	case rhino.Token_DYNAMIC_IMPORT:
-		// Dynamic import always returns a newly created Promise.
 		return true
 	case rhino.Token_THIS, rhino.Token_SUPER:
 		return false
 	case rhino.Token_NAME:
 		return NodeUtil_IsImmutableValue(value)
-	case rhino.Token_GETELEM, rhino.Token_GETPROP, rhino.Token_OPTCHAIN_GETELEM, rhino.Token_OPTCHAIN_GETPROP:
-		// There is no information about the locality of object properties.
+	case rhino.Token_GETELEM, rhino.Token_GETPROP, rhino.Token_OPTCHAIN_GETELEM, rhino.Token_OPTCHAIN_GETPROP,
+		rhino.Token_TAGGED_TEMPLATELIT, rhino.Token_ITER_SPREAD, rhino.Token_OBJECT_SPREAD,
+		rhino.Token_NEW_TARGET, rhino.Token_YIELD, rhino.Token_AWAIT:
 		return false
 	case rhino.Token_CALL, rhino.Token_OPTCHAIN_CALL:
 		return NodeUtil_IsToStringMethodCall(value)
-	case rhino.Token_TAGGED_TEMPLATELIT:
-		// No information about local values for tagged template literals
-		return false
 	case rhino.Token_NEW:
 		return NodeUtil_NewHasLocalResult(value)
 	case rhino.Token_DELPROP, rhino.Token_INC, rhino.Token_DEC, rhino.Token_CLASS, rhino.Token_FUNCTION,
 		rhino.Token_REGEXP, rhino.Token_EMPTY, rhino.Token_ARRAYLIT, rhino.Token_OBJECTLIT, rhino.Token_TEMPLATELIT:
 		return true
 	case rhino.Token_CAST:
-		return NodeUtil_EvaluatesToLocalValue(value.GetFirstChild())
-	case rhino.Token_ITER_SPREAD, rhino.Token_OBJECT_SPREAD, rhino.Token_NEW_TARGET:
-		// TODO(johnlenz): remove this case.
-		// Returns an alias of a constructor (current or subclass).
-		return false
-	case rhino.Token_YIELD, rhino.Token_AWAIT:
-		// TODO(johnlenz): we can do better for await if we use type information.  That is,
-		// if we know the promise being awaited on is a immutable value type (string, etc)
-		// we could return true here.
-		return false
+		return NodeUtil_EvaluatesToLocalValue(ast.MustCast(value).Expr().Node())
 	default:
-		// A logical assignment could evaluate to either the assignment target or the
-		// right-hand side, and we generally have no information about the locality of the lhs.
 		if NodeUtil_IsLogicalAssignmentOp(value) {
 			return false
 		}
-		// Other non-logical assignment ops force a local value:
-		//  '' + g (a local string)
-		//  x -= g (x is now an local number)
 		if NodeUtil_IsAssignmentOp(value) || NodeUtil_IsSimpleOperator(value) || NodeUtil_IsImmutableValue(value) {
 			return true
 		}
-
 		panic(jutil.NewIllegalStateExceptionMsg(
 			"Unexpected expression node: " + value.String() + "\n parent:" + jutil.ToJavaString(value.GetParent())))
 	}
@@ -644,9 +586,10 @@ func NodeUtil_NumberNode(value float64, srcref rhino.Node) rhino.Node {
 
 // Java: NodeUtil.isGoogProvideCall(Node)
 func NodeUtil_IsGoogProvideCall(n rhino.Node) bool {
-	if NodeUtil_IsExprCall(n) {
-		target := n.GetFirstFirstChild()
-		return NodeUtil_GOOG_PROVIDE.Matches(target)
+	if exprStmt, ok := ast.AsExprStmt(n); ok {
+		if call, ok := ast.AsCall(exprStmt.Expr().Node()); ok {
+			return NodeUtil_GOOG_PROVIDE.Matches(call.Callee().Node())
+		}
 	}
 	return false
 }
@@ -675,7 +618,7 @@ func NodeUtil_MarkNewScopesChanged(node rhino.Node, compiler AbstractCompiler) {
 	if node.IsFunction() {
 		compiler.ReportChangeToChangeScope(node)
 	}
-	for child := node.GetFirstChild(); !child.IsNil(); child = child.GetNext() {
+	for child := range node.Children() {
 		NodeUtil_MarkNewScopesChanged(child, compiler)
 	}
 }
@@ -696,13 +639,10 @@ func NodeUtil_MarkFunctionsDeleted(node rhino.Node, compiler AbstractCompiler) {
 	if node.IsFunction() {
 		compiler.ReportFunctionDeleted(node)
 	}
-
-	for child := node.GetFirstChild(); !child.IsNil(); child = child.GetNext() {
+	for child := range node.Children() {
 		NodeUtil_MarkFunctionsDeleted(child, compiler)
 	}
-
-	shadowed := node.GetClosureUnawareShadow()
-	if !shadowed.IsNil() {
+	if shadowed := node.GetClosureUnawareShadow(); !shadowed.IsNil() {
 		NodeUtil_MarkFunctionsDeleted(shadowed, compiler)
 	}
 }
@@ -712,13 +652,10 @@ func NodeUtil_MarkFunctionsDeletedWithChangeTracker(node rhino.Node, changeTrack
 	if node.IsFunction() {
 		changeTracker.ReportFunctionDeleted(node)
 	}
-
-	for child := node.GetFirstChild(); !child.IsNil(); child = child.GetNext() {
+	for child := range node.Children() {
 		NodeUtil_MarkFunctionsDeletedWithChangeTracker(child, changeTracker)
 	}
-
-	shadowed := node.GetClosureUnawareShadow()
-	if !shadowed.IsNil() {
+	if shadowed := node.GetClosureUnawareShadow(); !shadowed.IsNil() {
 		NodeUtil_MarkFunctionsDeletedWithChangeTracker(shadowed, changeTracker)
 	}
 }

@@ -19,6 +19,7 @@
 package jscomp
 
 import (
+	"iter"
 	"strings"
 
 	"github.com/paullepoulpe/jsgo/internal/jutil"
@@ -181,16 +182,7 @@ func (f *FunctionTypeBuilder) CreateImplementedTypeValidator() func(rhino.JSType
 }
 
 // InitFunctionTypeBuilder initializes a stack-allocated or reused FunctionTypeBuilder.
-func (f *FunctionTypeBuilder) InitFunctionTypeBuilder(fnName *string, compiler AbstractCompiler, errorRoot rhino.Node, scope *TypedScope) {
-	var name string
-	if fnName != nil {
-		name = *fnName
-	}
-	f.InitFunctionTypeBuilderString(name, compiler, errorRoot, scope)
-}
-
-// InitFunctionTypeBuilderString initializes a FunctionTypeBuilder with an unboxed function name.
-func (f *FunctionTypeBuilder) InitFunctionTypeBuilderString(fnName string, compiler AbstractCompiler, errorRoot rhino.Node, scope *TypedScope) {
+func (f *FunctionTypeBuilder) InitFunctionTypeBuilder(fnName string, compiler AbstractCompiler, errorRoot rhino.Node, scope *TypedScope) {
 	rhino.CheckNotNull(errorRoot)
 	*f = FunctionTypeBuilder{
 		fnName:                       fnName,
@@ -233,15 +225,7 @@ func (f *FunctionTypeBuilder) FormatFnName() string {
 // declared in the type registry.
 //
 // Java: FunctionTypeBuilder.setSyntacticFunctionName(String)
-func (f *FunctionTypeBuilder) SetSyntacticFunctionName(syntacticFnName *string) *FunctionTypeBuilder {
-	if syntacticFnName != nil {
-		return f.SetSyntacticFunctionNameString(*syntacticFnName)
-	}
-	return f.SetSyntacticFunctionNameString("")
-}
-
-// SetSyntacticFunctionNameString sets the syntactic function name without *string boxing.
-func (f *FunctionTypeBuilder) SetSyntacticFunctionNameString(syntacticFnName string) *FunctionTypeBuilder {
+func (f *FunctionTypeBuilder) SetSyntacticFunctionName(syntacticFnName string) *FunctionTypeBuilder {
 	f.syntacticFnName = syntacticFnName
 	f.hasSyntacticFnName = true
 	return f
@@ -327,14 +311,31 @@ func (f *FunctionTypeBuilder) InferKind(info *rhino.JSDocInfo) *FunctionTypeBuil
 	return f
 }
 
-func jsDocTypeTransformations(info *rhino.JSDocInfo) *jutil.LinkedHashMap[string, rhino.Node] {
-	if info == nil {
-		return nil
+type jsDocTypeTransformList []rhino.JSDocTypeTransform
+
+func (l jsDocTypeTransformList) IsEmpty() bool { return len(l) == 0 }
+func (l jsDocTypeTransformList) Size() int     { return len(l) }
+func (l jsDocTypeTransformList) Keys() iter.Seq[string] {
+	return func(yield func(string) bool) {
+		for _, e := range l {
+			if !yield(e.Name) {
+				return
+			}
+		}
 	}
-	if m, ok := rhino.JSDocInfo_TYPE_TRANSFORMATIONS.Get(info).(*jutil.LinkedHashMap[string, rhino.Node]); ok {
-		return m
+}
+func (l jsDocTypeTransformList) All() iter.Seq2[string, rhino.Node] {
+	return func(yield func(string, rhino.Node) bool) {
+		for _, e := range l {
+			if !yield(e.Name, e.TypeNode) {
+				return
+			}
+		}
 	}
-	return nil
+}
+
+func jsDocTypeTransformations(info *rhino.JSDocInfo) jsDocTypeTransformList {
+	return info.GetTypeTransformationEntries()
 }
 
 // MaybeUseNativeClassTemplateNames clobbers the templateTypeNames from the
@@ -346,7 +347,7 @@ func (f *FunctionTypeBuilder) MaybeUseNativeClassTemplateNames(info *rhino.JSDoc
 		return false
 	}
 	infoTemplateCount := len(info.GetTemplateTypeEntries())
-	if infoTemplateCount == 0 && len(f.templateTypeNames) == 0 && jsDocTypeTransformations(info) == nil {
+	if infoTemplateCount == 0 && len(f.templateTypeNames) == 0 && len(info.GetTypeTransformationEntries()) == 0 {
 		return false
 	}
 	nativeKeys := f.typeRegistry.MaybeGetTemplateTypesOfBuiltin(

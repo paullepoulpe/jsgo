@@ -241,6 +241,93 @@ func throwNilCfgNodeTraversal(compiler AbstractCompiler) {
 	compiler.ThrowInternalError("null", jutil.NewNullPointerException())
 }
 
+// walkCfgNode walks the AST subtree of cfgRoot without crossing into nested CFG
+// nodes, calling visit(n, parent) in pre-order and returning true immediately
+// if visit returns true.
+func walkCfgNode(cfgRoot rhino.Node, visit func(n, parent rhino.Node) bool) bool {
+	if cfgRoot.IsNil() {
+		return false
+	}
+	return walkCfgSubtree(cfgRoot, rhino.NilNode, visit)
+}
+
+func walkCfgSubtree(n, parent rhino.Node, visit func(n, parent rhino.Node) bool) bool {
+	if !parent.IsNil() && ControlFlowGraph_IsEnteringNewCfgNode(n) {
+		return false
+	}
+	if visit(n, parent) {
+		return true
+	}
+	for c := n.GetFirstChild(); !c.IsNil(); c = c.GetNext() {
+		if walkCfgSubtree(c, n, visit) {
+			return true
+		}
+	}
+	return false
+}
+
+// walkCfgEvalOrder walks the AST subtree of cfgRoot without crossing into
+// nested CFG nodes, calling visit(n, parent) in post-order according to
+// JavaScript runtime evaluation order.
+func walkCfgEvalOrder(cfgRoot rhino.Node, visit func(n, parent rhino.Node)) {
+	if cfgRoot.IsNil() {
+		return
+	}
+	walkCfgEvalSubtree(cfgRoot, cfgRoot.GetParent(), true, visit)
+}
+
+func walkCfgEvalSubtree(n, parent rhino.Node, isRoot bool, visit func(n, parent rhino.Node)) {
+	if n.IsNil() || (!isRoot && ControlFlowGraph_IsEnteringNewCfgNode(n)) {
+		return
+	}
+	switch n.GetToken() {
+	case rhino.Token_SCRIPT:
+		if Platform_IsThreadInterrupted() {
+			panic(jutil.NewRuntimeExceptionWithCause(jutil.NewInterruptedException()))
+		}
+		for c := n.GetFirstChild(); !c.IsNil(); {
+			next := c.GetNext()
+			walkCfgEvalSubtree(c, n, false, visit)
+			c = next
+		}
+	case rhino.Token_DESTRUCTURING_LHS:
+		dlhs := ast.MustDestructuringLhs(n)
+		if init, hasInit := dlhs.Init(); hasInit {
+			walkCfgEvalSubtree(init.Node(), n, false, visit)
+		}
+		walkCfgEvalSubtree(dlhs.Pattern().Node(), n, false, visit)
+	case rhino.Token_ASSIGN:
+		assign := ast.MustAssign(n)
+		if pat, isPat := assign.Target().AsPattern(); isPat {
+			walkCfgEvalSubtree(assign.Value().Node(), n, false, visit)
+			walkCfgEvalSubtree(pat.Node(), n, false, visit)
+		} else {
+			walkCfgEvalSubtree(assign.Target().Node(), n, false, visit)
+			walkCfgEvalSubtree(assign.Value().Node(), n, false, visit)
+		}
+	case rhino.Token_DEFAULT_VALUE:
+		dv := ast.MustDefaultValue(n)
+		walkCfgEvalSubtree(dv.Value().Node(), n, false, visit)
+		walkCfgEvalSubtree(dv.Target().Node(), n, false, visit)
+	case rhino.Token_CLASS:
+		cls := ast.MustClass(n)
+		walkCfgEvalSubtree(cls.ExtendsNode(), n, false, visit)
+		walkCfgEvalSubtree(cls.NameNode(), n, false, visit)
+		walkCfgEvalSubtree(cls.Body().Node(), n, false, visit)
+	case rhino.Token_CLASS_MEMBERS:
+		for ch, p := range ast.MustClassBody(n).EvalOrder() {
+			walkCfgEvalSubtree(ch, p, false, visit)
+		}
+	default:
+		for c := n.GetFirstChild(); !c.IsNil(); {
+			next := c.GetNext()
+			walkCfgEvalSubtree(c, n, false, visit)
+			c = next
+		}
+	}
+	visit(n, parent)
+}
+
 var (
 	_ graph.DiGraph[rhino.Node, ControlFlowGraph_Branch] = (*ControlFlowGraph[rhino.Node])(nil)
 	_ graph.GraphvizGraph                                = (*ControlFlowGraph[rhino.Node])(nil)

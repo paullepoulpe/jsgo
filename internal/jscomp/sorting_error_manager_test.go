@@ -31,7 +31,7 @@ var (
 )
 
 func TestSortingErrorManager_OrderingBothNull(t *testing.T) {
-	jsaEq(t, jsaSemComparator.Compare(nil, nil), 0)
+	jsaEq(t, jsaSemComparator.Compare(SortingErrorManager_ErrorWithLevel{}, SortingErrorManager_ErrorWithLevel{}), 0)
 }
 
 func TestSortingErrorManager_OrderingSourceName1(t *testing.T) {
@@ -100,7 +100,7 @@ type jsaSemPrintingManager struct {
 	printedErrors []*JSError
 }
 
-func (m *jsaSemPrintingManager) Println(level *CheckLevel, error *JSError) {
+func (m *jsaSemPrintingManager) Println(level CheckLevel, error *JSError) {
 	m.printedErrors = append(m.printedErrors, error)
 }
 
@@ -109,8 +109,8 @@ func TestSortingErrorManager_DeduplicatedErrors(t *testing.T) {
 	manager.initReportHooks(manager.Println, nil)
 	e1 := JSError_MakeWithSourceLocation(jsaSemNULL_SOURCE, -1, -1, jsaSemFOO_TYPE)
 	e2 := JSError_MakeWithSourceLocation(jsaSemNULL_SOURCE, -1, -1, jsaSemFOO_TYPE)
-	manager.Report(CheckLevel_ERROR.Ptr(), e1)
-	manager.Report(CheckLevel_ERROR.Ptr(), e2)
+	manager.Report(CheckLevel_ERROR, e1)
+	manager.Report(CheckLevel_ERROR, e2)
 	manager.GenerateReport()
 	jsaEq(t, len(manager.printedErrors), 1)
 }
@@ -123,11 +123,11 @@ type jsaSemReportingManager struct {
 	printed int
 }
 
-func (m *jsaSemReportingManager) Println(level *CheckLevel, error *JSError) {
+func (m *jsaSemReportingManager) Println(level CheckLevel, error *JSError) {
 	if error.Type().Equals(jsaSemFOO_TYPE) {
 		// TODO(b/114762232) This behavior should not be supported, and will become malformed
 		// when migrating to a SortingErrorManager with an ErrorReportGenerator.
-		m.Report(CheckLevel_ERROR.Ptr(), JSError_MakeWithSourceLocation(jsaSemNULL_SOURCE, -1, -1, jsaSemJOO_TYPE))
+		m.Report(CheckLevel_ERROR, JSError_MakeWithSourceLocation(jsaSemNULL_SOURCE, -1, -1, jsaSemJOO_TYPE))
 	}
 	m.printed++
 }
@@ -140,19 +140,19 @@ func (m *jsaSemReportingManager) PrintSummary() {
 func TestSortingErrorManager_GenerateReportCausesMoreWarnings(t *testing.T) {
 	manager := &jsaSemReportingManager{t: t}
 	manager.initReportHooks(manager.Println, func(*SortingErrorManager) { manager.PrintSummary() })
-	manager.Report(CheckLevel_ERROR.Ptr(), JSError_MakeWithSourceLocation(jsaSemNULL_SOURCE, -1, -1, jsaSemFOO_TYPE))
+	manager.Report(CheckLevel_ERROR, JSError_MakeWithSourceLocation(jsaSemNULL_SOURCE, -1, -1, jsaSemFOO_TYPE))
 	manager.GenerateReport()
 }
 
-func jsaSemError(e *JSError) *SortingErrorManager_ErrorWithLevel {
-	return NewSortingErrorManager_ErrorWithLevel(e, CheckLevel_ERROR.Ptr())
+func jsaSemError(e *JSError) SortingErrorManager_ErrorWithLevel {
+	return NewSortingErrorManager_ErrorWithLevel(e, CheckLevel_ERROR)
 }
 
-func jsaSemWarning(e *JSError) *SortingErrorManager_ErrorWithLevel {
-	return NewSortingErrorManager_ErrorWithLevel(e, CheckLevel_WARNING.Ptr())
+func jsaSemWarning(e *JSError) SortingErrorManager_ErrorWithLevel {
+	return NewSortingErrorManager_ErrorWithLevel(e, CheckLevel_WARNING)
 }
 
-func jsaSemAssertSmaller(t *testing.T, p1, p2 *SortingErrorManager_ErrorWithLevel) {
+func jsaSemAssertSmaller(t *testing.T, p1, p2 SortingErrorManager_ErrorWithLevel) {
 	t.Helper()
 	p1p2 := jsaSemComparator.Compare(p1, p2)
 	jsaTrue(t, p1p2 < 0, strconv.Itoa(p1p2))
@@ -170,10 +170,10 @@ func TestSortingErrorManager_CountsAndGenerators(t *testing.T) {
 	})
 	m := NewSortingErrorManager([]SortingErrorManager_ErrorReportGenerator{gen, gen})
 	w := DiagnosticType_Warning("TEST_W", "w")
-	m.Report(CheckLevel_ERROR.Ptr(), JSError_MakeWithSourceLocation(jsaStr("b.js"), 1, 1, jsaSemFOO_TYPE))
-	m.Report(CheckLevel_ERROR.Ptr(), JSError_MakeWithSourceLocation(jsaStr("a.js"), 1, 1, w))
-	m.Report(CheckLevel_WARNING.Ptr(), JSError_MakeWithSourceLocation(jsaStr("a.js"), 1, 1, w))
-	m.Report(CheckLevel_OFF.Ptr(), JSError_MakeWithSourceLocation(jsaStr("a.js"), 2, 1, w))
+	m.Report(CheckLevel_ERROR, JSError_MakeWithSourceLocation(jsaStr("b.js"), 1, 1, jsaSemFOO_TYPE))
+	m.Report(CheckLevel_ERROR, JSError_MakeWithSourceLocation(jsaStr("a.js"), 1, 1, w))
+	m.Report(CheckLevel_WARNING, JSError_MakeWithSourceLocation(jsaStr("a.js"), 1, 1, w))
+	m.Report(CheckLevel_OFF, JSError_MakeWithSourceLocation(jsaStr("a.js"), 2, 1, w))
 	jsaEq(t, m.GetErrorCount(), 2)
 	jsaEq(t, m.GetWarningCount(), 1)
 	jsaTrue(t, m.HasHaltingErrors())
@@ -183,7 +183,7 @@ func TestSortingErrorManager_CountsAndGenerators(t *testing.T) {
 	jsaDeepEq(t, reported, []string{"w", "w", "w", "Foo"}) // OFF < WARNING < ERROR, then by file
 	jsaTrue(t, ErrorManager_HasHaltingErrors(m))
 	b := NewBlackHoleErrorManager()
-	b.Report(CheckLevel_WARNING.Ptr(), JSError_Make(w))
+	b.Report(CheckLevel_WARNING, JSError_Make(w))
 	b.GenerateReport()
 	jsaEq(t, b.GetWarningCount(), 1)
 }

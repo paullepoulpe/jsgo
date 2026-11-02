@@ -36,11 +36,6 @@ import (
 // are chosen arbitrarily but deterministically (as long as the underlying
 // graph has deterministic iteration).
 type LowestCommonAncestorFinder[N, E comparable] interface {
-	// FindAll executes a search on all the elements of roots.
-	//
-	// Java: LowestCommonAncestorFinder.findAll(Set<N>)
-	FindAll(roots *jutil.LinkedHashSet[N]) *jutil.LinkedHashSet[N]
-
 	// FindAllSlice executes a search on distinct elements of roots, appending
 	// the resulting LCAs to dst without allocating sets.
 	FindAllSlice(roots []N, dst []N) []N
@@ -113,14 +108,6 @@ func (f *LowestCommonAncestorFinderImpl[N, E]) finishSearch(allColor int32, dst 
 	}
 	f.touched = f.touched[:0]
 	return dst
-}
-
-// Java: LowestCommonAncestorFinder.findAll(Set<N>)
-func (f *LowestCommonAncestorFinderImpl[N, E]) FindAll(roots *jutil.LinkedHashSet[N]) *jutil.LinkedHashSet[N] {
-	if roots == nil {
-		panic(jutil.NewNullPointerException())
-	}
-	return jutil.NewLinkedHashSet(f.FindAllSlice(roots.ToSlice(), nil)...)
 }
 
 func (f *LowestCommonAncestorFinderImpl[N, E]) FindAllSlice(roots []N, dst []N) []N {

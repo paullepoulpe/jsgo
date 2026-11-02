@@ -279,6 +279,38 @@ type inverterScopeVarKey struct {
 	varID    uint32
 }
 
+// int32List is a value-type singly-linked list header over a flat arena slice
+// whose elements end with a `next int32` index (-1 sentinel).
+type int32List struct {
+	head, tail int32
+}
+
+func emptyInt32List() int32List {
+	return int32List{head: -1, tail: -1}
+}
+
+func (l *int32List) pushRef(arena *[]inverterRefLink, node rhino.Node) {
+	idx := int32(len(*arena))
+	*arena = append(*arena, inverterRefLink{node: node, next: -1})
+	if l.head < 0 {
+		l.head = idx
+	} else {
+		(*arena)[l.tail].next = idx
+	}
+	l.tail = idx
+}
+
+func (l *int32List) pushVar(arena *[]inverterVarLink, varID uint32) {
+	idx := int32(len(*arena))
+	*arena = append(*arena, inverterVarLink{varID: varID, next: -1})
+	if l.head < 0 {
+		l.head = idx
+	} else {
+		(*arena)[l.tail].next = idx
+	}
+	l.tail = idx
+}
+
 type inverterVar struct {
 	name          string
 	preferredName string
@@ -286,10 +318,8 @@ type inverterVar struct {
 	nameID        uint32
 	prevShadow    uint32
 	scopeDepth    int32
-	refHead       int32
-	refTail       int32
-	conflictHead  int32
-	conflictTail  int32
+	refs          int32List
+	conflicts     int32List
 	isCandidate   bool
 }
 
@@ -300,8 +330,7 @@ type inverterScope struct {
 	declEnd        int
 	renamableStart int
 	renamableEnd   int
-	refHead        int32
-	refTail        int32
+	refs           int32List
 }
 
 // MakeDeclaredNamesUnique_ContextualRenameInverter inverts the
@@ -402,13 +431,11 @@ func (c *MakeDeclaredNamesUnique_ContextualRenameInverter) allocDeclaredVar(
 	}
 	varID := uint32(len(c.vars))
 	v := inverterVar{
-		name:         currentName,
-		nameID:       id,
-		scopeDepth:   scopeDepth,
-		refHead:      -1,
-		refTail:      -1,
-		conflictHead: -1,
-		conflictTail: -1,
+		name:       currentName,
+		nameID:     id,
+		scopeDepth: scopeDepth,
+		refs:       emptyInt32List(),
+		conflicts:  emptyInt32List(),
 	}
 	if len(currentName) > len(MakeDeclaredNamesUnique_ContextualRenamer_UNIQUE_ID_SEPARATOR) {
 		if idx := strings.LastIndex(currentName, MakeDeclaredNamesUnique_ContextualRenamer_UNIQUE_ID_SEPARATOR); idx > 0 {
@@ -437,12 +464,10 @@ func (c *MakeDeclaredNamesUnique_ContextualRenameInverter) getOrCreateCurrentVar
 	}
 	varID := uint32(len(c.vars))
 	c.vars = append(c.vars, inverterVar{
-		name:         node.GetString(),
-		nameID:       id,
-		refHead:      -1,
-		refTail:      -1,
-		conflictHead: -1,
-		conflictTail: -1,
+		name:      node.GetString(),
+		nameID:    id,
+		refs:      emptyInt32List(),
+		conflicts: emptyInt32List(),
 	})
 	c.shadowByID[id] = varID
 	return varID
@@ -471,14 +496,7 @@ func (c *MakeDeclaredNamesUnique_ContextualRenameInverter) addReferenceNode(varI
 	if !v.isCandidate {
 		return
 	}
-	linkIdx := int32(len(c.refLinks))
-	c.refLinks = append(c.refLinks, inverterRefLink{node: nameNode, next: -1})
-	if v.refHead < 0 {
-		v.refHead = linkIdx
-	} else {
-		c.refLinks[v.refTail].next = linkIdx
-	}
-	v.refTail = linkIdx
+	v.refs.pushRef(&c.refLinks, nameNode)
 }
 
 func (c *MakeDeclaredNamesUnique_ContextualRenameInverter) addConflictEdge(varID, otherID uint32) {
@@ -489,14 +507,7 @@ func (c *MakeDeclaredNamesUnique_ContextualRenameInverter) addConflictEdge(varID
 	if !v.isCandidate {
 		return
 	}
-	linkIdx := int32(len(c.conflictLinks))
-	c.conflictLinks = append(c.conflictLinks, inverterVarLink{varID: otherID, next: -1})
-	if v.conflictHead < 0 {
-		v.conflictHead = linkIdx
-	} else {
-		c.conflictLinks[v.conflictTail].next = linkIdx
-	}
-	v.conflictTail = linkIdx
+	v.conflicts.pushVar(&c.conflictLinks, otherID)
 }
 
 func (c *MakeDeclaredNamesUnique_ContextualRenameInverter) isVarInScopeRefs(
@@ -527,14 +538,7 @@ func (c *MakeDeclaredNamesUnique_ContextualRenameInverter) addScopeRef(stackIdx 
 		}
 		c.deepScopeSeen[key] = struct{}{}
 	}
-	linkIdx := int32(len(c.scopeRefNodes))
-	c.scopeRefNodes = append(c.scopeRefNodes, inverterVarLink{varID: varID, next: -1})
-	if s.refHead < 0 {
-		s.refHead = linkIdx
-	} else {
-		c.scopeRefNodes[s.refTail].next = linkIdx
-	}
-	s.refTail = linkIdx
+	s.refs.pushVar(&c.scopeRefNodes, varID)
 }
 
 func (c *MakeDeclaredNamesUnique_ContextualRenameInverter) tryToInvertName(varID uint32) {
@@ -553,7 +557,7 @@ func (c *MakeDeclaredNamesUnique_ContextualRenameInverter) attemptRename(v *inve
 	// to simplify its name, if possible.
 	conflict := v.preferredName == MakeDeclaredNamesUnique_ARGUMENTS
 	if !conflict {
-		for idx := v.conflictHead; idx >= 0; idx = c.conflictLinks[idx].next {
+		for idx := v.conflicts.head; idx >= 0; idx = c.conflictLinks[idx].next {
 			if c.vars[c.conflictLinks[idx].varID].name == v.preferredName {
 				conflict = true
 				break
@@ -568,7 +572,7 @@ func (c *MakeDeclaredNamesUnique_ContextualRenameInverter) attemptRename(v *inve
 			clear(c.disallowedNames)
 		}
 		c.disallowedNames[MakeDeclaredNamesUnique_ARGUMENTS] = struct{}{}
-		for idx := v.conflictHead; idx >= 0; idx = c.conflictLinks[idx].next {
+		for idx := v.conflicts.head; idx >= 0; idx = c.conflictLinks[idx].next {
 			// Look up names immediately before making our rename decision, because
 			// some of these variables could themselves have been renamed.
 			c.disallowedNames[c.vars[c.conflictLinks[idx].varID].name] = struct{}{}
@@ -586,7 +590,7 @@ func (c *MakeDeclaredNamesUnique_ContextualRenameInverter) attemptRename(v *inve
 		return v.name
 	}
 
-	for idx := v.refHead; idx >= 0; idx = c.refLinks[idx].next {
+	for idx := v.refs.head; idx >= 0; idx = c.refLinks[idx].next {
 		referenceNode := c.refLinks[idx].node
 		referenceNode.SetString(newName)
 		if c.compiler != nil {
@@ -628,8 +632,7 @@ func (c *MakeDeclaredNamesUnique_ContextualRenameInverter) pushScope(scopeDepth 
 		declEnd:        len(c.declVars),
 		renamableStart: renamableStart,
 		renamableEnd:   len(c.renamableDecls),
-		refHead:        -1,
-		refTail:        -1,
+		refs:           emptyInt32List(),
 	})
 }
 
@@ -647,7 +650,7 @@ func (c *MakeDeclaredNamesUnique_ContextualRenameInverter) popScope() {
 	// Tell all variables referenced in this scope (or propagated from child
 	// scopes) and the variables declared in this scope about each other before
 	// trying to rename the variables declared in this scope.
-	for refIdx := s.refHead; refIdx >= 0; refIdx = c.scopeRefNodes[refIdx].next {
+	for refIdx := s.refs.head; refIdx >= 0; refIdx = c.scopeRefNodes[refIdx].next {
 		refVarID := c.scopeRefNodes[refIdx].varID
 		refVar := &c.vars[refVarID]
 		if refVar.scopeDepth < s.depth {
@@ -691,7 +694,7 @@ func (c *MakeDeclaredNamesUnique_ContextualRenameInverter) popScope() {
 	if hasParent {
 		parentDepth = c.scopes[stackIdx-1].depth
 	}
-	for refIdx := s.refHead; refIdx >= 0; refIdx = c.scopeRefNodes[refIdx].next {
+	for refIdx := s.refs.head; refIdx >= 0; refIdx = c.scopeRefNodes[refIdx].next {
 		refVarID := c.scopeRefNodes[refIdx].varID
 		if clearBit != 0 {
 			c.vars[refVarID].inScopeMask &^= clearBit

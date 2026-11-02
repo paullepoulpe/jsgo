@@ -79,18 +79,26 @@ func TestRhinoStringPool_MultipleCallsReturnSameInstance(t *testing.T) {
 	}
 }
 
+func newLazyInternedListForTest(strs []string) *RhinoStringPool_LazyInternedStringList {
+	ids := make([]uint32, len(strs))
+	for i, s := range strs {
+		ids[i] = RhinoStringPool_InternID(s)
+	}
+	return NewRhinoStringPool_LazyInternedStringListFromIDs(ids)
+}
+
 func TestRhinoStringPool_LazyInternedStringList_OutOfBounds_ThrowsException(t *testing.T) {
-	list := NewRhinoStringPool_LazyInternedStringList([]string{"foo"})
+	list := newLazyInternedListForTest([]string{"foo"})
 	assertThrows[*jutil.ArrayIndexOutOfBoundsException](t, func() { list.Get(100) })
 }
 
 func TestRhinoStringPool_LazyInternedStringList_NegativeIndex_ThrowsException(t *testing.T) {
-	list := NewRhinoStringPool_LazyInternedStringList([]string{})
+	list := newLazyInternedListForTest([]string{})
 	assertThrows[*jutil.ArrayIndexOutOfBoundsException](t, func() { list.Get(-1) })
 }
 
 func TestRhinoStringPool_LazyInternedStringList_GetsEqualValuesAsInputList(t *testing.T) {
-	list := NewRhinoStringPool_LazyInternedStringList([]string{"foo", "bar", "baz"})
+	list := newLazyInternedListForTest([]string{"foo", "bar", "baz"})
 	for i, want := range []string{"foo", "bar", "baz"} {
 		if got := list.Get(i); got != want {
 			t.Errorf("list.Get(%d) = %q, want %q", i, got, want)
@@ -101,7 +109,7 @@ func TestRhinoStringPool_LazyInternedStringList_GetsEqualValuesAsInputList(t *te
 func TestRhinoStringPool_LazyInternedStringList_GetsSameInstanceAsRhinoStringPool(t *testing.T) {
 	// use copies to ensure we're passing unique String instances
 	strs := []string{newString("foo"), newString("bar"), newString("baz")}
-	list := NewRhinoStringPool_LazyInternedStringList(strs)
+	list := newLazyInternedListForTest(strs)
 	for i, s := range []string{"foo", "bar", "baz"} {
 		if !sameInstance(list.Get(i), RhinoStringPool_AddOrGet(s)) {
 			t.Errorf("list.Get(%d) is not the pooled instance", i)
@@ -114,50 +122,10 @@ func TestRhinoStringPool_LazyInternedStringList_VeryLargeListWorks(t *testing.T)
 	for i := 0; i < 10000; i++ {
 		strs = append(strs, newString("foo"+strconv.Itoa(i)))
 	}
-	list := NewRhinoStringPool_LazyInternedStringList(strs)
+	list := newLazyInternedListForTest(strs)
 	for i := 0; i < 10000; i++ {
 		if !sameInstance(list.Get(i), RhinoStringPool_AddOrGet("foo"+strconv.Itoa(i))) {
 			t.Fatalf("list.Get(%d) is not the pooled instance", i)
-		}
-	}
-}
-
-func TestRhinoStringPool_WriteOnlyBitset_InitializedToFalse(t *testing.T) {
-	bitset := NewRhinoStringPool_WriteOnlyBitset(5)
-	for i := 0; i < 5; i++ {
-		if bitset.Get(i) {
-			t.Errorf("bit %d set", i)
-		}
-	}
-}
-
-func TestRhinoStringPool_WriteOnlyBitset_SetToTrue_ThenGetReturnsTrue(t *testing.T) {
-	bitset := NewRhinoStringPool_WriteOnlyBitset(2)
-	bitset.Set(0)
-	if !bitset.Get(0) {
-		t.Error("bit 0 not set")
-	}
-	if bitset.Get(1) {
-		t.Error("bit 1 set")
-	}
-}
-
-func TestRhinoStringPool_WriteOnlyBitset_WordBoundary_SetToTrue_ThenGetReturnsTrue(t *testing.T) {
-	bitset := NewRhinoStringPool_WriteOnlyBitset(33)
-	bitset.Set(32)
-	if !bitset.Get(32) {
-		t.Error("bit 32 not set")
-	}
-}
-
-func TestRhinoStringPool_WriteOnlyBitset_MultipleSetsToTrue_AllReturnTrue(t *testing.T) {
-	bitset := NewRhinoStringPool_WriteOnlyBitset(5)
-	bitset.Set(1)
-	bitset.Set(2)
-	bitset.Set(3)
-	for i, want := range []bool{false, true, true, true, false} {
-		if bitset.Get(i) != want {
-			t.Errorf("bit %d = %v, want %v", i, bitset.Get(i), want)
 		}
 	}
 }

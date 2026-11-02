@@ -126,9 +126,7 @@ func NewVarCheck(compiler AbstractCompiler) *VarCheck {
 func NewVarCheckWithValidityCheck(compiler AbstractCompiler, validityCheck bool) *VarCheck {
 	v := &VarCheck{}
 	v.compiler = compiler
-	// getErrorLevel returns a nullable CheckLevel; CheckLevel.Ptr() pointers are canonical, so
-	// pointer identity is Java's enum identity.
-	v.strictExternCheck = compiler.GetErrorLevel(varCheckUndefinedExternProbe) == CheckLevel_ERROR.Ptr()
+	v.strictExternCheck = compiler.GetErrorLevel(varCheckUndefinedExternProbe) == CheckLevel_ERROR
 	v.validityCheck = validityCheck
 	return v
 }

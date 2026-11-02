@@ -163,7 +163,7 @@ func (c *CheckRegExp) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 			flags = n.GetLastChild().GetString()
 		}
 		if _, err := regex.ParseRegExp(pattern, flags); err != nil {
-			t.Report(n, CheckRegExp_MALFORMED_REGEXP, err.Message)
+			t.Report(n, CheckRegExp_MALFORMED_REGEXP, err.Error())
 		}
 	}
 }

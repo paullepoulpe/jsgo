@@ -68,11 +68,53 @@ func (w *cfgWorklist) notEmpty() bool {
 	return len(w.queue) > w.queueHead
 }
 
-func higherPrio(a, b int32, forward bool) bool {
-	if forward {
-		return a < b
+func heapSiftUp[T any](h []T, i int, x T, less func(a, b T) bool) {
+	for i > 0 {
+		parent := (i - 1) / 2
+		p := h[parent]
+		if !less(x, p) {
+			break
+		}
+		h[i] = p
+		i = parent
 	}
-	return a > b
+	h[i] = x
+}
+
+func heapSiftDown[T any](h []T, i int, x T, less func(a, b T) bool) {
+	n := len(h)
+	for {
+		pick := 2*i + 1
+		if pick >= n {
+			break
+		}
+		best := h[pick]
+		if sibling := pick + 1; sibling < n && less(h[sibling], best) {
+			pick = sibling
+			best = h[sibling]
+		}
+		if !less(best, x) {
+			break
+		}
+		h[i] = best
+		i = pick
+	}
+	h[i] = x
+}
+
+func cfgNodeForwardLess(a, b *graph.LinkedDiGraphNode[rhino.Node, ControlFlowGraph_Branch]) bool {
+	return a.Priority < b.Priority
+}
+
+func cfgNodeBackwardLess(a, b *graph.LinkedDiGraphNode[rhino.Node, ControlFlowGraph_Branch]) bool {
+	return a.Priority > b.Priority
+}
+
+func cfgNodeHigherPrio(forward bool) func(a, b *graph.LinkedDiGraphNode[rhino.Node, ControlFlowGraph_Branch]) bool {
+	if forward {
+		return cfgNodeForwardLess
+	}
+	return cfgNodeBackwardLess
 }
 
 func (w *cfgWorklist) enqueue(node *graph.LinkedDiGraphNode[rhino.Node, ControlFlowGraph_Branch]) {
@@ -85,22 +127,10 @@ func (w *cfgWorklist) enqueue(node *graph.LinkedDiGraphNode[rhino.Node, ControlF
 	node.DfaInQueue = true
 	w.queue = append(w.queue, node)
 	if w.usePriority {
-		i := len(w.queue) - 1
-		xPrio := node.Priority
-		if xPrio < 0 {
+		if node.Priority < 0 {
 			panic(jutil.NewIllegalStateExceptionMsg("priority not set"))
 		}
-		forward := w.forward
-		for i > 0 {
-			parent := (i - 1) / 2
-			p := w.queue[parent]
-			if !higherPrio(xPrio, p.Priority, forward) {
-				break
-			}
-			w.queue[i] = p
-			i = parent
-		}
-		w.queue[i] = node
+		heapSiftUp(w.queue, len(w.queue)-1, node, cfgNodeHigherPrio(w.forward))
 	}
 }
 
@@ -113,32 +143,7 @@ func (w *cfgWorklist) dequeue() *graph.LinkedDiGraphNode[rhino.Node, ControlFlow
 		w.queue[n-1] = nil
 		w.queue = w.queue[:n-1]
 		if n > 1 {
-			m := n - 1
-			xPrio := last.Priority
-			forward := w.forward
-			i := 0
-			for {
-				pick := 2*i + 1
-				if pick >= m {
-					break
-				}
-				best := w.queue[pick]
-				bestPrio := best.Priority
-				if sibling := pick + 1; sibling < m {
-					sib := w.queue[sibling]
-					if sibPrio := sib.Priority; higherPrio(sibPrio, bestPrio, forward) {
-						pick = sibling
-						best = sib
-						bestPrio = sibPrio
-					}
-				}
-				if !higherPrio(bestPrio, xPrio, forward) {
-					break
-				}
-				w.queue[i] = best
-				i = pick
-			}
-			w.queue[i] = last
+			heapSiftDown(w.queue, 0, last, cfgNodeHigherPrio(w.forward))
 		}
 	} else {
 		curNode = w.queue[w.queueHead]

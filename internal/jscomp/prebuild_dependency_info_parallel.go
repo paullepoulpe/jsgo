@@ -194,8 +194,8 @@ func parallelPrebuildWorkers(
 
 type prebuildDependencyDiagnostic struct {
 	target ErrorHandler
-	level  *CheckLevel
 	error  *JSError
+	level  CheckLevel
 }
 
 type prebuildDependencyErrors struct {
@@ -203,8 +203,8 @@ type prebuildDependencyErrors struct {
 	events []prebuildDependencyDiagnostic
 }
 
-func (r *prebuildDependencyErrors) Report(level *CheckLevel, error *JSError) {
-	r.events = append(r.events, prebuildDependencyDiagnostic{r.ErrorManager, level, error})
+func (r *prebuildDependencyErrors) Report(level CheckLevel, error *JSError) {
+	r.events = append(r.events, prebuildDependencyDiagnostic{target: r.ErrorManager, error: error, level: level})
 }
 
 // Resolver diagnostics normally pass through the loader's ErrorHandler (often
@@ -215,8 +215,8 @@ type prebuildDependencyModuleErrors struct {
 	events *[]prebuildDependencyDiagnostic
 }
 
-func (r *prebuildDependencyModuleErrors) Report(level *CheckLevel, error *JSError) {
-	*r.events = append(*r.events, prebuildDependencyDiagnostic{r.target, level, error})
+func (r *prebuildDependencyModuleErrors) Report(level CheckLevel, error *JSError) {
+	*r.events = append(*r.events, prebuildDependencyDiagnostic{target: r.target, error: error, level: level})
 }
 
 // Each scan gets its own diagnostic target. Resolver tables are immutable
@@ -380,7 +380,7 @@ func (p *PrebuildDependencyInfo) prebuildParallel(inputs []*CompilerInput) bool 
 			workerErrors.events = nil
 			if code, err := input.getCode(); err != nil {
 				result.readFailure = true
-				workerErrors.Report(CheckLevel_ERROR.Ptr(),
+				workerErrors.Report(CheckLevel_ERROR,
 					JSError_Make(AbstractCompiler_READ_ERROR, input.GetName(), ioErrorMessage(err)))
 				result.info = SimpleDependencyInfo_EMPTY
 			} else {

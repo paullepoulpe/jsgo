@@ -25,18 +25,71 @@ import (
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
 
-var colorFindPropRefsVisitTokens = func() ast.TokenSet {
-	var s ast.TokenSet
-	s.Add(rhino.Token_GETPROP)
-	s.Add(rhino.Token_OPTCHAIN_GETPROP)
-	s.Add(rhino.Token_OBJECTLIT)
-	s.Add(rhino.Token_CALL)
-	s.Add(rhino.Token_CLASS)
-	s.Add(rhino.Token_OBJECT_PATTERN)
-	s.Add(rhino.Token_FUNCTION)
-	s.Add(rhino.Token_OBJECT_SPREAD)
-	return s
-}()
+// isInObjectDefinePropertiesCall reports whether n is an argument of an
+// Object.defineProperties (or coding-convention equivalent) call.
+func isInObjectDefinePropertiesCall(n rhino.Node) bool {
+	parent := n.GetParent()
+	return parent.IsCall() && NodeUtil_IsObjectDefinePropertiesDefinition(parent)
+}
+
+// unpackObjectDefineProperties unpacks Object.defineProperties(typeObj, props)
+// when call is a definition call whose second argument is an object literal.
+func unpackObjectDefineProperties(call ast.Call) (typeObj ast.Arg, props ast.ObjectLit, ok bool) {
+	if !NodeUtil_IsObjectDefinePropertiesDefinition(call.Node()) {
+		return ast.Arg{}, ast.ObjectLit{}, false
+	}
+	firstArg, hasFirst := call.FirstArg()
+	if !hasFirst {
+		return ast.Arg{}, ast.ObjectLit{}, false
+	}
+	secondArg, hasSecond := firstArg.Next()
+	if !hasSecond {
+		return ast.Arg{}, ast.ObjectLit{}, false
+	}
+	props, ok = secondArg.AsObjectLit()
+	return firstArg, props, ok
+}
+
+// classMemberOwners lazily computes and caches the owner Colors for static,
+// instance-field, and prototype-method members of an ES6 class.
+type classMemberOwners struct {
+	ctor     *colors.Color
+	instance *colors.Color
+	proto    *colors.Color
+}
+
+func colorUnionOrUnknown(cs []*colors.Color) *colors.Color {
+	if len(cs) == 0 {
+		return colors.StandardColors_UNKNOWN
+	}
+	return colors.Color_CreateUnionSlice(cs)
+}
+
+func (c *classMemberOwners) ownerOf(member ast.ClassMember) *colors.Color {
+	n := member.Node()
+	if n.IsStaticMember() {
+		return c.ctor
+	}
+	if _, ok := member.AsMemberFieldDef(); ok {
+		if c.instance == nil {
+			if c.ctor == nil {
+				c.instance = colors.StandardColors_UNKNOWN
+			} else {
+				c.instance = colorUnionOrUnknown(c.ctor.GetInstanceColors())
+			}
+		}
+		return c.instance
+	}
+	jutil.CheckStateMsg1(n.IsMemberFunctionDef() || n.IsGetterDef() || n.IsSetterDef(), "%s", n)
+	if c.proto == nil {
+		if c.ctor == nil {
+			c.proto = colors.StandardColors_UNKNOWN
+		} else {
+			c.proto = colorUnionOrUnknown(c.ctor.GetPrototypes())
+		}
+	}
+	return c.proto
+}
 
 // ColorFindPropertyReferences traverses the AST, collecting connections
 // between JSTypes, property accesses, and their accociated Nodes.
@@ -56,6 +109,8 @@ type ColorFindPropertyReferences struct {
 
 	colorGraphNodeFactory *ColorGraphNodeFactory
 	isPropertyReflector   ColorFindPropertyReferences_IsPropertyReflector
+	visitor               ast.Visitor[*NodeTraversal]
+	kinds                 ast.TokenSet
 }
 
 // ColorFindPropertyReferences_IsPropertyReflector tests whether the named JS
@@ -76,12 +131,34 @@ type ColorFindPropertyReferences_IsPropertyReflector func(nameNode rhino.Node) b
 // Java: ColorFindPropertyReferences(ColorGraphNodeFactory, IsPropertyReflector)
 func NewColorFindPropertyReferences(
 	colorGraphNodeFactory *ColorGraphNodeFactory, isPropertyReflector ColorFindPropertyReferences_IsPropertyReflector) *ColorFindPropertyReferences {
-	return &ColorFindPropertyReferences{
+	r := &ColorFindPropertyReferences{
 		propIndex:             newPropertyClusteringIndex(4096),
 		ownerMap:              make(map[*colors.Color]*ColorGraphNode, 512),
 		colorGraphNodeFactory: colorGraphNodeFactory,
 		isPropertyReflector:   isPropertyReflector,
 	}
+	r.visitor = ast.Visitor[*NodeTraversal]{
+		GetProp: func(t *NodeTraversal, gp ast.GetProp) {
+			r.registerPropertyUse(t, gp.Node(), gp.Object().Node().GetColor())
+		},
+		OptChainGetProp: func(t *NodeTraversal, gp ast.OptChainGetProp) {
+			r.registerPropertyUse(t, gp.Node(), gp.Object().Node().GetColor())
+		},
+		ObjectLit: func(t *NodeTraversal, lit ast.ObjectLit) {
+			// Object.defineProperties literals are handled at the CALL node.
+			if !isInObjectDefinePropertiesCall(lit.Node()) {
+				r.traverseObjectlitLike(t, lit.Node(), lit.Node().GetColor())
+			}
+		},
+		ObjectPattern: func(t *NodeTraversal, pat ast.ObjectPattern) {
+			r.traverseObjectlitLike(t, pat.Node(), pat.Node().GetColor())
+		},
+		Call:     r.handleCall,
+		Class:    r.handleClass,
+		Function: func(_ *NodeTraversal, fn ast.Function) { r.handleFunction(fn) },
+	}
+	r.kinds = r.visitor.Tokens()
+	return r
 }
 
 func (r *ColorFindPropertyReferences) createNode(owner *colors.Color) *ColorGraphNode {
@@ -110,146 +187,81 @@ var (
 
 func (*ColorFindPropertyReferences) noVisitLeaves() {}
 
-func (*ColorFindPropertyReferences) visitTokens() *ast.TokenSet {
-	return &colorFindPropRefsVisitTokens
+func (r *ColorFindPropertyReferences) visitTokens() *ast.TokenSet {
+	return &r.kinds
 }
 
 // Java: ColorFindPropertyReferences.visit(NodeTraversal, Node, Node)
-func (r *ColorFindPropertyReferences) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
-	switch n.GetToken() {
-	case rhino.Token_GETPROP, rhino.Token_OPTCHAIN_GETPROP:
-		r.registerPropertyUse(t, n, n.GetFirstChild().GetColor())
-	case rhino.Token_OBJECTLIT:
-		r.handleObjectLit(t, n)
-	case rhino.Token_CALL:
-		r.handleCall(t, n)
-	case rhino.Token_CLASS:
-		r.handleClass(t, n)
-	case rhino.Token_OBJECT_PATTERN:
-		r.handleObjectPattern(t, n)
-	case rhino.Token_FUNCTION:
-		r.handleFunction(n)
-	default:
-	}
-}
-
-// Java: ColorFindPropertyReferences.handleObjectLit(NodeTraversal, Node)
-func (r *ColorFindPropertyReferences) handleObjectLit(t *NodeTraversal, n rhino.Node) {
-	// Object.defineProperties literals are handled at the CALL node.
-	if n.GetParent().IsCall() && NodeUtil_IsObjectDefinePropertiesDefinition(n.GetParent()) {
-		return
-	}
-
-	r.traverseObjectlitLike(t, n, n.GetColor())
+func (r *ColorFindPropertyReferences) Visit(t *NodeTraversal, n rhino.Node, _ rhino.Node) {
+	r.visitor.Visit(t, n)
 }
 
 // handleCall examines calls in case they are Object.defineProperties calls
 //
 // Java: ColorFindPropertyReferences.handleCall(NodeTraversal, Node)
-func (r *ColorFindPropertyReferences) handleCall(t *NodeTraversal, call rhino.Node) {
-	target := call.GetFirstChild()
+func (r *ColorFindPropertyReferences) handleCall(t *NodeTraversal, call ast.Call) {
+	target := call.Callee().Node()
 	if !target.IsQualifiedName() {
 		return
 	}
 
 	if r.isPropertyReflector(target) {
 		r.handlePropertyReflectorCall(t, call)
-	} else if NodeUtil_IsObjectDefinePropertiesDefinition(call) {
-		r.handleObjectDefineProperties(t, call)
+	} else if typeObj, objectLit, ok := unpackObjectDefineProperties(call); ok {
+		r.traverseObjectlitLike(t, objectLit.Node(), typeObj.Node().GetColor())
 	}
 }
 
 // Java: ColorFindPropertyReferences.handleClass(NodeTraversal, Node)
-func (r *ColorFindPropertyReferences) handleClass(t *NodeTraversal, classNode rhino.Node) {
-	classType := classNode.GetColor()
-	members := NodeUtil_GetClassMembers(classNode)
-	jutil.CheckState(members.IsObjectLit() || members.IsObjectPattern() || members.IsClassMembers())
-
-	var instanceOwner *colors.Color
-	var protoOwner *colors.Color
-	for child := members.GetFirstChild(); !child.IsNil(); child = child.GetNext() {
-		switch child.GetToken() {
+func (r *ColorFindPropertyReferences) handleClass(t *NodeTraversal, cls ast.Class) {
+	classType := cls.Node().GetColor()
+	body := cls.Body()
+	owners := classMemberOwners{ctor: classType}
+	for member := range body.Members() {
+		child := member.Node()
+		switch member.Token() {
 		case rhino.Token_BLOCK, rhino.Token_COMPUTED_PROP, rhino.Token_COMPUTED_FIELD_DEF, rhino.Token_OBJECT_REST, rhino.Token_OBJECT_SPREAD:
 			continue
 		case rhino.Token_STRING_KEY, rhino.Token_MEMBER_FUNCTION_DEF, rhino.Token_MEMBER_FIELD_DEF, rhino.Token_GETTER_DEF, rhino.Token_SETTER_DEF:
-			if child.IsQuotedStringKey() {
-				continue
+			if !child.IsQuotedStringKey() {
+				r.registerPropertyUse(t, child, owners.ownerOf(member))
 			}
-			var owner *colors.Color
-			if child.IsStaticMember() {
-				owner = classType
-			} else if child.IsMemberFieldDef() {
-				if instanceOwner == nil {
-					classInstanceType := classType.GetInstanceColors()
-					if len(classInstanceType) == 0 {
-						instanceOwner = colors.StandardColors_UNKNOWN
-					} else {
-						instanceOwner = colors.Color_CreateUnionSlice(classInstanceType)
-					}
-				}
-				owner = instanceOwner
-			} else {
-				jutil.CheckStateMsg1(child.IsMemberFunctionDef() || child.IsGetterDef() || child.IsSetterDef(), "%s", child)
-				if protoOwner == nil {
-					classPrototypeType := classType.GetPrototypes()
-					if len(classPrototypeType) == 0 {
-						protoOwner = colors.StandardColors_UNKNOWN
-					} else {
-						protoOwner = colors.Color_CreateUnionSlice(classPrototypeType)
-					}
-				}
-				owner = protoOwner
-			}
-			r.registerPropertyUse(t, child, owner)
 		default:
 			panic(jutil.NewIllegalStateExceptionMsg(
-				"Unexpected child of " + members.GetToken().String() + ": " + child.ToStringTree()))
+				"Unexpected child of " + body.Node().GetToken().String() + ": " + child.ToStringTree()))
 		}
 	}
 	r.createNode(classType)
 }
 
 // Java: ColorFindPropertyReferences.handleFunction(Node)
-func (r *ColorFindPropertyReferences) handleFunction(fnNode rhino.Node) {
+func (r *ColorFindPropertyReferences) handleFunction(fn ast.Function) {
 	// Ensure the flattener knows about the class constructor and instance. Even if we don't see any
 	// direct property references off either type, it's possible that a property is referenced
 	// via a superclass or implemented interface.
 	// e.g. `const /** !FooInterface */ x = new Foo(); x.method();`
-	fnType := fnNode.GetColor()
+	fnType := fn.Node().GetColor()
 	if fnType != nil && len(fnType.GetInstanceColors()) != 0 {
 		r.createNode(fnType)
 	}
 }
 
-// Java: ColorFindPropertyReferences.handleObjectPattern(NodeTraversal, Node)
-func (r *ColorFindPropertyReferences) handleObjectPattern(t *NodeTraversal, pattern rhino.Node) {
-	r.traverseObjectlitLike(t, pattern, pattern.GetColor())
-}
-
 // Java: ColorFindPropertyReferences.handlePropertyReflectorCall(NodeTraversal, Node)
-func (r *ColorFindPropertyReferences) handlePropertyReflectorCall(t *NodeTraversal, call rhino.Node) {
-	name := call.GetSecondChild()
-	if name.IsNil() || !name.IsStringLit() {
+func (r *ColorFindPropertyReferences) handlePropertyReflectorCall(t *NodeTraversal, call ast.Call) {
+	firstArg, ok := call.FirstArg()
+	if !ok {
+		return
+	}
+	name, ok := firstArg.AsStringLit()
+	if !ok {
 		return
 	}
 
-	obj := name.GetNext()
 	var objColor *colors.Color
-	if !obj.IsNil() {
-		objColor = obj.GetColor()
+	if obj, ok := firstArg.Next(); ok {
+		objColor = obj.Node().GetColor()
 	}
-	r.registerPropertyUse(t, name, objColor)
-}
-
-// Java: ColorFindPropertyReferences.handleObjectDefineProperties(NodeTraversal, Node)
-func (r *ColorFindPropertyReferences) handleObjectDefineProperties(t *NodeTraversal, call rhino.Node) {
-	typeObj := call.GetSecondChild()
-	objectLiteral := typeObj.GetNext()
-	if !objectLiteral.IsObjectLit() {
-		return
-	}
-
-	r.traverseObjectlitLike(t, objectLiteral, typeObj.GetColor())
+	r.registerPropertyUse(t, name.Node(), objColor)
 }
 
 // Java: ColorFindPropertyReferences.traverseObjectlitLike(NodeTraversal, Node, Function<Node, Color>)

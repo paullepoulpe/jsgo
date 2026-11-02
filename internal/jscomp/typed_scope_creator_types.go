@@ -45,6 +45,23 @@ func (b *TypedScopeCreator_scopeBuilder) ShouldUseFunctionLiteralType(type_ rhin
 	return b.IsLValueRootedInGlobalScope(lValue) || !type_.IsReturnTypeInferred()
 }
 
+func derefOptString(s *string) string {
+	if s == nil {
+		return ""
+	}
+	return *s
+}
+
+func (b *TypedScopeCreator_scopeBuilder) bestTypeNameString(lvalue rhino.Node, syntacticName string) string {
+	if syntacticName == "" {
+		return ""
+	}
+	if replaced, changed := b.replaceGoogModuleExportsName(lvalue, syntacticName); changed {
+		return replaced
+	}
+	return syntacticName
+}
+
 // CreateClassTypeFromNodes creates a new class type from the given class
 // literal. This function does not need to worry about stubs and aliases
 // because they are handled by createFunctionTypeFromNodes instead.
@@ -63,9 +80,9 @@ func (b *TypedScopeCreator_scopeBuilder) CreateClassTypeFromNodes(
 		declarationScope = b.GetLValueRootScope(lvalueNode)
 	}
 	var builder FunctionTypeBuilder
-	builder.InitFunctionTypeBuilder(name, b.outer.compiler, clazz, b.currentScope)
+	builder.InitFunctionTypeBuilder(derefOptString(name), b.outer.compiler, clazz, b.currentScope)
 	builder.UsingClassSyntax()
-	builder.SetSyntacticFunctionName(syntacticName)
+	builder.SetSyntacticFunctionName(derefOptString(syntacticName))
 	builder.SetAstContents(clazz, false)
 	builder.SetDeclarationScope(declarationScope)
 	builder.InferKind(info)
@@ -420,7 +437,8 @@ func (b *TypedScopeCreator_scopeBuilder) CreateFunctionTypeFromNodes(
 		_, hasNonEmptyReturn = b.outer.functionsWithNonEmptyReturns[fnRoot]
 	}
 
-	bestTypeName := b.GetBestTypeName(lvalueNode, name)
+	syntacticName := derefOptString(name)
+	bestTypeName := b.bestTypeNameString(lvalueNode, syntacticName)
 	declarationScope := b.currentScope
 	if !lvalueNode.IsNil() {
 		declarationScope = b.GetLValueRootScope(lvalueNode)
@@ -433,7 +451,7 @@ func (b *TypedScopeCreator_scopeBuilder) CreateFunctionTypeFromNodes(
 	}
 	var builder FunctionTypeBuilder
 	builder.InitFunctionTypeBuilder(bestTypeName, b.outer.compiler, errorRoot, b.currentScope)
-	builder.SetSyntacticFunctionName(name)
+	builder.SetSyntacticFunctionName(syntacticName)
 	builder.SetAstContents(fnRoot, hasNonEmptyReturn)
 	builder.SetDeclarationScope(declarationScope)
 	builder.InferFromOverriddenFunction(overriddenType, parametersNode)
@@ -497,26 +515,26 @@ func (b *TypedScopeCreator_scopeBuilder) CheckFunctionAliasAnnotations(n rhino.N
 	if info == nil {
 		return
 	}
-	var annotation *string
+	var annotation string
 	if info.UsesImplicitMatch() {
 		if !type_.IsStructuralInterface() {
-			annotation = jutil.StringPtr("@record")
+			annotation = "@record"
 		}
 	} else if info.IsInterface() {
 		if !type_.IsInterface() {
-			annotation = jutil.StringPtr("@interface")
+			annotation = "@interface"
 		}
 	} else if info.IsConstructor() && !type_.IsConstructor() {
-		annotation = jutil.StringPtr("@constructor")
+		annotation = "@constructor"
 	}
 	// TODO(sdh): consider checking @template, @param, @return, and/or @this.
-	if annotation != nil &&
+	if annotation != "" &&
 		// TODO(sdh): Remove this extra check once TypeScript stops passing us duplicate
 		// conflicting externs.  In particular, TS considers everything an interface, but Closure
 		// externs mark most things as @constructor.  The load order is not always the same, so
 		// the error can show up in either the generated TS externs file or in our own extern.
-		(!n.IsFromExterns() || *annotation == "@record") {
-		b.outer.Report(JSError_MakeWithNode(n, TypedScopeCreator_INCOMPATIBLE_ALIAS_ANNOTATION, *annotation, jutil.ToJavaString(n.GetQualifiedName())))
+		(!n.IsFromExterns() || annotation == "@record") {
+		b.outer.Report(JSError_MakeWithNode(n, TypedScopeCreator_INCOMPATIBLE_ALIAS_ANNOTATION, annotation, jutil.ToJavaString(n.GetQualifiedName())))
 	}
 }
 

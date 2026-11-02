@@ -486,7 +486,7 @@ func (c *TypedScopeCreator) releaseScopeBuilder(b *TypedScopeCreator_scopeBuilde
 func (c *TypedScopeCreator) MarkGoogModuleExportsAsConst(moduleBody rhino.Node) {
 	// TODO(lharker): Use the source nodes from the Bindings once we no longer rewrite before
 	// typechecking. This is not feasible currently because a few places will rewrite exports = ...
-	for statement := moduleBody.GetFirstChild(); !statement.IsNil(); statement = statement.GetNext() {
+	for statement := range moduleBody.Children() {
 		exprStmt, ok := ast.AsExprStmt(statement)
 		if !ok {
 			continue
@@ -759,14 +759,12 @@ func NewTypedScopeCreator_IdentifyEnumsAndTypedefsAsNonNullable(registry *rhino.
 	return v
 }
 
-var identifyEnumsAndTypedefsVisitTokens = func() ast.TokenSet {
-	var s ast.TokenSet
-	s.Add(rhino.Token_LET)
-	s.Add(rhino.Token_CONST)
-	s.Add(rhino.Token_VAR)
-	s.Add(rhino.Token_EXPR_RESULT)
-	return s
-}()
+var identifyEnumsAndTypedefsVisitTokens = makeVisitTokenSet(
+	rhino.Token_LET,
+	rhino.Token_CONST,
+	rhino.Token_VAR,
+	rhino.Token_EXPR_RESULT,
+)
 
 var (
 	_ nodeTraversal_noVisitLeaves = (*TypedScopeCreator_IdentifyEnumsAndTypedefsAsNonNullable)(nil)

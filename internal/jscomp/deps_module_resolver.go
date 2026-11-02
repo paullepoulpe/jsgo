@@ -103,7 +103,7 @@ var emptyPackageJsonMainEntries = jutil.NewLinkedHashMap[string, string]()
 // ModuleResolver implementations without Base/Init fake-inheritance boilerplate.
 type moduleResolverCommon struct {
 	// The set of all known input module URIs (including trailing .js), after normalization.
-	modulePaths map[string]struct{}
+	modulePaths *OrderedSet[string]
 
 	// Root URIs to match module roots against.
 	moduleRootPaths []string
@@ -113,19 +113,12 @@ type moduleResolverCommon struct {
 }
 
 func newModuleResolverCommon(
-	modulePaths *jutil.LinkedHashSet[string],
+	modulePaths *OrderedSet[string],
 	moduleRootPaths []string,
 	errorHandler ErrorHandler,
 	pathEscaper ModuleLoader_PathEscaper) moduleResolverCommon {
-	var mp map[string]struct{}
-	if modulePaths != nil && modulePaths.Size() > 0 {
-		mp = make(map[string]struct{}, modulePaths.Size())
-		for p := range modulePaths.All() {
-			mp[p] = struct{}{}
-		}
-	}
 	return moduleResolverCommon{
-		modulePaths:     mp,
+		modulePaths:     modulePaths,
 		moduleRootPaths: moduleRootPaths,
 		errorHandler:    errorHandler,
 		pathEscaper:     pathEscaper,
@@ -166,7 +159,7 @@ func (r *moduleResolverCommon) Locate(scriptAddress string, name string) (string
 	}
 
 	// First check to see if the module is known with its provided path
-	if _, ok := r.modulePaths[normalizedPath]; ok {
+	if r.modulePaths.Has(normalizedPath) {
 		return canonicalizedPath, true
 	}
 
@@ -176,7 +169,7 @@ func (r *moduleResolverCommon) Locate(scriptAddress string, name string) (string
 
 		// Since there might be code relying on whether the path has a leading slash or not,
 		// honor the state it was provided in.
-		if _, ok := r.modulePaths[modulePath]; ok {
+		if r.modulePaths.Has(modulePath) {
 			return canonicalizedPath, true
 		}
 	}
@@ -217,13 +210,13 @@ var _ ModuleResolver = (*BrowserModuleResolver)(nil)
 
 // Java: BrowserModuleResolver.FACTORY
 var BrowserModuleResolver_FACTORY ModuleLoader_ModuleResolverFactory = ModuleLoader_ModuleResolverFactoryFunc(
-	func(modulePaths *jutil.LinkedHashSet[string], moduleRootPaths []string, errorHandler ErrorHandler, pathEscaper ModuleLoader_PathEscaper) ModuleResolver {
+	func(modulePaths *OrderedSet[string], moduleRootPaths []string, errorHandler ErrorHandler, pathEscaper ModuleLoader_PathEscaper) ModuleResolver {
 		return NewBrowserModuleResolver(modulePaths, moduleRootPaths, errorHandler, pathEscaper)
 	})
 
 // Java: BrowserModuleResolver(ImmutableSet<String>, ImmutableList<String>, ErrorHandler, PathEscaper)
 func NewBrowserModuleResolver(
-	modulePaths *jutil.LinkedHashSet[string],
+	modulePaths *OrderedSet[string],
 	moduleRootPaths []string,
 	errorHandler ErrorHandler,
 	pathEscaper ModuleLoader_PathEscaper) *BrowserModuleResolver {
@@ -238,7 +231,7 @@ func (r *BrowserModuleResolver) ResolveJsModule(
 
 	if ModuleLoader_IsAmbiguousIdentifier(moduleAddress) {
 		r.errorHandler.Report(
-			CheckLevel_WARNING.Ptr(),
+			CheckLevel_WARNING,
 			JSError_MakeWithSourceLocation(
 				&sourcename,
 				lineno,
@@ -252,7 +245,7 @@ func (r *BrowserModuleResolver) ResolveJsModule(
 	loadAddress, ok := r.Locate(scriptAddress, moduleAddress)
 	if !ok {
 		r.errorHandler.Report(
-			CheckLevel_WARNING.Ptr(),
+			CheckLevel_WARNING,
 			JSError_MakeWithSourceLocation(&sourcename, lineno, colno, ModuleLoader_LOAD_WARNING, moduleAddress))
 	}
 	return loadAddress, ok
@@ -301,7 +294,7 @@ func NewWebpackModuleResolver_Factory(lookupMap *jutil.LinkedHashMap[string, str
 
 // Java: WebpackModuleResolver.Factory.create(ImmutableSet<String>, ImmutableList<String>, ErrorHandler, PathEscaper)
 func (f *WebpackModuleResolver_Factory) Create(
-	modulePaths *jutil.LinkedHashSet[string],
+	modulePaths *OrderedSet[string],
 	moduleRootPaths []string,
 	errorHandler ErrorHandler,
 	pathEscaper ModuleLoader_PathEscaper) ModuleResolver {
@@ -380,7 +373,7 @@ func NewBrowserWithTransformedPrefixesModuleResolver_Factory(prefixReplacements 
 
 // Java: BrowserWithTransformedPrefixesModuleResolver.Factory.create(ImmutableSet<String>, ImmutableList<String>, ErrorHandler, PathEscaper)
 func (f *BrowserWithTransformedPrefixesModuleResolver_Factory) Create(
-	modulePaths *jutil.LinkedHashSet[string],
+	modulePaths *OrderedSet[string],
 	moduleRootPaths []string,
 	errorHandler ErrorHandler,
 	pathEscaper ModuleLoader_PathEscaper) ModuleResolver {
@@ -390,7 +383,7 @@ func (f *BrowserWithTransformedPrefixesModuleResolver_Factory) Create(
 
 // Java: BrowserWithTransformedPrefixesModuleResolver(ImmutableSet<String>, ImmutableList<String>, ErrorHandler, PathEscaper, ImmutableMap<String, String>)
 func NewBrowserWithTransformedPrefixesModuleResolver(
-	modulePaths *jutil.LinkedHashSet[string],
+	modulePaths *OrderedSet[string],
 	moduleRootPaths []string,
 	errorHandler ErrorHandler,
 	pathEscaper ModuleLoader_PathEscaper,
@@ -432,7 +425,7 @@ func (r *BrowserWithTransformedPrefixesModuleResolver) ResolveJsModule(
 	replaced = replaced && transformedAddress != moduleAddress
 	if !replaced && ModuleLoader_IsAmbiguousIdentifier(transformedAddress) {
 		r.errorHandler.Report(
-			CheckLevel_WARNING.Ptr(),
+			CheckLevel_WARNING,
 			JSError_MakeWithSourceLocation(
 				&sourcename,
 				lineno,

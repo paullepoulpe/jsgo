@@ -20,18 +20,15 @@ package jscomp
 
 import (
 	"github.com/paullepoulpe/jsgo/internal/ast"
-	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
 
-var checkInterfacesVisitTokens = func() ast.TokenSet {
-	var s ast.TokenSet
-	s.Add(rhino.Token_FUNCTION)
-	s.Add(rhino.Token_CLASS)
-	return s
-}()
+var checkInterfacesVisitTokens = makeVisitTokenSet(rhino.Token_FUNCTION, rhino.Token_CLASS)
 
-var _ nodeTraversal_visitTokens = (*CheckInterfaces)(nil)
+var (
+	_ nodeTraversal_visitTokens   = (*CheckInterfaces)(nil)
+	_ nodeTraversal_noVisitLeaves = (*CheckInterfaces)(nil)
+)
 
 func (*CheckInterfaces) noVisitLeaves()             {}
 func (*CheckInterfaces) visitTokens() *ast.TokenSet { return &checkInterfacesVisitTokens }
@@ -88,105 +85,84 @@ func (c *CheckInterfaces) Process(externs rhino.Node, root rhino.Node) {
 	NodeTraversal_Traverse(c.compiler, root, c)
 }
 
-// CheckInterfaces_IsInterface: whether jsDoc is present and has an
-// @interface or @record annotation
-//
-// Java: CheckInterfaces.isInterface(JSDocInfo)
-func CheckInterfaces_IsInterface(jsDoc *rhino.JSDocInfo) bool {
-	return jsDoc != nil && jsDoc.IsInterface()
-}
-
 // Java: CheckInterfaces.visit(NodeTraversal, Node, Node)
 func (c *CheckInterfaces) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
-	switch n.GetToken() {
-	case rhino.Token_FUNCTION:
-		jsdoc := NodeUtil_GetBestJSDocInfo(n)
-		if CheckInterfaces_IsInterface(jsdoc) {
-			CheckInterfaces_CheckInterfaceConstructorArgs(t, n)
-			CheckInterfaces_CheckConstructorBlock(t, n)
+	if fn, ok := ast.AsFunction(n); ok {
+		if jsdoc := NodeUtil_GetBestJSDocInfo(n); jsdoc != nil && jsdoc.IsInterface() {
+			checkInterfaceConstructorArgs(t, fn)
+			checkConstructorBlock(t, fn)
 		}
-	case rhino.Token_CLASS:
-		jsdoc := NodeUtil_GetBestJSDocInfo(n)
-		if CheckInterfaces_IsInterface(jsdoc) {
-			if !n.GetSecondChild().IsNil() && n.GetSecondChild().IsName() {
+	} else if cls, ok := ast.AsClass(n); ok {
+		if jsdoc := NodeUtil_GetBestJSDocInfo(n); jsdoc != nil && jsdoc.IsInterface() {
+			if ext, hasExt := cls.Extends(); hasExt && ext.Token() == rhino.Token_NAME {
 				t.Report(n, CheckInterfaces_INTERFACE_DEFINED_WITH_EXTENDS)
 			}
-			ctorDef := NodeUtil_GetEs6ClassConstructorMemberFunctionDef(n)
-			if !ctorDef.IsNil() {
-				ctor := ctorDef.GetFirstChild()
-				CheckInterfaces_CheckInterfaceConstructorArgs(t, ctor)
-				CheckInterfaces_CheckConstructorBlock(t, ctor)
+			ctorDef, hasCtor := cls.Constructor()
+			if hasCtor {
+				ctor := ctorDef.Function()
+				checkInterfaceConstructorArgs(t, ctor)
+				checkConstructorBlock(t, ctor)
 			}
-			CheckInterfaces_CheckClassMethods(t, n, ctorDef)
+			checkClassMethods(t, cls, ctorDef.Node())
 		}
-	default:
-		return
 	}
 }
 
 // Java: CheckInterfaces.checkInterfaceConstructorArgs(NodeTraversal, Node)
-func CheckInterfaces_CheckInterfaceConstructorArgs(t *NodeTraversal, funcNode rhino.Node) {
-	args := funcNode.GetSecondChild()
-	if args.HasChildren() {
-		t.Report(args.GetFirstChild(), CheckInterfaces_INTERFACE_CONSTRUCTOR_SHOULD_NOT_TAKE_ARGS)
+func checkInterfaceConstructorArgs(t *NodeTraversal, fn ast.Function) {
+	if firstParam, ok := fn.Params().FirstParam(); ok {
+		t.Report(firstParam.Node(), CheckInterfaces_INTERFACE_CONSTRUCTOR_SHOULD_NOT_TAKE_ARGS)
 	}
 }
 
-// CheckInterfaces_CheckClassMethods: non-static class methods must be empty
-// for `@record` and `@interface` as per the style guide.
+// checkClassMethods: non-static class methods must be empty for `@record` and
+// `@interface` as per the style guide.
 //
 // Java: CheckInterfaces.checkClassMethods(NodeTraversal, Node, Node)
-func CheckInterfaces_CheckClassMethods(t *NodeTraversal, classNode rhino.Node, ctorDef rhino.Node) {
-	classMembers := classNode.GetLastChild()
-	jutil.CheckStateMsg1(classMembers.IsClassMembers(), "%s", classMembers)
-	for memberFuncDef := classMembers.GetFirstChild(); !memberFuncDef.IsNil(); memberFuncDef = memberFuncDef.GetNext() {
-		// Node does not override equals: memberFuncDef.equals(ctorDef) is identity.
-		if memberFuncDef == ctorDef {
+func checkClassMethods(t *NodeTraversal, cls ast.Class, ctorDef rhino.Node) {
+	for member := range cls.Body().Members() {
+		memberNode := member.Node()
+		if memberNode == ctorDef {
 			continue // constructor was already checked; don't check here.
 		}
-		if memberFuncDef.IsStaticMember() {
-			// `static foo() {...}`
+		if memberNode.IsStaticMember() {
 			name := checkInterfaces_ANONYMOUS_CLASSNAME
-			if className := NodeUtil_GetName(classNode); className != nil {
+			if className := NodeUtil_GetName(cls.Node()); className != nil {
 				name = *className
 			}
-			funcName := memberFuncDef.GetString()
-			t.Report(memberFuncDef, CheckInterfaces_STATIC_MEMBER_FUNCTION_IN_INTERFACE_CLASS, name, funcName)
-		} else {
-			block := memberFuncDef.GetLastChild().GetLastChild()
-			if block.HasChildren() {
-				t.Report(block.GetFirstChild(), CheckInterfaces_INTERFACE_CLASS_NONSTATIC_METHOD_NOT_EMPTY)
+			t.Report(memberNode, CheckInterfaces_STATIC_MEMBER_FUNCTION_IN_INTERFACE_CLASS, name, memberNode.GetString())
+		} else if fn, ok := ast.AsFunction(memberNode.GetLastChild()); ok {
+			if first := fn.Body().Node().GetFirstChild(); !first.IsNil() {
+				t.Report(first, CheckInterfaces_INTERFACE_CLASS_NONSTATIC_METHOD_NOT_EMPTY)
 			}
 		}
 	}
 }
 
-// CheckInterfaces_CheckConstructorBlock: `@record` constructors can be
-// non-empty, check that only field declarations exist in them.
+// checkConstructorBlock: `@record` constructors can be non-empty, check that
+// only field declarations exist in them.
 //
 // Java: CheckInterfaces.checkConstructorBlock(NodeTraversal, Node)
-func CheckInterfaces_CheckConstructorBlock(t *NodeTraversal, funcNode rhino.Node) {
-	block := funcNode.GetLastChild()
-	if !block.HasChildren() {
+func checkConstructorBlock(t *NodeTraversal, fn ast.Function) {
+	block, ok := fn.Body().AsBlock()
+	if !ok {
 		return
 	}
-
-	for stmt := block.GetFirstChild(); !stmt.IsNil(); stmt = stmt.GetNext() {
-		if !CheckInterfaces_IsThisPropAccess(stmt) {
-			// Only field declarations are expected inside @record and @interface.
-			t.Report(stmt, CheckInterfaces_NON_DECLARATION_STATEMENT_IN_INTERFACE)
+	for stmt := range block.Statements() {
+		stmtNode := stmt.Node()
+		exprStmt, ok := stmt.AsExprStmt()
+		if !ok {
+			t.Report(stmtNode, CheckInterfaces_NON_DECLARATION_STATEMENT_IN_INTERFACE)
 			break
-		} else if stmt.GetFirstChild().GetJSDocInfo() == nil {
-			// A field declaration that's missing a JSDoc.
-			t.Report(stmt, CheckInterfaces_MISSING_JSDOC_IN_DECLARATION_STATEMENT)
+		}
+		gp, ok := exprStmt.Expr().AsGetProp()
+		if !ok || gp.Object().Token() != rhino.Token_THIS {
+			t.Report(stmtNode, CheckInterfaces_NON_DECLARATION_STATEMENT_IN_INTERFACE)
+			break
+		}
+		if gp.Node().GetJSDocInfo() == nil {
+			t.Report(stmtNode, CheckInterfaces_MISSING_JSDOC_IN_DECLARATION_STATEMENT)
 			break
 		}
 	}
-}
-
-// Java: CheckInterfaces.isThisPropAccess(Node)
-func CheckInterfaces_IsThisPropAccess(stmt rhino.Node) bool {
-	return stmt.IsExprResult() &&
-		stmt.GetFirstChild().IsGetProp() &&
-		stmt.GetFirstFirstChild().IsThis()
 }

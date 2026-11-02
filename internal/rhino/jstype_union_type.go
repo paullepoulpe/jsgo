@@ -589,16 +589,6 @@ func (t *UnionType) RecursionUnsafeHashCode(hs *JSTypeStack) int32 {
 	return hashCode
 }
 
-// Java: JSType.isUnionType()
-func (t *UnionType) IsUnionType() bool {
-	return true
-}
-
-// Java: UnionType.toMaybeUnionType()
-func (t *UnionType) ToMaybeUnionType() *UnionType {
-	return t
-}
-
 // Java: UnionType.isObject()
 func (t *UnionType) IsObject() bool {
 	alts := t.GetAlternates()
@@ -608,11 +598,6 @@ func (t *UnionType) IsObject() bool {
 		}
 	}
 	return true
-}
-
-// Java: JSType.isObjectType()
-func (t *UnionType) IsObjectType() bool {
-	return t.IsObject()
 }
 
 // Contains: a UnionType contains a given type (alternate) iff the member

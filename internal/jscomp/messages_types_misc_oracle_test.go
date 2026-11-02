@@ -90,7 +90,7 @@ func l11msgParts(parts []JsMessage_Part) string {
 	return b.String()
 }
 
-func l11msgMap(m *jutil.LinkedHashMap[string, string]) string {
+func l11msgMap(m *OrderedStringMap[string]) string {
 	var b strings.Builder
 	b.WriteString("{")
 	first := true
@@ -115,7 +115,7 @@ func l11msgMessage(sb *strings.Builder, m *JsMessage) {
 	sb.WriteString("  meaning=" + l11msgEscapeNullable(m.GetMeaning()) + "\n")
 	sb.WriteString("  alternateId=" + l11msgEscapeNullable(m.GetAlternateId()) + "\n")
 	sb.WriteString("  parts=" + l11msgEscape(l11msgParts(m.GetParts())) + "\n")
-	sb.WriteString("  jsPlaceholders=" + l11msgEscape(m.JsPlaceholderNames().String()) + "\n")
+	sb.WriteString("  jsPlaceholders=" + l11msgEscape(m.formatJsPlaceholders()) + "\n")
 	sb.WriteString("  examples=" + l11msgEscape(l11msgMap(m.GetPlaceholderNameToExampleMap())) + "\n")
 	sb.WriteString("  originalCode=" + l11msgEscape(l11msgMap(m.GetPlaceholderNameToOriginalCodeMap())) + "\n")
 }

@@ -46,21 +46,6 @@ import (
 )
 
 var (
-	renamePropertiesVisitTokens = func() ast.TokenSet {
-		var s ast.TokenSet
-		s.Add(rhino.Token_GETPROP)
-		s.Add(rhino.Token_OPTCHAIN_GETPROP)
-		s.Add(rhino.Token_MEMBER_FIELD_DEF)
-		s.Add(rhino.Token_GETELEM)
-		s.Add(rhino.Token_OPTCHAIN_GETELEM)
-		s.Add(rhino.Token_CALL)
-		s.Add(rhino.Token_MEMBER_FUNCTION_DEF)
-		s.Add(rhino.Token_GETTER_DEF)
-		s.Add(rhino.Token_SETTER_DEF)
-		s.Add(rhino.Token_STRING_KEY)
-		s.Add(rhino.Token_FUNCTION)
-		return s
-	}()
 	renamePropertiesPrototypeID = strpool.Intern("prototype")
 	renamePropertiesJscFnID     = strpool.Intern(NodeUtil_JSC_PROPERTY_NAME_FN)
 )
@@ -71,7 +56,7 @@ type propRenameCandidate struct {
 }
 
 type propCallSite struct {
-	call   rhino.Node
+	call   ast.Call
 	parent rhino.Node
 }
 
@@ -252,7 +237,7 @@ func newRenameProperties(
 func (r *RenameProperties) Process(externs rhino.Node, root rhino.Node) {
 	jutil.CheckState(r.compiler.GetLifeCycleStage().IsNormalized())
 
-	NodeTraversal_Traverse(r.compiler, root, &RenameProperties_ProcessProperties{outer: r})
+	NodeTraversal_TraverseVisitor(r.compiler, root, r.visitor())
 
 	numProperties := len(r.propertyList)
 	reservedNames := make(stringMapSet, len(r.externedNames)+len(r.quotedNames)+numProperties+64)
@@ -292,7 +277,8 @@ func (r *RenameProperties) Process(externs rhino.Node, root rhino.Node) {
 
 	// Update the call nodes.
 	for _, site := range r.callSites {
-		argStr := site.call.GetSecondChild().GetString()
+		firstArg, _ := site.call.FirstArg()
+		argStr := firstArg.Node().GetString()
 		var sb strings.Builder
 		sb.Grow(len(argStr))
 		for oldName := range strings.SplitSeq(argStr, ".") {
@@ -307,7 +293,7 @@ func (r *RenameProperties) Process(externs rhino.Node, root rhino.Node) {
 			}
 			sb.WriteString(replacement)
 		}
-		site.call.ReplaceWith(rhino.IR_String(sb.String()))
+		site.call.Node().ReplaceWith(rhino.IR_String(sb.String()))
 		r.compiler.ReportChangeToEnclosingScope(site.parent)
 	}
 	r.callSites = nil
@@ -381,103 +367,102 @@ func (r *RenameProperties) GetPropertyMap() *VariableMap {
 
 // -------------------------------------------------------------------------
 
-// RenameProperties_ProcessProperties is a traversal callback that collects
-// property names and counts how frequently each property name occurs.
-//
-// Java: private class RenameProperties.ProcessProperties extends AbstractPostOrderCallback
-type RenameProperties_ProcessProperties struct {
-	NodeTraversal_AbstractPostOrderCallbackBase
-	outer *RenameProperties
-}
-
-func (*RenameProperties_ProcessProperties) visitTokens() *ast.TokenSet {
-	return &renamePropertiesVisitTokens
-}
-
-// Java: RenameProperties.ProcessProperties.visit(NodeTraversal, Node, Node)
-func (p *RenameProperties_ProcessProperties) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
-	r := p.outer
-	switch n.GetToken() {
-	case rhino.Token_GETPROP, rhino.Token_OPTCHAIN_GETPROP, rhino.Token_MEMBER_FIELD_DEF:
-		p.MaybeMarkCandidate(n)
-	case rhino.Token_GETELEM, rhino.Token_OPTCHAIN_GETELEM:
-		// If this is a quoted property access (e.g. x['myprop']), we need to
-		// ensure that we never rename some other property in a way that
-		// could conflict with this quoted name.
-		child := n.GetLastChild()
-		if !child.IsNil() && child.IsStringLit() {
-			r.quotedNames[strpool.ID(child.GetStringID())] = struct{}{}
-		}
-	case rhino.Token_CALL:
-		// We replace property renaming function calls with a string
-		// containing the renamed property.
-		fnName := n.GetFirstChild()
-
-		if r.compiler.GetCodingConvention().IsPropertyRenameFunction(fnName) {
-			r.callSites = append(r.callSites, propCallSite{call: n, parent: parent})
-			p.CountCallCandidates(t, n)
-			if !r.allPropertiesEligible && !r.propertyRenameEligibilityFilter(n) {
-				if r.filteredOutNames == nil {
-					r.filteredOutNames = make(map[strpool.ID]struct{})
-				}
-				for name := range strings.SplitSeq(n.GetSecondChild().GetString(), ".") {
-					r.filteredOutNames[strpool.Intern(name)] = struct{}{}
-				}
+func (r *RenameProperties) visitor() *ast.Visitor[*NodeTraversal] {
+	return &ast.Visitor[*NodeTraversal]{
+		GetProp:         func(_ *NodeTraversal, gp ast.GetProp) { r.maybeMarkCandidate(gp.Node()) },
+		OptChainGetProp: func(_ *NodeTraversal, gp ast.OptChainGetProp) { r.maybeMarkCandidate(gp.Node()) },
+		MemberFieldDef:  func(_ *NodeTraversal, mf ast.MemberFieldDef) { r.maybeMarkCandidate(mf.Node()) },
+		GetElem:         func(_ *NodeTraversal, ge ast.GetElem) { r.recordQuotedIndex(ge.Index()) },
+		OptChainGetElem: func(_ *NodeTraversal, ge ast.OptChainGetElem) { r.recordQuotedIndex(ge.Index()) },
+		Call:            r.visitCall,
+		MemberFunctionDef: func(_ *NodeTraversal, mf ast.MemberFunctionDef) {
+			jutil.CheckState(!mf.Node().IsQuotedStringKey())
+			if mf.IsEs6Constructor() {
+				r.externedNames[strpool.ID(mf.Node().GetStringID())] = struct{}{}
+			} else {
+				r.maybeMarkCandidate(mf.Node())
 			}
-		}
-	case rhino.Token_MEMBER_FUNCTION_DEF:
-		jutil.CheckState(!n.IsQuotedStringKey())
-		if NodeUtil_IsEs6ConstructorMemberFunctionDef(n) {
-			r.externedNames[strpool.ID(n.GetStringID())] = struct{}{}
-		} else {
-			p.MaybeMarkCandidate(n)
-		}
-	case rhino.Token_GETTER_DEF, rhino.Token_SETTER_DEF, rhino.Token_STRING_KEY:
-		if n.IsQuotedStringKey() {
-			// Ensure that we never rename some other property in a way
-			// that could conflict with this quoted key.
-			r.quotedNames[strpool.ID(n.GetStringID())] = struct{}{}
-		} else {
-			p.MaybeMarkCandidate(n)
-		}
-	case rhino.Token_FUNCTION:
-		// We eliminate any stub implementations of JSCompiler_renameProperty
-		// that we encounter.
-		if NodeUtil_IsFunctionDeclaration(n) {
-			fn := ast.MustFunction(n)
-			if strpool.ID(fn.NameNode().Node().GetStringID()) == renamePropertiesJscFnID {
-				r.toRemove = append(r.toRemove, n)
-			}
-		} else if parent.IsName() && strpool.ID(parent.GetStringID()) == renamePropertiesJscFnID {
-			if decl, ok := ast.AsNameDeclaration(parent.GetParent()); ok && decl.Token() == rhino.Token_VAR {
-				r.toRemove = append(r.toRemove, parent)
-			}
-		} else if NodeUtil_IsFunctionExpression(n) &&
-			parent.IsAssign() &&
-			parent.
-				GetFirstChild().
-				IsGetProp() && // JSCompiler does not handle optional calls to property rename
-			// function
-			r.compiler.GetCodingConvention().IsPropertyRenameFunction(parent.GetFirstChild()) {
-			exprResult := parent.GetParent()
-			if exprResult.IsExprResult() &&
-				NodeUtil_IsStatementBlock(exprResult.GetParent()) &&
-				exprResult.GetFirstChild().IsAssign() {
-				r.toRemove = append(r.toRemove, exprResult)
-			}
-		}
-	default:
+		},
+		GetterDef: func(_ *NodeTraversal, gd ast.GetterDef) { r.visitKeyOrAccessor(gd.Node()) },
+		SetterDef: func(_ *NodeTraversal, sd ast.SetterDef) { r.visitKeyOrAccessor(sd.Node()) },
+		StringKey: func(_ *NodeTraversal, sk ast.StringKey) { r.visitKeyOrAccessor(sk.Node()) },
+		Function:  func(_ *NodeTraversal, fn ast.Function) { r.visitFunction(fn) },
 	}
 }
 
-// MaybeMarkCandidate: if a property node is eligible for renaming, stashes a
+func (r *RenameProperties) recordQuotedIndex(index ast.Expr) {
+	// If this is a quoted property access (e.g. x['myprop']), we need to
+	// ensure that we never rename some other property in a way that
+	// could conflict with this quoted name.
+	if lit, ok := index.AsStringLit(); ok {
+		r.quotedNames[strpool.ID(lit.Node().GetStringID())] = struct{}{}
+	}
+}
+
+func (r *RenameProperties) visitKeyOrAccessor(n rhino.Node) {
+	if n.IsQuotedStringKey() {
+		// Ensure that we never rename some other property in a way
+		// that could conflict with this quoted key.
+		r.quotedNames[strpool.ID(n.GetStringID())] = struct{}{}
+	} else {
+		r.maybeMarkCandidate(n)
+	}
+}
+
+func (r *RenameProperties) visitCall(t *NodeTraversal, call ast.Call) {
+	// We replace property renaming function calls with a string
+	// containing the renamed property.
+	callee := call.Callee().Node()
+	if !r.compiler.GetCodingConvention().IsPropertyRenameFunction(callee) {
+		return
+	}
+	n := call.Node()
+	r.callSites = append(r.callSites, propCallSite{call: call, parent: n.GetParent()})
+	r.countCallCandidates(t, call)
+	if !r.allPropertiesEligible && !r.propertyRenameEligibilityFilter(n) {
+		if r.filteredOutNames == nil {
+			r.filteredOutNames = make(map[strpool.ID]struct{})
+		}
+		if firstArg, ok := call.FirstArg(); ok {
+			for name := range strings.SplitSeq(firstArg.Node().GetString(), ".") {
+				r.filteredOutNames[strpool.Intern(name)] = struct{}{}
+			}
+		}
+	}
+}
+
+func (r *RenameProperties) visitFunction(fn ast.Function) {
+	// We eliminate any stub implementations of JSCompiler_renameProperty
+	// that we encounter.
+	n := fn.Node()
+	parent := n.GetParent()
+	if NodeUtil_IsFunctionDeclaration(n) {
+		if strpool.ID(fn.NameNode().Node().GetStringID()) == renamePropertiesJscFnID {
+			r.toRemove = append(r.toRemove, n)
+		}
+	} else if parent.IsName() && strpool.ID(parent.GetStringID()) == renamePropertiesJscFnID {
+		if decl, ok := ast.AsNameDeclaration(parent.GetParent()); ok && decl.Token() == rhino.Token_VAR {
+			r.toRemove = append(r.toRemove, parent)
+		}
+	} else if assign, ok := ast.AsAssign(parent); ok && NodeUtil_IsFunctionExpression(n) {
+		// JSCompiler does not handle optional calls to property rename function
+		if gp, ok := assign.Target().AsGetProp(); ok &&
+			r.compiler.GetCodingConvention().IsPropertyRenameFunction(gp.Node()) {
+			if exprStmt, ok := ast.AsExprStmt(parent.GetParent()); ok &&
+				NodeUtil_IsStatementBlock(exprStmt.Node().GetParent()) {
+				r.toRemove = append(r.toRemove, exprStmt.Node())
+			}
+		}
+	}
+}
+
+// maybeMarkCandidate: if a property node is eligible for renaming, stashes a
 // reference to it and increments the property name's access count.
 //
 // n is the STRING node for a property.
 //
 // Java: RenameProperties.ProcessProperties.maybeMarkCandidate(Node)
-func (p *RenameProperties_ProcessProperties) MaybeMarkCandidate(n rhino.Node) {
-	r := p.outer
+func (r *RenameProperties) maybeMarkCandidate(n rhino.Node) {
 	id := strpool.ID(n.GetStringID())
 	if _, externed := r.externedNames[id]; !externed {
 		if !r.allPropertiesEligible && !r.propertyRenameEligibilityFilter(n) {
@@ -486,40 +471,37 @@ func (p *RenameProperties_ProcessProperties) MaybeMarkCandidate(n rhino.Node) {
 			}
 			r.filteredOutNames[id] = struct{}{}
 		}
-		prop := p.countPropertyOccurrenceID(id)
+		prop := r.countPropertyOccurrenceID(id)
 		r.candidates = append(r.candidates, propRenameCandidate{node: n, prop: prop})
 	}
 }
 
-// CountCallCandidates counts references to property names that occur in a
+// countCallCandidates counts references to property names that occur in a
 // special function call.
 //
-// callNode is the CALL node for a property; t is the traversal.
-//
 // Java: RenameProperties.ProcessProperties.countCallCandidates(NodeTraversal, Node)
-func (p *RenameProperties_ProcessProperties) CountCallCandidates(t *NodeTraversal, callNode rhino.Node) {
-	r := p.outer
-	fnNameNode := callNode.GetFirstChild()
-	firstArg := callNode.GetSecondChild()
-	if !firstArg.IsStringLit() {
-		t.Report(callNode, RenameProperties_BAD_CALL, fnNameNode.GetString())
+func (r *RenameProperties) countCallCandidates(t *NodeTraversal, call ast.Call) {
+	fnName := call.Callee().Node().GetString()
+	firstArg, hasArg := call.FirstArg()
+	lit, isStr := firstArg.AsStringLit()
+	if !hasArg || !isStr {
+		t.Report(call.Node(), RenameProperties_BAD_CALL, fnName)
 		return
 	}
 
-	for name := range strings.SplitSeq(firstArg.GetString(), ".") {
+	for name := range strings.SplitSeq(lit.Value(), ".") {
 		if !rhino.TokenStream_IsJSIdentifier(name) {
-			t.Report(callNode, RenameProperties_BAD_ARG, fnNameNode.GetString())
+			t.Report(call.Node(), RenameProperties_BAD_ARG, fnName)
 		} else {
 			id := strpool.Intern(name)
 			if _, externed := r.externedNames[id]; !externed {
-				p.countPropertyOccurrenceID(id)
+				r.countPropertyOccurrenceID(id)
 			}
 		}
 	}
 }
 
-func (p *RenameProperties_ProcessProperties) countPropertyOccurrenceID(id strpool.ID) *RenameProperties_Property {
-	r := p.outer
+func (r *RenameProperties) countPropertyOccurrenceID(id strpool.ID) *RenameProperties_Property {
 	prop := r.propertyByID[id]
 	if prop == nil {
 		prop = r.allocProperty(id, strpool.String(id))
@@ -570,50 +552,14 @@ func NewRemovePropertyRenamingCalls(compiler AbstractCompiler) *RemovePropertyRe
 
 // Java: RemovePropertyRenamingCalls.process(Node, Node)
 func (r *RemovePropertyRenamingCalls) Process(externs rhino.Node, root rhino.Node) {
-	NodeTraversal_Traverse(r.compiler, root, &RemovePropertyRenamingCalls_RemoveCompilerPropertyRenamingCallback{outer: r})
-}
-
-// RemovePropertyRenamingCalls_RemoveCompilerPropertyRenamingCallback is the
-// inner class RemoveCompilerPropertyRenamingCallback.
-type RemovePropertyRenamingCalls_RemoveCompilerPropertyRenamingCallback struct {
-	NodeTraversal_AbstractPostOrderCallbackBase
-	outer *RemovePropertyRenamingCalls
-}
-
-var removePropRenamingCallsVisitTokens = func() ast.TokenSet {
-	var s ast.TokenSet
-	s.Add(rhino.Token_CALL)
-	return s
-}()
-
-var (
-	_ nodeTraversal_noVisitLeaves = (*RemovePropertyRenamingCalls_RemoveCompilerPropertyRenamingCallback)(nil)
-	_ nodeTraversal_visitTokens   = (*RemovePropertyRenamingCalls_RemoveCompilerPropertyRenamingCallback)(nil)
-)
-
-func (*RemovePropertyRenamingCalls_RemoveCompilerPropertyRenamingCallback) noVisitLeaves() {}
-
-func (*RemovePropertyRenamingCalls_RemoveCompilerPropertyRenamingCallback) visitTokens() *ast.TokenSet {
-	return &removePropRenamingCallsVisitTokens
-}
-
-// Java: RemovePropertyRenamingCalls.RemoveCompilerPropertyRenamingCallback.visit(NodeTraversal, Node, Node)
-func (c *RemovePropertyRenamingCalls_RemoveCompilerPropertyRenamingCallback) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
-	if call, ok := ast.AsCall(n); ok {
-		if c.outer.compiler.GetCodingConvention().IsPropertyRenameFunction(call.Callee().Node()) {
-			c.ReplacePropertyRenamingCall(n)
-		}
-	}
-}
-
-// ReplacePropertyRenamingCall replaces JSCompiler_renameProperty("bar", obj)
-// with "bar".
-//
-// Java: RemovePropertyRenamingCalls.RemoveCompilerPropertyRenamingCallback.replacePropertyRenamingCall(Node)
-func (c *RemovePropertyRenamingCalls_RemoveCompilerPropertyRenamingCallback) ReplacePropertyRenamingCall(callNode rhino.Node) {
-	propName := NodeUtil_GetArgumentForCallOrNew(callNode, 0)
-	if !propName.IsNil() {
-		callNode.ReplaceWith(propName.Detach())
-		c.outer.compiler.ReportChangeToEnclosingScope(propName)
-	}
+	NodeTraversal_TraverseVisitor(r.compiler, root, &ast.Visitor[*NodeTraversal]{
+		Call: func(_ *NodeTraversal, call ast.Call) {
+			if r.compiler.GetCodingConvention().IsPropertyRenameFunction(call.Callee().Node()) {
+				if propName, ok := call.FirstArg(); ok {
+					call.Node().ReplaceWith(propName.Detach().Node())
+					r.compiler.ReportChangeToEnclosingScope(propName.Node())
+				}
+			}
+		},
+	})
 }

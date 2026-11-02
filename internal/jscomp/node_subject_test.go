@@ -1003,6 +1003,10 @@ func (s *ColorSubject) HasAlternates(alternates ...*colors.Color) {
 
 // Java: ColorSubject.hasDisambiguationSupertypesThat(ColorRegistry)
 func (s *ColorSubject) HasDisambiguationSupertypesThat(registry *colors.ColorRegistry) *Subject {
+	sups := registry.GetDisambiguationSupertypesSlice(s.actual)
+	if sups == nil {
+		sups = colors.EmptyColorSlice()
+	}
 	return s.check("registry.getDisambiguationSupertypes(%s)", s.actual).
-		That(registry.GetDisambiguationSupertypes(s.actual))
+		That(sups)
 }

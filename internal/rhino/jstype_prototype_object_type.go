@@ -39,6 +39,7 @@ import (
 	"slices"
 
 	"github.com/paullepoulpe/jsgo/internal/jutil"
+	"github.com/paullepoulpe/jsgo/internal/strpool"
 )
 
 // PrototypeObjectTypeBase holds PrototypeObjectType's fields and methods;
@@ -267,14 +268,6 @@ func (p *PrototypeObjectTypeBase) SetPropertyJSDocInfoByKey(propertyName Propert
 		if property != nil {
 			property.SetJSDocInfo(info)
 		}
-	}
-}
-
-// Java: PrototypeObjectType.setPropertyNode(Property.Key, Node)
-func (p *PrototypeObjectTypeBase) SetPropertyNodeByKey(propertyName Property_Key, defSite Node) {
-	property := p.properties.GetOwnPropertyByKey(propertyName)
-	if property != nil {
-		property.SetNode(defSite)
 	}
 }
 
@@ -525,7 +518,7 @@ func (p *PrototypeObjectTypeBase) referenceNameString() (string, bool) {
 // Java: PrototypeObjectType.getReferenceName()
 func (p *PrototypeObjectTypeBase) GetReferenceName() *string {
 	if p.classNameID != 0 {
-		return rhinoStringPtrFromID(p.classNameID)
+		return strpool.StringPtr(p.classNameID)
 	}
 	if name, ok := p.referenceNameString(); ok {
 		return &name
@@ -536,13 +529,6 @@ func (p *PrototypeObjectTypeBase) GetReferenceName() *string {
 // Java: PrototypeObjectType.isAnonymous()
 func (p *PrototypeObjectTypeBase) IsAnonymous() bool {
 	return (p.protoFlags & protoFlagAnonymous) != 0
-}
-
-// IsNativeObjectType reports whether this is a built-in object.
-//
-// Java: PrototypeObjectType.isNativeObjectType()
-func (p *PrototypeObjectTypeBase) IsNativeObjectType() bool {
-	return (p.protoFlags & protoFlagNative) != 0
 }
 
 // Java: PrototypeObjectType.setOwnerFunction(FunctionType)

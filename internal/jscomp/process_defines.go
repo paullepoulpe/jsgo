@@ -86,7 +86,7 @@ var processDefines_KNOWN_DEFINES = func() map[string]struct{} {
 	return m
 }()
 
-var processDefines_GOOG_DEFINE = rhino.IR_Getprop(rhino.IR_Name("goog"), "define")
+var processDefines_GOOG_DEFINE = rhino.QualifiedName_Of("goog.define")
 
 // Warnings
 

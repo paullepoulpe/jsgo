@@ -37,7 +37,6 @@ package jscomp
 
 import (
 	"iter"
-	"maps"
 	"slices"
 	"strconv"
 	"strings"
@@ -46,19 +45,11 @@ import (
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
 
-var (
-	jsMessageEmptyGenderMap jutil.LinkedHashMap[JsMessage_GrammaticalGenderCase, []JsMessage_Part]
-	jsMessageEmptyStringMap jutil.LinkedHashMap[string, string]
-	jsMessageEmptyStringSet jutil.LinkedHashSet[string]
-	jsMessageEmptyNodeMap   jutil.LinkedHashMap[string, rhino.Node]
-)
-
 // JsMessageDefinition is the container struct that holds a JsMessage and
 // information about the `goog.getMsg()` call it was built from.
 type JsMessageDefinition struct {
 	message               *JsMessage
-	placeholderValueMap   map[string]rhino.Node
-	placeholderValueOrder []string
+	placeholderValues     OrderedStringMap[rhino.Node]
 	messageNode           rhino.Node
 	templateTextNode      rhino.Node
 	placeholderValuesNode rhino.Node
@@ -81,22 +72,13 @@ func (d JsMessageDefinition) GetPlaceholderValuesNode() rhino.Node { return d.pl
 
 // GetPlaceholderValueMap returns a map from placeholder name to the Node
 // assigned to it in the values map argument of `goog.getMsg()`.
-func (d JsMessageDefinition) GetPlaceholderValueMap() *jutil.LinkedHashMap[string, rhino.Node] {
-	if len(d.placeholderValueMap) == 0 {
-		return &jsMessageEmptyNodeMap
-	}
-	out := jutil.NewLinkedHashMapWithCapacity[string, rhino.Node](len(d.placeholderValueOrder))
-	for _, k := range d.placeholderValueOrder {
-		out.PutNew(k, d.placeholderValueMap[k])
-	}
-	return out
+func (d *JsMessageDefinition) GetPlaceholderValueMap() *OrderedStringMap[rhino.Node] {
+	return &d.placeholderValues
 }
 
-// LookupPlaceholderNode looks up the value Node assigned to placeholder name
-// without allocating a copy-on-get LinkedHashMap.
-func (d JsMessageDefinition) LookupPlaceholderNode(name string) (rhino.Node, bool) {
-	v, ok := d.placeholderValueMap[name]
-	return v, ok
+// LookupPlaceholderNode looks up the value Node assigned to placeholder name.
+func (d *JsMessageDefinition) LookupPlaceholderNode(name string) (rhino.Node, bool) {
+	return d.placeholderValues.Lookup(name)
 }
 
 // ShouldEscapeLessThan returns the value of the 'html' options key in the
@@ -131,29 +113,24 @@ func (d IcuTemplateDefinition) GetTemplateTextNode() rhino.Node { return d.templ
 // Instances are created using a JsMessage_Builder. Optional maps and sets
 // remain nil when empty to avoid eager collection allocations per message.
 type JsMessage struct {
-	sourceName                         string
-	key                                string
-	id                                 string
-	alternateId                        string
-	desc                               string
-	meaning                            string
-	parts                              []JsMessage_Part
-	genderedMessagesMap                map[JsMessage_GrammaticalGenderCase][]JsMessage_Part
-	genderedMessagesOrder              []JsMessage_GrammaticalGenderCase
-	placeholderNameToExampleMap        map[string]string
-	placeholderNameToExampleOrder      []string
-	placeholderNameToOriginalCodeMap   map[string]string
-	placeholderNameToOriginalCodeOrder []string
-	jsPlaceholderNames                 map[string]struct{}
-	jsPlaceholderNamesOrder            []string
-	canonicalPlaceholderNames          map[string]struct{}
-	canonicalPlaceholderNamesOrder     []string
-	hasSourceName                      bool
-	hasAlternateId                     bool
-	hasDesc                            bool
-	hasMeaning                         bool
-	isAnonymous                        bool
-	isExternal                         bool
+	sourceName                string
+	key                       string
+	id                        string
+	alternateId               string
+	desc                      string
+	meaning                   string
+	parts                     []JsMessage_Part
+	genderedMessages          OrderedMap[JsMessage_GrammaticalGenderCase, []JsMessage_Part]
+	placeholderExamples       OrderedStringMap[string]
+	placeholderOriginalCode   OrderedStringMap[string]
+	jsPlaceholderNames        OrderedSet[string]
+	canonicalPlaceholderNames OrderedSet[string]
+	hasSourceName             bool
+	hasAlternateId            bool
+	hasDesc                   bool
+	hasMeaning                bool
+	isAnonymous               bool
+	isExternal                bool
 }
 
 // Java: JsMessage.getSourceName()
@@ -179,33 +156,14 @@ func (m *JsMessage) GetId() string { return m.id }
 // Java: JsMessage.getParts()
 func (m *JsMessage) GetParts() []JsMessage_Part { return m.parts }
 
-// Java: JsMessage.getGenderedMessagesMap()
-func (m *JsMessage) GetGenderedMessagesMap() *jutil.LinkedHashMap[JsMessage_GrammaticalGenderCase, []JsMessage_Part] {
-	if len(m.genderedMessagesMap) == 0 {
-		return &jsMessageEmptyGenderMap
-	}
-	out := jutil.NewLinkedHashMapWithCapacity[JsMessage_GrammaticalGenderCase, []JsMessage_Part](len(m.genderedMessagesOrder))
-	for _, k := range m.genderedMessagesOrder {
-		out.PutNew(k, m.genderedMessagesMap[k])
-	}
-	return out
-}
-
 // HasGenderedVariants reports whether the message has gendered variants.
 func (m *JsMessage) HasGenderedVariants() bool {
-	return len(m.genderedMessagesMap) > 0
+	return !m.genderedMessages.IsEmpty()
 }
 
-// GenderedMessagesAll yields gendered message variants in insertion order
-// without allocating a LinkedHashMap.
+// GenderedMessagesAll yields gendered message variants in insertion order.
 func (m *JsMessage) GenderedMessagesAll() iter.Seq2[JsMessage_GrammaticalGenderCase, []JsMessage_Part] {
-	return func(yield func(JsMessage_GrammaticalGenderCase, []JsMessage_Part) bool) {
-		for _, k := range m.genderedMessagesOrder {
-			if !yield(k, m.genderedMessagesMap[k]) {
-				return
-			}
-		}
-	}
+	return m.genderedMessages.All()
 }
 
 // Java: JsMessage.getAlternateId()
@@ -242,87 +200,51 @@ func (m *JsMessage) GetMeaning() *string {
 func (m *JsMessage) MeaningOpt() (string, bool) { return m.meaning, m.hasMeaning }
 
 // Java: JsMessage.getPlaceholderNameToExampleMap()
-func (m *JsMessage) GetPlaceholderNameToExampleMap() *jutil.LinkedHashMap[string, string] {
-	if len(m.placeholderNameToExampleMap) == 0 {
-		return &jsMessageEmptyStringMap
-	}
-	out := jutil.NewLinkedHashMapWithCapacity[string, string](len(m.placeholderNameToExampleOrder))
-	for _, k := range m.placeholderNameToExampleOrder {
-		out.PutNew(k, m.placeholderNameToExampleMap[k])
-	}
-	return out
+func (m *JsMessage) GetPlaceholderNameToExampleMap() *OrderedStringMap[string] {
+	return &m.placeholderExamples
 }
 
 // Java: JsMessage.getPlaceholderNameToOriginalCodeMap()
-func (m *JsMessage) GetPlaceholderNameToOriginalCodeMap() *jutil.LinkedHashMap[string, string] {
-	if len(m.placeholderNameToOriginalCodeMap) == 0 {
-		return &jsMessageEmptyStringMap
-	}
-	out := jutil.NewLinkedHashMapWithCapacity[string, string](len(m.placeholderNameToOriginalCodeOrder))
-	for _, k := range m.placeholderNameToOriginalCodeOrder {
-		out.PutNew(k, m.placeholderNameToOriginalCodeMap[k])
-	}
-	return out
+func (m *JsMessage) GetPlaceholderNameToOriginalCodeMap() *OrderedStringMap[string] {
+	return &m.placeholderOriginalCode
 }
 
 // Java: JsMessage.jsPlaceholderNames()
-func (m *JsMessage) JsPlaceholderNames() *jutil.LinkedHashSet[string] {
-	if len(m.jsPlaceholderNamesOrder) == 0 {
-		return &jsMessageEmptyStringSet
-	}
-	out := jutil.NewLinkedHashSetWithCapacity[string](len(m.jsPlaceholderNamesOrder))
-	for _, name := range m.jsPlaceholderNamesOrder {
-		out.AddNew(name)
-	}
-	return out
+func (m *JsMessage) JsPlaceholderNames() *OrderedSet[string] {
+	return &m.jsPlaceholderNames
 }
 
 // HasJsPlaceholders reports whether the message references any JS placeholders.
 func (m *JsMessage) HasJsPlaceholders() bool {
-	return len(m.jsPlaceholderNamesOrder) > 0
+	return !m.jsPlaceholderNames.IsEmpty()
 }
 
-// JsPlaceholderSlice returns the ordered JS placeholder names (read-only view).
+// JsPlaceholderSlice returns the ordered JS placeholder names.
 func (m *JsMessage) JsPlaceholderSlice() []string {
-	return m.jsPlaceholderNamesOrder
+	return m.jsPlaceholderNames.ToSlice()
 }
 
 func (m *JsMessage) sameJsPlaceholders(other *JsMessage) bool {
-	if len(m.jsPlaceholderNames) != len(other.jsPlaceholderNames) {
-		return false
-	}
-	for _, name := range m.jsPlaceholderNamesOrder {
-		if _, ok := other.jsPlaceholderNames[name]; !ok {
-			return false
-		}
-	}
-	return true
+	return m.jsPlaceholderNames.Equal(&other.jsPlaceholderNames)
 }
 
 func (m *JsMessage) formatJsPlaceholders() string {
-	return jsMessage_formatStringSlice(m.jsPlaceholderNamesOrder)
+	return jsMessage_formatStringSet(&m.jsPlaceholderNames)
 }
 
 // Java: JsMessage.canonicalPlaceholderNames()
-func (m *JsMessage) CanonicalPlaceholderNames() *jutil.LinkedHashSet[string] {
-	if len(m.canonicalPlaceholderNamesOrder) == 0 {
-		return &jsMessageEmptyStringSet
-	}
-	out := jutil.NewLinkedHashSetWithCapacity[string](len(m.canonicalPlaceholderNamesOrder))
-	for _, name := range m.canonicalPlaceholderNamesOrder {
-		out.AddNew(name)
-	}
-	return out
+func (m *JsMessage) CanonicalPlaceholderNames() *OrderedSet[string] {
+	return &m.canonicalPlaceholderNames
 }
 
 // HasCanonicalPlaceholders reports whether the message references any canonical placeholders.
 func (m *JsMessage) HasCanonicalPlaceholders() bool {
-	return len(m.canonicalPlaceholderNamesOrder) > 0
+	return !m.canonicalPlaceholderNames.IsEmpty()
 }
 
 // CanonicalPlaceholderAll yields canonical placeholder names in insertion order.
 func (m *JsMessage) CanonicalPlaceholderAll() iter.Seq[string] {
-	return slices.Values(m.canonicalPlaceholderNamesOrder)
+	return m.canonicalPlaceholderNames.All()
 }
 
 // Java: JsMessage.PH_JS_PREFIX
@@ -354,20 +276,14 @@ func JsMessage_GrammaticalGenderCase_ValueOf(name string) JsMessage_GrammaticalG
 		"No enum constant com.google.javascript.jscomp.JsMessage.GrammaticalGenderCase." + name))
 }
 
-// Name is Enum.name().
-func (g JsMessage_GrammaticalGenderCase) Name() string {
+// String is Enum.toString().
+func (g JsMessage_GrammaticalGenderCase) String() string {
 	return jsMessage_GrammaticalGenderCase_names[g]
 }
 
-// String is Enum.toString().
-func (g JsMessage_GrammaticalGenderCase) String() string { return g.Name() }
-
-// Ordinal is Enum.ordinal().
-func (g JsMessage_GrammaticalGenderCase) Ordinal() int { return int(g) }
-
 // Java: JsMessage.getPlaceholderOriginalCode(PlaceholderReference)
 func (m *JsMessage) GetPlaceholderOriginalCode(placeholderReference JsMessage_Part) string {
-	if v, ok := m.placeholderNameToOriginalCodeMap[placeholderReference.StoredPlaceholderName()]; ok {
+	if v, ok := m.placeholderOriginalCode.Lookup(placeholderReference.StoredPlaceholderName()); ok {
 		return v
 	}
 	return "-"
@@ -375,7 +291,7 @@ func (m *JsMessage) GetPlaceholderOriginalCode(placeholderReference JsMessage_Pa
 
 // Java: JsMessage.getPlaceholderExample(PlaceholderReference)
 func (m *JsMessage) GetPlaceholderExample(placeholderReference JsMessage_Part) string {
-	if v, ok := m.placeholderNameToExampleMap[placeholderReference.StoredPlaceholderName()]; ok {
+	if v, ok := m.placeholderExamples.Lookup(placeholderReference.StoredPlaceholderName()); ok {
 		return v
 	}
 	return "-"
@@ -386,11 +302,11 @@ func (m *JsMessage) GetPlaceholderExample(placeholderReference JsMessage_Part) s
 //
 // Java: JsMessage.getGenderedMessageParts(GrammaticalGenderCase)
 func (m *JsMessage) GetGenderedMessageParts(genderCase JsMessage_GrammaticalGenderCase) []JsMessage_Part {
-	if len(m.genderedMessagesMap) == 0 {
+	if m.genderedMessages.IsEmpty() {
 		panic(jutil.NewUnsupportedOperationExceptionMsg(
 			"Message does not contain grammatical gendered variants."))
 	}
-	return m.genderedMessagesMap[genderCase]
+	return m.genderedMessages.Get(genderCase)
 }
 
 // GetGenderedMessageVariants gets the list of grammatical gender cases for
@@ -398,10 +314,10 @@ func (m *JsMessage) GetGenderedMessageParts(genderCase JsMessage_GrammaticalGend
 //
 // Java: JsMessage.getGenderedMessageVariants()
 func (m *JsMessage) GetGenderedMessageVariants() []JsMessage_GrammaticalGenderCase {
-	if len(m.genderedMessagesOrder) == 0 {
+	if m.genderedMessages.IsEmpty() {
 		return []JsMessage_GrammaticalGenderCase{}
 	}
-	return slices.Clone(m.genderedMessagesOrder)
+	return m.genderedMessages.KeySlice()
 }
 
 // AsJsMessageString returns a single string representing the message in
@@ -409,7 +325,7 @@ func (m *JsMessage) GetGenderedMessageVariants() []JsMessage_GrammaticalGenderCa
 //
 // Java: JsMessage.asJsMessageString()
 func (m *JsMessage) AsJsMessageString() string {
-	if len(m.genderedMessagesMap) > 0 {
+	if !m.genderedMessages.IsEmpty() {
 		panic(jutil.NewUnsupportedOperationExceptionMsg(
 			"asJsMessageString() is not supported for messages with gendered variants. Please provide" +
 				" a grammatical gender case as an argument."))
@@ -422,7 +338,7 @@ func (m *JsMessage) AsJsMessageString() string {
 //
 // Java: JsMessage.asJsMessageString(GrammaticalGenderCase)
 func (m *JsMessage) AsJsMessageStringForGender(genderCase JsMessage_GrammaticalGenderCase) string {
-	parts, ok := m.genderedMessagesMap[genderCase]
+	parts, ok := m.genderedMessages.Lookup(genderCase)
 	if !ok {
 		panic(jutil.NewIllegalArgumentExceptionMsg("No message for grammtical gender case: " + genderCase.String()))
 	}
@@ -454,7 +370,7 @@ func jsMessage_formatPartsAsJs(parts []JsMessage_Part) string {
 //
 // Java: JsMessage.asIcuMessageString()
 func (m *JsMessage) AsIcuMessageString() string {
-	if len(m.genderedMessagesMap) > 0 {
+	if !m.genderedMessages.IsEmpty() {
 		panic(jutil.NewUnsupportedOperationExceptionMsg(
 			"asIcuMessageString() is not supported for messages with gendered variants. Please" +
 				" provide a grammatical gender case as an argument."))
@@ -467,7 +383,7 @@ func (m *JsMessage) AsIcuMessageString() string {
 //
 // Java: JsMessage.asIcuMessageString(GrammaticalGenderCase)
 func (m *JsMessage) AsIcuMessageStringForGender(genderCase JsMessage_GrammaticalGenderCase) string {
-	parts, ok := m.genderedMessagesMap[genderCase]
+	parts, ok := m.genderedMessages.Lookup(genderCase)
 	if !ok {
 		panic(jutil.NewIllegalArgumentExceptionMsg("No message for grammtical gender case: " + genderCase.String()))
 	}
@@ -498,15 +414,15 @@ func jsMessage_formatPartsAsIcu(parts []JsMessage_Part) string {
 //
 // Java: JsMessage.isEmpty()
 func (m *JsMessage) IsEmpty() bool {
-	if len(m.genderedMessagesMap) == 0 {
+	if m.genderedMessages.IsEmpty() {
 		for _, part := range m.parts {
 			if part.IsPlaceholder() || len(part.str) > 0 {
 				return false
 			}
 		}
 	} else {
-		for _, k := range m.genderedMessagesOrder {
-			for _, part := range m.genderedMessagesMap[k] {
+		for _, e := range m.genderedMessages.Entries() {
+			for _, part := range e.Value {
 				if part.IsPlaceholder() || len(part.str) > 0 {
 					return false
 				}
@@ -533,14 +449,14 @@ func (m *JsMessage) Equals(o any) bool {
 		m.isExternal == that.isExternal &&
 		m.id == that.id &&
 		slices.Equal(m.parts, that.parts) &&
-		maps.EqualFunc(m.genderedMessagesMap, that.genderedMessagesMap, slices.Equal) &&
+		m.genderedMessages.EqualFunc(&that.genderedMessages, slices.Equal) &&
 		m.hasAlternateId == that.hasAlternateId && m.alternateId == that.alternateId &&
 		m.hasDesc == that.hasDesc && m.desc == that.desc &&
 		m.hasMeaning == that.hasMeaning && m.meaning == that.meaning &&
-		maps.Equal(m.placeholderNameToExampleMap, that.placeholderNameToExampleMap) &&
-		maps.Equal(m.placeholderNameToOriginalCodeMap, that.placeholderNameToOriginalCodeMap) &&
-		maps.Equal(m.jsPlaceholderNames, that.jsPlaceholderNames) &&
-		maps.Equal(m.canonicalPlaceholderNames, that.canonicalPlaceholderNames)
+		OrderedMapEqual(&m.placeholderExamples, &that.placeholderExamples) &&
+		OrderedMapEqual(&m.placeholderOriginalCode, &that.placeholderOriginalCode) &&
+		m.jsPlaceholderNames.Equal(&that.jsPlaceholderNames) &&
+		m.canonicalPlaceholderNames.Equal(&that.canonicalPlaceholderNames)
 }
 
 func jsMessage_partsHashCode(parts []JsMessage_Part) int32 {
@@ -572,18 +488,18 @@ func jsMessage_optStringFormat(s string, ok bool) string {
 	return s
 }
 
-func jsMessage_stringMapHashCode(m map[string]string, order []string) int32 {
+func jsMessage_stringMapHashCode(m *OrderedStringMap[string]) int32 {
 	var h int32
-	for _, k := range order {
-		h += jutil.StringHashCode(k) ^ jutil.StringHashCode(m[k])
+	for _, e := range m.Entries() {
+		h += jutil.StringHashCode(e.Key) ^ jutil.StringHashCode(e.Value)
 	}
 	return h
 }
 
-func jsMessage_stringSliceHashCode(order []string) int32 {
+func jsMessage_stringSetHashCode(s *OrderedSet[string]) int32 {
 	var h int32
-	for _, k := range order {
-		h += jutil.StringHashCode(k)
+	for _, e := range s.m.Entries() {
+		h += jutil.StringHashCode(e.Key)
 	}
 	return h
 }
@@ -600,17 +516,17 @@ func (m *JsMessage) HashCode() int32 {
 	h = 31*h + jutil.StringHashCode(m.id)
 	h = 31*h + jsMessage_partsHashCode(m.parts)
 	var gendered int32
-	for _, k := range m.genderedMessagesOrder {
-		gendered += int32(k) ^ jsMessage_partsHashCode(m.genderedMessagesMap[k])
+	for _, e := range m.genderedMessages.Entries() {
+		gendered += int32(e.Key) ^ jsMessage_partsHashCode(e.Value)
 	}
 	h = 31*h + gendered
 	h = 31*h + jsMessage_optStringHashCode(m.alternateId, m.hasAlternateId)
 	h = 31*h + jsMessage_optStringHashCode(m.desc, m.hasDesc)
 	h = 31*h + jsMessage_optStringHashCode(m.meaning, m.hasMeaning)
-	h = 31*h + jsMessage_stringMapHashCode(m.placeholderNameToExampleMap, m.placeholderNameToExampleOrder)
-	h = 31*h + jsMessage_stringMapHashCode(m.placeholderNameToOriginalCodeMap, m.placeholderNameToOriginalCodeOrder)
-	h = 31*h + jsMessage_stringSliceHashCode(m.jsPlaceholderNamesOrder)
-	h = 31*h + jsMessage_stringSliceHashCode(m.canonicalPlaceholderNamesOrder)
+	h = 31*h + jsMessage_stringMapHashCode(&m.placeholderExamples)
+	h = 31*h + jsMessage_stringMapHashCode(&m.placeholderOriginalCode)
+	h = 31*h + jsMessage_stringSetHashCode(&m.jsPlaceholderNames)
+	h = 31*h + jsMessage_stringSetHashCode(&m.canonicalPlaceholderNames)
 	return h
 }
 
@@ -630,35 +546,37 @@ func jsMessage_formatPartsList(parts []JsMessage_Part) string {
 	return sb.String()
 }
 
-func jsMessage_formatStringMap(m map[string]string, order []string) string {
-	if len(order) == 0 {
+func jsMessage_formatStringMap(m *OrderedStringMap[string]) string {
+	entries := m.Entries()
+	if len(entries) == 0 {
 		return "{}"
 	}
 	var sb strings.Builder
 	sb.WriteByte('{')
-	for i, k := range order {
+	for i, e := range entries {
 		if i > 0 {
 			sb.WriteString(", ")
 		}
-		sb.WriteString(k)
+		sb.WriteString(e.Key)
 		sb.WriteByte('=')
-		sb.WriteString(m[k])
+		sb.WriteString(e.Value)
 	}
 	sb.WriteByte('}')
 	return sb.String()
 }
 
-func jsMessage_formatStringSlice(order []string) string {
-	if len(order) == 0 {
+func jsMessage_formatStringSet(s *OrderedSet[string]) string {
+	entries := s.m.Entries()
+	if len(entries) == 0 {
 		return "[]"
 	}
 	var sb strings.Builder
 	sb.WriteByte('[')
-	for i, elem := range order {
+	for i, e := range entries {
 		if i > 0 {
 			sb.WriteString(", ")
 		}
-		sb.WriteString(elem)
+		sb.WriteString(e.Key)
 	}
 	sb.WriteByte(']')
 	return sb.String()
@@ -669,18 +587,19 @@ func jsMessage_formatStringSlice(order []string) string {
 // Java: JsMessage.toString()
 func (m *JsMessage) String() string {
 	var gendered string
-	if len(m.genderedMessagesOrder) == 0 {
+	entries := m.genderedMessages.Entries()
+	if len(entries) == 0 {
 		gendered = "{}"
 	} else {
 		var sb strings.Builder
 		sb.WriteByte('{')
-		for i, k := range m.genderedMessagesOrder {
+		for i, e := range entries {
 			if i > 0 {
 				sb.WriteString(", ")
 			}
-			sb.WriteString(k.String())
+			sb.WriteString(e.Key.String())
 			sb.WriteByte('=')
-			sb.WriteString(jsMessage_formatPartsList(m.genderedMessagesMap[k]))
+			sb.WriteString(jsMessage_formatPartsList(e.Value))
 		}
 		sb.WriteByte('}')
 		gendered = sb.String()
@@ -696,10 +615,10 @@ func (m *JsMessage) String() string {
 		", getAlternateId=" + jsMessage_optStringFormat(m.alternateId, m.hasAlternateId) +
 		", getDesc=" + jsMessage_optStringFormat(m.desc, m.hasDesc) +
 		", getMeaning=" + jsMessage_optStringFormat(m.meaning, m.hasMeaning) +
-		", getPlaceholderNameToExampleMap=" + jsMessage_formatStringMap(m.placeholderNameToExampleMap, m.placeholderNameToExampleOrder) +
-		", getPlaceholderNameToOriginalCodeMap=" + jsMessage_formatStringMap(m.placeholderNameToOriginalCodeMap, m.placeholderNameToOriginalCodeOrder) +
-		", jsPlaceholderNames=" + jsMessage_formatStringSlice(m.jsPlaceholderNamesOrder) +
-		", canonicalPlaceholderNames=" + jsMessage_formatStringSlice(m.canonicalPlaceholderNamesOrder) +
+		", getPlaceholderNameToExampleMap=" + jsMessage_formatStringMap(&m.placeholderExamples) +
+		", getPlaceholderNameToOriginalCodeMap=" + jsMessage_formatStringMap(&m.placeholderOriginalCode) +
+		", jsPlaceholderNames=" + jsMessage_formatStringSet(&m.jsPlaceholderNames) +
+		", canonicalPlaceholderNames=" + jsMessage_formatStringSet(&m.canonicalPlaceholderNames) +
 		"]"
 }
 

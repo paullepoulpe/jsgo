@@ -134,20 +134,17 @@ func (g *ComposeWarningsGuard) AddGuards(guards []WarningsGuard) {
 	}
 }
 
-// Level may return nil.
-//
 // Java: ComposeWarningsGuard.level(JSError)
-func (g *ComposeWarningsGuard) Level(error *JSError) *CheckLevel {
+func (g *ComposeWarningsGuard) Level(error *JSError) (CheckLevel, bool) {
 	for _, entry := range g.entries {
-		newLevel := entry.guard.Level(error)
-		if newLevel != nil {
-			if g.demoteErrors && *newLevel == CheckLevel_ERROR {
-				return CheckLevel_WARNING.Ptr()
+		if newLevel, ok := entry.guard.Level(error); ok {
+			if g.demoteErrors && newLevel == CheckLevel_ERROR {
+				return CheckLevel_WARNING, true
 			}
-			return newLevel
+			return newLevel, true
 		}
 	}
-	return nil
+	return 0, false
 }
 
 // Java: ComposeWarningsGuard.mustRunChecks(DiagnosticGroup)

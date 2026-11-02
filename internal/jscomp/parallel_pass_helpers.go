@@ -233,8 +233,8 @@ func reportHalts(c *Compiler, err *JSError) bool {
 	}
 	level := err.DefaultLevel()
 	if c.warningsGuard != nil {
-		if newLevel := c.warningsGuard.Level(err); newLevel != nil {
-			level = *newLevel
+		if newLevel, ok := c.warningsGuard.Level(err); ok {
+			level = newLevel
 		}
 	}
 	return level == CheckLevel_ERROR

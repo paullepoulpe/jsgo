@@ -129,19 +129,6 @@ func (r *ColorRegistry) GetDisambiguationSupertypesSlice(x *Color) []*Color {
 	return nil
 }
 
-// GetDisambiguationSupertypes returns the colors directly above `x` in the
-// subtyping graph for the purposes of property (dis)ambiguation.
-//
-// Java: ColorRegistry.getDisambiguationSupertypes(Color)
-func (r *ColorRegistry) GetDisambiguationSupertypes(x *Color) *jutil.ObjectLinkedHashSet[*Color] {
-	sups := r.GetDisambiguationSupertypesSlice(x)
-	out := jutil.NewObjectLinkedHashSet[*Color]()
-	for _, s := range sups {
-		out.Add(s)
-	}
-	return out
-}
-
 // ColorMismatchLocSet is an insertion-ordered, deduplicated view of mismatch location strings.
 type ColorMismatchLocSet []string
 

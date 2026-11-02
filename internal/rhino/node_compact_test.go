@@ -9,6 +9,7 @@ import (
 
 	"github.com/paullepoulpe/jsgo/internal/colors"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
+	"github.com/paullepoulpe/jsgo/internal/strpool"
 )
 
 func TestCompactNodeLayoutAndGCRoots(t *testing.T) {
@@ -33,7 +34,7 @@ func TestCompactNodeLayoutAndGCRoots(t *testing.T) {
 		t.Fatal("cleared type is non-null")
 	}
 	// String pointer cells must remain valid even after the bounded pool clears.
-	rhinoStringPoolClearForTest()
+	strpool.ClearForTest()
 	runtime.GC()
 	if n.GetString() != "distinct_compact_node_name" {
 		t.Fatal("intern table owned node payload lifetime")

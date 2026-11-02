@@ -60,7 +60,7 @@ func (g *JsonErrorReportGenerator) GenerateReport(manager *SortingErrorManager) 
 
 		jsonWriter.BeginObject()
 		level := "warning"
-		if message.Level != nil && *message.Level == CheckLevel_ERROR {
+		if message.Level == CheckLevel_ERROR {
 			level = "error"
 		}
 		jsonWriter.Name("level").ValueString(&level)

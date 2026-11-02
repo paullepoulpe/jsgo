@@ -439,8 +439,12 @@ func (m *FunctionToBlockMutator) makeLocalNamesUnique(fnNode rhino.Node, isCallI
 
 	// Make label names unique to this instance.
 	if checkLabels && hasLabelNode(fnNode) {
-		NewRenameLabelsWithSupplier(m.compiler, NewFunctionToBlockMutator_LabelNameSupplier(idSupplier).Get, false, false).
-			Process(rhino.NilNode, fnNode)
+		NewRenameLabelsWithSupplier(
+			m.compiler,
+			func() string { return "JSCompiler_inline_label_" + idSupplier() },
+			false,
+			false,
+		).Process(rhino.NilNode, fnNode)
 	}
 }
 
@@ -454,21 +458,6 @@ func hasLabelNode(n rhino.Node) bool {
 		}
 	}
 	return false
-}
-
-// FunctionToBlockMutator_LabelNameSupplier is a Supplier<String>.
-type FunctionToBlockMutator_LabelNameSupplier struct {
-	idSupplier func() string
-}
-
-// Java: FunctionToBlockMutator.LabelNameSupplier(Supplier<String>)
-func NewFunctionToBlockMutator_LabelNameSupplier(idSupplier func() string) *FunctionToBlockMutator_LabelNameSupplier {
-	return &FunctionToBlockMutator_LabelNameSupplier{idSupplier: idSupplier}
-}
-
-// Java: FunctionToBlockMutator.LabelNameSupplier.get()
-func (s *FunctionToBlockMutator_LabelNameSupplier) Get() string {
-	return "JSCompiler_inline_label_" + s.idSupplier()
 }
 
 // GetLabelNameForFunction creates a unique label name.

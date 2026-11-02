@@ -63,29 +63,31 @@ func init() {
 	jsaWgVisibilityWarning = NewDiagnosticGroupWarningsGuard(DiagnosticGroups_ACCESS_CONTROLS, CheckLevel_WARNING)
 }
 
-func jsaWgLevelIs(t *testing.T, got *CheckLevel, want *CheckLevel, ctx ...any) {
+func jsaWgLevelIs(t *testing.T, guard WarningsGuard, err *JSError, want CheckLevel, ctx ...any) {
 	t.Helper()
-	if (got == nil) != (want == nil) || (got != nil && *got != *want) {
-		t.Errorf("%sgot %v, want %v", jsaCtx(ctx), got, want)
+	got, ok := guard.Level(err)
+	if !ok || got != want {
+		t.Errorf("%sgot (%v, %t), want (%v, true)", jsaCtx(ctx), got, ok, want)
 	}
 }
 
-var (
-	jsaWgERROR   = CheckLevel_ERROR.Ptr()
-	jsaWgWARNING = CheckLevel_WARNING.Ptr()
-	jsaWgOFF     = CheckLevel_OFF.Ptr()
-)
+func jsaWgNoLevel(t *testing.T, guard WarningsGuard, err *JSError, ctx ...any) {
+	t.Helper()
+	if got, ok := guard.Level(err); ok {
+		t.Errorf("%sgot (%v, true), want no level", jsaCtx(ctx), got)
+	}
+}
 
 func TestWarningsGuard_ShowByPathGuard_Restrict(t *testing.T) {
 	includeGuard := NewShowByPathWarningsGuardWithShowType("/foo/", ShowByPathWarningsGuard_ShowType_INCLUDE)
 
-	jsaWgLevelIs(t, includeGuard.Level(jsaWgMakeErrorLevel(jsaStr("asasasd/foo/hello.js"), CheckLevel_WARNING)), nil)
-	jsaWgLevelIs(t, includeGuard.Level(jsaWgMakeErrorLevel(jsaStr("asasasd/foo/hello.js"), CheckLevel_ERROR)), nil)
-	jsaWgLevelIs(t, includeGuard.Level(jsaWgMakeErrorLevel(jsaStr("asasasd/hello.js"), CheckLevel_WARNING)), jsaWgOFF)
-	jsaWgLevelIs(t, includeGuard.Level(jsaWgMakeErrorLevel(jsaStr("asasasd/hello.js"), CheckLevel_OFF)), jsaWgOFF)
-	jsaWgLevelIs(t, includeGuard.Level(jsaWgMakeErrorLevel(jsaStr("asasasd/hello.js"), CheckLevel_ERROR)), nil)
-	jsaWgLevelIs(t, includeGuard.Level(jsaWgMakeError(nil)), nil)
-	jsaWgLevelIs(t, includeGuard.Level(jsaWgMakeErrorLevel(nil, CheckLevel_WARNING)), nil)
+	jsaWgNoLevel(t, includeGuard, jsaWgMakeErrorLevel(jsaStr("asasasd/foo/hello.js"), CheckLevel_WARNING))
+	jsaWgNoLevel(t, includeGuard, jsaWgMakeErrorLevel(jsaStr("asasasd/foo/hello.js"), CheckLevel_ERROR))
+	jsaWgLevelIs(t, includeGuard, jsaWgMakeErrorLevel(jsaStr("asasasd/hello.js"), CheckLevel_WARNING), CheckLevel_OFF)
+	jsaWgLevelIs(t, includeGuard, jsaWgMakeErrorLevel(jsaStr("asasasd/hello.js"), CheckLevel_OFF), CheckLevel_OFF)
+	jsaWgNoLevel(t, includeGuard, jsaWgMakeErrorLevel(jsaStr("asasasd/hello.js"), CheckLevel_ERROR))
+	jsaWgNoLevel(t, includeGuard, jsaWgMakeError(nil))
+	jsaWgNoLevel(t, includeGuard, jsaWgMakeErrorLevel(nil, CheckLevel_WARNING))
 
 	jsaEq(t, includeGuard.MustRunChecks(jsaWgDEPRECATED), base.Tri_UNKNOWN)
 }
@@ -93,16 +95,16 @@ func TestWarningsGuard_ShowByPathGuard_Restrict(t *testing.T) {
 func TestWarningsGuard_ShowByPathGuard_Suppress(t *testing.T) {
 	excludeGuard := NewShowByPathWarningsGuardWithPathsAndShowType([]string{"/foo/", "/bar/"}, ShowByPathWarningsGuard_ShowType_EXCLUDE)
 
-	jsaWgLevelIs(t, excludeGuard.Level(jsaWgMakeErrorLevel(jsaStr("asasasd/foo/hello.js"), CheckLevel_WARNING)), jsaWgOFF)
-	jsaWgLevelIs(t, excludeGuard.Level(jsaWgMakeErrorLevel(jsaStr("asasasd/foo/bar/hello.js"), CheckLevel_WARNING)), jsaWgOFF)
-	jsaWgLevelIs(t, excludeGuard.Level(jsaWgMakeErrorLevel(jsaStr("asasasd/bar/hello.js"), CheckLevel_WARNING)), jsaWgOFF)
-	jsaWgLevelIs(t, excludeGuard.Level(jsaWgMakeErrorLevel(jsaStr("asasasd/foo/bar/hello.js"), CheckLevel_WARNING)), jsaWgOFF)
-	jsaWgLevelIs(t, excludeGuard.Level(jsaWgMakeErrorLevel(jsaStr("asasasd/foo/hello.js"), CheckLevel_ERROR)), nil)
-	jsaWgLevelIs(t, excludeGuard.Level(jsaWgMakeErrorLevel(jsaStr("asasasd/hello.js"), CheckLevel_WARNING)), nil)
-	jsaWgLevelIs(t, excludeGuard.Level(jsaWgMakeErrorLevel(jsaStr("asasasd/hello.js"), CheckLevel_OFF)), nil)
-	jsaWgLevelIs(t, excludeGuard.Level(jsaWgMakeErrorLevel(jsaStr("asasasd/hello.js"), CheckLevel_ERROR)), nil)
-	jsaWgLevelIs(t, excludeGuard.Level(jsaWgMakeError(nil)), nil)
-	jsaWgLevelIs(t, excludeGuard.Level(jsaWgMakeErrorLevel(nil, CheckLevel_WARNING)), nil)
+	jsaWgLevelIs(t, excludeGuard, jsaWgMakeErrorLevel(jsaStr("asasasd/foo/hello.js"), CheckLevel_WARNING), CheckLevel_OFF)
+	jsaWgLevelIs(t, excludeGuard, jsaWgMakeErrorLevel(jsaStr("asasasd/foo/bar/hello.js"), CheckLevel_WARNING), CheckLevel_OFF)
+	jsaWgLevelIs(t, excludeGuard, jsaWgMakeErrorLevel(jsaStr("asasasd/bar/hello.js"), CheckLevel_WARNING), CheckLevel_OFF)
+	jsaWgLevelIs(t, excludeGuard, jsaWgMakeErrorLevel(jsaStr("asasasd/foo/bar/hello.js"), CheckLevel_WARNING), CheckLevel_OFF)
+	jsaWgNoLevel(t, excludeGuard, jsaWgMakeErrorLevel(jsaStr("asasasd/foo/hello.js"), CheckLevel_ERROR))
+	jsaWgNoLevel(t, excludeGuard, jsaWgMakeErrorLevel(jsaStr("asasasd/hello.js"), CheckLevel_WARNING))
+	jsaWgNoLevel(t, excludeGuard, jsaWgMakeErrorLevel(jsaStr("asasasd/hello.js"), CheckLevel_OFF))
+	jsaWgNoLevel(t, excludeGuard, jsaWgMakeErrorLevel(jsaStr("asasasd/hello.js"), CheckLevel_ERROR))
+	jsaWgNoLevel(t, excludeGuard, jsaWgMakeError(nil))
+	jsaWgNoLevel(t, excludeGuard, jsaWgMakeErrorLevel(nil, CheckLevel_WARNING))
 
 	jsaEq(t, excludeGuard.MustRunChecks(jsaWgDEPRECATED), base.Tri_UNKNOWN)
 }
@@ -110,9 +112,9 @@ func TestWarningsGuard_ShowByPathGuard_Suppress(t *testing.T) {
 func TestWarningsGuard_StrictGuard(t *testing.T) {
 	guard := NewStrictWarningsGuard()
 
-	jsaWgLevelIs(t, guard.Level(jsaWgMakeErrorLevel(jsaStr("foo/hello.js"), CheckLevel_WARNING)), jsaWgERROR)
-	jsaWgLevelIs(t, guard.Level(jsaWgMakeErrorLevel(jsaStr("foo/hello.js"), CheckLevel_OFF)), nil)
-	jsaWgLevelIs(t, guard.Level(jsaWgMakeErrorLevel(jsaStr("bar.js"), CheckLevel_ERROR)), jsaWgERROR)
+	jsaWgLevelIs(t, guard, jsaWgMakeErrorLevel(jsaStr("foo/hello.js"), CheckLevel_WARNING), CheckLevel_ERROR)
+	jsaWgNoLevel(t, guard, jsaWgMakeErrorLevel(jsaStr("foo/hello.js"), CheckLevel_OFF))
+	jsaWgLevelIs(t, guard, jsaWgMakeErrorLevel(jsaStr("bar.js"), CheckLevel_ERROR), CheckLevel_ERROR)
 
 	jsaEq(t, guard.MustRunChecks(jsaWgDEPRECATED), base.Tri_UNKNOWN)
 }
@@ -120,13 +122,13 @@ func TestWarningsGuard_StrictGuard(t *testing.T) {
 func TestWarningsGuard_ByPathGuard(t *testing.T) {
 	strictGuard := ByPathWarningsGuard_ForPath([]string{"/foo/"}, CheckLevel_ERROR)
 
-	jsaWgLevelIs(t, strictGuard.Level(jsaWgMakeErrorLevel(jsaStr("asasasd/foo/hello.js"), CheckLevel_WARNING)), jsaWgERROR)
-	jsaWgLevelIs(t, strictGuard.Level(jsaWgMakeErrorLevel(jsaStr("asasasd/foo/hello.js"), CheckLevel_ERROR)), nil)
-	jsaWgLevelIs(t, strictGuard.Level(jsaWgMakeErrorLevel(jsaStr("asasasd/hello.js"), CheckLevel_WARNING)), nil)
-	jsaWgLevelIs(t, strictGuard.Level(jsaWgMakeErrorLevel(jsaStr("asasasd/hello.js"), CheckLevel_OFF)), nil)
-	jsaWgLevelIs(t, strictGuard.Level(jsaWgMakeErrorLevel(jsaStr("asasasd/hello.js"), CheckLevel_ERROR)), nil)
-	jsaWgLevelIs(t, strictGuard.Level(jsaWgMakeError(nil)), nil)
-	jsaWgLevelIs(t, strictGuard.Level(jsaWgMakeErrorLevel(nil, CheckLevel_WARNING)), nil)
+	jsaWgLevelIs(t, strictGuard, jsaWgMakeErrorLevel(jsaStr("asasasd/foo/hello.js"), CheckLevel_WARNING), CheckLevel_ERROR)
+	jsaWgNoLevel(t, strictGuard, jsaWgMakeErrorLevel(jsaStr("asasasd/foo/hello.js"), CheckLevel_ERROR))
+	jsaWgNoLevel(t, strictGuard, jsaWgMakeErrorLevel(jsaStr("asasasd/hello.js"), CheckLevel_WARNING))
+	jsaWgNoLevel(t, strictGuard, jsaWgMakeErrorLevel(jsaStr("asasasd/hello.js"), CheckLevel_OFF))
+	jsaWgNoLevel(t, strictGuard, jsaWgMakeErrorLevel(jsaStr("asasasd/hello.js"), CheckLevel_ERROR))
+	jsaWgNoLevel(t, strictGuard, jsaWgMakeError(nil))
+	jsaWgNoLevel(t, strictGuard, jsaWgMakeErrorLevel(nil, CheckLevel_WARNING))
 
 	jsaEq(t, strictGuard.MustRunChecks(jsaWgDEPRECATED), base.Tri_UNKNOWN)
 }
@@ -134,33 +136,33 @@ func TestWarningsGuard_ByPathGuard(t *testing.T) {
 // jsaWgFuncGuard is an anonymous WarningsGuard subclass.
 type jsaWgFuncGuard struct {
 	WarningsGuardBase
-	level func(error *JSError) *CheckLevel
+	level func(error *JSError) (CheckLevel, bool)
 }
 
-func (g *jsaWgFuncGuard) Level(error *JSError) *CheckLevel { return g.level(error) }
+func (g *jsaWgFuncGuard) Level(error *JSError) (CheckLevel, bool) { return g.level(error) }
 
 func TestWarningsGuard_ComposeGuard(t *testing.T) {
-	g1 := &jsaWgFuncGuard{level: func(error *JSError) *CheckLevel {
+	g1 := &jsaWgFuncGuard{level: func(error *JSError) (CheckLevel, bool) {
 		if *error.SourceName() == "123456" {
-			return jsaWgERROR
+			return CheckLevel_ERROR, true
 		}
-		return nil
+		return 0, false
 	}}
 
-	g2 := &jsaWgFuncGuard{level: func(error *JSError) *CheckLevel {
+	g2 := &jsaWgFuncGuard{level: func(error *JSError) (CheckLevel, bool) {
 		if error.Lineno() == 12 {
-			return jsaWgWARNING
+			return CheckLevel_WARNING, true
 		}
-		return nil
+		return 0, false
 	}}
 
 	guard := NewComposeWarningsGuard(g1, g2)
 
-	jsaWgLevelIs(t, guard.Level(jsaWgMakeError(jsaStr("aaa"))), nil)
-	jsaWgLevelIs(t, guard.Level(jsaWgMakeError(jsaStr("12345"))), nil)
-	jsaWgLevelIs(t, guard.Level(jsaWgMakeError(jsaStr("123456"))), jsaWgERROR)
-	jsaWgLevelIs(t, guard.Level(jsaWgMakeErrorLine("12345", 12)), jsaWgWARNING)
-	jsaWgLevelIs(t, guard.Level(jsaWgMakeErrorLine("12345", 13)), nil)
+	jsaWgNoLevel(t, guard, jsaWgMakeError(jsaStr("aaa")))
+	jsaWgNoLevel(t, guard, jsaWgMakeError(jsaStr("12345")))
+	jsaWgLevelIs(t, guard, jsaWgMakeError(jsaStr("123456")), CheckLevel_ERROR)
+	jsaWgLevelIs(t, guard, jsaWgMakeErrorLine("12345", 12), CheckLevel_WARNING)
+	jsaWgNoLevel(t, guard, jsaWgMakeErrorLine("12345", 13))
 
 	jsaEq(t, guard.MustRunChecks(jsaWgDEPRECATED), base.Tri_UNKNOWN)
 }
@@ -170,13 +172,13 @@ func TestWarningsGuard_ComposeGuard2(t *testing.T) {
 	strictGuard := NewStrictWarningsGuard()
 
 	guard := NewComposeWarningsGuard(strictGuard, pathGuard)
-	jsaWgLevelIs(t, guard.Level(jsaWgMakeErrorLevel(jsaStr("asasasd/hello.js"), CheckLevel_WARNING)), jsaWgOFF)
-	jsaWgLevelIs(t, guard.Level(jsaWgMakeErrorLevel(jsaStr("asasasd/foo/hello.js"), CheckLevel_WARNING)), jsaWgERROR)
+	jsaWgLevelIs(t, guard, jsaWgMakeErrorLevel(jsaStr("asasasd/hello.js"), CheckLevel_WARNING), CheckLevel_OFF)
+	jsaWgLevelIs(t, guard, jsaWgMakeErrorLevel(jsaStr("asasasd/foo/hello.js"), CheckLevel_WARNING), CheckLevel_ERROR)
 
 	// Try again with the guards reversed.
 	guard = NewComposeWarningsGuard(pathGuard, strictGuard)
-	jsaWgLevelIs(t, guard.Level(jsaWgMakeErrorLevel(jsaStr("asasasd/hello.js"), CheckLevel_WARNING)), jsaWgOFF)
-	jsaWgLevelIs(t, guard.Level(jsaWgMakeErrorLevel(jsaStr("asasasd/foo/hello.js"), CheckLevel_WARNING)), jsaWgERROR)
+	jsaWgLevelIs(t, guard, jsaWgMakeErrorLevel(jsaStr("asasasd/hello.js"), CheckLevel_WARNING), CheckLevel_OFF)
+	jsaWgLevelIs(t, guard, jsaWgMakeErrorLevel(jsaStr("asasasd/foo/hello.js"), CheckLevel_WARNING), CheckLevel_ERROR)
 }
 
 func TestWarningsGuard_ComposeGuard3(t *testing.T) {
@@ -187,11 +189,11 @@ func TestWarningsGuard_ComposeGuard3(t *testing.T) {
 	strictGuard := NewStrictWarningsGuard()
 
 	guard := NewComposeWarningsGuard(strictGuard, typeGuard)
-	jsaWgLevelIs(t, guard.Level(JSError_MakeWithSourceLocation(jsaStr("example.js"), 1, 0, jsaWgDEPRECATED_NAME)), jsaWgWARNING)
+	jsaWgLevelIs(t, guard, JSError_MakeWithSourceLocation(jsaStr("example.js"), 1, 0, jsaWgDEPRECATED_NAME), CheckLevel_WARNING)
 
 	// Ordering applied doesn't matter, do it again reversed.
 	guard = NewComposeWarningsGuard(typeGuard, strictGuard)
-	jsaWgLevelIs(t, guard.Level(JSError_MakeWithSourceLocation(jsaStr("example.js"), 1, 0, jsaWgDEPRECATED_NAME)), jsaWgWARNING)
+	jsaWgLevelIs(t, guard, JSError_MakeWithSourceLocation(jsaStr("example.js"), 1, 0, jsaWgDEPRECATED_NAME), CheckLevel_WARNING)
 }
 
 func TestWarningsGuard_ComposeGuardOrdering(t *testing.T) {
@@ -264,7 +266,7 @@ func TestWarningsGuard_ComposeGuardOrdering4(t *testing.T) {
 func TestWarningsGuard_DiagnosticGuard1(t *testing.T) {
 	guard := NewDiagnosticGroupWarningsGuard(jsaWgCHECK_TYPES, CheckLevel_ERROR)
 
-	jsaWgLevelIs(t, guard.Level(jsaWgMakeErrorType("foo", jsaWgDETERMINISTIC_TEST)), jsaWgERROR)
+	jsaWgLevelIs(t, guard, jsaWgMakeErrorType("foo", jsaWgDETERMINISTIC_TEST), CheckLevel_ERROR)
 
 	jsaEq(t, guard.MustRunChecks(jsaWgCHECK_TYPES), base.Tri_TRUE)
 	jsaEq(t, guard.MustRunChecks(jsaWgMESSAGE_DESCRIPTIONS), base.Tri_UNKNOWN)
@@ -295,9 +297,9 @@ func TestWarningsGuard_SuppressGuard1(t *testing.T) {
 	code := compiler.ParseTestCode(
 		"/** @suppress {deprecated} */ function f() { a; }\n" +
 			"function g() { b; }\n")
-	jsaWgLevelIs(t, guard.Level(JSError_MakeWithNode(code, jsaWgBAR_WARNING)), nil)
-	jsaWgLevelIs(t, guard.Level(JSError_MakeWithNode(jsaWgFindNameNode(code, "a"), jsaWgBAR_WARNING)), jsaWgOFF)
-	jsaWgLevelIs(t, guard.Level(JSError_MakeWithNode(jsaWgFindNameNode(code, "b"), jsaWgBAR_WARNING)), nil)
+	jsaWgNoLevel(t, guard, JSError_MakeWithNode(code, jsaWgBAR_WARNING))
+	jsaWgLevelIs(t, guard, JSError_MakeWithNode(jsaWgFindNameNode(code, "a"), jsaWgBAR_WARNING), CheckLevel_OFF)
+	jsaWgNoLevel(t, guard, JSError_MakeWithNode(jsaWgFindNameNode(code, "b"), jsaWgBAR_WARNING))
 }
 
 func TestWarningsGuard_SuppressGuard2(t *testing.T) {
@@ -310,8 +312,8 @@ func TestWarningsGuard_SuppressGuard2(t *testing.T) {
 		"/** @fileoverview \n" +
 			" * @suppress {deprecated} */ function f() { a; }\n" +
 			"function g() { b; }\n")
-	jsaWgLevelIs(t, guard.Level(JSError_MakeWithNode(jsaWgFindNameNode(code, "a"), jsaWgBAR_WARNING)), jsaWgOFF)
-	jsaWgLevelIs(t, guard.Level(JSError_MakeWithNode(jsaWgFindNameNode(code, "b"), jsaWgBAR_WARNING)), jsaWgOFF)
+	jsaWgLevelIs(t, guard, JSError_MakeWithNode(jsaWgFindNameNode(code, "a"), jsaWgBAR_WARNING), CheckLevel_OFF)
+	jsaWgLevelIs(t, guard, JSError_MakeWithNode(jsaWgFindNameNode(code, "b"), jsaWgBAR_WARNING), CheckLevel_OFF)
 }
 
 func TestWarningsGuard_SuppressGuard3(t *testing.T) {
@@ -321,7 +323,7 @@ func TestWarningsGuard_SuppressGuard3(t *testing.T) {
 	var guard WarningsGuard = NewSuppressDocWarningsGuard(compiler, m)
 
 	code := compiler.ParseTestCode("/** @suppress {deprecated} */ var f = function() { a; }")
-	jsaWgLevelIs(t, guard.Level(JSError_MakeWithNode(jsaWgFindNameNode(code, "a"), jsaWgBAR_WARNING)), jsaWgOFF)
+	jsaWgLevelIs(t, guard, JSError_MakeWithNode(jsaWgFindNameNode(code, "a"), jsaWgBAR_WARNING), CheckLevel_OFF)
 }
 
 func TestWarningsGuard_SuppressGuard_strictMissingPropertyOnUnionTypes(t *testing.T) {
@@ -336,10 +338,10 @@ func TestWarningsGuard_SuppressGuard_strictMissingPropertyOnUnionTypes(t *testin
 			"/** @suppress {strictMissingProperties} */\n" +
 			"obj.prop\n")
 	jsaWgLevelIs(t,
-		guard.Level(
-			JSError_MakeWithNode(
-				jsaWgFindGetPropNode(code, "prop"), TypeCheck_ILLEGAL_PROPERTY_CREATION_ON_UNION_TYPE)),
-		jsaWgOFF)
+		guard,
+		JSError_MakeWithNode(
+			jsaWgFindGetPropNode(code, "prop"), TypeCheck_ILLEGAL_PROPERTY_CREATION_ON_UNION_TYPE),
+		CheckLevel_OFF)
 }
 
 func TestWarningsGuard_SuppressGuard4(t *testing.T) {
@@ -351,7 +353,7 @@ func TestWarningsGuard_SuppressGuard4(t *testing.T) {
 	code := compiler.ParseTestCode(
 		"var goog = {};\n" +
 			"/** @suppress {deprecated} */ goog.f = function() { a; }\n")
-	jsaWgLevelIs(t, guard.Level(JSError_MakeWithNode(jsaWgFindNameNode(code, "a"), jsaWgBAR_WARNING)), jsaWgOFF)
+	jsaWgLevelIs(t, guard, JSError_MakeWithNode(jsaWgFindNameNode(code, "a"), jsaWgBAR_WARNING), CheckLevel_OFF)
 }
 
 func TestWarningsGuard_SuppressGuard5(t *testing.T) {
@@ -364,7 +366,7 @@ func TestWarningsGuard_SuppressGuard5(t *testing.T) {
 		"var goog = {};\n" +
 			"goog.f = function() { /** @suppress {deprecated} */ (a); }\n")
 
-	jsaWgLevelIs(t, guard.Level(JSError_MakeWithNode(jsaWgFindNameNode(code, "a"), jsaWgBAR_WARNING)), jsaWgOFF)
+	jsaWgLevelIs(t, guard, JSError_MakeWithNode(jsaWgFindNameNode(code, "a"), jsaWgBAR_WARNING), CheckLevel_OFF)
 }
 
 func TestWarningsGuard_SuppressGuard6(t *testing.T) {
@@ -375,7 +377,7 @@ func TestWarningsGuard_SuppressGuard6(t *testing.T) {
 
 	code := compiler.ParseTestCode("/** @fileoverview @suppress {deprecated} */\n console.log(a);")
 
-	jsaWgLevelIs(t, guard.Level(JSError_MakeWithNode(jsaWgFindNameNode(code, "a"), jsaWgBAR_WARNING)), jsaWgOFF)
+	jsaWgLevelIs(t, guard, JSError_MakeWithNode(jsaWgFindNameNode(code, "a"), jsaWgBAR_WARNING), CheckLevel_OFF)
 }
 
 func TestWarningsGuard_SuppressGuard7(t *testing.T) {
@@ -387,7 +389,7 @@ func TestWarningsGuard_SuppressGuard7(t *testing.T) {
 	code := compiler.ParseTestCode("console.log(/** @suppress {deprecated} */ (a));")
 
 	// We don't care about @suppress annotations within nested expressions
-	jsaWgLevelIs(t, guard.Level(JSError_MakeWithNode(jsaWgFindNameNode(code, "a"), jsaWgBAR_WARNING)), nil)
+	jsaWgNoLevel(t, guard, JSError_MakeWithNode(jsaWgFindNameNode(code, "a"), jsaWgBAR_WARNING))
 }
 
 func TestWarningsGuard_SuppressDocGuard_appliesSuppressionsOnComputedPropMethod_toPropNameExpression(t *testing.T) {
@@ -403,7 +405,7 @@ func TestWarningsGuard_SuppressDocGuard_appliesSuppressionsOnComputedPropMethod_
 			"  [a]() { }\n" +
 			"}\n")
 
-	jsaWgLevelIs(t, guard.Level(JSError_MakeWithNode(jsaWgFindNameNode(code, "a"), jsaWgBAR_WARNING)), jsaWgOFF)
+	jsaWgLevelIs(t, guard, JSError_MakeWithNode(jsaWgFindNameNode(code, "a"), jsaWgBAR_WARNING), CheckLevel_OFF)
 }
 
 func TestWarningsGuard_SuppressGuard_onCompoundAssignment(t *testing.T) {
@@ -415,7 +417,7 @@ func TestWarningsGuard_SuppressGuard_onCompoundAssignment(t *testing.T) {
 	code := compiler.ParseTestCode(
 		"var goog = {};\n" +
 			"/** @suppress {deprecated} */ goog.f += a\n")
-	jsaWgLevelIs(t, guard.Level(JSError_MakeWithNode(jsaWgFindNameNode(code, "a"), jsaWgBAR_WARNING)), jsaWgOFF)
+	jsaWgLevelIs(t, guard, JSError_MakeWithNode(jsaWgFindNameNode(code, "a"), jsaWgBAR_WARNING), CheckLevel_OFF)
 }
 
 func TestWarningsGuard_SuppressGuard_onDetachedNode(t *testing.T) {
@@ -428,7 +430,7 @@ func TestWarningsGuard_SuppressGuard_onDetachedNode(t *testing.T) {
 	// Create an error that has the right source file, but no parents.
 	// This is the state of JSDoc nodes.
 	error := jsaWgMakeError(code.GetSourceFileName())
-	jsaWgLevelIs(t, guard.Level(error), jsaWgOFF)
+	jsaWgLevelIs(t, guard, error, CheckLevel_OFF)
 }
 
 func TestWarningsGuard_ComposeGuardCycle(t *testing.T) {
@@ -496,21 +498,21 @@ func jsaWgMakeErrorLine(sourcePath string, lineno int) *JSError {
 // Go-only: extra coverage — the other guards of this wave.
 func TestWarningsGuard_OtherGuards(t *testing.T) {
 	ts := NewCheckTypeSummaryWarningsGuard(CheckLevel_OFF)
-	jsaWgLevelIs(t, ts.Level(jsaWgMakeErrorLevel(jsaStr("a.i.js"), CheckLevel_ERROR)), jsaWgOFF)
-	jsaWgLevelIs(t, ts.Level(jsaWgMakeErrorLevel(jsaStr("a.js"), CheckLevel_ERROR)), nil)
-	jsaWgLevelIs(t, ts.Level(jsaWgMakeErrorType("a.i.js", ClosurePrimitiveErrors_DUPLICATE_NAMESPACE_AND_MODULE)), nil)
+	jsaWgLevelIs(t, ts, jsaWgMakeErrorLevel(jsaStr("a.i.js"), CheckLevel_ERROR), CheckLevel_OFF)
+	jsaWgNoLevel(t, ts, jsaWgMakeErrorLevel(jsaStr("a.js"), CheckLevel_ERROR))
+	jsaWgNoLevel(t, ts, jsaWgMakeErrorType("a.i.js", ClosurePrimitiveErrors_DUPLICATE_NAMESPACE_AND_MODULE))
 	jsaEq(t, ts.GetPriority(), 40)
 
 	ps := NewDiagnosticGroupPathSuppressingWarningsGuard(jsaWgDEPRECATED, "gen/")
-	jsaWgLevelIs(t, ps.Level(jsaWgMakeErrorType("x/gen/a.js", jsaWgDEPRECATED_NAME)), jsaWgOFF)
-	jsaWgLevelIs(t, ps.Level(jsaWgMakeErrorType("x/a.js", jsaWgDEPRECATED_NAME)), nil)
-	jsaWgLevelIs(t, ps.Level(jsaWgMakeErrorType("x/gen/a.js", jsaWgBAR_WARNING)), nil)
+	jsaWgLevelIs(t, ps, jsaWgMakeErrorType("x/gen/a.js", jsaWgDEPRECATED_NAME), CheckLevel_OFF)
+	jsaWgNoLevel(t, ps, jsaWgMakeErrorType("x/a.js", jsaWgDEPRECATED_NAME))
+	jsaWgNoLevel(t, ps, jsaWgMakeErrorType("x/gen/a.js", jsaWgBAR_WARNING))
 	jsaEq(t, ps.String(), "DiagnosticGroup<deprecated>(gen/)")
 	jsaEq(t, ps.GetPriority(), 50)
 
 	cu := NewClosureUnawareCodeWarningsGuard()
 	n := rhino.NewNode(rhino.Token_EMPTY)
-	jsaWgLevelIs(t, cu.Level(JSError_MakeWithNode(n, RhinoErrorReporter_TYPE_PARSE_ERROR)), nil)
-	jsaWgLevelIs(t, cu.Level(JSError_Make(RhinoErrorReporter_TYPE_PARSE_ERROR)), nil)
+	jsaWgNoLevel(t, cu, JSError_MakeWithNode(n, RhinoErrorReporter_TYPE_PARSE_ERROR))
+	jsaWgNoLevel(t, cu, JSError_Make(RhinoErrorReporter_TYPE_PARSE_ERROR))
 	jsaEq(t, cu.GetPriority(), 1)
 }

@@ -37,9 +37,6 @@ type LinkedDirectedGraph[N, E comparable] struct {
 	nodeSlab jutil.ReuseSlab[LinkedDiGraphNode[N, E]]
 	edgeSlab jutil.ReuseSlab[LinkedDiGraphEdge[N, E]]
 
-	nodeAnnotationStack *annotationStack
-	edgeAnnotationStack *annotationStack
-
 	nextNodeIndex      uint32
 	nextEdgeIndex      uint32
 	useNodeAnnotations bool
@@ -107,8 +104,6 @@ const linkedDirectedGraphReuseMaxNodes = 1024
 //
 // Go-only: performance — see ReusableCfg.
 func (g *LinkedDirectedGraph[N, E]) ClearForReuse() {
-	g.nodeAnnotationStack = nil
-	g.edgeAnnotationStack = nil
 	g.nextNodeIndex = 0
 	g.nextEdgeIndex = 0
 	if g.Nodes.Size() > linkedDirectedGraphReuseMaxNodes {
@@ -125,7 +120,7 @@ func (g *LinkedDirectedGraph[N, E]) getLinkedNodeOrFail(val N) *LinkedDiGraphNod
 	if n := g.Nodes.Get(val); n != nil {
 		return n
 	}
-	panic(jutil.NewIllegalArgumentExceptionMsg(formatGraphValue(val) + " does not exist in graph"))
+	panic(jutil.NewIllegalArgumentExceptionMsg(jutil.ToJavaString(val) + " does not exist in graph"))
 }
 
 // AllocNode allocates a node from the graph's slab without inserting it into Nodes.
@@ -376,50 +371,6 @@ func (g *LinkedDirectedGraph[N, E]) ClearEdgeAnnotations() {
 	}
 }
 
-// Java: Graph.pushNodeAnnotations()
-func (g *LinkedDirectedGraph[N, E]) PushNodeAnnotations() {
-	if g.nodeAnnotationStack == nil {
-		g.nodeAnnotationStack = &annotationStack{}
-	}
-	nodes := g.Nodes.Slice()
-	top := pushAnnotationFrame(g.nodeAnnotationStack, len(nodes))
-	for _, n := range nodes {
-		*top = append(*top, annotationState{first: n, second: n.GetAnnotation()})
-		n.SetAnnotation(nil)
-	}
-}
-
-// Java: Graph.popNodeAnnotations()
-func (g *LinkedDirectedGraph[N, E]) PopNodeAnnotations() {
-	if g.nodeAnnotationStack == nil {
-		panic(jutil.NewNullPointerExceptionMsg("Popping node annotations without pushing."))
-	}
-	popAnnotations(g.nodeAnnotationStack)
-}
-
-// Java: Graph.pushEdgeAnnotations()
-func (g *LinkedDirectedGraph[N, E]) PushEdgeAnnotations() {
-	if g.edgeAnnotationStack == nil {
-		g.edgeAnnotationStack = &annotationStack{}
-	}
-	nodes := g.Nodes.Slice()
-	top := pushAnnotationFrame(g.edgeAnnotationStack, len(nodes))
-	for _, node := range nodes {
-		for _, e := range node.OutEdgeList.Slice() {
-			*top = append(*top, annotationState{first: e, second: e.GetAnnotation()})
-			e.SetAnnotation(nil)
-		}
-	}
-}
-
-// Java: Graph.popEdgeAnnotations()
-func (g *LinkedDirectedGraph[N, E]) PopEdgeAnnotations() {
-	if g.edgeAnnotationStack == nil {
-		panic(jutil.NewNullPointerExceptionMsg("Popping edge annotations without pushing."))
-	}
-	popAnnotations(g.edgeAnnotationStack)
-}
-
 // Java: LinkedDirectedGraph.getDirectedPredNodes(N)
 func (g *LinkedDirectedGraph[N, E]) GetDirectedPredNodesOfValue(nodeValue N) []*LinkedDiGraphNode[N, E] {
 	dNode := jutil.CheckNotNull(g.Nodes.Get(nodeValue))
@@ -629,7 +580,7 @@ func (n *LinkedDiGraphNode[N, E]) GetLabel() string {
 	if n.annotated {
 		result := n.String()
 		if n.Annotation != nil {
-			result += "\n" + formatGraphValue(n.Annotation)
+			result += "\n" + jutil.ToJavaString(n.Annotation)
 		}
 		return result
 	}
@@ -638,7 +589,7 @@ func (n *LinkedDiGraphNode[N, E]) GetLabel() string {
 
 // Java: LinkedDirectedGraph.LinkedDiGraphNode.toString()
 func (n *LinkedDiGraphNode[N, E]) String() string {
-	return formatGraphValue(n.Value)
+	return jutil.ToJavaString(n.Value)
 }
 
 // Java: LinkedDirectedGraph.LinkedDiGraphNode.getInEdges()
@@ -720,7 +671,7 @@ func (e *LinkedDiGraphEdge[N, E]) GetColor() string {
 
 // Java: LinkedDirectedGraph.LinkedDiGraphEdge.getLabel()
 func (e *LinkedDiGraphEdge[N, E]) GetLabel() string {
-	return formatGraphValue(e.Value)
+	return jutil.ToJavaString(e.Value)
 }
 
 // Java: LinkedDirectedGraph.LinkedDiGraphEdge.getNode1Id()

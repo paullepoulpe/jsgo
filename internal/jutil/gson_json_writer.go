@@ -449,76 +449,65 @@ func (w *JsonWriter) Close() {
 }
 
 func (w *JsonWriter) string(value string) {
-	w.write("\"")
+	if err := WriteGsonString(w.out, value, w.htmlSafe); err != nil {
+		panic(NewIOException(err.Error()))
+	}
+}
+
+// WriteGsonString writes value as a double-quoted JSON string to out using
+// Gson's escaping rules (escaping control characters, quotes, backslashes, and
+// U+2028/U+2029, plus HTML characters when htmlSafe is true).
+func WriteGsonString[W io.StringWriter](out W, value string, htmlSafe bool) error {
+	replacements := &jsonWriter_REPLACEMENT_CHARS
+	if htmlSafe {
+		replacements = &jsonWriter_HTML_SAFE_REPLACEMENT_CHARS
+	}
+	if _, err := out.WriteString("\""); err != nil {
+		return err
+	}
 	last := 0
 	length := len(value)
-	if !w.htmlSafe {
-		for i := 0; i < length; i++ {
-			b := value[i]
-			var replacement string
-			step := 1
-			if b < 0x80 {
-				if b >= 0x20 && b != '"' && b != '\\' {
-					continue
-				}
-				replacement = jsonWriter_REPLACEMENT_CHARS[b]
-			} else if b == 0xe2 && i+2 < length && value[i+1] == 0x80 {
-				switch value[i+2] {
-				case 0xa8:
-					replacement = `\u2028`
-					step = 3
-				case 0xa9:
-					replacement = `\u2029`
-					step = 3
-				default:
-					continue
-				}
-			} else {
+	for i := 0; i < length; i++ {
+		b := value[i]
+		var replacement string
+		step := 1
+		if b < 0x80 {
+			replacement = replacements[b]
+			if replacement == "" {
 				continue
 			}
-			if last < i {
-				w.write(value[last:i])
-			}
-			w.write(replacement)
-			last = i + step
-			i += step - 1
-		}
-	} else {
-		for i := 0; i < length; i++ {
-			b := value[i]
-			var replacement string
-			step := 1
-			if b < 0x80 {
-				if b >= 0x20 && b != '"' && b != '\\' && b != '<' && b != '>' && b != '&' && b != '=' && b != '\'' {
-					continue
-				}
-				replacement = jsonWriter_HTML_SAFE_REPLACEMENT_CHARS[b]
-			} else if b == 0xe2 && i+2 < length && value[i+1] == 0x80 {
-				switch value[i+2] {
-				case 0xa8:
-					replacement = `\u2028`
-					step = 3
-				case 0xa9:
-					replacement = `\u2029`
-					step = 3
-				default:
-					continue
-				}
-			} else {
+		} else if b == 0xe2 && i+2 < length && value[i+1] == 0x80 {
+			switch value[i+2] {
+			case 0xa8:
+				replacement = `\u2028`
+				step = 3
+			case 0xa9:
+				replacement = `\u2029`
+				step = 3
+			default:
 				continue
 			}
-			if last < i {
-				w.write(value[last:i])
-			}
-			w.write(replacement)
-			last = i + step
-			i += step - 1
+		} else {
+			continue
 		}
+		if last < i {
+			if _, err := out.WriteString(value[last:i]); err != nil {
+				return err
+			}
+		}
+		if _, err := out.WriteString(replacement); err != nil {
+			return err
+		}
+		last = i + step
+		i += step - 1
 	}
 	if last < length {
-		w.write(value[last:length])
+		if _, err := out.WriteString(value[last:length]); err != nil {
+			return err
+		}
 	}
-	w.write("\"")
+	_, err := out.WriteString("\"")
+	return err
 }
 
 func (w *JsonWriter) newline() {

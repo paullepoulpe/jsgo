@@ -76,13 +76,9 @@ type ObjectType interface {
 	GetSlot(name string) *Property
 	// Java: ObjectType.getOwnSlot(String)
 	GetOwnSlot(name string) *Property
-	// Java: ObjectType.getOwnSlot(Property.Key)
-	GetOwnSlotByKey(name Property_Key) *Property
-	GetOwnSlotByID(id uint32) *Property
 	GetTypeOfThis() JSType
 	GetTemplateTypes() []JSType
 	SetJSDocInfo(info *JSDocInfo)
-	DetectImplicitPrototypeCycle() bool
 	DetectInheritanceCycle() bool
 	GetReferenceName() *string
 	HasReferenceName() bool
@@ -101,21 +97,15 @@ type ObjectType interface {
 	DefineProperty(propertyName string, type_ JSType, inferred bool, propertyNode Node) bool
 	DefinePropertyByKey(propertyName Property_Key, type_ JSType, inferred bool, propertyNode Node) bool
 	GetPropertyNode(propertyName string) Node
-	GetPropertyNodeByKey(propertyName Property_Key) Node
 	GetPropertyDefSite(propertyName string) Node
-	GetPropertyDefSiteByKey(propertyName Property_Key) Node
 	GetPropertyJSDocInfo(propertyName string) *JSDocInfo
 	GetPropertyJSDocInfoByKey(propertyName Property_Key) *JSDocInfo
 	GetOwnPropertyJSDocInfo(propertyName string) *JSDocInfo
-	GetOwnPropertyJSDocInfoByKey(propertyName Property_Key) *JSDocInfo
 	GetOwnPropertyDefSite(propertyName string) Node
-	GetOwnPropertyDefSiteByKey(propertyName Property_Key) Node
 	SetPropertyJSDocInfo(propertyName string, info *JSDocInfo)
 	SetPropertyJSDocInfoByKey(propertyName Property_Key, info *JSDocInfo)
-	SetPropertyNodeByKey(propertyName Property_Key, defSite Node)
 	GetPropertyType(propertyName string) JSType
 	GetPropertyTypeByKey(propertyName Property_Key) JSType
-	GetOwnPropertyKindByKey(propertyName Property_Key) JSType_HasPropertyKind
 	HasOwnProperty(propertyName string) bool
 	HasOwnPropertyByKey(propertyName Property_Key) bool
 	GetOwnPropertyKnownSymbols() []*KnownSymbolType
@@ -236,7 +226,7 @@ func (o *ObjectTypeBase) SetJSDocInfo(info *JSDocInfo) {
 	o.GetRegistry().setObjectDocInfo(o, info)
 }
 
-// DetectImplicitPrototypeCycle detects a cycle in the implicit prototype
+// detectImplicitPrototypeCycle detects a cycle in the implicit prototype
 // chain. This method accesses the #getImplicitPrototype() method and must
 // therefore be invoked only after the object is sufficiently initialized to
 // respond to calls to this method.
@@ -244,7 +234,7 @@ func (o *ObjectTypeBase) SetJSDocInfo(info *JSDocInfo) {
 // Returns true iff an implicit prototype cycle was detected.
 //
 // Java: ObjectType.detectImplicitPrototypeCycle()
-func (o *ObjectTypeBase) DetectImplicitPrototypeCycle() bool {
+func (o *ObjectTypeBase) detectImplicitPrototypeCycle() bool {
 	// detecting cycle
 	// Go-only: the types visited by this call are kept in a local list, and
 	// the per-type flag is only written when a cycle is found (Java returns
@@ -295,7 +285,7 @@ func (o *ObjectTypeBase) DetectImplicitPrototypeCycle() bool {
 // Java: ObjectType.detectInheritanceCycle()
 func (o *ObjectTypeBase) DetectInheritanceCycle() bool {
 	self := o.selfObj()
-	if self.DetectImplicitPrototypeCycle() ||
+	if o.detectImplicitPrototypeCycle() ||
 		objectTypeIterablesContains(self.GetCtorImplementedInterfaces(), self) {
 		return true
 	}
@@ -554,11 +544,6 @@ func (o *ObjectTypeBase) IsObject() bool {
 	return true
 }
 
-// Java: JSType.isObjectType()
-func (o *ObjectTypeBase) IsObjectType() bool {
-	return true
-}
-
 // HasCachedValues returns true if any cached values have been set for this
 // type. If true, then the prototype chain should not be changed, as it might
 // invalidate the cached values.
@@ -574,13 +559,6 @@ func (o *ObjectTypeBase) HasCachedValues() bool {
 // Java: ObjectType.clearCachedValues()
 func (o *ObjectTypeBase) ClearCachedValues() {
 	o.unknown = true
-}
-
-// IsNativeObjectType reports whether this is a built-in object.
-//
-// Java: ObjectType.isNativeObjectType()
-func (o *ObjectTypeBase) IsNativeObjectType() bool {
-	return false
 }
 
 // ObjectType_Cast is a null-safe version of JSType#toObjectType.

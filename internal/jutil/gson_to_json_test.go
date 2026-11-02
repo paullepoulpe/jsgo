@@ -235,8 +235,6 @@ func (a gsonTestRawAdapter) Write(out *JsonWriter, value any) {
 	out.JsonValue(&s)
 }
 
-func (a gsonTestRawAdapter) Read(in *JsonReader) any { panic(NewAssertionErrorNoMessage()) }
-
 func TestGsonToJsonUnsupportedGoKinds(t *testing.T) {
 	for _, v := range []any{func() {}, map[string]int{}, uint32(1), float32(1)} {
 		caught := false

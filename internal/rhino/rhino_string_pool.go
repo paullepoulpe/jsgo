@@ -36,8 +36,6 @@ package rhino
 
 import (
 	"iter"
-	"slices"
-	"sync/atomic"
 
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/strpool"
@@ -47,18 +45,15 @@ import (
 // package strpool): 0 is null / unset, 1 is "".
 type rhinoStringID = strpool.ID
 
-func rhinoStringPoolIntern(s string) rhinoStringID  { return strpool.Intern(s) }
-func rhinoStringFromID(id rhinoStringID) string     { return strpool.String(id) }
-func rhinoStringPtrFromID(id rhinoStringID) *string { return strpool.StringPtr(id) }
-func rhinoStringPoolLookup(s string) rhinoStringID  { return strpool.Lookup(s) }
-func rhinoStringPoolClearForTest()                  { strpool.ClearForTest() }
-func rhinoStringPoolWasCleared() bool               { return strpool.WasClearedForTest() }
+func rhinoStringPoolIntern(s string) rhinoStringID { return strpool.Intern(s) }
+func rhinoStringFromID(id rhinoStringID) string    { return strpool.String(id) }
+func rhinoStringPoolWasCleared() bool              { return strpool.WasClearedForTest() }
 
 func rhinoStringIDFromPtr(s *string) rhinoStringID {
 	if s == nil {
 		return 0
 	}
-	return rhinoStringPoolIntern(*s)
+	return strpool.Intern(*s)
 }
 
 // RhinoStringPool_UncheckedEquals checks if two strings are the same
@@ -83,7 +78,7 @@ func RhinoStringPool_UncheckedEquals(a string, b string) bool {
 
 // Java: RhinoStringPool.addOrGet(String)
 func RhinoStringPool_AddOrGet(s string) string {
-	return rhinoStringFromID(rhinoStringPoolIntern(s))
+	return strpool.String(strpool.Intern(s))
 }
 
 // RhinoStringPool_EmptyID is the canonical 32-bit ID of the empty string "".
@@ -91,7 +86,7 @@ const RhinoStringPool_EmptyID uint32 = strpool.EmptyID
 
 // RhinoStringPool_InternID interns s and returns its 32-bit pointer-free ID.
 func RhinoStringPool_InternID(s string) uint32 {
-	return uint32(rhinoStringPoolIntern(s))
+	return uint32(strpool.Intern(s))
 }
 
 // RhinoStringPool_InternBytesID interns b and returns its 32-bit pointer-free ID
@@ -102,99 +97,51 @@ func RhinoStringPool_InternBytesID(b []byte) uint32 {
 
 // RhinoStringPool_LookupID returns the 32-bit ID of s if already interned, or 0 if not.
 func RhinoStringPool_LookupID(s string) uint32 {
-	return uint32(rhinoStringPoolLookup(s))
+	return uint32(strpool.Lookup(s))
 }
 
 // RhinoStringPool_StringFromID returns the interned string for a 32-bit ID.
 func RhinoStringPool_StringFromID(id uint32) string {
-	return rhinoStringFromID(rhinoStringID(id))
+	return strpool.String(strpool.ID(id))
 }
 
-// RhinoStringPool_LazyInternedStringList is a list of strings that is lazily
-// interned into a RhinoStringPool as they are accessed.
-//
-// The only reason to use this class is for performance optimizations - the
-// LazyInternedStringList#newStringNode method skips re-interning the string.
-// This is a performance win if creating a lot of string nodes with the same
-// string.
+// RhinoStringPool_LazyInternedStringList is a list of interned strings backed
+// directly by pre-interned 32-bit rhinoStringIDs (noscan, zero pointers).
 type RhinoStringPool_LazyInternedStringList struct {
-	pool       []string
-	ids        []uint32
-	isInterned *RhinoStringPool_WriteOnlyBitset
-}
-
-// Java: RhinoStringPool.LazyInternedStringList(List<String>)
-func NewRhinoStringPool_LazyInternedStringList(pool []string) *RhinoStringPool_LazyInternedStringList {
-	return &RhinoStringPool_LazyInternedStringList{
-		pool:       slices.Clone(pool),
-		ids:        make([]uint32, len(pool)),
-		isInterned: NewRhinoStringPool_WriteOnlyBitset(len(pool)),
-	}
+	ids []uint32
 }
 
 // NewRhinoStringPool_LazyInternedStringListFromIDs creates a LazyInternedStringList
 // backed directly by pre-interned 32-bit rhinoStringIDs (noscan, zero pointers).
 func NewRhinoStringPool_LazyInternedStringListFromIDs(ids []uint32) *RhinoStringPool_LazyInternedStringList {
-	if len(ids) == 0 {
-		_ = NewRhinoStringPool_WriteOnlyBitset(0)
-	}
-	return &RhinoStringPool_LazyInternedStringList{
-		ids: ids,
-	}
+	return &RhinoStringPool_LazyInternedStringList{ids: ids}
 }
 
 //go:noinline
-func (l *RhinoStringPool_LazyInternedStringList) getIDSlow(offset int) rhinoStringID {
-	if l.isInterned == nil {
-		wordIdx := RhinoStringPool_WriteOnlyBitset_WordIndex(offset)
-		wordLen := RhinoStringPool_WriteOnlyBitset_WordIndex(len(l.ids)-1) + 1
-		panic(jutil.NewArrayIndexOutOfBoundsExceptionForLength(wordIdx, wordLen))
-	}
-	if uint(offset) < uint(len(l.ids)) {
-		if id := atomic.LoadUint32(&l.ids[offset]); id != 0 {
-			return rhinoStringID(id)
-		}
-	} else {
-		_ = l.isInterned.Get(offset)
-	}
-	if uint(offset) >= uint(len(l.pool)) {
-		panic(jutil.NewIndexOutOfBoundsException(jutil.LenientFormat("Index %s out of bounds for length %s", offset, len(l.pool))))
-	}
-	uninterned := l.pool[offset]
-	id := rhinoStringPoolIntern(uninterned)
-	atomic.StoreUint32(&l.ids[offset], uint32(id))
-	l.isInterned.Set(offset)
-	return id
+func (l *RhinoStringPool_LazyInternedStringList) outOfBounds(offset int) rhinoStringID {
+	panic(jutil.NewArrayIndexOutOfBoundsExceptionForLength(offset, len(l.ids)))
 }
 
-// GetID returns the interned rhinoStringID at offset, interning on first access.
+// GetID returns the interned rhinoStringID at offset.
 func (l *RhinoStringPool_LazyInternedStringList) GetID(offset int) rhinoStringID {
-	if l.isInterned == nil && uint(offset) < uint(len(l.ids)) {
+	if uint(offset) < uint(len(l.ids)) {
 		return rhinoStringID(l.ids[offset])
 	}
-	return l.getIDSlow(offset)
+	return l.outOfBounds(offset)
 }
 
 // Get returns the interned string at offset.
 //
-// if Java supported type-brands we would want to use one here to indicate
-// that the returned string is always interned but that's not possible
-// without an expensive wrapper type - see also the comment on
-// uncheckedEquals().
-//
 // Java: RhinoStringPool.LazyInternedStringList.get(int)
 func (l *RhinoStringPool_LazyInternedStringList) Get(offset int) string {
-	return rhinoStringFromID(l.GetID(offset))
+	return strpool.String(l.GetID(offset))
 }
 
 // Java: RhinoStringPool.LazyInternedStringList.stream()
 func (l *RhinoStringPool_LazyInternedStringList) Stream() iter.Seq[string] {
-	if l.isInterned != nil {
-		return slices.Values(l.pool)
-	}
 	return func(yield func(string) bool) {
 		for _, id := range l.ids {
-			if !yield(rhinoStringFromID(rhinoStringID(id))) {
+			if !yield(strpool.String(strpool.ID(id))) {
 				return
 			}
 		}
@@ -203,12 +150,9 @@ func (l *RhinoStringPool_LazyInternedStringList) Stream() iter.Seq[string] {
 
 // Slice returns the underlying string slice.
 func (l *RhinoStringPool_LazyInternedStringList) Slice() []string {
-	if l.isInterned != nil {
-		return l.pool
-	}
 	out := make([]string, len(l.ids))
 	for i, id := range l.ids {
-		out[i] = rhinoStringFromID(rhinoStringID(id))
+		out[i] = strpool.String(strpool.ID(id))
 	}
 	return out
 }
@@ -216,61 +160,4 @@ func (l *RhinoStringPool_LazyInternedStringList) Slice() []string {
 // Len returns the number of strings in the list.
 func (l *RhinoStringPool_LazyInternedStringList) Len() int {
 	return len(l.ids)
-}
-
-// RhinoStringPool_WriteOnlyBitset is a bitset implementation that only
-// supports setting bits from false => true, not vice versa, and is not
-// resizable once created.
-//
-// This class was originally copied from the JDK BitSet implementation, but
-// has been heavily modified to be thread-safe and remove unnecessary
-// functionality.
-//
-// Go-only: language-adapter — the AtomicIntegerArray is a plain []int32
-// (the port is single-threaded; see PORTING.md §5); out-of-range accesses
-// throw ArrayIndexOutOfBoundsException like the JDK's.
-type RhinoStringPool_WriteOnlyBitset struct {
-	bits []int32
-}
-
-// BitSets are packed into arrays of "words." Currently a word is an int,
-// which consists of 32 bits, requiring 5 address bits. The choice of word
-// size comes from the convenience of using AtomicIntegerArray.
-const RhinoStringPool_WriteOnlyBitset_ADDRESS_BITS_PER_WORD = 5
-
-// Java: RhinoStringPool.WriteOnlyBitset(int)
-func NewRhinoStringPool_WriteOnlyBitset(size int) *RhinoStringPool_WriteOnlyBitset {
-	n := RhinoStringPool_WriteOnlyBitset_WordIndex(size-1) + 1
-	if n < 0 {
-		panic(jutil.NewRuntimeException("java.lang.NegativeArraySizeException: " + jutil.ToJavaString(n)))
-	}
-	return &RhinoStringPool_WriteOnlyBitset{bits: make([]int32, n)}
-}
-
-func (b *RhinoStringPool_WriteOnlyBitset) checkIndex(wordIndex int) {
-	if wordIndex < 0 || wordIndex >= len(b.bits) {
-		panic(jutil.NewArrayIndexOutOfBoundsExceptionForLength(wordIndex, len(b.bits)))
-	}
-}
-
-// Java: RhinoStringPool.WriteOnlyBitset.set(int)
-func (b *RhinoStringPool_WriteOnlyBitset) Set(offset int) {
-	wordIndex := RhinoStringPool_WriteOnlyBitset_WordIndex(offset)
-	b.checkIndex(wordIndex)
-	atomic.OrInt32(&b.bits[wordIndex], jutil.Shl32(1, int64(offset)))
-}
-
-// Java: RhinoStringPool.WriteOnlyBitset.get(int)
-func (b *RhinoStringPool_WriteOnlyBitset) Get(offset int) bool {
-	wordIndex := RhinoStringPool_WriteOnlyBitset_WordIndex(offset)
-	b.checkIndex(wordIndex)
-	return (atomic.LoadInt32(&b.bits[wordIndex]) & jutil.Shl32(1, int64(offset))) != 0
-}
-
-// RhinoStringPool_WriteOnlyBitset_WordIndex returns, given a bit index, the
-// word index containing it.
-//
-// Java: RhinoStringPool.WriteOnlyBitset.wordIndex(int)
-func RhinoStringPool_WriteOnlyBitset_WordIndex(bitIndex int) int {
-	return int(int32(bitIndex) >> RhinoStringPool_WriteOnlyBitset_ADDRESS_BITS_PER_WORD)
 }

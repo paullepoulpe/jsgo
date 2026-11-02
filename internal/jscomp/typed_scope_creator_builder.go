@@ -181,7 +181,7 @@ func (b *TypedScopeCreator_scopeBuilder) InitializeModuleScope(moduleBody rhino.
 //
 // Java: TypedScopeCreator.AbstractScopeBuilder.declareExportsInGoogModuleScope(Module, Node)
 func (b *TypedScopeCreator_scopeBuilder) DeclareExportsInGoogModuleScope(googModule *Module, moduleBody rhino.Node) {
-	for statement := moduleBody.GetFirstChild(); !statement.IsNil(); statement = statement.GetNext() {
+	for statement := range moduleBody.Children() {
 		exprStmt, ok := ast.AsExprStmt(statement)
 		if !ok {
 			continue
@@ -221,10 +221,11 @@ func (b *TypedScopeCreator_scopeBuilder) FinishDeclaringGoogModule() {
 		return
 	}
 	exportsVar := jutil.CheckNotNull(b.currentScope.GetSlot("exports")).(*TypedVar)
+	closureNs := *b.GetModule().ClosureNamespace()
 
 	if b.GetModule().Metadata().IsLegacyGoogModule() {
-		b.outer.typeRegistry.RegisterLegacyClosureNamespace(*b.GetModule().ClosureNamespace())
-		moduleNamespace := rhino.QualifiedName_Of(*b.GetModule().ClosureNamespace())
+		b.outer.typeRegistry.RegisterLegacyClosureNamespace(closureNs)
+		moduleNamespace := rhino.QualifiedName_Of(closureNs)
 		b.defineSlot(typedScopeSlotSpec{
 			declNode:                exportsVar.GetNameNode(),
 			varName:                 moduleNamespace.Join(),
@@ -251,7 +252,7 @@ func (b *TypedScopeCreator_scopeBuilder) FinishDeclaringGoogModule() {
 			}
 		}
 		b.DeclareAliasTypeIfRvalueIsAliasableWithLValueName(
-			b.GetModule().ClosureNamespace(),
+			closureNs,
 			exportsVar.GetNameNode(), // Pretend that 'exports = '... is the lvalue node.
 			rhino.QualifiedName_Of("exports"),
 			exportsVar.GetType(),
@@ -259,7 +260,7 @@ func (b *TypedScopeCreator_scopeBuilder) FinishDeclaringGoogModule() {
 			b.currentScope.GetGlobalScope())
 	} else {
 		b.outer.typeRegistry.RegisterNonLegacyClosureNamespace(
-			*b.GetModule().ClosureNamespace(), exportsVar.GetNameNode(), exportsVar.GetType())
+			closureNs, exportsVar.GetNameNode(), exportsVar.GetType())
 	}
 	// Store the type of the namespace on the AST for the convenience of later passes that want
 	// to access it.

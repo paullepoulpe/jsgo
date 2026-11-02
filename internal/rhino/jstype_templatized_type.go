@@ -161,16 +161,6 @@ func (t *TemplatizedType) RecursionUnsafeHashCode(hs *JSTypeStack) int32 {
 	return 31*(31*1+listHash) + baseHash
 }
 
-// Java: JSType.isTemplatizedType()
-func (t *TemplatizedType) IsTemplatizedType() bool {
-	return true
-}
-
-// Java: TemplatizedType.toMaybeTemplatizedType()
-func (t *TemplatizedType) ToMaybeTemplatizedType() *TemplatizedType {
-	return t
-}
-
 // Java: TemplatizedType.getTemplateTypes()
 func (t *TemplatizedType) GetTemplateTypes() []JSType {
 	return t.templateTypes

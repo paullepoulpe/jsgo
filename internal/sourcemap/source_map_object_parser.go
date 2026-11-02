@@ -657,7 +657,7 @@ func appendStreamCompactValue(s *jutil.JsonScanner, sb *strings.Builder) (dupKey
 				sb.WriteByte(',')
 			}
 			first = false
-			writeCompactJsonString(sb, name)
+			_ = jutil.WriteGsonString(sb, name, false)
 			sb.WriteByte(':')
 			dup, err := appendStreamCompactValue(s, sb)
 			if err != nil || dup {
@@ -704,7 +704,7 @@ func appendStreamCompactValue(s *jutil.JsonScanner, sb *strings.Builder) (dupKey
 		if err != nil {
 			return false, err
 		}
-		writeCompactJsonString(sb, str)
+		_ = jutil.WriteGsonString(sb, str, false)
 		return false, nil
 
 	case jutil.JsonPeekLong:
@@ -738,76 +738,4 @@ func appendStreamCompactValue(s *jutil.JsonScanner, sb *strings.Builder) (dupKey
 	default:
 		return false, jutil.NewIllegalStateExceptionMsg("Unexpected token")
 	}
-}
-
-func writeCompactJsonString(sb *strings.Builder, s string) {
-	sb.WriteByte('"')
-	last := 0
-	for i := 0; i < len(s); {
-		b := s[i]
-		if b < 0x80 {
-			var esc string
-			switch b {
-			case '"':
-				esc = `\"`
-			case '\\':
-				esc = `\\`
-			case '\b':
-				esc = `\b`
-			case '\f':
-				esc = `\f`
-			case '\n':
-				esc = `\n`
-			case '\r':
-				esc = `\r`
-			case '\t':
-				esc = `\t`
-			default:
-				if b < 0x20 {
-					const hex = "0123456789abcdef"
-					if last < i {
-						sb.WriteString(s[last:i])
-					}
-					var buf [6]byte
-					buf[0] = '\\'
-					buf[1] = 'u'
-					buf[2] = '0'
-					buf[3] = '0'
-					buf[4] = hex[b>>4]
-					buf[5] = hex[b&0x0f]
-					sb.Write(buf[:])
-					i++
-					last = i
-					continue
-				}
-				i++
-				continue
-			}
-			if last < i {
-				sb.WriteString(s[last:i])
-			}
-			sb.WriteString(esc)
-			i++
-			last = i
-			continue
-		}
-		if b == 0xe2 && i+2 < len(s) && s[i+1] == 0x80 && (s[i+2] == 0xa8 || s[i+2] == 0xa9) {
-			if last < i {
-				sb.WriteString(s[last:i])
-			}
-			if s[i+2] == 0xa8 {
-				sb.WriteString(`\u2028`)
-			} else {
-				sb.WriteString(`\u2029`)
-			}
-			i += 3
-			last = i
-			continue
-		}
-		i++
-	}
-	if last < len(s) {
-		sb.WriteString(s[last:])
-	}
-	sb.WriteByte('"')
 }

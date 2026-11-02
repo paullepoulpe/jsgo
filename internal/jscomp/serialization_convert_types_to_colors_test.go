@@ -117,8 +117,8 @@ func assertIdenticalColorGraphs(
 			recordColor(cDirect.GetPrototypes()[i], cProto.GetPrototypes()[i])
 		}
 
-		directSups := directReg.GetDisambiguationSupertypes(cDirect).ToSlice()
-		protoSups := protoReg.GetDisambiguationSupertypes(cProto).ToSlice()
+		directSups := directReg.GetDisambiguationSupertypesSlice(cDirect)
+		protoSups := protoReg.GetDisambiguationSupertypesSlice(cProto)
 		if len(directSups) != len(protoSups) {
 			t.Fatalf("disambiguationSupertypes count mismatch for %s: direct=%d proto=%d",
 				id, len(directSups), len(protoSups))

@@ -67,21 +67,6 @@ func (m TypeMismatch) Required() rhino.JSType { return m.required }
 // Java: TypeMismatch.location()
 func (m TypeMismatch) Location() rhino.Node { return m.location }
 
-// Java: TypeMismatch.getFound()
-func (m TypeMismatch) GetFound() rhino.JSType {
-	return m.Found()
-}
-
-// Java: TypeMismatch.getRequired()
-func (m TypeMismatch) GetRequired() rhino.JSType {
-	return m.Required()
-}
-
-// Java: TypeMismatch.getLocation()
-func (m TypeMismatch) GetLocation() rhino.Node {
-	return m.Location()
-}
-
 // Java: TypeMismatch.create(JSType, JSType, Node)
 func TypeMismatch_Create(found rhino.JSType, required rhino.JSType, location rhino.Node) TypeMismatch {
 	return NewTypeMismatch(found, required, location)
@@ -89,45 +74,7 @@ func TypeMismatch_Create(found rhino.JSType, required rhino.JSType, location rhi
 
 // Java: TypeMismatch.createForTesting(JSType, JSType)
 func TypeMismatch_CreateForTesting(found rhino.JSType, required rhino.JSType) TypeMismatch {
-	return TypeMismatch_Create(found, required, typeMismatch_TEST_LOCATION)
-}
-
-// Java: TypeMismatch.TEST_LOCATION
-var typeMismatch_TEST_LOCATION = rhino.IR_Empty()
-
-// Equals is the record's implicit equals: each component compared with
-// Objects.equals (JSType.equals for the types; identity for the Node, which
-// does not override equals).
-//
-// Java: TypeMismatch.equals(Object)
-func (m TypeMismatch) Equals(o any) bool {
-	var that TypeMismatch
-	switch x := o.(type) {
-	case TypeMismatch:
-		that = x
-	case *TypeMismatch:
-		if x == nil {
-			return false
-		}
-		that = *x
-	default:
-		return false
-	}
-	return (m.found == that.found || (m.found != nil && m.found.Equals(that.found))) &&
-		(m.required == that.required || (m.required != nil && m.required.Equals(that.required))) &&
-		m.location == that.location
-}
-
-// HashCode is the record's implicit hashCode: 31 * h + hash(component) over
-// the components in order, starting from 0.
-//
-// Java: TypeMismatch.hashCode()
-func (m TypeMismatch) HashCode() int32 {
-	var h int32
-	h = 31*h + m.found.HashCode()
-	h = 31*h + m.required.HashCode()
-	h = 31*h + jutil.ObjectHashCode(m.location)
-	return h
+	return TypeMismatch_Create(found, required, rhino.IR_Empty())
 }
 
 // String is the record's implicit toString.

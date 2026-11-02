@@ -138,11 +138,6 @@ func EmptyColorSlice() []*Color { return emptyColorSlice }
 // EmptyStringSlice returns the shared non-nil empty []string sentinel.
 func EmptyStringSlice() []string { return emptyStringSlice }
 
-// Java: Color.createUnion(Set<Color>)
-func Color_CreateUnion(elements *jutil.ObjectLinkedHashSet[*Color]) *Color {
-	return Color_CreateUnionSlice(elements.ToSlice())
-}
-
 // Color_CreateUnionSlice builds a union Color from a slice of Colors.
 func Color_CreateUnionSlice(elements []*Color) *Color {
 	var builder Color_Builder

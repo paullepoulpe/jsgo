@@ -218,16 +218,6 @@ func gson_wrapScannerErr(err Throwable) IJsonParseException {
 	}
 }
 
-// NewJsonReader returns a new JSON reader configured for the settings on
-// this Gson instance.
-//
-// Java: Gson.newJsonReader(Reader)
-func (g *Gson) NewJsonReader(reader JavaReader) *JsonReader {
-	jsonReader := NewJsonReader(reader)
-	jsonReader.SetLenient(g.lenient)
-	return jsonReader
-}
-
 // ReadJsonElement reads one Gson JsonElement tree iteratively (TypeAdapters.JSON_ELEMENT.read).
 func (s *JsonScanner) ReadJsonElement() (JsonElement, Throwable) {
 	p, err := s.Peek()
@@ -395,19 +385,13 @@ type GsonWritable interface {
 	WriteGson(out *JsonWriter)
 }
 
-// TypeAdapter is com.google.gson.TypeAdapter: converts Java objects to and
-// from JSON.
+// TypeAdapter is com.google.gson.TypeAdapter: writes Java objects to JSON.
 type TypeAdapter interface {
 	// Write writes one JSON value (an array, object, string, number,
 	// boolean or null) for value.
 	//
 	// Java: TypeAdapter.write(JsonWriter, T)
 	Write(out *JsonWriter, value any)
-
-	// Read reads one JSON value and converts it to a Java object.
-	//
-	// Java: TypeAdapter.read(JsonReader)
-	Read(in *JsonReader) any
 }
 
 // ToJson serializes src to its JSON representation; nil is "null".

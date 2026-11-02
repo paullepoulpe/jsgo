@@ -22,6 +22,7 @@
 package cli
 
 import (
+	"errors"
 	"io"
 	"os"
 	"slices"
@@ -256,7 +257,7 @@ func (r *CommandLineRunner) ProcessFlagFiles() {
 	}
 }
 
-func (r *CommandLineRunner) tryProcessFlagFiles() *args4j.CmdLineException {
+func (r *CommandLineRunner) tryProcessFlagFiles() error {
 	for _, flagFile := range r.flags.flagFiles {
 		cmdErr, ioErr := r.tryProcessFlagFile(flagFile)
 		if ioErr != nil {
@@ -305,7 +306,7 @@ func readUTF8FileLossy(path string) (string, jutil.IIOException) {
 	return jutil.StandardCharsets_UTF_8.Decode(b), nil
 }
 
-func (r *CommandLineRunner) tryProcessFlagFile(flagFileString string) (*args4j.CmdLineException, jutil.IIOException) {
+func (r *CommandLineRunner) tryProcessFlagFile(flagFileString string) (error, jutil.IIOException) {
 	rawContent, ioErr := readUTF8FileStrict(jutil.Path_Of(flagFileString).String())
 	if ioErr != nil {
 		return nil, ioErr
@@ -394,7 +395,7 @@ func (r *CommandLineRunner) InitConfigFromFlags(args []string, out *jutil.PrintS
 	var sourceMapInputs []PipeFlagEntry
 	parseInlineSourceMaps := false
 	applyInputSourceMaps := false
-	var cmdErr *args4j.CmdLineException
+	var cmdErr error
 	if cmdErr = flags.TryParse(processedArgs); cmdErr == nil {
 		cmdErr = r.tryProcessFlagFiles()
 	}
@@ -408,7 +409,12 @@ func (r *CommandLineRunner) InitConfigFromFlags(args []string, out *jutil.PrintS
 		sourceMapInputs, cmdErr = flags.tryGetSourceMapInputs()
 	}
 	if cmdErr != nil {
-		r.ReportError(cmdErr.GetMessage())
+		var cle *args4j.CmdLineException
+		if errors.As(cmdErr, &cle) {
+			r.ReportError(cle.GetMessage())
+		} else {
+			r.ReportError(cmdErr.Error())
+		}
 	} else {
 		parseInlineSourceMaps = flags.parseInlineSourceMaps
 		applyInputSourceMaps = flags.applyInputSourceMaps

@@ -58,12 +58,11 @@ func TestColorGraphNodeFactory_PrimitiveTypesFlattenToBoxedType(t *testing.T) {
 
 	assertEqual(t, "union",
 		factory.CreateNode(
-			colors.Color_CreateUnion(colorSetOf(colors.StandardColors_STRING, colors.StandardColors_NUMBER))),
+			colors.Color_CreateUnion2(colors.StandardColors_STRING, colors.StandardColors_NUMBER)),
 		factory.CreateNode(
-			colors.Color_CreateUnion(
-				colorSetOf(
-					colorRegistry.Get(colors.StandardColors_STRING_OBJECT_ID),
-					colorRegistry.Get(colors.StandardColors_NUMBER_OBJECT_ID)))))
+			colors.Color_CreateUnion2(
+				colorRegistry.Get(colors.StandardColors_STRING_OBJECT_ID),
+				colorRegistry.Get(colors.StandardColors_NUMBER_OBJECT_ID))))
 }
 
 func TestColorGraphNodeFactory_UnionTypesWhenFlattenedDropNullAndUndefined(t *testing.T) {
@@ -72,7 +71,7 @@ func TestColorGraphNodeFactory_UnionTypesWhenFlattenedDropNullAndUndefined(t *te
 	factory := ColorGraphNodeFactory_CreateFactory(colorRegistry)
 
 	nullOrVoidOrNumberType :=
-		colors.Color_CreateUnion(colorSetOf(colors.StandardColors_NULL_OR_VOID, colors.StandardColors_NUMBER))
+		colors.Color_CreateUnion2(colors.StandardColors_NULL_OR_VOID, colors.StandardColors_NUMBER)
 
 	flatNumber := factory.CreateNode(colors.StandardColors_NUMBER)
 

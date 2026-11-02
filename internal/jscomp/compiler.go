@@ -334,58 +334,33 @@ type compiler_ResolvedSourceMap struct {
 // Contains reports true for every type name.
 type compilerForwardDeclaredSet struct {
 	all   bool
-	seen  map[string]struct{}
-	order []string
+	names OrderedSet[string]
 }
 
 func (s *compilerForwardDeclaredSet) Add(e string) bool {
-	if s.all {
-		return false
-	}
-	if s.seen == nil {
-		s.seen = make(map[string]struct{})
-	}
-	if _, ok := s.seen[e]; ok {
-		return false
-	}
-	s.seen[e] = struct{}{}
-	s.order = append(s.order, e)
-	return true
+	return !s.all && s.names.Add(e)
 }
 
 func (s *compilerForwardDeclaredSet) Contains(e string) bool {
-	if s.all {
-		return true
-	}
-	_, ok := s.seen[e]
-	return ok
+	return s.all || s.names.Has(e)
 }
 
 func (s *compilerForwardDeclaredSet) Size() int {
 	if s.all {
 		return 0
 	}
-	return len(s.order)
+	return s.names.Size()
 }
 
 func (s *compilerForwardDeclaredSet) IsEmpty() bool {
-	if s.all {
-		return true
-	}
-	return len(s.order) == 0
+	return s.all || s.names.IsEmpty()
 }
 
 func (s *compilerForwardDeclaredSet) All() iter.Seq[string] {
-	return func(yield func(string) bool) {
-		if s.all {
-			return
-		}
-		for _, e := range s.order {
-			if !yield(e) {
-				return
-			}
-		}
+	if s.all {
+		return func(func(string) bool) {}
 	}
+	return s.names.All()
 }
 
 var compiler_validityCheck = &PassFactory{
@@ -479,7 +454,7 @@ type compiler_errorHandler struct {
 }
 
 // Report is Compiler.report(CheckLevel, JSError).
-func (h *compiler_errorHandler) Report(level *CheckLevel, error *JSError) {
+func (h *compiler_errorHandler) Report(level CheckLevel, error *JSError) {
 	h.c.ReportWithLevel(level, error)
 }
 

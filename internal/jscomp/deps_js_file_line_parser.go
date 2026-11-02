@@ -104,7 +104,7 @@ func parseJsReader[H jsLineHandler](b *jsFileLineParser, h H, filePath string, f
 	text, err := readJavaReaderToString(fileContents)
 	if err != nil {
 		fp := filePath
-		b.errorManager.Report(CheckLevel_ERROR.Ptr(),
+		b.errorManager.Report(CheckLevel_ERROR,
 			JSError_MakeWithSourceLocation(&fp, 0, 0,
 				JsFileLineParser_PARSE_ERROR, "Error reading file: "+filePath))
 		b.parseSucceeded = false
@@ -204,7 +204,7 @@ func parseJsLines[H jsLineHandler](b *jsFileLineParser, h H, filePath string, te
 			if errMsg != "" {
 				fp := filePath
 				b.errorManager.Report(
-					CheckLevel_ERROR.Ptr(),
+					CheckLevel_ERROR,
 					JSError_MakeWithSourceLocation(&fp, b.lineNum, 0,
 						JsFileLineParser_PARSE_ERROR, errMsg, line))
 				b.parseSucceeded = false

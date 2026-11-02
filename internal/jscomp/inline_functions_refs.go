@@ -334,27 +334,9 @@ func (r *inlineRefCollector) visitCallSite(t *NodeTraversal, callNode rhino.Node
 		added, scope, reqDecomp = r.tryMode(t, functionState, callNode, chunk, mode)
 	}
 
-	if !r.recordEvents {
-		if added {
-			candidate := r.outer.allocReference(callNode, scope, chunk, mode)
-			candidate.SetRequiresDecomposition(reqDecomp)
-			functionState.AddReference(candidate)
-		} else {
-			// Don't try to remove a function if we can't inline all
-			// the references.
-			functionState.SetRemoveWithContext(
-				false,
-				r.outer.compiler,
-				InlineFunctions_CannotRemoveReason_UNINLINABLE_REFERENCE,
-				InlineFunctions_ShouldWarnWhenRequireInliningCannotInline_NO,
-				/* contextNode= */ callNode)
-		}
-		return
-	}
-
 	consumed := uint32(r.safeIdsCounter - beforeIds)
 	if added {
-		r.events = append(r.events, ifPhase2Event{
+		r.emit(ifPhase2Event{
 			kind:                  ifEvAddRef,
 			fs:                    functionState,
 			node:                  callNode,
@@ -365,7 +347,7 @@ func (r *inlineRefCollector) visitCallSite(t *NodeTraversal, callNode rhino.Node
 			safeIdsConsumed:       consumed,
 		})
 	} else {
-		r.events = append(r.events, ifPhase2Event{
+		r.emit(ifPhase2Event{
 			kind:            ifEvUninlinableCall,
 			fs:              functionState,
 			node:            callNode,
@@ -452,15 +434,7 @@ func (r *inlineRefCollector) checkNameUsage(n rhino.Node, parent rhino.Node) {
 	// If the name is being assigned to or modified as an L-value (e.g. `bar = something;`,
 	// destructuring `[bar] = ...`, or `for (bar of ...)`), it cannot be inlined.
 	if NodeUtil_IsLValue(n) {
-		if !r.recordEvents {
-			functionState.DisallowInlining(r.outer.compiler, InlineFunctions_DisallowInliningReason_REASSIGNED)
-			return
-		}
-		if r.localDisallowed == nil {
-			r.localDisallowed = make(map[*InlineFunctions_FunctionState]struct{}, 4)
-		}
-		r.localDisallowed[functionState] = struct{}{}
-		r.events = append(r.events, ifPhase2Event{
+		r.emit(ifPhase2Event{
 			kind: ifEvDisallowReassigned,
 			fs:   functionState,
 		})
@@ -469,15 +443,7 @@ func (r *inlineRefCollector) checkNameUsage(n rhino.Node, parent rhino.Node) {
 		// We can't see through this reference right now, but we will be able
 		// to once `bar` is inlined; so we shouldn't remove `foo` right now but
 		// this is probably okay with @requireInlining.
-		if !r.recordEvents {
-			functionState.SetRemove(
-				false,
-				r.outer.compiler,
-				InlineFunctions_CannotRemoveReason_UNREMOVABLE_REFERENCE,
-				InlineFunctions_ShouldWarnWhenRequireInliningCannotInline_NO)
-			return
-		}
-		r.events = append(r.events, ifPhase2Event{
+		r.emit(ifPhase2Event{
 			kind: ifEvUnremovableConst,
 			fs:   functionState,
 		})
@@ -485,16 +451,7 @@ func (r *inlineRefCollector) checkNameUsage(n rhino.Node, parent rhino.Node) {
 		// e.g. var fn = bar; <== we can't inline "bar"
 		// As this reference can't be inlined mark the function as
 		// unremovable.
-		if !r.recordEvents {
-			functionState.SetRemoveWithContext(
-				false,
-				r.outer.compiler,
-				InlineFunctions_CannotRemoveReason_UNREMOVABLE_REFERENCE,
-				InlineFunctions_ShouldWarnWhenRequireInliningCannotInline_YES,
-				/* contextNode= */ parent)
-			return
-		}
-		r.events = append(r.events, ifPhase2Event{
+		r.emit(ifPhase2Event{
 			kind: ifEvUnremovableContext,
 			fs:   functionState,
 			node: parent,
@@ -502,49 +459,66 @@ func (r *inlineRefCollector) checkNameUsage(n rhino.Node, parent rhino.Node) {
 	}
 }
 
-func (f *InlineFunctions) replayPhase2Events(events []ifPhase2Event) {
-	for i := range events {
-		ev := &events[i]
-		switch ev.kind {
-		case ifEvAddRef:
+func (r *inlineRefCollector) emit(ev ifPhase2Event) {
+	if !r.recordEvents {
+		r.outer.applyPhase2Event(&ev, false)
+		return
+	}
+	if ev.kind == ifEvDisallowReassigned {
+		if r.localDisallowed == nil {
+			r.localDisallowed = make(map[*InlineFunctions_FunctionState]struct{}, 4)
+		}
+		r.localDisallowed[ev.fs] = struct{}{}
+	}
+	r.events = append(r.events, ev)
+}
+
+func (f *InlineFunctions) applyPhase2Event(ev *ifPhase2Event, fromReplay bool) {
+	switch ev.kind {
+	case ifEvAddRef, ifEvUninlinableCall:
+		if fromReplay {
 			if !ev.fs.CanInline() {
-				continue
+				return
 			}
 			for k := uint32(0); k < ev.safeIdsConsumed; k++ {
 				_ = f.injector.safeNameIdSupplier()
 			}
+		}
+		if ev.kind == ifEvAddRef {
 			candidate := f.allocReference(ev.node, ev.scope, ev.chunk, ev.mode)
 			candidate.SetRequiresDecomposition(ev.requiresDecomposition)
 			ev.fs.AddReference(candidate)
-		case ifEvUninlinableCall:
-			if !ev.fs.CanInline() {
-				continue
-			}
-			for k := uint32(0); k < ev.safeIdsConsumed; k++ {
-				_ = f.injector.safeNameIdSupplier()
-			}
+		} else {
+			// Don't try to remove a function if we can't inline all
+			// the references.
 			ev.fs.SetRemoveWithContext(
 				false,
 				f.compiler,
 				InlineFunctions_CannotRemoveReason_UNINLINABLE_REFERENCE,
 				InlineFunctions_ShouldWarnWhenRequireInliningCannotInline_NO,
 				ev.node)
-		case ifEvDisallowReassigned:
-			ev.fs.DisallowInlining(f.compiler, InlineFunctions_DisallowInliningReason_REASSIGNED)
-		case ifEvUnremovableConst:
-			ev.fs.SetRemove(
-				false,
-				f.compiler,
-				InlineFunctions_CannotRemoveReason_UNREMOVABLE_REFERENCE,
-				InlineFunctions_ShouldWarnWhenRequireInliningCannotInline_NO)
-		case ifEvUnremovableContext:
-			ev.fs.SetRemoveWithContext(
-				false,
-				f.compiler,
-				InlineFunctions_CannotRemoveReason_UNREMOVABLE_REFERENCE,
-				InlineFunctions_ShouldWarnWhenRequireInliningCannotInline_YES,
-				ev.node)
 		}
+	case ifEvDisallowReassigned:
+		ev.fs.DisallowInlining(f.compiler, InlineFunctions_DisallowInliningReason_REASSIGNED)
+	case ifEvUnremovableConst:
+		ev.fs.SetRemove(
+			false,
+			f.compiler,
+			InlineFunctions_CannotRemoveReason_UNREMOVABLE_REFERENCE,
+			InlineFunctions_ShouldWarnWhenRequireInliningCannotInline_NO)
+	case ifEvUnremovableContext:
+		ev.fs.SetRemoveWithContext(
+			false,
+			f.compiler,
+			InlineFunctions_CannotRemoveReason_UNREMOVABLE_REFERENCE,
+			InlineFunctions_ShouldWarnWhenRequireInliningCannotInline_YES,
+			ev.node)
+	}
+}
+
+func (f *InlineFunctions) replayPhase2Events(events []ifPhase2Event) {
+	for i := range events {
+		f.applyPhase2Event(&events[i], true)
 	}
 }
 
