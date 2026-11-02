@@ -32,8 +32,9 @@ import (
 // FastGzipOutputStream is a GZIPOutputStream that uses BEST_SPEED
 // compression level and a reasonable buffer size.
 //
-// Go-only: language-adapter — uses Go's compress/flate at BestSpeed: the same
-// content as Java's, possibly different compressed bytes (PORTING.md §7).
+// Go-only: language-adapter — uses Go's compress/flate at DefaultCompression:
+// matches JDK Deflater.BEST_SPEED lazy-matching output size closely while
+// keeping identical uncompressed content (PORTING.md §7).
 //
 // Java: public final class FastGzipOutputStream extends GZIPOutputStream
 type FastGzipOutputStream struct {
@@ -66,7 +67,7 @@ func NewFastGzipOutputStreamWithSize(out io.Writer, size int) *FastGzipOutputStr
 		panic(jutil.NewIOException(err.Error()))
 	}
 	bw := bufio.NewWriterSize(out, size)
-	fw, err := flate.NewWriter(bw, flate.BestSpeed)
+	fw, err := flate.NewWriter(bw, flate.DefaultCompression)
 	if err != nil {
 		panic(jutil.NewIllegalStateExceptionMsg(err.Error()))
 	}
@@ -167,7 +168,7 @@ func (w *parallelGzipWorker) compressMember(chunk []byte) []byte {
 	}
 	w.outBuf.Write(parallelGzipMemberHeader[:])
 	if w.fw == nil {
-		fw, err := flate.NewWriter(&w.outBuf, flate.BestSpeed)
+		fw, err := flate.NewWriter(&w.outBuf, flate.DefaultCompression)
 		if err != nil {
 			panic(jutil.NewIllegalStateExceptionMsg(err.Error()))
 		}

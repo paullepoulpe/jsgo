@@ -206,7 +206,7 @@ func (c *InlineAndCollapseProperties_CollapseProperties) CheckNamespaces() {
 				// Foo$$module$foo
 				// class itself.
 				rValue := NodeUtil_GetRValueOfLValue(propDeclaration.GetNode())
-				if rValue.IsName() {
+				if !rValue.IsNil() && rValue.IsName() {
 					c.LogDecisionForName(
 						name, "escapes - dynamically imported module namespace property alias")
 					if target := c.namespace.LookupName(rValue.GetString()); target != nil {

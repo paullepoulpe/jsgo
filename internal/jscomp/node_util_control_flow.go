@@ -302,7 +302,7 @@ func NodeUtil_GetConditionExpression(n rhino.Node) rhino.Node {
 //
 // Java: NodeUtil.isStatementBlock(Node)
 func NodeUtil_IsStatementBlock(n rhino.Node) bool {
-	return n.IsRoot() || n.IsScript() || n.IsBlock() || n.IsModuleBody()
+	return !n.IsNil() && (n.IsRoot() || n.IsScript() || n.IsBlock() || n.IsModuleBody())
 }
 
 // NodeUtil_CreatesBlockScope: a block scope is created by a non-synthetic

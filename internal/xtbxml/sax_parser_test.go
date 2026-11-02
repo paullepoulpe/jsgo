@@ -372,3 +372,43 @@ func saxFatalErrorLinesOnly(want string) string {
 	}
 	return strings.Join(lines, "\n")
 }
+
+func TestSAXParserAttlistAndIgnorableWhitespace(t *testing.T) {
+	doc := `<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE translationbundle [
+  <!ELEMENT translationbundle (translation)*>
+  <!ATTLIST translationbundle
+      lang CDATA #REQUIRED
+      dir (ltr|rtl) "ltr"
+      tags NMTOKENS "  alpha   beta  ">
+  <!ATTLIST translationbundle dir CDATA "ignored-second-decl">
+  <!ELEMENT translation (#PCDATA|ph)*>
+  <!ATTLIST translation id ID #REQUIRED source CDATA #FIXED "xtb">
+  <!ELEMENT ph EMPTY>
+  <!ATTLIST ph name NMTOKEN #REQUIRED>
+]>
+<translationbundle lang=" fr ">
+  <translation id="  msg_1  ">Bonjour <ph name="  USER_NAME  "/>!</translation>
+</translationbundle>`
+	out := &strings.Builder{}
+	if err := Parse(strings.NewReader(doc), &saxVectorHandler{out: out}); err != nil {
+		t.Fatalf("Parse failed: %v", err)
+	}
+	got := out.String()
+	for _, wantLine := range []string{
+		"start ||translationbundle lang= fr  dir=ltr tags=alpha beta\n",
+		"ws \\n  \n",
+		"start ||translation id=msg_1 source=xtb\n",
+		"chars Bonjour \n",
+		"start ||ph name=USER_NAME\n",
+		"end ||ph\n",
+		"chars !\n",
+		"end ||translation\n",
+		"ws \\n\n",
+		"end ||translationbundle\n",
+	} {
+		if !strings.Contains(got, wantLine) {
+			t.Errorf("missing expected event %q in:\n%s", wantLine, got)
+		}
+	}
+}

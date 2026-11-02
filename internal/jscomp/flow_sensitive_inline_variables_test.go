@@ -1310,3 +1310,78 @@ EXPECTED
 }
 `, "EXPECTED", expected)))
 }
+
+func TestFlowSensitiveInlineVariables_DetachedCandidateGuards(t *testing.T) {
+	if NodeUtil_IsStatementBlock(rhino.NilNode) {
+		t.Fatalf("NodeUtil_IsStatementBlock(NilNode) = true, want false")
+	}
+
+	compiler := NewCompiler()
+	compiler.InitCompilerOptionsIfTesting()
+	root := compiler.ParseTestCode("function f(use) { var a = 1; var b; b = 2; use(a, b); }")
+	fnNode := root.GetFirstChild()
+	fnBody := fnNode.GetLastChild()
+	varStmt := fnBody.GetFirstChild()
+	assignStmt := varStmt.GetNext().GetNext()
+	useStmt := assignStmt.GetNext()
+	callNode := useStmt.GetFirstChild()
+	useA := callNode.GetSecondChild()
+	useB := useA.GetNext()
+
+	sc := NewSyntacticScopeCreator(compiler)
+	globalScope := sc.CreateScopeOfScope(root, nil)
+	fnScope := sc.CreateScopeOfScope(fnNode, globalScope)
+	bodyScope := sc.CreateScopeOfScope(fnBody, fnScope)
+
+	fsiv := NewFlowSensitiveInlineVariables(compiler)
+
+	// 1. Detached NAME initializer: c.def is NAME(a) with no children.
+	varNameNode := varStmt.GetFirstChild()
+	varNameNode.GetFirstChild().Detach()
+	candDetachedInit := FlowSensitiveInlineVariables_Candidate{
+		outer:       fsiv,
+		nameID:      varNameNode.GetStringID(),
+		def:         varNameNode,
+		defMetadata: &MustBeReachingVariableDef_Definition{node: varStmt},
+		use:         useA,
+		useCfgNode:  useStmt,
+	}
+	if candDetachedInit.IsRhsSafeToInline(bodyScope) {
+		t.Fatalf("IsRhsSafeToInline succeeded on NAME with detached initializer")
+	}
+	if candDetachedInit.CanInline(bodyScope) {
+		t.Fatalf("CanInline succeeded on NAME with detached initializer")
+	}
+
+	// 2. Detached EXPR_RESULT defCfgNode: assignStmt.GetParent() == NilNode.
+	assignStmt.Detach()
+	candDetachedStmt := FlowSensitiveInlineVariables_Candidate{
+		outer:       fsiv,
+		nameID:      useB.GetStringID(),
+		defMetadata: &MustBeReachingVariableDef_Definition{node: assignStmt},
+		use:         useB,
+		useCfgNode:  useStmt,
+	}
+	if candDetachedStmt.CanInline(bodyScope) {
+		t.Fatalf("CanInline succeeded on detached EXPR_RESULT defCfgNode")
+	}
+
+	// 3. Reattached EXPR_RESULT whose ASSIGN RHS was detached.
+	fnBody.AddChildToFront(assignStmt)
+	assignNode := assignStmt.GetFirstChild()
+	assignNode.GetLastChild().Detach()
+	candDetachedAssignRhs := FlowSensitiveInlineVariables_Candidate{
+		outer:       fsiv,
+		nameID:      useB.GetStringID(),
+		def:         assignNode,
+		defMetadata: &MustBeReachingVariableDef_Definition{node: assignStmt},
+		use:         useB,
+		useCfgNode:  useStmt,
+	}
+	if candDetachedAssignRhs.IsRhsSafeToInline(bodyScope) {
+		t.Fatalf("IsRhsSafeToInline succeeded on ASSIGN with detached RHS")
+	}
+	if candDetachedAssignRhs.CanInline(bodyScope) {
+		t.Fatalf("CanInline succeeded on ASSIGN with detached RHS")
+	}
+}

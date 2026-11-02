@@ -380,7 +380,7 @@ func (r *PolymerClassRewriter) addTypesToFunctions(
 				value = val.Node()
 			}
 		}
-		if value.IsFunction() {
+		if !value.IsNil() && value.IsFunction() {
 			fnDoc := rhino.JSDocInfo_Builder_MaybeCopyFrom(keyNode.GetJSDocInfo())
 			fnDoc.RecordThisType(
 				rhino.NewJSTypeExpression(
@@ -392,7 +392,7 @@ func (r *PolymerClassRewriter) addTypesToFunctions(
 
 	for _, property := range PolymerPassStaticUtils_ExtractProperties(
 		objLit, defType, r.compiler, rhino.NilNode) {
-		if !property.value.IsObjectLit() {
+		if property.value.IsNil() || !property.value.IsObjectLit() {
 			continue
 		}
 		defaultValue := NodeUtil_GetFirstPropMatchingKey(property.value, "value")

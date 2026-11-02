@@ -113,12 +113,65 @@ func TestPatternDollarTerminatorsObserved(t *testing.T) {
 	if !m.Find() || m.Start() != 0 || m.End() != 1 || m.startGroup(1) != 0 || m.endGroup(1) != 1 || m.startGroup(2) != 1 || m.endGroup(2) != 1 {
 		t.Errorf("(x)($) on x\\r\\n: %v", m.groups)
 	}
-	for _, regex := range []string{"a$b", "(a$)*", "(a$|b)c", "a$\\n", "(a$)?"} {
+	for _, regex := range []string{"(a$)*", "a$\\n", "(a$)?", "a$?", "a$(?s).", "a$[b]"} {
 		Try(func() { Pattern_Compile(regex); t.Errorf("%q compiled", regex) }, func(e IRuntimeException) {
 			if _, ok := e.(*UnsupportedOperationException); !ok {
 				t.Errorf("%q: %v", regex, e)
 			}
 		})
+	}
+}
+
+func TestPatternWordBoundariesAndPostDollarLiterals(t *testing.T) {
+	wb := Pattern_Compile(`\bfoo\b`)
+	if !wb.Matches("foo") || wb.Matches("foobar") || !wb.Find("a foo bar") || wb.Find("a foobar") {
+		t.Fatalf(`\bfoo\b mismatch`)
+	}
+	nwb := Pattern_Compile(`\Bfoo\B`)
+	if nwb.Matches("foo") || !nwb.Find("xfooy") || nwb.Find("foo bar") {
+		t.Fatalf(`\Bfoo\B mismatch`)
+	}
+	for _, cls := range []string{`[\b]`, `[\B]`} {
+		Try(func() {
+			Pattern_Compile(cls)
+			t.Errorf("%q compiled; expected PatternSyntaxException", cls)
+		}, func(e IRuntimeException) {
+			if _, ok := e.(*PatternSyntaxException); !ok {
+				t.Errorf("%q: got %T (%v), want *PatternSyntaxException", cls, e, e)
+			}
+		})
+	}
+
+	for _, unmatchable := range []string{"a$b", "foo$bar", "(foo$)bar", "^$a", `foo$.`} {
+		p := Pattern_Compile(unmatchable)
+		for _, in := range []string{"", "a", "ab", "a\n", "a\r\n", "foo", "foobar", "foo\n", "foo\nbar"} {
+			if p.Matches(in) || p.Find(in) {
+				t.Errorf("%q unexpectedly matched %q", unmatchable, in)
+			}
+		}
+	}
+
+	alt := Pattern_Compile("foo$bar|baz")
+	if !alt.Matches("baz") || !alt.Find("xxbazyy") || alt.Find("foobar") || alt.Find("foo\n") {
+		t.Fatalf("foo$bar|baz mismatch")
+	}
+
+	grp := Pattern_Compile("(a$|b)c")
+	m := grp.Matcher("bc")
+	if !m.Matches() || *m.Group(1) != "b" {
+		t.Fatalf("(a$|b)c on bc mismatch")
+	}
+	if grp.Find("ac") || grp.Find("a\n") || grp.Find("a\nc") {
+		t.Fatalf("(a$|b)c unexpectedly matched")
+	}
+
+	optTail := Pattern_Compile("foo$b*")
+	if !optTail.Matches("foo") || optTail.Matches("foo\n") {
+		t.Fatalf("foo$b* matches() mismatch")
+	}
+	m2 := optTail.Matcher("foo\n")
+	if !m2.Find() || m2.Start() != 0 || m2.End() != 3 {
+		t.Fatalf("foo$b* find() on foo\\n got %v", m2.groups)
 	}
 }
 

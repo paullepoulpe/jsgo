@@ -9,6 +9,8 @@ package jutil
 //   - \s, \S (and \s inside classes) are Java's [ \t\n\x0B\f\r];
 //   - \v, \h (also inside classes), \V and \H are the vertical and
 //     horizontal whitespace classes of the Pattern Javadoc;
+//   - \b and \B outside character classes use RE2's ASCII word boundary,
+//     matching Java's default (non-UNICODE_CHARACTER_CLASS) mode;
 //   - \Q...\E quoting is resolved here;
 //   - Matcher.matches() anchors the whole input with \A(?:...)\z;
 //   - `^` and `$` keep their default (non-MULTILINE) Java meaning, see
@@ -16,10 +18,10 @@ package jutil
 //
 // Constructs whose Java semantics RE2 cannot reproduce (back-references,
 // lookaround, possessive quantifiers, atomic groups, class intersections,
-// nested classes, \b \B \z \Z \G, a `$` that is not at the end of the
-// pattern or of an alternative, embedded flags) make Pattern_Compile panic
-// with UnsupportedOperationException rather than silently match
-// differently.
+// nested classes, \z \Z \G, a quantified `$` or a `$` followed in the same
+// alternative by a construct that can match a line terminator, embedded
+// flags other than i/m/s) make Pattern_Compile panic with
+// UnsupportedOperationException rather than silently match differently.
 //
 // Anchors. The Javadoc of java.util.regex.Pattern ("Line terminators")
 // says that without MULTILINE `^` matches only at the beginning of the
@@ -36,11 +38,13 @@ package jutil
 //     must end at the end of the input), and, for searches, end of text or
 //     the input's final line terminator followed by end of text. The
 //     terminator is consumed, in a capturing group of its own, so the
-//     search result is cut back to where that group starts: nothing can
-//     follow such a `$` in its alternative, so every offset after the `$`
-//     is the `$`'s own. Which terminators qualify depends on the input: an
-//     input ending in \r\n gets a regex that accepts only \r\n there, so
-//     that the lone \n after the \r cannot satisfy `$`.
+//     search result is cut back to where that group starts: only tokens
+//     disjoint from Java's line terminators may follow such a `$` in its
+//     alternative, so any non-empty continuation fails (just as in Java)
+//     and any empty continuation moves back to `$`. Which terminators
+//     qualify depends on the input: an input ending in \r\n gets a regex
+//     that accepts only \r\n there, so that the lone \n after the \r cannot
+//     satisfy `$`.
 
 import (
 	"regexp"
@@ -286,8 +290,8 @@ func translateJavaRegex(regex string, mode javaRegexMode) (string, javaRegexInfo
 	}
 	for i := 0; i < n; i++ {
 		c := rs[i]
-		if !multiline && tailDepth >= 0 && !inClass && c != ')' && c != '|' && c != '$' {
-			unsupportedJavaRegex(regex, "$ not at the end of an alternative")
+		if tailDepth >= 0 && !inClass && javaTokenCanMatchTerminator(rs, i, dotall) {
+			unsupportedJavaRegex(regex, "$ followed by potential line terminator")
 		}
 		switch {
 		case c == '\\':
@@ -356,13 +360,16 @@ func translateJavaRegex(regex string, mode javaRegexMode) (string, javaRegexInfo
 			case e == 'd' || e == 'D' || e == 'w' || e == 'W' || e == 't' || e == 'n' || e == 'r' || e == 'f':
 				sb.WriteByte('\\')
 				sb.WriteRune(e)
+			case (e == 'b' || e == 'B') && !inClass:
+				sb.WriteByte('\\')
+				sb.WriteRune(e)
 			case e == 'e':
 				sb.WriteString(`\x1B`)
 			case e == 'a':
 				sb.WriteString(`\x07`)
 			case e == '0' || (e >= '1' && e <= '9') || e == 'k':
 				unsupportedJavaRegex(regex, "back-reference or octal escape")
-			case e == 'b' || e == 'B' || e == 'z' || e == 'Z' || e == 'G' || e == 'A' || e == 'R' || e == 'X' ||
+			case e == 'z' || e == 'Z' || e == 'G' || e == 'A' || e == 'R' || e == 'X' ||
 				e == 'p' || e == 'P' || e == 'x' || e == 'u' || e == 'c' || e == 'N':
 				unsupportedJavaRegex(regex, `\`+string(e))
 			case (e >= 'a' && e <= 'z') || (e >= 'A' && e <= 'Z'):
@@ -412,6 +419,9 @@ func translateJavaRegex(regex string, mode javaRegexMode) (string, javaRegexInfo
 			if multiline {
 				sb.WriteByte('$')
 			} else {
+				if i+1 < n && strings.ContainsRune("*+?{", rs[i+1]) {
+					unsupportedJavaRegex(regex, "quantified $")
+				}
 				tailDepth = depth
 				switch {
 				case mode.anchored:
@@ -503,6 +513,46 @@ func translateJavaRegex(regex string, mode javaRegexMode) (string, javaRegexInfo
 		panic(NewPatternSyntaxException("Unclosed character class", regex, n-1))
 	}
 	return sb.String(), info
+}
+
+func isJavaLineTerminatorRune(r rune) bool {
+	return r == '\n' || r == '\r' || r == '\u0085' || r == '\u2028' || r == '\u2029'
+}
+
+// javaTokenCanMatchTerminator reports whether the regex token starting at rs[i]
+// (outside a character class) can match one of Java's line terminators.
+func javaTokenCanMatchTerminator(rs []rune, i int, dotall bool) bool {
+	c := rs[i]
+	switch {
+	case isJavaLineTerminatorRune(c):
+		return true
+	case c == '.':
+		return dotall
+	case c == '[':
+		return true
+	case c == '\\':
+		if i+1 >= len(rs) {
+			return false
+		}
+		e := rs[i+1]
+		switch e {
+		case 'n', 'r', 's', 'S', 'v', 'D', 'W', 'H':
+			return true
+		case 'Q':
+			for j := i + 2; j < len(rs); j++ {
+				if j+1 < len(rs) && rs[j] == '\\' && rs[j+1] == 'E' {
+					return false
+				}
+				if isJavaLineTerminatorRune(rs[j]) {
+					return true
+				}
+			}
+			return false
+		default:
+			return isJavaLineTerminatorRune(e)
+		}
+	}
+	return false
 }
 
 // Matcher is java.util.regex.Matcher.

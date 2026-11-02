@@ -301,18 +301,22 @@ func PolymerPassStaticUtils_GetTypeFromProperty(
 	}
 
 	var typeValue rhino.Node
-	if property.value.IsObjectLit() {
+	if !property.value.IsNil() && property.value.IsObjectLit() {
 		typeValue = NodeUtil_GetFirstPropMatchingKey(property.value, "type")
 		if typeValue.IsNil() || !typeValue.IsName() {
 			compiler.Report(JSError_MakeWithNode(property.name, PolymerPassErrors_POLYMER_INVALID_PROPERTY))
 			return nil
 		}
-	} else if property.value.IsName() {
+	} else if !property.value.IsNil() && property.value.IsName() {
 		typeValue = property.value
 	}
 
 	if typeValue.IsNil() {
-		compiler.Report(JSError_MakeWithNode(property.value, PolymerPassErrors_POLYMER_INVALID_PROPERTY))
+		errorNode := property.value
+		if errorNode.IsNil() {
+			errorNode = property.name
+		}
+		compiler.Report(JSError_MakeWithNode(errorNode, PolymerPassErrors_POLYMER_INVALID_PROPERTY))
 		return nil
 	}
 
@@ -531,7 +535,7 @@ func (p polymerPassSuppressBehaviorsAndProtectKeys) suppressDefaultValues(behavi
 		PolymerClassDefinition_DefinitionType_ObjectLiteral,
 		p.compiler,
 		/* constructor= */ rhino.NilNode) {
-		if !property.value.IsObjectLit() {
+		if property.value.IsNil() || !property.value.IsObjectLit() {
 			continue
 		}
 
@@ -547,7 +551,7 @@ func (p polymerPassSuppressBehaviorsAndProtectKeys) suppressDefaultValues(behavi
 // Java: PolymerPassSuppressBehaviorsAndProtectKeys.addBehaviorSuppressions(Node)
 func (p polymerPassSuppressBehaviorsAndProtectKeys) addBehaviorSuppressions(behaviorValue rhino.Node) {
 	for keyNode := behaviorValue.GetFirstChild(); !keyNode.IsNil(); keyNode = keyNode.GetNext() {
-		if keyNode.GetFirstChild().IsFunction() {
+		if first := keyNode.GetFirstChild(); !first.IsNil() && first.IsFunction() {
 			p.addSuppressionJsDocAnnotations(keyNode)
 		}
 	}

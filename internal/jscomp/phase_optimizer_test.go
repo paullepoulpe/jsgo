@@ -268,3 +268,51 @@ func (c *PhaseOptimizerTest) CreatePass(name string, numChanges int) CompilerPas
 		}
 	})
 }
+
+func (c *PhaseOptimizerTest) TestProcessRefreshesReplacedRoots() {
+	ext1 := rhino.IR_Root(rhino.IR_Script())
+	js1 := rhino.IR_Root(rhino.IR_Script())
+	ext2 := rhino.IR_Root(rhino.IR_Script())
+	js2 := rhino.IR_Root(rhino.IR_Script())
+	ext3 := rhino.IR_Root(rhino.IR_Script())
+	js3 := rhino.IR_Root(rhino.IR_Script())
+
+	c.compiler.externsRoot = ext1
+	c.compiler.jsRoot = js1
+	c.optimizer = NewPhaseOptimizer(c.compiler, nil)
+
+	c.optimizer.AddOneTimePass(NewPassFactory("replaceRootsOnce", func(comp AbstractCompiler) CompilerPass {
+		return CompilerPassFunc(func(externs, root rhino.Node) {
+			AssertThat(externs).IsEqualTo(ext1)
+			AssertThat(root).IsEqualTo(js1)
+			c.compiler.externsRoot = ext2
+			c.compiler.jsRoot = js2
+		})
+	}))
+
+	loop := c.optimizer.AddFixedPointLoop()
+	ranInLoop := false
+	loop.AddLoopedPass(NewLoopablePassFactory("replaceRootsInLoop", func(comp AbstractCompiler) CompilerPass {
+		return CompilerPassFunc(func(externs, root rhino.Node) {
+			if !ranInLoop {
+				ranInLoop = true
+				AssertThat(externs).IsEqualTo(ext2)
+				AssertThat(root).IsEqualTo(js2)
+				c.compiler.externsRoot = ext3
+				c.compiler.jsRoot = js3
+			}
+		})
+	}))
+
+	sawFinal := false
+	c.optimizer.AddOneTimePass(NewPassFactory("observeFinalRoots", func(comp AbstractCompiler) CompilerPass {
+		return CompilerPassFunc(func(externs, root rhino.Node) {
+			sawFinal = true
+			AssertThat(externs).IsEqualTo(ext3)
+			AssertThat(root).IsEqualTo(js3)
+		})
+	}))
+
+	c.optimizer.Process(ext1, js1)
+	AssertThat(sawFinal).IsTrue()
+}
