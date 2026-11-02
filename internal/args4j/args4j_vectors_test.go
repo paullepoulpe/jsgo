@@ -72,19 +72,20 @@ var (
 
 // newClosureBool is CommandLineRunner.Flags.BooleanOptionHandler.
 func newClosureBool(parser *CmdLineParser, option *OptionDef, setter Setter) *OptionHandler {
+	target := setter.(TypedSetter[bool])
 	return NewOptionHandler(parser, option, setter, "", func(h *OptionHandler, params Parameters) int {
 		param, hasParam := params.PeekParameter(0)
 		if !hasParam {
-			h.Setter.AddValue(true)
+			target.AddTypedValue(true)
 			return 0
 		}
 		switch jutil.StringToLowerCaseASCII(param) {
 		case "true", "on", "yes", "1":
-			h.Setter.AddValue(true)
+			target.AddTypedValue(true)
 		case "false", "off", "no", "0":
-			h.Setter.AddValue(false)
+			target.AddTypedValue(false)
 		default:
-			h.Setter.AddValue(true)
+			target.AddTypedValue(true)
 			return 0
 		}
 		return 1
@@ -96,15 +97,14 @@ var recorded []string
 // newRecordingStringHandler is CommandLineRunner.Flags.JsOptionHandler with its
 // MultiFlagSetter.
 func newRecordingStringHandler(parser *CmdLineParser, option *OptionDef, setter Setter) *OptionHandler {
-	return NewStringOptionHandler(parser, option, &recording{proxy: setter})
+	return NewStringOptionHandler(parser, option, &recording{proxy: setter.(TypedSetter[string])})
 }
 
-type recording struct{ proxy Setter }
+type recording struct{ proxy TypedSetter[string] }
 
-func (r *recording) IsMultiValued() bool         { return r.proxy.IsMultiValued() }
-func (r *recording) GetType() *Class             { return r.proxy.GetType() }
-func (r *recording) AsFieldSetter() *FieldSetter { return r.proxy.AsFieldSetter() }
-func (r *recording) AddStringValue(value string) {
+func (r *recording) IsMultiValued() bool                { return r.proxy.IsMultiValued() }
+func (r *recording) DefaultHandler() OptionHandlerClass { return r.proxy.DefaultHandler() }
+func (r *recording) AddTypedValue(value string) {
 	normalizedValue := value
 	n := jutil.StringLength(value)
 	if n > 0 {
@@ -113,11 +113,8 @@ func (r *recording) AddStringValue(value string) {
 			normalizedValue = jutil.StringSubstring(value, 1, n-1)
 		}
 	}
-	r.proxy.AddStringValue(normalizedValue)
+	r.proxy.AddTypedValue(normalizedValue)
 	recorded = append(recorded, "JS:"+normalizedValue)
-}
-func (r *recording) AddValue(v any) {
-	r.AddStringValue(v.(string))
 }
 
 type beanA struct {
@@ -153,43 +150,42 @@ func newBeanA() *beanA {
 }
 
 func (b *beanA) Args4jFields() []AnnotatedField {
-	const c = "Args4jVectors$BeanA"
 	return []AnnotatedField{
-		{Option: &Option{Name: "--zeta", Usage: "Last alphabetically but declared first"}, Field: StringField(c, "zeta", &b.zeta)},
-		{Option: &Option{Name: "--help", Handler: newClosureBool, Help: true, Usage: "Displays this message on stdout and exit"}, Field: BooleanField(c, "help", &b.help)},
-		{Option: &Option{Name: "--year", Usage: "shortcut for defining goog.FEATURESET_YEAR=YYYY. The minimum valid value of the browser year is 2012"}, Field: IntegerField(c, "year", &b.year)},
-		{Option: &Option{Name: "--level", Aliases: []string{"-W"}, Usage: "Specifies the warning level to use. Options: QUIET, DEFAULT, VERBOSE"}, Field: EnumField(c, "level", levelClass, &b.level)},
-		{Option: &Option{Name: "--mode", Hidden: true, Usage: "A hidden enum option"}, Field: EnumField(c, "mode", modeClass, &b.mode)},
-		{Option: &Option{Name: "--nullmode", Usage: "A nullable enum option"}, Field: NullableEnumField(c, "nullMode", modeClass, &b.nullMode)},
-		{Option: &Option{Name: "--fmt", Usage: "Formatting options; may be repeated"}, Field: ListField(c, "fmt", fmtClass, &b.fmt)},
+		{Option: &Option{Name: "--zeta", Usage: "Last alphabetically but declared first"}, Field: String(&b.zeta)},
+		{Option: &Option{Name: "--help", Handler: newClosureBool, Help: true, Usage: "Displays this message on stdout and exit"}, Field: Bool(&b.help)},
+		{Option: &Option{Name: "--year", Usage: "shortcut for defining goog.FEATURESET_YEAR=YYYY. The minimum valid value of the browser year is 2012"}, Field: Int32(&b.year)},
+		{Option: &Option{Name: "--level", Aliases: []string{"-W"}, Usage: "Specifies the warning level to use. Options: QUIET, DEFAULT, VERBOSE"}, Field: ScalarField(levelClass, &b.level)},
+		{Option: &Option{Name: "--mode", Hidden: true, Usage: "A hidden enum option"}, Field: ScalarField(modeClass, &b.mode)},
+		{Option: &Option{Name: "--nullmode", Usage: "A nullable enum option"}, Field: NullableField(modeClass, &b.nullMode)},
+		{Option: &Option{Name: "--fmt", Usage: "Formatting options; may be repeated"}, Field: SliceField(fmtClass, &b.fmt)},
 		{Option: &Option{Name: "--js", Handler: newRecordingStringHandler,
 			Usage: "The JavaScript filename. You may specify multiple. The flag name is optional, " +
 				"because args are interpreted as files by default. You may also use minimatch-style " +
 				"glob patterns. For example, use --js='**.js' --js='!**_test.js' to recursively " +
-				"include all js files that do not end in _test.js"}, Field: ListField(c, "js", Class_String, &b.js)},
-		{Option: &Option{Name: "--externs", Usage: "The file containing JavaScript externs. You may specify multiple"}, Field: ListField(c, "externs", Class_String, &b.externs)},
+				"include all js files that do not end in _test.js"}, Field: StringSlice(&b.js)},
+		{Option: &Option{Name: "--externs", Usage: "The file containing JavaScript externs. You may specify multiple"}, Field: StringSlice(&b.externs)},
 		{Option: &Option{Name: "--define", Aliases: []string{"--D", "-D"},
 			Usage: "Override the value of a variable annotated @define.\nThe format is <name>[=<val>], " +
 				"where <name> is the name of a @define variable and <val> is a boolean, number, or a " +
 				"single-quoted string that contains no single quotes. If [=<val>] is omitted, the " +
-				"variable is marked true"}, Field: ListField(c, "define", Class_String, &b.define)},
-		{Option: &Option{Name: "--threads", Handler: NewIntOptionHandler, Usage: "Number of threads"}, Field: IntField(c, "threads", &b.threads)},
-		{Option: &Option{Name: "--debug", Handler: newClosureBool, Usage: "Enable debugging options"}, Field: BooleanField(c, "debug", &b.debug)},
-		{Option: &Option{Name: "--plain", Usage: "A boolean handled by args4j's own handler"}, Field: BooleanField(c, "plain", &b.plain)},
-		{Option: &Option{Name: "--boxed", Usage: "A boxed Boolean"}, Field: NullableBooleanField(c, "boxed", &b.boxed)},
-		{Option: &Option{Name: "--out", MetaVar: "FILE", Usage: "Primary output filename. If not specified, output is written to stdout"}, Field: StringField(c, "out", &b.out)},
-		{Option: &Option{Name: "--prefix", Usage: "A nullable string"}, Field: NullableStringField(c, "prefix", &b.prefix)},
-		{Option: &Option{Name: "--map", Usage: "Prefixes to replace in ES6 import paths before resolving."}, Field: LinkedStringMapField(c, "map", &b.map_)},
-		{Option: &Option{Name: "--nullmap", Usage: "A map that starts null"}, Field: LinkedStringMapField(c, "nullMap", &b.nullMap)},
-		{Option: &Option{Name: "--words", Handler: NewStringArrayOptionHandler, Usage: "Greedy words"}, Field: ListField(c, "words", Class_String, &b.words)},
-		{Option: &Option{Name: "--nousage"}, Field: StringField(c, "noUsage", &b.noUsage)},
-		{Option: &Option{Name: "--dep", Depends: []string{"--out"}, Usage: "Needs --out"}, Field: NullableStringField(c, "dep", &b.dep)},
-		{Option: &Option{Name: "--forb", Forbids: []string{"--debug", "--plain"}, Usage: "Cannot be used with --debug"}, Field: NullableStringField(c, "forb", &b.forb)},
-		{Option: &Option{Name: "--nullint", Usage: "A nullable Integer"}, Field: NullableIntegerField(c, "nullInt", &b.nullInt)},
+				"variable is marked true"}, Field: StringSlice(&b.define)},
+		{Option: &Option{Name: "--threads", Handler: NewIntOptionHandler, Usage: "Number of threads"}, Field: Int(&b.threads)},
+		{Option: &Option{Name: "--debug", Handler: newClosureBool, Usage: "Enable debugging options"}, Field: Bool(&b.debug)},
+		{Option: &Option{Name: "--plain", Usage: "A boolean handled by args4j's own handler"}, Field: Bool(&b.plain)},
+		{Option: &Option{Name: "--boxed", Usage: "A boxed Boolean"}, Field: NullableBool(&b.boxed)},
+		{Option: &Option{Name: "--out", MetaVar: "FILE", Usage: "Primary output filename. If not specified, output is written to stdout"}, Field: String(&b.out)},
+		{Option: &Option{Name: "--prefix", Usage: "A nullable string"}, Field: NullableString(&b.prefix)},
+		{Option: &Option{Name: "--map", Usage: "Prefixes to replace in ES6 import paths before resolving."}, Field: LinkedStringMap(&b.map_)},
+		{Option: &Option{Name: "--nullmap", Usage: "A map that starts null"}, Field: LinkedStringMap(&b.nullMap)},
+		{Option: &Option{Name: "--words", Handler: NewStringArrayOptionHandler, Usage: "Greedy words"}, Field: StringSlice(&b.words)},
+		{Option: &Option{Name: "--nousage"}, Field: String(&b.noUsage)},
+		{Option: &Option{Name: "--dep", Depends: []string{"--out"}, Usage: "Needs --out"}, Field: NullableString(&b.dep)},
+		{Option: &Option{Name: "--forb", Forbids: []string{"--debug", "--plain"}, Usage: "Cannot be used with --debug"}, Field: NullableString(&b.forb)},
+		{Option: &Option{Name: "--nullint", Usage: "A nullable Integer"}, Field: NullableInt32(&b.nullInt)},
 		{Option: &Option{Name: "--ünï",
 			Usage: "Non-ASCII option name: ünïcödé usage text that is long " +
-				"enough to wrap around the column limit at least once   here"}, Field: StringField(c, "unicode", &b.unicode)},
-		{Argument: &Argument{}, Field: ListField(c, "arguments", Class_String, &b.arguments)},
+				"enough to wrap around the column limit at least once   here"}, Field: String(&b.unicode)},
+		{Argument: &Argument{}, Field: StringSlice(&b.arguments)},
 	}
 }
 
@@ -220,12 +216,11 @@ type beanB struct {
 }
 
 func (b *beanB) Args4jFields() []AnnotatedField {
-	const c = "Args4jVectors$BeanB"
 	return []AnnotatedField{
-		{Option: &Option{Name: "--mapping_file", Required: true, Usage: "The file name of the mapping generated by the production instrumentation pass."}, Field: StringField(c, "mapping", &b.mapping)},
-		{Option: &Option{Name: "--reports_directory", Required: true, Usage: "The folder/directory which contains all the reports created by the instrumented production code."}, Field: StringField(c, "reports", &b.reports)},
-		{Option: &Option{Name: "--result_output", Required: true, Usage: "Use this flag to provide the name of the final report that will be generated bythis reporter."}, Field: StringField(c, "result", &b.result)},
-		{Option: &Option{Name: "-h", Help: true, Usage: "Help"}, Field: BooleanField(c, "h", &b.h)},
+		{Option: &Option{Name: "--mapping_file", Required: true, Usage: "The file name of the mapping generated by the production instrumentation pass."}, Field: String(&b.mapping)},
+		{Option: &Option{Name: "--reports_directory", Required: true, Usage: "The folder/directory which contains all the reports created by the instrumented production code."}, Field: String(&b.reports)},
+		{Option: &Option{Name: "--result_output", Required: true, Usage: "Use this flag to provide the name of the final report that will be generated bythis reporter."}, Field: String(&b.result)},
+		{Option: &Option{Name: "-h", Help: true, Usage: "Help"}, Field: Bool(&b.h)},
 	}
 }
 
@@ -260,13 +255,12 @@ type beanD struct {
 }
 
 func (b *beanD) Args4jFields() []AnnotatedField {
-	const c = "Args4jVectors$BeanD"
 	return []AnnotatedField{
-		{Option: &Option{Name: "--output", Usage: "Sets the desired output format.\n" + "Options: md, json" + "Default: json"}, Field: EnumField(c, "output", outFmtClass, &b.output)},
-		{Option: &Option{Name: "--help", Usage: "Usage"}, Field: BooleanField(c, "help", &b.help)},
-		{Argument: &Argument{Index: 1, MetaVar: "SECOND", Usage: "The second argument"}, Field: NullableStringField(c, "second", &b.second)},
-		{Argument: &Argument{Index: 0, Required: true, Usage: "The first argument"}, Field: NullableStringField(c, "first", &b.first)},
-		{Argument: &Argument{Index: 2, Usage: "A boolean argument"}, Field: BooleanField(c, "flag", &b.flag)},
+		{Option: &Option{Name: "--output", Usage: "Sets the desired output format.\n" + "Options: md, json" + "Default: json"}, Field: ScalarField(outFmtClass, &b.output)},
+		{Option: &Option{Name: "--help", Usage: "Usage"}, Field: Bool(&b.help)},
+		{Argument: &Argument{Index: 1, MetaVar: "SECOND", Usage: "The second argument"}, Field: NullableString(&b.second)},
+		{Argument: &Argument{Index: 0, Required: true, Usage: "The first argument"}, Field: NullableString(&b.first)},
+		{Argument: &Argument{Index: 2, Usage: "A boolean argument"}, Field: Bool(&b.flag)},
 	}
 }
 
@@ -278,30 +272,26 @@ func (b *beanD) dump() string {
 type beanDupName struct{ x, y *string }
 
 func (b *beanDupName) Args4jFields() []AnnotatedField {
-	const c = "Args4jVectors$BeanDupName"
 	return []AnnotatedField{
-		{Option: &Option{Name: "-x", Usage: "x"}, Field: NullableStringField(c, "x", &b.x)},
-		{Option: &Option{Name: "-y", Aliases: []string{"-x"}, Usage: "y"}, Field: NullableStringField(c, "y", &b.y)},
+		{Option: &Option{Name: "-x", Usage: "x"}, Field: NullableString(&b.x)},
+		{Option: &Option{Name: "-y", Aliases: []string{"-x"}, Usage: "y"}, Field: NullableString(&b.y)},
 	}
 }
 
 type beanDupIndex struct{ a, b *string }
 
 func (b *beanDupIndex) Args4jFields() []AnnotatedField {
-	const c = "Args4jVectors$BeanDupIndex"
 	return []AnnotatedField{
-		{Argument: &Argument{Index: 0}, Field: NullableStringField(c, "a", &b.a)},
-		{Argument: &Argument{Index: 0}, Field: NullableStringField(c, "b", &b.b)},
+		{Argument: &Argument{Index: 0}, Field: NullableString(&b.a)},
+		{Argument: &Argument{Index: 0}, Field: NullableString(&b.b)},
 	}
 }
 
 type beanFinal struct{ f string }
 
 func (b *beanFinal) Args4jFields() []AnnotatedField {
-	const c = "Args4jVectors$BeanFinal"
 	return []AnnotatedField{
-		{Option: &Option{Name: "-f", Usage: "final"}, Field: NewField(c, "f", Class_String, nil, true,
-			func() any { return b.f }, func(v any) { b.f = v.(string) })},
+		{Option: &Option{Name: "-f", Usage: "final"}, Field: FinalField("Args4jVectors$BeanFinal", "f")},
 	}
 }
 
@@ -309,7 +299,7 @@ type beanGap struct{ a *string }
 
 func (b *beanGap) Args4jFields() []AnnotatedField {
 	return []AnnotatedField{
-		{Argument: &Argument{Index: 1}, Field: NullableStringField("Args4jVectors$BeanGap", "a", &b.a)},
+		{Argument: &Argument{Index: 1}, Field: NullableString(&b.a)},
 	}
 }
 

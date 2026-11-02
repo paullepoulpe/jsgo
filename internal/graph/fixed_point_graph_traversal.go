@@ -153,7 +153,7 @@ func (t FixedPointGraphTraversal[N, E]) computeFixedPointLinked(
 			}
 		}
 	} else {
-		node := ldg.GetLinkedDiGraphNode(singleEntry)
+		node := ldg.GetNode(singleEntry)
 		if node == nil {
 			panic(jutil.NewNullPointerException())
 		}

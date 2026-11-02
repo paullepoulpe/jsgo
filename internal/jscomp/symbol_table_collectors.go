@@ -19,83 +19,12 @@
 package jscomp
 
 import (
-	"iter"
 	"strings"
 
 	"github.com/paullepoulpe/jsgo/internal/ast"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
-
-type symbolOrderedMap[K comparable, V comparable] struct {
-	entries []V
-	index   map[K]int
-	live    int
-}
-
-func (m *symbolOrderedMap[K, V]) Get(k K) V {
-	var zero V
-	if idx, ok := m.index[k]; ok {
-		return m.entries[idx]
-	}
-	return zero
-}
-
-func (m *symbolOrderedMap[K, V]) Put(k K, v V) V {
-	var zero V
-	if m.index == nil {
-		m.index = make(map[K]int)
-	} else if idx, ok := m.index[k]; ok {
-		prev := m.entries[idx]
-		m.entries[idx] = v
-		return prev
-	}
-	m.index[k] = len(m.entries)
-	m.entries = append(m.entries, v)
-	m.live++
-	return zero
-}
-
-func (m *symbolOrderedMap[K, V]) Remove(k K) V {
-	var zero V
-	idx, ok := m.index[k]
-	if !ok {
-		return zero
-	}
-	prev := m.entries[idx]
-	m.entries[idx] = zero
-	delete(m.index, k)
-	m.live--
-	if m.live == 0 {
-		m.entries = m.entries[:0]
-	}
-	return prev
-}
-
-func (m *symbolOrderedMap[K, V]) Values() iter.Seq[V] {
-	return func(yield func(V) bool) {
-		var zero V
-		for _, v := range m.entries {
-			if v != zero && !yield(v) {
-				return
-			}
-		}
-	}
-}
-
-func (m *symbolOrderedMap[K, V]) ValueSlice() []V {
-	if m.live == 0 {
-		return nil
-	}
-	var zero V
-	out := make([]V, 0, m.live)
-	for _, v := range m.entries {
-		if v != zero {
-			out = append(out, v)
-		}
-	}
-	return out
-}
 
 func isNilStaticRef(ref rhino.StaticRef) bool {
 	if ref == nil {

@@ -541,7 +541,7 @@ BAR_PROTOTYPE: Bar.prototype;
 // Java: ColorGraphBuilderTest.verifyResult_topNodeIsOnlyRoot()
 func (c *ColorGraphBuilderTest) VerifyResult_topNodeIsOnlyRoot() {
 	roots := jutil.NewObjectLinkedHashSet[graph.DiGraph_DiGraphNode[*ColorGraphNode, ColorGraphBuilder_EdgeReason]]()
-	for _, n := range c.result.GetDiGraphNodes() {
+	for _, n := range c.result.GetNodes() {
 		if len(n.GetInEdges()) == 0 {
 			roots.Add(n)
 		}
@@ -554,7 +554,7 @@ func (c *ColorGraphBuilderTest) VerifyResult_topNodeIsOnlyRoot() {
 // Java: ColorGraphBuilderTest.verifyResult_hasNoSelfEdges()
 func (c *ColorGraphBuilderTest) VerifyResult_hasNoSelfEdges() {
 	selfEdges := jutil.NewObjectLinkedHashSet[graph.DiGraph_DiGraphEdge[*ColorGraphNode, ColorGraphBuilder_EdgeReason]]()
-	for _, e := range c.result.GetDiGraphEdges() {
+	for _, e := range c.result.GetEdges() {
 		if jutil.ObjectsEquals(e.GetSource(), e.GetDestination()) {
 			selfEdges.Add(e)
 		}
@@ -564,7 +564,7 @@ func (c *ColorGraphBuilderTest) VerifyResult_hasNoSelfEdges() {
 
 // Java: ColorGraphBuilderTest.verifyResult_hasNoParallelEdges()
 func (c *ColorGraphBuilderTest) VerifyResult_hasNoParallelEdges() {
-	AssertThat(c.result.GetDiGraphEdges()).
+	AssertThat(c.result.GetEdges()).
 		ComparingElementsUsing(
 			Correspondence_From(
 				func(a, e graph.DiGraph_DiGraphEdge[*ColorGraphNode, ColorGraphBuilder_EdgeReason]) bool {
@@ -573,7 +573,7 @@ func (c *ColorGraphBuilderTest) VerifyResult_hasNoParallelEdges() {
 						!jutil.ObjectsEquals(a, e)
 				},
 				"is parallel to")).
-		ContainsNoneIn(c.result.GetDiGraphEdges())
+		ContainsNoneIn(c.result.GetEdges())
 }
 
 // Java: ColorGraphBuilderTest.renderResultGraph()
@@ -583,7 +583,7 @@ func (c *ColorGraphBuilderTest) RenderResultGraph() {
 // Java: ColorGraphBuilderTest.assertThatResultAsTable()
 func (c *ColorGraphBuilderTest) assertThatResultAsTable() *colorGraphBuilderTest_TableSubject {
 	table := jutil.NewLinkedHashMap[colorGraphBuilderTest_cell, ColorGraphBuilder_EdgeReason]()
-	for _, edge := range c.result.GetDiGraphEdges() {
+	for _, edge := range c.result.GetEdges() {
 		cell := colorGraphBuilderTest_cell{
 			colorGraphBuilderTest_nameOfNode(edge.GetSource()), colorGraphBuilderTest_nameOfNode(edge.GetDestination())}
 		// ImmutableTable.Builder.buildOrThrow() rejects duplicate cells.
@@ -695,7 +695,7 @@ func (f *colorGraphBuilderTest_StubLcaFinder) FindAll(roots *jutil.LinkedHashSet
 	}
 
 	results := jutil.NewLinkedHashSet[*ColorGraphNode]()
-	for _, n := range f.graph.GetDiGraphNodes() {
+	for _, n := range f.graph.GetNodes() {
 		if resultNames.Contains(colorGraphBuilderTest_nameOf(n.GetValue())) {
 			results.Add(n.GetValue())
 		}

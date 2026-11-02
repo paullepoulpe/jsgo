@@ -29,267 +29,200 @@ package args4j
 
 import (
 	"fmt"
+	"strconv"
+	"strings"
 
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 )
 
 // Setter writes parsed option values into a Bean property.
 type Setter interface {
-	AddValue(value any)
-	AddStringValue(value string)
-	GetType() *Class
 	IsMultiValued() bool
-	AsFieldSetter() *FieldSetter
+	DefaultHandler() OptionHandlerClass
 }
 
-func newSetterForField(f *Field) Setter {
-	if f.final {
-		panic(jutil.NewIllegalStateExceptionMsg("Cannot set value to a final field '" + f.declaringClass + "." + f.name + "'."))
-	}
-	return &FieldSetter{f: f, multiValued: f.type_ == classList}
+// TypedSetter writes parsed option values of type T without interface boxing.
+type TypedSetter[T any] interface {
+	Setter
+	AddTypedValue(value T)
 }
 
-// FieldSetter writes single or list values to a Field.
-type FieldSetter struct {
-	f           *Field
-	multiValued bool
+type defaultValueSource interface {
+	defaultValueString() (string, bool)
 }
 
-func (s *FieldSetter) IsMultiValued() bool { return s.multiValued }
-func (s *FieldSetter) getValue() any       { return s.f.get() }
-
-func (s *FieldSetter) AsFieldSetter() *FieldSetter {
-	if s.multiValued {
-		return &FieldSetter{f: s.f}
-	}
-	return s
-}
-
-func (s *FieldSetter) GetType() *Class {
-	if !s.multiValued {
-		return s.f.type_
-	}
-	if s.f.typeArgument != nil {
-		return s.f.typeArgument
-	}
-	return classObject
-}
-
-func (s *FieldSetter) AddValue(value any) {
-	if !s.multiValued {
-		s.f.set(value)
-		return
-	}
-	s.f.add(value)
-}
-
-func (s *FieldSetter) AddStringValue(value string) {
-	if !s.multiValued {
-		if s.f.setString != nil {
-			s.f.setString(value)
-			return
-		}
-		s.f.set(value)
-		return
-	}
-	if s.f.addString != nil {
-		s.f.addString(value)
-		return
-	}
-	s.f.add(value)
-}
-
-func (s *FieldSetter) getValueList() []any {
-	if s.multiValued {
-		return s.f.getList()
-	}
-	o := s.f.get()
-	if o == nil {
-		return nil
-	}
-	return []any{o}
-}
-
-// Class describes the Java type of a Bean Field for handler dispatch and
-// enum constant lookup. Classes are compared by pointer identity.
-type Class struct {
-	name        string
-	isInterface bool
-	isPrimitive bool
-	isEnum      bool
-	constants   []any
+// TypeSpec describes how args4j parses a single operand of type T.
+type TypeSpec[T any] struct {
+	defaultHandler OptionHandlerClass
 }
 
 var (
-	Class_String = &Class{name: "java.lang.String"}
+	BoolSpec   = &TypeSpec[bool]{defaultHandler: newBooleanOptionHandler}
+	Int32Spec  = &TypeSpec[int32]{defaultHandler: NewIntOptionHandler}
+	StringSpec = &TypeSpec[string]{defaultHandler: NewStringOptionHandler}
 
-	classObject      = &Class{name: "java.lang.Object"}
-	classBoolean     = &Class{name: "java.lang.Boolean"}
-	classInteger     = &Class{name: "java.lang.Integer"}
-	classList        = &Class{name: "java.util.List", isInterface: true}
-	classMap         = &Class{name: "java.util.Map", isInterface: true}
-	classBooleanPrim = &Class{name: "boolean", isPrimitive: true}
-	classIntPrim     = &Class{name: "int", isPrimitive: true}
+	// Class_String is an alias for StringSpec used by ListField callers.
+	Class_String = StringSpec
 )
 
-// EnumClassOf builds a Class descriptor for a typed slice of enum values.
-func EnumClassOf[E fmt.Stringer](name string, values []E) *Class {
-	constants := make([]any, len(values))
-	for i, v := range values {
-		constants[i] = v
-	}
-	return &Class{name: name, isEnum: true, constants: constants}
+// EnumClassOf builds a typed TypeSpec for an enum's values slice.
+func EnumClassOf[E fmt.Stringer](_ string, values []E) *TypeSpec[E] {
+	return &TypeSpec[E]{defaultHandler: newEnumOptionHandler(values)}
 }
 
-func (c *Class) String() string {
-	if c.isInterface {
-		return "interface " + c.name
-	}
-	if c.isPrimitive {
-		return c.name
-	}
-	return "class " + c.name
-}
-
-func enumName(constant any) string {
-	if n, ok := constant.(interface{ Name() string }); ok {
+func enumName[E fmt.Stringer](constant E) string {
+	if n, ok := any(constant).(interface{ Name() string }); ok {
 		return n.Name()
 	}
-	return constant.(fmt.Stringer).String()
+	return constant.String()
 }
 
-// Field binds an option bean's Go field to its declared Class and typed accessors.
+// Field binds an option bean's Go field to a typed Setter.
 type Field struct {
-	declaringClass string
-	name           string
-	type_          *Class
-	typeArgument   *Class
-	final          bool
-	get            func() any
-	set            func(value any)
-	setString      func(value string)
-	add            func(value any)
-	addString      func(value string)
-	getList        func() []any
+	setter   Setter
+	finalErr string
 }
 
-func NewField(declaringClass, name string, type_, typeArgument *Class, final bool, get func() any, set func(value any)) *Field {
+func newSetterForField(f *Field) Setter {
+	if f.finalErr != "" {
+		panic(jutil.NewIllegalStateExceptionMsg(f.finalErr))
+	}
+	return f.setter
+}
+
+// FinalField constructs a Field representing a Java final field that rejects binding.
+func FinalField(declaringClass, name string) *Field {
 	return &Field{
-		declaringClass: declaringClass,
-		name:           name,
-		type_:          type_,
-		typeArgument:   typeArgument,
-		final:          final,
-		get:            get,
-		set:            set,
+		finalErr: "Cannot set value to a final field '" + declaringClass + "." + name + "'.",
 	}
 }
 
-func valueField[T any](declaringClass, name string, type_ *Class, p *T) *Field {
-	return NewField(declaringClass, name, type_, nil, false,
-		func() any { return *p },
-		func(v any) { *p = v.(T) })
+type scalarSetter[T any] struct {
+	p       *T
+	handler OptionHandlerClass
 }
 
-func nullableField[T any](declaringClass, name string, type_ *Class, p **T) *Field {
-	return NewField(declaringClass, name, type_, nil, false,
-		func() any {
-			if *p == nil {
-				return nil
-			}
-			return **p
-		},
-		func(v any) {
-			if v == nil {
-				*p = nil
-				return
-			}
-			x := v.(T)
-			*p = &x
-		})
+func (s *scalarSetter[T]) IsMultiValued() bool                { return false }
+func (s *scalarSetter[T]) DefaultHandler() OptionHandlerClass { return s.handler }
+func (s *scalarSetter[T]) AddTypedValue(v T)                  { *s.p = v }
+func (s *scalarSetter[T]) defaultValueString() (string, bool) { return jutil.ToJavaString(*s.p), true }
+
+type trackedScalarSetter[T any] struct {
+	p         *T
+	isDefault *bool
+	handler   OptionHandlerClass
 }
 
-func BooleanField(declaringClass, name string, p *bool) *Field {
-	return valueField(declaringClass, name, classBooleanPrim, p)
+func (s *trackedScalarSetter[T]) IsMultiValued() bool                { return false }
+func (s *trackedScalarSetter[T]) DefaultHandler() OptionHandlerClass { return s.handler }
+func (s *trackedScalarSetter[T]) AddTypedValue(v T)                  { *s.p, *s.isDefault = v, false }
+func (s *trackedScalarSetter[T]) defaultValueString() (string, bool) {
+	return jutil.ToJavaString(*s.p), true
 }
 
-func NullableBooleanField(declaringClass, name string, p **bool) *Field {
-	return nullableField(declaringClass, name, classBoolean, p)
+type nullableSetter[T any] struct {
+	p       **T
+	handler OptionHandlerClass
 }
 
-func IntField(declaringClass, name string, p *int) *Field {
-	return NewField(declaringClass, name, classIntPrim, nil, false,
-		func() any { return int32(*p) },
-		func(v any) { *p = int(v.(int32)) })
-}
-
-func IntegerField(declaringClass, name string, p *int32) *Field {
-	return valueField(declaringClass, name, classInteger, p)
-}
-
-func NullableIntegerField(declaringClass, name string, p **int32) *Field {
-	return nullableField(declaringClass, name, classInteger, p)
-}
-
-func StringField(declaringClass, name string, p *string) *Field {
-	f := valueField(declaringClass, name, Class_String, p)
-	f.setString = func(v string) { *p = v }
-	return f
-}
-
-func NullableStringField(declaringClass, name string, p **string) *Field {
-	f := nullableField(declaringClass, name, Class_String, p)
-	f.setString = func(v string) { *p = &v }
-	return f
-}
-
-func EnumField[E any](declaringClass, name string, enumClass *Class, p *E) *Field {
-	return valueField(declaringClass, name, enumClass, p)
-}
-
-func NullableEnumField[E any](declaringClass, name string, enumClass *Class, p **E) *Field {
-	return nullableField(declaringClass, name, enumClass, p)
-}
-
-func ListField[E any](declaringClass, name string, elementType *Class, p *[]E) *Field {
-	f := &Field{
-		declaringClass: declaringClass,
-		name:           name,
-		type_:          classList,
-		typeArgument:   elementType,
-		add:            func(v any) { *p = append(*p, v.(E)) },
-		getList: func() []any {
-			if len(*p) == 0 {
-				return nil
-			}
-			out := make([]any, len(*p))
-			for i, e := range *p {
-				out[i] = e
-			}
-			return out
-		},
+func (s *nullableSetter[T]) IsMultiValued() bool                { return false }
+func (s *nullableSetter[T]) DefaultHandler() OptionHandlerClass { return s.handler }
+func (s *nullableSetter[T]) AddTypedValue(v T)                  { *s.p = &v }
+func (s *nullableSetter[T]) defaultValueString() (string, bool) {
+	if *s.p == nil {
+		return "", false
 	}
-	if sp, ok := any(p).(*[]string); ok {
-		f.addString = func(v string) {
-			*sp = append(*sp, v)
+	return jutil.ToJavaString(**s.p), true
+}
+
+type sliceSetter[T any] struct {
+	p       *[]T
+	handler OptionHandlerClass
+}
+
+func (s *sliceSetter[T]) IsMultiValued() bool                { return true }
+func (s *sliceSetter[T]) DefaultHandler() OptionHandlerClass { return s.handler }
+func (s *sliceSetter[T]) AddTypedValue(v T)                  { *s.p = append(*s.p, v) }
+func (s *sliceSetter[T]) defaultValueString() (string, bool) {
+	vals := *s.p
+	switch len(vals) {
+	case 0:
+		return "", false
+	case 1:
+		return jutil.ToJavaString(vals[0]), true
+	default:
+		var buf strings.Builder
+		buf.WriteByte('[')
+		for i, v := range vals {
+			if i > 0 {
+				buf.WriteByte(',')
+			}
+			buf.WriteString(jutil.ToJavaString(v))
 		}
+		buf.WriteByte(']')
+		return buf.String(), true
 	}
-	return f
 }
 
-func LinkedStringMapField(declaringClass, name string, p **jutil.LinkedHashMap[string, *string]) *Field {
-	return NewField(declaringClass, name, classMap, Class_String, false,
-		func() any {
-			if *p == nil {
-				return nil
-			}
-			return *p
-		},
-		func(v any) {
-			if v == nil {
-				*p = nil
-				return
-			}
-			*p = v.(*jutil.LinkedHashMap[string, *string])
-		})
+type intSetter struct {
+	p *int
+}
+
+func (s *intSetter) IsMultiValued() bool                { return false }
+func (s *intSetter) DefaultHandler() OptionHandlerClass { return NewIntOptionHandler }
+func (s *intSetter) AddTypedValue(v int32)              { *s.p = int(v) }
+func (s *intSetter) defaultValueString() (string, bool) { return strconv.Itoa(*s.p), true }
+
+type mapSetter struct {
+	p **jutil.LinkedHashMap[string, *string]
+}
+
+func (s *mapSetter) IsMultiValued() bool                { return false }
+func (s *mapSetter) DefaultHandler() OptionHandlerClass { return newMapOptionHandler }
+func (s *mapSetter) defaultValueString() (string, bool) {
+	if *s.p == nil {
+		return "", false
+	}
+	return (*s.p).String(), true
+}
+
+// ScalarField binds a non-nullable scalar field *p using spec.
+func ScalarField[T any](spec *TypeSpec[T], p *T) *Field {
+	return &Field{setter: &scalarSetter[T]{p: p, handler: spec.defaultHandler}}
+}
+
+// NullableField binds a nullable pointer field **p using spec.
+func NullableField[T any](spec *TypeSpec[T], p **T) *Field {
+	return &Field{setter: &nullableSetter[T]{p: p, handler: spec.defaultHandler}}
+}
+
+// SliceField binds a multi-valued slice field *[]p using spec.
+func SliceField[T any](spec *TypeSpec[T], p *[]T) *Field {
+	return &Field{setter: &sliceSetter[T]{p: p, handler: spec.defaultHandler}}
+}
+
+func Bool(p *bool) *Field              { return ScalarField(BoolSpec, p) }
+func NullableBool(p **bool) *Field     { return NullableField(BoolSpec, p) }
+func Int(p *int) *Field                { return &Field{setter: &intSetter{p: p}} }
+func Int32(p *int32) *Field            { return ScalarField(Int32Spec, p) }
+func NullableInt32(p **int32) *Field   { return NullableField(Int32Spec, p) }
+func String(p *string) *Field          { return ScalarField(StringSpec, p) }
+func NullableString(p **string) *Field { return NullableField(StringSpec, p) }
+func StringSlice(p *[]string) *Field   { return SliceField(StringSpec, p) }
+func LinkedStringMap(p **jutil.LinkedHashMap[string, *string]) *Field {
+	return &Field{setter: &mapSetter{p: p}}
+}
+
+// TrackedString binds *p and clears *isDefault whenever the option is set.
+func TrackedString(p *string, isDefault *bool) *Field {
+	return &Field{setter: &trackedScalarSetter[string]{p: p, isDefault: isDefault, handler: NewStringOptionHandler}}
+}
+
+// Compatibility binders used by packages outside cli.
+func BooleanField(_, _ string, p *bool) *Field { return Bool(p) }
+func EnumField[E any](_, _ string, spec *TypeSpec[E], p *E) *Field {
+	return ScalarField(spec, p)
+}
+func ListField[E any](_, _ string, spec *TypeSpec[E], p *[]E) *Field {
+	return SliceField(spec, p)
 }

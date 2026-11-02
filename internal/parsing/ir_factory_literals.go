@@ -31,39 +31,30 @@ import (
 	"github.com/paullepoulpe/jsgo/internal/strpool"
 )
 
+func resetScratchBuf[T any](buf *[]T, scratch []T, need int) []T {
+	if cap(*buf) == 0 {
+		*buf = scratch[:0]
+	}
+	if cap(*buf) < need {
+		*buf = make([]T, 0, max(need, cap(*buf)*2))
+	}
+	return (*buf)[:0]
+}
+
 func (f *IRFactory) resetLitUnitsBuf(need int) []uint16 {
-	if cap(f.litUnitsBuf) == 0 {
-		f.litUnitsBuf = f.litUnitsScratch[:0]
-	}
-	if cap(f.litUnitsBuf) < need {
-		f.litUnitsBuf = make([]uint16, 0, max(need, cap(f.litUnitsBuf)*2))
-	}
-	return f.litUnitsBuf[:0]
+	return resetScratchBuf(&f.litUnitsBuf, f.litUnitsScratch[:], need)
 }
 
 func (f *IRFactory) resetLitUTF16Buf(need int) []uint16 {
-	if cap(f.litUTF16Buf) == 0 {
-		f.litUTF16Buf = f.litUTF16Scratch[:0]
-	}
-	if cap(f.litUTF16Buf) < need {
-		f.litUTF16Buf = make([]uint16, 0, max(need, cap(f.litUTF16Buf)*2))
-	}
-	return f.litUTF16Buf[:0]
+	return resetScratchBuf(&f.litUTF16Buf, f.litUTF16Scratch[:], need)
 }
 
 func (f *IRFactory) resetLitByteBuf(need int) []byte {
-	if cap(f.litByteBuf) == 0 {
-		f.litByteBuf = f.litByteScratch[:0]
-	}
-	if cap(f.litByteBuf) < need {
-		f.litByteBuf = make([]byte, 0, max(need, cap(f.litByteBuf)*2))
-	}
-	return f.litByteBuf[:0]
+	return resetScratchBuf(&f.litByteBuf, f.litByteScratch[:], need)
 }
 
 func (f *IRFactory) encodeUTF16ToWTF8(units []uint16) []byte {
-	b := f.resetLitByteBuf(len(units))
-	b = appendUTF16ToWTF8(b, units)
+	b := appendUTF16ToWTF8(f.resetLitByteBuf(len(units)), units)
 	f.litByteBuf = b
 	return b
 }
@@ -84,80 +75,42 @@ func (f *IRFactory) scrubASCIICR(s string) []byte {
 	return b
 }
 
-func (f *IRFactory) loadASCIIUnitsNormCR(s string) ([]uint16, int) {
-	dst := f.resetLitUnitsBuf(len(s))
+// scanOrNormUTF16Units scans src for the first backslash and normalizes any
+// <CR> / <CR><LF> sequences to <LF>. When inPlace is false, src is not mutated
+// and is returned directly if no <CR> is present.
+func (f *IRFactory) scanOrNormUTF16Units(src []uint16, inPlace bool) ([]uint16, int) {
 	firstBackslash := -1
-	for i := 0; i < len(s); i++ {
-		c := s[i]
-		if c == '\r' {
-			if i+1 < len(s) && s[i+1] == '\n' {
-				i++
-			}
-			c = '\n'
-		} else if c == '\\' && firstBackslash < 0 {
-			firstBackslash = len(dst)
-		}
-		dst = append(dst, uint16(c))
-	}
-	f.litUnitsBuf = dst
-	return dst, firstBackslash
-}
-
-func (f *IRFactory) loadUTF16UnitsNormCR(src []uint16) ([]uint16, int) {
-	dst := f.resetLitUnitsBuf(len(src))
-	firstBackslash := -1
-	for i := 0; i < len(src); i++ {
-		u := src[i]
+	for i, u := range src {
 		if u == '\r' {
-			if i+1 < len(src) && src[i+1] == '\n' {
-				i++
+			var dst []uint16
+			if inPlace {
+				dst = src[:i]
+			} else {
+				dst = append(f.resetLitUnitsBuf(len(src)), src[:i]...)
 			}
-			u = '\n'
-		} else if u == '\\' && firstBackslash < 0 {
-			firstBackslash = len(dst)
-		}
-		dst = append(dst, u)
-	}
-	f.litUnitsBuf = dst
-	return dst, firstBackslash
-}
-
-func (f *IRFactory) loadWTF8UnitsNormCR(s string) ([]uint16, int) {
-	dst := f.resetLitUnitsBuf(len(s))
-	firstBackslash := -1
-	for i := 0; i < len(s); {
-		c := s[i]
-		if c < 0x80 {
-			i++
-			if c == '\r' {
-				if i < len(s) && s[i] == '\n' {
-					i++
+			for ; i < len(src); i++ {
+				u := src[i]
+				if u == '\r' {
+					if i+1 < len(src) && src[i+1] == '\n' {
+						i++
+					}
+					u = '\n'
+				} else if u == '\\' && firstBackslash < 0 {
+					firstBackslash = len(dst)
 				}
-				c = '\n'
-			} else if c == '\\' && firstBackslash < 0 {
-				firstBackslash = len(dst)
+				dst = append(dst, u)
 			}
-			dst = append(dst, uint16(c))
-			continue
+			f.litUnitsBuf = dst
+			return dst, firstBackslash
 		}
-		var r rune
-		var n int
-		if c == 0xED && i+3 <= len(s) && s[i+1] >= 0xA0 && s[i+1] <= 0xBF && s[i+2]&0xC0 == 0x80 {
-			r = rune(c&0x0F)<<12 | rune(s[i+1]&0x3F)<<6 | rune(s[i+2]&0x3F)
-			n = 3
-		} else {
-			r, n = utf8.DecodeRuneInString(s[i:])
-		}
-		i += n
-		if r >= 0x10000 {
-			hi, lo := utf16.EncodeRune(r)
-			dst = append(dst, uint16(hi), uint16(lo))
-		} else {
-			dst = append(dst, uint16(r))
+		if u == '\\' && firstBackslash < 0 {
+			firstBackslash = i
 		}
 	}
-	f.litUnitsBuf = dst
-	return dst, firstBackslash
+	if inPlace {
+		f.litUnitsBuf = src
+	}
+	return src, firstBackslash
 }
 
 // irFactory_substring is String.substring(begin, end) on a string given as
@@ -363,23 +316,10 @@ func (f *IRFactory) normalizeStringCore(token parser.Token, templateLiteral bool
 				}
 				return f.scrubASCIICR(s), "", false
 			}
-			units, firstBackslash := f.loadASCIIUnitsNormCR(s)
+			units, firstBackslash := f.scanOrNormUTF16Units(appendWTF8ToUTF16(f.resetLitUnitsBuf(len(s)), s), true)
 			return f.finishUTF16Norm(units, firstBackslash, token, templateLiteral)
 		} else if units, ok := f.fileWithContent.UTF16Slice(startOff, endOff); ok {
-			hasCR := false
-			firstBackslash := -1
-			for i, u := range units {
-				if u == '\r' {
-					hasCR = true
-					break
-				}
-				if u == '\\' && firstBackslash < 0 {
-					firstBackslash = i
-				}
-			}
-			if hasCR {
-				units, firstBackslash = f.loadUTF16UnitsNormCR(units)
-			}
+			units, firstBackslash := f.scanOrNormUTF16Units(units, false)
 			return f.finishUTF16Norm(units, firstBackslash, token, templateLiteral)
 		}
 	}
@@ -395,7 +335,7 @@ func (f *IRFactory) normalizeStringCore(token parser.Token, templateLiteral bool
 
 	// Go-only: language-adapter — the String and StringBuilder operations of
 	// the escape path work on the UTF-16 code units of the value.
-	units, firstBackslash := f.loadWTF8UnitsNormCR(value)
+	units, firstBackslash := f.scanOrNormUTF16Units(appendWTF8ToUTF16(f.resetLitUnitsBuf(len(value)), value), true)
 	return f.finishUTF16Norm(units, firstBackslash, token, templateLiteral)
 }
 
@@ -411,21 +351,12 @@ func parseUTF16HexCodePoint(units []uint16, begin, end int) int32 {
 	for _, u := range hexSlice {
 		var d int
 		if u < 0x80 {
-			switch {
-			case u >= '0' && u <= '9':
-				d = int(u - '0')
-			case u >= 'a' && u <= 'f':
-				d = int(u - 'a' + 10)
-			case u >= 'A' && u <= 'F':
-				d = int(u - 'A' + 10)
-			default:
-				return jutil.IntegerParseInt(irFactory_substring(units, begin, end), 0x10)
-			}
+			d = int(asciiHexDigit[u])
 		} else {
 			d = jutil.CharacterDigit(u, 0x10)
-			if d < 0 {
-				return jutil.IntegerParseInt(irFactory_substring(units, begin, end), 0x10)
-			}
+		}
+		if d < 0 {
+			return jutil.IntegerParseInt(irFactory_substring(units, begin, end), 0x10)
 		}
 		acc = acc*16 + uint64(d)
 		if acc > math.MaxInt32 {
@@ -526,7 +457,7 @@ func (f *IRFactory) normalizeStringEscapesInto(units []uint16, cur int, token pa
 				for {
 					ch := irFactory_charAt(units, hexEnd)
 					if ch < 0x80 {
-						if !((ch >= '0' && ch <= '9') || ((ch|0x20)-'a' < 6)) {
+						if asciiHexDigit[ch] < 0 {
 							break
 						}
 					} else if jutil.CharacterDigit(ch, 0x10) < 0 {
@@ -628,79 +559,82 @@ func (f *IRFactory) InStrictContext() bool {
 //
 // Java: IRFactory.normalizeNumber(LiteralToken)
 func (f *IRFactory) NormalizeNumber(token parser.Token) float64 {
-	if !token.HasNumericSeparator() && token.MaybePrivateValueID() == 0 {
-		startOff := int(token.Location.Start.Offset)
-		endOff := int(token.Location.End.Offset)
-		if units, ok := f.fileWithContent.UTF16Slice(startOff, endOff); ok {
-			length := len(units)
-			if length == 1 && units[0] == '0' {
-				return 0
+	checkTokenNotNull(token)
+	if token.MaybePrivateValueID() == 0 {
+		startOff, endOff := token.ValueRange()
+		if s, ok := f.fileWithContent.ASCIISlice(startOff, endOff); ok {
+			if token.HasNumericSeparator() {
+				if b, stripped := f.stripNumericSeparators(s, token); stripped {
+					return normalizeNumber(f, b, token)
+				}
 			}
-			if length <= 15 && units[0] >= '1' && units[0] <= '9' {
-				v := uint64(units[0] - '0')
-				allDigits := true
-				for i := 1; i < length; i++ {
-					d := units[i] - '0'
-					if d > 9 {
-						allDigits = false
-						break
-					}
-					v = v*10 + uint64(d)
+			return normalizeNumber(f, s, token)
+		}
+		if units, ok := f.fileWithContent.UTF16Slice(startOff, endOff); ok {
+			b := f.resetLitByteBuf(len(units))
+			allASCII := true
+			for _, u := range units {
+				if u >= 0x80 {
+					allASCII = false
+					break
 				}
-				if allDigits {
-					return float64(v)
+				if u != '_' || !token.HasNumericSeparator() {
+					b = append(b, byte(u))
 				}
-			} else if length > 2 && units[0] == '0' && (units[1] == 'x' || units[1] == 'X') {
-				v := 0.0
-				for c := 2; c < length; c++ {
-					v = (v * 0x10) + float64(IRFactory_Hexdigit(units[c]))
+			}
+			if allASCII {
+				f.litByteBuf = b
+				if token.HasNumericSeparator() {
+					f.MaybeWarnForFeatureToken(token, parser.FeatureSet_Feature_NUMERIC_SEPARATOR)
 				}
-				return v
+				return normalizeNumber(f, b, token)
 			}
 		}
 	}
 
 	value := f.rawTokenValue(token)
 	if token.HasNumericSeparator() {
-		value = f.RemoveNumericSeparators(value, token)
+		if b, stripped := f.stripNumericSeparators(value, token); stripped {
+			return normalizeNumber(f, b, token)
+		}
 	}
+	return normalizeNumber(f, value, token)
+}
+
+func normalizeNumber[S ~string | ~[]byte](f *IRFactory, value S, token parser.Token) float64 {
 	location := token.Location
 	length := len(value)
 	jutil.CheckState(length > 0)
 	jutil.CheckState(value[0] != '-' && value[0] != '+')
 	if value[0] == '.' {
-		return jutil.DoubleParseDouble("0" + value)
+		return jutil.DoubleParseDouble("0" + string(value))
 	} else if value[0] == '0' && length > 1 {
 		switch value[1] {
 		case '.', 'e', 'E':
-			return jutil.DoubleParseDouble(value)
+			return jutil.DoubleParseDouble(string(value))
 		case 'b', 'B':
 			f.MaybeWarnForFeatureToken(token, parser.FeatureSet_Feature_BINARY_LITERALS)
 			v := 0.0
-			c := 1
-			for c++; c < length; c++ {
+			for c := 2; c < length; c++ {
 				v = (v * 2) + float64(IRFactory_Binarydigit(uint16(value[c])))
 			}
 			return v
 		case 'o', 'O':
 			f.MaybeWarnForFeatureToken(token, parser.FeatureSet_Feature_OCTAL_LITERALS)
 			v := 0.0
-			c := 1
-			for c++; c < length; c++ {
+			for c := 2; c < length; c++ {
 				v = (v * 8) + float64(IRFactory_Octaldigit(uint16(value[c])))
 			}
 			return v
 		case 'x', 'X':
 			v := 0.0
-			c := 1
-			for c++; c < length; c++ {
+			for c := 2; c < length; c++ {
 				v = (v * 0x10) + float64(IRFactory_Hexdigit(uint16(value[c])))
 			}
 			return v
 		case '0', '1', '2', '3', '4', '5', '6', '7':
 			v := 0.0
-			c := 0
-			for c++; c < length; c++ {
+			for c := 1; c < length; c++ {
 				digit := uint16(value[c])
 				if IRFactory_IsOctalDigit(digit) {
 					v = (v * 8) + float64(IRFactory_Octaldigit(digit))
@@ -730,9 +664,9 @@ func (f *IRFactory) NormalizeNumber(token parser.Token) float64 {
 			return 0
 		default:
 			panic(jutil.NewIllegalStateExceptionMsg(
-				"Unexpected character in number literal: " + value[1:2]))
+				"Unexpected character in number literal: " + string(value[1:2])))
 		}
-	} else if value == "0" {
+	} else if length == 1 && value[0] == '0' {
 		return 0
 	} else {
 		if length <= 15 && value[0] >= '1' && value[0] <= '9' {
@@ -750,7 +684,7 @@ func (f *IRFactory) NormalizeNumber(token parser.Token) float64 {
 				return float64(v)
 			}
 		}
-		return jutil.DoubleParseDouble(value)
+		return jutil.DoubleParseDouble(string(value))
 	}
 }
 
@@ -794,11 +728,10 @@ func (f *IRFactory) NormalizeBigInt(token parser.Token) *big.Int {
 	}
 }
 
-// Java: IRFactory.removeNumericSeparators(String, LiteralToken)
-func (f *IRFactory) RemoveNumericSeparators(value string, token parser.Token) string {
+func (f *IRFactory) stripNumericSeparators(value string, token parser.Token) ([]byte, bool) {
 	f.MaybeWarnForFeatureToken(token, parser.FeatureSet_Feature_NUMERIC_SEPARATOR)
 	if strings.IndexByte(value, '_') == -1 {
-		return value
+		return nil, false
 	}
 	b := f.resetLitByteBuf(len(value))
 	for i := 0; i < len(value); i++ {
@@ -807,8 +740,31 @@ func (f *IRFactory) RemoveNumericSeparators(value string, token parser.Token) st
 		}
 	}
 	f.litByteBuf = b
-	return string(b)
+	return b, true
 }
+
+// Java: IRFactory.removeNumericSeparators(String, LiteralToken)
+func (f *IRFactory) RemoveNumericSeparators(value string, token parser.Token) string {
+	if b, ok := f.stripNumericSeparators(value, token); ok {
+		return string(b)
+	}
+	return value
+}
+
+var asciiHexDigit = func() [256]int8 {
+	var t [256]int8
+	for i := range t {
+		t[i] = -1
+	}
+	for c := byte('0'); c <= '9'; c++ {
+		t[c] = int8(c - '0')
+	}
+	for c := byte('a'); c <= 'f'; c++ {
+		t[c] = int8(c - 'a' + 10)
+		t[c-'a'+'A'] = int8(c - 'a' + 10)
+	}
+	return t
+}()
 
 // Java: IRFactory.binarydigit(char)
 func IRFactory_Binarydigit(c uint16) int {
@@ -833,42 +789,12 @@ func IRFactory_Octaldigit(c uint16) int {
 
 // Java: IRFactory.hexdigit(char)
 func IRFactory_Hexdigit(c uint16) int {
-	switch c {
-	case '0':
-		return 0
-	case '1':
-		return 1
-	case '2':
-		return 2
-	case '3':
-		return 3
-	case '4':
-		return 4
-	case '5':
-		return 5
-	case '6':
-		return 6
-	case '7':
-		return 7
-	case '8':
-		return 8
-	case '9':
-		return 9
-	case 'a', 'A':
-		return 10
-	case 'b', 'B':
-		return 11
-	case 'c', 'C':
-		return 12
-	case 'd', 'D':
-		return 13
-	case 'e', 'E':
-		return 14
-	case 'f', 'F':
-		return 15
-	default:
-		panic(jutil.NewIllegalStateExceptionMsg("unexpected: " + jutil.StringFromChar(c)))
+	if c < 256 {
+		if d := asciiHexDigit[c]; d >= 0 {
+			return int(d)
+		}
 	}
+	panic(jutil.NewIllegalStateExceptionMsg("unexpected: " + jutil.StringFromChar(c)))
 }
 
 // Java: IRFactory.transformBooleanTokenType(TokenType)
@@ -1013,22 +939,17 @@ func IRFactory_TransformBinaryTokenType(token parser.TokenType) rhino.Token {
 // preserving lone surrogates identically to jutil.StringToUTF16.
 func appendWTF8ToUTF16(dst []uint16, s string) []uint16 {
 	prefix := jutil.ASCIIPrefixLen(s)
-	if cap(dst)-len(dst) < len(s) {
-		grown := make([]uint16, len(dst)+prefix, len(dst)+len(s))
+	base := len(dst)
+	if cap(dst)-base < len(s) {
+		grown := make([]uint16, base+prefix, base+len(s))
 		copy(grown, dst)
 		dst = grown
 	} else {
-		base := len(dst)
 		dst = dst[:base+prefix]
-		for i := 0; i < prefix; i++ {
-			dst[base+i] = uint16(s[i])
-		}
-		goto decodeTail
 	}
 	for i := 0; i < prefix; i++ {
-		dst[len(dst)-prefix+i] = uint16(s[i])
+		dst[base+i] = uint16(s[i])
 	}
-decodeTail:
 	for i := prefix; i < len(s); {
 		c := s[i]
 		if c < 0x80 {

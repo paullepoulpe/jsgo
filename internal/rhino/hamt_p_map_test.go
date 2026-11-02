@@ -46,6 +46,7 @@ import (
 	"testing"
 
 	"github.com/paullepoulpe/jsgo/internal/jutil"
+	"github.com/paullepoulpe/jsgo/internal/strpool"
 )
 
 // assertValuesExactly is Truth's containsExactly (any order, with
@@ -530,4 +531,71 @@ func equalsAndCheckNotNull(o1, o2 any) bool {
 	jutil.CheckNotNull(o1)
 	jutil.CheckNotNull(o2)
 	return jutil.ObjectsEquals(o1, o2)
+}
+
+type dummyHamtJSType struct {
+	JSType
+	tag int
+}
+
+func (*dummyHamtJSType) GetJSTypeBase() *JSTypeBase { return nil }
+func (d *dummyHamtJSType) Equals(o any) bool {
+	other, ok := o.(*dummyHamtJSType)
+	return ok && other != nil && d.tag == other.tag
+}
+
+func TestHamtPMapArenaZeroAllocs(t *testing.T) {
+	var strArena HamtPMapArena[string, JSType]
+	var idArena HamtPMapArena[strpool.ID, JSType]
+	keys := []string{"alpha", "beta", "gamma", "delta", "epsilon", "zeta", "eta", "theta"}
+	var t1 JSType = &dummyHamtJSType{tag: 1}
+	var t2 JSType = &dummyHamtJSType{tag: 2}
+	joinerStr := func(_ string, v1, v2 JSType) JSType {
+		if v1 != nil {
+			return v1
+		}
+		return v2
+	}
+	joinerID := func(_ strpool.ID, v1, v2 JSType) JSType {
+		if v1 != nil {
+			return v1
+		}
+		return v2
+	}
+
+	allocs := testing.AllocsPerRun(20, func() {
+		strArena.Reset()
+		var m1, m2 *HamtPMap[string, JSType]
+		for i, k := range keys {
+			if i%2 == 0 {
+				m1 = m1.PlusMapWithArena(&strArena, k, t1)
+			} else {
+				m2 = m2.PlusMapWithArena(&strArena, k, t2)
+			}
+		}
+		merged := m1.ReconcileMapWithArena(&strArena, m2, joinerStr)
+		if merged.Get("alpha") != t1 || merged.Get("beta") != t2 {
+			t.Fatal("unexpected merged values")
+		}
+		_ = merged.MinusMapWithArena(&strArena, "alpha")
+
+		idArena.Reset()
+		var im1, im2 *HamtPMap[strpool.ID, JSType]
+		for i := 1; i <= 8; i++ {
+			id := strpool.ID(i)
+			if i%2 == 0 {
+				im1 = im1.PlusMapWithArena(&idArena, id, t1)
+			} else {
+				im2 = im2.PlusMapWithArena(&idArena, id, t2)
+			}
+		}
+		imerged := im1.ReconcileMapWithArena(&idArena, im2, joinerID)
+		if imerged.Get(2) != t1 || imerged.Get(1) != t2 {
+			t.Fatal("unexpected id merged values")
+		}
+	})
+	if allocs != 0 {
+		t.Fatalf("got %v allocs/op, want 0", allocs)
+	}
+	strArena.TrimLargeChunks()
 }

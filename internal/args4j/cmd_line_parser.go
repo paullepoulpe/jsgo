@@ -107,7 +107,7 @@ func (p *CmdLineParser) addArgument(setter Setter, a *Argument) {
 		p.arguments = append(p.arguments, nil)
 	}
 	if p.arguments[index] != nil {
-		panic(newIllegalAnnotationError(msgMultipleUseOfArgument.format(index)))
+		panic(newIllegalAnnotationError(msgMultipleUseOfArgument.format(strconv.Itoa(index))))
 	}
 	p.arguments[index] = h
 }
@@ -510,7 +510,7 @@ func (p *CmdLineParser) printSingleLineOption(buf *strings.Builder, h *OptionHan
 // org/kohsuke/args4j/Messages.properties or spi/Messages.properties.
 type messageTemplate string
 
-func (m messageTemplate) format(args ...any) string {
+func (m messageTemplate) format(args ...string) string {
 	s := string(m)
 	var sb strings.Builder
 	sb.Grow(len(s) + 16)
@@ -530,7 +530,7 @@ func (m messageTemplate) format(args ...any) string {
 			if end := strings.IndexByte(s[i+1:], '}'); end >= 0 {
 				if idx, err := strconv.Atoi(s[i+1 : i+1+end]); err == nil && idx >= 0 {
 					if idx < len(args) {
-						sb.WriteString(jutil.ToJavaString(args[idx]))
+						sb.WriteString(args[idx])
 					} else {
 						sb.WriteByte('{')
 						sb.WriteString(strconv.Itoa(idx))

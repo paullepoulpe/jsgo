@@ -75,11 +75,11 @@ type symbolTableKey struct {
 type SymbolTable struct {
 	// All symbols in the program, uniquely identified by the node where
 	// they're declared and their name.
-	symbols symbolOrderedMap[symbolTableKey, *SymbolTable_Symbol]
+	symbols OrderedMap[symbolTableKey, *SymbolTable_Symbol]
 
 	// All syntactic scopes in the program, uniquely identified by the node
 	// where they're declared.
-	scopes symbolOrderedMap[rhino.Node, *SymbolTable_SymbolScope]
+	scopes OrderedMap[rhino.Node, *SymbolTable_SymbolScope]
 
 	// All Nodes with JSDocInfo in the program.
 	docInfos []rhino.Node
@@ -128,7 +128,7 @@ func (t *SymbolTable) GetReferences(symbol *SymbolTable_Symbol) iter.Seq[*Symbol
 
 // Java: SymbolTable.getReferenceList(Symbol)
 func (t *SymbolTable) GetReferenceList(symbol *SymbolTable_Symbol) []*SymbolTable_Reference {
-	return slices.Collect(symbol.references.Values())
+	return symbol.references.ValueSlice()
 }
 
 // Java: SymbolTable.getAllSymbols()
@@ -912,7 +912,7 @@ func (t *SymbolTable) removeSymbol(s *SymbolTable_Symbol) {
 	if s.propertyScope != nil && s.propertyScope.GetSymbolForScope() == s {
 		// Need to iterate over copy of values list because removeSymbol() will change the map
 		// and we'll get ConcurrentModificationException
-		for _, childSymbol := range slices.Collect(s.propertyScope.ownSymbols.Values()) {
+		for _, childSymbol := range s.propertyScope.ownSymbols.ValueSlice() {
 			t.removeSymbol(childSymbol)
 		}
 		t.scopes.Remove(s.GetDeclarationNode())

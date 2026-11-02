@@ -948,7 +948,7 @@ func (p *Parser) ParseArguments() *ArgumentListTree {
 	}
 	p.Eat(TokenType_CLOSE_PAREN)
 	arguments := p.popTrees(treeBase)
-	commaPositions := popStackChunked(&p.posStack, posBase, &p.posLists, parser_posListChunk)
+	commaPositions := p.popPos(posBase)
 	return p.newArgumentListTree(
 		p.GetTreeLocation(start), arguments, trailingComma, commaPositions)
 }

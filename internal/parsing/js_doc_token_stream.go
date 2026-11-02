@@ -120,6 +120,23 @@ func isASCIIAlpha(b byte) bool {
 	return (b|0x20)-'a' < 26
 }
 
+func isSimpleDotFollower(b byte) bool {
+	return b < 0x80 && b != '<' && b != '.' && b != '\r' && b != '\n'
+}
+
+func (s *JsDocTokenStream) advanceASCII(delta int) {
+	s.byteCursor += delta
+	s.sourceCursor += delta
+	s.cursor += delta
+}
+
+func (s *JsDocTokenStream) flushStringBuffer() string {
+	str := s.GetStringFromBuffer()
+	s.stringBufferTop = 0
+	s.string_ = str
+	return str
+}
+
 // GetJsDocToken tokenizes JSDoc comments.
 //
 // Java: JsDocTokenStream.getJsDocToken()
@@ -130,9 +147,8 @@ func (s *JsDocTokenStream) GetJsDocToken() JsDocToken {
 		// Fast-skip ASCII horizontal whitespace before per-char GetChar().
 		if s.ungetCursor == 0 && s.lineEndChar < 0 {
 			src := s.rawSource
-			end := len(src)
 			cur := s.byteCursor
-			for cur < end {
+			for cur < len(src) {
 				b := src[cur]
 				if b != ' ' && b != '\t' && b != '\f' && b != '\v' {
 					break
@@ -140,9 +156,7 @@ func (s *JsDocTokenStream) GetJsDocToken() JsDocToken {
 				cur++
 			}
 			if delta := cur - s.byteCursor; delta > 0 {
-				s.byteCursor = cur
-				s.sourceCursor += delta
-				s.cursor += delta
+				s.advanceASCII(delta)
 			}
 		}
 		// eat white spaces
@@ -165,178 +179,116 @@ func (s *JsDocTokenStream) GetJsDocToken() JsDocToken {
 				src := s.rawSource
 				start := s.byteCursor
 				cur := start
-				end := len(src)
-				for cur < end && isASCIIAlpha(src[cur]) {
+				for cur < len(src) && isASCIIAlpha(src[cur]) {
 					cur++
 				}
-				if cur == end || src[cur] < 0x80 {
-					delta := cur - start
-					s.byteCursor = cur
-					s.sourceCursor += delta
-					s.cursor += delta
+				if cur == len(src) || src[cur] < 0x80 {
+					s.advanceASCII(cur - start)
 					s.string_ = src[start:cur]
 					return JsDocToken_ANNOTATION
 				}
 			}
 			for {
 				c = s.GetChar()
-				if JsDocTokenStream_IsAlpha(c) {
-					s.AddToString(c)
-				} else {
+				if !JsDocTokenStream_IsAlpha(c) {
 					s.UngetChar(c)
-					s.string_ = s.GetStringFromBuffer()
-					s.stringBufferTop = 0
+					s.flushStringBuffer()
 					return JsDocToken_ANNOTATION
 				}
+				s.AddToString(c)
 			}
 
 		case '*':
 			if s.MatchChar('/') {
 				return JsDocToken_EOC
-			} else {
-				return JsDocToken_STAR
 			}
+			return JsDocToken_STAR
 
 		case ',':
 			return JsDocToken_COMMA
-
 		case '>':
 			return JsDocToken_RIGHT_ANGLE
-
 		case '(':
 			return JsDocToken_LEFT_PAREN
-
 		case ')':
 			return JsDocToken_RIGHT_PAREN
-
 		case '{':
 			return JsDocToken_LEFT_CURLY
-
 		case '}':
 			return JsDocToken_RIGHT_CURLY
-
 		case '[':
 			return JsDocToken_LEFT_SQUARE
-
 		case ']':
 			return JsDocToken_RIGHT_SQUARE
-
 		case '?':
 			return JsDocToken_QMARK
-
 		case '!':
 			return JsDocToken_BANG
-
 		case ':':
 			return JsDocToken_COLON
-
 		case '=':
 			return JsDocToken_EQUALS
-
 		case '|':
 			return JsDocToken_PIPE
-
 		case '<':
 			return JsDocToken_LEFT_ANGLE
 
 		case '.':
-			fastDot := false
-			if s.ungetCursor == 0 && s.lineEndChar < 0 && s.byteCursor < len(s.rawSource) {
-				b1 := s.rawSource[s.byteCursor]
-				if b1 == '<' {
-					s.byteCursor++
-					s.sourceCursor++
-					s.cursor++
-					return JsDocToken_LEFT_ANGLE
-				}
-				if b1 == '.' && s.byteCursor+1 < len(s.rawSource) && s.rawSource[s.byteCursor+1] == '.' {
-					s.byteCursor += 2
-					s.sourceCursor += 2
-					s.cursor += 2
-					return JsDocToken_ITER_REST
-				}
-				if b1 < 0x80 && b1 != '.' && b1 != '\r' && b1 != '\n' {
-					c = '.'
-					fastDot = true
-				}
-			}
-			if !fastDot {
+			if !(s.ungetCursor == 0 && s.lineEndChar < 0 && s.byteCursor < len(s.rawSource) &&
+				isSimpleDotFollower(s.rawSource[s.byteCursor])) {
 				c = s.GetChar()
 				if c == '<' {
 					return JsDocToken_LEFT_ANGLE
-				} else {
-					if c == '.' {
-						c = s.GetChar()
-						if c == '.' {
-							return JsDocToken_ITER_REST
-						} else {
-							s.AddToString('.')
-						}
-					}
-					// we may backtrack across line boundary
-					s.ungetBuffer[s.ungetCursor] = c
-					s.ungetCursor++
-					c = '.'
 				}
+				if c == '.' {
+					c = s.GetChar()
+					if c == '.' {
+						return JsDocToken_ITER_REST
+					}
+					s.AddToString('.')
+				}
+				// we may backtrack across line boundary
+				s.ungetBuffer[s.ungetCursor] = c
+				s.ungetCursor++
+				c = '.'
 			}
 			fallthrough
 
 		default:
-			{
-				// recognize a JsDoc string but discard last . if it is followed by
-				// a non-JsDoc comment char, e.g. Array.<
-				if c < 128 && s.ungetCursor == 0 {
-					src := s.rawSource
-					start := s.byteCursor - 1
-					cur := s.byteCursor
-					end := len(src)
-					for cur < end && src[cur] < 0x80 && asciiJSDocStringTable[src[cur]] {
-						cur++
-					}
-					if cur == end || src[cur] < 0x80 {
-						if cur > start+1 && src[cur-1] == '.' && cur < end && src[cur] == '<' {
-							cur--
-						}
-						delta := cur - s.byteCursor
-						s.byteCursor = cur
-						s.sourceCursor += delta
-						s.cursor += delta
-						s.string_ = src[start:cur]
-						return JsDocToken_STRING
-					}
+			// recognize a JsDoc string but discard last . if it is followed by
+			// a non-JsDoc comment char, e.g. Array.<
+			if c < 128 && s.ungetCursor == 0 {
+				src := s.rawSource
+				start := s.byteCursor - 1
+				cur := s.byteCursor
+				for cur < len(src) && src[cur] < 0x80 && asciiJSDocStringTable[src[cur]] {
+					cur++
 				}
-				c1 := c
-				s.AddToString(c)
-				c2 := s.GetChar()
-				if !JsDocTokenStream_IsJSDocString(c2) {
-					s.UngetChar(c2)
-					s.string_ = s.GetStringFromBuffer()
-					s.stringBufferTop = 0
-					return JsDocToken_STRING
-				} else {
-					for {
-						c1 = c2
-						c2 = s.GetChar()
-						if c1 == '.' && c2 == '<' {
-							s.UngetChar(c2)
-							s.UngetChar(c1)
-							s.string_ = s.GetStringFromBuffer()
-							s.stringBufferTop = 0
-							return JsDocToken_STRING
-						} else {
-							if JsDocTokenStream_IsJSDocString(c2) {
-								s.AddToString(c1)
-							} else {
-								s.UngetChar(c2)
-								s.AddToString(c1)
-								s.string_ = s.GetStringFromBuffer()
-								s.stringBufferTop = 0
-								return JsDocToken_STRING
-							}
-						}
+				if cur == len(src) || src[cur] < 0x80 {
+					if cur > start+1 && src[cur-1] == '.' && cur < len(src) && src[cur] == '<' {
+						cur--
 					}
+					s.advanceASCII(cur - s.byteCursor)
+					s.string_ = src[start:cur]
+					return JsDocToken_STRING
 				}
 			}
+			s.AddToString(c)
+			c2 := s.GetChar()
+			for JsDocTokenStream_IsJSDocString(c2) {
+				c1 := c2
+				c2 = s.GetChar()
+				if c1 == '.' && c2 == '<' {
+					s.UngetChar(c2)
+					s.UngetChar(c1)
+					s.flushStringBuffer()
+					return JsDocToken_STRING
+				}
+				s.AddToString(c1)
+			}
+			s.UngetChar(c2)
+			s.flushStringBuffer()
+			return JsDocToken_STRING
 		}
 	}
 }
@@ -348,50 +300,21 @@ func (s *JsDocTokenStream) GetJsDocToken() JsDocToken {
 func (s *JsDocTokenStream) GetRemainingJSDocLine() string {
 	if s.ungetCursor == 0 && s.stringBufferTop == 0 && s.lineEndChar < 0 {
 		src := s.rawSource
-		end := len(src)
 		start := s.byteCursor
 		cur := start
-		utf16Len := 0
-		canSlice := true
-		for cur < end {
+		for cur < len(src) {
 			b := src[cur]
-			if b < 0x80 {
-				if b == '\n' || b == '\r' {
-					break
-				}
-				if b == '*' && cur+1 < end {
-					if src[cur+1] == '/' {
-						break
-					}
-					if src[cur+1] >= 0x80 {
-						canSlice = false
-						break
-					}
-				}
-				cur++
-				utf16Len++
-				continue
-			}
-			r, width := decodeWTF8Rune(src[cur:])
-			if rhino.TokenUtil_IsJSFormatChar(int(r)) || JsDocTokenStream_IsJSLineTerminator(int(r)) {
-				canSlice = false
+			if b >= 0x80 || b == '\n' || b == '\r' || (b == '*' && cur+1 < len(src) && src[cur+1] == '/') {
 				break
 			}
-			cur += width
-			if r >= 0x10000 {
-				utf16Len += 2
-			} else {
-				utf16Len++
-			}
+			cur++
 		}
-		if canSlice {
-			if utf16Len > 0 {
+		if cur == len(src) || src[cur] < 0x80 {
+			if delta := cur - start; delta > 0 {
 				if s.charno == -1 {
 					s.charno = s.sourceCursor - s.lineStart
 				}
-				s.byteCursor = cur
-				s.sourceCursor += utf16Len
-				s.cursor += utf16Len
+				s.advanceASCII(delta)
 			}
 			stopChar := s.GetChar()
 			s.UngetChar(stopChar)
@@ -399,22 +322,18 @@ func (s *JsDocTokenStream) GetRemainingJSDocLine() string {
 			return s.string_
 		}
 	}
-	var c int
 	for {
-		c = s.GetChar()
+		c := s.GetChar()
 		switch c {
 		case '*':
 			if s.PeekChar() != '/' {
 				s.AddToString(c)
-				break
+				continue
 			}
 			fallthrough
 		case JsDocTokenStream_EOF_CHAR, '\n':
 			s.UngetChar(c)
-			s.string_ = s.GetStringFromBuffer()
-			s.stringBufferTop = 0
-			return s.string_
-
+			return s.flushStringBuffer()
 		default:
 			s.AddToString(c)
 		}

@@ -220,69 +220,24 @@ func (n Node) IsColorFromTypeCast() bool {
 
 // Java: Node.lookupProperty(Prop)
 func (n Node) LookupProperty(prop Node_Prop) *Node_PropListItem {
-	if mask := nodePropBitMask[prop]; mask != 0 {
-		if (n.props() & mask) == 0 {
+	s := nodePropSpecs[prop]
+	switch s.kind {
+	case propKindBool:
+		if (n.props() & s.mask) == 0 {
 			return nil
 		}
-		if (n.rec().kindFlags & kindFlagHasExtra) != 0 {
-			if x := n.lookupPropListHead(prop); x != nil {
-				return x
-			}
+		if x := n.extraColdPropItem(prop); x != nil {
+			return x
 		}
 		return &staticBoolPropItems[prop]
-	}
-	switch prop {
-	case Node_Prop_SOURCE_FILE:
-		if sfID := n.rec().sourceFile; sfID != 0 {
-			return sourceFilePropItem(sfID)
-		}
-		return nil
-	case Node_Prop_CONSTANT_VAR_FLAGS:
-		if v := (n.props() >> nodePropConstVarShift) & 3; v != 0 {
-			return &staticConstVarPropItems[v]
+	case propKindPackedInt:
+		if v := (n.props() & s.mask) >> s.shift; v != 0 {
+			return &staticPackedPropItems[uint64(s.staticBase)+v]
 		}
 		if (n.rec().kindFlags & kindFlagHasExtra) == 0 {
 			return nil
 		}
-	case Node_Prop_SIDE_EFFECT_FLAGS:
-		if v := (n.props() >> nodePropSideEffectShift) & 15; v != 0 {
-			return &staticSideEffectPropItems[v]
-		}
-		if (n.rec().kindFlags & kindFlagHasExtra) == 0 {
-			return nil
-		}
-	case Node_Prop_JSDOC_INFO:
-		if (n.props() & propFlagHasJSDoc) == 0 {
-			return nil
-		}
-		var jsdoc *JSDocInfo
-		if (n.rec().kindFlags & kindFlagHasExtBox) == 0 {
-			jsdoc = n.jsDocAux()
-		} else if box := n.extBoxOrNil(); box != nil {
-			jsdoc = box.jsDocInfo
-		}
-		if jsdoc != nil {
-			return &Node_PropListItem{
-				propType:    int8(Node_Prop_JSDOC_INFO),
-				objectValue: jsdoc,
-				isObject:    true,
-				shared:      true,
-			}
-		}
-	case Node_Prop_TYPE_BEFORE_CAST:
-		box := n.extBoxOrNil()
-		if box == nil {
-			return nil
-		}
-		if tbc := n.store().typeAt(box.typeBeforeCast); tbc != nil {
-			return &Node_PropListItem{
-				propType:    int8(Node_Prop_TYPE_BEFORE_CAST),
-				objectValue: tbc.self(),
-				isObject:    true,
-				shared:      true,
-			}
-		}
-	case Node_Prop_CHANGE_TIME:
+	case propKindChangeTime:
 		if n.nodeKind() == node_kindNode {
 			if v := int32(uint32(n.rec().payload)); v != 0 {
 				return &Node_PropListItem{
@@ -293,6 +248,36 @@ func (n Node) LookupProperty(prop Node_Prop) *Node_PropListItem {
 			}
 			if (n.rec().kindFlags & kindFlagHasExtra) == 0 {
 				return nil
+			}
+		}
+	case propKindSourceFile:
+		if sfID := n.rec().sourceFile; sfID != 0 {
+			return sourceFilePropItem(sfID)
+		}
+		return nil
+	case propKindJSDoc:
+		if (n.props() & propFlagHasJSDoc) == 0 {
+			return nil
+		}
+		if jsdoc := n.inlineJSDoc(); jsdoc != nil {
+			return &Node_PropListItem{
+				propType:    int8(Node_Prop_JSDOC_INFO),
+				objectValue: jsdoc,
+				isObject:    true,
+				shared:      true,
+			}
+		}
+	case propKindTypeCast:
+		box := n.extBoxOrNil()
+		if box == nil {
+			return nil
+		}
+		if tbc := n.store().typeAt(box.typeBeforeCast); tbc != nil {
+			return &Node_PropListItem{
+				propType:    int8(Node_Prop_TYPE_BEFORE_CAST),
+				objectValue: tbc.self(),
+				isObject:    true,
+				shared:      true,
 			}
 		}
 	}
@@ -703,31 +688,27 @@ func (n Node) SetPropListHead(propListHead *Node_PropListItem) {
 	n.setColdPropListHead(propListHead)
 	var flags uint64
 	for x := propListHead; x != nil; x = x.next {
-		prop := Node_Prop(x.propType)
+		s := nodePropSpecs[x.propType]
 		if x.isObject {
 			if !jutil.IsNil(x.objectValue) {
-				if prop == Node_Prop_JSDOC_INFO {
+				switch s.kind {
+				case propKindJSDoc:
 					flags |= propFlagHasJSDoc
-				} else if mask := nodePropBitMask[prop]; mask != 0 {
-					flags |= mask
+				case propKindBool:
+					flags |= s.mask
 					n.rec().kindFlags |= kindFlagHasExtra
 				}
 			}
 		} else if x.intValue != 0 {
-			if mask := nodePropBitMask[prop]; mask != 0 {
-				flags |= mask
+			switch s.kind {
+			case propKindBool:
+				flags |= s.mask
 				if x.intValue != 1 {
 					n.rec().kindFlags |= kindFlagHasExtra
 				}
-			} else if prop == Node_Prop_CONSTANT_VAR_FLAGS {
-				if x.intValue&^3 == 0 {
-					flags = (flags &^ nodePropConstVarMask) | (uint64(x.intValue&3) << nodePropConstVarShift)
-				} else {
-					n.rec().kindFlags |= kindFlagHasExtra
-				}
-			} else if prop == Node_Prop_SIDE_EFFECT_FLAGS {
-				if x.intValue&^15 == 0 {
-					flags = (flags &^ nodePropSideEffectMask) | (uint64(x.intValue&15) << nodePropSideEffectShift)
+			case propKindPackedInt:
+				if x.intValue&^int32(s.maxInline) == 0 {
+					flags = (flags &^ s.mask) | (uint64(x.intValue) << s.shift)
 				} else {
 					n.rec().kindFlags |= kindFlagHasExtra
 				}

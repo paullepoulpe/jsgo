@@ -254,7 +254,7 @@ func (b *lcaCaseBuilder) edge(src int, dest int) *lcaCaseBuilder {
 }
 
 func (b *lcaCaseBuilder) copyGraph(src *LinkedDirectedGraph[int, any]) *lcaCaseBuilder {
-	for _, edge := range src.GetDiGraphEdges() {
+	for _, edge := range src.GetEdges() {
 		b.edge(edge.GetSource().GetValue(), edge.GetDestination().GetValue())
 	}
 	return b
@@ -301,7 +301,7 @@ func (b *lcaCaseBuilder) renderGraph() bool {
 		return false // This graph won't be readable anyway.
 	}
 
-	for _, node := range b.graph.GetDiGraphNodes() {
+	for _, node := range b.graph.GetNodes() {
 		purpose := lcaTest_NodePurpose_NONE
 		if slices.Contains(b.roots_, node.GetValue()) {
 			purpose = purpose.mix(lcaTest_NodePurpose_ROOT)

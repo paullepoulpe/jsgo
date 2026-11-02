@@ -150,7 +150,7 @@ func (d *DisambiguateProperties) Process(externs rhino.Node, root rhino.Node) {
 	graphLog.LogJsonSupplier(
 		func() any {
 			var nodes []*disambiguateProperties_TypeNodeJson
-			for _, n := range colorGraph.GetDiGraphNodes() {
+			for _, n := range colorGraph.GetNodes() {
 				nodes = append(nodes, newDisambiguateProperties_TypeNodeJson(n, d.propAssocs))
 			}
 			slices.SortStableFunc(nodes, func(a, b *disambiguateProperties_TypeNodeJson) int { return cmp.Compare(a.Index, b.Index) })

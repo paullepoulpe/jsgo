@@ -44,119 +44,106 @@ func (f *InlineFunctions) ResolveInlineConflicts() {
 	if len(f.fns) == 0 {
 		return
 	}
+	if parallelThreadCount(f.compiler, len(f.fns)) <= 1 {
+		for _, functionState := range f.fns {
+			f.ResolveInlineConflictsForFunction(functionState)
+		}
+		return
+	}
 	cands := make([]*InlineFunctions_FunctionState, 0, len(f.fns))
 	for _, functionState := range f.fns {
 		if functionState.HasReferences() && functionState.CanInline() {
 			cands = append(cands, functionState)
 		}
 	}
-	numWorkers := parallelThreadCount(f.compiler, len(cands))
-	if numWorkers <= 1 {
-		for _, functionState := range cands {
-			f.ResolveInlineConflictsForFunction(functionState)
-		}
+	if numWorkers := parallelThreadCount(f.compiler, len(cands)); numWorkers > 1 {
+		f.resolveInlineConflictsParallel(cands, numWorkers)
 		return
 	}
-	f.resolveInlineConflictsParallel(cands, numWorkers)
+	for _, functionState := range cands {
+		f.ResolveInlineConflictsForFunction(functionState)
+	}
 }
 
 type ifConflictScanResult struct {
-	calledStates         []*InlineFunctions_FunctionState
-	anonStates           []*InlineFunctions_FunctionState
-	hasCalledNames       bool
-	structuralNeedsClone bool
+	calledStates   []*InlineFunctions_FunctionState
+	needsBaseClone bool
+	hasCalled      bool
 }
 
-func inlineFunctions_collectAnonInlinableStates(
-	node rhino.Node,
-	anonFns map[rhino.Node]*InlineFunctions_FunctionState,
-	out *[]*InlineFunctions_FunctionState,
-) {
-	if node.IsFunction() {
-		if fs := anonFns[node]; fs != nil && fs.CanInline() {
-			*out = append(*out, fs)
+func (f *InlineFunctions) scanFunctionConflicts(fnNode rhino.Node, calledIDs *inlineIDSet) (needsBaseClone, hasCalled bool) {
+	calledIDs.clear()
+	hasAnon := inlineFunctions_findCalledFunctions(ast.MustFunction(fnNode).Body().Node(), calledIDs, f.anonFns)
+	if calledIDs.isEmpty() {
+		return false, false
+	}
+	return hasAnon || !inlineFunctions_isIsolatedStmtFn(fnNode) || inlineFunctions_hasParamWithChildren(fnNode), true
+}
+
+func (f *InlineFunctions) resolveCalledFunctionConflict(fsCalled *InlineFunctions_FunctionState) bool {
+	if fsCalled == nil {
+		return false
+	}
+	if fsCalled.CanRemove() {
+		fsCalled.SetRemove(
+			false,
+			f.compiler,
+			InlineFunctions_CannotRemoveReason_CALLED_BY_INLINED_FUNCTION,
+			InlineFunctions_ShouldWarnWhenRequireInliningCannotInline_NO)
+		// For functions that can no longer be removed, check if they should
+		// still be inlined.
+		if !f.MinimizeCost(fsCalled) &&
+			!fsCalled.RequireInlining() &&
+			!fsCalled.EncourageInlining() {
+			fsCalled.DisallowInlining(f.compiler, InlineFunctions_DisallowInliningReason_COST)
 		}
 	}
-	for c := node.GetFirstChild(); !c.IsNil(); c = c.GetNext() {
-		if !c.GetFirstChild().IsNil() {
-			inlineFunctions_collectAnonInlinableStates(c, anonFns, out)
-		}
-	}
+	return fsCalled.CanInline()
 }
 
 func (f *InlineFunctions) resolveInlineConflictsParallel(
 	cands []*InlineFunctions_FunctionState,
 	numWorkers int,
 ) {
-	hasAnon := len(f.anonFns) > 0
-	fnByID := f.namedFns
-
-	type ifConflictScanWorker struct {
+	type workerState struct {
 		calledIDs inlineIDSet
+		slab      []*InlineFunctions_FunctionState
 	}
 
 	scanResults := make([]ifConflictScanResult, len(cands))
 	runParallelWorkersIndexed(
 		len(cands),
 		numWorkers,
-		func(_ int) ifConflictScanWorker { return ifConflictScanWorker{} },
-		func(w *ifConflictScanWorker, idx int) {
-			fs := cands[idx]
-			fnNode := fs.functionNode()
-			body := ast.MustFunction(fnNode).Body().Node()
-			w.calledIDs.clear()
-			inlineFunctions_collectCalledFunctionIDs(body, &w.calledIDs)
-			if w.calledIDs.isEmpty() {
+		func(_ int) workerState { return workerState{} },
+		func(w *workerState, idx int) {
+			needsClone, hasCalled := f.scanFunctionConflicts(cands[idx].functionNode(), &w.calledIDs)
+			if !hasCalled {
 				return
 			}
-			var res ifConflictScanResult
-			res.hasCalledNames = true
-			if hasAnon {
-				inlineFunctions_collectAnonInlinableStates(body, f.anonFns, &res.anonStates)
-			}
-			res.structuralNeedsClone = !inlineFunctions_isIsolatedStmtFn(fnNode) || inlineFunctions_hasParamWithChildren(fnNode)
+			start := len(w.slab)
 			for _, id := range w.calledIDs.items {
-				if fsCalled := fnByID[id]; fsCalled != nil {
-					res.calledStates = append(res.calledStates, fsCalled)
+				if fsCalled := f.namedFns[id]; fsCalled != nil {
+					w.slab = append(w.slab, fsCalled)
 				}
 			}
-			scanResults[idx] = res
+			scanResults[idx] = ifConflictScanResult{
+				calledStates:   w.slab[start:len(w.slab):len(w.slab)],
+				needsBaseClone: needsClone,
+				hasCalled:      true,
+			}
 		},
 		nil,
 	)
 
-	var toClone []*InlineFunctions_FunctionState
+	toClone := cands[:0]
 	for i, functionState := range cands {
-		if !functionState.HasReferences() || !functionState.CanInline() {
-			continue
-		}
 		res := &scanResults[i]
-		if !res.hasCalledNames {
+		if !res.hasCalled || !functionState.HasReferences() || !functionState.CanInline() {
 			continue
 		}
-		needsSafeClone := res.structuralNeedsClone
-		if !needsSafeClone {
-			for _, afs := range res.anonStates {
-				if afs.CanInline() {
-					needsSafeClone = true
-					break
-				}
-			}
-		}
+		needsSafeClone := res.needsBaseClone
 		for _, fsCalled := range res.calledStates {
-			if fsCalled.CanRemove() {
-				fsCalled.SetRemove(
-					false,
-					f.compiler,
-					InlineFunctions_CannotRemoveReason_CALLED_BY_INLINED_FUNCTION,
-					InlineFunctions_ShouldWarnWhenRequireInliningCannotInline_NO)
-				if !f.MinimizeCost(fsCalled) &&
-					!fsCalled.RequireInlining() &&
-					!fsCalled.EncourageInlining() {
-					fsCalled.DisallowInlining(f.compiler, InlineFunctions_DisallowInliningReason_COST)
-				}
-			}
-			if fsCalled.CanInline() {
+			if f.resolveCalledFunctionConflict(fsCalled) {
 				needsSafeClone = true
 			}
 		}
@@ -165,10 +152,9 @@ func (f *InlineFunctions) resolveInlineConflictsParallel(
 		}
 	}
 
-	cloneWorkers := parallelThreadCount(f.compiler, len(toClone))
 	runParallelWorkersIndexed(
 		len(toClone),
-		cloneWorkers,
+		parallelThreadCount(f.compiler, len(toClone)),
 		func(_ int) struct{} { return struct{}{} },
 		func(_ *struct{}, idx int) {
 			fs := toClone[idx]
@@ -215,42 +201,20 @@ func (f *InlineFunctions) ResolveInlineConflictsForFunction(functionState *Inlin
 	}
 
 	fnNode := functionState.functionNode()
-	p := f.ensureRunState()
-	calledIDs := &p.calledIDs
-	calledIDs.clear()
-	hasAnonInlinable := inlineFunctions_findCalledFunctionsAndAnon(
-		ast.MustFunction(fnNode).Body().Node(), calledIDs, f.anonFns)
-	if !calledIDs.isEmpty() {
-		needsSafeClone := hasAnonInlinable || !inlineFunctions_isIsolatedStmtFn(fnNode) || inlineFunctions_hasParamWithChildren(fnNode)
-		// Prevent the removal of the referenced functions unless they will be immediately inlined.
-		for _, id := range calledIDs.items {
-			fsCalled := f.namedFns[id]
-			if fsCalled != nil {
-				if fsCalled.CanRemove() {
-					fsCalled.SetRemove(
-						false,
-						f.compiler,
-						InlineFunctions_CannotRemoveReason_CALLED_BY_INLINED_FUNCTION,
-						InlineFunctions_ShouldWarnWhenRequireInliningCannotInline_NO)
-					// For functions that can no longer be removed, check if they should
-					// still be inlined.
-					if !f.MinimizeCost(fsCalled) &&
-						!fsCalled.RequireInlining() &&
-						!fsCalled.EncourageInlining() {
-						// It can't be inlined remove it from the list.
-						fsCalled.DisallowInlining(f.compiler, InlineFunctions_DisallowInliningReason_COST)
-					}
-				}
-				if fsCalled.CanInline() {
-					needsSafeClone = true
-				}
-			}
+	calledIDs := &f.ensureRunState().calledIDs
+	needsSafeClone, hasCalled := f.scanFunctionConflicts(fnNode, calledIDs)
+	if !hasCalled {
+		return
+	}
+	// Prevent the removal of the referenced functions unless they will be immediately inlined.
+	for _, id := range calledIDs.items {
+		if f.resolveCalledFunctionConflict(f.namedFns[id]) {
+			needsSafeClone = true
 		}
-
-		if needsSafeClone {
-			// Make a copy of the Node, so it isn't changed by other inlines.
-			functionState.SetSafeFnNode(fnNode.CloneTree())
-		}
+	}
+	if needsSafeClone {
+		// Make a copy of the Node, so it isn't changed by other inlines.
+		functionState.SetSafeFnNode(fnNode.CloneTree())
 	}
 }
 
@@ -284,43 +248,17 @@ func inlineFunctions_isIsolatedStmtFn(fnNode rhino.Node) bool {
 	return false
 }
 
-func inlineFunctions_collectCalledFunctionIDs(node rhino.Node, changed *inlineIDSet) {
-	if node.IsName() && InlineFunctions_IsCandidateUsage(node) {
-		changed.add(node.GetStringID())
-	}
-
-	for c := node.GetFirstChild(); !c.IsNil(); c = c.GetNext() {
-		if c.GetFirstChild().IsNil() {
-			if c.IsName() && InlineFunctions_IsCandidateUsage(c) {
-				changed.add(c.GetStringID())
-			}
-			continue
-		}
-		inlineFunctions_collectCalledFunctionIDs(c, changed)
-	}
-}
-
-func inlineFunctions_findCalledFunctionsAndAnon(
-	node rhino.Node,
-	changed *inlineIDSet,
-	anonFns map[rhino.Node]*InlineFunctions_FunctionState,
-) bool {
-	if len(anonFns) == 0 {
-		inlineFunctions_collectCalledFunctionIDs(node, changed)
-		return false
-	}
-	return inlineFunctions_findCalledFunctionsWithAnon(node, changed, anonFns)
-}
-
-func inlineFunctions_findCalledFunctionsWithAnon(
+func inlineFunctions_findCalledFunctions(
 	node rhino.Node,
 	changed *inlineIDSet,
 	anonFns map[rhino.Node]*InlineFunctions_FunctionState,
 ) bool {
 	hasAnon := false
-	if node.IsName() && InlineFunctions_IsCandidateUsage(node) {
-		changed.add(node.GetStringID())
-	} else if node.IsFunction() {
+	if node.IsName() {
+		if InlineFunctions_IsCandidateUsage(node) {
+			changed.add(node.GetStringID())
+		}
+	} else if len(anonFns) > 0 && node.IsFunction() {
 		if fs := anonFns[node]; fs != nil && fs.CanInline() {
 			hasAnon = true
 		}
@@ -333,7 +271,7 @@ func inlineFunctions_findCalledFunctionsWithAnon(
 			}
 			continue
 		}
-		if inlineFunctions_findCalledFunctionsWithAnon(c, changed, anonFns) {
+		if inlineFunctions_findCalledFunctions(c, changed, anonFns) {
 			hasAnon = true
 		}
 	}

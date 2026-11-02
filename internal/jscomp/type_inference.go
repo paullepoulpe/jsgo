@@ -55,10 +55,7 @@ type TypeInference struct {
 	optChainStack []TypeInference_OptChainInfo
 
 	// Scopes that have had their unbound untyped vars inferred as undefined.
-	inferredUnboundVarScope *TypedScope
-	inferredUnboundVarBuf   [8]*TypedScope
-	inferredUnboundVarList  []*TypedScope
-	inferredUnboundVars     map[*TypedScope]struct{}
+	inferredUnboundVars smallSet[*TypedScope]
 
 	// For convenience
 	unknownType             rhino.ObjectType
@@ -110,6 +107,9 @@ func (ti *TypeInference) ReleaseLargeBuffers() {
 	if cap(ti.edgeStates) > dfaReuseMaxNodes*2 {
 		ti.edgeStates = nil
 	}
+	if cap(ti.inferredUnboundVars.items) > dfaReuseMaxNodes {
+		ti.inferredUnboundVars = smallSet[*TypedScope]{}
+	}
 }
 
 func (ti *TypeInference) initTypeInference(
@@ -125,18 +125,7 @@ func (ti *TypeInference) initTypeInference(
 	ti.lastScopeRoot = rhino.NilNode
 	ti.lastModule = nil
 	ti.lastSyntacticBlockScope = nil
-	ti.inferredUnboundVarScope = nil
-	ti.inferredUnboundVarList = ti.inferredUnboundVarBuf[:0]
-	if n := len(ti.inferredUnboundVars); n > 0 {
-		if n <= 64 {
-			// order-independent: clears the map
-			for k := range ti.inferredUnboundVars {
-				delete(ti.inferredUnboundVars, k)
-			}
-		} else {
-			clear(ti.inferredUnboundVars)
-		}
-	}
+	ti.inferredUnboundVars.clear()
 	ti.optChainStack = ti.optChainStack[:0]
 	ti.hasBranchOutcomes = false
 	ti.branchConditionOutcomes = TypeInference_BooleanOutcomePair{}
@@ -344,27 +333,8 @@ func (ti *TypeInference) flowNode(
 // Java: TypeInference.inferDeclarativelyUnboundVarsWithoutTypes(FlowScope)
 func (ti *TypeInference) InferDeclarativelyUnboundVarsWithoutTypes(flow *LinkedFlowScope) *LinkedFlowScope {
 	scope := flow.syntacticScope
-	if len(scope.vars) == 0 || ti.inferredUnboundVarScope == scope {
+	if len(scope.vars) == 0 || !ti.inferredUnboundVars.add(scope) {
 		return flow
-	}
-	if ti.inferredUnboundVarScope == nil {
-		ti.inferredUnboundVarScope = scope
-	} else {
-		for _, s := range ti.inferredUnboundVarList {
-			if s == scope {
-				return flow
-			}
-		}
-		if len(ti.inferredUnboundVarList) < len(ti.inferredUnboundVarBuf) {
-			ti.inferredUnboundVarList = append(ti.inferredUnboundVarList, scope)
-		} else {
-			if ti.inferredUnboundVars == nil {
-				ti.inferredUnboundVars = make(map[*TypedScope]struct{}, 16)
-			} else if _, exists := ti.inferredUnboundVars[scope]; exists {
-				return flow
-			}
-			ti.inferredUnboundVars[scope] = struct{}{}
-		}
 	}
 	// For each local variable declared with the VAR keyword, the entry
 	// type is VOID.

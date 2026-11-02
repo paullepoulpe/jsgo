@@ -417,39 +417,37 @@ func (g *GlobalNamespace) docByID(id uint32) *rhino.JSDocInfo {
 	return g.jsDocs[id-1]
 }
 
+func (g *GlobalNamespace) indexedGlobalByID(nameID uint32) *GlobalNamespace_Name {
+	if nameID != 0 {
+		if n := g.nameByID(nameID); n.propertyBitSet&gnNamePropIndexedGlobal != 0 {
+			return n
+		}
+	}
+	return nil
+}
+
+func (g *GlobalNamespace) lookupPathID(curID uint32, path string) uint32 {
+	for {
+		seg, rest, hasMore := strings.Cut(path, ".")
+		segID := uint32(strpool.Lookup(seg))
+		if segID == 0 {
+			return 0
+		}
+		curID = g.lookupChildID(curID, segID)
+		if curID == 0 || !hasMore {
+			return curID
+		}
+		path = rest
+	}
+}
+
 // LookupName returns the Name for fullName if present, without interning
 // fullName when absent.
 func (g *GlobalNamespace) LookupName(fullName string) *GlobalNamespace_Name {
 	if g.indexedGlobalCount == 0 || fullName == "" {
 		return nil
 	}
-	var curID uint32
-	rem := fullName
-	for {
-		dot := strings.IndexByte(rem, '.')
-		var seg string
-		if dot < 0 {
-			seg = rem
-		} else {
-			seg = rem[:dot]
-		}
-		segID := uint32(strpool.Lookup(seg))
-		if segID == 0 {
-			return nil
-		}
-		curID = g.lookupChildID(curID, segID)
-		if curID == 0 {
-			return nil
-		}
-		if dot < 0 {
-			n := g.nameByID(curID)
-			if n.propertyBitSet&gnNamePropIndexedGlobal != 0 {
-				return n
-			}
-			return nil
-		}
-		rem = rem[dot+1:]
-	}
+	return g.indexedGlobalByID(g.lookupPathID(0, fullName))
 }
 
 // ContainsName reports whether fullName is indexed in the global namespace.
@@ -477,30 +475,16 @@ func (g *GlobalNamespace) lookupGlobalNode(qname rhino.Node) (*GlobalNamespace_N
 		if s := strpool.String(strpool.ID(id)); strings.IndexByte(s, '.') >= 0 {
 			return g.LookupName(s), true
 		}
-		if nameID := g.lookupChildID(0, id); nameID != 0 {
-			if n := g.nameByID(nameID); n.propertyBitSet&gnNamePropIndexedGlobal != 0 {
-				return n, true
-			}
+		return g.indexedGlobalByID(g.lookupChildID(0, id)), true
+	case rhino.Token_THIS, rhino.Token_SUPER:
+		if g.indexedGlobalCount == 0 {
+			return nil, true
 		}
-		return nil, true
-	case rhino.Token_THIS:
-		if g.indexedGlobalCount != 0 {
-			if nameID := g.lookupChildID(0, gnThisStrID); nameID != 0 {
-				if n := g.nameByID(nameID); n.propertyBitSet&gnNamePropIndexedGlobal != 0 {
-					return n, true
-				}
-			}
+		id := gnThisStrID
+		if qname.IsSuper() {
+			id = gnSuperStrID
 		}
-		return nil, true
-	case rhino.Token_SUPER:
-		if g.indexedGlobalCount != 0 {
-			if nameID := g.lookupChildID(0, gnSuperStrID); nameID != 0 {
-				if n := g.nameByID(nameID); n.propertyBitSet&gnNamePropIndexedGlobal != 0 {
-					return n, true
-				}
-			}
-		}
-		return nil, true
+		return g.indexedGlobalByID(g.lookupChildID(0, id)), true
 	case rhino.Token_GETPROP:
 		var segBuf [8]uint32
 		segs := segBuf[:0]
@@ -542,19 +526,10 @@ func (g *GlobalNamespace) lookupGlobalNode(qname rhino.Node) (*GlobalNamespace_N
 			return g.LookupName(fullName), true
 		}
 		curNameID := g.lookupChildID(0, topID)
-		if curNameID == 0 {
-			return nil, true
-		}
-		for i := len(segs) - 1; i >= 0; i-- {
+		for i := len(segs) - 1; i >= 0 && curNameID != 0; i-- {
 			curNameID = g.lookupChildID(curNameID, segs[i])
-			if curNameID == 0 {
-				return nil, true
-			}
 		}
-		if n := g.nameByID(curNameID); n.propertyBitSet&gnNamePropIndexedGlobal != 0 {
-			return n, true
-		}
-		return nil, true
+		return g.indexedGlobalByID(curNameID), true
 	default:
 		return nil, false
 	}
@@ -569,14 +544,7 @@ func (g *GlobalNamespace) lookupGlobalChildByID(parent *GlobalNamespace_Name, ba
 	if s := strpool.String(strpool.ID(baseNameID)); strings.IndexByte(s, '.') >= 0 {
 		return g.LookupName(parent.GetFullName() + "." + s)
 	}
-	childID := g.lookupChildID(parent.selfID, baseNameID)
-	if childID == 0 {
-		return nil
-	}
-	if child := g.nameByID(childID); child.propertyBitSet&gnNamePropIndexedGlobal != 0 {
-		return child
-	}
-	return nil
+	return g.indexedGlobalByID(g.lookupChildID(parent.selfID, baseNameID))
 }
 
 // Java: GlobalNamespace.setShouldTraverseScriptPredicate(Predicate<Node>)
@@ -759,43 +727,10 @@ func (c GlobalNamespace_AstChange) Chunk() *JSChunk { return c.chunk }
 func (c GlobalNamespace_AstChange) Scope() *Scope { return c.scope }
 
 type astChangeSet struct {
-	items []GlobalNamespace_AstChange
-	seen  map[GlobalNamespace_AstChange]struct{}
+	smallSet[GlobalNamespace_AstChange]
 }
 
-func (s *astChangeSet) reset() {
-	clear(s.items)
-	s.items = s.items[:0]
-	if len(s.seen) > 0 {
-		clear(s.seen)
-	}
-}
-
-func (s *astChangeSet) add(c GlobalNamespace_AstChange) {
-	if s.seen != nil && len(s.items) > 8 {
-		if _, ok := s.seen[c]; ok {
-			return
-		}
-		s.seen[c] = struct{}{}
-		s.items = append(s.items, c)
-		return
-	}
-	for i := range s.items {
-		if s.items[i] == c {
-			return
-		}
-	}
-	if len(s.items) == 8 {
-		if s.seen == nil {
-			s.seen = make(map[GlobalNamespace_AstChange]struct{}, 16)
-		}
-		for _, prev := range s.items {
-			s.seen[prev] = struct{}{}
-		}
-		s.seen[c] = struct{}{}
-	}
-	s.items = append(s.items, c)
-}
+func (s *astChangeSet) reset() { s.clear() }
 
 // ScanNewNodes: if the client adds new nodes to the AST, scan these new
 // nodes to see if they've added any references to the global namespace.
@@ -976,11 +911,8 @@ func (g *GlobalNamespace) estimateNameCapacity() int {
 //
 // Java: GlobalNamespace.getTopVarName(String)
 func GlobalNamespace_GetTopVarName(name string) string {
-	firstDotIndex := strings.IndexByte(name, '.')
-	if firstDotIndex == -1 {
-		return name
-	}
-	return name[:firstDotIndex]
+	top, _, _ := strings.Cut(name, ".")
+	return top
 }
 
 type globalNamespaceModuleKey struct {
@@ -995,40 +927,14 @@ func (g *GlobalNamespace) GetNameFromModule(moduleMetadata *ModuleMetadataMap_Mo
 	if g.nameMapByModule == nil || name == "" {
 		return nil
 	}
-	dot := strings.IndexByte(name, '.')
-	var rootSeg string
-	if dot < 0 {
-		rootSeg = name
-	} else {
-		rootSeg = name[:dot]
-	}
+	rootSeg, rest, hasMore := strings.Cut(name, ".")
 	rootStrID := uint32(strpool.Lookup(rootSeg))
 	if rootStrID == 0 {
 		return nil
 	}
 	curID := g.nameMapByModule[globalNamespaceModuleKey{module: moduleMetadata, nameID: rootStrID}]
-	if curID == 0 {
-		return nil
-	}
-	for dot >= 0 {
-		rem := name[dot+1:]
-		nextDot := strings.IndexByte(rem, '.')
-		var seg string
-		if nextDot < 0 {
-			seg = rem
-			dot = -1
-		} else {
-			seg = rem[:nextDot]
-			dot = dot + 1 + nextDot
-		}
-		segID := uint32(strpool.Lookup(seg))
-		if segID == 0 {
-			return nil
-		}
-		curID = g.lookupChildID(curID, segID)
-		if curID == 0 {
-			return nil
-		}
+	if curID != 0 && hasMore {
+		curID = g.lookupPathID(curID, rest)
 	}
 	return g.nameByID(curID)
 }

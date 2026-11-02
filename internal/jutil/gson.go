@@ -167,16 +167,55 @@ func (g *Gson) TryFromJsonArray(json string) (*JsonArray, IJsonParseException) {
 
 // Java: Gson.fromJson(String, Type) and Gson.fromJson(Reader, Type)
 func (g *Gson) fromJsonStringErr(json string, typeOfT gsonRequestedType) (JsonElement, IJsonParseException) {
-	reader := NewStringReader(json)
-	jsonReader := g.NewJsonReader(reader)
-	object, err := g.fromJsonReaderErr(jsonReader, typeOfT)
+	var s JsonScanner
+	s.Init(json, true)
+	_, emptyEOF, err := s.DoPeek(true)
 	if err != nil {
-		return nil, err
+		return nil, gson_wrapScannerErr(err)
 	}
-	if err := gson_assertFullConsumptionErr(object, jsonReader); err != nil {
-		return nil, err
+	if emptyEOF {
+		return nil, nil
+	}
+	object, err := s.ReadJsonElement()
+	if err != nil {
+		return nil, gson_wrapScannerErr(err)
+	}
+	if object != nil && !typeOfT.isInstance(object) {
+		return nil, newJsonSyntaxException("Expected a " + typeOfT.getName() +
+			" but was " + jsonElementClassName(object) + "; at path " + s.GetPreviousPath())
+	}
+	if object == nil {
+		return nil, nil
+	}
+	s.SetLenient(g.lenient)
+	endTok, err := s.Peek()
+	if err != nil {
+		switch e := err.(type) {
+		case *malformedJsonException:
+			return nil, NewJsonSyntaxExceptionWithCause(e)
+		case IIOException:
+			return nil, newJsonIOExceptionWithCause(e)
+		default:
+			panic(err)
+		}
+	}
+	if endTok != JsonPeekEOF {
+		return nil, newJsonSyntaxException("JSON document was not fully consumed.")
 	}
 	return object, nil
+}
+
+func gson_wrapScannerErr(err Throwable) IJsonParseException {
+	switch e := err.(type) {
+	case IEOFException, IIllegalStateException, IIOException:
+		return NewJsonSyntaxExceptionWithCause(e)
+	case *AssertionError:
+		wrapped := NewAssertionError("AssertionError (GSON " + gsonBuildConfig_VERSION + "): " + javaMessageOrNull(e))
+		wrapped.InitCause(e)
+		panic(wrapped)
+	default:
+		panic(err)
+	}
 }
 
 // NewJsonReader returns a new JSON reader configured for the settings on
@@ -189,152 +228,116 @@ func (g *Gson) NewJsonReader(reader JavaReader) *JsonReader {
 	return jsonReader
 }
 
-func gson_assertFullConsumptionErr(obj JsonElement, reader *JsonReader) (parseErr IJsonParseException) {
-	if obj == nil {
-		return nil
+// ReadJsonElement reads one Gson JsonElement tree iteratively (TypeAdapters.JSON_ELEMENT.read).
+func (s *JsonScanner) ReadJsonElement() (JsonElement, Throwable) {
+	p, err := s.Peek()
+	if err != nil {
+		return nil, err
 	}
-	Try(func() {
-		if reader.Peek() != JsonToken_END_DOCUMENT {
-			parseErr = newJsonSyntaxException("JSON document was not fully consumed.")
-		}
-	}, func(t Throwable) {
-		switch e := t.(type) {
-		case *malformedJsonException:
-			parseErr = NewJsonSyntaxExceptionWithCause(e)
-		case IIOException:
-			parseErr = newJsonIOExceptionWithCause(e)
-		default:
-			panic(t)
-		}
-	})
-	return parseErr
-}
-
-// fromJsonReaderErr reads the next JSON value from reader as typeOfT. Returns
-// (nil, nil) if the reader is at EOF.
-func (g *Gson) fromJsonReaderErr(reader *JsonReader, typeOfT gsonRequestedType) (result JsonElement, parseErr IJsonParseException) {
-	isEmpty := true
-	oldLenient := reader.IsLenient()
-	reader.SetLenient(true)
-	defer reader.SetLenient(oldLenient)
-	Try(func() {
-		reader.Peek()
-		isEmpty = false
-		result, parseErr = gson_typeHierarchyAdapterReadErr(reader, typeOfT)
-	}, func(t Throwable) {
-		switch e := t.(type) {
-		case IEOFException:
-			if isEmpty {
-				result = nil
-				return
+	readScalar := func(tok uint8) (JsonElement, Throwable) {
+		switch tok {
+		case JsonPeekDoubleQuoted, JsonPeekSingleQuoted, JsonPeekUnquoted:
+			str, err := s.NextString()
+			if err != nil {
+				return nil, err
 			}
-			parseErr = NewJsonSyntaxExceptionWithCause(e)
-		case IIllegalStateException:
-			parseErr = NewJsonSyntaxExceptionWithCause(e)
-		case IIOException:
-			parseErr = NewJsonSyntaxExceptionWithCause(e)
-		case *AssertionError:
-			error_ := NewAssertionError("AssertionError (GSON " + gsonBuildConfig_VERSION + "): " + javaMessageOrNull(e))
-			error_.InitCause(e)
-			panic(error_)
+			return NewJsonPrimitiveString(str), nil
+		case JsonPeekLong, JsonPeekNumber:
+			str, err := s.NextString()
+			if err != nil {
+				return nil, err
+			}
+			return NewJsonPrimitiveNumber(NewLazilyParsedNumber(str)), nil
+		case JsonPeekTrue:
+			s.ConsumeScalar()
+			return NewJsonPrimitiveBoolean(true), nil
+		case JsonPeekFalse:
+			s.ConsumeScalar()
+			return NewJsonPrimitiveBoolean(false), nil
+		case JsonPeekNull:
+			s.ConsumeScalar()
+			return JsonNull_INSTANCE, nil
 		default:
-			panic(t)
+			jt, err := s.PeekToken()
+			if err != nil {
+				return nil, err
+			}
+			return nil, NewIllegalStateExceptionMsg("Unexpected token: " + jt.String())
 		}
-	})
-	return result, parseErr
-}
-
-func gson_typeHierarchyAdapterReadErr(in *JsonReader, requestedType gsonRequestedType) (JsonElement, IJsonParseException) {
-	result := typeAdapters_JSON_ELEMENT_Read(in)
-	if result != nil && !requestedType.isInstance(result) {
-		return nil, newJsonSyntaxException("Expected a " + requestedType.getName() +
-			" but was " + jsonElementClassName(result) + "; at path " + in.getPreviousPath())
 	}
-	return result, nil
-}
 
-// typeAdapters_tryBeginNesting tries to begin reading a JSON array or JSON
-// object, returning nil if the next element is neither of those.
-func typeAdapters_tryBeginNesting(in *JsonReader, peeked JsonToken) JsonElement {
-	switch peeked {
-	case JsonToken_BEGIN_ARRAY:
-		in.BeginArray()
-		return NewJsonArray()
-	case JsonToken_BEGIN_OBJECT:
-		in.BeginObject()
-		return NewJsonObject()
+	var current JsonElement
+	switch p {
+	case JsonPeekBeginArray:
+		_ = s.BeginArray()
+		current = NewJsonArray()
+	case JsonPeekBeginObject:
+		_ = s.BeginObject()
+		current = NewJsonObject()
 	default:
-		return nil
-	}
-}
-
-// typeAdapters_readTerminal reads a JsonElement which cannot have any
-// nested elements.
-func typeAdapters_readTerminal(in *JsonReader, peeked JsonToken) JsonElement {
-	switch peeked {
-	case JsonToken_STRING:
-		return NewJsonPrimitiveString(in.NextString())
-	case JsonToken_NUMBER:
-		number := in.NextString()
-		return NewJsonPrimitiveNumber(NewLazilyParsedNumber(number))
-	case JsonToken_BOOLEAN:
-		return NewJsonPrimitiveBoolean(in.NextBoolean())
-	case JsonToken_NULL:
-		in.NextNull()
-		return JsonNull_INSTANCE
-	default:
-		// When read(JsonReader) is called with JsonReader in invalid state
-		panic(NewIllegalStateExceptionMsg("Unexpected token: " + peeked.String()))
-	}
-}
-
-// typeAdapters_JSON_ELEMENT_Read is TypeAdapters.JSON_ELEMENT.read: reads a
-// whole JSON value into a tree, iteratively.
-//
-// Java: TypeAdapters.JSON_ELEMENT.read(JsonReader)
-func typeAdapters_JSON_ELEMENT_Read(in *JsonReader) JsonElement {
-	peeked := in.Peek()
-	current := typeAdapters_tryBeginNesting(in, peeked)
-	if current == nil {
-		return typeAdapters_readTerminal(in, peeked)
+		return readScalar(p)
 	}
 
 	var stack []JsonElement
-
 	for {
-		for in.HasNext() {
+		for {
+			more, err := s.HasNext()
+			if err != nil {
+				return nil, err
+			}
+			if !more {
+				break
+			}
 			var name string
-			if _, ok := current.(*JsonObject); ok {
-				name = in.NextName()
+			_, isObj := current.(*JsonObject)
+			if isObj {
+				name, err = s.NextName()
+				if err != nil {
+					return nil, err
+				}
 			}
-
-			peeked = in.Peek()
-			value := typeAdapters_tryBeginNesting(in, peeked)
-			isNesting := value != nil
-			if value == nil {
-				value = typeAdapters_readTerminal(in, peeked)
+			vp, err := s.Peek()
+			if err != nil {
+				return nil, err
 			}
-
-			if a, ok := current.(*JsonArray); ok {
-				a.Add(value)
-			} else {
+			var value JsonElement
+			isNesting := false
+			switch vp {
+			case JsonPeekBeginArray:
+				_ = s.BeginArray()
+				value = NewJsonArray()
+				isNesting = true
+			case JsonPeekBeginObject:
+				_ = s.BeginObject()
+				value = NewJsonObject()
+				isNesting = true
+			default:
+				value, err = readScalar(vp)
+				if err != nil {
+					return nil, err
+				}
+			}
+			if isObj {
 				current.(*JsonObject).Add(name, value)
+			} else {
+				current.(*JsonArray).Add(value)
 			}
-
 			if isNesting {
 				stack = append(stack, current)
 				current = value
 			}
 		}
-
-		if _, ok := current.(*JsonArray); ok {
-			in.EndArray()
+		if _, isArr := current.(*JsonArray); isArr {
+			if err := s.EndArray(); err != nil {
+				return nil, err
+			}
 		} else {
-			in.EndObject()
+			if err := s.EndObject(); err != nil {
+				return nil, err
+			}
 		}
-
 		if len(stack) == 0 {
-			return current
+			return current, nil
 		}
 		current = stack[len(stack)-1]
 		stack = stack[:len(stack)-1]
@@ -799,30 +802,25 @@ func (s *ObjectLinkedHashSet[T]) writeGsonCollection(g *Gson, out *JsonWriter) {
 	out.EndArray()
 }
 
-func (h *LinkedHashMap[K, V]) writeGsonMap(g *Gson, out *JsonWriter) {
-	if h == nil {
+func (t *orderedTable[K, V, M]) writeGsonMap(g *Gson, out *JsonWriter) {
+	if t == nil {
 		out.NullValue()
 		return
 	}
 	out.BeginObject()
-	for k, v := range h.All() {
+	for k, v := range t.all() {
 		out.Name(ToJavaString(k))
 		g.writeValue(out, v)
 	}
 	out.EndObject()
 }
 
+func (h *LinkedHashMap[K, V]) writeGsonMap(g *Gson, out *JsonWriter) {
+	h.table().writeGsonMap(g, out)
+}
+
 func (h *ObjectLinkedHashMap[K, V]) writeGsonMap(g *Gson, out *JsonWriter) {
-	if h == nil {
-		out.NullValue()
-		return
-	}
-	out.BeginObject()
-	for k, v := range h.All() {
-		out.Name(ToJavaString(k))
-		g.writeValue(out, v)
-	}
-	out.EndObject()
+	h.table().writeGsonMap(g, out)
 }
 
 // Go-only: language-adapter — com.google.gson.GsonBuilder (Gson 2.9.1, as

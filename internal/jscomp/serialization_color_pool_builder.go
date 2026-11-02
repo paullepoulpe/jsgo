@@ -541,13 +541,10 @@ func colorPool_createTrimmedOffsetToId(typePool *TypePool) []colors.ColorId {
 	}
 
 	if hasUnion {
-		var scratchBuf [16]colors.ColorId
-		scratch := scratchBuf[:0]
-		var seenMap map[colors.ColorId]uint32
-		var gen uint32
+		var members smallSet[colors.ColorId]
 		for i, proto := range typeList {
 			if proto.HasUnion() {
-				out[i] = colorPool_createUnionColorId(proto, i, typeList, out, &scratch, &seenMap, &gen)
+				out[i] = colorPool_createUnionColorId(proto, i, typeList, out, &members)
 			}
 		}
 	}
@@ -560,25 +557,11 @@ func colorPool_createUnionColorId(
 	unionIndex int,
 	typeList []*TypeProto,
 	allIds []colors.ColorId,
-	scratch *[]colors.ColorId,
-	seenMap *map[colors.ColorId]uint32,
-	gen *uint32,
+	members *smallSet[colors.ColorId],
 ) colors.ColorId {
 	unionMemberList := proto.GetUnion().GetUnionMemberList()
 	MalformedTypedAstException_CheckWellFormedWithParam(len(unionMemberList) > 1, "Union has too few members", proto)
-	members := (*scratch)[:0]
-	useMap := len(unionMemberList) > 16
-	var curGen uint32
-	if useMap {
-		*gen++
-		if *seenMap == nil {
-			*seenMap = make(map[colors.ColorId]uint32, 32)
-		} else if *gen == 0 {
-			clear(*seenMap)
-			*gen = 1
-		}
-		curGen = *gen
-	}
+	members.clear()
 	for _, rawPtr := range unionMemberList {
 		memberPointer := int(rawPtr)
 		var cid colors.ColorId
@@ -596,17 +579,9 @@ func colorPool_createUnionColorId(
 				proto)
 			cid = allIds[trimmed]
 		}
-		if useMap {
-			if (*seenMap)[cid] != curGen {
-				(*seenMap)[cid] = curGen
-				members = append(members, cid)
-			}
-		} else if !slices.Contains(members, cid) {
-			members = append(members, cid)
-		}
+		members.add(cid)
 	}
-	*scratch = members
-	return unionColorIds(members)
+	return unionColorIds(members.items)
 }
 
 // Java: ColorPool.validatePointer(int, ShardView)

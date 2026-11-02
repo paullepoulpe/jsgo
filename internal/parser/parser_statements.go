@@ -207,7 +207,7 @@ func (p *Parser) ParseVariableDeclarationListWithExpression(expressionIn Parser_
 		decl = p.ParseVariableDeclaration(token, expressionIn)
 		p.varDeclStack = append(p.varDeclStack, decl)
 	}
-	declarations := popStackChunked(&p.varDeclStack, base, &p.varDeclLists, parser_treeListChunk)
+	declarations := p.popVarDecls(base)
 	return p.newVariableDeclarationListTree(p.GetTreeLocation(start), token, declarations)
 }
 
