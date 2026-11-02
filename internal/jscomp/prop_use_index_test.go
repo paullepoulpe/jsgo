@@ -1,6 +1,7 @@
 package jscomp
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 
@@ -237,11 +238,31 @@ var w = wrap(new Element());
 alert(w.render(), w.getEl().id, JSCompiler_renameProperty('count', w));
 `}
 
-func compileForPropIndexTest(t *testing.T, input string) string {
+// propIndexManyScopes is a program with enough functions for the index to
+// index them on the workers at more than one thread.
+func propIndexManyScopes() string {
+	var b strings.Builder
+	for i := 0; i < 150; i++ {
+		fmt.Fprintf(&b, `/** @constructor */ function C%d(v) { this.v = v; this.k%d = %d; }
+C%d.prototype.get = function() { return this.v; };
+C%d.prototype.nop%d = function() {};
+C%d.prototype.twice = function(x) { var f = function() { return x * 2; }; return f() + this.k%d; };
+`, i, i, i, i, i, i, i, i)
+	}
+	b.WriteString("var s = 0;\n")
+	for i := 0; i < 150; i++ {
+		fmt.Fprintf(&b, "var c%d = new C%d(%d); c%d.nop%d(); s += c%d.get() + c%d.twice(%d) + c%d.k%d;\n", i, i, i, i, i, i, i, i, i, i)
+	}
+	b.WriteString("alert(s);\n")
+	return b.String()
+}
+
+func compileForPropIndexTest(t *testing.T, input string, threads int) string {
 	t.Helper()
 	options := NewCompilerOptions()
 	CompilationLevel_ADVANCED_OPTIMIZATIONS.SetOptionsForCompilationLevel(options)
 	options.SetCheckTypes(true)
+	options.SetNumParallelThreads(threads)
 	c := NewCompiler()
 	result := c.Compile(
 		[]*SourceFile{SourceFile_FromCode("externs.js", propIndexLoopExterns)},
@@ -257,18 +278,20 @@ func compileForPropIndexTest(t *testing.T, input string) string {
 // verify mode it is checked against a rebuild after every loop pass, and the
 // output must be the walks' output.
 func TestPropUseIndex_LoopMatchesWalks(t *testing.T) {
-	for i, input := range propIndexLoopInputs {
-		withPropIndex(t, "0", false, false)
-		want := compileForPropIndexTest(t, input)
-		withPropIndex(t, "", false, true)
-		before := propIndexReads.Load()
-		got := compileForPropIndexTest(t, input)
-		reads := propIndexReads.Load() - before
-		if got != want {
-			t.Errorf("input %d: with the index:\n%s\nwalking:\n%s", i, got, want)
-		}
-		if reads < 2 {
-			t.Errorf("input %d: the index was read %d times", i, reads)
+	for i, input := range append(propIndexLoopInputs, propIndexManyScopes()) {
+		for _, threads := range []int{1, 4} {
+			withPropIndex(t, "0", false, false)
+			want := compileForPropIndexTest(t, input, threads)
+			withPropIndex(t, "", false, true)
+			before := propIndexReads.Load()
+			got := compileForPropIndexTest(t, input, threads)
+			reads := propIndexReads.Load() - before
+			if got != want {
+				t.Errorf("input %d, %d threads: with the index:\n%s\nwalking:\n%s", i, threads, got, want)
+			}
+			if reads < 2 {
+				t.Errorf("input %d, %d threads: the index was read %d times", i, threads, reads)
+			}
 		}
 	}
 }

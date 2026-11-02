@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -121,10 +122,11 @@ const (
 	piLists
 )
 
-// piKid is a nested function whose traversal starts before items[l][at[l]]
-// in each list l.
+// piKid is a nested function (n, recorded in s) whose traversal starts
+// before items[l][at[l]] in each list l.
 type piKid struct {
 	at [piLists]int32
+	n  rhino.Node
 	s  *piScope
 }
 
@@ -145,9 +147,9 @@ type propUseIndex struct {
 	sweeps        uint32
 	live          int // records reached by the last sweep
 
-	conv  CodingConvention
-	cur   *piScope
-	queue []*piScope
+	conv    CodingConvention
+	threads int
+	rec     piRecorder // the main goroutine's
 
 	// Statistics (JSGO_PROPINDEX_STATS=1).
 	stats propIndexStats
@@ -253,14 +255,20 @@ func (c *Compiler) propIndexAfterPass(name string) {
 }
 
 func newPropUseIndex(c *Compiler, externs, root rhino.Node) *propUseIndex {
-	return &propUseIndex{
+	ix := &propUseIndex{
 		c:        c,
 		externs:  externs,
 		root:     root,
 		compacts: c.astCompact.count,
 		scopes:   make(map[rhino.Node]*piScope, 1024),
 		conv:     c.GetCodingConvention(),
+		threads:  1,
 	}
+	if opts := c.GetOptions(); opts != nil && opts.GetNumParallelThreads() > 1 {
+		ix.threads = opts.GetNumParallelThreads()
+	}
+	ix.rec = piRecorder{c: c, conv: ix.conv}
+	return ix
 }
 
 func (ix *propUseIndex) printStats() {
@@ -287,12 +295,13 @@ func (ix *propUseIndex) printStats() {
 func (ix *propUseIndex) build() {
 	ix.gen++
 	ix.stats.builds++
+	var work []*piScope
 	for _, top := range [2]rhino.Node{ix.externs, ix.root} {
 		for script := top.GetFirstChild(); !script.IsNil(); script = script.GetNext() {
-			ix.index(ix.scopeFor(script))
+			work = append(work, ix.scopeFor(script))
 		}
 	}
-	ix.drain()
+	ix.indexAll(work)
 	ix.live = len(ix.scopes)
 }
 
@@ -307,6 +316,7 @@ func (ix *propUseIndex) update(changed []rhino.Node) {
 				ix.c.currentPassName(), len(changed), ix.stats.reindexed-re0, ix.stats.items-it0, time.Since(t0).Round(10*time.Microsecond))
 		}()
 	}
+	var work []*piScope
 	for _, n := range changed {
 		if !ix.attached(n) {
 			if _, ok := ix.scopes[n]; ok {
@@ -316,25 +326,25 @@ func (ix *propUseIndex) update(changed []rhino.Node) {
 			continue
 		}
 		_, known := ix.scopes[n]
-		ix.index(ix.scopeFor(n))
+		work = append(work, ix.scopeFor(n))
 		// A new function: its parent scope lists where it starts. The
 		// ChangeVerifier does not ask for the parent's report when the new
 		// function replaced another one in place.
 		for !known && n.IsFunction() {
 			n = ChangeTracker_GetEnclosingChangeScopeRoot(n.GetParent())
 			_, known = ix.scopes[n]
-			ix.index(ix.scopeFor(n))
+			work = append(work, ix.scopeFor(n))
 		}
 	}
 	// A script that was never reported (none is added in the loops today).
 	for _, top := range [2]rhino.Node{ix.externs, ix.root} {
 		for script := top.GetFirstChild(); !script.IsNil(); script = script.GetNext() {
 			if _, ok := ix.scopes[script]; !ok {
-				ix.index(ix.scopeFor(script))
+				work = append(work, ix.scopeFor(script))
 			}
 		}
 	}
-	ix.drain()
+	ix.indexAll(work)
 	if len(ix.scopes) > 2*ix.live+4096 {
 		ix.sweep()
 	}
@@ -363,31 +373,86 @@ func (ix *propUseIndex) attached(n rhino.Node) bool {
 	return false
 }
 
-// index lists the items of s (once per update).
-func (ix *propUseIndex) index(s *piScope) {
-	if s.gen == ix.gen {
-		return
+// piParallelMin is the number of records to index below which the workers
+// are not worth starting.
+const piParallelMin = 64
+
+// indexAll indexes the records of work (each once per update) and those of
+// the nested functions met for the first time, by rounds: each round indexes
+// its records (on the workers, when the compilation has several threads and
+// the round enough records: a record depends on its scope's subtree alone),
+// then resolves their nested functions to records on this goroutine.
+func (ix *propUseIndex) indexAll(work []*piScope) {
+	var round []*piScope
+	for _, s := range work {
+		if s.gen != ix.gen {
+			s.gen = ix.gen
+			round = append(round, s)
+		}
 	}
-	s.gen = ix.gen
-	for l := range s.items {
-		s.items[l] = s.items[l][:0]
-	}
-	s.kids = s.kids[:0]
-	ix.cur = s
-	ix.stats.reindexed++
-	NodeTraversal_Traverse(ix.c, s.root, (*piRecorder)(ix))
-	ix.cur = nil
-	for _, list := range s.items {
-		ix.stats.items += len(list)
+	for len(round) > 0 {
+		ix.indexRound(round)
+		var next []*piScope
+		for _, s := range round {
+			for i := range s.kids {
+				k := &s.kids[i]
+				kid := ix.scopes[k.n]
+				if kid == nil {
+					kid = &piScope{root: k.n, gen: ix.gen}
+					ix.scopes[k.n] = kid
+					ix.stats.newScopes++
+					next = append(next, kid)
+				}
+				k.s = kid
+			}
+		}
+		round = next
 	}
 }
 
-// drain indexes the nested functions met for the first time.
-func (ix *propUseIndex) drain() {
-	for len(ix.queue) > 0 {
-		s := ix.queue[len(ix.queue)-1]
-		ix.queue = ix.queue[:len(ix.queue)-1]
-		ix.index(s)
+// indexRound lists the items and nested functions of every record of round.
+func (ix *propUseIndex) indexRound(round []*piScope) {
+	if ix.threads <= 1 || len(round) < piParallelMin {
+		r := &ix.rec
+		for _, s := range round {
+			r.index(s)
+		}
+		ix.stats.reindexed += r.indexed
+		ix.stats.items += r.items
+		r.indexed, r.items = 0, 0
+		return
+	}
+	workers := min(ix.threads, (len(round)+piParallelMin/2-1)/(piParallelMin/2))
+	recs := make([]piRecorder, workers)
+	panics := make([]any, workers)
+	var next atomic.Int64
+	var wg sync.WaitGroup
+	for w := range recs {
+		recs[w] = piRecorder{c: ix.c, conv: ix.conv}
+		wg.Add(1)
+		go func(r *piRecorder, w int) {
+			defer wg.Done()
+			defer func() {
+				if p := recover(); p != nil {
+					panics[w] = p
+				}
+			}()
+			for {
+				i := int(next.Add(1)) - 1
+				if i >= len(round) {
+					return
+				}
+				r.index(round[i])
+			}
+		}(&recs[w], w)
+	}
+	wg.Wait()
+	for w := range recs {
+		if panics[w] != nil {
+			panic(panics[w])
+		}
+		ix.stats.reindexed += recs[w].indexed
+		ix.stats.items += recs[w].items
 	}
 }
 
@@ -422,8 +487,31 @@ func (ix *propUseIndex) sweep() {
 	ix.live = live
 }
 
-// piRecorder is the NodeTraversal callback that indexes one change scope.
-type piRecorder propUseIndex
+// piRecorder is the NodeTraversal callback that indexes a change scope. Each
+// worker has its own; they read the tree and write only the record they index.
+type piRecorder struct {
+	c    *Compiler
+	conv CodingConvention
+	cur  *piScope
+	// Statistics.
+	indexed, items int
+}
+
+// index lists the items and the nested functions of s; the nested functions
+// are resolved to their records by the caller.
+func (r *piRecorder) index(s *piScope) {
+	for l := range s.items {
+		s.items[l] = s.items[l][:0]
+	}
+	s.kids = s.kids[:0]
+	r.cur = s
+	NodeTraversal_Traverse(r.c, s.root, r)
+	r.cur = nil
+	r.indexed++
+	for _, list := range s.items {
+		r.items += len(list)
+	}
+}
 
 func (r *piRecorder) visitTokens() *ast.TokenSet { return &piTokens }
 
@@ -434,15 +522,7 @@ func (r *piRecorder) ShouldTraverse(_ *NodeTraversal, n, _ rhino.Node) bool {
 	if n == s.root || !n.IsFunction() {
 		return true
 	}
-	ix := (*propUseIndex)(r)
-	kid := ix.scopes[n]
-	if kid == nil {
-		kid = &piScope{root: n}
-		ix.scopes[n] = kid
-		ix.queue = append(ix.queue, kid)
-		ix.stats.newScopes++
-	}
-	k := piKid{s: kid}
+	k := piKid{n: n}
 	for l, list := range s.items {
 		k.at[l] = int32(len(list))
 	}
