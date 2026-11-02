@@ -349,6 +349,9 @@ func (l *PhaseOptimizer_Loop) Process(externs rhino.Node, root rhino.Node) {
 			pass.inLoop = false
 		}
 		p.changeTracker.RemoveChangeHandler(l.scopeHandler)
+		if c := p.compiler; c != nil {
+			c.dropPropUseIndex()
+		}
 		if trackAstSize {
 			p.changeTracker.changeTimeline.Unmark(astSizeTimelineKey)
 		}
@@ -374,6 +377,9 @@ func (l *PhaseOptimizer_Loop) Process(externs rhino.Node, root rhino.Node) {
 			p.changeTracker.IncrementChangeStamp()
 			p.currentPass = pass
 			pass.Process(externs, root)
+			if propIndexVerify && p.compiler != nil {
+				p.compiler.propIndexAfterPass(pass.name)
+			}
 			pass.runInPrevIter = true
 			pass.lastRun = p.changeTracker.GetChangeStamp()
 			if p.HasHaltingErrors() {

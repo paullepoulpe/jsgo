@@ -2438,6 +2438,349 @@ for inlineSimpleMethods and inlineProperties (60–85% bare walk, the fewest
 order subtleties; 0.8 s on typed-full and 1.7 s on bundle-mega over all
 their runs).
 
+## Index round (2026-11-02): a property-use index for the main loop
+
+Branch `fast/propindex` off main `58e97f06`. 4-CPU Linux machine, Go 1.27.3.
+This round builds the first step of the fusion round's design note "a shared
+index of variable and property uses for the loop passes": its property half.
+`inlineSimpleMethods` and `inlineProperties` used to walk the whole program
+twice per run. They now read an index that is kept current as the loop's
+passes edit the tree, and `deadPropertyAssignmentElimination` uses the same
+index to find its changed functions.
+
+**Result: exact, and 0.7–1.5 s per compile.** Every run is byte-identical to
+Java, and verify mode found no unreported change. The three passes lose
+52–73% of their time, 0.7–1.5 s per compile on typed-full, typed-mega and
+bundle-mega in every mode. In wall time the gain is resolved on typed-full at
+t=1 (N=10: −4.5%, CI −6.1…−2.8). On bundle-mega at t=4 it reads −2.5% (CI
+−5.0…+0.1). Proposed for merging.
+
+### The index (`internal/jscomp/prop_use_index.go`)
+
+- **What it holds.** There is one record per change scope, that is per script
+  or function (the unit the `ChangeTracker` reports). A record has four
+  lists, one per reader. Each list is in the scope's `NodeTraversal`
+  post-order, with nested functions left out:
+  - the GETPROPs, for `inlineProperties`' replacements;
+  - the CALLs with a GETPROP callee, for `inlineSimpleMethods`' inlining;
+  - what `GatherSignatures` finds in the scope;
+  - what `GatherCandidates` finds in the scope.
+
+  The last two lists are filled by running the passes' own decision code on
+  the scope as the indexing walk meets each node (`ismSignatureSink`,
+  `inlineClassifyGather`). The result is a stream of events: "property `p`
+  is non-inlineable here", "function `f` defines `p`", "`p` is invalidated
+  here".
+
+  A node whose meaning depends on more than its scope is listed as a node
+  to replay instead. There are two kinds. A candidate definition of
+  `inlineProperties` depends on colors, the enclosing constructor and
+  `isExecutedExactlyOnce`. An arrow function whose body is `x.prototype.y`
+  depends on the arrow's parent, which `processPrototypeParent` reads.
+
+  A record also says where each nested function's traversal starts in each
+  list.
+- **How order is kept.** A whole-program traversal is the scripts of each
+  root in order, with each nested function's record spliced in at its place.
+  The replays therefore meet everything in the order of the walks they
+  replace. The records are built with one `NodeTraversal` per scope that
+  stops at nested functions, so they follow `NodeTraversal`'s own order by
+  construction: a class's `extends` clause before its name, computed member
+  keys first. Re-indexing a scope rebuilds its lists and its splice points.
+  The records of unchanged nested functions are reused, and the splice puts
+  them back where the traversal meets them.
+- **How it stays current.** Each read takes the change scopes reported since
+  the previous read, through its own `ChangeTracker` timeline mark (as round
+  4's guarded polyfill usages do). It indexes again those still in the tree,
+  together with the parent of a new function: the `ChangeVerifier` does not
+  require the parent's report when a new function replaces another in place.
+  A nested function met for the first time is indexed too. Records of
+  detached scopes are dropped, and unreachable ones are swept.
+
+  What a record holds depends on its scope's subtree alone. That is the
+  `ChangeVerifier`'s notion of a scope's content: the scope without the
+  inside of its nested functions. Everything else the passes read is read
+  when they replay: definition bodies, colors, JSDoc, ancestors outside the
+  scope.
+- **When it is valid.** The index is used only inside a `PhaseOptimizer`
+  loop, where every change between two reads is made by a loop pass and
+  reported. It is built at the first read of a loop. It is rebuilt after an
+  AST compaction (node ids change; none happens inside the main loop on the
+  bench tasks) or when the roots change, and dropped when the loop ends.
+  Parallel workers never read it. At t>1 the records of a build or an update
+  are indexed on the workers, in rounds: the given scopes, then the nested
+  functions met for the first time. `JSGO_PROPINDEX=0` turns the index off,
+  and `JSGO_PROPINDEX_DPAE=0` turns off its use by
+  `deadPropertyAssignmentElimination` alone.
+
+### What the replay has to get exactly right
+
+- **The first definition.** `inlineSimpleMethods` keeps the first definition
+  of each method in traversal order, and that body is what it clones. Its
+  visitor sees the keys of object literals and classes at the container's
+  post-order position, not at the keys' own positions, so the index records
+  them there.
+- **Calls after their arguments.** Its inlining visits calls in post-order,
+  after their arguments. An argument's call that is inlined first can leave
+  an argument without side effects. So the replay lists the CALLs, not their
+  callee GETPROPs, whose positions come before the arguments.
+- **A call that becomes a candidate.** Inlining a call that is the callee of
+  another call (`a.getF()()`) gives the outer call a GETPROP callee. The
+  traversal visits that outer call after the rest of its subtree and may
+  inline it too. The replay keeps such calls on a stack and visits each one
+  before the first later candidate outside its subtree. Inlining creates no
+  other candidate, and `inlineProperties`' replacements create no GETPROP.
+- **The traversal state.** `GatherCandidates` reads two things from the
+  traversal. One is whether it is in the global hoist scope; the index
+  records this when indexing, because class field initializers and static
+  blocks count and `NodeUtil.getEnclosingHoistScopeRoot` misses them. The
+  other is the enclosing function, which is the change scope when that is a
+  function. The empty-method inlining reports to the traversal's change
+  scope, which is the record's root.
+- **A definition that cannot win.** A definition of a property that already
+  has an entry is invalidating without being evaluated:
+  `maybeStoreCandidateValue` decides last, and every check before it is free
+  of side effects.
+- **Panics.** A panic in a replayed callback is reported as the traversal
+  reports it (`throwUnexpectedException` at the node).
+
+`deadPropertyAssignmentElimination` visits the changed functions in
+pre-order and now takes them from the records instead of a walk. Its edits
+of a function body never move or remove a nested function.
+
+Two small changes in the passes' own bookkeeping, compat-neutral, also help
+the walks: a bitset of non-inlineable methods and a bitset of invalidated
+properties. They skip the map on the many repeated marks.
+
+### Verify mode and change reports
+
+`JSGO_PROPINDEX_VERIFY=1` rebuilds the index from scratch after every loop
+pass and before every read, compares the result with the kept index item by
+item, and panics on a difference, naming the pass. It ran in three places,
+and none of the loop passes changed the tree without reporting it:
+
+- **The bench tasks:** 33 runs, all byte-identical to Java and none
+  panicking. These were typed-app, bundle, shaka-blockly, typed-full,
+  bundle-advanced, bundle-advanced-ts, downlevel-simple,
+  downlevel-whitespace, checks-only, typed-mega and bundle-mega, each at
+  compat t=1, compat t=4 and fast t=4.
+- **The fixtures:** 2,974/2,976, the usual two differences.
+- **`fast_mode_gate.py`:** 25/25.
+
+There was nothing to fix. Round 5's peephole fix was the last unreported
+change.
+
+The tests (`prop_use_index_test.go`) cover four things. All pass, and
+mutations of the replay or of the update make them fail.
+
+- The passes' own suites (`InlineSimpleMethodsTest`, `InlinePropertiesTest`,
+  `DeadPropertyAssignmentEliminationTest`), re-run with every run reading a
+  freshly built index.
+- Cases those suites lack, run with and without the index: the call that
+  becomes a candidate; definitions in a function, a static block and a field
+  initializer.
+- Whole ADVANCED compiles at 1 and 4 threads, with verify mode on, against
+  the walking passes.
+- The update itself, and that verify mode catches an unreported change.
+
+### Measured (interleaved, N=5 blocks, wall time mean, paired 95% CI)
+
+Base main `58e97f06`, branch `7c00cd6e`, in the same blocks, with
+`JSGO_PASS_LOG` on every run. **All 120 runs are byte-identical to the Java
+reference** (stdout, stderr, exit status, `out.js`, `out.js.map`), with one
+output per task and mode.
+
+Whole compile:
+
+| task | compat t=1 | compat t=4 | fast t=4 |
+|---|---|---|---|
+| typed-app | 2.90 → 2.91 s (+0.2%, CI −3.3…+3.9) | 2.56 → 2.54 s (−0.4%, CI −8.1…+7.8) | 2.47 → 2.42 s (−2.0%, CI −10.3…+7.1) |
+| typed-full | 23.18 → 21.55 s (−7.1%, CI −9.9…−4.2) | 19.20 → 18.60 s (−2.6%, CI −13.3…+9.4) | 17.46 → 16.86 s (−2.8%, CI −10.4…+5.3) |
+| typed-mega | 39.82 → 38.20 s (−4.0%, CI −9.6…+2.0) | 33.44 → 29.59 s (−11.4%, CI −19.1…−3.0) | 29.63 → 27.22 s (−8.2%, CI −16.4…+0.8) |
+| bundle-mega | 51.48 → 51.36 s (−0.3%, CI −8.9…+9.2) | 43.63 → 40.96 s (−6.1%, CI −10.5…−1.5) | 41.55 → 39.13 s (−5.7%, CI −9.6…−1.8) |
+
+From the same pass logs, in ms per compile: `inlineSimpleMethods` plus
+`inlineProperties` (they include the index's builds and updates), the same
+with `deadPropertyAssignmentElimination`, and both loops. Each cell is base
+→ branch, then the mean of branch − base and its paired 95% CI:
+
+| task | mode | ISM + IP | ISM + IP + DPAE | both loops |
+|---|---|---|---|---|
+| typed-app | compat t=1 | 53 → 36, −18 (−29…−7) | 63 → 42, −22 (−35…−8) | 710 → 654, −56 (−155…+44) |
+| typed-app | compat t=4 | 55 → 29, −26 (−39…−13) | 65 → 36, −29 (−44…−14) | 543 → 535, −8 (−52…+36) |
+| typed-app | fast t=4 | 58 → 32, −26 (−33…−18) | 67 → 39, −28 (−36…−20) | 528 → 527, −0 (−76…+76) |
+| typed-full | compat t=1 | 921 → 302, −620 (−673…−567) | 1103 → 371, −732 (−798…−666) | 8799 → 7701, −1098 (−1450…−745) |
+| typed-full | compat t=4 | 932 → 262, −669 (−805…−533) | 1120 → 343, −778 (−935…−621) | 7042 → 6391, −651 (−1474…+172) |
+| typed-full | fast t=4 | 936 → 240, −696 (−783…−609) | 1133 → 308, −825 (−936…−714) | 6222 → 5343, −880 (−1672…−87) |
+| typed-mega | compat t=1 | 1343 → 502, −841 (−976…−705) | 1716 → 638, −1078 (−1242…−914) | 13949 → 12626, −1323 (−2542…−105) |
+| typed-mega | compat t=4 | 1456 → 350, −1106 (−1239…−974) | 1840 → 488, −1352 (−1523…−1182) | 11566 → 9290, −2277 (−3387…−1167) |
+| typed-mega | fast t=4 | 1413 → 345, −1068 (−1163…−972) | 1787 → 486, −1301 (−1405…−1197) | 9743 → 8198, −1545 (−2194…−896) |
+| bundle-mega | compat t=1 | 1548 → 765, −782 (−901…−664) | 2081 → 990, −1091 (−1241…−942) | 20162 → 19413, −749 (−2726…+1227) |
+| bundle-mega | compat t=4 | 1689 → 468, −1222 (−1344…−1099) | 2216 → 692, −1524 (−1653…−1394) | 16665 → 14797, −1868 (−3051…−686) |
+| bundle-mega | fast t=4 | 1601 → 474, −1127 (−1159…−1096) | 2161 → 702, −1459 (−1502…−1416) | 15688 → 13831, −1857 (−2530…−1183) |
+
+- **The passes.** The three passes save 0.7–1.5 s per compile on the large
+  tasks, in every mode. That is 63–73% of their time (52% on bundle-mega at
+  t=1), and 2.7–4.7% of the compile on typed-full and typed-mega, 2.1–3.5%
+  on bundle-mega. The saving is smallest
+  at t=1 on bundle-mega. There, the first `inlineFunctions` run marks 92% of
+  the program changed, so the update at the start of iteration 2 costs about
+  a rebuild (0.2 s at t=1). At t>1 the builds and updates run on the
+  workers. The intervals are narrow: ±60–200 ms.
+- **What is left.** In single runs with `JSGO_PROPINDEX_STATS=1` at t=1,
+  the index's first build and the big update after iteration 1 are about a
+  quarter of what remains on typed-full (0.1 s) and 40% on bundle-mega
+  (0.4 s). The rest is the passes' own work:
+  the candidate calls and GETPROPs, the definitions they evaluate, and the
+  bookkeeping maps.
+- **The whole compile.** 4 of the 12 cells exclude zero: typed-full c1,
+  typed-mega c4, and bundle-mega c4 and f4. But their mean differences are
+  1.6–3.9 s, two to three times what the three passes save. The excess is
+  spread over passes that run before the index exists (`inferTypes`,
+  `parseInputs`, `checkAccessControls`, each within its own noise). It comes
+  from noise, not from the index.
+- **A wall-only repeat.** The coordinator asked for a repeat at N=10 without
+  the pass log, on two cells (all 40 runs byte-identical to Java):
+  - typed-full compat t=1: 25.39 → 24.25 s, **−4.5% (CI −6.1…−2.8)**;
+  - bundle-mega compat t=4: 46.13 → 44.98 s, **−2.5% (CI −5.0…+0.1)**.
+
+  Both differences (1.1 s each) are of the size of the pass-log saving
+  (0.73 s and 1.52 s). The typed-full gain is resolved; bundle-mega's
+  interval just reaches zero.
+- **Memory.** Peak RSS moves by −7 to +33 MB, at most +3.5% (bundle-mega
+  fast t=4: 1,043 → 1,076 MB). The index holds about 0.6 M items on
+  typed-full and 0.9 M on bundle-mega, at 12 bytes each, plus one record per
+  change scope (29 K and 144 K).
+
+Validation of the branch (`7c00cd6e`):
+
+- the Java gate on the 11 bench tasks at t=1 and t=4: 22/22 byte-identical;
+- fixtures: 2,974/2,976;
+- `parallel_gate.py` under `-race`: 48/48;
+- `fast_mode_gate.py`: 25/25 under `-race` at t=1/2/4, and 7/7 large tasks;
+- typed-full and bundle-advanced-ts fast t=4 under `-race`: no race reported;
+- `make vet`;
+- `go test ./internal/jscomp/`.
+
+### Tried, not merged
+
+- **Replaying the callbacks on the listed nodes.** In the first version the
+  index listed nodes only, and the passes ran their visit callbacks on them.
+  The replay turned out to be as latency-bound per node as the walk: each
+  listed node costs dependent loads (the node, its parent, the assigned
+  value), and `GatherSignatures` alone visits about 100 K nodes per run on
+  typed-full. One run of typed-full at compat t=1 shows the effect:
+
+  | | `inlineSimpleMethods` | `inlineProperties` |
+  |---|---|---|
+  | base (walks) | 439 ms | 462 ms |
+  | replaying callbacks on listed nodes | 337 ms | 153 ms |
+  | recording what the callbacks find at indexing time (merged form) | 248 ms | 111 ms |
+
+  Recording the findings at indexing time is what made the replays cheap.
+- **One list per record instead of four.** With one list, every reader
+  scanned every item: 0.9 M items on bundle-mega, about 7 ms per scan, and
+  five scans per iteration.
+- **Not tried: forwarding the index through an AST compaction.** Forwarding
+  instead of rebuilding is not needed: no compaction happens inside the main
+  loop on the bench tasks. The only one is after `typesToColors`, and it is
+  skipped there.
+
+### Decision
+
+**Merged** (2026-11-02, on top of the fusion round's parallel paths). The
+case as it was weighed:
+
+- **Gain.** 0.7–1.5 s per compile on the large tasks, in every mode, with
+  narrow intervals in the pass log. That is 2–5% of the compile. In wall
+  time it is resolved on typed-full at t=1 (N=10) and just short of it on
+  bundle-mega at t=4. That is more than loop round 5 (−3% on one task, in
+  compat mode only) and the fusion round (0.2–2%, visible only in the pass
+  log), and less than loop round 4 (5–7%).
+- **Size.** 1,452 lines:
+  - 747 for the index;
+  - about 400 in the passes: the two gathering callbacks split into decision
+    functions the index can call, the replays, 12 lines in
+    `deadPropertyAssignmentElimination`;
+  - 347 of tests.
+- **Risk.** Exactness rests on two things:
+  - the order argument of the replay, which the passes' own suites run
+    through the index, the extra cases and the mutations check;
+  - complete change reports, which verify mode checks on 33 bench runs, the
+    fixtures and the fast gate, and the `ChangeVerifier` in the tests.
+
+  A pass that one day changes the tree without reporting it would break the
+  index silently outside verify mode. Verify mode is the check to run when
+  a loop pass changes, and after every upgrade of the pinned Closure
+  release: the fixtures and the fast gate with `JSGO_PROPINDEX_VERIFY=1`.
+- **Reuse.** The variable half can take over the record machinery, about
+  350 of the 747 lines: change-scope records, the timeline-driven update
+  with the parents of new functions, the spliced order, the parallel
+  rounds, verify mode. It can also take over the approach of recording what
+  a pass's callbacks find. It cannot take the property-specific lists or the
+  two passes' replays. Its hard parts, below, are new work.
+
+If the variable half is not going to follow, the case is roughly 3% of the
+compile for 1,450 lines.
+
+### What it says about the variable half
+
+A temporary probe (not committed) kept the index current after *every* pass
+of the main loop. That is what the variable passes would need, since nearly
+every loop pass reads variable references. For each re-indexed scope it
+counted the nodes and NAMEs, and whether the set of names declared in the
+scope changed. Compat t=1, one run each:
+
+| | typed-full | bundle-mega |
+|---|---|---|
+| updates (one after each loop pass) | 59 | 43 |
+| nodes re-indexed, summed over the updates (against a whole walk at each) | 1.90 M of 88.1 M (2.2%) | 6.42 M of 170 M (3.8%) |
+| NAMEs re-indexed | 2.5% | 3.7% |
+| re-indexings whose declarations changed | 4,206 | 3,331 |
+| NAMEs in unchanged nested scopes under them | 365 K (1.9% of NAMEs) | 4.40 M (8.5%) |
+| time spent updating the property items (other work on the machine) | 0.20 s | 0.67 s |
+
+- **Cost.** Keeping an index current after every pass re-walks 2–4% of what
+  the passes walk today. This confirms the design note's estimate (2.6% /
+  4.0%), and the property items cost 0.2–0.7 s per compile to keep. NAME
+  items would cost about the same walk with more items. That is small next to
+  the 6.7 s (typed-full) and 16.7 s (bundle-mega) the variable passes spend
+  on uses, scopes and walks.
+- **Obstacle 1: name resolution is not local.** When a scope's declarations
+  change, names in its nested scopes may resolve differently, although those
+  scopes did not change and nobody reports them. On bundle-mega that means
+  re-resolving 2.3× as many NAMEs as the changed scopes hold. Most of it comes
+  from `inlineFunctions` (new vars), `inlineVariables` and `removeUnusedCode`
+  (removed declarations). An index would have to store unresolved names per
+  scope and resolve them at read time through per-scope declaration tables,
+  or re-resolve every subtree whose enclosing declarations changed.
+- **Obstacle 2: iteration 1 is a rebuild.** On bundle-mega the first
+  `inlineFunctions` run reports 66,566 changed scopes, holding 92% of the
+  program. Every pass after it in that iteration would read an index rebuilt
+  almost from scratch (~0.4 s at t=1). The gain starts at iteration 2. The
+  property index pays for the same rebuild once, at the first read of
+  iteration 2 (0.2 s on bundle-mega at t=1).
+- **Obstacle 3: order.** The property passes' walks are plain
+  `NodeTraversal`s, so splicing records reproduces their order.
+  `ReferenceCollector` instead visits a hoisted function at its first
+  reference, an order that changes whenever a first reference moves anywhere
+  in the program. A variable index would need a second, reference-driven
+  order on top of the splice, kept current across scopes.
+- **Obstacle 4: the passes would have to change.** The property passes kept
+  their decision code: the index records what their callbacks find and
+  replays the rest. The variable passes take `Var` objects from scopes they
+  build each run and decide per var from a `ReferenceCollection`
+  (`inlineVariables`' "referenced once", `collapseObjectLiterals`'
+  candidates). Reading an index means giving them references keyed by
+  (declaring scope root, name) and rewriting each pass's front end.
+- **What the property half taught.** A replay that touches the indexed
+  nodes is as latency-bound as the walk, per node touched. The first version
+  replayed the callbacks on the listed nodes and was still latency-bound
+  (see "Tried, not merged"). Recording what the callbacks find while indexing
+  (pure functions of the scope) is what made the replays cheap. A variable
+  index has to do the same: precompute per-scope summaries, not just lists
+  of nodes.
+
 ## Smaller open items
 
 - `tools/clie2e/sweep.go` runs its JVMs under its own `nice -n 10`; under

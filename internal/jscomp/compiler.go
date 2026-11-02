@@ -97,6 +97,10 @@ type Compiler struct {
 	// (remove_unused_code_incremental.go).
 	rucGuarded *rucGuardedCache
 
+	// Go-only: the property-use index the main optimization loop's
+	// property passes read (prop_use_index.go).
+	propIndex *propUseIndex
+
 	inputPathByWebpackId *jutil.LinkedHashMap[string, string]
 
 	transpilationNamespace rhino.StaticScope
