@@ -20,6 +20,7 @@ package jscomp
 
 import (
 	"slices"
+	"strconv"
 	"sync"
 	"sync/atomic"
 
@@ -121,6 +122,12 @@ func (p *PhaseOptimizer) SetValidityCheck(validityCheck *PassFactory) {
 
 func (p *PhaseOptimizer) SetPrintAstHashcodes(printAstHashcodes bool) {
 	p.printAstHashcodes = printAstHashcodes
+}
+
+// loopPoint names the end of iteration iter of loop ordinal for the AST
+// compaction policy (and its log).
+func loopPoint(ordinal, iter int) string {
+	return "loop" + strconv.Itoa(ordinal) + "." + strconv.Itoa(iter)
 }
 
 // Process runs all passes in the optimizer without retaining per-pass instances.
@@ -444,7 +451,7 @@ func (l *PhaseOptimizer_Loop) Process(externs rhino.Node, root rhino.Node) {
 			}
 		}
 		if c := p.compiler; c != nil {
-			c.maybeCompactAST("loop iteration", &externs, &root, func(fwd func(rhino.Node) rhino.Node) {
+			c.maybeCompactAST(loopPoint(p.debugLoopOrdinal, count-1), &externs, &root, func(fwd func(rhino.Node) rhino.Node) {
 				if scriptSizes != nil {
 					sizes := make(map[rhino.Node]int, len(scriptSizes))
 					// order-independent: rebuilds the map with forwarded keys
