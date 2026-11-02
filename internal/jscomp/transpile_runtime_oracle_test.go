@@ -300,7 +300,20 @@ func trAddInjected(c *Compiler, results *[]string) {
 func trVisibilityMap(c *Compiler) *jutil.LinkedHashMap[rhino.StaticSourceFile, rhino.JSDocInfo_Visibility] {
 	pass := NewCollectFileOverviewVisibility(c)
 	pass.Process(c.GetExternsRoot(), c.GetJsRoot())
-	return pass.GetFileOverviewVisibilityMap()
+	if pass.hasDuplicate {
+		panic(jutil.NewIllegalArgumentExceptionMsg("Multiple entries with same key"))
+	}
+	m := jutil.NewLinkedHashMapWithCapacity[rhino.StaticSourceFile, rhino.JSDocInfo_Visibility](len(pass.visibilities))
+	for script := c.GetJsRoot().GetFirstChild(); !script.IsNil(); script = script.GetNext() {
+		if script.GetJSDocInfo() == nil {
+			continue
+		}
+		sf := script.GetStaticSourceFile()
+		if v, ok := pass.visibilities[sf]; ok {
+			m.Put(sf, v)
+		}
+	}
+	return m
 }
 
 // trAccessCallback is the access section's traversal.

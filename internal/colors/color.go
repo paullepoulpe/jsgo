@@ -237,6 +237,163 @@ func colorIdUnionFromColors(elems []*Color) ColorId {
 	return unionRightAlignedIds(ids)
 }
 
+func allocCopySlice[T any](src []T, alloc func(int) []T) []T {
+	var out []T
+	if alloc != nil {
+		out = alloc(len(src))
+	} else {
+		out = make([]T, len(src))
+	}
+	copy(out, src)
+	return out
+}
+
+// colorSetAccum deduplicates *Colors in insertion order using an inline stack
+// buffer before spilling to the heap.
+type colorSetAccum struct {
+	inline [8]*Color
+	spill  []*Color
+	seen   colorDedupSet
+	n      int
+}
+
+func (a *colorSetAccum) add(c *Color) {
+	if a.spill != nil {
+		a.spill = appendUniqueColor(a.spill, c, &a.seen)
+		return
+	}
+	for _, existing := range a.inline[:a.n] {
+		if existing.equalsColor(c) {
+			return
+		}
+	}
+	if a.n < len(a.inline) {
+		a.inline[a.n] = c
+		a.n++
+		return
+	}
+	a.spill = make([]*Color, len(a.inline)+1, len(a.inline)*2)
+	copy(a.spill, a.inline[:])
+	a.spill[len(a.inline)] = c
+}
+
+func (a *colorSetAccum) copyOut(alloc func(int) []*Color) []*Color {
+	if a.spill != nil {
+		return allocCopySlice(a.spill, alloc)
+	}
+	return allocCopySlice(a.inline[:a.n], alloc)
+}
+
+// colorSliceUnionAccum merges []*Color slices across union members, reusing a
+// single member's slice directly until two distinct non-empty slices appear.
+type colorSliceUnionAccum struct {
+	single  []*Color
+	merged  colorSetAccum
+	spilled bool
+}
+
+func (a *colorSliceUnionAccum) addSlice(s []*Color) {
+	if len(s) == 0 {
+		return
+	}
+	if a.spilled {
+		for _, c := range s {
+			a.merged.add(c)
+		}
+		return
+	}
+	if a.single == nil || &a.single[0] == &s[0] {
+		a.single = s
+		return
+	}
+	a.spilled = true
+	for _, c := range a.single {
+		a.merged.add(c)
+	}
+	for _, c := range s {
+		a.merged.add(c)
+	}
+	a.single = nil
+}
+
+func (a *colorSliceUnionAccum) finish(alloc func(int) []*Color) []*Color {
+	if a.spilled {
+		return a.merged.copyOut(alloc)
+	}
+	if a.single != nil {
+		return a.single
+	}
+	return emptyColorSlice
+}
+
+// stringSliceUnionAccum merges []string slices across union members, reusing a
+// single member's slice directly until two distinct non-empty slices appear.
+type stringSliceUnionAccum struct {
+	inline  [8]string
+	spill   []string
+	single  []string
+	seen    map[string]struct{}
+	n       int
+	spilled bool
+}
+
+func (a *stringSliceUnionAccum) addOne(v string) {
+	if a.spill != nil {
+		a.spill = appendUniqueString(a.spill, v, &a.seen)
+		return
+	}
+	for _, existing := range a.inline[:a.n] {
+		if existing == v {
+			return
+		}
+	}
+	if a.n < len(a.inline) {
+		a.inline[a.n] = v
+		a.n++
+		return
+	}
+	a.spill = make([]string, len(a.inline)+1, len(a.inline)*2)
+	copy(a.spill, a.inline[:])
+	a.spill[len(a.inline)] = v
+}
+
+func (a *stringSliceUnionAccum) addSlice(s []string) {
+	if len(s) == 0 {
+		return
+	}
+	if a.spilled {
+		for _, v := range s {
+			a.addOne(v)
+		}
+		return
+	}
+	if a.single == nil || &a.single[0] == &s[0] {
+		a.single = s
+		return
+	}
+	a.spilled = true
+	for _, v := range a.single {
+		a.addOne(v)
+	}
+	for _, v := range s {
+		a.addOne(v)
+	}
+	a.single = nil
+}
+
+func (a *stringSliceUnionAccum) finish(alloc func(int) []string) []string {
+	if !a.spilled {
+		if a.single != nil {
+			return a.single
+		}
+		return emptyStringSlice
+	}
+	if a.spill != nil {
+		return allocCopySlice(a.spill, alloc)
+	}
+	return allocCopySlice(a.inline[:a.n], alloc)
+}
+
 // Color_CreateUnionSliceWithBuilder builds a union Color reusing builder and
 // optional slice allocators for flattened slices.
 func Color_CreateUnionSliceWithBuilder(
@@ -269,27 +426,9 @@ func Color_CreateUnionSliceWithBuilder(
 		return first
 	}
 
-	var flatStack [8]*Color
-	flatElems := flatStack[:0]
-	var flatSeen colorDedupSet
-
-	var instStack [8]*Color
-	var mergedInst []*Color
-	var singleInst []*Color
-	var instSeen colorDedupSet
-	spilledInst := false
-
-	var protoStack [8]*Color
-	var mergedProtos []*Color
-	var singleProtos []*Color
-	var protoSeen colorDedupSet
-	spilledProtos := false
-
-	var propStack [8]string
-	var mergedProps []string
-	var singleProps []string
-	var propSeen map[string]struct{}
-	spilledProps := false
+	var flatElems colorSetAccum
+	var inst, protos colorSliceUnionAccum
+	var props stringSliceUnionAccum
 
 	isClosureAssert := true
 	isConstructor := true
@@ -299,129 +438,24 @@ func Color_CreateUnionSliceWithBuilder(
 	for _, element := range elements {
 		if element.IsUnion() {
 			for _, nestedElement := range element.unionElements {
-				flatElems = appendUniqueColor(flatElems, nestedElement, &flatSeen)
+				flatElems.add(nestedElement)
 			}
 		} else {
-			flatElems = appendUniqueColor(flatElems, element, &flatSeen)
+			flatElems.add(element)
 		}
-
-		if ic := element.instanceColors; len(ic) > 0 {
-			if spilledInst {
-				for _, c := range ic {
-					mergedInst = appendUniqueColor(mergedInst, c, &instSeen)
-				}
-			} else if singleInst == nil || &singleInst[0] == &ic[0] {
-				singleInst = ic
-			} else {
-				spilledInst = true
-				mergedInst = instStack[:0]
-				for _, c := range singleInst {
-					mergedInst = appendUniqueColor(mergedInst, c, &instSeen)
-				}
-				for _, c := range ic {
-					mergedInst = appendUniqueColor(mergedInst, c, &instSeen)
-				}
-				singleInst = nil
-			}
-		}
-
+		inst.addSlice(element.instanceColors)
 		isClosureAssert = isClosureAssert && element.closureAssert
 		isConstructor = isConstructor && element.constructor
 		isInvalidating = isInvalidating || element.invalidating
-
-		if op := element.ownProperties; len(op) > 0 {
-			if spilledProps {
-				for _, p := range op {
-					mergedProps = appendUniqueString(mergedProps, p, &propSeen)
-				}
-			} else if singleProps == nil || &singleProps[0] == &op[0] {
-				singleProps = op
-			} else {
-				spilledProps = true
-				mergedProps = propStack[:0]
-				for _, p := range singleProps {
-					mergedProps = appendUniqueString(mergedProps, p, &propSeen)
-				}
-				for _, p := range op {
-					mergedProps = appendUniqueString(mergedProps, p, &propSeen)
-				}
-				singleProps = nil
-			}
-		}
-
+		props.addSlice(element.ownProperties)
 		propertiesKeepOriginalName = propertiesKeepOriginalName || element.propertiesKeepOriginalName
-
-		if pr := element.prototypes; len(pr) > 0 {
-			if spilledProtos {
-				for _, c := range pr {
-					mergedProtos = appendUniqueColor(mergedProtos, c, &protoSeen)
-				}
-			} else if singleProtos == nil || &singleProtos[0] == &pr[0] {
-				singleProtos = pr
-			} else {
-				spilledProtos = true
-				mergedProtos = protoStack[:0]
-				for _, c := range singleProtos {
-					mergedProtos = appendUniqueColor(mergedProtos, c, &protoSeen)
-				}
-				for _, c := range pr {
-					mergedProtos = appendUniqueColor(mergedProtos, c, &protoSeen)
-				}
-				singleProtos = nil
-			}
-		}
+		protos.addSlice(element.prototypes)
 	}
 
-	var newElements []*Color
-	if allocColorSlice != nil {
-		newElements = allocColorSlice(len(flatElems))
-		copy(newElements, flatElems)
-	} else {
-		newElements = make([]*Color, len(flatElems))
-		copy(newElements, flatElems)
-	}
-
-	var instanceColors []*Color
-	if spilledInst {
-		if allocColorSlice != nil {
-			instanceColors = allocColorSlice(len(mergedInst))
-		} else {
-			instanceColors = make([]*Color, len(mergedInst))
-		}
-		copy(instanceColors, mergedInst)
-	} else if singleInst != nil {
-		instanceColors = singleInst
-	} else {
-		instanceColors = emptyColorSlice
-	}
-
-	var prototypes []*Color
-	if spilledProtos {
-		if allocColorSlice != nil {
-			prototypes = allocColorSlice(len(mergedProtos))
-		} else {
-			prototypes = make([]*Color, len(mergedProtos))
-		}
-		copy(prototypes, mergedProtos)
-	} else if singleProtos != nil {
-		prototypes = singleProtos
-	} else {
-		prototypes = emptyColorSlice
-	}
-
-	var ownProperties []string
-	if spilledProps {
-		if allocStringSlice != nil {
-			ownProperties = allocStringSlice(len(mergedProps))
-		} else {
-			ownProperties = make([]string, len(mergedProps))
-		}
-		copy(ownProperties, mergedProps)
-	} else if singleProps != nil {
-		ownProperties = singleProps
-	} else {
-		ownProperties = emptyStringSlice
-	}
+	newElements := flatElems.copyOut(allocColorSlice)
+	instanceColors := inst.finish(allocColorSlice)
+	prototypes := protos.finish(allocColorSlice)
+	ownProperties := props.finish(allocStringSlice)
 
 	prevTrust := builder.trustUnique
 	builder.trustUnique = true

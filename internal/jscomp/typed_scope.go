@@ -128,18 +128,6 @@ func NewTypedScope(parent *TypedScope, rootNode rhino.Node) *TypedScope {
 	return newTypedScopeOwnedReservedNames(parent, rootNode, nil, nil)
 }
 
-// NewTypedScopeWithReservedNames creates a new global or local TypedScope.
-//
-// Java: TypedScope(TypedScope, Node, Set<String>, Module)
-func NewTypedScopeWithReservedNames(
-	parent *TypedScope, rootNode rhino.Node, reservedNames *jutil.LinkedHashSet[string], module *Module) *TypedScope {
-	var copied []string
-	if !jutil.CheckNotNull(reservedNames).IsEmpty() { // Java: NPE on a null set
-		copied = reservedNames.ToSlice()
-	}
-	return newTypedScopeOwnedReservedNames(parent, rootNode, copied, module)
-}
-
 func newTypedScopeOwnedReservedNames(
 	parent *TypedScope, rootNode rhino.Node, reservedNames []string, module *Module) *TypedScope {
 	s := &TypedScope{}
@@ -340,11 +328,11 @@ func (s *TypedScope) Undeclare(var_ *TypedVar) {
 		panic(jutil.NewNullPointerException())
 	}
 	jutil.CheckState(current.Equals(var_))
-	s.UndeclareInteral(var_)
+	s.undeclareInternal(var_)
 }
 
-// Java: AbstractScope.undeclareInteral(V)
-func (s *TypedScope) UndeclareInteral(var_ *TypedVar) {
+// Java: AbstractScope.undeclareInternal(V)
+func (s *TypedScope) undeclareInternal(var_ *TypedVar) {
 	if !s.varsInitialized {
 		panic(jutil.NewUnsupportedOperationException())
 	}

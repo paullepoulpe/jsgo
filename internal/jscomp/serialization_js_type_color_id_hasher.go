@@ -151,9 +151,6 @@ func JSTypeColorIdHasher_SourceRefFor(type_ rhino.ObjectType) rhino.JSType_WithS
 	return nil
 }
 
-// Java: JSTypeColorIdHasher.FARM_64 (newHasher())
-var jsTypeColorIdHasher_FARM_64 = jutil.Hashing_FarmHashFingerprint64NewHasher
-
 // Java: JSTypeColorIdHasher.putUtf8(Hasher, String)
 func JSTypeColorIdHasher_PutUtf8(hasher *jutil.FarmHashFingerprint64Hasher, s string) {
 	hasher.PutStringUTF8(s)

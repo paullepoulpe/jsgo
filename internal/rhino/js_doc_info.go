@@ -478,15 +478,6 @@ var jsdocInfo_Bit_names = [...]string{
 	"LOG_TYPE_IN_COMPILER", "CLOSURE_UNAWARE_CONFIG",
 }
 
-// JSDocInfo_Bit_values is Bit.values().
-func JSDocInfo_Bit_values() []JSDocInfo_Bit {
-	out := make([]JSDocInfo_Bit, len(jsdocInfo_Bit_names))
-	for i := range out {
-		out[i] = JSDocInfo_Bit(i)
-	}
-	return out
-}
-
 // Name is Enum.name().
 func (b JSDocInfo_Bit) Name() string { return jsdocInfo_Bit_names[b] }
 
@@ -680,15 +671,6 @@ const (
 )
 
 var jsdocInfo_PerFileClosureUnawareMode_names = [...]string{"UNSPECIFIED", "SIMPLE", "WHITESPACE"}
-
-// JSDocInfo_PerFileClosureUnawareMode_values is
-// PerFileClosureUnawareMode.values().
-func JSDocInfo_PerFileClosureUnawareMode_values() []JSDocInfo_PerFileClosureUnawareMode {
-	return []JSDocInfo_PerFileClosureUnawareMode{
-		JSDocInfo_PerFileClosureUnawareMode_UNSPECIFIED, JSDocInfo_PerFileClosureUnawareMode_SIMPLE,
-		JSDocInfo_PerFileClosureUnawareMode_WHITESPACE,
-	}
-}
 
 // String is Enum.name().
 func (m JSDocInfo_PerFileClosureUnawareMode) String() string {

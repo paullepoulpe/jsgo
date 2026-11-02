@@ -122,22 +122,14 @@ func NodeUtil_GetBooleanValue(n rhino.Node) base.Tri {
 	}
 }
 
-// NodeUtil_GetStringValue gets the value of a node as a String, or null if it
-// cannot be converted. When it returns a non-null String, this method
-// effectively emulates the String() JavaScript cast function.
+// NodeUtil_GetStringValue gets the value of a node as a String, or ("", false)
+// if it cannot be converted. When ok is true, this method effectively emulates
+// the String() JavaScript cast function.
 //
 // IMPORTANT: This method does not consider whether n may have side effects.
 //
 // Java: NodeUtil.getStringValue(Node)
-func NodeUtil_GetStringValue(n rhino.Node) *string {
-	s, ok := nodeUtil_getStringValue(n)
-	if !ok {
-		return nil
-	}
-	return &s
-}
-
-func nodeUtil_getStringValue(n rhino.Node) (string, bool) {
+func NodeUtil_GetStringValue(n rhino.Node) (string, bool) {
 	// TODO(user): regex literals as well.
 	switch n.GetToken() {
 	case rhino.Token_STRINGLIT, rhino.Token_STRING_KEY:
@@ -150,7 +142,7 @@ func nodeUtil_getStringValue(n rhino.Node) (string, bool) {
 			if sub, ok := part.AsTemplateLitSub(); ok {
 				expression = sub.Expr().Node()
 			}
-			expressionString, ok := nodeUtil_getStringValue(expression)
+			expressionString, ok := NodeUtil_GetStringValue(expression)
 			if !ok {
 				// Cannot convert.
 				return "", false
@@ -196,7 +188,7 @@ func nodeUtil_getStringValue(n rhino.Node) (string, bool) {
 		}
 		return "", false
 	case rhino.Token_ARRAYLIT:
-		return nodeUtil_arrayToString(n)
+		return NodeUtil_ArrayToString(n)
 	case rhino.Token_OBJECTLIT:
 		if n.HasChildren() {
 			return "", false
@@ -216,35 +208,19 @@ func nodeUtil_getStringValue(n rhino.Node) (string, bool) {
 // representation.
 //
 // Java: NodeUtil.getArrayElementStringValue(Node)
-func NodeUtil_GetArrayElementStringValue(n rhino.Node) *string {
-	s, ok := nodeUtil_getArrayElementStringValue(n)
-	if !ok {
-		return nil
-	}
-	return &s
-}
-
-func nodeUtil_getArrayElementStringValue(n rhino.Node) (string, bool) {
+func NodeUtil_GetArrayElementStringValue(n rhino.Node) (string, bool) {
 	if NodeUtil_IsNullOrUndefined(n) || n.IsEmpty() {
 		return "", true
 	}
-	return nodeUtil_getStringValue(n)
+	return NodeUtil_GetStringValue(n)
 }
 
 // Java: NodeUtil.arrayToString(Node)
-func NodeUtil_ArrayToString(literal rhino.Node) *string {
-	s, ok := nodeUtil_arrayToString(literal)
-	if !ok {
-		return nil
-	}
-	return &s
-}
-
-func nodeUtil_arrayToString(literal rhino.Node) (string, bool) {
+func NodeUtil_ArrayToString(literal rhino.Node) (string, bool) {
 	first := literal.GetFirstChild()
 	var result strings.Builder
 	for n := first; !n.IsNil(); n = n.GetNext() {
-		childValue, ok := nodeUtil_getArrayElementStringValue(n)
+		childValue, ok := NodeUtil_GetArrayElementStringValue(n)
 		if !ok {
 			return "", false
 		}
@@ -256,60 +232,30 @@ func nodeUtil_arrayToString(literal rhino.Node) (string, bool) {
 	return result.String(), true
 }
 
-// NodeUtil_GetNumberValue gets the value of a node as a Number, or null if it
-// cannot be converted. When it returns a non-null Double, this method
-// effectively emulates the Number() JavaScript cast function.
+// NodeUtil_GetNumberValue gets the value of a node as a Number, or (0, false)
+// if it cannot be converted. When ok is true, this method effectively emulates
+// the Number() JavaScript cast function.
 //
 // IMPORTANT: This method does not consider whether n may have side effects.
 //
-// Returns the value of a node as a Number, or null if it cannot be converted.
-//
 // Java: NodeUtil.getNumberValue(Node)
-func NodeUtil_GetNumberValue(n rhino.Node) *float64 {
-	v, ok := nodeUtil_doGetNumberValue(n, true /* numberConversions */)
-	if !ok {
-		return nil
-	}
-	return &v
-}
-
-// NodeUtil_GetNumberValueOpt is the unboxed (float64, bool) form of
-// NodeUtil_GetNumberValue, avoiding a *float64 heap box on success.
-func NodeUtil_GetNumberValueOpt(n rhino.Node) (float64, bool) {
+func NodeUtil_GetNumberValue(n rhino.Node) (float64, bool) {
 	return nodeUtil_doGetNumberValue(n, true /* numberConversions */)
 }
 
 // NodeUtil_GetNumberValueNoConversions gets the value of a node as a Number,
-// or null if it isn't a number. This method is similar to
+// or (0, false) if it isn't a number. This method is similar to
 // `typeof v == "number" ? v : null` as it does not perform any automatic
 // conversions.
 //
 // IMPORTANT: This method does not consider whether n may have side effects.
 //
 // Java: NodeUtil.getNumberValueNoConversions(Node)
-func NodeUtil_GetNumberValueNoConversions(n rhino.Node) *float64 {
-	v, ok := nodeUtil_doGetNumberValue(n, false /* numberConversions */)
-	if !ok {
-		return nil
-	}
-	return &v
-}
-
-// NodeUtil_GetNumberValueNoConversionsOpt is the unboxed (float64, bool) form
-// of NodeUtil_GetNumberValueNoConversions.
-func NodeUtil_GetNumberValueNoConversionsOpt(n rhino.Node) (float64, bool) {
+func NodeUtil_GetNumberValueNoConversions(n rhino.Node) (float64, bool) {
 	return nodeUtil_doGetNumberValue(n, false /* numberConversions */)
 }
 
 // Java: NodeUtil.doGetNumberValue(Node, boolean)
-func NodeUtil_DoGetNumberValue(n rhino.Node, numberConversions bool) *float64 {
-	v, ok := nodeUtil_doGetNumberValue(n, numberConversions)
-	if !ok {
-		return nil
-	}
-	return &v
-}
-
 func nodeUtil_doGetNumberValue(n rhino.Node, numberConversions bool) (float64, bool) {
 	switch n.GetToken() {
 	case rhino.Token_NUMBER:
@@ -370,7 +316,7 @@ func nodeUtil_doGetNumberValue(n rhino.Node, numberConversions bool) (float64, b
 		if !numberConversions {
 			return 0, false
 		}
-		if s, ok := nodeUtil_getStringValue(n); ok {
+		if s, ok := NodeUtil_GetStringValue(n); ok {
 			return nodeUtil_getStringNumberValue(s)
 		}
 		return 0, false
@@ -564,7 +510,7 @@ func NodeUtil_GetBigIntValue(n rhino.Node) *big.Int {
 		}
 
 	case rhino.Token_TEMPLATELIT, rhino.Token_ARRAYLIT, rhino.Token_OBJECTLIT:
-		if s, ok := nodeUtil_getStringValue(n); ok {
+		if s, ok := NodeUtil_GetStringValue(n); ok {
 			return NodeUtil_GetStringBigIntValue(s)
 		}
 		return nil

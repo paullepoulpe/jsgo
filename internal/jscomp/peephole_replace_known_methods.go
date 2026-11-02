@@ -694,7 +694,7 @@ func (p *PeepholeReplaceKnownMethods) TryFoldArrayJoin(call ast.Call) rhino.Node
 	var joinString string
 	if !hasRight || NodeUtil_IsUndefined(right.Node()) {
 		joinString = ","
-	} else if s, ok := nodeUtil_getStringValue(right.Node()); ok {
+	} else if s, ok := NodeUtil_GetStringValue(right.Node()); ok {
 		joinString = s
 	} else {
 		joinString = "null"
@@ -714,7 +714,7 @@ func (p *PeepholeReplaceKnownMethods) TryFoldArrayJoin(call ast.Call) rhino.Node
 			} else {
 				sb.WriteString(joinString)
 			}
-			elementStr, ok := nodeUtil_getArrayElementStringValue(elem)
+			elementStr, ok := NodeUtil_GetArrayElementStringValue(elem)
 			if !ok {
 				return n // TODO(nickreid): Is this ever null?
 			}

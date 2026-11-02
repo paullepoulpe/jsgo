@@ -671,24 +671,39 @@ func raiSexp(n rhino.Node, sb *strings.Builder) {
 	sb.WriteByte(')')
 }
 
+type raiNullInputProvider struct{}
+
+func (raiNullInputProvider) GetInput(*rhino.InputId) *CompilerInput { return nil }
+
 // raiDiff prints how result differs from blind.
-func raiDiff(blind *LinkedFlowScope, result *LinkedFlowScope) string {
+func raiDiff(c *raiCase, globalScope, fnScope *TypedScope, blind, result *LinkedFlowScope) string {
 	if result == blind {
 		return "="
 	}
 	if result == nil {
 		return "W"
 	}
-	blindSlots := blind.blindSlots()
+	overlay := result.GetOverlayScopeForScope(fnScope, false)
 	var sb strings.Builder
 	sb.WriteString("~")
-	for name, slot := range result.blindSlots().All() {
-		old, present := blindSlots.Lookup(name)
-		t := slot.GetType()
-		if !present {
-			sb.WriteString(" +" + raiEsc(name) + ":" + raiStr(t))
-		} else if old.GetType() != t {
-			sb.WriteString(" " + raiEsc(name) + ":" + raiStr(t))
+	if overlay != nil {
+		for name, old := range c.slots.All() {
+			if raw := overlay.slots.Get(name); raw != nil {
+				t := unwrapOverlayType(raw)
+				if old.GetType() != t {
+					sb.WriteString(" " + raiEsc(name) + ":" + raiStr(t))
+				}
+			}
+		}
+		for _, scope := range []*TypedScope{globalScope, fnScope} {
+			for v := range scope.GetVarIterable() {
+				name := v.GetName()
+				if !c.slots.ContainsKey(name) {
+					if raw := overlay.slots.Get(name); raw != nil {
+						sb.WriteString(" +" + raiEsc(name) + ":" + raiStr(unwrapOverlayType(raw)))
+					}
+				}
+			}
 		}
 	}
 	return sb.String()
@@ -703,11 +718,20 @@ func (d *raiDump) runCase(kind string, c *raiCase, cond rhino.Node) {
 	}
 	raiSexp(shown, &sb)
 	d.line("case\t" + kind + "\t" + sb.String() + "\t" + c.decls.String())
-	blind := newBlindLinkedFlowScope(c.slots)
+	fnNode := rhino.IR_Function(rhino.IR_Name("f"), rhino.IR_ParamList(), rhino.IR_Block())
+	script := rhino.IR_Script()
+	script.AddChildToBack(fnNode)
+	root := rhino.IR_Root(script)
 	for i, chain := range d.chains {
 		var r strings.Builder
 		r.WriteString(d.chainNames[i])
 		for _, o := range rhino.Outcome_values() {
+			globalScope := TypedScope_CreateGlobalScope(root)
+			fnScope := NewTypedScope(globalScope, fnNode)
+			for name, slot := range c.slots.All() {
+				fnScope.Declare(name, rhino.NilNode, slot.GetType(), nil, true)
+			}
+			blind := LinkedFlowScope_CreateEntryLattice(raiNullInputProvider{}, fnScope)
 			var v string
 			func() {
 				defer func() {
@@ -715,7 +739,7 @@ func (d *raiDump) runCase(kind string, c *raiCase, cond rhino.Node) {
 						v = "!" + raiExceptionName(rec)
 					}
 				}()
-				v = raiDiff(blind, chain.GetPreciserScopeKnowingConditionOutcome(cond, blind, o))
+				v = raiDiff(c, globalScope, fnScope, blind, chain.GetPreciserScopeKnowingConditionOutcome(cond, blind, o))
 			}()
 			r.WriteString("\t" + v)
 		}

@@ -241,34 +241,34 @@ func (n Node) typeBeforeCastBase() *JSTypeBase {
 	return nil
 }
 
-func (n Node) copyTemplateColdProps(template Node) {
-	if tbox := template.extBoxOrNil(); tbox != nil {
-		if tbox.propListHead != nil {
-			tbox.propListHead.markShared()
+func (n Node) copyTemplateColdProps(other Node) {
+	if otherBox := other.extBoxOrNil(); otherBox != nil {
+		if otherBox.propListHead != nil {
+			otherBox.propListHead.markShared()
 		}
-		if tbox.jsDocInfo != nil && tbox.typeBeforeCast == 0 && tbox.propListHead == nil {
-			n.setAux(nodeAux{jsDoc: tbox.jsDocInfo})
+		if otherBox.jsDocInfo != nil && otherBox.typeBeforeCast == 0 && otherBox.propListHead == nil && (n.rec().kindFlags&kindFlagHasExtBox) == 0 {
+			n.setAux(nodeAux{jsDoc: otherBox.jsDocInfo})
 			return
 		}
-		if tbox.jsDocInfo != nil || tbox.typeBeforeCast != 0 || tbox.propListHead != nil {
+		if otherBox.jsDocInfo != nil || otherBox.typeBeforeCast != 0 || otherBox.propListHead != nil {
 			box := n.ensureExtBox()
-			box.jsDocInfo = tbox.jsDocInfo
-			box.typeBeforeCast = n.store().translateTypeHandle(template.store(), tbox.typeBeforeCast)
-			box.propListHead = tbox.propListHead
+			box.jsDocInfo = otherBox.jsDocInfo
+			box.typeBeforeCast = n.store().translateTypeHandle(other.store(), otherBox.typeBeforeCast)
+			box.propListHead = otherBox.propListHead
 		}
 		return
 	}
-	if (template.props() & propFlagHasJSDoc) != 0 {
-		n.setAux(nodeAux{jsDoc: template.jsDocAux()})
+	if (other.props() & propFlagHasJSDoc) != 0 {
+		if (n.rec().kindFlags & kindFlagHasExtBox) == 0 {
+			n.setAux(nodeAux{jsDoc: other.jsDocAux()})
+		} else {
+			n.ensureExtBox().jsDocInfo = other.jsDocAux()
+		}
 	}
 }
 
 func (n Node) nodeKind() node_kind {
 	return node_kind(n.rec().kindFlags & kindMask)
-}
-
-func (n Node) setNodeKind(k node_kind) {
-	n.rec().kindFlags = (n.rec().kindFlags &^ kindMask) | uint8(k)
 }
 
 var node_kindClassNames = [...]string{
@@ -364,14 +364,6 @@ func newNode_StringNode(token Token, str string) Node {
 	return n
 }
 
-// Java: Node.StringNode(Token, RhinoStringPool.LazyInternedStringList, int)
-func newNode_StringNodeFromStringPool(token Token, stringPool *RhinoStringPool_LazyInternedStringList, offset int) Node {
-	n := NewNode(token)
-	n.rec().kindFlags = uint8(node_kindString)
-	n.SetStringFromStringPool(stringPool, offset)
-	return n
-}
-
 // Java: Node.TemplateLiteralSubstringNode(String, String)
 func newNode_TemplateLiteralSubstringNode(cooked *string, raw string) Node {
 	n := NewNode(Token_TEMPLATELIT_STRING)
@@ -381,23 +373,6 @@ func newNode_TemplateLiteralSubstringNode(cooked *string, raw string) Node {
 		cookedID = rhinoStringPoolIntern(*cooked)
 	}
 	rawID := rhinoStringPoolIntern(raw)
-	n.initTemplateLitPayload(cookedID, rawID)
-	return n
-}
-
-// Java: Node.TemplateLiteralSubstringNode(RhinoStringPool.LazyInternedStringList, int, int)
-func newNode_TemplateLiteralSubstringNodeFromStringPool(
-	stringPool *RhinoStringPool_LazyInternedStringList,
-	cookedOffsetOrNegativeOne int,
-	rawOffset int,
-) Node {
-	n := NewNode(Token_TEMPLATELIT_STRING)
-	n.rec().kindFlags = uint8(node_kindTemplateLiteralSubstring)
-	var cookedID rhinoStringID
-	if cookedOffsetOrNegativeOne != -1 {
-		cookedID = stringPool.GetID(cookedOffsetOrNegativeOne)
-	}
-	rawID := stringPool.GetID(rawOffset)
 	n.initTemplateLitPayload(cookedID, rawID)
 	return n
 }
@@ -543,6 +518,8 @@ func (n Node) InitStringIDFromTemplate(token Token, id rhinoStringID, template N
 }
 
 // SetStringID sets the interned string payload on a freshly initialized Node.
+//
+// Java: Node.newString(Token, RhinoStringPool.LazyInternedStringList, int), Node.StringNode(Token, RhinoStringPool.LazyInternedStringList, int)
 func (n Node) SetStringID(id rhinoStringID) Node {
 	n.rec().kindFlags |= uint8(node_kindString)
 	n.rec().payload = uint32(id)
@@ -556,13 +533,9 @@ func (n Node) SetNumberRaw(number float64) Node {
 	return n
 }
 
-// InitStringFromStringPool initializes a zero Node from a slab as a StringNode from a LazyInternedStringList.
-func (n Node) InitStringFromStringPool(token Token, stringPool *RhinoStringPool_LazyInternedStringList, offset int, template Node) Node {
-	id := stringPool.GetID(offset)
-	return n.InitFromTemplate(token, template).SetStringID(id)
-}
-
 // InitTemplateLitStringFromStringPool initializes a zero Node from a slab as a TemplateLiteralSubstringNode from a LazyInternedStringList.
+//
+// Java: Node.newTemplateLitString(RhinoStringPool.LazyInternedStringList, int, int), Node.TemplateLiteralSubstringNode(RhinoStringPool.LazyInternedStringList, int, int)
 func (n Node) InitTemplateLitStringFromStringPool(
 	stringPool *RhinoStringPool_LazyInternedStringList,
 	cookedOffsetOrNegativeOne int,
@@ -582,14 +555,6 @@ func (n Node) InitTemplateLitStringFromStringPool(
 	}
 	rawID := stringPool.GetID(rawOffset)
 	n.initTemplateLitPayload(cookedID, rawID)
-	return n
-}
-
-// InitNumberFromTemplate initializes a zero Node from a slab as a NumberNode with template properties.
-func (n Node) InitNumberFromTemplate(number float64, template Node) Node {
-	n.InitFromTemplate(Token_NUMBER, template)
-	n.rec().kindFlags |= uint8(node_kindNumber)
-	n.rec().payload = numberPayload(number)
 	return n
 }
 
@@ -695,23 +660,9 @@ func Node_NewStringWithToken(token Token, str string) Node {
 	return newNode_StringNode(token, str)
 }
 
-// Java: Node.newString(Token, RhinoStringPool.LazyInternedStringList, int)
-func Node_NewStringFromStringPool(token Token, stringPool *RhinoStringPool_LazyInternedStringList, offset int) Node {
-	return newNode_StringNodeFromStringPool(token, stringPool, offset)
-}
-
 // Java: Node.newTemplateLitString(String, String)
 func Node_NewTemplateLitString(cooked *string, raw string) Node {
 	return newNode_TemplateLiteralSubstringNode(cooked, raw)
-}
-
-// Java: Node.newTemplateLitString(RhinoStringPool.LazyInternedStringList, int, int)
-func Node_NewTemplateLitStringFromStringPool(
-	stringPool *RhinoStringPool_LazyInternedStringList,
-	cookedOffsetOrNegativeOne int,
-	rawOffset int,
-) Node {
-	return newNode_TemplateLiteralSubstringNodeFromStringPool(stringPool, cookedOffsetOrNegativeOne, rawOffset)
 }
 
 // Java: Node.getToken()
@@ -805,10 +756,6 @@ func (n Node) HasNoBlockScopeDecls() bool {
 
 func (n Node) SetNoBlockScopeDecls() {
 	n.rec().kindFlags |= kindFlagNoBlockDecl
-}
-
-func (n Node) ClearNoBlockScopeDecls() {
-	n.rec().kindFlags &^= kindFlagNoBlockDecl
 }
 
 // Preconditions.checkNotNull for a Node. The generic jutil versions take an

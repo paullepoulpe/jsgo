@@ -68,6 +68,13 @@ func (w *cfgWorklist) notEmpty() bool {
 	return len(w.queue) > w.queueHead
 }
 
+func higherPrio(a, b int32, forward bool) bool {
+	if forward {
+		return a < b
+	}
+	return a > b
+}
+
 func (w *cfgWorklist) enqueue(node *graph.LinkedDiGraphNode[rhino.Node, ControlFlowGraph_Branch]) {
 	if node == nil {
 		panic(jutil.NewNullPointerException())
@@ -83,26 +90,15 @@ func (w *cfgWorklist) enqueue(node *graph.LinkedDiGraphNode[rhino.Node, ControlF
 		if xPrio < 0 {
 			panic(jutil.NewIllegalStateExceptionMsg("priority not set"))
 		}
-		if w.forward {
-			for i > 0 {
-				parent := (i - 1) / 2
-				p := w.queue[parent]
-				if xPrio >= p.Priority {
-					break
-				}
-				w.queue[i] = p
-				i = parent
+		forward := w.forward
+		for i > 0 {
+			parent := (i - 1) / 2
+			p := w.queue[parent]
+			if !higherPrio(xPrio, p.Priority, forward) {
+				break
 			}
-		} else {
-			for i > 0 {
-				parent := (i - 1) / 2
-				p := w.queue[parent]
-				if xPrio <= p.Priority {
-					break
-				}
-				w.queue[i] = p
-				i = parent
-			}
+			w.queue[i] = p
+			i = parent
 		}
 		w.queue[i] = node
 	}
@@ -119,51 +115,28 @@ func (w *cfgWorklist) dequeue() *graph.LinkedDiGraphNode[rhino.Node, ControlFlow
 		if n > 1 {
 			m := n - 1
 			xPrio := last.Priority
+			forward := w.forward
 			i := 0
-			if w.forward {
-				for {
-					pick := 2*i + 1
-					if pick >= m {
-						break
-					}
-					smaller := w.queue[pick]
-					smallerPrio := smaller.Priority
-					if sibling := pick + 1; sibling < m {
-						sib := w.queue[sibling]
-						if sibPrio := sib.Priority; smallerPrio > sibPrio {
-							pick = sibling
-							smaller = sib
-							smallerPrio = sibPrio
-						}
-					}
-					if xPrio <= smallerPrio {
-						break
-					}
-					w.queue[i] = smaller
-					i = pick
+			for {
+				pick := 2*i + 1
+				if pick >= m {
+					break
 				}
-			} else {
-				for {
-					pick := 2*i + 1
-					if pick >= m {
-						break
+				best := w.queue[pick]
+				bestPrio := best.Priority
+				if sibling := pick + 1; sibling < m {
+					sib := w.queue[sibling]
+					if sibPrio := sib.Priority; higherPrio(sibPrio, bestPrio, forward) {
+						pick = sibling
+						best = sib
+						bestPrio = sibPrio
 					}
-					larger := w.queue[pick]
-					largerPrio := larger.Priority
-					if sibling := pick + 1; sibling < m {
-						sib := w.queue[sibling]
-						if sibPrio := sib.Priority; largerPrio < sibPrio {
-							pick = sibling
-							larger = sib
-							largerPrio = sibPrio
-						}
-					}
-					if xPrio >= largerPrio {
-						break
-					}
-					w.queue[i] = larger
-					i = pick
 				}
+				if !higherPrio(bestPrio, xPrio, forward) {
+					break
+				}
+				w.queue[i] = best
+				i = pick
 			}
 			w.queue[i] = last
 		}

@@ -116,51 +116,29 @@ func (se *StreamEncoder) appendUnits(dst []byte, units []uint16) []byte {
 			dst = se.enc.encodeMalformed(dst)
 		}
 	}
-	if se.isASCII {
-		for ; i < len(units); i++ {
-			c := units[i]
-			if c < 0x80 {
-				dst = append(dst, byte(c))
+	isASCII := se.isASCII
+	for ; i < len(units); i++ {
+		c := units[i]
+		if isASCII && c < 0x80 {
+			dst = append(dst, byte(c))
+			continue
+		}
+		switch {
+		case isHighSurrogateUnit(c):
+			if i+1 == len(units) {
+				se.pendingHighSurrogate, se.hasPendingHighSurrogate = c, true
 				continue
 			}
-			switch {
-			case isHighSurrogateUnit(c):
-				if i+1 == len(units) {
-					se.pendingHighSurrogate, se.hasPendingHighSurrogate = c, true
-					continue
-				}
-				if lo := units[i+1]; isLowSurrogateUnit(lo) {
-					dst = se.enc.encodeRune(dst, 0x10000+(rune(c)-0xD800)<<10+(rune(lo)-0xDC00))
-					i++
-					continue
-				}
-				dst = se.enc.encodeMalformed(dst)
-			case isLowSurrogateUnit(c):
-				dst = se.enc.encodeMalformed(dst)
-			default:
-				dst = se.enc.encodeRune(dst, rune(c))
+			if lo := units[i+1]; isLowSurrogateUnit(lo) {
+				dst = se.enc.encodeRune(dst, 0x10000+(rune(c)-0xD800)<<10+(rune(lo)-0xDC00))
+				i++
+				continue
 			}
-		}
-	} else {
-		for ; i < len(units); i++ {
-			c := units[i]
-			switch {
-			case isHighSurrogateUnit(c):
-				if i+1 == len(units) {
-					se.pendingHighSurrogate, se.hasPendingHighSurrogate = c, true
-					continue
-				}
-				if lo := units[i+1]; isLowSurrogateUnit(lo) {
-					dst = se.enc.encodeRune(dst, 0x10000+(rune(c)-0xD800)<<10+(rune(lo)-0xDC00))
-					i++
-					continue
-				}
-				dst = se.enc.encodeMalformed(dst)
-			case isLowSurrogateUnit(c):
-				dst = se.enc.encodeMalformed(dst)
-			default:
-				dst = se.enc.encodeRune(dst, rune(c))
-			}
+			dst = se.enc.encodeMalformed(dst)
+		case isLowSurrogateUnit(c):
+			dst = se.enc.encodeMalformed(dst)
+		default:
+			dst = se.enc.encodeRune(dst, rune(c))
 		}
 	}
 	return dst

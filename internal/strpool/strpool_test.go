@@ -12,11 +12,14 @@ func TestInternAndPointers(t *testing.T) {
 		t.Fatalf("ID 0 should represent nil/empty")
 	}
 	emptyID := Intern("")
-	if emptyID != 1 || String(emptyID) != "" || StringPtr(emptyID) == nil || *StringPtr(emptyID) != "" {
+	if emptyID != EmptyID || String(emptyID) != "" || StringPtr(emptyID) == nil || *StringPtr(emptyID) != "" {
 		t.Fatalf("empty string handling broken: id=%d", emptyID)
 	}
-	if InternBytes(nil) != 1 || Lookup("") != 1 {
+	if InternBytes(nil) != EmptyID || Lookup("") != EmptyID {
 		t.Fatalf("empty InternBytes/Lookup broken")
+	}
+	if HashString("hello") != HashBytes([]byte("hello")) || HashString("") != HashBytes(nil) {
+		t.Fatalf("HashString/HashBytes mismatch")
 	}
 
 	large := strings.Repeat("x", 40_000)

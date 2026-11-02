@@ -3,6 +3,7 @@ package jutil
 import (
 	"os"
 	"strings"
+	"sync/atomic"
 )
 
 // Go-only: language-adapter — java.nio.file.Path for the default file
@@ -37,7 +38,7 @@ import (
 // Path is java.nio.file.Path (a Unix path of the default file system).
 type Path struct {
 	s    string
-	hash int32
+	hash atomic.Int32
 	// elemStarts holds the byte offset where each name element begins; nil
 	// until first needed.
 	elemStarts []int
@@ -122,8 +123,12 @@ func newPathFromString(s string) *Path {
 
 var (
 	emptyPath = &Path{s: "", elemStarts: []int{0}}
-	rootPath  = &Path{s: "/", hash: '/', elemStarts: []int{}}
+	rootPath  = &Path{s: "/", elemStarts: []int{}}
 )
+
+func init() {
+	rootPath.hash.Store('/')
+}
 
 func (p *Path) isEmpty() bool { return len(p.s) == 0 }
 
@@ -461,14 +466,14 @@ func (p *Path) HashCode() int32 {
 	if len(p.s) == 0 {
 		return 0
 	}
-	if p.hash == 0 {
-		var h int32
+	h := p.hash.Load()
+	if h == 0 {
 		for i := 0; i < len(p.s); i++ {
 			h = 31*h + int32(p.s[i])
 		}
-		p.hash = h
+		p.hash.Store(h)
 	}
-	return p.hash
+	return h
 }
 
 // String is Path.toString().

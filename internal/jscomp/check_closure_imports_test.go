@@ -111,16 +111,16 @@ func (c *CheckClosureImportsTest) GetProcessor(compiler *Compiler) CompilerPass 
 
 	var metadata *ModuleMetadataMap
 	if c.useDefaultModuleMetadata {
-		byPath := jutil.NewLinkedHashMap[string, *ModuleMetadataMap_ModuleMetadata]()
+		byPath := NewOrderedStringMapWithCapacity[*ModuleMetadataMap_ModuleMetadata](4)
 		byPath.Put(checkClosureImportsTest_PROVIDES_SYMBOL_PATH, checkClosureImportsTest_PROVIDES_SYMBOL_METADATA)
 		byPath.Put(checkClosureImportsTest_ES_MODULE_PATH, checkClosureImportsTest_ES_MODULE_METADATA)
 		byPath.Put(checkClosureImportsTest_TEST_CODE_PATH, testMetadata)
 		byPath.Put("externs", checkClosureImportsTest_EXTERN_METADATA)
-		byNamespace := jutil.NewLinkedHashMap[string, *ModuleMetadataMap_ModuleMetadata]()
+		byNamespace := NewOrderedStringMapWithCapacity[*ModuleMetadataMap_ModuleMetadata](3)
 		byNamespace.Put("symbol", checkClosureImportsTest_PROVIDES_SYMBOL_METADATA)
 		byNamespace.Put("es.module", checkClosureImportsTest_ES_MODULE_METADATA)
 		byNamespace.Put("test", testMetadata)
-		metadata = NewModuleMetadataMap(byPath, byNamespace)
+		metadata = NewModuleMetadataMapFromOrderedMaps(byPath, byNamespace)
 	} else {
 		metadata = compiler.GetModuleMetadataMap()
 	}

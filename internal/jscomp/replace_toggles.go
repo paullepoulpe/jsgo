@@ -136,10 +136,10 @@ func (r *ReplaceToggles) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node
 				return
 			}
 			child := c.GetFirstChild()
-			doubleValue := NodeUtil_GetNumberValue(child)
+			doubleValue, hasDouble := NodeUtil_GetNumberValue(child)
 			intValue := -1
-			if doubleValue != nil {
-				intValue = int(jutil.D2I(*doubleValue))
+			if hasDouble {
+				intValue = int(jutil.D2I(doubleValue))
 			}
 			if child.IsTrue() || child.IsFalse() {
 				if child.IsTrue() {
@@ -147,7 +147,7 @@ func (r *ReplaceToggles) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node
 				} else {
 					intValue = ReplaceToggles_FALSE_VALUE
 				}
-			} else if !child.IsNumber() || intValue < 0 || float64(intValue) != *doubleValue {
+			} else if !child.IsNumber() || intValue < 0 || float64(intValue) != doubleValue {
 				r.compiler.Report(
 					JSError_MakeWithNode(
 						c, ReplaceToggles_INVALID_ORDINAL_MAPPING, "value not a boolean or whole number literal"))

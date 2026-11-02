@@ -303,7 +303,11 @@ func (d *closureRewriteDump) dump(header string, inputs []*SourceFile) {
 		}).Process(externs, js)
 		NewClosureRewriteModule(compiler, nil, compiler.GetTopScope()).Process(externs, js)
 	})
-	for _, mode := range ProcessDefines_Mode_values() {
+	for _, mode := range [...]ProcessDefines_Mode{
+		ProcessDefines_Mode_CHECK,
+		ProcessDefines_Mode_OPTIMIZE,
+		ProcessDefines_Mode_CHECK_AND_OPTIMIZE,
+	} {
 		d.pass(inputs, parseDiags, "processDefines_"+mode.String(), func(compiler *Compiler, externs rhino.Node, js rhino.Node, extra *[]string) {
 			NewProcessDefines_Builder(compiler).
 				PutReplacements(closureRewriteDefineReplacements()).

@@ -8,10 +8,38 @@ import (
 )
 
 func TestTri(t *testing.T) {
-	if Tri_TRUE.Or(Tri_FALSE) != Tri_TRUE || Tri_TRUE.And(Tri_UNKNOWN) != Tri_UNKNOWN ||
-		Tri_TRUE.Xor(Tri_TRUE) != Tri_FALSE || Tri_UNKNOWN.Xor(Tri_TRUE) != Tri_UNKNOWN ||
-		Tri_FALSE.Not() != Tri_TRUE || Tri_UNKNOWN.Not() != Tri_UNKNOWN {
-		t.Fatal("ternary logic")
+	vals := [3]Tri{Tri_FALSE, Tri_UNKNOWN, Tri_TRUE}
+	wantOr := [3][3]Tri{
+		{Tri_FALSE, Tri_UNKNOWN, Tri_TRUE},
+		{Tri_UNKNOWN, Tri_UNKNOWN, Tri_TRUE},
+		{Tri_TRUE, Tri_TRUE, Tri_TRUE},
+	}
+	wantAnd := [3][3]Tri{
+		{Tri_FALSE, Tri_FALSE, Tri_FALSE},
+		{Tri_FALSE, Tri_UNKNOWN, Tri_UNKNOWN},
+		{Tri_FALSE, Tri_UNKNOWN, Tri_TRUE},
+	}
+	wantXor := [3][3]Tri{
+		{Tri_FALSE, Tri_UNKNOWN, Tri_TRUE},
+		{Tri_UNKNOWN, Tri_UNKNOWN, Tri_UNKNOWN},
+		{Tri_TRUE, Tri_UNKNOWN, Tri_FALSE},
+	}
+	wantNot := [3]Tri{Tri_TRUE, Tri_UNKNOWN, Tri_FALSE}
+	for i, a := range vals {
+		if got := a.Not(); got != wantNot[i] {
+			t.Fatalf("%v.Not() = %v, want %v", a, got, wantNot[i])
+		}
+		for j, b := range vals {
+			if got := a.Or(b); got != wantOr[i][j] {
+				t.Fatalf("%v.Or(%v) = %v, want %v", a, b, got, wantOr[i][j])
+			}
+			if got := a.And(b); got != wantAnd[i][j] {
+				t.Fatalf("%v.And(%v) = %v, want %v", a, b, got, wantAnd[i][j])
+			}
+			if got := a.Xor(b); got != wantXor[i][j] {
+				t.Fatalf("%v.Xor(%v) = %v, want %v", a, b, got, wantXor[i][j])
+			}
+		}
 	}
 	if Tri_UNKNOWN.String() != "unknown" || Tri_UNKNOWN.Name() != "UNKNOWN" {
 		t.Fatal("toString")
@@ -45,11 +73,22 @@ func TestJSCompDoubles(t *testing.T) {
 		JSCompDoubles_IsMathematicalInteger(math.Inf(1)) || !JSCompDoubles_IsAtLeastIntegerPrecision(1e15) {
 		t.Fatal("exactness predicates")
 	}
-	if math.Signbit(MathMax(negZero, 0)) || math.Signbit(MathMax(0, negZero)) || !math.IsNaN(MathMax(1, math.NaN())) {
-		t.Fatal("MathMax")
+	posZero := 0.0
+	if !math.IsNaN(MathMax(math.NaN(), 1)) || !math.IsNaN(MathMax(1, math.NaN())) || !math.IsNaN(MathMax(math.NaN(), math.NaN())) {
+		t.Fatal("MathMax NaN")
 	}
-	if !math.Signbit(MathMin(negZero, 0)) || !math.Signbit(MathMin(0, negZero)) || !math.IsNaN(MathMin(math.NaN(), 1)) {
-		t.Fatal("MathMin")
+	if math.Signbit(MathMax(negZero, posZero)) || math.Signbit(MathMax(posZero, negZero)) ||
+		!math.Signbit(MathMax(negZero, negZero)) || math.Signbit(MathMax(posZero, posZero)) ||
+		MathMax(-2, 3) != 3 || MathMax(3, -2) != 3 {
+		t.Fatal("MathMax zeros/values")
+	}
+	if !math.IsNaN(MathMin(math.NaN(), 1)) || !math.IsNaN(MathMin(1, math.NaN())) || !math.IsNaN(MathMin(math.NaN(), math.NaN())) {
+		t.Fatal("MathMin NaN")
+	}
+	if !math.Signbit(MathMin(negZero, posZero)) || !math.Signbit(MathMin(posZero, negZero)) ||
+		!math.Signbit(MathMin(negZero, negZero)) || math.Signbit(MathMin(posZero, posZero)) ||
+		MathMin(-2, 3) != -2 || MathMin(3, -2) != -2 {
+		t.Fatal("MathMin zeros/values")
 	}
 	if !math.Signbit(MathSignum(negZero)) || MathSignum(-3.5) != -1 || !math.IsNaN(MathSignum(math.NaN())) {
 		t.Fatal("MathSignum")

@@ -52,13 +52,38 @@ import (
 //   - >= 2: ((localIdx << 6) | shardIdx) + 2
 type ID uint32
 
+// EmptyID is the canonical ID of the empty string "".
+const EmptyID = 1
+
 const (
-	numShards  = 64
-	chunkShift = 9
-	chunkSize  = 1 << chunkShift // 512 strings per chunk (power of 2 for 1-cycle >> / & indexing)
-	chunkMask  = chunkSize - 1
-	maxChunks  = 1024 // up to 33.5M unique strings across 64 shards
+	numShards   = 64
+	chunkShift  = 9
+	chunkSize   = 1 << chunkShift // 512 strings per chunk (power of 2 for 1-cycle >> / & indexing)
+	chunkMask   = chunkSize - 1
+	maxChunks   = 1024 // up to 33.5M unique strings across 64 shards
+	fnvOffset64 = 14695981039346656037
+	fnvPrime64  = 1099511628211
 )
+
+// HashString returns the 64-bit FNV-1a hash of s.
+func HashString(s string) uint64 {
+	h := uint64(fnvOffset64)
+	for i := 0; i < len(s); i++ {
+		h ^= uint64(s[i])
+		h *= fnvPrime64
+	}
+	return h
+}
+
+// HashBytes returns the 64-bit FNV-1a hash of b.
+func HashBytes(b []byte) uint64 {
+	h := uint64(fnvOffset64)
+	for _, c := range b {
+		h ^= uint64(c)
+		h *= fnvPrime64
+	}
+	return h
+}
 
 type shard struct {
 	mu           sync.RWMutex
@@ -143,7 +168,7 @@ func makeID(localIdx, shardIdx uint32) ID {
 
 func Intern(str string) ID {
 	if len(str) == 0 {
-		return 1
+		return EmptyID
 	}
 	h := hash(str)
 	shardIdx := uint32(h) & (numShards - 1)
@@ -180,7 +205,7 @@ func Intern(str string) ID {
 }
 
 func String(id ID) string {
-	if id <= 1 {
+	if id <= EmptyID {
 		return ""
 	}
 	idx := uint32(id - 2)
@@ -193,7 +218,7 @@ func StringPtr(id ID) *string {
 	if id == 0 {
 		return nil
 	}
-	if id == 1 {
+	if id == EmptyID {
 		return &emptyString
 	}
 	idx := uint32(id - 2)
@@ -215,7 +240,7 @@ func ClearForTest() {
 
 func Lookup(str string) ID {
 	if len(str) == 0 {
-		return 1
+		return EmptyID
 	}
 	h := hash(str)
 	shardIdx := uint32(h) & (numShards - 1)
@@ -235,7 +260,7 @@ func Lookup(str string) ID {
 // when b is already interned.
 func InternBytes(b []byte) ID {
 	if len(b) == 0 {
-		return 1
+		return EmptyID
 	}
 	h := maphash.Bytes(seed, b)
 	shardIdx := uint32(h) & (numShards - 1)

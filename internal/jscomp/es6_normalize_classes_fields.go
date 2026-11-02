@@ -439,8 +439,8 @@ func es6IsProtoKeyExpr(expr rhino.Node) bool {
 	if expr.IsStringLit() {
 		return expr.GetStringID() == es6ClassProtoID
 	}
-	v := NodeUtil_GetStringValue(expr)
-	return v != nil && *v == "__proto__"
+	v, ok := NodeUtil_GetStringValue(expr)
+	return ok && v == "__proto__"
 }
 
 // Java: Es6NormalizeClasses.createFieldDefineProperty(Node, Node, Node, Node)

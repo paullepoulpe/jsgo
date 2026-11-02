@@ -190,7 +190,7 @@ func colorUndirectedGraph[N, E comparable](g *LinkedUndirectedGraph[N, E], tieBr
 	for i, uNode := range uNodes {
 		worklist[i] = undirectedColoringEntry[N, E]{
 			node:   uNode,
-			weight: len(uNode.NeighborEdges),
+			weight: uNode.NeighborEdges.Size(),
 		}
 	}
 	slices.SortStableFunc(worklist, func(left, right undirectedColoringEntry[N, E]) int {
@@ -215,7 +215,7 @@ func colorUndirectedGraph[N, E comparable](g *LinkedUndirectedGraph[N, E], tieBr
 		for _, entry := range worklist {
 			uNode := entry.node
 			if forbidden[uNode.colorIdx] != epoch {
-				for _, edge := range uNode.NeighborEdges {
+				for _, edge := range uNode.NeighborEdges.Slice() {
 					if edge.nodeA == uNode {
 						forbidden[edge.nodeB.colorIdx] = epoch
 					} else {

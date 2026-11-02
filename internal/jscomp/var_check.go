@@ -392,6 +392,11 @@ func (v *VarCheck) ExitScope(t *NodeTraversal) {
 	}
 }
 
+// varCheck_requiredSymbols is the list of symbols that must always be
+// externed even if they are not referenced anywhere (yet). These are used by
+// runtime libraries that might not be present when the first VarCheck runs.
+//
+// Java: VarCheck.REQUIRED_SYMBOLS
 var varCheck_requiredSymbols = [...]string{
 	// go/keep-sorted start
 	"AggregateError",
@@ -429,13 +434,6 @@ var varCheck_requiredSymbols = [...]string{
 	"window",
 	// go/keep-sorted end
 }
-
-// VarCheck_REQUIRED_SYMBOLS is the list of symbols that must always be
-// externed even if they are not referenced anywhere (yet). These are used by
-// runtime libraries that might not be present when the first VarCheck runs.
-//
-// Java: VarCheck.REQUIRED_SYMBOLS
-var VarCheck_REQUIRED_SYMBOLS = jutil.NewLinkedHashSet(varCheck_requiredSymbols[:]...)
 
 // CreateSynthesizedExternVar creates a new variable in a synthetic script.
 // This will prevent subsequent compiler passes from crashing.

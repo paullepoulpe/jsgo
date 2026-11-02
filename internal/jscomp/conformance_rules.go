@@ -739,7 +739,10 @@ func ConformanceRules_ConformanceUtil_InferStringValue(
 
 	switch node.GetToken() {
 	case rhino.Token_STRING_KEY, rhino.Token_STRINGLIT, rhino.Token_TEMPLATELIT, rhino.Token_TEMPLATELIT_STRING:
-		return NodeUtil_GetStringValue(node)
+		if s, ok := NodeUtil_GetStringValue(node); ok {
+			return &s
+		}
+		return nil
 	case rhino.Token_NAME:
 		if scope == nil {
 			return nil

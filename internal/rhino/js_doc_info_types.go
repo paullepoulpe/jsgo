@@ -577,12 +577,6 @@ func (i *JSDocInfo) GetTypeTransformationEntries() []JSDocTypeTransform {
 	return jsdocGet[[]JSDocTypeTransform](JSDocInfo_TYPE_TRANSFORMATIONS.getRaw(i))
 }
 
-// HasTypeTransformations reports whether any @template T := ... transformations
-// are present without allocating.
-func (i *JSDocInfo) HasTypeTransformations() bool {
-	return i != nil && (i.propertyKeysBitset&JSDocInfo_TYPE_TRANSFORMATIONS.mask) != 0
-}
-
 // GetTypeTransformations gets the type transformations.
 //
 // Java: JSDocInfo.getTypeTransformations()

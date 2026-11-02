@@ -978,7 +978,6 @@ func CheckAccessControls_IdentifierBehaviour_Select(target rhino.Node) CheckAcce
 // CheckAccessControls.
 type CollectFileOverviewVisibility struct {
 	visibilities map[rhino.StaticSourceFile]rhino.JSDocInfo_Visibility
-	order        []rhino.StaticSourceFile
 	hasDuplicate bool
 }
 
@@ -1008,23 +1007,8 @@ func (c *CollectFileOverviewVisibility) Visit(scriptNode rhino.Node) {
 	sf := jutil.CheckNotNull(scriptNode.GetStaticSourceFile())
 	if c.visibilities == nil {
 		c.visibilities = make(map[rhino.StaticSourceFile]rhino.JSDocInfo_Visibility)
-		c.order = append(c.order, sf)
 	} else if _, exists := c.visibilities[sf]; exists {
 		c.hasDuplicate = true
-	} else {
-		c.order = append(c.order, sf)
 	}
 	c.visibilities[sf] = v
-}
-
-// Java: CollectFileOverviewVisibility.getFileOverviewVisibilityMap()
-func (c *CollectFileOverviewVisibility) GetFileOverviewVisibilityMap() *jutil.LinkedHashMap[rhino.StaticSourceFile, rhino.JSDocInfo_Visibility] {
-	if c.hasDuplicate {
-		panic(jutil.NewIllegalArgumentExceptionMsg("Multiple entries with same key"))
-	}
-	m := jutil.NewLinkedHashMapWithCapacity[rhino.StaticSourceFile, rhino.JSDocInfo_Visibility](len(c.order))
-	for _, sf := range c.order {
-		m.Put(sf, c.visibilities[sf])
-	}
-	return m
 }

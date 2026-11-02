@@ -184,6 +184,7 @@ func (s *ColorSerializer) addColorSliceInt32s(cs []*colors.Color) []int32 {
 	return s.allocInt32Slice(tmp)
 }
 
+// Java: ColorSerializer.getOwnPropertyStringPoolOffsets(Color)
 func (s *ColorSerializer) ownPropertyInt32s(color *colors.Color) []int32 {
 	props := color.GetOwnProperties()
 	if len(props) == 0 {
@@ -353,16 +354,4 @@ func (s *ColorSerializer) GenerateTypeProto(color *colors.Color) *TypeProto {
 		}
 	}
 	return tp
-}
-
-func (s *ColorSerializer) GetOwnPropertyStringPoolOffsets(color *colors.Color) []int {
-	var builder []int
-	for _, ownProperty := range color.GetOwnProperties() {
-		// The client code may know that some properties are unused in the
-		// AST, so there's no need to serialize them.
-		if s.propertyFilter(ownProperty) {
-			builder = append(builder, s.getStringPoolIndexFn(ownProperty))
-		}
-	}
-	return builder
 }

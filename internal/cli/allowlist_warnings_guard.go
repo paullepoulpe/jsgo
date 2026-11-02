@@ -190,7 +190,7 @@ func (g *AllowlistWarningsGuard) FormatWarning(error *jscomp.JSError) string {
 func (g *AllowlistWarningsGuard) FormatWarningWithMetaData(error *jscomp.JSError, withMetaData bool) string {
 	var sb strings.Builder
 	if src := error.SourceName(); src != nil {
-		sb.WriteString(normalizeSourceNameStr(*src))
+		sb.WriteString(g.NormalizeSourceName(*src))
 	} else {
 		sb.WriteString("null")
 	}
@@ -216,20 +216,11 @@ func (g *AllowlistWarningsGuard) FormatWarningWithMetaData(error *jscomp.JSError
 	return sb.String()
 }
 
-// NormalizeSourceName: sourceName may be nil (and so is the result then).
+// NormalizeSourceName strips the first "blaze-out/[^/]*/(bin|genfiles)/" segment,
+// e.g. "blaze-out/k8-fastbuild/genfiles/some/path/foo.js" -> "some/path/foo.js".
 //
 // Java: AllowlistWarningsGuard.normalizeSourceName(String)
-func (g *AllowlistWarningsGuard) NormalizeSourceName(sourceName *string) *string {
-	if sourceName != nil {
-		normalized := normalizeSourceNameStr(*sourceName)
-		return &normalized
-	}
-	return sourceName
-}
-
-// normalizeSourceNameStr strips the first "blaze-out/[^/]*/(bin|genfiles)/" segment.
-// e.g. "blaze-out/k8-fastbuild/genfiles/some/path/foo.js" -> "some/path/foo.js"
-func normalizeSourceNameStr(s string) string {
+func (g *AllowlistWarningsGuard) NormalizeSourceName(s string) string {
 	const prefix = "blaze-out/"
 	offset := 0
 	for {

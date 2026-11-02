@@ -169,48 +169,55 @@ func ApplySuggestedFixes_ApplyCodeReplacements(
 			applySuggestedFixes_DOUBLE_LINE_JOINER_Join(sortedReplacements))
 	}
 
-	if jutil.IsASCII(code) {
+	isASCII := jutil.IsASCII(code)
+	codeLen := len(code)
+	var codeUnits []uint16
+	if !isASCII {
+		codeUnits = jutil.StringToUTF16(code)
+		codeLen = len(codeUnits)
+	}
+	validateReplacementRanges(sortedReplacements, codeLen)
+
+	if isASCII {
 		var sb strings.Builder
-		sb.Grow(len(code))
+		sb.Grow(codeLen)
 		lastIndex := 0
 		for _, replacement := range sortedReplacements {
-			start := replacement.GetStartPosition()
-			end := replacement.GetEndPosition()
-			if lastIndex < 0 || lastIndex > start || start > len(code) {
-				panic(jutil.NewIndexOutOfBoundsExceptionForRange(lastIndex, start, len(code)))
-			}
-			sb.WriteString(code[lastIndex:start])
+			sb.WriteString(code[lastIndex:replacement.GetStartPosition()])
 			sb.WriteString(replacement.GetNewContent())
-			lastIndex = end
+			lastIndex = replacement.GetEndPosition()
 		}
-		if lastIndex <= len(code) {
-			if lastIndex < 0 {
-				panic(jutil.NewIndexOutOfBoundsExceptionForRange(lastIndex, len(code), len(code)))
-			}
+		if lastIndex < codeLen {
 			sb.WriteString(code[lastIndex:])
 		}
 		return sb.String()
 	}
 
-	codeUnits := jutil.StringToUTF16(code)
-	out := make([]uint16, 0, len(codeUnits))
+	out := make([]uint16, 0, codeLen)
 	lastIndex := 0
 	for _, replacement := range sortedReplacements {
-		start := replacement.GetStartPosition()
-		if lastIndex < 0 || lastIndex > start || start > len(codeUnits) {
-			panic(jutil.NewIndexOutOfBoundsExceptionForRange(lastIndex, start, len(codeUnits)))
-		}
-		out = append(out, codeUnits[lastIndex:start]...)
+		out = append(out, codeUnits[lastIndex:replacement.GetStartPosition()]...)
 		out = append(out, jutil.StringToUTF16(replacement.GetNewContent())...)
 		lastIndex = replacement.GetEndPosition()
 	}
-	if lastIndex <= len(codeUnits) {
-		if lastIndex < 0 {
-			panic(jutil.NewIndexOutOfBoundsExceptionForRange(lastIndex, len(codeUnits), len(codeUnits)))
-		}
+	if lastIndex < codeLen {
 		out = append(out, codeUnits[lastIndex:]...)
 	}
 	return jutil.StringFromUTF16(out)
+}
+
+func validateReplacementRanges(sortedReplacements []*CodeReplacement, codeLen int) {
+	lastIndex := 0
+	for _, replacement := range sortedReplacements {
+		start := replacement.GetStartPosition()
+		if lastIndex < 0 || lastIndex > start || start > codeLen {
+			panic(jutil.NewIndexOutOfBoundsExceptionForRange(lastIndex, start, codeLen))
+		}
+		lastIndex = replacement.GetEndPosition()
+	}
+	if lastIndex < 0 {
+		panic(jutil.NewIndexOutOfBoundsExceptionForRange(lastIndex, codeLen, codeLen))
+	}
 }
 
 // applySuggestedFixes_ImmutableSortedSetCopyOf is

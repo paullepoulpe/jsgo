@@ -308,24 +308,8 @@ func (n Node) ClonePropsFrom(other Node) Node {
 	jutil.CheckStateMsg(
 		n.coldPropListHead() == nil && n.typeBeforeCastBase() == nil && n.props() == 0 && n.rec().sourceFile == 0 && (n.nodeKind() != node_kindNode || uint32(n.rec().payload) == 0),
 		"Node has existing properties.")
-	if otherBox := other.extBoxOrNil(); otherBox != nil {
-		if otherBox.propListHead != nil {
-			otherBox.propListHead.markShared()
-		}
-		if otherBox.jsDocInfo != nil && otherBox.typeBeforeCast == 0 && otherBox.propListHead == nil && (n.rec().kindFlags&kindFlagHasExtBox) == 0 {
-			n.setAux(nodeAux{jsDoc: otherBox.jsDocInfo})
-		} else if otherBox.jsDocInfo != nil || otherBox.typeBeforeCast != 0 || otherBox.propListHead != nil {
-			box := n.ensureExtBox()
-			box.jsDocInfo = otherBox.jsDocInfo
-			box.typeBeforeCast = n.store().translateTypeHandle(other.store(), otherBox.typeBeforeCast)
-			box.propListHead = otherBox.propListHead
-		}
-	} else if (other.props() & propFlagHasJSDoc) != 0 {
-		if (n.rec().kindFlags & kindFlagHasExtBox) == 0 {
-			n.setAux(nodeAux{jsDoc: other.jsDocAux()})
-		} else {
-			n.ensureExtBox().jsDocInfo = other.jsDocAux()
-		}
+	if other.hasAux() {
+		n.copyTemplateColdProps(other)
 	}
 	n.setPropsAndSourceFile(other)
 	if (other.rec().kindFlags&kindFlagHasExtra) != 0 && other.coldPropListHead() != nil {

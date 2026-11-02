@@ -128,11 +128,6 @@ type LineRange struct {
 	End   LinePosition
 }
 
-// Range returns the range without the lines and columns.
-func (r LineRange) Range() SourceRange {
-	return SourceRange{Start: r.Start.Position(), End: r.End.Position()}
-}
-
 // String renders the range as "<start - end>".
 func (r LineRange) String() string {
 	return "<" + r.Start.String() + " - " + r.End.String() + ">"

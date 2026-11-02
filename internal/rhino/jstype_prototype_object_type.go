@@ -177,12 +177,6 @@ func (b *PrototypeObjectType_Builder) SetName(x *string) *PrototypeObjectType_Bu
 	return b
 }
 
-// SetNameString sets the non-null class name without allocating a *string.
-func (b *PrototypeObjectType_Builder) SetNameString(x string) *PrototypeObjectType_Builder {
-	b.classNameID = rhinoStringPoolIntern(x)
-	return b
-}
-
 // Java: PrototypeObjectType.Builder.setImplicitPrototype(ObjectType)
 func (b *PrototypeObjectType_Builder) SetImplicitPrototype(x ObjectType) *PrototypeObjectType_Builder {
 	b.implicitPrototype = x
@@ -661,15 +655,4 @@ func (p *PrototypeObjectTypeBase) RecursionUnsafeHashCode(*JSTypeStack) int32 {
 	} else {
 		return jutil.IdentityHashCode(p.self())
 	}
-}
-
-// jsTypeNullableString converts a nullable Java String to the value Java
-// would pass as an Object: nil for null, the string otherwise.
-//
-// Go-only: language-adapter — *string stands for a nullable String.
-func jsTypeNullableString(s *string) any {
-	if s == nil {
-		return nil
-	}
-	return *s
 }

@@ -349,11 +349,6 @@ func HasPropertyByID(t JSType, id uint32) bool {
 	return t.HasPropertyByKey(NewProperty_StringKeyByID(id))
 }
 
-// GetPropertyKindByID returns the HasPropertyKind of t for interned string ID id.
-func GetPropertyKindByID(t JSType, id uint32) JSType_HasPropertyKind {
-	return t.GetPropertyKindByKey(NewProperty_StringKeyByID(id))
-}
-
 // FindPropertyTypeByID coerces t to an ObjectType and looks up the property
 // type for interned string ID id, returning nil if absent.
 func FindPropertyTypeByID(t JSType, id uint32) JSType {

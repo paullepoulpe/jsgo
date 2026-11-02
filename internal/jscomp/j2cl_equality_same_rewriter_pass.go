@@ -178,17 +178,18 @@ func (p *J2clEqualitySameRewriterPass) rewriteAsStrictEq(firstExpr rhino.Node, s
 
 // Java: J2clEqualitySameRewriterPass.rewriteNumberCheck(Node, Node)
 func (p *J2clEqualitySameRewriterPass) rewriteNumberCheck(firstExpr rhino.Node, secondExpr rhino.Node) rhino.Node {
-	firstValue := NodeUtil_GetNumberValue(firstExpr)
-	secondValue := NodeUtil_GetNumberValue(secondExpr)
+	firstValue, firstOK := NodeUtil_GetNumberValue(firstExpr)
+	secondValue, secondOK := NodeUtil_GetNumberValue(secondExpr)
 
-	if firstValue != nil && secondValue != nil {
+	if firstOK && secondOK {
 		firstExpr.Detach()
 		secondExpr.Detach()
 		// Double.equals compares doubleToLongBits.
-		return NodeUtil_BooleanNode(jutil.DoubleToLongBits(*firstValue) == jutil.DoubleToLongBits(*secondValue))
+		return NodeUtil_BooleanNode(jutil.DoubleToLongBits(firstValue) == jutil.DoubleToLongBits(secondValue))
 	}
 
-	if j2clEqualitySameRewriterPass_isSafeNumber(firstValue) || j2clEqualitySameRewriterPass_isSafeNumber(secondValue) {
+	if (firstOK && j2clEqualitySameRewriterPass_isSafeNumber(firstValue)) ||
+		(secondOK && j2clEqualitySameRewriterPass_isSafeNumber(secondValue)) {
 		// Since one side is not 0, -0 or NaN, there is no risk of -0 vs 0 or NaN vs NaN comparison.
 		return p.rewriteAsStrictEq(firstExpr, secondExpr)
 	}
@@ -202,8 +203,8 @@ func (p *J2clEqualitySameRewriterPass) rewriteNumberCheck(firstExpr rhino.Node, 
 }
 
 // Java: J2clEqualitySameRewriterPass.isSafeNumber(Double)
-func j2clEqualitySameRewriterPass_isSafeNumber(d *float64) bool {
-	return d != nil && *d != 0 && !math.IsNaN(*d)
+func j2clEqualitySameRewriterPass_isSafeNumber(d float64) bool {
+	return d != 0 && !math.IsNaN(d)
 }
 
 // Java: private enum J2clEqualitySameRewriterPass.NodeValue

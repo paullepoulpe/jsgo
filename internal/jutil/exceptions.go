@@ -632,15 +632,6 @@ func NewHelpfulNullPointerException(detail string) *NullPointerException {
 // CharacterCodingException is java.nio.charset.CharacterCodingException.
 type CharacterCodingException struct{ IOException }
 
-func (*CharacterCodingException) characterCodingException() {}
-
-// ICharacterCodingException matches CharacterCodingException and its
-// subclasses.
-type ICharacterCodingException interface {
-	IIOException
-	characterCodingException()
-}
-
 // malformedInputException is java.nio.charset.MalformedInputException.
 type malformedInputException struct {
 	CharacterCodingException

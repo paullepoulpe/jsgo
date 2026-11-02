@@ -199,12 +199,10 @@ func (r *RemoveUnusedCode) TraverseIncrementOrDecrementOp(incOrDecOp rhino.Node,
 				varInfo.AddRemovable(r.newIncOrDecOpRemovable(incOrDecOp, arg, rhino.NilNode, remFlagProtoDotPropRef))
 			} else {
 				// (someExpression).prototype.propName++
-				var toPreserve rhino.Node
-				var rem *RemoveUnusedCode_RemovableBase
+				var rem *rucRemovable
 				if r.MayHaveSideEffects(exprObj) {
-					toPreserve = exprObj
 					r.TraverseNode(exprObj, scope)
-					rem = r.newIncOrDecOpRemovable(incOrDecOp, arg, toPreserve, remFlagProtoDotPropRef)
+					rem = r.newIncOrDecOpRemovable(incOrDecOp, arg, exprObj, remFlagProtoDotPropRef)
 				} else {
 					rem = r.newIncOrDecOpRemovable(incOrDecOp, arg, rhino.NilNode, remFlagProtoDotPropRef)
 					rem.addContinuation(r, exprObj, scope)

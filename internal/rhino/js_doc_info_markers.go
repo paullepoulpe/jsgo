@@ -36,7 +36,6 @@
 package rhino
 
 import (
-	"iter"
 	"math/bits"
 
 	"github.com/paullepoulpe/jsgo/internal/jutil"
@@ -236,30 +235,6 @@ func (it *JSDocTypeExprIterator) Next() bool {
 		case jsDocPropKindTypeMap:
 			it.curParams = jsdocGet[[]JSDocParam](val)
 			it.subIdx = 0
-		}
-	}
-}
-
-// TypeExpressions iterates over all non-nil JSTypeExpressions in this JSDocInfo
-// without allocating intermediate slices.
-func (i *JSDocInfo) TypeExpressions() iter.Seq[*JSTypeExpression] {
-	return func(yield func(*JSTypeExpression) bool) {
-		for it := i.TypeExprIter(); it.Next(); {
-			if !yield(it.Expr()) {
-				return
-			}
-		}
-	}
-}
-
-// TypeNodes iterates over all type AST root nodes in this JSDocInfo without
-// allocating intermediate slices.
-func (i *JSDocInfo) TypeNodes() iter.Seq[Node] {
-	return func(yield func(Node) bool) {
-		for it := i.TypeExprIter(); it.Next(); {
-			if !yield(it.Node()) {
-				return
-			}
 		}
 	}
 }

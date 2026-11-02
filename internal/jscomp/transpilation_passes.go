@@ -31,7 +31,7 @@ import (
 // private constructor), which are package-level functions and variables here.
 
 func makeTranspilationPass(name string, fn func(AbstractCompiler) CompilerPass) *PassFactory {
-	return makePassFactory(name, fn)
+	return NewPassFactory(name, fn)
 }
 
 // Java: TranspilationPasses.addEs6ModulePass(PassListBuilder, PreprocessorSymbolTable.CachedInstanceFactory)

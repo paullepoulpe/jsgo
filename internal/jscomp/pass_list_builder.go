@@ -52,7 +52,7 @@ func (b *PassListBuilder) AddAll(other *PassListBuilder) {
 //
 // Java: PassListBuilder.maybeAdd(PassFactory)
 func (b *PassListBuilder) MaybeAdd(factory *PassFactory) {
-	if factory.GetCondition()(b.options) {
+	if factory.condition == nil || factory.condition(b.options) {
 		b.passes = append(b.passes, factory)
 	}
 }

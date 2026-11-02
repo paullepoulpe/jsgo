@@ -78,15 +78,13 @@ var processDefinesKnownDefineList = [...]string{
 	"$jscomp.INSTRUMENT_ASYNC_CONTEXT",
 }
 
-var processDefines_KNOWN_DEFINES = map[string]struct{}{
-	"COMPILED":                         {},
-	"goog.DEBUG":                       {},
-	"$jscomp.ASSUME_ES5":               {},
-	"$jscomp.ASSUME_ES6":               {},
-	"$jscomp.ASSUME_ES2020":            {},
-	"$jscomp.ISOLATE_POLYFILLS":        {},
-	"$jscomp.INSTRUMENT_ASYNC_CONTEXT": {},
-}
+var processDefines_KNOWN_DEFINES = func() map[string]struct{} {
+	m := make(map[string]struct{}, len(processDefinesKnownDefineList))
+	for _, d := range processDefinesKnownDefineList {
+		m[d] = struct{}{}
+	}
+	return m
+}()
 
 var processDefines_GOOG_DEFINE = rhino.IR_Getprop(rhino.IR_Name("goog"), "define")
 
@@ -203,11 +201,6 @@ var (
 	processDefines_Mode_check    = [...]bool{true, false, true}
 	processDefines_Mode_optimize = [...]bool{false, true, true}
 )
-
-// Java: ProcessDefines.Mode.values()
-func ProcessDefines_Mode_values() []ProcessDefines_Mode {
-	return []ProcessDefines_Mode{ProcessDefines_Mode_CHECK, ProcessDefines_Mode_OPTIMIZE, ProcessDefines_Mode_CHECK_AND_OPTIMIZE}
-}
 
 // Java: ProcessDefines.Mode.name()
 func (m ProcessDefines_Mode) String() string { return processDefines_Mode_names[m] }

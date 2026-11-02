@@ -145,7 +145,7 @@ func NewCheckExtraRequiresPassConfig(options *CompilerOptions) *CheckExtraRequir
 
 func (c *CheckExtraRequiresPassConfig) GetChecks() *PassListBuilder {
 	passes := NewPassListBuilder(c.options)
-	passes.MaybeAdd(makePassFactory("removeUnusedImport", func(compiler AbstractCompiler) CompilerPass {
+	passes.MaybeAdd(NewPassFactory("removeUnusedImport", func(compiler AbstractCompiler) CompilerPass {
 		return NewCombinedCompilerPassOfList(
 			compiler,
 			[]NodeTraversal_Callback{NewCheckExtraRequires(compiler, c.options.GetUnusedImportsToRemove())},

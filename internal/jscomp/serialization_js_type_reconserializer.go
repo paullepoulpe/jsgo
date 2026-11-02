@@ -257,6 +257,7 @@ func (s *JSTypeReconserializer) appendDedupAltRecord(rec *JSTypeReconserializer_
 	s.scratchAltRecords = append(s.scratchAltRecords, rec)
 }
 
+// Java: JSTypeReconserializer.SeenTypeRecord(ColorId, int)
 func (s *JSTypeReconserializer) allocSeenTypeRecord(colorId colors.ColorId, pointer int) *JSTypeReconserializer_SeenTypeRecord {
 	r := s.recordSlab.New()
 	r.colorId = colorId
@@ -584,13 +585,6 @@ func (s *JSTypeReconserializer) GetOrCreateRecord(id colors.ColorId, jstype rhin
 }
 
 // Java: JSTypeReconserializer.reconcileUnionTypes(SeenTypeRecord)
-func (s *JSTypeReconserializer) ReconcileUnionTypes(seen *JSTypeReconserializer_SeenTypeRecord) *TypeProto {
-	var tp TypeProto
-	var up UnionTypeProto
-	s.reconcileUnionTypesInto(seen, &tp, &up)
-	return &tp
-}
-
 func (s *JSTypeReconserializer) reconcileUnionTypesInto(seen *JSTypeReconserializer_SeenTypeRecord, tp *TypeProto, up *UnionTypeProto) {
 	members := s.scratchInt32s[:0]
 	for _, r := range seen.unionMembers {
@@ -608,13 +602,6 @@ func (s *JSTypeReconserializer) reconcileUnionTypesInto(seen *JSTypeReconseriali
 }
 
 // Java: JSTypeReconserializer.reconcileObjectTypes(SeenTypeRecord)
-func (s *JSTypeReconserializer) ReconcileObjectTypes(seen *JSTypeReconserializer_SeenTypeRecord) *TypeProto {
-	var tp TypeProto
-	var op ObjectTypeProto
-	s.reconcileObjectTypesInto(seen, &tp, &op)
-	return &tp
-}
-
 func (s *JSTypeReconserializer) reconcileObjectTypesInto(seen *JSTypeReconserializer_SeenTypeRecord, tp *TypeProto, op *ObjectTypeProto) {
 	if len(seen.jstypes) == 1 {
 		type_ := seen.jstypes[0]
@@ -997,16 +984,6 @@ type JSTypeReconserializer_SeenTypeRecord struct {
 
 	unionMembers    []*JSTypeReconserializer_SeenTypeRecord
 	unionMembersBuf [4]*JSTypeReconserializer_SeenTypeRecord
-}
-
-// Java: JSTypeReconserializer.SeenTypeRecord(ColorId, int)
-func newJSTypeReconserializer_SeenTypeRecord(colorId colors.ColorId, pointer int) *JSTypeReconserializer_SeenTypeRecord {
-	r := &JSTypeReconserializer_SeenTypeRecord{
-		colorId: colorId,
-		pointer: pointer,
-	}
-	r.jstypes = r.jstypeBuf[:0]
-	return r
 }
 
 // String is the inherited Object.toString().

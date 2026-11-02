@@ -159,7 +159,7 @@ func NewProcessClosurePrimitives(compiler AbstractCompiler) *ProcessClosurePrimi
 	p.compiler = compiler
 	p.closureModules =
 		jutil.CheckNotNullMsg(compiler.GetModuleMetadataMap(), "Need to run GatherModuleMetadata").
-			ModulesByGoogNamespaceMap()
+			GetModulesByGoogNamespace()
 	return p
 }
 

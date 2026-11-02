@@ -207,6 +207,13 @@ func nodeUtilSweepStr(s *string) string {
 	return nodeUtilSweepQuote(*s)
 }
 
+func nodeUtilSweepStrOpt(s string, ok bool) string {
+	if !ok {
+		return "-"
+	}
+	return nodeUtilSweepQuote(s)
+}
+
 func nodeUtilSweepB(v bool) string {
 	if v {
 		return "1"
@@ -219,6 +226,13 @@ func nodeUtilSweepDbl(d *float64) string {
 		return "-"
 	}
 	return jutil.DoubleToString(*d)
+}
+
+func nodeUtilSweepDblOpt(d float64, ok bool) string {
+	if !ok {
+		return "-"
+	}
+	return jutil.DoubleToString(d)
 }
 
 func nodeUtilSweepTok(t rhino.Token) string {
@@ -525,11 +539,11 @@ func (s *nodeUtilSweeper) sweepNode(sb *strings.Builder, i int, n rhino.Node) {
 		func() bool { return NodeUtil_FunctionParametersMayHaveSideEffects(n, s.compiler.GetAstAnalyzer()) })
 
 	field(true, func() string { return NodeUtil_GetBooleanValue(n).Name() })
-	field(true, func() string { return nodeUtilSweepStr(NodeUtil_GetStringValue(n)) })
-	field(true, func() string { return nodeUtilSweepStr(NodeUtil_GetArrayElementStringValue(n)) })
-	field(n.IsArrayLit(), func() string { return nodeUtilSweepStr(NodeUtil_ArrayToString(n)) })
-	field(true, func() string { return nodeUtilSweepDbl(NodeUtil_GetNumberValue(n)) })
-	field(true, func() string { return nodeUtilSweepDbl(NodeUtil_GetNumberValueNoConversions(n)) })
+	field(true, func() string { return nodeUtilSweepStrOpt(NodeUtil_GetStringValue(n)) })
+	field(true, func() string { return nodeUtilSweepStrOpt(NodeUtil_GetArrayElementStringValue(n)) })
+	field(n.IsArrayLit(), func() string { return nodeUtilSweepStrOpt(NodeUtil_ArrayToString(n)) })
+	field(true, func() string { return nodeUtilSweepDblOpt(NodeUtil_GetNumberValue(n)) })
+	field(true, func() string { return nodeUtilSweepDblOpt(NodeUtil_GetNumberValueNoConversions(n)) })
 	field(true, func() string {
 		x := NodeUtil_GetBigIntValue(n)
 		if x == nil {
@@ -758,7 +772,7 @@ func (s *nodeUtilSweeper) sweepNode(sb *strings.Builder, i int, n rhino.Node) {
 
 	// Constructions (the AST is not changed).
 	field(n.IsNumber() || n.IsName() || n.IsNeg() || n.IsStringLit(), func() string {
-		v, ok := NodeUtil_GetNumberValueOpt(n)
+		v, ok := NodeUtil_GetNumberValue(n)
 		if !ok {
 			return "-"
 		}

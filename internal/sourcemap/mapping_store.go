@@ -187,44 +187,100 @@ func NewSourceMapGeneratorV3_MappingTraversal(outer *SourceMapGeneratorV3) *Sour
 	return &SourceMapGeneratorV3_MappingTraversal{outer: outer}
 }
 
+type mappingVisitorKind uint8
+
+const (
+	visitLineMapper mappingVisitorKind = iota
+	visitUsedCheck
+	visitPhase1
+	visitCustom
+)
+
+// mappingRangeVisitor dispatches visited mapping ranges to concrete visitors
+// without interface boxing or escaping stack-allocated traversal state.
+type mappingRangeVisitor struct {
+	kind   mappingVisitorKind
+	mapper *SourceMapGeneratorV3_LineMapper
+	check  SourceMapGeneratorV3_UsedMappingCheck
+	phase1 phase1Visitor
+	custom SourceMapGeneratorV3_MappingVisitor
+}
+
+func makeMappingRangeVisitor(v SourceMapGeneratorV3_MappingVisitor) mappingRangeVisitor {
+	if cv, ok := v.(*SourceMapGeneratorV3_LineMapper); ok {
+		return mappingRangeVisitor{kind: visitLineMapper, mapper: cv}
+	}
+	return mappingRangeVisitor{kind: visitCustom, custom: v}
+}
+
+func (rv *mappingRangeVisitor) visit(m *SourceMapGeneratorV3_Mapping, line, col, nextLine, nextCol int) {
+	switch rv.kind {
+	case visitLineMapper:
+		rv.mapper.Visit(m, line, col, nextLine, nextCol)
+	case visitUsedCheck:
+		rv.check.Visit(m, line, col, nextLine, nextCol)
+	case visitPhase1:
+		rv.phase1.Visit(m, line, col, nextLine, nextCol)
+	default:
+		var mc *SourceMapGeneratorV3_Mapping
+		if m != nil {
+			cp := *m
+			mc = &cp
+		}
+		rv.custom.Visit(mc, line, col, nextLine, nextCol)
+	}
+}
+
 // Traverse appends the line mapping entries.
 //
 // Java: SourceMapGeneratorV3.MappingTraversal.traverse(MappingVisitor)
 func (t *SourceMapGeneratorV3_MappingTraversal) Traverse(v SourceMapGeneratorV3_MappingVisitor) {
+	rv := makeMappingRangeVisitor(v)
+	t.traverse(&rv)
+}
+
+func (t *SourceMapGeneratorV3_MappingTraversal) traverse(rv *mappingRangeVisitor) {
 	// The mapping list is ordered as a pre-order traversal. The mapping
 	// positions give us enough information to rebuild the stack and this
 	// allows the building of the source map in O(n) time.
 	t.stack = t.stack[:0]
 	r := sourceMapGeneratorV3_mappingReader{store: &t.outer.mappings}
 	for r.next(&t.cur) {
-		m := &t.cur
-		// Find the closest ancestor of the current mapping:
-		// An overlapping mapping is an ancestor of the current mapping, any
-		// non-overlapping mappings are siblings (or cousins) and must be
-		// closed in the reverse order of when they encountered.
-		for len(t.stack) > 0 && !t.IsOverlapped(&t.stack[len(t.stack)-1], m) {
-			t.closing = t.stack[len(t.stack)-1]
-			t.stack = t.stack[:len(t.stack)-1]
-			t.MaybeVisit(v, &t.closing)
-		}
+		t.step(rv)
+	}
+	t.finish(rv)
+}
 
-		// Any gaps between the current line position and the start of the
-		// current mapping belong to the parent.
-		var parent *SourceMapGeneratorV3_Mapping
-		if len(t.stack) > 0 {
-			parent = &t.stack[len(t.stack)-1]
-		}
-		t.MaybeVisitParent(v, parent, m)
-
-		t.stack = append(t.stack, *m)
+// step processes the mapping in t.cur against the open stack.
+func (t *SourceMapGeneratorV3_MappingTraversal) step(rv *mappingRangeVisitor) {
+	m := &t.cur
+	// Find the closest ancestor of the current mapping:
+	// An overlapping mapping is an ancestor of the current mapping, any
+	// non-overlapping mappings are siblings (or cousins) and must be
+	// closed in the reverse order of when they encountered.
+	for len(t.stack) > 0 && !t.IsOverlapped(&t.stack[len(t.stack)-1], m) {
+		t.closing = t.stack[len(t.stack)-1]
+		t.stack = t.stack[:len(t.stack)-1]
+		t.maybeVisit(rv, &t.closing)
 	}
 
-	// There are no more children to be had, simply close the remaining
-	// mappings in the reverse order of when they encountered.
+	// Any gaps between the current line position and the start of the
+	// current mapping belong to the parent.
+	var parent *SourceMapGeneratorV3_Mapping
+	if len(t.stack) > 0 {
+		parent = &t.stack[len(t.stack)-1]
+	}
+	t.maybeVisitParent(rv, parent, m)
+
+	t.stack = append(t.stack, *m)
+}
+
+// finish closes any mappings remaining on the stack in reverse order.
+func (t *SourceMapGeneratorV3_MappingTraversal) finish(rv *mappingRangeVisitor) {
 	for len(t.stack) > 0 {
 		t.closing = t.stack[len(t.stack)-1]
 		t.stack = t.stack[:len(t.stack)-1]
-		t.MaybeVisit(v, &t.closing)
+		t.maybeVisit(rv, &t.closing)
 	}
 }
 
@@ -277,12 +333,17 @@ func (t *SourceMapGeneratorV3_MappingTraversal) IsOverlapped(m1, m2 *SourceMapGe
 //
 // Java: SourceMapGeneratorV3.MappingTraversal.maybeVisit(MappingVisitor, Mapping)
 func (t *SourceMapGeneratorV3_MappingTraversal) MaybeVisit(v SourceMapGeneratorV3_MappingVisitor, m *SourceMapGeneratorV3_Mapping) {
+	rv := makeMappingRangeVisitor(v)
+	t.maybeVisit(&rv, m)
+}
+
+func (t *SourceMapGeneratorV3_MappingTraversal) maybeVisit(rv *mappingRangeVisitor, m *SourceMapGeneratorV3_Mapping) {
 	nextLine := t.getAdjustedLine(m.endLine)
 	nextCol := t.getAdjustedCol(m.endLine, m.endCol)
 	// If this anything remaining in this mapping beyond the current line and
 	// column position, write it out now.
 	if t.line < nextLine || (t.line == nextLine && t.col < nextCol) {
-		t.Visit(v, m, nextLine, nextCol)
+		t.visit(rv, m, nextLine, nextCol)
 	}
 }
 
@@ -291,12 +352,17 @@ func (t *SourceMapGeneratorV3_MappingTraversal) MaybeVisit(v SourceMapGeneratorV
 //
 // Java: SourceMapGeneratorV3.MappingTraversal.maybeVisitParent(MappingVisitor, Mapping, Mapping)
 func (t *SourceMapGeneratorV3_MappingTraversal) MaybeVisitParent(v SourceMapGeneratorV3_MappingVisitor, parent, m *SourceMapGeneratorV3_Mapping) {
+	rv := makeMappingRangeVisitor(v)
+	t.maybeVisitParent(&rv, parent, m)
+}
+
+func (t *SourceMapGeneratorV3_MappingTraversal) maybeVisitParent(rv *mappingRangeVisitor, parent, m *SourceMapGeneratorV3_Mapping) {
 	nextLine := t.getAdjustedLine(m.startLine)
 	nextCol := t.getAdjustedCol(m.startLine, m.startCol)
 	// If the previous value is null, no mapping exists.
 	jutil.CheckState(t.line < nextLine || t.col <= nextCol)
 	if t.line < nextLine || (t.line == nextLine && t.col < nextCol) {
-		t.Visit(v, parent, nextLine, nextCol)
+		t.visit(rv, parent, nextLine, nextCol)
 	}
 }
 
@@ -306,6 +372,12 @@ func (t *SourceMapGeneratorV3_MappingTraversal) MaybeVisitParent(v SourceMapGene
 // Java: SourceMapGeneratorV3.MappingTraversal.visit(MappingVisitor, Mapping, int, int)
 func (t *SourceMapGeneratorV3_MappingTraversal) Visit(v SourceMapGeneratorV3_MappingVisitor, m *SourceMapGeneratorV3_Mapping,
 	nextLine, nextCol int) {
+	rv := makeMappingRangeVisitor(v)
+	t.visit(&rv, m, nextLine, nextCol)
+}
+
+func (t *SourceMapGeneratorV3_MappingTraversal) visit(rv *mappingRangeVisitor, m *SourceMapGeneratorV3_Mapping,
+	nextLine, nextCol int) {
 	jutil.CheckState(t.line <= nextLine)
 	jutil.CheckState(t.line < nextLine || t.col < nextCol)
 
@@ -314,7 +386,7 @@ func (t *SourceMapGeneratorV3_MappingTraversal) Visit(v SourceMapGeneratorV3_Map
 		panic(jutil.NewIllegalStateException())
 	}
 
-	v.Visit(m, t.line, t.col, nextLine, nextCol)
+	rv.visit(m, t.line, t.col, nextLine, nextCol)
 
 	t.line = nextLine
 	t.col = nextCol
@@ -484,43 +556,15 @@ func (l *SourceMapGeneratorV3_LineMapper) WriteEntry(m *SourceMapGeneratorV3_Map
 //
 // Java: SourceMapGeneratorV3.LineMapper.appendLineMappings()
 func (l *SourceMapGeneratorV3_LineMapper) AppendLineMappings() {
-	nSources := len(l.outer.addedSourceFiles)
-	if cap(l.outer.sourceIdxToFileId) < nSources {
-		l.outer.sourceIdxToFileId = make([]int32, nSources)
-	} else {
-		l.outer.sourceIdxToFileId = l.outer.sourceIdxToFileId[:nSources]
-	}
-	for i := range l.outer.sourceIdxToFileId {
-		l.outer.sourceIdxToFileId[i] = -1
-	}
-	if cap(l.outer.orderedSourceFiles) < nSources {
-		l.outer.orderedSourceFiles = make([]string, 0, nSources)
-	} else {
-		clear(l.outer.orderedSourceFiles)
-		l.outer.orderedSourceFiles = l.outer.orderedSourceFiles[:0]
-	}
-	nSymbols := len(l.outer.addedSymbolNames)
-	if cap(l.outer.symbolIdxToNameId) < nSymbols {
-		l.outer.symbolIdxToNameId = make([]int32, nSymbols)
-	} else {
-		l.outer.symbolIdxToNameId = l.outer.symbolIdxToNameId[:nSymbols]
-	}
-	for i := range l.outer.symbolIdxToNameId {
-		l.outer.symbolIdxToNameId[i] = -1
-	}
-	if cap(l.outer.orderedSymbolNames) == 0 && nSymbols > 0 {
-		l.outer.orderedSymbolNames = make([]string, 0, min(nSymbols, 1024))
-	} else {
-		clear(l.outer.orderedSymbolNames)
-		l.outer.orderedSymbolNames = l.outer.orderedSymbolNames[:0]
-	}
+	l.outer.ensureIDTables()
 
 	l.buffering = true
 	// Start the first line.
 	l.OpenLine(true)
 
 	t := SourceMapGeneratorV3_MappingTraversal{outer: l.outer}
-	t.Traverse(l)
+	rv := mappingRangeVisitor{kind: visitLineMapper, mapper: l}
+	t.traverse(&rv)
 
 	// And close the final line.
 	l.CloseLine(true)

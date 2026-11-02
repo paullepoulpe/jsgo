@@ -355,3 +355,23 @@ func graphTest_assertSetEquals[T GraphNode[string, string]](t *testing.T, actual
 	want.AddAll(expected...)
 	assertSameElements(t, "values", got.ToSlice(), want.ToSlice())
 }
+
+func TestGraph_UndirectedClearForReuse(t *testing.T) {
+	g := LinkedUndirectedGraph_Create[string, string]()
+	for round := 0; round < 3; round++ {
+		for _, v := range []string{"a", "b", "c", "d", "e"} {
+			g.CreateNode(v)
+		}
+		g.Connect("a", "1", "b")
+		g.Connect("a", "2", "c")
+		g.Connect("a", "3", "d")
+		g.Connect("a", "4", "e")
+		assertEqual(t, "degree(a)", g.GetNodeDegree("a"), 4)
+		g.Disconnect("a", "c")
+		assertEqual(t, "degree(a) after disconnect", g.GetNodeDegree("a"), 3)
+		assertFalse(t, "a-c", g.IsConnected("a", "c"))
+		assertTrue(t, "a-d", g.IsConnected("a", "d"))
+		g.ClearForReuse()
+		assertEqual(t, "node count after clear", g.GetNodeCount(), 0)
+	}
+}

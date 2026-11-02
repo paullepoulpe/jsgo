@@ -33,33 +33,9 @@ type PipeFlagEntry struct {
 }
 
 func checkNoDuplicatePipeFlagKeys(entries []PipeFlagEntry) {
-	n := len(entries)
-	if n <= 1 {
-		return
-	}
-	if n > 8 {
-		seen := make(map[string]struct{}, n)
-		hasDup := false
-		for _, e := range entries {
-			if _, ok := seen[e.Key]; ok {
-				hasDup = true
-				break
-			}
-			seen[e.Key] = struct{}{}
-		}
-		if !hasDup {
-			return
-		}
-	}
-	for i := n - 1; i >= 0; i-- {
-		k := entries[i].Key
-		for j := i + 1; j < n; j++ {
-			if entries[j].Key == k {
-				panic(jutil.NewIllegalArgumentExceptionMsg("Multiple entries with same key: " +
-					k + "=" + entries[j].Value + " and " + k + "=" + entries[i].Value))
-			}
-		}
-	}
+	checkUniqueKeys(entries,
+		func(e PipeFlagEntry) string { return e.Key },
+		func(e PipeFlagEntry) string { return e.Value })
 }
 
 // SetDefine overrides the value of a variable annotated @define. The format

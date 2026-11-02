@@ -97,34 +97,6 @@ func (a *linkedFlowScopeArena) trimLargeChunks() {
 // implementation, avoiding interface dispatch on hot type-inference paths.
 type FlowScope = *LinkedFlowScope
 
-// linkedFlowBlindStore backs a blind copy-on-write LinkedFlowScope
-// (syntacticScope == nil) for the reverse abstract interpreter oracle in a
-// single allocation without increasing sizeof(LinkedFlowScope).
-type linkedFlowBlindStore struct {
-	slots *jutil.LinkedHashMap[string, rhino.StaticTypedSlot]
-	scope LinkedFlowScope
-}
-
-func (*linkedFlowBlindStore) GetInput(*rhino.InputId) *CompilerInput { return nil }
-
-func newBlindLinkedFlowScope(slots *jutil.LinkedHashMap[string, rhino.StaticTypedSlot]) *LinkedFlowScope {
-	store := &linkedFlowBlindStore{slots: slots}
-	store.scope.inputProvider = store
-	return &store.scope
-}
-
-func (l *LinkedFlowScope) blindSlots() *jutil.LinkedHashMap[string, rhino.StaticTypedSlot] {
-	return l.inputProvider.(*linkedFlowBlindStore).slots
-}
-
-func copyBlindSlots(m *jutil.LinkedHashMap[string, rhino.StaticTypedSlot]) *jutil.LinkedHashMap[string, rhino.StaticTypedSlot] {
-	c := jutil.NewLinkedHashMapWithCapacity[string, rhino.StaticTypedSlot](m.Size() + 1)
-	for k, v := range m.All() {
-		c.Put(k, v)
-	}
-	return c
-}
-
 // LinkedFlowScope is a flow scope that tries to store as little symbol
 // information as possible, instead delegating to its parents. Optimized for
 // low memory use.
@@ -233,11 +205,6 @@ func LinkedFlowScope_CreateEntryLattice(
 
 // Java: LinkedFlowScope.inferSlotType(String, JSType)
 func (l *LinkedFlowScope) InferSlotType(symbol string, type_ rhino.JSType) *LinkedFlowScope {
-	if l.syntacticScope == nil {
-		c := copyBlindSlots(l.blindSlots())
-		c.Put(symbol, rhino.NewSimpleSlot(symbol, type_, true))
-		return newBlindLinkedFlowScope(c)
-	}
 	scope := l.GetOverlayScopeForName(symbol, true)
 	newScope := scope.Infer(symbol, type_)
 	if newScope == scope && !newScope.slots.IsEmpty() {
@@ -259,12 +226,6 @@ func (l *LinkedFlowScope) InferSlotType(symbol string, type_ rhino.JSType) *Link
 // Java: LinkedFlowScope.inferQualifiedSlot(Node, String, JSType, JSType, boolean)
 func (l *LinkedFlowScope) InferQualifiedSlot(
 	node rhino.Node, symbol string, bottomType rhino.JSType, inferredType rhino.JSType, declared bool) *LinkedFlowScope {
-	syn := l.syntacticScope
-	if syn == nil {
-		c := copyBlindSlots(l.blindSlots())
-		c.Put(symbol, rhino.NewSimpleSlot(symbol, inferredType, true))
-		return newBlindLinkedFlowScope(c)
-	}
 	if l.functionScope.IsGlobal() {
 		// Do not infer qualified names on the global scope.  Ideally these would be
 		// added to the scope by TypedScopeCreator, but if they are not, adding them
@@ -272,6 +233,7 @@ func (l *LinkedFlowScope) InferQualifiedSlot(
 		// undeclared qualified names in the global scope) with no real benefit.
 		return l
 	}
+	syn := l.syntacticScope
 	v := syn.GetVar(symbol)
 	if v == nil && !l.functionScope.IsBottom() {
 		// NOTE(sdh): Qualified names are declared on scopes lazily via this method.
@@ -323,25 +285,16 @@ func (l *LinkedFlowScope) InferQualifiedSlot(
 
 // Java: LinkedFlowScope.getTypeOfThis()
 func (l *LinkedFlowScope) GetTypeOfThis() rhino.JSType {
-	if l.syntacticScope == nil {
-		return nil
-	}
 	return l.syntacticScope.GetTypeOfThis()
 }
 
 // Java: LinkedFlowScope.getRootNode()
 func (l *LinkedFlowScope) GetRootNode() rhino.Node {
-	if l.syntacticScope == nil {
-		return rhino.NilNode
-	}
 	return l.syntacticScope.GetRootNode()
 }
 
 // Java: LinkedFlowScope.getParentScope()
 func (l *LinkedFlowScope) GetParentScope() rhino.StaticScope {
-	if l.syntacticScope == nil {
-		return nil
-	}
 	panic(jutil.NewUnsupportedOperationException())
 }
 
@@ -351,14 +304,7 @@ func (l *LinkedFlowScope) GetParentScope() rhino.StaticScope {
 //   - slotVar is the backing *TypedVar when unrefined, or nil when an overlay
 //     refinement overrides the slot.
 func (l *LinkedFlowScope) LookupSlotType(name string) (declaredVar *TypedVar, slotVar *TypedVar, flowType rhino.JSType, isInferred bool, ok bool) {
-	syn := l.syntacticScope
-	if syn == nil {
-		if slot, found := l.blindSlots().Lookup(name); found {
-			return nil, nil, slot.GetType(), slot.IsTypeInferred(), true
-		}
-		return nil, nil, nil, false, false
-	}
-	var_ := syn.GetVar(name)
+	var_ := l.syntacticScope.GetVar(name)
 	var scope *LinkedFlowScope_OverlayScope
 	if var_ == nil {
 		scope = l.GetOverlayScopeForName(name, false)
@@ -394,14 +340,7 @@ func (l *LinkedFlowScope) HasSlot(name string) bool {
 //
 // Java: LinkedFlowScope.getSlot(String)
 func (l *LinkedFlowScope) GetSlot(name string) rhino.StaticSlot {
-	syn := l.syntacticScope
-	if syn == nil {
-		if slot, ok := l.blindSlots().Lookup(name); ok {
-			return slot
-		}
-		return nil
-	}
-	var_ := syn.GetVar(name)
+	var_ := l.syntacticScope.GetVar(name)
 	var scope *LinkedFlowScope_OverlayScope
 	if var_ == nil {
 		scope = l.GetOverlayScopeForName(name, false)
@@ -474,9 +413,6 @@ func (l *LinkedFlowScope) GetOverlayScopeForScope(scope *TypedScope, create bool
 
 // Java: LinkedFlowScope.getOwnSlot(String)
 func (l *LinkedFlowScope) GetOwnSlot(name string) rhino.StaticSlot {
-	if l.syntacticScope == nil {
-		return l.GetSlot(name)
-	}
 	panic(jutil.NewUnsupportedOperationException())
 }
 
@@ -498,9 +434,6 @@ func (l *LinkedFlowScope) LookupQualifiedName(qname rhino.QualifiedName) rhino.J
 
 // Java: LinkedFlowScope.withSyntacticScope(StaticTypedScope)
 func (l *LinkedFlowScope) WithSyntacticScope(scope rhino.StaticTypedScope) *LinkedFlowScope {
-	if l.syntacticScope == nil {
-		panic(jutil.NewUnsupportedOperationException())
-	}
 	return l.withTypedScope(scope.(*TypedScope))
 }
 
@@ -515,9 +448,6 @@ func (l *LinkedFlowScope) withTypedScope(typedScope *TypedScope) *LinkedFlowScop
 //
 // Java: LinkedFlowScope.getDeclarationScope()
 func (l *LinkedFlowScope) GetDeclarationScope() rhino.StaticTypedScope {
-	if l.syntacticScope == nil {
-		return nil
-	}
 	return l.syntacticScope
 }
 

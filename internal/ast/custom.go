@@ -304,20 +304,11 @@ func (x FieldDef) SetStatic(static bool) { x.node.SetStaticMember(static) }
 // IsMethod reports whether x is a computed method ([k]() {}).
 func (x ComputedProp) IsMethod() bool { return x.node.GetBooleanProp(rhino.Node_COMPUTED_PROP_METHOD) }
 
-// SetMethod marks x as a computed method (true) or not (false).
-func (x ComputedProp) SetMethod(v bool) { x.node.PutBooleanProp(rhino.Node_COMPUTED_PROP_METHOD, v) }
-
 // IsGetter reports whether x is a computed getter (get [k]() {}).
 func (x ComputedProp) IsGetter() bool { return x.node.GetBooleanProp(rhino.Node_COMPUTED_PROP_GETTER) }
 
-// SetGetter marks x as a computed getter (true) or not (false).
-func (x ComputedProp) SetGetter(v bool) { x.node.PutBooleanProp(rhino.Node_COMPUTED_PROP_GETTER, v) }
-
 // IsSetter reports whether x is a computed setter (set [k](v) {}).
 func (x ComputedProp) IsSetter() bool { return x.node.GetBooleanProp(rhino.Node_COMPUTED_PROP_SETTER) }
-
-// SetSetter marks x as a computed setter (true) or not (false).
-func (x ComputedProp) SetSetter(v bool) { x.node.PutBooleanProp(rhino.Node_COMPUTED_PROP_SETTER, v) }
 
 // IsStart reports whether x starts an optional chain.
 func (x OptChainGetProp) IsStart() bool { return x.node.IsOptionalChainStart() }
@@ -357,9 +348,6 @@ func (x Param) SetUnused(unused bool) { x.node.SetUnusedParameter(unused) }
 
 // IsUnusedParam reports whether x is marked as an unused function parameter.
 func (x Name) IsUnusedParam() bool { return x.node.IsUnusedParameter() }
-
-// SetUnusedParam marks x as an unused function parameter (true) or used (false).
-func (x Name) SetUnusedParam(unused bool) { x.node.SetUnusedParameter(unused) }
 
 // IsConstantName reports whether x is annotated with IS_CONSTANT_NAME.
 func (x Name) IsConstantName() bool { return x.node.GetBooleanProp(rhino.Node_IS_CONSTANT_NAME) }
@@ -473,9 +461,6 @@ func NewStringLit(value string) StringLit { return StringLit{rhino.IR_String(val
 func NewGetProp(object Expr, property string) GetProp {
 	return GetProp{rhino.IR_Getprop(object.node, property)}
 }
-
-// NewLabelName returns a new LabelName.
-func NewLabelName(ident string) LabelName { return LabelName{rhino.IR_LabelName(ident)} }
 
 // Raw returns the raw text of x, as written in the source.
 func (x TemplateLitString) Raw() string { return x.node.GetRawString() }

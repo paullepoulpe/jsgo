@@ -60,15 +60,6 @@ func StringPool_Empty() *StringPool {
 	return stringPool_EMPTY
 }
 
-func newStringPool(maxLength int, pool []string) *StringPool {
-	p := &StringPool{
-		maxLength: maxLength,
-		pool:      rhino.NewRhinoStringPool_LazyInternedStringList(pool),
-	}
-	jutil.CheckState(pool[0] == "")
-	return p
-}
-
 // Java: StringPool.get(int)
 func (p *StringPool) Get(offset int) string {
 	return p.pool.Get(offset)

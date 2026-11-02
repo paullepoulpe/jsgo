@@ -301,8 +301,3 @@ func (t *InstanceObjectType) ResolveInternal(reporter ErrorReporter) JSType {
 	_ = JSType_SafeResolve(t.constructor, reporter)
 	return resolved
 }
-
-// jsTypeStringEquals is literal.equals(s) for a nullable String s.
-func jsTypeStringEquals(literal string, s *string) bool {
-	return s != nil && *s == literal
-}

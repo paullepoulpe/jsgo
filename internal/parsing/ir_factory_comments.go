@@ -374,9 +374,8 @@ func (f *IRFactory) ParseNonJSDocCommentAt(pos parser.LinePosition, isInline boo
 		return nil // We didn't find any relevant comments.
 	}
 
-	contents := result.String()
 	nonJSDocComment := rhino.NewNonJSDocComment(
-		firstComment.Location.Start, lastComment.Location.End, &contents)
+		firstComment.Location.Start, lastComment.Location.End, result.String())
 	nonJSDocComment.SetEndsAsLineComment(lastComment.Type == parser.Comment_Type_LINE)
 	nonJSDocComment.SetIsInline(isInline)
 	return nonJSDocComment
@@ -401,7 +400,6 @@ func (f *IRFactory) ParseTrailingNonJSDocCommentAt(
 		return nil
 	}
 
-	var result strings.Builder
 	comment := f.nonJsdocTracker.Current()
 
 	// Disregard comments that don't start on the same line
@@ -422,11 +420,9 @@ func (f *IRFactory) ParseTrailingNonJSDocCommentAt(
 		return nil
 	}
 	// TODO(user): handle multiple trailing comments like /* c1 */ /* c2 */ // c3
-	result.WriteString(comment.Value)
 	f.nonJsdocTracker.Advance()
 
-	contents := result.String()
-	nonJSDocComment := rhino.NewNonJSDocComment(comment.Location.Start, comment.Location.End, &contents)
+	nonJSDocComment := rhino.NewNonJSDocComment(comment.Location.Start, comment.Location.End, comment.Value)
 	nonJSDocComment.SetEndsAsLineComment(comment.Type == parser.Comment_Type_LINE)
 	return nonJSDocComment
 }
