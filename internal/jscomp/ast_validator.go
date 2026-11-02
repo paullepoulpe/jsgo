@@ -50,6 +50,11 @@ type AstValidator struct {
 	// TODO: varomodt - make this the default.
 	// Validate that all required inlinings were performed.
 	shouldValidateRequiredInlinings bool
+
+	// Go-only: the violation handler is the default one, which panics, so
+	// the scripts may be validated on parallel workers (processParallel); a
+	// caller's handler would be called concurrently and out of order.
+	defaultViolationHandler bool
 }
 
 // AstValidator_TypeInfoValidation selects the type information that is
@@ -82,6 +87,7 @@ func NewAstValidatorWithViolationFunc(
 	handler func(message string, n rhino.Node),
 	validateScriptFeatures bool,
 	shouldValidateRequiredInlinings bool) *AstValidator {
+	defaultHandler := handler == nil
 	if handler == nil {
 		handler = astValidator_defaultViolationHandler
 	}
@@ -91,6 +97,7 @@ func NewAstValidatorWithViolationFunc(
 		violationHandler:                 handler,
 		isScriptFeatureValidationEnabled: validateScriptFeatures,
 		shouldValidateRequiredInlinings:  shouldValidateRequiredInlinings,
+		defaultViolationHandler:          defaultHandler,
 	}
 }
 
@@ -120,11 +127,13 @@ func NewAstValidator(compiler AbstractCompiler) *AstValidator {
 
 // Java: AstValidator(AbstractCompiler, boolean)
 func NewAstValidatorWithValidateScriptFeatures(compiler AbstractCompiler, validateScriptFeatures bool) *AstValidator {
-	return NewAstValidatorWithViolationFunc(
+	v := NewAstValidatorWithViolationFunc(
 		compiler,
 		astValidator_defaultViolationHandler,
 		validateScriptFeatures,
 		compiler.GetOptions().GetShouldValidateRequiredInlinings() == base.Tri_TRUE)
+	v.defaultViolationHandler = true
+	return v
 }
 
 // Java: AstValidator(AbstractCompiler, boolean).new ViolationHandler() {...}.handleViolation(String, Node)
@@ -143,6 +152,7 @@ func astValidator_defaultViolationHandler(message string, n rhino.Node) {
 
 // SetViolationHandler sets the violation callback function.
 func (v *AstValidator) SetViolationHandler(handler func(message string, n rhino.Node)) *AstValidator {
+	v.defaultViolationHandler = handler == nil
 	if handler == nil {
 		handler = astValidator_defaultViolationHandler
 	}
@@ -164,6 +174,9 @@ func (v *AstValidator) SetTypeValidationMode(mode AstValidator_TypeInfoValidatio
 
 // Java: AstValidator.process(Node, Node)
 func (v *AstValidator) Process(externs rhino.Node, root rhino.Node) {
+	if v.processParallel(externs, root) {
+		return
+	}
 	if !externs.IsNil() {
 		v.ValidateCodeRoot(externs)
 		v.checkGrammar(externs)
@@ -172,6 +185,30 @@ func (v *AstValidator) Process(externs rhino.Node, root rhino.Node) {
 		v.ValidateCodeRoot(root)
 		v.checkGrammar(root)
 	}
+}
+
+// Go-only: with more than one thread, the scripts of the externs and the
+// program are validated on workers. Process validates them one by one and
+// validateScript keeps nothing across scripts but the current script, so
+// each script's validation is independent; the default handler panics at the
+// first violation, and the workers' panics are rethrown in script order, so
+// the first violation in sequential order is the one that panics. Not with a
+// caller's violation handler, with type validation (it reads types), or with
+// the grammar check (a walk of each root after its scripts).
+func (v *AstValidator) processParallel(externs rhino.Node, root rhino.Node) bool {
+	if !v.defaultViolationHandler || v.typeValidationMode != AstValidator_TypeInfoValidation_NONE || astValidatorChecksGrammar {
+		return false
+	}
+	return traverseScriptsParallel(v.compiler, root, parallelScriptOptions[*AstValidator]{
+		hasExterns: true,
+		externs:    externs,
+		initWorker: func(_ int, rc *Compiler) *AstValidator {
+			return NewAstValidatorWithViolationFunc(rc, nil, v.isScriptFeatureValidationEnabled, v.shouldValidateRequiredInlinings)
+		},
+		runScript: func(w *AstValidator, _ int, _, script rhino.Node, _ *Compiler) {
+			w.ValidateScript(script)
+		},
+	})
 }
 
 // astValidatorChecksGrammar makes the AstValidator also check the trees

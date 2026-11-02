@@ -46,6 +46,18 @@ def fixtures(root):
     write('closure/dep.js', "goog.provide('gate.dep'); gate.dep.value = 3;\n")
     write('closure/main.js', "goog.module('gate.main');\nvar dep = goog.require('gate.dep');\nwindow['result'] = dep.value;\n")
     write('closure/dead.js', "goog.provide('gate.dead'); gate.dead = 123;\n")
+    # goog.requireType'd names, used in type annotations only and (in odd
+    # files) also in code: checkTypeImportCodeReferences checks them script
+    # by script on the workers.
+    write('closure/type-a.js', "goog.module('gate.typeA');\nclass A {}\nexports = A;\n")
+    for i in range(4):
+        write(f'closure/type-use-{i}.js', f"goog.module('gate.typeUse{i}');\n"
+                                          f"const A = goog.requireType('gate.typeA');\n"
+                                          f"/** @param {{!A}} a @return {{!A}} */ function use{i}(a) {{ return a; }}\n"
+                                          f"exports = {{use{i}}};\n")
+        write(f'closure/type-bad-{i}.js', f"goog.module('gate.typeBad{i}');\n"
+                                          f"const A = goog.requireType('gate.typeA');\n"
+                                          + (f"window['bad{i}'] = new A();\n" if i % 2 else f"/** @type {{?A}} */ var ok{i} = null;\n"))
     write('esm/lib.js', 'export const value = 7;\n')
     write('esm/main.js', "import {value} from './lib.js'; window['result'] = value;\n")
     write('esm/missing-a.js', "import {a} from './absent-a.js'; window['missingA'] = a;\n")
@@ -81,6 +93,10 @@ def fixtures(root):
         'missing-files-ordered': ['--compilation_level=SIMPLE'] + js('missing-b.js', 'missing-a.js'),
         'closure-prune-regex': ['--compilation_level=ADVANCED', '--dependency_mode=PRUNE', '--entry_point=goog:gate.main']
                                + js('closure/dead.js', 'closure/main.js', 'closure/base.js', 'closure/dep.js'),
+        'closure-require-type': ['--compilation_level=ADVANCED', '--jscomp_warning=checkTypes']
+                                + js('closure/base.js', 'closure/type-a.js', *[f'closure/type-use-{i}.js' for i in range(4)]),
+        'closure-require-type-errors': ['--compilation_level=ADVANCED']
+                                       + js('closure/base.js', 'closure/type-a.js', *[f'closure/type-bad-{i}.js' for i in range(4)]),
         'esm-browser': ['--compilation_level=SIMPLE', '--module_resolution=BROWSER'] + modules,
         'esm-browser-prune': ['--compilation_level=ADVANCED', '--module_resolution=BROWSER'] + prune + modules,
         'esm-node': ['--compilation_level=SIMPLE', '--module_resolution=NODE'] + js('node/main.js', 'node_modules/gate/index.js'),
