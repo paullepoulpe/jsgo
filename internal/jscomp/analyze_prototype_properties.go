@@ -563,6 +563,7 @@ func (p *AnalyzePrototypeProperties_ProcessProperties) Visit(t *NodeTraversal, n
 	}
 }
 
+// Java: AnalyzePrototypeProperties.ProcessProperties.addSymbolUse(String, JSChunk, SymbolType)
 func (p *AnalyzePrototypeProperties_ProcessProperties) addSymbolUseByID(id uint32, chunk *JSChunk, type_ AnalyzePrototypeProperties_SymbolType) {
 	a := p.outer
 	info := a.getNameInfoByID(id, type_)
@@ -581,11 +582,6 @@ func (p *AnalyzePrototypeProperties_ProcessProperties) addSymbolUseByID(id uint3
 	if def != info {
 		a.connectSymbolNodes(def, chunk, info)
 	}
-}
-
-// Java: AnalyzePrototypeProperties.ProcessProperties.addSymbolUse(String, JSChunk, SymbolType)
-func (p *AnalyzePrototypeProperties_ProcessProperties) AddSymbolUse(name string, chunk *JSChunk, type_ AnalyzePrototypeProperties_SymbolType) {
-	p.addSymbolUseByID(rhino.RhinoStringPool_InternID(name), chunk, type_)
 }
 
 func (p *AnalyzePrototypeProperties_ProcessProperties) processNonFunctionPrototypeAssignID(n rhino.Node, parent rhino.Node) (uint32, bool) {
@@ -821,13 +817,9 @@ func (p *AnalyzePrototypeProperties_ProcessProperties) MaybeGetVar(t *NodeTraver
 	return nil
 }
 
+// Java: AnalyzePrototypeProperties.ProcessProperties.addGlobalUseOfSymbol(String, JSChunk, SymbolType)
 func (p *AnalyzePrototypeProperties_ProcessProperties) addGlobalUseOfSymbolByID(id uint32, chunk *JSChunk, type_ AnalyzePrototypeProperties_SymbolType) {
 	p.outer.connectSymbolNodes(p.outer.globalNode, chunk, p.outer.getNameInfoByID(id, type_))
-}
-
-// Java: AnalyzePrototypeProperties.ProcessProperties.addGlobalUseOfSymbol(String, JSChunk, SymbolType)
-func (p *AnalyzePrototypeProperties_ProcessProperties) AddGlobalUseOfSymbol(name string, chunk *JSChunk, type_ AnalyzePrototypeProperties_SymbolType) {
-	p.addGlobalUseOfSymbolByID(rhino.RhinoStringPool_InternID(name), chunk, type_)
 }
 
 type analyzeProcessExternProperties struct {

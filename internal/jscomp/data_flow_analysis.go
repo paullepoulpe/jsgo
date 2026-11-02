@@ -180,18 +180,6 @@ func (w *cfgWorklist) dequeue() *graph.LinkedDiGraphNode[rhino.Node, ControlFlow
 	return curNode
 }
 
-type forwardCfgWorklist struct {
-	cfgWorklist
-}
-
-func (w *forwardCfgWorklist) reset(cfg *ControlFlowGraph[rhino.Node], numNodes int) {
-	w.cfgWorklist.reset(cfg, numNodes, true)
-}
-
-func (w *forwardCfgWorklist) releaseLarge() {
-	w.cfgWorklist.releaseLarge(dfaReuseMaxNodes)
-}
-
 const fnVarTableInlineCap = 16
 
 type varIDTable struct {
@@ -282,7 +270,7 @@ func (t *varIDTable) lookup(id uint32) (int, bool) {
 type fnVarTable struct {
 	vars              []*Var
 	ids               varIDTable
-	escaped           inlineBitSet
+	escaped           smallBitSet
 	uniqueCount       int
 	hasDuplicateNames bool
 }

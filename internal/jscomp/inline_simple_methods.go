@@ -60,13 +60,13 @@ type ismPropSlot struct {
 // unsafe. We enable it whenever function inlining is enabled.
 type InlineSimpleMethods struct {
 	externPropsRaw  *jutil.LinkedHashSet[string]
-	externPropBits  inlineBitSet
+	externPropBits  smallBitSet
 	externPropsInit bool
 	props           map[uint32]ismPropSlot
 	hasDefs         bool
 	// Go-only: the properties whose slot is non-inlineable (a slot never
 	// becomes inlineable again), to skip the map on the many repeated marks.
-	nonInlineableBits inlineBitSet
+	nonInlineableBits smallBitSet
 
 	compiler         AbstractCompiler
 	astAnalyzer      *AstAnalyzer
@@ -128,8 +128,8 @@ func (m *InlineSimpleMethods) Process(externs rhino.Node, root rhino.Node) {
 	m.ensureProps()
 	defer func() {
 		m.props = nil
-		m.nonInlineableBits = inlineBitSet{}
-		m.externPropBits = inlineBitSet{}
+		m.nonInlineableBits = smallBitSet{}
+		m.externPropBits = smallBitSet{}
 		m.externPropsInit = false
 		m.hasDefs = false
 	}()
@@ -194,7 +194,7 @@ func (m *InlineSimpleMethods) processIndexed(ix *propUseIndex, externs, root rhi
 		return
 	}
 
-	var candidates inlineBitSet
+	var candidates smallBitSet
 	// order-independent: builds a set
 	for propID, slot := range m.props {
 		if slot.hasFirst && !slot.nonInlineable {

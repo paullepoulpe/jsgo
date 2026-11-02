@@ -617,7 +617,7 @@ func (r *piRecorder) markNonInlineable(propID uint32) {
 // each calls fn for every item of list under top (the externs or the
 // program root), in the order of a NodeTraversal of top. With a non-nil props,
 // only items whose prop is in it.
-func (ix *propUseIndex) each(top rhino.Node, list int, props *inlineBitSet, fn func(s *piScope, it piItem)) {
+func (ix *propUseIndex) each(top rhino.Node, list int, props *smallBitSet, fn func(s *piScope, it piItem)) {
 	var walk func(s *piScope)
 	walk = func(s *piScope) {
 		kids := s.kids

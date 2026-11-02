@@ -35,7 +35,7 @@ type tiNodeState struct {
 // using a monomorphic forward branched data-flow fixed-point worklist.
 type TypeInference struct {
 	cfg        *ControlFlowGraph[rhino.Node]
-	worklist   forwardCfgWorklist
+	worklist   cfgWorklist
 	nodeStates []tiNodeState
 	edgeStates []*LinkedFlowScope
 
@@ -103,7 +103,7 @@ func NewTypeInference(
 
 func (ti *TypeInference) ReleaseLargeBuffers() {
 	ti.flowScopeArena.trimLargeChunks()
-	ti.worklist.releaseLarge()
+	ti.worklist.releaseLarge(dfaReuseMaxNodes)
 	if cap(ti.nodeStates) > dfaReuseMaxNodes {
 		ti.nodeStates = nil
 	}
@@ -229,7 +229,7 @@ func (ti *TypeInference) Analyze() {
 	implicitReturn := cfg.implicitReturn
 	cfgNodes := &cfg.Nodes
 
-	ti.worklist.reset(cfg, cfgNodes.Size())
+	ti.worklist.reset(cfg, cfgNodes.Size(), true)
 	nodeCap := cfg.NodeIndexCap()
 	if cap(ti.nodeStates) < nodeCap {
 		ti.nodeStates = make([]tiNodeState, nodeCap)

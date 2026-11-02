@@ -70,10 +70,10 @@ type AmbiguateProperties struct {
 	propIndexByID map[uint32]uint32
 
 	// Property names that don't get renamed
-	externedIDs inlineBitSet
+	externedIDs smallBitSet
 
 	// Names to which properties shouldn't be renamed, to avoid name conflicts
-	quotedIDs inlineBitSet
+	quotedIDs smallBitSet
 
 	colorRegistry *colors.ColorRegistry
 
@@ -105,7 +105,7 @@ func NewAmbiguateProperties(
 	externProperties jutil.Set[string]) *AmbiguateProperties {
 	jutil.CheckState(compiler.GetLifeCycleStage().IsNormalized())
 	// ImmutableSet.<String>builder().add("prototype").addAll(externProperties).build()
-	var externedIDs inlineBitSet
+	var externedIDs smallBitSet
 	externedIDs.Set(int(rhino.RhinoStringPool_InternID("prototype")))
 	for name := range externProperties.All() {
 		externedIDs.Set(int(rhino.RhinoStringPool_InternID(name)))
@@ -246,8 +246,8 @@ func (a *AmbiguateProperties) Process(externs rhino.Node, root rhino.Node) {
 	for id := a.quotedIDs.NextSetBit(0); id >= 0; id = a.quotedIDs.NextSetBit(id + 1) {
 		reservedNames[rhino.RhinoStringPool_StringFromID(uint32(id))] = struct{}{}
 	}
-	a.externedIDs = inlineBitSet{}
-	a.quotedIDs = inlineBitSet{}
+	a.externedIDs = smallBitSet{}
+	a.quotedIDs = smallBitSet{}
 	numSkippedPropertyNames := 0
 	props := make([]*AmbiguateProperties_Property, 0, numProperties)
 	for i := range a.properties {
@@ -281,7 +281,7 @@ func (a *AmbiguateProperties) Process(externs rhino.Node, root rhino.Node) {
 		}
 		slices.SortStableFunc(props, ambiguateProperties_FREQUENCY_COMPARATOR)
 
-		var relatedTypes inlineBitSet
+		var relatedTypes smallBitSet
 		worklist := props
 		for len(worklist) > 0 {
 			relatedTypes.ClearAll()
@@ -649,7 +649,7 @@ type AmbiguateProperties_Property struct {
 	extraSeeds     []*ColorGraphNode
 	// Includes seed colors + all subtypes of those seed colors. For example if this property
 	// was accessed off of Iterable, then this bitset will include Array as well.
-	relatedColors inlineBitSet
+	relatedColors smallBitSet
 }
 
 // addRelatedColor marks this color as related to this property.

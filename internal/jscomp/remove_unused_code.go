@@ -55,8 +55,8 @@ type removeUnusedCodeState struct {
 	varInfos []*RemoveUnusedCode_RealVarInfo
 
 	trackProps   bool
-	pinnedProps  inlineBitSet
-	polyBits     inlineBitSet
+	pinnedProps  smallBitSet
+	polyBits     smallBitSet
 	propIdxByID  map[uint32]uint32
 	propEntries  []rucPropEntry
 	propRemOrder []uint32

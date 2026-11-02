@@ -129,9 +129,9 @@ type optimizeParametersUnusedOptimizer struct {
 	outer             *OptimizeParameters
 	toRemove          []rhino.Node
 	toReplaceWithZero []rhino.Node
-	used              inlineBitSet
-	unused            inlineBitSet
-	unremovable       inlineBitSet
+	used              smallBitSet
+	unused            smallBitSet
+	unremovable       smallBitSet
 }
 
 // Java: OptimizeParameters.UnusedParameterOptimizer.tryEliminateUnusedArgs(ArrayList<Node>)
@@ -230,8 +230,8 @@ func (u *optimizeParametersUnusedOptimizer) tryEliminateUnusedArgs(refs []rhino.
 func (u *optimizeParametersUnusedOptimizer) recordRemovalCallArguments(
 	firstRestIndex int,
 	removeAllAfterIndex int,
-	unused *inlineBitSet,
-	unremovable *inlineBitSet,
+	unused *smallBitSet,
+	unremovable *smallBitSet,
 	arg rhino.Node,
 	index int,
 ) bool {
@@ -304,7 +304,7 @@ func (u *optimizeParametersUnusedOptimizer) removeArgAndFollowing(arg rhino.Node
 }
 
 // Java: OptimizeParameters.UnusedParameterOptimizer.removeUnusedFunctionParameters(BitSet, Node, int)
-func (u *optimizeParametersUnusedOptimizer) removeUnusedFunctionParameters(unremovable *inlineBitSet, param rhino.Node, index int) {
+func (u *optimizeParametersUnusedOptimizer) removeUnusedFunctionParameters(unremovable *smallBitSet, param rhino.Node, index int) {
 	if !param.IsNil() {
 		u.removeUnusedFunctionParameters(unremovable, param.GetNext(), index+1)
 		if !unremovable.Get(index) {

@@ -27,7 +27,7 @@ import (
 // namely, the filename, the array name used in instrumentation, and the
 // lines which were instrumented (in encoded form).
 type FileInstrumentationData struct {
-	instrumentedBits inlineBitSet // Instrumented lines, a bit per line
+	instrumentedBits smallBitSet // Instrumented lines, a bit per line
 	arrayName        string
 	fileName         string
 
@@ -35,7 +35,7 @@ type FileInstrumentationData struct {
 	// bit[i] set to 1 denotes the (i+1)-th line containing at least one
 	// branch bit[i] bit set to 0 denotes the (i+1)-th line containing no
 	// branches
-	branchPresent inlineBitSet
+	branchPresent smallBitSet
 
 	// Number of branches in line, the index is zero-based.
 	branchesInLine map[int]int

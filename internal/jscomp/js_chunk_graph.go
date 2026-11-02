@@ -34,7 +34,7 @@ type JSChunkGraph struct {
 
 	// selfPlusTransitiveDeps[i] = indices of all chunks that chunks[i]
 	// depends on, including itself.
-	selfPlusTransitiveDeps []inlineBitSet
+	selfPlusTransitiveDeps []smallBitSet
 
 	// subtreeSize[i] = Number of chunks that transitively depend on
 	// chunks[i], including itself.
@@ -49,8 +49,8 @@ type JSChunkGraph struct {
 	transitiveDeps [][]*JSChunk
 
 	// Go-only: reusable candidate/dependent BitSets for GetSmallestCoveringSubtree.
-	scratchCandidates inlineBitSet
-	scratchDependent  inlineBitSet
+	scratchCandidates smallBitSet
+	scratchDependent  smallBitSet
 }
 
 // Java: JSChunkGraph.WEAK_FILE_REACHABLE_FROM_ENTRY_POINT_ERROR
@@ -245,8 +245,8 @@ func (g *JSChunkGraph) makeWeakChunk(chunksInDepOrder []*JSChunk) []*JSChunk {
 }
 
 // Java: JSChunkGraph.initTransitiveDepsBitSets()
-func (g *JSChunkGraph) initTransitiveDepsBitSets() []inlineBitSet {
-	array := make([]inlineBitSet, len(g.chunks))
+func (g *JSChunkGraph) initTransitiveDepsBitSets() []smallBitSet {
+	array := make([]smallBitSet, len(g.chunks))
 	for chunkIndex := 0; chunkIndex < len(g.chunks); chunkIndex++ {
 		chunk := g.chunks[chunkIndex]
 		selfPlusTransitiveDeps := &array[chunkIndex]
@@ -412,7 +412,7 @@ func (g *JSChunkGraph) GetSmallestCoveringSubtree(parentTree *JSChunk, dependent
 	return g.getSmallestCoveringSubtree(parentTree, &g.scratchDependent)
 }
 
-func (g *JSChunkGraph) getSmallestCoveringSubtree(parentTree *JSChunk, dependentChunks *inlineBitSet) *JSChunk {
+func (g *JSChunkGraph) getSmallestCoveringSubtree(parentTree *JSChunk, dependentChunks *smallBitSet) *JSChunk {
 	jutil.CheckState(!dependentChunks.IsEmpty())
 
 	// Candidate chunks are those that all of the given dependent chunks depend on, including

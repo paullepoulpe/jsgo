@@ -9,16 +9,16 @@ import (
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 )
 
-// inlineBitSet is a compact 32-byte bitset storing bits 0..127 inline in w0/w1
+// smallBitSet is a compact 32-byte bitset storing bits 0..127 inline in w0/w1
 // and bits >= 128 in ext (ext[k] holds bits (k+2)*64 .. (k+3)*64-1).
 // Invariant: whenever len(ext) > 0, ext[len(ext)-1] != 0.
-type inlineBitSet struct {
+type smallBitSet struct {
 	w0  uint64
 	w1  uint64
 	ext []uint64
 }
 
-func (b *inlineBitSet) trim() {
+func (b *smallBitSet) trim() {
 	i := len(b.ext)
 	for i > 0 && b.ext[i-1] == 0 {
 		i--
@@ -26,7 +26,7 @@ func (b *inlineBitSet) trim() {
 	b.ext = b.ext[:i]
 }
 
-func (b *inlineBitSet) ensureExt(extWords int) {
+func (b *smallBitSet) ensureExt(extWords int) {
 	if extWords <= len(b.ext) {
 		return
 	}
@@ -42,7 +42,7 @@ func (b *inlineBitSet) ensureExt(extWords int) {
 	b.ext = grown
 }
 
-func (b *inlineBitSet) wordPtr(w int) *uint64 {
+func (b *smallBitSet) wordPtr(w int) *uint64 {
 	if w == 0 {
 		return &b.w0
 	}
@@ -52,7 +52,7 @@ func (b *inlineBitSet) wordPtr(w int) *uint64 {
 	return &b.ext[w-2]
 }
 
-func (b *inlineBitSet) Set(bitIndex int) {
+func (b *smallBitSet) Set(bitIndex int) {
 	if uint(bitIndex) < 64 {
 		b.w0 |= uint64(1) << uint(bitIndex)
 		return
@@ -69,7 +69,7 @@ func (b *inlineBitSet) Set(bitIndex int) {
 	b.ext[w] |= uint64(1) << uint(bitIndex&63)
 }
 
-func (b *inlineBitSet) Get(bitIndex int) bool {
+func (b *smallBitSet) Get(bitIndex int) bool {
 	if uint(bitIndex) < 64 {
 		return (b.w0 & (uint64(1) << uint(bitIndex))) != 0
 	}
@@ -83,7 +83,7 @@ func (b *inlineBitSet) Get(bitIndex int) bool {
 	return w < len(b.ext) && (b.ext[w]&(uint64(1)<<uint(bitIndex&63))) != 0
 }
 
-func (b *inlineBitSet) clear(releaseLarge bool) {
+func (b *smallBitSet) clear(releaseLarge bool) {
 	b.w0 = 0
 	b.w1 = 0
 	if releaseLarge && cap(b.ext) > 16 {
@@ -94,15 +94,15 @@ func (b *inlineBitSet) clear(releaseLarge bool) {
 	}
 }
 
-func (b *inlineBitSet) ClearAll() {
+func (b *smallBitSet) ClearAll() {
 	b.clear(false)
 }
 
-func (b *inlineBitSet) IsEmpty() bool {
+func (b *smallBitSet) IsEmpty() bool {
 	return (b.w0|b.w1) == 0 && len(b.ext) == 0
 }
 
-func (b *inlineBitSet) WordCapacityBits() int {
+func (b *smallBitSet) WordCapacityBits() int {
 	if len(b.ext) > 0 {
 		return (len(b.ext) + 2) * 64
 	}
@@ -115,7 +115,7 @@ func (b *inlineBitSet) WordCapacityBits() int {
 	return 0
 }
 
-func (b *inlineBitSet) Length() int {
+func (b *smallBitSet) Length() int {
 	if n := len(b.ext); n > 0 {
 		return (n+1)*64 + (64 - bits.LeadingZeros64(b.ext[n-1]))
 	}
@@ -128,7 +128,7 @@ func (b *inlineBitSet) Length() int {
 	return 0
 }
 
-func (b *inlineBitSet) Cardinality() int {
+func (b *smallBitSet) Cardinality() int {
 	n := bits.OnesCount64(b.w0) + bits.OnesCount64(b.w1)
 	for _, w := range b.ext {
 		n += bits.OnesCount64(w)
@@ -136,7 +136,7 @@ func (b *inlineBitSet) Cardinality() int {
 	return n
 }
 
-func (b *inlineBitSet) SetRange(fromIndex, toIndex int) {
+func (b *smallBitSet) SetRange(fromIndex, toIndex int) {
 	if fromIndex < 0 || toIndex < fromIndex {
 		panic(jutil.NewIndexOutOfBoundsException("invalid range"))
 	}
@@ -161,7 +161,7 @@ func (b *inlineBitSet) SetRange(fromIndex, toIndex int) {
 	*b.wordPtr(endWord) |= lastMask
 }
 
-func (b *inlineBitSet) FlipRange(fromIndex, toIndex int) {
+func (b *smallBitSet) FlipRange(fromIndex, toIndex int) {
 	if fromIndex < 0 || toIndex < fromIndex {
 		panic(jutil.NewIndexOutOfBoundsException("invalid range"))
 	}
@@ -187,7 +187,7 @@ func (b *inlineBitSet) FlipRange(fromIndex, toIndex int) {
 	b.trim()
 }
 
-func (b *inlineBitSet) NextSetBit(fromIndex int) int {
+func (b *smallBitSet) NextSetBit(fromIndex int) int {
 	if fromIndex < 0 {
 		panic(jutil.NewIndexOutOfBoundsException("fromIndex < 0: " + strconv.Itoa(fromIndex)))
 	}
@@ -220,7 +220,7 @@ func (b *inlineBitSet) NextSetBit(fromIndex int) int {
 	}
 }
 
-func (b *inlineBitSet) PreviousSetBit(fromIndex int) int {
+func (b *smallBitSet) PreviousSetBit(fromIndex int) int {
 	if fromIndex < 0 {
 		if fromIndex == -1 {
 			return -1
@@ -267,7 +267,7 @@ func (b *inlineBitSet) PreviousSetBit(fromIndex int) int {
 	return -1
 }
 
-func (b *inlineBitSet) Or(other *inlineBitSet) {
+func (b *smallBitSet) Or(other *smallBitSet) {
 	if b == other {
 		return
 	}
@@ -281,7 +281,7 @@ func (b *inlineBitSet) Or(other *inlineBitSet) {
 	}
 }
 
-func (b *inlineBitSet) And(other *inlineBitSet) {
+func (b *smallBitSet) And(other *smallBitSet) {
 	if b == other {
 		return
 	}
@@ -296,7 +296,7 @@ func (b *inlineBitSet) And(other *inlineBitSet) {
 	b.trim()
 }
 
-func (b *inlineBitSet) AndNot(other *inlineBitSet) {
+func (b *smallBitSet) AndNot(other *smallBitSet) {
 	if b == other {
 		b.ClearAll()
 		return
@@ -310,7 +310,7 @@ func (b *inlineBitSet) AndNot(other *inlineBitSet) {
 	b.trim()
 }
 
-func (b *inlineBitSet) Intersects(other *inlineBitSet) bool {
+func (b *smallBitSet) Intersects(other *smallBitSet) bool {
 	if (b.w0&other.w0)|(b.w1&other.w1) != 0 {
 		return true
 	}
@@ -323,7 +323,7 @@ func (b *inlineBitSet) Intersects(other *inlineBitSet) bool {
 	return false
 }
 
-func (b *inlineBitSet) ContainsAll(other *inlineBitSet) bool {
+func (b *smallBitSet) ContainsAll(other *smallBitSet) bool {
 	if (other.w0&^b.w0)|(other.w1&^b.w1) != 0 {
 		return false
 	}
@@ -338,7 +338,7 @@ func (b *inlineBitSet) ContainsAll(other *inlineBitSet) bool {
 	return true
 }
 
-func (b *inlineBitSet) Equals(other *inlineBitSet) bool {
+func (b *smallBitSet) Equals(other *smallBitSet) bool {
 	if b.w0 != other.w0 || b.w1 != other.w1 || len(b.ext) != len(other.ext) {
 		return false
 	}
@@ -350,7 +350,7 @@ func (b *inlineBitSet) Equals(other *inlineBitSet) bool {
 	return true
 }
 
-func (b *inlineBitSet) CopyFrom(src *inlineBitSet) {
+func (b *smallBitSet) CopyFrom(src *smallBitSet) {
 	if b == src {
 		return
 	}
@@ -372,15 +372,15 @@ func (b *inlineBitSet) CopyFrom(src *inlineBitSet) {
 	copy(b.ext, src.ext)
 }
 
-func (b *inlineBitSet) Clone() inlineBitSet {
-	out := inlineBitSet{w0: b.w0, w1: b.w1}
+func (b *smallBitSet) Clone() smallBitSet {
+	out := smallBitSet{w0: b.w0, w1: b.w1}
 	if len(b.ext) > 0 {
 		out.ext = slices.Clone(b.ext)
 	}
 	return out
 }
 
-func (b *inlineBitSet) ForEach(fn func(idx int)) {
+func (b *smallBitSet) ForEach(fn func(idx int)) {
 	for w := b.w0; w != 0; w &= w - 1 {
 		fn(bits.TrailingZeros64(w))
 	}
@@ -395,7 +395,7 @@ func (b *inlineBitSet) ForEach(fn func(idx int)) {
 	}
 }
 
-func (b *inlineBitSet) CopyFromJutil(src *jutil.BitSet) {
+func (b *smallBitSet) CopyFromJutil(src *jutil.BitSet) {
 	b.ClearAll()
 	b.w0, b.w1 = src.Words128()
 	if src.Length() > 128 {
@@ -405,7 +405,7 @@ func (b *inlineBitSet) CopyFromJutil(src *jutil.BitSet) {
 	}
 }
 
-func (b *inlineBitSet) HexString() string {
+func (b *smallBitSet) HexString() string {
 	if len(b.ext) == 0 {
 		if b.w1 == 0 {
 			if b.w0 == 0 {
@@ -453,7 +453,7 @@ func (b *inlineBitSet) HexString() string {
 	return hex.EncodeToString(raw)
 }
 
-func (b *inlineBitSet) String() string {
+func (b *smallBitSet) String() string {
 	if b.IsEmpty() {
 		return "{}"
 	}
