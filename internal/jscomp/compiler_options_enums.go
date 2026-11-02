@@ -551,13 +551,31 @@ const (
 	CompilerOptions_OptimizeLocalAccess_ALL_CHUNKS
 
 	// In addition to ALL_CHUNKS, create dedicated singleton holder objects for
-	// mutable cross-chunk symbols (e.g. `var a = _.a = {};`) and access them
-	// via `a._`.
+	// mutable cross-chunk symbols or cross-chunk symbols referenced in a chunk
+	// that does not depend on their defining chunk (e.g. `var a = _.a = {};`)
+	// and access them via `a._`.
 	CompilerOptions_OptimizeLocalAccess_ALL_CHUNKS_WITH_WRAPPED_REASSIGNABLE_SYMBOLS
+
+	// In addition to ALL_CHUNKS_WITH_WRAPPED_REASSIGNABLE_SYMBOLS, preserve `var`
+	// declarations with initializers in place (e.g. `var a = _.a = 1;`) for
+	// variables that remain local to their defining chunk instead of hoisting
+	// uninitialized `var` declarations to the top of the chunk.
+	CompilerOptions_OptimizeLocalAccess_ALL_CHUNKS_WITH_WRAPPED_REASSIGNABLE_SYMBOLS_IMPROVED
+
+	// In addition to ALL_CHUNKS_WITH_WRAPPED_REASSIGNABLE_SYMBOLS_IMPROVED,
+	// delete entries from the global symbol namespace right after the last local
+	// alias is set, when all other usages are in parent chunks and thus the
+	// symbol is guaranteed not to be accessed anymore.
+	CompilerOptions_OptimizeLocalAccess_DELETE_GLOBALS_ON_LAST_ACCESS
 )
 
 var compilerOptions_OptimizeLocalAccess_names = [...]string{
-	"DISABLED", "DEFINING_CHUNK_ONLY", "ALL_CHUNKS", "ALL_CHUNKS_WITH_WRAPPED_REASSIGNABLE_SYMBOLS",
+	"DISABLED",
+	"DEFINING_CHUNK_ONLY",
+	"ALL_CHUNKS",
+	"ALL_CHUNKS_WITH_WRAPPED_REASSIGNABLE_SYMBOLS",
+	"ALL_CHUNKS_WITH_WRAPPED_REASSIGNABLE_SYMBOLS_IMPROVED",
+	"DELETE_GLOBALS_ON_LAST_ACCESS",
 }
 
 // CompilerOptions_OptimizeLocalAccess_values is OptimizeLocalAccess.values().
@@ -567,6 +585,8 @@ func CompilerOptions_OptimizeLocalAccess_values() []CompilerOptions_OptimizeLoca
 		CompilerOptions_OptimizeLocalAccess_DEFINING_CHUNK_ONLY,
 		CompilerOptions_OptimizeLocalAccess_ALL_CHUNKS,
 		CompilerOptions_OptimizeLocalAccess_ALL_CHUNKS_WITH_WRAPPED_REASSIGNABLE_SYMBOLS,
+		CompilerOptions_OptimizeLocalAccess_ALL_CHUNKS_WITH_WRAPPED_REASSIGNABLE_SYMBOLS_IMPROVED,
+		CompilerOptions_OptimizeLocalAccess_DELETE_GLOBALS_ON_LAST_ACCESS,
 	}
 }
 
@@ -591,6 +611,16 @@ func (e CompilerOptions_OptimizeLocalAccess) ShouldOptimizeAllChunks() bool {
 // Java: CompilerOptions.OptimizeLocalAccess.shouldWrapReassignableSymbols()
 func (e CompilerOptions_OptimizeLocalAccess) ShouldWrapReassignableSymbols() bool {
 	return e.Ordinal() >= CompilerOptions_OptimizeLocalAccess_ALL_CHUNKS_WITH_WRAPPED_REASSIGNABLE_SYMBOLS.Ordinal()
+}
+
+// Java: CompilerOptions.OptimizeLocalAccess.shouldPreserveLocalVarDeclarations()
+func (e CompilerOptions_OptimizeLocalAccess) ShouldPreserveLocalVarDeclarations() bool {
+	return e.Ordinal() >= CompilerOptions_OptimizeLocalAccess_ALL_CHUNKS_WITH_WRAPPED_REASSIGNABLE_SYMBOLS_IMPROVED.Ordinal()
+}
+
+// Java: CompilerOptions.OptimizeLocalAccess.shouldDeleteGlobalsOnLastAccess()
+func (e CompilerOptions_OptimizeLocalAccess) ShouldDeleteGlobalsOnLastAccess() bool {
+	return e == CompilerOptions_OptimizeLocalAccess_DELETE_GLOBALS_ON_LAST_ACCESS
 }
 
 // CompilerOptions_LanguageMode is a language mode applies to the whole compilation job. As a result, the

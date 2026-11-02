@@ -32,12 +32,16 @@ import (
 type ReferenceCollectorTest struct {
 	CompilerTestCaseBase
 
-	behavior ReferenceCollector_Behavior // @Nullable
+	behavior                                ReferenceCollector_Behavior // @Nullable
+	varFilter                               func(*Var) bool
+	collectHoistedFunctionsInReferenceOrder bool
 }
 
 // Java: ReferenceCollectorTest()
 func NewReferenceCollectorTest() *ReferenceCollectorTest {
-	c := &ReferenceCollectorTest{}
+	c := &ReferenceCollectorTest{
+		collectHoistedFunctionsInReferenceOrder: true,
+	}
 	c.InitCompilerTestCaseBase(c)
 	return c
 }
@@ -50,12 +54,19 @@ func TestReferenceCollectorTest(t *testing.T) {
 func (c *ReferenceCollectorTest) SetUp() {
 	c.CompilerTestCaseBase.SetUp()
 	c.behavior = nil
+	c.varFilter = nil
+	c.collectHoistedFunctionsInReferenceOrder = true
 }
 
 // Java: ReferenceCollectorTest.getProcessor(Compiler)
 func (c *ReferenceCollectorTest) GetProcessor(compiler *Compiler) CompilerPass {
 	var scopeCreator ScopeCreator = NewSyntacticScopeCreator(compiler)
-	return NewReferenceCollector(compiler, c.behavior, scopeCreator)
+	return NewReferenceCollectorWithHoistedOrder(
+		compiler,
+		c.behavior,
+		scopeCreator,
+		c.varFilter,
+		c.collectHoistedFunctionsInReferenceOrder)
 }
 
 // Java: ReferenceCollectorTest.getOptions()
@@ -533,4 +544,106 @@ func (c *ReferenceCollectorTest) TestProcessScopeThatsNotABasicBlock() {
 	globalScope := syntacticScopeCreator.CreateScopeOfScope(root, nil)
 	blockScope := syntacticScopeCreator.CreateScopeOfScope(block, globalScope)
 	referenceCollectingCallback.ProcessScope(blockScope)
+}
+
+type referenceCollectorTest_nodeBehavior struct {
+	beforeTraverseNode func(t *NodeTraversal, n, parent rhino.Node) bool
+	afterVisitNode     func(t *NodeTraversal, n, parent rhino.Node, addedReference *Reference)
+	afterExitScope     func(t *NodeTraversal, rm *ReferenceCollector)
+}
+
+func (b referenceCollectorTest_nodeBehavior) BeforeTraverseNode(t *NodeTraversal, n, parent rhino.Node) bool {
+	if b.beforeTraverseNode != nil {
+		return b.beforeTraverseNode(t, n, parent)
+	}
+	return true
+}
+
+func (b referenceCollectorTest_nodeBehavior) AfterVisitNode(t *NodeTraversal, n, parent rhino.Node, addedReference *Reference) {
+	if b.afterVisitNode != nil {
+		b.afterVisitNode(t, n, parent, addedReference)
+	}
+}
+
+func (b referenceCollectorTest_nodeBehavior) AfterExitScope(t *NodeTraversal, rm *ReferenceCollector) {
+	if b.afterExitScope != nil {
+		b.afterExitScope(t, rm)
+	}
+}
+
+func (c *ReferenceCollectorTest) TestBehavior_hoistedFunctionsInReferenceOrder_true() {
+	var visitedReferenceNames []string
+	c.collectHoistedFunctionsInReferenceOrder = true
+	c.testBehavior(
+		"f();\n"+
+			"var z = 1;\n"+
+			"function f() {\n"+
+			"  return z;\n"+
+			"}\n",
+		referenceCollectorTest_nodeBehavior{
+			afterVisitNode: func(t *NodeTraversal, n, parent rhino.Node, addedReference *Reference) {
+				if addedReference != nil {
+					visitedReferenceNames = append(visitedReferenceNames, addedReference.GetNode().GetString())
+				}
+			},
+		})
+
+	// When collectHoistedFunctionsInReferenceOrder is true:
+	// Visiting call `f()` jumps to hoisted function `f()` via maybeJumpToHoistedFunction.
+	// The declaration reference for `f` is added directly and does not pass through afterVisitNode.
+	// The body of `f()` is traversed, visiting `z` inside `return z;`.
+	// Then afterVisitNode runs for the referencing `f()` call.
+	// Then `var z = 1;` is visited.
+	// The declaration `function f() { ... }` is skipped in the outer traversal.
+	AssertThat(visitedReferenceNames).ContainsExactly("z", "f", "z").InOrder()
+}
+
+func (c *ReferenceCollectorTest) TestBehavior_hoistedFunctionsInReferenceOrder_false() {
+	var visitedReferenceNames []string
+	c.collectHoistedFunctionsInReferenceOrder = false
+	c.testBehavior(
+		"f();\n"+
+			"var z = 1;\n"+
+			"function f() {\n"+
+			"  return z;\n"+
+			"}\n",
+		referenceCollectorTest_nodeBehavior{
+			afterVisitNode: func(t *NodeTraversal, n, parent rhino.Node, addedReference *Reference) {
+				if addedReference != nil {
+					visitedReferenceNames = append(visitedReferenceNames, addedReference.GetNode().GetString())
+				}
+			},
+		})
+
+	// When collectHoistedFunctionsInReferenceOrder is false:
+	// Traversal proceeds in pure AST order without out-of-order jumping:
+	// 1. `f();` -> afterVisitNode for `f`
+	// 2. `var z = 1;` -> afterVisitNode for `z`
+	// 3. `function f() { return z; }` -> afterVisitNode for `f`, then afterVisitNode for `z`
+	AssertThat(visitedReferenceNames).ContainsExactly("f", "z", "f", "z").InOrder()
+}
+
+func (c *ReferenceCollectorTest) TestBehavior_afterVisitNode_nullReferenceWhenRejectedByVarFilter() {
+	var nonNullReferenceNames []string
+	var filteredOutNames []string
+	// Filter out variable "z"
+	c.varFilter = func(v *Var) bool { return v.GetName() != "z" }
+	c.collectHoistedFunctionsInReferenceOrder = false
+	c.testBehavior(
+		"var x = 1;\n"+
+			"var z = 2;\n",
+		referenceCollectorTest_nodeBehavior{
+			afterVisitNode: func(t *NodeTraversal, n, parent rhino.Node, addedReference *Reference) {
+				if n.IsName() {
+					if addedReference != nil {
+						nonNullReferenceNames = append(nonNullReferenceNames, n.GetString())
+					} else {
+						filteredOutNames = append(filteredOutNames, n.GetString())
+					}
+				}
+			},
+		})
+
+	AssertThat(nonNullReferenceNames).ContainsExactly("x")
+	AssertThat(filteredOutNames).ContainsExactly("z")
 }

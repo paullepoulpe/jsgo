@@ -854,6 +854,36 @@ func (c *CrossChunkCodeMotionTest) TestClassMovement_mixins() {
 		))
 }
 
+// Java: CrossChunkCodeMotionTest.testClassMovement_reflectObjectProperty_classDeclaration()
+func (c *CrossChunkCodeMotionTest) TestClassMovement_reflectObjectProperty_classDeclaration() {
+	// TODO(b/435019132): The expectation is currently wrong. Foo and value should move to m2.
+	c.TestSame(
+		c.Srcs(
+			JSChunkGraphBuilder_ForChain().
+				// m1
+				AddChunk(
+					"class Foo {}\n" +
+						"const value = goog.reflect.objectProperty('x', Foo);\n").
+				// m2
+				AddChunk("const useValue = value;").
+				Build()))
+}
+
+// Java: CrossChunkCodeMotionTest.testClassMovement_reflectObjectProperty_classExpression()
+func (c *CrossChunkCodeMotionTest) TestClassMovement_reflectObjectProperty_classExpression() {
+	// TODO(b/435019132): The expectation is currently wrong. Foo and value should move to m2.
+	c.TestSame(
+		c.Srcs(
+			JSChunkGraphBuilder_ForChain().
+				// m1
+				AddChunk(
+					"const Foo = class {};\n" +
+						"const value = goog.reflect.objectProperty('x', Foo);\n").
+				// m2
+				AddChunk("const useValue = value;").
+				Build()))
+}
+
 // Java: CrossChunkCodeMotionTest.testPureOrBreakMyCodedStaticClassFieldIsMovable()
 func (c *CrossChunkCodeMotionTest) TestPureOrBreakMyCodedStaticClassFieldIsMovable() {
 	//

@@ -19,9 +19,6 @@
 package jscomp
 
 import (
-	"iter"
-	"slices"
-
 	"github.com/paullepoulpe/jsgo/internal/ast"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
@@ -30,23 +27,19 @@ import (
 // CrossChunkReferenceCollector collects global variable references for use
 // by CrossChunkCodeMotion.
 type CrossChunkReferenceCollector struct {
-	vars        []*Var
-	byKey       map[scopedVarKey]*ReferenceCollection
-	maxVarIndex int
+	vars         []*Var
+	varsByNameID map[uint32]*Var
+	maxVarIndex  int
 
-	// The stack of basic blocks and scopes the current traversal is in.
-	blocks   basicBlockTracker
-	refSlab  jutil.Slab[Reference]
-	colSlab  jutil.Slab[ReferenceCollection]
 	stmtSlab jutil.Slab[CrossChunkReferenceCollector_TopLevelStatement]
 
 	// List of all top-level statements in the order they appear in the AST.
 	topLevelStatements []*CrossChunkReferenceCollector_TopLevelStatement
 
-	scopeCreator ScopeCreator
-
 	// JavaScript compiler to use in traversing.
 	compiler AbstractCompiler
+
+	referenceCollector *ReferenceCollector
 
 	statementCounter       int
 	topLevelStatementDraft *CrossChunkReferenceCollector_TopLevelStatementDraft
@@ -55,66 +48,35 @@ type CrossChunkReferenceCollector struct {
 	draftVarsBuf           [16]*Var
 }
 
-var crossChunkRefCollectorVisitTokens = func() ast.TokenSet {
-	s := ast.TokenSet{^uint64(0), ^uint64(0), ^uint64(0), ^uint64(0)}
-	for _, tok := range [...]rhino.Token{
-		rhino.Token_ROOT,
-		rhino.Token_SCRIPT,
-		rhino.Token_MODULE_BODY,
-		rhino.Token_PARAM_LIST,
-		rhino.Token_STRING_KEY,
-		rhino.Token_OBJECT_SPREAD,
-		rhino.Token_OBJECT_REST,
-		rhino.Token_ITER_REST,
-		rhino.Token_MEMBER_FUNCTION_DEF,
-		rhino.Token_MEMBER_FIELD_DEF,
-		rhino.Token_MEMBER_VARIABLE_DEF,
-		rhino.Token_COMPUTED_PROP,
-		rhino.Token_COMPUTED_FIELD_DEF,
-		rhino.Token_GETTER_DEF,
-		rhino.Token_SETTER_DEF,
-		rhino.Token_IMPORT_SPECS,
-		rhino.Token_IMPORT_SPEC,
-		rhino.Token_IMPORT_STAR,
-		rhino.Token_EXPORT_SPECS,
-		rhino.Token_EXPORT_SPEC,
-		rhino.Token_TEMPLATELIT_SUB,
-		rhino.Token_TEMPLATELIT_STRING,
-		rhino.Token_LABEL_NAME,
-		rhino.Token_NUMBER,
-		rhino.Token_STRINGLIT,
-		rhino.Token_BIGINT,
-		rhino.Token_TRUE,
-		rhino.Token_FALSE,
-		rhino.Token_NULL,
-		rhino.Token_THIS,
-		rhino.Token_SUPER,
-		rhino.Token_EMPTY,
-		rhino.Token_DEBUGGER,
-	} {
-		s[tok>>6] &^= 1 << (tok & 63)
-	}
-	return s
-}()
-
-var _ nodeTraversal_visitTokens = (*CrossChunkReferenceCollector)(nil)
-
-func (*CrossChunkReferenceCollector) visitTokens() *ast.TokenSet {
-	return &crossChunkRefCollectorVisitTokens
-}
-
-// NewCrossChunkReferenceCollector: constructor initializes block stack.
+// NewCrossChunkReferenceCollector: constructor initializes reference collector.
 //
 // Java: CrossChunkReferenceCollector(AbstractCompiler, ScopeCreator)
 func NewCrossChunkReferenceCollector(compiler AbstractCompiler, creator ScopeCreator) *CrossChunkReferenceCollector {
 	c := &CrossChunkReferenceCollector{
-		compiler:     compiler,
-		scopeCreator: creator,
-		maxVarIndex:  -1,
+		compiler:    compiler,
+		maxVarIndex: -1,
 	}
 	c.draftVal.nonDeclarationReferences = c.draftRefsBuf[:0]
 	c.draftVal.nonDeclarationVars = c.draftVarsBuf[:0]
+	c.referenceCollector = NewReferenceCollectorWithHoistedOrder(
+		compiler,
+		crossChunkTopLevelStatementBehavior{c: c},
+		creator,
+		c.shouldCollectVar,
+		/* collectHoistedFunctionsInReferenceOrder= */ false)
 	return c
+}
+
+// Java: CrossChunkReferenceCollector.shouldCollectVar(Var)
+func (c *CrossChunkReferenceCollector) shouldCollectVar(v *Var) bool {
+	// Only global, non-exported names can be moved
+	if !v.IsGlobal() {
+		return false
+	}
+	if _, ok := c.varsByNameID[v.nameID]; ok {
+		return true
+	}
+	return !c.compiler.GetCodingConvention().IsExportedWithLocal(v.GetName() /* local= */, false)
 }
 
 func (c *CrossChunkReferenceCollector) allocTopLevelStatement(draft *CrossChunkReferenceCollector_TopLevelStatementDraft) *CrossChunkReferenceCollector_TopLevelStatement {
@@ -141,34 +103,16 @@ func (c *CrossChunkReferenceCollector) allocTopLevelStatement(draft *CrossChunkR
 	return s
 }
 
-func (c *CrossChunkReferenceCollector) createReferencesForNewVar(v *Var) *ReferenceCollection {
-	if idx := v.GetIndex(); idx > c.maxVarIndex {
-		c.maxVarIndex = idx
-	}
-	col := c.colSlab.New()
-	c.vars = append(c.vars, v)
-	if c.byKey == nil {
-		c.byKey = make(map[scopedVarKey]*ReferenceCollection, 64)
-	}
-	c.byKey[scopedVarKeyOf(v)] = col
-	return col
-}
-
-// Process is a convenience method for running this pass over a tree with
-// this class as a callback.
+// Process collects references and top-level statements from the given externs
+// and root.
 //
 // Java: CrossChunkReferenceCollector.process(Node, Node)
 func (c *CrossChunkReferenceCollector) Process(externs rhino.Node, root rhino.Node) {
 	jutil.CheckStateMsg(len(c.topLevelStatements) == 0 && c.statementCounter == 0, "process() called more than once")
-	b := NodeTraversal_Builder{
-		compiler:     c.compiler,
-		callback:     c,
-		scopeCreator: c.scopeCreator,
-	}
-	b.TraverseRoots(externs, root)
+	c.referenceCollector.Process(externs, root)
 }
 
-// ProcessRoot is the one-argument overload process(Node).
+// ProcessRoot collects references and top-level statements from the given root.
 //
 // Go-only: language-adapter — the two-argument overload keeps the plain
 // name because it implements CompilerPass.process(Node, Node).
@@ -176,122 +120,78 @@ func (c *CrossChunkReferenceCollector) Process(externs rhino.Node, root rhino.No
 // Java: CrossChunkReferenceCollector.process(Node)
 func (c *CrossChunkReferenceCollector) ProcessRoot(root rhino.Node) {
 	jutil.CheckStateMsg(len(c.topLevelStatements) == 0 && c.statementCounter == 0, "process() called more than once")
-	b := NodeTraversal_Builder{
-		compiler:     c.compiler,
-		callback:     c,
-		scopeCreator: c.scopeCreator,
-	}
-	b.Traverse(root)
-}
-
-// GetAllSymbols gets the variables that were referenced in this callback.
-//
-// Java: CrossChunkReferenceCollector.getAllSymbols()
-func (c *CrossChunkReferenceCollector) GetAllSymbols() iter.Seq[*Var] {
-	return slices.Values(c.vars)
+	c.referenceCollector.ProcessRoot(root)
 }
 
 // GetReferences gets the reference collection for the given variable.
 //
 // Java: CrossChunkReferenceCollector.getReferences(Var)
 func (c *CrossChunkReferenceCollector) GetReferences(v *Var) *ReferenceCollection {
-	if v == nil {
-		return nil
-	}
-	return c.byKey[scopedVarKeyOf(v)]
+	return c.referenceCollector.GetReferences(v)
 }
 
-// Visit, for each node, updates the block stack and reference collection as
-// appropriate.
-//
-// Java: CrossChunkReferenceCollector.visit(NodeTraversal, Node, Node)
-func (c *CrossChunkReferenceCollector) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
-	if c.topLevelStatementDraft != nil {
-		if n == c.topLevelStatementDraft.statementNode {
-			c.topLevelStatements = append(c.topLevelStatements, c.allocTopLevelStatement(c.topLevelStatementDraft))
-			c.topLevelStatementDraft = nil
-		} else if n.IsName() {
-			id := n.GetStringID()
-			if id > rhino.RhinoStringPool_EmptyID {
-				scope := t.resolveLookupScope(len(t.scopes) - 1)
-				v := scope.GetVarByID(id)
-
-				if v != nil && v.IsGlobal() {
-					col := c.byKey[scopedVarKeyOf(v)]
-					if col == nil {
-						if c.compiler.GetCodingConvention().IsExportedWithLocal(v.GetName() /* local= */, false) {
-							goto checkBoundary
-						}
-						col = c.createReferencesForNewVar(v)
-					}
-					reference := c.refSlab.New()
-					*reference = Reference{
-						nameNode:   n,
-						basicBlock: c.blocks.currentBlock(),
-						scope:      scope,
-						inputId:    t.GetInput().GetInputId(),
-					}
-					if n == c.topLevelStatementDraft.declaredNameNode {
-						c.topLevelStatementDraft.declaredNameReference = reference
-						c.topLevelStatementDraft.declaredVar = v
-					} else {
-						c.topLevelStatementDraft.nonDeclarationReferences = append(c.topLevelStatementDraft.nonDeclarationReferences, reference)
-						c.topLevelStatementDraft.nonDeclarationVars = append(c.topLevelStatementDraft.nonDeclarationVars, v)
-					}
-					col.Add(reference)
-				}
-			}
-		}
+// Java: CrossChunkReferenceCollector.getGlobalVariableNamesMap()
+func (c *CrossChunkReferenceCollector) GetGlobalVariableNamesMap() *jutil.LinkedHashMap[string, *Var] {
+	out := jutil.NewLinkedHashMapWithCapacity[string, *Var](len(c.vars))
+	for _, v := range c.vars {
+		out.Put(v.GetName(), v)
 	}
-checkBoundary:
-	if CrossChunkReferenceCollector_IsBlockBoundary(n, parent) {
-		c.blocks.popUnchecked()
-	}
+	return out
 }
 
-// EnterScope updates block stack and invokes any additional behavior.
-//
-// Java: CrossChunkReferenceCollector.enterScope(NodeTraversal)
-func (c *CrossChunkReferenceCollector) EnterScope(t *NodeTraversal) {
-	// Don't add all ES6 scope roots to blockStack, only those that are also scopes according to
-	// the ES5 scoping rules. Other nodes that ought to be considered the root of a BasicBlock
-	// are added in shouldTraverse() and removed in visit().
-	if t.IsHoistScope() {
-		c.blocks.push(t.GetScopeRoot())
-	}
+type crossChunkTopLevelStatementBehavior struct {
+	c *CrossChunkReferenceCollector
 }
 
-// ExitScope updates block stack and invokes any additional behavior.
-//
-// Java: CrossChunkReferenceCollector.exitScope(NodeTraversal)
-func (c *CrossChunkReferenceCollector) ExitScope(t *NodeTraversal) {
-	if t.IsHoistScope() {
-		c.blocks.popUnchecked()
-	}
-}
+var _ ReferenceCollector_NodeBehavior = crossChunkTopLevelStatementBehavior{}
 
-// Java: CrossChunkReferenceCollector.shouldTraverse(NodeTraversal, Node, Node)
-func (c *CrossChunkReferenceCollector) ShouldTraverse(t *NodeTraversal, n rhino.Node, parent rhino.Node) bool {
+// Java: CrossChunkReferenceCollector.TopLevelStatementCollectingBehavior.beforeTraverseNode(NodeTraversal, Node, Node)
+func (b crossChunkTopLevelStatementBehavior) BeforeTraverseNode(t *NodeTraversal, n, parent rhino.Node) bool {
+	c := b.c
 	if !parent.IsNil() && NodeUtil_IsTopLevel(parent) {
 		jutil.CheckStateMsg1(c.topLevelStatementDraft == nil, "%s", n)
-		draft := c.InitializeDraftStatement(t.GetChunk(), n)
-		if n.GetFirstChild().IsNil() && !n.IsName() && !n.IsBlock() && !n.IsSwitchBody() {
-			c.topLevelStatements = append(c.topLevelStatements, c.allocTopLevelStatement(draft))
-			return false
-		}
-		c.topLevelStatementDraft = draft
-	} else if n.GetFirstChild().IsNil() {
-		switch n.GetToken() {
-		case rhino.Token_NAME, rhino.Token_BLOCK, rhino.Token_SWITCH_BODY:
-		default:
-			return false
-		}
-	}
-	// If node is a new basic block, put on basic block stack
-	if CrossChunkReferenceCollector_IsBlockBoundary(n, parent) {
-		c.blocks.push(n)
+		c.topLevelStatementDraft = c.InitializeDraftStatement(t.GetChunk(), n)
 	}
 	return true
+}
+
+// Java: CrossChunkReferenceCollector.TopLevelStatementCollectingBehavior.afterVisitNode(NodeTraversal, Node, Node, Reference)
+func (b crossChunkTopLevelStatementBehavior) AfterVisitNode(t *NodeTraversal, n, parent rhino.Node, addedReference *Reference) {
+	c := b.c
+	draft := c.topLevelStatementDraft
+	if draft == nil {
+		return
+	}
+	if n == draft.statementNode {
+		c.topLevelStatements = append(c.topLevelStatements, c.allocTopLevelStatement(draft))
+		c.topLevelStatementDraft = nil
+	} else if addedReference != nil && n.IsName() {
+		id := n.GetStringID()
+		v := addedReference.getSymbolV()
+		if existing, ok := c.varsByNameID[id]; ok {
+			jutil.CheckState(existing == v || (existing != nil && existing.Equals(v)))
+		} else {
+			if c.varsByNameID == nil {
+				c.varsByNameID = make(map[uint32]*Var, 64)
+			}
+			c.varsByNameID[id] = v
+			c.vars = append(c.vars, v)
+			if idx := v.GetIndex(); idx > c.maxVarIndex {
+				c.maxVarIndex = idx
+			}
+		}
+		if addedReference.GetNode() == draft.declaredNameNode {
+			draft.declaredNameReference = addedReference
+			draft.declaredVar = v
+		} else {
+			draft.nonDeclarationReferences = append(draft.nonDeclarationReferences, addedReference)
+			draft.nonDeclarationVars = append(draft.nonDeclarationVars, v)
+		}
+	}
+}
+
+// Java: CrossChunkReferenceCollector.TopLevelStatementCollectingBehavior.afterExitScope(NodeTraversal, ReferenceMap)
+func (b crossChunkTopLevelStatementBehavior) AfterExitScope(t *NodeTraversal, refs *ReferenceCollector) {
 }
 
 // Java: CrossChunkReferenceCollector.initializeDraftStatement(JSChunk, Node)
@@ -415,52 +315,6 @@ func CrossChunkReferenceCollector_IsPotentiallyMoveableGetElem(maybeGetElem rhin
 	}
 	name, ok := property.Object().AsName()
 	return ok && name.Ident() == "Symbol"
-}
-
-var crossChunkParentBoundaryKind = [256]uint8{
-	rhino.Token_DO:           1,
-	rhino.Token_FOR:          1,
-	rhino.Token_FOR_IN:       1,
-	rhino.Token_FOR_OF:       1,
-	rhino.Token_FOR_AWAIT_OF: 1,
-	rhino.Token_TRY:          1,
-	rhino.Token_WHILE:        1,
-	rhino.Token_WITH:         1,
-	rhino.Token_CLASS:        1,
-	rhino.Token_AND:          2,
-	rhino.Token_HOOK:         2,
-	rhino.Token_IF:           2,
-	rhino.Token_OR:           2,
-	rhino.Token_SWITCH:       2,
-	rhino.Token_COALESCE:     2,
-}
-
-// CrossChunkReferenceCollector_IsBlockBoundary returns true if this node
-// marks the start of a new basic block.
-//
-// Java: CrossChunkReferenceCollector.isBlockBoundary(Node, Node)
-func CrossChunkReferenceCollector_IsBlockBoundary(n rhino.Node, parent rhino.Node) bool {
-	if !parent.IsNil() {
-		switch crossChunkParentBoundaryKind[uint8(parent.GetToken())] {
-		case 1:
-			return true
-		case 2:
-			// The first child of a conditional is not a boundary,
-			// but all the rest of the children are.
-			return n != parent.GetFirstChild()
-		}
-	}
-
-	return n.IsCase()
-}
-
-// Java: CrossChunkReferenceCollector.addReferenceToCollection(Var, Reference)
-func (c *CrossChunkReferenceCollector) AddReferenceToCollection(v *Var, reference *Reference) {
-	col := c.byKey[scopedVarKeyOf(v)]
-	if col == nil {
-		col = c.createReferencesForNewVar(v)
-	}
-	col.Add(reference)
 }
 
 // Java: CrossChunkReferenceCollector.getTopLevelStatements()

@@ -95,7 +95,8 @@ type ReferenceCollector struct {
 	blocks  basicBlockTracker
 
 	// Source of behavior at various points in the traversal.
-	behavior ReferenceCollector_Behavior
+	behavior     ReferenceCollector_Behavior
+	nodeBehavior ReferenceCollector_NodeBehavior
 
 	scopeCreator ScopeCreator
 
@@ -104,6 +105,11 @@ type ReferenceCollector struct {
 
 	// Only collect references for filtered variables.
 	varFilter func(*Var) bool
+
+	// If true, hoisted function declarations are traversed when the function is
+	// first referenced. If false, hoisted functions are traversed in statement
+	// order.
+	collectHoistedFunctionsInReferenceOrder bool
 
 	narrowScope   *Scope
 	parallelState *rcParallelScriptState
@@ -128,12 +134,33 @@ func NewReferenceCollectorWithVarFilter(
 	behavior ReferenceCollector_Behavior,
 	creator ScopeCreator,
 	varFilter func(*Var) bool) *ReferenceCollector {
-	return &ReferenceCollector{
-		compiler:     compiler,
-		behavior:     behavior,
-		scopeCreator: creator,
-		varFilter:    varFilter,
+	return NewReferenceCollectorWithHoistedOrder(compiler, behavior, creator, varFilter, true)
+}
+
+// NewReferenceCollectorWithHoistedOrder is like
+// NewReferenceCollectorWithVarFilter, but if
+// collectHoistedFunctionsInReferenceOrder is false, hoisted function
+// declarations are traversed in statement order instead of when the function is
+// first referenced.
+//
+// Java: ReferenceCollector(AbstractCompiler, Behavior, ScopeCreator, Predicate<Var>, boolean)
+func NewReferenceCollectorWithHoistedOrder(
+	compiler AbstractCompiler,
+	behavior ReferenceCollector_Behavior,
+	creator ScopeCreator,
+	varFilter func(*Var) bool,
+	collectHoistedFunctionsInReferenceOrder bool) *ReferenceCollector {
+	rc := &ReferenceCollector{
+		compiler:                                compiler,
+		behavior:                                behavior,
+		scopeCreator:                            creator,
+		varFilter:                               varFilter,
+		collectHoistedFunctionsInReferenceOrder: collectHoistedFunctionsInReferenceOrder,
 	}
+	if nb, ok := behavior.(ReferenceCollector_NodeBehavior); ok {
+		rc.nodeBehavior = nb
+	}
+	return rc
 }
 
 func (c *ReferenceCollector) enableLocalReclamation(canReclaim func() bool) {
@@ -574,7 +601,10 @@ var (
 	_ nodeTraversal_visitTokens    = (*ReferenceCollector)(nil)
 )
 
-func (*ReferenceCollector) visitTokens() *ast.TokenSet {
+func (c *ReferenceCollector) visitTokens() *ast.TokenSet {
+	if c.nodeBehavior != nil {
+		return nil
+	}
 	return &refCollectorVisitTokens
 }
 
@@ -582,7 +612,7 @@ func (*ReferenceCollector) visitTokens() *ast.TokenSet {
 //
 // Java: ReferenceCollector.CollectorCallback.shouldTraverse(NodeTraversal, Node, Node)
 func (c *ReferenceCollector) ShouldTraverse(nodeTraversal *NodeTraversal, n rhino.Node, parent rhino.Node) bool {
-	if n.GetFirstChild().IsNil() {
+	if c.nodeBehavior == nil && n.GetFirstChild().IsNil() {
 		switch n.GetToken() {
 		case rhino.Token_NAME, rhino.Token_IMPORT_STAR, rhino.Token_BLOCK, rhino.Token_SWITCH_BODY:
 			if referenceCollector_isBlockBoundary(n, parent) {
@@ -594,18 +624,23 @@ func (c *ReferenceCollector) ShouldTraverse(nodeTraversal *NodeTraversal, n rhin
 		}
 	}
 
-	// We automatically traverse a hoisted function body when that function
-	// is first referenced, so that the reference lists are in the right order.
+	// When collectHoistedFunctionsInReferenceOrder is true, we automatically
+	// traverse a hoisted function body when that function is first referenced, so
+	// that the reference lists are in reference order.
 	//
 	// TODO(nicksantos): Maybe generalize this to a continuation mechanism
 	// like in RemoveUnusedCode.
-	if n.IsFunction() && rcIsHoistedFunctionDeclaration(n) {
+	if c.collectHoistedFunctionsInReferenceOrder && n.IsFunction() && rcIsHoistedFunctionDeclaration(n) {
 		if ps := c.parallelState; ps != nil && ps.recordHoistedFunctionDecl(c, nodeTraversal, n, parent) {
 			return false
 		}
 		if !c.blocks.markHoistedCollected(n) {
 			return false
 		}
+	}
+
+	if c.nodeBehavior != nil && !c.nodeBehavior.BeforeTraverseNode(nodeTraversal, n, parent) {
+		return false
 	}
 
 	// If node is a new basic block, put on basic block stack
@@ -686,16 +721,9 @@ func (c *ReferenceCollector) ExitScope(t *NodeTraversal) {
 //
 // Java: ReferenceCollector.CollectorCallback.visit(NodeTraversal, Node, Node)
 func (c *ReferenceCollector) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
-	if tok := n.GetToken(); tok == rhino.Token_NAME || tok == rhino.Token_IMPORT_STAR {
-		if !parent.IsNil() {
-			if pt := parent.GetToken(); (pt == rhino.Token_IMPORT_SPEC && n != parent.GetLastChild()) ||
-				(pt == rhino.Token_EXPORT_SPEC && n != parent.GetFirstChild()) {
-				// The n in `import {n as x}` or `export {x as n}` are not references, even though
-				// they are represented in the AST as NAME nodes.
-				return
-			}
-		}
-
+	var addedReference *Reference
+	if tok := n.GetToken(); (tok == rhino.Token_NAME || tok == rhino.Token_IMPORT_STAR) &&
+		!referenceCollector_isNonLocalModuleSpecifierName(n, parent) {
 		id := n.GetStringID()
 		var v *Var
 		var scope *Scope
@@ -706,8 +734,8 @@ func (c *ReferenceCollector) Visit(t *NodeTraversal, n rhino.Node, parent rhino.
 			v = t.LookupVarByID(id)
 		}
 		if v != nil {
-			c.addReferenceWithScope(v, n, t, scope)
-			if v.nameNode != n {
+			addedReference = c.addReferenceWithScope(v, n, t, scope)
+			if c.collectHoistedFunctionsInReferenceOrder && v.nameNode != n {
 				if ps := c.parallelState; ps != nil && v.IsGlobal() {
 					ps.maybeRecordJumpHoisted(v, t)
 				} else {
@@ -717,9 +745,27 @@ func (c *ReferenceCollector) Visit(t *NodeTraversal, n rhino.Node, parent rhino.
 		}
 	}
 
+	if c.nodeBehavior != nil {
+		c.nodeBehavior.AfterVisitNode(t, n, parent, addedReference)
+	}
+
 	if referenceCollector_isBlockBoundary(n, parent) {
 		c.PopLastBlock(n)
 	}
+}
+
+// referenceCollector_isNonLocalModuleSpecifierName returns true if n is the
+// non-local name in `import {n as x}` or `export {x as n}`, which is not a
+// reference even though it is a NAME node.
+//
+// Java: ReferenceCollector.isNonLocalModuleSpecifierName(Node, Node)
+func referenceCollector_isNonLocalModuleSpecifierName(n rhino.Node, parent rhino.Node) bool {
+	if parent.IsNil() {
+		return false
+	}
+	pt := parent.GetToken()
+	return (pt == rhino.Token_IMPORT_SPEC && n != parent.GetLastChild()) ||
+		(pt == rhino.Token_EXPORT_SPEC && n != parent.GetFirstChild())
 }
 
 // Java: ReferenceCollector.pushNewBlock(Node)
@@ -772,20 +818,20 @@ func referenceCollector_isBlockBoundary(n rhino.Node, parent rhino.Node) bool {
 }
 
 // Java: ReferenceCollector.addReference(Var, Node, NodeTraversal)
-func (c *ReferenceCollector) AddReference(v *Var, n rhino.Node, t *NodeTraversal) {
-	c.addReferenceWithScope(v, n, t, nil)
+func (c *ReferenceCollector) AddReference(v *Var, n rhino.Node, t *NodeTraversal) *Reference {
+	return c.addReferenceWithScope(v, n, t, nil)
 }
 
-func (c *ReferenceCollector) addReferenceWithScope(v *Var, n rhino.Node, t *NodeTraversal, scope *Scope) {
+func (c *ReferenceCollector) addReferenceWithScope(v *Var, n rhino.Node, t *NodeTraversal, scope *Scope) *Reference {
 	if v != c.lastVar && c.varFilter != nil {
 		if v == c.lastRejectedVar || !c.varFilter(v) {
 			c.lastRejectedVar = v
-			return
+			return nil
 		}
 	}
 	if ps := c.parallelState; ps != nil && v.IsGlobal() {
 		ps.recordGlobalRef(c, v, n, t, scope)
-		return
+		return nil
 	}
 	collection := c.getOrCreateReferences(v)
 	block := c.blocks.currentBlock()
@@ -803,6 +849,7 @@ func (c *ReferenceCollector) addReferenceWithScope(v *Var, n rhino.Node, t *Node
 	r := c.refSlab[k].New()
 	*r = Reference{nameNode: n, basicBlock: block, scope: scope, inputId: inputId}
 	c.addToCollection(collection, r, k)
+	return r
 }
 
 // ReferenceMap aliases *ReferenceCollector directly so Behavior callbacks
@@ -817,6 +864,27 @@ type ReferenceCollector_Behavior interface {
 	//
 	// Java: ReferenceCollector.Behavior.afterExitScope(NodeTraversal, ReferenceMap)
 	AfterExitScope(t *NodeTraversal, refs *ReferenceCollector)
+}
+
+// ReferenceCollector_NodeBehavior is an optional extension of
+// ReferenceCollector_Behavior for callers that also observe per-node
+// beforeTraverseNode and afterVisitNode events.
+//
+// Go-only: language-adapter — Java's Behavior added default methods
+// beforeTraverseNode and afterVisitNode; keeping them on an optional interface
+// avoids boilerplate and per-node callbacks on Behavior implementations that
+// only override AfterExitScope.
+type ReferenceCollector_NodeBehavior interface {
+	ReferenceCollector_Behavior
+	// BeforeTraverseNode is called before traversing a node.
+	//
+	// Java: ReferenceCollector.Behavior.beforeTraverseNode(NodeTraversal, Node, Node)
+	BeforeTraverseNode(t *NodeTraversal, n, parent rhino.Node) bool
+	// AfterVisitNode is called after visiting a node, passing any reference
+	// recorded for n.
+	//
+	// Java: ReferenceCollector.Behavior.afterVisitNode(NodeTraversal, Node, Node, Reference)
+	AfterVisitNode(t *NodeTraversal, n, parent rhino.Node, addedReference *Reference)
 }
 
 // ReferenceCollector_BehaviorFunc is a Behavior given as a function (a Java
