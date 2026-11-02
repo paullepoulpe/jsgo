@@ -92,9 +92,24 @@ func (o *OptimizeCalls) Process(externs rhino.Node, root rhino.Node) {
 		failNodeTraversalNull()
 	}
 	jutil.CheckState(root.GetParent() == scopeRoot)
-	cb.initGlobalScope(sc.CreateScopeOfScope(scopeRoot, nil))
-	cb.traverseNode(externs)
-	cb.traverseNode(root)
+	if ix := propUseIndexForOptimizeCalls(o, externs, root); ix != nil {
+		// Go-only: performance — the map from the property-use index's
+		// records instead of a walk (prop_use_index_oc.go).
+		cb.setGlobalScope(sc.CreateScopeOfScope(scopeRoot, nil))
+		ix.fillOptimizeCalls(cb)
+		if propIndexVerify {
+			want := NewOptimizeCalls_ReferenceMap()
+			wcb := newOptimizeCallsRefCollector(o, want)
+			wcb.initGlobalScope(cb.globalScope)
+			wcb.traverseNode(externs)
+			wcb.traverseNode(root)
+			verifyOptimizeCallsMap(o.compiler, references, want)
+		}
+	} else {
+		cb.initGlobalScope(sc.CreateScopeOfScope(scopeRoot, nil))
+		cb.traverseNode(externs)
+		cb.traverseNode(root)
+	}
 	if releaseEarly {
 		references.globalScope = nil
 	}
@@ -498,9 +513,13 @@ func newOptimizeCallsRefCollector(outer *OptimizeCalls, references *OptimizeCall
 	return c
 }
 
-func (c *optimizeCallsRefCollector) initGlobalScope(s *Scope) {
+func (c *optimizeCallsRefCollector) setGlobalScope(s *Scope) {
 	c.globalScope = s
 	c.references.globalScope = s
+}
+
+func (c *optimizeCallsRefCollector) initGlobalScope(s *Scope) {
+	c.setGlobalScope(s)
 	// Go-only: performance — presize the maps of a large program, whose
 	// growth otherwise allocates about twice their final size.
 	varCount := s.GetVarCount()
@@ -582,19 +601,35 @@ func (c *optimizeCallsRefCollector) traverseNode(n rhino.Node) {
 
 // Java: OptimizeCalls.ReferenceMapBuildingCallback.visitSuper(Node)
 func (c *optimizeCallsRefCollector) visitSuper(superNode rhino.Node) {
+	target, isName := optimizeCallsSuperTarget(superNode)
+	if target.IsNil() {
+		return
+	}
+	if isName {
+		c.maybeAddNameReferenceNode(target, superNode)
+	} else {
+		c.maybeAddPropReferenceByID(target.GetStringID(), superNode)
+	}
+}
+
+// optimizeCallsSuperTarget returns what visitSuper files a super() call
+// under: the enclosing class's extends clause when it is a NAME (isName) or a
+// GETPROP, else nil.
+func optimizeCallsSuperTarget(superNode rhino.Node) (target rhino.Node, isName bool) {
 	parent := superNode.GetParent()
 	call, ok := ast.AsCall(parent)
 	if !ok || !call.Callee().Is(superNode) {
-		return
+		return rhino.NilNode, false
 	}
 	enclosingClass := ast.MustClass(rhino.CheckNotNull(NodeUtil_GetEnclosingClass(parent)))
 	extendsExpr, hasExtends := enclosingClass.Extends()
 	jutil.CheckStateMsg(hasExtends, "super call appears in class without extends clause")
 	if name, isName := extendsExpr.AsName(); isName {
-		c.maybeAddNameReferenceNode(name.Node(), superNode)
+		return name.Node(), true
 	} else if gp, isGetProp := extendsExpr.AsGetProp(); isGetProp {
-		c.maybeAddPropReferenceByID(gp.Node().GetStringID(), superNode)
+		return gp.Node(), false
 	}
+	return rhino.NilNode, false
 }
 
 func (c *optimizeCallsRefCollector) maybeAddNameReferenceNode(nameNode rhino.Node, n rhino.Node) {
