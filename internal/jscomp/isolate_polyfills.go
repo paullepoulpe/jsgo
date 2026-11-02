@@ -109,7 +109,8 @@ func (i *IsolatePolyfills) Process(externs rhino.Node, root rhino.Node) {
 	injectedPolyfills := i.FindAllInjectedPolyfills()
 
 	var polyfillUsages []*PolyfillUsageFinder_PolyfillUsage
-	NewPolyfillUsageFinder(i.compiler, i.polyfills).
+	shouldDisambiguateProperties := i.compiler.GetOptions().ShouldDisambiguateProperties()
+	NewPolyfillUsageFinder(i.compiler, i.polyfills, shouldDisambiguateProperties).
 		TraverseIncludingGuarded(root, func(u *PolyfillUsageFinder_PolyfillUsage) {
 			polyfillUsages = append(polyfillUsages, u)
 		})

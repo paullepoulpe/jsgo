@@ -557,6 +557,7 @@ func createRemoveUnusedCodePass(c AbstractCompiler) CompilerPass {
 		RemoveUnusedObjectDefinePropertiesDefinitions: opts.IsRemoveUnusedClassProperties(),
 		RemoveUnusedPolyfills:                         len(opts.GetForceLibraryInjectionList()) == 0 && opts.GetInjectPolyfillsNewerThan() == nil,
 		AssumeGettersArePure:                          opts.GetAssumeGettersArePure(),
+		DisambiguateProperties:                        opts.ShouldDisambiguateProperties(),
 	})
 }
 

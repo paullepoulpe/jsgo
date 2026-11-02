@@ -35,6 +35,7 @@ import (
 type ColorRegistry struct {
 	nativeColors             map[ColorId]*Color
 	disambiguationSupertypes map[*Color][]*Color
+	disambiguationByHash     map[int32][]*Color
 	mismatchLocations        map[ColorId][]string
 	mismatchOrder            []ColorId
 }
@@ -46,11 +47,13 @@ func NewColorRegistry(builder *ColorRegistry_Builder) *ColorRegistry {
 		builder.consumed = true
 		r.nativeColors = builder.nativeColors
 		r.disambiguationSupertypes = builder.disambiguationSupertypes
+		r.disambiguationByHash = builder.disambiguationByHash
 		r.mismatchLocations = builder.mismatchLocations
 		r.mismatchOrder = builder.mismatchOrder
 	} else {
 		r.nativeColors = maps.Clone(builder.nativeColors)
 		r.disambiguationSupertypes = cloneDisambiguationSupertypes(builder.disambiguationSupertypes)
+		r.disambiguationByHash = cloneDisambiguationByHash(builder.disambiguationByHash)
 		r.mismatchLocations = cloneMismatchLocations(builder.mismatchLocations)
 		r.mismatchOrder = slices.Clone(builder.mismatchOrder)
 	}
@@ -74,6 +77,17 @@ func cloneDisambiguationSupertypes(src map[*Color][]*Color) map[*Color][]*Color 
 	}
 	dst := make(map[*Color][]*Color, len(src))
 	for k, vs := range src { // order-independent: copying distinct *Color keys into a new map
+		dst[k] = slices.Clone(vs)
+	}
+	return dst
+}
+
+func cloneDisambiguationByHash(src map[int32][]*Color) map[int32][]*Color {
+	if len(src) == 0 {
+		return nil
+	}
+	dst := make(map[int32][]*Color, len(src))
+	for k, vs := range src { // order-independent: copying distinct int32 hash keys into a new map
 		dst[k] = slices.Clone(vs)
 	}
 	return dst
@@ -104,7 +118,15 @@ func (r *ColorRegistry) Get(id ColorId) *Color {
 // subtyping graph as a read-only slice in insertion order without allocation.
 func (r *ColorRegistry) GetDisambiguationSupertypesSlice(x *Color) []*Color {
 	jutil.CheckNotNull(x)
-	return r.disambiguationSupertypes[x]
+	if sups, ok := r.disambiguationSupertypes[x]; ok {
+		return sups
+	}
+	for _, k := range r.disambiguationByHash[x.HashCode()] {
+		if k.equalsColor(x) {
+			return r.disambiguationSupertypes[k]
+		}
+	}
+	return nil
 }
 
 // GetDisambiguationSupertypes returns the colors directly above `x` in the
@@ -293,6 +315,7 @@ func ColorRegistry_Builder_() *ColorRegistry_Builder {
 type ColorRegistry_Builder struct {
 	nativeColors             map[ColorId]*Color
 	disambiguationSupertypes map[*Color][]*Color
+	disambiguationByHash     map[int32][]*Color
 	mismatchLocations        map[ColorId][]string
 	mismatchOrder            []ColorId
 	consumed                 bool
@@ -309,6 +332,7 @@ func (b *ColorRegistry_Builder) ensureMutable() {
 	if b.consumed {
 		b.nativeColors = maps.Clone(b.nativeColors)
 		b.disambiguationSupertypes = cloneDisambiguationSupertypes(b.disambiguationSupertypes)
+		b.disambiguationByHash = cloneDisambiguationByHash(b.disambiguationByHash)
 		b.mismatchLocations = cloneMismatchLocations(b.mismatchLocations)
 		b.mismatchOrder = slices.Clone(b.mismatchOrder)
 		b.consumed = false
@@ -330,14 +354,30 @@ func (b *ColorRegistry_Builder) AddDisambiguationEdge(subtype *Color, supertype 
 	b.ensureMutable()
 	if b.disambiguationSupertypes == nil {
 		b.disambiguationSupertypes = make(map[*Color][]*Color)
+		b.disambiguationByHash = make(map[int32][]*Color)
 	}
-	sups := b.disambiguationSupertypes[subtype]
+	key := subtype
+	if _, ok := b.disambiguationSupertypes[key]; !ok {
+		h := subtype.HashCode()
+		found := false
+		for _, existingKey := range b.disambiguationByHash[h] {
+			if existingKey.equalsColor(subtype) {
+				key = existingKey
+				found = true
+				break
+			}
+		}
+		if !found {
+			b.disambiguationByHash[h] = append(b.disambiguationByHash[h], key)
+		}
+	}
+	sups := b.disambiguationSupertypes[key]
 	for _, existing := range sups {
 		if existing.equalsColor(supertype) {
 			return b
 		}
 	}
-	b.disambiguationSupertypes[subtype] = append(sups, supertype)
+	b.disambiguationSupertypes[key] = append(sups, supertype)
 	return b
 }
 
@@ -393,18 +433,4 @@ func (s ColorIdSet) Size() int { return len(s) }
 func (s ColorIdSet) All() iter.Seq[ColorId] { return slices.Values([]ColorId(s)) }
 
 // Java: ColorRegistry.REQUIRED_IDS
-var ColorRegistry_REQUIRED_IDS = ColorIdSet{
-	StandardColors_BIGINT_OBJECT_ID,
-	StandardColors_BOOLEAN_OBJECT_ID,
-	StandardColors_NUMBER_OBJECT_ID,
-	StandardColors_STRING_OBJECT_ID,
-	StandardColors_SYMBOL_OBJECT_ID,
-	StandardColors_ARRAY_ID,
-	StandardColors_READONLY_ARRAY_ID,
-	StandardColors_ARGUMENTS_ID,
-	StandardColors_ASYNC_ITERATOR_ITERABLE_ID,
-	StandardColors_GENERATOR_ID,
-	StandardColors_I_TEMPLATE_ARRAY_ID,
-	StandardColors_ITERATOR_ID,
-	StandardColors_PROMISE_ID,
-}
+var ColorRegistry_REQUIRED_IDS = StandardColors_STANDARD_OBJECT_IDS

@@ -302,7 +302,8 @@ var TranspilationPasses_rewritePolyfills = makeTranspilationPass(
 			compiler,
 			compiler.GetOptions().GetRewritePolyfills(),
 			compiler.GetOptions().GetIsolatePolyfills(),
-			compiler.GetOptions().GetInjectPolyfillsNewerThan())
+			compiler.GetOptions().GetInjectPolyfillsNewerThan(),
+			compiler.GetOptions().ShouldDisambiguateProperties())
 	})
 
 // Java: TranspilationPasses.instrumentAsyncContext

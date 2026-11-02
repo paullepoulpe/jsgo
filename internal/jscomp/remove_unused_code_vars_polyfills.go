@@ -275,6 +275,10 @@ func (p *rucPolyfillInfo) considerPossibleReference(n rhino.Node) {
 		return
 	}
 	if NodeUtil_IsNormalOrOptChainGetProp(n) || (p.kind == rucPolyfillGlobal && n.IsName()) {
+		if p.kind == rucPolyfillPrototype && p.outer.disambiguateProperties &&
+			p.outer.polyfillUsageFinder.IsDisjointFromIteratorNode(n, p.owner) {
+			return
+		}
 		p.isRemovable = false
 		p.removable.ApplyContinuations(p.outer)
 	}

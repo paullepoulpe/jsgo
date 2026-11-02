@@ -44,6 +44,7 @@ type RewritePolyfills struct {
 	librariesSeen       map[string]struct{}
 	// Go-only: language-adapter — a nullable LanguageMode: nil is null.
 	injectPolyfillsNewerThan *CompilerOptions_LanguageMode
+	disambiguateProperties   bool
 }
 
 // Java: RewritePolyfills.INSUFFICIENT_OUTPUT_VERSION_ERROR
@@ -59,33 +60,36 @@ var rewritePolyfills_JSCOMP_POLYFILL = rhino.QualifiedName_Of("$jscomp.polyfill"
 // injected. If isolatePolyfills, adds externs for library functions used by
 // IsolatePolyfills to prevent their deletion.
 //
-// Java: RewritePolyfills(AbstractCompiler, boolean, boolean, LanguageMode)
+// Java: RewritePolyfills(AbstractCompiler, boolean, boolean, LanguageMode, boolean)
 func NewRewritePolyfills(
 	compiler AbstractCompiler,
 	injectPolyfills bool,
 	isolatePolyfills bool,
-	injectPolyfillsNewerThan *CompilerOptions_LanguageMode) *RewritePolyfills {
+	injectPolyfillsNewerThan *CompilerOptions_LanguageMode,
+	disambiguateProperties bool) *RewritePolyfills {
 	return NewRewritePolyfillsWithRuntimeJsLibManager(
 		compiler,
 		compiler.GetRuntimeJsLibManager(),
 		defaultPolyfillsTable(),
 		injectPolyfills,
 		isolatePolyfills,
-		injectPolyfillsNewerThan)
+		injectPolyfillsNewerThan,
+		disambiguateProperties)
 }
 
 // NewRewritePolyfillsWithRuntimeJsLibManager is for unit testing: allows
 // instantiating RewritePolyfills with a different RuntimeJsLibManager than
 // AbstractCompiler#getRuntimeJsLibManager.
 //
-// Java: RewritePolyfills(AbstractCompiler, RuntimeJsLibManager, Polyfills, boolean, boolean, LanguageMode)
+// Java: RewritePolyfills(AbstractCompiler, RuntimeJsLibManager, Polyfills, boolean, boolean, LanguageMode, boolean)
 func NewRewritePolyfillsWithRuntimeJsLibManager(
 	compiler AbstractCompiler,
 	runtimeJsLibManager *RuntimeJsLibManager,
 	polyfills *PolyfillUsageFinder_Polyfills,
 	injectPolyfills bool,
 	isolatePolyfills bool,
-	injectPolyfillsNewerThan *CompilerOptions_LanguageMode) *RewritePolyfills {
+	injectPolyfillsNewerThan *CompilerOptions_LanguageMode,
+	disambiguateProperties bool) *RewritePolyfills {
 	r := &RewritePolyfills{}
 	r.compiler = compiler
 	r.runtimeJsLibManager = runtimeJsLibManager
@@ -93,6 +97,7 @@ func NewRewritePolyfillsWithRuntimeJsLibManager(
 	r.injectPolyfills = injectPolyfills
 	r.isolatePolyfills = isolatePolyfills
 	r.injectPolyfillsNewerThan = injectPolyfillsNewerThan
+	r.disambiguateProperties = disambiguateProperties
 	return r
 }
 
@@ -118,7 +123,8 @@ func (r *RewritePolyfills) Process(externs rhino.Node, root rhino.Node) {
 	if r.injectPolyfills {
 		r.libraries = nil
 		r.librariesSeen = make(map[string]struct{})
-		NewPolyfillUsageFinder(r.compiler, r.polyfills).TraverseExcludingGuarded(root, r.Inject)
+		NewPolyfillUsageFinder(r.compiler, r.polyfills, r.disambiguateProperties).
+			TraverseExcludingGuarded(root, r.Inject)
 	}
 
 	var librariesToInject []string

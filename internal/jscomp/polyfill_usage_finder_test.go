@@ -22,6 +22,7 @@ package jscomp
 import (
 	"testing"
 
+	"github.com/paullepoulpe/jsgo/internal/colors"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 	"github.com/paullepoulpe/jsgo/internal/testjunit"
@@ -226,6 +227,444 @@ func (c *PolyfillUsageFinderTest) TestOptChainCoverageTest() {
 	}
 }
 
+func polyfillUsageFinderTest_createFinderWithRegistry(registry *colors.ColorRegistry) *PolyfillUsageFinder {
+	compiler := NewCompiler()
+	compiler.colorRegistry = registry
+	return NewPolyfillUsageFinder(
+		compiler,
+		PolyfillUsageFinder_Polyfills_FromTable("Iterator.prototype.toArray es_next es3 es6/iterator/toarray"),
+		/* disambiguateProperties= */ true)
+}
+
+// Java: PolyfillUsageFinderTest.isDisjointFromIterator_unknownAndTopObject_returnsFalse()
+func (c *PolyfillUsageFinderTest) TestIsDisjointFromIterator_unknownAndTopObject_returnsFalse() {
+	registry := colors.ColorRegistry_Builder_().SetDefaultNativeColorsForTesting().Build()
+	finder := polyfillUsageFinderTest_createFinderWithRegistry(registry)
+
+	AssertThat(finder.IsDisjointFromIterator(colors.StandardColors_UNKNOWN)).IsFalse()
+	AssertThat(finder.IsDisjointFromIterator(colors.StandardColors_TOP_OBJECT)).IsFalse()
+	AssertThat(finder.IsDisjointFromIterator(colors.StandardColors_TOP_FUNCTION)).IsFalse()
+}
+
+// Java: PolyfillUsageFinderTest.isDisjointFromIterator_sameColor_returnsFalse()
+func (c *PolyfillUsageFinderTest) TestIsDisjointFromIterator_sameColor_returnsFalse() {
+	registry := colors.ColorRegistry_Builder_().SetDefaultNativeColorsForTesting().Build()
+	finder := polyfillUsageFinderTest_createFinderWithRegistry(registry)
+	iterator := registry.Get(colors.StandardColors_ITERATOR_ID)
+
+	AssertThat(finder.IsDisjointFromIterator(iterator)).IsFalse()
+}
+
+// Java: PolyfillUsageFinderTest.isDisjointFromIterator_unrelatedColors_returnsTrue()
+func (c *PolyfillUsageFinderTest) TestIsDisjointFromIterator_unrelatedColors_returnsTrue() {
+	registry := colors.ColorRegistry_Builder_().SetDefaultNativeColorsForTesting().Build()
+	finder := polyfillUsageFinderTest_createFinderWithRegistry(registry)
+	array := registry.Get(colors.StandardColors_ARRAY_ID)
+	customFoo := colors.Color_SingleBuilder().SetId(colors.ColorId_FromAscii("Foo")).Build()
+
+	AssertThat(finder.IsDisjointFromIterator(array)).IsTrue()
+	AssertThat(finder.IsDisjointFromIterator(customFoo)).IsTrue()
+}
+
+// Java: PolyfillUsageFinderTest.isDisjointFromIterator_generatorAndIterator_returnsFalse()
+func (c *PolyfillUsageFinderTest) TestIsDisjointFromIterator_generatorAndIterator_returnsFalse() {
+	registry := colors.ColorRegistry_Builder_().SetDefaultNativeColorsForTesting().Build()
+	finder := polyfillUsageFinderTest_createFinderWithRegistry(registry)
+	generator := registry.Get(colors.StandardColors_GENERATOR_ID)
+
+	// Generator is a sibling of Iterator in externs, but inherits from %IteratorPrototype%
+	// at runtime in ES2025, so Generator and Iterator are known not to be disjoint.
+	AssertThat(finder.IsDisjointFromIterator(generator)).IsFalse()
+}
+
+// Java: PolyfillUsageFinderTest.isDisjointFromIterator_subtypesAndSupertypes_returnsFalse()
+func (c *PolyfillUsageFinderTest) TestIsDisjointFromIterator_subtypesAndSupertypes_returnsFalse() {
+	iterator := colors.Color_SingleBuilder().SetId(colors.StandardColors_ITERATOR_ID).Build()
+	subIterator := colors.Color_SingleBuilder().SetId(colors.ColorId_FromAscii("SubIter")).Build()
+	subSubIterator := colors.Color_SingleBuilder().SetId(colors.ColorId_FromAscii("SubSub")).Build()
+	superIterable := colors.Color_SingleBuilder().SetId(colors.ColorId_FromAscii("SuperIt")).Build()
+	unrelated := colors.Color_SingleBuilder().SetId(colors.ColorId_FromAscii("Unrel")).Build()
+
+	registry := colors.ColorRegistry_Builder_().
+		SetDefaultNativeColorsForTesting().
+		AddDisambiguationEdge(subIterator, iterator).
+		AddDisambiguationEdge(subSubIterator, subIterator).
+		AddDisambiguationEdge(iterator, superIterable).
+		Build()
+	finder := polyfillUsageFinderTest_createFinderWithRegistry(registry)
+
+	// Direct subtype: SubIterator extends Iterator
+	AssertThat(finder.IsDisjointFromIterator(subIterator)).IsFalse()
+
+	// Indirect subtype: SubSubIterator extends SubIterator extends Iterator
+	AssertThat(finder.IsDisjointFromIterator(subSubIterator)).IsFalse()
+
+	// Supertype: Iterator extends SuperIterable (receiver is supertype)
+	AssertThat(finder.IsDisjointFromIterator(superIterable)).IsFalse()
+
+	// Unrelated type with no edges
+	AssertThat(finder.IsDisjointFromIterator(unrelated)).IsTrue()
+}
+
+// Java: PolyfillUsageFinderTest.isDisjointFromIterator_branchingAndSiblingHierarchies()
+func (c *PolyfillUsageFinderTest) TestIsDisjointFromIterator_branchingAndSiblingHierarchies() {
+	iterator := colors.Color_SingleBuilder().SetId(colors.StandardColors_ITERATOR_ID).Build()
+	subIteratorA := colors.Color_SingleBuilder().SetId(colors.ColorId_FromAscii("SubItA")).Build()
+	subIteratorB := colors.Color_SingleBuilder().SetId(colors.ColorId_FromAscii("SubItB")).Build()
+	baseClass := colors.Color_SingleBuilder().SetId(colors.ColorId_FromAscii("Base")).Build()
+	childClass := colors.Color_SingleBuilder().SetId(colors.ColorId_FromAscii("Child")).Build()
+
+	registry := colors.ColorRegistry_Builder_().
+		SetDefaultNativeColorsForTesting().
+		AddDisambiguationEdge(subIteratorA, iterator).
+		AddDisambiguationEdge(subIteratorB, iterator).
+		AddDisambiguationEdge(childClass, baseClass).
+		Build()
+	finder := polyfillUsageFinderTest_createFinderWithRegistry(registry)
+
+	// Siblings under Iterator are both not disjoint from Iterator
+	AssertThat(finder.IsDisjointFromIterator(subIteratorA)).IsFalse()
+	AssertThat(finder.IsDisjointFromIterator(subIteratorB)).IsFalse()
+
+	// Separate class hierarchy is disjoint from Iterator
+	AssertThat(finder.IsDisjointFromIterator(childClass)).IsTrue()
+	AssertThat(finder.IsDisjointFromIterator(baseClass)).IsTrue()
+}
+
+// Java: PolyfillUsageFinderTest.isDisjointFromIterator_cyclesInSupertypeGraph_terminatesGracefully()
+func (c *PolyfillUsageFinderTest) TestIsDisjointFromIterator_cyclesInSupertypeGraph_terminatesGracefully() {
+	iterator := colors.Color_SingleBuilder().SetId(colors.StandardColors_ITERATOR_ID).Build()
+	classA := colors.Color_SingleBuilder().SetId(colors.ColorId_FromAscii("ClassA")).Build()
+	classB := colors.Color_SingleBuilder().SetId(colors.ColorId_FromAscii("ClassB")).Build()
+
+	// Cycle A <-> B with no connection to Iterator
+	registryWithCycle := colors.ColorRegistry_Builder_().
+		SetDefaultNativeColorsForTesting().
+		AddDisambiguationEdge(classA, classB).
+		AddDisambiguationEdge(classB, classA).
+		Build()
+	finderWithCycle := polyfillUsageFinderTest_createFinderWithRegistry(registryWithCycle)
+
+	AssertThat(finderWithCycle.IsDisjointFromIterator(classA)).IsTrue()
+	AssertThat(finderWithCycle.IsDisjointFromIterator(classB)).IsTrue()
+
+	// Cycle A <-> B where B also extends Iterator
+	registryWithCycleAndIterator := colors.ColorRegistry_Builder_().
+		SetDefaultNativeColorsForTesting().
+		AddDisambiguationEdge(classA, classB).
+		AddDisambiguationEdge(classB, classA).
+		AddDisambiguationEdge(classB, iterator).
+		Build()
+	finderWithCycleAndIterator := polyfillUsageFinderTest_createFinderWithRegistry(registryWithCycleAndIterator)
+
+	AssertThat(finderWithCycleAndIterator.IsDisjointFromIterator(classA)).IsFalse()
+	AssertThat(finderWithCycleAndIterator.IsDisjointFromIterator(classB)).IsFalse()
+}
+
+// Java: PolyfillUsageFinderTest.isDisjointFromIterator_unionSupertypesInHierarchy()
+func (c *PolyfillUsageFinderTest) TestIsDisjointFromIterator_unionSupertypesInHierarchy() {
+	iterator := colors.Color_SingleBuilder().SetId(colors.StandardColors_ITERATOR_ID).Build()
+	classFoo := colors.Color_SingleBuilder().SetId(colors.ColorId_FromAscii("Foo")).Build()
+	classBar := colors.Color_SingleBuilder().SetId(colors.ColorId_FromAscii("Bar")).Build()
+	classSub1 := colors.Color_SingleBuilder().SetId(colors.ColorId_FromAscii("Sub1")).Build()
+	classSub2 := colors.Color_SingleBuilder().SetId(colors.ColorId_FromAscii("Sub2")).Build()
+
+	unionWithIterator := colors.Color_CreateUnion2(classFoo, iterator)
+	unionWithoutIterator := colors.Color_CreateUnion2(classFoo, classBar)
+
+	registry := colors.ColorRegistry_Builder_().
+		SetDefaultNativeColorsForTesting().
+		AddDisambiguationEdge(classSub1, unionWithIterator).
+		AddDisambiguationEdge(classSub2, unionWithoutIterator).
+		Build()
+	finder := polyfillUsageFinderTest_createFinderWithRegistry(registry)
+
+	// Sub1 has a union supertype that includes Iterator
+	AssertThat(finder.IsDisjointFromIterator(classSub1)).IsFalse()
+
+	// Sub2 has a union supertype that only includes disjoint types
+	AssertThat(finder.IsDisjointFromIterator(classSub2)).IsTrue()
+}
+
+// Java: PolyfillUsageFinderTest.isDisjointFromIterator_primitives_returnsTrue()
+func (c *PolyfillUsageFinderTest) TestIsDisjointFromIterator_primitives_returnsTrue() {
+	registry := colors.ColorRegistry_Builder_().SetDefaultNativeColorsForTesting().Build()
+	finder := polyfillUsageFinderTest_createFinderWithRegistry(registry)
+
+	// Primitives are disjoint from Iterator
+	AssertThat(finder.IsDisjointFromIterator(colors.StandardColors_STRING)).IsTrue()
+	AssertThat(finder.IsDisjointFromIterator(colors.StandardColors_NUMBER)).IsTrue()
+	AssertThat(finder.IsDisjointFromIterator(colors.StandardColors_BOOLEAN)).IsTrue()
+	AssertThat(finder.IsDisjointFromIterator(colors.StandardColors_BIGINT)).IsTrue()
+	AssertThat(finder.IsDisjointFromIterator(colors.StandardColors_SYMBOL)).IsTrue()
+	AssertThat(finder.IsDisjointFromIterator(colors.StandardColors_NULL_OR_VOID)).IsTrue()
+}
+
+// Java: PolyfillUsageFinderTest.isDisjointFromIterator_nullAndUndefinedUnions()
+func (c *PolyfillUsageFinderTest) TestIsDisjointFromIterator_nullAndUndefinedUnions() {
+	registry := colors.ColorRegistry_Builder_().SetDefaultNativeColorsForTesting().Build()
+	finder := polyfillUsageFinderTest_createFinderWithRegistry(registry)
+	iterator := registry.Get(colors.StandardColors_ITERATOR_ID)
+	array := registry.Get(colors.StandardColors_ARRAY_ID)
+
+	nullableArray := colors.Color_CreateUnion2(array, colors.StandardColors_NULL_OR_VOID)
+	nullableIterator := colors.Color_CreateUnion2(iterator, colors.StandardColors_NULL_OR_VOID)
+
+	// Nullable/undef Array is still disjoint from Iterator after subtraction
+	AssertThat(finder.IsDisjointFromIterator(nullableArray)).IsTrue()
+
+	// Nullable/undef Iterator is not disjoint from Iterator
+	AssertThat(finder.IsDisjointFromIterator(nullableIterator)).IsFalse()
+}
+
+// Java: PolyfillUsageFinderTest.isDisjointFromIterator_unionReceivers()
+func (c *PolyfillUsageFinderTest) TestIsDisjointFromIterator_unionReceivers() {
+	iterator := colors.Color_SingleBuilder().SetId(colors.StandardColors_ITERATOR_ID).Build()
+	subIterator := colors.Color_SingleBuilder().SetId(colors.ColorId_FromAscii("SubIter")).Build()
+	classFoo := colors.Color_SingleBuilder().SetId(colors.ColorId_FromAscii("Foo")).Build()
+	classBar := colors.Color_SingleBuilder().SetId(colors.ColorId_FromAscii("Bar")).Build()
+
+	registry := colors.ColorRegistry_Builder_().
+		SetDefaultNativeColorsForTesting().
+		AddDisambiguationEdge(subIterator, iterator).
+		Build()
+	finder := polyfillUsageFinderTest_createFinderWithRegistry(registry)
+
+	// All elements disjoint -> disjoint
+	unionAllDisjoint := colors.Color_CreateUnion2(classFoo, classBar)
+	AssertThat(finder.IsDisjointFromIterator(unionAllDisjoint)).IsTrue()
+
+	// One element is Iterator -> not disjoint
+	unionWithIterator := colors.Color_CreateUnion2(classFoo, iterator)
+	AssertThat(finder.IsDisjointFromIterator(unionWithIterator)).IsFalse()
+
+	// One element is SubIterator -> not disjoint
+	unionWithSubIterator := colors.Color_CreateUnion2(classFoo, subIterator)
+	AssertThat(finder.IsDisjointFromIterator(unionWithSubIterator)).IsFalse()
+
+	// One element is UNKNOWN -> not disjoint
+	unionWithUnknown := colors.Color_CreateUnion2(classFoo, colors.StandardColors_UNKNOWN)
+	AssertThat(finder.IsDisjointFromIterator(unionWithUnknown)).IsFalse()
+
+	// One element is TOP_OBJECT -> not disjoint
+	unionWithTopObject := colors.Color_CreateUnion2(classFoo, colors.StandardColors_TOP_OBJECT)
+	AssertThat(finder.IsDisjointFromIterator(unionWithTopObject)).IsFalse()
+}
+
+// Java: PolyfillUsageFinderTest.isDisjointFromIterator_invalidatingColors_structuralRecordsVsNativeArrays()
+func (c *PolyfillUsageFinderTest) TestIsDisjointFromIterator_invalidatingColors_structuralRecordsVsNativeArrays() {
+	registry := colors.ColorRegistry_Builder_().SetDefaultNativeColorsForTesting().Build()
+	finder := polyfillUsageFinderTest_createFinderWithRegistry(registry)
+
+	structuralRecord := colors.Color_SingleBuilder().SetId(colors.ColorId_FromAscii("Struct")).SetInvalidating(true).Build()
+	normalClass := colors.Color_SingleBuilder().SetId(colors.ColorId_FromAscii("Normal")).SetInvalidating(false).Build()
+
+	invalidatingArray := colors.Color_SingleBuilder().SetId(colors.StandardColors_ARRAY_ID).SetInvalidating(true).Build()
+	invalidatingReadonlyArray := colors.Color_SingleBuilder().SetId(colors.StandardColors_READONLY_ARRAY_ID).SetInvalidating(true).Build()
+	invalidatingTemplateArray := colors.Color_SingleBuilder().SetId(colors.StandardColors_I_TEMPLATE_ARRAY_ID).SetInvalidating(true).Build()
+
+	invalidatingMap := colors.Color_SingleBuilder().SetId(colors.StandardColors_MAP_ID).SetInvalidating(true).Build()
+	invalidatingMapPrototype := colors.Color_SingleBuilder().SetId(colors.StandardColors_MAP_PROTOTYPE_ID).SetInvalidating(true).Build()
+	invalidatingReadonlyMap := colors.Color_SingleBuilder().SetId(colors.StandardColors_READONLY_MAP_ID).SetInvalidating(true).Build()
+	invalidatingSet := colors.Color_SingleBuilder().SetId(colors.StandardColors_SET_ID).SetInvalidating(true).Build()
+	invalidatingSetPrototype := colors.Color_SingleBuilder().SetId(colors.StandardColors_SET_PROTOTYPE_ID).SetInvalidating(true).Build()
+	invalidatingReadonlySet := colors.Color_SingleBuilder().SetId(colors.StandardColors_READONLY_SET_ID).SetInvalidating(true).Build()
+
+	// Structural interface / record: isInvalidating causes disjoint to return false (b/571244650)
+	AssertThat(finder.IsDisjointFromIterator(structuralRecord)).IsFalse()
+
+	// Normal non-invalidating class: is disjoint
+	AssertThat(finder.IsDisjointFromIterator(normalClass)).IsTrue()
+
+	// Native Array/Map/Set types marked invalidating are exempted
+	AssertThat(finder.IsDisjointFromIterator(invalidatingArray)).IsTrue()
+	AssertThat(finder.IsDisjointFromIterator(invalidatingReadonlyArray)).IsTrue()
+	AssertThat(finder.IsDisjointFromIterator(invalidatingTemplateArray)).IsTrue()
+	AssertThat(finder.IsDisjointFromIterator(invalidatingMap)).IsTrue()
+	AssertThat(finder.IsDisjointFromIterator(invalidatingMapPrototype)).IsTrue()
+	AssertThat(finder.IsDisjointFromIterator(invalidatingReadonlyMap)).IsTrue()
+	AssertThat(finder.IsDisjointFromIterator(invalidatingSet)).IsTrue()
+	AssertThat(finder.IsDisjointFromIterator(invalidatingSetPrototype)).IsTrue()
+	AssertThat(finder.IsDisjointFromIterator(invalidatingReadonlySet)).IsTrue()
+}
+
+// Java: PolyfillUsageFinderTest.isDisjointFromIterator_nodeAndOwnerChecks()
+func (c *PolyfillUsageFinderTest) TestIsDisjointFromIterator_nodeAndOwnerChecks() {
+	registry := colors.ColorRegistry_Builder_().SetDefaultNativeColorsForTesting().Build()
+	array := registry.Get(colors.StandardColors_ARRAY_ID)
+	iterator := registry.Get(colors.StandardColors_ITERATOR_ID)
+
+	finderWithRegistry := polyfillUsageFinderTest_createFinderWithRegistry(registry)
+
+	compilerWithoutRegistry := NewCompiler()
+	finderWithoutRegistry := NewPolyfillUsageFinder(
+		compilerWithoutRegistry,
+		PolyfillUsageFinder_Polyfills_FromTable("Iterator.prototype.toArray es_next es3 es6/iterator/toarray"),
+		/* disambiguateProperties= */ true)
+
+	receiverNode := rhino.IR_Name("x")
+	getPropNode := rhino.IR_Getprop(receiverNode, "toArray")
+
+	// Receiver has Array color, owner is Iterator -> disjoint
+	receiverNode.SetColor(array)
+	AssertThat(finderWithRegistry.IsDisjointFromIteratorNode(getPropNode, "Iterator")).IsTrue()
+
+	// Receiver has Iterator color, owner is Iterator -> not disjoint
+	receiverNode.SetColor(iterator)
+	AssertThat(finderWithRegistry.IsDisjointFromIteratorNode(getPropNode, "Iterator")).IsFalse()
+
+	// Receiver has null color -> not disjoint
+	receiverNode.SetColor(nil)
+	AssertThat(finderWithRegistry.IsDisjointFromIteratorNode(getPropNode, "Iterator")).IsFalse()
+
+	// Owner is null ("") or not Iterator -> not disjoint
+	receiverNode.SetColor(array)
+	AssertThat(finderWithRegistry.IsDisjointFromIteratorNode(getPropNode, "")).IsFalse()
+	AssertThat(finderWithRegistry.IsDisjointFromIteratorNode(getPropNode, "Array")).IsFalse()
+	AssertThat(finderWithRegistry.IsDisjointFromIteratorNode(getPropNode, "UnknownType")).IsFalse()
+
+	// Compiler without registry -> always not disjoint
+	receiverNode.SetColor(array)
+	AssertThat(finderWithoutRegistry.IsDisjointFromIteratorNode(getPropNode, "Iterator")).IsFalse()
+}
+
+// Java: PolyfillUsageFinderTest.isDisjointFromIterator_receiverWithNullColor_returnsFalse()
+func (c *PolyfillUsageFinderTest) TestIsDisjointFromIterator_receiverWithNullColor_returnsFalse() {
+	registry := colors.ColorRegistry_Builder_().SetDefaultNativeColorsForTesting().Build()
+	finder := polyfillUsageFinderTest_createFinderWithRegistry(registry)
+
+	receiverNode := rhino.IR_Name("x")
+	AssertThat(receiverNode.GetColor()).IsNull()
+	getPropNode := rhino.IR_Getprop(receiverNode, "toArray")
+
+	AssertThat(finder.IsDisjointFromIteratorNode(getPropNode, "Iterator")).IsFalse()
+}
+
+// Java: PolyfillUsageFinderTest.traverse_withColorRegistry_filtersDisjointUsages()
+func (c *PolyfillUsageFinderTest) TestTraverse_withColorRegistry_filtersDisjointUsages() {
+	registry := colors.ColorRegistry_Builder_().SetDefaultNativeColorsForTesting().Build()
+	array := registry.Get(colors.StandardColors_ARRAY_ID)
+	iterator := registry.Get(colors.StandardColors_ITERATOR_ID)
+
+	finder := PolyfillUsageFinderTest_TestPolyfillUsageFinder_Builder_().
+		WithPolyfillTableLines(
+			"Iterator.prototype.toArray es_next es3 es6/iterator/toarray\n" +
+				"Array.prototype.fill es6 es3 es6/array/fill\n").
+		WithDisambiguateProperties(true).
+		ForSourceLines(
+			"arr.toArray(); // 1: receiver is Array, disjoint from Iterator -> filtered!\n" +
+				"iter.toArray(); // 2: receiver is Iterator -> kept!\n" +
+				"untyped.toArray(); // 3: untyped -> kept!\n" +
+				"arr.fill(0); // 4: owner is Array (not Iterator) -> kept!\n").
+		WithColorRegistry(registry).
+		Build()
+
+	// Annotate AST nodes with colors
+	rootNode := finder.GetRootNode()
+	arrNodes := polyfillUsageFinderTest_findAllNodes(rootNode, func(n rhino.Node) bool {
+		return n.IsName() && n.GetString() == "arr"
+	})
+	AssertThat(arrNodes).HasSize(2)
+	for _, arrNode := range arrNodes {
+		arrNode.SetColor(array)
+	}
+	rhino.CheckNotNull(polyfillUsageFinderTest_findFirstNode(rootNode, func(n rhino.Node) bool {
+		return n.IsName() && n.GetString() == "iter"
+	})).SetColor(iterator)
+
+	usages := finder.GetUnguardedUsages()
+
+	// Should include: iter.toArray (line 2), untyped.toArray (line 3), arr.fill (line 4)
+	// Should NOT include: arr.toArray (line 1)
+	AssertThat(usages).HasSize(3)
+
+	PolyfillUsageFinderTest_PolyfillUsageSubject_AssertPolyfillUsage(usages[0]).
+		HasName("toArray").
+		HasNodeThat().
+		HasLineno(2)
+
+	PolyfillUsageFinderTest_PolyfillUsageSubject_AssertPolyfillUsage(usages[1]).
+		HasName("toArray").
+		HasNodeThat().
+		HasLineno(3)
+
+	PolyfillUsageFinderTest_PolyfillUsageSubject_AssertPolyfillUsage(usages[2]).
+		HasName("fill").
+		HasNodeThat().
+		HasLineno(4)
+}
+
+// Java: PolyfillUsageFinderTest.traverse_withColorRegistry_disambiguatePropertiesDisabled_doesNotFilterUsages()
+func (c *PolyfillUsageFinderTest) TestTraverse_withColorRegistry_disambiguatePropertiesDisabled_doesNotFilterUsages() {
+	registry := colors.ColorRegistry_Builder_().SetDefaultNativeColorsForTesting().Build()
+	array := registry.Get(colors.StandardColors_ARRAY_ID)
+
+	finder := PolyfillUsageFinderTest_TestPolyfillUsageFinder_Builder_().
+		WithPolyfillTableLines("Iterator.prototype.toArray es_next es3 es6/iterator/toarray\n").
+		WithDisambiguateProperties(false).
+		ForSourceLines("arr.toArray();\n").
+		WithColorRegistry(registry).
+		Build()
+
+	rootNode := finder.GetRootNode()
+	rhino.CheckNotNull(polyfillUsageFinderTest_findFirstNode(rootNode, func(n rhino.Node) bool {
+		return n.IsName() && n.GetString() == "arr"
+	})).SetColor(array)
+
+	usages := finder.GetUnguardedUsages()
+	AssertThat(usages).HasSize(1)
+	PolyfillUsageFinderTest_PolyfillUsageSubject_AssertPolyfillUsage(usages[0]).HasName("toArray")
+}
+
+// Java: PolyfillUsageFinderTest.traverse_withoutColorRegistry_doesNotFilterUsages()
+func (c *PolyfillUsageFinderTest) TestTraverse_withoutColorRegistry_doesNotFilterUsages() {
+	registry := colors.ColorRegistry_Builder_().SetDefaultNativeColorsForTesting().Build()
+	array := registry.Get(colors.StandardColors_ARRAY_ID)
+
+	finder := PolyfillUsageFinderTest_TestPolyfillUsageFinder_Builder_().
+		WithPolyfillTableLines("Iterator.prototype.toArray es_next es3 es6/iterator/toarray\n").
+		ForSourceLines("arr.toArray();\n").
+		Build() // No color registry
+
+	// Even if arr has a color, without ColorRegistry on compiler it should not filter
+	rootNode := finder.GetRootNode()
+	rhino.CheckNotNull(polyfillUsageFinderTest_findFirstNode(rootNode, func(n rhino.Node) bool {
+		return n.IsName() && n.GetString() == "arr"
+	})).SetColor(array)
+
+	usages := finder.GetUnguardedUsages()
+	AssertThat(usages).HasSize(1)
+	PolyfillUsageFinderTest_PolyfillUsageSubject_AssertPolyfillUsage(usages[0]).HasName("toArray")
+}
+
+func polyfillUsageFinderTest_findFirstNode(root rhino.Node, predicate func(rhino.Node) bool) rhino.Node {
+	if predicate(root) {
+		return root
+	}
+	for child := root.GetFirstChild(); !child.IsNil(); child = child.GetNext() {
+		found := polyfillUsageFinderTest_findFirstNode(child, predicate)
+		if !found.IsNil() {
+			return found
+		}
+	}
+	return rhino.NilNode
+}
+
+func polyfillUsageFinderTest_findAllNodes(root rhino.Node, predicate func(rhino.Node) bool) []rhino.Node {
+	var out []rhino.Node
+	polyfillUsageFinderTest_findAllNodesInternal(root, predicate, &out)
+	return out
+}
+
+func polyfillUsageFinderTest_findAllNodesInternal(root rhino.Node, predicate func(rhino.Node) bool, out *[]rhino.Node) {
+	if predicate(root) {
+		*out = append(*out, root)
+	}
+	for child := root.GetFirstChild(); !child.IsNil(); child = child.GetNext() {
+		polyfillUsageFinderTest_findAllNodesInternal(child, predicate, out)
+	}
+}
+
 // PolyfillUsageFinderTest_TestPolyfillUsageFinder uses PolyfillUsageFinder
 // to find polyfill usages in source code for testing.
 type PolyfillUsageFinderTest_TestPolyfillUsageFinder struct {
@@ -241,15 +680,29 @@ func PolyfillUsageFinderTest_TestPolyfillUsageFinder_Builder_() *PolyfillUsageFi
 // PolyfillUsageFinderTest_TestPolyfillUsageFinder_Builder is
 // TestPolyfillUsageFinder.Builder.
 type PolyfillUsageFinderTest_TestPolyfillUsageFinder_Builder struct {
-	polyfillsTable      *PolyfillUsageFinder_Polyfills
-	compiler            *Compiler
-	polyfillUsageFinder *PolyfillUsageFinder
-	rootNode            rhino.Node
+	polyfillsTable         *PolyfillUsageFinder_Polyfills
+	compiler               *Compiler
+	polyfillUsageFinder    *PolyfillUsageFinder
+	rootNode               rhino.Node
+	colorRegistry          *colors.ColorRegistry
+	disambiguateProperties bool
 }
 
 // Java: PolyfillUsageFinderTest.TestPolyfillUsageFinder.Builder.withPolyfillTableLines(String)
 func (b *PolyfillUsageFinderTest_TestPolyfillUsageFinder_Builder) WithPolyfillTableLines(polyfillTable string) *PolyfillUsageFinderTest_TestPolyfillUsageFinder_Builder {
 	b.polyfillsTable = PolyfillUsageFinder_Polyfills_FromTable(polyfillTable)
+	return b
+}
+
+// Java: PolyfillUsageFinderTest.TestPolyfillUsageFinder.Builder.withColorRegistry(ColorRegistry)
+func (b *PolyfillUsageFinderTest_TestPolyfillUsageFinder_Builder) WithColorRegistry(colorRegistry *colors.ColorRegistry) *PolyfillUsageFinderTest_TestPolyfillUsageFinder_Builder {
+	b.colorRegistry = colorRegistry
+	return b
+}
+
+// Java: PolyfillUsageFinderTest.TestPolyfillUsageFinder.Builder.withDisambiguateProperties(boolean)
+func (b *PolyfillUsageFinderTest_TestPolyfillUsageFinder_Builder) WithDisambiguateProperties(disambiguateProperties bool) *PolyfillUsageFinderTest_TestPolyfillUsageFinder_Builder {
+	b.disambiguateProperties = disambiguateProperties
 	return b
 }
 
@@ -271,8 +724,13 @@ func (b *PolyfillUsageFinderTest_TestPolyfillUsageFinder_Builder) ForSourceLines
 
 // Java: PolyfillUsageFinderTest.TestPolyfillUsageFinder.Builder.build()
 func (b *PolyfillUsageFinderTest_TestPolyfillUsageFinder_Builder) Build() *PolyfillUsageFinderTest_TestPolyfillUsageFinder {
+	jutil.CheckNotNull(b.compiler)
+	if b.colorRegistry != nil {
+		// Go-only: test-helper — equivalent to TestCompiler.setTestColorRegistry in Java.
+		b.compiler.colorRegistry = b.colorRegistry
+	}
 	b.polyfillUsageFinder =
-		NewPolyfillUsageFinder(jutil.CheckNotNull(b.compiler), jutil.CheckNotNull(b.polyfillsTable))
+		NewPolyfillUsageFinder(b.compiler, jutil.CheckNotNull(b.polyfillsTable), b.disambiguateProperties)
 	return newPolyfillUsageFinderTest_TestPolyfillUsageFinder(b)
 }
 
@@ -282,6 +740,11 @@ func newPolyfillUsageFinderTest_TestPolyfillUsageFinder(builder *PolyfillUsageFi
 	f.polyfillUsageFinder = builder.polyfillUsageFinder
 	f.rootNode = builder.rootNode
 	return f
+}
+
+// Java: PolyfillUsageFinderTest.TestPolyfillUsageFinder.getRootNode()
+func (f *PolyfillUsageFinderTest_TestPolyfillUsageFinder) GetRootNode() rhino.Node {
+	return f.rootNode
 }
 
 // Java: PolyfillUsageFinderTest.TestPolyfillUsageFinder.getUnguardedUsages()
