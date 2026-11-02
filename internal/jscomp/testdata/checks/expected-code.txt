@@ -1220,6 +1220,7 @@ ERROR JSC_UNDEFINED_VARIABLE strict.js:12:58 @338+1 variable c is undeclared
 ERROR JSC_THIS_BEFORE_SUPER super.js:3:18 @49+4 cannot access this before calling super()
 ERROR JSC_SUPER_ACCESS_BEFORE_SUPER_CONSTRUCTOR super.js:6:18 @112+5 cannot access super properties before calling super()
 ERROR JSC_MISSING_CALL_TO_SUPER super.js:9:2 @160+11 constructor is missing a call to super()
+ERROR JSC_RETURN_WITHOUT_CALL_TO_SUPER super.js:12:2 @202+11 constructor returns a value without calling super()
 ERROR JSC_INVALID_SUPER_CALL super.js:15:18 @261+5 super() not allowed except in the constructor of a subclass
 ERROR JSC_INVALID_SUPER_CALL_WITH_SUGGESTION super.js:16:13 @285+5 super() not allowed here. Did you mean super.method?
 ERROR JSC_INVALID_SUPER_CALL_WITH_SUGGESTION super.js:17:12 @308+5 super() not allowed here. Did you mean super.g?

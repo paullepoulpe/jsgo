@@ -7,7 +7,6 @@ ERROR 12:14@395 "Hex digit expected"
 ERROR 12:14@395 "Unterminated string literal"
 ERROR 12:14@395 "Semi-colon expected"
 WARNING 13:13@411 "Unnecessary escape: '\\\u00E9' is equivalent to just '\u00E9'"
-WARNING 14:0@414 "Unnecessary escape: '\\\u2028' is equivalent to just '\u2028'"
 WARNING 15:13@430 "Unnecessary escape: '\\\uD83D' is equivalent to just '\uD83D'"
 # features "[]"
 # sourceMapURL null
