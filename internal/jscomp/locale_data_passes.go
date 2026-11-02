@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/LocaleDataPasses.java @ closure-compiler v20261021
+// Port of com/google/javascript/jscomp/LocaleDataPasses.java @ closure-compiler v20261028
 
 /*
  * Copyright 2021 The Closure Compiler Authors.

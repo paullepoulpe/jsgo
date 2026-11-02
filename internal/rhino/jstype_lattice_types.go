@@ -1,8 +1,8 @@
-// Port of com/google/javascript/rhino/jstype/AllType.java @ closure-compiler v20261021
-// Port of com/google/javascript/rhino/jstype/UnknownType.java @ closure-compiler v20261021
-// Port of com/google/javascript/rhino/jstype/NoObjectType.java @ closure-compiler v20261021
-// Port of com/google/javascript/rhino/jstype/NoType.java @ closure-compiler v20261021
-// Port of com/google/javascript/rhino/jstype/NoResolvedType.java @ closure-compiler v20261021
+// Port of com/google/javascript/rhino/jstype/AllType.java @ closure-compiler v20261028
+// Port of com/google/javascript/rhino/jstype/UnknownType.java @ closure-compiler v20261028
+// Port of com/google/javascript/rhino/jstype/NoObjectType.java @ closure-compiler v20261028
+// Port of com/google/javascript/rhino/jstype/NoType.java @ closure-compiler v20261028
+// Port of com/google/javascript/rhino/jstype/NoResolvedType.java @ closure-compiler v20261028
 
 /*
  *

@@ -1,5 +1,5 @@
-// Port of com/google/javascript/jscomp/ReplaceIdGenerators.java @ closure-compiler v20261021
-// Port of com/google/javascript/jscomp/Xid.java @ closure-compiler v20261021
+// Port of com/google/javascript/jscomp/ReplaceIdGenerators.java @ closure-compiler v20261028
+// Port of com/google/javascript/jscomp/Xid.java @ closure-compiler v20261028
 
 /*
  * Copyright 2009 The Closure Compiler Authors.

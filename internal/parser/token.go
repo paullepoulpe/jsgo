@@ -1,8 +1,8 @@
-// Port of com/google/javascript/jscomp/parsing/parser/Token.java @ closure-compiler v20261021
-// Port of com/google/javascript/jscomp/parsing/parser/IdentifierToken.java @ closure-compiler v20261021
-// Port of com/google/javascript/jscomp/parsing/parser/LiteralToken.java @ closure-compiler v20261021
-// Port of com/google/javascript/jscomp/parsing/parser/StringLiteralToken.java @ closure-compiler v20261021
-// Port of com/google/javascript/jscomp/parsing/parser/TemplateLiteralToken.java @ closure-compiler v20261021
+// Port of com/google/javascript/jscomp/parsing/parser/Token.java @ closure-compiler v20261028
+// Port of com/google/javascript/jscomp/parsing/parser/IdentifierToken.java @ closure-compiler v20261028
+// Port of com/google/javascript/jscomp/parsing/parser/LiteralToken.java @ closure-compiler v20261028
+// Port of com/google/javascript/jscomp/parsing/parser/StringLiteralToken.java @ closure-compiler v20261028
+// Port of com/google/javascript/jscomp/parsing/parser/TemplateLiteralToken.java @ closure-compiler v20261028
 
 /*
  * Copyright 2011 The Closure Compiler Authors.
@@ -21,7 +21,7 @@
  */
 
 /*
- * Copyright 2018 The Closure Compiler Authors.
+ * Copyright 2019 The Closure Compiler Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -37,7 +37,7 @@
  */
 
 /*
- * Copyright 2019 The Closure Compiler Authors.
+ * Copyright 2018 The Closure Compiler Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.

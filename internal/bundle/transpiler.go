@@ -1,5 +1,5 @@
-// Port of com/google/javascript/jscomp/bundle/Transpiler.java @ closure-compiler v20261021
-// Port of com/google/javascript/jscomp/bundle/TranspilationException.java @ closure-compiler v20261021
+// Port of com/google/javascript/jscomp/bundle/Transpiler.java @ closure-compiler v20261028
+// Port of com/google/javascript/jscomp/bundle/TranspilationException.java @ closure-compiler v20261028
 
 /*
  * Copyright 2017 The Closure Compiler Authors.

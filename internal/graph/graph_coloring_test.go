@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/graph/GraphColoringTest.java @ closure-compiler v20261021
+// Port of com/google/javascript/jscomp/graph/GraphColoringTest.java @ closure-compiler v20261028
 
 /*
  * Copyright 2008 The Closure Compiler Authors.

@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/ijs/JsdocUtil.java @ closure-compiler v20261021
+// Port of com/google/javascript/jscomp/ijs/JsdocUtil.java @ closure-compiler v20261028
 
 /*
  * Copyright 2017 The Closure Compiler Authors.

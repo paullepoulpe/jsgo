@@ -1,8 +1,8 @@
-// Port of com/google/javascript/jscomp/Es6RewriteBlockScopedFunctionDeclaration.java @ closure-compiler v20261021
-// Port of com/google/javascript/jscomp/Es6RewriteRestParameters.java @ closure-compiler v20261021
-// Port of com/google/javascript/jscomp/SubstituteEs6Syntax.java @ closure-compiler v20261021
-// Port of com/google/javascript/jscomp/RewriteObjectSpread.java @ closure-compiler v20261021
-// Port of com/google/javascript/jscomp/RewriteGlobalDeclarationsForTryCatchWrapping.java @ closure-compiler v20261021
+// Port of com/google/javascript/jscomp/Es6RewriteBlockScopedFunctionDeclaration.java @ closure-compiler v20261028
+// Port of com/google/javascript/jscomp/Es6RewriteRestParameters.java @ closure-compiler v20261028
+// Port of com/google/javascript/jscomp/SubstituteEs6Syntax.java @ closure-compiler v20261028
+// Port of com/google/javascript/jscomp/RewriteObjectSpread.java @ closure-compiler v20261028
+// Port of com/google/javascript/jscomp/RewriteGlobalDeclarationsForTryCatchWrapping.java @ closure-compiler v20261028
 
 /*
  * Copyright 2017 The Closure Compiler Authors.

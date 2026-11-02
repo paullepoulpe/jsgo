@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/parsing/JsDocInfoParserTest.java @ closure-compiler v20261021
+// Port of com/google/javascript/jscomp/parsing/JsDocInfoParserTest.java @ closure-compiler v20261028
 // (test/com/google/javascript/jscomp/parsing/JsDocInfoParserTest.java): testJsDocInfoPosition.
 
 /*

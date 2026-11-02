@@ -1,12 +1,12 @@
-// Port of com/google/javascript/rhino/StaticScope.java @ closure-compiler v20261021
-// Port of com/google/javascript/rhino/StaticSlot.java @ closure-compiler v20261021
-// Port of com/google/javascript/rhino/StaticRef.java @ closure-compiler v20261021
-// Port of com/google/javascript/rhino/StaticSymbolTable.java @ closure-compiler v20261021
-// Port of com/google/javascript/rhino/jstype/StaticTypedScope.java @ closure-compiler v20261021
-// Port of com/google/javascript/rhino/jstype/StaticTypedSlot.java @ closure-compiler v20261021
-// Port of com/google/javascript/rhino/jstype/StaticTypedRef.java @ closure-compiler v20261021
-// Port of com/google/javascript/rhino/jstype/SimpleSlot.java @ closure-compiler v20261021
-// Port of com/google/javascript/rhino/jstype/SimpleReference.java @ closure-compiler v20261021
+// Port of com/google/javascript/rhino/StaticScope.java @ closure-compiler v20261028
+// Port of com/google/javascript/rhino/StaticSlot.java @ closure-compiler v20261028
+// Port of com/google/javascript/rhino/StaticRef.java @ closure-compiler v20261028
+// Port of com/google/javascript/rhino/StaticSymbolTable.java @ closure-compiler v20261028
+// Port of com/google/javascript/rhino/jstype/StaticTypedScope.java @ closure-compiler v20261028
+// Port of com/google/javascript/rhino/jstype/StaticTypedSlot.java @ closure-compiler v20261028
+// Port of com/google/javascript/rhino/jstype/StaticTypedRef.java @ closure-compiler v20261028
+// Port of com/google/javascript/rhino/jstype/SimpleSlot.java @ closure-compiler v20261028
+// Port of com/google/javascript/rhino/jstype/SimpleReference.java @ closure-compiler v20261028
 
 /*
  *

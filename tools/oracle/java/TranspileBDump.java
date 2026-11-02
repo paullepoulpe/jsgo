@@ -188,7 +188,8 @@ public final class TranspileBDump {
                       c,
                       c.getOptions().getRewritePolyfills(),
                       c.getOptions().getIsolatePolyfills(),
-                      c.getOptions().getInjectPolyfillsNewerThan())));
+                      c.getOptions().getInjectPolyfillsNewerThan(),
+                      c.getOptions().shouldDisambiguateProperties())));
     }
     passes.add(
         new NamedPass(

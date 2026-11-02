@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/ReportUntranspilableFeatures.java @ closure-compiler v20261021
+// Port of com/google/javascript/jscomp/ReportUntranspilableFeatures.java @ closure-compiler v20261028
 
 /*
  * Copyright 2014 The Closure Compiler Authors.

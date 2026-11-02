@@ -1,51 +1,35 @@
-// Port of com/google/javascript/jscomp/parsing/parser/trees/ParseTree.java @ closure-compiler v20261021
-// Port of com/google/javascript/jscomp/parsing/parser/trees/ParseTreeType.java @ closure-compiler v20261021
-// Port of com/google/javascript/jscomp/parsing/parser/trees/NullTree.java @ closure-compiler v20261021
-// Port of com/google/javascript/jscomp/parsing/parser/trees/MissingPrimaryExpressionTree.java @ closure-compiler v20261021
-// Port of com/google/javascript/jscomp/parsing/parser/trees/BlockTree.java @ closure-compiler v20261021
-// Port of com/google/javascript/jscomp/parsing/parser/trees/IfStatementTree.java @ closure-compiler v20261021
-// Port of com/google/javascript/jscomp/parsing/parser/trees/ForAwaitOfStatementTree.java @ closure-compiler v20261021
-// Port of com/google/javascript/jscomp/parsing/parser/trees/ForInStatementTree.java @ closure-compiler v20261021
-// Port of com/google/javascript/jscomp/parsing/parser/trees/ForOfStatementTree.java @ closure-compiler v20261021
-// Port of com/google/javascript/jscomp/parsing/parser/trees/ForStatementTree.java @ closure-compiler v20261021
-// Port of com/google/javascript/jscomp/parsing/parser/trees/WhileStatementTree.java @ closure-compiler v20261021
-// Port of com/google/javascript/jscomp/parsing/parser/trees/DoWhileStatementTree.java @ closure-compiler v20261021
-// Port of com/google/javascript/jscomp/parsing/parser/trees/SwitchStatementTree.java @ closure-compiler v20261021
-// Port of com/google/javascript/jscomp/parsing/parser/trees/CaseClauseTree.java @ closure-compiler v20261021
-// Port of com/google/javascript/jscomp/parsing/parser/trees/DefaultClauseTree.java @ closure-compiler v20261021
-// Port of com/google/javascript/jscomp/parsing/parser/trees/TryStatementTree.java @ closure-compiler v20261021
-// Port of com/google/javascript/jscomp/parsing/parser/trees/CatchTree.java @ closure-compiler v20261021
-// Port of com/google/javascript/jscomp/parsing/parser/trees/FinallyTree.java @ closure-compiler v20261021
-// Port of com/google/javascript/jscomp/parsing/parser/trees/ReturnStatementTree.java @ closure-compiler v20261021
-// Port of com/google/javascript/jscomp/parsing/parser/trees/BreakStatementTree.java @ closure-compiler v20261021
-// Port of com/google/javascript/jscomp/parsing/parser/trees/ContinueStatementTree.java @ closure-compiler v20261021
-// Port of com/google/javascript/jscomp/parsing/parser/trees/ThrowStatementTree.java @ closure-compiler v20261021
-// Port of com/google/javascript/jscomp/parsing/parser/trees/LabelledStatementTree.java @ closure-compiler v20261021
-// Port of com/google/javascript/jscomp/parsing/parser/trees/WithStatementTree.java @ closure-compiler v20261021
-// Port of com/google/javascript/jscomp/parsing/parser/trees/VariableStatementTree.java @ closure-compiler v20261021
-// Port of com/google/javascript/jscomp/parsing/parser/trees/ExpressionStatementTree.java @ closure-compiler v20261021
-// Port of com/google/javascript/jscomp/parsing/parser/trees/EmptyStatementTree.java @ closure-compiler v20261021
-// Port of com/google/javascript/jscomp/parsing/parser/trees/DebuggerStatementTree.java @ closure-compiler v20261021
-// Port of com/google/javascript/jscomp/parsing/parser/trees/Comment.java @ closure-compiler v20261021
+// Port of com/google/javascript/jscomp/parsing/parser/trees/ParseTree.java @ closure-compiler v20261028
+// Port of com/google/javascript/jscomp/parsing/parser/trees/ParseTreeType.java @ closure-compiler v20261028
+// Port of com/google/javascript/jscomp/parsing/parser/trees/NullTree.java @ closure-compiler v20261028
+// Port of com/google/javascript/jscomp/parsing/parser/trees/MissingPrimaryExpressionTree.java @ closure-compiler v20261028
+// Port of com/google/javascript/jscomp/parsing/parser/trees/BlockTree.java @ closure-compiler v20261028
+// Port of com/google/javascript/jscomp/parsing/parser/trees/IfStatementTree.java @ closure-compiler v20261028
+// Port of com/google/javascript/jscomp/parsing/parser/trees/ForAwaitOfStatementTree.java @ closure-compiler v20261028
+// Port of com/google/javascript/jscomp/parsing/parser/trees/ForInStatementTree.java @ closure-compiler v20261028
+// Port of com/google/javascript/jscomp/parsing/parser/trees/ForOfStatementTree.java @ closure-compiler v20261028
+// Port of com/google/javascript/jscomp/parsing/parser/trees/ForStatementTree.java @ closure-compiler v20261028
+// Port of com/google/javascript/jscomp/parsing/parser/trees/WhileStatementTree.java @ closure-compiler v20261028
+// Port of com/google/javascript/jscomp/parsing/parser/trees/DoWhileStatementTree.java @ closure-compiler v20261028
+// Port of com/google/javascript/jscomp/parsing/parser/trees/SwitchStatementTree.java @ closure-compiler v20261028
+// Port of com/google/javascript/jscomp/parsing/parser/trees/CaseClauseTree.java @ closure-compiler v20261028
+// Port of com/google/javascript/jscomp/parsing/parser/trees/DefaultClauseTree.java @ closure-compiler v20261028
+// Port of com/google/javascript/jscomp/parsing/parser/trees/TryStatementTree.java @ closure-compiler v20261028
+// Port of com/google/javascript/jscomp/parsing/parser/trees/CatchTree.java @ closure-compiler v20261028
+// Port of com/google/javascript/jscomp/parsing/parser/trees/FinallyTree.java @ closure-compiler v20261028
+// Port of com/google/javascript/jscomp/parsing/parser/trees/ReturnStatementTree.java @ closure-compiler v20261028
+// Port of com/google/javascript/jscomp/parsing/parser/trees/BreakStatementTree.java @ closure-compiler v20261028
+// Port of com/google/javascript/jscomp/parsing/parser/trees/ContinueStatementTree.java @ closure-compiler v20261028
+// Port of com/google/javascript/jscomp/parsing/parser/trees/ThrowStatementTree.java @ closure-compiler v20261028
+// Port of com/google/javascript/jscomp/parsing/parser/trees/LabelledStatementTree.java @ closure-compiler v20261028
+// Port of com/google/javascript/jscomp/parsing/parser/trees/WithStatementTree.java @ closure-compiler v20261028
+// Port of com/google/javascript/jscomp/parsing/parser/trees/VariableStatementTree.java @ closure-compiler v20261028
+// Port of com/google/javascript/jscomp/parsing/parser/trees/ExpressionStatementTree.java @ closure-compiler v20261028
+// Port of com/google/javascript/jscomp/parsing/parser/trees/EmptyStatementTree.java @ closure-compiler v20261028
+// Port of com/google/javascript/jscomp/parsing/parser/trees/DebuggerStatementTree.java @ closure-compiler v20261028
+// Port of com/google/javascript/jscomp/parsing/parser/trees/Comment.java @ closure-compiler v20261028
 
 /*
  * Copyright 2011 The Closure Compiler Authors.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
-/*
- * Copyright 2019 The Closure Compiler Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.

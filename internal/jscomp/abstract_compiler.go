@@ -1,6 +1,6 @@
-// Port of com/google/javascript/jscomp/AbstractCompiler.java @ closure-compiler v20261021
-// Port of com/google/javascript/jscomp/CodeChangeHandler.java @ closure-compiler v20261021
-// Port of com/google/javascript/jscomp/RemoveWeakSources.java @ closure-compiler v20261021
+// Port of com/google/javascript/jscomp/AbstractCompiler.java @ closure-compiler v20261028
+// Port of com/google/javascript/jscomp/CodeChangeHandler.java @ closure-compiler v20261028
+// Port of com/google/javascript/jscomp/RemoveWeakSources.java @ closure-compiler v20261028
 
 /*
  * Copyright 2009 The Closure Compiler Authors.

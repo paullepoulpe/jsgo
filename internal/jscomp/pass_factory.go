@@ -1,7 +1,7 @@
-// Port of com/google/javascript/jscomp/PassFactory.java @ closure-compiler v20261021
-// Port of com/google/javascript/jscomp/AutoValue_PassFactory.java @ closure-compiler v20261021
-// Port of com/google/javascript/jscomp/CompilerPass.java @ closure-compiler v20261021
-// Port of com/google/javascript/jscomp/PassNames.java @ closure-compiler v20261021
+// Port of com/google/javascript/jscomp/PassFactory.java @ closure-compiler v20261028
+// Port of com/google/javascript/jscomp/AutoValue_PassFactory.java @ closure-compiler v20261028
+// Port of com/google/javascript/jscomp/CompilerPass.java @ closure-compiler v20261028
+// Port of com/google/javascript/jscomp/PassNames.java @ closure-compiler v20261028
 
 /*
  * Copyright 2009 The Closure Compiler Authors.

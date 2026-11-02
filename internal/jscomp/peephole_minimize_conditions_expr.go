@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/PeepholeMinimizeConditions.java @ closure-compiler v20261021
+// Port of com/google/javascript/jscomp/PeepholeMinimizeConditions.java @ closure-compiler v20261028
 
 /*
  * Copyright 2010 The Closure Compiler Authors.

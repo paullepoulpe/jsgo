@@ -1,7 +1,7 @@
-// Port of com/google/javascript/jscomp/J2clPass.java @ closure-compiler v20261021
-// Port of com/google/javascript/jscomp/J2clAssertRemovalPass.java @ closure-compiler v20261021
-// Port of com/google/javascript/jscomp/J2clStringValueOfRewriterPass.java @ closure-compiler v20261021
-// Port of com/google/javascript/jscomp/J2clUndefinedChecksRewriterPass.java @ closure-compiler v20261021
+// Port of com/google/javascript/jscomp/J2clPass.java @ closure-compiler v20261028
+// Port of com/google/javascript/jscomp/J2clAssertRemovalPass.java @ closure-compiler v20261028
+// Port of com/google/javascript/jscomp/J2clStringValueOfRewriterPass.java @ closure-compiler v20261028
+// Port of com/google/javascript/jscomp/J2clUndefinedChecksRewriterPass.java @ closure-compiler v20261028
 
 /*
  * Copyright 2015 The Closure Compiler Authors.

@@ -1,12 +1,12 @@
-// Port of com/google/javascript/jscomp/WarningsGuard.java @ closure-compiler v20261021
-// Port of com/google/javascript/jscomp/StrictWarningsGuard.java @ closure-compiler v20261021
-// Port of com/google/javascript/jscomp/ClosureUnawareCodeWarningsGuard.java @ closure-compiler v20261021
-// Port of com/google/javascript/jscomp/ijs/CheckTypeSummaryWarningsGuard.java @ closure-compiler v20261021
-// Port of com/google/javascript/jscomp/ShowByPathWarningsGuard.java @ closure-compiler v20261021
-// Port of com/google/javascript/jscomp/J2clSuppressWarningsGuard.java @ closure-compiler v20261021
-// Port of com/google/javascript/jscomp/ByPathWarningsGuard.java @ closure-compiler v20261021
-// Port of com/google/javascript/jscomp/DiagnosticGroupWarningsGuard.java @ closure-compiler v20261021
-// Port of com/google/javascript/jscomp/DiagnosticGroupPathSuppressingWarningsGuard.java @ closure-compiler v20261021
+// Port of com/google/javascript/jscomp/WarningsGuard.java @ closure-compiler v20261028
+// Port of com/google/javascript/jscomp/StrictWarningsGuard.java @ closure-compiler v20261028
+// Port of com/google/javascript/jscomp/ClosureUnawareCodeWarningsGuard.java @ closure-compiler v20261028
+// Port of com/google/javascript/jscomp/ijs/CheckTypeSummaryWarningsGuard.java @ closure-compiler v20261028
+// Port of com/google/javascript/jscomp/ShowByPathWarningsGuard.java @ closure-compiler v20261028
+// Port of com/google/javascript/jscomp/J2clSuppressWarningsGuard.java @ closure-compiler v20261028
+// Port of com/google/javascript/jscomp/ByPathWarningsGuard.java @ closure-compiler v20261028
+// Port of com/google/javascript/jscomp/DiagnosticGroupWarningsGuard.java @ closure-compiler v20261028
+// Port of com/google/javascript/jscomp/DiagnosticGroupPathSuppressingWarningsGuard.java @ closure-compiler v20261028
 
 /*
  * Copyright 2008 The Closure Compiler Authors.
@@ -25,7 +25,7 @@
  */
 
 /*
- * Copyright 2016 The Closure Compiler Authors.
+ * Copyright 2024 The Closure Compiler Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -73,7 +73,7 @@
  */
 
 /*
- * Copyright 2024 The Closure Compiler Authors.
+ * Copyright 2016 The Closure Compiler Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.

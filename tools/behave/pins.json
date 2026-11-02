@@ -1,5 +1,5 @@
 {
- "closure_version": "v20261021",
+ "closure_version": "v20261028",
  "test262": {
   "dir": "behave/test262",
   "repo": "https://github.com/tc39/test262",

@@ -1,6 +1,6 @@
-// Port of com/google/javascript/jscomp/Linter.java @ closure-compiler v20261021
-// Port of com/google/javascript/jscomp/LinterMain.java @ closure-compiler v20261021
-// Port of com/google/javascript/jscomp/LintPassConfig.java @ closure-compiler v20261021
+// Port of com/google/javascript/jscomp/Linter.java @ closure-compiler v20261028
+// Port of com/google/javascript/jscomp/LinterMain.java @ closure-compiler v20261028
+// Port of com/google/javascript/jscomp/LintPassConfig.java @ closure-compiler v20261028
 
 /*
  * Copyright 2015 The Closure Compiler Authors.

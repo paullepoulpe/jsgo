@@ -1,8 +1,8 @@
-// Port of com/google/javascript/rhino/testing/AbstractStaticScope.java @ closure-compiler v20261021
-// Port of com/google/javascript/rhino/testing/Asserts.java @ closure-compiler v20261021
-// Port of com/google/javascript/rhino/testing/MapBasedScope.java @ closure-compiler v20261021
-// Port of com/google/javascript/rhino/testing/TemplateTypeMapSubject.java @ closure-compiler v20261021
-// Port of com/google/javascript/rhino/testing/TestErrorReporter.java @ closure-compiler v20261021
+// Port of com/google/javascript/rhino/testing/AbstractStaticScope.java @ closure-compiler v20261028
+// Port of com/google/javascript/rhino/testing/Asserts.java @ closure-compiler v20261028
+// Port of com/google/javascript/rhino/testing/MapBasedScope.java @ closure-compiler v20261028
+// Port of com/google/javascript/rhino/testing/TemplateTypeMapSubject.java @ closure-compiler v20261028
+// Port of com/google/javascript/rhino/testing/TestErrorReporter.java @ closure-compiler v20261028
 
 /*
  *

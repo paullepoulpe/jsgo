@@ -1,6 +1,6 @@
-// Port of com/google/javascript/jscomp/parsing/parser/util/SourcePosition.java @ closure-compiler v20261021
-// Port of com/google/javascript/jscomp/parsing/parser/util/SourceRange.java @ closure-compiler v20261021
-// Port of com/google/javascript/jscomp/parsing/parser/util/ErrorReporter.java @ closure-compiler v20261021
+// Port of com/google/javascript/jscomp/parsing/parser/util/SourcePosition.java @ closure-compiler v20261028
+// Port of com/google/javascript/jscomp/parsing/parser/util/SourceRange.java @ closure-compiler v20261028
+// Port of com/google/javascript/jscomp/parsing/parser/util/ErrorReporter.java @ closure-compiler v20261028
 
 /*
  * Copyright 2011 The Closure Compiler Authors.

@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/deps/SimpleDependencyInfo.java @ closure-compiler v20261021
+// Port of com/google/javascript/jscomp/deps/SimpleDependencyInfo.java @ closure-compiler v20261028
 // (with the AutoValue-generated deps/AutoValue_SimpleDependencyInfo.java)
 
 /*

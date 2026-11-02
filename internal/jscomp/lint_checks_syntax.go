@@ -1,9 +1,9 @@
-// Port of com/google/javascript/jscomp/lint/CheckVar.java @ closure-compiler v20261021
-// Port of com/google/javascript/jscomp/lint/CheckEmptyStatements.java @ closure-compiler v20261021
-// Port of com/google/javascript/jscomp/lint/CheckDuplicateCase.java @ closure-compiler v20261021
-// Port of com/google/javascript/jscomp/lint/CheckUnusedLabels.java @ closure-compiler v20261021
-// Port of com/google/javascript/jscomp/lint/CheckMissingSemicolon.java @ closure-compiler v20261021
-// Port of com/google/javascript/jscomp/lint/CheckUselessBlocks.java @ closure-compiler v20261021
+// Port of com/google/javascript/jscomp/lint/CheckVar.java @ closure-compiler v20261028
+// Port of com/google/javascript/jscomp/lint/CheckEmptyStatements.java @ closure-compiler v20261028
+// Port of com/google/javascript/jscomp/lint/CheckDuplicateCase.java @ closure-compiler v20261028
+// Port of com/google/javascript/jscomp/lint/CheckUnusedLabels.java @ closure-compiler v20261028
+// Port of com/google/javascript/jscomp/lint/CheckMissingSemicolon.java @ closure-compiler v20261028
+// Port of com/google/javascript/jscomp/lint/CheckUselessBlocks.java @ closure-compiler v20261028
 
 /*
  * Copyright 2015 The Closure Compiler Authors.

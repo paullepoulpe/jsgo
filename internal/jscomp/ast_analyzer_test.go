@@ -1,5 +1,5 @@
-// Port of com/google/javascript/jscomp/AstAnalyzerTest.java @ closure-compiler v20261021
-// Port of com/google/javascript/jscomp/AutoBuilder_AstAnalyzer_Options_Builder.java @ closure-compiler v20261021
+// Port of com/google/javascript/jscomp/AstAnalyzerTest.java @ closure-compiler v20261028
+// Port of com/google/javascript/jscomp/AutoBuilder_AstAnalyzer_Options_Builder.java @ closure-compiler v20261028
 
 /*
  * Copyright 2019 The Closure Compiler Authors.

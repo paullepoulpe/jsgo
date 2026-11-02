@@ -1,10 +1,10 @@
-// Port of com/google/javascript/jscomp/lint/CheckPrototypeProperties.java @ closure-compiler v20261021
-// Port of com/google/javascript/jscomp/lint/CheckEs6Modules.java @ closure-compiler v20261021
-// Port of com/google/javascript/jscomp/lint/CheckNoMutatedEs6Exports.java @ closure-compiler v20261021
-// Port of com/google/javascript/jscomp/lint/CheckPrimitiveAsObject.java @ closure-compiler v20261021
-// Port of com/google/javascript/jscomp/lint/CheckGoogModuleTypeScriptName.java @ closure-compiler v20261021
-// Port of com/google/javascript/jscomp/lint/CheckArrayWithGoogObject.java @ closure-compiler v20261021
-// Port of com/google/javascript/jscomp/lint/CheckConstantCaseNames.java @ closure-compiler v20261021
+// Port of com/google/javascript/jscomp/lint/CheckPrototypeProperties.java @ closure-compiler v20261028
+// Port of com/google/javascript/jscomp/lint/CheckEs6Modules.java @ closure-compiler v20261028
+// Port of com/google/javascript/jscomp/lint/CheckNoMutatedEs6Exports.java @ closure-compiler v20261028
+// Port of com/google/javascript/jscomp/lint/CheckPrimitiveAsObject.java @ closure-compiler v20261028
+// Port of com/google/javascript/jscomp/lint/CheckGoogModuleTypeScriptName.java @ closure-compiler v20261028
+// Port of com/google/javascript/jscomp/lint/CheckArrayWithGoogObject.java @ closure-compiler v20261028
+// Port of com/google/javascript/jscomp/lint/CheckConstantCaseNames.java @ closure-compiler v20261028
 
 /*
  * Copyright 2014 The Closure Compiler Authors.

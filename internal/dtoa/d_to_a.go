@@ -1,4 +1,4 @@
-// Port of com/google/javascript/rhino/dtoa/DToA.java @ closure-compiler v20261021
+// Port of com/google/javascript/rhino/dtoa/DToA.java @ closure-compiler v20261028
 
 /*
  *
