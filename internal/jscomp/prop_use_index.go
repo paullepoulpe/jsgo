@@ -32,7 +32,8 @@ import (
 // piList* and pi* constants): the GETPROPs; the CALLs with a GETPROP callee;
 // what GatherSignatures and GatherCandidates find in the scope, recorded by
 // running their own decision code on it when it depends on the scope alone,
-// or else the node to run it on. It also says where each nested function's
+// or else the node to run it on; the names and property references
+// OptimizeCalls' reference map files (prop_use_index_oc.go). It also says where each nested function's
 // traversal starts in each list (piKid). A whole-program traversal is the
 // scripts of each root in order, with each nested function's record spliced
 // in at its place, so a replay meets the nodes in exactly the order of the
@@ -75,7 +76,7 @@ const propIndexTimelineKey = "__propUseIndex__"
 // The bits of an index item: what it is to its reader.
 const (
 	// piUse: a GETPROP (InlineProperties' ReplaceCandidates).
-	piUse uint8 = 1 << iota
+	piUse uint16 = 1 << iota
 	// piCall: a CALL whose callee is a GETPROP; prop is the callee's
 	// (InlineSimpleMethods' InlineTrivialAccessors).
 	piCall
@@ -92,6 +93,18 @@ const (
 	piISMEv
 	// piIPInv: GatherCandidates invalidates prop here.
 	piIPInv
+	// piOCName: a NAME, prop its id (OptimizeCalls' reference map keeps it
+	// when the run's global scope declares it, not in the externs).
+	piOCName
+	// piOCProp: a property reference the reference map files under prop
+	// (unless prop is an extern property).
+	piOCProp
+	// piOCSuper: a SUPER node, replayed (visitSuper reads the enclosing
+	// class's extends clause, in another change scope).
+	piOCSuper
+	// piOCRename: a CALL of a property rename function with an argument,
+	// replayed (its first argument's string).
+	piOCRename
 )
 
 var piTokens = func() ast.TokenSet {
@@ -100,6 +113,7 @@ var piTokens = func() ast.TokenSet {
 		rhino.Token_GETPROP, rhino.Token_GETELEM, rhino.Token_OBJECTLIT, rhino.Token_CLASS_MEMBERS,
 		rhino.Token_CALL, rhino.Token_STRING_KEY, rhino.Token_GETTER_DEF, rhino.Token_SETTER_DEF,
 		rhino.Token_MEMBER_FUNCTION_DEF, rhino.Token_MEMBER_FIELD_DEF,
+		rhino.Token_NAME, rhino.Token_SUPER, rhino.Token_OPTCHAIN_GETPROP,
 	} {
 		s.Add(t)
 	}
@@ -109,7 +123,7 @@ var piTokens = func() ast.TokenSet {
 type piItem struct {
 	n    rhino.Node
 	prop uint32
-	bits uint8
+	bits uint16
 }
 
 // A record keeps its items in one list per reader, so that a reader scans
@@ -119,6 +133,7 @@ const (
 	piListCalls        // CALLs with a GETPROP callee (piCall)
 	piListISM          // GatherSignatures: findings (piISMEv) and nodes to replay (piISM)
 	piListIP           // GatherCandidates: invalidations (piIPInv) and definitions (piIP)
+	piListOC           // OptimizeCalls' reference map: piOC* (not in extern scripts)
 	piLists
 )
 
@@ -150,6 +165,7 @@ type propUseIndex struct {
 	conv    CodingConvention
 	threads int
 	rec     piRecorder // the main goroutine's
+	oc      ocFillState
 
 	// Statistics (JSGO_PROPINDEX_STATS=1).
 	stats propIndexStats
@@ -273,13 +289,13 @@ func newPropUseIndex(c *Compiler, externs, root rhino.Node) *propUseIndex {
 
 func (ix *propUseIndex) printStats() {
 	s := ix.stats
-	var byBit [8]int
+	var byBit [16]int
 	total := 0
 	for _, top := range [2]rhino.Node{ix.externs, ix.root} {
 		for l := 0; l < piLists; l++ {
 			ix.each(top, l, nil, func(_ *piScope, it piItem) {
 				total++
-				for b := 0; b < 8; b++ {
+				for b := 0; b < 16; b++ {
 					if it.bits&(1<<b) != 0 {
 						byBit[b]++
 					}
@@ -287,14 +303,22 @@ func (ix *propUseIndex) printStats() {
 			})
 		}
 	}
-	fmt.Fprintf(os.Stderr, "[propindex] builds %d updates %d reindexed %d new %d dropped %d scopes %d items %d (use %d call %d ism %d ip %d hoist %d ismEv %d ipInv %d)\n",
-		s.builds, s.updates, s.reindexed, s.newScopes, s.dropped, len(ix.scopes), total, byBit[0], byBit[1], byBit[2], byBit[3], byBit[4], byBit[5], byBit[6])
+	fmt.Fprintf(os.Stderr, "[propindex] builds %d updates %d reindexed %d new %d dropped %d scopes %d items %d (use %d call %d ism %d ip %d hoist %d ismEv %d ipInv %d ocName %d ocProp %d ocSuper %d ocRename %d)\n",
+		s.builds, s.updates, s.reindexed, s.newScopes, s.dropped, len(ix.scopes), total, byBit[0], byBit[1], byBit[2], byBit[3], byBit[4], byBit[5], byBit[6],
+		byBit[7], byBit[8], byBit[9], byBit[10])
 }
 
 // build indexes every script of both roots.
 func (ix *propUseIndex) build() {
 	ix.gen++
 	ix.stats.builds++
+	if propIndexStatsOn {
+		t0 := time.Now()
+		defer func() {
+			fmt.Fprintf(os.Stderr, "[propindex] build before %s: %d scopes / %d items indexed, %v\n",
+				ix.c.currentPassName(), ix.stats.reindexed, ix.stats.items, time.Since(t0).Round(10*time.Microsecond))
+		}()
+	}
 	var work []*piScope
 	for _, top := range [2]rhino.Node{ix.externs, ix.root} {
 		for script := top.GetFirstChild(); !script.IsNil(); script = script.GetNext() {
@@ -493,6 +517,14 @@ type piRecorder struct {
 	c    *Compiler
 	conv CodingConvention
 	cur  *piScope
+	// oc: the scope is not in an extern script, so its piListOC items are
+	// recorded (OptimizeCalls reads the index only with considerExterns
+	// false, and then skips extern scripts).
+	oc bool
+	// lists gathers the current scope's lists, copied into it at their
+	// size when its traversal ends (Go-only: performance — a list grown in
+	// place reallocates several times per scope).
+	lists [piLists][]piItem
 	// Statistics.
 	indexed, items int
 }
@@ -500,15 +532,22 @@ type piRecorder struct {
 // index lists the items and the nested functions of s; the nested functions
 // are resolved to their records by the caller.
 func (r *piRecorder) index(s *piScope) {
-	for l := range s.items {
-		s.items[l] = s.items[l][:0]
+	for l := range r.lists {
+		r.lists[l] = r.lists[l][:0]
 	}
 	s.kids = s.kids[:0]
 	r.cur = s
+	r.oc = propIndexOC && !NodeUtil_GetEnclosingScript(s.root).IsFromExterns()
 	NodeTraversal_Traverse(r.c, s.root, r)
 	r.cur = nil
 	r.indexed++
-	for _, list := range s.items {
+	for l, list := range r.lists {
+		if cap(s.items[l]) < len(list) {
+			s.items[l] = make([]piItem, len(list))
+		} else {
+			s.items[l] = s.items[l][:len(list)]
+		}
+		copy(s.items[l], list)
 		r.items += len(list)
 	}
 }
@@ -523,7 +562,7 @@ func (r *piRecorder) ShouldTraverse(_ *NodeTraversal, n, _ rhino.Node) bool {
 		return true
 	}
 	k := piKid{n: n}
-	for l, list := range s.items {
+	for l, list := range r.lists {
 		k.at[l] = int32(len(list))
 	}
 	s.kids = append(s.kids, k)
@@ -531,11 +570,26 @@ func (r *piRecorder) ShouldTraverse(_ *NodeTraversal, n, _ rhino.Node) bool {
 }
 
 func (r *piRecorder) Visit(t *NodeTraversal, n, parent rhino.Node) {
-	items := &r.cur.items
+	items := &r.lists
 	switch n.GetToken() {
+	case rhino.Token_NAME:
+		if r.oc {
+			r.ocName(n)
+		}
+	case rhino.Token_SUPER:
+		if r.oc {
+			items[piListOC] = append(items[piListOC], piItem{n: n, bits: piOCSuper})
+		}
+	case rhino.Token_OPTCHAIN_GETPROP:
+		if r.oc {
+			items[piListOC] = append(items[piListOC], piItem{n: n, prop: n.GetStringID(), bits: piOCProp})
+		}
 	case rhino.Token_GETPROP:
 		prop := n.GetStringID()
 		items[piListUses] = append(items[piListUses], piItem{n: n, prop: prop, bits: piUse})
+		if r.oc {
+			items[piListOC] = append(items[piListOC], piItem{n: n, prop: prop, bits: piOCProp})
+		}
 		switch _, kind := inlineClassifyGather(r.c, n, parent); kind {
 		case inlineGatherInvalidate:
 			items[piListIP] = append(items[piListIP], piItem{n: n, prop: prop, bits: piIPInv})
@@ -557,6 +611,9 @@ func (r *piRecorder) Visit(t *NodeTraversal, n, parent rhino.Node) {
 		}
 	case rhino.Token_STRING_KEY, rhino.Token_GETTER_DEF, rhino.Token_SETTER_DEF,
 		rhino.Token_MEMBER_FUNCTION_DEF, rhino.Token_MEMBER_FIELD_DEF:
+		if r.oc && !n.IsQuotedStringKey() {
+			items[piListOC] = append(items[piListOC], piItem{n: n, prop: n.GetStringID(), bits: piOCProp})
+		}
 		switch prop, kind := inlineClassifyGather(r.c, n, parent); kind {
 		case inlineGatherInvalidate:
 			items[piListIP] = append(items[piListIP], piItem{n: n, prop: prop, bits: piIPInv})
@@ -569,6 +626,11 @@ func (r *piRecorder) Visit(t *NodeTraversal, n, parent rhino.Node) {
 			items[piListCalls] = append(items[piListCalls], piItem{n: n, prop: callee.GetStringID(), bits: piCall})
 		}
 		ismGatherCall(r, r.conv, call)
+		if r.oc {
+			if _, ok := call.FirstArg(); ok && r.conv.IsPropertyRenameFunction(call.Callee().Node()) {
+				items[piListOC] = append(items[piListOC], piItem{n: n, bits: piOCRename})
+			}
+		}
 		if prop, kind := inlineClassifyGather(r.c, n, parent); kind == inlineGatherInvalidate {
 			items[piListIP] = append(items[piListIP], piItem{n: n, prop: prop, bits: piIPInv})
 		}
@@ -591,7 +653,7 @@ func (r *piRecorder) ismGatherGet(n, parent rhino.Node) {
 			return
 		}
 		if parent.GetParent() == r.cur.root {
-			r.cur.items[piListISM] = append(r.cur.items[piListISM], piItem{n: n, prop: prop, bits: piISM})
+			r.lists[piListISM] = append(r.lists[piListISM], piItem{n: n, prop: prop, bits: piISM})
 			return
 		}
 	default:
@@ -607,11 +669,11 @@ func (r *piRecorder) addPossibleSignature(propID uint32, node rhino.Node) {
 	if f, ok := ast.AsFunction(node); ok { // as addPossibleSignature
 		fn = f.Node()
 	}
-	r.cur.items[piListISM] = append(r.cur.items[piListISM], piItem{n: fn, prop: propID, bits: piISMEv})
+	r.lists[piListISM] = append(r.lists[piListISM], piItem{n: fn, prop: propID, bits: piISMEv})
 }
 
 func (r *piRecorder) markNonInlineable(propID uint32) {
-	r.cur.items[piListISM] = append(r.cur.items[piListISM], piItem{prop: propID, bits: piISMEv})
+	r.lists[piListISM] = append(r.lists[piListISM], piItem{prop: propID, bits: piISMEv})
 }
 
 // each calls fn for every item of list under top (the externs or the
@@ -705,7 +767,7 @@ func piDescribe(it piItem, owner rhino.Node) string {
 	if it.n.IsNil() {
 		return "(none)"
 	}
-	return fmt.Sprintf("%s %q bits %05b at %s, in %s", it.n.GetToken(), strpool.String(strpool.ID(it.prop)), it.bits,
+	return fmt.Sprintf("%s %q bits %011b at %s, in %s", it.n.GetToken(), strpool.String(strpool.ID(it.prop)), it.bits,
 		piPosition(it.n), piPosition(owner))
 }
 
