@@ -6,8 +6,9 @@ package xtbxml
 // specification:
 //   - §2.8 prolog and document type declaration, §4.3.3 encoding
 //     declaration, §2.9 standalone declaration;
-//   - §3.1 start-tags, end-tags and empty-element tags, §3.3.3 attribute
-//     value normalization (attributes are CDATA: no declarations are read);
+//   - §3.1 start-tags, end-tags and empty-element tags, §3.3 attribute-list
+//     declarations (default values and non-CDATA normalization) and §3.2
+//     element-content declarations (ignorable whitespace);
 //   - §2.4 character data, §2.7 CDATA sections, §2.5 comments, §2.6
 //     processing instructions, §4.1 character and entity references and
 //     §4.6 the predefined entities, §2.11 end-of-line handling;
@@ -34,11 +35,8 @@ package xtbxml
 //     chars and elements with more than 10000 attributes are errors.
 //
 // Not emulated (UnsupportedOperationException): XML 1.1 documents,
-// encodings other than UTF-8, UTF-16, ISO-8859-1 and US-ASCII, and the
-// internal-subset declarations that would change the events: references to
-// internal entities (general or parameter), attribute-list declarations
-// with attribute definitions, and element declarations with element
-// content (whitespace in such elements is ignorable).
+// encodings other than UTF-8, UTF-16, ISO-8859-1 and US-ASCII, and
+// references to internal entities (general or parameter).
 
 import (
 	"io"
@@ -68,8 +66,9 @@ type saxScanner struct {
 	text []uint16 // character data not yet reported
 	val  []uint16 // attribute value, PI data, literal being scanned
 
-	open  [][]uint16 // names of the open elements
-	attrs saxAttributes
+	open            [][]uint16 // names of the open elements
+	openElemContent []bool     // whether each open element has element-only content
+	attrs           saxAttributes
 
 	hasDecl    bool
 	inSubset   bool
@@ -84,6 +83,7 @@ type saxScanner struct {
 	entities       map[string]saxEntityDecl
 	paramEntities  map[string]saxEntityDecl
 	elementContent map[string]bool
+	attlists       map[string][]saxAttrDecl
 	ended          bool
 }
 
@@ -390,12 +390,26 @@ func (s *saxScanner) scanName() []uint16 {
 	return name
 }
 
-// flushText reports the pending character data.
+// flushText reports the pending character data, routing whitespace-only runs
+// inside element-content elements to ContentHandler.IgnorableWhitespace.
 func (s *saxScanner) flushText() {
 	if len(s.text) > 0 {
-		s.handler.Characters(s.text, 0, len(s.text))
+		if len(s.openElemContent) > 0 && s.openElemContent[len(s.openElemContent)-1] && saxAllSpaces(s.text) {
+			s.handler.IgnorableWhitespace(s.text, 0, len(s.text))
+		} else {
+			s.handler.Characters(s.text, 0, len(s.text))
+		}
 		s.text = s.text[:0]
 	}
+}
+
+func saxAllSpaces(units []uint16) bool {
+	for _, u := range units {
+		if !saxIsSpace(int(u)) {
+			return false
+		}
+	}
+	return true
 }
 
 // ---------------------------------------------------------------------------
@@ -824,6 +838,9 @@ func (s *saxScanner) startTag() bool {
 		}
 		s.in.advance(1)
 		value := s.attributeValue(quote, name, attr)
+		if s.isNonCDATAAttr(name, attr) {
+			value = saxNormalizeNonCDATA(value)
+		}
 		for _, n := range s.attrs.names {
 			if n == attr {
 				s.fatal("Attribute \"" + attr + "\" was already specified for element \"" + name + "\".")
@@ -835,8 +852,16 @@ func (s *saxScanner) startTag() bool {
 		s.attrs.names = append(s.attrs.names, attr)
 		s.attrs.values = append(s.attrs.values, value)
 	}
-	if !empty && s.elementContent[name] {
-		saxUnsupported("elements declared with element content (their white space is ignorable) are")
+	if decls := s.attlists[name]; len(decls) > 0 {
+		for _, d := range decls {
+			if d.hasDefault && s.attrs.GetValue(d.name) == nil {
+				if len(s.attrs.names) == 10000 {
+					s.fatal("JAXP00010002:  Element \"" + name + "\" has more than \"10,000\" attributes, \"10,000\" is the limit imposed by the JDK.")
+				}
+				s.attrs.names = append(s.attrs.names, d.name)
+				s.attrs.values = append(s.attrs.values, d.defaultVal)
+			}
+		}
 	}
 	s.handler.StartElement("", "", name, &s.attrs)
 	if empty {
@@ -844,6 +869,7 @@ func (s *saxScanner) startTag() bool {
 		return true
 	}
 	s.open = append(s.open, nameUnits)
+	s.openElemContent = append(s.openElemContent, s.elementContent[name])
 	return false
 }
 
@@ -860,6 +886,7 @@ func (s *saxScanner) endTag() {
 	}
 	s.handler.EndElement("", "", name)
 	s.open = s.open[:len(s.open)-1]
+	s.openElemContent = s.openElemContent[:len(s.openElemContent)-1]
 }
 
 // content scans the content of the root element up to its end tag.

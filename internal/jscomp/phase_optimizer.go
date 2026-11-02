@@ -129,16 +129,25 @@ func (p *PhaseOptimizer) Process(externs rhino.Node, root rhino.Node) {
 		if Platform_IsThreadInterrupted() {
 			panic(jutil.NewRuntimeExceptionWithCause(jutil.NewInterruptedException()))
 		}
+		var prevExterns, prevJsRoot rhino.Node
+		if c := p.compiler; c != nil {
+			prevExterns, prevJsRoot = c.externsRoot, c.jsRoot
+		}
 		pass.Process(externs, root)
 		if p.HasHaltingErrors() {
 			return
 		}
 		if c := p.compiler; c != nil {
-			name := ""
-			if np, ok := pass.(*PhaseOptimizer_NamedPass); ok {
-				name = np.name
+			if c.externsRoot != prevExterns && !c.externsRoot.IsNil() {
+				externs = c.externsRoot
 			}
-			c.maybeCompactAST(name, &externs, &root, nil)
+			if c.jsRoot != prevJsRoot && !c.jsRoot.IsNil() {
+				root = c.jsRoot
+				p.jsRoot = root
+			}
+			if np, ok := pass.(*PhaseOptimizer_NamedPass); ok {
+				c.maybeCompactAST(np.name, &externs, &root, nil)
+			}
 		}
 	}
 }
@@ -197,7 +206,20 @@ func (n *PhaseOptimizer_NamedPass) Process(externs rhino.Node, root rhino.Node) 
 	}
 
 	// Delay pass construction until immediately before execution.
+	var prevExterns, prevJsRoot rhino.Node
+	if c := p.compiler; c != nil {
+		prevExterns, prevJsRoot = c.externsRoot, c.jsRoot
+	}
 	n.factory.Create(p.compiler).Process(externs, root)
+	if c := p.compiler; c != nil {
+		if c.externsRoot != prevExterns && !c.externsRoot.IsNil() {
+			externs = c.externsRoot
+		}
+		if c.jsRoot != prevJsRoot && !c.jsRoot.IsNil() {
+			root = c.jsRoot
+			p.jsRoot = root
+		}
+	}
 
 	if debugEnd != nil {
 		debugEnd()
@@ -376,9 +398,22 @@ func (l *PhaseOptimizer_Loop) Process(externs rhino.Node, root rhino.Node) {
 			}
 			p.changeTracker.IncrementChangeStamp()
 			p.currentPass = pass
+			var prevExterns, prevJsRoot rhino.Node
+			if c := p.compiler; c != nil {
+				prevExterns, prevJsRoot = c.externsRoot, c.jsRoot
+			}
 			pass.Process(externs, root)
-			if propIndexVerify && p.compiler != nil {
-				p.compiler.propIndexAfterPass(pass.name)
+			if c := p.compiler; c != nil {
+				if c.externsRoot != prevExterns && !c.externsRoot.IsNil() {
+					externs = c.externsRoot
+				}
+				if c.jsRoot != prevJsRoot && !c.jsRoot.IsNil() {
+					root = c.jsRoot
+					p.jsRoot = root
+				}
+				if propIndexVerify {
+					c.propIndexAfterPass(pass.name)
+				}
 			}
 			pass.runInPrevIter = true
 			pass.lastRun = p.changeTracker.GetChangeStamp()

@@ -686,21 +686,6 @@ func (s *saxScanner) occurrence() {
 	}
 }
 
-// attlistDecl scans an attribute-list declaration (production [52]); only
-// one without attribute definitions is emulated.
-func (s *saxScanner) attlistDecl() {
-	if !s.skipSpaces() {
-		s.fatalOrEOF("White space is required after \"<!ATTLIST\" in the attribute-list declaration.")
-	}
-	if s.scanName() == nil {
-		s.fatalOrEOF("The element type is required in the attribute-list declaration.")
-	}
-	s.skipSpaces()
-	if !s.skipChar('>') {
-		saxUnsupported("attribute-list declarations are")
-	}
-}
-
 // entityDecl scans an entity declaration (production [70]).
 func (s *saxScanner) entityDecl() {
 	if !s.skipSpaces() {

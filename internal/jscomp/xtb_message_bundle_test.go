@@ -352,3 +352,32 @@ func (c *XtbMessageBundleTest) TestXtbBundle_icuPluralWithAndWithoutPhex() {
 	AssertThat(bundle.GetMessage("987654").AsIcuMessageString()).
 		IsEqualTo(bundle.GetMessage("123456").AsIcuMessageString())
 }
+
+func (c *XtbMessageBundleTest) TestXtbBundle_withStandardInternalDtdSubset() {
+	xtb := `<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE translationbundle [
+  <!ELEMENT translationbundle (translation)*>
+  <!ATTLIST translationbundle lang CDATA #REQUIRED>
+  <!ELEMENT translation (#PCDATA|ph)*>
+  <!ATTLIST translation
+      id CDATA #REQUIRED
+      seq CDATA #IMPLIED
+       name CDATA #IMPLIED
+      desc CDATA #IMPLIED
+      meaning CDATA #IMPLIED
+      obsolete (obsolete) #IMPLIED
+      xml:space (default|preserve) "default"
+      is_hidden CDATA #IMPLIED>
+  <!ELEMENT ph EMPTY>
+  <!ATTLIST ph name CDATA #REQUIRED>
+]>
+<translationbundle lang="fr">
+  <translation id="42" desc="greeting">Salut <ph name="USER_NAME" />!</translation>
+</translationbundle>
+`
+	bundle := NewXtbMessageBundle(bytes.NewReader([]byte(xtb)), jutil.StringPtr(xtbMessageBundleTest_PROJECT_ID))
+	AssertThat(slices.Collect(bundle.GetAllMessages())).HasSize(1)
+	msg := bundle.GetMessage("42")
+	AssertThat(msg).IsNotNull()
+	AssertThat(msg.AsJsMessageString()).IsEqualTo("Salut {$userName}!")
+}

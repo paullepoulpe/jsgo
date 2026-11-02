@@ -103,7 +103,7 @@ func (c *CheckEs6ModuleFileStructure) ShouldTraverse(t *NodeTraversal, n rhino.N
 	case rhino.Token_VAR, rhino.Token_LET, rhino.Token_CONST:
 		return c.VisitDeclaration(t, ast.MustNameDeclaration(n), parent)
 	default:
-		if parent.IsModuleBody() {
+		if !parent.IsNil() && parent.IsModuleBody() {
 			c.CheckOrder(t, n, CheckEs6ModuleFileStructure_OrderedStatement_OTHER)
 		}
 		return false
@@ -132,7 +132,7 @@ var checkEs6ModuleFileStructure_GOOG_REQUIRE = rhino.QualifiedName_Of("goog.requ
 
 // Java: CheckEs6ModuleFileStructure.visitExprResult(NodeTraversal, Node, Node)
 func (c *CheckEs6ModuleFileStructure) VisitExprResult(t *NodeTraversal, exprResult ast.ExprStmt, parent rhino.Node) bool {
-	if parent.IsModuleBody() {
+	if !parent.IsNil() && parent.IsModuleBody() {
 		if call, ok := exprResult.Expr().AsCall(); ok {
 			callee := call.Callee().Node()
 			if checkEs6ModuleFileStructure_GOOG_DECLAREMODULEID.Matches(callee) {
@@ -151,7 +151,7 @@ func (c *CheckEs6ModuleFileStructure) VisitExprResult(t *NodeTraversal, exprResu
 
 // Java: CheckEs6ModuleFileStructure.visitDeclaration(NodeTraversal, Node, Node)
 func (c *CheckEs6ModuleFileStructure) VisitDeclaration(t *NodeTraversal, declaration ast.NameDeclaration, parent rhino.Node) bool {
-	if parent.IsModuleBody() {
+	if !parent.IsNil() && parent.IsModuleBody() {
 		if firstDecl, ok := declaration.FirstDeclarator(); ok {
 			if _, hasSecond := firstDecl.Next(); !hasSecond {
 				if nameDecl, ok := firstDecl.AsName(); ok {

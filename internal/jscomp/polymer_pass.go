@@ -501,7 +501,8 @@ func polymerPassFindExterns_isPolymerElementPropExpr(value rhino.Node) bool {
 		return false
 	}
 	first := stmt.Expr().Node().GetFirstChild()
-	return first.IsGetProp() &&
+	return !first.IsNil() &&
+		first.IsGetProp() &&
 		first.IsQualifiedName() &&
 		NodeUtil_GetRootOfQualifiedName(first).MatchesQualifiedName(polymerPassFindExterns_POLYMER_ELEMENT_NAME)
 }

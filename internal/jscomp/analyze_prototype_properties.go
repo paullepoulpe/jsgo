@@ -811,7 +811,7 @@ func (p *AnalyzePrototypeProperties_ProcessProperties) processMemberDef(t *NodeT
 
 // Java: AnalyzePrototypeProperties.ProcessProperties.maybeGetVar(NodeTraversal, Node)
 func (p *AnalyzePrototypeProperties_ProcessProperties) MaybeGetVar(t *NodeTraversal, maybeName rhino.Node) *Var {
-	if maybeName.IsName() {
+	if !maybeName.IsNil() && maybeName.IsName() {
 		return t.LookupVarByID(maybeName.GetStringID())
 	}
 	return nil

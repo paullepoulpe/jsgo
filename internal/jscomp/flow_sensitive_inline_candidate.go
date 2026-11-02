@@ -116,8 +116,13 @@ func (c *FlowSensitiveInlineVariables_Candidate) GetDefCfgNode() rhino.Node {
 
 // Java: FlowSensitiveInlineVariables.Candidate.canInline(Scope)
 func (c *FlowSensitiveInlineVariables_Candidate) CanInline(scope *Scope) bool {
-	// Cannot inline a parameter.
-	if c.GetDefCfgNode().IsFunction() {
+	defCfgNode := c.GetDefCfgNode()
+	// Cannot inline a parameter, or a definition/use detached by an earlier candidate.
+	if !defCfgNode.IsNil() && (defCfgNode.IsFunction() || defCfgNode.GetParent().IsNil()) {
+		return false
+	}
+	if c.use.IsNil() || c.use.GetParent().IsNil() ||
+		(!c.useCfgNode.IsNil() && c.useCfgNode.GetParent().IsNil()) {
 		return false
 	}
 
@@ -126,10 +131,14 @@ func (c *FlowSensitiveInlineVariables_Candidate) CanInline(scope *Scope) bool {
 		return false
 	}
 
-	c.GetDefinition(c.GetDefCfgNode())
+	c.GetDefinition(defCfgNode)
 
-	// Definition was not found.
-	if c.def.IsNil() {
+	// Definition was not found, or its initializer/RHS was already detached.
+	if c.def.IsNil() || c.def.GetParent().IsNil() {
+		return false
+	}
+	rhs, hasRhs := c.defValueOpt()
+	if !hasRhs {
 		return false
 	}
 
@@ -138,11 +147,11 @@ func (c *FlowSensitiveInlineVariables_Candidate) CanInline(scope *Scope) bool {
 		return false
 	}
 
-	if !c.IsRhsSafeToInline(scope) {
+	if !c.isRhsNodeSafeToInline(rhs.Node(), scope) {
 		return false
 	}
 
-	if c.outer.getAstAnalyzer().MayHaveSideEffects(c.defValue().Node()) {
+	if c.outer.getAstAnalyzer().MayHaveSideEffects(rhs.Node()) {
 		return false
 	}
 
@@ -263,19 +272,30 @@ func (c *FlowSensitiveInlineVariables_Candidate) isDefOfVar(n rhino.Node) bool {
 	case rhino.Token_NAME:
 		return n.GetStringID() == c.nameID && n.HasChildren()
 	case rhino.Token_ASSIGN:
-		lhs, ok := ast.MustAssign(n).Target().AsName()
-		return ok && lhs.Node().GetStringID() == c.nameID
+		assign := ast.MustAssign(n)
+		lhs, ok := assign.Target().AsName()
+		return ok && lhs.Node().GetStringID() == c.nameID && !assign.Value().Node().IsNil()
 	}
 	return false
+}
+
+// defValueOpt returns the value that the definition assigns, or false if the
+// definition's initializer or RHS has already been detached.
+func (c *FlowSensitiveInlineVariables_Candidate) defValueOpt() (ast.Expr, bool) {
+	if assign, ok := ast.AsAssign(c.def); ok {
+		v := assign.Value()
+		return v, !v.Node().IsNil()
+	}
+	if name, ok := ast.AsName(c.def); ok {
+		return name.Init()
+	}
+	return ast.Expr{}, false
 }
 
 // defValue returns the value that the definition assigns: the value of an
 // assignment, or the initial value of a declared name.
 func (c *FlowSensitiveInlineVariables_Candidate) defValue() ast.Expr {
-	if assign, ok := ast.AsAssign(c.def); ok {
-		return assign.Value()
-	}
-	value, ok := ast.MustName(c.def).Init()
+	value, ok := c.defValueOpt()
 	jutil.CheckState(ok)
 	return value
 }
@@ -410,7 +430,11 @@ func (c *FlowSensitiveInlineVariables_Candidate) hasOutOfScopeName(n rhino.Node,
 //
 // Java: FlowSensitiveInlineVariables.Candidate.isRhsSafeToInline(Scope)
 func (c *FlowSensitiveInlineVariables_Candidate) IsRhsSafeToInline(usageScope *Scope) bool {
-	rhs := c.defValue().Node()
+	rhs, ok := c.defValueOpt()
+	return ok && c.isRhsNodeSafeToInline(rhs.Node(), usageScope)
+}
+
+func (c *FlowSensitiveInlineVariables_Candidate) isRhsNodeSafeToInline(rhs rhino.Node, usageScope *Scope) bool {
 	if fsivHasUnsafeRhsNode(rhs) {
 		return false
 	}
