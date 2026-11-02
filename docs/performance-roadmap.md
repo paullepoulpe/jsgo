@@ -2804,8 +2804,9 @@ interleaved N=5 wall times resolve neither step; a wall-only N=10 run of
 both steps against base resolves typed-full at t=1 (−3.4%, CI −6.3…−0.5)
 and falls just short on bundle-mega at t=4 (−2.4%, CI −5.3…+0.5). Step 2
 covers the candidate list only; the reference traversal (name usages and
-call-site checks) still walks (see "Not done, and why"). Proposed: merge
-step 1; step 2 is optional (see "Decision").
+call-site checks) still walks (see "Not done, and why"). Step 1 is merged
+(through branch `fast/ocindex-s1`); step 2 is not, and stays on branch
+`fast/ocindex` (commits `300a164c` and `6e31cde7`; see "Decision").
 
 ### Which variable passes an index can serve (the design round)
 
@@ -3104,15 +3105,17 @@ count to the statistics):
 - `make vet`;
 - `go test ./internal/jscomp/` and `./tools/bench/ast_isomorphism/`.
 
-### Decision (proposed)
+### Decision
 
-- **Step 1: merge.** It is exact by construction where it matters (the map
+- **Step 1: merged** (2026-11-02, on top of the layout round). It is exact by construction where it matters (the map
   is the data structure the walk builds; verify mode compares the two on
   every read), it touches no pass, and it saves 0.26–0.57 s per compile in
   every mode with narrow intervals, as the design estimated. 583 lines, of
   which 100 are tests. Its risk is the index's: a loop pass that changes the
-  tree without reporting it, which verify mode checks.
-- **Step 2: optional; I would hold it.** It is exact and validated, and
+  tree without reporting it, which verify mode checks. Its timings were
+  taken without the layout round's pre-order layout, which makes every walk
+  cheaper, so on top of it the saving is likely somewhat smaller.
+- **Step 2: not merged** (kept on branch `fast/ocindex`). It is exact and validated, and
   saves 0.36–0.38 s per compile at t=1, but 0–0.25 s at t=4, where the
   walking path already spreads the candidate analyses over the workers, for
   659 more lines in a pass whose order is observable through names. Most of
