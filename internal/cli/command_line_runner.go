@@ -494,52 +494,51 @@ func (r *CommandLineRunner) InitConfigFromFlags(args []string, out *jutil.PrintS
 
 		config := r.GetCommandLineConfig()
 		outputChunkDependencies := flags.outputChunkDependencies
-		config.
-			SetPrintVersion(flags.version).
-			SetPrintTree(flags.printTree).
-			SetPrintTreeJson(flags.printTreeJson).
-			SetPrintAst(flags.printAst).
-			SetJscompDevMode(flags.jscompDevMode).
-			SetLoggingLevel(flags.loggingLevel).
-			SetExterns(flags.externs).
-			SetMixedJsSources(mixedSources).
-			SetDefaultToStdin().
-			SetJsOutputFile(flags.jsOutputFile).
-			SetChunk(flags.chunk).
-			SetVariableMapOutputFile(flags.variableMapOutputFile).
-			SetCreateNameMapFiles(flags.createNameMapFiles).
-			SetPropertyMapOutputFile(flags.propertyMapOutputFile).
-			SetExpectedDiagnostics(flags.expectedDiagnostics).
-			SetPropertyMapInputFile(flags.propertyMapInputFile).
-			SetVariableMapInputFile(flags.variableMapInputFile).
-			SetInstrumentationMappingFile(flags.instrumentationMappingOutputFile).
-			SetCodingConvention(conv).
-			SetSummaryDetailLevel(flags.summaryDetailLevel).
-			SetOutputWrapper(flags.outputWrapper).
-			SetChunkWrapper(flags.chunkWrapper).
-			SetChunkOutputPathPrefix(flags.chunkOutputPathPrefix).
-			SetCreateSourceMap(flags.createSourceMap).
-			SetSourceMapFormat(flags.sourceMapFormat).
-			SetSourceMapLocationMappings(mappings).
-			SetSourceMapInputFiles(sourceMapInputs).
-			SetParseInlineSourceMaps(parseInlineSourceMaps).
-			SetApplyInputSourceMaps(applyInputSourceMaps).
-			SetWarningGuards(flags.guardLevels).
-			SetDefine(flags.define).
-			SetBrowserFeaturesetYear(int(flags.browserFeaturesetYear)).
-			SetCharset(flags.charset).
-			SetDependencyOptions(dependencyOptions).
-			SetOutputManifest([]string{flags.outputManifest}).
-			SetOutputBundle(bundleFiles).
-			SetSkipNormalOutputs(skipNormalOutputs).
-			SetOutputChunkDependencies(&outputChunkDependencies).
-			SetProcessCommonJSModules(flags.processCommonJsModules).
-			SetModuleRoots(flags.moduleRoot).
-			SetWarningsAllowlistFile(flags.warningsAllowlistFile).
-			SetHideWarningsFor(flags.hideWarningsFor).
-			SetAngularPass(flags.angularPass).
-			SetJsonStreamMode(flags.jsonStreamMode).
-			SetErrorFormat(flags.errorFormat)
+		config.printVersion = flags.version
+		config.printTree = flags.printTree
+		config.printTreeJson = flags.printTreeJson
+		config.printAst = flags.printAst
+		config.jscompDevMode = flags.jscompDevMode
+		config.loggingLevel = flags.loggingLevel
+		config.SetExterns(flags.externs)
+		config.SetMixedJsSources(mixedSources)
+		config.defaultToStdin = true
+		config.jsOutputFile = flags.jsOutputFile
+		config.SetChunk(flags.chunk)
+		config.variableMapOutputFile = flags.variableMapOutputFile
+		config.createNameMapFiles = flags.createNameMapFiles
+		config.propertyMapOutputFile = flags.propertyMapOutputFile
+		config.SetExpectedDiagnostics(flags.expectedDiagnostics)
+		config.propertyMapInputFile = flags.propertyMapInputFile
+		config.variableMapInputFile = flags.variableMapInputFile
+		config.instrumentationMappingFile = flags.instrumentationMappingOutputFile
+		config.codingConvention = conv
+		config.summaryDetailLevel = flags.summaryDetailLevel
+		config.outputWrapper = flags.outputWrapper
+		config.SetChunkWrapper(flags.chunkWrapper)
+		config.chunkOutputPathPrefix = flags.chunkOutputPathPrefix
+		config.createSourceMap = flags.createSourceMap
+		config.sourceMapFormat = flags.sourceMapFormat
+		config.SetSourceMapLocationMappings(mappings)
+		config.SetSourceMapInputFiles(sourceMapInputs)
+		config.parseInlineSourceMaps = parseInlineSourceMaps
+		config.applyInputSourceMaps = applyInputSourceMaps
+		config.SetWarningGuards(flags.guardLevels)
+		config.SetDefine(flags.define)
+		config.browserFeaturesetYear = int(flags.browserFeaturesetYear)
+		config.charset = flags.charset
+		config.dependencyOptions = dependencyOptions
+		config.SetOutputManifest([]string{flags.outputManifest})
+		config.outputBundles = bundleFiles
+		config.skipNormalOutputs = skipNormalOutputs
+		config.outputChunkDependencies = &outputChunkDependencies
+		config.processCommonJSModules = flags.processCommonJsModules
+		config.moduleRoots = flags.moduleRoot
+		config.warningsAllowFile = flags.warningsAllowlistFile
+		config.hideWarningsFor = flags.hideWarningsFor
+		config.angularPass = flags.angularPass
+		config.jsonStreamMode = flags.jsonStreamMode
+		config.errorFormat = flags.errorFormat
 
 		segmentOfCompilationToRun := flags.segmentOfCompilationToRun
 		switch segmentOfCompilationToRun {

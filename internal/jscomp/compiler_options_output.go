@@ -270,11 +270,7 @@ func (o *CompilerOptions) ShouldReplaceIdGenerators() bool {
 // Java: CompilerOptions.setIdGenerators(Set<String>)
 func (o *CompilerOptions) SetIdGenerators(idGenerators *jutil.LinkedHashSet[string]) {
 	jutil.CheckNotNull(idGenerators)
-	if idGenerators.IsEmpty() {
-		o.idGenerators = compilerOptionsEmptyIdGeneratorsMap
-		return
-	}
-	builder := jutil.NewLinkedHashMap[string, RenamingMap]()
+	builder := jutil.NewLinkedHashMapWithCapacity[string, RenamingMap](idGenerators.Size())
 	for name := range idGenerators.All() {
 		builder.Put(name, RenamingMap(RenamingToken_INCONSISTENT))
 	}
@@ -283,6 +279,9 @@ func (o *CompilerOptions) SetIdGenerators(idGenerators *jutil.LinkedHashSet[stri
 
 // Java: CompilerOptions.getIdGenerators()
 func (o *CompilerOptions) GetIdGenerators() *jutil.LinkedHashMap[string, RenamingMap] {
+	if o.idGenerators == nil {
+		o.idGenerators = jutil.NewLinkedHashMap[string, RenamingMap]()
+	}
 	return o.idGenerators
 }
 

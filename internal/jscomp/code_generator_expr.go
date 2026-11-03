@@ -524,7 +524,7 @@ func (g *CodeGenerator) AddGetpropIdentifier(getprop rhino.Node) {
 //
 // Java: CodeGenerator.addInvocationTarget(Node, Context)
 func (g *CodeGenerator) AddInvocationTarget(node rhino.Node, context CodeGenerator_Context) {
-	first := node.GetFirstChild()
+	first := ast.MustInvocation(node).Callee().Node()
 
 	needsParens := NodeUtil_IsOptChainNode(first)
 	if CodeGenerator_IsIndirectEval(first) ||
@@ -556,9 +556,9 @@ func (g *CodeGenerator) UnrollBinaryOperator(
 	leftPrecedence int,
 	rightPrecedence int,
 ) {
-	firstNonOperator := n.GetFirstChild()
+	firstNonOperator := ast.MustBinary(n).Left().Node()
 	for firstNonOperator.GetToken() == op {
-		firstNonOperator = firstNonOperator.GetFirstChild()
+		firstNonOperator = ast.MustBinary(firstNonOperator).Left().Node()
 	}
 
 	g.AddExpr(firstNonOperator, leftPrecedence, context)
@@ -567,7 +567,7 @@ func (g *CodeGenerator) UnrollBinaryOperator(
 	for {
 		current = current.GetParent()
 		g.cc.AddOp(opStr, true)
-		g.AddExpr(current.GetSecondChild(), rightPrecedence, rhsContext)
+		g.AddExpr(ast.MustBinary(current).Right().Node(), rightPrecedence, rhsContext)
 		if current == n {
 			break
 		}
@@ -665,9 +665,11 @@ func (g *CodeGenerator) AddStringKey(n rhino.Node) {
 	if !mustBeQuoted {
 		// Check if the property is eligible to be printed as shorthand.
 		if n.IsShorthandProperty() {
-			child := n.GetFirstChild()
+			val := sk.Value()
+			child := val.Node()
+			dv, isDv := val.AsDefaultValue()
 			if child.MatchesQualifiedName(key) ||
-				(child.IsDefaultValue() && child.GetFirstChild().MatchesQualifiedName(key)) {
+				(isDv && dv.Target().Node().MatchesQualifiedName(key)) {
 				g.AddNode(child)
 				return
 			}

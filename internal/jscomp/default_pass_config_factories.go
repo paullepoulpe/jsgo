@@ -138,7 +138,7 @@ var (
 		return NewScopedAliases(c, ScopedAliasesOptions{})
 	})
 	defaultPass_injectRuntimeLibraries = NewPassFactory("InjectRuntimeLibraries", func(c AbstractCompiler) CompilerPass {
-		return NewInjectRuntimeLibraries(c, jutil.NewLinkedHashSet(c.GetOptions().GetForceLibraryInjectionList()...))
+		return newInjectRuntimeLibrariesFromSlice(c, c.GetOptions().GetForceLibraryInjectionList())
 	})
 	defaultPass_removeWeakSources             = passFactoryOf("removeWeakSources", NewRemoveWeakSources)
 	defaultPass_declaredGlobalExternsOnWindow = passFactoryOf(PassNames_DECLARED_GLOBAL_EXTERNS_ON_WINDOW, NewDeclaredGlobalExternsOnWindow)
@@ -273,7 +273,7 @@ var (
 	defaultPass_processDefinesOptimize = createProcessDefines(ProcessDefines_Mode_OPTIMIZE)
 	defaultPass_stripCode              = NewPassFactory("stripCode", func(c AbstractCompiler) CompilerPass {
 		opts := c.GetOptions()
-		return NewStripCode(c, opts.GetStripTypes(), opts.GetStripNameSuffixes(), opts.GetStripNamePrefixes(), opts.GetTweakProcessing().ShouldStrip())
+		return newStripCodeFromOrderedSets(c, opts.GetStripTypes(), opts.GetStripNameSuffixes(), opts.GetStripNamePrefixes(), opts.GetTweakProcessing().ShouldStrip())
 	})
 	defaultPass_checkConsts               = passFactoryOf("checkConsts", NewConstCheck)
 	defaultPass_rewriteCallerCodeLocation = passFactoryOf("rewriteCallerCodeLocation", NewRewriteCallerCodeLocation)

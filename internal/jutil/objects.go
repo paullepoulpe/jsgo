@@ -88,10 +88,22 @@ func ObjectsEquals(a, b any) bool {
 		return ok && y != nil && *x == *y
 	}
 	va := reflect.ValueOf(a)
-	if va.Kind() == reflect.Pointer && a == b {
-		return true
+	if va.Kind() == reflect.Pointer {
+		if va.IsNil() {
+			return IsNil(b)
+		}
+		if a == b {
+			return true
+		}
+		e, ok := a.(Equaler)
+		if !ok || IsNil(b) {
+			return false
+		}
+		return e.Equals(b)
 	}
-	aNil, bNil := IsNil(a), IsNil(b)
+	aNil := reflectValueIsNil(va, a)
+	vb := reflect.ValueOf(b)
+	bNil := reflectValueIsNil(vb, b)
 	if aNil || bNil {
 		return aNil && bNil
 	}
@@ -99,13 +111,11 @@ func ObjectsEquals(a, b any) bool {
 		return e.Equals(b)
 	}
 	ta := va.Type()
-	tb := reflect.TypeOf(b)
-	if ta != tb {
+	if ta != vb.Type() {
 		return false
 	}
 	if !ta.Comparable() {
 		// Arrays and other reference types without equals(): identity.
-		vb := reflect.ValueOf(b)
 		switch va.Kind() {
 		case reflect.Slice:
 			return va.Len() == vb.Len() && (va.Len() == 0 || va.Pointer() == vb.Pointer())
@@ -115,6 +125,21 @@ func ObjectsEquals(a, b any) bool {
 		return false
 	}
 	return a == b
+}
+
+func reflectValueIsNil(rv reflect.Value, v any) bool {
+	switch rv.Kind() {
+	case reflect.Pointer, reflect.Map, reflect.Slice, reflect.Func, reflect.Chan, reflect.Interface, reflect.UnsafePointer:
+		return rv.IsNil()
+	case reflect.Uint32:
+		if rv.Uint() != 0 {
+			return false
+		}
+		_, ok := v.(interface{ IsNil() bool })
+		return ok
+	default:
+		return false
+	}
 }
 
 func fold64(u uint64) int32 {

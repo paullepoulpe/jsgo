@@ -63,51 +63,50 @@ func jsaGroup[T jsaHashable](xs ...T) []jsaHashable {
 }
 
 func TestSource_Equals(t *testing.T) {
-	foo := NewSource_Builder().SetCode("foo").Build()
 	flags := map[string]string{"x": "y"}
 	jsaEqualsTester(t,
-		jsaGroup(NewSource_Builder().Build(), NewSource_Builder().Build()),
+		jsaGroup(NewSource(SourceConfig{}), NewSource(SourceConfig{})),
 		jsaGroup(
-			NewSource_Builder().SetCodeFromSupplier(func() string { return "foo" }).Build(),
-			NewSource_Builder().SetCodeFromSupplier(func() string { return "foo" }).Build(),
-			NewSource_Builder().SetCode("foo").Build(),
-			NewSource_Builder().SetCode("foo").Build()),
-		jsaGroup(NewSource_Builder().SetCode("bar").Build()),
+			NewSource(SourceConfig{CodeSupplier: func() string { return "foo" }}),
+			NewSource(SourceConfig{CodeSupplier: func() string { return "foo" }}),
+			NewSource(SourceConfig{Code: "foo"}),
+			NewSource(SourceConfig{Code: "foo"})),
+		jsaGroup(NewSource(SourceConfig{Code: "bar"})),
 		jsaGroup(
-			foo.ToBuilder().SetPath(jutil.Path_Of("/x")).Build(),
-			foo.ToBuilder().SetPath(jutil.Path_Of("/x")).Build()),
+			NewSource(SourceConfig{Code: "foo", Path: jutil.Path_Of("/x")}),
+			NewSource(SourceConfig{Code: "foo", Path: jutil.Path_Of("/x")})),
 		jsaGroup(
-			foo.ToBuilder().SetOriginalCode("bar").Build(),
-			foo.ToBuilder().SetOriginalCode("bar").Build()),
-		jsaGroup(foo.ToBuilder().SetSourceUrl("foo").Build()),
-		jsaGroup(foo.ToBuilder().SetSourceMap("foo").Build()),
-		jsaGroup(foo.ToBuilder().SetSourceMappingUrl("foo").Build()),
-		jsaGroup(foo.ToBuilder().SetEstimatedSize(12).Build()),
-		jsaGroup(foo.ToBuilder().SetLoadFlags(flags).Build()),
-		jsaGroup(foo.ToBuilder().SetRuntimes([]string{"x"}).Build()))
+			NewSource(SourceConfig{Code: "foo", OriginalCode: "bar"}),
+			NewSource(SourceConfig{Code: "foo", OriginalCode: "bar"})),
+		jsaGroup(NewSource(SourceConfig{Code: "foo", SourceUrl: "foo"})),
+		jsaGroup(NewSource(SourceConfig{Code: "foo", SourceMap: "foo"})),
+		jsaGroup(NewSource(SourceConfig{Code: "foo", SourceMappingUrl: "foo"})),
+		jsaGroup(NewSource(SourceConfig{Code: "foo", EstimatedSize: 12})),
+		jsaGroup(NewSource(SourceConfig{Code: "foo", LoadFlags: flags})),
+		jsaGroup(NewSource(SourceConfig{Code: "foo", Runtimes: []string{"x"}})))
 }
 
 func TestSource_Code(t *testing.T) {
-	jsaEq(t, NewSource_Builder().SetCode("foo").Build().Code(), "foo")
-	jsaEq(t, NewSource_Builder().SetCodeFromSupplier(func() string { return "foo" }).Build().Code(), "foo")
+	jsaEq(t, NewSource(SourceConfig{Code: "foo"}).Code(), "foo")
+	jsaEq(t, NewSource(SourceConfig{CodeSupplier: func() string { return "foo" }}).Code(), "foo")
 }
 
 func TestSource_Original(t *testing.T) {
-	jsaEq(t, NewSource_Builder().SetCode("foo").Build().OriginalCode(), "foo")
-	jsaEq(t, NewSource_Builder().SetCodeFromSupplier(func() string { return "foo" }).Build().OriginalCode(), "foo")
+	jsaEq(t, NewSource(SourceConfig{Code: "foo"}).OriginalCode(), "foo")
+	jsaEq(t, NewSource(SourceConfig{CodeSupplier: func() string { return "foo" }}).OriginalCode(), "foo")
 
-	jsaEq(t, NewSource_Builder().SetCode("foo").SetOriginalCode("bar").Build().OriginalCode(), "bar")
-	jsaEq(t, NewSource_Builder().
-		SetCodeFromSupplier(func() string { return "foo" }).
-		SetOriginalCode("bar").
-		Build().
-		OriginalCode(), "bar")
+	jsaEq(t, NewSource(SourceConfig{Code: "foo", OriginalCode: "bar"}).OriginalCode(), "bar")
+	jsaEq(t, NewSource(SourceConfig{
+		CodeSupplier: func() string { return "foo" },
+		OriginalCode: "bar",
+	}).OriginalCode(), "bar")
 }
 
 func TestSource_Runtimes(t *testing.T) {
-	foo := NewSource_Builder().AddRuntime("foo").Build()
+	foo := NewSource(SourceConfig{Runtimes: []string{"foo"}})
 	jsaDeepEq(t, foo.Runtimes(), []string{"foo"})
-	jsaDeepEq(t, foo.ToBuilder().AddRuntime("bar").Build().Runtimes(), []string{"foo", "bar"})
-	jsaDeepEq(t, foo.ToBuilder().AddRuntime("bar").AddRuntime("baz").Build().Runtimes(), []string{"foo", "bar", "baz"})
-	jsaDeepEq(t, foo.ToBuilder().AddRuntime("bar").AddRuntime("foo").Build().Runtimes(), []string{"foo", "bar"})
+	jsaDeepEq(t, foo.WithTransformed(foo.Code(), foo.SourceMap(), "bar").Runtimes(), []string{"foo", "bar"})
+	jsaDeepEq(t, foo.WithTransformed(foo.Code(), foo.SourceMap(), "bar", "baz").Runtimes(), []string{"foo", "bar", "baz"})
+	jsaDeepEq(t, foo.WithTransformed(foo.Code(), foo.SourceMap(), "bar", "foo").Runtimes(), []string{"foo", "bar"})
+	jsaDeepEq(t, NewSource(SourceConfig{Runtimes: []string{"foo", "bar", "foo"}}).Runtimes(), []string{"foo", "bar"})
 }

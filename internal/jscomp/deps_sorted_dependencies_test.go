@@ -225,3 +225,20 @@ func jsaAssertOrder(t *testing.T, shuffle, expected []*SimpleDependencyInfo) {
 	sorted := NewSortedDependencies(shuffle)
 	jsaSdiCheck(t, sorted.GetSortedList(), expected)
 }
+
+func TestSortedDependencies_DistinctEqualSimpleDependencyInfoLookupAndDedup(t *testing.T) {
+	a1 := SimpleDependencyInfo_Builder_("a", "a").SetProvidesArray("a").SetRequiresArray(DependencyInfo_Require_GoogRequireSymbol("b")).Build()
+	a2 := SimpleDependencyInfo_Builder_("a", "a").SetProvidesArray("a").SetRequiresArray(DependencyInfo_Require_GoogRequireSymbol("b")).Build()
+	b1 := SimpleDependencyInfo_Builder_("b", "b").SetProvidesArray("b").Build()
+	b2 := SimpleDependencyInfo_Builder_("b", "b").SetProvidesArray("b").Build()
+
+	sorted := NewSortedDependencies(jsaSdis(a1, a2, b1))
+	if got := len(sorted.GetSortedList()); got != 2 {
+		t.Fatalf("len(GetSortedList()) = %d, want 2", got)
+	}
+	// Querying with a distinct but Equal root pointer (a2 / b2) must resolve via value equality.
+	deps := sorted.GetSortedStrongDependenciesOf(jsaSdis(a2))
+	jsaSdiCheck(t, deps, jsaSdis(b1, a1))
+	depsB := sorted.GetSortedStrongDependenciesOf(jsaSdis(b2))
+	jsaSdiCheck(t, depsB, jsaSdis(b1))
+}

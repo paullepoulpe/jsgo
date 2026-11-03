@@ -199,55 +199,6 @@ func NewAbstractCommandLineRunner_CommandLineConfig() *AbstractCommandLineRunner
 	}
 }
 
-// Java: AbstractCommandLineRunner.CommandLineConfig.setPrintVersion(boolean)
-func (c *AbstractCommandLineRunner_CommandLineConfig) SetPrintVersion(x bool) *AbstractCommandLineRunner_CommandLineConfig {
-	c.printVersion = x
-	return c
-}
-
-// SetPrintTree prints out the parse tree and exits.
-//
-// Java: AbstractCommandLineRunner.CommandLineConfig.setPrintTree(boolean)
-func (c *AbstractCommandLineRunner_CommandLineConfig) SetPrintTree(printTree bool) *AbstractCommandLineRunner_CommandLineConfig {
-	c.printTree = printTree
-	return c
-}
-
-// SetPrintTreeJson prints out the parse tree and exits.
-//
-// Java: AbstractCommandLineRunner.CommandLineConfig.setPrintTreeJson(boolean)
-func (c *AbstractCommandLineRunner_CommandLineConfig) SetPrintTreeJson(printTreeJson bool) *AbstractCommandLineRunner_CommandLineConfig {
-	c.printTreeJson = printTreeJson
-	return c
-}
-
-// SetPrintAst prints a dot file describing the internal abstract syntax
-// tree and exits.
-//
-// Java: AbstractCommandLineRunner.CommandLineConfig.setPrintAst(boolean)
-func (c *AbstractCommandLineRunner_CommandLineConfig) SetPrintAst(printAst bool) *AbstractCommandLineRunner_CommandLineConfig {
-	c.printAst = printAst
-	return c
-}
-
-// SetJscompDevMode turns on extra validity checks.
-//
-// Java: AbstractCommandLineRunner.CommandLineConfig.setJscompDevMode(CompilerOptions.DevMode)
-func (c *AbstractCommandLineRunner_CommandLineConfig) SetJscompDevMode(jscompDevMode jscomp.CompilerOptions_DevMode) *AbstractCommandLineRunner_CommandLineConfig {
-	c.jscompDevMode = jscompDevMode
-	return c
-}
-
-// SetLoggingLevel sets the logging level (standard java.util.logging.Level
-// values) for Compiler progress. Does not control errors or warnings for the
-// JavaScript code under compilation.
-//
-// Java: AbstractCommandLineRunner.CommandLineConfig.setLoggingLevel(String)
-func (c *AbstractCommandLineRunner_CommandLineConfig) SetLoggingLevel(loggingLevel string) *AbstractCommandLineRunner_CommandLineConfig {
-	c.loggingLevel = loggingLevel
-	return c
-}
-
 // SetExterns sets the file containing JavaScript externs. You may specify
 // multiple.
 //
@@ -264,24 +215,6 @@ func (c *AbstractCommandLineRunner_CommandLineConfig) SetExterns(externs []strin
 func (c *AbstractCommandLineRunner_CommandLineConfig) SetMixedJsSources(mixedJsSources []*AbstractCommandLineRunner_FlagEntry[AbstractCommandLineRunner_JsSourceType]) *AbstractCommandLineRunner_CommandLineConfig {
 	jutil.CheckNotNull(mixedJsSources) // Java: addAll(null) throws NullPointerException.
 	c.mixedJsSources = append(c.mixedJsSources[:0:0], mixedJsSources...)
-	return c
-}
-
-// SetDefaultToStdin sets whether to read a single source file from standard
-// input if no input files are explicitly specified.
-//
-// Java: AbstractCommandLineRunner.CommandLineConfig.setDefaultToStdin()
-func (c *AbstractCommandLineRunner_CommandLineConfig) SetDefaultToStdin() *AbstractCommandLineRunner_CommandLineConfig {
-	c.defaultToStdin = true
-	return c
-}
-
-// SetJsOutputFile sets the primary output filename. If not specified,
-// output is written to stdout.
-//
-// Java: AbstractCommandLineRunner.CommandLineConfig.setJsOutputFile(String)
-func (c *AbstractCommandLineRunner_CommandLineConfig) SetJsOutputFile(jsOutputFile string) *AbstractCommandLineRunner_CommandLineConfig {
-	c.jsOutputFile = jsOutputFile
 	return c
 }
 
@@ -405,12 +338,6 @@ func (c *AbstractCommandLineRunner_CommandLineConfig) ShouldAlwaysGatherSourceMa
 		c.ShouldRestoreTypedAstsPerformStage2AndSave()
 }
 
-// Java: AbstractCommandLineRunner.CommandLineConfig.setTypedAstListInputFilename(String)
-func (c *AbstractCommandLineRunner_CommandLineConfig) SetTypedAstListInputFilename(fileName *string) *AbstractCommandLineRunner_CommandLineConfig {
-	c.typedAstListInputFilename = fileName
-	return c
-}
-
 // SetSaveCompilationStateToFilename sets the compiler to perform the first
 // phase and save the intermediate result to a file.
 //
@@ -462,12 +389,6 @@ func (c *AbstractCommandLineRunner_CommandLineConfig) SetSourceMapInputFiles(sou
 	return c
 }
 
-// Java: AbstractCommandLineRunner.CommandLineConfig.setParseInlineSourceMaps(boolean)
-func (c *AbstractCommandLineRunner_CommandLineConfig) SetParseInlineSourceMaps(parseInlineSourceMaps bool) *AbstractCommandLineRunner_CommandLineConfig {
-	c.parseInlineSourceMaps = parseInlineSourceMaps
-	return c
-}
-
 // SetExpectedDiagnostics sets the expected diagnostics in the format
 // [(line,col)]CODE:regex. CODE is the JSCompiler DiagnosticType key. regex
 // matches the description.
@@ -475,96 +396,6 @@ func (c *AbstractCommandLineRunner_CommandLineConfig) SetParseInlineSourceMaps(p
 // Java: AbstractCommandLineRunner.CommandLineConfig.setExpectedDiagnostics(List<String>)
 func (c *AbstractCommandLineRunner_CommandLineConfig) SetExpectedDiagnostics(expectedDiagnostics []string) *AbstractCommandLineRunner_CommandLineConfig {
 	c.expectedDiagnostics = append(c.expectedDiagnostics[:0:0], expectedDiagnostics...)
-	return c
-}
-
-// SetVariableMapInputFile sets the file containing the serialized version of
-// the variable renaming map produced by a previous compilation.
-//
-// Java: AbstractCommandLineRunner.CommandLineConfig.setVariableMapInputFile(String)
-func (c *AbstractCommandLineRunner_CommandLineConfig) SetVariableMapInputFile(variableMapInputFile string) *AbstractCommandLineRunner_CommandLineConfig {
-	c.variableMapInputFile = variableMapInputFile
-	return c
-}
-
-// SetPropertyMapInputFile sets the file containing the serialized version
-// of the property renaming map produced by a previous compilation.
-//
-// Java: AbstractCommandLineRunner.CommandLineConfig.setPropertyMapInputFile(String)
-func (c *AbstractCommandLineRunner_CommandLineConfig) SetPropertyMapInputFile(propertyMapInputFile string) *AbstractCommandLineRunner_CommandLineConfig {
-	c.propertyMapInputFile = propertyMapInputFile
-	return c
-}
-
-// SetVariableMapOutputFile sets the file where the serialized version of
-// the variable renaming map produced should be saved.
-//
-// Java: AbstractCommandLineRunner.CommandLineConfig.setVariableMapOutputFile(String)
-func (c *AbstractCommandLineRunner_CommandLineConfig) SetVariableMapOutputFile(variableMapOutputFile string) *AbstractCommandLineRunner_CommandLineConfig {
-	c.variableMapOutputFile = variableMapOutputFile
-	return c
-}
-
-// SetCreateNameMapFiles: if true, variable renaming and property renaming
-// map files will be produced as {binary name}_vars_map.out and {binary
-// name}_props_map.out. Note that this flag cannot be used in conjunction
-// with either variable_map_output_file or property_map_output_file.
-//
-// Java: AbstractCommandLineRunner.CommandLineConfig.setCreateNameMapFiles(boolean)
-func (c *AbstractCommandLineRunner_CommandLineConfig) SetCreateNameMapFiles(createNameMapFiles bool) *AbstractCommandLineRunner_CommandLineConfig {
-	c.createNameMapFiles = createNameMapFiles
-	return c
-}
-
-// SetPropertyMapOutputFile sets the file where the serialized version of
-// the property renaming map produced should be saved.
-//
-// Java: AbstractCommandLineRunner.CommandLineConfig.setPropertyMapOutputFile(String)
-func (c *AbstractCommandLineRunner_CommandLineConfig) SetPropertyMapOutputFile(propertyMapOutputFile string) *AbstractCommandLineRunner_CommandLineConfig {
-	c.propertyMapOutputFile = propertyMapOutputFile
-	return c
-}
-
-// SetStringMapOutputFile sets the file where the serialized version of the
-// string map produced by the ReplaceStrings pass should be saved.
-//
-// Java: AbstractCommandLineRunner.CommandLineConfig.setStringMapOutputFile(String)
-func (c *AbstractCommandLineRunner_CommandLineConfig) SetStringMapOutputFile(stringMapOutputPath string) *AbstractCommandLineRunner_CommandLineConfig {
-	c.stringMapOutputPath = stringMapOutputPath
-	return c
-}
-
-// Java: AbstractCommandLineRunner.CommandLineConfig.setInstrumentationMappingFile(String)
-func (c *AbstractCommandLineRunner_CommandLineConfig) SetInstrumentationMappingFile(instrumentationMappingFile string) *AbstractCommandLineRunner_CommandLineConfig {
-	c.instrumentationMappingFile = instrumentationMappingFile
-	return c
-}
-
-// SetCodingConvention sets rules and conventions to enforce.
-//
-// Java: AbstractCommandLineRunner.CommandLineConfig.setCodingConvention(CodingConvention)
-func (c *AbstractCommandLineRunner_CommandLineConfig) SetCodingConvention(codingConvention jscomp.CodingConvention) *AbstractCommandLineRunner_CommandLineConfig {
-	c.codingConvention = codingConvention
-	return c
-}
-
-// SetSummaryDetailLevel controls how detailed the compilation summary is.
-// Values: 0 (never print summary), 1 (print summary only if there are errors
-// or warnings), 2 (print summary if type checking is on), 3 (always print
-// summary). The default level is 1
-//
-// Java: AbstractCommandLineRunner.CommandLineConfig.setSummaryDetailLevel(int)
-func (c *AbstractCommandLineRunner_CommandLineConfig) SetSummaryDetailLevel(summaryDetailLevel int) *AbstractCommandLineRunner_CommandLineConfig {
-	c.summaryDetailLevel = summaryDetailLevel
-	return c
-}
-
-// SetOutputWrapper interpolates output into this string at the place
-// denoted by the marker token %output%, or %output|jsstring%.
-//
-// Java: AbstractCommandLineRunner.CommandLineConfig.setOutputWrapper(String)
-func (c *AbstractCommandLineRunner_CommandLineConfig) SetOutputWrapper(outputWrapper string) *AbstractCommandLineRunner_CommandLineConfig {
-	c.outputWrapper = outputWrapper
 	return c
 }
 
@@ -577,81 +408,13 @@ func (c *AbstractCommandLineRunner_CommandLineConfig) SetChunkWrapper(chunkWrapp
 	return c
 }
 
-// SetChunkOutputPathPrefix sets the prefix for filenames of compiled
-// chunks. <chunk-name>.js will be appended to this prefix. Directories will
-// be created as needed. Use with --chunk
-//
-// Java: AbstractCommandLineRunner.CommandLineConfig.setChunkOutputPathPrefix(String)
-func (c *AbstractCommandLineRunner_CommandLineConfig) SetChunkOutputPathPrefix(chunkOutputPathPrefix string) *AbstractCommandLineRunner_CommandLineConfig {
-	c.chunkOutputPathPrefix = chunkOutputPathPrefix
-	return c
-}
-
-// SetChunkOutputFiles sets the output file name for a JavaScript chunk
-// (optional). See the flag description for formatting requirements.
-//
-// Java: AbstractCommandLineRunner.CommandLineConfig.setChunkOutputFiles(List<String>)
-func (c *AbstractCommandLineRunner_CommandLineConfig) SetChunkOutputFiles(chunkOutputFiles []string) *AbstractCommandLineRunner_CommandLineConfig {
-	c.chunkOutputFiles = append(c.chunkOutputFiles[:0:0], chunkOutputFiles...)
-	return c
-}
-
-// SetChunkConformanceFiles sets the conformance report file name for a
-// JavaScript chunk (optional). See the flag description for formatting
-// requirements.
-//
-// Java: AbstractCommandLineRunner.CommandLineConfig.setChunkConformanceFiles(List<String>)
-func (c *AbstractCommandLineRunner_CommandLineConfig) SetChunkConformanceFiles(chunkConformanceFiles []string) *AbstractCommandLineRunner_CommandLineConfig {
-	c.chunkConformanceFiles = append(c.chunkConformanceFiles[:0:0], chunkConformanceFiles...)
-	return c
-}
-
-// SetCreateSourceMap: if specified, a source map file mapping the generated
-// source files back to the original source file will be output to the
-// specified path. The %outname% placeholder will expand to the name of the
-// output file that the source map corresponds to.
-//
-// Java: AbstractCommandLineRunner.CommandLineConfig.setCreateSourceMap(String)
-func (c *AbstractCommandLineRunner_CommandLineConfig) SetCreateSourceMap(createSourceMap string) *AbstractCommandLineRunner_CommandLineConfig {
-	c.createSourceMap = createSourceMap
-	return c
-}
-
-// SetSourceMapDetailLevel sets the detail supplied in the source map file,
-// if generated.
-//
-// Java: AbstractCommandLineRunner.CommandLineConfig.setSourceMapDetailLevel(SourceMap.DetailLevel)
-func (c *AbstractCommandLineRunner_CommandLineConfig) SetSourceMapDetailLevel(level jscomp.SourceMap_DetailLevel) *AbstractCommandLineRunner_CommandLineConfig {
-	c.sourceMapDetailLevel = level
-	return c
-}
-
-// SetSourceMapFormat sets the source map format to use, if generated.
-//
-// Java: AbstractCommandLineRunner.CommandLineConfig.setSourceMapFormat(SourceMap.Format)
-func (c *AbstractCommandLineRunner_CommandLineConfig) SetSourceMapFormat(format jscomp.SourceMap_Format) *AbstractCommandLineRunner_CommandLineConfig {
-	c.sourceMapFormat = format
-	return c
-}
-
 // SetSourceMapLocationMappings sets the source map location mappings to
 // use, if generated.
 //
 // Java: AbstractCommandLineRunner.CommandLineConfig.setSourceMapLocationMappings(List<SourceMap.LocationMapping>)
 func (c *AbstractCommandLineRunner_CommandLineConfig) SetSourceMapLocationMappings(
 	locationMappings []jscomp.SourceMap_LocationMapping) *AbstractCommandLineRunner_CommandLineConfig {
-
 	c.sourceMapLocationMappings = slices.Clone(locationMappings)
-	return c
-}
-
-// SetApplyInputSourceMaps sets whether to apply input source maps to the
-// output, i.e. map back to original inputs from input files that have source
-// maps applied to them.
-//
-// Java: AbstractCommandLineRunner.CommandLineConfig.setApplyInputSourceMaps(boolean)
-func (c *AbstractCommandLineRunner_CommandLineConfig) SetApplyInputSourceMaps(applyInputSourceMaps bool) *AbstractCommandLineRunner_CommandLineConfig {
-	c.applyInputSourceMaps = applyInputSourceMaps
 	return c
 }
 
@@ -660,5 +423,41 @@ func (c *AbstractCommandLineRunner_CommandLineConfig) SetApplyInputSourceMaps(ap
 // Java: AbstractCommandLineRunner.CommandLineConfig.setWarningGuards(List<FlagEntry<CheckLevel>>)
 func (c *AbstractCommandLineRunner_CommandLineConfig) SetWarningGuards(warningGuards []*AbstractCommandLineRunner_FlagEntry[jscomp.CheckLevel]) *AbstractCommandLineRunner_CommandLineConfig {
 	c.warningGuards = append(c.warningGuards[:0:0], warningGuards...)
+	return c
+}
+
+// SetDefine overrides the value of a variable annotated @define. The format
+// is <name>[=<val>], where <name> is the name of a @define variable and
+// <val> is a boolean, number, or a single-quoted string that contains no
+// single quotes. If [=<val>] is omitted, the variable is marked true
+//
+// Java: AbstractCommandLineRunner.CommandLineConfig.setDefine(List<String>)
+func (c *AbstractCommandLineRunner_CommandLineConfig) SetDefine(define []string) *AbstractCommandLineRunner_CommandLineConfig {
+	c.define = append(c.define[:0:0], define...)
+	return c
+}
+
+// SetOutputManifest sets whether to print output manifest files. Filter out
+// empty file names.
+//
+// Java: AbstractCommandLineRunner.CommandLineConfig.setOutputManifest(List<String>)
+func (c *AbstractCommandLineRunner_CommandLineConfig) SetOutputManifest(outputManifests []string) *AbstractCommandLineRunner_CommandLineConfig {
+	n := 0
+	for _, manifestName := range outputManifests {
+		if manifestName != "" {
+			n++
+		}
+	}
+	if n == 0 {
+		c.outputManifests = []string{}
+		return c
+	}
+	manifests := make([]string, 0, n)
+	for _, manifestName := range outputManifests {
+		if manifestName != "" {
+			manifests = append(manifests, manifestName)
+		}
+	}
+	c.outputManifests = manifests
 	return c
 }

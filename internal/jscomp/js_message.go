@@ -37,7 +37,6 @@ package jscomp
 
 import (
 	"iter"
-	"slices"
 	"strconv"
 	"strings"
 
@@ -432,102 +431,11 @@ func (m *JsMessage) IsEmpty() bool {
 	return true
 }
 
-// Equals is the record's equals: every component is equal.
-//
-// Java: JsMessage.equals(Object)
-func (m *JsMessage) Equals(o any) bool {
-	that, ok := o.(*JsMessage)
-	if !ok || that == nil {
-		return false
-	}
-	if m == that {
-		return true
-	}
-	return m.hasSourceName == that.hasSourceName && m.sourceName == that.sourceName &&
-		m.key == that.key &&
-		m.isAnonymous == that.isAnonymous &&
-		m.isExternal == that.isExternal &&
-		m.id == that.id &&
-		slices.Equal(m.parts, that.parts) &&
-		m.genderedMessages.EqualFunc(&that.genderedMessages, slices.Equal) &&
-		m.hasAlternateId == that.hasAlternateId && m.alternateId == that.alternateId &&
-		m.hasDesc == that.hasDesc && m.desc == that.desc &&
-		m.hasMeaning == that.hasMeaning && m.meaning == that.meaning &&
-		OrderedMapEqual(&m.placeholderExamples, &that.placeholderExamples) &&
-		OrderedMapEqual(&m.placeholderOriginalCode, &that.placeholderOriginalCode) &&
-		m.jsPlaceholderNames.Equal(&that.jsPlaceholderNames) &&
-		m.canonicalPlaceholderNames.Equal(&that.canonicalPlaceholderNames)
-}
-
-func jsMessage_partsHashCode(parts []JsMessage_Part) int32 {
-	var h int32 = 1
-	for _, p := range parts {
-		h = 31*h + p.HashCode()
-	}
-	return h
-}
-
-func jsMessage_boolHashCode(b bool) int32 {
-	if b {
-		return 1231
-	}
-	return 1237
-}
-
-func jsMessage_optStringHashCode(s string, ok bool) int32 {
-	if !ok {
-		return 0
-	}
-	return jutil.StringHashCode(s)
-}
-
 func jsMessage_optStringFormat(s string, ok bool) string {
 	if !ok {
 		return "null"
 	}
 	return s
-}
-
-func jsMessage_stringMapHashCode(m *OrderedStringMap[string]) int32 {
-	var h int32
-	for _, e := range m.Entries() {
-		h += jutil.StringHashCode(e.Key) ^ jutil.StringHashCode(e.Value)
-	}
-	return h
-}
-
-func jsMessage_stringSetHashCode(s *OrderedSet[string]) int32 {
-	var h int32
-	for _, e := range s.m.Entries() {
-		h += jutil.StringHashCode(e.Key)
-	}
-	return h
-}
-
-// HashCode is the record's hashCode: h = 31*h + hash(component), from 0.
-//
-// Java: JsMessage.hashCode()
-func (m *JsMessage) HashCode() int32 {
-	var h int32 = 0
-	h = 31*h + jsMessage_optStringHashCode(m.sourceName, m.hasSourceName)
-	h = 31*h + jutil.StringHashCode(m.key)
-	h = 31*h + jsMessage_boolHashCode(m.isAnonymous)
-	h = 31*h + jsMessage_boolHashCode(m.isExternal)
-	h = 31*h + jutil.StringHashCode(m.id)
-	h = 31*h + jsMessage_partsHashCode(m.parts)
-	var gendered int32
-	for _, e := range m.genderedMessages.Entries() {
-		gendered += int32(e.Key) ^ jsMessage_partsHashCode(e.Value)
-	}
-	h = 31*h + gendered
-	h = 31*h + jsMessage_optStringHashCode(m.alternateId, m.hasAlternateId)
-	h = 31*h + jsMessage_optStringHashCode(m.desc, m.hasDesc)
-	h = 31*h + jsMessage_optStringHashCode(m.meaning, m.hasMeaning)
-	h = 31*h + jsMessage_stringMapHashCode(&m.placeholderExamples)
-	h = 31*h + jsMessage_stringMapHashCode(&m.placeholderOriginalCode)
-	h = 31*h + jsMessage_stringSetHashCode(&m.jsPlaceholderNames)
-	h = 31*h + jsMessage_stringSetHashCode(&m.canonicalPlaceholderNames)
-	return h
 }
 
 func jsMessage_formatPartsList(parts []JsMessage_Part) string {
@@ -721,20 +629,6 @@ func (p JsMessage_Part) GetCanonicalPlaceholderName() string {
 		return p.str
 	}
 	return caseFormatLowerCamelToUpperUnderscore(p.str)
-}
-
-// Equals compares two JsMessage_Part values.
-func (p JsMessage_Part) Equals(o any) bool {
-	that, ok := o.(JsMessage_Part)
-	return ok && p == that
-}
-
-// HashCode computes the Java record hashCode for StringPart or PlaceholderReference.
-func (p JsMessage_Part) HashCode() int32 {
-	if !p.isPlaceholder {
-		return jutil.StringHashCode(p.str)
-	}
-	return 31*jutil.StringHashCode(p.str) + jsMessage_boolHashCode(p.canonical)
 }
 
 // String renders the Java record toString for StringPart or PlaceholderReference.

@@ -196,7 +196,7 @@ func (r *RewriteAsyncFunctions) getOrCreateSuperPropertyWrapperInfo(c *rewriteAs
 		if info.propertyID == propID {
 			existingColor := info.firstInstanceOfSuperDotProperty.GetColor()
 			jutil.CheckStateMsg2(
-				jutil.ObjectsEquals(existingColor, propertyType),
+				existingColor == propertyType,
 				"Previous reference type: %s differs from current reference type: %s",
 				existingColor,
 				propertyType)

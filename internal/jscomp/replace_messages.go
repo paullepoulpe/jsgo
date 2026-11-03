@@ -214,14 +214,21 @@ func (p *ReplaceMessages_MsgProtectionPass) CreateProtectionFunctionCallee(prote
 // Java: ReplaceMessages.MsgProtectionPass.processMessageFallback(Node, JsMessage, JsMessage)
 func (p *ReplaceMessages_MsgProtectionPass) ProcessMessageFallback(callNode rhino.Node, message1 *JsMessage, message2 *JsMessage) {
 	r := p.outer
-	originalCallee := rhino.CheckNotNullMsg1(callNode.GetFirstChild(), "%s", callNode)
+	call, ok := ast.AsCall(callNode)
+	jutil.CheckStateMsg1(ok, "%s", callNode)
+	originalCallee := call.Callee().Node()
 	fallbackCallee := p.CreateProtectionFunctionCallee(ReplaceMessagesConstants_FALLBACK_MSG_CALLEE).
 		Srcref(originalCallee)
 
-	originalFirstArg := rhino.CheckNotNullMsg1(originalCallee.GetNext(), "%s", callNode)
+	callOrNew := call.AsCallOrNew()
+	firstArg, ok := callOrNew.ArgAt(0)
+	jutil.CheckStateMsg1(ok, "%s", callNode)
+	originalFirstArg := firstArg.Node()
 	firstMsgKey := r.astFactory.CreateString(message1.GetKey()).Srcref(originalFirstArg)
 
-	originalSecondArg := rhino.CheckNotNullMsg1(originalFirstArg.GetNext(), "%s", callNode)
+	secondArg, ok := callOrNew.ArgAt(1)
+	jutil.CheckStateMsg1(ok, "%s", callNode)
+	originalSecondArg := secondArg.Node()
 	secondMsgKey := r.astFactory.CreateString(message2.GetKey()).Srcref(originalSecondArg)
 
 	newCallNode := r.astFactory.
@@ -399,21 +406,21 @@ func ReplaceMessages_ProtectedMsgFallback_FromAstNode(n rhino.Node) (ReplaceMess
 	if !ok {
 		return ReplaceMessages_ProtectedMsgFallback{}, false
 	}
-	callee := call.Callee().Node()
-	if !callee.MatchesName(ReplaceMessagesConstants_FALLBACK_MSG_CALLEE) {
+	if !call.Callee().Node().MatchesName(ReplaceMessagesConstants_FALLBACK_MSG_CALLEE) {
 		return ReplaceMessages_ProtectedMsgFallback{}, false
 	}
-	jutil.CheckStateMsg1(n.HasXChildren(5), "bad message fallback call: %s", n)
-	firstMsgKeyNode := callee.GetNext()
-	firstMsgValue := firstMsgKeyNode.GetNext()
-	secondMsgKeyNode := firstMsgValue.GetNext()
-	secondMsgValue := secondMsgKeyNode.GetNext()
+	callOrNew := call.AsCallOrNew()
+	jutil.CheckStateMsg1(callOrNew.NumArgs() == 4, "bad message fallback call: %s", n)
+	firstMsgKeyNode, _ := callOrNew.ArgAt(0)
+	firstMsgValue, _ := callOrNew.ArgAt(1)
+	secondMsgKeyNode, _ := callOrNew.ArgAt(2)
+	secondMsgValue, _ := callOrNew.ArgAt(3)
 	return ReplaceMessages_ProtectedMsgFallback{
 		callNode:       n,
-		firstMsgKey:    firstMsgKeyNode.GetString(),
-		firstMsgValue:  firstMsgValue,
-		secondMsgKey:   secondMsgKeyNode.GetString(),
-		secondMsgValue: secondMsgValue,
+		firstMsgKey:    firstMsgKeyNode.Node().GetString(),
+		firstMsgValue:  firstMsgValue.Node(),
+		secondMsgKey:   secondMsgKeyNode.Node().GetString(),
+		secondMsgValue: secondMsgValue.Node(),
 	}, true
 }
 
@@ -488,15 +495,20 @@ func NewReplaceMessages_FullReplacementPass(outer *ReplaceMessages) *ReplaceMess
 // Java: ReplaceMessages.FullReplacementPass.processMessageFallback(Node, JsMessage, JsMessage)
 func (p *ReplaceMessages_FullReplacementPass) ProcessMessageFallback(callNode rhino.Node, message1 *JsMessage, message2 *JsMessage) {
 	r := p.outer
+	call, ok := ast.AsCall(callNode)
+	jutil.CheckStateMsg1(ok, "%s", callNode)
+	callOrNew := call.AsCallOrNew()
 	isFirstMessageTranslated := r.LookupMessage(callNode, r.bundle, message1) != nil
 	isSecondMessageTranslated := r.LookupMessage(callNode, r.bundle, message2) != nil
-	var replacementNode rhino.Node
+	var replacementArg ast.Arg
 	if isSecondMessageTranslated && !isFirstMessageTranslated {
-		replacementNode = callNode.GetChildAtIndex(2)
+		replacementArg, ok = callOrNew.ArgAt(1)
 	} else {
-		replacementNode = callNode.GetSecondChild()
+		replacementArg, ok = callOrNew.ArgAt(0)
 	}
-	callNode.ReplaceWith(replacementNode.Detach())
+	jutil.CheckStateMsg1(ok, "%s", callNode)
+	replacementNode := replacementArg.Detach().Node()
+	callNode.ReplaceWith(replacementNode)
 	changeScope := ChangeTracker_GetEnclosingChangeScopeRoot(replacementNode)
 	if !changeScope.IsNil() {
 		r.compiler.ReportChangeToChangeScope(changeScope)
@@ -634,9 +646,8 @@ func (r *ReplaceMessages) CreateHookExpressionForGenderedMsg(
 	nodeToReplace rhino.Node,
 	placeholderMapIds map[string]string,
 ) (rhino.Node, *malformedMessageError) {
-	hookHead := rhino.IR_Hook(rhino.IR_Name(""), rhino.IR_String(""), rhino.IR_String(""))
-	hookHead.SetColor(nodeToReplace.GetColor())
-	placeholderHook := hookHead
+	var hookHead ast.Hook
+	var tailHook ast.Hook
 
 	placeholderNodeProvider := func(placeholderName string) rhino.Node {
 		if placeholderId, ok := placeholderMapIds[placeholderName]; ok {
@@ -655,17 +666,15 @@ func (r *ReplaceMessages) CreateHookExpressionForGenderedMsg(
 		if err != nil {
 			return rhino.NilNode, err
 		}
-		currentHook := rhino.IR_Hook(condition, branchNode, r.astFactory.CreateString(""))
-		currentHook.SetColor(nodeToReplace.GetColor())
+		currentHook := ast.MustHook(rhino.IR_Hook(condition, branchNode, r.astFactory.CreateString("")))
+		currentHook.Node().SetColor(nodeToReplace.GetColor())
 
-		if !placeholderHook.GetParent().IsNil() {
-			parent := placeholderHook.GetParent()
-			parent.GetLastChild().ReplaceWith(currentHook)
-			placeholderHook = currentHook.GetLastChild()
+		if !tailHook.Node().IsNil() {
+			tailHook.SetElse(currentHook.AsExpr())
 		} else {
 			hookHead = currentHook
-			placeholderHook = currentHook.GetLastChild()
 		}
+		tailHook = currentHook
 	}
 
 	otherNode, err := r.BuildMessageNode(
@@ -678,8 +687,8 @@ func (r *ReplaceMessages) CreateHookExpressionForGenderedMsg(
 	if err != nil {
 		return rhino.NilNode, err
 	}
-	placeholderHook.GetParent().GetLastChild().ReplaceWith(otherNode)
-	return hookHead, nil
+	ast.MustHook(tailHook.Node()).SetElse(ast.MustExpr(otherNode))
+	return hookHead.Node(), nil
 }
 
 // Java: ReplaceMessages.buildMessageNode(List<Part>, ReplaceMessages.MsgOptions, Node, ReplaceMessages.PlaceholderNodeProvider, boolean)
@@ -845,8 +854,11 @@ func ReplaceMessages_ProtectedJsMessage_FromAstNode(
 	if !calleeNode.MatchesName(ReplaceMessagesConstants_DEFINE_MSG_CALLEE) {
 		return ReplaceMessages_ProtectedJsMessage{}, false
 	}
-	propertiesNode := rhino.CheckNotNullMsg1(calleeNode.GetNext(), "%s", calleeNode)
-	substitutionsNode := propertiesNode.GetNext()
+	callOrNew := call.AsCallOrNew()
+	propertiesArg, _ := callOrNew.ArgAt(0)
+	propertiesNode := rhino.CheckNotNullMsg1(propertiesArg.Node(), "%s", calleeNode)
+	substitutionsArg, _ := callOrNew.ArgAt(1)
+	substitutionsNode := substitutionsArg.Node()
 	var options ReplaceMessages_MsgOptions
 	jsMessageBuilder := NewJsMessage_Builder()
 	propertiesLit, ok := ast.AsObjectLit(propertiesNode)
@@ -861,7 +873,7 @@ func ReplaceMessages_ProtectedJsMessage_FromAstNode(
 		strKey, ok := ast.AsStringKey(member.Node())
 		jutil.CheckStateMsg1(ok, "%s", member.Node())
 		key := strKey.Key()
-		valueNode := member.Node().GetOnlyChild()
+		valueNode := strKey.Value().Node()
 		if key == "icu_placeholder_names" {
 			arr, ok := ast.AsArrayLit(valueNode)
 			jutil.CheckStateMsg(ok, "icu_placeholder_names must be an array")

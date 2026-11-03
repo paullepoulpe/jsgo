@@ -194,7 +194,11 @@ func (c *CheckMissingRequires) IsInGlobalControlFlowScope(n rhino.Node) bool {
 
 // Java: CheckMissingRequires.isIIFE(Node)
 func CheckMissingRequires_IsIIFE(n rhino.Node) bool {
-	return n.IsFunction() && n.GetParent().IsCall() && n.IsFirstChildOf(n.GetParent())
+	if !n.IsFunction() {
+		return false
+	}
+	call, ok := ast.AsCall(n.GetParent())
+	return ok && call.Callee().Is(n)
 }
 
 // Java: NodeTraversal.AbstractModuleCallback.visit(NodeTraversal, Node, Node)
@@ -301,10 +305,11 @@ var checkMissingRequires_GOOG_SCOPE = rhino.QualifiedName_Of("goog.scope")
 
 // Java: CheckMissingRequires.isGoogScopeBody(Node)
 func CheckMissingRequires_IsGoogScopeBody(hoistScopeRoot rhino.Node) bool {
-	return hoistScopeRoot.IsBlock() &&
-		hoistScopeRoot.GetParent().IsFunction() &&
-		hoistScopeRoot.GetGrandparent().IsCall() &&
-		checkMissingRequires_GOOG_SCOPE.Matches(hoistScopeRoot.GetGrandparent().GetFirstChild())
+	if !hoistScopeRoot.IsBlock() || !hoistScopeRoot.GetParent().IsFunction() {
+		return false
+	}
+	call, ok := ast.AsCall(hoistScopeRoot.GetGrandparent())
+	return ok && checkMissingRequires_GOOG_SCOPE.Matches(call.Callee().Node())
 }
 
 // VisitMaybeGoogModuleGet checks for invalid goog.module.get calls executed on
@@ -319,11 +324,12 @@ func CheckMissingRequires_IsGoogScopeBody(hoistScopeRoot rhino.Node) bool {
 // Java: CheckMissingRequires.visitMaybeGoogModuleGet(NodeTraversal, Node, ModuleMetadata)
 func (c *CheckMissingRequires) VisitMaybeGoogModuleGet(
 	t *NodeTraversal, googModuleGet rhino.Node, currentFile *ModuleMetadataMap_ModuleMetadata) {
-	jutil.CheckState(googModuleGet.IsCall())
+	call, ok := ast.AsCall(googModuleGet)
+	jutil.CheckState(ok)
 	if !NodeUtil_IsGoogModuleGetCall(googModuleGet) {
 		return
 	}
-	importedNamespace := googModuleGet.GetSecondChild().GetString()
+	importedNamespace := call.MustFirstArg().MustStringLit().Value()
 	requiredFile := c.moduleMetadataMap.ModuleByGoogNamespace(importedNamespace)
 	if requiredFile == nil {
 		// goog.module.get of a non-existing namespace is an error in another pass.
@@ -546,21 +552,21 @@ func (c *CheckMissingRequires) CheckMissingRequireThroughShortNameInGoogScope(
 	}
 
 	// Case (2) - the initial value is a goog.module.get + potential extra properties
-	for initialValue.IsGetProp() {
-		initialValue = initialValue.GetFirstChild()
+	for gp, ok := ast.AsGetProp(initialValue); ok; gp, ok = ast.AsGetProp(initialValue) {
+		initialValue = gp.Object().Node()
 	}
 	if !NodeUtil_IsGoogModuleGetCall(initialValue) {
 		return
 	}
-	importedNamespace := initialValue.GetSecondChild().GetString()
+	importedNamespace := ast.MustCall(initialValue).MustFirstArg().MustStringLit().Value()
 	originalImport := c.moduleMetadataMap.ModuleByGoogNamespace(importedNamespace)
 	if originalImport != nil && !originalImport.HasLegacyGoogNamespaces() {
 		// We trust the import from a non-legacy module, as they should not overlap.
 		return
 	}
 	aliasedName := rhino.QualifiedName_Of(importedNamespace)
-	for prop := initialValue.GetParent(); prop.IsGetProp(); prop = prop.GetParent() {
-		aliasedName = aliasedName.Getprop(prop.GetString())
+	for gp, ok := ast.AsGetProp(initialValue.GetParent()); ok; gp, ok = ast.AsGetProp(gp.Node().GetParent()) {
+		aliasedName = aliasedName.Getprop(gp.Property())
 	}
 	normalizedQualifiedName := CheckMissingRequires_SwapRootOfQualifiedName(qualifiedName, aliasedName)
 	c.CheckNormalizedShortNameImport(
@@ -675,8 +681,12 @@ func (c *CheckMissingRequires) CheckNormalizedShortNameImport(
 			// Get the right location if it is a code reference.
 			diff := normalizedQualifiedName.GetComponentCount() - subName.GetComponentCount()
 			if n.IsQualifiedName() {
-				for i := 0; i < diff && errorNode.IsGetProp(); i++ {
-					errorNode = errorNode.GetFirstChild()
+				for i := 0; i < diff; i++ {
+					gp, ok := ast.AsGetProp(errorNode)
+					if !ok {
+						break
+					}
+					errorNode = gp.Object().Node()
 				}
 				t.ReportWithNodeRange(NodeUtil_GetRootOfQualifiedName(errorNode), errorNode, toReport, namespace)
 			} else {

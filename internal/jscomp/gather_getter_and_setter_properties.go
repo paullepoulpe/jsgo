@@ -202,8 +202,9 @@ func (c *GatherGetterAndSetterProperties_GatherCallback) RecordSetterDef(setterD
 }
 
 // Java: GatherCallback.visitDescriptor(String, Node)
-func (c *GatherGetterAndSetterProperties_GatherCallback) visitDescriptorByID(propertyID uint32, descriptor rhino.Node) {
-	for key := descriptor.GetFirstChild(); !key.IsNil(); key = key.GetNext() {
+func (c *GatherGetterAndSetterProperties_GatherCallback) visitDescriptorByID(propertyID uint32, descriptor ast.ObjectLit) {
+	for member, ok := descriptor.FirstMember(); ok; member, ok = member.Next() {
+		key := member.Node()
 		if key.IsStringKey() || key.IsMemberFunctionDef() {
 			switch key.GetStringID() {
 			case gatherPropGetID:
@@ -217,27 +218,38 @@ func (c *GatherGetterAndSetterProperties_GatherCallback) visitDescriptorByID(pro
 
 // Java: GatherCallback.visitDefineProperty(Node)
 func (c *GatherGetterAndSetterProperties_GatherCallback) VisitDefineProperty(definePropertyCall rhino.Node) {
-	propertyNameNode := definePropertyCall.GetChildAtIndex(2)
-	descriptor := definePropertyCall.GetChildAtIndex(3)
-
-	if !propertyNameNode.IsStringLit() || !descriptor.IsObjectLit() {
+	call := ast.MustCall(definePropertyCall)
+	propArg, hasProp := call.AsCallOrNew().ArgAt(1)
+	descArg, hasDesc := call.AsCallOrNew().ArgAt(2)
+	if !hasProp || !hasDesc {
+		return
+	}
+	propLit, isString := propArg.AsStringLit()
+	descObj, isObj := descArg.AsObjectLit()
+	if !isString || !isObj {
 		return
 	}
 
-	c.visitDescriptorByID(propertyNameNode.GetStringID(), descriptor)
+	c.visitDescriptorByID(propLit.Node().GetStringID(), descObj)
 }
 
 // Java: GatherCallback.visitDefineProperties(Node)
 func (c *GatherGetterAndSetterProperties_GatherCallback) VisitDefineProperties(definePropertiesCall rhino.Node) {
-	props := definePropertiesCall.GetChildAtIndex(2)
-
-	if !props.IsObjectLit() {
+	call := ast.MustCall(definePropertiesCall)
+	propsArg, hasProps := call.AsCallOrNew().ArgAt(1)
+	if !hasProps {
+		return
+	}
+	propsObj, isObj := propsArg.AsObjectLit()
+	if !isObj {
 		return
 	}
 
-	for prop := props.GetFirstChild(); !prop.IsNil(); prop = prop.GetNext() {
-		if prop.IsStringKey() && prop.HasOneChild() && prop.GetFirstChild().IsObjectLit() {
-			c.visitDescriptorByID(prop.GetStringID(), prop.GetFirstChild())
+	for member, ok := propsObj.FirstMember(); ok; member, ok = member.Next() {
+		if sk, isStringKey := member.AsStringKey(); isStringKey {
+			if descObj, isDescObj := sk.Value().AsObjectLit(); isDescObj {
+				c.visitDescriptorByID(sk.Node().GetStringID(), descObj)
+			}
 		}
 	}
 }

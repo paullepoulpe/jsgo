@@ -543,7 +543,11 @@ func (o *CompilerOptions) String() string {
 	h.Add("customPasses", compilerOptions_valueOf(o.customPasses))
 	h.AddBool("deadAssignmentElimination", o.deadAssignmentElimination)
 	h.Add("debugLogDirectory", compilerOptions_valueOf(o.debugLogDirectory))
-	h.Add("defineReplacements", compilerOptions_valueOf(o.GetDefineReplacements()))
+	defineReplacementsStr := "{}"
+	if !o.defineReplacements.IsEmpty() {
+		defineReplacementsStr = o.GetDefineReplacements().String()
+	}
+	h.Add("defineReplacements", defineReplacementsStr)
 	h.Add("dependencyOptions", compilerOptions_valueOf(o.GetDependencyOptions()))
 	h.Add("devMode", compilerOptions_valueOf(o.devMode))
 	h.AddBool("devirtualizeMethods", o.devirtualizeMethods)
@@ -568,7 +572,11 @@ func (o *CompilerOptions) String() string {
 	h.AddBool("generateExports", o.generateExports)
 	h.AddBool("generatePseudoNames", o.generatePseudoNames)
 	h.AddBool("generateTypedExterns", o.ShouldGenerateTypedExterns())
-	h.Add("idGenerators", compilerOptions_valueOf(o.idGenerators))
+	idGeneratorsStr := "{}"
+	if o.idGenerators != nil {
+		idGeneratorsStr = o.idGenerators.String()
+	}
+	h.Add("idGenerators", idGeneratorsStr)
 	h.Add("idGeneratorsMapSerialized", compilerOptions_valueOf(o.idGeneratorsMapSerialized))
 	h.Add("incrementalCheckMode", compilerOptions_valueOf(o.incrementalCheckMode))
 	h.AddBool("inferConsts", o.inferConsts)
@@ -626,7 +634,11 @@ func (o *CompilerOptions) String() string {
 	h.AddBool("printSourceAfterEachPass", o.printSourceAfterEachPass)
 	h.AddBool("processCommonJSModules", o.processCommonJSModules)
 	h.Add("productionInstrumentationArrayName", compilerOptions_valueOf(o.productionInstrumentationArrayName))
-	h.Add("propertiesThatMustDisambiguate", compilerOptions_valueOf(o.propertiesThatMustDisambiguate))
+	propsToDisambiguateStr := "[]"
+	if o.propertiesThatMustDisambiguate != nil {
+		propsToDisambiguateStr = o.propertiesThatMustDisambiguate.String()
+	}
+	h.Add("propertiesThatMustDisambiguate", propsToDisambiguateStr)
 	h.Add("propertyRenaming", compilerOptions_valueOf(o.propertyRenaming))
 	h.AddBool("propertyRenamingOnlyCompilationMode", o.propertyRenamingOnlyCompilationMode)
 	h.AddBool("protectHiddenSideEffects", o.protectHiddenSideEffects)
@@ -659,9 +671,9 @@ func (o *CompilerOptions) String() string {
 	h.Add("sourceMapLocationMappings", compilerOptions_valueOf(o.sourceMapLocationMappings))
 	h.Add("sourceMapOutputPath", compilerOptions_valueOf(o.sourceMapOutputPath))
 	h.AddBool("strictMessageReplacement", o.strictMessageReplacement)
-	h.Add("stripNamePrefixes", compilerOptions_valueOf(o.stripNamePrefixes))
-	h.Add("stripNameSuffixes", compilerOptions_valueOf(o.stripNameSuffixes))
-	h.Add("stripTypes", compilerOptions_valueOf(o.stripTypes))
+	h.Add("stripNamePrefixes", compilerOptions_valueOf(&o.stripNamePrefixes))
+	h.Add("stripNameSuffixes", compilerOptions_valueOf(&o.stripNameSuffixes))
+	h.Add("stripTypes", compilerOptions_valueOf(&o.stripTypes))
 	h.Add("summaryDetailLevel", o.summaryDetailLevel) // add(String, int): never omitted
 	h.Add("syntheticBlockEndMarker", compilerOptions_valueOf(o.syntheticBlockEndMarker))
 	h.Add("syntheticBlockStartMarker", compilerOptions_valueOf(o.syntheticBlockStartMarker))

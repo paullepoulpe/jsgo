@@ -107,16 +107,23 @@ func (r *ReplaceToggles) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node
 	// Look for `var CLOSURE_TOGGLE_ORDINALS = {...};`, record the mapping, and then delete the
 	// declaration from the AST since we should no longer need it (and the optimizer won't
 	// delete it in case the global assignment was an intended side effect).
-	if NodeUtil_IsNameDeclaration(n) {
-		if first := n.GetFirstChild(); !first.IsName() || nodeStringID(first) != replaceTogglesOrdinalVarID {
+	if decl, ok := ast.AsNameDeclaration(n); ok {
+		first, hasFirst := decl.FirstDeclarator()
+		if !hasFirst {
 			return
 		}
-		rhs := n.GetFirstFirstChild()
+		nameDecl, isName := first.AsName()
+		if !isName || nodeStringID(nameDecl.Node()) != replaceTogglesOrdinalVarID {
+			return
+		}
+		rhsExpr, hasInit := nameDecl.Init()
 
-		if rhs.IsNil() && n.IsVar() {
+		if !hasInit && n.IsVar() {
 			// An empty var is fine; it should get deleted later.
 			return
-		} else if !rhs.IsObjectLit() {
+		}
+		rhsObj, isObj := rhsExpr.AsObjectLit()
+		if !hasInit || !isObj {
 			r.compiler.Report(JSError_MakeWithNode(n, ReplaceToggles_INVALID_ORDINAL_MAPPING, "not an object literal"))
 			return
 		} else if r.ordinalMapping != nil {
@@ -126,17 +133,19 @@ func (r *ReplaceToggles) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node
 
 		mapping := make(map[string]int)
 		ordinals := make(map[int]bool)
-		for c := rhs.GetFirstChild(); !c.IsNil(); c = c.GetNext() {
-			if !c.IsStringKey() && !c.IsStringLit() {
+		for member, hasMember := rhsObj.FirstMember(); hasMember; member, hasMember = member.Next() {
+			c := member.Node()
+			sk, isStringKey := member.AsStringKey()
+			if !isStringKey {
 				r.compiler.Report(JSError_MakeWithNode(c, ReplaceToggles_INVALID_ORDINAL_MAPPING, "non-string key"))
 				return
 			}
-			key := c.GetString()
+			key := sk.Key()
 			if _, dup := mapping[key]; dup {
 				r.compiler.Report(JSError_MakeWithNode(c, ReplaceToggles_INVALID_ORDINAL_MAPPING, "duplicate key: "+key))
 				return
 			}
-			child := c.GetFirstChild()
+			child := sk.Value().Node()
 			doubleValue, hasDouble := NodeUtil_GetNumberValue(child)
 			intValue := -1
 			if hasDouble {
@@ -168,7 +177,8 @@ func (r *ReplaceToggles) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node
 		return
 	}
 
-	if !n.IsCall() {
+	call, isCall := ast.AsCall(n)
+	if !isCall {
 		return
 	}
 	qname := NodeUtil_GetCallTargetResolvingIndirectCalls(n)
@@ -176,13 +186,14 @@ func (r *ReplaceToggles) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node
 		return
 	}
 
-	arg := n.GetSecondChild()
-	if arg.IsNil() || !arg.IsStringLit() || !n.HasTwoChildren() {
+	onlyArg, hasOnlyArg := call.OnlyArg()
+	strArg, isStrArg := onlyArg.AsStringLit()
+	if !hasOnlyArg || !isStrArg {
 		r.compiler.Report(JSError_MakeWithNode(n, ReplaceToggles_INVALID_TOGGLE_PARAMETER))
 		return
 	}
 
-	ordinal, hasOrdinal := r.ordinalMapping[arg.GetString()]
+	ordinal, hasOrdinal := r.ordinalMapping[strArg.Value()]
 	if !hasOrdinal || ordinal < 0 {
 		// No ordinals given: hard-code `true` if explicitly set as true, or `false` otherwise.
 		n.ReplaceWith(

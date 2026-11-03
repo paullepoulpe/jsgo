@@ -22,6 +22,7 @@ import (
 	"strings"
 	"sync/atomic"
 
+	"github.com/paullepoulpe/jsgo/internal/ast"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/parser"
 	"github.com/paullepoulpe/jsgo/internal/parsing"
@@ -511,63 +512,71 @@ func (f *CompilerInput_DepsFinder) containsRequire(r *DependencyInfo_Require) bo
 func (f *CompilerInput_DepsFinder) VisitSubtree(n rhino.Node, parent rhino.Node) {
 	switch n.GetToken() {
 	case rhino.Token_CALL:
-		if n.HasTwoChildren() &&
-			n.GetFirstChild().IsGetProp() &&
-			n.GetFirstFirstChild().MatchesName("goog") {
+		call := ast.MustCall(n)
+		if argument, hasOnlyArg := call.OnlyArg(); hasOnlyArg {
+			if callee, isGetProp := call.Callee().AsGetProp(); isGetProp &&
+				callee.Object().Node().MatchesName("goog") {
 
-			if !f.containsRequire(DependencyInfo_Require_BASE) {
-				f.requires = append(f.requires, DependencyInfo_Require_BASE)
-			}
+				if !f.containsRequire(DependencyInfo_Require_BASE) {
+					f.requires = append(f.requires, DependencyInfo_Require_BASE)
+				}
 
-			callee := n.GetFirstChild()
-			argument := n.GetLastChild()
-			switch callee.GetString() {
-			case "module", "provide":
-				if callee.GetString() == "module" {
-					// only mark as a goog.module if this is not bundled, e.g.
-					// goog.loadModule(function(exports) {"use strict";goog.module('Foo');
-					if parent.IsExprResult() && parent.GetParent().IsModuleBody() {
-						f.moduleFlag = "goog"
+				switch callee.Property() {
+				case "module", "provide":
+					if callee.Property() == "module" {
+						// only mark as a goog.module if this is not bundled, e.g.
+						// goog.loadModule(function(exports) {"use strict";goog.module('Foo');
+						if parent.IsExprResult() && parent.GetParent().IsModuleBody() {
+							f.moduleFlag = "goog"
+						}
 					}
-				}
-				// Fall-through
-				if !argument.IsStringLit() {
+					// Fall-through
+					lit, ok := argument.AsStringLit()
+					if !ok {
+						return
+					}
+					f.provides = append(f.provides, lit.Value())
+					return
+
+				case "require":
+					lit, ok := argument.AsStringLit()
+					if !ok {
+						return
+					}
+					f.requires = append(f.requires, DependencyInfo_Require_GoogRequireSymbol(lit.Value()))
+					return
+
+				case "requireType":
+					lit, ok := argument.AsStringLit()
+					if !ok {
+						return
+					}
+					f.typeRequires = append(f.typeRequires, lit.Value())
+					return
+
+				case "loadModule":
+					// Process the block of the loadModule argument if it's a function, as opposed to
+					// a string.
+					if _, isStr := argument.AsStringLit(); isStr {
+						panic(jutil.NewIllegalArgumentExceptionMsg(
+							"Unsupported parse of goog.loadModule with string literal"))
+					}
+					fn, isFn := argument.AsFunction()
+					if !isFn {
+						return
+					}
+					n = fn.Body().Node()
+
+				case "declareModuleId":
+					lit, ok := argument.AsStringLit()
+					if !ok {
+						return
+					}
+					f.provides = append(f.provides, lit.Value())
+
+				default:
 					return
 				}
-				f.provides = append(f.provides, argument.GetString())
-				return
-
-			case "require":
-				if !argument.IsStringLit() {
-					return
-				}
-				f.requires = append(f.requires, DependencyInfo_Require_GoogRequireSymbol(argument.GetString()))
-				return
-
-			case "requireType":
-				if !argument.IsStringLit() {
-					return
-				}
-				f.typeRequires = append(f.typeRequires, argument.GetString())
-				return
-
-			case "loadModule":
-				// Process the block of the loadModule argument if it's a function, as opposed to
-				// a string.
-				if argument.IsStringLit() {
-					panic(jutil.NewIllegalArgumentExceptionMsg(
-						"Unsupported parse of goog.loadModule with string literal"))
-				}
-				n = argument.GetLastChild()
-
-			case "declareModuleId":
-				if !argument.IsStringLit() {
-					return
-				}
-				f.provides = append(f.provides, argument.GetString())
-
-			default:
-				return
 			}
 		}
 	case rhino.Token_MODULE_BODY:
@@ -576,11 +585,11 @@ func (f *CompilerInput_DepsFinder) VisitSubtree(n rhino.Node, parent rhino.Node)
 			f.moduleFlag = "es6"
 		}
 	case rhino.Token_IMPORT:
-		f.VisitEs6ModuleName(n.GetLastChild(), n)
+		f.VisitEs6ModuleName(ast.MustImport(n).Source().Node(), n)
 		return
 	case rhino.Token_EXPORT:
-		if NodeUtil_IsExportFrom(n) {
-			f.VisitEs6ModuleName(n.GetLastChild(), n)
+		if src, ok := ast.MustExport(n).Source(); ok {
+			f.VisitEs6ModuleName(src.Node(), n)
 		}
 		return
 	case rhino.Token_EXPR_RESULT, rhino.Token_CONST, rhino.Token_LET, rhino.Token_VAR,
@@ -594,7 +603,7 @@ func (f *CompilerInput_DepsFinder) VisitSubtree(n rhino.Node, parent rhino.Node)
 		return
 	}
 
-	for child := n.GetFirstChild(); !child.IsNil(); child = child.GetNext() {
+	for child := range n.Children() {
 		f.VisitSubtree(child, n)
 	}
 }

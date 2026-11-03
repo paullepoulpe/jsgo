@@ -26,6 +26,7 @@ import (
 	"github.com/paullepoulpe/jsgo/internal/colors"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
+	"github.com/paullepoulpe/jsgo/internal/strpool"
 )
 
 // Unit tests for AstAnalyzer.
@@ -101,16 +102,16 @@ type astAnalyzerTest_ParseHelper struct {
 }
 
 func newAstAnalyzerTest_ParseHelper(t *testing.T) *astAnalyzerTest_ParseHelper {
-	accessors := jutil.NewLinkedHashMap[string, AccessorSummary_PropertyAccessKind]()
-	accessors.Put("getter", AccessorSummary_PropertyAccessKind_GETTER_ONLY)
-	accessors.Put("setter", AccessorSummary_PropertyAccessKind_SETTER_ONLY)
 	return &astAnalyzerTest_ParseHelper{
 		t:                             t,
 		useTypesForLocalOptimizations: false,
 		hasGlobalRegexpReferences:     true,
 		assumeGettersArePure:          true,
 		assumeBuiltinsPure:            true,
-		accessorSummary:               AccessorSummary_Create(accessors),
+		accessorSummary: newAccessorSummaryFromIDs([][]accessorIDEntry{{
+			{id: uint32(strpool.Intern("getter")), kind: AccessorSummary_PropertyAccessKind_GETTER_ONLY},
+			{id: uint32(strpool.Intern("setter")), kind: AccessorSummary_PropertyAccessKind_SETTER_ONLY},
+		}}),
 	}
 }
 

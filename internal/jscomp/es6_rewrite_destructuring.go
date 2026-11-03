@@ -393,46 +393,10 @@ func (e *Es6RewriteDestructuring) ReplacePatternParamWithTempVar(
 //
 // Java: Es6RewriteDestructuring.rewriteVarDestructuringDeclaration(Node)
 func (e *Es6RewriteDestructuring) RewriteVarDestructuringDeclaration(destructuringLhs ast.DestructuringLhs) rhino.Node {
-	n := destructuringLhs.Node()
 	jutil.CheckStateMsg(
-		!n.GetGrandparent().IsExport(),
+		!destructuringLhs.Node().GetGrandparent().IsExport(),
 		"Export destructuring declarations not expected inside a function body.")
-	var_ := n.GetParent()
-
-	// create a stub declaration for each name in the destructuring pattern
-	// e.g. generate `var a; var b;` from `var [a, b] = ...;`
-	NodeUtil_VisitLhsNodesInNode(
-		n,
-		func(name rhino.Node) {
-			// Add a declaration outside the destructuring pattern for the given name.
-			jutil.CheckStateMsg1(
-				name.IsName(),
-				"lhs in destructuring declaration should be a simple name. (%s)",
-				name)
-			newName := rhino.IR_Name(name.GetString()).Srcref(name)
-			if name.GetBooleanProp(rhino.Node_IS_CONSTANT_NAME) {
-				// if old name was a const, new name should be too
-				// e.g. when rewriting `{VALUE} = ...` the `VALUE` is const by coding convention
-				newName.PutBooleanProp(rhino.Node_IS_CONSTANT_NAME, true)
-			}
-			newVar := rhino.IR_Var(newName).Srcref(name)
-			newVar.InsertBefore(var_)
-		})
-
-	// Transform destructuring var declaration to assignment. That is, `var [a, b] = ...` to `[a,
-	// b] = ...` and `var {a, b} = ...` to `({a, b} = ...);`
-	destructuringPattern := destructuringLhs.Pattern().Node()
-	rhs, ok := destructuringLhs.Init() // read both before detaching either
-	jutil.CheckStateMsg(ok, "Expected a value.")
-	destructuringPattern.Detach()
-	rhs.Detach()
-	assign := e.astFactory.CreateAssign(destructuringPattern, rhs.Node())
-	assign.Srcref(var_)
-	expr := e.astFactory.ExprResult(assign)
-	expr.Srcref(var_)
-
-	var_.ReplaceWith(expr)
-	return expr
+	return rewriteVarDestructuringDeclaration(e.astFactory, destructuringLhs)
 }
 
 // CreateTempVarNameNode creates a new name node and adds the constant name

@@ -574,9 +574,8 @@ func (c *LiveVariablesAnalysisTest) TestLattice128AndVarTableThresholds() {
 	v64Idx := c.liveness.GetVarIndex("v64")
 	AssertThat(v64Idx >= 64).IsTrue()
 	AssertThat(inLat.NextSetBit(v64Idx)).IsEqualTo(v64Idx)
-	copyLat := NewLiveVariablesAnalysis_LiveVariableLatticeOf(inLat)
-	AssertThat(inLat.Equals(copyLat)).IsTrue()
-	AssertThat(inLat.HashCode()).IsEqualTo(copyLat.HashCode())
+	copyLat := &LiveVariablesAnalysis_LiveVariableLattice{liveSet: inLat.liveSet.Clone()}
+	AssertThat(inLat.liveSet.Equals(&copyLat.liveSet)).IsTrue()
 	AssertThat(inLat.String()).IsEqualTo(copyLat.String())
 
 	// > 256 block-scoped variables exercises multi-word extra []uint64 and int var indices,
@@ -596,9 +595,8 @@ func (c *LiveVariablesAnalysisTest) TestLattice128AndVarTableThresholds() {
 	AssertThat(overIn.IsLive(deadIdx)).IsFalse()
 	AssertThat(overIn.NextSetBit(liveIdx)).IsEqualTo(liveIdx)
 	AssertThat(overIn.NextSetBit(liveIdx + 1)).IsEqualTo(-1)
-	overCopy := NewLiveVariablesAnalysis_LiveVariableLatticeOf(overIn)
-	AssertThat(overIn.Equals(overCopy)).IsTrue()
-	AssertThat(overIn.HashCode()).IsEqualTo(overCopy.HashCode())
+	overCopy := &LiveVariablesAnalysis_LiveVariableLattice{liveSet: overIn.liveSet.Clone()}
+	AssertThat(overIn.liveSet.Equals(&overCopy.liveSet)).IsTrue()
 	AssertThat(overIn.String()).IsEqualTo(overCopy.String())
 }
 

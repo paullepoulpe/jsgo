@@ -37,6 +37,7 @@ package jscomp
 
 import (
 	"strings"
+	"sync"
 
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/resources"
@@ -53,8 +54,8 @@ type RuntimeJsLibManager struct {
 	mode                 RuntimeJsLibManager_RuntimeLibraryMode
 	resourceProvider     RuntimeJsLibManager_ResourceProvider
 	nodeForCodeInsertion func() rhino.Node
-	injectedLibs         *jutil.LinkedHashSet[string]
-	internedFields       *jutil.LinkedHashMap[string, *RuntimeJsLibManager_InternalField]
+	injectedLibs         OrderedSet[string]
+	internedFields       OrderedStringMap[*RuntimeJsLibManager_InternalField]
 
 	lastInjectedLibrary rhino.Node
 }
@@ -125,29 +126,23 @@ type RuntimeJsLibManager_ResourceProvider func(resourceName string, path string)
 // Java: RuntimeJsLibManager.RUNTIME_LIB_DIR
 const RuntimeJsLibManager_RUNTIME_LIB_DIR = "src/com/google/javascript/jscomp/js/"
 
-// runtimeJsLibManager_FieldsTable_INSTANCE holds the names of all possible
-// $jscomp fields & the file in which they're defined. For example,
-// "inherits" -> "es6/inherits". (This doesn't include nested properties -
-// so no "$jscomp.a.b.c")
+// runtimeJsLibManager_FieldsTable returns the read-only lookup table mapping
+// $jscomp field names to the runtime library path in which they're defined
+// (e.g. "inherits" -> "es6/util/inherits"). Nested properties such as
+// "$jscomp.a.b.c" are keyed by their top-level property ("a").
 //
 // Go-only: language-adapter — Java's FieldsTable holder class loads
-// INSTANCE lazily, on first use; so does this variable.
-var runtimeJsLibManager_FieldsTable_INSTANCE *jutil.LinkedHashMap[string, string]
-
-func runtimeJsLibManager_FieldsTable() *jutil.LinkedHashMap[string, string] {
-	if runtimeJsLibManager_FieldsTable_INSTANCE == nil {
-		runtimeJsLibManager_FieldsTable_INSTANCE = runtimeJsLibManager_FieldsTable_loadFields()
-	}
-	return runtimeJsLibManager_FieldsTable_INSTANCE
-}
+// INSTANCE lazily and thread-safely on first use via class initialization;
+// sync.OnceValue provides the equivalent race-free lazy singleton in Go.
+var runtimeJsLibManager_FieldsTable = sync.OnceValue(runtimeJsLibManager_FieldsTable_loadFields)
 
 // Java: RuntimeJsLibManager.FieldsTable.loadFields()
-func runtimeJsLibManager_FieldsTable_loadFields() *jutil.LinkedHashMap[string, string] {
+func runtimeJsLibManager_FieldsTable_loadFields() map[string]string {
 	transpilationLibsTxt := resources.LoadText(resources.JsDir + "transpilation_libs.txt")
-
-	allFields := jutil.NewImmutableMapBuilder[string, string]()
+	lines := strings.Split(transpilationLibsTxt, "\n")
+	allFields := make(map[string]string, len(lines))
 	// Splitter.on('\n').omitEmptyStrings()
-	for _, line := range strings.Split(transpilationLibsTxt, "\n") {
+	for _, line := range lines {
 		if line == "" {
 			continue
 		}
@@ -159,9 +154,13 @@ func runtimeJsLibManager_FieldsTable_loadFields() *jutil.LinkedHashMap[string, s
 		}
 		fieldName := tokens[0]
 		resourcePath := tokens[1]
-		allFields.Put(fieldName, resourcePath)
+		if prev, dup := allFields[fieldName]; dup {
+			panic(jutil.NewIllegalArgumentExceptionMsg(
+				"Multiple entries with same key: " + fieldName + "=" + resourcePath + " and " + fieldName + "=" + prev))
+		}
+		allFields[fieldName] = resourcePath
 	}
-	return allFields.BuildOrThrow()
+	return allFields
 }
 
 // Java: RuntimeJsLibManager(ChangeTracker, RuntimeLibraryMode, ResourceProvider, Supplier<Node>)
@@ -175,8 +174,6 @@ func newRuntimeJsLibManager(
 		changeTracker:        changeTracker,
 		resourceProvider:     resourceProvider,
 		nodeForCodeInsertion: nodeForCodeInsertion,
-		injectedLibs:         jutil.NewLinkedHashSet[string](),
-		internedFields:       jutil.NewLinkedHashMap[string, *RuntimeJsLibManager_InternalField](),
 	}
 }
 
@@ -236,9 +233,9 @@ func (m *RuntimeJsLibManager) GetExternedFields() []RuntimeJsLibManager_Externed
 		return []RuntimeJsLibManager_ExternedField{}
 	}
 	out := []RuntimeJsLibManager_ExternedField{}
-	for f := range m.internedFields.Values() {
-		if f.isInjected() {
-			out = append(out, f)
+	for _, e := range m.internedFields.Entries() {
+		if e.Value.isInjected() {
+			out = append(out, e.Value)
 		}
 	}
 	return out
@@ -257,7 +254,7 @@ func (m *RuntimeJsLibManager) createField(fieldName string) *RuntimeJsLibManager
 		parts[0] == "$jscomp", "Field name must start with $jscomp, found %s", fieldName)
 	propName := parts[1]
 
-	resourceName, ok := runtimeJsLibManager_FieldsTable().Lookup(propName)
+	resourceName, ok := runtimeJsLibManager_FieldsTable()[propName]
 	if !ok {
 		panic(jutil.NewNullPointerExceptionMsg(jutil.LenientFormat("Cannot find definition of %s", fieldName)))
 	}
@@ -368,7 +365,12 @@ func (m *RuntimeJsLibManager) GetJsLibField(fieldName string) RuntimeJsLibManage
 
 // Java: RuntimeJsLibManager.getJsLibFieldInternal(String)
 func (m *RuntimeJsLibManager) getJsLibFieldInternal(fieldName string) *RuntimeJsLibManager_InternalField {
-	return m.internedFields.ComputeIfAbsent(fieldName, m.createField)
+	if f, ok := m.internedFields.Lookup(fieldName); ok {
+		return f
+	}
+	f := m.createField(fieldName)
+	m.internedFields.Put(fieldName, f)
+	return f
 }
 
 // RuntimeJsLibManager_JsLibField is a $jscomp.* field (could be a method,
@@ -556,11 +558,18 @@ func (m *RuntimeJsLibManager) GetLastInjectedLibrary() rhino.Node {
 // TODO(b/120486392): merge this pass with InjectTranspilationRuntimeLibraries.
 type InjectRuntimeLibraries struct {
 	runtimeLibs            *RuntimeJsLibManager
-	forceInjectedLibraries *jutil.LinkedHashSet[string]
+	forceInjectedLibraries []string
 }
 
 // Java: InjectRuntimeLibraries(AbstractCompiler, ImmutableSet<String>)
 func NewInjectRuntimeLibraries(compiler AbstractCompiler, forceInjectedLibraries *jutil.LinkedHashSet[string]) *InjectRuntimeLibraries {
+	return &InjectRuntimeLibraries{
+		runtimeLibs:            compiler.GetRuntimeJsLibManager(),
+		forceInjectedLibraries: forceInjectedLibraries.ToSlice(),
+	}
+}
+
+func newInjectRuntimeLibrariesFromSlice(compiler AbstractCompiler, forceInjectedLibraries []string) *InjectRuntimeLibraries {
 	return &InjectRuntimeLibraries{
 		runtimeLibs:            compiler.GetRuntimeJsLibManager(),
 		forceInjectedLibraries: forceInjectedLibraries,
@@ -574,7 +583,7 @@ func (i *InjectRuntimeLibraries) Process(externs rhino.Node, root rhino.Node) {
 
 // Java: InjectRuntimeLibraries.injectLibraries()
 func (i *InjectRuntimeLibraries) InjectLibraries() {
-	for forced := range i.forceInjectedLibraries.All() {
+	for _, forced := range i.forceInjectedLibraries {
 		i.runtimeLibs.EnsureLibraryInjected(forced, true)
 	}
 }

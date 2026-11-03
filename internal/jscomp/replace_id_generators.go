@@ -305,14 +305,18 @@ func (g *gatherIdGenerators) Visit(unused *NodeTraversal, n rhino.Node, parent r
 	}
 
 	key := "null"
-	if n.IsAssign() {
-		if qname, ok := n.GetFirstChild().GetQualifiedNameString(); ok {
+	if assign, ok := ast.AsAssign(n); ok {
+		if qname, hasQname := assign.Target().Node().GetQualifiedNameString(); hasQname {
 			key = qname
 		}
-	} else if NodeUtil_IsNameDeclaration(n) {
-		key = n.GetFirstChild().GetString()
-	} else if n.IsFunction() {
-		s := n.GetFirstChild().GetString()
+	} else if decl, ok := ast.AsNameDeclaration(n); ok {
+		first, hasFirst := decl.FirstDeclarator()
+		if !hasFirst {
+			panic(jutil.NewNullPointerException())
+		}
+		key = first.Node().GetString()
+	} else if fn, ok := ast.AsFunction(n); ok {
+		s := fn.NameNode().Ident()
 		if s == "" {
 			return
 		}
@@ -446,18 +450,21 @@ func (g *replaceIdGeneratorsPass) Visit(t *NodeTraversal, n rhino.Node, parent r
 func (g *replaceIdGeneratorsPass) maybeReplaceTaggedTemplateLit(
 	t *NodeTraversal, n rhino.Node, callName string, nameGenerator idNameSupplier) {
 	r := g.r
-	arg := n.GetLastChild()
+	ttl := ast.MustTaggedTemplateLit(n)
+	tpl := ttl.Template()
+	arg := tpl.Node()
 
 	if arg.IsNil() || !arg.IsTemplateLit() {
 		panic(jutil.NewIllegalStateException())
 	}
-	if arg.HasOneChild() {
-		cooked := arg.GetFirstChild().GetCookedString()
-		if cooked == nil {
+	if onlyPart, ok := tpl.OnlyPart(); ok {
+		strPart, isStr := onlyPart.AsTemplateLitString()
+		cooked, hasCooked := strPart.Cooked()
+		if !isStr || !hasCooked {
 			r.compiler.Report(JSError_MakeWithNode(n, ReplaceIdGenerators_INVALID_TEMPLATE_LITERAL_PARAMETER))
 			return
 		}
-		rename := g.getObfuscatedName(arg, callName, nameGenerator, *cooked)
+		rename := g.getObfuscatedName(arg, callName, nameGenerator, cooked)
 		n.ReplaceWith(rhino.IR_String(rename))
 		t.ReportCodeChange()
 		return
@@ -465,19 +472,21 @@ func (g *replaceIdGeneratorsPass) maybeReplaceTaggedTemplateLit(
 
 	// Alternating sequence of template literals and expressions: preserve the call, obfuscate literals.
 	newTemplateLit := rhino.IR_TemplateLiteral()
-	for child := arg.GetFirstChild(); !child.IsNil(); child = child.GetNext() {
-		if child.IsTemplateLitString() {
-			cooked := child.GetCookedString()
-			if cooked == nil {
+	for part, ok := tpl.FirstPart(); ok; part, ok = part.Next() {
+		child := part.Node()
+		if strPart, isStr := part.AsTemplateLitString(); isStr {
+			cooked, hasCooked := strPart.Cooked()
+			if !hasCooked {
 				r.compiler.Report(JSError_MakeWithNode(n, ReplaceIdGenerators_INVALID_TEMPLATE_LITERAL_PARAMETER))
 				return
 			}
-			rename := g.getObfuscatedName(child, callName, nameGenerator, *cooked)
+			rename := g.getObfuscatedName(child, callName, nameGenerator, cooked)
 			newTemplateLit.AddChildToBack(
 				rhino.IR_TemplateLiteralString(&rename, rename).SrcrefIfMissing(child))
 		} else {
+			subExpr := part.MustTemplateLitSub().Expr().Detach().Node()
 			newTemplateLit.AddChildToBack(
-				rhino.IR_TemplateLiteralSubstitution(child.RemoveFirstChild()).SrcrefIfMissing(child))
+				rhino.IR_TemplateLiteralSubstitution(subExpr).SrcrefIfMissing(child))
 		}
 	}
 	arg.ReplaceWith(newTemplateLit)
@@ -487,24 +496,30 @@ func (g *replaceIdGeneratorsPass) maybeReplaceTaggedTemplateLit(
 func (g *replaceIdGeneratorsPass) maybeReplaceCall(
 	t *NodeTraversal, n rhino.Node, callName string, nameGenerator idNameSupplier) {
 	r := g.r
-	arg := n.GetSecondChild()
-	if arg.IsNil() {
+	call := ast.MustCall(n)
+	firstArg, hasArg := call.FirstArg()
+	if !hasArg {
 		r.compiler.Report(JSError_MakeWithNode(n, ReplaceIdGenerators_INVALID_GENERATOR_PARAMETER))
-	} else if arg.IsStringLit() {
-		rename := g.getObfuscatedName(arg, callName, nameGenerator, arg.GetString())
+		return
+	}
+	arg := firstArg.Node()
+	if strLit, isStr := firstArg.AsStringLit(); isStr {
+		rename := g.getObfuscatedName(arg, callName, nameGenerator, strLit.Value())
 		n.ReplaceWith(rhino.IR_String(rename))
 		t.ReportCodeChange()
-	} else if arg.IsTemplateLit() && arg.HasOneChild() {
-		cooked := arg.GetFirstChild().GetCookedString()
-		if cooked == nil {
+	} else if tpl, isTpl := firstArg.AsTemplateLit(); isTpl && tpl.NumParts() == 1 {
+		strPart, isStrPart := tpl.MustOnlyPart().AsTemplateLitString()
+		cooked, hasCooked := strPart.Cooked()
+		if !isStrPart || !hasCooked {
 			r.compiler.Report(JSError_MakeWithNode(n, ReplaceIdGenerators_INVALID_GENERATOR_PARAMETER))
 		} else {
-			rename := g.getObfuscatedName(arg, callName, nameGenerator, *cooked)
+			rename := g.getObfuscatedName(arg, callName, nameGenerator, cooked)
 			n.ReplaceWith(rhino.IR_String(rename))
 			t.ReportCodeChange()
 		}
-	} else if arg.IsObjectLit() {
-		for key := arg.GetFirstChild(); !key.IsNil(); key = key.GetNext() {
+	} else if objLit, isObj := firstArg.AsObjectLit(); isObj {
+		for member, ok := objLit.FirstMember(); ok; member, ok = member.Next() {
+			key := member.Node()
 			if key.IsMemberFunctionDef() {
 				r.compiler.Report(JSError_MakeWithNode(n, ReplaceIdGenerators_SHORTHAND_FUNCTION_NOT_SUPPORTED_IN_ID_GEN))
 				return
@@ -528,24 +543,27 @@ func (g *replaceIdGeneratorsPass) maybeReplaceCall(
 			r.compiler.Report(JSError_MakeWithNode(n, ReplaceIdGenerators_INVALID_GENERATOR_PARAMETER))
 			return
 		}
-		ttlFunctionCall := ttlVar.GetFirstFirstChild()
-		paramsArrayLiteral := ttlFunctionCall.GetSecondChild()
-		if paramsArrayLiteral.IsNil() || !paramsArrayLiteral.IsArrayLit() {
+		ttlVarInit, _ := ast.MustNameDeclaration(ttlVar).MustOnlyDeclarator().MustName().Init()
+		ttlFunctionCall := ttlVarInit.MustCall()
+		paramsArg, hasParamsArg := ttlFunctionCall.FirstArg()
+		paramsArrayLiteral, isArr := paramsArg.AsArrayLit()
+		if !hasParamsArg || !isArr {
 			panic(jutil.NewIllegalStateExceptionMsg("bad transpiled structure"))
 		}
-		if paramsArrayLiteral.GetChildCount() == 1 {
-			originalName := paramsArrayLiteral.GetFirstChild().GetString()
+		if onlyElem, isSingle := paramsArrayLiteral.OnlyElement(); isSingle {
+			originalName := onlyElem.Node().GetString()
 			rename := g.getObfuscatedName(arg, callName, nameGenerator, originalName)
 			n.ReplaceWith(rhino.IR_String(rename))
 			t.ReportCodeChange()
 			t.ReportCodeChangeWithNode(ttlVar)
 			ttlVar.Detach()
 		} else {
-			for param := paramsArrayLiteral.GetFirstChild(); !param.IsNil(); param = param.GetNext() {
+			for elem, ok := paramsArrayLiteral.FirstElement(); ok; elem, ok = elem.Next() {
+				param := elem.Node()
 				rename := g.getObfuscatedName(arg, callName, nameGenerator, param.GetString())
 				param.SetString(rename)
 			}
-			t.ReportCodeChangeWithNode(paramsArrayLiteral)
+			t.ReportCodeChangeWithNode(paramsArrayLiteral.Node())
 		}
 	} else {
 		r.compiler.Report(JSError_MakeWithNode(n, ReplaceIdGenerators_INVALID_GENERATOR_PARAMETER))
@@ -559,14 +577,20 @@ func findTtlVar(t *NodeTraversal, arg rhino.Node) rhino.Node {
 	if !parent.IsVar() || !parent.GetParent().IsScript() {
 		return rhino.NilNode
 	}
+	decl := ast.MustNameDeclaration(parent)
+	onlyDecl, hasOne := decl.OnlyDeclarator()
 	jutil.CheckStateMsg(
-		parent.HasOneChild(),
+		hasOne,
 		"The AST is normalized so there should only be one name per var")
-	callNode := ttlVarName.GetFirstChild()
-	if !callNode.IsCall() {
+	initExpr, hasInit := onlyDecl.MustName().Init()
+	if !hasInit {
 		return rhino.NilNode
 	}
-	callExpr := callNode.GetFirstChild()
+	call, isCall := initExpr.AsCall()
+	if !isCall {
+		return rhino.NilNode
+	}
+	callExpr := call.Callee().Node()
 	if callExpr.MatchesName("$jscomp$createTemplateTagFirstArg") ||
 		replaceIdGeneratorsCreateTemplateTagFirstArg.Matches(callExpr) {
 		return parent

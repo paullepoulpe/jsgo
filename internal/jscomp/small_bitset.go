@@ -506,17 +506,6 @@ func (b *smallBitSet) SetAndNotOr(src, andNot, or *smallBitSet) {
 	b.trim()
 }
 
-// JavaHashCode returns java.util.BitSet.hashCode() for b.
-func (b *smallBitSet) JavaHashCode() int32 {
-	var h int64 = 1234
-	h ^= int64(b.w0)
-	h ^= int64(b.w1) * 2
-	for i, w := range b.ext {
-		h ^= int64(w) * int64(i+3)
-	}
-	return int32((h >> 32) ^ h)
-}
-
 // bits128 returns the low 128 bits of b as a fixed-width value bitset.
 func (b *smallBitSet) bits128() bitSet128 {
 	return bitSet128{b.w0, b.w1}

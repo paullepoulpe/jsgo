@@ -23,6 +23,7 @@ import (
 	"regexp"
 	"testing"
 
+	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/parser"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
@@ -244,4 +245,66 @@ func TestCompilerOptions_RequiresTypesForOptimization(t *testing.T) {
 	options.SetRemoveAbstractMethods(false)
 	options.SetRemoveClosureAsserts(true)
 	assertEqual(t, "requiresTypesForOptimization", options.RequiresTypesForOptimization(), true)
+}
+
+func TestCompilerOptions_NoSharedMutableEmptyCollections(t *testing.T) {
+	o1 := NewCompilerOptions()
+	o2 := NewCompilerOptions()
+
+	o1.GetStripTypes().Add("goog.debug.Logger")
+	o1.GetStripNameSuffixes().Add("logger")
+	o1.GetStripNamePrefixes().Add("trace")
+	o1.GetIdGenerators().Put("xid", RenamingMap(RenamingToken_INCONSISTENT))
+	o1.GetInputSourceMaps().Put("a.js", nil)
+	o1.GetBrowserResolverPrefixReplacements().Put("@a/", "src/a/")
+	o1.GetPropertiesThatMustDisambiguate().Add("mustDisambiguate")
+	o1.GetDefineReplacements().Put("DEF", rhino.IR_String("x"))
+
+	o1.SetExtraAnnotationNames(nil)
+	o1.GetExtraAnnotationNames().Add("customTag")
+	o2.SetExtraAnnotationNames(nil)
+
+	if !o2.GetStripTypes().IsEmpty() {
+		t.Errorf("o2.GetStripTypes() mutated via o1: %v", o2.GetStripTypes().ToSlice())
+	}
+	if !o2.GetStripNameSuffixes().IsEmpty() {
+		t.Errorf("o2.GetStripNameSuffixes() mutated via o1: %v", o2.GetStripNameSuffixes().ToSlice())
+	}
+	if !o2.GetStripNamePrefixes().IsEmpty() {
+		t.Errorf("o2.GetStripNamePrefixes() mutated via o1: %v", o2.GetStripNamePrefixes().ToSlice())
+	}
+	if !o2.GetIdGenerators().IsEmpty() {
+		t.Errorf("o2.GetIdGenerators() mutated via o1: %v", o2.GetIdGenerators())
+	}
+	if !o2.GetInputSourceMaps().IsEmpty() {
+		t.Errorf("o2.GetInputSourceMaps() mutated via o1: %v", o2.GetInputSourceMaps())
+	}
+	if !o2.GetBrowserResolverPrefixReplacements().IsEmpty() {
+		t.Errorf("o2.GetBrowserResolverPrefixReplacements() mutated via o1: %v", o2.GetBrowserResolverPrefixReplacements())
+	}
+	if !o2.GetPropertiesThatMustDisambiguate().IsEmpty() {
+		t.Errorf("o2.GetPropertiesThatMustDisambiguate() mutated via o1: %v", o2.GetPropertiesThatMustDisambiguate())
+	}
+	if !o2.GetDefineReplacements().IsEmpty() {
+		t.Errorf("o2.GetDefineReplacements() mutated via o1: %v", o2.GetDefineReplacements())
+	}
+	if !o2.GetExtraAnnotationNames().IsEmpty() {
+		t.Errorf("o2.GetExtraAnnotationNames() mutated via o1: %v", o2.GetExtraAnnotationNames())
+	}
+
+	// Also verify empty Set* calls do not alias across instances.
+	emptySet := jutil.NewLinkedHashSet[string]()
+	o1.SetIdGenerators(emptySet)
+	o2.SetIdGenerators(emptySet)
+	o1.GetIdGenerators().Put("gen", RenamingMap(RenamingToken_INCONSISTENT))
+	if !o2.GetIdGenerators().IsEmpty() {
+		t.Errorf("o2.GetIdGenerators() after empty SetIdGenerators mutated via o1: %v", o2.GetIdGenerators())
+	}
+
+	o1.SetPropertiesThatMustDisambiguate(emptySet)
+	o2.SetPropertiesThatMustDisambiguate(emptySet)
+	o1.GetPropertiesThatMustDisambiguate().Add("prop")
+	if !o2.GetPropertiesThatMustDisambiguate().IsEmpty() {
+		t.Errorf("o2.GetPropertiesThatMustDisambiguate() after empty SetPropertiesThatMustDisambiguate mutated via o1: %v", o2.GetPropertiesThatMustDisambiguate())
+	}
 }

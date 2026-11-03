@@ -54,7 +54,7 @@ var (
 
 // Java: TranspilerTest.source(Path, String)
 func transpilerTest_source(path *jutil.Path, code string) *Source {
-	return NewSource_Builder().SetPath(path).SetCode(code).Build()
+	return NewSource(SourceConfig{Path: path, Code: code})
 }
 
 func bundleTest_assertSource(t *testing.T, got *Source, want *Source) {
@@ -73,13 +73,13 @@ func TestTranspiler_Transpiler_transpile(t *testing.T) {
 	mockCompiler.compilePath, mockCompiler.compileCode = "foo.js", "bar"
 	mockCompiler.compileResult = NewCompileResult("result", transpilerTest_NO_ERRORS, true, "srcmap")
 	bundleTest_assertSource(t, transpiler.Transform(transpilerTest_source(transpilerTest_FOO_JS, "bar")),
-		NewSource_Builder().
-			SetPath(transpilerTest_FOO_JS).
-			SetOriginalCode("bar").
-			SetCode("result").
-			SetSourceMap("srcmap").
-			AddRuntime("$jscomp.es6();").
-			Build())
+		NewSource(SourceConfig{
+			Path:         transpilerTest_FOO_JS,
+			OriginalCode: "bar",
+			Code:         "result",
+			SourceMap:    "srcmap",
+			Runtimes:     []string{"$jscomp.es6();"},
+		}))
 }
 
 func TestTranspiler_Transpiler_noTranspilation(t *testing.T) {

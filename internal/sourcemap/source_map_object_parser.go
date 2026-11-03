@@ -102,10 +102,20 @@ func parseSourceMapObject(contents string) (*SourceMapObject, jutil.Throwable) {
 		return nil, wrapScannerErr(err)
 	}
 
+	const (
+		errVersion = iota
+		errFile
+		errLineCount
+		errMappings
+		errSourceRoot
+		errSections
+		errSources
+		errSourcesContent
+		errNames
+	)
 	obj := &SourceMapObject{lineCount: -1}
 	hasVersion := false
-	var verErr, fileErr, lcErr, mappingsErr, sourceRootErr jutil.Throwable
-	var sectionsErr, sourcesErr, sourcesContentErr, namesErr jutil.Throwable
+	var fieldErrs [9]jutil.Throwable
 	var extensions []SourceMapExtension
 
 	for {
@@ -132,7 +142,7 @@ func parseSourceMapObject(contents string) (*SourceMapObject, jutil.Throwable) {
 				return nil, wrapScannerErr(serr)
 			}
 			obj.version = v
-			verErr = cerr
+			fieldErrs[errVersion] = cerr
 			hasVersion = true
 
 		case "file":
@@ -141,7 +151,7 @@ func parseSourceMapObject(contents string) (*SourceMapObject, jutil.Throwable) {
 				return nil, wrapScannerErr(serr)
 			}
 			obj.file = str
-			fileErr = cerr
+			fieldErrs[errFile] = cerr
 
 		case "lineCount":
 			v, cerr, serr := readStreamInt(&s, vtok)
@@ -149,7 +159,7 @@ func parseSourceMapObject(contents string) (*SourceMapObject, jutil.Throwable) {
 				return nil, wrapScannerErr(serr)
 			}
 			obj.lineCount = v
-			lcErr = cerr
+			fieldErrs[errLineCount] = cerr
 
 		case "mappings":
 			str, cerr, serr := readStreamOptionalString(&s, vtok)
@@ -157,7 +167,7 @@ func parseSourceMapObject(contents string) (*SourceMapObject, jutil.Throwable) {
 				return nil, wrapScannerErr(serr)
 			}
 			obj.mappings = str
-			mappingsErr = cerr
+			fieldErrs[errMappings] = cerr
 
 		case "sourceRoot":
 			str, cerr, serr := readStreamOptionalString(&s, vtok)
@@ -165,7 +175,7 @@ func parseSourceMapObject(contents string) (*SourceMapObject, jutil.Throwable) {
 				return nil, wrapScannerErr(serr)
 			}
 			obj.sourceRoot = str
-			sourceRootErr = cerr
+			fieldErrs[errSourceRoot] = cerr
 
 		case "sections":
 			secs, cerr, serr := readStreamSections(&s, vtok)
@@ -173,7 +183,7 @@ func parseSourceMapObject(contents string) (*SourceMapObject, jutil.Throwable) {
 				return nil, wrapScannerErr(serr)
 			}
 			obj.sections = secs
-			sectionsErr = cerr
+			fieldErrs[errSections] = cerr
 
 		case "sources":
 			arr, cerr, serr := readStreamOptionalStringArray(&s, vtok)
@@ -181,7 +191,7 @@ func parseSourceMapObject(contents string) (*SourceMapObject, jutil.Throwable) {
 				return nil, wrapScannerErr(serr)
 			}
 			obj.sources = arr
-			sourcesErr = cerr
+			fieldErrs[errSources] = cerr
 
 		case "sourcesContent":
 			arr, cerr, serr := readStreamOptionalStringArray(&s, vtok)
@@ -189,7 +199,7 @@ func parseSourceMapObject(contents string) (*SourceMapObject, jutil.Throwable) {
 				return nil, wrapScannerErr(serr)
 			}
 			obj.sourcesContent = arr
-			sourcesContentErr = cerr
+			fieldErrs[errSourcesContent] = cerr
 
 		case "names":
 			arr, cerr, serr := readStreamOptionalStringArray(&s, vtok)
@@ -197,7 +207,7 @@ func parseSourceMapObject(contents string) (*SourceMapObject, jutil.Throwable) {
 				return nil, wrapScannerErr(serr)
 			}
 			obj.names = arr
-			namesErr = cerr
+			fieldErrs[errNames] = cerr
 
 		default:
 			if strings.HasPrefix(name, "x_") {
@@ -229,32 +239,10 @@ func parseSourceMapObject(contents string) (*SourceMapObject, jutil.Throwable) {
 	if !hasVersion {
 		return nil, sourceMapParserMissingFieldNPE("getAsInt()")
 	}
-	if verErr != nil {
-		return nil, verErr
-	}
-	if fileErr != nil {
-		return nil, fileErr
-	}
-	if lcErr != nil {
-		return nil, lcErr
-	}
-	if mappingsErr != nil {
-		return nil, mappingsErr
-	}
-	if sourceRootErr != nil {
-		return nil, sourceRootErr
-	}
-	if sectionsErr != nil {
-		return nil, sectionsErr
-	}
-	if sourcesErr != nil {
-		return nil, sourcesErr
-	}
-	if sourcesContentErr != nil {
-		return nil, sourcesContentErr
-	}
-	if namesErr != nil {
-		return nil, namesErr
+	for _, ferr := range fieldErrs {
+		if ferr != nil {
+			return nil, ferr
+		}
 	}
 
 	obj.extensions = extensions

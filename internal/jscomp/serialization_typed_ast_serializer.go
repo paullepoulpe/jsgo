@@ -484,17 +484,50 @@ func NewTypedAstSerializer_ColorTypeSerializer(colorSerializer *ColorSerializer,
 
 // Java: TypedAstSerializer.ColorTypeSerializer.generateTypePool()
 func (s *TypedAstSerializer_ColorTypeSerializer) GenerateTypePool() *TypePool {
-	mismatchLocationsForDebugging := s.colorRegistry.GetMismatchLocationsForDebugging()
-	return s.colorSerializer.GenerateTypePool(
-		s.colorRegistry.GetDisambiguationSupertypesSlice,
-		func(color *colors.Color) *jutil.LinkedHashSet[string] {
-			// Go-only: language-adapter — the ColorSerializer port takes the
-			// ImmutableSet<String> as a LinkedHashSet; copy from
-			// ColorMismatchLocations in iteration order.
-			locations := jutil.NewLinkedHashSet[string]()
-			for location := range mismatchLocationsForDebugging.Get(color.GetId()).All() {
-				locations.Add(location)
-			}
-			return locations
-		})
+	return s.colorSerializer.generateTypePoolFromRegistry(s.colorRegistry)
+}
+
+func (s *ColorSerializer) generateTypePoolFromRegistry(reg *colors.ColorRegistry) *TypePool {
+	if !s.serializationMode.IncludeDebugInfo() {
+		return s.GenerateTypePool(reg.GetDisambiguationSupertypesSlice, nil)
+	}
+	startIdx := TypePointers_UntrimOffset(0)
+	initialCap := max(0, len(s.colorsInSerializedOrder)-startIdx)
+	var types []*TypeProto
+	if initialCap > 0 {
+		types = make([]*TypeProto, 0, initialCap)
+	}
+	var disambiguationEdges []*SubtypingEdge
+	for i := startIdx; i < len(s.colorsInSerializedOrder); i++ {
+		color := s.colorsInSerializedOrder[i]
+		typePointer := int32(i)
+		types = append(types, s.GenerateTypeProto(color))
+		for _, supertype := range reg.GetDisambiguationSupertypesSlice(color) {
+			disambiguationEdges = append(disambiguationEdges, s.allocSubtypingEdge(typePointer, int32(s.AddColor(supertype))))
+		}
+	}
+
+	mismatchLocationsForDebugging := reg.GetMismatchLocationsForDebugging()
+	var srcRefToTypePointerList OrderedStringMap[[]int32]
+	for i, color := range s.colorsInSerializedOrder {
+		typePointer := int32(i)
+		for srcRef := range mismatchLocationsForDebugging.Get(color.GetId()).All() {
+			srcRefToTypePointerList.Put(srcRef, append(srcRefToTypePointerList.Get(srcRef), typePointer))
+		}
+	}
+	entries := srcRefToTypePointerList.Entries()
+	mismatches := make([]*TypePool_DebugInfo_Mismatch, len(entries))
+	for i, e := range entries {
+		mismatches[i] = &TypePool_DebugInfo_Mismatch{
+			sourceRef_:     e.Key,
+			involvedColor_: e.Value,
+		}
+	}
+	return &TypePool{
+		type_:                types,
+		disambiguationEdges_: disambiguationEdges,
+		debugInfo_: &TypePool_DebugInfo{
+			mismatch_: mismatches,
+		},
+	}
 }

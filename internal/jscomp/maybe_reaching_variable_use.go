@@ -334,12 +334,11 @@ func (u *MaybeReachingVariableUse) killLocalID(id uint32) {
 //
 // Java: MaybeReachingVariableUse.computeMayUse(Node, Node, ReachingUses, boolean)
 func (u *MaybeReachingVariableUse) computeMayUse(n rhino.Node, conditional bool) {
-	if n.IsNil() {
-		return
-	}
+	walkCfgCondEvalBackward(n, conditional, u, (*MaybeReachingVariableUse).visitMayUseNode)
+}
+
+func (u *MaybeReachingVariableUse) visitMayUseNode(n rhino.Node, conditional bool) bool {
 	switch n.GetToken() {
-	case rhino.Token_BLOCK, rhino.Token_ROOT, rhino.Token_FUNCTION:
-		return
 	case rhino.Token_NAME:
 		id := n.GetStringID()
 		if NodeUtil_IsLhsByDestructuring(n) {
@@ -349,11 +348,7 @@ func (u *MaybeReachingVariableUse) computeMayUse(n rhino.Node, conditional bool)
 		} else {
 			u.genLocalID(id)
 		}
-		return
-	case rhino.Token_WHILE, rhino.Token_DO, rhino.Token_IF, rhino.Token_FOR:
-		condExpr := NodeUtil_GetConditionExpression(n)
-		u.computeMayUse(condExpr, conditional)
-		return
+		return true
 	case rhino.Token_FOR_IN, rhino.Token_FOR_OF, rhino.Token_FOR_AWAIT_OF:
 		// for(x in y) {...}
 		loop := ast.MustEnhancedFor(n)
@@ -374,38 +369,7 @@ func (u *MaybeReachingVariableUse) computeMayUse(n rhino.Node, conditional bool)
 			u.computeMayUse(lhs, true)
 		}
 		u.computeMayUse(loop.Collection().Node(), conditional)
-		return
-	case rhino.Token_OPTCHAIN_GETPROP:
-		// Go-only: OPTCHAIN_GETPROP has only one child (Object; property is its string),
-		// so visiting Object once matches Java without O(2^k) re-traversal on chains.
-		u.computeMayUse(ast.MustOptChainGetProp(n).Object().Node(), conditional)
-		return
-	case rhino.Token_AND, rhino.Token_OR, rhino.Token_COALESCE:
-		bin := ast.MustBinary(n)
-		u.computeMayUse(bin.Right().Node() /* conditional= */, true)
-		u.computeMayUse(bin.Left().Node(), conditional)
-		return
-	case rhino.Token_OPTCHAIN_GETELEM:
-		ge := ast.MustOptChainGetElem(n)
-		u.computeMayUse(ge.Index().Node() /* conditional= */, true)
-		u.computeMayUse(ge.Object().Node(), conditional)
-		return
-	case rhino.Token_OPTCHAIN_CALL:
-		call := ast.MustOptChainCall(n)
-		callee := call.Callee().Node()
-		// As args are evaluated in AST order, we traverse in reverse AST order for backward
-		// dataflow analysis.
-		for c := n.GetLastChild(); c != callee; c = c.GetPrevious() {
-			u.computeMayUse(c /* conditional= */, true)
-		}
-		u.computeMayUse(callee, conditional)
-		return
-	case rhino.Token_HOOK:
-		hook := ast.MustHook(n)
-		u.computeMayUse(hook.Else().Node() /* conditional= */, true)
-		u.computeMayUse(hook.Then().Node() /* conditional= */, true)
-		u.computeMayUse(hook.Cond().Node(), conditional)
-		return
+		return true
 	case rhino.Token_VAR, rhino.Token_LET, rhino.Token_CONST:
 		decl := ast.MustNameDeclaration(n)
 		jutil.CheckStateMsg1(decl.HasDeclarators(), "AST should be normalized (%s)", n)
@@ -426,7 +390,7 @@ func (u *MaybeReachingVariableUse) computeMayUse(n rhino.Node, conditional bool)
 				}
 			} // else var name declaration with no initial value
 		}
-		return
+		return true
 	case rhino.Token_DEFAULT_VALUE:
 		dv := ast.MustDefaultValue(n)
 		target := dv.Target()
@@ -444,6 +408,7 @@ func (u *MaybeReachingVariableUse) computeMayUse(n rhino.Node, conditional bool)
 			u.computeMayUse(value, true)
 			u.computeMayUse(target.Node(), conditional)
 		}
+		return true
 	default:
 		if assign, ok := ast.AsAssignment(n); ok {
 			if name, isName := assign.Target().AsName(); isName {
@@ -458,24 +423,18 @@ func (u *MaybeReachingVariableUse) computeMayUse(n rhino.Node, conditional bool)
 					}
 				}
 				u.computeMayUse(assign.Value().Node(), conditional)
-				return
+				return true
 			}
 			if assign.Token() == rhino.Token_ASSIGN {
 				if pat, isPat := assign.Target().AsPattern(); isPat {
 					// Note: the rhs of destructuring is evaluated before the lhs
 					u.computeMayUse(pat.Node(), conditional)
 					u.computeMayUse(assign.Value().Node(), conditional)
-					return
+					return true
 				}
 			}
 		}
-		/*
-		 * We want to traverse in reverse order because we want the LAST
-		 * definition in the sub-tree.
-		 */
-		for c := n.GetLastChild(); !c.IsNil(); c = c.GetPrevious() {
-			u.computeMayUse(c, conditional)
-		}
+		return false
 	}
 }
 

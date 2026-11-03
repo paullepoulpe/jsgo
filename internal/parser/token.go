@@ -118,24 +118,6 @@ type TemplateTokenError struct {
 	Level    uint8 // 0 = null, 1 = WARNING, 2 = ERROR
 }
 
-// ErrorLevelPtr returns the nullable ErrorLevel of this entry.
-func (e TemplateTokenError) ErrorLevelPtr() *TemplateLiteralToken_ErrorLevel {
-	if e.Level == 0 {
-		return nil
-	}
-	lvl := TemplateLiteralToken_ErrorLevel(e.Level - 1)
-	return &lvl
-}
-
-// ErrorMessagePtr returns the nullable ErrorMessage of this entry.
-func (e TemplateTokenError) ErrorMessagePtr() *string {
-	if !e.HasMsg {
-		return nil
-	}
-	msg := e.Message
-	return &msg
-}
-
 // NewToken constructs a plain Token.
 //
 // Java: Token(TokenType, SourceRange)

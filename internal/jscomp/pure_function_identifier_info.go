@@ -203,11 +203,11 @@ func (p *PureFunctionIdentifier) maybeCollectDebugReason(id pfiSummaryID, s *pfi
 		fn = NodeUtil_GetEnclosingFunction(reason)
 	}
 	if p.debugReasons == nil {
-		p.debugReasons = make(map[pfiSummaryID]*jutil.LinkedHashSet[rhino.Node], 8)
+		p.debugReasons = make(map[pfiSummaryID]*OrderedSet[rhino.Node], 8)
 	}
 	set := p.debugReasons[id]
 	if set == nil {
-		set = jutil.NewLinkedHashSet[rhino.Node]()
+		set = &OrderedSet[rhino.Node]{}
 		p.debugReasons[id] = set
 	}
 	set.Add(fn)

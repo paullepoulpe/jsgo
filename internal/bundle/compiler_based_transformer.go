@@ -70,13 +70,10 @@ func (t *CompilerBasedTransformer) Transform(input *Source) *Source {
 	if !result.Transformed {
 		return input
 	}
-	builder := input.ToBuilder().
-		SetCode(result.Source).
-		SetSourceMap(result.SourceMap)
 	if t.hasRuntime {
-		builder.AddRuntime(t.compilerSupplier.Runtime(t.runtimeLibraryName))
+		return input.WithTransformed(result.Source, result.SourceMap, t.compilerSupplier.Runtime(t.runtimeLibraryName))
 	}
-	return builder.Build()
+	return input.WithTransformed(result.Source, result.SourceMap)
 }
 
 // CompilerSupplier wraps the Compiler into a small interface, making it easy to

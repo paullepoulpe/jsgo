@@ -647,6 +647,40 @@ func TestHamtPMapArenaZeroAllocs(t *testing.T) {
 	strArena.TrimLargeChunks()
 }
 
+func TestHamtPMapArenaTrimLargeChunksRetainsWorkingSet(t *testing.T) {
+	reg := NewJSTypeRegistry(nil)
+	t1 := reg.GetNativeType(JSTypeNative_NUMBER_TYPE)
+
+	var arena HamtPMapArena[strpool.ID, JSType]
+	// Grow past jutil.ReuseSlab's 15-chunk cap (>3,000 nodes) to simulate a
+	// large global pass.
+	var big *HamtPMap[strpool.ID, JSType]
+	for i := 1; i <= 3500; i++ {
+		big = big.PlusMapWithArena(&arena, strpool.ID(i), t1)
+	}
+	if big.Get(3500) != t1 {
+		t.Fatal("expected big map to contain 3500")
+	}
+
+	// TrimLargeChunks must drop excess chunks while retaining the working set
+	// so subsequent function-level passes run with zero allocations.
+	arena.TrimLargeChunks()
+
+	allocs := testing.AllocsPerRun(50, func() {
+		arena.Reset()
+		var m *HamtPMap[strpool.ID, JSType]
+		for i := 1; i <= 16; i++ {
+			m = m.PlusMapWithArena(&arena, strpool.ID(i), t1)
+		}
+		if m.Get(16) != t1 {
+			t.Fatal("expected working-set map to contain 16")
+		}
+	})
+	if allocs != 0 {
+		t.Fatalf("after TrimLargeChunks, got %v allocs/op, want 0", allocs)
+	}
+}
+
 func TestHamtPMapNullAndEqualitySemantics(t *testing.T) {
 	if hamtIsNull("") {
 		t.Fatal("empty string must not be treated as null")

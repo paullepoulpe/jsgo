@@ -21,6 +21,7 @@ package jscomp
 import (
 	"slices"
 	"strings"
+	"sync"
 	"testing"
 
 	"github.com/paullepoulpe/jsgo/internal/jutil"
@@ -51,10 +52,13 @@ func scriptSupplier(script rhino.Node) func() rhino.Node {
 	return func() rhino.Node { return script }
 }
 
-func freshScript() rhino.Node { return rhino.IR_Script() }
+func freshScript() rhino.Node {
+	rhino.EnsureCompilationStore()
+	return rhino.IR_Script()
+}
 
 func TestRuntimeJsLibManager_NoOpModeDoesNotRecordOrInject(t *testing.T) {
-	script := rhino.IR_Script()
+	script := freshScript()
 	manager := RuntimeJsLibManager_Create(
 		RuntimeJsLibManager_RuntimeLibraryMode_NO_OP,
 		stubResourceLoader(t, map[string]string{"lib": "0"}),
@@ -67,7 +71,7 @@ func TestRuntimeJsLibManager_NoOpModeDoesNotRecordOrInject(t *testing.T) {
 }
 
 func TestRuntimeJsLibManager_NoOpModeDoesRecordAndInjectWithForceInjection(t *testing.T) {
-	script := rhino.IR_Script()
+	script := freshScript()
 	manager := RuntimeJsLibManager_Create(
 		RuntimeJsLibManager_RuntimeLibraryMode_NO_OP,
 		stubResourceLoader(t, map[string]string{"lib": "0"}),
@@ -107,7 +111,7 @@ func TestRuntimeJsLibManager_RecordOnlyModeDoesRecordAndInjectWithForceInjection
 }
 
 func TestRuntimeJsLibManager_InjectModeDoesRecordAndInjectAndReturnsLastStatementInLibrary(t *testing.T) {
-	script := rhino.IR_Script()
+	script := freshScript()
 	manager := RuntimeJsLibManager_Create(
 		RuntimeJsLibManager_RuntimeLibraryMode_INJECT,
 		stubResourceLoader(t, map[string]string{"lib": "function foo() {}\n0;\n"}),
@@ -122,7 +126,7 @@ func TestRuntimeJsLibManager_InjectModeDoesRecordAndInjectAndReturnsLastStatemen
 }
 
 func TestRuntimeJsLibManager_DoesNotInjectSameLibraryTwice(t *testing.T) {
-	script := rhino.IR_Script()
+	script := freshScript()
 	manager := RuntimeJsLibManager_Create(
 		RuntimeJsLibManager_RuntimeLibraryMode_INJECT,
 		stubResourceLoader(t, map[string]string{"lib": "0"}),
@@ -137,6 +141,7 @@ func TestRuntimeJsLibManager_DoesNotInjectSameLibraryTwice(t *testing.T) {
 }
 
 func TestRuntimeJsLibManager_InjectsBeforeExistingCode(t *testing.T) {
+	rhino.EnsureCompilationStore()
 	existing := rhino.IR_Block()
 	script := rhino.IR_ScriptOfNodes(existing)
 
@@ -153,7 +158,7 @@ func TestRuntimeJsLibManager_InjectsBeforeExistingCode(t *testing.T) {
 }
 
 func TestRuntimeJsLibManager_InjectsAfterPreviouslyInjectedLib(t *testing.T) {
-	script := rhino.IR_Script()
+	script := freshScript()
 	manager := RuntimeJsLibManager_Create(
 		RuntimeJsLibManager_RuntimeLibraryMode_INJECT,
 		stubResourceLoader(t, map[string]string{"lib0": "0", "lib1": "1"}),
@@ -169,7 +174,7 @@ func TestRuntimeJsLibManager_InjectsAfterPreviouslyInjectedLib(t *testing.T) {
 }
 
 func TestRuntimeJsLibManager_InjectsRequiredLibsOnlyOnce(t *testing.T) {
-	script := rhino.IR_Script()
+	script := freshScript()
 	// Create a dependency tree:
 	//       (base)
 	//      /      \
@@ -196,7 +201,7 @@ func TestRuntimeJsLibManager_InjectsRequiredLibsOnlyOnce(t *testing.T) {
 }
 
 func TestRuntimeJsLibManager_InjectModeDoesNotPassAlongUseStrictDirective(t *testing.T) {
-	script := rhino.IR_Script()
+	script := freshScript()
 	manager := RuntimeJsLibManager_Create(
 		RuntimeJsLibManager_RuntimeLibraryMode_INJECT,
 		stubResourceLoader(t, map[string]string{"lib": "'use strict';\n0;\n"}),
@@ -341,6 +346,7 @@ func TestRuntimeJsLibManager_NoinjectLibForFieldThenAssertInjectedAndGetQualifie
 }
 
 func TestRuntimeJsLibManager_FieldWithoutInjectionAllowsCallingMatches(t *testing.T) {
+	rhino.EnsureCompilationStore()
 	manager := RuntimeJsLibManager_Create(
 		RuntimeJsLibManager_RuntimeLibraryMode_RECORD_AND_VALIDATE_FIELDS,
 		stubResourceLoader(t, map[string]string{}),
@@ -369,7 +375,7 @@ func TestRuntimeJsLibManager_ExternFieldNamesModeDoesNotInjectButRecordsLibrarie
 }
 
 func TestRuntimeJsLibManager_ExternFieldNamesModeDoesRecordAndInjectWithForceInjection(t *testing.T) {
-	script := rhino.IR_Script()
+	script := freshScript()
 	manager := RuntimeJsLibManager_Create(
 		RuntimeJsLibManager_RuntimeLibraryMode_EXTERN_FIELD_NAMES,
 		stubResourceLoader(t, map[string]string{"lib": "0"}),
@@ -383,7 +389,7 @@ func TestRuntimeJsLibManager_ExternFieldNamesModeDoesRecordAndInjectWithForceInj
 }
 
 func TestRuntimeJsLibManager_ExternFieldNamesModeInjectLibForFieldRecordsAndAddsExternDecl(t *testing.T) {
-	externs := rhino.IR_Script()
+	externs := freshScript()
 	externs.SetStaticSourceFile(SourceFile_FromCodeWithKind("ex.js", "", rhino.StaticSourceFile_SourceKind_EXTERN))
 	manager := RuntimeJsLibManager_Create(
 		RuntimeJsLibManager_RuntimeLibraryMode_EXTERN_FIELD_NAMES,
@@ -404,7 +410,7 @@ func TestRuntimeJsLibManager_ExternFieldNamesModeInjectLibForFieldRecordsAndAdds
 }
 
 func TestRuntimeJsLibManager_ExternFieldNamesModeInjectLibForFieldTwiceDoesNotAddDuplicateExterns(t *testing.T) {
-	externs := rhino.IR_Script()
+	externs := freshScript()
 	externs.SetStaticSourceFile(SourceFile_FromCodeWithKind("ex.js", "", rhino.StaticSourceFile_SourceKind_EXTERN))
 	manager := RuntimeJsLibManager_Create(
 		RuntimeJsLibManager_RuntimeLibraryMode_EXTERN_FIELD_NAMES,
@@ -428,4 +434,31 @@ func TestRuntimeJsLibManager_ExternFieldNamesModeNoinjectLibForFieldThenAssertIn
 	field := manager.GetJsLibField("$jscomp.inherits")
 
 	assertThrows[jutil.IIllegalStateException](t, func() { field.AssertInjected() })
+}
+
+func TestRuntimeJsLibManager_ConcurrentGetJsLibField(t *testing.T) {
+	rhino.EnsureCompilationStore()
+	const workers = 16
+	var wg sync.WaitGroup
+	wg.Add(workers)
+	for range workers {
+		go func() {
+			defer wg.Done()
+			mgr := RuntimeJsLibManager_Create(
+				RuntimeJsLibManager_RuntimeLibraryMode_RECORD_ONLY,
+				stubResourceLoader(t, map[string]string{}),
+				NewChangeTracker(),
+				freshScript)
+			f1 := mgr.GetJsLibField("$jscomp.inherits")
+			f2 := mgr.GetJsLibField("$jscomp.inherits")
+			if f1 != f2 {
+				t.Errorf("expected interned field identity, got %p vs %p", f1, f2)
+			}
+			mgr.InjectLibForField("$jscomp.inherits")
+			if got := f1.AssertInjected().QualifiedName(); got != "$jscomp.inherits" {
+				t.Errorf("QualifiedName() = %q, want $jscomp.inherits", got)
+			}
+		}()
+	}
+	wg.Wait()
 }

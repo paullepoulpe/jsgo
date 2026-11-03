@@ -153,13 +153,10 @@ const (
 
 var useSiteRenamer_RenameUsesResult_names = [...]string{"INVALIDATED", "ONLY_ONE_CLUSTER", "DISAMBIGUATED"}
 
-// Name is Enum.name().
-func (r UseSiteRenamer_RenameUsesResult) Name() string {
+// String is Enum.toString().
+func (r UseSiteRenamer_RenameUsesResult) String() string {
 	return useSiteRenamer_RenameUsesResult_names[r]
 }
-
-// String is Enum.toString().
-func (r UseSiteRenamer_RenameUsesResult) String() string { return r.Name() }
 
 // UseSiteNameSlice holds the renamed cluster names for a single property.
 type UseSiteNameSlice []string

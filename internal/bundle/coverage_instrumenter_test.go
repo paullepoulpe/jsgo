@@ -34,12 +34,12 @@ func TestCoverageInstrumenter_CoverageInstrumenter_instrument(t *testing.T) {
 	mockCompiler.compilePath, mockCompiler.compileCode = "foo.js", "bar"
 	mockCompiler.compileResult = NewCompileResult("result", transpilerTest_NO_ERRORS, true, "srcmap")
 	bundleTest_assertSource(t, instrumenter.Transform(transpilerTest_source(transpilerTest_FOO_JS, "bar")),
-		NewSource_Builder().
-			SetPath(transpilerTest_FOO_JS).
-			SetOriginalCode("bar").
-			SetCode("result").
-			SetSourceMap("srcmap").
-			Build())
+		NewSource(SourceConfig{
+			Path:         transpilerTest_FOO_JS,
+			OriginalCode: "bar",
+			Code:         "result",
+			SourceMap:    "srcmap",
+		}))
 }
 
 func TestCoverageInstrumenter_CoverageInstrumenter_noInstrumentation(t *testing.T) {

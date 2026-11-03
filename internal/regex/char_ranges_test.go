@@ -19,6 +19,7 @@
 package regex
 
 import (
+	"math"
 	"math/rand"
 	"os"
 	"strconv"
@@ -250,4 +251,70 @@ func TestUnion(t *testing.T) {
 	// Check that a and b not changed by operation
 	assertString(t, a, "[0x3-0xb 0x12 0x14 0x16 0x18 0x1c 0x1e-0x20 0x24-0x26 0x28 0x2a]")
 	assertString(t, b, "[0x1-0x3 0x6-0x8 0xb-0xd 0xf-0x11 0x1a 0x1c 0x21-0x23]")
+}
+
+func expectIndexOutOfBounds(t *testing.T, what string, f func()) {
+	t.Helper()
+	caught := false
+	jutil.Try(f, func(ex jutil.IIndexOutOfBoundsException) { caught = true })
+	if !caught {
+		t.Errorf("%s: no IndexOutOfBoundsException", what)
+	}
+}
+
+func TestShiftOverflowAndUnderflow(t *testing.T) {
+	r := CharRanges_WithRanges(0x10, 0x20, 0x30, 0x40)
+	if r.Shift(0) != r {
+		t.Error("Shift(0) should return receiver")
+	}
+	if CharRanges_EMPTY.Shift(42) != CharRanges_EMPTY {
+		t.Error("EMPTY.Shift should return EMPTY")
+	}
+	assertString(t, r.Shift(4), "[0x14-0x23 0x34-0x43]")
+	assertString(t, r.Shift(-4), "[0xc-0x1b 0x2c-0x3b]")
+
+	nearMax := CharRanges_WithRanges(0, math.MaxInt32-5)
+	if got := nearMax.Shift(5); got.End(0) != math.MaxInt32 {
+		t.Fatalf("nearMax.Shift(5).End(0) = %d, want MaxInt32", got.End(0))
+	}
+	expectIndexOutOfBounds(t, "positive shift overflow by 1", func() {
+		CharRanges_WithRanges(0, math.MaxInt32).Shift(1)
+	})
+	expectIndexOutOfBounds(t, "positive shift overflow across MaxInt32", func() {
+		nearMax.Shift(6)
+	})
+	expectIndexOutOfBounds(t, "positive shift large delta", func() {
+		CharRanges_WithRanges(100, 200).Shift(math.MaxInt32)
+	})
+
+	nearMin := CharRanges_WithRanges(math.MinInt32+5, 0)
+	if got := nearMin.Shift(-5); got.Start(0) != math.MinInt32 {
+		t.Fatalf("nearMin.Shift(-5).Start(0) = %d, want MinInt32", got.Start(0))
+	}
+	expectIndexOutOfBounds(t, "negative shift underflow by 1", func() {
+		CharRanges_WithRanges(math.MinInt32, 0).Shift(-1)
+	})
+	expectIndexOutOfBounds(t, "negative shift underflow across MinInt32", func() {
+		nearMin.Shift(-6)
+	})
+	expectIndexOutOfBounds(t, "negative shift large delta", func() {
+		CharRanges_WithRanges(-200, -100).Shift(math.MinInt32)
+	})
+}
+
+func TestDifferenceMergesAdjacentRanges(t *testing.T) {
+	// Adjacent minuend ranges [0, 5) and [5, 10) must coalesce into [0, 10)
+	// rather than dropping [5, 10).
+	contiguousMinuend := NewCharRanges([]int{0, 5, 5, 10})
+	got := contiguousMinuend.Difference(CharRanges_WithRanges(20, 30))
+	want := CharRanges_WithRanges(0, 10)
+	if !got.Equals(want) {
+		t.Fatalf("contiguous minuend Difference = %s (ranges=%v), want %s", got, got.ranges, want)
+	}
+
+	// Subtracting an empty subtrahend segment [5, 5) splits and re-merges [0, 10).
+	got2 := CharRanges_WithRanges(0, 10).Difference(NewCharRanges([]int{5, 5}))
+	if !got2.Equals(want) {
+		t.Fatalf("empty subtrahend segment Difference = %s (ranges=%v), want %s", got2, got2.ranges, want)
+	}
 }

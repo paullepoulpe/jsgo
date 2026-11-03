@@ -410,11 +410,11 @@ func (r *RewriteGoogJsImports) FindGoogJsScriptNode(root rhino.Node) rhino.Node 
 				GetPath().
 				EqualsIgnoreLeadingSlash(expectedGoogPath) {
 				googScriptNode = script
-			} else if strings.HasSuffix(*script.GetSourceFileName(), "/goog.js") {
+			} else if srcFileName := script.GetSourceFileName(); srcFileName != nil && strings.HasSuffix(*srcFileName, "/goog.js") {
 				// Ban the name goog.js as input except for Closure's goog.js file.
 				// This simplifies a lot of logic if the only file that is allowed
 				// to be named goog.js is Closure's.
-				r.compiler.Report(JSError_MakeWithSourceLocation(script.GetSourceFileName(), -1, -1, RewriteGoogJsImports_CANNOT_NAME_FILE_GOOG))
+				r.compiler.Report(JSError_MakeWithSourceLocation(srcFileName, -1, -1, RewriteGoogJsImports_CANNOT_NAME_FILE_GOOG))
 			}
 		}
 

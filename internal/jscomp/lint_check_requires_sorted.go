@@ -276,11 +276,11 @@ func (c *CheckRequiresSorted) Visit(t *NodeTraversal, n rhino.Node, parent rhino
 
 func isValidRequireImportCall(n rhino.Node) bool {
 	call, ok := ast.AsCall(n)
-	if !ok || !n.HasTwoChildren() {
+	if !ok {
 		return false
 	}
 	callee := call.Callee().Node()
-	firstArg, ok := call.FirstArg()
+	firstArg, ok := call.AsCallOrNew().OnlyArg()
 	return ok &&
 		firstArg.Token() == rhino.Token_STRINGLIT &&
 		(checkRequiresSorted_GOOG_REQUIRE.Matches(callee) ||
@@ -290,7 +290,8 @@ func isValidRequireImportCall(n rhino.Node) bool {
 
 func parseRequireImport(callNode rhino.Node) requiresSortedImport {
 	call := ast.MustCall(callNode)
-	primitive := requiresSortedPrimitiveFromName(*call.Callee().Node().GetQualifiedName())
+	calleeName, _ := call.Callee().Node().GetQualifiedNameString()
+	primitive := requiresSortedPrimitiveFromName(calleeName)
 	namespace := ast.MustStringLit(call.MustFirstArg().Node()).Value()
 
 	parent := callNode.GetParent()

@@ -119,30 +119,36 @@ func (g *CodeGenerator) addStmtOrDecl(node rhino.Node, context CodeGenerator_Con
 	case rhino.Token_LABEL:
 		g.addLabel(ast.MustLabel(node), context)
 	case rhino.Token_INTERFACE:
-		g.addInterface(node)
+		g.addInterface(ast.MustInterface(node))
 	case rhino.Token_ENUM:
-		jutil.CheckStateMsg1(node.HasTwoChildren(), "%s", node)
+		en := ast.MustEnum(node)
+		jutil.CheckStateMsg1(en.NumChildren() == 2, "%s", node)
+		last, _ := en.LastChild()
 		g.Add("enum")
-		g.AddNode(node.GetFirstChild())
-		g.AddNode(node.GetLastChild())
+		g.AddNode(en.MustFirstChild())
+		g.AddNode(last)
 	case rhino.Token_NAMESPACE:
-		jutil.CheckStateMsg1(node.HasTwoChildren(), "%s", node)
+		ns := ast.MustNamespace(node)
+		jutil.CheckStateMsg1(ns.NumChildren() == 2, "%s", node)
+		last, _ := ns.LastChild()
 		g.Add("namespace")
-		g.AddNode(node.GetFirstChild())
-		g.AddNode(node.GetLastChild())
+		g.AddNode(ns.MustFirstChild())
+		g.AddNode(last)
 	case rhino.Token_TYPE_ALIAS:
+		ta := ast.MustTypeAlias(node)
+		last, _ := ta.LastChild()
 		g.Add("type")
 		g.Add(node.GetString())
 		cc.AddOp("=", true)
-		g.AddNode(node.GetLastChild())
+		g.AddNode(last)
 		cc.EndStatementWithSemiColon(true /* needSemiColon */, g.HasTrailingCommentOnSameLine(node))
 	case rhino.Token_DECLARE:
 		g.Add("declare")
-		g.AddNode(node.GetFirstChild())
+		g.AddNode(ast.MustDeclare(node).MustFirstChild())
 		g.ProcessEnd(node, context)
 	case rhino.Token_INDEX_SIGNATURE:
 		g.Add("[")
-		g.AddNode(node.GetFirstChild())
+		g.AddNode(ast.MustIndexSignature(node).MustFirstChild())
 		g.Add("]")
 		g.MaybeAddTypeDecl(node)
 		cc.EndStatementWithSemiColon(true /* needSemiColon */, g.HasTrailingCommentOnSameLine(node))
@@ -151,7 +157,7 @@ func (g *CodeGenerator) addStmtOrDecl(node rhino.Node, context CodeGenerator_Con
 			g.Add("new ")
 		}
 		g.MaybeAddGenericTypes(node)
-		g.AddNode(node.GetFirstChild())
+		g.AddNode(ast.MustCallSignature(node).MustFirstChild())
 		g.MaybeAddTypeDecl(node)
 		cc.EndStatementWithSemiColon(true /* needSemiColon */, g.HasTrailingCommentOnSameLine(node))
 	default:
@@ -161,7 +167,7 @@ func (g *CodeGenerator) addStmtOrDecl(node rhino.Node, context CodeGenerator_Con
 }
 
 func (g *CodeGenerator) addTry(tryStmt ast.Try) {
-	catchSlot := tryStmt.Node().GetSecondChild()
+	catchSlot := tryStmt.Catches().Node()
 	jutil.CheckState(catchSlot.IsBlock() && !catchSlot.HasMoreThanOneChild())
 
 	g.Add("try")
@@ -662,9 +668,9 @@ func (g *CodeGenerator) addLabel(lbl ast.Label, context CodeGenerator_Context) {
 	g.AddNonEmptyStatement(bodyNode, CodeGenerator_GetContextForNonEmptyExpression(context), true)
 }
 
-func (g *CodeGenerator) addInterface(node rhino.Node) {
-	jutil.CheckStateMsg1(node.GetChildCount() == 3, "%s", node)
-	name := node.GetFirstChild()
+func (g *CodeGenerator) addInterface(iface ast.Interface) {
+	jutil.CheckStateMsg1(iface.NumChildren() == 3, "%s", iface.Node())
+	name := iface.MustFirstChild()
 	superTypes := name.GetNext()
 	members := superTypes.GetNext()
 

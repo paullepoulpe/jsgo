@@ -94,7 +94,7 @@ func TestCompiler_RenderChunksAndSourceMapsParity(t *testing.T) {
 		if m.GetName() == JSChunk_WEAK_CHUNK_NAME {
 			continue
 		}
-		seqCompiler.ResetAndIntitializeSourceMap()
+		seqCompiler.ResetAndInitializeSourceMap()
 		seqLT.SetCurrentChunkContext(m)
 		code := seqCompiler.ToSourceOfLicenseTrackerAndJSChunk(seqLT, m)
 		sm := seqCompiler.GetSourceMap()

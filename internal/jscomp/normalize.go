@@ -284,11 +284,19 @@ func (s *Normalize_NormalizeStatements) IsVarDestructuringDeclaration(destructur
 //
 // Java: Normalize.NormalizeStatements.rewriteVarDestructuringDeclaration(Node)
 func (s *Normalize_NormalizeStatements) RewriteVarDestructuringDeclaration(destructuringLhs ast.DestructuringLhs) {
-	n := destructuringLhs.Node()
 	jutil.CheckStateMsg(
-		!n.GetGrandparent().IsExport(),
+		!destructuringLhs.Node().GetGrandparent().IsExport(),
 		"Export destructuring declarations should be already handled in `splitExportDeclaration`"+
 			" during pre-order traversal.")
+	expr := rewriteVarDestructuringDeclaration(s.astFactory, destructuringLhs)
+	s.ReportCodeChange("Var destructuring declaration rewritten", expr)
+}
+
+// rewriteVarDestructuringDeclaration lowers `var <pattern> = <rhs>;` into stub
+// `var <name>;` declarations followed by `<pattern> = <rhs>;`, replacing the
+// enclosing VAR statement with the resulting EXPR_RESULT and returning it.
+func rewriteVarDestructuringDeclaration(astFactory *AstFactory, destructuringLhs ast.DestructuringLhs) rhino.Node {
+	n := destructuringLhs.Node()
 	var_ := n.GetParent()
 
 	// create a stub declaration for each name in the destructuring pattern
@@ -317,14 +325,14 @@ func (s *Normalize_NormalizeStatements) RewriteVarDestructuringDeclaration(destr
 	jutil.CheckStateMsg(ok, "Expected a value.")
 	destructuringPattern.Detach()
 	rhs.Node().Detach()
-	assign := s.astFactory.CreateAssign(destructuringPattern, rhs.Node())
+	assign := astFactory.CreateAssign(destructuringPattern, rhs.Node())
 	assign.Srcref(var_)
-	expr := s.astFactory.ExprResult(assign)
+	expr := astFactory.ExprResult(assign)
 	expr.Srcref(var_)
 
 	var_.ReplaceWith(expr)
 	n.Detach()
-	s.ReportCodeChange("Var destructuring declaration rewritten", expr)
+	return expr
 }
 
 // NormalizeLabels limits the number of special cases where LABELs need to be

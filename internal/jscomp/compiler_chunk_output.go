@@ -224,7 +224,7 @@ func (c *Compiler) RenderChunksAndSourceMaps(
 	gatherSourceMap := opts.GenerateSourceMaps || (c.options != nil && c.options.ShouldGatherSourceMapInfo())
 	if gatherSourceMap {
 		c.ensureSourceMapInitialized()
-		c.ResetAndIntitializeSourceMap()
+		c.ResetAndInitializeSourceMap()
 	}
 
 	chunkFileName := opts.ChunkFileName
@@ -242,7 +242,7 @@ func (c *Compiler) RenderChunksAndSourceMaps(
 				}
 			}
 			if gatherSourceMap {
-				c.ResetAndIntitializeSourceMap()
+				c.ResetAndInitializeSourceMap()
 			}
 			if chunkTracker != nil {
 				chunkTracker.SetCurrentChunkContext(m)
@@ -299,7 +299,7 @@ func (c *Compiler) OutputChunksParallel(
 	numThreads := max(1, options.GetNumParallelThreads())
 	gatherSourceMap := options.ShouldGatherSourceMapInfo()
 	if gatherSourceMap {
-		c.ResetAndIntitializeSourceMap()
+		c.ResetAndInitializeSourceMap()
 	}
 
 	type chunkWriteTask struct {

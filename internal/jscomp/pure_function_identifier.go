@@ -79,7 +79,7 @@ type PureFunctionIdentifier struct {
 	// Debugging structures, populated only when validateArtificialPurity is true.
 	artificiallyPureFns []rhino.Node
 	artificiallyPureSet map[rhino.Node]struct{}
-	debugReasons        map[pfiSummaryID]*jutil.LinkedHashSet[rhino.Node]
+	debugReasons        map[pfiSummaryID]*OrderedSet[rhino.Node]
 }
 
 // A prefix to differentiate property names from variable names.
@@ -184,7 +184,7 @@ func (p *PureFunctionIdentifier) validateArtificialPurityForSummary(function rhi
 		// `new Foo();` rather than `new something.constructor();`.
 		return
 	}
-	var set *jutil.LinkedHashSet[rhino.Node]
+	var set *OrderedSet[rhino.Node]
 	if p.debugReasons != nil {
 		set = p.debugReasons[sid]
 	}
@@ -439,7 +439,7 @@ func (p *PureFunctionIdentifier) recordCallSite(invocation rhino.Node) pfiCallSi
 	if cacheCall == nil {
 		var singleCallee rhino.Node
 		if isViaCallOrApply {
-			singleCallee = calleeNode.GetFirstChild()
+			singleCallee = ast.MustNormalOrOptChainGet(calleeNode).Object().Node()
 		} else {
 			switch calleeNode.GetToken() {
 			case rhino.Token_FUNCTION, rhino.Token_GETPROP, rhino.Token_OPTCHAIN_GETPROP, rhino.Token_NAME:

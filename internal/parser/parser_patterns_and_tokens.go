@@ -630,9 +630,12 @@ func (p *Parser) ReportTemplateErrorIfPresent(templateToken Token) {
 	if !errInfo.HasMsg {
 		return
 	}
-	// Java: switch (templateToken.errorLevel) — a null errorLevel would throw
-	// a NullPointerException here.
-	switch *errInfo.ErrorLevelPtr() {
+	// Java: switch (templateToken.errorLevel) — a null errorLevel (Level == 0)
+	// throws a NullPointerException here.
+	if errInfo.Level == 0 {
+		panic(jutil.NewNullPointerException())
+	}
+	switch TemplateLiteralToken_ErrorLevel(errInfo.Level - 1) {
 	case TemplateLiteralToken_ErrorLevel_WARNING:
 		p.errorReporter.ReportWarning(p.linePos(errInfo.Position), errInfo.Message)
 		return

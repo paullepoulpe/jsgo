@@ -727,9 +727,10 @@ func (t *NodeTraversal) HandleClass(n rhino.Node, parent rhino.Node) {
 		return
 	}
 
-	className := n.GetFirstChild()
-	extendsClause := className.GetNext()
-	body := extendsClause.GetNext()
+	cls := ast.MustClass(n)
+	className := cls.NameNode()
+	extendsClause := cls.ExtendsNode()
+	body := cls.Body().Node()
 
 	isClassExpression := NodeUtil_IsClassExpression(n)
 
@@ -768,15 +769,12 @@ func (t *NodeTraversal) HandleClassMembers(n rhino.Node, parent rhino.Node) {
 		return
 	}
 
-	for child := n.GetFirstChild(); !child.IsNil(); {
-		next := child.GetNext() // see traverseChildren
-		if child.IsComputedProp() || child.IsComputedFieldDef() {
-			t.TraverseBranch(child.GetFirstChild(), child)
-		}
-		child = next
+	body := ast.MustClassBody(n)
+	for cm := range body.ComputedMembers() {
+		t.TraverseBranch(cm.Key().Node(), cm.Node())
 	}
 
-	for child := n.GetFirstChild(); !child.IsNil(); {
+	for child := body.Node().GetFirstChild(); !child.IsNil(); {
 		next := child.GetNext() // see traverseChildren
 
 		switch child.GetToken() {
@@ -784,7 +782,9 @@ func (t *NodeTraversal) HandleClassMembers(n rhino.Node, parent rhino.Node) {
 			t.currentNode = n
 
 			if t.shouldTraverse(child, n) {
-				t.TraverseBranch(child.GetLastChild(), child)
+				if val, ok := ast.MustComputedProp(child).Value(); ok {
+					t.TraverseBranch(val.Node(), child)
+				}
 				t.currentNode = n
 				t.visitNode(child, n)
 			}
@@ -796,8 +796,8 @@ func (t *NodeTraversal) HandleClassMembers(n rhino.Node, parent rhino.Node) {
 			t.PushScope(child)
 
 			if t.shouldTraverse(child, n) {
-				if child.HasTwoChildren() { // No RHS to traverse in `[x];` computed field case
-					t.TraverseBranch(child.GetLastChild(), child)
+				if val, ok := ast.MustComputedFieldDef(child).Value(); ok { // No RHS to traverse in `[x];` computed field case
+					t.TraverseBranch(val.Node(), child)
 				}
 				t.currentNode = n
 				t.visitNode(child, n)

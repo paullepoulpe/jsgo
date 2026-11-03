@@ -19,6 +19,7 @@
 package jscomp
 
 import (
+	"iter"
 	"strings"
 
 	"github.com/paullepoulpe/jsgo/internal/ast"
@@ -43,21 +44,22 @@ import (
 //   - Remove all statements containing calls to static methods of strip
 //     types.
 type StripCode struct {
-	compiler              AbstractCompiler
-	stripNameSuffixesSet  map[string]struct{}
-	stripNameSuffixesList []string
-	stripNamePrefixesSet  map[string]struct{}
-	stripNamePrefixesList []string
-	varsToRemove          map[uint32]struct{}
-
-	stripTypesSet                  map[string]struct{}
-	stripTypesList                 []string
+	compiler                       AbstractCompiler
+	decisionsLog                   diagnostic.LogFile
+	stripNameSuffixes              OrderedSet[string]
+	stripNamePrefixes              OrderedSet[string]
+	stripTypes                     OrderedSet[string]
+	varsToRemove                   map[uint32]struct{}
 	stripTypePrefixesList          []string
 	stripNamePrefixesLowerCaseList []string
 	stripNameSuffixesLowerCaseList []string
 }
 
-var _ CompilerPass = (*StripCode)(nil)
+var (
+	_ CompilerPass              = (*StripCode)(nil)
+	_ NodeTraversal_Callback    = (*StripCode)(nil)
+	_ nodeTraversal_visitTokens = (*StripCode)(nil)
+)
 
 // Java: StripCode.STRIP_TYPE_INHERIT_ERROR
 var StripCode_STRIP_TYPE_INHERIT_ERROR = DiagnosticType_Error(
@@ -91,31 +93,59 @@ func StripCode_ToStreamWithCollapsedVersions(s string) []string {
 	return possibleForms
 }
 
-func stripCode_expandCollapsed(src *jutil.LinkedHashSet[string], extra string) ([]string, map[string]struct{}) {
-	n := src.Size()
+func stripCode_expandCollapsedInto(dst *OrderedSet[string], capHint int, src iter.Seq[string], extra string) {
 	if extra != "" {
-		n++
+		capHint++
 	}
-	if n == 0 {
-		return nil, nil
+	if capHint == 0 {
+		return
 	}
-	set := make(map[string]struct{}, n*2)
-	list := make([]string, 0, n*2)
+	*dst = *NewOrderedSetWithCapacity[string](capHint * 2)
 	addCollapsed := func(item string) {
 		for _, form := range StripCode_ToStreamWithCollapsedVersions(item) {
-			if _, exists := set[form]; !exists {
-				set[form] = struct{}{}
-				list = append(list, form)
-			}
+			dst.Add(form)
 		}
 	}
-	for item := range src.All() {
+	for item := range src {
 		addCollapsed(item)
 	}
 	if extra != "" {
 		addCollapsed(extra)
 	}
-	return list, set
+}
+
+func (s *StripCode) initDerivedLists() {
+	// We want to strip types that are defined on a type that is being stripped, otherwise the
+	// resulting code will be invalid. So, we'll also check for prefixes that indicate such child
+	// names.
+	// TODO(johnlenz): I'm not sure what the original intent of "type prefix" stripping was.
+	// Verify that we can always assume a complete namespace and simplify this logic.
+	typeEntries := s.stripTypes.m.Entries()
+	if len(typeEntries) > 0 {
+		s.stripTypePrefixesList = make([]string, 0, 2*len(typeEntries))
+		for _, e := range typeEntries {
+			// look for both non-collapsed and collapsed child names
+			s.stripTypePrefixesList = append(s.stripTypePrefixesList, e.Key+".", e.Key+"$")
+		}
+	}
+
+	// Precalculate the lowercase versions of the string to avoid repeated
+	// lowercase conversions.
+	prefixEntries := s.stripNamePrefixes.m.Entries()
+	if len(prefixEntries) > 0 {
+		s.stripNamePrefixesLowerCaseList = make([]string, len(prefixEntries))
+		for i, e := range prefixEntries {
+			s.stripNamePrefixesLowerCaseList[i] = jutil.StringToLowerCaseRoot(e.Key)
+		}
+	}
+
+	suffixEntries := s.stripNameSuffixes.m.Entries()
+	if len(suffixEntries) > 0 {
+		s.stripNameSuffixesLowerCaseList = make([]string, len(suffixEntries))
+		for i, e := range suffixEntries {
+			s.stripNameSuffixesLowerCaseList[i] = jutil.StringToLowerCaseRoot(e.Key)
+		}
+	}
 }
 
 // NewStripCode creates an instance.
@@ -128,44 +158,32 @@ func NewStripCode(
 	stripNamePrefixes *jutil.LinkedHashSet[string],
 	enableTweakStripping bool) *StripCode {
 	s := &StripCode{compiler: compiler}
-
-	s.stripNameSuffixesList, s.stripNameSuffixesSet = stripCode_expandCollapsed(stripNameSuffixes, "")
-	s.stripNamePrefixesList, s.stripNamePrefixesSet = stripCode_expandCollapsed(stripNamePrefixes, "")
-
+	stripCode_expandCollapsedInto(&s.stripNameSuffixes, stripNameSuffixes.Size(), stripNameSuffixes.All(), "")
+	stripCode_expandCollapsedInto(&s.stripNamePrefixes, stripNamePrefixes.Size(), stripNamePrefixes.All(), "")
 	extraType := ""
 	if enableTweakStripping {
 		extraType = "goog.tweak"
 	}
-	s.stripTypesList, s.stripTypesSet = stripCode_expandCollapsed(stripTypes, extraType)
+	stripCode_expandCollapsedInto(&s.stripTypes, stripTypes.Size(), stripTypes.All(), extraType)
+	s.initDerivedLists()
+	return s
+}
 
-	// We want to strip types that are defined on a type that is being stripped, otherwise the
-	// resulting code will be invalid. So, we'll also check for prefixes that indicate such child
-	// names.
-	// TODO(johnlenz): I'm not sure what the original intent of "type prefix" stripping was.
-	// Verify that we can always assume a complete namespace and simplify this logic.
-	if len(s.stripTypesList) > 0 {
-		s.stripTypePrefixesList = make([]string, 0, 2*len(s.stripTypesList))
-		for _, t := range s.stripTypesList {
-			// look for both non-collapsed and collapsed child names
-			s.stripTypePrefixesList = append(s.stripTypePrefixesList, t+".", t+"$")
-		}
+func newStripCodeFromOrderedSets(
+	compiler AbstractCompiler,
+	stripTypes *OrderedSet[string],
+	stripNameSuffixes *OrderedSet[string],
+	stripNamePrefixes *OrderedSet[string],
+	enableTweakStripping bool) *StripCode {
+	s := &StripCode{compiler: compiler}
+	stripCode_expandCollapsedInto(&s.stripNameSuffixes, stripNameSuffixes.Size(), stripNameSuffixes.All(), "")
+	stripCode_expandCollapsedInto(&s.stripNamePrefixes, stripNamePrefixes.Size(), stripNamePrefixes.All(), "")
+	extraType := ""
+	if enableTweakStripping {
+		extraType = "goog.tweak"
 	}
-
-	// Precalculate the lowercase versions of the string to avoid repeated
-	// lowercase conversions.
-	if len(s.stripNamePrefixesList) > 0 {
-		s.stripNamePrefixesLowerCaseList = make([]string, len(s.stripNamePrefixesList))
-		for i, p := range s.stripNamePrefixesList {
-			s.stripNamePrefixesLowerCaseList[i] = jutil.StringToLowerCaseRoot(p)
-		}
-	}
-
-	if len(s.stripNameSuffixesList) > 0 {
-		s.stripNameSuffixesLowerCaseList = make([]string, len(s.stripNameSuffixesList))
-		for i, p := range s.stripNameSuffixesList {
-			s.stripNameSuffixesLowerCaseList[i] = jutil.StringToLowerCaseRoot(p)
-		}
-	}
+	stripCode_expandCollapsedInto(&s.stripTypes, stripTypes.Size(), stripTypes.All(), extraType)
+	s.initDerivedLists()
 	return s
 }
 
@@ -173,12 +191,16 @@ func NewStripCode(
 func (s *StripCode) Process(externs rhino.Node, root rhino.Node) {
 	jutil.CheckState(s.compiler.GetLifeCycleStage().IsNormalized())
 	decisionsLog := s.compiler.CreateOrReopenIndexedLog("StripCode", "decisions.log")
-	defer decisionsLog.Close()
+	s.decisionsLog = decisionsLog
+	defer func() {
+		s.decisionsLog = diagnostic.LogFile{}
+		decisionsLog.Close()
+	}()
 	if decisionsLog.IsLogging() {
 		decisionsLog.LogString(s.configRecord())
 	}
 	decisionsLog.LogString("\n=== decisions ===\n")
-	NodeTraversal_Traverse(s.compiler, root, NewStripCode_Strip(s, decisionsLog))
+	NodeTraversal_Traverse(s.compiler, root, s)
 }
 
 // configRecord formats the StripCode configuration summary for decisions.log
@@ -188,20 +210,20 @@ func (s *StripCode) Process(externs rhino.Node, root rhino.Node) {
 func (s *StripCode) configRecord() string {
 	var builder strings.Builder
 	builder.WriteString("=== stripNameSuffixes ===\n")
-	for _, stripNameSuffix := range s.stripNameSuffixesList {
-		builder.WriteString(stripNameSuffix)
+	for _, e := range s.stripNameSuffixes.m.Entries() {
+		builder.WriteString(e.Key)
 		builder.WriteByte('\n')
 	}
 	builder.WriteByte('\n')
 	builder.WriteString("=== stripNamePrefixes ===\n")
-	for _, stripNamePrefix := range s.stripNamePrefixesList {
-		builder.WriteString(stripNamePrefix)
+	for _, e := range s.stripNamePrefixes.m.Entries() {
+		builder.WriteString(e.Key)
 		builder.WriteByte('\n')
 	}
 	builder.WriteByte('\n')
 	builder.WriteString("=== stripTypesList ===\n")
-	for _, stripType := range s.stripTypesList {
-		builder.WriteString(stripType)
+	for _, e := range s.stripTypes.m.Entries() {
+		builder.WriteString(e.Key)
 		builder.WriteByte('\n')
 	}
 	builder.WriteByte('\n')
@@ -245,40 +267,23 @@ var stripCodeVisitTokens = func() ast.TokenSet {
 	return s
 }()
 
-var _ nodeTraversal_visitTokens = (*StripCode_Strip)(nil)
-
-// StripCode_Strip is a callback that strips debug code from a JavaScript
-// parse tree.
-type StripCode_Strip struct {
-	this_        *StripCode
-	decisionsLog diagnostic.LogFile
-}
-
-func (*StripCode_Strip) visitTokens() *ast.TokenSet {
+func (*StripCode) visitTokens() *ast.TokenSet {
 	return &stripCodeVisitTokens
 }
 
-// Java: Strip(LogFile)
-func NewStripCode_Strip(outer *StripCode, decisionsLog diagnostic.LogFile) *StripCode_Strip {
-	return &StripCode_Strip{
-		this_:        outer,
-		decisionsLog: decisionsLog,
-	}
-}
-
 // Java: Strip.shouldTraverse(NodeTraversal, Node, Node)
-func (st *StripCode_Strip) ShouldTraverse(t *NodeTraversal, n rhino.Node, parent rhino.Node) bool {
+func (s *StripCode) ShouldTraverse(t *NodeTraversal, n rhino.Node, parent rhino.Node) bool {
 	// Here we check for cases where we're going to remove a large chunk of code,
 	// and so should not traverse into it to avoid both wasting time and causing
 	// problems with logic duplication.
 	switch n.GetToken() {
 	case rhino.Token_CALL, rhino.Token_NEW:
 		// If we're removing the whole call / new
-		if st.IsMethodOrCtorCallThatTriggersRemoval(t, n, parent) {
-			if st.decisionsLog.IsLogging() {
-				st.decisionsLog.LogString("removing function call")
+		if s.IsMethodOrCtorCallThatTriggersRemoval(t, n, parent) {
+			if s.decisionsLog.IsLogging() {
+				s.decisionsLog.LogString("removing function call")
 			}
-			st.ReplaceHighestNestedCallWithNull(t, n, parent)
+			s.ReplaceHighestNestedCallWithNull(t, n, parent)
 			return false
 		}
 		return true
@@ -288,12 +293,12 @@ func (st *StripCode_Strip) ShouldTraverse(t *NodeTraversal, n rhino.Node, parent
 }
 
 // Java: Strip.visit(NodeTraversal, Node, Node)
-func (st *StripCode_Strip) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
+func (s *StripCode) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	switch n.GetToken() {
 	case rhino.Token_VAR, rhino.Token_CONST, rhino.Token_LET:
-		st.RemoveVarDeclarationsByNameOrRvalue(t, n, parent)
+		s.RemoveVarDeclarationsByNameOrRvalue(t, n, parent)
 	case rhino.Token_NAME:
-		st.MaybeRemoveReferenceToRemovedVariable(t, n, parent)
+		s.MaybeRemoveReferenceToRemovedVariable(t, n, parent)
 	case rhino.Token_ASSIGN,
 		rhino.Token_ASSIGN_BITOR,
 		rhino.Token_ASSIGN_BITXOR,
@@ -306,13 +311,13 @@ func (st *StripCode_Strip) Visit(t *NodeTraversal, n rhino.Node, parent rhino.No
 		rhino.Token_ASSIGN_MUL,
 		rhino.Token_ASSIGN_DIV,
 		rhino.Token_ASSIGN_MOD:
-		st.MaybeEliminateAssignmentByLvalueName(t, n, parent)
+		s.MaybeEliminateAssignmentByLvalueName(t, n, parent)
 	case rhino.Token_OBJECTLIT:
-		st.EliminateKeysWithStripNamesFromObjLit(n)
+		s.EliminateKeysWithStripNamesFromObjLit(n)
 	case rhino.Token_EXPR_RESULT:
-		st.MaybeEliminateExpressionByName(n)
+		s.MaybeEliminateExpressionByName(n)
 	case rhino.Token_CLASS:
-		st.MaybeEliminateClassByNameOrExtends(t, n, parent)
+		s.MaybeEliminateClassByNameOrExtends(t, n, parent)
 	default:
 	}
 }
@@ -325,8 +330,7 @@ func (st *StripCode_Strip) Visit(t *NodeTraversal, n rhino.Node, parent rhino.No
 // t is the traversal, n a VAR, CONST, or LET node, parent n's parent.
 //
 // Java: Strip.removeVarDeclarationsByNameOrRvalue(NodeTraversal, Node, Node)
-func (st *StripCode_Strip) RemoveVarDeclarationsByNameOrRvalue(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
-	s := st.this_
+func (s *StripCode) RemoveVarDeclarationsByNameOrRvalue(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	decl := ast.MustNameDeclaration(n)
 	for declarator := range ast.ReadAhead(decl.FirstDeclarator()) {
 		nameDecl, ok := declarator.AsName()
@@ -344,9 +348,9 @@ func (st *StripCode_Strip) RemoveVarDeclarationsByNameOrRvalue(t *NodeTraversal,
 			possibleStripName = name[lastDollarSign+1:]
 		}
 		initExpr, hasInit := nameDecl.Init()
-		if st.IsStripName(possibleStripName) ||
-			st.QualifiedNameBeginsWithStripType(nameNode) ||
-			(hasInit && st.IsCallWhoseReturnValueShouldBeStripped(initExpr.Node())) {
+		if s.IsStripName(possibleStripName) ||
+			s.QualifiedNameBeginsWithStripType(nameNode) ||
+			(hasInit && s.IsCallWhoseReturnValueShouldBeStripped(initExpr.Node())) {
 			// Remove the NAME.
 			if s.varsToRemove == nil {
 				s.varsToRemove = make(map[uint32]struct{})
@@ -367,11 +371,11 @@ func (st *StripCode_Strip) RemoveVarDeclarationsByNameOrRvalue(t *NodeTraversal,
 				// reference (without restructuring this class quite a bit). Instead,
 				// we'll preserve here the behavior you would get before collapsing and
 				// just replace the rhs with `null`.
-				if st.decisionsLog.IsLogging() {
-					st.decisionsLog.LogString(name + ": initialize with null (" + possibleStripName + ")")
+				if s.decisionsLog.IsLogging() {
+					s.decisionsLog.LogString(name + ": initialize with null (" + possibleStripName + ")")
 				}
 				if hasInit {
-					st.ReplaceWithNull(initExpr.Node())
+					s.ReplaceWithNull(initExpr.Node())
 				} else {
 					// `var my$name = null;` is a bit easier to optimize away than
 					// `var my$name;`, because we can clearly see that it is initialized, so we have
@@ -382,8 +386,8 @@ func (st *StripCode_Strip) RemoveVarDeclarationsByNameOrRvalue(t *NodeTraversal,
 			} else {
 				// Assume that the declaration comes before any reference.
 				// We will remove the references when we see them later.
-				if st.decisionsLog.IsLogging() {
-					st.decisionsLog.LogString(name + ": removing declaration")
+				if s.decisionsLog.IsLogging() {
+					s.decisionsLog.LogString(name + ": removing declaration")
 				}
 				nameDecl.Detach()
 				NodeUtil_MarkFunctionsDeleted(nameNode, s.compiler)
@@ -392,7 +396,7 @@ func (st *StripCode_Strip) RemoveVarDeclarationsByNameOrRvalue(t *NodeTraversal,
 	}
 	if !decl.HasDeclarators() {
 		// Must also remove the VAR.
-		st.ReplaceWithEmpty(n, parent)
+		s.ReplaceWithEmpty(n, parent)
 		t.ReportCodeChange()
 	}
 }
@@ -403,7 +407,7 @@ func (st *StripCode_Strip) RemoveVarDeclarationsByNameOrRvalue(t *NodeTraversal,
 // t is the traversal, n a NAME node, parent n's parent.
 //
 // Java: Strip.maybeRemoveReferenceToRemovedVariable(NodeTraversal, Node, Node)
-func (st *StripCode_Strip) MaybeRemoveReferenceToRemovedVariable(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
+func (s *StripCode) MaybeRemoveReferenceToRemovedVariable(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	switch parent.GetToken() {
 	case rhino.Token_VAR, rhino.Token_CONST, rhino.Token_LET:
 		// This is a variable declaration, not a reference.
@@ -414,11 +418,11 @@ func (st *StripCode_Strip) MaybeRemoveReferenceToRemovedVariable(t *NodeTraversa
 		// GETELEM
 		//   NAME
 		//   NUMBER|STRING|NAME|...
-		if parent.GetFirstChild() == n && st.IsReferenceToRemovedVar(n) {
-			if st.decisionsLog.IsLogging() {
-				st.decisionsLog.LogString(n.GetString() + ": removing getelem/getprop/call chain")
+		if parent.GetFirstChild() == n && s.IsReferenceToRemovedVar(n) {
+			if s.decisionsLog.IsLogging() {
+				s.decisionsLog.LogString(n.GetString() + ": removing getelem/getprop/call chain")
 			}
-			st.ReplaceHighestNestedCallWithNull(t, parent, parent.GetParent())
+			s.ReplaceHighestNestedCallWithNull(t, parent, parent.GetParent())
 		}
 	case rhino.Token_ASSIGN,
 		rhino.Token_ASSIGN_BITOR,
@@ -432,17 +436,17 @@ func (st *StripCode_Strip) MaybeRemoveReferenceToRemovedVariable(t *NodeTraversa
 		rhino.Token_ASSIGN_MUL,
 		rhino.Token_ASSIGN_DIV,
 		rhino.Token_ASSIGN_MOD:
-		if st.IsReferenceToRemovedVar(n) {
+		if s.IsReferenceToRemovedVar(n) {
 			assign := ast.MustAssignment(parent)
 			if assign.Target().Is(n) {
 				grandparent := parent.GetParent()
-				if st.decisionsLog.IsLogging() {
-					st.decisionsLog.LogString(stripCode_qualifiedNameOrNull(n) + ": removing assignment to stripped var")
+				if s.decisionsLog.IsLogging() {
+					s.decisionsLog.LogString(stripCode_qualifiedNameOrNull(n) + ": removing assignment to stripped var")
 				}
 				if grandparent.IsExprResult() {
 					// Remove the assignment.
 					greatGrandparent := grandparent.GetParent()
-					st.ReplaceWithEmpty(grandparent, greatGrandparent)
+					s.ReplaceWithEmpty(grandparent, greatGrandparent)
 					t.ReportCodeChange()
 				} else {
 					// Substitute the r-value for the assignment.
@@ -453,20 +457,20 @@ func (st *StripCode_Strip) MaybeRemoveReferenceToRemovedVariable(t *NodeTraversa
 				}
 			} else {
 				// The var reference is the r-value. Replace it with null.
-				if st.decisionsLog.IsLogging() {
-					st.decisionsLog.LogString(stripCode_qualifiedNameOrNull(n) + ": replacing rhs reference with null")
+				if s.decisionsLog.IsLogging() {
+					s.decisionsLog.LogString(stripCode_qualifiedNameOrNull(n) + ": replacing rhs reference with null")
 				}
-				st.ReplaceWithNull(n)
+				s.ReplaceWithNull(n)
 				t.ReportCodeChange()
 			}
 		}
 	case rhino.Token_NEW, rhino.Token_CALL:
-		if !n.IsFirstChildOf(parent) && st.IsReferenceToRemovedVar(n) {
+		if !n.IsFirstChildOf(parent) && s.IsReferenceToRemovedVar(n) {
 			// NOTE: the callee is handled when we visit the CALL or NEW node
-			if st.decisionsLog.IsLogging() {
-				st.decisionsLog.LogString(stripCode_qualifiedNameOrNull(n) + ": replacing parameter reference with null")
+			if s.decisionsLog.IsLogging() {
+				s.decisionsLog.LogString(stripCode_qualifiedNameOrNull(n) + ": replacing parameter reference with null")
 			}
-			st.ReplaceWithNull(n)
+			s.ReplaceWithNull(n)
 			t.ReportCodeChange()
 		}
 	case rhino.Token_COMMA:
@@ -480,19 +484,19 @@ func (st *StripCode_Strip) MaybeRemoveReferenceToRemovedVariable(t *NodeTraversa
 		parentIsCallee :=
 			(grandparent.IsCall() || grandparent.IsNew()) && parent.IsFirstChildOf(grandparent)
 		isSafeToRemove := !isLastChild || !parentIsCallee
-		if isSafeToRemove && st.IsReferenceToRemovedVar(n) {
-			if st.decisionsLog.IsLogging() {
-				st.decisionsLog.LogString(stripCode_qualifiedNameOrNull(n) + ": replacing reference in comma expr with null")
+		if isSafeToRemove && s.IsReferenceToRemovedVar(n) {
+			if s.decisionsLog.IsLogging() {
+				s.decisionsLog.LogString(stripCode_qualifiedNameOrNull(n) + ": replacing reference in comma expr with null")
 			}
-			st.ReplaceWithNull(n)
+			s.ReplaceWithNull(n)
 			t.ReportCodeChange()
 		}
 	default:
-		if st.IsReferenceToRemovedVar(n) {
-			if st.decisionsLog.IsLogging() {
-				st.decisionsLog.LogString(stripCode_qualifiedNameOrNull(n) + ": replacing reference with null")
+		if s.IsReferenceToRemovedVar(n) {
+			if s.decisionsLog.IsLogging() {
+				s.decisionsLog.LogString(stripCode_qualifiedNameOrNull(n) + ": replacing reference with null")
 			}
-			st.ReplaceWithNull(n)
+			s.ReplaceWithNull(n)
 			t.ReportCodeChange()
 		}
 	}
@@ -504,7 +508,7 @@ func (st *StripCode_Strip) MaybeRemoveReferenceToRemovedVariable(t *NodeTraversa
 // and it will take a few iterations through this loop to get up to d().
 //
 // Java: Strip.replaceHighestNestedCallWithNull(NodeTraversal, Node, Node)
-func (st *StripCode_Strip) ReplaceHighestNestedCallWithNull(t *NodeTraversal, node rhino.Node, parent rhino.Node) {
+func (s *StripCode) ReplaceHighestNestedCallWithNull(t *NodeTraversal, node rhino.Node, parent rhino.Node) {
 	ancestor := parent
 	ancestorChild := node
 	for {
@@ -514,12 +518,12 @@ func (st *StripCode_Strip) ReplaceHighestNestedCallWithNull(t *NodeTraversal, no
 		}
 
 		if ancestor.GetFirstChild() != ancestorChild {
-			st.ReplaceWithNull(ancestorChild)
+			s.ReplaceWithNull(ancestorChild)
 			break
 		}
 		if ancestor.IsExprResult() {
 			// Remove the entire expression statement.
-			st.ReplaceWithEmpty(ancestor, ancestorParent)
+			s.ReplaceWithEmpty(ancestor, ancestorParent)
 			break
 		}
 		if assign, ok := ast.AsAssign(ancestor); ok {
@@ -527,7 +531,7 @@ func (st *StripCode_Strip) ReplaceHighestNestedCallWithNull(t *NodeTraversal, no
 			break
 		}
 		if !NodeUtil_IsNormalGet(ancestor) && !ancestor.IsCall() {
-			st.ReplaceWithNull(ancestorChild)
+			s.ReplaceWithNull(ancestorChild)
 			break
 		}
 
@@ -547,25 +551,24 @@ func (st *StripCode_Strip) ReplaceHighestNestedCallWithNull(t *NodeTraversal, no
 // t is the traversal, n an ASSIGN node, parent n's parent.
 //
 // Java: Strip.maybeEliminateAssignmentByLvalueName(NodeTraversal, Node, Node)
-func (st *StripCode_Strip) MaybeEliminateAssignmentByLvalueName(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
-	s := st.this_
+func (s *StripCode) MaybeEliminateAssignmentByLvalueName(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	// ASSIGN
 	//   l-value
 	//   r-value
 	lvalue := ast.MustAssignment(n).Target().Node()
-	if st.NameIncludesFieldNameToStrip(lvalue) || st.QualifiedNameBeginsWithStripType(lvalue) {
+	if s.NameIncludesFieldNameToStrip(lvalue) || s.QualifiedNameBeginsWithStripType(lvalue) {
 		// Limit to EXPR_RESULT because it is not
 		// safe to eliminate assignment in complex expressions,
 		// e.g. in ((x = 7) + 8)
 		if parent.IsExprResult() {
-			if st.decisionsLog.IsLogging() {
-				st.decisionsLog.LogString(lvalue.GetString() + ": removing assignment statement")
+			if s.decisionsLog.IsLogging() {
+				s.decisionsLog.LogString(lvalue.GetString() + ": removing assignment statement")
 			}
 			grandparent := parent.GetParent()
 			// the assignment may already have been removed when visiting either the lhs
 			// or the rhs.
 			if !grandparent.IsNil() {
-				st.ReplaceWithEmpty(parent, grandparent)
+				s.ReplaceWithEmpty(parent, grandparent)
 				s.compiler.ReportChangeToEnclosingScope(grandparent)
 			}
 		} else {
@@ -586,8 +589,7 @@ func (st *StripCode_Strip) MaybeEliminateAssignmentByLvalueName(t *NodeTraversal
 // n is an EXPR_RESULT node.
 //
 // Java: Strip.maybeEliminateExpressionByName(Node)
-func (st *StripCode_Strip) MaybeEliminateExpressionByName(n rhino.Node) {
-	s := st.this_
+func (s *StripCode) MaybeEliminateExpressionByName(n rhino.Node) {
 	// EXPR_RESULT
 	//   expression
 	exprStmt, ok := ast.AsExprStmt(n)
@@ -598,12 +600,12 @@ func (st *StripCode_Strip) MaybeEliminateExpressionByName(n rhino.Node) {
 		return
 	}
 	expression := exprStmt.Expr().Node()
-	if st.NameIncludesFieldNameToStrip(expression) ||
-		st.QualifiedNameBeginsWithStripType(expression) {
-		if st.decisionsLog.IsLogging() {
-			st.decisionsLog.LogString(expression.GetString() + ": removing property declaration statement")
+	if s.NameIncludesFieldNameToStrip(expression) ||
+		s.QualifiedNameBeginsWithStripType(expression) {
+		if s.decisionsLog.IsLogging() {
+			s.decisionsLog.LogString(expression.GetString() + ": removing property declaration statement")
 		}
-		st.ReplaceWithEmpty(n, parent)
+		s.ReplaceWithEmpty(n, parent)
 		s.compiler.ReportChangeToEnclosingScope(parent)
 	}
 }
@@ -614,15 +616,14 @@ func (st *StripCode_Strip) MaybeEliminateExpressionByName(n rhino.Node) {
 // n is an OBJLIT node.
 //
 // Java: Strip.eliminateKeysWithStripNamesFromObjLit(Node)
-func (st *StripCode_Strip) EliminateKeysWithStripNamesFromObjLit(n rhino.Node) {
-	s := st.this_
+func (s *StripCode) EliminateKeysWithStripNamesFromObjLit(n rhino.Node) {
 	// OBJLIT
 	//   key1
 	//     value1
 	//   key2
 	//   ...
 	for member := range ast.ReadAhead(ast.MustObjectLit(n).FirstMember()) {
-		if key, ok := member.AsPlainKeyMember(); ok && st.IsStripName(key.Key()) {
+		if key, ok := member.AsPlainKeyMember(); ok && s.IsStripName(key.Key()) {
 			key.Detach()
 			NodeUtil_MarkFunctionsDeleted(key.Node(), s.compiler)
 			s.compiler.ReportChangeToEnclosingScope(n)
@@ -635,21 +636,21 @@ func (st *StripCode_Strip) EliminateKeysWithStripNamesFromObjLit(n rhino.Node) {
 // strippable type.
 //
 // Java: Strip.maybeEliminateClassByNameOrExtends(NodeTraversal, Node, Node)
-func (st *StripCode_Strip) MaybeEliminateClassByNameOrExtends(t *NodeTraversal, classNode rhino.Node, parent rhino.Node) {
+func (s *StripCode) MaybeEliminateClassByNameOrExtends(t *NodeTraversal, classNode rhino.Node, parent rhino.Node) {
 	cls := ast.MustClass(classNode)
 	nameNode := NodeUtil_GetNameNode(classNode)
 	className := "<anonymous>"
 	// Replace class with null if it is a strip type
 	if qname, ok := nameNode.GetQualifiedNameString(); ok {
 		className = qname
-		if st.qualifiedNameBeginsWithStripType(className, true) {
-			if st.decisionsLog.IsLogging() {
-				st.decisionsLog.LogString(className + ": removing class")
+		if s.qualifiedNameBeginsWithStripType(className, true) {
+			if s.decisionsLog.IsLogging() {
+				s.decisionsLog.LogString(className + ": removing class")
 			}
 			if NodeUtil_IsStatementParent(parent) {
-				st.ReplaceWithEmpty(classNode, parent)
+				s.ReplaceWithEmpty(classNode, parent)
 			} else {
-				st.ReplaceWithNull(classNode)
+				s.ReplaceWithNull(classNode)
 			}
 			t.ReportCodeChange()
 			return
@@ -659,7 +660,7 @@ func (st *StripCode_Strip) MaybeEliminateClassByNameOrExtends(t *NodeTraversal, 
 	// If the class is not a strip type, the superclass also cannot be a strip type
 	if superclass, ok := cls.Extends(); ok {
 		if superclassName, ok := superclass.Node().GetQualifiedNameString(); ok &&
-			st.qualifiedNameBeginsWithStripType(superclassName, true) {
+			s.qualifiedNameBeginsWithStripType(superclassName, true) {
 			t.Report(classNode, StripCode_STRIP_TYPE_INHERIT_ERROR, className, superclassName)
 		}
 	}
@@ -678,13 +679,13 @@ func (st *StripCode_Strip) MaybeEliminateClassByNameOrExtends(t *NodeTraversal, 
 // value should be stripped.
 //
 // Java: Strip.isCallWhoseReturnValueShouldBeStripped(Node)
-func (st *StripCode_Strip) IsCallWhoseReturnValueShouldBeStripped(n rhino.Node) bool {
+func (s *StripCode) IsCallWhoseReturnValueShouldBeStripped(n rhino.Node) bool {
 	if n.IsNil() || (!n.IsCall() && !n.IsNew()) || !n.HasChildren() {
 		return false
 	}
 
 	function := NodeUtil_GetCallTargetResolvingIndirectCalls(n)
-	return st.QualifiedNameBeginsWithStripType(function) || st.NameIncludesFieldNameToStrip(function)
+	return s.QualifiedNameBeginsWithStripType(function) || s.NameIncludesFieldNameToStrip(function)
 }
 
 // QualifiedNameBeginsWithStripType gets whether a qualified name begins
@@ -697,35 +698,34 @@ func (st *StripCode_Strip) IsCallWhoseReturnValueShouldBeStripped(n rhino.Node) 
 // begins with a strip name.
 //
 // Java: Strip.qualifiedNameBeginsWithStripType(Node)
-func (st *StripCode_Strip) QualifiedNameBeginsWithStripType(n rhino.Node) bool {
+func (s *StripCode) QualifiedNameBeginsWithStripType(n rhino.Node) bool {
 	name, ok := n.GetQualifiedNameString()
-	return st.qualifiedNameBeginsWithStripType(name, ok)
+	return s.qualifiedNameBeginsWithStripType(name, ok)
 }
 
-func (st *StripCode_Strip) qualifiedNameBeginsWithStripType(name string, hasName bool) bool {
-	s := st.this_
+func (s *StripCode) qualifiedNameBeginsWithStripType(name string, hasName bool) bool {
 	if hasName {
-		if _, ok := s.stripTypesSet[name]; ok {
-			if st.decisionsLog.IsLogging() {
-				st.LogStripName(name, "equals strip type")
+		if s.stripTypes.Has(name) {
+			if s.decisionsLog.IsLogging() {
+				s.LogStripName(name, "equals strip type")
 			}
 			return true
 		}
 		for _, prefix := range s.stripTypePrefixesList {
 			if strings.HasPrefix(name, prefix) {
-				if st.decisionsLog.IsLogging() {
-					st.LogStripName(name, "starts with strip type prefix")
+				if s.decisionsLog.IsLogging() {
+					s.LogStripName(name, "starts with strip type prefix")
 				}
 				return true
 			}
 		}
-		if st.decisionsLog.IsLogging() {
-			st.LogNotAStripName(name, "does not begin with a strip type")
+		if s.decisionsLog.IsLogging() {
+			s.LogNotAStripName(name, "does not begin with a strip type")
 		}
 		return false
 	}
-	if st.decisionsLog.IsLogging() {
-		st.LogNotAStripName("null", "does not begin with a strip type")
+	if s.decisionsLog.IsLogging() {
+		s.LogNotAStripName("null", "does not begin with a strip type")
 	}
 	return false
 }
@@ -736,8 +736,8 @@ func (st *StripCode_Strip) qualifiedNameBeginsWithStripType(name string, hasName
 // n is a NAME node. Returns whether the variable was removed.
 //
 // Java: Strip.isReferenceToRemovedVar(Node)
-func (st *StripCode_Strip) IsReferenceToRemovedVar(n rhino.Node) bool {
-	_, ok := st.this_.varsToRemove[n.GetStringID()]
+func (s *StripCode) IsReferenceToRemovedVar(n rhino.Node) bool {
+	_, ok := s.varsToRemove[n.GetStringID()]
 	return ok
 }
 
@@ -751,7 +751,7 @@ func (st *StripCode_Strip) IsReferenceToRemovedVar(n rhino.Node) bool {
 // statement removal.
 //
 // Java: Strip.isMethodOrCtorCallThatTriggersRemoval(NodeTraversal, Node, Node)
-func (st *StripCode_Strip) IsMethodOrCtorCallThatTriggersRemoval(t *NodeTraversal, n rhino.Node, parent rhino.Node) bool {
+func (s *StripCode) IsMethodOrCtorCallThatTriggersRemoval(t *NodeTraversal, n rhino.Node, parent rhino.Node) bool {
 	// CALL/NEW
 	//   GETPROP (function)         <-- we're interested in this, the function
 	//     GETPROP (callee object)  <-- or the object on which it is called
@@ -777,14 +777,14 @@ func (st *StripCode_Strip) IsMethodOrCtorCallThatTriggersRemoval(t *NodeTraversa
 		}
 	}
 
-	if fnName, ok := ast.AsName(function); ok && st.IsStripName(fnName.Ident()) {
+	if fnName, ok := ast.AsName(function); ok && s.IsStripName(fnName.Ident()) {
 		return true
 	}
 	callee := function.GetFirstChild()
-	return st.NameIncludesFieldNameToStrip(callee) ||
-		st.NameIncludesFieldNameToStrip(function) ||
-		st.QualifiedNameBeginsWithStripType(function) ||
-		st.ActsOnStripType(t, n)
+	return s.NameIncludesFieldNameToStrip(callee) ||
+		s.NameIncludesFieldNameToStrip(function) ||
+		s.QualifiedNameBeginsWithStripType(function) ||
+		s.ActsOnStripType(t, n)
 }
 
 // NameIncludesFieldNameToStrip returns whether a name includes a field name
@@ -792,10 +792,10 @@ func (st *StripCode_Strip) IsMethodOrCtorCallThatTriggersRemoval(t *NodeTraversa
 // etc.
 //
 // Java: Strip.nameIncludesFieldNameToStrip(Node)
-func (st *StripCode_Strip) NameIncludesFieldNameToStrip(n rhino.Node) bool {
+func (s *StripCode) NameIncludesFieldNameToStrip(n rhino.Node) bool {
 	for cur := n; !cur.IsNil(); {
 		if prop, ok := ast.AsGetProp(cur); ok {
-			if st.IsStripName(prop.Property()) {
+			if s.IsStripName(prop.Property()) {
 				return true
 			}
 			cur = prop.Object().Node()
@@ -810,13 +810,13 @@ func (st *StripCode_Strip) NameIncludesFieldNameToStrip(n rhino.Node) bool {
 				return false
 			}
 			for {
-				if st.IsStripName(nameString[:end]) {
+				if s.IsStripName(nameString[:end]) {
 					return true
 				}
 				nameString = nameString[end+1:]
 				end = strings.IndexByte(nameString, '$')
 				if end == -1 {
-					return st.IsStripName(nameString)
+					return s.IsStripName(nameString)
 				}
 			}
 		}
@@ -833,20 +833,19 @@ func (st *StripCode_Strip) NameIncludesFieldNameToStrip(n rhino.Node) bool {
 // t is the current traversal, callNode the CALL node.
 //
 // Java: Strip.actsOnStripType(NodeTraversal, Node)
-func (st *StripCode_Strip) ActsOnStripType(t *NodeTraversal, callNode rhino.Node) bool {
-	s := st.this_
+func (s *StripCode) ActsOnStripType(t *NodeTraversal, callNode rhino.Node) bool {
 	classes := s.compiler.GetCodingConvention().GetClassesDefinedByCall(callNode)
 	if classes != nil {
 		// It's okay to strip a type that inherits from a non-stripped type
 		// e.g. goog.inherits(goog.debug.Logger, Object)
-		if st.qualifiedNameBeginsWithStripType(classes.subclassName, true) {
-			st.LogStripName(classes.subclassName, "class defining call")
+		if s.qualifiedNameBeginsWithStripType(classes.subclassName, true) {
+			s.LogStripName(classes.subclassName, "class defining call")
 			return true
 		}
 
 		// report an error if a non-strip type inherits from a
 		// strip type.
-		if st.qualifiedNameBeginsWithStripType(classes.superclassName, true) {
+		if s.qualifiedNameBeginsWithStripType(classes.superclassName, true) {
 			t.Report(
 				callNode, StripCode_STRIP_TYPE_INHERIT_ERROR, classes.subclassName, classes.superclassName)
 		}
@@ -870,20 +869,19 @@ func stripCode_startsWithUpperCase(name string) bool {
 // triggers removal.
 //
 // Java: Strip.isStripName(String)
-func (st *StripCode_Strip) IsStripName(name string) bool {
-	s := st.this_
-	if _, ok := s.stripNameSuffixesSet[name]; ok {
-		st.LogStripName(name, "matches a suffix")
+func (s *StripCode) IsStripName(name string) bool {
+	if s.stripNameSuffixes.Has(name) {
+		s.LogStripName(name, "matches a suffix")
 		return true
 	}
 
-	if _, ok := s.stripNamePrefixesSet[name]; ok {
-		st.LogStripName(name, "matches a prefix")
+	if s.stripNamePrefixes.Has(name) {
+		s.LogStripName(name, "matches a prefix")
 		return true
 	}
 
 	if name == "" || stripCode_startsWithUpperCase(name) {
-		st.LogNotAStripName(name, "empty or starts with uppercase")
+		s.LogNotAStripName(name, "empty or starts with uppercase")
 		return false
 	}
 
@@ -891,8 +889,8 @@ func (st *StripCode_Strip) IsStripName(name string) bool {
 		lcName := jutil.StringToLowerCaseRoot(name)
 		for _, stripName := range s.stripNamePrefixesLowerCaseList {
 			if strings.HasPrefix(lcName, stripName) {
-				if st.decisionsLog.IsLogging() {
-					st.LogStripName(name, "matches lc prefix: "+stripName)
+				if s.decisionsLog.IsLogging() {
+					s.LogStripName(name, "matches lc prefix: "+stripName)
 				}
 				return true
 			}
@@ -900,29 +898,29 @@ func (st *StripCode_Strip) IsStripName(name string) bool {
 
 		for _, stripName := range s.stripNameSuffixesLowerCaseList {
 			if strings.HasSuffix(lcName, stripName) {
-				if st.decisionsLog.IsLogging() {
-					st.LogStripName(name, "matches lc suffix: "+stripName)
+				if s.decisionsLog.IsLogging() {
+					s.LogStripName(name, "matches lc suffix: "+stripName)
 				}
 				return true
 			}
 		}
 	}
 
-	st.LogNotAStripName(name, "no matches")
+	s.LogNotAStripName(name, "no matches")
 	return false
 }
 
 // Java: Strip.logNotAStripName(String, String)
-func (st *StripCode_Strip) LogNotAStripName(name string, reason string) {
-	if st.decisionsLog.IsLogging() {
-		st.decisionsLog.LogString(name + "\tnot a strip name: " + reason)
+func (s *StripCode) LogNotAStripName(name string, reason string) {
+	if s.decisionsLog.IsLogging() {
+		s.decisionsLog.LogString(name + "\tnot a strip name: " + reason)
 	}
 }
 
 // Java: Strip.logStripName(String, String)
-func (st *StripCode_Strip) LogStripName(name string, reason string) {
-	if st.decisionsLog.IsLogging() {
-		st.decisionsLog.LogString(name + "\tstrip name: " + reason)
+func (s *StripCode) LogStripName(name string, reason string) {
+	if s.decisionsLog.IsLogging() {
+		s.decisionsLog.LogString(name + "\tstrip name: " + reason)
 	}
 }
 
@@ -930,12 +928,12 @@ func (st *StripCode_Strip) LogStripName(name string, reason string) {
 // value is expected.
 //
 // Java: Strip.replaceWithNull(Node)
-func (st *StripCode_Strip) ReplaceWithNull(n rhino.Node) {
-	if st.decisionsLog.IsLogging() {
-		st.decisionsLog.LogString("replace with null: " + n.GetLocation())
+func (s *StripCode) ReplaceWithNull(n rhino.Node) {
+	if s.decisionsLog.IsLogging() {
+		s.decisionsLog.LogString("replace with null: " + n.GetLocation())
 	}
 	n.ReplaceWith(rhino.IR_NullNode())
-	NodeUtil_MarkFunctionsDeleted(n, st.this_.compiler)
+	NodeUtil_MarkFunctionsDeleted(n, s.compiler)
 }
 
 // ReplaceWithEmpty replaces a node with an EMPTY node. This is useful where
@@ -944,10 +942,10 @@ func (st *StripCode_Strip) ReplaceWithNull(n rhino.Node) {
 // n is a node, parent n's parent.
 //
 // Java: Strip.replaceWithEmpty(Node, Node)
-func (st *StripCode_Strip) ReplaceWithEmpty(n rhino.Node, parent rhino.Node) {
-	if st.decisionsLog.IsLogging() {
-		st.decisionsLog.LogString("replace with empty: " + n.GetLocation())
+func (s *StripCode) ReplaceWithEmpty(n rhino.Node, parent rhino.Node) {
+	if s.decisionsLog.IsLogging() {
+		s.decisionsLog.LogString("replace with empty: " + n.GetLocation())
 	}
 	NodeUtil_RemoveChild(parent, n)
-	NodeUtil_MarkFunctionsDeleted(n, st.this_.compiler)
+	NodeUtil_MarkFunctionsDeleted(n, s.compiler)
 }

@@ -429,17 +429,25 @@ func (d *MustBeReachingVariableDef) flowThrough(n rhino.Node, input *MustBeReach
 	return output
 }
 
+type mustDefEvalCtx struct {
+	d       *MustBeReachingVariableDef
+	cfgNode rhino.Node
+	output  *MustBeReachingVariableDef_MustDef
+}
+
 // ComputeMustDef: n is the node in question; cfgNode the node to add;
 // conditional true if the definition is not always executed.
 //
 // Java: MustBeReachingVariableDef.computeMustDef(Node, Node, MustDef, boolean)
 func (d *MustBeReachingVariableDef) ComputeMustDef(n rhino.Node, cfgNode rhino.Node, output *MustBeReachingVariableDef_MustDef, conditional bool) {
+	walkCfgCondEvalForward(n, conditional, mustDefEvalCtx{d: d, cfgNode: cfgNode, output: output}, mustDefVisitNode)
+}
+
+func mustDefVisitNode(ctx mustDefEvalCtx, n rhino.Node, conditional bool) (cfgCondEvalState, bool) {
+	d := ctx.d
+	cfgNode := ctx.cfgNode
+	output := ctx.output
 	switch n.GetToken() {
-	case rhino.Token_BLOCK, rhino.Token_ROOT, rhino.Token_FUNCTION:
-		return
-	case rhino.Token_WHILE, rhino.Token_DO, rhino.Token_IF, rhino.Token_FOR:
-		d.ComputeMustDef(NodeUtil_GetConditionExpression(n), cfgNode, output, conditional)
-		return
 	case rhino.Token_FOR_IN, rhino.Token_FOR_OF, rhino.Token_FOR_AWAIT_OF:
 		// for(x in y) {...}
 		loop := ast.MustEnhancedFor(n)
@@ -461,41 +469,15 @@ func (d *MustBeReachingVariableDef) ComputeMustDef(n rhino.Node, cfgNode rhino.N
 			lhs = dlhs.Pattern().Node()
 		}
 		if _, ok := ast.AsPattern(lhs); ok {
-			d.ComputeMustDef(lhs, cfgNode, output, true)
+			walkCfgCondEvalForward(lhs, true, ctx, mustDefVisitNode)
 		}
-		return
-	case rhino.Token_OPTCHAIN_GETPROP:
-		d.ComputeMustDef(ast.MustOptChainGetProp(n).Object().Node(), cfgNode, output, conditional)
-		return
-	case rhino.Token_AND, rhino.Token_OR, rhino.Token_COALESCE:
-		bin := ast.MustBinary(n)
-		d.ComputeMustDef(bin.Left().Node(), cfgNode, output, conditional)
-		d.ComputeMustDef(bin.Right().Node(), cfgNode, output, true)
-		return
-	case rhino.Token_OPTCHAIN_GETELEM:
-		ge := ast.MustOptChainGetElem(n)
-		d.ComputeMustDef(ge.Object().Node(), cfgNode, output, conditional)
-		d.ComputeMustDef(ge.Index().Node(), cfgNode, output, true)
-		return
-	case rhino.Token_OPTCHAIN_CALL:
-		call := ast.MustOptChainCall(n)
-		d.ComputeMustDef(call.Callee().Node(), cfgNode, output, conditional)
-		for arg, ok := call.FirstArg(); ok; arg, ok = arg.Next() {
-			d.ComputeMustDef(arg.Node(), cfgNode, output, true)
-		}
-		return
-	case rhino.Token_HOOK:
-		hook := ast.MustHook(n)
-		d.ComputeMustDef(hook.Cond().Node(), cfgNode, output, conditional)
-		d.ComputeMustDef(hook.Then().Node(), cfgNode, output, true)
-		d.ComputeMustDef(hook.Else().Node(), cfgNode, output, true)
-		return
+		return cfgCondEvalContinue, true
 	case rhino.Token_LET, rhino.Token_CONST, rhino.Token_VAR:
 		decl := ast.MustNameDeclaration(n)
 		for declItem, ok := decl.FirstDeclarator(); ok; declItem, ok = declItem.Next() {
 			if name, isName := declItem.AsName(); isName {
 				if init, hasInit := name.Init(); hasInit {
-					d.ComputeMustDef(init.Node(), cfgNode, output, conditional)
+					walkCfgCondEvalForward(init.Node(), conditional, ctx, mustDefVisitNode)
 					var defNode rhino.Node
 					if !conditional {
 						defNode = cfgNode
@@ -505,30 +487,31 @@ func (d *MustBeReachingVariableDef) ComputeMustDef(n rhino.Node, cfgNode rhino.N
 			} else {
 				dlhs := declItem.MustDestructuringLhs()
 				if init, hasInit := dlhs.Init(); hasInit {
-					d.ComputeMustDef(init.Node(), cfgNode, output, conditional)
+					walkCfgCondEvalForward(init.Node(), conditional, ctx, mustDefVisitNode)
 				}
-				d.ComputeMustDef(dlhs.Pattern().Node(), cfgNode, output, conditional)
+				walkCfgCondEvalForward(dlhs.Pattern().Node(), conditional, ctx, mustDefVisitNode)
 			}
 		}
-		return
+		return cfgCondEvalContinue, true
 	case rhino.Token_DEFAULT_VALUE:
 		dv := ast.MustDefaultValue(n)
 		target := dv.Target()
 		value := dv.Value().Node()
 		if pat, ok := target.AsPattern(); ok {
-			d.ComputeMustDef(value, cfgNode, output, true)
-			d.ComputeMustDef(pat.Node(), cfgNode, output, conditional)
+			walkCfgCondEvalForward(value, true, ctx, mustDefVisitNode)
+			walkCfgCondEvalForward(pat.Node(), conditional, ctx, mustDefVisitNode)
 		} else if name, ok := target.AsName(); ok {
-			d.ComputeMustDef(value, cfgNode, output, true)
+			walkCfgCondEvalForward(value, true, ctx, mustDefVisitNode)
 			var defNode rhino.Node
 			if !conditional {
 				defNode = cfgNode
 			}
 			d.addToDefIfLocalID(name.Node().GetStringID(), defNode, rhino.NilNode, output)
 		} else {
-			d.ComputeMustDef(target.Node(), cfgNode, output, conditional)
-			d.ComputeMustDef(value, cfgNode, output, true)
+			walkCfgCondEvalForward(target.Node(), conditional, ctx, mustDefVisitNode)
+			walkCfgCondEvalForward(value, true, ctx, mustDefVisitNode)
 		}
+		return cfgCondEvalContinue, true
 	case rhino.Token_NAME:
 		if NodeUtil_IsLhsByDestructuring(n) {
 			var defNode rhino.Node
@@ -539,19 +522,19 @@ func (d *MustBeReachingVariableDef) ComputeMustDef(n rhino.Node, cfgNode rhino.N
 		} else if nodeStringID(n) == idArguments {
 			d.EscapeParameters(output)
 		}
-		return
+		return cfgCondEvalContinue, true
 	default:
 		if assign, ok := ast.AsAssignment(n); ok {
 			target := assign.Target()
 			value := assign.Value().Node()
 			if name, isName := target.AsName(); isName {
-				d.ComputeMustDef(value, cfgNode, output, conditional)
+				walkCfgCondEvalForward(value, conditional, ctx, mustDefVisitNode)
 				var defNode rhino.Node
 				if !conditional {
 					defNode = cfgNode
 				}
 				d.addToDefIfLocalID(name.Node().GetStringID(), defNode, value, output)
-				return
+				return cfgCondEvalContinue, true
 			} else if get, isGet := target.AsNormalGet(); isGet {
 				// Treat all assignments to arguments as redefining the
 				// parameters itself.
@@ -562,9 +545,9 @@ func (d *MustBeReachingVariableDef) ComputeMustDef(n rhino.Node, cfgNode rhino.N
 					d.EscapeParameters(output)
 				}
 			} else if pat, isPat := target.AsPattern(); isPat {
-				d.ComputeMustDef(value, cfgNode, output, conditional)
-				d.ComputeMustDef(pat.Node(), cfgNode, output, conditional)
-				return
+				walkCfgCondEvalForward(value, conditional, ctx, mustDefVisitNode)
+				walkCfgCondEvalForward(pat.Node(), conditional, ctx, mustDefVisitNode)
+				return cfgCondEvalContinue, true
 			}
 		}
 
@@ -576,13 +559,11 @@ func (d *MustBeReachingVariableDef) ComputeMustDef(n rhino.Node, cfgNode rhino.N
 					defNode = cfgNode
 				}
 				d.addToDefIfLocalID(target.Node().GetStringID(), defNode, rhino.NilNode, output)
-				return
+				return cfgCondEvalContinue, true
 			}
 		}
 
-		for c := n.GetFirstChild(); !c.IsNil(); c = c.GetNext() {
-			d.ComputeMustDef(c, cfgNode, output, conditional)
-		}
+		return cfgCondEvalContinue, false
 	}
 }
 

@@ -469,9 +469,8 @@ func computeEscapedInTable(
 		}
 	}
 
-	fnRoot := jsScope.GetRootNode()
-	fnNameNode := fnRoot.GetFirstChild()
-	fnNameID := fnNameNode.GetStringID()
+	fn := ast.MustFunction(jsScope.GetRootNode())
+	fnNameID := fn.NameNode().Node().GetStringID()
 	fnNameShadowed := false
 	if fnNameID > strpool.EmptyID && jsScope.hasOwnSlotByID(fnNameID) {
 		if v := table.lookupVarByID(fnNameID); v == nil || v.scope != jsScope {
@@ -483,15 +482,17 @@ func computeEscapedInTable(
 		return
 	}
 
-	args := fnNameNode.GetNext()
-	fnBody := args.GetNext()
+	args := fn.Params().Node()
+	fnBody := fn.Body().Node()
 	argsHasFnOrClass := dfaHasNestedFunctionOrClass(args)
 
 	var firstEscapingStmt rhino.Node
-	if !argsHasFnOrClass && fnBody.IsBlock() {
-		for stmt := fnBody.GetFirstChild(); !stmt.IsNil(); stmt = stmt.GetNext() {
-			if stmt.IsFunction() || stmt.IsClass() || dfaHasNestedFunctionOrClass(stmt) {
-				firstEscapingStmt = stmt
+	bodyBlock, isBodyBlock := fn.Body().AsBlock()
+	if !argsHasFnOrClass && isBodyBlock {
+		for stmt, ok := bodyBlock.FirstStatement(); ok; stmt, ok = stmt.Next() {
+			stmtNode := stmt.Node()
+			if stmtNode.IsFunction() || stmtNode.IsClass() || dfaHasNestedFunctionOrClass(stmtNode) {
+				firstEscapingStmt = stmtNode
 				break
 			}
 		}
@@ -508,7 +509,7 @@ func computeEscapedInTable(
 	var filterFnBody rhino.Node
 	if !argsHasFnOrClass {
 		skipArgs = args
-		if fnBody.IsBlock() {
+		if isBodyBlock {
 			nonEscapingDepth = jsScope.GetDepth() + 1
 			filterFnBody = fnBody
 		}

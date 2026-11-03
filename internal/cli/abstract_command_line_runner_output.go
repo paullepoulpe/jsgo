@@ -444,7 +444,7 @@ func (r *AbstractCommandLineRunnerBase) OutputChunkBinaryAndSourceMaps(
 				writer := r.FileNameToLegacyOutputWriter(chunkFilename)
 				defer abstractCommandLineRunner_closeWriter(writer)
 				if options.ShouldGatherSourceMapInfo() {
-					r.compiler.ResetAndIntitializeSourceMap()
+					r.compiler.ResetAndInitializeSourceMap()
 				}
 				mlicenseTracker.SetCurrentChunkContext(m)
 				r.self.WriteChunkOutput(chunkFilename, writer, mlicenseTracker, m)
@@ -538,7 +538,7 @@ func (r *AbstractCommandLineRunnerBase) outputChunksParallel(
 //
 // Java: AbstractCommandLineRunner.createJsonFileFromChunk(JSChunk)
 func (r *AbstractCommandLineRunnerBase) CreateJsonFileFromChunk(chunk *jscomp.JSChunk) *AbstractCommandLineRunner_JsonFileSpec {
-	r.compiler.ResetAndIntitializeSourceMap()
+	r.compiler.ResetAndInitializeSourceMap()
 
 	filename := r.self.GetChunkOutputFileName(chunk)
 	output := jutil.NewStringWriter()

@@ -381,8 +381,9 @@ func (c *CheckAccessControls) BestInstanceTypeForMethodOrCtor(n rhino.Node) rhin
 	case rhino.Token_NAME:
 		return CheckAccessControls_InstanceTypeFor(n.GetJSType())
 	case rhino.Token_ASSIGN:
-		lValue := parent.GetFirstChild()
-		if NodeUtil_IsNormalGet(lValue) {
+		target := ast.MustAssign(parent).Target()
+		lValue := target.Node()
+		if get, ok := target.AsNormalGet(); ok {
 			// We have an assignment of the form `a.b = ...`.
 			lValueType := lValue.GetJSType()
 			if lValueType != nil && (lValueType.IsConstructor() || lValueType.IsInterface()) {
@@ -393,7 +394,7 @@ func (c *CheckAccessControls) BestInstanceTypeForMethodOrCtor(n rhino.Node) rhin
 				return CheckAccessControls_InstanceTypeFor(NodeUtil_GetPrototypeClassName(lValue).GetJSType())
 			} else {
 				// Case `a.b = ...`
-				return CheckAccessControls_InstanceTypeFor(lValue.GetFirstChild().GetJSType())
+				return CheckAccessControls_InstanceTypeFor(get.Object().Node().GetJSType())
 			}
 		} else {
 			// We have an assignment of the form "a = ...", so pull the type off the "a".
@@ -408,14 +409,14 @@ func (c *CheckAccessControls) BestInstanceTypeForMethodOrCtor(n rhino.Node) rhin
 		grandparent := parent.GetParent()
 		greatGrandparent := grandparent.GetParent()
 
-		if grandparent.IsObjectLit() {
+		if _, ok := ast.AsObjectLit(grandparent); ok {
 			if grandparent.GetJSType().IsFunctionPrototypeType() {
 				// Case: `grandparent` is an object-literal prototype.
 				// Example: `Foo.prototype = { a: function() {} };` where `parent` is "a".
 				return CheckAccessControls_InstanceTypeFor(grandparent.GetJSType())
 			}
 			return nil
-		} else if greatGrandparent.IsClass() {
+		} else if _, ok := ast.AsClass(greatGrandparent); ok {
 			// Case: `n` is a class member definition.
 			// Example: `class Foo { a() {} }` where `parent` is "a".
 			return CheckAccessControls_InstanceTypeFor(greatGrandparent.GetJSType())
@@ -993,7 +994,8 @@ func NewCollectFileOverviewVisibility(compiler AbstractCompiler) *CollectFileOve
 
 // Java: CollectFileOverviewVisibility.process(Node, Node)
 func (c *CollectFileOverviewVisibility) Process(externs rhino.Node, root rhino.Node) {
-	for script := root.GetFirstChild(); !script.IsNil(); script = script.GetNext() {
+	for item := range ast.MustRoot(root).Items() {
+		script := item.Node()
 		jutil.CheckState(script.IsScript())
 		c.Visit(script)
 	}

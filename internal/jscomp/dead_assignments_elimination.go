@@ -425,12 +425,27 @@ func (v DeadAssignmentsElimination_VariableLiveness) String() string {
 	return deadAssignmentsElimination_VariableLiveness_names[v]
 }
 
+const (
+	_ = uint(DeadAssignmentsElimination_VariableLiveness_MAYBE_LIVE) - uint(cfgCondEvalContinue)
+	_ = uint(cfgCondEvalContinue) - uint(DeadAssignmentsElimination_VariableLiveness_MAYBE_LIVE)
+	_ = uint(DeadAssignmentsElimination_VariableLiveness_READ) - uint(cfgCondEvalRead)
+	_ = uint(cfgCondEvalRead) - uint(DeadAssignmentsElimination_VariableLiveness_READ)
+	_ = uint(DeadAssignmentsElimination_VariableLiveness_KILL) - uint(cfgCondEvalKill)
+	_ = uint(cfgCondEvalKill) - uint(DeadAssignmentsElimination_VariableLiveness_KILL)
+)
+
 // isVariableReadBeforeKillByID returns READ if the first reference of varID in
 // n is a read, KILL if it is an assignment, or MAYBE_LIVE otherwise.
 func (d *DeadAssignmentsElimination) isVariableReadBeforeKillByID(
 	n rhino.Node, varID uint32) DeadAssignmentsElimination_VariableLiveness {
+	return DeadAssignmentsElimination_VariableLiveness(
+		walkCfgCondEvalForward(n, false, varID, daeVisitReadBeforeKill),
+	)
+}
+
+func daeVisitReadBeforeKill(varID uint32, n rhino.Node, _ bool) (cfgCondEvalState, bool) {
 	if ControlFlowGraph_IsEnteringNewCfgNode(n) { // Not a FUNCTION
-		return DeadAssignmentsElimination_VariableLiveness_MAYBE_LIVE
+		return cfgCondEvalContinue, true
 	}
 
 	if n.IsName() && n.GetStringID() == varID {
@@ -441,90 +456,26 @@ func (d *DeadAssignmentsElimination) isVariableReadBeforeKillByID(
 			// The expression to which the assignment is made is evaluated before
 			// the RHS is evaluated (normal left to right evaluation) but the KILL
 			// occurs after the RHS is evaluated.
-			state := d.isVariableReadBeforeKillByID(assign.Value().Node(), varID)
-			if state == DeadAssignmentsElimination_VariableLiveness_READ {
-				return state
+			if walkCfgCondEvalForward(assign.Value().Node(), false, varID, daeVisitReadBeforeKill) == cfgCondEvalRead {
+				return cfgCondEvalRead, true
 			}
-			return DeadAssignmentsElimination_VariableLiveness_KILL
+			return cfgCondEvalKill, true
 		}
-		return DeadAssignmentsElimination_VariableLiveness_READ
+		return cfgCondEvalRead, true
 	}
 
-	switch n.GetToken() {
-	case rhino.Token_OPTCHAIN_GETPROP:
-		// Go-only: OPTCHAIN_GETPROP has only one child (Object; property is its string),
-		// so visiting Object once matches Java without O(2^k) re-traversal on chains.
-		return d.isVariableReadBeforeKillByID(ast.MustOptChainGetProp(n).Object().Node(), varID)
-	case rhino.Token_OR, rhino.Token_AND, rhino.Token_COALESCE:
-		bin := ast.MustBinary(n)
-		v1 := d.isVariableReadBeforeKillByID(bin.Left().Node(), varID)
-		v2 := d.isVariableReadBeforeKillByID(bin.Right().Node(), varID)
-		// With a AND/OR/COALESCE the first branch always runs, but the second
-		// may not.
-		if v1 != DeadAssignmentsElimination_VariableLiveness_MAYBE_LIVE {
-			return v1
-		} else if v2 == DeadAssignmentsElimination_VariableLiveness_READ {
-			return DeadAssignmentsElimination_VariableLiveness_READ
-		}
-		return DeadAssignmentsElimination_VariableLiveness_MAYBE_LIVE
-	case rhino.Token_OPTCHAIN_GETELEM:
-		ge := ast.MustOptChainGetElem(n)
-		v1 := d.isVariableReadBeforeKillByID(ge.Object().Node(), varID)
-		v2 := d.isVariableReadBeforeKillByID(ge.Index().Node(), varID)
-		if v1 != DeadAssignmentsElimination_VariableLiveness_MAYBE_LIVE {
-			return v1
-		} else if v2 == DeadAssignmentsElimination_VariableLiveness_READ {
-			return DeadAssignmentsElimination_VariableLiveness_READ
-		}
-		return DeadAssignmentsElimination_VariableLiveness_MAYBE_LIVE
-	case rhino.Token_OPTCHAIN_CALL:
-		call := ast.MustOptChainCall(n)
-		v1 := d.isVariableReadBeforeKillByID(call.Callee().Node(), varID)
-		if v1 != DeadAssignmentsElimination_VariableLiveness_MAYBE_LIVE {
-			return v1
-		}
-		for arg, ok := call.FirstArg(); ok; arg, ok = arg.Next() {
-			state := d.isVariableReadBeforeKillByID(arg.Node(), varID)
-			if state != DeadAssignmentsElimination_VariableLiveness_MAYBE_LIVE {
-				if state == DeadAssignmentsElimination_VariableLiveness_READ {
-					return DeadAssignmentsElimination_VariableLiveness_READ
-				}
-				return DeadAssignmentsElimination_VariableLiveness_MAYBE_LIVE
-			}
-		}
-		return DeadAssignmentsElimination_VariableLiveness_MAYBE_LIVE
-	case rhino.Token_HOOK:
-		hook := ast.MustHook(n)
-		first := d.isVariableReadBeforeKillByID(hook.Cond().Node(), varID)
-		if first != DeadAssignmentsElimination_VariableLiveness_MAYBE_LIVE {
-			return first
-		}
-		return d.checkHookBranchReadBeforeKillByID(hook.Then().Node(), hook.Else().Node(), varID)
-	default:
-		// Expressions are evaluated left-right, depth first.
-		for child := n.GetFirstChild(); !child.IsNil(); child = child.GetNext() {
-			state := d.isVariableReadBeforeKillByID(child, varID)
-			if state != DeadAssignmentsElimination_VariableLiveness_MAYBE_LIVE {
-				return state
-			}
-		}
-	}
-
-	return DeadAssignmentsElimination_VariableLiveness_MAYBE_LIVE
+	return cfgCondEvalContinue, false
 }
 
 func (d *DeadAssignmentsElimination) checkHookBranchReadBeforeKillByID(
 	trueCase rhino.Node, falseCase rhino.Node, varID uint32) DeadAssignmentsElimination_VariableLiveness {
-	v1 := d.isVariableReadBeforeKillByID(trueCase, varID)
-	v2 := d.isVariableReadBeforeKillByID(falseCase, varID)
 	// With a hook it is unknown which branch will run, so
-	// we must be conservative.  A read by either is a READ, and
+	// we must be conservative. A read by either is a READ, and
 	// a KILL is only considered if both KILL.
-	if v1 == DeadAssignmentsElimination_VariableLiveness_READ || v2 == DeadAssignmentsElimination_VariableLiveness_READ {
-		return DeadAssignmentsElimination_VariableLiveness_READ
-	} else if v1 == DeadAssignmentsElimination_VariableLiveness_KILL && v2 == DeadAssignmentsElimination_VariableLiveness_KILL {
-		return DeadAssignmentsElimination_VariableLiveness_KILL
-	} else {
-		return DeadAssignmentsElimination_VariableLiveness_MAYBE_LIVE
-	}
+	return DeadAssignmentsElimination_VariableLiveness(
+		joinCfgCondEvalBranches(
+			walkCfgCondEvalForward(trueCase, true, varID, daeVisitReadBeforeKill),
+			walkCfgCondEvalForward(falseCase, true, varID, daeVisitReadBeforeKill),
+		),
+	)
 }

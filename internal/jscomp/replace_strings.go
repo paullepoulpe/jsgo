@@ -221,7 +221,7 @@ func (r *ReplaceStrings) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node
 	case rhino.Token_NEW, // e.g. new Error('msg');
 		rhino.Token_CALL,               // e.g. Error('msg');
 		rhino.Token_TAGGED_TEMPLATELIT: // e.g. Error`msg` - not supported!
-		calledFn := n.GetFirstChild()
+		calledFn := ast.MustInvocation(n).Callee().Node()
 
 		// Look for calls to static functions.
 		name := calledFn.GetOriginalQualifiedName()
@@ -273,21 +273,21 @@ func (r *ReplaceStrings) DoSubstitutions(t *NodeTraversal, config *ReplaceString
 		r.compiler.Report(JSError_MakeWithNode(n, ReplaceStrings_STRING_REPLACEMENT_TAGGED_TEMPLATE))
 		return
 	}
-	jutil.CheckState(n.IsNew() || n.IsCall())
+	callOrNew, isCallOrNew := ast.AsCallOrNew(n)
+	jutil.CheckState(isCallOrNew)
 
 	if !config.IsReplaceAll() {
 		// Note: the first child is the function, but the parameter id is 1 based.
 		for _, parameter := range config.parameters {
-			arg := n.GetChildAtIndex(parameter)
-			if !arg.IsNil() {
-				r.ReplaceExpression(t, arg)
+			if arg, ok := callOrNew.ArgAt(parameter - 1); ok {
+				r.ReplaceExpression(t, arg.Node())
 			}
 		}
 	} else {
 		// Replace all parameters.
-		firstParam := n.GetSecondChild()
-		for arg := firstParam; !arg.IsNil(); arg = arg.GetNext() {
-			arg = r.ReplaceExpression(t, arg)
+		for arg, ok := callOrNew.FirstArg(); ok; {
+			replaced := r.ReplaceExpression(t, arg.Node())
+			arg, ok = ast.AsArg(replaced.GetNext())
 		}
 	}
 }
@@ -374,23 +374,22 @@ func (r *ReplaceStrings) RecordReplacement(key string) {
 func (r *ReplaceStrings) BuildReplacement(t *NodeTraversal, expr rhino.Node, prefix rhino.Node, keyBuilder *strings.Builder) rhino.Node {
 	switch expr.GetToken() {
 	case rhino.Token_ADD:
-		left := expr.GetFirstChild()
-		right := left.GetNext()
-		prefix = r.BuildReplacement(t, left, prefix, keyBuilder)
-		return r.BuildReplacement(t, right, prefix, keyBuilder)
+		bin := ast.MustBinary(expr)
+		prefix = r.BuildReplacement(t, bin.Left().Node(), prefix, keyBuilder)
+		return r.BuildReplacement(t, bin.Right().Node(), prefix, keyBuilder)
 	case rhino.Token_TEMPLATELIT:
-		for child := expr.GetFirstChild(); !child.IsNil(); child = child.GetNext() {
-			switch child.GetToken() {
-			case rhino.Token_TEMPLATELIT_STRING:
-				if cooked := child.GetCookedString(); cooked != nil {
-					keyBuilder.WriteString(*cooked)
+		tpl := ast.MustTemplateLit(expr)
+		for part, ok := tpl.FirstPart(); ok; part, ok = part.Next() {
+			if strPart, isStr := part.AsTemplateLitString(); isStr {
+				if cooked, hasCooked := strPart.Cooked(); hasCooked {
+					keyBuilder.WriteString(cooked)
 				} else {
 					keyBuilder.WriteString("null")
 				}
-			case rhino.Token_TEMPLATELIT_SUB:
-				prefix = r.BuildReplacement(t, child.GetFirstChild(), prefix, keyBuilder)
-			default:
-				panic(jutil.NewIllegalStateExceptionMsg("Unexpected TEMPLATELIT child: " + child.String()))
+			} else if subPart, isSub := part.AsTemplateLitSub(); isSub {
+				prefix = r.BuildReplacement(t, subPart.Expr().Node(), prefix, keyBuilder)
+			} else {
+				panic(jutil.NewIllegalStateExceptionMsg("Unexpected TEMPLATELIT child: " + part.Node().String()))
 			}
 		}
 		return prefix

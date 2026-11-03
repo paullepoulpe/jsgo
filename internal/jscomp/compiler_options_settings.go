@@ -768,38 +768,38 @@ func (o *CompilerOptions) ShouldGatherCssNames() bool {
 //
 // Java: CompilerOptions.setStripTypes(Set<String>)
 func (o *CompilerOptions) SetStripTypes(stripTypes *jutil.LinkedHashSet[string]) {
-	o.stripTypes = cloneOrEmptyStringSet(stripTypes)
+	copyIntoOrderedStringSet(&o.stripTypes, stripTypes)
 }
 
 // @deprecated StripCode is deprecated. Code should be designed to be removed by other means.
 //
 // Java: CompilerOptions.getStripTypes()
-func (o *CompilerOptions) GetStripTypes() *jutil.LinkedHashSet[string] {
-	return o.stripTypes
+func (o *CompilerOptions) GetStripTypes() *OrderedSet[string] {
+	return &o.stripTypes
 }
 
 // @deprecated StripCode is deprecated. Code should be designed to be removed by other means.
 //
 // Java: CompilerOptions.setStripNameSuffixes(Set<String>)
 func (o *CompilerOptions) SetStripNameSuffixes(stripNameSuffixes *jutil.LinkedHashSet[string]) {
-	o.stripNameSuffixes = cloneOrEmptyStringSet(stripNameSuffixes)
+	copyIntoOrderedStringSet(&o.stripNameSuffixes, stripNameSuffixes)
 }
 
 // Java: CompilerOptions.getStripNameSuffixes()
-func (o *CompilerOptions) GetStripNameSuffixes() *jutil.LinkedHashSet[string] {
-	return o.stripNameSuffixes
+func (o *CompilerOptions) GetStripNameSuffixes() *OrderedSet[string] {
+	return &o.stripNameSuffixes
 }
 
 // @deprecated StripCode is deprecated. Code should be designed to be removed by other means.
 //
 // Java: CompilerOptions.setStripNamePrefixes(Set<String>)
 func (o *CompilerOptions) SetStripNamePrefixes(stripNamePrefixes *jutil.LinkedHashSet[string]) {
-	o.stripNamePrefixes = cloneOrEmptyStringSet(stripNamePrefixes)
+	copyIntoOrderedStringSet(&o.stripNamePrefixes, stripNamePrefixes)
 }
 
 // Java: CompilerOptions.getStripNamePrefixes()
-func (o *CompilerOptions) GetStripNamePrefixes() *jutil.LinkedHashSet[string] {
-	return o.stripNamePrefixes
+func (o *CompilerOptions) GetStripNamePrefixes() *OrderedSet[string] {
+	return &o.stripNamePrefixes
 }
 
 // Java: CompilerOptions.getCustomPassesAt(CustomPassExecutionTime)

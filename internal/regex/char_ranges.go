@@ -19,6 +19,7 @@
 package regex
 
 import (
+	"math"
 	"slices"
 	"strconv"
 	"strings"
@@ -29,9 +30,6 @@ import (
 // CharRanges is an immutable sparse bitset that deals well where the data is
 // chunky: where P(bit[x+1] == bit[x]). E.g. [101,102,103,104,105,1001,1002,
 // 1003,1004] is chunky.
-//
-// Java ints are Go ints here; the few sums that can wrap a Java int are
-// computed in int32 (Go-only: language-adapter — Java int overflow).
 type CharRanges struct {
 	// A strictly increasing set of bit indices where even members are the
 	// inclusive starts of ranges, and odd members are the exclusive ends.
@@ -53,7 +51,7 @@ func CharRanges_Inclusive(start, end int) *CharRanges {
 	if start > end {
 		panic(jutil.NewIndexOutOfBoundsException(strconv.Itoa(start) + " > " + strconv.Itoa(end)))
 	}
-	return NewCharRanges([]int{start, javaIntAdd(end, 1)})
+	return NewCharRanges([]int{start, end + 1})
 }
 
 // CharRanges_WithMembers returns an instance containing all and only the
@@ -101,7 +99,7 @@ func CharRanges_IntArrayToRanges(members []int) []int {
 		return []int{}
 	}
 
-	sortInts(members)
+	slices.Sort(members)
 
 	// Count the number of runs.
 	nRuns := 1
@@ -111,7 +109,7 @@ func CharRanges_IntArrayToRanges(members []int) []int {
 		if current == last {
 			continue
 		}
-		if current != javaIntAdd(last, 1) {
+		if current != last+1 {
 			nRuns++
 		}
 	}
@@ -125,15 +123,15 @@ func CharRanges_IntArrayToRanges(members []int) []int {
 		if current == last {
 			continue
 		}
-		if current != javaIntAdd(last, 1) {
+		if current != last+1 {
 			k++
-			ranges[k] = javaIntAdd(last, 1) // add 1 to make end exclusive
+			ranges[k] = last + 1 // add 1 to make end exclusive
 			k++
 			ranges[k] = current
 		}
 	}
 	k++
-	ranges[k] = javaIntAdd(members[nMembers-1], 1) // add 1 to make end exclusive
+	ranges[k] = members[nMembers-1] + 1 // add 1 to make end exclusive
 	return ranges
 }
 
@@ -389,7 +387,7 @@ func (c *CharRanges) Difference(subtrahendRanges *CharRanges) *CharRanges {
 				end = minuend[mIdx+1]
 			}
 			if dIdx != 0 && difference[dIdx-1] == pos {
-				difference[dIdx-1] = pos
+				difference[dIdx-1] = end
 			} else {
 				if dIdx == len(difference) {
 					newArr := make([]int, dIdx*2)
@@ -459,20 +457,20 @@ func (c *CharRanges) Shift(delta int) *CharRanges {
 	}
 	// Test overflow/underflow
 	if delta < 0 {
-		lmin := int64(javaIntAdd(c.ranges[0], delta))
-		if lmin < -1<<31 {
+		lmin := int64(c.ranges[0]) + int64(delta)
+		if lmin < math.MinInt32 {
 			panic(jutil.NewIndexOutOfBoundsExceptionNoMessage())
 		}
 	} else {
-		lmax := int64(javaIntAdd(c.ranges[n-1], delta))
-		if lmax > 1<<31-1 {
+		lmax := int64(c.ranges[n-1]) + int64(delta)
+		if lmax > math.MaxInt32 {
 			panic(jutil.NewIndexOutOfBoundsExceptionNoMessage())
 		}
 	}
 	// Create a shifted range.
 	shiftedRanges := make([]int, n)
 	for i := n - 1; i >= 0; i-- {
-		shiftedRanges[i] = javaIntAdd(c.ranges[i], delta)
+		shiftedRanges[i] = c.ranges[i] + delta
 	}
 	return NewCharRanges(shiftedRanges)
 }
@@ -484,7 +482,7 @@ func (c *CharRanges) String() string {
 	var sb strings.Builder
 	sb.WriteByte('[')
 	for i := 0; i < len(c.ranges); i++ {
-		if (i&1) != 0 && c.ranges[i] == javaIntAdd(c.ranges[i-1], 1) {
+		if (i&1) != 0 && c.ranges[i] == c.ranges[i-1]+1 {
 			continue
 		}
 		if i != 0 {
@@ -495,7 +493,7 @@ func (c *CharRanges) String() string {
 			}
 		}
 		sb.WriteString("0x")
-		sb.WriteString(strconv.FormatInt(int64(javaIntAdd(c.ranges[i], -(i&1))), 16))
+		sb.WriteString(strconv.FormatInt(int64(c.ranges[i]-(i&1)), 16))
 	}
 	sb.WriteByte(']')
 	return sb.String()
@@ -518,18 +516,4 @@ func (c *CharRanges) HashCode() int32 {
 		hc = (hc << 2) + int32(c.ranges[i])
 	}
 	return hc
-}
-
-// javaIntAdd is Java int addition (wraps at 32 bits).
-//
-// Go-only: language-adapter — Java int overflow semantics on Go ints.
-func javaIntAdd(a, b int) int {
-	return int(int32(a) + int32(b))
-}
-
-// sortInts sorts in ascending order, in place (Java: Arrays.sort(int[])).
-//
-// Go-only: language-adapter — java.util.Arrays.sort(int[]).
-func sortInts(a []int) {
-	slices.Sort(a)
 }

@@ -322,6 +322,144 @@ func walkCfgEvalSubtree(n, parent rhino.Node, isRoot bool, visit func(n, parent 
 	visit(n, parent)
 }
 
+type cfgCondEvalState uint8
+
+const (
+	cfgCondEvalContinue cfgCondEvalState = iota
+	cfgCondEvalRead
+	cfgCondEvalKill
+)
+
+func joinCfgCondEvalBranches(v1, v2 cfgCondEvalState) cfgCondEvalState {
+	if v1 == cfgCondEvalRead || v2 == cfgCondEvalRead {
+		return cfgCondEvalRead
+	}
+	if v1 == cfgCondEvalKill && v2 == cfgCondEvalKill {
+		return cfgCondEvalKill
+	}
+	return cfgCondEvalContinue
+}
+
+// walkCfgCondEvalForward walks the intra-CFG expression subtree rooted at n in
+// forward JavaScript runtime evaluation order, propagating conditional=true
+// into short-circuiting and optional-chaining branches and stopping early when
+// a branch returns non-cfgCondEvalContinue.
+func walkCfgCondEvalForward[T any](
+	n rhino.Node,
+	conditional bool,
+	ctx T,
+	visit func(ctx T, n rhino.Node, conditional bool) (cfgCondEvalState, bool),
+) cfgCondEvalState {
+	if n.IsNil() {
+		return cfgCondEvalContinue
+	}
+	if state, handled := visit(ctx, n, conditional); handled {
+		return state
+	}
+	switch n.GetToken() {
+	case rhino.Token_SCRIPT, rhino.Token_ROOT, rhino.Token_FUNCTION, rhino.Token_BLOCK:
+		return cfgCondEvalContinue
+	case rhino.Token_WHILE, rhino.Token_DO, rhino.Token_IF, rhino.Token_FOR:
+		return walkCfgCondEvalForward(NodeUtil_GetConditionExpression(n), conditional, ctx, visit)
+	case rhino.Token_OPTCHAIN_GETPROP:
+		return walkCfgCondEvalForward(ast.MustOptChainGetProp(n).Object().Node(), conditional, ctx, visit)
+	case rhino.Token_AND, rhino.Token_OR, rhino.Token_COALESCE:
+		bin := ast.MustBinary(n)
+		if v1 := walkCfgCondEvalForward(bin.Left().Node(), conditional, ctx, visit); v1 != cfgCondEvalContinue {
+			return v1
+		}
+		if walkCfgCondEvalForward(bin.Right().Node(), true, ctx, visit) == cfgCondEvalRead {
+			return cfgCondEvalRead
+		}
+		return cfgCondEvalContinue
+	case rhino.Token_OPTCHAIN_GETELEM:
+		ge := ast.MustOptChainGetElem(n)
+		if v1 := walkCfgCondEvalForward(ge.Object().Node(), conditional, ctx, visit); v1 != cfgCondEvalContinue {
+			return v1
+		}
+		if walkCfgCondEvalForward(ge.Index().Node(), true, ctx, visit) == cfgCondEvalRead {
+			return cfgCondEvalRead
+		}
+		return cfgCondEvalContinue
+	case rhino.Token_OPTCHAIN_CALL:
+		call := ast.MustOptChainCall(n)
+		if v1 := walkCfgCondEvalForward(call.Callee().Node(), conditional, ctx, visit); v1 != cfgCondEvalContinue {
+			return v1
+		}
+		for arg, ok := call.FirstArg(); ok; arg, ok = arg.Next() {
+			if state := walkCfgCondEvalForward(arg.Node(), true, ctx, visit); state != cfgCondEvalContinue {
+				if state == cfgCondEvalRead {
+					return cfgCondEvalRead
+				}
+				return cfgCondEvalContinue
+			}
+		}
+		return cfgCondEvalContinue
+	case rhino.Token_HOOK:
+		hook := ast.MustHook(n)
+		if first := walkCfgCondEvalForward(hook.Cond().Node(), conditional, ctx, visit); first != cfgCondEvalContinue {
+			return first
+		}
+		return joinCfgCondEvalBranches(
+			walkCfgCondEvalForward(hook.Then().Node(), true, ctx, visit),
+			walkCfgCondEvalForward(hook.Else().Node(), true, ctx, visit),
+		)
+	default:
+		for c := n.GetFirstChild(); !c.IsNil(); c = c.GetNext() {
+			if state := walkCfgCondEvalForward(c, conditional, ctx, visit); state != cfgCondEvalContinue {
+				return state
+			}
+		}
+		return cfgCondEvalContinue
+	}
+}
+
+// walkCfgCondEvalBackward walks the intra-CFG expression subtree rooted at n in
+// reverse JavaScript runtime evaluation order, propagating conditional=true
+// into short-circuiting and optional-chaining branches.
+func walkCfgCondEvalBackward[T any](
+	n rhino.Node,
+	conditional bool,
+	ctx T,
+	visit func(ctx T, n rhino.Node, conditional bool) bool,
+) {
+	if n.IsNil() || visit(ctx, n, conditional) {
+		return
+	}
+	switch n.GetToken() {
+	case rhino.Token_SCRIPT, rhino.Token_ROOT, rhino.Token_FUNCTION, rhino.Token_BLOCK:
+		return
+	case rhino.Token_WHILE, rhino.Token_DO, rhino.Token_IF, rhino.Token_FOR:
+		walkCfgCondEvalBackward(NodeUtil_GetConditionExpression(n), conditional, ctx, visit)
+	case rhino.Token_OPTCHAIN_GETPROP:
+		walkCfgCondEvalBackward(ast.MustOptChainGetProp(n).Object().Node(), conditional, ctx, visit)
+	case rhino.Token_AND, rhino.Token_OR, rhino.Token_COALESCE:
+		bin := ast.MustBinary(n)
+		walkCfgCondEvalBackward(bin.Right().Node(), true, ctx, visit)
+		walkCfgCondEvalBackward(bin.Left().Node(), conditional, ctx, visit)
+	case rhino.Token_OPTCHAIN_GETELEM:
+		ge := ast.MustOptChainGetElem(n)
+		walkCfgCondEvalBackward(ge.Index().Node(), true, ctx, visit)
+		walkCfgCondEvalBackward(ge.Object().Node(), conditional, ctx, visit)
+	case rhino.Token_OPTCHAIN_CALL:
+		call := ast.MustOptChainCall(n)
+		callee := call.Callee().Node()
+		for c := n.GetLastChild(); c != callee; c = c.GetPrevious() {
+			walkCfgCondEvalBackward(c, true, ctx, visit)
+		}
+		walkCfgCondEvalBackward(callee, conditional, ctx, visit)
+	case rhino.Token_HOOK:
+		hook := ast.MustHook(n)
+		walkCfgCondEvalBackward(hook.Else().Node(), true, ctx, visit)
+		walkCfgCondEvalBackward(hook.Then().Node(), true, ctx, visit)
+		walkCfgCondEvalBackward(hook.Cond().Node(), conditional, ctx, visit)
+	default:
+		for c := n.GetLastChild(); !c.IsNil(); c = c.GetPrevious() {
+			walkCfgCondEvalBackward(c, conditional, ctx, visit)
+		}
+	}
+}
+
 var (
 	_ graph.DiGraph[rhino.Node, ControlFlowGraph_Branch] = (*ControlFlowGraph[rhino.Node])(nil)
 	_ graph.GraphvizGraph                                = (*ControlFlowGraph[rhino.Node])(nil)

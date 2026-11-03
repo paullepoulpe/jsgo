@@ -1068,7 +1068,7 @@ func compiler_resolveSibling(fromPath string, toPath string) string {
 }
 
 // Java: Compiler.resetAndIntitializeSourceMap()
-func (c *Compiler) ResetAndIntitializeSourceMap() {
+func (c *Compiler) ResetAndInitializeSourceMap() {
 	if c.sourceMap == nil {
 		return
 	}

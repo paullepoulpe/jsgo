@@ -401,6 +401,43 @@ func (c *GatherGetterAndSetterPropertiesTest) GetLastAccessorSummary() *Accessor
 	return c.GetLastCompiler().GetAccessorSummary()
 }
 
+func TestAccessorSummaryBitmaskAndProtoRoundTrip(t *testing.T) {
+	normal := AccessorSummary_PropertyAccessKind_NORMAL
+	getter := AccessorSummary_PropertyAccessKind_GETTER_ONLY
+	setter := AccessorSummary_PropertyAccessKind_SETTER_ONLY
+	both := AccessorSummary_PropertyAccessKind_GETTER_AND_SETTER
+
+	AssertThat(normal.HasGetter()).IsFalse()
+	AssertThat(normal.HasSetter()).IsFalse()
+	AssertThat(normal.HasGetterOrSetter()).IsFalse()
+	AssertThat(getter.HasGetter()).IsTrue()
+	AssertThat(getter.HasSetter()).IsFalse()
+	AssertThat(getter.HasGetterOrSetter()).IsTrue()
+	AssertThat(setter.HasGetter()).IsFalse()
+	AssertThat(setter.HasSetter()).IsTrue()
+	AssertThat(setter.HasGetterOrSetter()).IsTrue()
+	AssertThat(both.HasGetter()).IsTrue()
+	AssertThat(both.HasSetter()).IsTrue()
+	AssertThat(both.HasGetterOrSetter()).IsTrue()
+
+	AssertThat(normal.UnionWith(normal)).IsEqualTo(normal)
+	AssertThat(getter.UnionWith(setter)).IsEqualTo(both)
+	AssertThat(setter.UnionWith(getter)).IsEqualTo(both)
+	AssertThat(getter.UnionWith(normal)).IsEqualTo(getter)
+	AssertThat(both.UnionWith(setter)).IsEqualTo(both)
+
+	orig := AccessorSummary_Create(gatherGetterAndSetterPropertiesTest_mapOf("g", getter, "s", setter))
+	restored := AccessorSummary_FromProto(orig.ToProto())
+	AssertThat(restored.GetKind("g")).IsEqualTo(getter)
+	AssertThat(restored.GetKind("s")).IsEqualTo(setter)
+	AssertThat(restored.GetKind("none")).IsEqualTo(normal)
+	AssertThat(restored.GetAccessors()).IsEqualTo(orig.GetAccessors())
+
+	always := AccessorSummary_FromProto(AccessorSummary_CreateAssumingAlwaysGetterAndSetter().ToProto())
+	AssertThat(always.GetKind("any")).IsEqualTo(both)
+	_ = t
+}
+
 // gatherGetterAndSetterPropertiesTest_mapOf is ImmutableMap.of(k1, v1, k2, v2).
 //
 // Go-only: test-helper.

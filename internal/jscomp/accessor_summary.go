@@ -49,10 +49,6 @@ var accessorSummary_PropertyAccessKind_names = [...]string{
 	"NORMAL", "GETTER_ONLY", "SETTER_ONLY", "GETTER_AND_SETTER",
 }
 
-// accessorSummary_PropertyAccessKind_flags is the `flags` field of each
-// constant.
-var accessorSummary_PropertyAccessKind_flags = [...]int8{0, 1, 2, 3}
-
 // Name is Enum.name().
 func (k AccessorSummary_PropertyAccessKind) Name() string {
 	return accessorSummary_PropertyAccessKind_names[k]
@@ -63,36 +59,24 @@ func (k AccessorSummary_PropertyAccessKind) String() string { return k.Name() }
 
 // Java: AccessorSummary.PropertyAccessKind.hasGetter()
 func (k AccessorSummary_PropertyAccessKind) HasGetter() bool {
-	return (accessorSummary_PropertyAccessKind_flags[k] & 1) != 0
+	return (k & AccessorSummary_PropertyAccessKind_GETTER_ONLY) != 0
 }
 
 // Java: AccessorSummary.PropertyAccessKind.hasSetter()
 func (k AccessorSummary_PropertyAccessKind) HasSetter() bool {
-	return (accessorSummary_PropertyAccessKind_flags[k] & 2) != 0
+	return (k & AccessorSummary_PropertyAccessKind_SETTER_ONLY) != 0
 }
 
 // Java: AccessorSummary.PropertyAccessKind.hasGetterOrSetter()
 func (k AccessorSummary_PropertyAccessKind) HasGetterOrSetter() bool {
-	return (accessorSummary_PropertyAccessKind_flags[k] & 3) != 0
+	return (k & AccessorSummary_PropertyAccessKind_GETTER_AND_SETTER) != 0
 }
 
 // UnionWith is used to combine information from externs and from sources.
 //
 // Java: AccessorSummary.PropertyAccessKind.unionWith(PropertyAccessKind)
 func (k AccessorSummary_PropertyAccessKind) UnionWith(other AccessorSummary_PropertyAccessKind) AccessorSummary_PropertyAccessKind {
-	combinedFlags := int32(accessorSummary_PropertyAccessKind_flags[k] | accessorSummary_PropertyAccessKind_flags[other])
-	switch combinedFlags {
-	case 0:
-		return AccessorSummary_PropertyAccessKind_NORMAL
-	case 1:
-		return AccessorSummary_PropertyAccessKind_GETTER_ONLY
-	case 2:
-		return AccessorSummary_PropertyAccessKind_SETTER_ONLY
-	case 3:
-		return AccessorSummary_PropertyAccessKind_GETTER_AND_SETTER
-	default:
-		panic(jutil.NewIllegalStateExceptionMsg("unexpected value: " + jutil.ToJavaString(combinedFlags)))
-	}
+	return k | other
 }
 
 // AccessorSummary_Create is AccessorSummary.create(Map).
@@ -102,7 +86,18 @@ func (k AccessorSummary_PropertyAccessKind) UnionWith(other AccessorSummary_Prop
 //
 // Java: AccessorSummary.create(Map<String, PropertyAccessKind>)
 func AccessorSummary_Create(accessors *jutil.LinkedHashMap[string, AccessorSummary_PropertyAccessKind]) *AccessorSummary {
-	return newAccessorSummary(jutil.CheckNotNull(accessors))
+	jutil.CheckNotNull(accessors)
+	if accessors.IsEmpty() {
+		return &AccessorSummary{}
+	}
+	entries := make([]accessorIDEntry, 0, accessors.Size())
+	for name, kind := range accessors.All() {
+		entries = append(entries, accessorIDEntry{
+			id:   uint32(strpool.Intern(name)),
+			kind: kind,
+		})
+	}
+	return newAccessorSummaryFromIDs([][]accessorIDEntry{entries})
 }
 
 type accessorIDEntry struct {
@@ -150,45 +145,6 @@ func newAccessorSummaryFromIDs(batches [][]accessorIDEntry) *AccessorSummary {
 	}
 	return &AccessorSummary{
 		hasAnyAccessors: true,
-		kindsByID:       kindsByID,
-		accessorIDs:     accessorIDs,
-	}
-}
-
-// Java: AccessorSummary(ImmutableMap<String, PropertyAccessKind>)
-func newAccessorSummary(accessors *jutil.LinkedHashMap[string, AccessorSummary_PropertyAccessKind]) *AccessorSummary {
-	if accessors.IsEmpty() {
-		return &AccessorSummary{}
-	}
-	n := accessors.Size()
-	accessorIDs := make([]uint32, 0, n)
-	var maxID uint32
-	hasAny := false
-	for name, kind := range accessors.All() {
-		id := uint32(strpool.Intern(name))
-		accessorIDs = append(accessorIDs, id)
-		if kind != AccessorSummary_PropertyAccessKind_NORMAL {
-			hasAny = true
-			if id > maxID {
-				maxID = id
-			}
-		}
-	}
-	var kindsByID []uint64
-	if hasAny {
-		kindsByID = make([]uint64, int(maxID>>5)+1)
-		i := 0
-		for kind := range accessors.Values() {
-			id := accessorIDs[i]
-			i++
-			if kind != AccessorSummary_PropertyAccessKind_NORMAL {
-				shift := (id & 31) * 2
-				kindsByID[id>>5] |= (uint64(kind) & 3) << shift
-			}
-		}
-	}
-	return &AccessorSummary{
-		hasAnyAccessors: hasAny,
 		kindsByID:       kindsByID,
 		accessorIDs:     accessorIDs,
 	}
@@ -294,11 +250,18 @@ func AccessorSummary_FromProto(proto *AccessorSummaryProto) *AccessorSummary {
 	if proto.GetAssumeAlwaysGetterAndSetter() {
 		return AccessorSummary_CreateAssumingAlwaysGetterAndSetter()
 	}
-	builder := jutil.NewImmutableMapBuilder[string, AccessorSummary_PropertyAccessKind]()
-	for _, entry := range proto.GetAccessorsList() {
-		builder.Put(entry.GetName(), AccessorSummary_FromProtoKind(entry.GetKind()))
+	protoList := proto.GetAccessorsList()
+	if len(protoList) == 0 {
+		return &AccessorSummary{}
 	}
-	return AccessorSummary_Create(builder.BuildOrThrow())
+	entries := make([]accessorIDEntry, len(protoList))
+	for i, entry := range protoList {
+		entries[i] = accessorIDEntry{
+			id:   uint32(strpool.Intern(entry.GetName())),
+			kind: AccessorSummary_FromProtoKind(entry.GetKind()),
+		}
+	}
+	return newAccessorSummaryFromIDs([][]accessorIDEntry{entries})
 }
 
 // Java: AccessorSummary.fromProto(PropertyAccessKindProto)

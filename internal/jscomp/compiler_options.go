@@ -31,19 +31,20 @@ import (
 var defaultConformanceRemoveRegexFromPath = jutil.Pattern_Compile(
 	"^((.*/)?google3/)?(/?(blaze|bazel)-out/[^/]+/(bin|genfiles)/)?")
 
-var (
-	compilerOptionsEmptyStringSet       = jutil.NewLinkedHashSet[string]()
-	compilerOptionsEmptyStringMap       = jutil.NewLinkedHashMap[string, string]()
-	compilerOptionsEmptyIdGeneratorsMap = jutil.NewLinkedHashMap[string, RenamingMap]()
-	compilerOptionsEmptyInputSourceMaps = jutil.NewLinkedHashMap[string, *SourceMapInput]()
-)
-
 func cloneOrEmptyStringSet(s *jutil.LinkedHashSet[string]) *jutil.LinkedHashSet[string] {
 	jutil.CheckNotNull(s)
 	if s.IsEmpty() {
-		return compilerOptionsEmptyStringSet
+		return jutil.NewLinkedHashSet[string]()
 	}
 	return jutil.NewLinkedHashSet(s.ToSlice()...)
+}
+
+func copyIntoOrderedStringSet(dst *OrderedSet[string], src *jutil.LinkedHashSet[string]) {
+	jutil.CheckNotNull(src)
+	dst.Clear()
+	for v := range src.All() {
+		dst.Add(v)
+	}
 }
 
 // CompilerOptions holds the compiler options.
@@ -303,11 +304,11 @@ type CompilerOptions struct {
 	// Gather CSS names (requires closurePass)
 	gatherCssNames bool
 	// Names of types to strip
-	stripTypes *jutil.LinkedHashSet[string]
+	stripTypes OrderedSet[string]
 	// Name suffixes that determine which variables and properties to strip
-	stripNameSuffixes *jutil.LinkedHashSet[string]
+	stripNameSuffixes OrderedSet[string]
 	// Name prefixes that determine which variables and properties to strip
-	stripNamePrefixes *jutil.LinkedHashSet[string]
+	stripNamePrefixes OrderedSet[string]
 	// Custom passes
 	customPasses *customPassMap
 	// Replacements for @defines. Will be Boolean, Numbers, or Strings
@@ -567,173 +568,57 @@ type CompilerOptions struct {
 //
 // Java: CompilerOptions()
 func NewCompilerOptions() *CompilerOptions {
-	o := &CompilerOptions{}
-	// Field initializers.
-	o.emitUseStrict = base.Tri_UNKNOWN
-	o.experimentalOutputFeatureSet = nil
-	o.languageOutIsDefaultStrict = base.Tri_UNKNOWN
-	o.optimizeLocalAccessForGlobalSymbolNamespace = CompilerOptions_OptimizeLocalAccess_DISABLED
-	o.inferConsts = true
-	o.incrementalCheckMode = CompilerOptions_IncrementalCheckMode_OFF
-	o.parseJsDocDocumentation = parsing.Config_JsDocParsing_TYPES_ONLY
-	o.dependencyOptions = DependencyOptions_None()
-	o.numParallelThreads = 1
-	o.fastMode = os.Getenv("JSGO_FAST_MODE") == "1"
-	o.useSizeHeuristicToStopOptimizationLoop = true
-	o.j2clMinifierEnabled = true
-	o.removeJ2clAsserts = true
-	o.replaceIdGenerators = true
-	o.moduleRoots = []string{ModuleLoader_DEFAULT_FILENAME_PREFIX}
-	o.es6SubclassTranspilation = CompilerOptions_Es6SubclassTranspilation_CONCISE_UNSAFE
-	o.forceLibraryInjection = []string{}
-	o.runtimeLibraryMode = RuntimeJsLibManager_RuntimeLibraryMode_INJECT
-	o.inputDelimiter = "// Input %num%"
-	o.filesToPrintAfterEachPassRegexList = []string{}
-	o.chunksToPrintAfterEachPassRegexList = []string{}
-	o.qnameUsesToPrintAfterEachPassList = []string{}
-	o.warningsGuard = NewComposeWarningsGuard()
-	o.summaryDetailLevel = 1
-	o.lineLengthThreshold = CompilerOptions_DEFAULT_LINE_LENGTH_THRESHOLD
-	o.extraReportGenerators = []SortingErrorManager_ErrorReportGenerator{}
-	o.sourceMapDetailLevel = SourceMap_DetailLevel_ALL
-	o.sourceMapFormat = SourceMap_Format_DEFAULT
-	o.parseInlineSourceMaps = true
-	o.resolveSourceMapAnnotations = true
-	o.sourceMapLocationMappings = []SourceMap_LocationMapping{}
-	o.assumeGettersArePure = true
-	o.assumePropertiesAreStaticallyAnalyzable = true
-	o.assumeStaticInheritanceIsNotUsed = true
-	o.conformanceConfigs = []*ConformanceConfig{}
-	o.conformanceReportingMode = CompilerOptions_ConformanceReportingMode_IGNORE_LIBRARY_LEVEL_BEHAVIOR_SPECIFIED_IN_CONFIG
-	o.conformanceRemoveRegexFromPath = defaultConformanceRemoveRegexFromPath
-	o.wrapGoogModulesForWhitespaceOnly = true
-	o.isStrictModeInput = base.Tri_UNKNOWN
-	o.enableModuleRewriting = true
-	o.unknownDefinesToIgnore = []string{}
-	o.es6ModuleTranspilation = CompilerOptions_Es6ModuleTranspilation_COMPILE
-	// Constructor body.
-	// Accepted language
-	o.languageIn = CompilerOptions_LanguageMode_STABLE_IN
-
-	// Which environment to use
-	o.environment = CompilerOptions_Environment_BROWSER
-	o.browserResolverPrefixReplacements = compilerOptionsEmptyStringMap
-
-	// Modules
-	o.moduleResolutionMode = ModuleLoader_ResolutionMode_BROWSER
-	o.packageJsonEntryNames = []string{"browser", "module", "main"}
-	o.pathEscaper = ModuleLoader_PathEscaper_ESCAPE
-	o.rewriteModulesBeforeTypechecking = false
-	o.enableModuleRewriting = true
-
-	// Checks
-	o.skipNonTranspilationPasses = false
-	o.devMode = CompilerOptions_DevMode_OFF
-	o.checkDeterminism = false
-	o.checkSymbols = false
-	o.checkSuspiciousCode = false
-	o.checkTypes = false
-	o.computeFunctionSideEffects = false
-	o.extraAnnotationNames = nil
-
-	// Optimizations
-	o.foldConstants = false
-	o.coalesceVariableNames = false
-	o.optimizeLetAndConst = true
-	o.assumeGlobalScopeIsIsolated = false
-	o.deadAssignmentElimination = false
-	o.deadPropertyAssignmentElimination = base.Tri_UNKNOWN
-	o.inlineConstantVars = false
-	o.inlineFunctionsLevel = CompilerOptions_Reach_NONE
-	o.maxFunctionSizeAfterInlining = CompilerOptions_UNLIMITED_FUN_SIZE_AFTER_INLINING
-	o.assumeStrictThis = false
-	o.inlineProperties = false
-	o.crossChunkCodeMotion = false
-	o.parentChunkCanSeeSymbolsDeclaredInChildren = false
-	o.crossChunkMethodMotion = false
-	o.inlineGetters = false
-	o.inlineVariables = false
-	o.inlineLocalVariables = false
-	o.smartNameRemoval = false
-	o.extractPrototypeMemberDeclarations = CompilerOptions_ExtractPrototypeMemberDeclarationsMode_OFF
-	o.removeUnusedPrototypeProperties = false
-	o.removeUnusedClassProperties = false
-	o.removeUnusedVars = false
-	o.removeUnusedLocalVars = false
-	o.collapseVariableDeclarations = false
-	o.collapseAnonymousFunctions = false
-	o.aliasStringsMode = CompilerOptions_AliasStringsMode_NONE
-	o.outputJsStringUsage = false
-	o.convertToDottedProperties = false
-	o.rewriteFunctionExpressions = false
-	o.validateRequireInliningAnnotation = base.Tri_UNKNOWN
-
-	// Renaming
-	o.variableRenaming = VariableRenamingPolicy_OFF
-	o.propertyRenaming = PropertyRenamingPolicy_OFF
-	o.propertyRenamingOnlyCompilationMode = false
-	o.labelRenaming = false
-	o.generatePseudoNames = false
-	o.preferStableNames = false
-	o.renamePrefix = nil
-	o.collapsePropertiesLevel = CompilerOptions_PropertyCollapseLevel_NONE
-	o.collapseObjectLiterals = false
-	o.devirtualizeMethods = false
-	o.disambiguateProperties = false
-	o.ambiguateProperties = false
-	o.exportTestFunctions = false
-	o.nameGenerator = NewDefaultNameGenerator()
-
-	// Alterations
-
-	o.syntheticBlockStartMarker = nil
-	o.syntheticBlockEndMarker = nil
-	o.locale = nil
-	o.doLateLocalization = false
-	o.markAsCompiled = false
-	o.closurePass = false
-	o.preserveClosurePrimitives = false
-	o.angularPass = false
-	o.polymerPass = false
-	o.j2clPassMode = CompilerOptions_J2clPassMode_AUTO
-	o.j2clMinifierEnabled = true
-	o.removeAbstractMethods = false
-	o.removeClosureAsserts = false
-	o.stripTypes = compilerOptionsEmptyStringSet
-	o.stripNameSuffixes = compilerOptionsEmptyStringSet
-	o.stripNamePrefixes = compilerOptionsEmptyStringSet
-	o.customPasses = nil
-	o.tweakProcessing = CompilerOptions_TweakProcessing_OFF
-	o.rewriteGlobalDeclarationsForTryCatchWrapping = false
-	o.checksOnly = false
-	o.outputJs = CompilerOptions_OutputJs_NORMAL
-	o.generateExports = true
-	o.exportLocalPropertyDefinitions = true
-	o.cssRenamingMap = nil
-	o.cssRenamingSkiplist = nil
-	o.idGenerators = compilerOptionsEmptyIdGeneratorsMap
-	o.replaceStringsFunctionDescriptions = []string{}
-	o.replaceStringsPlaceholderToken = ""
-	o.propertiesThatMustDisambiguate = compilerOptionsEmptyStringSet
-	o.inputSourceMaps = compilerOptionsEmptyInputSourceMaps
-
-	o.instrumentForCoverageOption = CompilerOptions_InstrumentOption_NONE
-	o.productionInstrumentationArrayName = ""
-
-	// Output
-	o.preserveTypeAnnotations = false
-	o.gentsMode = false
-	o.printInputDelimiter = false
-	o.prettyPrint = false
-	o.lineBreak = false
-	o.tracer = CompilerOptions_TracerMode_OFF
-	o.colorizeErrorOutput = false
-	o.errorFormat = ErrorFormat_FULL
-	o.chunkOutputType = CompilerOptions_ChunkOutputType_GLOBAL_NAMESPACE
-
-	// Debugging
-	o.errorHandler = nil
-	o.printSourceAfterEachPass = false
-	o.strictMessageReplacement = false
-	return o
+	return &CompilerOptions{
+		emitUseStrict:                           base.Tri_UNKNOWN,
+		languageIn:                              CompilerOptions_LanguageMode_STABLE_IN,
+		languageOutIsDefaultStrict:              base.Tri_UNKNOWN,
+		inferConsts:                             true,
+		dependencyOptions:                       DependencyOptions_None(),
+		numParallelThreads:                      1,
+		deadPropertyAssignmentElimination:       base.Tri_UNKNOWN,
+		maxFunctionSizeAfterInlining:            CompilerOptions_UNLIMITED_FUN_SIZE_AFTER_INLINING,
+		optimizeLetAndConst:                     true,
+		useSizeHeuristicToStopOptimizationLoop:  true,
+		collapsePropertiesLevel:                 CompilerOptions_PropertyCollapseLevel_NONE,
+		inputSourceMaps:                         jutil.NewLinkedHashMap[string, *SourceMapInput](),
+		nameGenerator:                           NewDefaultNameGenerator(),
+		j2clPassMode:                            CompilerOptions_J2clPassMode_AUTO,
+		j2clMinifierEnabled:                     true,
+		removeJ2clAsserts:                       true,
+		outputJs:                                CompilerOptions_OutputJs_NORMAL,
+		generateExports:                         true,
+		exportLocalPropertyDefinitions:          true,
+		replaceIdGenerators:                     true,
+		replaceStringsFunctionDescriptions:      []string{},
+		validateRequireInliningAnnotation:       base.Tri_UNKNOWN,
+		moduleRoots:                             []string{ModuleLoader_DEFAULT_FILENAME_PREFIX},
+		forceLibraryInjection:                   []string{},
+		inputDelimiter:                          "// Input %num%",
+		filesToPrintAfterEachPassRegexList:      []string{},
+		chunksToPrintAfterEachPassRegexList:     []string{},
+		qnameUsesToPrintAfterEachPassList:       []string{},
+		tracer:                                  CompilerOptions_TracerMode_OFF,
+		errorFormat:                             ErrorFormat_FULL,
+		warningsGuard:                           NewComposeWarningsGuard(),
+		summaryDetailLevel:                      1,
+		lineLengthThreshold:                     CompilerOptions_DEFAULT_LINE_LENGTH_THRESHOLD,
+		extraReportGenerators:                   []SortingErrorManager_ErrorReportGenerator{},
+		parseInlineSourceMaps:                   true,
+		resolveSourceMapAnnotations:             true,
+		sourceMapLocationMappings:               []SourceMap_LocationMapping{},
+		assumeGettersArePure:                    true,
+		assumePropertiesAreStaticallyAnalyzable: true,
+		assumeStaticInheritanceIsNotUsed:        true,
+		conformanceConfigs:                      []*ConformanceConfig{},
+		conformanceRemoveRegexFromPath:          defaultConformanceRemoveRegexFromPath,
+		wrapGoogModulesForWhitespaceOnly:        true,
+		isStrictModeInput:                       base.Tri_UNKNOWN,
+		enableModuleRewriting:                   true,
+		browserResolverPrefixReplacements:       jutil.NewLinkedHashMap[string, string](),
+		packageJsonEntryNames:                   []string{"browser", "module", "main"},
+		unknownDefinesToIgnore:                  []string{},
+		inlineFunctionsLevel:                    CompilerOptions_Reach_NONE,
+		es6ModuleTranspilation:                  CompilerOptions_Es6ModuleTranspilation_COMPILE,
+		fastMode:                                os.Getenv("JSGO_FAST_MODE") == "1",
+	}
 }

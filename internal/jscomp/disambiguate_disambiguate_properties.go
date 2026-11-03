@@ -496,13 +496,32 @@ func (j *disambiguateProperties_PropertyReferenceJson) CompareTo(x *disambiguate
 	return jutil.StringCompareTo(j.Location, x.Location)
 }
 
+type disambiguateProperties_TypeNodePropJson struct {
+	name        string
+	association ColorGraphNode_PropAssociation
+}
+
+type disambiguateProperties_TypeNodePropsJson struct {
+	items []disambiguateProperties_TypeNodePropJson
+}
+
+func (p disambiguateProperties_TypeNodePropsJson) WriteGson(out *jutil.JsonWriter) {
+	out.BeginObject()
+	for i := range p.items {
+		out.Name(p.items[i].name)
+		s := p.items[i].association.String()
+		out.ValueString(&s)
+	}
+	out.EndObject()
+}
+
 // Java: private static final class DisambiguateProperties.TypeNodeJson
 type disambiguateProperties_TypeNodeJson struct {
-	Index        int                                                          `gson:"index"`
-	Invalidating bool                                                         `gson:"invalidating"`
-	ColorId      string                                                       `gson:"colorId"`
-	Edges        []*disambiguateProperties_TypeEdgeJson                       `gson:"edges"`
-	Props        *jutil.LinkedHashMap[string, ColorGraphNode_PropAssociation] `gson:"props"`
+	Index        int                                      `gson:"index"`
+	Invalidating bool                                     `gson:"invalidating"`
+	ColorId      string                                   `gson:"colorId"`
+	Edges        []*disambiguateProperties_TypeEdgeJson   `gson:"edges"`
+	Props        disambiguateProperties_TypeNodePropsJson `gson:"props"`
 }
 
 // Java: DisambiguateProperties.TypeNodeJson(DiGraph.DiGraphNode<ColorGraphNode, Object>)
@@ -524,21 +543,23 @@ func newDisambiguateProperties_TypeNodeJson(
 	j.Edges = slices.CompactFunc(j.Edges, func(a, b *disambiguateProperties_TypeEdgeJson) bool { return a.CompareTo(b) == 0 })
 	// collect(toImmutableSortedMap(naturalOrder(), e -> e.getKey().getName(), Map.Entry::getValue))
 	tProps := t.Props()
-	names := make([]string, 0, len(tProps))
-	byName := make(map[string]ColorGraphNode_PropAssociation, len(tProps))
-	for _, prop := range tProps {
-		name := prop.GetName()
-		if _, exists := byName[name]; exists {
-			panic(jutil.NewIllegalArgumentExceptionMsg("Duplicate keys in toImmutableSortedMap: " + name))
+	if len(tProps) > 0 {
+		items := make([]disambiguateProperties_TypeNodePropJson, len(tProps))
+		for i, prop := range tProps {
+			items[i] = disambiguateProperties_TypeNodePropJson{
+				name:        prop.GetName(),
+				association: propAssocs[propAssocKey{node: t, prop: prop}],
+			}
 		}
-		association := propAssocs[propAssocKey{node: t, prop: prop}]
-		byName[name] = association
-		names = append(names, name)
-	}
-	slices.SortStableFunc(names, jutil.StringCompareTo)
-	j.Props = jutil.NewLinkedHashMap[string, ColorGraphNode_PropAssociation]()
-	for _, name := range names {
-		j.Props.Put(name, byName[name])
+		slices.SortFunc(items, func(a, b disambiguateProperties_TypeNodePropJson) int {
+			return jutil.StringCompareTo(a.name, b.name)
+		})
+		for i := 1; i < len(items); i++ {
+			if items[i-1].name == items[i].name {
+				panic(jutil.NewIllegalArgumentExceptionMsg("Duplicate keys in toImmutableSortedMap: " + items[i].name))
+			}
+		}
+		j.Props = disambiguateProperties_TypeNodePropsJson{items: items}
 	}
 	return j
 }

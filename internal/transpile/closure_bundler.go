@@ -91,12 +91,6 @@ func (b *ClosureBundler) WithEs6ModuleTranspiler(newEs6ModuleTranspiler Transpil
 	return b.WithTranspilers(b.transpiler, newEs6ModuleTranspiler)
 }
 
-// Java: ClosureBundler.disableJ2clMinifier()
-func (b *ClosureBundler) DisableJ2clMinifier() *ClosureBundler {
-	cp := *b
-	return &cp
-}
-
 // Java: ClosureBundler.useEval(boolean)
 func (b *ClosureBundler) UseEval(useEval bool) *ClosureBundler {
 	cp := *b

@@ -100,10 +100,10 @@ func NewConvertToTypedInterface(compiler AbstractCompiler) *ConvertToTypedInterf
 // Java: ConvertToTypedInterface.maybeReport(AbstractCompiler, Node, DiagnosticType, String...)
 func ConvertToTypedInterface_MaybeReport(
 	compiler AbstractCompiler, node rhino.Node, diagnostic *DiagnosticType, fillers ...string) {
-	sourceName := *NodeUtil_GetSourceName(node)
-	if strings.HasSuffix(sourceName, "_test.js") ||
-		strings.HasSuffix(sourceName, "_test.closure.js") ||
-		strings.HasSuffix(sourceName, "_test.tsx.cl.js") {
+	if sourceName := NodeUtil_GetSourceName(node); sourceName != nil &&
+		(strings.HasSuffix(*sourceName, "_test.js") ||
+			strings.HasSuffix(*sourceName, "_test.closure.js") ||
+			strings.HasSuffix(*sourceName, "_test.tsx.cl.js")) {
 		// Allow _test.js files and their tsickle generated
 		// equivalents to avoid emitting errors at .i.js generation time.
 		// We expect these files to not be consumed by any other downstream libraries.
@@ -142,8 +142,11 @@ func (c *ConvertToTypedInterface) Process(externs rhino.Node, root rhino.Node) {
 // Java: ConvertToTypedInterface.processFile(Node)
 func (c *ConvertToTypedInterface) ProcessFile(scriptNode rhino.Node) {
 	jutil.CheckArgument(scriptNode.IsScript())
-	sourceFileName := scriptNode.GetSourceFileName()
-	if AbstractCompiler_IsFillFileName(*sourceFileName) {
+	var sourceFileName string
+	if s := scriptNode.GetSourceFileName(); s != nil {
+		sourceFileName = *s
+	}
+	if AbstractCompiler_IsFillFileName(sourceFileName) {
 		scriptNode.Detach()
 		return
 	}
@@ -158,7 +161,7 @@ func (c *ConvertToTypedInterface) ProcessFile(scriptNode rhino.Node) {
 		scriptNode.SetJSDocInfo(scriptJsDocBuilder.Build())
 	}
 
-	currentFile := NewFileInfo(*sourceFileName)
+	currentFile := NewFileInfo(sourceFileName)
 	NodeTraversal_Traverse(c.compiler, scriptNode, ConvertToTypedInterface_RemoveNonDeclarations{})
 	NodeTraversal_Traverse(c.compiler, scriptNode, NewConvertToTypedInterface_PropagateConstJsdoc(currentFile))
 	NewConvertToTypedInterface_SimplifyDeclarations(c.compiler, currentFile).SimplifyAll()
@@ -233,8 +236,8 @@ func (ConvertToTypedInterface_RemoveNonDeclarations) ShouldTraverse(t *NodeTrave
 		case rhino.Token_CALL:
 			callee := ast.MustCall(expr).Callee().Node()
 			jutil.CheckState(!convertToTypedInterface_RemoveNonDeclarations_GOOG_SCOPE.Matches(callee))
-			qname := callee.GetQualifiedName()
-			return preserveOrDelete(n, t, qname != nil && isCallToPreserve(*qname))
+			qname, ok := callee.GetQualifiedNameString()
+			return preserveOrDelete(n, t, ok && isCallToPreserve(qname))
 		case rhino.Token_ASSIGN:
 			return preserveOrDelete(n, t, ConvertToTypedInterface_ShouldPreserveAssignment(expr, t))
 		case rhino.Token_GETPROP:
@@ -282,6 +285,8 @@ func (ConvertToTypedInterface_RemoveNonDeclarations) ShouldTraverse(t *NodeTrave
 		NodeUtil_DeleteNode(ast.MustDo(n).Cond().Node(), t.GetCompiler())
 		return true
 	case rhino.Token_FOR:
+		// Intentionally mutates FOR into a temporary invalid child layout (like FOR_OF below)
+		// so Visit can splice remaining children (including EMPTY placeholders from DeleteNode) into parent.
 		compiler := t.GetCompiler()
 		initNode := n.GetFirstChild()
 		condNode := initNode.GetNext()

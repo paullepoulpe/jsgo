@@ -109,16 +109,11 @@ func (d defineReplacement) toNode() rhino.Node {
 	}
 }
 
-var compilerOptionsEmptyDefineReplacementsMap = jutil.NewLinkedHashMap[string, rhino.Node]()
-
 // Returns the map of define replacements.
 //
 // Java: CompilerOptions.getDefineReplacements()
 func (o *CompilerOptions) GetDefineReplacements() *jutil.LinkedHashMap[string, rhino.Node] {
-	if len(o.defineReplacements.entries) == 0 {
-		return compilerOptionsEmptyDefineReplacementsMap
-	}
-	m := jutil.NewLinkedHashMap[string, rhino.Node]()
+	m := jutil.NewLinkedHashMapWithCapacity[string, rhino.Node](len(o.defineReplacements.entries))
 	for _, e := range o.defineReplacements.entries {
 		m.Put(e.Key, e.Value.toNode())
 	}

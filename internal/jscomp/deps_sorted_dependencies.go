@@ -77,6 +77,17 @@ func NewSortedDependencies[InputT SortedDependencies_Input](userOrderedInputs []
 	return d
 }
 
+type sortedDepHashable interface {
+	HashCode() int32
+}
+
+func sortedDepHash(v any) int32 {
+	if h, ok := v.(sortedDepHashable); ok {
+		return h.HashCode()
+	}
+	return 0
+}
+
 func sortedDepInputsEqual[InputT SortedDependencies_Input](a, b InputT) bool {
 	if a == b {
 		return true
@@ -96,7 +107,7 @@ func (d *SortedDependencies[InputT]) lookupID(input InputT) (int32, bool) {
 		return id, true
 	}
 	if d.hashToIDs != nil {
-		for _, candID := range d.hashToIDs[jutil.ObjectHashCode(input)] {
+		for _, candID := range d.hashToIDs[sortedDepHash(input)] {
 			if sortedDepInputsEqual(d.uniqueInputs[candID], input) {
 				return candID, true
 			}
@@ -375,21 +386,32 @@ func (d *SortedDependencies[InputT]) ProcessInputs() {
 	d.userOrderedIDs = make([]int32, n)
 	d.exportingIDBySymbolName = make(map[string]int32, n)
 
+	var zero InputT
+	_, concreteEqualer := any(zero).(jutil.Equaler)
+	mayImplementEqualer := any(zero) == nil || concreteEqualer
+
 	// Index.
 	for i, userOrderedInput := range userSlice {
 		id, ok := d.ptrToID[userOrderedInput]
 		var eqHash int32
-		_, isEqualer := any(userOrderedInput).(jutil.Equaler)
-		if !ok && isEqualer {
-			if d.hashToIDs == nil {
-				d.hashToIDs = make(map[int32][]int32, n)
+		var isEqualer bool
+		if !ok && mayImplementEqualer {
+			if concreteEqualer {
+				isEqualer = true
+			} else {
+				_, isEqualer = any(userOrderedInput).(jutil.Equaler)
 			}
-			eqHash = jutil.ObjectHashCode(userOrderedInput)
-			for _, candID := range d.hashToIDs[eqHash] {
-				if sortedDepInputsEqual(d.uniqueInputs[candID], userOrderedInput) {
-					id, ok = candID, true
-					d.ptrToID[userOrderedInput] = id
-					break
+			if isEqualer {
+				if d.hashToIDs == nil {
+					d.hashToIDs = make(map[int32][]int32, n)
+				}
+				eqHash = sortedDepHash(userOrderedInput)
+				for _, candID := range d.hashToIDs[eqHash] {
+					if sortedDepInputsEqual(d.uniqueInputs[candID], userOrderedInput) {
+						id, ok = candID, true
+						d.ptrToID[userOrderedInput] = id
+						break
+					}
 				}
 			}
 		}

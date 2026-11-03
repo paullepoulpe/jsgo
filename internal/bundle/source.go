@@ -47,8 +47,8 @@ func (l lazyString) get() string {
 // Source is an abstract representation of a source file.
 //
 // Go-only: language-adapter — Source is an @AutoValue: the abstract class
-// and the generated AutoValue_Source (fields, equals, hashCode, toString,
-// Builder) are flattened into plain value fields here (PORTING.md §4).
+// and the generated AutoValue_Source (fields, equals, hashCode, toString)
+// are flattened into plain value fields constructed via SourceConfig.
 type Source struct {
 	path             *jutil.Path
 	sourceMap        string
@@ -123,23 +123,19 @@ func (s *Source) Code() string { return s.code.get() }
 // Java: Source.originalCode()
 func (s *Source) OriginalCode() string { return s.originalCode.get() }
 
-// ToBuilder copies the data from this source to a new builder.
-//
-// Java: Source.toBuilder()
-func (s *Source) ToBuilder() *Source_Builder {
-	return &Source_Builder{
-		path:             s.path,
-		sourceMap:        s.sourceMap,
-		sourceUrl:        s.sourceUrl,
-		sourceMappingUrl: s.sourceMappingUrl,
-		runtimes:         s.runtimes,
-		loadFlags:        s.loadFlags,
-		estimatedSize:    s.estimatedSize,
-		code:             s.code,
-		hasCode:          true,
-		originalCode:     s.originalCode,
-		hasOriginalCode:  true,
+// WithTransformed returns a copy of s with transformed code, sourceMap, and any
+// additional unique runtime libraries appended in order, preserving originalCode
+// and all other metadata.
+func (s *Source) WithTransformed(code, sourceMap string, extraRuntimes ...string) *Source {
+	out := *s
+	out.code = lazyString{val: code}
+	out.sourceMap = sourceMap
+	if len(extraRuntimes) > 0 {
+		next := make([]string, len(s.runtimes), len(s.runtimes)+len(extraRuntimes))
+		copy(next, s.runtimes)
+		out.runtimes = appendUniqueRuntimes(next, extraRuntimes...)
 	}
+	return &out
 }
 
 var source_DEV_NULL = jutil.Path_Of("/dev/null")
@@ -260,54 +256,20 @@ func (s *Source) HashCode() int32 {
 	return h
 }
 
-// Source_Builder is the builder for Source instances.
-type Source_Builder struct {
-	path             *jutil.Path
-	sourceMap        string
-	sourceUrl        string
-	sourceMappingUrl string
-	runtimes         []string
-	loadFlags        []sourceLoadFlag
-	estimatedSize    int
-	code             lazyString
-	hasCode          bool
-	originalCode     lazyString
-	hasOriginalCode  bool
-}
-
-// Java: AutoValue_Source.Builder()
-func NewSource_Builder() *Source_Builder {
-	return &Source_Builder{
-		path:    source_DEV_NULL,
-		hasCode: true,
-	}
-}
-
-// Java: Source.Builder.setPath(Path)
-func (b *Source_Builder) SetPath(path *jutil.Path) *Source_Builder {
-	if path == nil {
-		panic(jutil.NewNullPointerExceptionMsg("Null path"))
-	}
-	b.path = path
-	return b
-}
-
-// Java: Source.Builder.setSourceMap(String)
-func (b *Source_Builder) SetSourceMap(sourceMap string) *Source_Builder {
-	b.sourceMap = sourceMap
-	return b
-}
-
-// Java: Source.Builder.setSourceUrl(String)
-func (b *Source_Builder) SetSourceUrl(sourceUrl string) *Source_Builder {
-	b.sourceUrl = sourceUrl
-	return b
-}
-
-// Java: Source.Builder.setSourceMappingUrl(String)
-func (b *Source_Builder) SetSourceMappingUrl(sourceMappingUrl string) *Source_Builder {
-	b.sourceMappingUrl = sourceMappingUrl
-	return b
+// SourceConfig specifies fields for constructing an immutable Source via NewSource.
+// Zero values use Source's defaults (Path defaults to /dev/null; OriginalCode
+// defaults to Code / CodeSupplier when empty).
+type SourceConfig struct {
+	Path             *jutil.Path
+	SourceMap        string
+	SourceUrl        string
+	SourceMappingUrl string
+	Runtimes         []string
+	LoadFlags        map[string]string
+	EstimatedSize    int
+	Code             string
+	CodeSupplier     func() string
+	OriginalCode     string
 }
 
 func appendUniqueRuntimes(dst []string, runtimes ...string) []string {
@@ -319,109 +281,47 @@ func appendUniqueRuntimes(dst []string, runtimes ...string) []string {
 	return dst
 }
 
-// Java: Source.Builder.setRuntimes(ImmutableSet<String>)
-func (b *Source_Builder) SetRuntimes(runtimes []string) *Source_Builder {
-	if runtimes == nil {
-		panic(jutil.NewNullPointerExceptionMsg("Null runtimes"))
+// NewSource constructs an immutable Source from cfg.
+func NewSource(cfg SourceConfig) *Source {
+	path := cfg.Path
+	if path == nil {
+		path = source_DEV_NULL
 	}
-	if len(runtimes) == 0 {
-		b.runtimes = nil
-		return b
+	var code lazyString
+	if cfg.CodeSupplier != nil {
+		code = lazyString{fn: sync.OnceValue(cfg.CodeSupplier)}
+	} else {
+		code = lazyString{val: cfg.Code}
 	}
-	b.runtimes = appendUniqueRuntimes(make([]string, 0, len(runtimes)), runtimes...)
-	return b
-}
-
-// Java: Source.Builder.setLoadFlags(ImmutableMap<String, String>)
-func (b *Source_Builder) SetLoadFlags(flags map[string]string) *Source_Builder {
-	if flags == nil {
-		panic(jutil.NewNullPointerExceptionMsg("Null loadFlags"))
+	orig := code
+	if cfg.OriginalCode != "" {
+		orig = lazyString{val: cfg.OriginalCode}
 	}
-	if len(flags) == 0 {
-		b.loadFlags = nil
-		return b
+	var runtimes []string
+	if len(cfg.Runtimes) > 0 {
+		runtimes = appendUniqueRuntimes(make([]string, 0, len(cfg.Runtimes)), cfg.Runtimes...)
 	}
-	entries := make([]sourceLoadFlag, 0, len(flags))
-	for k, v := range flags { // order-independent: entries are sorted by key immediately below
-		entries = append(entries, sourceLoadFlag{key: k, value: v})
-	}
-	slices.SortFunc(entries, func(a, c sourceLoadFlag) int {
-		return strings.Compare(a.key, c.key)
-	})
-	b.loadFlags = entries
-	return b
-}
-
-// Java: Source.Builder.setEstimatedSize(int)
-func (b *Source_Builder) SetEstimatedSize(estimatedSize int) *Source_Builder {
-	b.estimatedSize = estimatedSize
-	return b
-}
-
-// Java: Source.Builder.setCode(Supplier<String>)
-func (b *Source_Builder) SetCodeFromSupplier(code func() string) *Source_Builder {
-	jutil.CheckNotNull(code)
-	b.code = lazyString{fn: sync.OnceValue(code)}
-	b.hasCode = true
-	return b
-}
-
-// Java: Source.Builder.setCode(String)
-func (b *Source_Builder) SetCode(code string) *Source_Builder {
-	b.code = lazyString{val: code}
-	b.hasCode = true
-	return b
-}
-
-// Java: Source.Builder.setOriginalCode(String)
-func (b *Source_Builder) SetOriginalCode(code string) *Source_Builder {
-	b.originalCode = lazyString{val: code}
-	b.hasOriginalCode = true
-	return b
-}
-
-// Java: Source.Builder.addRuntime(String...)
-func (b *Source_Builder) AddRuntime(runtimes ...string) *Source_Builder {
-	if len(runtimes) == 0 {
-		return b
-	}
-	next := make([]string, len(b.runtimes), len(b.runtimes)+len(runtimes))
-	copy(next, b.runtimes)
-	b.runtimes = appendUniqueRuntimes(next, runtimes...)
-	return b
-}
-
-// Java: Source.Builder.build()
-func (b *Source_Builder) Build() *Source {
-	if !b.hasCode {
-		panic(jutil.NewIllegalStateExceptionMsg("Property \"codeSupplier\" has not been set"))
-	}
-	if b.path == nil {
-		panic(jutil.NewIllegalStateExceptionMsg("Missing required properties: path"))
-	}
-	orig := b.originalCode
-	if !b.hasOriginalCode {
-		orig = b.code
+	var loadFlags []sourceLoadFlag
+	if len(cfg.LoadFlags) > 0 {
+		loadFlags = make([]sourceLoadFlag, 0, len(cfg.LoadFlags))
+		for k, v := range cfg.LoadFlags { // order-independent: entries are sorted by key immediately below
+			loadFlags = append(loadFlags, sourceLoadFlag{key: k, value: v})
+		}
+		slices.SortFunc(loadFlags, func(a, c sourceLoadFlag) int {
+			return strings.Compare(a.key, c.key)
+		})
 	}
 	return &Source{
-		path:             b.path,
-		sourceMap:        b.sourceMap,
-		sourceUrl:        b.sourceUrl,
-		sourceMappingUrl: b.sourceMappingUrl,
-		runtimes:         b.runtimes,
-		loadFlags:        b.loadFlags,
-		estimatedSize:    b.estimatedSize,
-		code:             b.code,
+		path:             path,
+		sourceMap:        cfg.SourceMap,
+		sourceUrl:        cfg.SourceUrl,
+		sourceMappingUrl: cfg.SourceMappingUrl,
+		runtimes:         runtimes,
+		loadFlags:        loadFlags,
+		estimatedSize:    cfg.EstimatedSize,
+		code:             code,
 		originalCode:     orig,
 	}
-}
-
-// Java: Source.Builder.runtimes()
-func (b *Source_Builder) Runtimes() []string {
-	if len(b.runtimes) == 0 {
-		return []string{}
-	}
-	return slices.Clone(b.runtimes)
 }
 
 // Source_Transformer is an automorphic transformation on sources.

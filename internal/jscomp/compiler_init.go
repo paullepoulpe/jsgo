@@ -822,7 +822,7 @@ func (c *Compiler) maybePrintSourceAfterEachPass(passName string) {
 
 // Java: Compiler.getCurrentJsSource()
 func (c *Compiler) GetCurrentJsSource() string {
-	c.ResetAndIntitializeSourceMap()
+	c.ResetAndInitializeSourceMap()
 
 	fileNameRegexList := c.options.GetFilesToPrintAfterEachPassRegexList()
 	chunkNameRegexList := c.options.GetChunksToPrintAfterEachPassRegexList()

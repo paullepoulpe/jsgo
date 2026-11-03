@@ -76,19 +76,6 @@ type LiveVariablesAnalysis_LiveVariableLattice struct {
 	liveSet smallBitSet
 }
 
-// Java: LiveVariablesAnalysis.LiveVariableLattice(LiveVariableLattice)
-func NewLiveVariablesAnalysis_LiveVariableLatticeOf(other *LiveVariablesAnalysis_LiveVariableLattice) *LiveVariablesAnalysis_LiveVariableLattice {
-	jutil.CheckNotNull(other)
-	return &LiveVariablesAnalysis_LiveVariableLattice{liveSet: other.liveSet.Clone()}
-}
-
-// Java: LiveVariablesAnalysis.LiveVariableLattice.equals(Object)
-func (l *LiveVariablesAnalysis_LiveVariableLattice) Equals(other any) bool {
-	jutil.CheckNotNull(other)
-	liveVariableLattice, ok := other.(*LiveVariablesAnalysis_LiveVariableLattice)
-	return ok && (l == liveVariableLattice || l.liveSet.Equals(&liveVariableLattice.liveSet))
-}
-
 // IsLive: there is only a version of this function with index since
 // var.index will return the wrong one. Use an instantiation of
 // LiveVariablesAnalysis and getVarIndex(var) to get the right index.
@@ -109,11 +96,6 @@ func (l *LiveVariablesAnalysis_LiveVariableLattice) String() string {
 // Java: LiveVariablesAnalysis.LiveVariableLattice.nextSetBit(int)
 func (l *LiveVariablesAnalysis_LiveVariableLattice) NextSetBit(fromIndex int) int {
 	return l.liveSet.NextSetBit(fromIndex)
-}
-
-// Java: LiveVariablesAnalysis.LiveVariableLattice.hashCode()
-func (l *LiveVariablesAnalysis_LiveVariableLattice) HashCode() int32 {
-	return l.liveSet.JavaHashCode()
 }
 
 // Reset resets l for reuse on a new function scope while retaining slab,
@@ -395,7 +377,7 @@ func (l *LiveVariablesAnalysis) flowThroughEdges(
 			break
 		}
 	}
-	l.computeGenKillBits(node, &l.genScratch, &l.killScratch, conditional)
+	l.computeGenKillBits(node, conditional)
 	// L_in = L_out - Kill + Gen
 	l.outScratch.SetAndNotOr(&input.liveSet, &l.killScratch, &l.genScratch)
 	if l.outScratch.Equals(&input.liveSet) {
@@ -412,110 +394,74 @@ func (l *LiveVariablesAnalysis) flowThroughEdges(
 	return result
 }
 
-func (l *LiveVariablesAnalysis) computeGenKillBits(n rhino.Node, gen *smallBitSet, kill *smallBitSet, conditional bool) {
+func (l *LiveVariablesAnalysis) computeGenKillBits(n rhino.Node, conditional bool) {
+	walkCfgCondEvalForward(n, conditional, l, (*LiveVariablesAnalysis).visitGenKillNode)
+}
+
+func (l *LiveVariablesAnalysis) visitGenKillNode(n rhino.Node, conditional bool) (cfgCondEvalState, bool) {
 	switch n.GetToken() {
-	case rhino.Token_SCRIPT, rhino.Token_ROOT, rhino.Token_FUNCTION, rhino.Token_BLOCK:
-		return
-	case rhino.Token_WHILE, rhino.Token_DO, rhino.Token_IF, rhino.Token_FOR:
-		l.computeGenKillBits(NodeUtil_GetConditionExpression(n), gen, kill, conditional)
-		return
 	case rhino.Token_FOR_OF, rhino.Token_FOR_AWAIT_OF, rhino.Token_FOR_IN:
-		{
-			// for (x in y) {...}
-			lhs := ast.MustEnhancedFor(n).Target().Node()
-			if decl, ok := ast.AsNameDeclaration(lhs); ok {
-				// for (var x in y) {...}
-				if last, hasLast := decl.LastDeclarator(); hasLast {
-					lhs = last.Node()
-				} else {
-					lhs = rhino.NilNode
-				}
+		// for (x in y) {...}
+		lhs := ast.MustEnhancedFor(n).Target().Node()
+		if decl, ok := ast.AsNameDeclaration(lhs); ok {
+			// for (var x in y) {...}
+			if last, hasLast := decl.LastDeclarator(); hasLast {
+				lhs = last.Node()
+			} else {
+				lhs = rhino.NilNode
 			}
-
-			// Note that the LHS may never be assigned to or evaluated, like in:
-			//   for (x in []) {}
-			// so should not be killed.
-			l.computeGenKillBits(lhs, gen, kill, conditional)
-
-			// rhs is executed only once so we don't go into it every loop.
-			return
 		}
+
+		// Note that the LHS may never be assigned to or evaluated, like in:
+		//   for (x in []) {}
+		// so should not be killed.
+		l.computeGenKillBits(lhs, conditional)
+
+		// rhs is executed only once so we don't go into it every loop.
+		return cfgCondEvalContinue, true
 	case rhino.Token_LET, rhino.Token_CONST, rhino.Token_VAR:
 		decl := ast.MustNameDeclaration(n)
 		for d, ok := decl.FirstDeclarator(); ok; d, ok = d.Next() {
 			if name, isName := d.AsName(); isName {
 				if init, hasInit := name.Init(); hasInit {
-					l.computeGenKillBits(init.Node(), gen, kill, conditional)
+					l.computeGenKillBits(init.Node(), conditional)
 					if !conditional {
-						l.addToSetIfLocalBits(name.Node(), kill)
+						l.addToSetIfLocalBits(name.Node(), &l.killScratch)
 					}
 				}
 			} else {
 				dlhs := d.MustDestructuringLhs()
 				if !conditional {
-					NodeUtil_VisitLhsNodesInNode(dlhs.Node(), func(lhsNode rhino.Node) { l.addToSetIfLocalBits(lhsNode, kill) })
+					NodeUtil_VisitLhsNodesInNode(dlhs.Node(), func(lhsNode rhino.Node) { l.addToSetIfLocalBits(lhsNode, &l.killScratch) })
 				}
-				l.computeGenKillBits(dlhs.Pattern().Node(), gen, kill, conditional)
+				l.computeGenKillBits(dlhs.Pattern().Node(), conditional)
 				if init, hasInit := dlhs.Init(); hasInit {
-					l.computeGenKillBits(init.Node(), gen, kill, conditional)
+					l.computeGenKillBits(init.Node(), conditional)
 				}
 			}
 		}
-		return
-	case rhino.Token_OPTCHAIN_GETPROP:
-		// Go-only: OPTCHAIN_GETPROP has only one child (Object; property is its string),
-		// so visiting Object once matches Java without O(2^k) re-traversal on chains.
-		l.computeGenKillBits(ast.MustOptChainGetProp(n).Object().Node(), gen, kill, conditional)
-		return
-	case rhino.Token_AND, rhino.Token_OR, rhino.Token_COALESCE:
-		bin := ast.MustBinary(n)
-		l.computeGenKillBits(bin.Left().Node(), gen, kill, conditional)
-		// May short circuit.
-		l.computeGenKillBits(bin.Right().Node(), gen, kill, true)
-		return
-	case rhino.Token_OPTCHAIN_GETELEM:
-		ge := ast.MustOptChainGetElem(n)
-		l.computeGenKillBits(ge.Object().Node(), gen, kill, conditional)
-		// May short circuit.
-		l.computeGenKillBits(ge.Index().Node(), gen, kill, true)
-		return
-	case rhino.Token_OPTCHAIN_CALL:
-		call := ast.MustOptChainCall(n)
-		l.computeGenKillBits(call.Callee().Node(), gen, kill, conditional)
-		// Unlike OPTCHAIN_GETPROP and OPTCHAIN_GETELEM, the OPTCHAIN_CALLs can have multiple
-		// children on rhs which get executed conditionally
-		for arg, ok := call.FirstArg(); ok; arg, ok = arg.Next() {
-			l.computeGenKillBits(arg.Node(), gen, kill, true)
-		}
-		return
-	case rhino.Token_HOOK:
-		hook := ast.MustHook(n)
-		l.computeGenKillBits(hook.Cond().Node(), gen, kill, conditional)
-		// Assume both sides are conditional.
-		l.computeGenKillBits(hook.Then().Node(), gen, kill, true)
-		l.computeGenKillBits(hook.Else().Node(), gen, kill, true)
-		return
+		return cfgCondEvalContinue, true
 	case rhino.Token_NAME:
 		if nodeStringID(n) == idArguments {
 			l.MarkAllParametersEscaped()
 		} else if !NodeUtil_IsLhsByDestructuring(n) {
 			// Only add names in destructuring patterns if they're not lvalues.
 			// e.g. "x" in "const {foo = x} = obj;"
-			l.addToSetIfLocalBits(n, gen)
+			l.addToSetIfLocalBits(n, &l.genScratch)
 		}
-		return
+		return cfgCondEvalContinue, true
 	default:
 		if assign, ok := ast.AsAssignment(n); ok {
 			if lhs, isName := assign.Target().AsName(); isName {
 				if !conditional {
-					l.addToSetIfLocalBits(lhs.Node(), kill)
+					l.addToSetIfLocalBits(lhs.Node(), &l.killScratch)
 				}
 				if assign.Token() != rhino.Token_ASSIGN {
 					// assignments such as a += 1 reads a.
-					l.addToSetIfLocalBits(lhs.Node(), gen)
+					l.addToSetIfLocalBits(lhs.Node(), &l.genScratch)
 				}
-				l.computeGenKillBits(assign.Value().Node(), gen, kill, conditional)
-				return
+				l.computeGenKillBits(assign.Value().Node(), conditional)
+				return cfgCondEvalContinue, true
 			}
 			if assign.Token() == rhino.Token_ASSIGN {
 				if pat, isPat := assign.Target().AsPattern(); isPat {
@@ -524,20 +470,17 @@ func (l *LiveVariablesAnalysis) computeGenKillBits(n rhino.Node, gen *smallBitSe
 							n,
 							func(child rhino.Node) {
 								if child.IsName() {
-									l.addToSetIfLocalBits(child, kill)
+									l.addToSetIfLocalBits(child, &l.killScratch)
 								}
 							})
 					}
-					l.computeGenKillBits(pat.Node(), gen, kill, conditional)
-					l.computeGenKillBits(assign.Value().Node(), gen, kill, conditional)
-					return
+					l.computeGenKillBits(pat.Node(), conditional)
+					l.computeGenKillBits(assign.Value().Node(), conditional)
+					return cfgCondEvalContinue, true
 				}
 			}
 		}
-		for c := n.GetFirstChild(); !c.IsNil(); c = c.GetNext() {
-			l.computeGenKillBits(c, gen, kill, conditional)
-		}
-		return
+		return cfgCondEvalContinue, false
 	}
 }
 

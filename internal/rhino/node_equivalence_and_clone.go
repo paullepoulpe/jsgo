@@ -39,6 +39,7 @@ package rhino
 import (
 	"strings"
 
+	"github.com/paullepoulpe/jsgo/internal/colors"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 )
 
@@ -266,6 +267,23 @@ func (n Node) IsEquivalentToWithModes(
 
 // isEquivalentToBase is Node's own isEquivalentTo (the super call of the
 // folded subclasses).
+func equalTypeOrColor(a, b any) bool {
+	if a == b {
+		return true
+	}
+	if a == nil || b == nil {
+		return false
+	}
+	if ta, ok := a.(JSType); ok {
+		tb, ok := b.(JSType)
+		return ok && jsTypeEquals(ta, tb)
+	}
+	if ca, ok := a.(*colors.Color); ok {
+		return ca != nil && ca.Equals(b)
+	}
+	return false
+}
+
 func (n Node) isEquivalentToBase(
 	node Node,
 	recursion Node_RecursionMode,
@@ -280,7 +298,7 @@ func (n Node) isEquivalentToBase(
 	}
 
 	if typeConfig == Node_TypeComparison_COMPARE &&
-		!jutil.ObjectsEquals(n.typeOrColorValue(), node.typeOrColorValue()) {
+		!equalTypeOrColor(n.typeOrColorValue(), node.typeOrColorValue()) {
 		return false
 	}
 

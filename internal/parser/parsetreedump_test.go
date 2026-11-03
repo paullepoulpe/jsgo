@@ -253,15 +253,15 @@ func (d *dumper) renderTokenFields(tok Token, cls string, depth int) {
 		d.line(depth, "value=", dumpQuote(tok.RawValue(d.file)))
 	case "TemplateLiteralToken":
 		errInfo := d.scanner.TemplateError(tok)
-		if lvl := errInfo.ErrorLevelPtr(); lvl == nil {
+		if errInfo.Level == 0 {
 			d.line(depth, "errorLevel=", "null")
 		} else {
-			d.line(depth, "errorLevel=", lvl.Name())
+			d.line(depth, "errorLevel=", TemplateLiteralToken_ErrorLevel(errInfo.Level-1).Name())
 		}
-		if msg := errInfo.ErrorMessagePtr(); msg == nil {
+		if !errInfo.HasMsg {
 			d.line(depth, "errorMessage=", "null")
 		} else {
-			d.line(depth, "errorMessage=", dumpQuote(*msg))
+			d.line(depth, "errorMessage=", dumpQuote(errInfo.Message))
 		}
 		d.line(depth, "errorPosition=", d.dumpPosition(errInfo.Position))
 		d.line(depth, "value=", dumpQuote(tok.RawValue(d.file)))

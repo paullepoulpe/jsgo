@@ -127,15 +127,16 @@ type HamtPMapArena[K, V comparable] struct {
 }
 
 // Reset clears used arena storage and resets indices for reuse while retaining
-// allocated chunk capacity.
+// a bounded working set of allocated chunks (via jutil.ReuseSlab.Reset).
 func (a *HamtPMapArena[K, V]) Reset() {
 	a.nodes.Reset(nil)
 	a.childBlocks.Reset(nil)
 	a.childSlice = nil
 }
 
-// TrimLargeChunks releases excess arena chunks after a large global pass while
-// retaining a small working set for function-level analyses.
+// TrimLargeChunks resets the arena and drops chunks beyond jutil.ReuseSlab's
+// bounded working set after a large global pass, retaining the initial working
+// set for subsequent function-level analyses.
 func (a *HamtPMapArena[K, V]) TrimLargeChunks() {
 	a.Reset()
 }
